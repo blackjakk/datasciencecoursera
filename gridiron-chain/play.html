@@ -650,15 +650,37 @@ function genPlayer(pos, tier) {
   else if (pos === "OL") player.archetype = pickOLArchetype(stats);
   return player;
 }
-function genRoster(playbook = PLAYBOOKS.BALANCED, overrides = {}) {
+// Generates a player whose name isn't already in `blockNames`. Falls back to
+// appending a roman-numeral suffix after exhausting random retries.
+function genUniquePlayer(pos, tier, blockNames) {
+  const block = blockNames || new Set();
+  let p = genPlayer(pos, tier);
+  let attempts = 0;
+  while (block.has(p.name) && attempts < 30) {
+    p = genPlayer(pos, tier);
+    attempts++;
+  }
+  if (block.has(p.name)) {
+    const suffixes = ["II", "III", "IV", "V", "VI", "VII"];
+    for (const s of suffixes) {
+      const candidate = `${p.name} ${s}`;
+      if (!block.has(candidate)) { p.name = candidate; break; }
+    }
+  }
+  return p;
+}
+function genRoster(playbook = PLAYBOOKS.BALANCED, overrides = {}, blockNames = null) {
   const r = [];
+  const used = new Set(blockNames || []);
   for (const [pos, count] of Object.entries(ROSTER_SLOTS)) {
     for (let i = 0; i < count; i++) {
       let tier;
       if (i === 0) tier = overrides[pos] || playbook.tierBias[pos] || "good";
       else if (i === 1) tier = "average";
       else tier = "poor";
-      r.push(genPlayer(pos, tier));
+      const player = genUniquePlayer(pos, tier, used);
+      used.add(player.name);
+      r.push(player);
     }
   }
   return r;
@@ -1575,15 +1597,29 @@ const preview = {
   home: { id: null, roster: null, overrides: {} },
   away: { id: null, roster: null, overrides: {} },
 };
-function regenerateFullRoster(team, overrides) {
+function regenerateFullRoster(team, overrides, blockNames = null) {
   const pb = getPlaybook(team);
-  const r = genRoster(pb);  // baseline with playbook bias
+  const r = genRoster(pb, {}, blockNames);
   for (const [key, tier] of Object.entries(overrides)) {
     const [pos, idxStr] = key.split(":");
     const abs = rosterSlotAbs(pos, +idxStr);
-    if (abs >= 0) r[abs] = genPlayer(pos, tier);
+    if (abs >= 0) {
+      // Block all CURRENT names in this roster (except the slot being replaced) + cross-team
+      const block = new Set([
+        ...r.filter((_, i) => i !== abs).map(p => p.name),
+        ...(blockNames || []),
+      ]);
+      r[abs] = genUniquePlayer(pos, tier, block);
+    }
   }
   return r;
+}
+// Collect the OTHER side's player names so the team we're regenerating
+// doesn't accidentally produce duplicates that break the hover lookup.
+function otherSideNames(side) {
+  const other = side === "home" ? "away" : "home";
+  const otherRoster = preview[other].roster;
+  return new Set((otherRoster || []).map(p => p.name));
 }
 function setupPreview(side, force = false) {
   const state = preview[side];
@@ -1592,7 +1628,7 @@ function setupPreview(side, force = false) {
   if (state.id !== newId || force) {
     state.id = newId;
     state.overrides = {};
-    state.roster = regenerateFullRoster(getTeam(newId), {});
+    state.roster = regenerateFullRoster(getTeam(newId), {}, otherSideNames(side));
   }
   renderDepthChart(side);
 }
@@ -1606,7 +1642,14 @@ function toggleSlotBoost(side, pos, idx, checked) {
   const pb = getPlaybook(team);
   const tier = state.overrides[key] || defaultTierFor(pos, idx, pb);
   const abs = rosterSlotAbs(pos, idx);
-  if (abs >= 0) state.roster[abs] = genPlayer(pos, tier);
+  if (abs >= 0) {
+    // Avoid name collisions with the rest of the roster + the other team
+    const block = new Set([
+      ...state.roster.filter((_, i) => i !== abs).map(p => p.name),
+      ...otherSideNames(side),
+    ]);
+    state.roster[abs] = genUniquePlayer(pos, tier, block);
+  }
   renderDepthChart(side);
 }
 function renderDepthChart(side) {
@@ -1699,9 +1742,23 @@ simBtn.addEventListener("click", () => {
   const homeRoster = (preview.home.id === homeId && preview.home.roster)
     ? preview.home.roster
     : regenerateFullRoster(home, {});
+  const homeBlock = new Set(homeRoster.map(p => p.name));
   const awayRoster = (preview.away.id === awayId && preview.away.roster)
     ? preview.away.roster
-    : regenerateFullRoster(away, {});
+    : regenerateFullRoster(away, {}, homeBlock);
+  // Sanity check: if any duplicates slipped through, rename them
+  const allNames = new Set();
+  for (const roster of [homeRoster, awayRoster]) {
+    for (const p of roster) {
+      if (allNames.has(p.name)) {
+        for (const s of ["II","III","IV","V","VI"]) {
+          const candidate = `${p.name} ${s}`;
+          if (!allNames.has(candidate)) { p.name = candidate; break; }
+        }
+      }
+      allNames.add(p.name);
+    }
+  }
   const sim = new GameSimulator(home, away, homeRoster, awayRoster);
   gameResult = sim.simulate();
   playHead = 0;
