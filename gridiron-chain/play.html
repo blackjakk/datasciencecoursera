@@ -231,6 +231,8 @@
   .badge-afc { background: #001a40; color: #5b9bd5; }
   .badge-nfc { background: #3d0000; color: #e07070; }
   .badge-gold { background: #3d3000; color: var(--gold); }
+  .badge-air { background: #002244; color: #69be28; letter-spacing: .6px; }
+  .badge-gnp { background: #3d1800; color: #ff9040; letter-spacing: .3px; }
 
   /* View mode toggle */
   .view-toggle {
@@ -317,22 +319,22 @@ const TEAMS = [
   { id:2,  city:"Stonehaven",  name:"Titans",     conference:"AFC", division:"East",  primary:"#4B92DB", secondary:"#FFFFFF", emoji:"⚡" },
   { id:3,  city:"Ironport",    name:"Wolves",     conference:"AFC", division:"East",  primary:"#1A1A1A", secondary:"#A0A0A0", emoji:"🐺" },
   { id:4,  city:"Coldwater",   name:"Buccaneers", conference:"AFC", division:"East",  primary:"#0072CE", secondary:"#FFB81C", emoji:"🏴‍☠️" },
-  { id:5,  city:"Steelforge",  name:"Hammers",    conference:"AFC", division:"North", primary:"#FFB612", secondary:"#101820", emoji:"🔨" },
+  { id:5,  city:"Steelforge",  name:"Hammers",    conference:"AFC", division:"North", primary:"#FFB612", secondary:"#101820", emoji:"🔨", playbook:"GROUND_AND_POUND" },
   { id:6,  city:"Riverdale",   name:"Grizzlies",  conference:"AFC", division:"North", primary:"#FB4F14", secondary:"#000000", emoji:"🐻" },
   { id:7,  city:"Coalport",    name:"Ravens",     conference:"AFC", division:"North", primary:"#241773", secondary:"#9E7C0C", emoji:"🦅" },
   { id:8,  city:"Lakewood",    name:"Bulldogs",   conference:"AFC", division:"North", primary:"#0B162A", secondary:"#C83803", emoji:"🐶" },
   { id:9,  city:"Sunbelt",     name:"Vipers",     conference:"AFC", division:"South", primary:"#002244", secondary:"#69BE28", emoji:"🐍" },
   { id:10, city:"Palmetto",    name:"Jaguars",    conference:"AFC", division:"South", primary:"#006778", secondary:"#D7A22A", emoji:"🐆" },
-  { id:11, city:"Bayou",       name:"Gators",     conference:"AFC", division:"South", primary:"#03202F", secondary:"#A71930", emoji:"🐊" },
+  { id:11, city:"Bayou",       name:"Gators",     conference:"AFC", division:"South", primary:"#03202F", secondary:"#A71930", emoji:"🐊", playbook:"GROUND_AND_POUND" },
   { id:12, city:"Redrock",     name:"Stallions",  conference:"AFC", division:"South", primary:"#4F2683", secondary:"#FFC62F", emoji:"🐎" },
   { id:13, city:"Desert",      name:"Scorpions",  conference:"AFC", division:"West",  primary:"#002244", secondary:"#C60C30", emoji:"🦂" },
-  { id:14, city:"Silicon",     name:"Raiders",    conference:"AFC", division:"West",  primary:"#101820", secondary:"#A5ACAF", emoji:"⚔️" },
+  { id:14, city:"Silicon",     name:"Raiders",    conference:"AFC", division:"West",  primary:"#101820", secondary:"#A5ACAF", emoji:"⚔️", playbook:"AIR_RAID" },
   { id:15, city:"Cascade",     name:"Thunder",    conference:"AFC", division:"West",  primary:"#002C5F", secondary:"#69BE28", emoji:"⛈️" },
   { id:16, city:"Frontier",    name:"Outlaws",    conference:"AFC", division:"West",  primary:"#E31837", secondary:"#FFB81C", emoji:"🤠" },
   { id:17, city:"Capitol",     name:"Sentinels",  conference:"NFC", division:"East",  primary:"#003594", secondary:"#869397", emoji:"🛡️" },
   { id:18, city:"Metro",       name:"Predators",  conference:"NFC", division:"East",  primary:"#004C54", secondary:"#A5ACAF", emoji:"🦁" },
   { id:19, city:"Eastport",    name:"Eagles",     conference:"NFC", division:"East",  primary:"#004C54", secondary:"#A5ACAF", emoji:"🦅" },
-  { id:20, city:"Colonial",    name:"Minutemen",  conference:"NFC", division:"East",  primary:"#003366", secondary:"#B0B7BC", emoji:"🎯" },
+  { id:20, city:"Colonial",    name:"Minutemen",  conference:"NFC", division:"East",  primary:"#003366", secondary:"#B0B7BC", emoji:"🎯", playbook:"AIR_RAID" },
   { id:21, city:"Great Lakes", name:"Frost",      conference:"NFC", division:"North", primary:"#4F2683", secondary:"#FFC62F", emoji:"❄️" },
   { id:22, city:"Ironwood",    name:"Vikings",    conference:"NFC", division:"North", primary:"#4B2E83", secondary:"#FFC62F", emoji:"🪓" },
   { id:23, city:"Prairie",     name:"Wolves",     conference:"NFC", division:"North", primary:"#203731", secondary:"#FFB612", emoji:"🐺" },
@@ -341,12 +343,45 @@ const TEAMS = [
   { id:26, city:"Gulf",        name:"Marauders",  conference:"NFC", division:"South", primary:"#D50A0A", secondary:"#0A0A08", emoji:"🏴" },
   { id:27, city:"Swamp",       name:"Kings",      conference:"NFC", division:"South", primary:"#002244", secondary:"#FFC62F", emoji:"👑" },
   { id:28, city:"Peach State", name:"Falcons",    conference:"NFC", division:"South", primary:"#A71930", secondary:"#000000", emoji:"🦅" },
-  { id:29, city:"Pacific",     name:"Surge",      conference:"NFC", division:"West",  primary:"#002244", secondary:"#69BE28", emoji:"🌊" },
-  { id:30, city:"Redwood",     name:"Giants",     conference:"NFC", division:"West",  primary:"#0B2265", secondary:"#A71930", emoji:"🌲" },
+  { id:29, city:"Pacific",     name:"Surge",      conference:"NFC", division:"West",  primary:"#002244", secondary:"#69BE28", emoji:"🌊", playbook:"AIR_RAID" },
+  { id:30, city:"Redwood",     name:"Giants",     conference:"NFC", division:"West",  primary:"#0B2265", secondary:"#A71930", emoji:"🌲", playbook:"GROUND_AND_POUND" },
   { id:31, city:"Canyon",      name:"Hawks",      conference:"NFC", division:"West",  primary:"#002244", secondary:"#A5ACAF", emoji:"🦅" },
   { id:32, city:"Volcanic",    name:"Fury",       conference:"NFC", division:"West",  primary:"#97233F", secondary:"#000000", emoji:"🌋" },
 ];
 const getTeam = id => TEAMS.find(t => t.id === Number(id));
+
+// ─── Playbooks ────────────────────────────────────────────────────────────
+const PLAYBOOKS = {
+  BALANCED: {
+    id: "BALANCED", name: "Balanced", badge: "BAL",
+    passProb: { long: 0.72, mid: 0.58, short: 0.42 },
+    targetMix: { wr1: 0.40, wr2: 0.30, te: 0.22, rb: 0.08 },
+    tierBias: {},
+  },
+  AIR_RAID: {
+    id: "AIR_RAID", name: "Air Raid", badge: "AIR",
+    passProb: { long: 0.90, mid: 0.78, short: 0.62 },
+    targetMix: { wr1: 0.42, wr2: 0.32, te: 0.16, rb: 0.10 },
+    tierBias: { QB: "elite", WR: "elite" },
+  },
+  GROUND_AND_POUND: {
+    id: "GROUND_AND_POUND", name: "Ground & Pound", badge: "G&P",
+    passProb: { long: 0.55, mid: 0.34, short: 0.20 },
+    targetMix: { wr1: 0.28, wr2: 0.20, te: 0.34, rb: 0.18 },
+    tierBias: { RB: "elite", OL: "elite" },
+  },
+};
+
+function getPlaybook(team) { return PLAYBOOKS[team?.playbook] || PLAYBOOKS.BALANCED; }
+
+function pickReceiver(playbook, starters) {
+  const { wr1, wr2, te, rb } = playbook.targetMix;
+  const roll = Math.random();
+  if (roll < wr1) return starters.wr1;
+  if (roll < wr1 + wr2) return starters.wr2;
+  if (roll < wr1 + wr2 + te) return starters.te;
+  return starters.rb;
+}
 
 // ─── Player generation ────────────────────────────────────────────────────
 const FIRST = ["Marcus","Tyler","Darius","Jordan","Malik","Devon","Elijah","Xavier","Cameron","Jaylen","Trevor","Caleb","Nathan","Brandon","Derrick","Antonio","Deon","Travon","Rasheed","Quincy","Zach","Hunter","Brayden","Cole","Jake","Ryan","Luke","Evan","Aaron","Chris","Isaiah","Jamal","Tyrone","Lamar","Andre","Reggie","Stefon","Amari","Cooper","Travis"];
@@ -396,11 +431,14 @@ function genPlayer(pos, tier) {
   const stats = statsFor(pos, tier);
   return { name: randName(), position: pos, age: rand(21, 33), stats, overall: calcOverall(pos, stats) };
 }
-function genRoster() {
+function genRoster(playbook = PLAYBOOKS.BALANCED) {
   const r = [];
   for (const [pos, count] of Object.entries(ROSTER_SLOTS)) {
     for (let i = 0; i < count; i++) {
-      const tier = i === 0 ? "good" : i === 1 ? "average" : "poor";
+      let tier;
+      if (i === 0) tier = playbook.tierBias[pos] || "good";
+      else if (i === 1) tier = "average";
+      else tier = "poor";
       r.push(genPlayer(pos, tier));
     }
   }
@@ -442,6 +480,7 @@ function buildRatings(roster) {
 class GameSimulator {
   constructor(home, away, hRoster, aRoster) {
     this.home = home; this.away = away;
+    this.homePlaybook = getPlaybook(home); this.awayPlaybook = getPlaybook(away);
     this.homeR = buildRatings(hRoster); this.awayR = buildRatings(aRoster);
     this.score = { home: 0, away: 0 };
     this.quarter = 1; this.time = 900;
@@ -484,8 +523,9 @@ class GameSimulator {
       fg_made: 0, fg_att: 0, fg_long: 0, xp_made: 0, xp_att: 0,
     };
   }
-  get offR()     { return this.poss === "home" ? this.homeR : this.awayR; }
-  get defR()     { return this.poss === "home" ? this.awayR : this.homeR; }
+  get offR()       { return this.poss === "home" ? this.homeR : this.awayR; }
+  get defR()       { return this.poss === "home" ? this.awayR : this.homeR; }
+  get offPlaybook(){ return this.poss === "home" ? this.homePlaybook : this.awayPlaybook; }
   get possTeam() { return this.poss === "home" ? this.home : this.away; }
   get offStats() { return this.stats[this.poss]; }
   get defStats() { return this.stats[this.poss === "home" ? "away" : "home"]; }
@@ -543,7 +583,8 @@ class GameSimulator {
     off.team.plays++;
     if (isThird) off.team.thirdAtt++;
     const isLong = this.ytg >= 8, isShort = this.ytg <= 2;
-    const passProb = isLong ? 0.72 : isShort ? 0.42 : 0.58;
+    const pb = this.offPlaybook;
+    const passProb = isLong ? pb.passProb.long : isShort ? pb.passProb.short : pb.passProb.mid;
     const playType = Math.random() < passProb ? "pass" : "run";
 
     if (playType === "pass") {
@@ -571,8 +612,7 @@ class GameSimulator {
       if (Math.random() < compPct) {
         const yards = clamp(normal(8.5 + adv * 3, 12), -2, 70);
         const targetDepth = clamp(yards + rand(-2, 4), 1, 60);
-        const rcvrPick = Math.random();
-        const rcvr = rcvrPick < 0.4 ? this.offR.starters.wr1 : rcvrPick < 0.7 ? this.offR.starters.wr2 : this.offR.starters.te;
+        const rcvr = pickReceiver(pb, this.offR.starters);
         const rcvrStats = off.players[rcvr];
         if (qbStats) { qbStats.pass_att++; qbStats.pass_comp++; qbStats.pass_yds += yards; if (yards > qbStats.pass_long) qbStats.pass_long = yards; }
         if (rcvrStats) { rcvrStats.rec_tgt++; rcvrStats.rec++; rcvrStats.rec_yds += yards; if (yards > rcvrStats.rec_long) rcvrStats.rec_long = yards; }
@@ -582,8 +622,7 @@ class GameSimulator {
         return { yards };
       }
       const targetDepth = clamp(normal(13, 8), 3, 45);
-      const rcvrPick = Math.random();
-      const rcvr = rcvrPick < 0.4 ? this.offR.starters.wr1 : rcvrPick < 0.7 ? this.offR.starters.wr2 : this.offR.starters.te;
+      const rcvr = pickReceiver(pb, this.offR.starters);
       const rcvrStats = off.players[rcvr];
       if (qbStats) qbStats.pass_att++;
       if (rcvrStats) rcvrStats.rec_tgt++;
@@ -964,7 +1003,9 @@ function buildOptions(sel, defaultId) {
     for (const t of TEAMS.filter(x => x.conference === conf)) {
       const o = document.createElement("option");
       o.value = t.id;
-      o.textContent = `${t.emoji} ${t.city} ${t.name} (${t.division})`;
+      const pb = getPlaybook(t);
+      const pbTag = pb.id !== "BALANCED" ? ` · ${pb.badge}` : "";
+      o.textContent = `${t.emoji} ${t.city} ${t.name} (${t.division})${pbTag}`;
       og.appendChild(o);
     }
     sel.appendChild(og);
@@ -985,7 +1026,7 @@ simBtn.addEventListener("click", () => {
   const homeId = +homeSel.value, awayId = +awaySel.value;
   if (homeId === awayId) { alert("Pick two different teams!"); return; }
   const home = getTeam(homeId), away = getTeam(awayId);
-  const sim = new GameSimulator(home, away, genRoster(), genRoster());
+  const sim = new GameSimulator(home, away, genRoster(getPlaybook(home)), genRoster(getPlaybook(away)));
   gameResult = sim.simulate();
   playHead = 0;
   renderGameLayout();
@@ -2716,11 +2757,18 @@ function renderScoreboard(curPlay) {
   const winner = ended ? gameResult.winner : null;
   const sb = $("scoreboard");
   if (!sb) return;
+  const pbBadge = team => {
+    const pb = getPlaybook(team);
+    if (pb.id === "AIR_RAID")        return `<span class="badge badge-air">AIR RAID</span>`;
+    if (pb.id === "GROUND_AND_POUND") return `<span class="badge badge-gnp">G&amp;P</span>`;
+    return "";
+  };
   sb.innerHTML = `
     <div class="score-team">
       <div class="score-team-emoji">${gameResult.homeTeam.emoji}</div>
       <div class="score-team-full">${gameResult.homeTeam.city}</div>
       <div class="score-team-name">${gameResult.homeTeam.name}</div>
+      ${pbBadge(gameResult.homeTeam)}
       <div class="score-num ${winner === "home" ? "win" : ""}">${homeScore}</div>
       ${last?.poss === "home" && !ended ? `<div class="poss-indicator">🏈 POSS</div>` : ""}
     </div>
@@ -2735,6 +2783,7 @@ function renderScoreboard(curPlay) {
       <div class="score-team-emoji">${gameResult.awayTeam.emoji}</div>
       <div class="score-team-full">${gameResult.awayTeam.city}</div>
       <div class="score-team-name">${gameResult.awayTeam.name}</div>
+      ${pbBadge(gameResult.awayTeam)}
       <div class="score-num ${winner === "away" ? "win" : ""}">${awayScore}</div>
       ${last?.poss === "away" && !ended ? `<div class="poss-indicator">🏈 POSS</div>` : ""}
     </div>
