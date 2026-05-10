@@ -1019,6 +1019,40 @@ function drawPlayer(ctx, x, y, color, secondary, label) {
   ctx.restore();
 }
 
+// Goalpost (Y-shape, tall yellow uprights) at (cx, cy) — used in tactical view
+function drawGoalposts(ctx, cx, cy) {
+  const POST_HALF = 40;     // distance from center to each upright
+  const POST_TOP  = FIELD.TOP - 4;
+  const POST_BOT  = cy + 22;
+  ctx.save();
+  ctx.strokeStyle = "#ffe048";
+  ctx.lineWidth = 4;
+  ctx.lineCap = "round";
+  // Crossbar
+  ctx.beginPath();
+  ctx.moveTo(cx - POST_HALF, cy);
+  ctx.lineTo(cx + POST_HALF, cy);
+  ctx.stroke();
+  // Uprights
+  ctx.beginPath();
+  ctx.moveTo(cx - POST_HALF, cy);
+  ctx.lineTo(cx - POST_HALF, POST_TOP);
+  ctx.moveTo(cx + POST_HALF, cy);
+  ctx.lineTo(cx + POST_HALF, POST_TOP);
+  ctx.stroke();
+  // Center support down to ground
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx, POST_BOT);
+  ctx.stroke();
+  // Base
+  ctx.fillStyle = "#ffe048";
+  ctx.beginPath();
+  ctx.ellipse(cx, POST_BOT, 6, 2.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 function drawBall(ctx, x, y, scale = 1) {
   ctx.save();
   ctx.translate(x, y);
@@ -1646,53 +1680,92 @@ function buildAnimForPlay(play, prevPlay) {
 
   if (play.kind === "fg_good" || play.kind === "fg_miss") {
     const isGood = play.kind === "fg_good";
-    return { duration: 1700, kind: play.kind, render: (t, c) => {
+    // Determine miss type deterministically per play
+    const missRoll = ((play.startYard * 17 + (play.time || 0)) >>> 0) % 100 / 100;
+    const missType = isGood ? "good" : (missRoll < 0.5 ? (missRoll < 0.25 ? "wide_l" : "wide_r") : "short");
+    const HASH_HALF = 40; // half-distance between uprights in px
+    return { duration: 2400, kind: play.kind, render: (t, c) => {
       ctx = c;
       drawField(ctx, homeTeam, awayTeam, fieldState);
+      // Goalpost at back of end zone
+      const goalX = poss === "home" ? FIELD.W - FIELD.EZ_PX * 0.4 : FIELD.EZ_PX * 0.4;
+      drawGoalposts(ctx, goalX, cy);
       drawPlayers(formation.offense, formation.defense);
-      // Ball: from holder spot (LOS - 7yd) → through goalpost (or wide)
       const startX = losX - dir * 7 * FIELD.PX_PER_YARD;
       const startY = cy;
-      const goalX = poss === "home" ? FIELD.W - FIELD.EZ_PX : FIELD.EZ_PX;
-      const goalY = isGood ? cy : cy + (Math.random() < 0.5 ? -50 : 50);
+      // Trajectory endpoint
+      let goalY = cy;
+      let goalArcMul = 1;
+      if (missType === "wide_l") goalY = cy - HASH_HALF - 8;
+      else if (missType === "wide_r") goalY = cy + HASH_HALF + 8;
+      else if (missType === "short") { goalArcMul = 0.55; } // never reaches goalX
       let ballX, ballY, arc;
       if (t < 0.15) { ballX = startX; ballY = startY; arc = 0; }
       else {
         const tt = (t - 0.15) / 0.85;
-        ballX = startX + (goalX - startX) * tt;
+        const reach = missType === "short" ? 0.78 : 1;
+        ballX = startX + (goalX - startX) * tt * reach;
         ballY = startY + (goalY - startY) * tt;
-        arc = Math.sin(tt * Math.PI) * 90;
+        arc = Math.sin(tt * Math.PI) * 90 * goalArcMul;
       }
       drawBall(ctx, ballX, ballY - arc, 1 + (arc / 200));
-      // Goalpost flash
-      if (t > 0.85 && isGood) {
-        ctx.strokeStyle = "rgba(240,204,48,0.8)";
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        ctx.moveTo(goalX, FIELD.TOP); ctx.lineTo(goalX, FIELD.BOT);
-        ctx.stroke();
+      // Result banner at end
+      if (t > 0.82) {
+        const banT = Math.min(1, (t - 0.82) / 0.18);
+        ctx.save();
+        ctx.globalAlpha = banT;
+        ctx.fillStyle = isGood ? "#f0cc30" : "#e07070";
+        ctx.font = "900 44px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(isGood ? "IT'S GOOD!" : missType === "short" ? "SHORT!" : missType === "wide_l" ? "WIDE LEFT!" : "WIDE RIGHT!", FIELD.W / 2, 60);
+        ctx.restore();
       }
     }};
   }
 
   if (play.kind === "punt") {
     const endX = yardToAbsX(play.endYard, poss);
-    return { duration: 2000, kind: "punt", render: (t, c) => {
+    const returnerY = cy + (((play.startYard * 23 + (play.time || 0)) >>> 0) % 80) - 40;
+    return { duration: 2400, kind: "punt", render: (t, c) => {
       ctx = c;
       drawField(ctx, homeTeam, awayTeam, fieldState);
-      drawPlayers(formation.offense, formation.defense);
       const startX = losX - dir * 12 * FIELD.PX_PER_YARD;
-      const startY = cy;
       let ballX, ballY, arc = 0;
       if (t < 0.1) { ballX = losX; ballY = cy; }
       else if (t < 0.25) { ballX = losX + (startX - losX) * ((t - 0.1) / 0.15); ballY = cy; }
-      else {
-        const tt = (t - 0.25) / 0.75;
+      else if (t < 0.78) {
+        const tt = (t - 0.25) / 0.53;
         ballX = startX + (endX - startX) * tt;
         arc = Math.sin(tt * Math.PI) * 160;
-        ballY = cy - arc;
+        ballY = cy - arc + (returnerY - cy) * tt;
+      } else {
+        // Returner has the ball — bring it back a few yards
+        const tt = (t - 0.78) / 0.22;
+        ballX = endX - dir * tt * 18;
+        ballY = returnerY;
+      }
+      // Punter
+      const punter = { x: startX, y: cy, role: "P" };
+      drawPlayer(ctx, punter.x, punter.y, possColor, team.secondary);
+      // Returner at landing spot
+      const returner = { x: endX, y: returnerY };
+      drawPlayer(ctx, returner.x, returner.y, oppColor, oppTeam.secondary);
+      // Coverage team — 3 chasers running downfield
+      for (let i = 0; i < 3; i++) {
+        const chaserStartX = losX + dir * (i - 1) * 12;
+        const chaserX = chaserStartX + (endX - chaserStartX) * Math.min(1, t * 1.1);
+        const chaserY = cy + (i - 1) * 22;
+        drawPlayer(ctx, chaserX, chaserY, possColor, team.secondary);
       }
       drawBall(ctx, ballX, ballY, 1 + arc / 200);
+      if (t > 0.78) {
+        ctx.save();
+        ctx.fillStyle = "#fff";
+        ctx.font = "900 22px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("CATCH", endX, returnerY - 22);
+        ctx.restore();
+      }
     }};
   }
 
@@ -2391,6 +2464,42 @@ function drawFace(ctx, x, y, faceSeed, flipped) {
   ctx.restore();
 }
 
+// Top-down goalposts at (cx, cy) — the goal line cross-bar and uprights span lateral Y.
+// In top-down view, the goalposts look like an H with the crossbar running along the
+// goal line vertically (in screen Y), and the uprights extending into the end zone (X).
+function drawTopDownGoalposts(ctx, cx, cy) {
+  const POST_LAT = CINEMA.lateralPxPerYard * 3.1; // ~3.1 yds from center to each upright
+  const POST_BACK = 60;                            // how far behind goal line the uprights extend
+  ctx.save();
+  ctx.strokeStyle = "#ffe048";
+  ctx.lineWidth = 5;
+  ctx.lineCap = "round";
+  ctx.shadowColor = "rgba(255,224,72,0.5)";
+  ctx.shadowBlur = 6;
+  // Crossbar (between uprights, along Y axis)
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - POST_LAT);
+  ctx.lineTo(cx, cy + POST_LAT);
+  ctx.stroke();
+  // Two uprights extending back from crossbar
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - POST_LAT); ctx.lineTo(cx + POST_BACK, cy - POST_LAT);
+  ctx.moveTo(cx, cy + POST_LAT); ctx.lineTo(cx + POST_BACK, cy + POST_LAT);
+  ctx.stroke();
+  // Support pole (front of crossbar, lateral center)
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx - 14, cy);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  // Base disc
+  ctx.fillStyle = "#ffe048";
+  ctx.beginPath();
+  ctx.arc(cx - 16, cy, 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 // Draw a TD-style firework burst at (x, y)
 function drawFirework(ctx, x, y, t01, hue) {
   // t01: 0 → 1 expansion. Particle radius grows; alpha fades.
@@ -2928,29 +3037,34 @@ function buildCinemaAnim(play, prevPlay) {
   if (play.kind === "fg_good" || play.kind === "fg_miss") {
     const isGood = play.kind === "fg_good";
     const kickerSeed = nameSeed(play.kicker);
-    return { duration: 2200, kind: play.kind, render: (t, ctx) => {
+    // Determine miss type deterministically
+    const missRoll = playSeed(play, 77);
+    const missType = isGood ? "good" : (missRoll < 0.5 ? (missRoll < 0.25 ? "wide_l" : "wide_r") : "short");
+    return { duration: 2600, kind: play.kind, render: (t, ctx) => {
       const holderWX = losWX - 7 * CINEMA.pxPerYard;
-      const goalWX = yardToWorldX(100);
+      const goalWX = yardToWorldX(110); // goalpost back of end zone
       let ballWX, ballArc = 0, ballLat = 0;
       if (t < 0.22) { ballWX = holderWX; }
       else {
         const tt = (t - 0.22) / 0.78;
-        ballWX = holderWX + (goalWX - holderWX) * tt;
-        ballArc = Math.sin(tt * Math.PI) * 140;
-        // Miss drifts laterally
-        if (!isGood) ballLat = Math.sin(tt * 1.4) * 6;
+        let reach = 1;
+        if (missType === "wide_l") ballLat = -3.5 * Math.min(1, tt * 1.2);
+        else if (missType === "wide_r") ballLat = 3.5 * Math.min(1, tt * 1.2);
+        else if (missType === "short") { reach = 0.72; }
+        ballWX = holderWX + (goalWX - holderWX) * tt * reach;
+        ballArc = Math.sin(tt * Math.PI) * 200 * (missType === "short" ? 0.6 : 1);
       }
       setCamFromCarrier((holderWX + goalWX) / 2);
       drawCinemaField(ctx, homeTeam, awayTeam, { losYard: startYardAbs });
+      // Big top-down goalposts (drawn in screen coords past the goal line)
+      drawTopDownGoalposts(ctx, worldToScreenX(goalWX), lateralToScreenY(0));
       const sprites = [];
       sprites.push({ x: worldToScreenX(holderWX), y: lateralToScreenY(0), team: offTeam, frame: t > 0.3 ? "stiff" : "idle", flipped: false, faceSeed: kickerSeed });
       sprites.push({ x: worldToScreenX(holderWX - 25), y: lateralToScreenY(0.5), team: offTeam, frame: "tackled", flipped: false, faceSeed: nameSeed("Holder") });
-      // 5-man line just in front
       const lineLats = [-4, -2, 0, 2, 4];
       for (let i = 0; i < 5; i++) {
         sprites.push({ x: worldToScreenX(losWX - 0.7 * CINEMA.pxPerYard), y: lateralToScreenY(lineLats[i]), team: offTeam, frame: "idle", flipped: false, faceSeed: nameSeed("OL", i) });
       }
-      // Defenders attempt block
       const dLats = [-3, 0, 3];
       for (let i = 0; i < 3; i++) {
         sprites.push({ x: worldToScreenX(losWX + 1 * CINEMA.pxPerYard + Math.min(t, 0.4) * 20), y: lateralToScreenY(dLats[i]), team: defTeam, frame: t > 0.3 ? "leap" : "idle", flipped: true, faceSeed: nameSeed("DL", i) });
@@ -2962,17 +3076,24 @@ function buildCinemaAnim(play, prevPlay) {
       ctx.fillStyle = "rgba(0,0,0,0.3)";
       ctx.beginPath(); ctx.ellipse(bsX, lateralToScreenY(ballLat), 5, 2, 0, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = "#8a4520";
-      ctx.beginPath(); ctx.ellipse(bsX, bsY, 7, 4.2, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(bsX, bsY, 8, 5, 0, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = "#fff";
       ctx.fillRect(bsX - 2, bsY - 1, 4, 1);
-      // Goalpost result
-      if (t > 0.85) {
+      // Result banner
+      if (t > 0.82) {
+        const banT = Math.min(1, (t - 0.82) / 0.18);
+        ctx.save();
+        ctx.globalAlpha = banT;
+        ctx.fillStyle = "rgba(0,0,0,0.7)";
+        ctx.fillRect(0, 18, FIELD.W, 64);
         ctx.fillStyle = isGood ? "#f0cc30" : "#e07070";
-        ctx.font = "900 42px sans-serif";
+        ctx.font = "900 44px sans-serif";
         ctx.textAlign = "center";
-        ctx.fillText(isGood ? "IT'S GOOD!" : "NO GOOD!", FIELD.W / 2, 50);
+        ctx.textBaseline = "middle";
+        ctx.fillText(isGood ? "IT'S GOOD!" : missType === "short" ? "NO GOOD — SHORT!" : missType === "wide_l" ? "NO GOOD — WIDE LEFT" : "NO GOOD — WIDE RIGHT", FIELD.W / 2, 50);
+        ctx.restore();
         if (isGood && t > 0.92) {
-          const ageMs = (t - 0.92) * 2200;
+          const ageMs = (t - 0.92) * 2600;
           drawFireworksShow(ctx, ageMs);
         }
       }
@@ -2981,31 +3102,66 @@ function buildCinemaAnim(play, prevPlay) {
 
   if (play.kind === "punt") {
     const punterSeed = nameSeed(play.kicker || play.passer);
-    return { duration: 2000, kind: "punt", render: (t, ctx) => {
+    // Returner's lateral position (random but stable)
+    const returnerLat = (playSeed(play, 51) - 0.5) * 14;
+    return { duration: 2700, kind: "punt", render: (t, ctx) => {
       const punterWX = losWX - 12 * CINEMA.pxPerYard;
       const landWX = endWX;
-      let ballWX, ballArc = 0;
+      let ballWX, ballArc = 0, ballLat = 0, carrierWX = landWX, carrierLat = returnerLat;
       if (t < 0.20) { ballWX = punterWX; }
-      else {
-        const tt = (t - 0.20) / 0.80;
+      else if (t < 0.78) {
+        const tt = (t - 0.20) / 0.58;
         ballWX = punterWX + (landWX - punterWX) * tt;
         ballArc = Math.sin(tt * Math.PI) * 200;
+        ballLat = 0 + (returnerLat - 0) * tt;
+      } else {
+        // Returner has the ball — runs back a few yards
+        const tt = (t - 0.78) / 0.22;
+        carrierWX = landWX - tt * 24;
+        ballWX = carrierWX;
+        ballLat = returnerLat;
       }
-      setCamFromCarrier(ballWX);
+      setCamFromCarrier(t < 0.78 ? ballWX : carrierWX);
       drawCinemaField(ctx, homeTeam, awayTeam, { losYard: startYardAbs });
       const sprites = [];
+      // Punter
       sprites.push({ x: worldToScreenX(punterWX), y: lateralToScreenY(0), team: offTeam, frame: t > 0.2 ? "stiff" : "idle", flipped: false, faceSeed: punterSeed });
+      // OL protecting punter
       const lineLats = [-4, -2, 0, 2, 4];
       for (let i = 0; i < 5; i++) {
         sprites.push({ x: worldToScreenX(losWX - 0.7 * CINEMA.pxPerYard), y: lateralToScreenY(lineLats[i]), team: offTeam, frame: "idle", flipped: false, faceSeed: nameSeed("OL", i) });
       }
+      // Gunners (coverage team) chasing downfield
+      for (let i = 0; i < 4; i++) {
+        const gStartWX = losWX + (i - 1.5) * 18;
+        const gWX = gStartWX + (landWX - gStartWX) * Math.min(1, t * 1.1);
+        const gLat = (i - 1.5) * 6 + (returnerLat - ((i - 1.5) * 6)) * Math.min(1, t * 1.2) * 0.5;
+        const frame = (Math.floor(t * 10 + i) % 2 === 0) ? "run_a" : "run_b";
+        sprites.push({ x: worldToScreenX(gWX), y: lateralToScreenY(gLat), team: offTeam, frame, flipped: false, faceSeed: nameSeed("G", i) });
+      }
+      // Returner — moves toward landing spot, then catches
+      const returnerFrame = t < 0.7 ? "idle" : t < 0.82 ? "catch" : (Math.floor(t * 10) % 2 === 0 ? "run_a" : "run_b");
+      sprites.push({ x: worldToScreenX(carrierWX), y: lateralToScreenY(returnerLat), team: defTeam, frame: returnerFrame, flipped: true, faceSeed: nameSeed("Returner") });
+      // Blockers near returner
+      for (let i = 0; i < 2; i++) {
+        const bLat = returnerLat + (i === 0 ? -5 : 5);
+        sprites.push({ x: worldToScreenX(landWX - 20), y: lateralToScreenY(bLat), team: defTeam, frame: "idle", flipped: true, faceSeed: nameSeed("Block", i) });
+      }
       drawSpriteList(ctx, sprites);
+      // Ball
       const bsX = worldToScreenX(ballWX);
-      const bsY = lateralToScreenY(0) - ballArc;
+      const bsY = lateralToScreenY(ballLat) - ballArc;
       ctx.fillStyle = "rgba(0,0,0,0.3)";
-      ctx.beginPath(); ctx.ellipse(bsX, lateralToScreenY(0), 5, 2, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(bsX, lateralToScreenY(ballLat), 5, 2, 0, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = "#8a4520";
-      ctx.beginPath(); ctx.ellipse(bsX, bsY, 7, 4.2, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(bsX, bsY, 8, 5, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(bsX - 2, bsY - 1, 4, 1);
+      // CATCH callout when returner secures it
+      if (t > 0.74 && t < 0.86) {
+        const cT = (t - 0.74) / 0.12;
+        drawHeadCallout(ctx, worldToScreenX(landWX), lateralToScreenY(returnerLat) - 60, "FIELDED!", "#9be09b", 0.7 + cT * 0.3);
+      }
     }};
   }
 
