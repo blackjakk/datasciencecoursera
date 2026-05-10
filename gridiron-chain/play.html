@@ -509,17 +509,18 @@ const PLAYBOOKS = {
     compMul: 1.0, sackMul: 1.05,
     qbScramblePct: 0.22,
   },
-  // Read-Option / RPO: heavy designed QB carries — option-style mobile-QB run game
+  // Read-Option / RPO: mobile QB carries — option-style run game with tradeoffs
   OPTION: {
     id: "OPTION", name: "Read Option", badge: "OPT",
-    passProb: { long: 0.62, mid: 0.40, short: 0.22 },
+    passProb: { long: 0.58, mid: 0.36, short: 0.22 },
     targetMix: { wr1: 0.30, wr2: 0.22, te: 0.28, rb: 0.20 },
-    tierBias: { QB: "elite", RB: "elite" },
-    airYdsMean: 8, airYdsSd: 6.5,
-    rushYdsMean: 5.2, rushYdsSd: 6,
-    compMul: 1.0, sackMul: 1.05,
-    qbScramblePct: 0.30,  // also scrambles a lot when dropping back
-    qbRushPct: 0.45,      // 45% of designed runs are QB carries
+    tierBias: { QB: "elite" },        // only QB elite — RB just gets default "good"
+    airYdsMean: 7, airYdsSd: 7,       // tighter, more YAC-dependent throws
+    rushYdsMean: 4.6, rushYdsSd: 6,   // good run game but not elite by default
+    compMul: 0.95, sackMul: 1.15,     // QB takes more sacks holding for reads
+    qbScramblePct: 0.18,              // (was 0.30) — slightly more than DUAL_THREAT
+    qbRushPct: 0.30,                  // (was 0.45) — fewer designed QB carries
+    qbRushFumbleMul: 1.6,             // option pitches/keeps fumble more often
   },
 };
 
@@ -714,6 +715,17 @@ function buildRatings(roster) {
       wr2: (byPos.WR?.[1])?.name || "WR2",
       te:  (byPos.TE?.[0])?.name || "TE",
       k:   (byPos.K?.[0])?.name  || "K",
+      de1: byPos.DL?.[0]?.name || "LDE",
+      dt1: byPos.DL?.[1]?.name || "LDT",
+      dt2: byPos.DL?.[2]?.name || "RDT",
+      de2: byPos.DL?.[3]?.name || "RDE",
+      lb1: byPos.LB?.[0]?.name || "WLB",
+      lb2: byPos.LB?.[1]?.name || "MLB",
+      lb3: byPos.LB?.[2]?.name || "SLB",
+      cb1: byPos.CB?.[0]?.name || "CB1",
+      cb2: byPos.CB?.[1]?.name || "CB2",
+      fs:  byPos.S?.[0]?.name  || "FS",
+      ss:  byPos.S?.[1]?.name  || "SS",
     }
   };
 }
@@ -754,6 +766,12 @@ class GameSimulator {
     add(starters.wr2, "WR");
     add(starters.te, "TE");
     add(starters.k,  "K");
+    // Defensive starters get rows too
+    add(starters.de1, "DE"); add(starters.de2, "DE");
+    add(starters.dt1, "DT"); add(starters.dt2, "DT");
+    add(starters.lb1, "LB"); add(starters.lb2, "LB"); add(starters.lb3, "LB");
+    add(starters.cb1, "CB"); add(starters.cb2, "CB");
+    add(starters.fs,  "FS"); add(starters.ss,  "SS");
     return {
       team: {
         plays: 0, totalYds: 0, passYds: 0, rushYds: 0,
@@ -772,7 +790,45 @@ class GameSimulator {
       rush_att: 0, rush_yds: 0, rush_td: 0, rush_long: 0,
       rec_tgt: 0, rec: 0, rec_yds: 0, rec_td: 0, rec_long: 0,
       fg_made: 0, fg_att: 0, fg_long: 0, xp_made: 0, xp_att: 0,
+      // Defensive stats
+      tkl: 0, sk: 0, sk_yds: 0, int_made: 0, pd: 0, ff: 0, fr: 0, def_td: 0,
     };
+  }
+  // Pick a defender (weighted by position) and credit a stat field
+  _creditDefStat(field, weights) {
+    const def = this.defStats;
+    if (!def) return;
+    const defStarters = this.defR.starters;
+    // weights = { LB: 0.4, S: 0.3, DL: 0.15, CB: 0.15 }
+    const pool = [];
+    const addCandidate = (name, w) => { if (name) pool.push({ name, w }); };
+    if (weights.LB) {
+      addCandidate(defStarters.lb1, weights.LB);
+      addCandidate(defStarters.lb2, weights.LB);
+      addCandidate(defStarters.lb3, weights.LB);
+    }
+    if (weights.S) {
+      addCandidate(defStarters.fs, weights.S);
+      addCandidate(defStarters.ss, weights.S);
+    }
+    if (weights.DL) {
+      addCandidate(defStarters.de1, weights.DL);
+      addCandidate(defStarters.de2, weights.DL);
+      addCandidate(defStarters.dt1, weights.DL);
+      addCandidate(defStarters.dt2, weights.DL);
+    }
+    if (weights.CB) {
+      addCandidate(defStarters.cb1, weights.CB);
+      addCandidate(defStarters.cb2, weights.CB);
+    }
+    if (!pool.length) return null;
+    const total = pool.reduce((a, b) => a + b.w, 0);
+    let r = Math.random() * total;
+    let chosen = pool[pool.length - 1];
+    for (const c of pool) { r -= c.w; if (r <= 0) { chosen = c; break; } }
+    const p = def.players[chosen.name];
+    if (p) p[field] = (p[field] || 0) + 1;
+    return chosen.name;
   }
   get offR()       { return this.poss === "home" ? this.homeR : this.awayR; }
   get defR()       { return this.poss === "home" ? this.awayR : this.homeR; }
@@ -925,7 +981,9 @@ class GameSimulator {
         if (qbStats) { qbStats.pass_att++; qbStats.pass_int++; }
         off.team.pass_att++; off.team.turnovers++;
         def.team.takeaways++;
-        this._pushVisual({ kind: "int", desc: `INTERCEPTION! ${this.offR.starters.qb} picked off!`, startYard, targetDepth, endYard: startYard, passer: this.offR.starters.qb });
+        // Credit INT to a DB (CB or S)
+        const intBy = this._creditDefStat("int_made", { CB: 0.55, S: 0.35, LB: 0.10 });
+        this._pushVisual({ kind: "int", desc: `INTERCEPTION! ${this.offR.starters.qb} picked off!`, startYard, targetDepth, endYard: startYard, passer: this.offR.starters.qb, defender: intBy });
         return { turnover: true };
       }
       // Sacks: heavily driven by the OL-vs-DL trench matchup (pressure)
@@ -935,6 +993,12 @@ class GameSimulator {
         const loss = rand(3, 11);
         if (qbStats) { qbStats.sacks_taken++; qbStats.sack_yds += loss; }
         off.team.sacks_allowed++; def.team.sacks++;
+        // Credit the sack to the DL who won the rep (also count as tackle)
+        if (reps.dl?.name && def.players[reps.dl.name]) {
+          def.players[reps.dl.name].sk = (def.players[reps.dl.name].sk || 0) + 1;
+          def.players[reps.dl.name].sk_yds = (def.players[reps.dl.name].sk_yds || 0) + loss;
+          def.players[reps.dl.name].tkl = (def.players[reps.dl.name].tkl || 0) + 1;
+        }
         // Pick a move from the DL's archetype toolkit
         const moves = DL_ARCHETYPES[reps.dlType]?.moves || ["SACK"];
         const move = moves[Math.floor(Math.random() * moves.length)];
@@ -974,7 +1038,9 @@ class GameSimulator {
         if (rcvrStats) { rcvrStats.rec_tgt++; rcvrStats.rec++; rcvrStats.rec_yds += yards; if (yards > rcvrStats.rec_long) rcvrStats.rec_long = yards; }
         off.team.pass_att++; off.team.pass_comp++; off.team.passYds += yards; off.team.totalYds += yards;
         this._lastBallCarrier = rcvr; this._lastBallType = "pass";
-        this._pushVisual({ kind: "complete", desc: `${this.offR.starters.qb} → ${rcvr} for ${yards} yds`, startYard, targetDepth, catchDepth: targetDepth, yac, yards, endYard: clamp(startYard + yards, 0, 100), receiver: rcvr, passer: this.offR.starters.qb });
+        // Tackle credit on the catch — DBs / LBs make most tackles in the open field
+        const tacklerName = yards > 0 ? this._creditDefStat("tkl", { LB: 0.35, S: 0.30, CB: 0.25, DL: 0.10 }) : null;
+        this._pushVisual({ kind: "complete", desc: `${this.offR.starters.qb} → ${rcvr} for ${yards} yds`, startYard, targetDepth, catchDepth: targetDepth, yac, yards, endYard: clamp(startYard + yards, 0, 100), receiver: rcvr, passer: this.offR.starters.qb, tackler: tacklerName });
         return { yards };
       }
       const targetDepth = clamp(normal(13, 8), 3, 45);
@@ -983,14 +1049,20 @@ class GameSimulator {
       if (qbStats) qbStats.pass_att++;
       if (rcvrStats) rcvrStats.rec_tgt++;
       off.team.pass_att++;
-      this._pushVisual({ kind: "incomplete", desc: `${this.offR.starters.qb} pass incomplete`, startYard, targetDepth, endYard: startYard, passer: this.offR.starters.qb, intended: rcvr });
+      // 30% chance the incompletion was caused by a pass deflection (DB credit)
+      const pdName = Math.random() < 0.30 ? this._creditDefStat("pd", { CB: 0.55, S: 0.30, LB: 0.15 }) : null;
+      this._pushVisual({ kind: "incomplete", desc: `${this.offR.starters.qb} pass incomplete`, startYard, targetDepth, endYard: startYard, passer: this.offR.starters.qb, intended: rcvr, defender: pdName });
       return { yards: 0, incomplete: true };
     }
     // Fumble chance — bumps up against dominant DL (carriers get stripped)
-    const fumblePct = clamp(0.010 + Math.max(0, pressure) * 0.012, 0.008, 0.04);
+    // Read-option schemes leak more fumbles on the option exchange
+    const optionMul = pb.qbRushFumbleMul || 1.0;
+    const fumblePct = clamp((0.010 + Math.max(0, pressure) * 0.012) * optionMul, 0.008, 0.05);
     if (Math.random() < fumblePct) {
       off.team.turnovers++; def.team.takeaways++;
-      this._pushVisual({ kind: "fumble", desc: `FUMBLE recovered by defense!`, startYard, endYard: startYard, rusher: this.offR.starters.rb });
+      const frBy = this._creditDefStat("fr", { LB: 0.35, DL: 0.35, S: 0.20, CB: 0.10 });
+      const ffBy = this._creditDefStat("ff", { LB: 0.35, DL: 0.40, S: 0.20, CB: 0.05 });
+      this._pushVisual({ kind: "fumble", desc: `FUMBLE recovered by defense!`, startYard, endYard: startYard, rusher: this.offR.starters.rb, defender: frBy, forcedBy: ffBy });
       return { turnover: true };
     }
     const rushMean = pb.rushYdsMean ?? 4.3;
@@ -1018,7 +1090,13 @@ class GameSimulator {
     const desc = isQBRun
       ? `${QB} keeps it for ${yards} yds`
       : `${this.offR.starters.rb} runs for ${yards} yds`;
-    this._pushVisual({ kind: "run", desc, startYard, yards, endYard: clamp(startYard + yards, 0, 100), rusher: carrier, isQBRun });
+    // Tackle credit on runs — LBs and DLs make most tackles at the LOS;
+    // safeties get more credit on big breakaways
+    const tacklerName = yards > 0
+      ? (yards >= 10 ? this._creditDefStat("tkl", { S: 0.40, CB: 0.20, LB: 0.30, DL: 0.10 })
+                     : this._creditDefStat("tkl", { LB: 0.45, DL: 0.30, S: 0.15, CB: 0.10 }))
+      : this._creditDefStat("tkl", { DL: 0.50, LB: 0.35, S: 0.10, CB: 0.05 });
+    this._pushVisual({ kind: "run", desc, startYard, yards, endYard: clamp(startYard + yards, 0, 100), rusher: carrier, isQBRun, tackler: tacklerName });
     return { yards };
   }
   _drive() {
@@ -4896,6 +4974,22 @@ function renderBoxScore() {
       <td>${p.xp_made}/${p.xp_att}</td>
     </tr>`).join("");
 
+  // Defense — any player with any defensive stat > 0
+  const defRows = Object.values(players)
+    .filter(p => ["DE","DT","LB","CB","FS","SS"].includes(p.pos))
+    .filter(p => (p.tkl || p.sk || p.int_made || p.pd || p.ff || p.fr) > 0)
+    .sort((a, b) => (b.tkl + b.sk * 2 + b.int_made * 3 + b.pd) - (a.tkl + a.sk * 2 + a.int_made * 3 + a.pd))
+    .map(p => `<tr>
+      <td class="pos">${p.pos}</td>
+      <td class="name">${nameSpan(p.name)}</td>
+      <td>${p.tkl || 0}</td>
+      <td>${p.sk ? p.sk.toFixed(1) : "0.0"}</td>
+      <td>${p.int_made || 0}</td>
+      <td>${p.pd || 0}</td>
+      <td>${p.ff || 0}</td>
+      <td>${p.fr || 0}</td>
+    </tr>`).join("");
+
   const empty = `<tr><td colspan="8" style="color:var(--gray);text-align:center;padding:.4rem">—</td></tr>`;
 
   el.innerHTML = `
@@ -4915,6 +5009,11 @@ function renderBoxScore() {
       <table class="boxscore-table">
         <thead><tr><th></th><th></th><th>R/T</th><th>YDS</th><th>AVG</th><th>TD</th><th>LNG</th></tr></thead>
         <tbody>${recRows || empty}</tbody>
+      </table>
+      <h4>DEFENSE</h4>
+      <table class="boxscore-table">
+        <thead><tr><th></th><th></th><th>TKL</th><th>SK</th><th>INT</th><th>PD</th><th>FF</th><th>FR</th></tr></thead>
+        <tbody>${defRows || empty}</tbody>
       </table>
       <h4>KICKING</h4>
       <table class="boxscore-table">
