@@ -108,13 +108,13 @@ export const POSITION_STATS = {
     overallWeights: { arm_strength: 1.0, accuracy_short: 1.3, accuracy_deep: 1.2, football_iq: 1.3 },
   },
   RB: {
-    key:       ["burst","balance","functional_strength","cod"],
+    key:       ["burst","balance","functional_strength","cod","lateral_quickness"],
     secondary: ["top_speed","hand_skill","stamina_pool","route_running"],
-    overallWeights: { burst: 1.3, balance: 1.2, functional_strength: 1.1, cod: 1.0 },
+    overallWeights: { burst: 1.3, balance: 1.2, functional_strength: 1.1, cod: 1.0, lateral_quickness: 1.1 },
   },
   WR: {
     key:       ["top_speed","route_running","hand_skill","cod"],
-    secondary: ["burst","balance","football_iq"],
+    secondary: ["burst","balance","football_iq","lateral_quickness"],
     overallWeights: { top_speed: 1.2, route_running: 1.3, hand_skill: 1.4, cod: 1.1 },
   },
   TE: {
@@ -139,7 +139,7 @@ export const POSITION_STATS = {
   },
   CB: {
     key:       ["coverage_man","coverage_zone","top_speed","cod"],
-    secondary: ["burst","football_iq","tackle_skill","balance"],
+    secondary: ["burst","football_iq","tackle_skill","balance","lateral_quickness"],
     overallWeights: { coverage_man: 1.3, coverage_zone: 1.1, top_speed: 1.2, cod: 1.3 },
   },
   S: {
@@ -165,9 +165,9 @@ export const FILLER_BASELINE = { mean: 50, sd: 8 };
 
 // Athletic-baseline overrides (some positions have raised filler floors for athletic stats)
 export const POSITION_FILLER_OVERRIDES = {
-  RB: { top_speed: 75, burst: 80, cod: 75, balance: 75 },     // already in key/secondary mostly
-  WR: { burst: 75, top_speed: 75 },
-  CB: { burst: 75, top_speed: 78 },
+  RB: { top_speed: 75, burst: 80, cod: 75, balance: 75, lateral_quickness: 70 },
+  WR: { burst: 75, top_speed: 75, lateral_quickness: 65 },
+  CB: { burst: 75, top_speed: 78, lateral_quickness: 65 },
   S:  { burst: 70, top_speed: 72 },
   LB: { burst: 65, top_speed: 65 },
   DL: { functional_strength: 75 },
@@ -181,7 +181,7 @@ export const POSITION_FILLER_OVERRIDES = {
 // All hidden stat keys — a player object always has all of these.
 export const HIDDEN_STAT_KEYS = [
   // Athletic
-  "burst","top_speed","cod","balance","explosive_power",
+  "burst","top_speed","cod","lateral_quickness","balance","explosive_power",
   "functional_strength","stamina_pool","durability",
   // Skill
   "hand_skill","route_running","arm_strength","accuracy_short","accuracy_deep",

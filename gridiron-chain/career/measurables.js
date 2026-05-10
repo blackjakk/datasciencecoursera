@@ -41,17 +41,19 @@ function compute100(rng, hidden, weight) {
   return round2(true_ + wPenalty + normal(rng, 0, 0.10));
 }
 
-// 20-yard shuttle — pure COD
+// 20-yard shuttle — COD + lateral_quickness dominated
 function computeShuttle(rng, hidden, weight) {
-  const blend = hidden.cod * 0.60 + hidden.burst * 0.20 + hidden.balance * 0.20;
+  const lat = hidden.lateral_quickness ?? 50;
+  const blend = hidden.cod * 0.45 + lat * 0.30 + hidden.burst * 0.15 + hidden.balance * 0.10;
   const true_ = statToScale(blend, 4.85, 4.30, 3.95);
   const wPenalty = Math.max(0, weight - 220) * 0.0010;
   return round2(true_ + wPenalty + normal(rng, 0, 0.06));
 }
 
-// 3-cone drill — COD + burst combo
+// 3-cone drill — COD + burst + lateral combo
 function computeThreeCone(rng, hidden, weight) {
-  const blend = hidden.cod * 0.55 + hidden.burst * 0.25 + hidden.balance * 0.20;
+  const lat = hidden.lateral_quickness ?? 50;
+  const blend = hidden.cod * 0.45 + lat * 0.20 + hidden.burst * 0.20 + hidden.balance * 0.15;
   const true_ = statToScale(blend, 7.95, 7.05, 6.45);
   const wPenalty = Math.max(0, weight - 220) * 0.0014;
   return round2(true_ + wPenalty + normal(rng, 0, 0.08));
