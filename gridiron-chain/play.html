@@ -234,6 +234,48 @@
   .badge-air { background: #002244; color: #69be28; letter-spacing: .6px; }
   .badge-gnp { background: #3d1800; color: #ff9040; letter-spacing: .3px; }
 
+  .player-name {
+    cursor: help;
+    border-bottom: 1px dotted rgba(255,255,255,0.35);
+    transition: color .12s, border-color .12s;
+  }
+  .player-name:hover {
+    color: var(--gold);
+    border-bottom-color: var(--gold);
+  }
+  .player-tooltip {
+    position: fixed; pointer-events: none; z-index: 1000;
+    background: #0a0a12; border: 1px solid var(--gold); border-radius: 8px;
+    padding: .65rem .85rem; font-size: .78rem;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.7);
+    display: none; min-width: 220px;
+  }
+  .player-tooltip.show { display: block; }
+  .player-tooltip .tt-name { font-weight: 800; color: var(--gold); font-size: .9rem; margin-bottom: .3rem; }
+  .player-tooltip .tt-sub  { font-size: .68rem; color: var(--gray); margin-bottom: .4rem; letter-spacing: .3px; }
+  .player-tooltip .tt-ovr  {
+    display: inline-block; background: var(--gold); color: #000; font-weight: 800;
+    padding: .1rem .45rem; border-radius: 4px; margin-right: .35rem; font-size: .72rem;
+  }
+  .player-tooltip .tt-ovr.tier-elite   { background: #f0cc30; }
+  .player-tooltip .tt-ovr.tier-good    { background: #9be09b; }
+  .player-tooltip .tt-ovr.tier-average { background: #c0c0c0; }
+  .player-tooltip .tt-ovr.tier-poor    { background: #c08080; color: #200; }
+  .player-tooltip .tt-stats {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: .15rem .9rem;
+    margin-top: .25rem;
+  }
+  .player-tooltip .tt-stat { display: flex; justify-content: space-between; gap: .4rem; font-variant-numeric: tabular-nums; }
+  .player-tooltip .tt-key  { color: var(--gray); }
+  .player-tooltip .tt-val  { color: var(--white); font-weight: 700; }
+  .player-tooltip .tt-bar  {
+    height: 3px; background: #1d1d24; border-radius: 2px; margin-top: .25rem;
+    overflow: hidden;
+  }
+  .player-tooltip .tt-bar-fill {
+    height: 100%; background: linear-gradient(90deg, #ff4040, #f0cc30, #9be09b);
+  }
+
   /* View mode toggle */
   .view-toggle {
     display: inline-flex; background: var(--bg3); border: 1px solid var(--border);
@@ -480,6 +522,7 @@ function buildRatings(roster) {
 class GameSimulator {
   constructor(home, away, hRoster, aRoster) {
     this.home = home; this.away = away;
+    this.hRoster = hRoster; this.aRoster = aRoster;
     this.homePlaybook = getPlaybook(home); this.awayPlaybook = getPlaybook(away);
     this.homeR = buildRatings(hRoster); this.awayR = buildRatings(aRoster);
     this.score = { home: 0, away: 0 };
@@ -730,10 +773,16 @@ class GameSimulator {
         if (Math.random() < 0.5) this.score.home += 3; else this.score.away += 3;
       }
     }
+    // Build a player lookup map for hover tooltips
+    const lookup = new Map();
+    for (const p of this.hRoster) lookup.set(p.name, { ...p, team: "home" });
+    for (const p of this.aRoster) lookup.set(p.name, { ...p, team: "away" });
     return {
       homeTeam: this.home, awayTeam: this.away,
       homeScore: this.score.home, awayScore: this.score.away,
       homeRatings: this.homeR, awayRatings: this.awayR,
+      homeRoster: this.hRoster, awayRoster: this.aRoster,
+      playerLookup: lookup,
       plays: this.plays, drives: this.drives,
       stats: this.stats,
       winner: this.score.home > this.score.away ? "home" : this.score.away > this.score.home ? "away" : "tie",
@@ -991,6 +1040,86 @@ const speedSlider = $("speedSlider"), speedLabel = $("speedLabel");
 const gameArea = $("gameArea");
 
 let gameResult = null, playHead = 0, playing = false;
+
+// ─── Player hover tooltip ─────────────────────────────────────────────────
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+}
+function nameSpan(name) {
+  if (!name) return "";
+  const safe = escapeHtml(name);
+  return `<span class="player-name" data-player="${safe}">${safe}</span>`;
+}
+function playerTier(ovr) {
+  if (ovr >= 85) return "elite";
+  if (ovr >= 75) return "good";
+  if (ovr >= 60) return "average";
+  return "poor";
+}
+function buildPlayerTooltip(p) {
+  const [spd, str, agi, awr, thr, cat, blk, prs, cov, tck, kpw] = p.stats;
+  const keys = {
+    QB: [["SPD",spd],["AGI",agi],["AWR",awr],["THR",thr]],
+    RB: [["SPD",spd],["STR",str],["AGI",agi],["CAT",cat]],
+    WR: [["SPD",spd],["AGI",agi],["CAT",cat],["AWR",awr]],
+    TE: [["CAT",cat],["BLK",blk],["STR",str],["SPD",spd]],
+    OL: [["STR",str],["BLK",blk],["AGI",agi],["AWR",awr]],
+    DL: [["STR",str],["PRS",prs],["SPD",spd],["TCK",tck]],
+    LB: [["PRS",prs],["COV",cov],["TCK",tck],["SPD",spd]],
+    CB: [["SPD",spd],["AGI",agi],["COV",cov],["AWR",awr]],
+    S:  [["SPD",spd],["COV",cov],["TCK",tck],["AWR",awr]],
+    K:  [["KPW",kpw],["AWR",awr]],
+  }[p.position] || [];
+  const tier = playerTier(p.overall);
+  const teamLabel = p.team === "home"
+    ? (gameResult ? gameResult.homeTeam.name : "")
+    : (gameResult ? gameResult.awayTeam.name : "");
+  const statRows = keys.map(([k, v]) => `
+    <div class="tt-stat">
+      <span class="tt-key">${k}</span><span class="tt-val">${v}</span>
+    </div>`).join("");
+  return `
+    <div class="tt-name">${escapeHtml(p.name)}</div>
+    <div class="tt-sub">${p.position} · ${teamLabel.toUpperCase()} · AGE ${p.age}</div>
+    <div><span class="tt-ovr tier-${tier}">${p.overall} OVR</span></div>
+    <div class="tt-bar"><div class="tt-bar-fill" style="width:${p.overall}%"></div></div>
+    <div class="tt-stats">${statRows}</div>
+  `;
+}
+let _playerTooltipEl = null;
+function ensureTooltipEl() {
+  if (_playerTooltipEl) return _playerTooltipEl;
+  _playerTooltipEl = document.createElement("div");
+  _playerTooltipEl.className = "player-tooltip";
+  document.body.appendChild(_playerTooltipEl);
+  return _playerTooltipEl;
+}
+document.addEventListener("mouseover", e => {
+  const el = e.target.closest && e.target.closest(".player-name[data-player]");
+  if (!el) return;
+  const name = el.dataset.player;
+  const p = gameResult && gameResult.playerLookup && gameResult.playerLookup.get(name);
+  if (!p) return;
+  const tt = ensureTooltipEl();
+  tt.innerHTML = buildPlayerTooltip(p);
+  tt.classList.add("show");
+});
+document.addEventListener("mousemove", e => {
+  if (!_playerTooltipEl || !_playerTooltipEl.classList.contains("show")) return;
+  const tt = _playerTooltipEl;
+  const pad = 16;
+  const rect = tt.getBoundingClientRect();
+  let x = e.clientX + pad, y = e.clientY + pad;
+  if (x + rect.width > window.innerWidth - 8) x = e.clientX - rect.width - pad;
+  if (y + rect.height > window.innerHeight - 8) y = e.clientY - rect.height - pad;
+  tt.style.left = Math.max(8, x) + "px";
+  tt.style.top  = Math.max(8, y) + "px";
+});
+document.addEventListener("mouseout", e => {
+  const el = e.target.closest && e.target.closest(".player-name[data-player]");
+  if (!el) return;
+  if (_playerTooltipEl) _playerTooltipEl.classList.remove("show");
+});
 let speedMul = 1.0; // 1.0 = normal
 let animState = null; // current play animation state
 let rafId = null;
@@ -3263,7 +3392,7 @@ function renderBoxScore() {
   const passingRows = byPos("QB").map(p =>
     `<tr>
       <td class="pos">QB</td>
-      <td class="name">${p.name}</td>
+      <td class="name">${nameSpan(p.name)}</td>
       <td>${p.pass_comp}/${p.pass_att}</td>
       <td>${p.pass_yds}</td>
       <td>${p.pass_yds && p.pass_att ? (p.pass_yds / p.pass_att).toFixed(1) : "0.0"}</td>
@@ -3275,7 +3404,7 @@ function renderBoxScore() {
   const rushingRows = Object.values(players).filter(p => p.rush_att > 0).map(p =>
     `<tr>
       <td class="pos">${p.pos}</td>
-      <td class="name">${p.name}</td>
+      <td class="name">${nameSpan(p.name)}</td>
       <td>${p.rush_att}</td>
       <td>${p.rush_yds}</td>
       <td>${p.rush_att ? (p.rush_yds / p.rush_att).toFixed(1) : "0.0"}</td>
@@ -3286,7 +3415,7 @@ function renderBoxScore() {
   const recRows = Object.values(players).filter(p => p.rec_tgt > 0).map(p =>
     `<tr>
       <td class="pos">${p.pos}</td>
-      <td class="name">${p.name}</td>
+      <td class="name">${nameSpan(p.name)}</td>
       <td>${p.rec}/${p.rec_tgt}</td>
       <td>${p.rec_yds}</td>
       <td>${p.rec ? (p.rec_yds / p.rec).toFixed(1) : "0.0"}</td>
@@ -3297,7 +3426,7 @@ function renderBoxScore() {
   const kickRows = byPos("K").filter(p => p.fg_att + p.xp_att > 0).map(p =>
     `<tr>
       <td class="pos">K</td>
-      <td class="name">${p.name}</td>
+      <td class="name">${nameSpan(p.name)}</td>
       <td>${p.fg_made}/${p.fg_att}</td>
       <td>${p.fg_long || "—"}</td>
       <td>${p.xp_made}/${p.xp_att}</td>
@@ -3344,9 +3473,30 @@ function quarterLabel(q, t) {
   return `Q${q} ${Math.floor(t/60)}:${String(t%60).padStart(2,"0")}`;
 }
 
+function highlightPlayerNamesInPlay(p) {
+  let out = escapeHtml(p.desc || "");
+  const players = [p.passer, p.rusher, p.receiver, p.kicker, p.intended].filter(Boolean);
+  // Sort longest first so "Marcus Smith" wins over "Marcus"
+  players.sort((a, b) => b.length - a.length);
+  const placeholders = [];
+  for (let i = 0; i < players.length; i++) {
+    const name = players[i];
+    const escName = escapeHtml(name);
+    if (out.includes(escName)) {
+      const ph = `\x00P${i}\x00`;
+      out = out.split(escName).join(ph);
+      placeholders[i] = nameSpan(name);
+    }
+  }
+  for (let i = 0; i < placeholders.length; i++) {
+    if (placeholders[i]) out = out.split(`\x00P${i}\x00`).join(placeholders[i]);
+  }
+  return out;
+}
+
 function playEntry(p) {
   const isMarker = ["halftime","ot","quarter","kickoff"].includes(p.kind);
-  if (isMarker) return `<div class="play-entry ${p.kind}">${p.desc}</div>`;
+  if (isMarker) return `<div class="play-entry ${p.kind}">${escapeHtml(p.desc)}</div>`;
   const meta = `Q${p.quarter} ${Math.floor(p.time/60)}:${String(p.time%60).padStart(2,"0")}` +
                (p.down > 0 ? ` · ${p.down}${["st","nd","rd","th"][p.down-1]}&${p.ytg}` : "");
   const icon = p.kind === "score" ? "🏈 "
@@ -3354,7 +3504,7 @@ function playEntry(p) {
              : p.kind === "fg_good" ? "✅ "
              : p.kind === "fg_miss" ? "❌ "
              : "";
-  return `<div class="play-entry ${p.kind}"><span class="meta">${meta}</span>${icon}${p.desc}</div>`;
+  return `<div class="play-entry ${p.kind}"><span class="meta">${meta}</span>${icon}${highlightPlayerNamesInPlay(p)}</div>`;
 }
 
 function renderRatings() {
