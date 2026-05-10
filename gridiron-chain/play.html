@@ -528,9 +528,9 @@ class GameSimulator {
         if (Math.random() < fgPct) {
           if (kStats) { kStats.fg_made++; if (dist > kStats.fg_long) kStats.fg_long = dist; }
           this._score(3, `${dist}-yd FG`);
-          this._pushVisual({ kind: "fg_good", desc: `${this.offR.starters.k} drills it from ${dist} yds!`, startYard, endYard: 100, fgDist: dist });
+          this._pushVisual({ kind: "fg_good", desc: `${this.offR.starters.k} drills it from ${dist} yds!`, startYard, endYard: 100, fgDist: dist, kicker: this.offR.starters.k });
         } else {
-          this._pushVisual({ kind: "fg_miss", desc: `${this.offR.starters.k} misses from ${dist} — no good`, startYard, endYard: startYard, fgDist: dist });
+          this._pushVisual({ kind: "fg_miss", desc: `${this.offR.starters.k} misses from ${dist} — no good`, startYard, endYard: startYard, fgDist: dist, kicker: this.offR.starters.k });
         }
         return { endDrive: true };
       }
@@ -554,7 +554,7 @@ class GameSimulator {
         if (qbStats) { qbStats.pass_att++; qbStats.pass_int++; }
         off.team.pass_att++; off.team.turnovers++;
         def.team.takeaways++;
-        this._pushVisual({ kind: "int", desc: `INTERCEPTION! ${this.offR.starters.qb} picked off!`, startYard, targetDepth, endYard: startYard });
+        this._pushVisual({ kind: "int", desc: `INTERCEPTION! ${this.offR.starters.qb} picked off!`, startYard, targetDepth, endYard: startYard, passer: this.offR.starters.qb });
         return { turnover: true };
       }
       const sackPct = clamp(0.06 + (this.defR.dl - 60) / 500 - adv * 0.03, 0.02, 0.12);
@@ -562,7 +562,7 @@ class GameSimulator {
         const loss = rand(3, 11);
         if (qbStats) { qbStats.sacks_taken++; qbStats.sack_yds += loss; }
         off.team.sacks_allowed++; def.team.sacks++;
-        this._pushVisual({ kind: "sack", desc: `${this.offR.starters.qb} sacked for -${loss} yds`, startYard, sackLoss: loss, endYard: clamp(startYard - loss, 1, 99) });
+        this._pushVisual({ kind: "sack", desc: `${this.offR.starters.qb} sacked for -${loss} yds`, startYard, sackLoss: loss, endYard: clamp(startYard - loss, 1, 99), passer: this.offR.starters.qb });
         this.yardLine = clamp(this.yardLine - loss, 1, 99);
         this.down++; this.ytg += loss;
         return {};
@@ -578,7 +578,7 @@ class GameSimulator {
         if (rcvrStats) { rcvrStats.rec_tgt++; rcvrStats.rec++; rcvrStats.rec_yds += yards; if (yards > rcvrStats.rec_long) rcvrStats.rec_long = yards; }
         off.team.pass_att++; off.team.pass_comp++; off.team.passYds += yards; off.team.totalYds += yards;
         this._lastBallCarrier = rcvr; this._lastBallType = "pass";
-        this._pushVisual({ kind: "complete", desc: `${this.offR.starters.qb} → ${rcvr} for ${yards} yds`, startYard, targetDepth, yards, endYard: clamp(startYard + yards, 0, 100), receiver: rcvr });
+        this._pushVisual({ kind: "complete", desc: `${this.offR.starters.qb} → ${rcvr} for ${yards} yds`, startYard, targetDepth, yards, endYard: clamp(startYard + yards, 0, 100), receiver: rcvr, passer: this.offR.starters.qb });
         return { yards };
       }
       const targetDepth = clamp(normal(13, 8), 3, 45);
@@ -588,12 +588,12 @@ class GameSimulator {
       if (qbStats) qbStats.pass_att++;
       if (rcvrStats) rcvrStats.rec_tgt++;
       off.team.pass_att++;
-      this._pushVisual({ kind: "incomplete", desc: `${this.offR.starters.qb} pass incomplete`, startYard, targetDepth, endYard: startYard });
+      this._pushVisual({ kind: "incomplete", desc: `${this.offR.starters.qb} pass incomplete`, startYard, targetDepth, endYard: startYard, passer: this.offR.starters.qb, intended: rcvr });
       return { yards: 0, incomplete: true };
     }
     if (Math.random() < 0.012) {
       off.team.turnovers++; def.team.takeaways++;
-      this._pushVisual({ kind: "fumble", desc: `FUMBLE recovered by defense!`, startYard, endYard: startYard });
+      this._pushVisual({ kind: "fumble", desc: `FUMBLE recovered by defense!`, startYard, endYard: startYard, rusher: this.offR.starters.rb });
       return { turnover: true };
     }
     const yards = clamp(normal(4.3 + adv * 1.8, 5.5), -4, 50);
@@ -601,7 +601,7 @@ class GameSimulator {
     if (rbStats) { rbStats.rush_att++; rbStats.rush_yds += yards; if (yards > rbStats.rush_long) rbStats.rush_long = yards; }
     off.team.rush_att++; off.team.rushYds += yards; off.team.totalYds += yards;
     this._lastBallCarrier = RB; this._lastBallType = "rush";
-    this._pushVisual({ kind: "run", desc: `${this.offR.starters.rb} runs for ${yards} yds`, startYard, yards, endYard: clamp(startYard + yards, 0, 100) });
+    this._pushVisual({ kind: "run", desc: `${this.offR.starters.rb} runs for ${yards} yds`, startYard, yards, endYard: clamp(startYard + yards, 0, 100), rusher: this.offR.starters.rb });
     return { yards };
   }
   _drive() {
@@ -997,13 +997,32 @@ simBtn.addEventListener("click", () => {
 playBtn.addEventListener("click", () => {
   if (!playing) {
     playing = true;
-    if (!animState) startNextPlay();
+    if (!animState) {
+      startNextPlay();
+    } else {
+      // Resume mid-play: shift timers so we pick up where we left off.
+      const now = performance.now();
+      if (animState.elapsedOnPause != null) {
+        animState.startTime = now - animState.elapsedOnPause;
+        animState.elapsedOnPause = null;
+      }
+      if (animState.holdElapsedOnPause != null) {
+        animState.holdStart = now - animState.holdElapsedOnPause;
+        animState.holdElapsedOnPause = null;
+      }
+      rafId = requestAnimationFrame(tick);
+    }
     updateButtons();
   }
 });
 pauseBtn.addEventListener("click", () => {
   playing = false;
   cancelAnimationFrame(rafId);
+  if (animState) {
+    const now = performance.now();
+    animState.elapsedOnPause = now - animState.startTime;
+    if (animState.holdStart != null) animState.holdElapsedOnPause = now - animState.holdStart;
+  }
   updateButtons();
 });
 endBtn.addEventListener("click", () => {
@@ -1474,24 +1493,24 @@ const SPRITE_FRAMES = {
   // Standing idle (facing right)
   idle: [
     "................",
-    "....HHHHHHH.....",
-    "...HHHHHHHHH....",
-    "...HHFFFFFHH....",
-    "...HHHHHHHHH....",
-    "....HHHHHHH.....",
-    ".....SSSSS......",
-    "....JJJJJJJ.....",
-    "...JJJJJJJJJ....",
-    "..SJJJJNJJJS....",
-    "..SJJJJJJJJS....",
-    "...JJJJJJJJJ....",
-    "...JJJJJJJJJ....",
-    "...PPPPPPPPP....",
-    "...PPP.PPPP.....",
-    "...PP...PPP.....",
-    "...PP...PPP.....",
-    "...PP...PPP.....",
-    "...PP...PPP.....",
+    "....HHHLHHH.....",
+    "...HHHHLHHHh....",
+    "...HHFFFFFHh....",
+    "...HHHHLHHHh....",
+    "....HHHLHHh.....",
+    ".....SSSSs......",
+    "....JJJJJJj.....",
+    "...JJJJNJJJj....",
+    "..SJJJJNJJJjS...",
+    "..SjJJJJJJjjS...",
+    "...jJJJJJJjj....",
+    "...jJJJJJJjj....",
+    "...PPPPPPPPp....",
+    "...PPP.PPPp.....",
+    "...PP...PPp.....",
+    "...PP...PPp.....",
+    "...PP...PPp.....",
+    "...PP...PPp.....",
     "...CC...CCC.....",
     "..CCCC.CCCC.....",
     "................",
@@ -1499,24 +1518,24 @@ const SPRITE_FRAMES = {
   // Run cycle frame A — left leg forward, right arm forward
   run_a: [
     "................",
-    "....HHHHHHH.....",
-    "...HHHHHHHHH....",
-    "...HHFFFFFHH....",
-    "...HHHHHHHHH....",
-    "....HHHHHHH.....",
-    "....SSSSSS......",
-    "....JJJJJJJ.....",
-    "...JJJJJJJJJSS..",
-    "...JJJJNJJJSSS..",
-    "..SJJJJJJJJ.....",
-    "..SSJJJJJJJ.....",
-    "....JJJJJJJ.....",
-    "...PPPPPPPPP....",
-    "..PPPP....PP....",
-    ".PPP......PPP...",
-    ".PP........PP...",
-    "PP..........PP..",
-    "CC...........PP.",
+    "....HHHLHHH.....",
+    "...HHHHLHHHh....",
+    "...HHFFFFFHh....",
+    "...HHHHLHHHh....",
+    "....HHHLHHh.....",
+    "....SSSSSs......",
+    "....JJJJJJj.....",
+    "...JJJJJJJjjSS..",
+    "...JJJJNJJJjSSS.",
+    "..SJJJJJJJJj....",
+    "..SSjJJJJJJj....",
+    "....jJJJJJJj....",
+    "...PPPPPPPPp....",
+    "..PPPP....Pp....",
+    ".PPP......PPp...",
+    ".PP........Pp...",
+    "PP..........Pp..",
+    "CC...........Pp.",
     "CCC.........CCC.",
     "............CCC.",
     "................",
@@ -1524,23 +1543,23 @@ const SPRITE_FRAMES = {
   // Run cycle frame B — right leg forward, left arm forward
   run_b: [
     "................",
-    "....HHHHHHH.....",
-    "...HHHHHHHHH....",
-    "...HHFFFFFHH....",
-    "...HHHHHHHHH....",
-    "....HHHHHHH.....",
-    ".....SSSSSS.....",
-    "....JJJJJJJ.....",
-    "..SSJJJJJJJJJ...",
-    "..SSSJJJNJJJJ...",
-    ".....JJJJJJJJS..",
-    ".....JJJJJJJSS..",
-    "....JJJJJJJ.....",
-    "...PPPPPPPPP....",
-    "....PP....PPPP..",
-    "...PPP......PPP.",
-    "...PP........PP.",
-    "..PP..........PP",
+    "....HHHLHHH.....",
+    "...HHHHLHHHh....",
+    "...HHFFFFFHh....",
+    "...HHHHLHHHh....",
+    "....HHHLHHh.....",
+    ".....SSSSSs.....",
+    "....JJJJJJj.....",
+    "..SSJJJJJJJJj...",
+    "..SSSJJJNJJJj...",
+    ".....JJJJJJJjS..",
+    ".....JJJJJJjSS..",
+    "....JJJJJJJj....",
+    "...PPPPPPPPp....",
+    "....PP....PPPp..",
+    "...PPP......PPp.",
+    "...PP........Pp.",
+    "..PP..........Pp",
     "..PP..........CC",
     ".CCC.........CCC",
     ".CCC............",
@@ -1548,24 +1567,24 @@ const SPRITE_FRAMES = {
   ],
   // Juke — leaning hard left (planting right foot, exploding left)
   juke: [
-    "..HHHHHHH.......",
-    ".HHHHHHHHH......",
-    ".HHFFFFFHH......",
-    ".HHHHHHHHH......",
-    "..HHHHHHH.......",
-    "...SSSSS........",
-    "S.JJJJJJJ.......",
-    "SSJJJJJJJ.......",
-    "SSSJJNJJJ.......",
-    "...JJJJJJJ......",
-    "....JJJJJJ......",
-    "....JJJJJJ......",
-    "....PPPPPPP.....",
-    "...PPPPPPPPP....",
-    "..PP.....PPPP...",
-    ".PP........PPP..",
-    ".PP..........PPP",
-    "PP............PP",
+    "..HHHLHHH.......",
+    ".HHHHLHHHh......",
+    ".HHFFFFFHh......",
+    ".HHHHLHHHh......",
+    "..HHHLHHh.......",
+    "...SSSSs........",
+    "S.JJJJJJj.......",
+    "SSJJJJJJj.......",
+    "SSSJJNJJj.......",
+    "...JJJJJJj......",
+    "....JJJJJj......",
+    "....JJJJJj......",
+    "....PPPPPPp.....",
+    "...PPPPPPPPp....",
+    "..PP.....PPPp...",
+    ".PP........PPp..",
+    ".PP..........PPp",
+    "PP............Pp",
     "PP............CC",
     "CC...........CCC",
     "CCC.............",
@@ -1574,24 +1593,24 @@ const SPRITE_FRAMES = {
   // Stiff arm — extending arm forward at shoulder height
   stiff: [
     "................",
-    "....HHHHHHH.....",
-    "...HHHHHHHHH....",
-    "...HHFFFFFHH....",
-    "...HHHHHHHHH....",
-    "....HHHHHHH.....",
-    "....SSSSSS......",
-    "...JJJJJJJ......",
-    "..JJJJJJJJJSSSSS",
-    "..JJJJNJJJJ.....",
-    "..JJJJJJJJ......",
-    "..JJJJJJJJJ.....",
-    "...JJJJJJJ......",
-    "...PPPPPPPP.....",
-    "...PP.PPPPP.....",
-    "...PP...PPP.....",
-    "...PP...PPP.....",
-    "...PP...PPP.....",
-    "...PP...PPP.....",
+    "....HHHLHHH.....",
+    "...HHHHLHHHh....",
+    "...HHFFFFFHh....",
+    "...HHHHLHHHh....",
+    "....HHHLHHh.....",
+    "....SSSSSs......",
+    "...JJJJJJj......",
+    "..JJJJJJJJjSSSSS",
+    "..JJJJNJJJj.....",
+    "..JJJJJJJJj.....",
+    "..JJJJJJJJjj....",
+    "...JJJJJJJj.....",
+    "...PPPPPPPPp....",
+    "...PP.PPPPp.....",
+    "...PP...PPp.....",
+    "...PP...PPp.....",
+    "...PP...PPp.....",
+    "...PP...PPp.....",
     "...CC...CCC.....",
     "..CCCC..CCCC....",
     "................",
@@ -1602,18 +1621,18 @@ const SPRITE_FRAMES = {
     "................",
     "................",
     "................",
-    "..HHHHHHH.......",
-    "..HHHHHHHH......",
-    "..HHFFFFFHH.....",
-    "..HHHHHHHH......",
-    "...SSSJJJJJSSS..",
-    "..SSJJJJJJJJJSS.",
-    "..SJJJNJJJJJJS..",
-    "...JJJJJJJJJ....",
-    "..JJJJJJJJJJJ...",
-    "...PPPPPPPPP....",
-    "..PPPPPPPPPPP...",
-    "..PP..PP..PP....",
+    "..HHHLHHH.......",
+    "..HHHHLHHh......",
+    "..HHFFFFFHh.....",
+    "..HHHHLHHh......",
+    "...SSSJJJJJsss..",
+    "..SSJJJJJJJJjss.",
+    "..SJJJNJJJJJjs..",
+    "...JJJJJJJJj....",
+    "..JJJJJJJJJjj...",
+    "...PPPPPPPPp....",
+    "..PPPPPPPPPPp...",
+    "..PP..PP..PPp...",
     "..CC..CC..CC....",
     "................",
     "................",
@@ -1624,24 +1643,24 @@ const SPRITE_FRAMES = {
   // Catch — arms up reaching for ball
   catch: [
     "................",
-    "..S....HHHHH....",
-    "..SS..HHHHHHH...",
-    "..SSS.HHFFFFHH..",
-    "..SSS.HHHHHHHH..",
-    "..SSS..HHHHHH...",
-    ".SSSS....SSS....",
-    "SSSS...JJJJJJ...",
-    "SSSS..JJJJJJJJ..",
-    "S....JJJJNJJJSSS",
-    "....JJJJJJJJSSSS",
-    "....JJJJJJJJ.SSS",
-    "....JJJJJJJJ....",
-    "....PPPPPPPP....",
-    "...PPP....PPP...",
-    "...PP......PP...",
-    "...PP......PP...",
-    "...PP......PP...",
-    "...PP......PP...",
+    "..S....HHHLHH...",
+    "..SS..HHHHLHHh..",
+    "..SSS.HHFFFFHh..",
+    "..SSS.HHHHLHHh..",
+    "..SSS..HHHLHh...",
+    ".SSSS....SSs....",
+    "SSSS...JJJJJj...",
+    "SSSS..JJJJJJJj..",
+    "S....JJJJNJJJsSS",
+    "....JJJJJJJJsSSS",
+    "....JJJJJJJj.SSS",
+    "....JJJJJJJj....",
+    "....PPPPPPPp....",
+    "...PPP....PPp...",
+    "...PP......Pp...",
+    "...PP......Pp...",
+    "...PP......Pp...",
+    "...PP......Pp...",
     "...CC......CC...",
     "..CCCC....CCCC..",
     "................",
@@ -1650,22 +1669,31 @@ const SPRITE_FRAMES = {
 
 // Pre-render sprite frames to offscreen canvases per team palette (cached)
 const SPRITE_CACHE = new Map();
+const SPRITE_SCALE = 4; // each sprite pixel = 4 canvas pixels (was 3)
+
+function shade(color, factor) {
+  if (color[0] !== "#") return color;
+  const r = parseInt(color.slice(1,3),16), g = parseInt(color.slice(3,5),16), b = parseInt(color.slice(5,7),16);
+  return `rgb(${Math.min(255,(r*factor)|0)},${Math.min(255,(g*factor)|0)},${Math.min(255,(b*factor)|0)})`;
+}
+
 function getSpriteCanvas(team, frameKey, flipped, dimmed = false) {
   const cacheKey = `${team.primary}|${team.secondary}|${frameKey}|${flipped ? "L" : "R"}|${dimmed ? "d" : "n"}`;
   if (SPRITE_CACHE.has(cacheKey)) return SPRITE_CACHE.get(cacheKey);
   const grid = SPRITE_FRAMES[frameKey];
-  const SCALE = 3; // each sprite pixel = 3 canvas pixels
+  const SCALE = SPRITE_SCALE;
   const cv = document.createElement("canvas");
   cv.width = SPRITE_W * SCALE;
   cv.height = SPRITE_H * SCALE;
   const c = cv.getContext("2d");
   c.imageSmoothingEnabled = false;
-  const dim = (color) => {
-    if (!dimmed) return color;
-    if (color[0] !== "#") return color;
-    const r = parseInt(color.slice(1,3),16), g = parseInt(color.slice(3,5),16), b = parseInt(color.slice(5,7),16);
-    return `rgb(${(r*0.65)|0},${(g*0.65)|0},${(b*0.65)|0})`;
-  };
+  const dim = (color) => dimmed ? shade(color, 0.78) : color;
+  const helmet = dim(team.primary);
+  const helmetShade = dim(shade(team.primary, 0.78));
+  const stripe = dim(team.secondary);
+  const jersey = dim(team.primary);
+  const jerseyShade = dim(shade(team.primary, 0.82));
+  const number = dim(team.secondary);
   for (let row = 0; row < grid.length; row++) {
     const line = grid[row];
     for (let col = 0; col < line.length; col++) {
@@ -1673,15 +1701,20 @@ function getSpriteCanvas(team, frameKey, flipped, dimmed = false) {
       if (ch === "." || ch === " ") continue;
       let color;
       switch (ch) {
-        case "H": color = dim(team.primary); break;
-        case "F": color = "#9aa0a8"; break;
-        case "J": color = dim(team.primary); break;
-        case "N": color = dim(team.secondary); break;
-        case "S": color = "#caa176"; break;
-        case "P": color = "#f1f1f1"; break;
-        case "C": color = "#1a1a1a"; break;
-        case "B": color = "#6b3416"; break;
-        default:  color = dim(team.primary);
+        case "H": color = helmet; break;
+        case "h": color = helmetShade; break;       // helmet shadow side
+        case "L": color = stripe; break;             // helmet center stripe
+        case "F": color = "#9aa0a8"; break;          // facemask
+        case "J": color = jersey; break;
+        case "j": color = jerseyShade; break;        // jersey shadow side
+        case "N": color = number; break;             // jersey number
+        case "S": color = "#d6a878"; break;          // skin
+        case "s": color = "#a87a52"; break;          // skin shadow
+        case "P": color = "#f1f1f1"; break;          // pants
+        case "p": color = "#bcbcbc"; break;          // pants shadow
+        case "C": color = "#15151a"; break;          // cleats
+        case "B": color = "#6b3416"; break;          // ball
+        default:  color = jersey;
       }
       c.fillStyle = color;
       const drawCol = flipped ? (line.length - 1 - col) : col;
@@ -1692,9 +1725,47 @@ function getSpriteCanvas(team, frameKey, flipped, dimmed = false) {
   return cv;
 }
 
+// Pre-rendered black silhouette of the sprite, used for the outline halo
+function getSpriteSilhouette(frameKey, flipped) {
+  const key = `__silh|${frameKey}|${flipped ? "L" : "R"}`;
+  if (SPRITE_CACHE.has(key)) return SPRITE_CACHE.get(key);
+  const grid = SPRITE_FRAMES[frameKey];
+  const SCALE = SPRITE_SCALE;
+  const cv = document.createElement("canvas");
+  cv.width = SPRITE_W * SCALE;
+  cv.height = SPRITE_H * SCALE;
+  const c = cv.getContext("2d");
+  c.imageSmoothingEnabled = false;
+  c.fillStyle = "#08080c";
+  for (let row = 0; row < grid.length; row++) {
+    const line = grid[row];
+    for (let col = 0; col < line.length; col++) {
+      const ch = line[col];
+      if (ch === "." || ch === " ") continue;
+      const drawCol = flipped ? (line.length - 1 - col) : col;
+      c.fillRect(drawCol * SCALE, row * SCALE, SCALE, SCALE);
+    }
+  }
+  SPRITE_CACHE.set(key, cv);
+  return cv;
+}
+
 function drawSprite(ctx, x, y, team, frameKey, flipped, dimmed) {
+  // Ground shadow oval
+  ctx.fillStyle = "rgba(0,0,0,0.42)";
+  ctx.beginPath();
+  ctx.ellipse(Math.round(x), Math.round(y) + 4, 22, 5.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // 4-direction outline stamp for crisp silhouette against grass
+  const sil = getSpriteSilhouette(frameKey, flipped);
   const cv = getSpriteCanvas(team, frameKey, flipped, dimmed);
-  ctx.drawImage(cv, Math.round(x - cv.width / 2), Math.round(y - cv.height + 6));
+  const sx = Math.round(x - cv.width / 2);
+  const sy = Math.round(y - cv.height + 8);
+  ctx.drawImage(sil, sx - 2, sy);
+  ctx.drawImage(sil, sx + 2, sy);
+  ctx.drawImage(sil, sx, sy - 2);
+  ctx.drawImage(sil, sx, sy + 2);
+  ctx.drawImage(cv, sx, sy);
 }
 
 // ─── Side-view field rendering ─────────────────────────────────────────────
@@ -2196,6 +2267,149 @@ function buildCinemaAnim(play, prevPlay) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Play-result digest card — big banner that holds for ~1.4s after each play
+// ═══════════════════════════════════════════════════════════════════════════
+const RESULT_HOLD_MS = 1400;
+
+// "Tom Brady" → "BRADY" (last token, uppercased).
+function lastNameUpper(name) {
+  if (!name) return "";
+  const parts = String(name).trim().split(/\s+/);
+  return parts[parts.length - 1].toUpperCase();
+}
+
+function formatPlayResult(play) {
+  if (!play) return null;
+  const yards = play.yards ?? 0;
+  const passer = lastNameUpper(play.passer);
+  const rusher = lastNameUpper(play.rusher);
+  const rcvr   = lastNameUpper(play.receiver);
+  const kicker = lastNameUpper(play.kicker);
+  const intended = lastNameUpper(play.intended);
+  switch (play.kind) {
+    case "run": {
+      const isTD = (play.endYard ?? 0) >= 100;
+      const isFirstDown = !isTD && play.down > 0 && yards >= (play.ytg ?? 0);
+      if (isTD)        return { title: "TOUCHDOWN!", sub: `${yards} yards on the ground from ${rusher}`, color: "#f0cc30", big: true };
+      if (yards < 0)   return { title: "TACKLE FOR LOSS", sub: `${rusher} stopped for ${yards}`, color: "#e07070" };
+      if (yards === 0) return { title: "NO GAIN", sub: `${rusher} stuffed at the line`, color: "#cccccc" };
+      if (isFirstDown) return { title: "FIRST DOWN", sub: `${yards}-yard run from ${rusher}`, color: "#9be09b" };
+      return { title: `${yards}-YARD RUN`, sub: `Carry by ${rusher}`, color: "#ffffff" };
+    }
+    case "complete": {
+      const isTD = (play.endYard ?? 0) >= 100;
+      const isFirstDown = !isTD && play.down > 0 && yards >= (play.ytg ?? 0);
+      if (isTD)        return { title: "TOUCHDOWN!", sub: `${yards} yards from ${passer} to ${rcvr}`, color: "#f0cc30", big: true };
+      if (yards >= 25) return { title: "BIG PLAY!", sub: `${yards} yards from ${passer} to ${rcvr}`, color: "#9be09b", big: true };
+      if (isFirstDown) return { title: "FIRST DOWN", sub: `${yards} yards from ${passer} to ${rcvr}`, color: "#9be09b" };
+      return { title: `COMPLETE +${yards}`, sub: `${passer} to ${rcvr}`, color: "#ffffff" };
+    }
+    case "incomplete":
+      return { title: "INCOMPLETE", sub: intended ? `${passer} pass to ${intended} falls away` : `${passer} pass falls away`, color: "#cccccc" };
+    case "int":
+      return { title: "INTERCEPTION!", sub: `${passer} picked off — turnover`, color: "#e07070", big: true };
+    case "sack":
+      return { title: "SACK!", sub: `${passer} dropped for −${play.sackLoss ?? 0} in the backfield`, color: "#e07070" };
+    case "fumble":
+      return { title: "FUMBLE!", sub: rusher ? `${rusher} cough it up — defense recovers` : "Defense recovers the loose ball", color: "#e07070", big: true };
+    case "fg_good":
+      return { title: "FIELD GOAL!", sub: `${kicker} drills it from ${play.fgDist}`, color: "#f0cc30" };
+    case "fg_miss":
+      return { title: "NO GOOD", sub: `${kicker} misses from ${play.fgDist}`, color: "#e07070" };
+    case "punt":
+      return { title: "PUNT", sub: `${play.puntYards}-yard punt — change of possession`, color: "#cccccc" };
+    case "score": {
+      const d = (play.desc || "").toLowerCase();
+      if (d.includes("touchdown")) return null;
+      if (d.includes("fg")) return null;
+      if (d.includes("extra point")) return { title: "EXTRA POINT  ✓", sub: "Good — +1", color: "#9be09b" };
+      if (d.includes("2-point")) return { title: "2-PT CONVERSION!", sub: "Good — +2", color: "#f0cc30" };
+      return null;
+    }
+    case "kickoff":
+    case "halftime":
+    case "quarter":
+    case "ot":
+      return null;
+    default: return null;
+  }
+}
+
+function drawResultCard(ctx, play, holdT) {
+  const result = formatPlayResult(play);
+  if (!result) return;
+  const fadeIn = Math.min(1, holdT * 5);
+  const fadeOut = holdT > 0.88 ? Math.max(0, 1 - (holdT - 0.88) / 0.12) : 1;
+  const opacity = fadeIn * fadeOut;
+  const slideY = (1 - fadeIn) * -24;
+
+  const titleSize = result.big ? 52 : 38;
+  const subSize = 18;
+  const padX = 36;
+  ctx.save();
+  ctx.font = `900 ${titleSize}px sans-serif`;
+  const titleW = ctx.measureText(result.title).width;
+  ctx.font = `600 ${subSize}px sans-serif`;
+  const subW = result.sub ? ctx.measureText(result.sub).width : 0;
+  const bannerW = Math.max(titleW, subW) + padX * 2;
+  const bannerH = result.sub ? titleSize + subSize + 28 : titleSize + 24;
+  const bannerX = (FIELD.W - bannerW) / 2;
+  const bannerY = 34 + slideY;
+
+  ctx.globalAlpha = opacity;
+  // Backdrop
+  ctx.fillStyle = "rgba(8, 12, 18, 0.90)";
+  roundedRect(ctx, bannerX, bannerY, bannerW, bannerH, 8);
+  ctx.fill();
+  // Left accent bar
+  ctx.fillStyle = result.color;
+  ctx.fillRect(bannerX, bannerY, 6, bannerH);
+  // Border / glow for big plays
+  if (result.big) {
+    ctx.shadowColor = result.color;
+    ctx.shadowBlur = 22;
+    ctx.strokeStyle = result.color;
+    ctx.lineWidth = 2.5;
+    roundedRect(ctx, bannerX + 1.5, bannerY + 1.5, bannerW - 3, bannerH - 3, 8);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  } else {
+    ctx.strokeStyle = "rgba(255,255,255,0.16)";
+    ctx.lineWidth = 1;
+    roundedRect(ctx, bannerX + 0.5, bannerY + 0.5, bannerW - 1, bannerH - 1, 8);
+    ctx.stroke();
+  }
+  // Title
+  ctx.fillStyle = result.color;
+  ctx.font = `900 ${titleSize}px sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const titleCenterY = result.sub ? bannerY + 14 + titleSize / 2 : bannerY + bannerH / 2;
+  ctx.fillText(result.title, bannerX + bannerW / 2, titleCenterY);
+  // Subtitle
+  if (result.sub) {
+    ctx.fillStyle = "#e8eaef";
+    ctx.font = `600 ${subSize}px sans-serif`;
+    ctx.fillText(result.sub, bannerX + bannerW / 2, bannerY + bannerH - subSize / 2 - 10);
+  }
+  ctx.restore();
+}
+
+function roundedRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h);
+  ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // View toggle wiring
 // ═══════════════════════════════════════════════════════════════════════════
 let viewMode = "tactical"; // 'tactical' | 'cinema'
@@ -2230,6 +2444,12 @@ function setViewMode(mode) {
 
 document.getElementById("viewTacticalBtn").addEventListener("click", () => setViewMode("tactical"));
 document.getElementById("viewCinemaBtn").addEventListener("click", () => setViewMode("cinema"));
+
+// Click the field during the result-hold to advance to the next play immediately.
+$("field").addEventListener("click", () => {
+  if (animState && animState.holdStart != null) animState.skipHold = true;
+});
+$("field").style.cursor = "pointer";
 
 function startNextPlay() {
   if (!gameResult) return;
@@ -2266,15 +2486,23 @@ function tick(now) {
   const ctx = $("field").getContext("2d");
   animState.anim.render(t, ctx);
   if (t >= 1) {
-    playHead++;
-    animState = null;
-    if (playing) {
-      // Brief pause between plays
-      setTimeout(() => { if (playing) startNextPlay(); }, 80);
+    // Hold the final frame and overlay a result card so the play can be digested.
+    if (animState.holdStart == null) {
+      animState.holdStart = now;
+      const hasCard = !!formatPlayResult(animState.play);
+      animState.holdDur = (hasCard ? RESULT_HOLD_MS : 90) / speedMul;
     }
-  } else {
-    rafId = requestAnimationFrame(tick);
+    const holdElapsed = now - animState.holdStart;
+    const holdT = Math.min(1, holdElapsed / animState.holdDur);
+    drawResultCard(ctx, animState.play, holdT);
+    if (holdElapsed >= animState.holdDur || animState.skipHold) {
+      playHead++;
+      animState = null;
+      if (playing) startNextPlay();
+      return;
+    }
   }
+  rafId = requestAnimationFrame(tick);
 }
 
 function renderStaticEnd() {
