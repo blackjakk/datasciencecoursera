@@ -1145,11 +1145,21 @@ function buildAnimForPlay(play, prevPlay) {
         const ty = cy + ((i % 5) - 2) * 14;
         return { ...d, x: d.x + (tx - d.x) * tt * 0.6, y: d.y + (ty - d.y) * tt * 0.6 };
       });
-      // Offense (without RB) stays mostly put with small forward push
+      // OL drives forward into contact, TE seals edge, WRs release downfield
       const off = formation.offense.filter(p => p.role !== "RB").map(p => {
         if (t < PRE) return p;
         const tt = (t - PRE) / (1 - PRE);
-        return { ...p, x: p.x + dir * tt * 6 };
+        if (p.role === "OL") {
+          // surge forward + wobble from contact with DL
+          const slot = (p.y - cy) / 14;       // -2..+2
+          const wobble = Math.sin(tt * Math.PI * 5 + slot * 1.7) * 2.5;
+          return { ...p, x: p.x + dir * tt * 28, y: p.y + wobble };
+        }
+        if (p.role === "TE") {
+          return { ...p, x: p.x + dir * tt * 18 };
+        }
+        // WRs release downfield
+        return { ...p, x: p.x + dir * tt * 12 };
       });
       drawPlayers([...off, rb], def);
       drawBall(ctx, ballX, ballY);
@@ -1230,15 +1240,24 @@ function buildAnimForPlay(play, prevPlay) {
         return dd;
       });
 
-      // Offense (replace QB and WR positions)
+      // Offense: QB drops, WRs run routes, OL drops into pass-block pocket
       const off = formation.offense.map(p => {
         if (p.role === "QB") return qb;
         if (p === formation.wr1 && wrChoice === "wr1") return wr;
         if (p === formation.wr2 && wrChoice === "wr2") return wr;
         if (p === formation.te && wrChoice === "te") return wr;
-        if (p.role === "OL" && t > 0.1) {
-          const tt = Math.min(1, (t - 0.1) / 0.4);
-          return { ...p, x: p.x + dir * tt * 6 };
+        if (p.role === "OL" && t > 0.05) {
+          const tt = Math.min(1, (t - 0.05) / 0.55);
+          // Tackles drop deeper than center → forms a U-shaped pocket
+          const slotDepth = Math.abs((p.y - cy) / 14);  // 0 (center) → 2 (tackles)
+          const dropBack = (4 + slotDepth * 4) * tt;
+          const wobble = Math.sin(tt * Math.PI * 6 + p.y * 0.05) * 1.8;
+          return { ...p, x: p.x - dir * dropBack, y: p.y + wobble };
+        }
+        // Non-target WR/TE/RB: stay roughly put or short release
+        if ((p.role === "WR1" || p.role === "WR2" || p.role === "TE") && t > 0.05) {
+          const tt = Math.min(1, (t - 0.05) / 0.6);
+          return { ...p, x: p.x + dir * tt * 14 };
         }
         return p;
       });
@@ -1265,7 +1284,16 @@ function buildAnimForPlay(play, prevPlay) {
         }
         return d;
       });
-      const off = formation.offense.map(p => p.role === "QB" ? qb : p);
+      const off = formation.offense.map(p => {
+        if (p.role === "QB") return qb;
+        if (p.role === "OL" && t > PRE) {
+          const tt = (t - PRE) / (1 - PRE);
+          // OL got beat — collapses backward toward QB
+          const slotDepth = Math.abs((p.y - cy) / 14);
+          return { ...p, x: p.x - dir * (10 + slotDepth * 5) * tt, y: p.y + Math.sin(tt * Math.PI * 4 + p.y) * 3 };
+        }
+        return p;
+      });
       drawPlayers(off, def);
       drawBall(ctx, qb.x, qb.y);
       // Burst at sack
