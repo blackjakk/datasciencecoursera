@@ -253,17 +253,44 @@
     padding: .02rem .35rem; border-radius: 3px; font-size: .65rem;
     font-weight: 800; font-variant-numeric: tabular-nums;
   }
-  .boost-row {
-    display: flex; gap: .65rem; margin-top: .35rem; flex-wrap: wrap;
+  .team-col { display: flex; flex-direction: column; min-width: 0; }
+  .depth-chart {
+    margin-top: .5rem; background: #0d0d13; border: 1px solid var(--border);
+    border-radius: 6px; padding: .4rem .5rem; font-size: .7rem;
+    max-height: 380px; overflow-y: auto;
   }
-  .boost-toggle {
-    display: inline-flex; align-items: center; gap: .3rem;
-    font-size: .72rem; color: var(--gray); cursor: pointer; user-select: none;
-    padding: .15rem 0;
+  .depth-section { margin-bottom: .25rem; }
+  .depth-section-title {
+    font-size: .58rem; font-weight: 800; color: var(--gold); letter-spacing: .6px;
+    padding: .35rem 0 .15rem; border-bottom: 1px solid #2a2a35;
+    margin-bottom: .15rem; display: flex; align-items: center; justify-content: space-between;
   }
-  .boost-toggle input { cursor: pointer; accent-color: var(--gold); }
-  .boost-toggle:hover { color: var(--gold); }
-  .boost-toggle input:checked + * , .boost-toggle:has(input:checked) { color: var(--gold); font-weight: 700; }
+  .depth-section-title .pb-tag { color: var(--gray); font-weight: 600; font-size: .55rem; letter-spacing: .3px; }
+  .depth-row {
+    display: grid; grid-template-columns: 2.2rem 1fr auto auto;
+    gap: .35rem; align-items: center; padding: .14rem .2rem;
+    border-radius: 3px;
+  }
+  .depth-row:hover { background: rgba(240,204,48,0.06); }
+  .depth-row.boosted { background: rgba(240,204,48,0.10); }
+  .depth-slot {
+    color: var(--gray); font-weight: 800; font-size: .62rem;
+    letter-spacing: .3px;
+  }
+  .depth-name { font-size: .72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .depth-ovr {
+    background: #1c1c24; color: var(--gold); padding: .04rem .38rem;
+    border-radius: 3px; font-size: .6rem; font-weight: 800;
+    font-variant-numeric: tabular-nums; min-width: 2.1rem; text-align: center;
+  }
+  .depth-ovr.tier-elite   { background: #f0cc30; color: #000; }
+  .depth-ovr.tier-good    { background: #2d4a2d; color: #b6e6b6; }
+  .depth-ovr.tier-average { background: #2d2d35; color: #c8c8d0; }
+  .depth-ovr.tier-poor    { background: #4a2828; color: #d4a0a0; }
+  .depth-boost {
+    accent-color: var(--gold); cursor: pointer;
+    width: 13px; height: 13px; margin: 0;
+  }
   .player-tooltip {
     position: fixed; pointer-events: none; z-index: 1000;
     background: #0a0a12; border: 1px solid var(--gold); border-radius: 8px;
@@ -337,26 +364,18 @@
 
 <div class="container">
 
-  <!-- Team selector -->
+  <!-- Team selector + depth chart -->
   <div class="selector">
-    <div>
+    <div class="team-col">
       <label>Home Team</label>
       <select id="homeTeam"></select>
-      <div class="boost-row">
-        <label class="boost-toggle"><input type="checkbox" id="homeBoostQB" /> 🌟 QB</label>
-        <label class="boost-toggle"><input type="checkbox" id="homeBoostWR" /> 🌟 WR</label>
-        <label class="boost-toggle"><input type="checkbox" id="homeBoostRB" /> 🌟 RB</label>
-      </div>
+      <div class="depth-chart" id="homeDepth"></div>
     </div>
     <div class="vs-label">VS</div>
-    <div>
+    <div class="team-col">
       <label>Away Team</label>
       <select id="awayTeam"></select>
-      <div class="boost-row">
-        <label class="boost-toggle"><input type="checkbox" id="awayBoostQB" /> 🌟 QB</label>
-        <label class="boost-toggle"><input type="checkbox" id="awayBoostWR" /> 🌟 WR</label>
-        <label class="boost-toggle"><input type="checkbox" id="awayBoostRB" /> 🌟 RB</label>
-      </div>
+      <div class="depth-chart" id="awayDepth"></div>
     </div>
   </div>
 
@@ -1269,6 +1288,162 @@ function buildOptions(sel, defaultId) {
 buildOptions(homeSel, 1);
 buildOptions(awaySel, 14);
 
+// ─── Depth chart preview ─────────────────────────────────────────────────
+// Each slot: {pos, idx, label, group}. Label is the visual position name.
+const DEPTH_SLOTS = [
+  { pos: "QB", idx: 0, label: "QB",  group: "OFFENSE" },
+  { pos: "RB", idx: 0, label: "RB",  group: "OFFENSE" },
+  { pos: "WR", idx: 0, label: "WR1", group: "OFFENSE" },
+  { pos: "WR", idx: 1, label: "WR2", group: "OFFENSE" },
+  { pos: "TE", idx: 0, label: "TE",  group: "OFFENSE" },
+  { pos: "OL", idx: 0, label: "LT",  group: "O-LINE" },
+  { pos: "OL", idx: 1, label: "LG",  group: "O-LINE" },
+  { pos: "OL", idx: 2, label: "C",   group: "O-LINE" },
+  { pos: "OL", idx: 3, label: "RG",  group: "O-LINE" },
+  { pos: "OL", idx: 4, label: "RT",  group: "O-LINE" },
+  { pos: "DL", idx: 0, label: "LDE", group: "DEFENSE" },
+  { pos: "DL", idx: 1, label: "LDT", group: "DEFENSE" },
+  { pos: "DL", idx: 2, label: "RDT", group: "DEFENSE" },
+  { pos: "DL", idx: 3, label: "RDE", group: "DEFENSE" },
+  { pos: "LB", idx: 0, label: "WLB", group: "DEFENSE" },
+  { pos: "LB", idx: 1, label: "MLB", group: "DEFENSE" },
+  { pos: "LB", idx: 2, label: "SLB", group: "DEFENSE" },
+  { pos: "CB", idx: 0, label: "CB1", group: "DEFENSE" },
+  { pos: "CB", idx: 1, label: "CB2", group: "DEFENSE" },
+  { pos: "S",  idx: 0, label: "FS",  group: "DEFENSE" },
+  { pos: "S",  idx: 1, label: "SS",  group: "DEFENSE" },
+  { pos: "K",  idx: 0, label: "K",   group: "SPECIAL" },
+];
+// Absolute index of (pos, idx) within a roster array.
+function rosterSlotAbs(pos, idx) {
+  let abs = 0;
+  for (const [p, count] of Object.entries(ROSTER_SLOTS)) {
+    if (p === pos) return idx < count ? abs + idx : -1;
+    abs += count;
+  }
+  return -1;
+}
+function defaultTierFor(pos, idx, playbook) {
+  if (idx === 0) return playbook.tierBias[pos] || "good";
+  if (idx === 1) return "average";
+  return "poor";
+}
+function tierClassFor(ovr) {
+  if (ovr >= 85) return "elite";
+  if (ovr >= 75) return "good";
+  if (ovr >= 60) return "average";
+  return "poor";
+}
+// Side state — keyed roster + per-slot overrides
+const preview = {
+  home: { id: null, roster: null, overrides: {} },
+  away: { id: null, roster: null, overrides: {} },
+};
+function regenerateFullRoster(team, overrides) {
+  const pb = getPlaybook(team);
+  const r = genRoster(pb);  // baseline with playbook bias
+  for (const [key, tier] of Object.entries(overrides)) {
+    const [pos, idxStr] = key.split(":");
+    const abs = rosterSlotAbs(pos, +idxStr);
+    if (abs >= 0) r[abs] = genPlayer(pos, tier);
+  }
+  return r;
+}
+function setupPreview(side, force = false) {
+  const state = preview[side];
+  const sel = side === "home" ? homeSel : awaySel;
+  const newId = +sel.value;
+  if (state.id !== newId || force) {
+    state.id = newId;
+    state.overrides = {};
+    state.roster = regenerateFullRoster(getTeam(newId), {});
+  }
+  renderDepthChart(side);
+}
+function toggleSlotBoost(side, pos, idx, checked) {
+  const state = preview[side];
+  if (!state.roster) return;
+  const key = `${pos}:${idx}`;
+  if (checked) state.overrides[key] = "elite";
+  else delete state.overrides[key];
+  const team = getTeam(state.id);
+  const pb = getPlaybook(team);
+  const tier = state.overrides[key] || defaultTierFor(pos, idx, pb);
+  const abs = rosterSlotAbs(pos, idx);
+  if (abs >= 0) state.roster[abs] = genPlayer(pos, tier);
+  renderDepthChart(side);
+}
+function renderDepthChart(side) {
+  const state = preview[side];
+  const el = $(`${side}Depth`);
+  if (!el || !state.roster) return;
+  const team = getTeam(state.id);
+  const pb = getPlaybook(team);
+  // Group slots by display group
+  const groups = {};
+  for (const slot of DEPTH_SLOTS) {
+    (groups[slot.group] = groups[slot.group] || []).push(slot);
+  }
+  let html = "";
+  for (const groupName of Object.keys(groups)) {
+    html += `<div class="depth-section">
+      <div class="depth-section-title">${groupName}${groupName === "OFFENSE" ? ` <span class="pb-tag">${pb.name}</span>` : ""}</div>`;
+    for (const slot of groups[groupName]) {
+      const abs = rosterSlotAbs(slot.pos, slot.idx);
+      if (abs < 0) continue;
+      const p = state.roster[abs];
+      if (!p) continue;
+      // Update the lookup map so the hover tooltip sees the latest player
+      const key = `${slot.pos}:${slot.idx}`;
+      const isBoosted = !!state.overrides[key];
+      const tier = tierClassFor(p.overall);
+      html += `<div class="depth-row${isBoosted ? " boosted" : ""}">
+        <span class="depth-slot">${slot.label}</span>
+        <span class="depth-name">${nameSpan(p.name)}</span>
+        <span class="depth-ovr tier-${tier}">${p.overall}</span>
+        <input type="checkbox" class="depth-boost" data-side="${side}" data-pos="${slot.pos}" data-idx="${slot.idx}"${isBoosted ? " checked" : ""} title="Force elite tier" />
+      </div>`;
+    }
+    html += `</div>`;
+  }
+  el.innerHTML = html;
+  // Keep a local lookup so hover tooltips work pre-game
+  if (!window._pregameLookup) window._pregameLookup = new Map();
+  for (const p of state.roster) window._pregameLookup.set(p.name, { ...p, team: side });
+}
+// Boost checkbox event delegation
+document.addEventListener("change", e => {
+  const cb = e.target.closest && e.target.closest(".depth-boost");
+  if (!cb) return;
+  toggleSlotBoost(cb.dataset.side, cb.dataset.pos, +cb.dataset.idx, cb.checked);
+});
+// Re-render previews when team selection changes
+homeSel.addEventListener("change", () => setupPreview("home"));
+awaySel.addEventListener("change", () => setupPreview("away"));
+
+// Pre-game hover lookup: when no game is active, use _pregameLookup
+const _origLookupGet = (name) => {
+  if (gameResult && gameResult.playerLookup) {
+    const p = gameResult.playerLookup.get(name);
+    if (p) return p;
+  }
+  return window._pregameLookup && window._pregameLookup.get(name);
+};
+// Patch the hover handler to use our combined lookup
+document.addEventListener("mouseover", e => {
+  const el = e.target.closest && e.target.closest(".player-name[data-player]");
+  if (!el) return;
+  const p = _origLookupGet(el.dataset.player);
+  if (!p) return;
+  const tt = ensureTooltipEl();
+  tt.innerHTML = buildPlayerTooltip(p);
+  tt.classList.add("show");
+}, true);
+
+// Initial depth charts
+setupPreview("home", true);
+setupPreview("away", true);
+
 speedSlider.addEventListener("input", e => {
   const v = +e.target.value; // 1-10
   // 1 → 0.25× (very slow), 5 → 1×, 10 → 3× (fast)
@@ -1280,16 +1455,14 @@ simBtn.addEventListener("click", () => {
   const homeId = +homeSel.value, awayId = +awaySel.value;
   if (homeId === awayId) { alert("Pick two different teams!"); return; }
   const home = getTeam(homeId), away = getTeam(awayId);
-  const collectOverrides = (side) => {
-    const o = {};
-    if ($(`${side}BoostQB`)?.checked) o.QB = "elite";
-    if ($(`${side}BoostWR`)?.checked) o.WR = "elite";
-    if ($(`${side}BoostRB`)?.checked) o.RB = "elite";
-    return o;
-  };
-  const homeOverrides = collectOverrides("home");
-  const awayOverrides = collectOverrides("away");
-  const sim = new GameSimulator(home, away, genRoster(getPlaybook(home), homeOverrides), genRoster(getPlaybook(away), awayOverrides));
+  // Use the previewed rosters (with any per-slot elite overrides applied)
+  const homeRoster = (preview.home.id === homeId && preview.home.roster)
+    ? preview.home.roster
+    : regenerateFullRoster(home, {});
+  const awayRoster = (preview.away.id === awayId && preview.away.roster)
+    ? preview.away.roster
+    : regenerateFullRoster(away, {});
+  const sim = new GameSimulator(home, away, homeRoster, awayRoster);
   gameResult = sim.simulate();
   playHead = 0;
   renderGameLayout();
