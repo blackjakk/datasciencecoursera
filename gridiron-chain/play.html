@@ -1284,25 +1284,147 @@ function drawField(ctx, homeTeam, awayTeam, ctx_state) {
   ctx.stroke();
 }
 
-function drawPlayer(ctx, x, y, color, secondary, label) {
+// Stick-figure player: head (circle) + torso + 2 arms + 2 legs as articulated
+// lines. `pose` drives limb angles; `t` is an animation phase 0..1 for run cycles.
+// Backwards compatible — old calls without pose render as idle.
+function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing) {
+  pose = pose || "idle";
+  t = t || 0;
+  facing = facing || 1;
+  const headR = 5;
+  const torsoLen = 8;
+  const armLen = 7;
+  const legLen = 8;
+  const runPhase = Math.sin(t * Math.PI * 2);
+  // Limb angles. 0 rad = pointing DOWN. Positive = swings FORWARD (in facing dir).
+  let lArm = 0, rArm = 0, lLeg = 0, rLeg = 0;
+  let bodyRot = 0;
+  let armReachY = 0;  // additional Y offset on hands for "reach" pose
+  switch (pose) {
+    case "idle":     break;
+    case "run":
+      lArm = runPhase * 0.95;  rArm = -runPhase * 0.95;
+      lLeg = -runPhase * 0.7;  rLeg = runPhase * 0.7;
+      break;
+    case "throw":
+      // Cocked back then release: t goes 0→1 over the throw
+      lArm = -2.2 + t * 1.5;   // wind up then forward
+      rArm = -0.8;
+      lLeg = 0.3;              // back leg planted
+      rLeg = -0.4;             // front leg up
+      break;
+    case "reach":  case "catch":
+      lArm = -2.4;             // both arms reaching up
+      rArm = -2.4;
+      armReachY = -3;          // hands a touch higher
+      break;
+    case "celebrate":
+      lArm = -2.3;             // V shape
+      rArm = 2.3;
+      lLeg = -0.15; rLeg = 0.15;
+      break;
+    case "juke":
+      bodyRot = facing * 0.35;
+      lArm = 0.4;  rArm = -0.4;
+      lLeg = -0.7; rLeg = 0.3;
+      break;
+    case "spin":
+      bodyRot = t * Math.PI * 2;
+      lArm = 1.2;  rArm = -1.2;
+      lLeg = -runPhase * 0.4; rLeg = runPhase * 0.4;
+      break;
+    case "tackled":
+      bodyRot = -Math.PI / 2 * facing;
+      lArm = -1.1; rArm = 1.1;
+      lLeg = -0.6; rLeg = 0.6;
+      break;
+    case "stiff":
+      lArm = Math.PI / 2;  // arm out front horizontal
+      rArm = 0.4;
+      lLeg = runPhase * 0.3; rLeg = -runPhase * 0.3;
+      break;
+    case "block":
+      lArm = -0.5; rArm = 0.5;  // hands up
+      lLeg = 0.1;  rLeg = -0.1;
+      break;
+  }
   ctx.save();
-  ctx.shadowColor = "rgba(0,0,0,0.6)";
-  ctx.shadowBlur = 4;
-  ctx.shadowOffsetY = 2;
+  ctx.translate(x, y);
+  if (bodyRot !== 0) ctx.rotate(bodyRot);
+  ctx.lineCap = "round";
+  // Drop shadow under feet
+  ctx.fillStyle = "rgba(0,0,0,0.32)";
+  ctx.beginPath();
+  ctx.ellipse(0, headR + torsoLen + legLen - 2, 7, 2.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Torso line
+  const shoulderY = -headR + 1;
+  const hipY = shoulderY + torsoLen;
+  ctx.strokeStyle = secondary || "#ffffff";
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(0, shoulderY);
+  ctx.lineTo(0, hipY);
+  ctx.stroke();
+  // Arms (rendered as facing-aware: positive angle = forward in facing direction)
+  ctx.lineWidth = 2.2;
+  // Left arm
+  {
+    const a = lArm * facing;
+    const hx = Math.sin(a) * armLen;
+    const hy = Math.cos(a) * armLen + armReachY;
+    ctx.beginPath();
+    ctx.moveTo(-2, shoulderY);
+    ctx.lineTo(-2 + hx, shoulderY + hy);
+    ctx.stroke();
+  }
+  // Right arm
+  {
+    const a = rArm * facing;
+    const hx = Math.sin(a) * armLen;
+    const hy = Math.cos(a) * armLen + armReachY;
+    ctx.beginPath();
+    ctx.moveTo(2, shoulderY);
+    ctx.lineTo(2 + hx, shoulderY + hy);
+    ctx.stroke();
+  }
+  // Legs
+  ctx.lineWidth = 2.6;
+  {
+    const a = lLeg * facing;
+    ctx.beginPath();
+    ctx.moveTo(-1.5, hipY);
+    ctx.lineTo(-1.5 + Math.sin(a) * legLen, hipY + Math.cos(a) * legLen);
+    ctx.stroke();
+  }
+  {
+    const a = rLeg * facing;
+    ctx.beginPath();
+    ctx.moveTo(1.5, hipY);
+    ctx.lineTo(1.5 + Math.sin(a) * legLen, hipY + Math.cos(a) * legLen);
+    ctx.stroke();
+  }
+  // Head (filled circle, primary color)
   ctx.fillStyle = color;
   ctx.beginPath();
-  ctx.arc(x, y, 8, 0, Math.PI * 2);
+  ctx.arc(0, -headR, headR + 1.2, 0, Math.PI * 2);
   ctx.fill();
-  ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
-  ctx.strokeStyle = secondary || "#fff";
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = secondary || "#ffffff";
+  ctx.lineWidth = 1.8;
+  ctx.stroke();
+  // Facemask line — short horizontal stripe on the head
+  ctx.strokeStyle = "#1a1a22";
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(-3 * facing, -headR);
+  ctx.lineTo(3 * facing, -headR);
   ctx.stroke();
   if (label) {
     ctx.fillStyle = "#fff";
-    ctx.font = "bold 9px sans-serif";
+    ctx.font = "bold 7px sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(label, x, y);
+    ctx.fillText(label, 0, -headR);
   }
   ctx.restore();
 }
@@ -1944,8 +2066,8 @@ function buildAnimForPlay(play, prevPlay) {
   const fieldState = { los: losX, firstDownAbs, possColor };
 
   function drawPlayers(off, def) {
-    for (const p of off) drawPlayer(ctx, p.x, p.y, possColor, team.secondary);
-    for (const p of def) drawPlayer(ctx, p.x, p.y, oppColor, oppTeam.secondary);
+    for (const p of off) drawPlayer(ctx, p.x, p.y, possColor, team.secondary, p.label, p.pose, p.t, p.facing ?? (dir));
+    for (const p of def) drawPlayer(ctx, p.x, p.y, oppColor, oppTeam.secondary, p.label, p.pose, p.t, p.facing ?? (-dir));
   }
 
   let ctx = null;
@@ -1955,48 +2077,62 @@ function buildAnimForPlay(play, prevPlay) {
 
   if (play.kind === "run") {
     const endX = yardToAbsX(play.endYard, poss);
+    const yards = play.yards ?? 0;
+    const isTD = (play.endYard ?? 0) >= 100;
     return { duration: 1500, kind: "run", render: (t, c) => {
       ctx = c;
       drawField(ctx, homeTeam, awayTeam, fieldState);
-      // animate RB
       const rb = { ...formation.rb };
       const qb = { ...formation.qb };
-      let ballX, ballY = cy + (t < PRE ? 18 : (1-(t-PRE)/(1-PRE)) * 18);
+      const runT = t < PRE ? 0 : (t - PRE) / (1 - PRE);
+      let ballX, ballY = cy + (t < PRE ? 18 : (1 - runT) * 18);
       if (t < PRE) {
-        // pre-snap
         ballX = formation.qb.x;
       } else {
-        const tt = (t - PRE) / (1 - PRE);
-        ballX = qb.x + (endX - qb.x) * easeOutCubic(tt);
-        // Move RB toward end position
-        rb.x = qb.x + (endX - qb.x) * easeOutCubic(tt);
-        rb.y = cy + (1 - tt) * 18;
+        ballX = qb.x + (endX - qb.x) * easeOutCubic(runT);
+        rb.x = qb.x + (endX - qb.x) * easeOutCubic(runT);
+        rb.y = cy + (1 - runT) * 18;
       }
+      // Carrier pose — juke briefly if there's a move scheduled around now
+      let rbPose = t < PRE ? "idle" : "run";
+      let rbT = (t * 3) % 1;  // run cycle 3× the play
+      if (runT > 0.88 && yards < 90 && !isTD) rbPose = "tackled";
+      else if (runT > 0.30 && runT < 0.42 && yards >= 6) { rbPose = "juke"; }
+      else if (runT > 0.50 && runT < 0.62 && yards >= 8) { rbPose = "stiff"; }
+      rb.pose = rbPose; rb.t = rbT; rb.facing = dir;
       // Defenders converge slightly
       const def = formation.defense.map((d, i) => {
-        if (t < PRE) return d;
-        const tt = (t - PRE) / (1 - PRE);
-        const tx = endX + dir * (8 + (i % 3) * 4);
-        const ty = cy + ((i % 5) - 2) * 14;
-        return { ...d, x: d.x + (tx - d.x) * tt * 0.6, y: d.y + (ty - d.y) * tt * 0.6 };
+        const dd = { ...d };
+        if (t >= PRE) {
+          const tt = runT;
+          const tx = endX + dir * (8 + (i % 3) * 4);
+          const ty = cy + ((i % 5) - 2) * 14;
+          dd.x = d.x + (tx - d.x) * tt * 0.6;
+          dd.y = d.y + (ty - d.y) * tt * 0.6;
+          dd.pose = "run";
+          dd.t = (t * 3 + i * 0.13) % 1;
+          dd.facing = -dir;
+          if (tt > 0.92 && yards < 90) dd.pose = "tackled";
+        } else { dd.pose = "idle"; }
+        return dd;
       });
       // OL drives forward into contact, TE seals edge, WRs release downfield
       const off = formation.offense.filter(p => p.role !== "RB").map(p => {
-        if (t < PRE) return p;
-        const tt = (t - PRE) / (1 - PRE);
+        if (t < PRE) return { ...p, pose: "idle" };
+        const tt = runT;
         if (p.role === "OL") {
-          // surge forward + wobble from contact with DL
-          const slot = (p.y - cy) / 14;       // -2..+2
+          const slot = (p.y - cy) / 14;
           const wobble = Math.sin(tt * Math.PI * 5 + slot * 1.7) * 2.5;
-          return { ...p, x: p.x + dir * tt * 28, y: p.y + wobble };
+          return { ...p, x: p.x + dir * tt * 28, y: p.y + wobble, pose: "block", t: tt, facing: dir };
         }
         if (p.role === "TE") {
-          return { ...p, x: p.x + dir * tt * 18 };
+          return { ...p, x: p.x + dir * tt * 18, pose: "run", t: (t * 3) % 1, facing: dir };
         }
-        // WRs release downfield
-        return { ...p, x: p.x + dir * tt * 12 };
+        return { ...p, x: p.x + dir * tt * 12, pose: "run", t: (t * 3 + 0.5) % 1, facing: dir };
       });
-      drawPlayers([...off, rb], def);
+      // QB gets idle (hand-off)
+      const off2 = off.map(p => p.role === "QB" ? { ...p, pose: "idle" } : p);
+      drawPlayers([...off2, rb], def);
       drawBall(ctx, ballX, ballY);
     }};
   }
@@ -2074,50 +2210,56 @@ function buildAnimForPlay(play, prevPlay) {
       // Defense: rush + DBs cover (and one closes on the ball-carrier post-catch)
       const def = formation.defense.map((d, i) => {
         const dd = { ...d };
+        dd.t = (t * 3 + i * 0.13) % 1;
+        dd.facing = -dir;
+        dd.pose = "run";
         if (i < 4 && t > 0.1 && t < throwPhase + 0.05) {
-          // DL rushes QB
           const tt = Math.min(1, (t - 0.1) / 0.4);
           dd.x = dd.x + (qb.x - dd.x) * tt * 0.7;
           dd.y = dd.y + (qb.y - dd.y) * tt * 0.5;
         } else if (i >= 7 && t > 0.05) {
-          // CBs follow WRs (chase the route)
           const tt = Math.min(1, (t - 0.05) / 0.55);
           if (i === 7) { dd.x += dir * tt * (catchDepth) * FIELD.PX_PER_YARD * 0.85; }
           if (i === 8) { dd.x += dir * tt * (catchDepth) * FIELD.PX_PER_YARD * 0.85; }
         }
-        // After catch, the closest defender pursues the ball-carrier
         if (play.kind === "complete" && t > throwPhase) {
           const tt = (t - throwPhase) / (1 - throwPhase);
           if (i === 7 || i === 8 || i === 4 || i === 5) {
-            // Pursuit angle toward ball
             dd.x = dd.x + (ballX - dd.x) * Math.min(1, tt * 1.2) * 0.8;
             dd.y = dd.y + (ballY - dd.y) * Math.min(1, tt * 1.2) * 0.7;
           }
         }
+        if (t < 0.05) dd.pose = "idle";
         return dd;
       });
 
       // Offense: QB drops, WRs run routes, OL drops into pass-block pocket
+      const isThrowing = t > dropPhase - 0.02 && t < dropPhase + 0.10;
+      const qbWithPose = { ...qb, pose: isThrowing ? "throw" : (t < dropPhase ? "run" : "idle"), t: (t - dropPhase + 0.5) % 1, facing: dir };
+      // Target receiver pose — reach during the catch window
+      const isCatching = t > throwPhase - 0.05 && t < throwPhase + 0.10;
+      const wrWithPose = { ...wr, pose: play.kind === "int"  && t > throwPhase + 0.02 ? "tackled"
+                                  : isCatching ? "reach"
+                                  : t > throwPhase + 0.08 ? "run"
+                                  : "run", t: (t * 3) % 1, facing: dir };
       const off = formation.offense.map(p => {
-        if (p.role === "QB") return qb;
-        if (p === formation.wr1 && wrChoice === "wr1") return wr;
-        if (p === formation.wr2 && wrChoice === "wr2") return wr;
-        if (p === formation.te && wrChoice === "te") return wr;
-        if (p === formation.rb && wrChoice === "rb") return wr;
+        if (p.role === "QB") return qbWithPose;
+        if (p === formation.wr1 && wrChoice === "wr1") return wrWithPose;
+        if (p === formation.wr2 && wrChoice === "wr2") return wrWithPose;
+        if (p === formation.te && wrChoice === "te") return wrWithPose;
+        if (p === formation.rb && wrChoice === "rb") return wrWithPose;
         if (p.role === "OL" && t > 0.05) {
           const tt = Math.min(1, (t - 0.05) / 0.55);
-          // Tackles drop deeper than center → forms a U-shaped pocket
-          const slotDepth = Math.abs((p.y - cy) / 14);  // 0 (center) → 2 (tackles)
+          const slotDepth = Math.abs((p.y - cy) / 14);
           const dropBack = (4 + slotDepth * 4) * tt;
           const wobble = Math.sin(tt * Math.PI * 6 + p.y * 0.05) * 1.8;
-          return { ...p, x: p.x - dir * dropBack, y: p.y + wobble };
+          return { ...p, x: p.x - dir * dropBack, y: p.y + wobble, pose: "block", facing: dir };
         }
-        // Non-target WR/TE/RB: stay roughly put or short release
         if ((p.role === "WR1" || p.role === "WR2" || p.role === "TE") && t > 0.05) {
           const tt = Math.min(1, (t - 0.05) / 0.6);
-          return { ...p, x: p.x + dir * tt * 14 };
+          return { ...p, x: p.x + dir * tt * 14, pose: "run", t: (t * 3) % 1, facing: dir };
         }
-        return p;
+        return { ...p, pose: "idle", facing: dir };
       });
       drawPlayers(off, def);
       drawBall(ctx, ballX, ballY, arc > 30 ? 1.3 : 1);
@@ -2136,21 +2278,24 @@ function buildAnimForPlay(play, prevPlay) {
         qb.x = formation.qb.x + (endX - formation.qb.x) * easeOutCubic(tt);
       }
       const def = formation.defense.map((d, i) => {
+        const dd = { ...d, pose: t < PRE ? "idle" : "run", t: (t * 3 + i * 0.13) % 1, facing: -dir };
         if (i < 4 && t > PRE) {
           const tt = (t - PRE) / (1 - PRE);
-          return { ...d, x: d.x + (qb.x - d.x) * tt * 0.95, y: d.y + (qb.y - d.y) * tt * 0.7 };
+          dd.x = d.x + (qb.x - d.x) * tt * 0.95;
+          dd.y = d.y + (qb.y - d.y) * tt * 0.7;
+          if (tt > 0.85) dd.pose = "tackled";
         }
-        return d;
+        return dd;
       });
+      const sackT = Math.max(0, (t - PRE) / (1 - PRE));
       const off = formation.offense.map(p => {
-        if (p.role === "QB") return qb;
+        if (p.role === "QB") return { ...qb, pose: sackT > 0.85 ? "tackled" : "run", t: (t * 3 + 0.4) % 1, facing: dir };
         if (p.role === "OL" && t > PRE) {
-          const tt = (t - PRE) / (1 - PRE);
-          // OL got beat — collapses backward toward QB
+          const tt = sackT;
           const slotDepth = Math.abs((p.y - cy) / 14);
-          return { ...p, x: p.x - dir * (10 + slotDepth * 5) * tt, y: p.y + Math.sin(tt * Math.PI * 4 + p.y) * 3 };
+          return { ...p, x: p.x - dir * (10 + slotDepth * 5) * tt, y: p.y + Math.sin(tt * Math.PI * 4 + p.y) * 3, pose: "block", facing: dir };
         }
-        return p;
+        return { ...p, pose: "idle", facing: dir };
       });
       drawPlayers(off, def);
       drawBall(ctx, qb.x, qb.y);
