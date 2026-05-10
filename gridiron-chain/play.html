@@ -2092,9 +2092,14 @@ function runManyGames(home, away, hRoster, aRoster, n) {
       home: { totalYds: 0, passYds: 0, rushYds: 0, sacks: 0, sacks_allowed: 0, turnovers: 0, takeaways: 0, firstDowns: 0, pass_comp: 0, pass_att: 0, rush_att: 0 },
       away: { totalYds: 0, passYds: 0, rushYds: 0, sacks: 0, sacks_allowed: 0, turnovers: 0, takeaways: 0, firstDowns: 0, pass_comp: 0, pass_att: 0, rush_att: 0 },
     },
-    qbSums: { home: { yds: 0, td: 0, int: 0 }, away: { yds: 0, td: 0, int: 0 } },
+    qbSums: { home: { passYds: 0, passTD: 0, int: 0, rushYds: 0, rushTD: 0, sacksTaken: 0 },
+              away: { passYds: 0, passTD: 0, int: 0, rushYds: 0, rushTD: 0, sacksTaken: 0 } },
     rbSums: { home: { yds: 0, td: 0 }, away: { yds: 0, td: 0 } },
     wrSums: { home: { yds: 0, td: 0 }, away: { yds: 0, td: 0 } },
+    // Top defensive performers per game (best sacker, best INT-getter, best tackler)
+    topSackerSums:  { home: { sk: 0 }, away: { sk: 0 } },
+    topIntSums:     { home: { ints: 0 }, away: { ints: 0 } },
+    topTacklerSums: { home: { tkl: 0 }, away: { tkl: 0 } },
   };
   for (let i = 0; i < n; i++) {
     const sim = new GameSimulator(home, away, hRoster, aRoster);
@@ -2127,9 +2132,24 @@ function runManyGames(home, away, hRoster, aRoster, n) {
       const topQB = players.filter(p => p.pos === "QB").sort((a, b) => b.pass_yds - a.pass_yds)[0];
       const topRB = players.filter(p => p.rush_att > 0).sort((a, b) => b.rush_yds - a.rush_yds)[0];
       const topWR = players.filter(p => p.rec_tgt > 0).sort((a, b) => b.rec_yds - a.rec_yds)[0];
-      if (topQB) { agg.qbSums[side].yds += topQB.pass_yds; agg.qbSums[side].td += topQB.pass_td; agg.qbSums[side].int += topQB.pass_int; }
+      if (topQB) {
+        agg.qbSums[side].passYds    += topQB.pass_yds;
+        agg.qbSums[side].passTD     += topQB.pass_td;
+        agg.qbSums[side].int        += topQB.pass_int;
+        agg.qbSums[side].rushYds    += topQB.rush_yds   || 0;
+        agg.qbSums[side].rushTD     += topQB.rush_td    || 0;
+        agg.qbSums[side].sacksTaken += topQB.sacks_taken || 0;
+      }
       if (topRB) { agg.rbSums[side].yds += topRB.rush_yds; agg.rbSums[side].td += topRB.rush_td; }
       if (topWR) { agg.wrSums[side].yds += topWR.rec_yds; agg.wrSums[side].td += topWR.rec_td; }
+      // Top defensive performers — pick the BEST in each category for this game
+      const defPlayers = players.filter(p => ["DE","DT","LB","CB","FS","SS"].includes(p.pos));
+      const topSk  = defPlayers.sort((a, b) => (b.sk || 0) - (a.sk || 0))[0];
+      const topInt = defPlayers.sort((a, b) => (b.int_made || 0) - (a.int_made || 0))[0];
+      const topTkl = defPlayers.sort((a, b) => (b.tkl || 0) - (a.tkl || 0))[0];
+      if (topSk)  agg.topSackerSums[side].sk    += topSk.sk        || 0;
+      if (topInt) agg.topIntSums[side].ints     += topInt.int_made || 0;
+      if (topTkl) agg.topTacklerSums[side].tkl  += topTkl.tkl      || 0;
     }
   }
   return agg;
@@ -2199,13 +2219,25 @@ function renderSimManyResults(agg, home, away) {
     <div class="sm-section">
       <h4>Top players (averaged per game)</h4>
       <table class="sm-stats-table">
-        ${row("QB YDS",  avg(agg.qbSums.home.yds),  avg(agg.qbSums.away.yds))}
-        ${row("QB TD",   avg(agg.qbSums.home.td),   avg(agg.qbSums.away.td))}
-        ${row("QB INT",  avg(agg.qbSums.home.int),  avg(agg.qbSums.away.int))}
-        ${row("RB YDS",  avg(agg.rbSums.home.yds),  avg(agg.rbSums.away.yds))}
-        ${row("RB TD",   avg(agg.rbSums.home.td),   avg(agg.rbSums.away.td))}
-        ${row("WR YDS",  avg(agg.wrSums.home.yds),  avg(agg.wrSums.away.yds))}
-        ${row("WR TD",   avg(agg.wrSums.home.td),   avg(agg.wrSums.away.td))}
+        ${row("QB PASS YDS", avg(agg.qbSums.home.passYds), avg(agg.qbSums.away.passYds))}
+        ${row("QB PASS TD",  avg(agg.qbSums.home.passTD),  avg(agg.qbSums.away.passTD))}
+        ${row("QB INT",      avg(agg.qbSums.home.int),     avg(agg.qbSums.away.int))}
+        ${row("QB SACKED",   avg(agg.qbSums.home.sacksTaken), avg(agg.qbSums.away.sacksTaken))}
+        ${row("QB RUSH YDS", avg(agg.qbSums.home.rushYds), avg(agg.qbSums.away.rushYds))}
+        ${row("QB RUSH TD",  avg(agg.qbSums.home.rushTD),  avg(agg.qbSums.away.rushTD))}
+        ${row("RB YDS",      avg(agg.rbSums.home.yds),     avg(agg.rbSums.away.yds))}
+        ${row("RB TD",       avg(agg.rbSums.home.td),      avg(agg.rbSums.away.td))}
+        ${row("WR YDS",      avg(agg.wrSums.home.yds),     avg(agg.wrSums.away.yds))}
+        ${row("WR TD",       avg(agg.wrSums.home.td),      avg(agg.wrSums.away.td))}
+      </table>
+    </div>
+
+    <div class="sm-section">
+      <h4>Top defenders (averaged per game)</h4>
+      <table class="sm-stats-table">
+        ${row("BEST SACKER (SK)",  avg(agg.topSackerSums.home.sk),    avg(agg.topSackerSums.away.sk))}
+        ${row("BEST DB (INT)",      avg(agg.topIntSums.home.ints),     avg(agg.topIntSums.away.ints))}
+        ${row("BEST TACKLER (TKL)", avg(agg.topTacklerSums.home.tkl),  avg(agg.topTacklerSums.away.tkl))}
       </table>
     </div>
   `;
