@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GridironChain — Football Simulator</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏈</text></svg>">
+<style>
+  :root {
+    --green: #1a5c2e; --green-lt: #2e8b57; --green-dk: #0d3318;
+    --gold: #c8a900;  --gold-lt:  #f0cc30;
+    --bg: #0a0f0a;    --bg2: #111811; --bg3: #1a221a;
+    --card: #182018; --border: #2e3d2e;
+    --white: #f0f0f0; --gray: #999; --red: #c0392b;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--white);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    min-height: 100vh; line-height: 1.5;
+  }
+  .header {
+    background: linear-gradient(180deg, var(--green-dk), #050a05);
+    border-bottom: 2px solid var(--green);
+    padding: 1.25rem 2rem; text-align: center;
+  }
+  .header h1 {
+    font-size: 1.8rem; letter-spacing: -1px;
+    color: var(--gold); font-weight: 900;
+  }
+  .header h1 span { color: var(--white); }
+  .header p { color: var(--gray); font-size: .85rem; margin-top: .25rem; }
+  .container { max-width: 1280px; margin: 0 auto; padding: 1.5rem; }
+
+  /* Team Selector */
+  .selector {
+    display: grid; grid-template-columns: 1fr auto 1fr;
+    gap: 1rem; align-items: center;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem;
+  }
+  .vs-label { font-weight: 900; font-size: 1.5rem; color: var(--gray); }
+  label { font-size: .8rem; color: var(--gray); display: block; margin-bottom: .35rem; }
+  select, input {
+    background: var(--bg2); border: 1px solid var(--border); color: var(--white);
+    padding: .55rem .85rem; border-radius: 6px; width: 100%;
+    font-size: .95rem; font-family: inherit;
+  }
+  select:focus, input:focus { outline: none; border-color: var(--green-lt); }
+
+  /* Buttons */
+  .btn {
+    padding: .65rem 1.25rem; border-radius: 6px; cursor: pointer;
+    border: none; font-weight: 700; font-size: .9rem;
+    transition: all .15s; display: inline-flex; align-items: center; gap: .4rem;
+  }
+  .btn-gold { background: var(--gold); color: #000; }
+  .btn-gold:hover { background: var(--gold-lt); }
+  .btn-primary { background: var(--green); color: #fff; }
+  .btn-primary:hover { background: var(--green-lt); }
+  .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--white); }
+  .btn-outline:hover { border-color: var(--green-lt); color: var(--green-lt); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-sm { padding: .35rem .75rem; font-size: .8rem; }
+
+  /* Controls bar */
+  .controls {
+    display: flex; gap: .5rem; align-items: center;
+    margin-bottom: 1rem; flex-wrap: wrap;
+  }
+  .speed-control {
+    margin-left: auto; display: flex; align-items: center; gap: .5rem;
+    color: var(--gray); font-size: .85rem;
+  }
+
+  /* Game layout */
+  .game-grid { display: grid; grid-template-columns: 1.5fr 1fr; gap: 1rem; }
+  @media (max-width: 900px) { .game-grid { grid-template-columns: 1fr; } }
+
+  /* Scoreboard */
+  .scoreboard {
+    display: grid; grid-template-columns: 1fr auto 1fr;
+    gap: 1.5rem; padding: 1.5rem;
+    background: var(--bg2); border-radius: 10px;
+    border: 1px solid var(--border); margin-bottom: 1rem;
+    align-items: center;
+  }
+  .score-team { text-align: center; }
+  .score-team-emoji { font-size: 2rem; }
+  .score-team-name { font-size: .9rem; color: var(--gray); margin-top: .15rem; }
+  .score-team-full { font-weight: 700; font-size: .85rem; }
+  .score-num { font-size: 4rem; font-weight: 900; line-height: 1; margin-top: .25rem; }
+  .score-num.win { color: var(--gold); }
+  .score-mid { text-align: center; }
+  .score-status { font-size: .85rem; color: var(--gray); }
+  .score-status.live { color: #4caf7a; }
+  .score-status.final { color: var(--gold); font-weight: 700; }
+  .quarter-clock { font-size: 1.1rem; font-weight: 700; margin-top: .25rem; }
+
+  /* Progress bar */
+  .progress-wrap { margin-bottom: .75rem; }
+  .progress-label { font-size: .75rem; color: var(--gray); margin-bottom: .25rem; display: flex; justify-content: space-between; }
+  .progress-bar { height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--green-lt); transition: width .15s; }
+
+  /* Play log */
+  .play-log {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+    padding: .5rem; max-height: 480px; overflow-y: auto; font-size: .85rem;
+  }
+  .play-entry {
+    padding: .4rem .65rem; border-radius: 4px; margin-bottom: 2px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .play-entry .meta { color: var(--gray); font-size: .72rem; margin-right: .5rem; }
+  .play-entry.score    { background: #1a3300; color: var(--gold); font-weight: 700; }
+  .play-entry.int      { background: #330000; color: #ff8a8a; }
+  .play-entry.fumble   { background: #330000; color: #ff8a8a; }
+  .play-entry.sack     { background: #1a1a00; }
+  .play-entry.fg_good  { background: #1a3300; color: var(--gold); }
+  .play-entry.fg_miss  { background: #2a1500; color: #ff8a8a; }
+  .play-entry.halftime,
+  .play-entry.ot,
+  .play-entry.quarter {
+    background: var(--bg3); text-align: center; font-weight: 700; color: var(--gold-lt);
+    padding: .65rem; margin: .35rem 0;
+  }
+  .play-entry.kickoff  { background: var(--green-dk); }
+
+  /* Ratings card */
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem;
+  }
+  .card-header { font-weight: 700; color: var(--gold); margin-bottom: .75rem; font-size: 1rem; }
+  .ratings-table { width: 100%; }
+  .ratings-table tr td { padding: .35rem .5rem; }
+  .ratings-table .lbl { text-align: center; color: var(--gray); font-size: .78rem; font-weight: 600; letter-spacing: .5px; }
+  .ratings-table .home { text-align: right; font-weight: 700; }
+  .ratings-table .away { text-align: left; font-weight: 700; }
+  .ratings-table .winner { color: var(--green-lt); }
+  .rating-bar-row { display: flex; gap: .25rem; align-items: center; }
+  .rating-bar-mini { flex: 1; height: 4px; background: var(--bg3); border-radius: 2px; overflow: hidden; }
+  .rating-bar-mini > div { height: 100%; background: var(--green-lt); }
+
+  /* Drive log */
+  .drive-entry {
+    padding: .4rem .55rem; border-bottom: 1px solid var(--border);
+    font-size: .82rem; display: flex; justify-content: space-between;
+  }
+  .drive-team-home { color: var(--green-lt); font-weight: 700; }
+  .drive-team-away { color: var(--gold); font-weight: 700; }
+  .drive-result-td { color: var(--gold); font-weight: 700; }
+
+  /* Stats */
+  .empty {
+    text-align: center; color: var(--gray); padding: 4rem 1rem;
+  }
+  .empty-icon { font-size: 4rem; margin-bottom: .5rem; }
+
+  /* Team color swatch */
+  .team-swatch { width: 8px; height: 24px; border-radius: 2px; margin-right: .5rem; }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .badge {
+    display: inline-block; padding: .15rem .55rem; border-radius: 99px;
+    font-size: .7rem; font-weight: 700; letter-spacing: .4px;
+  }
+  .badge-afc { background: #001a40; color: #5b9bd5; }
+  .badge-nfc { background: #3d0000; color: #e07070; }
+  .badge-gold { background: #3d3000; color: var(--gold); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🏈 Gridiron<span>Chain</span></h1>
+  <p>American Football Simulator — Standalone Demo</p>
+</div>
+
+<div class="container">
+
+  <!-- Team selector -->
+  <div class="selector">
+    <div>
+      <label>Home Team</label>
+      <select id="homeTeam"></select>
+    </div>
+    <div class="vs-label">VS</div>
+    <div>
+      <label>Away Team</label>
+      <select id="awayTeam"></select>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn btn-gold" id="simBtn">⚡ Simulate Game</button>
+    <button class="btn btn-primary" id="playBtn" disabled>▶ Play</button>
+    <button class="btn btn-outline" id="pauseBtn" disabled>⏸ Pause</button>
+    <button class="btn btn-outline" id="endBtn" disabled>⏭ Skip to End</button>
+    <div class="speed-control">
+      <span>Speed</span>
+      <input type="range" id="speedSlider" min="20" max="500" step="20" value="80" style="width: 120px;" />
+      <span id="speedLabel">80ms</span>
+    </div>
+  </div>
+
+  <!-- Game area -->
+  <div id="gameArea" class="empty">
+    <div class="empty-icon">🏈</div>
+    <div style="font-size: 1.2rem; font-weight: 700; margin-bottom: .25rem;">Pick two teams and hit Simulate</div>
+    <div style="color: var(--gray);">Full play-by-play simulation with live scoring, drives, and team ratings</div>
+  </div>
+
+</div>
+
+<script>
+// ─── 32 fictional teams ────────────────────────────────────────────────────
+const TEAMS = [
+  { id:1,  city:"New Albion",  name:"Kraken",     conference:"AFC", division:"East",  primary:"#00264D", emoji:"🦑" },
+  { id:2,  city:"Stonehaven",  name:"Titans",     conference:"AFC", division:"East",  primary:"#4B92DB", emoji:"⚡" },
+  { id:3,  city:"Ironport",    name:"Wolves",     conference:"AFC", division:"East",  primary:"#1A1A1A", emoji:"🐺" },
+  { id:4,  city:"Coldwater",   name:"Buccaneers", conference:"AFC", division:"East",  primary:"#0072CE", emoji:"🏴‍☠️" },
+  { id:5,  city:"Steelforge",  name:"Hammers",    conference:"AFC", division:"North", primary:"#FFB612", emoji:"🔨" },
+  { id:6,  city:"Riverdale",   name:"Grizzlies",  conference:"AFC", division:"North", primary:"#FB4F14", emoji:"🐻" },
+  { id:7,  city:"Coalport",    name:"Ravens",     conference:"AFC", division:"North", primary:"#241773", emoji:"🦅" },
+  { id:8,  city:"Lakewood",    name:"Bulldogs",   conference:"AFC", division:"North", primary:"#0B162A", emoji:"🐶" },
+  { id:9,  city:"Sunbelt",     name:"Vipers",     conference:"AFC", division:"South", primary:"#002244", emoji:"🐍" },
+  { id:10, city:"Palmetto",    name:"Jaguars",    conference:"AFC", division:"South", primary:"#006778", emoji:"🐆" },
+  { id:11, city:"Bayou",       name:"Gators",     conference:"AFC", division:"South", primary:"#03202F", emoji:"🐊" },
+  { id:12, city:"Redrock",     name:"Stallions",  conference:"AFC", division:"South", primary:"#4F2683", emoji:"🐎" },
+  { id:13, city:"Desert",      name:"Scorpions",  conference:"AFC", division:"West",  primary:"#002244", emoji:"🦂" },
+  { id:14, city:"Silicon",     name:"Raiders",    conference:"AFC", division:"West",  primary:"#101820", emoji:"⚔️" },
+  { id:15, city:"Cascade",     name:"Thunder",    conference:"AFC", division:"West",  primary:"#002C5F", emoji:"⛈️" },
+  { id:16, city:"Frontier",    name:"Outlaws",    conference:"AFC", division:"West",  primary:"#E31837", emoji:"🤠" },
+  { id:17, city:"Capitol",     name:"Sentinels",  conference:"NFC", division:"East",  primary:"#003594", emoji:"🛡️" },
+  { id:18, city:"Metro",       name:"Predators",  conference:"NFC", division:"East",  primary:"#004C54", emoji:"🦁" },
+  { id:19, city:"Eastport",    name:"Eagles",     conference:"NFC", division:"East",  primary:"#004C54", emoji:"🦅" },
+  { id:20, city:"Colonial",    name:"Minutemen",  conference:"NFC", division:"East",  primary:"#003366", emoji:"🎯" },
+  { id:21, city:"Great Lakes", name:"Frost",      conference:"NFC", division:"North", primary:"#4F2683", emoji:"❄️" },
+  { id:22, city:"Ironwood",    name:"Vikings",    conference:"NFC", division:"North", primary:"#4B2E83", emoji:"🪓" },
+  { id:23, city:"Prairie",     name:"Wolves",     conference:"NFC", division:"North", primary:"#203731", emoji:"🐺" },
+  { id:24, city:"Blizzard",    name:"Bears",      conference:"NFC", division:"North", primary:"#0B162A", emoji:"🐻" },
+  { id:25, city:"Magnolia",    name:"Saints",     conference:"NFC", division:"South", primary:"#D3BC8D", emoji:"⚜️" },
+  { id:26, city:"Gulf",        name:"Marauders",  conference:"NFC", division:"South", primary:"#D50A0A", emoji:"🏴" },
+  { id:27, city:"Swamp",       name:"Kings",      conference:"NFC", division:"South", primary:"#002244", emoji:"👑" },
+  { id:28, city:"Peach State", name:"Falcons",    conference:"NFC", division:"South", primary:"#A71930", emoji:"🦅" },
+  { id:29, city:"Pacific",     name:"Surge",      conference:"NFC", division:"West",  primary:"#002244", emoji:"🌊" },
+  { id:30, city:"Redwood",     name:"Giants",     conference:"NFC", division:"West",  primary:"#0B2265", emoji:"🌲" },
+  { id:31, city:"Canyon",      name:"Hawks",      conference:"NFC", division:"West",  primary:"#002244", emoji:"🦅" },
+  { id:32, city:"Volcanic",    name:"Fury",       conference:"NFC", division:"West",  primary:"#97233F", emoji:"🌋" },
+];
+const getTeam = id => TEAMS.find(t => t.id === Number(id));
+
+// ─── Player generation ────────────────────────────────────────────────────
+const FIRST = ["Marcus","Tyler","Darius","Jordan","Malik","Devon","Elijah","Xavier","Cameron","Jaylen","Trevor","Caleb","Nathan","Brandon","Derrick","Antonio","Deon","Travon","Rasheed","Quincy","Zach","Hunter","Brayden","Cole","Jake","Ryan","Luke","Evan","Aaron","Chris","Isaiah","Jamal","Tyrone","Lamar","Andre","Reggie","Stefon","Amari","Cooper","Travis"];
+const LAST = ["Johnson","Williams","Brown","Jones","Davis","Miller","Wilson","Moore","Taylor","Anderson","Thomas","Jackson","White","Harris","Martin","Thompson","Garcia","Martinez","Robinson","Clark","Rodriguez","Lewis","Lee","Walker","Hall","Allen","Young","Hill","Flores","Green","Adams","Nelson","Baker","Carter","Mitchell","Roberts","Turner","Phillips","Campbell","Reed"];
+
+const ROSTER_SLOTS = { QB:3, RB:4, WR:6, TE:3, OL:8, DL:6, LB:5, CB:5, S:3, K:1, P:1 };
+
+const rand = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
+const randName = () => `${FIRST[rand(0, FIRST.length - 1)]} ${LAST[rand(0, LAST.length - 1)]}`;
+
+function statsFor(pos, tier) {
+  const r = { elite:{lo:78,hi:99}, good:{lo:63,hi:80}, average:{lo:48,hi:67}, poor:{lo:35,hi:54} }[tier];
+  const b = () => rand(r.lo, r.hi);
+  const l = () => rand(Math.max(30, r.lo - 14), Math.max(45, r.hi - 14));
+  switch (pos) {
+    case "QB": return [l(),l(),b(),b(),b(),l(),l(),l(),l(),l(),l()];
+    case "RB": return [b(),b(),b(),b(),l(),b(),l(),l(),l(),l(),l()];
+    case "WR": return [b(),l(),b(),b(),l(),b(),l(),l(),b(),l(),l()];
+    case "TE": return [b(),b(),b(),b(),l(),b(),b(),l(),l(),l(),l()];
+    case "OL": return [l(),b(),b(),b(),l(),l(),b(),l(),l(),l(),l()];
+    case "DL": return [b(),b(),b(),b(),l(),l(),l(),b(),l(),b(),l()];
+    case "LB": return [b(),b(),b(),b(),l(),l(),l(),b(),b(),b(),l()];
+    case "CB": return [b(),l(),b(),b(),l(),l(),l(),l(),b(),b(),l()];
+    case "S":  return [b(),b(),b(),b(),l(),l(),l(),l(),b(),b(),l()];
+    default:   return [l(),l(),l(),b(),l(),l(),l(),l(),l(),l(),b()];
+  }
+}
+function calcOverall(pos, s) {
+  const [spd,str,agi,awr,thr,cat,blk,prs,cov,tck,kpw] = s;
+  let v;
+  switch (pos) {
+    case "QB": v = spd*10+agi*15+awr*25+thr*50; break;
+    case "RB": v = spd*35+str*20+agi*25+cat*20; break;
+    case "WR": v = spd*30+agi*25+cat*35+awr*10; break;
+    case "TE": v = spd*20+cat*40+blk*30+str*10; break;
+    case "OL": v = str*35+blk*45+agi*20;        break;
+    case "DL": v = str*35+prs*40+spd*25;        break;
+    case "LB": v = prs*25+cov*25+tck*30+spd*20; break;
+    case "CB": v = spd*30+agi*25+cov*35+awr*10; break;
+    case "S":  v = spd*25+cov*35+tck*30+awr*10; break;
+    default:   v = kpw*50+awr*50;
+  }
+  return Math.min(99, Math.max(40, Math.round(v / 100)));
+}
+function genPlayer(pos, tier) {
+  const stats = statsFor(pos, tier);
+  return { name: randName(), position: pos, age: rand(21, 33), stats, overall: calcOverall(pos, stats) };
+}
+function genRoster() {
+  const r = [];
+  for (const [pos, count] of Object.entries(ROSTER_SLOTS)) {
+    for (let i = 0; i < count; i++) {
+      const tier = i === 0 ? "good" : i === 1 ? "average" : "poor";
+      r.push(genPlayer(pos, tier));
+    }
+  }
+  return r;
+}
+
+// ─── Game simulator ───────────────────────────────────────────────────────
+function normal(mean, sd) {
+  const u1 = Math.random() || 0.0001, u2 = Math.random();
+  return Math.round(mean + Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2) * sd);
+}
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+function buildRatings(roster) {
+  const byPos = {};
+  for (const p of roster) (byPos[p.position] ||= []).push(p);
+  for (const k in byPos) byPos[k].sort((a,b) => b.overall - a.overall);
+  const g = (pos, n) => {
+    const arr = (byPos[pos] || []).slice(0, n);
+    return arr.length ? arr.reduce((s,p) => s + p.overall, 0) / arr.length : 50;
+  };
+  return {
+    offense: g("QB",1)*0.30 + g("RB",2)*0.15 + g("WR",4)*0.25 + g("TE",1)*0.10 + g("OL",5)*0.20,
+    defense: g("DL",4)*0.30 + g("LB",3)*0.30 + g("CB",2)*0.25 + g("S",2)*0.15,
+    qb: g("QB",1), rb: g("RB",2), wr: g("WR",4), ol: g("OL",5),
+    dl: g("DL",4), lb: g("LB",3), cb: g("CB",2), saf: g("S",2),
+    k:  g("K",1),
+    starters: {
+      qb:  (byPos.QB?.[0])?.name || "QB",
+      rb:  (byPos.RB?.[0])?.name || "RB",
+      wr1: (byPos.WR?.[0])?.name || "WR1",
+      wr2: (byPos.WR?.[1])?.name || "WR2",
+      k:   (byPos.K?.[0])?.name  || "K",
+    }
+  };
+}
+
+class GameSimulator {
+  constructor(home, away, hRoster, aRoster) {
+    this.home = home; this.away = away;
+    this.homeR = buildRatings(hRoster); this.awayR = buildRatings(aRoster);
+    this.score = { home: 0, away: 0 };
+    this.quarter = 1; this.time = 900;
+    this.poss = Math.random() < 0.5 ? "home" : "away";
+    this.yardLine = 25; this.down = 1; this.ytg = 10;
+    this.plays = []; this.drives = [];
+  }
+  get offR()     { return this.poss === "home" ? this.homeR : this.awayR; }
+  get defR()     { return this.poss === "home" ? this.awayR : this.homeR; }
+  get possTeam() { return this.poss === "home" ? this.home : this.away; }
+  _push(kind, desc) {
+    this.plays.push({ kind, desc, quarter: this.quarter, time: this.time, down: this.down, ytg: this.ytg, yardLine: this.yardLine, homeScore: this.score.home, awayScore: this.score.away });
+  }
+  _score(pts, type) {
+    this.score[this.poss] += pts;
+    this._push("score", `${this.possTeam.city} ${this.possTeam.name} — ${type} (+${pts})`);
+  }
+  _play() {
+    const adv = (this.offR.offense - this.defR.defense) / 100;
+    this.time -= clamp(normal(33, 9), 12, 55);
+    if (this.down === 4) {
+      const toEZ = 100 - this.yardLine;
+      if (toEZ <= 52 && this.ytg <= 5) {
+        const dist = toEZ + 17;
+        const fgPct = clamp(0.95 - (dist - 20) * 0.018 + (this.offR.k - 60) / 250, 0.20, 0.97);
+        if (Math.random() < fgPct) {
+          this._score(3, `${dist}-yd FG`);
+          this._push("fg_good", `${this.offR.starters.k} drills it from ${dist}!`);
+        } else {
+          this._push("fg_miss", `${this.offR.starters.k} misses from ${dist} — no good`);
+        }
+        return { endDrive: true };
+      }
+      const punt = clamp(normal(46, 7), 28, 68);
+      this._push("punt", `${this.possTeam.name} punts ${punt} yards`);
+      return { endDrive: true, punt };
+    }
+    const isLong = this.ytg >= 8, isShort = this.ytg <= 2;
+    const passProb = isLong ? 0.72 : isShort ? 0.42 : 0.58;
+    const playType = Math.random() < passProb ? "pass" : "run";
+
+    if (playType === "pass") {
+      const intPct = clamp(0.022 - adv * 0.010 + (this.defR.cb - 60) / 1200, 0.005, 0.06);
+      if (Math.random() < intPct) {
+        this._push("int", `INTERCEPTION! ${this.offR.starters.qb} picked off!`);
+        return { turnover: true };
+      }
+      const sackPct = clamp(0.06 + (this.defR.dl - 60) / 500 - adv * 0.03, 0.02, 0.12);
+      if (Math.random() < sackPct) {
+        const loss = rand(3, 11);
+        this._push("sack", `${this.offR.starters.qb} sacked for -${loss}`);
+        this.yardLine = clamp(this.yardLine - loss, 1, 99);
+        this.down++; this.ytg += loss;
+        return {};
+      }
+      const compPct = clamp(0.60 + adv * 0.14 + (this.offR.qb - 60) / 300, 0.34, 0.82);
+      if (Math.random() < compPct) {
+        const yards = clamp(normal(8.5 + adv * 3, 12), -2, 70);
+        const rcvr = Math.random() < 0.55 ? this.offR.starters.wr1 : this.offR.starters.wr2;
+        this._push("complete", `${this.offR.starters.qb} → ${rcvr} for ${yards} yds`);
+        return { yards };
+      }
+      this._push("incomplete", `${this.offR.starters.qb} — incomplete`);
+      return { yards: 0, incomplete: true };
+    }
+    if (Math.random() < 0.012) {
+      this._push("fumble", `FUMBLE recovered by defense!`);
+      return { turnover: true };
+    }
+    const yards = clamp(normal(4.3 + adv * 1.8, 5.5), -4, 50);
+    this._push("run", `${this.offR.starters.rb} runs for ${yards} yds`);
+    return { yards };
+  }
+  _drive() {
+    const start = this.poss; let plays = 0;
+    while (this.time > 0 && plays < 22) {
+      plays++;
+      const r = this._play();
+      if (r.endDrive) {
+        if (r.punt) {
+          this.poss = this.poss === "home" ? "away" : "home";
+          this.yardLine = clamp(100 - (this.yardLine + r.punt), 10, 95);
+        } else {
+          this.poss = this.poss === "home" ? "away" : "home";
+          this.yardLine = clamp(100 - this.yardLine, 10, 90);
+        }
+        this.down = 1; this.ytg = 10; break;
+      }
+      if (r.turnover) {
+        this.poss = this.poss === "home" ? "away" : "home";
+        this.yardLine = clamp(100 - this.yardLine, 5, 95);
+        this.down = 1; this.ytg = 10; break;
+      }
+      const yards = r.yards || 0;
+      if (!r.incomplete) this.yardLine = clamp(this.yardLine + yards, 0, 100);
+      if (this.yardLine >= 100) {
+        this._score(6, "Touchdown!");
+        if (Math.random() < 0.92) { if (Math.random() < 0.94) this._score(1, "Extra Point"); }
+        else                       { if (Math.random() < 0.48) this._score(2, "2-Point Conversion"); }
+        this.drives.push({ team: start, result: "TD", homeScore: this.score.home, awayScore: this.score.away });
+        this.poss = this.poss === "home" ? "away" : "home";
+        this.yardLine = 25; this.down = 1; this.ytg = 10; return;
+      }
+      if (r.incomplete) this.down++;
+      else if (yards >= this.ytg) { this.down = 1; this.ytg = 10; }
+      else { this.down++; this.ytg -= yards; }
+    }
+    this.drives.push({ team: start, result: "FG/Punt/TO", homeScore: this.score.home, awayScore: this.score.away });
+  }
+  simulate() {
+    this._push("kickoff", `${this.away.city} ${this.away.name} kicks off`);
+    while (this.quarter <= 4) {
+      if (this.time <= 0) {
+        if (this.quarter === 2) {
+          this.plays.push({ kind: "halftime", desc: "═══ HALFTIME ═══", quarter: 2, time: 0, homeScore: this.score.home, awayScore: this.score.away });
+          this.poss = this.poss === "home" ? "away" : "home";
+          this.yardLine = 25; this.down = 1; this.ytg = 10;
+        }
+        this.quarter++;
+        if (this.quarter <= 4) {
+          this.plays.push({ kind: "quarter", desc: `─── Start of Q${this.quarter} ───`, quarter: this.quarter, time: 900, homeScore: this.score.home, awayScore: this.score.away });
+        }
+        this.time = 900;
+        continue;
+      }
+      this._drive();
+    }
+    if (this.score.home === this.score.away) {
+      this.plays.push({ kind: "ot", desc: "═══ OVERTIME ═══", quarter: 5, time: 600, homeScore: this.score.home, awayScore: this.score.away });
+      this.quarter = 5; this.time = 600;
+      this.poss = Math.random() < 0.5 ? "home" : "away";
+      let n = 0;
+      while (this.score.home === this.score.away && n < 8) { this._drive(); n++; }
+      if (this.score.home === this.score.away) {
+        if (Math.random() < 0.5) this.score.home += 3; else this.score.away += 3;
+      }
+    }
+    return {
+      homeTeam: this.home, awayTeam: this.away,
+      homeScore: this.score.home, awayScore: this.score.away,
+      homeRatings: this.homeR, awayRatings: this.awayR,
+      plays: this.plays, drives: this.drives,
+      winner: this.score.home > this.score.away ? "home" : this.score.away > this.score.home ? "away" : "tie",
+    };
+  }
+}
+
+// ─── UI ────────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const homeSel  = $("homeTeam"), awaySel  = $("awayTeam");
+const simBtn   = $("simBtn"),   playBtn  = $("playBtn");
+const pauseBtn = $("pauseBtn"), endBtn   = $("endBtn");
+const speedSlider = $("speedSlider"), speedLabel = $("speedLabel");
+const gameArea = $("gameArea");
+
+let gameResult = null, playHead = 0, playing = false, timer = null;
+let speed = 80;
+
+// Populate selectors grouped by conference
+function buildOptions(sel, defaultId) {
+  sel.innerHTML = "";
+  for (const conf of ["AFC", "NFC"]) {
+    const og = document.createElement("optgroup");
+    og.label = conf;
+    for (const t of TEAMS.filter(x => x.conference === conf)) {
+      const o = document.createElement("option");
+      o.value = t.id;
+      o.textContent = `${t.emoji} ${t.city} ${t.name} (${t.division})`;
+      og.appendChild(o);
+    }
+    sel.appendChild(og);
+  }
+  sel.value = defaultId;
+}
+buildOptions(homeSel, 1);
+buildOptions(awaySel, 14);
+
+speedSlider.addEventListener("input", e => {
+  speed = +e.target.value; speedLabel.textContent = `${speed}ms`;
+});
+
+simBtn.addEventListener("click", () => {
+  const homeId = +homeSel.value, awayId = +awaySel.value;
+  if (homeId === awayId) { alert("Pick two different teams!"); return; }
+  const home = getTeam(homeId), away = getTeam(awayId);
+  const sim = new GameSimulator(home, away, genRoster(), genRoster());
+  gameResult = sim.simulate();
+  playHead = 0;
+  renderGameLayout();
+  renderState();
+  startPlayback();
+});
+
+playBtn.addEventListener("click", startPlayback);
+pauseBtn.addEventListener("click", () => { playing = false; clearTimeout(timer); updateButtons(); });
+endBtn.addEventListener("click", () => {
+  playing = false; clearTimeout(timer);
+  playHead = gameResult.plays.length;
+  renderState(); updateButtons();
+});
+
+function updateButtons() {
+  playBtn.disabled  = !gameResult || playing || playHead >= gameResult?.plays.length;
+  pauseBtn.disabled = !gameResult || !playing;
+  endBtn.disabled   = !gameResult || playHead >= gameResult?.plays.length;
+}
+
+function startPlayback() {
+  if (!gameResult) return;
+  if (playHead >= gameResult.plays.length) playHead = 0;
+  playing = true;
+  updateButtons();
+  step();
+}
+function step() {
+  if (!playing) return;
+  if (playHead >= gameResult.plays.length) { playing = false; updateButtons(); return; }
+  playHead++;
+  renderState();
+  timer = setTimeout(step, speed);
+}
+
+function renderGameLayout() {
+  gameArea.classList.remove("empty");
+  gameArea.innerHTML = `
+    <div class="game-grid">
+      <div>
+        <div id="scoreboard" class="scoreboard"></div>
+        <div class="progress-wrap">
+          <div class="progress-label"><span id="progLabel">Play 0/0</span><span id="quarterLabel"></span></div>
+          <div class="progress-bar"><div class="progress-fill" id="progFill" style="width:0%"></div></div>
+        </div>
+        <div id="playLog" class="play-log"></div>
+      </div>
+      <div>
+        <div class="card">
+          <div class="card-header">Team Ratings</div>
+          <table class="ratings-table" id="ratings"></table>
+        </div>
+        <div class="card">
+          <div class="card-header">Drive Log</div>
+          <div id="driveLog" style="max-height: 280px; overflow-y: auto;"></div>
+        </div>
+      </div>
+    </div>
+  `;
+  renderRatings();
+  renderDrives();
+}
+
+function quarterLabel(q, t) {
+  if (q === 5) return `OT ${Math.floor(t/60)}:${String(t%60).padStart(2,"0")}`;
+  return `Q${q} ${Math.floor(t/60)}:${String(t%60).padStart(2,"0")}`;
+}
+
+function renderState() {
+  if (!gameResult) return;
+  const visible = gameResult.plays.slice(0, playHead);
+  const last = [...visible].reverse().find(p => p.homeScore !== undefined);
+  const curHome = last?.homeScore ?? 0, curAway = last?.awayScore ?? 0;
+  const last2 = visible[visible.length - 1];
+  const ended = playHead >= gameResult.plays.length;
+
+  // Scoreboard
+  const sb = $("scoreboard");
+  const winner = ended ? gameResult.winner : null;
+  sb.innerHTML = `
+    <div class="score-team">
+      <div class="score-team-emoji">${gameResult.homeTeam.emoji}</div>
+      <div class="score-team-full">${gameResult.homeTeam.city}</div>
+      <div class="score-team-name">${gameResult.homeTeam.name}</div>
+      <div class="score-num ${winner === "home" ? "win" : ""}">${curHome}</div>
+    </div>
+    <div class="score-mid">
+      <div class="score-status ${ended ? "final" : "live"}">
+        ${ended ? (winner === "tie" ? "FINAL · TIE" : winner === "home" ? "🏆 HOME WIN" : "🏆 AWAY WIN") : "● LIVE"}
+      </div>
+      <div class="quarter-clock">${last2 ? quarterLabel(last2.quarter, last2.time || 0) : "—"}</div>
+      ${last2?.down > 0 && !ended ? `<div style="font-size:.78rem;color:var(--gray);margin-top:.2rem">${last2.down}${["st","nd","rd","th"][last2.down-1]} & ${last2.ytg}</div>` : ""}
+    </div>
+    <div class="score-team">
+      <div class="score-team-emoji">${gameResult.awayTeam.emoji}</div>
+      <div class="score-team-full">${gameResult.awayTeam.city}</div>
+      <div class="score-team-name">${gameResult.awayTeam.name}</div>
+      <div class="score-num ${winner === "away" ? "win" : ""}">${curAway}</div>
+    </div>
+  `;
+
+  // Progress
+  $("progLabel").textContent = `Play ${playHead} / ${gameResult.plays.length}`;
+  $("progFill").style.width = `${(playHead / gameResult.plays.length) * 100}%`;
+
+  // Play log
+  const log = $("playLog");
+  log.innerHTML = visible.map(p => playEntry(p)).join("");
+  log.scrollTop = log.scrollHeight;
+
+  updateButtons();
+}
+
+function playEntry(p) {
+  const isMarker = ["halftime","ot","quarter","kickoff"].includes(p.kind);
+  if (isMarker) return `<div class="play-entry ${p.kind}">${p.desc}</div>`;
+  const meta = `Q${p.quarter} ${Math.floor(p.time/60)}:${String(p.time%60).padStart(2,"0")}` +
+               (p.down > 0 ? ` · ${p.down}${["st","nd","rd","th"][p.down-1]}&${p.ytg}` : "");
+  const icon = p.kind === "score" ? "🏈 "
+             : p.kind === "int" || p.kind === "fumble" ? "⚠️ "
+             : p.kind === "fg_good" ? "✅ "
+             : p.kind === "fg_miss" ? "❌ "
+             : "";
+  return `<div class="play-entry ${p.kind}"><span class="meta">${meta}</span>${icon}${p.desc}</div>`;
+}
+
+function renderRatings() {
+  const r = gameResult; if (!r) return;
+  const row = (label, h, a) => {
+    const winner = h > a ? "h" : a > h ? "a" : null;
+    return `<tr>
+      <td class="home ${winner === "h" ? "winner" : ""}">${Math.round(h)}</td>
+      <td class="lbl">${label}</td>
+      <td class="away ${winner === "a" ? "winner" : ""}">${Math.round(a)}</td>
+    </tr>`;
+  };
+  $("ratings").innerHTML = `
+    <thead><tr>
+      <th class="home" style="color:var(--gold);font-size:.8rem">${r.homeTeam.name}</th>
+      <th class="lbl"></th>
+      <th class="away" style="color:var(--gold);font-size:.8rem">${r.awayTeam.name}</th>
+    </tr></thead>
+    <tbody>
+      ${row("OFFENSE", r.homeRatings.offense, r.awayRatings.offense)}
+      ${row("DEFENSE", r.homeRatings.defense, r.awayRatings.defense)}
+      ${row("QB",  r.homeRatings.qb,  r.awayRatings.qb)}
+      ${row("RB",  r.homeRatings.rb,  r.awayRatings.rb)}
+      ${row("WR",  r.homeRatings.wr,  r.awayRatings.wr)}
+      ${row("OL",  r.homeRatings.ol,  r.awayRatings.ol)}
+      ${row("DL",  r.homeRatings.dl,  r.awayRatings.dl)}
+      ${row("LB",  r.homeRatings.lb,  r.awayRatings.lb)}
+      ${row("CB",  r.homeRatings.cb,  r.awayRatings.cb)}
+      ${row("S",   r.homeRatings.saf, r.awayRatings.saf)}
+      ${row("K",   r.homeRatings.k,   r.awayRatings.k)}
+    </tbody>
+  `;
+}
+
+function renderDrives() {
+  const r = gameResult; if (!r) return;
+  $("driveLog").innerHTML = r.drives.map(d => `
+    <div class="drive-entry">
+      <span class="drive-team-${d.team}">
+        ${d.team === "home" ? r.homeTeam.name : r.awayTeam.name}
+      </span>
+      <span class="${d.result === "TD" ? "drive-result-td" : ""}" style="color:var(--gray);">
+        ${d.result} · ${d.homeScore}–${d.awayScore}
+      </span>
+    </div>
+  `).join("");
+}
+</script>
+</body>
+</html>
