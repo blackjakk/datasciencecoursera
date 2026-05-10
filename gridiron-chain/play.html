@@ -553,20 +553,22 @@ const PLAYBOOKS = {
     passProb: { long: 0.88, mid: 0.72, short: 0.55 },
     targetMix: { wr1: 0.42, wr2: 0.32, te: 0.16, rb: 0.10 },
     tierBias: { QB: "elite", WR: "elite" },
-    // Quick reads with mid-range air yards; sack risk + lower comp% balance the volume
-    airYdsMean: 6.5, airYdsSd: 7,
-    rushYdsMean: 3.6, rushYdsSd: 5,   // worse run game
-    compMul: 0.95, sackMul: 1.35,
+    // Elite QB + WRs hit at high comp% with normal air-yard depth; pay the
+    // tax in sack volume from extra dropbacks and a weaker run game.
+    airYdsMean: 7.5, airYdsSd: 7,
+    rushYdsMean: 4.0, rushYdsSd: 5,
+    compMul: 1.06, sackMul: 1.15,
   },
   GROUND_AND_POUND: {
     id: "GROUND_AND_POUND", name: "Ground & Pound", badge: "G&P",
     passProb: { long: 0.55, mid: 0.34, short: 0.20 },
     targetMix: { wr1: 0.28, wr2: 0.20, te: 0.34, rb: 0.18 },
     tierBias: { RB: "elite", OL: "elite" },
-    // When they DO pass, completions are deeper play-action shots
-    airYdsMean: 10, airYdsSd: 7,
-    rushYdsMean: 5.4, rushYdsSd: 5,   // smashmouth — gets more YPC
-    compMul: 1.05, sackMul: 0.80,
+    // Run-first; when they DO pass it's deeper play-action — but those deep
+    // shots are LOWER comp%. Sack rate is normal (no auto-discount).
+    airYdsMean: 9, airYdsSd: 7,
+    rushYdsMean: 4.7, rushYdsSd: 5,
+    compMul: 0.92, sackMul: 1.0,
   },
   // Dual-threat QB scheme: QB scrambles when pressured
   DUAL_THREAT: {
