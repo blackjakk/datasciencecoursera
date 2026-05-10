@@ -244,6 +244,15 @@
     color: var(--gold);
     border-bottom-color: var(--gold);
   }
+  .starter-row td { font-size: .72rem; padding: .15rem .25rem; }
+  .starter-row .home { text-align: right; }
+  .starter-row .away { text-align: left; }
+  .starter-row .lbl  { color: var(--gray); font-size: .65rem; letter-spacing: .3px; }
+  .ovr-pill {
+    display: inline-block; background: #1c1c24; color: var(--gold);
+    padding: .02rem .35rem; border-radius: 3px; font-size: .65rem;
+    font-weight: 800; font-variant-numeric: tabular-nums;
+  }
   .player-tooltip {
     position: fixed; pointer-events: none; z-index: 1000;
     background: #0a0a12; border: 1px solid var(--gold); border-radius: 8px;
@@ -3763,6 +3772,20 @@ function renderRatings() {
       <td class="away ${winner === "a" ? "winner" : ""}">${Math.round(a)}</td>
     </tr>`;
   };
+  // Starter rows — show name (hoverable) + OVR for each side's top player at the slot
+  const topAt = (roster, pos, idx = 0) => {
+    const list = roster.filter(p => p.position === pos).sort((a, b) => b.overall - a.overall);
+    return list[idx] || null;
+  };
+  const starterRow = (label, hP, aP) => {
+    if (!hP || !aP) return "";
+    const winner = hP.overall > aP.overall ? "h" : aP.overall > hP.overall ? "a" : null;
+    return `<tr class="starter-row">
+      <td class="home ${winner === "h" ? "winner" : ""}">${nameSpan(hP.name)} <span class="ovr-pill">${hP.overall}</span></td>
+      <td class="lbl">${label}</td>
+      <td class="away ${winner === "a" ? "winner" : ""}"><span class="ovr-pill">${aP.overall}</span> ${nameSpan(aP.name)}</td>
+    </tr>`;
+  };
   $("ratings").innerHTML = `
     <thead><tr>
       <th class="home" style="color:var(--gold);font-size:.78rem">${r.homeTeam.name}</th>
@@ -3772,15 +3795,17 @@ function renderRatings() {
     <tbody>
       ${row("OFFENSE", r.homeRatings.offense, r.awayRatings.offense)}
       ${row("DEFENSE", r.homeRatings.defense, r.awayRatings.defense)}
-      ${row("QB",  r.homeRatings.qb,  r.awayRatings.qb)}
-      ${row("RB",  r.homeRatings.rb,  r.awayRatings.rb)}
-      ${row("WR",  r.homeRatings.wr,  r.awayRatings.wr)}
+      ${starterRow("QB",  topAt(r.homeRoster, "QB"), topAt(r.awayRoster, "QB"))}
+      ${starterRow("RB",  topAt(r.homeRoster, "RB"), topAt(r.awayRoster, "RB"))}
+      ${starterRow("WR1", topAt(r.homeRoster, "WR", 0), topAt(r.awayRoster, "WR", 0))}
+      ${starterRow("WR2", topAt(r.homeRoster, "WR", 1), topAt(r.awayRoster, "WR", 1))}
+      ${starterRow("TE",  topAt(r.homeRoster, "TE"), topAt(r.awayRoster, "TE"))}
       ${row("OL",  r.homeRatings.ol,  r.awayRatings.ol)}
       ${row("DL",  r.homeRatings.dl,  r.awayRatings.dl)}
       ${row("LB",  r.homeRatings.lb,  r.awayRatings.lb)}
       ${row("CB",  r.homeRatings.cb,  r.awayRatings.cb)}
       ${row("S",   r.homeRatings.saf, r.awayRatings.saf)}
-      ${row("K",   r.homeRatings.k,   r.awayRatings.k)}
+      ${starterRow("K",   topAt(r.homeRoster, "K"), topAt(r.awayRoster, "K"))}
     </tbody>
   `;
 }
