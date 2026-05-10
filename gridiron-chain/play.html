@@ -400,26 +400,40 @@ const PLAYBOOKS = {
     passProb: { long: 0.72, mid: 0.58, short: 0.42 },
     targetMix: { wr1: 0.40, wr2: 0.30, te: 0.22, rb: 0.08 },
     tierBias: {},
+    airYdsMean: 7.5, airYdsSd: 6,
+    rushYdsMean: 4.3, rushYdsSd: 5.5,
+    compMul: 1.0, sackMul: 1.0,
   },
   AIR_RAID: {
     id: "AIR_RAID", name: "Air Raid", badge: "AIR",
-    passProb: { long: 0.90, mid: 0.78, short: 0.62 },
+    passProb: { long: 0.88, mid: 0.72, short: 0.55 },
     targetMix: { wr1: 0.42, wr2: 0.32, te: 0.16, rb: 0.10 },
     tierBias: { QB: "elite", WR: "elite" },
+    // Quick reads with mid-range air yards; sack risk + lower comp% balance the volume
+    airYdsMean: 6.5, airYdsSd: 7,
+    rushYdsMean: 3.6, rushYdsSd: 5,   // worse run game
+    compMul: 0.95, sackMul: 1.35,
   },
   GROUND_AND_POUND: {
     id: "GROUND_AND_POUND", name: "Ground & Pound", badge: "G&P",
     passProb: { long: 0.55, mid: 0.34, short: 0.20 },
     targetMix: { wr1: 0.28, wr2: 0.20, te: 0.34, rb: 0.18 },
     tierBias: { RB: "elite", OL: "elite" },
+    // When they DO pass, completions are deeper play-action shots
+    airYdsMean: 10, airYdsSd: 7,
+    rushYdsMean: 5.4, rushYdsSd: 5,   // smashmouth — gets more YPC
+    compMul: 1.05, sackMul: 0.80,
   },
   // Dual-threat QB scheme: QB scrambles, lots of RPOs, mobile QB carries
   DUAL_THREAT: {
     id: "DUAL_THREAT", name: "Dual Threat", badge: "DT",
-    passProb: { long: 0.78, mid: 0.55, short: 0.32 },
+    passProb: { long: 0.75, mid: 0.52, short: 0.30 },
     targetMix: { wr1: 0.34, wr2: 0.26, te: 0.22, rb: 0.18 },
     tierBias: { QB: "elite", WR: "good", RB: "good" },
-    qbScramblePct: 0.22,  // % of designed pass plays where QB takes off
+    airYdsMean: 7.5, airYdsSd: 6.5,
+    rushYdsMean: 4.8, rushYdsSd: 5.5,
+    compMul: 1.0, sackMul: 1.05,
+    qbScramblePct: 0.22,
   },
 };
 
@@ -668,7 +682,9 @@ class GameSimulator {
         this._pushVisual({ kind: "int", desc: `INTERCEPTION! ${this.offR.starters.qb} picked off!`, startYard, targetDepth, endYard: startYard, passer: this.offR.starters.qb });
         return { turnover: true };
       }
-      const sackPct = clamp(0.06 + (this.defR.dl - 60) / 500 - adv * 0.03, 0.02, 0.12);
+      // Playbook-modulated sack risk: heavy passing schemes leak more
+      const sackPb = pb.sackMul || 1.0;
+      const sackPct = clamp((0.06 + (this.defR.dl - 60) / 500 - adv * 0.03) * sackPb, 0.02, 0.16);
       if (Math.random() < sackPct) {
         const loss = rand(3, 11);
         if (qbStats) { qbStats.sacks_taken++; qbStats.sack_yds += loss; }
@@ -678,17 +694,32 @@ class GameSimulator {
         this.down++; this.ytg += loss;
         return {};
       }
-      const compPct = clamp(0.60 + adv * 0.14 + (this.offR.qb - 60) / 300, 0.34, 0.82);
+      // Playbook-modulated comp%: Air Raid quick reads → lower comp on long throws
+      const compPbMul = pb.compMul || 1.0;
+      const compPct = clamp((0.60 + adv * 0.14 + (this.offR.qb - 60) / 300) * compPbMul, 0.30, 0.80);
       if (Math.random() < compPct) {
-        const yards = clamp(normal(8.5 + adv * 3, 12), -2, 70);
-        const targetDepth = clamp(yards + rand(-2, 4), 1, 60);
+        // Air yards (where the ball is caught) — playbook-tuned mean
+        const airMean = pb.airYdsMean ?? 7.5;
+        const airSd   = pb.airYdsSd   ?? 6;
+        const airYds  = clamp(normal(airMean + adv * 2, airSd), -2, 55);
+        // YAC distribution — short catches / screens get more YAC potential
+        let yac = 0;
+        if (airYds >= 1) {
+          const r = Math.random();
+          if (r < 0.35) yac = 0;
+          else if (r < 0.70) yac = rand(1, Math.max(2, Math.floor(airYds * 0.4)) + 2);
+          else if (r < 0.92) yac = rand(2, Math.max(4, Math.floor(airYds * 0.8)) + 3);
+          else                yac = rand(5, 18) + Math.floor(airYds * 0.6); // big YAC run
+        }
+        const targetDepth = Math.max(1, Math.round(airYds));
+        const yards = clamp(targetDepth + yac, -2, 95);
         const rcvr = pickReceiver(pb, this.offR.starters);
         const rcvrStats = off.players[rcvr];
         if (qbStats) { qbStats.pass_att++; qbStats.pass_comp++; qbStats.pass_yds += yards; if (yards > qbStats.pass_long) qbStats.pass_long = yards; }
         if (rcvrStats) { rcvrStats.rec_tgt++; rcvrStats.rec++; rcvrStats.rec_yds += yards; if (yards > rcvrStats.rec_long) rcvrStats.rec_long = yards; }
         off.team.pass_att++; off.team.pass_comp++; off.team.passYds += yards; off.team.totalYds += yards;
         this._lastBallCarrier = rcvr; this._lastBallType = "pass";
-        this._pushVisual({ kind: "complete", desc: `${this.offR.starters.qb} → ${rcvr} for ${yards} yds`, startYard, targetDepth, yards, endYard: clamp(startYard + yards, 0, 100), receiver: rcvr, passer: this.offR.starters.qb });
+        this._pushVisual({ kind: "complete", desc: `${this.offR.starters.qb} → ${rcvr} for ${yards} yds`, startYard, targetDepth, catchDepth: targetDepth, yac, yards, endYard: clamp(startYard + yards, 0, 100), receiver: rcvr, passer: this.offR.starters.qb });
         return { yards };
       }
       const targetDepth = clamp(normal(13, 8), 3, 45);
@@ -705,7 +736,10 @@ class GameSimulator {
       this._pushVisual({ kind: "fumble", desc: `FUMBLE recovered by defense!`, startYard, endYard: startYard, rusher: this.offR.starters.rb });
       return { turnover: true };
     }
-    const yards = clamp(normal(4.3 + adv * 1.8, 5.5), -4, 50);
+    const rushMean = pb.rushYdsMean ?? 4.3;
+    const rushSd   = pb.rushYdsSd   ?? 5.5;
+    const olAdv    = (this.offR.ol - 60) / 30;  // strong OL bumps run yards
+    const yards = clamp(normal(rushMean + adv * 1.6 + olAdv * 0.7, rushSd), -4, 60);
     const rbStats = off.players[RB];
     if (rbStats) { rbStats.rush_att++; rbStats.rush_yds += yards; if (yards > rbStats.rush_long) rbStats.rush_long = yards; }
     off.team.rush_att++; off.team.rushYds += yards; off.team.totalYds += yards;
@@ -1425,36 +1459,45 @@ function buildAnimForPlay(play, prevPlay) {
   }
 
   if (play.kind === "complete" || play.kind === "incomplete" || play.kind === "int") {
-    const targetDepth = play.targetDepth || 10;
-    const targetX = losX + dir * targetDepth * FIELD.PX_PER_YARD;
-    // Pick receiver Y
-    const wrChoice = (play.receiver === formation.te.role) ? "te" : (Math.random() < 0.5 ? "wr1" : "wr2");
-    const targetY = play.kind === "incomplete" ? cy + (Math.random() < 0.5 ? -65 : 65) : (Math.random() < 0.5 ? cy - 60 : cy + 60);
+    const catchDepth = play.catchDepth ?? play.targetDepth ?? 10;
+    const targetX = losX + dir * catchDepth * FIELD.PX_PER_YARD;
+    // Pick receiver lane deterministically per play
+    const wrRoll = ((play.startYard * 13 + (play.time||0)) >>> 0) % 100 / 100;
+    const wrChoice = wrRoll < 0.45 ? "wr1" : wrRoll < 0.78 ? "wr2" : wrRoll < 0.92 ? "te" : "rb";
+    // Lateral Y where the catch happens — based on receiver lane
+    const targetY = wrChoice === "wr1" ? cy - 70
+                  : wrChoice === "wr2" ? cy + 65
+                  : wrChoice === "te"  ? cy + 28
+                  :                       cy - 10;
     const isComplete = play.kind === "complete";
     const endX = isComplete ? yardToAbsX(play.endYard, poss) : targetX;
+    const yac = isComplete ? (play.yac ?? Math.max(0, (play.yards ?? 0) - catchDepth)) : 0;
+    // Final Y where YAC ends — receiver may drift back toward middle if running upfield
+    const finalY = targetY + (cy - targetY) * Math.min(0.5, yac / 40);
     return { duration: 1700, kind: play.kind, render: (t, c) => {
       ctx = c;
       drawField(ctx, homeTeam, awayTeam, fieldState);
       const dropPhase = 0.30;     // QB drops back
       const throwPhase = 0.60;    // ball in air
-      // 0..dropPhase: snap + drop back
-      // dropPhase..throwPhase: ball flies to target
-      // throwPhase..1: catch + run after catch (or INT return)
       const qb = { ...formation.qb };
       let ballX, ballY = cy;
       let arc = 0;
 
-      // QB drops back
       const dropAmt = t < dropPhase ? (t / dropPhase) * 5 * FIELD.PX_PER_YARD : 5 * FIELD.PX_PER_YARD;
       qb.x -= dir * dropAmt;
 
-      // Receiver runs route
-      const wr = wrChoice === "wr1" ? { ...formation.wr1 } : wrChoice === "wr2" ? { ...formation.wr2 } : { ...formation.te };
-      if (t > 0.05) {
-        const rt = Math.min(1, (t - 0.05) / 0.55);
-        wr.x = wr.x + dir * rt * (targetDepth + 2) * FIELD.PX_PER_YARD;
-        wr.y = wr.y + (targetY - wr.y) * rt * 0.6;
-      }
+      // Receiver runs route — fully reaches catch point by throwPhase
+      const wrBase = wrChoice === "wr1" ? formation.wr1
+                   : wrChoice === "wr2" ? formation.wr2
+                   : wrChoice === "te"  ? formation.te
+                   :                       formation.rb;
+      const wr = { ...wrBase };
+      // Route progression: linear 0 → 1 from t=0.05 to t=throwPhase
+      const routeT = Math.min(1, Math.max(0, (t - 0.05) / (throwPhase - 0.05)));
+      const wrPathX0 = wrBase.x;
+      const wrPathY0 = wrBase.y;
+      wr.x = wrPathX0 + (targetX - wrPathX0) * routeT;
+      wr.y = wrPathY0 + (targetY - wrPathY0) * routeT;
 
       if (t < dropPhase) {
         ballX = qb.x; ballY = cy;
@@ -1466,34 +1509,47 @@ function buildAnimForPlay(play, prevPlay) {
       } else {
         const tt = (t - throwPhase) / (1 - throwPhase);
         if (play.kind === "complete") {
-          // Run after catch toward endX
+          // After catch: ball + receiver travel together to (endX, finalY)
           ballX = targetX + (endX - targetX) * easeOutCubic(tt);
-          ballY = targetY + (cy - targetY) * tt * 0.4;
+          ballY = targetY + (finalY - targetY) * easeOutCubic(tt);
+          // Receiver carries the ball — keep them locked together
+          wr.x = ballX;
+          wr.y = ballY;
         } else if (play.kind === "incomplete") {
           // Ball drops to ground near target
           ballX = targetX;
           ballY = targetY + tt * 25;
         } else {
-          // INT — ball goes other way
+          // INT — ball goes the other way; the receiver "stops" at the catch point
           const retEndX = losX - dir * 10 * FIELD.PX_PER_YARD;
           ballX = targetX + (retEndX - targetX) * easeOutCubic(tt);
           ballY = targetY + ((cy + 30) - targetY) * tt;
+          wr.x = targetX; wr.y = targetY;
         }
       }
 
-      // Defense: rush + DBs cover
+      // Defense: rush + DBs cover (and one closes on the ball-carrier post-catch)
       const def = formation.defense.map((d, i) => {
         const dd = { ...d };
-        if (i < 4 && t > 0.1) {
+        if (i < 4 && t > 0.1 && t < throwPhase + 0.05) {
           // DL rushes QB
           const tt = Math.min(1, (t - 0.1) / 0.4);
           dd.x = dd.x + (qb.x - dd.x) * tt * 0.7;
           dd.y = dd.y + (qb.y - dd.y) * tt * 0.5;
         } else if (i >= 7 && t > 0.05) {
-          // CBs follow WRs
+          // CBs follow WRs (chase the route)
           const tt = Math.min(1, (t - 0.05) / 0.55);
-          if (i === 7) { dd.x += dir * tt * (targetDepth) * FIELD.PX_PER_YARD * 0.85; }
-          if (i === 8) { dd.x += dir * tt * (targetDepth) * FIELD.PX_PER_YARD * 0.85; }
+          if (i === 7) { dd.x += dir * tt * (catchDepth) * FIELD.PX_PER_YARD * 0.85; }
+          if (i === 8) { dd.x += dir * tt * (catchDepth) * FIELD.PX_PER_YARD * 0.85; }
+        }
+        // After catch, the closest defender pursues the ball-carrier
+        if (play.kind === "complete" && t > throwPhase) {
+          const tt = (t - throwPhase) / (1 - throwPhase);
+          if (i === 7 || i === 8 || i === 4 || i === 5) {
+            // Pursuit angle toward ball
+            dd.x = dd.x + (ballX - dd.x) * Math.min(1, tt * 1.2) * 0.8;
+            dd.y = dd.y + (ballY - dd.y) * Math.min(1, tt * 1.2) * 0.7;
+          }
         }
         return dd;
       });
@@ -1504,6 +1560,7 @@ function buildAnimForPlay(play, prevPlay) {
         if (p === formation.wr1 && wrChoice === "wr1") return wr;
         if (p === formation.wr2 && wrChoice === "wr2") return wr;
         if (p === formation.te && wrChoice === "te") return wr;
+        if (p === formation.rb && wrChoice === "rb") return wr;
         if (p.role === "OL" && t > 0.05) {
           const tt = Math.min(1, (t - 0.05) / 0.55);
           // Tackles drop deeper than center → forms a U-shaped pocket
