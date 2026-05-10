@@ -1640,7 +1640,7 @@ const SPRITE_FRAMES = {
     "................",
     "................",
   ],
-  // Catch — arms up reaching for ball
+  // Catch — arms up reaching for ball (two-handed)
   catch: [
     "................",
     "..S....HHHLHH...",
@@ -1665,11 +1665,36 @@ const SPRITE_FRAMES = {
     "..CCCC....CCCC..",
     "................",
   ],
+  // Leap — one-handed leaping highlight grab (arm reaches up-and-forward)
+  leap: [
+    "............SSSS",
+    "...HHHLHH..SSSSs",
+    "..HHHHLHHh.SSss.",
+    "..HHFFFFHh.sss..",
+    "..HHHHLHHh.ss...",
+    "...HHHLHh..s....",
+    "....SSSSs.......",
+    "...JJJJJJjSSSS..",
+    "..JJJJJJJjSSSSss",
+    "..JJJJNJJJjSsss.",
+    "..JJJJJJJJj.....",
+    "..JJJJJJJJj.....",
+    "...JJJJJJJj.....",
+    "...PPPPPPPp.....",
+    "..PPPP...PPp....",
+    "..PPP.....PPp...",
+    "..PP.......PPp..",
+    "...PP.......PP..",
+    "....PP.......PP.",
+    ".....CC.......CC",
+    "................",
+    "................",
+  ],
 };
 
 // Pre-render sprite frames to offscreen canvases per team palette (cached)
 const SPRITE_CACHE = new Map();
-const SPRITE_SCALE = 4; // each sprite pixel = 4 canvas pixels (was 3)
+const SPRITE_SCALE = 5; // each sprite pixel = 5 canvas pixels
 
 function shade(color, factor) {
   if (color[0] !== "#") return color;
@@ -1704,7 +1729,8 @@ function getSpriteCanvas(team, frameKey, flipped, dimmed = false) {
         case "H": color = helmet; break;
         case "h": color = helmetShade; break;       // helmet shadow side
         case "L": color = stripe; break;             // helmet center stripe
-        case "F": color = "#9aa0a8"; break;          // facemask
+        case "F": color = "#3a3f48"; break;          // facemask / visor (dark tint)
+        case "V": color = "#1a1e26"; break;          // deeper visor band
         case "J": color = jersey; break;
         case "j": color = jerseyShade; break;        // jersey shadow side
         case "N": color = number; break;             // jersey number
@@ -1894,6 +1920,78 @@ function clearCallout() {
   if (el) el.classList.remove("show");
 }
 
+// Draw a chunky football icon at (x,y). Used to "enlarge the hand" on catches.
+function drawBigFootball(ctx, x, y, size = 24) {
+  ctx.save();
+  // Drop shadow
+  ctx.fillStyle = "rgba(0,0,0,0.35)";
+  ctx.beginPath();
+  ctx.ellipse(x + 2, y + 2, size, size * 0.62, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Dark outline
+  ctx.fillStyle = "#2a1408";
+  ctx.beginPath();
+  ctx.ellipse(x, y, size + 2, size * 0.62 + 2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Body
+  ctx.fillStyle = "#8a4520";
+  ctx.beginPath();
+  ctx.ellipse(x, y, size, size * 0.62, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Top highlight
+  ctx.fillStyle = "#b06030";
+  ctx.beginPath();
+  ctx.ellipse(x - size * 0.25, y - size * 0.18, size * 0.55, size * 0.18, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+  // Laces
+  ctx.strokeStyle = "#fafafa";
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(x - size * 0.42, y);
+  ctx.lineTo(x + size * 0.42, y);
+  for (let i = -2; i <= 2; i++) {
+    ctx.moveTo(x + i * size * 0.16, y - 4);
+    ctx.lineTo(x + i * size * 0.16, y + 4);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Draw a pop-up callout above a player ("CAUGHT!", "PICK!", etc.)
+function drawHeadCallout(ctx, x, y, text, color, scale = 1) {
+  ctx.save();
+  const fontSize = Math.round(26 * scale);
+  ctx.font = `900 ${fontSize}px sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const padX = 12 * scale;
+  const w = ctx.measureText(text).width + padX * 2;
+  const h = fontSize + 12;
+  const cy = y - h - 4;
+  ctx.fillStyle = "rgba(0,0,0,0.82)";
+  roundedRect(ctx, x - w / 2, cy - h / 2, w, h, 6);
+  ctx.fill();
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 14;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  roundedRect(ctx, x - w / 2 + 0.5, cy - h / 2 + 0.5, w - 1, h - 1, 6);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = color;
+  ctx.fillText(text, x, cy + 1);
+  // Tail pointer below the pill
+  ctx.fillStyle = "rgba(0,0,0,0.82)";
+  ctx.beginPath();
+  ctx.moveTo(x - 7, cy + h / 2);
+  ctx.lineTo(x + 7, cy + h / 2);
+  ctx.lineTo(x, cy + h / 2 + 8);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
 // Helper: pseudo-random bool from a play & seed number
 function playSeed(play, salt) {
   const s = ((play.startYard ?? 0) * 31 + (play.quarter ?? 0) * 17 + (play.time ?? 0) + salt) | 0;
@@ -2056,8 +2154,29 @@ function buildCinemaAnim(play, prevPlay) {
     const isComplete = play.kind === "complete";
     const targetDepth = play.targetDepth || 10;
     const targetWX_view = losWX + targetDepth * CINEMA.pxPerYard;
-    return { duration: 2400, kind: play.kind, render: (t, ctx) => {
-      const PRE = 0.16, DROP = 0.34, ARRIVE = 0.62;
+    // "Highlight" catches get a longer freeze + CAUGHT! callout
+    const yardsGained = play.yards ?? 0;
+    const isDeep      = targetDepth >= 18;
+    const isBigCatch  = yardsGained >= 25;
+    const isHighlight = isComplete && (isDeep || isBigCatch);
+    const FREEZE_MS = isComplete ? (isHighlight ? 850 : 280) : 0;
+    const baseDur   = 2400;
+    const totalDur  = baseDur + FREEZE_MS;
+    const ARRIVE = 0.62;
+    // Freeze window in normalized t-NEW (the t we render with): centred at the catch.
+    const F1 = (ARRIVE * baseDur) / totalDur;
+    const F2 = (ARRIVE * baseDur + FREEZE_MS) / totalDur;
+    const mapT = FREEZE_MS === 0 ? (x => x) : (x => {
+      if (x <= F1) return x * ARRIVE / F1;
+      if (x <= F2) return ARRIVE;
+      return ARRIVE + (x - F2) * (1 - ARRIVE) / (1 - F2);
+    });
+    return { duration: totalDur, kind: play.kind, render: (tNew, ctx) => {
+      const t = mapT(tNew);
+      const inFreeze = FREEZE_MS > 0 && tNew > F1 && tNew < F2;
+      // Bounce factor: brief pop into the freeze (0 → 1 → 0)
+      const freezePhase = inFreeze ? (tNew - F1) / (F2 - F1) : 0;
+      const PRE = 0.16, DROP = 0.34;
       let qbWX = losWX - 80, ballWX, ballY = CINEMA.groundY - 60, ballArc = 0;
       let carrierWX = losWX - 30;
       if (t < PRE) {
@@ -2081,9 +2200,18 @@ function buildCinemaAnim(play, prevPlay) {
           ballWX = targetWX_view;
         }
       }
-      setCamFromCarrier(t < ARRIVE ? (qbWX + targetWX_view) / 2 : carrierWX);
+      // During the freeze, lock the camera on the catch point so the action holds.
+      if (inFreeze) setCamFromCarrier(targetWX_view);
+      else setCamFromCarrier(t < ARRIVE ? (qbWX + targetWX_view) / 2 : carrierWX);
       const fieldState = { losYard: startYardAbs, fdYard: fdYardAbs };
       drawCinemaField(ctx, homeTeam, awayTeam, fieldState);
+
+      // Slight motion-blur darken behind the action during the freeze for emphasis
+      if (inFreeze) {
+        const vignette = Math.sin(freezePhase * Math.PI) * 0.22;
+        ctx.fillStyle = `rgba(0,0,0,${vignette})`;
+        ctx.fillRect(0, 0, FIELD.W, FIELD.H);
+      }
 
       // OL pass-block — slight drop back
       for (let i = -2; i <= 2; i++) {
@@ -2096,12 +2224,20 @@ function buildCinemaAnim(play, prevPlay) {
       // Receiver running route
       const wrStartWX = losWX + 4;
       const wrWX = wrStartWX + Math.min(1, t / ARRIVE) * targetDepth * CINEMA.pxPerYard;
-      const wrFrame = t < PRE ? "idle"
-                    : (t > ARRIVE && isComplete) ? ((Math.floor(t * 10) % 2 === 0) ? "run_a" : "run_b")
-                    : t > ARRIVE - 0.1 && t < ARRIVE + 0.05 ? "catch"
-                    : ((Math.floor(t * 10) % 2 === 0) ? "run_a" : "run_b");
-      const wrYOff = (t > ARRIVE - 0.1 && t < ARRIVE + 0.05 && isComplete) ? -14 : 0;
-      drawSprite(ctx, worldToScreenX(t > ARRIVE && isComplete ? carrierWX : wrWX), CINEMA.groundY + wrYOff, offTeam, wrFrame, false);
+      // Frame selection — catch / leap / running
+      const catchWindow = (t > ARRIVE - 0.1 && t < ARRIVE + 0.05) || inFreeze;
+      let wrFrame;
+      if (t < PRE) wrFrame = "idle";
+      else if (inFreeze && isComplete) wrFrame = isHighlight ? "leap" : "catch";
+      else if (catchWindow && isComplete) wrFrame = isHighlight ? "leap" : "catch";
+      else if (t > ARRIVE && isComplete) wrFrame = (Math.floor(t * 10) % 2 === 0) ? "run_a" : "run_b";
+      else wrFrame = (Math.floor(t * 10) % 2 === 0) ? "run_a" : "run_b";
+      // Lift the receiver on highlight catches — they leap for it
+      const baseLift = catchWindow && isComplete ? -14 : 0;
+      const leapLift = inFreeze && isHighlight ? -18 - Math.sin(freezePhase * Math.PI) * 8 : 0;
+      const wrYOff = baseLift + leapLift;
+      const wrScreenWX = worldToScreenX(t > ARRIVE && isComplete ? carrierWX : wrWX);
+      drawSprite(ctx, wrScreenWX, CINEMA.groundY + wrYOff, offTeam, wrFrame, false);
       // Defenders
       for (let i = 0; i < 3; i++) {
         const dStartWX = losWX + 60 + i * 30;
@@ -2121,14 +2257,29 @@ function buildCinemaAnim(play, prevPlay) {
       const cbWX = cbStartWX + Math.min(1, t / ARRIVE) * targetDepth * CINEMA.pxPerYard * 0.85;
       const cbFrame = (Math.floor(t * 10) % 2 === 0) ? "run_a" : "run_b";
       drawSprite(ctx, worldToScreenX(t > ARRIVE && isComplete ? carrierWX + 18 : cbWX), CINEMA.groundY + 4, defTeam, cbFrame, true);
-      // Ball
-      ctx.fillStyle = "#6b3416";
-      ctx.beginPath();
-      ctx.ellipse(worldToScreenX(ballWX), ballY - ballArc, 7, 4, 0, 0, Math.PI * 2);
-      ctx.fill();
+      // Ball — hide on top of the giant catch ball during the freeze
+      if (!inFreeze) {
+        ctx.fillStyle = "#6b3416";
+        ctx.beginPath();
+        ctx.ellipse(worldToScreenX(ballWX), ballY - ballArc, 7, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (isComplete) {
+        // Big football at the receiver's reaching hand. Pop scale during freeze.
+        const popScale = 1 + Math.sin(freezePhase * Math.PI) * 0.45;
+        const handX = wrScreenWX + (isHighlight ? 30 : 0);
+        const handY = CINEMA.groundY + wrYOff - 96;
+        drawBigFootball(ctx, handX, handY, 24 * popScale);
+        // CAUGHT! callout for highlight catches; smaller "Catch" for regular
+        if (isHighlight) {
+          const calloutScale = 0.85 + Math.sin(Math.min(1, freezePhase * 2.5) * Math.PI * 0.5) * 0.35;
+          drawHeadCallout(ctx, wrScreenWX, CINEMA.groundY + wrYOff - 130, "CAUGHT!", "#f0cc30", calloutScale);
+        } else if (freezePhase < 0.55) {
+          drawHeadCallout(ctx, wrScreenWX, CINEMA.groundY + wrYOff - 120, "CATCH", "#9be09b", 0.7);
+        }
+      }
 
       // Move callouts on YAC
-      if (isComplete && t > ARRIVE) {
+      if (isComplete && t > ARRIVE && !inFreeze) {
         const yacT = (t - ARRIVE) / (1 - ARRIVE);
         for (const m of moves) {
           const localAt = (m.at - ARRIVE) / (1 - ARRIVE);
@@ -2141,7 +2292,7 @@ function buildCinemaAnim(play, prevPlay) {
           }
         }
       }
-      if (t < 0.05 && play._calloutsFired) play._calloutsFired = null;
+      if (tNew < 0.05 && play._calloutsFired) play._calloutsFired = null;
     }};
   }
 
