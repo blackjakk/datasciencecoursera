@@ -299,6 +299,61 @@
   }
   .arch-dl { background: #2d1500; color: #ffcc66; }
   .arch-ol { background: #001a40; color: #9bd0ff; }
+
+  .sim-many-select {
+    background: var(--bg3); color: var(--white); border: 1px solid var(--border);
+    border-radius: 6px; padding: .35rem .5rem; font-weight: 700; cursor: pointer;
+    font-size: .8rem;
+  }
+  .sim-many-modal {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+    display: flex; align-items: center; justify-content: center; z-index: 2000;
+    backdrop-filter: blur(4px);
+  }
+  .sim-many-card {
+    position: relative; background: var(--bg2); border: 1px solid var(--gold);
+    border-radius: 12px; padding: 1.5rem 1.8rem; max-width: 640px; width: 90%;
+    max-height: 86vh; overflow-y: auto;
+    box-shadow: 0 12px 48px rgba(0,0,0,0.8);
+  }
+  .sim-many-close {
+    position: absolute; top: .5rem; right: .8rem; background: transparent;
+    border: 0; color: var(--gray); font-size: 1.8rem; cursor: pointer; line-height: 1;
+  }
+  .sim-many-close:hover { color: var(--gold); }
+  .sm-title {
+    font-size: 1.2rem; font-weight: 800; color: var(--gold); letter-spacing: .5px;
+    margin-bottom: .25rem;
+  }
+  .sm-sub { color: var(--gray); font-size: .8rem; margin-bottom: 1rem; }
+  .sm-section { margin-top: 1.2rem; }
+  .sm-section h4 {
+    font-size: .7rem; letter-spacing: .6px; color: var(--gold);
+    margin-bottom: .4rem; border-bottom: 1px solid var(--border); padding-bottom: .25rem;
+  }
+  .sm-record {
+    display: grid; grid-template-columns: 1fr auto 1fr; gap: .8rem;
+    align-items: center; margin-bottom: 1rem;
+  }
+  .sm-team-block { text-align: center; padding: .8rem; background: var(--bg3); border-radius: 8px; }
+  .sm-team-block.winner { background: rgba(240,204,48,0.15); border: 1px solid var(--gold); }
+  .sm-team-name { font-weight: 800; font-size: .9rem; color: var(--gold); }
+  .sm-team-pct  { font-size: 2rem; font-weight: 900; font-variant-numeric: tabular-nums; margin: .25rem 0; }
+  .sm-team-wins { font-size: .75rem; color: var(--gray); }
+  .sm-vs { font-size: .9rem; color: var(--gray); font-weight: 800; }
+  .sm-stats-table {
+    width: 100%; border-collapse: collapse; font-size: .78rem;
+  }
+  .sm-stats-table td {
+    padding: .25rem .4rem; font-variant-numeric: tabular-nums;
+  }
+  .sm-stats-table td.lbl {
+    text-align: center; color: var(--gray); font-size: .68rem;
+    letter-spacing: .3px; width: 30%;
+  }
+  .sm-stats-table td.home { text-align: right; }
+  .sm-stats-table td.away { text-align: left; }
+  .sm-stats-table td.better { color: var(--gold); font-weight: 700; }
   .player-tooltip {
     position: fixed; pointer-events: none; z-index: 1000;
     background: #0a0a12; border: 1px solid var(--gold); border-radius: 8px;
@@ -406,6 +461,13 @@
 
   <div class="controls">
     <button class="btn btn-gold" id="simBtn">⚡ Simulate Game</button>
+    <select id="simManyCount" class="sim-many-select" title="Number of games to simulate">
+      <option value="10">10×</option>
+      <option value="100" selected>100×</option>
+      <option value="500">500×</option>
+      <option value="1000">1000×</option>
+    </select>
+    <button class="btn btn-outline" id="simManyBtn">🎲 Sim Many</button>
     <button class="btn btn-primary" id="playBtn" disabled>▶ Play</button>
     <button class="btn btn-outline" id="pauseBtn" disabled>⏸ Pause</button>
     <button class="btn btn-outline" id="endBtn" disabled>⏭ Skip to End</button>
@@ -417,6 +479,14 @@
     <div class="view-toggle">
       <button id="viewTacticalBtn" class="active">📋 Tactical</button>
       <button id="viewCinemaBtn">🎬 Cinema</button>
+    </div>
+  </div>
+
+  <!-- Sim-many results modal -->
+  <div id="simManyModal" class="sim-many-modal" style="display:none">
+    <div class="sim-many-card">
+      <button class="sim-many-close" id="simManyClose">×</button>
+      <div id="simManyBody"></div>
     </div>
   </div>
 
@@ -898,10 +968,25 @@ class GameSimulator {
 
     if (this.down === 4) {
       const toEZ = 100 - this.yardLine;
-      // FG attempt
-      if (toEZ <= 52 && this.ytg <= 5) {
+      const inFGRange  = toEZ <= 40;   // realistic FG attempt (57-yd max)
+      const isGoalLine = toEZ <= 3;    // 4th & goal at the 3 or in
+      const isShortYTG = this.ytg <= 2;
+      // Decide between FG / punt / go-for-it
+      let action;
+      if (isGoalLine) {
+        // Goal line — usually go for the TD, sometimes chip-shot FG
+        action = Math.random() < 0.62 ? "go" : "fg";
+      } else if (inFGRange) {
+        // In FG range — kick the FG unless 4th & 1-2 (sometimes go for it)
+        action = (isShortYTG && Math.random() < 0.22) ? "go" : "fg";
+      } else {
+        // Out of FG range — punt unless 4th & short OR midfield 4th-and-manageable
+        const goPct = isShortYTG ? 0.35 : (this.ytg <= 4 && toEZ <= 55 ? 0.12 : 0);
+        action = Math.random() < goPct ? "go" : "punt";
+      }
+      if (action === "fg") {
         const dist = toEZ + 17;
-        const fgPct = clamp(0.95 - (dist - 20) * 0.018 + (this.offR.k - 60) / 250, 0.20, 0.97);
+        const fgPct = clamp(0.96 - (dist - 20) * 0.020 + (this.offR.k - 60) / 250, 0.18, 0.97);
         const kStats = off.players[K]; if (kStats) { kStats.fg_att++; }
         off.team.fourthAtt++;
         if (Math.random() < fgPct) {
@@ -913,9 +998,19 @@ class GameSimulator {
         }
         return { endDrive: true };
       }
-      // Punt
-      off.team.fourthAtt++;
-      const punt = clamp(normal(46, 7), 28, 68);
+      if (action === "go") {
+        // Going for it: bump the fourthAtt counter, then fall through to the
+        // normal play logic below (run or pass). Drive-flow code will
+        // convert a successful first down into ytg=10, otherwise turnover-on-downs.
+        off.team.fourthAtt++;
+        // Mark this conversion attempt — _drive() will check `r.yards >= ytg`
+        // and credit fourthConv on success.
+        this._pushVisual({ kind: "fourth_go", desc: `${this.possTeam.name} GOES FOR IT — 4th & ${this.ytg}!`, startYard, endYard: startYard });
+        // Fall through to normal play (do NOT return)
+      } else {
+        // Punt
+        off.team.fourthAtt++;
+        const punt = clamp(normal(46, 7), 28, 68);
       const landYard = clamp(startYard + punt, 0, 100);
       // Touchback / fair catch / return resolution
       let returnYards = 0, isTouchback = false, isFairCatch = false;
@@ -945,7 +1040,9 @@ class GameSimulator {
         endYard: finalLand,
         kicker: this.offR.starters.k,
       });
-      return { endDrive: true, punt: effectivePunt, isReturnTD };
+        return { endDrive: true, punt: effectivePunt, isReturnTD };
+      }
+      // (falls through to a regular play below when action === "go")
     }
     off.team.plays++;
     if (isThird) off.team.thirdAtt++;
@@ -1162,13 +1259,24 @@ class GameSimulator {
         this.poss = this.poss === "home" ? "away" : "home";
         this.yardLine = 25; this.down = 1; this.ytg = 10; return;
       }
+      const wasFourth = (this.down === 4);
       if (r.incomplete) this.down++;
       else if (yards >= this.ytg) {
         this.stats[this.poss].team.firstDowns++;
         if (wasThird) this.stats[this.poss].team.thirdConv++;
+        if (wasFourth) this.stats[this.poss].team.fourthConv++;
         this.down = 1; this.ytg = 10;
       }
       else { this.down++; this.ytg -= yards; }
+      // Turnover on downs — failed 4th-down conversion gives ball to defense
+      if (wasFourth && this.down > 4) {
+        this._pushVisual({ kind: "to_downs", desc: `Turnover on downs!`, startYard: this.yardLine, endYard: this.yardLine });
+        this.drives.push({ team: start, result: "TURNOVER_ON_DOWNS", homeScore: this.score.home, awayScore: this.score.away });
+        this.poss = this.poss === "home" ? "away" : "home";
+        this.yardLine = clamp(100 - this.yardLine, 1, 99);
+        this.down = 1; this.ytg = 10;
+        return;
+      }
     }
     this.drives.push({ team: start, result: "FG/Punt/TO", homeScore: this.score.home, awayScore: this.score.away });
   }
@@ -1966,6 +2074,164 @@ simBtn.addEventListener("click", () => {
   startNextPlay();
   playing = true;
   updateButtons();
+});
+
+// ─── Sim Many — run N games and aggregate ─────────────────────────────────
+function runManyGames(home, away, hRoster, aRoster, n) {
+  const agg = {
+    n,
+    homeWins: 0, awayWins: 0, ties: 0,
+    homeScoreSum: 0, awayScoreSum: 0,
+    homeScoreMax: 0, awayScoreMax: 0,
+    biggestBlowout: { margin: 0, home: 0, away: 0 },
+    closestGame: { margin: 999, home: 0, away: 0 },
+    teamSums: {
+      home: { totalYds: 0, passYds: 0, rushYds: 0, sacks: 0, sacks_allowed: 0, turnovers: 0, takeaways: 0, firstDowns: 0, pass_comp: 0, pass_att: 0, rush_att: 0 },
+      away: { totalYds: 0, passYds: 0, rushYds: 0, sacks: 0, sacks_allowed: 0, turnovers: 0, takeaways: 0, firstDowns: 0, pass_comp: 0, pass_att: 0, rush_att: 0 },
+    },
+    qbSums: { home: { yds: 0, td: 0, int: 0 }, away: { yds: 0, td: 0, int: 0 } },
+    rbSums: { home: { yds: 0, td: 0 }, away: { yds: 0, td: 0 } },
+    wrSums: { home: { yds: 0, td: 0 }, away: { yds: 0, td: 0 } },
+  };
+  for (let i = 0; i < n; i++) {
+    const sim = new GameSimulator(home, away, hRoster, aRoster);
+    const r = sim.simulate();
+    const hs = r.homeScore, as = r.awayScore;
+    if (hs > as) agg.homeWins++;
+    else if (as > hs) agg.awayWins++;
+    else agg.ties++;
+    agg.homeScoreSum += hs;
+    agg.awayScoreSum += as;
+    if (hs > agg.homeScoreMax) agg.homeScoreMax = hs;
+    if (as > agg.awayScoreMax) agg.awayScoreMax = as;
+    const margin = Math.abs(hs - as);
+    if (margin > agg.biggestBlowout.margin) {
+      agg.biggestBlowout = { margin, home: hs, away: as };
+    }
+    if (margin < agg.closestGame.margin) {
+      agg.closestGame = { margin, home: hs, away: as };
+    }
+    for (const side of ["home", "away"]) {
+      const t = r.stats[side].team;
+      const s = agg.teamSums[side];
+      s.totalYds += t.totalYds; s.passYds += t.passYds; s.rushYds += t.rushYds;
+      s.sacks += t.sacks; s.sacks_allowed += t.sacks_allowed;
+      s.turnovers += t.turnovers; s.takeaways += t.takeaways;
+      s.firstDowns += t.firstDowns;
+      s.pass_comp += t.pass_comp; s.pass_att += t.pass_att; s.rush_att += t.rush_att;
+      // Top-line player aggregates (top QB / RB / WR by yds)
+      const players = Object.values(r.stats[side].players);
+      const topQB = players.filter(p => p.pos === "QB").sort((a, b) => b.pass_yds - a.pass_yds)[0];
+      const topRB = players.filter(p => p.rush_att > 0).sort((a, b) => b.rush_yds - a.rush_yds)[0];
+      const topWR = players.filter(p => p.rec_tgt > 0).sort((a, b) => b.rec_yds - a.rec_yds)[0];
+      if (topQB) { agg.qbSums[side].yds += topQB.pass_yds; agg.qbSums[side].td += topQB.pass_td; agg.qbSums[side].int += topQB.pass_int; }
+      if (topRB) { agg.rbSums[side].yds += topRB.rush_yds; agg.rbSums[side].td += topRB.rush_td; }
+      if (topWR) { agg.wrSums[side].yds += topWR.rec_yds; agg.wrSums[side].td += topWR.rec_td; }
+    }
+  }
+  return agg;
+}
+
+function renderSimManyResults(agg, home, away) {
+  const homeWinPct = (agg.homeWins / agg.n * 100).toFixed(1);
+  const awayWinPct = (agg.awayWins / agg.n * 100).toFixed(1);
+  const tiePct     = (agg.ties     / agg.n * 100).toFixed(1);
+  const avg = (sum) => (sum / agg.n).toFixed(1);
+  const isHomeWinner = agg.homeWins > agg.awayWins;
+  const row = (lbl, hv, av, fmt = (v) => v) => {
+    const h = +hv, a = +av;
+    const hCls = h > a ? "better" : "";
+    const aCls = a > h ? "better" : "";
+    return `<tr>
+      <td class="home ${hCls}">${fmt(h)}</td>
+      <td class="lbl">${lbl}</td>
+      <td class="away ${aCls}">${fmt(a)}</td>
+    </tr>`;
+  };
+  const compPct = (s) => s.pass_att ? (s.pass_comp / s.pass_att * 100).toFixed(1) + "%" : "—";
+  const ypc = (s) => s.rush_att ? (s.rushYds / s.rush_att).toFixed(1) : "—";
+  const html = `
+    <div class="sm-title">${home.emoji} ${home.city} ${home.name} <span style="color:var(--gray);font-size:.85rem">vs</span> ${away.emoji} ${away.city} ${away.name}</div>
+    <div class="sm-sub">${agg.n} simulations · all stats are averages per game</div>
+
+    <div class="sm-record">
+      <div class="sm-team-block ${isHomeWinner ? "winner" : ""}">
+        <div class="sm-team-name">${home.name}</div>
+        <div class="sm-team-pct">${homeWinPct}%</div>
+        <div class="sm-team-wins">${agg.homeWins} wins · ${avg(agg.homeScoreSum)} avg pts</div>
+      </div>
+      <div class="sm-vs">— vs —<br><span style="font-size:.7rem;color:var(--gray)">${tiePct}% ties</span></div>
+      <div class="sm-team-block ${!isHomeWinner ? "winner" : ""}">
+        <div class="sm-team-name">${away.name}</div>
+        <div class="sm-team-pct">${awayWinPct}%</div>
+        <div class="sm-team-wins">${agg.awayWins} wins · ${avg(agg.awayScoreSum)} avg pts</div>
+      </div>
+    </div>
+
+    <div class="sm-section">
+      <h4>Notable games</h4>
+      <div style="font-size:.78rem;color:var(--gray);line-height:1.6">
+        <div>Biggest blowout: <span style="color:var(--white)">${home.name} ${agg.biggestBlowout.home} — ${away.name} ${agg.biggestBlowout.away}</span> (margin ${agg.biggestBlowout.margin})</div>
+        <div>Closest result: <span style="color:var(--white)">${home.name} ${agg.closestGame.home} — ${away.name} ${agg.closestGame.away}</span> (margin ${agg.closestGame.margin})</div>
+        <div>Highest score: <span style="color:var(--white)">${home.name} ${agg.homeScoreMax} | ${away.name} ${agg.awayScoreMax}</span></div>
+      </div>
+    </div>
+
+    <div class="sm-section">
+      <h4>Team averages per game</h4>
+      <table class="sm-stats-table">
+        ${row("TOTAL YDS",     avg(agg.teamSums.home.totalYds),     avg(agg.teamSums.away.totalYds))}
+        ${row("PASS YDS",      avg(agg.teamSums.home.passYds),      avg(agg.teamSums.away.passYds))}
+        ${row("RUSH YDS",      avg(agg.teamSums.home.rushYds),      avg(agg.teamSums.away.rushYds))}
+        ${row("FIRST DOWNS",   avg(agg.teamSums.home.firstDowns),   avg(agg.teamSums.away.firstDowns))}
+        ${row("COMP %",        compPct(agg.teamSums.home),          compPct(agg.teamSums.away), v => v)}
+        ${row("YPC",           ypc(agg.teamSums.home),              ypc(agg.teamSums.away), v => v)}
+        ${row("SACKS",         avg(agg.teamSums.home.sacks),        avg(agg.teamSums.away.sacks))}
+        ${row("SACKS ALLOWED", avg(agg.teamSums.home.sacks_allowed), avg(agg.teamSums.away.sacks_allowed))}
+        ${row("TURNOVERS",     avg(agg.teamSums.home.turnovers),    avg(agg.teamSums.away.turnovers))}
+        ${row("TAKEAWAYS",     avg(agg.teamSums.home.takeaways),    avg(agg.teamSums.away.takeaways))}
+      </table>
+    </div>
+
+    <div class="sm-section">
+      <h4>Top players (averaged per game)</h4>
+      <table class="sm-stats-table">
+        ${row("QB YDS",  avg(agg.qbSums.home.yds),  avg(agg.qbSums.away.yds))}
+        ${row("QB TD",   avg(agg.qbSums.home.td),   avg(agg.qbSums.away.td))}
+        ${row("QB INT",  avg(agg.qbSums.home.int),  avg(agg.qbSums.away.int))}
+        ${row("RB YDS",  avg(agg.rbSums.home.yds),  avg(agg.rbSums.away.yds))}
+        ${row("RB TD",   avg(agg.rbSums.home.td),   avg(agg.rbSums.away.td))}
+        ${row("WR YDS",  avg(agg.wrSums.home.yds),  avg(agg.wrSums.away.yds))}
+        ${row("WR TD",   avg(agg.wrSums.home.td),   avg(agg.wrSums.away.td))}
+      </table>
+    </div>
+  `;
+  $("simManyBody").innerHTML = html;
+  $("simManyModal").style.display = "flex";
+}
+
+$("simManyBtn").addEventListener("click", () => {
+  const homeId = +homeSel.value, awayId = +awaySel.value;
+  if (homeId === awayId) { alert("Pick two different teams!"); return; }
+  const home = getTeam(homeId), away = getTeam(awayId);
+  const homeRoster = (preview.home.id === homeId && preview.home.roster)
+    ? preview.home.roster : regenerateFullRoster(home, {});
+  const homeBlock = new Set(homeRoster.map(p => p.name));
+  const awayRoster = (preview.away.id === awayId && preview.away.roster)
+    ? preview.away.roster : regenerateFullRoster(away, {}, homeBlock);
+  const n = +$("simManyCount").value || 100;
+  const btn = $("simManyBtn");
+  btn.disabled = true; btn.textContent = `Simulating ${n}...`;
+  // Yield to the browser so the disabled state can paint, then run
+  setTimeout(() => {
+    const agg = runManyGames(home, away, homeRoster, awayRoster, n);
+    renderSimManyResults(agg, home, away);
+    btn.disabled = false; btn.textContent = "🎲 Sim Many";
+  }, 30);
+});
+$("simManyClose").addEventListener("click", () => { $("simManyModal").style.display = "none"; });
+$("simManyModal").addEventListener("click", (e) => {
+  if (e.target.id === "simManyModal") $("simManyModal").style.display = "none";
 });
 
 playBtn.addEventListener("click", () => {
