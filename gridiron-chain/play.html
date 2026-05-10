@@ -253,13 +253,17 @@
     padding: .02rem .35rem; border-radius: 3px; font-size: .65rem;
     font-weight: 800; font-variant-numeric: tabular-nums;
   }
+  .boost-row {
+    display: flex; gap: .65rem; margin-top: .35rem; flex-wrap: wrap;
+  }
   .boost-toggle {
-    display: inline-flex; align-items: center; gap: .4rem; margin-top: .35rem;
+    display: inline-flex; align-items: center; gap: .3rem;
     font-size: .72rem; color: var(--gray); cursor: pointer; user-select: none;
     padding: .15rem 0;
   }
   .boost-toggle input { cursor: pointer; accent-color: var(--gold); }
   .boost-toggle:hover { color: var(--gold); }
+  .boost-toggle input:checked + * , .boost-toggle:has(input:checked) { color: var(--gold); font-weight: 700; }
   .player-tooltip {
     position: fixed; pointer-events: none; z-index: 1000;
     background: #0a0a12; border: 1px solid var(--gold); border-radius: 8px;
@@ -338,13 +342,21 @@
     <div>
       <label>Home Team</label>
       <select id="homeTeam"></select>
-      <label class="boost-toggle"><input type="checkbox" id="homeBoostQB" /> 🌟 Elite QB</label>
+      <div class="boost-row">
+        <label class="boost-toggle"><input type="checkbox" id="homeBoostQB" /> 🌟 QB</label>
+        <label class="boost-toggle"><input type="checkbox" id="homeBoostWR" /> 🌟 WR</label>
+        <label class="boost-toggle"><input type="checkbox" id="homeBoostRB" /> 🌟 RB</label>
+      </div>
     </div>
     <div class="vs-label">VS</div>
     <div>
       <label>Away Team</label>
       <select id="awayTeam"></select>
-      <label class="boost-toggle"><input type="checkbox" id="awayBoostQB" /> 🌟 Elite QB</label>
+      <div class="boost-row">
+        <label class="boost-toggle"><input type="checkbox" id="awayBoostQB" /> 🌟 QB</label>
+        <label class="boost-toggle"><input type="checkbox" id="awayBoostWR" /> 🌟 WR</label>
+        <label class="boost-toggle"><input type="checkbox" id="awayBoostRB" /> 🌟 RB</label>
+      </div>
     </div>
   </div>
 
@@ -1268,8 +1280,15 @@ simBtn.addEventListener("click", () => {
   const homeId = +homeSel.value, awayId = +awaySel.value;
   if (homeId === awayId) { alert("Pick two different teams!"); return; }
   const home = getTeam(homeId), away = getTeam(awayId);
-  const homeOverrides = $("homeBoostQB")?.checked ? { QB: "elite" } : {};
-  const awayOverrides = $("awayBoostQB")?.checked ? { QB: "elite" } : {};
+  const collectOverrides = (side) => {
+    const o = {};
+    if ($(`${side}BoostQB`)?.checked) o.QB = "elite";
+    if ($(`${side}BoostWR`)?.checked) o.WR = "elite";
+    if ($(`${side}BoostRB`)?.checked) o.RB = "elite";
+    return o;
+  };
+  const homeOverrides = collectOverrides("home");
+  const awayOverrides = collectOverrides("away");
   const sim = new GameSimulator(home, away, genRoster(getPlaybook(home), homeOverrides), genRoster(getPlaybook(away), awayOverrides));
   gameResult = sim.simulate();
   playHead = 0;
