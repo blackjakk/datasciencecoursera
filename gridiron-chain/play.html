@@ -677,6 +677,9 @@ class GameSimulator {
   }
   _play() {
     const adv = (this.offR.offense - this.defR.defense) / 100;
+    // Trench matchup: positive = DL is winning vs OL (offense in trouble)
+    // -1.0 ≈ OL dominates, 0 ≈ even, +1.0 ≈ DL crushes OL, +1.5 = absolute mismatch
+    const pressure = clamp((this.defR.dl - this.offR.ol) / 35, -1.2, 1.5);
     const dt = clamp(normal(33, 9), 12, 55);
     this.time -= dt;
     if (this.time < 0) this.time = 0;
@@ -735,7 +738,8 @@ class GameSimulator {
         });
         return { yards };
       }
-      const intPct = clamp(0.022 - adv * 0.010 + (this.defR.cb - 60) / 1200, 0.005, 0.06);
+      // Pressured QBs throw more INTs (rushed/forced throws)
+      const intPct = clamp(0.022 - adv * 0.010 + (this.defR.cb - 60) / 1200 + pressure * 0.018, 0.005, 0.09);
       if (Math.random() < intPct) {
         const targetDepth = clamp(normal(11, 7), 2, 35);
         if (qbStats) { qbStats.pass_att++; qbStats.pass_int++; }
@@ -744,9 +748,9 @@ class GameSimulator {
         this._pushVisual({ kind: "int", desc: `INTERCEPTION! ${this.offR.starters.qb} picked off!`, startYard, targetDepth, endYard: startYard, passer: this.offR.starters.qb });
         return { turnover: true };
       }
-      // Playbook-modulated sack risk: heavy passing schemes leak more
+      // Sacks: heavily driven by the OL-vs-DL trench matchup (pressure)
       const sackPb = pb.sackMul || 1.0;
-      const sackPct = clamp((0.06 + (this.defR.dl - 60) / 500 - adv * 0.03) * sackPb, 0.02, 0.16);
+      const sackPct = clamp((0.05 + pressure * 0.10 - adv * 0.02) * sackPb, 0.015, 0.32);
       if (Math.random() < sackPct) {
         const loss = rand(3, 11);
         if (qbStats) { qbStats.sacks_taken++; qbStats.sack_yds += loss; }
@@ -756,12 +760,12 @@ class GameSimulator {
         this.down++; this.ytg += loss;
         return {};
       }
-      // Playbook-modulated comp%: Air Raid quick reads → lower comp on long throws
+      // Pressure disrupts comp% (QB rushed, throw-aways, contested catches)
       const compPbMul = pb.compMul || 1.0;
-      const compPct = clamp((0.60 + adv * 0.14 + (this.offR.qb - 60) / 300) * compPbMul, 0.30, 0.80);
+      const compPct = clamp((0.60 + adv * 0.14 + (this.offR.qb - 60) / 300 - pressure * 0.12) * compPbMul, 0.25, 0.80);
       if (Math.random() < compPct) {
-        // Air yards (where the ball is caught) — playbook-tuned mean
-        const airMean = pb.airYdsMean ?? 7.5;
+        // Air yards drop when pressure shortens the QB's reads (check-downs / dump-offs)
+        const airMean = (pb.airYdsMean ?? 7.5) - pressure * 2.8;
         const airSd   = pb.airYdsSd   ?? 6;
         const airYds  = clamp(normal(airMean + adv * 2, airSd), -2, 55);
         // YAC distribution — short catches / screens get more YAC potential
@@ -793,21 +797,25 @@ class GameSimulator {
       this._pushVisual({ kind: "incomplete", desc: `${this.offR.starters.qb} pass incomplete`, startYard, targetDepth, endYard: startYard, passer: this.offR.starters.qb, intended: rcvr });
       return { yards: 0, incomplete: true };
     }
-    if (Math.random() < 0.012) {
+    // Fumble chance — bumps up against dominant DL (carriers get stripped)
+    const fumblePct = clamp(0.010 + Math.max(0, pressure) * 0.012, 0.008, 0.04);
+    if (Math.random() < fumblePct) {
       off.team.turnovers++; def.team.takeaways++;
       this._pushVisual({ kind: "fumble", desc: `FUMBLE recovered by defense!`, startYard, endYard: startYard, rusher: this.offR.starters.rb });
       return { turnover: true };
     }
     const rushMean = pb.rushYdsMean ?? 4.3;
     const rushSd   = pb.rushYdsSd   ?? 5.5;
-    const olAdv    = (this.offR.ol - 60) / 30;
     // Read-option / RPO schemes give some carries to the QB
     const qbRushPct = pb.qbRushPct || 0;
     const isQBRun = qbRushPct > 0 && Math.random() < qbRushPct;
     const carrier = isQBRun ? QB : RB;
     // QB runs tend to break for slightly more chunk plays (athletic mismatch)
     const carrierBoost = isQBRun ? 0.7 : 0;
-    const yards = clamp(normal(rushMean + adv * 1.6 + olAdv * 0.7 + carrierBoost, rushSd), -4, 60);
+    // Trench pressure drives run efficiency: elite DL stuffs runs at/near the LOS
+    const trenchYds = -pressure * 1.9;   // dominant DL = average lost ~2 yds per carry
+    const lbTackle  = (this.defR.lb - 60) / 60;  // strong LBs add minor stuffing
+    const yards = clamp(normal(rushMean + adv * 1.4 + trenchYds - lbTackle * 0.5 + carrierBoost, rushSd), -6, 65);
     const carrierStats = off.players[carrier];
     if (carrierStats) {
       carrierStats.rush_att++;
