@@ -292,6 +292,13 @@
     accent-color: var(--gold); cursor: pointer;
     width: 13px; height: 13px; margin: 0;
   }
+  .depth-arch {
+    display: inline-block; margin-left: .4rem;
+    font-size: .55rem; font-weight: 800; letter-spacing: .3px;
+    padding: 0 .25rem; border-radius: 2px; vertical-align: middle;
+  }
+  .arch-dl { background: #2d1500; color: #ffcc66; }
+  .arch-ol { background: #001a40; color: #9bd0ff; }
   .player-tooltip {
     position: fixed; pointer-events: none; z-index: 1000;
     background: #0a0a12; border: 1px solid var(--gold); border-radius: 8px;
@@ -323,6 +330,23 @@
   }
   .player-tooltip .tt-bar-fill {
     height: 100%; background: linear-gradient(90deg, #ff4040, #f0cc30, #9be09b);
+  }
+  .player-tooltip .tt-arch {
+    margin-top: .45rem; padding-top: .4rem;
+    border-top: 1px dashed #2a2a35;
+  }
+  .player-tooltip .tt-arch-name {
+    font-weight: 800; color: #ff9040; font-size: .72rem; letter-spacing: .5px;
+  }
+  .player-tooltip .tt-arch-blurb {
+    color: var(--gray); font-size: .68rem; margin-top: .1rem;
+  }
+  .player-tooltip .tt-arch-moves {
+    margin-top: .25rem; display: flex; flex-wrap: wrap; gap: .25rem;
+  }
+  .player-tooltip .tt-move {
+    background: #2d1500; color: #ffcc66; font-size: .6rem; font-weight: 700;
+    padding: .08rem .35rem; border-radius: 3px; letter-spacing: .3px;
   }
 
   /* View mode toggle */
@@ -554,9 +578,77 @@ function calcOverall(pos, s) {
   }
   return Math.min(99, Math.max(40, Math.round(v / 100)));
 }
+// ─── Trench archetypes & rock-paper-scissors matchup matrix ─────────────
+// Each DL has a fighting style with signature pass-rush moves. Each OL has
+// a build that handles certain styles well and others poorly. Matchup table
+// returns a multiplier on this rep's pressure / sack chance.
+const DL_ARCHETYPES = {
+  POWER:      { label: "Power",        blurb: "Bull rusher — drives O-line back",          moves: ["BULL RUSH", "CLUB-RIP", "LONG ARM"] },
+  SPEED:      { label: "Speed",        blurb: "Edge bender — wins with first step",        moves: ["SPEED RUSH", "DIP-AND-RIP", "GHOST"] },
+  TWEENER:    { label: "Tweener",      blurb: "Undersized — beats power w/ tech + speed",  moves: ["SWIM", "SPIN", "CROSS CHOP"] },
+  PENETRATOR: { label: "Penetrator",   blurb: "Explosive 3-tech — blows up the pocket",    moves: ["PIERCE", "STAB", "GET-OFF"] },
+  TECHNICIAN: { label: "Technician",   blurb: "Hand-fighter — wins reps with footwork",    moves: ["HAND FIGHT", "COUNTER", "ARM-OVER"] },
+};
+const DL_ARCHETYPE_KEYS = Object.keys(DL_ARCHETYPES);
+const OL_ARCHETYPES = {
+  ANCHOR:     { label: "Anchor",       blurb: "Stout, immovable — eats bull rushes" },
+  ATHLETIC:   { label: "Athletic",     blurb: "Quick feet, mirrors speed rushers" },
+  TECHNICIAN: { label: "Technician",   blurb: "Disciplined hands, wins the leverage battle" },
+  PLUG:       { label: "Plug",         blurb: "Short + squat, low base, hard to swim over" },
+  MAULER:     { label: "Mauler",       blurb: "Road grader — destroys in the run game" },
+};
+const OL_ARCHETYPE_KEYS = Object.keys(OL_ARCHETYPES);
+
+// Pass-rush multiplier — values >1 favor the rusher, <1 favor the blocker.
+const PASS_MATCHUP = {
+  POWER:      { ANCHOR: 0.70, ATHLETIC: 1.32, TECHNICIAN: 1.05, PLUG: 0.90, MAULER: 1.15 },
+  SPEED:      { ANCHOR: 1.30, ATHLETIC: 0.68, TECHNICIAN: 1.00, PLUG: 1.12, MAULER: 1.28 },
+  TWEENER:    { ANCHOR: 1.18, ATHLETIC: 1.08, TECHNICIAN: 0.72, PLUG: 1.05, MAULER: 1.30 },
+  PENETRATOR: { ANCHOR: 1.10, ATHLETIC: 0.78, TECHNICIAN: 0.95, PLUG: 1.28, MAULER: 1.05 },
+  TECHNICIAN: { ANCHOR: 0.82, ATHLETIC: 1.05, TECHNICIAN: 1.12, PLUG: 1.05, MAULER: 1.28 },
+};
+// Run-blocking multiplier — values >1 favor offense (better gap), <1 favor defense (stuffed).
+const RUN_MATCHUP = {
+  POWER:      { ANCHOR: 0.95, ATHLETIC: 1.10, TECHNICIAN: 1.05, PLUG: 0.80, MAULER: 1.15 },
+  SPEED:      { ANCHOR: 1.20, ATHLETIC: 1.05, TECHNICIAN: 1.05, PLUG: 1.10, MAULER: 1.20 },
+  TWEENER:    { ANCHOR: 1.15, ATHLETIC: 1.10, TECHNICIAN: 0.95, PLUG: 1.05, MAULER: 1.20 },
+  PENETRATOR: { ANCHOR: 1.05, ATHLETIC: 1.10, TECHNICIAN: 0.95, PLUG: 0.75, MAULER: 1.00 },
+  TECHNICIAN: { ANCHOR: 1.05, ATHLETIC: 1.10, TECHNICIAN: 1.05, PLUG: 0.95, MAULER: 1.18 },
+};
+
+function pickDLArchetype(stats) {
+  // Bias archetype by stats: high speed → SPEED, high strength → POWER, etc.
+  const [spd, str, agi, awr, _thr, _cat, _blk, prs] = stats;
+  const weights = {
+    POWER:      Math.max(0, str - 60) + Math.max(0, prs - 65) * 0.5,
+    SPEED:      Math.max(0, spd - 55) * 1.2 + Math.max(0, agi - 55) * 0.5,
+    TWEENER:    Math.max(0, (spd + agi) / 2 - 50) + (str < 75 ? 8 : 0),
+    PENETRATOR: Math.max(0, spd - 60) + Math.max(0, prs - 60),
+    TECHNICIAN: Math.max(0, awr - 60) * 1.4 + Math.max(0, agi - 55) * 0.5,
+  };
+  // Add noise so it's not too deterministic
+  for (const k in weights) weights[k] += Math.random() * 8;
+  return Object.keys(weights).reduce((a, b) => weights[a] >= weights[b] ? a : b);
+}
+function pickOLArchetype(stats) {
+  const [spd, str, agi, awr, _thr, _cat, blk] = stats;
+  const weights = {
+    ANCHOR:     Math.max(0, str - 55) * 1.4 + (spd < 60 ? 6 : 0),
+    ATHLETIC:   Math.max(0, spd - 50) * 1.5 + Math.max(0, agi - 55) * 0.8,
+    TECHNICIAN: Math.max(0, awr - 55) * 1.5 + Math.max(0, blk - 60) * 0.8,
+    PLUG:       (str > 60 && spd < 60 ? 12 : 4),
+    MAULER:     Math.max(0, str - 60) + Math.max(0, blk - 60) * 1.3,
+  };
+  for (const k in weights) weights[k] += Math.random() * 7;
+  return Object.keys(weights).reduce((a, b) => weights[a] >= weights[b] ? a : b);
+}
+
 function genPlayer(pos, tier) {
   const stats = statsFor(pos, tier);
-  return { name: randName(), position: pos, age: rand(21, 33), stats, overall: calcOverall(pos, stats) };
+  const player = { name: randName(), position: pos, age: rand(21, 33), stats, overall: calcOverall(pos, stats) };
+  if (pos === "DL") player.archetype = pickDLArchetype(stats);
+  else if (pos === "OL") player.archetype = pickOLArchetype(stats);
+  return player;
 }
 function genRoster(playbook = PLAYBOOKS.BALANCED, overrides = {}) {
   const r = [];
@@ -610,6 +702,15 @@ class GameSimulator {
     this.hRoster = hRoster; this.aRoster = aRoster;
     this.homePlaybook = getPlaybook(home); this.awayPlaybook = getPlaybook(away);
     this.homeR = buildRatings(hRoster); this.awayR = buildRatings(aRoster);
+    // Extract starting DL (top 4) and OL (top 5) archetypes for each team
+    const archetypesByPos = (roster, pos, n) => roster.filter(p => p.position === pos)
+      .sort((a, b) => b.overall - a.overall)
+      .slice(0, n)
+      .map(p => ({ name: p.name, archetype: p.archetype, overall: p.overall }));
+    this.homeDL = archetypesByPos(hRoster, "DL", 4);
+    this.awayDL = archetypesByPos(aRoster, "DL", 4);
+    this.homeOL = archetypesByPos(hRoster, "OL", 5);
+    this.awayOL = archetypesByPos(aRoster, "OL", 5);
     this.score = { home: 0, away: 0 };
     this.quarter = 1; this.time = 900;
     this.poss = Math.random() < 0.5 ? "home" : "away";
@@ -654,6 +755,29 @@ class GameSimulator {
   get offR()       { return this.poss === "home" ? this.homeR : this.awayR; }
   get defR()       { return this.poss === "home" ? this.awayR : this.homeR; }
   get offPlaybook(){ return this.poss === "home" ? this.homePlaybook : this.awayPlaybook; }
+  get offOL()      { return this.poss === "home" ? this.homeOL : this.awayOL; }
+  get defDL()      { return this.poss === "home" ? this.awayDL : this.homeDL; }
+  // Pick a DL rep + OL rep for this play, weighted toward higher-rated guys
+  _pickTrenchRep() {
+    const dlList = this.defDL || [];
+    const olList = this.offOL || [];
+    const pickWeighted = (list) => {
+      if (!list.length) return null;
+      // Weights tilt toward higher overall; cube the OVR-50 gap for sharper bias
+      const weights = list.map(p => Math.pow(Math.max(1, p.overall - 40), 1.6));
+      const sum = weights.reduce((a, b) => a + b, 0);
+      let r = Math.random() * sum;
+      for (let i = 0; i < list.length; i++) { r -= weights[i]; if (r <= 0) return list[i]; }
+      return list[list.length - 1];
+    };
+    const dl = pickWeighted(dlList);
+    const ol = pickWeighted(olList);
+    return {
+      dl, ol,
+      dlType: dl?.archetype || "POWER",
+      olType: ol?.archetype || "ANCHOR",
+    };
+  }
   get possTeam() { return this.poss === "home" ? this.home : this.away; }
   get offStats() { return this.stats[this.poss]; }
   get defStats() { return this.stats[this.poss === "home" ? "away" : "home"]; }
@@ -679,7 +803,13 @@ class GameSimulator {
     const adv = (this.offR.offense - this.defR.defense) / 100;
     // Trench matchup: positive = DL is winning vs OL (offense in trouble)
     // -1.0 ≈ OL dominates, 0 ≈ even, +1.0 ≈ DL crushes OL, +1.5 = absolute mismatch
-    const pressure = clamp((this.defR.dl - this.offR.ol) / 35, -1.2, 1.5);
+    const basePressure = clamp((this.defR.dl - this.offR.ol) / 35, -1.2, 1.5);
+    // Pick the DL rep + OL rep for THIS play, look up the matchup multiplier
+    const reps = this._pickTrenchRep();
+    const passMul = (PASS_MATCHUP[reps.dlType]?.[reps.olType]) ?? 1.0;
+    const runMul  = (RUN_MATCHUP [reps.dlType]?.[reps.olType]) ?? 1.0;
+    // Effective pressure for THIS play accounts for the archetype matchup
+    const pressure = clamp(basePressure * passMul, -1.5, 1.9);
     const dt = clamp(normal(33, 9), 12, 55);
     this.time -= dt;
     if (this.time < 0) this.time = 0;
@@ -708,8 +838,36 @@ class GameSimulator {
       // Punt
       off.team.fourthAtt++;
       const punt = clamp(normal(46, 7), 28, 68);
-      this._pushVisual({ kind: "punt", desc: `${this.possTeam.name} punts ${punt} yards`, startYard, puntYards: punt, endYard: clamp(startYard + punt, 0, 99) });
-      return { endDrive: true, punt };
+      const landYard = clamp(startYard + punt, 0, 100);
+      // Touchback / fair catch / return resolution
+      let returnYards = 0, isTouchback = false, isFairCatch = false;
+      if (landYard >= 100) {
+        isTouchback = true;  // ball into end zone — receiving team starts at their 20
+      } else {
+        const r = Math.random();
+        if (r < 0.18) { isFairCatch = true; }
+        else if (r < 0.55) returnYards = rand(0, 6);
+        else if (r < 0.85) returnYards = rand(4, 14);
+        else if (r < 0.96) returnYards = rand(12, 28);
+        else                returnYards = rand(30, 70);  // HOUSE CALL territory
+      }
+      // Final spot after return (or fixed touchback at receiver's 20)
+      const finalLand = isTouchback ? 80 : clamp(landYard - returnYards, 1, 99);
+      const effectivePunt = finalLand - startYard;
+      // If they brought it all the way back: TD for the receiving team
+      const isReturnTD = !isTouchback && finalLand <= 0;
+      this._pushVisual({
+        kind: "punt",
+        desc: isTouchback ? `${this.possTeam.name} punts ${punt} yds — touchback`
+            : isFairCatch ? `${this.possTeam.name} punts ${punt} yds — fair catch`
+            : returnYards > 20 ? `${this.possTeam.name} punt RETURNED ${returnYards} yds!`
+            : `${this.possTeam.name} punts ${punt} yds, returned ${returnYards}`,
+        startYard, puntYards: punt, landYard, returnYards,
+        isTouchback, isFairCatch, isReturnTD,
+        endYard: finalLand,
+        kicker: this.offR.starters.k,
+      });
+      return { endDrive: true, punt: effectivePunt, isReturnTD };
     }
     off.team.plays++;
     if (isThird) off.team.thirdAtt++;
@@ -755,7 +913,16 @@ class GameSimulator {
         const loss = rand(3, 11);
         if (qbStats) { qbStats.sacks_taken++; qbStats.sack_yds += loss; }
         off.team.sacks_allowed++; def.team.sacks++;
-        this._pushVisual({ kind: "sack", desc: `${this.offR.starters.qb} sacked for -${loss} yds`, startYard, sackLoss: loss, endYard: clamp(startYard - loss, 1, 99), passer: this.offR.starters.qb });
+        // Pick a move from the DL's archetype toolkit
+        const moves = DL_ARCHETYPES[reps.dlType]?.moves || ["SACK"];
+        const move = moves[Math.floor(Math.random() * moves.length)];
+        this._pushVisual({
+          kind: "sack", desc: `${this.offR.starters.qb} sacked for -${loss} yds`,
+          startYard, sackLoss: loss, endYard: clamp(startYard - loss, 1, 99),
+          passer: this.offR.starters.qb,
+          dlName: reps.dl?.name, dlType: reps.dlType, dlMove: move,
+          olName: reps.ol?.name, olType: reps.olType,
+        });
         this.yardLine = clamp(this.yardLine - loss, 1, 99);
         this.down++; this.ytg += loss;
         return {};
@@ -815,7 +982,9 @@ class GameSimulator {
     // Trench pressure drives run efficiency: elite DL stuffs runs at/near the LOS
     const trenchYds = -pressure * 1.9;   // dominant DL = average lost ~2 yds per carry
     const lbTackle  = (this.defR.lb - 60) / 60;  // strong LBs add minor stuffing
-    const yards = clamp(normal(rushMean + adv * 1.4 + trenchYds - lbTackle * 0.5 + carrierBoost, rushSd), -6, 65);
+    // Run-blocking matchup tilts the gap — apply runMul to the trench effect
+    const runTrenchYds = trenchYds * (2 - runMul); // runMul<1 (DL wins) → bigger negative
+    const yards = clamp(normal(rushMean + adv * 1.4 + runTrenchYds - lbTackle * 0.5 + carrierBoost, rushSd), -6, 65);
     const carrierStats = off.players[carrier];
     if (carrierStats) {
       carrierStats.rush_att++;
@@ -836,9 +1005,23 @@ class GameSimulator {
       plays++;
       const r = this._play();
       if (r.endDrive) {
-        if (r.punt) {
+        if (r.isReturnTD) {
+          // Punt returned for a TD by the receiving team
           this.poss = this.poss === "home" ? "away" : "home";
-          this.yardLine = clamp(100 - (this.yardLine + r.punt), 10, 95);
+          this.yardLine = 100;
+          this._score(6, "Punt Return Touchdown!");
+          const k = this.offR.starters.k, kStats = this.offStats.players[k];
+          if (Math.random() < 0.92) {
+            if (kStats) kStats.xp_att++;
+            if (Math.random() < 0.94) { this._score(1, "Extra Point"); if (kStats) kStats.xp_made++; }
+          }
+          this.drives.push({ team: start, result: "PUNT-RTN-TD", homeScore: this.score.home, awayScore: this.score.away });
+          this.poss = this.poss === "home" ? "away" : "home";
+          this.yardLine = 25; this.down = 1; this.ytg = 10; return;
+        }
+        if (r.punt !== undefined) {
+          this.poss = this.poss === "home" ? "away" : "home";
+          this.yardLine = clamp(100 - (this.yardLine + r.punt), 1, 99);
         } else {
           this.poss = this.poss === "home" ? "away" : "home";
           this.yardLine = clamp(100 - this.yardLine, 10, 90);
@@ -1256,12 +1439,31 @@ function buildPlayerTooltip(p) {
     <div class="tt-stat">
       <span class="tt-key">${k}</span><span class="tt-val">${v}</span>
     </div>`).join("");
+  // Archetype + moves block (DL/OL only)
+  let archHtml = "";
+  if (p.archetype) {
+    if (p.position === "DL") {
+      const a = DL_ARCHETYPES[p.archetype];
+      if (a) {
+        archHtml = `<div class="tt-arch"><div class="tt-arch-name">${a.label.toUpperCase()}</div>
+          <div class="tt-arch-blurb">${a.blurb}</div>
+          <div class="tt-arch-moves">${a.moves.map(m => `<span class="tt-move">${m}</span>`).join("")}</div></div>`;
+      }
+    } else if (p.position === "OL") {
+      const a = OL_ARCHETYPES[p.archetype];
+      if (a) {
+        archHtml = `<div class="tt-arch"><div class="tt-arch-name">${a.label.toUpperCase()}</div>
+          <div class="tt-arch-blurb">${a.blurb}</div></div>`;
+      }
+    }
+  }
   return `
     <div class="tt-name">${escapeHtml(p.name)}</div>
     <div class="tt-sub">${p.position} · ${teamLabel.toUpperCase()} · AGE ${p.age}</div>
     <div><span class="tt-ovr tier-${tier}">${p.overall} OVR</span></div>
     <div class="tt-bar"><div class="tt-bar-fill" style="width:${p.overall}%"></div></div>
     <div class="tt-stats">${statRows}</div>
+    ${archHtml}
   `;
 }
 let _playerTooltipEl = null;
@@ -1431,9 +1633,13 @@ function renderDepthChart(side) {
       const key = `${slot.pos}:${slot.idx}`;
       const isBoosted = !!state.overrides[key];
       const tier = tierClassFor(p.overall);
+      // Archetype mini-tag (DL/OL only)
+      const archTag = p.archetype
+        ? `<span class="depth-arch arch-${p.position.toLowerCase()}">${(p.position === "DL" ? DL_ARCHETYPES : OL_ARCHETYPES)[p.archetype]?.label || p.archetype}</span>`
+        : "";
       html += `<div class="depth-row${isBoosted ? " boosted" : ""}">
         <span class="depth-slot">${slot.label}</span>
-        <span class="depth-name">${nameSpan(p.name)}</span>
+        <span class="depth-name">${nameSpan(p.name)}${archTag}</span>
         <span class="depth-ovr tier-${tier}">${p.overall}</span>
         <input type="checkbox" class="depth-boost" data-side="${side}" data-pos="${slot.pos}" data-idx="${slot.idx}"${isBoosted ? " checked" : ""} title="Force elite tier" />
       </div>`;
@@ -1970,46 +2176,84 @@ function buildAnimForPlay(play, prevPlay) {
   }
 
   if (play.kind === "punt") {
-    const endX = yardToAbsX(play.endYard, poss);
+    const landYardAbs = play.landYard ?? play.endYard ?? play.startYard;
+    const landX = yardToAbsX(landYardAbs, poss);
+    const endX  = yardToAbsX(play.endYard ?? landYardAbs, poss);
     const returnerY = cy + (((play.startYard * 23 + (play.time || 0)) >>> 0) % 80) - 40;
-    return { duration: 2400, kind: "punt", render: (t, c) => {
+    const returnYards = play.returnYards || 0;
+    const isTouchback = !!play.isTouchback;
+    const isFairCatch = !!play.isFairCatch;
+    const isReturnTD  = !!play.isReturnTD;
+    const dur = returnYards >= 20 ? 4000 : 3000;
+    return { duration: dur, kind: "punt", render: (t, c) => {
       ctx = c;
       drawField(ctx, homeTeam, awayTeam, fieldState);
       const startX = losX - dir * 12 * FIELD.PX_PER_YARD;
       let ballX, ballY, arc = 0;
-      if (t < 0.1) { ballX = losX; ballY = cy; }
-      else if (t < 0.25) { ballX = losX + (startX - losX) * ((t - 0.1) / 0.15); ballY = cy; }
-      else if (t < 0.78) {
-        const tt = (t - 0.25) / 0.53;
-        ballX = startX + (endX - startX) * tt;
-        arc = Math.sin(tt * Math.PI) * 160;
+      let phase = "snap";
+      if (t < 0.1) { ballX = losX; ballY = cy; phase = "snap"; }
+      else if (t < 0.22) { ballX = losX + (startX - losX) * ((t - 0.1) / 0.12); ballY = cy; phase = "wind"; }
+      else if (t < 0.62) {
+        const tt = (t - 0.22) / 0.40;
+        ballX = startX + (landX - startX) * tt;
+        arc = Math.sin(tt * Math.PI) * 170;
         ballY = cy - arc + (returnerY - cy) * tt;
+        phase = "air";
+      } else if (t < 0.72) {
+        ballX = landX; ballY = returnerY; phase = "field";
       } else {
-        // Returner has the ball — bring it back a few yards
-        const tt = (t - 0.78) / 0.22;
-        ballX = endX - dir * tt * 18;
-        ballY = returnerY;
+        const tt = (t - 0.72) / 0.28;
+        if (isTouchback || isFairCatch) {
+          ballX = landX; ballY = returnerY;
+        } else {
+          ballX = landX + (endX - landX) * easeOutCubic(tt);
+          ballY = returnerY + Math.sin(tt * 8) * 4;
+        }
+        phase = "return";
       }
       // Punter
-      const punter = { x: startX, y: cy, role: "P" };
-      drawPlayer(ctx, punter.x, punter.y, possColor, team.secondary);
-      // Returner at landing spot
-      const returner = { x: endX, y: returnerY };
-      drawPlayer(ctx, returner.x, returner.y, oppColor, oppTeam.secondary);
-      // Coverage team — 3 chasers running downfield
+      drawPlayer(ctx, startX, cy, possColor, team.secondary);
+      // 3 coverage chasers — pursue returner during return phase
       for (let i = 0; i < 3; i++) {
         const chaserStartX = losX + dir * (i - 1) * 12;
-        const chaserX = chaserStartX + (endX - chaserStartX) * Math.min(1, t * 1.1);
+        const target = phase === "return" ? ballX : landX;
+        const chaserX = chaserStartX + (target - chaserStartX) * Math.min(1, t * 1.1);
         const chaserY = cy + (i - 1) * 22;
         drawPlayer(ctx, chaserX, chaserY, possColor, team.secondary);
       }
+      // 2 blockers escorting the returner
+      for (let i = 0; i < 2; i++) {
+        const escortX = (phase === "return" ? ballX : landX) + dir * (12 + i * 10);
+        const escortY = returnerY + (i === 0 ? -10 : 10);
+        drawPlayer(ctx, escortX, escortY, oppColor, oppTeam.secondary);
+      }
+      // Returner (with ball after fielding)
+      const returnerX = phase === "return" ? ballX : landX;
+      drawPlayer(ctx, returnerX, returnerY, oppColor, oppTeam.secondary);
       drawBall(ctx, ballX, ballY, 1 + arc / 200);
-      if (t > 0.78) {
+      // Callouts
+      if (phase === "field" || (phase === "return" && t < 0.78)) {
         ctx.save();
-        ctx.fillStyle = "#fff";
+        ctx.fillStyle = isTouchback ? "#cccccc" : isFairCatch ? "#9bd0ff" : "#9be09b";
         ctx.font = "900 22px sans-serif";
         ctx.textAlign = "center";
-        ctx.fillText("CATCH", endX, returnerY - 22);
+        ctx.fillText(isTouchback ? "TOUCHBACK" : isFairCatch ? "FAIR CATCH" : "FIELDED!", landX, returnerY - 24);
+        ctx.restore();
+      }
+      if (phase === "return" && returnYards >= 20 && t > 0.88) {
+        ctx.save();
+        ctx.fillStyle = "#f0cc30";
+        ctx.font = "900 32px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(returnYards >= 40 ? "HOUSE CALL!" : "BIG RETURN!", FIELD.W / 2, 50);
+        ctx.restore();
+      }
+      if (isReturnTD && t > 0.95) {
+        ctx.save();
+        ctx.fillStyle = "#f0cc30";
+        ctx.font = "900 38px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("TOUCHDOWN!", FIELD.W / 2, 90);
         ctx.restore();
       }
     }};
@@ -3626,11 +3870,16 @@ function buildCinemaAnim(play, prevPlay) {
         sprites.push({ x: worldToScreenX(dWX), y: lateralToScreenY(dlLats[i]), team: defTeam, frame, flipped: true, faceSeed: nameSeed("DL", i) });
       }
       drawSpriteList(ctx, sprites);
+      // Show the pass-rush move callout BEFORE the sack lands (mid-rush)
+      if (t > 0.55 && t < 0.85 && play.dlMove && !play._moveFired) {
+        play._moveFired = true;
+        showCallout(`💥 ${play.dlMove}!`);
+      }
       if (t > 0.85 && !play._sackFired) {
         play._sackFired = true;
         showCallout("SACK!");
       }
-      if (t < 0.05) play._sackFired = false;
+      if (t < 0.05) { play._sackFired = false; play._moveFired = false; }
     }};
   }
 
@@ -3703,51 +3952,94 @@ function buildCinemaAnim(play, prevPlay) {
 
   if (play.kind === "punt") {
     const punterSeed = nameSeed(play.kicker || play.passer);
-    // Returner's lateral position (random but stable)
     const returnerLat = (playSeed(play, 51) - 0.5) * 14;
-    return { duration: 2700, kind: "punt", render: (t, ctx) => {
+    const landYardAbs = play.landYard ?? play.endYard ?? play.startYard;
+    const landWX = yardToWorldX(landYardAbs);
+    const returnYards = play.returnYards || 0;
+    const isTouchback = !!play.isTouchback;
+    const isFairCatch = !!play.isFairCatch;
+    const isReturnTD  = !!play.isReturnTD;
+    // The return goes BACK toward the punting team's end zone (away from landWX)
+    const finalWX = yardToWorldX(play.endYard ?? landYardAbs);
+    // Allow a longer animation for big returns
+    const dur = isTouchback ? 2400 : isFairCatch ? 2400 : (returnYards >= 20 ? 4200 : 3200);
+    return { duration: dur, kind: "punt", render: (t, ctx) => {
       const punterWX = losWX - 12 * CINEMA.pxPerYard;
-      const landWX = endWX;
-      let ballWX, ballArc = 0, ballLat = 0, carrierWX = landWX, carrierLat = returnerLat;
-      if (t < 0.20) { ballWX = punterWX; }
-      else if (t < 0.78) {
-        const tt = (t - 0.20) / 0.58;
+      // Phases:
+      //   0.00–0.18  snap + punter winding up
+      //   0.18–0.62  ball in air (long arc) toward landYard
+      //   0.62–0.72  returner FIELDS / FAIR CATCHES / TOUCHBACK
+      //   0.72–1.00  return run (skipped for fair catch / touchback)
+      const PHASE_AIR_START = 0.18;
+      const PHASE_AIR_END   = 0.62;
+      const PHASE_FIELD_END = 0.72;
+      let ballWX, ballArc = 0, ballLat = 0;
+      let carrierWX = landWX, carrierLat = returnerLat;
+      let phase = "snap";
+      if (t < PHASE_AIR_START) {
+        ballWX = punterWX; phase = "snap";
+      } else if (t < PHASE_AIR_END) {
+        const tt = (t - PHASE_AIR_START) / (PHASE_AIR_END - PHASE_AIR_START);
         ballWX = punterWX + (landWX - punterWX) * tt;
-        ballArc = Math.sin(tt * Math.PI) * 200;
-        ballLat = 0 + (returnerLat - 0) * tt;
+        ballArc = Math.sin(tt * Math.PI) * 220;
+        ballLat = returnerLat * tt;
+        phase = "air";
+      } else if (t < PHASE_FIELD_END) {
+        ballWX = landWX; ballLat = returnerLat;
+        phase = "field";
       } else {
-        // Returner has the ball — runs back a few yards
-        const tt = (t - 0.78) / 0.22;
-        carrierWX = landWX - tt * 24;
-        ballWX = carrierWX;
-        ballLat = returnerLat;
+        const tt = (t - PHASE_FIELD_END) / (1 - PHASE_FIELD_END);
+        if (isTouchback || isFairCatch) {
+          // No return — ball just sits
+          ballWX = landWX; ballLat = returnerLat;
+        } else {
+          // Return: carrier runs from landWX back toward finalWX
+          carrierWX = landWX + (finalWX - landWX) * easeOutCubic(tt);
+          // Lateral wiggle as returner cuts through coverage
+          carrierLat = returnerLat + Math.sin(tt * 8) * 1.5;
+          ballWX = carrierWX; ballLat = carrierLat;
+        }
+        phase = "return";
       }
-      setCamFromCarrier(t < 0.78 ? ballWX : carrierWX);
+      setCamFromCarrier(phase === "return" ? carrierWX : ballWX);
       drawCinemaField(ctx, homeTeam, awayTeam, { losYard: startYardAbs });
+
       const sprites = [];
       // Punter
-      sprites.push({ x: worldToScreenX(punterWX), y: lateralToScreenY(0), team: offTeam, frame: t > 0.2 ? "stiff" : "idle", flipped: false, faceSeed: punterSeed });
-      // OL protecting punter
+      sprites.push({ x: worldToScreenX(punterWX), y: lateralToScreenY(0), team: offTeam, frame: t > 0.16 ? "stiff" : "idle", flipped: false, faceSeed: punterSeed });
+      // Punter's protection
       const lineLats = [-4, -2, 0, 2, 4];
       for (let i = 0; i < 5; i++) {
         sprites.push({ x: worldToScreenX(losWX - 0.7 * CINEMA.pxPerYard), y: lateralToScreenY(lineLats[i]), team: offTeam, frame: "idle", flipped: false, faceSeed: nameSeed("OL", i) });
       }
-      // Gunners (coverage team) chasing downfield
+      // Gunners (coverage team) — sprint downfield toward the landing spot
       for (let i = 0; i < 4; i++) {
         const gStartWX = losWX + (i - 1.5) * 18;
-        const gWX = gStartWX + (landWX - gStartWX) * Math.min(1, t * 1.1);
-        const gLat = (i - 1.5) * 6 + (returnerLat - ((i - 1.5) * 6)) * Math.min(1, t * 1.2) * 0.5;
-        const frame = (Math.floor(t * 10 + i) % 2 === 0) ? "run_a" : "run_b";
-        sprites.push({ x: worldToScreenX(gWX), y: lateralToScreenY(gLat), team: offTeam, frame, flipped: false, faceSeed: nameSeed("G", i) });
+        // During return phase, gunners pursue the carrier
+        const targetWX = phase === "return" ? carrierWX : landWX;
+        const gT = Math.min(1, t * 1.1);
+        const gWX = gStartWX + (targetWX - gStartWX) * gT;
+        const gLat = (i - 1.5) * 6 + (returnerLat - ((i - 1.5) * 6)) * Math.min(1, t * 1.2) * 0.6;
+        const frame = (Math.floor(t * 11 + i) % 2 === 0) ? "run_a" : "run_b";
+        sprites.push({ x: worldToScreenX(gWX), y: lateralToScreenY(gLat), team: offTeam, frame, flipped: phase === "return" ? false : false, faceSeed: nameSeed("G", i) });
       }
-      // Returner — moves toward landing spot, then catches
-      const returnerFrame = t < 0.7 ? "idle" : t < 0.82 ? "catch" : (Math.floor(t * 10) % 2 === 0 ? "run_a" : "run_b");
-      sprites.push({ x: worldToScreenX(carrierWX), y: lateralToScreenY(returnerLat), team: defTeam, frame: returnerFrame, flipped: true, faceSeed: nameSeed("Returner") });
-      // Blockers near returner
-      for (let i = 0; i < 2; i++) {
-        const bLat = returnerLat + (i === 0 ? -5 : 5);
-        sprites.push({ x: worldToScreenX(landWX - 20), y: lateralToScreenY(bLat), team: defTeam, frame: "idle", flipped: true, faceSeed: nameSeed("Block", i) });
+      // Blockers for the returner — set up a wedge in front of him
+      const numBlockers = 3;
+      for (let i = 0; i < numBlockers; i++) {
+        const angle = (i / numBlockers - 0.5);
+        const bWX = (phase === "return" ? carrierWX : landWX) + 14 + i * 6;
+        const bLat = (phase === "return" ? carrierLat : returnerLat) + angle * 8;
+        const frame = phase === "return" ? "stiff" : "idle";
+        sprites.push({ x: worldToScreenX(bWX), y: lateralToScreenY(bLat), team: defTeam, frame, flipped: false, faceSeed: nameSeed("Blocker", i) });
       }
+      // Returner
+      let returnerFrame;
+      if (phase === "snap" || phase === "air") returnerFrame = "idle";
+      else if (phase === "field") returnerFrame = "catch";
+      else if (isReturnTD && t > 0.92) returnerFrame = "celebrate";
+      else returnerFrame = (Math.floor(t * 11) % 2 === 0) ? "run_a" : "run_b";
+      sprites.push({ x: worldToScreenX(carrierWX), y: lateralToScreenY(carrierLat), team: defTeam, frame: returnerFrame, flipped: true, faceSeed: nameSeed("Returner") });
+
       drawSpriteList(ctx, sprites);
       // Ball
       const bsX = worldToScreenX(ballWX);
@@ -3758,11 +4050,23 @@ function buildCinemaAnim(play, prevPlay) {
       ctx.beginPath(); ctx.ellipse(bsX, bsY, 8, 5, 0, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = "#fff";
       ctx.fillRect(bsX - 2, bsY - 1, 4, 1);
-      // CATCH callout when returner secures it
-      if (t > 0.74 && t < 0.86) {
-        const cT = (t - 0.74) / 0.12;
-        drawHeadCallout(ctx, worldToScreenX(landWX), lateralToScreenY(returnerLat) - 60, "FIELDED!", "#9be09b", 0.7 + cT * 0.3);
+
+      // Callouts
+      if (phase === "field" && !play._catchFired) {
+        play._catchFired = true;
+        if (isTouchback) showCallout("TOUCHBACK");
+        else if (isFairCatch) showCallout("FAIR CATCH");
+        else showCallout("FIELDED!");
       }
+      if (phase === "return" && returnYards >= 20 && t > 0.85 && !play._bigRetFired) {
+        play._bigRetFired = true;
+        showCallout(returnYards >= 40 ? "TAKE IT TO THE HOUSE!" : "BIG RETURN!");
+      }
+      if (isReturnTD && t > 0.94) {
+        const ageMs = (t - 0.94) * dur;
+        drawFireworksShow(ctx, ageMs);
+      }
+      if (t < 0.05) { play._catchFired = false; play._bigRetFired = false; }
     }};
   }
 
@@ -3886,16 +4190,28 @@ function formatPlayResult(play) {
       return { title: "INCOMPLETE", sub: intended ? `${passer} pass to ${intended} falls away` : `${passer} pass falls away`, color: "#cccccc" };
     case "int":
       return { title: "INTERCEPTION!", sub: `${passer} picked off — turnover`, color: "#e07070", big: true };
-    case "sack":
-      return { title: "SACK!", sub: `${passer} dropped for −${play.sackLoss ?? 0} in the backfield`, color: "#e07070" };
+    case "sack": {
+      const dlName = lastNameUpper(play.dlName);
+      const move = play.dlMove;
+      const sub = dlName && move
+        ? `${dlName} with the ${move} — ${passer} dropped for −${play.sackLoss ?? 0}`
+        : `${passer} dropped for −${play.sackLoss ?? 0} in the backfield`;
+      return { title: "SACK!", sub, color: "#e07070" };
+    }
     case "fumble":
       return { title: "FUMBLE!", sub: rusher ? `${rusher} cough it up — defense recovers` : "Defense recovers the loose ball", color: "#e07070", big: true };
     case "fg_good":
       return { title: "FIELD GOAL!", sub: `${kicker} drills it from ${play.fgDist}`, color: "#f0cc30" };
     case "fg_miss":
       return { title: "NO GOOD", sub: `${kicker} misses from ${play.fgDist}`, color: "#e07070" };
-    case "punt":
-      return { title: "PUNT", sub: `${play.puntYards}-yard punt — change of possession`, color: "#cccccc" };
+    case "punt": {
+      if (play.isReturnTD)   return { title: "RETURNED FOR SIX!", sub: `${play.returnYards}-yard punt return TD`, color: "#f0cc30", big: true };
+      if (play.isTouchback)  return { title: "PUNT", sub: `${play.puntYards}-yard punt — touchback`, color: "#cccccc" };
+      if (play.isFairCatch)  return { title: "PUNT", sub: `${play.puntYards}-yard punt — fair catch`, color: "#cccccc" };
+      if ((play.returnYards ?? 0) >= 20) return { title: `${play.returnYards}-YD RETURN!`, sub: `${play.puntYards}-yard punt, brought back ${play.returnYards}`, color: "#9be09b", big: true };
+      const rty = play.returnYards ?? 0;
+      return { title: "PUNT", sub: rty > 0 ? `${play.puntYards}-yard punt, returned ${rty}` : `${play.puntYards}-yard punt — change of possession`, color: "#cccccc" };
+    }
     case "score": {
       const d = (play.desc || "").toLowerCase();
       if (d.includes("touchdown")) return null;
