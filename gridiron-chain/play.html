@@ -174,6 +174,36 @@
   .ratings-table .away { text-align: left; font-weight: 700; }
   .ratings-table .winner { color: var(--green-lt); }
 
+  /* Box score */
+  .boxscore-tabs { display: flex; gap: .25rem; margin-bottom: .65rem; }
+  .boxscore-tab {
+    flex: 1; padding: .35rem .25rem; border-radius: 6px; cursor: pointer;
+    background: var(--bg3); border: 1px solid var(--border); color: var(--gray);
+    font-size: .72rem; font-weight: 700; text-align: center; letter-spacing: .3px;
+    transition: all .12s;
+  }
+  .boxscore-tab:hover { color: var(--white); }
+  .boxscore-tab.active { background: var(--gold); color: #000; border-color: var(--gold); }
+  .boxscore-section { font-size: .78rem; }
+  .boxscore-section h4 {
+    margin: .9rem 0 .3rem; font-size: .72rem; color: var(--gold);
+    letter-spacing: .5px; font-weight: 700; padding-bottom: .2rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .boxscore-section h4:first-child { margin-top: 0; }
+  .boxscore-table { width: 100%; border-collapse: collapse; font-size: .76rem; }
+  .boxscore-table th, .boxscore-table td { padding: .25rem .35rem; text-align: right; }
+  .boxscore-table th { color: var(--gray); font-weight: 600; font-size: .68rem; letter-spacing: .3px; border-bottom: 1px solid var(--border); }
+  .boxscore-table td.name { text-align: left; font-weight: 700; color: var(--white); }
+  .boxscore-table td.pos { text-align: left; color: var(--gray); font-size: .68rem; width: 24px; }
+  .team-totals {
+    display: grid; grid-template-columns: 1fr auto 1fr; gap: .5rem;
+    padding: .4rem 0; font-size: .76rem; border-bottom: 1px solid var(--border);
+  }
+  .team-totals .lbl { text-align: center; color: var(--gray); font-size: .68rem; letter-spacing: .3px; }
+  .team-totals .h { text-align: right; font-weight: 700; }
+  .team-totals .a { text-align: left; font-weight: 700; }
+
   /* Drive log */
   .drive-entry {
     padding: .35rem .5rem; border-bottom: 1px solid var(--border);
@@ -382,10 +412,47 @@ class GameSimulator {
     this.poss = Math.random() < 0.5 ? "home" : "away";
     this.yardLine = 25; this.down = 1; this.ytg = 10;
     this.plays = []; this.drives = [];
+    this.stats = {
+      home: this._buildTeamStats(this.homeR.starters),
+      away: this._buildTeamStats(this.awayR.starters),
+    };
+    this._lastBallCarrier = null; // who got the ball on the last positive play
+    this._lastBallType = null;    // 'pass' | 'rush'
+  }
+  _buildTeamStats(starters) {
+    const players = {};
+    const add = (name, pos) => { if (name && !players[name]) players[name] = { name, pos, ...this._emptyLine() }; };
+    add(starters.qb, "QB");
+    add(starters.rb, "RB");
+    add(starters.wr1, "WR");
+    add(starters.wr2, "WR");
+    add(starters.te, "TE");
+    add(starters.k,  "K");
+    return {
+      team: {
+        plays: 0, totalYds: 0, passYds: 0, rushYds: 0,
+        pass_att: 0, pass_comp: 0, rush_att: 0,
+        sacks: 0, sacks_allowed: 0, turnovers: 0, takeaways: 0,
+        firstDowns: 0, thirdAtt: 0, thirdConv: 0, fourthAtt: 0, fourthConv: 0,
+        timeOfPoss: 0, penalties: 0, penaltyYds: 0,
+      },
+      players,
+    };
+  }
+  _emptyLine() {
+    return {
+      pass_att: 0, pass_comp: 0, pass_yds: 0, pass_td: 0, pass_int: 0, pass_long: 0,
+      sacks_taken: 0, sack_yds: 0,
+      rush_att: 0, rush_yds: 0, rush_td: 0, rush_long: 0,
+      rec_tgt: 0, rec: 0, rec_yds: 0, rec_td: 0, rec_long: 0,
+      fg_made: 0, fg_att: 0, fg_long: 0, xp_made: 0, xp_att: 0,
+    };
   }
   get offR()     { return this.poss === "home" ? this.homeR : this.awayR; }
   get defR()     { return this.poss === "home" ? this.awayR : this.homeR; }
   get possTeam() { return this.poss === "home" ? this.home : this.away; }
+  get offStats() { return this.stats[this.poss]; }
+  get defStats() { return this.stats[this.poss === "home" ? "away" : "home"]; }
   _pushVisual(data) {
     this.plays.push({
       ...data,
@@ -397,6 +464,7 @@ class GameSimulator {
       yardLine: this.yardLine,
       homeScore: this.score.home,
       awayScore: this.score.away,
+      statsSnap: JSON.parse(JSON.stringify(this.stats)),
     });
   }
   _score(pts, type) {
@@ -405,9 +473,13 @@ class GameSimulator {
   }
   _play() {
     const adv = (this.offR.offense - this.defR.defense) / 100;
-    this.time -= clamp(normal(33, 9), 12, 55);
+    const dt = clamp(normal(33, 9), 12, 55);
+    this.time -= dt;
     if (this.time < 0) this.time = 0;
     const startYard = this.yardLine;
+    const off = this.offStats, def = this.defStats;
+    const QB = this.offR.starters.qb, RB = this.offR.starters.rb, K = this.offR.starters.k;
+    const isThird = this.down === 3, isFourth = this.down === 4;
 
     if (this.down === 4) {
       const toEZ = 100 - this.yardLine;
@@ -415,7 +487,10 @@ class GameSimulator {
       if (toEZ <= 52 && this.ytg <= 5) {
         const dist = toEZ + 17;
         const fgPct = clamp(0.95 - (dist - 20) * 0.018 + (this.offR.k - 60) / 250, 0.20, 0.97);
+        const kStats = off.players[K]; if (kStats) { kStats.fg_att++; }
+        off.team.fourthAtt++;
         if (Math.random() < fgPct) {
+          if (kStats) { kStats.fg_made++; if (dist > kStats.fg_long) kStats.fg_long = dist; }
           this._score(3, `${dist}-yd FG`);
           this._pushVisual({ kind: "fg_good", desc: `${this.offR.starters.k} drills it from ${dist} yds!`, startYard, endYard: 100, fgDist: dist });
         } else {
@@ -424,24 +499,33 @@ class GameSimulator {
         return { endDrive: true };
       }
       // Punt
+      off.team.fourthAtt++;
       const punt = clamp(normal(46, 7), 28, 68);
       this._pushVisual({ kind: "punt", desc: `${this.possTeam.name} punts ${punt} yards`, startYard, puntYards: punt, endYard: clamp(startYard + punt, 0, 99) });
       return { endDrive: true, punt };
     }
+    off.team.plays++;
+    if (isThird) off.team.thirdAtt++;
     const isLong = this.ytg >= 8, isShort = this.ytg <= 2;
     const passProb = isLong ? 0.72 : isShort ? 0.42 : 0.58;
     const playType = Math.random() < passProb ? "pass" : "run";
 
     if (playType === "pass") {
+      const qbStats = off.players[QB];
       const intPct = clamp(0.022 - adv * 0.010 + (this.defR.cb - 60) / 1200, 0.005, 0.06);
       if (Math.random() < intPct) {
         const targetDepth = clamp(normal(11, 7), 2, 35);
+        if (qbStats) { qbStats.pass_att++; qbStats.pass_int++; }
+        off.team.pass_att++; off.team.turnovers++;
+        def.team.takeaways++;
         this._pushVisual({ kind: "int", desc: `INTERCEPTION! ${this.offR.starters.qb} picked off!`, startYard, targetDepth, endYard: startYard });
         return { turnover: true };
       }
       const sackPct = clamp(0.06 + (this.defR.dl - 60) / 500 - adv * 0.03, 0.02, 0.12);
       if (Math.random() < sackPct) {
         const loss = rand(3, 11);
+        if (qbStats) { qbStats.sacks_taken++; qbStats.sack_yds += loss; }
+        off.team.sacks_allowed++; def.team.sacks++;
         this._pushVisual({ kind: "sack", desc: `${this.offR.starters.qb} sacked for -${loss} yds`, startYard, sackLoss: loss, endYard: clamp(startYard - loss, 1, 99) });
         this.yardLine = clamp(this.yardLine - loss, 1, 99);
         this.down++; this.ytg += loss;
@@ -453,18 +537,34 @@ class GameSimulator {
         const targetDepth = clamp(yards + rand(-2, 4), 1, 60);
         const rcvrPick = Math.random();
         const rcvr = rcvrPick < 0.4 ? this.offR.starters.wr1 : rcvrPick < 0.7 ? this.offR.starters.wr2 : this.offR.starters.te;
+        const rcvrStats = off.players[rcvr];
+        if (qbStats) { qbStats.pass_att++; qbStats.pass_comp++; qbStats.pass_yds += yards; if (yards > qbStats.pass_long) qbStats.pass_long = yards; }
+        if (rcvrStats) { rcvrStats.rec_tgt++; rcvrStats.rec++; rcvrStats.rec_yds += yards; if (yards > rcvrStats.rec_long) rcvrStats.rec_long = yards; }
+        off.team.pass_att++; off.team.pass_comp++; off.team.passYds += yards; off.team.totalYds += yards;
+        this._lastBallCarrier = rcvr; this._lastBallType = "pass";
         this._pushVisual({ kind: "complete", desc: `${this.offR.starters.qb} → ${rcvr} for ${yards} yds`, startYard, targetDepth, yards, endYard: clamp(startYard + yards, 0, 100), receiver: rcvr });
         return { yards };
       }
       const targetDepth = clamp(normal(13, 8), 3, 45);
+      const rcvrPick = Math.random();
+      const rcvr = rcvrPick < 0.4 ? this.offR.starters.wr1 : rcvrPick < 0.7 ? this.offR.starters.wr2 : this.offR.starters.te;
+      const rcvrStats = off.players[rcvr];
+      if (qbStats) qbStats.pass_att++;
+      if (rcvrStats) rcvrStats.rec_tgt++;
+      off.team.pass_att++;
       this._pushVisual({ kind: "incomplete", desc: `${this.offR.starters.qb} pass incomplete`, startYard, targetDepth, endYard: startYard });
       return { yards: 0, incomplete: true };
     }
     if (Math.random() < 0.012) {
+      off.team.turnovers++; def.team.takeaways++;
       this._pushVisual({ kind: "fumble", desc: `FUMBLE recovered by defense!`, startYard, endYard: startYard });
       return { turnover: true };
     }
     const yards = clamp(normal(4.3 + adv * 1.8, 5.5), -4, 50);
+    const rbStats = off.players[RB];
+    if (rbStats) { rbStats.rush_att++; rbStats.rush_yds += yards; if (yards > rbStats.rush_long) rbStats.rush_long = yards; }
+    off.team.rush_att++; off.team.rushYds += yards; off.team.totalYds += yards;
+    this._lastBallCarrier = RB; this._lastBallType = "rush";
     this._pushVisual({ kind: "run", desc: `${this.offR.starters.rb} runs for ${yards} yds`, startYard, yards, endYard: clamp(startYard + yards, 0, 100) });
     return { yards };
   }
@@ -490,16 +590,39 @@ class GameSimulator {
       }
       const yards = r.yards || 0;
       if (!r.incomplete) this.yardLine = clamp(this.yardLine + yards, 0, 100);
+      const wasThird = (this.down === 3);
       if (this.yardLine >= 100) {
+        // Credit TD to last ball carrier
+        const off = this.stats[this.poss];
+        if (this._lastBallCarrier && off.players[this._lastBallCarrier]) {
+          if (this._lastBallType === "pass") {
+            off.players[this._lastBallCarrier].rec_td++;
+            const qb = this.offR.starters.qb;
+            if (off.players[qb]) off.players[qb].pass_td++;
+          } else if (this._lastBallType === "rush") {
+            off.players[this._lastBallCarrier].rush_td++;
+          }
+        }
+        if (wasThird) off.team.thirdConv++;
+        off.team.firstDowns++;
         this._score(6, "Touchdown!");
-        if (Math.random() < 0.92) { if (Math.random() < 0.94) this._score(1, "Extra Point"); }
-        else                       { if (Math.random() < 0.48) this._score(2, "2-Point Conversion"); }
+        const k = this.offR.starters.k, kStats = off.players[k];
+        if (Math.random() < 0.92) {
+          if (kStats) kStats.xp_att++;
+          if (Math.random() < 0.94) { this._score(1, "Extra Point"); if (kStats) kStats.xp_made++; }
+        } else {
+          if (Math.random() < 0.48) this._score(2, "2-Point Conversion");
+        }
         this.drives.push({ team: start, result: "TD", homeScore: this.score.home, awayScore: this.score.away });
         this.poss = this.poss === "home" ? "away" : "home";
         this.yardLine = 25; this.down = 1; this.ytg = 10; return;
       }
       if (r.incomplete) this.down++;
-      else if (yards >= this.ytg) { this.down = 1; this.ytg = 10; }
+      else if (yards >= this.ytg) {
+        this.stats[this.poss].team.firstDowns++;
+        if (wasThird) this.stats[this.poss].team.thirdConv++;
+        this.down = 1; this.ytg = 10;
+      }
       else { this.down++; this.ytg -= yards; }
     }
     this.drives.push({ team: start, result: "FG/Punt/TO", homeScore: this.score.home, awayScore: this.score.away });
@@ -537,6 +660,7 @@ class GameSimulator {
       homeScore: this.score.home, awayScore: this.score.away,
       homeRatings: this.homeR, awayRatings: this.awayR,
       plays: this.plays, drives: this.drives,
+      stats: this.stats,
       winner: this.score.home > this.score.away ? "home" : this.score.away > this.score.home ? "away" : "tie",
     };
   }
@@ -862,8 +986,11 @@ function updateButtons() {
   endBtn.disabled   = !gameResult || done;
 }
 
+let boxTab = "totals";
+
 function renderGameLayout() {
   gameArea.classList.remove("empty");
+  boxTab = "totals";
   gameArea.innerHTML = `
     <div class="game-grid">
       <div>
@@ -884,6 +1011,15 @@ function renderGameLayout() {
       </div>
       <div>
         <div class="card">
+          <div class="card-header">Box Score</div>
+          <div class="boxscore-tabs" id="boxTabs">
+            <div class="boxscore-tab active" data-tab="totals">Totals</div>
+            <div class="boxscore-tab" data-tab="home">Home</div>
+            <div class="boxscore-tab" data-tab="away">Away</div>
+          </div>
+          <div id="boxScore"></div>
+        </div>
+        <div class="card">
           <div class="card-header">Team Ratings</div>
           <table class="ratings-table" id="ratings"></table>
         </div>
@@ -897,6 +1033,15 @@ function renderGameLayout() {
   renderRatings();
   renderDrives();
   renderScoreboard();
+  renderBoxScore();
+  // Wire box score tabs
+  document.querySelectorAll("#boxTabs .boxscore-tab").forEach(el => {
+    el.addEventListener("click", () => {
+      boxTab = el.dataset.tab;
+      document.querySelectorAll("#boxTabs .boxscore-tab").forEach(x => x.classList.toggle("active", x.dataset.tab === boxTab));
+      renderBoxScore();
+    });
+  });
   // Initial field draw
   const ctx = $("field").getContext("2d");
   drawField(ctx, gameResult.homeTeam, gameResult.awayTeam, null);
@@ -1268,6 +1413,7 @@ function startNextPlay() {
   renderScoreboard(play);
   renderPlayLog();
   renderProgress();
+  renderBoxScore();
   setCaption(play);
   setFieldStatus(play);
   rafId = requestAnimationFrame(tick);
@@ -1307,6 +1453,7 @@ function renderStaticEnd() {
   renderScoreboard();
   renderPlayLog();
   renderProgress();
+  renderBoxScore();
 }
 
 function setCaption(play) {
@@ -1373,6 +1520,135 @@ function renderScoreboard(curPlay) {
 function renderProgress() {
   $("progLabel").textContent = `Play ${playHead} / ${gameResult.plays.length}`;
   $("progFill").style.width = `${(playHead / gameResult.plays.length) * 100}%`;
+}
+
+// Walk back from playHead to find the latest snapshot (kickoff/markers don't carry one)
+function currentStats() {
+  for (let i = Math.min(playHead, gameResult.plays.length) - 1; i >= 0; i--) {
+    const s = gameResult.plays[i].statsSnap;
+    if (s) return s;
+  }
+  // Pre-game: all zeros
+  return gameResult.stats && {
+    home: { team: emptyTeamTotals(), players: {} },
+    away: { team: emptyTeamTotals(), players: {} },
+  };
+}
+
+function emptyTeamTotals() {
+  return { plays: 0, totalYds: 0, passYds: 0, rushYds: 0, pass_att: 0, pass_comp: 0,
+           rush_att: 0, sacks: 0, sacks_allowed: 0, turnovers: 0, takeaways: 0,
+           firstDowns: 0, thirdAtt: 0, thirdConv: 0, fourthAtt: 0, fourthConv: 0 };
+}
+
+function renderBoxScore() {
+  const el = $("boxScore"); if (!el) return;
+  const stats = currentStats();
+  const hT = stats.home.team, aT = stats.away.team;
+  const hP = stats.home.players, aP = stats.away.players;
+  const homeName = gameResult.homeTeam.name, awayName = gameResult.awayTeam.name;
+
+  if (boxTab === "totals") {
+    const row = (lbl, h, a, fmt = v => v) => `
+      <div class="team-totals">
+        <div class="h">${fmt(h)}</div>
+        <div class="lbl">${lbl}</div>
+        <div class="a">${fmt(a)}</div>
+      </div>`;
+    el.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:.5rem;font-size:.7rem;color:var(--gray);padding-bottom:.3rem;border-bottom:1px solid var(--border);">
+        <div style="text-align:right;color:var(--green-lt);font-weight:700">${homeName}</div>
+        <div></div>
+        <div style="text-align:left;color:var(--gold);font-weight:700">${awayName}</div>
+      </div>
+      ${row("TOTAL YDS", hT.totalYds, aT.totalYds)}
+      ${row("PASS YDS", hT.passYds, aT.passYds)}
+      ${row("RUSH YDS", hT.rushYds, aT.rushYds)}
+      ${row("CMP / ATT", `${hT.pass_comp}/${hT.pass_att}`, `${aT.pass_comp}/${aT.pass_att}`)}
+      ${row("RUSH ATT", hT.rush_att, aT.rush_att)}
+      ${row("FIRST DOWNS", hT.firstDowns, aT.firstDowns)}
+      ${row("3RD DOWN", `${hT.thirdConv}/${hT.thirdAtt}`, `${aT.thirdConv}/${aT.thirdAtt}`)}
+      ${row("SACKS", hT.sacks, aT.sacks)}
+      ${row("TURNOVERS", hT.turnovers, aT.turnovers)}
+    `;
+    return;
+  }
+
+  const sideStats = boxTab === "home" ? stats.home : stats.away;
+  const teamLabel = boxTab === "home" ? gameResult.homeTeam : gameResult.awayTeam;
+  const players = sideStats.players;
+  const byPos = pos => Object.values(players).filter(p => p.pos === pos);
+
+  const passingRows = byPos("QB").map(p =>
+    `<tr>
+      <td class="pos">QB</td>
+      <td class="name">${p.name}</td>
+      <td>${p.pass_comp}/${p.pass_att}</td>
+      <td>${p.pass_yds}</td>
+      <td>${p.pass_yds && p.pass_att ? (p.pass_yds / p.pass_att).toFixed(1) : "0.0"}</td>
+      <td>${p.pass_td}</td>
+      <td>${p.pass_int}</td>
+      <td>${p.pass_long}</td>
+    </tr>`).join("");
+
+  const rushingRows = Object.values(players).filter(p => p.rush_att > 0).map(p =>
+    `<tr>
+      <td class="pos">${p.pos}</td>
+      <td class="name">${p.name}</td>
+      <td>${p.rush_att}</td>
+      <td>${p.rush_yds}</td>
+      <td>${p.rush_att ? (p.rush_yds / p.rush_att).toFixed(1) : "0.0"}</td>
+      <td>${p.rush_td}</td>
+      <td>${p.rush_long}</td>
+    </tr>`).join("");
+
+  const recRows = Object.values(players).filter(p => p.rec_tgt > 0).map(p =>
+    `<tr>
+      <td class="pos">${p.pos}</td>
+      <td class="name">${p.name}</td>
+      <td>${p.rec}/${p.rec_tgt}</td>
+      <td>${p.rec_yds}</td>
+      <td>${p.rec ? (p.rec_yds / p.rec).toFixed(1) : "0.0"}</td>
+      <td>${p.rec_td}</td>
+      <td>${p.rec_long}</td>
+    </tr>`).join("");
+
+  const kickRows = byPos("K").filter(p => p.fg_att + p.xp_att > 0).map(p =>
+    `<tr>
+      <td class="pos">K</td>
+      <td class="name">${p.name}</td>
+      <td>${p.fg_made}/${p.fg_att}</td>
+      <td>${p.fg_long || "—"}</td>
+      <td>${p.xp_made}/${p.xp_att}</td>
+    </tr>`).join("");
+
+  const empty = `<tr><td colspan="8" style="color:var(--gray);text-align:center;padding:.4rem">—</td></tr>`;
+
+  el.innerHTML = `
+    <div style="font-size:.7rem;color:var(--gold);font-weight:700;letter-spacing:.4px;margin-bottom:.4rem;">${teamLabel.emoji} ${teamLabel.city.toUpperCase()} ${teamLabel.name.toUpperCase()}</div>
+    <div class="boxscore-section">
+      <h4>PASSING</h4>
+      <table class="boxscore-table">
+        <thead><tr><th></th><th></th><th>C/A</th><th>YDS</th><th>AVG</th><th>TD</th><th>INT</th><th>LNG</th></tr></thead>
+        <tbody>${passingRows || empty}</tbody>
+      </table>
+      <h4>RUSHING</h4>
+      <table class="boxscore-table">
+        <thead><tr><th></th><th></th><th>ATT</th><th>YDS</th><th>AVG</th><th>TD</th><th>LNG</th></tr></thead>
+        <tbody>${rushingRows || empty}</tbody>
+      </table>
+      <h4>RECEIVING</h4>
+      <table class="boxscore-table">
+        <thead><tr><th></th><th></th><th>R/T</th><th>YDS</th><th>AVG</th><th>TD</th><th>LNG</th></tr></thead>
+        <tbody>${recRows || empty}</tbody>
+      </table>
+      <h4>KICKING</h4>
+      <table class="boxscore-table">
+        <thead><tr><th></th><th></th><th>FG</th><th>LNG</th><th>XP</th></tr></thead>
+        <tbody>${kickRows || empty}</tbody>
+      </table>
+    </div>
+  `;
 }
 
 function renderPlayLog() {
