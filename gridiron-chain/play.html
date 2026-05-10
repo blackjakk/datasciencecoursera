@@ -12,6 +12,7 @@
     --bg: #0a0f0a;    --bg2: #111811; --bg3: #1a221a;
     --card: #182018; --border: #2e3d2e;
     --white: #f0f0f0; --gray: #999; --red: #c0392b;
+    --field: #1f6b34; --field-dk: #185b2c; --field-lt: #2a7d40;
   }
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -41,12 +42,12 @@
   }
   .vs-label { font-weight: 900; font-size: 1.5rem; color: var(--gray); }
   label { font-size: .8rem; color: var(--gray); display: block; margin-bottom: .35rem; }
-  select, input {
+  select, input[type="number"] {
     background: var(--bg2); border: 1px solid var(--border); color: var(--white);
     padding: .55rem .85rem; border-radius: 6px; width: 100%;
     font-size: .95rem; font-family: inherit;
   }
-  select:focus, input:focus { outline: none; border-color: var(--green-lt); }
+  select:focus { outline: none; border-color: var(--green-lt); }
 
   /* Buttons */
   .btn {
@@ -60,7 +61,7 @@
   .btn-primary:hover { background: var(--green-lt); }
   .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--white); }
   .btn-outline:hover { border-color: var(--green-lt); color: var(--green-lt); }
-  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
   .btn-sm { padding: .35rem .75rem; font-size: .8rem; }
 
   /* Controls bar */
@@ -74,45 +75,78 @@
   }
 
   /* Game layout */
-  .game-grid { display: grid; grid-template-columns: 1.5fr 1fr; gap: 1rem; }
-  @media (max-width: 900px) { .game-grid { grid-template-columns: 1fr; } }
+  .game-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 1rem; }
+  @media (max-width: 1100px) { .game-grid { grid-template-columns: 1fr; } }
+
+  /* Field viewer */
+  .field-wrap {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+    padding: .75rem; margin-bottom: 1rem;
+  }
+  #field {
+    width: 100%; height: auto; display: block; border-radius: 6px;
+    background: var(--field-dk);
+  }
+  .field-overlay {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: .35rem .5rem .55rem .5rem; font-size: .8rem; color: var(--gray);
+  }
+  .field-status {
+    font-weight: 700; color: var(--white); font-size: .85rem;
+  }
+  .play-caption {
+    background: var(--bg3); border-radius: 6px; padding: .55rem .8rem;
+    font-size: .9rem; min-height: 38px; display: flex; align-items: center;
+    margin-top: .4rem; border-left: 3px solid var(--green-lt);
+    transition: border-color .15s;
+  }
+  .play-caption.score    { border-color: var(--gold); color: var(--gold-lt); font-weight: 700; }
+  .play-caption.int      { border-color: #ff6060; color: #ff8a8a; font-weight: 700; }
+  .play-caption.fumble   { border-color: #ff6060; color: #ff8a8a; font-weight: 700; }
+  .play-caption.sack     { border-color: #c8a900; }
+  .play-caption.fg_good  { border-color: var(--gold); color: var(--gold-lt); }
+  .play-caption.fg_miss  { border-color: #ff6060; color: #ff8a8a; }
+  .play-caption.kickoff,
+  .play-caption.punt     { border-color: #4b9bd5; }
 
   /* Scoreboard */
   .scoreboard {
     display: grid; grid-template-columns: 1fr auto 1fr;
-    gap: 1.5rem; padding: 1.5rem;
+    gap: 1.5rem; padding: 1rem 1.5rem;
     background: var(--bg2); border-radius: 10px;
     border: 1px solid var(--border); margin-bottom: 1rem;
     align-items: center;
   }
   .score-team { text-align: center; }
-  .score-team-emoji { font-size: 2rem; }
-  .score-team-name { font-size: .9rem; color: var(--gray); margin-top: .15rem; }
-  .score-team-full { font-weight: 700; font-size: .85rem; }
-  .score-num { font-size: 4rem; font-weight: 900; line-height: 1; margin-top: .25rem; }
+  .score-team-emoji { font-size: 1.6rem; }
+  .score-team-name { font-size: .8rem; color: var(--gray); margin-top: .15rem; }
+  .score-team-full { font-weight: 700; font-size: .8rem; }
+  .score-num { font-size: 3rem; font-weight: 900; line-height: 1; margin-top: .15rem; }
   .score-num.win { color: var(--gold); }
   .score-mid { text-align: center; }
-  .score-status { font-size: .85rem; color: var(--gray); }
+  .score-status { font-size: .8rem; color: var(--gray); }
   .score-status.live { color: #4caf7a; }
   .score-status.final { color: var(--gold); font-weight: 700; }
   .quarter-clock { font-size: 1.1rem; font-weight: 700; margin-top: .25rem; }
+  .down-distance { font-size: .78rem; color: var(--gray); margin-top: .15rem; }
+  .poss-indicator { font-size: .75rem; color: var(--gold); margin-top: .15rem; }
 
   /* Progress bar */
   .progress-wrap { margin-bottom: .75rem; }
   .progress-label { font-size: .75rem; color: var(--gray); margin-bottom: .25rem; display: flex; justify-content: space-between; }
-  .progress-bar { height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
-  .progress-fill { height: 100%; background: var(--green-lt); transition: width .15s; }
+  .progress-bar { height: 5px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--green-lt); transition: width .12s; }
 
-  /* Play log */
+  /* Play log (smaller now) */
   .play-log {
     background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
-    padding: .5rem; max-height: 480px; overflow-y: auto; font-size: .85rem;
+    padding: .5rem; max-height: 240px; overflow-y: auto; font-size: .82rem;
   }
   .play-entry {
-    padding: .4rem .65rem; border-radius: 4px; margin-bottom: 2px;
+    padding: .35rem .5rem; border-radius: 4px; margin-bottom: 2px;
     border-bottom: 1px solid rgba(255,255,255,0.04);
   }
-  .play-entry .meta { color: var(--gray); font-size: .72rem; margin-right: .5rem; }
+  .play-entry .meta { color: var(--gray); font-size: .7rem; margin-right: .5rem; }
   .play-entry.score    { background: #1a3300; color: var(--gold); font-weight: 700; }
   .play-entry.int      { background: #330000; color: #ff8a8a; }
   .play-entry.fumble   { background: #330000; color: #ff8a8a; }
@@ -123,43 +157,36 @@
   .play-entry.ot,
   .play-entry.quarter {
     background: var(--bg3); text-align: center; font-weight: 700; color: var(--gold-lt);
-    padding: .65rem; margin: .35rem 0;
+    padding: .55rem; margin: .25rem 0;
   }
   .play-entry.kickoff  { background: var(--green-dk); }
 
-  /* Ratings card */
+  /* Card */
   .card {
     background: var(--card); border: 1px solid var(--border);
-    border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem;
+    border-radius: 10px; padding: 1rem; margin-bottom: 1rem;
   }
-  .card-header { font-weight: 700; color: var(--gold); margin-bottom: .75rem; font-size: 1rem; }
+  .card-header { font-weight: 700; color: var(--gold); margin-bottom: .65rem; font-size: .95rem; }
   .ratings-table { width: 100%; }
-  .ratings-table tr td { padding: .35rem .5rem; }
-  .ratings-table .lbl { text-align: center; color: var(--gray); font-size: .78rem; font-weight: 600; letter-spacing: .5px; }
+  .ratings-table tr td { padding: .25rem .35rem; }
+  .ratings-table .lbl { text-align: center; color: var(--gray); font-size: .72rem; font-weight: 600; letter-spacing: .5px; }
   .ratings-table .home { text-align: right; font-weight: 700; }
   .ratings-table .away { text-align: left; font-weight: 700; }
   .ratings-table .winner { color: var(--green-lt); }
-  .rating-bar-row { display: flex; gap: .25rem; align-items: center; }
-  .rating-bar-mini { flex: 1; height: 4px; background: var(--bg3); border-radius: 2px; overflow: hidden; }
-  .rating-bar-mini > div { height: 100%; background: var(--green-lt); }
 
   /* Drive log */
   .drive-entry {
-    padding: .4rem .55rem; border-bottom: 1px solid var(--border);
-    font-size: .82rem; display: flex; justify-content: space-between;
+    padding: .35rem .5rem; border-bottom: 1px solid var(--border);
+    font-size: .8rem; display: flex; justify-content: space-between;
   }
   .drive-team-home { color: var(--green-lt); font-weight: 700; }
   .drive-team-away { color: var(--gold); font-weight: 700; }
   .drive-result-td { color: var(--gold); font-weight: 700; }
 
-  /* Stats */
   .empty {
     text-align: center; color: var(--gray); padding: 4rem 1rem;
   }
   .empty-icon { font-size: 4rem; margin-bottom: .5rem; }
-
-  /* Team color swatch */
-  .team-swatch { width: 8px; height: 24px; border-radius: 2px; margin-right: .5rem; }
 
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: var(--bg); }
@@ -178,7 +205,7 @@
 
 <div class="header">
   <h1>🏈 Gridiron<span>Chain</span></h1>
-  <p>American Football Simulator — Standalone Demo</p>
+  <p>2D Animated Football Simulator — Standalone Demo</p>
 </div>
 
 <div class="container">
@@ -203,8 +230,8 @@
     <button class="btn btn-outline" id="endBtn" disabled>⏭ Skip to End</button>
     <div class="speed-control">
       <span>Speed</span>
-      <input type="range" id="speedSlider" min="20" max="500" step="20" value="80" style="width: 120px;" />
-      <span id="speedLabel">80ms</span>
+      <input type="range" id="speedSlider" min="1" max="10" step="1" value="5" style="width: 130px;" />
+      <span id="speedLabel">1.0×</span>
     </div>
   </div>
 
@@ -212,7 +239,7 @@
   <div id="gameArea" class="empty">
     <div class="empty-icon">🏈</div>
     <div style="font-size: 1.2rem; font-weight: 700; margin-bottom: .25rem;">Pick two teams and hit Simulate</div>
-    <div style="color: var(--gray);">Full play-by-play simulation with live scoring, drives, and team ratings</div>
+    <div style="color: var(--gray);">Animated 2D field with live play-by-play action</div>
   </div>
 
 </div>
@@ -220,38 +247,38 @@
 <script>
 // ─── 32 fictional teams ────────────────────────────────────────────────────
 const TEAMS = [
-  { id:1,  city:"New Albion",  name:"Kraken",     conference:"AFC", division:"East",  primary:"#00264D", emoji:"🦑" },
-  { id:2,  city:"Stonehaven",  name:"Titans",     conference:"AFC", division:"East",  primary:"#4B92DB", emoji:"⚡" },
-  { id:3,  city:"Ironport",    name:"Wolves",     conference:"AFC", division:"East",  primary:"#1A1A1A", emoji:"🐺" },
-  { id:4,  city:"Coldwater",   name:"Buccaneers", conference:"AFC", division:"East",  primary:"#0072CE", emoji:"🏴‍☠️" },
-  { id:5,  city:"Steelforge",  name:"Hammers",    conference:"AFC", division:"North", primary:"#FFB612", emoji:"🔨" },
-  { id:6,  city:"Riverdale",   name:"Grizzlies",  conference:"AFC", division:"North", primary:"#FB4F14", emoji:"🐻" },
-  { id:7,  city:"Coalport",    name:"Ravens",     conference:"AFC", division:"North", primary:"#241773", emoji:"🦅" },
-  { id:8,  city:"Lakewood",    name:"Bulldogs",   conference:"AFC", division:"North", primary:"#0B162A", emoji:"🐶" },
-  { id:9,  city:"Sunbelt",     name:"Vipers",     conference:"AFC", division:"South", primary:"#002244", emoji:"🐍" },
-  { id:10, city:"Palmetto",    name:"Jaguars",    conference:"AFC", division:"South", primary:"#006778", emoji:"🐆" },
-  { id:11, city:"Bayou",       name:"Gators",     conference:"AFC", division:"South", primary:"#03202F", emoji:"🐊" },
-  { id:12, city:"Redrock",     name:"Stallions",  conference:"AFC", division:"South", primary:"#4F2683", emoji:"🐎" },
-  { id:13, city:"Desert",      name:"Scorpions",  conference:"AFC", division:"West",  primary:"#002244", emoji:"🦂" },
-  { id:14, city:"Silicon",     name:"Raiders",    conference:"AFC", division:"West",  primary:"#101820", emoji:"⚔️" },
-  { id:15, city:"Cascade",     name:"Thunder",    conference:"AFC", division:"West",  primary:"#002C5F", emoji:"⛈️" },
-  { id:16, city:"Frontier",    name:"Outlaws",    conference:"AFC", division:"West",  primary:"#E31837", emoji:"🤠" },
-  { id:17, city:"Capitol",     name:"Sentinels",  conference:"NFC", division:"East",  primary:"#003594", emoji:"🛡️" },
-  { id:18, city:"Metro",       name:"Predators",  conference:"NFC", division:"East",  primary:"#004C54", emoji:"🦁" },
-  { id:19, city:"Eastport",    name:"Eagles",     conference:"NFC", division:"East",  primary:"#004C54", emoji:"🦅" },
-  { id:20, city:"Colonial",    name:"Minutemen",  conference:"NFC", division:"East",  primary:"#003366", emoji:"🎯" },
-  { id:21, city:"Great Lakes", name:"Frost",      conference:"NFC", division:"North", primary:"#4F2683", emoji:"❄️" },
-  { id:22, city:"Ironwood",    name:"Vikings",    conference:"NFC", division:"North", primary:"#4B2E83", emoji:"🪓" },
-  { id:23, city:"Prairie",     name:"Wolves",     conference:"NFC", division:"North", primary:"#203731", emoji:"🐺" },
-  { id:24, city:"Blizzard",    name:"Bears",      conference:"NFC", division:"North", primary:"#0B162A", emoji:"🐻" },
-  { id:25, city:"Magnolia",    name:"Saints",     conference:"NFC", division:"South", primary:"#D3BC8D", emoji:"⚜️" },
-  { id:26, city:"Gulf",        name:"Marauders",  conference:"NFC", division:"South", primary:"#D50A0A", emoji:"🏴" },
-  { id:27, city:"Swamp",       name:"Kings",      conference:"NFC", division:"South", primary:"#002244", emoji:"👑" },
-  { id:28, city:"Peach State", name:"Falcons",    conference:"NFC", division:"South", primary:"#A71930", emoji:"🦅" },
-  { id:29, city:"Pacific",     name:"Surge",      conference:"NFC", division:"West",  primary:"#002244", emoji:"🌊" },
-  { id:30, city:"Redwood",     name:"Giants",     conference:"NFC", division:"West",  primary:"#0B2265", emoji:"🌲" },
-  { id:31, city:"Canyon",      name:"Hawks",      conference:"NFC", division:"West",  primary:"#002244", emoji:"🦅" },
-  { id:32, city:"Volcanic",    name:"Fury",       conference:"NFC", division:"West",  primary:"#97233F", emoji:"🌋" },
+  { id:1,  city:"New Albion",  name:"Kraken",     conference:"AFC", division:"East",  primary:"#00264D", secondary:"#84B6F4", emoji:"🦑" },
+  { id:2,  city:"Stonehaven",  name:"Titans",     conference:"AFC", division:"East",  primary:"#4B92DB", secondary:"#FFFFFF", emoji:"⚡" },
+  { id:3,  city:"Ironport",    name:"Wolves",     conference:"AFC", division:"East",  primary:"#1A1A1A", secondary:"#A0A0A0", emoji:"🐺" },
+  { id:4,  city:"Coldwater",   name:"Buccaneers", conference:"AFC", division:"East",  primary:"#0072CE", secondary:"#FFB81C", emoji:"🏴‍☠️" },
+  { id:5,  city:"Steelforge",  name:"Hammers",    conference:"AFC", division:"North", primary:"#FFB612", secondary:"#101820", emoji:"🔨" },
+  { id:6,  city:"Riverdale",   name:"Grizzlies",  conference:"AFC", division:"North", primary:"#FB4F14", secondary:"#000000", emoji:"🐻" },
+  { id:7,  city:"Coalport",    name:"Ravens",     conference:"AFC", division:"North", primary:"#241773", secondary:"#9E7C0C", emoji:"🦅" },
+  { id:8,  city:"Lakewood",    name:"Bulldogs",   conference:"AFC", division:"North", primary:"#0B162A", secondary:"#C83803", emoji:"🐶" },
+  { id:9,  city:"Sunbelt",     name:"Vipers",     conference:"AFC", division:"South", primary:"#002244", secondary:"#69BE28", emoji:"🐍" },
+  { id:10, city:"Palmetto",    name:"Jaguars",    conference:"AFC", division:"South", primary:"#006778", secondary:"#D7A22A", emoji:"🐆" },
+  { id:11, city:"Bayou",       name:"Gators",     conference:"AFC", division:"South", primary:"#03202F", secondary:"#A71930", emoji:"🐊" },
+  { id:12, city:"Redrock",     name:"Stallions",  conference:"AFC", division:"South", primary:"#4F2683", secondary:"#FFC62F", emoji:"🐎" },
+  { id:13, city:"Desert",      name:"Scorpions",  conference:"AFC", division:"West",  primary:"#002244", secondary:"#C60C30", emoji:"🦂" },
+  { id:14, city:"Silicon",     name:"Raiders",    conference:"AFC", division:"West",  primary:"#101820", secondary:"#A5ACAF", emoji:"⚔️" },
+  { id:15, city:"Cascade",     name:"Thunder",    conference:"AFC", division:"West",  primary:"#002C5F", secondary:"#69BE28", emoji:"⛈️" },
+  { id:16, city:"Frontier",    name:"Outlaws",    conference:"AFC", division:"West",  primary:"#E31837", secondary:"#FFB81C", emoji:"🤠" },
+  { id:17, city:"Capitol",     name:"Sentinels",  conference:"NFC", division:"East",  primary:"#003594", secondary:"#869397", emoji:"🛡️" },
+  { id:18, city:"Metro",       name:"Predators",  conference:"NFC", division:"East",  primary:"#004C54", secondary:"#A5ACAF", emoji:"🦁" },
+  { id:19, city:"Eastport",    name:"Eagles",     conference:"NFC", division:"East",  primary:"#004C54", secondary:"#A5ACAF", emoji:"🦅" },
+  { id:20, city:"Colonial",    name:"Minutemen",  conference:"NFC", division:"East",  primary:"#003366", secondary:"#B0B7BC", emoji:"🎯" },
+  { id:21, city:"Great Lakes", name:"Frost",      conference:"NFC", division:"North", primary:"#4F2683", secondary:"#FFC62F", emoji:"❄️" },
+  { id:22, city:"Ironwood",    name:"Vikings",    conference:"NFC", division:"North", primary:"#4B2E83", secondary:"#FFC62F", emoji:"🪓" },
+  { id:23, city:"Prairie",     name:"Wolves",     conference:"NFC", division:"North", primary:"#203731", secondary:"#FFB612", emoji:"🐺" },
+  { id:24, city:"Blizzard",    name:"Bears",      conference:"NFC", division:"North", primary:"#0B162A", secondary:"#C83803", emoji:"🐻" },
+  { id:25, city:"Magnolia",    name:"Saints",     conference:"NFC", division:"South", primary:"#D3BC8D", secondary:"#101820", emoji:"⚜️" },
+  { id:26, city:"Gulf",        name:"Marauders",  conference:"NFC", division:"South", primary:"#D50A0A", secondary:"#0A0A08", emoji:"🏴" },
+  { id:27, city:"Swamp",       name:"Kings",      conference:"NFC", division:"South", primary:"#002244", secondary:"#FFC62F", emoji:"👑" },
+  { id:28, city:"Peach State", name:"Falcons",    conference:"NFC", division:"South", primary:"#A71930", secondary:"#000000", emoji:"🦅" },
+  { id:29, city:"Pacific",     name:"Surge",      conference:"NFC", division:"West",  primary:"#002244", secondary:"#69BE28", emoji:"🌊" },
+  { id:30, city:"Redwood",     name:"Giants",     conference:"NFC", division:"West",  primary:"#0B2265", secondary:"#A71930", emoji:"🌲" },
+  { id:31, city:"Canyon",      name:"Hawks",      conference:"NFC", division:"West",  primary:"#002244", secondary:"#A5ACAF", emoji:"🦅" },
+  { id:32, city:"Volcanic",    name:"Fury",       conference:"NFC", division:"West",  primary:"#97233F", secondary:"#000000", emoji:"🌋" },
 ];
 const getTeam = id => TEAMS.find(t => t.id === Number(id));
 
@@ -262,6 +289,7 @@ const LAST = ["Johnson","Williams","Brown","Jones","Davis","Miller","Wilson","Mo
 const ROSTER_SLOTS = { QB:3, RB:4, WR:6, TE:3, OL:8, DL:6, LB:5, CB:5, S:3, K:1, P:1 };
 
 const rand = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
+const randf = (a, b) => Math.random() * (b - a) + a;
 const randName = () => `${FIRST[rand(0, FIRST.length - 1)]} ${LAST[rand(0, LAST.length - 1)]}`;
 
 function statsFor(pos, tier) {
@@ -339,6 +367,7 @@ function buildRatings(roster) {
       rb:  (byPos.RB?.[0])?.name || "RB",
       wr1: (byPos.WR?.[0])?.name || "WR1",
       wr2: (byPos.WR?.[1])?.name || "WR2",
+      te:  (byPos.TE?.[0])?.name || "TE",
       k:   (byPos.K?.[0])?.name  || "K",
     }
   };
@@ -357,31 +386,46 @@ class GameSimulator {
   get offR()     { return this.poss === "home" ? this.homeR : this.awayR; }
   get defR()     { return this.poss === "home" ? this.awayR : this.homeR; }
   get possTeam() { return this.poss === "home" ? this.home : this.away; }
-  _push(kind, desc) {
-    this.plays.push({ kind, desc, quarter: this.quarter, time: this.time, down: this.down, ytg: this.ytg, yardLine: this.yardLine, homeScore: this.score.home, awayScore: this.score.away });
+  _pushVisual(data) {
+    this.plays.push({
+      ...data,
+      poss: this.poss,
+      quarter: this.quarter,
+      time: this.time,
+      down: this.down,
+      ytg: this.ytg,
+      yardLine: this.yardLine,
+      homeScore: this.score.home,
+      awayScore: this.score.away,
+    });
   }
   _score(pts, type) {
     this.score[this.poss] += pts;
-    this._push("score", `${this.possTeam.city} ${this.possTeam.name} — ${type} (+${pts})`);
+    this._pushVisual({ kind: "score", desc: `${this.possTeam.city} ${this.possTeam.name} — ${type} (+${pts})` });
   }
   _play() {
     const adv = (this.offR.offense - this.defR.defense) / 100;
     this.time -= clamp(normal(33, 9), 12, 55);
+    if (this.time < 0) this.time = 0;
+    const startYard = this.yardLine;
+
     if (this.down === 4) {
       const toEZ = 100 - this.yardLine;
+      // FG attempt
       if (toEZ <= 52 && this.ytg <= 5) {
         const dist = toEZ + 17;
         const fgPct = clamp(0.95 - (dist - 20) * 0.018 + (this.offR.k - 60) / 250, 0.20, 0.97);
         if (Math.random() < fgPct) {
           this._score(3, `${dist}-yd FG`);
-          this._push("fg_good", `${this.offR.starters.k} drills it from ${dist}!`);
+          this._pushVisual({ kind: "fg_good", desc: `${this.offR.starters.k} drills it from ${dist} yds!`, startYard, endYard: 100, fgDist: dist });
         } else {
-          this._push("fg_miss", `${this.offR.starters.k} misses from ${dist} — no good`);
+          this._pushVisual({ kind: "fg_miss", desc: `${this.offR.starters.k} misses from ${dist} — no good`, startYard, endYard: startYard, fgDist: dist });
         }
         return { endDrive: true };
       }
+      // Punt
       const punt = clamp(normal(46, 7), 28, 68);
-      this._push("punt", `${this.possTeam.name} punts ${punt} yards`);
+      this._pushVisual({ kind: "punt", desc: `${this.possTeam.name} punts ${punt} yards`, startYard, puntYards: punt, endYard: clamp(startYard + punt, 0, 99) });
       return { endDrive: true, punt };
     }
     const isLong = this.ytg >= 8, isShort = this.ytg <= 2;
@@ -391,13 +435,14 @@ class GameSimulator {
     if (playType === "pass") {
       const intPct = clamp(0.022 - adv * 0.010 + (this.defR.cb - 60) / 1200, 0.005, 0.06);
       if (Math.random() < intPct) {
-        this._push("int", `INTERCEPTION! ${this.offR.starters.qb} picked off!`);
+        const targetDepth = clamp(normal(11, 7), 2, 35);
+        this._pushVisual({ kind: "int", desc: `INTERCEPTION! ${this.offR.starters.qb} picked off!`, startYard, targetDepth, endYard: startYard });
         return { turnover: true };
       }
       const sackPct = clamp(0.06 + (this.defR.dl - 60) / 500 - adv * 0.03, 0.02, 0.12);
       if (Math.random() < sackPct) {
         const loss = rand(3, 11);
-        this._push("sack", `${this.offR.starters.qb} sacked for -${loss}`);
+        this._pushVisual({ kind: "sack", desc: `${this.offR.starters.qb} sacked for -${loss} yds`, startYard, sackLoss: loss, endYard: clamp(startYard - loss, 1, 99) });
         this.yardLine = clamp(this.yardLine - loss, 1, 99);
         this.down++; this.ytg += loss;
         return {};
@@ -405,19 +450,22 @@ class GameSimulator {
       const compPct = clamp(0.60 + adv * 0.14 + (this.offR.qb - 60) / 300, 0.34, 0.82);
       if (Math.random() < compPct) {
         const yards = clamp(normal(8.5 + adv * 3, 12), -2, 70);
-        const rcvr = Math.random() < 0.55 ? this.offR.starters.wr1 : this.offR.starters.wr2;
-        this._push("complete", `${this.offR.starters.qb} → ${rcvr} for ${yards} yds`);
+        const targetDepth = clamp(yards + rand(-2, 4), 1, 60);
+        const rcvrPick = Math.random();
+        const rcvr = rcvrPick < 0.4 ? this.offR.starters.wr1 : rcvrPick < 0.7 ? this.offR.starters.wr2 : this.offR.starters.te;
+        this._pushVisual({ kind: "complete", desc: `${this.offR.starters.qb} → ${rcvr} for ${yards} yds`, startYard, targetDepth, yards, endYard: clamp(startYard + yards, 0, 100), receiver: rcvr });
         return { yards };
       }
-      this._push("incomplete", `${this.offR.starters.qb} — incomplete`);
+      const targetDepth = clamp(normal(13, 8), 3, 45);
+      this._pushVisual({ kind: "incomplete", desc: `${this.offR.starters.qb} pass incomplete`, startYard, targetDepth, endYard: startYard });
       return { yards: 0, incomplete: true };
     }
     if (Math.random() < 0.012) {
-      this._push("fumble", `FUMBLE recovered by defense!`);
+      this._pushVisual({ kind: "fumble", desc: `FUMBLE recovered by defense!`, startYard, endYard: startYard });
       return { turnover: true };
     }
     const yards = clamp(normal(4.3 + adv * 1.8, 5.5), -4, 50);
-    this._push("run", `${this.offR.starters.rb} runs for ${yards} yds`);
+    this._pushVisual({ kind: "run", desc: `${this.offR.starters.rb} runs for ${yards} yds`, startYard, yards, endYard: clamp(startYard + yards, 0, 100) });
     return { yards };
   }
   _drive() {
@@ -457,7 +505,7 @@ class GameSimulator {
     this.drives.push({ team: start, result: "FG/Punt/TO", homeScore: this.score.home, awayScore: this.score.away });
   }
   simulate() {
-    this._push("kickoff", `${this.away.city} ${this.away.name} kicks off`);
+    this._pushVisual({ kind: "kickoff", desc: `${this.away.city} ${this.away.name} kicks off`, startYard: 35, endYard: 25 });
     while (this.quarter <= 4) {
       if (this.time <= 0) {
         if (this.quarter === 2) {
@@ -494,7 +542,248 @@ class GameSimulator {
   }
 }
 
-// ─── UI ────────────────────────────────────────────────────────────────────
+// ─── Field rendering ───────────────────────────────────────────────────────
+const FIELD = {
+  W: 1000, H: 420,
+  EZ_PX: 60,        // pixels for each end zone
+  PX_PER_YARD: 8.8, // playable field width (100 yd × 8.8 = 880px)
+  TOP: 30,
+  BOT: 390,
+};
+
+// Convert yard line + possession to absolute X (0=home goal, 100=away goal)
+function yardToAbsX(yardLine, poss) {
+  // When home has ball: yardLine 0 = home's own goal (left); yardLine 100 = away goal (right)
+  // When away has ball: yardLine 0 = away's own goal (right); yardLine 100 = home goal (left)
+  const absYard = poss === "home" ? yardLine : 100 - yardLine;
+  return FIELD.EZ_PX + absYard * FIELD.PX_PER_YARD;
+}
+function absYardToX(absYard) {
+  return FIELD.EZ_PX + absYard * FIELD.PX_PER_YARD;
+}
+
+function drawField(ctx, homeTeam, awayTeam, ctx_state) {
+  const W = FIELD.W, H = FIELD.H;
+  // grass bands
+  ctx.fillStyle = "#1f6b34";
+  ctx.fillRect(0, 0, W, H);
+  // alternating mowed bands
+  for (let i = 0; i < 10; i++) {
+    ctx.fillStyle = i % 2 === 0 ? "#236d36" : "#1f6431";
+    const x = FIELD.EZ_PX + i * 10 * FIELD.PX_PER_YARD;
+    ctx.fillRect(x, FIELD.TOP, 10 * FIELD.PX_PER_YARD, FIELD.BOT - FIELD.TOP);
+  }
+  // end zones (team colors)
+  ctx.fillStyle = homeTeam.primary;
+  ctx.fillRect(0, FIELD.TOP, FIELD.EZ_PX, FIELD.BOT - FIELD.TOP);
+  ctx.fillStyle = awayTeam.primary;
+  ctx.fillRect(W - FIELD.EZ_PX, FIELD.TOP, FIELD.EZ_PX, FIELD.BOT - FIELD.TOP);
+
+  // End zone team text
+  ctx.save();
+  ctx.font = "bold 18px sans-serif";
+  ctx.fillStyle = "rgba(255,255,255,0.5)";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.translate(FIELD.EZ_PX / 2, (FIELD.TOP + FIELD.BOT) / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText(homeTeam.name.toUpperCase(), 0, 0);
+  ctx.restore();
+  ctx.save();
+  ctx.translate(W - FIELD.EZ_PX / 2, (FIELD.TOP + FIELD.BOT) / 2);
+  ctx.rotate(Math.PI / 2);
+  ctx.font = "bold 18px sans-serif";
+  ctx.fillStyle = "rgba(255,255,255,0.5)";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(awayTeam.name.toUpperCase(), 0, 0);
+  ctx.restore();
+
+  // sidelines
+  ctx.strokeStyle = "rgba(255,255,255,0.85)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, FIELD.TOP); ctx.lineTo(W, FIELD.TOP);
+  ctx.moveTo(0, FIELD.BOT); ctx.lineTo(W, FIELD.BOT);
+  ctx.stroke();
+
+  // yard lines (every 5 thin, every 10 thick + numbers)
+  for (let yd = 0; yd <= 100; yd += 5) {
+    const x = absYardToX(yd);
+    const isMajor = yd % 10 === 0;
+    ctx.strokeStyle = isMajor ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.4)";
+    ctx.lineWidth = isMajor ? 1.5 : 1;
+    ctx.beginPath();
+    ctx.moveTo(x, FIELD.TOP);
+    ctx.lineTo(x, FIELD.BOT);
+    ctx.stroke();
+  }
+
+  // Yard numbers (10, 20, 30, 40, 50, 40, 30, 20, 10)
+  ctx.fillStyle = "rgba(255,255,255,0.85)";
+  ctx.font = "bold 18px sans-serif";
+  ctx.textAlign = "center";
+  for (let yd = 10; yd <= 90; yd += 10) {
+    const x = absYardToX(yd);
+    const num = yd <= 50 ? yd : 100 - yd;
+    ctx.fillText(num, x, FIELD.TOP + 30);
+    ctx.fillText(num, x, FIELD.BOT - 14);
+  }
+
+  // Hash marks (small ticks every yard)
+  ctx.strokeStyle = "rgba(255,255,255,0.55)";
+  ctx.lineWidth = 1;
+  for (let yd = 1; yd <= 99; yd++) {
+    if (yd % 5 === 0) continue;
+    const x = absYardToX(yd);
+    // top hash
+    ctx.beginPath();
+    ctx.moveTo(x, FIELD.TOP + 75);
+    ctx.lineTo(x, FIELD.TOP + 80);
+    ctx.stroke();
+    // bottom hash
+    ctx.beginPath();
+    ctx.moveTo(x, FIELD.BOT - 80);
+    ctx.lineTo(x, FIELD.BOT - 75);
+    ctx.stroke();
+    // sideline ticks
+    ctx.beginPath();
+    ctx.moveTo(x, FIELD.TOP); ctx.lineTo(x, FIELD.TOP + 6);
+    ctx.moveTo(x, FIELD.BOT); ctx.lineTo(x, FIELD.BOT - 6);
+    ctx.stroke();
+  }
+
+  // 50 yard line midfield logo
+  ctx.fillStyle = "rgba(200,169,0,0.18)";
+  ctx.beginPath();
+  ctx.arc(absYardToX(50), (FIELD.TOP + FIELD.BOT) / 2, 32, 0, Math.PI * 2);
+  ctx.fill();
+
+  // LOS and first down marker
+  if (ctx_state) {
+    const { los, firstDownAbs, possColor } = ctx_state;
+    if (los != null) {
+      ctx.strokeStyle = possColor || "#4b9bd5";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(los, FIELD.TOP); ctx.lineTo(los, FIELD.BOT);
+      ctx.stroke();
+    }
+    if (firstDownAbs != null) {
+      ctx.strokeStyle = "#f0cc30";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(firstDownAbs, FIELD.TOP); ctx.lineTo(firstDownAbs, FIELD.BOT);
+      ctx.stroke();
+    }
+  }
+
+  // Goal line posts indicator
+  ctx.strokeStyle = "#f0cc30";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(FIELD.EZ_PX, FIELD.TOP); ctx.lineTo(FIELD.EZ_PX, FIELD.BOT);
+  ctx.moveTo(W - FIELD.EZ_PX, FIELD.TOP); ctx.lineTo(W - FIELD.EZ_PX, FIELD.BOT);
+  ctx.stroke();
+}
+
+function drawPlayer(ctx, x, y, color, secondary, label) {
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.6)";
+  ctx.shadowBlur = 4;
+  ctx.shadowOffsetY = 2;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x, y, 8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+  ctx.strokeStyle = secondary || "#fff";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  if (label) {
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 9px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, x, y);
+  }
+  ctx.restore();
+}
+
+function drawBall(ctx, x, y, scale = 1) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+  ctx.shadowColor = "rgba(0,0,0,0.6)";
+  ctx.shadowBlur = 4;
+  ctx.shadowOffsetY = 2;
+  ctx.fillStyle = "#6b3416";
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 7, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-3, 0); ctx.lineTo(3, 0);
+  for (let i = -2; i <= 2; i++) { ctx.moveTo(i, -1.2); ctx.lineTo(i, 1.2); }
+  ctx.stroke();
+  ctx.restore();
+}
+
+// ─── Formation & animation ────────────────────────────────────────────────
+// Generate 11 offensive + 11 defensive player positions for a given LOS (abs X)
+// poss = "home" | "away" → home offense moves left→right, away moves right→left
+function makeFormation(losX, poss) {
+  const dir = poss === "home" ? 1 : -1;  // direction offense moves (positive = right)
+  const cy = (FIELD.TOP + FIELD.BOT) / 2;
+  const PX = FIELD.PX_PER_YARD;
+
+  // Offensive line (5) along LOS
+  const oline = [];
+  for (let i = -2; i <= 2; i++) {
+    oline.push({ x: losX - dir * 2, y: cy + i * 14, role: "OL" });
+  }
+  // TE just outside RT
+  const te = { x: losX - dir * 2, y: cy + 38, role: "TE" };
+  // 2 WR split out wide
+  const wr1 = { x: losX, y: cy - 75, role: "WR1" };
+  const wr2 = { x: losX, y: cy + 75, role: "WR2" };
+  // QB
+  const qb = { x: losX - dir * 6 * PX, y: cy, role: "QB" };
+  // RB
+  const rb = { x: losX - dir * 8 * PX, y: cy + 18, role: "RB" };
+
+  // Defensive line (4)
+  const dline = [];
+  for (let i = -1.5; i <= 1.5; i += 1) {
+    dline.push({ x: losX + dir * 1.5 * PX, y: cy + i * 18, role: "DL" });
+  }
+  // 3 LBs
+  const lbs = [
+    { x: losX + dir * 4 * PX, y: cy - 24, role: "LB" },
+    { x: losX + dir * 4 * PX, y: cy,      role: "LB" },
+    { x: losX + dir * 4 * PX, y: cy + 24, role: "LB" },
+  ];
+  // 2 CBs covering WRs
+  const cb1 = { x: losX + dir * 7 * PX, y: cy - 75, role: "CB" };
+  const cb2 = { x: losX + dir * 7 * PX, y: cy + 75, role: "CB" };
+  // 2 Safeties deep
+  const s1 = { x: losX + dir * 14 * PX, y: cy - 30, role: "S" };
+  const s2 = { x: losX + dir * 14 * PX, y: cy + 30, role: "S" };
+
+  return {
+    offense: [...oline, te, wr1, wr2, qb, rb],
+    defense: [...dline, ...lbs, cb1, cb2, s1, s2],
+    qb, rb, wr1, wr2, te, dline, lbs, cb1, cb2, s1, s2,
+  };
+}
+
+// Easing functions
+const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
+const easeInOutCubic = t => t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2, 3) / 2;
+
+// ─── UI / playback ────────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
 const homeSel  = $("homeTeam"), awaySel  = $("awayTeam");
 const simBtn   = $("simBtn"),   playBtn  = $("playBtn");
@@ -502,10 +791,11 @@ const pauseBtn = $("pauseBtn"), endBtn   = $("endBtn");
 const speedSlider = $("speedSlider"), speedLabel = $("speedLabel");
 const gameArea = $("gameArea");
 
-let gameResult = null, playHead = 0, playing = false, timer = null;
-let speed = 80;
+let gameResult = null, playHead = 0, playing = false;
+let speedMul = 1.0; // 1.0 = normal
+let animState = null; // current play animation state
+let rafId = null;
 
-// Populate selectors grouped by conference
 function buildOptions(sel, defaultId) {
   sel.innerHTML = "";
   for (const conf of ["AFC", "NFC"]) {
@@ -525,7 +815,10 @@ buildOptions(homeSel, 1);
 buildOptions(awaySel, 14);
 
 speedSlider.addEventListener("input", e => {
-  speed = +e.target.value; speedLabel.textContent = `${speed}ms`;
+  const v = +e.target.value; // 1-10
+  // 1 → 0.25× (very slow), 5 → 1×, 10 → 3× (fast)
+  speedMul = v <= 5 ? (0.25 + (v - 1) * 0.1875) : (1 + (v - 5) * 0.4);
+  speedLabel.textContent = `${speedMul.toFixed(2)}×`;
 });
 
 simBtn.addEventListener("click", () => {
@@ -536,37 +829,37 @@ simBtn.addEventListener("click", () => {
   gameResult = sim.simulate();
   playHead = 0;
   renderGameLayout();
-  renderState();
-  startPlayback();
+  startNextPlay();
+  playing = true;
+  updateButtons();
 });
 
-playBtn.addEventListener("click", startPlayback);
-pauseBtn.addEventListener("click", () => { playing = false; clearTimeout(timer); updateButtons(); });
+playBtn.addEventListener("click", () => {
+  if (!playing) {
+    playing = true;
+    if (!animState) startNextPlay();
+    updateButtons();
+  }
+});
+pauseBtn.addEventListener("click", () => {
+  playing = false;
+  cancelAnimationFrame(rafId);
+  updateButtons();
+});
 endBtn.addEventListener("click", () => {
-  playing = false; clearTimeout(timer);
+  playing = false;
+  cancelAnimationFrame(rafId);
   playHead = gameResult.plays.length;
-  renderState(); updateButtons();
+  animState = null;
+  renderStaticEnd();
+  updateButtons();
 });
 
 function updateButtons() {
-  playBtn.disabled  = !gameResult || playing || playHead >= gameResult?.plays.length;
+  const done = !gameResult || playHead >= gameResult.plays.length;
+  playBtn.disabled  = !gameResult || playing || done;
   pauseBtn.disabled = !gameResult || !playing;
-  endBtn.disabled   = !gameResult || playHead >= gameResult?.plays.length;
-}
-
-function startPlayback() {
-  if (!gameResult) return;
-  if (playHead >= gameResult.plays.length) playHead = 0;
-  playing = true;
-  updateButtons();
-  step();
-}
-function step() {
-  if (!playing) return;
-  if (playHead >= gameResult.plays.length) { playing = false; updateButtons(); return; }
-  playHead++;
-  renderState();
-  timer = setTimeout(step, speed);
+  endBtn.disabled   = !gameResult || done;
 }
 
 function renderGameLayout() {
@@ -575,6 +868,14 @@ function renderGameLayout() {
     <div class="game-grid">
       <div>
         <div id="scoreboard" class="scoreboard"></div>
+        <div class="field-wrap">
+          <canvas id="field" width="${FIELD.W}" height="${FIELD.H}"></canvas>
+          <div class="field-overlay">
+            <div class="field-status" id="fieldStatus">Pre-game</div>
+            <div id="quarterClock">—</div>
+          </div>
+          <div id="playCaption" class="play-caption">Game starting…</div>
+        </div>
         <div class="progress-wrap">
           <div class="progress-label"><span id="progLabel">Play 0/0</span><span id="quarterLabel"></span></div>
           <div class="progress-bar"><div class="progress-fill" id="progFill" style="width:0%"></div></div>
@@ -588,63 +889,502 @@ function renderGameLayout() {
         </div>
         <div class="card">
           <div class="card-header">Drive Log</div>
-          <div id="driveLog" style="max-height: 280px; overflow-y: auto;"></div>
+          <div id="driveLog" style="max-height: 220px; overflow-y: auto;"></div>
         </div>
       </div>
     </div>
   `;
   renderRatings();
   renderDrives();
+  renderScoreboard();
+  // Initial field draw
+  const ctx = $("field").getContext("2d");
+  drawField(ctx, gameResult.homeTeam, gameResult.awayTeam, null);
 }
 
-function quarterLabel(q, t) {
-  if (q === 5) return `OT ${Math.floor(t/60)}:${String(t%60).padStart(2,"0")}`;
-  return `Q${q} ${Math.floor(t/60)}:${String(t%60).padStart(2,"0")}`;
+// ─── Per-play animation engine ─────────────────────────────────────────────
+function buildAnimForPlay(play, prevPlay) {
+  // Returns { duration, render(t01) }
+  // t01 = 0..1 progress
+  const homeTeam = gameResult.homeTeam, awayTeam = gameResult.awayTeam;
+
+  if (["halftime", "ot", "quarter"].includes(play.kind)) {
+    return { duration: 1200, kind: play.kind, render: (t, ctx) => {
+      drawField(ctx, homeTeam, awayTeam, null);
+      ctx.fillStyle = "rgba(0,0,0,0.55)";
+      ctx.fillRect(0, 0, FIELD.W, FIELD.H);
+      ctx.fillStyle = "#f0cc30";
+      ctx.font = "bold 42px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(play.desc, FIELD.W / 2, FIELD.H / 2);
+    }};
+  }
+
+  if (play.kind === "kickoff") {
+    return { duration: 1800, kind: "kickoff", render: (t, ctx) => {
+      // Ball arcs from kicking 35 (away starts game = away's 35) to receiving 25
+      drawField(ctx, homeTeam, awayTeam, null);
+      const startX = absYardToX(65); // away 35 = abs 65 (since away end on right)
+      const endX = absYardToX(25);   // home gets ball at home 25
+      const cy = (FIELD.TOP + FIELD.BOT) / 2;
+      const x = startX + (endX - startX) * t;
+      const arc = Math.sin(t * Math.PI) * 130;
+      const y = cy - arc;
+      // formation for kickoff (lined up across)
+      drawKickoffFormation(ctx, homeTeam, awayTeam);
+      drawBall(ctx, x, y, 1 + Math.sin(t * Math.PI) * 0.3);
+    }};
+  }
+
+  if (!play.startYard && play.startYard !== 0) {
+    // Score-only play (extra point, etc.) - just hold
+    return { duration: 600, kind: play.kind, render: (t, ctx) => {
+      drawField(ctx, homeTeam, awayTeam, null);
+    }};
+  }
+
+  const poss = play.poss;
+  const dir = poss === "home" ? 1 : -1; // offense moves direction
+  const losX = yardToAbsX(play.startYard, poss);
+  const cy = (FIELD.TOP + FIELD.BOT) / 2;
+  const formation = makeFormation(losX, poss);
+  const team = poss === "home" ? homeTeam : awayTeam;
+  const oppTeam = poss === "home" ? awayTeam : homeTeam;
+  const possColor = team.primary;
+  const oppColor = oppTeam.primary;
+
+  // First down marker abs X
+  let firstDownAbs = null;
+  if (play.down > 0) {
+    const fdYard = clamp(play.startYard + play.ytg, 0, 100);
+    firstDownAbs = yardToAbsX(fdYard, poss);
+  }
+
+  const fieldState = { los: losX, firstDownAbs, possColor };
+
+  function drawPlayers(off, def) {
+    for (const p of off) drawPlayer(ctx, p.x, p.y, possColor, team.secondary);
+    for (const p of def) drawPlayer(ctx, p.x, p.y, oppColor, oppTeam.secondary);
+  }
+
+  let ctx = null;
+
+  // Common: pre-snap freeze (10% of duration), then action
+  const PRE = 0.18;
+
+  if (play.kind === "run") {
+    const endX = yardToAbsX(play.endYard, poss);
+    return { duration: 1500, kind: "run", render: (t, c) => {
+      ctx = c;
+      drawField(ctx, homeTeam, awayTeam, fieldState);
+      // animate RB
+      const rb = { ...formation.rb };
+      const qb = { ...formation.qb };
+      let ballX, ballY = cy + (t < PRE ? 18 : (1-(t-PRE)/(1-PRE)) * 18);
+      if (t < PRE) {
+        // pre-snap
+        ballX = formation.qb.x;
+      } else {
+        const tt = (t - PRE) / (1 - PRE);
+        ballX = qb.x + (endX - qb.x) * easeOutCubic(tt);
+        // Move RB toward end position
+        rb.x = qb.x + (endX - qb.x) * easeOutCubic(tt);
+        rb.y = cy + (1 - tt) * 18;
+      }
+      // Defenders converge slightly
+      const def = formation.defense.map((d, i) => {
+        if (t < PRE) return d;
+        const tt = (t - PRE) / (1 - PRE);
+        const tx = endX + dir * (8 + (i % 3) * 4);
+        const ty = cy + ((i % 5) - 2) * 14;
+        return { ...d, x: d.x + (tx - d.x) * tt * 0.6, y: d.y + (ty - d.y) * tt * 0.6 };
+      });
+      // Offense (without RB) stays mostly put with small forward push
+      const off = formation.offense.filter(p => p.role !== "RB").map(p => {
+        if (t < PRE) return p;
+        const tt = (t - PRE) / (1 - PRE);
+        return { ...p, x: p.x + dir * tt * 6 };
+      });
+      drawPlayers([...off, rb], def);
+      drawBall(ctx, ballX, ballY);
+    }};
+  }
+
+  if (play.kind === "complete" || play.kind === "incomplete" || play.kind === "int") {
+    const targetDepth = play.targetDepth || 10;
+    const targetX = losX + dir * targetDepth * FIELD.PX_PER_YARD;
+    // Pick receiver Y
+    const wrChoice = (play.receiver === formation.te.role) ? "te" : (Math.random() < 0.5 ? "wr1" : "wr2");
+    const targetY = play.kind === "incomplete" ? cy + (Math.random() < 0.5 ? -65 : 65) : (Math.random() < 0.5 ? cy - 60 : cy + 60);
+    const isComplete = play.kind === "complete";
+    const endX = isComplete ? yardToAbsX(play.endYard, poss) : targetX;
+    return { duration: 1700, kind: play.kind, render: (t, c) => {
+      ctx = c;
+      drawField(ctx, homeTeam, awayTeam, fieldState);
+      const dropPhase = 0.30;     // QB drops back
+      const throwPhase = 0.60;    // ball in air
+      // 0..dropPhase: snap + drop back
+      // dropPhase..throwPhase: ball flies to target
+      // throwPhase..1: catch + run after catch (or INT return)
+      const qb = { ...formation.qb };
+      let ballX, ballY = cy;
+      let arc = 0;
+
+      // QB drops back
+      const dropAmt = t < dropPhase ? (t / dropPhase) * 5 * FIELD.PX_PER_YARD : 5 * FIELD.PX_PER_YARD;
+      qb.x -= dir * dropAmt;
+
+      // Receiver runs route
+      const wr = wrChoice === "wr1" ? { ...formation.wr1 } : wrChoice === "wr2" ? { ...formation.wr2 } : { ...formation.te };
+      if (t > 0.05) {
+        const rt = Math.min(1, (t - 0.05) / 0.55);
+        wr.x = wr.x + dir * rt * (targetDepth + 2) * FIELD.PX_PER_YARD;
+        wr.y = wr.y + (targetY - wr.y) * rt * 0.6;
+      }
+
+      if (t < dropPhase) {
+        ballX = qb.x; ballY = cy;
+      } else if (t < throwPhase) {
+        const tt = (t - dropPhase) / (throwPhase - dropPhase);
+        ballX = qb.x + (targetX - qb.x) * tt;
+        arc = Math.sin(tt * Math.PI) * 60;
+        ballY = cy + (targetY - cy) * tt - arc;
+      } else {
+        const tt = (t - throwPhase) / (1 - throwPhase);
+        if (play.kind === "complete") {
+          // Run after catch toward endX
+          ballX = targetX + (endX - targetX) * easeOutCubic(tt);
+          ballY = targetY + (cy - targetY) * tt * 0.4;
+        } else if (play.kind === "incomplete") {
+          // Ball drops to ground near target
+          ballX = targetX;
+          ballY = targetY + tt * 25;
+        } else {
+          // INT — ball goes other way
+          const retEndX = losX - dir * 10 * FIELD.PX_PER_YARD;
+          ballX = targetX + (retEndX - targetX) * easeOutCubic(tt);
+          ballY = targetY + ((cy + 30) - targetY) * tt;
+        }
+      }
+
+      // Defense: rush + DBs cover
+      const def = formation.defense.map((d, i) => {
+        const dd = { ...d };
+        if (i < 4 && t > 0.1) {
+          // DL rushes QB
+          const tt = Math.min(1, (t - 0.1) / 0.4);
+          dd.x = dd.x + (qb.x - dd.x) * tt * 0.7;
+          dd.y = dd.y + (qb.y - dd.y) * tt * 0.5;
+        } else if (i >= 7 && t > 0.05) {
+          // CBs follow WRs
+          const tt = Math.min(1, (t - 0.05) / 0.55);
+          if (i === 7) { dd.x += dir * tt * (targetDepth) * FIELD.PX_PER_YARD * 0.85; }
+          if (i === 8) { dd.x += dir * tt * (targetDepth) * FIELD.PX_PER_YARD * 0.85; }
+        }
+        return dd;
+      });
+
+      // Offense (replace QB and WR positions)
+      const off = formation.offense.map(p => {
+        if (p.role === "QB") return qb;
+        if (p === formation.wr1 && wrChoice === "wr1") return wr;
+        if (p === formation.wr2 && wrChoice === "wr2") return wr;
+        if (p === formation.te && wrChoice === "te") return wr;
+        if (p.role === "OL" && t > 0.1) {
+          const tt = Math.min(1, (t - 0.1) / 0.4);
+          return { ...p, x: p.x + dir * tt * 6 };
+        }
+        return p;
+      });
+      drawPlayers(off, def);
+      drawBall(ctx, ballX, ballY, arc > 30 ? 1.3 : 1);
+    }};
+  }
+
+  if (play.kind === "sack") {
+    const endX = yardToAbsX(play.endYard, poss);
+    return { duration: 1400, kind: "sack", render: (t, c) => {
+      ctx = c;
+      drawField(ctx, homeTeam, awayTeam, fieldState);
+      const qb = { ...formation.qb };
+      // QB drops back, defenders chase
+      if (t > PRE) {
+        const tt = (t - PRE) / (1 - PRE);
+        qb.x = formation.qb.x + (endX - formation.qb.x) * easeOutCubic(tt);
+      }
+      const def = formation.defense.map((d, i) => {
+        if (i < 4 && t > PRE) {
+          const tt = (t - PRE) / (1 - PRE);
+          return { ...d, x: d.x + (qb.x - d.x) * tt * 0.95, y: d.y + (qb.y - d.y) * tt * 0.7 };
+        }
+        return d;
+      });
+      const off = formation.offense.map(p => p.role === "QB" ? qb : p);
+      drawPlayers(off, def);
+      drawBall(ctx, qb.x, qb.y);
+      // Burst at sack
+      if (t > 0.85) {
+        ctx.strokeStyle = "rgba(255,200,0,0.6)";
+        ctx.lineWidth = 3;
+        for (let a = 0; a < 6; a++) {
+          const ang = (a / 6) * Math.PI * 2;
+          ctx.beginPath();
+          ctx.moveTo(qb.x + Math.cos(ang) * 12, qb.y + Math.sin(ang) * 12);
+          ctx.lineTo(qb.x + Math.cos(ang) * 22, qb.y + Math.sin(ang) * 22);
+          ctx.stroke();
+        }
+      }
+    }};
+  }
+
+  if (play.kind === "fumble") {
+    return { duration: 1500, kind: "fumble", render: (t, c) => {
+      ctx = c;
+      drawField(ctx, homeTeam, awayTeam, fieldState);
+      drawPlayers(formation.offense, formation.defense);
+      // Ball wobbles and gets recovered
+      const wobbleX = losX + dir * 18 + Math.sin(t * 18) * 12;
+      const wobbleY = cy + Math.cos(t * 14) * 10;
+      drawBall(ctx, wobbleX, wobbleY, 0.9 + Math.sin(t * 20) * 0.3);
+      if (t > 0.6) {
+        ctx.fillStyle = "rgba(255,80,80,0.55)";
+        ctx.beginPath();
+        ctx.arc(wobbleX, wobbleY, 30 - (t - 0.6) * 50, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }};
+  }
+
+  if (play.kind === "fg_good" || play.kind === "fg_miss") {
+    const isGood = play.kind === "fg_good";
+    return { duration: 1700, kind: play.kind, render: (t, c) => {
+      ctx = c;
+      drawField(ctx, homeTeam, awayTeam, fieldState);
+      drawPlayers(formation.offense, formation.defense);
+      // Ball: from holder spot (LOS - 7yd) → through goalpost (or wide)
+      const startX = losX - dir * 7 * FIELD.PX_PER_YARD;
+      const startY = cy;
+      const goalX = poss === "home" ? FIELD.W - FIELD.EZ_PX : FIELD.EZ_PX;
+      const goalY = isGood ? cy : cy + (Math.random() < 0.5 ? -50 : 50);
+      let ballX, ballY, arc;
+      if (t < 0.15) { ballX = startX; ballY = startY; arc = 0; }
+      else {
+        const tt = (t - 0.15) / 0.85;
+        ballX = startX + (goalX - startX) * tt;
+        ballY = startY + (goalY - startY) * tt;
+        arc = Math.sin(tt * Math.PI) * 90;
+      }
+      drawBall(ctx, ballX, ballY - arc, 1 + (arc / 200));
+      // Goalpost flash
+      if (t > 0.85 && isGood) {
+        ctx.strokeStyle = "rgba(240,204,48,0.8)";
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(goalX, FIELD.TOP); ctx.lineTo(goalX, FIELD.BOT);
+        ctx.stroke();
+      }
+    }};
+  }
+
+  if (play.kind === "punt") {
+    const endX = yardToAbsX(play.endYard, poss);
+    return { duration: 2000, kind: "punt", render: (t, c) => {
+      ctx = c;
+      drawField(ctx, homeTeam, awayTeam, fieldState);
+      drawPlayers(formation.offense, formation.defense);
+      const startX = losX - dir * 12 * FIELD.PX_PER_YARD;
+      const startY = cy;
+      let ballX, ballY, arc = 0;
+      if (t < 0.1) { ballX = losX; ballY = cy; }
+      else if (t < 0.25) { ballX = losX + (startX - losX) * ((t - 0.1) / 0.15); ballY = cy; }
+      else {
+        const tt = (t - 0.25) / 0.75;
+        ballX = startX + (endX - startX) * tt;
+        arc = Math.sin(tt * Math.PI) * 160;
+        ballY = cy - arc;
+      }
+      drawBall(ctx, ballX, ballY, 1 + arc / 200);
+    }};
+  }
+
+  if (play.kind === "score") {
+    return { duration: 1200, kind: "score", render: (t, c) => {
+      ctx = c;
+      drawField(ctx, homeTeam, awayTeam, fieldState);
+      // Big banner
+      ctx.fillStyle = `rgba(26,51,0,${0.4 + t * 0.4})`;
+      ctx.fillRect(0, FIELD.H / 2 - 50, FIELD.W, 100);
+      ctx.fillStyle = "#f0cc30";
+      ctx.font = "bold 38px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("🏈 " + play.desc, FIELD.W / 2, FIELD.H / 2);
+    }};
+  }
+
+  // Default: just show the field with formation
+  return { duration: 800, kind: play.kind, render: (t, c) => {
+    drawField(c, homeTeam, awayTeam, fieldState);
+    drawPlayers(formation.offense, formation.defense);
+  }};
 }
 
-function renderState() {
+function drawKickoffFormation(ctx, homeTeam, awayTeam) {
+  const cy = (FIELD.TOP + FIELD.BOT) / 2;
+  // Kicking team (away) at their 35
+  const kx = absYardToX(65);
+  for (let i = -5; i <= 5; i++) {
+    if (i === 0) continue;
+    drawPlayer(ctx, kx, cy + i * 12, awayTeam.primary, awayTeam.secondary);
+  }
+  drawPlayer(ctx, kx - 10, cy, awayTeam.primary, awayTeam.secondary, "K");
+  // Receiving team (home) deep
+  const rx = absYardToX(15);
+  for (let i = -3; i <= 3; i++) {
+    drawPlayer(ctx, rx, cy + i * 16, homeTeam.primary, homeTeam.secondary);
+  }
+  drawPlayer(ctx, absYardToX(8), cy, homeTeam.primary, homeTeam.secondary, "R");
+}
+
+function startNextPlay() {
   if (!gameResult) return;
-  const visible = gameResult.plays.slice(0, playHead);
-  const last = [...visible].reverse().find(p => p.homeScore !== undefined);
-  const curHome = last?.homeScore ?? 0, curAway = last?.awayScore ?? 0;
-  const last2 = visible[visible.length - 1];
-  const ended = playHead >= gameResult.plays.length;
+  if (playHead >= gameResult.plays.length) {
+    playing = false;
+    renderStaticEnd();
+    updateButtons();
+    return;
+  }
+  const play = gameResult.plays[playHead];
+  const prev = playHead > 0 ? gameResult.plays[playHead - 1] : null;
+  const anim = buildAnimForPlay(play, prev);
+  animState = {
+    play,
+    anim,
+    startTime: performance.now(),
+    duration: anim.duration / speedMul,
+  };
+  // Update side panels
+  renderScoreboard(play);
+  renderPlayLog();
+  renderProgress();
+  setCaption(play);
+  setFieldStatus(play);
+  rafId = requestAnimationFrame(tick);
+}
 
-  // Scoreboard
-  const sb = $("scoreboard");
+function tick(now) {
+  if (!playing || !animState) return;
+  const elapsed = now - animState.startTime;
+  const t = Math.min(1, elapsed / animState.duration);
+  const ctx = $("field").getContext("2d");
+  animState.anim.render(t, ctx);
+  if (t >= 1) {
+    playHead++;
+    animState = null;
+    if (playing) {
+      // Brief pause between plays
+      setTimeout(() => { if (playing) startNextPlay(); }, 80);
+    }
+  } else {
+    rafId = requestAnimationFrame(tick);
+  }
+}
+
+function renderStaticEnd() {
+  const ctx = $("field").getContext("2d");
+  drawField(ctx, gameResult.homeTeam, gameResult.awayTeam, null);
+  ctx.fillStyle = "rgba(0,0,0,0.6)";
+  ctx.fillRect(0, 0, FIELD.W, FIELD.H);
+  ctx.fillStyle = "#f0cc30";
+  ctx.font = "bold 48px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("FINAL", FIELD.W / 2, FIELD.H / 2 - 24);
+  ctx.font = "bold 32px sans-serif";
+  ctx.fillStyle = "#fff";
+  ctx.fillText(`${gameResult.homeTeam.name} ${gameResult.homeScore} — ${gameResult.awayScore} ${gameResult.awayTeam.name}`, FIELD.W / 2, FIELD.H / 2 + 22);
+  renderScoreboard();
+  renderPlayLog();
+  renderProgress();
+}
+
+function setCaption(play) {
+  const cap = $("playCaption");
+  cap.className = "play-caption " + play.kind;
+  cap.textContent = play.desc;
+}
+
+function setFieldStatus(play) {
+  if (!play) return;
+  const fs = $("fieldStatus");
+  const qc = $("quarterClock");
+  let possLabel = "";
+  if (play.poss) {
+    const team = play.poss === "home" ? gameResult.homeTeam : gameResult.awayTeam;
+    possLabel = ` · ${team.emoji} ${team.name} ball`;
+  }
+  let dd = "";
+  if (play.down > 0) {
+    const dStr = `${play.down}${["st","nd","rd","th"][play.down-1]} & ${play.ytg}`;
+    const fieldDesc = play.poss === "home"
+      ? (play.yardLine < 50 ? `own ${play.yardLine}` : play.yardLine === 50 ? "midfield" : `opp ${100 - play.yardLine}`)
+      : (play.yardLine < 50 ? `own ${play.yardLine}` : play.yardLine === 50 ? "midfield" : `opp ${100 - play.yardLine}`);
+    dd = ` · ${dStr} at ${fieldDesc}`;
+  }
+  fs.textContent = `${quarterLabel(play.quarter, play.time || 0)}${possLabel}${dd}`;
+  qc.textContent = "";
+}
+
+function renderScoreboard(curPlay) {
+  if (!gameResult) return;
+  const last = curPlay || (playHead > 0 ? gameResult.plays[playHead - 1] : gameResult.plays[0]);
+  const homeScore = last?.homeScore ?? 0;
+  const awayScore = last?.awayScore ?? 0;
+  const ended = playHead >= gameResult.plays.length;
   const winner = ended ? gameResult.winner : null;
+  const sb = $("scoreboard");
+  if (!sb) return;
   sb.innerHTML = `
     <div class="score-team">
       <div class="score-team-emoji">${gameResult.homeTeam.emoji}</div>
       <div class="score-team-full">${gameResult.homeTeam.city}</div>
       <div class="score-team-name">${gameResult.homeTeam.name}</div>
-      <div class="score-num ${winner === "home" ? "win" : ""}">${curHome}</div>
+      <div class="score-num ${winner === "home" ? "win" : ""}">${homeScore}</div>
+      ${last?.poss === "home" && !ended ? `<div class="poss-indicator">🏈 POSS</div>` : ""}
     </div>
     <div class="score-mid">
       <div class="score-status ${ended ? "final" : "live"}">
         ${ended ? (winner === "tie" ? "FINAL · TIE" : winner === "home" ? "🏆 HOME WIN" : "🏆 AWAY WIN") : "● LIVE"}
       </div>
-      <div class="quarter-clock">${last2 ? quarterLabel(last2.quarter, last2.time || 0) : "—"}</div>
-      ${last2?.down > 0 && !ended ? `<div style="font-size:.78rem;color:var(--gray);margin-top:.2rem">${last2.down}${["st","nd","rd","th"][last2.down-1]} & ${last2.ytg}</div>` : ""}
+      <div class="quarter-clock">${last ? quarterLabel(last.quarter, last.time || 0) : "—"}</div>
+      ${last?.down > 0 && !ended ? `<div class="down-distance">${last.down}${["st","nd","rd","th"][last.down-1]} & ${last.ytg}</div>` : ""}
     </div>
     <div class="score-team">
       <div class="score-team-emoji">${gameResult.awayTeam.emoji}</div>
       <div class="score-team-full">${gameResult.awayTeam.city}</div>
       <div class="score-team-name">${gameResult.awayTeam.name}</div>
-      <div class="score-num ${winner === "away" ? "win" : ""}">${curAway}</div>
+      <div class="score-num ${winner === "away" ? "win" : ""}">${awayScore}</div>
+      ${last?.poss === "away" && !ended ? `<div class="poss-indicator">🏈 POSS</div>` : ""}
     </div>
   `;
+}
 
-  // Progress
+function renderProgress() {
   $("progLabel").textContent = `Play ${playHead} / ${gameResult.plays.length}`;
   $("progFill").style.width = `${(playHead / gameResult.plays.length) * 100}%`;
+}
 
-  // Play log
+function renderPlayLog() {
   const log = $("playLog");
+  const visible = gameResult.plays.slice(0, playHead);
   log.innerHTML = visible.map(p => playEntry(p)).join("");
   log.scrollTop = log.scrollHeight;
+}
 
-  updateButtons();
+function quarterLabel(q, t) {
+  if (q === 5) return `OT ${Math.floor(t/60)}:${String(t%60).padStart(2,"0")}`;
+  return `Q${q} ${Math.floor(t/60)}:${String(t%60).padStart(2,"0")}`;
 }
 
 function playEntry(p) {
@@ -672,9 +1412,9 @@ function renderRatings() {
   };
   $("ratings").innerHTML = `
     <thead><tr>
-      <th class="home" style="color:var(--gold);font-size:.8rem">${r.homeTeam.name}</th>
+      <th class="home" style="color:var(--gold);font-size:.78rem">${r.homeTeam.name}</th>
       <th class="lbl"></th>
-      <th class="away" style="color:var(--gold);font-size:.8rem">${r.awayTeam.name}</th>
+      <th class="away" style="color:var(--gold);font-size:.78rem">${r.awayTeam.name}</th>
     </tr></thead>
     <tbody>
       ${row("OFFENSE", r.homeRatings.offense, r.awayRatings.offense)}
