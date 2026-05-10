@@ -1527,215 +1527,204 @@ function drawKickoffFormation(ctx, homeTeam, awayTeam) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 // Sprite frames: each row is a string of pixel-color codes.
-// '.' = transparent, H=helmet (primary), F=facemask (silver), J=jersey (primary),
-// N=number (secondary), S=skin, P=pants (white), C=cleats (black), B=ball
-const SPRITE_W = 16, SPRITE_H = 22;
+// '.' = transparent, H/h=helmet, F=facemask, O/o=shoulder pad,
+// J/j=jersey, N=number, S/s=skin, P/p=pants, C=cleats, B=ball
+const SPRITE_W = 18, SPRITE_H = 18;
 const SPRITE_FRAMES = {
-  // Standing idle (facing right)
+  // Standing idle (facing right) — chunky, with MASSIVE shoulder pads
   idle: [
-    "................",
-    "....HHHLHHH.....",
-    "...HHHHLHHHh....",
-    "...HHFFFFFHh....",
-    "...HHHHLHHHh....",
-    "....HHHLHHh.....",
-    ".....SSSSs......",
-    "....JJJJJJj.....",
-    "...JJJJNJJJj....",
-    "..SJJJJNJJJjS...",
-    "..SjJJJJJJjjS...",
-    "...jJJJJJJjj....",
-    "...jJJJJJJjj....",
-    "...PPPPPPPPp....",
-    "...PPP.PPPp.....",
-    "...PP...PPp.....",
-    "...PP...PPp.....",
-    "...PP...PPp.....",
-    "...PP...PPp.....",
-    "...CC...CCC.....",
-    "..CCCC.CCCC.....",
-    "................",
+    ".....HHHHHHH......",
+    "....HHHHHHHHH.....",
+    "....HFFFFFFFHh....",
+    "....HHHHHHHHHh....",
+    ".....HHHHHHHh.....",
+    "......sSSSss......",
+    ".OOOOOOOOOOOOOOOo.",
+    "OOOOOOOOOOOOOOOOOo",
+    "OOOOJJJJJJJJJOOOoo",
+    ".OOJJJJJNNJJJOOOoo",
+    ".OOJJJJJNNJJJOOOoo",
+    ".OOJJJJJJJJJJOOOoo",
+    "..OOJJJJJJJJOOOoo.",
+    "...jJJJJJJJJjj....",
+    "....PPPPPPPPp.....",
+    "....PP...PPp......",
+    "....CC...CCC......",
+    "..................",
   ],
-  // Run cycle frame A — left leg forward, right arm forward
+  // Run cycle A — right leg forward
   run_a: [
-    "................",
-    "....HHHLHHH.....",
-    "...HHHHLHHHh....",
-    "...HHFFFFFHh....",
-    "...HHHHLHHHh....",
-    "....HHHLHHh.....",
-    "....SSSSSs......",
-    "....JJJJJJj.....",
-    "...JJJJJJJjjSS..",
-    "...JJJJNJJJjSSS.",
-    "..SJJJJJJJJj....",
-    "..SSjJJJJJJj....",
-    "....jJJJJJJj....",
-    "...PPPPPPPPp....",
-    "..PPPP....Pp....",
-    ".PPP......PPp...",
-    ".PP........Pp...",
-    "PP..........Pp..",
-    "CC...........Pp.",
-    "CCC.........CCC.",
-    "............CCC.",
-    "................",
+    ".....HHHHHHH......",
+    "....HHHHHHHHH.....",
+    "....HFFFFFFFHh....",
+    "....HHHHHHHHHh....",
+    ".....HHHHHHHh.....",
+    "......sSSSss......",
+    ".OOOOOOOOOOOOOOOo.",
+    "OOOOOOOOOOOOOOOOOo",
+    "OOOOJJJJJJJJJOOOoo",
+    "sOOJJJJJNNJJJOOOoo",
+    "SSOJJJJJNNJJJOOOoS",
+    ".OOJJJJJJJJJJOOOoS",
+    "..OJJJJJJJJJOOOoo.",
+    "...jJJJJJJJJjj....",
+    "....PPPPPPPPp.....",
+    "....PP....PPp.....",
+    "...CC......CCC....",
+    "..................",
   ],
-  // Run cycle frame B — right leg forward, left arm forward
+  // Run cycle B — left leg forward
   run_b: [
-    "................",
-    "....HHHLHHH.....",
-    "...HHHHLHHHh....",
-    "...HHFFFFFHh....",
-    "...HHHHLHHHh....",
-    "....HHHLHHh.....",
-    ".....SSSSSs.....",
-    "....JJJJJJj.....",
-    "..SSJJJJJJJJj...",
-    "..SSSJJJNJJJj...",
-    ".....JJJJJJJjS..",
-    ".....JJJJJJjSS..",
-    "....JJJJJJJj....",
-    "...PPPPPPPPp....",
-    "....PP....PPPp..",
-    "...PPP......PPp.",
-    "...PP........Pp.",
-    "..PP..........Pp",
-    "..PP..........CC",
-    ".CCC.........CCC",
-    ".CCC............",
-    "................",
+    ".....HHHHHHH......",
+    "....HHHHHHHHH.....",
+    "....HFFFFFFFHh....",
+    "....HHHHHHHHHh....",
+    ".....HHHHHHHh.....",
+    "......sSSSss......",
+    ".OOOOOOOOOOOOOOOo.",
+    "OOOOOOOOOOOOOOOOOo",
+    "OOOOJJJJJJJJJOOOoo",
+    "OOOJJJJJNNJJJOOOss",
+    "SOOJJJJJNNJJJOOOSS",
+    "SOOJJJJJJJJJJOOOoo",
+    ".OOJJJJJJJJJOOOoo.",
+    "...jJJJJJJJJjj....",
+    "....PPPPPPPPp.....",
+    ".....PP..PPPp.....",
+    "....CCC......CC...",
+    "..................",
   ],
-  // Juke — leaning hard left (planting right foot, exploding left)
+  // Juke — leaning hard right
   juke: [
-    "..HHHLHHH.......",
-    ".HHHHLHHHh......",
-    ".HHFFFFFHh......",
-    ".HHHHLHHHh......",
-    "..HHHLHHh.......",
-    "...SSSSs........",
-    "S.JJJJJJj.......",
-    "SSJJJJJJj.......",
-    "SSSJJNJJj.......",
-    "...JJJJJJj......",
-    "....JJJJJj......",
-    "....JJJJJj......",
-    "....PPPPPPp.....",
-    "...PPPPPPPPp....",
-    "..PP.....PPPp...",
-    ".PP........PPp..",
-    ".PP..........PPp",
-    "PP............Pp",
-    "PP............CC",
-    "CC...........CCC",
-    "CCC.............",
-    "................",
+    "........HHHHHHH...",
+    ".......HHHHHHHHH..",
+    ".......HFFFFFFFHh.",
+    ".......HHHHHHHHHh.",
+    "........HHHHHHHh..",
+    "S.......sSSSss....",
+    "SOOOOOOOOOOOOOOOo.",
+    "SSOOOOOOOOOOOOOOOo",
+    "...OOOJJJJJJJOOOoo",
+    "...OOJJJNNJJJOOOoo",
+    "...OOJJJNNJJJOOOoo",
+    "...OOJJJJJJJOOOoo.",
+    "....OJJJJJJOOOoo..",
+    "....JJJJJJJJjj....",
+    "...PPPPPPPPp......",
+    "..PPP....PPp......",
+    ".CCCC..CCCC.......",
+    "..................",
   ],
-  // Stiff arm — extending arm forward at shoulder height
+  // Stiff arm — right arm extending forward
   stiff: [
-    "................",
-    "....HHHLHHH.....",
-    "...HHHHLHHHh....",
-    "...HHFFFFFHh....",
-    "...HHHHLHHHh....",
-    "....HHHLHHh.....",
-    "....SSSSSs......",
-    "...JJJJJJj......",
-    "..JJJJJJJJjSSSSS",
-    "..JJJJNJJJj.....",
-    "..JJJJJJJJj.....",
-    "..JJJJJJJJjj....",
-    "...JJJJJJJj.....",
-    "...PPPPPPPPp....",
-    "...PP.PPPPp.....",
-    "...PP...PPp.....",
-    "...PP...PPp.....",
-    "...PP...PPp.....",
-    "...PP...PPp.....",
-    "...CC...CCC.....",
-    "..CCCC..CCCC....",
-    "................",
+    ".....HHHHHHH......",
+    "....HHHHHHHHH.....",
+    "....HFFFFFFFHh....",
+    "....HHHHHHHHHh....",
+    ".....HHHHHHHh.....",
+    "......sSSSss......",
+    ".OOOOOOOOOOOOOOSSS",
+    "OOOOOOOOOOOOOOOSSS",
+    "OOOOJJJJJJJJJOOOss",
+    ".OOJJJJJNNJJJOOOoo",
+    ".OOJJJJJNNJJJOOOoo",
+    ".OOJJJJJJJJJJOOOoo",
+    "..OJJJJJJJJJOOOoo.",
+    "...jJJJJJJJJjj....",
+    "....PPPPPPPPp.....",
+    "....PP...PPp......",
+    "....CC...CCC......",
+    "..................",
   ],
-  // Tackled / falling backward
+  // Tackled — body horizontal on the ground
   tackled: [
-    "................",
-    "................",
-    "................",
-    "................",
-    "..HHHLHHH.......",
-    "..HHHHLHHh......",
-    "..HHFFFFFHh.....",
-    "..HHHHLHHh......",
-    "...SSSJJJJJsss..",
-    "..SSJJJJJJJJjss.",
-    "..SJJJNJJJJJjs..",
-    "...JJJJJJJJj....",
-    "..JJJJJJJJJjj...",
-    "...PPPPPPPPp....",
-    "..PPPPPPPPPPp...",
-    "..PP..PP..PPp...",
-    "..CC..CC..CC....",
-    "................",
-    "................",
-    "................",
-    "................",
-    "................",
+    "..................",
+    "..................",
+    "..................",
+    "....HHHHHHH.......",
+    "...HHHHHHHHHh.....",
+    "...HFFFFFFFHh.....",
+    "...HHHHHHHHHh.....",
+    "..ssSSSSSSSSssss..",
+    ".OOOOOOJJJJJOOOOoo",
+    "OOOJJJJJNNJJJJOOOo",
+    "OOOJJJJJNNJJJJOOOo",
+    ".OOJJJJJJJJJJOOOo.",
+    "..JJJJJJJJJJJj....",
+    "..PPPPPPPPPPP.....",
+    "..CC..CC..CC......",
+    "..................",
+    "..................",
+    "..................",
   ],
-  // Catch — arms up reaching for ball (two-handed)
+  // Catch — both arms up reaching for ball
   catch: [
-    "................",
-    "..S....HHHLHH...",
-    "..SS..HHHHLHHh..",
-    "..SSS.HHFFFFHh..",
-    "..SSS.HHHHLHHh..",
-    "..SSS..HHHLHh...",
-    ".SSSS....SSs....",
-    "SSSS...JJJJJj...",
-    "SSSS..JJJJJJJj..",
-    "S....JJJJNJJJsSS",
-    "....JJJJJJJJsSSS",
-    "....JJJJJJJj.SSS",
-    "....JJJJJJJj....",
-    "....PPPPPPPp....",
-    "...PPP....PPp...",
-    "...PP......Pp...",
-    "...PP......Pp...",
-    "...PP......Pp...",
-    "...PP......Pp...",
-    "...CC......CC...",
-    "..CCCC....CCCC..",
-    "................",
+    "S............SS...",
+    "SS..HHHHHHH..SSs..",
+    "SSSHHHHHHHHHSSSs..",
+    ".SSHFFFFFFFHSSs...",
+    "..SSHHHHHHHHSs....",
+    "...sHHHHHHHhs.....",
+    "..OOOOOOOOOOOOOo..",
+    ".OOOOOOOOOOOOOOOo.",
+    ".OOOJJJJJJJJJOOOoo",
+    "..OOJJJJNJJJJOOOoo",
+    "..OOJJJJNJJJJOOOoo",
+    "..OOJJJJJJJJJOOOoo",
+    "...OJJJJJJJJOOOoo.",
+    "...PPPPPPPPp......",
+    "...PP...PPp.......",
+    "...PP...PPp.......",
+    "...CC...CCC.......",
+    "..................",
   ],
-  // Leap — one-handed leaping highlight grab (arm reaches up-and-forward)
+  // Celebrate — both arms raised in triumph (TD pose)
+  celebrate: [
+    "S............S....",
+    "SS..HHHHHHH..S....",
+    "SSSHHHHHHHHHSS....",
+    ".SSHFFFFFFFHSS....",
+    "..SSHHHHHHHSs.....",
+    "...sHHHHHHHs......",
+    "..OOOOOOOOOOOOOo..",
+    ".OOOOOOOOOOOOOOOo.",
+    ".OOOJJJJJJJJJOOOoo",
+    "..OOJJJJNJJJJOOOoo",
+    "..OOJJJJNJJJJOOOoo",
+    "..OOJJJJJJJJJOOOoo",
+    "...OJJJJJJJJOOOoo.",
+    "...PPPPPPPPp......",
+    "...PP...PPp.......",
+    "....PP.PP.........",
+    "....CC.CC.........",
+    "..................",
+  ],
+  // Leap — one-handed highlight reach (arm extends up-right)
   leap: [
-    "............SSSS",
-    "...HHHLHH..SSSSs",
-    "..HHHHLHHh.SSss.",
-    "..HHFFFFHh.sss..",
-    "..HHHHLHHh.ss...",
-    "...HHHLHh..s....",
-    "....SSSSs.......",
-    "...JJJJJJjSSSS..",
-    "..JJJJJJJjSSSSss",
-    "..JJJJNJJJjSsss.",
-    "..JJJJJJJJj.....",
-    "..JJJJJJJJj.....",
-    "...JJJJJJJj.....",
-    "...PPPPPPPp.....",
-    "..PPPP...PPp....",
-    "..PPP.....PPp...",
-    "..PP.......PPp..",
-    "...PP.......PP..",
-    "....PP.......PP.",
-    ".....CC.......CC",
-    "................",
-    "................",
+    "............SSSSss",
+    "....HHHHHHH..SSSss",
+    "...HHHHHHHHH.SSss.",
+    "...HFFFFFFFHhSss..",
+    "...HHHHHHHHHss....",
+    "....HHHHHHHHs.....",
+    ".OOOOOOOOOOOOOOOo.",
+    "OOOOOOOOOOOOOOOOOo",
+    "OOOOJJJJJJJJJOOOoo",
+    ".OOJJJJJNNJJJOOOoo",
+    ".OOJJJJJNNJJJOOOoo",
+    ".OOJJJJJJJJJJOOOoo",
+    "...jJJJJJJJJjj....",
+    "....PPPPPPPPp.....",
+    "...PPP....PPp.....",
+    "..PPP.......PPp...",
+    "..CC..........CC..",
+    "..................",
   ],
 };
 
 // Pre-render sprite frames to offscreen canvases per team palette (cached)
 const SPRITE_CACHE = new Map();
-const SPRITE_SCALE = 5; // each sprite pixel = 5 canvas pixels
+const SPRITE_SCALE = 5; // each sprite pixel = 5 canvas pixels (90×90 final)
 
 function shade(color, factor) {
   if (color[0] !== "#") return color;
@@ -1817,29 +1806,44 @@ function getSpriteSilhouette(frameKey, flipped) {
   return cv;
 }
 
-function drawSprite(ctx, x, y, team, frameKey, flipped, dimmed) {
-  // Ground shadow oval
-  ctx.fillStyle = "rgba(0,0,0,0.42)";
+// In TOP-DOWN view, sprites are anchored at their vertical center on (x, y).
+// `faceSeed`: optional 0..1 — when provided, draws a generated face + sunglasses.
+function drawSprite(ctx, x, y, team, frameKey, flipped, dimmed, faceSeed) {
+  const cv = getSpriteCanvas(team, frameKey, flipped, dimmed);
+  const sx = Math.round(x - cv.width / 2);
+  const sy = Math.round(y - cv.height / 2);
+  // Ground shadow at player's feet (just below sprite center)
+  ctx.fillStyle = "rgba(0,0,0,0.45)";
   ctx.beginPath();
-  ctx.ellipse(Math.round(x), Math.round(y) + 4, 22, 5.5, 0, 0, Math.PI * 2);
+  ctx.ellipse(Math.round(x), Math.round(y) + cv.height * 0.35, 26, 7, 0, 0, Math.PI * 2);
   ctx.fill();
   // 4-direction outline stamp for crisp silhouette against grass
   const sil = getSpriteSilhouette(frameKey, flipped);
-  const cv = getSpriteCanvas(team, frameKey, flipped, dimmed);
-  const sx = Math.round(x - cv.width / 2);
-  const sy = Math.round(y - cv.height + 8);
   ctx.drawImage(sil, sx - 2, sy);
   ctx.drawImage(sil, sx + 2, sy);
   ctx.drawImage(sil, sx, sy - 2);
   ctx.drawImage(sil, sx, sy + 2);
   ctx.drawImage(cv, sx, sy);
+  if (faceSeed != null) drawFace(ctx, x, y, faceSeed, flipped);
 }
 
-// ─── Side-view field rendering ─────────────────────────────────────────────
+// Sort sprites by their lateral Y so further-back players draw first
+function drawSpriteList(ctx, sprites) {
+  sprites.sort((a, b) => (a.sortY ?? a.y) - (b.sortY ?? b.y));
+  for (const s of sprites) {
+    drawSprite(ctx, s.x, s.y, s.team, s.frame, s.flipped, s.dimmed, s.faceSeed);
+  }
+}
+
+// ─── Top-down field rendering ──────────────────────────────────────────────
 const CINEMA = {
-  groundY: 320,         // Y of player feet on the field
-  horizonY: 175,        // top of field plane
-  pxPerYard: 22,        // horizontal scale: 22px = 1 yard at the camera's center
+  fieldTop: 50,         // top sideline screen Y
+  fieldBot: 390,        // bottom sideline screen Y
+  fieldCenterY: 220,    // mid-field screen Y
+  lateralPxPerYard: 6.0, // 53.3 yds × 6 = 320 px (fits)
+  pxPerYard: 24,        // horizontal yards
+  // groundY kept as alias for any legacy plays that draw "center field"
+  get groundY() { return this.fieldCenterY; },
 };
 
 let cinemaCamX = 0;     // camera world-X (in yards × pxPerYard)
@@ -1850,99 +1854,122 @@ function worldToScreenX(wx) {
   return wx - cinemaCamX + FIELD.W / 2;
 }
 function yardToWorldX(yard) { return yard * CINEMA.pxPerYard; }
+// Lateral position in yards (0 = mid-field, ±26.6 = sidelines) → screen Y
+function lateralToScreenY(lat) { return CINEMA.fieldCenterY + lat * CINEMA.lateralPxPerYard; }
 
 function drawCinemaField(ctx, homeTeam, awayTeam, fieldState) {
-  // Sky gradient
-  const sky = ctx.createLinearGradient(0, 0, 0, CINEMA.horizonY);
-  sky.addColorStop(0, "#2c4d6e");
-  sky.addColorStop(1, "#5a87b5");
-  ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, FIELD.W, CINEMA.horizonY);
-  // Distant stadium / stands
-  ctx.fillStyle = "#1c1c20";
-  ctx.fillRect(0, CINEMA.horizonY - 35, FIELD.W, 35);
-  // Crowd dots (pseudo-static — drawn once would be cleaner, but keep simple)
-  const crowdSeed = 7;
-  ctx.fillStyle = "#3a3a45";
-  for (let i = 0; i < 60; i++) {
-    const x = ((i * 89 + crowdSeed) % FIELD.W);
-    const y = CINEMA.horizonY - 30 + ((i * 17) % 26);
-    ctx.fillRect(x, y, 3, 3);
-  }
-  // Field
-  const fieldGrad = ctx.createLinearGradient(0, CINEMA.horizonY, 0, FIELD.H);
-  fieldGrad.addColorStop(0, "#226a36");
-  fieldGrad.addColorStop(1, "#1a5a2a");
+  // Out-of-bounds (dark band above/below the field)
+  ctx.fillStyle = "#0c0c10";
+  ctx.fillRect(0, 0, FIELD.W, FIELD.H);
+  // Grass field
+  const fieldGrad = ctx.createLinearGradient(0, CINEMA.fieldTop, 0, CINEMA.fieldBot);
+  fieldGrad.addColorStop(0, "#1e5a2c");
+  fieldGrad.addColorStop(0.5, "#247536");
+  fieldGrad.addColorStop(1, "#1e5a2c");
   ctx.fillStyle = fieldGrad;
-  ctx.fillRect(0, CINEMA.horizonY, FIELD.W, FIELD.H - CINEMA.horizonY);
-  // Mowed bands
-  for (let yard = -5; yard < 110; yard += 5) {
+  ctx.fillRect(0, CINEMA.fieldTop, FIELD.W, CINEMA.fieldBot - CINEMA.fieldTop);
+  // Mowed alternating bands (every 5 yards)
+  for (let yard = -10; yard < 110; yard += 5) {
     const x = worldToScreenX(yardToWorldX(yard));
-    if (x < -50 || x > FIELD.W + 50) continue;
-    if ((yard / 5) % 2 === 0) {
-      ctx.fillStyle = "rgba(0,0,0,0.06)";
-      ctx.fillRect(x, CINEMA.horizonY, 5 * CINEMA.pxPerYard, FIELD.H - CINEMA.horizonY);
+    if (x < -60 || x > FIELD.W + 60) continue;
+    if ((Math.floor(yard / 5)) % 2 === 0) {
+      ctx.fillStyle = "rgba(0,0,0,0.08)";
+      ctx.fillRect(x, CINEMA.fieldTop, 5 * CINEMA.pxPerYard, CINEMA.fieldBot - CINEMA.fieldTop);
     }
   }
-  // End zones (colored, visible from camera if in view)
+  // End zones — colored team panels
   const homeEZx = worldToScreenX(yardToWorldX(0));
   const awayEZx = worldToScreenX(yardToWorldX(100));
-  ctx.fillStyle = homeTeam.primary + "cc";
-  ctx.fillRect(homeEZx - 10 * CINEMA.pxPerYard, CINEMA.horizonY, 10 * CINEMA.pxPerYard, FIELD.H - CINEMA.horizonY);
-  ctx.fillStyle = awayTeam.primary + "cc";
-  ctx.fillRect(awayEZx, CINEMA.horizonY, 10 * CINEMA.pxPerYard, FIELD.H - CINEMA.horizonY);
-  // End zone goal posts
-  for (const [gx, color] of [[homeEZx, homeTeam.secondary], [awayEZx, awayTeam.secondary]]) {
-    ctx.strokeStyle = "#ffe048";
-    ctx.lineWidth = 3;
+  ctx.fillStyle = homeTeam.primary + "d0";
+  ctx.fillRect(homeEZx - 10 * CINEMA.pxPerYard, CINEMA.fieldTop, 10 * CINEMA.pxPerYard, CINEMA.fieldBot - CINEMA.fieldTop);
+  ctx.fillStyle = awayTeam.primary + "d0";
+  ctx.fillRect(awayEZx, CINEMA.fieldTop, 10 * CINEMA.pxPerYard, CINEMA.fieldBot - CINEMA.fieldTop);
+  // End zone wordmarks (sideways like real fields)
+  ctx.save();
+  ctx.font = "bold 30px sans-serif";
+  ctx.fillStyle = homeTeam.secondary;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.translate(homeEZx - 5 * CINEMA.pxPerYard, CINEMA.fieldCenterY);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText(homeTeam.name.toUpperCase(), 0, 0);
+  ctx.restore();
+  ctx.save();
+  ctx.font = "bold 30px sans-serif";
+  ctx.fillStyle = awayTeam.secondary;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.translate(awayEZx + 5 * CINEMA.pxPerYard, CINEMA.fieldCenterY);
+  ctx.rotate(Math.PI / 2);
+  ctx.fillText(awayTeam.name.toUpperCase(), 0, 0);
+  ctx.restore();
+  // Goal lines (thick white)
+  for (const gx of [homeEZx, awayEZx]) {
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.moveTo(gx, CINEMA.horizonY + 5);
-    ctx.lineTo(gx, CINEMA.horizonY + 70);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(gx - 30, CINEMA.horizonY + 30);
-    ctx.lineTo(gx + 30, CINEMA.horizonY + 30);
+    ctx.moveTo(gx, CINEMA.fieldTop);
+    ctx.lineTo(gx, CINEMA.fieldBot);
     ctx.stroke();
   }
-  // Yard lines
+  // Sidelines
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(0, CINEMA.fieldTop); ctx.lineTo(FIELD.W, CINEMA.fieldTop);
+  ctx.moveTo(0, CINEMA.fieldBot); ctx.lineTo(FIELD.W, CINEMA.fieldBot);
+  ctx.stroke();
+  // Yard lines (vertical, full lateral field span)
   for (let yard = 0; yard <= 100; yard += 5) {
     const x = worldToScreenX(yardToWorldX(yard));
     if (x < -10 || x > FIELD.W + 10) continue;
     const isMajor = yard % 10 === 0;
-    ctx.strokeStyle = "rgba(255,255,255,0.85)";
-    ctx.lineWidth = isMajor ? 3 : 1.5;
+    ctx.strokeStyle = isMajor ? "rgba(255,255,255,0.92)" : "rgba(255,255,255,0.55)";
+    ctx.lineWidth = isMajor ? 2.5 : 1.5;
     ctx.beginPath();
-    ctx.moveTo(x, CINEMA.horizonY);
-    ctx.lineTo(x, FIELD.H);
+    ctx.moveTo(x, CINEMA.fieldTop);
+    ctx.lineTo(x, CINEMA.fieldBot);
     ctx.stroke();
     if (isMajor && yard > 0 && yard < 100) {
       const label = yard <= 50 ? yard : 100 - yard;
       ctx.fillStyle = "#fff";
-      ctx.font = "bold 24px sans-serif";
+      ctx.font = "bold 22px sans-serif";
       ctx.textAlign = "center";
-      ctx.textBaseline = "top";
-      ctx.fillText(label, x, CINEMA.horizonY + 8);
-      ctx.fillText(label, x, FIELD.H - 28);
+      ctx.textBaseline = "middle";
+      ctx.fillText(label, x, CINEMA.fieldTop + 22);
+      ctx.fillText(label, x, CINEMA.fieldBot - 22);
     }
   }
-  // LOS marker
+  // Hash marks (small ticks at every yard, in two rows)
+  const hashTop = CINEMA.fieldCenterY - CINEMA.lateralPxPerYard * 6.5;
+  const hashBot = CINEMA.fieldCenterY + CINEMA.lateralPxPerYard * 6.5;
+  ctx.strokeStyle = "rgba(255,255,255,0.5)";
+  ctx.lineWidth = 1;
+  for (let yard = 1; yard < 100; yard++) {
+    if (yard % 5 === 0) continue;
+    const x = worldToScreenX(yardToWorldX(yard));
+    if (x < 0 || x > FIELD.W) continue;
+    ctx.beginPath();
+    ctx.moveTo(x, hashTop - 4); ctx.lineTo(x, hashTop + 4);
+    ctx.moveTo(x, hashBot - 4); ctx.lineTo(x, hashBot + 4);
+    ctx.stroke();
+  }
+  // LOS marker (blue vertical)
   if (fieldState && fieldState.losYard !== undefined) {
     const lx = worldToScreenX(yardToWorldX(fieldState.losYard));
     ctx.strokeStyle = "rgba(60,180,255,0.85)";
     ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.moveTo(lx, CINEMA.horizonY);
-    ctx.lineTo(lx, FIELD.H);
+    ctx.moveTo(lx, CINEMA.fieldTop);
+    ctx.lineTo(lx, CINEMA.fieldBot);
     ctx.stroke();
   }
-  // First-down marker
+  // First-down marker (yellow vertical)
   if (fieldState && fieldState.fdYard !== undefined && fieldState.fdYard >= 0 && fieldState.fdYard <= 100) {
     const fx = worldToScreenX(yardToWorldX(fieldState.fdYard));
     ctx.strokeStyle = "rgba(255,200,40,0.9)";
     ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.moveTo(fx, CINEMA.horizonY);
-    ctx.lineTo(fx, FIELD.H);
+    ctx.moveTo(fx, CINEMA.fieldTop);
+    ctx.lineTo(fx, CINEMA.fieldBot);
     ctx.stroke();
   }
 }
@@ -2039,6 +2066,197 @@ function playSeed(play, salt) {
   return ((Math.sin(s) + 1) / 2) % 1;
 }
 
+// Hash a player name to a stable 0..1 for face-pattern selection
+function nameSeed(name, salt = 0) {
+  if (!name) return 0;
+  let h = salt | 0;
+  for (let i = 0; i < name.length; i++) h = ((h << 5) - h + name.charCodeAt(i)) | 0;
+  return ((h >>> 0) % 10000) / 10000;
+}
+
+// Draw a generated face with COOL SUNGLASSES over the sprite's helmet area.
+// (x, y) = sprite center; faceSeed = 0..1 deterministic per player
+function drawFace(ctx, x, y, faceSeed, flipped) {
+  // Helmet face opening is roughly at the top-center of the sprite, slightly
+  // forward of center. With SCALE 5 and SPRITE_W=18/H=18, sprite spans ±45px.
+  // Face sits in the upper third.
+  const cx = x + (flipped ? -6 : 6);
+  const cy = y - 20;
+  const sx = flipped ? -1 : 1;
+  ctx.save();
+  // Skin patch peeking through helmet (subtle, just adds variation)
+  const skinTones = ["#e8b890", "#c9905e", "#8a5a3a", "#5d3b22"];
+  const skin = skinTones[Math.floor(faceSeed * skinTones.length) % skinTones.length];
+  // Sunglasses style (8 variations)
+  const style = Math.floor(faceSeed * 8) % 8;
+  ctx.translate(cx, cy);
+  // Different sunglass shapes (drawn relative to face center)
+  // The "lens" colors mostly black, sometimes mirrored / colored
+  const lensColors = ["#0a0a10", "#0a0a10", "#101820", "#1a0a1a", "#0a1010"];
+  const lensColor = lensColors[Math.floor(faceSeed * 100) % lensColors.length];
+  ctx.fillStyle = lensColor;
+  ctx.strokeStyle = "#15151a";
+  ctx.lineWidth = 1.5;
+  switch (style) {
+    case 0: { // Aviators (teardrop)
+      ctx.beginPath(); ctx.ellipse(-7 * sx, 0, 6, 7, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(+7 * sx, 0, 6, 7, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "#888"; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(-1 * sx, -1); ctx.lineTo(1 * sx, -1); ctx.stroke();
+      break;
+    }
+    case 1: { // Wayfarers (wide rectangles)
+      ctx.fillRect(-14, -4, 11, 8);
+      ctx.fillRect(+3, -4, 11, 8);
+      ctx.fillStyle = "#222";
+      ctx.fillRect(-3, -2, 6, 2);
+      // glint
+      ctx.fillStyle = "rgba(255,255,255,0.65)";
+      ctx.fillRect(-12, -3, 2, 2);
+      ctx.fillRect(+5, -3, 2, 2);
+      break;
+    }
+    case 2: { // Round Lennon
+      ctx.beginPath(); ctx.arc(-7 * sx, 0, 5, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(+7 * sx, 0, 5, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 3: { // Sport visor wraparound (single band)
+      ctx.fillRect(-14, -3, 28, 7);
+      ctx.fillStyle = "rgba(255,255,255,0.4)";
+      ctx.fillRect(-12, -3, 6, 2);
+      break;
+    }
+    case 4: { // Tiny round mafia shades
+      ctx.beginPath(); ctx.arc(-6 * sx, 0, 3.2, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(+6 * sx, 0, 3.2, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 5: { // Oversized squares
+      ctx.fillRect(-16, -6, 13, 11);
+      ctx.fillRect(+3, -6, 13, 11);
+      ctx.fillStyle = "rgba(255,255,255,0.55)";
+      ctx.fillRect(-14, -5, 3, 3);
+      ctx.fillRect(+5, -5, 3, 3);
+      break;
+    }
+    case 6: { // Cat-eye (sloped)
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(-14, 1); ctx.lineTo(-2, -2); ctx.lineTo(-2, 4); ctx.lineTo(-14, 5);
+      ctx.closePath(); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(14, 1); ctx.lineTo(2, -2); ctx.lineTo(2, 4); ctx.lineTo(14, 5);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+      break;
+    }
+    case 7: { // Mirrored chrome
+      ctx.fillStyle = "#666";
+      ctx.fillRect(-14, -4, 11, 9);
+      ctx.fillRect(+3, -4, 11, 9);
+      ctx.fillStyle = "#bbb";
+      ctx.fillRect(-13, -4, 11, 3);
+      ctx.fillRect(+4, -4, 11, 3);
+      ctx.fillStyle = "rgba(255,255,255,0.9)";
+      ctx.fillRect(-11, -3, 2, 1);
+      ctx.fillRect(+6, -3, 2, 1);
+      break;
+    }
+  }
+  // Optional facial hair (33% chance)
+  if (faceSeed > 0.66) {
+    ctx.fillStyle = "#1a1208";
+    if (faceSeed > 0.85) {
+      // Full beard
+      ctx.fillRect(-7, 6, 14, 4);
+    } else {
+      // Goatee / chinstrap
+      ctx.fillRect(-3, 7, 6, 3);
+    }
+  }
+  ctx.restore();
+}
+
+// Draw a TD-style firework burst at (x, y)
+function drawFirework(ctx, x, y, t01, hue) {
+  // t01: 0 → 1 expansion. Particle radius grows; alpha fades.
+  if (t01 < 0 || t01 > 1) return;
+  const N = 14;
+  const maxR = 90;
+  const r = maxR * t01;
+  const alpha = 1 - t01 * t01;
+  ctx.save();
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2;
+    const px = x + Math.cos(a) * r;
+    const py = y + Math.sin(a) * r;
+    const sparkSize = 4 - t01 * 2;
+    ctx.fillStyle = `hsla(${hue + (i * 7)}, 95%, ${70 - t01 * 30}%, ${alpha})`;
+    ctx.beginPath();
+    ctx.arc(px, py, Math.max(1, sparkSize), 0, Math.PI * 2);
+    ctx.fill();
+    // Trailing dot
+    const px2 = x + Math.cos(a) * r * 0.7;
+    const py2 = y + Math.sin(a) * r * 0.7;
+    ctx.fillStyle = `hsla(${hue + (i * 7)}, 95%, ${85 - t01 * 30}%, ${alpha * 0.55})`;
+    ctx.beginPath();
+    ctx.arc(px2, py2, Math.max(0.8, sparkSize * 0.55), 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Central flash
+  if (t01 < 0.25) {
+    ctx.fillStyle = `rgba(255,255,255,${(1 - t01 * 4) * 0.7})`;
+    ctx.beginPath();
+    ctx.arc(x, y, 10 * (1 - t01 * 4), 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+// Multiple staggered fireworks over the field
+function drawFireworksShow(ctx, ageMs) {
+  const seeds = [
+    { x: 200, y: 130, hue: 50,  delay: 0    },
+    { x: 800, y: 110, hue: 0,   delay: 220  },
+    { x: 500, y: 90,  hue: 270, delay: 400  },
+    { x: 320, y: 160, hue: 120, delay: 700  },
+    { x: 680, y: 140, hue: 200, delay: 950  },
+    { x: 150, y: 180, hue: 30,  delay: 1200 },
+    { x: 850, y: 190, hue: 320, delay: 1400 },
+    { x: 500, y: 130, hue: 60,  delay: 1700 },
+  ];
+  const lifetime = 900; // ms per burst
+  for (const s of seeds) {
+    const localT = (ageMs - s.delay) / lifetime;
+    drawFirework(ctx, s.x, s.y, localT, s.hue);
+  }
+}
+
+// Draw little floating "taunt" emote text rising above (x, y)
+function drawTaunt(ctx, x, y, text, color, t01) {
+  const rise = 30 * t01;
+  const alpha = t01 < 0.15 ? t01 / 0.15 : (t01 > 0.7 ? (1 - t01) / 0.3 : 1);
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, alpha);
+  ctx.font = "900 22px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = "rgba(0,0,0,0.85)";
+  ctx.strokeText(text, x, y - rise);
+  ctx.fillStyle = color;
+  ctx.fillText(text, x, y - rise);
+  ctx.restore();
+}
+
+// Stable per-play taunt pick
+function pickTaunt(play, salt = 0) {
+  const opts = ["LET'S GOOO!", "TOO EASY", "ALL DAY!", "SIX!!", "CAN'T STOP ME", "GIVE ME MY MONEY", "TALK TO ME NOW", "WHO?!", "BIG TIME", "CASH IT IN"];
+  const seed = ((play.startYard ?? 0) * 31 + (play.time ?? 0) + salt) | 0;
+  return opts[((seed >>> 0) % opts.length)];
+}
+
 // Decide if a juke fires this play, weighted by hidden athleticism.
 // Without career hidden stats wired in, fall back to a base rate.
 function decideMoves(play, offRatings, defRatings) {
@@ -2082,15 +2300,21 @@ function buildCinemaAnim(play, prevPlay) {
   }
 
   if (play.kind === "score") {
-    return { duration: 1200, kind: "score", render: (t, ctx) => {
+    const isTD = (play.desc || "").toLowerCase().includes("touchdown");
+    const isFG = (play.desc || "").toLowerCase().includes("fg");
+    return { duration: isTD ? 2200 : 1200, kind: "score", render: (t, ctx) => {
       drawCinemaField(ctx, homeTeam, awayTeam, null);
-      ctx.fillStyle = `rgba(26,51,0,${0.4 + t * 0.4})`;
-      ctx.fillRect(0, FIELD.H / 2 - 50, FIELD.W, 100);
-      ctx.fillStyle = "#f0cc30";
-      ctx.font = "bold 38px sans-serif";
+      ctx.fillStyle = `rgba(10,16,4,${0.55 + t * 0.3})`;
+      ctx.fillRect(0, FIELD.H / 2 - 60, FIELD.W, 120);
+      ctx.fillStyle = isTD ? "#f0cc30" : isFG ? "#9be09b" : "#ffffff";
+      ctx.font = "900 44px sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText("🏈 " + play.desc, FIELD.W / 2, FIELD.H / 2);
+      if (isTD) {
+        const ageMs = t * 2200;
+        drawFireworksShow(ctx, ageMs);
+      }
     }};
   }
 
@@ -2115,75 +2339,108 @@ function buildCinemaAnim(play, prevPlay) {
 
   const moves = decideMoves(play, offRatings, defRatings);
 
-  // ── RUN PLAY ──────────────────────────────────────────────────────────
+  // ── RUN PLAY (top-down) ───────────────────────────────────────────────
   if (play.kind === "run") {
     const yards = play.yards ?? 0;
+    const isTD = (play.endYard ?? 0) >= 100;
+    const isBig = yards >= 15;
+    const rusherSeed = nameSeed(play.rusher);
+    const qbSeed = nameSeed(play.passer || "QB");
     return { duration: 2400, kind: "run", render: (t, ctx) => {
-      // Pre-snap freeze
       const PRE = 0.18;
       let carrierWX, runT = 0;
+      const carrierStartWX = losWX - 7 * CINEMA.pxPerYard;
       if (t < PRE) {
-        carrierWX = losWX - 30;
+        carrierWX = carrierStartWX;
       } else {
         runT = (t - PRE) / (1 - PRE);
-        carrierWX = (losWX - 30) + ((endWX) - (losWX - 30)) * easeOutCubic(runT);
+        carrierWX = carrierStartWX + (endWX - carrierStartWX) * easeOutCubic(runT);
       }
-      setCamFromCarrier(carrierWX);
-      const fieldState = { losYard: startYardAbs, fdYard: fdYardAbs };
-      drawCinemaField(ctx, homeTeam, awayTeam, fieldState);
-
-      // Draw OL line at LOS
-      for (let i = -2; i <= 2; i++) {
-        const olWX = losWX - 8 + Math.sin(t * 4 + i) * 2;
-        const sx = worldToScreenX(olWX);
-        const frame = (t < PRE) ? "idle" : (Math.floor(t * 8) % 2 === 0 ? "run_a" : "run_b");
-        // OL surge forward
-        const surge = t < PRE ? 0 : runT * 18;
-        drawSprite(ctx, sx + surge - 24 + i * 8, CINEMA.groundY + i * 3, offTeam, frame, false);
-      }
-
-      // QB hand-off / drop
-      const qbWX = losWX - 80;
-      drawSprite(ctx, worldToScreenX(qbWX), CINEMA.groundY, offTeam, "idle", false);
-
-      // Defenders pursue
-      const numDef = 4;
-      for (let i = 0; i < numDef; i++) {
-        const startDX = losWX + 60 + i * 20;
-        const targetDX = carrierWX + (i % 2 === 0 ? 20 : -10);
-        const dx = startDX + (targetDX - startDX) * easeOutCubic(Math.max(0, runT));
-        const sx = worldToScreenX(dx);
-        const frame = (t < PRE) ? "idle" : (Math.floor(t * 9 + i) % 2 === 0 ? "run_a" : "run_b");
-        // Defenders face left (toward offense)
-        drawSprite(ctx, sx, CINEMA.groundY + (i % 3 - 1) * 6, defTeam, frame, true);
-      }
-
-      // Determine current move (if any in moves array)
-      let carrierFrame;
+      // Determine active "move" (juke / stiff / broken tackle)
       let activeMove = null;
-      for (const m of moves) {
-        if (Math.abs(t - m.at) < 0.05) { activeMove = m; break; }
+      for (const m of moves) { if (Math.abs(t - m.at) < 0.05) { activeMove = m; break; } }
+      // Lateral wobble for carrier (more for juke)
+      let carrierLat = activeMove?.kind === "JUKE" ? Math.sin(t * 24) * 3 : Math.sin(t * 4) * 0.6;
+      setCamFromCarrier(carrierWX);
+      drawCinemaField(ctx, homeTeam, awayTeam, { losYard: startYardAbs, fdYard: fdYardAbs });
+
+      // Collect all player sprites, sort by lateral Y for proper layering
+      const sprites = [];
+      // OL — 5 across LOS, lateralY -4.5 .. +4.5
+      const olLats = [-4.5, -2.2, 0, 2.2, 4.5];
+      for (let i = 0; i < 5; i++) {
+        const surge = t < PRE ? 0 : runT * 22;
+        const olWX = losWX - 0.7 * CINEMA.pxPerYard + surge + Math.sin(t * 6 + i) * 2;
+        const frame = t < PRE ? "idle" : (Math.floor(t * 7 + i) % 2 === 0 ? "run_a" : "run_b");
+        sprites.push({ x: worldToScreenX(olWX), y: lateralToScreenY(olLats[i]), team: offTeam, frame, flipped: false, faceSeed: nameSeed("OL", i) });
       }
-      if (t < PRE) {
-        carrierFrame = "idle";
-      } else if (activeMove) {
+      // TE on the right
+      sprites.push({ x: worldToScreenX(losWX - 0.7 * CINEMA.pxPerYard), y: lateralToScreenY(7), team: offTeam, frame: t < PRE ? "idle" : "run_a", flipped: false, faceSeed: nameSeed("TE") });
+      // WR1 (left wide), WR2 (right wide) — they run downfield blocking
+      sprites.push({ x: worldToScreenX(losWX + (t < PRE ? 0 : runT * 30)), y: lateralToScreenY(-22), team: offTeam, frame: t < PRE ? "idle" : "run_b", flipped: false, faceSeed: nameSeed("WR1") });
+      sprites.push({ x: worldToScreenX(losWX + (t < PRE ? 0 : runT * 30)), y: lateralToScreenY(20), team: offTeam, frame: t < PRE ? "idle" : "run_a", flipped: false, faceSeed: nameSeed("WR2") });
+      // QB — hands off then trails
+      const qbWX = losWX - 5 * CINEMA.pxPerYard;
+      const qbFrame = t < PRE ? "idle" : "stiff";
+      sprites.push({ x: worldToScreenX(qbWX), y: lateralToScreenY(0.5), team: offTeam, frame: qbFrame, flipped: false, faceSeed: qbSeed });
+      // Carrier (RB)
+      let carrierFrame;
+      if (t < PRE) carrierFrame = "idle";
+      else if (activeMove) {
         if (activeMove.kind === "JUKE") carrierFrame = "juke";
         else if (activeMove.kind === "STIFF ARM") carrierFrame = "stiff";
         else carrierFrame = "run_a";
-        // Trigger callout once
         if (!play._calloutsFired) play._calloutsFired = new Set();
         if (!play._calloutsFired.has(activeMove.kind)) {
           play._calloutsFired.add(activeMove.kind);
           showCallout(activeMove.kind);
         }
-      } else {
-        carrierFrame = (Math.floor(t * 10) % 2 === 0) ? "run_a" : "run_b";
+      } else carrierFrame = (Math.floor(t * 10) % 2 === 0) ? "run_a" : "run_b";
+      if (runT > 0.88 && yards < 90 && !isTD) carrierFrame = "tackled";
+      // TD celebration on the carrier
+      if (isTD && runT > 0.85) carrierFrame = "celebrate";
+      sprites.push({ x: worldToScreenX(carrierWX), y: lateralToScreenY(carrierLat), team: offTeam, frame: carrierFrame, flipped: false, faceSeed: rusherSeed });
+
+      // Defenders — DL, LB, S, CB
+      const dlLats = [-3.8, -1.3, 1.3, 3.8];
+      for (let i = 0; i < 4; i++) {
+        const dlStartWX = losWX + 0.8 * CINEMA.pxPerYard;
+        const dWX = dlStartWX + (t > PRE ? Math.min(1, runT * 1.3) * (carrierWX - dlStartWX) * 0.85 : 0);
+        const frame = t < PRE ? "idle" : (Math.floor(t * 9 + i) % 2 === 0 ? "run_a" : "run_b");
+        sprites.push({ x: worldToScreenX(dWX), y: lateralToScreenY(dlLats[i] + (carrierLat - dlLats[i]) * Math.min(0.5, runT * 0.5)), team: defTeam, frame, flipped: true, faceSeed: nameSeed("DL", i) });
       }
-      // Last 12% — tackle
-      if (runT > 0.88 && yards < 90) {
-        carrierFrame = "tackled";
+      const lbLats = [-5, 0, 5];
+      for (let i = 0; i < 3; i++) {
+        const lbStartWX = losWX + 5 * CINEMA.pxPerYard;
+        const dWX = lbStartWX + (t > PRE ? Math.min(1, runT * 1.0) * (carrierWX - lbStartWX) * 0.95 : 0);
+        const frame = t < PRE ? "idle" : (Math.floor(t * 9 + i + 4) % 2 === 0 ? "run_a" : "run_b");
+        sprites.push({ x: worldToScreenX(dWX), y: lateralToScreenY(lbLats[i] + (carrierLat - lbLats[i]) * Math.min(0.6, runT * 0.7)), team: defTeam, frame, flipped: true, faceSeed: nameSeed("LB", i) });
       }
-      drawSprite(ctx, worldToScreenX(carrierWX), CINEMA.groundY, offTeam, carrierFrame, false);
+      // Safeties (deep)
+      for (let i = 0; i < 2; i++) {
+        const sLat = i === 0 ? -9 : 9;
+        const sStartWX = losWX + 12 * CINEMA.pxPerYard;
+        const dWX = sStartWX + (t > PRE && yards > 5 ? Math.min(1, runT) * (carrierWX - sStartWX) * 0.7 : 0);
+        const frame = t < PRE ? "idle" : (Math.floor(t * 9 + i + 8) % 2 === 0 ? "run_a" : "run_b");
+        sprites.push({ x: worldToScreenX(dWX), y: lateralToScreenY(sLat + (carrierLat - sLat) * Math.min(0.4, runT * 0.5)), team: defTeam, frame, flipped: true, faceSeed: nameSeed("S", i) });
+      }
+      // Corners on the wide receivers
+      for (const [lat, salt] of [[-22, 0], [20, 1]]) {
+        sprites.push({ x: worldToScreenX(losWX + 4 * CINEMA.pxPerYard + (t > PRE ? runT * 20 : 0)), y: lateralToScreenY(lat), team: defTeam, frame: t < PRE ? "idle" : "run_b", flipped: true, faceSeed: nameSeed("CB", salt) });
+      }
+
+      drawSpriteList(ctx, sprites);
+
+      // BIG PLAY taunt floating above the carrier
+      if (isBig && runT > 0.70 && runT < 0.96 && !isTD) {
+        const tauntT = (runT - 0.70) / 0.26;
+        drawTaunt(ctx, worldToScreenX(carrierWX), lateralToScreenY(carrierLat) - 60, pickTaunt(play, 0), "#f0cc30", tauntT);
+      }
+      // TD fireworks
+      if (isTD && runT > 0.82) {
+        const ageMs = (runT - 0.82) * 2400;
+        drawFireworksShow(ctx, ageMs);
+      }
 
       // Reset callouts at start of next play
       if (t < 0.05 && play._calloutsFired) play._calloutsFired = null;
@@ -2193,18 +2450,23 @@ function buildCinemaAnim(play, prevPlay) {
   // ── PASS PLAYS (complete / incomplete / int) ──────────────────────────
   if (play.kind === "complete" || play.kind === "incomplete" || play.kind === "int") {
     const isComplete = play.kind === "complete";
+    const isInt      = play.kind === "int";
     const targetDepth = play.targetDepth || 10;
     const targetWX_view = losWX + targetDepth * CINEMA.pxPerYard;
+    // Pick a target receiver lateral position deterministically (WR1 left, WR2 right, TE slot, RB short)
+    // Use the play seed to keep it stable.
+    const recRoll = playSeed(play, 99);
+    const recLat = recRoll < 0.4 ? -20 : recRoll < 0.7 ? 18 : recRoll < 0.88 ? 7 : -3;
     // "Highlight" catches get a longer freeze + CAUGHT! callout
     const yardsGained = play.yards ?? 0;
     const isDeep      = targetDepth >= 18;
     const isBigCatch  = yardsGained >= 25;
-    const isHighlight = isComplete && (isDeep || isBigCatch);
-    const FREEZE_MS = isComplete ? (isHighlight ? 850 : 280) : 0;
+    const isTD        = isComplete && (play.endYard ?? 0) >= 100;
+    const isHighlight = isComplete && (isDeep || isBigCatch || isTD);
+    const FREEZE_MS = isComplete ? (isHighlight ? 850 : 280) : (isInt ? 700 : 0);
     const baseDur   = 2400;
     const totalDur  = baseDur + FREEZE_MS;
     const ARRIVE = 0.62;
-    // Freeze window in normalized t-NEW (the t we render with): centred at the catch.
     const F1 = (ARRIVE * baseDur) / totalDur;
     const F2 = (ARRIVE * baseDur + FREEZE_MS) / totalDur;
     const mapT = FREEZE_MS === 0 ? (x => x) : (x => {
@@ -2212,111 +2474,185 @@ function buildCinemaAnim(play, prevPlay) {
       if (x <= F2) return ARRIVE;
       return ARRIVE + (x - F2) * (1 - ARRIVE) / (1 - F2);
     });
+    const passerSeed = nameSeed(play.passer);
+    const rcvrSeed   = nameSeed(play.receiver || play.intended);
     return { duration: totalDur, kind: play.kind, render: (tNew, ctx) => {
       const t = mapT(tNew);
       const inFreeze = FREEZE_MS > 0 && tNew > F1 && tNew < F2;
-      // Bounce factor: brief pop into the freeze (0 → 1 → 0)
       const freezePhase = inFreeze ? (tNew - F1) / (F2 - F1) : 0;
       const PRE = 0.16, DROP = 0.34;
-      let qbWX = losWX - 80, ballWX, ballY = CINEMA.groundY - 60, ballArc = 0;
-      let carrierWX = losWX - 30;
-      if (t < PRE) {
-        ballWX = qbWX;
-      } else if (t < DROP) {
+      let qbWX = losWX - 5 * CINEMA.pxPerYard, ballWX, ballArc = 0;
+      let ballLat = 0;  // lateral position of ball
+      let carrierWX = losWX - 1 * CINEMA.pxPerYard, carrierLat = recLat;
+      // Ball animation
+      if (t < PRE) { ballWX = qbWX; ballLat = 0.5; }
+      else if (t < DROP) {
         const tt = (t - PRE) / (DROP - PRE);
-        qbWX = losWX - 80 - tt * 90;
-        ballWX = qbWX;
+        qbWX = losWX - 5 * CINEMA.pxPerYard - tt * 3.2 * CINEMA.pxPerYard;
+        ballWX = qbWX; ballLat = 0.5;
       } else if (t < ARRIVE) {
         const tt = (t - DROP) / (ARRIVE - DROP);
-        qbWX = losWX - 170;
+        qbWX = losWX - 7.7 * CINEMA.pxPerYard;
         ballWX = qbWX + (targetWX_view - qbWX) * tt;
+        ballLat = 0.5 + (recLat - 0.5) * tt;
         ballArc = Math.sin(tt * Math.PI) * 95;
       } else {
         const tt = (t - ARRIVE) / (1 - ARRIVE);
-        qbWX = losWX - 170;
+        qbWX = losWX - 7.7 * CINEMA.pxPerYard;
         if (isComplete) {
           ballWX = targetWX_view + (endWX - targetWX_view) * easeOutCubic(tt);
           carrierWX = ballWX;
+        } else if (isInt) {
+          // The defender (interceptor) takes the ball back the OTHER direction
+          ballWX = targetWX_view - tt * 60;
+          ballLat = recLat + (0 - recLat) * tt; // drifts to mid-field
         } else {
           ballWX = targetWX_view;
+          ballLat = recLat;
         }
       }
-      // During the freeze, lock the camera on the catch point so the action holds.
       if (inFreeze) setCamFromCarrier(targetWX_view);
       else setCamFromCarrier(t < ARRIVE ? (qbWX + targetWX_view) / 2 : carrierWX);
-      const fieldState = { losYard: startYardAbs, fdYard: fdYardAbs };
-      drawCinemaField(ctx, homeTeam, awayTeam, fieldState);
-
-      // Slight motion-blur darken behind the action during the freeze for emphasis
+      drawCinemaField(ctx, homeTeam, awayTeam, { losYard: startYardAbs, fdYard: fdYardAbs });
       if (inFreeze) {
-        const vignette = Math.sin(freezePhase * Math.PI) * 0.22;
+        const vignette = Math.sin(freezePhase * Math.PI) * 0.28;
         ctx.fillStyle = `rgba(0,0,0,${vignette})`;
         ctx.fillRect(0, 0, FIELD.W, FIELD.H);
       }
 
-      // OL pass-block — slight drop back
-      for (let i = -2; i <= 2; i++) {
-        const olWX = losWX - 8 - Math.min(t, 0.5) * 20 + Math.sin(t * 5 + i) * 2;
-        drawSprite(ctx, worldToScreenX(olWX), CINEMA.groundY + i * 3, offTeam, "idle", false);
+      const sprites = [];
+      // OL — pass-block, slight retreat
+      const olLats = [-4.5, -2.2, 0, 2.2, 4.5];
+      for (let i = 0; i < 5; i++) {
+        const olWX = losWX - 0.7 * CINEMA.pxPerYard - Math.min(t, 0.5) * 22 + Math.sin(t * 5 + i) * 2;
+        const frame = "idle";
+        sprites.push({ x: worldToScreenX(olWX), y: lateralToScreenY(olLats[i]), team: offTeam, frame, flipped: false, faceSeed: nameSeed("OL", i) });
       }
       // QB
-      const qbFrame = t < PRE ? "idle" : (t < DROP ? "run_b" : (t < ARRIVE ? "stiff" : "idle"));
-      drawSprite(ctx, worldToScreenX(qbWX), CINEMA.groundY, offTeam, qbFrame, false);
-      // Receiver running route
-      const wrStartWX = losWX + 4;
-      const wrWX = wrStartWX + Math.min(1, t / ARRIVE) * targetDepth * CINEMA.pxPerYard;
-      // Frame selection — catch / leap / running
-      const catchWindow = (t > ARRIVE - 0.1 && t < ARRIVE + 0.05) || inFreeze;
-      let wrFrame;
-      if (t < PRE) wrFrame = "idle";
-      else if (inFreeze && isComplete) wrFrame = isHighlight ? "leap" : "catch";
-      else if (catchWindow && isComplete) wrFrame = isHighlight ? "leap" : "catch";
-      else if (t > ARRIVE && isComplete) wrFrame = (Math.floor(t * 10) % 2 === 0) ? "run_a" : "run_b";
-      else wrFrame = (Math.floor(t * 10) % 2 === 0) ? "run_a" : "run_b";
-      // Lift the receiver on highlight catches — they leap for it
-      const baseLift = catchWindow && isComplete ? -14 : 0;
-      const leapLift = inFreeze && isHighlight ? -18 - Math.sin(freezePhase * Math.PI) * 8 : 0;
-      const wrYOff = baseLift + leapLift;
-      const wrScreenWX = worldToScreenX(t > ARRIVE && isComplete ? carrierWX : wrWX);
-      drawSprite(ctx, wrScreenWX, CINEMA.groundY + wrYOff, offTeam, wrFrame, false);
-      // Defenders
-      for (let i = 0; i < 3; i++) {
-        const dStartWX = losWX + 60 + i * 30;
-        let dWX;
-        if (t < ARRIVE) {
-          dWX = dStartWX - Math.min(1, t / ARRIVE) * 60;  // collapsing on QB
-        } else if (isComplete) {
-          dWX = dStartWX + (carrierWX - dStartWX) * (t - ARRIVE) / (1 - ARRIVE);
+      const qbFrame = t < PRE ? "idle" : (t < DROP ? "run_b" : (t < ARRIVE ? "stiff" : (isInt && t > ARRIVE + 0.1 ? "tackled" : "idle")));
+      sprites.push({ x: worldToScreenX(qbWX), y: lateralToScreenY(0.5), team: offTeam, frame: qbFrame, flipped: false, faceSeed: passerSeed });
+      // Receivers — WR1 (-20), WR2 (+18), TE (+7), RB (-3 shallow)
+      const routes = [
+        { lat: -20, depth: targetDepth + 2, faceSeed: nameSeed("WR1"), isTarget: Math.abs(recLat - (-20)) < 5 },
+        { lat: 18,  depth: targetDepth + 1, faceSeed: nameSeed("WR2"), isTarget: Math.abs(recLat - 18)  < 5 },
+        { lat: 7,   depth: Math.min(targetDepth, 12), faceSeed: nameSeed("TE"), isTarget: Math.abs(recLat - 7) < 5 },
+        { lat: -3,  depth: 4, faceSeed: nameSeed("RB"), isTarget: Math.abs(recLat - (-3)) < 5 },
+      ];
+      const catchWindow = (t > ARRIVE - 0.08 && t < ARRIVE + 0.05) || inFreeze;
+      for (const route of routes) {
+        const routeProgress = Math.min(1, t / ARRIVE);
+        const wrWX = losWX + 4 + routeProgress * route.depth * CINEMA.pxPerYard;
+        let wx = wrWX, lat = route.lat;
+        let frame;
+        if (route.isTarget) {
+          if (t < PRE) frame = "idle";
+          else if (inFreeze && isComplete) frame = isHighlight ? "leap" : "catch";
+          else if (catchWindow && isComplete) frame = isHighlight ? "leap" : "catch";
+          else if (catchWindow && isInt) frame = "tackled";
+          else if (t > ARRIVE && isComplete) { wx = carrierWX; lat = recLat; frame = (Math.floor(t * 10) % 2 === 0) ? "run_a" : "run_b"; }
+          else if (isTD && t > 0.92) frame = "celebrate";
+          else frame = (Math.floor(t * 10) % 2 === 0) ? "run_a" : "run_b";
         } else {
-          dWX = dStartWX;
+          if (t < PRE) frame = "idle";
+          else frame = (Math.floor(t * 10) % 2 === 0) ? "run_a" : "run_b";
         }
-        const frame = (Math.floor(t * 9 + i) % 2 === 0) ? "run_a" : "run_b";
-        drawSprite(ctx, worldToScreenX(dWX), CINEMA.groundY + (i - 1) * 6, defTeam, frame, true);
+        sprites.push({ x: worldToScreenX(wx), y: lateralToScreenY(lat), team: offTeam, frame, flipped: false, faceSeed: route.faceSeed });
       }
-      // CB on receiver
-      const cbStartWX = losWX + 8;
-      const cbWX = cbStartWX + Math.min(1, t / ARRIVE) * targetDepth * CINEMA.pxPerYard * 0.85;
-      const cbFrame = (Math.floor(t * 10) % 2 === 0) ? "run_a" : "run_b";
-      drawSprite(ctx, worldToScreenX(t > ARRIVE && isComplete ? carrierWX + 18 : cbWX), CINEMA.groundY + 4, defTeam, cbFrame, true);
-      // Ball — hide on top of the giant catch ball during the freeze
-      if (!inFreeze) {
-        ctx.fillStyle = "#6b3416";
-        ctx.beginPath();
-        ctx.ellipse(worldToScreenX(ballWX), ballY - ballArc, 7, 4, 0, 0, Math.PI * 2);
-        ctx.fill();
-      } else if (isComplete) {
-        // Big football at the receiver's reaching hand. Pop scale during freeze.
-        const popScale = 1 + Math.sin(freezePhase * Math.PI) * 0.45;
-        const handX = wrScreenWX + (isHighlight ? 30 : 0);
-        const handY = CINEMA.groundY + wrYOff - 96;
-        drawBigFootball(ctx, handX, handY, 24 * popScale);
-        // CAUGHT! callout for highlight catches; smaller "Catch" for regular
-        if (isHighlight) {
-          const calloutScale = 0.85 + Math.sin(Math.min(1, freezePhase * 2.5) * Math.PI * 0.5) * 0.35;
-          drawHeadCallout(ctx, wrScreenWX, CINEMA.groundY + wrYOff - 130, "CAUGHT!", "#f0cc30", calloutScale);
-        } else if (freezePhase < 0.55) {
-          drawHeadCallout(ctx, wrScreenWX, CINEMA.groundY + wrYOff - 120, "CATCH", "#9be09b", 0.7);
+      // Defenders — DL rush, LB drops, CB on WRs, S deep
+      const dlLats = [-3.5, -1.2, 1.2, 3.5];
+      for (let i = 0; i < 4; i++) {
+        const dlStartWX = losWX + 0.8 * CINEMA.pxPerYard;
+        const dWX = dlStartWX + Math.min(1, t / ARRIVE) * (qbWX - dlStartWX) * 0.85;
+        const frame = t < PRE ? "idle" : (Math.floor(t * 9 + i) % 2 === 0 ? "run_a" : "run_b");
+        sprites.push({ x: worldToScreenX(dWX), y: lateralToScreenY(dlLats[i]), team: defTeam, frame, flipped: true, faceSeed: nameSeed("DL", i) });
+      }
+      const lbLats = [-5, 0, 5];
+      for (let i = 0; i < 3; i++) {
+        const lbStartWX = losWX + 4.5 * CINEMA.pxPerYard;
+        const dWX = lbStartWX + (t > PRE ? Math.min(1, t / ARRIVE) * 18 : 0);
+        const frame = t < PRE ? "idle" : (Math.floor(t * 9 + i + 4) % 2 === 0 ? "run_a" : "run_b");
+        sprites.push({ x: worldToScreenX(dWX), y: lateralToScreenY(lbLats[i]), team: defTeam, frame, flipped: true, faceSeed: nameSeed("LB", i) });
+      }
+      // Corners on WRs
+      for (const [lat, salt] of [[-20, 0], [18, 1]]) {
+        const cbStartWX = losWX + 4 * CINEMA.pxPerYard;
+        let cbX = cbStartWX + Math.min(1, t / ARRIVE) * targetDepth * CINEMA.pxPerYard * 0.82;
+        let cbLat = lat;
+        // If this CB is the interceptor (closest to recLat), they GRAB the ball
+        const isInterceptor = isInt && Math.abs(lat - recLat) < 5;
+        if (isInterceptor && t > ARRIVE - 0.05) {
+          // Move toward the ball pickup point, then run back the other way
+          if (t < ARRIVE) {
+            cbX = targetWX_view - 18;
+            cbLat = recLat + 2;
+          } else {
+            const tt = (t - ARRIVE) / (1 - ARRIVE);
+            cbX = targetWX_view - 18 - tt * 80;
+            cbLat = recLat + 2;
+          }
         }
+        const cbFrame = isInterceptor && catchWindow ? "catch" : (Math.floor(t * 10 + salt) % 2 === 0 ? "run_a" : "run_b");
+        sprites.push({ x: worldToScreenX(cbX), y: lateralToScreenY(cbLat), team: defTeam, frame: cbFrame, flipped: !isInterceptor || t < ARRIVE, faceSeed: nameSeed("CB", salt) });
+      }
+      // Safeties (deep)
+      for (let i = 0; i < 2; i++) {
+        const sLat = i === 0 ? -9 : 9;
+        const sStartWX = losWX + 12 * CINEMA.pxPerYard;
+        const dWX = sStartWX + (t > PRE && isComplete && t > ARRIVE ? Math.min(1, t - ARRIVE) * (carrierWX - sStartWX) * 0.8 : 0);
+        const frame = t < PRE ? "idle" : (Math.floor(t * 9 + i + 8) % 2 === 0 ? "run_a" : "run_b");
+        sprites.push({ x: worldToScreenX(dWX), y: lateralToScreenY(sLat), team: defTeam, frame, flipped: true, faceSeed: nameSeed("S", i) });
+      }
+
+      drawSpriteList(ctx, sprites);
+
+      // Ball indicator (not during freeze unless incomplete — then big football)
+      if (!inFreeze) {
+        // Shadow on field beneath ball
+        const ballScreenX = worldToScreenX(ballWX);
+        const ballGroundY = lateralToScreenY(ballLat);
+        ctx.fillStyle = "rgba(0,0,0,0.35)";
+        ctx.beginPath();
+        ctx.ellipse(ballScreenX, ballGroundY, 5, 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Ball
+        ctx.fillStyle = "#8a4520";
+        ctx.beginPath();
+        ctx.ellipse(ballScreenX, ballGroundY - ballArc, 7, 4.2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(ballScreenX - 2, ballGroundY - ballArc - 1, 4, 1);
+      } else if (isComplete) {
+        const wrScreenX = worldToScreenX(carrierWX);
+        const wrScreenY = lateralToScreenY(recLat);
+        const popScale = 1 + Math.sin(freezePhase * Math.PI) * 0.45;
+        const handY = wrScreenY - 50;
+        drawBigFootball(ctx, wrScreenX + (isHighlight ? 30 : 0), handY, 26 * popScale);
+        if (isHighlight) {
+          const cScale = 0.85 + Math.sin(Math.min(1, freezePhase * 2.5) * Math.PI * 0.5) * 0.35;
+          drawHeadCallout(ctx, wrScreenX, wrScreenY - 88, "CAUGHT!", "#f0cc30", cScale);
+        } else if (freezePhase < 0.55) {
+          drawHeadCallout(ctx, wrScreenX, wrScreenY - 80, "CATCH", "#9be09b", 0.75);
+        }
+      } else if (isInt) {
+        // Ball secured by the DB — show big football at interceptor's hands + giant PICK! callout
+        const interceptorLat = recLat + 2;
+        const intX = worldToScreenX(targetWX_view - 18);
+        const intY = lateralToScreenY(interceptorLat);
+        const popScale = 1 + Math.sin(freezePhase * Math.PI) * 0.45;
+        drawBigFootball(ctx, intX + 12, intY - 48, 26 * popScale);
+        const cScale = 0.85 + Math.sin(Math.min(1, freezePhase * 2.5) * Math.PI * 0.5) * 0.4;
+        drawHeadCallout(ctx, intX, intY - 92, "PICK!", "#e07070", cScale);
+      }
+
+      // TD fireworks
+      if (isTD && t > 0.88 && !inFreeze) {
+        const ageMs = (t - 0.88) * totalDur;
+        drawFireworksShow(ctx, ageMs);
+      }
+      // BIG PLAY taunt
+      if (isComplete && !isTD && yardsGained >= 20 && t > ARRIVE + 0.18 && t < 0.96) {
+        const tauntT = (t - (ARRIVE + 0.18)) / (0.96 - (ARRIVE + 0.18));
+        drawTaunt(ctx, worldToScreenX(carrierWX), lateralToScreenY(recLat) - 70, pickTaunt(play, 1), "#f0cc30", tauntT);
       }
 
       // Move callouts on YAC
@@ -2337,26 +2673,36 @@ function buildCinemaAnim(play, prevPlay) {
     }};
   }
 
-  // ── SACK ──────────────────────────────────────────────────────────────
+  // ── SACK (top-down) ───────────────────────────────────────────────────
   if (play.kind === "sack") {
+    const passerSeed = nameSeed(play.passer);
     return { duration: 1700, kind: "sack", render: (t, ctx) => {
-      const qbWX = losWX - 80 - Math.min(1, t * 1.5) * 70;
+      const qbWX = losWX - 5 * CINEMA.pxPerYard - Math.min(1, t * 1.5) * 60;
       setCamFromCarrier(qbWX);
-      const fieldState = { losYard: startYardAbs, fdYard: fdYardAbs };
-      drawCinemaField(ctx, homeTeam, awayTeam, fieldState);
+      drawCinemaField(ctx, homeTeam, awayTeam, { losYard: startYardAbs, fdYard: fdYardAbs });
 
-      for (let i = -2; i <= 2; i++) {
-        const olWX = losWX - 8 - Math.min(t * 1.5, 0.7) * 30 + Math.sin(t * 6 + i) * 2;
-        drawSprite(ctx, worldToScreenX(olWX), CINEMA.groundY + i * 3, offTeam, "idle", false);
+      const sprites = [];
+      const olLats = [-4.5, -2.2, 0, 2.2, 4.5];
+      for (let i = 0; i < 5; i++) {
+        const olWX = losWX - 0.7 * CINEMA.pxPerYard - Math.min(t * 1.5, 0.7) * 25 + Math.sin(t * 6 + i) * 2;
+        sprites.push({ x: worldToScreenX(olWX), y: lateralToScreenY(olLats[i]), team: offTeam, frame: "idle", flipped: false, faceSeed: nameSeed("OL", i) });
       }
-      const qbFrame = t > 0.85 ? "tackled" : "stiff";
-      drawSprite(ctx, worldToScreenX(qbWX), CINEMA.groundY, offTeam, qbFrame, false);
-
-      // Pass rusher closing in
-      const rusherStart = losWX + 70;
+      const qbFrame = t > 0.85 ? "tackled" : (t > 0.4 ? "stiff" : "run_b");
+      sprites.push({ x: worldToScreenX(qbWX), y: lateralToScreenY(0.5), team: offTeam, frame: qbFrame, flipped: false, faceSeed: passerSeed });
+      // Pass rusher (from edge, closes on QB)
+      const rusherStart = losWX + 4 * CINEMA.pxPerYard;
       const rusherWX = rusherStart + (qbWX - rusherStart) * easeOutCubic(t);
-      const rFrame = t > 0.85 ? "tackled" : (Math.floor(t * 9) % 2 === 0 ? "run_a" : "run_b");
-      drawSprite(ctx, worldToScreenX(rusherWX), CINEMA.groundY, defTeam, rFrame, true);
+      const rusherLat = 3 + (0.5 - 3) * easeOutCubic(t);
+      const rFrame = t > 0.85 ? "tackled" : (Math.floor(t * 10) % 2 === 0 ? "run_a" : "run_b");
+      sprites.push({ x: worldToScreenX(rusherWX), y: lateralToScreenY(rusherLat), team: defTeam, frame: rFrame, flipped: true, faceSeed: nameSeed("DL", 7) });
+      // Other DL contributing pressure
+      const dlLats = [-3.5, -1.2, 1.2];
+      for (let i = 0; i < 3; i++) {
+        const dWX = losWX + 0.8 * CINEMA.pxPerYard + Math.min(1, t * 1.3) * (qbWX - losWX) * 0.6;
+        const frame = (Math.floor(t * 9 + i) % 2 === 0) ? "run_a" : "run_b";
+        sprites.push({ x: worldToScreenX(dWX), y: lateralToScreenY(dlLats[i]), team: defTeam, frame, flipped: true, faceSeed: nameSeed("DL", i) });
+      }
+      drawSpriteList(ctx, sprites);
       if (t > 0.85 && !play._sackFired) {
         play._sackFired = true;
         showCallout("SACK!");
@@ -2365,39 +2711,63 @@ function buildCinemaAnim(play, prevPlay) {
     }};
   }
 
-  // ── FG / PUNT / FUMBLE / KICKOFF — simplified cinema ──────────────────
+  // ── FG / PUNT / FUMBLE / KICKOFF — top-down ───────────────────────────
   if (play.kind === "fg_good" || play.kind === "fg_miss") {
     const isGood = play.kind === "fg_good";
-    return { duration: 1700, kind: play.kind, render: (t, ctx) => {
+    const kickerSeed = nameSeed(play.kicker);
+    return { duration: 2200, kind: play.kind, render: (t, ctx) => {
       const holderWX = losWX - 7 * CINEMA.pxPerYard;
       const goalWX = yardToWorldX(100);
-      let ballWX, ballArc = 0;
-      if (t < 0.18) { ballWX = holderWX; }
+      let ballWX, ballArc = 0, ballLat = 0;
+      if (t < 0.22) { ballWX = holderWX; }
       else {
-        const tt = (t - 0.18) / 0.82;
+        const tt = (t - 0.22) / 0.78;
         ballWX = holderWX + (goalWX - holderWX) * tt;
-        ballArc = Math.sin(tt * Math.PI) * 130;
+        ballArc = Math.sin(tt * Math.PI) * 140;
+        // Miss drifts laterally
+        if (!isGood) ballLat = Math.sin(tt * 1.4) * 6;
       }
       setCamFromCarrier((holderWX + goalWX) / 2);
       drawCinemaField(ctx, homeTeam, awayTeam, { losYard: startYardAbs });
-      // Kicker + holder
-      drawSprite(ctx, worldToScreenX(holderWX), CINEMA.groundY, offTeam, "idle", false);
-      drawSprite(ctx, worldToScreenX(holderWX - 25), CINEMA.groundY + 4, offTeam, "stiff", false);
+      const sprites = [];
+      sprites.push({ x: worldToScreenX(holderWX), y: lateralToScreenY(0), team: offTeam, frame: t > 0.3 ? "stiff" : "idle", flipped: false, faceSeed: kickerSeed });
+      sprites.push({ x: worldToScreenX(holderWX - 25), y: lateralToScreenY(0.5), team: offTeam, frame: "tackled", flipped: false, faceSeed: nameSeed("Holder") });
+      // 5-man line just in front
+      const lineLats = [-4, -2, 0, 2, 4];
+      for (let i = 0; i < 5; i++) {
+        sprites.push({ x: worldToScreenX(losWX - 0.7 * CINEMA.pxPerYard), y: lateralToScreenY(lineLats[i]), team: offTeam, frame: "idle", flipped: false, faceSeed: nameSeed("OL", i) });
+      }
+      // Defenders attempt block
+      const dLats = [-3, 0, 3];
+      for (let i = 0; i < 3; i++) {
+        sprites.push({ x: worldToScreenX(losWX + 1 * CINEMA.pxPerYard + Math.min(t, 0.4) * 20), y: lateralToScreenY(dLats[i]), team: defTeam, frame: t > 0.3 ? "leap" : "idle", flipped: true, faceSeed: nameSeed("DL", i) });
+      }
+      drawSpriteList(ctx, sprites);
       // Ball
-      ctx.fillStyle = "#6b3416";
-      ctx.beginPath();
-      ctx.ellipse(worldToScreenX(ballWX), CINEMA.groundY - 30 - ballArc, 7, 4, 0, 0, Math.PI * 2);
-      ctx.fill();
+      const bsX = worldToScreenX(ballWX);
+      const bsY = lateralToScreenY(ballLat) - ballArc;
+      ctx.fillStyle = "rgba(0,0,0,0.3)";
+      ctx.beginPath(); ctx.ellipse(bsX, lateralToScreenY(ballLat), 5, 2, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#8a4520";
+      ctx.beginPath(); ctx.ellipse(bsX, bsY, 7, 4.2, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(bsX - 2, bsY - 1, 4, 1);
+      // Goalpost result
       if (t > 0.85) {
         ctx.fillStyle = isGood ? "#f0cc30" : "#e07070";
-        ctx.font = "bold 36px sans-serif";
+        ctx.font = "900 42px sans-serif";
         ctx.textAlign = "center";
-        ctx.fillText(isGood ? "GOOD! ✓" : "NO GOOD ✗", FIELD.W / 2, 90);
+        ctx.fillText(isGood ? "IT'S GOOD!" : "NO GOOD!", FIELD.W / 2, 50);
+        if (isGood && t > 0.92) {
+          const ageMs = (t - 0.92) * 2200;
+          drawFireworksShow(ctx, ageMs);
+        }
       }
     }};
   }
 
   if (play.kind === "punt") {
+    const punterSeed = nameSeed(play.kicker || play.passer);
     return { duration: 2000, kind: "punt", render: (t, ctx) => {
       const punterWX = losWX - 12 * CINEMA.pxPerYard;
       const landWX = endWX;
@@ -2406,15 +2776,23 @@ function buildCinemaAnim(play, prevPlay) {
       else {
         const tt = (t - 0.20) / 0.80;
         ballWX = punterWX + (landWX - punterWX) * tt;
-        ballArc = Math.sin(tt * Math.PI) * 180;
+        ballArc = Math.sin(tt * Math.PI) * 200;
       }
       setCamFromCarrier(ballWX);
       drawCinemaField(ctx, homeTeam, awayTeam, { losYard: startYardAbs });
-      drawSprite(ctx, worldToScreenX(punterWX), CINEMA.groundY, offTeam, "stiff", false);
-      ctx.fillStyle = "#6b3416";
-      ctx.beginPath();
-      ctx.ellipse(worldToScreenX(ballWX), CINEMA.groundY - 30 - ballArc, 7, 4, 0, 0, Math.PI * 2);
-      ctx.fill();
+      const sprites = [];
+      sprites.push({ x: worldToScreenX(punterWX), y: lateralToScreenY(0), team: offTeam, frame: t > 0.2 ? "stiff" : "idle", flipped: false, faceSeed: punterSeed });
+      const lineLats = [-4, -2, 0, 2, 4];
+      for (let i = 0; i < 5; i++) {
+        sprites.push({ x: worldToScreenX(losWX - 0.7 * CINEMA.pxPerYard), y: lateralToScreenY(lineLats[i]), team: offTeam, frame: "idle", flipped: false, faceSeed: nameSeed("OL", i) });
+      }
+      drawSpriteList(ctx, sprites);
+      const bsX = worldToScreenX(ballWX);
+      const bsY = lateralToScreenY(0) - ballArc;
+      ctx.fillStyle = "rgba(0,0,0,0.3)";
+      ctx.beginPath(); ctx.ellipse(bsX, lateralToScreenY(0), 5, 2, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#8a4520";
+      ctx.beginPath(); ctx.ellipse(bsX, bsY, 7, 4.2, 0, 0, Math.PI * 2); ctx.fill();
     }};
   }
 
@@ -2423,30 +2801,60 @@ function buildCinemaAnim(play, prevPlay) {
       const kickerWX = yardToWorldX(35);
       const landWX = yardToWorldX(75);
       const ballWX = kickerWX + (landWX - kickerWX) * t;
-      const arc = Math.sin(t * Math.PI) * 200;
+      const arc = Math.sin(t * Math.PI) * 220;
       setCamFromCarrier(ballWX);
       drawCinemaField(ctx, homeTeam, awayTeam, null);
-      drawSprite(ctx, worldToScreenX(kickerWX), CINEMA.groundY, awayTeam, "stiff", false);
-      ctx.fillStyle = "#6b3416";
-      ctx.beginPath();
-      ctx.ellipse(worldToScreenX(ballWX), CINEMA.groundY - 30 - arc, 7, 4, 0, 0, Math.PI * 2);
-      ctx.fill();
+      drawSprite(ctx, worldToScreenX(kickerWX), lateralToScreenY(0), awayTeam, t > 0.2 ? "stiff" : "idle", false, false, nameSeed("Kicker"));
+      const bsX = worldToScreenX(ballWX);
+      const bsY = lateralToScreenY(0) - arc;
+      ctx.fillStyle = "rgba(0,0,0,0.3)";
+      ctx.beginPath(); ctx.ellipse(bsX, lateralToScreenY(0), 5, 2, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#8a4520";
+      ctx.beginPath(); ctx.ellipse(bsX, bsY, 8, 5, 0, 0, Math.PI * 2); ctx.fill();
     }};
   }
 
   if (play.kind === "fumble") {
-    return { duration: 1500, kind: "fumble", render: (t, ctx) => {
+    const rusherSeed = nameSeed(play.rusher);
+    return { duration: 1900, kind: "fumble", render: (t, ctx) => {
       setCamFromCarrier(losWX);
       drawCinemaField(ctx, homeTeam, awayTeam, { losYard: startYardAbs });
-      const wobX = losWX + 30 + Math.sin(t * 18) * 18;
-      drawSprite(ctx, worldToScreenX(losWX), CINEMA.groundY, offTeam, "tackled", false);
-      ctx.fillStyle = "#6b3416";
-      ctx.beginPath();
-      ctx.ellipse(worldToScreenX(wobX), CINEMA.groundY - 10 + Math.cos(t * 14) * 8, 7, 4, 0, 0, Math.PI * 2);
-      ctx.fill();
+      // Ball bounces around wildly
+      const wobX = losWX + 30 + Math.sin(t * 18) * 26;
+      const wobLat = Math.cos(t * 12) * 4;
+      const bsX = worldToScreenX(wobX);
+      const bsY = lateralToScreenY(wobLat) - Math.abs(Math.sin(t * 12)) * 22;
+      const sprites = [];
+      // Fumbling player (collapsed)
+      sprites.push({ x: worldToScreenX(losWX), y: lateralToScreenY(0), team: offTeam, frame: "tackled", flipped: false, faceSeed: rusherSeed });
+      // Defenders piling in
+      for (let i = 0; i < 4; i++) {
+        const angle = i * Math.PI / 2;
+        const dWX = losWX + Math.cos(angle) * 40 * (1 - t * 0.8);
+        const dLat = Math.sin(angle) * 5 * (1 - t * 0.8);
+        const frame = t > 0.6 ? "tackled" : (Math.floor(t * 12 + i) % 2 === 0 ? "run_a" : "run_b");
+        sprites.push({ x: worldToScreenX(dWX), y: lateralToScreenY(dLat), team: defTeam, frame, flipped: true, faceSeed: nameSeed("D", i) });
+      }
+      drawSpriteList(ctx, sprites);
+      // Bouncing ball
+      ctx.fillStyle = "rgba(0,0,0,0.3)";
+      ctx.beginPath(); ctx.ellipse(bsX, lateralToScreenY(wobLat), 5, 2, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#8a4520";
+      ctx.beginPath(); ctx.ellipse(bsX, bsY, 8, 5, Math.sin(t * 8), 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(bsX - 2, bsY - 1, 4, 1);
+      // Giant FUMBLE! callout
+      if (t > 0.25) {
+        const cT = Math.min(1, (t - 0.25) / 0.2);
+        const cScale = 0.7 + cT * 0.6;
+        ctx.save();
+        ctx.globalAlpha = cT;
+        drawHeadCallout(ctx, FIELD.W / 2, 70, "FUMBLE!", "#e07070", cScale);
+        ctx.restore();
+      }
       if (t > 0.6 && !play._fumbleFired) {
         play._fumbleFired = true;
-        showCallout("FUMBLE!");
+        showCallout("RECOVERED!");
       }
       if (t < 0.05) play._fumbleFired = false;
     }};
