@@ -2423,6 +2423,21 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   const rs = RUN_STYLES[runStyle] || RUN_STYLES.smooth;
   const bt = BODY_TYPES[style.bodyType] || BODY_TYPES.NORMAL;
 
+  // Per-player phase offset + amplitude jitter — derived from the jersey/role
+  // so the same player always animates the same way. Desynchronizes the squad
+  // so they don't all swing arms in unison.
+  let phaseHash = 0;
+  const phaseStr = String(label || "") + String(style.role || "");
+  for (let i = 0; i < phaseStr.length; i++) phaseHash = (phaseHash * 31 + phaseStr.charCodeAt(i)) >>> 0;
+  const phaseOffset = ((phaseHash % 1000) / 1000);             // 0–1
+  const ampJitter   = 0.78 + ((phaseHash >> 10) % 100) / 220;  // ~0.78–1.23
+  const legAmp = rs.legAmp * ampJitter;
+  const armAmp = rs.armAmp * ampJitter;
+  // Shift t by per-player offset for run/carry/celebrate cycles
+  if (pose === "run" || pose === "carry") {
+    t = (t + phaseOffset) % 1;
+  }
+
   // Shade helpers — multiply RGB by factor to get a darker / lighter variant
   // for shading the body parts. Falls back to the input on parse error.
   const tweakColor = (c, factor) => {
@@ -2477,18 +2492,29 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     case "run":
     case "carry": {
       const ph = runPhase;
-      // Legs alternate. The leg swinging BACK gets lifted (knee comes up = back foot off ground)
-      lLeg =  ph * rs.legAmp;          // positive when forward
-      rLeg = -ph * rs.legAmp;
-      lLegLift = Math.max(0, -ph) * 7; // lift when going back/swing
+      // Legs alternate, jittered amplitude per player so they don't all sync
+      lLeg =  ph * legAmp;
+      rLeg = -ph * legAmp;
+      lLegLift = Math.max(0, -ph) * 7;
       rLegLift = Math.max(0,  ph) * 7;
-      // Arms swing OPPOSITE to legs
-      lArm = -ph * rs.armAmp;
-      rArm =  ph * rs.armAmp;
+      // Arms swing opposite to legs — but a sliver of players (notably some
+      // pursuing defenders) hold one arm out steady as a "pointing/reaching"
+      // gesture instead of pumping both. Looks more natural than perfect
+      // metronome arms.
+      const lockedArm = pose === "run" && (phaseHash % 9) === 0;
+      if (lockedArm) {
+        // One arm pointed forward in the facing direction (tracking the ball
+        // carrier or QB), the other swings at half amplitude.
+        lArm = -facing * 0.6;
+        rArm =  ph * armAmp * 0.4;
+      } else {
+        lArm = -ph * armAmp;
+        rArm =  ph * armAmp;
+      }
       bodyTilt = facing * rs.lean;
       bodyDY = -(Math.abs(ph) * 0.5 + 0.2) * rs.bob;
       if (pose === "carry") {
-        rArm = -0.25;  // ball-side arm tucked in
+        rArm = -0.25;
         rightHandBall = true;
       }
       break;
