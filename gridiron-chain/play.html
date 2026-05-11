@@ -4216,7 +4216,7 @@ function buildPlayerTooltip(p) {
   const trophyHtml = buildTrophyShelf(p);
   return `
     <div class="tt-header">
-      <img class="tt-mugshot" src="${mugshotUrl}" width="68" height="78" alt="mugshot">
+      <img class="tt-mugshot" src="${mugshotUrl}" width="78" height="88" alt="mugshot">
       <div class="tt-header-body">
         <div class="tt-name">${nameDisplay}</div>
         ${legalHtml}
@@ -4236,25 +4236,275 @@ function buildPlayerTooltip(p) {
 
 // ─── PROFILE-PAGE HELPERS ──────────────────────────────────────────────────
 function generateMugshotDataUrl(p) {
-  // Render a small player sprite to an offscreen canvas, return as data URL
+  // Doom-guy style passport portrait — front-facing helmet + facemask grille,
+  // face peering through, shoulders + jersey number at the bottom.
+  const W = 78, H = 88;
   const canvas = document.createElement("canvas");
-  canvas.width = 68; canvas.height = 78;
+  canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext("2d");
-  // Background — dark with subtle team color tint
   const team = p.team === "home" ? (gameResult && gameResult.homeTeam) : (gameResult && gameResult.awayTeam);
-  const primary = team?.primary || "#222";
-  const secondary = team?.secondary || "#fff";
-  // Gradient backdrop
-  const grad = ctx.createLinearGradient(0, 0, 0, 78);
-  grad.addColorStop(0, "#15151c");
-  grad.addColorStop(1, primary);
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, 68, 78);
-  // Use the standard drawPlayer fn but with custom transform to fit in this
-  // small canvas. drawPlayer uses internal scaling already.
-  ctx.translate(34, 64);
-  ctx.scale(1.05, 1.05);
-  drawPlayer(ctx, 0, 0, primary, secondary, "", "idle", 0, 1, p);
+  const primary = team?.primary || "#3a3a44";
+  const secondary = team?.secondary || "#f0f0f0";
+  // Shade helpers
+  const shade = (c, f) => {
+    if (!c || c[0] !== "#" || c.length !== 7) return c;
+    const r = Math.min(255, Math.max(0, Math.round(parseInt(c.slice(1,3),16) * f)));
+    const g = Math.min(255, Math.max(0, Math.round(parseInt(c.slice(3,5),16) * f)));
+    const b = Math.min(255, Math.max(0, Math.round(parseInt(c.slice(5,7),16) * f)));
+    return `rgb(${r},${g},${b})`;
+  };
+  // Skin tone — deterministic from player name+pos
+  const SKIN_TONES = [
+    { base: "#eccaa3", dark: "#b08966", light: "#fce0bd" },
+    { base: "#d6a878", dark: "#9b7448", light: "#ecc69a" },
+    { base: "#b4805a", dark: "#7e553a", light: "#d6a17c" },
+    { base: "#8a5d3a", dark: "#5d3d22", light: "#a87a52" },
+    { base: "#6b4128", dark: "#42271a", light: "#8a5a3a" },
+  ];
+  let hash = 0;
+  const seedStr = (p.name || "") + (p.position || "");
+  for (let i = 0; i < seedStr.length; i++) hash = (hash * 31 + seedStr.charCodeAt(i)) >>> 0;
+  const skin = SKIN_TONES[hash % SKIN_TONES.length];
+
+  // Backdrop — vertical gradient, dark to muted team color
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, "#0c0c14");
+  bg.addColorStop(0.7, shade(primary, 0.55));
+  bg.addColorStop(1, shade(primary, 0.40));
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+  // Subtle vignette dots in the corners
+  ctx.fillStyle = "rgba(0,0,0,0.25)";
+  ctx.fillRect(0, 0, 8, 8);
+  ctx.fillRect(W - 8, 0, 8, 8);
+  ctx.fillRect(0, H - 8, 8, 8);
+  ctx.fillRect(W - 8, H - 8, 8, 8);
+
+  const cx = W / 2;
+  // ── Shoulder pads (chunky slab at the bottom) ──
+  const padTop = H - 22;
+  ctx.fillStyle = primary;
+  ctx.beginPath();
+  ctx.moveTo(-2, H);
+  ctx.lineTo(-2, padTop + 2);
+  ctx.lineTo(8, padTop - 6);
+  ctx.lineTo(W - 8, padTop - 6);
+  ctx.lineTo(W + 2, padTop + 2);
+  ctx.lineTo(W + 2, H);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "rgba(0,0,0,0.6)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  // Pad highlight stripe (top edge in secondary)
+  ctx.fillStyle = secondary;
+  ctx.fillRect(10, padTop - 5, W - 20, 1.4);
+  // Jersey number at the bottom (bigger Impact font)
+  const num = p.label || p.jersey || "";
+  if (num) {
+    ctx.font = "900 11px Impact, Arial Black, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "rgba(0,0,0,0.6)";
+    ctx.fillText(num, cx + 0.5, H - 6.5);
+    ctx.fillStyle = secondary;
+    ctx.fillText(num, cx, H - 7);
+  }
+  // V-neck of the jersey
+  ctx.fillStyle = "#0a0a14";
+  ctx.beginPath();
+  ctx.moveTo(cx - 9, padTop - 6);
+  ctx.lineTo(cx, padTop + 6);
+  ctx.lineTo(cx + 9, padTop - 6);
+  ctx.closePath();
+  ctx.fill();
+  // Neck — skin showing above the collar
+  ctx.fillStyle = skin.base;
+  ctx.fillRect(cx - 7, padTop - 14, 14, 9);
+  ctx.fillStyle = skin.dark;
+  ctx.fillRect(cx - 7, padTop - 7, 14, 2);   // shadow under jaw
+
+  // ── Helmet — big front-facing oval ──
+  const helmW = 50;
+  const helmH = 50;
+  const helmCx = cx;
+  const helmCy = H * 0.43;
+  // Drop shadow under the helmet
+  ctx.fillStyle = "rgba(0,0,0,0.45)";
+  ctx.beginPath();
+  ctx.ellipse(helmCx + 2, helmCy + 3, helmW/2 + 1, helmH/2 + 1, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Helmet body — radial gradient (highlight upper-left, shadow lower-right)
+  const helmGrad = ctx.createRadialGradient(helmCx - 8, helmCy - 12, 2, helmCx, helmCy, helmW/2);
+  helmGrad.addColorStop(0, shade(primary, 1.35));
+  helmGrad.addColorStop(0.45, primary);
+  helmGrad.addColorStop(1, shade(primary, 0.50));
+  ctx.fillStyle = helmGrad;
+  ctx.beginPath();
+  ctx.ellipse(helmCx, helmCy, helmW/2, helmH/2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(0,0,0,0.7)";
+  ctx.lineWidth = 1.6;
+  ctx.stroke();
+  // Bottom rim shadow
+  ctx.strokeStyle = "rgba(0,0,0,0.45)";
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.ellipse(helmCx, helmCy + 1, helmW/2 - 0.5, helmH/2 - 0.5, 0, 0.18, Math.PI - 0.18);
+  ctx.stroke();
+  // Center stripe — front-facing view shows as a thin vertical band
+  ctx.fillStyle = secondary;
+  ctx.fillRect(helmCx - 1.6, helmCy - helmH/2 + 1, 3.2, helmH * 0.78);
+  ctx.strokeStyle = "rgba(0,0,0,0.4)";
+  ctx.lineWidth = 0.4;
+  ctx.strokeRect(helmCx - 1.6, helmCy - helmH/2 + 1, 3.2, helmH * 0.78);
+  // Top-front highlight reflection (glossy dome feel)
+  ctx.fillStyle = "rgba(255,255,255,0.28)";
+  ctx.beginPath();
+  ctx.ellipse(helmCx - 9, helmCy - 14, 12, 6, -0.4, 0, Math.PI * 2);
+  ctx.fill();
+
+  // ── Face opening — skin behind facemask ──
+  const faceCx = helmCx;
+  const faceCy = helmCy + 6;
+  const faceW = helmW * 0.58;
+  const faceH = helmH * 0.50;
+  ctx.fillStyle = skin.base;
+  ctx.beginPath();
+  ctx.ellipse(faceCx, faceCy, faceW/2, faceH/2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Face shading — lower half slightly darker (jaw)
+  ctx.fillStyle = skin.dark;
+  ctx.globalAlpha = 0.45;
+  ctx.beginPath();
+  ctx.ellipse(faceCx, faceCy + 5, faceW/2 - 2, faceH/3, 0, 0, Math.PI);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  // Eyebrows — angle them based on archetype (aggressive = angry/V-shape)
+  const isAggressive = ["POWER","THUMPER","GUNSLINGER","PENETRATOR","SHUTDOWN"].includes(p.archetype);
+  const isWise = ["GAME_MANAGER","POCKET","POSSESSION","ROUTE_RUNNER","TECHNICIAN"].includes(p.archetype);
+  ctx.strokeStyle = "#15151c";
+  ctx.lineWidth = 1.6;
+  ctx.lineCap = "round";
+  if (isAggressive) {
+    // Furrowed brows — inner ends low (Doom guy)
+    ctx.beginPath();
+    ctx.moveTo(faceCx - 8, faceCy - 7);
+    ctx.lineTo(faceCx - 2, faceCy - 4);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(faceCx + 8, faceCy - 7);
+    ctx.lineTo(faceCx + 2, faceCy - 4);
+    ctx.stroke();
+  } else if (isWise) {
+    // Neutral high brows — calm focus
+    ctx.beginPath();
+    ctx.moveTo(faceCx - 8, faceCy - 6);
+    ctx.lineTo(faceCx - 2, faceCy - 7);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(faceCx + 2, faceCy - 7);
+    ctx.lineTo(faceCx + 8, faceCy - 6);
+    ctx.stroke();
+  } else {
+    // Standard — slight angle
+    ctx.beginPath();
+    ctx.moveTo(faceCx - 8, faceCy - 6);
+    ctx.lineTo(faceCx - 2, faceCy - 5);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(faceCx + 8, faceCy - 6);
+    ctx.lineTo(faceCx + 2, faceCy - 5);
+    ctx.stroke();
+  }
+  // Eyes — small dark ovals
+  ctx.fillStyle = "#0a0a14";
+  ctx.beginPath();
+  ctx.ellipse(faceCx - 5.5, faceCy - 2, 1.6, 1.9, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(faceCx + 5.5, faceCy - 2, 1.6, 1.9, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Eye highlights — small white pixels (catchlight)
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(faceCx - 6.2, faceCy - 3, 0.8, 0.8);
+  ctx.fillRect(faceCx + 4.8, faceCy - 3, 0.8, 0.8);
+  // Nose — small shaded vertical strip + tip
+  ctx.fillStyle = skin.dark;
+  ctx.fillRect(faceCx - 0.8, faceCy - 1, 1.6, 4);
+  ctx.fillStyle = "rgba(0,0,0,0.3)";
+  ctx.fillRect(faceCx - 1.3, faceCy + 3, 2.6, 1);
+  // Mouth — varies by archetype
+  ctx.strokeStyle = "#3a2010";
+  ctx.lineWidth = 1.3;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  if (isAggressive) {
+    // Grimace — firm flat line
+    ctx.moveTo(faceCx - 5, faceCy + 7);
+    ctx.lineTo(faceCx + 5, faceCy + 7);
+  } else if (isWise) {
+    // Slight closed-mouth smirk
+    ctx.moveTo(faceCx - 4, faceCy + 7);
+    ctx.quadraticCurveTo(faceCx, faceCy + 6, faceCx + 4, faceCy + 7);
+  } else {
+    // Neutral / slight upward
+    ctx.moveTo(faceCx - 4, faceCy + 7);
+    ctx.quadraticCurveTo(faceCx, faceCy + 8, faceCx + 4, faceCy + 7);
+  }
+  ctx.stroke();
+
+  // ── Facemask cage — chrome bars overlaying the face ──
+  ctx.strokeStyle = "#2c2c34";
+  ctx.lineWidth = 1.9;
+  // Vertical nose guard
+  ctx.beginPath();
+  ctx.moveTo(faceCx, faceCy - faceH/2 - 1);
+  ctx.lineTo(faceCx, faceCy + faceH/2 + 1);
+  ctx.stroke();
+  // Horizontal cross-bars (3 rows)
+  const barYs = [faceCy - 8, faceCy + 1, faceCy + 9];
+  for (const by of barYs) {
+    ctx.beginPath();
+    ctx.moveTo(faceCx - faceW/2 - 1, by);
+    ctx.lineTo(faceCx + faceW/2 + 1, by);
+    ctx.stroke();
+  }
+  // Chrome highlights on the top of each bar
+  ctx.strokeStyle = "#a8a8b0";
+  ctx.lineWidth = 0.6;
+  for (const by of barYs) {
+    ctx.beginPath();
+    ctx.moveTo(faceCx - faceW/2 - 1, by - 0.7);
+    ctx.lineTo(faceCx + faceW/2 + 1, by - 0.7);
+    ctx.stroke();
+  }
+  // Side anchor brackets
+  ctx.strokeStyle = "#2c2c34";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(faceCx - faceW/2 - 1, barYs[0]);
+  ctx.lineTo(faceCx - faceW/2 - 1, barYs[2]);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(faceCx + faceW/2 + 1, barYs[0]);
+  ctx.lineTo(faceCx + faceW/2 + 1, barYs[2]);
+  ctx.stroke();
+
+  // Team logo — small disc on the side of the helmet (temple area)
+  ctx.fillStyle = secondary;
+  ctx.beginPath();
+  ctx.arc(helmCx - helmW * 0.36, helmCy + 3, 4.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = primary;
+  ctx.beginPath();
+  ctx.arc(helmCx - helmW * 0.36, helmCy + 3, 2.8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "rgba(255,255,255,0.45)";
+  ctx.beginPath();
+  ctx.arc(helmCx - helmW * 0.36 - 0.7, helmCy + 2.3, 0.9, 0, Math.PI * 2);
+  ctx.fill();
+
   return canvas.toDataURL();
 }
 
