@@ -3958,9 +3958,9 @@ function buildAnimForPlay(play, prevPlay) {
   // Extra pre-snap time when audibling (gives the play call space to breathe)
   const PRE = isAudible ? 0.34 : 0.24;
 
-  // Defender pursuit speed cap (pixels per ms) to prevent teleporting.
-  // Tuned so a defender covers about 60 yards in 1.8 seconds of play (decent NFL speed).
-  const PURSUIT_PX_MS = (FIELD.PX_PER_YARD * 60) / 1800;
+  // Defender pursuit speed cap — tuned to a fast NFL defender (~9 yds/s).
+  // Carrier runs slightly faster, so on breakaways defenders visibly trail.
+  const PURSUIT_PX_MS = (FIELD.PX_PER_YARD * 9) / 1000;
   const pursue = (d, tx, ty, elapsedMs, factor = 1.0) => {
     const dx = tx - d.x, dy = ty - d.y;
     const dist = Math.hypot(dx, dy);
@@ -3969,6 +3969,13 @@ function buildAnimForPlay(play, prevPlay) {
     const f = maxMove / Math.max(0.001, dist);
     return { x: d.x + dx * f, y: d.y + dy * f };
   };
+  // Play duration scales with yardage so big plays don't look like teleports.
+  // A 5-yd run = ~2 s; a 60-yd TD = ~5.5 s. Carrier covers ground at a
+  // realistic ~11 yds/s, defenders ~9 yds/s.
+  function scaledDuration(yds) {
+    const base = isAudible ? 2100 : 1900;
+    return clamp(base + Math.abs(yds || 0) * 60, isAudible ? 2300 : 2100, 5500);
+  }
 
   // Pre-snap audible callout — drawn during the first half of PRE window.
   function drawPreSnapCallouts(c, t) {
@@ -3998,7 +4005,7 @@ function buildAnimForPlay(play, prevPlay) {
     const endX = yardToAbsX(play.endYard, poss);
     const yards = play.yards ?? 0;
     const isTD = (play.endYard ?? 0) >= 100;
-    const dur = isAudible ? 2600 : 2300;
+    const dur = scaledDuration(yards);
     return { duration: dur, kind: "run", render: (t, c) => {
       ctx = c;
       drawField(ctx, homeTeam, awayTeam, fieldState);
@@ -4009,8 +4016,16 @@ function buildAnimForPlay(play, prevPlay) {
       if (t < PRE) {
         ballX = formation.qb.x;
       } else {
-        ballX = qb.x + (endX - qb.x) * easeOutCubic(runT);
-        rb.x = qb.x + (endX - qb.x) * easeOutCubic(runT);
+        // For short plays use easeOutCubic (sharp burst). For long plays
+        // blend toward linear so the carrier doesn't appear to teleport.
+        const distYds = Math.abs(play.endYard - play.startYard);
+        const linearW = Math.min(1, Math.max(0, (distYds - 8) / 20));  // 0 at 8 yds, 1 at 28+
+        const eased = easeOutCubic(runT);
+        // Small accel ramp at the start so they don't instant-jump
+        const ramp = runT < 0.12 ? (runT / 0.12) * (runT / 0.12) * 0.12 : runT;
+        const progress = eased * (1 - linearW) + ramp * linearW;
+        ballX = qb.x + (endX - qb.x) * progress;
+        rb.x = qb.x + (endX - qb.x) * progress;
         rb.y = cy + (1 - runT) * 18;
       }
       // (rbLateral added after pose decision below)
@@ -4162,7 +4177,9 @@ function buildAnimForPlay(play, prevPlay) {
     const yac = isComplete ? (play.yac ?? Math.max(0, (play.yards ?? 0) - catchDepth)) : 0;
     // Final Y where YAC ends — receiver may drift back toward middle if running upfield
     const finalY = targetY + (cy - targetY) * Math.min(0.5, yac / 40);
-    const dur = isAudible ? 2800 : 2500;
+    // Pass plays — duration scales with the yards (including YAC)
+    const passYards = (play.yards ?? 0) + ((play.targetDepth ?? 0) > (play.yards ?? 0) ? 0 : 0);
+    const dur = scaledDuration(Math.max(play.targetDepth ?? 0, play.yards ?? 0, 8));
     return { duration: dur, kind: play.kind, render: (t, c) => {
       ctx = c;
       drawField(ctx, homeTeam, awayTeam, fieldState);
