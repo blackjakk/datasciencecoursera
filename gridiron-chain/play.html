@@ -1333,7 +1333,9 @@ class GameSimulator {
         ((defArch.CB || []).filter(c => c?.archetype === "BALL_HAWK").length * 0.010) +
         ((defArch.S  || []).filter(s => s?.archetype === "BALL_HAWK").length * 0.012);
       // Pressured QBs throw more INTs (rushed/forced throws). QB archetype tilts this too.
-      const intPct = clamp(0.022 - adv * 0.010 + (this.defR.cb - 60) / 1200 + pressure * 0.018 + ballHawkBonus + qbIntMod, 0.003, 0.12);
+      // Bad QBs (low OVR) make poor reads → significantly more INTs.
+      const qbIntFromOvr = (75 - this.offR.qb) / 800;  // QB 60 → +0.019, QB 90 → -0.019
+      const intPct = clamp(0.022 - adv * 0.010 + (this.defR.cb - 60) / 1200 + pressure * 0.018 + ballHawkBonus + qbIntMod + qbIntFromOvr, 0.003, 0.16);
       if (Math.random() < intPct) {
         const targetDepth = clamp(normal(11, 7), 2, 35);
         if (qbStats) { qbStats.pass_att++; qbStats.pass_int++; }
@@ -1378,10 +1380,15 @@ class GameSimulator {
       const offArch = this.offArch;
       const possessionBonus = ((offArch.WR1?.archetype === "POSSESSION") ? 0.020 : 0)
                             + ((offArch.WR2?.archetype === "POSSESSION") ? 0.012 : 0);
-      const compPct = clamp((0.60 + adv * 0.14 + (this.offR.qb - 60) / 300 - pressure * 0.12 - shutdownPenalty + possessionBonus + qbCompMod) * compPbMul, 0.25, 0.85);
+      // QB OVR matters a lot for completion %: a 60-OVR scrub completes far less than a 90-OVR star
+      // (swing of ~0.20 across 30 OVR points, centered around 75 OVR baseline)
+      const qbCompFromOvr = (this.offR.qb - 75) / 150;  // QB 60 → -0.10, QB 90 → +0.10
+      const compPct = clamp((0.60 + adv * 0.14 + qbCompFromOvr - pressure * 0.12 - shutdownPenalty + possessionBonus + qbCompMod) * compPbMul, 0.20, 0.85);
       if (Math.random() < compPct) {
         // Air yards drop when pressure shortens the QB's reads (check-downs / dump-offs)
-        const airMean = (pb.airYdsMean ?? 7.5) - pressure * 2.8 + qbAirMod;
+        // Weaker QBs also throw shorter — they can't push the ball downfield reliably
+        const qbAirFromOvr = (this.offR.qb - 75) / 12;  // QB 60 → -1.25 yds, QB 90 → +1.25 yds
+        const airMean = (pb.airYdsMean ?? 7.5) - pressure * 2.8 + qbAirMod + qbAirFromOvr;
         const airSd   = (pb.airYdsSd   ?? 6) * (qbArch === "GUNSLINGER" ? 1.25 : 1.0);
         const airYds  = clamp(normal(airMean + adv * 2, airSd), -2, 55);
         // YAC distribution — short catches / screens get more YAC potential
@@ -2569,24 +2576,21 @@ $("simManyModal").addEventListener("click", (e) => {
 // archetype gets a fair shot at the same rating ceiling.
 function runManyGamesByQBArchetype(home, away, hRoster, aRoster, n, targetOvr) {
   const archetypes = Object.keys(QB_ARCHETYPES);
-  // Remove the existing starting QB from a working copy of the roster
-  const rosterCopy = hRoster.slice();
-  const qbIdx = rosterCopy
-    .map((p, i) => ({ p, i }))
-    .filter(x => x.p.position === "QB")
-    .sort((a, b) => b.p.overall - a.p.overall)[0]?.i;
-  if (qbIdx == null) return null;
-  const origStarter = rosterCopy[qbIdx];
+  // Strip ALL QBs from the cloned roster — we'll add a single test QB per arch.
+  // Otherwise a 65-OVR backup could outrank our 60-OVR test QB and start instead.
+  const rosterNoQB = hRoster.filter(p => p.position !== "QB");
+  const origStarter = hRoster.filter(p => p.position === "QB")
+    .sort((a, b) => b.overall - a.overall)[0];
+  if (!origStarter) return null;
   const results = {};
   const testQBs = {};
   for (const arch of archetypes) {
     const testQB = genTestQB(arch, targetOvr);
     testQBs[arch] = testQB;
-    rosterCopy[qbIdx] = testQB;
+    const rosterCopy = [testQB, ...rosterNoQB];
     results[arch] = runManyGames(home, away, rosterCopy, aRoster, n);
   }
-  rosterCopy[qbIdx] = origStarter;
-  return { archetypes, results, testQBs, targetOvr, origStarterName: origStarter.name };
+  return { archetypes, results, testQBs, targetOvr, origStarterName: origStarter.name, origStarterOvr: origStarter.overall };
 }
 
 function renderSimByQBResults(data, home, away) {
