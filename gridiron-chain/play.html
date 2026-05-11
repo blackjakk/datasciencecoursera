@@ -734,24 +734,98 @@ function pickReceiver(playbook, starters) {
 }
 
 // ─── Player generation ────────────────────────────────────────────────────
-// Name pool — modern names with a subtle biblical undercurrent. Many of these
-// (Daniel, David, Joshua, Samuel, Isaiah, Caleb, Eli, Aaron, Ezra) work as
-// regular American names too, so the biblical flavor is felt without being
-// in-your-face.
+// Sprawling, multi-cultural name pool. American + biblical + international
+// (German, Italian, Polish, Hispanic, Japanese, Korean, Polynesian/Samoan).
+// Creative D'/Ja'/La' names get generated on the fly to add freshness.
 const FIRST = [
-  "Marcus","Tyler","Darius","Jordan","Malik","Devon","Elijah","Xavier","Cameron","Jaylen",
-  "Trevor","Caleb","Nathan","Brandon","Derrick","Antonio","Deon","Travon","Rasheed","Quincy",
-  "Zach","Hunter","Brayden","Cole","Jake","Ryan","Luke","Evan","Aaron","Chris",
-  "Isaiah","Jamal","Tyrone","Lamar","Andre","Reggie","Stefon","Amari","Cooper","Travis",
+  // Modern American — common
+  "Marcus","Tyler","Darius","Jordan","Malik","Devon","Xavier","Cameron","Jaylen","Trevor",
+  "Nathan","Brandon","Derrick","Antonio","Deon","Travon","Rasheed","Quincy","Zach","Hunter",
+  "Brayden","Cole","Jake","Ryan","Luke","Evan","Aaron","Chris","Jamal","Tyrone","Lamar",
+  "Andre","Reggie","Stefon","Amari","Cooper","Travis","Cam","Justin","Dak","Patrick",
+  "Kyler","Bryce","Joe","Jalen","Christian","Najee","Sterling","Trenton","Bryson","Jaxon",
+  "Kade","Drake","Maverick","Hayden","Walker","Sawyer","Easton","Brennan","Tate","Beckett",
+  "Cason","Karsten","Tanner","Kellen","Knox","Greyson","Sutton","Briggs","Boone","Wyatt",
+  // Biblical (subtle, most read as normal American)
   "Daniel","David","Joshua","Samuel","Eli","Ezra","Josiah","Micah","Asher","Levi",
+  "Caleb","Isaiah","Elijah","Gideon","Boaz","Silas","Ezekiel","Jonah","Jeremiah",
+  // Japanese
+  "Hiroshi","Kenji","Daichi","Haruto","Yuki","Sho","Takuya","Ryo","Akira","Kazuki",
+  "Riku","Yuta","Sota","Kaito","Renji","Tatsuya","Hayato","Souta","Tsubasa","Daiki",
+  // Korean
+  "Min-jun","Hyun","Jin","Sung","Joon","Tae","Dong","Seung","Jisoo","Beom",
+  // Polynesian (Samoan/Tongan/Maori)
+  "Tua","Penei","Tuli","Mosi","Lavaka","Vita","Aolelei","Sefo","Manu","Tevita","Sione","Lopeti",
+  // German / Austrian
+  "Lukas","Maximilian","Stefan","Otto","Rolf","Wolfgang","Jürgen","Hartmut","Sebastian","Klaus",
+  "Niklas","Bastian","Florian","Kai","Anders",
+  // Italian
+  "Marco","Luca","Matteo","Alessandro","Lorenzo","Gianluca","Giovanni","Dante",
+  // Hispanic / Latin
+  "Diego","Mateo","Santiago","Carlos","Javier","Andrés","Rafa","Emilio","Joaquín","Cristián",
+  // Scandinavian / Slavic
+  "Anders","Magnus","Henrik","Bjorn","Olek","Tadek","Kacper","Filip","Janek",
+  // West African
+  "Kwame","Kofi","Sefu","Bayo","Adisa","Femi","Tunde","Kenan",
+  // Brazilian / Portuguese
+  "Caio","Thiago","Rodrigo","Vinicius","João","Murilo",
 ];
+
 const LAST = [
+  // Modern American — common
   "Johnson","Williams","Brown","Jones","Davis","Miller","Wilson","Moore","Taylor","Anderson",
-  "Thomas","Jackson","White","Harris","Martin","Thompson","Garcia","Martinez","Robinson","Clark",
-  "Rodriguez","Lewis","Lee","Walker","Hall","Allen","Young","Hill","Flores","Green",
-  "Adams","Nelson","Baker","Carter","Mitchell","Roberts","Turner","Phillips","Campbell","Reed",
-  "Cohen","Levi","Solomon","Abrams","Levy","Mendoza","Salem",
+  "Thomas","Jackson","White","Harris","Martin","Thompson","Robinson","Clark","Lewis","Lee",
+  "Walker","Hall","Allen","Young","Hill","Green","Adams","Nelson","Baker","Carter",
+  "Mitchell","Roberts","Turner","Phillips","Campbell","Reed","Brooks","Bell","Reeves","Coleman",
+  "Hayes","Bryant","Ford","Knight","Banks","Stone","Vaughn","Rivers","Shaw","Lane",
+  // Biblical / Hebrew
+  "Cohen","Levi","Solomon","Abrams","Levy","Mendoza","Salem","Friedman","Klein",
+  // German / Austrian
+  "Schmidt","Müller","Schneider","Schäfer","Hochuli","Wagner","Becker","Hoffmann","Schulz","Volk",
+  "Bauer","Klose","Weber","Fischer","Kraus","Vogel","Schwartz","Hertz","Roth","Brandt",
+  // Italian
+  "Romano","Rossi","Esposito","Mancini","Russo","Ferrari","Conti","Marino","Bruno","Bianchi",
+  "Ricci","Lombardi","Greco","Costa","Bellucci","Capello",
+  // Polish / Eastern European
+  "Lewandowski","Wojcik","Kowalski","Nowak","Krzyzewski","Kubiak","Konecki","Stankowski",
+  "Pawlowski","Jankowski","Zielinski","Kaminski","Mazur",
+  // Hispanic
+  "Garcia","Martinez","Hernandez","Lopez","Gonzalez","Perez","Sanchez","Ramirez","Torres","Rivera",
+  "Sosa","Cabrera","Diaz","Reyes","Flores","Castillo","Mendez","Alvarado","Ortiz",
+  // Japanese
+  "Tanaka","Suzuki","Sato","Takahashi","Watanabe","Ito","Yamamoto","Nakamura","Kobayashi","Yoshida",
+  "Yamada","Sasaki","Matsumoto","Kondo","Saito","Endo","Hayashi","Ishikawa","Shimizu",
+  // Korean
+  "Kim","Park","Choi","Jung","Kang","Lim","Han","Shin","Yoon","Cho",
+  // Polynesian
+  "Tagovailoa","Tuilagi","Faaleava","Mahuta","Tavai","Manumaleuna","Tuipulotu","Faleafine","Sapolu",
+  "Aumavae","Toilolo","Vaeao",
+  // West African
+  "Adebayo","Okafor","Nwosu","Mbappe","Diallo","Sissoko","Owusu","Asare","Boateng",
+  // Brazilian / Portuguese
+  "Silva","Santos","Oliveira","Pereira","Costa","Almeida","Soares","Cardoso",
+  // Invented / brand-flavored — adds "alive" feeling without being on-the-nose
+  "Apple","Cherry","Maple","Mercedes","Cobra","Lemon","Cadillac","Crowne","Diamond","Ironside",
+  "Pomelo","Olive","Brookstone","Aspen","Cypress","Magnolia","Indigo","Ember","Vesper","Onyx",
 ];
+
+// Creative-style first-name generator — produces things like D'Apple,
+// Ja'Marquis, La'Vontay, Tre'Veon, Ke'Sean. Real NFL has tons of these.
+const CREATIVE_PREFIXES = ["D'","Ja'","La'","Tre'","Ke'","Da'","De'","Quan'","Te'","Sha'"];
+const CREATIVE_ROOTS = [
+  "Andre","Marcus","Vontay","Quan","Sean","Marquis","Veon","Maine","Brick","Wayne",
+  "Onta","Cobra","Apple","Cherry","Maple","Lemon","Mercedes","Cadillac","Stone","Crowne",
+  "Pomelo","Pommel","Veius","Real","Wing","Vine","Vio","Drai","Mahn","Trell","Cion","Reon",
+  "Vante","Saun","Shawn","Lonzo","Vontre","Andre","Jhon","Quez","Quavious",
+];
+function pickFirstName() {
+  // 18% chance to roll a creative-style name, otherwise pull from the pool
+  if (Math.random() < 0.18) {
+    return CREATIVE_PREFIXES[Math.floor(Math.random() * CREATIVE_PREFIXES.length)]
+         + CREATIVE_ROOTS[Math.floor(Math.random() * CREATIVE_ROOTS.length)];
+  }
+  return FIRST[Math.floor(Math.random() * FIRST.length)];
+}
 
 // ── Earned nicknames — only league-wide top 10 in their position get one,
 // and the nickname is chosen based on WHAT THEY'RE KNOWN FOR (their dominant
@@ -872,7 +946,7 @@ const ROSTER_SLOTS = { QB:3, RB:4, WR:6, TE:3, OL:8, DL:6, LB:5, CB:5, S:3, K:1,
 
 const rand = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
 const randf = (a, b) => Math.random() * (b - a) + a;
-const randName = () => `${FIRST[rand(0, FIRST.length - 1)]} ${LAST[rand(0, LAST.length - 1)]}`;
+const randName = () => `${pickFirstName()} ${LAST[rand(0, LAST.length - 1)]}`;
 
 function statsFor(pos, tier) {
   const r = { elite:{lo:78,hi:99}, good:{lo:63,hi:80}, average:{lo:48,hi:67}, poor:{lo:35,hi:54} }[tier];
