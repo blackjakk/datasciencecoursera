@@ -2531,11 +2531,24 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
       lLeg = Math.abs(Math.sin(t * Math.PI * 4)) * 0.7;
       rLeg = -Math.abs(Math.sin(t * Math.PI * 4 + Math.PI)) * 0.7;
       break;
-    case "tackled":
-      bodyRot = -Math.PI / 2 * facing;
-      lArm = -1.1; rArm = 1.1;
-      lLeg = -0.6; rLeg = 0.6;
+    case "tackled": {
+      // Ragdoll fall: t is interpreted as fall progress (0=just hit, 1=flat on ground).
+      // Body rotates from upright to horizontal, limbs splay outward, body bobs down
+      // with a small upward bounce at impact.
+      const fallT = Math.min(1, Math.max(0, t));
+      const fallEase = fallT * fallT * (3 - 2 * fallT);     // smoothstep
+      bodyRot = -Math.PI / 2 * facing * fallEase;            // rotate toward horizontal
+      bodyDY = fallEase * 5 + Math.sin(fallT * Math.PI) * -2;// downward + small upward bump at peak
+      // Arms flail outward as the body falls
+      lArm = -0.4 - fallEase * 0.8;                          // -0.4 → -1.2
+      rArm =  0.4 + fallEase * 0.8;                          //  0.4 →  1.2
+      // Legs splay out
+      lLeg = -fallEase * 0.85;
+      rLeg =  fallEase * 0.85;
+      // Slight body wobble while falling
+      bodyTilt += Math.sin(fallT * Math.PI * 2.2) * 0.05 * (1 - fallEase);
       break;
+    }
     case "stiff":
       lArm = Math.PI / 2;
       rArm = 0.4;
@@ -4629,7 +4642,11 @@ function buildAnimForPlay(play, prevPlay) {
       const eluciveProb = bt > 0 ? 1.0 : (rbArch === "ELUSIVE" ? 0.95 : rbArch === "SPEED" ? 0.65 : 0.55);
       const powerProb   = bt > 0 ? 1.0 : (rbArch === "POWER"   ? 0.90 : rbArch === "WORKHORSE" ? 0.55 : 0.35);
       const inWindow = (a, b) => runT > a && runT < b;
-      if (runT > 0.86 && yards < 90 && !isTD) rbPose = "tackled";
+      if (runT > 0.86 && yards < 90 && !isTD) {
+        rbPose = "tackled";
+        // Pass fall progress as t (0 just hit → 1 fully on ground)
+        rbT = Math.min(1, (runT - 0.86) / 0.14);
+      }
       // EARLY CRUISE: ELUSIVE → juke; POWER → truck stick at/just past the line.
       // Moved later (0.34+) to match the new pacing — moves now happen AFTER the
       // RB has hit the hole, not during the handoff.
@@ -4710,6 +4727,8 @@ function buildAnimForPlay(play, prevPlay) {
         const lane = ((i - 4) % 5) - 2;
         const reactDelay = 0.04 + ((i * 13) % 8) / 100;  // 40-110 ms reaction lag
         const isDodged = i === dodgeIdx && rbLateral !== 0;
+        // TRUCK STICK — the targeted defender gets bowled over (ragdolled)
+        const isTrucked = i === dodgeIdx && rbPose === "truck";
         const txBase = isDodged
           ? rb.x + dir * 4                              // overshoots toward old line
           : rb.x + dir * (4 + ((i - 4) % 3) * 3);
@@ -4722,11 +4741,24 @@ function buildAnimForPlay(play, prevPlay) {
         const factor = (i >= 7 ? 1.02 : (i === 9 || i === 10 ? 1.0 : 0.92)) * carrierFast;
         const np = elapsedMs > 0 ? pursue(d, txBase, tyBase, elapsedMs, factor) : { x: d.x, y: d.y };
         dd.x = np.x; dd.y = np.y;
-        dd.pose = "run";
-        dd.t = (t * 3 + i * 0.13) % 1;
+        if (isTrucked) {
+          // Trucked defender ragdolls — anchor to carrier position and fall
+          dd.x = rb.x + dir * 6;
+          dd.y = rb.y + 2;
+          dd.pose = "tackled";
+          // Fall progress over the truck window (cruise 0.34-0.52)
+          const truckT = Math.min(1, Math.max(0, (runT - 0.34) / 0.20));
+          dd.t = truckT;
+        } else {
+          dd.pose = "run";
+          dd.t = (t * 3 + i * 0.13) % 1;
+        }
         dd.facing = -dir;
         // Tackle pose only when actually within reach of the carrier
-        if (yards < 90 && tt > 0.85 && Math.hypot(rb.x - dd.x, rb.y - dd.y) < 22) dd.pose = "tackled";
+        if (!isTrucked && yards < 90 && tt > 0.85 && Math.hypot(rb.x - dd.x, rb.y - dd.y) < 22) {
+          dd.pose = "tackled";
+          dd.t = Math.min(1, (tt - 0.85) / 0.15);
+        }
         return dd;
       });
       // OL fire out and engage DL at the LOS
@@ -5019,9 +5051,13 @@ function buildAnimForPlay(play, prevPlay) {
         :  (isPostCatch && t > 0.93 && (play.yards ?? 0) < 90 ? "tackled"
         :  (isPostCatch ? "carry"
         :   "run"))));
+      // For the tackled fall, pass fall-progress (not stride cycle) so the
+      // ragdoll animation actually animates.
+      const wrIsTackled = wrPose === "tackled";
+      const wrTackleT = wrIsTackled ? Math.min(1, (t - 0.93) / 0.07) : (t * 3) % 1;
       const wrWithPose = { ...wr,
         pose: wrPose,
-        t: (t * 3) % 1,
+        t: wrTackleT,
         facing: (play.kind === "int" && t > throwPhase + 0.05) ? -dir : dir,
       };
       const off = formation.offense.map(p => {
