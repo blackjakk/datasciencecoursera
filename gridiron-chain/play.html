@@ -753,69 +753,119 @@ const LAST = [
   "Cohen","Levi","Solomon","Abrams","Levy","Mendoza","Salem",
 ];
 
-// ── Earned nicknames — biblical heroes, angels, demons. Only assigned to
-// notable players (elite OVR or a strong archetype match). Pulled into the
-// player's display name as a middle "tag" like Marcus "Samson" Williams.
-const NICKNAMES = {
-  // Heroes — used for power/leadership archetypes
-  hero:   ["Samson","Goliath","Gideon","Joshua","Caleb","Judah","Boaz","Mordecai"],
-  // Angels — for wisdom, deep coverage, command
-  angel:  ["Gabriel","Michael","Raphael","Uriel","Metatron","Sandalphon","Camael","Zadkiel"],
-  // Demons — for pass rushers, enforcers, agents of chaos
-  demon:  ["Baal","Belial","Asmodeus","Leviathan","Behemoth","Moloch","Abaddon","Azazel"],
-  // Sages — wise, durable veterans
-  sage:   ["Methuselah","Solomon","Daniel","Isaiah","Job","Ezekiel"],
-  // Trickster — elusive, deceptive
-  trick:  ["Jacob","Esau","Reynard","Asmodai"],
-  // Watchers — coverage specialists
-  watch:  ["Watcher","Seraph","Cherub","Argus","Heimdall"],
-};
-function pickNickname(player) {
-  if (!player || (player.overall ?? 0) < 86) return null;
-  const r = (arr) => arr[Math.floor(Math.random() * arr.length)];
-  const a = player.archetype;
+// ── Earned nicknames — only league-wide top 10 in their position get one,
+// and the nickname is chosen based on WHAT THEY'RE KNOWN FOR (their dominant
+// stat). Truck-stick RBs get Samson/Goliath; speed RBs get Asahel/Gabriel;
+// shutdown CBs get Argus/Seraph; sack-demon DLs get Baal/Belial; etc.
+function pickCareerNickname(player) {
+  if (!player) return null;
+  const [spd, str, agi, awr, thr, cat, blk, prs, cov, tck, kpw] = player.stats;
   const pos = player.position;
-  const stats = player.stats || [];
-  // Position+archetype → nickname pool weighting
-  if (pos === "QB") {
-    if (a === "GAME_MANAGER" || a === "POCKET")     return r(NICKNAMES.sage);
-    if (a === "DUAL_THREAT" || a === "SCRAMBLER")   return r(NICKNAMES.hero);
-    if (a === "GUNSLINGER")                          return r(NICKNAMES.demon);
-    return r(NICKNAMES.hero);
+  const r = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  // Position-specific "expected mean" — biggest delta above this is the
+  // player's dominant trait.
+  const meanByPos = {
+    QB: { thr: 78, awr: 78, spd: 72, agi: 72 },
+    RB: { spd: 80, str: 76, agi: 78, cat: 70 },
+    WR: { spd: 82, agi: 80, cat: 78, awr: 76 },
+    TE: { cat: 76, str: 80, blk: 76, spd: 74 },
+    OL: { str: 82, blk: 82, agi: 70, awr: 76 },
+    DL: { str: 82, prs: 76, spd: 72, tck: 76 },
+    LB: { tck: 80, cov: 74, prs: 74, spd: 76 },
+    CB: { cov: 82, spd: 82, agi: 80, awr: 76 },
+    S:  { cov: 80, spd: 78, tck: 78, awr: 78 },
+  };
+  const m = meanByPos[pos] || {};
+  const statMap = { spd, str, agi, awr, thr, cat, blk, prs, cov, tck };
+  let dominant = null, dominantDelta = -Infinity;
+  for (const k of Object.keys(m)) {
+    const delta = (statMap[k] - m[k]);
+    if (delta > dominantDelta) { dominantDelta = delta; dominant = k; }
   }
+  // RB
   if (pos === "RB") {
-    if (a === "POWER")     return r(NICKNAMES.hero);
-    if (a === "ELUSIVE")   return r(NICKNAMES.trick);
-    if (a === "SPEED")     return r(NICKNAMES.angel);
-    return r(NICKNAMES.hero);
+    if (dominant === "str") return r(["Samson","Goliath","Behemoth","Og"]);          // truck stick / power
+    if (dominant === "spd") return r(["Asahel","Gabriel","Camael","Mercury"]);       // burner
+    if (dominant === "agi") return r(["Jacob","Esau","Reynard"]);                      // elusive
+    if (dominant === "cat") return r(["Solomon","Daniel","Boaz"]);                     // reliable hands
+    return r(["Joshua","Caleb","Gideon"]);
   }
+  // WR
   if (pos === "WR") {
-    if (a === "DEEP_THREAT")   return r(NICKNAMES.angel);
-    if (a === "POSSESSION")    return r(NICKNAMES.sage);
-    if (a === "ROUTE_RUNNER")  return r(NICKNAMES.sage);
-    if (a === "RED_ZONE")      return r(NICKNAMES.hero);
-    if (a === "SLOT")          return r(NICKNAMES.trick);
-    return r(NICKNAMES.angel);
+    if (dominant === "spd") return r(["Gabriel","Camael","Asahel"]);                  // deep threat
+    if (dominant === "cat") return r(["Methuselah","Job","Solomon"]);                  // reliable hands
+    if (dominant === "agi") return r(["Daniel","Isaiah","Jacob"]);                     // route artist
+    if (dominant === "awr") return r(["Solomon","Daniel","Ezekiel"]);                  // smart
+    return r(["Gabriel","Michael"]);
   }
-  if (pos === "TE") return r(NICKNAMES.hero);
+  // QB
+  if (pos === "QB") {
+    if (dominant === "thr") return r(["Saul","Goliath","Behemoth"]);                  // cannon arm
+    if (dominant === "awr") return r(["Solomon","Daniel","Isaiah","Ezekiel"]);         // wise/seer
+    if (dominant === "spd") return r(["Joshua","David","Caleb"]);                      // mobile warrior king
+    if (dominant === "agi") return r(["David","Joshua"]);
+    return r(["David","Solomon"]);
+  }
+  // DL
   if (pos === "DL") {
-    if (a === "POWER")       return r(NICKNAMES.demon);
-    if (a === "SPEED")       return r(NICKNAMES.demon);
-    if (a === "PENETRATOR")  return r(NICKNAMES.demon);
-    return r(NICKNAMES.demon);
+    if (dominant === "prs") return r(["Baal","Belial","Asmodeus","Azazel","Abaddon"]); // sack demon
+    if (dominant === "str") return r(["Behemoth","Moloch","Goliath","Og"]);             // immovable
+    if (dominant === "spd") return r(["Belial","Azazel","Abaddon"]);                    // speed rusher
+    return r(["Baal","Belial","Asmodeus"]);
   }
+  // LB
   if (pos === "LB") {
-    if (a === "THUMPER")  return r(NICKNAMES.demon);
-    if (a === "COVER")    return r(NICKNAMES.angel);
-    return r(NICKNAMES.hero);
+    if (dominant === "tck") return r(["Samson","Goliath","Moloch","Behemoth"]);        // thumper
+    if (dominant === "cov") return r(["Michael","Gabriel","Cherub"]);                   // coverage 'backer
+    if (dominant === "prs") return r(["Baal","Belial","Asmodeus"]);                     // blitzer
+    if (dominant === "spd") return r(["Michael","Gabriel","Asahel"]);                   // sideline-to-sideline
+    return r(["Michael","Samson"]);
   }
+  // CB
   if (pos === "CB") {
-    if (a === "SHUTDOWN")  return r(NICKNAMES.watch);
-    if (a === "SLOT_CB")   return r(NICKNAMES.watch);
-    return r(NICKNAMES.watch);
+    if (dominant === "cov") return r(["Argus","Seraph","Cherub","Watcher"]);            // shutdown
+    if (dominant === "spd") return r(["Gabriel","Michael","Camael"]);                   // speed corner
+    if (dominant === "agi") return r(["Jacob","Daniel"]);                                // shadow
+    if (dominant === "awr") return r(["Daniel","Solomon","Ezekiel"]);                    // ball-hawk
+    return r(["Cherub","Seraph","Argus"]);
   }
-  if (pos === "S")  return r(NICKNAMES.watch);
+  // S
+  if (pos === "S") {
+    if (dominant === "tck") return r(["Goliath","Samson","Moloch"]);                    // box safety
+    if (dominant === "cov") return r(["Argus","Seraph","Watcher","Heimdall"]);          // free safety / centerfield
+    if (dominant === "awr") return r(["Daniel","Solomon","Isaiah"]);                    // ball-hawk
+    return r(["Seraph","Heimdall"]);
+  }
+  // TE
+  if (pos === "TE") {
+    if (dominant === "blk") return r(["Samson","Goliath","Behemoth"]);
+    if (dominant === "cat") return r(["Methuselah","Solomon","Boaz"]);
+    if (dominant === "str") return r(["Samson","Issachar"]);
+    return r(["Issachar","Levi"]);
+  }
   return null;
+}
+
+// Assign career nicknames to the league's top 10 per position by overall.
+// Position-specific top-N: top 10 QBs, RBs, WRs (separate), TEs, etc. Once
+// assigned, a nickname persists on the player object — it doesn't get
+// overwritten if the player drops out of the top 10 next time.
+function assignLeagueNicknames(rosters) {
+  const allPlayers = [];
+  for (const teamId of Object.keys(rosters)) {
+    for (const p of rosters[teamId]) allPlayers.push(p);
+  }
+  // For each position, take the top 10 by overall and grant nicknames
+  const positions = ["QB","RB","WR","TE","DL","LB","CB","S"];
+  for (const pos of positions) {
+    const top10 = allPlayers
+      .filter(p => p.position === pos)
+      .sort((a, b) => (b.overall || 0) - (a.overall || 0))
+      .slice(0, 10);
+    for (const p of top10) {
+      if (!p.nickname) p.nickname = pickCareerNickname(p);
+    }
+  }
 }
 
 const ROSTER_SLOTS = { QB:3, RB:4, WR:6, TE:3, OL:8, DL:6, LB:5, CB:5, S:3, K:1, P:1 };
@@ -1194,8 +1244,9 @@ function genPlayer(pos, tier) {
   player.runStyle = pickRunStyle(pos, player.archetype);
   player.celebStyle = pickCelebStyle();
   player.bodyType = pickBodyType(pos, player.archetype);
-  // Earned nickname — only elite players get one
-  player.nickname = pickNickname(player);
+  // Nickname is granted later by assignLeagueNicknames() once we know the
+  // player's leaguewide ranking. Career-persistent: once earned, it stays.
+  player.nickname = null;
   return player;
 }
 // Generates a player whose name isn't already in `blockNames`. Falls back to
@@ -3403,9 +3454,11 @@ function attachPlayerStyles(formation, offStarters, defStarters, lookup) {
       slot.label = jerseyForPlayer(p);
       slot.archetype = p.archetype;
       slot.position = p.position;
-      // "Elite" star marker — gets the Seal of Solomon under the player.
-      // Threshold: OVR >= 88 puts a player roughly in the league's top tier.
-      slot.elite = (p.overall ?? 0) >= 88;
+      // "Elite" marker — gets the Seal of Solomon under the player. Tied to
+      // earned career nickname (top 10 leaguewide in position), so the seal
+      // and the nickname always travel together.
+      slot.elite = !!p.nickname;
+      slot.nickname = p.nickname;
     }
   };
   if (offStarters) {
@@ -3770,6 +3823,22 @@ speedSlider.addEventListener("input", e => {
   speedLabel.textContent = `${speedMul.toFixed(2)}×`;
 });
 
+// Lazy-cached "rest of the league" — the other 30 team rosters. Generated
+// once per session and reused so career nicknames stay stable across games.
+let _otherLeagueRosters = null;
+function ensureLeague(homeId, awayId, homeRoster, awayRoster) {
+  if (!_otherLeagueRosters) {
+    _otherLeagueRosters = {};
+    for (const t of TEAMS) {
+      if (t.id === homeId || t.id === awayId) continue;
+      _otherLeagueRosters[t.id] = regenerateFullRoster(t, {});
+    }
+  }
+  // Build a combined rosters dict including the user's current home/away
+  const rosters = { ..._otherLeagueRosters, [homeId]: homeRoster, [awayId]: awayRoster };
+  assignLeagueNicknames(rosters);
+}
+
 simBtn.addEventListener("click", () => {
   const homeId = +homeSel.value, awayId = +awaySel.value;
   if (homeId === awayId) { alert("Pick two different teams!"); return; }
@@ -3795,6 +3864,9 @@ simBtn.addEventListener("click", () => {
       allNames.add(p.name);
     }
   }
+  // Grant career nicknames to the league's top 10 per position. Done before
+  // the game so the names show up in tooltips, play logs, and the field.
+  ensureLeague(homeId, awayId, homeRoster, awayRoster);
   const sim = new GameSimulator(home, away, homeRoster, awayRoster);
   gameResult = sim.simulate();
   playHead = 0;
