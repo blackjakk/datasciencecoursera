@@ -1798,19 +1798,59 @@ class GameSimulator {
       });
       return { yards: 0, incomplete: true };
     }
-    // Fumble chance — bumps up against dominant DL (carriers get stripped)
-    // Read-option schemes leak more fumbles on the option exchange
+    // Fumble chance — based on carrier's grip (STR + AWR), pressure, and archetype.
+    // POWER backs cough it up more (carrying through contact); ELUSIVE less (rarely take direct hits).
     const optionMul = pb.qbRushFumbleMul || 1.0;
-    // Power backs cough it up more (bruisers carrying through contact)
     const rbArch = this.offArch.RB?.archetype;
-    const archFumbleMul = (rbArch === "POWER") ? 1.30 : 1.0;
-    const fumblePct = clamp((0.010 + Math.max(0, pressure) * 0.012) * optionMul * archFumbleMul, 0.008, 0.06);
+    const rbPlayer = this._playerByName.get(RB);
+    const grip = rbPlayer ? ((rbPlayer.stats[1] || 70) + (rbPlayer.stats[3] || 70)) / 2 : 70;
+    const gripMod = (75 - grip) / 600;    // grip 95 → -0.033; grip 55 → +0.033
+    const archFumbleMul = rbArch === "POWER" ? 1.35 : rbArch === "ELUSIVE" ? 0.75 : 1.0;
+    const fumblePct = clamp((0.011 + gripMod + Math.max(0, pressure) * 0.013) * optionMul * archFumbleMul, 0.004, 0.075);
     if (Math.random() < fumblePct) {
-      off.team.turnovers++; def.team.takeaways++;
-      const frBy = this._creditDefStat("fr", { LB: 0.35, DL: 0.35, S: 0.20, CB: 0.10 });
+      // Scrum-based recovery — the ball bounces in a pile of converging players.
+      // Defense has a slight edge in open field (1-3 dive attempts each muff the ball
+      // until someone secures it). About 58% defense recovery overall.
+      const muffRolls = rand(2, 4);
+      let recoveredBy = null;
+      let muffs = 0;
+      for (let i = 0; i < muffRolls; i++) {
+        if (Math.random() < 0.55) {        // 55% chance someone secures it this dive
+          recoveredBy = Math.random() < 0.58 ? "def" : "off";
+          break;
+        }
+        muffs++;
+      }
+      if (!recoveredBy) recoveredBy = Math.random() < 0.58 ? "def" : "off";
       const ffBy = this._creditDefStat("ff", { LB: 0.35, DL: 0.40, S: 0.20, CB: 0.05 });
-      this._pushVisual({ kind: "fumble", desc: `FUMBLE recovered by defense!`, startYard, endYard: startYard, rusher: this.offR.starters.rb, defender: frBy, forcedBy: ffBy });
-      return { turnover: true };
+      if (recoveredBy === "def") {
+        off.team.turnovers++; def.team.takeaways++;
+        const frBy = this._creditDefStat("fr", { LB: 0.35, DL: 0.35, S: 0.20, CB: 0.10 });
+        this._pushVisual({
+          kind: "fumble",
+          desc: `FUMBLE! Recovered by ${this[this.poss === "home" ? "away" : "home"].name} defense — ${ffBy ? `forced by ${ffBy}` : `loose ball`}!`,
+          startYard, endYard: startYard,
+          rusher: RB, defender: frBy, forcedBy: ffBy, recoveredBy: "def", muffs,
+        });
+        return { turnover: true };
+      } else {
+        // Offense recovers — ball stays with them, but they lose 2-6 yards on the dive
+        const lossYds = rand(2, 6);
+        const carrierStats = off.players[RB];
+        if (carrierStats) {
+          carrierStats.rush_att++;
+          carrierStats.rush_yds -= lossYds;
+        }
+        off.team.rush_att++; off.team.rushYds -= lossYds; off.team.totalYds -= lossYds;
+        this._pushVisual({
+          kind: "fumble",
+          desc: `FUMBLE! ${this.possTeam.name} recovers their own — ${lossYds}-yd loss on the dive`,
+          startYard, endYard: clamp(startYard - lossYds, 1, 99),
+          rusher: RB, forcedBy: ffBy, recoveredBy: "off", muffs,
+          yards: -lossYds,
+        });
+        return { yards: -lossYds };
+      }
     }
     const rushMean = pb.rushYdsMean ?? 4.3;
     const rushSd   = pb.rushYdsSd   ?? 5.5;
@@ -4850,19 +4890,129 @@ function buildAnimForPlay(play, prevPlay) {
   }
 
   if (play.kind === "fumble") {
-    return { duration: 1500, kind: "fumble", render: (t, c) => {
+    // Chaotic fumble scrum — ball pops loose, multiple players dive,
+    // ball bounces 1-3 times before someone covers it. Recovery side
+    // and number of muffs come from the simulator.
+    const recoveredBy = play.recoveredBy || "def";
+    const muffs = play.muffs ?? 1;
+    const totalRolls = muffs + 1;
+    return { duration: 2400, kind: "fumble", render: (t, c) => {
       ctx = c;
       drawField(ctx, homeTeam, awayTeam, fieldState);
-      drawPlayers(formation.offense, formation.defense);
-      // Ball wobbles and gets recovered
-      const wobbleX = losX + dir * 18 + Math.sin(t * 18) * 12;
-      const wobbleY = cy + Math.cos(t * 14) * 10;
-      drawBall(ctx, wobbleX, wobbleY, 0.9 + Math.sin(t * 20) * 0.3);
-      if (t > 0.6) {
-        ctx.fillStyle = "rgba(255,80,80,0.55)";
-        ctx.beginPath();
-        ctx.arc(wobbleX, wobbleY, 30 - (t - 0.6) * 50, 0, Math.PI * 2);
-        ctx.fill();
+      // Ball center near LOS
+      const baseX = losX + dir * 8, baseY = cy;
+      // Phase split: 0-0.15 pop, 0.15-0.85 scrum (bouncing), 0.85-1.0 recovery
+      let ballX, ballY, ballScale = 1;
+      // Define dive piles around the ball (6 players converging from random spots)
+      const piles = [];
+      const seed = ((play.startYard * 23 + (play.time || 0)) >>> 0);
+      for (let i = 0; i < 6; i++) {
+        const ang = (i / 6) * Math.PI * 2 + ((seed % 7) * 0.1);
+        const dist = 50 + ((seed + i * 13) % 30);
+        const startX = baseX + Math.cos(ang) * dist;
+        const startY = baseY + Math.sin(ang) * dist * 0.6;
+        // Alternate teams (3 offense, 3 defense roughly)
+        const team = i % 2 === 0 ? "off" : "def";
+        piles.push({ startX, startY, team, ang });
+      }
+      // Compute ball position
+      if (t < 0.15) {
+        // Pop loose — ball arcs up and away from carrier
+        const pt = t / 0.15;
+        ballX = baseX + (Math.sin(pt * Math.PI) * 18) * (((seed % 2) ? 1 : -1));
+        ballY = baseY - Math.sin(pt * Math.PI) * 24;  // up and back down
+        ballScale = 1.0 + Math.sin(pt * Math.PI) * 0.4;
+      } else if (t < 0.85) {
+        // Scrum phase — ball bounces between locations, one per roll
+        const scrumT = (t - 0.15) / 0.70;
+        const rollIdx = Math.min(totalRolls - 1, Math.floor(scrumT * totalRolls));
+        const rollT = (scrumT * totalRolls) - rollIdx;       // 0-1 within this roll
+        // Each roll picks a pile to land near
+        const pileA = piles[(seed + rollIdx) % piles.length];
+        const pileB = piles[(seed + rollIdx + 3) % piles.length];
+        // Bounce between two piles for the duration of this roll
+        ballX = pileA.startX + (pileB.startX - pileA.startX) * rollT;
+        const bounceY = Math.abs(Math.sin(rollT * Math.PI * 2)) * 12;
+        ballY = pileA.startY + (pileB.startY - pileA.startY) * rollT - bounceY;
+        ballScale = 0.85 + Math.sin(rollT * Math.PI * 4) * 0.25;
+      } else {
+        // Recovery — ball stops, someone covers it
+        const pileIdx = recoveredBy === "off" ? 0 : 1;
+        const finalPile = piles[(seed + totalRolls - 1) % piles.length];
+        ballX = finalPile.startX;
+        ballY = finalPile.startY;
+        ballScale = 0.85;
+      }
+      // Render players diving toward the ball
+      const offIds = [4, 6, 8];      // mix of offense indices to use as dive piles
+      const defIds = [4, 5, 7];
+      for (let i = 0; i < piles.length; i++) {
+        const p = piles[i];
+        const isOff = p.team === "off";
+        const color = isOff ? possColor : oppColor;
+        const sec = isOff ? team.secondary : oppTeam.secondary;
+        // Players sprint toward ball during scrum, dive at the end
+        let pX, pY, pPose;
+        if (t < 0.15) {
+          // Still standing where they were
+          pX = p.startX; pY = p.startY; pPose = "run";
+        } else if (t < 0.82) {
+          // Sprint toward the ball (with speed cap)
+          const sT = (t - 0.15) / 0.67;
+          pX = p.startX + (ballX - p.startX) * Math.min(1, sT * 1.4);
+          pY = p.startY + (ballY - p.startY) * Math.min(1, sT * 1.4);
+          pPose = "run";
+        } else {
+          // Dive on the ball
+          pX = ballX + Math.cos(p.ang) * (8 - (t - 0.82) * 30);
+          pY = ballY + Math.sin(p.ang) * (8 - (t - 0.82) * 30) * 0.6;
+          pPose = "tackled";
+        }
+        drawPlayer(ctx, pX, pY, color, sec, "", pPose, (t * 3 + i * 0.13) % 1, isOff ? dir : -dir);
+      }
+      drawBall(ctx, ballX, ballY, ballScale);
+      // "FUMBLE!" callout
+      if (t < 0.30) {
+        const fadeIn = Math.min(1, t / 0.10);
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.font = "900 38px sans-serif";
+        ctx.fillStyle = `rgba(214,90,90,${fadeIn})`;
+        ctx.strokeStyle = `rgba(0,0,0,${fadeIn * 0.85})`;
+        ctx.lineWidth = 4;
+        ctx.strokeText("FUMBLE!", FIELD.W / 2, 60);
+        ctx.fillText("FUMBLE!", FIELD.W / 2, 60);
+        ctx.restore();
+      }
+      // "LOOSE BALL!" during the scrum
+      if (t > 0.30 && t < 0.78) {
+        const pulse = 0.5 + Math.sin(t * Math.PI * 8) * 0.5;
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.font = "900 22px sans-serif";
+        ctx.fillStyle = `rgba(255,200,80,${0.6 + pulse * 0.4})`;
+        ctx.strokeStyle = "rgba(0,0,0,0.8)";
+        ctx.lineWidth = 3;
+        ctx.strokeText("LOOSE BALL — DIVE!", FIELD.W / 2, 60);
+        ctx.fillText("LOOSE BALL — DIVE!", FIELD.W / 2, 60);
+        ctx.restore();
+      }
+      // Recovery callout
+      if (t > 0.85) {
+        const fadeT = Math.min(1, (t - 0.85) / 0.10);
+        const isRecOff = recoveredBy === "off";
+        const lbl = isRecOff
+          ? `${(poss === "home" ? homeTeam : awayTeam).name.toUpperCase()} RECOVERS!`
+          : `${(poss === "home" ? awayTeam : homeTeam).name.toUpperCase()} RECOVERS!`;
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.font = "900 26px sans-serif";
+        ctx.fillStyle = isRecOff ? `rgba(155,224,155,${fadeT})` : `rgba(240,204,48,${fadeT})`;
+        ctx.strokeStyle = `rgba(0,0,0,${fadeT * 0.85})`;
+        ctx.lineWidth = 4;
+        ctx.strokeText(lbl, FIELD.W / 2, 60);
+        ctx.fillText(lbl, FIELD.W / 2, 60);
+        ctx.restore();
       }
     }};
   }
