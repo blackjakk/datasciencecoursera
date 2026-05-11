@@ -3935,14 +3935,58 @@ function buildAnimForPlay(play, prevPlay) {
 
   let ctx = null;
 
-  // Common: pre-snap freeze (10% of duration), then action
-  const PRE = 0.18;
+  // Audible — smart QBs (high AWR) sometimes change the play pre-snap.
+  // Deterministic per play so the playback doesn't flicker on rewind.
+  const qbPlayer = gameResult.playerLookup && offStarters ? gameResult.playerLookup.get(offStarters.qb) : null;
+  const qbAwr = qbPlayer?.stats?.[3] ?? 70;   // index 3 = AWR
+  const audibleChance = clamp((qbAwr - 60) / 180, 0, 0.28);  // AWR 95 → ~19%, AWR 65 → ~3%
+  const audibleSeed = (((play.startYard * 31) ^ ((play.time || 0) * 7)) >>> 0) % 1000 / 1000;
+  const isAudible = audibleSeed < audibleChance;
+  // Extra pre-snap time when audibling (gives the play call space to breathe)
+  const PRE = isAudible ? 0.34 : 0.24;
+
+  // Defender pursuit speed cap (pixels per ms) to prevent teleporting.
+  // Tuned so a defender covers about 60 yards in 1.8 seconds of play (decent NFL speed).
+  const PURSUIT_PX_MS = (FIELD.PX_PER_YARD * 60) / 1800;
+  const pursue = (d, tx, ty, elapsedMs, factor = 1.0) => {
+    const dx = tx - d.x, dy = ty - d.y;
+    const dist = Math.hypot(dx, dy);
+    const maxMove = PURSUIT_PX_MS * elapsedMs * factor;
+    if (dist <= maxMove) return { x: tx, y: ty };
+    const f = maxMove / Math.max(0.001, dist);
+    return { x: d.x + dx * f, y: d.y + dy * f };
+  };
+
+  // Pre-snap audible callout — drawn during the first half of PRE window.
+  function drawPreSnapCallouts(c, t) {
+    if (t > PRE) return;
+    c.save();
+    c.textAlign = "center";
+    c.textBaseline = "middle";
+    if (isAudible && t < PRE * 0.6) {
+      c.fillStyle = "rgba(0,0,0,0.55)";
+      c.fillRect(0, 30, FIELD.W, 56);
+      c.fillStyle = "#f0cc30";
+      c.font = "900 26px sans-serif";
+      c.fillText("AUDIBLE!", FIELD.W / 2, 50);
+      c.fillStyle = "#fff";
+      c.font = "bold 12px sans-serif";
+      c.fillText(`${lastNameUpper(offStarters?.qb || "QB")} changes the play at the line`, FIELD.W / 2, 72);
+    } else if (t > PRE * 0.55) {
+      c.fillStyle = "#fff";
+      c.font = "900 18px sans-serif";
+      c.globalAlpha = 0.75;
+      c.fillText("HUT HUT!", FIELD.W / 2, 50);
+    }
+    c.restore();
+  }
 
   if (play.kind === "run") {
     const endX = yardToAbsX(play.endYard, poss);
     const yards = play.yards ?? 0;
     const isTD = (play.endYard ?? 0) >= 100;
-    return { duration: 1900, kind: "run", render: (t, c) => {
+    const dur = isAudible ? 2600 : 2300;
+    return { duration: dur, kind: "run", render: (t, c) => {
       ctx = c;
       drawField(ctx, homeTeam, awayTeam, fieldState);
       const rb = { ...formation.rb };
@@ -3975,11 +4019,10 @@ function buildAnimForPlay(play, prevPlay) {
           // DL paired with OL — held up at the LOS. The "winning" DL pushes through.
           const wobble = Math.sin(tt * Math.PI * 4 + d.y * 0.09) * 1.3;
           if (i === dlBreaksFree && tt > 0.3) {
-            // This DL penetrates and chases the carrier
-            const tx = endX + dir * 8;
-            const breakT = (tt - 0.3) / 0.7;
-            dd.x = d.x + (tx - d.x) * breakT;
-            dd.y = d.y + (rb.y - d.y) * breakT * 0.7;
+            // This DL penetrates and chases the carrier (speed-capped)
+            const elapsedMs = Math.max(0, (t - (PRE + (1 - PRE) * 0.3)) * dur);
+            const np = pursue(d, rb.x + dir * 2, rb.y, elapsedMs, 0.85);
+            dd.x = np.x; dd.y = np.y;
             dd.pose = "run";
             dd.t = (t * 3) % 1;
           } else {
@@ -3992,15 +4035,20 @@ function buildAnimForPlay(play, prevPlay) {
           dd.facing = -dir;
           return dd;
         }
-        // LBs (4-6), CBs (7-8), Safeties (9-10) — converge on carrier
-        const tx = endX + dir * (8 + ((i - 4) % 3) * 4);
-        const ty = cy + (((i - 4) % 5) - 2) * 14;
-        dd.x = d.x + (tx - d.x) * tt * 0.7;
-        dd.y = d.y + (ty - d.y) * tt * 0.7;
+        // LBs (4-6), CBs (7-8), Safeties (9-10) — pursue the LIVE carrier
+        // Speed-capped so big plays show the defender chasing, not teleporting
+        const lane = ((i - 4) % 5) - 2;
+        const tx = rb.x + dir * (4 + ((i - 4) % 3) * 3);  // chase a few yds past the runner
+        const ty = rb.y + lane * 8;
+        const elapsedMs = Math.max(0, (t - PRE) * dur);
+        const factor = i >= 7 ? 1.05 : 0.95;  // DBs slightly faster than LBs
+        const np = pursue(d, tx, ty, elapsedMs, factor);
+        dd.x = np.x; dd.y = np.y;
         dd.pose = "run";
         dd.t = (t * 3 + i * 0.13) % 1;
         dd.facing = -dir;
-        if (tt > 0.92 && yards < 90) dd.pose = "tackled";
+        // Tackle pose only when actually within reach of the carrier
+        if (yards < 90 && tt > 0.85 && Math.hypot(rb.x - dd.x, rb.y - dd.y) < 24) dd.pose = "tackled";
         return dd;
       });
       // OL fire out and engage DL at the LOS
@@ -4024,6 +4072,7 @@ function buildAnimForPlay(play, prevPlay) {
       const off2 = off.map(p => p.role === "QB" ? { ...p, pose: t < PRE + 0.05 ? "throw" : "idle", t, facing: dir } : p);
       drawPlayers([...off2, rb], def);
       drawBall(ctx, ballX, ballY);
+      drawPreSnapCallouts(ctx, t);
     }};
   }
 
@@ -4056,7 +4105,8 @@ function buildAnimForPlay(play, prevPlay) {
     const yac = isComplete ? (play.yac ?? Math.max(0, (play.yards ?? 0) - catchDepth)) : 0;
     // Final Y where YAC ends — receiver may drift back toward middle if running upfield
     const finalY = targetY + (cy - targetY) * Math.min(0.5, yac / 40);
-    return { duration: 2100, kind: play.kind, render: (t, c) => {
+    const dur = isAudible ? 2800 : 2500;
+    return { duration: dur, kind: play.kind, render: (t, c) => {
       ctx = c;
       drawField(ctx, homeTeam, awayTeam, fieldState);
       // Screens release fast — short drop + quick throw
@@ -4157,10 +4207,12 @@ function buildAnimForPlay(play, prevPlay) {
           if (i === 8) { dd.x += dir * tt * (catchDepth) * FIELD.PX_PER_YARD * 0.85; }
         }
         if (play.kind === "complete" && t > throwPhase) {
-          const tt = (t - throwPhase) / (1 - throwPhase);
-          if (i === 7 || i === 8 || i === 4 || i === 5) {
-            dd.x = dd.x + (ballX - dd.x) * Math.min(1, tt * 1.2) * 0.8;
-            dd.y = dd.y + (ballY - dd.y) * Math.min(1, tt * 1.2) * 0.7;
+          // Speed-capped pursuit so big YAC plays show real chasing instead of teleporting
+          if (i === 7 || i === 8 || i === 4 || i === 5 || i === 9 || i === 10) {
+            const elapsedMs = Math.max(0, (t - throwPhase) * dur);
+            const factor = i === 7 || i === 8 ? 1.05 : (i === 9 || i === 10) ? 1.0 : 0.95;
+            const np = pursue(dd, ballX - dir * 4, ballY, elapsedMs, factor);
+            dd.x = np.x; dd.y = np.y;
           }
         }
         // INT — the picking defender races to the catch spot, then carries the ball back
@@ -4228,6 +4280,7 @@ function buildAnimForPlay(play, prevPlay) {
       });
       drawPlayers(off, def);
       drawBall(ctx, ballX, ballY, arc > 30 ? 1.3 : 1);
+      drawPreSnapCallouts(ctx, t);
     }};
   }
 
