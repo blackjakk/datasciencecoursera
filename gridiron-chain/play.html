@@ -1552,10 +1552,19 @@ class GameSimulator {
       const paQbSkill = clamp((qbAwr + qbThr - 140) / 80, 0, 1); // 0-1 based on QB
       const paBaseRate = 0.16 + runThreat * 0.10 - (isThird && this.ytg >= 7 ? 0.10 : 0);
       const isPlayAction = !isShort && Math.random() < paBaseRate;
+      // FLEA FLICKER — rare trick play, only on PA setups in good run threat.
+      // RB takes the fake handoff, then pitches the ball BACK to the QB who
+      // throws deep. Big play upside, big-time risk if it breaks down.
+      const isFleaFlicker = isPlayAction && runThreat > 0.35 && (this.ytg >= 6 || !isThird) && Math.random() < 0.06;
       if (isPlayAction) {
         paCompMod = 0.025 + paQbSkill * 0.030;     // up to +5.5% comp
         paAirMod  = 1.5  + paQbSkill * 2.5 + runThreat * 1.5;  // up to +5 air yds
         paSackMul = 1.25;                           // longer dropback → more sacks
+      }
+      if (isFleaFlicker) {
+        // Flea flicker forces a deeper target + bigger sack risk
+        paAirMod  += 4.0;
+        paSackMul *= 1.35;
       }
       // QB SCRAMBLE — dual-threat QB sometimes takes off instead of throwing
       const scramblePct = (pb.qbScramblePct || 0) + qbScrambleBonus;
@@ -1605,7 +1614,7 @@ class GameSimulator {
         def.team.takeaways++;
         // Credit INT to a DB (CB or S)
         const intBy = this._creditDefStat("int_made", { CB: 0.55, S: 0.35, LB: 0.10 });
-        this._pushVisual({ kind: "int", desc: `INTERCEPTION! ${this.offR.starters.qb} picked off!`, startYard, targetDepth, endYard: startYard, passer: this.offR.starters.qb, defender: intBy });
+        this._pushVisual({ kind: "int", desc: `INTERCEPTION! ${this.offR.starters.qb} picked off!`, startYard, targetDepth, endYard: startYard, passer: this.offR.starters.qb, defender: intBy, isPlayAction, isFleaFlicker });
         return { turnover: true };
       }
       // Sacks: heavily driven by the OL-vs-DL trench matchup (pressure).
@@ -1675,7 +1684,7 @@ class GameSimulator {
           passer: this.offR.starters.qb,
           dlName: reps.dl?.name, dlType: reps.dlType, dlMove: move,
           olName: reps.ol?.name, olType: reps.olType,
-          isPlayAction,
+          isPlayAction, isFleaFlicker,
         });
         // Return negative yardage and let _drive() handle the down progression.
         // (Previously we mutated this.yardLine/down/ytg directly which double-counted
@@ -1856,7 +1865,7 @@ class GameSimulator {
               : `${this.offR.starters.qb} → ${rcvr} for ${yards} yds`,
           startYard, targetDepth, catchDepth: targetDepth, yac, yards,
           endYard: clamp(startYard + yards, 0, 100), receiver: rcvr, passer: this.offR.starters.qb,
-          tackler: tacklerName, throwType, isPlayAction, wrJuke, isLeapingCatch, catchRadius,
+          tackler: tacklerName, throwType, isPlayAction, isFleaFlicker, wrJuke, isLeapingCatch, catchRadius,
         });
         return { yards };
       }
@@ -1893,7 +1902,7 @@ class GameSimulator {
             : `${this.offR.starters.qb} pass incomplete`,
         startYard, targetDepth, endYard: startYard,
         passer: this.offR.starters.qb, intended: rcvr, defender: pdName,
-        isDrop, isPlayAction, isLeapMiss,
+        isDrop, isPlayAction, isFleaFlicker, isLeapMiss,
       });
       return { yards: 0, incomplete: true };
     }
@@ -1962,6 +1971,10 @@ class GameSimulator {
     // Read-option / RPO schemes give some carries to the QB
     const qbRushPct = pb.qbRushPct || 0;
     const isQBRun = qbRushPct > 0 && Math.random() < qbRushPct;
+    // REVERSE — rare trick play, ~1.5% of non-QB runs. RB takes the handoff
+    // and runs laterally, then pitches to a crossing WR who runs the other way.
+    // High variance: bigger gains AND bigger losses if it gets read.
+    const isReverse = !isQBRun && Math.random() < 0.015;
     const carrier = isQBRun ? QB : RB;
     // QB runs break for chunks slightly more often — defense had to honor pass first
     const carrierBoost = isQBRun ? 0.8 : 0;
@@ -1986,7 +1999,11 @@ class GameSimulator {
     const lbTackle  = (this.defR.lb - 60) / 60;  // strong LBs add minor stuffing
     // Run-blocking matchup tilts the gap — apply runMul to the trench effect
     const runTrenchYds = trenchYds * (2 - runMul); // runMul<1 (DL wins) → bigger negative
-    let yards = clamp(normal(rushMean + rbBoost + adv * 1.4 + runTrenchYds - lbTackle * 0.5 - boxSafetyStuff - thumperStuff + carrierBoost, rushSd * rbSdMul), -6, 70);
+    // REVERSE — big-play upside but bigger variance and a real chance of TFL.
+    // The lateral hand-off and direction change make it boom-or-bust.
+    const reverseBonus = isReverse ? (Math.random() < 0.45 ? -5 + Math.random() * 3 : 4 + Math.random() * 10) : 0;
+    const reverseSdMul = isReverse ? 1.6 : 1.0;
+    let yards = clamp(normal(rushMean + rbBoost + adv * 1.4 + runTrenchYds - lbTackle * 0.5 - boxSafetyStuff - thumperStuff + carrierBoost + reverseBonus, rushSd * rbSdMul * reverseSdMul), -8, 75);
     // Cap at distance to end zone so a 1-yd goal-line carry doesn't get reported as a 17-yd TD
     if (yards > 0) yards = Math.min(yards, 100 - startYard);
     // Broken tackles — carrier physicality vs defender tackle rating.
@@ -2037,7 +2054,7 @@ class GameSimulator {
       ? (yards >= 10 ? this._creditDefStat("tkl", { S: 0.40, CB: 0.20, LB: 0.30, DL: 0.10 })
                      : this._creditDefStat("tkl", { LB: 0.45, DL: 0.30, S: 0.15, CB: 0.10 }))
       : this._creditDefStat("tkl", { DL: 0.50, LB: 0.35, S: 0.10, CB: 0.05 });
-    this._pushVisual({ kind: "run", desc, startYard, yards, endYard: clamp(startYard + yards, 0, 100), rusher: carrier, isQBRun, tackler: tacklerName, brokenTackles });
+    this._pushVisual({ kind: "run", desc, startYard, yards, endYard: clamp(startYard + yards, 0, 100), rusher: carrier, isQBRun, isReverse, tackler: tacklerName, brokenTackles });
     return { yards };
   }
   _drive() {
@@ -5061,6 +5078,32 @@ function buildAnimForPlay(play, prevPlay) {
           rb.x = ballX;
           rb.y = cy - dir * 6 + (runT - 0.16) / 0.84 * 6;
         }
+      } else if (play.isReverse) {
+        // REVERSE — RB sprints laterally to one sideline, then the lateral
+        // handoff "reverses" the carrier across the field to the opposite side.
+        // Visualized as a single carrier whose lateral direction flips at the
+        // handoff moment, gaining yards toward endX in the back half.
+        const reverseSide = ((play.startYard * 7) % 2) === 0 ? 1 : -1;   // top or bottom sideline
+        const lateralMax = 90;   // pixels of lateral travel before the handoff
+        if (runT < 0.18) {
+          // Sprint laterally to one side, ~0 forward progress
+          const p = runT / 0.18;
+          rb.x = qb.x;
+          rb.y = cy + reverseSide * p * lateralMax;
+        } else if (runT < 0.30) {
+          // Lateral handoff — carrier slows, then reverses direction
+          const p = (runT - 0.18) / 0.12;
+          rb.x = qb.x + Math.sin(p * Math.PI * 0.5) * 4;
+          rb.y = cy + reverseSide * lateralMax;
+        } else {
+          // The "WR" now carries — sprints back across the field and forward to endX
+          const p = (runT - 0.30) / 0.42;          // 0 → 1 over the rest of cruise
+          const eased = Math.min(1, p);
+          rb.x = qb.x + (endX - qb.x) * eased;
+          // Lateral position swings from the start sideline back across to the other
+          rb.y = cy + reverseSide * lateralMax * (1 - eased) + (-reverseSide) * lateralMax * 0.3 * eased;
+        }
+        ballX = rb.x;
       } else {
         // Realistic pacing: mesh (slow) → read (ramp) → cruise (linear) → tackle.
         // The RB now lingers near the LOS for the early frames before exploding.
@@ -5294,6 +5337,18 @@ function buildAnimForPlay(play, prevPlay) {
       }
       drawPlayers([...off2, carrierToDraw], def);
       drawBall(ctx, ballX, ballY);
+      // REVERSE banner — shows for the first 30% of action so viewers see it's a trick
+      if (play.isReverse && runT < 0.55) {
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.font = "900 24px sans-serif";
+        ctx.fillStyle = "rgba(0,0,0,0.55)";
+        ctx.fillRect(FIELD.W/2 - 120, 8, 240, 32);
+        ctx.fillStyle = "#ffd54d";
+        ctx.fillText("🔄 REVERSE", FIELD.W / 2, 24);
+        ctx.restore();
+      }
       // Big bold callout for jukes / spins / trucks / stiff arms / hurdles
       if (moveCallout) {
         ctx.save();
@@ -5371,7 +5426,14 @@ function buildAnimForPlay(play, prevPlay) {
       const throwPhase = PRE + (1 - PRE) * throwFrac;
       // ACTION-relative time — 0 at snap, 1 at end of play. Use this for any
       // post-snap movement so nobody moves during the pre-snap window.
-      const aT = Math.max(0, (t - PRE) / (1 - PRE));
+      // aTRaw is true action time from snap. For flea flickers we delay all of
+      // the normal pass-play flow by FLICKER_END so aT (used everywhere else)
+      // is the time AFTER the trick has played out.
+      const FLICKER_END = 0.25;
+      const aTRaw = Math.max(0, (t - PRE) / (1 - PRE));
+      const aT = play.isFleaFlicker
+        ? Math.max(0, (aTRaw - FLICKER_END) / (1 - FLICKER_END))
+        : aTRaw;
       const qb = { ...formation.qb };
       let ballX, ballY = cy;
       let arc = 0;
@@ -5381,9 +5443,17 @@ function buildAnimForPlay(play, prevPlay) {
         ? Math.min(1, aT / dropFrac) * dropDepth * FIELD.PX_PER_YARD
         : 0;
       qb.x -= dir * dropAmt;
-      // PLAY-ACTION fake — only during the early action portion (post-snap)
-      if (play.isPlayAction && aT > 0 && aT < dropFrac * 0.65) {
-        const paT = aT / (dropFrac * 0.65);   // 0 → 1 during fake
+      // FLEA FLICKER — during the trick phase the QB shuffles slightly back
+      // and pretends to hand off, then catches the pitch back.
+      if (play.isFleaFlicker && aTRaw < FLICKER_END) {
+        const fT = aTRaw / FLICKER_END;
+        qb.x -= dir * fT * 3 * FIELD.PX_PER_YARD;   // small backward shuffle
+        qb.y = cy + Math.sin(fT * Math.PI * 0.5) * 4;   // slight body turn toward RB
+      }
+      // PLAY-ACTION fake — only during the early action portion (post-snap).
+      // Skip if this is a flea flicker — the trick play has its own fake.
+      if (play.isPlayAction && !play.isFleaFlicker && aT > 0 && aT < dropFrac * 0.65) {
+        const paT = aT / (dropFrac * 0.65);
         const fakeBack = Math.sin(paT * Math.PI) * 6;
         qb.x += dir * fakeBack;
         qb.y = cy + fakeBack;
@@ -5421,7 +5491,9 @@ function buildAnimForPlay(play, prevPlay) {
       // Action time and key moments (all 0-1 within action portion).
       // These align with the QB pose timeline above — all scaled by throwFrac
       // so hands and ball stay synced when the catch happens earlier in action.
-      const at = Math.max(0, (t - PRE) / (1 - PRE));
+      // Use the flicker-aware aT so ball/QB phases stay synced when flea
+      // flicker delays the normal throw flow.
+      const at = aT;
       const snapMotionAT = 0.04;             // ball travels C→QB in first 4% of action
       const dropEndAT  = throwFrac * 0.29;   // dropback ends here
       const cockHoldAT = throwFrac * 0.65;   // ball reaches the ear, "held cocked"
@@ -5435,9 +5507,61 @@ function buildAnimForPlay(play, prevPlay) {
       // Center position (front of OL) — where the ball is pre-snap
       const centerX = losX - dir * 2;
       const centerY = cy;
+      // RB position during the flea flicker — runs forward, pivots, pitches back
+      const rbBase = formation.rb;
+      const rbForwardMax = rbBase.x + dir * 5 * FIELD.PX_PER_YARD;
+      let flickerRBX = rbBase.x, flickerRBY = rbBase.y;
+      if (play.isFleaFlicker && aTRaw < FLICKER_END) {
+        const fT = aTRaw / FLICKER_END;
+        if (fT < 0.40) {
+          // RB sprints toward the LOS
+          const p = fT / 0.40;
+          flickerRBX = rbBase.x + (rbForwardMax - rbBase.x) * p;
+          flickerRBY = cy;
+        } else if (fT < 0.60) {
+          // RB plants at max forward, pivots
+          flickerRBX = rbForwardMax;
+          flickerRBY = cy;
+        } else {
+          // RB stays as a decoy
+          flickerRBX = rbForwardMax;
+          flickerRBY = cy;
+        }
+      }
       if (t < PRE) {
         // Pre-snap: ball sits in the center's hands, ready to be snapped
         ballX = centerX; ballY = centerY;
+      } else if (play.isFleaFlicker && aTRaw < FLICKER_END) {
+        // FLEA FLICKER ball path: C→QB (snap) → QB→RB (handoff) → RB carries
+        // forward → RB→QB (pitch back) → QB cradles.
+        const fT = aTRaw / FLICKER_END;
+        if (fT < 0.08) {
+          // Snap from center to QB
+          const sm = (fT / 0.08);
+          ballX = centerX + (cradleX - centerX) * sm;
+          ballY = centerY + (cradleY - centerY) * sm;
+        } else if (fT < 0.30) {
+          // Handoff: ball travels from QB to RB
+          const p = (fT - 0.08) / 0.22;
+          const sm = p * p * (3 - 2 * p);
+          ballX = cradleX + (flickerRBX - cradleX) * sm;
+          ballY = cradleY + (flickerRBY - cradleY) * sm;
+        } else if (fT < 0.50) {
+          // Ball with RB as he runs forward
+          ballX = flickerRBX;
+          ballY = flickerRBY - 1;
+        } else if (fT < 0.80) {
+          // Pitch back: ball travels back from RB to QB
+          const p = (fT - 0.50) / 0.30;
+          const sm = p * p * (3 - 2 * p);
+          ballX = flickerRBX + (cradleX - flickerRBX) * sm;
+          // High lateral arc
+          ballY = flickerRBY + (cradleY - flickerRBY) * sm - Math.sin(p * Math.PI) * 8;
+        } else {
+          // QB cradles the pitch
+          ballX = cradleX;
+          ballY = cradleY;
+        }
       } else if (at < snapMotionAT) {
         // SNAP! Ball travels from center back to the QB
         const snapT = at / snapMotionAT;
@@ -5578,13 +5702,26 @@ function buildAnimForPlay(play, prevPlay) {
       if (t < PRE) {
         qbPose = "idle";
         qbT = 0;
+      } else if (play.isFleaFlicker && aTRaw < FLICKER_END) {
+        // FLEA FLICKER QB pose: handoff → watch → reach for pitch → cradle
+        const fT = aTRaw / FLICKER_END;
+        if (fT < 0.30) {
+          qbPose = "throw";   // pretending to hand off
+          qbT = fT / 0.30 * 0.18;   // partial throw motion (cradle stage)
+        } else if (fT < 0.55) {
+          qbPose = "idle";    // empty-handed, watching the RB
+          qbT = 0;
+        } else if (fT < 0.85) {
+          qbPose = "reach";   // arms out for the pitch back
+          qbT = 0;
+        } else {
+          qbPose = "carry";   // got the ball, holding it
+          qbT = (t * 3) % 1;
+        }
       } else {
-        const at = (t - PRE) / (1 - PRE);
+        const at = aT;   // flicker-aware action time
         const tf = throwFrac;
         if (at < tf * 0.29) {
-          // Dropback — QB runs back HOLDING THE BALL (carry pose ensures the
-          // ball is visible in his hand). Without this, the ball is invisible
-          // for the dropback window since the standalone ball is suppressed.
           qbPose = "carry";
           qbT = (t * 3 + 0.5) % 1;
         } else if (at < tf * 0.65) {
@@ -5662,6 +5799,18 @@ function buildAnimForPlay(play, prevPlay) {
       };
       const off = formation.offense.map(p => {
         if (p.role === "QB") return qbWithPose;
+        // FLEA FLICKER — RB takes the fake handoff, runs forward, pitches back
+        if (play.isFleaFlicker && p === formation.rb && aTRaw < FLICKER_END) {
+          const fT = aTRaw / FLICKER_END;
+          let rbPose = "carry";
+          if (fT < 0.30) rbPose = "reach";              // taking the handoff
+          else if (fT < 0.50) rbPose = "carry";          // sprinting forward
+          else if (fT < 0.80) rbPose = "throw";          // pitching back (cradle/cock)
+          else rbPose = "stance";                        // settled, decoy
+          return { ...p, x: flickerRBX, y: flickerRBY,
+                   pose: rbPose, t: rbPose === "throw" ? Math.min(0.30, (fT - 0.50) / 0.30 * 0.30) : (t * 3) % 1,
+                   facing: dir };
+        }
         // Pre-snap motion: the motion player jogs across the formation
         if (hasMotion && t < PRE) {
           const isMotion = (motionRole === "wr1" && p === formation.wr1)
@@ -5707,16 +5856,20 @@ function buildAnimForPlay(play, prevPlay) {
       // draws it), then resume once the ball is released and in flight.
       const showStandalone = (t < PRE) || (at < snapMotionAT) || (at >= releaseAT);
       if (showStandalone) drawBall(ctx, ballX, ballY, arc > 30 ? 1.3 : 1);
-      // Play-action / Throw-on-run banner at the top of the field
-      if ((play.isPlayAction || play.isTOR) && t < throwPhase + 0.08) {
+      // Play-action / Flea-flicker / Throw-on-run banner at the top of the field
+      if ((play.isPlayAction || play.isTOR || play.isFleaFlicker) && t < throwPhase + 0.08) {
         ctx.save();
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.font = "900 20px sans-serif";
-        const lbl = play.isTOR ? "🏃 THROW ON THE RUN" : "🎭 PLAY-ACTION";
-        const lblColor = play.isTOR ? "#ffb060" : "#c890ff";
+        const lbl = play.isFleaFlicker ? "🎪 FLEA FLICKER"
+                  : play.isTOR ? "🏃 THROW ON THE RUN"
+                  : "🎭 PLAY-ACTION";
+        const lblColor = play.isFleaFlicker ? "#ffd54d"
+                       : play.isTOR ? "#ffb060"
+                       : "#c890ff";
         ctx.fillStyle = "rgba(0,0,0,0.55)";
-        ctx.fillRect(FIELD.W/2 - 130, 8, 260, 28);
+        ctx.fillRect(FIELD.W/2 - 140, 8, 280, 28);
         ctx.fillStyle = lblColor;
         ctx.fillText(lbl, FIELD.W / 2, 22);
         ctx.restore();
