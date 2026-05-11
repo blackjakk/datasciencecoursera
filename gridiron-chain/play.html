@@ -2757,39 +2757,50 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   const shoulderY = -headR + 1;
   const hipY = shoulderY + torsoLen;
 
-  // ── Capsule helper: a fat segment with a dark shadow side + bright lit edge.
-  // x1,y1 → x2,y2 is the centerline; w is half-width perpendicular to it.
+  // ── Blocky limb helper: a rectangular segment (no round end caps) with a
+  // dark side shadow + bright lit edge. x1,y1 → x2,y2 is the centerline; w is
+  // half-width perpendicular to it. Roblox-style flat ends.
   function drawSegment(x1, y1, x2, y2, w, baseColor, darkColor, lightColor) {
     const dx = x2 - x1, dy = y2 - y1;
     const len = Math.hypot(dx, dy) || 0.001;
-    const nx = -dy / len, ny = dx / len;
-    // Filled body
+    const nx = -dy / len, ny = dx / len;   // perpendicular (across)
+    const tx = dx / len,  ty = dy / len;   // along centerline
+    // Extend caps slightly past endpoints so joints don't show gaps
+    const ex = tx * w * 0.15, ey = ty * w * 0.15;
+    const ax = x1 - ex, ay = y1 - ey;
+    const bx = x2 + ex, by = y2 + ey;
+    // Filled rectangle (square ends)
     ctx.fillStyle = baseColor;
     ctx.beginPath();
-    ctx.moveTo(x1 + nx * w, y1 + ny * w);
-    ctx.lineTo(x2 + nx * w, y2 + ny * w);
-    ctx.lineTo(x2 - nx * w, y2 - ny * w);
-    ctx.lineTo(x1 - nx * w, y1 - ny * w);
+    ctx.moveTo(ax + nx * w, ay + ny * w);
+    ctx.lineTo(bx + nx * w, by + ny * w);
+    ctx.lineTo(bx - nx * w, by - ny * w);
+    ctx.lineTo(ax - nx * w, ay - ny * w);
     ctx.closePath();
     ctx.fill();
-    // End caps so the joints aren't squared off
-    ctx.beginPath(); ctx.arc(x1, y1, w, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(x2, y2, w, 0, Math.PI * 2); ctx.fill();
-    // Dark side
-    ctx.strokeStyle = darkColor;
-    ctx.lineWidth = 1.1;
-    ctx.beginPath();
-    ctx.moveTo(x1 - nx * w * 0.9, y1 - ny * w * 0.9);
-    ctx.lineTo(x2 - nx * w * 0.9, y2 - ny * w * 0.9);
+    // Solid dark outline — gives every limb a hard block edge
+    ctx.strokeStyle = "rgba(0,0,0,0.55)";
+    ctx.lineWidth = 0.8;
     ctx.stroke();
-    // Lit edge
+    // Dark side (shadow on one face)
+    ctx.fillStyle = darkColor;
+    ctx.beginPath();
+    ctx.moveTo(ax - nx * w,         ay - ny * w);
+    ctx.lineTo(bx - nx * w,         by - ny * w);
+    ctx.lineTo(bx - nx * w * 0.55,  by - ny * w * 0.55);
+    ctx.lineTo(ax - nx * w * 0.55,  ay - ny * w * 0.55);
+    ctx.closePath();
+    ctx.fill();
+    // Lit edge (highlight on opposite face)
     if (lightColor) {
-      ctx.strokeStyle = lightColor;
-      ctx.lineWidth = 0.8;
+      ctx.fillStyle = lightColor;
       ctx.beginPath();
-      ctx.moveTo(x1 + nx * w * 0.5, y1 + ny * w * 0.5);
-      ctx.lineTo(x2 + nx * w * 0.5, y2 + ny * w * 0.5);
-      ctx.stroke();
+      ctx.moveTo(ax + nx * w,         ay + ny * w);
+      ctx.lineTo(bx + nx * w,         by + ny * w);
+      ctx.lineTo(bx + nx * w * 0.7,   by + ny * w * 0.7);
+      ctx.lineTo(ax + nx * w * 0.7,   ay + ny * w * 0.7);
+      ctx.closePath();
+      ctx.fill();
     }
   }
 
@@ -2825,71 +2836,62 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     const ankle2X = kneeX + Math.sin(lowerA) * lowerLen * 0.88;
     const ankle2Y = kneeY + Math.cos(lowerA) * lowerLen * 0.88 - lift * 0.30;
     drawSegment(ankleX, ankleY, ankle2X, ankle2Y, sockW * 0.95, "#f1f1f1", "#c8c8c8", "#ffffff");
-    // Cleat — black with white sole
+    // Cleat — rectangular block (Roblox-style boot)
+    const cleatW = (3.1 + bt.bulk * 0.2) * 2;
+    const cleatH = 2.2;
     ctx.fillStyle = "#0a0a14";
-    ctx.beginPath();
-    ctx.ellipse(footX, footY + 0.5, 3.1 + bt.bulk * 0.2, 1.6, 0, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.fillRect(footX - cleatW/2, footY - 0.4, cleatW, cleatH);
+    ctx.strokeStyle = "rgba(255,255,255,0.25)";
+    ctx.lineWidth = 0.4;
+    ctx.strokeRect(footX - cleatW/2, footY - 0.4, cleatW, cleatH);
+    // White sole stripe at the bottom
     ctx.fillStyle = "#ffffff";
-    ctx.beginPath();
-    ctx.ellipse(footX, footY + 1.1, 3.0 + bt.bulk * 0.2, 0.5, 0, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.fillRect(footX - cleatW/2, footY + cleatH - 0.9, cleatW, 0.55);
   };
   drawLeg(-1, lLeg, lLegLift);
   drawLeg(1, rLeg, rLegLift);
 
-  // ── Shoulder pads (trapezoid w/ top→bottom shading + neckline) ──
-  const padTopY = shoulderY - 1.5;
-  const padBotY = shoulderY + 2;
+  // ── Shoulder pads — BLOCKY rectangle slab on top of the torso ──
+  const padTopY = shoulderY - 1.8;
+  const padBotY = shoulderY + 2.2;
   const padGrad = ctx.createLinearGradient(0, padTopY, 0, padBotY);
   padGrad.addColorStop(0,    shadeLight);
-  padGrad.addColorStop(0.45, color);
+  padGrad.addColorStop(0.55, color);
   padGrad.addColorStop(1,    shadeDark);
   ctx.fillStyle = padGrad;
-  ctx.strokeStyle = secondary || "#fff";
-  ctx.lineWidth = 1.2;
-  ctx.beginPath();
-  ctx.moveTo(-padW/2, padTopY);
-  ctx.lineTo(padW/2,  padTopY);
-  ctx.lineTo(padW/2 - 0.8, padBotY);
-  ctx.lineTo(-padW/2 + 0.8, padBotY);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  // Pad lip — dark shadow line under the pad lip
-  ctx.strokeStyle = shadeDark;
-  ctx.lineWidth = 0.8;
-  ctx.beginPath();
-  ctx.moveTo(-padW/2 + 0.2, padBotY - 0.3);
-  ctx.lineTo(padW/2 - 0.2,  padBotY - 0.3);
-  ctx.stroke();
+  ctx.fillRect(-padW/2, padTopY, padW, padBotY - padTopY);
+  ctx.strokeStyle = "rgba(0,0,0,0.7)";
+  ctx.lineWidth = 1.0;
+  ctx.strokeRect(-padW/2, padTopY, padW, padBotY - padTopY);
+  // Pad lip — dark shadow line under the pad
+  ctx.fillStyle = "rgba(0,0,0,0.35)";
+  ctx.fillRect(-padW/2 + 0.3, padBotY - 0.6, padW - 0.6, 0.5);
 
-  // ── Torso — left→right gradient gives a barrel-chested 3D feel ──
-  const torsoTopW = padW/2 - 0.8;
-  const torsoBotW = bt.torsoBotW;
-  const torsoGradH = ctx.createLinearGradient(-torsoTopW, 0, torsoTopW, 0);
+  // ── Torso — flat RECTANGLE (Roblox-style block torso) ──
+  const torsoW = (padW - 1.6);   // slightly narrower than the pads
+  const torsoX = -torsoW / 2;
+  const torsoTop = shoulderY + 2;
+  const torsoH = hipY - torsoTop;
+  const torsoGradH = ctx.createLinearGradient(-torsoW/2, 0, torsoW/2, 0);
   torsoGradH.addColorStop(0,    shadeDark);
-  torsoGradH.addColorStop(0.35, color);
-  torsoGradH.addColorStop(0.65, color);
+  torsoGradH.addColorStop(0.30, color);
+  torsoGradH.addColorStop(0.70, color);
   torsoGradH.addColorStop(1,    shadeMid);
   ctx.fillStyle = torsoGradH;
-  ctx.strokeStyle = secondary || "#fff";
-  ctx.lineWidth = 1.2;
-  ctx.beginPath();
-  ctx.moveTo(-torsoTopW, shoulderY + 2);
-  ctx.lineTo(torsoTopW,  shoulderY + 2);
-  ctx.lineTo(torsoBotW, hipY);
-  ctx.lineTo(-torsoBotW, hipY);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  // Subtle chest highlight
-  ctx.strokeStyle = `rgba(255,255,255,0.18)`;
-  ctx.lineWidth = 0.7;
-  ctx.beginPath();
-  ctx.moveTo(-torsoTopW * 0.35, shoulderY + 3.2);
-  ctx.lineTo(-torsoBotW * 0.35, hipY - 1);
-  ctx.stroke();
+  ctx.fillRect(torsoX, torsoTop, torsoW, torsoH);
+  ctx.strokeStyle = "rgba(0,0,0,0.7)";
+  ctx.lineWidth = 1.0;
+  ctx.strokeRect(torsoX, torsoTop, torsoW, torsoH);
+  // Secondary-color trim on the sides of the jersey (vertical stripes)
+  ctx.fillStyle = secondary || "#fff";
+  ctx.fillRect(torsoX, torsoTop, 0.9, torsoH);
+  ctx.fillRect(torsoX + torsoW - 0.9, torsoTop, 0.9, torsoH);
+  // Belt — dark band at the bottom of the torso
+  ctx.fillStyle = "rgba(0,0,0,0.55)";
+  ctx.fillRect(torsoX, hipY - 1.2, torsoW, 1.2);
+  // Subtle vertical chest highlight on the LIT side
+  ctx.fillStyle = "rgba(255,255,255,0.16)";
+  ctx.fillRect(torsoX + torsoW * 0.65, torsoTop + 0.5, torsoW * 0.18, torsoH - 1.5);
 
   if (label && /^\d{1,2}$/.test(label)) {
     // Big, block-style jersey number with a dark drop shadow
@@ -2933,20 +2935,20 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
                 secondary || shadeDark, shadeDark, shadeLight);
     // Forearm — SKIN tone (short-sleeved jersey)
     drawSegment(elbowX, elbowY, handX, handY, forearmW * 0.92, skin.base, skin.dark, skin.light);
-    // Hand — bigger so it reads at this scale, in skin tone
+    // Hand — SQUARE block, skin tone, dark outline (Roblox-style fist)
     const handR = 2.6 + bt.bulk * 0.3;
     ctx.fillStyle = skin.base;
-    ctx.beginPath();
-    ctx.arc(handX, handY, handR, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = skin.dark;
+    ctx.fillRect(handX - handR, handY - handR, handR * 2, handR * 2);
+    ctx.strokeStyle = "rgba(0,0,0,0.65)";
     ctx.lineWidth = 0.8;
-    ctx.stroke();
-    // Thumb knuckle highlight
+    ctx.strokeRect(handX - handR, handY - handR, handR * 2, handR * 2);
+    // Knuckle highlight — bright corner on the upper-facing side
     ctx.fillStyle = skin.light;
-    ctx.beginPath();
-    ctx.arc(handX - facing * 0.5, handY - 0.5, handR * 0.42, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.fillRect(handX - handR + 0.4, handY - handR + 0.4, handR * 0.85, handR * 0.55);
+    // Knuckle shadow — darker corner on the bottom-back
+    ctx.fillStyle = skin.dark;
+    ctx.fillRect(handX + handR - handR * 0.85 - 0.4, handY + handR - handR * 0.55 - 0.4,
+                 handR * 0.85, handR * 0.55);
     if (holdsBall) {
       // Football — bigger, more pronounced, with white tip + laces
       const ballAngle = facing * 0.3;
@@ -2997,89 +2999,104 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     ctx.fill();
   }
 
-  // ── Helmet — block-style, bigger dome, visible chin & big facemask cage ──
-  const helmY = shoulderY - helmH - 0.8;
-  const helmRx = headR + 1.7;
-  const helmRy = helmH + 0.4;
-  // Visible chin/jaw — small skin patch peeking out below the helmet
+  // ── Helmet — BLOCKY rounded-rectangle (Roblox-style head) ──────────────────
+  const helmW = (headR + 1.6) * 2;        // total width
+  const helmHt = (helmH + 0.8) * 2;       // total height
+  const helmCx = 0;
+  const helmTopY = shoulderY - helmHt - 0.4;
+  const helmBotY = helmTopY + helmHt;
+  const helmY = (helmTopY + helmBotY) / 2; // center (for facemask reference)
+  const helmCornerR = 1.6;                 // small rounded corners
+  // Visible chin/jaw block — skin patch peeking out below the helmet
   ctx.fillStyle = skin.base;
-  ctx.beginPath();
-  ctx.ellipse(facing * 0.3, helmY + helmRy * 0.85, helmRx * 0.55, helmRy * 0.42, 0, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.fillRect(-helmW * 0.32, helmBotY - 1.2, helmW * 0.64, 2.4);
   ctx.strokeStyle = skin.dark;
-  ctx.lineWidth = 0.6;
-  ctx.stroke();
-  // Helmet dome — taller egg/block shape with radial gradient
-  const helmGrad = ctx.createRadialGradient(facing * 1.6, helmY - helmRy * 0.4, 0.5,
-                                            0, helmY, helmRx + 1.4);
+  ctx.lineWidth = 0.5;
+  ctx.strokeRect(-helmW * 0.32, helmBotY - 1.2, helmW * 0.64, 2.4);
+  // Rounded-rectangle helmet path
+  const roundRectPath = (x, y, w, h, r) => {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  };
+  // Helmet fill — vertical gradient (light top, darker bottom for 3D feel)
+  const helmGrad = ctx.createLinearGradient(0, helmTopY, 0, helmBotY);
   helmGrad.addColorStop(0,    shadeLight);
-  helmGrad.addColorStop(0.4,  color);
+  helmGrad.addColorStop(0.5,  color);
   helmGrad.addColorStop(1,    shadeDark);
   ctx.fillStyle = helmGrad;
-  ctx.strokeStyle = shadeDark;
-  ctx.lineWidth = 1.4;
-  ctx.beginPath();
-  ctx.ellipse(0, helmY, helmRx, helmRy, 0, 0, Math.PI * 2);
+  roundRectPath(helmCx - helmW/2, helmTopY, helmW, helmHt, helmCornerR);
   ctx.fill();
+  ctx.strokeStyle = "rgba(0,0,0,0.75)";
+  ctx.lineWidth = 1.1;
   ctx.stroke();
-  // Bottom rim — thicker dark band so helmet reads as solid
-  ctx.strokeStyle = "rgba(0,0,0,0.5)";
-  ctx.lineWidth = 1.8;
-  ctx.beginPath();
-  ctx.ellipse(0, helmY + 0.5, helmRx - 0.2, helmRy - 0.2, 0, 0.18, Math.PI - 0.18);
-  ctx.stroke();
-  // Center stripe down the helmet (team-secondary color)
-  ctx.strokeStyle = secondary || "#fff";
+  // Bright top-front edge highlight (rectangle along top-front)
+  ctx.fillStyle = "rgba(255,255,255,0.28)";
+  ctx.fillRect(helmCx - helmW/2 + (facing > 0 ? helmW * 0.18 : helmCornerR * 0.5),
+               helmTopY + 0.6,
+               helmW * 0.55,
+               helmHt * 0.18);
+  // Front face panel — slightly darker rectangle on the FRONT half of the helmet
+  // (lays under the facemask, helps the cage read against the helmet color)
+  ctx.fillStyle = "rgba(0,0,0,0.18)";
+  ctx.fillRect(helmCx + facing * helmW * 0.02,
+               helmTopY + helmHt * 0.35,
+               facing * helmW * 0.42,
+               helmHt * 0.45);
+  // Helmet center stripe (secondary color) — runs front-to-back over the top
+  ctx.fillStyle = secondary || "#fff";
+  ctx.fillRect(helmCx - 0.9, helmTopY + 0.5, 1.8, helmHt * 0.7);
+  ctx.strokeStyle = "rgba(0,0,0,0.4)";
+  ctx.lineWidth = 0.4;
+  ctx.strokeRect(helmCx - 0.9, helmTopY + 0.5, 1.8, helmHt * 0.7);
+  // Ear hole — small dark square
+  ctx.fillStyle = "rgba(0,0,0,0.7)";
+  ctx.fillRect(-facing * (helmW * 0.42), helmY - 0.5, 1.6, 2.0);
+  // ── Facemask cage — chrome bars, BIG and rectangular ─────────────────────
+  const fxOuter = facing * (helmW * 0.5 + 0.3);     // front edge of the cage
+  const fxInner = facing * (helmW * 0.16);          // where bars meet helmet
+  const cageTop = helmY - helmHt * 0.18;
+  const cageBot = helmY + helmHt * 0.32;
+  // Vertical "nose" bar — runs along the front of the face
+  ctx.strokeStyle = "#2c2c34";
   ctx.lineWidth = 1.6;
   ctx.beginPath();
-  ctx.moveTo(0, helmY - helmRy * 0.95);
-  ctx.lineTo(0, helmY + helmRy * 0.3);
+  ctx.moveTo(fxOuter, cageTop);
+  ctx.lineTo(fxOuter, cageBot);
   ctx.stroke();
-  // Top-front highlight stripe — bright reflection on the dome
-  ctx.strokeStyle = "rgba(255,255,255,0.55)";
-  ctx.lineWidth = 1.1;
-  ctx.beginPath();
-  ctx.ellipse(facing * 1.1, helmY - helmRy * 0.35, helmRx * 0.55, helmRy * 0.5, 0,
-              Math.PI * 1.05, Math.PI * 1.6);
-  ctx.stroke();
-  // Ear hole shadow
-  ctx.fillStyle = "rgba(0,0,0,0.55)";
-  ctx.beginPath();
-  ctx.arc(-facing * 1.8, helmY + 0.7, 1.05, 0, Math.PI * 2);
-  ctx.fill();
-  // ── Facemask cage — chrome bars, prominent ─────
-  const fx = facing * (helmRx - 0.2);
-  const fy = helmY + 0.6;
-  // Vertical mask bar (the "nose" of the cage)
-  ctx.strokeStyle = "#3a3a44";
-  ctx.lineWidth = 1.4;
-  ctx.beginPath();
-  ctx.moveTo(fx, fy - 2.6);
-  ctx.lineTo(fx + facing * 0.6, fy + 2.8);
-  ctx.stroke();
-  // Horizontal cage bars (3 rows)
-  ctx.strokeStyle = "#5a5a66";
-  ctx.lineWidth = 1.1;
-  for (const dy of [-2.0, -0.4, 1.4, 2.6]) {
+  // Horizontal cage bars
+  ctx.lineWidth = 1.3;
+  const cageHeights = [cageTop + 0.4, cageTop + (cageBot - cageTop) * 0.35,
+                       cageTop + (cageBot - cageTop) * 0.65, cageBot - 0.2];
+  for (const cy of cageHeights) {
     ctx.beginPath();
-    ctx.moveTo(fx + facing * (dy > 0 ? 0.4 : 0), fy + dy);
-    ctx.lineTo(-facing * (helmRx * 0.15), fy + dy);
+    ctx.moveTo(fxOuter, cy);
+    ctx.lineTo(fxInner, cy);
     ctx.stroke();
   }
-  // Chrome highlight on top bar
-  ctx.strokeStyle = "#c5c5cc";
-  ctx.lineWidth = 0.55;
-  ctx.beginPath();
-  ctx.moveTo(fx - facing * 0.15, fy - 1.9);
-  ctx.lineTo(-facing * (helmRx * 0.18), fy - 1.9);
-  ctx.stroke();
+  // Chrome highlight on the front of each horizontal bar
+  ctx.strokeStyle = "#b8b8c0";
+  ctx.lineWidth = 0.5;
+  for (const cy of cageHeights) {
+    ctx.beginPath();
+    ctx.moveTo(fxOuter - facing * 0.1, cy - 0.45);
+    ctx.lineTo(fxInner * 0.6, cy - 0.45);
+    ctx.stroke();
+  }
   // Chinstrap — white band under the jaw
-  ctx.strokeStyle = "#f1f1f1";
-  ctx.lineWidth = 0.9;
-  ctx.beginPath();
-  ctx.moveTo(-facing * (helmRx * 0.55), helmY + helmRy * 0.78);
-  ctx.lineTo(facing * (helmRx * 0.62), helmY + helmRy * 0.78);
-  ctx.stroke();
+  ctx.fillStyle = "#f1f1f1";
+  ctx.fillRect(-helmW * 0.36, helmBotY + 0.6, helmW * 0.72, 0.9);
+  ctx.strokeStyle = "rgba(0,0,0,0.5)";
+  ctx.lineWidth = 0.3;
+  ctx.strokeRect(-helmW * 0.36, helmBotY + 0.6, helmW * 0.72, 0.9);
 
   if (exclaim) {
     ctx.fillStyle = "#f0cc30";
