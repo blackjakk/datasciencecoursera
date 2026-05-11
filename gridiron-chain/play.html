@@ -5040,8 +5040,14 @@ function buildAnimForPlay(play, prevPlay) {
       ctx = c;
       drawField(ctx, homeTeam, awayTeam, fieldState);
       // Screens release fast — short drop + quick throw
-      const dropPhase = isScreen ? 0.12 : 0.30;
-      const throwPhase = isScreen ? 0.30 : 0.60;
+      // dropPhase / throwPhase are absolute t values within the full play.
+      // PRE_MS of pre-snap is already accounted for; these mark the END of
+      // the drop+cock window and the BALL-ARRIVES moment, both within the
+      // post-snap action portion.
+      const dropFrac  = isScreen ? 0.18 : 0.42;  // drop+cock ends X% into action
+      const throwFrac = isScreen ? 0.45 : 0.70;  // ball arrives at receiver
+      const dropPhase  = PRE + (1 - PRE) * dropFrac;
+      const throwPhase = PRE + (1 - PRE) * throwFrac;
       const qb = { ...formation.qb };
       let ballX, ballY = cy;
       let arc = 0;
@@ -5087,26 +5093,37 @@ function buildAnimForPlay(play, prevPlay) {
                       : 55;  // TOUCH default
       // ZIP throws compress the throw window so the ball arrives faster
       const flightCurve = throwType === "ZIP" ? (x => x * x) : (x => x);
-      // Ball release point — at the QB's cocked throwing hand (above-and-just-
-      // forward of the helmet), NOT at his stomach. Pre-release, the ball
-      // travels from chest cradle → cocked-above-the-head position.
+      // Action time and key moments (all 0-1 within action portion).
+      // These align with the QB pose timeline above so hands and ball match.
+      const at = Math.max(0, (t - PRE) / (1 - PRE));
+      const dropEndAT = 0.25;      // dropback ends here
+      const cockHoldAT = 0.55;     // ball reaches the ear, "held cocked"
+      const releaseAT = 0.62;      // ball leaves the hand
+      const throwEndAT = (throwPhase - PRE) / (1 - PRE);   // ball arrives at WR
+      // Ball-in-hand positions
       const releaseX = qb.x + dir * 1.5;
       const releaseY = cy - 14;
       const cradleX = qb.x;
       const cradleY = cy - 3;
-      if (t < dropPhase * 0.55) {
-        // CRADLE: ball at chest, hands together
+      if (t < PRE) {
+        ballX = qb.x; ballY = cy;
+      } else if (at < dropEndAT) {
+        // Dropback: ball cradled at chest with both hands
         ballX = cradleX;
         ballY = cradleY;
-      } else if (t < dropPhase) {
-        // COCK: ball rises from chest up-and-behind the helmet
-        const cockT = (t - dropPhase * 0.55) / (dropPhase * 0.45);
+      } else if (at < cockHoldAT) {
+        // COCK: ball rises from chest up-behind-helmet to the cocked ear position
+        const cockT = (at - dropEndAT) / (cockHoldAT - dropEndAT);
         const sm = cockT * cockT * (3 - 2 * cockT);
         ballX = cradleX + sm * (releaseX - cradleX);
         ballY = cradleY + sm * (releaseY - cradleY);
-      } else if (t < throwPhase) {
-        // FLIGHT: from QB's throwing hand to target
-        const ttRaw = (t - dropPhase) / (throwPhase - dropPhase);
+      } else if (at < releaseAT) {
+        // HOLD AT EAR — ball locked at the cocked position (Brady frame)
+        ballX = releaseX;
+        ballY = releaseY;
+      } else if (at < throwEndAT) {
+        // FLIGHT: from cocked hand position out to the target
+        const ttRaw = (at - releaseAT) / (throwEndAT - releaseAT);
         const tt = flightCurve(ttRaw);
         ballX = releaseX + (targetX - releaseX) * tt;
         arc = Math.sin(tt * Math.PI) * arcHeight;
@@ -5212,29 +5229,41 @@ function buildAnimForPlay(play, prevPlay) {
         return dd;
       });
 
-      // Offense: QB drops back, transitions into the throw motion. The throw
-      // pose has its own internal 4-phase timeline (cradle → cock → snap →
-      // follow-through). We map the pass-play t into that timeline so the
-      // QB's hands track the ball: cradle at chest while dropping back,
-      // cock up-behind-helmet, release at t=dropPhase, follow through.
+      // QB pose timeline — driven by ACTION t (post pre-snap):
+      //   pre-snap: stance (drawPlayer auto-flips idle → stance)
+      //   action 0 - 25%: running back (dropback)
+      //   action 25 - 55%: cradle → cock → hold at the cocked position
+      //   action 55 - 70%: release (ball leaves the hand) → mid follow-through
+      //   action 70%+: late follow-through, then idle
       let qbPose, qbT;
-      const cradleStart = dropPhase * 0.40;
-      if (t < cradleStart) {
-        // Early dropback — running back, hasn't started cocking yet
-        qbPose = "run";
-        qbT = (t * 3 + 0.5) % 1;
-      } else if (t < dropPhase) {
-        // Cradle → cock — throw t goes 0 → 0.55 (release)
-        qbPose = "throw";
-        qbT = (t - cradleStart) / (dropPhase - cradleStart) * 0.55;
-      } else if (t < throwPhase) {
-        // Release → mid-follow
-        qbPose = "throw";
-        qbT = 0.55 + (t - dropPhase) / (throwPhase - dropPhase) * 0.30;
+      if (t < PRE) {
+        qbPose = "idle";        // auto-stance via drawPlayer
+        qbT = 0;
       } else {
-        // Late follow-through then settle to idle
-        qbPose = t > throwPhase + 0.18 ? "idle" : "throw";
-        qbT = qbPose === "throw" ? 0.85 + (t - throwPhase) / 0.18 * 0.15 : 0;
+        const at = (t - PRE) / (1 - PRE);   // 0-1 within action
+        if (at < 0.25) {
+          qbPose = "run";
+          qbT = (t * 3 + 0.5) % 1;
+        } else if (at < 0.55) {
+          // Cradle → cock (throw pose internal t 0 → 0.42)
+          qbPose = "throw";
+          qbT = (at - 0.25) / 0.30 * 0.42;
+        } else if (at < 0.62) {
+          // Hold at the COCKED position (ball at ear, loaded) — Tom Brady frame
+          qbPose = "throw";
+          qbT = 0.42 + (at - 0.55) / 0.07 * 0.06;   // gentle creep, holds peak
+        } else if (at < 0.72) {
+          // Snap → release (throw t 0.48 → 0.62) — fast whip, ball releases at 0.55
+          qbPose = "throw";
+          qbT = 0.48 + (at - 0.62) / 0.10 * 0.20;
+        } else if (at < 0.85) {
+          // Follow-through (throw t 0.62 → 0.95)
+          qbPose = "throw";
+          qbT = 0.62 + (at - 0.72) / 0.13 * 0.33;
+        } else {
+          qbPose = "idle";
+          qbT = 0;
+        }
       }
       const qbWithPose = { ...qb, pose: qbPose, t: qbT, facing: dir };
       // Target receiver pose — reach during the catch window, then carry the ball downfield
