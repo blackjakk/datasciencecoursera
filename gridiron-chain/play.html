@@ -312,6 +312,11 @@
     border-radius: 6px; padding: .35rem .5rem; font-weight: 700; cursor: pointer;
     font-size: .8rem;
   }
+  .qb-ovr-input {
+    background: var(--bg3); color: var(--white); border: 1px solid var(--border);
+    border-radius: 6px; padding: .35rem .5rem; font-weight: 800; font-size: .8rem;
+    width: 60px; text-align: center; font-variant-numeric: tabular-nums;
+  }
   .sim-many-modal {
     position: fixed; inset: 0; background: rgba(0,0,0,0.75);
     display: flex; align-items: center; justify-content: center; z-index: 2000;
@@ -385,6 +390,12 @@
     color: var(--gray); font-size: .65rem; margin-top: .15rem; font-weight: 400;
     letter-spacing: 0; text-transform: none;
   }
+  .sm-qb-statline {
+    display: flex; gap: .5rem; margin-top: .25rem; font-size: .62rem;
+    font-weight: 700; color: var(--white); font-variant-numeric: tabular-nums;
+    letter-spacing: .3px;
+  }
+  .sm-qb-statline span { background: var(--bg3); padding: .1rem .3rem; border-radius: 3px; }
   .sm-qb-winner {
     margin-top: 1rem; padding: .8rem; background: rgba(240,204,48,0.12);
     border: 1px solid var(--gold); border-radius: 8px; text-align: center;
@@ -505,7 +516,8 @@
       <option value="1000">1000×</option>
     </select>
     <button class="btn btn-outline" id="simManyBtn">🎲 Sim Many</button>
-    <button class="btn btn-outline" id="simByQBBtn" title="Run N games for each QB archetype on the home team">🧪 Sim by QB</button>
+    <input id="qbOvrInput" class="qb-ovr-input" type="number" value="90" min="60" max="99" title="Target overall rating for the test QBs" />
+    <button class="btn btn-outline" id="simByQBBtn" title="Run N games for each QB archetype on the home team at the chosen OVR">🧪 Sim by QB</button>
     <button class="btn btn-primary" id="playBtn" disabled>▶ Play</button>
     <button class="btn btn-outline" id="pauseBtn" disabled>⏸ Pause</button>
     <button class="btn btn-outline" id="endBtn" disabled>⏭ Skip to End</button>
@@ -773,6 +785,39 @@ function pickQBArchetype(stats) {
   };
   for (const k in w) w[k] += Math.random() * 6;
   return Object.keys(w).reduce((a, b) => w[a] >= w[b] ? a : b);
+}
+
+// Stat profile per QB archetype — offsets from the target overall.
+// Tuned so that the weighted average (0.1*SPD + 0.15*AGI + 0.25*AWR + 0.5*THR)
+// of the offsets ≈ 0, then we solve for THR exactly to nail the target OVR.
+const QB_ARCH_PROFILES = {
+  POCKET:       { spd: -28, agi: -18, awr: +2,  thr: +12, blurb: "Statue with a cannon" },
+  GUNSLINGER:   { spd: -12, agi: -10, awr: -12, thr: +14, blurb: "Big arm, low awareness" },
+  GAME_MANAGER: { spd: -18, agi: -10, awr: +14, thr: -4,  blurb: "Smart, weaker arm" },
+  DUAL_THREAT:  { spd: +12, agi: +14, awr: -6,  thr: -6,  blurb: "Mobile, average arm" },
+  FIELD_GENERAL:{ spd: -12, agi: -6,  awr: +14, thr: +4,  blurb: "Smart and accurate" },
+};
+function genTestQB(arch, targetOvr) {
+  const prof = QB_ARCH_PROFILES[arch];
+  const jit = () => rand(-2, 2);
+  const clamp = (v) => Math.min(99, Math.max(35, Math.round(v)));
+  const spd = clamp(targetOvr + prof.spd + jit());
+  const agi = clamp(targetOvr + prof.agi + jit());
+  const awr = clamp(targetOvr + prof.awr + jit());
+  // Solve THR so weighted overall == target: 0.1*spd + 0.15*agi + 0.25*awr + 0.5*thr = target
+  const thr = clamp((targetOvr - 0.1*spd - 0.15*agi - 0.25*awr) / 0.5);
+  const str = clamp(targetOvr - 25 + jit());
+  // Non-overall stats: middling filler
+  const filler = () => rand(45, 60);
+  const stats = [spd, str, agi, awr, thr, filler(), filler(), filler(), filler(), filler(), filler()];
+  return {
+    name: `${QB_ARCHETYPES[arch].label} (Test)`,
+    position: "QB",
+    age: 27,
+    stats,
+    overall: calcOverall("QB", stats),
+    archetype: arch,
+  };
 }
 
 const RB_ARCHETYPES = {
@@ -2519,32 +2564,46 @@ $("simManyModal").addEventListener("click", (e) => {
 });
 
 // ─── Sim by QB Archetype — run N games for each of the 5 QB archetypes ────
-function runManyGamesByQBArchetype(home, away, hRoster, aRoster, n) {
+// For each archetype we swap the home team's starting QB with a freshly-
+// generated test QB tuned to that archetype at the target overall, so every
+// archetype gets a fair shot at the same rating ceiling.
+function runManyGamesByQBArchetype(home, away, hRoster, aRoster, n, targetOvr) {
   const archetypes = Object.keys(QB_ARCHETYPES);
-  const startingQB = hRoster.filter(p => p.position === "QB")
-    .sort((a, b) => b.overall - a.overall)[0];
-  if (!startingQB) return null;
-  const origArch = startingQB.archetype;
+  // Remove the existing starting QB from a working copy of the roster
+  const rosterCopy = hRoster.slice();
+  const qbIdx = rosterCopy
+    .map((p, i) => ({ p, i }))
+    .filter(x => x.p.position === "QB")
+    .sort((a, b) => b.p.overall - a.p.overall)[0]?.i;
+  if (qbIdx == null) return null;
+  const origStarter = rosterCopy[qbIdx];
   const results = {};
+  const testQBs = {};
   for (const arch of archetypes) {
-    startingQB.archetype = arch;
-    results[arch] = runManyGames(home, away, hRoster, aRoster, n);
+    const testQB = genTestQB(arch, targetOvr);
+    testQBs[arch] = testQB;
+    rosterCopy[qbIdx] = testQB;
+    results[arch] = runManyGames(home, away, rosterCopy, aRoster, n);
   }
-  startingQB.archetype = origArch;
-  return { archetypes, results, qbName: startingQB.name, qbOVR: startingQB.overall };
+  rosterCopy[qbIdx] = origStarter;
+  return { archetypes, results, testQBs, targetOvr, origStarterName: origStarter.name };
 }
 
 function renderSimByQBResults(data, home, away) {
-  const { archetypes, results, qbName, qbOVR } = data;
+  const { archetypes, results, testQBs, targetOvr, origStarterName } = data;
   const n = results[archetypes[0]].n;
   // Build rows: one per archetype
   const rows = archetypes.map(arch => {
     const agg = results[arch];
     const winPct = agg.homeWins / agg.n * 100;
+    const qb = testQBs[arch];
+    const [spd, _str, agi, awr, thr] = qb.stats;
     return {
       arch,
       label: QB_ARCHETYPES[arch].label,
       blurb: QB_ARCHETYPES[arch].blurb,
+      qbOvr: qb.overall,
+      spd, agi, awr, thr,
       winPct,
       record: `${agg.homeWins}-${agg.awayWins}${agg.ties ? `-${agg.ties}` : ""}`,
       ptsFor:  agg.homeScoreSum / agg.n,
@@ -2579,18 +2638,18 @@ function renderSimByQBResults(data, home, away) {
   // Per-column best/worst (used by row-coloring trick: we color all cells of best/worst row, not per-metric)
   // Simpler: highlight best win-pct row gold, worst red.
   const html = `
-    <div class="sm-title">🧪 Sim by QB Archetype</div>
+    <div class="sm-title">🧪 Sim by QB Archetype · ${targetOvr} OVR</div>
     <div class="sm-sub">
       ${home.emoji} ${home.city} ${home.name} <span style="color:var(--gray)">vs</span>
       ${away.emoji} ${away.city} ${away.name}
-      &middot; QB: <span style="color:var(--white);font-weight:700">${qbName}</span> (${qbOVR} OVR)
-      &middot; ${n} games per archetype (${n * 5} total)
+      &middot; replacing ${origStarterName} with a generated ${targetOvr}-OVR test QB per archetype
+      &middot; ${n} games each (${n * 5} total)
     </div>
 
     <table class="sm-qb-table">
       <thead>
         <tr>
-          <th class="arch">QB Archetype</th>
+          <th class="arch">QB Archetype · Stat Profile</th>
           <th>WIN %</th>
           <th>RECORD</th>
           <th>PF</th>
@@ -2607,8 +2666,14 @@ function renderSimByQBResults(data, home, away) {
         ${rows.map((r, i) => `
           <tr class="${i === winMarks.bi ? "best" : (i === winMarks.wi ? "worst" : "")}">
             <td class="arch">
-              ${r.label}
+              ${r.label} <span style="color:var(--gray);font-weight:400">(${r.qbOvr})</span>
               <div class="sm-qb-blurb">${r.blurb}</div>
+              <div class="sm-qb-statline">
+                <span>SPD ${r.spd}</span>
+                <span>AGI ${r.agi}</span>
+                <span>AWR ${r.awr}</span>
+                <span>THR ${r.thr}</span>
+              </div>
             </td>
             ${cell(r.winPct, winMarks, i, v => v.toFixed(1) + "%")}
             <td class="metric">${r.record}</td>
@@ -2632,7 +2697,9 @@ function renderSimByQBResults(data, home, away) {
 
     <div class="sm-section">
       <div style="font-size:.7rem;color:var(--gray);line-height:1.5">
-        Only the home QB's archetype is varied. Rest of the roster, playbook, and matchup are held constant.
+        The home QB is replaced with a freshly-generated ${targetOvr}-OVR test QB per archetype.
+        Stats are biased toward the archetype but the weighted overall is identical across all five.
+        Rest of the roster, playbook, and matchup are held constant.
         Gold = best in column · Red = worst in column.
       </div>
     </div>
@@ -2652,10 +2719,14 @@ $("simByQBBtn").addEventListener("click", () => {
   const awayRoster = (preview.away.id === awayId && preview.away.roster)
     ? preview.away.roster : regenerateFullRoster(away, {}, homeBlock);
   const n = +$("simManyCount").value || 100;
+  let targetOvr = parseInt($("qbOvrInput").value, 10);
+  if (!Number.isFinite(targetOvr)) targetOvr = 90;
+  targetOvr = Math.min(99, Math.max(60, targetOvr));
+  $("qbOvrInput").value = targetOvr;
   const btn = $("simByQBBtn");
   btn.disabled = true; btn.textContent = `Simulating 5×${n}...`;
   setTimeout(() => {
-    const data = runManyGamesByQBArchetype(home, away, homeRoster, awayRoster, n);
+    const data = runManyGamesByQBArchetype(home, away, homeRoster, awayRoster, n, targetOvr);
     if (data) renderSimByQBResults(data, home, away);
     btn.disabled = false; btn.textContent = "🧪 Sim by QB";
   }, 30);
