@@ -4741,13 +4741,12 @@ function buildAnimForPlay(play, prevPlay) {
     return cruiseDist;                // tackle hold
   }
 
-  // Pre-snap callouts + a brief "BALL SNAPPED!" flash at the moment of snap.
-  // Cadence ends BEFORE the snap so it doesn't bleed into the play.
+  // Pre-snap callouts: only AUDIBLE (when relevant) + the "BALL SNAPPED!"
+  // flash at the moment of the snap. No SET/DOWN/HUT cadence text.
   function drawPreSnapCallouts(c, t) {
-    // Snap flash window — ~400ms after the snap, decoupled from PRE.
-    const snapFlashWindow = (1 - PRE) * 0.10;   // ~10% of action time
+    const snapFlashWindow = (1 - PRE) * 0.10;
     if (t > PRE && t < PRE + snapFlashWindow) {
-      const flashT = (t - PRE) / snapFlashWindow;     // 0 → 1
+      const flashT = (t - PRE) / snapFlashWindow;
       const fade   = flashT < 0.25 ? flashT / 0.25 : (1 - (flashT - 0.25) / 0.75);
       c.save();
       c.textAlign = "center";
@@ -4761,18 +4760,12 @@ function buildAnimForPlay(play, prevPlay) {
       return;
     }
     if (t > PRE) return;
-    // Pre-snap cadence — phase windows within the PRE window. Cadence
-    // ends at tt=0.92 so the screen is CLEAN by the time the ball is snapped.
-    //   0.00 - 0.25: "SET"
-    //   0.25 - 0.50: "DOWN!" (or AUDIBLE if the QB is changing the play)
-    //   0.50 - 0.78: AUDIBLE callout (only if isAudible)
-    //   0.50 - 0.92: "HUT!"  (skipped if audible window is showing)
-    //   0.92 - 1.00: silent (about to snap)
-    const tt = t / PRE;   // 0 → 1 within pre-snap
-    c.save();
-    c.textAlign = "center";
-    c.textBaseline = "middle";
-    if (isAudible && tt >= 0.50 && tt < 0.78) {
+    // Audible callout — only shown when the QB is actually changing the play.
+    const tt = t / PRE;
+    if (isAudible && tt >= 0.30 && tt < 0.78) {
+      c.save();
+      c.textAlign = "center";
+      c.textBaseline = "middle";
       c.fillStyle = "rgba(0,0,0,0.55)";
       c.fillRect(0, 30, FIELD.W, 56);
       c.fillStyle = "#f0cc30";
@@ -4781,20 +4774,8 @@ function buildAnimForPlay(play, prevPlay) {
       c.fillStyle = "#fff";
       c.font = "bold 13px sans-serif";
       c.fillText(`${lastNameUpper(offStarters?.qb || "QB")} changes the play at the line`, FIELD.W / 2, 72);
-    } else if (tt < 0.25) {
-      c.fillStyle = "rgba(255,255,255,0.8)";
-      c.font = "900 16px sans-serif";
-      c.fillText("SET", FIELD.W / 2, 50);
-    } else if (tt < 0.50 && !isAudible) {
-      c.fillStyle = "rgba(255,255,255,0.85)";
-      c.font = "900 18px sans-serif";
-      c.fillText("DOWN!", FIELD.W / 2, 50);
-    } else if (tt >= 0.50 && tt < 0.92) {
-      c.fillStyle = "#f0cc30";
-      c.font = "900 26px sans-serif";
-      c.fillText("HUT!", FIELD.W / 2, 50);
+      c.restore();
     }
-    c.restore();
   }
 
   if (play.kind === "run") {
