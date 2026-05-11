@@ -1492,9 +1492,11 @@ class GameSimulator {
           dlName: reps.dl?.name, dlType: reps.dlType, dlMove: move,
           olName: reps.ol?.name, olType: reps.olType,
         });
-        this.yardLine = clamp(this.yardLine - loss, 1, 99);
-        this.down++; this.ytg += loss;
-        return {};
+        // Return negative yardage and let _drive() handle the down progression.
+        // (Previously we mutated this.yardLine/down/ytg directly which double-counted
+        // the down increment in _drive(), turning a 3rd-down sack into a phantom
+        // turnover-on-downs.)
+        return { yards: -loss };
       }
       // Pressure disrupts comp% (QB rushed, throw-aways, contested catches)
       const compPbMul = pb.compMul || 1.0;
