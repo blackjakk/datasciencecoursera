@@ -2205,14 +2205,14 @@ class GameSimulator {
 
 // ─── Field rendering ───────────────────────────────────────────────────────
 const FIELD = {
-  // Bumped internal resolution from 1000x420 → 1280x540 for sharper detail.
-  // CSS still scales to 100% of the container; the higher resolution means
-  // more pixels to render the now-larger players + finer animation precision.
-  W: 1280, H: 540,
-  EZ_PX: 80,         // pixels per end zone (was 60)
-  PX_PER_YARD: 11.2, // 100 yd × 11.2 = 1120px playable (80+1120+80 = 1280 ✓)
-  TOP: 40,
-  BOT: 500,
+  // Bumped internal resolution: 1280x540 → 1700x720 (+33%) for sharper player
+  // detail. CSS still scales to 100% of the container; the higher resolution
+  // gives the player sprites more pixels to play with.
+  W: 1700, H: 720,
+  EZ_PX: 100,
+  PX_PER_YARD: 15,   // 100 yd × 15 = 1500px playable (100 + 1500 + 100 = 1700 ✓)
+  TOP: 50,
+  BOT: 670,
 };
 
 // Convert yard line + possession to absolute X (0=home goal, 100=away goal)
@@ -2787,7 +2787,7 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   if (bodyRot !== 0) ctx.rotate(bodyRot);
   // Players are scaled by their body-type scale × a global multiplier.
   // Bumped to make them look meatier against the larger 1280-wide field.
-  const PLAYER_SCALE_MUL = 1.35;
+  const PLAYER_SCALE_MUL = 1.55;
   const totalScale = (bt.scale || 1) * PLAYER_SCALE_MUL;
   ctx.scale(totalScale, totalScale);
   ctx.lineCap = "round";
@@ -2971,6 +2971,10 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     drawSegment(sx, shoulderY, elbowX, elbowY, bicepW, color, shadeDark, shadeLight);
     // Forearm — skin tone (short-sleeved jersey), almost as thick
     drawSegment(elbowX, elbowY, handX, handY, forearmW, skin.base, skin.dark, skin.light);
+    // Wristband — thin colored band at the wrist (just inside the hand)
+    const wbX = elbowX + (handX - elbowX) * 0.82;
+    const wbY = elbowY + (handY - elbowY) * 0.82;
+    drawSegment(wbX, wbY, handX, handY, forearmW * 1.08, "#f1f1f1", "#bcbcbc", "#ffffff");
     // No separate hand — the arm just ends. Knuckle highlight on the very tip.
     ctx.fillStyle = skin.light;
     const tipDX = Math.sin(lowerA) * forearmW * 0.25;
@@ -3072,6 +3076,23 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   ctx.fillStyle = "rgba(0,0,0,0.65)";
   ctx.beginPath();
   ctx.arc(-facing * 1.9, helmY + 0.7, 1.1, 0, Math.PI * 2);
+  ctx.fill();
+  // ── Team logo decal on the side of the helmet (small badge with team's
+  // secondary color outline, primary fill) ─────
+  const logoX = facing * helmRx * 0.05;
+  const logoY = helmY + helmRy * 0.05;
+  ctx.fillStyle = secondary || "#fff";
+  ctx.beginPath();
+  ctx.ellipse(logoX, logoY, 2.2, 2.2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.ellipse(logoX, logoY, 1.5, 1.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Tiny highlight on logo
+  ctx.fillStyle = "rgba(255,255,255,0.4)";
+  ctx.beginPath();
+  ctx.arc(logoX - 0.3, logoY - 0.4, 0.5, 0, Math.PI * 2);
   ctx.fill();
   // ── Facemask cage — chrome bars across the front of the round helmet ─────
   const fxOuter = facing * (helmRx + 0.2);
