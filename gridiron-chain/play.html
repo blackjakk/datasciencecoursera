@@ -132,6 +132,7 @@
   .quarter-clock { font-size: 1.1rem; font-weight: 700; margin-top: .25rem; }
   .down-distance { font-size: .78rem; color: var(--gray); margin-top: .15rem; }
   .poss-indicator { font-size: .75rem; color: var(--gold); margin-top: .15rem; }
+  .timeout-dots { font-size: .85rem; letter-spacing: 2px; color: #9bd0ff; margin-top: .25rem; line-height: 1; }
 
   /* Progress bar */
   .progress-wrap { margin-bottom: .75rem; }
@@ -1225,12 +1226,63 @@ class GameSimulator {
     this.poss = Math.random() < 0.5 ? "home" : "away";
     this.yardLine = 25; this.down = 1; this.ytg = 10;
     this.plays = []; this.drives = [];
+    // Timeouts: each team gets 3 per half. Reset at halftime.
+    this.timeouts = { home: 3, away: 3 };
+    this._twoMinWarned = { half1: false, half2: false };  // ensure we only push the marker once
     this.stats = {
       home: this._buildTeamStats(this.homeR.starters),
       away: this._buildTeamStats(this.awayR.starters),
     };
     this._lastBallCarrier = null; // who got the ball on the last positive play
     this._lastBallType = null;    // 'pass' | 'rush'
+  }
+  // True if the team with the ball is in 2-minute drill mode:
+  // < 2:00 left in Q2 or Q4, and either trailing or tied (and 4th-quarter).
+  _isTwoMinDrill() {
+    if (this.time > 120) return false;
+    if (this.quarter !== 2 && this.quarter !== 4) return false;
+    const offScore = this.score[this.poss];
+    const defScore = this.score[this.poss === "home" ? "away" : "home"];
+    if (this.quarter === 2) return offScore <= defScore + 14;   // end of half — go for points
+    return offScore <= defScore;   // 4th quarter — only if tied or behind
+  }
+  // AI decides whether to burn a timeout. Returns the team that called it, or null.
+  // Called between plays in _drive(). Only fires when the clock would keep running.
+  _maybeCallTimeout(prevResult) {
+    if (this.time > 150 || this.time <= 5) return null;          // only late in halves
+    if (this.quarter !== 2 && this.quarter !== 4) return null;
+    if (prevResult?.incomplete || prevResult?.turnover) return null;  // clock already stopped
+    if (prevResult?.endDrive) return null;
+    const offTeam = this.poss;
+    const defTeam = this.poss === "home" ? "away" : "home";
+    const offScore = this.score[offTeam];
+    const defScore = this.score[defTeam];
+    const diff = offScore - defScore;
+    // Offense calls TO if behind and clock running out
+    if (this.timeouts[offTeam] > 0 && diff <= 0 && this.time < 120) {
+      this.timeouts[offTeam]--;
+      this.plays.push({
+        kind: "timeout",
+        desc: `Timeout — ${this[offTeam].city} ${this[offTeam].name}`,
+        team: offTeam, quarter: this.quarter, time: this.time,
+        timeoutsRemaining: { ...this.timeouts },
+        homeScore: this.score.home, awayScore: this.score.away,
+      });
+      return offTeam;
+    }
+    // Defense calls TO if trailing big and worried opponent will run clock out
+    if (this.timeouts[defTeam] > 0 && diff >= 1 && diff <= 16 && this.time < 130) {
+      this.timeouts[defTeam]--;
+      this.plays.push({
+        kind: "timeout",
+        desc: `Timeout — ${this[defTeam].city} ${this[defTeam].name} (defense)`,
+        team: defTeam, quarter: this.quarter, time: this.time,
+        timeoutsRemaining: { ...this.timeouts },
+        homeScore: this.score.home, awayScore: this.score.away,
+      });
+      return defTeam;
+    }
+    return null;
   }
   _buildTeamStats(starters) {
     const players = {};
@@ -1347,6 +1399,7 @@ class GameSimulator {
       yardLine: this.yardLine,
       homeScore: this.score.home,
       awayScore: this.score.away,
+      timeouts: { ...this.timeouts },
       statsSnap: JSON.parse(JSON.stringify(this.stats)),
     });
   }
@@ -1365,7 +1418,14 @@ class GameSimulator {
     const runMul  = (RUN_MATCHUP [reps.dlType]?.[reps.olType]) ?? 1.0;
     // Effective pressure for THIS play accounts for the archetype matchup
     const pressure = clamp(basePressure * passMul, -1.5, 1.9);
-    const dt = clamp(normal(33, 9), 12, 55);
+    // Two-minute drill: offense down by ≤16, < 2:00 left in half/game.
+    // Reduces play clock (no-huddle) and bumps pass rate.
+    const inTwoMin = this._isTwoMinDrill();
+    const dtMean = inTwoMin ? 13 : 33;
+    const dtSd   = inTwoMin ? 4  : 9;
+    const dtMin  = inTwoMin ? 6  : 12;
+    const dtMax  = inTwoMin ? 24 : 55;
+    const dt = clamp(normal(dtMean, dtSd), dtMin, dtMax);
     this.time -= dt;
     if (this.time < 0) this.time = 0;
     const startYard = this.yardLine;
@@ -1455,7 +1515,8 @@ class GameSimulator {
     if (isThird) off.team.thirdAtt++;
     const isLong = this.ytg >= 8, isShort = this.ytg <= 2;
     const pb = this.offPlaybook;
-    const passProb = isLong ? pb.passProb.long : isShort ? pb.passProb.short : pb.passProb.mid;
+    let passProb = isLong ? pb.passProb.long : isShort ? pb.passProb.short : pb.passProb.mid;
+    if (inTwoMin) passProb = Math.min(0.96, passProb + 0.25);   // hurry-up = pass-heavy
     const playType = Math.random() < passProb ? "pass" : "run";
 
     if (playType === "pass") {
@@ -1838,7 +1899,22 @@ class GameSimulator {
     const start = this.poss; let plays = 0;
     while (this.time > 0 && plays < 22) {
       plays++;
+      // 2-minute warning marker (Q2 + Q4) — push once per half when the
+      // clock first crosses 2:00. Doesn't stop play flow, just a UI beat.
+      const halfKey = this.quarter <= 2 ? "half1" : "half2";
+      if (this.time <= 120 && !this._twoMinWarned[halfKey]
+          && (this.quarter === 2 || this.quarter === 4)) {
+        this._twoMinWarned[halfKey] = true;
+        this.plays.push({
+          kind: "two_min_warning",
+          desc: this.quarter === 2 ? "⏱ TWO-MINUTE WARNING (Q2)" : "⏱ TWO-MINUTE WARNING (Q4)",
+          quarter: this.quarter, time: this.time,
+          homeScore: this.score.home, awayScore: this.score.away,
+        });
+      }
       const r = this._play();
+      // After each play, the team that's behind may call timeout to preserve time.
+      this._maybeCallTimeout(r);
       if (r.endDrive) {
         if (r.isReturnTD) {
           // Punt returned for a TD by the receiving team
@@ -1923,6 +1999,8 @@ class GameSimulator {
     while (this.quarter <= 4) {
       if (this.time <= 0) {
         if (this.quarter === 2) {
+          // Reset timeouts for the second half
+          this.timeouts = { home: 3, away: 3 };
           this.plays.push({ kind: "halftime", desc: "═══ HALFTIME ═══", quarter: 2, time: 0, homeScore: this.score.home, awayScore: this.score.away });
           this.poss = this.poss === "home" ? "away" : "home";
           this.yardLine = 25; this.down = 1; this.ytg = 10;
@@ -4054,16 +4132,26 @@ function buildAnimForPlay(play, prevPlay) {
   // t01 = 0..1 progress
   const homeTeam = gameResult.homeTeam, awayTeam = gameResult.awayTeam;
 
-  if (["halftime", "ot", "quarter"].includes(play.kind)) {
-    return { duration: 1200, kind: play.kind, render: (t, ctx) => {
+  if (["halftime", "ot", "quarter", "two_min_warning", "timeout"].includes(play.kind)) {
+    const isWarning = play.kind === "two_min_warning";
+    const isTimeout = play.kind === "timeout";
+    const dur = isTimeout ? 1400 : isWarning ? 1500 : 1200;
+    return { duration: dur, kind: play.kind, render: (t, ctx) => {
       drawField(ctx, homeTeam, awayTeam, null);
-      ctx.fillStyle = "rgba(0,0,0,0.55)";
+      ctx.fillStyle = isWarning ? "rgba(40,20,0,0.65)" : isTimeout ? "rgba(20,30,50,0.65)" : "rgba(0,0,0,0.55)";
       ctx.fillRect(0, 0, FIELD.W, FIELD.H);
-      ctx.fillStyle = "#f0cc30";
-      ctx.font = "bold 42px sans-serif";
+      ctx.fillStyle = isTimeout ? "#9bd0ff" : "#f0cc30";
+      ctx.font = "bold " + (isTimeout ? "36px" : "42px") + " sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(play.desc, FIELD.W / 2, FIELD.H / 2);
+      // Show remaining timeouts on a TO call
+      if (isTimeout && play.timeoutsRemaining) {
+        ctx.font = "bold 14px sans-serif";
+        ctx.fillStyle = "#cccccc";
+        const h = play.timeoutsRemaining.home, a = play.timeoutsRemaining.away;
+        ctx.fillText(`${homeTeam.name} ${h} TO  ·  ${awayTeam.name} ${a} TO`, FIELD.W / 2, FIELD.H / 2 + 40);
+      }
     }};
   }
 
@@ -6894,6 +6982,8 @@ function formatPlayResult(play) {
     case "halftime":
     case "quarter":
     case "ot":
+    case "two_min_warning":
+    case "timeout":
       return null;
     default: return null;
   }
@@ -7241,6 +7331,12 @@ function renderScoreboard(curPlay) {
     if (pb.id === "OPTION")           return `<span class="badge badge-opt">READ OPTION</span>`;
     return "";
   };
+  const toDots = (count) => {
+    const dots = [];
+    for (let i = 0; i < 3; i++) dots.push(i < (count ?? 3) ? "●" : "○");
+    return `<div class="timeout-dots" title="Timeouts remaining">${dots.join("")}</div>`;
+  };
+  const tos = last?.timeouts || { home: 3, away: 3 };
   sb.innerHTML = `
     <div class="score-team">
       <div class="score-team-emoji">${gameResult.homeTeam.emoji}</div>
@@ -7248,6 +7344,7 @@ function renderScoreboard(curPlay) {
       <div class="score-team-name">${gameResult.homeTeam.name}</div>
       ${pbBadge(gameResult.homeTeam)}
       <div class="score-num ${winner === "home" ? "win" : ""}">${homeScore}</div>
+      ${toDots(tos.home)}
       ${last?.poss === "home" && !ended ? `<div class="poss-indicator">🏈 POSS</div>` : ""}
     </div>
     <div class="score-mid">
@@ -7263,6 +7360,7 @@ function renderScoreboard(curPlay) {
       <div class="score-team-name">${gameResult.awayTeam.name}</div>
       ${pbBadge(gameResult.awayTeam)}
       <div class="score-num ${winner === "away" ? "win" : ""}">${awayScore}</div>
+      ${toDots(tos.away)}
       ${last?.poss === "away" && !ended ? `<div class="poss-indicator">🏈 POSS</div>` : ""}
     </div>
   `;
@@ -7459,7 +7557,7 @@ function highlightPlayerNamesInPlay(p) {
 }
 
 function playEntry(p) {
-  const isMarker = ["halftime","ot","quarter","kickoff"].includes(p.kind);
+  const isMarker = ["halftime","ot","quarter","kickoff","two_min_warning","timeout"].includes(p.kind);
   if (isMarker) return `<div class="play-entry ${p.kind}">${escapeHtml(p.desc)}</div>`;
   const meta = `Q${p.quarter} ${Math.floor(p.time/60)}:${String(p.time%60).padStart(2,"0")}` +
                (p.down > 0 ? ` · ${p.down}${["st","nd","rd","th"][p.down-1]}&${p.ytg}` : "");
