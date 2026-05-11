@@ -479,6 +479,8 @@
   .player-tooltip.show { display: block; }
   .player-tooltip .tt-name { font-weight: 800; color: var(--gold); font-size: .9rem; margin-bottom: .3rem; }
   .player-tooltip .tt-nick { color: #c890ff; font-style: italic; font-weight: 700; }
+  .player-tooltip .tt-legal { color: #8a8a8a; font-size: .68rem; margin-top: -.2rem; margin-bottom: .25rem; font-style: italic; }
+  .player-tooltip .tt-college { color: #c890ff; font-size: .65rem; margin-top: .3rem; font-weight: 700; letter-spacing: 0.04em; }
   .player-tooltip .tt-sub  { font-size: .68rem; color: var(--gray); margin-bottom: .4rem; letter-spacing: .3px; }
   .player-tooltip .tt-flavor { font-size: .68rem; color: var(--gray); margin-top: .35rem; line-height: 1.35; }
   .player-tooltip .tt-flavor b { color: #c890ff; font-weight: 700; }
@@ -781,6 +783,54 @@ const FIRST = [
   "Caio","Thiago","Rodrigo","Vinicius","João","Joao","Murilo","Vinícius",
   // Hyphenated double firsts (sprinkle)
   "Jean-Paul","Jean-Luc","Pierre-Marc","Hans-Peter","Karl-Heinz","Juan-Carlos","Marco-Antonio",
+  // Russian / Slavic
+  "Dmitri","Boris","Nikolai","Igor","Sergei","Pavel","Mikhail","Yuri","Viktor","Alexei",
+  // Middle Eastern / Arabic
+  "Tariq","Khalid","Omar","Ahmed","Yusuf","Hassan","Karim","Faisal","Bilal","Rashid",
+  // Indian / Sanskrit
+  "Arjun","Krishna","Rajiv","Vikram","Sanjay","Aditya","Raj","Dev","Kabir","Rohan",
+  // Hawaiian / Pacific
+  "Kainoa","Makoa","Keoni","Kalani","Akoni","Kona","Nainoa",
+  // Native American (modern usage)
+  "Cheyenne","Dakota","Sequoia",
+  // Greek mythology
+  "Atlas","Achilles","Hector","Ajax","Apollo","Ares","Theseus","Perseus","Heracles","Odysseus",
+  "Cassius","Brutus","Leonidas","Orion","Castor","Polydeuces","Aeneas",
+  // Norse mythology
+  "Thor","Odin","Loki","Tyr","Bragi","Freyr","Baldur","Magnus","Ragnar",
+  // Game of Thrones
+  "Jon","Robb","Bran","Ned","Eddard","Sandor","Jaime","Theon","Tormund","Aemon",
+  "Stannis","Renly","Petyr","Gregor","Bronn","Davos","Samwell","Podrick","Mance","Tywin",
+  "Doran","Oberyn","Tyrion","Jorah",
+  // Star Wars
+  "Anakin","Han","Lando","Mace","Boba","Jango","Kylo","Finn","Poe","Cassian","Bodhi",
+  "Galen","Saw","Cal","Ezra","Kanan",
+  // Lord of the Rings
+  "Aragorn","Frodo","Bilbo","Gandalf","Legolas","Gimli","Boromir","Faramir","Eomer","Theoden",
+  "Elrond","Pippin","Merry","Beregond","Halbarad","Imrahil",
+  // The Matrix
+  "Morpheus","Neo","Cypher",
+  // Dune
+  "Paul","Duncan","Stilgar","Leto","Gurney","Idaho","Liet",
+  // Breaking Bad / pop classics
+  "Walter","Jesse","Saul","Mike","Tuco","Hank",
+  // Anime (Dragon Ball, Naruto, etc.)
+  "Goku","Vegeta","Trunks","Gohan","Krillin","Naruto","Itachi","Sasuke","Kakashi",
+  // Marvel / DC heroes
+  "Logan","Bruce","Steve","Peter","Clark","Wade","Tony","Stephen","Scott","Hal",
+  // Cultural significants from other angles
+  "Cyrus","Darius","Hannibal","Spartacus","Genghis","Attila","Augustus",
+  // Roman names (emperors, generals, philosophers)
+  "Caesar","Lucius","Maximus","Octavian","Aurelius","Cato","Tiberius","Trajan","Nero","Vespasian",
+  "Hadrian","Cicero","Crassus","Pompey","Sulla","Constantine","Diocletian","Antoninus",
+  // Greek (philosophers, kings, heroes — not in mythology block)
+  "Alexander","Aristotle","Plato","Socrates","Pythagoras","Pericles","Themistocles","Leonidas",
+  "Stavros","Petros","Yannis","Dimitris","Nikolaos","Konstantinos",
+  // Egyptian (pharaohs and gods used as names)
+  "Ramses","Khufu","Akhenaten","Thutmose","Senusret","Imhotep","Ptolemy","Khaemwaset","Tutankhamun",
+  "Anubis","Horus","Osiris","Sobek","Khepri",
+  // Celtic / Welsh / Irish
+  "Cormac","Conor","Lorcan","Padraig","Niall","Eoin","Owen","Bran","Bronn","Rhys","Dafydd",
 ];
 
 const LAST = [
@@ -824,6 +874,39 @@ const LAST = [
   // Invented / brand-flavored — adds "alive" feeling without being on-the-nose
   "Apple","Cherry","Maple","Mercedes","Cobra","Lemon","Cadillac","Crowne","Diamond","Ironside",
   "Pomelo","Olive","Brookstone","Aspen","Cypress","Magnolia","Indigo","Ember","Vesper","Onyx",
+  // Russian / Slavic surnames
+  "Volkov","Petrov","Sokolov","Ivanov","Romanov","Smirnov","Lebedev","Fedorov","Karpov","Sidorov",
+  // Indian / South Asian surnames
+  "Patel","Singh","Sharma","Reddy","Verma","Khan","Mehta","Nair","Iyer","Chowdhury",
+  // Middle Eastern surnames
+  "Al-Rashid","Al-Jabbar","Hakim","Khoury","Saleh","Mansour","Nasser",
+  // Hawaiian / Pacific surnames
+  "Kahuna","Kahale","Mahuta","Nainoa","Kona","Pukui","Kaleo",
+  // Greek mythology / classics
+  "Atlas","Apollo","Achilles","Ajax","Hercules","Argo","Stavros","Papadopoulos","Kostas","Alexandrou",
+  // Roman / Latin
+  "Caesar","Augustus","Aurelius","Maximus","Cato","Trajan","Octavian","Cicero","Crassus","Vespasian",
+  // Egyptian mythology / pharaonic
+  "Ra","Anubis","Horus","Osiris","Sobek","Khepri","Set","Hathor","Ramses","Khufu",
+  "Imhotep","Ptolemy","Akhenaten","Thutmose","Senusret",
+  // Norse mythology
+  "Odinson","Thorson","Lokison","Bjornsson","Eriksson","Magnusson","Olafson",
+  // Game of Thrones — house names
+  "Stark","Lannister","Targaryen","Baratheon","Greyjoy","Tully","Tyrell","Martell","Arryn","Bolton",
+  "Frey","Mormont","Tarly","Tarth","Clegane","Snow","Stone","Sand","Karstark","Umber",
+  // Star Wars
+  "Skywalker","Solo","Kenobi","Calrissian","Tarkin","Antilles","Fett","Windu","Andor","Wren",
+  "Erso","Bridger","Kestis",
+  // Lord of the Rings
+  "Baggins","Took","Brandybuck","Gamgee","Greenleaf","Greybeard","Hornblower","Stormcrow",
+  // Marvel / DC heroes (surnames that work)
+  "Stark","Rogers","Banner","Parker","Kent","Wayne","Allen","Garrick","Howlett","Lehnsherr",
+  // Breaking Bad / pop crime
+  "White","Pinkman","Goodman",
+  // Anime
+  "Uchiha","Uzumaki","Hatake","Saiyan",
+  // Doctor Who
+  "Tyler","Smith","Pond",
 ];
 
 // Creative-style first-name generator — produces things like D'Apple,
@@ -1336,7 +1419,37 @@ function genPlayer(pos, tier) {
   if ((tier === "poor" || tier === "average") && pos !== "K" && pos !== "P") {
     flavor = applyFlavor(stats, pos);
   }
-  const player = { name: randName(), position: pos, age: rand(21, 33), stats, overall: calcOverall(pos, stats), flavor };
+  // Build the legal name: first + (optional middle) + last. The display name
+  // (what shows up in play logs, tooltips, and on the field) might be the
+  // initials version ("T.J. Watt"), the middle name ("Cooper Smith"), or
+  // just first+last, depending on how the player "goes by".
+  const firstName = pickFirstName();
+  const lastName  = pickLastName();
+  const middleName = Math.random() < 0.55 ? pickFirstName() : null;
+  let displayName = `${firstName} ${lastName}`;
+  if (middleName && !middleName.includes("'") && !firstName.includes("'")
+      && !middleName.includes("-") && !firstName.includes("-")) {
+    const roll = Math.random();
+    if (roll < 0.07) {
+      // Initials style: "T.J. Watt" (real NFL: T.J. Watt, A.J. Brown, C.J. Stroud)
+      displayName = `${firstName[0]}.${middleName[0]}. ${lastName}`;
+    } else if (roll < 0.11) {
+      // Goes by middle name: drops the first entirely
+      displayName = `${middleName} ${lastName}`;
+    } else if (roll < 0.13) {
+      // First + middle initial: "Patrick L. Mahomes"
+      displayName = `${firstName} ${middleName[0]}. ${lastName}`;
+    }
+  }
+  const player = {
+    name: displayName,
+    firstName, middleName, lastName,
+    position: pos,
+    age: rand(21, 33),
+    stats,
+    overall: calcOverall(pos, stats),
+    flavor,
+  };
   switch (pos) {
     case "QB": player.archetype = pickQBArchetype(stats); break;
     case "DL": player.archetype = pickDLArchetype(stats); break;
@@ -1351,9 +1464,20 @@ function genPlayer(pos, tier) {
   player.runStyle = pickRunStyle(pos, player.archetype);
   player.celebStyle = pickCelebStyle();
   player.bodyType = pickBodyType(pos, player.archetype);
-  // Nickname is granted later by assignLeagueNicknames() once we know the
-  // player's leaguewide ranking. Career-persistent: once earned, it stays.
   player.nickname = null;
+  // COLLEGE NICKNAME — young (≤23), highly-rated players have a 30% chance of
+  // arriving with a nickname earned in college (record-breakers, elite
+  // prospects). They keep it through their career; pro top-10 status won't
+  // overwrite it. Tagged player.collegeNickname=true so the tooltip can
+  // surface "earned in college".
+  if (player.age <= 23 && player.overall >= 86 && pos !== "K" && pos !== "P"
+      && Math.random() < 0.30) {
+    const nick = pickCareerNickname(player);
+    if (nick) {
+      player.nickname = nick;
+      player.collegeNickname = true;
+    }
+  }
   return player;
 }
 // Generates a player whose name isn't already in `blockNames`. Falls back to
@@ -3666,16 +3790,33 @@ function buildPlayerTooltip(p) {
   const flav = p.flavor && PLAYER_FLAVORS[p.flavor]
     ? `<div class="tt-flavor"><b>${PLAYER_FLAVORS[p.flavor].label}</b> — ${PLAYER_FLAVORS[p.flavor].blurb}</div>`
     : "";
-  // Display name — fold the nickname in subtly if the player has one
+  // Display name — fold the nickname in subtly if the player has one. If the
+  // player's display name is the initials version ("T.J. Watt"), show the
+  // full legal name underneath.
   const nameDisplay = p.nickname
     ? `${escapeHtml(p.name.split(" ")[0])} <span class="tt-nick">"${escapeHtml(p.nickname)}"</span> ${escapeHtml(p.name.split(" ").slice(1).join(" "))}`
     : escapeHtml(p.name);
+  // Legal name line — only shown when the display name differs (initials,
+  // or "goes by middle"). e.g. "Trent Jordan Watt" under "T.J. Watt".
+  let legalName = null;
+  if (p.firstName && p.lastName) {
+    const fullLegal = p.middleName
+      ? `${p.firstName} ${p.middleName} ${p.lastName}`
+      : `${p.firstName} ${p.lastName}`;
+    if (fullLegal !== p.name) legalName = fullLegal;
+  }
+  const legalHtml = legalName
+    ? `<div class="tt-legal">${escapeHtml(legalName)}</div>` : "";
+  const collegeHtml = p.collegeNickname
+    ? `<div class="tt-college">★ Earned in college</div>` : "";
   return `
     <div class="tt-name">${nameDisplay}</div>
+    ${legalHtml}
     <div class="tt-sub">${p.position} · ${teamLabel.toUpperCase()} · AGE ${p.age}</div>
     <div><span class="tt-ovr tier-${tier}">${p.overall} OVR</span></div>
     <div class="tt-bar"><div class="tt-bar-fill" style="width:${p.overall}%"></div></div>
     <div class="tt-stats">${statRows}</div>
+    ${collegeHtml}
     ${flav}
     ${archHtml}
   `;
