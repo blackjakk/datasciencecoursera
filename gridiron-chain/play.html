@@ -2313,15 +2313,15 @@ const CELEB_STYLES = ["fist_pump", "ref_signal", "spike", "first_down", "point_s
 // LEAN = narrow shoulders, longer limbs — most WRs, shutdown CBs
 // COMPACT = short and small — slot WR/CB, elusive RB
 const BODY_TYPES = {
-  //               padW   torsoLen  torsoBotW  legLen  armLen  helmH   scale  bulk    (extra width on sides of pads)
-  HUGE:        { padW: 16.0, torsoLen: 9.8, torsoBotW: 6.0, legLen: 9.0,  armLen: 7.8, helmH: 5.9, scale: 1.10, bulk: 1.6 },  // mountain (NT, RT)
-  BIG:         { padW: 13.5, torsoLen: 9.0, torsoBotW: 4.8, legLen: 8.8,  armLen: 7.5, helmH: 5.7, scale: 1.05, bulk: 1.0 },
-  HEAVY_SHORT: { padW: 14.5, torsoLen: 7.8, torsoBotW: 5.5, legLen: 7.5,  armLen: 7.0, helmH: 5.6, scale: 1.04, bulk: 1.4 },  // squat guard
-  TALL_HEAVY:  { padW: 14.0, torsoLen: 10.2,torsoBotW: 5.2, legLen: 10.0, armLen: 8.2, helmH: 5.7, scale: 1.08, bulk: 1.2 },  // tall + thick (LT, DE)
-  BROAD:       { padW: 11.8, torsoLen: 8.5, torsoBotW: 4.0, legLen: 9.0,  armLen: 7.5, helmH: 5.5, scale: 1.0,  bulk: 0.8 },
-  NORMAL:      { padW: 10.0, torsoLen: 8.5, torsoBotW: 3.5, legLen: 9.0,  armLen: 7.5, helmH: 5.5, scale: 1.0,  bulk: 0.5 },
-  LEAN:        { padW: 9.0,  torsoLen: 9.5, torsoBotW: 2.6, legLen: 10.2, armLen: 8.4, helmH: 5.3, scale: 1.0,  bulk: 0.2 },
-  COMPACT:     { padW: 8.8,  torsoLen: 7.5, torsoBotW: 3.0, legLen: 8.2,  armLen: 6.8, helmH: 5.2, scale: 0.95, bulk: 0.4 },
+  //               padW   torsoLen  torsoBotW  legLen  armLen  helmH   scale  bulk
+  HUGE:        { padW: 16.0, torsoLen: 9.8, torsoBotW: 6.0, legLen: 9.0,  armLen: 7.8, helmH: 5.9, scale: 1.45, bulk: 1.6 },
+  BIG:         { padW: 13.5, torsoLen: 9.0, torsoBotW: 4.8, legLen: 8.8,  armLen: 7.5, helmH: 5.7, scale: 1.35, bulk: 1.0 },
+  HEAVY_SHORT: { padW: 14.5, torsoLen: 7.8, torsoBotW: 5.5, legLen: 7.5,  armLen: 7.0, helmH: 5.6, scale: 1.36, bulk: 1.4 },
+  TALL_HEAVY:  { padW: 14.0, torsoLen: 10.2,torsoBotW: 5.2, legLen: 10.0, armLen: 8.2, helmH: 5.7, scale: 1.40, bulk: 1.2 },
+  BROAD:       { padW: 11.8, torsoLen: 8.5, torsoBotW: 4.0, legLen: 9.0,  armLen: 7.5, helmH: 5.5, scale: 1.30, bulk: 0.8 },
+  NORMAL:      { padW: 10.0, torsoLen: 8.5, torsoBotW: 3.5, legLen: 9.0,  armLen: 7.5, helmH: 5.5, scale: 1.30, bulk: 0.5 },
+  LEAN:        { padW: 9.0,  torsoLen: 9.5, torsoBotW: 2.6, legLen: 10.2, armLen: 8.4, helmH: 5.3, scale: 1.30, bulk: 0.2 },
+  COMPACT:     { padW: 8.8,  torsoLen: 7.5, torsoBotW: 3.0, legLen: 8.2,  armLen: 6.8, helmH: 5.2, scale: 1.24, bulk: 0.4 },
 };
 const LINE_BODY_POOL = ["HUGE", "BIG", "HEAVY_SHORT", "TALL_HEAVY", "BIG", "TALL_HEAVY"];
 function pickBodyType(pos, archetype) {
@@ -2579,43 +2579,64 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   const shoulderY = -headR + 1;
   const hipY = shoulderY + torsoLen;
 
-  // ── Legs with knee bend + foot lift (thicker w/ shaded edge) ──
-  const legW = 3.4 + bt.bulk * 0.4;
+  // ── Capsule helper: a fat segment with a dark shadow side + bright lit edge.
+  // x1,y1 → x2,y2 is the centerline; w is half-width perpendicular to it.
+  function drawSegment(x1, y1, x2, y2, w, baseColor, darkColor, lightColor) {
+    const dx = x2 - x1, dy = y2 - y1;
+    const len = Math.hypot(dx, dy) || 0.001;
+    const nx = -dy / len, ny = dx / len;
+    // Filled body
+    ctx.fillStyle = baseColor;
+    ctx.beginPath();
+    ctx.moveTo(x1 + nx * w, y1 + ny * w);
+    ctx.lineTo(x2 + nx * w, y2 + ny * w);
+    ctx.lineTo(x2 - nx * w, y2 - ny * w);
+    ctx.lineTo(x1 - nx * w, y1 - ny * w);
+    ctx.closePath();
+    ctx.fill();
+    // End caps so the joints aren't squared off
+    ctx.beginPath(); ctx.arc(x1, y1, w, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x2, y2, w, 0, Math.PI * 2); ctx.fill();
+    // Dark side
+    ctx.strokeStyle = darkColor;
+    ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    ctx.moveTo(x1 - nx * w * 0.9, y1 - ny * w * 0.9);
+    ctx.lineTo(x2 - nx * w * 0.9, y2 - ny * w * 0.9);
+    ctx.stroke();
+    // Lit edge
+    if (lightColor) {
+      ctx.strokeStyle = lightColor;
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.moveTo(x1 + nx * w * 0.5, y1 + ny * w * 0.5);
+      ctx.lineTo(x2 + nx * w * 0.5, y2 + ny * w * 0.5);
+      ctx.stroke();
+    }
+  }
+
+  // ── Legs (filled capsules — thigh + shin, with knee joint) ──
+  const thighW = 2.4 + bt.bulk * 0.6;
+  const shinW  = 2.0 + bt.bulk * 0.4;
   const drawLeg = (side, angle, lift) => {
     const a = angle * facing;
     const sx = side * 1.6;
     const upperLen = legLen * 0.55;
     const lowerLen = legLen * 0.55;
-    // Knee bend amount: in run/carry, also amplified by lift (back foot up to butt)
     const bending = pose === "run" || pose === "carry";
     const bendBase = bending ? rs.kneeBend * Math.abs(Math.sin(a)) : 0;
     const bend = bendBase + (lift / 7) * 0.8;
     const kneeX = sx + Math.sin(a) * upperLen;
     const kneeY = hipY + Math.cos(a) * upperLen - lift * 0.55;
-    // Lower leg angle — when lifted, foot tucks up behind/under the body
     const lowerA = a + facing * bend * (a >= 0 ? 1 : -1);
     const footX = kneeX + Math.sin(lowerA) * lowerLen;
     const footY = kneeY + Math.cos(lowerA) * lowerLen - lift * 0.35;
-    // Shadow base
-    ctx.strokeStyle = "#c0c0c0";
-    ctx.lineWidth = legW;
-    ctx.beginPath();
-    ctx.moveTo(sx + 0.3, hipY + 0.3);
-    ctx.lineTo(kneeX + 0.2, kneeY + 0.3);
-    ctx.lineTo(footX + 0.2, footY + 0.3);
-    ctx.stroke();
-    // Main leg (white pants)
-    ctx.strokeStyle = "#f1f1f1";
-    ctx.lineWidth = legW - 0.6;
-    ctx.beginPath();
-    ctx.moveTo(sx, hipY);
-    ctx.lineTo(kneeX, kneeY);
-    ctx.lineTo(footX, footY);
-    ctx.stroke();
-    // Cleat (only show when grounded; when lifted, foot is angled)
+    drawSegment(sx, hipY, kneeX, kneeY, thighW, "#f1f1f1", "#a8a8a8", "#ffffff");  // thigh
+    drawSegment(kneeX, kneeY, footX, footY, shinW, "#f1f1f1", "#a8a8a8", "#ffffff"); // shin
+    // Cleat
     ctx.fillStyle = "#0a0a14";
     ctx.beginPath();
-    ctx.ellipse(footX, footY + 0.5, 2.6, 1.4, 0, 0, Math.PI * 2);
+    ctx.ellipse(footX, footY + 0.5, 2.8, 1.4, 0, 0, Math.PI * 2);
     ctx.fill();
   };
   drawLeg(-1, lLeg, lLegLift);
@@ -2682,8 +2703,9 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     ctx.fillText(label, 0, shoulderY + torsoLen * 0.55);
   }
 
-  // ── Arms (thicker shadow base + lit top stroke for a 3D look) ──
-  const armW = 3.2 + bt.bulk * 0.6;
+  // ── Arms (filled capsules — bicep + forearm, with elbow joint) ──
+  const bicepW   = 2.0 + bt.bulk * 0.55;
+  const forearmW = 1.7 + bt.bulk * 0.40;
   const drawArm = (side, angle, holdsBall) => {
     const a = angle * facing;
     const sx = side * (padW/2 - 0.5);
@@ -2694,22 +2716,8 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     const lowerA = a - facing * 0.35 * Math.sign(Math.cos(a));
     const handX = elbowX + Math.sin(lowerA) * lower;
     const handY = elbowY + Math.cos(lowerA) * lower + armReachY * 0.6;
-    // Shadow base (slightly offset)
-    ctx.strokeStyle = shadeDark;
-    ctx.lineWidth = armW;
-    ctx.beginPath();
-    ctx.moveTo(sx + 0.3, shoulderY + 0.3);
-    ctx.lineTo(elbowX + 0.2, elbowY + 0.3);
-    ctx.lineTo(handX + 0.2, handY + 0.3);
-    ctx.stroke();
-    // Main arm
-    ctx.strokeStyle = color;
-    ctx.lineWidth = armW - 0.5;
-    ctx.beginPath();
-    ctx.moveTo(sx, shoulderY);
-    ctx.lineTo(elbowX, elbowY);
-    ctx.lineTo(handX, handY);
-    ctx.stroke();
+    drawSegment(sx, shoulderY, elbowX, elbowY, bicepW, color, shadeDark, shadeLight);
+    drawSegment(elbowX, elbowY, handX, handY, forearmW, color, shadeDark, shadeLight);
     ctx.fillStyle = "#d6a878";
     ctx.beginPath();
     ctx.arc(handX, handY, 1.5, 0, Math.PI * 2);
