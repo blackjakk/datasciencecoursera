@@ -4345,10 +4345,50 @@ function buildAnimForPlay(play, prevPlay) {
       drawField(ctx, homeTeam, awayTeam, fieldState);
       const rb = { ...formation.rb };
       const qb = { ...formation.qb };
+      const isScramble = !!play.isScramble;
+      const isQBRun = !!play.isQBRun;
+      const isQBCarry = isScramble || isQBRun;
       const runT = t < PRE ? 0 : (t - PRE) / (1 - PRE);
       let ballX, ballY = cy + (t < PRE ? 18 : (1 - runT) * 18);
       if (t < PRE) {
         ballX = formation.qb.x;
+      } else if (isScramble) {
+        // SCRAMBLE: QB drops back, looks downfield, then tucks and runs.
+        //   Phase A (0 - 0.18): pure dropback ~5 yds behind LOS
+        //   Phase B (0.18 - 0.34): hesitates / shuffles, looks for receivers
+        //   Phase C (0.34 - end): tucks the ball and bursts forward to endX
+        const dropBackX = qb.x - dir * 5 * FIELD.PX_PER_YARD;
+        if (runT < 0.18) {
+          const dropT = runT / 0.18;
+          ballX = qb.x + (dropBackX - qb.x) * dropT;
+          rb.x = ballX;
+          rb.y = cy;
+        } else if (runT < 0.34) {
+          // hesitate — small lateral shuffle
+          const hesT = (runT - 0.18) / 0.16;
+          ballX = dropBackX + Math.sin(hesT * Math.PI * 3) * 4;
+          rb.x = ballX;
+          rb.y = cy + Math.cos(hesT * Math.PI * 3) * 6;
+        } else {
+          const tuckT = (runT - 0.34) / 0.66;
+          ballX = dropBackX + (endX - dropBackX) * tuckT;
+          rb.x = ballX;
+          rb.y = cy + (1 - tuckT) * 0;
+        }
+      } else if (isQBRun) {
+        // OPTION KEEPER: QB and RB run parallel briefly, then QB keeps it.
+        // Looks like a true option pull (not a handoff).
+        if (runT < 0.16) {
+          const optT = runT / 0.16;
+          ballX = qb.x + Math.cos(optT * Math.PI * 0.5) * dir * 3 * FIELD.PX_PER_YARD;
+          rb.x = qb.x + dir * 3 * FIELD.PX_PER_YARD * optT;
+          rb.y = cy - dir * 6 * optT;  // QB rolls one direction
+        } else {
+          const progress = runPacing(runT);
+          ballX = qb.x + (endX - qb.x) * progress;
+          rb.x = ballX;
+          rb.y = cy - dir * 6 + (runT - 0.16) / 0.84 * 6;
+        }
       } else {
         // Realistic pacing: mesh (slow) → read (ramp) → cruise (linear) → tackle.
         // The RB now lingers near the LOS for the early frames before exploding.
@@ -4365,11 +4405,22 @@ function buildAnimForPlay(play, prevPlay) {
       // nearest defender briefly overshoot, so the play LOOKS like a broken tackle.
       // Pose by phase: idle (pre-snap) → reach (mesh, taking the ball)
       // → run (read, looking for the hole) → carry (cruise / sustained)
+      // SCRAMBLE has its own pose timeline: throw-look → throw-look → carry
+      // OPTION KEEPER: reach → carry
       let rbPose;
-      if (t < PRE)             rbPose = "idle";
-      else if (runT < 0.14)    rbPose = "reach";
-      else if (runT < 0.30)    rbPose = "run";
-      else                      rbPose = "carry";
+      if (t < PRE) {
+        rbPose = "idle";
+      } else if (isScramble) {
+        if (runT < 0.34)        rbPose = "throw";   // looking downfield, ball cocked
+        else                     rbPose = "carry";
+      } else if (isQBRun) {
+        if (runT < 0.16)        rbPose = "reach";
+        else                     rbPose = "carry";
+      } else {
+        if (runT < 0.14)        rbPose = "reach";
+        else if (runT < 0.30)   rbPose = "run";
+        else                     rbPose = "carry";
+      }
       let rbT = (t * 3) % 1;
       let rbLateral = 0;
       let dodgeIdx = -1;
@@ -4500,9 +4551,33 @@ function buildAnimForPlay(play, prevPlay) {
         // WRs release downfield (run block on screens/runs)
         return { ...p, x: p.x + dir * tt * 14, pose: "run", t: (t * 3 + 0.5) % 1, facing: dir };
       });
-      // QB hand-off then idle
-      const off2 = off.map(p => p.role === "QB" ? { ...p, pose: t < PRE + 0.05 ? "throw" : "idle", t, facing: dir } : p);
-      drawPlayers([...off2, rb], def);
+      // For scrambles / option keepers the QB is the actual ball carrier — so
+      // we render the QB sprite at the carrier position with the carrier pose,
+      // and the RB sits in the backfield as a check-down blocker.
+      let off2;
+      let carrierToDraw;
+      if (isQBCarry) {
+        const qbCarrier = {
+          ...formation.qb,
+          x: rb.x, y: rb.y,
+          pose: rbPose, t: rbT, facing: dir,
+        };
+        off2 = off.map(p => p.role === "QB" ? qbCarrier : p);
+        // Real RB stays in the backfield as a blocker (or runs a swing route)
+        carrierToDraw = {
+          ...formation.rb,
+          x: formation.rb.x + dir * Math.min(8, runT * 18),
+          y: formation.rb.y - dir * Math.min(0, runT * 4),
+          pose: t < PRE ? "idle" : "block",
+          t: runT,
+          facing: dir,
+        };
+      } else {
+        // Standard handoff: QB hands off then idles
+        off2 = off.map(p => p.role === "QB" ? { ...p, pose: t < PRE + 0.05 ? "throw" : "idle", t, facing: dir } : p);
+        carrierToDraw = rb;
+      }
+      drawPlayers([...off2, carrierToDraw], def);
       drawBall(ctx, ballX, ballY);
       // Big bold callout for jukes / spins / trucks / stiff arms / hurdles
       if (moveCallout) {
