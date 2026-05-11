@@ -1262,7 +1262,7 @@ class GameSimulator {
     return {
       pass_att: 0, pass_comp: 0, pass_yds: 0, pass_td: 0, pass_int: 0, pass_long: 0,
       sacks_taken: 0, sack_yds: 0,
-      rush_att: 0, rush_yds: 0, rush_td: 0, rush_long: 0,
+      rush_att: 0, rush_yds: 0, rush_td: 0, rush_long: 0, broken_tackles: 0,
       rec_tgt: 0, rec: 0, rec_yds: 0, rec_td: 0, rec_long: 0, rec_drops: 0,
       fg_made: 0, fg_att: 0, fg_long: 0, xp_made: 0, xp_att: 0,
       // Defensive stats
@@ -1700,24 +1700,59 @@ class GameSimulator {
     let yards = clamp(normal(rushMean + rbBoost + adv * 1.4 + runTrenchYds - lbTackle * 0.5 - boxSafetyStuff - thumperStuff + carrierBoost, rushSd * rbSdMul), -6, 70);
     // Cap at distance to end zone so a 1-yd goal-line carry doesn't get reported as a 17-yd TD
     if (yards > 0) yards = Math.min(yards, 100 - startYard);
+    // Broken tackles — carrier physicality vs defender tackle rating.
+    // POWER backs break with STR, ELUSIVE with AGI, SPEED with raw SPD.
+    // We compare against the AVG TCK of the LB room (primary tacklers on most runs).
+    // Up to 2 broken tackles per carry, with diminishing returns.
+    let brokenTackles = 0;
+    let bonusYards = 0;
+    if (!isQBRun && yards > 0) {
+      const cp = this._playerByName.get(carrier);
+      const cstr = cp?.stats?.[1] ?? 70;
+      const cspd = cp?.stats?.[0] ?? 70;
+      const cagi = cp?.stats?.[2] ?? 70;
+      let breakStat;
+      if (rbArch === "POWER")        breakStat = cstr;
+      else if (rbArch === "ELUSIVE") breakStat = (cagi * 0.7 + cstr * 0.3);
+      else if (rbArch === "SPEED")   breakStat = (cspd * 0.7 + cstr * 0.3);
+      else                            breakStat = (cstr + cagi) / 2;
+      // Average TCK of starting LBs; fall back to overall LB rating
+      const lbList = this.defArch.LB || [];
+      const lbPlayers = lbList.map(l => this._playerByName.get(l?.name)).filter(Boolean);
+      const avgTck = lbPlayers.length
+        ? lbPlayers.reduce((s,p) => s + (p.stats[9] || 60), 0) / lbPlayers.length
+        : this.defR.lb;
+      const baseBreak = rbArch === "POWER" ? 0.08 : 0.05;
+      const breakChance = clamp((breakStat - avgTck) / 110 + baseBreak, 0.02, 0.45);
+      // Roll up to 2 (diminishing on 2nd attempt)
+      for (let i = 0; i < 2; i++) {
+        if (Math.random() < breakChance * (i === 0 ? 1.0 : 0.55)) {
+          brokenTackles++;
+          bonusYards += rand(4, 11);
+        } else break;
+      }
+      yards = Math.min(yards + bonusYards, 100 - startYard);
+    }
     const carrierStats = off.players[carrier];
     if (carrierStats) {
       carrierStats.rush_att++;
       carrierStats.rush_yds += yards;
       if (yards > carrierStats.rush_long) carrierStats.rush_long = yards;
+      if (brokenTackles) carrierStats.broken_tackles = (carrierStats.broken_tackles || 0) + brokenTackles;
     }
     off.team.rush_att++; off.team.rushYds += yards; off.team.totalYds += yards;
     this._lastBallCarrier = carrier; this._lastBallType = "rush";
+    const brokeNote = brokenTackles > 0 ? ` (${brokenTackles} broken tackle${brokenTackles > 1 ? "s" : ""}!)` : "";
     const desc = isQBRun
-      ? `${QB} keeps it for ${yards} yds`
-      : `${this.offR.starters.rb} runs for ${yards} yds`;
+      ? `${QB} keeps it for ${yards} yds${brokeNote}`
+      : `${this.offR.starters.rb} runs for ${yards} yds${brokeNote}`;
     // Tackle credit on runs — LBs and DLs make most tackles at the LOS;
     // safeties get more credit on big breakaways
     const tacklerName = yards > 0
       ? (yards >= 10 ? this._creditDefStat("tkl", { S: 0.40, CB: 0.20, LB: 0.30, DL: 0.10 })
                      : this._creditDefStat("tkl", { LB: 0.45, DL: 0.30, S: 0.15, CB: 0.10 }))
       : this._creditDefStat("tkl", { DL: 0.50, LB: 0.35, S: 0.10, CB: 0.05 });
-    this._pushVisual({ kind: "run", desc, startYard, yards, endYard: clamp(startYard + yards, 0, 100), rusher: carrier, isQBRun, tackler: tacklerName });
+    this._pushVisual({ kind: "run", desc, startYard, yards, endYard: clamp(startYard + yards, 0, 100), rusher: carrier, isQBRun, tackler: tacklerName, brokenTackles });
     return { yards };
   }
   _drive() {
@@ -4099,9 +4134,10 @@ function buildAnimForPlay(play, prevPlay) {
       // Use two independent seeds so we can roll two moves per play
       const seedA = ((play.startYard * 17 + (play.yards || 0) * 53) >>> 0) % 100 / 100;
       const seedB = ((play.startYard * 41 + (play.yards || 0) * 29 + 7) >>> 0) % 100 / 100;
-      // Most plays should now display a move so the user actually sees them
-      const eluciveProb = rbArch === "ELUSIVE" ? 0.95 : rbArch === "SPEED" ? 0.65 : 0.55;
-      const powerProb   = rbArch === "POWER"   ? 0.90 : rbArch === "WORKHORSE" ? 0.55 : 0.35;
+      // Most plays display a move; broken tackles ALWAYS show one (forces probabilities to 1)
+      const bt = play.brokenTackles || 0;
+      const eluciveProb = bt > 0 ? 1.0 : (rbArch === "ELUSIVE" ? 0.95 : rbArch === "SPEED" ? 0.65 : 0.55);
+      const powerProb   = bt > 0 ? 1.0 : (rbArch === "POWER"   ? 0.90 : rbArch === "WORKHORSE" ? 0.55 : 0.35);
       const inWindow = (a, b) => runT > a && runT < b;
       if (runT > 0.86 && yards < 90 && !isTD) rbPose = "tackled";
       // EARLY: ELUSIVE → juke; POWER → truck stick at the line. ANY run >= 2 yds.
@@ -7089,6 +7125,7 @@ function renderBoxScore() {
       <td>${p.rush_yds}</td>
       <td>${p.rush_att ? (p.rush_yds / p.rush_att).toFixed(1) : "0.0"}</td>
       <td>${p.rush_td}</td>
+      <td>${p.broken_tackles || 0}</td>
       <td>${p.rush_long}</td>
     </tr>`).join("");
 
@@ -7141,7 +7178,7 @@ function renderBoxScore() {
       </table>
       <h4>RUSHING</h4>
       <table class="boxscore-table">
-        <thead><tr><th></th><th></th><th>ATT</th><th>YDS</th><th>AVG</th><th>TD</th><th>LNG</th></tr></thead>
+        <thead><tr><th></th><th></th><th>ATT</th><th>YDS</th><th>AVG</th><th>TD</th><th>BTK</th><th>LNG</th></tr></thead>
         <tbody>${rushingRows || empty}</tbody>
       </table>
       <h4>RECEIVING</h4>
