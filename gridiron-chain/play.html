@@ -478,6 +478,8 @@
   .player-tooltip.show { display: block; }
   .player-tooltip .tt-name { font-weight: 800; color: var(--gold); font-size: .9rem; margin-bottom: .3rem; }
   .player-tooltip .tt-sub  { font-size: .68rem; color: var(--gray); margin-bottom: .4rem; letter-spacing: .3px; }
+  .player-tooltip .tt-flavor { font-size: .68rem; color: var(--gray); margin-top: .35rem; line-height: 1.35; }
+  .player-tooltip .tt-flavor b { color: #c890ff; font-weight: 700; }
   .player-tooltip .tt-ovr  {
     display: inline-block; background: var(--gold); color: #000; font-weight: 800;
     padding: .1rem .45rem; border-radius: 4px; margin-right: .35rem; font-size: .72rem;
@@ -766,6 +768,43 @@ function statsFor(pos, tier) {
   }
   return stats;
 }
+
+// Flavor for bad players — they're never UNIFORMLY bad. They're either
+// freak athletes with no football brain, or cerebral types with limited
+// physical tools. Adds personality + makes scouting actually matter.
+const PLAYER_FLAVORS = {
+  RAW_ATHLETE:   { label: "Raw athlete",   blurb: "Elite tools, raw instincts" },
+  HIGH_FOOTBALL_IQ: { label: "High football IQ", blurb: "Smart, schematic — physically limited" },
+};
+function applyFlavor(stats, pos) {
+  // Returns the flavor key (or null) and mutates stats in place
+  const r = Math.random();
+  // Indices: 0=SPD, 1=STR, 2=AGI, 3=AWR, 4=THR, 5=CAT, 6=BLK, 7=PRS, 8=COV, 9=TCK, 10=KPW
+  if (r < 0.45) {
+    // RAW_ATHLETE: pump physical, sink AWR (and THR for QB)
+    stats[0] = Math.max(stats[0], rand(78, 92));   // SPD
+    stats[1] = Math.max(stats[1], rand(75, 90));   // STR
+    stats[2] = Math.max(stats[2], rand(78, 92));   // AGI
+    stats[3] = Math.min(stats[3], rand(35, 50));   // AWR (poor instincts)
+    if (pos === "QB") stats[4] = Math.min(stats[4], rand(45, 60));  // THR limited
+    if (pos === "WR" || pos === "TE") stats[5] = Math.min(stats[5], rand(45, 60));  // bad hands
+    if (pos === "CB" || pos === "S") stats[8] = Math.min(stats[8], rand(45, 58));   // bad coverage
+    return "RAW_ATHLETE";
+  } else if (r < 0.90) {
+    // HIGH_FOOTBALL_IQ: pump AWR (+ pos-specific skill), sink physical
+    stats[3] = Math.max(stats[3], rand(78, 92));   // AWR
+    stats[0] = Math.min(stats[0], rand(42, 55));   // SPD
+    stats[1] = Math.min(stats[1], rand(45, 58));   // STR
+    stats[2] = Math.min(stats[2], rand(45, 58));   // AGI
+    if (pos === "QB") stats[4] = Math.max(stats[4], rand(75, 88));  // good throws (accuracy)
+    if (pos === "WR" || pos === "TE") stats[5] = Math.max(stats[5], rand(78, 92));  // great hands
+    if (pos === "CB" || pos === "S" || pos === "LB") stats[8] = Math.max(stats[8], rand(75, 90));  // coverage smarts
+    if (pos === "OL") stats[6] = Math.max(stats[6], rand(78, 92));  // technician blocker
+    if (pos === "DL" || pos === "LB") stats[7] = Math.max(stats[7], rand(75, 88));  // pass-rush technique
+    return "HIGH_FOOTBALL_IQ";
+  }
+  return null;
+}
 function calcOverall(pos, s) {
   const [spd,str,agi,awr,thr,cat,blk,prs,cov,tck,kpw] = s;
   let v;
@@ -1048,7 +1087,13 @@ function pickCelebStyle() {
 }
 function genPlayer(pos, tier) {
   const stats = statsFor(pos, tier);
-  const player = { name: randName(), position: pos, age: rand(21, 33), stats, overall: calcOverall(pos, stats) };
+  // Bad-tier players get a flavor: physical freak who can't read defenses,
+  // or smart vet whose body is shot. Skip flavor for K/P/special teams.
+  let flavor = null;
+  if ((tier === "poor" || tier === "average") && pos !== "K" && pos !== "P") {
+    flavor = applyFlavor(stats, pos);
+  }
+  const player = { name: randName(), position: pos, age: rand(21, 33), stats, overall: calcOverall(pos, stats), flavor };
   switch (pos) {
     case "QB": player.archetype = pickQBArchetype(stats); break;
     case "DL": player.archetype = pickDLArchetype(stats); break;
@@ -2589,12 +2634,16 @@ function buildPlayerTooltip(p) {
       </div>`;
     }
   }
+  const flav = p.flavor && PLAYER_FLAVORS[p.flavor]
+    ? `<div class="tt-flavor"><b>${PLAYER_FLAVORS[p.flavor].label}</b> — ${PLAYER_FLAVORS[p.flavor].blurb}</div>`
+    : "";
   return `
     <div class="tt-name">${escapeHtml(p.name)}</div>
     <div class="tt-sub">${p.position} · ${teamLabel.toUpperCase()} · AGE ${p.age}</div>
     <div><span class="tt-ovr tier-${tier}">${p.overall} OVR</span></div>
     <div class="tt-bar"><div class="tt-bar-fill" style="width:${p.overall}%"></div></div>
     <div class="tt-stats">${statRows}</div>
+    ${flav}
     ${archHtml}
   `;
 }
