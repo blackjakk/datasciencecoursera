@@ -395,6 +395,38 @@
   .pr-conf-block { background: var(--bg3); border-radius: 8px; padding: .6rem .8rem; }
   .pr-conf-title { color: var(--gold); font-size: .8rem; font-weight: 800; letter-spacing: .5px; margin-bottom: .4rem; }
   .pr-conf-list { padding-left: 1.5rem; margin: 0; font-size: .78rem; line-height: 1.6; }
+  .tn-champion {
+    margin: 1rem 0; padding: 1rem; background: linear-gradient(135deg, rgba(240,204,48,0.18), rgba(240,204,48,0.05));
+    border: 2px solid var(--gold); border-radius: 12px; text-align: center;
+  }
+  .tn-champion .label { font-size: .7rem; color: var(--gray); letter-spacing: .8px; font-weight: 700; }
+  .tn-champion .trophy { font-size: 2.5rem; margin: .2rem 0; }
+  .tn-champion .name { font-size: 1.4rem; font-weight: 900; color: var(--gold); letter-spacing: .3px; }
+  .tn-champion .sub  { font-size: .75rem; color: var(--gray); margin-top: .25rem; }
+  .tn-rounds {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem; margin-top: 1rem;
+  }
+  .tn-round { background: var(--bg3); border-radius: 8px; padding: .6rem .8rem; }
+  .tn-round h4 {
+    color: var(--gold); font-size: .7rem; letter-spacing: .5px; text-transform: uppercase;
+    margin: 0 0 .5rem 0; border-bottom: 1px solid var(--border); padding-bottom: .25rem;
+  }
+  .tn-matchups { display: flex; flex-direction: column; gap: .5rem; }
+  .tn-matchup {
+    background: var(--bg2); border-radius: 6px; padding: .4rem .5rem;
+    border: 1px solid var(--border); font-size: .72rem;
+  }
+  .tn-team { display: flex; align-items: center; gap: .35rem; padding: .15rem 0; }
+  .tn-team.winner { color: var(--gold); font-weight: 700; }
+  .tn-team.loser  { color: var(--gray); text-decoration: line-through; opacity: .65; }
+  .tn-seed { font-size: .6rem; color: var(--gray); min-width: 1.6em; font-weight: 700; }
+  .tn-emoji { font-size: .9rem; }
+  .tn-name { font-weight: 700; }
+  .tn-score {
+    text-align: center; font-size: .65rem; color: var(--gray);
+    padding: .1rem 0; font-variant-numeric: tabular-nums;
+  }
   .sm-drivers { list-style: none; padding: 0; margin: 0; font-size: .78rem; line-height: 1.5; }
   .sm-drivers li { padding: .35rem 0; border-bottom: 1px dotted var(--border); color: var(--white); }
   .sm-drivers li:last-child { border-bottom: 0; }
@@ -554,6 +586,7 @@
     <button class="btn btn-outline" id="simByQBBtn" title="Run N games for each QB archetype on the home team at the chosen OVR">🧪 Sim by QB</button>
     <button class="btn btn-outline" id="simByPBBtn" title="Run N games for each playbook on the home team">📘 Sim by PB</button>
     <button class="btn btn-outline" id="powerRankBtn" title="Round-robin all 32 teams to compute a power ranking">📊 Power Rankings</button>
+    <button class="btn btn-outline" id="tournamentBtn" title="Single-elimination playoff bracket of the top 8 (or 16) teams">🏆 Tournament</button>
     <button class="btn btn-primary" id="playBtn" disabled>▶ Play</button>
     <button class="btn btn-outline" id="pauseBtn" disabled>⏸ Pause</button>
     <button class="btn btn-outline" id="endBtn" disabled>⏭ Skip to End</button>
@@ -3122,6 +3155,169 @@ $("powerRankBtn").addEventListener("click", () => {
     const ranked = runPowerRankings(gpp);
     renderPowerRankings(ranked, gpp);
     btn.disabled = false; btn.textContent = "📊 Power Rankings";
+  }, 30);
+});
+
+// ─── Tournament Bracket — single-elimination playoff ───────────────────
+// Seeds the top 8 (or 16) teams from a quick round-robin, then runs a
+// single-elimination bracket. Each round runs `gamesPerRound` games and
+// the team that wins more advances (tiebreaker: total points scored).
+function runTournament(bracketSize, gamesPerRound) {
+  // 1) Quick seed round — every team plays 1 game vs every other
+  const rosters = {};
+  for (const t of TEAMS) rosters[t.id] = regenerateFullRoster(t, {});
+  const standings = {};
+  for (const t of TEAMS) standings[t.id] = { team: t, w: 0, pf: 0, games: 0 };
+  for (let i = 0; i < TEAMS.length; i++) {
+    for (let j = i + 1; j < TEAMS.length; j++) {
+      const h = TEAMS[i], a = TEAMS[j];
+      const sim = new GameSimulator(h, a, rosters[h.id], rosters[a.id]);
+      const r = sim.simulate();
+      standings[h.id].pf += r.homeScore; standings[a.id].pf += r.awayScore;
+      standings[h.id].games++; standings[a.id].games++;
+      if (r.homeScore > r.awayScore) standings[h.id].w++;
+      else if (r.awayScore > r.homeScore) standings[a.id].w++;
+    }
+  }
+  const seeded = Object.values(standings)
+    .sort((a, b) => b.w - a.w || b.pf - a.pf)
+    .slice(0, bracketSize);
+
+  // 2) Bracket — standard playoff pairing: 1v8, 4v5, 2v7, 3v6 (then 1v16 etc for 16-team)
+  const pairings = (size) => {
+    const out = [];
+    for (let i = 0; i < size / 2; i++) out.push([i, size - 1 - i]);
+    // Reorder so winners meet in proper bracket positions
+    if (size === 8)  return [[0,7],[3,4],[1,6],[2,5]];
+    if (size === 16) return [[0,15],[7,8],[3,12],[4,11],[1,14],[6,9],[2,13],[5,10]];
+    return out;
+  };
+  const firstRound = pairings(bracketSize);
+
+  const playMatchup = (hSeed, aSeed) => {
+    // Higher seed (lower index) hosts
+    const home = hSeed.team, away = aSeed.team;
+    let homeW = 0, awayW = 0, homePF = 0, awayPF = 0;
+    const games = [];
+    for (let g = 0; g < gamesPerRound; g++) {
+      const sim = new GameSimulator(home, away, rosters[home.id], rosters[away.id]);
+      const r = sim.simulate();
+      games.push({ homeScore: r.homeScore, awayScore: r.awayScore });
+      homePF += r.homeScore; awayPF += r.awayScore;
+      if (r.homeScore > r.awayScore) homeW++;
+      else if (r.awayScore > r.homeScore) awayW++;
+    }
+    const winner = homeW > awayW ? hSeed : awayW > homeW ? aSeed : (homePF >= awayPF ? hSeed : aSeed);
+    return { home: hSeed, away: aSeed, homeW, awayW, homePF, awayPF, winner, games };
+  };
+
+  const rounds = [];
+  let currentRound = firstRound.map(([i, j]) => playMatchup(seeded[i], seeded[j]));
+  rounds.push(currentRound);
+  while (currentRound.length > 1) {
+    const next = [];
+    for (let i = 0; i < currentRound.length; i += 2) {
+      next.push(playMatchup(currentRound[i].winner, currentRound[i + 1].winner));
+    }
+    rounds.push(next);
+    currentRound = next;
+  }
+  const champion = currentRound[0].winner;
+  return { bracketSize, gamesPerRound, seeded, rounds, champion };
+}
+
+function renderTournament(data) {
+  const { bracketSize, gamesPerRound, seeded, rounds, champion } = data;
+  const roundNames = bracketSize === 8
+    ? ["Quarterfinals", "Semifinals", "Championship"]
+    : ["First Round", "Quarterfinals", "Semifinals", "Championship"];
+
+  const matchupCard = (m, roundIdx) => {
+    const h = m.home, a = m.away;
+    const hSeed = seeded.indexOf(h) + 1;
+    const aSeed = seeded.indexOf(a) + 1;
+    const hWin = m.winner === h;
+    const aWin = m.winner === a;
+    const homeScore = gamesPerRound > 1 ? `${m.homeW}-${m.awayW}` : `${m.games[0].homeScore}`;
+    const awayScore = gamesPerRound > 1 ? "" : `${m.games[0].awayScore}`;
+    const detail = gamesPerRound > 1
+      ? `${m.homeW}-${m.awayW} series, ${Math.round(m.homePF/gamesPerRound)}-${Math.round(m.awayPF/gamesPerRound)} avg`
+      : `${m.games[0].homeScore} - ${m.games[0].awayScore}`;
+    return `
+      <div class="tn-matchup">
+        <div class="tn-team ${hWin ? "winner" : "loser"}">
+          <span class="tn-seed">#${hSeed}</span>
+          <span class="tn-emoji">${h.team.emoji}</span>
+          <span class="tn-name">${h.team.name}</span>
+        </div>
+        <div class="tn-score">${detail}</div>
+        <div class="tn-team ${aWin ? "winner" : "loser"}">
+          <span class="tn-seed">#${aSeed}</span>
+          <span class="tn-emoji">${a.team.emoji}</span>
+          <span class="tn-name">${a.team.name}</span>
+        </div>
+      </div>
+    `;
+  };
+
+  const html = `
+    <div class="sm-title">🏆 Tournament — Top ${bracketSize}</div>
+    <div class="sm-sub">
+      Single elimination · ${gamesPerRound > 1 ? `Best of ${gamesPerRound * 2 - 1} per round` : "1 game per round"}
+    </div>
+
+    <div class="tn-champion">
+      <div class="label">CHAMPION</div>
+      <div class="trophy">🏆</div>
+      <div class="name">${champion.team.emoji} ${champion.team.city} ${champion.team.name}</div>
+      <div class="sub">#${seeded.indexOf(champion) + 1} seed · ${champion.team.conference} ${champion.team.division}</div>
+    </div>
+
+    <div class="tn-rounds">
+      ${rounds.map((round, ri) => `
+        <div class="tn-round">
+          <h4>${roundNames[ri]}</h4>
+          <div class="tn-matchups">
+            ${round.map(m => matchupCard(m, ri)).join("")}
+          </div>
+        </div>
+      `).join("")}
+    </div>
+
+    <div class="sm-section">
+      <h4>Seeding (from round-robin)</h4>
+      <table class="sm-stats-table" style="font-size:.74rem">
+        ${seeded.map((s, i) => `
+          <tr>
+            <td style="text-align:left;width:8%">#${i + 1}</td>
+            <td style="text-align:left">${s.team.emoji} ${s.team.city} ${s.team.name}</td>
+            <td style="text-align:right">${s.w}-${s.games - s.w}</td>
+            <td style="text-align:right;color:var(--gray)">${(s.pf / s.games).toFixed(1)} PPG</td>
+          </tr>
+        `).join("")}
+      </table>
+    </div>
+  `;
+  $("simManyBody").innerHTML = html;
+  document.querySelector(".sim-many-card").classList.add("wide");
+  $("simManyModal").style.display = "flex";
+}
+
+$("tournamentBtn").addEventListener("click", () => {
+  const n = +$("simManyCount").value || 100;
+  // Map count to bracket complexity
+  // 10 → 8-team, 1 game/round
+  // 100 → 8-team, 3 games/round (best of 5)
+  // 500 → 16-team, 3 games/round
+  // 1000 → 16-team, 5 games/round (best of 9)
+  const bracketSize = n >= 500 ? 16 : 8;
+  const gamesPerRound = n >= 1000 ? 5 : n >= 100 ? 3 : 1;
+  const btn = $("tournamentBtn");
+  btn.disabled = true; btn.textContent = `Simulating bracket...`;
+  setTimeout(() => {
+    const data = runTournament(bracketSize, gamesPerRound);
+    renderTournament(data);
+    btn.disabled = false; btn.textContent = "🏆 Tournament";
   }, 30);
 });
 
