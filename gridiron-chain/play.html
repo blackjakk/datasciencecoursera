@@ -677,9 +677,11 @@ const PLAYBOOKS = {
     tierBias: { QB: "elite", WR: "elite" },
     // Elite QB + WRs hit at high comp% with normal air-yard depth; pay the
     // tax in sack volume from extra dropbacks and a weaker run game.
+    // (compMul dropped 1.06 → 1.01 — elite WRs now have to earn comp% via
+    // their CAT stat + win matchups vs the CBs, not get a flat scheme bonus.)
     airYdsMean: 7.5, airYdsSd: 7,
     rushYdsMean: 4.0, rushYdsSd: 5,
-    compMul: 1.06, sackMul: 1.15,
+    compMul: 1.01, sackMul: 1.15,
   },
   GROUND_AND_POUND: {
     id: "GROUND_AND_POUND", name: "Ground & Pound", badge: "G&P",
@@ -1722,10 +1724,23 @@ class GameSimulator {
       // a 39-CAT WR drops or muffs ~half of catchable balls.
       const catCompMod = (rcvrCat - 70) / 180;       // CAT 95 → +0.139; CAT 39 → -0.172
       const awrCompMod = (rcvrAwr - 65) / 350;       // small route-running bump
+      // CB MATCHUP — the specific covering CB's COV stat matters a lot.
+      // Top WR (wr1) is covered by top CB (cb1); WR2 by CB2. TE/RB get LBs.
+      // Without this, elite WRs annihilated elite CBs in Air Raid.
+      let cbCoverMod = 0;
+      const wrSlotKey = rcvr === this.offR.starters.wr1 ? "cb1"
+                      : rcvr === this.offR.starters.wr2 ? "cb2"
+                      : null;
+      if (wrSlotKey) {
+        const cbName = this.defR.starters[wrSlotKey];
+        const cbPlayer = cbName ? this._playerByName?.get?.(cbName) : null;
+        const cbCov = cbPlayer?.stats?.[8] ?? 65;
+        cbCoverMod = -(cbCov - 65) / 240;            // COV 95 → -0.125; COV 45 → +0.083
+      }
       // QB OVR matters a lot for completion %: a 60-OVR scrub completes far less than a 90-OVR star
       // (swing of ~0.20 across 30 OVR points, centered around 75 OVR baseline)
       const qbCompFromOvr = (this.offR.qb - 75) / 150;  // QB 60 → -0.10, QB 90 → +0.10
-      const compPct = clamp((0.60 + adv * 0.14 + qbCompFromOvr - pressure * 0.12 - shutdownPenalty + possessionBonus + qbCompMod + paCompMod + catCompMod + awrCompMod) * compPbMul, 0.15, 0.90);
+      const compPct = clamp((0.60 + adv * 0.14 + qbCompFromOvr - pressure * 0.12 - shutdownPenalty + possessionBonus + qbCompMod + paCompMod + catCompMod + awrCompMod + cbCoverMod) * compPbMul, 0.15, 0.90);
       if (Math.random() < compPct) {
         // Air yards drop when pressure shortens the QB's reads (check-downs / dump-offs)
         // Weaker QBs also throw shorter — they can't push the ball downfield reliably
