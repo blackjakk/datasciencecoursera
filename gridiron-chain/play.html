@@ -1818,7 +1818,8 @@ class GameSimulator {
       rec_tgt: 0, rec: 0, rec_yds: 0, rec_td: 0, rec_long: 0, rec_drops: 0,
       fg_made: 0, fg_att: 0, fg_long: 0, xp_made: 0, xp_att: 0,
       // Defensive stats
-      tkl: 0, sk: 0, sk_yds: 0, int_made: 0, pd: 0, ff: 0, fr: 0, def_td: 0,
+      tkl: 0, sk: 0, sk_yds: 0, int_made: 0, int_yds: 0, int_long: 0, int_td: 0,
+      pd: 0, ff: 0, fr: 0, def_td: 0,
     };
   }
   // Pick a defender (weighted by position) and credit a stat field
@@ -2110,8 +2111,43 @@ class GameSimulator {
         def.team.takeaways++;
         // Credit INT to a DB (CB or S)
         const intBy = this._creditDefStat("int_made", { CB: 0.55, S: 0.35, LB: 0.10 });
-        this._pushVisual({ kind: "int", desc: `INTERCEPTION! ${this.offR.starters.qb} picked off!`, startYard, targetDepth, endYard: startYard, passer: this.offR.starters.qb, defender: intBy, isPlayAction, isFleaFlicker });
-        return { turnover: true };
+        // Interception return yardage — bursty distribution. Most are
+        // short (0-5), some medium (6-15), occasional house-call (16-50+).
+        const retSeed = Math.random();
+        let retYds;
+        if (retSeed < 0.45)      retYds = Math.floor(Math.random() * 4);            // 0-3
+        else if (retSeed < 0.80) retYds = 4 + Math.floor(Math.random() * 9);         // 4-12
+        else if (retSeed < 0.96) retYds = 13 + Math.floor(Math.random() * 18);       // 13-30
+        else                      retYds = 30 + Math.floor(Math.random() * 50);       // 30-80 (rare big one)
+        // Pick-six potential — return that would reach the end zone scores a TD
+        const intSpotFromDef = 100 - (startYard + Math.round(targetDepth / 2));
+        const isPickSix = retYds >= intSpotFromDef;
+        const finalRetYds = isPickSix ? intSpotFromDef : retYds;
+        // Credit return yards to the picking defender
+        if (intBy) {
+          const intDef = def.players[intBy];
+          if (intDef) {
+            intDef.int_yds = (intDef.int_yds || 0) + finalRetYds;
+            if (finalRetYds > (intDef.int_long || 0)) intDef.int_long = finalRetYds;
+            if (isPickSix) { intDef.int_td = (intDef.int_td || 0) + 1; intDef.def_td = (intDef.def_td || 0) + 1; }
+          }
+        }
+        if (isPickSix) {
+          this.score[this.poss === "home" ? "away" : "home"] += 6;
+          def.team.def_td = (def.team.def_td || 0) + 1;
+        }
+        this._pushVisual({
+          kind: "int", desc: isPickSix
+            ? `PICK SIX! ${intBy} returns it ${finalRetYds} yds for a touchdown!`
+            : finalRetYds > 0
+              ? `INTERCEPTION! ${intBy} picks off ${this.offR.starters.qb} and returns ${finalRetYds} yds`
+              : `INTERCEPTION! ${this.offR.starters.qb} picked off!`,
+          startYard, targetDepth, endYard: startYard,
+          passer: this.offR.starters.qb, defender: intBy,
+          intReturnYds: finalRetYds, isPickSix,
+          isPlayAction, isFleaFlicker,
+        });
+        return { turnover: true, retYds: finalRetYds, isPickSix };
       }
       // Sacks: heavily driven by the OL-vs-DL trench matchup (pressure).
       // Play-action holds the ball longer → more sack risk.
@@ -2599,7 +2635,15 @@ class GameSimulator {
       }
       if (r.turnover) {
         this.poss = this.poss === "home" ? "away" : "home";
-        this.yardLine = clamp(100 - this.yardLine, 5, 95);
+        // INT return yards advance the NEW offense's field position
+        const mirror = clamp(100 - this.yardLine, 5, 95);
+        this.yardLine = clamp(mirror + (r.retYds || 0), 5, 99);
+        // Pick-six already added 6 to the score; trigger an extra-point/kickoff
+        if (r.isPickSix) {
+          this.score[this.poss === "home" ? "away" : "home"] += 1;  // XP auto-made
+          this.yardLine = 25; this.down = 1; this.ytg = 10;
+          break;
+        }
         this.down = 1; this.ytg = 10; break;
       }
       const yards = r.yards || 0;
