@@ -3655,15 +3655,22 @@ function buildAnimForPlay(play, prevPlay) {
           ballX = targetX;
           ballY = targetY + tt * 25;
         } else {
-          // INT — defender catches the ball and runs it back the other way
-          // Random return distance based on play seed (5-25 yds typically)
-          const retDistYds = 8 + (((play.startYard * 7 + (play.targetDepth||0)) >>> 0) % 16);
+          // INT — defender catches the ball. Return distance varies:
+          // ~55% short (0-2 yds, WR tackles immediately), 30% medium (3-12 yds),
+          // 15% long return (13-30 yds, defender gets loose)
+          const seed = ((play.startYard * 7 + (play.targetDepth||0)) >>> 0) % 100;
+          const retDistYds = seed < 55 ? (seed % 3)
+                           : seed < 85 ? 3 + (seed % 10)
+                           :             13 + (seed % 18);
           const retEndX = targetX - dir * retDistYds * FIELD.PX_PER_YARD;
-          // Defender drifts slightly toward sideline as they return
-          const retEndY = targetY + (targetY < cy ? -20 : 20);
+          const retEndY = targetY + (targetY < cy ? -10 : 10);
           ballX = targetX + (retEndX - targetX) * easeOutCubic(tt);
           ballY = targetY + (retEndY - targetY) * easeOutCubic(tt);
-          wr.x = targetX; wr.y = targetY;
+          // WR converges on the picking defender to make the tackle
+          const wrTackleX = ballX + dir * 6;  // WR arrives just in front of defender
+          const wrTackleY = ballY + (targetY < cy ? 4 : -4);
+          wr.x = targetX + (wrTackleX - targetX) * Math.min(1, tt * 1.4);
+          wr.y = targetY + (wrTackleY - targetY) * Math.min(1, tt * 1.4);
         }
       }
 
@@ -3701,6 +3708,7 @@ function buildAnimForPlay(play, prevPlay) {
             dd.x = ballX;
             dd.y = ballY;
             dd.facing = -dir;  // running back the other way
+            dd.pose = t > 0.92 ? "tackled" : "run";
           }
         }
         if (t < 0.05) dd.pose = "idle";
@@ -3712,10 +3720,16 @@ function buildAnimForPlay(play, prevPlay) {
       const qbWithPose = { ...qb, pose: isThrowing ? "throw" : (t < dropPhase ? "run" : "idle"), t: (t - dropPhase + 0.5) % 1, facing: dir };
       // Target receiver pose — reach during the catch window
       const isCatching = t > throwPhase - 0.05 && t < throwPhase + 0.10;
-      const wrWithPose = { ...wr, pose: play.kind === "int"  && t > throwPhase + 0.02 ? "tackled"
-                                  : isCatching ? "reach"
-                                  : t > throwPhase + 0.08 ? "run"
-                                  : "run", t: (t * 3) % 1, facing: dir };
+      // On an INT, the WR briefly reacts ("reach") then chases ("run") toward the defender,
+      // facing the opposite direction since they're now playing defense.
+      const wrIntPose = play.kind === "int" && t > throwPhase + 0.02
+        ? (t > 0.92 ? "tackled" : "run")
+        : null;
+      const wrWithPose = { ...wr,
+        pose: wrIntPose || (isCatching ? "reach" : "run"),
+        t: (t * 3) % 1,
+        facing: (play.kind === "int" && t > throwPhase + 0.05) ? -dir : dir,
+      };
       const off = formation.offense.map(p => {
         if (p.role === "QB") return qbWithPose;
         if (p === formation.wr1 && wrChoice === "wr1") return wrWithPose;
