@@ -5573,13 +5573,15 @@ function buildAnimForPlay(play, prevPlay) {
       // tenths in the defenders close in. Start of tackle = TackleFrac of
       // action time; ragdoll plays out from there to the end.
       const TACKLE_START_AT = 0.78;   // 22% of action time devoted to tackle+ragdoll
-      const wrPose = wrIntPose
+      const wrPose = t < PRE
+        ? "idle"   // hold stance pre-snap (auto-flips to role stance via drawPlayer)
+        : (wrIntPose
         || (inWRJukeWindow ? "juke"
         :  (inLeapWindow ? "leap"
         :  (isCatching ? "reach"
         :  (isPostCatch && aT > TACKLE_START_AT && (play.yards ?? 0) < 90 ? "tackled"
         :  (isPostCatch ? "carry"
-        :   "run")))));
+        :   "run"))))));
       // For the tackled fall, pass fall-progress (not stride cycle) so the
       // ragdoll animation actually animates from "just hit" → "flat".
       const wrIsTackled = wrPose === "tackled";
