@@ -736,19 +736,28 @@ function pickReceiver(playbook, starters) {
 // ─── Player generation ────────────────────────────────────────────────────
 // Sprawling, multi-cultural name pool. American + biblical + international
 // (German, Italian, Polish, Hispanic, Japanese, Korean, Polynesian/Samoan).
+// Spelling variants (Brendan/Brenden, Müller/Mueller, Jürgen/Juergen) are
+// included so two players can share a phonetic name but read distinctly.
 // Creative D'/Ja'/La' names get generated on the fly to add freshness.
+// pickLastName() rolls a chance for a hyphenated double-barrel last name.
 const FIRST = [
-  // Modern American — common
-  "Marcus","Tyler","Darius","Jordan","Malik","Devon","Xavier","Cameron","Jaylen","Trevor",
-  "Nathan","Brandon","Derrick","Antonio","Deon","Travon","Rasheed","Quincy","Zach","Hunter",
-  "Brayden","Cole","Jake","Ryan","Luke","Evan","Aaron","Chris","Jamal","Tyrone","Lamar",
-  "Andre","Reggie","Stefon","Amari","Cooper","Travis","Cam","Justin","Dak","Patrick",
-  "Kyler","Bryce","Joe","Jalen","Christian","Najee","Sterling","Trenton","Bryson","Jaxon",
-  "Kade","Drake","Maverick","Hayden","Walker","Sawyer","Easton","Brennan","Tate","Beckett",
-  "Cason","Karsten","Tanner","Kellen","Knox","Greyson","Sutton","Briggs","Boone","Wyatt",
+  // Modern American — common (with spelling variants)
+  "Marcus","Markus","Marqus","Tyler","Tylar","Darius","Dareius","Daryus","Jordan","Jordon",
+  "Malik","Mahleek","Malek","Devon","Devyn","Devontae","Xavier","Cameron","Kameron","Jaylen",
+  "Jaelen","Jalen","Trevor","Trevour","Nathan","Nathen","Brandon","Branden","Brendan","Brenden",
+  "Brennan","Derrick","Derek","Antonio","Anthony","Deon","Travon","Rasheed","Quincy","Zach",
+  "Zack","Zackary","Hunter","Brayden","Braden","Braiden","Cole","Coll","Jake","Jaykob","Ryan",
+  "Ryne","Rion","Luke","Lukas","Lucas","Evan","Aaron","Aron","Chris","Cris","Jamal","Tyrone",
+  "Lamar","Lamarr","Andre","Aundre","Reggie","Reggi","Stefon","Stefan","Stephon","Amari","Cooper",
+  "Travis","Cam","Justin","Jusstyn","Dak","Patrick","Patric","Kyler","Bryce","Brice","Joe",
+  "Jalen","Christian","Kristian","Najee","Sterling","Trenton","Trentin","Bryson","Brycen","Jaxon",
+  "Jaxson","Jacksen","Kade","Drake","Maverick","Hayden","Haiden","Walker","Sawyer","Easton",
+  "Brennan","Tate","Beckett","Cason","Karsten","Carsten","Tanner","Kellen","Kellan","Knox",
+  "Greyson","Grayson","Sutton","Briggs","Boone","Wyatt","Wyat",
   // Biblical (subtle, most read as normal American)
-  "Daniel","David","Joshua","Samuel","Eli","Ezra","Josiah","Micah","Asher","Levi",
-  "Caleb","Isaiah","Elijah","Gideon","Boaz","Silas","Ezekiel","Jonah","Jeremiah",
+  "Daniel","Danyel","David","Davyd","Joshua","Joshuah","Samuel","Samual","Eli","Ezra","Esra",
+  "Josiah","Josyah","Micah","Mykah","Asher","Levi","Caleb","Kaleb","Kayleb","Isaiah","Izaiah",
+  "Elijah","Elija","Gideon","Boaz","Silas","Sylas","Ezekiel","Jonah","Jonas","Jeremiah",
   // Japanese
   "Hiroshi","Kenji","Daichi","Haruto","Yuki","Sho","Takuya","Ryo","Akira","Kazuki",
   "Riku","Yuta","Sota","Kaito","Renji","Tatsuya","Hayato","Souta","Tsubasa","Daiki",
@@ -756,19 +765,22 @@ const FIRST = [
   "Min-jun","Hyun","Jin","Sung","Joon","Tae","Dong","Seung","Jisoo","Beom",
   // Polynesian (Samoan/Tongan/Maori)
   "Tua","Penei","Tuli","Mosi","Lavaka","Vita","Aolelei","Sefo","Manu","Tevita","Sione","Lopeti",
-  // German / Austrian
-  "Lukas","Maximilian","Stefan","Otto","Rolf","Wolfgang","Jürgen","Hartmut","Sebastian","Klaus",
-  "Niklas","Bastian","Florian","Kai","Anders",
-  // Italian
-  "Marco","Luca","Matteo","Alessandro","Lorenzo","Gianluca","Giovanni","Dante",
-  // Hispanic / Latin
-  "Diego","Mateo","Santiago","Carlos","Javier","Andrés","Rafa","Emilio","Joaquín","Cristián",
+  // German / Austrian (with umlaut/non-umlaut variants)
+  "Lukas","Maximilian","Stefan","Otto","Rolf","Wolfgang","Jürgen","Juergen","Hartmut","Sebastian",
+  "Klaus","Niklas","Bastian","Florian","Kai","Anders","Björn","Bjoern","Günther","Guenther",
+  // Italian (with diacritic variants)
+  "Marco","Luca","Matteo","Alessandro","Lorenzo","Gianluca","Giovanni","Dante","Niccolò","Niccolo",
+  // Hispanic / Latin (with diacritics)
+  "Diego","Mateo","Santiago","Carlos","Javier","Andrés","Andres","Rafa","Emilio","Joaquín",
+  "Joaquin","Cristián","Cristian","Adrián","Adrian","Iván","Ivan","René","Rene",
   // Scandinavian / Slavic
-  "Anders","Magnus","Henrik","Bjorn","Olek","Tadek","Kacper","Filip","Janek",
+  "Anders","Magnus","Henrik","Bjorn","Olek","Tadek","Kacper","Filip","Janek","Mikkel","Søren","Soren",
   // West African
   "Kwame","Kofi","Sefu","Bayo","Adisa","Femi","Tunde","Kenan",
   // Brazilian / Portuguese
-  "Caio","Thiago","Rodrigo","Vinicius","João","Murilo",
+  "Caio","Thiago","Rodrigo","Vinicius","João","Joao","Murilo","Vinícius",
+  // Hyphenated double firsts (sprinkle)
+  "Jean-Paul","Jean-Luc","Pierre-Marc","Hans-Peter","Karl-Heinz","Juan-Carlos","Marco-Antonio",
 ];
 
 const LAST = [
@@ -778,20 +790,25 @@ const LAST = [
   "Walker","Hall","Allen","Young","Hill","Green","Adams","Nelson","Baker","Carter",
   "Mitchell","Roberts","Turner","Phillips","Campbell","Reed","Brooks","Bell","Reeves","Coleman",
   "Hayes","Bryant","Ford","Knight","Banks","Stone","Vaughn","Rivers","Shaw","Lane",
+  // Irish / Scottish (apostrophes and Mc/Mac)
+  "O'Brien","O'Connor","O'Donnell","O'Sullivan","O'Malley","O'Reilly","McDonald","MacDonald",
+  "McAllister","McKinnon","McCarthy","McGregor","McKinley","MacIntyre","Fitzgerald","Fitzpatrick",
   // Biblical / Hebrew
   "Cohen","Levi","Solomon","Abrams","Levy","Mendoza","Salem","Friedman","Klein",
-  // German / Austrian
-  "Schmidt","Müller","Schneider","Schäfer","Hochuli","Wagner","Becker","Hoffmann","Schulz","Volk",
-  "Bauer","Klose","Weber","Fischer","Kraus","Vogel","Schwartz","Hertz","Roth","Brandt",
-  // Italian
+  // German / Austrian (BOTH umlaut + ASCII variants)
+  "Schmidt","Müller","Mueller","Schneider","Schäfer","Schaefer","Hochuli","Wagner","Becker","Hoffmann",
+  "Schulz","Volk","Bauer","Klose","Weber","Fischer","Kraus","Vogel","Schwartz","Hertz",
+  "Roth","Brandt","Köhler","Koehler","Größe","Grosse","Häuser","Haeuser","Förster","Foerster",
+  // Italian (diacritics + plain)
   "Romano","Rossi","Esposito","Mancini","Russo","Ferrari","Conti","Marino","Bruno","Bianchi",
-  "Ricci","Lombardi","Greco","Costa","Bellucci","Capello",
+  "Ricci","Lombardi","Greco","Costa","Bellucci","Capello","D'Amato","D'Angelo","Di Carlo",
   // Polish / Eastern European
   "Lewandowski","Wojcik","Kowalski","Nowak","Krzyzewski","Kubiak","Konecki","Stankowski",
-  "Pawlowski","Jankowski","Zielinski","Kaminski","Mazur",
-  // Hispanic
-  "Garcia","Martinez","Hernandez","Lopez","Gonzalez","Perez","Sanchez","Ramirez","Torres","Rivera",
-  "Sosa","Cabrera","Diaz","Reyes","Flores","Castillo","Mendez","Alvarado","Ortiz",
+  "Pawlowski","Jankowski","Zielinski","Kaminski","Mazur","Kowalczyk",
+  // Hispanic (with accent variants)
+  "Garcia","García","Martinez","Martínez","Hernandez","Hernández","Lopez","López","Gonzalez",
+  "González","Perez","Pérez","Sanchez","Sánchez","Ramirez","Ramírez","Torres","Rivera","Sosa",
+  "Cabrera","Diaz","Díaz","Reyes","Flores","Castillo","Mendez","Méndez","Alvarado","Ortiz",
   // Japanese
   "Tanaka","Suzuki","Sato","Takahashi","Watanabe","Ito","Yamamoto","Nakamura","Kobayashi","Yoshida",
   "Yamada","Sasaki","Matsumoto","Kondo","Saito","Endo","Hayashi","Ishikawa","Shimizu",
@@ -801,7 +818,7 @@ const LAST = [
   "Tagovailoa","Tuilagi","Faaleava","Mahuta","Tavai","Manumaleuna","Tuipulotu","Faleafine","Sapolu",
   "Aumavae","Toilolo","Vaeao",
   // West African
-  "Adebayo","Okafor","Nwosu","Mbappe","Diallo","Sissoko","Owusu","Asare","Boateng",
+  "Adebayo","Okafor","Nwosu","Mbappe","Mbappé","Diallo","Sissoko","Owusu","Asare","Boateng",
   // Brazilian / Portuguese
   "Silva","Santos","Oliveira","Pereira","Costa","Almeida","Soares","Cardoso",
   // Invented / brand-flavored — adds "alive" feeling without being on-the-nose
@@ -825,6 +842,22 @@ function pickFirstName() {
          + CREATIVE_ROOTS[Math.floor(Math.random() * CREATIVE_ROOTS.length)];
   }
   return FIRST[Math.floor(Math.random() * FIRST.length)];
+}
+
+// pickLastName() pulls from the pool, with a ~9% chance of producing a
+// hyphenated double-barrel surname (e.g., García-Schmidt, Tanaka-O'Brien).
+function pickLastName() {
+  const a = LAST[Math.floor(Math.random() * LAST.length)];
+  if (Math.random() < 0.09) {
+    let b = LAST[Math.floor(Math.random() * LAST.length)];
+    // Avoid identical halves
+    let guard = 0;
+    while (b === a && guard++ < 4) b = LAST[Math.floor(Math.random() * LAST.length)];
+    // Apostrophe-prefix surnames (O'Brien) don't combine cleanly into a hyphen
+    if (b.includes("'") || a.includes("'")) return a;
+    return `${a}-${b}`;
+  }
+  return a;
 }
 
 // ── Earned nicknames — only league-wide top 10 in their position get one,
@@ -946,7 +979,7 @@ const ROSTER_SLOTS = { QB:3, RB:4, WR:6, TE:3, OL:8, DL:6, LB:5, CB:5, S:3, K:1,
 
 const rand = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
 const randf = (a, b) => Math.random() * (b - a) + a;
-const randName = () => `${pickFirstName()} ${LAST[rand(0, LAST.length - 1)]}`;
+const randName = () => `${pickFirstName()} ${pickLastName()}`;
 
 function statsFor(pos, tier) {
   const r = { elite:{lo:78,hi:99}, good:{lo:63,hi:80}, average:{lo:48,hi:67}, poor:{lo:35,hi:54} }[tier];
