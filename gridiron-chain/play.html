@@ -1148,6 +1148,9 @@ class GameSimulator {
   constructor(home, away, hRoster, aRoster) {
     this.home = home; this.away = away;
     this.hRoster = hRoster; this.aRoster = aRoster;
+    this._playerByName = new Map();
+    for (const p of hRoster) this._playerByName.set(p.name, p);
+    for (const p of aRoster) this._playerByName.set(p.name, p);
     this.homePlaybook = getPlaybook(home); this.awayPlaybook = getPlaybook(away);
     this.homeR = buildRatings(hRoster); this.awayR = buildRatings(aRoster);
     // Extract archetypes for the starting unit
@@ -1215,7 +1218,7 @@ class GameSimulator {
       pass_att: 0, pass_comp: 0, pass_yds: 0, pass_td: 0, pass_int: 0, pass_long: 0,
       sacks_taken: 0, sack_yds: 0,
       rush_att: 0, rush_yds: 0, rush_td: 0, rush_long: 0,
-      rec_tgt: 0, rec: 0, rec_yds: 0, rec_td: 0, rec_long: 0,
+      rec_tgt: 0, rec: 0, rec_yds: 0, rec_td: 0, rec_long: 0, rec_drops: 0,
       fg_made: 0, fg_att: 0, fg_long: 0, xp_made: 0, xp_att: 0,
       // Defensive stats
       tkl: 0, sk: 0, sk_yds: 0, int_made: 0, pd: 0, ff: 0, fr: 0, def_td: 0,
@@ -1578,9 +1581,30 @@ class GameSimulator {
       if (qbStats) qbStats.pass_att++;
       if (rcvrStats) rcvrStats.rec_tgt++;
       off.team.pass_att++;
-      // 30% chance the incompletion was caused by a pass deflection (DB credit)
-      const pdName = Math.random() < 0.30 ? this._creditDefStat("pd", { CB: 0.55, S: 0.30, LB: 0.15 }) : null;
-      this._pushVisual({ kind: "incomplete", desc: `${this.offR.starters.qb} pass incomplete`, startYard, targetDepth, endYard: startYard, passer: this.offR.starters.qb, intended: rcvr, defender: pdName });
+      // Drop chance — varies by receiver's CAT stat (catching). Possession receivers
+      // drop way less than deep threats. Roughly: a 90 CAT drops ~3% of catchable balls,
+      // a 60 CAT drops ~9%. Drops are mutually exclusive with PDs (catchable vs broken up).
+      const rcvrPlayer = this._playerByName?.get?.(rcvr) || null;
+      const catStat = rcvrPlayer?.stats?.[5] ?? 70;
+      const archMul = rcvrPlayer?.archetype === "POSSESSION" ? 0.55
+                    : rcvrPlayer?.archetype === "DEEP_THREAT" ? 1.25
+                    : 1.0;
+      const dropBase = clamp((90 - catStat) / 280 + 0.025, 0.02, 0.18) * archMul;
+      const isDrop = Math.random() < dropBase;
+      let pdName = null;
+      if (isDrop) {
+        if (rcvrStats) rcvrStats.rec_drops = (rcvrStats.rec_drops || 0) + 1;
+        off.team.drops = (off.team.drops || 0) + 1;
+      } else {
+        // 35% of non-drop incompletions are pass deflections
+        pdName = Math.random() < 0.35 ? this._creditDefStat("pd", { CB: 0.55, S: 0.30, LB: 0.15 }) : null;
+      }
+      this._pushVisual({
+        kind: "incomplete",
+        desc: isDrop ? `DROP! ${rcvr} can't hang on` : `${this.offR.starters.qb} pass incomplete`,
+        startYard, targetDepth, endYard: startYard,
+        passer: this.offR.starters.qb, intended: rcvr, defender: pdName, isDrop,
+      });
       return { yards: 0, incomplete: true };
     }
     // Fumble chance — bumps up against dominant DL (carriers get stripped)
@@ -6348,6 +6372,9 @@ function formatPlayResult(play) {
       return { title: `COMPLETE +${yards}`, sub: `${passer} to ${rcvr}`, color: "#ffffff" };
     }
     case "incomplete":
+      if (play.isDrop) {
+        return { title: "DROP!", sub: intended ? `${intended} can't hang on` : `Receiver drops it`, color: "#e07070" };
+      }
       return { title: "INCOMPLETE", sub: intended ? `${passer} pass to ${intended} falls away` : `${passer} pass falls away`, color: "#cccccc" };
     case "int":
       return { title: "INTERCEPTION!", sub: `${passer} picked off — turnover`, color: "#e07070", big: true };
@@ -6852,6 +6879,7 @@ function renderBoxScore() {
       <td>${p.rec_yds}</td>
       <td>${p.rec ? (p.rec_yds / p.rec).toFixed(1) : "0.0"}</td>
       <td>${p.rec_td}</td>
+      <td>${p.rec_drops || 0}</td>
       <td>${p.rec_long}</td>
     </tr>`).join("");
 
@@ -6897,7 +6925,7 @@ function renderBoxScore() {
       </table>
       <h4>RECEIVING</h4>
       <table class="boxscore-table">
-        <thead><tr><th></th><th></th><th>R/T</th><th>YDS</th><th>AVG</th><th>TD</th><th>LNG</th></tr></thead>
+        <thead><tr><th></th><th></th><th>R/T</th><th>YDS</th><th>AVG</th><th>TD</th><th>DRP</th><th>LNG</th></tr></thead>
         <tbody>${recRows || empty}</tbody>
       </table>
       <h4>DEFENSE</h4>
