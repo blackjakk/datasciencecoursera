@@ -1905,6 +1905,8 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   facing = facing || 1;
   const runStyle = style.runStyle || "smooth";
   const celebStyle = style.celebStyle || "fist_pump";
+  // OL/DL default to a 3-point stance when they're not actively doing something
+  if ((pose === "idle") && (style.role === "OL" || style.role === "DL")) pose = "stance";
   const rs = RUN_STYLES[runStyle] || RUN_STYLES.smooth;
 
   const headR = 4.2;
@@ -1917,58 +1919,78 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
 
   // Limb angles. 0 rad = pointing DOWN. Positive = swings FORWARD (in facing dir).
   let lArm = 0, rArm = 0, lLeg = 0, rLeg = 0;
+  let lLegLift = 0, rLegLift = 0;   // vertical lift (foot off ground) for each leg
   let bodyRot = 0, bodyTilt = 0;
   let armReachY = 0, bodyDY = 0;
   let leftHandBall = false, rightHandBall = false;
-  let exclaim = null;  // optional "!", "TD!", etc. floating above head
+  let exclaim = null;
+  let drawGroundHand = false;   // for 3-point stance
 
   switch (pose) {
     case "idle":
-      // subtle breath
       bodyDY = Math.sin(t * Math.PI * 1.5) * 0.4;
       break;
     case "run":
-      lArm = runPhase * rs.armAmp;  rArm = -runPhase * rs.armAmp;
-      lLeg = -runPhase * rs.legAmp; rLeg = runPhase * rs.legAmp;
+    case "carry": {
+      const ph = runPhase;
+      // Legs alternate. The leg swinging BACK gets lifted (knee comes up = back foot off ground)
+      lLeg =  ph * rs.legAmp;          // positive when forward
+      rLeg = -ph * rs.legAmp;
+      lLegLift = Math.max(0, -ph) * 7; // lift when going back/swing
+      rLegLift = Math.max(0,  ph) * 7;
+      // Arms swing OPPOSITE to legs
+      lArm = -ph * rs.armAmp;
+      rArm =  ph * rs.armAmp;
       bodyTilt = facing * rs.lean;
-      bodyDY = Math.abs(runPhase) * -rs.bob;   // bob up on stride
+      bodyDY = -(Math.abs(ph) * 0.5 + 0.2) * rs.bob;
+      if (pose === "carry") {
+        rArm = -0.25;  // ball-side arm tucked in
+        rightHandBall = true;
+      }
       break;
+    }
+    case "stance": {
+      // 3-point stance — body crouched, lead hand on the ground, butt up, head up.
+      bodyDY = 5;
+      bodyTilt = facing * 0.55;
+      lArm = facing * Math.PI * 0.55;   // lead arm reaches down-forward to ground
+      rArm = -0.4;                       // off arm on knee
+      lLeg = 0.5;
+      rLeg = -0.4;
+      drawGroundHand = true;
+      break;
+    }
     case "throw":
-      // Cocked back then release: t goes 0→1 over the throw
-      lArm = -2.2 + t * 1.5;   // wind up then forward
+      lArm = -2.2 + t * 1.5;
       rArm = -0.8;
       lLeg = 0.3; rLeg = -0.4;
-      rightHandBall = t < 0.5;  // ball in hand until release
+      rightHandBall = t < 0.5;
       bodyTilt = facing * 0.05;
       break;
-    case "reach":  case "catch":
+    case "reach": case "catch":
       lArm = -2.4; rArm = -2.4;
       armReachY = -3;
       break;
     case "celebrate": {
       const cs = celebStyle;
       if (cs === "ref_signal") {
-        lArm = -Math.PI; rArm = -Math.PI;  // both straight up
+        lArm = -Math.PI; rArm = -Math.PI;
       } else if (cs === "spike") {
-        // wind up overhead then slam — bounce on t
         const phase = (t * 1.2) % 1;
         const cock = phase < 0.4 ? phase / 0.4 : 1;
         const swing = phase < 0.4 ? 0 : (phase - 0.4) / 0.6;
         lArm = -Math.PI * (1 - swing * 0.7) + (1 - cock) * 0.6;
         rArm = 0.3;
-        leftHandBall = phase < 0.55;  // ball spikes free at mid-swing
+        leftHandBall = phase < 0.55;
       } else if (cs === "fist_pump") {
-        // double-pump fist by the head
         lArm = -Math.PI * 0.78 - Math.abs(Math.sin(t * Math.PI * 5)) * 0.25;
         rArm = 0.4;
       } else if (cs === "first_down") {
-        // pointing forward sharply
         lArm = facing * Math.PI * 0.5;
         rArm = -0.4;
         bodyTilt = facing * 0.1;
       } else if (cs === "point_sky") {
-        lArm = -Math.PI;
-        rArm = -Math.PI;
+        lArm = -Math.PI; rArm = -Math.PI;
       } else if (cs === "shimmy") {
         bodyRot = Math.sin(t * Math.PI * 6) * 0.12;
         lArm = -0.4 + Math.sin(t * Math.PI * 5) * 0.6;
@@ -1986,7 +2008,7 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
         lArm = -0.6; rArm = 0.2;
         bodyTilt = facing * 0.15;
       } else {
-        lArm = -2.3; rArm = 2.3;  // V default
+        lArm = -2.3; rArm = 2.3;
       }
       break;
     }
@@ -2006,51 +2028,38 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
       lLeg = -0.6; rLeg = 0.6;
       break;
     case "stiff":
-      lArm = Math.PI / 2;  // arm out front horizontal
+      lArm = Math.PI / 2;
       rArm = 0.4;
       lLeg = runPhase * 0.3; rLeg = -runPhase * 0.3;
       break;
     case "block":
-      lArm = -0.5; rArm = 0.5;  // hands up to engage
+      lArm = -0.5; rArm = 0.5;
       lLeg = 0.1;  rLeg = -0.1;
       bodyTilt = facing * 0.15;
       break;
     case "engage":
-      // OL/DL locked up — arms fully extended forward into the opponent
       lArm = facing * Math.PI / 2 - 0.2;
       rArm = facing * Math.PI / 2 + 0.2;
       lLeg = 0.4; rLeg = -0.4;
       bodyTilt = facing * 0.2;
-      bodyDY = Math.sin(t * Math.PI * 6) * 0.4;  // jostling
+      bodyDY = Math.sin(t * Math.PI * 6) * 0.4;
       break;
     case "sack":
-      // QB sacker wrapping up — arms pulled in, body driving forward
       lArm = -0.6; rArm = -0.6;
       lLeg = -0.5; rLeg = 0.5;
       bodyTilt = facing * 0.25;
       break;
     case "kick":
-      // Kicker swinging leg forward
       lArm = -0.4; rArm = -0.8;
-      lLeg = -1.4;  // plant leg back
-      rLeg = facing * (1.1 - Math.abs(t - 0.5) * 1.5);  // swing through
+      lLeg = -1.4;
+      rLeg = facing * (1.1 - Math.abs(t - 0.5) * 1.5);
       bodyTilt = facing * -0.15;
       break;
     case "lateral":
-      // Tossing ball backwards
       lArm = -facing * Math.PI * 0.7;
       rArm = 0.3;
       bodyRot = facing * -0.2;
       leftHandBall = t < 0.5;
-      break;
-    case "carry":
-      // Running while holding ball — arm tucked, ball at hip
-      lArm = runPhase * rs.armAmp;
-      rArm = -0.2;  // ball-side arm tucked in
-      lLeg = -runPhase * rs.legAmp; rLeg = runPhase * rs.legAmp;
-      bodyTilt = facing * rs.lean;
-      bodyDY = Math.abs(runPhase) * -rs.bob;
-      rightHandBall = true;
       break;
   }
   ctx.save();
@@ -2059,7 +2068,7 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   if (bodyRot !== 0) ctx.rotate(bodyRot);
   ctx.lineCap = "round";
 
-  // ── Drop shadow ─────────────────────────────────────────
+  // Drop shadow
   ctx.fillStyle = "rgba(0,0,0,0.35)";
   ctx.beginPath();
   ctx.ellipse(0, headR + torsoLen + legLen - 1, 7.5, 2.2, 0, 0, Math.PI * 2);
@@ -2068,40 +2077,42 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   const shoulderY = -headR + 1;
   const hipY = shoulderY + torsoLen;
 
-  // ── Legs with knee bend (drawn behind everything else) ──
-  ctx.strokeStyle = "#f1f1f1";  // pants
+  // ── Legs with knee bend + foot lift ─────────────────────
+  ctx.strokeStyle = "#f1f1f1";
   ctx.lineWidth = 3.0;
-  const drawLeg = (side, angle) => {
+  const drawLeg = (side, angle, lift) => {
     const a = angle * facing;
     const sx = side * 1.6;
     const upperLen = legLen * 0.55;
     const lowerLen = legLen * 0.55;
-    const kneeBend = (pose === "run" || pose === "carry") ? rs.kneeBend * Math.abs(Math.sin(a)) : 0;
+    // Knee bend amount: in run/carry, also amplified by lift (back foot up to butt)
+    const bending = pose === "run" || pose === "carry";
+    const bendBase = bending ? rs.kneeBend * Math.abs(Math.sin(a)) : 0;
+    const bend = bendBase + (lift / 7) * 0.8;
     const kneeX = sx + Math.sin(a) * upperLen;
-    const kneeY = hipY + Math.cos(a) * upperLen;
-    const lowerA = a + facing * kneeBend * (side > 0 === a > 0 ? 1 : -1);
+    const kneeY = hipY + Math.cos(a) * upperLen - lift * 0.55;
+    // Lower leg angle — when lifted, foot tucks up behind/under the body
+    const lowerA = a + facing * bend * (a >= 0 ? 1 : -1);
     const footX = kneeX + Math.sin(lowerA) * lowerLen;
-    const footY = kneeY + Math.cos(lowerA) * lowerLen;
+    const footY = kneeY + Math.cos(lowerA) * lowerLen - lift * 0.35;
     ctx.beginPath();
     ctx.moveTo(sx, hipY);
     ctx.lineTo(kneeX, kneeY);
     ctx.lineTo(footX, footY);
     ctx.stroke();
-    // Cleat
+    // Cleat (only show when grounded; when lifted, foot is angled)
     ctx.fillStyle = "#0a0a14";
     ctx.beginPath();
     ctx.ellipse(footX, footY + 0.5, 2.4, 1.3, 0, 0, Math.PI * 2);
     ctx.fill();
-    return { footX, footY };
   };
-  drawLeg(-1, lLeg);
-  drawLeg(1, rLeg);
+  drawLeg(-1, lLeg, lLegLift);
+  drawLeg(1, rLeg, rLegLift);
 
-  // ── Shoulder pads (wide jersey-colored rectangle) ───────
+  // ── Shoulder pads ───────────────────────────────────────
   ctx.fillStyle = color;
   ctx.strokeStyle = secondary || "#fff";
   ctx.lineWidth = 1.2;
-  // pad is a slight trapezoid: wider at shoulders, narrows to torso
   ctx.beginPath();
   ctx.moveTo(-padW/2, shoulderY - 1.5);
   ctx.lineTo(padW/2,  shoulderY - 1.5);
@@ -2111,7 +2122,7 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   ctx.fill();
   ctx.stroke();
 
-  // ── Torso (jersey) ──────────────────────────────────────
+  // ── Torso ───────────────────────────────────────────────
   const torsoTopW = padW/2 - 0.8;
   const torsoBotW = 3.5;
   ctx.beginPath();
@@ -2123,7 +2134,6 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   ctx.fill();
   ctx.stroke();
 
-  // Jersey number on chest
   if (label && /^\d{1,2}$/.test(label)) {
     ctx.fillStyle = secondary || "#fff";
     ctx.font = "bold 6.5px sans-serif";
@@ -2132,7 +2142,7 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     ctx.fillText(label, 0, shoulderY + torsoLen * 0.55);
   }
 
-  // ── Arms with elbow bend ────────────────────────────────
+  // ── Arms ────────────────────────────────────────────────
   ctx.strokeStyle = color;
   ctx.lineWidth = 2.6;
   const drawArm = (side, angle, holdsBall) => {
@@ -2142,7 +2152,6 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     const lower = armLen * 0.55;
     const elbowX = sx + Math.sin(a) * upper;
     const elbowY = shoulderY + Math.cos(a) * upper + armReachY * 0.4;
-    // Slight elbow bend toward body
     const lowerA = a - facing * 0.35 * Math.sign(Math.cos(a));
     const handX = elbowX + Math.sin(lowerA) * lower;
     const handY = elbowY + Math.cos(lowerA) * lower + armReachY * 0.6;
@@ -2151,18 +2160,15 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     ctx.lineTo(elbowX, elbowY);
     ctx.lineTo(handX, handY);
     ctx.stroke();
-    // Hand (skin tone)
     ctx.fillStyle = "#d6a878";
     ctx.beginPath();
     ctx.arc(handX, handY, 1.5, 0, Math.PI * 2);
     ctx.fill();
-    // Football in hand
     if (holdsBall) {
       ctx.fillStyle = "#6b3416";
       ctx.beginPath();
       ctx.ellipse(handX, handY + 0.5, 3, 1.7, facing * 0.3, 0, Math.PI * 2);
       ctx.fill();
-      // Laces
       ctx.strokeStyle = "#fff";
       ctx.lineWidth = 0.6;
       ctx.beginPath();
@@ -2170,9 +2176,18 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
       ctx.lineTo(handX + 0.5, handY - 0.3);
       ctx.stroke();
     }
+    return { handX, handY };
   };
-  drawArm(-1, lArm, leftHandBall);
-  drawArm(1, rArm, rightHandBall);
+  const lHand = drawArm(-1, lArm, leftHandBall);
+  const rHand = drawArm(1, rArm, rightHandBall);
+
+  // For 3-point stance, draw a ground line where the lead hand plants
+  if (drawGroundHand) {
+    ctx.fillStyle = "rgba(0,0,0,0.25)";
+    ctx.beginPath();
+    ctx.ellipse(lHand.handX, lHand.handY + 0.5, 3, 1.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
 
   // ── Helmet ──────────────────────────────────────────────
   const helmY = shoulderY - helmH - 0.5;
@@ -2183,36 +2198,30 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   ctx.ellipse(0, helmY, headR + 1.2, helmH, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
-  // Helmet center stripe (front-back)
   ctx.strokeStyle = secondary || "#fff";
   ctx.lineWidth = 1.1;
   ctx.beginPath();
   ctx.moveTo(0, helmY - helmH * 0.95);
   ctx.lineTo(0, helmY + helmH * 0.2);
   ctx.stroke();
-  // Earhole circle
   ctx.fillStyle = "rgba(0,0,0,0.45)";
   ctx.beginPath();
   ctx.arc(-facing * 1.5, helmY + 0.5, 0.9, 0, Math.PI * 2);
   ctx.fill();
-  // Facemask — cage on the facing side
   ctx.strokeStyle = "#c8c8c8";
   ctx.lineWidth = 0.9;
   const fx = facing * (headR + 0.5);
   const fy = helmY + 1.5;
-  // Vertical bar
   ctx.beginPath();
   ctx.moveTo(fx, fy - 2.2);
   ctx.lineTo(fx, fy + 1.8);
   ctx.stroke();
-  // Horizontal bars
   for (const dy of [-1.5, 0, 1.2]) {
     ctx.beginPath();
     ctx.moveTo(fx, fy + dy);
     ctx.lineTo(fx - facing * 2.8, fy + dy);
     ctx.stroke();
   }
-  // Chin strap
   ctx.strokeStyle = "#f1f1f1";
   ctx.lineWidth = 0.7;
   ctx.beginPath();
@@ -2220,7 +2229,6 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   ctx.lineTo(facing * 2, helmY + helmH * 0.65);
   ctx.stroke();
 
-  // ── Optional floating label / exclamation ──────────────
   if (exclaim) {
     ctx.fillStyle = "#f0cc30";
     ctx.font = "bold 9px sans-serif";
@@ -4261,6 +4269,7 @@ function buildAnimForPlay(play, prevPlay) {
 
   // Default: just show the field with formation
   return { duration: 800, kind: play.kind, render: (t, c) => {
+    ctx = c;
     drawField(c, homeTeam, awayTeam, fieldState);
     drawPlayers(formation.offense, formation.defense);
   }};
