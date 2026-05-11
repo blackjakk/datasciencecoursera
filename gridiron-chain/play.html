@@ -4845,6 +4845,48 @@ function buildAnimForPlay(play, prevPlay) {
   // PRE will be computed per-play once dur is known (PRE = PRE_MS / dur)
   let PRE = 0.24;
 
+  // ── PRE-SNAP MOTION ──
+  // ~22% of plays put a receiver/TE in motion across the formation. Motion
+  // takes place in the back half of pre-snap; the player settles into a new
+  // y-coordinate by the snap. Routes start from the post-motion position.
+  const motionSeed = (((play.startYard * 23) ^ ((play.targetDepth || 0) * 13) ^ ((play.time || 0) * 11)) >>> 0) % 1000 / 1000;
+  const hasMotion  = motionSeed < 0.22 && play.kind !== "kickoff";
+  let motionRole = null, motionStartY = 0, motionEndY = 0;
+  if (hasMotion) {
+    const who = Math.floor(motionSeed * 999) % 3;
+    motionRole = who === 0 ? "wr1" : who === 1 ? "wr2" : "te";
+    const target = motionRole === "wr1" ? formation.wr1
+                 : motionRole === "wr2" ? formation.wr2
+                 :                        formation.te;
+    motionStartY = target.y;
+    // Motion across into the slot (or to the other side for TE)
+    motionEndY = motionRole === "wr1" ? cy + 18
+              : motionRole === "wr2" ? cy - 18
+              :                        cy - 30;
+    // Mutate the formation so post-snap routes start from the new y
+    target.y = motionEndY;
+  }
+  // Returns the y-offset to apply to the motion player vs his post-motion home.
+  // 0 means he's at his new home y. Positive/negative means he's still
+  // traveling there during the motion window.
+  const motionYOffset = (tNow) => {
+    if (!hasMotion || tNow >= PRE) return 0;
+    const preT = tNow / PRE;
+    if (preT < 0.40) return (motionStartY - motionEndY);
+    if (preT < 0.88) {
+      const mp = (preT - 0.40) / 0.48;
+      const sm = mp * mp * (3 - 2 * mp);
+      return (motionStartY - motionEndY) * (1 - sm);
+    }
+    return 0;
+  };
+  // Returns true when the motion player is actively jogging across.
+  const isInMotionNow = (tNow) => {
+    if (!hasMotion || tNow >= PRE) return false;
+    const preT = tNow / PRE;
+    return preT >= 0.40 && preT < 0.88;
+  };
+
   // Defender pursuit speed cap — tuned to a fast NFL defender (~9 yds/s).
   // Carrier runs slightly faster, so on breakaways defenders visibly trail.
   const PURSUIT_PX_MS = (FIELD.PX_PER_YARD * 9) / 1000;
@@ -4917,8 +4959,20 @@ function buildAnimForPlay(play, prevPlay) {
       return;
     }
     if (t > PRE) return;
-    // Audible callout — only shown when the QB is actually changing the play.
     const tt = t / PRE;
+    // MOTION! callout — flashes while the receiver is actually jogging across
+    if (hasMotion && tt >= 0.40 && tt < 0.78 && !isAudible) {
+      c.save();
+      c.textAlign = "center";
+      c.textBaseline = "middle";
+      c.fillStyle = "rgba(0,0,0,0.45)";
+      c.fillRect(0, 30, FIELD.W, 40);
+      c.fillStyle = "#9bd0ff";
+      c.font = "900 22px sans-serif";
+      c.fillText("MOTION!", FIELD.W / 2, 50);
+      c.restore();
+    }
+    // Audible callout — only shown when the QB is actually changing the play.
     if (isAudible && tt >= 0.30 && tt < 0.78) {
       c.save();
       c.textAlign = "center";
@@ -5174,6 +5228,19 @@ function buildAnimForPlay(play, prevPlay) {
       });
       // OL fire out and engage DL at the LOS
       const off = formation.offense.filter(p => p.role !== "RB").map((p, idx) => {
+        // Pre-snap motion for the chosen player
+        if (hasMotion && t < PRE) {
+          const isMotion = (motionRole === "wr1" && p === formation.wr1)
+                        || (motionRole === "wr2" && p === formation.wr2)
+                        || (motionRole === "te" && p === formation.te);
+          if (isMotion) {
+            const yOff = motionYOffset(t);
+            const moving = isInMotionNow(t);
+            return { ...p, y: p.y + yOff,
+                     pose: moving ? "run" : "stance",
+                     t: (t * 3) % 1, facing: dir };
+          }
+        }
         if (t < PRE) return { ...p, pose: "stance" };
         const tt = runT;
         if (p.role === "OL") {
@@ -5595,6 +5662,20 @@ function buildAnimForPlay(play, prevPlay) {
       };
       const off = formation.offense.map(p => {
         if (p.role === "QB") return qbWithPose;
+        // Pre-snap motion: the motion player jogs across the formation
+        if (hasMotion && t < PRE) {
+          const isMotion = (motionRole === "wr1" && p === formation.wr1)
+                        || (motionRole === "wr2" && p === formation.wr2)
+                        || (motionRole === "te" && p === formation.te);
+          if (isMotion) {
+            const yOff = motionYOffset(t);
+            const moving = isInMotionNow(t);
+            const facingMotion = (motionEndY > motionStartY) ? 1 : -1;
+            return { ...p, y: p.y + yOff,
+                     pose: moving ? "run" : "idle",
+                     t: (t * 3) % 1, facing: dir };
+          }
+        }
         if (p === formation.wr1 && wrChoice === "wr1") return wrWithPose;
         if (p === formation.wr2 && wrChoice === "wr2") return wrWithPose;
         if (p === formation.te && wrChoice === "te") return wrWithPose;
