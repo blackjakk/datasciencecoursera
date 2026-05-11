@@ -532,6 +532,7 @@
   .player-tooltip .tt-nick { color: #c890ff; font-style: italic; font-weight: 700; }
   .player-tooltip .tt-legal { color: #8a8a8a; font-size: .68rem; margin-top: -.2rem; margin-bottom: .25rem; font-style: italic; }
   .player-tooltip .tt-college { color: #c890ff; font-size: .65rem; margin-top: .3rem; font-weight: 700; letter-spacing: 0.04em; }
+  .player-tooltip .tt-tribute { color: var(--gold-lt); font-size: .65rem; margin-top: .3rem; font-weight: 700; letter-spacing: 0.04em; }
   .player-tooltip .tt-sub  { font-size: .68rem; color: var(--gray); margin-bottom: .4rem; letter-spacing: .3px; }
   .player-tooltip .tt-flavor { font-size: .68rem; color: var(--gray); margin-top: .35rem; line-height: 1.35; }
   .player-tooltip .tt-flavor b { color: #c890ff; font-weight: 700; }
@@ -1646,6 +1647,10 @@ function genPlayer(pos, tier) {
   player.celebStyle = pickCelebStyle();
   player.bodyType = pickBodyType(pos, player.archetype);
   player.nickname = null;
+  // College jersey number — the digit they wore in college and would prefer
+  // to keep. Final pro number assigned at the team level (see
+  // assignTeamJerseyNumbers) which resolves conflicts.
+  assignCollegeNumber(player);
   // COLLEGE NICKNAME — young (≤23), highly-rated players have a 30% chance of
   // arriving with a nickname earned in college (record-breakers, elite
   // prospects). They keep it through their career; pro top-10 status won't
@@ -1870,6 +1875,9 @@ function genRoster(playbook = PLAYBOOKS.BALANCED, overrides = {}, blockNames = n
       r.push(player);
     }
   }
+  // Resolve per-team jersey number conflicts (best player keeps their college
+  // digit; rookies whose # is taken switch to a position-pool alternate).
+  assignTeamJerseyNumbers(r);
   return r;
 }
 
@@ -4066,9 +4074,136 @@ const JERSEYS_BY_POS = {
   S:  ["20","26","30","32","33","36","37","38","39"],
   K:  ["2","3","4","5","6","8"], P: ["2","3","4","5","6","8"],
 };
+
+// Legend numbers by position — iconic NFL/college players whose number a
+// rookie might adopt as a tribute. ~12% of players are tagged with a tribute
+// at gen time; `p.numberTribute` is surfaced in the tooltip ("in honor of …").
+const LEGEND_NUMBERS = {
+  QB: [
+    ["12","Tom Brady"],["12","Aaron Rodgers"],["12","Roger Staubach"],["12","Terry Bradshaw"],
+    ["16","Joe Montana"],["19","Johnny Unitas"],["7","John Elway"],["7","Michael Vick"],["7","Ben Roethlisberger"],
+    ["9","Drew Brees"],["8","Troy Aikman"],["8","Steve Young"],["10","Fran Tarkenton"],["10","Eli Manning"],
+    ["15","Bart Starr"],["15","Patrick Mahomes"],["17","Doug Williams"],["17","Josh Allen"],
+    ["14","Otto Graham"],["14","Dan Fouts"],["11","Phil Simms"],["11","Drew Bledsoe"],
+    ["4","Brett Favre"],["5","Donovan McNabb"],["5","Paul Hornung"],["1","Cam Newton"],["2","Matt Ryan"],
+  ],
+  RB: [
+    ["20","Barry Sanders"],["21","LaDainian Tomlinson"],["21","Tiki Barber"],
+    ["22","Emmitt Smith"],["23","Devin Hester"],["24","Marshawn Lynch"],
+    ["25","LeSean McCoy"],["26","Saquon Barkley"],["26","Le'Veon Bell"],
+    ["27","Eddie George"],["28","Adrian Peterson"],["28","Curtis Martin"],
+    ["29","Eric Dickerson"],["30","Terrell Davis"],
+    ["32","Jim Brown"],["32","Marcus Allen"],["32","O.J. Simpson"],
+    ["33","Tony Dorsett"],["34","Walter Payton"],["34","Earl Campbell"],["34","Bo Jackson"],
+    ["44","John Riggins"],
+  ],
+  WR: [
+    ["80","Jerry Rice"],["80","Steve Largent"],["81","Terrell Owens"],["81","Tim Brown"],["81","Anquan Boldin"],
+    ["82","Raymond Berry"],["83","Andre Reed"],["83","Wes Welker"],
+    ["84","Randy Moss"],["84","Antonio Brown"],["85","Chad Johnson"],
+    ["87","Sterling Sharpe"],["88","Lynn Swann"],["88","Michael Irvin"],["88","Drew Pearson"],["88","Mike Evans"],
+    ["89","Steve Smith"],["11","Larry Fitzgerald"],["13","Odell Beckham Jr."],["13","Keenan Allen"],
+    ["17","Davante Adams"],["18","Justin Jefferson"],["10","DeSean Jackson"],["10","Tyreek Hill"],
+  ],
+  TE: [
+    ["80","Kellen Winslow"],["82","Jason Witten"],["82","Ozzie Newsome"],
+    ["83","Mark Bavaro"],["85","Antonio Gates"],
+    ["87","Rob Gronkowski"],["87","Travis Kelce"],["87","Dave Casper"],
+    ["88","Tony Gonzalez"],["88","Jackie Smith"],["44","John Mackey"],
+  ],
+  OL: [
+    ["63","Gene Upshaw"],["64","Jerry Kramer"],["65","Tom Mack"],
+    ["68","Larry Allen"],["70","Sam Huff"],["70","Art Donovan"],["71","Walter Jones"],
+    ["73","Joe Klecko"],["74","Bob Lilly"],["75","Forrest Gregg"],
+    ["76","Lou Groza"],["77","Anthony Munoz"],["77","Red Grange"],
+    ["78","Bruce Smith"],["79","Bob Brown"],["60","Chuck Bednarik"],
+  ],
+  DL: [
+    ["72","Joe Greene"],["75","Reggie White"],["78","Bruce Smith"],
+    ["90","Julius Peppers"],["90","Jadeveon Clowney"],["91","Tamba Hali"],
+    ["92","Michael Strahan"],["93","Kevin Greene"],["93","John Randle"],
+    ["94","Charles Haley"],["94","DeMarcus Ware"],["95","Richard Dent"],
+    ["97","Cornelius Bennett"],["98","Aaron Donald"],
+    ["99","J.J. Watt"],["99","Jerome Brown"],["99","Mark Gastineau"],
+  ],
+  LB: [
+    ["52","Patrick Willis"],["52","Khalil Mack"],["52","Ray Lewis"],
+    ["54","Bobby Wagner"],["54","Brian Urlacher"],
+    ["55","Junior Seau"],["55","Derrick Brooks"],
+    ["56","Lawrence Taylor"],["57","Rickey Jackson"],
+    ["58","Derrick Thomas"],["58","Wilber Marshall"],
+    ["59","Jack Ham"],["59","London Fletcher"],
+    ["50","Mike Singletary"],["51","Sam Mills"],["53","Harry Carson"],
+  ],
+  CB: [
+    ["21","Deion Sanders"],["22","Asante Samuel"],["23","Champ Bailey"],
+    ["24","Charles Woodson"],["24","Darrelle Revis"],["25","Tyrann Mathieu"],
+    ["26","Rod Woodson"],["28","Marcus Peters"],["32","Jack Tatum"],
+  ],
+  S: [
+    ["20","Ed Reed"],["20","Brian Dawkins"],["21","Sean Taylor"],
+    ["24","Eric Berry"],["27","Earl Thomas"],["29","Tyrann Mathieu"],
+    ["31","Antrel Rolle"],["32","Eric Weddle"],["33","Sammy Baugh"],
+    ["42","Ronnie Lott"],["42","Charles Tillman"],
+  ],
+  K: [["1","Jan Stenerud"],["2","Adam Vinatieri"],["2","Justin Tucker"],["3","Stephen Gostkowski"],["5","Morten Andersen"],["8","Jason Hanson"],["9","Sebastian Janikowski"]],
+  P: [["4","Pat McAfee"],["5","Bryan Anger"],["6","Sam Koch"],["7","Donnie Jones"],["8","Andy Lee"]],
+};
+
+// Assign the player a "college number" — what they wore at the college level
+// and would prefer to wear in the pros. Most pick from a realistic
+// position-based pool; ~12% adopt a legend's number as a tribute.
+function assignCollegeNumber(p) {
+  const pos = p.position;
+  const legends = LEGEND_NUMBERS[pos];
+  if (legends && legends.length && Math.random() < 0.12) {
+    const t = legends[Math.floor(Math.random() * legends.length)];
+    p.collegeNumber = t[0];
+    p.numberTribute = t[1];
+    return;
+  }
+  const pool = JERSEYS_BY_POS[pos] || ["00"];
+  p.collegeNumber = pool[Math.floor(Math.random() * pool.length)];
+}
+
+// Resolve final per-team jersey numbers. NFL rule: no two players on the same
+// team share a number. Best players (by overall) claim first — rookies and
+// scrubs whose preferred number is taken switch to an alternate from their
+// position pool. Sets p.number on every player; p.collegeNumberLost flags
+// anyone who had to give up their preferred digit.
+function assignTeamJerseyNumbers(roster) {
+  const sorted = roster.slice().sort((a, b) => (b.overall || 0) - (a.overall || 0));
+  const taken = new Set();
+  for (const p of sorted) {
+    if (!p.collegeNumber) assignCollegeNumber(p);
+    if (p.collegeNumber && !taken.has(p.collegeNumber)) {
+      p.number = p.collegeNumber;
+      taken.add(p.number);
+      continue;
+    }
+    p.collegeNumberLost = true;
+    const pool = (JERSEYS_BY_POS[p.position] || ["00"]).slice();
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    let picked = pool.find(n => !taken.has(n));
+    if (!picked) {
+      for (let i = 1; i <= 99 && !picked; i++) {
+        const s = String(i);
+        if (!taken.has(s)) picked = s;
+      }
+    }
+    p.number = picked || "00";
+    taken.add(p.number);
+  }
+}
+
 function jerseyForPlayer(p) {
-  // Deterministic jersey based on the player's name so it stays consistent
+  // Deterministic jersey: prefer the persistent p.number assigned at roster
+  // build time; fall back to a name-hash pick for any legacy code path.
   if (!p) return "";
+  if (p.number) return p.number;
   const pool = JERSEYS_BY_POS[p.position] || ["00"];
   let hash = 0;
   for (let i = 0; i < p.name.length; i++) hash = (hash * 31 + p.name.charCodeAt(i)) >>> 0;
@@ -4210,6 +4345,10 @@ function buildPlayerTooltip(p) {
     ? `<div class="tt-legal">${escapeHtml(legalName)}</div>` : "";
   const collegeHtml = p.collegeNickname
     ? `<div class="tt-college">★ Earned in college</div>` : "";
+  const tributeHtml = p.numberTribute && !p.collegeNumberLost
+    ? `<div class="tt-tribute">#${p.number} — in honor of ${escapeHtml(p.numberTribute)}</div>`
+    : "";
+  const jerseyTag = p.number ? `#${p.number} · ` : "";
   // ── PROFILE PAGE EXTENSIONS — mugshot, career stats, trophy case ──
   // Try the AI-generated portrait first (deterministic by name+pos hash); if
   // that file is missing the <img> onerror falls back to the canvas portrait.
@@ -4224,13 +4363,14 @@ function buildPlayerTooltip(p) {
       <div class="tt-header-body">
         <div class="tt-name">${nameDisplay}</div>
         ${legalHtml}
-        <div class="tt-sub">${p.position} · ${teamLabel.toUpperCase()} · AGE ${p.age}</div>
+        <div class="tt-sub">${jerseyTag}${p.position} · ${teamLabel.toUpperCase()} · AGE ${p.age}</div>
         <div><span class="tt-ovr tier-${tier}">${p.overall} OVR</span></div>
         <div class="tt-bar"><div class="tt-bar-fill" style="width:${p.overall}%"></div></div>
       </div>
     </div>
     <div class="tt-stats">${statRows}</div>
     ${collegeHtml}
+    ${tributeHtml}
     ${flav}
     ${archHtml}
     ${trophyHtml}
