@@ -4277,11 +4277,38 @@ function buildAnimForPlay(play, prevPlay) {
     return { x: d.x + dx * f, y: d.y + dy * f };
   };
   // Play duration scales with yardage so big plays don't look like teleports.
-  // A 5-yd run = ~2 s; a 60-yd TD = ~5.5 s. Carrier covers ground at a
-  // realistic ~11 yds/s, defenders ~9 yds/s.
+  // A 4-yd run = ~2.8 s; a 60-yd TD = ~6.0 s. Carrier covers ground at a
+  // realistic ~11 yds/s, defenders ~9 yds/s. Extra time up front for the
+  // mesh/read phase so plays don't feel rushed.
   function scaledDuration(yds) {
-    const base = isAudible ? 2100 : 1900;
-    return clamp(base + Math.abs(yds || 0) * 60, isAudible ? 2300 : 2100, 5500);
+    const base = isAudible ? 2700 : 2500;
+    return clamp(base + Math.abs(yds || 0) * 60, base, 6000);
+  }
+  // Realistic run pacing: handoff mesh → read the hole → burst → sustained → tackle.
+  // Replaces the old eased-cubic linear blend that made the RB shoot to the end zone
+  // in the first 30% of the play. Now the carrier hangs near the LOS for the early
+  // mesh/read frames before exploding through the hole.
+  function runPacing(runT) {
+    const meshEnd = 0.14;     // QB-RB exchange + first step
+    const readEnd = 0.30;     // reading the blocks, building speed
+    const cruiseEnd = 0.92;   // sustained running through the play
+    const meshDist  = 0.04;
+    const readDist  = 0.14;
+    const cruiseDist = 1.0;
+    if (runT < meshEnd) {
+      const t = runT / meshEnd;
+      return t * meshDist;            // very slow first step
+    }
+    if (runT < readEnd) {
+      const t = (runT - meshEnd) / (readEnd - meshEnd);
+      const eased = t * t;            // ease-in: builds speed
+      return meshDist + (readDist - meshDist) * eased;
+    }
+    if (runT < cruiseEnd) {
+      const t = (runT - readEnd) / (cruiseEnd - readEnd);
+      return readDist + (cruiseDist - readDist) * t;  // linear cruise
+    }
+    return cruiseDist;                // tackle hold
   }
 
   // Pre-snap audible callout — drawn during the first half of PRE window.
@@ -4323,27 +4350,30 @@ function buildAnimForPlay(play, prevPlay) {
       if (t < PRE) {
         ballX = formation.qb.x;
       } else {
-        // For short plays use easeOutCubic (sharp burst). For long plays
-        // blend toward linear so the carrier doesn't appear to teleport.
-        const distYds = Math.abs(play.endYard - play.startYard);
-        const linearW = Math.min(1, Math.max(0, (distYds - 8) / 20));  // 0 at 8 yds, 1 at 28+
-        const eased = easeOutCubic(runT);
-        // Small accel ramp at the start so they don't instant-jump
-        const ramp = runT < 0.12 ? (runT / 0.12) * (runT / 0.12) * 0.12 : runT;
-        const progress = eased * (1 - linearW) + ramp * linearW;
+        // Realistic pacing: mesh (slow) → read (ramp) → cruise (linear) → tackle.
+        // The RB now lingers near the LOS for the early frames before exploding.
+        const progress = runPacing(runT);
         ballX = qb.x + (endX - qb.x) * progress;
         rb.x = qb.x + (endX - qb.x) * progress;
-        rb.y = cy + (1 - runT) * 18;
+        // RB stays in the backfield until the read phase ends, then merges to the LOS lane.
+        // Use the same progress curve so the lateral merge tracks the forward burst.
+        rb.y = cy + (1 - progress) * 18;
       }
       // (rbLateral added after pose decision below)
       // Carrier pose & move signature — drives juke/spin/hurdle/stiff/truck visibly.
       // Each move triggers a lateral side-step (or shoulder lower) AND makes the
       // nearest defender briefly overshoot, so the play LOOKS like a broken tackle.
-      let rbPose = t < PRE ? "idle" : "carry";
+      // Pose by phase: idle (pre-snap) → reach (mesh, taking the ball)
+      // → run (read, looking for the hole) → carry (cruise / sustained)
+      let rbPose;
+      if (t < PRE)             rbPose = "idle";
+      else if (runT < 0.14)    rbPose = "reach";
+      else if (runT < 0.30)    rbPose = "run";
+      else                      rbPose = "carry";
       let rbT = (t * 3) % 1;
       let rbLateral = 0;
       let dodgeIdx = -1;
-      let moveCallout = null;   // "JUKE!" / "STIFF ARM!" / "TRUCK!" / "SPIN!" / "HURDLE!"
+      let moveCallout = null;
       const rbArch = formation.rb.archetype;
       // Use two independent seeds so we can roll two moves per play
       const seedA = ((play.startYard * 17 + (play.yards || 0) * 53) >>> 0) % 100 / 100;
@@ -4354,35 +4384,37 @@ function buildAnimForPlay(play, prevPlay) {
       const powerProb   = bt > 0 ? 1.0 : (rbArch === "POWER"   ? 0.90 : rbArch === "WORKHORSE" ? 0.55 : 0.35);
       const inWindow = (a, b) => runT > a && runT < b;
       if (runT > 0.86 && yards < 90 && !isTD) rbPose = "tackled";
-      // EARLY: ELUSIVE → juke; POWER → truck stick at the line. ANY run >= 2 yds.
-      else if (yards >= 2 && inWindow(0.20, 0.42)) {
+      // EARLY CRUISE: ELUSIVE → juke; POWER → truck stick at/just past the line.
+      // Moved later (0.34+) to match the new pacing — moves now happen AFTER the
+      // RB has hit the hole, not during the handoff.
+      else if (yards >= 2 && inWindow(0.34, 0.52)) {
         const wantsJuke = rbArch === "ELUSIVE" || rbArch === "RECEIVING" || (rbArch !== "POWER" && seedA < 0.55);
         const wantsTruck = rbArch === "POWER" && seedA < powerProb;
         if (wantsTruck) {
           rbPose = "truck";
           moveCallout = "TRUCK!";
-          dodgeIdx = 4;   // 1st LB gets bowled over
+          dodgeIdx = 4;
         } else if (wantsJuke && seedA < eluciveProb) {
           rbPose = "juke";
           const cutDir = seedA < eluciveProb / 2 ? 1 : -1;
-          const within = (runT - 0.20) / 0.22;
+          const within = (runT - 0.34) / 0.18;
           rbLateral = cutDir * Math.sin(within * Math.PI) * 22;
           dodgeIdx = 4;
           moveCallout = "JUKE!";
         }
       }
-      // MID: spin (ELUSIVE/WORKHORSE) on plays ≥ 5 yds
-      else if (yards >= 5 && inWindow(0.42, 0.62) && (rbArch === "ELUSIVE" || rbArch === "WORKHORSE" || seedB < 0.4)) {
+      // MID CRUISE: spin (ELUSIVE/WORKHORSE) on plays ≥ 5 yds
+      else if (yards >= 5 && inWindow(0.52, 0.70) && (rbArch === "ELUSIVE" || rbArch === "WORKHORSE" || seedB < 0.4)) {
         rbPose = "spin";
-        rbT = (runT - 0.42) / 0.20;
+        rbT = (runT - 0.52) / 0.18;
         const cutDir = seedB < 0.5 ? 1 : -1;
-        const within = (runT - 0.42) / 0.20;
+        const within = (runT - 0.52) / 0.18;
         rbLateral = cutDir * Math.sin(within * Math.PI) * 14;
         dodgeIdx = 6;
         moveCallout = "SPIN!";
       }
-      // LATE: stiff arm (default) or hurdle (POWER/WORKHORSE) on plays ≥ 6 yds
-      else if (yards >= 6 && inWindow(0.55, 0.74)) {
+      // LATE CRUISE: stiff arm / hurdle on plays ≥ 6 yds
+      else if (yards >= 6 && inWindow(0.66, 0.82)) {
         if ((rbArch === "POWER" || rbArch === "WORKHORSE") && seedB > 0.55) {
           rbPose = "hurdle";
           dodgeIdx = 9;
