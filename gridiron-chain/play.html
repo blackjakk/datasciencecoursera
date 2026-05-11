@@ -2443,13 +2443,21 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
       drawGroundHand = true;
       break;
     }
-    case "throw":
-      lArm = -2.2 + t * 1.5;
-      rArm = -0.8;
-      lLeg = 0.3; rLeg = -0.4;
-      rightHandBall = t < 0.5;
-      bodyTilt = facing * 0.05;
+    case "throw": {
+      // Overhand throwing motion: throwing arm cocks back-above the helmet
+      // (angle ≈ -2.4 = up-and-back), sweeps over the top, and follows through
+      // forward-down (angle ≈ +2.0 = forward-down). 4.4 rad sweep total.
+      // Lead arm (off arm) points forward at the target.
+      const throwT = Math.pow(Math.min(1, t * 1.35), 1.3);   // ease-in then accelerate at release
+      rArm = -2.4 + throwT * 4.4;       // -2.4 (cocked back-up) → +2.0 (follow-through forward-down)
+      lArm = 1.6;                        // lead arm forward / down at target
+      rightHandBall = t < 0.55;          // ball leaves the hand just past midpoint
+      lLeg = 0.55;                       // front foot planted, stepping into the throw
+      rLeg = -0.45;                      // back leg pivot
+      bodyTilt = facing * 0.12;          // forward lean
+      bodyDY = -1.5;                     // up on the toes
       break;
+    }
     case "reach": case "catch":
       lArm = -2.4; rArm = -2.4;
       armReachY = -3;
