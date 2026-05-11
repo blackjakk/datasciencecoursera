@@ -4658,18 +4658,73 @@ function buildAnimForPlay(play, prevPlay) {
   }
 
   if (play.kind === "kickoff") {
-    return { duration: 1800, kind: "kickoff", render: (t, ctx) => {
-      // Ball arcs from kicking 35 (away starts game = away's 35) to receiving 25
+    // Three phases:
+    //   FLIGHT  (0 - 0.45): ball arcs from kicking team's 35 to receiver
+    //   RETURN  (0.45 - 0.85): returner catches and sprints upfield, blockers run with him
+    //   TACKLE  (0.85 - 1.0): tackle + ragdoll
+    return { duration: 3200, kind: "kickoff", render: (t, ctx) => {
       drawField(ctx, homeTeam, awayTeam, null);
-      const startX = absYardToX(65); // away 35 = abs 65 (since away end on right)
-      const endX = absYardToX(25);   // home gets ball at home 25
+      const startX = absYardToX(65);     // kicking team's 35
+      const catchX = absYardToX(15);     // returner catches at the 15
+      const finalX = absYardToX(25);     // returns to the 25 (typical)
       const cy = (FIELD.TOP + FIELD.BOT) / 2;
-      const x = startX + (endX - startX) * t;
-      const arc = Math.sin(t * Math.PI) * 130;
-      const y = cy - arc;
-      // formation for kickoff (lined up across)
       drawKickoffFormation(ctx, homeTeam, awayTeam);
-      drawBall(ctx, x, y, 1 + Math.sin(t * Math.PI) * 0.3);
+      const FLIGHT_END = 0.45;
+      const RETURN_END = 0.85;
+      let ballX, ballY, returnerX, returnerY;
+      if (t < FLIGHT_END) {
+        const ft = t / FLIGHT_END;
+        ballX = startX + (catchX - startX) * ft;
+        ballY = cy - Math.sin(ft * Math.PI) * 130;
+        returnerX = catchX;
+        returnerY = cy;
+      } else if (t < RETURN_END) {
+        const rt = (t - FLIGHT_END) / (RETURN_END - FLIGHT_END);
+        const sm = rt * rt * (3 - 2 * rt);
+        returnerX = catchX + (finalX - catchX) * sm;
+        returnerY = cy + Math.sin(rt * Math.PI * 1.5) * 4;
+        ballX = returnerX;
+        ballY = returnerY;
+      } else {
+        const tk = (t - RETURN_END) / (1 - RETURN_END);
+        returnerX = finalX;
+        returnerY = cy;
+        ballX = returnerX;
+        ballY = returnerY;
+        // Pursuing tacklers converge — draw a couple of them closing in
+        for (let i = 0; i < 3; i++) {
+          const px = finalX + (8 + i * 4);   // approach from upfield (kicking side)
+          const py = cy + (i - 1) * 6;
+          const tackleT = Math.min(1, tk * 2);
+          drawPlayer(ctx, finalX + (px - finalX) * (1 - tackleT * 0.6), py,
+                     awayTeam.primary, awayTeam.secondary, "", "run", (t * 3 + i * 0.13) % 1, -1);
+        }
+      }
+      // Returner
+      let returnerPose = "idle";
+      let returnerT = (t * 3) % 1;
+      if (t < FLIGHT_END) {
+        const ft = t / FLIGHT_END;
+        returnerPose = ft > 0.85 ? "reach" : "stance";
+      } else if (t < RETURN_END) {
+        returnerPose = "carry";
+      } else {
+        returnerPose = "tackled";
+        returnerT = Math.min(1, (t - RETURN_END) / (1 - RETURN_END));
+      }
+      drawPlayer(ctx, returnerX, returnerY, homeTeam.primary, homeTeam.secondary,
+                 "", returnerPose, returnerT, -1);
+      // Blockers running ahead of the returner during the return
+      if (t > FLIGHT_END && t < RETURN_END) {
+        const rt = (t - FLIGHT_END) / (RETURN_END - FLIGHT_END);
+        for (let i = 0; i < 2; i++) {
+          const bx = returnerX + 18 + i * 12;
+          const by = cy + (i === 0 ? -10 : 10);
+          drawPlayer(ctx, bx, by, homeTeam.primary, homeTeam.secondary,
+                     "", "run", (t * 3 + i * 0.21) % 1, -1);
+        }
+      }
+      drawBall(ctx, ballX, ballY, 1 + (t < FLIGHT_END ? Math.sin((t/FLIGHT_END) * Math.PI) * 0.3 : 0));
     }};
   }
 
@@ -4831,11 +4886,21 @@ function buildAnimForPlay(play, prevPlay) {
       const isQBRun = !!play.isQBRun;
       const isQBCarry = isScramble || isQBRun;
       const runT = t < PRE ? 0 : (t - PRE) / (1 - PRE);
-      // Pre-snap: ball sits at the QB (under-center / shotgun, ready for snap).
+      // Pre-snap: ball sits at the CENTER (front of the OL).
+      // Snap window (runT 0 - 0.04): ball travels back to the QB.
       // Post-snap: ball follows the carrier, sliding from backfield to LOS lane.
+      const snapMotionRT = 0.04;
+      const centerX = losX - dir * 2;
       let ballX, ballY = t < PRE ? cy : cy + (1 - runT) * 18;
       if (t < PRE) {
-        ballX = formation.qb.x;
+        ballX = centerX;
+        ballY = cy;
+      } else if (runT < snapMotionRT) {
+        // Snap from center back to QB
+        const snapT = runT / snapMotionRT;
+        const sm = snapT * snapT * (3 - 2 * snapT);
+        ballX = centerX + (formation.qb.x - centerX) * sm;
+        ballY = cy + (cy - cy) * sm;
       } else if (isScramble) {
         // SCRAMBLE: QB drops back, looks downfield, then tucks and runs.
         //   Phase A (0 - 0.18): pure dropback ~5 yds behind LOS
@@ -5221,6 +5286,7 @@ function buildAnimForPlay(play, prevPlay) {
       // These align with the QB pose timeline above — all scaled by throwFrac
       // so hands and ball stay synced when the catch happens earlier in action.
       const at = Math.max(0, (t - PRE) / (1 - PRE));
+      const snapMotionAT = 0.04;             // ball travels C→QB in first 4% of action
       const dropEndAT  = throwFrac * 0.29;   // dropback ends here
       const cockHoldAT = throwFrac * 0.65;   // ball reaches the ear, "held cocked"
       const releaseAT  = throwFrac * 0.73;   // ball leaves the hand
@@ -5230,8 +5296,18 @@ function buildAnimForPlay(play, prevPlay) {
       const releaseY = cy - 14;
       const cradleX = qb.x;
       const cradleY = cy - 3;
+      // Center position (front of OL) — where the ball is pre-snap
+      const centerX = losX - dir * 2;
+      const centerY = cy;
       if (t < PRE) {
-        ballX = qb.x; ballY = cy;
+        // Pre-snap: ball sits in the center's hands, ready to be snapped
+        ballX = centerX; ballY = centerY;
+      } else if (at < snapMotionAT) {
+        // SNAP! Ball travels from center back to the QB
+        const snapT = at / snapMotionAT;
+        const sm = snapT * snapT * (3 - 2 * snapT);
+        ballX = centerX + (cradleX - centerX) * sm;
+        ballY = centerY + (cradleY - centerY) * sm;
       } else if (at < dropEndAT) {
         // Dropback: ball cradled at chest with both hands
         ballX = cradleX;
@@ -5474,10 +5550,11 @@ function buildAnimForPlay(play, prevPlay) {
         return { ...p, pose: "idle", facing: dir };
       });
       drawPlayers(off, def);
-      // Suppress the standalone ball during cradle/cock — the QB's hand is
-      // already drawing it. Only render it once the ball has actually been
-      // released (t >= dropPhase).
-      if (t >= dropPhase) drawBall(ctx, ballX, ballY, arc > 30 ? 1.3 : 1);
+      // Draw the standalone ball during pre-snap (at the center) and the
+      // C→QB snap window, then suppress while the QB cradles/cocks (his hand
+      // draws it), then resume once the ball is released and in flight.
+      const showStandalone = (t < PRE) || (at < snapMotionAT) || (at >= releaseAT);
+      if (showStandalone) drawBall(ctx, ballX, ballY, arc > 30 ? 1.3 : 1);
       // Play-action / Throw-on-run banner at the top of the field
       if ((play.isPlayAction || play.isTOR) && t < throwPhase + 0.08) {
         ctx.save();
