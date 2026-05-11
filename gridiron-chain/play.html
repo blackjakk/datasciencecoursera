@@ -1062,6 +1062,7 @@ function genPlayer(pos, tier) {
   }
   player.runStyle = pickRunStyle(pos, player.archetype);
   player.celebStyle = pickCelebStyle();
+  player.bodyType = pickBodyType(pos, player.archetype);
   return player;
 }
 // Generates a player whose name isn't already in `blockNames`. Falls back to
@@ -1499,6 +1500,44 @@ class GameSimulator {
       const offArch = this.offArch;
       const possessionBonus = ((offArch.WR1?.archetype === "POSSESSION") ? 0.020 : 0)
                             + ((offArch.WR2?.archetype === "POSSESSION") ? 0.012 : 0);
+      // Screen passes — about 8% of called passes are screens. High comp rate, modest YAC.
+      // Skip on 3rd & long (screens get blown up by overzealous blitzers).
+      const isScreenCall = !(isThird && this.ytg >= 9) && Math.random() < 0.085;
+      if (isScreenCall) {
+        const rcvr = this.offR.starters.rb;
+        const rcvrStats = off.players[rcvr];
+        if (Math.random() < 0.84) {
+          // Completed screen
+          const airYds = rand(-1, 1);
+          const baseYac = rand(2, 7);
+          const bigYac = Math.random() < 0.16 ? rand(8, 22) : 0;
+          const yac = baseYac + bigYac;
+          const yards = Math.min(clamp(airYds + yac, -3, 95), 100 - startYard);
+          if (qbStats) { qbStats.pass_att++; qbStats.pass_comp++; qbStats.pass_yds += yards; if (yards > qbStats.pass_long) qbStats.pass_long = yards; }
+          if (rcvrStats) { rcvrStats.rec_tgt++; rcvrStats.rec++; rcvrStats.rec_yds += yards; if (yards > rcvrStats.rec_long) rcvrStats.rec_long = yards; }
+          off.team.pass_att++; off.team.pass_comp++; off.team.passYds += yards; off.team.totalYds += yards;
+          this._lastBallCarrier = rcvr; this._lastBallType = "pass";
+          const tacklerName = yards > 0 ? this._creditDefStat("tkl", { LB: 0.30, S: 0.25, CB: 0.25, DL: 0.20 }) : null;
+          this._pushVisual({
+            kind: "complete", desc: `Screen to ${rcvr} for ${yards} yds`,
+            startYard, targetDepth: airYds, catchDepth: airYds, yac, yards,
+            endYard: clamp(startYard + yards, 0, 100), receiver: rcvr,
+            passer: this.offR.starters.qb, tackler: tacklerName, isScreen: true,
+          });
+          return { yards };
+        } else {
+          // Screen got blown up — incomplete (timing was off, defender read it)
+          if (qbStats) qbStats.pass_att++;
+          if (rcvrStats) rcvrStats.rec_tgt++;
+          off.team.pass_att++;
+          this._pushVisual({
+            kind: "incomplete", desc: `Screen broken up — incomplete`,
+            startYard, targetDepth: -1, endYard: startYard,
+            passer: this.offR.starters.qb, intended: rcvr, isScreen: true,
+          });
+          return { yards: 0, incomplete: true };
+        }
+      }
       // QB OVR matters a lot for completion %: a 60-OVR scrub completes far less than a 90-OVR star
       // (swing of ~0.20 across 30 OVR points, centered around 75 OVR baseline)
       const qbCompFromOvr = (this.offR.qb - 75) / 150;  // QB 60 → -0.10, QB 90 → +0.10
@@ -1899,6 +1938,46 @@ const RUN_STYLES = {
 };
 const CELEB_STYLES = ["fist_pump", "ref_signal", "spike", "first_down", "point_sky", "shimmy", "bow", "leap_yell", "kneel"];
 
+// Body type profiles — drive shoulder width, torso shape, leg/arm length.
+// BIG = upside-down triangle (massive shoulders, thick torso) — OL/DL/POWER RB
+// BROAD = stocky triangle — default RBs, thumper LBs
+// NORMAL = balanced — QB / DB
+// LEAN = narrow shoulders, longer limbs — most WRs, shutdown CBs
+// COMPACT = short and small — slot WR/CB, elusive RB
+const BODY_TYPES = {
+  BIG:     { padW: 13.5, torsoLen: 9.0, torsoBotW: 4.8, legLen: 8.8,  armLen: 7.5, helmH: 5.7 },
+  BROAD:   { padW: 11.8, torsoLen: 8.5, torsoBotW: 4.0, legLen: 9.0,  armLen: 7.5, helmH: 5.5 },
+  NORMAL:  { padW: 10.0, torsoLen: 8.5, torsoBotW: 3.5, legLen: 9.0,  armLen: 7.5, helmH: 5.5 },
+  LEAN:    { padW: 9.0,  torsoLen: 9.5, torsoBotW: 2.6, legLen: 10.2, armLen: 8.4, helmH: 5.3 },
+  COMPACT: { padW: 8.8,  torsoLen: 7.5, torsoBotW: 3.0, legLen: 8.2,  armLen: 6.8, helmH: 5.2 },
+};
+function pickBodyType(pos, archetype) {
+  if (pos === "OL" || pos === "DL") return "BIG";
+  if (pos === "RB") {
+    if (archetype === "POWER") return "BIG";
+    if (archetype === "ELUSIVE") return "COMPACT";
+    if (archetype === "SPEED") return "BROAD";
+    return "BROAD";
+  }
+  if (pos === "WR") {
+    if (archetype === "DEEP_THREAT" || archetype === "POSSESSION" || archetype === "ROUTE_RUNNER") return "LEAN";
+    if (archetype === "RED_ZONE") return "BROAD";
+    if (archetype === "SLOT") return "COMPACT";
+    return Math.random() < 0.7 ? "LEAN" : "NORMAL";   // most WRs are lanky, occasional normal
+  }
+  if (pos === "TE") return archetype === "RECEIVING" ? "BROAD" : "BIG";
+  if (pos === "LB") return archetype === "THUMPER" ? "BIG" : "BROAD";
+  if (pos === "CB") {
+    if (archetype === "SHUTDOWN") return "LEAN";
+    if (archetype === "SLOT_CB")  return "COMPACT";
+    return "NORMAL";
+  }
+  if (pos === "S")  return archetype === "BOX" ? "BROAD" : "NORMAL";
+  if (pos === "QB") return "NORMAL";
+  if (pos === "K" || pos === "P") return "LEAN";
+  return "NORMAL";
+}
+
 function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style = {}) {
   pose = pose || "idle";
   t = t || 0;
@@ -1908,13 +1987,14 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   // OL/DL default to a 3-point stance when they're not actively doing something
   if ((pose === "idle") && (style.role === "OL" || style.role === "DL")) pose = "stance";
   const rs = RUN_STYLES[runStyle] || RUN_STYLES.smooth;
+  const bt = BODY_TYPES[style.bodyType] || BODY_TYPES.NORMAL;
 
   const headR = 4.2;
-  const helmH = 5.5;
-  const torsoLen = 8.5;
-  const padW = 10;            // shoulder pad width
-  const armLen = 7.5;
-  const legLen = 9;
+  const helmH = bt.helmH;
+  const torsoLen = bt.torsoLen;
+  const padW = bt.padW;
+  const armLen = bt.armLen;
+  const legLen = bt.legLen;
   const runPhase = Math.sin(t * Math.PI * 2);
 
   // Limb angles. 0 rad = pointing DOWN. Positive = swings FORWARD (in facing dir).
@@ -2122,9 +2202,9 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   ctx.fill();
   ctx.stroke();
 
-  // ── Torso ───────────────────────────────────────────────
+  // ── Torso (tapers toward waist — body type controls how dramatic the taper is)
   const torsoTopW = padW/2 - 0.8;
-  const torsoBotW = 3.5;
+  const torsoBotW = bt.torsoBotW;
   ctx.beginPath();
   ctx.moveTo(-torsoTopW, shoulderY + 2);
   ctx.lineTo(torsoTopW,  shoulderY + 2);
@@ -2370,7 +2450,12 @@ function attachPlayerStyles(formation, offStarters, defStarters, lookup) {
   const pickup = (name) => name ? lookup.get(name) : null;
   const decorate = (slot, p) => {
     if (!slot) return;
-    if (p) { slot.runStyle = p.runStyle; slot.celebStyle = p.celebStyle; slot.label = jerseyForPlayer(p); }
+    if (p) {
+      slot.runStyle = p.runStyle;
+      slot.celebStyle = p.celebStyle;
+      slot.bodyType = p.bodyType;
+      slot.label = jerseyForPlayer(p);
+    }
   };
   if (offStarters) {
     decorate(formation.qb,  pickup(offStarters.qb));
@@ -2381,6 +2466,7 @@ function attachPlayerStyles(formation, offStarters, defStarters, lookup) {
   }
   if (formation.oline) for (const ol of formation.oline) {
     ol.runStyle = "plodding";
+    ol.bodyType = "BIG";
     ol.label = JERSEYS_BY_POS.OL[Math.floor(Math.random() * JERSEYS_BY_POS.OL.length)];
   }
   if (defStarters) {
@@ -3832,7 +3918,7 @@ function buildAnimForPlay(play, prevPlay) {
     const endX = yardToAbsX(play.endYard, poss);
     const yards = play.yards ?? 0;
     const isTD = (play.endYard ?? 0) >= 100;
-    return { duration: 1500, kind: "run", render: (t, c) => {
+    return { duration: 1900, kind: "run", render: (t, c) => {
       ctx = c;
       drawField(ctx, homeTeam, awayTeam, fieldState);
       const rb = { ...formation.rb };
@@ -3846,58 +3932,92 @@ function buildAnimForPlay(play, prevPlay) {
         rb.x = qb.x + (endX - qb.x) * easeOutCubic(runT);
         rb.y = cy + (1 - runT) * 18;
       }
-      // Carrier pose — juke briefly if there's a move scheduled around now
-      let rbPose = t < PRE ? "idle" : "run";
-      let rbT = (t * 3) % 1;  // run cycle 3× the play
+      // Carrier pose
+      let rbPose = t < PRE ? "idle" : "carry";
+      let rbT = (t * 3) % 1;
       if (runT > 0.88 && yards < 90 && !isTD) rbPose = "tackled";
       else if (runT > 0.30 && runT < 0.42 && yards >= 6) { rbPose = "juke"; }
       else if (runT > 0.50 && runT < 0.62 && yards >= 8) { rbPose = "stiff"; }
       rb.pose = rbPose; rb.t = rbT; rb.facing = dir;
-      // Defenders converge slightly
+      // Determine which DL "wins" his rep — for big runs, the OL is winning at every gap
+      // (we ALSO need at least one DL to break free if the run is short / for losses)
+      const dlBreaksFree = yards < 2 ? 1 : 0;  // on stuffs, one rusher penetrates
+      // Defense: DL get locked up at LOS (engaged with OL); LBs/DBs pursue
       const def = formation.defense.map((d, i) => {
         const dd = { ...d };
-        if (t >= PRE) {
-          const tt = runT;
-          const tx = endX + dir * (8 + (i % 3) * 4);
-          const ty = cy + ((i % 5) - 2) * 14;
-          dd.x = d.x + (tx - d.x) * tt * 0.6;
-          dd.y = d.y + (ty - d.y) * tt * 0.6;
-          dd.pose = "run";
-          dd.t = (t * 3 + i * 0.13) % 1;
+        if (t < PRE) { dd.pose = "stance"; return dd; }
+        const tt = runT;
+        if (i < 4) {
+          // DL paired with OL — held up at the LOS. The "winning" DL pushes through.
+          const wobble = Math.sin(tt * Math.PI * 4 + d.y * 0.09) * 1.3;
+          if (i === dlBreaksFree && tt > 0.3) {
+            // This DL penetrates and chases the carrier
+            const tx = endX + dir * 8;
+            const breakT = (tt - 0.3) / 0.7;
+            dd.x = d.x + (tx - d.x) * breakT;
+            dd.y = d.y + (rb.y - d.y) * breakT * 0.7;
+            dd.pose = "run";
+            dd.t = (t * 3) % 1;
+          } else {
+            // Stuck at LOS, getting pushed back slightly
+            dd.x = d.x - dir * tt * 4 + Math.sin(tt * Math.PI * 5) * 1.5;
+            dd.y = d.y + wobble;
+            dd.pose = "engage";
+            dd.t = tt;
+          }
           dd.facing = -dir;
-          if (tt > 0.92 && yards < 90) dd.pose = "tackled";
-        } else { dd.pose = "idle"; }
+          return dd;
+        }
+        // LBs (4-6), CBs (7-8), Safeties (9-10) — converge on carrier
+        const tx = endX + dir * (8 + ((i - 4) % 3) * 4);
+        const ty = cy + (((i - 4) % 5) - 2) * 14;
+        dd.x = d.x + (tx - d.x) * tt * 0.7;
+        dd.y = d.y + (ty - d.y) * tt * 0.7;
+        dd.pose = "run";
+        dd.t = (t * 3 + i * 0.13) % 1;
+        dd.facing = -dir;
+        if (tt > 0.92 && yards < 90) dd.pose = "tackled";
         return dd;
       });
-      // OL drives forward into contact, TE seals edge, WRs release downfield
-      const off = formation.offense.filter(p => p.role !== "RB").map(p => {
-        if (t < PRE) return { ...p, pose: "idle" };
+      // OL fire out and engage DL at the LOS
+      const off = formation.offense.filter(p => p.role !== "RB").map((p, idx) => {
+        if (t < PRE) return { ...p, pose: "stance" };
         const tt = runT;
         if (p.role === "OL") {
+          // Push forward 8-10 px to meet the DL; wobble a bit during engagement
           const slot = (p.y - cy) / 14;
-          const wobble = Math.sin(tt * Math.PI * 5 + slot * 1.7) * 2.5;
-          return { ...p, x: p.x + dir * tt * 28, y: p.y + wobble, pose: "block", t: tt, facing: dir };
+          const wobble = Math.sin(tt * Math.PI * 5 + slot * 1.7) * 1.5;
+          return { ...p, x: p.x + dir * tt * 9, y: p.y + wobble, pose: "engage", t: tt, facing: dir };
         }
         if (p.role === "TE") {
-          return { ...p, x: p.x + dir * tt * 18, pose: "run", t: (t * 3) % 1, facing: dir };
+          // TE seals the edge — engage a defender to the side, doesn't run free
+          return { ...p, x: p.x + dir * tt * 12, y: p.y - dir * tt * 6, pose: "engage", t: tt, facing: dir };
         }
-        return { ...p, x: p.x + dir * tt * 12, pose: "run", t: (t * 3 + 0.5) % 1, facing: dir };
+        // WRs release downfield (run block on screens/runs)
+        return { ...p, x: p.x + dir * tt * 14, pose: "run", t: (t * 3 + 0.5) % 1, facing: dir };
       });
-      // QB gets idle (hand-off)
-      const off2 = off.map(p => p.role === "QB" ? { ...p, pose: "idle" } : p);
+      // QB hand-off then idle
+      const off2 = off.map(p => p.role === "QB" ? { ...p, pose: t < PRE + 0.05 ? "throw" : "idle", t, facing: dir } : p);
       drawPlayers([...off2, rb], def);
       drawBall(ctx, ballX, ballY);
     }};
   }
 
   if (play.kind === "complete" || play.kind === "incomplete" || play.kind === "int") {
+    const isScreen = !!play.isScreen;
     const catchDepth = play.catchDepth ?? play.targetDepth ?? 10;
     const targetX = losX + dir * catchDepth * FIELD.PX_PER_YARD;
-    // Pick receiver lane deterministically per play
+    // Pick receiver lane deterministically per play (screens always go to the RB)
     const wrRoll = ((play.startYard * 13 + (play.time||0)) >>> 0) % 100 / 100;
-    const wrChoice = wrRoll < 0.45 ? "wr1" : wrRoll < 0.78 ? "wr2" : wrRoll < 0.92 ? "te" : "rb";
-    // Lateral Y where the catch happens — based on receiver lane
-    const targetY = wrChoice === "wr1" ? cy - 70
+    const wrChoice = isScreen ? "rb"
+                   : wrRoll < 0.45 ? "wr1"
+                   : wrRoll < 0.78 ? "wr2"
+                   : wrRoll < 0.92 ? "te"
+                   :                  "rb";
+    // Screen RB releases to the strong-side flat; normal receivers run their lane
+    const screenSide = ((play.startYard * 17) >>> 0) % 2 ? 1 : -1;
+    const targetY = isScreen ? cy + screenSide * 50
+                  : wrChoice === "wr1" ? cy - 70
                   : wrChoice === "wr2" ? cy + 65
                   : wrChoice === "te"  ? cy + 28
                   :                       cy - 10;
@@ -3912,16 +4032,18 @@ function buildAnimForPlay(play, prevPlay) {
     const yac = isComplete ? (play.yac ?? Math.max(0, (play.yards ?? 0) - catchDepth)) : 0;
     // Final Y where YAC ends — receiver may drift back toward middle if running upfield
     const finalY = targetY + (cy - targetY) * Math.min(0.5, yac / 40);
-    return { duration: 1700, kind: play.kind, render: (t, c) => {
+    return { duration: 2100, kind: play.kind, render: (t, c) => {
       ctx = c;
       drawField(ctx, homeTeam, awayTeam, fieldState);
-      const dropPhase = 0.30;     // QB drops back
-      const throwPhase = 0.60;    // ball in air
+      // Screens release fast — short drop + quick throw
+      const dropPhase = isScreen ? 0.12 : 0.30;
+      const throwPhase = isScreen ? 0.30 : 0.60;
       const qb = { ...formation.qb };
       let ballX, ballY = cy;
       let arc = 0;
 
-      const dropAmt = t < dropPhase ? (t / dropPhase) * 5 * FIELD.PX_PER_YARD : 5 * FIELD.PX_PER_YARD;
+      const dropDepth = isScreen ? 2 : 5;
+      const dropAmt = t < dropPhase ? (t / dropPhase) * dropDepth * FIELD.PX_PER_YARD : dropDepth * FIELD.PX_PER_YARD;
       qb.x -= dir * dropAmt;
 
       // Receiver runs route — fully reaches catch point by throwPhase
@@ -3942,7 +4064,7 @@ function buildAnimForPlay(play, prevPlay) {
       } else if (t < throwPhase) {
         const tt = (t - dropPhase) / (throwPhase - dropPhase);
         ballX = qb.x + (targetX - qb.x) * tt;
-        arc = Math.sin(tt * Math.PI) * 60;
+        arc = Math.sin(tt * Math.PI) * (isScreen ? 12 : 60);
         ballY = cy + (targetY - cy) * tt - arc;
       } else {
         const tt = (t - throwPhase) / (1 - throwPhase);
@@ -3978,16 +4100,34 @@ function buildAnimForPlay(play, prevPlay) {
       }
 
       // Defense: rush + DBs cover (and one closes on the ball-carrier post-catch)
+      // On a sack/pressure (we don't know that here without checking play.kind), 1 DL breaks through.
+      // For incomplete/INT, DL stay engaged with OL.
+      const breakingRusher = play.kind === "complete" && (play.yards ?? 0) > 5 ? -1
+                           : play.kind === "incomplete" ? -1
+                           : 1;  // one rusher breaks through on tight throws/INTs
       const def = formation.defense.map((d, i) => {
         const dd = { ...d };
         dd.t = (t * 3 + i * 0.13) % 1;
         dd.facing = -dir;
         dd.pose = "run";
-        if (i < 4 && t > 0.1 && t < throwPhase + 0.05) {
-          const tt = Math.min(1, (t - 0.1) / 0.4);
-          dd.x = dd.x + (qb.x - dd.x) * tt * 0.7;
-          dd.y = dd.y + (qb.y - dd.y) * tt * 0.5;
-        } else if (i >= 7 && t > 0.05) {
+        if (i < 4 && t > 0.05 && t < throwPhase + 0.05) {
+          // Most DL stay engaged with OL — only the breaking rusher gets to the QB
+          const tt = Math.min(1, (t - 0.05) / 0.55);
+          if (i === breakingRusher) {
+            dd.x = d.x + (qb.x - d.x) * tt * 0.85;
+            dd.y = d.y + (qb.y - d.y) * tt * 0.6;
+            dd.pose = "run";
+          } else {
+            // Locked up at the LOS by the OL
+            const wobble = Math.sin(tt * Math.PI * 6 + d.y * 0.08) * 1.2;
+            dd.x = d.x - dir * 4 * tt + wobble * 0.4;
+            dd.y = d.y + wobble;
+            dd.pose = "engage";
+            dd.t = tt;
+          }
+        }
+        // CBs (7,8) follow their WRs downfield
+        if (i >= 7 && t > 0.05) {
           const tt = Math.min(1, (t - 0.05) / 0.55);
           if (i === 7) { dd.x += dir * tt * (catchDepth) * FIELD.PX_PER_YARD * 0.85; }
           if (i === 8) { dd.x += dir * tt * (catchDepth) * FIELD.PX_PER_YARD * 0.85; }
@@ -4040,11 +4180,21 @@ function buildAnimForPlay(play, prevPlay) {
         if (p === formation.te && wrChoice === "te") return wrWithPose;
         if (p === formation.rb && wrChoice === "rb") return wrWithPose;
         if (p.role === "OL" && t > 0.05) {
+          if (isScreen) {
+            // Screen — OL release downfield after a brief setup, run as blockers
+            if (t < 0.2) {
+              return { ...p, x: p.x, y: p.y, pose: "engage", t: t, facing: dir };
+            }
+            const tt = Math.min(1, (t - 0.2) / 0.6);
+            const downfield = dir * tt * 32;
+            const driftY = (p.y - cy) * (1 - tt * 0.4) + tt * (cy + screenSide * 35 - p.y) * 0.4;
+            return { ...p, x: p.x + downfield, y: cy + driftY, pose: "run", t: (t * 3) % 1, facing: dir };
+          }
           const tt = Math.min(1, (t - 0.05) / 0.55);
-          const slotDepth = Math.abs((p.y - cy) / 14);
-          const dropBack = (4 + slotDepth * 4) * tt;
-          const wobble = Math.sin(tt * Math.PI * 6 + p.y * 0.05) * 1.8;
-          return { ...p, x: p.x - dir * dropBack, y: p.y + wobble, pose: "block", facing: dir };
+          // Pass-block: small drop (~3px) to set up, then engage with the rusher
+          const dropBack = 3 * tt;
+          const wobble = Math.sin(tt * Math.PI * 6 + p.y * 0.05) * 1.3;
+          return { ...p, x: p.x - dir * dropBack, y: p.y + wobble, pose: "engage", t: tt, facing: dir };
         }
         if ((p.role === "WR1" || p.role === "WR2" || p.role === "TE") && t > 0.05) {
           const tt = Math.min(1, (t - 0.05) / 0.6);
