@@ -1710,10 +1710,22 @@ class GameSimulator {
           return { yards: 0, incomplete: true };
         }
       }
+      // Pick the targeted receiver up front so their CAT/archetype affect the completion roll.
+      // (Previously the receiver was picked AFTER the comp roll, so a 39-CAT WR had
+      // the same comp% as a 95-CAT one — that's no longer true.)
+      const rcvr = pickReceiver(pb, this.offR.starters);
+      const rcvrStats = off.players[rcvr];
+      const rcvrPlayer = this._playerByName?.get?.(rcvr) || null;
+      const rcvrCat = rcvrPlayer?.stats?.[5] ?? 70;
+      const rcvrAwr = rcvrPlayer?.stats?.[3] ?? 65;
+      // CAT swings comp% meaningfully — a 95-CAT WR catches everything thrown his way,
+      // a 39-CAT WR drops or muffs ~half of catchable balls.
+      const catCompMod = (rcvrCat - 70) / 180;       // CAT 95 → +0.139; CAT 39 → -0.172
+      const awrCompMod = (rcvrAwr - 65) / 350;       // small route-running bump
       // QB OVR matters a lot for completion %: a 60-OVR scrub completes far less than a 90-OVR star
       // (swing of ~0.20 across 30 OVR points, centered around 75 OVR baseline)
       const qbCompFromOvr = (this.offR.qb - 75) / 150;  // QB 60 → -0.10, QB 90 → +0.10
-      const compPct = clamp((0.60 + adv * 0.14 + qbCompFromOvr - pressure * 0.12 - shutdownPenalty + possessionBonus + qbCompMod + paCompMod) * compPbMul, 0.20, 0.88);
+      const compPct = clamp((0.60 + adv * 0.14 + qbCompFromOvr - pressure * 0.12 - shutdownPenalty + possessionBonus + qbCompMod + paCompMod + catCompMod + awrCompMod) * compPbMul, 0.15, 0.90);
       if (Math.random() < compPct) {
         // Air yards drop when pressure shortens the QB's reads (check-downs / dump-offs)
         // Weaker QBs also throw shorter — they can't push the ball downfield reliably
@@ -1733,8 +1745,7 @@ class GameSimulator {
         const targetDepth = Math.max(1, Math.round(airYds));
         // Cap at distance to end zone so a 3-yd goal-line catch doesn't get reported as a 25-yd TD
         const yards = Math.min(clamp(targetDepth + yac, -2, 95), 100 - startYard);
-        const rcvr = pickReceiver(pb, this.offR.starters);
-        const rcvrStats = off.players[rcvr];
+        // (receiver was picked above, before the comp roll)
         // Throw type — QB picks based on situation + archetype:
         //  CHECKDOWN (≤4 yds): low arc, fast — short outlet
         //  ZIP (5-18 yds, tight window): low arc + max velocity — threading the needle
@@ -1767,20 +1778,16 @@ class GameSimulator {
         return { yards };
       }
       const targetDepth = clamp(normal(13, 8), 3, 45);
-      const rcvr = pickReceiver(pb, this.offR.starters);
-      const rcvrStats = off.players[rcvr];
+      // (rcvr/rcvrStats/rcvrPlayer/rcvrCat already in scope from the outer pass block)
       if (qbStats) qbStats.pass_att++;
       if (rcvrStats) rcvrStats.rec_tgt++;
       off.team.pass_att++;
-      // Drop chance — varies by receiver's CAT stat (catching). Possession receivers
-      // drop way less than deep threats. Roughly: a 90 CAT drops ~3% of catchable balls,
-      // a 60 CAT drops ~9%. Drops are mutually exclusive with PDs (catchable vs broken up).
-      const rcvrPlayer = this._playerByName?.get?.(rcvr) || null;
-      const catStat = rcvrPlayer?.stats?.[5] ?? 70;
+      // Drop chance — on a missed-comp, was this a drop or off-target? Lower-CAT
+      // receivers are way more likely to be the drop side of the equation.
       const archMul = rcvrPlayer?.archetype === "POSSESSION" ? 0.55
                     : rcvrPlayer?.archetype === "DEEP_THREAT" ? 1.25
                     : 1.0;
-      const dropBase = clamp((90 - catStat) / 280 + 0.025, 0.02, 0.18) * archMul;
+      const dropBase = clamp((90 - rcvrCat) / 220 + 0.035, 0.02, 0.30) * archMul;
       const isDrop = Math.random() < dropBase;
       let pdName = null;
       if (isDrop) {
