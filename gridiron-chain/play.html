@@ -5039,15 +5039,31 @@ function buildAnimForPlay(play, prevPlay) {
                       : throwType === "DEEP"      ? 95
                       : 55;  // TOUCH default
       // ZIP throws compress the throw window so the ball arrives faster
-      const flightCurve = throwType === "ZIP" ? (x => x * x) : (x => x);  // ZIP frontloads ball travel
-      if (t < dropPhase) {
-        ballX = qb.x; ballY = cy;
+      const flightCurve = throwType === "ZIP" ? (x => x * x) : (x => x);
+      // Ball release point — at the QB's cocked throwing hand (above-and-just-
+      // forward of the helmet), NOT at his stomach. Pre-release, the ball
+      // travels from chest cradle → cocked-above-the-head position.
+      const releaseX = qb.x + dir * 1.5;
+      const releaseY = cy - 14;
+      const cradleX = qb.x;
+      const cradleY = cy - 3;
+      if (t < dropPhase * 0.55) {
+        // CRADLE: ball at chest, hands together
+        ballX = cradleX;
+        ballY = cradleY;
+      } else if (t < dropPhase) {
+        // COCK: ball rises from chest up-and-behind the helmet
+        const cockT = (t - dropPhase * 0.55) / (dropPhase * 0.45);
+        const sm = cockT * cockT * (3 - 2 * cockT);
+        ballX = cradleX + sm * (releaseX - cradleX);
+        ballY = cradleY + sm * (releaseY - cradleY);
       } else if (t < throwPhase) {
+        // FLIGHT: from QB's throwing hand to target
         const ttRaw = (t - dropPhase) / (throwPhase - dropPhase);
-        const tt = flightCurve(ttRaw);  // for ZIP: ball appears to fire out fast
-        ballX = qb.x + (targetX - qb.x) * tt;
+        const tt = flightCurve(ttRaw);
+        ballX = releaseX + (targetX - releaseX) * tt;
         arc = Math.sin(tt * Math.PI) * arcHeight;
-        ballY = cy + (targetY - cy) * tt - arc;
+        ballY = releaseY + (targetY - releaseY) * tt - arc;
       } else {
         const tt = (t - throwPhase) / (1 - throwPhase);
         if (play.kind === "complete") {
