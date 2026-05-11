@@ -1725,7 +1725,7 @@ class GameSimulator {
     // Broken tackles — carrier physicality vs defender tackle rating.
     // POWER backs break with STR, ELUSIVE with AGI, SPEED with raw SPD.
     // We compare against the AVG TCK of the LB room (primary tacklers on most runs).
-    // Up to 2 broken tackles per carry, with diminishing returns.
+    // Capped at ONE broken tackle per carry to keep RBs from being OP.
     let brokenTackles = 0;
     let bonusYards = 0;
     if (!isQBRun && yards > 0) {
@@ -1738,22 +1738,18 @@ class GameSimulator {
       else if (rbArch === "ELUSIVE") breakStat = (cagi * 0.7 + cstr * 0.3);
       else if (rbArch === "SPEED")   breakStat = (cspd * 0.7 + cstr * 0.3);
       else                            breakStat = (cstr + cagi) / 2;
-      // Average TCK of starting LBs; fall back to overall LB rating
       const lbList = this.defArch.LB || [];
       const lbPlayers = lbList.map(l => this._playerByName.get(l?.name)).filter(Boolean);
       const avgTck = lbPlayers.length
         ? lbPlayers.reduce((s,p) => s + (p.stats[9] || 60), 0) / lbPlayers.length
         : this.defR.lb;
-      const baseBreak = rbArch === "POWER" ? 0.08 : 0.05;
-      const breakChance = clamp((breakStat - avgTck) / 110 + baseBreak, 0.02, 0.45);
-      // Roll up to 2 (diminishing on 2nd attempt)
-      for (let i = 0; i < 2; i++) {
-        if (Math.random() < breakChance * (i === 0 ? 1.0 : 0.55)) {
-          brokenTackles++;
-          bonusYards += rand(4, 11);
-        } else break;
+      const baseBreak = rbArch === "POWER" ? 0.05 : 0.03;
+      const breakChance = clamp((breakStat - avgTck) / 180 + baseBreak, 0.01, 0.28);
+      if (Math.random() < breakChance) {
+        brokenTackles = 1;
+        bonusYards = rand(3, 8);
+        yards = Math.min(yards + bonusYards, 100 - startYard);
       }
-      yards = Math.min(yards + bonusYards, 100 - startYard);
     }
     const carrierStats = off.players[carrier];
     if (carrierStats) {
