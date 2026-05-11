@@ -2444,18 +2444,15 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
       break;
     }
     case "throw": {
-      // Overhand throwing motion: throwing arm cocks back-above the helmet
-      // (angle ≈ -2.4 = up-and-back), sweeps over the top, and follows through
-      // forward-down (angle ≈ +2.0 = forward-down). 4.4 rad sweep total.
-      // Lead arm (off arm) points forward at the target.
-      const throwT = Math.pow(Math.min(1, t * 1.35), 1.3);   // ease-in then accelerate at release
-      rArm = -2.4 + throwT * 4.4;       // -2.4 (cocked back-up) → +2.0 (follow-through forward-down)
+      // Throwing arm motion is rendered as TWO segments — see rForearmOverride
+      // below. Here we just set the LEAD arm (off arm pointing forward at
+      // the target) and the body/leg posture.
       lArm = 1.6;                        // lead arm forward / down at target
-      rightHandBall = t < 0.55;          // ball leaves the hand just past midpoint
       lLeg = 0.55;                       // front foot planted, stepping into the throw
       rLeg = -0.45;                      // back leg pivot
       bodyTilt = facing * 0.12;          // forward lean
       bodyDY = -1.5;                     // up on the toes
+      // rArm + rForearmOverride get set in the throw-special block below the switch
       break;
     }
     case "reach": case "catch":
@@ -2714,14 +2711,18 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   // ── Arms (filled capsules — bicep + forearm, with elbow joint) ──
   const bicepW   = 2.0 + bt.bulk * 0.55;
   const forearmW = 1.7 + bt.bulk * 0.40;
-  const drawArm = (side, angle, holdsBall) => {
+  const drawArm = (side, angle, holdsBall, forearmOverride) => {
     const a = angle * facing;
     const sx = side * (padW/2 - 0.5);
     const upper = armLen * 0.55;
     const lower = armLen * 0.55;
     const elbowX = sx + Math.sin(a) * upper;
     const elbowY = shoulderY + Math.cos(a) * upper + armReachY * 0.4;
-    const lowerA = a - facing * 0.35 * Math.sign(Math.cos(a));
+    // Forearm angle: caller can override (used for throwing whip).
+    // Otherwise default to a static elbow bend toward the body.
+    const lowerA = forearmOverride != null
+      ? forearmOverride * facing
+      : a - facing * 0.35 * Math.sign(Math.cos(a));
     const handX = elbowX + Math.sin(lowerA) * lower;
     const handY = elbowY + Math.cos(lowerA) * lower + armReachY * 0.6;
     drawSegment(sx, shoulderY, elbowX, elbowY, bicepW, color, shadeDark, shadeLight);
@@ -2744,8 +2745,24 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     }
     return { handX, handY };
   };
+  // Throwing arm uses a two-segment whip: bicep stays roughly at ear level,
+  // forearm cocks back during windup then whips forward through release.
+  let rForearmOverride = null;
+  if (pose === "throw") {
+    // Phase: windup hold (t<0.35), snap (0.35→0.55), follow-through (0.55→1)
+    let phaseT;
+    if (t < 0.35) phaseT = 0;
+    else if (t < 0.55) phaseT = (t - 0.35) / 0.20;
+    else phaseT = 1;
+    const sm = phaseT * phaseT * (3 - 2 * phaseT);  // smoothstep
+    // Forearm sweeps from cocked back (-2.6 rad) to forward-down (+1.8 rad)
+    rForearmOverride = -2.6 + sm * 4.4 + (t > 0.55 ? (t - 0.55) * 0.6 : 0);
+    // Override the static upper-arm value with a smaller, slower sweep
+    rArm = -1.55 + sm * 1.3;   // shoulder rotation: behind ear → forward-of-ear
+    rightHandBall = t < 0.55;
+  }
   const lHand = drawArm(-1, lArm, leftHandBall);
-  const rHand = drawArm(1, rArm, rightHandBall);
+  const rHand = drawArm(1, rArm, rightHandBall, rForearmOverride);
 
   // For 3-point stance, draw a ground line where the lead hand plants
   if (drawGroundHand) {
