@@ -3567,21 +3567,26 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   ctx.beginPath();
   ctx.ellipse(0, footYLocal + 0.5, 7.5 + bt.bulk * 0.8, 2.0, 0, 0, Math.PI * 2);
   ctx.fill();
-  // ── Seal of Solomon — six-pointed star under elite players (NCAA superstar
-  // indicator). Two interlocking equilateral triangles, gold fill.
+  // ── Seal of Solomon — six-pointed star UNDER the player's feet (NCAA
+  // superstar indicator). Two interlocking equilateral triangles, gold. The
+  // star is sized so the inner hexagon (formed where the triangles intersect)
+  // is wide enough to contain the player's foot footprint. Drawn before the
+  // body so the player stands inside it.
   if (style.elite) {
-    const sealY = footYLocal + 4;
-    const sealR = 3.0;
+    const sealY = footYLocal + 0.5;
+    // Inner hexagon flat-to-flat distance = sealR. Foot footprint is roughly
+    // 16 wide (shadow ellipse half-width 7.5 + bulk*0.8). Scale star to fit.
+    const sealR = 16 + bt.bulk * 1.2;
     ctx.save();
-    ctx.fillStyle = "rgba(240, 204, 48, 0.85)";
-    ctx.strokeStyle = "rgba(0, 0, 0, 0.7)";
-    ctx.lineWidth = 0.5;
+    ctx.fillStyle = "rgba(240, 204, 48, 0.55)";
+    ctx.strokeStyle = "rgba(120, 80, 0, 0.85)";
+    ctx.lineWidth = 0.9;
     // Up-pointing triangle
     ctx.beginPath();
     for (let i = 0; i < 3; i++) {
       const a = -Math.PI / 2 + i * (2 * Math.PI / 3);
       const px = Math.cos(a) * sealR;
-      const py = sealY + Math.sin(a) * sealR;
+      const py = sealY + Math.sin(a) * sealR * 0.42;
       if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
     }
     ctx.closePath();
@@ -3592,17 +3597,12 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     for (let i = 0; i < 3; i++) {
       const a = Math.PI / 2 + i * (2 * Math.PI / 3);
       const px = Math.cos(a) * sealR;
-      const py = sealY + Math.sin(a) * sealR;
+      const py = sealY + Math.sin(a) * sealR * 0.42;
       if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
     }
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
-    // Inner dot (the eye of the seal)
-    ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
-    ctx.beginPath();
-    ctx.arc(0, sealY, 0.6, 0, Math.PI * 2);
-    ctx.fill();
     ctx.restore();
   }
 
