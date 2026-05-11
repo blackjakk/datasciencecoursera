@@ -2775,10 +2775,13 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   ctx.scale(totalScale, totalScale);
   ctx.lineCap = "round";
 
-  // Drop shadow — bigger for bulkier players
+  // Drop shadow — positioned AT the foot height so players look planted on
+  // the ground, not floating. Foot Y in local coords is roughly:
+  //   shoulderY + torsoLen + legLen*1.1 (legs extend ~110% of legLen)
+  const footYLocal = (-headR + 1) + torsoLen + legLen * 1.05;
   ctx.fillStyle = "rgba(0,0,0,0.40)";
   ctx.beginPath();
-  ctx.ellipse(0, headR + torsoLen + legLen - 1, 7.5 + bt.bulk * 0.8, 2.4, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, footYLocal + 0.5, 7.5 + bt.bulk * 0.8, 2.0, 0, 0, Math.PI * 2);
   ctx.fill();
 
   const shoulderY = -headR + 1;
@@ -4658,80 +4661,138 @@ function buildAnimForPlay(play, prevPlay) {
   }
 
   if (play.kind === "kickoff") {
-    // Figure out the RECEIVING team from the next play with a poss set.
-    // The kickoff itself doesn't carry poss, but the team that has the ball
-    // on the next scrimmage play is the receiver.
+    // Receiving team derived from the next play's poss
     const kickoffIdx = gameResult.plays.indexOf(play);
     let recvPoss = "home";
     for (let i = kickoffIdx + 1; i < gameResult.plays.length; i++) {
       if (gameResult.plays[i].poss != null) { recvPoss = gameResult.plays[i].poss; break; }
     }
-    const recvTeam   = recvPoss === "home" ? homeTeam : awayTeam;
-    const kickTeam   = recvPoss === "home" ? awayTeam : homeTeam;
-    const recvDir    = recvPoss === "home" ? 1 : -1;   // direction receiver runs
-    // Kicker stands at THEIR own 35 (the team OPPOSITE the receiver).
-    // Receiver catches at the 15-yard line of his own end, returns to the 25.
-    const startX = yardToAbsX(35, recvPoss === "home" ? "away" : "home");
-    const catchX = yardToAbsX(15, recvPoss);
-    const finalX = yardToAbsX(25, recvPoss);
+    const recvTeam = recvPoss === "home" ? homeTeam : awayTeam;
+    const kickTeam = recvPoss === "home" ? awayTeam : homeTeam;
+    const kickPoss = recvPoss === "home" ? "away" : "home";
+    const recvDir  = recvPoss === "home" ? 1 : -1;   // direction returner runs
+    // Key x coordinates
+    const kickerLineX = yardToAbsX(35, kickPoss);   // kicking team at their own 35
+    const catchX     = yardToAbsX(15, recvPoss);    // returner catches at his 15
+    const finalX     = yardToAbsX(25, recvPoss);    // tackle at his 25
+    const cy = (FIELD.TOP + FIELD.BOT) / 2;
+    // Lane positions for 10 kicking-team coverage players (skipping kicker).
+    // Spread vertically across the field.
+    const NUM_COVER = 10;
+    const coverLanes = [];
+    for (let i = 0; i < NUM_COVER; i++) {
+      coverLanes.push(cy + ((i - (NUM_COVER - 1) / 2) * (FIELD.BOT - FIELD.TOP - 80) / NUM_COVER));
+    }
+    // Lane positions for 10 receiving-team blockers (returner is the 11th, deeper).
+    const NUM_BLOCKERS = 10;
+    const blockerLanes = [];
+    for (let i = 0; i < NUM_BLOCKERS; i++) {
+      blockerLanes.push(cy + ((i - (NUM_BLOCKERS - 1) / 2) * (FIELD.BOT - FIELD.TOP - 100) / NUM_BLOCKERS));
+    }
+    // Blockers start ~20 yds in front of the returner, spread across.
+    const blockerStartX = yardToAbsX(40, recvPoss);   // receiving team's 40
     return { duration: 3200, kind: "kickoff", render: (t, ctx) => {
       drawField(ctx, homeTeam, awayTeam, null);
-      const cy = (FIELD.TOP + FIELD.BOT) / 2;
-      drawKickoffFormation(ctx, recvTeam, kickTeam);
-      const FLIGHT_END = 0.45;
-      const RETURN_END = 0.85;
-      let ballX, ballY, returnerX, returnerY;
+      const FLIGHT_END = 0.40;
+      const RETURN_END = 0.82;
+      // ── Ball + returner positions ──
+      let ballX, ballY, returnerX = catchX, returnerY = cy;
+      let returnerPose = "stance";
+      let returnerT = (t * 3) % 1;
       if (t < FLIGHT_END) {
         const ft = t / FLIGHT_END;
-        ballX = startX + (catchX - startX) * ft;
+        ballX = kickerLineX + (catchX - kickerLineX) * ft;
         ballY = cy - Math.sin(ft * Math.PI) * 130;
         returnerX = catchX;
         returnerY = cy;
+        returnerPose = ft > 0.85 ? "reach" : "stance";
       } else if (t < RETURN_END) {
         const rt = (t - FLIGHT_END) / (RETURN_END - FLIGHT_END);
         const sm = rt * rt * (3 - 2 * rt);
         returnerX = catchX + (finalX - catchX) * sm;
-        returnerY = cy + Math.sin(rt * Math.PI * 1.5) * 4;
+        returnerY = cy + Math.sin(rt * Math.PI * 1.5) * 5;
         ballX = returnerX;
         ballY = returnerY;
+        returnerPose = "carry";
       } else {
-        const tk = (t - RETURN_END) / (1 - RETURN_END);
         returnerX = finalX;
         returnerY = cy;
         ballX = returnerX;
         ballY = returnerY;
-        // Pursuing kicking-team tacklers converge in front of the returner
-        for (let i = 0; i < 3; i++) {
-          const px = finalX + recvDir * (12 + i * 6);
-          const py = cy + (i - 1) * 6;
-          const tackleT = Math.min(1, tk * 2);
-          drawPlayer(ctx, finalX + (px - finalX) * (1 - tackleT * 0.6), py,
-                     kickTeam.primary, kickTeam.secondary, "", "run", (t * 3 + i * 0.13) % 1, -recvDir);
-        }
-      }
-      // Returner — facing the way he's running (toward kicking team's end)
-      let returnerPose = "idle";
-      let returnerT = (t * 3) % 1;
-      if (t < FLIGHT_END) {
-        const ft = t / FLIGHT_END;
-        returnerPose = ft > 0.85 ? "reach" : "stance";
-      } else if (t < RETURN_END) {
-        returnerPose = "carry";
-      } else {
         returnerPose = "tackled";
         returnerT = Math.min(1, (t - RETURN_END) / (1 - RETURN_END));
       }
+
+      // ── Kicking team coverage (10 players running downfield) ──
+      // They start near kickerLineX (kicker's 35) at t=0 and converge on the
+      // returner over the flight + return phases.
+      for (let i = 0; i < NUM_COVER; i++) {
+        let cx, cy_;
+        if (t < FLIGHT_END) {
+          // Sprint downfield during flight
+          const ft = t / FLIGHT_END;
+          cx = kickerLineX + (catchX - kickerLineX) * ft * 0.55;
+          cy_ = coverLanes[i];
+        } else if (t < RETURN_END) {
+          // Continue chase, converging on the returner's lane
+          const rt = (t - FLIGHT_END) / (RETURN_END - FLIGHT_END);
+          const sprintFromX = kickerLineX + (catchX - kickerLineX) * 0.55;
+          const targetX = returnerX - recvDir * (12 + (i % 4) * 8);  // arrive in front of returner
+          cx = sprintFromX + (targetX - sprintFromX) * Math.min(1, rt * 1.3);
+          cy_ = coverLanes[i] + (returnerY - coverLanes[i]) * Math.min(1, rt * 1.2);
+        } else {
+          // Tackle phase — bunch up around the returner
+          const tk = (t - RETURN_END) / (1 - RETURN_END);
+          const px = returnerX - recvDir * (10 + (i % 4) * 6);
+          const py = returnerY + ((i % 3) - 1) * 7;
+          cx = returnerX + (px - returnerX) * (1 - Math.min(1, tk * 2) * 0.7);
+          cy_ = returnerY + (py - returnerY) * (1 - Math.min(1, tk * 2) * 0.5);
+        }
+        const closeEnough = Math.hypot(cx - returnerX, cy_ - returnerY) < 18;
+        const tacklePose = t > RETURN_END && closeEnough ? "tackled" : "run";
+        const tackleT    = tacklePose === "tackled"
+          ? Math.min(1, (t - RETURN_END) / (1 - RETURN_END))
+          : (t * 3 + i * 0.11) % 1;
+        drawPlayer(ctx, cx, cy_, kickTeam.primary, kickTeam.secondary, "",
+                   tacklePose, tackleT, -recvDir);
+      }
+
+      // ── Kicker — stays back near his 35 throughout the play ──
+      drawPlayer(ctx, kickerLineX - recvDir * 4, cy, kickTeam.primary, kickTeam.secondary,
+                 "K", t < FLIGHT_END * 0.4 ? "kick" : "idle",
+                 t < FLIGHT_END * 0.4 ? Math.min(1, t / (FLIGHT_END * 0.4)) : 0, -recvDir);
+
+      // ── Receiving team — 10 blockers (skipping the returner) ──
+      // Pre-catch they hold their initial spots. Post-catch they collapse
+      // toward the kicking team to block in front of the returner.
+      for (let i = 0; i < NUM_BLOCKERS; i++) {
+        let bx, by_;
+        const baseY = blockerLanes[i];
+        if (t < FLIGHT_END) {
+          // Hold position, watching the ball
+          bx = blockerStartX;
+          by_ = baseY;
+        } else if (t < RETURN_END) {
+          // Move up to block — drift toward the returner's lane and engage coverage
+          const rt = (t - FLIGHT_END) / (RETURN_END - FLIGHT_END);
+          bx = blockerStartX + (returnerX - blockerStartX) * Math.min(1, rt * 1.4) * 0.4;
+          // Edge blockers swing inside
+          by_ = baseY + (returnerY - baseY) * Math.min(1, rt * 0.8);
+        } else {
+          // Tackle phase — stay where they engaged
+          bx = blockerStartX + (returnerX - blockerStartX) * 0.4;
+          by_ = baseY + (returnerY - baseY) * 0.8;
+        }
+        const bPose = t < FLIGHT_END ? "stance" : (t < RETURN_END ? "run" : "block");
+        drawPlayer(ctx, bx, by_, recvTeam.primary, recvTeam.secondary, "",
+                   bPose, (t * 3 + i * 0.17) % 1, recvDir);
+      }
+
+      // ── Returner (last so he draws on top) ──
       drawPlayer(ctx, returnerX, returnerY, recvTeam.primary, recvTeam.secondary,
                  "", returnerPose, returnerT, recvDir);
-      // Blockers running just ahead of the returner during the return phase
-      if (t > FLIGHT_END && t < RETURN_END) {
-        for (let i = 0; i < 2; i++) {
-          const bx = returnerX + recvDir * (18 + i * 12);
-          const by = cy + (i === 0 ? -10 : 10);
-          drawPlayer(ctx, bx, by, recvTeam.primary, recvTeam.secondary,
-                     "", "run", (t * 3 + i * 0.21) % 1, recvDir);
-        }
-      }
+
+      // Ball — only show if not held by the returner pose
       drawBall(ctx, ballX, ballY, 1 + (t < FLIGHT_END ? Math.sin((t/FLIGHT_END) * Math.PI) * 0.3 : 0));
     }};
   }
