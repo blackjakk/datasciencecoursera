@@ -366,6 +366,40 @@
   .sm-stats-table td.home { text-align: right; }
   .sm-stats-table td.away { text-align: left; }
   .sm-stats-table td.better { color: var(--gold); font-weight: 700; }
+  .pr-table {
+    width: 100%; border-collapse: collapse; font-size: .78rem;
+    font-variant-numeric: tabular-nums; margin-top: .5rem;
+  }
+  .pr-table th, .pr-table td {
+    padding: .3rem .5rem; border-bottom: 1px solid var(--border); text-align: right;
+  }
+  .pr-table th {
+    color: var(--gold); font-size: .65rem; letter-spacing: .4px;
+    text-transform: uppercase; font-weight: 700;
+  }
+  .pr-table tbody tr:nth-child(-n+3) td.pr-rank { color: var(--gold); font-weight: 800; }
+  .pr-table tbody tr:nth-last-child(-n+3) td.pr-rank { color: #d65a5a; }
+  .pr-rank { width: 2em; text-align: center; font-weight: 800; }
+  .pr-team { text-align: left; font-weight: 700; }
+  .pr-emoji { margin-right: .35rem; }
+  .pr-name { color: var(--white); }
+  .pr-conf {
+    margin-left: .4rem; font-size: .62rem; color: var(--gray);
+    font-weight: 500; letter-spacing: .3px;
+  }
+  .pr-record, .pr-pct { color: var(--white); }
+  .pr-pf, .pr-pa { color: var(--gray); }
+  .pr-pd.pos { color: #6ee06e; font-weight: 700; }
+  .pr-pd.neg { color: #d65a5a; font-weight: 700; }
+  .pr-conf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: .5rem; }
+  .pr-conf-block { background: var(--bg3); border-radius: 8px; padding: .6rem .8rem; }
+  .pr-conf-title { color: var(--gold); font-size: .8rem; font-weight: 800; letter-spacing: .5px; margin-bottom: .4rem; }
+  .pr-conf-list { padding-left: 1.5rem; margin: 0; font-size: .78rem; line-height: 1.6; }
+  .sm-drivers { list-style: none; padding: 0; margin: 0; font-size: .78rem; line-height: 1.5; }
+  .sm-drivers li { padding: .35rem 0; border-bottom: 1px dotted var(--border); color: var(--white); }
+  .sm-drivers li:last-child { border-bottom: 0; }
+  .sm-drivers li b { color: var(--gold); }
+  .sm-driver-icon { display: inline-block; width: 1.4em; }
   .sim-many-card.wide { max-width: 920px; }
   .sm-qb-table {
     width: 100%; border-collapse: collapse; font-size: .76rem;
@@ -518,6 +552,8 @@
     <button class="btn btn-outline" id="simManyBtn">🎲 Sim Many</button>
     <input id="qbOvrInput" class="qb-ovr-input" type="number" value="90" min="60" max="99" title="Target overall rating for the test QBs" />
     <button class="btn btn-outline" id="simByQBBtn" title="Run N games for each QB archetype on the home team at the chosen OVR">🧪 Sim by QB</button>
+    <button class="btn btn-outline" id="simByPBBtn" title="Run N games for each playbook on the home team">📘 Sim by PB</button>
+    <button class="btn btn-outline" id="powerRankBtn" title="Round-robin all 32 teams to compute a power ranking">📊 Power Rankings</button>
     <button class="btn btn-primary" id="playBtn" disabled>▶ Play</button>
     <button class="btn btn-outline" id="pauseBtn" disabled>⏸ Pause</button>
     <button class="btn btn-outline" id="endBtn" disabled>⏭ Skip to End</button>
@@ -2450,7 +2486,98 @@ function runManyGames(home, away, hRoster, aRoster, n) {
   return agg;
 }
 
-function renderSimManyResults(agg, home, away) {
+// Compute the key matchup drivers from ratings + sim results.
+// Returns up to 4 ordered insights: which side won the trenches, coverage, QB, etc.
+function computeKeyDrivers(agg, home, away, hRoster, aRoster) {
+  const hR = buildRatings(hRoster), aR = buildRatings(aRoster);
+  const drivers = [];
+
+  // Trench (pass-rush): DL vs OL
+  const homePassRush = hR.dl - aR.ol;  // home DL vs away OL
+  const awayPassRush = aR.dl - hR.ol;  // away DL vs home OL
+  const passRushEdge = homePassRush - awayPassRush;
+  if (Math.abs(passRushEdge) >= 4) {
+    const winner = passRushEdge > 0 ? home : away;
+    const loser  = passRushEdge > 0 ? away : home;
+    drivers.push({
+      mag: Math.abs(passRushEdge),
+      icon: "💪",
+      text: `<b>${winner.name}</b> wins the trenches — DL ${(passRushEdge > 0 ? hR.dl : aR.dl).toFixed(0)} vs ${loser.name} OL ${(passRushEdge > 0 ? aR.ol : hR.ol).toFixed(0)}. Drives sacks + pressure throughout the game.`
+    });
+  }
+
+  // QB advantage
+  const qbEdge = hR.qb - aR.qb;
+  if (Math.abs(qbEdge) >= 6) {
+    const winner = qbEdge > 0 ? home : away;
+    drivers.push({
+      mag: Math.abs(qbEdge),
+      icon: "🎯",
+      text: `<b>${winner.name}</b> has the QB edge (${hR.qb.toFixed(0)} vs ${aR.qb.toFixed(0)}). Higher comp%, fewer INTs, deeper average throws.`
+    });
+  }
+
+  // Coverage: WR vs CB+S
+  const homeCoverageVsAwayWR = (hR.cb + hR.saf) / 2 - aR.wr;  // home D vs away WRs
+  const awayCoverageVsHomeWR = (aR.cb + aR.saf) / 2 - hR.wr;  // away D vs home WRs
+  if (Math.abs(homeCoverageVsAwayWR) >= 6) {
+    const winner = homeCoverageVsAwayWR > 0 ? home : away;
+    drivers.push({
+      mag: Math.abs(homeCoverageVsAwayWR),
+      icon: "🛡️",
+      text: `<b>${winner.name}</b> coverage outclasses ${homeCoverageVsAwayWR > 0 ? away.name : home.name} receivers (${homeCoverageVsAwayWR > 0 ? `${hR.cb.toFixed(0)}/${hR.saf.toFixed(0)} CB/S vs ${aR.wr.toFixed(0)} WR` : `${aR.cb.toFixed(0)}/${aR.saf.toFixed(0)} CB/S vs ${hR.wr.toFixed(0)} WR`}).`
+    });
+  }
+  if (Math.abs(awayCoverageVsHomeWR) >= 6 && Math.sign(awayCoverageVsHomeWR) !== Math.sign(homeCoverageVsAwayWR)) {
+    const winner = awayCoverageVsHomeWR > 0 ? away : home;
+    drivers.push({
+      mag: Math.abs(awayCoverageVsHomeWR),
+      icon: "🛡️",
+      text: `<b>${winner.name}</b> coverage outclasses ${awayCoverageVsHomeWR > 0 ? home.name : away.name} receivers.`
+    });
+  }
+
+  // Run-game / RB
+  const rbEdge = hR.rb - aR.rb;
+  if (Math.abs(rbEdge) >= 6) {
+    const winner = rbEdge > 0 ? home : away;
+    drivers.push({
+      mag: Math.abs(rbEdge),
+      icon: "🏃",
+      text: `<b>${winner.name}</b> has the better RB room (${hR.rb.toFixed(0)} vs ${aR.rb.toFixed(0)}) — more chunk runs and YAC.`
+    });
+  }
+
+  // Notable archetype tells from the rosters
+  const archCount = (roster, pos, arch) => roster.filter(p => p.position === pos && p.archetype === arch).length;
+  const tag = (count, label, who) => {
+    if (count >= 2) drivers.push({ mag: count * 3, icon: "🔥", text: `<b>${who.name}</b> rolls out ${count} ${label}s — schematic advantage.` });
+  };
+  tag(archCount(hRoster, "CB", "SHUTDOWN"), "Shutdown CB", home);
+  tag(archCount(aRoster, "CB", "SHUTDOWN"), "Shutdown CB", away);
+  tag(archCount(hRoster, "DL", "SPEED"),    "Speed rusher", home);
+  tag(archCount(aRoster, "DL", "SPEED"),    "Speed rusher", away);
+  tag(archCount(hRoster, "S",  "BALL_HAWK"),"Ball Hawk safety", home);
+  tag(archCount(aRoster, "S",  "BALL_HAWK"),"Ball Hawk safety", away);
+
+  // Statistical tells from the sim itself
+  const hSackDiff = (agg.teamSums.home.sacks - agg.teamSums.home.sacks_allowed) / agg.n;
+  if (Math.abs(hSackDiff) >= 1.5) {
+    const winner = hSackDiff > 0 ? home : away;
+    drivers.push({ mag: Math.abs(hSackDiff) * 3, icon: "⚡", text: `<b>${winner.name}</b> wins the sack battle by ${Math.abs(hSackDiff).toFixed(1)}/game on average.` });
+  }
+  const hTOdiff = (agg.teamSums.home.takeaways - agg.teamSums.home.turnovers) / agg.n;
+  if (Math.abs(hTOdiff) >= 0.6) {
+    const winner = hTOdiff > 0 ? home : away;
+    drivers.push({ mag: Math.abs(hTOdiff) * 6, icon: "🔄", text: `<b>${winner.name}</b> wins the turnover battle by ${Math.abs(hTOdiff).toFixed(2)}/game.` });
+  }
+
+  // Sort by magnitude, take top 5
+  return drivers.sort((a, b) => b.mag - a.mag).slice(0, 5);
+}
+
+function renderSimManyResults(agg, home, away, hRoster, aRoster) {
+  const drivers = (hRoster && aRoster) ? computeKeyDrivers(agg, home, away, hRoster, aRoster) : [];
   const homeWinPct = (agg.homeWins / agg.n * 100).toFixed(1);
   const awayWinPct = (agg.awayWins / agg.n * 100).toFixed(1);
   const tiePct     = (agg.ties     / agg.n * 100).toFixed(1);
@@ -2485,6 +2612,14 @@ function renderSimManyResults(agg, home, away) {
         <div class="sm-team-wins">${agg.awayWins} wins · ${avg(agg.awayScoreSum)} avg pts</div>
       </div>
     </div>
+
+    ${drivers.length ? `
+    <div class="sm-section">
+      <h4>Key drivers — why this matchup goes this way</h4>
+      <ul class="sm-drivers">
+        ${drivers.map(d => `<li><span class="sm-driver-icon">${d.icon}</span> ${d.text}</li>`).join("")}
+      </ul>
+    </div>` : ""}
 
     <div class="sm-section">
       <h4>Notable games</h4>
@@ -2555,7 +2690,7 @@ $("simManyBtn").addEventListener("click", () => {
   // Yield to the browser so the disabled state can paint, then run
   setTimeout(() => {
     const agg = runManyGames(home, away, homeRoster, awayRoster, n);
-    renderSimManyResults(agg, home, away);
+    renderSimManyResults(agg, home, away, homeRoster, awayRoster);
     btn.disabled = false; btn.textContent = "🎲 Sim Many";
   }, 30);
 });
@@ -2733,6 +2868,262 @@ $("simByQBBtn").addEventListener("click", () => {
     const data = runManyGamesByQBArchetype(home, away, homeRoster, awayRoster, n, targetOvr);
     if (data) renderSimByQBResults(data, home, away);
     btn.disabled = false; btn.textContent = "🧪 Sim by QB";
+  }, 30);
+});
+
+// ─── Sim by Playbook ─────────────────────────────────────────────────────
+function runManyGamesByPlaybook(home, away, hRoster, aRoster, n) {
+  const playbooks = Object.keys(PLAYBOOKS);
+  const origPb = home.playbook;
+  const results = {};
+  for (const pbId of playbooks) {
+    const teamCopy = { ...home, playbook: pbId };
+    results[pbId] = runManyGames(teamCopy, away, hRoster, aRoster, n);
+  }
+  return { playbooks, results, origPb };
+}
+
+function renderSimByPlaybookResults(data, home, away) {
+  const { playbooks, results, origPb } = data;
+  const n = results[playbooks[0]].n;
+  const rows = playbooks.map(pbId => {
+    const agg = results[pbId];
+    const pb  = PLAYBOOKS[pbId];
+    return {
+      pbId, label: pb.name, badge: pb.badge,
+      winPct:   agg.homeWins / agg.n * 100,
+      record:   `${agg.homeWins}-${agg.awayWins}${agg.ties ? `-${agg.ties}` : ""}`,
+      ptsFor:   agg.homeScoreSum / agg.n,
+      ptsAgst:  agg.awayScoreSum / agg.n,
+      passYds:  agg.teamSums.home.passYds / agg.n,
+      rushYds:  agg.teamSums.home.rushYds / agg.n,
+      totalYds: agg.teamSums.home.totalYds / agg.n,
+      to:       agg.teamSums.home.turnovers / agg.n,
+      sacks_allowed: agg.teamSums.home.sacks_allowed / agg.n,
+    };
+  });
+  const bestBy = (key, higherIsBetter = true) => {
+    let bi = 0, wi = 0;
+    for (let i = 1; i < rows.length; i++) {
+      if ((higherIsBetter ? rows[i][key] > rows[bi][key] : rows[i][key] < rows[bi][key])) bi = i;
+      if ((higherIsBetter ? rows[i][key] < rows[wi][key] : rows[i][key] > rows[wi][key])) wi = i;
+    }
+    return { bi, wi };
+  };
+  const cell = (val, marks, idx, fmt = (v) => v.toFixed(1)) => {
+    let cls = "metric";
+    if (idx === marks.bi) cls += " best";
+    else if (idx === marks.wi) cls += " worst";
+    return `<td class="${cls}">${fmt(val)}</td>`;
+  };
+  const winMarks = bestBy("winPct", true);
+  const winnerRow = rows.reduce((a, b) => a.winPct >= b.winPct ? a : b);
+  const html = `
+    <div class="sm-title">📘 Sim by Playbook</div>
+    <div class="sm-sub">
+      ${home.emoji} ${home.city} ${home.name} <span style="color:var(--gray)">vs</span>
+      ${away.emoji} ${away.city} ${away.name}
+      &middot; default playbook: <span style="color:var(--white);font-weight:700">${PLAYBOOKS[origPb || "BALANCED"]?.name || "Balanced"}</span>
+      &middot; ${n} games each (${n * 5} total)
+    </div>
+
+    <table class="sm-qb-table">
+      <thead>
+        <tr>
+          <th class="arch">Playbook</th>
+          <th>WIN %</th>
+          <th>RECORD</th>
+          <th>PF</th>
+          <th>PA</th>
+          <th>PASS YDS</th>
+          <th>RUSH YDS</th>
+          <th>TOT YDS</th>
+          <th>TO</th>
+          <th>SK ALLW</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map((r, i) => `
+          <tr class="${i === winMarks.bi ? "best" : (i === winMarks.wi ? "worst" : "")}">
+            <td class="arch">
+              ${r.label}
+              <div class="sm-qb-blurb">${PLAYBOOKS[r.pbId].name === origPb ? "default" : ""}</div>
+            </td>
+            ${cell(r.winPct, winMarks, i, v => v.toFixed(1) + "%")}
+            <td class="metric">${r.record}</td>
+            ${cell(r.ptsFor,  bestBy("ptsFor",  true),  i)}
+            ${cell(r.ptsAgst, bestBy("ptsAgst", false), i)}
+            ${cell(r.passYds, bestBy("passYds", true),  i, v => v.toFixed(0))}
+            ${cell(r.rushYds, bestBy("rushYds", true),  i, v => v.toFixed(0))}
+            ${cell(r.totalYds, bestBy("totalYds", true),  i, v => v.toFixed(0))}
+            ${cell(r.to, bestBy("to", false),  i, v => v.toFixed(2))}
+            ${cell(r.sacks_allowed, bestBy("sacks_allowed", false),  i, v => v.toFixed(2))}
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+
+    <div class="sm-qb-winner">
+      <div class="label">BEST PLAYBOOK FOR THIS ROSTER vs ${away.name.toUpperCase()}</div>
+      <div class="name">${winnerRow.label} — ${winnerRow.winPct.toFixed(1)}% win rate</div>
+    </div>
+
+    <div class="sm-section">
+      <div style="font-size:.7rem;color:var(--gray);line-height:1.5">
+        Same roster, same opponent. Only the home team's playbook varies.
+        Gold = best in column · Red = worst in column.
+      </div>
+    </div>
+  `;
+  $("simManyBody").innerHTML = html;
+  document.querySelector(".sim-many-card").classList.add("wide");
+  $("simManyModal").style.display = "flex";
+}
+
+// ─── Power Rankings — round-robin all 32 teams ───────────────────────────
+// Each team plays every other team `gamesPerPair` times (default 1).
+// 32 teams × 31 opponents / 2 unique pairs = 496 pairs.
+function runPowerRankings(gamesPerPair = 1) {
+  // Generate one roster per team once
+  const rosters = {};
+  for (const t of TEAMS) {
+    rosters[t.id] = regenerateFullRoster(t, {});
+  }
+  // Track W/L/T + total points scored/allowed
+  const standings = {};
+  for (const t of TEAMS) {
+    standings[t.id] = { id: t.id, team: t, w: 0, l: 0, t: 0, pf: 0, pa: 0, games: 0 };
+  }
+  // Round-robin
+  for (let i = 0; i < TEAMS.length; i++) {
+    for (let j = i + 1; j < TEAMS.length; j++) {
+      const h = TEAMS[i], a = TEAMS[j];
+      for (let g = 0; g < gamesPerPair; g++) {
+        const sim = new GameSimulator(h, a, rosters[h.id], rosters[a.id]);
+        const r = sim.simulate();
+        const hs = r.homeScore, as = r.awayScore;
+        const sh = standings[h.id], sa = standings[a.id];
+        sh.pf += hs; sh.pa += as; sa.pf += as; sa.pa += hs;
+        sh.games++; sa.games++;
+        if (hs > as)      { sh.w++; sa.l++; }
+        else if (as > hs) { sa.w++; sh.l++; }
+        else              { sh.t++; sa.t++; }
+      }
+    }
+  }
+  // Compute win pct and rank
+  const ranked = Object.values(standings).map(s => ({
+    ...s,
+    winPct: (s.w + s.t * 0.5) / Math.max(1, s.games),
+    pd: (s.pf - s.pa) / Math.max(1, s.games),
+  })).sort((a, b) => b.winPct - a.winPct || b.pd - a.pd);
+  return ranked;
+}
+
+function renderPowerRankings(ranked, gamesPerPair) {
+  // Group by conference for the breakdown
+  const byConf = { AFC: [], NFC: [] };
+  for (const r of ranked) (byConf[r.team.conference] || (byConf[r.team.conference] = [])).push(r);
+  const totalGames = ranked.reduce((s, r) => s + r.games, 0) / 2;  // each game double-counted
+
+  const rankRow = (r, rank) => `
+    <tr>
+      <td class="pr-rank">${rank}</td>
+      <td class="pr-team">
+        <span class="pr-emoji">${r.team.emoji}</span>
+        <span class="pr-name">${r.team.city} ${r.team.name}</span>
+        <span class="pr-conf">${r.team.conference}·${r.team.division}</span>
+      </td>
+      <td class="pr-record">${r.w}-${r.l}${r.t ? `-${r.t}` : ""}</td>
+      <td class="pr-pct">${(r.winPct * 100).toFixed(1)}%</td>
+      <td class="pr-pf">${(r.pf / r.games).toFixed(1)}</td>
+      <td class="pr-pa">${(r.pa / r.games).toFixed(1)}</td>
+      <td class="pr-pd ${r.pd >= 0 ? "pos" : "neg"}">${r.pd >= 0 ? "+" : ""}${r.pd.toFixed(1)}</td>
+    </tr>
+  `;
+
+  const html = `
+    <div class="sm-title">📊 Power Rankings</div>
+    <div class="sm-sub">
+      Round-robin across all ${TEAMS.length} teams · ${gamesPerPair} game${gamesPerPair > 1 ? "s" : ""} per matchup · ${totalGames} games total
+    </div>
+
+    <table class="pr-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Team</th>
+          <th>Record</th>
+          <th>WIN %</th>
+          <th>PF/G</th>
+          <th>PA/G</th>
+          <th>DIFF</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${ranked.map((r, i) => rankRow(r, i + 1)).join("")}
+      </tbody>
+    </table>
+
+    <div class="sm-section">
+      <h4>By conference</h4>
+      <div class="pr-conf-grid">
+        ${["AFC", "NFC"].map(c => `
+          <div class="pr-conf-block">
+            <div class="pr-conf-title">${c}</div>
+            <ol class="pr-conf-list">
+              ${byConf[c].slice(0, 8).map(r => `
+                <li><span class="pr-emoji">${r.team.emoji}</span> ${r.team.name} <span style="color:var(--gray)">${r.w}-${r.l}${r.t ? `-${r.t}` : ""}</span></li>
+              `).join("")}
+            </ol>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+
+    <div class="sm-section">
+      <div style="font-size:.7rem;color:var(--gray);line-height:1.5">
+        Tiebreakers: win pct first, then point differential. With only ${gamesPerPair} game${gamesPerPair > 1 ? "s" : ""} per matchup, expect some upsets and variance.
+        Bump games-per-pair higher for a smoother ranking.
+      </div>
+    </div>
+  `;
+  $("simManyBody").innerHTML = html;
+  document.querySelector(".sim-many-card").classList.add("wide");
+  $("simManyModal").style.display = "flex";
+}
+
+$("powerRankBtn").addEventListener("click", () => {
+  // Scale gamesPerPair off the Sim Many count so users can pick their pain level
+  const n = +$("simManyCount").value || 100;
+  // Map: 10 → 1 game per pair (496 total); 100 → 3 (1488); 500 → 5 (2480); 1000 → 8 (3968)
+  const gpp = n >= 1000 ? 8 : n >= 500 ? 5 : n >= 100 ? 3 : 1;
+  const totalGames = gpp * (TEAMS.length * (TEAMS.length - 1) / 2);
+  const btn = $("powerRankBtn");
+  btn.disabled = true; btn.textContent = `Simulating ${totalGames}...`;
+  setTimeout(() => {
+    const ranked = runPowerRankings(gpp);
+    renderPowerRankings(ranked, gpp);
+    btn.disabled = false; btn.textContent = "📊 Power Rankings";
+  }, 30);
+});
+
+$("simByPBBtn").addEventListener("click", () => {
+  const homeId = +homeSel.value, awayId = +awaySel.value;
+  if (homeId === awayId) { alert("Pick two different teams!"); return; }
+  const home = getTeam(homeId), away = getTeam(awayId);
+  const homeRoster = (preview.home.id === homeId && preview.home.roster)
+    ? preview.home.roster : regenerateFullRoster(home, {});
+  const homeBlock = new Set(homeRoster.map(p => p.name));
+  const awayRoster = (preview.away.id === awayId && preview.away.roster)
+    ? preview.away.roster : regenerateFullRoster(away, {}, homeBlock);
+  const n = +$("simManyCount").value || 100;
+  const btn = $("simByPBBtn");
+  btn.disabled = true; btn.textContent = `Simulating 5×${n}...`;
+  setTimeout(() => {
+    const data = runManyGamesByPlaybook(home, away, homeRoster, awayRoster, n);
+    if (data) renderSimByPlaybookResults(data, home, away);
+    btn.disabled = false; btn.textContent = "📘 Sim by PB";
   }, 30);
 });
 
