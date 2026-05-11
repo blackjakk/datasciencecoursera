@@ -733,8 +733,21 @@ function pickReceiver(playbook, starters) {
 }
 
 // ─── Player generation ────────────────────────────────────────────────────
-const FIRST = ["Marcus","Tyler","Darius","Jordan","Malik","Devon","Elijah","Xavier","Cameron","Jaylen","Trevor","Caleb","Nathan","Brandon","Derrick","Antonio","Deon","Travon","Rasheed","Quincy","Zach","Hunter","Brayden","Cole","Jake","Ryan","Luke","Evan","Aaron","Chris","Isaiah","Jamal","Tyrone","Lamar","Andre","Reggie","Stefon","Amari","Cooper","Travis"];
-const LAST = ["Johnson","Williams","Brown","Jones","Davis","Miller","Wilson","Moore","Taylor","Anderson","Thomas","Jackson","White","Harris","Martin","Thompson","Garcia","Martinez","Robinson","Clark","Rodriguez","Lewis","Lee","Walker","Hall","Allen","Young","Hill","Flores","Green","Adams","Nelson","Baker","Carter","Mitchell","Roberts","Turner","Phillips","Campbell","Reed"];
+// Biblical-era name pool — Old Testament patriarchs, prophets, kings, judges.
+// Last names follow Hebrew/Aramaic patronymic and place-name patterns of the era.
+const FIRST = [
+  "Abraham","Isaac","Jacob","Joseph","Moses","Aaron","Joshua","Caleb","Samuel","David",
+  "Solomon","Elijah","Elisha","Ezekiel","Daniel","Isaiah","Jeremiah","Jonah","Reuben","Benjamin",
+  "Judah","Levi","Asher","Naphtali","Gad","Simeon","Eli","Ezra","Nehemiah","Boaz",
+  "Gideon","Hosea","Job","Malachi","Amos","Habakkuk","Micah","Zechariah","Nathan","Saul",
+  "Tobiah","Tobias","Mordecai","Phineas","Manasseh","Zerubbabel","Hezekiah","Josiah","Uzziah","Jephthah",
+];
+const LAST = [
+  "Ben-David","Bar-Jonah","Ben-Israel","Bar-Tholomew","Ben-Hur","Ben-Judah","Ben-Levi","Bar-Abbas","Ben-Ami","Bar-Kochba",
+  "of Bethlehem","of Galilee","of Nazareth","of Judea","of Jericho","of Samaria","of Hebron","of Bethel","of Shiloh","of Gilead",
+  "of Tarsus","of Capernaum","of Magdala","of Damascus","of Babylon","of Sidon","of Tyre","of Cana","of Gath","of Ekron",
+  "Cohen","Levi","Maccabee","Iscariot","Goliath","Nazarene","Mizrahi","Ashkenazi","Sephardi","Zealot",
+];
 
 const ROSTER_SLOTS = { QB:3, RB:4, WR:6, TE:3, OL:8, DL:6, LB:5, CB:5, S:3, K:1, P:1 };
 
@@ -2800,6 +2813,44 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   ctx.beginPath();
   ctx.ellipse(0, footYLocal + 0.5, 7.5 + bt.bulk * 0.8, 2.0, 0, 0, Math.PI * 2);
   ctx.fill();
+  // ── Seal of Solomon — six-pointed star under elite players (NCAA superstar
+  // indicator). Two interlocking equilateral triangles, gold fill.
+  if (style.elite) {
+    const sealY = footYLocal + 4;
+    const sealR = 3.0;
+    ctx.save();
+    ctx.fillStyle = "rgba(240, 204, 48, 0.85)";
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.7)";
+    ctx.lineWidth = 0.5;
+    // Up-pointing triangle
+    ctx.beginPath();
+    for (let i = 0; i < 3; i++) {
+      const a = -Math.PI / 2 + i * (2 * Math.PI / 3);
+      const px = Math.cos(a) * sealR;
+      const py = sealY + Math.sin(a) * sealR;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Down-pointing triangle (interlocking)
+    ctx.beginPath();
+    for (let i = 0; i < 3; i++) {
+      const a = Math.PI / 2 + i * (2 * Math.PI / 3);
+      const px = Math.cos(a) * sealR;
+      const py = sealY + Math.sin(a) * sealR;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Inner dot (the eye of the seal)
+    ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+    ctx.beginPath();
+    ctx.arc(0, sealY, 0.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
 
   const shoulderY = -headR + 1;
   const hipY = shoulderY + torsoLen;
@@ -3281,6 +3332,9 @@ function attachPlayerStyles(formation, offStarters, defStarters, lookup) {
       slot.label = jerseyForPlayer(p);
       slot.archetype = p.archetype;
       slot.position = p.position;
+      // "Elite" star marker — gets the Seal of Solomon under the player.
+      // Threshold: OVR >= 88 puts a player roughly in the league's top tier.
+      slot.elite = (p.overall ?? 0) >= 88;
     }
   };
   if (offStarters) {
