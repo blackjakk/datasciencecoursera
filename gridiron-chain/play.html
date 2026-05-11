@@ -1613,13 +1613,35 @@ class GameSimulator {
         const yards = Math.min(clamp(targetDepth + yac, -2, 95), 100 - startYard);
         const rcvr = pickReceiver(pb, this.offR.starters);
         const rcvrStats = off.players[rcvr];
+        // Throw type — QB picks based on situation + archetype:
+        //  CHECKDOWN (≤4 yds): low arc, fast — short outlet
+        //  ZIP (5-18 yds, tight window): low arc + max velocity — threading the needle
+        //  TOUCH (5-18 yds, soft route): higher arc + slower — gentle drop-in
+        //  DEEP (≥19 yds): big arc, max distance
+        const throwTypeRoll = Math.random();
+        let throwType;
+        if (airYds <= 4) {
+          throwType = "CHECKDOWN";
+        } else if (airYds >= 19) {
+          throwType = "DEEP";
+        } else {
+          // Mid-range: pick TOUCH vs ZIP based on QB archetype + situation
+          const zipBias = qbArch === "GUNSLINGER" ? 0.65
+                       : qbArch === "GAME_MANAGER" ? 0.20
+                       : qbArch === "POCKET" ? 0.40
+                       : qbArch === "FIELD_GENERAL" ? 0.45
+                       : 0.50;
+          // Tight windows (3rd-and-medium, red zone) favor ZIP
+          const tightBoost = (isThird && this.ytg >= 5) ? 0.15 : 0;
+          throwType = throwTypeRoll < (zipBias + tightBoost) ? "ZIP" : "TOUCH";
+        }
         if (qbStats) { qbStats.pass_att++; qbStats.pass_comp++; qbStats.pass_yds += yards; if (yards > qbStats.pass_long) qbStats.pass_long = yards; }
         if (rcvrStats) { rcvrStats.rec_tgt++; rcvrStats.rec++; rcvrStats.rec_yds += yards; if (yards > rcvrStats.rec_long) rcvrStats.rec_long = yards; }
         off.team.pass_att++; off.team.pass_comp++; off.team.passYds += yards; off.team.totalYds += yards;
         this._lastBallCarrier = rcvr; this._lastBallType = "pass";
         // Tackle credit on the catch — DBs / LBs make most tackles in the open field
         const tacklerName = yards > 0 ? this._creditDefStat("tkl", { LB: 0.35, S: 0.30, CB: 0.25, DL: 0.10 }) : null;
-        this._pushVisual({ kind: "complete", desc: `${this.offR.starters.qb} → ${rcvr} for ${yards} yds`, startYard, targetDepth, catchDepth: targetDepth, yac, yards, endYard: clamp(startYard + yards, 0, 100), receiver: rcvr, passer: this.offR.starters.qb, tackler: tacklerName });
+        this._pushVisual({ kind: "complete", desc: `${this.offR.starters.qb} → ${rcvr} for ${yards} yds`, startYard, targetDepth, catchDepth: targetDepth, yac, yards, endYard: clamp(startYard + yards, 0, 100), receiver: rcvr, passer: this.offR.starters.qb, tackler: tacklerName, throwType });
         return { yards };
       }
       const targetDepth = clamp(normal(13, 8), 3, 45);
@@ -4337,12 +4359,22 @@ function buildAnimForPlay(play, prevPlay) {
       wr.x = wrPathX0 + (targetX - wrPathX0) * routeT;
       wr.y = wrPathY0 + (targetY - wrPathY0) * routeT;
 
+      // Throw style — TOUCH lobs high+slow, ZIP fires low+fast, DEEP arcs even higher
+      const throwType = play.throwType || (isScreen ? "CHECKDOWN" : "TOUCH");
+      const arcHeight = isScreen ? 12
+                      : throwType === "ZIP"       ? 18
+                      : throwType === "CHECKDOWN" ? 22
+                      : throwType === "DEEP"      ? 95
+                      : 55;  // TOUCH default
+      // ZIP throws compress the throw window so the ball arrives faster
+      const flightCurve = throwType === "ZIP" ? (x => x * x) : (x => x);  // ZIP frontloads ball travel
       if (t < dropPhase) {
         ballX = qb.x; ballY = cy;
       } else if (t < throwPhase) {
-        const tt = (t - dropPhase) / (throwPhase - dropPhase);
+        const ttRaw = (t - dropPhase) / (throwPhase - dropPhase);
+        const tt = flightCurve(ttRaw);  // for ZIP: ball appears to fire out fast
         ballX = qb.x + (targetX - qb.x) * tt;
-        arc = Math.sin(tt * Math.PI) * (isScreen ? 12 : 60);
+        arc = Math.sin(tt * Math.PI) * arcHeight;
         ballY = cy + (targetY - cy) * tt - arc;
       } else {
         const tt = (t - throwPhase) / (1 - throwPhase);
@@ -4497,6 +4529,24 @@ function buildAnimForPlay(play, prevPlay) {
       });
       drawPlayers(off, def);
       drawBall(ctx, ballX, ballY, arc > 30 ? 1.3 : 1);
+      // Throw-type callout — small label near the QB during the throw window
+      if (play.throwType && play.throwType !== "CHECKDOWN" && t > dropPhase && t < throwPhase + 0.05) {
+        ctx.save();
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.font = "900 16px sans-serif";
+        const lbl = play.throwType === "ZIP"   ? "🎯 ZIPPED IT"
+                  : play.throwType === "DEEP"  ? "🚀 DEEP BALL"
+                  :                              "🪶 TOUCH";
+        const lblX = qb.x + dir * 14;
+        const lblY = qb.y - 18;
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "rgba(0,0,0,0.85)";
+        ctx.strokeText(lbl, lblX, lblY);
+        ctx.fillStyle = play.throwType === "ZIP" ? "#ffb060" : "#9be09b";
+        ctx.fillText(lbl, lblX, lblY);
+        ctx.restore();
+      }
       drawPreSnapCallouts(ctx, t);
     }};
   }
