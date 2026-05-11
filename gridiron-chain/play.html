@@ -4211,12 +4211,16 @@ function buildPlayerTooltip(p) {
   const collegeHtml = p.collegeNickname
     ? `<div class="tt-college">★ Earned in college</div>` : "";
   // ── PROFILE PAGE EXTENSIONS — mugshot, career stats, trophy case ──
-  const mugshotUrl = generateMugshotDataUrl(p);
+  // Try the AI-generated portrait first (deterministic by name+pos hash); if
+  // that file is missing the <img> onerror falls back to the canvas portrait.
+  const portraitFile = portraitFileForPlayer(p);
+  const fallbackUrl = generateMugshotDataUrl(p);
+  const mugshotImg = `<img class="tt-mugshot" src="portraits/${portraitFile}" width="78" height="88" alt="mugshot" onerror="this.onerror=null;this.src='${fallbackUrl}'">`;
   const careerHtml = buildCareerTable(p);
   const trophyHtml = buildTrophyShelf(p);
   return `
     <div class="tt-header">
-      <img class="tt-mugshot" src="${mugshotUrl}" width="78" height="88" alt="mugshot">
+      ${mugshotImg}
       <div class="tt-header-body">
         <div class="tt-name">${nameDisplay}</div>
         ${legalHtml}
@@ -4235,6 +4239,20 @@ function buildPlayerTooltip(p) {
 }
 
 // ─── PROFILE-PAGE HELPERS ──────────────────────────────────────────────────
+// Map a player to a portrait filename in /portraits. Deterministic by name+
+// position so the same player always gets the same face. We assume the pool
+// is `p001.png ... pNNN.png` zero-padded 3 digits; PORTRAIT_POOL_SIZE caps
+// the hash so we don't reach for files that don't exist. If the <img> 404s,
+// the onerror handler in buildPlayerTooltip falls back to the canvas portrait.
+const PORTRAIT_POOL_SIZE = 200;
+function portraitFileForPlayer(p) {
+  let hash = 0;
+  const seedStr = (p.name || "") + (p.position || "");
+  for (let i = 0; i < seedStr.length; i++) hash = (hash * 31 + seedStr.charCodeAt(i)) >>> 0;
+  const n = (hash % PORTRAIT_POOL_SIZE) + 1;   // 1..N
+  return `p${String(n).padStart(3, "0")}.png`;
+}
+
 // Helper to shade a hex color by a factor
 function _shadeColor(c, f) {
   if (!c || c[0] !== "#" || c.length !== 7) return c;
