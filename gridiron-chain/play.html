@@ -4658,17 +4658,26 @@ function buildAnimForPlay(play, prevPlay) {
   }
 
   if (play.kind === "kickoff") {
-    // Three phases:
-    //   FLIGHT  (0 - 0.45): ball arcs from kicking team's 35 to receiver
-    //   RETURN  (0.45 - 0.85): returner catches and sprints upfield, blockers run with him
-    //   TACKLE  (0.85 - 1.0): tackle + ragdoll
+    // Figure out the RECEIVING team from the next play with a poss set.
+    // The kickoff itself doesn't carry poss, but the team that has the ball
+    // on the next scrimmage play is the receiver.
+    const kickoffIdx = gameResult.plays.indexOf(play);
+    let recvPoss = "home";
+    for (let i = kickoffIdx + 1; i < gameResult.plays.length; i++) {
+      if (gameResult.plays[i].poss != null) { recvPoss = gameResult.plays[i].poss; break; }
+    }
+    const recvTeam   = recvPoss === "home" ? homeTeam : awayTeam;
+    const kickTeam   = recvPoss === "home" ? awayTeam : homeTeam;
+    const recvDir    = recvPoss === "home" ? 1 : -1;   // direction receiver runs
+    // Kicker stands at THEIR own 35 (the team OPPOSITE the receiver).
+    // Receiver catches at the 15-yard line of his own end, returns to the 25.
+    const startX = yardToAbsX(35, recvPoss === "home" ? "away" : "home");
+    const catchX = yardToAbsX(15, recvPoss);
+    const finalX = yardToAbsX(25, recvPoss);
     return { duration: 3200, kind: "kickoff", render: (t, ctx) => {
       drawField(ctx, homeTeam, awayTeam, null);
-      const startX = absYardToX(65);     // kicking team's 35
-      const catchX = absYardToX(15);     // returner catches at the 15
-      const finalX = absYardToX(25);     // returns to the 25 (typical)
       const cy = (FIELD.TOP + FIELD.BOT) / 2;
-      drawKickoffFormation(ctx, homeTeam, awayTeam);
+      drawKickoffFormation(ctx, recvTeam, kickTeam);
       const FLIGHT_END = 0.45;
       const RETURN_END = 0.85;
       let ballX, ballY, returnerX, returnerY;
@@ -4691,16 +4700,16 @@ function buildAnimForPlay(play, prevPlay) {
         returnerY = cy;
         ballX = returnerX;
         ballY = returnerY;
-        // Pursuing tacklers converge — draw a couple of them closing in
+        // Pursuing kicking-team tacklers converge in front of the returner
         for (let i = 0; i < 3; i++) {
-          const px = finalX + (8 + i * 4);   // approach from upfield (kicking side)
+          const px = finalX + recvDir * (12 + i * 6);
           const py = cy + (i - 1) * 6;
           const tackleT = Math.min(1, tk * 2);
           drawPlayer(ctx, finalX + (px - finalX) * (1 - tackleT * 0.6), py,
-                     awayTeam.primary, awayTeam.secondary, "", "run", (t * 3 + i * 0.13) % 1, -1);
+                     kickTeam.primary, kickTeam.secondary, "", "run", (t * 3 + i * 0.13) % 1, -recvDir);
         }
       }
-      // Returner
+      // Returner — facing the way he's running (toward kicking team's end)
       let returnerPose = "idle";
       let returnerT = (t * 3) % 1;
       if (t < FLIGHT_END) {
@@ -4712,16 +4721,15 @@ function buildAnimForPlay(play, prevPlay) {
         returnerPose = "tackled";
         returnerT = Math.min(1, (t - RETURN_END) / (1 - RETURN_END));
       }
-      drawPlayer(ctx, returnerX, returnerY, homeTeam.primary, homeTeam.secondary,
-                 "", returnerPose, returnerT, -1);
-      // Blockers running ahead of the returner during the return
+      drawPlayer(ctx, returnerX, returnerY, recvTeam.primary, recvTeam.secondary,
+                 "", returnerPose, returnerT, recvDir);
+      // Blockers running just ahead of the returner during the return phase
       if (t > FLIGHT_END && t < RETURN_END) {
-        const rt = (t - FLIGHT_END) / (RETURN_END - FLIGHT_END);
         for (let i = 0; i < 2; i++) {
-          const bx = returnerX + 18 + i * 12;
+          const bx = returnerX + recvDir * (18 + i * 12);
           const by = cy + (i === 0 ? -10 : 10);
-          drawPlayer(ctx, bx, by, homeTeam.primary, homeTeam.secondary,
-                     "", "run", (t * 3 + i * 0.21) % 1, -1);
+          drawPlayer(ctx, bx, by, recvTeam.primary, recvTeam.secondary,
+                     "", "run", (t * 3 + i * 0.21) % 1, recvDir);
         }
       }
       drawBall(ctx, ballX, ballY, 1 + (t < FLIGHT_END ? Math.sin((t/FLIGHT_END) * Math.PI) * 0.3 : 0));
@@ -8308,7 +8316,11 @@ function tick(now) {
     const ctx = $("field").getContext("2d");
     const tElapsed = now - animState.transitionStart;
     const tT = Math.min(1, tElapsed / animState.transitionDur);
-    animState.transition.render(tT, ctx);
+    try {
+      animState.transition.render(tT, ctx);
+    } catch (e) {
+      console.error('Jog transition render error', e);
+    }
     if (tT >= 1) {
       playHead++;
       animState = null;
@@ -8321,7 +8333,11 @@ function tick(now) {
   const elapsed = now - animState.startTime;
   const t = Math.min(1, elapsed / animState.duration);
   const ctx = $("field").getContext("2d");
-  animState.anim.render(t, ctx);
+  try {
+    animState.anim.render(t, ctx);
+  } catch (e) {
+    console.error('Render error on play', animState.play, e);
+  }
   if (t >= 1) {
     // Hold the final frame and overlay a result card so the play can be digested.
     if (animState.holdStart == null) {
