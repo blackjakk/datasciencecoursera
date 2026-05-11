@@ -4637,7 +4637,11 @@ function buildAnimForPlay(play, prevPlay) {
 
   if (play.kind === "complete" || play.kind === "incomplete" || play.kind === "int") {
     const isScreen = !!play.isScreen;
-    const catchDepth = play.catchDepth ?? play.targetDepth ?? 10;
+    // The catch can't happen past the goal line — otherwise the WR catches
+    // it past the back of the endzone, then "runs back" to score, which
+    // looks ridiculous. Cap catchDepth at distance to the goal.
+    const rawCatchDepth = play.catchDepth ?? play.targetDepth ?? 10;
+    const catchDepth = Math.min(rawCatchDepth, 100 - play.startYard - 0.5);
     const targetX = losX + dir * catchDepth * FIELD.PX_PER_YARD;
     // Pick receiver lane deterministically per play (screens always go to the RB)
     const wrRoll = ((play.startYard * 13 + (play.time||0)) >>> 0) % 100 / 100;
