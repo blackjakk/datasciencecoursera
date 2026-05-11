@@ -8092,20 +8092,24 @@ $("field").style.cursor = "pointer";
 
 // Brief "jog up to the new line of scrimmage" animation between plays.
 // Returns null if no transition is appropriate (kickoff, halftime, score-only,
-// or first play). Otherwise returns { duration, render(t01, ctx) }.
+// turnover, or first play). Otherwise returns { duration, render(t01, ctx) }.
 function buildJogTransition(prevPlay, nextPlay) {
   if (!prevPlay || !nextPlay) return null;
-  if (nextPlay.startYard == null) return null;
-  const skipKinds = ["halftime", "ot", "quarter", "two_min_warning", "timeout", "kickoff"];
+  if (nextPlay.startYard == null || prevPlay.startYard == null) return null;
+  const skipKinds = ["halftime", "ot", "quarter", "two_min_warning", "timeout",
+                     "kickoff", "punt", "fg_good", "fg_miss", "int", "fumble",
+                     "fourth_go", "to_downs"];
   if (skipKinds.includes(nextPlay.kind) || skipKinds.includes(prevPlay.kind)) return null;
-  // No previous LOS info — skip
-  if (prevPlay.endYard == null && prevPlay.startYard == null) return null;
-  const prevYard = prevPlay.endYard ?? prevPlay.startYard;
+  // Turnovers swap which team is on offense — the formation identity changes,
+  // so we can't smoothly jog. Skip and let the next play snap into place.
+  if (prevPlay.poss && nextPlay.poss && prevPlay.poss !== nextPlay.poss) return null;
   const newPoss = nextPlay.poss;
-  const newLosX = yardToAbsX(nextPlay.startYard, newPoss);
-  const prevEndAbsX = yardToAbsX(prevYard, newPoss);
-  const xOffset = prevEndAbsX - newLosX;   // how far players need to jog
-  if (Math.abs(xOffset) < 6) return null;   // close enough, no jog
+  // Formation was lined up at the PREVIOUS play's startYard. After the play,
+  // the new LOS is the next play's startYard. That's the distance to jog.
+  const newLosX  = yardToAbsX(nextPlay.startYard, newPoss);
+  const prevLosX = yardToAbsX(prevPlay.startYard, newPoss);
+  const xOffset = prevLosX - newLosX;
+  if (Math.abs(xOffset) < 6) return null;   // <~½ yard, no jog needed
 
   const homeTeam = gameResult.homeTeam, awayTeam = gameResult.awayTeam;
   const team    = newPoss === "home" ? homeTeam : awayTeam;
