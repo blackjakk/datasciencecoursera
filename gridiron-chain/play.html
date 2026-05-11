@@ -4770,18 +4770,25 @@ function buildAnimForPlay(play, prevPlay) {
   // Pre-snap callouts: only AUDIBLE (when relevant) + the "BALL SNAPPED!"
   // flash at the moment of the snap. No SET/DOWN/HUT cadence text.
   function drawPreSnapCallouts(c, t) {
-    const snapFlashWindow = (1 - PRE) * 0.10;
+    // Snap flash window — anchored to ~750ms wall time (not a fixed fraction
+    // of action), so short plays still get a visible flash.
+    const snapFlashWindow = Math.min(0.5, 750 / dur);
     if (t > PRE && t < PRE + snapFlashWindow) {
       const flashT = (t - PRE) / snapFlashWindow;
-      const fade   = flashT < 0.25 ? flashT / 0.25 : (1 - (flashT - 0.25) / 0.75);
+      const fade   = flashT < 0.2 ? flashT / 0.2 : (1 - (flashT - 0.2) / 0.80);
       c.save();
       c.textAlign = "center";
       c.textBaseline = "middle";
-      c.fillStyle = `rgba(0,0,0,${0.55 * fade})`;
-      c.fillRect(0, 30, FIELD.W, 56);
+      c.fillStyle = `rgba(0,0,0,${0.62 * fade})`;
+      c.fillRect(0, 24, FIELD.W, 72);
+      // Big jagged banner
       c.fillStyle = `rgba(240, 204, 48, ${fade})`;
-      c.font = "900 30px sans-serif";
-      c.fillText("BALL SNAPPED!", FIELD.W / 2, 58);
+      c.font = "900 38px Impact, Arial Black, sans-serif";
+      c.fillText("BALL SNAPPED!", FIELD.W / 2, 60);
+      // Thin outline for legibility against any field
+      c.strokeStyle = `rgba(0,0,0,${0.7 * fade})`;
+      c.lineWidth = 1.2;
+      c.strokeText("BALL SNAPPED!", FIELD.W / 2, 60);
       c.restore();
       return;
     }
