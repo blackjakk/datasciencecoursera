@@ -5375,62 +5375,73 @@ function buildAnimForPlay(play, prevPlay) {
 
   if (play.kind === "sack") {
     const endX = yardToAbsX(play.endYard, poss);
-    // Pick which DL was the primary rusher based on play data; the others chase too.
-    // Stretch sack duration so the QB pocket dance reads. Use yardage scale for big losses.
     const actionDur = scaledDuration(8 + Math.abs(play.sackLoss || 0));
     const dur = actionDur + PRE_MS;
     PRE = PRE_MS / dur;
-    // Build a deterministic dance pattern from the play seed so replays match.
-    const danceSeed = (play.startYard * 13 + (play.sackLoss || 0) * 11) >>> 0;
+    // Per-sack variation seed — no two sacks look the same.
+    const sackSeed = ((play.startYard * 17) ^ ((play.sackLoss || 0) * 53) ^ ((play.time || 0) * 7)) >>> 0;
+    const r = (i) => ((sackSeed >> (i * 3)) & 0xff) / 256;  // pseudorandom 0-1 from seed bits
+    // Each sack picks: who's the primary rusher, when contact happens,
+    // dance frequency/intensity, fall direction, second-chaser presence.
+    const primaryIdx = Math.floor(r(0) * 4);         // 0-3 (which DL gets there first)
+    const contactT = 0.62 + r(1) * 0.26;             // sack contact at 0.62-0.88
+    const danceFreq = 3.5 + r(2) * 4.5;              // pocket wiggle frequency
+    const danceAmpY = 4 + r(3) * 12;                 // Y wiggle amplitude
+    const danceAmpX = 2 + r(4) * 8;                  // X drift amplitude
+    const xDir = r(5) > 0.5 ? 1 : -1;                // QB drifts which way?
+    const yFlavor = r(6) > 0.5 ? 1 : -1;             // initial drift direction
+    const secondChaser = r(7) > 0.55;                // does a 2nd DL get in?
+    const secondIdx = (primaryIdx + 1 + Math.floor(r(8) * 3)) % 4;
+    const fallTilt = -0.6 + r(9) * 1.2;              // tackle fall angle bias (left/right)
+    const dropDepth = 4 + r(10) * 3;                 // how deep the QB drops (4-7 yds)
     return { duration: dur, kind: "sack", render: (t, c) => {
       ctx = c;
       drawField(ctx, homeTeam, awayTeam, fieldState);
-      // QB drops back, then dances in the pocket as defenders close in.
-      // Phases:
-      //   0   .. PRE:        pre-snap
-      //   PRE .. 0.55:       drop + early pressure → QB drifts side-to-side
-      //   0.55 .. 0.82:      QB scrambles laterally, defenders converging
-      //   0.82 .. 1.0:       takedown — QB falls at endX
       const qb = { ...formation.qb };
       let qbPose = "idle";
       if (t > PRE) {
         const tt = (t - PRE) / (1 - PRE);
-        // Base drop: pulled back from LOS over the first 30%
+        // Base drop varies by seed: some sacks the QB barely drops, others he gets deep
         const dropFrac = Math.min(1, tt / 0.30);
-        qb.x = formation.qb.x - dir * dropFrac * 5 * FIELD.PX_PER_YARD;
+        qb.x = formation.qb.x - dir * dropFrac * dropDepth * FIELD.PX_PER_YARD;
         qb.y = cy;
-        // Pocket dance: small lateral wiggle that grows as pressure builds
-        if (tt > 0.15 && tt < 0.82) {
-          const danceT = (tt - 0.15) / 0.67;
-          const intensity = 4 + danceT * 14;
-          const wig = Math.sin(tt * Math.PI * 5 + (danceSeed % 7)) * intensity;
-          qb.y += wig;
-          // Subtle X jitter as he avoids rushers
-          qb.x += Math.sin(tt * Math.PI * 7 + (danceSeed % 3)) * 5 * danceT;
+        // Pocket dance — frequency and amplitude vary per play
+        if (tt > 0.12 && tt < contactT) {
+          const danceT = (tt - 0.12) / (contactT - 0.12);
+          const wigY = Math.sin(tt * Math.PI * danceFreq + (sackSeed % 11)) * danceAmpY * (0.4 + danceT * 0.6);
+          const wigX = Math.cos(tt * Math.PI * (danceFreq - 1) + (sackSeed % 5)) * danceAmpX * danceT * xDir;
+          qb.y += wigY * yFlavor;
+          qb.x += wigX;
         }
-        // Final takedown: QB slides toward sack spot and falls
-        if (tt > 0.82) {
-          const fallT = (tt - 0.82) / 0.18;
+        // Final takedown — fall point shifts based on flavor
+        if (tt > contactT) {
+          const fallT = (tt - contactT) / (1 - contactT);
           qb.x = qb.x + (endX - qb.x) * fallT;
-          qb.y = qb.y + (1 - fallT) * 0;
+          qb.y = qb.y + fallTilt * fallT * 4;
           qbPose = "tackled";
         } else {
           qbPose = "run";
         }
       }
-      // 4 DL pursue with imperfect angles — only ONE actually catches him.
-      // The primary rusher (DL 0) closes fastest; others trail.
       const def = formation.defense.map((d, i) => {
         const dd = { ...d, pose: t < PRE ? "stance" : "run", t: (t * 3 + i * 0.13) % 1, facing: -dir };
         if (t <= PRE) return dd;
         const tt = (t - PRE) / (1 - PRE);
         if (i < 4) {
-          // DL pursue the QB. Primary rusher (i=0) gets to the QB by t=0.82.
-          const isPrimary = i === 0;
-          const elapsedMs = Math.max(0, tt) * dur * (isPrimary ? 1.1 : 0.85);
-          const np = pursue(d, qb.x + dir * 2, qb.y, elapsedMs, isPrimary ? 1.0 : 0.85);
+          const isPrimary = i === primaryIdx;
+          const isSecondary = secondChaser && i === secondIdx;
+          // Primary closes fast; secondary trails slightly; others get held up.
+          let speedFactor;
+          if (isPrimary) speedFactor = 1.05;
+          else if (isSecondary) speedFactor = 0.88;
+          else speedFactor = 0.70;
+          const elapsedMs = Math.max(0, tt) * dur * speedFactor;
+          // Approach angle varies — some come from outside, some from inside.
+          const angleOffset = isPrimary ? 0 : (i - primaryIdx) * 4;
+          const np = pursue(d, qb.x + dir * 2 + angleOffset, qb.y + (isSecondary ? 6 : 0), elapsedMs, isPrimary ? 1.0 : 0.85);
           dd.x = np.x; dd.y = np.y;
-          if (isPrimary && tt > 0.85) dd.pose = "sack";
+          if (isPrimary && tt > contactT + 0.03) dd.pose = "sack";
+          if (isSecondary && tt > contactT + 0.05) dd.pose = "sack";
         } else if (i >= 4 && i <= 6) {
           // LBs spy the QB but stay disciplined — drift toward him slowly
           const elapsedMs = Math.max(0, tt) * dur * 0.55;
