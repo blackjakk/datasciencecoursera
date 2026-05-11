@@ -4355,24 +4355,72 @@ function buildAnimForPlay(play, prevPlay) {
         phase = "return";
       }
       // Punter
-      drawPlayer(ctx, startX, cy, possColor, team.secondary);
-      // 3 coverage chasers — pursue returner during return phase
+      drawPlayer(ctx, startX, cy, possColor, team.secondary, "", "idle", 0, dir);
+      // 3 coverage chasers — sprint downfield in distinct lanes (gunners + middle)
+      // After the ball lands, each tries to break through their blocker to reach the returner.
+      // For visual clarity, lane Ys are -32 / 0 / +32 from center.
+      const laneYs = [cy - 32, cy, cy + 32];
+      const chaserPositions = [];
       for (let i = 0; i < 3; i++) {
-        const chaserStartX = losX + dir * (i - 1) * 12;
-        const target = phase === "return" ? ballX : landX;
-        const chaserX = chaserStartX + (target - chaserStartX) * Math.min(1, t * 1.1);
-        const chaserY = cy + (i - 1) * 22;
-        drawPlayer(ctx, chaserX, chaserY, possColor, team.secondary);
+        const chaserStartX = losX + dir * (i - 1) * 8;
+        const sprintEndX = landX + dir * 4;  // arrive a half-yard past the catch spot
+        // Sprint linearly during the air, then engage/track returner on the return
+        const sprintT = Math.min(1, t * 1.4);
+        let cx = chaserStartX + (sprintEndX - chaserStartX) * sprintT;
+        // Drift slightly toward the returner Y as they sprint
+        let cy_ = laneYs[i] + (returnerY - laneYs[i]) * Math.min(1, t * 0.8);
+        // During the return, the middle chaser keeps tracking the ball;
+        // the outside chasers stay shaded to their lane (so it looks like real coverage)
+        if (phase === "return") {
+          const tt = (t - 0.72) / 0.28;
+          if (i === 1) {
+            // Middle chaser chases the ball
+            cx = sprintEndX + (ballX - sprintEndX) * tt;
+            cy_ = returnerY;
+          } else {
+            // Outside chasers stay roughly in lane, drift toward ball X slowly
+            cx = sprintEndX + (ballX - sprintEndX) * tt * 0.4;
+            cy_ = laneYs[i] + (returnerY - laneYs[i]) * 0.6;
+          }
+        }
+        chaserPositions.push({ x: cx, y: cy_ });
+        const pose = phase === "return" ? "run" : "run";
+        const facing = dir;  // chasers run downfield (same dir as the punt)
+        drawPlayer(ctx, cx, cy_, possColor, team.secondary, "", pose, (t * 3 + i * 0.2) % 1, facing);
       }
-      // 2 blockers escorting the returner
-      for (let i = 0; i < 2; i++) {
-        const escortX = (phase === "return" ? ballX : landX) + dir * (12 + i * 10);
-        const escortY = returnerY + (i === 0 ? -10 : 10);
-        drawPlayer(ctx, escortX, escortY, oppColor, oppTeam.secondary);
+      // 3 blockers from the receiving team — set up IN FRONT of the returner
+      // and engage the chasers. During the return, they shift to block each chaser.
+      for (let i = 0; i < 3; i++) {
+        const targetChaser = chaserPositions[i];
+        // Setup position: between returner and chaser, slightly ahead of returner
+        let bx, by;
+        if (phase === "snap" || phase === "wind") {
+          // Pre-catch: blockers spread across receiving territory
+          bx = landX - dir * 22;
+          by = laneYs[i] + (returnerY - laneYs[i]) * 0.3;
+        } else if (phase === "air") {
+          // Blockers move into position to meet incoming chasers
+          const tt = (t - 0.22) / 0.40;
+          const setupX = (targetChaser.x + landX) / 2;
+          const setupY = targetChaser.y + (returnerY - targetChaser.y) * 0.25;
+          bx = (landX - dir * 22) + (setupX - (landX - dir * 22)) * tt;
+          by = (laneYs[i] + (returnerY - laneYs[i]) * 0.3) + (setupY - (laneYs[i] + (returnerY - laneYs[i]) * 0.3)) * tt;
+        } else {
+          // Field / return: blockers engage their man, staying just ahead of returner
+          // Position between the returner and the chaser
+          bx = (targetChaser.x + ballX) / 2 - dir * 4;
+          by = (targetChaser.y + returnerY) / 2;
+        }
+        const blockerPose = (phase === "return" || phase === "field") ? "engage" : "run";
+        const facing = dir;  // blockers face the incoming chasers (same dir as kick)
+        drawPlayer(ctx, bx, by, oppColor, oppTeam.secondary, "", blockerPose, (t * 3 + i * 0.15) % 1, facing);
       }
       // Returner (with ball after fielding)
       const returnerX = phase === "return" ? ballX : landX;
-      drawPlayer(ctx, returnerX, returnerY, oppColor, oppTeam.secondary);
+      const returnerPose = phase === "return" ? "carry"
+                         : (phase === "field" ? "catch" : "idle");
+      const returnerFacing = phase === "return" ? -dir : dir;  // turns around to run back
+      drawPlayer(ctx, returnerX, returnerY, oppColor, oppTeam.secondary, "", returnerPose, (t * 3) % 1, returnerFacing);
       drawBall(ctx, ballX, ballY, 1 + arc / 200);
       // Callouts
       if (phase === "field" || (phase === "return" && t < 0.78)) {
