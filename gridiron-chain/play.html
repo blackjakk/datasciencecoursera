@@ -1827,13 +1827,37 @@ class GameSimulator {
           const tightBoost = (isThird && this.ytg >= 5) ? 0.15 : 0;
           throwType = throwTypeRoll < (zipBias + tightBoost) ? "ZIP" : "TOUCH";
         }
+        // CATCH RADIUS — combined CAT + AGI + AWR + a body-size bump determines
+        // how big a window the receiver can pluck the ball from. Drives high-
+        // point catch ability on deep / contested throws.
+        const rcat = rcvrPlayer?.stats?.[5] ?? 65;
+        const ragi = rcvrPlayer?.stats?.[2] ?? 65;
+        const rawr = rcvrPlayer?.stats?.[3] ?? 65;
+        const bodyBonus = rcvrPlayer?.bodyType === "BROAD" ? 4
+                        : rcvrPlayer?.bodyType === "TALL_HEAVY" ? 6
+                        : rcvrPlayer?.bodyType === "LEAN" ? 2 : 0;
+        const catchRadius = rcat * 0.4 + ragi * 0.35 + rawr * 0.25 + bodyBonus;  // 0-100ish
+        // Deep / high passes trigger a LEAP — receiver gets airborne to high-point
+        // the ball. We mark this as cosmetic since the comp/incomp decision
+        // was already made above (this branch is the COMPLETED case).
+        const isLeapingCatch = airYds >= 16 && (
+          catchRadius >= 75 || (catchRadius >= 60 && Math.random() < 0.5)
+        );
         if (qbStats) { qbStats.pass_att++; qbStats.pass_comp++; qbStats.pass_yds += yards; if (yards > qbStats.pass_long) qbStats.pass_long = yards; }
         if (rcvrStats) { rcvrStats.rec_tgt++; rcvrStats.rec++; rcvrStats.rec_yds += yards; if (yards > rcvrStats.rec_long) rcvrStats.rec_long = yards; }
         off.team.pass_att++; off.team.pass_comp++; off.team.passYds += yards; off.team.totalYds += yards;
         this._lastBallCarrier = rcvr; this._lastBallType = "pass";
         // Tackle credit on the catch — DBs / LBs make most tackles in the open field
         const tacklerName = yards > 0 ? this._creditDefStat("tkl", { LB: 0.35, S: 0.30, CB: 0.25, DL: 0.10 }) : null;
-        this._pushVisual({ kind: "complete", desc: wrJuke ? `${this.offR.starters.qb} → ${rcvr} for ${yards} yds (CATCH AND JUKE!)` : `${this.offR.starters.qb} → ${rcvr} for ${yards} yds`, startYard, targetDepth, catchDepth: targetDepth, yac, yards, endYard: clamp(startYard + yards, 0, 100), receiver: rcvr, passer: this.offR.starters.qb, tackler: tacklerName, throwType, isPlayAction, wrJuke });
+        this._pushVisual({
+          kind: "complete",
+          desc: wrJuke ? `${this.offR.starters.qb} → ${rcvr} for ${yards} yds (CATCH AND JUKE!)`
+              : isLeapingCatch ? `${this.offR.starters.qb} → ${rcvr} for ${yards} yds (HIGH POINTED!)`
+              : `${this.offR.starters.qb} → ${rcvr} for ${yards} yds`,
+          startYard, targetDepth, catchDepth: targetDepth, yac, yards,
+          endYard: clamp(startYard + yards, 0, 100), receiver: rcvr, passer: this.offR.starters.qb,
+          tackler: tacklerName, throwType, isPlayAction, wrJuke, isLeapingCatch, catchRadius,
+        });
         return { yards };
       }
       const targetDepth = clamp(normal(13, 8), 3, 45);
@@ -1856,11 +1880,20 @@ class GameSimulator {
         // 35% of non-drop incompletions are pass deflections
         pdName = Math.random() < 0.35 ? this._creditDefStat("pd", { CB: 0.55, S: 0.30, LB: 0.15 }) : null;
       }
+      // CATCH RADIUS / NEAR-MISS LEAP — for deep throws, the receiver leaps
+      // and the ball flies past their fingertips. Cosmetic flag for the animation.
+      const incRagi = rcvrPlayer?.stats?.[2] ?? 60;
+      const incRawr = rcvrPlayer?.stats?.[3] ?? 60;
+      const incCatchRadius = rcvrCat * 0.4 + incRagi * 0.35 + incRawr * 0.25;
+      const isLeapMiss = !isDrop && targetDepth >= 18 && incCatchRadius >= 55;
       this._pushVisual({
         kind: "incomplete",
-        desc: isDrop ? `DROP! ${rcvr} can't hang on` : `${this.offR.starters.qb} pass incomplete`,
+        desc: isDrop ? `DROP! ${rcvr} can't hang on`
+            : isLeapMiss ? `${this.offR.starters.qb}'s pass sails through ${rcvr}'s hands`
+            : `${this.offR.starters.qb} pass incomplete`,
         startYard, targetDepth, endYard: startYard,
-        passer: this.offR.starters.qb, intended: rcvr, defender: pdName, isDrop, isPlayAction,
+        passer: this.offR.starters.qb, intended: rcvr, defender: pdName,
+        isDrop, isPlayAction, isLeapMiss,
       });
       return { yards: 0, incomplete: true };
     }
@@ -2552,6 +2585,20 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
       lArm = -2.4; rArm = -2.4;
       armReachY = -3;
       break;
+    case "leap": {
+      // Airborne high-point catch — body off the ground, arms straight up,
+      // back leg bent, front leg slightly forward (Calvin Johnson-style).
+      // t goes 0→1 across the leap; peak height around t=0.5.
+      const leapHeight = Math.sin(Math.max(0.001, t) * Math.PI) * 12;
+      bodyDY = -8 - leapHeight * 0.4;
+      bodyTilt = facing * -0.08;
+      lArm = -2.6;
+      rArm = -2.6;
+      armReachY = -5;
+      lLeg = -0.9;        // back leg bent up
+      rLeg = -0.25;       // front leg slightly forward
+      break;
+    }
     case "celebrate": {
       const cs = celebStyle;
       if (cs === "ref_signal") {
@@ -5210,16 +5257,30 @@ function buildAnimForPlay(play, prevPlay) {
         wr.y += wrJukeLateral;
         ballY += wrJukeLateral;
       }
+      // LEAP / NEAR-MISS — for deep catches (or near-miss incompletes), the
+      // receiver leaps for the ball. Leap window covers the catch frame.
+      const isLeapingCatch = !!play.isLeapingCatch;
+      const isLeapMiss = !!play.isLeapMiss;
+      const inLeapWindow = (isLeapingCatch || isLeapMiss) && t > throwPhase - 0.10 && t < throwPhase + 0.08;
+      const leapInternalT = inLeapWindow ? Math.max(0.001, (t - (throwPhase - 0.10)) / 0.18) : 0;
+      // For near-miss leaps, the ball sails OVER the receiver's hand — nudge
+      // ballY upward during the leap window so it visibly clears them.
+      if (isLeapMiss && inLeapWindow) {
+        ballY -= 6 + Math.sin(leapInternalT * Math.PI) * 4;
+      }
       const wrPose = wrIntPose
         || (inWRJukeWindow ? "juke"
+        :  (inLeapWindow ? "leap"
         :  (isCatching ? "reach"
         :  (isPostCatch && t > 0.93 && (play.yards ?? 0) < 90 ? "tackled"
         :  (isPostCatch ? "carry"
-        :   "run"))));
+        :   "run")))));
       // For the tackled fall, pass fall-progress (not stride cycle) so the
       // ragdoll animation actually animates.
       const wrIsTackled = wrPose === "tackled";
-      const wrTackleT = wrIsTackled ? Math.min(1, (t - 0.93) / 0.07) : (t * 3) % 1;
+      const wrTackleT = wrIsTackled ? Math.min(1, (t - 0.93) / 0.07)
+                       : inLeapWindow ? leapInternalT
+                       : (t * 3) % 1;
       const wrWithPose = { ...wr,
         pose: wrPose,
         t: wrTackleT,
