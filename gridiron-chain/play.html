@@ -1461,6 +1461,10 @@ class GameSimulator {
     if (playType === "pass") {
       const qbStats = off.players[QB];
       const qbArch = this.offArch.QB?.archetype;
+      const qbPlayer = this._playerByName.get(QB);
+      const qbAwr = qbPlayer?.stats?.[3] ?? 70;
+      const qbAgi = qbPlayer?.stats?.[2] ?? 65;
+      const qbThr = qbPlayer?.stats?.[4] ?? 75;
       // QB archetype effects on the dropback
       // GUNSLINGER: more INTs, deeper throws, less accurate
       // GAME_MANAGER: fewer INTs, shorter throws, more accurate
@@ -1474,6 +1478,19 @@ class GameSimulator {
         case "GAME_MANAGER":  qbCompMod = +0.040; qbIntMod = -0.012; qbAirMod = -1.4; break;
         case "FIELD_GENERAL": qbCompMod = +0.020; qbIntMod = -0.015; break;
         case "DUAL_THREAT":   qbScrambleBonus = 0.10; break;
+      }
+      // PLAY-ACTION — fakes the handoff to freeze LBs/safeties. Effectiveness
+      // scales with the offense's run-game threat (defense has to respect it)
+      // and the QB's AWR/THR (sells the fake). Costs a longer dropback → +sack risk.
+      let paCompMod = 0, paAirMod = 0, paSackMul = 1.0;
+      const runThreat = clamp((this.offR.rb - 65) / 35, 0, 1);   // 0-1 based on RB room
+      const paQbSkill = clamp((qbAwr + qbThr - 140) / 80, 0, 1); // 0-1 based on QB
+      const paBaseRate = 0.16 + runThreat * 0.10 - (isThird && this.ytg >= 7 ? 0.10 : 0);
+      const isPlayAction = !isShort && Math.random() < paBaseRate;
+      if (isPlayAction) {
+        paCompMod = 0.025 + paQbSkill * 0.030;     // up to +5.5% comp
+        paAirMod  = 1.5  + paQbSkill * 2.5 + runThreat * 1.5;  // up to +5 air yds
+        paSackMul = 1.25;                           // longer dropback → more sacks
       }
       // QB SCRAMBLE — dual-threat QB sometimes takes off instead of throwing
       const scramblePct = (pb.qbScramblePct || 0) + qbScrambleBonus;
@@ -1514,10 +1531,53 @@ class GameSimulator {
         this._pushVisual({ kind: "int", desc: `INTERCEPTION! ${this.offR.starters.qb} picked off!`, startYard, targetDepth, endYard: startYard, passer: this.offR.starters.qb, defender: intBy });
         return { turnover: true };
       }
-      // Sacks: heavily driven by the OL-vs-DL trench matchup (pressure)
-      const sackPb = pb.sackMul || 1.0;
-      const sackPct = clamp((0.05 + pressure * 0.10 - adv * 0.02) * sackPb, 0.015, 0.32);
+      // Sacks: heavily driven by the OL-vs-DL trench matchup (pressure).
+      // Play-action holds the ball longer → more sack risk.
+      const sackPb = (pb.sackMul || 1.0) * paSackMul;
+      const sackPct = clamp((0.05 + pressure * 0.10 - adv * 0.02) * sackPb, 0.015, 0.36);
       if (Math.random() < sackPct) {
+        // THROW ON THE RUN — mobile QBs with high AGI sometimes escape pressure
+        // and throw on the move instead of taking the sack. Lower comp / air
+        // (it's an off-platform throw), but no sack loss. POCKET QBs never roll.
+        const torSkill = clamp((qbAgi + qbThr - 130) / 100, 0, 1);  // 0-1
+        const archMul = qbArch === "DUAL_THREAT" ? 1.4 : qbArch === "POCKET" ? 0.1 : qbArch === "GUNSLINGER" ? 0.9 : 1.0;
+        const torChance = clamp(torSkill * 0.35 * archMul, 0, 0.45);
+        if (Math.random() < torChance) {
+          // Roll the TOR completion check — meaningfully worse than a pocket throw
+          const torComp = clamp(0.40 + (qbAgi - 60) / 200 + (qbThr - 70) / 220 - pressure * 0.05, 0.18, 0.72);
+          const torRoll = Math.random();
+          if (torRoll < torComp) {
+            // Completed on the run — shorter / less accurate throw
+            const airYds = clamp(normal(7 - pressure * 1.5, 5.5), 1, 35);
+            const targetDepth = Math.max(1, Math.round(airYds));
+            const yac = airYds >= 5 ? rand(0, Math.max(1, Math.floor(airYds * 0.4))) : 0;
+            const yards = Math.min(Math.max(1, targetDepth + yac), 100 - startYard);
+            const rcvr = pickReceiver(pb, this.offR.starters);
+            const rcvrStats = off.players[rcvr];
+            if (qbStats) { qbStats.pass_att++; qbStats.pass_comp++; qbStats.pass_yds += yards; if (yards > qbStats.pass_long) qbStats.pass_long = yards; }
+            if (rcvrStats) { rcvrStats.rec_tgt++; rcvrStats.rec++; rcvrStats.rec_yds += yards; if (yards > rcvrStats.rec_long) rcvrStats.rec_long = yards; }
+            off.team.pass_att++; off.team.pass_comp++; off.team.passYds += yards; off.team.totalYds += yards;
+            this._lastBallCarrier = rcvr; this._lastBallType = "pass";
+            const tacklerName = yards > 0 ? this._creditDefStat("tkl", { LB: 0.35, S: 0.30, CB: 0.25, DL: 0.10 }) : null;
+            this._pushVisual({
+              kind: "complete", desc: `${this.offR.starters.qb} throws on the run to ${rcvr} for ${yards} yds`,
+              startYard, targetDepth, catchDepth: targetDepth, yac, yards,
+              endYard: clamp(startYard + yards, 0, 100), receiver: rcvr, passer: this.offR.starters.qb,
+              tackler: tacklerName, throwType: "TOR", isTOR: true,
+            });
+            return { yards };
+          } else {
+            // Incomplete on the run — throwaway
+            if (qbStats) qbStats.pass_att++;
+            off.team.pass_att++;
+            this._pushVisual({
+              kind: "incomplete", desc: `${this.offR.starters.qb} throws it away on the run`,
+              startYard, targetDepth: 8, endYard: startYard,
+              passer: this.offR.starters.qb, isTOR: true,
+            });
+            return { yards: 0, incomplete: true };
+          }
+        }
         const loss = rand(3, 11);
         if (qbStats) { qbStats.sacks_taken++; qbStats.sack_yds += loss; }
         off.team.sacks_allowed++; def.team.sacks++;
@@ -1536,6 +1596,7 @@ class GameSimulator {
           passer: this.offR.starters.qb,
           dlName: reps.dl?.name, dlType: reps.dlType, dlMove: move,
           olName: reps.ol?.name, olType: reps.olType,
+          isPlayAction,
         });
         // Return negative yardage and let _drive() handle the down progression.
         // (Previously we mutated this.yardLine/down/ytg directly which double-counted
@@ -1591,12 +1652,12 @@ class GameSimulator {
       // QB OVR matters a lot for completion %: a 60-OVR scrub completes far less than a 90-OVR star
       // (swing of ~0.20 across 30 OVR points, centered around 75 OVR baseline)
       const qbCompFromOvr = (this.offR.qb - 75) / 150;  // QB 60 → -0.10, QB 90 → +0.10
-      const compPct = clamp((0.60 + adv * 0.14 + qbCompFromOvr - pressure * 0.12 - shutdownPenalty + possessionBonus + qbCompMod) * compPbMul, 0.20, 0.85);
+      const compPct = clamp((0.60 + adv * 0.14 + qbCompFromOvr - pressure * 0.12 - shutdownPenalty + possessionBonus + qbCompMod + paCompMod) * compPbMul, 0.20, 0.88);
       if (Math.random() < compPct) {
         // Air yards drop when pressure shortens the QB's reads (check-downs / dump-offs)
         // Weaker QBs also throw shorter — they can't push the ball downfield reliably
         const qbAirFromOvr = (this.offR.qb - 75) / 12;  // QB 60 → -1.25 yds, QB 90 → +1.25 yds
-        const airMean = (pb.airYdsMean ?? 7.5) - pressure * 2.8 + qbAirMod + qbAirFromOvr;
+        const airMean = (pb.airYdsMean ?? 7.5) - pressure * 2.8 + qbAirMod + qbAirFromOvr + paAirMod;
         const airSd   = (pb.airYdsSd   ?? 6) * (qbArch === "GUNSLINGER" ? 1.25 : 1.0);
         const airYds  = clamp(normal(airMean + adv * 2, airSd), -2, 55);
         // YAC distribution — short catches / screens get more YAC potential
@@ -1641,7 +1702,7 @@ class GameSimulator {
         this._lastBallCarrier = rcvr; this._lastBallType = "pass";
         // Tackle credit on the catch — DBs / LBs make most tackles in the open field
         const tacklerName = yards > 0 ? this._creditDefStat("tkl", { LB: 0.35, S: 0.30, CB: 0.25, DL: 0.10 }) : null;
-        this._pushVisual({ kind: "complete", desc: `${this.offR.starters.qb} → ${rcvr} for ${yards} yds`, startYard, targetDepth, catchDepth: targetDepth, yac, yards, endYard: clamp(startYard + yards, 0, 100), receiver: rcvr, passer: this.offR.starters.qb, tackler: tacklerName, throwType });
+        this._pushVisual({ kind: "complete", desc: `${this.offR.starters.qb} → ${rcvr} for ${yards} yds`, startYard, targetDepth, catchDepth: targetDepth, yac, yards, endYard: clamp(startYard + yards, 0, 100), receiver: rcvr, passer: this.offR.starters.qb, tackler: tacklerName, throwType, isPlayAction });
         return { yards };
       }
       const targetDepth = clamp(normal(13, 8), 3, 45);
@@ -1672,7 +1733,7 @@ class GameSimulator {
         kind: "incomplete",
         desc: isDrop ? `DROP! ${rcvr} can't hang on` : `${this.offR.starters.qb} pass incomplete`,
         startYard, targetDepth, endYard: startYard,
-        passer: this.offR.starters.qb, intended: rcvr, defender: pdName, isDrop,
+        passer: this.offR.starters.qb, intended: rcvr, defender: pdName, isDrop, isPlayAction,
       });
       return { yards: 0, incomplete: true };
     }
@@ -4341,6 +4402,21 @@ function buildAnimForPlay(play, prevPlay) {
       const dropDepth = isScreen ? 2 : 5;
       const dropAmt = t < dropPhase ? (t / dropPhase) * dropDepth * FIELD.PX_PER_YARD : dropDepth * FIELD.PX_PER_YARD;
       qb.x -= dir * dropAmt;
+      // PLAY-ACTION fake — QB lurches toward the RB at the snap (sells the handoff)
+      // then resets back to dropback path. Only during the early portion of the drop.
+      if (play.isPlayAction && t < dropPhase * 0.65) {
+        const paT = t / (dropPhase * 0.65);   // 0 → 1 during fake
+        const fakeBack = Math.sin(paT * Math.PI) * 6;  // arcs out then back
+        qb.x += dir * fakeBack;
+        qb.y = cy + fakeBack;  // shoulder turn toward the RB
+      }
+      // THROW ON THE RUN — QB drifts laterally before/during the throw
+      if (play.isTOR) {
+        const torT = Math.min(1, t / throwPhase);
+        const lateral = Math.sin(torT * Math.PI * 0.7) * 36;  // big rollout to one side
+        qb.y += lateral * (targetY < cy ? -1 : 1);             // roll toward the receiver
+        qb.x -= dir * 4 * torT;                                // drift back a touch too
+      }
 
       // Receiver runs route — fully reaches catch point by throwPhase
       const wrBase = wrChoice === "wr1" ? formation.wr1
@@ -4525,6 +4601,20 @@ function buildAnimForPlay(play, prevPlay) {
       });
       drawPlayers(off, def);
       drawBall(ctx, ballX, ballY, arc > 30 ? 1.3 : 1);
+      // Play-action / Throw-on-run banner at the top of the field
+      if ((play.isPlayAction || play.isTOR) && t < throwPhase + 0.08) {
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.font = "900 20px sans-serif";
+        const lbl = play.isTOR ? "🏃 THROW ON THE RUN" : "🎭 PLAY-ACTION";
+        const lblColor = play.isTOR ? "#ffb060" : "#c890ff";
+        ctx.fillStyle = "rgba(0,0,0,0.55)";
+        ctx.fillRect(FIELD.W/2 - 130, 8, 260, 28);
+        ctx.fillStyle = lblColor;
+        ctx.fillText(lbl, FIELD.W / 2, 22);
+        ctx.restore();
+      }
       // Throw-type callout — small label near the QB during the throw window
       if (play.throwType && play.throwType !== "CHECKDOWN" && t > dropPhase && t < throwPhase + 0.05) {
         ctx.save();
@@ -4533,6 +4623,7 @@ function buildAnimForPlay(play, prevPlay) {
         ctx.font = "900 16px sans-serif";
         const lbl = play.throwType === "ZIP"   ? "🎯 ZIPPED IT"
                   : play.throwType === "DEEP"  ? "🚀 DEEP BALL"
+                  : play.throwType === "TOR"   ? "🏃 ON THE RUN"
                   :                              "🪶 TOUCH";
         const lblX = qb.x + dir * 14;
         const lblY = qb.y - 18;
@@ -4549,49 +4640,124 @@ function buildAnimForPlay(play, prevPlay) {
 
   if (play.kind === "sack") {
     const endX = yardToAbsX(play.endYard, poss);
-    return { duration: 1400, kind: "sack", render: (t, c) => {
+    // Pick which DL was the primary rusher based on play data; the others chase too.
+    // Stretch sack duration so the QB pocket dance reads. Use yardage scale for big losses.
+    const dur = scaledDuration(8 + Math.abs(play.sackLoss || 0));
+    // Build a deterministic dance pattern from the play seed so replays match.
+    const danceSeed = (play.startYard * 13 + (play.sackLoss || 0) * 11) >>> 0;
+    return { duration: dur, kind: "sack", render: (t, c) => {
       ctx = c;
       drawField(ctx, homeTeam, awayTeam, fieldState);
+      // QB drops back, then dances in the pocket as defenders close in.
+      // Phases:
+      //   0   .. PRE:        pre-snap
+      //   PRE .. 0.55:       drop + early pressure → QB drifts side-to-side
+      //   0.55 .. 0.82:      QB scrambles laterally, defenders converging
+      //   0.82 .. 1.0:       takedown — QB falls at endX
       const qb = { ...formation.qb };
-      // QB drops back, defenders chase
+      let qbPose = "idle";
       if (t > PRE) {
         const tt = (t - PRE) / (1 - PRE);
-        qb.x = formation.qb.x + (endX - formation.qb.x) * easeOutCubic(tt);
+        // Base drop: pulled back from LOS over the first 30%
+        const dropFrac = Math.min(1, tt / 0.30);
+        qb.x = formation.qb.x - dir * dropFrac * 5 * FIELD.PX_PER_YARD;
+        qb.y = cy;
+        // Pocket dance: small lateral wiggle that grows as pressure builds
+        if (tt > 0.15 && tt < 0.82) {
+          const danceT = (tt - 0.15) / 0.67;
+          const intensity = 4 + danceT * 14;
+          const wig = Math.sin(tt * Math.PI * 5 + (danceSeed % 7)) * intensity;
+          qb.y += wig;
+          // Subtle X jitter as he avoids rushers
+          qb.x += Math.sin(tt * Math.PI * 7 + (danceSeed % 3)) * 5 * danceT;
+        }
+        // Final takedown: QB slides toward sack spot and falls
+        if (tt > 0.82) {
+          const fallT = (tt - 0.82) / 0.18;
+          qb.x = qb.x + (endX - qb.x) * fallT;
+          qb.y = qb.y + (1 - fallT) * 0;
+          qbPose = "tackled";
+        } else {
+          qbPose = "run";
+        }
       }
+      // 4 DL pursue with imperfect angles — only ONE actually catches him.
+      // The primary rusher (DL 0) closes fastest; others trail.
       const def = formation.defense.map((d, i) => {
-        const dd = { ...d, pose: t < PRE ? "idle" : "run", t: (t * 3 + i * 0.13) % 1, facing: -dir };
-        if (i < 4 && t > PRE) {
-          const tt = (t - PRE) / (1 - PRE);
-          dd.x = d.x + (qb.x - d.x) * tt * 0.95;
-          dd.y = d.y + (qb.y - d.y) * tt * 0.7;
-          if (tt > 0.85) dd.pose = "tackled";
+        const dd = { ...d, pose: t < PRE ? "stance" : "run", t: (t * 3 + i * 0.13) % 1, facing: -dir };
+        if (t <= PRE) return dd;
+        const tt = (t - PRE) / (1 - PRE);
+        if (i < 4) {
+          // DL pursue the QB. Primary rusher (i=0) gets to the QB by t=0.82.
+          const isPrimary = i === 0;
+          const elapsedMs = Math.max(0, tt) * dur * (isPrimary ? 1.1 : 0.85);
+          const np = pursue(d, qb.x + dir * 2, qb.y, elapsedMs, isPrimary ? 1.0 : 0.85);
+          dd.x = np.x; dd.y = np.y;
+          if (isPrimary && tt > 0.85) dd.pose = "sack";
+        } else if (i >= 4 && i <= 6) {
+          // LBs spy the QB but stay disciplined — drift toward him slowly
+          const elapsedMs = Math.max(0, tt) * dur * 0.55;
+          const np = pursue(d, qb.x + dir * 6, qb.y + (i - 5) * 12, elapsedMs, 0.7);
+          dd.x = np.x; dd.y = np.y;
         }
         return dd;
       });
-      const sackT = Math.max(0, (t - PRE) / (1 - PRE));
       const off = formation.offense.map(p => {
-        if (p.role === "QB") return { ...qb, pose: sackT > 0.85 ? "tackled" : "run", t: (t * 3 + 0.4) % 1, facing: dir };
+        if (p.role === "QB") return { ...qb, pose: qbPose, t: (t * 3 + 0.4) % 1, facing: dir };
         if (p.role === "OL" && t > PRE) {
-          const tt = sackT;
+          const tt = (t - PRE) / (1 - PRE);
           const slotDepth = Math.abs((p.y - cy) / 14);
-          return { ...p, x: p.x - dir * (10 + slotDepth * 5) * tt, y: p.y + Math.sin(tt * Math.PI * 4 + p.y) * 3, pose: "block", facing: dir };
+          // OL get pushed back into the pocket — looks like they're losing
+          return { ...p, x: p.x - dir * (6 + slotDepth * 3) * tt, y: p.y + Math.sin(tt * Math.PI * 5 + p.y) * 2.5, pose: "engage", facing: dir };
+        }
+        if ((p.role === "WR1" || p.role === "WR2" || p.role === "TE") && t > PRE) {
+          // Receivers ran routes but are now standing around (no one to throw to)
+          const tt = (t - PRE) / (1 - PRE);
+          return { ...p, x: p.x + dir * tt * 80, pose: tt > 0.8 ? "idle" : "run", t: (t * 3 + 0.5) % 1, facing: dir };
         }
         return { ...p, pose: "idle", facing: dir };
       });
       drawPlayers(off, def);
       drawBall(ctx, qb.x, qb.y);
-      // Burst at sack
-      if (t > 0.85) {
-        ctx.strokeStyle = "rgba(255,200,0,0.6)";
+      // Pressure indicator — pulsing red ring around QB during the dance
+      const sackT = Math.max(0, (t - PRE) / (1 - PRE));
+      if (sackT > 0.20 && sackT < 0.86) {
+        const ringAlpha = 0.15 + Math.sin(sackT * Math.PI * 6) * 0.10;
+        ctx.strokeStyle = `rgba(214,90,90,${ringAlpha})`;
         ctx.lineWidth = 3;
-        for (let a = 0; a < 6; a++) {
-          const ang = (a / 6) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.arc(qb.x, qb.y, 18 + sackT * 6, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      // Burst at sack contact
+      if (sackT > 0.85) {
+        const burstT = (sackT - 0.85) / 0.15;
+        ctx.strokeStyle = `rgba(255,200,0,${0.8 - burstT * 0.8})`;
+        ctx.lineWidth = 3;
+        for (let a = 0; a < 8; a++) {
+          const ang = (a / 8) * Math.PI * 2;
+          const inner = 14 + burstT * 8;
+          const outer = 26 + burstT * 12;
           ctx.beginPath();
-          ctx.moveTo(qb.x + Math.cos(ang) * 12, qb.y + Math.sin(ang) * 12);
-          ctx.lineTo(qb.x + Math.cos(ang) * 22, qb.y + Math.sin(ang) * 22);
+          ctx.moveTo(qb.x + Math.cos(ang) * inner, qb.y + Math.sin(ang) * inner);
+          ctx.lineTo(qb.x + Math.cos(ang) * outer, qb.y + Math.sin(ang) * outer);
           ctx.stroke();
         }
       }
+      // "PRESSURE!" callout when the pocket starts collapsing
+      if (sackT > 0.25 && sackT < 0.55) {
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.font = "900 18px sans-serif";
+        ctx.fillStyle = "rgba(255,255,255,0.85)";
+        ctx.strokeStyle = "rgba(0,0,0,0.7)";
+        ctx.lineWidth = 3;
+        ctx.strokeText("PRESSURE!", qb.x, qb.y - 26);
+        ctx.fillStyle = "#d65a5a";
+        ctx.fillText("PRESSURE!", qb.x, qb.y - 26);
+        ctx.restore();
+      }
+      drawPreSnapCallouts(ctx, t);
     }};
   }
 
