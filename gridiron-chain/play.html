@@ -4729,7 +4729,9 @@ function buildAnimForPlay(play, prevPlay) {
       const isQBRun = !!play.isQBRun;
       const isQBCarry = isScramble || isQBRun;
       const runT = t < PRE ? 0 : (t - PRE) / (1 - PRE);
-      let ballX, ballY = cy + (t < PRE ? 18 : (1 - runT) * 18);
+      // Pre-snap: ball sits at the QB (under-center / shotgun, ready for snap).
+      // Post-snap: ball follows the carrier, sliding from backfield to LOS lane.
+      let ballX, ballY = t < PRE ? cy : cy + (1 - runT) * 18;
       if (t < PRE) {
         ballX = formation.qb.x;
       } else if (isScramble) {
@@ -4972,8 +4974,18 @@ function buildAnimForPlay(play, prevPlay) {
           facing: dir,
         };
       } else {
-        // Standard handoff: QB hands off then idles
-        off2 = off.map(p => p.role === "QB" ? { ...p, pose: t < PRE + 0.05 ? "throw" : "idle", t, facing: dir } : p);
+        // Standard handoff: QB stays in stance pre-snap (auto-stance via "idle"),
+        // briefly does a handoff motion right after the snap, then idles.
+        // Was sending pose="throw" during pre-snap, which set rightHandBall=true
+        // and drew a phantom ball in the QB's hand alongside the standalone ball.
+        off2 = off.map(p => {
+          if (p.role !== "QB") return p;
+          const handoffPose = t < PRE
+            ? "idle"                                  // stance pre-snap
+            : (t < PRE + (1 - PRE) * 0.10 ? "throw"  // brief handoff motion
+            : "idle");                                // back to neutral after
+          return { ...p, pose: handoffPose, t, facing: dir };
+        });
         carrierToDraw = rb;
       }
       drawPlayers([...off2, carrierToDraw], def);
@@ -5045,7 +5057,10 @@ function buildAnimForPlay(play, prevPlay) {
       // the drop+cock window and the BALL-ARRIVES moment, both within the
       // post-snap action portion.
       const dropFrac  = isScreen ? 0.18 : 0.42;  // drop+cock ends X% into action
-      const throwFrac = isScreen ? 0.45 : 0.70;  // ball arrives at receiver
+      // throwFrac was 0.70 — combined with the 0.62 release moment that left
+      // only ~8% of action for the ball to travel, way too fast. Pushed out
+      // to 0.85 so ball flight is ~23% of action time (≈700ms typical).
+      const throwFrac = isScreen ? 0.55 : 0.85;  // ball arrives at receiver
       const dropPhase  = PRE + (1 - PRE) * dropFrac;
       const throwPhase = PRE + (1 - PRE) * throwFrac;
       const qb = { ...formation.qb };
