@@ -4347,9 +4347,16 @@ function buildAnimForPlay(play, prevPlay) {
       } else {
         const tt = (t - throwPhase) / (1 - throwPhase);
         if (play.kind === "complete") {
-          // After catch: ball + receiver travel together to (endX, finalY)
-          ballX = targetX + (endX - targetX) * easeOutCubic(tt);
-          ballY = targetY + (finalY - targetY) * easeOutCubic(tt);
+          // After catch: ball + receiver travel together to (endX, finalY).
+          // For big YAC plays, blend toward LINEAR motion so the receiver
+          // doesn't snap forward and stand still — matches the run play fix.
+          const yacYds = Math.abs((endX - targetX) / FIELD.PX_PER_YARD);
+          const linearW = Math.min(1, Math.max(0, (yacYds - 6) / 18));  // 0 at 6 yds, 1 at 24+
+          const eased = easeOutCubic(tt);
+          const ramp = tt < 0.10 ? (tt / 0.10) * (tt / 0.10) * 0.10 : tt;
+          const progress = eased * (1 - linearW) + ramp * linearW;
+          ballX = targetX + (endX - targetX) * progress;
+          ballY = targetY + (finalY - targetY) * progress;
           // Receiver carries the ball — keep them locked together
           wr.x = ballX;
           wr.y = ballY;
@@ -4441,15 +4448,21 @@ function buildAnimForPlay(play, prevPlay) {
       // Offense: QB drops, WRs run routes, OL drops into pass-block pocket
       const isThrowing = t > dropPhase - 0.02 && t < dropPhase + 0.10;
       const qbWithPose = { ...qb, pose: isThrowing ? "throw" : (t < dropPhase ? "run" : "idle"), t: (t - dropPhase + 0.5) % 1, facing: dir };
-      // Target receiver pose — reach during the catch window
+      // Target receiver pose — reach during the catch window, then carry the ball downfield
       const isCatching = t > throwPhase - 0.05 && t < throwPhase + 0.10;
+      const isPostCatch = play.kind === "complete" && t > throwPhase + 0.10;
       // On an INT, the WR briefly reacts ("reach") then chases ("run") toward the defender,
       // facing the opposite direction since they're now playing defense.
       const wrIntPose = play.kind === "int" && t > throwPhase + 0.02
         ? (t > 0.92 ? "tackled" : "run")
         : null;
+      const wrPose = wrIntPose
+        || (isCatching ? "reach"
+        :  (isPostCatch && t > 0.93 && (play.yards ?? 0) < 90 ? "tackled"
+        :  (isPostCatch ? "carry"
+        :   "run")));
       const wrWithPose = { ...wr,
-        pose: wrIntPose || (isCatching ? "reach" : "run"),
+        pose: wrPose,
         t: (t * 3) % 1,
         facing: (play.kind === "int" && t > throwPhase + 0.05) ? -dir : dir,
       };
