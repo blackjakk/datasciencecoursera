@@ -706,19 +706,32 @@ const randName = () => `${FIRST[rand(0, FIRST.length - 1)]} ${LAST[rand(0, LAST.
 function statsFor(pos, tier) {
   const r = { elite:{lo:78,hi:99}, good:{lo:63,hi:80}, average:{lo:48,hi:67}, poor:{lo:35,hi:54} }[tier];
   const b = () => rand(r.lo, r.hi);
-  const l = () => rand(Math.max(30, r.lo - 14), Math.max(45, r.hi - 14));
+  // Lesser stats — floor raised so even role players don't look broken.
+  // Even an NFL bench guy is athletic at SOMETHING.
+  const l = () => rand(Math.max(48, r.lo - 12), Math.max(62, r.hi - 12));
+  let stats;
   switch (pos) {
-    case "QB": return [l(),l(),b(),b(),b(),l(),l(),l(),l(),l(),l()];
-    case "RB": return [b(),b(),b(),b(),l(),b(),l(),l(),l(),l(),l()];
-    case "WR": return [b(),l(),b(),b(),l(),b(),l(),l(),b(),l(),l()];
-    case "TE": return [b(),b(),b(),b(),l(),b(),b(),l(),l(),l(),l()];
-    case "OL": return [l(),b(),b(),b(),l(),l(),b(),l(),l(),l(),l()];
-    case "DL": return [b(),b(),b(),b(),l(),l(),l(),b(),l(),b(),l()];
-    case "LB": return [b(),b(),b(),b(),l(),l(),l(),b(),b(),b(),l()];
-    case "CB": return [b(),l(),b(),b(),l(),l(),l(),l(),b(),b(),l()];
-    case "S":  return [b(),b(),b(),b(),l(),l(),l(),l(),b(),b(),l()];
-    default:   return [l(),l(),l(),b(),l(),l(),l(),l(),l(),l(),b()];
+    case "QB": stats = [l(),l(),b(),b(),b(),l(),l(),l(),l(),l(),l()]; break;
+    case "RB": stats = [b(),b(),b(),b(),l(),b(),l(),l(),l(),l(),l()]; break;
+    case "WR": stats = [b(),l(),b(),b(),l(),b(),l(),l(),b(),l(),l()]; break;
+    case "TE": stats = [b(),b(),b(),b(),l(),b(),b(),l(),l(),l(),l()]; break;
+    case "OL": stats = [l(),b(),b(),b(),l(),l(),b(),l(),l(),l(),l()]; break;
+    case "DL": stats = [b(),b(),b(),b(),l(),l(),l(),b(),l(),b(),l()]; break;
+    case "LB": stats = [b(),b(),b(),b(),l(),l(),l(),b(),b(),b(),l()]; break;
+    case "CB": stats = [b(),l(),b(),b(),l(),l(),l(),l(),b(),b(),l()]; break;
+    case "S":  stats = [b(),b(),b(),b(),l(),l(),l(),l(),b(),b(),l()]; break;
+    default:   stats = [l(),l(),l(),b(),l(),l(),l(),l(),l(),l(),b()];
   }
+  // Signature stat — every player has at least one calling card. Picks a
+  // random stat and ensures it lands in the 70-85 range so even "poor" tier
+  // guys can be "the guy with the strong arm" or "the speedster off the bench."
+  const sigCount = (tier === "poor" || tier === "average") ? 2 : 1;
+  for (let i = 0; i < sigCount; i++) {
+    const idx = rand(0, stats.length - 1);
+    const sigVal = rand(70, 85);
+    if (stats[idx] < sigVal) stats[idx] = sigVal;
+  }
+  return stats;
 }
 function calcOverall(pos, s) {
   const [spd,str,agi,awr,thr,cat,blk,prs,cov,tck,kpw] = s;
@@ -3391,6 +3404,12 @@ function buildAnimForPlay(play, prevPlay) {
                   :                       cy - 10;
     const isComplete = play.kind === "complete";
     const endX = isComplete ? yardToAbsX(play.endYard, poss) : targetX;
+    // Which defender picks off the pass on an INT — match the receiver's side
+    // 7=cb1 (top), 8=cb2 (bottom), 9=s1 (top safety), 10=s2 (bottom safety)
+    const intDefIdx = wrChoice === "wr1" ? 7
+                    : wrChoice === "wr2" ? 8
+                    : wrChoice === "te"  ? (targetY < cy ? 9 : 10)
+                    :                       (targetY < cy ? 6 : 4);  // LB for RB checkdown
     const yac = isComplete ? (play.yac ?? Math.max(0, (play.yards ?? 0) - catchDepth)) : 0;
     // Final Y where YAC ends — receiver may drift back toward middle if running upfield
     const finalY = targetY + (cy - targetY) * Math.min(0.5, yac / 40);
@@ -3440,10 +3459,14 @@ function buildAnimForPlay(play, prevPlay) {
           ballX = targetX;
           ballY = targetY + tt * 25;
         } else {
-          // INT — ball goes the other way; the receiver "stops" at the catch point
-          const retEndX = losX - dir * 10 * FIELD.PX_PER_YARD;
+          // INT — defender catches the ball and runs it back the other way
+          // Random return distance based on play seed (5-25 yds typically)
+          const retDistYds = 8 + (((play.startYard * 7 + (play.targetDepth||0)) >>> 0) % 16);
+          const retEndX = targetX - dir * retDistYds * FIELD.PX_PER_YARD;
+          // Defender drifts slightly toward sideline as they return
+          const retEndY = targetY + (targetY < cy ? -20 : 20);
           ballX = targetX + (retEndX - targetX) * easeOutCubic(tt);
-          ballY = targetY + ((cy + 30) - targetY) * tt;
+          ballY = targetY + (retEndY - targetY) * easeOutCubic(tt);
           wr.x = targetX; wr.y = targetY;
         }
       }
@@ -3468,6 +3491,20 @@ function buildAnimForPlay(play, prevPlay) {
           if (i === 7 || i === 8 || i === 4 || i === 5) {
             dd.x = dd.x + (ballX - dd.x) * Math.min(1, tt * 1.2) * 0.8;
             dd.y = dd.y + (ballY - dd.y) * Math.min(1, tt * 1.2) * 0.7;
+          }
+        }
+        // INT — the picking defender races to the catch spot, then carries the ball back
+        if (play.kind === "int" && i === intDefIdx) {
+          if (t < throwPhase) {
+            // Sprint to the catch spot before the ball arrives
+            const tt = Math.min(1, t / throwPhase);
+            dd.x = d.x + (targetX - d.x) * easeOutCubic(tt);
+            dd.y = d.y + (targetY - d.y) * easeOutCubic(tt);
+          } else {
+            // Carry the ball — defender position == ball position
+            dd.x = ballX;
+            dd.y = ballY;
+            dd.facing = -dir;  // running back the other way
           }
         }
         if (t < 0.05) dd.pose = "idle";
