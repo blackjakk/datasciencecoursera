@@ -8075,6 +8075,78 @@ $("field").addEventListener("click", () => {
 });
 $("field").style.cursor = "pointer";
 
+// Brief "jog up to the new line of scrimmage" animation between plays.
+// Returns null if no transition is appropriate (kickoff, halftime, score-only,
+// or first play). Otherwise returns { duration, render(t01, ctx) }.
+function buildJogTransition(prevPlay, nextPlay) {
+  if (!prevPlay || !nextPlay) return null;
+  if (nextPlay.startYard == null) return null;
+  const skipKinds = ["halftime", "ot", "quarter", "two_min_warning", "timeout", "kickoff"];
+  if (skipKinds.includes(nextPlay.kind) || skipKinds.includes(prevPlay.kind)) return null;
+  // No previous LOS info — skip
+  if (prevPlay.endYard == null && prevPlay.startYard == null) return null;
+  const prevYard = prevPlay.endYard ?? prevPlay.startYard;
+  const newPoss = nextPlay.poss;
+  const newLosX = yardToAbsX(nextPlay.startYard, newPoss);
+  const prevEndAbsX = yardToAbsX(prevYard, newPoss);
+  const xOffset = prevEndAbsX - newLosX;   // how far players need to jog
+  if (Math.abs(xOffset) < 6) return null;   // close enough, no jog
+
+  const homeTeam = gameResult.homeTeam, awayTeam = gameResult.awayTeam;
+  const team    = newPoss === "home" ? homeTeam : awayTeam;
+  const oppTeam = newPoss === "home" ? awayTeam : homeTeam;
+  const possColor = team.primary;
+  const oppColor  = oppTeam.primary;
+  const dir = newPoss === "home" ? 1 : -1;
+
+  const formation = makeFormation(newLosX, newPoss);
+  const offStarters = newPoss === "home" ? gameResult.homeRatings.starters : gameResult.awayRatings.starters;
+  const defStarters = newPoss === "home" ? gameResult.awayRatings.starters : gameResult.homeRatings.starters;
+  attachPlayerStyles(formation, offStarters, defStarters, gameResult.playerLookup);
+
+  let firstDownAbs = null;
+  if (nextPlay.down > 0) {
+    const fdYard = clamp(nextPlay.startYard + nextPlay.ytg, 0, 100);
+    firstDownAbs = yardToAbsX(fdYard, newPoss);
+  }
+  const fieldState = { los: newLosX, firstDownAbs, possColor };
+
+  // Faster jog for longer distances so players don't drag. ~9 yds/s sprint speed.
+  const yardsToCover = Math.abs(xOffset) / FIELD.PX_PER_YARD;
+  // Accelerated tempo: 1.4× regular running so jogs feel snappy between plays.
+  const sprintSpeed = 9 * 1.4;   // yds/s
+  const duration = clamp(yardsToCover / sprintSpeed * 1000, 350, 1400);
+
+  // Players jog toward the new LOS. Direction of motion is (newLosX - cur).
+  // facingMotion = sign of motion direction (-1 left, +1 right).
+  const motionSign = xOffset > 0 ? -1 : 1;
+
+  return {
+    duration,
+    render: (t01, ctx) => {
+      drawField(ctx, homeTeam, awayTeam, fieldState);
+      const eased = t01 * t01 * (3 - 2 * t01);
+      const curOffset = xOffset * (1 - eased);
+      // Cycle the run animation faster than wall time so the legs visibly churn.
+      const runCycle = (t01 * 4.5) % 1;
+      const renderAll = (arr, color, sec, facing) => {
+        for (const p of arr) {
+          drawPlayer(ctx, p.x + curOffset, p.y, color, sec, p.label, "run", runCycle, facing, p);
+        }
+      };
+      renderAll(formation.offense, possColor, team.secondary, motionSign);
+      renderAll(formation.defense, oppColor, oppTeam.secondary, motionSign);
+      // Small "HUDDLE BREAK" / jog hint near the LOS
+      ctx.save();
+      ctx.fillStyle = "rgba(255,255,255,0.6)";
+      ctx.font = "bold 11px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("...", newLosX, 26);
+      ctx.restore();
+    },
+  };
+}
+
 function startNextPlay() {
   if (!gameResult) return;
   if (playHead >= gameResult.plays.length) {
@@ -8105,6 +8177,21 @@ function startNextPlay() {
 
 function tick(now) {
   if (!playing || !animState) return;
+  // Inter-play jog transition — animate players trotting up to the new LOS.
+  if (animState.transition) {
+    const ctx = $("field").getContext("2d");
+    const tElapsed = now - animState.transitionStart;
+    const tT = Math.min(1, tElapsed / animState.transitionDur);
+    animState.transition.render(tT, ctx);
+    if (tT >= 1) {
+      playHead++;
+      animState = null;
+      if (playing) startNextPlay();
+      return;
+    }
+    rafId = requestAnimationFrame(tick);
+    return;
+  }
   const elapsed = now - animState.startTime;
   const t = Math.min(1, elapsed / animState.duration);
   const ctx = $("field").getContext("2d");
@@ -8137,6 +8224,21 @@ function tick(now) {
     }
     drawResultCard(ctx, animState.play, holdT);
     if (holdElapsed >= animState.holdDur || animState.skipHold) {
+      // Build a jog transition into the NEXT play (if applicable) so players
+      // visibly trot up to the new LOS instead of instacutting.
+      const nextIdx = playHead + 1;
+      const nextPlay = nextIdx < gameResult.plays.length ? gameResult.plays[nextIdx] : null;
+      const jog = (viewMode === "tactical" && !animState.skipHold)
+        ? buildJogTransition(animState.play, nextPlay) : null;
+      if (jog) {
+        animState = {
+          transition: jog,
+          transitionStart: now,
+          transitionDur: jog.duration / speedMul,
+        };
+        rafId = requestAnimationFrame(tick);
+        return;
+      }
       playHead++;
       animState = null;
       if (playing) startNextPlay();
