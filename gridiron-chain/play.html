@@ -2377,8 +2377,9 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   facing = facing || 1;
   const runStyle = style.runStyle || "smooth";
   const celebStyle = style.celebStyle || "fist_pump";
-  // OL/DL default to a 3-point stance when they're not actively doing something
-  if ((pose === "idle") && (style.role === "OL" || style.role === "DL")) pose = "stance";
+  // Auto-stance for ALL roles when idle — keeps players in position-appropriate
+  // pre-snap setups instead of standing flat-footed.
+  if (pose === "idle" && style.role) pose = "stance";
   const rs = RUN_STYLES[runStyle] || RUN_STYLES.smooth;
   const bt = BODY_TYPES[style.bodyType] || BODY_TYPES.NORMAL;
 
@@ -2436,26 +2437,107 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
       break;
     }
     case "stance": {
-      // 3-point stance — body crouched, lead hand on the ground, butt up, head up.
-      bodyDY = 5;
-      bodyTilt = facing * 0.55;
-      lArm = facing * Math.PI * 0.55;   // lead arm reaches down-forward to ground
-      rArm = -0.4;                       // off arm on knee
-      lLeg = 0.5;
-      rLeg = -0.4;
-      drawGroundHand = true;
+      // Role-specific pre-snap stances. Subtle bob/sway during pre-snap.
+      const sway = Math.sin(t * Math.PI * 0.8) * 0.4;
+      const role = style.role || "";
+      if (role === "OL" || role === "DL") {
+        // 3-point stance — body crouched, lead hand on the ground
+        bodyDY = 5;
+        bodyTilt = facing * 0.55;
+        lArm = facing * Math.PI * 0.55;
+        rArm = -0.4;
+        lLeg = 0.5;
+        rLeg = -0.4;
+        drawGroundHand = true;
+      } else if (role === "WR1" || role === "WR2") {
+        // WR press / sprint stance — forward lean, weight on front foot
+        bodyDY = 1 + sway;
+        bodyTilt = facing * 0.32;
+        lArm = -0.25; rArm = 0.25;
+        lLeg = 0.35; rLeg = -0.18;
+      } else if (role === "TE") {
+        // TE stance — 2-point upright, hands ready, slight crouch
+        bodyDY = 2;
+        bodyTilt = facing * 0.40;
+        lArm = -0.15; rArm = 0.15;
+        lLeg = 0.30; rLeg = -0.30;
+      } else if (role === "RB") {
+        // HB 2-point stance — deeper crouch, hands at knees
+        bodyDY = 2.5;
+        bodyTilt = facing * 0.30;
+        lArm = -0.35; rArm = 0.35;
+        lLeg = 0.35; rLeg = -0.35;
+      } else if (role === "QB") {
+        // QB shotgun stance — slightly bent, hands up to receive snap
+        bodyDY = 1;
+        bodyTilt = facing * 0.05;
+        lArm = -0.7;        // hands together at chest, palms out
+        rArm = -0.7;
+        lLeg = 0.15; rLeg = -0.15;
+      } else if (role === "LB") {
+        // LB read stance — slight crouch, hands at thighs, looking forward
+        bodyDY = 1.5 + sway;
+        bodyTilt = facing * 0.15;
+        lArm = 0.30; rArm = -0.30;
+        lLeg = 0.35; rLeg = -0.35;
+      } else if (role === "CB") {
+        // CB press / off coverage stance — backpedal-ready
+        bodyDY = 1 + sway;
+        bodyTilt = facing * 0.20;
+        lArm = -0.20; rArm = 0.20;
+        lLeg = 0.25; rLeg = -0.15;
+      } else if (role === "S") {
+        // Safety read stance — square shoulders, hands ready
+        bodyDY = 1 + sway;
+        bodyTilt = facing * 0.10;
+        lArm = -0.25; rArm = 0.25;
+        lLeg = 0.30; rLeg = -0.30;
+      } else {
+        // Generic idle bob
+        bodyDY = Math.sin(t * Math.PI * 1.5) * 0.4;
+      }
       break;
     }
     case "throw": {
-      // Throwing arm motion is rendered as TWO segments — see rForearmOverride
-      // below. Here we just set the LEAD arm (off arm pointing forward at
-      // the target) and the body/leg posture.
-      lArm = 1.6;                        // lead arm forward / down at target
-      lLeg = 0.55;                       // front foot planted, stepping into the throw
-      rLeg = -0.45;                      // back leg pivot
-      bodyTilt = facing * 0.12;          // forward lean
-      bodyDY = -1.5;                     // up on the toes
-      // rArm + rForearmOverride get set in the throw-special block below the switch
+      // FOUR phases of a real football throw (not a volleyball windmill):
+      //  CRADLE (0 - 0.18): both hands clutch the ball at chest
+      //  COCK   (0.18 - 0.42): pull the ball back to the ear, elbow at ear height
+      //  SNAP   (0.42 - 0.62): forearm WHIPS through release, ball comes out at 0.55
+      //  FOLLOW (0.62 - 1.0): arm extends forward and slightly down
+      // The bicep makes a SHORT 90° sweep — only the forearm whips long.
+      let bicepA, forearmA, leadA;
+      if (t < 0.18) {
+        const ph = t / 0.18;
+        bicepA   = -0.7  + ph * (-0.3);   // -0.7 → -1.0 (rises toward shoulder)
+        forearmA = 0.5   + ph * (-0.9);   // 0.5 (forward at chest) → -0.4
+        leadA    = -0.5;                   // lead hand cradling the ball
+      } else if (t < 0.42) {
+        const ph = (t - 0.18) / 0.24;
+        const sm = ph * ph * (3 - 2 * ph);
+        bicepA   = -1.0  + sm * (-0.55);  // -1.0 → -1.55 (elbow up to ear)
+        forearmA = -0.4  + sm * (-2.0);   // -0.4 → -2.4 (forearm cocked above shoulder)
+        leadA    = -0.5  + sm * 0.3;      // lead arm extends forward of body
+      } else if (t < 0.62) {
+        const ph = (t - 0.42) / 0.20;
+        const sm = ph * ph * (3 - 2 * ph);
+        bicepA   = -1.55 + sm * 1.15;     // -1.55 → -0.4 (bicep rotates forward-down)
+        forearmA = -2.4  + sm * 3.4;      // -2.4 → 1.0 (WHIP through release)
+        leadA    = -0.2  + sm * 0.4;      // lead arm starts to lower
+      } else {
+        const ph = (t - 0.62) / 0.38;
+        bicepA   = -0.4  + ph * 0.5;      // -0.4 → 0.1
+        forearmA =  1.0  + ph * 0.7;      // 1.0 → 1.7 (extension)
+        leadA    =  0.2  + ph * 0.6;      // off arm relaxes
+      }
+      rArm = bicepA;
+      lArm = leadA;
+      rForearmOverride = forearmA;
+      rightHandBall = t < 0.55;
+      // Body / legs: stepping into the throw, slight forward lean, up on toes
+      lLeg = 0.45;
+      rLeg = -0.35;
+      bodyTilt = facing * 0.10;
+      bodyDY = -1;
       break;
     }
     case "reach": case "catch":
@@ -2747,20 +2829,49 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     const handY = elbowY + Math.cos(lowerA) * lower + armReachY * 0.6;
     drawSegment(sx, shoulderY, elbowX, elbowY, bicepW, color, shadeDark, shadeLight);
     drawSegment(elbowX, elbowY, handX, handY, forearmW, color, shadeDark, shadeLight);
+    // Hand — bigger so it reads at this scale + a darker fingertips ring
+    const handR = 2.6 + bt.bulk * 0.3;
     ctx.fillStyle = "#d6a878";
     ctx.beginPath();
-    ctx.arc(handX, handY, 1.5, 0, Math.PI * 2);
+    ctx.arc(handX, handY, handR, 0, Math.PI * 2);
     ctx.fill();
+    ctx.strokeStyle = "rgba(140,90,40,0.55)";
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
     if (holdsBall) {
-      ctx.fillStyle = "#6b3416";
+      // Football — bigger, more pronounced, with white tip + laces
+      const ballAngle = facing * 0.3;
+      ctx.save();
+      ctx.translate(handX, handY + 0.4);
+      ctx.rotate(ballAngle);
+      // Body
+      const bg = ctx.createLinearGradient(0, -2.2, 0, 2.2);
+      bg.addColorStop(0, "#8a4520");
+      bg.addColorStop(0.55, "#6b3416");
+      bg.addColorStop(1, "#3d1f0c");
+      ctx.fillStyle = bg;
       ctx.beginPath();
-      ctx.ellipse(handX, handY + 0.5, 3, 1.7, facing * 0.3, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, 4.0, 2.3, 0, 0, Math.PI * 2);
       ctx.fill();
+      // White stripe tip (the away side from facing)
+      ctx.fillStyle = "#f1f1f1";
+      ctx.beginPath();
+      ctx.ellipse(-2.7, 0, 0.7, 1.3, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Laces
       ctx.strokeStyle = "#fff";
       ctx.lineWidth = 0.6;
       ctx.beginPath();
-      ctx.moveTo(handX - 0.5, handY - 0.3);
-      ctx.lineTo(handX + 0.5, handY - 0.3);
+      ctx.moveTo(-1.0, -0.5); ctx.lineTo(1.4, -0.5);
+      ctx.moveTo(-0.8, 0);    ctx.lineTo(1.2, 0);
+      ctx.moveTo(-0.8, 0.5);  ctx.lineTo(1.2, 0.5);
+      ctx.stroke();
+      ctx.restore();
+      // Grip outline on the hand
+      ctx.strokeStyle = "#d6a878";
+      ctx.lineWidth = 1.0;
+      ctx.beginPath();
+      ctx.arc(handX, handY, handR + 0.4, 0, Math.PI * 2);
       ctx.stroke();
     }
     return { handX, handY };
@@ -4471,7 +4582,8 @@ function buildAnimForPlay(play, prevPlay) {
   const audibleSeed = (((play.startYard * 31) ^ ((play.time || 0) * 7)) >>> 0) % 1000 / 1000;
   const isAudible = audibleSeed < audibleChance;
   // Extra pre-snap time when audibling (gives the play call space to breathe)
-  const PRE = isAudible ? 0.34 : 0.24;
+  // PRE will be computed per-play once dur is known (PRE = PRE_MS / dur)
+  let PRE = 0.24;
 
   // Defender pursuit speed cap — tuned to a fast NFL defender (~9 yds/s).
   // Carrier runs slightly faster, so on breakaways defenders visibly trail.
@@ -4484,14 +4596,14 @@ function buildAnimForPlay(play, prevPlay) {
     const f = maxMove / Math.max(0.001, dist);
     return { x: d.x + dx * f, y: d.y + dy * f };
   };
-  // Play duration scales with yardage so big plays don't look like teleports.
-  // A 4-yd run = ~2.8 s; a 60-yd TD = ~6.0 s. Carrier covers ground at a
-  // realistic ~11 yds/s, defenders ~9 yds/s. Extra time up front for the
-  // mesh/read phase so plays don't feel rushed.
+  // Action duration scales with yardage — this is JUST the post-snap action,
+  // pre-snap is added on top via PRE_MS.
   function scaledDuration(yds) {
-    const base = isAudible ? 2700 : 2500;
-    return clamp(base + Math.abs(yds || 0) * 60, base, 6000);
+    return clamp(1300 + Math.abs(yds || 0) * 55, 1400, 4200);
   }
+  // Pre-snap timing — ~3 seconds of huddle break, line set, audible, "HUT HUT"
+  // before the center snaps. Audibles add an extra ~600 ms.
+  const PRE_MS = isAudible ? 3600 : 3000;
   // Realistic run pacing: handoff mesh → read the hole → burst → sustained → tackle.
   // Replaces the old eased-cubic linear blend that made the RB shoot to the end zone
   // in the first 30% of the play. Now the carrier hangs near the LOS for the early
@@ -4522,22 +4634,40 @@ function buildAnimForPlay(play, prevPlay) {
   // Pre-snap audible callout — drawn during the first half of PRE window.
   function drawPreSnapCallouts(c, t) {
     if (t > PRE) return;
+    // Phase windows within the PRE window:
+    //   0.0 - 0.25 (~750ms): "SET" — players walking to position
+    //   0.25 - 0.45 (~600ms): "DOWN!" — players take their stances
+    //   0.45 - 0.78 (~990ms): AUDIBLE shows (if applicable)
+    //   0.78 - 0.93 (~450ms): "HUT!"
+    //   0.93 - 1.0 (~210ms): "HUT HUT!" then snap
+    const tt = t / PRE;   // 0 → 1 within pre-snap
     c.save();
     c.textAlign = "center";
     c.textBaseline = "middle";
-    if (isAudible && t < PRE * 0.6) {
+    if (isAudible && tt >= 0.45 && tt < 0.78) {
       c.fillStyle = "rgba(0,0,0,0.55)";
       c.fillRect(0, 30, FIELD.W, 56);
       c.fillStyle = "#f0cc30";
-      c.font = "900 26px sans-serif";
+      c.font = "900 28px sans-serif";
       c.fillText("AUDIBLE!", FIELD.W / 2, 50);
       c.fillStyle = "#fff";
-      c.font = "bold 12px sans-serif";
+      c.font = "bold 13px sans-serif";
       c.fillText(`${lastNameUpper(offStarters?.qb || "QB")} changes the play at the line`, FIELD.W / 2, 72);
-    } else if (t > PRE * 0.55) {
-      c.fillStyle = "#fff";
+    } else if (tt < 0.25) {
+      c.fillStyle = "rgba(255,255,255,0.8)";
+      c.font = "900 16px sans-serif";
+      c.fillText("SET", FIELD.W / 2, 50);
+    } else if (tt < 0.45 && !isAudible) {
+      c.fillStyle = "rgba(255,255,255,0.85)";
       c.font = "900 18px sans-serif";
-      c.globalAlpha = 0.75;
+      c.fillText("DOWN!", FIELD.W / 2, 50);
+    } else if (tt >= 0.78 && tt < 0.93) {
+      c.fillStyle = "#f0cc30";
+      c.font = "900 26px sans-serif";
+      c.fillText("HUT!", FIELD.W / 2, 50);
+    } else if (tt >= 0.93) {
+      c.fillStyle = "#f0cc30";
+      c.font = "900 28px sans-serif";
       c.fillText("HUT HUT!", FIELD.W / 2, 50);
     }
     c.restore();
@@ -4547,7 +4677,9 @@ function buildAnimForPlay(play, prevPlay) {
     const endX = yardToAbsX(play.endYard, poss);
     const yards = play.yards ?? 0;
     const isTD = (play.endYard ?? 0) >= 100;
-    const dur = scaledDuration(yards);
+    const actionDur = scaledDuration(yards);
+    const dur = actionDur + PRE_MS;
+    PRE = PRE_MS / dur;
     return { duration: dur, kind: "run", render: (t, c) => {
       ctx = c;
       drawField(ctx, homeTeam, awayTeam, fieldState);
@@ -4861,7 +4993,9 @@ function buildAnimForPlay(play, prevPlay) {
     const finalY = targetY + (cy - targetY) * Math.min(0.5, yac / 40);
     // Pass plays — duration scales with the yards (including YAC)
     const passYards = (play.yards ?? 0) + ((play.targetDepth ?? 0) > (play.yards ?? 0) ? 0 : 0);
-    const dur = scaledDuration(Math.max(play.targetDepth ?? 0, play.yards ?? 0, 8));
+    const actionDur = scaledDuration(Math.max(play.targetDepth ?? 0, play.yards ?? 0, 8));
+    const dur = actionDur + PRE_MS;
+    PRE = PRE_MS / dur;
     return { duration: dur, kind: play.kind, render: (t, c) => {
       ctx = c;
       drawField(ctx, homeTeam, awayTeam, fieldState);
@@ -5148,7 +5282,9 @@ function buildAnimForPlay(play, prevPlay) {
     const endX = yardToAbsX(play.endYard, poss);
     // Pick which DL was the primary rusher based on play data; the others chase too.
     // Stretch sack duration so the QB pocket dance reads. Use yardage scale for big losses.
-    const dur = scaledDuration(8 + Math.abs(play.sackLoss || 0));
+    const actionDur = scaledDuration(8 + Math.abs(play.sackLoss || 0));
+    const dur = actionDur + PRE_MS;
+    PRE = PRE_MS / dur;
     // Build a deterministic dance pattern from the play seed so replays match.
     const danceSeed = (play.startYard * 13 + (play.sackLoss || 0) * 11) >>> 0;
     return { duration: dur, kind: "sack", render: (t, c) => {
