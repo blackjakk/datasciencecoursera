@@ -2313,14 +2313,36 @@ const CELEB_STYLES = ["fist_pump", "ref_signal", "spike", "first_down", "point_s
 // LEAN = narrow shoulders, longer limbs — most WRs, shutdown CBs
 // COMPACT = short and small — slot WR/CB, elusive RB
 const BODY_TYPES = {
-  BIG:     { padW: 13.5, torsoLen: 9.0, torsoBotW: 4.8, legLen: 8.8,  armLen: 7.5, helmH: 5.7 },
-  BROAD:   { padW: 11.8, torsoLen: 8.5, torsoBotW: 4.0, legLen: 9.0,  armLen: 7.5, helmH: 5.5 },
-  NORMAL:  { padW: 10.0, torsoLen: 8.5, torsoBotW: 3.5, legLen: 9.0,  armLen: 7.5, helmH: 5.5 },
-  LEAN:    { padW: 9.0,  torsoLen: 9.5, torsoBotW: 2.6, legLen: 10.2, armLen: 8.4, helmH: 5.3 },
-  COMPACT: { padW: 8.8,  torsoLen: 7.5, torsoBotW: 3.0, legLen: 8.2,  armLen: 6.8, helmH: 5.2 },
+  //               padW   torsoLen  torsoBotW  legLen  armLen  helmH   scale  bulk    (extra width on sides of pads)
+  HUGE:        { padW: 16.0, torsoLen: 9.8, torsoBotW: 6.0, legLen: 9.0,  armLen: 7.8, helmH: 5.9, scale: 1.10, bulk: 1.6 },  // mountain (NT, RT)
+  BIG:         { padW: 13.5, torsoLen: 9.0, torsoBotW: 4.8, legLen: 8.8,  armLen: 7.5, helmH: 5.7, scale: 1.05, bulk: 1.0 },
+  HEAVY_SHORT: { padW: 14.5, torsoLen: 7.8, torsoBotW: 5.5, legLen: 7.5,  armLen: 7.0, helmH: 5.6, scale: 1.04, bulk: 1.4 },  // squat guard
+  TALL_HEAVY:  { padW: 14.0, torsoLen: 10.2,torsoBotW: 5.2, legLen: 10.0, armLen: 8.2, helmH: 5.7, scale: 1.08, bulk: 1.2 },  // tall + thick (LT, DE)
+  BROAD:       { padW: 11.8, torsoLen: 8.5, torsoBotW: 4.0, legLen: 9.0,  armLen: 7.5, helmH: 5.5, scale: 1.0,  bulk: 0.8 },
+  NORMAL:      { padW: 10.0, torsoLen: 8.5, torsoBotW: 3.5, legLen: 9.0,  armLen: 7.5, helmH: 5.5, scale: 1.0,  bulk: 0.5 },
+  LEAN:        { padW: 9.0,  torsoLen: 9.5, torsoBotW: 2.6, legLen: 10.2, armLen: 8.4, helmH: 5.3, scale: 1.0,  bulk: 0.2 },
+  COMPACT:     { padW: 8.8,  torsoLen: 7.5, torsoBotW: 3.0, legLen: 8.2,  armLen: 6.8, helmH: 5.2, scale: 0.95, bulk: 0.4 },
 };
+const LINE_BODY_POOL = ["HUGE", "BIG", "HEAVY_SHORT", "TALL_HEAVY", "BIG", "TALL_HEAVY"];
 function pickBodyType(pos, archetype) {
-  if (pos === "OL" || pos === "DL") return "BIG";
+  if (pos === "OL" || pos === "DL") {
+    // Linemen come in different sizes — pick from a pool so a line is visually varied.
+    // Archetype tilts toward specific looks: POWER → HUGE, SPEED → TALL_HEAVY/BIG, etc.
+    if (pos === "DL") {
+      if (archetype === "POWER")      return Math.random() < 0.55 ? "HUGE" : "BIG";
+      if (archetype === "SPEED")      return Math.random() < 0.55 ? "TALL_HEAVY" : "BIG";
+      if (archetype === "PENETRATOR") return Math.random() < 0.50 ? "BIG" : "TALL_HEAVY";
+      if (archetype === "TWEENER")    return "BIG";
+      return Math.random() < 0.45 ? "TALL_HEAVY" : "BIG";
+    }
+    // OL
+    if (archetype === "ANCHOR")    return Math.random() < 0.55 ? "HUGE" : "HEAVY_SHORT";
+    if (archetype === "MAULER")    return Math.random() < 0.55 ? "HUGE" : "BIG";
+    if (archetype === "ATHLETIC")  return Math.random() < 0.6  ? "TALL_HEAVY" : "BIG";
+    if (archetype === "PLUG")      return Math.random() < 0.65 ? "HEAVY_SHORT" : "HUGE";
+    if (archetype === "TECHNICIAN")return Math.random() < 0.55 ? "BIG" : "TALL_HEAVY";
+    return LINE_BODY_POOL[Math.floor(Math.random() * LINE_BODY_POOL.length)];
+  }
   if (pos === "RB") {
     if (archetype === "POWER") return "BIG";
     if (archetype === "ELUSIVE") return "COMPACT";
@@ -2331,9 +2353,9 @@ function pickBodyType(pos, archetype) {
     if (archetype === "DEEP_THREAT" || archetype === "POSSESSION" || archetype === "ROUTE_RUNNER") return "LEAN";
     if (archetype === "RED_ZONE") return "BROAD";
     if (archetype === "SLOT") return "COMPACT";
-    return Math.random() < 0.7 ? "LEAN" : "NORMAL";   // most WRs are lanky, occasional normal
+    return Math.random() < 0.7 ? "LEAN" : "NORMAL";
   }
-  if (pos === "TE") return archetype === "RECEIVING" ? "BROAD" : "BIG";
+  if (pos === "TE") return archetype === "RECEIVING" ? "BROAD" : Math.random() < 0.5 ? "TALL_HEAVY" : "BIG";
   if (pos === "LB") return archetype === "THUMPER" ? "BIG" : "BROAD";
   if (pos === "CB") {
     if (archetype === "SHUTDOWN") return "LEAN";
@@ -2356,6 +2378,19 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   if ((pose === "idle") && (style.role === "OL" || style.role === "DL")) pose = "stance";
   const rs = RUN_STYLES[runStyle] || RUN_STYLES.smooth;
   const bt = BODY_TYPES[style.bodyType] || BODY_TYPES.NORMAL;
+
+  // Shade helpers — multiply RGB by factor to get a darker / lighter variant
+  // for shading the body parts. Falls back to the input on parse error.
+  const tweakColor = (c, factor) => {
+    if (!c || c[0] !== "#" || c.length !== 7) return c;
+    const r = Math.min(255, Math.max(0, Math.round(parseInt(c.slice(1,3),16) * factor)));
+    const g = Math.min(255, Math.max(0, Math.round(parseInt(c.slice(3,5),16) * factor)));
+    const b = Math.min(255, Math.max(0, Math.round(parseInt(c.slice(5,7),16) * factor)));
+    return `rgb(${r},${g},${b})`;
+  };
+  const shadeDark  = tweakColor(color, 0.62);
+  const shadeMid   = tweakColor(color, 0.85);
+  const shadeLight = tweakColor(color, 1.18);
 
   const headR = 4.2;
   const helmH = bt.helmH;
@@ -2532,20 +2567,20 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   ctx.translate(x, y + bodyDY);
   if (bodyTilt !== 0) ctx.rotate(bodyTilt);
   if (bodyRot !== 0) ctx.rotate(bodyRot);
+  if (bt.scale && bt.scale !== 1.0) ctx.scale(bt.scale, bt.scale);
   ctx.lineCap = "round";
 
-  // Drop shadow
-  ctx.fillStyle = "rgba(0,0,0,0.35)";
+  // Drop shadow — bigger for bulkier players
+  ctx.fillStyle = "rgba(0,0,0,0.40)";
   ctx.beginPath();
-  ctx.ellipse(0, headR + torsoLen + legLen - 1, 7.5, 2.2, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, headR + torsoLen + legLen - 1, 7.5 + bt.bulk * 0.8, 2.4, 0, 0, Math.PI * 2);
   ctx.fill();
 
   const shoulderY = -headR + 1;
   const hipY = shoulderY + torsoLen;
 
-  // ── Legs with knee bend + foot lift ─────────────────────
-  ctx.strokeStyle = "#f1f1f1";
-  ctx.lineWidth = 3.0;
+  // ── Legs with knee bend + foot lift (thicker w/ shaded edge) ──
+  const legW = 3.4 + bt.bulk * 0.4;
   const drawLeg = (side, angle, lift) => {
     const a = angle * facing;
     const sx = side * 1.6;
@@ -2561,6 +2596,17 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     const lowerA = a + facing * bend * (a >= 0 ? 1 : -1);
     const footX = kneeX + Math.sin(lowerA) * lowerLen;
     const footY = kneeY + Math.cos(lowerA) * lowerLen - lift * 0.35;
+    // Shadow base
+    ctx.strokeStyle = "#c0c0c0";
+    ctx.lineWidth = legW;
+    ctx.beginPath();
+    ctx.moveTo(sx + 0.3, hipY + 0.3);
+    ctx.lineTo(kneeX + 0.2, kneeY + 0.3);
+    ctx.lineTo(footX + 0.2, footY + 0.3);
+    ctx.stroke();
+    // Main leg (white pants)
+    ctx.strokeStyle = "#f1f1f1";
+    ctx.lineWidth = legW - 0.6;
     ctx.beginPath();
     ctx.moveTo(sx, hipY);
     ctx.lineTo(kneeX, kneeY);
@@ -2569,28 +2615,49 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     // Cleat (only show when grounded; when lifted, foot is angled)
     ctx.fillStyle = "#0a0a14";
     ctx.beginPath();
-    ctx.ellipse(footX, footY + 0.5, 2.4, 1.3, 0, 0, Math.PI * 2);
+    ctx.ellipse(footX, footY + 0.5, 2.6, 1.4, 0, 0, Math.PI * 2);
     ctx.fill();
   };
   drawLeg(-1, lLeg, lLegLift);
   drawLeg(1, rLeg, rLegLift);
 
-  // ── Shoulder pads ───────────────────────────────────────
-  ctx.fillStyle = color;
+  // ── Shoulder pads (trapezoid w/ top→bottom shading + neckline) ──
+  const padTopY = shoulderY - 1.5;
+  const padBotY = shoulderY + 2;
+  const padGrad = ctx.createLinearGradient(0, padTopY, 0, padBotY);
+  padGrad.addColorStop(0,    shadeLight);
+  padGrad.addColorStop(0.45, color);
+  padGrad.addColorStop(1,    shadeDark);
+  ctx.fillStyle = padGrad;
   ctx.strokeStyle = secondary || "#fff";
   ctx.lineWidth = 1.2;
   ctx.beginPath();
-  ctx.moveTo(-padW/2, shoulderY - 1.5);
-  ctx.lineTo(padW/2,  shoulderY - 1.5);
-  ctx.lineTo(padW/2 - 0.8, shoulderY + 2);
-  ctx.lineTo(-padW/2 + 0.8, shoulderY + 2);
+  ctx.moveTo(-padW/2, padTopY);
+  ctx.lineTo(padW/2,  padTopY);
+  ctx.lineTo(padW/2 - 0.8, padBotY);
+  ctx.lineTo(-padW/2 + 0.8, padBotY);
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
+  // Pad lip — dark shadow line under the pad lip
+  ctx.strokeStyle = shadeDark;
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.moveTo(-padW/2 + 0.2, padBotY - 0.3);
+  ctx.lineTo(padW/2 - 0.2,  padBotY - 0.3);
+  ctx.stroke();
 
-  // ── Torso (tapers toward waist — body type controls how dramatic the taper is)
+  // ── Torso — left→right gradient gives a barrel-chested 3D feel ──
   const torsoTopW = padW/2 - 0.8;
   const torsoBotW = bt.torsoBotW;
+  const torsoGradH = ctx.createLinearGradient(-torsoTopW, 0, torsoTopW, 0);
+  torsoGradH.addColorStop(0,    shadeDark);
+  torsoGradH.addColorStop(0.35, color);
+  torsoGradH.addColorStop(0.65, color);
+  torsoGradH.addColorStop(1,    shadeMid);
+  ctx.fillStyle = torsoGradH;
+  ctx.strokeStyle = secondary || "#fff";
+  ctx.lineWidth = 1.2;
   ctx.beginPath();
   ctx.moveTo(-torsoTopW, shoulderY + 2);
   ctx.lineTo(torsoTopW,  shoulderY + 2);
@@ -2598,6 +2665,13 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   ctx.lineTo(-torsoBotW, hipY);
   ctx.closePath();
   ctx.fill();
+  ctx.stroke();
+  // Subtle chest highlight
+  ctx.strokeStyle = `rgba(255,255,255,0.18)`;
+  ctx.lineWidth = 0.7;
+  ctx.beginPath();
+  ctx.moveTo(-torsoTopW * 0.35, shoulderY + 3.2);
+  ctx.lineTo(-torsoBotW * 0.35, hipY - 1);
   ctx.stroke();
 
   if (label && /^\d{1,2}$/.test(label)) {
@@ -2608,9 +2682,8 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     ctx.fillText(label, 0, shoulderY + torsoLen * 0.55);
   }
 
-  // ── Arms ────────────────────────────────────────────────
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2.6;
+  // ── Arms (thicker shadow base + lit top stroke for a 3D look) ──
+  const armW = 3.2 + bt.bulk * 0.6;
   const drawArm = (side, angle, holdsBall) => {
     const a = angle * facing;
     const sx = side * (padW/2 - 0.5);
@@ -2621,6 +2694,17 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     const lowerA = a - facing * 0.35 * Math.sign(Math.cos(a));
     const handX = elbowX + Math.sin(lowerA) * lower;
     const handY = elbowY + Math.cos(lowerA) * lower + armReachY * 0.6;
+    // Shadow base (slightly offset)
+    ctx.strokeStyle = shadeDark;
+    ctx.lineWidth = armW;
+    ctx.beginPath();
+    ctx.moveTo(sx + 0.3, shoulderY + 0.3);
+    ctx.lineTo(elbowX + 0.2, elbowY + 0.3);
+    ctx.lineTo(handX + 0.2, handY + 0.3);
+    ctx.stroke();
+    // Main arm
+    ctx.strokeStyle = color;
+    ctx.lineWidth = armW - 0.5;
     ctx.beginPath();
     ctx.moveTo(sx, shoulderY);
     ctx.lineTo(elbowX, elbowY);
@@ -2655,14 +2739,27 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     ctx.fill();
   }
 
-  // ── Helmet ──────────────────────────────────────────────
+  // ── Helmet (radial gradient for 3D dome feel) ──────────
   const helmY = shoulderY - helmH - 0.5;
-  ctx.fillStyle = color;
+  const helmRx = headR + 1.2;
+  // Off-center radial gradient (highlight on the top-front quadrant)
+  const helmGrad = ctx.createRadialGradient(facing * 1.5, helmY - helmH * 0.4, 0.5,
+                                            0, helmY, helmRx + 1);
+  helmGrad.addColorStop(0,    shadeLight);
+  helmGrad.addColorStop(0.45, color);
+  helmGrad.addColorStop(1,    shadeDark);
+  ctx.fillStyle = helmGrad;
   ctx.strokeStyle = secondary || "#fff";
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.ellipse(0, helmY, headR + 1.2, helmH, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, helmY, helmRx, helmH, 0, 0, Math.PI * 2);
   ctx.fill();
+  ctx.stroke();
+  // Helmet rim shadow — dark crescent on the bottom
+  ctx.strokeStyle = "rgba(0,0,0,0.35)";
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.ellipse(0, helmY + 0.7, helmRx - 0.3, helmH - 0.3, 0, 0.15, Math.PI - 0.15);
   ctx.stroke();
   ctx.strokeStyle = secondary || "#fff";
   ctx.lineWidth = 1.1;
