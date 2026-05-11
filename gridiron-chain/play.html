@@ -3007,12 +3007,13 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   ctx.beginPath();
   ctx.ellipse(0, helmY + 0.6, helmRx - 0.3, helmRy - 0.4, 0, 0.18, Math.PI - 0.18);
   ctx.stroke();
-  // Center stripe — secondary-color band over the top
+  // Center stripe — NFL-style mohawk that runs front-to-back across the TOP of
+  // the helmet. From a side view it reads as a thin arc tracing the upper crown.
   ctx.strokeStyle = secondary || "#fff";
-  ctx.lineWidth = 1.7;
+  ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.moveTo(0, helmY - helmRy * 0.97);
-  ctx.lineTo(0, helmY + helmRy * 0.35);
+  ctx.ellipse(0, helmY, helmRx * 0.92, helmRy * 0.92, 0,
+              Math.PI * 1.18, Math.PI * 1.82);
   ctx.stroke();
   // Top-front highlight — bright reflection on the upper-front dome
   ctx.strokeStyle = "rgba(255,255,255,0.45)";
