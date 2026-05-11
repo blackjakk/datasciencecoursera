@@ -1742,6 +1742,27 @@ class GameSimulator {
           else if (r < 0.92) yac = rand(2, Math.max(4, Math.floor(airYds * 0.8)) + 3);
           else                yac = rand(5, 18) + Math.floor(airYds * 0.6); // big YAC run
         }
+        // RARE WR JUKE — elite-handed, agile receivers occasionally catch and
+        // immediately put a move on the closest defender for a phat YAC chunk.
+        // Requires CAT >= 80 AND AGI >= 80; both at 90+ triggers more often.
+        let wrJuke = false;
+        const rcvrP = this._playerByName.get(rcvr);
+        if (rcvrP && airYds >= 3 && airYds <= 30) {
+          const rcat = rcvrP.stats?.[5] ?? 60;
+          const ragi = rcvrP.stats?.[2] ?? 60;
+          if (rcat >= 80 && ragi >= 80) {
+            const eliteFactor = Math.max(0, ((rcat + ragi) / 2 - 80) / 19);   // 0 at 80, 1 at 99
+            const archMul = rcvrP.archetype === "SLOT" ? 1.5
+                          : rcvrP.archetype === "ROUTE_RUNNER" ? 1.2
+                          : rcvrP.archetype === "POSSESSION" ? 0.6
+                          : 1.0;
+            const wrJukeChance = clamp(0.04 + eliteFactor * 0.10, 0, 0.18) * archMul;
+            if (Math.random() < wrJukeChance) {
+              wrJuke = true;
+              yac += rand(6, 16);   // post-catch chunk
+            }
+          }
+        }
         const targetDepth = Math.max(1, Math.round(airYds));
         // Cap at distance to end zone so a 3-yd goal-line catch doesn't get reported as a 25-yd TD
         const yards = Math.min(clamp(targetDepth + yac, -2, 95), 100 - startYard);
@@ -1774,7 +1795,7 @@ class GameSimulator {
         this._lastBallCarrier = rcvr; this._lastBallType = "pass";
         // Tackle credit on the catch — DBs / LBs make most tackles in the open field
         const tacklerName = yards > 0 ? this._creditDefStat("tkl", { LB: 0.35, S: 0.30, CB: 0.25, DL: 0.10 }) : null;
-        this._pushVisual({ kind: "complete", desc: `${this.offR.starters.qb} → ${rcvr} for ${yards} yds`, startYard, targetDepth, catchDepth: targetDepth, yac, yards, endYard: clamp(startYard + yards, 0, 100), receiver: rcvr, passer: this.offR.starters.qb, tackler: tacklerName, throwType, isPlayAction });
+        this._pushVisual({ kind: "complete", desc: wrJuke ? `${this.offR.starters.qb} → ${rcvr} for ${yards} yds (CATCH AND JUKE!)` : `${this.offR.starters.qb} → ${rcvr} for ${yards} yds`, startYard, targetDepth, catchDepth: targetDepth, yac, yards, endYard: clamp(startYard + yards, 0, 100), receiver: rcvr, passer: this.offR.starters.qb, tackler: tacklerName, throwType, isPlayAction, wrJuke });
         return { yards };
       }
       const targetDepth = clamp(normal(13, 8), 3, 45);
@@ -4802,11 +4823,24 @@ function buildAnimForPlay(play, prevPlay) {
       const wrIntPose = play.kind === "int" && t > throwPhase + 0.02
         ? (t > 0.92 ? "tackled" : "run")
         : null;
+      // RARE WR JUKE — when play.wrJuke is set, the receiver makes a move on the
+      // closest defender immediately after the catch. ~0.16-0.32 of total play.
+      const isWRJuke = !!play.wrJuke;
+      const inWRJukeWindow = isWRJuke && t > throwPhase + 0.04 && t < throwPhase + 0.22;
+      // Lateral cut during the juke (then drift back to original path)
+      const wrJukeLateral = inWRJukeWindow
+        ? ((targetY < cy ? -1 : 1) * Math.sin(((t - throwPhase - 0.04) / 0.18) * Math.PI) * 26)
+        : 0;
+      if (inWRJukeWindow) {
+        wr.y += wrJukeLateral;
+        ballY += wrJukeLateral;
+      }
       const wrPose = wrIntPose
-        || (isCatching ? "reach"
+        || (inWRJukeWindow ? "juke"
+        :  (isCatching ? "reach"
         :  (isPostCatch && t > 0.93 && (play.yards ?? 0) < 90 ? "tackled"
         :  (isPostCatch ? "carry"
-        :   "run")));
+        :   "run"))));
       const wrWithPose = { ...wr,
         pose: wrPose,
         t: (t * 3) % 1,
@@ -4873,6 +4907,22 @@ function buildAnimForPlay(play, prevPlay) {
         ctx.strokeStyle = "rgba(0,0,0,0.85)";
         ctx.strokeText(lbl, lblX, lblY);
         ctx.fillStyle = play.throwType === "ZIP" ? "#ffb060" : "#9be09b";
+        ctx.fillText(lbl, lblX, lblY);
+        ctx.restore();
+      }
+      // WR juke callout — fires during the juke window with a big yellow flash
+      if (play.wrJuke && t > throwPhase + 0.02 && t < throwPhase + 0.30) {
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.font = "900 26px sans-serif";
+        const lbl = "🔥 CATCH & JUKE!";
+        const lblX = (wr.x + (qb.x + dir * 60)) / 2;
+        const lblY = wr.y - 26;
+        ctx.lineWidth = 3.5;
+        ctx.strokeStyle = "rgba(0,0,0,0.85)";
+        ctx.strokeText(lbl, lblX, lblY);
+        ctx.fillStyle = "#f0cc30";
         ctx.fillText(lbl, lblX, lblY);
         ctx.restore();
       }
