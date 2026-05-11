@@ -4745,26 +4745,26 @@ function buildAnimForPlay(play, prevPlay) {
   // in the first 30% of the play. Now the carrier hangs near the LOS for the early
   // mesh/read frames before exploding through the hole.
   function runPacing(runT) {
-    const meshEnd = 0.14;     // QB-RB exchange + first step
-    const readEnd = 0.30;     // reading the blocks, building speed
-    const cruiseEnd = 0.92;   // sustained running through the play
+    const meshEnd = 0.10;     // QB-RB exchange + first step
+    const readEnd = 0.22;     // reading the blocks, building speed
+    const cruiseEnd = 0.72;   // RB reaches the tackle spot; rest is ragdoll
     const meshDist  = 0.04;
     const readDist  = 0.14;
     const cruiseDist = 1.0;
     if (runT < meshEnd) {
       const t = runT / meshEnd;
-      return t * meshDist;            // very slow first step
+      return t * meshDist;
     }
     if (runT < readEnd) {
       const t = (runT - meshEnd) / (readEnd - meshEnd);
-      const eased = t * t;            // ease-in: builds speed
+      const eased = t * t;
       return meshDist + (readDist - meshDist) * eased;
     }
     if (runT < cruiseEnd) {
       const t = (runT - readEnd) / (cruiseEnd - readEnd);
-      return readDist + (cruiseDist - readDist) * t;  // linear cruise
+      return readDist + (cruiseDist - readDist) * t;
     }
-    return cruiseDist;                // tackle hold
+    return cruiseDist;                // RB has stopped; tackle / ragdoll
   }
 
   // Pre-snap callouts: only AUDIBLE (when relevant) + the "BALL SNAPPED!"
@@ -4815,7 +4815,11 @@ function buildAnimForPlay(play, prevPlay) {
     const endX = yardToAbsX(play.endYard, poss);
     const yards = play.yards ?? 0;
     const isTD = (play.endYard ?? 0) >= 100;
-    const actionDur = scaledDuration(yards);
+    // Extra time at the end for the tackle ragdoll — no point ending the play
+    // the instant the carrier is touched. Skip ragdoll time on TDs (they get a
+    // celebration overlay instead).
+    const RUN_TACKLE_MS = isTD ? 0 : 1000;
+    const actionDur = scaledDuration(yards) + RUN_TACKLE_MS;
     const dur = actionDur + PRE_MS;
     PRE = PRE_MS / dur;
     return { duration: dur, kind: "run", render: (t, c) => {
@@ -4914,15 +4918,16 @@ function buildAnimForPlay(play, prevPlay) {
       const eluciveProb = bt > 0 ? 1.0 : (rbArch === "ELUSIVE" ? 0.95 : rbArch === "SPEED" ? 0.65 : 0.55);
       const powerProb   = bt > 0 ? 1.0 : (rbArch === "POWER"   ? 0.90 : rbArch === "WORKHORSE" ? 0.55 : 0.35);
       const inWindow = (a, b) => runT > a && runT < b;
-      if (runT > 0.86 && yards < 90 && !isTD) {
+      // Tackle window — start at runT 0.72 (~28% of action devoted to tackle
+      // + ragdoll roll-around) so the play doesn't end the instant the
+      // carrier is touched.
+      if (runT > 0.72 && yards < 90 && !isTD) {
         rbPose = "tackled";
-        // Pass fall progress as t (0 just hit → 1 fully on ground)
-        rbT = Math.min(1, (runT - 0.86) / 0.14);
+        rbT = Math.min(1, (runT - 0.72) / 0.28);
       }
       // EARLY CRUISE: ELUSIVE → juke; POWER → truck stick at/just past the line.
-      // Moved later (0.34+) to match the new pacing — moves now happen AFTER the
-      // RB has hit the hole, not during the handoff.
-      else if (yards >= 2 && inWindow(0.34, 0.52)) {
+      // Moves happen during cruise (0.22 - 0.72) since tackle now starts at 0.72.
+      else if (yards >= 2 && inWindow(0.28, 0.44)) {
         const wantsJuke = rbArch === "ELUSIVE" || rbArch === "RECEIVING" || (rbArch !== "POWER" && seedA < 0.55);
         const wantsTruck = rbArch === "POWER" && seedA < powerProb;
         if (wantsTruck) {
@@ -4939,17 +4944,17 @@ function buildAnimForPlay(play, prevPlay) {
         }
       }
       // MID CRUISE: spin (ELUSIVE/WORKHORSE) on plays ≥ 5 yds
-      else if (yards >= 5 && inWindow(0.52, 0.70) && (rbArch === "ELUSIVE" || rbArch === "WORKHORSE" || seedB < 0.4)) {
+      else if (yards >= 5 && inWindow(0.44, 0.58) && (rbArch === "ELUSIVE" || rbArch === "WORKHORSE" || seedB < 0.4)) {
         rbPose = "spin";
-        rbT = (runT - 0.52) / 0.18;
+        rbT = (runT - 0.44) / 0.14;
         const cutDir = seedB < 0.5 ? 1 : -1;
-        const within = (runT - 0.52) / 0.18;
+        const within = (runT - 0.44) / 0.14;
         rbLateral = cutDir * Math.sin(within * Math.PI) * 14;
         dodgeIdx = 6;
         moveCallout = "SPIN!";
       }
       // LATE CRUISE: stiff arm / hurdle on plays ≥ 6 yds
-      else if (yards >= 6 && inWindow(0.66, 0.82)) {
+      else if (yards >= 6 && inWindow(0.55, 0.70)) {
         if ((rbArch === "POWER" || rbArch === "WORKHORSE") && seedB > 0.55) {
           rbPose = "hurdle";
           dodgeIdx = 9;
@@ -5026,10 +5031,10 @@ function buildAnimForPlay(play, prevPlay) {
           dd.t = (t * 3 + i * 0.13) % 1;
         }
         dd.facing = -dir;
-        // Tackle pose only when actually within reach of the carrier
-        if (!isTrucked && yards < 90 && tt > 0.85 && Math.hypot(rb.x - dd.x, rb.y - dd.y) < 22) {
+        // Tackle pose — defenders ragdoll with the carrier starting at 0.72.
+        if (!isTrucked && yards < 90 && tt > 0.72 && Math.hypot(rb.x - dd.x, rb.y - dd.y) < 28) {
           dd.pose = "tackled";
-          dd.t = Math.min(1, (tt - 0.85) / 0.15);
+          dd.t = Math.min(1, (tt - 0.72) / 0.28);
         }
         return dd;
       });
@@ -5141,21 +5146,26 @@ function buildAnimForPlay(play, prevPlay) {
     const yac = isComplete ? (play.yac ?? Math.max(0, (play.yards ?? 0) - catchDepth)) : 0;
     // Final Y where YAC ends — receiver may drift back toward middle if running upfield
     const finalY = targetY + (cy - targetY) * Math.min(0.5, yac / 40);
-    // Pass plays — duration scales with the yards (including YAC)
+    // Pass plays — base duration covers drop + ball flight. Tack on POST_CATCH
+    // time for YAC + tackle + ragdoll so the play doesn't end the instant the
+    // receiver catches it.
     const passYards = (play.yards ?? 0) + ((play.targetDepth ?? 0) > (play.yards ?? 0) ? 0 : 0);
-    const actionDur = scaledDuration(Math.max(play.targetDepth ?? 0, play.yards ?? 0, 8));
+    const basePass  = scaledDuration(Math.max(play.targetDepth ?? 0, play.yards ?? 0, 8));
+    const POST_CATCH_MS = play.kind === "complete" ? 1700
+                        : play.kind === "int"      ? 1500
+                        : play.kind === "incomplete" ? 600
+                        : 1000;
+    const actionDur = basePass + POST_CATCH_MS;
     const dur = actionDur + PRE_MS;
     PRE = PRE_MS / dur;
     return { duration: dur, kind: play.kind, render: (t, c) => {
       ctx = c;
       drawField(ctx, homeTeam, awayTeam, fieldState);
-      // Screens release fast — short drop + quick throw
       // dropPhase / throwPhase are absolute t values within the full play.
-      // PRE_MS of pre-snap is already accounted for; these mark the END of
-      // the drop+cock window and the BALL-ARRIVES moment, both within the
-      // post-snap action portion.
-      const dropFrac  = isScreen ? 0.18 : 0.42;  // drop+cock ends X% into action
-      const throwFrac = isScreen ? 0.55 : 0.85;  // ball arrives at receiver
+      // The throwPhase now corresponds to the END of the pre-catch portion;
+      // remaining action time is YAC + tackle.
+      const dropFrac  = isScreen ? 0.30 : (basePass * 0.42) / actionDur;
+      const throwFrac = isScreen ? 0.78 : basePass / actionDur;
       const dropPhase  = PRE + (1 - PRE) * dropFrac;
       const throwPhase = PRE + (1 - PRE) * throwFrac;
       // ACTION-relative time — 0 at snap, 1 at end of play. Use this for any
@@ -5208,12 +5218,13 @@ function buildAnimForPlay(play, prevPlay) {
       // ZIP throws compress the throw window so the ball arrives faster
       const flightCurve = throwType === "ZIP" ? (x => x * x) : (x => x);
       // Action time and key moments (all 0-1 within action portion).
-      // These align with the QB pose timeline above so hands and ball match.
+      // These align with the QB pose timeline above — all scaled by throwFrac
+      // so hands and ball stay synced when the catch happens earlier in action.
       const at = Math.max(0, (t - PRE) / (1 - PRE));
-      const dropEndAT = 0.25;      // dropback ends here
-      const cockHoldAT = 0.55;     // ball reaches the ear, "held cocked"
-      const releaseAT = 0.62;      // ball leaves the hand
-      const throwEndAT = (throwPhase - PRE) / (1 - PRE);   // ball arrives at WR
+      const dropEndAT  = throwFrac * 0.29;   // dropback ends here
+      const cockHoldAT = throwFrac * 0.65;   // ball reaches the ear, "held cocked"
+      const releaseAT  = throwFrac * 0.73;   // ball leaves the hand
+      const throwEndAT = throwFrac;          // ball arrives at WR
       // Ball-in-hand positions
       const releaseX = qb.x + dir * 1.5;
       const releaseY = cy - 14;
@@ -5343,37 +5354,36 @@ function buildAnimForPlay(play, prevPlay) {
         return dd;
       });
 
-      // QB pose timeline — driven by ACTION t (post pre-snap):
-      //   pre-snap: stance (drawPlayer auto-flips idle → stance)
-      //   action 0 - 25%: running back (dropback)
-      //   action 25 - 55%: cradle → cock → hold at the cocked position
-      //   action 55 - 70%: release (ball leaves the hand) → mid follow-through
-      //   action 70%+: late follow-through, then idle
+      // QB pose timeline — scaled by throwFrac so the throw motion lines up with
+      // when the ball arrives. Sub-phases (in fractions of throwFrac):
+      //   0   - 0.29: dropback (run)
+      //   0.29 - 0.65: cradle → cock
+      //   0.65 - 0.73: hold at cocked ear (Tom Brady frame)
+      //   0.73 - 0.85: snap (release ~0.78)
+      //   0.85 - 1.00: follow-through
+      //   >throwFrac: idle / watching the play
       let qbPose, qbT;
       if (t < PRE) {
-        qbPose = "idle";        // auto-stance via drawPlayer
+        qbPose = "idle";
         qbT = 0;
       } else {
-        const at = (t - PRE) / (1 - PRE);   // 0-1 within action
-        if (at < 0.25) {
+        const at = (t - PRE) / (1 - PRE);
+        const tf = throwFrac;
+        if (at < tf * 0.29) {
           qbPose = "run";
           qbT = (t * 3 + 0.5) % 1;
-        } else if (at < 0.55) {
-          // Cradle → cock (throw pose internal t 0 → 0.42)
+        } else if (at < tf * 0.65) {
           qbPose = "throw";
-          qbT = (at - 0.25) / 0.30 * 0.42;
-        } else if (at < 0.62) {
-          // Hold at the COCKED position (ball at ear, loaded) — Tom Brady frame
+          qbT = (at - tf * 0.29) / (tf * 0.36) * 0.42;
+        } else if (at < tf * 0.73) {
           qbPose = "throw";
-          qbT = 0.42 + (at - 0.55) / 0.07 * 0.06;   // gentle creep, holds peak
-        } else if (at < 0.72) {
-          // Snap → release (throw t 0.48 → 0.62) — fast whip, ball releases at 0.55
+          qbT = 0.42 + (at - tf * 0.65) / (tf * 0.08) * 0.06;
+        } else if (at < tf * 0.85) {
           qbPose = "throw";
-          qbT = 0.48 + (at - 0.62) / 0.10 * 0.20;
-        } else if (at < 0.85) {
-          // Follow-through (throw t 0.62 → 0.95)
+          qbT = 0.48 + (at - tf * 0.73) / (tf * 0.12) * 0.20;
+        } else if (at < tf * 1.0) {
           qbPose = "throw";
-          qbT = 0.62 + (at - 0.72) / 0.13 * 0.33;
+          qbT = 0.62 + (at - tf * 0.85) / (tf * 0.15) * 0.33;
         } else {
           qbPose = "idle";
           qbT = 0;
@@ -5411,17 +5421,21 @@ function buildAnimForPlay(play, prevPlay) {
       if (isLeapMiss && inLeapWindow) {
         ballY -= 6 + Math.sin(leapInternalT * Math.PI) * 4;
       }
+      // Tackle window: after catch we let the carrier run YAC, then a few
+      // tenths in the defenders close in. Start of tackle = TackleFrac of
+      // action time; ragdoll plays out from there to the end.
+      const TACKLE_START_AT = 0.78;   // 22% of action time devoted to tackle+ragdoll
       const wrPose = wrIntPose
         || (inWRJukeWindow ? "juke"
         :  (inLeapWindow ? "leap"
         :  (isCatching ? "reach"
-        :  (isPostCatch && t > 0.93 && (play.yards ?? 0) < 90 ? "tackled"
+        :  (isPostCatch && aT > TACKLE_START_AT && (play.yards ?? 0) < 90 ? "tackled"
         :  (isPostCatch ? "carry"
         :   "run")))));
       // For the tackled fall, pass fall-progress (not stride cycle) so the
-      // ragdoll animation actually animates.
+      // ragdoll animation actually animates from "just hit" → "flat".
       const wrIsTackled = wrPose === "tackled";
-      const wrTackleT = wrIsTackled ? Math.min(1, (t - 0.93) / 0.07)
+      const wrTackleT = wrIsTackled ? Math.min(1, (aT - TACKLE_START_AT) / (1 - TACKLE_START_AT))
                        : inLeapWindow ? leapInternalT
                        : (t * 3) % 1;
       const wrWithPose = { ...wr,
