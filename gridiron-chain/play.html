@@ -681,7 +681,8 @@ const PLAYBOOKS = {
     // tax in sack volume from extra dropbacks and a weaker run game.
     airYdsMean: 7.5, airYdsSd: 7,
     rushYdsMean: 4.0, rushYdsSd: 5,
-    compMul: 1.01, sackMul: 1.15,
+    // sackMul bumped (1.15 → 1.32) — defense knows pass is coming, pins ears back
+    compMul: 1.01, sackMul: 1.32,
   },
   GROUND_AND_POUND: {
     id: "GROUND_AND_POUND", name: "Ground & Pound", badge: "G&P",
@@ -1559,7 +1560,10 @@ class GameSimulator {
       const scramblePct = (pb.qbScramblePct || 0) + qbScrambleBonus;
       if (scramblePct > 0 && Math.random() < scramblePct) {
         // Mobile QB scramble — modest gain when coverage is locked
-        let yards = clamp(normal(6 + adv * 1.5 + Math.max(0, pressure) * 0.6, 7.5), -4, 55);
+        // Scramble yardage softened — elite LBs/safeties don't let QBs walk for 8 yds every time.
+        // Subtracts a small amount based on linebacker tackling rating.
+        const lbTk = (this.defR.lb - 65) / 25;   // 0 at avg LB, +1.2 at elite
+        let yards = clamp(normal(4 + adv * 1.5 + Math.max(0, pressure) * 0.6 - lbTk, 6.5), -4, 50);
         if (yards > 0) yards = Math.min(yards, 100 - startYard);
         if (qbStats) {
           qbStats.rush_att = (qbStats.rush_att || 0) + 1;
@@ -1583,7 +1587,16 @@ class GameSimulator {
       // Pressured QBs throw more INTs (rushed/forced throws). QB archetype tilts this too.
       // Bad QBs (low OVR) make poor reads → significantly more INTs.
       const qbIntFromOvr = (75 - this.offR.qb) / 800;  // QB 60 → +0.019, QB 90 → -0.019
-      const intPct = clamp(0.022 - adv * 0.010 + (this.defR.cb - 60) / 1200 + pressure * 0.018 + ballHawkBonus + qbIntMod + qbIntFromOvr, 0.003, 0.16);
+      // Defensive backs matter more now — elite secondary actually disrupts passes.
+      // Specific covering CB contributes; safety help adds on top.
+      let defIntMod = (this.defR.cb - 65) / 700;        // CB 95 → +0.043; CB 50 → -0.021
+      const safIntNames = [this.defR.starters.fs, this.defR.starters.ss];
+      const safIntPlayers = safIntNames.map(n => this._playerByName?.get?.(n)).filter(Boolean);
+      if (safIntPlayers.length) {
+        const avgSafCov = safIntPlayers.reduce((s,p) => s + (p.stats?.[8] || 65), 0) / safIntPlayers.length;
+        defIntMod += (avgSafCov - 65) / 1100;            // up to ~+0.027 from elite safety duo
+      }
+      const intPct = clamp(0.022 - adv * 0.010 + defIntMod + pressure * 0.022 + ballHawkBonus + qbIntMod + qbIntFromOvr, 0.003, 0.20);
       if (Math.random() < intPct) {
         const targetDepth = clamp(normal(11, 7), 2, 35);
         if (qbStats) { qbStats.pass_att++; qbStats.pass_int++; }
@@ -1604,7 +1617,9 @@ class GameSimulator {
         // (it's an off-platform throw), but no sack loss. POCKET QBs never roll.
         const torSkill = clamp((qbAgi + qbThr - 130) / 100, 0, 1);  // 0-1
         const archMul = qbArch === "DUAL_THREAT" ? 1.4 : qbArch === "POCKET" ? 0.1 : qbArch === "GUNSLINGER" ? 0.9 : 1.0;
-        const torChance = clamp(torSkill * 0.35 * archMul, 0, 0.45);
+        // Was 0.35 * archMul (up to 0.45) — let mobile QBs escape too easily.
+        // Now most pressure plays still end in a sack even for DT QBs.
+        const torChance = clamp(torSkill * 0.22 * archMul, 0, 0.30);
         if (Math.random() < torChance) {
           // Roll the TOR completion check — meaningfully worse than a pocket throw
           const torComp = clamp(0.40 + (qbAgi - 60) / 200 + (qbThr - 70) / 220 - pressure * 0.05, 0.18, 0.72);
