@@ -2182,6 +2182,15 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
       lArm = -0.3;
       rArm = 0.4;
       break;
+    case "truck":
+      // Truck stick — shoulder lowered, body driving forward, knees high
+      bodyTilt = facing * 0.45;
+      bodyDY = 1.5;
+      lArm = -0.7;          // off arm cocked back
+      rArm = -1.0;           // lead arm/shoulder driving forward
+      lLeg = Math.abs(Math.sin(t * Math.PI * 4)) * 0.7;
+      rLeg = -Math.abs(Math.sin(t * Math.PI * 4 + Math.PI)) * 0.7;
+      break;
     case "tackled":
       bodyRot = -Math.PI / 2 * facing;
       lArm = -1.1; rArm = 1.1;
@@ -4078,41 +4087,61 @@ function buildAnimForPlay(play, prevPlay) {
         rb.y = cy + (1 - runT) * 18;
       }
       // (rbLateral added after pose decision below)
-      // Carrier pose & move signature — drives juke/spin/hurdle/stiff visibly
-      // Each move triggers a lateral side-step AND makes the nearest defender
-      // briefly overshoot, so the play LOOKS like a broken tackle.
+      // Carrier pose & move signature — drives juke/spin/hurdle/stiff/truck visibly.
+      // Each move triggers a lateral side-step (or shoulder lower) AND makes the
+      // nearest defender briefly overshoot, so the play LOOKS like a broken tackle.
       let rbPose = t < PRE ? "idle" : "carry";
       let rbT = (t * 3) % 1;
-      let rbLateral = 0;     // extra Y offset on the carrier during a move
-      let dodgeIdx = -1;     // index of the defender who gets juked
+      let rbLateral = 0;
+      let dodgeIdx = -1;
+      let moveCallout = null;   // "JUKE!" / "STIFF ARM!" / "TRUCK!" / "SPIN!" / "HURDLE!"
       const rbArch = formation.rb.archetype;
-      const moveSeed = ((play.startYard * 17 + (play.yards || 0) * 53) >>> 0) % 100 / 100;
-      // Probability of executing each move based on archetype
-      const eluciveProb = rbArch === "ELUSIVE" ? 0.85 : rbArch === "SPEED" ? 0.45 : 0.30;
-      const powerProb   = rbArch === "POWER"   ? 0.70 : 0.20;
-      // Time windows in the play for each move
+      // Use two independent seeds so we can roll two moves per play
+      const seedA = ((play.startYard * 17 + (play.yards || 0) * 53) >>> 0) % 100 / 100;
+      const seedB = ((play.startYard * 41 + (play.yards || 0) * 29 + 7) >>> 0) % 100 / 100;
+      // Most plays should now display a move so the user actually sees them
+      const eluciveProb = rbArch === "ELUSIVE" ? 0.95 : rbArch === "SPEED" ? 0.65 : 0.55;
+      const powerProb   = rbArch === "POWER"   ? 0.90 : rbArch === "WORKHORSE" ? 0.55 : 0.35;
       const inWindow = (a, b) => runT > a && runT < b;
       if (runT > 0.86 && yards < 90 && !isTD) rbPose = "tackled";
-      // ELUSIVE: juke (early) → spin (mid). Both make lateral cuts.
-      else if (yards >= 4 && inWindow(0.18, 0.32) && moveSeed < eluciveProb) {
-        rbPose = "juke";
-        const cutDir = moveSeed < eluciveProb / 2 ? 1 : -1;
-        const within = (runT - 0.18) / 0.14;
-        rbLateral = cutDir * Math.sin(within * Math.PI) * 16;  // sharp cut, return
-        dodgeIdx = 4;  // 1st LB
-      } else if (yards >= 7 && inWindow(0.40, 0.55) && moveSeed > 0.5 && (rbArch === "ELUSIVE" || rbArch === "WORKHORSE")) {
+      // EARLY: ELUSIVE → juke; POWER → truck stick at the line. ANY run >= 2 yds.
+      else if (yards >= 2 && inWindow(0.20, 0.42)) {
+        const wantsJuke = rbArch === "ELUSIVE" || rbArch === "RECEIVING" || (rbArch !== "POWER" && seedA < 0.55);
+        const wantsTruck = rbArch === "POWER" && seedA < powerProb;
+        if (wantsTruck) {
+          rbPose = "truck";
+          moveCallout = "TRUCK!";
+          dodgeIdx = 4;   // 1st LB gets bowled over
+        } else if (wantsJuke && seedA < eluciveProb) {
+          rbPose = "juke";
+          const cutDir = seedA < eluciveProb / 2 ? 1 : -1;
+          const within = (runT - 0.20) / 0.22;
+          rbLateral = cutDir * Math.sin(within * Math.PI) * 22;
+          dodgeIdx = 4;
+          moveCallout = "JUKE!";
+        }
+      }
+      // MID: spin (ELUSIVE/WORKHORSE) on plays ≥ 5 yds
+      else if (yards >= 5 && inWindow(0.42, 0.62) && (rbArch === "ELUSIVE" || rbArch === "WORKHORSE" || seedB < 0.4)) {
         rbPose = "spin";
-        rbT = (runT - 0.40) / 0.15;  // single spin during the window
-        dodgeIdx = 6;  // LB
+        rbT = (runT - 0.42) / 0.20;
+        const cutDir = seedB < 0.5 ? 1 : -1;
+        const within = (runT - 0.42) / 0.20;
+        rbLateral = cutDir * Math.sin(within * Math.PI) * 14;
+        dodgeIdx = 6;
+        moveCallout = "SPIN!";
       }
-      // POWER: stiff arm or hurdle (later in play)
-      else if (yards >= 6 && inWindow(0.45, 0.60) && moveSeed < powerProb) {
-        rbPose = "stiff";
-        dodgeIdx = 7;
-      }
-      else if (yards >= 8 && inWindow(0.60, 0.75) && moveSeed > 0.6 && (rbArch === "POWER" || rbArch === "WORKHORSE")) {
-        rbPose = "hurdle";
-        dodgeIdx = 9;  // safety
+      // LATE: stiff arm (default) or hurdle (POWER/WORKHORSE) on plays ≥ 6 yds
+      else if (yards >= 6 && inWindow(0.55, 0.74)) {
+        if ((rbArch === "POWER" || rbArch === "WORKHORSE") && seedB > 0.55) {
+          rbPose = "hurdle";
+          dodgeIdx = 9;
+          moveCallout = "HURDLE!";
+        } else {
+          rbPose = "stiff";
+          dodgeIdx = 7;
+          moveCallout = "STIFF ARM!";
+        }
       }
       rb.pose = rbPose; rb.t = rbT; rb.facing = dir;
       rb.y += rbLateral;
@@ -4193,6 +4222,22 @@ function buildAnimForPlay(play, prevPlay) {
       const off2 = off.map(p => p.role === "QB" ? { ...p, pose: t < PRE + 0.05 ? "throw" : "idle", t, facing: dir } : p);
       drawPlayers([...off2, rb], def);
       drawBall(ctx, ballX, ballY);
+      // Big bold callout for jukes / spins / trucks / stiff arms / hurdles
+      if (moveCallout) {
+        ctx.save();
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.font = "900 24px sans-serif";
+        const lblX = rb.x + dir * 16;
+        const lblY = rb.y - 22;
+        // Outline for legibility on any field background
+        ctx.lineWidth = 3.5;
+        ctx.strokeStyle = "rgba(0,0,0,0.85)";
+        ctx.strokeText(moveCallout, lblX, lblY);
+        ctx.fillStyle = "#f0cc30";
+        ctx.fillText(moveCallout, lblX, lblY);
+        ctx.restore();
+      }
       drawPreSnapCallouts(ctx, t);
     }};
   }
