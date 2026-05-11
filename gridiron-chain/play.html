@@ -2495,60 +2495,61 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     }
     case "stance": {
       // Role-specific pre-snap stances. Subtle bob/sway during pre-snap.
+      // Standing players plant their LEGS STRAIGHT DOWN so they look firm,
+      // not like they're tipping over — only crouched roles get a real lean.
       const sway = Math.sin(t * Math.PI * 0.8) * 0.4;
       const role = style.role || "";
       if (role === "OL" || role === "DL") {
         // 3-point stance — body crouched, lead hand on the ground
         bodyDY = 5;
-        bodyTilt = facing * 0.55;
+        bodyTilt = facing * 0.45;
         lArm = facing * Math.PI * 0.55;
         rArm = -0.4;
-        lLeg = 0.5;
-        rLeg = -0.4;
+        lLeg = 0.15;    // legs planted (small split)
+        rLeg = -0.15;
         drawGroundHand = true;
       } else if (role === "WR1" || role === "WR2") {
-        // WR press / sprint stance — forward lean, weight on front foot
-        bodyDY = 1 + sway;
-        bodyTilt = facing * 0.32;
-        lArm = -0.25; rArm = 0.25;
-        lLeg = 0.35; rLeg = -0.18;
-      } else if (role === "TE") {
-        // TE stance — 2-point upright, hands ready, slight crouch
-        bodyDY = 2;
-        bodyTilt = facing * 0.40;
+        // WR sprint stance — slight forward weight, but legs PLANTED firm
+        bodyDY = 0.5 + sway;
+        bodyTilt = facing * 0.08;
         lArm = -0.15; rArm = 0.15;
-        lLeg = 0.30; rLeg = -0.30;
-      } else if (role === "RB") {
-        // HB 2-point stance — deeper crouch, hands at knees
-        bodyDY = 2.5;
-        bodyTilt = facing * 0.30;
-        lArm = -0.35; rArm = 0.35;
-        lLeg = 0.35; rLeg = -0.35;
-      } else if (role === "QB") {
-        // QB shotgun stance — slightly bent, hands up to receive snap
-        bodyDY = 1;
-        bodyTilt = facing * 0.05;
-        lArm = -0.7;        // hands together at chest, palms out
-        rArm = -0.7;
-        lLeg = 0.15; rLeg = -0.15;
-      } else if (role === "LB") {
-        // LB read stance — slight crouch, hands at thighs, looking forward
-        bodyDY = 1.5 + sway;
-        bodyTilt = facing * 0.15;
-        lArm = 0.30; rArm = -0.30;
-        lLeg = 0.35; rLeg = -0.35;
-      } else if (role === "CB") {
-        // CB press / off coverage stance — backpedal-ready
-        bodyDY = 1 + sway;
-        bodyTilt = facing * 0.20;
-        lArm = -0.20; rArm = 0.20;
-        lLeg = 0.25; rLeg = -0.15;
-      } else if (role === "S") {
-        // Safety read stance — square shoulders, hands ready
-        bodyDY = 1 + sway;
+        lLeg = 0.05; rLeg = -0.05;
+      } else if (role === "TE") {
+        // TE 2-point — upright, small crouch
+        bodyDY = 1.5;
         bodyTilt = facing * 0.10;
+        lArm = -0.10; rArm = 0.10;
+        lLeg = 0.06; rLeg = -0.06;
+      } else if (role === "RB") {
+        // HB 2-point — slight crouch, hands at thighs, feet planted
+        bodyDY = 1.8;
+        bodyTilt = facing * 0.08;
         lArm = -0.25; rArm = 0.25;
-        lLeg = 0.30; rLeg = -0.30;
+        lLeg = 0.06; rLeg = -0.06;
+      } else if (role === "QB") {
+        // QB shotgun — upright, hands ready for the snap
+        bodyDY = 0.8;
+        bodyTilt = 0;
+        lArm = -0.7; rArm = -0.7;
+        lLeg = 0.04; rLeg = -0.04;
+      } else if (role === "LB") {
+        // LB read stance — small crouch, plants firmly
+        bodyDY = 1.2 + sway;
+        bodyTilt = facing * 0.05;
+        lArm = 0.20; rArm = -0.20;
+        lLeg = 0.06; rLeg = -0.06;
+      } else if (role === "CB") {
+        // CB press — backpedal-ready, weight balanced, no forward tip
+        bodyDY = 0.6 + sway;
+        bodyTilt = facing * 0.05;
+        lArm = -0.15; rArm = 0.15;
+        lLeg = 0.05; rLeg = -0.05;
+      } else if (role === "S") {
+        // Safety read stance — square shoulders, hands ready, planted
+        bodyDY = 0.8 + sway;
+        bodyTilt = facing * 0.05;
+        lArm = -0.20; rArm = 0.20;
+        lLeg = 0.05; rLeg = -0.05;
       } else {
         // Generic idle bob
         bodyDY = Math.sin(t * Math.PI * 1.5) * 0.4;
@@ -2804,15 +2805,16 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     }
   }
 
-  // ── Legs (filled capsules — thigh + shin + cleat + sock + pant stripe) ──
-  const thighW = 2.4 + bt.bulk * 0.6;
-  const shinW  = 2.0 + bt.bulk * 0.4;
-  const sockW  = 1.95 + bt.bulk * 0.38;
+  // ── Legs — chunky Lego-style blocks, NO feet, just color change for cleats ──
+  // Thick rectangular thighs/shins, single-piece per leg, with the bottom
+  // segment colored black to imply the cleat.
+  const thighW = 2.6 + bt.bulk * 0.55;
+  const shinW  = 2.4 + bt.bulk * 0.45;
   const drawLeg = (side, angle, lift) => {
     const a = angle * facing;
-    const sx = side * 1.6;
-    const upperLen = legLen * 0.55;
-    const lowerLen = legLen * 0.55;
+    const sx = side * 2.6;
+    const upperLen = legLen * 0.52;
+    const lowerLen = legLen * 0.52;
     const bending = pose === "run" || pose === "carry";
     const bendBase = bending ? rs.kneeBend * Math.abs(Math.sin(a)) : 0;
     const bend = bendBase + (lift / 7) * 0.8;
@@ -2822,31 +2824,23 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     const footX = kneeX + Math.sin(lowerA) * lowerLen;
     const footY = kneeY + Math.cos(lowerA) * lowerLen - lift * 0.35;
     // White pants (thigh)
-    drawSegment(sx, hipY, kneeX, kneeY, thighW, "#f1f1f1", "#a8a8a8", "#ffffff");
-    // Team-color pant stripe down the OUTSIDE of the thigh — a thinner segment
-    // offset toward the body's outer edge. side=-1 is left of player, side=+1 right.
-    const stripeDX = side * (thighW * 0.55);
-    drawSegment(sx + stripeDX * 0.4, hipY + 0.5, kneeX + stripeDX * 0.4, kneeY,
+    drawSegment(sx, hipY, kneeX, kneeY, thighW, "#f1f1f1", "#bcbcbc", "#ffffff");
+    // Team-color pant stripe on the OUTSIDE of the thigh
+    const stripeDX = side * (thighW * 0.6);
+    drawSegment(sx + stripeDX * 0.55, hipY + 0.5, kneeX + stripeDX * 0.55, kneeY,
                 thighW * 0.28, color, shadeDark, shadeLight);
-    // Team-color sock (lower leg) — jersey-color sock, white pants above ends at knee
-    drawSegment(kneeX, kneeY, footX, footY, sockW, color, shadeDark, shadeLight);
-    // Thin white sock stripe near the cleat
-    const ankleX = kneeX + Math.sin(lowerA) * lowerLen * 0.78;
-    const ankleY = kneeY + Math.cos(lowerA) * lowerLen * 0.78 - lift * 0.27;
-    const ankle2X = kneeX + Math.sin(lowerA) * lowerLen * 0.88;
-    const ankle2Y = kneeY + Math.cos(lowerA) * lowerLen * 0.88 - lift * 0.30;
-    drawSegment(ankleX, ankleY, ankle2X, ankle2Y, sockW * 0.95, "#f1f1f1", "#c8c8c8", "#ffffff");
-    // Cleat — rectangular block (Roblox-style boot)
-    const cleatW = (3.1 + bt.bulk * 0.2) * 2;
-    const cleatH = 2.2;
-    ctx.fillStyle = "#0a0a14";
-    ctx.fillRect(footX - cleatW/2, footY - 0.4, cleatW, cleatH);
-    ctx.strokeStyle = "rgba(255,255,255,0.25)";
-    ctx.lineWidth = 0.4;
-    ctx.strokeRect(footX - cleatW/2, footY - 0.4, cleatW, cleatH);
-    // White sole stripe at the bottom
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(footX - cleatW/2, footY + cleatH - 0.9, cleatW, 0.55);
+    // Sock — team color, upper half of the lower leg
+    const sockEndX = kneeX + Math.sin(lowerA) * lowerLen * 0.55;
+    const sockEndY = kneeY + Math.cos(lowerA) * lowerLen * 0.55 - lift * 0.20;
+    drawSegment(kneeX, kneeY, sockEndX, sockEndY, shinW, color, shadeDark, shadeLight);
+    // White stripe ring on the sock
+    const ringStartX = kneeX + Math.sin(lowerA) * lowerLen * 0.48;
+    const ringStartY = kneeY + Math.cos(lowerA) * lowerLen * 0.48 - lift * 0.16;
+    drawSegment(ringStartX, ringStartY, sockEndX, sockEndY, shinW * 0.95,
+                "#f1f1f1", "#c8c8c8", "#ffffff");
+    // Cleat — bottom half of the lower leg in BLACK (the "foot" implied by color)
+    drawSegment(sockEndX, sockEndY, footX, footY, shinW * 1.02,
+                "#15151c", "#000000", "#3a3a44");
   };
   drawLeg(-1, lLeg, lLegLift);
   drawLeg(1, rLeg, rLegLift);
@@ -2909,46 +2903,35 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     ctx.strokeText(label, 0, ny);
   }
 
-  // ── Arms (filled capsules — bicep + forearm, with elbow joint) ──
-  const bicepW   = 2.0 + bt.bulk * 0.55;
-  const forearmW = 1.7 + bt.bulk * 0.40;
+  // ── Arms — Lego-style chunky tubes. Bicep = sleeve, forearm = skin.
+  // Nearly as wide as the helmet (helmRx≈6.4 → arm half-width ~2.7) and
+  // attached right at the outer shoulder pad edge.
+  const bicepW   = 2.7 + bt.bulk * 0.55;
+  const forearmW = 2.5 + bt.bulk * 0.45;
   const drawArm = (side, angle, holdsBall, forearmOverride) => {
     const a = angle * facing;
-    const sx = side * (padW/2 - 0.5);
+    const sx = side * (padW/2 + 0.1);
     const upper = armLen * 0.55;
     const lower = armLen * 0.55;
     const elbowX = sx + Math.sin(a) * upper;
     const elbowY = shoulderY + Math.cos(a) * upper + armReachY * 0.4;
     // Forearm angle: caller can override (used for throwing whip).
-    // Otherwise default to a static elbow bend toward the body.
     const lowerA = forearmOverride != null
       ? forearmOverride * facing
       : a - facing * 0.35 * Math.sign(Math.cos(a));
     const handX = elbowX + Math.sin(lowerA) * lower;
     const handY = elbowY + Math.cos(lowerA) * lower + armReachY * 0.6;
-    // Jersey sleeve (bicep) — team color
+    // Jersey sleeve (bicep) — team color, very thick
     drawSegment(sx, shoulderY, elbowX, elbowY, bicepW, color, shadeDark, shadeLight);
-    // Sleeve cuff — thin contrasting band at the elbow
-    const cuffX1 = sx + Math.sin(a) * upper * 0.88;
-    const cuffY1 = shoulderY + Math.cos(a) * upper * 0.88 + armReachY * 0.36;
-    drawSegment(cuffX1, cuffY1, elbowX, elbowY, bicepW * 1.05,
-                secondary || shadeDark, shadeDark, shadeLight);
-    // Forearm — SKIN tone (short-sleeved jersey)
-    drawSegment(elbowX, elbowY, handX, handY, forearmW * 0.92, skin.base, skin.dark, skin.light);
-    // Hand — SQUARE block, skin tone, dark outline (Roblox-style fist)
-    const handR = 2.6 + bt.bulk * 0.3;
-    ctx.fillStyle = skin.base;
-    ctx.fillRect(handX - handR, handY - handR, handR * 2, handR * 2);
-    ctx.strokeStyle = "rgba(0,0,0,0.65)";
-    ctx.lineWidth = 0.8;
-    ctx.strokeRect(handX - handR, handY - handR, handR * 2, handR * 2);
-    // Knuckle highlight — bright corner on the upper-facing side
+    // Forearm — skin tone (short-sleeved jersey), almost as thick
+    drawSegment(elbowX, elbowY, handX, handY, forearmW, skin.base, skin.dark, skin.light);
+    // No separate hand — the arm just ends. Knuckle highlight on the very tip.
     ctx.fillStyle = skin.light;
-    ctx.fillRect(handX - handR + 0.4, handY - handR + 0.4, handR * 0.85, handR * 0.55);
-    // Knuckle shadow — darker corner on the bottom-back
-    ctx.fillStyle = skin.dark;
-    ctx.fillRect(handX + handR - handR * 0.85 - 0.4, handY + handR - handR * 0.55 - 0.4,
-                 handR * 0.85, handR * 0.55);
+    const tipDX = Math.sin(lowerA) * forearmW * 0.25;
+    const tipDY = Math.cos(lowerA) * forearmW * 0.25;
+    ctx.beginPath();
+    ctx.arc(handX - tipDX * 0.4, handY - tipDY * 0.4, forearmW * 0.35, 0, Math.PI * 2);
+    ctx.fill();
     if (holdsBall) {
       // Football — bigger, more pronounced, with white tip + laces
       const ballAngle = facing * 0.3;
@@ -2978,12 +2961,6 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
       ctx.moveTo(-0.8, 0.5);  ctx.lineTo(1.2, 0.5);
       ctx.stroke();
       ctx.restore();
-      // Grip outline on the hand
-      ctx.strokeStyle = skin.base;
-      ctx.lineWidth = 1.0;
-      ctx.beginPath();
-      ctx.arc(handX, handY, handR + 0.4, 0, Math.PI * 2);
-      ctx.stroke();
     }
     return { handX, handY };
   };
@@ -2999,104 +2976,94 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     ctx.fill();
   }
 
-  // ── Helmet — BLOCKY rounded-rectangle (Roblox-style head) ──────────────────
-  const helmW = (headR + 1.6) * 2;        // total width
-  const helmHt = (helmH + 0.8) * 2;       // total height
-  const helmCx = 0;
-  const helmTopY = shoulderY - helmHt - 0.4;
-  const helmBotY = helmTopY + helmHt;
-  const helmY = (helmTopY + helmBotY) / 2; // center (for facemask reference)
-  const helmCornerR = 1.6;                 // small rounded corners
-  // Visible chin/jaw block — skin patch peeking out below the helmet
+  // ── Helmet — ROUND chunky dome (Roblox-style head). Big sphere on top. ─────
+  const helmRx = headR + 2.2;             // wider
+  const helmRy = helmH + 1.4;             // taller
+  const helmY  = shoulderY - helmRy - 0.6;
+  // Visible chin/jaw — skin block peeking out below the round dome
   ctx.fillStyle = skin.base;
-  ctx.fillRect(-helmW * 0.32, helmBotY - 1.2, helmW * 0.64, 2.4);
+  ctx.beginPath();
+  ctx.ellipse(facing * 0.2, helmY + helmRy * 0.88, helmRx * 0.6, helmRy * 0.32, 0, 0, Math.PI * 2);
+  ctx.fill();
   ctx.strokeStyle = skin.dark;
-  ctx.lineWidth = 0.5;
-  ctx.strokeRect(-helmW * 0.32, helmBotY - 1.2, helmW * 0.64, 2.4);
-  // Rounded-rectangle helmet path
-  const roundRectPath = (x, y, w, h, r) => {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.lineTo(x + w - r, y);
-    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-    ctx.lineTo(x + w, y + h - r);
-    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-    ctx.lineTo(x + r, y + h);
-    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-    ctx.lineTo(x, y + r);
-    ctx.quadraticCurveTo(x, y, x + r, y);
-    ctx.closePath();
-  };
-  // Helmet fill — vertical gradient (light top, darker bottom for 3D feel)
-  const helmGrad = ctx.createLinearGradient(0, helmTopY, 0, helmBotY);
+  ctx.lineWidth = 0.6;
+  ctx.stroke();
+  // Round helmet dome — radial gradient (highlight up-front, shadow back-bottom)
+  const helmGrad = ctx.createRadialGradient(facing * 1.8, helmY - helmRy * 0.45, 0.5,
+                                            0, helmY, helmRx + 1.6);
   helmGrad.addColorStop(0,    shadeLight);
-  helmGrad.addColorStop(0.5,  color);
+  helmGrad.addColorStop(0.4,  color);
   helmGrad.addColorStop(1,    shadeDark);
   ctx.fillStyle = helmGrad;
-  roundRectPath(helmCx - helmW/2, helmTopY, helmW, helmHt, helmCornerR);
+  ctx.beginPath();
+  ctx.ellipse(0, helmY, helmRx, helmRy, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = "rgba(0,0,0,0.75)";
-  ctx.lineWidth = 1.1;
+  ctx.strokeStyle = "rgba(0,0,0,0.8)";
+  ctx.lineWidth = 1.2;
   ctx.stroke();
-  // Bright top-front edge highlight (rectangle along top-front)
-  ctx.fillStyle = "rgba(255,255,255,0.28)";
-  ctx.fillRect(helmCx - helmW/2 + (facing > 0 ? helmW * 0.18 : helmCornerR * 0.5),
-               helmTopY + 0.6,
-               helmW * 0.55,
-               helmHt * 0.18);
-  // Front face panel — slightly darker rectangle on the FRONT half of the helmet
-  // (lays under the facemask, helps the cage read against the helmet color)
-  ctx.fillStyle = "rgba(0,0,0,0.18)";
-  ctx.fillRect(helmCx + facing * helmW * 0.02,
-               helmTopY + helmHt * 0.35,
-               facing * helmW * 0.42,
-               helmHt * 0.45);
-  // Helmet center stripe (secondary color) — runs front-to-back over the top
-  ctx.fillStyle = secondary || "#fff";
-  ctx.fillRect(helmCx - 0.9, helmTopY + 0.5, 1.8, helmHt * 0.7);
-  ctx.strokeStyle = "rgba(0,0,0,0.4)";
-  ctx.lineWidth = 0.4;
-  ctx.strokeRect(helmCx - 0.9, helmTopY + 0.5, 1.8, helmHt * 0.7);
-  // Ear hole — small dark square
-  ctx.fillStyle = "rgba(0,0,0,0.7)";
-  ctx.fillRect(-facing * (helmW * 0.42), helmY - 0.5, 1.6, 2.0);
-  // ── Facemask cage — chrome bars, BIG and rectangular ─────────────────────
-  const fxOuter = facing * (helmW * 0.5 + 0.3);     // front edge of the cage
-  const fxInner = facing * (helmW * 0.16);          // where bars meet helmet
-  const cageTop = helmY - helmHt * 0.18;
-  const cageBot = helmY + helmHt * 0.32;
-  // Vertical "nose" bar — runs along the front of the face
+  // Bottom rim — solid dark crescent so the helmet reads as a heavy sphere
+  ctx.strokeStyle = "rgba(0,0,0,0.55)";
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.ellipse(0, helmY + 0.6, helmRx - 0.3, helmRy - 0.4, 0, 0.18, Math.PI - 0.18);
+  ctx.stroke();
+  // Center stripe — secondary-color band over the top
+  ctx.strokeStyle = secondary || "#fff";
+  ctx.lineWidth = 1.7;
+  ctx.beginPath();
+  ctx.moveTo(0, helmY - helmRy * 0.97);
+  ctx.lineTo(0, helmY + helmRy * 0.35);
+  ctx.stroke();
+  // Top-front highlight — bright reflection on the upper-front dome
+  ctx.strokeStyle = "rgba(255,255,255,0.45)";
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.ellipse(facing * 1.2, helmY - helmRy * 0.35, helmRx * 0.5, helmRy * 0.55, 0,
+              Math.PI * 1.05, Math.PI * 1.6);
+  ctx.stroke();
+  // Ear hole — small dark dot on the BACK side of the helmet
+  ctx.fillStyle = "rgba(0,0,0,0.65)";
+  ctx.beginPath();
+  ctx.arc(-facing * 1.9, helmY + 0.7, 1.1, 0, Math.PI * 2);
+  ctx.fill();
+  // ── Facemask cage — chrome bars across the front of the round helmet ─────
+  const fxOuter = facing * (helmRx + 0.2);
+  const fxInner = facing * (helmRx * 0.22);
+  const cageTop = helmY - helmRy * 0.10;
+  const cageBot = helmY + helmRy * 0.42;
+  // Vertical "nose" bar curving slightly outward
   ctx.strokeStyle = "#2c2c34";
   ctx.lineWidth = 1.6;
   ctx.beginPath();
-  ctx.moveTo(fxOuter, cageTop);
-  ctx.lineTo(fxOuter, cageBot);
+  ctx.moveTo(fxOuter - facing * 0.3, cageTop);
+  ctx.quadraticCurveTo(fxOuter + facing * 0.4, (cageTop + cageBot) / 2,
+                       fxOuter - facing * 0.4, cageBot);
   ctx.stroke();
-  // Horizontal cage bars
+  // Horizontal cage bars (4 rows, slight downward sweep toward the front)
   ctx.lineWidth = 1.3;
-  const cageHeights = [cageTop + 0.4, cageTop + (cageBot - cageTop) * 0.35,
-                       cageTop + (cageBot - cageTop) * 0.65, cageBot - 0.2];
+  const cageHeights = [cageTop + 0.4, cageTop + (cageBot - cageTop) * 0.34,
+                       cageTop + (cageBot - cageTop) * 0.62, cageBot - 0.2];
   for (const cy of cageHeights) {
     ctx.beginPath();
-    ctx.moveTo(fxOuter, cy);
+    ctx.moveTo(fxOuter - facing * 0.3, cy);
     ctx.lineTo(fxInner, cy);
     ctx.stroke();
   }
-  // Chrome highlight on the front of each horizontal bar
+  // Chrome highlight on top of each bar
   ctx.strokeStyle = "#b8b8c0";
   ctx.lineWidth = 0.5;
   for (const cy of cageHeights) {
     ctx.beginPath();
-    ctx.moveTo(fxOuter - facing * 0.1, cy - 0.45);
-    ctx.lineTo(fxInner * 0.6, cy - 0.45);
+    ctx.moveTo(fxOuter - facing * 0.4, cy - 0.45);
+    ctx.lineTo(fxInner * 0.7, cy - 0.45);
     ctx.stroke();
   }
   // Chinstrap — white band under the jaw
   ctx.fillStyle = "#f1f1f1";
-  ctx.fillRect(-helmW * 0.36, helmBotY + 0.6, helmW * 0.72, 0.9);
+  ctx.fillRect(-helmRx * 0.7, helmY + helmRy * 0.95, helmRx * 1.4, 0.9);
   ctx.strokeStyle = "rgba(0,0,0,0.5)";
   ctx.lineWidth = 0.3;
-  ctx.strokeRect(-helmW * 0.36, helmBotY + 0.6, helmW * 0.72, 0.9);
+  ctx.strokeRect(-helmRx * 0.7, helmY + helmRy * 0.95, helmRx * 1.4, 0.9);
 
   if (exclaim) {
     ctx.fillStyle = "#f0cc30";
