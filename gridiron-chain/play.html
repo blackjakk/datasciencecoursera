@@ -361,6 +361,36 @@
   .sm-stats-table td.home { text-align: right; }
   .sm-stats-table td.away { text-align: left; }
   .sm-stats-table td.better { color: var(--gold); font-weight: 700; }
+  .sim-many-card.wide { max-width: 920px; }
+  .sm-qb-table {
+    width: 100%; border-collapse: collapse; font-size: .76rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .sm-qb-table th, .sm-qb-table td {
+    padding: .35rem .45rem; text-align: right; border-bottom: 1px solid var(--border);
+  }
+  .sm-qb-table th {
+    color: var(--gold); font-size: .65rem; letter-spacing: .5px;
+    text-transform: uppercase; font-weight: 700;
+  }
+  .sm-qb-table th.arch, .sm-qb-table td.arch {
+    text-align: left; color: var(--white); font-weight: 700; min-width: 110px;
+  }
+  .sm-qb-table td.metric { font-size: .82rem; color: var(--white); }
+  .sm-qb-table td.metric.best  { color: var(--gold); font-weight: 700; }
+  .sm-qb-table td.metric.worst { color: #d65a5a; }
+  .sm-qb-table tr.best  td.arch { color: var(--gold); }
+  .sm-qb-table tr.worst td.arch { color: #d65a5a; }
+  .sm-qb-blurb {
+    color: var(--gray); font-size: .65rem; margin-top: .15rem; font-weight: 400;
+    letter-spacing: 0; text-transform: none;
+  }
+  .sm-qb-winner {
+    margin-top: 1rem; padding: .8rem; background: rgba(240,204,48,0.12);
+    border: 1px solid var(--gold); border-radius: 8px; text-align: center;
+  }
+  .sm-qb-winner .label { font-size: .7rem; color: var(--gray); letter-spacing: .5px; }
+  .sm-qb-winner .name  { font-size: 1.1rem; color: var(--gold); font-weight: 800; }
   .player-tooltip {
     position: fixed; pointer-events: none; z-index: 1000;
     background: #0a0a12; border: 1px solid var(--gold); border-radius: 8px;
@@ -475,6 +505,7 @@
       <option value="1000">1000×</option>
     </select>
     <button class="btn btn-outline" id="simManyBtn">🎲 Sim Many</button>
+    <button class="btn btn-outline" id="simByQBBtn" title="Run N games for each QB archetype on the home team">🧪 Sim by QB</button>
     <button class="btn btn-primary" id="playBtn" disabled>▶ Play</button>
     <button class="btn btn-outline" id="pauseBtn" disabled>⏸ Pause</button>
     <button class="btn btn-outline" id="endBtn" disabled>⏭ Skip to End</button>
@@ -2476,9 +2507,158 @@ $("simManyBtn").addEventListener("click", () => {
     btn.disabled = false; btn.textContent = "🎲 Sim Many";
   }, 30);
 });
-$("simManyClose").addEventListener("click", () => { $("simManyModal").style.display = "none"; });
+$("simManyClose").addEventListener("click", () => {
+  $("simManyModal").style.display = "none";
+  document.querySelector(".sim-many-card").classList.remove("wide");
+});
 $("simManyModal").addEventListener("click", (e) => {
-  if (e.target.id === "simManyModal") $("simManyModal").style.display = "none";
+  if (e.target.id === "simManyModal") {
+    $("simManyModal").style.display = "none";
+    document.querySelector(".sim-many-card").classList.remove("wide");
+  }
+});
+
+// ─── Sim by QB Archetype — run N games for each of the 5 QB archetypes ────
+function runManyGamesByQBArchetype(home, away, hRoster, aRoster, n) {
+  const archetypes = Object.keys(QB_ARCHETYPES);
+  const startingQB = hRoster.filter(p => p.position === "QB")
+    .sort((a, b) => b.overall - a.overall)[0];
+  if (!startingQB) return null;
+  const origArch = startingQB.archetype;
+  const results = {};
+  for (const arch of archetypes) {
+    startingQB.archetype = arch;
+    results[arch] = runManyGames(home, away, hRoster, aRoster, n);
+  }
+  startingQB.archetype = origArch;
+  return { archetypes, results, qbName: startingQB.name, qbOVR: startingQB.overall };
+}
+
+function renderSimByQBResults(data, home, away) {
+  const { archetypes, results, qbName, qbOVR } = data;
+  const n = results[archetypes[0]].n;
+  // Build rows: one per archetype
+  const rows = archetypes.map(arch => {
+    const agg = results[arch];
+    const winPct = agg.homeWins / agg.n * 100;
+    return {
+      arch,
+      label: QB_ARCHETYPES[arch].label,
+      blurb: QB_ARCHETYPES[arch].blurb,
+      winPct,
+      record: `${agg.homeWins}-${agg.awayWins}${agg.ties ? `-${agg.ties}` : ""}`,
+      ptsFor:  agg.homeScoreSum / agg.n,
+      ptsAgst: agg.awayScoreSum / agg.n,
+      passYds: agg.qbSums.home.passYds / agg.n,
+      passTD:  agg.qbSums.home.passTD  / agg.n,
+      intThr:  agg.qbSums.home.int     / agg.n,
+      sackT:   agg.qbSums.home.sacksTaken / agg.n,
+      rushYds: agg.qbSums.home.rushYds / agg.n,
+      totalYds: agg.teamSums.home.totalYds / agg.n,
+    };
+  });
+  // Best/worst markers
+  const bestBy = (key, higherIsBetter = true) => {
+    let bi = 0, wi = 0;
+    for (let i = 1; i < rows.length; i++) {
+      if ((higherIsBetter ? rows[i][key] > rows[bi][key] : rows[i][key] < rows[bi][key])) bi = i;
+      if ((higherIsBetter ? rows[i][key] < rows[wi][key] : rows[i][key] > rows[wi][key])) wi = i;
+    }
+    return { bi, wi };
+  };
+  const winMarks = bestBy("winPct", true);
+  const cell = (val, marks, idx, fmt = (v) => v.toFixed(1)) => {
+    let cls = "metric";
+    if (idx === marks.bi) cls += " best";
+    else if (idx === marks.wi) cls += " worst";
+    return `<td class="${cls}">${fmt(val)}</td>`;
+  };
+  // Find overall winner
+  const winnerRow = rows.reduce((a, b) => a.winPct >= b.winPct ? a : b);
+
+  // Per-column best/worst (used by row-coloring trick: we color all cells of best/worst row, not per-metric)
+  // Simpler: highlight best win-pct row gold, worst red.
+  const html = `
+    <div class="sm-title">🧪 Sim by QB Archetype</div>
+    <div class="sm-sub">
+      ${home.emoji} ${home.city} ${home.name} <span style="color:var(--gray)">vs</span>
+      ${away.emoji} ${away.city} ${away.name}
+      &middot; QB: <span style="color:var(--white);font-weight:700">${qbName}</span> (${qbOVR} OVR)
+      &middot; ${n} games per archetype (${n * 5} total)
+    </div>
+
+    <table class="sm-qb-table">
+      <thead>
+        <tr>
+          <th class="arch">QB Archetype</th>
+          <th>WIN %</th>
+          <th>RECORD</th>
+          <th>PF</th>
+          <th>PA</th>
+          <th>PASS YDS</th>
+          <th>TD</th>
+          <th>INT</th>
+          <th>SACKED</th>
+          <th>RUSH YDS</th>
+          <th>TOT YDS</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map((r, i) => `
+          <tr class="${i === winMarks.bi ? "best" : (i === winMarks.wi ? "worst" : "")}">
+            <td class="arch">
+              ${r.label}
+              <div class="sm-qb-blurb">${r.blurb}</div>
+            </td>
+            ${cell(r.winPct, winMarks, i, v => v.toFixed(1) + "%")}
+            <td class="metric">${r.record}</td>
+            ${cell(r.ptsFor,  bestBy("ptsFor",  true),  i)}
+            ${cell(r.ptsAgst, bestBy("ptsAgst", false), i)}
+            ${cell(r.passYds, bestBy("passYds", true),  i, v => v.toFixed(0))}
+            ${cell(r.passTD,  bestBy("passTD",  true),  i, v => v.toFixed(2))}
+            ${cell(r.intThr,  bestBy("intThr",  false), i, v => v.toFixed(2))}
+            ${cell(r.sackT,   bestBy("sackT",   false), i, v => v.toFixed(2))}
+            ${cell(r.rushYds, bestBy("rushYds", true),  i, v => v.toFixed(0))}
+            ${cell(r.totalYds, bestBy("totalYds", true),  i, v => v.toFixed(0))}
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+
+    <div class="sm-qb-winner">
+      <div class="label">BEST ARCHETYPE FOR THIS MATCHUP</div>
+      <div class="name">${winnerRow.label} — ${winnerRow.winPct.toFixed(1)}% win rate</div>
+    </div>
+
+    <div class="sm-section">
+      <div style="font-size:.7rem;color:var(--gray);line-height:1.5">
+        Only the home QB's archetype is varied. Rest of the roster, playbook, and matchup are held constant.
+        Gold = best in column · Red = worst in column.
+      </div>
+    </div>
+  `;
+  $("simManyBody").innerHTML = html;
+  document.querySelector(".sim-many-card").classList.add("wide");
+  $("simManyModal").style.display = "flex";
+}
+
+$("simByQBBtn").addEventListener("click", () => {
+  const homeId = +homeSel.value, awayId = +awaySel.value;
+  if (homeId === awayId) { alert("Pick two different teams!"); return; }
+  const home = getTeam(homeId), away = getTeam(awayId);
+  const homeRoster = (preview.home.id === homeId && preview.home.roster)
+    ? preview.home.roster : regenerateFullRoster(home, {});
+  const homeBlock = new Set(homeRoster.map(p => p.name));
+  const awayRoster = (preview.away.id === awayId && preview.away.roster)
+    ? preview.away.roster : regenerateFullRoster(away, {}, homeBlock);
+  const n = +$("simManyCount").value || 100;
+  const btn = $("simByQBBtn");
+  btn.disabled = true; btn.textContent = `Simulating 5×${n}...`;
+  setTimeout(() => {
+    const data = runManyGamesByQBArchetype(home, away, homeRoster, awayRoster, n);
+    if (data) renderSimByQBResults(data, home, away);
+    btn.disabled = false; btn.textContent = "🧪 Sim by QB";
+  }, 30);
 });
 
 playBtn.addEventListener("click", () => {
