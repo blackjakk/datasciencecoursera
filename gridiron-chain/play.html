@@ -3130,6 +3130,43 @@ class GameSimulator {
     // High variance: bigger gains AND bigger losses if it gets read.
     // Never on two-back — fullbacks don't run reverses.
     const isReverse = !isQBRun && !useTwoBack && Math.random() < 0.015;
+    // ── RUN-PLAY VARIANTS (counter / stretch / pitch) ──────────────────
+    // Pick a runType for the non-reverse, non-QB runs. Distribution favors
+    // GROUND_AND_POUND and OPTION schemes for counter / pitch, AIR_RAID
+    // teams stick mostly to inside zone.
+    let runType = "inside";   // default
+    if (!isQBRun && !isReverse) {
+      const r = Math.random();
+      if (pb.id === "GROUND_AND_POUND") {
+        if      (r < 0.18) runType = "counter";
+        else if (r < 0.36) runType = "stretch";
+        else if (r < 0.42) runType = "pitch";
+      } else if (pb.id === "OPTION") {
+        if      (r < 0.12) runType = "counter";
+        else if (r < 0.24) runType = "stretch";
+        else if (r < 0.36) runType = "pitch";
+      } else if (pb.id === "AIR_RAID") {
+        if      (r < 0.05) runType = "counter";
+        else if (r < 0.10) runType = "stretch";
+      } else {  // BALANCED + others
+        if      (r < 0.10) runType = "counter";
+        else if (r < 0.22) runType = "stretch";
+        else if (r < 0.26) runType = "pitch";
+      }
+    }
+    // Per-variant yardage tuning — counter = boom/bust, stretch needs
+    // athletic OL, pitch = chunk upside with TFL risk if read.
+    let runVarMean = 0, runVarSd = 1.0;
+    if (runType === "counter") {
+      runVarMean = (this.offR.ol >= 78 ? 1.2 : 0.2);   // counters die against bad OL
+      runVarSd   = 1.35;
+    } else if (runType === "stretch") {
+      runVarMean = (this.offR.ol >= 80 ? 1.4 : -0.6);  // stretch demands athletic OL
+      runVarSd   = 1.15;
+    } else if (runType === "pitch") {
+      runVarMean = 0.6;                                 // get on the edge fast
+      runVarSd   = 1.45;                                // big plays + big losses
+    }
     const carrier = isQBRun ? QB : RB;
     // QB runs break for chunks slightly more often — defense had to honor pass first
     const carrierBoost = isQBRun ? 0.8 : 0;
@@ -3158,7 +3195,7 @@ class GameSimulator {
     // The lateral hand-off and direction change make it boom-or-bust.
     const reverseBonus = isReverse ? (Math.random() < 0.45 ? -5 + Math.random() * 3 : 4 + Math.random() * 10) : 0;
     const reverseSdMul = isReverse ? 1.6 : 1.0;
-    let yards = clamp(normal(rushMean + rbBoost + fbBoost + adv * 1.4 + runTrenchYds + fbStuffReduction - lbTackle * 0.5 - boxSafetyStuff - thumperStuff + carrierBoost + reverseBonus, rushSd * rbSdMul * reverseSdMul), -8, 75);
+    let yards = clamp(normal(rushMean + rbBoost + fbBoost + runVarMean + adv * 1.4 + runTrenchYds + fbStuffReduction - lbTackle * 0.5 - boxSafetyStuff - thumperStuff + carrierBoost + reverseBonus, rushSd * rbSdMul * runVarSd * reverseSdMul), -8, 75);
     // Cap at distance to end zone so a 1-yd goal-line carry doesn't get reported as a 17-yd TD
     if (yards > 0) yards = Math.min(yards, 100 - startYard);
     // Broken tackles — carrier physicality vs defender tackle rating.
@@ -3200,16 +3237,21 @@ class GameSimulator {
     off.team.rush_att++; off.team.rushYds += yards; off.team.totalYds += yards;
     this._lastBallCarrier = carrier; this._lastBallType = "rush";
     const brokeNote = brokenTackles > 0 ? ` (${brokenTackles} broken tackle${brokenTackles > 1 ? "s" : ""}!)` : "";
+    const runVariantTag = runType === "counter" ? "counter" :
+                          runType === "stretch" ? "stretch" :
+                          runType === "pitch"   ? "pitch"   : "";
     const desc = isQBRun
       ? `${QB} keeps it for ${yards} yds${brokeNote}`
-      : `${this.offR.starters.rb} runs for ${yards} yds${brokeNote}`;
+      : runVariantTag
+        ? `${this.offR.starters.rb} ${runVariantTag} for ${yards} yds${brokeNote}`
+        : `${this.offR.starters.rb} runs for ${yards} yds${brokeNote}`;
     // Tackle credit on runs — LBs and DLs make most tackles at the LOS;
     // safeties get more credit on big breakaways
     const tacklerName = yards > 0
       ? (yards >= 10 ? this._creditDefStat("tkl", { S: 0.40, CB: 0.20, LB: 0.30, DL: 0.10 })
                      : this._creditDefStat("tkl", { LB: 0.45, DL: 0.30, S: 0.15, CB: 0.10 }))
       : this._creditDefStat("tkl", { DL: 0.50, LB: 0.35, S: 0.10, CB: 0.05 });
-    this._pushVisual({ kind: "run", desc, startYard, yards, endYard: clamp(startYard + yards, 0, 100), rusher: carrier, isQBRun, isReverse, tackler: tacklerName, brokenTackles, isTwoBack: useTwoBack, fb: useTwoBack ? this.offR.starters.rb2 : null });
+    this._pushVisual({ kind: "run", desc, startYard, yards, endYard: clamp(startYard + yards, 0, 100), rusher: carrier, isQBRun, isReverse, runType, tackler: tacklerName, brokenTackles, isTwoBack: useTwoBack, fb: useTwoBack ? this.offR.starters.rb2 : null });
     return { yards };
   }
   _drive() {
@@ -7286,6 +7328,75 @@ function buildAnimForPlay(play, prevPlay) {
           rb.y = cy + reverseSide * lateralMax * (1 - eased) + (-reverseSide) * lateralMax * 0.3 * eased;
         }
         ballX = rb.x;
+      } else if (play.runType === "counter") {
+        // COUNTER — RB takes a false step opposite the intended direction
+        // (~0.10), then cuts BACK and follows the pulling guard's gap. Looks
+        // like "step right, run left" misdirection.
+        const counterSide = ((play.startYard * 11) % 2) === 0 ? 1 : -1;
+        if (runT < 0.10) {
+          // False step away from the play
+          const p = runT / 0.10;
+          rb.x = qb.x - dir * p * 8;
+          rb.y = cy + 28 - counterSide * p * 14;
+        } else if (runT < 0.22) {
+          // Plant + cut back across
+          const p = (runT - 0.10) / 0.12;
+          rb.x = qb.x - dir * (8 - p * 6);
+          rb.y = cy + 28 + counterSide * p * 18 - counterSide * 14;
+        } else {
+          // Burst through the gap toward endX, slight angle in counterSide direction
+          const p = (runT - 0.22) / 0.50;
+          const eased = Math.min(1, p);
+          rb.x = qb.x + (endX - qb.x) * eased;
+          rb.y = cy + 28 - counterSide * (1 - eased) * 4 + counterSide * eased * 10;
+        }
+        ballX = rb.x;
+      } else if (play.runType === "stretch") {
+        // STRETCH / OUTSIDE ZONE — RB attacks the edge laterally first, then
+        // cuts upfield when a gap opens. Sustained sideways flow along the LOS.
+        const stretchSide = ((play.startYard * 17) % 2) === 0 ? 1 : -1;
+        const lateralMax = 70;
+        if (runT < 0.30) {
+          // Pure lateral run along the LOS
+          const p = runT / 0.30;
+          rb.x = qb.x + dir * p * 1 * FIELD.PX_PER_YARD;
+          rb.y = cy + 28 + stretchSide * p * lateralMax;
+        } else {
+          // Cut upfield — toward endX while maintaining the lateral offset
+          const p = (runT - 0.30) / 0.42;
+          const eased = Math.min(1, p);
+          const lateralStart = cy + 28 + stretchSide * lateralMax;
+          rb.x = qb.x + dir * FIELD.PX_PER_YARD + (endX - qb.x - dir * FIELD.PX_PER_YARD) * eased;
+          rb.y = lateralStart + (cy + 28 + stretchSide * 30 - lateralStart) * eased;
+        }
+        ballX = rb.x;
+      } else if (play.runType === "pitch") {
+        // PITCH — QB tosses the ball laterally to the RB on the move, who
+        // sprints to the edge.
+        const pitchSide = ((play.startYard * 13) % 2) === 0 ? 1 : -1;
+        const pitchTargetX = qb.x;
+        const pitchTargetY = cy + 28 + pitchSide * 50;
+        if (runT < 0.12) {
+          // Ball in flight from QB to RB (lateral pitch)
+          const p = runT / 0.12;
+          ballX = qb.x + (pitchTargetX - qb.x) * p;
+          // RB sprinting laterally to catch
+          rb.x = qb.x;
+          rb.y = cy + 28 + pitchSide * p * 50;
+        } else if (runT < 0.20) {
+          // RB has the ball, still moving laterally before turning upfield
+          const p = (runT - 0.12) / 0.08;
+          rb.x = qb.x + dir * p * 4;
+          rb.y = pitchTargetY + pitchSide * p * 8;
+          ballX = rb.x;
+        } else {
+          // Burst toward endX along the sideline
+          const p = (runT - 0.20) / 0.52;
+          const eased = Math.min(1, p);
+          rb.x = qb.x + dir * 4 + (endX - qb.x - dir * 4) * eased;
+          rb.y = pitchTargetY + pitchSide * 8 + (cy + 28 + pitchSide * 60 - pitchTargetY - pitchSide * 8) * eased;
+          ballX = rb.x;
+        }
       } else {
         // Realistic pacing: mesh (slow) → read (ramp) → cruise (linear) → tackle.
         // The RB now lingers near the LOS for the early frames before exploding.
