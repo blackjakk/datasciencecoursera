@@ -3746,8 +3746,12 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
           rArm = 1.3;
           rightHandBall = true;
         } else {
-          // RB carrying the ball tucked at the hip, off arm still pumping.
-          rArm = -0.25;
+          // Ball carrier in the open field — ball held HIGH AND TIGHT at the
+          // chest with BOTH hands wrapped around it. Right hand carries the
+          // ball (rightHandBall), left hand cradles from underneath. Legs
+          // still pump from the run-phase math above.
+          rArm = 0.85;     // right arm forward, hand at chest holding the ball
+          lArm = 0.95;     // left arm forward, hand under the ball cradling
           rightHandBall = true;
         }
       }
