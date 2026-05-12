@@ -3833,19 +3833,19 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
       } else if (t < 0.42) {
         const ph = (t - 0.18) / 0.24;
         const sm = ph * ph * (3 - 2 * ph);
-        // Compact wind-up — elbow rises but stays close to the body. The old
-        // bicepA = -1.4 swung the upper arm almost horizontal-back, which
-        // made the right-facing QB read as winding up to throw the wrong way.
-        bicepA   = -0.4  + sm * (-0.5);   // -0.4 → -0.9 (elbow rises near ear)
-        forearmA =  0.3  + sm * (-2.0);   // 0.3 → -1.7 (ball cocked behind ear)
+        // Wind-up: elbow rises to ear height (overhand). Keep it tight so
+        // it doesn't read as "winding up to throw the wrong way", but high
+        // enough that the throw doesn't look underhand.
+        bicepA   = -0.4  + sm * (-0.9);   // -0.4 → -1.3 (elbow at ear height)
+        forearmA =  0.3  + sm * (-2.3);   // 0.3 → -2.0 (forearm cocked above shoulder)
         leadA    =  0.7  + sm * 0.6;      // lead arm extends toward target (0.7 → 1.3)
       } else if (t < 0.62) {
         const ph = (t - 0.42) / 0.20;
         const sm = ph * ph * (3 - 2 * ph);
         // Bicep ALSO rotates forward through the snap so the elbow visibly
         // comes through, not just the forearm flicking past it.
-        bicepA   = -0.9  + sm * 1.1;      // -0.9 → 0.2 (elbow drives forward)
-        forearmA = -1.7  + sm * 2.7;      // -1.7 → 1.0 (WHIP through release)
+        bicepA   = -1.3  + sm * 1.5;      // -1.3 → 0.2 (elbow drives forward)
+        forearmA = -2.0  + sm * 3.0;      // -2.0 → 1.0 (WHIP through release)
         leadA    =  1.3  - sm * 0.5;      // lead arm comes across the body (1.3 → 0.8)
       } else {
         const ph = (t - 0.62) / 0.38;
