@@ -3298,8 +3298,10 @@ class GameSimulator {
     const start = this.poss; let plays = 0;
     while (this.time > 0 && plays < 22) {
       plays++;
-      // 2-minute warning marker (Q2 + Q4) — push once per half when the
-      // clock first crosses 2:00. Doesn't stop play flow, just a UI beat.
+      const r = this._play();
+      // 2-minute warning marker (Q2 + Q4) — push once per half right AFTER
+      // the play that crossed 2:00, so it appears in the log before any
+      // timeout that the trailing team might call on the same dead ball.
       const halfKey = this.quarter <= 2 ? "half1" : "half2";
       if (this.time <= 120 && !this._twoMinWarned[halfKey]
           && (this.quarter === 2 || this.quarter === 4)) {
@@ -3311,8 +3313,8 @@ class GameSimulator {
           homeScore: this.score.home, awayScore: this.score.away,
         });
       }
-      const r = this._play();
-      // After each play, the team that's behind may call timeout to preserve time.
+      // After the play (and after the warning if any), the team that's
+      // behind may call timeout to preserve time.
       this._maybeCallTimeout(r);
       if (r.endDrive) {
         if (r.isReturnTD) {
@@ -3343,9 +3345,9 @@ class GameSimulator {
         // INT return yards advance the NEW offense's field position
         const mirror = clamp(100 - this.yardLine, 5, 95);
         this.yardLine = clamp(mirror + (r.retYds || 0), 5, 99);
-        // Pick-six already added 6 to the score; trigger an extra-point/kickoff
+        // Pick-six TD + XP attempt are already handled in _play (_defScoreXP
+        // pushes the XP visual). Just reset for the kickoff.
         if (r.isPickSix) {
-          this.score[this.poss === "home" ? "away" : "home"] += 1;  // XP auto-made
           this.yardLine = 25; this.down = 1; this.ytg = 10;
           break;
         }
