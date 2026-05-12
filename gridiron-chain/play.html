@@ -3386,24 +3386,39 @@ function drawField(ctx, homeTeam, awayTeam, ctx_state) {
   ctx.fillStyle = awayTeam.primary;
   ctx.fillRect(W - FIELD.EZ_PX, FIELD.TOP, FIELD.EZ_PX, FIELD.BOT - FIELD.TOP);
 
-  // End zone team text
+  // End zone team text — sized to FILL the endzone. Font size fills the
+  // narrow dimension (EZ width = 100 px after rotation becomes text height),
+  // then horizontally scaled to fit the long dimension (field height between
+  // sidelines becomes text width).
+  const ezSpan = FIELD.BOT - FIELD.TOP;
+  const ezPad  = 8;   // tiny breathing room from the sidelines
+  const ezTargetH = FIELD.EZ_PX * 0.78;          // text height (cap height) target
+  const ezTargetW = ezSpan - ezPad * 2;          // available length along the field
+  const hName = homeTeam.name.toUpperCase();
+  const aName = awayTeam.name.toUpperCase();
   ctx.save();
-  ctx.font = "bold 18px sans-serif";
-  ctx.fillStyle = "rgba(255,255,255,0.5)";
+  ctx.font = `900 ${ezTargetH}px monospace`;
+  const hMeasure = ctx.measureText(hName).width || 1;
+  const hScaleX  = ezTargetW / hMeasure;
+  ctx.fillStyle = "rgba(255,255,255,0.55)";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.translate(FIELD.EZ_PX / 2, (FIELD.TOP + FIELD.BOT) / 2);
   ctx.rotate(-Math.PI / 2);
-  ctx.fillText(homeTeam.name.toUpperCase(), 0, 0);
+  ctx.scale(hScaleX, 1);
+  ctx.fillText(hName, 0, 0);
   ctx.restore();
   ctx.save();
-  ctx.translate(W - FIELD.EZ_PX / 2, (FIELD.TOP + FIELD.BOT) / 2);
-  ctx.rotate(Math.PI / 2);
-  ctx.font = "bold 18px sans-serif";
-  ctx.fillStyle = "rgba(255,255,255,0.5)";
+  ctx.font = `900 ${ezTargetH}px monospace`;
+  const aMeasure = ctx.measureText(aName).width || 1;
+  const aScaleX  = ezTargetW / aMeasure;
+  ctx.fillStyle = "rgba(255,255,255,0.55)";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(awayTeam.name.toUpperCase(), 0, 0);
+  ctx.translate(W - FIELD.EZ_PX / 2, (FIELD.TOP + FIELD.BOT) / 2);
+  ctx.rotate(Math.PI / 2);
+  ctx.scale(aScaleX, 1);
+  ctx.fillText(aName, 0, 0);
   ctx.restore();
 
   // sidelines
