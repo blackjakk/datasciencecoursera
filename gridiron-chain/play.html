@@ -4354,7 +4354,10 @@ function buildPlayerTooltip(p) {
   // that file is missing the <img> onerror falls back to the canvas portrait.
   const portraitFile = portraitFileForPlayer(p);
   const fallbackUrl = generateMugshotDataUrl(p);
-  const mugshotImg = `<img class="tt-mugshot" src="portraits/${portraitFile}" width="78" height="88" alt="mugshot" onerror="this.onerror=null;this.src='${fallbackUrl}'">`;
+  // Encode each path segment so folder names containing spaces/commas
+  // ("DE, rushers", "Oline and DTs", "WRs and DBs") become valid URLs.
+  const safePath = portraitFile.split("/").map(encodeURIComponent).join("/");
+  const mugshotImg = `<img class="tt-mugshot" src="portraits/${safePath}" width="78" height="88" alt="mugshot" onerror="this.onerror=null;this.src='${fallbackUrl}'">`;
   const careerHtml = buildCareerTable(p);
   const trophyHtml = buildTrophyShelf(p);
   return `
@@ -4384,21 +4387,40 @@ function buildPlayerTooltip(p) {
 // is `p001.png ... pNNN.png` zero-padded 3 digits; PORTRAIT_POOL_SIZE caps
 // the hash so we don't reach for files that don't exist. If the <img> 404s,
 // the onerror handler in buildPlayerTooltip falls back to the canvas portrait.
-// Portraits live in /portraits/<POSITION>/pNNN.png — one subfolder per
-// position group (QB, RB, WR, TE, OL, DL, LB, CB, S, K, P). The hash uses
-// the player name only so a player keeps the same face even if their game
-// position is overridden. PORTRAIT_POOL_SIZE caps the modulus — if a position
+// Portraits live in /portraits/Characters/<GROUP>/pNNN.png. Folders are
+// grouped by visual body-type rather than strict NFL position, so:
+//   Characters/Qbs              → QB, K, P
+//   Characters/RBs              → RB, TE
+//   Characters/WRs and DBs      → WR, CB, S
+//   Characters/Oline and DTs    → OL, plus interior DL (POWER / PENETRATOR)
+//   Characters/DE, rushers      → edge DL (SPEED / TWEENER / TECHNICIAN)
+//   Characters/LBs              → LB
+// The hash uses the player name only so a player keeps the same face even
+// if their game position changes. PORTRAIT_POOL_SIZE caps the modulus — if a
 // folder has fewer files, the <img> onerror handler falls back to the canvas
-// portrait. Special-team positions fall back to a generic bucket if the
-// folder is empty.
+// portrait.
 const PORTRAIT_POOL_SIZE = 200;
+function portraitFolderFor(p) {
+  const pos = p.position;
+  if (pos === "QB" || pos === "K" || pos === "P") return "Characters/Qbs";
+  if (pos === "RB" || pos === "TE") return "Characters/RBs";
+  if (pos === "WR" || pos === "CB" || pos === "S") return "Characters/WRs and DBs";
+  if (pos === "OL") return "Characters/Oline and DTs";
+  if (pos === "LB") return "Characters/LBs";
+  if (pos === "DL") {
+    const a = p.archetype;
+    if (a === "POWER" || a === "PENETRATOR") return "Characters/Oline and DTs";
+    return "Characters/DE, rushers";
+  }
+  return "Characters/Qbs";
+}
 function portraitFileForPlayer(p) {
   let hash = 0;
   const seedStr = p.name || "";
   for (let i = 0; i < seedStr.length; i++) hash = (hash * 31 + seedStr.charCodeAt(i)) >>> 0;
   const n = (hash % PORTRAIT_POOL_SIZE) + 1;
-  const pos = (p.position || "QB").toUpperCase();
-  return `${pos}/p${String(n).padStart(3, "0")}.png`;
+  const folder = portraitFolderFor(p);
+  return `${folder}/p${String(n).padStart(3, "0")}.png`;
 }
 
 // Helper to shade a hex color by a factor
