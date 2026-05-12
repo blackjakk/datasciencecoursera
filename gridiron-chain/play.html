@@ -4385,8 +4385,14 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     return { handX, handY };
   };
   // The throw pose drives rForearmOverride directly in the switch above.
+  // For the throw pose, the right arm is the cocked throwing arm and ends
+  // up overlapping the helmet area — defer drawing it until AFTER the
+  // helmet so it appears in front of the head, like a real combine pose.
+  const deferThrowArm = pose === "throw";
   const lHand = drawArm(-1, lArm, leftHandBall, lForearmOverride);
-  const rHand = drawArm(1, rArm, rightHandBall, rForearmOverride);
+  const rHand = deferThrowArm
+    ? { handX: 0, handY: 0 }   // placeholder; the real draw happens after the helmet
+    : drawArm(1, rArm, rightHandBall, rForearmOverride);
 
   // For 3-point stance, draw a ground line where the lead hand plants
   if (drawGroundHand) {
@@ -4502,6 +4508,12 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   ctx.strokeStyle = "rgba(0,0,0,0.5)";
   ctx.lineWidth = 0.3;
   ctx.strokeRect(-helmRx * 0.7, helmY + helmRy * 0.95, helmRx * 1.4, 0.9);
+
+  // Deferred throw arm — drawn AFTER the helmet so the cocked arm appears
+  // in front of the head (otherwise the helmet sprite hides it).
+  if (deferThrowArm) {
+    drawArm(1, rArm, rightHandBall, rForearmOverride);
+  }
 
   if (exclaim) {
     ctx.fillStyle = "#f0cc30";
