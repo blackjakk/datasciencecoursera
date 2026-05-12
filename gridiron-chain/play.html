@@ -19,6 +19,56 @@
     background: var(--bg); color: var(--white);
     font-family: 'Segoe UI', system-ui, sans-serif;
     min-height: 100vh; line-height: 1.5;
+    position: relative;
+  }
+
+  /* ── CRT AESTHETIC OVERLAY ────────────────────────────────────────────
+     Three stacked layers, all fixed and pointer-events:none so they sit on
+     top of the UI without intercepting clicks or hovers:
+     1. Scanlines  — repeating horizontal stripes (old broadcast TV)
+     2. Vignette   — radial dimming at the edges (CRT bulge falloff)
+     3. Phosphor flicker — very subtle brightness pulse (faked screen refresh)
+     z-index 9999 keeps these above the game UI but below the player tooltip
+     (which sits at z-index 1000... actually we'll just keep effects subtle
+     enough that the tooltip on top looks fine). */
+  .crt-scanlines, .crt-vignette {
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+  }
+  .crt-scanlines {
+    background-image: repeating-linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0)  0px,
+      rgba(0, 0, 0, 0)  1px,
+      rgba(0, 0, 0, 0.18) 2px,
+      rgba(0, 0, 0, 0.18) 3px
+    );
+    mix-blend-mode: multiply;
+    opacity: 0.85;
+  }
+  .crt-vignette {
+    background:
+      radial-gradient(ellipse 130% 100% at center, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.55) 100%),
+      radial-gradient(ellipse 100% 100% at center, rgba(80, 220, 120, 0.04), rgba(80, 220, 120, 0));
+    opacity: 0.95;
+  }
+  /* Subtle phosphor flicker — fakes the 60Hz CRT refresh as a low-amplitude
+     brightness wobble. Keep it slow and shallow so it reads as ambient mood,
+     not a strobe. */
+  @keyframes crt-flicker {
+    0%, 100% { opacity: 1; }
+    47% { opacity: 0.97; }
+    50% { opacity: 1.02; }
+    53% { opacity: 0.99; }
+  }
+  body { animation: crt-flicker 6s infinite; }
+  /* Soft outer phosphor glow on bright text — gold and green elements get a
+     light bloom so they look like they're punching through the screen. */
+  .header h1, .score-num, .field-status, .play-caption.score, .play-caption.int {
+    text-shadow:
+      0 0 4px currentColor,
+      0 0 12px rgba(240, 204, 48, 0.25);
   }
   .header {
     background: linear-gradient(180deg, var(--green-dk), #050a05);
@@ -470,16 +520,16 @@
   .sm-qb-winner .label { font-size: .7rem; color: var(--gray); letter-spacing: .5px; }
   .sm-qb-winner .name  { font-size: 1.1rem; color: var(--gold); font-weight: 800; }
   .player-tooltip {
-    position: fixed; pointer-events: none; z-index: 1000;
+    position: fixed; pointer-events: none; z-index: 10001;
     background: #0a0a12; border: 1px solid var(--gold); border-radius: 8px;
     padding: .65rem .85rem; font-size: .78rem;
     box-shadow: 0 6px 24px rgba(0,0,0,0.7);
-    display: none; min-width: 340px; max-width: 460px;
+    display: none; min-width: 400px; max-width: 520px;
   }
-  .player-tooltip .tt-header { display: flex; gap: .65rem; align-items: flex-start; margin-bottom: .25rem; }
+  .player-tooltip .tt-header { display: flex; gap: .75rem; align-items: flex-start; margin-bottom: .25rem; }
   .player-tooltip .tt-mugshot {
     border-radius: 6px; border: 1px solid #2a2a35; flex-shrink: 0;
-    background: #15151c; image-rendering: pixelated;
+    background: #15151c; object-fit: cover;
   }
   .player-tooltip .tt-header-body { flex: 1; min-width: 0; }
   .player-tooltip .tt-section-title {
@@ -608,6 +658,11 @@
 </style>
 </head>
 <body>
+
+<!-- CRT aesthetic overlays — fixed, full-screen, pointer-events:none.
+     Sits on top of all game UI for the broadcast/arcade vibe. -->
+<div class="crt-scanlines"></div>
+<div class="crt-vignette"></div>
 
 <div class="header">
   <h1>🏈 Gridiron<span>Chain</span></h1>
@@ -4359,7 +4414,7 @@ function buildPlayerTooltip(p) {
   // Encode each path segment so folder names containing spaces/commas
   // ("DE, rushers", "Oline and DTs", "WRs and DBs") become valid URLs.
   const safePath = portraitFile.split("/").map(encodeURIComponent).join("/");
-  const mugshotImg = `<img class="tt-mugshot" src="portraits/${safePath}" width="78" height="88" alt="mugshot" onerror="this.onerror=null;this.src='${fallbackUrl}'">`;
+  const mugshotImg = `<img class="tt-mugshot" src="portraits/${safePath}" width="128" height="144" alt="mugshot" onerror="this.onerror=null;this.src='${fallbackUrl}'">`;
   const careerHtml = buildCareerTable(p);
   const trophyHtml = buildTrophyShelf(p);
   return `
@@ -5201,11 +5256,19 @@ const _origLookupGet = (name) => {
 document.addEventListener("mouseover", e => {
   const el = e.target.closest && e.target.closest(".player-name[data-player]");
   if (!el) return;
-  const p = _origLookupGet(el.dataset.player);
-  if (!p) return;
+  const name = el.dataset.player;
+  const p = _origLookupGet(name);
+  if (!p) {
+    console.warn("[tooltip] No player found for name:", JSON.stringify(name));
+    return;
+  }
   const tt = ensureTooltipEl();
-  tt.innerHTML = buildPlayerTooltip(p);
-  tt.classList.add("show");
+  try {
+    tt.innerHTML = buildPlayerTooltip(p);
+    tt.classList.add("show");
+  } catch (err) {
+    console.error("[tooltip] buildPlayerTooltip threw for player:", p, err);
+  }
 }, true);
 
 // Initial depth charts
