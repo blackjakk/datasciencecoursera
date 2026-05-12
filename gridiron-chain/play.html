@@ -10202,103 +10202,114 @@ function buildAnimForPlay(play, prevPlay) {
     const isTouchback = !!play.isTouchback;
     const isFairCatch = !!play.isFairCatch;
     const isReturnTD  = !!play.isReturnTD;
-    const dur = returnYards >= 20 ? 4000 : 3000;
+    // Duration scales with the return so big returns have time to develop
+    // (no more teleporting across the field in 1 second).
+    const dur = (isTouchback || isFairCatch)
+              ? 2400
+              : Math.round(2800 + Math.min(returnYards, 70) * 38);
+    // Phase boundaries — return phase is now ~46% of the animation
+    const PH_WIND_END  = 0.18;
+    const PH_AIR_END   = 0.46;
+    const PH_FIELD_END = 0.54;
+    const RET_LEN      = 1 - PH_FIELD_END;
     return { duration: dur, kind: "punt", render: (t, c) => {
       ctx = c;
       drawField(ctx, homeTeam, awayTeam, fieldState);
       const startX = losX - dir * 12 * FIELD.PX_PER_YARD;
       let ballX, ballY, arc = 0;
       let phase = "snap";
-      if (t < 0.1) { ballX = losX; ballY = cy; phase = "snap"; }
-      else if (t < 0.22) { ballX = losX + (startX - losX) * ((t - 0.1) / 0.12); ballY = cy; phase = "wind"; }
-      else if (t < 0.62) {
-        const tt = (t - 0.22) / 0.40;
+      if (t < 0.08) { ballX = losX; ballY = cy; phase = "snap"; }
+      else if (t < PH_WIND_END) { ballX = losX + (startX - losX) * ((t - 0.08) / (PH_WIND_END - 0.08)); ballY = cy; phase = "wind"; }
+      else if (t < PH_AIR_END) {
+        const tt = (t - PH_WIND_END) / (PH_AIR_END - PH_WIND_END);
         ballX = startX + (landX - startX) * tt;
         arc = Math.sin(tt * Math.PI) * 170;
         ballY = cy - arc + (returnerY - cy) * tt;
         phase = "air";
-      } else if (t < 0.72) {
+      } else if (t < PH_FIELD_END) {
         ballX = landX; ballY = returnerY; phase = "field";
       } else {
-        const tt = (t - 0.72) / 0.28;
+        const tt = (t - PH_FIELD_END) / RET_LEN;
         if (isTouchback || isFairCatch) {
           ballX = landX; ballY = returnerY;
         } else {
-          ballX = landX + (endX - landX) * easeOutCubic(tt);
-          ballY = returnerY + Math.sin(tt * 8) * 4;
+          // Linear-with-mild-easeIn motion — no more easeOutCubic teleport.
+          // First 15% accelerates from catch, then steady run to endX.
+          const eased = tt < 0.15
+                      ? (tt * tt) / 0.30
+                      : 0.075 + ((tt - 0.15) / 0.85) * 0.925;
+          ballX = landX + (endX - landX) * eased;
+          ballY = returnerY + Math.sin(tt * 6) * 5;
         }
         phase = "return";
       }
       // Punter
       drawPlayer(ctx, startX, cy, possColor, team.secondary, "", "idle", 0, dir);
-      // 3 coverage chasers — sprint downfield in distinct lanes (gunners + middle)
-      // After the ball lands, each tries to break through their blocker to reach the returner.
-      // For visual clarity, lane Ys are -32 / 0 / +32 from center.
-      const laneYs = [cy - 32, cy, cy + 32];
+      // ── 4 COVERAGE PLAYERS — 3 get engaged by blockers, 1 stays free for the tackle ──
+      const laneYs = [returnerY - 38, returnerY - 14, returnerY + 14, returnerY + 38];
       const chaserPositions = [];
-      for (let i = 0; i < 3; i++) {
-        const chaserStartX = losX + dir * (i - 1) * 8;
-        const sprintEndX = landX + dir * 4;  // arrive a half-yard past the catch spot
-        // Sprint linearly during the air, then engage/track returner on the return
-        const sprintT = Math.min(1, t * 1.4);
-        let cx = chaserStartX + (sprintEndX - chaserStartX) * sprintT;
-        // Drift slightly toward the returner Y as they sprint
-        let cy_ = laneYs[i] + (returnerY - laneYs[i]) * Math.min(1, t * 0.8);
-        // During the return, the middle chaser keeps tracking the ball;
-        // the outside chasers stay shaded to their lane (so it looks like real coverage)
+      for (let i = 0; i < 4; i++) {
+        const isOutside = (i === 0 || i === 3);
+        const chaserStartX = losX + dir * (isOutside ? 14 : 2);
+        const sprintT = Math.min(1, t * (isOutside ? 1.7 : 1.3));
+        let cx_ = chaserStartX + (landX - chaserStartX) * sprintT;
+        let cy_ = laneYs[i] + (returnerY - laneYs[i]) * Math.min(1, t * 1.0) * 0.65;
+        const isFree = (i === 3);  // outside gunner is the free pursuer / eventual tackler
         if (phase === "return") {
-          const tt = (t - 0.72) / 0.28;
-          if (i === 1) {
-            // Middle chaser chases the ball
-            cx = sprintEndX + (ballX - sprintEndX) * tt;
-            cy_ = returnerY;
+          const tt = (t - PH_FIELD_END) / RET_LEN;
+          if (isFree) {
+            // Free pursuer takes a closing angle on the returner — arrives near the end
+            cx_ = landX + (ballX - landX) * (0.35 + tt * 0.65);
+            cy_ = laneYs[i] + (ballY - laneYs[i]) * Math.min(1, tt * 1.3);
           } else {
-            // Outside chasers stay roughly in lane, drift toward ball X slowly
-            cx = sprintEndX + (ballX - sprintEndX) * tt * 0.4;
-            cy_ = laneYs[i] + (returnerY - laneYs[i]) * 0.6;
+            // Engaged chaser — locked up by blocker. Stays AHEAD of the returner in
+            // his running direction (-dir), creating the visible wedge.
+            const aheadOffset = -dir * (24 - i * 4);
+            cx_ = ballX + aheadOffset + Math.sin(tt * 5 + i) * 2;
+            cy_ = laneYs[i] * 0.4 + returnerY * 0.6;
           }
         }
-        chaserPositions.push({ x: cx, y: cy_ });
-        const pose = phase === "return" ? "run" : "run";
-        const facing = dir;  // chasers run downfield (same dir as the punt)
-        drawPlayer(ctx, cx, cy_, possColor, team.secondary, "", pose, (t * 3 + i * 0.2) % 1, facing);
+        chaserPositions.push({ x: cx_, y: cy_, isFree });
+        const isEngaged = phase === "return" && !isFree;
+        const pose = isEngaged ? "engage" : "run";
+        const facing = isEngaged ? -dir : dir;  // engaged chasers face the blocker / returner
+        drawPlayer(ctx, cx_, cy_, possColor, team.secondary, "", pose, (t * 3 + i * 0.2) % 1, facing);
       }
-      // 3 blockers from the receiving team — set up IN FRONT of the returner
-      // and engage the chasers. During the return, they shift to block each chaser.
+      // ── 3 RETURN-TEAM BLOCKERS — each glued to their assigned chaser during the return ──
       for (let i = 0; i < 3; i++) {
         const targetChaser = chaserPositions[i];
-        // Setup position: between returner and chaser, slightly ahead of returner
         let bx, by;
         if (phase === "snap" || phase === "wind") {
-          // Pre-catch: blockers spread across receiving territory
           bx = landX - dir * 22;
-          by = laneYs[i] + (returnerY - laneYs[i]) * 0.3;
+          by = laneYs[i] * 0.4 + returnerY * 0.6;
         } else if (phase === "air") {
-          // Blockers move into position to meet incoming chasers
-          const tt = (t - 0.22) / 0.40;
+          const tt = (t - PH_WIND_END) / (PH_AIR_END - PH_WIND_END);
           const setupX = (targetChaser.x + landX) / 2;
-          const setupY = targetChaser.y + (returnerY - targetChaser.y) * 0.25;
+          const setupY = targetChaser.y * 0.5 + returnerY * 0.5;
           bx = (landX - dir * 22) + (setupX - (landX - dir * 22)) * tt;
-          by = (laneYs[i] + (returnerY - laneYs[i]) * 0.3) + (setupY - (laneYs[i] + (returnerY - laneYs[i]) * 0.3)) * tt;
-        } else {
-          // Field / return: blockers engage their man, staying just ahead of returner
-          // Position between the returner and the chaser
-          bx = (targetChaser.x + ballX) / 2 - dir * 4;
+          by = (laneYs[i] * 0.4 + returnerY * 0.6) + (setupY - (laneYs[i] * 0.4 + returnerY * 0.6)) * tt;
+        } else if (phase === "field") {
+          bx = (targetChaser.x + landX) / 2;
           by = (targetChaser.y + returnerY) / 2;
+        } else {
+          // RETURN — stick to the chaser, on the returner side. Visible engagement.
+          bx = targetChaser.x + dir * 7;
+          by = targetChaser.y + (returnerY - targetChaser.y) * 0.10;
         }
         const blockerPose = (phase === "return" || phase === "field") ? "engage" : "run";
-        const facing = dir;  // blockers face the incoming chasers (same dir as kick)
+        const facing = dir;  // blockers face the chasers coming from the punt direction
         drawPlayer(ctx, bx, by, oppColor, oppTeam.secondary, "", blockerPose, (t * 3 + i * 0.15) % 1, facing);
       }
       // Returner (with ball after fielding)
       const returnerX = phase === "return" ? ballX : landX;
+      const returnerDrawY = phase === "return" ? ballY : returnerY;
       const returnerPose = phase === "return" ? "carry"
                          : (phase === "field" ? "catch" : "idle");
       const returnerFacing = phase === "return" ? -dir : dir;  // turns around to run back
-      drawPlayer(ctx, returnerX, returnerY, oppColor, oppTeam.secondary, "", returnerPose, (t * 3) % 1, returnerFacing);
+      drawPlayer(ctx, returnerX, returnerDrawY, oppColor, oppTeam.secondary, "", returnerPose, (t * 3) % 1, returnerFacing);
       drawBall(ctx, ballX, ballY, 1 + arc / 200);
       // Callouts
-      if (phase === "field" || (phase === "return" && t < 0.78)) {
+      if (phase === "field" || (phase === "return" && t < PH_FIELD_END + RET_LEN * 0.25)) {
         ctx.save();
         ctx.fillStyle = isTouchback ? "#cccccc" : isFairCatch ? "#9bd0ff" : "#9be09b";
         ctx.font = "900 22px sans-serif";
@@ -11997,18 +12008,19 @@ function buildCinemaAnim(play, prevPlay) {
     const isReturnTD  = !!play.isReturnTD;
     // The return goes BACK toward the punting team's end zone (away from landWX)
     const finalWX = yardToWorldX(play.endYard ?? landYardAbs);
-    // Allow a longer animation for big returns
-    const dur = isTouchback ? 2400 : isFairCatch ? 2400 : (returnYards >= 20 ? 4200 : 3200);
+    // Direction returner is running, normalized (-1 or +1 in world coords)
+    const runSign = Math.sign(finalWX - landWX) || -1;
+    // Scale duration with return yards so big returns have time to develop
+    const dur = isTouchback ? 2400
+              : isFairCatch ? 2400
+              : Math.round(3000 + Math.min(returnYards, 70) * 40);
     return { duration: dur, kind: "punt", render: (t, ctx) => {
       const punterWX = losWX - 12 * CINEMA.pxPerYard;
-      // Phases:
-      //   0.00–0.18  snap + punter winding up
-      //   0.18–0.62  ball in air (long arc) toward landYard
-      //   0.62–0.72  returner FIELDS / FAIR CATCHES / TOUCHBACK
-      //   0.72–1.00  return run (skipped for fair catch / touchback)
+      // Phases — return now gets ~46% of the animation (no more 28% teleport)
       const PHASE_AIR_START = 0.18;
-      const PHASE_AIR_END   = 0.62;
-      const PHASE_FIELD_END = 0.72;
+      const PHASE_AIR_END   = 0.46;
+      const PHASE_FIELD_END = 0.54;
+      const RET_LEN = 1 - PHASE_FIELD_END;
       let ballWX, ballArc = 0, ballLat = 0;
       let carrierWX = landWX, carrierLat = returnerLat;
       let phase = "snap";
@@ -12024,15 +12036,16 @@ function buildCinemaAnim(play, prevPlay) {
         ballWX = landWX; ballLat = returnerLat;
         phase = "field";
       } else {
-        const tt = (t - PHASE_FIELD_END) / (1 - PHASE_FIELD_END);
+        const tt = (t - PHASE_FIELD_END) / RET_LEN;
         if (isTouchback || isFairCatch) {
-          // No return — ball just sits
           ballWX = landWX; ballLat = returnerLat;
         } else {
-          // Return: carrier runs from landWX back toward finalWX
-          carrierWX = landWX + (finalWX - landWX) * easeOutCubic(tt);
-          // Lateral wiggle as returner cuts through coverage
-          carrierLat = returnerLat + Math.sin(tt * 8) * 1.5;
+          // Linear-with-mild-easeIn — no more easeOutCubic teleport.
+          const eased = tt < 0.15
+                      ? (tt * tt) / 0.30
+                      : 0.075 + ((tt - 0.15) / 0.85) * 0.925;
+          carrierWX = landWX + (finalWX - landWX) * eased;
+          carrierLat = returnerLat + Math.sin(tt * 6) * 1.8;
           ballWX = carrierWX; ballLat = carrierLat;
         }
         phase = "return";
@@ -12048,24 +12061,53 @@ function buildCinemaAnim(play, prevPlay) {
       for (let i = 0; i < 5; i++) {
         sprites.push({ x: worldToScreenX(losWX - 0.7 * CINEMA.pxPerYard), y: lateralToScreenY(lineLats[i]), team: offTeam, frame: "idle", flipped: false, faceSeed: nameSeed("OL", i) });
       }
-      // Gunners (coverage team) — sprint downfield toward the landing spot
+      // Gunners (coverage team) — sprint downfield. 3 will be picked up by
+      // blockers, 1 stays free as the eventual tackler.
+      const gunnerPositions = [];
       for (let i = 0; i < 4; i++) {
         const gStartWX = losWX + (i - 1.5) * 18;
-        // During return phase, gunners pursue the carrier
-        const targetWX = phase === "return" ? carrierWX : landWX;
-        const gT = Math.min(1, t * 1.1);
-        const gWX = gStartWX + (targetWX - gStartWX) * gT;
-        const gLat = (i - 1.5) * 6 + (returnerLat - ((i - 1.5) * 6)) * Math.min(1, t * 1.2) * 0.6;
-        const frame = (Math.floor(t * 11 + i) % 2 === 0) ? "run_a" : "run_b";
-        sprites.push({ x: worldToScreenX(gWX), y: lateralToScreenY(gLat), team: offTeam, frame, flipped: phase === "return" ? false : false, faceSeed: nameSeed("G", i) });
+        const isFree = (i === 3);
+        let gWX, gLat;
+        if (phase !== "return") {
+          const gT = Math.min(1, t * 1.1);
+          gWX = gStartWX + (landWX - gStartWX) * gT;
+          gLat = (i - 1.5) * 6 + (returnerLat - ((i - 1.5) * 6)) * Math.min(1, t * 1.2) * 0.6;
+        } else {
+          const tt = (t - PHASE_FIELD_END) / RET_LEN;
+          if (isFree) {
+            // Free gunner closes on the returner — pursuit angle, arrives at end
+            gWX = landWX + (carrierWX - landWX) * (0.35 + tt * 0.65);
+            gLat = (i - 1.5) * 6 + (carrierLat - (i - 1.5) * 6) * Math.min(1, tt * 1.3);
+          } else {
+            // Engaged gunner — held by blocker, AHEAD of returner in run direction
+            const aheadOffset = runSign * (22 - i * 3) * CINEMA.pxPerYard / 3;
+            gWX = carrierWX + aheadOffset + Math.sin(tt * 5 + i) * 1.4;
+            gLat = (i - 1.5) * 5 + (carrierLat - (i - 1.5) * 5) * 0.4;
+          }
+        }
+        gunnerPositions.push({ wx: gWX, lat: gLat, isFree });
+        const isEngagedG = phase === "return" && !isFree;
+        const frame = isEngagedG ? "stiff" : ((Math.floor(t * 11 + i) % 2 === 0) ? "run_a" : "run_b");
+        sprites.push({ x: worldToScreenX(gWX), y: lateralToScreenY(gLat), team: offTeam, frame, flipped: isEngagedG, faceSeed: nameSeed("G", i) });
       }
-      // Blockers for the returner — set up a wedge in front of him
+      // Blockers for the returner — engaged with their assigned gunner during return
       const numBlockers = 3;
       for (let i = 0; i < numBlockers; i++) {
-        const angle = (i / numBlockers - 0.5);
-        const bWX = (phase === "return" ? carrierWX : landWX) + 14 + i * 6;
-        const bLat = (phase === "return" ? carrierLat : returnerLat) + angle * 8;
-        const frame = phase === "return" ? "stiff" : "idle";
+        const target = gunnerPositions[i];
+        let bWX, bLat;
+        if (phase === "snap" || phase === "air") {
+          const angle = (i / numBlockers - 0.5);
+          bWX = landWX + 14 + i * 6;
+          bLat = returnerLat + angle * 8;
+        } else if (phase === "field") {
+          bWX = (target.wx + landWX) / 2;
+          bLat = (target.lat + returnerLat) / 2;
+        } else {
+          // RETURN — glue to the gunner, on the returner side (visible engagement)
+          bWX = target.wx - runSign * (CINEMA.pxPerYard * 0.6);
+          bLat = target.lat + (carrierLat - target.lat) * 0.10;
+        }
+        const frame = (phase === "return" || phase === "field") ? "stiff" : "idle";
         sprites.push({ x: worldToScreenX(bWX), y: lateralToScreenY(bLat), team: defTeam, frame, flipped: false, faceSeed: nameSeed("Blocker", i) });
       }
       // Returner
