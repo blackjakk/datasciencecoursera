@@ -3839,6 +3839,16 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
       }
       break;
     }
+    case "point": {
+      // Defender pointing at the offense pre-snap (calling out the back,
+      // signaling coverage). Lead arm extended FORWARD at shoulder height,
+      // body upright with slight forward lean.
+      bodyDY = 0.6 + Math.sin(t * Math.PI * 1.2) * 0.4;
+      bodyTilt = facing * 0.06;
+      lArm = 1.45;   // pointing forward at the offense
+      rArm = 0;
+      break;
+    }
     case "stance": {
       // Role-specific pre-snap stances. Kept clean and rigid — the trenches
       // have 9+ bodies clustered face-to-face, so arms and legs are forced
@@ -3922,19 +3932,22 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
       } else if (t < 0.62) {
         const ph = (t - 0.42) / 0.20;
         const sm = ph * ph * (3 - 2 * ph);
-        // SNAP: keep the elbow HIGH (near horizontal) so the throw stays
-        // overhand. Only the forearm whips through release; the bicep barely
-        // drops. The big elbow drop happens in the follow-through below.
-        bicepA   = bicepPeak  + sm * (bicepPeak * -0.30);  // peak → ~70% of peak (stays high)
-        forearmA = forearmPeak + sm * (1.0 - forearmPeak); // peak → 1.0 (full whip)
+        // SNAP: bicep STAYS at peak (elbow at ear height — frozen). Only the
+        // forearm whips, but only as far as -0.4 (slightly forward of the
+        // elbow at shoulder height) — NOT past straight-down, which would
+        // sweep the ball through a "golf swing" arc below the elbow.
+        // The ball releases with the hand still ABOVE/AT shoulder height.
+        bicepA   = bicepPeak;                              // no change — stays high
+        forearmA = forearmPeak + sm * (-0.4 - forearmPeak); // peak → -0.4 (release at front-of-elbow)
         leadA    =  1.3  - sm * 0.5;                       // lead arm comes across the body
       } else {
         const ph = (t - 0.62) / 0.38;
-        // FOLLOW: NOW the elbow drives down across the body — visible release
-        // motion AFTER the ball is out, like a real QB follow-through.
-        const followPeak = bicepPeak * 0.70;
-        bicepA   = followPeak + ph * (0.30 - followPeak);  // ~-1.15 → +0.30
-        forearmA =  1.0  + ph * 0.7;                       // 1.0 → 1.7 (extension)
+        // FOLLOW: arm drives forward AND down across the body — bicep finally
+        // rotates from horizontal-back through straight-down to slight-forward,
+        // forearm extends out front. This is when the visible "release" motion
+        // happens; the ball is already gone but the arm follows through.
+        bicepA   = bicepPeak + ph * (0.30 - bicepPeak);    // peak → +0.30
+        forearmA = -0.4  + ph * 1.9;                        // -0.4 → +1.5 (full extension forward)
         leadA    =  0.8  - ph * 0.6;                       // off arm relaxes down (0.8 → 0.2)
       }
       rArm = bicepA;
@@ -7152,6 +7165,48 @@ function buildAnimForPlay(play, prevPlay) {
     return preT >= 0.40 && preT < 0.88;
   };
 
+  // ── DEFENSIVE PRE-SNAP MOVEMENT ─────────────────────────────────────
+  // ~35% of plays, one defender shifts pre-snap (LB walks up to show blitz,
+  // safety rotates from deep, DL slides). Picks an index 0-10 (defense
+  // array) deterministically per play.
+  // ~55% of plays, one defender (usually a LB or S) is the "POINTER" —
+  // pre-snap point pose calling out the offense. Different player than
+  // the shifter to avoid stacking.
+  const defShiftSeed = (((play.startYard * 31) ^ ((play.targetDepth || 0) * 19) ^ ((play.time || 0) * 7)) >>> 0) % 1000 / 1000;
+  const hasDefShift  = defShiftSeed < 0.35;
+  // LB indices in formation.defense are 4,5,6 (after 4 DL); S are 9,10
+  const shiftIdx = hasDefShift
+    ? [4, 5, 6, 9, 10][Math.floor(defShiftSeed * 999) % 5]
+    : -1;
+  // Shift offsets — small position deltas applied during pre-snap window
+  const shiftDX = hasDefShift ? (Math.floor(defShiftSeed * 999 + 7) % 2 ? -1 : 1) * (10 + (Math.floor(defShiftSeed * 999) % 12)) : 0;
+  const shiftDY = hasDefShift ? (Math.floor(defShiftSeed * 999 + 11) % 2 ? -1 : 1) * (8 + (Math.floor(defShiftSeed * 999) % 10)) : 0;
+  const defShiftXY = (idx, tNow) => {
+    if (idx !== shiftIdx || tNow >= PRE) return { dx: 0, dy: 0 };
+    const preT = tNow / PRE;
+    if (preT < 0.30) return { dx: 0, dy: 0 };
+    if (preT < 0.78) {
+      const mp = (preT - 0.30) / 0.48;
+      const sm = mp * mp * (3 - 2 * mp);
+      return { dx: shiftDX * sm, dy: shiftDY * sm };
+    }
+    return { dx: shiftDX, dy: shiftDY };
+  };
+  const isDefShifting = (idx, tNow) => {
+    if (idx !== shiftIdx || tNow >= PRE) return false;
+    const preT = tNow / PRE;
+    return preT >= 0.30 && preT < 0.78;
+  };
+
+  const defPointSeed = (((play.startYard * 13) ^ ((play.time || 0) * 23)) >>> 0) % 1000 / 1000;
+  const hasDefPoint  = defPointSeed < 0.55;
+  // Pointer is usually MLB (5) or SS/FS (9 or 10) — defenders in coverage
+  // calling out the offense
+  const pointerIdx = hasDefPoint
+    ? [5, 5, 5, 9, 10][Math.floor(defPointSeed * 999) % 5]
+    : -1;
+  const isDefPointer = (idx) => idx === pointerIdx && idx !== shiftIdx;
+
   // Defender pursuit speed cap — tuned to a fast NFL defender (~9 yds/s).
   // Carrier runs slightly faster, so on breakaways defenders visibly trail.
   const PURSUIT_PX_MS = (FIELD.PX_PER_YARD * 9) / 1000;
@@ -7522,7 +7577,15 @@ function buildAnimForPlay(play, prevPlay) {
       // Defense: DL get locked up at LOS (engaged with OL); LBs/DBs pursue
       const def = formation.defense.map((d, i) => {
         const dd = { ...d };
-        if (t < PRE) { dd.pose = "stance"; return dd; }
+        if (t < PRE) {
+          const sh = defShiftXY(i, t);
+          dd.x = d.x + sh.dx;
+          dd.y = d.y + sh.dy;
+          dd.pose = isDefShifting(i, t) ? "run" : (isDefPointer(i) ? "point" : "stance");
+          dd.t = (t * 3) % 1;
+          dd.facing = -dir;
+          return dd;
+        }
         const tt = runT;
         if (i < 4) {
           // DL paired with OL — held up at the LOS. The "winning" DL pushes through.
@@ -7967,9 +8030,12 @@ function buildAnimForPlay(play, prevPlay) {
         const dd = { ...d };
         dd.t = (t * 3 + i * 0.13) % 1;
         dd.facing = -dir;
-        // Pre-snap: hold stance pose, no movement
+        // Pre-snap: hold stance, but allow defensive shift / pointer
         if (t < PRE) {
-          dd.pose = "idle";
+          const sh = defShiftXY(i, t);
+          dd.x = d.x + sh.dx;
+          dd.y = d.y + sh.dy;
+          dd.pose = isDefShifting(i, t) ? "run" : (isDefPointer(i) ? "point" : "stance");
           return dd;
         }
         dd.pose = "run";
@@ -8293,6 +8359,13 @@ function buildAnimForPlay(play, prevPlay) {
       }
       const def = formation.defense.map((d, i) => {
         const dd = { ...d, pose: t < PRE ? "stance" : "run", t: (t * 3 + i * 0.13) % 1, facing: -dir };
+        if (t < PRE) {
+          const sh = defShiftXY(i, t);
+          dd.x = d.x + sh.dx;
+          dd.y = d.y + sh.dy;
+          dd.pose = isDefShifting(i, t) ? "run" : (isDefPointer(i) ? "point" : "stance");
+          return dd;
+        }
         if (t <= PRE) return dd;
         const tt = (t - PRE) / (1 - PRE);
         if (i < 4) {
