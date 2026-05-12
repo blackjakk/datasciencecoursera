@@ -3798,15 +3798,18 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
       } else if (t < 0.42) {
         const ph = (t - 0.18) / 0.24;
         const sm = ph * ph * (3 - 2 * ph);
-        bicepA   = -0.4  + sm * (-1.0);   // -0.4 → -1.4 (elbow rises to ear height)
-        forearmA =  0.3  + sm * (-2.6);   // 0.3 → -2.3 (forearm whips back behind head)
+        // Cock with the elbow up but the forearm cocked compactly behind the
+        // ear — keeps the throwing arm close to the body so left-facing QBs
+        // don't visually wind up to the wrong side of the field.
+        bicepA   = -0.4  + sm * (-0.4);   // -0.4 → -0.8 (elbow up, not horizontal-back)
+        forearmA =  0.3  + sm * (-2.0);   // 0.3 → -1.7 (forearm behind ear, ball at the back of head)
         leadA    =  0.7  + sm * 0.6;      // lead arm extends toward target (0.7 → 1.3)
       } else if (t < 0.62) {
         const ph = (t - 0.42) / 0.20;
         const sm = ph * ph * (3 - 2 * ph);
-        bicepA   = -1.4  + sm * 1.0;      // -1.4 → -0.4 (bicep rotates forward-down)
-        forearmA = -2.3  + sm * 3.3;      // -2.3 → 1.0 (WHIP through release)
-        leadA    =  1.3  - sm * 0.5;      // lead arm starts coming down across the body (1.3 → 0.8)
+        bicepA   = -0.8  + sm * 0.4;      // -0.8 → -0.4
+        forearmA = -1.7  + sm * 2.7;      // -1.7 → 1.0 (WHIP through release)
+        leadA    =  1.3  - sm * 0.5;      // lead arm comes across the body (1.3 → 0.8)
       } else {
         const ph = (t - 0.62) / 0.38;
         bicepA   = -0.4  + ph * 0.5;      // -0.4 → 0.1
