@@ -2253,11 +2253,87 @@ class GameSimulator {
     const archetypesByPos = (roster, pos, n) => roster.filter(p => p.position === pos)
       .sort((a, b) => b.overall - a.overall)
       .slice(0, n)
-      .map(p => ({ name: p.name, archetype: p.archetype, overall: p.overall }));
-    this.homeDL = archetypesByPos(hRoster, "DL", 4);
-    this.awayDL = archetypesByPos(aRoster, "DL", 4);
-    this.homeOL = archetypesByPos(hRoster, "OL", 5);
-    this.awayOL = archetypesByPos(aRoster, "OL", 5);
+      .map(p => ({ name: p.name, archetype: p.archetype, overall: p.overall, stats: p.stats }));
+    // Assigns LT/LG/C/RG/RT slots to the top-5 OL based on archetype + stats.
+    // Tackles: best AGI / ATHLETIC. Center: best AWR / TECHNICIAN. Guards:
+    // best STR / MAULER / PLUG / ANCHOR. Greedy: claim the best fit for
+    // each slot in order.
+    const assignOLPositions = (olList) => {
+      if (!olList || olList.length === 0) return olList;
+      const slots = ["LT", "LG", "C", "RG", "RT"];
+      const scoreFor = (p, slot) => {
+        const agi = p.stats?.[2] || 70;
+        const str = p.stats?.[1] || 70;
+        const awr = p.stats?.[3] || 70;
+        const blk = p.stats?.[6] || 70;
+        if (slot === "LT" || slot === "RT")
+          return agi * 1.5 + blk * 0.8 + (p.archetype === "ATHLETIC" ? 22 : 0)
+                                       + (p.archetype === "TECHNICIAN" ? 8 : 0);
+        if (slot === "C")
+          return awr * 1.5 + blk * 0.9 + (p.archetype === "TECHNICIAN" ? 18 : 0)
+                                       + (p.archetype === "ANCHOR" ? 10 : 0);
+        // LG / RG
+        return str * 1.4 + blk * 0.8 + (p.archetype === "MAULER" ? 22 : 0)
+                                     + (p.archetype === "PLUG"   ? 14 : 0)
+                                     + (p.archetype === "ANCHOR" ? 10 : 0);
+      };
+      const used = new Set();
+      const assigned = {};
+      for (const slot of slots) {
+        let bestP = null, bestScore = -Infinity;
+        for (const p of olList) {
+          if (used.has(p.name)) continue;
+          const s = scoreFor(p, slot);
+          if (s > bestScore) { bestScore = s; bestP = p; }
+        }
+        if (bestP) { assigned[slot] = bestP; used.add(bestP.name); }
+      }
+      return olList.map(p => {
+        for (const slot of slots) {
+          if (assigned[slot]?.name === p.name) return { ...p, subPos: slot };
+        }
+        return p;
+      });
+    };
+    // Same idea for DL — LDE / LDT / RDT / RDE. SPEED archetypes →
+    // edge; POWER / PLUG / PENETRATOR → interior.
+    const assignDLPositions = (dlList) => {
+      if (!dlList || dlList.length === 0) return dlList;
+      const slots = ["LDE", "LDT", "RDT", "RDE"];
+      const scoreFor = (p, slot) => {
+        const spd = p.stats?.[0] || 70;
+        const str = p.stats?.[1] || 70;
+        const prs = p.stats?.[7] || 70;
+        if (slot === "LDE" || slot === "RDE")
+          return spd * 1.4 + prs * 1.0 + (p.archetype === "SPEED" ? 22 : 0)
+                                       + (p.archetype === "TWEENER" ? 8 : 0);
+        // LDT / RDT
+        return str * 1.4 + prs * 0.7 + (p.archetype === "POWER" ? 18 : 0)
+                                     + (p.archetype === "PLUG"  ? 14 : 0)
+                                     + (p.archetype === "PENETRATOR" ? 12 : 0);
+      };
+      const used = new Set();
+      const assigned = {};
+      for (const slot of slots) {
+        let bestP = null, bestScore = -Infinity;
+        for (const p of dlList) {
+          if (used.has(p.name)) continue;
+          const s = scoreFor(p, slot);
+          if (s > bestScore) { bestScore = s; bestP = p; }
+        }
+        if (bestP) { assigned[slot] = bestP; used.add(bestP.name); }
+      }
+      return dlList.map(p => {
+        for (const slot of slots) {
+          if (assigned[slot]?.name === p.name) return { ...p, subPos: slot };
+        }
+        return p;
+      });
+    };
+    this.homeDL = assignDLPositions(archetypesByPos(hRoster, "DL", 4));
+    this.awayDL = assignDLPositions(archetypesByPos(aRoster, "DL", 4));
+    this.homeOL = assignOLPositions(archetypesByPos(hRoster, "OL", 5));
+    this.awayOL = assignOLPositions(archetypesByPos(aRoster, "OL", 5));
     // Skill + secondary archetypes (used for per-play modifiers)
     const collectArch = (roster) => ({
       QB:  archetypesByPos(roster, "QB", 1)[0],
@@ -2464,24 +2540,33 @@ class GameSimulator {
       return list[list.length - 1];
     };
     // ── POSITION-AWARE MATCHUP ──
-    // Classify each lineman as EDGE or INTERIOR based on archetype, so
-    // edge rushers (SPEED) face tackles (ATHLETIC) and interior gap-
-    // attackers (POWER / PENETRATOR / PLUG) face guards / center
-    // (MAULER / ANCHOR / PLUG). Flexible archetypes (TECHNICIAN /
-    // TWEENER) fall through to the full list, preserving mismatch
-    // variety.
-    const dlLane = t => t === "SPEED" ? "EDGE"
-                      : (t === "POWER" || t === "PENETRATOR" || t === "PLUG") ? "INTERIOR"
-                      : null;
-    const olLane = t => t === "ATHLETIC" ? "EDGE"
-                      : (t === "MAULER" || t === "ANCHOR" || t === "PLUG") ? "INTERIOR"
-                      : null;
+    // Prefer to use the actual SUB-POSITION assignments (LT/LG/C/RG/RT
+    // vs LDE/LDT/RDT/RDE) — DEs face tackles, DTs face guards/center.
+    // Falls back to archetype-lane filtering if sub-positions aren't set
+    // (legacy roster compatibility).
+    const isEdgeSlot = s => s === "LDE" || s === "RDE";
     const dl = pickWeighted(dlList);
-    const targetLane = dlLane(dl?.archetype);
     let olCandidates = olList;
-    if (targetLane) {
-      const matching = olList.filter(p => olLane(p.archetype) === targetLane);
+    if (dl?.subPos) {
+      // Edge DLs face tackles; interior DLs face guards / center.
+      const wantSlots = isEdgeSlot(dl.subPos)
+        ? new Set(["LT", "RT"])
+        : new Set(["LG", "C", "RG"]);
+      const matching = olList.filter(p => p.subPos && wantSlots.has(p.subPos));
       if (matching.length) olCandidates = matching;
+    } else {
+      // Archetype-lane fallback (older sims)
+      const dlLane = t => t === "SPEED" ? "EDGE"
+                        : (t === "POWER" || t === "PENETRATOR" || t === "PLUG") ? "INTERIOR"
+                        : null;
+      const olLane = t => t === "ATHLETIC" ? "EDGE"
+                        : (t === "MAULER" || t === "ANCHOR" || t === "PLUG") ? "INTERIOR"
+                        : null;
+      const targetLane = dlLane(dl?.archetype);
+      if (targetLane) {
+        const matching = olList.filter(p => olLane(p.archetype) === targetLane);
+        if (matching.length) olCandidates = matching;
+      }
     }
     const ol = pickWeighted(olCandidates);
     return {
