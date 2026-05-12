@@ -17,10 +17,42 @@
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     background: var(--bg); color: var(--white);
-    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Courier New', ui-monospace, monospace;
     min-height: 100vh; line-height: 1.5;
     position: relative;
   }
+
+  /* ── ASCII frame helper ──────────────────────────────────────────────
+     Reusable wrapping style for boxy containers. Dashed border + dim
+     corner brackets (TL `┌` / BR `┘`) give the terminal-window vibe. */
+  .selector, .card, .field-wrap, .scoreboard, .player-tooltip,
+  .selector-wrap, .stats-card, .modal-content, .sim-many-modal {
+    position: relative;
+    border: 1px dashed var(--border) !important;
+    border-radius: 0 !important;
+  }
+  .selector::before, .card::before, .field-wrap::before, .scoreboard::before,
+  .player-tooltip::before {
+    content: "┌";
+    position: absolute;
+    top: -.55em; left: -.15em;
+    color: var(--gold);
+    font-size: 1.15em; line-height: 1;
+    font-family: inherit;
+    pointer-events: none;
+  }
+  .selector::after, .card::after, .field-wrap::after, .scoreboard::after,
+  .player-tooltip::after {
+    content: "┘";
+    position: absolute;
+    bottom: -.55em; right: -.15em;
+    color: var(--gold);
+    font-size: 1.15em; line-height: 1;
+    font-family: inherit;
+    pointer-events: none;
+  }
+  .btn { border-radius: 0 !important; }
+  select, input[type="number"] { border-radius: 0 !important; }
 
   /* ── CRT AESTHETIC OVERLAY ────────────────────────────────────────────
      Three stacked layers, all fixed and pointer-events:none so they sit on
@@ -80,7 +112,20 @@
     color: var(--gold); font-weight: 900;
   }
   .header h1 span { color: var(--white); }
-  .header p { color: var(--gray); font-size: .85rem; margin-top: .25rem; }
+  .ascii-logo {
+    display: inline-block;
+    color: var(--gold);
+    font-family: inherit;
+    font-size: clamp(.42rem, .8vw, .78rem);
+    line-height: 1.05;
+    text-shadow: 0 0 6px rgba(240, 204, 48, 0.45);
+    white-space: pre;
+    user-select: none;
+  }
+  .header p {
+    color: var(--gray); font-size: .85rem; margin-top: .35rem;
+    letter-spacing: .12em;
+  }
   .container { max-width: 1800px; margin: 0 auto; padding: 1.5rem; }
 
   /* Team Selector */
@@ -666,8 +711,12 @@
 <div class="crt-vignette"></div>
 
 <div class="header">
-  <h1>🏈 Gridiron<span>Chain</span></h1>
-  <p>2D Animated Football Simulator — Standalone Demo</p>
+  <pre class="ascii-logo">  ____ ____  ___ ____ ___ ____   ___  _   _      ____ _   _    _    ___ _   _
+ / ___|  _ \|_ _|  _ \_ _|  _ \ / _ \| \ | |    / ___| | | |  / \  |_ _| \ | |
+| |  _| |_) || || | | | || |_) | | | |  \| |   | |   | |_| | / _ \  | ||  \| |
+| |_| |  _ < | || |_| | ||  _ &lt;| |_| | |\  |   | |___|  _  |/ ___ \ | || |\  |
+ \____|_| \_\___|____/___|_| \_\\___/|_| \_|    \____|_| |_/_/   \_\___|_| \_|</pre>
+  <p>[ 2D Animated Football Simulator -- Standalone Demo ]</p>
 </div>
 
 <div class="container">
