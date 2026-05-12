@@ -5400,20 +5400,29 @@ function makeFormation(losX, poss, opts = {}) {
   const dir = poss === "home" ? 1 : -1;  // direction offense moves (positive = right)
   const cy = (FIELD.TOP + FIELD.BOT) / 2;
   const PX = FIELD.PX_PER_YARD;
+  // Goal-line: offense inside the opp 5 (yardLine >= 95). Compresses both
+  // sides — defense crashes the box, offense uses a heavy front. Wide
+  // receivers come tight, safeties walk down, LBs press to the LOS.
+  const isGL = !!opts.isGoalLine;
 
   // Offensive line (5) along LOS — wider gaps so the middle of the field
-  // isn't visually cramped at the bigger field resolution.
+  // isn't visually cramped at the bigger field resolution. Goal-line:
+  // tighter splits to give a heavier wall.
   const oline = [];
+  const olGap = isGL ? 26 : 32;
   for (let i = -2; i <= 2; i++) {
-    oline.push({ x: losX - dir * 2, y: cy + i * 32, role: "OL" });
+    oline.push({ x: losX - dir * 2, y: cy + i * olGap, role: "OL" });
   }
-  // TE just outside RT — pushed further out to clear the new OL spread
-  const te = { x: losX - dir * 2, y: cy + 78, role: "TE" };
-  // 2 WR split out wide — closer to the numbers, not bunched near the hash
-  const wr1 = { x: losX, y: cy - 240, role: "WR1" };
-  const wr2 = { x: losX, y: cy + 240, role: "WR2" };
-  // QB
-  const qb = { x: losX - dir * 6 * PX, y: cy, role: "QB" };
+  // TE just outside RT — pushed further out to clear the new OL spread.
+  // Goal-line: TE tucks in.
+  const te = { x: losX - dir * 2, y: cy + (isGL ? 60 : 78), role: "TE" };
+  // 2 WR split out wide — closer to the numbers, not bunched near the hash.
+  // Goal-line: WRs come tight (no deep route in 5 yards).
+  const wrSplit = isGL ? 110 : 240;
+  const wr1 = { x: losX, y: cy - wrSplit, role: "WR1" };
+  const wr2 = { x: losX, y: cy + wrSplit, role: "WR2" };
+  // QB — goal-line, QB is closer to the LOS (no deep dropback needed)
+  const qb = { x: losX - dir * (isGL ? 3 : 6) * PX, y: cy, role: "QB" };
   // RB — two-back formations shift the primary RB and add a FB. Style is
   // either I-form (stacked) or pro-set (side-by-side); chosen randomly per
   // play unless opts.twoBackStyle overrides.
@@ -5422,34 +5431,40 @@ function makeFormation(losX, poss, opts = {}) {
     const style = opts.twoBackStyle || (Math.random() < 0.5 ? "I" : "PRO");
     if (style === "I") {
       // I-formation: FB stacked behind QB, RB further back
-      fb = { x: losX - dir * 7 * PX, y: cy + 4, role: "FB" };
-      rb = { x: losX - dir * 10 * PX, y: cy + 6, role: "RB" };
+      fb = { x: losX - dir * (isGL ? 5 : 7) * PX, y: cy + 4, role: "FB" };
+      rb = { x: losX - dir * (isGL ? 7 : 10) * PX, y: cy + 6, role: "RB" };
     } else {
       // Pro-set: FB and RB split side-by-side
-      fb = { x: losX - dir * 8 * PX, y: cy - 22, role: "FB" };
-      rb = { x: losX - dir * 8 * PX, y: cy + 28, role: "RB" };
+      fb = { x: losX - dir * (isGL ? 6 : 8) * PX, y: cy - (isGL ? 14 : 22), role: "FB" };
+      rb = { x: losX - dir * (isGL ? 6 : 8) * PX, y: cy + (isGL ? 18 : 28), role: "RB" };
     }
   } else {
-    rb = { x: losX - dir * 8 * PX, y: cy + 28, role: "RB" };
+    rb = { x: losX - dir * (isGL ? 6 : 8) * PX, y: cy + (isGL ? 18 : 28), role: "RB" };
   }
 
-  // Defensive line (4) — wider stance to match the OL spread
+  // Defensive line (4) — wider stance to match the OL spread. Goal-line:
+  // tighter and crashing harder.
   const dline = [];
+  const dlGap = isGL ? 26 : 34;
   for (let i = -1.5; i <= 1.5; i += 1) {
-    dline.push({ x: losX + dir * 1.5 * PX, y: cy + i * 34, role: "DL" });
+    dline.push({ x: losX + dir * (isGL ? 0.5 : 1.5) * PX, y: cy + i * dlGap, role: "DL" });
   }
-  // 3 LBs
+  // 3 LBs — goal-line walks them all up to the LOS for a 7- or 8-man box
+  const lbDepth = isGL ? 1.5 : 4;
   const lbs = [
-    { x: losX + dir * 4 * PX, y: cy - 44, role: "LB" },
-    { x: losX + dir * 4 * PX, y: cy,      role: "LB" },
-    { x: losX + dir * 4 * PX, y: cy + 44, role: "LB" },
+    { x: losX + dir * lbDepth * PX, y: cy - (isGL ? 28 : 44), role: "LB" },
+    { x: losX + dir * lbDepth * PX, y: cy,                     role: "LB" },
+    { x: losX + dir * lbDepth * PX, y: cy + (isGL ? 28 : 44), role: "LB" },
   ];
-  // 2 CBs press the WRs out wide
-  const cb1 = { x: losX + dir * 7 * PX, y: cy - 240, role: "CB" };
-  const cb2 = { x: losX + dir * 7 * PX, y: cy + 240, role: "CB" };
-  // 2 Safeties deep
-  const s1 = { x: losX + dir * 14 * PX, y: cy - 56, role: "S" };
-  const s2 = { x: losX + dir * 14 * PX, y: cy + 56, role: "S" };
+  // 2 CBs press the WRs out wide. Goal-line: tight press, much closer.
+  const cbWide = isGL ? 110 : 240;
+  const cb1 = { x: losX + dir * (isGL ? 3 : 7) * PX, y: cy - cbWide, role: "CB" };
+  const cb2 = { x: losX + dir * (isGL ? 3 : 7) * PX, y: cy + cbWide, role: "CB" };
+  // 2 Safeties — goal-line: walk them into the box (single-high replaced
+  // by two-deep loaded).
+  const sDepth = isGL ? 4 : 14;
+  const s1 = { x: losX + dir * sDepth * PX, y: cy - (isGL ? 30 : 56), role: "S" };
+  const s2 = { x: losX + dir * sDepth * PX, y: cy + (isGL ? 30 : 56), role: "S" };
 
   return {
     offense: fb ? [...oline, te, wr1, wr2, qb, rb, fb] : [...oline, te, wr1, wr2, qb, rb],
@@ -8047,7 +8062,10 @@ function buildAnimForPlay(play, prevPlay) {
   const dir = poss === "home" ? 1 : -1; // offense moves direction
   const losX = yardToAbsX(play.startYard, poss);
   const cy = (FIELD.TOP + FIELD.BOT) / 2;
-  const formation = makeFormation(losX, poss, { twoBack: !!play.isTwoBack });
+  const formation = makeFormation(losX, poss, {
+    twoBack: !!play.isTwoBack,
+    isGoalLine: (play.startYard ?? 0) >= 95,
+  });
   const team = poss === "home" ? homeTeam : awayTeam;
   const oppTeam = poss === "home" ? awayTeam : homeTeam;
   const possColor = team.primary;
