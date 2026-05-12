@@ -3534,20 +3534,20 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
       let bicepA, forearmA, leadA;
       if (t < 0.18) {
         const ph = t / 0.18;
-        bicepA   = -0.7  + ph * (-0.3);   // -0.7 → -1.0 (rises toward shoulder)
-        forearmA = 0.5   + ph * (-0.9);   // 0.5 (forward at chest) → -0.4
-        leadA    = 0.6;                    // lead hand on the ball at the chest, FORWARD
+        bicepA   = -0.15 + ph * (-0.25);  // -0.15 → -0.4 (elbow tucked at the side)
+        forearmA =  0.5  + ph * (-0.2);   // 0.5 → 0.3 (forearm forward holding ball at chest)
+        leadA    =  0.7;                   // lead hand on the ball at the chest, FORWARD
       } else if (t < 0.42) {
         const ph = (t - 0.18) / 0.24;
         const sm = ph * ph * (3 - 2 * ph);
-        bicepA   = -1.0  + sm * (-0.55);  // -1.0 → -1.55 (elbow up to ear)
-        forearmA = -0.4  + sm * (-2.0);   // -0.4 → -2.4 (forearm cocked above shoulder)
-        leadA    =  0.6  + sm * 0.7;      // lead arm extends out toward target (0.6 → 1.3)
+        bicepA   = -0.4  + sm * (-1.0);   // -0.4 → -1.4 (elbow rises to ear height)
+        forearmA =  0.3  + sm * (-2.6);   // 0.3 → -2.3 (forearm whips back behind head)
+        leadA    =  0.7  + sm * 0.6;      // lead arm extends toward target (0.7 → 1.3)
       } else if (t < 0.62) {
         const ph = (t - 0.42) / 0.20;
         const sm = ph * ph * (3 - 2 * ph);
-        bicepA   = -1.55 + sm * 1.15;     // -1.55 → -0.4 (bicep rotates forward-down)
-        forearmA = -2.4  + sm * 3.4;      // -2.4 → 1.0 (WHIP through release)
+        bicepA   = -1.4  + sm * 1.0;      // -1.4 → -0.4 (bicep rotates forward-down)
+        forearmA = -2.3  + sm * 3.3;      // -2.3 → 1.0 (WHIP through release)
         leadA    =  1.3  - sm * 0.5;      // lead arm starts coming down across the body (1.3 → 0.8)
       } else {
         const ph = (t - 0.62) / 0.38;
