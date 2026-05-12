@@ -10643,7 +10643,15 @@ function quarterLabel(q, t) {
 
 function highlightPlayerNamesInPlay(p) {
   let out = escapeHtml(p.desc || "");
-  const players = [p.passer, p.rusher, p.receiver, p.kicker, p.intended].filter(Boolean);
+  // ALL name-bearing fields on a play object — offense AND defense. Anyone
+  // mentioned in the description should be a hoverable .player-name span,
+  // not raw text (which is why defenders like tacklers / sackers / forced-
+  // fumblers used to be unhoverable).
+  const players = [
+    p.passer, p.rusher, p.receiver, p.kicker, p.intended,
+    p.tackler, p.defender, p.sacker, p.forcedBy, p.interceptor,
+    p.returner, p.muffedBy,
+  ].filter(Boolean);
   // Sort longest first so "Marcus Smith" wins over "Marcus"
   players.sort((a, b) => b.length - a.length);
   const placeholders = [];
