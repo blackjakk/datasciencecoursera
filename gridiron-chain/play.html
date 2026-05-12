@@ -4141,38 +4141,39 @@ function makeFormation(losX, poss) {
   const cy = (FIELD.TOP + FIELD.BOT) / 2;
   const PX = FIELD.PX_PER_YARD;
 
-  // Offensive line (5) along LOS
+  // Offensive line (5) along LOS — wider gaps so the middle of the field
+  // isn't visually cramped at the bigger field resolution.
   const oline = [];
   for (let i = -2; i <= 2; i++) {
-    oline.push({ x: losX - dir * 2, y: cy + i * 14, role: "OL" });
+    oline.push({ x: losX - dir * 2, y: cy + i * 20, role: "OL" });
   }
-  // TE just outside RT
-  const te = { x: losX - dir * 2, y: cy + 38, role: "TE" };
+  // TE just outside RT — pushed further out to clear the new OL spread
+  const te = { x: losX - dir * 2, y: cy + 52, role: "TE" };
   // 2 WR split out wide
-  const wr1 = { x: losX, y: cy - 75, role: "WR1" };
-  const wr2 = { x: losX, y: cy + 75, role: "WR2" };
+  const wr1 = { x: losX, y: cy - 95, role: "WR1" };
+  const wr2 = { x: losX, y: cy + 95, role: "WR2" };
   // QB
   const qb = { x: losX - dir * 6 * PX, y: cy, role: "QB" };
   // RB
-  const rb = { x: losX - dir * 8 * PX, y: cy + 18, role: "RB" };
+  const rb = { x: losX - dir * 8 * PX, y: cy + 22, role: "RB" };
 
-  // Defensive line (4)
+  // Defensive line (4) — wider stance to match the OL spread
   const dline = [];
   for (let i = -1.5; i <= 1.5; i += 1) {
-    dline.push({ x: losX + dir * 1.5 * PX, y: cy + i * 18, role: "DL" });
+    dline.push({ x: losX + dir * 1.5 * PX, y: cy + i * 24, role: "DL" });
   }
   // 3 LBs
   const lbs = [
-    { x: losX + dir * 4 * PX, y: cy - 24, role: "LB" },
+    { x: losX + dir * 4 * PX, y: cy - 32, role: "LB" },
     { x: losX + dir * 4 * PX, y: cy,      role: "LB" },
-    { x: losX + dir * 4 * PX, y: cy + 24, role: "LB" },
+    { x: losX + dir * 4 * PX, y: cy + 32, role: "LB" },
   ];
   // 2 CBs covering WRs
-  const cb1 = { x: losX + dir * 7 * PX, y: cy - 75, role: "CB" };
-  const cb2 = { x: losX + dir * 7 * PX, y: cy + 75, role: "CB" };
+  const cb1 = { x: losX + dir * 7 * PX, y: cy - 95, role: "CB" };
+  const cb2 = { x: losX + dir * 7 * PX, y: cy + 95, role: "CB" };
   // 2 Safeties deep
-  const s1 = { x: losX + dir * 14 * PX, y: cy - 30, role: "S" };
-  const s2 = { x: losX + dir * 14 * PX, y: cy + 30, role: "S" };
+  const s1 = { x: losX + dir * 14 * PX, y: cy - 42, role: "S" };
+  const s2 = { x: losX + dir * 14 * PX, y: cy + 42, role: "S" };
 
   return {
     offense: [...oline, te, wr1, wr2, qb, rb],
