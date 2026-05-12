@@ -8104,6 +8104,33 @@ function buildAnimForPlay(play, prevPlay) {
         qb.y += lateral * (targetY < cy ? -1 : 1);
         qb.x -= dir * 4 * torT;
       }
+      // POCKET PRESENCE — composed, high-AWR QBs visibly STEP UP in the
+      // pocket and slide off the closing rusher to buy time. Magnitude
+      // scales directly with AWR so the on-screen movement matches the
+      // sim's qbPocketBonus / qbAwrSackMul advantages a smart QB enjoys:
+      //   AWR 65 → 0 yds step (statue, takes the hit)
+      //   AWR 80 → ~1.0 yd step + tiny lateral slide
+      //   AWR 95 → ~1.8 yd step + visible slide to avoid the rusher
+      // Skip on throw-on-the-run (already moving) and flea flicker (handoff
+      // animation), and only during the window when the rusher is closing.
+      if (!play.isTOR && !play.isFleaFlicker && aT > 0.30 && aT < throwFrac + 0.05) {
+        const pocketFactor = clamp((qbAwr - 65) / 30, 0, 1);
+        if (pocketFactor > 0.02) {
+          const stepWindow = clamp((aT - 0.30) / 0.32, 0, 1);
+          const sm = stepWindow * stepWindow * (3 - 2 * stepWindow);
+          // Step-up (forward, toward the LOS) — buys time by stepping into
+          // the pocket lane the OL has cleared
+          qb.x += dir * sm * pocketFactor * 1.8 * FIELD.PX_PER_YARD;
+          // Lateral micro-slide — only kicks in for AWR > 78. Direction
+          // is deterministic per play so the QB doesn't shimmy randomly.
+          const slideFactor = clamp((qbAwr - 78) / 17, 0, 1);
+          if (slideFactor > 0) {
+            const slideSeed = (((play.startYard * 13) ^ ((play.time || 0) * 5)) >>> 0) & 1;
+            const slideDir  = slideSeed ? 1 : -1;
+            qb.y += slideDir * sm * slideFactor * 0.55 * FIELD.PX_PER_YARD;
+          }
+        }
+      }
 
       // Receiver runs route — starts AT the snap, reaches catch point by throwPhase
       const wrBase = wrChoice === "wr1" ? formation.wr1
