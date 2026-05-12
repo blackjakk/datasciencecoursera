@@ -3912,15 +3912,19 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
       //   ~22% three-quarter
       //   ~55% standard over-the-top (elbow at ear, ball at head level)
       //   ~11% pure over-the-top high release (Marino)
-      let bicepPeak = -1.65, forearmPeak = -2.2;
+      // Throw-slot release points — elbow is at or ABOVE shoulder height
+      // at the cock peak (think: combine-day overhand pose, ball held
+      // high-and-back above the head). Most QBs are over-the-top; a few
+      // sidearm specialists keep the elbow lower.
+      let bicepPeak = -1.85, forearmPeak = -2.40;
       if (style.name) {
         let _h = 0;
         for (let i = 0; i < style.name.length; i++) _h = (_h * 31 + style.name.charCodeAt(i)) >>> 0;
         const slot = (_h % 100) / 100;
-        if      (slot < 0.12) { bicepPeak = -1.10; forearmPeak = -1.55; }
-        else if (slot < 0.34) { bicepPeak = -1.45; forearmPeak = -1.95; }
-        else if (slot < 0.89) { bicepPeak = -1.65; forearmPeak = -2.20; }
-        else                  { bicepPeak = -1.90; forearmPeak = -2.45; }
+        if      (slot < 0.12) { bicepPeak = -1.20; forearmPeak = -1.70; }   // sidearm
+        else if (slot < 0.34) { bicepPeak = -1.60; forearmPeak = -2.10; }   // three-quarter
+        else if (slot < 0.89) { bicepPeak = -1.85; forearmPeak = -2.40; }   // standard over-the-top
+        else                  { bicepPeak = -2.15; forearmPeak = -2.65; }   // very high slot
       }
       let bicepA, forearmA, leadA;
       if (t < 0.18) {
@@ -3935,7 +3939,7 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
         // varies by per-QB throw slot above.
         bicepA   = -0.4  + sm * (bicepPeak - (-0.4));     // -0.4 → bicepPeak
         forearmA =  0.3  + sm * (forearmPeak - 0.3);      // 0.3 → forearmPeak
-        leadA    =  0.7  + sm * 0.6;                       // lead arm extends toward target
+        leadA    =  0.7  + sm * 1.1;                       // off arm rises to face level (stiff-arm cock)
       } else if (t < 0.62) {
         const ph = (t - 0.42) / 0.20;
         const sm = ph * ph * (3 - 2 * ph);
@@ -3946,7 +3950,7 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
         // The ball releases with the hand still ABOVE/AT shoulder height.
         bicepA   = bicepPeak;                              // no change — stays high
         forearmA = forearmPeak + sm * (-0.4 - forearmPeak); // peak → -0.4 (release at front-of-elbow)
-        leadA    =  1.3  - sm * 0.5;                       // lead arm comes across the body
+        leadA    =  1.8  - sm * 0.8;                       // off arm starts coming back down across the body
       } else {
         const ph = (t - 0.62) / 0.38;
         // FOLLOW: arm drives forward AND down across the body — bicep finally
@@ -3955,22 +3959,18 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
         // happens; the ball is already gone but the arm follows through.
         bicepA   = bicepPeak + ph * (0.30 - bicepPeak);    // peak → +0.30
         forearmA = -0.4  + ph * 1.9;                        // -0.4 → +1.5 (full extension forward)
-        leadA    =  0.8  - ph * 0.6;                       // off arm relaxes down (0.8 → 0.2)
+        leadA    =  1.0  - ph * 0.8;                       // off arm relaxes down (1.0 → 0.2)
       }
-      if (facing === -1) {
-        // Left-facing QB: right arm (side=+1) cocks backward → screen-right (trailing side)
-        rArm = bicepA;
-        lArm = leadA;
-        rForearmOverride = forearmA;
-        rightHandBall = t < 0.55;
-      } else {
-        // Right-facing QB: left arm (side=-1) with negated angles cocks backward → screen-right
-        // This mirrors the left-facing motion so the ball stays on the trailing (right) side
-        lArm = -bicepA;
-        rArm = leadA;
-        lForearmOverride = -forearmA;
-        leftHandBall = t < 0.55;
-      }
+      // Symmetric throw — right arm is the throwing arm for both facings.
+      // drawArm multiplies the angle by `facing`, so the arm cocks to the
+      // back side automatically: screen-left for facing=+1 (right-facing
+      // QB) and screen-right for facing=-1 (left-facing QB). In a side
+      // view, the throwing arm IS on the back side at the cock peak —
+      // ball held high-and-behind the head before release.
+      rArm = bicepA;
+      lArm = leadA;
+      rForearmOverride = forearmA;
+      rightHandBall = t < 0.55;
       // Body / legs: stepping into the throw, slight forward lean, up on toes
       lLeg = 0.45;
       rLeg = -0.35;
