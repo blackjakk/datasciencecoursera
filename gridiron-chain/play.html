@@ -6992,20 +6992,22 @@ function buildAnimForPlay(play, prevPlay) {
     const tackleStyle = ksHash % 5;
     // Jitter the final tackle point so the returner doesn't always go
     // down at the exact same spot (±20 px ≈ ±1.3 yds).
-    const tackleJitter = (((ksHash >> 4) % 11) - 5) * 4;
+    // Note: use >>> (unsigned shift) — `>>` would interpret ksHash as
+    // signed when the high bit is set, producing negative array indices.
+    const tackleJitter = (((ksHash >>> 4) % 11) - 5) * 4;
     const localFinalX = finalX + tackleJitter;
     // The primary tackler — coverage player who arrives at the returner
     // first and makes the hit. Other coverage players support / pile in
     // based on the tackle style.
-    const primaryTacklerIdx = (ksHash >> 8) % NUM_COVER;
+    const primaryTacklerIdx = (ksHash >>> 8) % NUM_COVER;
     // Secondary tackler (used for two-man / pile-up styles).
-    const secondaryTacklerIdx = (primaryTacklerIdx + 1 + ((ksHash >> 11) % (NUM_COVER - 1))) % NUM_COVER;
+    const secondaryTacklerIdx = (primaryTacklerIdx + 1 + ((ksHash >>> 11) % (NUM_COVER - 1))) % NUM_COVER;
     // Blocker assignments — each receiving-team blocker targets a specific
     // coverage opponent. About 1 in 4 blockers whiff their block entirely.
     const blockerAssignments = [];
     for (let i = 0; i < NUM_BLOCKERS; i++) {
-      const targetCov = (i + ((ksHash >> 14) % NUM_COVER)) % NUM_COVER;
-      const fails = ((ksHash >> (16 + i)) & 3) === 0;
+      const targetCov = (i + ((ksHash >>> 14) % NUM_COVER)) % NUM_COVER;
+      const fails = ((ksHash >>> (16 + i)) & 3) === 0;
       blockerAssignments.push({ targetCov, fails });
     }
     return { duration: 3200, kind: "kickoff", render: (t, ctx) => {
