@@ -2580,7 +2580,11 @@ class GameSimulator {
       // Sacks: heavily driven by the OL-vs-DL trench matchup (pressure).
       // Play-action holds the ball longer → more sack risk.
       const sackPb = (pb.sackMul || 1.0) * paSackMul;
-      const sackPct = clamp((0.05 + pressure * 0.10 - adv * 0.02) * sackPb, 0.015, 0.36);
+      // Composed QB sack reduction: high-AWR QBs slide in the pocket and
+      // throw the ball away rather than absorbing the sack. AWR 95 → ~50%
+      // fewer sacks; AWR 60 → +20% (jittery, holds it too long).
+      const qbAwrSackMul = clamp(1 - (qbAwr - 70) / 60, 0.50, 1.30);
+      const sackPct = clamp((0.05 + pressure * 0.10 - adv * 0.02) * sackPb * qbAwrSackMul, 0.015, 0.36);
       if (Math.random() < sackPct) {
         // THROW ON THE RUN — mobile QBs with high AGI sometimes escape pressure
         // and throw on the move instead of taking the sack. Lower comp / air
@@ -2732,12 +2736,35 @@ class GameSimulator {
       // QB OVR matters a lot for completion %: a 60-OVR scrub completes far less than a 90-OVR star
       // (swing of ~0.20 across 30 OVR points, centered around 75 OVR baseline)
       const qbCompFromOvr = (this.offR.qb - 75) / 150;  // QB 60 → -0.10, QB 90 → +0.10
-      const compPct = clamp((0.60 + adv * 0.14 + qbCompFromOvr - pressure * 0.12 - shutdownPenalty + possessionBonus + qbCompMod + paCompMod + catCompMod + awrCompMod + cbCoverMod) * compPbMul, 0.15, 0.90);
+      // ── COMPOSED-QB POCKET BONUS ──────────────────────────────────────
+      // Smart, cool-headed QBs (high AWR) extend plays in the pocket — they
+      // step up, slide, hold the ball longer, and wait for the deep route
+      // to open. They take fewer sacks AND find the favorable matchup. The
+      // edge scales with AWR: 60 → -0.20 (jittery), 75 → +0.10, 95 → +0.50.
+      const qbPocketBonus = clamp((qbAwr - 70) / 50, -0.20, 0.50);
+      // Speed-vs-coverage mismatch: when our targeted WR is meaningfully
+      // faster than the covering CB, a smart QB sees the step + lets it
+      // develop. Bonus only applies when the QB is composed enough to wait.
+      let mismatchBonus = 0;
+      if (wrSlotKey && qbPocketBonus > 0) {
+        const cbName2 = this.defR.starters[wrSlotKey];
+        const cbPlayer2 = cbName2 ? this._playerByName?.get?.(cbName2) : null;
+        const cbCov2 = cbPlayer2?.stats?.[8] ?? 65;
+        const wrSpd  = rcvrPlayer?.stats?.[0] ?? 70;
+        const speedAdv = wrSpd - cbCov2;   // positive when WR has the step
+        if (speedAdv > 6) {
+          mismatchBonus = qbPocketBonus * 0.45 * Math.min(1, (speedAdv - 6) / 14);
+        }
+      }
+      const compPct = clamp((0.60 + adv * 0.14 + qbCompFromOvr - pressure * 0.12 - shutdownPenalty + possessionBonus + qbCompMod + paCompMod + catCompMod + awrCompMod + cbCoverMod + mismatchBonus) * compPbMul, 0.15, 0.90);
       if (Math.random() < compPct) {
         // Air yards drop when pressure shortens the QB's reads (check-downs / dump-offs)
-        // Weaker QBs also throw shorter — they can't push the ball downfield reliably
+        // Weaker QBs also throw shorter — they can't push the ball downfield reliably.
+        // Composed QBs (high AWR) push the ball further by extending the play
+        // and waiting for the deep route to break open.
         const qbAirFromOvr = (this.offR.qb - 75) / 12;  // QB 60 → -1.25 yds, QB 90 → +1.25 yds
-        const airMean = (pb.airYdsMean ?? 7.5) - pressure * 2.8 + qbAirMod + qbAirFromOvr + paAirMod;
+        const qbPocketAirBonus = Math.max(0, qbPocketBonus) * 3.5;   // up to +1.75 yds at AWR 95
+        const airMean = (pb.airYdsMean ?? 7.5) - pressure * 2.8 + qbAirMod + qbAirFromOvr + paAirMod + qbPocketAirBonus;
         const airSd   = (pb.airYdsSd   ?? 6) * (qbArch === "GUNSLINGER" ? 1.25 : 1.0);
         const airYds  = clamp(normal(airMean + adv * 2, airSd), -2, 55);
         // YAC distribution — short catches / screens get more YAC potential
