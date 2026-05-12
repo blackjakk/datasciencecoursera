@@ -2604,6 +2604,45 @@ class GameSimulator {
     this.score[this.poss] += pts;
     this._pushVisual({ kind: "score", desc: `${this.possTeam.city} ${this.possTeam.name} — ${type} (+${pts})` });
   }
+  // ── PLAYCALLER AGGRESSION ──────────────────────────────────────────────
+  // The offense's QB and the defense's MLB call the plays in this league.
+  // Their AGGRESSION rating drives 4th-down decisions, 2-pt try rate, deep
+  // shots, audibles, blitz rate, etc. Derived from existing stats so we
+  // don't have to extend the roster generator.
+  //   QB aggression = 0.40 × THR + 0.30 × AWR + archetype delta
+  //   LB aggression = 0.40 × PRS + 0.30 × TCK + archetype delta
+  // Range ~20-99. 50 = neutral, 80+ = "go for it" risk-taker.
+  _qbAggression() {
+    const qb = this._playerByName.get(this.offR.starters.qb);
+    if (!qb) return 50;
+    const thr  = qb.stats?.[4] ?? 70;
+    const awr  = qb.stats?.[3] ?? 70;
+    const arch = qb.archetype;
+    const archMod = arch === "GUNSLINGER"   ?  20
+                  : arch === "DUAL_THREAT"  ?  10
+                  : arch === "POCKET"       ?   0
+                  : arch === "GAME_MANAGER" ? -15
+                  : 0;
+    return clamp(thr * 0.40 + awr * 0.30 + archMod, 20, 99);
+  }
+  _mlbAggression() {
+    const lbName = this.defR.starters.lb2;  // MLB
+    if (!lbName) return 50;
+    const lb = this._playerByName.get(lbName);
+    if (!lb) return 50;
+    const prs = lb.stats?.[7] ?? 70;
+    const tck = lb.stats?.[9] ?? 70;
+    const arch = lb.archetype;
+    const archMod = arch === "BLITZER" ?  20
+                  : arch === "THUMPER" ?  10
+                  : arch === "SIGNAL"  ?   0
+                  : arch === "COVER"   ? -10
+                  : 0;
+    return clamp(prs * 0.40 + tck * 0.30 + archMod, 20, 99);
+  }
+  // Tilt multiplier centered on 50. Aggressive = >1.0, conservative = <1.0
+  // Used to scale base probabilities (e.g. base * tilt). Aggression 80 → 1.30
+  _aggTilt(agg) { return 1 + (agg - 50) / 100; }   // 20 → 0.70, 80 → 1.30
   // Handles the kickoff after any score (TD or FG). Decides whether the
   // kicking team should attempt an onside kick (trailing late) and sets
   // possession / yardLine accordingly. Pushes a kickoff visual either way.
@@ -2707,18 +2746,22 @@ class GameSimulator {
       const inFGRange  = toEZ <= 40;   // realistic FG attempt (57-yd max)
       const isGoalLine = toEZ <= 3;    // 4th & goal at the 3 or in
       const isShortYTG = this.ytg <= 2;
+      // QB AGGRESSION tilts the go-for-it rate. A risk-taking QB (high THR
+      // + AWR + GUNSLINGER) elevates every "go" decision; a conservative
+      // GAME_MANAGER passes the ball off to the kicker / punter more often.
+      const goTilt = this._aggTilt(this._qbAggression());   // 0.70-1.30
       // Decide between FG / punt / go-for-it
       let action;
       if (isGoalLine) {
         // Goal line — usually go for the TD, sometimes chip-shot FG
-        action = Math.random() < 0.62 ? "go" : "fg";
+        action = Math.random() < clamp(0.62 * goTilt, 0.35, 0.92) ? "go" : "fg";
       } else if (inFGRange) {
         // In FG range — kick the FG unless 4th & 1-2 (sometimes go for it)
-        action = (isShortYTG && Math.random() < 0.22) ? "go" : "fg";
+        action = (isShortYTG && Math.random() < clamp(0.22 * goTilt, 0.08, 0.55)) ? "go" : "fg";
       } else {
         // Out of FG range — punt unless 4th & short OR midfield 4th-and-manageable
-        const goPct = isShortYTG ? 0.35 : (this.ytg <= 4 && toEZ <= 55 ? 0.12 : 0);
-        action = Math.random() < goPct ? "go" : "punt";
+        const goBase = isShortYTG ? 0.35 : (this.ytg <= 4 && toEZ <= 55 ? 0.12 : 0);
+        action = Math.random() < clamp(goBase * goTilt, 0, 0.75) ? "go" : "punt";
       }
       if (action === "fg") {
         const dist = toEZ + 17;
@@ -2983,7 +3026,10 @@ class GameSimulator {
         const avgSafCov = safIntPlayers.reduce((s,p) => s + (p.stats?.[8] || 65), 0) / safIntPlayers.length;
         defIntMod += (avgSafCov - 65) / 1100;            // up to ~+0.027 from elite safety duo
       }
-      const intPct = clamp(0.022 - adv * 0.010 + defIntMod + pressure * 0.022 + ballHawkBonus + qbIntMod + qbIntFromOvr, 0.003, 0.20);
+      // Aggressive QBs (high aggression score) accept more risk on deep shots →
+      // small additive INT uptick on top of the archetype's qbIntMod.
+      const qbAggIntMod = (this._aggTilt(this._qbAggression()) - 1) * 0.008; // agg=80→+0.0024, agg=20→-0.0024
+      const intPct = clamp(0.022 - adv * 0.010 + defIntMod + pressure * 0.022 + ballHawkBonus + qbIntMod + qbIntFromOvr + qbAggIntMod, 0.003, 0.20);
       if (Math.random() < intPct) {
         const targetDepth = clamp(normal(11, 7), 2, 35);
         if (qbStats) { qbStats.pass_att++; qbStats.pass_int++; }
@@ -3059,7 +3105,10 @@ class GameSimulator {
       // Defensive playbook tilts: blitz schemes ramp the sack chance up,
       // dime / prevent schemes drop it.
       const defPbCurrent = this.currentDefPlaybook;
-      const sackPct = clamp((0.05 + pressure * 0.10 - adv * 0.02 + archSackBonus) * sackPb * qbAwrSackMul * defPbCurrent.sackMul, 0.015, 0.40);
+      // MLB aggression tilts the pass-rush effort — blitz-happy MLBs dial up
+      // pressure even when the OL matchup doesn't favor it.
+      const mlbAggMul = this._aggTilt(this._mlbAggression()); // BLITZER MLB →  up to 1.30
+      const sackPct = clamp((0.05 + pressure * 0.10 - adv * 0.02 + archSackBonus) * sackPb * qbAwrSackMul * defPbCurrent.sackMul * mlbAggMul, 0.015, 0.40);
       if (Math.random() < sackPct) {
         // THROW ON THE RUN — mobile QBs with high AGI sometimes escape pressure
         // and throw on the move instead of taking the sack. Lower comp / air
@@ -3361,7 +3410,9 @@ class GameSimulator {
                          : rcvrArch === "RED_ZONE"     ? -1.2
                          : rcvrArch === "ROUTE_RUNNER" ?  0.5
                          : 0;
-        const airMean = (pb.airYdsMean ?? 7.5) - pressure * 2.8 + qbAirMod + qbAirFromOvr + paAirMod + qbPocketAirBonus + centerFieldCap + wxAirMod + defDeepBonus + archAirMod;
+        // Aggressive QBs call more deep shots — tilts target depth up/down.
+        const qbAggAirMod = (this._aggTilt(this._qbAggression()) - 1) * 3.0; // agg=80→+0.9yds, agg=20→-0.9yds
+        const airMean = (pb.airYdsMean ?? 7.5) - pressure * 2.8 + qbAirMod + qbAirFromOvr + paAirMod + qbPocketAirBonus + centerFieldCap + wxAirMod + defDeepBonus + archAirMod + qbAggAirMod;
         const airSd   = (pb.airYdsSd   ?? 6) * (qbArch === "GUNSLINGER" ? 1.25 : 1.0);
         const airYds  = clamp(normal(airMean + adv * 2, airSd), -2, 55);
         // YAC distribution — short catches / screens get more YAC potential
@@ -4010,6 +4061,9 @@ class GameSimulator {
         }
         // Desperation: down by ≥9 late = go for 2 most of the time
         if (lateGame && diff <= -9) twoPtChance = Math.max(twoPtChance, 0.65);
+        // QB AGGRESSION tilts the 2-pt rate. Risk-taking QBs go for 2 more
+        // often even in non-chart situations.
+        twoPtChance = clamp(twoPtChance * this._aggTilt(this._qbAggression()), 0, 0.97);
         if (Math.random() < twoPtChance) {
           // 2-point try
           if (Math.random() < 0.48) this._score(2, "2-Point Conversion");
@@ -8127,7 +8181,13 @@ function buildAnimForPlay(play, prevPlay) {
   // Deterministic per play so the playback doesn't flicker on rewind.
   const qbPlayer = gameResult.playerLookup && offStarters ? gameResult.playerLookup.get(offStarters.qb) : null;
   const qbAwr = qbPlayer?.stats?.[3] ?? 70;   // index 3 = AWR
-  const audibleChance = clamp((qbAwr - 60) / 180, 0, 0.28);  // AWR 95 → ~19%, AWR 65 → ~3%
+  // Inline aggression (mirrors _qbAggression — can't call Sim method here).
+  const _qbThrAud = qbPlayer?.stats?.[4] ?? 70;
+  const _qbArchAud = qbPlayer?.archetype;
+  const _qbArchModAud = _qbArchAud === "GUNSLINGER" ? 20 : _qbArchAud === "DUAL_THREAT" ? 10 : _qbArchAud === "GAME_MANAGER" ? -15 : 0;
+  const qbAgg = clamp(_qbThrAud * 0.40 + qbAwr * 0.30 + _qbArchModAud, 20, 99);
+  // Aggressive QBs audible more often — cap raised to 0.38 for high-agg QBs.
+  const audibleChance = clamp(((qbAwr - 60) / 180) * (1 + (qbAgg - 50) / 100), 0, 0.38);
   const audibleSeed = (((play.startYard * 31) ^ ((play.time || 0) * 7)) >>> 0) % 1000 / 1000;
   const isAudible = audibleSeed < audibleChance;
   // Extra pre-snap time when audibling (gives the play call space to breathe)
