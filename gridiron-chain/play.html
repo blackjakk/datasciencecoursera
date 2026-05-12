@@ -3208,20 +3208,48 @@ class GameSimulator {
     // playbooks call it most.
     let isSpeedOption = false;
     let isPitch = false;
+    let optionRead = null;       // {defAttacksQb, goesCorrect, optSide} when speed option fires
     if (isQBRun && this.offR.starters.rb) {
       const speedOptPct = pb.id === "OPTION"       ? 0.40
                         : pb.id === "DUAL_THREAT" ? 0.22
                         : 0.10;
       if (Math.random() < speedOptPct) {
         isSpeedOption = true;
-        // ~50/50 — pitch slightly more often when the RB is faster than the QB.
-        const qbPlayer  = this._playerByName?.get?.(this.offR.starters.qb);
-        const rbPlayerO = this._playerByName?.get?.(this.offR.starters.rb);
-        const qbSpd = qbPlayer?.stats?.[0] ?? 78;
-        const rbSpd = rbPlayerO?.stats?.[0] ?? 82;
-        const pitchBias = 0.50 + clamp((rbSpd - qbSpd) / 60, -0.15, 0.15);
-        isPitch = Math.random() < pitchBias;
-        // If pitched, the RB is the actual ball-carrier
+        // Deterministic play-side (matches the animation's optSide).
+        const optSide = ((startYard * 19) >>> 0) % 2 === 0 ? 1 : -1;
+        // ── EDGE READ DEFENDER ────────────────────────────────────────
+        // The playside DE / OLB defines the option's outcome. Aggregate
+        // the team's edge tendencies: aggressive front-7 archetypes push
+        // toward COMMITTING to the QB; disciplined LBs stay on the pitch.
+        const defArchSO = this.defArch;
+        const aggressive = (defArchSO.LB || []).filter(l =>
+          l?.archetype === "BLITZER" || l?.archetype === "THUMPER").length
+          + (defArchSO.DL || []).filter(d =>
+              d?.archetype === "SPEED" || d?.archetype === "POWER").length * 0.5;
+        const disciplined = (defArchSO.LB || []).filter(l =>
+          l?.archetype === "COVER" || l?.archetype === "SIGNAL").length;
+        // Use a specific edge defender's AWR for the commit roll (one of
+        // the LBs — defaults to LB1).
+        const edgeLb = (defArchSO.LB || [])[optSide === 1 ? 2 : 0]
+                     || (defArchSO.LB || [])[0];
+        const edgeAwr = edgeLb ? (this._playerByName?.get?.(edgeLb.name)?.stats?.[3] ?? 70) : 70;
+        let defAttacksQbChance = 0.50 + (aggressive - disciplined) * 0.08;
+        // High-AWR edges READ the play and adjust (slight bias toward the
+        // correct commit). For simplicity we just add small noise here.
+        defAttacksQbChance += (edgeAwr - 70) / 600;
+        defAttacksQbChance = clamp(defAttacksQbChance, 0.20, 0.82);
+        const defAttacksQb = Math.random() < defAttacksQbChance;
+        // ── QB READ ACCURACY ──────────────────────────────────────────
+        // Sharp QBs (high AWR) make the correct give vs keep most of the
+        // time. The CORRECT read is "pitch if defender attacks QB" or
+        // "keep if defender plays the pitch back".
+        const qbReadAccuracy = clamp((qbAwr - 55) / 50, 0.30, 0.94);
+        const goesCorrect = Math.random() < qbReadAccuracy;
+        const correctRead = defAttacksQb;   // true = correct read says PITCH
+        isPitch = goesCorrect ? correctRead : !correctRead;
+        optionRead = { defAttacksQb, goesCorrect, optSide };
+        // If the RB carries (pitch), isQBRun flips so the rest of the sim
+        // (carrier, stats, animation routing) routes through the RB.
         if (isPitch) isQBRun = false;
       }
     }
@@ -3267,16 +3295,19 @@ class GameSimulator {
       runVarMean = 0.6;                                 // get on the edge fast
       runVarSd   = 1.45;                                // big plays + big losses
     }
-    // SPEED OPTION — high-variance option play. Pitches get on the edge
-    // and break for chunks more often; keeps are similar to QB runs but
-    // with a slight upside when the defense over-commits to the pitch.
+    // SPEED OPTION yardage — now driven by whether the QB made the
+    // CORRECT read of the edge defender. A correct read means the defense
+    // is wrong-footed: the carrier has an open lane (chunk play). A wrong
+    // read means the defender is right there at the mesh point (stuff).
     if (isSpeedOption) {
-      if (isPitch) {
-        runVarMean = 1.1;
-        runVarSd   = 1.50;
+      if (optionRead?.goesCorrect) {
+        // Right read — chunk
+        if (isPitch) { runVarMean = 1.8; runVarSd = 1.50; }
+        else          { runVarMean = 1.4; runVarSd = 1.35; }
       } else {
-        runVarMean = 0.8;
-        runVarSd   = 1.35;
+        // Wrong read — defender meets the carrier near the LOS
+        if (isPitch) { runVarMean = -2.5; runVarSd = 0.85; }
+        else          { runVarMean = -1.8; runVarSd = 0.90; }
       }
     }
     const carrier = isQBRun ? QB : RB;
@@ -3371,7 +3402,7 @@ class GameSimulator {
         : runVariantTag
           ? `${this.offR.starters.rb} ${runVariantTag} for ${yards} yds${brokeNote}${rushEndTag}`
           : `${this.offR.starters.rb} runs for ${yards} yds${brokeNote}${rushEndTag}`;
-    this._pushVisual({ kind: "run", desc, startYard, yards, endYard: clamp(startYard + yards, 0, 100), rusher: carrier, isQBRun, isReverse, runType, isSpeedOption, isPitch, tackler: tacklerName, brokenTackles, isTwoBack: useTwoBack, fb: useTwoBack ? this.offR.starters.rb2 : null });
+    this._pushVisual({ kind: "run", desc, startYard, yards, endYard: clamp(startYard + yards, 0, 100), rusher: carrier, isQBRun, isReverse, runType, isSpeedOption, isPitch, optionRead, tackler: tacklerName, brokenTackles, isTwoBack: useTwoBack, fb: useTwoBack ? this.offR.starters.rb2 : null });
     return { yards };
   }
   _drive() {
@@ -8020,6 +8051,45 @@ function buildAnimForPlay(play, prevPlay) {
           return dd;
         }
         const tt = runT;
+        // ── SPEED OPTION DEFENSE ──────────────────────────────────────
+        // The playside edge defender and playside safety divide the QB
+        // and pitch responsibilities. Whichever the EDGE plays (QB or
+        // pitch), the SAFETY plays the other. This forces a real read
+        // for the QB — the carrier with the correct read wins.
+        if (play.isSpeedOption && play.optionRead) {
+          const opt = play.optionRead;
+          const isPlaysideEdge = (opt.optSide === 1 && i === 3) || (opt.optSide === -1 && i === 0);
+          const isPlaysideSafety = (opt.optSide === 1 && i === 10) || (opt.optSide === -1 && i === 9);
+          if (isPlaysideEdge || isPlaysideSafety) {
+            // Locate the two ball-paths. For a keep: rb.x/y is the QB,
+            // optRbX/Y is the trailing pitch back. For a pitch: rb.x/y
+            // is the RB, optQbX/Y is the QB sprite.
+            const qbPosX = play.isPitch ? (optQbX ?? rb.x) : rb.x;
+            const qbPosY = play.isPitch ? (optQbY ?? rb.y) : rb.y;
+            const rbPosX = play.isPitch ? rb.x : (optRbX ?? rb.x);
+            const rbPosY = play.isPitch ? rb.y : (optRbY ?? rb.y);
+            // Edge gets QB if defAttacksQb; safety gets the OPPOSITE.
+            const attacksQb = opt.defAttacksQb ? isPlaysideEdge : isPlaysideSafety;
+            // Edge defender attacking QB crashes hard; defender on the
+            // pitch keeps outside leverage (slower, contain track).
+            const tx = attacksQb ? qbPosX + dir * 2 : rbPosX - dir * 2;
+            const ty = attacksQb ? qbPosY            : rbPosY + opt.optSide * 4;
+            const factor = attacksQb ? 1.05 : 0.78;
+            const elapsedMs = Math.max(0, (t - PRE) * dur);
+            const np = elapsedMs > 0 ? pursue(d, tx, ty, elapsedMs, factor) : { x: d.x, y: d.y };
+            dd.x = np.x; dd.y = np.y;
+            dd.pose = "run";
+            dd.t = (t * 3 + i * 0.13) % 1;
+            dd.facing = -dir;
+            // Tackle at the end if right on the carrier (the real ball-carrier
+            // is rb.x/y by convention here regardless of pitch/keep).
+            if (runT > 0.72 && Math.hypot(rb.x - dd.x, rb.y - dd.y) < 26) {
+              dd.pose = "tackled";
+              dd.t = Math.min(1, (runT - 0.72) / 0.28);
+            }
+            return dd;
+          }
+        }
         if (i < 4) {
           // DL paired with OL — held up at the LOS. The "winning" DL pushes through.
           const wobble = Math.sin(tt * Math.PI * 4 + d.y * 0.09) * 1.3;
@@ -8168,16 +8238,28 @@ function buildAnimForPlay(play, prevPlay) {
       }
       drawPlayers([...off2, carrierToDraw], def);
       drawBall(ctx, ballX, ballY);
-      // SPEED OPTION banner — shows briefly so viewers can identify the play call
+      // SPEED OPTION banner — shows the play call. Once the read fires
+      // (after PITCH_T), a secondary line shows whether the QB made the
+      // RIGHT or WRONG read of the edge defender's commit.
       if (play.isSpeedOption && runT > 0 && runT < 0.55) {
         ctx.save();
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.font = "900 22px sans-serif";
+        const opt = play.optionRead;
+        const showRead = opt && runT > 0.30;
+        const bannerH = showRead ? 48 : 30;
         ctx.fillStyle = "rgba(0,0,0,0.55)";
-        ctx.fillRect(FIELD.W/2 - 130, 8, 260, 30);
+        ctx.fillRect(FIELD.W/2 - 150, 8, 300, bannerH);
         ctx.fillStyle = "#ffd54d";
         ctx.fillText(play.isPitch ? "SPEED OPTION — PITCH" : "SPEED OPTION — KEEP", FIELD.W / 2, 23);
+        if (showRead) {
+          ctx.font = "bold 12px sans-serif";
+          ctx.fillStyle = opt.goesCorrect ? "#86d56d" : "#e87878";
+          const defLabel = opt.defAttacksQb ? "EDGE ATTACKED QB" : "EDGE PLAYED PITCH";
+          const readLabel = opt.goesCorrect ? "RIGHT READ" : "WRONG READ";
+          ctx.fillText(`${defLabel} · ${readLabel}`, FIELD.W / 2, 42);
+        }
         ctx.restore();
       }
       // REVERSE banner — shows for the first 30% of action so viewers see it's a trick
