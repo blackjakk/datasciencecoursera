@@ -661,6 +661,10 @@
   .player-tooltip .tt-arch-name {
     font-weight: 800; color: #ff9040; font-size: .72rem; letter-spacing: .5px;
   }
+  .player-tooltip .tt-anomaly {
+    color: var(--gold-lt); font-size: .65rem; margin-top: .2rem;
+    font-style: italic; letter-spacing: .15px;
+  }
   .player-tooltip .tt-arch-blurb {
     color: var(--gray); font-size: .68rem; margin-top: .1rem;
   }
@@ -1684,6 +1688,78 @@ function pickSArchetype(stats) {
 }
 
 // Pick a running style based on position + archetype — each player runs slightly differently.
+// Detect rare strengths that don't fit a player's archetype. Pure flavor —
+// stats stay as rolled, archetype label stays best-fit. The anomaly text is
+// surfaced in the tooltip as e.g. "Thumper who can cover" or "Shutdown corner
+// with hands". Returns an array of short strings (most players have 0-1).
+function findArchetypeAnomalies(player) {
+  const out = [];
+  const s = player.stats;
+  const SPD = s[0], STR = s[1], AGI = s[2], AWR = s[3];
+  const CAT = s[5], PRS = s[7], COV = s[8], TCK = s[9];
+  const arch = player.archetype;
+  const pos = player.position;
+  const ELITE = 88;     // threshold for "anomalous strength"
+  const ELITE2 = 92;    // headline anomaly
+  if (pos === "LB") {
+    if (arch === "THUMPER" && COV >= ELITE)   out.push("Thumper who can cover");
+    if (arch === "THUMPER" && SPD >= ELITE)   out.push("Sideline-to-sideline thumper");
+    if (arch === "BLITZER" && COV >= ELITE)   out.push("Blitzer with coverage chops");
+    if (arch === "COVER"   && STR >= ELITE)   out.push("Coverage LB who packs a punch");
+    if (arch === "SIGNAL"  && PRS >= ELITE)   out.push("Signal-caller with sneaky pass-rush juice");
+    if (arch === "HYBRID"  && AWR >= ELITE2)  out.push("Hybrid with rare instincts");
+  }
+  if (pos === "CB") {
+    if (arch === "PHYSICAL" && SPD >= ELITE)  out.push("Physical corner who can flat-out RUN");
+    if (arch === "SHUTDOWN" && STR >= ELITE)  out.push("Shutdown corner who'll lay you out");
+    if (arch === "SLOT_CB"  && STR >= ELITE)  out.push("Slot corner who's not afraid of contact");
+    if (arch === "ZONE"     && AGI >= ELITE)  out.push("Zone corner with man-cover quicks");
+    if (arch === "BALL_HAWK"&& COV >= ELITE2) out.push("Ball hawk who locks down too");
+  }
+  if (pos === "S") {
+    if (arch === "BOX"          && COV >= ELITE)  out.push("Box safety who covers like a corner");
+    if (arch === "CENTER_FIELD" && STR >= ELITE)  out.push("Center fielder who'll bring the wood");
+    if (arch === "BALL_HAWK"    && TCK >= ELITE)  out.push("Ball hawk who tackles in the box");
+    if (arch === "HYBRID"       && SPD >= ELITE2) out.push("Hybrid safety with rare range");
+  }
+  if (pos === "DL") {
+    if (arch === "POWER"      && SPD >= ELITE)  out.push("Power rusher with sneaky speed");
+    if (arch === "SPEED"      && STR >= ELITE)  out.push("Speed rusher who can also bull");
+    if (arch === "PENETRATOR" && COV >= 75)     out.push("Interior who drops into coverage");
+    if (arch === "TECHNICIAN" && PRS >= ELITE2) out.push("Technician with elite pass-rush production");
+  }
+  if (pos === "OL") {
+    if (arch === "MAULER"   && AGI >= ELITE) out.push("Mauler with light feet");
+    if (arch === "ATHLETIC" && STR >= ELITE) out.push("Athletic OL who can also road-grade");
+    if (arch === "PLUG"     && SPD >= 75)    out.push("Plug who pulls like a guard");
+  }
+  if (pos === "RB") {
+    if (arch === "POWER"     && SPD >= ELITE) out.push("Power back with breakaway speed");
+    if (arch === "ELUSIVE"   && STR >= ELITE) out.push("Elusive back who runs through tackles");
+    if (arch === "WORKHORSE" && CAT >= ELITE) out.push("Workhorse who catches everything");
+    if (arch === "RECEIVING" && STR >= ELITE) out.push("Receiving back who breaks tackles");
+  }
+  if (pos === "WR") {
+    if (arch === "DEEP"        && CAT >= ELITE2) out.push("Deep threat with reliable hands");
+    if (arch === "POSSESSION"  && SPD >= ELITE)  out.push("Possession WR with deep speed");
+    if (arch === "ROUTE_RUNNER"&& STR >= ELITE)  out.push("Route runner with contested-catch frame");
+    if (arch === "SLOT"        && STR >= ELITE)  out.push("Slot receiver with linebacker frame");
+    if (arch === "RED_ZONE"    && SPD >= ELITE)  out.push("Red-zone WR who can take the top off");
+  }
+  if (pos === "TE") {
+    if (arch === "BLOCKING"  && CAT >= ELITE2) out.push("Blocking TE with hands");
+    if (arch === "RECEIVING" && STR >= ELITE)  out.push("Receiving TE who blocks the edge");
+    if (arch === "SEAM"      && STR >= ELITE)  out.push("Seam TE who can in-line block");
+  }
+  if (pos === "QB") {
+    if (arch === "POCKET"      && SPD >= ELITE)  out.push("Pocket passer with surprising legs");
+    if (arch === "DUAL_THREAT" && AWR >= ELITE2) out.push("Dual-threat with field-general reads");
+    if (arch === "GUNSLINGER"  && AWR >= ELITE)  out.push("Gunslinger with rare poise");
+    if (arch === "GAME_MANAGER"&& s[4] >= ELITE2) out.push("Game manager with a cannon");
+  }
+  return out.length ? out : null;
+}
+
 function pickRunStyle(pos, archetype) {
   if (pos === "QB") return archetype === "DUAL_THREAT" ? "scrambler" : "smooth";
   if (pos === "RB") {
@@ -1799,6 +1875,11 @@ function genPlayer(pos, tier) {
     case "CB": player.archetype = pickCBArchetype(stats); break;
     case "S":  player.archetype = pickSArchetype(stats);  break;
   }
+  // Tag any "anomaly" — a rare strength outside what the archetype typically
+  // implies (e.g. a Thumper LB who can also cover). Surfaced in the tooltip
+  // as a fun-fact. Doesn't change the stats; the archetype label is still the
+  // best-fit summary.
+  player.anomalies = findArchetypeAnomalies(player);
   player.runStyle = pickRunStyle(pos, player.archetype);
   player.celebStyle = pickCelebStyle();
   player.bodyType = pickBodyType(pos, player.archetype);
@@ -4586,9 +4667,11 @@ function buildPlayerTooltip(p) {
       const movesBar = a.moves
         ? `<div class="tt-arch-moves">${a.moves.map(m => `<span class="tt-move">${m}</span>`).join("")}</div>`
         : "";
+      const anomalies = (p.anomalies || []).map(x => `<div class="tt-anomaly">~ ${escapeHtml(x)}</div>`).join("");
       archHtml = `<div class="tt-arch">
         <div class="tt-arch-name">${a.label.toUpperCase()}</div>
         <div class="tt-arch-blurb">${a.blurb}</div>
+        ${anomalies}
         ${movesBar}
       </div>`;
     }
