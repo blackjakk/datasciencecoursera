@@ -4727,6 +4727,16 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
       lArm = -2.4; rArm = -2.4;
       armReachY = -3;
       break;
+    case "celebrate": {
+      // TD celebration — both arms raised high, slight wave, body
+      // bouncing in place. t goes 0→1 across the celebration window.
+      lArm = -2.4 + Math.sin(t * Math.PI * 5) * 0.35;
+      rArm = -2.4 + Math.sin(t * Math.PI * 5 + Math.PI * 0.5) * 0.35;
+      armReachY = -4 + Math.sin(t * Math.PI * 4) * 1.2;
+      bodyDY = -2 - Math.abs(Math.sin(t * Math.PI * 4)) * 2;
+      bodyTilt = Math.sin(t * Math.PI * 6) * 0.04;
+      break;
+    }
     case "leap": {
       // Spectacular full-extension diving catch — body airborne and angled
       // forward like Odell Beckham / DK Metcalf, one arm fully extended at
@@ -8265,10 +8275,10 @@ function buildAnimForPlay(play, prevPlay) {
     const endX = yardToAbsX(play.endYard, poss);
     const yards = play.yards ?? 0;
     const isTD = (play.endYard ?? 0) >= 100;
-    // Extra time at the end for the tackle ragdoll — no point ending the play
-    // the instant the carrier is touched. Skip ragdoll time on TDs (they get a
-    // celebration overlay instead).
-    const RUN_TACKLE_MS = isTD ? 0 : 1000;
+    // Extra time at the end. Non-TDs get a tackle-ragdoll window; TDs
+    // get a celebration window where the scorer raises arms + a banner
+    // flashes.
+    const RUN_TACKLE_MS = isTD ? 1500 : 1000;
     const actionDur = scaledDuration(yards) + RUN_TACKLE_MS;
     const dur = actionDur + PRE_MS;
     PRE = PRE_MS / dur;
@@ -8575,6 +8585,10 @@ function buildAnimForPlay(play, prevPlay) {
       if (runT > 0.72 && yards < 90 && !isTD) {
         rbPose = "tackled";
         rbT = Math.min(1, (runT - 0.72) / 0.28);
+      } else if (runT > 0.72 && isTD) {
+        // TD CELEBRATION — arms up, bouncing in the end zone
+        rbPose = "celebrate";
+        rbT = Math.min(1, (runT - 0.72) / 0.28);
       }
       // EARLY CRUISE: ELUSIVE → juke; POWER → truck stick at/just past the line.
       // Moves happen during cruise (0.22 - 0.72) since tackle now starts at 0.72.
@@ -8874,6 +8888,24 @@ function buildAnimForPlay(play, prevPlay) {
         ctx.fillText(moveCallout, lblX, lblY);
         ctx.restore();
       }
+      // TD CELEBRATION BANNER — pulses in the end zone once the carrier
+      // crosses the goal line.
+      if (isTD && runT > 0.72) {
+        const cT = Math.min(1, (runT - 0.72) / 0.28);
+        const pulse = 1 + Math.sin(cT * Math.PI * 8) * 0.04;
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = "rgba(0,0,0,0.55)";
+        ctx.fillRect(FIELD.W/2 - 220, FIELD.H/2 - 38, 440, 76);
+        ctx.font = `900 ${Math.round(56 * pulse)}px sans-serif`;
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = "rgba(0,0,0,0.9)";
+        ctx.strokeText("TOUCHDOWN!", FIELD.W / 2, FIELD.H / 2);
+        ctx.fillStyle = "#ffd54d";
+        ctx.fillText("TOUCHDOWN!", FIELD.W / 2, FIELD.H / 2);
+        ctx.restore();
+      }
       drawPreSnapCallouts(ctx, t);
     }};
   }
@@ -8992,8 +9024,11 @@ function buildAnimForPlay(play, prevPlay) {
     // receiver catches it.
     const passYards = (play.yards ?? 0) + ((play.targetDepth ?? 0) > (play.yards ?? 0) ? 0 : 0);
     const basePass  = scaledDuration(Math.max(play.targetDepth ?? 0, play.yards ?? 0, 8));
-    const POST_CATCH_MS = play.kind === "complete" ? 1700
-                        : play.kind === "int"      ? 1500
+    // Receiving TDs get extra post-catch time for the celebration banner.
+    const isPassTD = play.kind === "complete" && (play.endYard ?? 0) >= 100;
+    const POST_CATCH_MS = isPassTD                  ? 2400
+                        : play.kind === "complete"  ? 1700
+                        : play.kind === "int"       ? 1500
                         : play.kind === "incomplete" ? 600
                         : 1000;
     const actionDur = basePass + POST_CATCH_MS;
@@ -9396,15 +9431,17 @@ function buildAnimForPlay(play, prevPlay) {
       // tenths in the defenders close in. Start of tackle = TackleFrac of
       // action time; ragdoll plays out from there to the end.
       const TACKLE_START_AT = 0.78;   // 22% of action time devoted to tackle+ragdoll
+      const passIsTD = (play.endYard ?? 0) >= 100;
       const wrPose = t < PRE
         ? "idle"   // hold stance pre-snap (auto-flips to role stance via drawPlayer)
         : (wrIntPose
         || (inWRJukeWindow ? "juke"
         :  (inLeapWindow ? "leap"
         :  (isCatching ? "reach"
+        :  (isPostCatch && aT > TACKLE_START_AT && passIsTD ? "celebrate"
         :  (isPostCatch && aT > TACKLE_START_AT && (play.yards ?? 0) < 90 ? "tackled"
         :  (isPostCatch ? "carry"
-        :   "run"))))));
+        :   "run")))))));
       // For the tackled fall, pass fall-progress (not stride cycle) so the
       // ragdoll animation actually animates from "just hit" → "flat".
       const wrIsTackled = wrPose === "tackled";
@@ -9526,6 +9563,23 @@ function buildAnimForPlay(play, prevPlay) {
         ctx.strokeText(lbl, lblX, lblY);
         ctx.fillStyle = "#f0cc30";
         ctx.fillText(lbl, lblX, lblY);
+        ctx.restore();
+      }
+      // TD CELEBRATION BANNER for pass TDs
+      if (passIsTD && isPostCatch && aT > 0.78) {
+        const cT = Math.min(1, (aT - 0.78) / 0.22);
+        const pulse = 1 + Math.sin(cT * Math.PI * 8) * 0.04;
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = "rgba(0,0,0,0.55)";
+        ctx.fillRect(FIELD.W/2 - 220, FIELD.H/2 - 38, 440, 76);
+        ctx.font = `900 ${Math.round(56 * pulse)}px sans-serif`;
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = "rgba(0,0,0,0.9)";
+        ctx.strokeText("TOUCHDOWN!", FIELD.W / 2, FIELD.H / 2);
+        ctx.fillStyle = "#ffd54d";
+        ctx.fillText("TOUCHDOWN!", FIELD.W / 2, FIELD.H / 2);
         ctx.restore();
       }
       drawPreSnapCallouts(ctx, t);
