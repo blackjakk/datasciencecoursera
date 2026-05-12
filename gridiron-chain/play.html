@@ -3201,18 +3201,41 @@ class GameSimulator {
     const fbStuffReduction = useTwoBack ? 0.4 : 0;   // subtracts from trench loss
     // Read-option / RPO schemes give some carries to the QB
     const qbRushPct = pb.qbRushPct || 0;
-    const isQBRun = qbRushPct > 0 && Math.random() < qbRushPct;
+    let isQBRun = qbRushPct > 0 && Math.random() < qbRushPct;
+    // SPEED OPTION — a subset of QB-run calls where the RB trails the QB
+    // as a live pitch threat. The QB sprints to the option side and either
+    // KEEPS the ball or PITCHES to the trailing back. Option-heavy
+    // playbooks call it most.
+    let isSpeedOption = false;
+    let isPitch = false;
+    if (isQBRun && this.offR.starters.rb) {
+      const speedOptPct = pb.id === "OPTION"       ? 0.40
+                        : pb.id === "DUAL_THREAT" ? 0.22
+                        : 0.10;
+      if (Math.random() < speedOptPct) {
+        isSpeedOption = true;
+        // ~50/50 — pitch slightly more often when the RB is faster than the QB.
+        const qbPlayer  = this._playerByName?.get?.(this.offR.starters.qb);
+        const rbPlayerO = this._playerByName?.get?.(this.offR.starters.rb);
+        const qbSpd = qbPlayer?.stats?.[0] ?? 78;
+        const rbSpd = rbPlayerO?.stats?.[0] ?? 82;
+        const pitchBias = 0.50 + clamp((rbSpd - qbSpd) / 60, -0.15, 0.15);
+        isPitch = Math.random() < pitchBias;
+        // If pitched, the RB is the actual ball-carrier
+        if (isPitch) isQBRun = false;
+      }
+    }
     // REVERSE — rare trick play, ~1.5% of non-QB runs. RB takes the handoff
     // and runs laterally, then pitches to a crossing WR who runs the other way.
     // High variance: bigger gains AND bigger losses if it gets read.
     // Never on two-back — fullbacks don't run reverses.
-    const isReverse = !isQBRun && !useTwoBack && Math.random() < 0.015;
+    const isReverse = !isQBRun && !useTwoBack && !isSpeedOption && Math.random() < 0.015;
     // ── RUN-PLAY VARIANTS (counter / stretch / pitch) ──────────────────
     // Pick a runType for the non-reverse, non-QB runs. Distribution favors
     // GROUND_AND_POUND and OPTION schemes for counter / pitch, AIR_RAID
     // teams stick mostly to inside zone.
     let runType = "inside";   // default
-    if (!isQBRun && !isReverse) {
+    if (!isQBRun && !isReverse && !isSpeedOption) {
       const r = Math.random();
       if (pb.id === "GROUND_AND_POUND") {
         if      (r < 0.18) runType = "counter";
@@ -3243,6 +3266,18 @@ class GameSimulator {
     } else if (runType === "pitch") {
       runVarMean = 0.6;                                 // get on the edge fast
       runVarSd   = 1.45;                                // big plays + big losses
+    }
+    // SPEED OPTION — high-variance option play. Pitches get on the edge
+    // and break for chunks more often; keeps are similar to QB runs but
+    // with a slight upside when the defense over-commits to the pitch.
+    if (isSpeedOption) {
+      if (isPitch) {
+        runVarMean = 1.1;
+        runVarSd   = 1.50;
+      } else {
+        runVarMean = 0.8;
+        runVarSd   = 1.35;
+      }
     }
     const carrier = isQBRun ? QB : RB;
     // QB runs break for chunks slightly more often — defense had to honor pass first
@@ -3327,12 +3362,16 @@ class GameSimulator {
         : this._creditDefStat("tkl", { DL: 0.50, LB: 0.35, S: 0.10, CB: 0.05 }));
     const rushEndTag = isRushTD ? " — TOUCHDOWN!"
                      : tacklerName ? `, tackled by ${tacklerName}` : "";
-    const desc = isQBRun
-      ? `${QB} keeps it for ${yards} yds${brokeNote}${rushEndTag}`
-      : runVariantTag
-        ? `${this.offR.starters.rb} ${runVariantTag} for ${yards} yds${brokeNote}${rushEndTag}`
-        : `${this.offR.starters.rb} runs for ${yards} yds${brokeNote}${rushEndTag}`;
-    this._pushVisual({ kind: "run", desc, startYard, yards, endYard: clamp(startYard + yards, 0, 100), rusher: carrier, isQBRun, isReverse, runType, tackler: tacklerName, brokenTackles, isTwoBack: useTwoBack, fb: useTwoBack ? this.offR.starters.rb2 : null });
+    const desc = isSpeedOption
+      ? (isPitch
+          ? `${QB} pitches to ${this.offR.starters.rb} on the speed option for ${yards} yds${brokeNote}${rushEndTag}`
+          : `${QB} keeps on the speed option for ${yards} yds${brokeNote}${rushEndTag}`)
+      : isQBRun
+        ? `${QB} keeps it for ${yards} yds${brokeNote}${rushEndTag}`
+        : runVariantTag
+          ? `${this.offR.starters.rb} ${runVariantTag} for ${yards} yds${brokeNote}${rushEndTag}`
+          : `${this.offR.starters.rb} runs for ${yards} yds${brokeNote}${rushEndTag}`;
+    this._pushVisual({ kind: "run", desc, startYard, yards, endYard: clamp(startYard + yards, 0, 100), rusher: carrier, isQBRun, isReverse, runType, isSpeedOption, isPitch, tackler: tacklerName, brokenTackles, isTwoBack: useTwoBack, fb: useTwoBack ? this.offR.starters.rb2 : null });
     return { yards };
   }
   _drive() {
@@ -7633,6 +7672,11 @@ function buildAnimForPlay(play, prevPlay) {
       const snapMotionRT = 0.04;
       const centerX = losX - dir * 2;
       let ballX, ballY = t < PRE ? cy : cy + (1 - runT) * 18;
+      // Speed-option dual-sprite tracking — when set, the rendering swap
+      // below uses these to draw the QB and RB sprites at their parallel
+      // sprint positions. Null otherwise (normal one-carrier rendering).
+      let optQbX = null, optQbY = null;
+      let optRbX = null, optRbY = null;
       if (t < PRE) {
         ballX = centerX;
         ballY = cy;
@@ -7671,6 +7715,84 @@ function buildAnimForPlay(play, prevPlay) {
           ballX = readSpotX + (endX - readSpotX) * tuckT;
           rb.x = ballX;
           rb.y = cy;
+        }
+      } else if (play.isSpeedOption) {
+        // SPEED OPTION — QB and RB sprint parallel to the option side.
+        // At the pitch read (PITCH_T), the QB either KEEPS or PITCHES to
+        // the trailing RB. Both sprites are actively animated — the
+        // dual-sprite positions are stored in optQbX/Y and optRbX/Y
+        // which the rendering pass uses to draw both players.
+        const optSide = ((play.startYard * 19) >>> 0) % 2 === 0 ? 1 : -1;
+        const PITCH_T = 0.28;
+        const PITCH_FLY = 0.06;
+        const isPitchPlay = !!play.isPitch;
+        // The edge target — the corner the option attacks toward
+        const edgeX = qb.x + dir * 3 * FIELD.PX_PER_YARD;
+        const edgeY = cy + optSide * 50;
+        const rbTrailDx = -dir * 2 * FIELD.PX_PER_YARD;
+        const rbTrailDy = optSide * 18;
+        // QB sprint path
+        let qbCurX, qbCurY;
+        if (runT < PITCH_T) {
+          const sm = runT / PITCH_T;
+          const eased = sm * sm * (3 - 2 * sm);
+          qbCurX = qb.x + (edgeX - qb.x) * eased;
+          qbCurY = cy + (edgeY - cy) * eased;
+        } else if (isPitchPlay) {
+          // After pitching, the QB slows and drifts toward the sideline
+          const after = (runT - PITCH_T) / (1 - PITCH_T);
+          qbCurX = edgeX + dir * 6 * after;
+          qbCurY = edgeY + optSide * 8 * after;
+        } else {
+          // Keep — QB continues forward toward endX
+          const progress = runPacing(runT);
+          const after = (runT - PITCH_T) / (1 - PITCH_T);
+          qbCurX = qb.x + (endX - qb.x) * progress;
+          qbCurY = edgeY + (cy + optSide * 25 - edgeY) * Math.min(1, after);
+        }
+        // RB pitch-back path
+        let rbCurX, rbCurY;
+        if (runT < PITCH_T) {
+          const sm = runT / PITCH_T;
+          const eased = sm * sm * (3 - 2 * sm);
+          const tx = edgeX + rbTrailDx;
+          const ty = edgeY + rbTrailDy;
+          rbCurX = formation.rb.x + (tx - formation.rb.x) * eased;
+          rbCurY = formation.rb.y + (ty - formation.rb.y) * eased;
+        } else if (isPitchPlay) {
+          // RB takes the pitch and sprints upfield
+          const rbStartX = edgeX + rbTrailDx;
+          const rbStartY = edgeY + rbTrailDy;
+          const after = (runT - PITCH_T) / (1 - PITCH_T);
+          const easeOut = after * (2 - after);
+          rbCurX = rbStartX + (endX - rbStartX) * easeOut;
+          rbCurY = rbStartY + (cy + optSide * 20 - rbStartY) * easeOut;
+        } else {
+          // QB keeps — RB peels off the option lane as a decoy
+          const after = (runT - PITCH_T) / (1 - PITCH_T);
+          rbCurX = edgeX + rbTrailDx + dir * 8 * after;
+          rbCurY = edgeY + rbTrailDy + optSide * 22 * after;
+        }
+        // Assign rb (carrier sprite slot) and stash the OTHER sprite's pos
+        if (isPitchPlay) {
+          rb.x = rbCurX; rb.y = rbCurY;          // RB is the carrier
+          optQbX = qbCurX; optQbY = qbCurY;      // QB sprite separate
+        } else {
+          rb.x = qbCurX; rb.y = qbCurY;          // QB-as-carrier (isQBCarry override)
+          optRbX = rbCurX; optRbY = rbCurY;      // RB sprite separate
+        }
+        // Ball position — with QB pre-pitch, in flight during pitch arc,
+        // with RB post-pitch (or with QB throughout for keeps)
+        if (runT < PITCH_T) {
+          ballX = qbCurX; ballY = qbCurY;
+        } else if (isPitchPlay && runT < PITCH_T + PITCH_FLY) {
+          const flyT = (runT - PITCH_T) / PITCH_FLY;
+          ballX = edgeX + (rbCurX - edgeX) * flyT;
+          ballY = edgeY + (rbCurY - edgeY) * flyT - Math.sin(flyT * Math.PI) * 10;
+        } else if (isPitchPlay) {
+          ballX = rbCurX; ballY = rbCurY;
+        } else {
+          ballX = qbCurX; ballY = qbCurY;
         }
       } else if (isQBRun) {
         // DESIGNED QB RUN / OPTION KEEPER — the QB sprite (rendered at
@@ -8013,22 +8135,29 @@ function buildAnimForPlay(play, prevPlay) {
           pose: rbPose, t: rbT, facing: dir,
         };
         off2 = off.map(p => p.role === "QB" ? qbCarrier : p);
-        // Real RB stays in the backfield as a blocker (or runs a swing route)
-        carrierToDraw = {
-          ...formation.rb,
-          x: formation.rb.x + dir * Math.min(8, runT * 18),
-          y: formation.rb.y - dir * Math.min(0, runT * 4),
-          pose: t < PRE ? "idle" : "block",
-          t: runT,
-          facing: dir,
-        };
+        // Real RB — on a speed option KEEP, the RB sprints alongside as
+        // a live pitch threat. On other QB-carry plays, he sits in the
+        // backfield as a check-down blocker.
+        carrierToDraw = (optRbX !== null)
+          ? { ...formation.rb, x: optRbX, y: optRbY,
+              pose: "run", t: (t * 3) % 1, facing: dir }
+          : { ...formation.rb,
+              x: formation.rb.x + dir * Math.min(8, runT * 18),
+              y: formation.rb.y - dir * Math.min(0, runT * 4),
+              pose: t < PRE ? "idle" : "block",
+              t: runT,
+              facing: dir };
       } else {
         // Standard handoff: QB stays in stance pre-snap (auto-stance via "idle"),
         // briefly does a handoff motion right after the snap, then idles.
-        // Was sending pose="throw" during pre-snap, which set rightHandBall=true
-        // and drew a phantom ball in the QB's hand alongside the standalone ball.
+        // For a speed-option PITCH, the QB sprite actively sprints to the
+        // option side, then peels off after the pitch — driven by optQbX/Y.
         off2 = off.map(p => {
           if (p.role !== "QB") return p;
+          if (optQbX !== null) {
+            return { ...p, x: optQbX, y: optQbY,
+                     pose: "run", t: (t * 3) % 1, facing: dir };
+          }
           const handoffPose = t < PRE
             ? "idle"                                  // stance pre-snap
             : (t < PRE + (1 - PRE) * 0.10 ? "throw"  // brief handoff motion
@@ -8039,6 +8168,18 @@ function buildAnimForPlay(play, prevPlay) {
       }
       drawPlayers([...off2, carrierToDraw], def);
       drawBall(ctx, ballX, ballY);
+      // SPEED OPTION banner — shows briefly so viewers can identify the play call
+      if (play.isSpeedOption && runT > 0 && runT < 0.55) {
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.font = "900 22px sans-serif";
+        ctx.fillStyle = "rgba(0,0,0,0.55)";
+        ctx.fillRect(FIELD.W/2 - 130, 8, 260, 30);
+        ctx.fillStyle = "#ffd54d";
+        ctx.fillText(play.isPitch ? "SPEED OPTION — PITCH" : "SPEED OPTION — KEEP", FIELD.W / 2, 23);
+        ctx.restore();
+      }
       // REVERSE banner — shows for the first 30% of action so viewers see it's a trick
       if (play.isReverse && runT < 0.55) {
         ctx.save();
