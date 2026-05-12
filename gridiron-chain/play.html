@@ -2418,6 +2418,51 @@ class GameSimulator {
     this.score[this.poss] += pts;
     this._pushVisual({ kind: "score", desc: `${this.possTeam.city} ${this.possTeam.name} — ${type} (+${pts})` });
   }
+  // Handles the kickoff after any score (TD or FG). Decides whether the
+  // kicking team should attempt an onside kick (trailing late) and sets
+  // possession / yardLine accordingly. Pushes a kickoff visual either way.
+  _kickoffAfterScore(scoringTeamKey) {
+    const receivingKey = scoringTeamKey === "home" ? "away" : "home";
+    const scoreDiff = this.score[scoringTeamKey] - this.score[receivingKey];
+    const lateGame  = (this.quarter === 4 && this.time < 240) || this.quarter >= 5;
+    const desperate = (this.quarter === 4 && this.time < 30)  || this.quarter >= 5;
+    // Kicking team only tries an onside if they're STILL behind (or just
+    // tied with little time), since recovering an onside is rare and a
+    // failed onside hands the opponent great field position.
+    const tryOnside = (lateGame  && scoreDiff <  0)
+                   || (desperate && scoreDiff <= 0 && this.time < 60);
+    if (tryOnside) {
+      const recovered = Math.random() < 0.13;     // ~13% under modern rules
+      const kicker = this[scoringTeamKey];
+      const receiver = this[receivingKey];
+      if (recovered) {
+        this._pushVisual({
+          kind: "kickoff",
+          desc: `ONSIDE KICK — RECOVERED by ${kicker.name}! Ball at midfield.`,
+          startYard: 35, endYard: 50,
+          isOnside: true, onsideRecovered: true,
+          poss: scoringTeamKey,
+        });
+        this.poss = scoringTeamKey;
+        this.yardLine = 50;            // kicking team starts at the 50
+      } else {
+        this._pushVisual({
+          kind: "kickoff",
+          desc: `Onside kick attempt — recovered by ${receiver.name} at midfield`,
+          startYard: 35, endYard: 50,
+          isOnside: true, onsideRecovered: false,
+          poss: receivingKey,
+        });
+        this.poss = receivingKey;
+        this.yardLine = 50;            // receiving team starts at the 50
+      }
+    } else {
+      // Standard kickoff — touchback to the 25
+      this.poss = receivingKey;
+      this.yardLine = 25;
+    }
+    this.down = 1; this.ytg = 10;
+  }
   // Attempt an extra point (or rarely a 2-pt) for the DEFENSIVE team after
   // they score on a pick-six / fumble-six / blocked-FG TD / missed-FG TD.
   // Pushes a visual either way so the user sees the kick or the miss/2pt.
@@ -2533,6 +2578,7 @@ class GameSimulator {
           if (kStats) { kStats.fg_made++; if (dist > kStats.fg_long) kStats.fg_long = dist; }
           this._score(3, `${dist}-yd FG`);
           this._pushVisual({ kind: "fg_good", desc: `${this.offR.starters.k} drills it from ${dist} yds!`, startYard, endYard: 100, fgDist: dist, kicker: this.offR.starters.k });
+          return { endDrive: true, fgGood: true };
         } else {
           // Long missed FGs (>50 yd attempts) can be returned by the defense
           // — the spot is behind the LOS where the defender catches the ball.
@@ -3544,8 +3590,13 @@ class GameSimulator {
             if (Math.random() < 0.94) { this._score(1, "Extra Point"); if (kStats) kStats.xp_made++; }
           }
           this.drives.push({ team: start, result: "PUNT-RTN-TD", homeScore: this.score.home, awayScore: this.score.away });
-          this.poss = this.poss === "home" ? "away" : "home";
-          this.yardLine = 25; this.down = 1; this.ytg = 10; return;
+          this._kickoffAfterScore(this.poss);
+          return;
+        }
+        if (r.fgGood) {
+          // Made FG — kickoff to the receiving team (with onside option).
+          this._kickoffAfterScore(this.poss);
+          break;
         }
         if (r.punt !== undefined) {
           this.poss = this.poss === "home" ? "away" : "home";
@@ -3579,9 +3630,10 @@ class GameSimulator {
           this.yardLine = clamp(mirror + (r.retYds || 0), 5, 99);
         }
         // Pick-six TD + XP attempt are already handled in _play (_defScoreXP
-        // pushes the XP visual). Just reset for the kickoff.
+        // pushes the XP visual). The "this.poss" we just flipped above is the
+        // team that intercepted, so they're the SCORING team — they kick off.
         if (r.isPickSix) {
-          this.yardLine = 25; this.down = 1; this.ytg = 10;
+          this._kickoffAfterScore(this.poss);
           break;
         }
         this.down = 1; this.ytg = 10; break;
@@ -3638,8 +3690,8 @@ class GameSimulator {
           else this._pushVisual({ kind: "xp_miss", desc: `Extra point — no good` });
         }
         this.drives.push({ team: start, result: "TD", homeScore: this.score.home, awayScore: this.score.away });
-        this.poss = this.poss === "home" ? "away" : "home";
-        this.yardLine = 25; this.down = 1; this.ytg = 10; return;
+        this._kickoffAfterScore(this.poss);
+        return;
       }
       const wasFourth = (this.down === 4);
       if (r.incomplete) this.down++;
