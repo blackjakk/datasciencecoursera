@@ -3965,16 +3965,24 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
         forearmA = -0.4  + ph * 1.9;                        // -0.4 → +1.5 (full extension forward)
         leadA    =  0.8  - ph * 0.6;                       // off arm relaxes down (0.8 → 0.2)
       }
-      // Symmetric throw — right arm is the throwing arm for both facings.
-      // drawArm multiplies the angle by `facing`, so the arm cocks to the
-      // back side automatically: screen-left for facing=+1 (right-facing
-      // QB) and screen-right for facing=-1 (left-facing QB). In a side
-      // view, the throwing arm IS on the back side at the cock peak —
-      // ball held high-and-behind the head before release.
-      rArm = bicepA;
-      lArm = leadA;
-      rForearmOverride = forearmA;
-      rightHandBall = t < 0.55;
+      // Mirrored throw — the arm is anchored on the BACK-side shoulder of
+      // the player, so it cocks OUTWARD to the back without crossing the
+      // body. For facing=-1 (left-facing), the back is screen-RIGHT, so
+      // the throw arm is the rArm (side=+1). For facing=+1 (right-facing),
+      // the back is screen-LEFT, so the throw arm is the lArm (side=-1).
+      // Same bicepA / forearmA values — the * facing flip in drawArm and
+      // the choice of shoulder mirror the motion automatically.
+      if (facing === 1) {
+        lArm = bicepA;
+        rArm = leadA;
+        lForearmOverride = forearmA;
+        leftHandBall = t < 0.55;
+      } else {
+        rArm = bicepA;
+        lArm = leadA;
+        rForearmOverride = forearmA;
+        rightHandBall = t < 0.55;
+      }
       // Body / legs: stepping into the throw, slight forward lean, up on toes
       lLeg = 0.45;
       rLeg = -0.35;
@@ -4396,13 +4404,20 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     return { handX, handY };
   };
   // The throw pose drives rForearmOverride directly in the switch above.
-  // For the throw pose, the right arm is the cocked throwing arm and ends
-  // up overlapping the helmet area — defer drawing it until AFTER the
-  // helmet so it appears in front of the head, like a real combine pose.
+  // For the throw pose, the cocked arm extends to the BACK side of the
+  // body and can ride high enough to overlap the helmet (very-high slot
+  // QBs especially). Defer it until AFTER the helmet so it never disappears
+  // behind the head. The deferred arm depends on facing: for right-facing
+  // QBs the throw arm is the LEFT arm (back side); for left-facing it's
+  // the RIGHT arm.
   const deferThrowArm = pose === "throw";
-  const lHand = drawArm(-1, lArm, leftHandBall, lForearmOverride);
-  const rHand = deferThrowArm
-    ? { handX: 0, handY: 0 }   // placeholder; the real draw happens after the helmet
+  const deferRight = deferThrowArm && facing !== 1;
+  const deferLeft  = deferThrowArm && facing === 1;
+  const lHand = deferLeft
+    ? { handX: 0, handY: 0 }
+    : drawArm(-1, lArm, leftHandBall, lForearmOverride);
+  const rHand = deferRight
+    ? { handX: 0, handY: 0 }
     : drawArm(1, rArm, rightHandBall, rForearmOverride);
 
   // For 3-point stance, draw a ground line where the lead hand plants
@@ -4521,10 +4536,10 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   ctx.strokeRect(-helmRx * 0.7, helmY + helmRy * 0.95, helmRx * 1.4, 0.9);
 
   // Deferred throw arm — drawn AFTER the helmet so the cocked arm appears
-  // in front of the head (otherwise the helmet sprite hides it).
-  if (deferThrowArm) {
-    drawArm(1, rArm, rightHandBall, rForearmOverride);
-  }
+  // in front of the head (otherwise the helmet sprite hides it for very-
+  // high-slot QBs). Which arm depends on facing — see deferLeft/deferRight.
+  if (deferLeft)  drawArm(-1, lArm, leftHandBall, lForearmOverride);
+  if (deferRight) drawArm(1, rArm, rightHandBall, rForearmOverride);
 
   if (exclaim) {
     ctx.fillStyle = "#f0cc30";
