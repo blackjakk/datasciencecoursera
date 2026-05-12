@@ -7798,93 +7798,95 @@ function buildAnimForPlay(play, prevPlay) {
   }
 
   if (play.kind === "fumble") {
-    // Chaotic fumble scrum — ball pops loose, multiple players dive,
-    // ball bounces 1-3 times before someone covers it. Recovery side
-    // and number of muffs come from the simulator.
+    // Real fumble sequence — the carrier loses the ball at the spot, ball
+    // rolls forward bouncing, and the on-field players collapse on it. No
+    // more "circle of strangers" scene; uses the actual formation.
     const recoveredBy = play.recoveredBy || "def";
-    const muffs = play.muffs ?? 1;
-    const totalRolls = muffs + 1;
-    return { duration: 2400, kind: "fumble", render: (t, c) => {
+    const fumYards = play.yards || 0;
+    const fumX = losX + dir * fumYards * FIELD.PX_PER_YARD;
+    const fumY = cy;
+    // Ball drifts forward as it rolls, ending up ~3-5 yards past the spot
+    const restX = fumX + dir * 50;
+    const restY = fumY + ((((play.startYard * 13) >>> 0) % 21) - 10);
+    return { duration: 2600, kind: "fumble", render: (t, c) => {
       ctx = c;
       drawField(ctx, homeTeam, awayTeam, fieldState);
-      // Ball center near LOS
-      const baseX = losX + dir * 8, baseY = cy;
-      // Phase split: 0-0.15 pop, 0.15-0.85 scrum (bouncing), 0.85-1.0 recovery
-      let ballX, ballY, ballScale = 1;
-      // Define dive piles around the ball (6 players converging from random spots)
-      const piles = [];
-      const seed = ((play.startYard * 23 + (play.time || 0)) >>> 0);
-      for (let i = 0; i < 6; i++) {
-        const ang = (i / 6) * Math.PI * 2 + ((seed % 7) * 0.1);
-        const dist = 50 + ((seed + i * 13) % 30);
-        const startX = baseX + Math.cos(ang) * dist;
-        const startY = baseY + Math.sin(ang) * dist * 0.6;
-        // Alternate teams (3 offense, 3 defense roughly)
-        const team = i % 2 === 0 ? "off" : "def";
-        piles.push({ startX, startY, team, ang });
-      }
-      // Compute ball position
-      if (t < 0.15) {
-        // Pop loose — ball arcs up and away from carrier
-        const pt = t / 0.15;
-        ballX = baseX + (Math.sin(pt * Math.PI) * 18) * (((seed % 2) ? 1 : -1));
-        ballY = baseY - Math.sin(pt * Math.PI) * 24;  // up and back down
-        ballScale = 1.0 + Math.sin(pt * Math.PI) * 0.4;
-      } else if (t < 0.85) {
-        // Scrum phase — ball bounces between locations, one per roll
-        const scrumT = (t - 0.15) / 0.70;
-        const rollIdx = Math.min(totalRolls - 1, Math.floor(scrumT * totalRolls));
-        const rollT = (scrumT * totalRolls) - rollIdx;       // 0-1 within this roll
-        // Each roll picks a pile to land near
-        const pileA = piles[(seed + rollIdx) % piles.length];
-        const pileB = piles[(seed + rollIdx + 3) % piles.length];
-        // Bounce between two piles for the duration of this roll
-        ballX = pileA.startX + (pileB.startX - pileA.startX) * rollT;
-        const bounceY = Math.abs(Math.sin(rollT * Math.PI * 2)) * 12;
-        ballY = pileA.startY + (pileB.startY - pileA.startY) * rollT - bounceY;
-        ballScale = 0.85 + Math.sin(rollT * Math.PI * 4) * 0.25;
+
+      // Ball physics — pop loose → roll forward bouncing → settle
+      let ballX, ballY, ballScale;
+      if (t < 0.12) {
+        const pt = t / 0.12;
+        ballX = fumX + dir * pt * 12;
+        ballY = fumY - Math.sin(pt * Math.PI) * 16;
+        ballScale = 1.0 + Math.sin(pt * Math.PI) * 0.25;
+      } else if (t < 0.65) {
+        const pt = (t - 0.12) / 0.53;
+        const sm = pt * pt * (3 - 2 * pt);
+        ballX = fumX + dir * 12 + (restX - fumX - dir * 12) * sm + Math.sin(pt * Math.PI * 6) * 4;
+        ballY = fumY + (restY - fumY) * sm - Math.abs(Math.sin(pt * Math.PI * 5)) * 7;
+        ballScale = 0.9 + Math.abs(Math.cos(pt * Math.PI * 5)) * 0.2;
       } else {
-        // Recovery — ball stops, someone covers it
-        const pileIdx = recoveredBy === "off" ? 0 : 1;
-        const finalPile = piles[(seed + totalRolls - 1) % piles.length];
-        ballX = finalPile.startX;
-        ballY = finalPile.startY;
+        ballX = restX;
+        ballY = restY;
         ballScale = 0.85;
       }
-      // Render players diving toward the ball
-      const offIds = [4, 6, 8];      // mix of offense indices to use as dive piles
-      const defIds = [4, 5, 7];
-      for (let i = 0; i < piles.length; i++) {
-        const p = piles[i];
-        const isOff = p.team === "off";
+
+      // The on-field formation collapsing on the ball. Defenders sprint at
+      // full speed; OL lumber; carrier collapses at the fumble spot.
+      const offPlayers = [...formation.offense];
+      const defPlayers = [...formation.defense];
+      const rusherName = play.rusher;
+      const matchesCarrier = (p) =>
+        (p.role === "RB" || p.role === "QB") && rusherName;
+
+      const renderConverging = (players, isOff) => {
         const color = isOff ? possColor : oppColor;
         const sec = isOff ? team.secondary : oppTeam.secondary;
-        // Players sprint toward ball during scrum, dive at the end
-        let pX, pY, pPose;
-        if (t < 0.15) {
-          // Still standing where they were
-          pX = p.startX; pY = p.startY; pPose = "run";
-        } else if (t < 0.82) {
-          // Sprint toward the ball (with speed cap)
-          const sT = (t - 0.15) / 0.67;
-          pX = p.startX + (ballX - p.startX) * Math.min(1, sT * 1.4);
-          pY = p.startY + (ballY - p.startY) * Math.min(1, sT * 1.4);
-          pPose = "run";
-        } else {
-          // Dive on the ball
-          pX = ballX + Math.cos(p.ang) * (8 - (t - 0.82) * 30);
-          pY = ballY + Math.sin(p.ang) * (8 - (t - 0.82) * 30) * 0.6;
-          pPose = "tackled";
+        for (const p of players) {
+          const carrier = isOff && matchesCarrier(p);
+          let pX, pY, pPose;
+          if (carrier) {
+            // Carrier collapses at the fumble spot, ragdoll
+            const collapseT = Math.min(1, t / 0.18);
+            pX = p.x + (fumX - p.x) * collapseT;
+            pY = p.y + (fumY + 6 - p.y) * collapseT;
+            pPose = "tackled";
+          } else {
+            // OL drag (slow), DL/LB/CB/S/WR sprint
+            const isOL = p.role === "OL";
+            const speedMul = isOL ? 0.45 : (p.role === "WR1" || p.role === "WR2" || p.role === "TE") ? 0.70 : 1.0;
+            const dx = ballX - p.x, dy = ballY - p.y;
+            const dist = Math.hypot(dx, dy);
+            const maxMove = t * 360 * speedMul;
+            const moveFrac = Math.min(1, maxMove / Math.max(1, dist));
+            pX = p.x + dx * moveFrac;
+            pY = p.y + dy * moveFrac;
+            // Once close enough, dive into the pile
+            const newDist = Math.hypot(ballX - pX, ballY - pY);
+            if (newDist < 38 && t > 0.55) {
+              pPose = "tackled";
+            } else if (newDist < 38) {
+              pPose = "tackled";
+            } else {
+              pPose = "run";
+            }
+          }
+          drawPlayer(ctx, pX, pY, color, sec, p.label || "", pPose, (t * 3) % 1, isOff ? dir : -dir, p);
         }
-        drawPlayer(ctx, pX, pY, color, sec, "", pPose, (t * 3 + i * 0.13) % 1, isOff ? dir : -dir);
-      }
-      drawBall(ctx, ballX, ballY, ballScale);
+      };
+      renderConverging(offPlayers, true);
+      renderConverging(defPlayers, false);
+
+      // Ball drawn on top of everyone EXCEPT after the pile has formed (then
+      // it's buried under the dogpile)
+      if (t < 0.78) drawBall(ctx, ballX, ballY, ballScale);
+
       // "FUMBLE!" callout
-      if (t < 0.30) {
+      if (t < 0.32) {
         const fadeIn = Math.min(1, t / 0.10);
         ctx.save();
         ctx.textAlign = "center";
-        ctx.font = "900 38px sans-serif";
+        ctx.font = "900 38px monospace";
         ctx.fillStyle = `rgba(214,90,90,${fadeIn})`;
         ctx.strokeStyle = `rgba(0,0,0,${fadeIn * 0.85})`;
         ctx.lineWidth = 4;
@@ -7893,11 +7895,11 @@ function buildAnimForPlay(play, prevPlay) {
         ctx.restore();
       }
       // "LOOSE BALL!" during the scrum
-      if (t > 0.30 && t < 0.78) {
+      if (t > 0.32 && t < 0.75) {
         const pulse = 0.5 + Math.sin(t * Math.PI * 8) * 0.5;
         ctx.save();
         ctx.textAlign = "center";
-        ctx.font = "900 22px sans-serif";
+        ctx.font = "900 22px monospace";
         ctx.fillStyle = `rgba(255,200,80,${0.6 + pulse * 0.4})`;
         ctx.strokeStyle = "rgba(0,0,0,0.8)";
         ctx.lineWidth = 3;
@@ -7906,8 +7908,8 @@ function buildAnimForPlay(play, prevPlay) {
         ctx.restore();
       }
       // Recovery callout
-      if (t > 0.85) {
-        const fadeT = Math.min(1, (t - 0.85) / 0.10);
+      if (t > 0.82) {
+        const fadeT = Math.min(1, (t - 0.82) / 0.10);
         const isRecOff = recoveredBy === "off";
         const lbl = isRecOff
           ? `${(poss === "home" ? homeTeam : awayTeam).name.toUpperCase()} RECOVERS!`
