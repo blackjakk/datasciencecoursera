@@ -2145,6 +2145,7 @@ function buildRatings(roster) {
     starters: {
       qb:  (byPos.QB?.[0])?.name || "QB",
       rb:  (byPos.RB?.[0])?.name || "RB",
+      rb2: (byPos.RB?.[1])?.name || null,    // second back — null if no viable depth
       wr1: (byPos.WR?.[0])?.name || "WR1",
       wr2: (byPos.WR?.[1])?.name || "WR2",
       te:  (byPos.TE?.[0])?.name || "TE",
@@ -3103,13 +3104,32 @@ class GameSimulator {
     }
     const rushMean = pb.rushYdsMean ?? 4.3;
     const rushSd   = pb.rushYdsSd   ?? 5.5;
+    // ── TWO-BACK FORMATION DECISION ────────────────────────────────────
+    // Only when there's a viable second back on the roster. Probability
+    // tilts by playbook (GROUND_AND_POUND uses it the most), and short
+    // yardage / goal line bumps it.
+    const hasRB2 = !!this.offR.starters.rb2;
+    let useTwoBack = false;
+    if (hasRB2) {
+      let twoBackPct = 0.16;       // balanced default
+      if (pb.id === "GROUND_AND_POUND") twoBackPct = 0.35;
+      else if (pb.id === "AIR_RAID")    twoBackPct = 0.04;
+      else if (pb.id === "OPTION")      twoBackPct = 0.22;
+      if (this.ytg <= 2) twoBackPct += 0.20;     // power short yardage
+      if (startYard >= 95) twoBackPct += 0.15;   // goal line
+      useTwoBack = Math.random() < twoBackPct;
+    }
+    // FB lead-block bonus — bumps rush yardage, reduces stuff risk
+    const fbBoost = useTwoBack ? 0.9 : 0;
+    const fbStuffReduction = useTwoBack ? 0.4 : 0;   // subtracts from trench loss
     // Read-option / RPO schemes give some carries to the QB
     const qbRushPct = pb.qbRushPct || 0;
     const isQBRun = qbRushPct > 0 && Math.random() < qbRushPct;
     // REVERSE — rare trick play, ~1.5% of non-QB runs. RB takes the handoff
     // and runs laterally, then pitches to a crossing WR who runs the other way.
     // High variance: bigger gains AND bigger losses if it gets read.
-    const isReverse = !isQBRun && Math.random() < 0.015;
+    // Never on two-back — fullbacks don't run reverses.
+    const isReverse = !isQBRun && !useTwoBack && Math.random() < 0.015;
     const carrier = isQBRun ? QB : RB;
     // QB runs break for chunks slightly more often — defense had to honor pass first
     const carrierBoost = isQBRun ? 0.8 : 0;
@@ -3138,7 +3158,7 @@ class GameSimulator {
     // The lateral hand-off and direction change make it boom-or-bust.
     const reverseBonus = isReverse ? (Math.random() < 0.45 ? -5 + Math.random() * 3 : 4 + Math.random() * 10) : 0;
     const reverseSdMul = isReverse ? 1.6 : 1.0;
-    let yards = clamp(normal(rushMean + rbBoost + adv * 1.4 + runTrenchYds - lbTackle * 0.5 - boxSafetyStuff - thumperStuff + carrierBoost + reverseBonus, rushSd * rbSdMul * reverseSdMul), -8, 75);
+    let yards = clamp(normal(rushMean + rbBoost + fbBoost + adv * 1.4 + runTrenchYds + fbStuffReduction - lbTackle * 0.5 - boxSafetyStuff - thumperStuff + carrierBoost + reverseBonus, rushSd * rbSdMul * reverseSdMul), -8, 75);
     // Cap at distance to end zone so a 1-yd goal-line carry doesn't get reported as a 17-yd TD
     if (yards > 0) yards = Math.min(yards, 100 - startYard);
     // Broken tackles — carrier physicality vs defender tackle rating.
@@ -3189,7 +3209,7 @@ class GameSimulator {
       ? (yards >= 10 ? this._creditDefStat("tkl", { S: 0.40, CB: 0.20, LB: 0.30, DL: 0.10 })
                      : this._creditDefStat("tkl", { LB: 0.45, DL: 0.30, S: 0.15, CB: 0.10 }))
       : this._creditDefStat("tkl", { DL: 0.50, LB: 0.35, S: 0.10, CB: 0.05 });
-    this._pushVisual({ kind: "run", desc, startYard, yards, endYard: clamp(startYard + yards, 0, 100), rusher: carrier, isQBRun, isReverse, tackler: tacklerName, brokenTackles });
+    this._pushVisual({ kind: "run", desc, startYard, yards, endYard: clamp(startYard + yards, 0, 100), rusher: carrier, isQBRun, isReverse, tackler: tacklerName, brokenTackles, isTwoBack: useTwoBack, fb: useTwoBack ? this.offR.starters.rb2 : null });
     return { yards };
   }
   _drive() {
@@ -4425,7 +4445,7 @@ function drawBall(ctx, x, y, scale = 1) {
 // ─── Formation & animation ────────────────────────────────────────────────
 // Generate 11 offensive + 11 defensive player positions for a given LOS (abs X)
 // poss = "home" | "away" → home offense moves left→right, away moves right→left
-function makeFormation(losX, poss) {
+function makeFormation(losX, poss, opts = {}) {
   const dir = poss === "home" ? 1 : -1;  // direction offense moves (positive = right)
   const cy = (FIELD.TOP + FIELD.BOT) / 2;
   const PX = FIELD.PX_PER_YARD;
@@ -4443,8 +4463,24 @@ function makeFormation(losX, poss) {
   const wr2 = { x: losX, y: cy + 240, role: "WR2" };
   // QB
   const qb = { x: losX - dir * 6 * PX, y: cy, role: "QB" };
-  // RB
-  const rb = { x: losX - dir * 8 * PX, y: cy + 28, role: "RB" };
+  // RB — two-back formations shift the primary RB and add a FB. Style is
+  // either I-form (stacked) or pro-set (side-by-side); chosen randomly per
+  // play unless opts.twoBackStyle overrides.
+  let rb, fb = null;
+  if (opts.twoBack) {
+    const style = opts.twoBackStyle || (Math.random() < 0.5 ? "I" : "PRO");
+    if (style === "I") {
+      // I-formation: FB stacked behind QB, RB further back
+      fb = { x: losX - dir * 7 * PX, y: cy + 4, role: "FB" };
+      rb = { x: losX - dir * 10 * PX, y: cy + 6, role: "RB" };
+    } else {
+      // Pro-set: FB and RB split side-by-side
+      fb = { x: losX - dir * 8 * PX, y: cy - 22, role: "FB" };
+      rb = { x: losX - dir * 8 * PX, y: cy + 28, role: "RB" };
+    }
+  } else {
+    rb = { x: losX - dir * 8 * PX, y: cy + 28, role: "RB" };
+  }
 
   // Defensive line (4) — wider stance to match the OL spread
   const dline = [];
@@ -4465,9 +4501,9 @@ function makeFormation(losX, poss) {
   const s2 = { x: losX + dir * 14 * PX, y: cy + 56, role: "S" };
 
   return {
-    offense: [...oline, te, wr1, wr2, qb, rb],
+    offense: fb ? [...oline, te, wr1, wr2, qb, rb, fb] : [...oline, te, wr1, wr2, qb, rb],
     defense: [...dline, ...lbs, cb1, cb2, s1, s2],
-    qb, rb, wr1, wr2, te, dline, lbs, cb1, cb2, s1, s2,
+    qb, rb, fb, wr1, wr2, te, dline, lbs, cb1, cb2, s1, s2,
     oline, // expose for style attachment
   };
 }
@@ -4647,6 +4683,7 @@ function attachPlayerStyles(formation, offStarters, defStarters, lookup) {
     decorate(formation.wr1, pickup(offStarters.wr1));
     decorate(formation.wr2, pickup(offStarters.wr2));
     decorate(formation.te,  pickup(offStarters.te));
+    if (formation.fb) decorate(formation.fb, pickup(offStarters.rb2));
   }
   if (formation.oline) for (const ol of formation.oline) {
     ol.runStyle = "plodding";
@@ -6943,7 +6980,7 @@ function buildAnimForPlay(play, prevPlay) {
   const dir = poss === "home" ? 1 : -1; // offense moves direction
   const losX = yardToAbsX(play.startYard, poss);
   const cy = (FIELD.TOP + FIELD.BOT) / 2;
-  const formation = makeFormation(losX, poss);
+  const formation = makeFormation(losX, poss, { twoBack: !!play.isTwoBack });
   const team = poss === "home" ? homeTeam : awayTeam;
   const oppTeam = poss === "home" ? awayTeam : homeTeam;
   const possColor = team.primary;
@@ -7414,6 +7451,17 @@ function buildAnimForPlay(play, prevPlay) {
         if (p.role === "TE") {
           // TE seals the edge — engage a defender to the side, doesn't run free
           return { ...p, x: p.x + dir * tt * 12, y: p.y - dir * tt * 6, pose: "engage", t: tt, facing: dir };
+        }
+        if (p.role === "FB") {
+          // FB lead-block: sprint forward to the 2nd level (LB area) and engage.
+          // Travels roughly 7-10 yds forward in the first half of the play,
+          // then engages a linebacker. Slight inside cut to seal the gap.
+          const fbProg = Math.min(1, tt / 0.55);
+          const fbXJump = 9 * FIELD.PX_PER_YARD * fbProg;
+          const fbYMerge = (cy - p.y) * 0.35 * fbProg;
+          const fbPose = tt < 0.50 ? "run" : "engage";
+          return { ...p, x: p.x + dir * fbXJump, y: p.y + fbYMerge,
+                   pose: fbPose, t: fbPose === "run" ? (t * 3) % 1 : tt, facing: dir };
         }
         // WRs release downfield (run block on screens/runs)
         return { ...p, x: p.x + dir * tt * 14, pose: "run", t: (t * 3 + 0.5) % 1, facing: dir };
