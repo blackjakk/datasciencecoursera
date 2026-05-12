@@ -3321,7 +3321,7 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
         // 3-point stance — body crouched, lead hand on the ground
         bodyDY = 5;
         bodyTilt = facing * 0.45;
-        lArm = facing * Math.PI * 0.55;
+        lArm = Math.PI * 0.55;
         rArm = -0.4;
         lLeg = 0.15;    // legs planted (small split)
         rLeg = -0.15;
@@ -3449,7 +3449,7 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
         lArm = -Math.PI * 0.78 - Math.abs(Math.sin(t * Math.PI * 5)) * 0.25;
         rArm = 0.4;
       } else if (cs === "first_down") {
-        lArm = facing * Math.PI * 0.5;
+        lArm = Math.PI * 0.5;
         rArm = -0.4;
         bodyTilt = facing * 0.1;
       } else if (cs === "point_sky") {
@@ -3532,8 +3532,8 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
       bodyTilt = facing * 0.15;
       break;
     case "engage":
-      lArm = facing * Math.PI / 2 - 0.2;
-      rArm = facing * Math.PI / 2 + 0.2;
+      lArm = Math.PI / 2 - 0.2;
+      rArm = Math.PI / 2 + 0.2;
       lLeg = 0.4; rLeg = -0.4;
       bodyTilt = facing * 0.2;
       bodyDY = Math.sin(t * Math.PI * 6) * 0.4;
@@ -3550,7 +3550,7 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
       bodyTilt = facing * -0.15;
       break;
     case "lateral":
-      lArm = -facing * Math.PI * 0.7;
+      lArm = -Math.PI * 0.7;
       rArm = 0.3;
       bodyRot = facing * -0.2;
       leftHandBall = t < 0.5;
