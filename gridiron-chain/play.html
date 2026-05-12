@@ -3234,35 +3234,54 @@ class GameSimulator {
       const carrierFumStats = off.players[RB];
       if (carrierFumStats) carrierFumStats.fumbles = (carrierFumStats.fumbles || 0) + 1;
       off.team.fumbles = (off.team.fumbles || 0) + 1;
+      // FUMBLE SPOT — fumbles don't all happen at the snap. Estimate a
+      // realistic spot somewhere along the projected gain (so a RB rumbling
+      // 8 yds before getting stripped recovers the ball downfield).
+      // Distribution biased toward shorter gains: most strips happen
+      // early in the run, before the carrier breaks free.
+      const projectedYds = Math.max(0, Math.round(normal(2.5, 3.2)));
+      const fumbleAdvance = Math.min(projectedYds, Math.max(0, 100 - startYard - 1));
+      const fumbleSpotYL = clamp(startYard + fumbleAdvance, 1, 99);
       if (recoveredBy === "def") {
         off.team.turnovers++; def.team.takeaways++;
         off.team.fumbles_lost = (off.team.fumbles_lost || 0) + 1;
         if (carrierFumStats) carrierFumStats.fumbles_lost = (carrierFumStats.fumbles_lost || 0) + 1;
+        // Carrier gets credit for the rushing yards UP TO the fumble.
+        if (carrierFumStats && fumbleAdvance > 0) {
+          carrierFumStats.rush_att++;
+          carrierFumStats.rush_yds += fumbleAdvance;
+        }
+        off.team.rush_att++; off.team.rushYds += fumbleAdvance; off.team.totalYds += fumbleAdvance;
         const frBy = this._creditDefStat("fr", { LB: 0.35, DL: 0.35, S: 0.20, CB: 0.10 });
+        const spotDesc = fumbleAdvance > 0 ? ` (lost at the ${fumbleSpotYL <= 50 ? `own ${fumbleSpotYL}` : `opp ${100 - fumbleSpotYL}`})` : "";
         this._pushVisual({
           kind: "fumble",
-          desc: `FUMBLE! Recovered by ${this[this.poss === "home" ? "away" : "home"].name} defense — ${ffBy ? `forced by ${ffBy}` : `loose ball`}!`,
-          startYard, endYard: startYard,
+          desc: `FUMBLE! Recovered by ${this[this.poss === "home" ? "away" : "home"].name} defense — ${ffBy ? `forced by ${ffBy}` : `loose ball`}!${spotDesc}`,
+          startYard, endYard: fumbleSpotYL,
           rusher: RB, defender: frBy, forcedBy: ffBy, recoveredBy: "def", muffs,
+          fumbleSpotYL,
         });
-        return { turnover: true };
+        return { turnover: true, fumbleSpotYL };
       } else {
-        // Offense recovers — ball stays with them, but they lose 2-6 yards on the dive
+        // Offense recovers — ball stays with them. Credit the yards UP to
+        // the fumble, then subtract 2-6 yards for the dive (lost on the pile).
         const lossYds = rand(2, 6);
+        const netYds = fumbleAdvance - lossYds;
         const carrierStats = off.players[RB];
         if (carrierStats) {
           carrierStats.rush_att++;
-          carrierStats.rush_yds -= lossYds;
+          carrierStats.rush_yds += netYds;
         }
-        off.team.rush_att++; off.team.rushYds -= lossYds; off.team.totalYds -= lossYds;
+        off.team.rush_att++; off.team.rushYds += netYds; off.team.totalYds += netYds;
+        const finalYL = clamp(fumbleSpotYL - lossYds, 1, 99);
         this._pushVisual({
           kind: "fumble",
-          desc: `FUMBLE! ${this.possTeam.name} recovers their own — ${lossYds}-yd loss on the dive`,
-          startYard, endYard: clamp(startYard - lossYds, 1, 99),
+          desc: `FUMBLE! ${this.possTeam.name} recovers their own — ${netYds >= 0 ? "" : "net "}${netYds}-yd ${netYds >= 0 ? "gain" : "loss"} on the dive`,
+          startYard, endYard: finalYL,
           rusher: RB, forcedBy: ffBy, recoveredBy: "off", muffs,
-          yards: -lossYds,
+          yards: netYds,
         });
-        return { yards: -lossYds };
+        return { yards: netYds };
       }
     }
     const rushMean = pb.rushYdsMean ?? 4.3;
@@ -3549,9 +3568,13 @@ class GameSimulator {
           // depth yards of FREE field position on every downfield INT.
           const mirror = clamp(100 - r.intSpotYL, 1, 99);
           this.yardLine = clamp(mirror + (r.retYds || 0), 1, 99);
+        } else if (r.fumbleSpotYL != null) {
+          // Same idea as the INT — defense recovers at the strip spot,
+          // not at the snap.
+          const mirror = clamp(100 - r.fumbleSpotYL, 1, 99);
+          this.yardLine = clamp(mirror + (r.retYds || 0), 1, 99);
         } else {
-          // Fumble (or any turnover without an intSpotYL) — fall back to
-          // the LOS-based mirror.
+          // Any turnover without a spot — fall back to LOS mirror.
           const mirror = clamp(100 - this.yardLine, 5, 95);
           this.yardLine = clamp(mirror + (r.retYds || 0), 5, 99);
         }
@@ -3582,11 +3605,37 @@ class GameSimulator {
         off.team.firstDowns++;
         this._score(6, "Touchdown!");
         const k = this.offR.starters.k, kStats = off.players[k];
-        if (Math.random() < 0.92) {
+        // ── 2-POINT CONVERSION AI ──
+        // Decision based on the score MARGIN AFTER the TD (the +6 is
+        // already applied by _score above). Standard chart values
+        // cover: down 5, down 2, down 1, tied, up 1, up 4, up 5, up 12.
+        // Late game (Q4 <10:00 or OT) flips MUCH more aggressive.
+        const myKey = this.poss;
+        const oppKey = myKey === "home" ? "away" : "home";
+        const diff = this.score[myKey] - this.score[oppKey];
+        const lateGame = (this.quarter === 4 && this.time < 600) || this.quarter >= 5;
+        let twoPtChance = 0.04;        // default: just kick
+        switch (diff) {
+          case -5: twoPtChance = lateGame ? 0.80 : 0.30; break;  // down 5 → need 7
+          case -2: twoPtChance = lateGame ? 0.95 : 0.45; break;  // down 2 → tie immediately
+          case -1: twoPtChance = lateGame ? 0.35 : 0.08; break;  // down 1 → lead-by-1 vs tie
+          case  0: twoPtChance = lateGame ? 0.20 : 0.04; break;  // tied → usually kick
+          case  1: twoPtChance = lateGame ? 0.55 : 0.18; break;  // up 1 → up 3 (2-score buffer)
+          case  4: twoPtChance = lateGame ? 0.75 : 0.18; break;  // up 4 → up 6 (forces TD to lose)
+          case  5: twoPtChance = lateGame ? 0.92 : 0.35; break;  // up 5 → up 7
+          case 12: twoPtChance = lateGame ? 0.80 : 0.45; break;  // up 12 → up 14 (2-score with FG)
+        }
+        // Desperation: down by ≥9 late = go for 2 most of the time
+        if (lateGame && diff <= -9) twoPtChance = Math.max(twoPtChance, 0.65);
+        if (Math.random() < twoPtChance) {
+          // 2-point try
+          if (Math.random() < 0.48) this._score(2, "2-Point Conversion");
+          else this._pushVisual({ kind: "xp_miss", desc: `2-pt conversion fails — no good` });
+        } else {
+          // Kick XP
           if (kStats) kStats.xp_att++;
           if (Math.random() < 0.94) { this._score(1, "Extra Point"); if (kStats) kStats.xp_made++; }
-        } else {
-          if (Math.random() < 0.48) this._score(2, "2-Point Conversion");
+          else this._pushVisual({ kind: "xp_miss", desc: `Extra point — no good` });
         }
         this.drives.push({ team: start, result: "TD", homeScore: this.score.home, awayScore: this.score.away });
         this.poss = this.poss === "home" ? "away" : "home";
