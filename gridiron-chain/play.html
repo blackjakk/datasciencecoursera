@@ -906,6 +906,65 @@ const PLAYBOOKS = {
 
 function getPlaybook(team) { return PLAYBOOKS[team?.playbook] || PLAYBOOKS.BALANCED; }
 
+// ── DEFENSIVE PLAYBOOKS ────────────────────────────────────────────────
+// Each team has a base scheme that tilts run / pass / sack / deep-coverage
+// outcomes. Multipliers are FROM the offense's perspective:
+//   runMul > 1 → offense gains more yards on the ground
+//   passMul > 1 → offense completes more / gains more on passes
+//   sackMul > 1 → MORE sacks (defense generates pressure)
+//   deepCovMul > 1 → defense gives up more deep yards
+const DEF_PLAYBOOKS = {
+  BASE_43: {
+    id: "BASE_43", name: "4-3 Base", badge: "4-3",
+    runMul: 1.00, passMul: 1.00, sackMul: 1.00, deepCovMul: 1.00,
+    archBias: { LB: { COVER: 0.30, SIGNAL: 0.25, BLITZER: 0.20, THUMPER: 0.25 } },
+  },
+  BASE_34: {
+    id: "BASE_34", name: "3-4 Base", badge: "3-4",
+    runMul: 0.97, passMul: 0.98, sackMul: 1.10, deepCovMul: 1.00,
+    archBias: { LB: { BLITZER: 0.35, THUMPER: 0.30, COVER: 0.20, SIGNAL: 0.15 } },
+  },
+  NICKEL: {
+    id: "NICKEL", name: "Nickel", badge: "NCK",
+    runMul: 1.05, passMul: 0.93, sackMul: 1.00, deepCovMul: 0.95,
+    archBias: { CB: { SLOT_CB: 0.40, ZONE: 0.30, SHUTDOWN: 0.20, PHYSICAL: 0.10 } },
+  },
+  DIME: {
+    id: "DIME", name: "Dime", badge: "DM",
+    runMul: 1.12, passMul: 0.88, sackMul: 0.95, deepCovMul: 0.85,
+    archBias: { S: { CENTER_FIELD: 0.50, BALL_HAWK: 0.30, BOX: 0.05, PHYSICAL: 0.15 } },
+  },
+  BLITZ_46: {
+    id: "BLITZ_46", name: "46 Blitz", badge: "46",
+    runMul: 0.88, passMul: 1.12, sackMul: 1.25, deepCovMul: 1.15,
+    archBias: { LB: { BLITZER: 0.55, THUMPER: 0.30, SIGNAL: 0.10, COVER: 0.05 } },
+  },
+  PREVENT: {
+    id: "PREVENT", name: "Prevent", badge: "PRV",
+    runMul: 1.10, passMul: 0.92, sackMul: 0.85, deepCovMul: 0.55,
+    archBias: { S: { CENTER_FIELD: 0.55, BALL_HAWK: 0.25, PHYSICAL: 0.10, BOX: 0.10 } },
+  },
+};
+function getDefPlaybook(team) {
+  if (team?.defPlaybook && DEF_PLAYBOOKS[team.defPlaybook]) return DEF_PLAYBOOKS[team.defPlaybook];
+  if (!team) return DEF_PLAYBOOKS.BASE_43;
+  // Hardcoded defensive identities for a few teams. Steel/Ravens/Gators
+  // run a classic 3-4. Bears (Blizzard) + Bulldogs are aggressive 4-3
+  // with heavy LB pressure. Others get a deterministic base pick.
+  const idMap = {
+    5:  "BASE_34",   // Steelforge Hammers
+    7:  "BASE_34",   // Coalport Ravens
+    8:  "BASE_43",   // Lakewood Bulldogs (aggressive front-4)
+    11: "BASE_34",   // Bayou Gators
+    24: "BASE_43",   // Blizzard Bears
+  };
+  if (idMap[team.id]) return DEF_PLAYBOOKS[idMap[team.id]];
+  // Deterministic per-team pick from the base schemes. BASE_43 is the
+  // most common; nickel/dime sprinkled in.
+  const pool = ["BASE_43", "BASE_43", "BASE_43", "BASE_34", "NICKEL", "DIME"];
+  return DEF_PLAYBOOKS[pool[(team.id * 7) % pool.length]] || DEF_PLAYBOOKS.BASE_43;
+}
+
 function pickReceiver(playbook, starters) {
   const { wr1, wr2, te, rb } = playbook.targetMix;
   const roll = Math.random();
@@ -2188,6 +2247,7 @@ class GameSimulator {
     for (const p of hRoster) this._playerByName.set(p.name, p);
     for (const p of aRoster) this._playerByName.set(p.name, p);
     this.homePlaybook = getPlaybook(home); this.awayPlaybook = getPlaybook(away);
+    this.homeDefPlaybook = getDefPlaybook(home); this.awayDefPlaybook = getDefPlaybook(away);
     this.homeR = buildRatings(hRoster); this.awayR = buildRatings(aRoster);
     // Extract archetypes for the starting unit
     const archetypesByPos = (roster, pos, n) => roster.filter(p => p.position === pos)
@@ -2375,6 +2435,17 @@ class GameSimulator {
   get offR()       { return this.poss === "home" ? this.homeR : this.awayR; }
   get defR()       { return this.poss === "home" ? this.awayR : this.homeR; }
   get offPlaybook(){ return this.poss === "home" ? this.homePlaybook : this.awayPlaybook; }
+  get defPlaybook(){ return this.poss === "home" ? this.awayDefPlaybook : this.homeDefPlaybook; }
+  // Situational override: PREVENT defense when leading by 2+ scores late.
+  // Falls back to the team's base scheme otherwise.
+  get currentDefPlaybook() {
+    const baseDef = this.defPlaybook;
+    const offKey = this.poss, defKey = offKey === "home" ? "away" : "home";
+    const defLead = this.score[defKey] - this.score[offKey];
+    const lateGame = (this.quarter === 4 && this.time < 240) || this.quarter >= 5;
+    if (lateGame && defLead >= 9) return DEF_PLAYBOOKS.PREVENT;
+    return baseDef;
+  }
   get offOL()      { return this.poss === "home" ? this.homeOL : this.awayOL; }
   get defDL()      { return this.poss === "home" ? this.awayDL : this.homeDL; }
   get offArch()    { return this.poss === "home" ? this.homeArch : this.awayArch; }
@@ -2893,7 +2964,10 @@ class GameSimulator {
       const blitzerLBs = (defArchPre.LB || []).filter(l => l?.archetype === "BLITZER").length;
       const slotBlitzCBs = (defArchPre.CB || []).filter(c => c?.archetype === "SLOT_CB").length;
       const archSackBonus = blitzerLBs * 0.025 + slotBlitzCBs * 0.012;
-      const sackPct = clamp((0.05 + pressure * 0.10 - adv * 0.02 + archSackBonus) * sackPb * qbAwrSackMul, 0.015, 0.36);
+      // Defensive playbook tilts: blitz schemes ramp the sack chance up,
+      // dime / prevent schemes drop it.
+      const defPbCurrent = this.currentDefPlaybook;
+      const sackPct = clamp((0.05 + pressure * 0.10 - adv * 0.02 + archSackBonus) * sackPb * qbAwrSackMul * defPbCurrent.sackMul, 0.015, 0.40);
       if (Math.random() < sackPct) {
         // THROW ON THE RUN — mobile QBs with high AGI sometimes escape pressure
         // and throw on the move instead of taking the sack. Lower comp / air
@@ -3145,7 +3219,9 @@ class GameSimulator {
       const wxCompMod = wxPass.label === "RAIN" ? -0.05
                       : wxPass.label === "SNOW" ? -0.08
                       : 0;
-      const compPct = clamp((0.60 + adv * 0.14 + qbCompFromOvr - pressure * 0.12 - shutdownPenalty + possessionBonus + qbCompMod + paCompMod + catCompMod + awrCompMod + cbCoverMod + mismatchBonus + coverLbMod + signalLbMod + physicalJamMod + wxCompMod) * compPbMul, 0.15, 0.90);
+      // Defensive-scheme tilt: nickel / dime tighten pass coverage,
+      // 46 blitz leaves big windows open.
+      const compPct = clamp((0.60 + adv * 0.14 + qbCompFromOvr - pressure * 0.12 - shutdownPenalty + possessionBonus + qbCompMod + paCompMod + catCompMod + awrCompMod + cbCoverMod + mismatchBonus + coverLbMod + signalLbMod + physicalJamMod + wxCompMod) * compPbMul * defPbCurrent.passMul, 0.12, 0.92);
       if (Math.random() < compPct) {
         // Air yards drop when pressure shortens the QB's reads (check-downs / dump-offs)
         // Weaker QBs also throw shorter — they can't push the ball downfield reliably.
@@ -3167,7 +3243,11 @@ class GameSimulator {
                        : wxPass.label === "SNOW"  ? passWindWith * 2.0 - 1.5
                        : wxPass.label === "RAIN"  ? -1.0
                        : 0;
-        const airMean = (pb.airYdsMean ?? 7.5) - pressure * 2.8 + qbAirMod + qbAirFromOvr + paAirMod + qbPocketAirBonus + centerFieldCap + wxAirMod;
+        // Defensive scheme: prevent shells crush deep balls, blitz looks
+        // leave them open. deepCovMul > 1 means the offense gets MORE
+        // deep yards (defense gives them up).
+        const defDeepBonus = (defPbCurrent.deepCovMul - 1) * 4.5;   // -2 for prevent, +0.7 for blitz_46
+        const airMean = (pb.airYdsMean ?? 7.5) - pressure * 2.8 + qbAirMod + qbAirFromOvr + paAirMod + qbPocketAirBonus + centerFieldCap + wxAirMod + defDeepBonus;
         const airSd   = (pb.airYdsSd   ?? 6) * (qbArch === "GUNSLINGER" ? 1.25 : 1.0);
         const airYds  = clamp(normal(airMean + adv * 2, airSd), -2, 55);
         // YAC distribution — short catches / screens get more YAC potential
@@ -3545,7 +3625,10 @@ class GameSimulator {
     // The lateral hand-off and direction change make it boom-or-bust.
     const reverseBonus = isReverse ? (Math.random() < 0.45 ? -5 + Math.random() * 3 : 4 + Math.random() * 10) : 0;
     const reverseSdMul = isReverse ? 1.6 : 1.0;
-    let yards = clamp(normal(rushMean + rbBoost + fbBoost + runVarMean + adv * 1.4 + runTrenchYds + fbStuffReduction - lbTackle * 0.5 - boxSafetyStuff - thumperStuff + carrierBoost + reverseBonus, rushSd * rbSdMul * runVarSd * reverseSdMul), -8, 75);
+    // Defensive scheme tilt for run defense: 46 blitz stuffs runs, dime
+    // gets gashed.
+    const defPbRun = this.currentDefPlaybook;
+    let yards = clamp(normal((rushMean + rbBoost + fbBoost + runVarMean + adv * 1.4 + runTrenchYds + fbStuffReduction - lbTackle * 0.5 - boxSafetyStuff - thumperStuff + carrierBoost + reverseBonus) * defPbRun.runMul, rushSd * rbSdMul * runVarSd * reverseSdMul), -8, 75);
     // Cap at distance to end zone so a 1-yd goal-line carry doesn't get reported as a 17-yd TD
     if (yards > 0) yards = Math.min(yards, 100 - startYard);
     // Broken tackles — carrier physicality vs defender tackle rating.
