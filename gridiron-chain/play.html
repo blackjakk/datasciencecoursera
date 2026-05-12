@@ -11524,8 +11524,19 @@ function highlightPlayerNamesInPlay(p) {
 function playEntry(p) {
   const isMarker = ["halftime","ot","quarter","kickoff","two_min_warning","timeout"].includes(p.kind);
   if (isMarker) return `<div class="play-entry ${p.kind}">${escapeHtml(p.desc)}</div>`;
-  const meta = `Q${p.quarter} ${Math.floor(p.time/60)}:${String(p.time%60).padStart(2,"0")}` +
-               (p.down > 0 ? ` · ${p.down}${["st","nd","rd","th"][p.down-1]}&${p.ytg}` : "");
+  // Field-position phrase: own 30 / opp 35 / midfield. startYard is from
+  // the offense's perspective (0 = own goal, 100 = opp goal).
+  const fp = p.startYard;
+  const fieldPos = (typeof fp === "number")
+    ? (fp === 50 ? "midfield"
+      : fp < 50  ? `own ${fp}`
+      :            `opp ${100 - fp}`)
+    : null;
+  const downStr = p.down > 0
+    ? `${p.down}${["st","nd","rd","th"][p.down-1]} & ${p.ytg}` + (fieldPos ? ` at ${fieldPos}` : "")
+    : "";
+  const meta = `Q${p.quarter} ${Math.floor(p.time/60)}:${String(p.time%60).padStart(2,"0")}`
+             + (downStr ? ` · ${downStr}` : "");
   const icon = p.kind === "score" ? "🏈 "
              : p.kind === "int" || p.kind === "fumble" ? "⚠️ "
              : p.kind === "fg_good" ? "✅ "
