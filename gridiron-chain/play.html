@@ -215,7 +215,7 @@
     align-items: center;
   }
   .score-team { text-align: center; }
-  .score-team-emoji { font-size: 1.6rem; }
+  .score-team-emoji { font-size: 1.0rem; color: var(--gold); font-weight: 700; letter-spacing: 1px; }
   .score-team-name { font-size: .8rem; color: var(--gray); margin-top: .15rem; }
   .score-team-full { font-weight: 700; font-size: .8rem; }
   .score-num { font-size: 3rem; font-weight: 900; line-height: 1; margin-top: .15rem; }
@@ -818,6 +818,25 @@ const TEAMS = [
   { id:32, city:"Volcanic",    name:"Fury",       conference:"NFC", division:"West",  primary:"#97233F", secondary:"#000000", emoji:"🌋" },
 ];
 const getTeam = id => TEAMS.find(t => t.id === Number(id));
+
+// ASCII team identifier — replaces the emoji column in selectors, scoreboards,
+// power-rankings, etc. Custom 3-char tokens per mascot where possible, else
+// falls back to a bracketed first letter `[X]`. Pure ASCII so it renders the
+// same on any system + reads as a terminal label rather than a sticker.
+const TEAM_ASCII_OVERRIDES = {
+  Kraken:"~8~",  Titans:"]T[",  Wolves:"/W\\", Buccaneers:">+<",
+  Hammers:"=H=", Grizzlies:"oGo", Ravens:"\\v/", Bulldogs:"[B]",
+  Vipers:"<S>",  Jaguars:">J<", Gators:"<G<",  Stallions:"/H\\",
+  Scorpions:"~S~", Raiders:"X-X", Thunder:"/!\\", Outlaws:"[O]",
+  Sentinels:"{S}", Predators:"/P\\", Eagles:"<v>", Minutemen:"(*)",
+  Frost:"*F*",   Vikings:"(V)", Pirates:">P<", Steamers:"=S=",
+  Comets:"~C~",  Storm:"/!\\",  Mustangs:"/M\\", Bandits:"[B]",
+  Riders:"/R\\", Giants:"]G[",  Hawks:"<H>",   Fury:"!F!",
+};
+function teamAscii(team) {
+  if (!team) return "[?]";
+  return TEAM_ASCII_OVERRIDES[team.name] || `[${(team.name || "?")[0]}]`;
+}
 
 // ─── Playbooks ────────────────────────────────────────────────────────────
 const PLAYBOOKS = {
@@ -2356,11 +2375,13 @@ class GameSimulator {
           });
           if (isReturnTD) {
             // Defense scores 6, then attempts XP — flip possession after.
-            const defTeamRef = this.poss === "home" ? this._h : this._a;
             const defScore = this.poss === "home" ? "away" : "home";
             this.score[defScore] += 6;
-            // Simple XP — no animation, just score
             if (Math.random() < 0.94) this.score[defScore] += 1;
+            // Credit the def_td to a defender (DL most likely on a block)
+            const blockerName = this._creditDefStat("def_td", { DL: 0.65, LB: 0.20, S: 0.10, CB: 0.05 });
+            const def = this.stats[defScore];
+            if (def) def.team.def_td = (def.team.def_td || 0) + 1;
           }
           return { endDrive: true, blockedFG: true, returnedTD: isReturnTD };
         }
@@ -2387,6 +2408,10 @@ class GameSimulator {
               const defScore = this.poss === "home" ? "away" : "home";
               this.score[defScore] += 6;
               if (Math.random() < 0.94) this.score[defScore] += 1;
+              // Credit the def_td — usually a DB on a missed-FG return
+              this._creditDefStat("def_td", { S: 0.55, CB: 0.30, LB: 0.10, DL: 0.05 });
+              const def = this.stats[defScore];
+              if (def) def.team.def_td = (def.team.def_td || 0) + 1;
             }
           } else {
             this._pushVisual({ kind: "fg_miss", desc: `${this.offR.starters.k} misses from ${dist} — no good`, startYard, endYard: startYard, fgDist: dist, kicker: this.offR.starters.k });
@@ -3312,11 +3337,29 @@ function drawField(ctx, homeTeam, awayTeam, ctx_state) {
     ctx.stroke();
   }
 
-  // 50 yard line midfield logo
-  ctx.fillStyle = "rgba(200,169,0,0.18)";
+  // 50 yard line midfield logo — ASCII block letter for the home team
+  // (their initial), drawn in their primary color, with a faded gold ring
+  // for contrast against the grass.
+  const midX = absYardToX(50);
+  const midY = (FIELD.TOP + FIELD.BOT) / 2;
+  ctx.fillStyle = "rgba(200,169,0,0.14)";
   ctx.beginPath();
-  ctx.arc(absYardToX(50), (FIELD.TOP + FIELD.BOT) / 2, 32, 0, Math.PI * 2);
+  ctx.arc(midX, midY, 56, 0, Math.PI * 2);
   ctx.fill();
+  if (homeTeam) {
+    const initial = (homeTeam.name || "?")[0].toUpperCase();
+    ctx.save();
+    ctx.fillStyle = homeTeam.primary;
+    ctx.strokeStyle = homeTeam.secondary;
+    ctx.lineWidth = 3;
+    ctx.font = "900 88px monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.globalAlpha = 0.55;
+    ctx.strokeText(initial, midX, midY);
+    ctx.fillText(initial, midX, midY);
+    ctx.restore();
+  }
 
   // LOS and first down marker
   if (ctx_state) {
@@ -5321,7 +5364,7 @@ function buildOptions(sel, defaultId) {
       o.value = t.id;
       const pb = getPlaybook(t);
       const pbTag = pb.id !== "BALANCED" ? ` · ${pb.badge}` : "";
-      o.textContent = `${t.emoji} ${t.city} ${t.name} (${t.division})${pbTag}`;
+      o.textContent = `${teamAscii(t)} ${t.city} ${t.name} (${t.division})${pbTag}`;
       og.appendChild(o);
     }
     sel.appendChild(og);
@@ -5770,7 +5813,7 @@ function renderSimManyResults(agg, home, away, hRoster, aRoster) {
   const compPct = (s) => s.pass_att ? (s.pass_comp / s.pass_att * 100).toFixed(1) + "%" : "—";
   const ypc = (s) => s.rush_att ? (s.rushYds / s.rush_att).toFixed(1) : "—";
   const html = `
-    <div class="sm-title">${home.emoji} ${home.city} ${home.name} <span style="color:var(--gray);font-size:.85rem">vs</span> ${away.emoji} ${away.city} ${away.name}</div>
+    <div class="sm-title">${teamAscii(home)} ${home.city} ${home.name} <span style="color:var(--gray);font-size:.85rem">vs</span> ${teamAscii(away)} ${away.city} ${away.name}</div>
     <div class="sm-sub">${agg.n} simulations · all stats are averages per game</div>
 
     <div class="sm-record">
@@ -5953,8 +5996,8 @@ function renderSimByQBResults(data, home, away) {
   const html = `
     <div class="sm-title">🧪 Sim by QB Archetype · ${targetOvr} OVR</div>
     <div class="sm-sub">
-      ${home.emoji} ${home.city} ${home.name} <span style="color:var(--gray)">vs</span>
-      ${away.emoji} ${away.city} ${away.name}
+      ${teamAscii(home)} ${home.city} ${home.name} <span style="color:var(--gray)">vs</span>
+      ${teamAscii(away)} ${away.city} ${away.name}
       &middot; replacing ${origStarterName} with a generated ${targetOvr}-OVR test QB per archetype
       &middot; ${n} games each (${n * 5} total)
     </div>
@@ -6095,8 +6138,8 @@ function renderSimByPlaybookResults(data, home, away) {
   const html = `
     <div class="sm-title">📘 Sim by Playbook</div>
     <div class="sm-sub">
-      ${home.emoji} ${home.city} ${home.name} <span style="color:var(--gray)">vs</span>
-      ${away.emoji} ${away.city} ${away.name}
+      ${teamAscii(home)} ${home.city} ${home.name} <span style="color:var(--gray)">vs</span>
+      ${teamAscii(away)} ${away.city} ${away.name}
       &middot; default playbook: <span style="color:var(--white);font-weight:700">${PLAYBOOKS[origPb || "BALANCED"]?.name || "Balanced"}</span>
       &middot; ${n} games each (${n * 5} total)
     </div>
@@ -6204,7 +6247,7 @@ function renderPowerRankings(ranked, gamesPerPair) {
     <tr>
       <td class="pr-rank">${rank}</td>
       <td class="pr-team">
-        <span class="pr-emoji">${r.team.emoji}</span>
+        <span class="pr-emoji">${teamAscii(r.team)}</span>
         <span class="pr-name">${r.team.city} ${r.team.name}</span>
         <span class="pr-conf">${r.team.conference}·${r.team.division}</span>
       </td>
@@ -6247,7 +6290,7 @@ function renderPowerRankings(ranked, gamesPerPair) {
             <div class="pr-conf-title">${c}</div>
             <ol class="pr-conf-list">
               ${byConf[c].slice(0, 8).map(r => `
-                <li><span class="pr-emoji">${r.team.emoji}</span> ${r.team.name} <span style="color:var(--gray)">${r.w}-${r.l}${r.t ? `-${r.t}` : ""}</span></li>
+                <li><span class="pr-emoji">${teamAscii(r.team)}</span> ${r.team.name} <span style="color:var(--gray)">${r.w}-${r.l}${r.t ? `-${r.t}` : ""}</span></li>
               `).join("")}
             </ol>
           </div>
@@ -6371,13 +6414,13 @@ function renderTournament(data) {
       <div class="tn-matchup">
         <div class="tn-team ${hWin ? "winner" : "loser"}">
           <span class="tn-seed">#${hSeed}</span>
-          <span class="tn-emoji">${h.team.emoji}</span>
+          <span class="tn-emoji">${teamAscii(h.team)}</span>
           <span class="tn-name">${h.team.name}</span>
         </div>
         <div class="tn-score">${detail}</div>
         <div class="tn-team ${aWin ? "winner" : "loser"}">
           <span class="tn-seed">#${aSeed}</span>
-          <span class="tn-emoji">${a.team.emoji}</span>
+          <span class="tn-emoji">${teamAscii(a.team)}</span>
           <span class="tn-name">${a.team.name}</span>
         </div>
       </div>
@@ -6393,7 +6436,7 @@ function renderTournament(data) {
     <div class="tn-champion">
       <div class="label">CHAMPION</div>
       <div class="trophy">🏆</div>
-      <div class="name">${champion.team.emoji} ${champion.team.city} ${champion.team.name}</div>
+      <div class="name">${teamAscii(champion.team)} ${champion.team.city} ${champion.team.name}</div>
       <div class="sub">#${seeded.indexOf(champion) + 1} seed · ${champion.team.conference} ${champion.team.division}</div>
     </div>
 
@@ -6414,7 +6457,7 @@ function renderTournament(data) {
         ${seeded.map((s, i) => `
           <tr>
             <td style="text-align:left;width:8%">#${i + 1}</td>
-            <td style="text-align:left">${s.team.emoji} ${s.team.city} ${s.team.name}</td>
+            <td style="text-align:left">${teamAscii(s.team)} ${s.team.city} ${s.team.name}</td>
             <td style="text-align:right">${s.w}-${s.games - s.w}</td>
             <td style="text-align:right;color:var(--gray)">${(s.pf / s.games).toFixed(1)} PPG</td>
           </tr>
@@ -10784,7 +10827,7 @@ function setFieldStatus(play) {
   let possLabel = "";
   if (play.poss) {
     const team = play.poss === "home" ? gameResult.homeTeam : gameResult.awayTeam;
-    possLabel = ` · ${team.emoji} ${team.name} ball`;
+    possLabel = ` · ${teamAscii(team)} ${team.name} ball`;
   }
   let dd = "";
   if (play.down > 0) {
@@ -10823,7 +10866,7 @@ function renderScoreboard(curPlay) {
   const tos = last?.timeouts || { home: 3, away: 3 };
   sb.innerHTML = `
     <div class="score-team">
-      <div class="score-team-emoji">${gameResult.homeTeam.emoji}</div>
+      <div class="score-team-emoji">${teamAscii(gameResult.homeTeam)}</div>
       <div class="score-team-full">${gameResult.homeTeam.city}</div>
       <div class="score-team-name">${gameResult.homeTeam.name}</div>
       ${pbBadge(gameResult.homeTeam)}
@@ -10839,7 +10882,7 @@ function renderScoreboard(curPlay) {
       ${last?.down > 0 && !ended ? `<div class="down-distance">${last.down}${["st","nd","rd","th"][last.down-1]} & ${last.ytg}</div>` : ""}
     </div>
     <div class="score-team">
-      <div class="score-team-emoji">${gameResult.awayTeam.emoji}</div>
+      <div class="score-team-emoji">${teamAscii(gameResult.awayTeam)}</div>
       <div class="score-team-full">${gameResult.awayTeam.city}</div>
       <div class="score-team-name">${gameResult.awayTeam.name}</div>
       ${pbBadge(gameResult.awayTeam)}
@@ -10958,11 +11001,12 @@ function renderBoxScore() {
       <td>${p.xp_made}/${p.xp_att}</td>
     </tr>`).join("");
 
-  // Defense — any player with any defensive stat > 0
+  // Defense — any player with any defensive stat > 0. Includes def_td
+  // (pick-six, fumble return TD, blocked-FG return TD).
   const defRows = Object.values(players)
     .filter(p => ["DE","DT","LB","CB","FS","SS"].includes(p.pos))
-    .filter(p => (p.tkl || p.sk || p.int_made || p.pd || p.ff || p.fr) > 0)
-    .sort((a, b) => (b.tkl + b.sk * 2 + b.int_made * 3 + b.pd) - (a.tkl + a.sk * 2 + a.int_made * 3 + a.pd))
+    .filter(p => (p.tkl || p.sk || p.int_made || p.pd || p.ff || p.fr || p.def_td) > 0)
+    .sort((a, b) => (b.tkl + b.sk * 2 + b.int_made * 3 + b.pd + (b.def_td || 0) * 6) - (a.tkl + a.sk * 2 + a.int_made * 3 + a.pd + (a.def_td || 0) * 6))
     .map(p => `<tr>
       <td class="pos">${p.pos}</td>
       <td class="name">${nameSpan(p.name)}</td>
@@ -10972,12 +11016,13 @@ function renderBoxScore() {
       <td>${p.pd || 0}</td>
       <td>${p.ff || 0}</td>
       <td>${p.fr || 0}</td>
+      <td>${p.def_td || 0}</td>
     </tr>`).join("");
 
-  const empty = `<tr><td colspan="8" style="color:var(--gray);text-align:center;padding:.4rem">—</td></tr>`;
+  const empty = `<tr><td colspan="9" style="color:var(--gray);text-align:center;padding:.4rem">—</td></tr>`;
 
   el.innerHTML = `
-    <div style="font-size:.7rem;color:var(--gold);font-weight:700;letter-spacing:.4px;margin-bottom:.4rem;">${teamLabel.emoji} ${teamLabel.city.toUpperCase()} ${teamLabel.name.toUpperCase()}</div>
+    <div style="font-size:.7rem;color:var(--gold);font-weight:700;letter-spacing:.4px;margin-bottom:.4rem;">${teamAscii(teamLabel)} ${teamLabel.city.toUpperCase()} ${teamLabel.name.toUpperCase()}</div>
     <div class="boxscore-section">
       <h4>PASSING</h4>
       <table class="boxscore-table">
@@ -10996,7 +11041,7 @@ function renderBoxScore() {
       </table>
       <h4>DEFENSE</h4>
       <table class="boxscore-table">
-        <thead><tr><th></th><th></th><th>TKL</th><th>SK</th><th>INT</th><th>PD</th><th>FF</th><th>FR</th></tr></thead>
+        <thead><tr><th></th><th></th><th>TKL</th><th>SK</th><th>INT</th><th>PD</th><th>FF</th><th>FR</th><th>TD</th></tr></thead>
         <tbody>${defRows || empty}</tbody>
       </table>
       <h4>KICKING</h4>
