@@ -8314,7 +8314,7 @@ function buildAnimForPlay(play, prevPlay) {
       // Post-snap: ball follows the carrier, sliding from backfield to LOS lane.
       const snapMotionRT = 0.04;
       const centerX = losX - dir * 2;
-      let ballX, ballY = t < PRE ? cy : cy + (1 - runT) * 18;
+      let ballX, ballY;
       // Speed-option dual-sprite tracking — when set, the rendering swap
       // below uses these to draw the QB and RB sprites at their parallel
       // sprint positions. Null otherwise (normal one-carrier rendering).
@@ -8538,6 +8538,8 @@ function buildAnimForPlay(play, prevPlay) {
           // RB sprinting laterally to catch
           rb.x = qb.x;
           rb.y = cy + 28 + pitchSide * p * 50;
+          // Ball Y interpolates from QB → catching RB along a small arc
+          ballY = cy + (rb.y - cy) * p - Math.sin(p * Math.PI) * 8;
         } else if (runT < 0.20) {
           // RB has the ball, still moving laterally before turning upfield
           const p = (runT - 0.12) / 0.08;
@@ -8562,6 +8564,14 @@ function buildAnimForPlay(play, prevPlay) {
         // Use the same progress curve so the lateral merge tracks the forward burst.
         rb.y = cy + (1 - progress) * 18;
       }
+      // ── BALL FOLLOWS CARRIER ──
+      // If a variant didn't explicitly set ballY (it sets ballX = rb.x but
+      // forgets ballY), default it to the carrier's y. Previously ballY
+      // was initialized to cy + (1 - runT) * 18, which decoupled the ball
+      // from the carrier on plays where rb.y diverged from that formula
+      // (stretch, pitch, reverse, etc.) — visually the ball ended up on
+      // the ground while the carrier ran somewhere else.
+      if (ballY === undefined) ballY = rb.y;
       // (rbLateral added after pose decision below)
       // Carrier pose & move signature — drives juke/spin/hurdle/stiff/truck visibly.
       // Each move triggers a lateral side-step (or shoulder lower) AND makes the
