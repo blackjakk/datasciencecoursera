@@ -3912,19 +3912,23 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
       //   ~22% three-quarter
       //   ~55% standard over-the-top (elbow at ear, ball at head level)
       //   ~11% pure over-the-top high release (Marino)
-      // Throw-slot release points — elbow is at or ABOVE shoulder height
-      // at the cock peak (think: combine-day overhand pose, ball held
-      // high-and-back above the head). Most QBs are over-the-top; a few
-      // sidearm specialists keep the elbow lower.
-      let bicepPeak = -1.85, forearmPeak = -2.40;
+      // Throw-slot release points. The bicep at peak is rotated FAR
+      // back-and-up so the elbow rises ABOVE the shoulder — the classic
+      // combine-photo cock pose where the arm is nearly vertical with
+      // the ball held high-and-behind the head. (Earlier values put the
+      // elbow only horizontally back, which read as "arm not going back".)
+      // sin(bicepPeak) determines how far back the elbow goes;
+      // cos(bicepPeak) determines how high. At -2.3, the elbow ends up
+      // right at body centerline AND well above the shoulder.
+      let bicepPeak = -2.30, forearmPeak = -2.45;
       if (style.name) {
         let _h = 0;
         for (let i = 0; i < style.name.length; i++) _h = (_h * 31 + style.name.charCodeAt(i)) >>> 0;
         const slot = (_h % 100) / 100;
-        if      (slot < 0.12) { bicepPeak = -1.20; forearmPeak = -1.70; }   // sidearm
-        else if (slot < 0.34) { bicepPeak = -1.60; forearmPeak = -2.10; }   // three-quarter
-        else if (slot < 0.89) { bicepPeak = -1.85; forearmPeak = -2.40; }   // standard over-the-top
-        else                  { bicepPeak = -2.15; forearmPeak = -2.65; }   // very high slot
+        if      (slot < 0.12) { bicepPeak = -1.30; forearmPeak = -1.80; }   // sidearm — elbow stays low
+        else if (slot < 0.34) { bicepPeak = -1.90; forearmPeak = -2.25; }   // three-quarter
+        else if (slot < 0.89) { bicepPeak = -2.30; forearmPeak = -2.45; }   // standard over-the-top
+        else                  { bicepPeak = -2.55; forearmPeak = -2.70; }   // very high slot
       }
       let bicepA, forearmA, leadA;
       if (t < 0.18) {
