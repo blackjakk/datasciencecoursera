@@ -2332,12 +2332,65 @@ class GameSimulator {
         const fgPct = clamp(0.96 - (dist - 20) * 0.020 + (this.offR.k - 60) / 250, 0.18, 0.97);
         const kStats = off.players[K]; if (kStats) { kStats.fg_att++; }
         off.team.fourthAtt++;
+        // Block chance — slightly higher on long attempts
+        const blockPct = clamp(0.025 + Math.max(0, dist - 40) * 0.0015, 0.025, 0.06);
+        if (Math.random() < blockPct) {
+          // Blocked! Defender picks up the ball. ~12% chance the recovery
+          // becomes a TD return; otherwise the defense gets the ball at the
+          // recovery spot (3-15 yards behind the LOS).
+          const isReturnTD = Math.random() < 0.12;
+          let recoveryYard;
+          if (isReturnTD) recoveryYard = 0;  // they take it all the way
+          else {
+            // Pick up between -3 and 0 (own end zone is 0 here for offense's POV)
+            const losingYards = Math.floor(Math.random() * 13) - 3;
+            recoveryYard = Math.max(0, startYard - losingYards);
+          }
+          this._pushVisual({
+            kind: "fg_blocked",
+            desc: isReturnTD
+              ? `BLOCKED — RETURNED ${100 - startYard} YARDS FOR A TOUCHDOWN!`
+              : `BLOCKED — recovered by defense at the ${recoveryYard}`,
+            startYard, endYard: recoveryYard, fgDist: dist, kicker: this.offR.starters.k,
+            isReturnTD,
+          });
+          if (isReturnTD) {
+            // Defense scores 6, then attempts XP — flip possession after.
+            const defTeamRef = this.poss === "home" ? this._h : this._a;
+            const defScore = this.poss === "home" ? "away" : "home";
+            this.score[defScore] += 6;
+            // Simple XP — no animation, just score
+            if (Math.random() < 0.94) this.score[defScore] += 1;
+          }
+          return { endDrive: true, blockedFG: true, returnedTD: isReturnTD };
+        }
         if (Math.random() < fgPct) {
           if (kStats) { kStats.fg_made++; if (dist > kStats.fg_long) kStats.fg_long = dist; }
           this._score(3, `${dist}-yd FG`);
           this._pushVisual({ kind: "fg_good", desc: `${this.offR.starters.k} drills it from ${dist} yds!`, startYard, endYard: 100, fgDist: dist, kicker: this.offR.starters.k });
         } else {
-          this._pushVisual({ kind: "fg_miss", desc: `${this.offR.starters.k} misses from ${dist} — no good`, startYard, endYard: startYard, fgDist: dist, kicker: this.offR.starters.k });
+          // Long missed FGs (>50 yd attempts) can be returned by the defense
+          // — the spot is behind the LOS where the defender catches the ball.
+          const isReturnable = dist > 50 && Math.random() < 0.18;
+          if (isReturnable) {
+            const isReturnTD = Math.random() < 0.05;
+            const recoveryYard = isReturnTD ? 0 : Math.max(0, startYard - 8 - Math.floor(Math.random() * 12));
+            this._pushVisual({
+              kind: "fg_miss",
+              desc: isReturnTD
+                ? `MISSED — RETURNED FOR TOUCHDOWN!`
+                : `${this.offR.starters.k} misses from ${dist} — returned to the ${recoveryYard}`,
+              startYard, endYard: recoveryYard, fgDist: dist, kicker: this.offR.starters.k,
+              isReturnTD, isReturned: true,
+            });
+            if (isReturnTD) {
+              const defScore = this.poss === "home" ? "away" : "home";
+              this.score[defScore] += 6;
+              if (Math.random() < 0.94) this.score[defScore] += 1;
+            }
+          } else {
+            this._pushVisual({ kind: "fg_miss", desc: `${this.offR.starters.k} misses from ${dist} — no good`, startYard, endYard: startYard, fgDist: dist, kicker: this.offR.starters.k });
+          }
         }
         return { endDrive: true };
       }
@@ -3393,10 +3446,15 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     { base: "#8a5d3a", dark: "#5d3d22", light: "#a87a52" }, // dark
     { base: "#6b4128", dark: "#42271a", light: "#8a5a3a" }, // very dark
   ];
+  // Skin tone is seeded from name + position — exactly matches the seed
+  // generateMugshotDataUrl uses for the portrait, so the on-field model and
+  // the tooltip portrait read as the same person. Falls back to label+role
+  // when no name is available (kickoff coverage, generic dive piles).
   let skinSeed = 0;
-  const labelStr = String(label || "");
-  for (let i = 0; i < labelStr.length; i++) skinSeed = (skinSeed * 31 + labelStr.charCodeAt(i)) >>> 0;
-  skinSeed = (skinSeed + (style.role ? style.role.charCodeAt(0) : 0)) >>> 0;
+  const skinSeedSrc = style.name
+    ? (style.name + (style.position || ""))
+    : (String(label || "") + (style.role || ""));
+  for (let i = 0; i < skinSeedSrc.length; i++) skinSeed = (skinSeed * 31 + skinSeedSrc.charCodeAt(i)) >>> 0;
   const skin = SKIN_TONES[skinSeed % SKIN_TONES.length];
 
   const headR = 4.2;
@@ -3436,8 +3494,9 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
       const lockedArm = pose === "run" && (phaseHash % 9) === 0;
       if (lockedArm) {
         // One arm pointed forward in the facing direction (tracking the ball
-        // carrier or QB), the other swings at half amplitude.
-        lArm = -facing * 0.6;
+        // carrier or QB), the other swings at half amplitude. Positive angle
+        // is forward in player-local space; drawArm handles the facing flip.
+        lArm = 0.6;
         rArm =  ph * armAmp * 0.4;
       } else {
         lArm = -ph * armAmp;
@@ -4346,6 +4405,10 @@ function attachPlayerStyles(formation, offStarters, defStarters, lookup) {
       slot.position = p.position;
       slot.elite = !!p.nickname;
       slot.nickname = p.nickname;
+      // Pass the player's NAME through so the in-game model's skin tone can
+      // be seeded from the same hash the portrait uses, keeping them
+      // visually consistent.
+      slot.name = p.name;
     }
   };
   if (offStarters) {
@@ -7927,46 +7990,173 @@ function buildAnimForPlay(play, prevPlay) {
     }};
   }
 
-  if (play.kind === "fg_good" || play.kind === "fg_miss") {
+  if (play.kind === "fg_good" || play.kind === "fg_miss" || play.kind === "fg_blocked") {
     const isGood = play.kind === "fg_good";
-    // Determine miss type deterministically per play
+    const isBlocked = play.kind === "fg_blocked";
+    const isReturned = !!play.isReturned;
+    const isReturnTD = !!play.isReturnTD;
     const missRoll = ((play.startYard * 17 + (play.time || 0)) >>> 0) % 100 / 100;
     const missType = isGood ? "good" : (missRoll < 0.5 ? (missRoll < 0.25 ? "wide_l" : "wide_r") : "short");
-    const HASH_HALF = 40; // half-distance between uprights in px
-    return { duration: 2400, kind: play.kind, render: (t, c) => {
+    const HASH_HALF = 40;
+    const goalX = poss === "home" ? FIELD.W - FIELD.EZ_PX * 0.4 : FIELD.EZ_PX * 0.4;
+    // Special-teams positions
+    const holderX = losX - dir * 7 * FIELD.PX_PER_YARD;
+    const holderY = cy;
+    const kickerX = holderX - dir * 18;     // slightly behind & to the side of the holder
+    const kickerY = cy + 12;
+    // Block deflection point (just past the LOS)
+    const blockX = losX + dir * 8;
+    const blockY = cy + (((play.startYard * 7) >>> 0) % 11) - 5;
+    const recoverX = isBlocked
+      ? losX - dir * (8 + ((play.startYard * 11) >>> 0) % 14)
+      : losX - dir * 4;
+    const returnEndX = isReturnTD
+      ? (poss === "home" ? FIELD.EZ_PX * 0.5 : FIELD.W - FIELD.EZ_PX * 0.5)
+      : holderX - dir * 6;
+    const dur = (isBlocked || isReturned) ? (isReturnTD ? 4200 : 3200) : 2600;
+    return { duration: dur, kind: play.kind, render: (t, c) => {
       ctx = c;
       drawField(ctx, homeTeam, awayTeam, fieldState);
-      // Goalpost at back of end zone
-      const goalX = poss === "home" ? FIELD.W - FIELD.EZ_PX * 0.4 : FIELD.EZ_PX * 0.4;
       drawGoalposts(ctx, goalX, cy);
-      drawPlayers(formation.offense, formation.defense);
-      const startX = losX - dir * 7 * FIELD.PX_PER_YARD;
-      const startY = cy;
-      // Trajectory endpoint
-      let goalY = cy;
-      let goalArcMul = 1;
-      if (missType === "wide_l") goalY = cy - HASH_HALF - 8;
-      else if (missType === "wide_r") goalY = cy + HASH_HALF + 8;
-      else if (missType === "short") { goalArcMul = 0.55; } // never reaches goalX
-      let ballX, ballY, arc;
-      if (t < 0.15) { ballX = startX; ballY = startY; arc = 0; }
-      else {
-        const tt = (t - 0.15) / 0.85;
-        const reach = missType === "short" ? 0.78 : 1;
-        ballX = startX + (goalX - startX) * tt * reach;
-        ballY = startY + (goalY - startY) * tt;
-        arc = Math.sin(tt * Math.PI) * 90 * goalArcMul;
+
+      // ── Special-teams formation (drawn instead of regular formation) ──
+      // 9-man protection along the LOS, holder kneeling, kicker offset.
+      const olY = [-50, -36, -22, -8, 6, 20, 34, 48, 62];
+      for (let i = 0; i < 9; i++) {
+        const olXOff = (i === 0 || i === 8) ? -dir * 4 : 0;   // wings slightly back
+        drawPlayer(ctx, losX - dir * 1 + olXOff, cy + olY[i], possColor, team.secondary, "", "stance", t, dir, { role: "OL", bodyType: "BIG" });
       }
-      drawBall(ctx, ballX, ballY - arc, 1 + (arc / 200));
-      // Result banner at end
-      if (t > 0.82) {
-        const banT = Math.min(1, (t - 0.82) / 0.18);
+      // Defense — pass-rush formation (5 DL + 2 LBs crashing)
+      const defLineY = [-30, -10, 10, 30];
+      for (let i = 0; i < 4; i++) {
+        // Defenders surge toward the kicker on rush
+        const surgeT = Math.min(1, t / 0.18);
+        const dxRush = -dir * 30 * surgeT;
+        drawPlayer(ctx, losX + dir * 2 + dxRush, cy + defLineY[i], oppColor, oppTeam.secondary, "", t < 0.20 ? "stance" : "run", t, -dir, { role: "DL" });
+      }
+
+      // Ball + kicker animation
+      let ballX, ballY, arc = 0, ballScale = 1, ballHidden = false;
+      const showBlocker = isBlocked && t > 0.22 && t < 0.36;
+
+      // Kicker pose progression: stance → approach → kick → follow
+      let kickerPoseX = kickerX, kickerPoseY = kickerY, kickerPose = "stance";
+      if (t < 0.10) { kickerPose = "stance"; }
+      else if (t < 0.22) {
+        // Run-up — approach the ball from behind
+        const ap = (t - 0.10) / 0.12;
+        kickerPoseX = kickerX + (holderX - kickerX) * ap * 0.85;
+        kickerPoseY = kickerY + (holderY - kickerY) * ap * 0.85;
+        kickerPose = "run";
+      } else {
+        kickerPoseX = holderX - dir * 4;
+        kickerPoseY = holderY + 4;
+        kickerPose = "kick";
+      }
+      drawPlayer(ctx, kickerPoseX, kickerPoseY, possColor, team.secondary, "", kickerPose, t, dir, { role: "K" });
+
+      // Holder kneeling at the spot (drawn behind ball during placement)
+      if (t < 0.85) {
+        drawPlayer(ctx, holderX + dir * 2, holderY + 6, possColor, team.secondary, "", "stance", t, -dir, { role: "RB" });
+      }
+
+      // Ball: snap → placed → kick → flight → result
+      if (t < 0.06) {
+        // Snap travels back to holder
+        const sp = t / 0.06;
+        ballX = losX + (holderX - losX) * sp;
+        ballY = cy;
+      } else if (t < 0.22) {
+        // Ball held at the spot
+        ballX = holderX; ballY = holderY;
+      } else if (isBlocked && t < 0.36) {
+        // Ball gets a few yards then deflects backward off a blocker
+        const bp = (t - 0.22) / 0.14;
+        if (bp < 0.5) {
+          // Forward into the block
+          ballX = holderX + (blockX - holderX) * (bp / 0.5);
+          ballY = holderY;
+          arc = Math.sin((bp / 0.5) * Math.PI * 0.6) * 25;
+        } else {
+          // Wobble back toward recovery spot
+          const wp = (bp - 0.5) / 0.5;
+          ballX = blockX + (recoverX - blockX) * wp;
+          ballY = blockY + (Math.sin(wp * Math.PI * 3) * 6);
+          arc = Math.max(0, 25 - wp * 25) + Math.abs(Math.sin(wp * Math.PI * 4)) * 8;
+        }
+        ballScale = 0.9;
+      } else if (!isBlocked && t < 0.78) {
+        // Normal kick flight
+        const kt = (t - 0.22) / 0.56;
+        if (missType === "short") {
+          const reach = 0.78;
+          ballX = holderX + (goalX - holderX) * kt * reach;
+          ballY = holderY;
+          arc = Math.sin(kt * Math.PI) * 50;
+        } else {
+          let goalY = cy;
+          if (missType === "wide_l") goalY = cy - HASH_HALF - 8;
+          else if (missType === "wide_r") goalY = cy + HASH_HALF + 8;
+          ballX = holderX + (goalX - holderX) * kt;
+          ballY = holderY + (goalY - holderY) * kt;
+          arc = Math.sin(kt * Math.PI) * 90;
+        }
+      } else if (isBlocked && t < 1.0) {
+        // Defender picks up ball and returns
+        const rt = (t - 0.36) / 0.64;
+        ballX = recoverX + (returnEndX - recoverX) * rt;
+        ballY = blockY;
+        arc = 0;
+        // Returning defender (drawn at the ball)
+        drawPlayer(ctx, ballX, ballY, oppColor, oppTeam.secondary, "", "carry", t, -dir, { role: "DL" });
+        ballHidden = true;  // ball is in the carrier's hands
+      } else if (isReturned && t > 0.78) {
+        // Returner picks it up after a short miss & returns
+        const rt = (t - 0.78) / 0.22;
+        ballX = (poss === "home" ? FIELD.W - 90 : 90);
+        ballX = ballX + (returnEndX - ballX) * rt;
+        ballY = cy + 18 - rt * 20;
+        drawPlayer(ctx, ballX, ballY, oppColor, oppTeam.secondary, "", "carry", t, -dir, { role: "S" });
+        ballHidden = true;
+      }
+
+      if (!ballHidden) drawBall(ctx, ballX, ballY - arc, ballScale + (arc / 250));
+
+      // ── Callouts ──
+      if (t > 0.82 && !isBlocked && !isReturned) {
+        const banT = Math.min(1, (t - 0.82) / 0.14);
         ctx.save();
         ctx.globalAlpha = banT;
         ctx.fillStyle = isGood ? "#f0cc30" : "#e07070";
-        ctx.font = "900 44px sans-serif";
+        ctx.font = "900 44px monospace";
         ctx.textAlign = "center";
         ctx.fillText(isGood ? "IT'S GOOD!" : missType === "short" ? "SHORT!" : missType === "wide_l" ? "WIDE LEFT!" : "WIDE RIGHT!", FIELD.W / 2, 60);
+        ctx.restore();
+      }
+      if (isBlocked && t > 0.22 && t < 0.50) {
+        const fadeT = Math.min(1, (t - 0.22) / 0.06);
+        ctx.save();
+        ctx.globalAlpha = fadeT;
+        ctx.fillStyle = "#e07070";
+        ctx.strokeStyle = "rgba(0,0,0,0.85)";
+        ctx.lineWidth = 4;
+        ctx.font = "900 46px monospace";
+        ctx.textAlign = "center";
+        ctx.strokeText("BLOCKED!", FIELD.W / 2, 60);
+        ctx.fillText("BLOCKED!", FIELD.W / 2, 60);
+        ctx.restore();
+      }
+      if ((isBlocked || isReturned) && isReturnTD && t > 0.85) {
+        const fadeT = Math.min(1, (t - 0.85) / 0.10);
+        ctx.save();
+        ctx.globalAlpha = fadeT;
+        ctx.fillStyle = "#f0cc30";
+        ctx.strokeStyle = "rgba(0,0,0,0.85)";
+        ctx.lineWidth = 4;
+        ctx.font = "900 40px monospace";
+        ctx.textAlign = "center";
+        ctx.strokeText("TOUCHDOWN!", FIELD.W / 2, 60);
+        ctx.fillText("TOUCHDOWN!", FIELD.W / 2, 60);
         ctx.restore();
       }
     }};
@@ -10259,7 +10449,7 @@ function buildJogTransition(prevPlay, nextPlay) {
   if (!prevPlay || !nextPlay) return null;
   if (nextPlay.startYard == null || prevPlay.startYard == null) return null;
   const skipKinds = ["halftime", "ot", "quarter", "two_min_warning", "timeout",
-                     "kickoff", "punt", "fg_good", "fg_miss", "int", "fumble",
+                     "kickoff", "punt", "fg_good", "fg_miss", "fg_blocked", "int", "fumble",
                      "fourth_go", "to_downs"];
   if (skipKinds.includes(nextPlay.kind) || skipKinds.includes(prevPlay.kind)) return null;
   // Turnovers swap which team is on offense — the formation identity changes,
