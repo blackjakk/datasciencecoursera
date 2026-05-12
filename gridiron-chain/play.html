@@ -3790,6 +3790,7 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   let spinXScale = 1;
   let leftHandBall = false, rightHandBall = false;
   let rForearmOverride = null;   // throw pose drives a custom forearm angle
+  let lForearmOverride = null;   // for right-facing QB throw (left arm is throw arm)
   let exclaim = null;
   let drawGroundHand = false;   // for 3-point stance
 
@@ -3952,10 +3953,20 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
         forearmA = -0.4  + ph * 1.9;                        // -0.4 → +1.5 (full extension forward)
         leadA    =  0.8  - ph * 0.6;                       // off arm relaxes down (0.8 → 0.2)
       }
-      rArm = bicepA;
-      lArm = leadA;
-      rForearmOverride = forearmA;
-      rightHandBall = t < 0.55;
+      if (facing === -1) {
+        // Left-facing QB: right arm (side=+1) cocks backward → screen-right (trailing side)
+        rArm = bicepA;
+        lArm = leadA;
+        rForearmOverride = forearmA;
+        rightHandBall = t < 0.55;
+      } else {
+        // Right-facing QB: left arm (side=-1) with negated angles cocks backward → screen-right
+        // This mirrors the left-facing motion so the ball stays on the trailing (right) side
+        lArm = -bicepA;
+        rArm = leadA;
+        lForearmOverride = -forearmA;
+        leftHandBall = t < 0.55;
+      }
       // Body / legs: stepping into the throw, slight forward lean, up on toes
       lLeg = 0.45;
       rLeg = -0.35;
@@ -4366,7 +4377,7 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     return { handX, handY };
   };
   // The throw pose drives rForearmOverride directly in the switch above.
-  const lHand = drawArm(-1, lArm, leftHandBall);
+  const lHand = drawArm(-1, lArm, leftHandBall, lForearmOverride);
   const rHand = drawArm(1, rArm, rightHandBall, rForearmOverride);
 
   // For 3-point stance, draw a ground line where the lead hand plants
