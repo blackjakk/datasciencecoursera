@@ -3943,7 +3943,7 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
         // varies by per-QB throw slot above.
         bicepA   = -0.4  + sm * (bicepPeak - (-0.4));     // -0.4 → bicepPeak
         forearmA =  0.3  + sm * (forearmPeak - 0.3);      // 0.3 → forearmPeak
-        leadA    =  0.7  + sm * 1.1;                       // off arm rises to face level (stiff-arm cock)
+        leadA    =  0.7  + sm * 0.5;                       // off arm extends FORWARD at chest level (not raised to face — keeps it distinct from the cocked throw arm)
       } else if (t < 0.62) {
         const ph = (t - 0.42) / 0.20;
         const sm = ph * ph * (3 - 2 * ph);
@@ -3954,7 +3954,7 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
         // The ball releases with the hand still ABOVE/AT shoulder height.
         bicepA   = bicepPeak;                              // no change — stays high
         forearmA = forearmPeak + sm * (-0.4 - forearmPeak); // peak → -0.4 (release at front-of-elbow)
-        leadA    =  1.8  - sm * 0.8;                       // off arm starts coming back down across the body
+        leadA    =  1.2  - sm * 0.4;                       // off arm relaxes slightly as throw releases
       } else {
         const ph = (t - 0.62) / 0.38;
         // FOLLOW: arm drives forward AND down across the body — bicep finally
@@ -3963,7 +3963,7 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
         // happens; the ball is already gone but the arm follows through.
         bicepA   = bicepPeak + ph * (0.30 - bicepPeak);    // peak → +0.30
         forearmA = -0.4  + ph * 1.9;                        // -0.4 → +1.5 (full extension forward)
-        leadA    =  1.0  - ph * 0.8;                       // off arm relaxes down (1.0 → 0.2)
+        leadA    =  0.8  - ph * 0.6;                       // off arm relaxes down (0.8 → 0.2)
       }
       // Symmetric throw — right arm is the throwing arm for both facings.
       // drawArm multiplies the angle by `facing`, so the arm cocks to the
@@ -4353,32 +4353,43 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     ctx.arc(handX - tipDX * 0.4, handY - tipDY * 0.4, forearmW * 0.35, 0, Math.PI * 2);
     ctx.fill();
     if (holdsBall) {
-      // Football — bigger, more pronounced, with white tip + laces
-      const ballAngle = facing * 0.3;
+      // Black cube held in the hand (replaces the football)
       ctx.save();
       ctx.translate(handX, handY + 0.4);
-      ctx.rotate(ballAngle);
-      // Body
-      const bg = ctx.createLinearGradient(0, -2.2, 0, 2.2);
-      bg.addColorStop(0, "#8a4520");
-      bg.addColorStop(0.55, "#6b3416");
-      bg.addColorStop(1, "#3d1f0c");
-      ctx.fillStyle = bg;
+      const s = 3.6;                   // cube half-edge in the hand
+      // Front face — darkest
+      ctx.fillStyle = "#0a0a0a";
       ctx.beginPath();
-      ctx.ellipse(0, 0, 4.0, 2.3, 0, 0, Math.PI * 2);
+      ctx.moveTo(-s,  s * 0.6); ctx.lineTo( s,  s * 0.6);
+      ctx.lineTo( s, -s * 0.4); ctx.lineTo(-s, -s * 0.4); ctx.closePath();
       ctx.fill();
-      // White stripe tip (the away side from facing)
-      ctx.fillStyle = "#f1f1f1";
+      // Top face
+      ctx.fillStyle = "#2a2a2e";
       ctx.beginPath();
-      ctx.ellipse(-2.7, 0, 0.7, 1.3, 0, 0, Math.PI * 2);
+      ctx.moveTo(-s,        -s * 0.4); ctx.lineTo( s,        -s * 0.4);
+      ctx.lineTo( s + s * 0.4, -s * 0.85); ctx.lineTo(-s + s * 0.4, -s * 0.85);
+      ctx.closePath();
       ctx.fill();
-      // Laces
-      ctx.strokeStyle = "#fff";
+      // Right side face (facing into screen on the away side from facing dir)
+      ctx.fillStyle = "#1a1a1d";
+      ctx.beginPath();
+      ctx.moveTo( s,            s * 0.6);
+      ctx.lineTo( s + s * 0.4,  s * 0.15);
+      ctx.lineTo( s + s * 0.4, -s * 0.85);
+      ctx.lineTo( s,           -s * 0.4);
+      ctx.closePath();
+      ctx.fill();
+      // Outline
+      ctx.strokeStyle = "rgba(0,0,0,0.9)";
       ctx.lineWidth = 0.6;
       ctx.beginPath();
-      ctx.moveTo(-1.0, -0.5); ctx.lineTo(1.4, -0.5);
-      ctx.moveTo(-0.8, 0);    ctx.lineTo(1.2, 0);
-      ctx.moveTo(-0.8, 0.5);  ctx.lineTo(1.2, 0.5);
+      ctx.moveTo(-s,  s * 0.6); ctx.lineTo( s,  s * 0.6);
+      ctx.lineTo( s, -s * 0.4); ctx.lineTo(-s, -s * 0.4); ctx.closePath();
+      ctx.moveTo(-s,           -s * 0.4); ctx.lineTo(-s + s * 0.4, -s * 0.85);
+      ctx.moveTo( s,           -s * 0.4); ctx.lineTo( s + s * 0.4, -s * 0.85);
+      ctx.moveTo(-s + s * 0.4, -s * 0.85); ctx.lineTo( s + s * 0.4, -s * 0.85);
+      ctx.moveTo( s,            s * 0.6); ctx.lineTo( s + s * 0.4,  s * 0.15);
+      ctx.moveTo( s + s * 0.4,  s * 0.15); ctx.lineTo( s + s * 0.4, -s * 0.85);
       ctx.stroke();
       ctx.restore();
     }
@@ -4560,22 +4571,57 @@ function drawGoalposts(ctx, cx, cy) {
 }
 
 function drawBall(ctx, x, y, scale = 1) {
+  // Black cube — the new "ball". Rendered as a small isometric 3D box with
+  // a top face, a front face, and a side face so it reads as solid.
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(scale, scale);
   ctx.shadowColor = "rgba(0,0,0,0.6)";
   ctx.shadowBlur = 4;
   ctx.shadowOffsetY = 2;
-  ctx.fillStyle = "#6b3416";
+  const s = 5;                     // half-edge of the cube in screen px
+  // Front face — darkest
+  ctx.fillStyle = "#0a0a0a";
   ctx.beginPath();
-  ctx.ellipse(0, 0, 7, 4, 0, 0, Math.PI * 2);
+  ctx.moveTo(-s,  s * 0.6);
+  ctx.lineTo( s,  s * 0.6);
+  ctx.lineTo( s, -s * 0.4);
+  ctx.lineTo(-s, -s * 0.4);
+  ctx.closePath();
   ctx.fill();
   ctx.shadowBlur = 0;
-  ctx.strokeStyle = "#fff";
-  ctx.lineWidth = 1;
+  // Top face — lighter (light hits the top)
+  ctx.fillStyle = "#2a2a2e";
   ctx.beginPath();
-  ctx.moveTo(-3, 0); ctx.lineTo(3, 0);
-  for (let i = -2; i <= 2; i++) { ctx.moveTo(i, -1.2); ctx.lineTo(i, 1.2); }
+  ctx.moveTo(-s,        -s * 0.4);
+  ctx.lineTo( s,        -s * 0.4);
+  ctx.lineTo( s + s * 0.4, -s * 0.85);
+  ctx.lineTo(-s + s * 0.4, -s * 0.85);
+  ctx.closePath();
+  ctx.fill();
+  // Right side face — mid-tone (shadowed but visible)
+  ctx.fillStyle = "#1a1a1d";
+  ctx.beginPath();
+  ctx.moveTo( s,            s * 0.6);
+  ctx.lineTo( s + s * 0.4,  s * 0.15);
+  ctx.lineTo( s + s * 0.4, -s * 0.85);
+  ctx.lineTo( s,           -s * 0.4);
+  ctx.closePath();
+  ctx.fill();
+  // Crisp outline
+  ctx.strokeStyle = "rgba(0,0,0,0.85)";
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  // Front face outline
+  ctx.moveTo(-s,  s * 0.6); ctx.lineTo( s,  s * 0.6);
+  ctx.lineTo( s, -s * 0.4); ctx.lineTo(-s, -s * 0.4); ctx.closePath();
+  // Top edges going back
+  ctx.moveTo(-s,           -s * 0.4); ctx.lineTo(-s + s * 0.4, -s * 0.85);
+  ctx.moveTo( s,           -s * 0.4); ctx.lineTo( s + s * 0.4, -s * 0.85);
+  ctx.moveTo(-s + s * 0.4, -s * 0.85); ctx.lineTo( s + s * 0.4, -s * 0.85);
+  // Right edge going back
+  ctx.moveTo( s,            s * 0.6); ctx.lineTo( s + s * 0.4,  s * 0.15);
+  ctx.moveTo( s + s * 0.4,  s * 0.15); ctx.lineTo( s + s * 0.4, -s * 0.85);
   ctx.stroke();
   ctx.restore();
 }
@@ -8188,14 +8234,18 @@ function buildAnimForPlay(play, prevPlay) {
           return dd;
         }
         dd.pose = "run";
-        if (i < 4 && aT < throwFrac + 0.05) {
-          // Most DL stay engaged with OL — only the breaking rusher gets to the QB
+        if (i < 4) {
+          // Breaking rusher chases the QB throughout — DON'T cut him off at
+          // the throw, or his position snaps back to the original DL spot
+          // (the "teleport" bug). Other DL only animate through the rush
+          // phase, since they're held up at the LOS and barely move anyway.
           const tt = Math.min(1, aT / 0.55);
           if (i === breakingRusher) {
             dd.x = d.x + (qb.x - d.x) * tt * 0.85;
             dd.y = d.y + (qb.y - d.y) * tt * 0.6;
-            dd.pose = "run";
-          } else {
+            // After release, the rusher arrives in the QB's face and engages
+            dd.pose = aT > throwFrac ? "engage" : "run";
+          } else if (aT < throwFrac + 0.05) {
             const wobble = Math.sin(tt * Math.PI * 6 + d.y * 0.08) * 1.2;
             dd.x = d.x - dir * 4 * tt + wobble * 0.4;
             dd.y = d.y + wobble;
