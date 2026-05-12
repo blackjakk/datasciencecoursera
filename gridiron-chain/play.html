@@ -3556,40 +3556,35 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
       leftHandBall = t < 0.5;
       break;
   }
-  ctx.save();
-  ctx.translate(x, y + bodyDY);
-  if (bodyTilt !== 0) ctx.rotate(bodyTilt);
-  if (bodyRot !== 0) ctx.rotate(bodyRot);
   // Players are scaled by their body-type scale × a global multiplier.
   // Bumped to make them look meatier against the larger 1280-wide field.
   const PLAYER_SCALE_MUL = 1.55;
   const totalScale = (bt.scale || 1) * PLAYER_SCALE_MUL;
-  ctx.scale(totalScale, totalScale);
-  ctx.lineCap = "round";
-
-  // Drop shadow — positioned AT the foot height so players look planted on
-  // the ground, not floating. Foot Y in local coords is roughly:
-  //   shoulderY + torsoLen + legLen*1.1 (legs extend ~110% of legLen)
+  // Foot Y in local coords (used by the shadow + seal so they sit at the
+  // cleats regardless of body animation). Computed up front so both the
+  // ground-decal pass and the body pass agree on it.
   const footYLocal = (-headR + 1) + torsoLen + legLen * 1.05;
+
+  // ── GROUND DECALS — drawn at the player's planted (x, y) WITHOUT bodyDY or
+  // body rotation, so they stay flat on the field even when the player ragdolls
+  // on a tackle. Like Madden's star marker that acts as a ground shadow.
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(totalScale, totalScale);
+  // Drop shadow at foot height
   ctx.fillStyle = "rgba(0,0,0,0.40)";
   ctx.beginPath();
   ctx.ellipse(0, footYLocal + 0.5, 7.5 + bt.bulk * 0.8, 2.0, 0, 0, Math.PI * 2);
   ctx.fill();
-  // ── Seal of Solomon — six-pointed star UNDER the player's feet (NCAA
-  // superstar indicator). Two interlocking equilateral triangles, gold. The
-  // star is sized so the inner hexagon (formed where the triangles intersect)
-  // is wide enough to contain the player's foot footprint. Drawn before the
-  // body so the player stands inside it.
+  // Seal of Solomon — six-pointed star, sized so the inner hexagon contains
+  // the player's foot footprint. Flattened (~0.42x vertical) to read as
+  // painted on the field.
   if (style.elite) {
     const sealY = footYLocal + 0.5;
-    // Inner hexagon flat-to-flat distance = sealR. Foot footprint is roughly
-    // 16 wide (shadow ellipse half-width 7.5 + bulk*0.8). Scale star to fit.
     const sealR = 16 + bt.bulk * 1.2;
-    ctx.save();
     ctx.fillStyle = "rgba(240, 204, 48, 0.55)";
     ctx.strokeStyle = "rgba(120, 80, 0, 0.85)";
     ctx.lineWidth = 0.9;
-    // Up-pointing triangle
     ctx.beginPath();
     for (let i = 0; i < 3; i++) {
       const a = -Math.PI / 2 + i * (2 * Math.PI / 3);
@@ -3600,7 +3595,6 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
-    // Down-pointing triangle (interlocking)
     ctx.beginPath();
     for (let i = 0; i < 3; i++) {
       const a = Math.PI / 2 + i * (2 * Math.PI / 3);
@@ -3611,8 +3605,16 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
-    ctx.restore();
   }
+  ctx.restore();
+
+  // ── BODY — animated/rotated/translated as before.
+  ctx.save();
+  ctx.translate(x, y + bodyDY);
+  if (bodyTilt !== 0) ctx.rotate(bodyTilt);
+  if (bodyRot !== 0) ctx.rotate(bodyRot);
+  ctx.scale(totalScale, totalScale);
+  ctx.lineCap = "round";
 
   const shoulderY = -headR + 1;
   const hipY = shoulderY + torsoLen;
