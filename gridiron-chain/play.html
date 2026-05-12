@@ -3361,8 +3361,17 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
       bodyTilt = facing * rs.lean;
       bodyDY = -(Math.abs(ph) * 0.5 + 0.2) * rs.bob;
       if (pose === "carry") {
-        rArm = -0.25;
-        rightHandBall = true;
+        if (style.role === "QB") {
+          // QB pre-throw — ball cradled at the chest with BOTH hands while
+          // dropping back / scanning. Override the run-phase arm swing.
+          lArm = 1.3;
+          rArm = 1.3;
+          rightHandBall = true;
+        } else {
+          // RB carrying the ball tucked at the hip, off arm still pumping.
+          rArm = -0.25;
+          rightHandBall = true;
+        }
       }
       break;
     }
@@ -3400,10 +3409,11 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
         lArm = -0.25; rArm = 0.25;
         lLeg = 0.06; rLeg = -0.06;
       } else if (role === "QB") {
-        // QB shotgun — upright, hands ready for the snap
+        // QB shotgun — upright, both arms extended FORWARD anticipating the
+        // snap. Hands out, palms up, ready to receive the ball.
         bodyDY = 0.8;
         bodyTilt = 0;
-        lArm = -0.7; rArm = -0.7;
+        lArm = 1.05; rArm = 1.05;
         lLeg = 0.04; rLeg = -0.04;
       } else if (role === "LB") {
         // LB read stance — small crouch, plants firmly
