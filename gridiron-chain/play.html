@@ -8291,9 +8291,10 @@ function buildAnimForPlay(play, prevPlay) {
     return { x: d.x + dx * f, y: d.y + dy * f };
   };
   // Action duration scales with yardage — this is JUST the post-snap action,
-  // pre-snap is added on top via PRE_MS.
+  // pre-snap is added on top via PRE_MS. Big plays now get proportionally more
+  // time so they don't teleport (10yd→~2.0s, 40yd→~4.1s, 80yd→~6.9s).
   function scaledDuration(yds) {
-    return clamp(1300 + Math.abs(yds || 0) * 55, 1400, 4200);
+    return clamp(1300 + Math.abs(yds || 0) * 70, 1400, 7500);
   }
   // Pre-snap timing — ~3 seconds of huddle break, line set, audible, "HUT HUT"
   // before the center snaps. Audibles add an extra ~600 ms.
@@ -8305,7 +8306,7 @@ function buildAnimForPlay(play, prevPlay) {
   function runPacing(runT) {
     const meshEnd = 0.10;     // QB-RB exchange + first step
     const readEnd = 0.22;     // reading the blocks, building speed
-    const cruiseEnd = 0.72;   // RB reaches the tackle spot; rest is ragdoll
+    const cruiseEnd = 0.78;   // RB reaches the tackle spot; rest is ragdoll
     const meshDist  = 0.04;
     const readDist  = 0.14;
     const cruiseDist = 1.0;
@@ -8387,8 +8388,8 @@ function buildAnimForPlay(play, prevPlay) {
     const isTD = (play.endYard ?? 0) >= 100;
     // Extra time at the end. Non-TDs get a tackle-ragdoll window; TDs
     // get a celebration window where the scorer raises arms + a banner
-    // flashes.
-    const RUN_TACKLE_MS = isTD ? 1500 : 1000;
+    // flashes. Big-play TDs get more celebration time — let it breathe.
+    const RUN_TACKLE_MS = isTD ? Math.round(1500 + Math.min(Math.abs(yards), 80) * 8) : 1000;
     const actionDur = scaledDuration(yards) + RUN_TACKLE_MS;
     const dur = actionDur + PRE_MS;
     PRE = PRE_MS / dur;
@@ -11560,15 +11561,22 @@ function buildCinemaAnim(play, prevPlay) {
     const isBig = yards >= 15;
     const rusherSeed = nameSeed(play.rusher);
     const qbSeed = nameSeed(play.passer || "QB");
-    return { duration: 2400, kind: "run", render: (t, ctx) => {
-      const PRE = 0.18;
+    // Scale cinema duration with the run so big plays have time to develop
+    // (was a flat 2400ms — 80-yd TDs covered the field in ~2 seconds).
+    const cinDur = Math.round(clamp(1800 + Math.abs(yards) * 70, 1900, 7500) + (isTD ? 1000 : 600));
+    return { duration: cinDur, kind: "run", render: (t, ctx) => {
+      const PRE = 0.14;
       let carrierWX, runT = 0;
       const carrierStartWX = losWX - 7 * CINEMA.pxPerYard;
       if (t < PRE) {
         carrierWX = carrierStartWX;
       } else {
         runT = (t - PRE) / (1 - PRE);
-        carrierWX = carrierStartWX + (endWX - carrierStartWX) * easeOutCubic(runT);
+        // Linear-with-mild-easeIn — no more easeOutCubic teleport on big plays.
+        const eased = runT < 0.12
+                    ? (runT * runT) / 0.24
+                    : 0.06 + ((runT - 0.12) / 0.88) * 0.94;
+        carrierWX = carrierStartWX + (endWX - carrierStartWX) * Math.min(1, eased * 1.05);
       }
       // Determine active "move" (juke / stiff / broken tackle)
       let activeMove = null;
@@ -11678,7 +11686,10 @@ function buildCinemaAnim(play, prevPlay) {
     const isTD        = isComplete && (play.endYard ?? 0) >= 100;
     const isHighlight = isComplete && (isDeep || isBigCatch || isTD);
     const FREEZE_MS = isComplete ? (isHighlight ? 850 : 280) : (isInt ? 700 : 0);
-    const baseDur   = 2400;
+    // Scale cinema pass duration with depth/yards so deep balls + big YAC
+    // catches don't teleport (was a flat 2400ms for everything).
+    const passSpan  = Math.max(targetDepth, yardsGained, 8);
+    const baseDur   = Math.round(clamp(1800 + passSpan * 55, 2000, 6500) + (isTD ? 800 : 0));
     const totalDur  = baseDur + FREEZE_MS;
     const ARRIVE = 0.62;
     const F1 = (ARRIVE * baseDur) / totalDur;
