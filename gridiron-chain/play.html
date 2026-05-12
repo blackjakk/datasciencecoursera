@@ -2583,6 +2583,45 @@ class GameSimulator {
     if (inTwoMin) passProb = Math.min(0.96, passProb + 0.25);   // hurry-up = pass-heavy
     const playType = Math.random() < passProb ? "pass" : "run";
 
+    // ── QB SPIKE ──
+    // Burn a down to stop the clock when it makes sense. Conditions:
+    //   • <30s left in Q2/Q4, but >3s (don't spike with the gun about to fire)
+    //   • Down 1 or 2 — never spike on 3rd (waste a play that could convert)
+    //     or 4th (turnover on downs)
+    //   • Out of timeouts (otherwise call a timeout instead)
+    //   • Q2: in FG range — spike to set up a halftime field goal
+    //   • Q4: trailing or tied — need to score
+    {
+      const oppKey = this.poss === "home" ? "away" : "home";
+      const trailingOrTied = this.score[this.poss] <= this.score[oppKey];
+      const myTimeouts = this.timeouts[this.poss];
+      const inFGRange = this.yardLine >= 58;                 // ~60+ yds to score → make-able FG
+      const canSpike = this.time <= 30 && this.time > 3
+                    && this.down <= 2
+                    && myTimeouts === 0
+                    && (
+                      (this.quarter === 2 && inFGRange) ||
+                      (this.quarter === 4 && trailingOrTied)
+                    );
+      if (canSpike && Math.random() < 0.65) {
+        const qbStats = off.players[QB];
+        if (qbStats) qbStats.pass_att++;
+        off.team.pass_att++;
+        // Spike takes ~3 seconds total — restore most of dt we already
+        // deducted (since the spike is a no-huddle quick play, not a full
+        // snap-clock-out play).
+        const spikeTime = 3;
+        this.time += Math.max(0, dt - spikeTime);
+        this._pushVisual({
+          kind: "spike",
+          desc: `${QB} spikes the ball to stop the clock`,
+          startYard, endYard: startYard,
+          passer: QB,
+        });
+        return { yards: 0, incomplete: true };
+      }
+    }
+
     if (playType === "pass") {
       const qbStats = off.players[QB];
       const qbArch = this.offArch.QB?.archetype;
@@ -8314,6 +8353,82 @@ function buildAnimForPlay(play, prevPlay) {
         ctx.strokeText(moveCallout, lblX, lblY);
         ctx.fillStyle = "#f0cc30";
         ctx.fillText(moveCallout, lblX, lblY);
+        ctx.restore();
+      }
+      drawPreSnapCallouts(ctx, t);
+    }};
+  }
+
+  if (play.kind === "spike") {
+    // Quick spike-the-ball play. Total duration ~1.6s: pre-snap → snap →
+    // QB spikes ball into the ground → ball bounces → CLOCK STOPPED banner.
+    const actionDur = 1100;
+    const dur = actionDur + PRE_MS;
+    PRE = PRE_MS / dur;
+    const centerX = losX - dir * 2;
+    return { duration: dur, kind: "spike", render: (t, c) => {
+      ctx = c;
+      drawField(ctx, homeTeam, awayTeam, fieldState);
+      const qb = { ...formation.qb };
+      const aT = t < PRE ? 0 : (t - PRE) / (1 - PRE);
+      // Action phases:
+      //   0.00 - 0.05  ball snap (C → QB)
+      //   0.05 - 0.45  QB cocks the spike (arm raises briefly)
+      //   0.45 - 0.55  QB spikes — ball goes from QB hand to ground
+      //   0.55 - 1.00  ball bounces in front of the QB, settles
+      let ballX = centerX, ballY = cy;
+      let qbPose = "idle", qbT = 0;
+      if (t < PRE) {
+        qbPose = "idle";
+      } else if (aT < 0.05) {
+        // Snap travel
+        const s = aT / 0.05;
+        ballX = centerX + (qb.x - centerX) * s;
+        ballY = cy;
+        qbPose = "idle";
+      } else if (aT < 0.45) {
+        // Cock
+        ballX = qb.x;
+        ballY = cy - 6;
+        qbPose = "throw";
+        qbT = (aT - 0.05) / 0.40 * 0.40;          // run throw pose up to its cock peak (~0.40)
+      } else if (aT < 0.55) {
+        // Spike — ball drops from QB hand height down to the ground
+        const s = (aT - 0.45) / 0.10;
+        ballX = qb.x + dir * 4;
+        ballY = (cy - 14) + (cy + 4 - (cy - 14)) * s;  // hand height → ground
+        qbPose = "throw";
+        qbT = 0.55 + s * 0.20;                     // through release portion
+      } else {
+        // Ball bounces, settles in front of QB. Bounce decays.
+        const s = (aT - 0.55) / 0.45;
+        ballX = qb.x + dir * (4 + s * 4);
+        const bounce = Math.abs(Math.sin(s * Math.PI * 2)) * 6 * (1 - s);
+        ballY = cy + 4 - bounce;
+        qbPose = "idle";
+      }
+      // Build a minimal offense + defense — everyone stays in stance.
+      // (No real play happens, so no need for line-engagement animations.)
+      const off = [
+        ...formation.offense.filter(p => p.role !== "QB" && p.role !== "RB"),
+        { ...formation.rb, pose: "stance", t: 0, facing: dir },
+        { ...formation.qb, pose: qbPose, t: qbT, facing: dir },
+      ];
+      const def = formation.defense.map((d, i) => ({
+        ...d, pose: "stance", t: (t * 3) % 1, facing: -dir,
+      }));
+      drawPlayers(off, def);
+      drawBall(ctx, ballX, ballY);
+      // Banner: "SPIKE — CLOCK STOPPED!" once the ball hits the ground.
+      if (aT >= 0.55) {
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.font = "900 22px sans-serif";
+        ctx.fillStyle = "rgba(0,0,0,0.65)";
+        ctx.fillRect(FIELD.W/2 - 140, 8, 280, 30);
+        ctx.fillStyle = "#ffd54d";
+        ctx.fillText("SPIKE — CLOCK STOPPED", FIELD.W / 2, 23);
         ctx.restore();
       }
       drawPreSnapCallouts(ctx, t);
