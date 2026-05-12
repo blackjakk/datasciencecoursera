@@ -584,6 +584,7 @@
   .player-tooltip .tt-college { color: #c890ff; font-size: .65rem; margin-top: .3rem; font-weight: 700; letter-spacing: 0.04em; }
   .player-tooltip .tt-tribute { color: var(--gold-lt); font-size: .65rem; margin-top: .3rem; font-weight: 700; letter-spacing: 0.04em; }
   .player-tooltip .tt-sub  { font-size: .68rem; color: var(--gray); margin-bottom: .4rem; letter-spacing: .3px; }
+  .player-tooltip .tt-hw   { font-size: .68rem; color: var(--white); margin-top: -.25rem; margin-bottom: .35rem; text-transform: lowercase; letter-spacing: .2px; }
   .player-tooltip .tt-flavor { font-size: .68rem; color: var(--gray); margin-top: .35rem; line-height: 1.35; }
   .player-tooltip .tt-flavor b { color: #c890ff; font-weight: 700; }
   .player-tooltip .tt-ovr  {
@@ -1648,6 +1649,38 @@ function pickRunStyle(pos, archetype) {
 function pickCelebStyle() {
   return CELEB_STYLES[Math.floor(Math.random() * CELEB_STYLES.length)];
 }
+
+// Position-realistic height (inches) + weight (lbs). bodyType nudges the
+// roll: PLUS_SIZE skews heavier, SLENDER skews lighter.
+const HW_RANGES = {
+  QB: { h: [74, 78], w: [210, 240] },
+  RB: { h: [68, 73], w: [195, 235] },
+  WR: { h: [70, 76], w: [180, 220] },
+  TE: { h: [75, 79], w: [240, 265] },
+  OL: { h: [75, 79], w: [295, 345] },
+  DL: { h: [74, 79], w: [265, 320] },
+  LB: { h: [72, 76], w: [225, 260] },
+  CB: { h: [70, 74], w: [180, 200] },
+  S:  { h: [71, 75], w: [195, 215] },
+  K:  { h: [70, 75], w: [185, 215] },
+  P:  { h: [72, 76], w: [195, 220] },
+};
+function assignHeightWeight(p) {
+  const r = HW_RANGES[p.position] || HW_RANGES.WR;
+  let height = r.h[0] + Math.floor(Math.random() * (r.h[1] - r.h[0] + 1));
+  let weight = r.w[0] + Math.floor(Math.random() * (r.w[1] - r.w[0] + 1));
+  if (p.bodyType === "PLUS_SIZE") { height += 1; weight += 18; }
+  else if (p.bodyType === "SLENDER") { weight -= 10; }
+  p.height = height;
+  p.weight = weight;
+}
+function formatHeight(inches) {
+  if (!inches) return "";
+  const ft = Math.floor(inches / 12);
+  const inch = inches % 12;
+  return `${ft}'${inch}"`;
+}
+
 function genPlayer(pos, tier) {
   const stats = statsFor(pos, tier);
   // Bad-tier players get a flavor: physical freak who can't read defenses,
@@ -1702,6 +1735,9 @@ function genPlayer(pos, tier) {
   player.celebStyle = pickCelebStyle();
   player.bodyType = pickBodyType(pos, player.archetype);
   player.nickname = null;
+  // Height (inches) + weight (lbs) drawn from position-realistic ranges,
+  // nudged by bodyType so PLUS_SIZE / SLENDER read on the profile.
+  assignHeightWeight(player);
   // College jersey number — the digit they wore in college and would prefer
   // to keep. Final pro number assigned at the team level (see
   // assignTeamJerseyNumbers) which resolves conflicts.
@@ -4403,6 +4439,7 @@ function buildPlayerTooltip(p) {
         <div class="tt-name">${nameDisplay}</div>
         ${legalHtml}
         <div class="tt-sub">${jerseyTag}${p.position} · ${teamLabel.toUpperCase()} · AGE ${p.age}</div>
+        ${p.height ? `<div class="tt-hw">${formatHeight(p.height)} · ${p.weight} lbs</div>` : ""}
         <div><span class="tt-ovr tier-${tier}">${p.overall} OVR</span></div>
         <div class="tt-bar"><div class="tt-bar-fill" style="width:${p.overall}%"></div></div>
       </div>
