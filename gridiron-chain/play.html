@@ -4384,13 +4384,21 @@ function buildPlayerTooltip(p) {
 // is `p001.png ... pNNN.png` zero-padded 3 digits; PORTRAIT_POOL_SIZE caps
 // the hash so we don't reach for files that don't exist. If the <img> 404s,
 // the onerror handler in buildPlayerTooltip falls back to the canvas portrait.
+// Portraits live in /portraits/<POSITION>/pNNN.png — one subfolder per
+// position group (QB, RB, WR, TE, OL, DL, LB, CB, S, K, P). The hash uses
+// the player name only so a player keeps the same face even if their game
+// position is overridden. PORTRAIT_POOL_SIZE caps the modulus — if a position
+// folder has fewer files, the <img> onerror handler falls back to the canvas
+// portrait. Special-team positions fall back to a generic bucket if the
+// folder is empty.
 const PORTRAIT_POOL_SIZE = 200;
 function portraitFileForPlayer(p) {
   let hash = 0;
-  const seedStr = (p.name || "") + (p.position || "");
+  const seedStr = p.name || "";
   for (let i = 0; i < seedStr.length; i++) hash = (hash * 31 + seedStr.charCodeAt(i)) >>> 0;
-  const n = (hash % PORTRAIT_POOL_SIZE) + 1;   // 1..N
-  return `p${String(n).padStart(3, "0")}.png`;
+  const n = (hash % PORTRAIT_POOL_SIZE) + 1;
+  const pos = (p.position || "QB").toUpperCase();
+  return `${pos}/p${String(n).padStart(3, "0")}.png`;
 }
 
 // Helper to shade a hex color by a factor
