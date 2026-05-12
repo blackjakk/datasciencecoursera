@@ -3226,6 +3226,19 @@ class GameSimulator {
       // a 60-CAT WR is a question mark on every throw.
       const catCompMod = (rcvrCat - 70) / 130;       // CAT 95 → +0.192; CAT 60 → -0.077
       const awrCompMod = (rcvrAwr - 65) / 280;       // route-running bump
+      // ── WR ARCHETYPE EFFECTS on this throw ──
+      // Bonuses/penalties to comp% based on the targeted receiver's
+      // archetype. DEEP_THREAT trades catch% for big plays; POSSESSION
+      // is a chain-mover; ROUTE_RUNNER beats coverage; RED_ZONE only
+      // matters near the end zone.
+      const rcvrArch = rcvrPlayer?.archetype;
+      const isRedZone = startYard >= 80;
+      let archCompMod = 0;
+      if      (rcvrArch === "POSSESSION")   archCompMod = 0.045;
+      else if (rcvrArch === "ROUTE_RUNNER") archCompMod = 0.030;
+      else if (rcvrArch === "SLOT")         archCompMod = 0.025;
+      else if (rcvrArch === "DEEP_THREAT")  archCompMod = -0.040;
+      else if (rcvrArch === "RED_ZONE")     archCompMod = isRedZone ? 0.055 : -0.010;
       // CB MATCHUP — the specific covering CB's COV stat is a major factor.
       // Top WR (wr1) is covered by top CB (cb1); WR2 by CB2. TE/RB get LBs.
       // Plus a small safety-help term so a great deep safety helps overall.
@@ -3306,7 +3319,7 @@ class GameSimulator {
                       : 0;
       // Defensive-scheme tilt: nickel / dime tighten pass coverage,
       // 46 blitz leaves big windows open.
-      const compPct = clamp((0.60 + adv * 0.14 + qbCompFromOvr - pressure * 0.12 - shutdownPenalty + possessionBonus + qbCompMod + paCompMod + catCompMod + awrCompMod + cbCoverMod + mismatchBonus + coverLbMod + signalLbMod + physicalJamMod + wxCompMod) * compPbMul * defPbCurrent.passMul, 0.12, 0.92);
+      const compPct = clamp((0.60 + adv * 0.14 + qbCompFromOvr - pressure * 0.12 - shutdownPenalty + possessionBonus + qbCompMod + paCompMod + catCompMod + awrCompMod + cbCoverMod + mismatchBonus + coverLbMod + signalLbMod + physicalJamMod + wxCompMod + archCompMod) * compPbMul * defPbCurrent.passMul, 0.12, 0.92);
       if (Math.random() < compPct) {
         // Air yards drop when pressure shortens the QB's reads (check-downs / dump-offs)
         // Weaker QBs also throw shorter — they can't push the ball downfield reliably.
@@ -3332,7 +3345,16 @@ class GameSimulator {
         // leave them open. deepCovMul > 1 means the offense gets MORE
         // deep yards (defense gives them up).
         const defDeepBonus = (defPbCurrent.deepCovMul - 1) * 4.5;   // -2 for prevent, +0.7 for blitz_46
-        const airMean = (pb.airYdsMean ?? 7.5) - pressure * 2.8 + qbAirMod + qbAirFromOvr + paAirMod + qbPocketAirBonus + centerFieldCap + wxAirMod + defDeepBonus;
+        // WR archetype tilts air yards. Deep threats push the ball
+        // downfield; possession / slot / RZ trade air for shorter, surer
+        // routes.
+        const archAirMod = rcvrArch === "DEEP_THREAT"  ?  3.0
+                         : rcvrArch === "POSSESSION"   ? -1.5
+                         : rcvrArch === "SLOT"         ? -2.0
+                         : rcvrArch === "RED_ZONE"     ? -1.2
+                         : rcvrArch === "ROUTE_RUNNER" ?  0.5
+                         : 0;
+        const airMean = (pb.airYdsMean ?? 7.5) - pressure * 2.8 + qbAirMod + qbAirFromOvr + paAirMod + qbPocketAirBonus + centerFieldCap + wxAirMod + defDeepBonus + archAirMod;
         const airSd   = (pb.airYdsSd   ?? 6) * (qbArch === "GUNSLINGER" ? 1.25 : 1.0);
         const airYds  = clamp(normal(airMean + adv * 2, airSd), -2, 55);
         // YAC distribution — short catches / screens get more YAC potential
@@ -3344,6 +3366,17 @@ class GameSimulator {
           else if (r < 0.92) yac = rand(2, Math.max(4, Math.floor(airYds * 0.8)) + 3);
           else                yac = rand(5, 18) + Math.floor(airYds * 0.6); // big YAC run
         }
+        // YAC archetype tilt: SLOT and POSSESSION are YAC monsters on
+        // short routes; RED_ZONE is a low-YAC big body (catches and gets
+        // tackled in place); DEEP_THREAT doesn't get many YAC chances
+        // (already running with the ball, defenders converge).
+        const yacArchMul = rcvrArch === "SLOT"        ? 1.45
+                         : rcvrArch === "POSSESSION"  ? 1.25
+                         : rcvrArch === "ROUTE_RUNNER" ? 1.10
+                         : rcvrArch === "RED_ZONE"    ? 0.55
+                         : rcvrArch === "DEEP_THREAT" ? 0.85
+                         : 1.0;
+        yac = Math.round(yac * yacArchMul);
         // RARE WR JUKE — elite-handed, agile receivers occasionally catch and
         // immediately put a move on the closest defender for a phat YAC chunk.
         // Requires CAT >= 80 AND AGI >= 80; both at 90+ triggers more often.
