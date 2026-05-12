@@ -3869,17 +3869,25 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
       armReachY = -3;
       break;
     case "leap": {
-      // Airborne high-point catch — body off the ground, arms straight up,
-      // back leg bent, front leg slightly forward (Calvin Johnson-style).
-      // t goes 0→1 across the leap; peak height around t=0.5.
-      const leapHeight = Math.sin(Math.max(0.001, t) * Math.PI) * 12;
-      bodyDY = -8 - leapHeight * 0.4;
-      bodyTilt = facing * -0.08;
-      lArm = -2.6;
-      rArm = -2.6;
-      armReachY = -5;
-      lLeg = -0.9;        // back leg bent up
-      rLeg = -0.25;       // front leg slightly forward
+      // Spectacular full-extension diving catch — body airborne and angled
+      // forward like Odell Beckham / DK Metcalf, one arm fully extended at
+      // the ball, the other trailing back for balance, legs kicked back.
+      // t goes 0→1 across the leap; peak extension around t=0.5.
+      const leapPhase = Math.sin(Math.max(0.001, t) * Math.PI);   // 0→1→0
+      // Airborne — peaks around 16 px above ground at apex
+      bodyDY = -6 - leapPhase * 10;
+      // Body angles forward in the direction of the catch (~35-45° lean)
+      bodyTilt = facing * (0.30 + leapPhase * 0.45);
+      // LEFT arm extended FULL toward the ball (lead hand). Positive angle
+      // is forward in player-local space; drawArm handles the facing flip.
+      lArm = 1.45;
+      // Right arm trails behind for counterbalance
+      rArm = -0.85;
+      // Reach offset — pulls the hands up toward the ball during peak
+      armReachY = -2 - leapPhase * 4;
+      // Legs trail behind the body (kicked back like a layout dive)
+      lLeg = -0.55;
+      rLeg = -0.25;
       break;
     }
     case "celebrate": {
