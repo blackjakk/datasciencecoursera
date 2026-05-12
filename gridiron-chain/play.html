@@ -4304,8 +4304,94 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     drawSegment(sockEndX, sockEndY, footX, footY, shinW * 1.02,
                 "#15151c", "#000000", "#3a3a44");
   };
-  drawLeg(-1, lLeg, lLegLift);
-  drawLeg(1, rLeg, rLegLift);
+  // ── Arms — Lego-style chunky tubes. Bicep = sleeve, forearm = skin.
+  // Nearly as wide as the helmet (helmRx≈6.4 → arm half-width ~2.7) and
+  // attached right at the outer shoulder pad edge.
+  const bicepW   = 2.7 + bt.bulk * 0.55;
+  const forearmW = 2.5 + bt.bulk * 0.45;
+  const drawArm = (side, angle, holdsBall, forearmOverride) => {
+    const a = angle * facing;
+    const sx = side * (padW/2 + 0.1);
+    const upper = armLen * 0.55;
+    const lower = armLen * 0.55;
+    const elbowX = sx + Math.sin(a) * upper;
+    const elbowY = shoulderY + Math.cos(a) * upper + armReachY * 0.4;
+    // Forearm angle: caller can override (used for throwing whip).
+    const lowerA = forearmOverride != null
+      ? forearmOverride * facing
+      : a - facing * 0.35 * Math.sign(Math.cos(a));
+    const handX = elbowX + Math.sin(lowerA) * lower;
+    const handY = elbowY + Math.cos(lowerA) * lower + armReachY * 0.6;
+    // Jersey sleeve (bicep) — team color, very thick
+    drawSegment(sx, shoulderY, elbowX, elbowY, bicepW, color, shadeDark, shadeLight);
+    // Forearm — skin tone (short-sleeved jersey), almost as thick
+    drawSegment(elbowX, elbowY, handX, handY, forearmW, skin.base, skin.dark, skin.light);
+    // Wristband — thin colored band at the wrist (just inside the hand)
+    const wbX = elbowX + (handX - elbowX) * 0.82;
+    const wbY = elbowY + (handY - elbowY) * 0.82;
+    drawSegment(wbX, wbY, handX, handY, forearmW * 1.08, "#f1f1f1", "#bcbcbc", "#ffffff");
+    // No separate hand — the arm just ends. Knuckle highlight on the very tip.
+    ctx.fillStyle = skin.light;
+    const tipDX = Math.sin(lowerA) * forearmW * 0.25;
+    const tipDY = Math.cos(lowerA) * forearmW * 0.25;
+    ctx.beginPath();
+    ctx.arc(handX - tipDX * 0.4, handY - tipDY * 0.4, forearmW * 0.35, 0, Math.PI * 2);
+    ctx.fill();
+    if (holdsBall) {
+      // Black cube held in the hand (replaces the football)
+      ctx.save();
+      ctx.translate(handX, handY + 0.4);
+      const s = 3.6;                   // cube half-edge in the hand
+      ctx.fillStyle = "#0a0a0a";
+      ctx.beginPath();
+      ctx.moveTo(-s,  s * 0.6); ctx.lineTo( s,  s * 0.6);
+      ctx.lineTo( s, -s * 0.4); ctx.lineTo(-s, -s * 0.4); ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "#2a2a2e";
+      ctx.beginPath();
+      ctx.moveTo(-s,        -s * 0.4); ctx.lineTo( s,        -s * 0.4);
+      ctx.lineTo( s + s * 0.4, -s * 0.85); ctx.lineTo(-s + s * 0.4, -s * 0.85);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "#1a1a1d";
+      ctx.beginPath();
+      ctx.moveTo( s,            s * 0.6);
+      ctx.lineTo( s + s * 0.4,  s * 0.15);
+      ctx.lineTo( s + s * 0.4, -s * 0.85);
+      ctx.lineTo( s,           -s * 0.4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,0.9)";
+      ctx.lineWidth = 0.6;
+      ctx.beginPath();
+      ctx.moveTo(-s,  s * 0.6); ctx.lineTo( s,  s * 0.6);
+      ctx.lineTo( s, -s * 0.4); ctx.lineTo(-s, -s * 0.4); ctx.closePath();
+      ctx.moveTo(-s,           -s * 0.4); ctx.lineTo(-s + s * 0.4, -s * 0.85);
+      ctx.moveTo( s,           -s * 0.4); ctx.lineTo( s + s * 0.4, -s * 0.85);
+      ctx.moveTo(-s + s * 0.4, -s * 0.85); ctx.lineTo( s + s * 0.4, -s * 0.85);
+      ctx.moveTo( s,            s * 0.6); ctx.lineTo( s + s * 0.4,  s * 0.15);
+      ctx.moveTo( s + s * 0.4,  s * 0.15); ctx.lineTo( s + s * 0.4, -s * 0.85);
+      ctx.stroke();
+      ctx.restore();
+    }
+    return { handX, handY };
+  };
+  // ── Z-ordered limb draw — FAR limbs (away from the camera) go BEHIND
+  // the body, NEAR limbs go IN FRONT, so arms and the front leg never
+  // visually overlap the torso in an awkward way.
+  // Camera is looking at the player from his FRONT-near-side, which means
+  // the side OPPOSITE the facing direction is the NEAR side:
+  //   facing=+1 (right-facing) → NEAR = left side (side=-1)
+  //   facing=-1 (left-facing)  → NEAR = right side (side=+1)
+  const farSide  = facing;       // the side AWAY from the camera
+  const nearSide = -facing;
+  // FAR leg first (gets covered by the torso where they overlap)
+  if (farSide === 1) drawLeg(1, rLeg, rLegLift);
+  else               drawLeg(-1, lLeg, lLegLift);
+  // FAR arm — drawn behind the body, before the shoulder pads
+  const farHand = farSide === 1
+    ? drawArm(1, rArm, rightHandBall, rForearmOverride)
+    : drawArm(-1, lArm, leftHandBall, lForearmOverride);
 
   // ── Shoulder pads — BLOCKY rectangle slab on top of the torso ──
   const padTopY = shoulderY - 1.8;
@@ -4368,103 +4454,13 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   // ── Arms — Lego-style chunky tubes. Bicep = sleeve, forearm = skin.
   // Nearly as wide as the helmet (helmRx≈6.4 → arm half-width ~2.7) and
   // attached right at the outer shoulder pad edge.
-  const bicepW   = 2.7 + bt.bulk * 0.55;
-  const forearmW = 2.5 + bt.bulk * 0.45;
-  const drawArm = (side, angle, holdsBall, forearmOverride) => {
-    const a = angle * facing;
-    const sx = side * (padW/2 + 0.1);
-    const upper = armLen * 0.55;
-    const lower = armLen * 0.55;
-    const elbowX = sx + Math.sin(a) * upper;
-    const elbowY = shoulderY + Math.cos(a) * upper + armReachY * 0.4;
-    // Forearm angle: caller can override (used for throwing whip).
-    const lowerA = forearmOverride != null
-      ? forearmOverride * facing
-      : a - facing * 0.35 * Math.sign(Math.cos(a));
-    const handX = elbowX + Math.sin(lowerA) * lower;
-    const handY = elbowY + Math.cos(lowerA) * lower + armReachY * 0.6;
-    // Jersey sleeve (bicep) — team color, very thick
-    drawSegment(sx, shoulderY, elbowX, elbowY, bicepW, color, shadeDark, shadeLight);
-    // Forearm — skin tone (short-sleeved jersey), almost as thick
-    drawSegment(elbowX, elbowY, handX, handY, forearmW, skin.base, skin.dark, skin.light);
-    // Wristband — thin colored band at the wrist (just inside the hand)
-    const wbX = elbowX + (handX - elbowX) * 0.82;
-    const wbY = elbowY + (handY - elbowY) * 0.82;
-    drawSegment(wbX, wbY, handX, handY, forearmW * 1.08, "#f1f1f1", "#bcbcbc", "#ffffff");
-    // No separate hand — the arm just ends. Knuckle highlight on the very tip.
-    ctx.fillStyle = skin.light;
-    const tipDX = Math.sin(lowerA) * forearmW * 0.25;
-    const tipDY = Math.cos(lowerA) * forearmW * 0.25;
-    ctx.beginPath();
-    ctx.arc(handX - tipDX * 0.4, handY - tipDY * 0.4, forearmW * 0.35, 0, Math.PI * 2);
-    ctx.fill();
-    if (holdsBall) {
-      // Black cube held in the hand (replaces the football)
-      ctx.save();
-      ctx.translate(handX, handY + 0.4);
-      const s = 3.6;                   // cube half-edge in the hand
-      // Front face — darkest
-      ctx.fillStyle = "#0a0a0a";
-      ctx.beginPath();
-      ctx.moveTo(-s,  s * 0.6); ctx.lineTo( s,  s * 0.6);
-      ctx.lineTo( s, -s * 0.4); ctx.lineTo(-s, -s * 0.4); ctx.closePath();
-      ctx.fill();
-      // Top face
-      ctx.fillStyle = "#2a2a2e";
-      ctx.beginPath();
-      ctx.moveTo(-s,        -s * 0.4); ctx.lineTo( s,        -s * 0.4);
-      ctx.lineTo( s + s * 0.4, -s * 0.85); ctx.lineTo(-s + s * 0.4, -s * 0.85);
-      ctx.closePath();
-      ctx.fill();
-      // Right side face (facing into screen on the away side from facing dir)
-      ctx.fillStyle = "#1a1a1d";
-      ctx.beginPath();
-      ctx.moveTo( s,            s * 0.6);
-      ctx.lineTo( s + s * 0.4,  s * 0.15);
-      ctx.lineTo( s + s * 0.4, -s * 0.85);
-      ctx.lineTo( s,           -s * 0.4);
-      ctx.closePath();
-      ctx.fill();
-      // Outline
-      ctx.strokeStyle = "rgba(0,0,0,0.9)";
-      ctx.lineWidth = 0.6;
-      ctx.beginPath();
-      ctx.moveTo(-s,  s * 0.6); ctx.lineTo( s,  s * 0.6);
-      ctx.lineTo( s, -s * 0.4); ctx.lineTo(-s, -s * 0.4); ctx.closePath();
-      ctx.moveTo(-s,           -s * 0.4); ctx.lineTo(-s + s * 0.4, -s * 0.85);
-      ctx.moveTo( s,           -s * 0.4); ctx.lineTo( s + s * 0.4, -s * 0.85);
-      ctx.moveTo(-s + s * 0.4, -s * 0.85); ctx.lineTo( s + s * 0.4, -s * 0.85);
-      ctx.moveTo( s,            s * 0.6); ctx.lineTo( s + s * 0.4,  s * 0.15);
-      ctx.moveTo( s + s * 0.4,  s * 0.15); ctx.lineTo( s + s * 0.4, -s * 0.85);
-      ctx.stroke();
-      ctx.restore();
-    }
-    return { handX, handY };
-  };
-  // The throw pose drives rForearmOverride directly in the switch above.
-  // For the throw pose, the cocked arm extends to the BACK side of the
-  // body and can ride high enough to overlap the helmet (very-high slot
-  // QBs especially). Defer it until AFTER the helmet so it never disappears
-  // behind the head. The deferred arm depends on facing: for right-facing
-  // QBs the throw arm is the LEFT arm (back side); for left-facing it's
-  // the RIGHT arm.
-  const deferThrowArm = pose === "throw";
-  const deferRight = deferThrowArm && facing !== 1;
-  const deferLeft  = deferThrowArm && facing === 1;
-  const lHand = deferLeft
-    ? { handX: 0, handY: 0 }
-    : drawArm(-1, lArm, leftHandBall, lForearmOverride);
-  const rHand = deferRight
-    ? { handX: 0, handY: 0 }
-    : drawArm(1, rArm, rightHandBall, rForearmOverride);
+  // (drawArm function + bicepW/forearmW were moved up to before the FAR
+  // leg/arm draws — see the z-ordered limb section.)
 
-  // For 3-point stance, draw a ground line where the lead hand plants
-  if (drawGroundHand) {
-    ctx.fillStyle = "rgba(0,0,0,0.25)";
-    ctx.beginPath();
-    ctx.ellipse(lHand.handX, lHand.handY + 0.5, 3, 1.2, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
+  // NEAR leg — drawn AFTER the torso so the front-of-body leg correctly
+  // overlaps the lower torso (instead of disappearing behind it).
+  if (nearSide === 1) drawLeg(1, rLeg, rLegLift);
+  else                drawLeg(-1, lLeg, lLegLift);
 
   // ── Helmet — ROUND chunky dome (Roblox-style head). Big sphere on top. ─────
   const helmRx = headR + 2.2;             // wider
@@ -4573,11 +4569,24 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   ctx.lineWidth = 0.3;
   ctx.strokeRect(-helmRx * 0.7, helmY + helmRy * 0.95, helmRx * 1.4, 0.9);
 
-  // Deferred throw arm — drawn AFTER the helmet so the cocked arm appears
-  // in front of the head (otherwise the helmet sprite hides it for very-
-  // high-slot QBs). Which arm depends on facing — see deferLeft/deferRight.
-  if (deferLeft)  drawArm(-1, lArm, leftHandBall, lForearmOverride);
-  if (deferRight) drawArm(1, rArm, rightHandBall, rForearmOverride);
+  // NEAR arm — drawn LAST, after both the body AND the helmet, so it
+  // appears in front of everything else. The arm on the camera-near side
+  // is the one visually closest to the viewer, and the throw cock-pose's
+  // raised arm will end up here too (eliminating the old behind-helmet
+  // disappear bug without needing a special-case defer).
+  const nearHand = nearSide === 1
+    ? drawArm(1, rArm, rightHandBall, rForearmOverride)
+    : drawArm(-1, lArm, leftHandBall, lForearmOverride);
+  // lHand / rHand for any downstream consumers (3-point ground-hand decal).
+  const lHand = farSide === -1 ? farHand : nearHand;
+  const rHand = farSide === 1  ? farHand : nearHand;
+  // For 3-point stance, draw a ground line where the lead hand plants.
+  if (drawGroundHand) {
+    ctx.fillStyle = "rgba(0,0,0,0.25)";
+    ctx.beginPath();
+    ctx.ellipse(lHand.handX, lHand.handY + 0.5, 3, 1.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
 
   if (exclaim) {
     ctx.fillStyle = "#f0cc30";
