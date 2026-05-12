@@ -2213,6 +2213,29 @@ class GameSimulator {
     this.awayArch = collectArch(aRoster);
     this.score = { home: 0, away: 0 };
     this.quarter = 1; this.time = 900;
+    // ── WEATHER ── chosen once per game, affects passing/kicking/fumbles.
+    //   CLEAR (60%) — no effect
+    //   WINDY (15%) — deep ball + FG harder
+    //   RAIN  (15%) — fumbles up, comp down, slight YAC bump
+    //   SNOW  (5%)  — combined wind + rain, FG range crushed
+    //   HOT   (5%)  — minor fatigue late
+    {
+      const r = Math.random();
+      let label;
+      if      (r < 0.60) label = "CLEAR";
+      else if (r < 0.75) label = "WINDY";
+      else if (r < 0.90) label = "RAIN";
+      else if (r < 0.95) label = "SNOW";
+      else               label = "HOT";
+      // Wind direction (-1 = toward home goal, +1 = toward away goal).
+      // Only meaningful for WINDY / SNOW.
+      const windDir = Math.random() < 0.5 ? -1 : 1;
+      // Wind strength 0..1 (only used for WINDY/SNOW)
+      const windStrength = label === "WINDY" ? 0.5 + Math.random() * 0.5
+                         : label === "SNOW"  ? 0.4 + Math.random() * 0.4
+                         : 0;
+      this.weather = { label, windDir, windStrength };
+    }
     this.poss = Math.random() < 0.5 ? "home" : "away";
     this.yardLine = 25; this.down = 1; this.ytg = 10;
     this.plays = []; this.drives = [];
@@ -2536,7 +2559,19 @@ class GameSimulator {
       }
       if (action === "fg") {
         const dist = toEZ + 17;
-        const fgPct = clamp(0.96 - (dist - 20) * 0.020 + (this.offR.k - 60) / 250, 0.18, 0.97);
+        // Weather effects on FG: wind helps when kicking with it, hurts
+        // against it; snow crushes range; rain costs ~3% on long kicks.
+        // Wind direction is in world coords; the kicking team's goal is at
+        // dir>0 if home (kicking right) — we tilt the math based on poss.
+        const wKick = this.weather || { label: "CLEAR", windDir: 0, windStrength: 0 };
+        const teamKickDir = this.poss === "home" ? 1 : -1;
+        // windWith = +1 if wind is at the kicker's back, -1 if into his face
+        const windWith = wKick.windStrength * (wKick.windDir === teamKickDir ? 1 : -1);
+        let wxPenalty = 0;
+        if (wKick.label === "WINDY") wxPenalty = (dist - 30) * 0.012 * (-windWith);   // ~10-15% penalty into a strong wind from 50yds
+        else if (wKick.label === "SNOW")  wxPenalty = 0.10 + (dist - 25) * 0.008 * (-windWith);
+        else if (wKick.label === "RAIN")  wxPenalty = Math.max(0, (dist - 35)) * 0.004;
+        const fgPct = clamp(0.96 - (dist - 20) * 0.020 + (this.offR.k - 60) / 250 - wxPenalty, 0.15, 0.97);
         const kStats = off.players[K]; if (kStats) { kStats.fg_att++; }
         off.team.fourthAtt++;
         // Block chance — slightly higher on long attempts
@@ -3104,7 +3139,13 @@ class GameSimulator {
       const zoneCB = wrSlotKey ? (this.defR.starters[wrSlotKey]
         ? this._playerByName?.get?.(this.defR.starters[wrSlotKey])?.archetype === "ZONE"
         : false) : false;
-      const compPct = clamp((0.60 + adv * 0.14 + qbCompFromOvr - pressure * 0.12 - shutdownPenalty + possessionBonus + qbCompMod + paCompMod + catCompMod + awrCompMod + cbCoverMod + mismatchBonus + coverLbMod + signalLbMod + physicalJamMod) * compPbMul, 0.15, 0.90);
+      // Weather: slippery ball (rain/snow) drops completion %, wind hurts
+      // deep passes (caught further below in airMean adjustment).
+      const wxPass = this.weather || { label: "CLEAR" };
+      const wxCompMod = wxPass.label === "RAIN" ? -0.05
+                      : wxPass.label === "SNOW" ? -0.08
+                      : 0;
+      const compPct = clamp((0.60 + adv * 0.14 + qbCompFromOvr - pressure * 0.12 - shutdownPenalty + possessionBonus + qbCompMod + paCompMod + catCompMod + awrCompMod + cbCoverMod + mismatchBonus + coverLbMod + signalLbMod + physicalJamMod + wxCompMod) * compPbMul, 0.15, 0.90);
       if (Math.random() < compPct) {
         // Air yards drop when pressure shortens the QB's reads (check-downs / dump-offs)
         // Weaker QBs also throw shorter — they can't push the ball downfield reliably.
@@ -3116,7 +3157,17 @@ class GameSimulator {
         // when a rangy single-high safety is on the field.
         const centerFieldS = (defArch.S || []).filter(s => s?.archetype === "CENTER_FIELD").length;
         const centerFieldCap = -centerFieldS * 1.2;
-        const airMean = (pb.airYdsMean ?? 7.5) - pressure * 2.8 + qbAirMod + qbAirFromOvr + paAirMod + qbPocketAirBonus + centerFieldCap;
+        // Weather: wind crushes deep balls into the headwind, rain/snow
+        // make all throws slightly shorter (slippery ball).
+        const teamPassDir = this.poss === "home" ? 1 : -1;
+        const passWindWith = wxPass.windStrength
+          ? wxPass.windStrength * (wxPass.windDir === teamPassDir ? 1 : -1)
+          : 0;
+        const wxAirMod = wxPass.label === "WINDY" ? passWindWith * 2.5
+                       : wxPass.label === "SNOW"  ? passWindWith * 2.0 - 1.5
+                       : wxPass.label === "RAIN"  ? -1.0
+                       : 0;
+        const airMean = (pb.airYdsMean ?? 7.5) - pressure * 2.8 + qbAirMod + qbAirFromOvr + paAirMod + qbPocketAirBonus + centerFieldCap + wxAirMod;
         const airSd   = (pb.airYdsSd   ?? 6) * (qbArch === "GUNSLINGER" ? 1.25 : 1.0);
         const airYds  = clamp(normal(airMean + adv * 2, airSd), -2, 55);
         // YAC distribution — short catches / screens get more YAC potential
@@ -3259,7 +3310,12 @@ class GameSimulator {
     const grip = rbPlayer ? ((rbPlayer.stats[1] || 70) + (rbPlayer.stats[3] || 70)) / 2 : 70;
     const gripMod = (75 - grip) / 600;    // grip 95 → -0.033; grip 55 → +0.033
     const archFumbleMul = rbArch === "POWER" ? 1.35 : rbArch === "ELUSIVE" ? 0.75 : 1.0;
-    const fumblePct = clamp((0.011 + gripMod + Math.max(0, pressure) * 0.013) * optionMul * archFumbleMul, 0.004, 0.075);
+    // Weather: rain/snow makes the ball slippery → more fumbles.
+    const wxFum = this.weather || { label: "CLEAR" };
+    const wxFumMod = wxFum.label === "RAIN" ? 0.006
+                   : wxFum.label === "SNOW" ? 0.010
+                   : 0;
+    const fumblePct = clamp((0.011 + gripMod + Math.max(0, pressure) * 0.013 + wxFumMod) * optionMul * archFumbleMul, 0.004, 0.085);
     if (Math.random() < fumblePct) {
       // Scrum-based recovery — the ball bounces in a pile of converging players.
       // Defense has a slight edge in open field (1-3 dive attempts each muff the ball
@@ -3756,6 +3812,7 @@ class GameSimulator {
       playerLookup: lookup,
       plays: this.plays, drives: this.drives,
       stats: this.stats,
+      weather: this.weather,
       winner: this.score.home > this.score.away ? "home" : this.score.away > this.score.home ? "away" : "tie",
     };
   }
@@ -3940,6 +3997,74 @@ function drawField(ctx, homeTeam, awayTeam, ctx_state) {
   ctx.moveTo(FIELD.EZ_PX, FIELD.TOP); ctx.lineTo(FIELD.EZ_PX, FIELD.BOT);
   ctx.moveTo(W - FIELD.EZ_PX, FIELD.TOP); ctx.lineTo(W - FIELD.EZ_PX, FIELD.BOT);
   ctx.stroke();
+  // ── Weather effects: badge + particles ──
+  const wx = (typeof gameResult !== "undefined") ? gameResult?.weather : null;
+  if (wx && wx.label !== "CLEAR") {
+    const time = Date.now() / 1000;
+    const icon = wx.label === "WINDY" ? "💨"
+               : wx.label === "RAIN"  ? "🌧"
+               : wx.label === "SNOW"  ? "❄"
+               : wx.label === "HOT"   ? "☀"
+               : "";
+    // Badge top-right
+    ctx.save();
+    ctx.fillStyle = "rgba(0,0,0,0.45)";
+    ctx.fillRect(W - 110, 8, 102, 24);
+    ctx.fillStyle = "#f1f1f1";
+    ctx.font = "bold 13px sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText(`${icon} ${wx.label}`, W - 102, 20);
+    ctx.restore();
+    // Rain particles — diagonal streaks, fast
+    if (wx.label === "RAIN" || wx.label === "SNOW") {
+      ctx.save();
+      ctx.strokeStyle = wx.label === "RAIN" ? "rgba(180,200,220,0.45)" : "rgba(255,255,255,0.75)";
+      ctx.lineWidth = wx.label === "RAIN" ? 0.8 : 1.4;
+      ctx.fillStyle = wx.label === "SNOW" ? "rgba(255,255,255,0.85)" : null;
+      const driftX = wx.label === "RAIN" ? 6 : 1.5;     // rain falls more diagonally
+      const dropY  = wx.label === "RAIN" ? 14 : 4;       // rain falls fast
+      // Distribute ~140 particles deterministically across the field
+      const N = wx.label === "RAIN" ? 180 : 140;
+      const cycle = wx.label === "RAIN" ? 0.7 : 2.5;     // seconds per fall
+      for (let i = 0; i < N; i++) {
+        // Each particle has a fixed seed; its y wraps based on time
+        const px = ((i * 73) % W);
+        const baseY = ((i * 191) % (FIELD.BOT - FIELD.TOP));
+        const fall = ((time / cycle) * (FIELD.BOT - FIELD.TOP)) + baseY + (i % 13) * 18;
+        const py = FIELD.TOP + (fall % (FIELD.BOT - FIELD.TOP));
+        if (wx.label === "RAIN") {
+          ctx.beginPath();
+          ctx.moveTo(px, py);
+          ctx.lineTo(px + driftX, py + dropY);
+          ctx.stroke();
+        } else {
+          // Snowflake — tiny dot, drifts laterally
+          const drift = Math.sin(time * 0.6 + i * 0.5) * 1.4;
+          ctx.beginPath();
+          ctx.arc(px + drift, py, 1.3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+    }
+    // Wind: subtle horizontal streak indicators in the foreground
+    if (wx.label === "WINDY") {
+      ctx.save();
+      ctx.strokeStyle = "rgba(220,230,240,0.20)";
+      ctx.lineWidth = 1.2;
+      const speed = wx.windStrength * 60;
+      for (let i = 0; i < 14; i++) {
+        const yLine = FIELD.TOP + 30 + (i * (FIELD.BOT - FIELD.TOP - 60)) / 14;
+        const xStart = ((time * speed * wx.windDir + i * 87) % (W + 200)) - 100;
+        ctx.beginPath();
+        ctx.moveTo(xStart, yLine);
+        ctx.lineTo(xStart + 24 * wx.windDir, yLine);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
 }
 
 // Stick-figure player: head (circle) + torso + 2 arms + 2 legs as articulated
