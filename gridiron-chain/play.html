@@ -3631,36 +3631,6 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   ctx.beginPath();
   ctx.ellipse(0, footYLocal + 0.5, 7.5 + bt.bulk * 0.8, 2.0, 0, 0, Math.PI * 2);
   ctx.fill();
-  // Seal of Solomon — six-pointed star, sized so the inner hexagon contains
-  // the player's foot footprint. Flattened (~0.42x vertical) to read as
-  // painted on the field.
-  if (style.elite) {
-    const sealY = footYLocal + 0.5;
-    const sealR = 16 + bt.bulk * 1.2;
-    ctx.fillStyle = "rgba(240, 204, 48, 0.55)";
-    ctx.strokeStyle = "rgba(120, 80, 0, 0.85)";
-    ctx.lineWidth = 0.9;
-    ctx.beginPath();
-    for (let i = 0; i < 3; i++) {
-      const a = -Math.PI / 2 + i * (2 * Math.PI / 3);
-      const px = Math.cos(a) * sealR;
-      const py = sealY + Math.sin(a) * sealR * 0.42;
-      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-    }
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.beginPath();
-    for (let i = 0; i < 3; i++) {
-      const a = Math.PI / 2 + i * (2 * Math.PI / 3);
-      const px = Math.cos(a) * sealR;
-      const py = sealY + Math.sin(a) * sealR * 0.42;
-      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-    }
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-  }
   ctx.restore();
 
   // ── BODY — animated/rotated/translated as before.
@@ -4278,9 +4248,6 @@ function attachPlayerStyles(formation, offStarters, defStarters, lookup) {
       slot.label = jerseyForPlayer(p);
       slot.archetype = p.archetype;
       slot.position = p.position;
-      // "Elite" marker — gets the Seal of Solomon under the player. Tied to
-      // earned career nickname (top 10 leaguewide in position), so the seal
-      // and the nickname always travel together.
       slot.elite = !!p.nickname;
       slot.nickname = p.nickname;
     }
