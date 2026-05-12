@@ -2752,9 +2752,11 @@ class GameSimulator {
             if (rcvrStats) { rcvrStats.rec_tgt++; rcvrStats.rec++; rcvrStats.rec_yds += yards; if (yards > rcvrStats.rec_long) rcvrStats.rec_long = yards; }
             off.team.pass_att++; off.team.pass_comp++; off.team.passYds += yards; off.team.totalYds += yards;
             this._lastBallCarrier = rcvr; this._lastBallType = "pass";
-            const tacklerName = yards > 0 ? this._creditDefStat("tkl", { LB: 0.35, S: 0.30, CB: 0.25, DL: 0.10 }) : null;
+            const isTorTD = clamp(startYard + yards, 0, 100) >= 100;
+            const tacklerName = (yards > 0 && !isTorTD) ? this._creditDefStat("tkl", { LB: 0.35, S: 0.30, CB: 0.25, DL: 0.10 }) : null;
+            const torEndTag = isTorTD ? " — TOUCHDOWN!" : tacklerName ? `, tackled by ${tacklerName}` : "";
             this._pushVisual({
-              kind: "complete", desc: `${this.offR.starters.qb} throws on the run to ${rcvr} for ${yards} yds`,
+              kind: "complete", desc: `${this.offR.starters.qb} throws on the run to ${rcvr} for ${yards} yds${torEndTag}`,
               startYard, targetDepth, catchDepth: targetDepth, yac, yards,
               endYard: clamp(startYard + yards, 0, 100), receiver: rcvr, passer: this.offR.starters.qb,
               tackler: tacklerName, throwType: "TOR", isTOR: true,
@@ -2822,9 +2824,11 @@ class GameSimulator {
           if (rcvrStats) { rcvrStats.rec_tgt++; rcvrStats.rec++; rcvrStats.rec_yds += yards; if (yards > rcvrStats.rec_long) rcvrStats.rec_long = yards; }
           off.team.pass_att++; off.team.pass_comp++; off.team.passYds += yards; off.team.totalYds += yards;
           this._lastBallCarrier = rcvr; this._lastBallType = "pass";
-          const tacklerName = yards > 0 ? this._creditDefStat("tkl", { LB: 0.30, S: 0.25, CB: 0.25, DL: 0.20 }) : null;
+          const isScreenTD = clamp(startYard + yards, 0, 100) >= 100;
+          const tacklerName = (yards > 0 && !isScreenTD) ? this._creditDefStat("tkl", { LB: 0.30, S: 0.25, CB: 0.25, DL: 0.20 }) : null;
+          const screenEndTag = isScreenTD ? " — TOUCHDOWN!" : tacklerName ? `, tackled by ${tacklerName}` : "";
           this._pushVisual({
-            kind: "complete", desc: `Screen to ${rcvr} for ${yards} yds`,
+            kind: "complete", desc: `Screen to ${rcvr} for ${yards} yds${screenEndTag}`,
             startYard, targetDepth: airYds, catchDepth: airYds, yac, yards,
             endYard: clamp(startYard + yards, 0, 100), receiver: rcvr,
             passer: this.offR.starters.qb, tackler: tacklerName, isScreen: true,
@@ -3022,12 +3026,15 @@ class GameSimulator {
         off.team.pass_att++; off.team.pass_comp++; off.team.passYds += yards; off.team.totalYds += yards;
         this._lastBallCarrier = rcvr; this._lastBallType = "pass";
         // Tackle credit on the catch — DBs / LBs make most tackles in the open field
-        const tacklerName = yards > 0 ? this._creditDefStat("tkl", { LB: 0.35, S: 0.30, CB: 0.25, DL: 0.10 }) : null;
+        const isTD = clamp(startYard + yards, 0, 100) >= 100;
+        const tacklerName = (yards > 0 && !isTD) ? this._creditDefStat("tkl", { LB: 0.35, S: 0.30, CB: 0.25, DL: 0.10 }) : null;
+        const flavorTag = wrJuke ? " (CATCH AND JUKE!)"
+                        : isLeapingCatch ? " (HIGH POINTED!)" : "";
+        const endTag = isTD ? " — TOUCHDOWN!"
+                     : tacklerName ? `, tackled by ${tacklerName}` : "";
         this._pushVisual({
           kind: "complete",
-          desc: wrJuke ? `${this.offR.starters.qb} → ${rcvr} for ${yards} yds (CATCH AND JUKE!)`
-              : isLeapingCatch ? `${this.offR.starters.qb} → ${rcvr} for ${yards} yds (HIGH POINTED!)`
-              : `${this.offR.starters.qb} → ${rcvr} for ${yards} yds`,
+          desc: `${this.offR.starters.qb} → ${rcvr} for ${yards} yds${flavorTag}${endTag}`,
           startYard, targetDepth, catchDepth: targetDepth, yac, yards,
           endYard: clamp(startYard + yards, 0, 100), receiver: rcvr, passer: this.offR.starters.qb,
           tackler: tacklerName, throwType, isPlayAction, isFleaFlicker, wrJuke, isLeapingCatch, catchRadius,
@@ -3269,17 +3276,21 @@ class GameSimulator {
     const runVariantTag = runType === "counter" ? "counter" :
                           runType === "stretch" ? "stretch" :
                           runType === "pitch"   ? "pitch"   : "";
-    const desc = isQBRun
-      ? `${QB} keeps it for ${yards} yds${brokeNote}`
-      : runVariantTag
-        ? `${this.offR.starters.rb} ${runVariantTag} for ${yards} yds${brokeNote}`
-        : `${this.offR.starters.rb} runs for ${yards} yds${brokeNote}`;
+    const isRushTD = clamp(startYard + yards, 0, 100) >= 100;
     // Tackle credit on runs — LBs and DLs make most tackles at the LOS;
-    // safeties get more credit on big breakaways
-    const tacklerName = yards > 0
-      ? (yards >= 10 ? this._creditDefStat("tkl", { S: 0.40, CB: 0.20, LB: 0.30, DL: 0.10 })
-                     : this._creditDefStat("tkl", { LB: 0.45, DL: 0.30, S: 0.15, CB: 0.10 }))
-      : this._creditDefStat("tkl", { DL: 0.50, LB: 0.35, S: 0.10, CB: 0.05 });
+    // safeties get more credit on big breakaways. No tackler on a TD run.
+    const tacklerName = isRushTD ? null
+      : (yards > 0
+        ? (yards >= 10 ? this._creditDefStat("tkl", { S: 0.40, CB: 0.20, LB: 0.30, DL: 0.10 })
+                       : this._creditDefStat("tkl", { LB: 0.45, DL: 0.30, S: 0.15, CB: 0.10 }))
+        : this._creditDefStat("tkl", { DL: 0.50, LB: 0.35, S: 0.10, CB: 0.05 }));
+    const rushEndTag = isRushTD ? " — TOUCHDOWN!"
+                     : tacklerName ? `, tackled by ${tacklerName}` : "";
+    const desc = isQBRun
+      ? `${QB} keeps it for ${yards} yds${brokeNote}${rushEndTag}`
+      : runVariantTag
+        ? `${this.offR.starters.rb} ${runVariantTag} for ${yards} yds${brokeNote}${rushEndTag}`
+        : `${this.offR.starters.rb} runs for ${yards} yds${brokeNote}${rushEndTag}`;
     this._pushVisual({ kind: "run", desc, startYard, yards, endYard: clamp(startYard + yards, 0, 100), rusher: carrier, isQBRun, isReverse, runType, tackler: tacklerName, brokenTackles, isTwoBack: useTwoBack, fb: useTwoBack ? this.offR.starters.rb2 : null });
     return { yards };
   }
