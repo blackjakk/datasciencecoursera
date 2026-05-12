@@ -3536,24 +3536,24 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
         const ph = t / 0.18;
         bicepA   = -0.7  + ph * (-0.3);   // -0.7 → -1.0 (rises toward shoulder)
         forearmA = 0.5   + ph * (-0.9);   // 0.5 (forward at chest) → -0.4
-        leadA    = -0.5;                   // lead hand cradling the ball
+        leadA    = 0.6;                    // lead hand on the ball at the chest, FORWARD
       } else if (t < 0.42) {
         const ph = (t - 0.18) / 0.24;
         const sm = ph * ph * (3 - 2 * ph);
         bicepA   = -1.0  + sm * (-0.55);  // -1.0 → -1.55 (elbow up to ear)
         forearmA = -0.4  + sm * (-2.0);   // -0.4 → -2.4 (forearm cocked above shoulder)
-        leadA    = -0.5  + sm * 0.3;      // lead arm extends forward of body
+        leadA    =  0.6  + sm * 0.7;      // lead arm extends out toward target (0.6 → 1.3)
       } else if (t < 0.62) {
         const ph = (t - 0.42) / 0.20;
         const sm = ph * ph * (3 - 2 * ph);
         bicepA   = -1.55 + sm * 1.15;     // -1.55 → -0.4 (bicep rotates forward-down)
         forearmA = -2.4  + sm * 3.4;      // -2.4 → 1.0 (WHIP through release)
-        leadA    = -0.2  + sm * 0.4;      // lead arm starts to lower
+        leadA    =  1.3  - sm * 0.5;      // lead arm starts coming down across the body (1.3 → 0.8)
       } else {
         const ph = (t - 0.62) / 0.38;
         bicepA   = -0.4  + ph * 0.5;      // -0.4 → 0.1
         forearmA =  1.0  + ph * 0.7;      // 1.0 → 1.7 (extension)
-        leadA    =  0.2  + ph * 0.6;      // off arm relaxes
+        leadA    =  0.8  - ph * 0.6;      // off arm relaxes down (0.8 → 0.2)
       }
       rArm = bicepA;
       lArm = leadA;
@@ -4149,9 +4149,9 @@ function makeFormation(losX, poss) {
   }
   // TE just outside RT — pushed further out to clear the new OL spread
   const te = { x: losX - dir * 2, y: cy + 78, role: "TE" };
-  // 2 WR split out wide
-  const wr1 = { x: losX, y: cy - 115, role: "WR1" };
-  const wr2 = { x: losX, y: cy + 115, role: "WR2" };
+  // 2 WR split out wide — closer to the numbers, not bunched near the hash
+  const wr1 = { x: losX, y: cy - 240, role: "WR1" };
+  const wr2 = { x: losX, y: cy + 240, role: "WR2" };
   // QB
   const qb = { x: losX - dir * 6 * PX, y: cy, role: "QB" };
   // RB
@@ -4168,9 +4168,9 @@ function makeFormation(losX, poss) {
     { x: losX + dir * 4 * PX, y: cy,      role: "LB" },
     { x: losX + dir * 4 * PX, y: cy + 44, role: "LB" },
   ];
-  // 2 CBs covering WRs
-  const cb1 = { x: losX + dir * 7 * PX, y: cy - 115, role: "CB" };
-  const cb2 = { x: losX + dir * 7 * PX, y: cy + 115, role: "CB" };
+  // 2 CBs press the WRs out wide
+  const cb1 = { x: losX + dir * 7 * PX, y: cy - 240, role: "CB" };
+  const cb2 = { x: losX + dir * 7 * PX, y: cy + 240, role: "CB" };
   // 2 Safeties deep
   const s1 = { x: losX + dir * 14 * PX, y: cy - 56, role: "S" };
   const s2 = { x: losX + dir * 14 * PX, y: cy + 56, role: "S" };
