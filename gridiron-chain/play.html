@@ -4398,10 +4398,18 @@ function buildPlayerTooltip(p) {
 //   Characters/DE, rushers      → edge DL (SPEED / TWEENER / TECHNICIAN)
 //   Characters/LBs              → LB
 // The hash uses the player name only so a player keeps the same face even
-// if their game position changes. PORTRAIT_POOL_SIZE caps the modulus — if a
-// folder has fewer files, the <img> onerror handler falls back to the canvas
-// portrait.
-const PORTRAIT_POOL_SIZE = 200;
+// if their game position changes. PORTRAIT_COUNTS holds the actual number of
+// portraits available per folder — UPDATE THIS when you add more files,
+// otherwise hashes will land on missing pNNN.png and fall back to the
+// canvas-drawn portrait.
+const PORTRAIT_COUNTS = {
+  "Characters/Qbs":           10,
+  "Characters/RBs":           10,
+  "Characters/WRs and DBs":   30,
+  "Characters/Oline and DTs": 10,
+  "Characters/DE, rushers":   10,
+  "Characters/LBs":           10,
+};
 function portraitFolderFor(p) {
   const pos = p.position;
   if (pos === "QB" || pos === "K" || pos === "P") return "Characters/Qbs";
@@ -4420,8 +4428,9 @@ function portraitFileForPlayer(p) {
   let hash = 0;
   const seedStr = p.name || "";
   for (let i = 0; i < seedStr.length; i++) hash = (hash * 31 + seedStr.charCodeAt(i)) >>> 0;
-  const n = (hash % PORTRAIT_POOL_SIZE) + 1;
   const folder = portraitFolderFor(p);
+  const count = PORTRAIT_COUNTS[folder] || 1;
+  const n = (hash % count) + 1;
   return `${folder}/p${String(n).padStart(3, "0")}.png`;
 }
 
