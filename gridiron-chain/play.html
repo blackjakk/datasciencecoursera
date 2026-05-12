@@ -6623,10 +6623,11 @@ function buildAnimForPlay(play, prevPlay) {
                  : motionRole === "wr2" ? formation.wr2
                  :                        formation.te;
     motionStartY = target.y;
-    // Motion across into the slot (or to the other side for TE)
-    motionEndY = motionRole === "wr1" ? cy + 18
-              : motionRole === "wr2" ? cy - 18
-              :                        cy - 30;
+    // Motion across into the slot (WRs) or fully flex to the opposite side
+    // of the formation (TE). Endpoints scaled with the wider formation.
+    motionEndY = motionRole === "wr1" ? cy - 50
+              : motionRole === "wr2" ? cy + 50
+              :                        cy - 78;   // TE mirrors its start side
     // Mutate the formation so post-snap routes start from the new y
     target.y = motionEndY;
   }
