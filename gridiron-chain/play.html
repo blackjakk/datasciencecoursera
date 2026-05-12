@@ -2682,17 +2682,21 @@ class GameSimulator {
         else if (retSeed < 0.80) retYds = 4 + Math.floor(Math.random() * 9);         // 4-12
         else if (retSeed < 0.96) retYds = 13 + Math.floor(Math.random() * 18);       // 13-30
         else                      retYds = 30 + Math.floor(Math.random() * 50);       // 30-80 (rare big one)
-        // Pick-six potential — the defender runs BACK toward the offense's
-        // own end zone (yard 0), so the distance they have to cover for a
-        // TD equals the INT spot's yard line itself. Earlier this used
-        // 100 - (startYard + targetDepth/2), which is the distance FORWARD
-        // to the offense's end zone — backwards from the defender's path.
-        // That made any INT thrown into / near the end zone an automatic
-        // pick-six with 0 return yards.
-        const intSpotYL = clamp(startYard + Math.round(targetDepth / 2), 1, 99);
-        const intSpotFromDef = intSpotYL;
-        const isPickSix = retYds >= intSpotFromDef;
-        const finalRetYds = isPickSix ? intSpotFromDef : retYds;
+        // INT spot — approximately where the ball gets picked. Allowed to
+        // exceed 100 so we can detect end-zone catches (touchbacks).
+        const intSpotYL = clamp(startYard + Math.round(targetDepth / 2), 1, 110);
+        // TOUCHBACK — defender picks the ball IN the end zone (intSpotYL ≥ 100)
+        // and either kneels or gets tackled before breaking it out (retYds<5).
+        // Ball moves to the new offense's 20-yard-line.
+        const isTouchback = intSpotYL >= 100 && retYds < 5;
+        // Pick-six — the defender runs BACK toward yard 0 (the offense's
+        // own end zone, which is the defender's scoring end zone), so the
+        // distance they have to cover equals the INT spot's yard line.
+        // Earlier the gate was 100 - intSpotYL, the distance FORWARD to the
+        // OFFENSE's end zone — backwards from the defender's path — which
+        // made any throw into the end zone an instant pick-six.
+        const isPickSix = !isTouchback && retYds >= intSpotYL;
+        const finalRetYds = isPickSix ? intSpotYL : (isTouchback ? 0 : retYds);
         // Credit return yards to the picking defender
         if (intBy) {
           const intDef = def.players[intBy];
@@ -2709,16 +2713,18 @@ class GameSimulator {
         this._pushVisual({
           kind: "int", desc: isPickSix
             ? `PICK SIX! ${intBy} returns it ${finalRetYds} yds for a touchdown!`
-            : finalRetYds > 0
-              ? `INTERCEPTION! ${intBy} picks off ${this.offR.starters.qb} and returns ${finalRetYds} yds`
-              : `INTERCEPTION! ${this.offR.starters.qb} picked off!`,
+            : isTouchback
+              ? `INTERCEPTION! ${intBy} picks it off in the end zone — touchback`
+              : finalRetYds > 0
+                ? `INTERCEPTION! ${intBy} picks off ${this.offR.starters.qb} and returns ${finalRetYds} yds`
+                : `INTERCEPTION! ${this.offR.starters.qb} picked off!`,
           startYard, targetDepth, endYard: startYard,
           passer: this.offR.starters.qb, defender: intBy,
-          intReturnYds: finalRetYds, isPickSix,
+          intReturnYds: finalRetYds, isPickSix, isTouchback, intSpotYL,
           isPlayAction, isFleaFlicker,
         });
         if (isPickSix) this._defScoreXP();
-        return { turnover: true, retYds: finalRetYds, isPickSix };
+        return { turnover: true, retYds: finalRetYds, isPickSix, isTouchback, intSpotYL };
       }
       // Sacks: heavily driven by the OL-vs-DL trench matchup (pressure).
       // Play-action holds the ball longer → more sack risk.
@@ -3460,9 +3466,22 @@ class GameSimulator {
       }
       if (r.turnover) {
         this.poss = this.poss === "home" ? "away" : "home";
-        // INT return yards advance the NEW offense's field position
-        const mirror = clamp(100 - this.yardLine, 5, 95);
-        this.yardLine = clamp(mirror + (r.retYds || 0), 5, 99);
+        if (r.isTouchback) {
+          // End-zone INT, defender didn't break it out — ball at the 20.
+          this.yardLine = 20;
+        } else if (r.intSpotYL != null) {
+          // Use the actual INT spot (not the LOS) to mirror into the new
+          // offense's coordinates, then add the return yards. Without this,
+          // the new offense got the LOS mirrored, which gave them ~target
+          // depth yards of FREE field position on every downfield INT.
+          const mirror = clamp(100 - r.intSpotYL, 1, 99);
+          this.yardLine = clamp(mirror + (r.retYds || 0), 1, 99);
+        } else {
+          // Fumble (or any turnover without an intSpotYL) — fall back to
+          // the LOS-based mirror.
+          const mirror = clamp(100 - this.yardLine, 5, 95);
+          this.yardLine = clamp(mirror + (r.retYds || 0), 5, 99);
+        }
         // Pick-six TD + XP attempt are already handled in _play (_defScoreXP
         // pushes the XP visual). Just reset for the kickoff.
         if (r.isPickSix) {
