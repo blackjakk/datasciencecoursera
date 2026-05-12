@@ -3983,11 +3983,49 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
         rForearmOverride = forearmA;
         rightHandBall = t < 0.55;
       }
-      // Body / legs: stepping into the throw, slight forward lean, up on toes
-      lLeg = 0.45;
-      rLeg = -0.35;
-      bodyTilt = facing * 0.10;
-      bodyDY = -1;
+      // Body / legs progress through CRADLE → COCK → SNAP → FOLLOW:
+      //  CRADLE  — square stance, both feet on the ground, body neutral
+      //  COCK    — lead foot strides forward, body rises slightly as the
+      //            QB winds up onto the back foot
+      //  SNAP    — feet PLANT firmly into the ground (bodyDY back to 0),
+      //            weight transfers forward — this is the "throw stance"
+      //  FOLLOW  — lead foot stays planted, back foot drags forward,
+      //            body settles slightly forward as weight finishes the
+      //            transfer
+      // Previously these were all fixed (lLeg=0.45, bodyDY=-1) which made
+      // the QB look like he was hovering off the ground for the whole
+      // throw — read as "throwing off-balance".
+      if (t < 0.18) {
+        const ph = t / 0.18;
+        lLeg = 0.10 + ph * 0.05;        // slight forward shift
+        rLeg = -0.10 - ph * 0.05;
+        bodyDY = 0;                      // feet flat on ground
+        bodyTilt = facing * 0.02;
+      } else if (t < 0.42) {
+        const ph = (t - 0.18) / 0.24;
+        const sm = ph * ph * (3 - 2 * ph);
+        // Stride: lead foot reaches forward, back foot pushes off
+        lLeg = 0.15 + sm * 0.40;         // 0.15 → 0.55 (lead leg strides out)
+        rLeg = -0.15 - sm * 0.15;        // -0.15 → -0.30 (back leg pushing)
+        bodyDY = -sm * 0.8;              // 0 → -0.8 (slight rise as winding)
+        bodyTilt = facing * (0.02 + sm * 0.03);
+      } else if (t < 0.62) {
+        const ph = (t - 0.42) / 0.20;
+        const sm = ph * ph * (3 - 2 * ph);
+        // PLANT: feet are FIXED — no movement in the leg angles at all.
+        // bodyDY descends back to 0 as the QB drives down into the plant.
+        lLeg = 0.55;
+        rLeg = -0.30;
+        bodyDY = -0.8 + sm * 0.8;        // -0.8 → 0 (foot plant!)
+        bodyTilt = facing * (0.05 + sm * 0.10);
+      } else {
+        const ph = (t - 0.62) / 0.38;
+        // Lead foot stays planted; back foot drags forward as weight settles.
+        lLeg = 0.55 - ph * 0.10;         // 0.55 → 0.45 (lead foot stays put)
+        rLeg = -0.30 + ph * 0.25;        // -0.30 → -0.05 (back foot comes up)
+        bodyDY = ph * 0.4;               // 0 → +0.4 (slight settle forward)
+        bodyTilt = facing * 0.15;
+      }
       break;
     }
     case "reach": case "catch":
