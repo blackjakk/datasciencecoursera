@@ -2132,15 +2132,30 @@ function buildRatings(roster) {
   const byPos = {};
   for (const p of roster) (byPos[p.position] ||= []).push(p);
   for (const k in byPos) byPos[k].sort((a,b) => b.overall - a.overall);
+  // Flat top-n average — used only when one player matters (QB, K).
   const g = (pos, n) => {
     const arr = (byPos[pos] || []).slice(0, n);
     return arr.length ? arr.reduce((s,p) => s + p.overall, 0) / arr.length : 50;
   };
+  // Weighted top-n average — best players matter more, so a single
+  // superstar at OL/DL/CB actually moves the team's rating instead of
+  // getting diluted by the bottom of the depth chart. Weight pattern:
+  //   [3.5, 2.5, 1.5, 1.0, 0.5]  (best to 5th)
+  // For OL n=5: best player carries ~39% of the rating; 5th player ~6%.
+  // For DL n=4 / LB n=3 we slice the same weight array.
+  const W = [3.5, 2.5, 1.5, 1.0, 0.5];
+  const gw = (pos, n) => {
+    const arr = (byPos[pos] || []).slice(0, n);
+    if (!arr.length) return 50;
+    const ws = W.slice(0, arr.length);
+    const wSum = ws.reduce((a,b) => a+b, 0);
+    return arr.reduce((s,p,i) => s + p.overall * ws[i], 0) / wSum;
+  };
   return {
-    offense: g("QB",1)*0.30 + g("RB",2)*0.15 + g("WR",4)*0.25 + g("TE",1)*0.10 + g("OL",5)*0.20,
-    defense: g("DL",4)*0.30 + g("LB",3)*0.30 + g("CB",2)*0.25 + g("S",2)*0.15,
-    qb: g("QB",1), rb: g("RB",2), wr: g("WR",4), ol: g("OL",5),
-    dl: g("DL",4), lb: g("LB",3), cb: g("CB",2), saf: g("S",2),
+    offense: g("QB",1)*0.30 + gw("RB",2)*0.15 + gw("WR",4)*0.25 + g("TE",1)*0.10 + gw("OL",5)*0.20,
+    defense: gw("DL",4)*0.30 + gw("LB",3)*0.30 + gw("CB",2)*0.25 + gw("S",2)*0.15,
+    qb: g("QB",1), rb: gw("RB",2), wr: gw("WR",4), ol: gw("OL",5),
+    dl: gw("DL",4), lb: gw("LB",3), cb: gw("CB",2), saf: gw("S",2),
     k:  g("K",1),
     starters: {
       qb:  (byPos.QB?.[0])?.name || "QB",
@@ -2347,15 +2362,34 @@ class GameSimulator {
     const olList = this.offOL || [];
     const pickWeighted = (list) => {
       if (!list.length) return null;
-      // Weights tilt toward higher overall; cube the OVR-50 gap for sharper bias
+      // Weights tilt toward higher overall; ^1.6 sharpens the bias
       const weights = list.map(p => Math.pow(Math.max(1, p.overall - 40), 1.6));
       const sum = weights.reduce((a, b) => a + b, 0);
       let r = Math.random() * sum;
       for (let i = 0; i < list.length; i++) { r -= weights[i]; if (r <= 0) return list[i]; }
       return list[list.length - 1];
     };
+    // ── POSITION-AWARE MATCHUP ──
+    // Classify each lineman as EDGE or INTERIOR based on archetype, so
+    // edge rushers (SPEED) face tackles (ATHLETIC) and interior gap-
+    // attackers (POWER / PENETRATOR / PLUG) face guards / center
+    // (MAULER / ANCHOR / PLUG). Flexible archetypes (TECHNICIAN /
+    // TWEENER) fall through to the full list, preserving mismatch
+    // variety.
+    const dlLane = t => t === "SPEED" ? "EDGE"
+                      : (t === "POWER" || t === "PENETRATOR" || t === "PLUG") ? "INTERIOR"
+                      : null;
+    const olLane = t => t === "ATHLETIC" ? "EDGE"
+                      : (t === "MAULER" || t === "ANCHOR" || t === "PLUG") ? "INTERIOR"
+                      : null;
     const dl = pickWeighted(dlList);
-    const ol = pickWeighted(olList);
+    const targetLane = dlLane(dl?.archetype);
+    let olCandidates = olList;
+    if (targetLane) {
+      const matching = olList.filter(p => olLane(p.archetype) === targetLane);
+      if (matching.length) olCandidates = matching;
+    }
+    const ol = pickWeighted(olCandidates);
     return {
       dl, ol,
       dlType: dl?.archetype || "POWER",
