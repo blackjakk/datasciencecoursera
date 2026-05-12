@@ -2774,6 +2774,47 @@ class GameSimulator {
             return { yards: 0, incomplete: true };
           }
         }
+        // SACK EVASION → RUN — agile QBs sometimes escape the pocket and
+        // turn the would-be sack into a positive-yardage scramble. Tied
+        // to AGI (with AWR helping a bit) and archetype. Pocket passers
+        // basically can't do this; dual-threats can do it often.
+        const evadeSkill = clamp((qbAgi - 65) / 30, 0, 1);              // 0 at AGI 65, 1 at AGI 95
+        const archMulEvade = qbArch === "DUAL_THREAT" ? 1.6
+                            : qbArch === "POCKET"     ? 0.08
+                            : qbArch === "GUNSLINGER" ? 0.55
+                            :                             1.0;
+        const awrAssist = clamp((qbAwr - 70) / 80, 0, 0.25);            // small AWR boost
+        const evadeChance = clamp((evadeSkill * 0.18 + awrAssist) * archMulEvade, 0, 0.32);
+        if (Math.random() < evadeChance) {
+          // Escape successful — generate yards, biased by AGI. Most
+          // are short (2-6 yds), a few are explosive (Lamar-style).
+          const yardsRaw = normal(4 + (qbAgi - 70) / 11, 5);
+          let yards = clamp(Math.round(yardsRaw), -2, 35);
+          if (yards > 0) yards = Math.min(yards, 100 - startYard);
+          if (qbStats) {
+            qbStats.rush_att = (qbStats.rush_att || 0) + 1;
+            qbStats.rush_yds = (qbStats.rush_yds || 0) + yards;
+            if (yards > (qbStats.rush_long || 0)) qbStats.rush_long = yards;
+          }
+          off.team.rush_att++; off.team.rushYds += yards; off.team.totalYds += yards;
+          this._lastBallCarrier = QB; this._lastBallType = "rush";
+          const isEvadeTD = clamp(startYard + yards, 0, 100) >= 100;
+          const tacklerName = (yards > -2 && !isEvadeTD)
+            ? this._creditDefStat("tkl", { LB: 0.30, S: 0.30, CB: 0.25, DL: 0.15 })
+            : null;
+          const endTag = isEvadeTD
+            ? " — TOUCHDOWN!"
+            : tacklerName ? `, tackled by ${tacklerName}` : "";
+          this._pushVisual({
+            kind: "run",
+            desc: `${this.offR.starters.qb} escapes pressure for ${yards} yds${endTag}`,
+            startYard, yards,
+            endYard: clamp(startYard + yards, 0, 100),
+            rusher: QB, isScramble: true,
+            tackler: tacklerName,
+          });
+          return { yards };
+        }
         const loss = rand(3, 11);
         if (qbStats) { qbStats.sacks_taken++; qbStats.sack_yds += loss; }
         off.team.sacks_allowed++; def.team.sacks++;
@@ -7602,42 +7643,55 @@ function buildAnimForPlay(play, prevPlay) {
         ballX = centerX + (formation.qb.x - centerX) * sm;
         ballY = cy + (cy - cy) * sm;
       } else if (isScramble) {
-        // SCRAMBLE: QB drops back, looks downfield, then tucks and runs.
-        //   Phase A (0 - 0.18): pure dropback ~5 yds behind LOS
-        //   Phase B (0.18 - 0.34): hesitates / shuffles, looks for receivers
-        //   Phase C (0.34 - end): tucks the ball and bursts forward to endX
+        // SCRAMBLE: QB drops back, reads the field briefly, then tucks
+        // and runs. Three phases, but the "hesitate" window used to
+        // oscillate ±4-6px which read as "shaking" — replaced with a
+        // small ONE-TIME side-step (QB looks, plants a foot, takes off).
+        //   Phase A (0 - 0.18): clean dropback to ~5 yds behind LOS
+        //   Phase B (0.18 - 0.30): brief read — single lateral step, no wiggle
+        //   Phase C (0.30 - end): tuck and sprint forward to endX
         const dropBackX = qb.x - dir * 5 * FIELD.PX_PER_YARD;
         if (runT < 0.18) {
           const dropT = runT / 0.18;
-          ballX = qb.x + (dropBackX - qb.x) * dropT;
+          const sm = dropT * dropT * (3 - 2 * dropT);
+          ballX = qb.x + (dropBackX - qb.x) * sm;
           rb.x = ballX;
           rb.y = cy;
-        } else if (runT < 0.34) {
-          // hesitate — small lateral shuffle
-          const hesT = (runT - 0.18) / 0.16;
-          ballX = dropBackX + Math.sin(hesT * Math.PI * 3) * 4;
+        } else if (runT < 0.30) {
+          // Single read step — one easeout sidestep, then settles
+          const hesT = (runT - 0.18) / 0.12;
+          const sm = hesT * (2 - hesT);   // easeOut — peaks at the end
+          ballX = dropBackX + dir * 2 * sm;   // small forward read step
           rb.x = ballX;
-          rb.y = cy + Math.cos(hesT * Math.PI * 3) * 6;
+          rb.y = cy + dir * 3 * Math.sin(sm * Math.PI);  // gentle one-time sway
         } else {
-          const tuckT = (runT - 0.34) / 0.66;
-          ballX = dropBackX + (endX - dropBackX) * tuckT;
+          // Tuck and run — smooth pacing curve from the read spot to endX
+          const tuckT = (runT - 0.30) / 0.70;
+          const readSpotX = dropBackX + dir * 2;
+          ballX = readSpotX + (endX - readSpotX) * tuckT;
           rb.x = ballX;
-          rb.y = cy + (1 - tuckT) * 0;
+          rb.y = cy;
         }
       } else if (isQBRun) {
-        // OPTION KEEPER: QB and RB run parallel briefly, then QB keeps it.
-        // Looks like a true option pull (not a handoff).
-        if (runT < 0.16) {
-          const optT = runT / 0.16;
-          ballX = qb.x + Math.cos(optT * Math.PI * 0.5) * dir * 3 * FIELD.PX_PER_YARD;
-          rb.x = qb.x + dir * 3 * FIELD.PX_PER_YARD * optT;
-          rb.y = cy - dir * 6 * optT;  // QB rolls one direction
-        } else {
-          const progress = runPacing(runT);
-          ballX = qb.x + (endX - qb.x) * progress;
-          rb.x = ballX;
-          rb.y = cy - dir * 6 + (runT - 0.16) / 0.84 * 6;
-        }
+        // DESIGNED QB RUN / OPTION KEEPER — the QB sprite (rendered at
+        // rb.x/rb.y by the qbCarrier swap below) sprints from his stance
+        // position straight to endX using the standard run-pacing curve.
+        // The real RB is drawn separately in the backfield as a decoy.
+        // Previously this was split into a 0-0.16 "option fake" lerp +
+        // a 0.16-end runPacing lerp — the two phases didn't agree on
+        // distance, so the carrier teleported BACKWARDS by ~2.5 yds at
+        // the seam (rb.x jumped from qb.x+3yd to ~qb.x+0.3yd at runT=0.16).
+        // A single curve from qb.x → endX eliminates the teleport, the
+        // stall, and the ball-going-backwards-then-forward shudder.
+        const progress = runPacing(runT);
+        rb.x = qb.x + (endX - qb.x) * progress;
+        // Slight lateral sway during the mesh window (0-0.20) shows the
+        // option look; QB then straightens out for the sprint.
+        const meshSway = runT < 0.20
+          ? Math.sin((runT / 0.20) * Math.PI) * 4
+          : 0;
+        rb.y = cy - dir * meshSway;
+        ballX = rb.x;
       } else if (play.isReverse) {
         // REVERSE — RB sprints laterally to one sideline, then the lateral
         // handoff "reverses" the carrier across the field to the opposite side.
