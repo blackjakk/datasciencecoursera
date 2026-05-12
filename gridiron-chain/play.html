@@ -258,6 +258,13 @@
     padding: .55rem; margin: .25rem 0;
   }
   .play-entry.kickoff  { background: var(--green-dk); }
+  .play-entry.drive_summary {
+    background: #14181f; color: #9bb1c8; text-align: center;
+    font-family: ui-monospace, monospace; font-size: 11px;
+    padding: .35rem .5rem; margin: .15rem 0;
+    border-top: 1px solid #2a3140; border-bottom: 1px solid #2a3140;
+    letter-spacing: 0.02em;
+  }
 
   /* Card */
   .card {
@@ -3815,6 +3822,32 @@ class GameSimulator {
   }
   _drive() {
     const start = this.poss; let plays = 0;
+    // Track drive metadata for the end-of-drive summary card.
+    const driveStartYL   = this.yardLine;
+    const driveStartTime = this.time;
+    const driveStartQ    = this.quarter;
+    const driveStartTeam = this[start].name;
+    const pushDriveSummary = (result, opts = {}) => {
+      const yardsGained = (opts.endYL ?? this.yardLine) - driveStartYL;
+      // Time elapsed (handle quarter wrap)
+      let elapsedSec = (driveStartTime - this.time);
+      if (this.quarter > driveStartQ) elapsedSec += (this.quarter - driveStartQ) * 900;
+      const m = Math.floor(Math.max(0, elapsedSec) / 60);
+      const s = Math.floor(Math.max(0, elapsedSec) % 60);
+      const ts = `${m}:${String(s).padStart(2, "0")}`;
+      const fpStart = driveStartYL <= 50 ? `own ${driveStartYL}` : `opp ${100 - driveStartYL}`;
+      this.plays.push({
+        kind: "drive_summary",
+        desc: `═ ${driveStartTeam}: ${plays}-play, ${yardsGained >= 0 ? yardsGained : yardsGained} yds, ${ts} — starting ${fpStart} → ${result.toUpperCase()} ═`,
+        quarter: this.quarter, time: this.time,
+        homeScore: this.score.home, awayScore: this.score.away,
+        driveResult: result,
+        drivePlays: plays,
+        driveYards: yardsGained,
+        driveTime: elapsedSec,
+        driveStartYL,
+      });
+    };
     while (this.time > 0 && plays < 22) {
       plays++;
       const r = this._play();
@@ -3846,6 +3879,7 @@ class GameSimulator {
             if (kStats) kStats.xp_att++;
             if (Math.random() < 0.94) { this._score(1, "Extra Point"); if (kStats) kStats.xp_made++; }
           }
+          pushDriveSummary("PUNT RETURN TD", { endYL: 100 });
           this.drives.push({ team: start, result: "PUNT-RTN-TD", homeScore: this.score.home, awayScore: this.score.away });
           this._kickoffAfterScore(this.poss);
           return;
@@ -3865,6 +3899,14 @@ class GameSimulator {
         this.down = 1; this.ytg = 10; break;
       }
       if (r.turnover) {
+        // Drive summary BEFORE flipping possession.
+        const turnoverEndYL = r.intSpotYL || r.fumbleSpotYL || this.yardLine;
+        const turnoverResult = r.isPickSix ? "PICK SIX"
+                              : r.isTouchback ? "INT (TOUCHBACK)"
+                              : r.intSpotYL  ? "INTERCEPTION"
+                              : r.fumbleSpotYL ? "FUMBLE"
+                              :                 "TURNOVER";
+        pushDriveSummary(turnoverResult, { endYL: turnoverEndYL });
         this.poss = this.poss === "home" ? "away" : "home";
         if (r.isTouchback) {
           // End-zone INT, defender didn't break it out — ball at the 20.
@@ -3946,6 +3988,7 @@ class GameSimulator {
           if (Math.random() < 0.94) { this._score(1, "Extra Point"); if (kStats) kStats.xp_made++; }
           else this._pushVisual({ kind: "xp_miss", desc: `Extra point — no good` });
         }
+        pushDriveSummary("TOUCHDOWN", { endYL: 100 });
         this.drives.push({ team: start, result: "TD", homeScore: this.score.home, awayScore: this.score.away });
         this._kickoffAfterScore(this.poss);
         return;
@@ -3962,6 +4005,7 @@ class GameSimulator {
       // Turnover on downs — failed 4th-down conversion gives ball to defense
       if (wasFourth && this.down > 4) {
         this._pushVisual({ kind: "to_downs", desc: `Turnover on downs!`, startYard: this.yardLine, endYard: this.yardLine });
+        pushDriveSummary("TURNOVER ON DOWNS");
         this.drives.push({ team: start, result: "TURNOVER_ON_DOWNS", homeScore: this.score.home, awayScore: this.score.away });
         this.poss = this.poss === "home" ? "away" : "home";
         this.yardLine = clamp(100 - this.yardLine, 1, 99);
@@ -3969,6 +4013,20 @@ class GameSimulator {
         return;
       }
     }
+    // Determine drive result from the most recent play's kind. By this
+    // point all the special early-return cases (TD, turnover, etc.) have
+    // already pushed their own summary. This catch-all covers FG good/miss/
+    // blocked, punts, and end-of-half timeouts.
+    let finalResult = "END OF DRIVE";
+    const lastPlay = this.plays[this.plays.length - 1];
+    if (lastPlay) {
+      if      (lastPlay.kind === "fg_good")    finalResult = "FIELD GOAL";
+      else if (lastPlay.kind === "fg_miss")    finalResult = "MISSED FG";
+      else if (lastPlay.kind === "fg_blocked") finalResult = "FG BLOCKED";
+      else if (lastPlay.kind === "punt")       finalResult = "PUNT";
+      else if (this.time <= 0)                  finalResult = "END OF HALF";
+    }
+    pushDriveSummary(finalResult);
     this.drives.push({ team: start, result: "FG/Punt/TO", homeScore: this.score.home, awayScore: this.score.away });
   }
   simulate() {
@@ -12689,7 +12747,7 @@ function highlightPlayerNamesInPlay(p) {
 }
 
 function playEntry(p) {
-  const isMarker = ["halftime","ot","quarter","kickoff","two_min_warning","timeout"].includes(p.kind);
+  const isMarker = ["halftime","ot","quarter","kickoff","two_min_warning","timeout","drive_summary"].includes(p.kind);
   if (isMarker) return `<div class="play-entry ${p.kind}">${escapeHtml(p.desc)}</div>`;
   // Field-position phrase: own 30 / opp 35 / midfield. startYard is from
   // the offense's perspective (0 = own goal, 100 = opp goal).
