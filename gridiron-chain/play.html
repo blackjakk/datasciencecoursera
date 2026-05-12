@@ -3840,63 +3840,43 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
       break;
     }
     case "stance": {
-      // Role-specific pre-snap stances. Subtle bob/sway during pre-snap.
-      // Standing players plant their LEGS STRAIGHT DOWN so they look firm,
-      // not like they're tipping over — only crouched roles get a real lean.
+      // Role-specific pre-snap stances. Kept clean and rigid — the trenches
+      // have 9+ bodies clustered face-to-face, so arms and legs are forced
+      // to neutral (hanging at sides, planted) to avoid a visual mess of
+      // interlocking limbs. Body posture (crouch / lean) still differentiates
+      // roles. On the snap they switch to the active poses with full motion.
       const sway = Math.sin(t * Math.PI * 0.8) * 0.4;
       const role = style.role || "";
       if (role === "OL" || role === "DL") {
-        // 3-point stance — body crouched, lead hand on the ground
+        // 3-point stance — body crouched, NO extended limbs (just body lean)
         bodyDY = 5;
         bodyTilt = facing * 0.45;
-        lArm = Math.PI * 0.55;
-        rArm = -0.4;
-        lLeg = 0.15;    // legs planted (small split)
-        rLeg = -0.15;
-        drawGroundHand = true;
+        lArm = 0; rArm = 0;
+        lLeg = 0; rLeg = 0;
       } else if (role === "WR1" || role === "WR2") {
-        // WR sprint stance — slight forward weight, but legs PLANTED firm
         bodyDY = 0.5 + sway;
         bodyTilt = facing * 0.08;
-        lArm = -0.15; rArm = 0.15;
-        lLeg = 0.05; rLeg = -0.05;
       } else if (role === "TE") {
-        // TE 2-point — upright, small crouch
         bodyDY = 1.5;
         bodyTilt = facing * 0.10;
-        lArm = -0.10; rArm = 0.10;
-        lLeg = 0.06; rLeg = -0.06;
       } else if (role === "RB") {
-        // HB 2-point — slight crouch, hands at thighs, feet planted
         bodyDY = 1.8;
         bodyTilt = facing * 0.08;
-        lArm = -0.25; rArm = 0.25;
-        lLeg = 0.06; rLeg = -0.06;
       } else if (role === "QB") {
-        // QB shotgun — upright, both arms extended FORWARD anticipating the
-        // snap. Hands out, palms up, ready to receive the ball.
+        // QB shotgun — only role that keeps arms out, since hands forward
+        // is the visual cue that he's about to receive the snap.
         bodyDY = 0.8;
         bodyTilt = 0;
         lArm = 1.05; rArm = 1.05;
-        lLeg = 0.04; rLeg = -0.04;
       } else if (role === "LB") {
-        // LB read stance — small crouch, plants firmly
         bodyDY = 1.2 + sway;
         bodyTilt = facing * 0.05;
-        lArm = 0.20; rArm = -0.20;
-        lLeg = 0.06; rLeg = -0.06;
       } else if (role === "CB") {
-        // CB press — backpedal-ready, weight balanced, no forward tip
         bodyDY = 0.6 + sway;
         bodyTilt = facing * 0.05;
-        lArm = -0.15; rArm = 0.15;
-        lLeg = 0.05; rLeg = -0.05;
       } else if (role === "S") {
-        // Safety read stance — square shoulders, hands ready, planted
         bodyDY = 0.8 + sway;
         bodyTilt = facing * 0.05;
-        lArm = -0.20; rArm = 0.20;
-        lLeg = 0.05; rLeg = -0.05;
       } else {
         // Generic idle bob
         bodyDY = Math.sin(t * Math.PI * 1.5) * 0.4;
