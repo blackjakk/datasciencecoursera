@@ -2384,6 +2384,33 @@ class GameSimulator {
     this.score[this.poss] += pts;
     this._pushVisual({ kind: "score", desc: `${this.possTeam.city} ${this.possTeam.name} — ${type} (+${pts})` });
   }
+  // Attempt an extra point (or rarely a 2-pt) for the DEFENSIVE team after
+  // they score on a pick-six / fumble-six / blocked-FG TD / missed-FG TD.
+  // Pushes a visual either way so the user sees the kick or the miss/2pt.
+  _defScoreXP() {
+    const scoringSide = this.poss === "home" ? "away" : "home";
+    const scoringTeam = scoringSide === "home" ? this.home : this.away;
+    const defStats = this.stats[scoringSide];
+    const k = this.defR.starters.k;
+    const kStats = defStats?.players?.[k];
+    if (Math.random() < 0.92) {
+      if (kStats) kStats.xp_att++;
+      if (Math.random() < 0.94) {
+        this.score[scoringSide] += 1;
+        if (kStats) kStats.xp_made++;
+        this._pushVisual({ kind: "score", desc: `${scoringTeam.city} ${scoringTeam.name} — Extra Point (+1)` });
+      } else {
+        this._pushVisual({ kind: "fg_miss", desc: `${scoringTeam.city} ${scoringTeam.name} — Extra Point MISSED` });
+      }
+    } else {
+      if (Math.random() < 0.48) {
+        this.score[scoringSide] += 2;
+        this._pushVisual({ kind: "score", desc: `${scoringTeam.city} ${scoringTeam.name} — 2-Point Conversion (+2)` });
+      } else {
+        this._pushVisual({ kind: "incomplete", desc: `${scoringTeam.city} ${scoringTeam.name} — 2-Point Conversion NO GOOD` });
+      }
+    }
+  }
   _play() {
     const adv = (this.offR.offense - this.defR.defense) / 100;
     // Trench matchup: positive = DL is winning vs OL (offense in trouble)
@@ -2459,11 +2486,12 @@ class GameSimulator {
             // Defense scores 6, then attempts XP — flip possession after.
             const defScore = this.poss === "home" ? "away" : "home";
             this.score[defScore] += 6;
-            if (Math.random() < 0.94) this.score[defScore] += 1;
             // Credit the def_td to a defender (DL most likely on a block)
             const blockerName = this._creditDefStat("def_td", { DL: 0.65, LB: 0.20, S: 0.10, CB: 0.05 });
             const def = this.stats[defScore];
             if (def) def.team.def_td = (def.team.def_td || 0) + 1;
+            // XP attempt for the defensive team (with visual)
+            this._defScoreXP();
           }
           return { endDrive: true, blockedFG: true, returnedTD: isReturnTD };
         }
@@ -2489,11 +2517,11 @@ class GameSimulator {
             if (isReturnTD) {
               const defScore = this.poss === "home" ? "away" : "home";
               this.score[defScore] += 6;
-              if (Math.random() < 0.94) this.score[defScore] += 1;
               // Credit the def_td — usually a DB on a missed-FG return
               this._creditDefStat("def_td", { S: 0.55, CB: 0.30, LB: 0.10, DL: 0.05 });
               const def = this.stats[defScore];
               if (def) def.team.def_td = (def.team.def_td || 0) + 1;
+              this._defScoreXP();
             }
           } else {
             this._pushVisual({ kind: "fg_miss", desc: `${this.offR.starters.k} misses from ${dist} — no good`, startYard, endYard: startYard, fgDist: dist, kicker: this.offR.starters.k });
@@ -2682,6 +2710,7 @@ class GameSimulator {
           intReturnYds: finalRetYds, isPickSix,
           isPlayAction, isFleaFlicker,
         });
+        if (isPickSix) this._defScoreXP();
         return { turnover: true, retYds: finalRetYds, isPickSix };
       }
       // Sacks: heavily driven by the OL-vs-DL trench matchup (pressure).
