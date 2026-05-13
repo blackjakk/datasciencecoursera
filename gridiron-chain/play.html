@@ -1247,6 +1247,18 @@
     padding: .3rem .5rem; font-size: .72rem;
   }
 
+  /* FA news / live ticker on dashboard */
+  .frn-fa-news {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-left: 3px solid var(--gold);
+    padding: .35rem .65rem; margin: -.6rem 0 .7rem;
+    font-size: .72rem; line-height: 1.5;
+  }
+  .frn-fa-neg-actions {
+    display: flex; gap: .35rem; flex-wrap: wrap;
+    padding: .5rem; background: var(--bg3); border: 1px solid var(--border);
+  }
+
   /* Free Agency screen */
   .frn-fa-summary {
     display: flex; gap: 1.1rem; flex-wrap: wrap;
@@ -15817,42 +15829,381 @@ function frnFAWithdrawOffer(faName) {
   renderFrnFA(faName);
 }
 
+// Convert this season's initial offers + AI interest into ongoing
+// negotiations. From here, counter-bidding happens weekly across the
+// regular season until a player signs (no raises in a given week) or
+// the season ends with negotiations still open (player leaves the
+// league). The user can manage their bids any time from the dashboard.
 function frnFAProcessOffers() {
-  const offers = franchise._faOffers || {};
-  const signed = [];
-  const lost   = [];
-  for (const [faName, offer] of Object.entries(offers)) {
+  franchise.faNegotiations = {};
+  const myId = franchise.chosenTeamId;
+
+  // Seed: every offer you made becomes a negotiation with you as
+  // current high bidder.
+  for (const [faName, offer] of Object.entries(franchise._faOffers || {})) {
     const fa = franchise.freeAgents.find(p => p.name === faName);
     if (!fa) continue;
-    const aavRatio   = offer.aav   / fa.demandedAAV;
-    const yearsRatio = Math.min(offer.years / fa.demandedYears, 1);
-    const score = aavRatio * yearsRatio;
-    const accepted = score >= 1.0
-      ? true
-      : score >= 0.9 ? Math.random() < 0.5
-      : score >= 0.8 ? Math.random() < 0.15
-      : false;
-    if (accepted) {
-      fa.contract = { years: offer.years, remaining: offer.years, aav: offer.aav };
-      franchise.rosters[franchise.chosenTeamId].push(fa);
-      // Execute planned cuts
-      const myRoster = franchise.rosters[franchise.chosenTeamId];
-      const actuallyCut = [];
-      for (const cutName of (offer.cutNames || [])) {
-        const idx = myRoster.findIndex(p => p.name === cutName);
-        if (idx !== -1) { myRoster.splice(idx, 1); actuallyCut.push(cutName); }
+    franchise.faNegotiations[faName] = {
+      fa,
+      state: "negotiating",
+      yourBid: { aav: offer.aav, years: offer.years, cutNames: offer.cutNames || [] },
+      aiBids: {},
+      history: [{ teamId: myId, label: "You", aav: offer.aav, years: offer.years, week: 0 }],
+      // raisedThisRound is true so the FIRST resolution after a full quiet
+      // week is the soonest a signing can happen
+      raisedThisRound: true,
+      lastRaiseWeek: 0,
+    };
+  }
+
+  // Run an initial AI bid round (week 0) so the user sees competition
+  // immediately. AI can bid on FAs the user offered for AND on FAs the
+  // user ignored.
+  _faAIBidRound(0, /*isInitial=*/true);
+
+  // Players the AI didn't bid on either become negotiations with no
+  // bids (drop) — they leave the pool.
+  franchise._faOffers = {};
+  franchise.freeAgents = [];
+  // We jump straight into regular-season Week 1 — the dashboard banner
+  // surfaces the open negotiations. If the user is over cap they go to
+  // the cuts screen first.
+  const cap = franchise.salaryCap || SALARY_CAP_BASE;
+  const used = capUsedByTeam(myId);
+  if (used > cap) {
+    franchise._faResults = { signed: [], lost: [] };
+    franchise.phase = "free_agency_results";
+  } else {
+    franchise.phase = "regular";
+  }
+  saveFranchise();
+  showFranchiseDashboard();
+}
+
+// Probability that a given AI team enters / counter-bids on a given FA.
+function _faAIInterest(teamId, fa) {
+  const cap   = franchise.salaryCap || SALARY_CAP_BASE;
+  const used  = capUsedByTeam(teamId);
+  const room  = cap - used;
+  if (room < fa.demandedAAV * 0.6) return 0;        // no chance of affording
+  const grade = scoutGrade(fa);
+  let base = 0.04;
+  if (grade >= 88) base = 0.28;
+  else if (grade >= 80) base = 0.16;
+  else if (grade >= 72) base = 0.08;
+  // Team-need factor: teams weaker at this FA's position bid more
+  const roster = franchise.rosters[teamId] || [];
+  const same = roster.filter(p => p.position === fa.position);
+  const bestSame = same.sort((a,b) => b.overall - a.overall)[0];
+  if (bestSame && bestSame.overall < fa.overall - 3) base *= 1.8;
+  if (room < fa.demandedAAV) base *= 0.4;            // tight cap dampens
+  return Math.min(0.55, base);
+}
+
+// Decide what an AI bid would be given the current high. Returns
+// { aav, years } or null if they can't / won't bid.
+function _faAIBidAmount(teamId, fa, currentHighAav) {
+  const cap   = franchise.salaryCap || SALARY_CAP_BASE;
+  const room  = cap - capUsedByTeam(teamId);
+  const demand = fa.demandedAAV;
+  // Floor: just above current high if any, else ~95% of demand
+  const floor = currentHighAav ? currentHighAav + 0.5 : demand * 0.92;
+  // Ceiling: stretch up to ~135% of demand, but never exceed AI room
+  const ceil  = Math.min(demand * 1.35, room);
+  if (floor > ceil) return null;
+  const aav   = Math.round((floor + Math.random() * (ceil - floor)) * 10) / 10;
+  const years = Math.max(2, Math.min(fa.demandedYears, 5));
+  return { aav, years };
+}
+
+// Run one AI bidding round. If isInitial, AI can also OPEN negotiations
+// on FAs the user didn't bid on. Otherwise AI only counter-bids on FAs
+// already in negotiations.
+function _faAIBidRound(week, isInitial) {
+  const negs = franchise.faNegotiations || {};
+  const candidates = isInitial
+    ? [...(franchise.freeAgents || []), ...Object.values(negs).map(n => n.fa)]
+    : Object.values(negs).filter(n => n.state === "negotiating").map(n => n.fa);
+
+  for (const fa of candidates) {
+    const neg = negs[fa.name];
+    // Current high across yourBid + aiBids
+    let highAav = 0, highId = null;
+    if (neg?.yourBid) { highAav = neg.yourBid.aav; highId = franchise.chosenTeamId; }
+    if (neg) {
+      for (const [tid, b] of Object.entries(neg.aiBids || {})) {
+        if (b.aav > highAav) { highAav = b.aav; highId = Number(tid); }
       }
-      signed.push({ name: faName, pos: fa.position, aav: offer.aav, years: offer.years, cut: actuallyCut });
-    } else {
-      lost.push({ name: faName, pos: fa.position, offered: offer.aav, demanded: fa.demandedAAV });
+    }
+
+    for (const t of TEAMS) {
+      if (t.id === franchise.chosenTeamId) continue;
+      if (Math.random() > _faAIInterest(t.id, fa)) continue;
+      // If this AI team is already the high bidder, don't outbid themselves
+      if (t.id === highId) continue;
+      const bid = _faAIBidAmount(t.id, fa, highAav);
+      if (!bid) continue;
+      // Lazy-create negotiation if AI is opening a new one
+      let n = negs[fa.name];
+      if (!n) {
+        n = negs[fa.name] = {
+          fa, state: "negotiating", yourBid: null, aiBids: {},
+          history: [], raisedThisRound: true, lastRaiseWeek: week,
+        };
+      }
+      n.aiBids[t.id] = bid;
+      n.history.push({ teamId: t.id, label: `${t.city} ${t.name}`, aav: bid.aav, years: bid.years, week });
+      n.raisedThisRound = true;
+      n.lastRaiseWeek = week;
+      highAav = bid.aav; highId = t.id;
     }
   }
-  franchise._faResults = { signed, lost };
-  franchise._faOffers  = {};
-  franchise.freeAgents = [];
-  franchise.phase = "free_agency_results";
+}
+
+// At the end of every regular-season week: resolve any negotiation
+// where nobody raised this round. Highest standing bid signs the
+// player (if it meets demand). Then mark all negotiations
+// raisedThisRound=false so next week is a fresh raise window. If the
+// week was the LAST week of the season, force-close all remaining
+// negotiations as unsigned.
+function _faResolveAfterWeek(week, isSeasonEnd) {
+  const negs = franchise.faNegotiations || {};
+  const myId = franchise.chosenTeamId;
+  const newsSigned = [];
+  const newsLost   = [];
+
+  for (const [name, n] of Object.entries(negs)) {
+    if (n.state !== "negotiating") continue;
+
+    // Find highest bid (your + AI)
+    let highAav = 0, highYrs = 0, highId = null, highIsYou = false;
+    if (n.yourBid) {
+      if (n.yourBid.aav > highAav) {
+        highAav = n.yourBid.aav; highYrs = n.yourBid.years;
+        highId = myId; highIsYou = true;
+      }
+    }
+    for (const [tid, b] of Object.entries(n.aiBids)) {
+      if (b.aav > highAav) {
+        highAav = b.aav; highYrs = b.years;
+        highId = Number(tid); highIsYou = false;
+      }
+    }
+
+    if (!n.raisedThisRound) {
+      // Stable round → player signs to the standing high bidder if
+      // it meets demand (95% threshold). Otherwise the player just
+      // leaves the league.
+      if (highId != null && highAav >= n.fa.demandedAAV * 0.95) {
+        n.fa.contract = { years: highYrs, remaining: highYrs, aav: highAav };
+        n.state = "signed";
+        n.signedToTeamId = highId;
+        franchise.rosters[highId].push(n.fa);
+        if (highIsYou) {
+          // Execute any planned cuts
+          const myRoster = franchise.rosters[myId];
+          for (const cut of (n.yourBid.cutNames || [])) {
+            const i = myRoster.findIndex(p => p.name === cut);
+            if (i !== -1) myRoster.splice(i, 1);
+          }
+          newsSigned.push({ name, pos: n.fa.position, aav: highAav, years: highYrs });
+        } else {
+          // AI signed — we just note it in news
+          n.signedToTeamName = `${getTeam(highId).city} ${getTeam(highId).name}`;
+        }
+      } else {
+        n.state = "unsigned";
+        newsLost.push({ name, pos: n.fa.position });
+      }
+    } else if (isSeasonEnd) {
+      // Continuous counter-bidding all season → never signs
+      n.state = "unsigned";
+      newsLost.push({ name, pos: n.fa.position, reason: "endless negotiation" });
+    } else {
+      // Reset for next round
+      n.raisedThisRound = false;
+    }
+  }
+  franchise._faLastNews = { week, signed: newsSigned, lost: newsLost };
+}
+
+// ── User actions on the negotiations screen ──────────────────────────────────
+function frnFANegotiationOpen(name) {
+  renderFrnFANegotiations(name);
+}
+function frnFARaiseBid(name, byAmount) {
+  const n = franchise.faNegotiations?.[name]; if (!n) return;
+  const cur = n.yourBid?.aav || _faNegCurrentHigh(n)?.aav || n.fa.demandedAAV * 0.95;
+  const newAav = Math.round((cur + byAmount) * 10) / 10;
+  n.yourBid = {
+    aav: newAav,
+    years: n.yourBid?.years || n.fa.demandedYears,
+    cutNames: n.yourBid?.cutNames || [],
+  };
+  n.history.push({ teamId: franchise.chosenTeamId, label: "You", aav: newAav, years: n.yourBid.years, week: franchise.week });
+  n.raisedThisRound = true;
+  n.lastRaiseWeek = franchise.week;
   saveFranchise();
-  renderFrnFAResults();
+  renderFrnFANegotiations(name);
+}
+function frnFAMatchHigh(name) {
+  const n = franchise.faNegotiations?.[name]; if (!n) return;
+  const high = _faNegCurrentHigh(n);
+  if (!high) return;
+  n.yourBid = {
+    aav: high.aav + 0.5,
+    years: high.years,
+    cutNames: n.yourBid?.cutNames || [],
+  };
+  n.history.push({ teamId: franchise.chosenTeamId, label: "You (raise)", aav: n.yourBid.aav, years: n.yourBid.years, week: franchise.week });
+  n.raisedThisRound = true;
+  n.lastRaiseWeek = franchise.week;
+  saveFranchise();
+  renderFrnFANegotiations(name);
+}
+function frnFAFoldNeg(name) {
+  const n = franchise.faNegotiations?.[name]; if (!n) return;
+  if (!confirm(`Withdraw from negotiations for ${name}?`)) return;
+  n.yourBid = null;
+  n.history.push({ teamId: franchise.chosenTeamId, label: "You FOLDED", aav: 0, years: 0, week: franchise.week });
+  saveFranchise();
+  renderFrnFANegotiations();
+}
+function _faNegCurrentHigh(n) {
+  let high = null;
+  if (n.yourBid) high = { teamId: franchise.chosenTeamId, ...n.yourBid, isYou: true };
+  for (const [tid, b] of Object.entries(n.aiBids)) {
+    if (!high || b.aav > high.aav) high = { teamId: Number(tid), ...b, isYou: false };
+  }
+  return high;
+}
+
+function frnFAOpenSelf() { renderFrnFANegotiations(); }
+
+function renderFrnFANegotiations(selectedName) {
+  const negs = franchise.faNegotiations || {};
+  const myId = franchise.chosenTeamId;
+  const cap = franchise.salaryCap || SALARY_CAP_BASE;
+  const myCapUsed = capUsedByTeam(myId);
+
+  const active = Object.entries(negs).filter(([, n]) => n.state === "negotiating");
+  if (active.length === 0) {
+    $("frnHomeContent").innerHTML = `
+      <div style="text-align:center;padding:1rem">
+        <div style="font-size:1.05rem;font-weight:700;color:var(--gold)">No active free-agent negotiations.</div>
+        <div style="color:var(--gray);font-size:.78rem;margin-top:.4rem">All FAs have signed elsewhere, left the league, or been resolved.</div>
+        <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="margin-top:1rem">← Back to Dashboard</button>
+      </div>`;
+    return;
+  }
+
+  // Pick selected (default: first negotiation involving you)
+  let selKey = selectedName && negs[selectedName]?.state === "negotiating" ? selectedName : null;
+  if (!selKey) selKey = active.find(([, n]) => n.yourBid)?.[0] || active[0][0];
+  const selNeg = negs[selKey];
+  const selHigh = _faNegCurrentHigh(selNeg);
+  const escSel  = selKey.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+
+  // Left: list of all negotiations
+  const listHtml = active.map(([name, n]) => {
+    const high = _faNegCurrentHigh(n);
+    const isSel = name === selKey;
+    const isHotForYou = n.yourBid && high && !high.isYou; // you're being outbid
+    const escName = name.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    return `<button class="frn-fa-row ${isSel?"selected":""} ${n.yourBid?"offered":""}"
+      onclick="renderFrnFANegotiations('${escName}')">
+      <span>${gradeBadge(n.fa)}</span>
+      <span class="frn-fa-name">${n.fa.name}</span>
+      <span class="frn-fa-pos">${n.fa.position}</span>
+      <span class="frn-fa-ask">high $${high?high.aav.toFixed(0):"-"}M</span>
+      ${high ? `<span class="frn-fa-flag" style="color:${high.isYou?"var(--green-lt)":"var(--red)"}">${high.isYou?"YOU LEAD":isHotForYou?"OUTBID":(getTeam(high.teamId)?.name||"?")+" leads"}</span>` : ""}
+    </button>`;
+  }).join("");
+
+  // History table
+  const histHtml = selNeg.history.slice(-12).reverse().map(h => `
+    <tr>
+      <td style="color:var(--gray);font-size:.6rem">W${h.week}</td>
+      <td>${h.label}</td>
+      <td style="color:var(--gold)">$${h.aav.toFixed(1)}M</td>
+      <td style="color:var(--gray)">${h.years || "—"}yr</td>
+    </tr>`).join("");
+
+  // Actions row
+  const yourCur = selNeg.yourBid?.aav || 0;
+  const beingOutbid = selHigh && !selHigh.isYou && selNeg.yourBid;
+  const actionsHtml = `
+    <div class="frn-fa-neg-actions">
+      ${selNeg.yourBid ? `
+        <button class="btn btn-gold" onclick="frnFARaiseBid('${escSel}', 1)">↑ +$1M</button>
+        <button class="btn btn-gold" onclick="frnFARaiseBid('${escSel}', 3)">↑ +$3M</button>
+        ${beingOutbid ? `<button class="btn btn-gold" onclick="frnFAMatchHigh('${escSel}')">→ Outbid by $0.5M</button>` : ""}
+        <button class="btn btn-outline" onclick="frnFAFoldNeg('${escSel}')" style="color:var(--red)">✗ Fold</button>
+      ` : `
+        <button class="btn btn-gold" onclick="frnFAEnterBid('${escSel}')">+ Enter Bid (match current high)</button>
+      `}
+    </div>`;
+
+  // Cap math preview
+  const projAdd = selNeg.yourBid ? selNeg.yourBid.aav : 0;
+  const cutNames = new Set(selNeg.yourBid?.cutNames || []);
+  const myRoster = franchise.rosters[myId];
+  const cutSavings = myRoster.filter(p => cutNames.has(p.name)).reduce((s,p) => s + (p.contract?.aav||0), 0);
+  const proj = myCapUsed + projAdd - cutSavings;
+
+  $("frnHomeContent").innerHTML = `
+    <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem;flex-wrap:wrap">
+      <div style="font-size:1.05rem;font-weight:900;color:var(--gold)">🆓 FA NEGOTIATIONS · Week ${franchise.week}</div>
+      <div style="color:var(--gray);font-size:.72rem">${active.length} active · raises lock the player in for another week</div>
+      <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="margin-left:auto">← Dashboard</button>
+    </div>
+    <div class="frn-fa-summary">
+      <span>Your cap: <b>$${myCapUsed.toFixed(1)}M / $${cap.toFixed(0)}M</b></span>
+      <span>If you win this FA: <b style="color:${proj>cap?"var(--red)":"var(--gold)"}">$${proj.toFixed(1)}M projected</b></span>
+    </div>
+    <div class="frn-fa-layout">
+      <div class="frn-fa-pool-col">
+        <div class="frn-card-title">ACTIVE NEGOTIATIONS</div>
+        <div class="frn-fa-pool-list">${listHtml}</div>
+      </div>
+      <div class="frn-fa-mid-col" style="grid-column: span 2">
+        <div class="frn-fa-detail-head">
+          <div>
+            <div style="font-size:1.05rem;font-weight:900">${selNeg.fa.name}</div>
+            <div style="color:var(--gray);font-size:.7rem">${selNeg.fa.position} · Age ${selNeg.fa.age} · ${draftStr(selNeg.fa)}</div>
+            <div style="color:var(--gray);font-size:.66rem;margin-top:.2rem">${careerEarningsStr(selNeg.fa)} career earnings · Wanted $${selNeg.fa.demandedAAV.toFixed(1)}M × ${selNeg.fa.demandedYears}yr</div>
+          </div>
+          <div style="text-align:right">${gradeBadge(selNeg.fa)}</div>
+        </div>
+        <div class="frn-fa-preview" style="margin-bottom:.6rem">
+          <div>Current high: <b style="color:var(--gold)">$${selHigh?selHigh.aav.toFixed(1):"0"}M × ${selHigh?selHigh.years:"-"}yr</b>
+          ${selHigh ? `by <b style="color:${selHigh.isYou?"var(--green-lt)":"var(--white)"}">${selHigh.isYou ? "YOU" : (getTeam(selHigh.teamId).city+" "+getTeam(selHigh.teamId).name)}</b>` : ""}
+          </div>
+          <div style="color:var(--gray);font-size:.68rem;margin-top:.2rem">
+            Your bid: <b style="color:${yourCur?"var(--gold-lt)":"var(--gray)"}">${selNeg.yourBid?`$${yourCur.toFixed(1)}M × ${selNeg.yourBid.years}yr`:"not bidding"}</b>
+            · ${selNeg.raisedThisRound ? "<span style='color:var(--gold-lt)'>This round had a raise — won't sign yet</span>" : "<span style='color:var(--green-lt)'>Stable — will sign at end of this week if no one raises</span>"}
+          </div>
+        </div>
+        ${actionsHtml}
+        <div class="frn-card-title" style="margin-top:.8rem">BID HISTORY</div>
+        <table class="frn-pre-roster-table">
+          <thead><tr><th>Wk</th><th>By</th><th>AAV</th><th>Years</th></tr></thead>
+          <tbody>${histHtml}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function frnFAEnterBid(name) {
+  const n = franchise.faNegotiations?.[name]; if (!n) return;
+  const high = _faNegCurrentHigh(n);
+  const aav = high ? Math.round((high.aav + 0.5) * 10) / 10 : n.fa.demandedAAV;
+  n.yourBid = { aav, years: n.fa.demandedYears, cutNames: [] };
+  n.history.push({ teamId: franchise.chosenTeamId, label: "You (joined)", aav, years: n.fa.demandedYears, week: franchise.week });
+  n.raisedThisRound = true;
+  n.lastRaiseWeek = franchise.week;
+  saveFranchise();
+  renderFrnFANegotiations(name);
 }
 
 function renderFrnFAResults() {
@@ -15996,6 +16347,29 @@ function renderFrnRegular() {
   const capUsed = capUsedByTeam(chosenTeamId);
   const capPct  = Math.round(capUsed / cap * 100);
   const capColor = capPct >= 95 ? "var(--red)" : capPct >= 85 ? "#e8a000" : "var(--green-lt)";
+
+  // FA negotiations summary — banner button when active
+  const negs = franchise.faNegotiations || {};
+  const activeNegs = Object.values(negs).filter(n => n.state === "negotiating");
+  const myActiveNegs = activeNegs.filter(n => n.yourBid);
+  const outbidCount = myActiveNegs.filter(n => {
+    const high = _faNegCurrentHigh(n);
+    return high && !high.isYou;
+  }).length;
+  const faBtnHtml = activeNegs.length
+    ? `<button class="frn-cap-btn" onclick="renderFrnFANegotiations()" style="color:${outbidCount?'var(--red)':'var(--gold)'};border-color:${outbidCount?'var(--red)':'var(--gold)'}">
+        🆓 FA: ${activeNegs.length} active${outbidCount?` · ${outbidCount} outbid!`:""}
+      </button>`
+    : "";
+  // FA news banner — show signings/losses from last resolved week
+  const news = franchise._faLastNews;
+  const newsHtml = (news && news.week === week - 1 && (news.signed.length + news.lost.length)) ? `
+    <div class="frn-fa-news">
+      <b style="color:var(--gold)">📰 FA Wire (Week ${news.week}):</b>
+      ${news.signed.map(s => `<span style="color:var(--green-lt)">✓ Signed ${s.name} ($${s.aav.toFixed(1)}M)</span>`).join(" · ")}
+      ${news.lost.map(l => `<span style="color:#c08080">✗ Lost ${l.name}${l.reason?` (${l.reason})`:""}</span>`).join(" · ")}
+    </div>` : "";
+
   const bannerHtml = `
     <div class="frn-team-banner" style="--banner-color:${myTeam.primary}">
       <div class="frn-banner-stripe"></div>
@@ -16010,13 +16384,15 @@ function renderFrnRegular() {
           CAP $${capUsed.toFixed(1)}M / $${cap.toFixed(0)}M
           <span style="color:var(--gray);font-weight:400"> · ${capPct}% used</span>
           <button class="frn-cap-btn" onclick="renderFrnAnalytics('mysheet')">📊 Analytics</button>
+          ${faBtnHtml}
         </div>
       </div>
       <div>
         <div class="frn-banner-record">${recStr}</div>
         <div class="frn-banner-record-sub">RECORD</div>
       </div>
-    </div>`;
+    </div>
+    ${newsHtml}`;
 
   // ─── Next-game card ────────────────────────────────────────────────────
   let nextCardHtml = "";
@@ -16373,6 +16749,14 @@ function advanceWeekIfDone() {
   if (w > FRANCHISE_WEEKS) return;
   const wGames = franchise.schedule.filter(g => g.week === w);
   if (wGames.length && wGames.every(g => g.played)) {
+    // Before bumping the week counter, resolve any FA negotiations
+    // that were "stable" this week, then run the next AI bid round.
+    if (franchise.faNegotiations && Object.keys(franchise.faNegotiations).length) {
+      const seasonEnding = (w + 1) > FRANCHISE_WEEKS;
+      _faResolveAfterWeek(w, seasonEnding);
+      if (!seasonEnding) _faAIBidRound(w + 1, /*isInitial=*/false);
+    }
+
     franchise.week = w + 1;
     // Cap-grace deadline reached — force a cut screen if user is still over
     if (franchise.capGraceDeadline != null && franchise.week >= franchise.capGraceDeadline) {
@@ -16381,10 +16765,12 @@ function advanceWeekIfDone() {
       franchise.capGraceDeadline = null;
       if (used > cap) {
         franchise.phase = "fa_cuts";
+        saveFranchise();
         return;
       }
     }
     if (franchise.week > FRANCHISE_WEEKS) franchise.phase = "playoffs_pending";
+    saveFranchise();
   }
 }
 
