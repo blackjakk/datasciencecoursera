@@ -1772,6 +1772,20 @@ const S_ARCHETYPES = {
   CENTER_FIELD: { label: "Center Field", blurb: "Deep coverage — prevents big plays" },
   HYBRID:       { label: "Hybrid",       blurb: "Plays single-high or in the box equally well" },
 };
+// Kicker archetypes — affect FG accuracy, range, and kickoff distance.
+const K_ARCHETYPES = {
+  LEG:       { label: "Big Leg",   blurb: "Long-range threat — 60+ yd FGs in play, but a hair less accurate" },
+  PRECISION: { label: "Precision", blurb: "Money inside 45 — fewer big-leg kicks but rarely shanks one" },
+  CLUTCH:    { label: "Clutch",    blurb: "Comes through when it matters — better in 4th Q close games" },
+  BALANCED:  { label: "Balanced",  blurb: "No real weakness — a steady veteran" },
+};
+// Punter archetypes — affect distance, hang time, and directional pinning.
+const P_ARCHETYPES = {
+  BOOMER:      { label: "Boomer",      blurb: "Crushes it — long average, but more touchbacks" },
+  DIRECTIONAL: { label: "Directional", blurb: "Pinpoint coffin-corner — short but high fair-catch rate" },
+  HANG_TIME:   { label: "Hang Time",   blurb: "Sky kicks — minimal return yards, average distance" },
+  BALANCED:    { label: "Balanced",    blurb: "Solid all-around — no weakness, no signature trait" },
+};
 
 function pickRBArchetype(stats) {
   const [spd, str, agi, awr, _thr, cat] = stats;
@@ -1840,6 +1854,31 @@ function pickSArchetype(stats) {
     HYBRID:       8,
   };
   for (const k in w) w[k] += Math.random() * 5;
+  return Object.keys(w).reduce((a, b) => w[a] >= w[b] ? a : b);
+}
+
+// K archetypes — KPW (kpw=stats[10]) drives leg, AWR (stats[3]) drives accuracy
+function pickKArchetype(stats) {
+  const awr = stats[3], kpw = stats[10] ?? 70;
+  const w = {
+    LEG:       Math.max(0, kpw - 70) * 1.6 + (awr < 70 ? 3 : 0),
+    PRECISION: Math.max(0, awr - 70) * 1.5 + (kpw < 75 ? 3 : 0),
+    CLUTCH:    Math.max(0, awr - 65) * 0.8 + Math.max(0, kpw - 65) * 0.5,
+    BALANCED:  6 + Math.max(0, ((kpw + awr) / 2) - 65),
+  };
+  for (const k in w) w[k] += Math.random() * 4;
+  return Object.keys(w).reduce((a, b) => w[a] >= w[b] ? a : b);
+}
+// P archetypes — KPW = punt distance, AWR = directional / hang-time accuracy
+function pickPArchetype(stats) {
+  const awr = stats[3], kpw = stats[10] ?? 70;
+  const w = {
+    BOOMER:      Math.max(0, kpw - 70) * 1.6 + (awr < 70 ? 2 : 0),
+    DIRECTIONAL: Math.max(0, awr - 72) * 1.5 + (kpw < 72 ? 2 : 0),
+    HANG_TIME:   Math.max(0, awr - 65) * 0.7 + Math.max(0, kpw - 60) * 0.6,
+    BALANCED:    6 + Math.max(0, ((kpw + awr) / 2) - 65),
+  };
+  for (const k in w) w[k] += Math.random() * 4;
   return Object.keys(w).reduce((a, b) => w[a] >= w[b] ? a : b);
 }
 
@@ -2030,6 +2069,8 @@ function genPlayer(pos, tier) {
     case "LB": player.archetype = pickLBArchetype(stats); break;
     case "CB": player.archetype = pickCBArchetype(stats); break;
     case "S":  player.archetype = pickSArchetype(stats);  break;
+    case "K":  player.archetype = pickKArchetype(stats);  break;
+    case "P":  player.archetype = pickPArchetype(stats);  break;
   }
   // Tag any "anomaly" — a rare strength outside what the archetype typically
   // implies (e.g. a Thumper LB who can also cover). Surfaced in the tooltip
@@ -2327,6 +2368,7 @@ function buildRatings(roster) {
       // 2nd TE for HEAVY (12) personnel.
       te2: (byPos.TE?.[1])?.name || (byPos.TE?.[0])?.name || "TE2",
       k:   (byPos.K?.[0])?.name  || "K",
+      p:   (byPos.P?.[0])?.name  || (byPos.K?.[0])?.name || "P",  // Punter (fallback to K if missing)
       de1: byPos.DL?.[0]?.name || "LDE",
       dt1: byPos.DL?.[1]?.name || "LDT",
       dt2: byPos.DL?.[2]?.name || "RDT",
@@ -2888,7 +2930,20 @@ class GameSimulator {
         if (wKick.label === "WINDY") wxPenalty = (dist - 30) * 0.012 * (-windWith);   // ~10-15% penalty into a strong wind from 50yds
         else if (wKick.label === "SNOW")  wxPenalty = 0.10 + (dist - 25) * 0.008 * (-windWith);
         else if (wKick.label === "RAIN")  wxPenalty = Math.max(0, (dist - 35)) * 0.004;
-        const fgPct = clamp(0.96 - (dist - 20) * 0.020 + (this.offR.k - 60) / 250 - wxPenalty, 0.15, 0.97);
+        // K archetype tilts FG math: LEG = more range less accuracy, PRECISION =
+        // less range more accuracy, CLUTCH = bonus in 4th Q tight games, BALANCED = neutral.
+        const kPlayer = this._playerByName.get(K);
+        const kArch = kPlayer?.archetype;
+        const kpw   = kPlayer?.stats?.[10] ?? 70;
+        const isClutchMoment = (this.quarter >= 4 && this.time < 300 && Math.abs(this.score.home - this.score.away) <= 8);
+        let archAccMod = 0, archRangeMod = 0;
+        if (kArch === "LEG")       { archAccMod = -0.025; archRangeMod = (dist - 35) * 0.0035; }
+        else if (kArch === "PRECISION") { archAccMod = +0.035; archRangeMod = -Math.max(0, dist - 45) * 0.006; }
+        else if (kArch === "CLUTCH")    { archAccMod = isClutchMoment ? +0.05 : -0.005; }
+        // KPW above 75 adds a small extra range bonus regardless of archetype
+        const kpwBonus = Math.max(0, kpw - 75) * 0.001;
+        const fgPct = clamp(0.96 - (dist - 20) * 0.020 + (this.offR.k - 60) / 250
+                          + archAccMod + archRangeMod + kpwBonus - wxPenalty, 0.15, 0.99);
         const kStats = off.players[K]; if (kStats) { kStats.fg_att++; }
         off.team.fourthAtt++;
         // Block chance — slightly higher on long attempts
@@ -2971,21 +3026,44 @@ class GameSimulator {
         this._pushVisual({ kind: "fourth_go", desc: `${this.possTeam.name} GOES FOR IT — 4th & ${this.ytg}!`, startYard, endYard: startYard });
         // Fall through to normal play (do NOT return)
       } else {
-        // Punt
+        // Punt — distance, hang time, and return resolution are all driven by
+        // the PUNTER (separate from the kicker). Archetype + KPW shape it.
         off.team.fourthAtt++;
-        const punt = clamp(normal(46, 7), 28, 68);
+        const P = this.offR.starters.p;
+        const pPlayer = this._playerByName.get(P);
+        const pArch = pPlayer?.archetype;
+        const pKpw  = pPlayer?.stats?.[10] ?? 65;
+        const pAwr  = pPlayer?.stats?.[3]  ?? 65;
+        // Base distance scales with KPW: 60 KPW ≈ 42 yds, 90 KPW ≈ 52 yds
+        let puntMean = 38 + (pKpw - 50) * 0.32;
+        let puntSd   = 7;
+        // Archetype tilts on top of stats
+        let fairCatchBonus = 0;     // shifts return distribution toward fair catches
+        let bigReturnSuppress = 0;  // shifts away from big returns (hang time)
+        let touchbackRisk = 0;      // extra chance the boomer outkicks coverage
+        if (pArch === "BOOMER")       { puntMean += 4; puntSd = 8;  touchbackRisk = 0.06; }
+        else if (pArch === "DIRECTIONAL") { puntMean -= 3; puntSd = 4;  fairCatchBonus = 0.18; }
+        else if (pArch === "HANG_TIME")   { puntMean += 1; puntSd = 5;  bigReturnSuppress = 0.55; fairCatchBonus = 0.08; }
+        // AWR over 75 trims SD (more consistent placement)
+        if (pAwr > 75) puntSd = Math.max(3, puntSd - (pAwr - 75) * 0.04);
+        const punt = clamp(normal(puntMean, puntSd), 24, 72);
       const landYard = clamp(startYard + punt, 0, 100);
-      // Touchback / fair catch / return resolution
+      // Touchback / fair catch / return resolution — biased by archetype.
       let returnYards = 0, isTouchback = false, isFairCatch = false;
-      if (landYard >= 100) {
-        isTouchback = true;  // ball into end zone — receiving team starts at their 20
+      if (landYard >= 100 || (touchbackRisk > 0 && Math.random() < touchbackRisk)) {
+        isTouchback = true;
       } else {
-        const r = Math.random();
+        const r = Math.random() - fairCatchBonus;  // shift the cutpoints up
         if (r < 0.18) { isFairCatch = true; }
         else if (r < 0.55) returnYards = rand(0, 6);
         else if (r < 0.85) returnYards = rand(4, 14);
         else if (r < 0.96) returnYards = rand(12, 28);
-        else                returnYards = rand(30, 70);  // HOUSE CALL territory
+        else                returnYards = rand(30, 70);
+        // Hang-time punters suppress the longest returns — if a big return rolled
+        // and the archetype kills it, knock it down to a modest return.
+        if (returnYards >= 20 && Math.random() < bigReturnSuppress) {
+          returnYards = rand(4, 14);
+        }
       }
       // Final spot after return (or fixed touchback at receiver's 20)
       const finalLand = isTouchback ? 80 : clamp(landYard - returnYards, 1, 99);
@@ -3001,7 +3079,8 @@ class GameSimulator {
         startYard, puntYards: punt, landYard, returnYards,
         isTouchback, isFairCatch, isReturnTD,
         endYard: finalLand,
-        kicker: this.offR.starters.k,
+        kicker: P,
+        punterArch: pArch,
       });
         return { endDrive: true, punt: effectivePunt, isReturnTD };
       }
@@ -5992,6 +6071,7 @@ function buildPlayerTooltip(p) {
     CB: [["SPD",spd],["AGI",agi],["COV",cov],["AWR",awr]],
     S:  [["SPD",spd],["COV",cov],["TCK",tck],["AWR",awr]],
     K:  [["KPW",kpw],["AWR",awr]],
+    P:  [["KPW",kpw],["AWR",awr]],
   }[p.position] || [];
   const tier = playerTier(p.overall);
   const teamLabel = p.team === "home"
@@ -6006,6 +6086,7 @@ function buildPlayerTooltip(p) {
   const ARCHETYPE_BY_POS = {
     QB: QB_ARCHETYPES, DL: DL_ARCHETYPES, OL: OL_ARCHETYPES, RB: RB_ARCHETYPES,
     WR: WR_ARCHETYPES, TE: TE_ARCHETYPES, LB: LB_ARCHETYPES, CB: CB_ARCHETYPES, S: S_ARCHETYPES,
+    K: K_ARCHETYPES, P: P_ARCHETYPES,
   };
   let archHtml = "";
   if (p.archetype) {
@@ -6829,6 +6910,7 @@ const DEPTH_SLOTS = [
   { pos: "S",  idx: 0, label: "FS",  group: "DEFENSE" },
   { pos: "S",  idx: 1, label: "SS",  group: "DEFENSE" },
   { pos: "K",  idx: 0, label: "K",   group: "SPECIAL" },
+  { pos: "P",  idx: 0, label: "P",   group: "SPECIAL" },
 ];
 // Absolute index of (pos, idx) within a roster array.
 function rosterSlotAbs(pos, idx) {
@@ -6938,6 +7020,7 @@ function renderDepthChart(side) {
       const ARCH_BY_POS = {
         DL: DL_ARCHETYPES, OL: OL_ARCHETYPES, RB: RB_ARCHETYPES, WR: WR_ARCHETYPES,
         TE: TE_ARCHETYPES, LB: LB_ARCHETYPES, CB: CB_ARCHETYPES, S: S_ARCHETYPES,
+        K: K_ARCHETYPES, P: P_ARCHETYPES,
       };
       const archTag = p.archetype
         ? `<span class="depth-arch arch-${p.position.toLowerCase()}">${(ARCH_BY_POS[p.position] || {})[p.archetype]?.label || p.archetype}</span>`
