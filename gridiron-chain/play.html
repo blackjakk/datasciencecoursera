@@ -1324,6 +1324,19 @@
   }
   .frn-holdout-row.resolved { border-left-color: var(--gray); opacity: .8; }
 
+  /* Pick demands in ask form */
+  .frn-pick-grid {
+    display: grid; grid-template-columns: repeat(7, 1fr); gap: .35rem;
+    margin-bottom: .4rem;
+  }
+  .frn-pick-input { display: flex; flex-direction: column; gap: .15rem; }
+  .frn-pick-input input {
+    width: 100%; background: var(--bg3); border: 1px solid var(--border);
+    color: var(--white); padding: .3rem .35rem; font-family: inherit;
+    font-size: .8rem; font-weight: 700; text-align: center;
+  }
+  .frn-pick-input input:focus { outline: none; border-color: var(--gold); }
+
   /* Salary refund form */
   .frn-refund-form {
     display: grid; grid-template-columns: 1fr 1fr; gap: .55rem;
@@ -15293,6 +15306,7 @@ function startFranchise(teamId) {
     superBowlGame:  null,
   };
   franchiseDraft = null;
+  _initFranchisePicks();
   saveFranchise();
   showFranchiseDashboard();
 }
@@ -15313,6 +15327,8 @@ function showFranchiseDashboard() {
   assignContracts(franchise.rosters, franchise.salaryCap);
   const baseYear = new Date().getFullYear() + (franchise.season || 1) - 1;
   assignDraftInfo(franchise.rosters, baseYear);
+  // Backfill picks for saves from before draft-picks-as-assets
+  if (!franchise.picks || !franchise.picks.length) _initFranchisePicks();
 
   $("franchiseHome").style.display = "block";
   const { phase } = franchise;
@@ -17426,11 +17442,11 @@ function _runWeekEndResolution() {
     if (!seasonEnding) _faAIBidRound(w + 1, /*isInitial=*/false);
   }
   _tickInjuriesForWeek();
-  // Trade-block: directed-ask counters from last week land first, then
-  // unsolicited offers from the open market for any players you've listed.
+  // Trade-block: unsolicited offers (no public ask) + price-tag offers
+  // (public ask matched against AI inventories).
   if (w + 1 <= TRADE_DEADLINE_WEEK) {
-    _processPendingCounters();
     _generateWeeklyAIOffers();
+    _processBlockAsks();
   }
 }
 
@@ -17948,6 +17964,7 @@ function renderFrnAnalytics(defaultTab) {
     { id:"mysheet",  label:"MY CAP SHEET" },
     { id:"league",   label:"LEAGUE HEALTH" },
     { id:"top",      label:"TOP CONTRACTS" },
+    { id:"picks",    label:"DRAFT CAPITAL" },
     { id:"QB",  label:"QB" }, { id:"RB",  label:"RB" },
     { id:"WR",  label:"WR" }, { id:"TE",  label:"TE" },
     { id:"DL",  label:"DL" }, { id:"LB",  label:"LB" }, { id:"CB",  label:"CB" },
@@ -17957,10 +17974,58 @@ function renderFrnAnalytics(defaultTab) {
     <button class="frn-ana-tab ${t.id===tab?"active":""}" onclick="renderFrnAnalytics('${t.id}')">${t.label}</button>
   `).join("");
 
+  function draftCapital() {
+    const myId = chosenTeamId;
+    const myPicks = (franchise.picks || []).filter(p => p.currentOwnerId === myId);
+    const myPicksByYear = {};
+    for (const p of myPicks) (myPicksByYear[p.year] ||= []).push(p);
+    const years = Object.keys(myPicksByYear).sort();
+    const sections = years.map(yr => {
+      const picks = myPicksByYear[yr].slice().sort((a,b) => a.round - b.round);
+      const rows = picks.map(p => {
+        const origTeam = getTeam(p.originalTeamId);
+        const own = p.originalTeamId === myId;
+        return `<tr>
+          <td style="color:var(--gold);font-weight:700">R${p.round}</td>
+          <td>${own ? "Own" : `<span style="color:#7fbfff">via ${origTeam?.name||"?"}</span>`}</td>
+          <td style="color:var(--gray)">${_pickValue(p).toFixed(0)} value</td>
+        </tr>`;
+      }).join("");
+      return `<div style="margin-bottom:.8rem">
+        <div class="frn-card-title">${yr} DRAFT · ${picks.length} pick${picks.length>1?"s":""}</div>
+        <table class="frn-ana-table">
+          <thead><tr><th>Round</th><th>Source</th><th>Approx value</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+    }).join("");
+    // League capital — every team's count of future picks
+    const leagueRows = TEAMS.map(t => {
+      const tp = (franchise.picks || []).filter(p => p.currentOwnerId === t.id);
+      const firsts = tp.filter(p => p.round === 1).length;
+      const seconds = tp.filter(p => p.round === 2).length;
+      const total = tp.length;
+      const isMe = t.id === myId;
+      return `<tr style="${isMe?"background:rgba(200,169,0,0.08)":""}">
+        <td style="color:${isMe?"var(--gold)":"var(--white)"};font-weight:${isMe?700:400}">${isMe?"»":""} ${t.city} ${t.name}</td>
+        <td style="text-align:right;color:var(--gold)">${firsts}</td>
+        <td style="text-align:right;color:var(--gold-lt)">${seconds}</td>
+        <td style="text-align:right;color:var(--gray)">${total}</td>
+      </tr>`;
+    }).join("");
+    return `${sections || `<div style="color:var(--gray);font-size:.78rem;padding:1rem;text-align:center">No upcoming picks tracked yet.</div>`}
+      <div class="frn-card-title" style="margin-top:1rem">LEAGUE CAPITAL (future picks owned)</div>
+      <table class="frn-ana-table">
+        <thead><tr><th>Team</th><th style="text-align:right">1st</th><th style="text-align:right">2nd</th><th style="text-align:right">Total</th></tr></thead>
+        <tbody>${leagueRows}</tbody>
+      </table>`;
+  }
+
   let bodyHtml;
   if      (tab === "mysheet") bodyHtml = myCapSheet();
   else if (tab === "league")  bodyHtml = leagueCapHealth();
   else if (tab === "top")     bodyHtml = topContracts();
+  else if (tab === "picks")   bodyHtml = draftCapital();
   else                        bodyHtml = posMarket(tab);
 
   $("frnHomeContent").innerHTML = `
@@ -18444,6 +18509,57 @@ function frnNewSeason() {
   showFranchiseDashboard();
 }
 
+// ── Draft picks (tradeable) ──────────────────────────────────────────────────
+// Each team starts with their own 7 picks for the next 3 future drafts.
+// Trades move currentOwnerId; the originalTeamId still controls the slot
+// within the round (based on that team's next regular-season finish).
+function _initFranchisePicks() {
+  franchise.picks = [];
+  const draftYearBase = (new Date().getFullYear()) + (franchise.season || 1);
+  for (let yr = draftYearBase; yr < draftYearBase + 3; yr++) {
+    for (const t of TEAMS) {
+      for (let r = 1; r <= 7; r++) {
+        franchise.picks.push({
+          year: yr, round: r,
+          originalTeamId: t.id,
+          currentOwnerId: t.id,
+        });
+      }
+    }
+  }
+}
+
+function _ensurePicksForYear(year) {
+  if (!franchise.picks) franchise.picks = [];
+  const has = franchise.picks.some(p => p.year === year);
+  if (has) return;
+  for (const t of TEAMS) {
+    for (let r = 1; r <= 7; r++) {
+      franchise.picks.push({
+        year, round: r,
+        originalTeamId: t.id,
+        currentOwnerId: t.id,
+      });
+    }
+  }
+}
+
+// Rough trade-value of an UNREALIZED pick (before draft order is set).
+// Round 1 expected value is the average of the 32 round-1 prospects.
+const PICK_VALUE_BY_ROUND = { 1: 32, 2: 16, 3: 9, 4: 5, 5: 3, 6: 2, 7: 1.5 };
+function _pickValue(pick) {
+  return PICK_VALUE_BY_ROUND[pick.round] || 1;
+}
+
+function _teamPicks(teamId) {
+  return (franchise.picks || []).filter(p => p.currentOwnerId === teamId);
+}
+function _teamPicksByYear(teamId) {
+  const by = {};
+  for (const p of _teamPicks(teamId)) (by[p.year] ||= []).push(p);
+  return by;
+}
+
 // ── Trades ─────────────────────────────────────────────────────────────────────
 // Player-for-player(s) trades. Trade deadline = Week 7. AI accepts if
 // you give them >= what they give you, weighted by team need at the
@@ -18535,14 +18651,15 @@ function frnEditAsk(playerName) {
   if (!player) return;
   if (!player.onTradeBlock) player.onTradeBlock = true;
   franchise._tradeProp.editAsk = playerName;
-  // Seed ask form from existing ask, or default to first opponent
   const existing = player.blockAsk;
   franchise._tradeProp.askDraft = {
-    targetTeamId: existing?.targetTeamId || TEAMS.find(t => t.id !== franchise.chosenTeamId).id,
-    wantNames:    [...(existing?.wantNames || [])],
+    // Generic price tag — picks by round (year defaults to next draft),
+    // cash flowing either direction, optional player-grade min.
+    askedPicks:  { ...(existing?.askedPicks || {}) },
     refundAmount: existing?.refund?.amount || 0,
     refundYears:  existing?.refund?.years  || 0,
     refundDirection: existing?.refund?.direction || "theyPay",
+    minPlayerGrade: existing?.minPlayerGrade || "",
   };
   saveFranchise();
   renderFrnTrade();
@@ -18557,20 +18674,21 @@ function frnCancelAsk() {
   renderFrnTrade();
 }
 
-function frnAskSetTarget(teamId) {
-  if (!franchise._tradeProp?.askDraft) return;
-  franchise._tradeProp.askDraft.targetTeamId = Number(teamId);
-  franchise._tradeProp.askDraft.wantNames = [];
+function frnAskSetPicks(round, count) {
+  const ad = franchise._tradeProp?.askDraft;
+  if (!ad) return;
+  ad.askedPicks = ad.askedPicks || {};
+  const n = Math.max(0, Math.min(5, parseInt(count, 10) || 0));
+  if (n === 0) delete ad.askedPicks[round];
+  else ad.askedPicks[round] = n;
   saveFranchise();
   renderFrnTrade();
 }
 
-function frnAskToggleWant(playerName) {
+function frnAskSetMinGrade(value) {
   const ad = franchise._tradeProp?.askDraft;
   if (!ad) return;
-  const idx = ad.wantNames.indexOf(playerName);
-  if (idx === -1) ad.wantNames.push(playerName);
-  else ad.wantNames.splice(idx, 1);
+  ad.minPlayerGrade = value || "";
   saveFranchise();
   renderFrnTrade();
 }
@@ -18589,121 +18707,152 @@ function frnSubmitAsk() {
   const tp = franchise._tradeProp;
   if (!tp?.editAsk || !tp?.askDraft) return;
   const ad = tp.askDraft;
-  if (!ad.targetTeamId || !ad.wantNames.length) {
-    alert("Pick a team and at least one player you want in return.");
+  const totalPicks = Object.values(ad.askedPicks || {}).reduce((s,n) => s + n, 0);
+  const cashTotal = (ad.refundAmount || 0) * (ad.refundYears || 0);
+  if (totalPicks === 0 && cashTotal === 0 && !ad.minPlayerGrade) {
+    alert("Set an asking price: picks, cash, or a player-grade minimum.");
     return;
   }
   const player = franchise.rosters[franchise.chosenTeamId].find(p => p.name === tp.editAsk);
   if (!player) return;
   player.onTradeBlock = true;
   const refund = (ad.refundAmount > 0 && ad.refundYears > 0)
-    ? { amount: ad.refundAmount, years: ad.refundYears, direction: ad.refundDirection || "youPay" }
+    ? { amount: ad.refundAmount, years: ad.refundYears, direction: ad.refundDirection || "theyPay" }
     : null;
   player.blockAsk = {
-    targetTeamId: ad.targetTeamId,
-    wantNames: [...ad.wantNames],
+    askedPicks: { ...(ad.askedPicks || {}) },
     refund,
+    minPlayerGrade: ad.minPlayerGrade || null,
+    listedSeason: franchise.season,
+    listedWeek:   franchise.week,
   };
-  const result = _evaluateBlockAsk(player);
   delete tp.editAsk;
   delete tp.askDraft;
   saveFranchise();
-  if (result.outcome === "accepted") {
-    const team = getTeam(player.blockAsk?.targetTeamId);
-    const refundLine = refund
-      ? refund.direction === "youPay"
-        ? ` (you're eating $${refund.amount.toFixed(1)}M/yr × ${refund.years}yr)`
-        : ` (they're paying you $${refund.amount.toFixed(1)}M/yr × ${refund.years}yr)`
-      : "";
-    alert(`✓ Deal done! ${team?.name||"They"} accepted on the spot${refundLine}.`);
-  } else if (result.outcome === "rejected") {
-    alert(`✗ ${result.message}`);
-  } else if (result.outcome === "counter_queued") {
-    alert(`📬 They're considering it — counter will arrive next week.`);
-  }
+  alert(`✓ Listed ${player.name} on the trade block. Interested teams will respond next week.`);
   renderFrnTrade();
 }
 
-// Same-week resolution for a directed ask. Returns one of:
-//   { outcome:"accepted" }
-//   { outcome:"rejected", message }
-//   { outcome:"counter_queued" }
-function _evaluateBlockAsk(player) {
-  const ask = player.blockAsk;
-  if (!ask?.targetTeamId || !ask.wantNames?.length) return { outcome:"none" };
-  const myId = franchise.chosenTeamId;
-  const myRoster = franchise.rosters[myId];
-  const theirRoster = franchise.rosters[ask.targetTeamId];
-  const wantPlayers = ask.wantNames
-    .map(n => theirRoster.find(p => p.name === n))
-    .filter(Boolean);
-  if (!wantPlayers.length) {
-    return { outcome:"rejected", message:"Those players aren't available anymore." };
+// Value of an asking price for grading offers against the player.
+// Returns total value units the SENDER would receive.
+function _askPriceValue(ask, evaluatorTeamId) {
+  if (!ask) return 0;
+  let v = 0;
+  // Picks the SENDER would gain. Use generic pick value table.
+  for (const [round, count] of Object.entries(ask.askedPicks || {})) {
+    v += _pickValue({ round: Number(round) }) * count;
   }
-  const giveValue = _playerTradeValue(player);
-  const wantValue = wantPlayers.reduce((s,p) => s + _playerTradeValue(p), 0);
-  const theirNeed = _aiTradeNeedBonus(ask.targetTeamId, [player]);
-  // Refund / surcharge sweetener:
-  //   youPay  → you eat the cash. They value the deal more (refund units +).
-  //   theyPay → they cover extra. They value the deal less (refund units −).
+  // Cash flow: if direction=theyPay, sender gets +cash. youPay → −cash.
   const refund = ask.refund;
-  const refundDir = refund?.direction || "youPay";
-  const refundTotal = refund ? refund.amount * refund.years : 0;
-  const refundUnits = refundTotal * 1.5 * (refundDir === "youPay" ? 1 : -1);
-  const ratio = (giveValue + theirNeed + refundUnits) / Math.max(0.1, wantValue);
+  if (refund && refund.amount > 0 && refund.years > 0) {
+    const dir = refund.direction || "theyPay";
+    const total = refund.amount * refund.years * 1.5;
+    v += (dir === "theyPay" ? total : -total);
+  }
+  // Minimum player: assume a market-typical grade if provided (rough)
+  if (ask.minPlayerGrade) {
+    const gradeFloor = _gradeLabelToFloor(ask.minPlayerGrade);
+    v += Math.max(0, gradeFloor - 50); // crude
+  }
+  return v;
+}
 
-  if (ratio >= 0.95) {
-    // ACCEPT — execute trade now
-    const team = getTeam(ask.targetTeamId);
-    // Capture player's remaining years BEFORE we move them
-    const yearsLeftOnPlayerDeal = player.contract?.remaining || 0;
-    player.onTradeBlock = false;
-    delete player.blockAsk;
-    const idx = myRoster.indexOf(player);
-    if (idx !== -1) myRoster.splice(idx, 1);
-    theirRoster.push(player);
-    for (const wp of wantPlayers) {
-      const wi = theirRoster.indexOf(wp);
-      if (wi !== -1) theirRoster.splice(wi, 1);
-      myRoster.push(wp);
+function _gradeLabelToFloor(label) {
+  const map = { "A+":92, "A":87, "A-":82, "B+":77, "B":72, "B-":67, "C+":62, "C":55 };
+  return map[label] || 0;
+}
+
+// During each weekly resolution, for every player on the user's block
+// scan AI teams to find ones whose package can plausibly satisfy the
+// ask. Best matches send a concrete offer into the OFFERS inbox.
+function _processBlockAsks() {
+  if (!franchise.tradeOffers) franchise.tradeOffers = [];
+  const myId = franchise.chosenTeamId;
+  const myRoster = franchise.rosters[myId] || [];
+  const blocked = myRoster.filter(p => p.onTradeBlock && p.blockAsk);
+  for (const p of blocked) _generateAIOffersForAsk(p);
+}
+
+function _generateAIOffersForAsk(player) {
+  const ask = player.blockAsk;
+  if (!ask) return;
+  const myId = franchise.chosenTeamId;
+  const askValue = _askPriceValue(ask);
+  const playerValue = _playerTradeValue(player);
+  // AI teams ranked by need for this player. Cap at top 3 bidders.
+  const interested = TEAMS
+    .filter(t => t.id !== myId)
+    .map(t => ({ t, need: _aiTradeNeedBonus(t.id, [player]) }))
+    .filter(x => x.need > 0.5)
+    .sort((a,b) => b.need - a.need)
+    .slice(0, 3);
+
+  for (const { t, need } of interested) {
+    // Decide whether AI can meet (or near-meet) the ask
+    const aiCap = franchise.salaryCap || SALARY_CAP_BASE;
+    const aiRoom = aiCap - capUsedByTeam(t.id);
+
+    // Build the proposed payment package from AI's pick inventory:
+    const aiPicks = _teamPicks(t.id);
+    const sentPicks = [];
+    for (const [roundStr, count] of Object.entries(ask.askedPicks || {})) {
+      const round = Number(roundStr);
+      const avail = aiPicks.filter(p =>
+        p.round === round && !sentPicks.includes(p))
+        .sort((a,b) => a.year - b.year); // give nearer years (more value)
+      for (let i = 0; i < count && i < avail.length; i++) {
+        sentPicks.push(avail[i]);
+      }
     }
-    // Persist the cash obligation. Years are capped at the player's
-    // contract remaining — you can't owe past their original deal.
-    // Direction is encoded by which team is the from/to.
-    if (refund) {
-      if (!franchise.refunds) franchise.refunds = [];
-      const dir = refund.direction || "youPay";
-      franchise.refunds.push({
-        fromTeamId: dir === "youPay" ? myId : ask.targetTeamId,
-        toTeamId:   dir === "youPay" ? ask.targetTeamId : myId,
-        amount: refund.amount,
-        yearsRemaining: Math.min(refund.years, yearsLeftOnPlayerDeal || refund.years),
-        playerName: player.name,
-        sinceSeason: franchise.season,
-      });
+    const picksCovered = sentPicks.length === Object.values(ask.askedPicks||{}).reduce((s,n)=>s+n,0);
+    if (!picksCovered) continue; // can't satisfy pick demand
+
+    // Cash: if direction=theyPay, AI must be able to absorb it for N years
+    let cashOK = true;
+    if (ask.refund?.direction === "theyPay" && ask.refund.amount > 0) {
+      if (aiRoom < ask.refund.amount * 1.1) cashOK = false;
     }
-    const refundLine = refund
-      ? refundDir === "youPay"
-        ? ` (eating $${refund.amount.toFixed(1)}M/yr × ${refund.years}yr)`
-        : ` (with $${refund.amount.toFixed(1)}M/yr × ${refund.years}yr cash from them)`
-      : "";
-    _pushNews({ type:"trade",
-      label: `🔀 Block deal w/ ${team.name}: ${wantPlayers.map(p=>p.position+" "+p.name).join(", ")} for ${player.position+" "+player.name}${refundLine}` });
-    return { outcome:"accepted" };
+    if (!cashOK) continue;
+
+    // Optional grade-min player from AI's roster
+    let extraPlayer = null;
+    if (ask.minPlayerGrade) {
+      const floor = _gradeLabelToFloor(ask.minPlayerGrade);
+      const candidates = (franchise.rosters[t.id] || [])
+        .filter(rp => scoutGrade(rp) >= floor && !rp.onTradeBlock)
+        .sort((a,b) => scoutGrade(a) - scoutGrade(b));
+      extraPlayer = candidates[0];
+      if (!extraPlayer) continue; // can't meet grade min
+    }
+
+    // AI's overall valuation: do they get enough for what they're giving?
+    const giveCost = sentPicks.reduce((s,p) => s + _pickValue(p), 0)
+                   + (extraPlayer ? _playerTradeValue(extraPlayer) : 0)
+                   + (ask.refund?.direction === "theyPay" ? ask.refund.amount * ask.refund.years * 1.5 : 0)
+                   - (ask.refund?.direction === "youPay" ? ask.refund.amount * ask.refund.years * 1.5 : 0);
+    const aiGain = playerValue + need; // their need bonus
+    if (aiGain < giveCost * 0.85) continue; // they decline silently
+
+    // Build the offer for the user's inbox
+    if (!franchise.tradeOffers) franchise.tradeOffers = [];
+    // Dedupe: one offer per AI team per ask per week
+    const dup = franchise.tradeOffers.some(o =>
+      o.fromTeamId === t.id && o.theyWant?.includes(player.name) && o.week === franchise.week
+    );
+    if (dup) continue;
+    franchise.tradeOffers.push({
+      id: `${t.id}-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,
+      fromTeamId: t.id,
+      // For block-ask offers, the package includes picks + optional player + refund
+      theyGive: extraPlayer ? [extraPlayer.name] : [],
+      theyWant: [player.name],
+      pickIds: sentPicks.map(p => `${p.year}-${p.round}-${p.originalTeamId}`),
+      refund: ask.refund ? { ...ask.refund } : null,
+      week: franchise.week,
+      status: "pending",
+      isFromAsk: true,
+    });
   }
-  if (ratio < 0.5) {
-    return { outcome:"rejected", message:"Too lopsided in your favor — they won't even counter." };
-  }
-  // COUNTER — queued for next week's review
-  if (!franchise._pendingCounters) franchise._pendingCounters = [];
-  franchise._pendingCounters.push({
-    fromTeamId: ask.targetTeamId,
-    playerName: player.name,
-    askWantNames: [...ask.wantNames],
-    askRefund: refund ? { ...refund } : null,
-    week: franchise.week,
-  });
-  return { outcome:"counter_queued" };
 }
 
 // Run during _runWeekEndResolution: convert queued counters into
@@ -18819,18 +18968,18 @@ function frnAcceptOffer(offerId) {
   const myId = franchise.chosenTeamId;
   const myRoster = franchise.rosters[myId];
   const theirRoster = franchise.rosters[off.fromTeamId];
-  // Validate players still exist on respective rosters
   const sending = off.theyWant.map(n => myRoster.find(p => p.name === n)).filter(Boolean);
-  const receiving = off.theyGive.map(n => theirRoster.find(p => p.name === n)).filter(Boolean);
-  if (!sending.length || !receiving.length) {
+  const receiving = (off.theyGive||[]).map(n => theirRoster.find(p => p.name === n)).filter(Boolean);
+  if (!sending.length) {
     off.status = "stale";
     saveFranchise();
     renderFrnTrade();
     return;
   }
-  // Execute swap
+  // Execute player swaps
   for (const p of sending) {
     p.onTradeBlock = false;
+    delete p.blockAsk;
     const i = myRoster.indexOf(p); if (i !== -1) myRoster.splice(i, 1);
     theirRoster.push(p);
   }
@@ -18839,14 +18988,41 @@ function frnAcceptOffer(offerId) {
     const i = theirRoster.indexOf(p); if (i !== -1) theirRoster.splice(i, 1);
     myRoster.push(p);
   }
+  // Transfer draft picks (block-ask offers)
+  if (off.pickIds && off.pickIds.length) {
+    for (const pid of off.pickIds) {
+      const [yr, rd, origStr] = pid.split("-");
+      const pick = (franchise.picks||[]).find(p =>
+        p.year === Number(yr) && p.round === Number(rd) &&
+        p.originalTeamId === Number(origStr) &&
+        p.currentOwnerId === off.fromTeamId);
+      if (pick) pick.currentOwnerId = myId;
+    }
+  }
+  // Persist the cash obligation if any
+  if (off.refund && off.refund.amount > 0 && off.refund.years > 0) {
+    if (!franchise.refunds) franchise.refunds = [];
+    const dir = off.refund.direction || "theyPay";
+    const player = sending[0];
+    const yearsLeft = player?.contract?.remaining || off.refund.years;
+    franchise.refunds.push({
+      fromTeamId: dir === "youPay" ? myId : off.fromTeamId,
+      toTeamId:   dir === "youPay" ? off.fromTeamId : myId,
+      amount: off.refund.amount,
+      yearsRemaining: Math.min(off.refund.years, yearsLeft),
+      playerName: player?.name,
+      sinceSeason: franchise.season,
+    });
+  }
   off.status = "accepted";
   const team = getTeam(off.fromTeamId);
+  const pickLine = off.pickIds?.length ? ` + ${off.pickIds.length} pick${off.pickIds.length>1?"s":""}` : "";
+  const refundLine = off.refund ? ` + $${off.refund.amount.toFixed(1)}M/yr×${off.refund.years}yr` : "";
   _pushNews({ type:"trade",
-    label: `🔀 Trade with ${team.name}: ${receiving.map(p=>p.position+" "+p.name).join(", ")} for ${sending.map(p=>p.position+" "+p.name).join(", ")}` });
-  // Mark other pending offers for the same player as stale
+    label: `🔀 Trade with ${team.name}: ${sending.map(p=>p.position+" "+p.name).join(", ")} for ${receiving.map(p=>p.position+" "+p.name).join(", ") || "—"}${pickLine}${refundLine}` });
+  // Stale any other offers on the same player
   for (const other of franchise.tradeOffers) {
-    if (other === off) continue;
-    if (other.status !== "pending") continue;
+    if (other === off || other.status !== "pending") continue;
     if (other.theyWant.some(n => sending.some(p => p.name === n))) other.status = "stale";
   }
   saveFranchise();
@@ -19182,13 +19358,22 @@ function _renderTradeBlockTab(myRoster, sortBy) {
   const rows = sorted.map(p => {
     const escName = (p.name||"").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
     const ask = p.blockAsk;
-    const askTeam = ask ? getTeam(ask.targetTeamId) : null;
-    const refundChip = ask?.refund
-      ? ` <span style="color:${ask.refund.direction==="theyPay"?"var(--green-lt)":"var(--red)"};font-size:.58rem;font-weight:700">${ask.refund.direction==="theyPay"?"+":"−"}$${ask.refund.amount.toFixed(1)}M/yr×${ask.refund.years}yr</span>`
-      : "";
+    const askPieces = [];
+    if (ask?.askedPicks) {
+      for (const [r, n] of Object.entries(ask.askedPicks)) {
+        if (n > 0) askPieces.push(`${n}× R${r}`);
+      }
+    }
+    if (ask?.refund && ask.refund.amount > 0) {
+      const dir = ask.refund.direction || "theyPay";
+      const sign = dir === "theyPay" ? "+" : "−";
+      const color = dir === "theyPay" ? "var(--green-lt)" : "var(--red)";
+      askPieces.push(`<span style="color:${color}">${sign}$${ask.refund.amount.toFixed(1)}M×${ask.refund.years}yr</span>`);
+    }
+    if (ask?.minPlayerGrade) askPieces.push(`${ask.minPlayerGrade}+ player`);
     const askSummary = ask
       ? `<div style="color:var(--gold-lt);font-size:.62rem;margin-top:.15rem">
-           → ${askTeam?.name||"?"}: want ${ask.wantNames.join(", ")}${refundChip}
+           💰 Asking: ${askPieces.length ? askPieces.join(" + ") : "<i>price unset</i>"}
          </div>`
       : "";
     return `<tr class="${p.onTradeBlock?'frn-blocked':''}">
@@ -19225,77 +19410,59 @@ function _renderBlockAskForm(playerName) {
   const player = franchise.rosters[myId].find(p => p.name === playerName);
   if (!player) return `<div>Player not found.</div>`;
   const tp = franchise._tradeProp;
-  const ad = tp.askDraft || { targetTeamId: TEAMS.find(t => t.id !== myId).id, wantNames: [], refundAmount: 0, refundYears: 0, refundDirection: "theyPay" };
-  const targetTeam = getTeam(ad.targetTeamId);
-  const theirRoster = franchise.rosters[ad.targetTeamId] || [];
-  const maxRefundYears = player.contract?.remaining || 1;
+  const ad = tp.askDraft || { askedPicks:{}, refundAmount:0, refundYears:0, refundDirection:"theyPay", minPlayerGrade:"" };
+  const maxRefundYears = Math.max(player.contract?.remaining || 1, 1);
 
-  // Value preview including refund sweetener
-  const giveValue = _playerTradeValue(player);
-  const wantPlayers = ad.wantNames.map(n => theirRoster.find(p => p.name === n)).filter(Boolean);
-  const wantValue = wantPlayers.reduce((s,p) => s + _playerTradeValue(p), 0);
+  const totalPicks = Object.values(ad.askedPicks || {}).reduce((s,n) => s + n, 0);
   const refundTotal = (ad.refundAmount || 0) * (ad.refundYears || 0);
-  const refundUnits = refundTotal * 1.5;
-  const ratio = wantValue ? (giveValue + refundUnits) / wantValue : 0;
-  const likelihood = !wantValue ? "—"
-    : ratio >= 0.95 ? "Very likely — instant accept"
-    : ratio >= 0.65 ? "Probably counter"
-    : "Way too lopsided — they'll reject";
-  const lkColor = !wantValue ? "var(--gray)"
-    : ratio >= 0.95 ? "var(--green-lt)"
-    : ratio >= 0.65 ? "#e8a000"
-    : "var(--red)";
 
-  const teamOptionsHtml = TEAMS.filter(t => t.id !== myId).map(t =>
-    `<option value="${t.id}" ${t.id===ad.targetTeamId?"selected":""}>${t.city} ${t.name}</option>`
-  ).join("");
+  // Pick demand inputs — 1st through 7th round
+  const pickInputs = [1,2,3,4,5,6,7].map(r => `
+    <label class="frn-pick-input">
+      <span class="frn-meta-label">RD ${r}</span>
+      <input type="number" min="0" max="5" step="1" value="${ad.askedPicks?.[r] || 0}"
+        onchange="frnAskSetPicks(${r}, this.value)">
+    </label>
+  `).join("");
 
-  const sortedTheirRoster = _sortRoster(theirRoster, tp.sortBy || "grade");
-  const wantSet = new Set(ad.wantNames);
-  const rosterRows = sortedTheirRoster.map(p => {
-    const escName = (p.name||"").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-    const sel = wantSet.has(p.name);
-    return `<label class="frn-trade-player ${sel?"selected":""}">
-      <input type="checkbox" ${sel?"checked":""}
-        onchange="frnAskToggleWant('${escName}')">
-      <span style="color:var(--gold);font-size:.58rem;font-weight:700">${p.position}</span>
-      <span style="flex:1;font-weight:${sel?700:400}">${p.name}</span>
-      <span>${gradeBadge(p)}</span>
-      <span style="color:var(--gray);font-size:.62rem">${p.age||"?"}</span>
-      <span style="color:var(--gold);font-size:.62rem">$${(p.contract?.aav||0).toFixed(0)}M</span>
-    </label>`;
-  }).join("");
-
-  // Side-cash preview — dead cap (you pay) or extra income (they pay)
-  const refundDir = ad.refundDirection || "youPay";
+  const refundDir = ad.refundDirection || "theyPay";
   const refundLine = refundTotal > 0
     ? `<div class="frn-refund-summary ${refundDir==="theyPay"?"income":""}">
          ${refundDir === "youPay"
            ? `You pay them <b style="color:var(--red)">$${(ad.refundAmount||0).toFixed(1)}M/yr × ${ad.refundYears}yr</b> = total <b>$${refundTotal.toFixed(1)}M dead cap</b>.`
-           : `They pay you <b style="color:var(--green-lt)">$${(ad.refundAmount||0).toFixed(1)}M/yr × ${ad.refundYears}yr</b> = total <b>$${refundTotal.toFixed(1)}M extra income</b>.`}
-         Years cap at the player's remaining contract (${maxRefundYears}yr).
+           : `They pay you <b style="color:var(--green-lt)">$${(ad.refundAmount||0).toFixed(1)}M/yr × ${ad.refundYears}yr</b> = total <b>$${refundTotal.toFixed(1)}M income</b>.`}
        </div>`
     : "";
+
+  // Summary line
+  const askLine = [];
+  for (const [r, n] of Object.entries(ad.askedPicks || {})) {
+    if (n > 0) askLine.push(`${n}× R${r}`);
+  }
+  if (refundTotal > 0) {
+    askLine.push(refundDir === "theyPay"
+      ? `+$${ad.refundAmount.toFixed(1)}M/yr×${ad.refundYears}yr`
+      : `−$${ad.refundAmount.toFixed(1)}M/yr×${ad.refundYears}yr eaten`);
+  }
+  if (ad.minPlayerGrade) askLine.push(`${ad.minPlayerGrade}+ player`);
 
   return `
     <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem;flex-wrap:wrap">
       <button class="btn btn-outline" onclick="frnCancelAsk()">← Back</button>
-      <div style="font-weight:900">Set ask for ${player.name}</div>
+      <div style="font-weight:900">Set price for ${player.name}</div>
       <div style="color:var(--gray);font-size:.7rem">(${player.position}, age ${player.age||"?"}, ${gradeLabel(scoutGrade(player))} · contract ${player.contract?.remaining||0}yr left @ $${(player.contract?.aav||0).toFixed(1)}M)</div>
     </div>
     <div class="frn-fa-summary">
-      Target team:
-      <select onchange="frnAskSetTarget(this.value)" style="background:var(--bg3);color:var(--white);border:1px solid var(--border);padding:.25rem .4rem;font-family:inherit">${teamOptionsHtml}</select>
-      <span style="margin-left:auto;color:${lkColor};font-weight:700">${likelihood}</span>
+      <span style="color:var(--gray)">Asking price is <b style="color:var(--gold)">public</b> — every team sees it. Anyone whose package matches sends an offer next week.</span>
     </div>
-    <div class="frn-card-title">YOU WANT FROM ${targetTeam?.name||"?"} (${ad.wantNames.length})</div>
-    <div class="frn-trade-list" style="max-height:380px;overflow-y:auto">${rosterRows}</div>
-    <div class="frn-card-title" style="margin-top:.7rem">💰 TRANSFER FEE (OPTIONAL)</div>
+
+    <div class="frn-card-title" style="margin-top:.6rem">📋 DRAFT PICKS DEMANDED</div>
     <div style="color:var(--gray);font-size:.68rem;margin-bottom:.3rem">
-      Cash attached to the deal, paid annually for N years (like a soccer transfer fee, but spread out and bidirectional):
-      <b style="color:var(--green-lt)">They pay you</b> = premium for taking the player (their cap up, yours down).
-      <b style="color:var(--red)">You pay them</b> = you eat dead cap to sweeten the trade (your cap up, theirs down).
+      How many picks at each round you want. Years are flexible — teams ship the nearest matching pick they own.
     </div>
+    <div class="frn-pick-grid">${pickInputs}</div>
+
+    <div class="frn-card-title" style="margin-top:.7rem">💰 CASH / TRANSFER FEE (OPTIONAL)</div>
     <div class="frn-cash-dir">
       <button class="frn-sort-btn ${refundDir==="theyPay"?"active":""}" onclick="frnAskSetRefund('direction','theyPay')">📥 They pay you (premium)</button>
       <button class="frn-sort-btn ${refundDir==="youPay"?"active":""}" onclick="frnAskSetRefund('direction','youPay')">📤 You pay them (sweetener)</button>
@@ -19313,10 +19480,25 @@ function _renderBlockAskForm(playerName) {
       </label>
     </div>
     ${refundLine}
+
+    <div class="frn-card-title" style="margin-top:.7rem">👤 MINIMUM PLAYER GRADE (OPTIONAL)</div>
+    <div style="color:var(--gray);font-size:.68rem;margin-bottom:.3rem">
+      Require a player of at least this grade in addition to picks/cash. Leave blank if you just want picks + cash.
+    </div>
+    <select onchange="frnAskSetMinGrade(this.value)" style="background:var(--bg3);color:var(--white);border:1px solid var(--border);padding:.3rem .5rem;font-family:inherit;font-size:.72rem">
+      ${["","A+","A","A-","B+","B","B-","C+","C"].map(g =>
+        `<option value="${g}" ${g===ad.minPlayerGrade?"selected":""}>${g||"— none —"}</option>`).join("")}
+    </select>
+
+    <div class="frn-fa-summary" style="margin-top:.7rem;background:var(--bg3);border-left:3px solid var(--gold)">
+      <b style="color:var(--gold)">Asking price:</b>
+      <span>${askLine.length ? askLine.join(" + ") : "<i>nothing yet — set picks, cash, or a player minimum.</i>"}</span>
+    </div>
+
     <div class="frn-actions" style="justify-content:center;margin-top:.7rem">
       <button class="btn btn-gold-big" onclick="frnSubmitAsk()"
-        ${ad.wantNames.length===0?"disabled style=\"opacity:.5;cursor:not-allowed\"":""}>
-        📨 SEND PROPOSAL
+        ${(totalPicks===0 && refundTotal===0 && !ad.minPlayerGrade)?"disabled style=\"opacity:.5;cursor:not-allowed\"":""}>
+        📨 LIST ON BLOCK
       </button>
     </div>`;
 }
@@ -19342,23 +19524,40 @@ function _renderTradeMarketTab(myId, sortBy) {
 
   if (!all.length) return `<div style="color:var(--gray);font-size:.78rem;padding:1rem;text-align:center;font-style:italic">No players currently on the league trade block.</div>`;
 
-  const rows = all.map(({p, t}) => `<tr>
-    <td style="color:var(--gold);font-size:.62rem">${p.position}</td>
-    <td style="font-weight:700">${p.name}</td>
-    <td>${gradeBadge(p)}</td>
-    <td style="color:var(--gray)">${p.age||"?"}</td>
-    <td style="color:var(--gray);font-size:.66rem">${t.city} ${t.name}</td>
-    <td style="color:var(--gold)">$${(p.contract?.aav||0).toFixed(1)}M</td>
-    <td><button class="btn btn-gold" style="font-size:.6rem;padding:.2rem .55rem"
-      onclick="frnOpenTrade(${t.id},'propose')">→ Propose</button></td>
-  </tr>`).join("");
+  const rows = all.map(({p, t}) => {
+    const ask = p.blockAsk;
+    const askPieces = [];
+    if (ask?.askedPicks) {
+      for (const [r, n] of Object.entries(ask.askedPicks)) {
+        if (n > 0) askPieces.push(`${n}× R${r}`);
+      }
+    }
+    if (ask?.refund && ask.refund.amount > 0) {
+      const sign = (ask.refund.direction||"theyPay") === "theyPay" ? "+" : "−";
+      askPieces.push(`${sign}$${ask.refund.amount.toFixed(1)}M×${ask.refund.years}yr`);
+    }
+    if (ask?.minPlayerGrade) askPieces.push(`${ask.minPlayerGrade}+ player`);
+    const askLabel = askPieces.length
+      ? `<span style="color:var(--gold-lt);font-size:.62rem">${askPieces.join(" + ")}</span>`
+      : `<span style="color:var(--gray);font-size:.62rem;font-style:italic">no price set</span>`;
+    return `<tr>
+      <td style="color:var(--gold);font-size:.62rem">${p.position}</td>
+      <td style="font-weight:700">${p.name}</td>
+      <td>${gradeBadge(p)}</td>
+      <td style="color:var(--gray)">${p.age||"?"}</td>
+      <td style="color:var(--gray);font-size:.66rem">${t.city} ${t.name}</td>
+      <td>${askLabel}</td>
+      <td><button class="btn btn-gold" style="font-size:.6rem;padding:.2rem .55rem"
+        onclick="frnOpenTrade(${t.id},'propose')">→ Propose</button></td>
+    </tr>`;
+  }).join("");
 
   return `
     <div style="color:var(--gray);font-size:.72rem;margin-bottom:.5rem">
       ${all.length} player${all.length>1?"s":""} on the block league-wide. Click <b>Propose</b> to open a trade with their team.
     </div>
     <table class="frn-pre-roster-table">
-      <thead><tr><th>Pos</th><th>Player</th><th>Grade</th><th>Age</th><th>Team</th><th>AAV</th><th></th></tr></thead>
+      <thead><tr><th>Pos</th><th>Player</th><th>Grade</th><th>Age</th><th>Team</th><th>Asking</th><th></th></tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
 }
@@ -19378,30 +19577,67 @@ function _renderTradeOffersTab() {
       : o.status === "accepted" ? `<span class="frn-offer-status accepted">ACCEPTED</span>`
       : o.status === "rejected" ? `<span class="frn-offer-status rejected">REJECTED</span>`
       : `<span class="frn-offer-status stale">STALE</span>`;
-    const cardBlock = (label, players, color) => `
-      <div class="frn-offer-side">
-        <div class="frn-offer-side-label" style="color:${color}">${label}</div>
-        ${players.length ? players.map(p => `<div class="frn-offer-player">
-          <span style="color:var(--gold);font-size:.58rem;font-weight:700">${p.position}</span>
-          <span style="font-weight:700">${p.name}</span>
-          <span>${gradeBadge(p)}</span>
-          <span style="color:var(--gray);font-size:.62rem">${p.age||"?"}</span>
-        </div>`).join("") : `<div style="color:var(--gray);font-style:italic;font-size:.65rem">No longer available</div>`}
-      </div>`;
+    // Build "they give" items: players + picks + refund
+    const giveItems = [];
+    for (const p of theyGive) giveItems.push(`<div class="frn-offer-player">
+      <span style="color:var(--gold);font-size:.58rem;font-weight:700">${p.position}</span>
+      <span style="font-weight:700">${p.name}</span>
+      <span>${gradeBadge(p)}</span>
+      <span style="color:var(--gray);font-size:.62rem">${p.age||"?"}</span>
+    </div>`);
+    if (o.pickIds && o.pickIds.length) {
+      // Group by round for display
+      const byRd = {};
+      for (const pid of o.pickIds) {
+        const [yr, rd] = pid.split("-");
+        const k = `${yr}-${rd}`;
+        byRd[k] = (byRd[k] || 0) + 1;
+      }
+      for (const [k, count] of Object.entries(byRd)) {
+        const [yr, rd] = k.split("-");
+        giveItems.push(`<div class="frn-offer-player">
+          <span style="color:#7fbfff;font-size:.58rem;font-weight:700">PICK</span>
+          <span style="font-weight:700">${count>1?count+"× ":""}${yr} R${rd}</span>
+        </div>`);
+      }
+    }
+    if (o.refund && o.refund.amount > 0 && o.refund.years > 0) {
+      const dir = o.refund.direction || "theyPay";
+      const lbl = dir === "theyPay" ? "+$" : "−$";
+      const color = dir === "theyPay" ? "var(--green-lt)" : "var(--red)";
+      giveItems.push(`<div class="frn-offer-player">
+        <span style="color:${color};font-size:.58rem;font-weight:700">CASH</span>
+        <span style="font-weight:700">${lbl}${o.refund.amount.toFixed(1)}M/yr × ${o.refund.years}yr</span>
+      </div>`);
+    }
+
+    const giveCol = `<div class="frn-offer-side">
+      <div class="frn-offer-side-label" style="color:var(--green-lt)">THEY GIVE</div>
+      ${giveItems.length ? giveItems.join("") : `<div style="color:var(--gray);font-style:italic;font-size:.65rem">No longer available</div>`}
+    </div>`;
+    const wantCol = `<div class="frn-offer-side">
+      <div class="frn-offer-side-label" style="color:var(--gold-lt)">THEY WANT</div>
+      ${theyWant.length ? theyWant.map(p => `<div class="frn-offer-player">
+        <span style="color:var(--gold);font-size:.58rem;font-weight:700">${p.position}</span>
+        <span style="font-weight:700">${p.name}</span>
+        <span>${gradeBadge(p)}</span>
+        <span style="color:var(--gray);font-size:.62rem">${p.age||"?"}</span>
+      </div>`).join("") : `<div style="color:var(--gray);font-style:italic;font-size:.65rem">No longer available</div>`}
+    </div>`;
     return `<div class="frn-offer-card ${o.status}">
       <div class="frn-offer-head">
         <div>
           <div style="font-weight:900">${fromTeam?.city||"?"} ${fromTeam?.name||"?"}</div>
           <div style="color:var(--gray);font-size:.65rem">
-            ${o.isCounter ? "📬 Counter — Week " + o.week : "Week " + o.week + " offer"}
+            ${o.isFromAsk ? "💰 Meeting your ask" : o.isCounter ? "📬 Counter" : "Offer"} · Week ${o.week}
           </div>
         </div>
         ${statusBadge}
       </div>
       <div class="frn-offer-bodies">
-        ${cardBlock("THEY GIVE", theyGive, "var(--green-lt)")}
+        ${giveCol}
         <div class="frn-offer-arrow">⇄</div>
-        ${cardBlock("THEY WANT", theyWant, "var(--gold-lt)")}
+        ${wantCol}
       </div>
       ${o.status === "pending" ? `
         <div class="frn-offer-actions">
@@ -19466,18 +19702,27 @@ function _buildDraftClass(rookieYear) {
 }
 
 function _buildDraftPickOrder() {
-  // Pick order = reverse standings; worst team picks 1.1. Champions pick last.
+  // Pick slot order = reverse standings of ORIGINAL pick owner; worst
+  // team's pick goes 1.1. But the actual team making the pick is the
+  // CURRENT owner of that pick (whoever traded for it).
   const sorted = TEAMS.slice().sort((a, b) => {
     const sa = franchise.standings?.[a.id] || { w:0, l:0, pf:0, pa:0 };
     const sb = franchise.standings?.[b.id] || { w:0, l:0, pf:0, pa:0 };
-    // worst record first; tiebreak on point differential (lower = worse)
     const diffA = (sa.pf||0) - (sa.pa||0);
     const diffB = (sb.pf||0) - (sb.pa||0);
     return (sa.w - sa.l) - (sb.w - sb.l) || (diffA - diffB);
   });
+  // Use upcoming draft year (season + 1 in real-clock terms)
+  const draftYear = (new Date().getFullYear()) + (franchise.season || 1);
+  _ensurePicksForYear(draftYear);
   const order = [];
   for (let r = 1; r <= 7; r++) {
-    for (const t of sorted) order.push({ round: r, teamId: t.id });
+    for (const origTeam of sorted) {
+      const pick = (franchise.picks || []).find(p =>
+        p.year === draftYear && p.round === r && p.originalTeamId === origTeam.id);
+      const ownerId = pick?.currentOwnerId ?? origTeam.id;
+      order.push({ round: r, teamId: ownerId, originalTeamId: origTeam.id, year: draftYear });
+    }
   }
   return order;
 }
@@ -19645,6 +19890,12 @@ function _draftFinalize() {
       }
     }
   }
+  // Consume this draft's picks from inventory; mint a new future year
+  // of picks so each team always has 3 years of capital tradable.
+  const draftYear = rookieYear;
+  franchise.picks = (franchise.picks || []).filter(p => p.year !== draftYear);
+  const lastYear = (franchise.picks || []).reduce((m,p) => Math.max(m, p.year), draftYear);
+  _ensurePicksForYear(lastYear + 1);
   franchise.draft = null;
   // Bump into the new season (FA → regular)
   frnNewSeason();
