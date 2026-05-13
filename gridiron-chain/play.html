@@ -18443,8 +18443,9 @@ function frnToggleBlock(name) {
   const p = myRoster.find(rp => rp.name === name);
   if (!p) return;
   p.onTradeBlock = !p.onTradeBlock;
-  // When user puts a player up, fire an immediate AI offer roll
-  if (p.onTradeBlock) _generateAIOffersForBlockedPlayer(p);
+  // No immediate offers — other owners can't see the listing until the
+  // week wraps up. Offers roll in during _runWeekEndResolution when the
+  // user clicks "Advance to Week N+1".
   saveFranchise();
   renderFrnTrade();
 }
@@ -18776,7 +18777,7 @@ function _renderTradeBlockTab(myRoster, sortBy) {
   }).join("");
   return `
     <div style="color:var(--gray);font-size:.72rem;margin-bottom:.5rem">
-      Mark players as available. Each week, AI teams send offers for players on your block — find them in the OFFERS tab.
+      Mark players as available. Listings go public when the week ends — offers arrive on the dashboard at the start of next week's review. Find them in the OFFERS tab.
     </div>
     <table class="frn-pre-roster-table">
       <thead><tr><th>Pos</th><th>Player</th><th>Grade</th><th>Age</th><th>AAV</th><th>Yrs</th><th></th></tr></thead>
