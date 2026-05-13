@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>GridironChain — Football Simulator</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏈</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Bebas+Neue&family=Anton&family=Teko:wght@600;700&display=swap" rel="stylesheet">
 <style>
   :root {
     --green: #1a5c2e; --green-lt: #2e8b57; --green-dk: #0d3318;
@@ -2147,6 +2150,319 @@
     0%   { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
     40%  { transform: translate(-50%, -50%) scale(1.15); opacity: 1; }
     100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  }
+
+  /* ──────────────────────────────────────────────────────────────────────
+     BSPN box-score (ESPN-parody retro broadcast). All rules scoped under
+     .bspn-root so they don't leak into the rest of franchise mode.
+     Mirrors src/components/bspn/bspn.css from the React app.
+     ────────────────────────────────────────────────────────────────────── */
+  .bspn-root {
+    --bspn-bg:        #050607;
+    --bspn-bg2:       #0d1015;
+    --bspn-bg3:       #141821;
+    --bspn-border:    #1f2630;
+    --bspn-border-strong: #2c3441;
+    --bspn-white:     #e6ebf0;
+    --bspn-gray:      #79858f;
+    --bspn-gray-dim:  #4b545d;
+    --bspn-gold:      #f5c542;
+    --bspn-terminal:  #4be36b;
+    --bspn-red:       #ff3939;
+    --away-color: #888;
+    --home-color: #888;
+
+    background:
+      radial-gradient(ellipse at top, rgba(80,80,90,0.06), transparent 65%),
+      var(--bspn-bg);
+    color: var(--bspn-white);
+    font-family: "IBM Plex Mono","JetBrains Mono","Roboto Mono","Courier New",monospace;
+    font-size: 13px; line-height: 1.4; letter-spacing: 0.2px;
+    margin: -1rem -1.5rem 0 -1.5rem;  /* break out of franchise main padding */
+    padding: 0 0 1.5rem 0;
+    min-height: 100vh; position: relative;
+  }
+  .bspn-root *,
+  .bspn-root *::before,
+  .bspn-root *::after { box-sizing: border-box; }
+  .bspn-root::after {
+    content: ""; position: fixed; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,0) 0, rgba(0,0,0,0) 2px, rgba(0,0,0,0.04) 3px, rgba(0,0,0,0) 4px);
+    z-index: 100; mix-blend-mode: multiply;
+  }
+  .bspn-num { font-variant-numeric: tabular-nums; }
+
+  /* Header */
+  .bspn-header {
+    display: flex; align-items: center; gap: 2rem;
+    padding: .6rem 1.4rem;
+    border-bottom: 1px solid var(--bspn-border-strong);
+    background: linear-gradient(180deg, #0a0d12 0%, #050607 100%);
+  }
+  .bspn-logo {
+    font-family: "Bebas Neue","Anton","Arial Black",sans-serif;
+    font-size: 2.4rem; font-weight: 900; color: var(--bspn-red);
+    letter-spacing: -2px; font-style: italic; transform: skewX(-7deg);
+    text-shadow: 0 0 14px rgba(255,57,57,0.45), 0 1px 0 #200;
+    line-height: 1;
+  }
+  .bspn-nav { display: flex; gap: 1.4rem; flex: 1; }
+  .bspn-nav-item {
+    color: var(--bspn-gray); font-weight: 600; font-size: .78rem;
+    letter-spacing: 1.5px; text-transform: uppercase;
+    background: transparent; border: 0; cursor: pointer; padding: 0;
+    position: relative; font-family: inherit;
+  }
+  .bspn-nav-item.active { color: var(--bspn-white); }
+  .bspn-nav-item.active::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: -.7rem;
+    height: 2px; background: var(--bspn-red);
+  }
+  .bspn-header-right {
+    display: flex; align-items: center; gap: 1rem;
+    color: var(--bspn-gray); font-size: 1.1rem;
+  }
+  .bspn-subbar { padding: .5rem 1.4rem; border-bottom: 1px solid var(--bspn-border); }
+  .bspn-back {
+    background: transparent; border: 0; color: var(--bspn-gray);
+    font-family: inherit; font-size: .72rem; letter-spacing: 1px;
+    cursor: pointer; padding: 0;
+  }
+  .bspn-back:hover { color: var(--bspn-white); }
+
+  /* Layout */
+  .bspn-container { padding: 1rem 1.4rem; max-width: 1480px; margin: 0 auto; }
+  .bspn-grid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 1rem; }
+  @media (max-width: 1100px) { .bspn-grid { grid-template-columns: 1fr; } }
+
+  /* Panels */
+  .bspn-panel {
+    background: var(--bspn-bg2); border: 1px solid var(--bspn-border);
+    padding: .8rem 1rem; margin-bottom: 1rem; position: relative;
+  }
+  .bspn-panel-title {
+    font-size: .7rem; font-weight: 700; letter-spacing: 1.5px;
+    color: var(--bspn-terminal); text-transform: uppercase;
+    margin-bottom: .6rem; padding-bottom: .4rem;
+    border-bottom: 1px dashed var(--bspn-border-strong);
+  }
+  .bspn-panel-title.accent-gold { color: var(--bspn-gold); }
+
+  /* Game summary strip */
+  .bspn-summary {
+    display: grid; grid-template-columns: 1fr auto 1fr;
+    gap: 1.5rem; align-items: center;
+    padding: 1.5rem 2rem; margin-bottom: 1rem;
+    background: var(--bspn-bg2); border: 1px solid var(--bspn-border);
+  }
+  .bspn-summary-team { display: flex; align-items: center; gap: 1.2rem; }
+  .bspn-summary-team.right { flex-direction: row-reverse; }
+  .bspn-summary-team-block { display: flex; flex-direction: column; }
+  .bspn-summary-team.right .bspn-summary-team-block { align-items: flex-end; }
+  .bspn-summary-team-mark {
+    width: 80px; height: 80px;
+    border: 1px solid var(--bspn-border-strong);
+    display: flex; align-items: center; justify-content: center;
+    background: var(--bspn-bg3); color: var(--team-color, var(--bspn-gold));
+    font-size: 1.8rem; line-height: 1; font-family: "IBM Plex Mono", monospace;
+    white-space: pre; overflow: hidden;
+  }
+  .bspn-summary-team-name {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1.6rem; line-height: 1; letter-spacing: 1.5px;
+    color: var(--team-color, var(--bspn-white)); font-weight: 700;
+  }
+  .bspn-summary-team-city {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1rem; letter-spacing: 1.5px; color: var(--bspn-gray);
+  }
+  .bspn-summary-team-record {
+    margin-top: .3rem; font-size: .7rem; letter-spacing: 1px;
+    color: var(--bspn-gray);
+  }
+  .bspn-summary-center {
+    display: flex; flex-direction: column; align-items: center; gap: .5rem;
+    min-width: 320px;
+  }
+  .bspn-summary-status {
+    font-size: .65rem; letter-spacing: 2px;
+    color: var(--bspn-terminal); font-weight: 700;
+  }
+  .bspn-summary-quarters {
+    width: 100%; border-collapse: collapse; font-size: .72rem;
+  }
+  .bspn-summary-quarters th,
+  .bspn-summary-quarters td {
+    padding: .25rem .55rem; text-align: center;
+    border-bottom: 1px solid var(--bspn-border);
+  }
+  .bspn-summary-quarters th {
+    color: var(--bspn-gray); font-weight: 600; font-size: .58rem;
+    letter-spacing: 1px;
+  }
+  .bspn-summary-quarters td.total { color: var(--bspn-gold); font-weight: 700; }
+  .bspn-summary-score-wrap { display: flex; align-items: center; gap: .7rem; }
+  .bspn-summary-arrow {
+    color: var(--bspn-gold); font-size: 1.4rem; font-weight: 900;
+    letter-spacing: -2px;
+  }
+
+  /* ScoreNumeral — NOT monospace. Broadcast condensed numerals. */
+  .bspn-score-numeral {
+    font-family: "Anton","Teko","Impact","Arial Black",system-ui,sans-serif;
+    font-size: clamp(4rem, 8vw, 8rem);
+    font-weight: 900; line-height: 0.85;
+    letter-spacing: -0.06em;
+    font-variant-numeric: tabular-nums;
+    color: var(--num-color, #f1f4f7);
+    text-shadow: 0 0 8px rgba(255,255,255,0.18), 0 2px 0 rgba(0,0,0,0.55);
+    font-style: italic;
+  }
+  .bspn-score-numeral.muted {
+    color: #8b95a0; text-shadow: none; opacity: .85;
+  }
+
+  /* Comparison rows */
+  .bspn-comp-row {
+    display: grid;
+    grid-template-columns: 11rem 3rem minmax(0,1fr) 3rem;
+    gap: .7rem; align-items: center;
+    padding: .35rem 0; font-size: .72rem;
+    border-bottom: 1px solid rgba(31,38,48,0.6);
+  }
+  .bspn-comp-row:last-child { border-bottom: 0; }
+  .bspn-comp-label {
+    color: var(--bspn-gray); font-size: .65rem; letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .bspn-comp-label::before { content: "› "; color: var(--bspn-gray-dim); }
+  .bspn-comp-val {
+    font-weight: 700; font-variant-numeric: tabular-nums; color: var(--bspn-white);
+  }
+  .bspn-comp-val.left  { text-align: right; }
+  .bspn-comp-val.right { text-align: left; }
+  .bspn-comp-bars {
+    display: grid; grid-template-columns: 1fr 8px 1fr;
+    align-items: center; height: 8px;
+  }
+  .bspn-comp-bar-l { display: flex; justify-content: flex-end; height: 8px; }
+  .bspn-comp-bar-r { display: flex; justify-content: flex-start; height: 8px; }
+  .bspn-comp-bar-l > span, .bspn-comp-bar-r > span {
+    display: block; height: 100%; box-shadow: 0 0 6px currentColor;
+  }
+  .bspn-comp-bar-divider {
+    width: 1px; height: 14px; background: var(--bspn-border-strong); margin: 0 auto;
+  }
+
+  /* Stat tables */
+  .bspn-stat-group { margin-bottom: 1.1rem; }
+  .bspn-stat-group-title {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: .72rem; font-weight: 700; letter-spacing: 1.5px;
+    color: var(--bspn-gold); margin-bottom: .35rem;
+  }
+  .bspn-stat-table {
+    width: 100%; border-collapse: collapse; font-size: .72rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .bspn-stat-table th, .bspn-stat-table td {
+    padding: .25rem .4rem;
+    border-bottom: 1px solid var(--bspn-border);
+  }
+  .bspn-stat-table th {
+    color: var(--bspn-gray); font-weight: 600; font-size: .58rem;
+    letter-spacing: 1px; text-transform: uppercase;
+  }
+  .bspn-stat-table th[data-align="right"], .bspn-stat-table td[data-align="right"] { text-align: right; }
+  .bspn-stat-table th[data-align="center"],.bspn-stat-table td[data-align="center"] { text-align: center; }
+  .bspn-stat-table td:first-child { color: var(--bspn-white); font-weight: 600; }
+  .bspn-stat-table tr:last-child td { border-bottom: 0; }
+
+  /* Team box-score panel */
+  .bspn-team-box-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: .8rem; padding-bottom: .5rem;
+    border-bottom: 1px solid var(--team-color, var(--bspn-border));
+  }
+  .bspn-team-box-name {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1.3rem; letter-spacing: 1.5px;
+    color: var(--team-color, var(--bspn-white));
+  }
+  .bspn-team-box-record { color: var(--bspn-gray); font-size: .65rem; letter-spacing: 1px; }
+  .bspn-teams-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+  @media (max-width: 900px) { .bspn-teams-row { grid-template-columns: 1fr; } }
+
+  /* Scoring summary */
+  .bspn-scoring-table {
+    width: 100%; border-collapse: collapse;
+    font-size: .68rem; font-variant-numeric: tabular-nums;
+  }
+  .bspn-scoring-table th, .bspn-scoring-table td {
+    padding: .3rem .35rem;
+    border-bottom: 1px solid var(--bspn-border);
+  }
+  .bspn-scoring-table th {
+    color: var(--bspn-gray); font-weight: 600; font-size: .56rem;
+    letter-spacing: 1px; text-transform: uppercase; text-align: left;
+  }
+  .bspn-scoring-table td.qtr  { color: var(--bspn-gold); font-weight: 700; width: 2.2rem; }
+  .bspn-scoring-table td.time { color: var(--bspn-gray); width: 3rem; }
+  .bspn-scoring-table td.team { font-weight: 700; width: 2.6rem; }
+  .bspn-scoring-table td.score { color: var(--bspn-terminal); font-weight: 700; text-align: right; width: 3.5rem; }
+  .bspn-scoring-legend { margin-top: .5rem; color: var(--bspn-gray-dim); font-size: .56rem; letter-spacing: 1px; }
+
+  /* Leaders */
+  .bspn-leader-row {
+    display: grid; grid-template-columns: 36px 1fr;
+    gap: .65rem; padding: .55rem 0;
+    border-bottom: 1px solid var(--bspn-border);
+  }
+  .bspn-leader-row:last-child { border-bottom: 0; }
+  .bspn-leader-helm {
+    width: 36px; height: 36px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--bspn-bg3); border: 1px solid var(--bspn-border-strong);
+    color: var(--team-color, var(--bspn-white));
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: .7rem; letter-spacing: 1px; line-height: 1;
+  }
+  .bspn-leader-meta { min-width: 0; }
+  .bspn-leader-cat { font-size: .56rem; letter-spacing: 1.5px; color: var(--bspn-gray); font-weight: 700; margin-bottom: .15rem; }
+  .bspn-leader-name { font-size: .82rem; font-weight: 700; color: var(--bspn-white); }
+  .bspn-leader-team {
+    margin-left: .4rem; font-size: .58rem; font-weight: 700;
+    letter-spacing: 1px; color: var(--team-color, var(--bspn-gold));
+  }
+  .bspn-leader-stat { font-size: .64rem; color: var(--bspn-gray); letter-spacing: .5px; margin-top: .1rem; }
+
+  /* Notes */
+  .bspn-notes { list-style: none; padding: 0; margin: 0; }
+  .bspn-notes li {
+    position: relative; padding: .35rem 0 .35rem 1.1rem;
+    font-size: .68rem; color: var(--bspn-white);
+    border-bottom: 1px solid var(--bspn-border);
+  }
+  .bspn-notes li:last-child { border-bottom: 0; }
+  .bspn-notes li::before { content: "›"; position: absolute; left: 0; color: var(--bspn-gold); font-weight: 700; }
+
+  /* Footer */
+  .bspn-footer {
+    margin-top: 1.4rem; padding: 1rem 1.4rem;
+    border-top: 1px solid var(--bspn-border-strong);
+    display: grid; grid-template-columns: 1fr auto 1fr;
+    align-items: center; gap: 1rem;
+    background: var(--bspn-bg2); font-family: "IBM Plex Mono", monospace;
+  }
+  .bspn-footer-field { color: var(--bspn-gray-dim); font-size: .55rem; white-space: pre; overflow: hidden; }
+  .bspn-footer-field.right { text-align: right; }
+  .bspn-footer-center {
+    text-align: center; color: var(--bspn-terminal);
+    letter-spacing: 3px; font-weight: 700; font-size: .8rem;
+  }
+  .bspn-footer-center .sub {
+    display: block; color: var(--bspn-gray); font-size: .56rem;
+    letter-spacing: 2.5px; margin-top: .25rem; font-weight: 600;
   }
 </style>
 </head>
@@ -18743,9 +19059,558 @@ function _bsCompRow(label, aVal, hVal, awayColor, homeColor, fmt) {
     <div class="v-right">${fmtFn(h)}</div>
   </div>`;
 }
-// Tiny ASCII football-field strip for the bottom footer.
-const _BS_FOOTER_FIELD_L = "x x x x x  ──────  ╨";
-const _BS_FOOTER_FIELD_R = "╨  ──────  x x x x x";
+// ── BSPN box-score: adapter + vanilla-JS render ─────────────────────────────
+// Mirrors the React BSPN system (src/components/bspn/*) but lives inline in
+// play.html so franchise mode can use it without crossing app boundaries.
+// _franchiseGameToBSPNData() is the only place that knows the franchise
+// schedule game shape; everything below consumes BSPNBoxScoreData only.
+
+function _bspnAbbr(team) {
+  if (!team) return "TBD";
+  const c = (team.city || "").trim();
+  const n = (team.name || "").trim();
+  if (c && n) return (c[0] + n.slice(0, 2)).toUpperCase();
+  return (n || "TBD").slice(0, 3).toUpperCase();
+}
+function _bspnEsc(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function _bspnTeamFromFranchise(team, recordStr) {
+  if (!team) return { id: "tbd", name: "TBD", abbreviation: "TBD",
+                      primaryColor: "#888", secondaryColor: "#444" };
+  return {
+    id: team.id,
+    name: team.name,
+    city: team.city,
+    abbreviation: _bspnAbbr(team),
+    record: recordStr || null,
+    primaryColor: team.primary,
+    secondaryColor: team.secondary,
+    asciiMark: null,
+  };
+}
+function _bspnFmtRecord(rec) {
+  if (!rec) return null;
+  const base = `${rec.w||0}-${rec.l||0}${rec.t ? `-${rec.t}` : ""}`;
+  if (rec.confW != null) return `${base} (${rec.confW}-${rec.confL})`;
+  return base;
+}
+function _bspnQuarterScoresFromScoring(scoring) {
+  const out = {};
+  for (const ev of (scoring || [])) {
+    if (ev.isScore === false) continue;
+    if (!ev.pts) continue;
+    const q = Math.max(1, Math.min(8, ev.qtr || 1));
+    out[q] ||= { home: 0, away: 0 };
+    if (ev.poss === "home") out[q].home += ev.pts;
+    else if (ev.poss === "away") out[q].away += ev.pts;
+  }
+  const maxQ = Math.max(4, ...Object.keys(out).map(Number));
+  const arr = [];
+  for (let q = 1; q <= maxQ; q++) {
+    arr.push({
+      periodLabel: q <= 4 ? `Q${q}` : (q === 5 ? "OT" : `OT${q-4}`),
+      away: out[q]?.away || 0, home: out[q]?.home || 0,
+    });
+  }
+  return arr;
+}
+function _bspnBuildComparisonStats(stats) {
+  if (!stats) return [];
+  const aT = stats.away?.totals || {};
+  const hT = stats.home?.totals || {};
+  const fmtTOP = v => `${Math.floor((v||0)/60)}:${String((v||0)%60).padStart(2,"0")}`;
+  const row = (key, label, a, h, fmt) => ({
+    key, label,
+    awayValue: fmt ? fmt(a) : (a||0),
+    homeValue: fmt ? fmt(h) : (h||0),
+    awayBarValue: a||0, homeBarValue: h||0,
+  });
+  return [
+    row("first_downs",   "FIRST DOWNS",       aT.firstDowns, hT.firstDowns),
+    row("total_yards",   "TOTAL YARDS",       aT.totalYards, hT.totalYards),
+    row("passing_yards", "PASSING YARDS",     aT.passYds,    hT.passYds),
+    row("rushing_yards", "RUSHING YARDS",     aT.rushYds,    hT.rushYds),
+    row("turnovers",     "TURNOVERS",         aT.turnovers,  hT.turnovers),
+    row("sacks",         "SACKS",             aT.sacks,      hT.sacks),
+    row("penalties",     "PENALTIES (YDS)",   aT.penaltyYds || aT.penalties || 0, hT.penaltyYds || hT.penalties || 0),
+    row("top",           "TIME OF POSSESSION", aT.topSec,    hT.topSec, fmtTOP),
+  ];
+}
+function _bspnBuildStatGroups(sidePlayers) {
+  const players = Object.values(sidePlayers || {});
+  if (!players.length) return [];
+  const filter = (fn, sortKey) => players
+    .filter(fn).sort((a,b) => (b[sortKey]||0) - (a[sortKey]||0));
+  const pNameCell = p => (typeof playerLinkByName === "function"
+    ? playerLinkByName(p.name)
+    : _bspnEsc(p.name));
+  const passingRows = filter(p => (p.pass_att||0) > 0, "pass_yds").map(p => ({
+    id: `pass-${p.name}`, cells: {
+      player: pNameCell(p),
+      cmp: p.pass_comp || 0, att: p.pass_att || 0,
+      yds: p.pass_yds || 0, td: p.pass_td || 0, int: p.pass_int || 0,
+      rtg: p.pass_att ? (((p.pass_comp||0)/p.pass_att*100*0.5 + (p.pass_yds||0)/p.pass_att*4 + (p.pass_td||0)*5 - (p.pass_int||0)*5).toFixed(1)) : "0.0",
+    },
+  }));
+  const rushingRows = filter(p => (p.rush_att||0) > 0, "rush_yds").map(p => ({
+    id: `rush-${p.name}`, cells: {
+      player: pNameCell(p),
+      att: p.rush_att || 0, yds: p.rush_yds || 0,
+      avg: p.rush_att ? ((p.rush_yds||0)/p.rush_att).toFixed(1) : "0.0",
+      td: p.rush_td || 0, lng: p.rush_long || 0,
+    },
+  }));
+  const receivingRows = filter(p => (p.rec||0) > 0 || (p.rec_tgt||0) > 0, "rec_yds").map(p => ({
+    id: `rec-${p.name}`, cells: {
+      player: pNameCell(p),
+      rec: p.rec || 0, yds: p.rec_yds || 0,
+      avg: p.rec ? ((p.rec_yds||0)/p.rec).toFixed(1) : "0.0",
+      td: p.rec_td || 0, lng: p.rec_long || 0,
+    },
+  }));
+  const defRows = filter(p => ((p.tkl||0)+(p.sk||0)+(p.int_made||0)+(p.pd||0)) > 0, "tkl").map(p => ({
+    id: `def-${p.name}`, cells: {
+      player: pNameCell(p),
+      tkl: p.tkl || 0, ast: p.ast || 0, tfl: p.tfl || 0,
+      sack: (p.sk || 0).toFixed(1).replace(/\.0$/, ""),
+      int: p.int_made || 0, ff: p.ff || 0, fr: p.fr || 0,
+    },
+  }));
+  const kickRows = filter(p => (p.fg_att||0) > 0 || (p.xp_att||0) > 0, "fg_made").map(p => ({
+    id: `k-${p.name}`, cells: {
+      player: pNameCell(p),
+      fgm_fga: `${p.fg_made||0}-${p.fg_att||0}`,
+      lng: p.fg_long || 0,
+      xp: `${p.xp_made||0}-${p.xp_att||0}`,
+      pts: (p.fg_made||0)*3 + (p.xp_made||0),
+    },
+  }));
+  const groups = [];
+  const baseCols = key => [
+    { key: "player", label: "" },
+    ...({
+      pass:    [{key:"cmp",label:"CMP",align:"right"},{key:"att",label:"ATT",align:"right"},{key:"yds",label:"YDS",align:"right"},{key:"td",label:"TD",align:"right"},{key:"int",label:"INT",align:"right"},{key:"rtg",label:"RTG",align:"right"}],
+      rush:    [{key:"att",label:"ATT",align:"right"},{key:"yds",label:"YDS",align:"right"},{key:"avg",label:"AVG",align:"right"},{key:"td",label:"TD",align:"right"},{key:"lng",label:"LNG",align:"right"}],
+      rec:     [{key:"rec",label:"REC",align:"right"},{key:"yds",label:"YDS",align:"right"},{key:"avg",label:"AVG",align:"right"},{key:"td",label:"TD",align:"right"},{key:"lng",label:"LNG",align:"right"}],
+      def:     [{key:"tkl",label:"TKL",align:"right"},{key:"ast",label:"AST",align:"right"},{key:"tfl",label:"TFL",align:"right"},{key:"sack",label:"SACK",align:"right"},{key:"int",label:"INT",align:"right"},{key:"ff",label:"FF",align:"right"},{key:"fr",label:"FR",align:"right"}],
+      kick:    [{key:"fgm_fga",label:"FGM-FGA",align:"right"},{key:"lng",label:"LONG",align:"right"},{key:"xp",label:"XP",align:"right"},{key:"pts",label:"PTS",align:"right"}],
+    })[key],
+  ];
+  if (passingRows.length)   groups.push({ title: "PASSING",   columns: baseCols("pass"), rows: passingRows });
+  if (rushingRows.length)   groups.push({ title: "RUSHING",   columns: baseCols("rush"), rows: rushingRows });
+  if (receivingRows.length) groups.push({ title: "RECEIVING", columns: baseCols("rec"),  rows: receivingRows });
+  if (defRows.length)       groups.push({ title: "DEFENSE",   columns: baseCols("def"),  rows: defRows });
+  if (kickRows.length)      groups.push({ title: "KICKING",   columns: baseCols("kick"), rows: kickRows });
+  return groups;
+}
+function _bspnBuildScoringSummary(scoring, awayT, homeT) {
+  const out = [];
+  for (const ev of (scoring || [])) {
+    if (ev.isScore === false) continue;
+    if (!ev.pts) continue;
+    const tm = ev.poss === "home" ? homeT : awayT;
+    const secs = ev.clock || 0;
+    const mm = String(Math.floor(secs/60)).padStart(2,"0");
+    const ss = String(secs%60).padStart(2,"0");
+    out.push({
+      period: ev.qtr <= 4 ? `Q${ev.qtr}` : "OT",
+      time: `${mm}:${ss}`,
+      teamId: tm.id,
+      description: (ev.desc || "").replace(/\(\+\d+\)/, "").trim(),
+      scoreText: `${ev.awayScore}-${ev.homeScore}`,
+    });
+  }
+  return out;
+}
+function _bspnFantasy(p) {
+  const pos = p.pos;
+  let f = 0;
+  if (pos === "QB") f += (p.pass_yds||0)*0.04 + (p.pass_td||0)*4 - (p.pass_int||0)*2;
+  f += (p.rush_yds||0)*0.1 + (p.rush_td||0)*6;
+  f += (p.rec||0)*1 + (p.rec_yds||0)*0.1 + (p.rec_td||0)*6;
+  f += (p.tkl||0)*1 + (p.sk||0)*2 + (p.int_made||0)*4 + (p.ff||0)*2 + (p.fr||0)*2 + (p.pd||0)*0.5;
+  f += (p.fg_made||0)*3 + (p.xp_made||0)*1;
+  return Math.round(f*10)/10;
+}
+function _bspnBuildLeaders(stats, awayT, homeT) {
+  if (!stats) return { leaderGroups: [], topPerformers: undefined };
+  const all = [
+    ...Object.values(stats.away?.players || {}).map(p => ({ ...p, _team: awayT })),
+    ...Object.values(stats.home?.players || {}).map(p => ({ ...p, _team: homeT })),
+  ];
+  const top = (scoreFn, threshold) => {
+    let best = null, b = -Infinity;
+    for (const p of all) {
+      const s = scoreFn(p);
+      if (s > b && s >= (threshold || 0)) { best = p; b = s; }
+    }
+    return best;
+  };
+  const tp = top(p => p.pass_yds||0, 30);
+  const tr = top(p => p.rush_yds||0, 20);
+  const trc = top(p => p.rec_yds||0, 20);
+  const td = top(p => (p.tkl||0)*1 + (p.sk||0)*3 + (p.int_made||0)*5, 4);
+  const mkLeader = (label, p, statLine) => p ? {
+    label, playerName: p.name, teamId: p._team.id,
+    jersey: p.jersey != null ? String(p.jersey) : "",
+    statLine,
+  } : null;
+  const offRows = [
+    mkLeader("PASSING",  tp,  tp  ? `${tp.pass_comp||0}-${tp.pass_att||0}, ${tp.pass_yds||0} YDS, ${tp.pass_td||0} TD, ${tp.pass_int||0} INT` : ""),
+    mkLeader("RUSHING",  tr,  tr  ? `${tr.rush_att||0} ATT, ${tr.rush_yds||0} YDS, ${tr.rush_td||0} TD` : ""),
+    mkLeader("RECEIVING", trc, trc ? `${trc.rec||0} REC, ${trc.rec_yds||0} YDS, ${trc.rec_td||0} TD` : ""),
+    mkLeader("DEFENSE",  td,  td  ? `${td.tkl||0} TKL, ${td.sk||0} SK${td.int_made?`, ${td.int_made} INT`:""}` : ""),
+  ].filter(Boolean);
+  const topByFp = [...all].sort((a,b) => _bspnFantasy(b) - _bspnFantasy(a)).slice(0, 4);
+  const tpRows = topByFp.map(p => {
+    let detail = "";
+    const pos = p.pos;
+    if (pos === "QB") detail = `${p.pass_yds||0} PASS YDS, ${p.pass_td||0} TD`;
+    else if (pos === "RB") detail = `${p.rush_yds||0} RUSH YDS, ${p.rush_td||0} TD`;
+    else if (pos === "WR" || pos === "TE") detail = `${p.rec_yds||0} REC YDS, ${p.rec_td||0} TD`;
+    else if (pos === "K") detail = `${p.fg_made||0}/${p.fg_att||0} FG`;
+    else detail = `${p.tkl||0} TKL, ${p.sk||0} SK`;
+    return {
+      label: "", playerName: p.name, teamId: p._team.id,
+      jersey: p.jersey != null ? String(p.jersey) : "",
+      statLine: `${_bspnFantasy(p).toFixed(1)} FPTS · ${detail}`,
+      value: _bspnFantasy(p),
+    };
+  });
+  return {
+    leaderGroups: offRows.length ? [{ title: "OFFENSIVE LEADERS", rows: offRows }] : [],
+    topPerformers: tpRows.length ? { title: "GAME LEADERS · TOP PERFORMERS", rows: tpRows } : undefined,
+  };
+}
+function _bspnBuildGameNotes(g, week, awayT, homeT, home, away, homeWon, leaders) {
+  const notes = [];
+  const { topPerformers } = leaders || {};
+  // Conference standings note
+  if (home.conference === away.conference) {
+    const winner = homeWon ? home : away;
+    notes.push(`${winner.city} ${winner.name} improve in conference play.`);
+  }
+  // Career milestones — simple thresholds from raw stats
+  const tp = (leaders.leaderGroups[0]?.rows || []).find(r => r.label === "PASSING");
+  if (tp) {
+    notes.push(`${tp.playerName} — top passing performance of the day.`);
+  }
+  notes.push(`Attendance: ${(_attendanceFor(home, week, franchise.season) || 0).toLocaleString()}`);
+  if (g.weather && g.weather.label && g.weather.label !== "CLEAR") {
+    const w = g.weather;
+    notes.push(`Weather: ${w.tempF ? w.tempF+"°F" : ""} ${w.label}${w.windMph ? `, Wind ${w.windMph} mph` : ""}`.trim());
+  } else {
+    notes.push(`Weather: clear conditions.`);
+  }
+  // Next game for both teams
+  const nextOf = teamId => {
+    const ng = (franchise.schedule || [])
+      .filter(s => !s.played && (s.homeId === teamId || s.awayId === teamId))
+      .sort((a,b) => a.week - b.week)[0];
+    if (!ng) return null;
+    const opp = getTeam(ng.homeId === teamId ? ng.awayId : ng.homeId);
+    const venue = ng.homeId === teamId ? "vs" : "at";
+    return `${_bspnAbbr(getTeam(teamId))} ${venue} ${_bspnAbbr(opp)} (Wk ${ng.week})`;
+  };
+  const nh = nextOf(home.id), na = nextOf(away.id);
+  if (nh || na) notes.push(`Next Game: ${[na, nh].filter(Boolean).join(" · ")}`);
+  return notes.map((t, i) => ({ id: `n${i}`, text: t }));
+}
+
+/** Adapt a franchise schedule entry to BSPNBoxScoreData. */
+function _franchiseGameToBSPNData(g, week) {
+  const home = getTeam(g.homeId), away = getTeam(g.awayId);
+  const homeWon = g.homeScore > g.awayScore;
+  // Records as of this game (after applying its result)
+  const awayRec = _teamRecordAsOf(g.awayId, week);
+  const homeRec = _teamRecordAsOf(g.homeId, week);
+  if (homeWon) {
+    homeRec.w++; awayRec.l++;
+    if (home.conference === away.conference) { homeRec.confW++; awayRec.confL++; }
+  } else if (g.awayScore > g.homeScore) {
+    awayRec.w++; homeRec.l++;
+    if (home.conference === away.conference) { awayRec.confW++; homeRec.confL++; }
+  } else {
+    awayRec.t++; homeRec.t++;
+  }
+  const awayT = _bspnTeamFromFranchise(away, _bspnFmtRecord(awayRec));
+  const homeT = _bspnTeamFromFranchise(home, _bspnFmtRecord(homeRec));
+  const summary = {
+    gameId: `wk${week}-${g.homeId}-${g.awayId}`,
+    status: `WEEK ${week} · FINAL${g.isRivalry?" · RIVALRY":""}`,
+    awayTeam: awayT, homeTeam: homeT,
+    awayScore: g.awayScore || 0, homeScore: g.homeScore || 0,
+    quarterScores: _bspnQuarterScoresFromScoring(g.scoring),
+    winner: homeWon ? "home" : (g.awayScore > g.homeScore ? "away" : "tie"),
+  };
+  const leaders = _bspnBuildLeaders(g.stats, awayT, homeT);
+  return {
+    summary,
+    comparisonStats: _bspnBuildComparisonStats(g.stats),
+    awayBoxScoreGroups: _bspnBuildStatGroups(g.stats?.away?.players),
+    homeBoxScoreGroups: _bspnBuildStatGroups(g.stats?.home?.players),
+    scoringSummary: _bspnBuildScoringSummary(g.scoring, awayT, homeT),
+    leaderGroups: leaders.leaderGroups,
+    topPerformers: leaders.topPerformers,
+    gameNotes: _bspnBuildGameNotes(g, week, awayT, homeT, home, away, homeWon, leaders),
+  };
+}
+
+// ── Renderers ──────────────────────────────────────────────────────────────
+const _BSPN_NAV = ["Scores","News","Box Score","Stats","Teams","Standings"];
+
+function _bspnRenderHeader() {
+  const items = _BSPN_NAV.map(it => {
+    const active = it === "Box Score" ? " active" : "";
+    return `<button type="button" class="bspn-nav-item${active}">${it}</button>`;
+  }).join("");
+  return `<header class="bspn-header">
+    <div class="bspn-logo">BSPN</div>
+    <nav class="bspn-nav">${items}</nav>
+    <div class="bspn-header-right" aria-hidden="true">
+      <span>⌕</span><span>▶ WATCH</span><span>◯</span><span>≡</span>
+    </div>
+  </header>`;
+}
+function _bspnRenderScoreNumeral(value, color, muted) {
+  const cls = `bspn-score-numeral${muted ? " muted" : ""}`;
+  const style = color && !muted ? `style="--num-color:${color}"` : "";
+  return `<span class="${cls}" ${style}>${value}</span>`;
+}
+function _bspnRenderTeamMark(team) {
+  const sz = 80;
+  return `<div class="bspn-summary-team-mark" style="width:${sz}px;height:${sz}px;--team-color:${team.primaryColor}">
+    <span style='font-family:"Bebas Neue","Anton",sans-serif;font-size:.95rem;letter-spacing:2px'>${_bspnEsc(team.abbreviation)}</span>
+  </div>`;
+}
+function _bspnRenderSummary(s) {
+  const awayWon = s.winner === "away", homeWon = s.winner === "home";
+  const teamBlock = (t, side) => {
+    const isWin = side === "away" ? awayWon : homeWon;
+    const otherWon = side === "away" ? homeWon : awayWon;
+    const sclass = side === "home" ? " right" : "";
+    const score = side === "away" ? s.awayScore : s.homeScore;
+    const arrow = isWin
+      ? (side === "away"
+        ? `<span class="bspn-summary-arrow" style="color:${t.primaryColor}">◄</span>`
+        : `<span class="bspn-summary-arrow" style="color:${t.primaryColor}">►</span>`)
+      : "";
+    const scoreEl = _bspnRenderScoreNumeral(score, isWin ? t.primaryColor : undefined, !isWin && otherWon);
+    const recordEl = t.record ? `<span class="bspn-summary-team-record">${_bspnEsc(t.record)}</span>` : "";
+    const cityEl = t.city ? `<span class="bspn-summary-team-city">${_bspnEsc(t.city.toUpperCase())}</span>` : "";
+    const scoreWrap = side === "home"
+      ? `<div class="bspn-summary-score-wrap">${arrow}${scoreEl}</div>`
+      : `<div class="bspn-summary-score-wrap">${scoreEl}${arrow}</div>`;
+    return `<div class="bspn-summary-team${sclass}" style="--team-color:${t.primaryColor}">
+      ${_bspnRenderTeamMark(t)}
+      <div class="bspn-summary-team-block">
+        ${cityEl}
+        <span class="bspn-summary-team-name">${_bspnEsc(t.name.toUpperCase())}</span>
+        ${recordEl}
+      </div>
+      ${scoreWrap}
+    </div>`;
+  };
+  const headerCells = s.quarterScores.map(q => `<th>${q.periodLabel}</th>`).join("");
+  const awayCells = s.quarterScores.map(q => `<td>${q.away ?? 0}</td>`).join("");
+  const homeCells = s.quarterScores.map(q => `<td>${q.home ?? 0}</td>`).join("");
+  return `<section class="bspn-summary">
+    ${teamBlock(s.awayTeam, "away")}
+    <div class="bspn-summary-center">
+      <div class="bspn-summary-status">${_bspnEsc(s.status)}</div>
+      <table class="bspn-summary-quarters">
+        <thead><tr><th></th>${headerCells}<th>TOTAL</th></tr></thead>
+        <tbody>
+          <tr><td style="color:${s.awayTeam.primaryColor};font-weight:700">${s.awayTeam.abbreviation}</td>${awayCells}<td class="total">${s.awayScore}</td></tr>
+          <tr><td style="color:${s.homeTeam.primaryColor};font-weight:700">${s.homeTeam.abbreviation}</td>${homeCells}<td class="total">${s.homeScore}</td></tr>
+        </tbody>
+      </table>
+    </div>
+    ${teamBlock(s.homeTeam, "home")}
+  </section>`;
+}
+function _bspnRenderCompBars(aVal, hVal, aColor, hColor) {
+  const a = Math.max(0, Number(aVal) || 0);
+  const h = Math.max(0, Number(hVal) || 0);
+  const max = Math.max(a, h, 1);
+  const aw = Math.round((a/max)*100);
+  const hw = Math.round((h/max)*100);
+  return `<div class="bspn-comp-bars" aria-hidden="true">
+    <div class="bspn-comp-bar-l"><span style="width:${aw}%;background:${aColor};color:${aColor}"></span></div>
+    <div class="bspn-comp-bar-divider"></div>
+    <div class="bspn-comp-bar-r"><span style="width:${hw}%;background:${hColor};color:${hColor}"></span></div>
+  </div>`;
+}
+function _bspnRenderComparison(stats, awayT, homeT) {
+  if (!stats?.length) {
+    return `<section class="bspn-panel">
+      <div class="bspn-panel-title">TEAM STAT COMPARISON</div>
+      <div style="color:var(--bspn-gray);font-size:.7rem;font-style:italic">
+        No team totals available for this game.
+      </div>
+    </section>`;
+  }
+  const rows = stats.map(s => `<div class="bspn-comp-row">
+    <span class="bspn-comp-label">${_bspnEsc(s.label)}</span>
+    <span class="bspn-comp-val left bspn-num">${_bspnEsc(s.awayValue)}</span>
+    ${_bspnRenderCompBars(s.awayBarValue ?? s.awayValue, s.homeBarValue ?? s.homeValue, awayT.primaryColor, homeT.primaryColor)}
+    <span class="bspn-comp-val right bspn-num">${_bspnEsc(s.homeValue)}</span>
+  </div>`).join("");
+  return `<section class="bspn-panel">
+    <div class="bspn-panel-title">TEAM STAT COMPARISON</div>
+    <div class="bspn-comp-row" style="border-bottom:1px solid var(--bspn-border-strong)">
+      <span class="bspn-comp-label" style="color:var(--bspn-gray)">STAT</span>
+      <span class="bspn-comp-val left" style="color:${awayT.primaryColor}">${awayT.abbreviation}</span>
+      <span></span>
+      <span class="bspn-comp-val right" style="color:${homeT.primaryColor}">${homeT.abbreviation}</span>
+    </div>
+    ${rows}
+  </section>`;
+}
+function _bspnRenderStatTable(group, accentColor) {
+  if (!group || !group.rows?.length) return "";
+  const head = group.columns.map(c => `<th data-align="${c.align||"left"}">${_bspnEsc(c.label)}</th>`).join("");
+  const rows = group.rows.map(r => `<tr>${
+    group.columns.map(c => `<td data-align="${c.align||"left"}">${r.cells?.[c.key] ?? ""}</td>`).join("")
+  }</tr>`).join("");
+  return `<div class="bspn-stat-group">
+    <div class="bspn-stat-group-title" ${accentColor ? `style="color:${accentColor}"` : ""}>
+      <span>${_bspnEsc(group.title)}</span>
+    </div>
+    <table class="bspn-stat-table">
+      <thead><tr>${head}</tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
+function _bspnRenderTeamBox(team, groups) {
+  if (!team) return "";
+  const tables = (groups || []).map(g => _bspnRenderStatTable(g, team.primaryColor)).join("");
+  const empty = (!groups || !groups.length)
+    ? `<div style="color:var(--bspn-gray);font-size:.7rem;font-style:italic">No per-player stats recorded.</div>`
+    : "";
+  const rec = team.record ? `<div class="bspn-team-box-record">${_bspnEsc(team.record)}</div>` : "";
+  return `<section class="bspn-panel" style="--team-color:${team.primaryColor}">
+    <div class="bspn-team-box-head">
+      <div class="bspn-team-box-name">${_bspnEsc((team.name||"").toUpperCase())}</div>
+      ${rec}
+    </div>
+    ${tables}
+    ${empty}
+  </section>`;
+}
+function _bspnRenderScoring(plays, teamsById) {
+  if (!plays?.length) {
+    return `<section class="bspn-panel">
+      <div class="bspn-panel-title">SCORING SUMMARY</div>
+      <div style="color:var(--bspn-gray);font-size:.7rem;font-style:italic">No scoring events.</div>
+    </section>`;
+  }
+  const rows = plays.map(p => {
+    const tm = teamsById[p.teamId];
+    return `<tr>
+      <td class="qtr">${_bspnEsc(p.period)}</td>
+      <td class="time">${_bspnEsc(p.time)}</td>
+      <td class="team" style="color:${tm?.primaryColor || "var(--bspn-white)"}">${_bspnEsc(tm?.abbreviation || "")}</td>
+      <td>${_bspnEsc(p.description)}</td>
+      <td class="score">${_bspnEsc(p.scoreText)}</td>
+    </tr>`;
+  }).join("");
+  return `<section class="bspn-panel">
+    <div class="bspn-panel-title">SCORING SUMMARY</div>
+    <table class="bspn-scoring-table">
+      <thead><tr><th>QTR</th><th>TIME</th><th>TEAM</th><th>PLAY (SCORER)</th><th style="text-align:right">SCORE</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="bspn-scoring-legend">TD = TOUCHDOWN &nbsp;&nbsp; FG = FIELD GOAL &nbsp;&nbsp; XP = EXTRA POINT</div>
+  </section>`;
+}
+function _bspnRenderLeadersGroup(group, teamsById) {
+  if (!group?.rows?.length) return "";
+  const rows = group.rows.map(r => {
+    const tm = teamsById[r.teamId];
+    const nameLink = (typeof playerLinkByName === "function") ? playerLinkByName(r.playerName) : _bspnEsc(r.playerName);
+    return `<div class="bspn-leader-row" style="--team-color:${tm?.primaryColor || "var(--bspn-gold)"}">
+      <div class="bspn-leader-helm">${_bspnEsc(tm?.abbreviation || "—")}</div>
+      <div class="bspn-leader-meta">
+        ${r.label ? `<div class="bspn-leader-cat">${_bspnEsc(r.label)}</div>` : ""}
+        <div>
+          <span class="bspn-leader-name">${r.jersey ? `#${_bspnEsc(r.jersey)} ` : ""}${nameLink}</span>
+          ${tm ? `<span class="bspn-leader-team">${_bspnEsc(tm.abbreviation)}</span>` : ""}
+        </div>
+        <div class="bspn-leader-stat">${_bspnEsc(r.statLine)}</div>
+      </div>
+    </div>`;
+  }).join("");
+  const titleClass = group.title?.includes("LEADERS") ? "accent-gold" : "";
+  return `<section class="bspn-panel">
+    <div class="bspn-panel-title ${titleClass}">${_bspnEsc(group.title)}</div>
+    ${rows}
+  </section>`;
+}
+function _bspnRenderNotes(notes) {
+  if (!notes?.length) return "";
+  return `<section class="bspn-panel">
+    <div class="bspn-panel-title">GAME NOTES</div>
+    <ul class="bspn-notes">
+      ${notes.map(n => `<li>${_bspnEsc(n.text)}</li>`).join("")}
+    </ul>
+  </section>`;
+}
+function _bspnRenderFooter() {
+  const fieldL = ` x x x x x  ──────  ┊───┊
+                 ┊   ┊
+ x x x x x  ──────  ┊───┊`;
+  const fieldR = ` ┊───┊  ──────  x x x x x
+ ┊   ┊
+ ┊───┊  ──────  x x x x x`;
+  return `<footer class="bspn-footer">
+    <pre class="bspn-footer-field">${fieldL}</pre>
+    <div class="bspn-footer-center">
+      BSPN ASCII FOOTBALL v1.0
+      <span class="sub">GRIDIRON. CODE. GLORY.</span>
+    </div>
+    <pre class="bspn-footer-field right">${fieldR}</pre>
+  </footer>`;
+}
+
+function _bspnRenderPage(data) {
+  if (!data) return "";
+  const { summary, comparisonStats, awayBoxScoreGroups, homeBoxScoreGroups,
+    scoringSummary, leaderGroups, topPerformers, gameNotes } = data;
+  const teamsById = {
+    [summary.awayTeam.id]: summary.awayTeam,
+    [summary.homeTeam.id]: summary.homeTeam,
+  };
+  return `<div class="bspn-root" style="--away-color:${summary.awayTeam.primaryColor};--home-color:${summary.homeTeam.primaryColor}">
+    ${_bspnRenderHeader()}
+    <div class="bspn-subbar">
+      <button type="button" class="bspn-back" onclick="showFranchiseDashboard()">‹ ALL SCORES</button>
+    </div>
+    <div class="bspn-container">
+      ${_bspnRenderSummary(summary)}
+      <div class="bspn-grid">
+        <div>
+          ${_bspnRenderComparison(comparisonStats, summary.awayTeam, summary.homeTeam)}
+          <div class="bspn-teams-row">
+            ${_bspnRenderTeamBox(summary.awayTeam, awayBoxScoreGroups)}
+            ${_bspnRenderTeamBox(summary.homeTeam, homeBoxScoreGroups)}
+          </div>
+        </div>
+        <aside>
+          ${(leaderGroups || []).map(g => _bspnRenderLeadersGroup(g, teamsById)).join("")}
+          ${topPerformers ? _bspnRenderLeadersGroup(topPerformers, teamsById) : ""}
+          ${_bspnRenderScoring(scoringSummary, teamsById)}
+          ${_bspnRenderNotes(gameNotes)}
+        </aside>
+      </div>
+    </div>
+    ${_bspnRenderFooter()}
+  </div>`;
+}
 
 function renderFrnPastGame(week, homeId, awayId) {
   frnHoverTipHide();
@@ -18753,475 +19618,10 @@ function renderFrnPastGame(week, homeId, awayId) {
   const g = (franchise.schedule || []).find(x =>
     x.week === Number(week) && x.homeId === Number(homeId) && x.awayId === Number(awayId) && x.played);
   if (!g) { alert("Game data not available."); return; }
-  const home = getTeam(g.homeId), away = getTeam(g.awayId);
-  const homeWon = g.homeScore > g.awayScore;
-  const stats = g.stats;
-  const scoring = g.scoring || [];
-
-  // Quarter-by-quarter scoring grid
-  const quarterScores = { 1: { h:0, a:0 }, 2: { h:0, a:0 }, 3: { h:0, a:0 }, 4: { h:0, a:0 } };
-  for (const ev of scoring) {
-    const q = Math.min(4, Math.max(1, ev.qtr || 1));
-    if (ev.poss === "home") quarterScores[q].h += ev.pts || 0;
-    else                    quarterScores[q].a += ev.pts || 0;
-  }
-  const linescore = `
-    <table class="frn-pg-linescore">
-      <thead><tr><th></th><th>1</th><th>2</th><th>3</th><th>4</th><th>T</th></tr></thead>
-      <tbody>
-        <tr><td style="font-weight:700">${away.name}</td>
-          <td>${quarterScores[1].a}</td><td>${quarterScores[2].a}</td>
-          <td>${quarterScores[3].a}</td><td>${quarterScores[4].a}</td>
-          <td style="color:${homeWon?'var(--gray)':'var(--gold-lt)'};font-weight:900">${g.awayScore}</td></tr>
-        <tr><td style="font-weight:700">${home.name}</td>
-          <td>${quarterScores[1].h}</td><td>${quarterScores[2].h}</td>
-          <td>${quarterScores[3].h}</td><td>${quarterScores[4].h}</td>
-          <td style="color:${homeWon?'var(--gold-lt)':'var(--gray)'};font-weight:900">${g.homeScore}</td></tr>
-      </tbody>
-    </table>`;
-
-  // Win-probability chart (SVG)
-  const winProbChart = _renderWinProbChart(scoring, home, away, g.homeScore, g.awayScore);
-
-  // Scoring summary list
-  const scoringSummary = scoring.length ? scoring.map(ev => {
-    const team = ev.poss === "home" ? home : away;
-    return `<div class="frn-pg-score-row">
-      <span class="frn-pg-score-q">Q${ev.qtr || "?"}</span>
-      <span class="frn-pg-score-team" style="color:${team.primary}">${team.name}</span>
-      <span class="frn-pg-score-desc">${(ev.desc||"").replace(/\(\+\d+\)/, "").trim()}</span>
-      <span class="frn-pg-score-running">${ev.awayScore}–${ev.homeScore}</span>
-    </div>`;
-  }).join("") : `<div style="color:var(--gray);font-size:.72rem;padding:.4rem">No scoring events recorded.</div>`;
-
-  // Team totals (only available if stats present)
-  const totalsRow = (label, side) => {
-    if (!stats?.[side]?.totals) return "";
-    const t = stats[side].totals;
-    return `${t[label] || 0}`;
-  };
-  const teamTotalsHtml = stats ? `
-    <table class="frn-pg-totals">
-      <thead><tr><th>TEAM STATS</th><th>${away.name}</th><th>${home.name}</th></tr></thead>
-      <tbody>
-        ${_pgTotalRow("Total Yards", stats, "totalYards", away, home)}
-        ${_pgTotalRow("Pass Yards",  stats, "passYds",    away, home)}
-        ${_pgTotalRow("Rush Yards",  stats, "rushYds",    away, home)}
-        ${_pgTotalRow("Turnovers",   stats, "turnovers",  away, home)}
-        ${_pgTotalRow("Sacks",       stats, "sacks",      away, home)}
-        ${_pgTotalRow("First Downs", stats, "firstDowns", away, home)}
-        ${_pgTotalRow("Penalties",   stats, "penalties",  away, home)}
-        ${_pgTotalRow("Time of Poss.", stats, "topSec",   away, home, true)}
-      </tbody>
-    </table>` : "";
-
-  // Box-score tables — ESPN-style, sortable rows. Per-side, per-category.
-  const buildStatTable = (catLabel, side, columns, filterFn) => {
-    const players = Object.values(stats?.[side]?.players || {});
-    const filtered = players.filter(filterFn).sort((a,b) => (b[columns[0].key]||0) - (a[columns[0].key]||0));
-    if (!filtered.length) return "";
-    const header = `<tr><th>Player</th>${columns.map(c => `<th>${c.label}</th>`).join("")}</tr>`;
-    const rows = filtered.map(p => `<tr>
-      <td style="font-weight:700">${playerLinkByName(p.name)}</td>
-      ${columns.map(c => `<td>${c.fmt ? c.fmt(p[c.key]||0, p) : (p[c.key]||0)}</td>`).join("")}
-    </tr>`).join("");
-    return `<div class="frn-pg-stat-block">
-      <div class="frn-pg-stat-title">${catLabel}</div>
-      <table class="frn-pg-stats-table"><thead>${header}</thead><tbody>${rows}</tbody></table>
-    </div>`;
-  };
-
-  const buildSideBox = (side, team, score, won) => {
-    if (!stats) return "";
-    const passing = buildStatTable("PASSING", side, [
-      { key: "pass_comp", label: "C/A", fmt: (_, p) => `${p.pass_comp||0}/${p.pass_att||0}` },
-      { key: "pass_yds",  label: "YDS" },
-      { key: "pass_td",   label: "TD" },
-      { key: "pass_int",  label: "INT" },
-      { key: "sk_taken",  label: "SK" },
-    ], p => (p.pass_att||0) > 0);
-    const rushing = buildStatTable("RUSHING", side, [
-      { key: "rush_yds",  label: "YDS" },
-      { key: "rush_att",  label: "ATT" },
-      { key: "rush_td",   label: "TD" },
-      { key: "rush_yds",  label: "AVG", fmt: (_, p) => p.rush_att ? ((p.rush_yds||0)/p.rush_att).toFixed(1) : "0.0" },
-      { key: "rush_long", label: "LNG" },
-    ], p => (p.rush_att||0) > 0);
-    const receiving = buildStatTable("RECEIVING", side, [
-      { key: "rec_yds",   label: "YDS" },
-      { key: "rec",       label: "REC" },
-      { key: "targets",   label: "TGT" },
-      { key: "rec_td",    label: "TD" },
-      { key: "rec_yds",   label: "AVG", fmt: (_, p) => p.rec ? ((p.rec_yds||0)/p.rec).toFixed(1) : "0.0" },
-    ], p => (p.rec||0) > 0 || (p.targets||0) > 0);
-    const defense = buildStatTable("DEFENSE", side, [
-      { key: "tkl",       label: "TKL" },
-      { key: "sk",        label: "SK" },
-      { key: "int_made",  label: "INT" },
-      { key: "pd",        label: "PD" },
-      { key: "ff",        label: "FF" },
-      { key: "fr",        label: "FR" },
-    ], p => (p.tkl||0)+(p.sk||0)+(p.int_made||0)+(p.pd||0) > 0);
-    const kicking = buildStatTable("KICKING", side, [
-      { key: "fg_made",   label: "FG", fmt: (_, p) => `${p.fg_made||0}/${p.fg_att||0}` },
-      { key: "fg_long",   label: "LNG" },
-      { key: "xp_made",   label: "XP", fmt: (_, p) => `${p.xp_made||0}/${p.xp_att||0}` },
-    ], p => (p.fg_att||0) > 0 || (p.xp_att||0) > 0);
-
-    return `<div class="frn-pg-side">
-      <div class="frn-pg-side-head" style="border-left:5px solid ${team.primary}">
-        <span style="color:${team.primary};font-size:1.6rem">${teamAscii(team)}</span>
-        <div style="flex:1;min-width:0">
-          <div style="font-weight:900;font-size:1.05rem">${team.city} ${team.name}</div>
-          <div style="color:var(--gray);font-size:.65rem">${won ? "WIN" : "LOSS"}</div>
-        </div>
-        <div style="font-size:2rem;font-weight:900;color:${won?'var(--gold-lt)':'var(--gray)'}">${score}</div>
-      </div>
-      ${passing}${rushing}${receiving}${defense}${kicking}
-    </div>`;
-  };
-
-  // ─── Records as of this game (computed from prior weeks) ─────────────
-  const awayRec = _teamRecordAsOf(g.awayId, week);
-  const homeRec = _teamRecordAsOf(g.homeId, week);
-  // Include this game's result in the record we display next to each team
-  if (homeWon) { homeRec.w++; awayRec.l++; if (home.conference === away.conference) { homeRec.confW++; awayRec.confL++; } }
-  else if (g.awayScore > g.homeScore) { awayRec.w++; homeRec.l++; if (home.conference === away.conference) { awayRec.confW++; homeRec.confL++; } }
-  else { awayRec.t++; homeRec.t++; }
-  const recStr = r => `${r.w}-${r.l}${r.t?`-${r.t}`:""} (${r.confW}-${r.confL})`;
-
-  // ─── Quarter-by-quarter mini scoreboard ──────────────────────────────
-  const linescoreMini = `<div class="frn-bs-quarters">
-    <div class="frn-bs-quarters-title">FINAL</div>
-    <table>
-      <thead><tr><th></th><th>Q1</th><th>Q2</th><th>Q3</th><th>Q4</th><th>TOTAL</th></tr></thead>
-      <tbody>
-        <tr><td style="color:${away.primary}">${away.abbr || away.name.slice(0,3).toUpperCase()}</td>
-          <td>${quarterScores[1].a}</td><td>${quarterScores[2].a}</td>
-          <td>${quarterScores[3].a}</td><td>${quarterScores[4].a}</td>
-          <td class="total">${g.awayScore}</td></tr>
-        <tr><td style="color:${home.primary}">${home.abbr || home.name.slice(0,3).toUpperCase()}</td>
-          <td>${quarterScores[1].h}</td><td>${quarterScores[2].h}</td>
-          <td>${quarterScores[3].h}</td><td>${quarterScores[4].h}</td>
-          <td class="total">${g.homeScore}</td></tr>
-      </tbody>
-    </table>
-  </div>`;
-
-  // ─── Team Stat Comparison panel (with bars) ──────────────────────────
-  const aT = stats?.away?.totals || {};
-  const hT = stats?.home?.totals || {};
-  const fmtTOP = v => `${Math.floor((v||0)/60)}:${String((v||0)%60).padStart(2,"0")}`;
-  const fmtPenalty = (yds, side) => {
-    const t = stats?.[side]?.totals || {};
-    return `${t.penalties||0} (${t.penaltyYds||0})`;
-  };
-  const compHtml = stats ? `
-    ${_bsCompRow("FIRST DOWNS",   aT.firstDowns, hT.firstDowns, away.primary, home.primary)}
-    ${_bsCompRow("TOTAL YARDS",   aT.totalYards, hT.totalYards, away.primary, home.primary)}
-    ${_bsCompRow("PASSING YARDS", aT.passYds,    hT.passYds,    away.primary, home.primary)}
-    ${_bsCompRow("RUSHING YARDS", aT.rushYds,    hT.rushYds,    away.primary, home.primary)}
-    ${_bsCompRow("TURNOVERS",     aT.turnovers,  hT.turnovers,  away.primary, home.primary)}
-    ${_bsCompRow("SACKS",         aT.sacks,      hT.sacks,      away.primary, home.primary)}
-    ${_bsCompRow("PENALTIES",     aT.penaltyYds||aT.penalties||0, hT.penaltyYds||hT.penalties||0, away.primary, home.primary)}
-    ${_bsCompRow("TIME OF POSS.", aT.topSec,     hT.topSec,     away.primary, home.primary, fmtTOP)}
-  ` : "";
-
-  // ─── Top performers (leaders) ───────────────────────────────────────
-  const allAway = Object.values(stats?.away?.players || {});
-  const allHome = Object.values(stats?.home?.players || {});
-  const all = [...allAway.map(p => ({ ...p, _team: away, _side: "away" })),
-               ...allHome.map(p => ({ ...p, _team: home, _side: "home" }))];
-  const topPass = _topPerformer(all, p => p.pass_yds || 0, 30);
-  const topRush = _topPerformer(all, p => p.rush_yds || 0, 20);
-  const topRec  = _topPerformer(all, p => p.rec_yds  || 0, 20);
-  const topDef  = _topPerformer(all, p => (p.tkl||0)*1 + (p.sk||0)*3 + (p.int_made||0)*5, 4);
-  const topFPS  = [...all].sort((a,b) => _fpts(b, b.pos) - _fpts(a, a.pos)).slice(0, 4);
-
-  const leaderRow = (cat, p, statLine) => {
-    if (!p) return "";
-    const tm = p._team;
-    return `<div class="frn-bs-leader-row">
-      ${_mini_helmet(tm)}
-      <div class="frn-bs-leader-meta">
-        <div class="frn-bs-leader-cat">${cat}</div>
-        <div>
-          <span class="frn-bs-leader-name">#${p.jersey ?? "?"} ${playerLinkByName(p.name)}</span>
-          <span class="frn-bs-leader-team">${tm.abbr || tm.name.slice(0,3).toUpperCase()}</span>
-        </div>
-        <div class="frn-bs-leader-stats">${statLine}</div>
-      </div>
-    </div>`;
-  };
-  const offLeaders = `
-    ${leaderRow("PASSING", topPass, topPass ? `${topPass.pass_comp||0}-${topPass.pass_att||0}, ${topPass.pass_yds||0} YDS, ${topPass.pass_td||0} TD, ${topPass.pass_int||0} INT` : "—")}
-    ${leaderRow("RUSHING", topRush, topRush ? `${topRush.rush_att||0} ATT, ${topRush.rush_yds||0} YDS, ${topRush.rush_td||0} TD` : "—")}
-    ${leaderRow("RECEIVING", topRec, topRec ? `${topRec.rec||0} REC, ${topRec.rec_yds||0} YDS, ${topRec.rec_td||0} TD` : "—")}
-    ${leaderRow("DEFENSE", topDef, topDef ? `${topDef.tkl||0} TKL, ${topDef.sk||0} SK${topDef.int_made?`, ${topDef.int_made} INT`:""}` : "—")}
-  `;
-  const gameLeaders = topFPS.map(p => {
-    const tm = p._team;
-    const pos = p.pos;
-    let detail = "";
-    if (pos === "QB") detail = `${p.pass_yds||0} PASS YDS, ${p.pass_td||0} TD`;
-    else if (pos === "RB") detail = `${p.rush_yds||0} RUSH YDS, ${p.rush_td||0} TD`;
-    else if (pos === "WR" || pos === "TE") detail = `${p.rec_yds||0} REC YDS, ${p.rec_td||0} TD`;
-    else if (pos === "K") detail = `${p.fg_made||0}/${p.fg_att||0} FG`;
-    else detail = `${p.tkl||0} TKL, ${p.sk||0} SK`;
-    return `<div class="frn-bs-leader-row">
-      ${_mini_helmet(tm)}
-      <div class="frn-bs-leader-meta">
-        <div>
-          <span class="frn-bs-leader-name">${playerLinkByName(p.name)}</span>
-          <span class="frn-bs-leader-team">${tm.abbr || tm.name.slice(0,3).toUpperCase()}</span>
-        </div>
-        <div class="frn-bs-leader-stats">${_fpts(p, pos).toFixed(1)} FPTS · ${detail}</div>
-      </div>
-    </div>`;
-  }).join("");
-
-  // ─── Scoring summary table ──────────────────────────────────────────
-  const scoringRows = scoring.filter(ev => ev.isScore !== false && (ev.pts > 0)).map(ev => {
-    const tm = ev.poss === "home" ? home : away;
-    const abbr = tm.abbr || tm.name.slice(0,3).toUpperCase();
-    return `<tr>
-      <td class="qtr">${ev.qtr || "?"}</td>
-      <td class="time">${_clockMMSS(ev.clock)}</td>
-      <td class="team" style="color:${tm.primary}">${abbr}</td>
-      <td>${(ev.desc || "").replace(/\(\+\d+\)/, "").trim()}</td>
-      <td class="score">${ev.awayScore}-${ev.homeScore}</td>
-    </tr>`;
-  }).join("");
-  const scoringSummaryTable = `<table class="frn-bs-scoring-table">
-    <thead><tr><th>QTR</th><th>TIME</th><th>TEAM</th><th>PLAY (SCORER)</th><th style="text-align:right">SCORE</th></tr></thead>
-    <tbody>${scoringRows || `<tr><td colspan="5" style="color:var(--gray);text-align:center;font-style:italic">No scoring events recorded.</td></tr>`}</tbody>
-  </table>
-  <div class="frn-bs-scoring-legend">TD = TOUCHDOWN &nbsp;&nbsp; FG = FIELD GOAL &nbsp;&nbsp; XP = EXTRA POINT</div>`;
-
-  // ─── Game notes (career milestones, attendance, weather, next game) ──
-  const notes = [];
-  if (topPass && (topPass.pass_td || 0) >= 2) {
-    notes.push(`${playerLinkByName(topPass.name)} (${topPass._team.abbr || topPass._team.name.slice(0,3).toUpperCase()}) — ${topPass.pass_td}+ TD passing game.`);
-  }
-  if (topRush && (topRush.rush_yds || 0) >= 100) {
-    notes.push(`${playerLinkByName(topRush.name)} crossed 100 rushing yards.`);
-  }
-  if (topRec && (topRec.rec_yds || 0) >= 100) {
-    notes.push(`${playerLinkByName(topRec.name)} cleared the 100-yard receiving mark.`);
-  }
-  if (topDef && (topDef.sk || 0) >= 2) {
-    notes.push(`${playerLinkByName(topDef.name)} posted a multi-sack performance.`);
-  }
-  // Conference standings tag
-  const winnerName = homeWon ? home.name : away.name;
-  if (home.conference === away.conference) {
-    notes.push(`${winnerName} improve to ${recStr(homeWon ? homeRec : awayRec).split(" ")[0]} in conference play.`);
-  }
-  notes.push(`Attendance: ${_attendanceFor(home, week, franchise.season).toLocaleString()}`);
-  if (g.weather && g.weather.label) {
-    const w = g.weather;
-    notes.push(`Weather: ${w.tempF ? w.tempF+"°F" : ""} ${w.label||""}${w.windMph ? `, Wind ${w.windMph} mph` : ""}`.trim());
-  }
-  // Next game per team
-  const myId = franchise.chosenTeamId;
-  const myTeam = (homeId === myId || awayId === myId) ? getTeam(myId) : home;
-  const nextGames = (franchise.schedule || [])
-    .filter(s => !s.played && (s.homeId === homeId || s.awayId === homeId || s.homeId === awayId || s.awayId === awayId))
-    .sort((a,b) => a.week - b.week);
-  const nextFor = teamId => {
-    const ng = nextGames.find(s => s.homeId === teamId || s.awayId === teamId);
-    if (!ng) return null;
-    const opp = getTeam(ng.homeId === teamId ? ng.awayId : ng.homeId);
-    const venue = ng.homeId === teamId ? "vs" : "at";
-    return `${getTeam(teamId).abbr || getTeam(teamId).name.slice(0,3).toUpperCase()} ${venue} ${opp.abbr || opp.name.slice(0,3).toUpperCase()} (Wk ${ng.week})`;
-  };
-  const nh = nextFor(homeId), na = nextFor(awayId);
-  if (nh || na) {
-    notes.push(`Next Game: ${[na, nh].filter(Boolean).join(" · ")}`);
-  }
-  const notesHtml = `<ul class="frn-bs-notes">${notes.map(n => `<li>${n}</li>`).join("")}</ul>`;
-
-  // ─── Per-team stat boxes (reuse existing buildSideBox) ──────────────
-  const teamBoxes = stats ? `<div class="frn-pg-grid">
-    ${buildSideBox("away", away, g.awayScore, !homeWon)}
-    ${buildSideBox("home", home, g.homeScore, homeWon)}
-  </div>` : "";
-
-  // ─── Compose final layout ───────────────────────────────────────────
-  $("frnHomeContent").innerHTML = `
-    <div class="frn-bs-header">
-      <pre class="frn-bspn-logo">${BSPN_LOGO}</pre>
-      <button class="frn-bs-back" onclick="showFranchiseDashboard()">← ALL SCORES</button>
-      <div class="frn-bs-meta">
-        SEASON ${franchise.season} · WEEK ${week} · BOX SCORE${g.isRivalry?` · <span style="color:var(--gold-lt)">🔥 RIVALRY</span>`:""}${g.weather && g.weather.label !== "CLEAR" ? ` · <span style="color:var(--white)">${_wxIcon(g.weather.label)} ${g.weather.label}</span>` : ""}
-      </div>
-    </div>
-
-    <div class="frn-bs-banner">
-      <div class="frn-bs-team ${homeWon ? "" : "winning"}">
-        <div class="frn-bs-team-ascii" style="color:${away.primary}">${teamAscii(away)}</div>
-        <div>
-          <div class="frn-bs-team-name" style="color:${away.primary}">${away.city.toUpperCase()}<br>${away.name.toUpperCase()}</div>
-          <div class="frn-bs-team-record">${recStr(awayRec)}</div>
-        </div>
-        <div class="frn-bs-team-score">${g.awayScore}</div>
-        ${homeWon ? "" : `<span class="frn-bs-team-arrow">◄</span>`}
-      </div>
-      ${linescoreMini}
-      <div class="frn-bs-team right ${homeWon ? "winning" : ""}">
-        <div class="frn-bs-team-ascii" style="color:${home.primary}">${teamAscii(home)}</div>
-        <div>
-          <div class="frn-bs-team-name" style="color:${home.primary}">${home.city.toUpperCase()}<br>${home.name.toUpperCase()}</div>
-          <div class="frn-bs-team-record">${recStr(homeRec)}</div>
-        </div>
-        <div class="frn-bs-team-score">${g.homeScore}</div>
-        ${homeWon ? `<span class="frn-bs-team-arrow">►</span>` : ""}
-      </div>
-    </div>
-
-    <div class="frn-bs-main">
-      <div>
-        ${stats ? `<div class="frn-bs-panel">
-          <div class="frn-bs-panel-title">TEAM STAT COMPARISON</div>
-          <div class="frn-bs-comparison">${compHtml}</div>
-        </div>` : ""}
-        ${teamBoxes}
-        ${stats ? `<div class="frn-bs-panel">
-          <div class="frn-bs-panel-title">WIN PROBABILITY</div>
-          ${winProbChart}
-        </div>` : ""}
-      </div>
-      <div>
-        ${stats ? `<div class="frn-bs-panel">
-          <div class="frn-bs-panel-title">OFFENSIVE LEADERS</div>
-          ${offLeaders}
-        </div>
-        <div class="frn-bs-panel">
-          <div class="frn-bs-panel-title">GAME LEADERS · TOP PERFORMERS</div>
-          ${gameLeaders}
-        </div>` : ""}
-        <div class="frn-bs-panel">
-          <div class="frn-bs-panel-title">SCORING SUMMARY</div>
-          ${scoringSummaryTable}
-        </div>
-        <div class="frn-bs-panel">
-          <div class="frn-bs-panel-title">GAME NOTES</div>
-          ${notesHtml}
-        </div>
-      </div>
-    </div>
-
-    ${!stats ? `<div style="color:var(--gray);font-size:.78rem;padding:1rem;text-align:center;font-style:italic">No detailed stats recorded for this game (played before per-game tracking).</div>` : ""}
-
-    <div class="frn-bs-footer">
-      <div class="frn-bs-footer-side">${_BS_FOOTER_FIELD_L}</div>
-      <div class="frn-bs-footer-center">
-        BSPN ASCII FOOTBALL v1.0
-        <div class="sub">GRIDIRON. CODE. GLORY.</div>
-      </div>
-      <div class="frn-bs-footer-side right">${_BS_FOOTER_FIELD_R}</div>
-    </div>`;
+  const data = _franchiseGameToBSPNData(g, Number(week));
+  $("frnHomeContent").innerHTML = _bspnRenderPage(data);
 }
 
-function _pgTotalRow(label, stats, key, away, home, isTime) {
-  const a = stats.away?.totals?.[key] || 0;
-  const h = stats.home?.totals?.[key] || 0;
-  if (a === 0 && h === 0) return "";
-  const fmt = v => isTime ? `${Math.floor(v/60)}:${String(v%60).padStart(2,"0")}` : v;
-  return `<tr><td style="color:var(--gold);font-size:.62rem;font-weight:700">${label}</td><td>${fmt(a)}</td><td>${fmt(h)}</td></tr>`;
-}
-
-// Compute win probability based on score margin and time remaining.
-// Sigmoid-shaped curve — early margin matters less; late margin
-// dominates. Simple but visually reasonable.
-function _winProb(home, away, secsRemaining) {
-  const margin = home - away;
-  const total = 3600; // 60 min
-  const tLeft = Math.max(0, Math.min(1, (secsRemaining || 0) / total));
-  // Margin weight ramps from 0.04 (start) to 0.22 (end)
-  const k = 0.04 + (1 - tLeft) * 0.18;
-  return 1 / (1 + Math.exp(-margin * k));
-}
-
-function _renderWinProbChart(scoring, home, away, finalHome, finalAway) {
-  // Build x/y data: x = fraction of game elapsed (0..1), y = home WP (0..1)
-  // Start at 0,0.5 (50/50 at kickoff). Step through both scoring AND
-  // drive-end events so the curve wiggles instead of stair-stepping.
-  const W = 520, H = 110, padL = 30, padR = 10, padT = 8, padB = 18;
-  const points = [{ x: 0, p: 0.5, qtr: 1, isScore: false }];
-  for (const ev of scoring) {
-    const qtr = Math.min(4, Math.max(1, ev.qtr || 1));
-    const clk = (ev.clock != null) ? Math.max(0, Math.min(900, ev.clock)) : 0;
-    const secsElapsed = (qtr - 1) * 900 + (900 - clk);
-    const secsRem = 3600 - secsElapsed;
-    let p = _winProb(ev.homeScore || 0, ev.awayScore || 0, secsRem);
-    // Drive-result momentum nudge — a turnover/4th-down stop swings WP
-    // toward the team that just got the ball. Decays as the game ends.
-    if (!ev.isScore && ev.driveResult) {
-      const timeWeight = 0.5 + (1 - secsRem / 3600) * 0.5; // 0.5..1.0
-      const beneficiary = (ev.driveResult === "TO" || ev.driveResult === "DOWNS")
-        ? (ev.poss === "home" ? "away" : "home")
-        : null;
-      if (beneficiary === "home")      p = Math.min(0.97, p + 0.06 * timeWeight);
-      else if (beneficiary === "away") p = Math.max(0.03, p - 0.06 * timeWeight);
-    }
-    points.push({ x: secsElapsed / 3600, p, qtr, isScore: !!ev.isScore });
-  }
-  // Final
-  points.push({
-    x: 1,
-    p: finalHome === finalAway ? 0.5 : (finalHome > finalAway ? 0.97 : 0.03),
-    qtr: 4, isScore: true,
-  });
-
-  // Build SVG polyline
-  const innerW = W - padL - padR, innerH = H - padT - padB;
-  const xPx = x => padL + x * innerW;
-  const yPx = p => padT + (1 - p) * innerH;
-  const pathPts = points.map(pt => `${xPx(pt.x).toFixed(1)},${yPx(pt.p).toFixed(1)}`).join(" ");
-
-  // Quarter dividers
-  const qLines = [0.25, 0.5, 0.75].map(x =>
-    `<line x1="${xPx(x)}" y1="${padT}" x2="${xPx(x)}" y2="${H-padB}" stroke="#2e3d2e" stroke-dasharray="2,2"/>`
-  ).join("");
-  const qLabels = [1,2,3,4].map((q, i) =>
-    `<text x="${xPx((i+0.5)/4)}" y="${H-4}" fill="#9ca39c" font-size="9" text-anchor="middle">Q${q}</text>`
-  ).join("");
-
-  // 50% line
-  const midY = yPx(0.5);
-  const midLine = `<line x1="${padL}" y1="${midY}" x2="${W-padR}" y2="${midY}" stroke="#3a4a3a" stroke-dasharray="3,3"/>`;
-
-  // Background polygons for visual asymmetry (home above 50, away below)
-  // Build closed paths: top half (home advantage area shaded) + bottom half (away)
-  const homeColor = home.primary || "#88c";
-  const awayColor = away.primary || "#c88";
-
-  // Fill area: shade above/below 50% line based on which team is leading
-  // For simplicity just draw the line and let dots mark scoring events.
-
-  const dots = points.slice(1, -1)
-    .filter(pt => pt.isScore)
-    .map(pt => {
-      const team = pt.p > 0.5 ? home : away;
-      return `<circle cx="${xPx(pt.x)}" cy="${yPx(pt.p)}" r="3" fill="${team.primary}" stroke="var(--bg)" stroke-width="1"/>`;
-    }).join("");
-
-  // Team labels at left axis
-  const homeLabel = `<text x="${padL-4}" y="${padT+8}" fill="${homeColor}" font-size="8" text-anchor="end" font-weight="700">${home.name.slice(0,8).toUpperCase()}</text>`;
-  const awayLabel = `<text x="${padL-4}" y="${H-padB-2}" fill="${awayColor}" font-size="8" text-anchor="end" font-weight="700">${away.name.slice(0,8).toUpperCase()}</text>`;
-
-  return `<svg viewBox="0 0 ${W} ${H}" class="frn-pg-wpchart" preserveAspectRatio="none">
-    <rect x="${padL}" y="${padT}" width="${innerW}" height="${innerH}" fill="var(--bg)" stroke="var(--border)"/>
-    ${midLine}
-    ${qLines}
-    ${qLabels}
-    <polyline points="${pathPts}" fill="none" stroke="var(--gold)" stroke-width="2" stroke-linejoin="round"/>
-    ${dots}
-    ${homeLabel}
-    ${awayLabel}
-  </svg>`;
-}
 
 function _frnHoverTipPgHide() {
   const tip = document.getElementById("frn-pg-tip");
