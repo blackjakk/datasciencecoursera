@@ -9751,6 +9751,25 @@ function buildAnimForPlay(play, prevPlay) {
             dd.x = np.x; dd.y = np.y;
           }
         }
+        // GUARANTEED TACKLER — the assigned coverage defender arrives at the
+        // carrier's final position by the tackle window. Without this, big YAC
+        // plays would show the WR getting "tackled" by no one (the slow pursue
+        // function couldn't close 30+yd gaps before the tackle pose kicked in).
+        if (play.kind === "complete" && i === intDefIdx && t > throwPhase) {
+          // Where the cover defender was at the catch moment
+          const cbStartX = d.x + dir * catchDepth * 0.85 * FIELD.PX_PER_YARD;
+          const cbStartY = d.y;
+          // Tackle spot — just behind & lateral to the carrier (so the hit is visible)
+          const tackleX = endX - dir * 5;
+          const tackleY = finalY + 4;
+          // Progress from catch → tackle moment
+          const tackleStartT = PRE + (1 - PRE) * 0.78;  // matches TACKLE_START_AT
+          const arrProgress = clamp((t - throwPhase) / Math.max(0.001, tackleStartT - throwPhase), 0, 1);
+          dd.x = cbStartX + (tackleX - cbStartX) * easeOutCubic(arrProgress);
+          dd.y = cbStartY + (tackleY - cbStartY) * easeOutCubic(arrProgress);
+          dd.pose = arrProgress > 0.92 ? "tackle" : "run";
+          dd.facing = -dir;
+        }
         // INT — the picking defender races to the catch spot, then carries the ball back
         if (play.kind === "int" && i === intDefIdx) {
           if (t < throwPhase) {
