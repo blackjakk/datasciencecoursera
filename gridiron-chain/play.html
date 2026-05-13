@@ -1237,15 +1237,18 @@ const getTeam = id => TEAMS.find(t => t.id === Number(id));
 // power-rankings, etc. Custom 3-char tokens per mascot where possible, else
 // falls back to a bracketed first letter `[X]`. Pure ASCII so it renders the
 // same on any system + reads as a terminal label rather than a sticker.
+// NOTE: avoid sequences like `<S>` `<v>` `<H>` — the HTML parser will
+// interpret them as real tags (e.g. <s> is strikethrough) and clobber
+// every subsequent element rendered via innerHTML.
 const TEAM_ASCII_OVERRIDES = {
   Kraken:"~8~",  Titans:"]T[",  Wolves:"/W\\", Buccaneers:">+<",
   Hammers:"=H=", Grizzlies:"oGo", Ravens:"\\v/", Bulldogs:"[B]",
-  Vipers:"<S>",  Jaguars:">J<", Gators:"<G<",  Stallions:"/H\\",
+  Vipers:"}S{",  Jaguars:">J<", Gators:"}G{",  Stallions:"/H\\",
   Scorpions:"~S~", Raiders:"X-X", Thunder:"/!\\", Outlaws:"[O]",
-  Sentinels:"{S}", Predators:"/P\\", Eagles:"<v>", Minutemen:"(*)",
+  Sentinels:"{S}", Predators:"/P\\", Eagles:"^v^", Minutemen:"(*)",
   Frost:"*F*",   Vikings:"(V)", Pirates:">P<", Steamers:"=S=",
   Comets:"~C~",  Storm:"/!\\",  Mustangs:"/M\\", Bandits:"[B]",
-  Riders:"/R\\", Giants:"]G[",  Hawks:"<H>",   Fury:"!F!",
+  Riders:"/R\\", Giants:"]G[",  Hawks:"^H^",   Fury:"!F!",
 };
 function teamAscii(team) {
   if (!team) return "[?]";
