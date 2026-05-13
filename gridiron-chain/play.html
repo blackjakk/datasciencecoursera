@@ -181,7 +181,7 @@
   }
   #field {
     width: 100%; height: auto; display: block; border-radius: 6px;
-    background: var(--field-dk);
+    background: var(--field-dk); cursor: pointer;
     image-rendering: pixelated; image-rendering: crisp-edges;
   }
   .field-overlay {
@@ -13449,14 +13449,17 @@ function setViewMode(mode) {
   }
 }
 
-document.getElementById("viewTacticalBtn").addEventListener("click", () => setViewMode("tactical"));
-document.getElementById("viewCinemaBtn").addEventListener("click", () => setViewMode("cinema"));
+document.getElementById("viewTacticalBtn")?.addEventListener("click", () => setViewMode("tactical"));
+document.getElementById("viewCinemaBtn")?.addEventListener("click", () => setViewMode("cinema"));
 
 // Click the field during the result-hold to advance to the next play immediately.
-$("field").addEventListener("click", () => {
-  if (animState && animState.holdStart != null) animState.skipHold = true;
+// The #field canvas is created lazily by renderGameLayout(), so attach via
+// event delegation on the document instead of directly on the element.
+document.addEventListener("click", (e) => {
+  if (e.target && e.target.id === "field") {
+    if (animState && animState.holdStart != null) animState.skipHold = true;
+  }
 });
-$("field").style.cursor = "pointer";
 
 // Brief "jog up to the new line of scrimmage" animation between plays.
 // Returns null if no transition is appropriate (kickoff, halftime, score-only,
