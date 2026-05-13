@@ -1324,6 +1324,63 @@
   }
   .frn-holdout-row.resolved { border-left-color: var(--gray); opacity: .8; }
 
+  /* Trade tabs + sort */
+  .frn-sort-btn {
+    background: var(--bg3); border: 1px solid var(--border); color: var(--gray);
+    padding: .2rem .55rem; font-size: .62rem; font-weight: 700;
+    cursor: pointer; font-family: inherit; letter-spacing: .3px;
+  }
+  .frn-sort-btn:hover { border-color: var(--gold); color: var(--white); }
+  .frn-sort-btn.active { background: var(--gold); color: #000; border-color: var(--gold); }
+
+  tr.frn-blocked td {
+    background: rgba(232,160,0,0.10);
+    border-left: 2px solid #e8a000;
+  }
+
+  /* Trade offer cards in inbox */
+  .frn-offer-card {
+    background: var(--bg2); border: 1px solid var(--border);
+    padding: .6rem .8rem; margin-bottom: .55rem;
+  }
+  .frn-offer-card.pending  { border-left: 3px solid var(--gold); }
+  .frn-offer-card.accepted { border-left: 3px solid var(--green); opacity: .85; }
+  .frn-offer-card.rejected,
+  .frn-offer-card.stale    { border-left: 3px solid var(--gray); opacity: .55; }
+  .frn-offer-head {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: .5rem;
+  }
+  .frn-offer-status {
+    font-size: .58rem; font-weight: 700; letter-spacing: .4px;
+    padding: .1rem .4rem; border: 1px solid;
+  }
+  .frn-offer-status.accepted { color: var(--green-lt); border-color: var(--green); }
+  .frn-offer-status.rejected { color: #ff9090;        border-color: var(--red);   }
+  .frn-offer-status.stale    { color: var(--gray);    border-color: var(--gray);  }
+  .frn-offer-bodies {
+    display: grid; grid-template-columns: 1fr auto 1fr; gap: .5rem;
+    align-items: stretch;
+  }
+  .frn-offer-side {
+    background: var(--bg3); padding: .35rem .5rem; border: 1px solid var(--border);
+  }
+  .frn-offer-side-label {
+    font-size: .55rem; font-weight: 700; letter-spacing: .4px; margin-bottom: .25rem;
+  }
+  .frn-offer-player {
+    display: grid; grid-template-columns: 1.7rem 1fr auto auto;
+    gap: .25rem; align-items: center; font-size: .68rem;
+    padding: .15rem 0; border-bottom: 1px solid rgba(46,61,46,.4);
+  }
+  .frn-offer-player:last-child { border-bottom: none; }
+  .frn-offer-arrow {
+    font-size: 1.4rem; color: var(--gold); text-align: center; align-self: center;
+  }
+  .frn-offer-actions {
+    display: flex; gap: .35rem; justify-content: flex-end; margin-top: .5rem;
+  }
+
   /* Trade screen */
   .frn-trade-layout {
     display: grid; grid-template-columns: 1fr 1fr; gap: .7rem;
@@ -16006,6 +16063,8 @@ function frnStartSeason() {
   franchise.freeAgents = _generateFAPool();
   franchise._faOffers = {};
   franchise._faResults = null;
+  franchise.tradeOffers = [];
+  _seedAITradeBlocks();
   saveFranchise();
   showFranchiseDashboard();
 }
@@ -16818,6 +16877,15 @@ function _buildWeekReviewCard(week, myId) {
         ? `<div class="frn-week-task">
             <span>🩹 ${myInjuries.length} player${myInjuries.length>1?"s":""} on injured list</span>
           </div>` : ""}
+      ${(() => {
+        const pendingTrades = (franchise.tradeOffers||[]).filter(o => o.status === "pending");
+        return pendingTrades.length
+          ? `<div class="frn-week-task urgent">
+              <span>📨 ${pendingTrades.length} trade offer${pendingTrades.length>1?"s":""} pending</span>
+              <button class="btn btn-gold" onclick="frnOpenTrade(null,'offers')" style="font-size:.65rem">Review</button>
+            </div>`
+          : "";
+      })()}
       ${week <= TRADE_DEADLINE_WEEK
         ? `<div class="frn-week-task">
             <span>🔀 Trade deadline: Week ${TRADE_DEADLINE_WEEK} (${TRADE_DEADLINE_WEEK - week} weeks left)</span>
@@ -16985,7 +17053,7 @@ function renderFrnRegular() {
         <div style="color:var(--gold);font-weight:700;margin-bottom:.4rem">Your Week ${week} game is done</div>
         <div style="color:var(--gray);font-size:.8rem;margin-bottom:.8rem">${FRANCHISE_WEEKS - week + 1} weeks of action remaining</div>
         <div class="frn-next-actions">
-          <button class="btn btn-gold-big" onclick="frnSimWeek()">⏭ Finish Week ${week}</button>
+          <button class="btn btn-gold-big" onclick="frnSimWeek()">⏭ Finalize Week ${week} Results</button>
           <button class="btn btn-outline" onclick="frnSimSeason()" style="color:var(--gray)">⏭⏭ Sim Season</button>
         </div>
       </div>`;
@@ -17301,6 +17369,8 @@ function _runWeekEndResolution() {
     if (!seasonEnding) _faAIBidRound(w + 1, /*isInitial=*/false);
   }
   _tickInjuriesForWeek();
+  // Trade-block: AI sends offers for players you've listed
+  if (w + 1 <= TRADE_DEADLINE_WEEK) _generateWeeklyAIOffers();
 }
 
 // Bump the week counter, handle cap grace + season-end transitions.
@@ -18337,7 +18407,7 @@ function _aiTradeNeedBonus(teamId, players) {
   return bonus;
 }
 
-function frnOpenTrade(targetTeamId) {
+function frnOpenTrade(targetTeamId, tab) {
   if (franchise.week > TRADE_DEADLINE_WEEK && franchise.phase === "regular") {
     alert("Trade deadline has passed.");
     return;
@@ -18347,6 +18417,8 @@ function frnOpenTrade(targetTeamId) {
       targetTeamId: Number(targetTeamId) || TEAMS.find(t => t.id !== franchise.chosenTeamId).id,
       youSend: [], youReceive: [],
       result: null,
+      tab: tab || "propose",
+      sortBy: "grade",
     };
   } else if (targetTeamId) {
     franchise._tradeProp.targetTeamId = Number(targetTeamId);
@@ -18354,6 +18426,148 @@ function frnOpenTrade(targetTeamId) {
     franchise._tradeProp.youReceive = [];
     franchise._tradeProp.result = null;
   }
+  if (tab) franchise._tradeProp.tab = tab;
+  renderFrnTrade();
+}
+
+function frnSetTradeSort(by) {
+  if (!franchise._tradeProp) return;
+  franchise._tradeProp.sortBy = by;
+  saveFranchise();
+  renderFrnTrade();
+}
+
+// ── Trade Block (mark for trade) ─────────────────────────────────────────────
+function frnToggleBlock(name) {
+  const myRoster = franchise.rosters[franchise.chosenTeamId];
+  const p = myRoster.find(rp => rp.name === name);
+  if (!p) return;
+  p.onTradeBlock = !p.onTradeBlock;
+  // When user puts a player up, fire an immediate AI offer roll
+  if (p.onTradeBlock) _generateAIOffersForBlockedPlayer(p);
+  saveFranchise();
+  renderFrnTrade();
+}
+
+// Seed AI teams with 0-2 block listings at start of regular season so
+// the trade-block view has activity even before the user lists anyone.
+function _seedAITradeBlocks() {
+  for (const t of TEAMS) {
+    if (t.id === franchise.chosenTeamId) continue;
+    const roster = franchise.rosters[t.id] || [];
+    // Clear stale flags
+    for (const p of roster) p.onTradeBlock = false;
+    // Pick 0-2 mid-tier players, weighted toward older guys
+    const candidates = roster.filter(p =>
+      p.overall >= 70 && p.overall < 86 && (p.age || 25) >= 27
+    ).sort(() => Math.random() - 0.5);
+    const n = Math.floor(Math.random() * 3);
+    for (let i = 0; i < n && i < candidates.length; i++) candidates[i].onTradeBlock = true;
+  }
+}
+
+// For each player on the user's block (or AI block where AI is shopping
+// AT us specifically), AI may submit a trade offer this week. Stored in
+// franchise.tradeOffers and surfaced in the week-end review + trade
+// screen's OFFERS tab.
+function _generateWeeklyAIOffers() {
+  if (!franchise.tradeOffers) franchise.tradeOffers = [];
+  // Prune expired offers (>2 weeks old)
+  franchise.tradeOffers = franchise.tradeOffers
+    .filter(o => franchise.week - o.week <= 2);
+
+  const myId = franchise.chosenTeamId;
+  const myRoster = franchise.rosters[myId] || [];
+  const blocked = myRoster.filter(p => p.onTradeBlock);
+  if (!blocked.length) return;
+
+  for (const p of blocked) _generateAIOffersForBlockedPlayer(p);
+}
+
+function _generateAIOffersForBlockedPlayer(p) {
+  if (!franchise.tradeOffers) franchise.tradeOffers = [];
+  const myId = franchise.chosenTeamId;
+  // 1-2 AI teams per blocked player per round, weighted by team need
+  const interested = TEAMS
+    .filter(t => t.id !== myId)
+    .map(t => ({ t, need: _aiTradeNeedBonus(t.id, [p]) }))
+    .filter(x => x.need > 1)
+    .sort((a,b) => b.need - a.need)
+    .slice(0, 2 + Math.floor(Math.random() * 2));
+
+  for (const { t } of interested) {
+    if (Math.random() < 0.35) continue; // not every team bites every week
+    // What the AI offers in return: a mid-tier player from their roster
+    // worth ~70-95% of p's value. Pick best fit.
+    const aiRoster = franchise.rosters[t.id];
+    const myValue = _playerTradeValue(p);
+    const candidates = aiRoster
+      .filter(rp => !rp.onTradeBlock || true) // can include their block too
+      .map(rp => ({ rp, v: _playerTradeValue(rp), diff: Math.abs(_playerTradeValue(rp) - myValue * 0.85) }))
+      .sort((a,b) => a.diff - b.diff);
+    const offered = candidates[0]?.rp;
+    if (!offered) continue;
+    // Don't duplicate offers in same week from same team for same player
+    const dup = franchise.tradeOffers.some(o =>
+      o.fromTeamId === t.id && o.theyWant.includes(p.name) && o.week === franchise.week
+    );
+    if (dup) continue;
+    franchise.tradeOffers.push({
+      id: `${t.id}-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,
+      fromTeamId: t.id,
+      theyGive: [offered.name],
+      theyWant: [p.name],
+      week: franchise.week,
+      status: "pending",
+    });
+  }
+}
+
+function frnAcceptOffer(offerId) {
+  const off = (franchise.tradeOffers||[]).find(o => o.id === offerId);
+  if (!off || off.status !== "pending") return;
+  const myId = franchise.chosenTeamId;
+  const myRoster = franchise.rosters[myId];
+  const theirRoster = franchise.rosters[off.fromTeamId];
+  // Validate players still exist on respective rosters
+  const sending = off.theyWant.map(n => myRoster.find(p => p.name === n)).filter(Boolean);
+  const receiving = off.theyGive.map(n => theirRoster.find(p => p.name === n)).filter(Boolean);
+  if (!sending.length || !receiving.length) {
+    off.status = "stale";
+    saveFranchise();
+    renderFrnTrade();
+    return;
+  }
+  // Execute swap
+  for (const p of sending) {
+    p.onTradeBlock = false;
+    const i = myRoster.indexOf(p); if (i !== -1) myRoster.splice(i, 1);
+    theirRoster.push(p);
+  }
+  for (const p of receiving) {
+    p.onTradeBlock = false;
+    const i = theirRoster.indexOf(p); if (i !== -1) theirRoster.splice(i, 1);
+    myRoster.push(p);
+  }
+  off.status = "accepted";
+  const team = getTeam(off.fromTeamId);
+  _pushNews({ type:"trade",
+    label: `🔀 Trade with ${team.name}: ${receiving.map(p=>p.position+" "+p.name).join(", ")} for ${sending.map(p=>p.position+" "+p.name).join(", ")}` });
+  // Mark other pending offers for the same player as stale
+  for (const other of franchise.tradeOffers) {
+    if (other === off) continue;
+    if (other.status !== "pending") continue;
+    if (other.theyWant.some(n => sending.some(p => p.name === n))) other.status = "stale";
+  }
+  saveFranchise();
+  renderFrnTrade();
+}
+
+function frnRejectOffer(offerId) {
+  const off = (franchise.tradeOffers||[]).find(o => o.id === offerId);
+  if (!off) return;
+  off.status = "rejected";
+  saveFranchise();
   renderFrnTrade();
 }
 
@@ -18422,25 +18636,82 @@ function frnSubmitTrade() {
   renderFrnTrade();
 }
 
+function _sortRoster(roster, sortBy) {
+  const sorted = roster.slice();
+  if (sortBy === "grade") sorted.sort((a,b) => scoutGrade(b) - scoutGrade(a));
+  else if (sortBy === "age") sorted.sort((a,b) => (a.age||0) - (b.age||0));
+  else if (sortBy === "aav") sorted.sort((a,b) => (b.contract?.aav||0) - (a.contract?.aav||0));
+  else if (sortBy === "pos") sorted.sort((a,b) => (a.position||"").localeCompare(b.position||"") || (scoutGrade(b)-scoutGrade(a)));
+  return sorted;
+}
+
 function renderFrnTrade() {
   const tp = franchise._tradeProp;
   if (!tp) { showFranchiseDashboard(); return; }
+  const tab = tp.tab || "propose";
+  const sortBy = tp.sortBy || "grade";
   const myId = franchise.chosenTeamId;
   const myRoster = franchise.rosters[myId] || [];
+  const cap = franchise.salaryCap || SALARY_CAP_BASE;
+  const myCapUsed = capUsedByTeam(myId);
+
+  // Offer count for tab badge
+  const pendingOffers = (franchise.tradeOffers || []).filter(o => o.status === "pending");
+  const blockedCount = myRoster.filter(p => p.onTradeBlock).length;
+
+  // Tab bar
+  const tabHtml = [
+    { id:"propose", label:"PROPOSE TRADE" },
+    { id:"block",   label:`TRADE BLOCK${blockedCount?` · ${blockedCount}`:""}` },
+    { id:"market",  label:"LEAGUE BLOCK" },
+    { id:"offers",  label:`OFFERS${pendingOffers.length?` · ${pendingOffers.length}`:""}` },
+  ].map(t => `<button class="frn-ana-tab ${t.id===tab?"active":""}"
+    onclick="frnOpenTrade(null,'${t.id}')">${t.label}</button>`).join("");
+
+  // Sort controls
+  const sortHtml = `
+    <div class="frn-fa-summary">
+      <span>Sort by:</span>
+      ${["grade","age","aav","pos"].map(by => `
+        <button class="frn-sort-btn ${sortBy===by?"active":""}" onclick="frnSetTradeSort('${by}')">
+          ${by==="grade"?"Grade ↓":by==="age"?"Age ↑":by==="aav"?"AAV ↓":"Position"}
+        </button>`).join("")}
+      <span style="margin-left:auto">Cap: <b style="color:var(--gold)">$${myCapUsed.toFixed(1)}M</b> / $${cap.toFixed(0)}M</span>
+    </div>`;
+
+  let bodyHtml = "";
+  if (tab === "propose") bodyHtml = _renderTradeProposeTab(tp, sortBy, myRoster, cap, myCapUsed);
+  else if (tab === "block") bodyHtml = _renderTradeBlockTab(myRoster, sortBy);
+  else if (tab === "market") bodyHtml = _renderTradeMarketTab(myId, sortBy);
+  else if (tab === "offers") bodyHtml = _renderTradeOffersTab();
+
+  $("frnHomeContent").innerHTML = `
+    <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.8rem;flex-wrap:wrap">
+      <div style="font-size:1.05rem;font-weight:900;color:var(--gold)">🔀 TRADES</div>
+      <div style="color:var(--gray);font-size:.72rem">Trade deadline: Week ${TRADE_DEADLINE_WEEK} · ${franchise.week > TRADE_DEADLINE_WEEK ? "<span style=\"color:var(--red)\">PASSED</span>" : `Week ${franchise.week} of ${FRANCHISE_WEEKS}`}</div>
+      <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="margin-left:auto">← Back</button>
+    </div>
+    <div class="frn-ana-tabs">${tabHtml}</div>
+    ${sortHtml}
+    <div class="frn-ana-body">${bodyHtml}</div>`;
+}
+
+function _renderTradeProposeTab(tp, sortBy, myRoster, cap, myCapUsed) {
   const theirRoster = franchise.rosters[tp.targetTeamId] || [];
-  const myTeam = getTeam(myId);
+  const myTeam = getTeam(franchise.chosenTeamId);
   const otherTeam = getTeam(tp.targetTeamId);
 
   const renderRoster = (roster, side, selectedNames) => {
     const selSet = new Set(selectedNames);
-    return roster.slice().sort((a,b) => (b.overall||0)-(a.overall||0)).map(p => {
+    return _sortRoster(roster, sortBy).map(p => {
       const escName = (p.name||"").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
       const sel = selSet.has(p.name);
+      const blockTag = p.onTradeBlock ? `<span style="color:#e8a000;font-size:.55rem;font-weight:700">●BLK</span>` : "";
       return `<label class="frn-trade-player ${sel?"selected":""}">
         <input type="checkbox" ${sel?"checked":""}
           onchange="frnToggleTradePlayer('${side}','${escName}')">
         <span style="color:var(--gold);font-size:.58rem;font-weight:700">${p.position}</span>
-        <span style="flex:1;font-weight:${sel?700:400}">${p.name}</span>
+        <span style="flex:1;font-weight:${sel?700:400}">${p.name} ${blockTag}</span>
         <span>${gradeBadge(p)}</span>
         <span style="color:var(--gray);font-size:.62rem">${p.age||"?"}</span>
         <span style="color:var(--gold);font-size:.62rem">$${(p.contract?.aav||0).toFixed(0)}M</span>
@@ -18448,59 +18719,158 @@ function renderFrnTrade() {
     }).join("");
   };
 
-  // Cap impact
-  const sendCap = tp.youSend.reduce((s,n) => {
-    const p = myRoster.find(rp => rp.name === n);
-    return s + (p?.contract?.aav || 0);
-  }, 0);
-  const recvCap = tp.youReceive.reduce((s,n) => {
-    const p = theirRoster.find(rp => rp.name === n);
-    return s + (p?.contract?.aav || 0);
-  }, 0);
-  const cap = franchise.salaryCap || SALARY_CAP_BASE;
-  const myCapUsed = capUsedByTeam(myId);
+  const sendCap = tp.youSend.reduce((s,n) => s + (myRoster.find(p=>p.name===n)?.contract?.aav || 0), 0);
+  const recvCap = tp.youReceive.reduce((s,n) => s + (theirRoster.find(p=>p.name===n)?.contract?.aav || 0), 0);
   const projCap = myCapUsed - sendCap + recvCap;
-
-  // Team selector
-  const teamOptionsHtml = TEAMS.filter(t => t.id !== myId).map(t =>
+  const teamOptionsHtml = TEAMS.filter(t => t.id !== franchise.chosenTeamId).map(t =>
     `<option value="${t.id}" ${t.id===tp.targetTeamId?"selected":""}>${t.city} ${t.name}</option>`
   ).join("");
 
-  $("frnHomeContent").innerHTML = `
-    <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.8rem;flex-wrap:wrap">
-      <div style="font-size:1.05rem;font-weight:900;color:var(--gold)">🔀 TRADE BLOCK</div>
-      <div style="color:var(--gray);font-size:.72rem">Trade deadline: Week ${TRADE_DEADLINE_WEEK} · ${franchise.week > TRADE_DEADLINE_WEEK ? "<span style=\"color:var(--red)\">PASSED</span>" : `Week ${franchise.week} of ${FRANCHISE_WEEKS}`}</div>
-      <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="margin-left:auto">← Back</button>
-    </div>
-
-    <div class="frn-fa-summary">
+  return `
+    <div class="frn-fa-summary" style="margin-bottom:.5rem">
       Trade partner:
-      <select onchange="frnOpenTrade(this.value)" style="background:var(--bg3);color:var(--white);border:1px solid var(--border);padding:.25rem .4rem;font-family:inherit">${teamOptionsHtml}</select>
-      <span style="margin-left:auto">Your projected cap: <b style="color:${projCap>cap?'var(--red)':'var(--gold)'}">$${projCap.toFixed(1)}M</b> / $${cap.toFixed(0)}M</span>
+      <select onchange="frnOpenTrade(this.value,'propose')" style="background:var(--bg3);color:var(--white);border:1px solid var(--border);padding:.25rem .4rem;font-family:inherit">${teamOptionsHtml}</select>
+      <span style="margin-left:auto">Projected cap: <b style="color:${projCap>cap?'var(--red)':'var(--gold)'}">$${projCap.toFixed(1)}M</b></span>
     </div>
-
     <div class="frn-trade-layout">
       <div class="frn-fa-pool-col">
-        <div class="frn-card-title">YOU SEND · ${myTeam.name} (${tp.youSend.length} selected)</div>
+        <div class="frn-card-title">YOU SEND · ${myTeam.name} (${tp.youSend.length})</div>
         <div class="frn-trade-list">${renderRoster(myRoster, "send", tp.youSend)}</div>
       </div>
       <div class="frn-fa-pool-col">
-        <div class="frn-card-title">YOU RECEIVE · ${otherTeam.name} (${tp.youReceive.length} selected)</div>
+        <div class="frn-card-title">YOU RECEIVE · ${otherTeam.name} (${tp.youReceive.length})</div>
         <div class="frn-trade-list">${renderRoster(theirRoster, "receive", tp.youReceive)}</div>
       </div>
     </div>
-
     ${tp.result ? `
       <div class="frn-trade-result ${tp.result.accepted?'accepted':'rejected'}">
         <b>${tp.result.accepted?"✓ ACCEPTED":"✗ REJECTED"}</b> · ${tp.result.message}
       </div>` : ""}
-
     <div class="frn-actions" style="justify-content:center;margin-top:.8rem">
       <button class="btn btn-gold-big" onclick="frnSubmitTrade()"
         ${(tp.youSend.length===0 || tp.youReceive.length===0 || franchise.week > TRADE_DEADLINE_WEEK)?"disabled style=\"opacity:.5;cursor:not-allowed\"":""}>
         📨 SUBMIT PROPOSAL
       </button>
     </div>`;
+}
+
+function _renderTradeBlockTab(myRoster, sortBy) {
+  // Your roster — toggle each player onto/off the block
+  const sorted = _sortRoster(myRoster, sortBy);
+  const rows = sorted.map(p => {
+    const escName = (p.name||"").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    return `<tr class="${p.onTradeBlock?'frn-blocked':''}">
+      <td style="color:var(--gold);font-size:.62rem">${p.position}</td>
+      <td style="font-weight:700">${p.name}</td>
+      <td>${gradeBadge(p)}</td>
+      <td style="color:var(--gray)">${p.age||"?"}</td>
+      <td style="color:var(--gold)">$${(p.contract?.aav||0).toFixed(1)}M</td>
+      <td>${p.contract?.remaining||0}yr</td>
+      <td>
+        <button class="btn ${p.onTradeBlock?'btn-gold':'btn-outline'}"
+          onclick="frnToggleBlock('${escName}')" style="font-size:.6rem;padding:.2rem .55rem">
+          ${p.onTradeBlock?"✓ ON BLOCK":"+ Add to Block"}
+        </button>
+      </td>
+    </tr>`;
+  }).join("");
+  return `
+    <div style="color:var(--gray);font-size:.72rem;margin-bottom:.5rem">
+      Mark players as available. Each week, AI teams send offers for players on your block — find them in the OFFERS tab.
+    </div>
+    <table class="frn-pre-roster-table">
+      <thead><tr><th>Pos</th><th>Player</th><th>Grade</th><th>Age</th><th>AAV</th><th>Yrs</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function _renderTradeMarketTab(myId, sortBy) {
+  // League-wide list of blocked players (excluding yours)
+  const all = [];
+  for (const t of TEAMS) {
+    if (t.id === myId) continue;
+    for (const p of (franchise.rosters[t.id]||[])) {
+      if (p.onTradeBlock) all.push({ p, t });
+    }
+  }
+  // Sort
+  const sorter = (a,b) => {
+    if (sortBy === "grade") return scoutGrade(b.p) - scoutGrade(a.p);
+    if (sortBy === "age")   return (a.p.age||0) - (b.p.age||0);
+    if (sortBy === "aav")   return (b.p.contract?.aav||0) - (a.p.contract?.aav||0);
+    if (sortBy === "pos")   return (a.p.position||"").localeCompare(b.p.position||"");
+    return 0;
+  };
+  all.sort(sorter);
+
+  if (!all.length) return `<div style="color:var(--gray);font-size:.78rem;padding:1rem;text-align:center;font-style:italic">No players currently on the league trade block.</div>`;
+
+  const rows = all.map(({p, t}) => `<tr>
+    <td style="color:var(--gold);font-size:.62rem">${p.position}</td>
+    <td style="font-weight:700">${p.name}</td>
+    <td>${gradeBadge(p)}</td>
+    <td style="color:var(--gray)">${p.age||"?"}</td>
+    <td style="color:var(--gray);font-size:.66rem">${t.city} ${t.name}</td>
+    <td style="color:var(--gold)">$${(p.contract?.aav||0).toFixed(1)}M</td>
+    <td><button class="btn btn-gold" style="font-size:.6rem;padding:.2rem .55rem"
+      onclick="frnOpenTrade(${t.id},'propose')">→ Propose</button></td>
+  </tr>`).join("");
+
+  return `
+    <div style="color:var(--gray);font-size:.72rem;margin-bottom:.5rem">
+      ${all.length} player${all.length>1?"s":""} on the block league-wide. Click <b>Propose</b> to open a trade with their team.
+    </div>
+    <table class="frn-pre-roster-table">
+      <thead><tr><th>Pos</th><th>Player</th><th>Grade</th><th>Age</th><th>Team</th><th>AAV</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function _renderTradeOffersTab() {
+  const offers = (franchise.tradeOffers || []).slice().reverse();
+  if (!offers.length) {
+    return `<div style="color:var(--gray);font-size:.78rem;padding:1rem;text-align:center;font-style:italic">No trade offers in your inbox. Put players on the block to attract AI teams.</div>`;
+  }
+  return offers.map(o => {
+    const fromTeam = getTeam(o.fromTeamId);
+    const myRoster = franchise.rosters[franchise.chosenTeamId];
+    const theirRoster = franchise.rosters[o.fromTeamId];
+    const theyGive = o.theyGive.map(n => theirRoster.find(p => p.name === n)).filter(Boolean);
+    const theyWant = o.theyWant.map(n => myRoster.find(p => p.name === n)).filter(Boolean);
+    const statusBadge = o.status === "pending" ? ""
+      : o.status === "accepted" ? `<span class="frn-offer-status accepted">ACCEPTED</span>`
+      : o.status === "rejected" ? `<span class="frn-offer-status rejected">REJECTED</span>`
+      : `<span class="frn-offer-status stale">STALE</span>`;
+    const cardBlock = (label, players, color) => `
+      <div class="frn-offer-side">
+        <div class="frn-offer-side-label" style="color:${color}">${label}</div>
+        ${players.length ? players.map(p => `<div class="frn-offer-player">
+          <span style="color:var(--gold);font-size:.58rem;font-weight:700">${p.position}</span>
+          <span style="font-weight:700">${p.name}</span>
+          <span>${gradeBadge(p)}</span>
+          <span style="color:var(--gray);font-size:.62rem">${p.age||"?"}</span>
+        </div>`).join("") : `<div style="color:var(--gray);font-style:italic;font-size:.65rem">No longer available</div>`}
+      </div>`;
+    return `<div class="frn-offer-card ${o.status}">
+      <div class="frn-offer-head">
+        <div>
+          <div style="font-weight:900">${fromTeam?.city||"?"} ${fromTeam?.name||"?"}</div>
+          <div style="color:var(--gray);font-size:.65rem">Week ${o.week} offer</div>
+        </div>
+        ${statusBadge}
+      </div>
+      <div class="frn-offer-bodies">
+        ${cardBlock("THEY GIVE", theyGive, "var(--green-lt)")}
+        <div class="frn-offer-arrow">⇄</div>
+        ${cardBlock("THEY WANT", theyWant, "var(--gold-lt)")}
+      </div>
+      ${o.status === "pending" ? `
+        <div class="frn-offer-actions">
+          <button class="btn btn-gold" onclick="frnAcceptOffer('${o.id}')">✓ Accept</button>
+          <button class="btn btn-outline" onclick="frnRejectOffer('${o.id}')" style="color:var(--red)">✗ Reject</button>
+        </div>` : ""}
+    </div>`;
+  }).join("");
 }
 
 // ── Annual Draft ──────────────────────────────────────────────────────────────
