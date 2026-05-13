@@ -824,6 +824,37 @@
   .frn-welcome-feat { background: var(--bg3); padding: .25rem .6rem; border: 1px solid var(--border); }
   .frn-welcome-feat strong { color: var(--gold-lt); }
 
+  /* Start screen — New / Load big buttons */
+  .frn-start-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  @media (max-width: 600px) { .frn-start-grid { grid-template-columns: 1fr; } }
+  .frn-start-btn {
+    background: var(--bg2); border: 1px dashed var(--border);
+    padding: 1.5rem 1.2rem; cursor: pointer; text-align: center;
+    color: var(--white); font-family: inherit;
+    display: flex; flex-direction: column; gap: .35rem; align-items: center;
+    transition: all .15s; position: relative;
+  }
+  .frn-start-btn:not(.disabled):hover {
+    background: var(--bg3); border-color: var(--gold);
+    transform: translateY(-1px);
+  }
+  .frn-start-btn::before { content:"┌"; position:absolute; top:-.55em; left:-.15em; color:var(--gold); font-size:1.15em; line-height:1; pointer-events:none; }
+  .frn-start-btn::after  { content:"┘"; position:absolute; bottom:-.55em; right:-.15em; color:var(--gold); font-size:1.15em; line-height:1; pointer-events:none; }
+  .frn-start-btn.disabled { opacity: .45; cursor: not-allowed; }
+  .frn-start-btn.disabled::before,
+  .frn-start-btn.disabled::after { color: var(--gray); }
+  .frn-start-icon { font-size: 2.2rem; color: var(--gold); line-height: 1; }
+  .frn-start-title {
+    font-size: 1.2rem; font-weight: 900; color: var(--gold-lt);
+    letter-spacing: 1.5px;
+  }
+  .frn-start-btn.disabled .frn-start-title { color: var(--gray); }
+  .frn-start-sub { color: var(--gray); font-size: .75rem; }
+  .frn-start-load .frn-start-icon { font-size: 1.8rem; }
+
   /* Team banner — top of dashboard, primary team identity */
   .frn-team-banner {
     display: grid; grid-template-columns: auto 1fr auto;
@@ -14089,21 +14120,98 @@ function assignFranchiseAges(rosters) {
 // Two top-level modes: "franchise" (default, the polished career UI) and
 // "testing" (legacy team-selector + sim/debug tools). Tab buttons drive this.
 function setAppMode(mode) {
-  document.body.classList.remove("mode-franchise", "mode-testing");
-  document.body.classList.add(`mode-${mode}`);
-  $("franchiseHome").style.display = mode === "franchise" ? "block" : "none";
-  $("testingPanel").style.display  = mode === "testing"   ? "block" : "none";
-  $("modeFranchiseBtn").classList.toggle("active", mode === "franchise");
-  $("modeTestingBtn").classList.toggle("active",   mode === "testing");
-  if (mode === "franchise") showFranchiseHome();
+  try {
+    document.body.classList.remove("mode-franchise", "mode-testing");
+    document.body.classList.add(`mode-${mode}`);
+    $("franchiseHome").style.display = mode === "franchise" ? "block" : "none";
+    $("testingPanel").style.display  = mode === "testing"   ? "block" : "none";
+    $("modeFranchiseBtn").classList.toggle("active", mode === "franchise");
+    $("modeTestingBtn").classList.toggle("active",   mode === "testing");
+    if (mode === "franchise") showFranchiseHome();
+  } catch (err) {
+    console.error("setAppMode error:", err);
+  }
 }
 
-// ── Show franchise home (replaces modal) ─────────────────────────────────────
+// ── Show franchise home ──────────────────────────────────────────────────────
+// Always lands on the start screen so the user can explicitly choose New or
+// Load. From there we render either the dashboard or the team picker.
 function showFranchiseHome() {
-  loadFranchise();
   $("franchiseHome").style.display = "block";
-  if (!franchise) renderFrnTeamPicker();
-  else            showFranchiseDashboard();
+  loadFranchise();
+  renderFrnStartScreen();
+}
+
+// Build a summary string for a saved franchise (shown on the Load button)
+function frnSaveSummary() {
+  if (!franchise) return null;
+  const team  = getTeam(franchise.chosenTeamId);
+  const s     = franchise.standings?.[franchise.chosenTeamId] || { w:0, l:0 };
+  const phase = franchise.phase || "regular";
+  const phaseLabel =
+    phase === "regular"   ? `Season ${franchise.season} · Week ${franchise.week} of ${FRANCHISE_WEEKS}` :
+    phase === "playoffs"  ? `Season ${franchise.season} · Playoffs` :
+    phase === "awards"    ? `Season ${franchise.season} · Awards` :
+    phase === "offseason" ? `Season ${franchise.season} · Offseason` :
+    `Season ${franchise.season}`;
+  const name = team ? `${team.city} ${team.name}` : "—";
+  return `${name} · ${phaseLabel} · ${s.w}-${s.l}`;
+}
+
+// Start screen — landing UI with New Game / Load Game choices
+function renderFrnStartScreen() {
+  const hasSave = !!franchise;
+  const summary = hasSave ? frnSaveSummary() : "No saved franchise";
+
+  $("frnHomeContent").innerHTML = `
+    <div class="frn-welcome">
+      <div class="frn-welcome-title">🏈 GRIDIRON CHAIN</div>
+      <div class="frn-welcome-sub">Multi-season football career mode</div>
+      <div class="frn-welcome-feats">
+        <div class="frn-welcome-feat"><strong>14</strong> regular-season games</div>
+        <div class="frn-welcome-feat"><strong>8-team</strong> playoff bracket</div>
+        <div class="frn-welcome-feat">Real <strong>MVP awards</strong></div>
+        <div class="frn-welcome-feat">Aging + rookie offseason</div>
+        <div class="frn-welcome-feat">Auto-saves locally</div>
+      </div>
+    </div>
+
+    <div class="frn-start-grid">
+      <button class="frn-start-btn frn-start-new" onclick="frnStartNew()">
+        <div class="frn-start-icon">＋</div>
+        <div class="frn-start-title">NEW GAME</div>
+        <div class="frn-start-sub">Pick a team and start a fresh career</div>
+      </button>
+      <button class="frn-start-btn frn-start-load ${hasSave ? "" : "disabled"}"
+              onclick="${hasSave ? "frnLoadGame()" : "void 0"}"
+              ${hasSave ? "" : "disabled"}>
+        <div class="frn-start-icon">${hasSave ? "📂" : "—"}</div>
+        <div class="frn-start-title">LOAD GAME</div>
+        <div class="frn-start-sub">${summary}</div>
+      </button>
+    </div>
+  `;
+}
+
+// "New Game" handler — confirms overwrite if there's a save
+function frnStartNew() {
+  if (franchise) {
+    if (!confirm("Start a new game? Your saved franchise will be erased.")) return;
+    franchise = null;
+    try { localStorage.removeItem(FRANCHISE_KEY); } catch (e) {}
+  }
+  renderFrnTeamPicker();
+}
+
+// "Load Game" handler — opens the saved franchise dashboard
+function frnLoadGame() {
+  loadFranchise();
+  if (!franchise) {
+    alert("No saved franchise found.");
+    renderFrnStartScreen();
+    return;
+  }
+  showFranchiseDashboard();
 }
 
 // Backwards-compat shims — old code paths still call these names
@@ -14142,14 +14250,36 @@ function startFranchise(teamId) {
 
 // ── Route to correct phase UI ────────────────────────────────────────────────
 function showFranchiseDashboard() {
-  if (!franchise) return;
+  if (!franchise) { renderFrnStartScreen(); return; }
+  // Defensive defaults for older saves missing newer fields
+  if (!franchise.phase)            franchise.phase = "regular";
+  if (!franchise.seasonStats)      franchise.seasonStats = {};
+  if (!franchise.seasonHighlights) franchise.seasonHighlights = [];
+  if (!franchise.history)          franchise.history = [];
+  if (!franchise.rosters)          franchise.rosters = {};
+  if (!franchise.schedule)         franchise.schedule = [];
+  if (!franchise.standings)        franchise.standings = initStandings();
+
   $("franchiseHome").style.display = "block";
   const { phase } = franchise;
-  if      (phase === "regular")          renderFrnRegular();
-  else if (phase === "playoffs_pending") startFrnPlayoffs();
-  else if (phase === "playoffs")         renderFrnPlayoffs();
-  else if (phase === "awards")           renderFrnAwards();
-  else if (phase === "offseason")        renderFrnOffseason();
+  try {
+    if      (phase === "regular")          renderFrnRegular();
+    else if (phase === "playoffs_pending") startFrnPlayoffs();
+    else if (phase === "playoffs")         renderFrnPlayoffs();
+    else if (phase === "awards")           renderFrnAwards();
+    else if (phase === "offseason")        renderFrnOffseason();
+    else                                   renderFrnStartScreen();
+  } catch (err) {
+    console.error("Dashboard render error:", err);
+    $("frnHomeContent").innerHTML = `
+      <div class="frn-welcome">
+        <div class="frn-welcome-title" style="color:var(--red)">⚠ Save data is corrupted</div>
+        <div class="frn-welcome-sub">${err.message || "Unknown error"}</div>
+        <div style="margin-top:1rem">
+          <button class="btn btn-gold" onclick="frnStartNew()">+ Start New Franchise</button>
+        </div>
+      </div>`;
+  }
 }
 
 // ── Team picker / welcome screen ─────────────────────────────────────────────
@@ -14180,18 +14310,11 @@ function renderFrnTeamPicker() {
   pickerHtml += `</div>`;
 
   $("frnHomeContent").innerHTML = `
-    <div class="frn-welcome">
-      <div class="frn-welcome-title">🏈 START YOUR FRANCHISE</div>
-      <div class="frn-welcome-sub">Pick a team and play a multi-season career.</div>
-      <div class="frn-welcome-feats">
-        <div class="frn-welcome-feat"><strong>14</strong> regular-season games</div>
-        <div class="frn-welcome-feat"><strong>8-team</strong> playoff bracket</div>
-        <div class="frn-welcome-feat">Real <strong>MVP awards</strong></div>
-        <div class="frn-welcome-feat"><strong>Aging</strong> + rookies offseason</div>
-        <div class="frn-welcome-feat">Auto-saves in your browser</div>
-      </div>
+    <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.8rem">
+      <button class="btn btn-outline" onclick="renderFrnStartScreen()">← Back</button>
+      <div style="font-size:1.1rem;font-weight:700;color:var(--gold)">CHOOSE YOUR TEAM</div>
     </div>
-    <div class="frn-picker-intro">Choose any of the 32 teams to start:</div>
+    <div class="frn-picker-intro">Pick any of the 32 teams to start your franchise. Each team has a unique playbook and primary color.</div>
     ${pickerHtml}
   `;
 }
@@ -15140,7 +15263,7 @@ function frnAbandon() {
   if (!confirm("Abandon this franchise? All progress will be lost.")) return;
   franchise = null;
   try { localStorage.removeItem(FRANCHISE_KEY); } catch(e) {}
-  renderFrnTeamPicker();
+  renderFrnStartScreen();
 }
 
 // ── Wire mode tabs + initial setup ────────────────────────────────────────────
