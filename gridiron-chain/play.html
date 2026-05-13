@@ -1171,6 +1171,81 @@
     margin-top: .55rem; padding-top: .4rem;
     border-top: 1px solid var(--border);
   }
+  .frn-player-meta {
+    display: grid; grid-template-columns: 1fr 1fr; gap: .35rem;
+    font-size: .68rem; margin-top: .5rem;
+    padding: .35rem .5rem; background: var(--bg2); border: 1px solid var(--border);
+  }
+  .frn-meta-label {
+    color: var(--gold); font-size: .55rem; font-weight: 700;
+    letter-spacing: .4px; margin-right: .3rem;
+  }
+  .frn-combine-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: .35rem;
+    font-size: .68rem;
+    padding: .35rem .5rem; background: var(--bg2); border: 1px solid var(--border);
+  }
+
+  /* Picker — team tier chip on team buttons */
+  .frn-team-tier {
+    margin-left: auto; font-size: .55rem; font-weight: 700;
+    color: var(--gold); padding: 0 .3rem;
+    border: 1px solid var(--gold-lt); letter-spacing: .3px;
+  }
+  .frn-team-tier.tier-powerhouse { color: #f0cc30; border-color: #f0cc30; background: rgba(240,204,48,0.15); }
+  .frn-team-tier.tier-contender  { color: #9be09b; border-color: #5da55d; background: rgba(155,224,155,0.10); }
+  .frn-team-tier.tier-average    { color: var(--gray); border-color: var(--border); }
+  .frn-team-tier.tier-rebuilding { color: #c08080; border-color: #c08080; background: rgba(192,128,128,0.10); }
+
+  /* Hover scout tooltip */
+  .frn-team-tooltip {
+    position: fixed; z-index: 1000; min-width: 240px; max-width: 320px;
+    background: var(--bg2); border: 1px solid var(--gold);
+    padding: .55rem .7rem; font-size: .72rem; color: var(--white);
+    pointer-events: none; box-shadow: 4px 4px 0 rgba(0,0,0,0.5);
+  }
+  .frn-tip-head { display: flex; align-items: center; gap: .4rem; margin-bottom: .25rem; }
+  .frn-tip-tier {
+    display: inline-block; font-size: .58rem; font-weight: 700;
+    padding: .08rem .35rem; margin-bottom: .35rem;
+    border: 1px solid; letter-spacing: .3px;
+  }
+  .frn-tip-tier.tier-powerhouse { color: #f0cc30; border-color: #f0cc30; background: rgba(240,204,48,0.12); }
+  .frn-tip-tier.tier-contender  { color: #9be09b; border-color: #5da55d; background: rgba(155,224,155,0.08); }
+  .frn-tip-tier.tier-average    { color: var(--gray); border-color: var(--border); }
+  .frn-tip-tier.tier-rebuilding { color: #c08080; border-color: #c08080; background: rgba(192,128,128,0.08); }
+  .frn-tip-ratings {
+    font-size: .68rem; color: var(--gray);
+    padding-bottom: .35rem; margin-bottom: .35rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .frn-tip-bullet { font-size: .68rem; color: var(--white); line-height: 1.35; padding: .08rem 0; }
+  .frn-tip-foot {
+    color: var(--gold); font-size: .55rem; font-style: italic;
+    margin-top: .35rem; padding-top: .3rem; border-top: 1px solid var(--border);
+    letter-spacing: .3px;
+  }
+
+  /* Team detail screen */
+  .frn-summary-bullets {
+    list-style: none; padding: 0; margin: 0;
+    font-size: .78rem; color: var(--white);
+  }
+  .frn-summary-bullets li {
+    padding: .25rem 0; border-bottom: 1px solid rgba(46,61,46,0.4);
+  }
+  .frn-summary-bullets li:last-child { border-bottom: none; }
+  .frn-summary-bullets li::before {
+    content: "▸ "; color: var(--gold); font-weight: 700;
+  }
+  .frn-team-stars {
+    display: flex; flex-wrap: wrap; gap: .35rem;
+  }
+  .frn-star-pill {
+    display: flex; align-items: center; gap: .35rem;
+    background: var(--bg3); border: 1px solid var(--border);
+    padding: .3rem .5rem; font-size: .72rem;
+  }
 
   /* Re-signings screen */
   .frn-resign-list { display: flex; flex-direction: column; gap: .5rem; }
@@ -14295,7 +14370,118 @@ function currentCap() {
   return franchise?.salaryCap || SALARY_CAP_BASE;
 }
 
+// ── Scouting representation: never expose raw OVR. Players are shown to the
+// user via a letter "scout grade" (A+ … F) that approximates perceived
+// talent. The grade is deliberately fuzzed against the underlying overall
+// so the user can't reverse-engineer the simulator's numbers — it's an
+// observer's estimate, not the truth.
+function scoutGrade(p) {
+  let score = p.overall || 60;
+  // Stable per-player noise (-8..+8) from a hash of the name
+  let h = 0;
+  const name = p.name || "";
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
+  score += (Math.abs(h) % 17) - 8;
+  // Draft pedigree tilt — recency bias in real scouting
+  const r = p.draftRound;
+  if (r === 1)      score += 3;
+  else if (r === 2) score += 1;
+  else if (r >= 5)  score -= 2;
+  else if (r === 0) score -= 4;
+  // Age cliff penalty in perceived grade
+  const age = p.age || 25;
+  if (age >= 34)      score -= 6;
+  else if (age >= 32) score -= 3;
+  return Math.max(20, Math.min(99, Math.round(score)));
+}
+
+function gradeLabel(score) {
+  if (score >= 92) return "A+";
+  if (score >= 87) return "A";
+  if (score >= 82) return "A-";
+  if (score >= 77) return "B+";
+  if (score >= 72) return "B";
+  if (score >= 67) return "B-";
+  if (score >= 62) return "C+";
+  if (score >= 55) return "C";
+  if (score >= 48) return "C-";
+  if (score >= 38) return "D";
+  return "F";
+}
+
+function gradeClass(score) {
+  if (score >= 82) return "elite";
+  if (score >= 70) return "good";
+  if (score >= 55) return "average";
+  return "poor";
+}
+
+function gradeBadge(p) {
+  const s = scoutGrade(p);
+  return `<span class="tt-ovr tier-${gradeClass(s)}" title="Scout grade — not exact ability">${gradeLabel(s)}</span>`;
+}
+
+function draftStr(p) {
+  if (!p.draftYear) return "—";
+  if (p.draftRound === 0) return `${p.draftYear} UDFA`;
+  return `${p.draftYear} R${p.draftRound} #${p.draftPick}`;
+}
+
+function careerEarningsStr(p) {
+  return `$${(p.careerEarnings || 0).toFixed(1)}M`;
+}
+
+// Convert hidden internal stats into combine-style measurables that the
+// user can see without exposing the raw 0-99 rating. These are stable
+// per player (function of p.stats) and read like real combine results.
+function combineMeasurables(p) {
+  const [spd=50, str=50, agi=50, /*awr*/, /*thr*/, /*cat*/, /*blk*/, /*prs*/, /*cov*/, /*tck*/, kpw=50] = p.stats || [];
+  const fortyTime  = (5.15 - (spd - 40) * 0.0135).toFixed(2);
+  const benchReps  = Math.max(2, Math.round(6 + (str - 40) * 0.42));
+  const coneTime   = (8.10 - (agi - 40) * 0.026).toFixed(2);
+  const verticalIn = Math.max(20, Math.round(26 + (spd + agi - 80) * 0.16));
+  return { fortyTime, benchReps, coneTime, verticalIn, kpw };
+}
+
+// Assign draft pedigree + career earnings to any roster player missing them.
+// At franchise start we retroactively give every player a "draft history"
+// based on their age and (hidden) overall, with realistic noise. Rookies
+// generated each offseason set their own draftYear via runFrnOffseason.
+function assignDraftInfo(rosters, currentYear) {
+  for (const roster of Object.values(rosters)) {
+    for (const p of roster) {
+      if (p.draftYear == null) {
+        const yearsInLeague = Math.max(0, (p.age || 22) - 22);
+        p.draftYear = currentYear - yearsInLeague;
+        const ovr = p.overall || 70;
+        // Better players go earlier in the draft, with a chunk of noise so
+        // top picks can bust and late-round gems exist
+        const expectedPick = Math.max(1, Math.min(224,
+          Math.round(260 - (ovr - 50) * 4.8 + (Math.random() - 0.5) * 80)
+        ));
+        if (Math.random() < 0.05 && ovr < 82) {
+          p.draftRound = 0; p.draftPick = null;
+        } else {
+          p.draftRound = Math.min(7, Math.ceil(expectedPick / 32));
+          p.draftPick  = ((expectedPick - 1) % 32) + 1;
+        }
+      }
+      if (p.careerEarnings == null) {
+        const yearsInLeague = Math.max(0, (p.age || 22) - 22);
+        const aav = p.contract?.aav || 1;
+        // Earlier-career deals tend to be smaller — rough estimate
+        p.careerEarnings = Math.round(yearsInLeague * aav * 0.65 * 10) / 10;
+      }
+    }
+  }
+}
+
 let franchise = null;
+// Temporary "draft" league generated when the user clicks New Game.
+// Lets the team picker show real per-team data (ratings, scout
+// bullets, depth charts) before they commit to a team. Cleared once
+// they pick or start fresh.
+let franchiseDraft = null;
 
 // ── Persistence ──────────────────────────────────────────────────────────────
 function saveFranchise() {
@@ -14546,13 +14732,40 @@ function renderFrnStartScreen() {
   `;
 }
 
-// "New Game" handler — confirms overwrite if there's a save
+// "New Game" handler — confirms overwrite, generates draft league, opens picker
 function frnStartNew() {
   if (franchise) {
     if (!confirm("Start a new game? Your saved franchise will be erased.")) return;
     franchise = null;
     try { localStorage.removeItem(FRANCHISE_KEY); } catch (e) {}
   }
+  franchiseDraft = _buildDraftLeague();
+  renderFrnTeamPicker();
+}
+
+// Build a fresh candidate league: rosters, ages, contracts, team tiers.
+// Used by the picker so hover/detail screens show real data, and reused
+// by startFranchise() if the user goes through and commits.
+function _buildDraftLeague() {
+  const rosters = {};
+  const usedNames = new Set();
+  const teamTiers = assignTeamTiers();
+  for (const t of TEAMS) {
+    const roster = genFranchiseRoster(t, usedNames, teamTiers[t.id]);
+    roster.forEach(p => usedNames.add(p.name));
+    rosters[t.id] = roster;
+  }
+  assignFranchiseAges(rosters);
+  assignContracts(rosters, SALARY_CAP_BASE);
+  const currentYear = new Date().getFullYear();
+  assignDraftInfo(rosters, currentYear);
+  return { rosters, teamTiers };
+}
+
+// Reroll the draft league while staying on the picker.
+function frnRerollLeague() {
+  if (!confirm("Reroll the entire league? Every team's roster will be regenerated.")) return;
+  franchiseDraft = _buildDraftLeague();
   renderFrnTeamPicker();
 }
 
@@ -14573,22 +14786,17 @@ function closeFranchiseModal() { /* no-op: franchise is inline now */ }
 
 // ── Initialize new franchise ─────────────────────────────────────────────────
 function startFranchise(teamId) {
-  const rosters   = {};
-  const usedNames = new Set();
-  const teamTiers = assignTeamTiers();
-  for (const t of TEAMS) {
-    const roster = genFranchiseRoster(t, usedNames, teamTiers[t.id]);
-    roster.forEach(p => usedNames.add(p.name));
-    rosters[t.id] = roster;
-  }
-  assignFranchiseAges(rosters);
+  // If the user came through the picker, the draft already has fresh rosters,
+  // ages, and contracts. Reuse them so the detail-page preview is exactly
+  // what they get. Otherwise (legacy entry points) generate fresh.
+  const draft = franchiseDraft || _buildDraftLeague();
   franchise = {
     chosenTeamId: teamId,
     season:  1,
     week:    1,
     phase:   "preseason",
-    rosters,
-    teamTiers,
+    rosters:        draft.rosters,
+    teamTiers:      draft.teamTiers,
     salaryCap:      SALARY_CAP_BASE,
     schedule:       generateFranchiseSchedule(),
     standings:      initStandings(),
@@ -14600,7 +14808,7 @@ function startFranchise(teamId) {
     seasonHighlights: [],
     superBowlGame:  null,
   };
-  assignContracts(franchise.rosters, SALARY_CAP_BASE);
+  franchiseDraft = null;
   saveFranchise();
   showFranchiseDashboard();
 }
@@ -14617,8 +14825,10 @@ function showFranchiseDashboard() {
   if (!franchise.schedule)         franchise.schedule = [];
   if (!franchise.standings)        franchise.standings = initStandings();
   if (!franchise.salaryCap)        franchise.salaryCap = SALARY_CAP_BASE;
-  // Backfill contracts for saves from before Phase 1
+  // Backfill contracts + draft info for saves from before Phase 1
   assignContracts(franchise.rosters, franchise.salaryCap);
+  const baseYear = new Date().getFullYear() + (franchise.season || 1) - 1;
+  assignDraftInfo(franchise.rosters, baseYear);
 
   $("franchiseHome").style.display = "block";
   const { phase } = franchise;
@@ -14654,6 +14864,67 @@ function showFranchiseDashboard() {
 }
 
 // ── Team picker / welcome screen ─────────────────────────────────────────────
+// Tier label for hover + detail screen
+const TIER_LABEL = {
+  powerhouse: "⭐ POWERHOUSE",
+  contender:  "💪 CONTENDER",
+  average:    "⚖ AVERAGE",
+  rebuilding: "🔧 REBUILDING",
+};
+
+// Resolve roster/tier from either the live franchise OR the picker draft.
+function _draftRosterFor(teamId) {
+  return franchise?.rosters?.[teamId] || franchiseDraft?.rosters?.[teamId] || [];
+}
+function _draftTierFor(teamId) {
+  return franchise?.teamTiers?.[teamId] || franchiseDraft?.teamTiers?.[teamId] || "average";
+}
+
+// Build a short scouting report for a team — 3-5 bullet points covering
+// QB outlook, best/worst unit, age profile, and star presence.
+function summarizeTeam(teamId) {
+  const roster = _draftRosterFor(teamId);
+  const tier   = _draftTierFor(teamId);
+  const ratings = buildRatings(roster);
+  const bullets = [];
+
+  const qb = roster.filter(p => p.position === "QB").sort((a,b)=>b.overall-a.overall)[0];
+  if (qb) {
+    const g = scoutGrade(qb), age = qb.age || 25;
+    if (age <= 24 && g >= 80)        bullets.push(`Promising young QB (age ${age}, ${gradeLabel(g)})`);
+    else if (age >= 33 && g >= 85)   bullets.push(`Aging legend at QB (age ${age}) — win-now window`);
+    else if (g >= 88)                bullets.push(`Elite QB anchors the offense`);
+    else if (g >= 78)                bullets.push(`Reliable starting QB`);
+    else if (g <= 60)                bullets.push(`Big question marks at QB`);
+    else if (age <= 23)              bullets.push(`Developmental QB (age ${age})`);
+  }
+
+  const units = [
+    { label:"rushing attack",   score: ratings.rb },
+    { label:"receiving corps",  score: ratings.wr },
+    { label:"offensive line",   score: ratings.ol },
+    { label:"defensive line",   score: ratings.dl },
+    { label:"linebacking corps",score: ratings.lb },
+    { label:"secondary",        score: (ratings.cb + ratings.saf) / 2 },
+  ];
+  const sortedUnits = units.slice().sort((a,b) => b.score - a.score);
+  const best = sortedUnits[0], worst = sortedUnits[sortedUnits.length-1];
+  if (best.score  >= 80) bullets.push(`Strength: ${best.label}`);
+  if (worst.score <= 64) bullets.push(`Weakness: ${worst.label}`);
+
+  const totalAge = roster.reduce((s,p)=>s+(p.age||25),0);
+  const avgAge = totalAge / Math.max(1, roster.length);
+  if (avgAge < 25.3)      bullets.push(`Youthful core (avg age ${avgAge.toFixed(1)})`);
+  else if (avgAge > 28.0) bullets.push(`Veteran-heavy (avg age ${avgAge.toFixed(1)})`);
+
+  const stars = roster.filter(p => scoutGrade(p) >= 87);
+  if (stars.length === 0)      bullets.push(`No headline talent`);
+  else if (stars.length === 1) bullets.push(`Built around ${stars[0].name} (${stars[0].position})`);
+  else if (stars.length >= 4)  bullets.push(`Stacked: ${stars.length} A-grade players`);
+
+  return { tier, bullets: bullets.slice(0, 5) };
+}
+
 function renderFrnTeamPicker() {
   const confOrder = [
     "AFC East","AFC North","AFC South","AFC West",
@@ -14671,9 +14942,15 @@ function renderFrnTeamPicker() {
       <div style="font-size:.62rem;color:var(--gold);letter-spacing:.5px;margin-bottom:.3rem">${divKey.toUpperCase()}</div>
       <div class="frn-team-grid">`;
     for (const t of teams) {
-      pickerHtml += `<button class="frn-team-btn" onclick="startFranchise(${t.id})" style="border-left:4px solid ${t.primary}">
+      const tier = _draftTierFor(t.id);
+      pickerHtml += `<button class="frn-team-btn"
+        onclick="renderFrnTeamDetail(${t.id})"
+        onmouseenter="frnTeamTipShow(event,${t.id})"
+        onmouseleave="frnTeamTipHide()"
+        style="border-left:4px solid ${t.primary}">
         <span class="frn-ascii">${teamAscii(t)}</span>
         <span style="font-weight:700">${t.city} ${t.name}</span>
+        <span class="frn-team-tier tier-${tier}">${tier[0].toUpperCase()}</span>
       </button>`;
     }
     pickerHtml += `</div></div>`;
@@ -14681,12 +14958,173 @@ function renderFrnTeamPicker() {
   pickerHtml += `</div>`;
 
   $("frnHomeContent").innerHTML = `
-    <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.8rem">
+    <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.8rem;flex-wrap:wrap">
       <button class="btn btn-outline" onclick="renderFrnStartScreen()">← Back</button>
       <div style="font-size:1.1rem;font-weight:700;color:var(--gold)">CHOOSE YOUR TEAM</div>
+      <button class="btn btn-outline" onclick="frnRerollLeague()" style="margin-left:auto;font-size:.7rem" title="Reroll the entire league">🎲 Reroll League</button>
     </div>
-    <div class="frn-picker-intro">Pick any of the 32 teams to start your franchise. Each team has a unique playbook and primary color.</div>
+    <div class="frn-picker-intro">
+      Hover for a quick scout report · Click a team to inspect them in depth before choosing.
+      League tiers: <span style="color:var(--gold-lt)">P=Powerhouse</span> ·
+      <span style="color:#9be09b">C=Contender</span> ·
+      <span style="color:var(--gray)">A=Average</span> ·
+      <span style="color:#c08080">R=Rebuilding</span>
+    </div>
     ${pickerHtml}
+  `;
+}
+
+// Floating hover tooltip — single shared element appended to body.
+function frnTeamTipShow(e, teamId) {
+  let tip = document.getElementById("frn-team-tooltip");
+  if (!tip) {
+    tip = document.createElement("div");
+    tip.id = "frn-team-tooltip";
+    tip.className = "frn-team-tooltip";
+    document.body.appendChild(tip);
+  }
+  const team    = getTeam(teamId);
+  const summary = summarizeTeam(teamId);
+  const ratings = buildRatings(_draftRosterFor(teamId));
+  tip.innerHTML = `
+    <div class="frn-tip-head">
+      <span style="color:var(--gold);font-size:1.2rem">${teamAscii(team)}</span>
+      <span style="font-weight:900">${team.city} ${team.name}</span>
+    </div>
+    <div class="frn-tip-tier tier-${summary.tier}">${TIER_LABEL[summary.tier]}</div>
+    <div class="frn-tip-ratings">
+      OFF <b style="color:var(--gold)">${Math.round(ratings.offense)}</b> ·
+      DEF <b style="color:var(--gold)">${Math.round(ratings.defense)}</b>
+    </div>
+    ${summary.bullets.map(b => `<div class="frn-tip-bullet">• ${b}</div>`).join("")}
+    <div class="frn-tip-foot">Click to inspect roster</div>
+  `;
+  tip.style.display = "block";
+  // Position near the team button, clamped to viewport
+  const rect = e.currentTarget.getBoundingClientRect();
+  const tipW = tip.offsetWidth, tipH = tip.offsetHeight;
+  let left = rect.right + 8;
+  if (left + tipW > window.innerWidth - 8) left = rect.left - tipW - 8;
+  let top = rect.top;
+  if (top + tipH > window.innerHeight - 8) top = window.innerHeight - tipH - 8;
+  if (top < 8) top = 8;
+  tip.style.left = left + "px";
+  tip.style.top  = top  + "px";
+}
+
+function frnTeamTipHide() {
+  const tip = document.getElementById("frn-team-tooltip");
+  if (tip) tip.style.display = "none";
+}
+
+// Team detail view — shown after a click in the picker.
+function renderFrnTeamDetail(teamId) {
+  frnTeamTipHide();
+  const team   = getTeam(teamId);
+  const roster = _draftRosterFor(teamId);
+  const tier   = _draftTierFor(teamId);
+  const ratings = buildRatings(roster);
+  const summary = summarizeTeam(teamId);
+
+  const byPos = {};
+  for (const p of roster) (byPos[p.position] = byPos[p.position] || []).push(p);
+  for (const pos of Object.keys(byPos)) byPos[pos].sort((a,b)=>b.overall-a.overall);
+
+  const renderDepthRow = (p, slot) => `<tr>
+    <td class="frn-scout-slot">${slot}</td>
+    <td>${p.name}</td>
+    <td>${gradeBadge(p)}</td>
+    <td style="color:var(--gray)">${p.age||"?"}</td>
+    <td style="color:var(--gray);font-size:.66rem">${draftStr(p)}</td>
+    <td style="color:var(--gold);font-size:.7rem">$${(p.contract?.aav||0).toFixed(1)}M</td>
+  </tr>`;
+
+  const buildDepth = positions => positions.map(({pos, n}) => {
+    const players = (byPos[pos] || []).slice(0, n);
+    return players.map((p, i) => renderDepthRow(p, players.length>1 ? `${pos}${i+1}` : pos)).join("");
+  }).join("");
+
+  const offenseDepth = buildDepth([
+    {pos:"QB", n:1}, {pos:"RB", n:1}, {pos:"WR", n:3},
+    {pos:"TE", n:1}, {pos:"OL", n:5},
+  ]);
+  const defenseDepth = buildDepth([
+    {pos:"DL", n:4}, {pos:"LB", n:3}, {pos:"CB", n:2}, {pos:"S", n:2},
+  ]);
+  const stDepth = buildDepth([{pos:"K", n:1}, {pos:"P", n:1}]);
+
+  // Star players — top 6 by scout grade
+  const stars = roster.slice().sort((a,b) => scoutGrade(b) - scoutGrade(a)).slice(0, 6);
+
+  $("frnHomeContent").innerHTML = `
+    <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.8rem;flex-wrap:wrap">
+      <button class="btn btn-outline" onclick="renderFrnTeamPicker()">← Back to picker</button>
+      <div style="font-size:.78rem;color:var(--gray)">Inspect roster before choosing</div>
+      <button class="btn btn-gold-big" onclick="startFranchise(${teamId})" style="margin-left:auto">
+        ✓ CHOOSE ${team.name.toUpperCase()}
+      </button>
+    </div>
+
+    <div class="frn-team-banner" style="--banner-color:${team.primary}">
+      <div class="frn-banner-stripe"></div>
+      <div class="frn-banner-ascii">${teamAscii(team)}</div>
+      <div class="frn-banner-info">
+        <div class="frn-banner-name">${team.city.toUpperCase()} ${team.name.toUpperCase()}</div>
+        <div class="frn-banner-sub">
+          ${team.conference} ${team.division} ·
+          <span style="color:var(--gold-lt)">${TIER_LABEL[summary.tier]}</span> ·
+          OFF ${Math.round(ratings.offense)} · DEF ${Math.round(ratings.defense)}
+        </div>
+      </div>
+    </div>
+
+    <div class="frn-card-box" style="margin-bottom:.8rem">
+      <div class="frn-card-title">📋 SCOUT REPORT</div>
+      <ul class="frn-summary-bullets">
+        ${summary.bullets.map(b => `<li>${b}</li>`).join("")}
+      </ul>
+    </div>
+
+    <div class="frn-dash-grid">
+      <div class="frn-card-box">
+        <div class="frn-card-title">OFFENSE DEPTH</div>
+        <table class="frn-pre-roster-table">
+          <thead><tr><th></th><th>Player</th><th>Grade</th><th>Age</th><th>Draft</th><th>AAV</th></tr></thead>
+          <tbody>${offenseDepth}</tbody>
+        </table>
+      </div>
+      <div class="frn-card-box">
+        <div class="frn-card-title">DEFENSE DEPTH</div>
+        <table class="frn-pre-roster-table">
+          <thead><tr><th></th><th>Player</th><th>Grade</th><th>Age</th><th>Draft</th><th>AAV</th></tr></thead>
+          <tbody>${defenseDepth}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="frn-card-box" style="margin-top:.8rem">
+      <div class="frn-card-title">SPECIAL TEAMS</div>
+      <table class="frn-pre-roster-table">
+        <thead><tr><th></th><th>Player</th><th>Grade</th><th>Age</th><th>Draft</th><th>AAV</th></tr></thead>
+        <tbody>${stDepth}</tbody>
+      </table>
+    </div>
+
+    <div class="frn-card-box" style="margin-top:.8rem">
+      <div class="frn-card-title">⭐ TOP TALENT</div>
+      <div class="frn-team-stars">
+        ${stars.map(p => `<div class="frn-star-pill">
+          ${gradeBadge(p)}
+          <span style="font-weight:700">${p.name}</span>
+          <span style="color:var(--gray);font-size:.65rem">${p.position} · age ${p.age||"?"} · ${draftStr(p)}</span>
+        </div>`).join("")}
+      </div>
+    </div>
+
+    <div class="frn-actions" style="justify-content:center;margin-top:1rem">
+      <button class="btn btn-gold-big" onclick="startFranchise(${teamId})">✓ CHOOSE ${team.name.toUpperCase()}</button>
+      <button class="btn btn-outline" onclick="renderFrnTeamPicker()">← Pick a different team</button>
+    </div>
   `;
 }
 
@@ -14807,7 +15245,7 @@ function _preseasonRosterTab(roster, selName) {
             return `<tr class="frn-scout-row ${isSel?"selected":""}" onclick="renderFrnPreseason('roster',null,null,'${escName}')">
               <td class="frn-scout-slot">${isStarter?"★":"#"+(i+1)}</td>
               <td style="font-weight:${isStarter?700:400}">${p.name}</td>
-              <td><span class="tt-ovr tier-${playerTier(p.overall)}">${p.overall}</span></td>
+              <td>${gradeBadge(p)}</td>
               <td style="color:var(--gray)">${p.age || "?"}</td>
               <td style="color:var(--gold);font-size:.7rem">$${aav.toFixed(1)}M · ${yrs}yr</td>
               <td><button class="frn-pre-cut" onclick="event.stopPropagation();frnReleasePlayer('${escName}','${p.position}')" title="Release — frees cap, removes from roster">✗</button></td>
@@ -14842,7 +15280,7 @@ function _preseasonScheduleTab(schedule, myId) {
           <td style="color:${isHome?"var(--green-lt)":"var(--gray)"};font-size:.7rem">${isHome ? "HOME" : "@ AWAY"}</td>
           <td style="color:var(--gold)">${oppRtg.off}</td>
           <td style="color:var(--gold)">${oppRtg.def}</td>
-          <td style="color:var(--gray);font-size:.7rem">${star ? `${star.name} (${star.position}, ${star.overall} OVR)` : "—"}</td>
+          <td style="color:var(--gray);font-size:.7rem">${star ? `${star.name} (${star.position}, ${gradeLabel(scoutGrade(star))})` : "—"}</td>
         </tr>`;
       }).join("")}
     </tbody>
@@ -14895,9 +15333,9 @@ function _preseasonScoutTab(myId, scoutId, view, selName) {
       onclick="renderFrnPreseason('scout',${scoutId},'${view}','${escName}')">
       <td class="frn-scout-slot">${slotLabel}</td>
       <td style="font-weight:${slotLabel.includes("1")||slotLabel==="QB"||slotLabel==="RB"||slotLabel==="TE"||slotLabel==="K"||slotLabel==="P"?700:400}">${p.name}</td>
-      <td><span class="tt-ovr tier-${playerTier(p.overall)}">${p.overall}</span></td>
+      <td>${gradeBadge(p)}</td>
       <td style="color:var(--gray)">${p.age || "?"}</td>
-      <td style="color:var(--gray);font-size:.66rem">${p.archetype || "—"}</td>
+      <td style="color:var(--gray);font-size:.66rem">${draftStr(p)}</td>
       <td style="color:var(--gold);font-size:.7rem">$${(p.contract?.aav||0).toFixed(1)}M</td>
     </tr>`;
   };
@@ -14941,7 +15379,7 @@ function _preseasonScoutTab(myId, scoutId, view, selName) {
       <div class="frn-scout-split">
         <div class="frn-scout-roster">
           <table class="frn-pre-roster-table">
-            <thead><tr><th></th><th>Player</th><th>OVR</th><th>Age</th><th>Archetype</th><th>AAV</th></tr></thead>
+            <thead><tr><th></th><th>Player</th><th>Grade</th><th>Age</th><th>Draft</th><th>AAV</th></tr></thead>
             <tbody>${rows.join("")}</tbody>
           </table>
         </div>
@@ -14952,21 +15390,31 @@ function _preseasonScoutTab(myId, scoutId, view, selName) {
 }
 
 // Detail card for a single player — shown in Scout right side panel.
+// Deliberately hides OVR. Uses scout grade, combine measurables, draft
+// pedigree, and career earnings — same data a real scouting report works
+// from, none of which is the simulator's hidden rating directly.
 function _buildPlayerDetailPanel(p) {
-  const STAT_LABELS = ["SPD","STR","AGI","AWR","THR","CAT","BLK","PRS","COV","TCK","KPW"];
-  const stats = p.stats || [];
-  const statBars = stats.map((v, i) => {
-    const color = v >= 85 ? "#f0cc30" : v >= 70 ? "#9be09b" : v >= 55 ? "#c0c0c0" : "#c08080";
-    return `<div class="frn-stat-row">
-      <span class="frn-stat-label">${STAT_LABELS[i] || `S${i}`}</span>
-      <div class="frn-stat-bar"><div class="frn-stat-bar-fill" style="width:${v}%;background:${color}"></div></div>
-      <span class="frn-stat-val">${v}</span>
-    </div>`;
-  }).join("");
+  const g    = scoutGrade(p);
+  const gL   = gradeLabel(g);
+  const gCls = gradeClass(g);
+  const cmb  = combineMeasurables(p);
+  const aav  = p.contract?.aav || 0;
+  const yrs  = p.contract?.remaining || 0;
+  const flav = p.flavor?.desc || "";
 
-  const flavor = p.flavor?.desc || "";
-  const aav = p.contract?.aav || 0;
-  const yrs = p.contract?.remaining || 0;
+  // Position-specific combine display — kickers/punters get leg power instead
+  const isKicker = p.position === "K" || p.position === "P";
+  const combineHtml = isKicker
+    ? `<div class="frn-combine-grid">
+         <div><span class="frn-meta-label">LEG</span> ${Math.round(70 + (cmb.kpw - 50) * 0.45)} yds</div>
+         <div><span class="frn-meta-label">40-YD</span> ${cmb.fortyTime}s</div>
+       </div>`
+    : `<div class="frn-combine-grid">
+         <div><span class="frn-meta-label">40-YD</span> ${cmb.fortyTime}s</div>
+         <div><span class="frn-meta-label">BENCH</span> ${cmb.benchReps} reps</div>
+         <div><span class="frn-meta-label">CONE</span> ${cmb.coneTime}s</div>
+         <div><span class="frn-meta-label">VERT</span> ${cmb.verticalIn}"</div>
+       </div>`;
 
   return `<div class="frn-player-card">
     <div class="frn-player-card-head">
@@ -14977,13 +15425,19 @@ function _buildPlayerDetailPanel(p) {
         </div>
       </div>
       <div style="text-align:right">
-        <span class="tt-ovr tier-${playerTier(p.overall)}" style="font-size:1.05rem;padding:.25rem .7rem">${p.overall}</span>
+        <span class="tt-ovr tier-${gCls}" style="font-size:1.05rem;padding:.25rem .7rem"
+          title="Scout grade — observers' estimate, not exact ability">${gL}</span>
         <div style="color:var(--gold);font-size:.78rem;font-weight:700;margin-top:.25rem">$${aav.toFixed(1)}M/yr</div>
         <div style="color:var(--gray);font-size:.62rem">${yrs}yr left</div>
       </div>
     </div>
-    <div class="frn-stat-grid">${statBars}</div>
-    ${flavor ? `<div class="frn-player-flavor">${flavor}</div>` : ""}
+    <div class="frn-player-meta">
+      <div><span class="frn-meta-label">DRAFT</span> ${draftStr(p)}</div>
+      <div><span class="frn-meta-label">CAREER $</span> ${careerEarningsStr(p)}</div>
+    </div>
+    <div class="frn-card-title" style="margin-top:.55rem;margin-bottom:.3rem">COMBINE</div>
+    ${combineHtml}
+    ${flav ? `<div class="frn-player-flavor">${flav}</div>` : ""}
   </div>`;
 }
 
@@ -15756,8 +16210,11 @@ function renderFrnAnalytics(defaultTab) {
       return `<tr>
         <td style="color:${aavColor(c.aav)};font-weight:700">${p.name}</td>
         <td style="color:var(--gray)">${p.position}</td>
-        <td style="color:var(--gray)">${p.overall} OVR</td>
+        <td>${gradeBadge(p)}</td>
+        <td style="color:var(--gray)">${p.age || "?"}</td>
+        <td style="color:var(--gray);font-size:.65rem">${draftStr(p)}</td>
         <td style="color:${aavColor(c.aav)};font-weight:700">$${c.aav.toFixed(1)}M</td>
+        <td style="color:var(--gold);font-size:.65rem">${careerEarningsStr(p)}</td>
         <td style="color:var(--gray);font-size:.65rem">${c.remaining}yr left</td>
         <td style="font-size:.65rem;color:${expiring?"var(--red)":"var(--gray)"}">${expiring?"EXPIRING":""}</td>
       </tr>`;
@@ -15772,7 +16229,7 @@ function renderFrnAnalytics(defaultTab) {
         <span style="color:${capLeft<0?"var(--red)":"var(--green-lt)"}">Room: <b>$${capLeft.toFixed(1)}M</b></span>
       </div>
       <table class="frn-ana-table"><thead>
-        <tr><th>Player</th><th>Pos</th><th>OVR</th><th>AAV</th><th>Length</th><th></th></tr>
+        <tr><th>Player</th><th>Pos</th><th>Grade</th><th>Age</th><th>Draft</th><th>AAV</th><th>Career $</th><th>Length</th><th></th></tr>
       </thead><tbody>${rows}</tbody></table>`;
   }
 
@@ -15828,13 +16285,17 @@ function renderFrnAnalytics(defaultTab) {
         <td style="color:var(--gray);font-size:.65rem">${i+1}.</td>
         <td style="color:${isMe?"var(--gold)":"var(--white)"};font-weight:700">${p.name}</td>
         <td style="color:var(--gray)">${p.position}</td>
+        <td>${gradeBadge(p)}</td>
+        <td style="color:var(--gray)">${p.age||"?"}</td>
+        <td style="color:var(--gray);font-size:.65rem">${draftStr(p)}</td>
         <td style="color:var(--gray);font-size:.68rem">${p.teamName}</td>
         <td style="color:${aavColor(c.aav)};font-weight:700">$${c.aav.toFixed(1)}M</td>
+        <td style="color:var(--gold);font-size:.65rem">${careerEarningsStr(p)}</td>
         <td style="color:var(--gray);font-size:.65rem">${c.remaining}yr</td>
       </tr>`;
     }).join("");
     return `<table class="frn-ana-table"><thead>
-      <tr><th>#</th><th>Player</th><th>Pos</th><th>Team</th><th>AAV</th><th>Left</th></tr>
+      <tr><th>#</th><th>Player</th><th>Pos</th><th>Grade</th><th>Age</th><th>Draft</th><th>Team</th><th>AAV</th><th>Career $</th><th>Left</th></tr>
     </thead><tbody>${rows}</tbody></table>`;
   }
 
@@ -15859,20 +16320,23 @@ function renderFrnAnalytics(defaultTab) {
       return `<tr style="${isMe?"background:rgba(200,169,0,0.07)":""}">
         <td style="color:var(--gray);font-size:.65rem">${i+1}.</td>
         <td style="color:${isMe?"var(--gold)":"var(--white)"};font-weight:700">${p.name}</td>
-        <td style="color:var(--gray)">${p.overall}</td>
+        <td>${gradeBadge(p)}</td>
+        <td style="color:var(--gray)">${p.age||"?"}</td>
+        <td style="color:var(--gray);font-size:.65rem">${draftStr(p)}</td>
         <td style="color:var(--gray);font-size:.68rem">${p.teamName}</td>
         <td style="color:${aavColor(c.aav)};font-weight:700">$${c.aav.toFixed(1)}M</td>
         <td style="color:${diffColor};font-size:.65rem">${diffStr}M vs mkt</td>
+        <td style="color:var(--gold);font-size:.65rem">${careerEarningsStr(p)}</td>
         <td style="color:var(--gray);font-size:.65rem">${c.remaining}yr</td>
       </tr>`;
     }).join("");
     return `
       <div style="font-size:.72rem;color:var(--gray);margin-bottom:.5rem">
         ${all.length} ${pos}s · Avg AAV: <b style="color:var(--white)">$${all.length?(all.reduce((s,p)=>s+p.contract.aav,0)/all.length).toFixed(1):0}M</b>
-        · Market rate (85 OVR): <b style="color:var(--gold)">$${computeMarketValue({overall:85,age:27,position:pos},cap).toFixed(1)}M</b>
+        · Top-grade rate: <b style="color:var(--gold)">$${computeMarketValue({overall:85,age:27,position:pos},cap).toFixed(1)}M</b>
       </div>
       <table class="frn-ana-table"><thead>
-        <tr><th>#</th><th>Player</th><th>OVR</th><th>Team</th><th>AAV</th><th>vs Market</th><th>Left</th></tr>
+        <tr><th>#</th><th>Player</th><th>Grade</th><th>Age</th><th>Draft</th><th>Team</th><th>AAV</th><th>vs Market</th><th>Career $</th><th>Left</th></tr>
       </thead><tbody>${rows}</tbody></table>`;
   }
 
