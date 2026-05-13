@@ -879,6 +879,17 @@
     letter-spacing: 1.5px; line-height: 1.1;
   }
   .frn-banner-sub { color: var(--gray); font-size: .78rem; }
+  .frn-banner-cap {
+    font-size: .72rem; font-weight: 700; margin-top: .2rem;
+    display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
+  }
+  .frn-cap-btn {
+    background: transparent; border: 1px solid var(--gold); color: var(--gold);
+    padding: .1rem .45rem; font-size: .62rem; cursor: pointer;
+    font-family: inherit; font-weight: 700; letter-spacing: .3px;
+    transition: all .1s;
+  }
+  .frn-cap-btn:hover { background: var(--gold); color: #000; }
   .frn-banner-record {
     color: var(--gold-lt); font-size: 1.4rem; font-weight: 900;
     letter-spacing: 1px;
@@ -1010,6 +1021,60 @@
     display: grid; grid-template-columns: repeat(2, 1fr); gap: .5rem 1rem;
   }
   @media (max-width: 700px) { .frn-picker-grid { grid-template-columns: 1fr; } }
+
+  /* Analytics tabs + table */
+  .frn-ana-tabs {
+    display: flex; flex-wrap: wrap; gap: .25rem; margin-bottom: .75rem;
+  }
+  .frn-ana-tab {
+    background: var(--bg3); border: 1px solid var(--border); color: var(--gray);
+    padding: .25rem .65rem; font-size: .65rem; font-weight: 700; cursor: pointer;
+    font-family: inherit; letter-spacing: .4px; transition: all .1s;
+  }
+  .frn-ana-tab:hover { border-color: var(--gold); color: var(--white); }
+  .frn-ana-tab.active { background: var(--gold); color: #000; border-color: var(--gold); }
+  .frn-ana-body { overflow-x: auto; }
+  .frn-ana-table {
+    width: 100%; border-collapse: collapse; font-size: .72rem;
+  }
+  .frn-ana-table th {
+    text-align: left; color: var(--gold); font-size: .6rem;
+    letter-spacing: .4px; padding: .3rem .4rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .frn-ana-table td {
+    padding: .28rem .4rem; border-bottom: 1px solid rgba(46,61,46,0.4);
+  }
+  .frn-ana-table tr:last-child td { border-bottom: none; }
+  .frn-ana-table tr:hover td { background: rgba(200,169,0,0.04); }
+  .frn-ana-capbar {
+    height: 8px; background: var(--bg3); margin-bottom: .4rem;
+    border: 1px solid var(--border); position: relative;
+  }
+  .frn-ana-capbar-fill { height: 100%; transition: width .3s; }
+
+  /* Re-signings screen */
+  .frn-resign-list { display: flex; flex-direction: column; gap: .5rem; }
+  .frn-resign-row {
+    display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;
+    padding: .55rem .75rem; background: var(--bg2); border: 1px solid var(--border);
+    transition: all .15s;
+  }
+  .frn-resign-row.accepted { border-color: var(--green); background: rgba(0,180,0,0.07); }
+  .frn-resign-row.declined { border-color: var(--red);   background: rgba(180,0,0,0.07); opacity:.7; }
+  .frn-resign-info { flex: 1; display: flex; flex-direction: column; gap: .1rem; min-width: 140px; }
+  .frn-resign-offer { display: flex; flex-direction: column; gap: .05rem; text-align: right; }
+  .frn-resign-btns { display: flex; gap: .35rem; }
+  .frn-resign-btn {
+    padding: .25rem .75rem; font-size: .68rem; font-weight: 700; cursor: pointer;
+    font-family: inherit; border: 1px solid; transition: all .1s; min-width: 72px; text-align: center;
+  }
+  .frn-resign-btn.accept-btn  { border-color: var(--green); color: var(--green-lt); background: transparent; }
+  .frn-resign-btn.accept-btn:hover  { background: var(--green); color: #000; }
+  .frn-resign-btn.decline-btn { border-color: var(--red); color: #ff9090; background: transparent; }
+  .frn-resign-btn.decline-btn:hover { background: var(--red); color: #fff; }
+  .frn-resign-btn.accepted { border-color: var(--green); color: var(--green-lt); background: rgba(0,180,0,0.15); cursor: default; }
+  .frn-resign-btn.declined  { border-color: var(--red);  color: #ff9090;        background: rgba(180,0,0,0.15); cursor: default; }
 
   /* Cinema move callout */
   .cinema-callout {
@@ -14043,6 +14108,67 @@ function renderRatings() {
 const FRANCHISE_KEY   = "gc_franchise_v1";
 const FRANCHISE_WEEKS = 14;
 const PLAYOFF_TEAMS   = 8;
+const SALARY_CAP_BASE = 200; // $M — grows ~5-9% each offseason
+
+// ── Salary cap helpers ───────────────────────────────────────────────────────
+// Per-position rate: fraction of cap that a 100-OVR player would earn.
+const CAP_POS_RATE = {
+  QB: 0.25, RB: 0.08, WR: 0.12, TE: 0.07, OL: 0.06,
+  DL: 0.065, LB: 0.065, CB: 0.09, S: 0.055, K: 0.025, P: 0.022,
+};
+
+function computeMarketValue(player, cap) {
+  const ovr  = player.overall || 70;
+  const pos  = player.position;
+  const rate = CAP_POS_RATE[pos] || 0.06;
+  const capRef = cap || SALARY_CAP_BASE;
+  // Base scales from 0 at OVR 55 to rate×cap at OVR 100
+  let val = capRef * rate * Math.max(0, (ovr - 55) / 45);
+  // Age adjustment
+  const age = player.age || 27;
+  if (age <= 25)      val *= 1.10;
+  else if (age >= 34) val *= 0.75;
+  else if (age >= 31) val *= 0.90;
+  return Math.max(0.5, Math.round(val * 10) / 10);
+}
+
+function generateContract(player, cap) {
+  const ovr = player.overall || 70;
+  const age = player.age || 25;
+  const aav = computeMarketValue(player, cap);
+  // Contract length: rookies get 4yr; stars (85+) get 4-7; others 2-5; all capped at 10
+  let minYr = 2, maxYr = 5;
+  if (age <= 23)   { minYr = 4; maxYr = 4; }
+  else if (ovr >= 88) { minYr = 4; maxYr = 7; }
+  else if (ovr >= 80) { minYr = 3; maxYr = 6; }
+  // Clip by age — don't give a 36-year-old a 5-year deal
+  maxYr = Math.min(maxYr, Math.max(1, 38 - age));
+  const years = Math.max(1, Math.min(10, minYr + Math.floor(Math.random() * (maxYr - minYr + 1))));
+  return { years, remaining: years, aav };
+}
+
+function assignContracts(rosters, cap) {
+  for (const roster of Object.values(rosters)) {
+    for (const p of roster) {
+      if (!p.contract) {
+        p.contract = generateContract(p, cap);
+        // Stagger existing roster: randomise how far into the contract they are
+        if ((p.age || 25) > 23) {
+          p.contract.remaining = Math.max(1, Math.ceil(Math.random() * p.contract.years));
+        }
+      }
+    }
+  }
+}
+
+function capUsedByTeam(teamId) {
+  const roster = (franchise?.rosters || {})[teamId] || [];
+  return roster.reduce((s, p) => s + (p.contract?.aav || 0), 0);
+}
+
+function currentCap() {
+  return franchise?.salaryCap || SALARY_CAP_BASE;
+}
 
 let franchise = null;
 
@@ -14234,6 +14360,7 @@ function startFranchise(teamId) {
     week:    1,
     phase:   "regular",
     rosters,
+    salaryCap:      SALARY_CAP_BASE,
     schedule:       generateFranchiseSchedule(),
     standings:      initStandings(),
     playoffBracket: null,
@@ -14244,6 +14371,7 @@ function startFranchise(teamId) {
     seasonHighlights: [],
     superBowlGame:  null,
   };
+  assignContracts(franchise.rosters, SALARY_CAP_BASE);
   saveFranchise();
   showFranchiseDashboard();
 }
@@ -14259,6 +14387,9 @@ function showFranchiseDashboard() {
   if (!franchise.rosters)          franchise.rosters = {};
   if (!franchise.schedule)         franchise.schedule = [];
   if (!franchise.standings)        franchise.standings = initStandings();
+  if (!franchise.salaryCap)        franchise.salaryCap = SALARY_CAP_BASE;
+  // Backfill contracts for saves from before Phase 1
+  assignContracts(franchise.rosters, franchise.salaryCap);
 
   $("franchiseHome").style.display = "block";
   const { phase } = franchise;
@@ -14267,7 +14398,17 @@ function showFranchiseDashboard() {
     else if (phase === "playoffs_pending") startFrnPlayoffs();
     else if (phase === "playoffs")         renderFrnPlayoffs();
     else if (phase === "awards")           renderFrnAwards();
-    else if (phase === "offseason")        renderFrnOffseason();
+    else if (phase === "offseason") {
+      if (franchise._resignPending?.length) {
+        const cap = franchise.salaryCap || SALARY_CAP_BASE;
+        const committed = (franchise.rosters[franchise.chosenTeamId] || [])
+          .filter(p => p.contract && p.contract.remaining > 0)
+          .reduce((s, p) => s + p.contract.aav, 0);
+        _renderResignUI(cap, committed);
+      } else {
+        renderFrnOffseason();
+      }
+    }
     else                                   renderFrnStartScreen();
   } catch (err) {
     console.error("Dashboard render error:", err);
@@ -14361,6 +14502,10 @@ function renderFrnRegular() {
   const myRtg   = frnTeamRating(chosenTeamId);
 
   // ─── Team banner ───────────────────────────────────────────────────────
+  const cap = franchise.salaryCap || SALARY_CAP_BASE;
+  const capUsed = capUsedByTeam(chosenTeamId);
+  const capPct  = Math.round(capUsed / cap * 100);
+  const capColor = capPct >= 95 ? "var(--red)" : capPct >= 85 ? "#e8a000" : "var(--green-lt)";
   const bannerHtml = `
     <div class="frn-team-banner" style="--banner-color:${myTeam.primary}">
       <div class="frn-banner-stripe"></div>
@@ -14370,6 +14515,11 @@ function renderFrnRegular() {
         <div class="frn-banner-sub">
           Season ${season} · Week ${Math.min(week, FRANCHISE_WEEKS)} of ${FRANCHISE_WEEKS} ·
           PF ${myStand.pf} / PA ${myStand.pa} · OFF ${myRtg.off} · DEF ${myRtg.def}
+        </div>
+        <div class="frn-banner-cap" style="color:${capColor}">
+          CAP $${capUsed.toFixed(1)}M / $${cap.toFixed(0)}M
+          <span style="color:var(--gray);font-weight:400"> · ${capPct}% used</span>
+          <button class="frn-cap-btn" onclick="renderFrnAnalytics('mysheet')">📊 Analytics</button>
         </div>
       </div>
       <div>
@@ -15057,6 +15207,302 @@ function showFrnAwards() {
   renderFrnAwards();
 }
 
+// ── Analytics page ────────────────────────────────────────────────────────────
+function renderFrnAnalytics(defaultTab) {
+  const tab = defaultTab || "mysheet";
+  const { chosenTeamId, salaryCap, rosters } = franchise;
+  const cap = salaryCap || SALARY_CAP_BASE;
+
+  // Helper: colour-code AAV relative to cap
+  const aavColor = aav => {
+    const pct = aav / cap;
+    if (pct >= 0.18) return "var(--red)";
+    if (pct >= 0.10) return "#e8a000";
+    return "var(--white)";
+  };
+
+  // ── My Cap Sheet ────────────────────────────────────────────────────────
+  function myCapSheet() {
+    const roster = (rosters[chosenTeamId] || [])
+      .filter(p => p.contract)
+      .sort((a, b) => b.contract.aav - a.contract.aav);
+    const totalUsed = roster.reduce((s, p) => s + p.contract.aav, 0);
+    const capLeft   = cap - totalUsed;
+    const rows = roster.map(p => {
+      const c = p.contract;
+      const expiring = c.remaining <= 1;
+      return `<tr>
+        <td style="color:${aavColor(c.aav)};font-weight:700">${p.name}</td>
+        <td style="color:var(--gray)">${p.position}</td>
+        <td style="color:var(--gray)">${p.overall} OVR</td>
+        <td style="color:${aavColor(c.aav)};font-weight:700">$${c.aav.toFixed(1)}M</td>
+        <td style="color:var(--gray);font-size:.65rem">${c.remaining}yr left</td>
+        <td style="font-size:.65rem;color:${expiring?"var(--red)":"var(--gray)"}">${expiring?"EXPIRING":""}</td>
+      </tr>`;
+    }).join("");
+    return `
+      <div class="frn-ana-capbar">
+        <div class="frn-ana-capbar-fill" style="width:${Math.min(100,totalUsed/cap*100).toFixed(1)}%;background:${totalUsed/cap>=0.95?"var(--red)":totalUsed/cap>=0.85?"#e8a000":"var(--green)"}"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:.72rem;margin-bottom:.8rem">
+        <span>Used: <b style="color:var(--white)">$${totalUsed.toFixed(1)}M</b></span>
+        <span>Cap: <b style="color:var(--gold)">$${cap.toFixed(0)}M</b></span>
+        <span style="color:${capLeft<0?"var(--red)":"var(--green-lt)"}">Room: <b>$${capLeft.toFixed(1)}M</b></span>
+      </div>
+      <table class="frn-ana-table"><thead>
+        <tr><th>Player</th><th>Pos</th><th>OVR</th><th>AAV</th><th>Length</th><th></th></tr>
+      </thead><tbody>${rows}</tbody></table>`;
+  }
+
+  // ── League Cap Health ───────────────────────────────────────────────────
+  function leagueCapHealth() {
+    const rows = TEAMS.map(t => {
+      const used = capUsedByTeam(t.id);
+      const pct  = used / cap * 100;
+      const bar  = `<div style="width:${Math.min(100,pct).toFixed(0)}%;height:6px;background:${pct>=95?"var(--red)":pct>=85?"#e8a000":"var(--green)"};"></div>`;
+      const isMe = t.id === chosenTeamId;
+      return `<tr style="${isMe?"background:rgba(200,169,0,0.07)":""}">
+        <td style="color:${isMe?"var(--gold)":"var(--white)"};font-weight:${isMe?700:400}">${isMe?"»":""} ${t.city} ${t.name}</td>
+        <td><div style="background:var(--bg3);width:100%;height:6px;">${bar}</div></td>
+        <td style="text-align:right;color:${pct>=95?"var(--red)":pct>=85?"#e8a000":"var(--white)"};font-weight:700">$${used.toFixed(0)}M</td>
+        <td style="text-align:right;color:var(--gray);font-size:.65rem">${pct.toFixed(0)}%</td>
+      </tr>`;
+    }).sort((a, b) => {
+      // Already sorted by name; let's re-sort by cap used desc
+      return 0;
+    });
+    // Re-sort properly
+    const teams = TEAMS.map(t => ({ t, used: capUsedByTeam(t.id) }))
+      .sort((a, b) => b.used - a.used);
+    const sortedRows = teams.map(({ t, used }) => {
+      const pct = used / cap * 100;
+      const bar = `<div style="width:${Math.min(100,pct).toFixed(0)}%;height:6px;background:${pct>=95?"var(--red)":pct>=85?"#e8a000":"var(--green)"};"></div>`;
+      const isMe = t.id === chosenTeamId;
+      return `<tr style="${isMe?"background:rgba(200,169,0,0.07)":""}">
+        <td style="color:${isMe?"var(--gold)":"var(--white)"};font-weight:${isMe?700:400}">${isMe?"»":""} ${t.city} ${t.name}</td>
+        <td style="width:120px"><div style="background:var(--bg3);width:100%;height:6px;">${bar}</div></td>
+        <td style="text-align:right;color:${pct>=95?"var(--red)":pct>=85?"#e8a000":"var(--white)"};font-weight:700">$${used.toFixed(0)}M</td>
+        <td style="text-align:right;color:var(--gray);font-size:.65rem">${pct.toFixed(0)}%</td>
+      </tr>`;
+    }).join("");
+    return `<table class="frn-ana-table"><thead>
+      <tr><th>Team</th><th>Cap Usage</th><th style="text-align:right">Used</th><th style="text-align:right">%</th></tr>
+    </thead><tbody>${sortedRows}</tbody></table>`;
+  }
+
+  // ── Top Contracts ───────────────────────────────────────────────────────
+  function topContracts() {
+    const all = [];
+    for (const t of TEAMS) {
+      for (const p of (rosters[t.id] || [])) {
+        if (p.contract) all.push({ ...p, teamName: `${t.city} ${t.name}`, teamId: t.id });
+      }
+    }
+    all.sort((a, b) => b.contract.aav - a.contract.aav);
+    const rows = all.slice(0, 30).map((p, i) => {
+      const c = p.contract;
+      const isMe = p.teamId === chosenTeamId;
+      return `<tr style="${isMe?"background:rgba(200,169,0,0.07)":""}">
+        <td style="color:var(--gray);font-size:.65rem">${i+1}.</td>
+        <td style="color:${isMe?"var(--gold)":"var(--white)"};font-weight:700">${p.name}</td>
+        <td style="color:var(--gray)">${p.position}</td>
+        <td style="color:var(--gray);font-size:.68rem">${p.teamName}</td>
+        <td style="color:${aavColor(c.aav)};font-weight:700">$${c.aav.toFixed(1)}M</td>
+        <td style="color:var(--gray);font-size:.65rem">${c.remaining}yr</td>
+      </tr>`;
+    }).join("");
+    return `<table class="frn-ana-table"><thead>
+      <tr><th>#</th><th>Player</th><th>Pos</th><th>Team</th><th>AAV</th><th>Left</th></tr>
+    </thead><tbody>${rows}</tbody></table>`;
+  }
+
+  // ── Position Market ─────────────────────────────────────────────────────
+  function posMarket(pos) {
+    const all = [];
+    for (const t of TEAMS) {
+      for (const p of (rosters[t.id] || [])) {
+        if (p.position === pos && p.contract) {
+          all.push({ ...p, teamName: `${t.city} ${t.name}`, teamId: t.id });
+        }
+      }
+    }
+    all.sort((a, b) => b.contract.aav - a.contract.aav);
+    const rows = all.map((p, i) => {
+      const c = p.contract;
+      const isMe = p.teamId === chosenTeamId;
+      const mv = computeMarketValue(p, cap);
+      const diff = c.aav - mv;
+      const diffColor = diff > 2 ? "var(--red)" : diff < -2 ? "var(--green-lt)" : "var(--gray)";
+      const diffStr = diff > 0 ? `+$${diff.toFixed(1)}` : `-$${Math.abs(diff).toFixed(1)}`;
+      return `<tr style="${isMe?"background:rgba(200,169,0,0.07)":""}">
+        <td style="color:var(--gray);font-size:.65rem">${i+1}.</td>
+        <td style="color:${isMe?"var(--gold)":"var(--white)"};font-weight:700">${p.name}</td>
+        <td style="color:var(--gray)">${p.overall}</td>
+        <td style="color:var(--gray);font-size:.68rem">${p.teamName}</td>
+        <td style="color:${aavColor(c.aav)};font-weight:700">$${c.aav.toFixed(1)}M</td>
+        <td style="color:${diffColor};font-size:.65rem">${diffStr}M vs mkt</td>
+        <td style="color:var(--gray);font-size:.65rem">${c.remaining}yr</td>
+      </tr>`;
+    }).join("");
+    return `
+      <div style="font-size:.72rem;color:var(--gray);margin-bottom:.5rem">
+        ${all.length} ${pos}s · Avg AAV: <b style="color:var(--white)">$${all.length?(all.reduce((s,p)=>s+p.contract.aav,0)/all.length).toFixed(1):0}M</b>
+        · Market rate (85 OVR): <b style="color:var(--gold)">$${computeMarketValue({overall:85,age:27,position:pos},cap).toFixed(1)}M</b>
+      </div>
+      <table class="frn-ana-table"><thead>
+        <tr><th>#</th><th>Player</th><th>OVR</th><th>Team</th><th>AAV</th><th>vs Market</th><th>Left</th></tr>
+      </thead><tbody>${rows}</tbody></table>`;
+  }
+
+  const tabs = [
+    { id:"mysheet",  label:"MY CAP SHEET" },
+    { id:"league",   label:"LEAGUE HEALTH" },
+    { id:"top",      label:"TOP CONTRACTS" },
+    { id:"QB",  label:"QB" }, { id:"RB",  label:"RB" },
+    { id:"WR",  label:"WR" }, { id:"TE",  label:"TE" },
+    { id:"DL",  label:"DL" }, { id:"LB",  label:"LB" }, { id:"CB",  label:"CB" },
+  ];
+
+  const tabBarHtml = tabs.map(t => `
+    <button class="frn-ana-tab ${t.id===tab?"active":""}" onclick="renderFrnAnalytics('${t.id}')">${t.label}</button>
+  `).join("");
+
+  let bodyHtml;
+  if      (tab === "mysheet") bodyHtml = myCapSheet();
+  else if (tab === "league")  bodyHtml = leagueCapHealth();
+  else if (tab === "top")     bodyHtml = topContracts();
+  else                        bodyHtml = posMarket(tab);
+
+  $("frnHomeContent").innerHTML = `
+    <div style="display:flex;align-items:center;gap:.8rem;margin-bottom:.7rem;flex-wrap:wrap">
+      <div style="font-size:1.05rem;font-weight:900;color:var(--gold)">📊 CAP & CONTRACT ANALYTICS</div>
+      <div style="color:var(--gray);font-size:.72rem">Season ${franchise.season} · Cap: $${cap.toFixed(0)}M</div>
+      <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="margin-left:auto;font-size:.72rem">← Back</button>
+    </div>
+    <div class="frn-ana-tabs">${tabBarHtml}</div>
+    <div class="frn-ana-body">${bodyHtml}</div>`;
+}
+
+// ── Re-signings screen ─────────────────────────────────────────────────────────
+function renderFrnResignings() {
+  const { chosenTeamId, salaryCap } = franchise;
+  const cap = salaryCap || SALARY_CAP_BASE;
+  const myRoster   = franchise.rosters[chosenTeamId] || [];
+  const expiring   = myRoster.filter(p => p.contract && p.contract.remaining <= 0);
+  const committed  = myRoster.filter(p => p.contract && p.contract.remaining > 0);
+  const capCommitted = committed.reduce((s, p) => s + p.contract.aav, 0);
+
+  if (expiring.length === 0) {
+    frnProceedToRosterChanges();
+    return;
+  }
+
+  // Store pending decisions
+  franchise._resignPending = expiring.map(p => ({
+    name: p.name, pos: p.position, overall: p.overall, age: p.age,
+    offer: computeMarketValue(p, cap),
+    offerYears: generateContract(p, cap).years,
+    decision: null,
+  }));
+  saveFranchise();
+  _renderResignUI(cap, capCommitted);
+}
+
+function _renderResignUI(cap, capCommitted) {
+  const { chosenTeamId, _resignPending } = franchise;
+  const myTeam = getTeam(chosenTeamId);
+  let runningCap = capCommitted;
+
+  const rows = _resignPending.map((r, idx) => {
+    const newCap = runningCap + (r.decision === "accept" ? r.offer : 0);
+    const capAfter = cap - newCap;
+    const isAccept  = r.decision === "accept";
+    const isDecline = r.decision === "decline";
+    return `
+      <div class="frn-resign-row ${isAccept?"accepted":isDecline?"declined":""}">
+        <div class="frn-resign-info">
+          <span style="font-weight:700;color:var(--white)">${r.name}</span>
+          <span style="color:var(--gray);font-size:.7rem">${r.pos} · ${r.overall} OVR · Age ${r.age}</span>
+        </div>
+        <div class="frn-resign-offer">
+          <span style="color:var(--gold);font-weight:700">$${r.offer.toFixed(1)}M/yr</span>
+          <span style="color:var(--gray);font-size:.68rem">${r.offerYears} yr</span>
+        </div>
+        <div class="frn-resign-btns">
+          ${isAccept
+            ? `<button class="btn frn-resign-btn accepted">✓ Accepted</button>`
+            : isDecline
+              ? `<button class="btn frn-resign-btn declined">✗ Declined</button>`
+              : `<button class="btn frn-resign-btn accept-btn" onclick="frnResignDecide(${idx},'accept')">Accept</button>
+                 <button class="btn frn-resign-btn decline-btn" onclick="frnResignDecide(${idx},'decline')">Decline</button>`}
+        </div>
+      </div>`;
+  }).join("");
+
+  const acceptedCost = _resignPending
+    .filter(r => r.decision === "accept").reduce((s, r) => s + r.offer, 0);
+  const finalCap = capCommitted + acceptedCost;
+  const pending  = _resignPending.filter(r => r.decision === null).length;
+
+  $("frnHomeContent").innerHTML = `
+    <div style="text-align:center;margin-bottom:1rem">
+      <div style="font-size:1.15rem;font-weight:900;color:var(--gold)">Contract Re-Signings</div>
+      <div style="color:var(--gray);font-size:.78rem">${myTeam.city} ${myTeam.name} · Season ${franchise.season} Offseason</div>
+      <div style="margin-top:.4rem;font-size:.78rem">
+        Cap room: <b style="color:${cap-finalCap<0?"var(--red)":"var(--green-lt)"}">$${(cap-finalCap).toFixed(1)}M</b>
+        remaining after decisions · Cap: <b style="color:var(--gold)">$${cap.toFixed(0)}M</b>
+      </div>
+    </div>
+    <div style="font-size:.68rem;color:var(--gray);margin-bottom:.5rem">
+      ${_resignPending.length} players with expiring contracts —
+      accepted players re-sign at market rate; declined players enter free agency (lost for now).
+    </div>
+    <div class="frn-resign-list">${rows}</div>
+    <div class="frn-actions" style="justify-content:center;margin-top:1rem">
+      ${pending > 0
+        ? `<div style="color:var(--gray);font-size:.72rem">${pending} decision${pending>1?"s":""} remaining</div>`
+        : `<button class="btn btn-gold" onclick="frnConfirmResignings()">✓ Confirm & Continue Offseason</button>`}
+    </div>`;
+}
+
+function frnResignDecide(idx, decision) {
+  const { salaryCap, chosenTeamId } = franchise;
+  const cap = salaryCap || SALARY_CAP_BASE;
+  const committed = (franchise.rosters[chosenTeamId] || [])
+    .filter(p => p.contract && p.contract.remaining > 0)
+    .reduce((s, p) => s + p.contract.aav, 0);
+  franchise._resignPending[idx].decision = decision;
+  saveFranchise();
+  _renderResignUI(cap, committed);
+}
+
+function frnConfirmResignings() {
+  const { chosenTeamId, salaryCap, _resignPending } = franchise;
+  const cap = salaryCap || SALARY_CAP_BASE;
+  const myRoster = franchise.rosters[chosenTeamId] || [];
+
+  for (const r of (_resignPending || [])) {
+    const player = myRoster.find(p => p.name === r.name && p.position === r.pos);
+    if (!player) continue;
+    if (r.decision === "accept") {
+      player.contract = { years: r.offerYears, remaining: r.offerYears, aav: r.offer };
+    } else {
+      // Declined: remove from roster (enters FA — currently just lost)
+      const idx = myRoster.indexOf(player);
+      if (idx !== -1) myRoster.splice(idx, 1);
+    }
+  }
+  franchise._resignPending = null;
+  saveFranchise();
+  frnProceedToRosterChanges();
+}
+
+function frnProceedToRosterChanges() {
+  franchise._offChanges = runFrnOffseason();
+  saveFranchise();
+  renderFrnOffseason();
+}
+
 function renderFrnAwards() {
   const { season, chosenTeamId, history, standings, seasonHighlights } = franchise;
   const latest     = history[history.length - 1] || {};
@@ -15125,10 +15571,23 @@ function renderFrnAwards() {
 
 // ── Offseason ─────────────────────────────────────────────────────────────────
 function startFrnOffseason() {
-  franchise.phase      = "offseason";
-  franchise._offChanges = runFrnOffseason();
+  // Roll contract years down for all players
+  for (const roster of Object.values(franchise.rosters)) {
+    for (const p of roster) {
+      if (p.contract && p.contract.remaining > 0) {
+        p.contract.remaining -= 1;
+      }
+    }
+  }
+  // Cap inflation: 5-9% per season (mean ~7%)
+  const growth = 0.05 + Math.random() * 0.04;
+  franchise.salaryCap = Math.round(
+    ((franchise.salaryCap || SALARY_CAP_BASE) * (1 + growth)) * 10
+  ) / 10;
+  franchise.phase = "offseason";
+  franchise._resignPending = null;
   saveFranchise();
-  renderFrnOffseason();
+  renderFrnResignings();
 }
 
 function runFrnOffseason() {
@@ -15198,10 +15657,25 @@ function runFrnOffseason() {
       for (let i = have; i < needed; i++) {
         const rookie = genUniquePlayer(pos, "average", localNames);
         rookie.age   = 22;
+        rookie.contract = generateContract(rookie, franchise.salaryCap || SALARY_CAP_BASE);
         keep.push(rookie);
         localNames.add(rookie.name);
         allNames.add(rookie.name);
         changes.push({ type:"rookie", tId, tName:t.name, name:rookie.name, pos });
+      }
+    }
+    // AI teams: auto-resign expired players at market rate (stars more likely to stay)
+    if (tId !== franchise.chosenTeamId) {
+      for (const p of keep) {
+        if (p.contract && p.contract.remaining <= 0) {
+          const stayProb = p.overall >= 85 ? 0.85 : p.overall >= 75 ? 0.70 : 0.55;
+          if (Math.random() < stayProb) {
+            p.contract = generateContract(p, franchise.salaryCap || SALARY_CAP_BASE);
+          } else {
+            // Declined — give a minimum deal so they don't disappear
+            p.contract = { years: 1, remaining: 1, aav: 0.5 };
+          }
+        }
       }
     }
 
@@ -15211,11 +15685,13 @@ function runFrnOffseason() {
 }
 
 function renderFrnOffseason() {
-  const { season, chosenTeamId, _offChanges } = franchise;
+  const { season, chosenTeamId, _offChanges, salaryCap } = franchise;
   const myTeam   = getTeam(chosenTeamId);
   const myChg    = (_offChanges || []).filter(c => c.tId === chosenTeamId);
   const retires  = myChg.filter(c => c.type === "retire");
   const rookies  = myChg.filter(c => c.type === "rookie");
+  const cap      = salaryCap || SALARY_CAP_BASE;
+  const capUsed  = capUsedByTeam(chosenTeamId);
 
   let chgHtml = "";
   if (retires.length) {
@@ -15232,6 +15708,12 @@ function renderFrnOffseason() {
     <div style="text-align:center;margin-bottom:.75rem">
       <div style="font-size:1.1rem;font-weight:700;color:var(--gold)">Season ${season} — Offseason</div>
       <div style="color:var(--gray);font-size:.78rem">${myTeam.city} ${myTeam.name}</div>
+      <div style="font-size:.72rem;margin-top:.3rem;color:var(--gray)">
+        New cap: <b style="color:var(--gold)">$${cap.toFixed(0)}M</b>
+        · Used: <b style="color:var(--white)">$${capUsed.toFixed(1)}M</b>
+        · Room: <b style="color:${cap-capUsed<0?"var(--red)":"var(--green-lt)"}">$${(cap-capUsed).toFixed(1)}M</b>
+        <button class="frn-cap-btn" onclick="renderFrnAnalytics('mysheet')" style="margin-left:.5rem">📊 View Cap</button>
+      </div>
     </div>
     <div class="frn-sec-title">${myTeam.name} Roster Changes</div>
     <div class="frn-off-list">${chgHtml}</div>
