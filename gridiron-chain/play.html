@@ -1784,6 +1784,7 @@ const P_ARCHETYPES = {
   BOOMER:      { label: "Boomer",      blurb: "Crushes it — long average, but more touchbacks" },
   DIRECTIONAL: { label: "Directional", blurb: "Pinpoint coffin-corner — short but high fair-catch rate" },
   HANG_TIME:   { label: "Hang Time",   blurb: "Sky kicks — minimal return yards, average distance" },
+  ATHLETE:     { label: "Athletic",    blurb: "Trick-play threat — can run or throw on fake punts" },
   BALANCED:    { label: "Balanced",    blurb: "Solid all-around — no weakness, no signature trait" },
 };
 
@@ -1871,11 +1872,13 @@ function pickKArchetype(stats) {
 }
 // P archetypes — KPW = punt distance, AWR = directional / hang-time accuracy
 function pickPArchetype(stats) {
+  const spd = stats[0] ?? 60, agi = stats[2] ?? 60;
   const awr = stats[3], kpw = stats[10] ?? 70;
   const w = {
     BOOMER:      Math.max(0, kpw - 70) * 1.6 + (awr < 70 ? 2 : 0),
     DIRECTIONAL: Math.max(0, awr - 72) * 1.5 + (kpw < 72 ? 2 : 0),
     HANG_TIME:   Math.max(0, awr - 65) * 0.7 + Math.max(0, kpw - 60) * 0.6,
+    ATHLETE:     Math.max(0, spd - 65) * 1.4 + Math.max(0, agi - 65) * 1.1 + Math.max(0, awr - 60) * 0.3,
     BALANCED:    6 + Math.max(0, ((kpw + awr) / 2) - 65),
   };
   for (const k in w) w[k] += Math.random() * 4;
@@ -3034,6 +3037,58 @@ class GameSimulator {
         const pArch = pPlayer?.archetype;
         const pKpw  = pPlayer?.stats?.[10] ?? 65;
         const pAwr  = pPlayer?.stats?.[3]  ?? 65;
+        const pSpd  = pPlayer?.stats?.[0]  ?? 60;
+        const pAgi  = pPlayer?.stats?.[2]  ?? 60;
+        // ── FAKE PUNT ──
+        // ATHLETIC punters can fake on 4th-and-short in plus territory. Roll
+        // is tilted by QB aggression (aggressive playcallers gamble more).
+        const fakeShortYTG = this.ytg <= 4;
+        const fakeMidfield = this.yardLine >= 40 && this.yardLine <= 75;
+        const fakeEligible = pArch === "ATHLETE" && fakeShortYTG && fakeMidfield;
+        if (fakeEligible) {
+          const aggTilt = this._aggTilt(this._qbAggression());
+          const fakeChance = clamp(0.18 * aggTilt, 0.06, 0.32);
+          if (Math.random() < fakeChance) {
+            // FAKE PUNT! Decide run (60%) vs pass (40%) — heavier on run since
+            // punters aren't really QBs. Run uses SPD+AGI, pass uses AWR.
+            const isPass = Math.random() < 0.40;
+            if (isPass) {
+              const compPct = clamp(0.42 + (pAwr - 65) / 180, 0.22, 0.78);
+              const isComp = Math.random() < compPct;
+              const tgtName = this.offR.starters.te || this.offR.starters.rb2 || this.offR.starters.rb;
+              const fakeYards = isComp ? clamp(Math.round(normal(11, 5)), -2, 38) : 0;
+              const success = isComp && fakeYards >= this.ytg;
+              this._pushVisual({
+                kind: isComp ? "complete" : "incomplete",
+                desc: isComp
+                  ? `🎩 FAKE PUNT! ${P} throws to ${tgtName} for ${fakeYards} — ${success ? "FIRST DOWN!" : "stopped short"}`
+                  : `🎩 FAKE PUNT! ${P} throws — INCOMPLETE`,
+                startYard,
+                endYard: clamp(startYard + (isComp ? fakeYards : 0), 0, 100),
+                isFakePunt: true,
+                passer: P,
+                receiver: tgtName,
+                yards: isComp ? fakeYards : 0,
+                targetDepth: 10,
+              });
+              return { yards: isComp ? fakeYards : 0, incomplete: !isComp };
+            } else {
+              const fakeMean = 4 + (pSpd - 65) * 0.07 + (pAgi - 65) * 0.05;
+              const fakeYards = clamp(Math.round(normal(fakeMean, 4)), -3, 35);
+              const success = fakeYards >= this.ytg;
+              this._pushVisual({
+                kind: "run",
+                desc: `🎩 FAKE PUNT! ${P} runs for ${fakeYards} yds — ${success ? "FIRST DOWN!" : "stopped short"}`,
+                startYard,
+                endYard: clamp(startYard + fakeYards, 0, 100),
+                isFakePunt: true,
+                rusher: P,
+                yards: fakeYards,
+              });
+              return { yards: fakeYards };
+            }
+          }
+        }
         // Base distance scales with KPW: 60 KPW ≈ 42 yds, 90 KPW ≈ 52 yds
         let puntMean = 38 + (pKpw - 50) * 0.32;
         let puntSd   = 7;
