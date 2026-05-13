@@ -1404,7 +1404,7 @@
     border-bottom: 1px solid var(--border);
   }
   .frn-portrait {
-    width: 44px; height: 44px; flex-shrink: 0;
+    flex-shrink: 0; display: block;
     background: var(--bg3); border: 1px solid var(--border);
   }
   .frn-ptip-meta {
@@ -14964,6 +14964,21 @@ const CAP_POS_RATE = {
   DL: 0.065, LB: 0.065, CB: 0.09, S: 0.055, K: 0.025, P: 0.022,
 };
 
+// Render the inner HTML for an "AAV vs current market" cell. A clear
+// signal — overpaid is red, bargain is green, within $1M is "≈ Market".
+// Caller wraps the result in <td>.
+function vsMarketCell(aav, market) {
+  const diff = +(aav - market).toFixed(1);
+  const cls  = "font-size:.65rem";
+  if (Math.abs(diff) < 1.0) {
+    return `<span style="color:var(--gray);${cls}">≈ Market</span>`;
+  }
+  const sign = diff > 0 ? "+" : "−";
+  const color = diff > 2 ? "var(--red)" : diff < -2 ? "var(--green-lt)" : "var(--gray)";
+  const label = diff > 0 ? "over" : "value";
+  return `<span style="color:${color};${cls}">${sign}$${Math.abs(diff).toFixed(1)}M ${label}</span>`;
+}
+
 function computeMarketValue(player, cap) {
   const ovr  = player.overall || 70;
   const pos  = player.position;
@@ -14979,10 +14994,32 @@ function computeMarketValue(player, cap) {
   return Math.max(0.5, Math.round(val * 10) / 10);
 }
 
+// Deterministic per-player negotiation factor (0.82–1.22). Drives the
+// realistic variance you see on the "vs Market" column — agents,
+// leverage, draft pedigree, timing all push real contracts off the
+// theoretical market value. Hashed from the player name so the value
+// is stable across renders.
+function negotiationFactor(p) {
+  let h = 0;
+  const s = String(p?.name || "");
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  // 41 buckets in [-0.20, +0.20], shifted to [0.82, 1.22] with a
+  // small tilt: 1st-round picks negotiate harder (skew up),
+  // undrafted skew slightly down.
+  const base = ((Math.abs(h) % 41) - 20) / 100;
+  let tilt = 0;
+  if (p?.draftRound === 1) tilt += 0.03;
+  else if (p?.draftRound >= 5) tilt -= 0.02;
+  else if (p?.draftRound === 0) tilt -= 0.04;
+  return Math.max(0.78, Math.min(1.25, 1 + base + tilt));
+}
+
 function generateContract(player, cap) {
   const ovr = player.overall || 70;
   const age = player.age || 25;
-  const aav = computeMarketValue(player, cap);
+  const market = computeMarketValue(player, cap);
+  const factor = negotiationFactor(player);
+  const aav = Math.max(0.5, Math.round(market * factor * 10) / 10);
   // Contract length: rookies get 4yr; stars (85+) get 4-7; others 2-5; all capped at 10
   let minYr = 2, maxYr = 5;
   if (age <= 23)   { minYr = 4; maxYr = 4; }
@@ -15003,6 +15040,31 @@ function assignContracts(rosters, cap) {
         if ((p.age || 25) > 23) {
           p.contract.remaining = Math.max(1, Math.ceil(Math.random() * p.contract.years));
         }
+      }
+    }
+    // Retrofit older saves whose contracts were generated without
+    // negotiation variance (so the "vs Market" column wasn't useful).
+    // Apply negotiation factors but renormalise per-team so total AAV
+    // is preserved — never push a team over the cap on load.
+    const needsRetrofit = roster.some(p => p.contract && p.contract.signedAav == null);
+    if (!needsRetrofit) continue;
+    let oldTotal = 0, newTotal = 0;
+    for (const p of roster) {
+      if (!p.contract) continue;
+      p.contract.signedAav = p.contract.aav; // mark as retrofitted
+      oldTotal += p.contract.aav;
+      const tentative = Math.max(
+        0.5,
+        Math.round(computeMarketValue(p, cap) * negotiationFactor(p) * 10) / 10
+      );
+      p.contract.aav = tentative;
+      newTotal += tentative;
+    }
+    if (newTotal > 0 && oldTotal > 0 && Math.abs(newTotal - oldTotal) > 0.01) {
+      const scale = oldTotal / newTotal;
+      for (const p of roster) {
+        if (!p.contract) continue;
+        p.contract.aav = Math.max(0.5, Math.round(p.contract.aav * scale * 10) / 10);
       }
     }
   }
@@ -15107,10 +15169,21 @@ function gradeBadge(p) {
   return `<span class="tt-ovr tier-${gradeClass(s)}" title="Scout grade — not exact ability">${gradeLabel(s)}</span>`;
 }
 
+// Years-in-league is what the user actually cares about. Calendar years
+// don't map cleanly because a real-world year sees multiple in-game
+// seasons. Prefer "Yr 3 · R1 #5" over "2026 R1 #5".
+function _yearsInLeague(p) {
+  if (p?.draftSeason != null && franchise?.season != null) {
+    return Math.max(0, (franchise.season - p.draftSeason));
+  }
+  return Math.max(0, (p?.age || 22) - 22);
+}
 function draftStr(p) {
-  if (!p.draftYear) return "—";
-  if (p.draftRound === 0) return `${p.draftYear} UDFA`;
-  return `${p.draftYear} R${p.draftRound} #${p.draftPick}`;
+  if (!p?.draftRound && !p?.draftYear) return "—";
+  const yrs = _yearsInLeague(p);
+  const yrTag = yrs === 0 ? "Rookie" : `Yr ${yrs + 1}`;
+  if (p.draftRound === 0) return `${yrTag} · UDFA`;
+  return `${yrTag} · R${p.draftRound} #${p.draftPick}`;
 }
 
 function careerEarningsStr(p) {
@@ -15139,6 +15212,8 @@ function assignDraftInfo(rosters, currentYear) {
       if (p.draftYear == null) {
         const yearsInLeague = Math.max(0, (p.age || 22) - 22);
         p.draftYear = currentYear - yearsInLeague;
+        // Negative draftSeason — drafted before franchise S1.
+        p.draftSeason = (franchise?.season || 1) - yearsInLeague;
         const ovr = p.overall || 70;
         const expectedPick = Math.max(1, Math.min(224,
           Math.round(260 - (ovr - 50) * 4.8 + (Math.random() - 0.5) * 80)
@@ -16501,8 +16576,9 @@ function _buildPlayerDetailPanel(p) {
        </div>`;
 
   return `<div class="frn-player-card">
-    <div class="frn-player-card-head">
-      <div>
+    <div class="frn-player-card-head" style="display:flex;gap:.7rem;align-items:flex-start">
+      ${_playerPortrait(p, 96)}
+      <div style="flex:1;min-width:0">
         <div style="font-size:1.05rem;font-weight:900">${p.name}</div>
         <div style="color:var(--gray);font-size:.7rem">
           ${p.position} · Age ${p.age || "?"} · ${p.archetype || "—"}
@@ -17466,28 +17542,32 @@ function _findPlayerTeam(p) {
   return null;
 }
 
-// Procedural helmet portrait. Team colors + jersey number on a simple
-// SVG helmet shape. Tiny, scales, no asset files.
-function _playerPortrait(p) {
+// AI-generated portrait (same one the single-game tooltip uses).
+// `size` is an output box edge in px. Falls back to the canvas-drawn
+// anime mugshot when the PNG isn't on disk, then to a flat color when
+// even that fails (so we never show a broken-image icon).
+function _playerPortrait(p, size) {
+  const sz = size || 96;
   const team = _findPlayerTeam(p);
-  const primary = team?.primary || "#444";
-  const secondary = team?.secondary || "#ccc";
-  const jersey = (p.jersey ?? p.number ?? "##").toString();
-  // Choose readable text color: black on light, white on dark
-  return `<svg viewBox="0 0 60 60" class="frn-portrait" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <linearGradient id="hl" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="${secondary}" stop-opacity="0.5"/>
-        <stop offset="100%" stop-color="${primary}" stop-opacity="0"/>
-      </linearGradient>
-    </defs>
-    <ellipse cx="30" cy="27" rx="22" ry="20" fill="${primary}" stroke="${secondary}" stroke-width="2"/>
-    <ellipse cx="30" cy="20" rx="20" ry="10" fill="url(#hl)"/>
-    <rect x="14" y="33" width="32" height="3" fill="${secondary}" rx="1.5"/>
-    <rect x="14" y="38" width="32" height="3" fill="${secondary}" rx="1.5"/>
-    <text x="30" y="29" text-anchor="middle" font-size="13" fill="${secondary}"
-      font-weight="bold" font-family="monospace">${jersey}</text>
-  </svg>`;
+  let src = "";
+  try { src = portraitFileForPlayer(p); } catch {}
+  const safe = src ? src.split("/").map(encodeURIComponent).join("/") : "";
+  let fallback = "";
+  // generateMugshotDataUrl looks up gameResult; if absent it still works
+  // with a fallback color. Wrap in try/catch since this is non-critical.
+  try { fallback = generateMugshotDataUrl(p); } catch {}
+  const flatBg = team?.primary || "#222";
+  const onErr = fallback
+    ? `this.onerror=null;this.src='${fallback}';`
+    : `this.onerror=null;this.style.background='${flatBg}';this.removeAttribute('src');`;
+  if (!safe) {
+    return `<div class="frn-portrait" style="width:${sz}px;height:${sz*9/8}px;background:${flatBg}"></div>`;
+  }
+  return `<img class="frn-portrait" src="portraits/${safe}"
+    width="${sz}" height="${Math.round(sz * 9/8)}"
+    alt="${(p.name||"").replace(/"/g,'&quot;')}"
+    style="object-fit:cover;background:${flatBg}"
+    onerror="${onErr}">`;
 }
 
 function frnPlayerTipShow(anchorEl, name) {
@@ -17500,7 +17580,7 @@ function frnPlayerTipShow(anchorEl, name) {
   const yrs = p.contract?.remaining || 0;
   tip.innerHTML = `
     <div class="frn-ptip-head">
-      ${_playerPortrait(p)}
+      ${_playerPortrait(p, 56)}
       <div style="flex:1;min-width:0">
         <div style="font-weight:900;font-size:.9rem">${p.name}</div>
         <div style="color:var(--gray);font-size:.62rem">
@@ -18413,24 +18493,33 @@ function _winProb(home, away, secsRemaining) {
 
 function _renderWinProbChart(scoring, home, away, finalHome, finalAway) {
   // Build x/y data: x = fraction of game elapsed (0..1), y = home WP (0..1)
-  // Start at 0,0.5 (50/50 at kickoff). Step through scoring events.
+  // Start at 0,0.5 (50/50 at kickoff). Step through both scoring AND
+  // drive-end events so the curve wiggles instead of stair-stepping.
   const W = 520, H = 110, padL = 30, padR = 10, padT = 8, padB = 18;
-  const points = [{ x: 0, p: 0.5, qtr: 1 }];
-  // Each scoring event happens at some elapsed fraction:
-  // qtr 1..4, clockAfter is seconds remaining IN that quarter (0..900)
+  const points = [{ x: 0, p: 0.5, qtr: 1, isScore: false }];
   for (const ev of scoring) {
     const qtr = Math.min(4, Math.max(1, ev.qtr || 1));
     const clk = (ev.clock != null) ? Math.max(0, Math.min(900, ev.clock)) : 0;
     const secsElapsed = (qtr - 1) * 900 + (900 - clk);
     const secsRem = 3600 - secsElapsed;
-    const p = _winProb(ev.homeScore || 0, ev.awayScore || 0, secsRem);
-    points.push({ x: secsElapsed / 3600, p, qtr });
+    let p = _winProb(ev.homeScore || 0, ev.awayScore || 0, secsRem);
+    // Drive-result momentum nudge — a turnover/4th-down stop swings WP
+    // toward the team that just got the ball. Decays as the game ends.
+    if (!ev.isScore && ev.driveResult) {
+      const timeWeight = 0.5 + (1 - secsRem / 3600) * 0.5; // 0.5..1.0
+      const beneficiary = (ev.driveResult === "TO" || ev.driveResult === "DOWNS")
+        ? (ev.poss === "home" ? "away" : "home")
+        : null;
+      if (beneficiary === "home")      p = Math.min(0.97, p + 0.06 * timeWeight);
+      else if (beneficiary === "away") p = Math.max(0.03, p - 0.06 * timeWeight);
+    }
+    points.push({ x: secsElapsed / 3600, p, qtr, isScore: !!ev.isScore });
   }
   // Final
   points.push({
     x: 1,
     p: finalHome === finalAway ? 0.5 : (finalHome > finalAway ? 0.97 : 0.03),
-    qtr: 4,
+    qtr: 4, isScore: true,
   });
 
   // Build SVG polyline
@@ -18459,10 +18548,12 @@ function _renderWinProbChart(scoring, home, away, finalHome, finalAway) {
   // Fill area: shade above/below 50% line based on which team is leading
   // For simplicity just draw the line and let dots mark scoring events.
 
-  const dots = points.slice(1, -1).map(pt => {
-    const team = pt.p > 0.5 ? home : away;
-    return `<circle cx="${xPx(pt.x)}" cy="${yPx(pt.p)}" r="3" fill="${team.primary}" stroke="var(--bg)" stroke-width="1"/>`;
-  }).join("");
+  const dots = points.slice(1, -1)
+    .filter(pt => pt.isScore)
+    .map(pt => {
+      const team = pt.p > 0.5 ? home : away;
+      return `<circle cx="${xPx(pt.x)}" cy="${yPx(pt.p)}" r="3" fill="${team.primary}" stroke="var(--bg)" stroke-width="1"/>`;
+    }).join("");
 
   // Team labels at left axis
   const homeLabel = `<text x="${padL-4}" y="${padT+8}" fill="${homeColor}" font-size="8" text-anchor="end" font-weight="700">${home.name.slice(0,8).toUpperCase()}</text>`;
@@ -19124,29 +19215,42 @@ function _extractScoringTimeline(plays, finalHome, finalAway) {
   const out = [];
   let h = 0, a = 0, lastQtr = 1;
   for (const p of plays) {
-    if (p.kind !== "score") continue;
-    // Rich event (preferred): poss + pts + quarter were set on the event
-    if (p.poss && p.pts != null) {
-      if (p.poss === "home") h += p.pts; else a += p.pts;
-      lastQtr = p.quarter || lastQtr;
-      out.push({
-        qtr: lastQtr, clock: p.clockAfter,
-        poss: p.poss, pts: p.pts, desc: p.desc || "",
-        homeScore: h, awayScore: a,
-      });
-    } else {
-      // Fallback: parse from desc string and use the homeScore/awayScore
-      // running totals if present
-      if (p.homeScore != null && p.awayScore != null) {
+    // Score events get a dot. Drive summaries get a no-dot anchor
+    // so the WP chart wiggles as time advances even on stalled drives.
+    if (p.kind === "score") {
+      if (p.poss && p.pts != null) {
+        if (p.poss === "home") h += p.pts; else a += p.pts;
+        lastQtr = p.quarter || lastQtr;
+        out.push({
+          qtr: lastQtr, clock: p.clockAfter,
+          poss: p.poss, pts: p.pts, desc: p.desc || "",
+          homeScore: h, awayScore: a, isScore: true,
+        });
+      } else if (p.homeScore != null && p.awayScore != null) {
         const pts = (p.homeScore - h) + (p.awayScore - a);
         const side = (p.homeScore > h) ? "home" : "away";
         h = p.homeScore; a = p.awayScore;
         out.push({
           qtr: lastQtr, clock: p.clockAfter, poss: side, pts,
           desc: p.desc || "",
-          homeScore: h, awayScore: a,
+          homeScore: h, awayScore: a, isScore: true,
         });
       }
+    } else if (p.kind === "drive_summary") {
+      // Drive end without a score (TO/PUNT/MISS/DOWNS). The current
+      // score is on the event; clock is `time` (seconds left in qtr).
+      lastQtr = p.quarter || lastQtr;
+      const result = String(p.driveResult || "").toUpperCase();
+      // If the drive ended in a score we already pushed it above;
+      // skip the dupe entry. Otherwise this is a non-scoring drive end.
+      if (result === "TD" || result === "FG" || result === "SAFETY") continue;
+      out.push({
+        qtr: lastQtr, clock: p.time,
+        poss: null, pts: 0, desc: result || "Drive end",
+        homeScore: p.homeScore ?? h,
+        awayScore: p.awayScore ?? a,
+        isScore: false, driveResult: result,
+      });
     }
   }
   // Sanity: if final totals don't match, append a synthetic delta so
@@ -19156,9 +19260,15 @@ function _extractScoringTimeline(plays, finalHome, finalAway) {
       qtr: 4, clock: 0, poss: finalHome > h ? "home" : "away",
       pts: Math.max(0, (finalHome - h) + (finalAway - a)),
       desc: "Final score adjustment",
-      homeScore: finalHome, awayScore: finalAway,
+      homeScore: finalHome, awayScore: finalAway, isScore: true,
     });
   }
+  // Stable order by elapsed game time.
+  out.sort((x, y) => {
+    const xe = ((x.qtr || 1) - 1) * 900 + (900 - (x.clock || 0));
+    const ye = ((y.qtr || 1) - 1) * 900 + (900 - (y.clock || 0));
+    return xe - ye;
+  });
   return out;
 }
 
@@ -19621,13 +19731,15 @@ function renderFrnAnalytics(defaultTab) {
     const rows = roster.map(p => {
       const c = p.contract;
       const expiring = c.remaining <= 1;
+      const mv = computeMarketValue(p, cap);
       return `<tr>
-        <td style="color:${aavColor(c.aav)};font-weight:700">${p.name}</td>
+        <td style="color:${aavColor(c.aav)};font-weight:700">${playerLink(p)}</td>
         <td style="color:var(--gray)">${p.position}</td>
         <td>${gradeBadge(p)}</td>
         <td style="color:var(--gray)">${p.age || "?"}</td>
         <td style="color:var(--gray);font-size:.65rem">${draftStr(p)}</td>
         <td style="color:${aavColor(c.aav)};font-weight:700">$${c.aav.toFixed(1)}M</td>
+        <td>${vsMarketCell(c.aav, mv)}</td>
         <td style="color:var(--gold);font-size:.65rem">${careerEarningsStr(p)}</td>
         <td style="color:var(--gray);font-size:.65rem">${c.remaining}yr left</td>
         <td style="font-size:.65rem;color:${expiring?"var(--red)":"var(--gray)"}">${expiring?"EXPIRING":""}</td>
@@ -19643,7 +19755,7 @@ function renderFrnAnalytics(defaultTab) {
         <span style="color:${capLeft<0?"var(--red)":"var(--green-lt)"}">Room: <b>$${capLeft.toFixed(1)}M</b></span>
       </div>
       <table class="frn-ana-table"><thead>
-        <tr><th>Player</th><th>Pos</th><th>Grade</th><th>Age</th><th>Draft</th><th>AAV</th><th>Career $</th><th>Length</th><th></th></tr>
+        <tr><th>Player</th><th>Pos</th><th>Grade</th><th>Age</th><th>Draft</th><th>AAV</th><th>vs Market</th><th>Career $</th><th>Length</th><th></th></tr>
       </thead><tbody>${rows}</tbody></table>`;
   }
 
@@ -19728,9 +19840,6 @@ function renderFrnAnalytics(defaultTab) {
       const c = p.contract;
       const isMe = p.teamId === chosenTeamId;
       const mv = computeMarketValue(p, cap);
-      const diff = c.aav - mv;
-      const diffColor = diff > 2 ? "var(--red)" : diff < -2 ? "var(--green-lt)" : "var(--gray)";
-      const diffStr = diff > 0 ? `+$${diff.toFixed(1)}` : `-$${Math.abs(diff).toFixed(1)}`;
       return `<tr style="${isMe?"background:rgba(200,169,0,0.07)":""}">
         <td style="color:var(--gray);font-size:.65rem">${i+1}.</td>
         <td style="color:${isMe?"var(--gold)":"var(--white)"};font-weight:700">${p.name}</td>
@@ -19739,7 +19848,7 @@ function renderFrnAnalytics(defaultTab) {
         <td style="color:var(--gray);font-size:.65rem">${draftStr(p)}</td>
         <td style="color:var(--gray);font-size:.68rem">${p.teamName}</td>
         <td style="color:${aavColor(c.aav)};font-weight:700">$${c.aav.toFixed(1)}M</td>
-        <td style="color:${diffColor};font-size:.65rem">${diffStr}M vs mkt</td>
+        <td>${vsMarketCell(c.aav, mv)}</td>
         <td style="color:var(--gold);font-size:.65rem">${careerEarningsStr(p)}</td>
         <td style="color:var(--gray);font-size:.65rem">${c.remaining}yr</td>
       </tr>`;
@@ -21612,6 +21721,7 @@ function _buildDraftClass(rookieYear) {
       allTaken.add(p.name);
       p.age = 21 + Math.floor(Math.random() * 3);
       p.draftYear = rookieYear;
+      p.draftSeason = (franchise?.season || 1) + 1;
       p.isProspect = true;
       cls.push(p);
     }
@@ -21803,6 +21913,7 @@ function _draftFinalize() {
         udfa.age = 22;
         udfa.draftRound = 0; udfa.draftPick = null;
         udfa.draftYear = rookieYear;
+        udfa.draftSeason = (franchise?.season || 1) + 1;
         udfa.careerEarnings = 0;
         udfa.contract = generateContract(udfa, franchise.salaryCap || SALARY_CAP_BASE);
         roster.push(udfa);
