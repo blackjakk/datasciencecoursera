@@ -1436,6 +1436,14 @@
     color: #e8a000; font-size: .55rem; font-weight: 700;
   }
 
+  /* BSPN logo — playful header */
+  .frn-bspn-logo {
+    margin: 0; padding: 0;
+    font-family: inherit; color: var(--gold);
+    font-size: .42rem; line-height: 1; letter-spacing: -1px;
+    font-weight: 900;
+  }
+
   /* Past-game (ESPN-style) viewer */
   .frn-pg-banner {
     display: grid; grid-template-columns: 1fr auto 1fr; gap: .8rem;
@@ -3561,15 +3569,28 @@ function buildRatings(roster) {
 }
 
 class GameSimulator {
-  constructor(home, away, hRoster, aRoster) {
+  constructor(home, away, hRoster, aRoster, opts) {
     this.home = home; this.away = away;
     this.hRoster = hRoster; this.aRoster = aRoster;
+    // Optional gameday context: rivalry flag, home-field advantage.
+    // Weather still auto-rolls in the constructor below; opts.weather
+    // can override post-construction if a caller wants to force it.
+    this.opts = opts || {};
+    this.isRivalry = !!this.opts.isRivalry;
+    this.homeFieldAdv = this.opts.homeFieldAdv !== false; // default on
     this._playerByName = new Map();
     for (const p of hRoster) this._playerByName.set(p.name, p);
     for (const p of aRoster) this._playerByName.set(p.name, p);
     this.homePlaybook = getPlaybook(home); this.awayPlaybook = getPlaybook(away);
     this.homeDefPlaybook = getDefPlaybook(home); this.awayDefPlaybook = getDefPlaybook(away);
     this.homeR = buildRatings(hRoster); this.awayR = buildRatings(aRoster);
+    // Home-field advantage: small bump to the home team's offense and
+    // defense ratings — narrative small but cumulatively meaningful
+    // across a 14-game season. Tunable; ~+1.5 each side.
+    if (this.homeFieldAdv !== false) {
+      this.homeR.offense += 1.5;
+      this.homeR.defense += 1.5;
+    }
     // Extract archetypes for the starting unit
     const archetypesByPos = (roster, pos, n) => roster.filter(p => p.position === pos)
       .sort((a, b) => b.overall - a.overall)
@@ -17860,7 +17881,8 @@ function renderFrnPastGame(week, homeId, awayId) {
   $("frnHomeContent").innerHTML = `
     <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem;flex-wrap:wrap">
       <button class="btn btn-outline" onclick="showFranchiseDashboard()">← Back</button>
-      <div style="font-size:.7rem;color:var(--gray);font-weight:700;letter-spacing:.5px">SEASON ${franchise.season} · WEEK ${week} · FINAL</div>
+      <pre class="frn-bspn-logo">${BSPN_LOGO}</pre>
+      <div style="font-size:.7rem;color:var(--gray);font-weight:700;letter-spacing:.5px">SEASON ${franchise.season} · WEEK ${week} · FINAL${g.isRivalry?` · <span style="color:var(--gold-lt)">🔥 RIVALRY</span>`:""}${g.weather && g.weather.label !== "CLEAR" ? ` · <span style="color:var(--white)">${_wxIcon(g.weather.label)} ${g.weather.label}</span>` : ""}</div>
     </div>
 
     <div class="frn-pg-banner">
@@ -18008,6 +18030,23 @@ function _renderWinProbChart(scoring, home, away, finalHome, finalAway) {
 function _frnHoverTipPgHide() {
   const tip = document.getElementById("frn-pg-tip");
   if (tip) tip.style.display = "none";
+}
+
+// ESPN-parody logo for the box-score header. Pure ASCII, fits in a
+// header strip. (Bootleg Sports Programming Network.)
+const BSPN_LOGO = ` ___    __ __  ___    __  __
+| __)  / _/ _\\| __)  |  \\/  |
+| __)  \\__  __)   | _|      |
+|___) /__/__/ |___)(_)_|_||_|`.trim();
+
+function _wxIcon(label) {
+  switch (label) {
+    case "RAIN":  return "🌧";
+    case "SNOW":  return "❄";
+    case "WINDY": return "💨";
+    case "HOT":   return "☀";
+    default:      return "";
+  }
 }
 
 // Quick hover tooltip on a played-game row in the schedule.
@@ -18308,6 +18347,10 @@ function renderFrnRegular() {
     const oppRec = standings[oppId];
     const oppRS  = oppRec ? `(${oppRec.w}-${oppRec.l})` : "";
     const isNext = g === nextGame;
+    const isRival = _areRivals(g.homeId, g.awayId);
+    const rivalTag = isRival ? `<span style="color:var(--gold-lt);font-size:.6rem">🔥</span>` : "";
+    const wxTag = g.weather && g.weather.label && g.weather.label !== "CLEAR"
+      ? `<span style="font-size:.65rem" title="${g.weather.label}">${_wxIcon(g.weather.label)}</span>` : "";
     if (g.played) {
       const my    = isHome ? g.homeScore : g.awayScore;
       const their = isHome ? g.awayScore : g.homeScore;
@@ -18317,13 +18360,13 @@ function renderFrnRegular() {
         onmouseenter="frnPastGameTipShow(event,${g.week},${g.homeId},${g.awayId})"
         onmouseleave="frnPastGameTipHide()">
         <span class="frn-wk">W${g.week}</span>
-        <span class="frn-opp">${isHome ? "vs" : "@"} ${teamLink(opp)}</span>
+        <span class="frn-opp">${rivalTag}${isHome ? "vs" : "@"} ${teamLink(opp)} ${wxTag}</span>
         <span class="frn-res ${w?"w":t?"t":"l"}">${w?"W":t?"T":"L"} ${my}–${their}</span>
       </div>`;
     }
     return `<div class="frn-game-row ${isNext ? "frn-next" : ""}">
       <span class="frn-wk">W${g.week}</span>
-      <span class="frn-opp">${isHome ? "vs" : "@"} ${teamLink(opp)} <span style="color:var(--gray);font-size:.62rem">${oppRS}</span></span>
+      <span class="frn-opp">${rivalTag}${isHome ? "vs" : "@"} ${teamLink(opp)} <span style="color:var(--gray);font-size:.62rem">${oppRS}</span></span>
       ${isNext ? `<span class="frn-res" style="color:var(--gold)">NEXT</span>` : ""}
     </div>`;
   }).join("");
@@ -18571,18 +18614,31 @@ function computeSuperBowlMVP() {
 // season stats + highlights as a side effect. The full game object is
 // available on the returned `.full` for callers that need playoff details.
 function frnSimOnce(homeId, awayId, isPlayoff = false) {
+  const isRivalry = _areRivals(homeId, awayId);
   const sim = new GameSimulator(
     getTeam(homeId), getTeam(awayId),
-    franchise.rosters[homeId], franchise.rosters[awayId]
+    franchise.rosters[homeId], franchise.rosters[awayId],
+    { isRivalry }
   );
   const r = sim.simulate();
+  // Stamp gameday context onto the result so callers can persist it
+  r.weather = sim.weather;
+  r.isRivalry = isRivalry;
   mergeSeasonStats(homeId, awayId, r.stats);
   captureGameHighlights(homeId, awayId, r.plays, isPlayoff,
     isPlayoff ? `Playoff R${(franchise.playoffBracket?.roundIdx ?? 0) + 1}` : `W${franchise.week}`);
   return { homeScore: r.homeScore, awayScore: r.awayScore, full: r };
 }
 
-function markGamePlayed(homeId, awayId, homeScore, awayScore, gameStats, plays) {
+// Two teams are "rivals" if they share a division. Tagged on schedule
+// entries at season-init by _assignRivalries; runtime fallback below.
+function _areRivals(aId, bId) {
+  const a = getTeam(aId), b = getTeam(bId);
+  if (!a || !b) return false;
+  return a.conference === b.conference && a.division === b.division;
+}
+
+function markGamePlayed(homeId, awayId, homeScore, awayScore, gameStats, plays, ctx) {
   const g = franchise.schedule.find(
     x => !x.played && x.homeId === homeId && x.awayId === awayId
   );
@@ -18590,6 +18646,8 @@ function markGamePlayed(homeId, awayId, homeScore, awayScore, gameStats, plays) 
     g.homeScore = homeScore; g.awayScore = awayScore; g.played = true;
     if (gameStats) g.stats = _stripGameStatsForStorage(gameStats);
     if (plays)     g.scoring = _extractScoringTimeline(plays, homeScore, awayScore);
+    if (ctx?.weather)     g.weather = { label: ctx.weather.label, windStrength: ctx.weather.windStrength };
+    if (ctx?.isRivalry)   g.isRivalry = true;
   }
   recordFranchiseResult(homeId, awayId, homeScore, awayScore);
 }
@@ -18733,7 +18791,8 @@ function advanceWeekIfDone() {
 
 function frnSimGame(homeId, awayId) {
   const r = frnSimOnce(homeId, awayId);
-  markGamePlayed(homeId, awayId, r.homeScore, r.awayScore, r.full?.stats, r.full?.plays);
+  markGamePlayed(homeId, awayId, r.homeScore, r.awayScore, r.full?.stats, r.full?.plays,
+    { weather: r.full?.weather, isRivalry: r.full?.isRivalry });
   _checkWeekComplete();
   saveFranchise();
   showFranchiseDashboard();
@@ -18747,6 +18806,8 @@ function frnSimWeek() {
     g.homeScore = r.homeScore; g.awayScore = r.awayScore; g.played = true;
     g.stats = _stripGameStatsForStorage(r.full?.stats);
     g.scoring = _extractScoringTimeline(r.full?.plays, r.homeScore, r.awayScore);
+    if (r.full?.weather) g.weather = { label: r.full.weather.label, windStrength: r.full.weather.windStrength };
+    if (r.full?.isRivalry) g.isRivalry = true;
     recordFranchiseResult(g.homeId, g.awayId, r.homeScore, r.awayScore);
   }
   _checkWeekComplete();
@@ -18763,6 +18824,9 @@ function frnSimSeason() {
       const r = frnSimOnce(g.homeId, g.awayId);
       g.homeScore = r.homeScore; g.awayScore = r.awayScore; g.played = true;
       g.stats = _stripGameStatsForStorage(r.full?.stats);
+      g.scoring = _extractScoringTimeline(r.full?.plays, r.homeScore, r.awayScore);
+      if (r.full?.weather) g.weather = { label: r.full.weather.label, windStrength: r.full.weather.windStrength };
+      if (r.full?.isRivalry) g.isRivalry = true;
       recordFranchiseResult(g.homeId, g.awayId, r.homeScore, r.awayScore);
     }
     _runWeekEndResolution();
@@ -18850,7 +18914,8 @@ function frnFinishGame() {
     }
     applyPlayoffResult(homeId, awayId, homeScore, awayScore);
   } else {
-    markGamePlayed(homeId, awayId, homeScore, awayScore, gameResult?.stats, gameResult?.plays);
+    markGamePlayed(homeId, awayId, homeScore, awayScore, gameResult?.stats, gameResult?.plays,
+      { weather: gameResult?.weather, isRivalry: gameResult?.isRivalry });
     advanceWeekIfDone();
   }
   saveFranchise();
@@ -19219,6 +19284,7 @@ function renderFrnAnalytics(defaultTab) {
     { id:"league",   label:"LEAGUE HEALTH" },
     { id:"top",      label:"TOP CONTRACTS" },
     { id:"picks",    label:"DRAFT CAPITAL" },
+    { id:"power",    label:"POWER RANKINGS" },
     { id:"QB",  label:"QB" }, { id:"RB",  label:"RB" },
     { id:"WR",  label:"WR" }, { id:"TE",  label:"TE" },
     { id:"DL",  label:"DL" }, { id:"LB",  label:"LB" }, { id:"CB",  label:"CB" },
@@ -19275,11 +19341,62 @@ function renderFrnAnalytics(defaultTab) {
       </table>`;
   }
 
+  function powerRankings() {
+    // Composite: 50% W-L%, 30% point differential (normalized), 20% recent form.
+    const myId = chosenTeamId;
+    const rows = TEAMS.map(t => {
+      const s = franchise.standings?.[t.id] || { w:0, l:0, t:0, pf:0, pa:0 };
+      const gp = s.w + s.l + (s.t || 0);
+      const winPct = gp ? (s.w + (s.t||0) * 0.5) / gp : 0.5;
+      const pd = (s.pf || 0) - (s.pa || 0);
+      const pdScore = Math.tanh(pd / 50) * 0.5 + 0.5; // 0..1 sigmoid
+      // Recent form: last 3 played games
+      const recent = (franchise.schedule || [])
+        .filter(g => g.played && (g.homeId === t.id || g.awayId === t.id))
+        .sort((a,b) => b.week - a.week)
+        .slice(0, 3);
+      let formW = 0;
+      for (const g of recent) {
+        const my = g.homeId === t.id ? g.homeScore : g.awayScore;
+        const op = g.homeId === t.id ? g.awayScore : g.homeScore;
+        if (my > op) formW++;
+        else if (my === op) formW += 0.5;
+      }
+      const formScore = recent.length ? formW / recent.length : 0.5;
+      const composite = winPct * 0.5 + pdScore * 0.3 + formScore * 0.2;
+      return { t, s, gp, winPct, pd, formScore, composite, recent };
+    }).sort((a,b) => b.composite - a.composite);
+
+    const cellRecent = ({ recent, t }) => recent.map(g => {
+      const my = g.homeId === t.id ? g.homeScore : g.awayScore;
+      const op = g.homeId === t.id ? g.awayScore : g.homeScore;
+      const r = my > op ? "W" : my === op ? "T" : "L";
+      const c = r === "W" ? "var(--green-lt)" : r === "T" ? "var(--gray)" : "var(--red)";
+      return `<span style="color:${c};font-weight:700">${r}</span>`;
+    }).join(" ") || `<span style="color:var(--gray)">—</span>`;
+
+    return `<table class="frn-ana-table"><thead>
+      <tr><th>#</th><th>Team</th><th>Record</th><th>PF</th><th>PA</th><th>Diff</th><th>L3</th><th>Power</th></tr>
+    </thead><tbody>
+      ${rows.map((r, i) => `<tr style="${r.t.id===myId?"background:rgba(200,169,0,0.10)":""}">
+        <td style="color:var(--gold);font-weight:700">${i+1}</td>
+        <td style="font-weight:${r.t.id===myId?700:400}">${teamLink(r.t)}</td>
+        <td>${r.s.w}-${r.s.l}${r.s.t?`-${r.s.t}`:""}</td>
+        <td>${r.s.pf||0}</td>
+        <td>${r.s.pa||0}</td>
+        <td style="color:${r.pd>=0?"var(--green-lt)":"var(--red)"}">${r.pd>0?"+":""}${r.pd}</td>
+        <td>${cellRecent(r)}</td>
+        <td style="color:var(--gold);font-weight:700">${(r.composite*100).toFixed(0)}</td>
+      </tr>`).join("")}
+    </tbody></table>`;
+  }
+
   let bodyHtml;
   if      (tab === "mysheet") bodyHtml = myCapSheet();
   else if (tab === "league")  bodyHtml = leagueCapHealth();
   else if (tab === "top")     bodyHtml = topContracts();
   else if (tab === "picks")   bodyHtml = draftCapital();
+  else if (tab === "power")   bodyHtml = powerRankings();
   else                        bodyHtml = posMarket(tab);
 
   $("frnHomeContent").innerHTML = `
