@@ -1385,6 +1385,13 @@
     background: var(--bg3);
   }
 
+  /* Coaching FA cards */
+  .frn-coach-fa {
+    display: flex; align-items: center; gap: .5rem;
+    padding: .35rem .5rem; background: var(--bg3);
+    border: 1px solid var(--border); margin-bottom: .25rem;
+  }
+
   /* Visual depth chart */
   .frn-depth-chart {
     display: flex; flex-direction: column; gap: .35rem;
@@ -15096,8 +15103,6 @@ function assignDraftInfo(rosters, currentYear) {
         const yearsInLeague = Math.max(0, (p.age || 22) - 22);
         p.draftYear = currentYear - yearsInLeague;
         const ovr = p.overall || 70;
-        // Better players go earlier in the draft, with a chunk of noise so
-        // top picks can bust and late-round gems exist
         const expectedPick = Math.max(1, Math.min(224,
           Math.round(260 - (ovr - 50) * 4.8 + (Math.random() - 0.5) * 80)
         ));
@@ -15111,10 +15116,81 @@ function assignDraftInfo(rosters, currentYear) {
       if (p.careerEarnings == null) {
         const yearsInLeague = Math.max(0, (p.age || 22) - 22);
         const aav = p.contract?.aav || 1;
-        // Earlier-career deals tend to be smaller — rough estimate
         p.careerEarnings = Math.round(yearsInLeague * aav * 0.65 * 10) / 10;
       }
+      if (p.potential == null) p.potential = _rollPotential(p);
     }
+  }
+}
+
+// Hidden ceiling — a player's max OVR. Veterans get a small bump
+// above current; rookies and young players get a noisy roll keyed off
+// their draft slot. Some 1st-rounders bust (potential < current OVR
+// even), some late picks/UDFAs have huge ceilings.
+function _rollPotential(p) {
+  const age = p.age || 22;
+  const ovr = p.overall || 70;
+  // Vets (25+): potential = current + 0-3 bump (peak players)
+  if (age >= 25) return Math.min(99, ovr + Math.floor(Math.random() * 4));
+  // Young (22-24): draft pedigree drives mean
+  const r = p.draftRound || 7;
+  const meanByRound = { 1: 88, 2: 81, 3: 75, 4: 70, 5: 66, 6: 63, 7: 60, 0: 58 };
+  const stdByRound  = { 1: 5,  2: 6,  3: 7,  4: 7,  5: 7,  6: 7,  7: 7,  0: 8 };
+  const mean = meanByRound[r] ?? 65;
+  const std = stdByRound[r] ?? 7;
+  // Box-Muller-ish noise
+  let u = Math.random() || 1e-9, v = Math.random();
+  const z = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  let potential = Math.round(mean + std * z);
+  // Floor at current OVR-2 (so an 80 OVR rookie isn't capped at 70)
+  potential = Math.max(ovr - 2, Math.min(99, potential));
+  return potential;
+}
+
+// Public-ish scouting hint (single word) derived from draft slot vs
+// hidden potential. Returns short phrase or "" for boring middle.
+function potentialTag(p) {
+  if (p.potential == null) return "";
+  const r = p.draftRound || 7;
+  const pot = p.potential;
+  // Pretend the draft slot's "expected" ceiling is the round's mean
+  const expected = { 1: 88, 2: 81, 3: 75, 4: 70, 5: 66, 6: 63, 7: 60, 0: 58 }[r] ?? 65;
+  const delta = pot - expected;
+  if (delta >= 8)  return "⭐ HIGH CEILING";
+  if (delta >= 4)  return "↗ Late bloomer";
+  if (delta <= -8) return "⚠ Bust risk";
+  if (delta <= -4) return "▾ Capped";
+  return "";
+}
+
+// ── Coaching staff ────────────────────────────────────────────────────────────
+// Each team has a head coach with one trait that biases sim / dev /
+// roster outcomes. Coaches are fired or extended in the offseason.
+const COACH_TRAITS = [
+  { key:"Player Developer",     desc:"Young player growth +35%" },
+  { key:"Offensive Guru",       desc:"+2 team offense rating" },
+  { key:"Defensive Mastermind", desc:"+2 team defense rating" },
+  { key:"Hard-Ass",             desc:"−20% injury chance for your team" },
+  { key:"Players' Coach",       desc:"+15% re-signing acceptance" },
+];
+
+function _rollCoach() {
+  const first = pickFirstName();
+  const last  = pickLastName();
+  const trait = COACH_TRAITS[Math.floor(Math.random() * COACH_TRAITS.length)];
+  return {
+    name: `${first} ${last}`,
+    trait: trait.key,
+    age: 42 + Math.floor(Math.random() * 22),
+    yearsWithTeam: 0,
+    record: { w: 0, l: 0, championships: 0 },
+  };
+}
+
+function _initCoachingStaff() {
+  if (!franchise.coaches) franchise.coaches = {};
+  for (const t of TEAMS) {
+    if (!franchise.coaches[t.id]) franchise.coaches[t.id] = { hc: _rollCoach() };
   }
 }
 
@@ -15601,6 +15677,7 @@ function startFranchise(teamId) {
   };
   franchiseDraft = null;
   _initFranchisePicks();
+  _initCoachingStaff();
   saveFranchise();
   showFranchiseDashboard();
 }
@@ -15626,6 +15703,8 @@ function showFranchiseDashboard() {
   assignDraftInfo(franchise.rosters, baseYear);
   // Backfill picks for saves from before draft-picks-as-assets
   if (!franchise.picks || !franchise.picks.length) _initFranchisePicks();
+  // Backfill coaching staff
+  if (!franchise.coaches) _initCoachingStaff();
 
   $("franchiseHome").style.display = "block";
   const { phase } = franchise;
@@ -16320,9 +16399,12 @@ function _pickInjuryType() {
 function _rollGameInjuries(teamId) {
   const roster = franchise.rosters[teamId] || [];
   const team = getTeam(teamId);
+  // Hard-Ass head coach: −20% injury rate for the team
+  const coachTrait = franchise.coaches?.[teamId]?.hc?.trait;
+  const rateMul = coachTrait === "Hard-Ass" ? 0.80 : 1.0;
   for (const p of roster) {
     if (p.injury && p.injury.weeksRemaining > 0) continue;
-    const rate = INJURY_RATE[p.position] || 0.01;
+    const rate = (INJURY_RATE[p.position] || 0.01) * rateMul;
     if (Math.random() >= rate) continue;
     const t = _pickInjuryType();
     const wks = t.min + Math.floor(Math.random() * (t.max - t.min + 1));
@@ -16400,6 +16482,10 @@ function _buildPlayerDetailPanel(p) {
       <div><span class="frn-meta-label">DRAFT</span> ${draftStr(p)}</div>
       <div><span class="frn-meta-label">CAREER $</span> ${careerEarningsStr(p)}</div>
     </div>
+    ${(() => {
+      const tag = potentialTag(p);
+      return tag ? `<div style="margin-top:.35rem;font-size:.66rem;color:var(--gold-lt);font-weight:700">${tag}</div>` : "";
+    })()}
     <div class="frn-card-title" style="margin-top:.55rem;margin-bottom:.3rem">COMBINE</div>
     ${combineHtml}
     ${p.injury ? `<div class="frn-player-injury">🩹 ${p.injury.label} — ${p.injury.weeksRemaining} wk${p.injury.weeksRemaining===1?"":"s"} out</div>` : ""}
@@ -17662,6 +17748,109 @@ function renderFrnScrimmages() {
 }
 
 // ── Past-game viewer ──────────────────────────────────────────────────────────
+// ── Coaches view + hire/fire ──────────────────────────────────────────────────
+function renderFrnCoaches() {
+  frnHoverTipHide(); _frnHoverTipPgHide && _frnHoverTipPgHide();
+  if (!franchise.coaches) _initCoachingStaff();
+  if (!franchise._coachingFAs) franchise._coachingFAs = [
+    _rollCoach(), _rollCoach(), _rollCoach(), _rollCoach()
+  ];
+  const myId = franchise.chosenTeamId;
+  const myHc = franchise.coaches[myId]?.hc;
+  const myTeam = getTeam(myId);
+
+  const traitDesc = key => COACH_TRAITS.find(t => t.key === key)?.desc || "";
+
+  const leagueRows = TEAMS.map(t => {
+    const hc = franchise.coaches[t.id]?.hc;
+    const isMe = t.id === myId;
+    return `<tr style="${isMe?"background:rgba(200,169,0,0.10)":""}">
+      <td style="font-weight:${isMe?700:400}">${teamLink(t)}</td>
+      <td>${hc?.name || "—"}</td>
+      <td style="color:var(--gold);font-size:.66rem">${hc?.trait || "—"}</td>
+      <td style="color:var(--gray)">${hc?.age || "?"}</td>
+      <td style="color:var(--gray);font-size:.65rem">${hc?.yearsWithTeam ?? 0}yr</td>
+      <td>${hc?.record?.w || 0}-${hc?.record?.l || 0}${hc?.record?.championships ? " · 🏆"+hc.record.championships : ""}</td>
+    </tr>`;
+  }).join("");
+
+  const fasHtml = franchise._coachingFAs.map((c, i) => `
+    <div class="frn-coach-fa">
+      <div style="flex:1">
+        <div style="font-weight:700">${c.name}</div>
+        <div style="color:var(--gray);font-size:.66rem">Age ${c.age} · <span style="color:var(--gold)">${c.trait}</span></div>
+        <div style="color:var(--gray);font-size:.6rem">${traitDesc(c.trait)}</div>
+      </div>
+      <button class="btn btn-gold" style="font-size:.65rem;padding:.25rem .65rem"
+        onclick="frnHireCoach(${i})">Hire</button>
+    </div>
+  `).join("") || `<div style="color:var(--gray);font-size:.7rem;font-style:italic;padding:.4rem">No coaches on the market right now.</div>`;
+
+  $("frnHomeContent").innerHTML = `
+    <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem;flex-wrap:wrap">
+      <div style="font-size:1.05rem;font-weight:900;color:var(--gold)">🎩 COACHING STAFF</div>
+      <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="margin-left:auto">← Back</button>
+    </div>
+    <div class="frn-pg-row">
+      <div class="frn-pg-card" style="flex:1">
+        <div class="frn-pg-card-title">YOUR HEAD COACH · ${myTeam.name}</div>
+        ${myHc ? `
+          <div style="padding:.45rem 0">
+            <div style="font-size:1rem;font-weight:900">${myHc.name}</div>
+            <div style="color:var(--gold);font-size:.78rem;margin-top:.15rem">${myHc.trait}</div>
+            <div style="color:var(--gray);font-size:.65rem;margin-top:.1rem">${traitDesc(myHc.trait)}</div>
+            <div style="color:var(--gray);font-size:.66rem;margin-top:.3rem">
+              Age ${myHc.age} · ${myHc.yearsWithTeam}yr with team · Record ${myHc.record.w}-${myHc.record.l}
+              ${myHc.record.championships ? " · 🏆 "+myHc.record.championships : ""}
+            </div>
+          </div>
+          <button class="btn btn-outline" onclick="frnFireCoach()" style="color:var(--red);font-size:.65rem;padding:.25rem .65rem">
+            ✗ Fire coach (forfeit experience)
+          </button>` : `<div style="color:var(--gray);font-style:italic">No head coach. Hire from free agents below.</div>`}
+      </div>
+      <div class="frn-pg-card" style="flex:1.2">
+        <div class="frn-pg-card-title">FREE AGENT COACHES</div>
+        ${fasHtml}
+      </div>
+    </div>
+    <div class="frn-pg-card">
+      <div class="frn-pg-card-title">LEAGUE HEAD COACHES</div>
+      <table class="frn-pg-totals">
+        <thead><tr><th>Team</th><th>Coach</th><th>Trait</th><th>Age</th><th>Tenure</th><th>Record</th></tr></thead>
+        <tbody>${leagueRows}</tbody>
+      </table>
+    </div>`;
+}
+
+function frnHireCoach(idx) {
+  const pool = franchise._coachingFAs || [];
+  const hire = pool[idx];
+  if (!hire) return;
+  if (!confirm(`Hire ${hire.name} (${hire.trait})?`)) return;
+  const myId = franchise.chosenTeamId;
+  const oldHc = franchise.coaches[myId]?.hc;
+  if (oldHc) pool.push(oldHc); // released coach lands back on the FA market
+  hire.yearsWithTeam = 0;
+  franchise.coaches[myId] = { hc: hire };
+  pool.splice(idx, 1);
+  // Refill the pool with a fresh roll
+  while (pool.length < 4) pool.push(_rollCoach());
+  saveFranchise();
+  renderFrnCoaches();
+}
+
+function frnFireCoach() {
+  const myId = franchise.chosenTeamId;
+  const hc = franchise.coaches[myId]?.hc;
+  if (!hc) return;
+  if (!confirm(`Fire ${hc.name}? They'll go back to the FA pool.`)) return;
+  if (!franchise._coachingFAs) franchise._coachingFAs = [];
+  franchise._coachingFAs.push(hc);
+  franchise.coaches[myId] = { hc: null };
+  saveFranchise();
+  renderFrnCoaches();
+}
+
 // ── Visual depth chart for your own team ──────────────────────────────────────
 function renderFrnDepthChart() {
   frnHoverTipHide(); _frnHoverTipPgHide && _frnHoverTipPgHide();
@@ -18255,6 +18444,7 @@ function renderFrnRegular() {
           <span style="color:var(--gray);font-weight:400"> · ${capPct}% used</span>${refundLine}
           <button class="frn-cap-btn" onclick="renderFrnAnalytics('mysheet')">📊 Analytics</button>
           <button class="frn-cap-btn" onclick="renderFrnDepthChart()">📋 Depth</button>
+          <button class="frn-cap-btn" onclick="renderFrnCoaches()">🎩 Coaches</button>
           ${week <= TRADE_DEADLINE_WEEK ? `<button class="frn-cap-btn" onclick="frnOpenTrade()">🔀 Trade</button>` : ""}
           <button class="frn-cap-btn" onclick="renderFrnChat()">💬 Chat${(() => {
             const unread = (franchise.chat || []).filter(m => m.season === season && m.week === week && m.teamId !== chosenTeamId).length;
@@ -18620,6 +18810,14 @@ function frnSimOnce(homeId, awayId, isPlayoff = false) {
     franchise.rosters[homeId], franchise.rosters[awayId],
     { isRivalry }
   );
+  // Coaching trait bumps applied AFTER constructor so they layer on
+  // top of HFA. Offensive/Defensive guru = +2 in their phase.
+  const hcHome = franchise.coaches?.[homeId]?.hc?.trait;
+  const hcAway = franchise.coaches?.[awayId]?.hc?.trait;
+  if (hcHome === "Offensive Guru")        sim.homeR.offense += 2;
+  if (hcHome === "Defensive Mastermind")  sim.homeR.defense += 2;
+  if (hcAway === "Offensive Guru")        sim.awayR.offense += 2;
+  if (hcAway === "Defensive Mastermind")  sim.awayR.defense += 2;
   const r = sim.simulate();
   // Stamp gameday context onto the result so callers can persist it
   r.weather = sim.weather;
@@ -19088,6 +19286,18 @@ function showFrnAwards() {
   // Bowl MVP (top scorer from championship-winning side), and your team's MVP.
   const champId = franchise.playoffBracket?.champion;
   if (champId && !franchise.history.some(h => h.season === franchise.season)) {
+    // Tick coach records + tenure first (only on season-end)
+    for (const t of TEAMS) {
+      const hc = franchise.coaches?.[t.id]?.hc;
+      if (!hc) continue;
+      const s = franchise.standings?.[t.id] || { w:0, l:0 };
+      hc.record = hc.record || { w:0, l:0, championships: 0 };
+      hc.record.w += s.w || 0;
+      hc.record.l += s.l || 0;
+      hc.yearsWithTeam = (hc.yearsWithTeam || 0) + 1;
+      hc.age = (hc.age || 50) + 1;
+      if (t.id === champId) hc.record.championships = (hc.record.championships || 0) + 1;
+    }
     const champTeam = getTeam(champId);
     const leagueMVP   = computeLeagueMVP();
     const sbMVP       = computeSuperBowlMVP();
@@ -19743,12 +19953,23 @@ function runFrnOffseason() {
         }
         p.overall = Math.max(50, p.overall - (regress >= 2 ? 2 : 1));
       }
-      // Young progression ≤24
-      if (p.age <= 24 && Math.random() < 0.6) {
-        const gain = 1 + Math.floor(Math.random() * 2);
-        const k    = Math.floor(Math.random() * p.stats.length);
-        p.stats[k] = Math.min(99, p.stats[k] + gain);
-        p.overall  = Math.min(99, p.overall + 1);
+      // Young progression: grow toward hidden potential ceiling.
+      // Growth rate falls with age; player-developer head coach speeds it.
+      if (p.potential == null) p.potential = _rollPotential(p);
+      const gap = p.potential - p.overall;
+      if (gap > 0 && p.age <= 27) {
+        const coachBoost = (franchise.coaches?.[tId]?.hc?.trait === "Player Developer") ? 1.35 : 1.0;
+        const baseRate = p.age <= 22 ? 0.45 : p.age <= 24 ? 0.30 : p.age <= 26 ? 0.15 : 0.06;
+        // Average growth per offseason = baseRate * gap, with floor/ceil
+        const growth = Math.max(0, Math.round(gap * baseRate * coachBoost));
+        if (growth > 0) {
+          p.overall = Math.min(99, p.overall + growth);
+          // Spread the gain across 2 random stats
+          const k1 = Math.floor(Math.random() * p.stats.length);
+          const k2 = Math.floor(Math.random() * p.stats.length);
+          p.stats[k1] = Math.min(99, p.stats[k1] + Math.ceil(growth * 0.6));
+          p.stats[k2] = Math.min(99, p.stats[k2] + Math.floor(growth * 0.4));
+        }
       }
 
       keep.push(p);
@@ -19757,9 +19978,12 @@ function runFrnOffseason() {
     // Rookie filling now happens via the annual draft phase + UDFA fill.
     // AI teams: auto-resign expired players at market rate (stars more likely to stay)
     if (tId !== franchise.chosenTeamId) {
+      const aiCoachTrait = franchise.coaches?.[tId]?.hc?.trait;
+      const stayBoost = aiCoachTrait === "Players' Coach" ? 0.15 : 0;
       for (const p of keep) {
         if (p.contract && p.contract.remaining <= 0) {
-          const stayProb = p.overall >= 85 ? 0.85 : p.overall >= 75 ? 0.70 : 0.55;
+          let stayProb = p.overall >= 85 ? 0.85 : p.overall >= 75 ? 0.70 : 0.55;
+          stayProb = Math.min(0.98, stayProb + stayBoost);
           if (Math.random() < stayProb) {
             p.contract = generateContract(p, franchise.salaryCap || SALARY_CAP_BASE);
           } else {
