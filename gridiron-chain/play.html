@@ -17370,6 +17370,21 @@ function frnScrimmageInterest(otherId) {
 
 function frnRequestScrimmage(otherId) {
   otherId = Number(otherId);
+  // Hard caps: one scrimmage per week (just like real teams only get
+  // one joint practice between games), four total per season.
+  const allDone = (franchise.scrimmagesDone || []);
+  const thisWeek = allDone.filter(s => s.season === franchise.season && s.week === franchise.week);
+  if (thisWeek.length >= 1) {
+    alert("You've already scrimmaged this week. Only one joint practice per week.");
+    renderFrnScrimmages();
+    return;
+  }
+  const thisSeason = allDone.filter(s => s.season === franchise.season);
+  if (thisSeason.length >= 4) {
+    alert("You've used your 4 scrimmage slots for the season.");
+    renderFrnScrimmages();
+    return;
+  }
   const interest = frnScrimmageInterest(otherId);
   if (Math.random() > interest) {
     alert("They turned down the scrimmage — schedule too tight.");
@@ -17399,7 +17414,11 @@ function frnRequestScrimmage(otherId) {
 function renderFrnScrimmages() {
   const myId = franchise.chosenTeamId;
   const done = (franchise.scrimmagesDone || []).filter(s => s.season === franchise.season);
+  const doneThisWeek = done.filter(s => s.week === franchise.week);
   const doneSet = new Set(done.map(s => s.teamId));
+  const SEASON_CAP = 4;
+  const lockedThisWeek = doneThisWeek.length >= 1;
+  const lockedThisSeason = done.length >= SEASON_CAP;
 
   const candidates = TEAMS.filter(t => t.id !== myId).map(t => {
     const interest = frnScrimmageInterest(t.id);
@@ -17414,26 +17433,39 @@ function renderFrnScrimmages() {
       : interest >= 0.35 ? `<span style="color:#e8a000;font-size:.62rem">Open to it</span>`
       : interest > 0     ? `<span style="color:#c08080;font-size:.62rem">Unlikely</span>`
       :                    `<span style="color:var(--gray);font-size:.62rem">Refused</span>`;
+    const disabled = already || lockedThisWeek || lockedThisSeason;
     return `<tr>
-      <td style="font-weight:700">${t.city} ${t.name}</td>
+      <td style="font-weight:700">${teamLink(t, true)}</td>
       <td style="color:var(--gray);font-size:.66rem">OFF ${rtg.off} · DEF ${rtg.def}</td>
       <td>${tag}</td>
       <td>${already
         ? `<span style="color:var(--gold);font-size:.62rem">✓ Intel gained</span>`
-        : `<button class="btn btn-gold" style="font-size:.62rem;padding:.2rem .55rem"
+        : `<button class="btn btn-gold" style="font-size:.62rem;padding:.2rem .55rem${disabled?";opacity:.4;cursor:not-allowed":""}"
+            ${disabled?"disabled":""}
             onclick="frnRequestScrimmage(${t.id})">Request</button>`}</td>
     </tr>`;
   }).join("");
 
+  const capBanner = lockedThisSeason
+    ? `<div class="frn-pre-warn">⚠ You've used all ${SEASON_CAP} scrimmage slots for the season.</div>`
+    : lockedThisWeek
+    ? `<div class="frn-pre-warn" style="border-color:var(--gold-lt);color:var(--gold-lt);background:rgba(200,169,0,0.10)">
+         ✓ You already scrimmaged this week with ${getTeam(doneThisWeek[0].teamId)?.name||"a team"}. Try again next week.
+       </div>`
+    : "";
+
   $("frnHomeContent").innerHTML = `
     <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem;flex-wrap:wrap">
       <div style="font-size:1.05rem;font-weight:900;color:var(--gold)">🏟 JOINT PRACTICES</div>
-      <div style="color:var(--gray);font-size:.72rem">Scrimmage between weeks · ${done.length}/3 done this season</div>
+      <div style="color:var(--gray);font-size:.72rem">
+        One per week · ${done.length}/${SEASON_CAP} done this season
+      </div>
       <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="margin-left:auto">← Back</button>
     </div>
     <div class="frn-fa-summary">
-      Joint practices count as exhibition games — no W/L, no stat lines, no risk of injury <i>and</i> you walk away with scouting intel on their players (their combine numbers flip from estimated to revealed, grades sharpen). One scrimmage per opponent per season.
+      Joint practices count as exhibition games — no W/L, no stat lines, no risk of injury <i>and</i> you walk away with scouting intel (their grades sharpen for the rest of the season). One per week, up to ${SEASON_CAP} per season, one per opponent per season.
     </div>
+    ${capBanner}
     <table class="frn-pre-roster-table" style="margin-top:.5rem">
       <thead><tr><th>Team</th><th>Rating</th><th>Willingness</th><th></th></tr></thead>
       <tbody>${rows}</tbody>
