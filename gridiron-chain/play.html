@@ -849,12 +849,65 @@ function teamAscii(team) {
   return TEAM_ASCII_OVERRIDES[team.name] || `[${(team.name || "?")[0]}]`;
 }
 
+// ─── Personnel groupings ──────────────────────────────────────────────────
+// Offensive personnel (which skill players are on the field) and the
+// defensive package that subs in to match. Real NFL notation: first
+// digit = RB count, second = TE count, WR = 5 - (RB+TE).
+//   I_FORM (21): 2RB-1TE-2WR — power/run heavy
+//   HEAVY  (12): 1RB-2TE-2WR — jumbo, run/PA threat
+//   BASE   (11): 1RB-1TE-2WR — legacy default (4 skill, slim split)
+//   TRIPS  (11): 1RB-1TE-3WR — modern NFL standard, slot WR3
+//   SPREAD (10): 1RB-0TE-4WR — passing down
+//   EMPTY  (01): 0RB-1TE-4WR — no back, true 5-out
+const PERSONNEL = {
+  I_FORM: { rb: 2, te: 1, wr: 2, label: "I-Form (21)",  skill: 5 },
+  HEAVY:  { rb: 1, te: 2, wr: 2, label: "Heavy (12)",   skill: 5 },
+  BASE:   { rb: 1, te: 1, wr: 2, label: "Base (11)",    skill: 4 },
+  TRIPS:  { rb: 1, te: 1, wr: 3, label: "Trips (11)",   skill: 5 },
+  SPREAD: { rb: 1, te: 0, wr: 4, label: "Spread (10)",  skill: 5 },
+  EMPTY:  { rb: 0, te: 1, wr: 4, label: "Empty (01)",   skill: 5 },
+};
+// Defensive package counts — subs are made off the base 4-3 (DL stays 4).
+const DEF_PACKAGE = {
+  BASE_43: { dl: 4, lb: 3, cb: 2, s: 2, label: "4-3 Base" },
+  NICKEL:  { dl: 4, lb: 2, cb: 3, s: 2, label: "Nickel"   },
+  DIME:    { dl: 4, lb: 1, cb: 4, s: 2, label: "Dime"     },
+  QUARTER: { dl: 4, lb: 0, cb: 5, s: 2, label: "Quarter"  },
+};
+function packageForPersonnel(p) {
+  const wr = PERSONNEL[p]?.wr ?? 2;
+  if (wr >= 5) return "QUARTER";
+  if (wr >= 4) return "DIME";
+  if (wr >= 3) return "NICKEL";
+  return "BASE_43";
+}
+// Personnel selection — playbook-weighted plus situational tilts.
+// Goal-line favors HEAVY/I_FORM; long-yardage favors SPREAD/EMPTY.
+function pickPersonnel(playbook, situation) {
+  const sit = situation || {};
+  if (sit.isGoalLine) {
+    return Math.random() < 0.55 ? "HEAVY" : (Math.random() < 0.6 ? "I_FORM" : "BASE");
+  }
+  if (sit.isLongYardage) {
+    const r = Math.random();
+    return r < 0.45 ? "SPREAD" : r < 0.65 ? "EMPTY" : "TRIPS";
+  }
+  const mix = playbook.personnelMix || { TRIPS: 0.45, BASE: 0.20, SPREAD: 0.15, HEAVY: 0.12, I_FORM: 0.05, EMPTY: 0.03 };
+  let roll = Math.random();
+  for (const [key, prob] of Object.entries(mix)) {
+    if (roll < prob) return key;
+    roll -= prob;
+  }
+  return "BASE";
+}
+
 // ─── Playbooks ────────────────────────────────────────────────────────────
 const PLAYBOOKS = {
   BALANCED: {
     id: "BALANCED", name: "Balanced", badge: "BAL",
     passProb: { long: 0.72, mid: 0.58, short: 0.42 },
     targetMix: { wr1: 0.40, wr2: 0.30, te: 0.22, rb: 0.08 },
+    personnelMix: { TRIPS: 0.40, BASE: 0.25, HEAVY: 0.12, SPREAD: 0.13, I_FORM: 0.05, EMPTY: 0.05 },
     tierBias: {},
     airYdsMean: 7.5, airYdsSd: 6,
     rushYdsMean: 4.3, rushYdsSd: 5.5,
@@ -866,6 +919,7 @@ const PLAYBOOKS = {
     // WRs racked up 130+ yds vs elite secondaries on volume alone.
     passProb: { long: 0.82, mid: 0.66, short: 0.50 },
     targetMix: { wr1: 0.42, wr2: 0.32, te: 0.16, rb: 0.10 },
+    personnelMix: { TRIPS: 0.40, SPREAD: 0.30, EMPTY: 0.12, BASE: 0.10, HEAVY: 0.05, I_FORM: 0.03 },
     tierBias: { QB: "elite", WR: "elite" },
     // Elite QB + WRs hit at high comp% with normal air-yard depth; pay the
     // tax in sack volume from extra dropbacks and a weaker run game.
@@ -878,6 +932,7 @@ const PLAYBOOKS = {
     id: "GROUND_AND_POUND", name: "Ground & Pound", badge: "G&P",
     passProb: { long: 0.55, mid: 0.34, short: 0.20 },
     targetMix: { wr1: 0.28, wr2: 0.20, te: 0.34, rb: 0.18 },
+    personnelMix: { I_FORM: 0.30, HEAVY: 0.30, BASE: 0.22, TRIPS: 0.13, SPREAD: 0.05 },
     tierBias: { RB: "elite", OL: "elite" },
     // Run-first; when they DO pass it's deeper play-action — but those deep
     // shots are LOWER comp%. Sack rate is normal (no auto-discount).
@@ -890,6 +945,7 @@ const PLAYBOOKS = {
     id: "DUAL_THREAT", name: "Dual Threat", badge: "DT",
     passProb: { long: 0.75, mid: 0.52, short: 0.30 },
     targetMix: { wr1: 0.34, wr2: 0.26, te: 0.22, rb: 0.18 },
+    personnelMix: { TRIPS: 0.35, SPREAD: 0.20, BASE: 0.20, HEAVY: 0.15, I_FORM: 0.08, EMPTY: 0.02 },
     tierBias: { QB: "elite", WR: "good", RB: "good" },
     airYdsMean: 7.5, airYdsSd: 6.5,
     rushYdsMean: 4.8, rushYdsSd: 5.5,
@@ -901,6 +957,7 @@ const PLAYBOOKS = {
     id: "OPTION", name: "Read Option", badge: "OPT",
     passProb: { long: 0.65, mid: 0.45, short: 0.30 },
     targetMix: { wr1: 0.30, wr2: 0.22, te: 0.28, rb: 0.20 },
+    personnelMix: { I_FORM: 0.32, HEAVY: 0.28, BASE: 0.22, TRIPS: 0.18 },
     tierBias: { QB: "elite", RB: "good" },
     airYdsMean: 7.5, airYdsSd: 6.5,
     rushYdsMean: 4.5, rushYdsSd: 6,        // good but not elite (G&P still better at pure run)
@@ -972,13 +1029,46 @@ function getDefPlaybook(team) {
   return DEF_PLAYBOOKS[pool[(team.id * 7) % pool.length]] || DEF_PLAYBOOKS.BASE_43;
 }
 
-function pickReceiver(playbook, starters) {
-  const { wr1, wr2, te, rb } = playbook.targetMix;
-  const roll = Math.random();
-  if (roll < wr1) return starters.wr1;
-  if (roll < wr1 + wr2) return starters.wr2;
-  if (roll < wr1 + wr2 + te) return starters.te;
-  return starters.rb;
+function pickReceiver(playbook, starters, personnel) {
+  const p = PERSONNEL[personnel] || PERSONNEL.BASE;
+  const base = playbook.targetMix;
+  // Adjust mix to match what's actually on the field for this personnel.
+  // 3-WR sets: carve a slot-WR share from wr1+wr2.
+  // 4-WR / SPREAD: another slice for wr4.
+  // No-TE (10): fold TE share into WRs.
+  // No-RB (01/EMPTY): fold RB share into WRs.
+  let mix = { wr1: base.wr1 || 0, wr2: base.wr2 || 0, wr3: 0, wr4: 0, te: base.te || 0, rb: base.rb || 0 };
+  if (p.te === 0) {
+    mix.wr1 += mix.te * 0.45;
+    mix.wr2 += mix.te * 0.30;
+    mix.te = 0;
+  }
+  if (p.rb === 0) {
+    mix.wr1 += mix.rb * 0.40;
+    mix.wr2 += mix.rb * 0.30;
+    mix.rb = 0;
+  }
+  if (p.wr >= 3) {
+    const slice = Math.min(0.18, (mix.wr1 + mix.wr2) * 0.22);
+    mix.wr1 -= slice * 0.55;
+    mix.wr2 -= slice * 0.45;
+    mix.wr3 = slice;
+  }
+  if (p.wr >= 4) {
+    const slice = 0.10;
+    mix.wr1 -= slice * 0.40;
+    mix.wr2 -= slice * 0.30;
+    mix.wr3 -= slice * 0.30;
+    mix.wr4 = slice;
+  }
+  let roll = Math.random();
+  for (const key of ["wr1", "wr2", "wr3", "wr4", "te", "rb"]) {
+    const prob = mix[key] || 0;
+    if (prob <= 0) continue;
+    if (roll < prob) return starters[key] || starters.wr1;
+    roll -= prob;
+  }
+  return starters.wr1;
 }
 
 // ─── Player generation ────────────────────────────────────────────────────
@@ -2229,7 +2319,13 @@ function buildRatings(roster) {
       rb2: (byPos.RB?.[1])?.name || null,    // second back — null if no viable depth
       wr1: (byPos.WR?.[0])?.name || "WR1",
       wr2: (byPos.WR?.[1])?.name || "WR2",
+      // 3rd / 4th WR for 3-WR (TRIPS) and 4-WR (SPREAD/EMPTY) personnel.
+      // Fall back to depth WRs (or wr2/wr1) if the team is thin at WR.
+      wr3: (byPos.WR?.[2])?.name || (byPos.WR?.[1])?.name || (byPos.WR?.[0])?.name || "WR3",
+      wr4: (byPos.WR?.[3])?.name || (byPos.WR?.[2])?.name || (byPos.WR?.[1])?.name || "WR4",
       te:  (byPos.TE?.[0])?.name || "TE",
+      // 2nd TE for HEAVY (12) personnel.
+      te2: (byPos.TE?.[1])?.name || (byPos.TE?.[0])?.name || "TE2",
       k:   (byPos.K?.[0])?.name  || "K",
       de1: byPos.DL?.[0]?.name || "LDE",
       dt1: byPos.DL?.[1]?.name || "LDT",
@@ -2240,6 +2336,9 @@ function buildRatings(roster) {
       lb3: byPos.LB?.[2]?.name || "SLB",
       cb1: byPos.CB?.[0]?.name || "CB1",
       cb2: byPos.CB?.[1]?.name || "CB2",
+      // Nickel/dime DBs for sub-package defense vs 3+ WR sets.
+      cb3: (byPos.CB?.[2])?.name || (byPos.CB?.[1])?.name || (byPos.CB?.[0])?.name || "NB",
+      cb4: (byPos.CB?.[3])?.name || (byPos.CB?.[2])?.name || (byPos.CB?.[1])?.name || "DB4",
       fs:  byPos.S?.[0]?.name  || "FS",
       ss:  byPos.S?.[1]?.name  || "SS",
     }
@@ -2588,6 +2687,10 @@ class GameSimulator {
   _pushVisual(data) {
     this.plays.push({
       ...data,
+      // Personnel + defensive package — selected once per snap in _play.
+      // Pre-snap visuals (kickoff/score/punt) inherit the last selection.
+      personnel: data.personnel || this._currentPersonnel || "BASE",
+      defPackage: data.defPackage || this._currentDefPackage || "BASE_43",
       poss: this.poss,
       quarter: this.quarter,
       time: this.time,
@@ -2740,6 +2843,14 @@ class GameSimulator {
     const off = this.offStats, def = this.defStats;
     const QB = this.offR.starters.qb, RB = this.offR.starters.rb, K = this.offR.starters.k;
     const isThird = this.down === 3, isFourth = this.down === 4;
+    // PERSONNEL selection — picked once per snap. Long-yardage tilts toward
+    // SPREAD/EMPTY; goal-line toward HEAVY/I_FORM. Stored on `this` so
+    // _pushVisual auto-attaches it to every play visual this snap.
+    const offPb = getPlaybook(this.possTeam);
+    const isLongYardage = (isThird || isFourth) && this.ytg >= 8;
+    const isNearGL      = (100 - this.yardLine) <= 5;
+    this._currentPersonnel = pickPersonnel(offPb, { isLongYardage, isGoalLine: isNearGL, down: this.down, ytg: this.ytg });
+    this._currentDefPackage = packageForPersonnel(this._currentPersonnel);
 
     if (this.down === 4) {
       const toEZ = 100 - this.yardLine;
@@ -3128,7 +3239,7 @@ class GameSimulator {
             const targetDepth = Math.max(1, Math.round(airYds));
             const yac = airYds >= 5 ? rand(0, Math.max(1, Math.floor(airYds * 0.4))) : 0;
             const yards = Math.min(Math.max(1, targetDepth + yac), 100 - startYard);
-            const rcvr = pickReceiver(pb, this.offR.starters);
+            const rcvr = pickReceiver(pb, this.offR.starters, this._currentPersonnel);
             const rcvrStats = off.players[rcvr];
             if (qbStats) { qbStats.pass_att++; qbStats.pass_comp++; qbStats.pass_yds += yards; if (yards > qbStats.pass_long) qbStats.pass_long = yards; }
             if (rcvrStats) { rcvrStats.rec_tgt++; rcvrStats.rec++; rcvrStats.rec_yds += yards; if (yards > rcvrStats.rec_long) rcvrStats.rec_long = yards; }
@@ -3273,7 +3384,7 @@ class GameSimulator {
       // Pick the targeted receiver up front so their CAT/archetype affect the completion roll.
       // (Previously the receiver was picked AFTER the comp roll, so a 39-CAT WR had
       // the same comp% as a 95-CAT one — that's no longer true.)
-      const rcvr = pickReceiver(pb, this.offR.starters);
+      const rcvr = pickReceiver(pb, this.offR.starters, this._currentPersonnel);
       const rcvrStats = off.players[rcvr];
       const rcvrPlayer = this._playerByName?.get?.(rcvr) || null;
       const rcvrCat = rcvrPlayer?.stats?.[5] ?? 70;
@@ -5491,6 +5602,14 @@ function makeFormation(losX, poss, opts = {}) {
   // receivers come tight, safeties walk down, LBs press to the LOS.
   const isGL = !!opts.isGoalLine;
 
+  // Personnel grouping — defaults to BASE (legacy 1RB/1TE/2WR). twoBack
+  // legacy flag forces I_FORM. Defensive package matches the WR count.
+  let personnel = opts.personnel || (opts.twoBack ? "I_FORM" : "BASE");
+  if (!PERSONNEL[personnel]) personnel = "BASE";
+  const personDef = PERSONNEL[personnel];
+  const defPackage = opts.defPackage || packageForPersonnel(personnel);
+  const dpDef = DEF_PACKAGE[defPackage] || DEF_PACKAGE.BASE_43;
+
   // Offensive line (5) along LOS — wider gaps so the middle of the field
   // isn't visually cramped at the bigger field resolution. Goal-line:
   // tighter splits to give a heavier wall.
@@ -5499,33 +5618,45 @@ function makeFormation(losX, poss, opts = {}) {
   for (let i = -2; i <= 2; i++) {
     oline.push({ x: losX - dir * 2, y: cy + i * olGap, role: "OL" });
   }
-  // TE just outside RT — pushed further out to clear the new OL spread.
-  // Goal-line: TE tucks in.
-  const te = { x: losX - dir * 2, y: cy + (isGL ? 60 : 78), role: "TE" };
-  // 2 WR split out wide — closer to the numbers, not bunched near the hash.
-  // Goal-line: WRs come tight (no deep route in 5 yards).
-  const wrSplit = isGL ? 110 : 240;
-  const wr1 = { x: losX, y: cy - wrSplit, role: "WR1" };
-  const wr2 = { x: losX, y: cy + wrSplit, role: "WR2" };
+
+  // ── WIDE RECEIVERS (1-5 depending on personnel) ──
+  // wr1/wr2: outside on the numbers. wr3 in slot left. wr4 in slot right
+  // (or trips bunch on the wr1 side). 5th WR (00 personnel) inside slot.
+  const wrSplit  = isGL ? 110 : 240;
+  const slotWide = isGL ? 70  : 150;
+  const slotInner = isGL ? 40 : 95;
+  const wrSlots = [];
+  if (personDef.wr >= 1) wrSlots.push({ x: losX, y: cy - wrSplit, role: "WR1" });
+  if (personDef.wr >= 2) wrSlots.push({ x: losX, y: cy + wrSplit, role: "WR2" });
+  if (personDef.wr >= 3) wrSlots.push({ x: losX, y: cy - slotWide, role: "WR3" }); // slot left
+  if (personDef.wr >= 4) wrSlots.push({ x: losX, y: cy + slotWide, role: "WR4" }); // slot right
+  if (personDef.wr >= 5) wrSlots.push({ x: losX, y: cy + slotInner, role: "WR5" }); // tight slot
+
+  // ── TIGHT ENDS (0-2) ──
+  // TE1 outside RT; TE2 (HEAVY personnel) on the opposite side as a Y-flex.
+  const teSlots = [];
+  if (personDef.te >= 1) teSlots.push({ x: losX - dir * 2, y: cy + (isGL ? 60 : 78), role: "TE1" });
+  if (personDef.te >= 2) teSlots.push({ x: losX - dir * 2, y: cy - (isGL ? 60 : 78), role: "TE2" });
+
   // QB — goal-line, QB is closer to the LOS (no deep dropback needed)
   const qb = { x: losX - dir * (isGL ? 3 : 6) * PX, y: cy, role: "QB" };
-  // RB — two-back formations shift the primary RB and add a FB. Style is
-  // either I-form (stacked) or pro-set (side-by-side); chosen randomly per
-  // play unless opts.twoBackStyle overrides.
-  let rb, fb = null;
-  if (opts.twoBack) {
+
+  // ── RUNNING BACKS (0-2) ──
+  // 0 RB = empty backfield (00/01 personnel). 1 RB = standard. 2 RB = I-form
+  // (FB stacked behind QB) or pro-set (side-by-side).
+  let rb = null, fb = null;
+  if (personDef.rb >= 1) {
+    rb = { x: losX - dir * (isGL ? 6 : 8) * PX, y: cy + (isGL ? 18 : 28), role: "RB" };
+  }
+  if (personDef.rb >= 2) {
     const style = opts.twoBackStyle || (Math.random() < 0.5 ? "I" : "PRO");
     if (style === "I") {
-      // I-formation: FB stacked behind QB, RB further back
       fb = { x: losX - dir * (isGL ? 5 : 7) * PX, y: cy + 4, role: "FB" };
       rb = { x: losX - dir * (isGL ? 7 : 10) * PX, y: cy + 6, role: "RB" };
     } else {
-      // Pro-set: FB and RB split side-by-side
       fb = { x: losX - dir * (isGL ? 6 : 8) * PX, y: cy - (isGL ? 14 : 22), role: "FB" };
       rb = { x: losX - dir * (isGL ? 6 : 8) * PX, y: cy + (isGL ? 18 : 28), role: "RB" };
     }
-  } else {
-    rb = { x: losX - dir * (isGL ? 6 : 8) * PX, y: cy + (isGL ? 18 : 28), role: "RB" };
   }
 
   // Defensive line (4) — wider stance to match the OL spread. Goal-line:
@@ -5535,28 +5666,86 @@ function makeFormation(losX, poss, opts = {}) {
   for (let i = -1.5; i <= 1.5; i += 1) {
     dline.push({ x: losX + dir * (isGL ? 0.5 : 1.5) * PX, y: cy + i * dlGap, role: "DL" });
   }
-  // 3 LBs — goal-line walks them all up to the LOS for a 7- or 8-man box
+
+  // ── LINEBACKERS (0-3 by package) ──
+  // BASE_43: 3 LBs (W/M/S). NICKEL: 2 LBs (W/M, drop SAM). DIME: 1 LB (M).
+  // QUARTER: 0 LBs (5-DB look vs empty/00).
   const lbDepth = isGL ? 1.5 : 4;
-  const lbs = [
-    { x: losX + dir * lbDepth * PX, y: cy - (isGL ? 28 : 44), role: "LB" },
-    { x: losX + dir * lbDepth * PX, y: cy,                     role: "LB" },
-    { x: losX + dir * lbDepth * PX, y: cy + (isGL ? 28 : 44), role: "LB" },
-  ];
-  // 2 CBs press the WRs out wide. Goal-line: tight press, much closer.
+  const lbs = [];
+  if (dpDef.lb === 3) {
+    lbs.push({ x: losX + dir * lbDepth * PX, y: cy - (isGL ? 28 : 44), role: "LB" });
+    lbs.push({ x: losX + dir * lbDepth * PX, y: cy,                     role: "LB" });
+    lbs.push({ x: losX + dir * lbDepth * PX, y: cy + (isGL ? 28 : 44), role: "LB" });
+  } else if (dpDef.lb === 2) {
+    lbs.push({ x: losX + dir * lbDepth * PX, y: cy - 22, role: "LB" });
+    lbs.push({ x: losX + dir * lbDepth * PX, y: cy + 22, role: "LB" });
+  } else if (dpDef.lb === 1) {
+    lbs.push({ x: losX + dir * lbDepth * PX, y: cy, role: "LB" });
+  }
+
+  // ── CORNERBACKS / NICKEL DBs (2-5 by package) ──
+  // cb1 / cb2 press the outside WRs. cb3 (nickel) covers the slot WR3.
+  // cb4 (dime) covers WR4. cb5 covers WR5 in QUARTER.
   const cbWide = isGL ? 110 : 240;
-  const cb1 = { x: losX + dir * (isGL ? 3 : 7) * PX, y: cy - cbWide, role: "CB" };
-  const cb2 = { x: losX + dir * (isGL ? 3 : 7) * PX, y: cy + cbWide, role: "CB" };
+  const cbs = [];
+  if (dpDef.cb >= 1) cbs.push({ x: losX + dir * (isGL ? 3 : 7) * PX, y: cy - cbWide, role: "CB" });
+  if (dpDef.cb >= 2) cbs.push({ x: losX + dir * (isGL ? 3 : 7) * PX, y: cy + cbWide, role: "CB" });
+  // Nickel back over the slot WR3 (left-slot)
+  if (dpDef.cb >= 3) cbs.push({ x: losX + dir * 5 * PX, y: cy - slotWide - 6, role: "NB" });
+  // Dime back over WR4 (right-slot) — sits a tick deeper
+  if (dpDef.cb >= 4) cbs.push({ x: losX + dir * 5 * PX, y: cy + slotWide - 6, role: "DB" });
+  // QUARTER: 5th DB in the middle of the field (covers WR5 / acts as deep MIKE)
+  if (dpDef.cb >= 5) cbs.push({ x: losX + dir * 7 * PX, y: cy + slotInner, role: "DB" });
+
   // 2 Safeties — goal-line: walk them into the box (single-high replaced
   // by two-deep loaded).
   const sDepth = isGL ? 4 : 14;
   const s1 = { x: losX + dir * sDepth * PX, y: cy - (isGL ? 30 : 56), role: "S" };
   const s2 = { x: losX + dir * sDepth * PX, y: cy + (isGL ? 30 : 56), role: "S" };
 
+  // Backwards-compat slot keys (wr1/wr2/te/cb1/cb2) for existing callers,
+  // plus new wr3/wr4/wr5/te2/cb3/cb4 slots that may be null in BASE personnel.
+  const wr1 = wrSlots[0] || null;
+  const wr2 = wrSlots[1] || null;
+  const wr3 = wrSlots[2] || null;
+  const wr4 = wrSlots[3] || null;
+  const wr5 = wrSlots[4] || null;
+  const te  = teSlots[0] || null;
+  const te2 = teSlots[1] || null;
+  const cb1 = cbs[0] || null;
+  const cb2 = cbs[1] || null;
+  const cb3 = cbs[2] || null;
+  const cb4 = cbs[3] || null;
+  const cb5 = cbs[4] || null;
+
+  // Build the offense / defense lists from whichever slots actually exist
+  const offenseSlots = [...oline, ...teSlots, ...wrSlots, qb];
+  if (rb) offenseSlots.push(rb);
+  if (fb) offenseSlots.push(fb);
+
+  // Animation-safety phantoms — when personnel has no RB/TE on the field
+  // (EMPTY / SPREAD), code that reads formation.rb/.te for fallback positions
+  // (screen flares, designed QB runs) gets a non-null reference. Phantoms
+  // are NOT added to offenseSlots so they don't render as extra sprites.
+  const rbSlot = rb || { x: qb.x - dir * 2 * PX, y: qb.y, role: "RB", phantom: true };
+  const teSlot = teSlots[0] || (wrSlots[2] ? { ...wrSlots[2], role: "TE", phantom: true } : { x: qb.x, y: qb.y + 60, role: "TE", phantom: true });
+
   return {
-    offense: fb ? [...oline, te, wr1, wr2, qb, rb, fb] : [...oline, te, wr1, wr2, qb, rb],
-    defense: [...dline, ...lbs, cb1, cb2, s1, s2],
-    qb, rb, fb, wr1, wr2, te, dline, lbs, cb1, cb2, s1, s2,
+    offense: offenseSlots,
+    defense: [...dline, ...lbs, ...cbs, s1, s2],
+    qb, rb: rbSlot, fb,
+    wr1, wr2, wr3, wr4, wr5,
+    te: teSlot, te2,
+    dline, lbs,
+    cb1, cb2, cb3, cb4, cb5,
+    s1, s2,
     oline, // expose for style attachment
+    personnel,
+    defPackage,
+    // Real (non-phantom) handles for code that needs to know if the slot is
+    // actually on the field for this personnel (e.g., target picker).
+    realRb: rb,
+    realTe: teSlots[0] || null,
   };
 }
 
@@ -5731,11 +5920,15 @@ function attachPlayerStyles(formation, offStarters, defStarters, lookup) {
   };
   if (offStarters) {
     decorate(formation.qb,  pickup(offStarters.qb));
-    decorate(formation.rb,  pickup(offStarters.rb));
-    decorate(formation.wr1, pickup(offStarters.wr1));
-    decorate(formation.wr2, pickup(offStarters.wr2));
-    decorate(formation.te,  pickup(offStarters.te));
-    if (formation.fb) decorate(formation.fb, pickup(offStarters.rb2));
+    if (formation.rb)  decorate(formation.rb,  pickup(offStarters.rb));
+    if (formation.wr1) decorate(formation.wr1, pickup(offStarters.wr1));
+    if (formation.wr2) decorate(formation.wr2, pickup(offStarters.wr2));
+    if (formation.wr3) decorate(formation.wr3, pickup(offStarters.wr3));
+    if (formation.wr4) decorate(formation.wr4, pickup(offStarters.wr4));
+    if (formation.wr5) decorate(formation.wr5, pickup(offStarters.wr3));  // 5th WR reuses WR3 player
+    if (formation.te)  decorate(formation.te,  pickup(offStarters.te));
+    if (formation.te2) decorate(formation.te2, pickup(offStarters.te2));
+    if (formation.fb)  decorate(formation.fb,  pickup(offStarters.rb2));
   }
   if (formation.oline) for (const ol of formation.oline) {
     ol.runStyle = "plodding";
@@ -5747,8 +5940,11 @@ function attachPlayerStyles(formation, offStarters, defStarters, lookup) {
     const lb = [defStarters.lb1, defStarters.lb2, defStarters.lb3];
     formation.dline.forEach((slot, i) => decorate(slot, pickup(dl[i])));
     formation.lbs.forEach((slot, i) => decorate(slot, pickup(lb[i])));
-    decorate(formation.cb1, pickup(defStarters.cb1));
-    decorate(formation.cb2, pickup(defStarters.cb2));
+    if (formation.cb1) decorate(formation.cb1, pickup(defStarters.cb1));
+    if (formation.cb2) decorate(formation.cb2, pickup(defStarters.cb2));
+    if (formation.cb3) decorate(formation.cb3, pickup(defStarters.cb3));   // nickel back
+    if (formation.cb4) decorate(formation.cb4, pickup(defStarters.cb4));   // dime back
+    if (formation.cb5) decorate(formation.cb5, pickup(defStarters.cb4));   // 5th DB reuses dime
     decorate(formation.s1,  pickup(defStarters.fs));
     decorate(formation.s2,  pickup(defStarters.ss));
   }
@@ -8151,6 +8347,8 @@ function buildAnimForPlay(play, prevPlay) {
   const formation = makeFormation(losX, poss, {
     twoBack: !!play.isTwoBack,
     isGoalLine: (play.startYard ?? 0) >= 95,
+    personnel: play.personnel,
+    defPackage: play.defPackage,
   });
   const team = poss === "home" ? homeTeam : awayTeam;
   const oppTeam = poss === "home" ? awayTeam : homeTeam;
@@ -8160,6 +8358,24 @@ function buildAnimForPlay(play, prevPlay) {
   const offStarters = poss === "home" ? gameResult.homeRatings.starters : gameResult.awayRatings.starters;
   const defStarters = poss === "home" ? gameResult.awayRatings.starters : gameResult.homeRatings.starters;
   attachPlayerStyles(formation, offStarters, defStarters, gameResult.playerLookup);
+
+  // ── DEFENDER INDEX HELPERS ──
+  // The defense array is [...DL, ...LB, ...CB(+nickel+dime), S1, S2]. With
+  // personnel-based subs (NICKEL drops 1 LB for a CB, DIME drops 2 LBs for
+  // 2 DBs, QUARTER drops all 3 LBs), the indices for the safeties / corners
+  // shift. Compute them once so pass-rush / coverage / pick logic works
+  // regardless of defensive package.
+  const _dlN = formation.dline.length;
+  const _lbN = formation.lbs.length;
+  const _cbN = (formation.cb1 ? 1 : 0) + (formation.cb2 ? 1 : 0) + (formation.cb3 ? 1 : 0) + (formation.cb4 ? 1 : 0) + (formation.cb5 ? 1 : 0);
+  const idxLB1   = _dlN;
+  const idxLBmid = _dlN + Math.floor(_lbN / 2);
+  const idxLB3   = _dlN + Math.max(0, _lbN - 1);
+  const idxCB1   = _dlN + _lbN;
+  const idxCB2   = idxCB1 + 1;
+  const idxNB    = idxCB1 + 2;
+  const idxS1    = idxCB1 + _cbN;
+  const idxS2    = idxS1 + 1;
 
   // First down marker abs X
   let firstDownAbs = null;
@@ -8202,19 +8418,29 @@ function buildAnimForPlay(play, prevPlay) {
   const hasMotion  = motionSeed < 0.22 && play.kind !== "kickoff";
   let motionRole = null, motionStartY = 0, motionEndY = 0;
   if (hasMotion) {
-    const who = Math.floor(motionSeed * 999) % 3;
-    motionRole = who === 0 ? "wr1" : who === 1 ? "wr2" : "te";
-    const target = motionRole === "wr1" ? formation.wr1
-                 : motionRole === "wr2" ? formation.wr2
-                 :                        formation.te;
-    motionStartY = target.y;
-    // Motion across into the slot (WRs) or fully flex to the opposite side
-    // of the formation (TE). Endpoints scaled with the wider formation.
-    motionEndY = motionRole === "wr1" ? cy - 50
-              : motionRole === "wr2" ? cy + 50
-              :                        cy - 78;   // TE mirrors its start side
-    // Mutate the formation so post-snap routes start from the new y
-    target.y = motionEndY;
+    // Pick from receivers actually on the field for this personnel.
+    const motionPool = [];
+    if (formation.wr1) motionPool.push("wr1");
+    if (formation.wr2) motionPool.push("wr2");
+    if (formation.wr3) motionPool.push("wr3");
+    if (formation.wr4) motionPool.push("wr4");
+    if (formation.te)  motionPool.push("te");
+    if (motionPool.length) {
+      motionRole = motionPool[Math.floor(motionSeed * 9999) % motionPool.length];
+      const target = motionRole === "wr1" ? formation.wr1
+                   : motionRole === "wr2" ? formation.wr2
+                   : motionRole === "wr3" ? formation.wr3
+                   : motionRole === "wr4" ? formation.wr4
+                   :                        formation.te;
+      motionStartY = target.y;
+      // Motion across into the slot (or to the opposite side for TE).
+      motionEndY = motionRole === "wr1" ? cy - 50
+                : motionRole === "wr2" ? cy + 50
+                : motionRole === "wr3" ? cy + 30
+                : motionRole === "wr4" ? cy - 30
+                :                        cy - 78;
+      target.y = motionEndY;
+    }
   }
   // Returns the y-offset to apply to the motion player vs his post-motion home.
   // 0 means he's at his new home y. Positive/negative means he's still
@@ -8778,7 +9004,7 @@ function buildAnimForPlay(play, prevPlay) {
         if (play.isSpeedOption && play.optionRead) {
           const opt = play.optionRead;
           const isPlaysideEdge = (opt.optSide === 1 && i === 3) || (opt.optSide === -1 && i === 0);
-          const isPlaysideSafety = (opt.optSide === 1 && i === 10) || (opt.optSide === -1 && i === 9);
+          const isPlaysideSafety = (opt.optSide === 1 && i === idxS2) || (opt.optSide === -1 && i === idxS1);
           if (isPlaysideEdge || isPlaysideSafety) {
             // Locate the two ball-paths. For a keep: rb.x/y is the QB,
             // optRbX/Y is the trailing pitch back. For a pitch: rb.x/y
@@ -8848,7 +9074,7 @@ function buildAnimForPlay(play, prevPlay) {
         const elapsedMs = Math.max(0, (t - PRE - reactDelay) * dur);
         // Pursuit speed: DBs slightly faster than LBs; ELUSIVE backs leave LBs behind
         const carrierFast = (rbArch === "SPEED" || rbArch === "ELUSIVE") ? 0.92 : 1.0;
-        const factor = (i >= 7 ? 1.02 : (i === 9 || i === 10 ? 1.0 : 0.92)) * carrierFast;
+        const factor = (i >= idxCB1 ? 1.02 : (i === idxS1 || i === idxS2 ? 1.0 : 0.92)) * carrierFast;
         const np = elapsedMs > 0 ? pursue(d, txBase, tyBase, elapsedMs, factor) : { x: d.x, y: d.y };
         dd.x = np.x; dd.y = np.y;
         if (isTrucked) {
@@ -9169,10 +9395,10 @@ function buildAnimForPlay(play, prevPlay) {
     const endX = isComplete ? yardToAbsX(play.endYard, poss) : targetX;
     // Which defender picks off the pass on an INT — match the receiver's side
     // 7=cb1 (top), 8=cb2 (bottom), 9=s1 (top safety), 10=s2 (bottom safety)
-    const intDefIdx = wrChoice === "wr1" ? 7
-                    : wrChoice === "wr2" ? 8
-                    : wrChoice === "te"  ? (targetY < cy ? 9 : 10)
-                    :                       (targetY < cy ? 6 : 4);  // LB for RB checkdown
+    const intDefIdx = wrChoice === "wr1" ? idxCB1
+                    : wrChoice === "wr2" ? idxCB2
+                    : wrChoice === "te"  ? (targetY < cy ? idxS1 : idxS2)
+                    :                       (targetY < cy ? idxLB3 : idxLB1);  // LB for RB checkdown
     const yac = isComplete ? (play.yac ?? Math.max(0, (play.yards ?? 0) - catchDepth)) : 0;
     // Final Y where YAC ends — receiver may drift back toward middle if running upfield
     const finalY = targetY + (cy - targetY) * Math.min(0.5, yac / 40);
@@ -9477,16 +9703,21 @@ function buildAnimForPlay(play, prevPlay) {
             dd.t = tt;
           }
         }
-        // CBs (7,8) follow their WRs downfield
-        if (i >= 7) {
+        // CBs follow their WRs downfield
+        if (i >= idxCB1) {
           const tt = Math.min(1, aT / 0.55);
-          if (i === 7) { dd.x += dir * tt * (catchDepth) * FIELD.PX_PER_YARD * 0.85; }
-          if (i === 8) { dd.x += dir * tt * (catchDepth) * FIELD.PX_PER_YARD * 0.85; }
+          if (i === idxCB1 || i === idxCB2) {
+            dd.x += dir * tt * (catchDepth) * FIELD.PX_PER_YARD * 0.85;
+          }
         }
         if (play.kind === "complete" && t > throwPhase) {
-          if (i === 7 || i === 8 || i === 4 || i === 5 || i === 9 || i === 10) {
+          // Safeties + CBs + key LBs pursue the ball after the catch
+          const isCB  = i === idxCB1 || i === idxCB2;
+          const isSaf = i === idxS1  || i === idxS2;
+          const isLB  = i === idxLB1 || i === idxLBmid;
+          if (isCB || isSaf || isLB) {
             const elapsedMs = Math.max(0, (t - throwPhase) * dur);
-            const factor = i === 7 || i === 8 ? 1.05 : (i === 9 || i === 10) ? 1.0 : 0.95;
+            const factor = isCB ? 1.05 : isSaf ? 1.0 : 0.95;
             const np = pursue(dd, ballX - dir * 4, ballY, elapsedMs, factor);
             dd.x = np.x; dd.y = np.y;
           }
