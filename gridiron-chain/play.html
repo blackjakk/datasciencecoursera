@@ -1480,12 +1480,12 @@
     color: #e8a000; font-size: .55rem; font-weight: 700;
   }
 
-  /* BSPN logo — playful header */
+  /* BSPN logo — block-letter parody header */
   .frn-bspn-logo {
     margin: 0; padding: 0;
-    font-family: inherit; color: var(--gold);
-    font-size: .42rem; line-height: 1; letter-spacing: -1px;
-    font-weight: 900;
+    font-family: 'Courier New', monospace; color: var(--gold);
+    font-size: .55rem; line-height: 1; letter-spacing: 0;
+    font-weight: 700; white-space: pre;
   }
 
   /* Past-game (ESPN-style) viewer */
@@ -18576,12 +18576,14 @@ function _frnHoverTipPgHide() {
   if (tip) tip.style.display = "none";
 }
 
-// ESPN-parody logo for the box-score header. Pure ASCII, fits in a
-// header strip. (Bootleg Sports Programming Network.)
-const BSPN_LOGO = ` ___    __ __  ___    __  __
-| __)  / _/ _\\| __)  |  \\/  |
-| __)  \\__  __)   | _|      |
-|___) /__/__/ |___)(_)_|_||_|`.trim();
+// ESPN-parody logo for the box-score header. Block-letter ASCII
+// using Unicode box-drawing chars. (Bootleg Sports Programming Network.)
+const BSPN_LOGO = `██████╗ ███████╗██████╗ ███╗   ██╗
+██╔══██╗██╔════╝██╔══██╗████╗  ██║
+██████╔╝███████╗██████╔╝██╔██╗ ██║
+██╔══██╗╚════██║██╔═══╝ ██║╚██╗██║
+██████╔╝███████║██║     ██║ ╚████║
+╚═════╝ ╚══════╝╚═╝     ╚═╝  ╚═══╝`;
 
 function _wxIcon(label) {
   switch (label) {
