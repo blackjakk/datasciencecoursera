@@ -18762,97 +18762,154 @@ function _gradeLabelToFloor(label) {
   return map[label] || 0;
 }
 
-// During each weekly resolution, for every player on the user's block
-// scan AI teams to find ones whose package can plausibly satisfy the
-// ask. Best matches send a concrete offer into the OFFERS inbox.
+// Sealed-bid auction for trade-block listings: when a player goes on
+// the block, every interested AI team computes their max willingness
+// (player value + position-need bonus). They each submit ONE final
+// offer — the most-willing team bids only the minimum needed to beat
+// the second-highest, everyone else bids their full willingness. The
+// user sees all offers and picks any (preferences may matter more
+// than raw value). No additional bidding rounds for that listing
+// unless the user rejects every offer and a new week ticks over.
 function _processBlockAsks() {
   if (!franchise.tradeOffers) franchise.tradeOffers = [];
   const myId = franchise.chosenTeamId;
-  const myRoster = franchise.rosters[myId] || [];
-  const blocked = myRoster.filter(p => p.onTradeBlock && p.blockAsk);
-  for (const p of blocked) _generateAIOffersForAsk(p);
+  const blocked = (franchise.rosters[myId] || []).filter(p => p.onTradeBlock && p.blockAsk);
+
+  for (const player of blocked) {
+    // Only run the auction if no pending offers already exist on this
+    // player. If user rejects them all, we'll auction again next week.
+    const hasOpen = (franchise.tradeOffers||[])
+      .some(o => o.status === "pending" && o.theyWant?.includes(player.name));
+    if (hasOpen) continue;
+
+    const askFloor = _askPriceValue(player.blockAsk);
+    // Compute willingness for each potentially interested AI team
+    const playerVal = _playerTradeValue(player);
+    const candidates = TEAMS
+      .filter(t => t.id !== myId)
+      .map(t => {
+        const need = _aiTradeNeedBonus(t.id, [player]);
+        const w = playerVal + need;
+        return { team: t, willingness: w, need };
+      })
+      // A team only bids if their willingness can plausibly meet the ask
+      .filter(c => c.willingness >= askFloor * 0.85)
+      .sort((a,b) => b.willingness - a.willingness)
+      .slice(0, 5);
+
+    if (!candidates.length) continue;
+
+    // Most-willing team caps their bid at "second-most + 1". Everyone
+    // else bids their full willingness. Ensures the top bid reveals
+    // only just enough to beat the next-best, but lower-tier teams
+    // still get to put their best foot forward.
+    const secondMost = candidates[1]?.willingness || askFloor;
+    for (let i = 0; i < candidates.length; i++) {
+      const c = candidates[i];
+      const targetValue = (i === 0)
+        ? Math.max(askFloor, Math.min(c.willingness, secondMost + 1))
+        : Math.max(askFloor, c.willingness);
+      const pkg = _buildBestOfferPackage(c.team.id, player, targetValue);
+      if (!pkg) continue;
+      // Dedupe per (team, player, week)
+      const dup = franchise.tradeOffers.some(o =>
+        o.fromTeamId === c.team.id &&
+        o.theyWant?.includes(player.name) &&
+        o.week === franchise.week);
+      if (dup) continue;
+      franchise.tradeOffers.push({
+        id: `${c.team.id}-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,
+        fromTeamId: c.team.id,
+        theyGive: pkg.extraPlayerName ? [pkg.extraPlayerName] : [],
+        theyWant: [player.name],
+        pickIds: pkg.pickIds,
+        refund: pkg.refund,
+        week: franchise.week,
+        status: "pending",
+        isFromAsk: true,
+        bidValue: pkg.totalValue,
+      });
+    }
+  }
 }
 
-function _generateAIOffersForAsk(player) {
+// Build a near-target-value package from a team's inventory that
+// satisfies the player's blockAsk. Returns { pickIds, extraPlayerName,
+// refund, totalValue } or null if the team can't even meet the ask.
+function _buildBestOfferPackage(teamId, player, targetValue) {
   const ask = player.blockAsk;
-  if (!ask) return;
-  const myId = franchise.chosenTeamId;
-  const askValue = _askPriceValue(ask);
-  const playerValue = _playerTradeValue(player);
-  // AI teams ranked by need for this player. Cap at top 3 bidders.
-  const interested = TEAMS
-    .filter(t => t.id !== myId)
-    .map(t => ({ t, need: _aiTradeNeedBonus(t.id, [player]) }))
-    .filter(x => x.need > 0.5)
-    .sort((a,b) => b.need - a.need)
-    .slice(0, 3);
+  if (!ask) return null;
+  const cap = franchise.salaryCap || SALARY_CAP_BASE;
+  const aiRoom = cap - capUsedByTeam(teamId);
+  const aiPicks = _teamPicks(teamId);
 
-  for (const { t, need } of interested) {
-    // Decide whether AI can meet (or near-meet) the ask
-    const aiCap = franchise.salaryCap || SALARY_CAP_BASE;
-    const aiRoom = aiCap - capUsedByTeam(t.id);
-
-    // Build the proposed payment package from AI's pick inventory:
-    const aiPicks = _teamPicks(t.id);
-    const sentPicks = [];
-    for (const [roundStr, count] of Object.entries(ask.askedPicks || {})) {
-      const round = Number(roundStr);
-      const avail = aiPicks.filter(p =>
-        p.round === round && !sentPicks.includes(p))
-        .sort((a,b) => a.year - b.year); // give nearer years (more value)
-      for (let i = 0; i < count && i < avail.length; i++) {
-        sentPicks.push(avail[i]);
-      }
+  // 1. Required picks (latest years first to conserve more-valuable near-year picks)
+  const pickIds = [];
+  let pickValue = 0;
+  for (const [roundStr, count] of Object.entries(ask.askedPicks || {})) {
+    const round = Number(roundStr);
+    const avail = aiPicks.filter(p =>
+      p.round === round && !pickIds.includes(`${p.year}-${p.round}-${p.originalTeamId}`))
+      .sort((a,b) => b.year - a.year); // late years first = cheaper
+    if (avail.length < count) return null; // can't satisfy
+    for (let i = 0; i < count; i++) {
+      const p = avail[i];
+      pickIds.push(`${p.year}-${p.round}-${p.originalTeamId}`);
+      pickValue += _pickValue(p);
     }
-    const picksCovered = sentPicks.length === Object.values(ask.askedPicks||{}).reduce((s,n)=>s+n,0);
-    if (!picksCovered) continue; // can't satisfy pick demand
-
-    // Cash: if direction=theyPay, AI must be able to absorb it for N years
-    let cashOK = true;
-    if (ask.refund?.direction === "theyPay" && ask.refund.amount > 0) {
-      if (aiRoom < ask.refund.amount * 1.1) cashOK = false;
-    }
-    if (!cashOK) continue;
-
-    // Optional grade-min player from AI's roster
-    let extraPlayer = null;
-    if (ask.minPlayerGrade) {
-      const floor = _gradeLabelToFloor(ask.minPlayerGrade);
-      const candidates = (franchise.rosters[t.id] || [])
-        .filter(rp => scoutGrade(rp) >= floor && !rp.onTradeBlock)
-        .sort((a,b) => scoutGrade(a) - scoutGrade(b));
-      extraPlayer = candidates[0];
-      if (!extraPlayer) continue; // can't meet grade min
-    }
-
-    // AI's overall valuation: do they get enough for what they're giving?
-    const giveCost = sentPicks.reduce((s,p) => s + _pickValue(p), 0)
-                   + (extraPlayer ? _playerTradeValue(extraPlayer) : 0)
-                   + (ask.refund?.direction === "theyPay" ? ask.refund.amount * ask.refund.years * 1.5 : 0)
-                   - (ask.refund?.direction === "youPay" ? ask.refund.amount * ask.refund.years * 1.5 : 0);
-    const aiGain = playerValue + need; // their need bonus
-    if (aiGain < giveCost * 0.85) continue; // they decline silently
-
-    // Build the offer for the user's inbox
-    if (!franchise.tradeOffers) franchise.tradeOffers = [];
-    // Dedupe: one offer per AI team per ask per week
-    const dup = franchise.tradeOffers.some(o =>
-      o.fromTeamId === t.id && o.theyWant?.includes(player.name) && o.week === franchise.week
-    );
-    if (dup) continue;
-    franchise.tradeOffers.push({
-      id: `${t.id}-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,
-      fromTeamId: t.id,
-      // For block-ask offers, the package includes picks + optional player + refund
-      theyGive: extraPlayer ? [extraPlayer.name] : [],
-      theyWant: [player.name],
-      pickIds: sentPicks.map(p => `${p.year}-${p.round}-${p.originalTeamId}`),
-      refund: ask.refund ? { ...ask.refund } : null,
-      week: franchise.week,
-      status: "pending",
-      isFromAsk: true,
-    });
   }
+
+  // 2. Required cash (only matters if direction=theyPay, which costs AI)
+  const refund = ask.refund ? { ...ask.refund } : null;
+  if (refund && refund.direction === "theyPay") {
+    if (aiRoom < refund.amount * 1.1) return null;
+  }
+  const cashUnits = refund && refund.amount > 0 && refund.years > 0
+    ? refund.amount * refund.years * 1.5 * (refund.direction === "theyPay" ? 1 : -1)
+    : 0;
+
+  // 3. Optional grade-min player
+  let extraPlayerName = null;
+  let extraPlayerValue = 0;
+  if (ask.minPlayerGrade) {
+    const floor = _gradeLabelToFloor(ask.minPlayerGrade);
+    const candidates = (franchise.rosters[teamId] || [])
+      .filter(rp => scoutGrade(rp) >= floor && !rp.onTradeBlock)
+      .sort((a,b) => scoutGrade(a) - scoutGrade(b)); // cheapest match first
+    if (!candidates.length) return null;
+    extraPlayerName = candidates[0].name;
+    extraPlayerValue = _playerTradeValue(candidates[0]);
+  }
+
+  let totalValue = pickValue + cashUnits + extraPlayerValue;
+
+  // 4. Sweeten with extra cash so the offer approaches targetValue.
+  //    Only works if we can pile on "theyPay" cash (we can't sweeten a
+  //    youPay ask by raising the amount AI is receiving from user).
+  if (totalValue < targetValue && (!refund || refund.direction === "theyPay")) {
+    const deficit = targetValue - totalValue;
+    const desiredPerYr = deficit / 1.5 / 3;            // spread over 3 years
+    const maxPerYr = Math.min(10, Math.max(0, aiRoom * 0.4));
+    const sweetPerYr = Math.min(desiredPerYr, maxPerYr);
+    if (sweetPerYr >= 0.5) {
+      let sweetenedRefund = refund;
+      if (sweetenedRefund && sweetenedRefund.direction === "theyPay") {
+        sweetenedRefund = {
+          ...sweetenedRefund,
+          amount: Math.round((sweetenedRefund.amount + sweetPerYr) * 10) / 10,
+        };
+      } else {
+        sweetenedRefund = {
+          amount: Math.round(sweetPerYr * 10) / 10, years: 3, direction: "theyPay",
+        };
+      }
+      // Reassign local refund reference (do NOT mutate ask)
+      const newCashUnits = sweetenedRefund.amount * sweetenedRefund.years * 1.5;
+      totalValue = pickValue + newCashUnits + extraPlayerValue;
+      return { pickIds, extraPlayerName, refund: sweetenedRefund, totalValue };
+    }
+  }
+  return { pickIds, extraPlayerName, refund, totalValue };
 }
 
 // Run during _runWeekEndResolution: convert queued counters into
@@ -18917,10 +18974,13 @@ function _generateWeeklyAIOffers() {
 
   const myId = franchise.chosenTeamId;
   const myRoster = franchise.rosters[myId] || [];
-  const blocked = myRoster.filter(p => p.onTradeBlock);
-  if (!blocked.length) return;
+  // Players with a public ASK go through the sealed-bid auction
+  // (_processBlockAsks). Players on the block with NO ask still get
+  // unsolicited single-team feelers from this function.
+  const blockedNoAsk = myRoster.filter(p => p.onTradeBlock && !p.blockAsk);
+  if (!blockedNoAsk.length) return;
 
-  for (const p of blocked) _generateAIOffersForBlockedPlayer(p);
+  for (const p of blockedNoAsk) _generateAIOffersForBlockedPlayer(p);
 }
 
 function _generateAIOffersForBlockedPlayer(p) {
