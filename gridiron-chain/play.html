@@ -782,6 +782,204 @@
     50% { box-shadow: 0 0 28px rgba(200,169,0,0.85); }
   }
 
+  /* ── Mode tabs (Franchise / Testing) ──────────────────────────────── */
+  .mode-tabs {
+    display: flex; gap: .5rem; margin-bottom: 1rem;
+  }
+  .mode-tab {
+    flex: 1; background: var(--bg2); border: 1px dashed var(--border);
+    padding: .75rem 1rem; cursor: pointer; color: var(--gray);
+    font-family: inherit; font-size: .95rem; font-weight: 700;
+    letter-spacing: .5px; transition: all .15s;
+    text-align: center; position: relative;
+  }
+  .mode-tab.active {
+    background: var(--bg3); color: var(--gold);
+    border-color: var(--gold-lt);
+    box-shadow: inset 0 -3px 0 var(--gold);
+  }
+  .mode-tab:not(.active):hover { color: var(--white); background: var(--bg3); }
+
+  /* ── Franchise home (inline dashboard) ────────────────────────────── */
+  #franchiseHome { padding: 0; }
+  body.mode-testing #franchiseHome { display: none; }
+
+  /* Welcome screen (no franchise yet) */
+  .frn-welcome {
+    text-align: center; padding: 1.5rem 1rem;
+    border: 1px dashed var(--border); background: var(--bg2);
+    margin-bottom: 1rem; position: relative;
+  }
+  .frn-welcome::before { content:"┌"; position:absolute; top:-.55em; left:-.15em; color:var(--gold); font-size:1.15em; line-height:1; }
+  .frn-welcome::after  { content:"┘"; position:absolute; bottom:-.55em; right:-.15em; color:var(--gold); font-size:1.15em; line-height:1; }
+  .frn-welcome-title {
+    font-size: 1.6rem; font-weight: 900; color: var(--gold);
+    margin-bottom: .4rem; letter-spacing: 1px;
+  }
+  .frn-welcome-sub { color: var(--gray); margin-bottom: .5rem; font-size: .85rem; }
+  .frn-welcome-feats {
+    display: flex; gap: .75rem; justify-content: center; flex-wrap: wrap;
+    margin: .8rem 0; font-size: .72rem; color: var(--gray);
+  }
+  .frn-welcome-feat { background: var(--bg3); padding: .25rem .6rem; border: 1px solid var(--border); }
+  .frn-welcome-feat strong { color: var(--gold-lt); }
+
+  /* Team banner — top of dashboard, primary team identity */
+  .frn-team-banner {
+    display: grid; grid-template-columns: auto 1fr auto;
+    align-items: center; gap: 1rem;
+    padding: 1rem 1.2rem; background: var(--bg2);
+    border: 1px dashed var(--border); margin-bottom: 1rem;
+    position: relative;
+  }
+  .frn-team-banner::before { content:"┌"; position:absolute; top:-.55em; left:-.15em; color:var(--gold); font-size:1.15em; line-height:1; }
+  .frn-team-banner::after  { content:"┘"; position:absolute; bottom:-.55em; right:-.15em; color:var(--gold); font-size:1.15em; line-height:1; }
+  .frn-banner-stripe {
+    position: absolute; left: 0; top: 0; bottom: 0; width: 5px;
+    background: var(--banner-color, var(--gold));
+  }
+  .frn-banner-ascii {
+    font-size: 2rem; color: var(--gold);
+    width: 4ch; text-align: center; line-height: 1;
+  }
+  .frn-banner-info { display: flex; flex-direction: column; gap: .15rem; }
+  .frn-banner-name {
+    font-size: 1.5rem; font-weight: 900; color: var(--white);
+    letter-spacing: 1.5px; line-height: 1.1;
+  }
+  .frn-banner-sub { color: var(--gray); font-size: .78rem; }
+  .frn-banner-record {
+    color: var(--gold-lt); font-size: 1.4rem; font-weight: 900;
+    letter-spacing: 1px;
+  }
+  .frn-banner-record-sub { color: var(--gray); font-size: .65rem; text-align: right; margin-top: .1rem; }
+
+  /* Next-game card — the focal point */
+  .frn-next-card {
+    border: 2px solid var(--gold);
+    padding: 1.1rem 1.2rem;
+    background: linear-gradient(180deg, var(--bg2), var(--bg));
+    margin-bottom: 1rem; position: relative;
+  }
+  .frn-next-header {
+    font-size: .68rem; color: var(--gold); letter-spacing: .8px;
+    font-weight: 700; margin-bottom: .9rem;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .frn-next-badge {
+    background: var(--gold); color: #000; padding: .15rem .5rem;
+    font-size: .65rem; font-weight: 700; letter-spacing: .5px;
+  }
+  .frn-next-matchup {
+    display: grid; grid-template-columns: 1fr auto 1fr;
+    align-items: center; gap: 1.2rem;
+  }
+  .frn-next-team {
+    display: flex; flex-direction: column; align-items: center;
+    gap: .25rem; text-align: center;
+  }
+  .frn-next-team.user .frn-next-team-name { color: var(--gold-lt); }
+  .frn-next-team-ascii { font-size: 1.8rem; color: var(--gold); line-height: 1; }
+  .frn-next-team-name {
+    font-size: 1.15rem; font-weight: 900;
+    letter-spacing: .5px;
+  }
+  .frn-next-team-city { font-size: .7rem; color: var(--gray); }
+  .frn-next-team-rec { font-size: .85rem; color: var(--white); font-weight: 700; }
+  .frn-next-team-ratings {
+    display: flex; gap: .6rem; font-size: .65rem;
+    color: var(--gray); margin-top: .1rem;
+  }
+  .frn-next-team-ratings .v { color: var(--gold-lt); font-weight: 700; }
+  .frn-next-vs {
+    font-size: 1.4rem; font-weight: 900; color: var(--gold);
+    letter-spacing: 3px; padding: 0 .5rem;
+  }
+  .frn-next-actions {
+    display: flex; gap: .5rem; justify-content: center;
+    margin-top: 1rem; padding-top: .8rem;
+    border-top: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .btn-gold-big {
+    background: var(--gold) !important; color: #000 !important; border: none;
+    padding: .75rem 1.8rem; font-size: 1rem;
+    font-weight: 700; cursor: pointer; font-family: inherit;
+    letter-spacing: .5px;
+  }
+  .btn-gold-big:hover { background: var(--gold-lt) !important; }
+
+  /* Dashboard grid (schedule / standings / leaders / highlights) */
+  .frn-dash-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
+    margin-bottom: 1rem;
+  }
+  @media (max-width: 800px) { .frn-dash-grid { grid-template-columns: 1fr; } }
+  .frn-card-box {
+    border: 1px dashed var(--border); background: var(--bg2);
+    padding: .8rem 1rem; position: relative;
+  }
+  .frn-card-box::before { content:"┌"; position:absolute; top:-.55em; left:-.15em; color:var(--gold); font-size:1.05em; line-height:1; }
+  .frn-card-box::after  { content:"┘"; position:absolute; bottom:-.55em; right:-.15em; color:var(--gold); font-size:1.05em; line-height:1; }
+  .frn-card-title {
+    font-size: .66rem; font-weight: 700; color: var(--gold);
+    letter-spacing: .6px; margin-bottom: .55rem;
+    padding-bottom: .3rem; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .frn-card-title-sub { color: var(--gray); font-size: .6rem; font-weight: 400; }
+
+  /* Leader rows */
+  .frn-leader-row {
+    display: flex; align-items: center; gap: .4rem;
+    padding: .22rem 0; font-size: .75rem;
+    border-bottom: 1px solid rgba(46,61,46,0.5);
+  }
+  .frn-leader-row:last-child { border-bottom: none; }
+  .frn-leader-cat {
+    width: 3.2rem; color: var(--gold); font-weight: 700;
+    font-size: .6rem; letter-spacing: .3px; flex-shrink: 0;
+  }
+  .frn-leader-name { flex: 1; }
+  .frn-leader-stat { color: var(--gray); font-size: .68rem; }
+
+  /* Highlights */
+  .frn-hl-row {
+    padding: .3rem 0; font-size: .72rem;
+    border-bottom: 1px solid rgba(46,61,46,0.5);
+    display: flex; align-items: baseline; gap: .4rem;
+  }
+  .frn-hl-row:last-child { border-bottom: none; }
+  .frn-hl-tag {
+    color: var(--gold); font-size: .58rem;
+    min-width: 2.5rem; font-weight: 700; flex-shrink: 0;
+  }
+  .frn-hl-tag.playoff { color: var(--gold-lt); }
+  .frn-hl-label { flex: 1; }
+  .frn-hl-clutch {
+    color: var(--gold-lt); font-size: .55rem;
+    background: rgba(200,169,0,0.18); padding: 0 .3rem;
+    border: 1px solid rgba(200,169,0,0.3);
+  }
+
+  /* Footer action row */
+  .frn-footer-row {
+    display: flex; gap: .5rem; flex-wrap: wrap;
+    padding-top: .8rem; border-top: 1px solid var(--border);
+    margin-top: 1rem; align-items: center;
+  }
+  .frn-footer-info { color: var(--gray); font-size: .7rem; }
+  .frn-abandon-btn { color: var(--red) !important; margin-left: auto; }
+
+  /* Team picker (when starting a new franchise) */
+  .frn-picker-intro {
+    color: var(--gray); font-size: .8rem; margin-bottom: .75rem;
+  }
+  .frn-picker-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: .5rem 1rem;
+  }
+  @media (max-width: 700px) { .frn-picker-grid { grid-template-columns: 1fr; } }
+
   /* Cinema move callout */
   .cinema-callout {
     position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -817,36 +1015,53 @@
 
 <div class="container">
 
-  <!-- Team selector + depth chart -->
-  <div class="selector">
-    <div class="team-col">
-      <label>Home Team</label>
-      <select id="homeTeam"></select>
-      <div class="depth-chart" id="homeDepth"></div>
+  <!-- Mode tabs — switch between Franchise mode (primary) and Testing Tools -->
+  <div class="mode-tabs">
+    <button class="mode-tab active" id="modeFranchiseBtn">🏈 Franchise Mode</button>
+    <button class="mode-tab" id="modeTestingBtn">🧪 Testing Tools</button>
+  </div>
+
+  <!-- Franchise home (default visible) — rendered inline, no modal -->
+  <div id="franchiseHome">
+    <div id="frnHomeContent"></div>
+  </div>
+
+  <!-- Testing Tools panel — wraps the legacy team-selector and sim/debug buttons -->
+  <div id="testingPanel" style="display:none">
+    <!-- Team selector + depth chart -->
+    <div class="selector">
+      <div class="team-col">
+        <label>Home Team</label>
+        <select id="homeTeam"></select>
+        <div class="depth-chart" id="homeDepth"></div>
+      </div>
+      <div class="vs-label">VS</div>
+      <div class="team-col">
+        <label>Away Team</label>
+        <select id="awayTeam"></select>
+        <div class="depth-chart" id="awayDepth"></div>
+      </div>
     </div>
-    <div class="vs-label">VS</div>
-    <div class="team-col">
-      <label>Away Team</label>
-      <select id="awayTeam"></select>
-      <div class="depth-chart" id="awayDepth"></div>
+
+    <div class="controls" id="testingControls">
+      <button class="btn btn-gold" id="simBtn">⚡ Simulate Game</button>
+      <select id="simManyCount" class="sim-many-select" title="Number of games to simulate">
+        <option value="10">10×</option>
+        <option value="100" selected>100×</option>
+        <option value="500">500×</option>
+        <option value="1000">1000×</option>
+      </select>
+      <button class="btn btn-outline" id="simManyBtn">🎲 Sim Many</button>
+      <input id="qbOvrInput" class="qb-ovr-input" type="number" value="90" min="60" max="99" title="Target overall rating for the test QBs" />
+      <button class="btn btn-outline" id="simByQBBtn" title="Run N games for each QB archetype on the home team at the chosen OVR">🧪 Sim by QB</button>
+      <button class="btn btn-outline" id="simByPBBtn" title="Run N games for each playbook on the home team">📘 Sim by PB</button>
+      <button class="btn btn-outline" id="powerRankBtn" title="Round-robin all 32 teams to compute a power ranking">📊 Power Rankings</button>
+      <button class="btn btn-outline" id="tournamentBtn" title="Single-elimination playoff bracket of the top 8 (or 16) teams">🏆 Tournament</button>
     </div>
   </div>
 
-  <div class="controls">
-    <button class="btn btn-gold" id="simBtn">⚡ Simulate Game</button>
-    <select id="simManyCount" class="sim-many-select" title="Number of games to simulate">
-      <option value="10">10×</option>
-      <option value="100" selected>100×</option>
-      <option value="500">500×</option>
-      <option value="1000">1000×</option>
-    </select>
-    <button class="btn btn-outline" id="simManyBtn">🎲 Sim Many</button>
-    <input id="qbOvrInput" class="qb-ovr-input" type="number" value="90" min="60" max="99" title="Target overall rating for the test QBs" />
-    <button class="btn btn-outline" id="simByQBBtn" title="Run N games for each QB archetype on the home team at the chosen OVR">🧪 Sim by QB</button>
-    <button class="btn btn-outline" id="simByPBBtn" title="Run N games for each playbook on the home team">📘 Sim by PB</button>
-    <button class="btn btn-outline" id="powerRankBtn" title="Round-robin all 32 teams to compute a power ranking">📊 Power Rankings</button>
-    <button class="btn btn-outline" id="tournamentBtn" title="Single-elimination playoff bracket of the top 8 (or 16) teams">🏆 Tournament</button>
-    <button class="btn btn-outline" id="franchiseBtn" title="Start or continue a multi-season franchise">📋 Franchise</button>
+  <!-- Playback controls — shown when any game is being played (franchise or testing) -->
+  <div class="controls" id="playbackControls" style="display:none">
     <button class="btn btn-primary" id="playBtn" disabled>▶ Play</button>
     <button class="btn btn-outline" id="pauseBtn" disabled>⏸ Pause</button>
     <button class="btn btn-outline" id="nextPlayBtn" disabled title="Skip to next play">⏭ Play</button>
@@ -872,24 +1087,13 @@
     </div>
   </div>
 
-  <!-- Franchise Modal -->
-  <div id="franchiseModal" class="franchise-modal" style="display:none">
-    <div class="frn-card">
-      <div class="frn-header">
-        <div id="frnTitle">🏈 FRANCHISE MODE</div>
-        <button class="frn-close-btn" id="frnClose">×</button>
-      </div>
-      <div id="frnBody"></div>
-    </div>
-  </div>
-
   <!-- Floating return-to-franchise button (shown during live franchise game) -->
   <button class="frn-return-btn" id="frnReturnBtn" onclick="frnFinishGame()">◀ Return to Franchise</button>
 
   <!-- Game area -->
   <div id="gameArea" class="empty">
     <div class="empty-icon">🏈</div>
-    <div style="font-size: 1.2rem; font-weight: 700; margin-bottom: .25rem;">Pick two teams and hit Simulate</div>
+    <div style="font-size: 1.2rem; font-weight: 700; margin-bottom: .25rem;">Start a Franchise or use Testing Tools</div>
     <div style="color: var(--gray);">Animated 2D field with live play-by-play action</div>
   </div>
 
@@ -7326,6 +7530,7 @@ simBtn.addEventListener("click", () => {
   const sim = new GameSimulator(home, away, homeRoster, awayRoster);
   gameResult = sim.simulate();
   playHead = 0;
+  $("playbackControls").style.display = "flex";
   renderGameLayout();
   startNextPlay();
   playing = true;
@@ -13880,16 +14085,30 @@ function assignFranchiseAges(rosters) {
   }
 }
 
-// ── Open / close modal ───────────────────────────────────────────────────────
-function openFranchiseModal() {
+// ── Mode switching ───────────────────────────────────────────────────────────
+// Two top-level modes: "franchise" (default, the polished career UI) and
+// "testing" (legacy team-selector + sim/debug tools). Tab buttons drive this.
+function setAppMode(mode) {
+  document.body.classList.remove("mode-franchise", "mode-testing");
+  document.body.classList.add(`mode-${mode}`);
+  $("franchiseHome").style.display = mode === "franchise" ? "block" : "none";
+  $("testingPanel").style.display  = mode === "testing"   ? "block" : "none";
+  $("modeFranchiseBtn").classList.toggle("active", mode === "franchise");
+  $("modeTestingBtn").classList.toggle("active",   mode === "testing");
+  if (mode === "franchise") showFranchiseHome();
+}
+
+// ── Show franchise home (replaces modal) ─────────────────────────────────────
+function showFranchiseHome() {
   loadFranchise();
-  $("franchiseModal").style.display = "flex";
+  $("franchiseHome").style.display = "block";
   if (!franchise) renderFrnTeamPicker();
   else            showFranchiseDashboard();
 }
-function closeFranchiseModal() {
-  $("franchiseModal").style.display = "none";
-}
+
+// Backwards-compat shims — old code paths still call these names
+function openFranchiseModal()  { setAppMode("franchise"); showFranchiseHome(); }
+function closeFranchiseModal() { /* no-op: franchise is inline now */ }
 
 // ── Initialize new franchise ─────────────────────────────────────────────────
 function startFranchise(teamId) {
@@ -13924,11 +14143,8 @@ function startFranchise(teamId) {
 // ── Route to correct phase UI ────────────────────────────────────────────────
 function showFranchiseDashboard() {
   if (!franchise) return;
-  $("franchiseModal").style.display = "flex";
-  const { chosenTeamId, season, phase } = franchise;
-  const myTeam = getTeam(chosenTeamId);
-  $("frnTitle").textContent =
-    `🏈 FRANCHISE · ${myTeam.city} ${myTeam.name} · Season ${season}`;
+  $("franchiseHome").style.display = "block";
+  const { phase } = franchise;
   if      (phase === "regular")          renderFrnRegular();
   else if (phase === "playoffs_pending") startFrnPlayoffs();
   else if (phase === "playoffs")         renderFrnPlayoffs();
@@ -13936,9 +14152,8 @@ function showFranchiseDashboard() {
   else if (phase === "offseason")        renderFrnOffseason();
 }
 
-// ── Team picker ──────────────────────────────────────────────────────────────
+// ── Team picker / welcome screen ─────────────────────────────────────────────
 function renderFrnTeamPicker() {
-  $("frnTitle").textContent = "🏈 FRANCHISE — Choose Your Team";
   const confOrder = [
     "AFC East","AFC North","AFC South","AFC West",
     "NFC East","NFC North","NFC South","NFC West",
@@ -13948,29 +14163,68 @@ function renderFrnTeamPicker() {
     const k = `${t.conference} ${t.division}`;
     (groups[k] = groups[k] || []).push(t);
   }
-  let html = `<p style="font-size:.8rem;color:var(--gray);margin-bottom:.75rem">
-    Pick a team to begin a multi-season franchise. Progress saves automatically to your browser.
-  </p><div style="display:grid;grid-template-columns:repeat(2,1fr);gap:.75rem 1.5rem;">`;
+  let pickerHtml = `<div class="frn-picker-grid">`;
   for (const divKey of confOrder) {
     const teams = groups[divKey] || [];
-    html += `<div>
-      <div style="font-size:.62rem;color:var(--gold);letter-spacing:.5px;margin-bottom:.25rem">${divKey.toUpperCase()}</div>
+    pickerHtml += `<div>
+      <div style="font-size:.62rem;color:var(--gold);letter-spacing:.5px;margin-bottom:.3rem">${divKey.toUpperCase()}</div>
       <div class="frn-team-grid">`;
     for (const t of teams) {
-      html += `<button class="frn-team-btn" onclick="startFranchise(${t.id})">
+      pickerHtml += `<button class="frn-team-btn" onclick="startFranchise(${t.id})" style="border-left:4px solid ${t.primary}">
         <span class="frn-ascii">${teamAscii(t)}</span>
         <span style="font-weight:700">${t.city} ${t.name}</span>
       </button>`;
     }
-    html += `</div></div>`;
+    pickerHtml += `</div></div>`;
   }
-  html += `</div>`;
-  $("frnBody").innerHTML = html;
+  pickerHtml += `</div>`;
+
+  $("frnHomeContent").innerHTML = `
+    <div class="frn-welcome">
+      <div class="frn-welcome-title">🏈 START YOUR FRANCHISE</div>
+      <div class="frn-welcome-sub">Pick a team and play a multi-season career.</div>
+      <div class="frn-welcome-feats">
+        <div class="frn-welcome-feat"><strong>14</strong> regular-season games</div>
+        <div class="frn-welcome-feat"><strong>8-team</strong> playoff bracket</div>
+        <div class="frn-welcome-feat">Real <strong>MVP awards</strong></div>
+        <div class="frn-welcome-feat"><strong>Aging</strong> + rookies offseason</div>
+        <div class="frn-welcome-feat">Auto-saves in your browser</div>
+      </div>
+    </div>
+    <div class="frn-picker-intro">Choose any of the 32 teams to start:</div>
+    ${pickerHtml}
+  `;
 }
 
-// ── Regular-season dashboard ─────────────────────────────────────────────────
+// Compute basic team rating (offense/defense averages) for display
+function frnTeamRating(teamId) {
+  const roster = franchise.rosters[teamId] || [];
+  const r = buildRatings(roster);
+  return { off: Math.round(r.offense), def: Math.round(r.defense), qb: Math.round(r.qb) };
+}
+
+// Compute season leaders for a single team (top stat-holder per category)
+function frnTeamLeaders(teamId) {
+  const players = franchise.seasonStats?.[teamId] || {};
+  const list = Object.values(players);
+  if (!list.length) return [];
+  const out = [];
+  const best = (key, label, fmt) => {
+    const top = list.filter(p => p[key]).sort((a, b) => b[key] - a[key])[0];
+    if (top && top[key] > 0) out.push({ cat: label, name: top.name, stat: fmt(top) });
+  };
+  best("pass_yds", "PASS", p => `${p.pass_yds} yds · ${p.pass_td || 0} TD`);
+  best("rush_yds", "RUSH", p => `${p.rush_yds} yds · ${p.rush_td || 0} TD`);
+  best("rec_yds",  "REC",  p => `${p.rec_yds} yds · ${p.rec_td || 0} TD`);
+  best("sk",       "SACKS",p => `${(+p.sk).toFixed(1)} sacks`);
+  best("int_made", "INTs", p => `${p.int_made} INT`);
+  best("tkl",      "TKL",  p => `${p.tkl} tackles`);
+  return out;
+}
+
+// ── Regular-season dashboard (polished inline layout) ────────────────────────
 function renderFrnRegular() {
-  const { chosenTeamId, season, week, schedule, standings } = franchise;
+  const { chosenTeamId, season, week, schedule, standings, seasonHighlights } = franchise;
   const myTeam  = getTeam(chosenTeamId);
   const myStand = standings[chosenTeamId] || { w:0, l:0, t:0, pf:0, pa:0 };
 
@@ -13979,8 +14233,92 @@ function renderFrnRegular() {
     .sort((a, b) => a.week - b.week);
   const nextGame = myGames.find(g => !g.played) || null;
   const sorted   = standingsSorted();
+  const seasonDone = week > FRANCHISE_WEEKS;
+  const recStr  = `${myStand.w}-${myStand.l}${myStand.t ? `-${myStand.t}` : ""}`;
+  const myRtg   = frnTeamRating(chosenTeamId);
 
-  // Schedule column
+  // ─── Team banner ───────────────────────────────────────────────────────
+  const bannerHtml = `
+    <div class="frn-team-banner" style="--banner-color:${myTeam.primary}">
+      <div class="frn-banner-stripe"></div>
+      <div class="frn-banner-ascii">${teamAscii(myTeam)}</div>
+      <div class="frn-banner-info">
+        <div class="frn-banner-name">${myTeam.city.toUpperCase()} ${myTeam.name.toUpperCase()}</div>
+        <div class="frn-banner-sub">
+          Season ${season} · Week ${Math.min(week, FRANCHISE_WEEKS)} of ${FRANCHISE_WEEKS} ·
+          PF ${myStand.pf} / PA ${myStand.pa} · OFF ${myRtg.off} · DEF ${myRtg.def}
+        </div>
+      </div>
+      <div>
+        <div class="frn-banner-record">${recStr}</div>
+        <div class="frn-banner-record-sub">RECORD</div>
+      </div>
+    </div>`;
+
+  // ─── Next-game card ────────────────────────────────────────────────────
+  let nextCardHtml = "";
+  if (nextGame) {
+    const isHome = nextGame.homeId === chosenTeamId;
+    const oppId  = isHome ? nextGame.awayId : nextGame.homeId;
+    const opp    = getTeam(oppId);
+    const oppRtg = frnTeamRating(oppId);
+    const oppStand = standings[oppId] || { w:0, l:0 };
+
+    const teamCard = (team, rec, rtg, isUser) => `
+      <div class="frn-next-team ${isUser ? "user" : ""}">
+        <div class="frn-next-team-ascii">${teamAscii(team)}</div>
+        <div class="frn-next-team-name">${team.name.toUpperCase()}</div>
+        <div class="frn-next-team-city">${team.city}</div>
+        <div class="frn-next-team-rec">${rec.w}-${rec.l}${rec.t ? `-${rec.t}` : ""}</div>
+        <div class="frn-next-team-ratings">
+          OFF <span class="v">${rtg.off}</span>
+          DEF <span class="v">${rtg.def}</span>
+        </div>
+      </div>`;
+
+    nextCardHtml = `
+      <div class="frn-next-card">
+        <div class="frn-next-header">
+          <span>WEEK ${nextGame.week} · ${isHome ? "HOME GAME" : "AWAY GAME"}</span>
+          <span class="frn-next-badge">NEXT UP</span>
+        </div>
+        <div class="frn-next-matchup">
+          ${isHome
+            ? teamCard(myTeam, myStand, myRtg, true)
+            : teamCard(opp, oppStand, oppRtg, false)}
+          <div class="frn-next-vs">VS</div>
+          ${isHome
+            ? teamCard(opp, oppStand, oppRtg, false)
+            : teamCard(myTeam, myStand, myRtg, true)}
+        </div>
+        <div class="frn-next-actions">
+          <button class="btn btn-gold-big" onclick="frnPlayGame(${nextGame.homeId},${nextGame.awayId},false)">▶ PLAY GAME</button>
+          <button class="btn btn-outline" onclick="frnSimGame(${nextGame.homeId},${nextGame.awayId})">⏩ Sim Game</button>
+          <button class="btn btn-outline" onclick="frnSimWeek()">⏭ Sim Week ${week}</button>
+          <button class="btn btn-outline" onclick="frnSimSeason()" style="color:var(--gray)">⏭⏭ Sim Season</button>
+        </div>
+      </div>`;
+  } else if (seasonDone) {
+    nextCardHtml = `
+      <div class="frn-next-card" style="text-align:center;border-color:var(--gold-lt)">
+        <div style="font-size:1.3rem;font-weight:900;color:var(--gold);margin-bottom:.5rem">REGULAR SEASON COMPLETE</div>
+        <div style="color:var(--gray);margin-bottom:1rem">Final record: ${recStr} · PF ${myStand.pf} / PA ${myStand.pa}</div>
+        <button class="btn btn-gold-big" onclick="startFrnPlayoffs()">🏆 START PLAYOFFS</button>
+      </div>`;
+  } else {
+    // User played their game this week; other teams' games pending
+    nextCardHtml = `
+      <div class="frn-next-card" style="text-align:center;border-style:dashed">
+        <div style="color:var(--gold);font-weight:700;margin-bottom:.4rem">Your Week ${week} game is done</div>
+        <div style="color:var(--gray);font-size:.8rem;margin-bottom:.8rem">${FRANCHISE_WEEKS - week + 1} weeks of action remaining</div>
+        <div class="frn-next-actions">
+          <button class="btn btn-gold-big" onclick="frnSimWeek()">⏭ Finish Week ${week}</button>
+          <button class="btn btn-outline" onclick="frnSimSeason()" style="color:var(--gray)">⏭⏭ Sim Season</button>
+        </div>
+      </div>`;
+  }
+
+  // ─── Schedule list ─────────────────────────────────────────────────────
   const schHtml = myGames.map(g => {
     const isHome = g.homeId === chosenTeamId;
     const oppId  = isHome ? g.awayId : g.homeId;
@@ -14001,12 +14339,12 @@ function renderFrnRegular() {
     return `<div class="frn-game-row ${isNext ? "frn-next" : ""}">
       <span class="frn-wk">W${g.week}</span>
       <span class="frn-opp">${isHome ? "vs" : "@"} ${opp.name} <span style="color:var(--gray);font-size:.62rem">${oppRS}</span></span>
-      ${isNext ? `<span class="frn-res" style="color:var(--gold)">NEXT ▸</span>` : ""}
+      ${isNext ? `<span class="frn-res" style="color:var(--gold)">NEXT</span>` : ""}
     </div>`;
   }).join("");
 
-  // Standings column
-  const standHtml = sorted.slice(0, 16).map((s, i) => {
+  // ─── Standings ─────────────────────────────────────────────────────────
+  const standHtml = sorted.slice(0, 14).map((s, i) => {
     const isMine   = s.id === chosenTeamId;
     const playoff  = i < PLAYOFF_TEAMS;
     const gp       = s.w + s.l + s.t;
@@ -14019,67 +14357,54 @@ function renderFrnRegular() {
     </div>`;
   }).join("");
 
-  // Action area
-  let actionHtml = "";
-  const seasonDone = week > FRANCHISE_WEEKS;
+  // ─── Team leaders ──────────────────────────────────────────────────────
+  const leaders = frnTeamLeaders(chosenTeamId);
+  const leadersHtml = leaders.length ? leaders.map(l => `
+    <div class="frn-leader-row">
+      <span class="frn-leader-cat">${l.cat}</span>
+      <span class="frn-leader-name">${l.name}</span>
+      <span class="frn-leader-stat">${l.stat}</span>
+    </div>`).join("") : `<div style="color:var(--gray);font-size:.72rem;padding:.5rem 0">Play games to see season leaders.</div>`;
 
-  if (seasonDone) {
-    actionHtml = `
-      <div style="margin:.5rem 0;color:var(--gold);font-weight:700">
-        Regular season complete! Record: ${myStand.w}-${myStand.l}
-      </div>
-      <div class="frn-actions">
-        <button class="btn btn-gold" onclick="startFrnPlayoffs()">🏆 Start Playoffs</button>
-        <button class="btn btn-outline" onclick="frnAbandon()" style="color:var(--red);margin-left:auto">× Abandon</button>
-      </div>`;
-  } else if (nextGame) {
-    const isHome = nextGame.homeId === chosenTeamId;
-    const oppId  = isHome ? nextGame.awayId : nextGame.homeId;
-    const opp    = getTeam(oppId);
-    actionHtml = `
-      <div style="margin:.4rem 0;padding:.4rem .6rem;border:1px solid var(--border);background:var(--bg2)">
-        <div style="font-size:.62rem;color:var(--gray)">WEEK ${nextGame.week} · ${isHome ? "HOME" : "AWAY"}</div>
-        <div style="font-size:.88rem;font-weight:700">
-          ${isHome ? `${myTeam.name} vs ${opp.city} ${opp.name}` : `@ ${opp.city} ${opp.name}`}
-        </div>
-      </div>
-      <div class="frn-actions">
-        <button class="btn btn-gold" onclick="frnPlayGame(${nextGame.homeId},${nextGame.awayId},false)">▶ Play</button>
-        <button class="btn btn-outline" onclick="frnSimGame(${nextGame.homeId},${nextGame.awayId})">⏩ Sim</button>
-        <button class="btn btn-outline" onclick="frnSimWeek()">⏭ Sim Week ${week}</button>
-        <button class="btn btn-outline" onclick="frnSimSeason()" style="color:var(--gray)">⏭⏭ Sim Season</button>
-        <button class="btn btn-outline" onclick="frnAbandon()" style="color:var(--red);margin-left:auto">× Abandon</button>
-      </div>`;
-  } else {
-    // User played their game this week; other teams' games pending
-    actionHtml = `
-      <div style="margin:.4rem 0;color:var(--gray);font-size:.8rem">
-        Your week ${week} game is done. ${FRANCHISE_WEEKS - week} weeks remaining.
-      </div>
-      <div class="frn-actions">
-        <button class="btn btn-outline" onclick="frnSimWeek()">⏭ Finish Week ${week}</button>
-        <button class="btn btn-outline" onclick="frnSimSeason()" style="color:var(--gray)">⏭⏭ Sim Season</button>
-        <button class="btn btn-outline" onclick="frnAbandon()" style="color:var(--red);margin-left:auto">× Abandon</button>
-      </div>`;
-  }
+  // ─── Recent highlights (user's team) ───────────────────────────────────
+  const myHL = (seasonHighlights || [])
+    .filter(h => h.homeId === chosenTeamId || h.awayId === chosenTeamId)
+    .sort((a, b) => b.weight - a.weight)
+    .slice(0, 6);
+  const hlHtml = myHL.length ? myHL.map(h => `
+    <div class="frn-hl-row">
+      <span class="frn-hl-tag ${h.isPlayoff ? "playoff" : ""}">${h.week}</span>
+      <span class="frn-hl-label">${h.label}</span>
+      ${h.isClutch ? `<span class="frn-hl-clutch">⚡CLUTCH</span>` : ""}
+    </div>`).join("") : `<div style="color:var(--gray);font-size:.72rem;padding:.5rem 0">Highlights show up as you play. ⚡ clutch tags mark Q4 close-game plays.</div>`;
 
-  const recStr = `${myStand.w}-${myStand.l}${myStand.t ? `-${myStand.t}` : ""}`;
-  $("frnBody").innerHTML = `
-    <div style="font-size:.78rem;color:var(--gray);margin-bottom:.5rem">
-      Season ${season} · Week ${Math.min(week, FRANCHISE_WEEKS)} of ${FRANCHISE_WEEKS} ·
-      Record: <span style="color:var(--white);font-weight:700">${recStr}</span> ·
-      PF/PA: ${myStand.pf}/${myStand.pa}
-    </div>
-    <div class="frn-dash">
-      <div>
-        <div class="frn-sec-title">MY SCHEDULE</div>
-        <div class="frn-schedule">${schHtml}</div>
-        ${actionHtml}
+  // ─── Final composition ─────────────────────────────────────────────────
+  $("frnHomeContent").innerHTML = `
+    ${bannerHtml}
+    ${nextCardHtml}
+    <div class="frn-dash-grid">
+      <div class="frn-card-box">
+        <div class="frn-card-title">MY SCHEDULE <span class="frn-card-title-sub">14 games</span></div>
+        ${schHtml}
       </div>
-      <div>
-        <div class="frn-sec-title">LEAGUE STANDINGS <span style="font-size:.58rem;color:var(--gray)">(top ${PLAYOFF_TEAMS} → playoffs)</span></div>
+      <div class="frn-card-box">
+        <div class="frn-card-title">LEAGUE STANDINGS <span class="frn-card-title-sub">top ${PLAYOFF_TEAMS} → playoffs</span></div>
         ${standHtml}
       </div>
+    </div>
+    <div class="frn-dash-grid">
+      <div class="frn-card-box">
+        <div class="frn-card-title">${myTeam.name.toUpperCase()} TEAM LEADERS</div>
+        ${leadersHtml}
+      </div>
+      <div class="frn-card-box">
+        <div class="frn-card-title">RECENT HIGHLIGHTS</div>
+        ${hlHtml}
+      </div>
+    </div>
+    <div class="frn-footer-row">
+      <div class="frn-footer-info">Franchise auto-saves to your browser · Reload to keep playing</div>
+      <button class="btn btn-outline frn-abandon-btn" onclick="frnAbandon()">× Abandon Franchise</button>
     </div>`;
 }
 
@@ -14328,7 +14653,9 @@ function frnSimSeason() {
 
 // ── Play a live (animated) franchise game ────────────────────────────────────
 function frnPlayGame(homeId, awayId, isPlayoff) {
-  closeFranchiseModal();
+  // Hide franchise home so gameArea takes focus; show playback controls
+  $("franchiseHome").style.display = "none";
+  $("playbackControls").style.display = "flex";
   franchise.pendingFranchiseGame = { homeId, awayId, isPlayoff };
   saveFranchise();
 
@@ -14360,6 +14687,14 @@ function frnPlayGame(homeId, awayId, isPlayoff) {
 function frnFinishGame() {
   const retBtn = $("frnReturnBtn");
   if (retBtn) retBtn.style.display = "none";
+  // Hide playback controls + game area, restore franchise home
+  $("playbackControls").style.display = "none";
+  const ga = $("gameArea"); if (ga) { ga.classList.add("empty"); ga.innerHTML = `
+    <div class="empty-icon">🏈</div>
+    <div style="font-size: 1.2rem; font-weight: 700; margin-bottom: .25rem;">Start a Franchise or use Testing Tools</div>
+    <div style="color: var(--gray);">Animated 2D field with live play-by-play action</div>
+  `; }
+  $("franchiseHome").style.display = "block";
 
   if (!franchise || !franchise.pendingFranchiseGame) {
     showFranchiseDashboard();
@@ -14483,7 +14818,7 @@ function renderFrnPlayoffs() {
   }
   actions += `<button class="btn btn-outline" onclick="frnAbandon()" style="color:var(--red);margin-left:auto">× Abandon</button></div>`;
 
-  $("frnBody").innerHTML = bracketHtml + actions;
+  $("frnHomeContent").innerHTML = bracketHtml + actions;
 }
 
 function frnSimPlayoffGame(homeId, awayId) {
@@ -14640,7 +14975,7 @@ function renderFrnAwards() {
         S${h.season}: 🏆 ${h.championName}${h.leagueMVP ? ` · MVP ${h.leagueMVP.name}` : ""}${h.superBowlMVP ? ` · SB MVP ${h.superBowlMVP.name}` : ""}
       </div>`).join("")}` : "";
 
-  $("frnBody").innerHTML = `
+  $("frnHomeContent").innerHTML = `
     <div style="text-align:center;padding:1rem .5rem .8rem">
       <div style="font-size:2.6rem;margin-bottom:.3rem">🏆</div>
       <div style="font-size:1.7rem;font-weight:900;color:var(--gold)">${champTeam ? `${champTeam.city} ${champTeam.name}` : "—"}</div>
@@ -14770,7 +15105,7 @@ function renderFrnOffseason() {
   }
   if (!chgHtml) chgHtml = `<div style="color:var(--gray)">No major roster changes this offseason.</div>`;
 
-  $("frnBody").innerHTML = `
+  $("frnHomeContent").innerHTML = `
     <div style="text-align:center;margin-bottom:.75rem">
       <div style="font-size:1.1rem;font-weight:700;color:var(--gold)">Season ${season} — Offseason</div>
       <div style="color:var(--gray);font-size:.78rem">${myTeam.city} ${myTeam.name}</div>
@@ -14808,13 +15143,14 @@ function frnAbandon() {
   renderFrnTeamPicker();
 }
 
-// ── Wire franchise button ─────────────────────────────────────────────────────
-$("franchiseBtn").addEventListener("click", openFranchiseModal);
-$("frnClose").addEventListener("click", closeFranchiseModal);
-// Pressing Escape closes the franchise modal
-document.addEventListener("keydown", e => {
-  if (e.key === "Escape" && $("franchiseModal").style.display !== "none") closeFranchiseModal();
-});
+// ── Wire mode tabs + initial setup ────────────────────────────────────────────
+$("modeFranchiseBtn").addEventListener("click", () => setAppMode("franchise"));
+$("modeTestingBtn").addEventListener("click",   () => setAppMode("testing"));
+
+// Default to franchise mode on page load
+document.addEventListener("DOMContentLoaded", () => setAppMode("franchise"));
+// If DOMContentLoaded already fired, run immediately
+if (document.readyState !== "loading") setAppMode("franchise");
 
 // ─── END FRANCHISE MODE ────────────────────────────────────────────────────
 
