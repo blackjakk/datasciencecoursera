@@ -17369,8 +17369,12 @@ function _runWeekEndResolution() {
     if (!seasonEnding) _faAIBidRound(w + 1, /*isInitial=*/false);
   }
   _tickInjuriesForWeek();
-  // Trade-block: AI sends offers for players you've listed
-  if (w + 1 <= TRADE_DEADLINE_WEEK) _generateWeeklyAIOffers();
+  // Trade-block: directed-ask counters from last week land first, then
+  // unsolicited offers from the open market for any players you've listed.
+  if (w + 1 <= TRADE_DEADLINE_WEEK) {
+    _processPendingCounters();
+    _generateWeeklyAIOffers();
+  }
 }
 
 // Bump the week counter, handle cap grace + season-end transitions.
@@ -18443,11 +18447,170 @@ function frnToggleBlock(name) {
   const p = myRoster.find(rp => rp.name === name);
   if (!p) return;
   p.onTradeBlock = !p.onTradeBlock;
+  if (!p.onTradeBlock) delete p.blockAsk;
   // No immediate offers — other owners can't see the listing until the
   // week wraps up. Offers roll in during _runWeekEndResolution when the
   // user clicks "Advance to Week N+1".
   saveFranchise();
   renderFrnTrade();
+}
+
+// Open the asking-price form for a blocked player. Stores the target
+// team in the trade prop so the form can be populated.
+function frnEditAsk(playerName) {
+  if (!franchise._tradeProp) franchise._tradeProp = { tab:"block", sortBy:"grade", youSend:[], youReceive:[] };
+  const player = franchise.rosters[franchise.chosenTeamId].find(p => p.name === playerName);
+  if (!player) return;
+  if (!player.onTradeBlock) player.onTradeBlock = true;
+  franchise._tradeProp.editAsk = playerName;
+  // Seed ask form from existing ask, or default to first opponent
+  const existing = player.blockAsk;
+  franchise._tradeProp.askDraft = {
+    targetTeamId: existing?.targetTeamId || TEAMS.find(t => t.id !== franchise.chosenTeamId).id,
+    wantNames:    [...(existing?.wantNames || [])],
+  };
+  saveFranchise();
+  renderFrnTrade();
+}
+
+function frnCancelAsk() {
+  if (franchise._tradeProp) {
+    delete franchise._tradeProp.editAsk;
+    delete franchise._tradeProp.askDraft;
+  }
+  saveFranchise();
+  renderFrnTrade();
+}
+
+function frnAskSetTarget(teamId) {
+  if (!franchise._tradeProp?.askDraft) return;
+  franchise._tradeProp.askDraft.targetTeamId = Number(teamId);
+  franchise._tradeProp.askDraft.wantNames = [];
+  saveFranchise();
+  renderFrnTrade();
+}
+
+function frnAskToggleWant(playerName) {
+  const ad = franchise._tradeProp?.askDraft;
+  if (!ad) return;
+  const idx = ad.wantNames.indexOf(playerName);
+  if (idx === -1) ad.wantNames.push(playerName);
+  else ad.wantNames.splice(idx, 1);
+  saveFranchise();
+  renderFrnTrade();
+}
+
+function frnSubmitAsk() {
+  const tp = franchise._tradeProp;
+  if (!tp?.editAsk || !tp?.askDraft) return;
+  const ad = tp.askDraft;
+  if (!ad.targetTeamId || !ad.wantNames.length) {
+    alert("Pick a team and at least one player you want in return.");
+    return;
+  }
+  const player = franchise.rosters[franchise.chosenTeamId].find(p => p.name === tp.editAsk);
+  if (!player) return;
+  player.onTradeBlock = true;
+  player.blockAsk = { targetTeamId: ad.targetTeamId, wantNames: [...ad.wantNames] };
+  // Evaluate immediately — the target team owner sees the directed
+  // proposal right away (you DM'd them, not the league).
+  const result = _evaluateBlockAsk(player);
+  delete tp.editAsk;
+  delete tp.askDraft;
+  saveFranchise();
+  if (result.outcome === "accepted") {
+    alert(`✓ Deal done! ${getTeam(player.blockAsk?.targetTeamId)?.name||"They"} accepted on the spot.`);
+  } else if (result.outcome === "rejected") {
+    alert(`✗ ${result.message}`);
+  } else if (result.outcome === "counter_queued") {
+    alert(`📬 They're considering it — counter will arrive next week.`);
+  }
+  renderFrnTrade();
+}
+
+// Same-week resolution for a directed ask. Returns one of:
+//   { outcome:"accepted" }
+//   { outcome:"rejected", message }
+//   { outcome:"counter_queued" }
+function _evaluateBlockAsk(player) {
+  const ask = player.blockAsk;
+  if (!ask?.targetTeamId || !ask.wantNames?.length) return { outcome:"none" };
+  const myId = franchise.chosenTeamId;
+  const myRoster = franchise.rosters[myId];
+  const theirRoster = franchise.rosters[ask.targetTeamId];
+  const wantPlayers = ask.wantNames
+    .map(n => theirRoster.find(p => p.name === n))
+    .filter(Boolean);
+  if (!wantPlayers.length) {
+    return { outcome:"rejected", message:"Those players aren't available anymore." };
+  }
+  const giveValue = _playerTradeValue(player);
+  const wantValue = wantPlayers.reduce((s,p) => s + _playerTradeValue(p), 0);
+  const theirNeed = _aiTradeNeedBonus(ask.targetTeamId, [player]);
+  const ratio = (giveValue + theirNeed) / Math.max(0.1, wantValue);
+
+  if (ratio >= 0.95) {
+    // ACCEPT — execute trade now
+    const team = getTeam(ask.targetTeamId);
+    player.onTradeBlock = false;
+    delete player.blockAsk;
+    const idx = myRoster.indexOf(player);
+    if (idx !== -1) myRoster.splice(idx, 1);
+    theirRoster.push(player);
+    for (const wp of wantPlayers) {
+      const wi = theirRoster.indexOf(wp);
+      if (wi !== -1) theirRoster.splice(wi, 1);
+      myRoster.push(wp);
+    }
+    _pushNews({ type:"trade",
+      label: `🔀 Block deal w/ ${team.name}: ${wantPlayers.map(p=>p.position+" "+p.name).join(", ")} for ${player.position+" "+player.name}` });
+    return { outcome:"accepted" };
+  }
+  if (ratio < 0.5) {
+    return { outcome:"rejected", message:"Too lopsided in your favor — they won't even counter." };
+  }
+  // COUNTER — queued for next week's review
+  if (!franchise._pendingCounters) franchise._pendingCounters = [];
+  franchise._pendingCounters.push({
+    fromTeamId: ask.targetTeamId,
+    playerName: player.name,
+    askWantNames: [...ask.wantNames],
+    week: franchise.week,
+  });
+  return { outcome:"counter_queued" };
+}
+
+// Run during _runWeekEndResolution: convert queued counters into
+// concrete offers in the user's inbox.
+function _processPendingCounters() {
+  if (!franchise._pendingCounters?.length) return;
+  if (!franchise.tradeOffers) franchise.tradeOffers = [];
+  const myId = franchise.chosenTeamId;
+  for (const c of franchise._pendingCounters) {
+    const player = franchise.rosters[myId].find(p => p.name === c.playerName);
+    if (!player || !player.onTradeBlock) continue;
+    const theirRoster = franchise.rosters[c.fromTeamId];
+    if (!theirRoster) continue;
+    // AI counter: keep wanting the user's player; offer a player worth
+    // ~85% of the user's player (less generous than what user asked for)
+    const target = _playerTradeValue(player) * 0.85;
+    const candidates = theirRoster
+      .map(rp => ({ rp, diff: Math.abs(_playerTradeValue(rp) - target) }))
+      .sort((a,b) => a.diff - b.diff);
+    const offered = candidates[0]?.rp;
+    if (!offered) continue;
+    franchise.tradeOffers.push({
+      id: `c-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,
+      fromTeamId: c.fromTeamId,
+      theyGive: [offered.name],
+      theyWant: [player.name],
+      week: franchise.week,
+      status: "pending",
+      isCounter: true,
+      counterToAsk: c.askWantNames,
+    });
+  }
+  franchise._pendingCounters = [];
 }
 
 // Seed AI teams with 0-2 block listings at start of regular season so
@@ -18756,13 +18919,23 @@ function _renderTradeProposeTab(tp, sortBy, myRoster, cap, myCapUsed) {
 }
 
 function _renderTradeBlockTab(myRoster, sortBy) {
-  // Your roster — toggle each player onto/off the block
+  const tp = franchise._tradeProp || {};
+  // If editing an ask, swap the tab body for the ask form
+  if (tp.editAsk) return _renderBlockAskForm(tp.editAsk);
+
   const sorted = _sortRoster(myRoster, sortBy);
   const rows = sorted.map(p => {
     const escName = (p.name||"").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    const ask = p.blockAsk;
+    const askTeam = ask ? getTeam(ask.targetTeamId) : null;
+    const askSummary = ask
+      ? `<div style="color:var(--gold-lt);font-size:.62rem;margin-top:.15rem">
+           → ${askTeam?.name||"?"}: want ${ask.wantNames.join(", ")}
+         </div>`
+      : "";
     return `<tr class="${p.onTradeBlock?'frn-blocked':''}">
       <td style="color:var(--gold);font-size:.62rem">${p.position}</td>
-      <td style="font-weight:700">${p.name}</td>
+      <td style="font-weight:700">${p.name}${askSummary}</td>
       <td>${gradeBadge(p)}</td>
       <td style="color:var(--gray)">${p.age||"?"}</td>
       <td style="color:var(--gold)">$${(p.contract?.aav||0).toFixed(1)}M</td>
@@ -18770,19 +18943,87 @@ function _renderTradeBlockTab(myRoster, sortBy) {
       <td>
         <button class="btn ${p.onTradeBlock?'btn-gold':'btn-outline'}"
           onclick="frnToggleBlock('${escName}')" style="font-size:.6rem;padding:.2rem .55rem">
-          ${p.onTradeBlock?"✓ ON BLOCK":"+ Add to Block"}
+          ${p.onTradeBlock?"✓ ON BLOCK":"+ Block"}
         </button>
+        ${p.onTradeBlock ? `<button class="btn btn-outline" onclick="frnEditAsk('${escName}')"
+          style="font-size:.6rem;padding:.2rem .55rem;margin-left:.2rem">
+          ${ask?"✎ Edit Ask":"💲 Set Ask"}
+        </button>` : ""}
       </td>
     </tr>`;
   }).join("");
   return `
     <div style="color:var(--gray);font-size:.72rem;margin-bottom:.5rem">
-      Mark players as available. Listings go public when the week ends — offers arrive on the dashboard at the start of next week's review. Find them in the OFFERS tab.
+      Listings go public when the week ends. Set an asking price to send a direct proposal — the target team can accept on the spot or counter, with counters arriving the following week.
     </div>
     <table class="frn-pre-roster-table">
       <thead><tr><th>Pos</th><th>Player</th><th>Grade</th><th>Age</th><th>AAV</th><th>Yrs</th><th></th></tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
+}
+
+function _renderBlockAskForm(playerName) {
+  const myId = franchise.chosenTeamId;
+  const player = franchise.rosters[myId].find(p => p.name === playerName);
+  if (!player) return `<div>Player not found.</div>`;
+  const tp = franchise._tradeProp;
+  const ad = tp.askDraft || { targetTeamId: TEAMS.find(t => t.id !== myId).id, wantNames: [] };
+  const targetTeam = getTeam(ad.targetTeamId);
+  const theirRoster = franchise.rosters[ad.targetTeamId] || [];
+
+  // Quick value preview for user
+  const giveValue = _playerTradeValue(player);
+  const wantPlayers = ad.wantNames.map(n => theirRoster.find(p => p.name === n)).filter(Boolean);
+  const wantValue = wantPlayers.reduce((s,p) => s + _playerTradeValue(p), 0);
+  const ratio = wantValue ? (giveValue / wantValue) : 0;
+  const likelihood = !wantValue ? "—"
+    : ratio >= 0.95 ? "Very likely — instant accept"
+    : ratio >= 0.65 ? "Probably counter"
+    : "Way too lopsided — they'll reject";
+  const lkColor = !wantValue ? "var(--gray)"
+    : ratio >= 0.95 ? "var(--green-lt)"
+    : ratio >= 0.65 ? "#e8a000"
+    : "var(--red)";
+
+  const teamOptionsHtml = TEAMS.filter(t => t.id !== myId).map(t =>
+    `<option value="${t.id}" ${t.id===ad.targetTeamId?"selected":""}>${t.city} ${t.name}</option>`
+  ).join("");
+
+  const sortedTheirRoster = _sortRoster(theirRoster, tp.sortBy || "grade");
+  const wantSet = new Set(ad.wantNames);
+  const rosterRows = sortedTheirRoster.map(p => {
+    const escName = (p.name||"").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    const sel = wantSet.has(p.name);
+    return `<label class="frn-trade-player ${sel?"selected":""}">
+      <input type="checkbox" ${sel?"checked":""}
+        onchange="frnAskToggleWant('${escName}')">
+      <span style="color:var(--gold);font-size:.58rem;font-weight:700">${p.position}</span>
+      <span style="flex:1;font-weight:${sel?700:400}">${p.name}</span>
+      <span>${gradeBadge(p)}</span>
+      <span style="color:var(--gray);font-size:.62rem">${p.age||"?"}</span>
+      <span style="color:var(--gold);font-size:.62rem">$${(p.contract?.aav||0).toFixed(0)}M</span>
+    </label>`;
+  }).join("");
+
+  return `
+    <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem;flex-wrap:wrap">
+      <button class="btn btn-outline" onclick="frnCancelAsk()">← Back</button>
+      <div style="font-weight:900">Set ask for ${player.name}</div>
+      <div style="color:var(--gray);font-size:.7rem">(${player.position}, age ${player.age||"?"}, ${gradeLabel(scoutGrade(player))})</div>
+    </div>
+    <div class="frn-fa-summary">
+      Target team:
+      <select onchange="frnAskSetTarget(this.value)" style="background:var(--bg3);color:var(--white);border:1px solid var(--border);padding:.25rem .4rem;font-family:inherit">${teamOptionsHtml}</select>
+      <span style="margin-left:auto;color:${lkColor};font-weight:700">${likelihood}</span>
+    </div>
+    <div class="frn-card-title">YOU WANT FROM ${targetTeam?.name||"?"} (${ad.wantNames.length})</div>
+    <div class="frn-trade-list" style="max-height:480px;overflow-y:auto">${rosterRows}</div>
+    <div class="frn-actions" style="justify-content:center;margin-top:.7rem">
+      <button class="btn btn-gold-big" onclick="frnSubmitAsk()"
+        ${ad.wantNames.length===0?"disabled style=\"opacity:.5;cursor:not-allowed\"":""}>
+        📨 SEND PROPOSAL
+      </button>
+    </div>`;
 }
 
 function _renderTradeMarketTab(myId, sortBy) {
@@ -18856,7 +19097,9 @@ function _renderTradeOffersTab() {
       <div class="frn-offer-head">
         <div>
           <div style="font-weight:900">${fromTeam?.city||"?"} ${fromTeam?.name||"?"}</div>
-          <div style="color:var(--gray);font-size:.65rem">Week ${o.week} offer</div>
+          <div style="color:var(--gray);font-size:.65rem">
+            ${o.isCounter ? "📬 Counter — Week " + o.week : "Week " + o.week + " offer"}
+          </div>
         </div>
         ${statusBadge}
       </div>
