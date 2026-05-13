@@ -1661,6 +1661,182 @@
   }
   .frn-pg-stats-table tbody tr:nth-child(even) td { background: rgba(46,61,46,.18); }
 
+  /* ESPN-parody box-score layout */
+  .frn-bs-header {
+    display: flex; align-items: center; gap: 1rem; padding: .5rem .8rem;
+    background: var(--bg2); border: 1px solid var(--border);
+    margin-bottom: .55rem; flex-wrap: wrap;
+  }
+  .frn-bs-header .frn-bspn-logo {
+    color: #ff4040; font-size: .42rem; line-height: 1;
+  }
+  .frn-bs-back {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--white); font-size: .65rem; padding: .3rem .65rem;
+    cursor: pointer; letter-spacing: .3px; font-weight: 700;
+  }
+  .frn-bs-back:hover { background: var(--bg3); }
+  .frn-bs-meta {
+    font-size: .68rem; color: var(--gray); letter-spacing: .5px;
+    font-weight: 700; margin-left: auto;
+  }
+  .frn-bs-banner {
+    display: grid; grid-template-columns: 1fr auto 1fr;
+    align-items: center; gap: .8rem;
+    background: var(--bg2); border: 1px solid var(--border);
+    padding: 1.1rem 1.4rem; margin-bottom: .55rem;
+  }
+  .frn-bs-team {
+    display: flex; align-items: center; gap: .9rem;
+  }
+  .frn-bs-team.right { flex-direction: row-reverse; text-align: right; }
+  .frn-bs-team-ascii { font-size: 2.6rem; line-height: 1; }
+  .frn-bs-team-name {
+    font-size: 1.15rem; font-weight: 900; letter-spacing: .5px; line-height: 1.1;
+  }
+  .frn-bs-team-record {
+    font-size: .65rem; color: var(--gray); margin-top: .2rem; font-weight: 700;
+  }
+  .frn-bs-team-score {
+    font-size: 3rem; font-weight: 900; line-height: 1;
+  }
+  .frn-bs-team.winning .frn-bs-team-score { color: var(--gold-lt); }
+  .frn-bs-team.winning .frn-bs-team-arrow {
+    color: var(--gold-lt); font-size: 1.5rem; font-weight: 900;
+  }
+  .frn-bs-quarters {
+    border: 1px solid var(--border); padding: .35rem .5rem;
+    font-size: .7rem; min-width: 240px;
+  }
+  .frn-bs-quarters-title {
+    text-align: center; color: var(--gold); font-size: .58rem;
+    letter-spacing: .5px; font-weight: 900;
+    padding-bottom: .2rem; border-bottom: 1px solid var(--border);
+    margin-bottom: .25rem;
+  }
+  .frn-bs-quarters table { width: 100%; border-collapse: collapse; }
+  .frn-bs-quarters th, .frn-bs-quarters td {
+    padding: .15rem .35rem; text-align: center; font-variant-numeric: tabular-nums;
+  }
+  .frn-bs-quarters th {
+    color: var(--gold); font-size: .54rem; letter-spacing: .3px;
+  }
+  .frn-bs-quarters tr td:first-child {
+    text-align: left; font-weight: 800; padding-right: .5rem;
+  }
+  .frn-bs-quarters .total { color: var(--gold-lt); font-weight: 900; }
+  .frn-bs-main {
+    display: grid; grid-template-columns: 1fr 320px; gap: .7rem;
+    align-items: start;
+  }
+  @media (max-width: 1100px) { .frn-bs-main { grid-template-columns: 1fr; } }
+  .frn-bs-panel {
+    background: var(--bg2); border: 1px solid var(--border);
+    padding: .55rem .75rem; margin-bottom: .55rem;
+  }
+  .frn-bs-panel-title {
+    font-size: .6rem; font-weight: 800; color: var(--gold);
+    letter-spacing: .6px; padding-bottom: .25rem; margin-bottom: .35rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .frn-bs-comparison .row {
+    display: grid; grid-template-columns: 9rem 3rem 1fr 3rem;
+    gap: .35rem; align-items: center;
+    padding: .25rem 0; font-size: .68rem;
+    border-bottom: 1px solid rgba(46,61,46,.4);
+  }
+  .frn-bs-comparison .row:last-child { border-bottom: none; }
+  .frn-bs-comparison .stat {
+    color: var(--gold-lt); font-weight: 700; font-size: .62rem;
+    letter-spacing: .3px;
+  }
+  .frn-bs-comparison .stat::before { content: "› "; color: var(--gray); }
+  .frn-bs-comparison .v-left  { font-weight: 800; text-align: right; font-variant-numeric: tabular-nums; }
+  .frn-bs-comparison .v-right { font-weight: 800; font-variant-numeric: tabular-nums; }
+  .frn-bs-bar {
+    display: grid; grid-template-columns: 1fr 1fr; align-items: center;
+    height: 8px;
+  }
+  .frn-bs-bar-l, .frn-bs-bar-r {
+    height: 8px; display: flex;
+  }
+  .frn-bs-bar-l { justify-content: flex-end; }
+  .frn-bs-bar-r > span { display: block; }
+  .frn-bs-bar-l > span { display: block; }
+  .frn-bs-leader-row {
+    display: flex; align-items: center; gap: .55rem;
+    padding: .35rem .15rem;
+    border-bottom: 1px solid rgba(46,61,46,.4);
+  }
+  .frn-bs-leader-row:last-child { border-bottom: none; }
+  .frn-bs-leader-helm {
+    width: 36px; height: 36px; flex-shrink: 0;
+  }
+  .frn-bs-leader-meta {
+    flex: 1; min-width: 0;
+  }
+  .frn-bs-leader-cat {
+    color: var(--gold); font-size: .55rem; font-weight: 800;
+    letter-spacing: .4px; margin-bottom: .1rem;
+  }
+  .frn-bs-leader-name { font-weight: 800; font-size: .72rem; }
+  .frn-bs-leader-stats {
+    color: var(--gray); font-size: .6rem; font-weight: 600;
+  }
+  .frn-bs-leader-team {
+    color: var(--gold); font-size: .55rem; font-weight: 900;
+    letter-spacing: .4px; padding-left: .4rem;
+  }
+  .frn-bs-scoring-table {
+    width: 100%; border-collapse: collapse; font-size: .62rem;
+  }
+  .frn-bs-scoring-table th, .frn-bs-scoring-table td {
+    padding: .22rem .25rem; vertical-align: top;
+    border-bottom: 1px solid rgba(46,61,46,.35);
+  }
+  .frn-bs-scoring-table th {
+    color: var(--gold); letter-spacing: .3px; font-size: .54rem;
+    text-align: left;
+  }
+  .frn-bs-scoring-table td.qtr   { color: var(--gold); font-weight: 900; width: 1.8rem; }
+  .frn-bs-scoring-table td.time  { color: var(--gray); font-variant-numeric: tabular-nums; width: 3rem; }
+  .frn-bs-scoring-table td.team  { font-weight: 900; width: 2.4rem; }
+  .frn-bs-scoring-table td.score { font-weight: 900; color: var(--gold-lt); text-align: right; width: 3.2rem; font-variant-numeric: tabular-nums; }
+  .frn-bs-scoring-legend {
+    color: var(--gray); font-size: .55rem; padding-top: .35rem;
+    letter-spacing: .4px;
+  }
+  .frn-bs-notes {
+    list-style: none; margin: 0; padding: 0;
+    font-size: .66rem; line-height: 1.4;
+  }
+  .frn-bs-notes li {
+    padding: .25rem 0 .25rem .8rem; position: relative;
+    border-bottom: 1px solid rgba(46,61,46,.3);
+  }
+  .frn-bs-notes li::before {
+    content: "›"; color: var(--gold); position: absolute; left: 0;
+  }
+  .frn-bs-notes li:last-child { border-bottom: none; }
+  .frn-bs-footer {
+    display: grid; grid-template-columns: 1fr auto 1fr;
+    align-items: center; gap: 1rem;
+    margin-top: .8rem; padding: .7rem 1rem;
+    background: var(--bg2); border: 1px solid var(--border);
+    color: var(--green); font-family: monospace;
+    font-size: .65rem; letter-spacing: .3px; line-height: 1.2;
+  }
+  .frn-bs-footer-side { color: var(--gray); white-space: pre; overflow: hidden; }
+  .frn-bs-footer-side.right { text-align: right; }
+  .frn-bs-footer-center {
+    text-align: center; color: var(--gold);
+    font-weight: 900; letter-spacing: .8px;
+  }
+  .frn-bs-footer-center .sub {
+    color: var(--gray); font-weight: 600; font-size: .55rem;
+    letter-spacing: .6px; margin-top: .15rem;
+  }
+
   /* League chat */
   .frn-chat-list {
     background: var(--bg2); border: 1px solid var(--border);
@@ -18488,6 +18664,89 @@ function renderFrnDepthChart() {
     <div class="frn-depth-chart">${rowsHtml}</div>`;
 }
 
+// Compute a team's W-L-T record AS OF a given week (before that week's game).
+// confW/confL only count games against teams in the same conference.
+function _teamRecordAsOf(teamId, throughWeek) {
+  const team = getTeam(teamId);
+  let w = 0, l = 0, t = 0, confW = 0, confL = 0;
+  for (const g of (franchise.schedule || [])) {
+    if (!g.played || g.week >= throughWeek) continue;
+    let myScore, oppScore, oppId;
+    if (g.homeId === teamId)      { myScore = g.homeScore; oppScore = g.awayScore; oppId = g.awayId; }
+    else if (g.awayId === teamId) { myScore = g.awayScore; oppScore = g.homeScore; oppId = g.homeId; }
+    else continue;
+    const isConf = team && getTeam(oppId)?.conference === team.conference;
+    if (myScore > oppScore)      { w++; if (isConf) confW++; }
+    else if (myScore < oppScore) { l++; if (isConf) confL++; }
+    else                          { t++; }
+  }
+  return { w, l, t, confW, confL };
+}
+// Fantasy points (standard PPR) so we can pick top performers per team.
+function _fpts(p, pos) {
+  let f = 0;
+  if (pos === "QB") f += (p.pass_yds||0)*0.04 + (p.pass_td||0)*4 - (p.pass_int||0)*2;
+  f += (p.rush_yds||0)*0.1 + (p.rush_td||0)*6;
+  f += (p.rec||0)*1 + (p.rec_yds||0)*0.1 + (p.rec_td||0)*6;
+  f += (p.tkl||0)*1 + (p.sk||0)*2 + (p.int_made||0)*4 + (p.ff||0)*2 + (p.fr||0)*2 + (p.pd||0)*0.5;
+  f += (p.fg_made||0)*3 + (p.xp_made||0)*1;
+  return Math.round(f * 10) / 10;
+}
+// secs left in quarter → "MM:SS"
+function _clockMMSS(secs) {
+  const s = Math.max(0, Math.round(Number(secs) || 0));
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;
+}
+// Deterministic crowd size in the 45–75k range based on home/week.
+function _attendanceFor(home, week, season) {
+  if (!home) return 0;
+  let h = (season || 1) * 7919 + week * 31 + home.id * 53;
+  for (const c of (home.city + home.name)) h = (h * 31 + c.charCodeAt(0)) | 0;
+  const base = 45000;
+  const range = 30000;
+  return base + Math.abs(h) % range;
+}
+// Pick top performer in a stat category. Returns null if no one qualifies.
+function _topPerformer(players, scoreFn, threshold) {
+  let best = null, bestS = -Infinity;
+  for (const p of players) {
+    const s = scoreFn(p);
+    if (s > bestS && s >= (threshold || 0)) { best = p; bestS = s; }
+  }
+  return best;
+}
+// Mini helmet glyph used in leader rows (cheap inline SVG).
+function _mini_helmet(team) {
+  const primary = team?.primary || "#444";
+  const secondary = team?.secondary || "#ccc";
+  return `<svg class="frn-bs-leader-helm" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="20" cy="19" rx="15" ry="13" fill="${primary}" stroke="${secondary}" stroke-width="1.5"/>
+    <rect x="6" y="22" width="20" height="2" fill="${secondary}" rx="1"/>
+  </svg>`;
+}
+// Linear bars for the team-stat-comparison row.
+function _bsCompRow(label, aVal, hVal, awayColor, homeColor, fmt) {
+  const a = +aVal || 0, h = +hVal || 0;
+  const max = Math.max(a, h) || 1;
+  const aw = Math.round((a / max) * 100);
+  const hw = Math.round((h / max) * 100);
+  const fmtFn = fmt || (v => v);
+  return `<div class="row">
+    <div class="stat">${label}</div>
+    <div class="v-left">${fmtFn(a)}</div>
+    <div class="frn-bs-bar">
+      <div class="frn-bs-bar-l"><span style="width:${aw}%;background:${awayColor}"></span></div>
+      <div class="frn-bs-bar-r"><span style="width:${hw}%;background:${homeColor}"></span></div>
+    </div>
+    <div class="v-right">${fmtFn(h)}</div>
+  </div>`;
+}
+// Tiny ASCII football-field strip for the bottom footer.
+const _BS_FOOTER_FIELD_L = "x x x x x  ──────  ╨";
+const _BS_FOOTER_FIELD_R = "╨  ──────  x x x x x";
+
 function renderFrnPastGame(week, homeId, awayId) {
   frnHoverTipHide();
   _frnHoverTipPgHide();
@@ -18622,64 +18881,246 @@ function renderFrnPastGame(week, homeId, awayId) {
     </div>`;
   };
 
+  // ─── Records as of this game (computed from prior weeks) ─────────────
+  const awayRec = _teamRecordAsOf(g.awayId, week);
+  const homeRec = _teamRecordAsOf(g.homeId, week);
+  // Include this game's result in the record we display next to each team
+  if (homeWon) { homeRec.w++; awayRec.l++; if (home.conference === away.conference) { homeRec.confW++; awayRec.confL++; } }
+  else if (g.awayScore > g.homeScore) { awayRec.w++; homeRec.l++; if (home.conference === away.conference) { awayRec.confW++; homeRec.confL++; } }
+  else { awayRec.t++; homeRec.t++; }
+  const recStr = r => `${r.w}-${r.l}${r.t?`-${r.t}`:""} (${r.confW}-${r.confL})`;
+
+  // ─── Quarter-by-quarter mini scoreboard ──────────────────────────────
+  const linescoreMini = `<div class="frn-bs-quarters">
+    <div class="frn-bs-quarters-title">FINAL</div>
+    <table>
+      <thead><tr><th></th><th>Q1</th><th>Q2</th><th>Q3</th><th>Q4</th><th>TOTAL</th></tr></thead>
+      <tbody>
+        <tr><td style="color:${away.primary}">${away.abbr || away.name.slice(0,3).toUpperCase()}</td>
+          <td>${quarterScores[1].a}</td><td>${quarterScores[2].a}</td>
+          <td>${quarterScores[3].a}</td><td>${quarterScores[4].a}</td>
+          <td class="total">${g.awayScore}</td></tr>
+        <tr><td style="color:${home.primary}">${home.abbr || home.name.slice(0,3).toUpperCase()}</td>
+          <td>${quarterScores[1].h}</td><td>${quarterScores[2].h}</td>
+          <td>${quarterScores[3].h}</td><td>${quarterScores[4].h}</td>
+          <td class="total">${g.homeScore}</td></tr>
+      </tbody>
+    </table>
+  </div>`;
+
+  // ─── Team Stat Comparison panel (with bars) ──────────────────────────
+  const aT = stats?.away?.totals || {};
+  const hT = stats?.home?.totals || {};
+  const fmtTOP = v => `${Math.floor((v||0)/60)}:${String((v||0)%60).padStart(2,"0")}`;
+  const fmtPenalty = (yds, side) => {
+    const t = stats?.[side]?.totals || {};
+    return `${t.penalties||0} (${t.penaltyYds||0})`;
+  };
+  const compHtml = stats ? `
+    ${_bsCompRow("FIRST DOWNS",   aT.firstDowns, hT.firstDowns, away.primary, home.primary)}
+    ${_bsCompRow("TOTAL YARDS",   aT.totalYards, hT.totalYards, away.primary, home.primary)}
+    ${_bsCompRow("PASSING YARDS", aT.passYds,    hT.passYds,    away.primary, home.primary)}
+    ${_bsCompRow("RUSHING YARDS", aT.rushYds,    hT.rushYds,    away.primary, home.primary)}
+    ${_bsCompRow("TURNOVERS",     aT.turnovers,  hT.turnovers,  away.primary, home.primary)}
+    ${_bsCompRow("SACKS",         aT.sacks,      hT.sacks,      away.primary, home.primary)}
+    ${_bsCompRow("PENALTIES",     aT.penaltyYds||aT.penalties||0, hT.penaltyYds||hT.penalties||0, away.primary, home.primary)}
+    ${_bsCompRow("TIME OF POSS.", aT.topSec,     hT.topSec,     away.primary, home.primary, fmtTOP)}
+  ` : "";
+
+  // ─── Top performers (leaders) ───────────────────────────────────────
+  const allAway = Object.values(stats?.away?.players || {});
+  const allHome = Object.values(stats?.home?.players || {});
+  const all = [...allAway.map(p => ({ ...p, _team: away, _side: "away" })),
+               ...allHome.map(p => ({ ...p, _team: home, _side: "home" }))];
+  const topPass = _topPerformer(all, p => p.pass_yds || 0, 30);
+  const topRush = _topPerformer(all, p => p.rush_yds || 0, 20);
+  const topRec  = _topPerformer(all, p => p.rec_yds  || 0, 20);
+  const topDef  = _topPerformer(all, p => (p.tkl||0)*1 + (p.sk||0)*3 + (p.int_made||0)*5, 4);
+  const topFPS  = [...all].sort((a,b) => _fpts(b, b.pos) - _fpts(a, a.pos)).slice(0, 4);
+
+  const leaderRow = (cat, p, statLine) => {
+    if (!p) return "";
+    const tm = p._team;
+    return `<div class="frn-bs-leader-row">
+      ${_mini_helmet(tm)}
+      <div class="frn-bs-leader-meta">
+        <div class="frn-bs-leader-cat">${cat}</div>
+        <div>
+          <span class="frn-bs-leader-name">#${p.jersey ?? "?"} ${playerLinkByName(p.name)}</span>
+          <span class="frn-bs-leader-team">${tm.abbr || tm.name.slice(0,3).toUpperCase()}</span>
+        </div>
+        <div class="frn-bs-leader-stats">${statLine}</div>
+      </div>
+    </div>`;
+  };
+  const offLeaders = `
+    ${leaderRow("PASSING", topPass, topPass ? `${topPass.pass_comp||0}-${topPass.pass_att||0}, ${topPass.pass_yds||0} YDS, ${topPass.pass_td||0} TD, ${topPass.pass_int||0} INT` : "—")}
+    ${leaderRow("RUSHING", topRush, topRush ? `${topRush.rush_att||0} ATT, ${topRush.rush_yds||0} YDS, ${topRush.rush_td||0} TD` : "—")}
+    ${leaderRow("RECEIVING", topRec, topRec ? `${topRec.rec||0} REC, ${topRec.rec_yds||0} YDS, ${topRec.rec_td||0} TD` : "—")}
+    ${leaderRow("DEFENSE", topDef, topDef ? `${topDef.tkl||0} TKL, ${topDef.sk||0} SK${topDef.int_made?`, ${topDef.int_made} INT`:""}` : "—")}
+  `;
+  const gameLeaders = topFPS.map(p => {
+    const tm = p._team;
+    const pos = p.pos;
+    let detail = "";
+    if (pos === "QB") detail = `${p.pass_yds||0} PASS YDS, ${p.pass_td||0} TD`;
+    else if (pos === "RB") detail = `${p.rush_yds||0} RUSH YDS, ${p.rush_td||0} TD`;
+    else if (pos === "WR" || pos === "TE") detail = `${p.rec_yds||0} REC YDS, ${p.rec_td||0} TD`;
+    else if (pos === "K") detail = `${p.fg_made||0}/${p.fg_att||0} FG`;
+    else detail = `${p.tkl||0} TKL, ${p.sk||0} SK`;
+    return `<div class="frn-bs-leader-row">
+      ${_mini_helmet(tm)}
+      <div class="frn-bs-leader-meta">
+        <div>
+          <span class="frn-bs-leader-name">${playerLinkByName(p.name)}</span>
+          <span class="frn-bs-leader-team">${tm.abbr || tm.name.slice(0,3).toUpperCase()}</span>
+        </div>
+        <div class="frn-bs-leader-stats">${_fpts(p, pos).toFixed(1)} FPTS · ${detail}</div>
+      </div>
+    </div>`;
+  }).join("");
+
+  // ─── Scoring summary table ──────────────────────────────────────────
+  const scoringRows = scoring.filter(ev => ev.isScore !== false && (ev.pts > 0)).map(ev => {
+    const tm = ev.poss === "home" ? home : away;
+    const abbr = tm.abbr || tm.name.slice(0,3).toUpperCase();
+    return `<tr>
+      <td class="qtr">${ev.qtr || "?"}</td>
+      <td class="time">${_clockMMSS(ev.clock)}</td>
+      <td class="team" style="color:${tm.primary}">${abbr}</td>
+      <td>${(ev.desc || "").replace(/\(\+\d+\)/, "").trim()}</td>
+      <td class="score">${ev.awayScore}-${ev.homeScore}</td>
+    </tr>`;
+  }).join("");
+  const scoringSummaryTable = `<table class="frn-bs-scoring-table">
+    <thead><tr><th>QTR</th><th>TIME</th><th>TEAM</th><th>PLAY (SCORER)</th><th style="text-align:right">SCORE</th></tr></thead>
+    <tbody>${scoringRows || `<tr><td colspan="5" style="color:var(--gray);text-align:center;font-style:italic">No scoring events recorded.</td></tr>`}</tbody>
+  </table>
+  <div class="frn-bs-scoring-legend">TD = TOUCHDOWN &nbsp;&nbsp; FG = FIELD GOAL &nbsp;&nbsp; XP = EXTRA POINT</div>`;
+
+  // ─── Game notes (career milestones, attendance, weather, next game) ──
+  const notes = [];
+  if (topPass && (topPass.pass_td || 0) >= 2) {
+    notes.push(`${playerLinkByName(topPass.name)} (${topPass._team.abbr || topPass._team.name.slice(0,3).toUpperCase()}) — ${topPass.pass_td}+ TD passing game.`);
+  }
+  if (topRush && (topRush.rush_yds || 0) >= 100) {
+    notes.push(`${playerLinkByName(topRush.name)} crossed 100 rushing yards.`);
+  }
+  if (topRec && (topRec.rec_yds || 0) >= 100) {
+    notes.push(`${playerLinkByName(topRec.name)} cleared the 100-yard receiving mark.`);
+  }
+  if (topDef && (topDef.sk || 0) >= 2) {
+    notes.push(`${playerLinkByName(topDef.name)} posted a multi-sack performance.`);
+  }
+  // Conference standings tag
+  const winnerName = homeWon ? home.name : away.name;
+  if (home.conference === away.conference) {
+    notes.push(`${winnerName} improve to ${recStr(homeWon ? homeRec : awayRec).split(" ")[0]} in conference play.`);
+  }
+  notes.push(`Attendance: ${_attendanceFor(home, week, franchise.season).toLocaleString()}`);
+  if (g.weather && g.weather.label) {
+    const w = g.weather;
+    notes.push(`Weather: ${w.tempF ? w.tempF+"°F" : ""} ${w.label||""}${w.windMph ? `, Wind ${w.windMph} mph` : ""}`.trim());
+  }
+  // Next game per team
+  const myId = franchise.chosenTeamId;
+  const myTeam = (homeId === myId || awayId === myId) ? getTeam(myId) : home;
+  const nextGames = (franchise.schedule || [])
+    .filter(s => !s.played && (s.homeId === homeId || s.awayId === homeId || s.homeId === awayId || s.awayId === awayId))
+    .sort((a,b) => a.week - b.week);
+  const nextFor = teamId => {
+    const ng = nextGames.find(s => s.homeId === teamId || s.awayId === teamId);
+    if (!ng) return null;
+    const opp = getTeam(ng.homeId === teamId ? ng.awayId : ng.homeId);
+    const venue = ng.homeId === teamId ? "vs" : "at";
+    return `${getTeam(teamId).abbr || getTeam(teamId).name.slice(0,3).toUpperCase()} ${venue} ${opp.abbr || opp.name.slice(0,3).toUpperCase()} (Wk ${ng.week})`;
+  };
+  const nh = nextFor(homeId), na = nextFor(awayId);
+  if (nh || na) {
+    notes.push(`Next Game: ${[na, nh].filter(Boolean).join(" · ")}`);
+  }
+  const notesHtml = `<ul class="frn-bs-notes">${notes.map(n => `<li>${n}</li>`).join("")}</ul>`;
+
+  // ─── Per-team stat boxes (reuse existing buildSideBox) ──────────────
+  const teamBoxes = stats ? `<div class="frn-pg-grid">
+    ${buildSideBox("away", away, g.awayScore, !homeWon)}
+    ${buildSideBox("home", home, g.homeScore, homeWon)}
+  </div>` : "";
+
+  // ─── Compose final layout ───────────────────────────────────────────
   $("frnHomeContent").innerHTML = `
-    <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem;flex-wrap:wrap">
-      <button class="btn btn-outline" onclick="showFranchiseDashboard()">← Back</button>
+    <div class="frn-bs-header">
       <pre class="frn-bspn-logo">${BSPN_LOGO}</pre>
-      <div style="font-size:.7rem;color:var(--gray);font-weight:700;letter-spacing:.5px">SEASON ${franchise.season} · WEEK ${week} · FINAL${g.isRivalry?` · <span style="color:var(--gold-lt)">🔥 RIVALRY</span>`:""}${g.weather && g.weather.label !== "CLEAR" ? ` · <span style="color:var(--white)">${_wxIcon(g.weather.label)} ${g.weather.label}</span>` : ""}</div>
+      <button class="frn-bs-back" onclick="showFranchiseDashboard()">← ALL SCORES</button>
+      <div class="frn-bs-meta">
+        SEASON ${franchise.season} · WEEK ${week} · BOX SCORE${g.isRivalry?` · <span style="color:var(--gold-lt)">🔥 RIVALRY</span>`:""}${g.weather && g.weather.label !== "CLEAR" ? ` · <span style="color:var(--white)">${_wxIcon(g.weather.label)} ${g.weather.label}</span>` : ""}
+      </div>
     </div>
 
-    <div class="frn-pg-banner">
-      <div class="frn-pg-team-card ${homeWon?'lose':'win'}" style="border-color:${away.primary}">
-        <div style="font-size:2.4rem;color:${away.primary}">${teamAscii(away)}</div>
-        <div style="text-align:center">
-          <div style="font-weight:900;font-size:.9rem">${away.city}</div>
-          <div style="font-weight:900;font-size:1.05rem;color:${away.primary}">${away.name.toUpperCase()}</div>
+    <div class="frn-bs-banner">
+      <div class="frn-bs-team ${homeWon ? "" : "winning"}">
+        <div class="frn-bs-team-ascii" style="color:${away.primary}">${teamAscii(away)}</div>
+        <div>
+          <div class="frn-bs-team-name" style="color:${away.primary}">${away.city.toUpperCase()}<br>${away.name.toUpperCase()}</div>
+          <div class="frn-bs-team-record">${recStr(awayRec)}</div>
         </div>
-        <div class="frn-pg-score" style="color:${homeWon?'var(--gray)':'var(--gold-lt)'}">${g.awayScore}</div>
+        <div class="frn-bs-team-score">${g.awayScore}</div>
+        ${homeWon ? "" : `<span class="frn-bs-team-arrow">◄</span>`}
       </div>
-      <div style="text-align:center;align-self:center">
-        <div style="font-size:.6rem;color:var(--gold);font-weight:700;letter-spacing:.5px">FINAL</div>
-        <div style="font-size:.65rem;color:var(--gray);margin-top:.3rem">at ${home.city}</div>
-      </div>
-      <div class="frn-pg-team-card ${homeWon?'win':'lose'}" style="border-color:${home.primary}">
-        <div class="frn-pg-score" style="color:${homeWon?'var(--gold-lt)':'var(--gray)'}">${g.homeScore}</div>
-        <div style="text-align:center">
-          <div style="font-weight:900;font-size:.9rem">${home.city}</div>
-          <div style="font-weight:900;font-size:1.05rem;color:${home.primary}">${home.name.toUpperCase()}</div>
+      ${linescoreMini}
+      <div class="frn-bs-team right ${homeWon ? "winning" : ""}">
+        <div class="frn-bs-team-ascii" style="color:${home.primary}">${teamAscii(home)}</div>
+        <div>
+          <div class="frn-bs-team-name" style="color:${home.primary}">${home.city.toUpperCase()}<br>${home.name.toUpperCase()}</div>
+          <div class="frn-bs-team-record">${recStr(homeRec)}</div>
         </div>
-        <div style="font-size:2.4rem;color:${home.primary}">${teamAscii(home)}</div>
+        <div class="frn-bs-team-score">${g.homeScore}</div>
+        ${homeWon ? `<span class="frn-bs-team-arrow">►</span>` : ""}
       </div>
     </div>
 
-    <div class="frn-pg-row">
-      <div class="frn-pg-card">
-        <div class="frn-pg-card-title">LINESCORE</div>
-        ${linescore}
+    <div class="frn-bs-main">
+      <div>
+        ${stats ? `<div class="frn-bs-panel">
+          <div class="frn-bs-panel-title">TEAM STAT COMPARISON</div>
+          <div class="frn-bs-comparison">${compHtml}</div>
+        </div>` : ""}
+        ${teamBoxes}
+        ${stats ? `<div class="frn-bs-panel">
+          <div class="frn-bs-panel-title">WIN PROBABILITY</div>
+          ${winProbChart}
+        </div>` : ""}
       </div>
-      <div class="frn-pg-card" style="flex:2">
-        <div class="frn-pg-card-title">WIN PROBABILITY</div>
-        ${winProbChart}
+      <div>
+        ${stats ? `<div class="frn-bs-panel">
+          <div class="frn-bs-panel-title">OFFENSIVE LEADERS</div>
+          ${offLeaders}
+        </div>
+        <div class="frn-bs-panel">
+          <div class="frn-bs-panel-title">GAME LEADERS · TOP PERFORMERS</div>
+          ${gameLeaders}
+        </div>` : ""}
+        <div class="frn-bs-panel">
+          <div class="frn-bs-panel-title">SCORING SUMMARY</div>
+          ${scoringSummaryTable}
+        </div>
+        <div class="frn-bs-panel">
+          <div class="frn-bs-panel-title">GAME NOTES</div>
+          ${notesHtml}
+        </div>
       </div>
     </div>
 
-    <div class="frn-pg-row">
-      <div class="frn-pg-card">
-        <div class="frn-pg-card-title">SCORING SUMMARY</div>
-        <div class="frn-pg-scoring-list">${scoringSummary}</div>
-      </div>
-      ${stats ? `
-      <div class="frn-pg-card">
-        <div class="frn-pg-card-title">TEAM STATS</div>
-        ${teamTotalsHtml}
-      </div>` : ""}
-    </div>
+    ${!stats ? `<div style="color:var(--gray);font-size:.78rem;padding:1rem;text-align:center;font-style:italic">No detailed stats recorded for this game (played before per-game tracking).</div>` : ""}
 
-    ${!stats ? `<div style="color:var(--gray);font-size:.78rem;padding:1rem;text-align:center;font-style:italic">No detailed stats recorded for this game (played before per-game tracking).</div>`
-      : `<div class="frn-pg-grid">
-          ${buildSideBox("away", away, g.awayScore, !homeWon)}
-          ${buildSideBox("home", home, g.homeScore, homeWon)}
-        </div>`}`;
+    <div class="frn-bs-footer">
+      <div class="frn-bs-footer-side">${_BS_FOOTER_FIELD_L}</div>
+      <div class="frn-bs-footer-center">
+        BSPN ASCII FOOTBALL v1.0
+        <div class="sub">GRIDIRON. CODE. GLORY.</div>
+      </div>
+      <div class="frn-bs-footer-side right">${_BS_FOOTER_FIELD_R}</div>
+    </div>`;
 }
 
 function _pgTotalRow(label, stats, key, away, home, isTime) {
