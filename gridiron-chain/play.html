@@ -849,7 +849,10 @@
     <button class="btn btn-outline" id="franchiseBtn" title="Start or continue a multi-season franchise">📋 Franchise</button>
     <button class="btn btn-primary" id="playBtn" disabled>▶ Play</button>
     <button class="btn btn-outline" id="pauseBtn" disabled>⏸ Pause</button>
-    <button class="btn btn-outline" id="endBtn" disabled>⏭ Skip to End</button>
+    <button class="btn btn-outline" id="nextPlayBtn" disabled title="Skip to next play">⏭ Play</button>
+    <button class="btn btn-outline" id="endQtrBtn" disabled title="Sim to end of current quarter">⏭ Qtr</button>
+    <button class="btn btn-outline" id="endHalfBtn" disabled title="Sim to halftime">⏭ Half</button>
+    <button class="btn btn-outline" id="endBtn" disabled>⏭ End</button>
     <div class="speed-control">
       <span>Speed</span>
       <input type="range" id="speedSlider" min="1" max="10" step="1" value="5" style="width: 130px;" />
@@ -8249,11 +8252,81 @@ endBtn.addEventListener("click", () => {
   updateButtons();
 });
 
+// Jump the playback head forward to a target play index. Cancels the current
+// animation, refreshes side panels, and either resumes auto-play or draws a
+// static frame depending on whether the user was playing.
+function jumpAheadTo(targetIdx) {
+  if (!gameResult) return;
+  targetIdx = Math.min(targetIdx, gameResult.plays.length);
+  if (targetIdx <= playHead) return;
+  const wasPlaying = playing;
+  cancelAnimationFrame(rafId);
+  animState = null;
+  playing = false;
+  playHead = targetIdx;
+
+  renderScoreboard();
+  renderPlayLog();
+  renderBoxScore();
+  renderProgress();
+
+  if (playHead >= gameResult.plays.length) {
+    renderStaticEnd();
+    updateButtons();
+    return;
+  }
+  if (wasPlaying) {
+    playing = true;
+    startNextPlay();
+  } else {
+    const ctx = $("field").getContext("2d");
+    const cur = playHead > 0 ? gameResult.plays[playHead - 1] : null;
+    if (viewMode === "cinema") drawCinemaField(ctx, gameResult.homeTeam, gameResult.awayTeam, cur);
+    else                       drawField      (ctx, gameResult.homeTeam, gameResult.awayTeam, cur);
+  }
+  updateButtons();
+}
+
+$("nextPlayBtn").addEventListener("click", () => {
+  if (!gameResult || playHead >= gameResult.plays.length) return;
+  jumpAheadTo(playHead + 1);
+});
+
+$("endQtrBtn").addEventListener("click", () => {
+  if (!gameResult || playHead >= gameResult.plays.length) return;
+  const curQ = gameResult.plays[playHead]?.quarter || 1;
+  let i = playHead;
+  while (i < gameResult.plays.length && (gameResult.plays[i].quarter ?? curQ) <= curQ) i++;
+  jumpAheadTo(i);
+});
+
+$("endHalfBtn").addEventListener("click", () => {
+  if (!gameResult || playHead >= gameResult.plays.length) return;
+  const cur = gameResult.plays[playHead];
+  let target;
+  if ((cur.quarter ?? 1) <= 2) {
+    // Find first play in Q3 (or a halftime marker)
+    target = gameResult.plays.findIndex((p, i) => i > playHead && ((p.quarter ?? 1) >= 3 || p.kind === "halftime"));
+  } else if ((cur.quarter ?? 1) <= 4) {
+    // Already past halftime — sim to end of regulation
+    target = gameResult.plays.findIndex((p, i) => i > playHead && (p.quarter ?? 1) >= 5);
+    if (target < 0) target = gameResult.plays.length;
+  } else {
+    target = gameResult.plays.length;
+  }
+  if (target < 0) target = gameResult.plays.length;
+  jumpAheadTo(target);
+});
+
 function updateButtons() {
   const done = !gameResult || playHead >= gameResult.plays.length;
-  playBtn.disabled  = !gameResult || playing || done;
-  pauseBtn.disabled = !gameResult || !playing;
-  endBtn.disabled   = !gameResult || done;
+  playBtn.disabled       = !gameResult || playing || done;
+  pauseBtn.disabled      = !gameResult || !playing;
+  endBtn.disabled        = !gameResult || done;
+  const skipDis          = !gameResult || done;
+  $("nextPlayBtn").disabled = skipDis;
+  $("endQtrBtn").disabled   = skipDis;
+  $("endHalfBtn").disabled  = skipDis;
 }
 
 let boxTab = "totals";
@@ -13840,6 +13913,9 @@ function startFranchise(teamId) {
     history:        [],
     pendingFranchiseGame: null,
     _offChanges:    null,
+    seasonStats:    {},
+    seasonHighlights: [],
+    superBowlGame:  null,
   };
   saveFranchise();
   showFranchiseDashboard();
@@ -14007,14 +14083,193 @@ function renderFrnRegular() {
     </div>`;
 }
 
+// ── Season-long stats / highlights / MVPs ────────────────────────────────────
+
+// Player MVP weight formula. Rewards TDs, yards, takeaways; penalizes turnovers.
+// Applied to season-aggregated stats; combined with team-success multiplier for
+// the league MVP race.
+function mvpScore(p) {
+  let s = 0;
+  // Offense
+  s += (p.pass_td       || 0) * 6
+     + (p.pass_yds      || 0) * 0.05
+     + (p.pass_comp     || 0) * 0.30
+     - (p.pass_int      || 0) * 4
+     - (p.sk_taken      || 0) * 0.5;
+  s += (p.rush_td       || 0) * 6
+     + (p.rush_yds      || 0) * 0.08
+     + (p.broken_tackles|| 0) * 0.5
+     - (p.fumbles_lost  || 0) * 3;
+  s += (p.rec_td        || 0) * 6
+     + (p.rec_yds       || 0) * 0.10
+     + (p.rec           || 0) * 0.5;
+  // Defense
+  s += (p.tkl           || 0) * 0.6
+     + (p.sk            || 0) * 2
+     + (p.int_made      || 0) * 5
+     + (p.pd            || 0) * 1
+     + (p.ff            || 0) * 2
+     + (p.fr            || 0) * 2
+     + (p.def_td        || 0) * 8;
+  // Kicker
+  s += (p.fg_made       || 0) * 2
+     + (p.xp_made       || 0) * 0.5;
+  return s;
+}
+
+function mvpStatLine(p) {
+  const parts = [];
+  if (p.pass_att)  parts.push(`${p.pass_comp || 0}/${p.pass_att} ${p.pass_yds || 0} pYds ${p.pass_td || 0} pTD${p.pass_int ? ` ${p.pass_int} INT` : ""}`);
+  if (p.rush_att)  parts.push(`${p.rush_att} car ${p.rush_yds || 0} yds ${p.rush_td || 0} TD`);
+  if (p.rec_tgt)   parts.push(`${p.rec || 0}/${p.rec_tgt} ${p.rec_yds || 0} yds ${p.rec_td || 0} TD`);
+  if (p.tkl || p.sk || p.int_made) {
+    const d = [];
+    if (p.tkl)      d.push(`${p.tkl} TKL`);
+    if (p.sk)       d.push(`${(+p.sk).toFixed(1)} SK`);
+    if (p.int_made) d.push(`${p.int_made} INT`);
+    if (p.ff)       d.push(`${p.ff} FF`);
+    if (p.def_td)   d.push(`${p.def_td} TD`);
+    parts.push(d.join(", "));
+  }
+  if (p.fg_att) parts.push(`${p.fg_made || 0}/${p.fg_att} FG`);
+  return parts.join(" · ");
+}
+
+// Merge a single game's per-player stats into season-long totals.
+function mergeSeasonStats(homeId, awayId, gameStats) {
+  if (!gameStats) return;
+  if (!franchise.seasonStats) franchise.seasonStats = {};
+  const merge = (teamId, side) => {
+    if (!side || !side.players) return;
+    if (!franchise.seasonStats[teamId]) franchise.seasonStats[teamId] = {};
+    const ts = franchise.seasonStats[teamId];
+    for (const [name, p] of Object.entries(side.players)) {
+      if (!ts[name]) ts[name] = { name, pos: p.pos, gp: 0 };
+      ts[name].gp = (ts[name].gp || 0) + 1;
+      for (const [k, v] of Object.entries(p)) {
+        if (k === "name" || k === "pos") continue;
+        if (typeof v === "number") ts[name][k] = (ts[name][k] || 0) + v;
+      }
+    }
+  };
+  merge(homeId, gameStats.home);
+  merge(awayId, gameStats.away);
+}
+
+// Pull the top 3-4 highlight-worthy plays from a game; weight by clutch
+// context (Q4 + close, OT, playoff) so big moments rise to the top.
+function captureGameHighlights(homeId, awayId, plays, isPlayoff, weekLabel) {
+  if (!plays || !plays.length) return;
+  if (!franchise.seasonHighlights) franchise.seasonHighlights = [];
+  const hl = [];
+  for (const p of plays) {
+    let w = 0, label = "";
+    if (p.kind === "score") {
+      const scorer = p.poss === "home" ? getTeam(homeId).name : getTeam(awayId).name;
+      const is_td = !!(p.passer || p.rusher || p.receiver) ||
+                    (p.desc && /touchdown/i.test(p.desc));
+      w = is_td ? 6 : 2.5;
+      label = `${scorer} ${is_td ? "TD" : "FG"}`;
+    } else if (p.kind === "run" && (p.yards || 0) >= 25) {
+      w = 4 + Math.min(4, ((p.yards || 0) - 25) / 10);
+      label = `${p.rusher || "RB"} ${p.yards} yd run`;
+    } else if (p.kind === "complete" && (p.yards || 0) >= 30) {
+      w = 4 + Math.min(4, ((p.yards || 0) - 30) / 10);
+      label = `${p.passer || "QB"}→${p.receiver || "WR"} ${p.yards} yd`;
+    } else if (p.kind === "int") {
+      w = 7;
+      label = `INT by ${p.interceptor || p.defender || "DEF"}`;
+    } else if (p.kind === "fumble") {
+      w = 5;
+      label = `FUM forced by ${p.forcedBy || "DEF"}`;
+    } else if (p.kind === "fg_good" && (p.distance || 0) >= 48) {
+      w = 3 + ((p.distance || 0) - 48) / 5;
+      label = `${p.kicker || "K"} ${p.distance} yd FG`;
+    }
+    if (w === 0) continue;
+
+    // Clutch multipliers
+    const margin = (p.homeScore != null && p.awayScore != null)
+      ? Math.abs(p.homeScore - p.awayScore) : 99;
+    const isClutch = (p.quarter === 4 && margin <= 8);
+    if (isClutch)              w *= 2.0;
+    if ((p.quarter || 0) >= 5) w *= 3.0;
+    if (isPlayoff)             w *= 1.5;
+
+    hl.push({
+      weight: w,
+      label,
+      desc: p.desc || "",
+      quarter: p.quarter,
+      time: p.time,
+      homeScore: p.homeScore,
+      awayScore: p.awayScore,
+      homeId,
+      awayId,
+      isPlayoff: !!isPlayoff,
+      week: weekLabel,
+      isClutch,
+    });
+  }
+  // Top 4 per game so we don't bury the season
+  const top = hl.sort((a, b) => b.weight - a.weight).slice(0, 4);
+  franchise.seasonHighlights.push(...top);
+}
+
+// Compute single team's MVP from accumulated stats. Returns null if no
+// meaningful production.
+function computeTeamMVP(teamId) {
+  const players = franchise.seasonStats?.[teamId];
+  if (!players) return null;
+  const best = Object.values(players)
+    .map(p => ({ ...p, score: mvpScore(p) }))
+    .sort((a, b) => b.score - a.score)[0];
+  return (best && best.score > 8) ? best : null;
+}
+
+// League MVP — best score across all teams, weighted by team success so
+// production on winning teams matters more.
+function computeLeagueMVP() {
+  let best = null;
+  for (const [teamId, players] of Object.entries(franchise.seasonStats || {})) {
+    const stand = franchise.standings[+teamId];
+    const gp    = stand ? stand.w + stand.l + stand.t : 1;
+    const winPct = gp > 0 ? stand.w / gp : 0.5;
+    const teamMul = 0.55 + winPct * 0.85; // 0.55x → 1.40x
+    for (const p of Object.values(players)) {
+      const s = mvpScore(p) * teamMul;
+      if (!best || s > best.score) best = { ...p, teamId: +teamId, score: s };
+    }
+  }
+  return best;
+}
+
+// Super Bowl MVP — top scorer from the winning side of the championship game.
+function computeSuperBowlMVP() {
+  const g = franchise.superBowlGame;
+  if (!g || !g.stats) return null;
+  const winSide = g.winnerId === g.homeId ? "home" : "away";
+  const players = Object.values(g.stats[winSide]?.players || {});
+  if (!players.length) return null;
+  const ranked = players.map(p => ({ ...p, score: mvpScore(p) }))
+                        .sort((a, b) => b.score - a.score);
+  return { ...ranked[0], teamId: g.winnerId };
+}
+
 // ── Sim helpers ──────────────────────────────────────────────────────────────
-function frnSimOnce(homeId, awayId) {
+// `frnSimOnce` returns the simulation result; callers use it to capture
+// season stats + highlights as a side effect. The full game object is
+// available on the returned `.full` for callers that need playoff details.
+function frnSimOnce(homeId, awayId, isPlayoff = false) {
   const sim = new GameSimulator(
     getTeam(homeId), getTeam(awayId),
     franchise.rosters[homeId], franchise.rosters[awayId]
   );
   const r = sim.simulate();
-  return { homeScore: r.homeScore, awayScore: r.awayScore };
+  mergeSeasonStats(homeId, awayId, r.stats);
+  captureGameHighlights(homeId, awayId, r.plays, isPlayoff,
+    isPlayoff ? `Playoff R${(franchise.playoffBracket?.roundIdx ?? 0) + 1}` : `W${franchise.week}`);
+  return { homeScore: r.homeScore, awayScore: r.awayScore, full: r };
 }
 
 function markGamePlayed(homeId, awayId, homeScore, awayScore) {
@@ -14117,7 +14372,24 @@ function frnFinishGame() {
   const homeScore = gameResult ? gameResult.homeScore : 0;
   const awayScore = gameResult ? gameResult.awayScore : 0;
 
+  // Capture stats and highlights from the played game
+  if (gameResult) {
+    mergeSeasonStats(homeId, awayId, gameResult.stats);
+    captureGameHighlights(homeId, awayId, gameResult.plays, isPlayoff,
+      isPlayoff ? `Playoff R${(franchise.playoffBracket?.roundIdx ?? 0) + 1}` : `W${franchise.week}`);
+  }
+
   if (isPlayoff) {
+    // Championship round? Save SB game stats for SB MVP.
+    const pb = franchise.playoffBracket;
+    const isChamp = pb && pb.roundIdx === pb.rounds.length - 1;
+    if (isChamp && gameResult) {
+      franchise.superBowlGame = {
+        homeId, awayId, homeScore, awayScore,
+        stats: gameResult.stats,
+        winnerId: homeScore >= awayScore ? homeId : awayId,
+      };
+    }
     applyPlayoffResult(homeId, awayId, homeScore, awayScore);
   } else {
     markGamePlayed(homeId, awayId, homeScore, awayScore);
@@ -14215,7 +14487,18 @@ function renderFrnPlayoffs() {
 }
 
 function frnSimPlayoffGame(homeId, awayId) {
-  const r = frnSimOnce(homeId, awayId);
+  const r = frnSimOnce(homeId, awayId, /* isPlayoff */ true);
+  // If this matchup is in the final round, save it as the Super Bowl game
+  const pb = franchise.playoffBracket;
+  const isChamp = pb.roundIdx === pb.rounds.length - 1;
+  if (isChamp) {
+    franchise.superBowlGame = {
+      homeId, awayId,
+      homeScore: r.homeScore, awayScore: r.awayScore,
+      stats: r.full.stats,
+      winnerId: r.homeScore >= r.awayScore ? homeId : awayId,
+    };
+  }
   applyPlayoffResult(homeId, awayId, r.homeScore, r.awayScore);
   saveFranchise();
   renderFrnPlayoffs();
@@ -14224,11 +14507,20 @@ function frnSimPlayoffGame(homeId, awayId) {
 function frnSimPlayoffRound() {
   const { playoffBracket } = franchise;
   const rd = playoffBracket.rounds[playoffBracket.roundIdx];
+  const isChampRound = playoffBracket.roundIdx === playoffBracket.rounds.length - 1;
   for (const m of rd) {
     if (!m.winnerId && m.homeId && m.awayId) {
-      const r = frnSimOnce(m.homeId, m.awayId);
+      const r = frnSimOnce(m.homeId, m.awayId, /* isPlayoff */ true);
       m.homeScore = r.homeScore; m.awayScore = r.awayScore;
       m.winnerId  = r.homeScore >= r.awayScore ? m.homeId : m.awayId;
+      if (isChampRound) {
+        franchise.superBowlGame = {
+          homeId: m.homeId, awayId: m.awayId,
+          homeScore: r.homeScore, awayScore: r.awayScore,
+          stats: r.full.stats,
+          winnerId: m.winnerId,
+        };
+      }
     }
   }
   advancePlayoffRound();
@@ -14268,17 +14560,39 @@ function advancePlayoffRound() {
 // ── Awards ceremony ───────────────────────────────────────────────────────────
 function showFrnAwards() {
   franchise.phase = "awards";
-  // Record season in history (guard against double-entry on re-open)
+  // Record season in history (guard against double-entry on re-open).
+  // Computes League MVP (best season stats × team-success multiplier), Super
+  // Bowl MVP (top scorer from championship-winning side), and your team's MVP.
   const champId = franchise.playoffBracket?.champion;
   if (champId && !franchise.history.some(h => h.season === franchise.season)) {
     const champTeam = getTeam(champId);
-    const mvp = [...(franchise.rosters[champId] || [])].sort((a, b) => b.overall - a.overall)[0];
+    const leagueMVP   = computeLeagueMVP();
+    const sbMVP       = computeSuperBowlMVP();
+    const userMVP     = computeTeamMVP(franchise.chosenTeamId);
+    const champTeamMVP = computeTeamMVP(champId);
     franchise.history.push({
       season: franchise.season,
       champion: champId,
       championName: `${champTeam.city} ${champTeam.name}`,
-      mvpName: mvp?.name || "—",
-      mvpPos:  mvp?.position || "",
+      leagueMVP:   leagueMVP   ? {
+        name: leagueMVP.name, pos: leagueMVP.pos,
+        teamId: leagueMVP.teamId, teamName: getTeam(leagueMVP.teamId)?.name || "",
+        line: mvpStatLine(leagueMVP),
+      } : null,
+      superBowlMVP: sbMVP ? {
+        name: sbMVP.name, pos: sbMVP.pos,
+        teamId: sbMVP.teamId, teamName: getTeam(sbMVP.teamId)?.name || "",
+        line: mvpStatLine(sbMVP),
+      } : null,
+      userTeamMVP: userMVP ? {
+        name: userMVP.name, pos: userMVP.pos,
+        line: mvpStatLine(userMVP),
+      } : null,
+      champTeamMVP: champTeamMVP ? {
+        name: champTeamMVP.name, pos: champTeamMVP.pos,
+        line: mvpStatLine(champTeamMVP),
+      } : null,
+      userRecord: { ...(franchise.standings[franchise.chosenTeamId] || { w:0, l:0 }) },
     });
   }
   saveFranchise();
@@ -14286,7 +14600,7 @@ function showFrnAwards() {
 }
 
 function renderFrnAwards() {
-  const { season, chosenTeamId, history, standings } = franchise;
+  const { season, chosenTeamId, history, standings, seasonHighlights } = franchise;
   const latest     = history[history.length - 1] || {};
   const champId    = latest.champion;
   const champTeam  = getTeam(champId);
@@ -14294,26 +14608,57 @@ function renderFrnAwards() {
   const isUserChamp= champId === chosenTeamId;
   const userStand  = standings[chosenTeamId] || { w:0, l:0 };
 
+  // Award row builder
+  const awardRow = (icon, title, p) => {
+    if (!p) return "";
+    const teamLabel = p.teamName ? ` · ${p.teamName}` : "";
+    return `<div style="padding:.45rem .6rem;background:var(--bg2);border:1px solid var(--border);margin-bottom:.35rem">
+      <div style="font-size:.62rem;color:var(--gold);letter-spacing:.4px;font-weight:700">${icon} ${title}</div>
+      <div style="font-size:.92rem;font-weight:700;margin-top:.15rem">${p.name}${p.pos ? ` (${p.pos})` : ""}${teamLabel}</div>
+      ${p.line ? `<div style="font-size:.7rem;color:var(--gray);margin-top:.1rem">${p.line}</div>` : ""}
+    </div>`;
+  };
+
+  // Top season highlights (top by weight; max 8)
+  const topHL = [...(seasonHighlights || [])]
+    .sort((a, b) => b.weight - a.weight).slice(0, 8);
+  const hlHtml = topHL.length ? `
+    <div class="frn-sec-title" style="margin-top:1rem">⭐ SEASON HIGHLIGHTS</div>
+    ${topHL.map(h => {
+      const hT = getTeam(h.homeId), aT = getTeam(h.awayId);
+      const tag = h.isPlayoff ? `<span style="color:var(--gold)">${h.week}</span>` : `<span style="color:var(--gray)">${h.week}</span>`;
+      const clutch = h.isClutch ? ` <span style="color:var(--gold-lt);font-size:.6rem">⚡CLUTCH</span>` : "";
+      return `<div style="font-size:.72rem;padding:.2rem 0;border-bottom:1px solid var(--border)">
+        ${tag} · ${hT?.name || "?"} vs ${aT?.name || "?"} · <b>${h.label}</b>${clutch}
+      </div>`;
+    }).join("")}` : "";
+
   const histHtml = history.length > 1 ? `
-    <div class="frn-sec-title" style="margin-top:1.2rem">FRANCHISE HISTORY</div>
+    <div class="frn-sec-title" style="margin-top:1rem">FRANCHISE HISTORY</div>
     ${history.slice(-6).reverse().map(h => `
-      <div style="font-size:.74rem;padding:.18rem 0;border-bottom:1px solid var(--border)">
-        S${h.season}: 🏆 ${h.championName} · MVP ${h.mvpName}${h.mvpPos ? ` (${h.mvpPos})` : ""}
+      <div style="font-size:.72rem;padding:.18rem 0;border-bottom:1px solid var(--border)">
+        S${h.season}: 🏆 ${h.championName}${h.leagueMVP ? ` · MVP ${h.leagueMVP.name}` : ""}${h.superBowlMVP ? ` · SB MVP ${h.superBowlMVP.name}` : ""}
       </div>`).join("")}` : "";
 
   $("frnBody").innerHTML = `
-    <div style="text-align:center;padding:1.2rem .5rem">
-      <div style="font-size:2.8rem;margin-bottom:.4rem">🏆</div>
-      <div style="font-size:1.8rem;font-weight:900;color:var(--gold)">${champTeam ? `${champTeam.city} ${champTeam.name}` : "—"}</div>
-      <div style="color:var(--gold-lt);margin-bottom:.6rem">SEASON ${season} CHAMPIONS</div>
+    <div style="text-align:center;padding:1rem .5rem .8rem">
+      <div style="font-size:2.6rem;margin-bottom:.3rem">🏆</div>
+      <div style="font-size:1.7rem;font-weight:900;color:var(--gold)">${champTeam ? `${champTeam.city} ${champTeam.name}` : "—"}</div>
+      <div style="color:var(--gold-lt);margin-bottom:.5rem">SEASON ${season} CHAMPIONS</div>
       ${isUserChamp
-        ? `<div style="font-size:1.2rem;color:var(--green-lt);margin:.5rem 0">🎉 YOUR TEAM WON IT ALL! 🎉</div>`
-        : `<div style="color:var(--gray)">${userTeam.name} finished ${userStand.w}-${userStand.l}</div>`}
-      <div style="margin-top:.6rem;font-size:.88rem">
-        ⭐ MVP: ${latest.mvpName || "—"}${latest.mvpPos ? ` · ${latest.mvpPos}` : ""}${champTeam ? ` · ${champTeam.name}` : ""}
-      </div>
+        ? `<div style="font-size:1.15rem;color:var(--green-lt);margin:.4rem 0">🎉 YOUR TEAM WON IT ALL! 🎉</div>`
+        : `<div style="color:var(--gray);font-size:.85rem">${userTeam.name} finished ${userStand.w}-${userStand.l}</div>`}
     </div>
+
+    <div class="frn-sec-title">🏅 AWARDS</div>
+    ${awardRow("👑", "LEAGUE MVP",       latest.leagueMVP)}
+    ${awardRow("🏆", "SUPER BOWL MVP",   latest.superBowlMVP)}
+    ${awardRow("⭐", "YOUR TEAM MVP",    latest.userTeamMVP)}
+    ${champId !== chosenTeamId ? awardRow("🥇", `${champTeam?.name} TEAM MVP`, latest.champTeamMVP) : ""}
+
+    ${hlHtml}
     ${histHtml}
+
     <div class="frn-actions" style="justify-content:center;margin-top:1rem">
       <button class="btn btn-gold" onclick="startFrnOffseason()">⏭ Begin Offseason</button>
       <button class="btn btn-outline" onclick="frnAbandon()" style="color:var(--red)">× Abandon</button>
@@ -14358,12 +14703,19 @@ function runFrnOffseason() {
         continue;
       }
 
-      // Age regression 31+
-      if (p.age >= 31) {
-        const regress = p.age >= 34 ? 2 : 1;
+      // Each player has a personal decline age (28-32). Regression kicks
+      // in once they hit it; magnitude grows the further past they are.
+      if (p.declineAge == null) p.declineAge = 28 + Math.floor(Math.random() * 5);
+      if (p.age >= p.declineAge) {
+        const yearsPast = p.age - p.declineAge;
+        const regress   = 1 + Math.floor(yearsPast / 2); // 1, 1, 2, 2, 3, 3, ...
         p.stats[0] = Math.max(30, p.stats[0] - regress); // SPD
         p.stats[2] = Math.max(30, p.stats[2] - regress); // AGI
-        p.overall  = Math.max(50, p.overall  - 1);
+        // 50% chance to also chip STR/AWR for deeper veterans
+        if (yearsPast >= 2 && Math.random() < 0.5) {
+          p.stats[1] = Math.max(30, p.stats[1] - 1); // STR
+        }
+        p.overall = Math.max(50, p.overall - (regress >= 2 ? 2 : 1));
       }
       // Young progression ≤24
       if (p.age <= 24 && Math.random() < 0.6) {
@@ -14435,6 +14787,9 @@ function frnNewSeason() {
   franchise.playoffBracket = null;
   franchise.pendingFranchiseGame = null;
   franchise._offChanges   = null;
+  franchise.seasonStats   = {};
+  franchise.seasonHighlights = [];
+  franchise.superBowlGame = null;
   saveFranchise();
   showFranchiseDashboard();
 }
