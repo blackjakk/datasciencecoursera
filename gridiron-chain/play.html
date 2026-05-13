@@ -1247,6 +1247,89 @@
     padding: .3rem .5rem; font-size: .72rem;
   }
 
+  /* Free Agency screen */
+  .frn-fa-summary {
+    display: flex; gap: 1.1rem; flex-wrap: wrap;
+    padding: .55rem .8rem; background: var(--bg2);
+    border: 1px solid var(--border); margin-bottom: .7rem;
+    font-size: .75rem;
+  }
+  .frn-fa-layout {
+    display: grid; grid-template-columns: 280px 1fr 280px; gap: .7rem;
+  }
+  @media (max-width: 1100px) { .frn-fa-layout { grid-template-columns: 1fr; } }
+  .frn-fa-pool-col, .frn-fa-mid-col, .frn-fa-roster-col {
+    background: var(--bg2); border: 1px solid var(--border);
+    padding: .6rem .7rem;
+  }
+  .frn-fa-pool-list { display: flex; flex-direction: column; gap: .2rem; max-height: 580px; overflow-y: auto; }
+  .frn-fa-row {
+    display: grid; grid-template-columns: auto 1fr auto auto auto;
+    gap: .35rem; align-items: center;
+    background: var(--bg3); border: 1px solid var(--border);
+    padding: .3rem .45rem; cursor: pointer; text-align: left;
+    font-family: inherit; font-size: .66rem; color: var(--white);
+    transition: all .1s;
+  }
+  .frn-fa-row:hover { background: var(--bg); border-color: var(--gold); }
+  .frn-fa-row.selected { border-color: var(--gold); background: rgba(200,169,0,0.08); }
+  .frn-fa-row.offered  { border-left: 3px solid var(--green); }
+  .frn-fa-name { font-weight: 700; }
+  .frn-fa-pos  { color: var(--gold); font-size: .58rem; font-weight: 700; }
+  .frn-fa-age  { color: var(--gray); font-size: .58rem; }
+  .frn-fa-ask  { color: var(--gold); font-size: .6rem; font-weight: 700; }
+  .frn-fa-flag {
+    grid-column: 1 / -1;
+    color: var(--green-lt); font-size: .55rem;
+    font-weight: 700; letter-spacing: .3px;
+  }
+
+  /* Selected FA detail panel */
+  .frn-fa-detail-head {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    gap: .5rem; padding-bottom: .5rem; margin-bottom: .55rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .frn-fa-demand {
+    background: var(--bg3); padding: .3rem .55rem;
+    font-size: .72rem; margin-bottom: .55rem;
+  }
+  .frn-fa-offer-form {
+    display: grid; grid-template-columns: 1fr 1fr; gap: .55rem;
+    margin-bottom: .55rem;
+  }
+  .frn-fa-offer-form input {
+    width: 100%; background: var(--bg3); border: 1px solid var(--border);
+    color: var(--white); padding: .35rem .5rem; font-family: inherit;
+    font-size: .8rem; font-weight: 700;
+  }
+  .frn-fa-offer-form input:focus { outline: none; border-color: var(--gold); }
+  .frn-fa-offer-actions {
+    grid-column: 1 / -1; display: flex; gap: .35rem;
+  }
+  .frn-fa-preview {
+    background: var(--bg3); padding: .4rem .55rem;
+    font-size: .74rem; border-left: 3px solid var(--gold);
+  }
+
+  /* Roster (right) cut-checkboxes */
+  .frn-fa-roster-list {
+    display: flex; flex-direction: column; gap: .15rem;
+    max-height: 580px; overflow-y: auto;
+  }
+  .frn-cut-option {
+    display: grid; grid-template-columns: auto auto 1fr auto auto;
+    gap: .3rem; align-items: center;
+    background: var(--bg3); padding: .25rem .4rem;
+    font-size: .68rem; cursor: pointer;
+    border: 1px solid var(--border);
+  }
+  .frn-cut-option:hover { background: var(--bg); border-color: var(--gold-lt); }
+  .frn-cut-option input[type="checkbox"] { accent-color: var(--gold); }
+  .frn-fa-cut-pos  { color: var(--gold); font-size: .58rem; font-weight: 700; }
+  .frn-fa-cut-name { font-weight: 700; }
+  .frn-fa-cut-cost { color: var(--gold-lt); font-size: .65rem; font-weight: 700; }
+
   /* Re-signings screen */
   .frn-resign-list { display: flex; flex-direction: column; gap: .5rem; }
   .frn-resign-row {
@@ -14833,9 +14916,12 @@ function showFranchiseDashboard() {
   $("franchiseHome").style.display = "block";
   const { phase } = franchise;
   try {
-    if      (phase === "preseason")        renderFrnPreseason();
-    else if (phase === "regular")          renderFrnRegular();
-    else if (phase === "playoffs_pending") startFrnPlayoffs();
+    if      (phase === "preseason")            renderFrnPreseason();
+    else if (phase === "free_agency")          renderFrnFA();
+    else if (phase === "free_agency_results")  renderFrnFAResults();
+    else if (phase === "fa_cuts")              renderFrnFACuts();
+    else if (phase === "regular")              renderFrnRegular();
+    else if (phase === "playoffs_pending")     startFrnPlayoffs();
     else if (phase === "playoffs")         renderFrnPlayoffs();
     else if (phase === "awards")           renderFrnAwards();
     else if (phase === "offseason") {
@@ -15458,7 +15544,435 @@ function frnStartSeason() {
     alert(`Still over the cap by $${(used-cap).toFixed(1)}M. Cut players first.`);
     return;
   }
+  // First action of every season: free agency. Generate a fresh pool.
+  franchise.phase = "free_agency";
+  franchise.freeAgents = _generateFAPool();
+  franchise._faOffers = {};
+  franchise._faResults = null;
+  saveFranchise();
+  showFranchiseDashboard();
+}
+
+// ── Free Agency ───────────────────────────────────────────────────────────────
+// First action in every season. A curated pool of veterans, mid-tier
+// starters, and wildcards drops onto the market. The user (only) makes
+// offers (AAV + years), can pre-flag which players they'd cut to make
+// room, and at "End FA" all offers resolve based on whether the offer
+// meets the player's demand. AI teams don't compete for now.
+
+const FA_POOL_SIZE = 14;
+
+function _generateFAPool() {
+  const taken = new Set();
+  for (const r of Object.values(franchise.rosters)) r.forEach(p => taken.add(p.name));
+  const pool = [];
+  // Position mix — leans skill/lineman so most teams have a use
+  const slots = [
+    { pos:"QB", tier:"good"    }, { pos:"QB", tier:"average" },
+    { pos:"RB", tier:"good"    }, { pos:"RB", tier:"average" },
+    { pos:"WR", tier:"elite"   }, { pos:"WR", tier:"good"    }, { pos:"WR", tier:"average" },
+    { pos:"TE", tier:"good"    },
+    { pos:"OL", tier:"elite"   }, { pos:"OL", tier:"good"    },
+    { pos:"DL", tier:"elite"   }, { pos:"DL", tier:"good"    },
+    { pos:"LB", tier:"good"    },
+    { pos:"CB", tier:"good"    },
+  ];
+  // Shuffle for variety, then take FA_POOL_SIZE
+  for (let i = slots.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [slots[i], slots[j]] = [slots[j], slots[i]];
+  }
+  const chosen = slots.slice(0, FA_POOL_SIZE);
+  const cap = franchise.salaryCap || SALARY_CAP_BASE;
+  const currentYear = new Date().getFullYear() + (franchise.season || 1) - 1;
+
+  for (const s of chosen) {
+    const p = genUniquePlayer(s.pos, s.tier, taken);
+    taken.add(p.name);
+    // FAs skew older — these are guys nobody re-signed
+    p.age = 26 + Math.floor(Math.random() * 8); // 26-33
+    // Draft pedigree
+    const expectedPick = Math.max(1, Math.min(224,
+      Math.round(260 - (p.overall - 50) * 4.8 + (Math.random() - 0.5) * 80)
+    ));
+    if (Math.random() < 0.10 && p.overall < 82) {
+      p.draftRound = 0; p.draftPick = null;
+    } else {
+      p.draftRound = Math.min(7, Math.ceil(expectedPick / 32));
+      p.draftPick  = ((expectedPick - 1) % 32) + 1;
+    }
+    p.draftYear = currentYear - (p.age - 22);
+    p.careerEarnings = Math.round((p.age - 22) * computeMarketValue(p, cap) * 0.6 * 10) / 10;
+
+    // What they want
+    p.demandedAAV   = Math.round(computeMarketValue(p, cap) * (0.95 + Math.random() * 0.25) * 10) / 10;
+    p.demandedYears = p.age <= 27 ? 4 : p.age <= 30 ? 3 : 2;
+    p.flavor = p.flavor || null;
+    pool.push(p);
+  }
+  // Sort by demanded AAV desc — best FAs at top
+  pool.sort((a,b) => b.demandedAAV - a.demandedAAV);
+  return pool;
+}
+
+function renderFrnFA(selectedName) {
+  const { chosenTeamId, freeAgents = [], _faOffers = {}, salaryCap, season } = franchise;
+  const cap = salaryCap || SALARY_CAP_BASE;
+  const myRoster = franchise.rosters[chosenTeamId] || [];
+  const myCapUsed = capUsedByTeam(chosenTeamId);
+
+  let selected = selectedName ? freeAgents.find(p => p.name === selectedName) : null;
+  if (!selected) selected = freeAgents[0];
+
+  // FA list (left column)
+  const faListHtml = freeAgents.map(p => {
+    const myOffer = _faOffers[p.name];
+    const offered = !!myOffer;
+    const isSel = selected && p.name === selected.name;
+    const escName = (p.name || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    return `<button class="frn-fa-row ${isSel?"selected":""} ${offered?"offered":""}"
+      onclick="renderFrnFA('${escName}')">
+      <span>${gradeBadge(p)}</span>
+      <span class="frn-fa-name">${p.name}</span>
+      <span class="frn-fa-pos">${p.position}</span>
+      <span class="frn-fa-age">age ${p.age}</span>
+      <span class="frn-fa-ask">asks $${p.demandedAAV.toFixed(0)}M</span>
+      ${offered ? `<span class="frn-fa-flag">$${myOffer.aav.toFixed(0)}M offer</span>` : ""}
+    </button>`;
+  }).join("");
+
+  // Cap math across ALL active offers
+  let totalOfferedAAV = 0;
+  const allPlannedCutNames = new Set();
+  for (const o of Object.values(_faOffers)) {
+    totalOfferedAAV += o.aav;
+    (o.cutNames || []).forEach(n => allPlannedCutNames.add(n));
+  }
+  const totalCutSavings = myRoster.filter(p => allPlannedCutNames.has(p.name))
+    .reduce((s, p) => s + (p.contract?.aav || 0), 0);
+  const projectedCap = myCapUsed + totalOfferedAAV - totalCutSavings;
+  const overCap = projectedCap > cap;
+
+  // Right side: roster, sorted by AAV desc
+  const rosterByCost = myRoster.slice().sort((a,b) => (b.contract?.aav||0) - (a.contract?.aav||0));
+  const escSelName = selected ? selected.name.replace(/\\/g, "\\\\").replace(/'/g, "\\'") : "";
+
+  // Detail panel + offer form for selected FA
+  let detailHtml = "";
+  if (selected) {
+    const existing = _faOffers[selected.name];
+    const offer = existing || {
+      aav: selected.demandedAAV,
+      years: selected.demandedYears,
+      cutNames: [],
+    };
+    const cutSet = new Set(offer.cutNames || []);
+    const myProjAfterCuts = myCapUsed + offer.aav -
+      myRoster.filter(p => cutSet.has(p.name)).reduce((s,p) => s + (p.contract?.aav||0), 0);
+    const room = cap - myProjAfterCuts;
+
+    // Acceptance preview
+    const aavRatio = offer.aav / selected.demandedAAV;
+    const yearsRatio = Math.min(offer.years / selected.demandedYears, 1);
+    const score = aavRatio * yearsRatio;
+    const likelihood = score >= 1.05 ? "Very likely"
+                     : score >= 1.00 ? "Likely"
+                     : score >= 0.90 ? "Toss-up"
+                     : score >= 0.80 ? "Unlikely"
+                     : "Will reject";
+    const lkColor = score >= 1.00 ? "var(--green-lt)"
+                  : score >= 0.90 ? "#e8a000"
+                  : "var(--red)";
+
+    detailHtml = `<div class="frn-fa-detail">
+      <div class="frn-fa-detail-head">
+        <div>
+          <div style="font-size:1.05rem;font-weight:900">${selected.name}</div>
+          <div style="color:var(--gray);font-size:.7rem">${selected.position} · Age ${selected.age} · ${selected.archetype||"—"} · ${draftStr(selected)}</div>
+          <div style="color:var(--gray);font-size:.66rem;margin-top:.2rem">${careerEarningsStr(selected)} career earnings</div>
+        </div>
+        <div style="text-align:right">
+          ${gradeBadge(selected)}
+        </div>
+      </div>
+      <div class="frn-fa-demand">
+        Wants <b style="color:var(--gold)">$${selected.demandedAAV.toFixed(1)}M/yr × ${selected.demandedYears}yr</b>
+      </div>
+      <div class="frn-fa-offer-form">
+        <label>
+          <span class="frn-meta-label">AAV ($M/yr)</span>
+          <input type="number" min="0.5" max="60" step="0.5" value="${offer.aav.toFixed(1)}"
+            id="faOfferAav" onchange="frnFASetOffer('${escSelName}','aav',this.value)">
+        </label>
+        <label>
+          <span class="frn-meta-label">YEARS</span>
+          <input type="number" min="1" max="7" step="1" value="${offer.years}"
+            id="faOfferYears" onchange="frnFASetOffer('${escSelName}','years',this.value)">
+        </label>
+        <div class="frn-fa-offer-actions">
+          <button class="btn btn-gold" onclick="frnFASubmitOffer('${escSelName}')">
+            ${existing ? "✓ Update Offer" : "+ Submit Offer"}
+          </button>
+          ${existing ? `<button class="btn btn-outline" onclick="frnFAWithdrawOffer('${escSelName}')">Withdraw</button>` : ""}
+        </div>
+      </div>
+      <div class="frn-fa-preview">
+        <div>Acceptance: <b style="color:${lkColor}">${likelihood}</b></div>
+        <div style="color:var(--gray);font-size:.68rem;margin-top:.2rem">
+          If accepted: cap goes to <b style="color:${room<0?"var(--red)":"var(--green-lt)"}">$${myProjAfterCuts.toFixed(1)}M</b>
+          (${room<0 ? `<b style="color:var(--red)">${Math.abs(room).toFixed(1)}M over</b>` : `$${room.toFixed(1)}M room`})
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // Right side: my roster with cut checkboxes (only meaningful when an FA is selected)
+  const escForSel = selected ? selected.name.replace(/\\/g, "\\\\").replace(/'/g, "\\'") : "";
+  const cutSet = selected ? new Set((_faOffers[selected.name]?.cutNames) || []) : new Set();
+  const rosterHtml = rosterByCost.map(p => {
+    const aav = p.contract?.aav || 0;
+    const checked = cutSet.has(p.name) ? "checked" : "";
+    const escPlayer = (p.name || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    return `<label class="frn-cut-option">
+      <input type="checkbox" ${checked} ${selected?"":"disabled"}
+        onchange="frnFAToggleCut('${escForSel}','${escPlayer}',this.checked)">
+      <span class="frn-fa-cut-pos">${p.position}</span>
+      <span class="frn-fa-cut-name">${p.name}</span>
+      <span class="frn-fa-cut-grade">${gradeBadge(p)}</span>
+      <span class="frn-fa-cut-cost">-$${aav.toFixed(1)}M</span>
+    </label>`;
+  }).join("");
+
+  $("frnHomeContent").innerHTML = `
+    <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem;flex-wrap:wrap">
+      <div style="font-size:1.05rem;font-weight:900;color:var(--gold)">🆓 FREE AGENCY · Season ${season}</div>
+      <button class="btn btn-gold-big" onclick="frnFAProcessOffers()" style="margin-left:auto">
+        ⏭ END FA & ADVANCE WEEK →
+      </button>
+    </div>
+    <div class="frn-fa-summary">
+      <span>Roster: <b>$${myCapUsed.toFixed(1)}M</b></span>
+      <span style="color:var(--gold)">+ Offers: <b>$${totalOfferedAAV.toFixed(1)}M</b></span>
+      <span style="color:var(--gold)">− Cuts: <b>$${totalCutSavings.toFixed(1)}M</b></span>
+      <span style="color:${overCap?"var(--red)":"var(--green-lt)"}">
+        = Projected: <b>$${projectedCap.toFixed(1)}M</b> / $${cap.toFixed(0)}M
+        ${overCap ? `(${(projectedCap-cap).toFixed(1)}M OVER)` : `(${(cap-projectedCap).toFixed(1)}M room)`}
+      </span>
+    </div>
+    <div class="frn-fa-layout">
+      <div class="frn-fa-pool-col">
+        <div class="frn-card-title">FREE AGENT POOL (${freeAgents.length})</div>
+        <div class="frn-fa-pool-list">${faListHtml}</div>
+      </div>
+      <div class="frn-fa-mid-col">
+        ${detailHtml || `<div style="color:var(--gray);font-size:.78rem;padding:1rem;text-align:center;font-style:italic">Select a free agent on the left to make an offer.</div>`}
+      </div>
+      <div class="frn-fa-roster-col">
+        <div class="frn-card-title">YOUR ROSTER · cut to make room</div>
+        ${selected ? "" : `<div style="color:var(--gray);font-size:.7rem;margin-bottom:.4rem;font-style:italic">Pick an FA first, then flag cuts here.</div>`}
+        <div class="frn-fa-roster-list">${rosterHtml}</div>
+      </div>
+    </div>`;
+}
+
+function _ensureFAOffer(faName) {
+  if (!franchise._faOffers) franchise._faOffers = {};
+  if (franchise._faOffers[faName]) return franchise._faOffers[faName];
+  const fa = franchise.freeAgents.find(p => p.name === faName);
+  if (!fa) return null;
+  franchise._faOffers[faName] = {
+    aav: fa.demandedAAV,
+    years: fa.demandedYears,
+    cutNames: [],
+  };
+  return franchise._faOffers[faName];
+}
+
+function frnFASetOffer(faName, field, value) {
+  const offer = _ensureFAOffer(faName); if (!offer) return;
+  if (field === "aav")   offer.aav   = Math.max(0.5, parseFloat(value) || 0);
+  if (field === "years") offer.years = Math.max(1, Math.min(7, parseInt(value, 10) || 1));
+  saveFranchise();
+  renderFrnFA(faName);
+}
+
+function frnFAToggleCut(faName, cutName, checked) {
+  const offer = _ensureFAOffer(faName); if (!offer) return;
+  if (!Array.isArray(offer.cutNames)) offer.cutNames = [];
+  if (checked && !offer.cutNames.includes(cutName)) offer.cutNames.push(cutName);
+  else offer.cutNames = offer.cutNames.filter(n => n !== cutName);
+  saveFranchise();
+  renderFrnFA(faName);
+}
+
+function frnFASubmitOffer(faName) {
+  _ensureFAOffer(faName);
+  saveFranchise();
+  renderFrnFA(faName);
+}
+
+function frnFAWithdrawOffer(faName) {
+  if (franchise._faOffers) delete franchise._faOffers[faName];
+  saveFranchise();
+  renderFrnFA(faName);
+}
+
+function frnFAProcessOffers() {
+  const offers = franchise._faOffers || {};
+  const signed = [];
+  const lost   = [];
+  for (const [faName, offer] of Object.entries(offers)) {
+    const fa = franchise.freeAgents.find(p => p.name === faName);
+    if (!fa) continue;
+    const aavRatio   = offer.aav   / fa.demandedAAV;
+    const yearsRatio = Math.min(offer.years / fa.demandedYears, 1);
+    const score = aavRatio * yearsRatio;
+    const accepted = score >= 1.0
+      ? true
+      : score >= 0.9 ? Math.random() < 0.5
+      : score >= 0.8 ? Math.random() < 0.15
+      : false;
+    if (accepted) {
+      fa.contract = { years: offer.years, remaining: offer.years, aav: offer.aav };
+      franchise.rosters[franchise.chosenTeamId].push(fa);
+      // Execute planned cuts
+      const myRoster = franchise.rosters[franchise.chosenTeamId];
+      const actuallyCut = [];
+      for (const cutName of (offer.cutNames || [])) {
+        const idx = myRoster.findIndex(p => p.name === cutName);
+        if (idx !== -1) { myRoster.splice(idx, 1); actuallyCut.push(cutName); }
+      }
+      signed.push({ name: faName, pos: fa.position, aav: offer.aav, years: offer.years, cut: actuallyCut });
+    } else {
+      lost.push({ name: faName, pos: fa.position, offered: offer.aav, demanded: fa.demandedAAV });
+    }
+  }
+  franchise._faResults = { signed, lost };
+  franchise._faOffers  = {};
+  franchise.freeAgents = [];
+  franchise.phase = "free_agency_results";
+  saveFranchise();
+  renderFrnFAResults();
+}
+
+function renderFrnFAResults() {
+  const cap = franchise.salaryCap || SALARY_CAP_BASE;
+  const used = capUsedByTeam(franchise.chosenTeamId);
+  const overCap = used > cap;
+  const { signed = [], lost = [] } = franchise._faResults || {};
+
+  const signedHtml = signed.length ? `
+    <div class="frn-card-box" style="margin-top:.6rem">
+      <div class="frn-card-title">✓ SIGNED (${signed.length})</div>
+      ${signed.map(s => `<div style="font-size:.78rem;padding:.3rem 0;border-bottom:1px solid var(--border)">
+        <b style="color:var(--gold-lt)">${s.name}</b> (${s.pos}) — $${s.aav.toFixed(1)}M/yr × ${s.years}yr
+        ${s.cut.length ? `<div style="color:var(--gray);font-size:.65rem;margin-top:.15rem">Released: ${s.cut.join(", ")}</div>` : ""}
+      </div>`).join("")}
+    </div>` : "";
+  const lostHtml = lost.length ? `
+    <div class="frn-card-box" style="margin-top:.6rem">
+      <div class="frn-card-title">✗ DECLINED (${lost.length})</div>
+      ${lost.map(l => `<div style="font-size:.78rem;padding:.3rem 0;border-bottom:1px solid var(--border)">
+        <b>${l.name}</b> (${l.pos}) — offered $${l.offered.toFixed(1)}M, wanted $${l.demanded.toFixed(1)}M
+      </div>`).join("")}
+    </div>` : "";
+
+  $("frnHomeContent").innerHTML = `
+    <div style="text-align:center;margin-bottom:1rem">
+      <div style="font-size:1.2rem;font-weight:900;color:var(--gold)">📋 FREE AGENCY RESULTS</div>
+      <div style="color:var(--gray);font-size:.78rem">A week has passed. Here's how your offers landed.</div>
+    </div>
+    ${signedHtml || `<div style="color:var(--gray);text-align:center;font-size:.78rem">No new players signed.</div>`}
+    ${lostHtml}
+    <div class="frn-card-box" style="margin-top:.6rem">
+      <div class="frn-card-title">CAP STATUS</div>
+      <div style="font-size:.85rem;padding:.4rem 0">
+        Cap used: <b style="color:${overCap?"var(--red)":"var(--white)"}">$${used.toFixed(1)}M</b>
+        / <b style="color:var(--gold)">$${cap.toFixed(0)}M</b>
+        ${overCap
+          ? `<div style="color:var(--red);font-weight:700;margin-top:.4rem">
+              ⚠ OVER CAP by $${(used-cap).toFixed(1)}M.
+              You have one grace week — start the season anyway, but you must be cap-legal before Week 2.
+            </div>`
+          : `<div style="color:var(--green-lt);margin-top:.3rem">✓ Cap-legal — ready for Week 1.</div>`}
+      </div>
+    </div>
+    <div class="frn-actions" style="justify-content:center;margin-top:1rem">
+      ${overCap
+        ? `<button class="btn btn-gold-big" onclick="frnFAGoToCuts()">→ MAKE CUTS NOW</button>
+           <button class="btn btn-outline" onclick="frnFAStartWithGrace()" style="color:var(--gold)">Defer cuts — start Week 1 anyway</button>`
+        : `<button class="btn btn-gold-big" onclick="frnFAFinish()">▶ START WEEK 1</button>`}
+    </div>`;
+}
+
+function frnFAGoToCuts() {
+  franchise.phase = "fa_cuts";
+  saveFranchise();
+  renderFrnFACuts();
+}
+
+function frnFAStartWithGrace() {
+  // 1-week grace: deadline is end of Week 1
+  franchise.capGraceDeadline = 2;
+  frnFAFinish();
+}
+
+function renderFrnFACuts() {
+  const cap = franchise.salaryCap || SALARY_CAP_BASE;
+  const myRoster = franchise.rosters[franchise.chosenTeamId] || [];
+  const used = capUsedByTeam(franchise.chosenTeamId);
+  const room = cap - used;
+  const overCap = used > cap;
+
+  const rosterByCost = myRoster.slice().sort((a,b) => (b.contract?.aav||0) - (a.contract?.aav||0));
+  const rows = rosterByCost.map(p => {
+    const escName = (p.name||"").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    return `<tr>
+      <td style="color:var(--gray)">${p.position}</td>
+      <td style="font-weight:700">${p.name}</td>
+      <td>${gradeBadge(p)}</td>
+      <td style="color:var(--gray)">${p.age||"?"}</td>
+      <td style="color:var(--gold)">$${(p.contract?.aav||0).toFixed(1)}M</td>
+      <td><button class="frn-pre-cut" onclick="frnFACutPlayer('${escName}','${p.position}')">✗ CUT</button></td>
+    </tr>`;
+  }).join("");
+
+  $("frnHomeContent").innerHTML = `
+    <div style="text-align:center;margin-bottom:1rem">
+      <div style="font-size:1.15rem;font-weight:900;color:${overCap?"var(--red)":"var(--gold)"}">
+        ${overCap ? "⚠ CUT TO BE CAP-LEGAL" : "✓ CAP-LEGAL"}
+      </div>
+      <div style="color:var(--gray);font-size:.78rem;margin-top:.3rem">
+        Cap used: <b style="color:${overCap?"var(--red)":"var(--white)"}">$${used.toFixed(1)}M</b>
+        / <b style="color:var(--gold)">$${cap.toFixed(0)}M</b>
+        · <span style="color:${overCap?"var(--red)":"var(--green-lt)"}">
+          ${overCap ? `$${Math.abs(room).toFixed(1)}M over` : `$${room.toFixed(1)}M room`}
+        </span>
+      </div>
+    </div>
+    <table class="frn-pre-roster-table">
+      <thead><tr><th>Pos</th><th>Player</th><th>Grade</th><th>Age</th><th>AAV</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="frn-actions" style="justify-content:center;margin-top:1rem">
+      <button class="btn btn-gold-big" onclick="frnFAFinish()" ${overCap?"disabled style=\"opacity:.5;cursor:not-allowed\"":""}>
+        ▶ START WEEK 1
+      </button>
+    </div>`;
+}
+
+function frnFACutPlayer(name, pos) {
+  if (!confirm(`Release ${name}? They free up their cap immediately.`)) return;
+  const roster = franchise.rosters[franchise.chosenTeamId];
+  const idx = roster.findIndex(p => p.name === name && p.position === pos);
+  if (idx !== -1) roster.splice(idx, 1);
+  saveFranchise();
+  renderFrnFACuts();
+}
+
+function frnFAFinish() {
   franchise.phase = "regular";
+  franchise._faResults = null;
   saveFranchise();
   showFranchiseDashboard();
 }
@@ -15860,6 +16374,16 @@ function advanceWeekIfDone() {
   const wGames = franchise.schedule.filter(g => g.week === w);
   if (wGames.length && wGames.every(g => g.played)) {
     franchise.week = w + 1;
+    // Cap-grace deadline reached — force a cut screen if user is still over
+    if (franchise.capGraceDeadline != null && franchise.week >= franchise.capGraceDeadline) {
+      const cap  = franchise.salaryCap || SALARY_CAP_BASE;
+      const used = capUsedByTeam(franchise.chosenTeamId);
+      franchise.capGraceDeadline = null;
+      if (used > cap) {
+        franchise.phase = "fa_cuts";
+        return;
+      }
+    }
     if (franchise.week > FRANCHISE_WEEKS) franchise.phase = "playoffs_pending";
   }
 }
