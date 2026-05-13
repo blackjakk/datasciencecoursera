@@ -1324,6 +1324,36 @@
   }
   .frn-holdout-row.resolved { border-left-color: var(--gray); opacity: .8; }
 
+  /* League chat */
+  .frn-chat-list {
+    background: var(--bg2); border: 1px solid var(--border);
+    padding: .55rem .7rem; max-height: 60vh; overflow-y: auto;
+    display: flex; flex-direction: column; gap: .35rem;
+    margin-bottom: .55rem;
+  }
+  .frn-chat-divider {
+    text-align: center; color: var(--gold); font-size: .58rem;
+    letter-spacing: .5px; font-weight: 700;
+    padding: .25rem 0; border-bottom: 1px dashed var(--border);
+    margin-top: .25rem;
+  }
+  .frn-chat-msg { padding: .15rem .4rem; }
+  .frn-chat-msg.mine { background: rgba(200,169,0,0.06); }
+  .frn-chat-head {
+    display: flex; align-items: baseline; gap: .4rem;
+    font-size: .68rem;
+  }
+  .frn-chat-body { font-size: .78rem; margin-top: .1rem; padding-left: .5rem; }
+  .frn-chat-compose {
+    display: flex; gap: .35rem;
+  }
+  .frn-chat-compose input {
+    flex: 1; background: var(--bg3); border: 1px solid var(--border);
+    color: var(--white); padding: .4rem .55rem; font-family: inherit;
+    font-size: .78rem;
+  }
+  .frn-chat-compose input:focus { outline: none; border-color: var(--gold); }
+
   /* Pick demands in ask form */
   .frn-pick-grid {
     display: grid; grid-template-columns: repeat(7, 1fr); gap: .35rem;
@@ -14725,11 +14755,17 @@ function currentCap() {
 // observer's estimate, not the truth.
 function scoutGrade(p) {
   let score = p.overall || 60;
-  // Stable per-player noise (-8..+8) from a hash of the name
+  // Stable per-player noise (-8..+8) from a hash of the name.
+  // If the user has scouted this player's team (joint practice this
+  // season), the noise band shrinks dramatically — sharper view.
   let h = 0;
   const name = p.name || "";
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
-  score += (Math.abs(h) % 17) - 8;
+  const scouted = _isPlayerScouted(p);
+  const noise = scouted
+    ? ((Math.abs(h) % 5) - 2)      // ±2 with intel
+    : ((Math.abs(h) % 17) - 8);    // ±8 without
+  score += noise;
   // Draft pedigree tilt — recency bias in real scouting
   const r = p.draftRound;
   if (r === 1)      score += 3;
@@ -14741,6 +14777,20 @@ function scoutGrade(p) {
   if (age >= 34)      score -= 6;
   else if (age >= 32) score -= 3;
   return Math.max(20, Math.min(99, Math.round(score)));
+}
+
+// Has the user scouted this player's team this season (via scrimmage)?
+function _isPlayerScouted(p) {
+  if (!franchise?.scoutingIntel) return false;
+  const myId = franchise.chosenTeamId;
+  // Find which team currently owns this player
+  for (const [tid, roster] of Object.entries(franchise.rosters || {})) {
+    if (Number(tid) === myId) continue;          // your own roster is always known
+    if (!roster.includes(p)) continue;
+    const intel = franchise.scoutingIntel[tid];
+    return intel && intel.season === franchise.season;
+  }
+  return false;
 }
 
 function gradeLabel(score) {
@@ -15865,13 +15915,16 @@ function _preseasonScoutTab(myId, scoutId, view, selName) {
               onclick="renderFrnPreseason('scout',${scoutId},'full','${escSel}')">FULL ROSTER (${oppRoster.length})</button>
     </div>`;
 
+  const scoutedThisSeason = franchise?.scoutingIntel?.[scoutId]?.season === franchise.season;
   return `<div class="frn-scout-layout">
     <div class="frn-scout-list">${listHtml}</div>
     <div class="frn-scout-detail">
       <div style="display:flex;align-items:center;gap:.7rem;margin-bottom:.5rem">
         <span style="font-size:1.8rem;color:var(--gold)">${teamAscii(oppTeam)}</span>
         <div style="flex:1">
-          <div style="font-weight:900;font-size:1.05rem">${oppTeam.city} ${oppTeam.name.toUpperCase()}</div>
+          <div style="font-weight:900;font-size:1.05rem">${oppTeam.city} ${oppTeam.name.toUpperCase()}
+            ${scoutedThisSeason ? `<span style="color:var(--gold-lt);font-size:.6rem;border:1px solid var(--gold-lt);padding:.05rem .3rem;margin-left:.4rem">🏟 SCOUTED</span>` : ""}
+          </div>
           <div style="color:var(--gray);font-size:.7rem">
             OFF <b style="color:var(--gold)">${oppRtg.off}</b> ·
             DEF <b style="color:var(--gold)">${oppRtg.def}</b> ·
@@ -16899,6 +16952,215 @@ function frnFAFinish() {
   showFranchiseDashboard();
 }
 
+// ── League chat ───────────────────────────────────────────────────────────────
+// Single-player today, but the data model maps cleanly onto the MegaETH
+// chat contract: messages are events keyed by (season, week, teamId).
+// The on-chain version swaps frnPostMessage for a contract write +
+// substitutes _generateAITrashTalk with subscribed event ingestion.
+function frnPostMessage(text) {
+  const t = (text || "").trim();
+  if (!t) return;
+  if (!franchise.chat) franchise.chat = [];
+  franchise.chat.push({
+    id: `${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
+    ts: Date.now(),
+    season: franchise.season,
+    week:   franchise.week,
+    teamId: franchise.chosenTeamId,
+    text:   t.slice(0, 280),
+  });
+  // Cap to 200 entries
+  if (franchise.chat.length > 200) franchise.chat = franchise.chat.slice(-200);
+  saveFranchise();
+  renderFrnChat();
+}
+
+const TRASH_TALK_LINES = {
+  blowout_win:    ["Got 'em.", "Talked all week, played like that.", "Mercy rule should be a thing.", "Cancel the rest of the season."],
+  blowout_loss:   ["We had a bye week, right?", "I'm benching everybody.", "Trade block just doubled."],
+  upset_win:      ["Underdog who??", "We told you. Y'all didn't listen.", "Powerhouses are overrated."],
+  upset_loss:     ["Soft schedule, my bad.", "Wake-up call.", "Heads will roll Monday."],
+  trade_made:     ["Wheelin' and dealin'.", "Sometimes you gotta restock.", "Mortgaging futures, baby."],
+  signing:        ["Welcome to the squad.", "We got our guy.", "Big pickup."],
+  generic:        ["Anyone wanna scrimmage?", "Free agency is wild this year.", "Need a corner. Trades open."],
+};
+
+function _generateAITrashTalk() {
+  if (!franchise.chat) franchise.chat = [];
+  // Look at last week's news for talking points; post 0-3 AI messages per advance
+  const lastWeek = franchise.week - 1;
+  const recent = (franchise.news || []).filter(n => n.season === franchise.season && n.week === lastWeek);
+  const myId = franchise.chosenTeamId;
+  const posted = new Set();
+  const choose = arr => arr[Math.floor(Math.random() * arr.length)];
+
+  for (const n of recent) {
+    if (Math.random() > 0.35) continue;
+    // Pick a random team that wasn't the user
+    const t = TEAMS.filter(x => x.id !== myId)[Math.floor(Math.random() * (TEAMS.length - 1))];
+    if (posted.has(t.id)) continue;
+    posted.add(t.id);
+    let pool = TRASH_TALK_LINES.generic;
+    if (n.type === "blowout") pool = TRASH_TALK_LINES.blowout_win;
+    else if (n.type === "upset") pool = TRASH_TALK_LINES.upset_win;
+    else if (n.type === "trade") pool = TRASH_TALK_LINES.trade_made;
+    else if (n.type === "signing") pool = TRASH_TALK_LINES.signing;
+    franchise.chat.push({
+      id: `ai-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
+      ts: Date.now(),
+      season: franchise.season,
+      week:   franchise.week,
+      teamId: t.id,
+      text:   choose(pool),
+    });
+  }
+  if (franchise.chat.length > 200) franchise.chat = franchise.chat.slice(-200);
+}
+
+function renderFrnChat() {
+  const myId = franchise.chosenTeamId;
+  const all = (franchise.chat || []).slice().sort((a,b) => a.ts - b.ts);
+  // Group by week label for visual breaks
+  let lastLabel = "";
+  const msgs = all.map(m => {
+    const team = getTeam(m.teamId);
+    const isMe = m.teamId === myId;
+    const label = `S${m.season} W${m.week}`;
+    const divider = label !== lastLabel
+      ? `<div class="frn-chat-divider">${label}</div>` : "";
+    lastLabel = label;
+    return `${divider}
+      <div class="frn-chat-msg ${isMe?"mine":""}">
+        <div class="frn-chat-head" style="border-left:3px solid ${team?.primary||"var(--gold)"};padding-left:.4rem">
+          <span style="color:${isMe?"var(--gold-lt)":"var(--gold)"};font-weight:700">${team?.name||"?"}</span>
+          <span style="color:var(--gray);font-size:.55rem">${new Date(m.ts).toLocaleTimeString()}</span>
+        </div>
+        <div class="frn-chat-body">${_escHtml(m.text)}</div>
+      </div>`;
+  }).join("") || `<div style="color:var(--gray);font-style:italic;font-size:.78rem;padding:1rem;text-align:center">No messages yet. Start the trash talk.</div>`;
+
+  $("frnHomeContent").innerHTML = `
+    <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem;flex-wrap:wrap">
+      <div style="font-size:1.05rem;font-weight:900;color:var(--gold)">💬 LEAGUE CHAT</div>
+      <div style="color:var(--gray);font-size:.72rem">Season ${franchise.season}, Week ${franchise.week}</div>
+      <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="margin-left:auto">← Back</button>
+    </div>
+    <div class="frn-chat-list">${msgs}</div>
+    <div class="frn-chat-compose">
+      <input type="text" id="frnChatInput" placeholder="Post to the league…" maxlength="280"
+        onkeydown="if(event.key==='Enter'){ frnPostMessage(this.value); this.value=''; }">
+      <button class="btn btn-gold" onclick="(function(){const i=document.getElementById('frnChatInput');frnPostMessage(i.value);i.value='';})()">Post</button>
+    </div>`;
+  // Auto-scroll to bottom + focus the input
+  const list = document.querySelector(".frn-chat-list");
+  if (list) list.scrollTop = list.scrollHeight;
+  const inp = document.getElementById("frnChatInput");
+  if (inp) inp.focus();
+}
+
+function _escHtml(s) {
+  return String(s || "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+// ── Scrimmages / joint practices ──────────────────────────────────────────────
+// Between weeks, you can propose a scrimmage to another team. If they
+// accept, a practice game sims (no W/L, no season stats) and BOTH
+// teams gain scouting intel — the opposing roster's noisy grades
+// sharpen and combine measurables flip from estimated to revealed for
+// the rest of the season. Bumpy roads here: in the MegaETH version,
+// the matchup commits via dual signatures and the sim runs from a VRF
+// seed; intel is encrypted to the participating wallets.
+function frnScrimmageInterest(otherId) {
+  // AI willingness based on relative talent + their own week's bye
+  const myId = franchise.chosenTeamId;
+  if (otherId === myId) return 0;
+  const myRtg = frnTeamRating(myId);
+  const otherRtg = frnTeamRating(otherId);
+  const gap = Math.abs((myRtg.off + myRtg.def) - (otherRtg.off + otherRtg.def));
+  // Closer ratings = more interest. Mid-tier teams more curious than elites.
+  let interest = 0.55;
+  if (gap > 25) interest *= 0.5;
+  else if (gap > 12) interest *= 0.8;
+  // Already scrimmaged this season? Refuse a rematch.
+  if ((franchise.scrimmagesDone || []).some(s =>
+       s.season === franchise.season && s.teamId === otherId)) return 0;
+  return Math.min(0.85, interest);
+}
+
+function frnRequestScrimmage(otherId) {
+  otherId = Number(otherId);
+  const interest = frnScrimmageInterest(otherId);
+  if (Math.random() > interest) {
+    alert("They turned down the scrimmage — schedule too tight.");
+    renderFrnScrimmages();
+    return;
+  }
+  // Simulate the practice game using the existing simulator path
+  const myId = franchise.chosenTeamId;
+  const r = frnSimOnce(myId, otherId);
+  // No W/L, no season stats. Just intel + a one-line news.
+  if (!franchise.scrimmagesDone) franchise.scrimmagesDone = [];
+  franchise.scrimmagesDone.push({
+    season: franchise.season, week: franchise.week, teamId: otherId,
+    score: `${r.homeScore}-${r.awayScore}`,
+  });
+  if (!franchise.scoutingIntel) franchise.scoutingIntel = {};
+  // Intel marker valid for the rest of this season
+  franchise.scoutingIntel[otherId] = { season: franchise.season, gainedWeek: franchise.week };
+  const team = getTeam(otherId);
+  _pushNews({ type:"scrimmage",
+    label: `🏟 Joint practice with ${team.name} — scouting intel gathered (final: ${r.homeScore}-${r.awayScore})` });
+  saveFranchise();
+  alert(`🏟 Scrimmage done — final ${r.homeScore}–${r.awayScore}. Their roster now shows revealed combine numbers + sharper grades for the rest of the season.`);
+  renderFrnScrimmages();
+}
+
+function renderFrnScrimmages() {
+  const myId = franchise.chosenTeamId;
+  const done = (franchise.scrimmagesDone || []).filter(s => s.season === franchise.season);
+  const doneSet = new Set(done.map(s => s.teamId));
+
+  const candidates = TEAMS.filter(t => t.id !== myId).map(t => {
+    const interest = frnScrimmageInterest(t.id);
+    const rtg = frnTeamRating(t.id);
+    return { t, interest, rtg };
+  }).sort((a,b) => b.interest - a.interest);
+
+  const rows = candidates.map(({ t, interest, rtg }) => {
+    const already = doneSet.has(t.id);
+    const tag = already ? `<span style="color:var(--gray);font-size:.62rem">Already scrimmaged</span>`
+      : interest >= 0.55 ? `<span style="color:var(--green-lt);font-size:.62rem">Very willing</span>`
+      : interest >= 0.35 ? `<span style="color:#e8a000;font-size:.62rem">Open to it</span>`
+      : interest > 0     ? `<span style="color:#c08080;font-size:.62rem">Unlikely</span>`
+      :                    `<span style="color:var(--gray);font-size:.62rem">Refused</span>`;
+    return `<tr>
+      <td style="font-weight:700">${t.city} ${t.name}</td>
+      <td style="color:var(--gray);font-size:.66rem">OFF ${rtg.off} · DEF ${rtg.def}</td>
+      <td>${tag}</td>
+      <td>${already
+        ? `<span style="color:var(--gold);font-size:.62rem">✓ Intel gained</span>`
+        : `<button class="btn btn-gold" style="font-size:.62rem;padding:.2rem .55rem"
+            onclick="frnRequestScrimmage(${t.id})">Request</button>`}</td>
+    </tr>`;
+  }).join("");
+
+  $("frnHomeContent").innerHTML = `
+    <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem;flex-wrap:wrap">
+      <div style="font-size:1.05rem;font-weight:900;color:var(--gold)">🏟 JOINT PRACTICES</div>
+      <div style="color:var(--gray);font-size:.72rem">Scrimmage between weeks · ${done.length}/3 done this season</div>
+      <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="margin-left:auto">← Back</button>
+    </div>
+    <div class="frn-fa-summary">
+      Joint practices count as exhibition games — no W/L, no stat lines, no risk of injury <i>and</i> you walk away with scouting intel on their players (their combine numbers flip from estimated to revealed, grades sharpen). One scrimmage per opponent per season.
+    </div>
+    <table class="frn-pre-roster-table" style="margin-top:.5rem">
+      <thead><tr><th>Team</th><th>Rating</th><th>Willingness</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
 function _buildWeekReviewCard(week, myId) {
   // Your team's game this week
   const myGame = franchise.schedule.find(g => g.week === week &&
@@ -17054,6 +17316,11 @@ function renderFrnRegular() {
           <span style="color:var(--gray);font-weight:400"> · ${capPct}% used</span>${refundLine}
           <button class="frn-cap-btn" onclick="renderFrnAnalytics('mysheet')">📊 Analytics</button>
           ${week <= TRADE_DEADLINE_WEEK ? `<button class="frn-cap-btn" onclick="frnOpenTrade()">🔀 Trade</button>` : ""}
+          <button class="frn-cap-btn" onclick="renderFrnChat()">💬 Chat${(() => {
+            const unread = (franchise.chat || []).filter(m => m.season === season && m.week === week && m.teamId !== chosenTeamId).length;
+            return unread ? ` (${unread})` : "";
+          })()}</button>
+          <button class="frn-cap-btn" onclick="renderFrnScrimmages()">🏟 Scrim</button>
           ${faBtnHtml}
         </div>
       </div>
@@ -17448,6 +17715,8 @@ function _runWeekEndResolution() {
     _generateWeeklyAIOffers();
     _processBlockAsks();
   }
+  // League chat: AI teams react to last week's news
+  _generateAITrashTalk();
 }
 
 // Bump the week counter, handle cap grace + season-end transitions.
