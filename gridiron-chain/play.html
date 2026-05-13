@@ -1053,6 +1053,66 @@
   }
   .frn-ana-capbar-fill { height: 100%; transition: width .3s; }
 
+  /* Pre-season tabs */
+  .frn-pre-warn {
+    background: rgba(220, 40, 40, .15);
+    border: 1px solid var(--red); color: #ff9090;
+    padding: .5rem .8rem; margin-bottom: .8rem;
+    font-size: .78rem; font-weight: 700;
+  }
+  .frn-pre-pos-group { margin-bottom: 1.1rem; }
+  .frn-pre-pos-title {
+    font-size: .85rem; font-weight: 700; color: var(--gold);
+    letter-spacing: 1px; margin-bottom: .35rem;
+    border-bottom: 1px solid var(--border); padding-bottom: .3rem;
+    display: flex; align-items: baseline; gap: .5rem;
+  }
+  .frn-pre-roster-table {
+    width: 100%; border-collapse: collapse; font-size: .72rem;
+  }
+  .frn-pre-roster-table th {
+    text-align: left; color: var(--gold); font-size: .58rem;
+    letter-spacing: .4px; padding: .25rem .4rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .frn-pre-roster-table td {
+    padding: .22rem .4rem; border-bottom: 1px solid rgba(46,61,46,0.4);
+  }
+  .frn-pre-roster-table tr:last-child td { border-bottom: none; }
+  .frn-pre-roster-table tr:hover td { background: rgba(200,169,0,0.04); }
+  .frn-pre-cut {
+    font-size: .6rem; padding: .15rem .5rem; cursor: pointer;
+    color: #ff9090; border: 1px solid var(--red); background: transparent;
+    font-family: inherit; font-weight: 700; letter-spacing: .3px;
+    transition: all .1s;
+  }
+  .frn-pre-cut:hover { background: var(--red); color: #fff; }
+
+  /* Scout layout */
+  .frn-scout-layout {
+    display: grid; grid-template-columns: 230px 1fr; gap: .8rem;
+  }
+  @media (max-width: 700px) { .frn-scout-layout { grid-template-columns: 1fr; } }
+  .frn-scout-list {
+    display: flex; flex-direction: column; gap: .15rem;
+    max-height: 520px; overflow-y: auto;
+  }
+  .frn-scout-team {
+    background: var(--bg2); border: 1px solid var(--border);
+    padding: .3rem .55rem; cursor: pointer; text-align: left;
+    font-family: inherit; font-size: .68rem; color: var(--white);
+    display: flex; align-items: center; gap: .35rem;
+    transition: all .1s;
+  }
+  .frn-scout-team:hover { background: var(--bg3); border-color: var(--gold); }
+  .frn-scout-team.active {
+    background: var(--bg3); border-color: var(--gold); color: var(--gold-lt);
+  }
+  .frn-scout-detail {
+    background: var(--bg2); border: 1px solid var(--border);
+    padding: .7rem .9rem;
+  }
+
   /* Re-signings screen */
   .frn-resign-list { display: flex; flex-direction: column; gap: .5rem; }
   .frn-resign-row {
@@ -14364,7 +14424,7 @@ function startFranchise(teamId) {
     chosenTeamId: teamId,
     season:  1,
     week:    1,
-    phase:   "regular",
+    phase:   "preseason",
     rosters,
     salaryCap:      SALARY_CAP_BASE,
     schedule:       generateFranchiseSchedule(),
@@ -14400,7 +14460,8 @@ function showFranchiseDashboard() {
   $("franchiseHome").style.display = "block";
   const { phase } = franchise;
   try {
-    if      (phase === "regular")          renderFrnRegular();
+    if      (phase === "preseason")        renderFrnPreseason();
+    else if (phase === "regular")          renderFrnRegular();
     else if (phase === "playoffs_pending") startFrnPlayoffs();
     else if (phase === "playoffs")         renderFrnPlayoffs();
     else if (phase === "awards")           renderFrnAwards();
@@ -14493,6 +14554,206 @@ function frnTeamLeaders(teamId) {
 }
 
 // ── Regular-season dashboard (polished inline layout) ────────────────────────
+// ── Pre-season screen: roster review, schedule preview, scout opponents ───────
+function renderFrnPreseason(tab, scoutId) {
+  tab = tab || "roster";
+  const { chosenTeamId, season, salaryCap, schedule } = franchise;
+  const cap = salaryCap || SALARY_CAP_BASE;
+  const myTeam = getTeam(chosenTeamId);
+  const myRoster = franchise.rosters[chosenTeamId] || [];
+  const capUsed = capUsedByTeam(chosenTeamId);
+  const capLeft = cap - capUsed;
+  const myRtg = frnTeamRating(chosenTeamId);
+  const overCap = capLeft < 0;
+
+  const bannerHtml = `
+    <div class="frn-team-banner" style="--banner-color:${myTeam.primary}">
+      <div class="frn-banner-stripe"></div>
+      <div class="frn-banner-ascii">${teamAscii(myTeam)}</div>
+      <div class="frn-banner-info">
+        <div class="frn-banner-name">${myTeam.city.toUpperCase()} ${myTeam.name.toUpperCase()}</div>
+        <div class="frn-banner-sub">
+          Season ${season} · Pre-Season Camp · OFF ${myRtg.off} · DEF ${myRtg.def}
+        </div>
+        <div class="frn-banner-cap" style="color:${overCap?"var(--red)":capUsed/cap>=0.95?"#e8a000":"var(--green-lt)"}">
+          CAP $${capUsed.toFixed(1)}M / $${cap.toFixed(0)}M
+          <span style="color:var(--gray);font-weight:400"> · Room $${capLeft.toFixed(1)}M</span>
+          <button class="frn-cap-btn" onclick="renderFrnAnalytics('mysheet')">📊 Analytics</button>
+        </div>
+      </div>
+      <div style="text-align:right">
+        <button class="btn btn-gold-big" onclick="frnStartSeason()">▶ START SEASON ${season}</button>
+      </div>
+    </div>`;
+
+  const tabs = [
+    { id:"roster",   label:"📋 MY ROSTER" },
+    { id:"schedule", label:"📅 SCHEDULE" },
+    { id:"scout",    label:"🔍 SCOUT" },
+  ];
+  const tabBar = tabs.map(t =>
+    `<button class="frn-ana-tab ${t.id===tab?"active":""}" onclick="renderFrnPreseason('${t.id}')">${t.label}</button>`
+  ).join("");
+
+  let body;
+  if      (tab === "roster")   body = _preseasonRosterTab(myRoster);
+  else if (tab === "schedule") body = _preseasonScheduleTab(schedule, chosenTeamId);
+  else                         body = _preseasonScoutTab(chosenTeamId, scoutId);
+
+  $("frnHomeContent").innerHTML = `
+    ${bannerHtml}
+    ${overCap ? `<div class="frn-pre-warn">⚠ You are over the cap by $${Math.abs(capLeft).toFixed(1)}M. Cut players to get under $${cap.toFixed(0)}M before starting the season.</div>` : ""}
+    <div class="frn-ana-tabs">${tabBar}</div>
+    <div class="frn-ana-body">${body}</div>
+    <div class="frn-footer-row">
+      <div class="frn-footer-info">Pre-season — review and tinker before Week 1 kicks off</div>
+      <button class="btn btn-outline frn-abandon-btn" onclick="frnAbandon()">× Abandon</button>
+    </div>`;
+}
+
+function _preseasonRosterTab(roster) {
+  const posOrder = ["QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"];
+  const groups = {};
+  for (const p of roster) (groups[p.position] = groups[p.position] || []).push(p);
+
+  let html = "";
+  for (const pos of posOrder) {
+    const players = (groups[pos] || []).slice().sort((a,b) => b.overall - a.overall);
+    if (!players.length) continue;
+    html += `<div class="frn-pre-pos-group">
+      <div class="frn-pre-pos-title">${pos} <span style="color:var(--gray);font-weight:400;font-size:.6rem">${players.length} player${players.length>1?"s":""}</span></div>
+      <table class="frn-pre-roster-table">
+        <thead><tr><th></th><th>Player</th><th>OVR</th><th>Age</th><th>Archetype</th><th>AAV</th><th>Yrs</th><th></th></tr></thead>
+        <tbody>
+          ${players.map((p, i) => {
+            const escName = (p.name || "").replace(/'/g, "\\'");
+            const isStarter = i === 0;
+            const yrs = p.contract?.remaining || 0;
+            const aav = p.contract?.aav || 0;
+            return `<tr>
+              <td style="color:var(--gold);font-size:.65rem">${isStarter?"★ ST":"#"+(i+1)}</td>
+              <td style="font-weight:${isStarter?700:400}">${p.name}</td>
+              <td><span class="tt-ovr tier-${playerTier(p.overall)}">${p.overall}</span></td>
+              <td style="color:var(--gray)">${p.age || "?"}</td>
+              <td style="color:var(--gray);font-size:.66rem">${p.archetype || "—"}</td>
+              <td style="color:var(--gold);font-weight:700">$${aav.toFixed(1)}M</td>
+              <td style="color:var(--gray)">${yrs}yr</td>
+              <td><button class="frn-pre-cut" onclick="frnReleasePlayer('${escName}','${p.position}')" title="Release — frees cap, removes from roster">✗ Cut</button></td>
+            </tr>`;
+          }).join("")}
+        </tbody>
+      </table>
+    </div>`;
+  }
+  return html;
+}
+
+function _preseasonScheduleTab(schedule, myId) {
+  const myGames = schedule.filter(g => g.homeId === myId || g.awayId === myId)
+    .sort((a,b) => a.week - b.week);
+  return `<table class="frn-pre-roster-table">
+    <thead><tr><th>WK</th><th>Opponent</th><th>Where</th><th>OFF</th><th>DEF</th><th>Star Player</th></tr></thead>
+    <tbody>
+      ${myGames.map(g => {
+        const isHome = g.homeId === myId;
+        const oppId  = isHome ? g.awayId : g.homeId;
+        const opp    = getTeam(oppId);
+        const oppRtg = frnTeamRating(oppId);
+        const star   = (franchise.rosters[oppId] || []).slice().sort((a,b) => b.overall - a.overall)[0];
+        return `<tr>
+          <td style="color:var(--gold);font-weight:700">W${g.week}</td>
+          <td style="font-weight:700">${teamAscii(opp)} ${opp.city} ${opp.name}</td>
+          <td style="color:${isHome?"var(--green-lt)":"var(--gray)"};font-size:.7rem">${isHome ? "HOME" : "@ AWAY"}</td>
+          <td style="color:var(--gold)">${oppRtg.off}</td>
+          <td style="color:var(--gold)">${oppRtg.def}</td>
+          <td style="color:var(--gray);font-size:.7rem">${star ? `${star.name} (${star.position}, ${star.overall} OVR)` : "—"}</td>
+        </tr>`;
+      }).join("")}
+    </tbody>
+  </table>`;
+}
+
+function _preseasonScoutTab(myId, scoutId) {
+  // Default to the first non-self opponent on the schedule
+  if (!scoutId) {
+    const next = franchise.schedule.find(g => g.homeId === myId || g.awayId === myId);
+    scoutId = next ? (next.homeId === myId ? next.awayId : next.homeId) : TEAMS.find(t => t.id !== myId).id;
+  }
+  scoutId = Number(scoutId);
+
+  const opponents = TEAMS.filter(t => t.id !== myId);
+  const listHtml = opponents.map(t => {
+    const rtg = frnTeamRating(t.id);
+    const active = t.id === scoutId;
+    return `<button class="frn-scout-team ${active?"active":""}" onclick="renderFrnPreseason('scout',${t.id})" style="border-left:3px solid ${t.primary}">
+      <span style="color:var(--gold)">${teamAscii(t)}</span>
+      <span>${t.name}</span>
+      <span style="color:var(--gray);font-size:.55rem;margin-left:auto">${rtg.off}/${rtg.def}</span>
+    </button>`;
+  }).join("");
+
+  const oppTeam   = getTeam(scoutId);
+  const oppRoster = franchise.rosters[scoutId] || [];
+  const oppRtg    = frnTeamRating(scoutId);
+  const oppCap    = capUsedByTeam(scoutId);
+  const stars     = oppRoster.slice().sort((a,b) => b.overall - a.overall).slice(0, 12);
+
+  const starsHtml = `<table class="frn-pre-roster-table">
+    <thead><tr><th>#</th><th>Player</th><th>Pos</th><th>OVR</th><th>Age</th><th>AAV</th></tr></thead>
+    <tbody>
+      ${stars.map((p,i) => `<tr>
+        <td style="color:var(--gold);font-size:.65rem">${i+1}</td>
+        <td style="font-weight:700">${p.name}</td>
+        <td style="color:var(--gray)">${p.position}</td>
+        <td><span class="tt-ovr tier-${playerTier(p.overall)}">${p.overall}</span></td>
+        <td style="color:var(--gray)">${p.age || "?"}</td>
+        <td style="color:var(--gold)">$${(p.contract?.aav||0).toFixed(1)}M</td>
+      </tr>`).join("")}
+    </tbody>
+  </table>`;
+
+  return `<div class="frn-scout-layout">
+    <div class="frn-scout-list">${listHtml}</div>
+    <div class="frn-scout-detail">
+      <div style="display:flex;align-items:center;gap:.7rem;margin-bottom:.6rem">
+        <span style="font-size:1.8rem;color:var(--gold)">${teamAscii(oppTeam)}</span>
+        <div>
+          <div style="font-weight:900;font-size:1.05rem">${oppTeam.city} ${oppTeam.name.toUpperCase()}</div>
+          <div style="color:var(--gray);font-size:.7rem">
+            OFF <b style="color:var(--gold)">${oppRtg.off}</b> ·
+            DEF <b style="color:var(--gold)">${oppRtg.def}</b> ·
+            Cap $${oppCap.toFixed(0)}M
+          </div>
+        </div>
+      </div>
+      <div class="frn-card-title" style="margin-bottom:.4rem">TOP 12 PLAYERS</div>
+      ${starsHtml}
+    </div>
+  </div>`;
+}
+
+function frnReleasePlayer(name, pos) {
+  if (!confirm(`Release ${name}? They leave the team immediately and their AAV is freed from the cap.`)) return;
+  const roster = franchise.rosters[franchise.chosenTeamId];
+  const idx = roster.findIndex(p => p.name === name && p.position === pos);
+  if (idx === -1) return;
+  roster.splice(idx, 1);
+  saveFranchise();
+  renderFrnPreseason("roster");
+}
+
+function frnStartSeason() {
+  const cap = franchise.salaryCap || SALARY_CAP_BASE;
+  const used = capUsedByTeam(franchise.chosenTeamId);
+  if (used > cap) {
+    alert(`Still over the cap by $${(used-cap).toFixed(1)}M. Cut players first.`);
+    return;
+  }
+  franchise.phase = "regular";
+  saveFranchise();
+  showFranchiseDashboard();
+}
+
 function renderFrnRegular() {
   const { chosenTeamId, season, week, schedule, standings, seasonHighlights } = franchise;
   const myTeam  = getTeam(chosenTeamId);
