@@ -1324,6 +1324,22 @@
   }
   .frn-holdout-row.resolved { border-left-color: var(--gray); opacity: .8; }
 
+  /* Salary refund form */
+  .frn-refund-form {
+    display: grid; grid-template-columns: 1fr 1fr; gap: .55rem;
+    margin-bottom: .4rem;
+  }
+  .frn-refund-form input {
+    width: 100%; background: var(--bg3); border: 1px solid var(--border);
+    color: var(--white); padding: .35rem .5rem; font-family: inherit;
+    font-size: .8rem; font-weight: 700;
+  }
+  .frn-refund-form input:focus { outline: none; border-color: var(--gold); }
+  .frn-refund-summary {
+    background: var(--bg3); border-left: 3px solid var(--red);
+    padding: .4rem .55rem; font-size: .72rem; margin-bottom: .4rem;
+  }
+
   /* Trade tabs + sort */
   .frn-sort-btn {
     background: var(--bg3); border: 1px solid var(--border); color: var(--gray);
@@ -14647,7 +14663,26 @@ function assignContracts(rosters, cap) {
 
 function capUsedByTeam(teamId) {
   const roster = (franchise?.rosters || {})[teamId] || [];
-  return roster.reduce((s, p) => s + (p.contract?.aav || 0), 0);
+  let used = roster.reduce((s, p) => s + (p.contract?.aav || 0), 0);
+  // Salary refunds: outgoing refunds count against the sender's cap
+  // (dead money for the years left on the original deal); incoming
+  // refunds offset the receiver's cap.
+  for (const r of (franchise?.refunds || [])) {
+    if (!r.yearsRemaining || r.yearsRemaining <= 0) continue;
+    if (r.fromTeamId === teamId) used += r.amount;
+    else if (r.toTeamId === teamId) used -= r.amount;
+  }
+  return Math.round(used * 10) / 10;
+}
+
+// Summary of a team's outgoing/incoming refunds for display.
+function refundsForTeam(teamId) {
+  const out = (franchise?.refunds || []).filter(r => r.yearsRemaining > 0 && r.fromTeamId === teamId);
+  const inc = (franchise?.refunds || []).filter(r => r.yearsRemaining > 0 && r.toTeamId === teamId);
+  return {
+    outgoing: out, outgoingTotal: out.reduce((s,r) => s + r.amount, 0),
+    incoming: inc, incomingTotal: inc.reduce((s,r) => s + r.amount, 0),
+  };
 }
 
 function currentCap() {
@@ -16935,6 +16970,12 @@ function renderFrnRegular() {
   const capUsed = capUsedByTeam(chosenTeamId);
   const capPct  = Math.round(capUsed / cap * 100);
   const capColor = capPct >= 95 ? "var(--red)" : capPct >= 85 ? "#e8a000" : "var(--green-lt)";
+  const refundsInfo = refundsForTeam(chosenTeamId);
+  const refundLine = (refundsInfo.outgoingTotal || refundsInfo.incomingTotal)
+    ? ` <span style="color:var(--gray);font-weight:400">·</span>${refundsInfo.outgoingTotal > 0
+        ? ` <span style="color:var(--red);font-size:.6rem">Dead cap −$${refundsInfo.outgoingTotal.toFixed(1)}M/yr</span>` : ""}${refundsInfo.incomingTotal > 0
+        ? ` <span style="color:var(--green-lt);font-size:.6rem">Refund +$${refundsInfo.incomingTotal.toFixed(1)}M/yr</span>` : ""}`
+    : "";
 
   // FA negotiations summary — banner button when active
   const negs = franchise.faNegotiations || {};
@@ -16978,7 +17019,7 @@ function renderFrnRegular() {
         </div>
         <div class="frn-banner-cap" style="color:${capColor}">
           CAP $${capUsed.toFixed(1)}M / $${cap.toFixed(0)}M
-          <span style="color:var(--gray);font-weight:400"> · ${capPct}% used</span>
+          <span style="color:var(--gray);font-weight:400"> · ${capPct}% used</span>${refundLine}
           <button class="frn-cap-btn" onclick="renderFrnAnalytics('mysheet')">📊 Analytics</button>
           ${week <= TRADE_DEADLINE_WEEK ? `<button class="frn-cap-btn" onclick="frnOpenTrade()">🔀 Trade</button>` : ""}
           ${faBtnHtml}
@@ -18112,6 +18153,11 @@ function startFrnOffseason() {
       }
     }
   }
+  // Salary-refund obligations also tick down; clear expired ones
+  for (const r of (franchise.refunds || [])) {
+    if (r.yearsRemaining > 0) r.yearsRemaining -= 1;
+  }
+  franchise.refunds = (franchise.refunds || []).filter(r => r.yearsRemaining > 0);
   // Cap inflation: 5-9% per season (mean ~7%)
   const growth = 0.05 + Math.random() * 0.04;
   franchise.salaryCap = Math.round(
@@ -18500,6 +18546,15 @@ function frnAskToggleWant(playerName) {
   renderFrnTrade();
 }
 
+function frnAskSetRefund(field, value) {
+  const ad = franchise._tradeProp?.askDraft;
+  if (!ad) return;
+  if (field === "amount") ad.refundAmount = Math.max(0, parseFloat(value) || 0);
+  if (field === "years")  ad.refundYears  = Math.max(0, Math.min(10, parseInt(value, 10) || 0));
+  saveFranchise();
+  renderFrnTrade();
+}
+
 function frnSubmitAsk() {
   const tp = franchise._tradeProp;
   if (!tp?.editAsk || !tp?.askDraft) return;
@@ -18511,15 +18566,22 @@ function frnSubmitAsk() {
   const player = franchise.rosters[franchise.chosenTeamId].find(p => p.name === tp.editAsk);
   if (!player) return;
   player.onTradeBlock = true;
-  player.blockAsk = { targetTeamId: ad.targetTeamId, wantNames: [...ad.wantNames] };
-  // Evaluate immediately — the target team owner sees the directed
-  // proposal right away (you DM'd them, not the league).
+  const refund = (ad.refundAmount > 0 && ad.refundYears > 0)
+    ? { amount: ad.refundAmount, years: ad.refundYears }
+    : null;
+  player.blockAsk = {
+    targetTeamId: ad.targetTeamId,
+    wantNames: [...ad.wantNames],
+    refund,
+  };
   const result = _evaluateBlockAsk(player);
   delete tp.editAsk;
   delete tp.askDraft;
   saveFranchise();
   if (result.outcome === "accepted") {
-    alert(`✓ Deal done! ${getTeam(player.blockAsk?.targetTeamId)?.name||"They"} accepted on the spot.`);
+    const team = getTeam(player.blockAsk?.targetTeamId);
+    const refundLine = refund ? ` (you're eating $${refund.amount.toFixed(1)}M/yr × ${refund.years}yr)` : "";
+    alert(`✓ Deal done! ${team?.name||"They"} accepted on the spot${refundLine}.`);
   } else if (result.outcome === "rejected") {
     alert(`✗ ${result.message}`);
   } else if (result.outcome === "counter_queued") {
@@ -18547,11 +18609,18 @@ function _evaluateBlockAsk(player) {
   const giveValue = _playerTradeValue(player);
   const wantValue = wantPlayers.reduce((s,p) => s + _playerTradeValue(p), 0);
   const theirNeed = _aiTradeNeedBonus(ask.targetTeamId, [player]);
-  const ratio = (giveValue + theirNeed) / Math.max(0.1, wantValue);
+  // Refund sweetener: $1M/yr roughly worth 1.5 value units to the
+  // receiver (they get cap room they didn't have to spend).
+  const refund = ask.refund;
+  const refundTotal = refund ? refund.amount * refund.years : 0;
+  const refundUnits = refundTotal * 1.5;
+  const ratio = (giveValue + theirNeed + refundUnits) / Math.max(0.1, wantValue);
 
   if (ratio >= 0.95) {
     // ACCEPT — execute trade now
     const team = getTeam(ask.targetTeamId);
+    // Capture player's remaining years BEFORE we move them
+    const yearsLeftOnPlayerDeal = player.contract?.remaining || 0;
     player.onTradeBlock = false;
     delete player.blockAsk;
     const idx = myRoster.indexOf(player);
@@ -18562,8 +18631,21 @@ function _evaluateBlockAsk(player) {
       if (wi !== -1) theirRoster.splice(wi, 1);
       myRoster.push(wp);
     }
+    // Persist the refund obligation. Years are capped at the player's
+    // contract remaining — you can't owe past their original deal.
+    if (refund) {
+      if (!franchise.refunds) franchise.refunds = [];
+      franchise.refunds.push({
+        fromTeamId: myId, toTeamId: ask.targetTeamId,
+        amount: refund.amount,
+        yearsRemaining: Math.min(refund.years, yearsLeftOnPlayerDeal || refund.years),
+        playerName: player.name,
+        sinceSeason: franchise.season,
+      });
+    }
+    const refundLine = refund ? ` (eating $${refund.amount.toFixed(1)}M/yr × ${refund.years}yr)` : "";
     _pushNews({ type:"trade",
-      label: `🔀 Block deal w/ ${team.name}: ${wantPlayers.map(p=>p.position+" "+p.name).join(", ")} for ${player.position+" "+player.name}` });
+      label: `🔀 Block deal w/ ${team.name}: ${wantPlayers.map(p=>p.position+" "+p.name).join(", ")} for ${player.position+" "+player.name}${refundLine}` });
     return { outcome:"accepted" };
   }
   if (ratio < 0.5) {
@@ -18575,6 +18657,7 @@ function _evaluateBlockAsk(player) {
     fromTeamId: ask.targetTeamId,
     playerName: player.name,
     askWantNames: [...ask.wantNames],
+    askRefund: refund ? { ...refund } : null,
     week: franchise.week,
   });
   return { outcome:"counter_queued" };
@@ -18928,9 +19011,12 @@ function _renderTradeBlockTab(myRoster, sortBy) {
     const escName = (p.name||"").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
     const ask = p.blockAsk;
     const askTeam = ask ? getTeam(ask.targetTeamId) : null;
+    const refundChip = ask?.refund
+      ? ` <span style="color:var(--red);font-size:.58rem;font-weight:700">+$${ask.refund.amount.toFixed(1)}M/yr×${ask.refund.years}yr refund</span>`
+      : "";
     const askSummary = ask
       ? `<div style="color:var(--gold-lt);font-size:.62rem;margin-top:.15rem">
-           → ${askTeam?.name||"?"}: want ${ask.wantNames.join(", ")}
+           → ${askTeam?.name||"?"}: want ${ask.wantNames.join(", ")}${refundChip}
          </div>`
       : "";
     return `<tr class="${p.onTradeBlock?'frn-blocked':''}">
@@ -18967,15 +19053,18 @@ function _renderBlockAskForm(playerName) {
   const player = franchise.rosters[myId].find(p => p.name === playerName);
   if (!player) return `<div>Player not found.</div>`;
   const tp = franchise._tradeProp;
-  const ad = tp.askDraft || { targetTeamId: TEAMS.find(t => t.id !== myId).id, wantNames: [] };
+  const ad = tp.askDraft || { targetTeamId: TEAMS.find(t => t.id !== myId).id, wantNames: [], refundAmount: 0, refundYears: 0 };
   const targetTeam = getTeam(ad.targetTeamId);
   const theirRoster = franchise.rosters[ad.targetTeamId] || [];
+  const maxRefundYears = player.contract?.remaining || 1;
 
-  // Quick value preview for user
+  // Value preview including refund sweetener
   const giveValue = _playerTradeValue(player);
   const wantPlayers = ad.wantNames.map(n => theirRoster.find(p => p.name === n)).filter(Boolean);
   const wantValue = wantPlayers.reduce((s,p) => s + _playerTradeValue(p), 0);
-  const ratio = wantValue ? (giveValue / wantValue) : 0;
+  const refundTotal = (ad.refundAmount || 0) * (ad.refundYears || 0);
+  const refundUnits = refundTotal * 1.5;
+  const ratio = wantValue ? (giveValue + refundUnits) / wantValue : 0;
   const likelihood = !wantValue ? "—"
     : ratio >= 0.95 ? "Very likely — instant accept"
     : ratio >= 0.65 ? "Probably counter"
@@ -19005,11 +19094,19 @@ function _renderBlockAskForm(playerName) {
     </label>`;
   }).join("");
 
+  // Refund preview: dead cap impact on user, cap relief for receiver
+  const refundLine = refundTotal > 0
+    ? `<div class="frn-refund-summary">
+         You eat <b style="color:var(--red)">$${(ad.refundAmount||0).toFixed(1)}M/yr × ${ad.refundYears}yr</b> = total <b>$${refundTotal.toFixed(1)}M dead cap</b>.
+         Capped at ${maxRefundYears}yr (player's remaining contract).
+       </div>`
+    : "";
+
   return `
     <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem;flex-wrap:wrap">
       <button class="btn btn-outline" onclick="frnCancelAsk()">← Back</button>
       <div style="font-weight:900">Set ask for ${player.name}</div>
-      <div style="color:var(--gray);font-size:.7rem">(${player.position}, age ${player.age||"?"}, ${gradeLabel(scoutGrade(player))})</div>
+      <div style="color:var(--gray);font-size:.7rem">(${player.position}, age ${player.age||"?"}, ${gradeLabel(scoutGrade(player))} · contract ${player.contract?.remaining||0}yr left @ $${(player.contract?.aav||0).toFixed(1)}M)</div>
     </div>
     <div class="frn-fa-summary">
       Target team:
@@ -19017,7 +19114,25 @@ function _renderBlockAskForm(playerName) {
       <span style="margin-left:auto;color:${lkColor};font-weight:700">${likelihood}</span>
     </div>
     <div class="frn-card-title">YOU WANT FROM ${targetTeam?.name||"?"} (${ad.wantNames.length})</div>
-    <div class="frn-trade-list" style="max-height:480px;overflow-y:auto">${rosterRows}</div>
+    <div class="frn-trade-list" style="max-height:380px;overflow-y:auto">${rosterRows}</div>
+    <div class="frn-card-title" style="margin-top:.7rem">💸 SALARY REFUND (OPTIONAL)</div>
+    <div style="color:var(--gray);font-size:.68rem;margin-bottom:.3rem">
+      Pay the receiving team cash per year to sweeten the deal. The refund counts as
+      <b style="color:var(--red)">dead cap</b> on your books and <b style="color:var(--green-lt)">cap relief</b> on theirs.
+    </div>
+    <div class="frn-refund-form">
+      <label>
+        <span class="frn-meta-label">$M / YEAR</span>
+        <input type="number" min="0" max="40" step="0.5" value="${(ad.refundAmount||0).toFixed(1)}"
+          onchange="frnAskSetRefund('amount',this.value)">
+      </label>
+      <label>
+        <span class="frn-meta-label">YEARS</span>
+        <input type="number" min="0" max="${maxRefundYears}" step="1" value="${ad.refundYears||0}"
+          onchange="frnAskSetRefund('years',this.value)">
+      </label>
+    </div>
+    ${refundLine}
     <div class="frn-actions" style="justify-content:center;margin-top:.7rem">
       <button class="btn btn-gold-big" onclick="frnSubmitAsk()"
         ${ad.wantNames.length===0?"disabled style=\"opacity:.5;cursor:not-allowed\"":""}>
