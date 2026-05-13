@@ -1385,6 +1385,15 @@
     background: var(--bg3);
   }
 
+  /* Hall of Fame row */
+  .frn-hof-row {
+    display: flex; align-items: center; gap: .7rem;
+    padding: .55rem .7rem;
+    background: var(--bg2); border: 1px solid var(--border);
+    border-left: 3px solid var(--gold);
+    margin-bottom: .3rem;
+  }
+
   /* Coaching FA cards */
   .frn-coach-fa {
     display: flex; align-items: center; gap: .5rem;
@@ -17748,6 +17757,200 @@ function renderFrnScrimmages() {
 }
 
 // ── Past-game viewer ──────────────────────────────────────────────────────────
+// ── Legacy / all-time records ─────────────────────────────────────────────────
+function renderFrnLegacy(tab) {
+  frnHoverTipHide(); _frnHoverTipPgHide && _frnHoverTipPgHide();
+  tab = tab || "champions";
+  const tabs = [
+    { id:"champions",   label:"🏆 CHAMPIONS" },
+    { id:"hof",         label:"🏛 HALL OF FAME" },
+    { id:"career",      label:"📚 CAREER LEADERS" },
+    { id:"season",      label:"📊 SINGLE-SEASON" },
+    { id:"awards",      label:"⭐ AWARDS HISTORY" },
+  ];
+  const tabHtml = tabs.map(t =>
+    `<button class="frn-ana-tab ${t.id===tab?"active":""}" onclick="renderFrnLegacy('${t.id}')">${t.label}</button>`
+  ).join("");
+
+  let body = "";
+  if (tab === "champions") body = _legacyChampions();
+  else if (tab === "hof") body = _legacyHOF();
+  else if (tab === "career") body = _legacyCareer();
+  else if (tab === "season") body = _legacySeason();
+  else if (tab === "awards") body = _legacyAwards();
+
+  $("frnHomeContent").innerHTML = `
+    <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem;flex-wrap:wrap">
+      <div style="font-size:1.05rem;font-weight:900;color:var(--gold)">🏆 LEGACY · ${franchise.season} SEASONS</div>
+      <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="margin-left:auto">← Back</button>
+    </div>
+    <div class="frn-ana-tabs">${tabHtml}</div>
+    <div class="frn-ana-body">${body}</div>`;
+}
+
+function _legacyChampions() {
+  const history = (franchise.history || []).slice().reverse();
+  if (!history.length) return `<div style="color:var(--gray);font-size:.78rem;padding:1rem;text-align:center;font-style:italic">No champion crowned yet — finish a season to start the record book.</div>`;
+  return `<table class="frn-ana-table"><thead>
+    <tr><th>Season</th><th>Champion</th><th>League MVP</th><th>SB MVP</th><th>Coach</th></tr>
+  </thead><tbody>
+    ${history.map(h => {
+      const champTeam = getTeam(h.champion);
+      // Find coach who was with the team that season (best-effort: current coach if still there)
+      const hc = franchise.coaches?.[h.champion]?.hc;
+      return `<tr>
+        <td style="color:var(--gold);font-weight:700">S${h.season}</td>
+        <td style="font-weight:700">${champTeam ? teamLink(champTeam) : "?"}</td>
+        <td>${h.leagueMVP ? playerLinkByName(h.leagueMVP.name) + ` <span style="color:var(--gray);font-size:.62rem">(${h.leagueMVP.pos})</span>` : "—"}</td>
+        <td>${h.superBowlMVP ? playerLinkByName(h.superBowlMVP.name) : "—"}</td>
+        <td style="color:var(--gray);font-size:.66rem">${hc?.name || "—"}</td>
+      </tr>`;
+    }).join("")}
+  </tbody></table>`;
+}
+
+function _legacyHOF() {
+  const list = (franchise.hallOfFame || []).slice().reverse();
+  if (!list.length) return `<div style="color:var(--gray);font-size:.78rem;padding:1rem;text-align:center;font-style:italic">The Hall of Fame opens with the first elite retirement.</div>`;
+  return list.map(h => {
+    const cs = h.careerStats || {};
+    const yrs = h.careerHistory?.length || 0;
+    // Position-aware stat highlights
+    let highlights = "";
+    if (h.pos === "QB") highlights = `${cs.pass_yds||0} yds · ${cs.pass_td||0} TD · ${cs.pass_int||0} INT`;
+    else if (h.pos === "RB") highlights = `${cs.rush_yds||0} rush yds · ${cs.rush_td||0} TD`;
+    else if (h.pos === "WR" || h.pos === "TE") highlights = `${cs.rec||0} rec · ${cs.rec_yds||0} yds · ${cs.rec_td||0} TD`;
+    else if (h.pos === "DL" || h.pos === "LB") highlights = `${cs.tkl||0} tkl · ${cs.sk||0} sk · ${cs.ff||0} FF`;
+    else if (h.pos === "CB" || h.pos === "S") highlights = `${cs.int_made||0} INT · ${cs.pd||0} PD · ${cs.tkl||0} tkl`;
+    else if (h.pos === "K") highlights = `${cs.fg_made||0} FG (long ${cs.fg_long||0}) · ${cs.xp_made||0} XP`;
+    return `<div class="frn-hof-row">
+      <div style="font-size:1.6rem;color:var(--gold)">🏛</div>
+      <div style="flex:1">
+        <div style="font-weight:900;font-size:.95rem">${h.name}
+          <span style="color:var(--gray);font-size:.62rem;font-weight:400">(${h.pos})</span>
+        </div>
+        <div style="color:var(--gray);font-size:.66rem">${h.teamName} · ${yrs} season${yrs===1?"":"s"} · enshrined S${h.season} · ${(h.careerEarnings||0).toFixed(1)}M career</div>
+        <div style="color:var(--gold-lt);font-size:.66rem;margin-top:.1rem">${highlights}</div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function _allKnownPlayers() {
+  // Active rosters + HOF (HOF entries hold their final stats)
+  const out = [];
+  for (const roster of Object.values(franchise.rosters || {})) {
+    for (const p of roster) out.push({
+      name: p.name, pos: p.position, careerStats: p.careerStats || {}, isHOF: false, _live: p,
+    });
+  }
+  for (const h of (franchise.hallOfFame || [])) {
+    // Skip dupes (shouldn't happen — retired players are removed from roster)
+    if (out.some(x => x.name === h.name)) continue;
+    out.push({ name: h.name, pos: h.pos, careerStats: h.careerStats || {}, isHOF: true });
+  }
+  return out;
+}
+
+function _legacyCareer() {
+  const all = _allKnownPlayers();
+  if (!all.length || all.every(p => Object.keys(p.careerStats).length === 0)) {
+    return `<div style="color:var(--gray);font-size:.78rem;padding:1rem;text-align:center;font-style:italic">No career stats accumulated yet. Play through your first season.</div>`;
+  }
+  const cats = [
+    { label:"PASSING YARDS",    key:"pass_yds",  posFilter:p => p.pos === "QB" },
+    { label:"PASSING TDs",      key:"pass_td",   posFilter:p => p.pos === "QB" },
+    { label:"RUSHING YARDS",    key:"rush_yds",  posFilter:p => p.pos === "RB" || p.pos === "QB" },
+    { label:"RUSHING TDs",      key:"rush_td",   posFilter:p => p.pos === "RB" || p.pos === "QB" },
+    { label:"RECEIVING YARDS",  key:"rec_yds",   posFilter:p => p.pos === "WR" || p.pos === "TE" || p.pos === "RB" },
+    { label:"RECEIVING TDs",    key:"rec_td",    posFilter:p => p.pos === "WR" || p.pos === "TE" || p.pos === "RB" },
+    { label:"SACKS",            key:"sk",        posFilter:p => p.pos === "DL" || p.pos === "LB" },
+    { label:"TACKLES",          key:"tkl",       posFilter:p => ["DL","LB","CB","S"].includes(p.pos) },
+    { label:"INTERCEPTIONS",    key:"int_made",  posFilter:p => ["CB","S","LB"].includes(p.pos) },
+    { label:"FIELD GOALS",      key:"fg_made",   posFilter:p => p.pos === "K" },
+  ];
+  return cats.map(c => {
+    const list = all
+      .filter(p => c.posFilter(p) && (p.careerStats[c.key] || 0) > 0)
+      .sort((a,b) => (b.careerStats[c.key]||0) - (a.careerStats[c.key]||0))
+      .slice(0, 10);
+    if (!list.length) return "";
+    return `<div class="frn-pg-card" style="margin-bottom:.5rem">
+      <div class="frn-pg-card-title">${c.label}</div>
+      <table class="frn-ana-table">
+        <thead><tr><th>#</th><th>Player</th><th>${c.label}</th></tr></thead>
+        <tbody>${list.map((p,i) => `<tr>
+          <td style="color:var(--gold)">${i+1}</td>
+          <td>${playerLinkByName(p.name)} ${p.isHOF?'<span style="color:var(--gold);font-size:.55rem">🏛</span>':''} <span style="color:var(--gray);font-size:.6rem">(${p.pos})</span></td>
+          <td style="color:var(--gold-lt);font-weight:700">${p.careerStats[c.key] || 0}</td>
+        </tr>`).join("")}</tbody>
+      </table>
+    </div>`;
+  }).join("");
+}
+
+function _legacySeason() {
+  // Collect every (player, season) row from active careerHistory + HOF snapshots
+  const rows = [];
+  for (const roster of Object.values(franchise.rosters || {})) {
+    for (const p of roster) {
+      for (const r of (p.careerHistory || [])) {
+        rows.push({ name: p.name, pos: p.position, ...r });
+      }
+    }
+  }
+  for (const h of (franchise.hallOfFame || [])) {
+    for (const r of (h.careerHistory || [])) {
+      rows.push({ name: h.name, pos: h.pos, ...r });
+    }
+  }
+  if (!rows.length) {
+    return `<div style="color:var(--gray);font-size:.78rem;padding:1rem;text-align:center;font-style:italic">Single-season records appear once you've completed a season.</div>`;
+  }
+  const cats = [
+    { label:"PASSING YARDS (SEASON)",   key:"pass_yds" },
+    { label:"PASSING TDs (SEASON)",     key:"pass_td" },
+    { label:"RUSHING YARDS (SEASON)",   key:"rush_yds" },
+    { label:"RECEIVING YARDS (SEASON)", key:"rec_yds" },
+    { label:"SACKS (SEASON)",           key:"sk" },
+    { label:"INTERCEPTIONS (SEASON)",   key:"int_made" },
+  ];
+  return cats.map(c => {
+    const list = rows.filter(r => (r[c.key]||0) > 0)
+      .sort((a,b) => (b[c.key]||0) - (a[c.key]||0))
+      .slice(0, 10);
+    if (!list.length) return "";
+    return `<div class="frn-pg-card" style="margin-bottom:.5rem">
+      <div class="frn-pg-card-title">${c.label}</div>
+      <table class="frn-ana-table">
+        <thead><tr><th>#</th><th>Player</th><th>Season</th><th>Team</th><th>${c.label.split(" (")[0]}</th></tr></thead>
+        <tbody>${list.map((r,i) => `<tr>
+          <td style="color:var(--gold)">${i+1}</td>
+          <td>${playerLinkByName(r.name)} <span style="color:var(--gray);font-size:.6rem">(${r.pos})</span></td>
+          <td>S${r.season}</td>
+          <td style="color:var(--gray);font-size:.66rem">${r.teamName || "—"}</td>
+          <td style="color:var(--gold-lt);font-weight:700">${r[c.key] || 0}</td>
+        </tr>`).join("")}</tbody>
+      </table>
+    </div>`;
+  }).join("");
+}
+
+function _legacyAwards() {
+  const history = (franchise.history || []).slice().reverse();
+  if (!history.length) return `<div style="color:var(--gray);font-size:.78rem;padding:1rem;text-align:center;font-style:italic">No awards handed out yet.</div>`;
+  return `<table class="frn-ana-table"><thead>
+    <tr><th>Season</th><th>League MVP</th><th>SB MVP</th><th>Champ-Team MVP</th></tr>
+  </thead><tbody>
+    ${history.map(h => `<tr>
+      <td style="color:var(--gold);font-weight:700">S${h.season}</td>
+      <td>${h.leagueMVP ? `${playerLinkByName(h.leagueMVP.name)} <span style="color:var(--gray);font-size:.62rem">(${h.leagueMVP.pos}, ${h.leagueMVP.teamName})</span>` : "—"}</td>
+      <td>${h.superBowlMVP ? `${playerLinkByName(h.superBowlMVP.name)} <span style="color:var(--gray);font-size:.62rem">(${h.superBowlMVP.pos})</span>` : "—"}</td>
+      <td>${h.champTeamMVP ? `${playerLinkByName(h.champTeamMVP.name)} <span style="color:var(--gray);font-size:.62rem">(${h.champTeamMVP.pos})</span>` : "—"}</td>
+    </tr>`).join("")}
+  </tbody></table>`;
+}
+
 // ── Coaches view + hire/fire ──────────────────────────────────────────────────
 function renderFrnCoaches() {
   frnHoverTipHide(); _frnHoverTipPgHide && _frnHoverTipPgHide();
@@ -18445,6 +18648,7 @@ function renderFrnRegular() {
           <button class="frn-cap-btn" onclick="renderFrnAnalytics('mysheet')">📊 Analytics</button>
           <button class="frn-cap-btn" onclick="renderFrnDepthChart()">📋 Depth</button>
           <button class="frn-cap-btn" onclick="renderFrnCoaches()">🎩 Coaches</button>
+          <button class="frn-cap-btn" onclick="renderFrnLegacy()">🏆 Legacy</button>
           ${week <= TRADE_DEADLINE_WEEK ? `<button class="frn-cap-btn" onclick="frnOpenTrade()">🔀 Trade</button>` : ""}
           <button class="frn-cap-btn" onclick="renderFrnChat()">💬 Chat${(() => {
             const unread = (franchise.chat || []).filter(m => m.season === season && m.week === week && m.teamId !== chosenTeamId).length;
