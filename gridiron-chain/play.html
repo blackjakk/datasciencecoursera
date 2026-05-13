@@ -1342,6 +1342,20 @@
   .frn-refund-summary.income { border-left-color: var(--green); }
   .frn-cash-dir { display: flex; gap: .3rem; margin-bottom: .4rem; }
 
+  /* Position tabs (trade propose) */
+  .frn-pos-tabs {
+    display: flex; flex-wrap: wrap; gap: .15rem;
+    background: var(--bg2); border: 1px solid var(--border);
+    padding: .3rem .4rem;
+  }
+  .frn-pos-tab {
+    background: var(--bg3); border: 1px solid var(--border); color: var(--gray);
+    padding: .2rem .55rem; font-size: .62rem; font-weight: 700;
+    cursor: pointer; font-family: inherit; letter-spacing: .3px; min-width: 2.2rem;
+  }
+  .frn-pos-tab:hover { border-color: var(--gold); color: var(--white); }
+  .frn-pos-tab.active { background: var(--gold); color: #000; border-color: var(--gold); }
+
   /* Trade tabs + sort */
   .frn-sort-btn {
     background: var(--bg3); border: 1px solid var(--border); color: var(--gray);
@@ -18464,21 +18478,31 @@ function frnOpenTrade(targetTeamId, tab) {
     alert("Trade deadline has passed.");
     return;
   }
+  // null/"" → browse mode (no partner locked). A real team id → lock it.
+  const wantsBrowse = (targetTeamId === null || targetTeamId === "" || targetTeamId === undefined);
   if (!franchise._tradeProp) {
     franchise._tradeProp = {
-      targetTeamId: Number(targetTeamId) || TEAMS.find(t => t.id !== franchise.chosenTeamId).id,
+      targetTeamId: wantsBrowse ? null : Number(targetTeamId),
       youSend: [], youReceive: [],
       result: null,
       tab: tab || "propose",
       sortBy: "grade",
+      posFilter: "ALL",
     };
-  } else if (targetTeamId) {
+  } else if (!wantsBrowse) {
     franchise._tradeProp.targetTeamId = Number(targetTeamId);
+    franchise._tradeProp.youSend = [];
+    franchise._tradeProp.youReceive = [];
+    franchise._tradeProp.result = null;
+  } else if (wantsBrowse && targetTeamId !== undefined) {
+    // Explicit clear via dropdown
+    franchise._tradeProp.targetTeamId = null;
     franchise._tradeProp.youSend = [];
     franchise._tradeProp.youReceive = [];
     franchise._tradeProp.result = null;
   }
   if (tab) franchise._tradeProp.tab = tab;
+  saveFranchise();
   renderFrnTrade();
 }
 
@@ -18849,6 +18873,54 @@ function frnToggleTradePlayer(side, name) {
   renderFrnTrade();
 }
 
+// Click a league-browse player on the PROPOSE tab. Sets the partner
+// team (if not already locked) and adds to youReceive. If a different
+// partner is already locked, asks first.
+function frnAddReceiveFromBrowse(teamId, name) {
+  const tp = franchise._tradeProp;
+  if (!tp) return;
+  teamId = Number(teamId);
+  if (tp.youReceive.length === 0) {
+    // No partner locked yet — adopt this team and start the want list
+    tp.targetTeamId = teamId;
+    tp.youReceive.push(name);
+  } else if (tp.targetTeamId === teamId) {
+    // Same partner — toggle
+    const idx = tp.youReceive.indexOf(name);
+    if (idx === -1) tp.youReceive.push(name); else tp.youReceive.splice(idx, 1);
+    if (tp.youReceive.length === 0) tp.targetTeamId = null;
+  } else {
+    // Different partner — confirm switch
+    const newTeam = getTeam(teamId), oldTeam = getTeam(tp.targetTeamId);
+    if (!confirm(`Switch trade partner from ${oldTeam?.name||"?"} to ${newTeam?.name||"?"}? Your current selections will be cleared.`)) return;
+    tp.targetTeamId = teamId;
+    tp.youReceive = [name];
+    tp.youSend = [];
+  }
+  tp.result = null;
+  saveFranchise();
+  renderFrnTrade();
+}
+
+function frnSetTradePosFilter(pos) {
+  const tp = franchise._tradeProp;
+  if (!tp) return;
+  tp.posFilter = pos; // "ALL" or position string
+  saveFranchise();
+  renderFrnTrade();
+}
+
+function frnClearTradePartner() {
+  const tp = franchise._tradeProp;
+  if (!tp) return;
+  tp.targetTeamId = null;
+  tp.youReceive = [];
+  tp.youSend = [];
+  tp.result = null;
+  saveFranchise();
+  renderFrnTrade();
+}
+
 function frnSubmitTrade() {
   const tp = franchise._tradeProp;
   if (!tp || !tp.youSend.length || !tp.youReceive.length) {
@@ -18963,49 +19035,130 @@ function renderFrnTrade() {
 }
 
 function _renderTradeProposeTab(tp, sortBy, myRoster, cap, myCapUsed) {
-  const theirRoster = franchise.rosters[tp.targetTeamId] || [];
-  const myTeam = getTeam(franchise.chosenTeamId);
-  const otherTeam = getTeam(tp.targetTeamId);
+  const myId = franchise.chosenTeamId;
+  const myTeam = getTeam(myId);
+  const posFilter = tp.posFilter || "ALL";
+  const partnerId = tp.targetTeamId;
+  const partnerTeam = partnerId ? getTeam(partnerId) : null;
 
-  const renderRoster = (roster, side, selectedNames) => {
-    const selSet = new Set(selectedNames);
-    return _sortRoster(roster, sortBy).map(p => {
-      const escName = (p.name||"").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-      const sel = selSet.has(p.name);
-      const blockTag = p.onTradeBlock ? `<span style="color:#e8a000;font-size:.55rem;font-weight:700">●BLK</span>` : "";
-      return `<label class="frn-trade-player ${sel?"selected":""}">
-        <input type="checkbox" ${sel?"checked":""}
-          onchange="frnToggleTradePlayer('${side}','${escName}')">
-        <span style="color:var(--gold);font-size:.58rem;font-weight:700">${p.position}</span>
-        <span style="flex:1;font-weight:${sel?700:400}">${p.name} ${blockTag}</span>
-        <span>${gradeBadge(p)}</span>
-        <span style="color:var(--gray);font-size:.62rem">${p.age||"?"}</span>
-        <span style="color:var(--gold);font-size:.62rem">$${(p.contract?.aav||0).toFixed(0)}M</span>
-      </label>`;
-    }).join("");
+  // Position tab bar
+  const positions = ["ALL","QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"];
+  const posTabs = positions.map(pos =>
+    `<button class="frn-pos-tab ${posFilter===pos?"active":""}" onclick="frnSetTradePosFilter('${pos}')">${pos}</button>`
+  ).join("");
+
+  // What's in the LEAGUE BROWSE list (left column for "you receive"):
+  //   - If no partner locked: every team's players at the position
+  //   - If partner locked: only that partner's players at the position
+  let browseCandidates = [];
+  if (!partnerId) {
+    for (const t of TEAMS) {
+      if (t.id === myId) continue;
+      for (const p of (franchise.rosters[t.id] || [])) {
+        if (posFilter === "ALL" || p.position === posFilter) {
+          browseCandidates.push({ p, teamId: t.id, team: t });
+        }
+      }
+    }
+  } else {
+    for (const p of (franchise.rosters[partnerId] || [])) {
+      if (posFilter === "ALL" || p.position === posFilter) {
+        browseCandidates.push({ p, teamId: partnerId, team: partnerTeam });
+      }
+    }
+  }
+  // Sort
+  const sorter = (a,b) => {
+    if (sortBy === "grade") return scoutGrade(b.p) - scoutGrade(a.p);
+    if (sortBy === "age")   return (a.p.age||0) - (b.p.age||0);
+    if (sortBy === "aav")   return (b.p.contract?.aav||0) - (a.p.contract?.aav||0);
+    if (sortBy === "pos")   return (a.p.position||"").localeCompare(b.p.position||"");
+    return 0;
   };
+  browseCandidates.sort(sorter);
+  // Cap the browse list when in "all-teams" mode to avoid 700-row lists
+  const cappedBrowse = partnerId ? browseCandidates : browseCandidates.slice(0, 80);
 
+  const receiveSet = new Set(tp.youReceive);
+  const browseRows = cappedBrowse.map(({p, teamId, team}) => {
+    const escName = (p.name||"").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    const sel = receiveSet.has(p.name) && partnerId === teamId;
+    return `<label class="frn-trade-player ${sel?"selected":""}">
+      <input type="checkbox" ${sel?"checked":""}
+        onchange="frnAddReceiveFromBrowse(${teamId},'${escName}')">
+      <span style="color:var(--gold);font-size:.58rem;font-weight:700">${p.position}</span>
+      <span style="flex:1;font-weight:${sel?700:400}">${p.name}</span>
+      ${!partnerId ? `<span style="color:var(--gray);font-size:.6rem">${team.name}</span>` : ""}
+      <span>${gradeBadge(p)}</span>
+      <span style="color:var(--gray);font-size:.62rem">${p.age||"?"}</span>
+      <span style="color:var(--gold);font-size:.62rem">$${(p.contract?.aav||0).toFixed(0)}M</span>
+    </label>`;
+  }).join("");
+
+  // Your roster on the send side, also filtered by position
+  const sendRoster = (posFilter === "ALL"
+    ? myRoster
+    : myRoster.filter(p => p.position === posFilter));
+  const sendSet = new Set(tp.youSend);
+  const sendRows = _sortRoster(sendRoster, sortBy).map(p => {
+    const escName = (p.name||"").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    const sel = sendSet.has(p.name);
+    const blockTag = p.onTradeBlock ? `<span style="color:#e8a000;font-size:.55rem;font-weight:700">●BLK</span>` : "";
+    return `<label class="frn-trade-player ${sel?"selected":""}">
+      <input type="checkbox" ${sel?"checked":""}
+        onchange="frnToggleTradePlayer('send','${escName}')">
+      <span style="color:var(--gold);font-size:.58rem;font-weight:700">${p.position}</span>
+      <span style="flex:1;font-weight:${sel?700:400}">${p.name} ${blockTag}</span>
+      <span>${gradeBadge(p)}</span>
+      <span style="color:var(--gray);font-size:.62rem">${p.age||"?"}</span>
+      <span style="color:var(--gold);font-size:.62rem">$${(p.contract?.aav||0).toFixed(0)}M</span>
+    </label>`;
+  }).join("");
+
+  // Cap math
+  const theirRoster = partnerId ? (franchise.rosters[partnerId] || []) : [];
   const sendCap = tp.youSend.reduce((s,n) => s + (myRoster.find(p=>p.name===n)?.contract?.aav || 0), 0);
   const recvCap = tp.youReceive.reduce((s,n) => s + (theirRoster.find(p=>p.name===n)?.contract?.aav || 0), 0);
   const projCap = myCapUsed - sendCap + recvCap;
-  const teamOptionsHtml = TEAMS.filter(t => t.id !== franchise.chosenTeamId).map(t =>
-    `<option value="${t.id}" ${t.id===tp.targetTeamId?"selected":""}>${t.city} ${t.name}</option>`
-  ).join("");
+
+  // Manual partner-override dropdown
+  const teamOptionsHtml = `<option value="">— choose / clear —</option>` +
+    TEAMS.filter(t => t.id !== myId).map(t =>
+      `<option value="${t.id}" ${t.id===partnerId?"selected":""}>${t.city} ${t.name}</option>`
+    ).join("");
 
   return `
     <div class="frn-fa-summary" style="margin-bottom:.5rem">
-      Trade partner:
-      <select onchange="frnOpenTrade(this.value,'propose')" style="background:var(--bg3);color:var(--white);border:1px solid var(--border);padding:.25rem .4rem;font-family:inherit">${teamOptionsHtml}</select>
-      <span style="margin-left:auto">Projected cap: <b style="color:${projCap>cap?'var(--red)':'var(--gold)'}">$${projCap.toFixed(1)}M</b></span>
+      ${partnerId
+        ? `Trading with: <b style="color:var(--gold-lt)">${partnerTeam.city} ${partnerTeam.name}</b>
+           <button class="btn btn-outline" onclick="frnClearTradePartner()" style="font-size:.6rem;padding:.15rem .45rem;margin-left:.4rem">× Clear</button>`
+        : `<span style="color:var(--gray)">Click any player to set the trade partner</span>`}
+      <span style="margin-left:auto">Override:
+        <select onchange="frnOpenTrade(this.value||null,'propose')" style="background:var(--bg3);color:var(--white);border:1px solid var(--border);padding:.2rem .35rem;font-family:inherit;font-size:.7rem">${teamOptionsHtml}</select>
+      </span>
+      <span>Projected cap: <b style="color:${projCap>cap?'var(--red)':'var(--gold)'}">$${projCap.toFixed(1)}M</b></span>
     </div>
-    <div class="frn-trade-layout">
+    <div class="frn-pos-tabs">${posTabs}</div>
+    <div class="frn-trade-layout" style="margin-top:.5rem">
       <div class="frn-fa-pool-col">
-        <div class="frn-card-title">YOU SEND · ${myTeam.name} (${tp.youSend.length})</div>
-        <div class="frn-trade-list">${renderRoster(myRoster, "send", tp.youSend)}</div>
+        <div class="frn-card-title">
+          YOU RECEIVE
+          ${partnerId
+            ? ` · ${partnerTeam.name} ${posFilter==="ALL"?"":"("+posFilter+")"}`
+            : ` · LEAGUE BROWSE${posFilter==="ALL"?"":" ("+posFilter+")"}`}
+          <span style="color:var(--gray);font-weight:400;margin-left:auto">${tp.youReceive.length} selected</span>
+        </div>
+        ${!partnerId && browseCandidates.length > 80
+          ? `<div style="color:var(--gray);font-size:.6rem;margin-bottom:.3rem">Showing top 80 of ${browseCandidates.length} — pick a position tab to narrow.</div>`
+          : ""}
+        <div class="frn-trade-list">${browseRows || `<div style="color:var(--gray);font-style:italic;font-size:.7rem;padding:.4rem">No players at this position.</div>`}</div>
       </div>
       <div class="frn-fa-pool-col">
-        <div class="frn-card-title">YOU RECEIVE · ${otherTeam.name} (${tp.youReceive.length})</div>
-        <div class="frn-trade-list">${renderRoster(theirRoster, "receive", tp.youReceive)}</div>
+        <div class="frn-card-title">
+          YOU SEND · ${myTeam.name} ${posFilter==="ALL"?"":"("+posFilter+")"}
+          <span style="color:var(--gray);font-weight:400;margin-left:auto">${tp.youSend.length} selected</span>
+        </div>
+        <div class="frn-trade-list">${sendRows || `<div style="color:var(--gray);font-style:italic;font-size:.7rem;padding:.4rem">None at this position.</div>`}</div>
       </div>
     </div>
     ${tp.result ? `
@@ -19014,7 +19167,7 @@ function _renderTradeProposeTab(tp, sortBy, myRoster, cap, myCapUsed) {
       </div>` : ""}
     <div class="frn-actions" style="justify-content:center;margin-top:.8rem">
       <button class="btn btn-gold-big" onclick="frnSubmitTrade()"
-        ${(tp.youSend.length===0 || tp.youReceive.length===0 || franchise.week > TRADE_DEADLINE_WEEK)?"disabled style=\"opacity:.5;cursor:not-allowed\"":""}>
+        ${(tp.youSend.length===0 || tp.youReceive.length===0 || !partnerId || franchise.week > TRADE_DEADLINE_WEEK)?"disabled style=\"opacity:.5;cursor:not-allowed\"":""}>
         📨 SUBMIT PROPOSAL
       </button>
     </div>`;
