@@ -17290,17 +17290,10 @@ function frnOpenPlayerCard(name) {
   frnHoverTipHide();
   const team = _findPlayerTeam(p);
   const myId = franchise.chosenTeamId;
-  // If it's one of your players, the preseason roster tab is the
-  // natural detail view; otherwise route to the scout tab focused on
-  // their team and select the player.
-  if (team?.id === myId) {
-    // Use the preseason roster screen with this player selected,
-    // unless we're currently in regular season — then jump to scout
-    // of our own roster isn't ideal, so we just route to preseason.
-    franchise.phase = "preseason";
-    saveFranchise();
-    renderFrnPreseason("roster", null, null, p.name);
-  } else if (team) {
+  // Just render the scout-style view for inspection — never mutate the
+  // franchise phase. The user clicked into a card; they shouldn't get
+  // teleported to a different phase of the season.
+  if (team) {
     renderFrnPreseason("scout", team.id, "full", p.name);
   }
 }
@@ -17326,6 +17319,10 @@ function _frnInstallHoverDelegation() {
   document.addEventListener("click", e => {
     const el = e.target.closest?.("[data-player-name],[data-team-id]");
     if (!el) return;
+    // If this name is inside a parent that has its OWN click handler
+    // (e.g., a schedule row that opens the past-game viewer), let
+    // that handler win — don't hijack the click for the tooltip.
+    if (el.parentElement?.closest("[onclick]")) return;
     if (el.dataset.playerName) {
       e.preventDefault(); e.stopPropagation();
       frnOpenPlayerCard(el.dataset.playerName);
