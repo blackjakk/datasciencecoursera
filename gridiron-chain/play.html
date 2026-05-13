@@ -2671,6 +2671,15 @@ class GameSimulator {
     const defLead = this.score[defKey] - this.score[offKey];
     const lateGame = (this.quarter === 4 && this.time < 240) || this.quarter >= 5;
     if (lateGame && defLead >= 9) return DEF_PLAYBOOKS.PREVENT;
+    // MLB AGGRESSION TILT — the MLB is the defense's playcaller. An aggressive
+    // MLB (BLITZER, high PRS+TCK) overrides the team's base scheme on key downs:
+    //   ≥80 → BLITZ_46 on 3rd-and-medium / 3rd-and-long
+    //   ≤30 → DIME on obvious passing downs
+    // Otherwise keep the team base.
+    const agg = this._mlbAggression();
+    const isPassingDown = (this.down === 3 && this.ytg >= 5) || (this.down === 4 && this.ytg >= 4);
+    if (isPassingDown && agg >= 80) return DEF_PLAYBOOKS.BLITZ_46;
+    if (isPassingDown && agg <= 30) return DEF_PLAYBOOKS.DIME;
     return baseDef;
   }
   get offOL()      { return this.poss === "home" ? this.homeOL : this.awayOL; }
@@ -2921,6 +2930,29 @@ class GameSimulator {
       }
       if (action === "fg") {
         const dist = toEZ + 17;
+        // ── ICE THE KICKER ──
+        // Late game, defense burns a TO right before a tying / lead-changing FG.
+        // Has a small accuracy effect (kicker has time to overthink).
+        const defKey = this.poss === "home" ? "away" : "home";
+        const offScore = this.score[this.poss], defScore = this.score[defKey];
+        const fgWouldTieOrLead = (offScore + 3) >= defScore;
+        const lateGameClose = this.time < 90 && this.quarter >= 4 && Math.abs(offScore - defScore) <= 4;
+        const isIcable = lateGameClose && fgWouldTieOrLead && dist >= 30 && this.timeouts[defKey] > 0;
+        let isIced = false;
+        if (isIcable && Math.random() < 0.55) {
+          this.timeouts[defKey]--;
+          isIced = true;
+          this.plays.push({
+            kind: "timeout",
+            desc: `🧊 ICE THE KICKER — ${this[defKey].city} ${this[defKey].name}`,
+            team: defKey, quarter: this.quarter, time: this.time,
+            timeoutsRemaining: { ...this.timeouts },
+            personnel: this._currentPersonnel || "BASE",
+            defPackage: this._currentDefPackage || "BASE_43",
+            poss: this.poss, down: this.down, ytg: this.ytg, yardLine: this.yardLine,
+            homeScore: this.score.home, awayScore: this.score.away,
+          });
+        }
         // Weather effects on FG: wind helps when kicking with it, hurts
         // against it; snow crushes range; rain costs ~3% on long kicks.
         // Wind direction is in world coords; the kicking team's goal is at
@@ -2945,8 +2977,10 @@ class GameSimulator {
         else if (kArch === "CLUTCH")    { archAccMod = isClutchMoment ? +0.05 : -0.005; }
         // KPW above 75 adds a small extra range bonus regardless of archetype
         const kpwBonus = Math.max(0, kpw - 75) * 0.001;
+        // Ice the kicker — small accuracy hit when defense burned a TO before the snap.
+        const iceMod = isIced ? -0.04 : 0;
         const fgPct = clamp(0.96 - (dist - 20) * 0.020 + (this.offR.k - 60) / 250
-                          + archAccMod + archRangeMod + kpwBonus - wxPenalty, 0.15, 0.99);
+                          + archAccMod + archRangeMod + kpwBonus + iceMod - wxPenalty, 0.15, 0.99);
         const kStats = off.players[K]; if (kStats) { kStats.fg_att++; }
         off.team.fourthAtt++;
         // Block chance — slightly higher on long attempts
@@ -13153,10 +13187,91 @@ function renderStaticEnd() {
   ctx.font = "bold 32px sans-serif";
   ctx.fillStyle = "#fff";
   ctx.fillText(`${gameResult.homeTeam.name} ${gameResult.homeScore} — ${gameResult.awayScore} ${gameResult.awayTeam.name}`, FIELD.W / 2, FIELD.H / 2 + 22);
+  // Stars of the game — top performers from both teams, shown with their key
+  // stat line. Drawn beneath the FINAL banner before the scoreboard refresh.
+  drawStarsOfGame(ctx);
   renderScoreboard();
   renderPlayLog();
   renderProgress();
   renderBoxScore();
+}
+
+// Compute the top 3 individual performances of the game (offense + defense).
+// Score formula weighs TDs heavily, then yards/sacks/INTs/picks. Returns up
+// to 3 player rows, each labeled with team + stat line.
+function pickStarsOfGame() {
+  const stats = (gameResult.plays.length && gameResult.plays[gameResult.plays.length - 1].statsSnap) || gameResult.stats;
+  if (!stats) return [];
+  const collect = (sideKey) => {
+    const team = sideKey === "home" ? gameResult.homeTeam : gameResult.awayTeam;
+    return Object.values(stats[sideKey].players || {}).map(p => ({ ...p, sideKey, teamName: team.name }));
+  };
+  const all = [...collect("home"), ...collect("away")];
+  const scored = all.map(p => {
+    let score = 0;
+    let line = "";
+    // QB
+    if (p.pos === "QB") {
+      score += (p.pass_td || 0) * 22 + (p.pass_yds || 0) * 0.10 + (p.pass_comp || 0) * 1.0
+             - (p.pass_int || 0) * 14 - (p.sk_taken || 0) * 1;
+      line = `${p.pass_comp || 0}/${p.pass_att || 0}, ${p.pass_yds || 0} yds, ${p.pass_td || 0} TD${(p.pass_int||0) ? `, ${p.pass_int} INT` : ""}`;
+    }
+    // RB
+    if (p.rush_att > 0) {
+      score += (p.rush_td || 0) * 18 + (p.rush_yds || 0) * 0.12 + (p.broken_tackles || 0) * 1.5
+             - (p.fumbles_lost || 0) * 12;
+      if (!line) line = `${p.rush_att || 0} car, ${p.rush_yds || 0} yds, ${p.rush_td || 0} TD`;
+    }
+    // Receiver
+    if (p.rec > 0 || p.rec_tgt > 0) {
+      const recScore = (p.rec_td || 0) * 18 + (p.rec_yds || 0) * 0.18 + (p.rec || 0) * 1.5;
+      if (recScore > score) {
+        score = recScore;
+        line = `${p.rec || 0}/${p.rec_tgt || 0}, ${p.rec_yds || 0} yds, ${p.rec_td || 0} TD`;
+      }
+    }
+    // Defender
+    const defScore = (p.tkl || 0) * 1.5 + (p.sk || 0) * 8 + (p.int_made || 0) * 16
+                   + (p.pd || 0) * 3 + (p.ff || 0) * 6 + (p.fr || 0) * 4 + (p.def_td || 0) * 24;
+    if (defScore > score) {
+      score = defScore;
+      const parts = [];
+      if (p.tkl)      parts.push(`${p.tkl} TKL`);
+      if (p.sk)       parts.push(`${p.sk.toFixed(1)} SK`);
+      if (p.int_made) parts.push(`${p.int_made} INT`);
+      if (p.pd)       parts.push(`${p.pd} PD`);
+      if (p.ff)       parts.push(`${p.ff} FF`);
+      if (p.def_td)   parts.push(`${p.def_td} DEF TD`);
+      line = parts.join(", ");
+    }
+    // Kicker
+    if (p.fg_att > 0 && (p.fg_made || 0) >= 2) {
+      const kScore = (p.fg_made || 0) * 6 + (p.fg_long || 0) * 0.10;
+      if (kScore > score) { score = kScore; line = `${p.fg_made}/${p.fg_att} FG (long ${p.fg_long || 0})`; }
+    }
+    return { ...p, score, line };
+  })
+  .filter(p => p.score > 8 && p.line)
+  .sort((a, b) => b.score - a.score)
+  .slice(0, 3);
+  return scored;
+}
+
+function drawStarsOfGame(ctx) {
+  const stars = pickStarsOfGame();
+  if (!stars.length) return;
+  const baseY = FIELD.H / 2 + 60;
+  ctx.font = "bold 16px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#f0cc30";
+  ctx.fillText("⭐ STARS OF THE GAME ⭐", FIELD.W / 2, baseY);
+  ctx.font = "600 14px sans-serif";
+  stars.forEach((s, i) => {
+    const isHome = s.sideKey === "home";
+    ctx.fillStyle = isHome ? "#9be09b" : "#9bd0ff";
+    const y = baseY + 26 + i * 22;
+    ctx.fillText(`${i + 1}. ${s.name} (${s.teamName}) — ${s.line}`, FIELD.W / 2, y);
+  });
 }
 
 function setCaption(play) {
