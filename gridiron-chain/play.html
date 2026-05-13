@@ -1278,6 +1278,34 @@
     letter-spacing: .3px;
   }
 
+  /* Player detail modal overlay (click on any player name) */
+  .frn-pcard-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.78);
+    z-index: 1500; display: flex; align-items: center; justify-content: center;
+    padding: 1.2rem;
+  }
+  .frn-pcard-overlay-inner {
+    background: var(--bg2); border: 2px solid var(--gold);
+    box-shadow: 6px 6px 0 rgba(0,0,0,0.6);
+    max-width: 560px; width: 100%; max-height: 92vh; overflow: auto;
+    position: relative;
+  }
+  .frn-pcard-close {
+    position: absolute; top: .35rem; right: .55rem;
+    background: transparent; border: 1px solid var(--gold);
+    color: var(--gold); font-size: .85rem; font-weight: 700;
+    width: 1.8rem; height: 1.8rem; cursor: pointer; line-height: 1;
+  }
+  .frn-pcard-close:hover { background: var(--gold); color: var(--bg); }
+  .frn-pcard-overlay-inner .frn-player-card {
+    position: static; border: none; padding: 1rem 1.1rem;
+  }
+  .frn-pcard-team-link {
+    margin: .55rem 1.1rem 1rem 1.1rem; padding-top: .55rem;
+    border-top: 1px solid var(--border);
+    font-size: .72rem; color: var(--gray);
+  }
+
   /* Team detail screen */
   .frn-summary-bullets {
     list-style: none; padding: 0; margin: 0;
@@ -17462,7 +17490,7 @@ function _playerPortrait(p) {
   </svg>`;
 }
 
-function frnPlayerTipShow(e, name) {
+function frnPlayerTipShow(anchorEl, name) {
   const p = _findPlayer(name);
   if (!p) return;
   const team = _findPlayerTeam(p);
@@ -17493,10 +17521,10 @@ function frnPlayerTipShow(e, name) {
     </div>
     <div class="frn-tip-foot">Click for full career</div>
   `;
-  _positionTip(tip, e.currentTarget);
+  _positionTip(tip, anchorEl);
 }
 
-function frnTeamTipShow2(e, teamId) {
+function frnTeamTipShow2(anchorEl, teamId) {
   const team = getTeam(Number(teamId));
   if (!team) return;
   const tip = _getHoverTip();
@@ -17533,7 +17561,7 @@ function frnTeamTipShow2(e, teamId) {
     ${scoutLines || `<div class="frn-tip-bullet" style="color:var(--gray);font-style:italic">Run a scrimmage to scout this team.</div>`}
     <div class="frn-tip-foot">Click to scout this team</div>
   `;
-  _positionTip(tip, e.currentTarget);
+  _positionTip(tip, anchorEl);
 }
 
 function _getHoverTip() {
@@ -17565,19 +17593,52 @@ function frnHoverTipHide() {
 }
 
 // Click handlers
+// Player click opens a modal overlay anchored at the dashboard — no
+// page-swap, no phase mutation. Closing returns you to whatever
+// screen you were already on.
 function frnOpenPlayerCard(name) {
   const p = _findPlayer(name);
   if (!p) return;
   frnHoverTipHide();
+  frnClosePlayerModal();
   const team = _findPlayerTeam(p);
-  const myId = franchise.chosenTeamId;
-  // Just render the scout-style view for inspection — never mutate the
-  // franchise phase. The user clicked into a card; they shouldn't get
-  // teleported to a different phase of the season.
-  if (team) {
-    renderFrnPreseason("scout", team.id, "full", p.name);
+  const overlay = document.createElement("div");
+  overlay.className = "frn-pcard-overlay";
+  overlay.id = "frn-pcard-overlay";
+  const teamLine = team
+    ? `<div class="frn-pcard-team-link">
+         ${team.city} ${team.name} ·
+         <a href="javascript:void(0)" style="color:var(--gold)"
+            onclick="frnClosePlayerModal();frnOpenTeamCard(${team.id})">
+           View team →
+         </a>
+       </div>`
+    : "";
+  overlay.innerHTML = `
+    <div class="frn-pcard-overlay-inner">
+      <button class="frn-pcard-close" onclick="frnClosePlayerModal()" title="Close">×</button>
+      ${_buildPlayerDetailPanel(p)}
+      ${teamLine}
+    </div>`;
+  overlay.addEventListener("click", e => {
+    if (e.target === overlay) frnClosePlayerModal();
+  });
+  document.body.appendChild(overlay);
+  // ESC closes
+  if (!window.__frnPCardEscBound) {
+    window.__frnPCardEscBound = true;
+    document.addEventListener("keydown", e => {
+      if (e.key === "Escape") frnClosePlayerModal();
+    });
   }
 }
+function frnClosePlayerModal() {
+  const ov = document.getElementById("frn-pcard-overlay");
+  if (ov) ov.remove();
+}
+// Team click still uses the existing scout page — but only when it
+// makes sense (preseason/regular/playoffs). In offseason/draft/FA
+// screens, fall back to a small alert noting scouting is paused.
 function frnOpenTeamCard(teamId) {
   frnHoverTipHide();
   renderFrnPreseason("scout", Number(teamId));
@@ -17590,8 +17651,8 @@ function _frnInstallHoverDelegation() {
   document.addEventListener("mouseover", e => {
     const el = e.target.closest?.("[data-player-name],[data-team-id]");
     if (!el) return;
-    if (el.dataset.playerName) frnPlayerTipShow(e, el.dataset.playerName);
-    else if (el.dataset.teamId) frnTeamTipShow2(e, el.dataset.teamId);
+    if (el.dataset.playerName) frnPlayerTipShow(el, el.dataset.playerName);
+    else if (el.dataset.teamId) frnTeamTipShow2(el, el.dataset.teamId);
   });
   document.addEventListener("mouseout", e => {
     const el = e.target.closest?.("[data-player-name],[data-team-id]");
