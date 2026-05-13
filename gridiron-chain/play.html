@@ -1286,6 +1286,34 @@
   .frn-ticker-item { color: var(--white); }
   .frn-ticker-item + .frn-ticker-item::before { content: "·"; color: var(--gray); margin-right: .35rem; }
 
+  /* Week-end review interstitial */
+  .frn-week-news {
+    list-style: none; padding: 0; margin: 0;
+    font-size: .72rem; line-height: 1.5;
+  }
+  .frn-week-news li {
+    padding: .15rem 0; padding-left: .8rem; position: relative;
+    border-bottom: 1px solid rgba(46,61,46,0.4);
+  }
+  .frn-week-news li:last-child { border-bottom: none; }
+  .frn-week-news li::before {
+    content: "▸"; color: var(--gold); position: absolute; left: 0;
+  }
+  .frn-week-tasks {
+    display: flex; flex-direction: column; gap: .3rem;
+    margin-bottom: .5rem;
+  }
+  .frn-week-task {
+    display: flex; align-items: center; gap: .6rem;
+    background: var(--bg2); border: 1px solid var(--border);
+    padding: .35rem .6rem; font-size: .72rem;
+  }
+  .frn-week-task.urgent {
+    border-color: var(--red); background: rgba(180,0,0,0.08);
+    color: #ff9090; font-weight: 700;
+  }
+  .frn-week-task > span:first-child { flex: 1; }
+
   /* Holdouts in offseason */
   .frn-holdouts-list { display: flex; flex-direction: column; gap: .3rem; }
   .frn-holdout-row {
@@ -4811,8 +4839,12 @@ class GameSimulator {
         // ── QB READ ACCURACY ──────────────────────────────────────────
         // Sharp QBs (high AWR) make the correct give vs keep most of the
         // time. The CORRECT read is "pitch if defender attacks QB" or
-        // "keep if defender plays the pitch back".
-        const qbReadAccuracy = clamp((qbAwr - 55) / 50, 0.30, 0.94);
+        // "keep if defender plays the pitch back". Look up QB AWR locally
+        // since the option play is on the run-side branch, where the
+        // pass-play scope (which defines qbAwr) isn't reachable.
+        const _optQbPlayer = this._playerByName?.get?.(QB);
+        const _optQbAwr    = _optQbPlayer?.stats?.[3] ?? 70;
+        const qbReadAccuracy = clamp((_optQbAwr - 55) / 50, 0.30, 0.94);
         const goesCorrect = Math.random() < qbReadAccuracy;
         const correctRead = defAttacksQb;   // true = correct read says PITCH
         isPitch = goesCorrect ? correctRead : !correctRead;
@@ -16741,6 +16773,81 @@ function frnFAFinish() {
   showFranchiseDashboard();
 }
 
+function _buildWeekReviewCard(week, myId) {
+  // Your team's game this week
+  const myGame = franchise.schedule.find(g => g.week === week &&
+    (g.homeId === myId || g.awayId === myId));
+  const isHome = myGame && myGame.homeId === myId;
+  const myScore = myGame ? (isHome ? myGame.homeScore : myGame.awayScore) : 0;
+  const oppScore = myGame ? (isHome ? myGame.awayScore : myGame.homeScore) : 0;
+  const opp = myGame ? getTeam(isHome ? myGame.awayId : myGame.homeId) : null;
+  const won = myScore > oppScore;
+  const resultTag = won ? `<span style="color:var(--green-lt)">W ${myScore}-${oppScore}</span>`
+                        : `<span style="color:var(--red)">L ${myScore}-${oppScore}</span>`;
+
+  // Top result lines: blowouts/upsets this week
+  const weekNews = (franchise.news || []).filter(n => n.season === franchise.season && n.week === week).slice(-6);
+  const newsLis = weekNews.length ? weekNews.map(n => `<li>${n.label}</li>`).join("")
+                : `<li style="color:var(--gray);font-style:italic">Quiet week around the league.</li>`;
+
+  // Weekly tasks count
+  const negs = franchise.faNegotiations || {};
+  const activeNegs = Object.values(negs).filter(n => n.state === "negotiating");
+  const outbidCount = activeNegs.filter(n => {
+    if (!n.yourBid) return false;
+    const high = _faNegCurrentHigh(n);
+    return high && !high.isYou;
+  }).length;
+
+  // Your injuries
+  const myInjuries = (franchise.rosters[myId] || []).filter(p => p.injury && p.injury.weeksRemaining > 0);
+
+  const tasksHtml = `
+    <div class="frn-week-tasks">
+      ${outbidCount > 0
+        ? `<div class="frn-week-task urgent">
+            <span>⚡ ${outbidCount} FA negotiation${outbidCount>1?"s":""} where you've been outbid</span>
+            <button class="btn btn-gold" onclick="renderFrnFANegotiations()" style="font-size:.65rem">Respond</button>
+          </div>` : ""}
+      ${activeNegs.length > outbidCount
+        ? `<div class="frn-week-task">
+            <span>🆓 ${activeNegs.length - outbidCount} FA negotiation${activeNegs.length-outbidCount>1?"s":""} active</span>
+            <button class="btn btn-outline" onclick="renderFrnFANegotiations()" style="font-size:.65rem">View</button>
+          </div>` : ""}
+      ${myInjuries.length
+        ? `<div class="frn-week-task">
+            <span>🩹 ${myInjuries.length} player${myInjuries.length>1?"s":""} on injured list</span>
+          </div>` : ""}
+      ${week <= TRADE_DEADLINE_WEEK
+        ? `<div class="frn-week-task">
+            <span>🔀 Trade deadline: Week ${TRADE_DEADLINE_WEEK} (${TRADE_DEADLINE_WEEK - week} weeks left)</span>
+            <button class="btn btn-outline" onclick="frnOpenTrade()" style="font-size:.65rem">Trade Block</button>
+          </div>` : ""}
+    </div>`;
+
+  return `
+    <div class="frn-next-card" style="border-color:var(--gold-lt)">
+      <div class="frn-next-header">
+        <span>WEEK ${week} COMPLETE</span>
+        <span class="frn-next-badge">REVIEW</span>
+      </div>
+      <div style="text-align:center;margin-bottom:.7rem">
+        <div style="font-size:.7rem;color:var(--gray);letter-spacing:.5px;margin-bottom:.2rem">YOUR GAME</div>
+        <div style="font-size:1.1rem;font-weight:900">
+          ${resultTag} ${opp ? `${isHome?"vs":"@"} ${opp.name}` : ""}
+        </div>
+      </div>
+      <div class="frn-card-title" style="margin-top:.4rem">📰 LEAGUE WIRE — WEEK ${week}</div>
+      <ul class="frn-week-news">${newsLis}</ul>
+      <div class="frn-card-title" style="margin-top:.6rem">📋 WEEKLY TASKS</div>
+      ${tasksHtml}
+      <div class="frn-next-actions">
+        <button class="btn btn-gold-big" onclick="frnAdvanceWeek()">▶ ADVANCE TO WEEK ${week + 1}</button>
+        <button class="btn btn-outline" onclick="frnSimSeason()" style="color:var(--gray)">⏭⏭ Sim Rest of Season</button>
+      </div>
+    </div>`;
+}
+
 function renderFrnRegular() {
   const { chosenTeamId, season, week, schedule, standings, seasonHighlights } = franchise;
   const myTeam  = getTeam(chosenTeamId);
@@ -16818,7 +16925,12 @@ function renderFrnRegular() {
 
   // ─── Next-game card ────────────────────────────────────────────────────
   let nextCardHtml = "";
-  if (nextGame) {
+  // Week-review interstitial comes first — once all 16 games this week
+  // are done, the user must explicitly advance before seeing the next
+  // game card.
+  if (franchise.weekPending && !seasonDone) {
+    nextCardHtml = _buildWeekReviewCard(week, chosenTeamId);
+  } else if (nextGame) {
     const isHome = nextGame.homeId === chosenTeamId;
     const oppId  = isHome ? nextGame.awayId : nextGame.homeId;
     const opp    = getTeam(oppId);
@@ -17166,42 +17278,65 @@ function markGamePlayed(homeId, awayId, homeScore, awayScore) {
   recordFranchiseResult(homeId, awayId, homeScore, awayScore);
 }
 
-function advanceWeekIfDone() {
+// When all of the current week's games are played, flag a pending
+// week-end review. Don't run resolution or advance the week — the user
+// has to click "Advance" so they can manage FA, see news, etc. first.
+function _checkWeekComplete() {
   const w = franchise.week;
   if (w > FRANCHISE_WEEKS) return;
   const wGames = franchise.schedule.filter(g => g.week === w);
   if (wGames.length && wGames.every(g => g.played)) {
-    // Before bumping the week counter, resolve any FA negotiations
-    // that were "stable" this week, then run the next AI bid round.
-    if (franchise.faNegotiations && Object.keys(franchise.faNegotiations).length) {
-      const seasonEnding = (w + 1) > FRANCHISE_WEEKS;
-      _faResolveAfterWeek(w, seasonEnding);
-      if (!seasonEnding) _faAIBidRound(w + 1, /*isInitial=*/false);
-    }
-    // Tick down injury weeks
-    _tickInjuriesForWeek();
-
-    franchise.week = w + 1;
-    // Cap-grace deadline reached — force a cut screen if user is still over
-    if (franchise.capGraceDeadline != null && franchise.week >= franchise.capGraceDeadline) {
-      const cap  = franchise.salaryCap || SALARY_CAP_BASE;
-      const used = capUsedByTeam(franchise.chosenTeamId);
-      franchise.capGraceDeadline = null;
-      if (used > cap) {
-        franchise.phase = "fa_cuts";
-        saveFranchise();
-        return;
-      }
-    }
-    if (franchise.week > FRANCHISE_WEEKS) franchise.phase = "playoffs_pending";
-    saveFranchise();
+    franchise.weekPending = true;
   }
+}
+
+// Split out from the old advanceWeekIfDone: end-of-week resolution.
+// Runs FA bid resolution + AI counter-bid round + injury tick. Does NOT
+// bump the week counter.
+function _runWeekEndResolution() {
+  const w = franchise.week;
+  if (franchise.faNegotiations && Object.keys(franchise.faNegotiations).length) {
+    const seasonEnding = (w + 1) > FRANCHISE_WEEKS;
+    _faResolveAfterWeek(w, seasonEnding);
+    if (!seasonEnding) _faAIBidRound(w + 1, /*isInitial=*/false);
+  }
+  _tickInjuriesForWeek();
+}
+
+// Bump the week counter, handle cap grace + season-end transitions.
+function _bumpWeek() {
+  franchise.week += 1;
+  if (franchise.capGraceDeadline != null && franchise.week >= franchise.capGraceDeadline) {
+    const cap  = franchise.salaryCap || SALARY_CAP_BASE;
+    const used = capUsedByTeam(franchise.chosenTeamId);
+    franchise.capGraceDeadline = null;
+    if (used > cap) {
+      franchise.phase = "fa_cuts";
+      return;
+    }
+  }
+  if (franchise.week > FRANCHISE_WEEKS) franchise.phase = "playoffs_pending";
+}
+
+// User-clicked "Advance to next week" from the review interstitial.
+function frnAdvanceWeek() {
+  if (!franchise.weekPending) return;
+  _runWeekEndResolution();
+  _bumpWeek();
+  franchise.weekPending = false;
+  saveFranchise();
+  showFranchiseDashboard();
+}
+
+// Legacy name preserved for any callers — now just marks the flag.
+function advanceWeekIfDone() {
+  _checkWeekComplete();
 }
 
 function frnSimGame(homeId, awayId) {
   const r = frnSimOnce(homeId, awayId);
   markGamePlayed(homeId, awayId, r.homeScore, r.awayScore);
-  advanceWeekIfDone();
+  _checkWeekComplete();
   saveFranchise();
   showFranchiseDashboard();
 }
@@ -17214,11 +17349,13 @@ function frnSimWeek() {
     g.homeScore = r.homeScore; g.awayScore = r.awayScore; g.played = true;
     recordFranchiseResult(g.homeId, g.awayId, r.homeScore, r.awayScore);
   }
-  advanceWeekIfDone();
+  _checkWeekComplete();
   saveFranchise();
   showFranchiseDashboard();
 }
 
+// Sim-season skips week-end review interstitials and just flies
+// through to the playoffs.
 function frnSimSeason() {
   for (let w = franchise.week; w <= FRANCHISE_WEEKS; w++) {
     const wGames = franchise.schedule.filter(g => g.week === w && !g.played);
@@ -17227,9 +17364,11 @@ function frnSimSeason() {
       g.homeScore = r.homeScore; g.awayScore = r.awayScore; g.played = true;
       recordFranchiseResult(g.homeId, g.awayId, r.homeScore, r.awayScore);
     }
+    _runWeekEndResolution();
+    _bumpWeek();
+    franchise.weekPending = false;
+    if (franchise.phase === "fa_cuts" || franchise.phase === "playoffs_pending") break;
   }
-  franchise.week  = FRANCHISE_WEEKS + 1;
-  franchise.phase = "playoffs_pending";
   saveFranchise();
   showFranchiseDashboard();
 }
