@@ -1095,7 +1095,7 @@
   @media (max-width: 700px) { .frn-scout-layout { grid-template-columns: 1fr; } }
   .frn-scout-list {
     display: flex; flex-direction: column; gap: .15rem;
-    max-height: 520px; overflow-y: auto;
+    max-height: 620px; overflow-y: auto;
   }
   .frn-scout-team {
     background: var(--bg2); border: 1px solid var(--border);
@@ -1111,6 +1111,65 @@
   .frn-scout-detail {
     background: var(--bg2); border: 1px solid var(--border);
     padding: .7rem .9rem;
+  }
+  .frn-scout-view-tabs {
+    display: flex; gap: .25rem; margin-bottom: .5rem;
+  }
+  .frn-scout-view-tabs button {
+    background: var(--bg3); border: 1px solid var(--border); color: var(--gray);
+    padding: .25rem .7rem; font-size: .62rem; font-weight: 700;
+    cursor: pointer; font-family: inherit; letter-spacing: .4px;
+  }
+  .frn-scout-view-tabs button.active { background: var(--gold); color: #000; border-color: var(--gold); }
+  .frn-scout-split {
+    display: grid; grid-template-columns: 1fr 280px; gap: .7rem;
+    align-items: start;
+  }
+  @media (max-width: 800px) { .frn-scout-split { grid-template-columns: 1fr; } }
+  .frn-scout-roster { max-height: 580px; overflow-y: auto; padding-right: .25rem; }
+  .frn-scout-row { cursor: pointer; transition: background .08s; }
+  .frn-scout-row:hover td { background: rgba(200,169,0,0.06); }
+  .frn-scout-row.selected td {
+    background: rgba(200,169,0,0.15);
+    box-shadow: inset 3px 0 0 var(--gold);
+  }
+  .frn-scout-slot {
+    color: var(--gold); font-size: .62rem; font-weight: 700;
+    letter-spacing: .3px; width: 2.2rem;
+  }
+
+  /* Player detail card */
+  .frn-player-card {
+    background: var(--bg3); border: 1px solid var(--gold);
+    padding: .65rem .8rem; position: sticky; top: 0;
+  }
+  .frn-player-card-head {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    gap: .5rem; padding-bottom: .5rem; margin-bottom: .55rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .frn-stat-grid {
+    display: flex; flex-direction: column; gap: .18rem;
+    font-size: .68rem;
+  }
+  .frn-stat-row { display: flex; align-items: center; gap: .35rem; }
+  .frn-stat-label {
+    width: 2.2rem; color: var(--gray); font-size: .58rem;
+    font-weight: 700; letter-spacing: .3px;
+  }
+  .frn-stat-bar {
+    flex: 1; height: 5px; background: var(--bg);
+    border: 1px solid var(--border);
+  }
+  .frn-stat-bar-fill { height: 100%; transition: width .2s; }
+  .frn-stat-val {
+    width: 1.6rem; text-align: right; color: var(--white);
+    font-weight: 700; font-size: .65rem;
+  }
+  .frn-player-flavor {
+    color: var(--gray); font-size: .65rem; font-style: italic;
+    margin-top: .55rem; padding-top: .4rem;
+    border-top: 1px solid var(--border);
   }
 
   /* Re-signings screen */
@@ -14308,6 +14367,108 @@ function assignFranchiseAges(rosters) {
   }
 }
 
+// ── Realistic team-by-team roster generation ─────────────────────────────────
+// Each franchise universe assigns every team a "talent tier": a handful of
+// powerhouses with stacked rosters, a tier of solid contenders, an average
+// middle pack, and a few rebuilders short on talent. Per-slot tier rolls
+// (elite/good/average/poor) are drawn from a distribution that depends on
+// both the team's tier and the depth-chart slot — so a powerhouse's starter
+// is much more likely to be elite, a rebuilder's 3rd-stringer is usually a
+// scrub, etc. Playbook bias still bumps the starter at the team's identity
+// positions (Air Raid → QB/WR, Ground & Pound → RB/OL, etc).
+
+// Distribution table: SLOT_TIER_DIST[slotIdx][teamTier] = {tier: prob}
+// slotIdx is clamped to [0..3] — slot 0 = starter, 1 = 2nd-string,
+// 2 = 3rd-string, 3+ = deep depth.
+const SLOT_TIER_DIST = {
+  0: {
+    powerhouse: { elite:0.45, good:0.40, average:0.13, poor:0.02 },
+    contender:  { elite:0.18, good:0.55, average:0.22, poor:0.05 },
+    average:    { elite:0.06, good:0.42, average:0.42, poor:0.10 },
+    rebuilding: { elite:0.02, good:0.22, average:0.46, poor:0.30 },
+  },
+  1: {
+    powerhouse: { elite:0.05, good:0.40, average:0.45, poor:0.10 },
+    contender:  { elite:0.02, good:0.28, average:0.50, poor:0.20 },
+    average:    { elite:0.01, good:0.18, average:0.48, poor:0.33 },
+    rebuilding: { elite:0.00, good:0.08, average:0.38, poor:0.54 },
+  },
+  2: {
+    powerhouse: { elite:0.00, good:0.18, average:0.48, poor:0.34 },
+    contender:  { elite:0.00, good:0.10, average:0.42, poor:0.48 },
+    average:    { elite:0.00, good:0.06, average:0.36, poor:0.58 },
+    rebuilding: { elite:0.00, good:0.03, average:0.27, poor:0.70 },
+  },
+  3: {
+    powerhouse: { elite:0.00, good:0.06, average:0.40, poor:0.54 },
+    contender:  { elite:0.00, good:0.04, average:0.34, poor:0.62 },
+    average:    { elite:0.00, good:0.02, average:0.28, poor:0.70 },
+    rebuilding: { elite:0.00, good:0.01, average:0.20, poor:0.79 },
+  },
+};
+
+function weightedTierPick(dist) {
+  const total = (dist.elite||0) + (dist.good||0) + (dist.average||0) + (dist.poor||0);
+  let r = Math.random() * total;
+  if ((r -= dist.elite   || 0) < 0) return "elite";
+  if ((r -= dist.good    || 0) < 0) return "good";
+  if ((r -= dist.average || 0) < 0) return "average";
+  return "poor";
+}
+
+// 32 teams: 4 powerhouses, 10 contenders, 12 average, 6 rebuilding.
+function assignTeamTiers() {
+  const tiers = [
+    ...Array(4 ).fill("powerhouse"),
+    ...Array(10).fill("contender"),
+    ...Array(12).fill("average"),
+    ...Array(6 ).fill("rebuilding"),
+  ];
+  // Fisher-Yates shuffle
+  for (let i = tiers.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [tiers[i], tiers[j]] = [tiers[j], tiers[i]];
+  }
+  const out = {};
+  TEAMS.forEach((t, i) => out[t.id] = tiers[i]);
+  return out;
+}
+
+function genFranchiseRoster(team, blockNames, teamTier) {
+  const pb = getPlaybook(team);
+  const used = new Set(blockNames || []);
+  const r = [];
+
+  for (const [pos, count] of Object.entries(ROSTER_SLOTS)) {
+    const pbBias = pb.tierBias?.[pos]; // "elite" or "good" or undefined
+
+    for (let i = 0; i < count; i++) {
+      const slotIdx = Math.min(i, 3);
+      const dist = { ...SLOT_TIER_DIST[slotIdx][teamTier] };
+
+      // Starter at a playbook-favored position gets bumped toward the top
+      if (i === 0) {
+        if (pbBias === "elite") {
+          dist.elite   = (dist.elite   || 0) + 0.20;
+          dist.poor    = (dist.poor    || 0) * 0.3;
+          dist.average = (dist.average || 0) * 0.6;
+        } else if (pbBias === "good") {
+          dist.elite   = (dist.elite   || 0) + 0.06;
+          dist.good    = (dist.good    || 0) + 0.10;
+          dist.poor    = (dist.poor    || 0) * 0.6;
+        }
+      }
+
+      const tier   = weightedTierPick(dist);
+      const player = genUniquePlayer(pos, tier, used);
+      used.add(player.name);
+      r.push(player);
+    }
+  }
+  assignTeamJerseyNumbers(r);
+  return r;
+}
+
 // ── Mode switching ───────────────────────────────────────────────────────────
 // Two top-level modes: "franchise" (default, the polished career UI) and
 // "testing" (legacy team-selector + sim/debug tools). Tab buttons drive this.
@@ -14414,8 +14575,9 @@ function closeFranchiseModal() { /* no-op: franchise is inline now */ }
 function startFranchise(teamId) {
   const rosters   = {};
   const usedNames = new Set();
+  const teamTiers = assignTeamTiers();
   for (const t of TEAMS) {
-    const roster = regenerateFullRoster(t, {}, usedNames);
+    const roster = genFranchiseRoster(t, usedNames, teamTiers[t.id]);
     roster.forEach(p => usedNames.add(p.name));
     rosters[t.id] = roster;
   }
@@ -14426,6 +14588,7 @@ function startFranchise(teamId) {
     week:    1,
     phase:   "preseason",
     rosters,
+    teamTiers,
     salaryCap:      SALARY_CAP_BASE,
     schedule:       generateFranchiseSchedule(),
     standings:      initStandings(),
@@ -14555,9 +14718,9 @@ function frnTeamLeaders(teamId) {
 
 // ── Regular-season dashboard (polished inline layout) ────────────────────────
 // ── Pre-season screen: roster review, schedule preview, scout opponents ───────
-function renderFrnPreseason(tab, scoutId) {
+function renderFrnPreseason(tab, scoutId, scoutView, selName) {
   tab = tab || "roster";
-  const { chosenTeamId, season, salaryCap, schedule } = franchise;
+  const { chosenTeamId, season, salaryCap, schedule, teamTiers } = franchise;
   const cap = salaryCap || SALARY_CAP_BASE;
   const myTeam = getTeam(chosenTeamId);
   const myRoster = franchise.rosters[chosenTeamId] || [];
@@ -14565,6 +14728,11 @@ function renderFrnPreseason(tab, scoutId) {
   const capLeft = cap - capUsed;
   const myRtg = frnTeamRating(chosenTeamId);
   const overCap = capLeft < 0;
+  const myTier = teamTiers?.[chosenTeamId];
+  const tierLabel = myTier
+    ? { powerhouse:"⭐ POWERHOUSE", contender:"💪 CONTENDER",
+        average:"⚖ AVERAGE", rebuilding:"🔧 REBUILDING" }[myTier] || ""
+    : "";
 
   const bannerHtml = `
     <div class="frn-team-banner" style="--banner-color:${myTeam.primary}">
@@ -14574,6 +14742,7 @@ function renderFrnPreseason(tab, scoutId) {
         <div class="frn-banner-name">${myTeam.city.toUpperCase()} ${myTeam.name.toUpperCase()}</div>
         <div class="frn-banner-sub">
           Season ${season} · Pre-Season Camp · OFF ${myRtg.off} · DEF ${myRtg.def}
+          ${tierLabel ? ` · <span style="color:var(--gold-lt)">${tierLabel}</span>` : ""}
         </div>
         <div class="frn-banner-cap" style="color:${overCap?"var(--red)":capUsed/cap>=0.95?"#e8a000":"var(--green-lt)"}">
           CAP $${capUsed.toFixed(1)}M / $${cap.toFixed(0)}M
@@ -14596,9 +14765,9 @@ function renderFrnPreseason(tab, scoutId) {
   ).join("");
 
   let body;
-  if      (tab === "roster")   body = _preseasonRosterTab(myRoster);
+  if      (tab === "roster")   body = _preseasonRosterTab(myRoster, selName);
   else if (tab === "schedule") body = _preseasonScheduleTab(schedule, chosenTeamId);
-  else                         body = _preseasonScoutTab(chosenTeamId, scoutId);
+  else                         body = _preseasonScoutTab(chosenTeamId, scoutId, scoutView, selName);
 
   $("frnHomeContent").innerHTML = `
     ${bannerHtml}
@@ -14611,41 +14780,48 @@ function renderFrnPreseason(tab, scoutId) {
     </div>`;
 }
 
-function _preseasonRosterTab(roster) {
+function _preseasonRosterTab(roster, selName) {
   const posOrder = ["QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"];
   const groups = {};
   for (const p of roster) (groups[p.position] = groups[p.position] || []).push(p);
 
-  let html = "";
+  // Default selected: highest-OVR player on the team
+  let selected = null;
+  if (selName) selected = roster.find(p => p.name === selName);
+  if (!selected) selected = roster.slice().sort((a,b) => b.overall - a.overall)[0];
+
+  let listHtml = "";
   for (const pos of posOrder) {
     const players = (groups[pos] || []).slice().sort((a,b) => b.overall - a.overall);
     if (!players.length) continue;
-    html += `<div class="frn-pre-pos-group">
-      <div class="frn-pre-pos-title">${pos} <span style="color:var(--gray);font-weight:400;font-size:.6rem">${players.length} player${players.length>1?"s":""}</span></div>
+    listHtml += `<div class="frn-pre-pos-group">
+      <div class="frn-pre-pos-title">${pos} <span style="color:var(--gray);font-weight:400;font-size:.6rem">${players.length}</span></div>
       <table class="frn-pre-roster-table">
-        <thead><tr><th></th><th>Player</th><th>OVR</th><th>Age</th><th>Archetype</th><th>AAV</th><th>Yrs</th><th></th></tr></thead>
         <tbody>
           ${players.map((p, i) => {
-            const escName = (p.name || "").replace(/'/g, "\\'");
+            const escName = (p.name || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
             const isStarter = i === 0;
-            const yrs = p.contract?.remaining || 0;
+            const isSel = selected && selected.name === p.name;
             const aav = p.contract?.aav || 0;
-            return `<tr>
-              <td style="color:var(--gold);font-size:.65rem">${isStarter?"★ ST":"#"+(i+1)}</td>
+            const yrs = p.contract?.remaining || 0;
+            return `<tr class="frn-scout-row ${isSel?"selected":""}" onclick="renderFrnPreseason('roster',null,null,'${escName}')">
+              <td class="frn-scout-slot">${isStarter?"★":"#"+(i+1)}</td>
               <td style="font-weight:${isStarter?700:400}">${p.name}</td>
               <td><span class="tt-ovr tier-${playerTier(p.overall)}">${p.overall}</span></td>
               <td style="color:var(--gray)">${p.age || "?"}</td>
-              <td style="color:var(--gray);font-size:.66rem">${p.archetype || "—"}</td>
-              <td style="color:var(--gold);font-weight:700">$${aav.toFixed(1)}M</td>
-              <td style="color:var(--gray)">${yrs}yr</td>
-              <td><button class="frn-pre-cut" onclick="frnReleasePlayer('${escName}','${p.position}')" title="Release — frees cap, removes from roster">✗ Cut</button></td>
+              <td style="color:var(--gold);font-size:.7rem">$${aav.toFixed(1)}M · ${yrs}yr</td>
+              <td><button class="frn-pre-cut" onclick="event.stopPropagation();frnReleasePlayer('${escName}','${p.position}')" title="Release — frees cap, removes from roster">✗</button></td>
             </tr>`;
           }).join("")}
         </tbody>
       </table>
     </div>`;
   }
-  return html;
+
+  return `<div class="frn-scout-split">
+    <div class="frn-scout-roster">${listHtml}</div>
+    <div class="frn-scout-player">${selected ? _buildPlayerDetailPanel(selected) : ""}</div>
+  </div>`;
 }
 
 function _preseasonScheduleTab(schedule, myId) {
@@ -14673,8 +14849,12 @@ function _preseasonScheduleTab(schedule, myId) {
   </table>`;
 }
 
-function _preseasonScoutTab(myId, scoutId) {
-  // Default to the first non-self opponent on the schedule
+// Number of "starters" we display per position in the depth-chart view.
+const SCOUT_STARTER_COUNTS = { QB:1, RB:1, WR:3, TE:1, OL:5, DL:4, LB:3, CB:2, S:2, K:1, P:1 };
+
+function _preseasonScoutTab(myId, scoutId, view, selName) {
+  view = view || "starters";
+  // Default opponent: your Week 1 matchup
   if (!scoutId) {
     const next = franchise.schedule.find(g => g.homeId === myId || g.awayId === myId);
     scoutId = next ? (next.homeId === myId ? next.awayId : next.homeId) : TEAMS.find(t => t.id !== myId).id;
@@ -14696,28 +14876,59 @@ function _preseasonScoutTab(myId, scoutId) {
   const oppRoster = franchise.rosters[scoutId] || [];
   const oppRtg    = frnTeamRating(scoutId);
   const oppCap    = capUsedByTeam(scoutId);
-  const stars     = oppRoster.slice().sort((a,b) => b.overall - a.overall).slice(0, 12);
 
-  const starsHtml = `<table class="frn-pre-roster-table">
-    <thead><tr><th>#</th><th>Player</th><th>Pos</th><th>OVR</th><th>Age</th><th>AAV</th></tr></thead>
-    <tbody>
-      ${stars.map((p,i) => `<tr>
-        <td style="color:var(--gold);font-size:.65rem">${i+1}</td>
-        <td style="font-weight:700">${p.name}</td>
-        <td style="color:var(--gray)">${p.position}</td>
-        <td><span class="tt-ovr tier-${playerTier(p.overall)}">${p.overall}</span></td>
-        <td style="color:var(--gray)">${p.age || "?"}</td>
-        <td style="color:var(--gold)">$${(p.contract?.aav||0).toFixed(1)}M</td>
-      </tr>`).join("")}
-    </tbody>
-  </table>`;
+  // Group roster by position, sorted by OVR desc (depth-chart order)
+  const byPos = {};
+  for (const p of oppRoster) (byPos[p.position] = byPos[p.position] || []).push(p);
+  for (const pos of Object.keys(byPos)) byPos[pos].sort((a,b) => b.overall - a.overall);
+
+  // Resolve which player is selected (defaults to the team's best player)
+  let selected = null;
+  if (selName) selected = oppRoster.find(p => p.name === selName);
+  if (!selected) selected = oppRoster.slice().sort((a,b) => b.overall - a.overall)[0];
+
+  const posOrder = ["QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"];
+  const rowHtml = (p, slotLabel) => {
+    const isSel = selected && selected.name === p.name;
+    const escName = (p.name || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    return `<tr class="frn-scout-row ${isSel?"selected":""}"
+      onclick="renderFrnPreseason('scout',${scoutId},'${view}','${escName}')">
+      <td class="frn-scout-slot">${slotLabel}</td>
+      <td style="font-weight:${slotLabel.includes("1")||slotLabel==="QB"||slotLabel==="RB"||slotLabel==="TE"||slotLabel==="K"||slotLabel==="P"?700:400}">${p.name}</td>
+      <td><span class="tt-ovr tier-${playerTier(p.overall)}">${p.overall}</span></td>
+      <td style="color:var(--gray)">${p.age || "?"}</td>
+      <td style="color:var(--gray);font-size:.66rem">${p.archetype || "—"}</td>
+      <td style="color:var(--gold);font-size:.7rem">$${(p.contract?.aav||0).toFixed(1)}M</td>
+    </tr>`;
+  };
+
+  // Build rows: starters view shows top N per position; full shows everyone
+  const rows = [];
+  for (const pos of posOrder) {
+    const all = byPos[pos] || [];
+    const limit = view === "starters" ? (SCOUT_STARTER_COUNTS[pos] || 1) : all.length;
+    const shown = all.slice(0, limit);
+    shown.forEach((p, i) => {
+      const slotLabel = shown.length > 1 ? `${pos}${i+1}` : pos;
+      rows.push(rowHtml(p, slotLabel));
+    });
+  }
+
+  const escSel = selected ? (selected.name || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'") : "";
+  const viewTabsHtml = `
+    <div class="frn-scout-view-tabs">
+      <button class="${view==="starters"?"active":""}"
+              onclick="renderFrnPreseason('scout',${scoutId},'starters','${escSel}')">DEPTH CHART</button>
+      <button class="${view==="full"?"active":""}"
+              onclick="renderFrnPreseason('scout',${scoutId},'full','${escSel}')">FULL ROSTER (${oppRoster.length})</button>
+    </div>`;
 
   return `<div class="frn-scout-layout">
     <div class="frn-scout-list">${listHtml}</div>
     <div class="frn-scout-detail">
-      <div style="display:flex;align-items:center;gap:.7rem;margin-bottom:.6rem">
+      <div style="display:flex;align-items:center;gap:.7rem;margin-bottom:.5rem">
         <span style="font-size:1.8rem;color:var(--gold)">${teamAscii(oppTeam)}</span>
-        <div>
+        <div style="flex:1">
           <div style="font-weight:900;font-size:1.05rem">${oppTeam.city} ${oppTeam.name.toUpperCase()}</div>
           <div style="color:var(--gray);font-size:.7rem">
             OFF <b style="color:var(--gold)">${oppRtg.off}</b> ·
@@ -14726,9 +14937,53 @@ function _preseasonScoutTab(myId, scoutId) {
           </div>
         </div>
       </div>
-      <div class="frn-card-title" style="margin-bottom:.4rem">TOP 12 PLAYERS</div>
-      ${starsHtml}
+      ${viewTabsHtml}
+      <div class="frn-scout-split">
+        <div class="frn-scout-roster">
+          <table class="frn-pre-roster-table">
+            <thead><tr><th></th><th>Player</th><th>OVR</th><th>Age</th><th>Archetype</th><th>AAV</th></tr></thead>
+            <tbody>${rows.join("")}</tbody>
+          </table>
+        </div>
+        <div class="frn-scout-player">${selected ? _buildPlayerDetailPanel(selected) : ""}</div>
+      </div>
     </div>
+  </div>`;
+}
+
+// Detail card for a single player — shown in Scout right side panel.
+function _buildPlayerDetailPanel(p) {
+  const STAT_LABELS = ["SPD","STR","AGI","AWR","THR","CAT","BLK","PRS","COV","TCK","KPW"];
+  const stats = p.stats || [];
+  const statBars = stats.map((v, i) => {
+    const color = v >= 85 ? "#f0cc30" : v >= 70 ? "#9be09b" : v >= 55 ? "#c0c0c0" : "#c08080";
+    return `<div class="frn-stat-row">
+      <span class="frn-stat-label">${STAT_LABELS[i] || `S${i}`}</span>
+      <div class="frn-stat-bar"><div class="frn-stat-bar-fill" style="width:${v}%;background:${color}"></div></div>
+      <span class="frn-stat-val">${v}</span>
+    </div>`;
+  }).join("");
+
+  const flavor = p.flavor?.desc || "";
+  const aav = p.contract?.aav || 0;
+  const yrs = p.contract?.remaining || 0;
+
+  return `<div class="frn-player-card">
+    <div class="frn-player-card-head">
+      <div>
+        <div style="font-size:1.05rem;font-weight:900">${p.name}</div>
+        <div style="color:var(--gray);font-size:.7rem">
+          ${p.position} · Age ${p.age || "?"} · ${p.archetype || "—"}
+        </div>
+      </div>
+      <div style="text-align:right">
+        <span class="tt-ovr tier-${playerTier(p.overall)}" style="font-size:1.05rem;padding:.25rem .7rem">${p.overall}</span>
+        <div style="color:var(--gold);font-size:.78rem;font-weight:700;margin-top:.25rem">$${aav.toFixed(1)}M/yr</div>
+        <div style="color:var(--gray);font-size:.62rem">${yrs}yr left</div>
+      </div>
+    </div>
+    <div class="frn-stat-grid">${statBars}</div>
+    ${flavor ? `<div class="frn-player-flavor">${flavor}</div>` : ""}
   </div>`;
 }
 
@@ -14739,7 +14994,7 @@ function frnReleasePlayer(name, pos) {
   if (idx === -1) return;
   roster.splice(idx, 1);
   saveFranchise();
-  renderFrnPreseason("roster");
+  renderFrnPreseason("roster"); // released player de-selects naturally
 }
 
 function frnStartSeason() {
