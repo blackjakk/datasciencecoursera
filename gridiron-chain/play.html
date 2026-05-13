@@ -1357,6 +1357,34 @@
   }
   .frn-holdout-row.resolved { border-left-color: var(--gray); opacity: .8; }
 
+  /* Hoverable player + team name spans */
+  .frn-pname, .frn-tname {
+    cursor: pointer; border-bottom: 1px dotted transparent;
+    transition: border-color .1s, color .1s;
+  }
+  .frn-pname:hover, .frn-tname:hover {
+    color: var(--gold-lt); border-bottom-color: var(--gold-lt);
+  }
+
+  /* Player hover tip */
+  .frn-player-tip {
+    min-width: 260px; max-width: 320px;
+  }
+  .frn-ptip-head {
+    display: flex; align-items: center; gap: .55rem;
+    padding-bottom: .4rem; margin-bottom: .35rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .frn-portrait {
+    width: 44px; height: 44px; flex-shrink: 0;
+    background: var(--bg3); border: 1px solid var(--border);
+  }
+  .frn-ptip-meta {
+    display: grid; grid-template-columns: 1fr 1fr; gap: .25rem .5rem;
+    font-size: .68rem; padding: .3rem .4rem;
+    background: var(--bg3);
+  }
+
   /* League chat */
   .frn-chat-list {
     background: var(--bg2); border: 1px solid var(--border);
@@ -15831,7 +15859,7 @@ function _preseasonRosterTab(roster, selName) {
             const yrs = p.contract?.remaining || 0;
             return `<tr class="frn-scout-row ${isSel?"selected":""}" onclick="renderFrnPreseason('roster',null,null,'${escName}')">
               <td class="frn-scout-slot">${isStarter?"★":"#"+(i+1)}</td>
-              <td style="font-weight:${isStarter?700:400}">${p.name}</td>
+              <td style="font-weight:${isStarter?700:400}">${playerLink(p)}</td>
               <td>${gradeBadge(p)}</td>
               <td style="color:var(--gray)">${p.age || "?"}</td>
               <td style="color:var(--gold);font-size:.7rem">$${aav.toFixed(1)}M · ${yrs}yr</td>
@@ -15919,7 +15947,7 @@ function _preseasonScoutTab(myId, scoutId, view, selName) {
     return `<tr class="frn-scout-row ${isSel?"selected":""}"
       onclick="renderFrnPreseason('scout',${scoutId},'${view}','${escName}')">
       <td class="frn-scout-slot">${slotLabel}</td>
-      <td style="font-weight:${slotLabel.includes("1")||slotLabel==="QB"||slotLabel==="RB"||slotLabel==="TE"||slotLabel==="K"||slotLabel==="P"?700:400}">${p.name}</td>
+      <td style="font-weight:${slotLabel.includes("1")||slotLabel==="QB"||slotLabel==="RB"||slotLabel==="TE"||slotLabel==="K"||slotLabel==="P"?700:400}">${playerLink(p)}</td>
       <td>${gradeBadge(p)}</td>
       <td style="color:var(--gray)">${p.age || "?"}</td>
       <td style="color:var(--gray);font-size:.66rem">${draftStr(p)}</td>
@@ -17091,6 +17119,224 @@ function renderFrnChat() {
   if (inp) inp.focus();
 }
 
+// ── Universal hover tooltips: players & teams ─────────────────────────────────
+// Anywhere a player/team name is rendered, wrapping it with
+// playerLink(p) or teamLink(team) gives it hover-card + click-to-open
+// behavior via document-level event delegation. Doesn't bloat each
+// render site with handlers.
+
+function playerLink(p) {
+  if (!p) return "";
+  const escName = String(p.name || "").replace(/"/g, "&quot;");
+  return `<span class="frn-pname" data-player-name="${escName}">${p.name}</span>`;
+}
+function playerLinkByName(name) {
+  if (!name) return "";
+  const escName = String(name).replace(/"/g, "&quot;");
+  return `<span class="frn-pname" data-player-name="${escName}">${name}</span>`;
+}
+function teamLink(team, full) {
+  if (!team) return "";
+  const label = full ? `${team.city} ${team.name}` : team.name;
+  return `<span class="frn-tname" data-team-id="${team.id}">${label}</span>`;
+}
+
+// Locate a player by name across all rosters (for tooltips/detail).
+function _findPlayer(name) {
+  for (const roster of Object.values(franchise?.rosters || {})) {
+    const p = roster.find(rp => rp.name === name);
+    if (p) return p;
+  }
+  return null;
+}
+function _findPlayerTeam(p) {
+  if (!p) return null;
+  for (const [tid, roster] of Object.entries(franchise?.rosters || {})) {
+    if (roster.some(rp => rp === p || rp.name === p.name)) return getTeam(Number(tid));
+  }
+  return null;
+}
+
+// Procedural helmet portrait. Team colors + jersey number on a simple
+// SVG helmet shape. Tiny, scales, no asset files.
+function _playerPortrait(p) {
+  const team = _findPlayerTeam(p);
+  const primary = team?.primary || "#444";
+  const secondary = team?.secondary || "#ccc";
+  const jersey = (p.jersey ?? p.number ?? "##").toString();
+  // Choose readable text color: black on light, white on dark
+  return `<svg viewBox="0 0 60 60" class="frn-portrait" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="hl" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${secondary}" stop-opacity="0.5"/>
+        <stop offset="100%" stop-color="${primary}" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <ellipse cx="30" cy="27" rx="22" ry="20" fill="${primary}" stroke="${secondary}" stroke-width="2"/>
+    <ellipse cx="30" cy="20" rx="20" ry="10" fill="url(#hl)"/>
+    <rect x="14" y="33" width="32" height="3" fill="${secondary}" rx="1.5"/>
+    <rect x="14" y="38" width="32" height="3" fill="${secondary}" rx="1.5"/>
+    <text x="30" y="29" text-anchor="middle" font-size="13" fill="${secondary}"
+      font-weight="bold" font-family="monospace">${jersey}</text>
+  </svg>`;
+}
+
+function frnPlayerTipShow(e, name) {
+  const p = _findPlayer(name);
+  if (!p) return;
+  const team = _findPlayerTeam(p);
+  const tip = _getHoverTip();
+  const g = scoutGrade(p), gL = gradeLabel(g), gCls = gradeClass(g);
+  const aav = p.contract?.aav || 0;
+  const yrs = p.contract?.remaining || 0;
+  tip.innerHTML = `
+    <div class="frn-ptip-head">
+      ${_playerPortrait(p)}
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:900;font-size:.9rem">${p.name}</div>
+        <div style="color:var(--gray);font-size:.62rem">
+          ${p.position} · Age ${p.age||"?"} · ${team?.name||"?"}
+        </div>
+        <div style="color:var(--gray);font-size:.62rem">${p.archetype||"—"}</div>
+      </div>
+      <div style="text-align:right">
+        <span class="tt-ovr tier-${gCls}" style="font-size:.85rem;padding:.15rem .5rem">${gL}</span>
+      </div>
+    </div>
+    <div class="frn-ptip-meta">
+      <div><span class="frn-meta-label">DRAFT</span> ${draftStr(p)}</div>
+      <div><span class="frn-meta-label">$/YR</span> $${aav.toFixed(1)}M · ${yrs}yr</div>
+      <div><span class="frn-meta-label">CAREER $</span> ${careerEarningsStr(p)}</div>
+      ${p.injury?.weeksRemaining ? `<div style="color:#ff9090">🩹 ${p.injury.label} · ${p.injury.weeksRemaining}wk</div>` : ""}
+      ${p.onTradeBlock ? `<div style="color:#e8a000">●BLOCK</div>` : ""}
+    </div>
+    <div class="frn-tip-foot">Click for full career</div>
+  `;
+  _positionTip(tip, e.currentTarget);
+}
+
+function frnTeamTipShow2(e, teamId) {
+  const team = getTeam(Number(teamId));
+  if (!team) return;
+  const tip = _getHoverTip();
+  const rtg = frnTeamRating(team.id);
+  const tier = franchise?.teamTiers?.[team.id] || "average";
+  const tierLabel = (typeof TIER_LABEL !== "undefined" && TIER_LABEL[tier]) || tier;
+  const scouted = franchise?.scoutingIntel?.[team.id]?.season === franchise?.season;
+  // If scouted: include top 3 players + grades
+  let scoutLines = "";
+  if (scouted) {
+    const top = (franchise.rosters[team.id] || [])
+      .slice().sort((a,b) => scoutGrade(b) - scoutGrade(a)).slice(0, 3);
+    scoutLines = top.map(p =>
+      `<div class="frn-tip-bullet">${p.position} ${p.name} (${gradeLabel(scoutGrade(p))})</div>`
+    ).join("");
+  }
+  // Record so far
+  const s = franchise?.standings?.[team.id];
+  const rec = s ? `${s.w}-${s.l}${s.t?`-${s.t}`:""}` : "—";
+  tip.innerHTML = `
+    <div class="frn-tip-head">
+      <span style="font-size:1.4rem;color:${team.primary}">${teamAscii(team)}</span>
+      <div>
+        <div style="font-weight:900">${team.city} ${team.name}</div>
+        <div style="color:var(--gray);font-size:.62rem">${team.conference} ${team.division}</div>
+      </div>
+    </div>
+    <div class="frn-tip-tier tier-${tier}">${tierLabel}${scouted ? " · 🏟 SCOUTED" : ""}</div>
+    <div class="frn-tip-ratings">
+      OFF <b style="color:var(--gold)">${rtg.off}</b> ·
+      DEF <b style="color:var(--gold)">${rtg.def}</b> ·
+      Rec ${rec}
+    </div>
+    ${scoutLines || `<div class="frn-tip-bullet" style="color:var(--gray);font-style:italic">Run a scrimmage to scout this team.</div>`}
+    <div class="frn-tip-foot">Click to scout this team</div>
+  `;
+  _positionTip(tip, e.currentTarget);
+}
+
+function _getHoverTip() {
+  let tip = document.getElementById("frn-hover-tip");
+  if (!tip) {
+    tip = document.createElement("div");
+    tip.id = "frn-hover-tip";
+    tip.className = "frn-team-tooltip frn-player-tip";
+    document.body.appendChild(tip);
+  }
+  return tip;
+}
+function _positionTip(tip, anchor) {
+  tip.style.display = "block";
+  const rect = anchor.getBoundingClientRect();
+  const tipW = tip.offsetWidth, tipH = tip.offsetHeight;
+  let left = rect.right + 8;
+  if (left + tipW > window.innerWidth - 8) left = rect.left - tipW - 8;
+  if (left < 8) left = 8;
+  let top = rect.top;
+  if (top + tipH > window.innerHeight - 8) top = window.innerHeight - tipH - 8;
+  if (top < 8) top = 8;
+  tip.style.left = left + "px";
+  tip.style.top = top + "px";
+}
+function frnHoverTipHide() {
+  const tip = document.getElementById("frn-hover-tip");
+  if (tip) tip.style.display = "none";
+}
+
+// Click handlers
+function frnOpenPlayerCard(name) {
+  const p = _findPlayer(name);
+  if (!p) return;
+  frnHoverTipHide();
+  const team = _findPlayerTeam(p);
+  const myId = franchise.chosenTeamId;
+  // If it's one of your players, the preseason roster tab is the
+  // natural detail view; otherwise route to the scout tab focused on
+  // their team and select the player.
+  if (team?.id === myId) {
+    // Use the preseason roster screen with this player selected,
+    // unless we're currently in regular season — then jump to scout
+    // of our own roster isn't ideal, so we just route to preseason.
+    franchise.phase = "preseason";
+    saveFranchise();
+    renderFrnPreseason("roster", null, null, p.name);
+  } else if (team) {
+    renderFrnPreseason("scout", team.id, "full", p.name);
+  }
+}
+function frnOpenTeamCard(teamId) {
+  frnHoverTipHide();
+  renderFrnPreseason("scout", Number(teamId));
+}
+
+// Global event delegation — players & teams hover/click handlers
+function _frnInstallHoverDelegation() {
+  if (window.__frnHoverInstalled) return;
+  window.__frnHoverInstalled = true;
+  document.addEventListener("mouseover", e => {
+    const el = e.target.closest?.("[data-player-name],[data-team-id]");
+    if (!el) return;
+    if (el.dataset.playerName) frnPlayerTipShow(e, el.dataset.playerName);
+    else if (el.dataset.teamId) frnTeamTipShow2(e, el.dataset.teamId);
+  });
+  document.addEventListener("mouseout", e => {
+    const el = e.target.closest?.("[data-player-name],[data-team-id]");
+    if (el) frnHoverTipHide();
+  });
+  document.addEventListener("click", e => {
+    const el = e.target.closest?.("[data-player-name],[data-team-id]");
+    if (!el) return;
+    if (el.dataset.playerName) {
+      e.preventDefault(); e.stopPropagation();
+      frnOpenPlayerCard(el.dataset.playerName);
+    } else if (el.dataset.teamId) {
+      e.preventDefault(); e.stopPropagation();
+      frnOpenTeamCard(el.dataset.teamId);
+    }
+  });
+}
+_frnInstallHoverDelegation();
+
 function _escHtml(s) {
   return String(s || "")
     .replace(/&/g, "&amp;").replace(/</g, "&lt;")
@@ -17222,7 +17468,7 @@ function renderFrnPastGame(week, homeId, awayId) {
       <div class="frn-bs-row">
         <div class="frn-bs-cat">${label}</div>
         <div class="frn-bs-vals">${list.map(p => `
-          <div>${p.name} <span style="color:var(--gray)">·</span> ${fmt(p)}</div>
+          <div>${playerLinkByName(p.name)} <span style="color:var(--gray)">·</span> ${fmt(p)}</div>
         `).join("")}</div>
       </div>` : "";
 
@@ -17253,11 +17499,11 @@ function renderFrnPastGame(week, homeId, awayId) {
     </div>
     <div class="frn-bs-final">
       <span style="color:var(--gray);font-size:.7rem">FINAL</span>
-      <span style="font-size:1.05rem">${away.name}</span>
+      <span style="font-size:1.05rem">${teamLink(away)}</span>
       <span style="font-size:1.4rem;font-weight:900;color:${homeWon?"var(--gray)":"var(--gold-lt)"}">${g.awayScore}</span>
       <span style="color:var(--gold)">–</span>
       <span style="font-size:1.4rem;font-weight:900;color:${homeWon?"var(--gold-lt)":"var(--gray)"}">${g.homeScore}</span>
-      <span style="font-size:1.05rem">${home.name}</span>
+      <span style="font-size:1.05rem">${teamLink(home)}</span>
     </div>
     ${!stats ? `<div style="color:var(--gray);font-size:.78rem;padding:1rem;text-align:center;font-style:italic">No detailed stats recorded for this game (played before per-game tracking).</div>`
       : `<div class="frn-bs-grid">
@@ -17387,7 +17633,7 @@ function _buildWeekReviewCard(week, myId) {
       <div style="text-align:center;margin-bottom:.7rem">
         <div style="font-size:.7rem;color:var(--gray);letter-spacing:.5px;margin-bottom:.2rem">YOUR GAME</div>
         <div style="font-size:1.1rem;font-weight:900">
-          ${resultTag} ${opp ? `${isHome?"vs":"@"} ${opp.name}` : ""}
+          ${resultTag} ${opp ? `${isHome?"vs":"@"} ${teamLink(opp)}` : ""}
         </div>
       </div>
       <div class="frn-card-title" style="margin-top:.4rem">📰 LEAGUE WIRE — WEEK ${week}</div>
@@ -17572,13 +17818,13 @@ function renderFrnRegular() {
         onmouseenter="frnPastGameTipShow(event,${g.week},${g.homeId},${g.awayId})"
         onmouseleave="frnPastGameTipHide()">
         <span class="frn-wk">W${g.week}</span>
-        <span class="frn-opp">${isHome ? "vs" : "@"} ${opp.name}</span>
+        <span class="frn-opp">${isHome ? "vs" : "@"} ${teamLink(opp)}</span>
         <span class="frn-res ${w?"w":t?"t":"l"}">${w?"W":t?"T":"L"} ${my}–${their}</span>
       </div>`;
     }
     return `<div class="frn-game-row ${isNext ? "frn-next" : ""}">
       <span class="frn-wk">W${g.week}</span>
-      <span class="frn-opp">${isHome ? "vs" : "@"} ${opp.name} <span style="color:var(--gray);font-size:.62rem">${oppRS}</span></span>
+      <span class="frn-opp">${isHome ? "vs" : "@"} ${teamLink(opp)} <span style="color:var(--gray);font-size:.62rem">${oppRS}</span></span>
       ${isNext ? `<span class="frn-res" style="color:var(--gold)">NEXT</span>` : ""}
     </div>`;
   }).join("");
@@ -17591,7 +17837,7 @@ function renderFrnRegular() {
     const pct      = gp === 0 ? ".000" : (s.w / gp).toFixed(3).replace(/^0/, "");
     return `<div class="frn-stand-row ${isMine ? "frn-me" : ""}">
       <span style="color:${playoff?"var(--gold)":"var(--gray)"};width:1.3rem;flex-shrink:0">${i+1}.</span>
-      <span style="flex:1">${isMine ? "» " : ""}${s.team.name}</span>
+      <span style="flex:1">${isMine ? "» " : ""}${teamLink(s.team)}</span>
       <span style="width:3rem;text-align:right">${s.w}-${s.l}${s.t?`-${s.t}`:""}</span>
       <span style="width:2.8rem;text-align:right;color:var(--gray);font-size:.62rem">${pct}</span>
     </div>`;
