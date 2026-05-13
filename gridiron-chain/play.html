@@ -1287,16 +1287,70 @@
   .frn-pcard-overlay-inner {
     background: var(--bg2); border: 2px solid var(--gold);
     box-shadow: 6px 6px 0 rgba(0,0,0,0.6);
-    max-width: 560px; width: 100%; max-height: 92vh; overflow: auto;
+    max-width: 820px; width: 100%; max-height: 92vh; overflow: auto;
     position: relative;
   }
-  .frn-pcard-close {
-    position: absolute; top: .35rem; right: .55rem;
-    background: transparent; border: 1px solid var(--gold);
-    color: var(--gold); font-size: .85rem; font-weight: 700;
-    width: 1.8rem; height: 1.8rem; cursor: pointer; line-height: 1;
+  .frn-pcard-split {
+    display: grid; grid-template-columns: 1fr 1fr; gap: .9rem .9rem;
   }
-  .frn-pcard-close:hover { background: var(--gold); color: var(--bg); }
+  @media (max-width: 640px) {
+    .frn-pcard-split { grid-template-columns: 1fr; }
+  }
+  .frn-pcard-section {
+    border: 1px solid var(--border); padding: .55rem .65rem;
+    background: var(--bg3);
+  }
+  .frn-rawstat-row {
+    display: grid; grid-template-columns: 38px 1fr 28px; gap: .35rem;
+    align-items: center; font-size: .65rem; padding: .12rem 0;
+  }
+  .frn-rawstat-key { color: var(--gold); font-weight: 700; letter-spacing: .3px; }
+  .frn-rawstat-bar {
+    height: 7px; background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.08); position: relative;
+  }
+  .frn-rawstat-bar-fill {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    background: linear-gradient(90deg, #c8a040, #ffe27a);
+  }
+  .frn-rawstat-val { color: var(--white); font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+  .frn-pcard-archetype {
+    border: 1px solid var(--gold-lt); padding: .5rem .65rem;
+    background: rgba(200,169,0,0.05);
+  }
+  .frn-pcard-archetype-name {
+    font-size: .68rem; font-weight: 900; color: var(--gold);
+    letter-spacing: .5px;
+  }
+  .frn-pcard-archetype-blurb {
+    color: var(--white); font-size: .68rem; line-height: 1.35;
+    margin-top: .15rem;
+  }
+  .frn-pcard-private-badge {
+    display: inline-block; font-size: .55rem; padding: .1rem .35rem;
+    background: rgba(200,169,0,0.18); color: var(--gold);
+    border: 1px solid var(--gold); letter-spacing: .5px;
+    margin-left: .35rem;
+  }
+  .frn-card-title {
+    font-size: .62rem; font-weight: 800; color: var(--gold);
+    letter-spacing: .6px; padding-bottom: .25rem; margin-bottom: .3rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .frn-pcard-seasonstats {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: .15rem .5rem;
+    font-size: .65rem; padding-top: .2rem;
+  }
+  .frn-pcard-seasonstats .k { color: var(--gray); }
+  .frn-pcard-seasonstats .v { color: var(--white); font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+  .frn-pcard-close {
+    position: absolute; top: .25rem; right: .35rem;
+    background: transparent; border: none;
+    color: var(--gray); font-size: 1.4rem; font-weight: 400;
+    width: 1.6rem; height: 1.6rem; cursor: pointer; line-height: 1;
+    padding: 0; z-index: 2;
+  }
+  .frn-pcard-close:hover { color: var(--gold); }
   .frn-pcard-overlay-inner .frn-player-card {
     position: static; border: none; padding: 1rem 1.1rem;
   }
@@ -16552,16 +16606,138 @@ function _pushNews(item) {
 // Deliberately hides OVR. Uses scout grade, combine measurables, draft
 // pedigree, and career earnings — same data a real scouting report works
 // from, none of which is the simulator's hidden rating directly.
+function _isOwnedPlayer(p) {
+  const myId = franchise?.chosenTeamId;
+  if (myId == null) return false;
+  const roster = franchise?.rosters?.[myId] || [];
+  return roster.some(rp => rp === p || rp.name === p.name);
+}
+
+// Per-position stat keys to highlight. SPD/STR/AGI/AWR/THR/CAT/BLK/PRS/COV/TCK/KPW.
+const _STAT_INDEX = { SPD:0, STR:1, AGI:2, AWR:3, THR:4, CAT:5, BLK:6, PRS:7, COV:8, TCK:9, KPW:10 };
+const _OWNED_STATS_BY_POS = {
+  QB: ["AWR","THR","SPD","AGI","STR"],
+  RB: ["SPD","STR","AGI","CAT","AWR"],
+  WR: ["SPD","CAT","AGI","AWR","STR"],
+  TE: ["CAT","BLK","STR","SPD","AWR"],
+  OL: ["STR","BLK","AWR","AGI"],
+  DL: ["STR","PRS","TCK","SPD","AWR"],
+  LB: ["TCK","PRS","COV","SPD","AWR"],
+  CB: ["SPD","COV","AGI","AWR","TCK"],
+  S:  ["SPD","COV","TCK","AWR","AGI"],
+  K:  ["KPW","AWR"],
+  P:  ["KPW","AWR"],
+};
+
+function _buildOwnedStatsPanel(p) {
+  const keys = _OWNED_STATS_BY_POS[p.position] || ["SPD","STR","AGI","AWR"];
+  const stats = p.stats || [];
+  const rows = keys.map(k => {
+    const v = stats[_STAT_INDEX[k]] ?? 0;
+    return `<div class="frn-rawstat-row">
+      <span class="frn-rawstat-key">${k}</span>
+      <span class="frn-rawstat-bar"><span class="frn-rawstat-bar-fill" style="width:${Math.max(0, Math.min(100, v))}%"></span></span>
+      <span class="frn-rawstat-val">${v}</span>
+    </div>`;
+  }).join("");
+  return `<div class="frn-pcard-section">
+    <div class="frn-card-title">
+      MEASURED RATINGS <span class="frn-pcard-private-badge">🔒 INTERNAL</span>
+    </div>
+    ${rows}
+    <div style="color:var(--gray);font-size:.6rem;margin-top:.35rem;font-style:italic">
+      Your training staff sees these — opponents only see the noisy grade.
+    </div>
+  </div>`;
+}
+
+function _buildArchetypeBlock(p) {
+  // Best-effort: look up ARCHETYPE_BY_POS in window if available.
+  let entry = null;
+  try {
+    const byPos = {
+      QB: typeof QB_ARCHETYPES !== "undefined" ? QB_ARCHETYPES : null,
+      RB: typeof RB_ARCHETYPES !== "undefined" ? RB_ARCHETYPES : null,
+      WR: typeof WR_ARCHETYPES !== "undefined" ? WR_ARCHETYPES : null,
+      TE: typeof TE_ARCHETYPES !== "undefined" ? TE_ARCHETYPES : null,
+      OL: typeof OL_ARCHETYPES !== "undefined" ? OL_ARCHETYPES : null,
+      DL: typeof DL_ARCHETYPES !== "undefined" ? DL_ARCHETYPES : null,
+      LB: typeof LB_ARCHETYPES !== "undefined" ? LB_ARCHETYPES : null,
+      CB: typeof CB_ARCHETYPES !== "undefined" ? CB_ARCHETYPES : null,
+      S:  typeof S_ARCHETYPES  !== "undefined" ? S_ARCHETYPES  : null,
+      K:  typeof K_ARCHETYPES  !== "undefined" ? K_ARCHETYPES  : null,
+      P:  typeof P_ARCHETYPES  !== "undefined" ? P_ARCHETYPES  : null,
+    };
+    entry = (byPos[p.position] || {})[p.archetype];
+  } catch {}
+  if (!entry) return "";
+  return `<div class="frn-pcard-archetype">
+    <div class="frn-pcard-archetype-name">${(entry.label || p.archetype || "").toUpperCase()}</div>
+    <div class="frn-pcard-archetype-blurb">${entry.blurb || ""}</div>
+  </div>`;
+}
+
+function _buildSeasonStatsBlock(p) {
+  if (!franchise?.seasonStats) return "";
+  // Search every team in case the player was traded mid-season.
+  let stat = null, teamId = null;
+  for (const [tid, ts] of Object.entries(franchise.seasonStats || {})) {
+    if (ts && ts[p.name]) { stat = ts[p.name]; teamId = Number(tid); break; }
+  }
+  if (!stat || !stat.gp) return "";
+  // Position-specific stat lines
+  const pos = p.position;
+  const fmtTuples = [];
+  const num = k => +(stat[k] || 0);
+  if (pos === "QB") {
+    fmtTuples.push(["CMP/ATT", `${num("pass_cmp")}/${num("pass_att")}`]);
+    fmtTuples.push(["PASS YDS", num("pass_yds")]);
+    fmtTuples.push(["PASS TD", num("pass_td")]);
+    fmtTuples.push(["INT", num("pass_int")]);
+    if (num("rush_yds")) fmtTuples.push(["RUSH YDS", num("rush_yds")]);
+  } else if (pos === "RB") {
+    fmtTuples.push(["CAR", num("rush_att")]);
+    fmtTuples.push(["RUSH YDS", num("rush_yds")]);
+    fmtTuples.push(["RUSH TD", num("rush_td")]);
+    if (num("rec")) fmtTuples.push(["REC", num("rec")]);
+    if (num("rec_yds")) fmtTuples.push(["REC YDS", num("rec_yds")]);
+  } else if (pos === "WR" || pos === "TE") {
+    fmtTuples.push(["REC", num("rec")]);
+    fmtTuples.push(["REC YDS", num("rec_yds")]);
+    fmtTuples.push(["REC TD", num("rec_td")]);
+    fmtTuples.push(["TGT", num("tgt")]);
+  } else if (pos === "DL" || pos === "LB" || pos === "CB" || pos === "S") {
+    fmtTuples.push(["TKL", num("tkl")]);
+    if (num("sk")) fmtTuples.push(["SK", num("sk")]);
+    if (num("int_made")) fmtTuples.push(["INT", num("int_made")]);
+    if (num("pd")) fmtTuples.push(["PD", num("pd")]);
+    if (num("ff")) fmtTuples.push(["FF", num("ff")]);
+  } else if (pos === "K") {
+    fmtTuples.push(["FG", `${num("fg_made")}/${num("fg_att")}`]);
+    fmtTuples.push(["LONG", num("fg_long")]);
+    fmtTuples.push(["XP", `${num("xp_made")}/${num("xp_att")}`]);
+  }
+  if (!fmtTuples.length) return "";
+  const cells = fmtTuples.map(([k, v]) =>
+    `<div class="k">${k}</div><div class="v">${v}</div>`
+  ).join("");
+  return `<div class="frn-pcard-section">
+    <div class="frn-card-title">SEASON STATS · ${stat.gp || 0} GP</div>
+    <div class="frn-pcard-seasonstats">${cells}</div>
+  </div>`;
+}
+
 function _buildPlayerDetailPanel(p) {
   const g    = scoutGrade(p);
   const gL   = gradeLabel(g);
-  const gCls = gradeClass(g);
   const cmb  = combineMeasurables(p);
   const aav  = p.contract?.aav || 0;
   const yrs  = p.contract?.remaining || 0;
   const flav = p.flavor?.desc || "";
+  const owned = _isOwnedPlayer(p);
 
-  // Position-specific combine display — kickers/punters get leg power instead
+  // Combine measurables — always visible. Owned roster also gets raw
+  // ratings panel beside it.
   const isKicker = p.position === "K" || p.position === "P";
   const combineHtml = isKicker
     ? `<div class="frn-combine-grid">
@@ -16575,34 +16751,53 @@ function _buildPlayerDetailPanel(p) {
          <div><span class="frn-meta-label">VERT</span> ${cmb.verticalIn}"</div>
        </div>`;
 
+  const combinePanel = `<div class="frn-pcard-section">
+    <div class="frn-card-title">COMBINE</div>
+    ${combineHtml}
+  </div>`;
+
+  const potTag = potentialTag(p);
+  const archBlock = _buildArchetypeBlock(p);
+  const seasonBlock = _buildSeasonStatsBlock(p);
+  const ratingsPanel = owned ? _buildOwnedStatsPanel(p) : "";
+
+  // Right-column content: owned → raw ratings, otherwise scout note.
+  const rightPanel = owned ? ratingsPanel : `<div class="frn-pcard-section">
+    <div class="frn-card-title">SCOUTING NOTE</div>
+    <div style="font-size:.68rem;color:var(--gray);line-height:1.4">
+      Internal ratings are hidden for opposing players. Run a joint
+      practice (Scrimmage tab) against this team to sharpen the
+      grade noise from ±8 to ±2.
+    </div>
+  </div>`;
+
   return `<div class="frn-player-card">
-    <div class="frn-player-card-head" style="display:flex;gap:.7rem;align-items:flex-start">
-      ${_playerPortrait(p, 96)}
+    <div class="frn-player-card-head" style="display:flex;gap:.9rem;align-items:flex-start;padding-right:2.5rem">
+      ${_playerPortrait(p, 110)}
       <div style="flex:1;min-width:0">
-        <div style="font-size:1.05rem;font-weight:900">${p.name}</div>
-        <div style="color:var(--gray);font-size:.7rem">
-          ${p.position} · Age ${p.age || "?"} · ${p.archetype || "—"}
+        <div style="font-size:1.15rem;font-weight:900">${p.name}</div>
+        <div style="color:var(--gray);font-size:.72rem;margin-top:.1rem">
+          #${p.jersey ?? "?"} · ${p.position} · Age ${p.age || "?"}${p.height?` · ${formatHeight(p.height)}, ${p.weight||"?"} lbs`:""}
         </div>
+        <div style="color:var(--gray);font-size:.65rem;margin-top:.1rem">${draftStr(p)} · Career ${careerEarningsStr(p)}</div>
+        ${potTag ? `<div style="margin-top:.2rem;font-size:.62rem;color:var(--gold-lt);font-weight:700">${potTag}</div>` : ""}
       </div>
-      <div style="text-align:right">
-        <span class="tt-ovr tier-${gCls}" style="font-size:1.05rem;padding:.25rem .7rem"
-          title="Scout grade — observers' estimate, not exact ability">${gL}</span>
-        <div style="color:var(--gold);font-size:.78rem;font-weight:700;margin-top:.25rem">$${aav.toFixed(1)}M/yr</div>
+      <div style="text-align:right;flex-shrink:0">
+        <div style="color:var(--gray);font-size:.55rem;letter-spacing:.5px">GRADE</div>
+        <div style="font-size:1.6rem;font-weight:900;color:var(--gold);line-height:1"
+          title="Scout grade — observers' estimate, not exact ability">${gL}</div>
+        <div style="color:var(--gold);font-size:.85rem;font-weight:700;margin-top:.4rem">$${aav.toFixed(1)}M/yr</div>
         <div style="color:var(--gray);font-size:.62rem">${yrs}yr left</div>
       </div>
     </div>
-    <div class="frn-player-meta">
-      <div><span class="frn-meta-label">DRAFT</span> ${draftStr(p)}</div>
-      <div><span class="frn-meta-label">CAREER $</span> ${careerEarningsStr(p)}</div>
+    ${archBlock ? `<div style="margin:.6rem 0">${archBlock}</div>` : ""}
+    <div class="frn-pcard-split" style="margin-top:.5rem">
+      ${combinePanel}
+      ${rightPanel}
     </div>
-    ${(() => {
-      const tag = potentialTag(p);
-      return tag ? `<div style="margin-top:.35rem;font-size:.66rem;color:var(--gold-lt);font-weight:700">${tag}</div>` : "";
-    })()}
-    <div class="frn-card-title" style="margin-top:.55rem;margin-bottom:.3rem">COMBINE</div>
-    ${combineHtml}
-    ${p.injury ? `<div class="frn-player-injury">🩹 ${p.injury.label} — ${p.injury.weeksRemaining} wk${p.injury.weeksRemaining===1?"":"s"} out</div>` : ""}
-    ${flav ? `<div class="frn-player-flavor">${flav}</div>` : ""}
+    ${seasonBlock ? `<div style="margin-top:.6rem">${seasonBlock}</div>` : ""}
+    ${p.injury ? `<div class="frn-player-injury" style="margin-top:.55rem">🩹 ${p.injury.label} — ${p.injury.weeksRemaining} wk${p.injury.weeksRemaining===1?"":"s"} out</div>` : ""}
+    ${flav ? `<div class="frn-player-flavor" style="margin-top:.55rem">${flav}</div>` : ""}
     ${_buildCareerCard(p)}
   </div>`;
 }
