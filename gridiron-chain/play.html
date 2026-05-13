@@ -741,6 +741,39 @@
   }
   .frn-game-row:last-child { border-bottom: none; }
   .frn-game-row.frn-next { background: rgba(200,169,0,0.08); margin: 0 -.25rem; padding: .18rem .25rem; }
+  .frn-game-row.clickable { cursor: pointer; }
+  .frn-game-row.clickable:hover { background: rgba(200,169,0,0.05); }
+
+  /* Past-game box score */
+  .frn-bs-final {
+    display: flex; align-items: center; gap: .8rem; justify-content: center;
+    padding: .7rem 1rem; background: var(--bg2); border: 1px solid var(--gold);
+    margin-bottom: .8rem;
+  }
+  .frn-bs-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: .7rem;
+  }
+  @media (max-width: 800px) { .frn-bs-grid { grid-template-columns: 1fr; } }
+  .frn-bs-side {
+    background: var(--bg2); border: 1px solid var(--border);
+    padding: .65rem .8rem;
+  }
+  .frn-bs-team-head {
+    display: flex; align-items: center; gap: .6rem;
+    padding: .35rem .55rem; margin-bottom: .5rem;
+    background: var(--bg3);
+  }
+  .frn-bs-row {
+    display: grid; grid-template-columns: 5rem 1fr; gap: .55rem;
+    padding: .35rem 0; border-bottom: 1px solid rgba(46,61,46,0.5);
+    font-size: .72rem;
+  }
+  .frn-bs-row:last-child { border-bottom: none; }
+  .frn-bs-cat {
+    color: var(--gold); font-size: .58rem; font-weight: 700;
+    letter-spacing: .4px;
+  }
+  .frn-bs-vals > div { padding: .1rem 0; }
   .frn-wk  { color: var(--gray); width: 2rem; flex-shrink: 0; font-size: .62rem; }
   .frn-opp { flex: 1; }
   .frn-res { font-weight: 700; }
@@ -17161,6 +17194,129 @@ function renderFrnScrimmages() {
     </table>`;
 }
 
+// ── Past-game viewer ──────────────────────────────────────────────────────────
+function renderFrnPastGame(week, homeId, awayId) {
+  const g = (franchise.schedule || []).find(x =>
+    x.week === Number(week) && x.homeId === Number(homeId) && x.awayId === Number(awayId) && x.played);
+  if (!g) { alert("Game data not available."); return; }
+  const home = getTeam(g.homeId), away = getTeam(g.awayId);
+  const homeWon = g.homeScore > g.awayScore;
+
+  // Position-aware leader rows. Compute top stat-line per category.
+  const stats = g.stats;
+  const buildSideBox = (side, team, score, won) => {
+    const players = stats?.[side]?.players || {};
+    const list = Object.values(players);
+    // Pull leaders
+    const passing = list.filter(p => (p.pass_yds||0) > 0)
+      .sort((a,b) => (b.pass_yds||0) - (a.pass_yds||0)).slice(0, 1);
+    const rushing = list.filter(p => (p.rush_yds||0) > 0)
+      .sort((a,b) => (b.rush_yds||0) - (a.rush_yds||0)).slice(0, 2);
+    const receiving = list.filter(p => (p.rec_yds||0) > 0)
+      .sort((a,b) => (b.rec_yds||0) - (a.rec_yds||0)).slice(0, 3);
+    const defense = list.filter(p => (p.tkl||0)+(p.sk||0)+(p.int_made||0)+(p.pd||0) > 0)
+      .sort((a,b) => ((b.tkl||0)+(b.sk||0)*2+(b.int_made||0)*5) - ((a.tkl||0)+(a.sk||0)*2+(a.int_made||0)*5))
+      .slice(0, 3);
+
+    const line = (label, list, fmt) => list.length ? `
+      <div class="frn-bs-row">
+        <div class="frn-bs-cat">${label}</div>
+        <div class="frn-bs-vals">${list.map(p => `
+          <div>${p.name} <span style="color:var(--gray)">·</span> ${fmt(p)}</div>
+        `).join("")}</div>
+      </div>` : "";
+
+    return `<div class="frn-bs-side">
+      <div class="frn-bs-team-head" style="border-left:4px solid ${team.primary}">
+        <span style="color:var(--gold);font-size:1.6rem">${teamAscii(team)}</span>
+        <div style="flex:1">
+          <div style="font-weight:900;font-size:1rem">${team.city.toUpperCase()} ${team.name.toUpperCase()}</div>
+          <div style="color:var(--gray);font-size:.7rem">${won ? "WIN" : "LOSS"}</div>
+        </div>
+        <div style="font-size:1.8rem;font-weight:900;color:${won?"var(--green-lt)":"var(--gray)"}">${score}</div>
+      </div>
+      ${line("PASSING", passing, p =>
+        `${p.pass_comp||0}/${p.pass_att||0}, ${p.pass_yds||0} yds, ${p.pass_td||0} TD${p.pass_int?", "+p.pass_int+" INT":""}`)}
+      ${line("RUSHING", rushing, p =>
+        `${p.rush_att||0} car, ${p.rush_yds||0} yds, ${p.rush_td||0} TD`)}
+      ${line("RECEIVING", receiving, p =>
+        `${p.rec||0} rec, ${p.rec_yds||0} yds, ${p.rec_td||0} TD`)}
+      ${line("DEFENSE", defense, p =>
+        `${p.tkl||0} tkl${p.sk?", "+p.sk+" sk":""}${p.int_made?", "+p.int_made+" INT":""}${p.pd?", "+p.pd+" PD":""}`)}
+    </div>`;
+  };
+
+  $("frnHomeContent").innerHTML = `
+    <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem;flex-wrap:wrap">
+      <div style="font-size:1.05rem;font-weight:900;color:var(--gold)">📊 GAME RECAP · Season ${franchise.season}, Week ${week}</div>
+      <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="margin-left:auto">← Back</button>
+    </div>
+    <div class="frn-bs-final">
+      <span style="color:var(--gray);font-size:.7rem">FINAL</span>
+      <span style="font-size:1.05rem">${away.name}</span>
+      <span style="font-size:1.4rem;font-weight:900;color:${homeWon?"var(--gray)":"var(--gold-lt)"}">${g.awayScore}</span>
+      <span style="color:var(--gold)">–</span>
+      <span style="font-size:1.4rem;font-weight:900;color:${homeWon?"var(--gold-lt)":"var(--gray)"}">${g.homeScore}</span>
+      <span style="font-size:1.05rem">${home.name}</span>
+    </div>
+    ${!stats ? `<div style="color:var(--gray);font-size:.78rem;padding:1rem;text-align:center;font-style:italic">No detailed stats recorded for this game (played before per-game tracking).</div>`
+      : `<div class="frn-bs-grid">
+          ${buildSideBox("away", away, g.awayScore, !homeWon)}
+          ${buildSideBox("home", home, g.homeScore, homeWon)}
+        </div>`}`;
+}
+
+// Quick hover tooltip on a played-game row in the schedule.
+function frnPastGameTipShow(e, week, homeId, awayId) {
+  const g = (franchise.schedule || []).find(x =>
+    x.week === Number(week) && x.homeId === Number(homeId) && x.awayId === Number(awayId) && x.played);
+  if (!g) return;
+  let tip = document.getElementById("frn-pg-tip");
+  if (!tip) {
+    tip = document.createElement("div");
+    tip.id = "frn-pg-tip";
+    tip.className = "frn-team-tooltip";
+    document.body.appendChild(tip);
+  }
+  const home = getTeam(g.homeId), away = getTeam(g.awayId);
+  const stats = g.stats;
+  let topLines = "";
+  if (stats) {
+    const allPlayers = [];
+    for (const side of ["home","away"]) {
+      const players = stats[side]?.players || {};
+      for (const p of Object.values(players)) {
+        const team = side === "home" ? home : away;
+        if ((p.pass_yds||0) >= 200) allPlayers.push(`${p.name} (${team.name}): ${p.pass_yds} pass yds, ${p.pass_td||0} TD`);
+        else if ((p.rush_yds||0) >= 80) allPlayers.push(`${p.name} (${team.name}): ${p.rush_yds} rush yds`);
+        else if ((p.rec_yds||0) >= 80) allPlayers.push(`${p.name} (${team.name}): ${p.rec_yds} rec yds`);
+      }
+    }
+    topLines = allPlayers.slice(0, 4).map(l => `<div class="frn-tip-bullet">• ${l}</div>`).join("");
+  }
+  tip.innerHTML = `
+    <div class="frn-tip-head"><span style="font-weight:900">W${week}</span></div>
+    <div style="margin-bottom:.25rem">
+      <b>${away.name} ${g.awayScore}</b> @ <b>${home.name} ${g.homeScore}</b>
+    </div>
+    ${topLines || `<div class="frn-tip-bullet" style="color:var(--gray)">No stat lines recorded</div>`}
+    <div class="frn-tip-foot">Click to see full box score</div>`;
+  tip.style.display = "block";
+  const rect = e.currentTarget.getBoundingClientRect();
+  const tipW = tip.offsetWidth, tipH = tip.offsetHeight;
+  let left = rect.right + 8;
+  if (left + tipW > window.innerWidth - 8) left = rect.left - tipW - 8;
+  let top = rect.top;
+  if (top + tipH > window.innerHeight - 8) top = window.innerHeight - tipH - 8;
+  if (top < 8) top = 8;
+  tip.style.left = left + "px";
+  tip.style.top = top + "px";
+}
+function frnPastGameTipHide() {
+  const tip = document.getElementById("frn-pg-tip");
+  if (tip) tip.style.display = "none";
+}
+
 function _buildWeekReviewCard(week, myId) {
   // Your team's game this week
   const myGame = franchise.schedule.find(g => g.week === week &&
@@ -17411,7 +17567,10 @@ function renderFrnRegular() {
       const my    = isHome ? g.homeScore : g.awayScore;
       const their = isHome ? g.awayScore : g.homeScore;
       const w = my > their, t = my === their;
-      return `<div class="frn-game-row">
+      return `<div class="frn-game-row clickable"
+        onclick="renderFrnPastGame(${g.week},${g.homeId},${g.awayId})"
+        onmouseenter="frnPastGameTipShow(event,${g.week},${g.homeId},${g.awayId})"
+        onmouseleave="frnPastGameTipHide()">
         <span class="frn-wk">W${g.week}</span>
         <span class="frn-opp">${isHome ? "vs" : "@"} ${opp.name}</span>
         <span class="frn-res ${w?"w":t?"t":"l"}">${w?"W":t?"T":"L"} ${my}–${their}</span>
@@ -17678,12 +17837,42 @@ function frnSimOnce(homeId, awayId, isPlayoff = false) {
   return { homeScore: r.homeScore, awayScore: r.awayScore, full: r };
 }
 
-function markGamePlayed(homeId, awayId, homeScore, awayScore) {
+function markGamePlayed(homeId, awayId, homeScore, awayScore, gameStats) {
   const g = franchise.schedule.find(
     x => !x.played && x.homeId === homeId && x.awayId === awayId
   );
-  if (g) { g.homeScore = homeScore; g.awayScore = awayScore; g.played = true; }
+  if (g) {
+    g.homeScore = homeScore; g.awayScore = awayScore; g.played = true;
+    if (gameStats) g.stats = _stripGameStatsForStorage(gameStats);
+  }
   recordFranchiseResult(homeId, awayId, homeScore, awayScore);
+}
+
+// Strip a sim's gameStats down to just per-player numeric box-score
+// data so we can persist N games per season without blowing localStorage.
+// Drops play-by-play arrays; keeps totals + per-player stat lines.
+function _stripGameStatsForStorage(stats) {
+  if (!stats) return null;
+  const out = { home: { totals: {}, players: {} }, away: { totals: {}, players: {} } };
+  for (const side of ["home", "away"]) {
+    const s = stats[side];
+    if (!s) continue;
+    // Copy top-level numeric totals
+    for (const [k, v] of Object.entries(s)) {
+      if (typeof v === "number") out[side].totals[k] = v;
+    }
+    if (s.players) {
+      for (const [name, p] of Object.entries(s.players)) {
+        const slim = { name: p.name || name, pos: p.pos };
+        for (const [k, v] of Object.entries(p)) {
+          if (typeof v === "number" && v !== 0) slim[k] = v;
+        }
+        // Skip players with zero stat lines
+        if (Object.keys(slim).length > 2) out[side].players[name] = slim;
+      }
+    }
+  }
+  return out;
 }
 
 // When all of the current week's games are played, flag a pending
@@ -17751,7 +17940,7 @@ function advanceWeekIfDone() {
 
 function frnSimGame(homeId, awayId) {
   const r = frnSimOnce(homeId, awayId);
-  markGamePlayed(homeId, awayId, r.homeScore, r.awayScore);
+  markGamePlayed(homeId, awayId, r.homeScore, r.awayScore, r.full?.stats);
   _checkWeekComplete();
   saveFranchise();
   showFranchiseDashboard();
@@ -17763,6 +17952,7 @@ function frnSimWeek() {
   for (const g of wGames) {
     const r = frnSimOnce(g.homeId, g.awayId);
     g.homeScore = r.homeScore; g.awayScore = r.awayScore; g.played = true;
+    g.stats = _stripGameStatsForStorage(r.full?.stats);
     recordFranchiseResult(g.homeId, g.awayId, r.homeScore, r.awayScore);
   }
   _checkWeekComplete();
@@ -17778,6 +17968,7 @@ function frnSimSeason() {
     for (const g of wGames) {
       const r = frnSimOnce(g.homeId, g.awayId);
       g.homeScore = r.homeScore; g.awayScore = r.awayScore; g.played = true;
+      g.stats = _stripGameStatsForStorage(r.full?.stats);
       recordFranchiseResult(g.homeId, g.awayId, r.homeScore, r.awayScore);
     }
     _runWeekEndResolution();
@@ -17865,7 +18056,7 @@ function frnFinishGame() {
     }
     applyPlayoffResult(homeId, awayId, homeScore, awayScore);
   } else {
-    markGamePlayed(homeId, awayId, homeScore, awayScore);
+    markGamePlayed(homeId, awayId, homeScore, awayScore, gameResult?.stats);
     advanceWeekIfDone();
   }
   saveFranchise();
