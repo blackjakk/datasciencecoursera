@@ -697,6 +697,91 @@
   }
   .view-toggle button:not(.active):hover { color: var(--white); }
 
+  /* ── Franchise Mode ─────────────────────────────────────────────── */
+  .franchise-modal {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.88);
+    z-index: 2000; display: flex; align-items: center; justify-content: center;
+  }
+  .frn-card {
+    background: var(--card); border: 1px dashed var(--border);
+    width: min(96vw, 960px); max-height: 92vh; overflow: hidden;
+    display: flex; flex-direction: column; position: relative;
+  }
+  .frn-card::before { content:"┌"; position:absolute; top:-.55em; left:-.15em; color:var(--gold); font-size:1.15em; line-height:1; pointer-events:none; }
+  .frn-card::after  { content:"┘"; position:absolute; bottom:-.55em; right:-.15em; color:var(--gold); font-size:1.15em; line-height:1; pointer-events:none; }
+  .frn-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: .5rem 1rem; border-bottom: 1px solid var(--border);
+    background: var(--bg2); flex-shrink: 0;
+  }
+  #frnTitle { font-size: .95rem; font-weight: 700; color: var(--gold); }
+  .frn-close-btn { background: none; border: none; color: var(--gray); font-size: 1.4rem; cursor: pointer; padding: 0 .2rem; line-height: 1; }
+  .frn-close-btn:hover { color: var(--white); }
+  #frnBody { padding: .75rem 1rem; overflow-y: auto; flex: 1; }
+
+  .frn-team-grid { display: flex; flex-direction: column; gap: .25rem; }
+  .frn-team-btn {
+    background: var(--bg2); border: 1px solid var(--border);
+    padding: .35rem .6rem; cursor: pointer; text-align: left;
+    color: var(--white); font-family: inherit; font-size: .78rem;
+    display: flex; align-items: center; gap: .5rem;
+    transition: background .1s, border-color .1s;
+  }
+  .frn-team-btn:hover { background: var(--bg3); border-color: var(--gold); }
+  .frn-ascii { color: var(--gold); font-size: .82rem; width: 3ch; text-align: center; flex-shrink: 0; }
+
+  .frn-dash { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media (max-width: 650px) { .frn-dash { grid-template-columns: 1fr; } }
+  .frn-sec-title { font-size: .64rem; font-weight: 700; color: var(--gold); letter-spacing: .5px; margin-bottom: .4rem; padding-bottom: .2rem; border-bottom: 1px solid var(--border); }
+
+  .frn-schedule { max-height: 270px; overflow-y: auto; margin-bottom: .5rem; }
+  .frn-game-row {
+    display: flex; align-items: center; gap: .4rem; padding: .18rem 0;
+    font-size: .74rem; border-bottom: 1px solid rgba(46,61,46,0.5);
+  }
+  .frn-game-row:last-child { border-bottom: none; }
+  .frn-game-row.frn-next { background: rgba(200,169,0,0.08); margin: 0 -.25rem; padding: .18rem .25rem; }
+  .frn-wk  { color: var(--gray); width: 2rem; flex-shrink: 0; font-size: .62rem; }
+  .frn-opp { flex: 1; }
+  .frn-res { font-weight: 700; }
+  .frn-res.w { color: var(--green-lt); }
+  .frn-res.l { color: var(--red); }
+  .frn-res.t { color: var(--gray); }
+
+  .frn-stand-row { display: flex; align-items: center; gap: .4rem; padding: .16rem 0; font-size: .74rem; }
+  .frn-stand-row.frn-me { background: rgba(200,169,0,0.12); margin: 0 -.25rem; padding: .16rem .25rem; }
+
+  .frn-actions { display: flex; gap: .4rem; flex-wrap: wrap; margin-top: .6rem; padding-top: .5rem; border-top: 1px solid var(--border); }
+
+  /* Bracket */
+  .frn-bracket { display: flex; gap: .75rem; overflow-x: auto; padding-bottom: .5rem; }
+  .frn-bracket-col { min-width: 170px; display: flex; flex-direction: column; gap: .4rem; flex-shrink: 0; }
+  .frn-round-name { font-size: .62rem; color: var(--gold); margin-bottom: .2rem; font-weight: 700; letter-spacing: .4px; }
+  .frn-matchup { border: 1px solid var(--border); padding: .35rem .55rem; background: var(--bg2); margin-bottom: .2rem; }
+  .frn-matchup-user { border-color: var(--gold); }
+  .frn-mt { font-size: .73rem; padding: .12rem 0; display: flex; justify-content: space-between; gap: .4rem; }
+  .frn-mt-w { color: var(--gold-lt); font-weight: 700; }
+  .frn-mt-l { color: var(--gray); }
+
+  /* Offseason */
+  .frn-off-list { max-height: 220px; overflow-y: auto; font-size: .75rem; }
+  .frn-off-change { padding: .12rem 0; }
+  .frn-off-change.retire { color: #ff9090; }
+  .frn-off-change.rookie { color: #90ff90; }
+
+  /* Floating return button */
+  .frn-return-btn {
+    position: fixed; bottom: 1.2rem; right: 1.2rem; z-index: 1500;
+    background: var(--gold); color: #000; border: none;
+    padding: .5rem 1rem; font-family: inherit; font-size: .82rem; font-weight: 700;
+    cursor: pointer; display: none;
+    animation: frnPulse 1.8s ease-in-out infinite;
+  }
+  @keyframes frnPulse {
+    0%, 100% { box-shadow: 0 0 12px rgba(200,169,0,0.4); }
+    50% { box-shadow: 0 0 28px rgba(200,169,0,0.85); }
+  }
+
   /* Cinema move callout */
   .cinema-callout {
     position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -761,6 +846,7 @@
     <button class="btn btn-outline" id="simByPBBtn" title="Run N games for each playbook on the home team">📘 Sim by PB</button>
     <button class="btn btn-outline" id="powerRankBtn" title="Round-robin all 32 teams to compute a power ranking">📊 Power Rankings</button>
     <button class="btn btn-outline" id="tournamentBtn" title="Single-elimination playoff bracket of the top 8 (or 16) teams">🏆 Tournament</button>
+    <button class="btn btn-outline" id="franchiseBtn" title="Start or continue a multi-season franchise">📋 Franchise</button>
     <button class="btn btn-primary" id="playBtn" disabled>▶ Play</button>
     <button class="btn btn-outline" id="pauseBtn" disabled>⏸ Pause</button>
     <button class="btn btn-outline" id="endBtn" disabled>⏭ Skip to End</button>
@@ -782,6 +868,20 @@
       <div id="simManyBody"></div>
     </div>
   </div>
+
+  <!-- Franchise Modal -->
+  <div id="franchiseModal" class="franchise-modal" style="display:none">
+    <div class="frn-card">
+      <div class="frn-header">
+        <div id="frnTitle">🏈 FRANCHISE MODE</div>
+        <button class="frn-close-btn" id="frnClose">×</button>
+      </div>
+      <div id="frnBody"></div>
+    </div>
+  </div>
+
+  <!-- Floating return-to-franchise button (shown during live franchise game) -->
+  <button class="frn-return-btn" id="frnReturnBtn" onclick="frnFinishGame()">◀ Return to Franchise</button>
 
   <!-- Game area -->
   <div id="gameArea" class="empty">
@@ -13625,6 +13725,737 @@ function renderRatings() {
     </tbody>
   `;
 }
+
+// ─── FRANCHISE MODE ────────────────────────────────────────────────────────
+// Full multi-season career mode. Pick a team, play 14-game regular season,
+// 8-team playoffs, end-of-season awards, basic offseason (age/retire/rookies).
+// State persisted in localStorage so it survives page reloads.
+
+const FRANCHISE_KEY   = "gc_franchise_v1";
+const FRANCHISE_WEEKS = 14;
+const PLAYOFF_TEAMS   = 8;
+
+let franchise = null;
+
+// ── Persistence ──────────────────────────────────────────────────────────────
+function saveFranchise() {
+  if (!franchise) return;
+  try { localStorage.setItem(FRANCHISE_KEY, JSON.stringify(franchise)); } catch(e) {}
+}
+function loadFranchise() {
+  try {
+    const raw = localStorage.getItem(FRANCHISE_KEY);
+    if (raw) {
+      franchise = JSON.parse(raw);
+      // Stale pending game (user refreshed mid-game): just clear it
+      if (franchise && franchise.pendingFranchiseGame) franchise.pendingFranchiseGame = null;
+    }
+  } catch(e) { franchise = null; }
+}
+
+// ── Schedule — Berger circle method (14 of 31 rounds for 32 teams) ───────────
+function generateFranchiseSchedule() {
+  const arr = TEAMS.map(t => t.id);
+  const n   = arr.length; // 32
+  const schedule = [];
+  for (let week = 1; week <= FRANCHISE_WEEKS; week++) {
+    for (let i = 0; i < n / 2; i++) {
+      const a = arr[i], b = arr[n - 1 - i];
+      const homeId = (i + week) % 2 === 0 ? a : b;
+      const awayId = homeId === a ? b : a;
+      schedule.push({ week, homeId, awayId, homeScore: null, awayScore: null, played: false });
+    }
+    // Rotate arr[1..n-1] right by 1 position (arr[0] is fixed)
+    const last = arr.pop();
+    arr.splice(1, 0, last);
+  }
+  return schedule;
+}
+
+// ── Standings helpers ────────────────────────────────────────────────────────
+function initStandings() {
+  return Object.fromEntries(TEAMS.map(t => [t.id, { w: 0, l: 0, t: 0, pf: 0, pa: 0 }]));
+}
+function standingsSorted() {
+  return Object.entries(franchise.standings)
+    .map(([id, s]) => ({ id: +id, team: getTeam(+id), ...s }))
+    .sort((a, b) => {
+      const pA = (a.w * 2 + a.t) / Math.max(1, (a.w + a.l + a.t) * 2);
+      const pB = (b.w * 2 + b.t) / Math.max(1, (b.w + b.l + b.t) * 2);
+      return pB - pA || b.pf - a.pf || b.w - a.w;
+    });
+}
+function recordFranchiseResult(homeId, awayId, homeScore, awayScore) {
+  const h = franchise.standings[homeId], a = franchise.standings[awayId];
+  if (!h || !a) return;
+  h.pf += homeScore; h.pa += awayScore;
+  a.pf += awayScore; a.pa += homeScore;
+  if (homeScore > awayScore)      { h.w++; a.l++; }
+  else if (awayScore > homeScore) { a.w++; h.l++; }
+  else                            { h.t++; a.t++; }
+}
+
+// ── Assign initial ages to all franchise rosters ─────────────────────────────
+function assignFranchiseAges(rosters) {
+  for (const roster of Object.values(rosters)) {
+    for (const p of roster) {
+      if (p.age == null) {
+        const base = p.overall >= 85 ? 26 : p.overall >= 75 ? 24 : 22;
+        p.age = base + Math.floor(Math.random() * 7);
+      }
+    }
+  }
+}
+
+// ── Open / close modal ───────────────────────────────────────────────────────
+function openFranchiseModal() {
+  loadFranchise();
+  $("franchiseModal").style.display = "flex";
+  if (!franchise) renderFrnTeamPicker();
+  else            showFranchiseDashboard();
+}
+function closeFranchiseModal() {
+  $("franchiseModal").style.display = "none";
+}
+
+// ── Initialize new franchise ─────────────────────────────────────────────────
+function startFranchise(teamId) {
+  const rosters   = {};
+  const usedNames = new Set();
+  for (const t of TEAMS) {
+    const roster = regenerateFullRoster(t, {}, usedNames);
+    roster.forEach(p => usedNames.add(p.name));
+    rosters[t.id] = roster;
+  }
+  assignFranchiseAges(rosters);
+  franchise = {
+    chosenTeamId: teamId,
+    season:  1,
+    week:    1,
+    phase:   "regular",
+    rosters,
+    schedule:       generateFranchiseSchedule(),
+    standings:      initStandings(),
+    playoffBracket: null,
+    history:        [],
+    pendingFranchiseGame: null,
+    _offChanges:    null,
+  };
+  saveFranchise();
+  showFranchiseDashboard();
+}
+
+// ── Route to correct phase UI ────────────────────────────────────────────────
+function showFranchiseDashboard() {
+  if (!franchise) return;
+  $("franchiseModal").style.display = "flex";
+  const { chosenTeamId, season, phase } = franchise;
+  const myTeam = getTeam(chosenTeamId);
+  $("frnTitle").textContent =
+    `🏈 FRANCHISE · ${myTeam.city} ${myTeam.name} · Season ${season}`;
+  if      (phase === "regular")          renderFrnRegular();
+  else if (phase === "playoffs_pending") startFrnPlayoffs();
+  else if (phase === "playoffs")         renderFrnPlayoffs();
+  else if (phase === "awards")           renderFrnAwards();
+  else if (phase === "offseason")        renderFrnOffseason();
+}
+
+// ── Team picker ──────────────────────────────────────────────────────────────
+function renderFrnTeamPicker() {
+  $("frnTitle").textContent = "🏈 FRANCHISE — Choose Your Team";
+  const confOrder = [
+    "AFC East","AFC North","AFC South","AFC West",
+    "NFC East","NFC North","NFC South","NFC West",
+  ];
+  const groups = {};
+  for (const t of TEAMS) {
+    const k = `${t.conference} ${t.division}`;
+    (groups[k] = groups[k] || []).push(t);
+  }
+  let html = `<p style="font-size:.8rem;color:var(--gray);margin-bottom:.75rem">
+    Pick a team to begin a multi-season franchise. Progress saves automatically to your browser.
+  </p><div style="display:grid;grid-template-columns:repeat(2,1fr);gap:.75rem 1.5rem;">`;
+  for (const divKey of confOrder) {
+    const teams = groups[divKey] || [];
+    html += `<div>
+      <div style="font-size:.62rem;color:var(--gold);letter-spacing:.5px;margin-bottom:.25rem">${divKey.toUpperCase()}</div>
+      <div class="frn-team-grid">`;
+    for (const t of teams) {
+      html += `<button class="frn-team-btn" onclick="startFranchise(${t.id})">
+        <span class="frn-ascii">${teamAscii(t)}</span>
+        <span style="font-weight:700">${t.city} ${t.name}</span>
+      </button>`;
+    }
+    html += `</div></div>`;
+  }
+  html += `</div>`;
+  $("frnBody").innerHTML = html;
+}
+
+// ── Regular-season dashboard ─────────────────────────────────────────────────
+function renderFrnRegular() {
+  const { chosenTeamId, season, week, schedule, standings } = franchise;
+  const myTeam  = getTeam(chosenTeamId);
+  const myStand = standings[chosenTeamId] || { w:0, l:0, t:0, pf:0, pa:0 };
+
+  const myGames  = schedule
+    .filter(g => g.homeId === chosenTeamId || g.awayId === chosenTeamId)
+    .sort((a, b) => a.week - b.week);
+  const nextGame = myGames.find(g => !g.played) || null;
+  const sorted   = standingsSorted();
+
+  // Schedule column
+  const schHtml = myGames.map(g => {
+    const isHome = g.homeId === chosenTeamId;
+    const oppId  = isHome ? g.awayId : g.homeId;
+    const opp    = getTeam(oppId);
+    const oppRec = standings[oppId];
+    const oppRS  = oppRec ? `(${oppRec.w}-${oppRec.l})` : "";
+    const isNext = g === nextGame;
+    if (g.played) {
+      const my    = isHome ? g.homeScore : g.awayScore;
+      const their = isHome ? g.awayScore : g.homeScore;
+      const w = my > their, t = my === their;
+      return `<div class="frn-game-row">
+        <span class="frn-wk">W${g.week}</span>
+        <span class="frn-opp">${isHome ? "vs" : "@"} ${opp.name}</span>
+        <span class="frn-res ${w?"w":t?"t":"l"}">${w?"W":t?"T":"L"} ${my}–${their}</span>
+      </div>`;
+    }
+    return `<div class="frn-game-row ${isNext ? "frn-next" : ""}">
+      <span class="frn-wk">W${g.week}</span>
+      <span class="frn-opp">${isHome ? "vs" : "@"} ${opp.name} <span style="color:var(--gray);font-size:.62rem">${oppRS}</span></span>
+      ${isNext ? `<span class="frn-res" style="color:var(--gold)">NEXT ▸</span>` : ""}
+    </div>`;
+  }).join("");
+
+  // Standings column
+  const standHtml = sorted.slice(0, 16).map((s, i) => {
+    const isMine   = s.id === chosenTeamId;
+    const playoff  = i < PLAYOFF_TEAMS;
+    const gp       = s.w + s.l + s.t;
+    const pct      = gp === 0 ? ".000" : (s.w / gp).toFixed(3).replace(/^0/, "");
+    return `<div class="frn-stand-row ${isMine ? "frn-me" : ""}">
+      <span style="color:${playoff?"var(--gold)":"var(--gray)"};width:1.3rem;flex-shrink:0">${i+1}.</span>
+      <span style="flex:1">${isMine ? "» " : ""}${s.team.name}</span>
+      <span style="width:3rem;text-align:right">${s.w}-${s.l}${s.t?`-${s.t}`:""}</span>
+      <span style="width:2.8rem;text-align:right;color:var(--gray);font-size:.62rem">${pct}</span>
+    </div>`;
+  }).join("");
+
+  // Action area
+  let actionHtml = "";
+  const seasonDone = week > FRANCHISE_WEEKS;
+
+  if (seasonDone) {
+    actionHtml = `
+      <div style="margin:.5rem 0;color:var(--gold);font-weight:700">
+        Regular season complete! Record: ${myStand.w}-${myStand.l}
+      </div>
+      <div class="frn-actions">
+        <button class="btn btn-gold" onclick="startFrnPlayoffs()">🏆 Start Playoffs</button>
+        <button class="btn btn-outline" onclick="frnAbandon()" style="color:var(--red);margin-left:auto">× Abandon</button>
+      </div>`;
+  } else if (nextGame) {
+    const isHome = nextGame.homeId === chosenTeamId;
+    const oppId  = isHome ? nextGame.awayId : nextGame.homeId;
+    const opp    = getTeam(oppId);
+    actionHtml = `
+      <div style="margin:.4rem 0;padding:.4rem .6rem;border:1px solid var(--border);background:var(--bg2)">
+        <div style="font-size:.62rem;color:var(--gray)">WEEK ${nextGame.week} · ${isHome ? "HOME" : "AWAY"}</div>
+        <div style="font-size:.88rem;font-weight:700">
+          ${isHome ? `${myTeam.name} vs ${opp.city} ${opp.name}` : `@ ${opp.city} ${opp.name}`}
+        </div>
+      </div>
+      <div class="frn-actions">
+        <button class="btn btn-gold" onclick="frnPlayGame(${nextGame.homeId},${nextGame.awayId},false)">▶ Play</button>
+        <button class="btn btn-outline" onclick="frnSimGame(${nextGame.homeId},${nextGame.awayId})">⏩ Sim</button>
+        <button class="btn btn-outline" onclick="frnSimWeek()">⏭ Sim Week ${week}</button>
+        <button class="btn btn-outline" onclick="frnSimSeason()" style="color:var(--gray)">⏭⏭ Sim Season</button>
+        <button class="btn btn-outline" onclick="frnAbandon()" style="color:var(--red);margin-left:auto">× Abandon</button>
+      </div>`;
+  } else {
+    // User played their game this week; other teams' games pending
+    actionHtml = `
+      <div style="margin:.4rem 0;color:var(--gray);font-size:.8rem">
+        Your week ${week} game is done. ${FRANCHISE_WEEKS - week} weeks remaining.
+      </div>
+      <div class="frn-actions">
+        <button class="btn btn-outline" onclick="frnSimWeek()">⏭ Finish Week ${week}</button>
+        <button class="btn btn-outline" onclick="frnSimSeason()" style="color:var(--gray)">⏭⏭ Sim Season</button>
+        <button class="btn btn-outline" onclick="frnAbandon()" style="color:var(--red);margin-left:auto">× Abandon</button>
+      </div>`;
+  }
+
+  const recStr = `${myStand.w}-${myStand.l}${myStand.t ? `-${myStand.t}` : ""}`;
+  $("frnBody").innerHTML = `
+    <div style="font-size:.78rem;color:var(--gray);margin-bottom:.5rem">
+      Season ${season} · Week ${Math.min(week, FRANCHISE_WEEKS)} of ${FRANCHISE_WEEKS} ·
+      Record: <span style="color:var(--white);font-weight:700">${recStr}</span> ·
+      PF/PA: ${myStand.pf}/${myStand.pa}
+    </div>
+    <div class="frn-dash">
+      <div>
+        <div class="frn-sec-title">MY SCHEDULE</div>
+        <div class="frn-schedule">${schHtml}</div>
+        ${actionHtml}
+      </div>
+      <div>
+        <div class="frn-sec-title">LEAGUE STANDINGS <span style="font-size:.58rem;color:var(--gray)">(top ${PLAYOFF_TEAMS} → playoffs)</span></div>
+        ${standHtml}
+      </div>
+    </div>`;
+}
+
+// ── Sim helpers ──────────────────────────────────────────────────────────────
+function frnSimOnce(homeId, awayId) {
+  const sim = new GameSimulator(
+    getTeam(homeId), getTeam(awayId),
+    franchise.rosters[homeId], franchise.rosters[awayId]
+  );
+  const r = sim.simulate();
+  return { homeScore: r.homeScore, awayScore: r.awayScore };
+}
+
+function markGamePlayed(homeId, awayId, homeScore, awayScore) {
+  const g = franchise.schedule.find(
+    x => !x.played && x.homeId === homeId && x.awayId === awayId
+  );
+  if (g) { g.homeScore = homeScore; g.awayScore = awayScore; g.played = true; }
+  recordFranchiseResult(homeId, awayId, homeScore, awayScore);
+}
+
+function advanceWeekIfDone() {
+  const w = franchise.week;
+  if (w > FRANCHISE_WEEKS) return;
+  const wGames = franchise.schedule.filter(g => g.week === w);
+  if (wGames.length && wGames.every(g => g.played)) {
+    franchise.week = w + 1;
+    if (franchise.week > FRANCHISE_WEEKS) franchise.phase = "playoffs_pending";
+  }
+}
+
+function frnSimGame(homeId, awayId) {
+  const r = frnSimOnce(homeId, awayId);
+  markGamePlayed(homeId, awayId, r.homeScore, r.awayScore);
+  advanceWeekIfDone();
+  saveFranchise();
+  showFranchiseDashboard();
+}
+
+function frnSimWeek() {
+  const w      = franchise.week;
+  const wGames = franchise.schedule.filter(g => g.week === w && !g.played);
+  for (const g of wGames) {
+    const r = frnSimOnce(g.homeId, g.awayId);
+    g.homeScore = r.homeScore; g.awayScore = r.awayScore; g.played = true;
+    recordFranchiseResult(g.homeId, g.awayId, r.homeScore, r.awayScore);
+  }
+  advanceWeekIfDone();
+  saveFranchise();
+  showFranchiseDashboard();
+}
+
+function frnSimSeason() {
+  for (let w = franchise.week; w <= FRANCHISE_WEEKS; w++) {
+    const wGames = franchise.schedule.filter(g => g.week === w && !g.played);
+    for (const g of wGames) {
+      const r = frnSimOnce(g.homeId, g.awayId);
+      g.homeScore = r.homeScore; g.awayScore = r.awayScore; g.played = true;
+      recordFranchiseResult(g.homeId, g.awayId, r.homeScore, r.awayScore);
+    }
+  }
+  franchise.week  = FRANCHISE_WEEKS + 1;
+  franchise.phase = "playoffs_pending";
+  saveFranchise();
+  showFranchiseDashboard();
+}
+
+// ── Play a live (animated) franchise game ────────────────────────────────────
+function frnPlayGame(homeId, awayId, isPlayoff) {
+  closeFranchiseModal();
+  franchise.pendingFranchiseGame = { homeId, awayId, isPlayoff };
+  saveFranchise();
+
+  const home       = getTeam(homeId), away = getTeam(awayId);
+  const homeRoster = franchise.rosters[homeId];
+  const awayRoster = franchise.rosters[awayId];
+
+  // Use franchise rosters for league nickname computation
+  assignLeagueNicknames(franchise.rosters);
+
+  const sim = new GameSimulator(home, away, homeRoster, awayRoster);
+  gameResult = sim.simulate();
+  playHead = 0; animState = null; playing = false;
+  cancelAnimationFrame(rafId);
+
+  renderGameLayout();
+  updateButtons();
+
+  // Floating return button
+  const retBtn = $("frnReturnBtn");
+  retBtn.style.display = "block";
+
+  // Auto-start playback
+  playing = true;
+  startNextPlay();
+  updateButtons();
+}
+
+function frnFinishGame() {
+  const retBtn = $("frnReturnBtn");
+  if (retBtn) retBtn.style.display = "none";
+
+  if (!franchise || !franchise.pendingFranchiseGame) {
+    showFranchiseDashboard();
+    return;
+  }
+  const { homeId, awayId, isPlayoff } = franchise.pendingFranchiseGame;
+  franchise.pendingFranchiseGame = null;
+
+  // gameResult is always fully simulated before animation starts
+  const homeScore = gameResult ? gameResult.homeScore : 0;
+  const awayScore = gameResult ? gameResult.awayScore : 0;
+
+  if (isPlayoff) {
+    applyPlayoffResult(homeId, awayId, homeScore, awayScore);
+  } else {
+    markGamePlayed(homeId, awayId, homeScore, awayScore);
+    advanceWeekIfDone();
+  }
+  saveFranchise();
+  showFranchiseDashboard();
+}
+
+// ── Playoffs ─────────────────────────────────────────────────────────────────
+function startFrnPlayoffs() {
+  const sorted = standingsSorted();
+  const seeds  = sorted.slice(0, PLAYOFF_TEAMS).map((s, i) => ({
+    teamId: s.id, seed: i + 1,
+  }));
+  // 1v8, 4v5, 2v7, 3v6 → semis → championship
+  franchise.playoffBracket = {
+    seeds,
+    rounds: [
+      [
+        { homeId: seeds[0].teamId, awayId: seeds[7].teamId, homeScore: null, awayScore: null, winnerId: null },
+        { homeId: seeds[3].teamId, awayId: seeds[4].teamId, homeScore: null, awayScore: null, winnerId: null },
+        { homeId: seeds[1].teamId, awayId: seeds[6].teamId, homeScore: null, awayScore: null, winnerId: null },
+        { homeId: seeds[2].teamId, awayId: seeds[5].teamId, homeScore: null, awayScore: null, winnerId: null },
+      ],
+      [
+        { homeId: null, awayId: null, homeScore: null, awayScore: null, winnerId: null },
+        { homeId: null, awayId: null, homeScore: null, awayScore: null, winnerId: null },
+      ],
+      [
+        { homeId: null, awayId: null, homeScore: null, awayScore: null, winnerId: null },
+      ],
+    ],
+    roundIdx:  0,
+    champion:  null,
+  };
+  franchise.phase = "playoffs";
+  saveFranchise();
+  renderFrnPlayoffs();
+}
+
+function renderFrnPlayoffs() {
+  const { playoffBracket, chosenTeamId } = franchise;
+  if (!playoffBracket) { startFrnPlayoffs(); return; }
+  const { seeds, rounds, roundIdx, champion } = playoffBracket;
+  const roundNames = ["Wild Card", "Semifinals", "Championship"];
+
+  const seedOf = id => seeds.find(s => s.teamId === id);
+  const teamLabel = id => {
+    const t = getTeam(id), s = seedOf(id);
+    return t ? `<span style="color:var(--gray);font-size:.6rem">#${s?.seed||"?"}</span> ${t.name}` : "TBD";
+  };
+
+  const matchupCard = (m, ri) => {
+    if (!m.homeId || !m.awayId) {
+      return `<div class="frn-matchup"><div style="color:var(--gray);text-align:center;padding:.4rem;font-size:.72rem">TBD</div></div>`;
+    }
+    const isUser  = m.homeId === chosenTeamId || m.awayId === chosenTeamId;
+    const played  = m.winnerId !== null;
+    const hw      = played && m.winnerId === m.homeId;
+    const aw      = played && m.winnerId === m.awayId;
+    const showBtn = !played && ri === roundIdx;
+    return `<div class="frn-matchup ${isUser && !played ? "frn-matchup-user" : ""}">
+      <div class="frn-mt ${played ? (hw ? "frn-mt-w" : "frn-mt-l") : ""}">${teamLabel(m.homeId)}${played?`<span>${m.homeScore}</span>`:""}</div>
+      <div class="frn-mt ${played ? (aw ? "frn-mt-w" : "frn-mt-l") : ""}">${teamLabel(m.awayId)}${played?`<span>${m.awayScore}</span>`:""}</div>
+      ${showBtn ? `<div style="display:flex;gap:.3rem;margin-top:.3rem;flex-wrap:wrap">
+        ${isUser ? `<button class="btn btn-gold" style="font-size:.62rem;padding:.15rem .4rem" onclick="frnPlayGame(${m.homeId},${m.awayId},true)">▶ Play</button>` : ""}
+        <button class="btn btn-outline" style="font-size:.62rem;padding:.15rem .4rem" onclick="frnSimPlayoffGame(${m.homeId},${m.awayId})">Sim</button>
+      </div>` : ""}
+    </div>`;
+  };
+
+  let bracketHtml = `<div class="frn-bracket">`;
+  rounds.forEach((rd, ri) => {
+    bracketHtml += `<div class="frn-bracket-col">
+      <div class="frn-round-name">${roundNames[ri] || `Round ${ri+1}`}</div>
+      ${rd.map(m => matchupCard(m, ri)).join("")}
+    </div>`;
+  });
+  bracketHtml += `</div>`;
+
+  let actions = `<div class="frn-actions">`;
+  if (champion) {
+    actions += `<button class="btn btn-gold" onclick="showFrnAwards()">🌟 Awards Ceremony</button>`;
+  } else {
+    const curRd = rounds[roundIdx];
+    const pending = curRd.filter(m => !m.winnerId && m.homeId && m.awayId);
+    if (pending.length) {
+      actions += `<button class="btn btn-outline" onclick="frnSimPlayoffRound()">⏩ Sim Remaining (${pending.length})</button>`;
+    }
+  }
+  actions += `<button class="btn btn-outline" onclick="frnAbandon()" style="color:var(--red);margin-left:auto">× Abandon</button></div>`;
+
+  $("frnBody").innerHTML = bracketHtml + actions;
+}
+
+function frnSimPlayoffGame(homeId, awayId) {
+  const r = frnSimOnce(homeId, awayId);
+  applyPlayoffResult(homeId, awayId, r.homeScore, r.awayScore);
+  saveFranchise();
+  renderFrnPlayoffs();
+}
+
+function frnSimPlayoffRound() {
+  const { playoffBracket } = franchise;
+  const rd = playoffBracket.rounds[playoffBracket.roundIdx];
+  for (const m of rd) {
+    if (!m.winnerId && m.homeId && m.awayId) {
+      const r = frnSimOnce(m.homeId, m.awayId);
+      m.homeScore = r.homeScore; m.awayScore = r.awayScore;
+      m.winnerId  = r.homeScore >= r.awayScore ? m.homeId : m.awayId;
+    }
+  }
+  advancePlayoffRound();
+  saveFranchise();
+  renderFrnPlayoffs();
+}
+
+function applyPlayoffResult(homeId, awayId, homeScore, awayScore) {
+  const { playoffBracket } = franchise;
+  const rd = playoffBracket.rounds[playoffBracket.roundIdx];
+  const m  = rd.find(x => x.homeId === homeId && x.awayId === awayId);
+  if (!m) return;
+  m.homeScore = homeScore; m.awayScore = awayScore;
+  m.winnerId  = homeScore >= awayScore ? homeId : awayId;
+  if (rd.every(x => x.winnerId !== null)) advancePlayoffRound();
+}
+
+function advancePlayoffRound() {
+  const pb = franchise.playoffBracket;
+  const rd = pb.rounds[pb.roundIdx];
+  if (!rd.every(m => m.winnerId)) return;
+  const winners   = rd.map(m => m.winnerId);
+  const nextRdIdx = pb.roundIdx + 1;
+  if (nextRdIdx >= pb.rounds.length) {
+    pb.champion   = winners[0];
+    franchise.phase = "awards";
+  } else {
+    const nextRd = pb.rounds[nextRdIdx];
+    for (let i = 0; i < nextRd.length; i++) {
+      nextRd[i].homeId = winners[i * 2];
+      nextRd[i].awayId = winners[i * 2 + 1];
+    }
+    pb.roundIdx = nextRdIdx;
+  }
+}
+
+// ── Awards ceremony ───────────────────────────────────────────────────────────
+function showFrnAwards() {
+  franchise.phase = "awards";
+  // Record season in history (guard against double-entry on re-open)
+  const champId = franchise.playoffBracket?.champion;
+  if (champId && !franchise.history.some(h => h.season === franchise.season)) {
+    const champTeam = getTeam(champId);
+    const mvp = [...(franchise.rosters[champId] || [])].sort((a, b) => b.overall - a.overall)[0];
+    franchise.history.push({
+      season: franchise.season,
+      champion: champId,
+      championName: `${champTeam.city} ${champTeam.name}`,
+      mvpName: mvp?.name || "—",
+      mvpPos:  mvp?.position || "",
+    });
+  }
+  saveFranchise();
+  renderFrnAwards();
+}
+
+function renderFrnAwards() {
+  const { season, chosenTeamId, history, standings } = franchise;
+  const latest     = history[history.length - 1] || {};
+  const champId    = latest.champion;
+  const champTeam  = getTeam(champId);
+  const userTeam   = getTeam(chosenTeamId);
+  const isUserChamp= champId === chosenTeamId;
+  const userStand  = standings[chosenTeamId] || { w:0, l:0 };
+
+  const histHtml = history.length > 1 ? `
+    <div class="frn-sec-title" style="margin-top:1.2rem">FRANCHISE HISTORY</div>
+    ${history.slice(-6).reverse().map(h => `
+      <div style="font-size:.74rem;padding:.18rem 0;border-bottom:1px solid var(--border)">
+        S${h.season}: 🏆 ${h.championName} · MVP ${h.mvpName}${h.mvpPos ? ` (${h.mvpPos})` : ""}
+      </div>`).join("")}` : "";
+
+  $("frnBody").innerHTML = `
+    <div style="text-align:center;padding:1.2rem .5rem">
+      <div style="font-size:2.8rem;margin-bottom:.4rem">🏆</div>
+      <div style="font-size:1.8rem;font-weight:900;color:var(--gold)">${champTeam ? `${champTeam.city} ${champTeam.name}` : "—"}</div>
+      <div style="color:var(--gold-lt);margin-bottom:.6rem">SEASON ${season} CHAMPIONS</div>
+      ${isUserChamp
+        ? `<div style="font-size:1.2rem;color:var(--green-lt);margin:.5rem 0">🎉 YOUR TEAM WON IT ALL! 🎉</div>`
+        : `<div style="color:var(--gray)">${userTeam.name} finished ${userStand.w}-${userStand.l}</div>`}
+      <div style="margin-top:.6rem;font-size:.88rem">
+        ⭐ MVP: ${latest.mvpName || "—"}${latest.mvpPos ? ` · ${latest.mvpPos}` : ""}${champTeam ? ` · ${champTeam.name}` : ""}
+      </div>
+    </div>
+    ${histHtml}
+    <div class="frn-actions" style="justify-content:center;margin-top:1rem">
+      <button class="btn btn-gold" onclick="startFrnOffseason()">⏭ Begin Offseason</button>
+      <button class="btn btn-outline" onclick="frnAbandon()" style="color:var(--red)">× Abandon</button>
+    </div>`;
+}
+
+// ── Offseason ─────────────────────────────────────────────────────────────────
+function startFrnOffseason() {
+  franchise.phase      = "offseason";
+  franchise._offChanges = runFrnOffseason();
+  saveFranchise();
+  renderFrnOffseason();
+}
+
+function runFrnOffseason() {
+  const changes  = [];
+  const allNames = new Set();
+  for (const r of Object.values(franchise.rosters)) r.forEach(p => allNames.add(p.name));
+
+  for (const t of TEAMS) {
+    const tId   = t.id;
+    const roster = franchise.rosters[tId] || [];
+    const keep   = [];
+    const localNames = new Set(allNames);
+
+    for (const p of roster) {
+      if (p.age == null) {
+        p.age = (p.overall >= 85 ? 27 : p.overall >= 75 ? 24 : 22) + Math.floor(Math.random() * 6);
+      }
+      p.age += 1;
+
+      // Retirement
+      const retProb = p.age >= 36 ? 1
+                    : p.age === 35 ? 0.60
+                    : p.age === 34 ? 0.35
+                    : p.age === 33 ? 0.15
+                    : p.age >= 31 ? 0.05
+                    : 0;
+      if (retProb > 0 && Math.random() < retProb) {
+        changes.push({ type:"retire", tId, tName:t.name, name:p.name, pos:p.position, age:p.age });
+        allNames.delete(p.name);
+        continue;
+      }
+
+      // Age regression 31+
+      if (p.age >= 31) {
+        const regress = p.age >= 34 ? 2 : 1;
+        p.stats[0] = Math.max(30, p.stats[0] - regress); // SPD
+        p.stats[2] = Math.max(30, p.stats[2] - regress); // AGI
+        p.overall  = Math.max(50, p.overall  - 1);
+      }
+      // Young progression ≤24
+      if (p.age <= 24 && Math.random() < 0.6) {
+        const gain = 1 + Math.floor(Math.random() * 2);
+        const k    = Math.floor(Math.random() * p.stats.length);
+        p.stats[k] = Math.min(99, p.stats[k] + gain);
+        p.overall  = Math.min(99, p.overall + 1);
+      }
+
+      keep.push(p);
+    }
+
+    // Fill gaps with rookies
+    for (const [pos, needed] of Object.entries(ROSTER_SLOTS)) {
+      const have = keep.filter(p => p.position === pos).length;
+      for (let i = have; i < needed; i++) {
+        const rookie = genUniquePlayer(pos, "average", localNames);
+        rookie.age   = 22;
+        keep.push(rookie);
+        localNames.add(rookie.name);
+        allNames.add(rookie.name);
+        changes.push({ type:"rookie", tId, tName:t.name, name:rookie.name, pos });
+      }
+    }
+
+    franchise.rosters[tId] = keep;
+  }
+  return changes;
+}
+
+function renderFrnOffseason() {
+  const { season, chosenTeamId, _offChanges } = franchise;
+  const myTeam   = getTeam(chosenTeamId);
+  const myChg    = (_offChanges || []).filter(c => c.tId === chosenTeamId);
+  const retires  = myChg.filter(c => c.type === "retire");
+  const rookies  = myChg.filter(c => c.type === "rookie");
+
+  let chgHtml = "";
+  if (retires.length) {
+    chgHtml += `<div style="color:#ff9090;font-weight:700;margin-top:.4rem">Retirements (${retires.length})</div>`;
+    chgHtml += retires.map(c => `<div class="frn-off-change retire">— ${c.name} (${c.pos}, age ${c.age})</div>`).join("");
+  }
+  if (rookies.length) {
+    chgHtml += `<div style="color:#90ff90;font-weight:700;margin-top:.4rem">Rookies Signed (${rookies.length})</div>`;
+    chgHtml += rookies.map(c => `<div class="frn-off-change rookie">+ ${c.name} (${c.pos})</div>`).join("");
+  }
+  if (!chgHtml) chgHtml = `<div style="color:var(--gray)">No major roster changes this offseason.</div>`;
+
+  $("frnBody").innerHTML = `
+    <div style="text-align:center;margin-bottom:.75rem">
+      <div style="font-size:1.1rem;font-weight:700;color:var(--gold)">Season ${season} — Offseason</div>
+      <div style="color:var(--gray);font-size:.78rem">${myTeam.city} ${myTeam.name}</div>
+    </div>
+    <div class="frn-sec-title">${myTeam.name} Roster Changes</div>
+    <div class="frn-off-list">${chgHtml}</div>
+    <div class="frn-actions" style="justify-content:center;margin-top:1.2rem">
+      <button class="btn btn-gold" onclick="frnNewSeason()">▶ Start Season ${season + 1}</button>
+      <button class="btn btn-outline" onclick="frnAbandon()" style="color:var(--red)">× Abandon</button>
+    </div>`;
+}
+
+// ── New season ────────────────────────────────────────────────────────────────
+function frnNewSeason() {
+  franchise.season       += 1;
+  franchise.week          = 1;
+  franchise.phase         = "regular";
+  franchise.schedule      = generateFranchiseSchedule();
+  franchise.standings     = initStandings();
+  franchise.playoffBracket = null;
+  franchise.pendingFranchiseGame = null;
+  franchise._offChanges   = null;
+  saveFranchise();
+  showFranchiseDashboard();
+}
+
+// ── Abandon franchise ─────────────────────────────────────────────────────────
+function frnAbandon() {
+  if (!confirm("Abandon this franchise? All progress will be lost.")) return;
+  franchise = null;
+  try { localStorage.removeItem(FRANCHISE_KEY); } catch(e) {}
+  renderFrnTeamPicker();
+}
+
+// ── Wire franchise button ─────────────────────────────────────────────────────
+$("franchiseBtn").addEventListener("click", openFranchiseModal);
+$("frnClose").addEventListener("click", closeFranchiseModal);
+// Pressing Escape closes the franchise modal
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && $("franchiseModal").style.display !== "none") closeFranchiseModal();
+});
+
+// ─── END FRANCHISE MODE ────────────────────────────────────────────────────
 
 function renderDrives() {
   const r = gameResult; if (!r) return;
