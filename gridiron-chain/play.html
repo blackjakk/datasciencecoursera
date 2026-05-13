@@ -824,6 +824,25 @@
   .frn-welcome-feat { background: var(--bg3); padding: .25rem .6rem; border: 1px solid var(--border); }
   .frn-welcome-feat strong { color: var(--gold-lt); }
 
+  /* Save-slot list */
+  .frn-slots-list {
+    display: flex; flex-direction: column; gap: .35rem;
+    margin-bottom: .8rem;
+  }
+  .frn-slot {
+    display: flex; gap: .7rem; align-items: center;
+    padding: .55rem .8rem;
+    background: var(--bg2); border: 1px solid var(--border);
+    transition: all .1s;
+  }
+  .frn-slot:hover { border-color: var(--gold-lt); }
+  .frn-slot.active { border-color: var(--gold); background: rgba(200,169,0,0.08); }
+  .frn-slot-info { flex: 1; min-width: 0; }
+  .frn-slot-name { font-weight: 700; color: var(--gold-lt); font-size: .9rem; }
+  .frn-slot-summary { color: var(--gray); font-size: .7rem; margin-top: .15rem; }
+  .frn-slot-time    { color: var(--gray); font-size: .58rem; margin-top: .1rem; opacity: .7; }
+  .frn-slot-actions { display: flex; gap: .25rem; flex-shrink: 0; }
+
   /* Start screen — New / Load big buttons */
   .frn-start-grid {
     display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
@@ -1253,6 +1272,82 @@
     border-left: 3px solid var(--gold);
     padding: .35rem .65rem; margin: -.6rem 0 .7rem;
     font-size: .72rem; line-height: 1.5;
+  }
+  .frn-news-ticker {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-left: 3px solid var(--gold-lt);
+    padding: .35rem .65rem; margin-bottom: .7rem;
+    font-size: .7rem; line-height: 1.4;
+    display: flex; flex-wrap: wrap; gap: .5rem; align-items: baseline;
+  }
+  .frn-ticker-label {
+    color: var(--gold); font-weight: 700; font-size: .58rem; letter-spacing: .5px;
+  }
+  .frn-ticker-item { color: var(--white); }
+  .frn-ticker-item + .frn-ticker-item::before { content: "·"; color: var(--gray); margin-right: .35rem; }
+
+  /* Holdouts in offseason */
+  .frn-holdouts-list { display: flex; flex-direction: column; gap: .3rem; }
+  .frn-holdout-row {
+    display: flex; align-items: center; gap: .5rem;
+    padding: .35rem .55rem; background: var(--bg2);
+    border: 1px solid var(--border); border-left: 3px solid #e8a000;
+    font-size: .72rem;
+  }
+  .frn-holdout-row.resolved { border-left-color: var(--gray); opacity: .8; }
+
+  /* Trade screen */
+  .frn-trade-layout {
+    display: grid; grid-template-columns: 1fr 1fr; gap: .7rem;
+    margin-bottom: .7rem;
+  }
+  @media (max-width: 800px) { .frn-trade-layout { grid-template-columns: 1fr; } }
+  .frn-trade-list { max-height: 480px; overflow-y: auto; display: flex; flex-direction: column; gap: .15rem; }
+  .frn-trade-player {
+    display: grid; grid-template-columns: 2rem 1fr auto auto auto auto;
+    gap: .35rem; align-items: center;
+    background: var(--bg3); border: 1px solid var(--border);
+    padding: .25rem .45rem; font-size: .68rem; cursor: pointer;
+  }
+  .frn-trade-player:hover { border-color: var(--gold-lt); }
+  .frn-trade-player.selected { border-color: var(--gold); background: rgba(200,169,0,0.12); }
+  .frn-trade-result {
+    margin-top: .6rem; padding: .55rem .8rem; font-size: .8rem;
+    border: 1px solid;
+  }
+  .frn-trade-result.accepted { color: var(--green-lt); border-color: var(--green); background: rgba(0,180,0,0.08); }
+  .frn-trade-result.rejected { color: #ff9090;        border-color: var(--red);   background: rgba(180,0,0,0.08); }
+
+  /* Draft */
+  .frn-draft-onclock {
+    background: linear-gradient(180deg, rgba(200,169,0,0.18), rgba(200,169,0,0.05));
+    border: 2px solid var(--gold); padding: .7rem 1rem;
+    margin-bottom: .8rem; text-align: center;
+  }
+  .frn-draft-pick {
+    display: grid; grid-template-columns: 2.6rem 1fr auto;
+    gap: .3rem; align-items: center;
+    padding: .2rem .35rem; font-size: .68rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .frn-draft-pick:last-child { border-bottom: none; }
+  .frn-draft-pick-no {
+    color: var(--gold); font-weight: 700; font-size: .6rem;
+  }
+  .frn-draft-recents {
+    max-height: 320px; overflow-y: auto;
+    background: var(--bg3); padding: .35rem;
+  }
+
+  /* Career card inside player detail */
+  .frn-career-card {
+    margin-top: .6rem; padding-top: .5rem;
+    border-top: 1px solid var(--border);
+  }
+  .frn-player-injury {
+    background: rgba(220,40,40,0.15); border: 1px solid var(--red);
+    color: #ff9090; padding: .25rem .5rem; font-size: .68rem;
+    margin-top: .4rem; font-weight: 700;
   }
   .frn-fa-neg-actions {
     display: flex; gap: .35rem; flex-wrap: wrap;
@@ -3024,8 +3119,13 @@ function normal(mean, sd) {
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 function buildRatings(roster) {
+  // Injured players (`weeksRemaining > 0`) are unavailable — exclude
+  // them from depth-chart ratings so missing your QB1 actually hurts.
   const byPos = {};
-  for (const p of roster) (byPos[p.position] ||= []).push(p);
+  for (const p of roster) {
+    if (p.injury && p.injury.weeksRemaining > 0) continue;
+    (byPos[p.position] ||= []).push(p);
+  }
   for (const k in byPos) byPos[k].sort((a,b) => b.overall - a.overall);
   // Flat top-n average — used only when one player matters (QB, K).
   const g = (pos, n) => {
@@ -14579,19 +14679,123 @@ let franchise = null;
 let franchiseDraft = null;
 
 // ── Persistence ──────────────────────────────────────────────────────────────
+// ── Save slots ────────────────────────────────────────────────────────────────
+// Multiple named franchises. Slot metadata (id, name, timestamp, summary)
+// lives at FRANCHISE_SLOTS_KEY; each slot's actual data lives at
+// gc_franchise_v1_slot_<id>. The original single-save key is migrated to
+// slot 1 the first time a multi-slot session sees it.
+const FRANCHISE_SLOTS_KEY = "gc_franchise_slots_v1";
+
+function _readSlotsMeta() {
+  try {
+    return JSON.parse(localStorage.getItem(FRANCHISE_SLOTS_KEY))
+      || { slots: [], activeSlotId: null };
+  } catch { return { slots: [], activeSlotId: null }; }
+}
+function _writeSlotsMeta(meta) {
+  try { localStorage.setItem(FRANCHISE_SLOTS_KEY, JSON.stringify(meta)); } catch {}
+}
+function _slotDataKey(id) { return `gc_franchise_v1_slot_${id}`; }
+
+function _migrateLegacySave() {
+  const meta = _readSlotsMeta();
+  if (meta.slots.length > 0) return;
+  let raw = null;
+  try { raw = localStorage.getItem(FRANCHISE_KEY); } catch {}
+  if (!raw) return;
+  try {
+    const id = 1;
+    localStorage.setItem(_slotDataKey(id), raw);
+    localStorage.removeItem(FRANCHISE_KEY);
+    const parsed = JSON.parse(raw);
+    const team = TEAMS.find(t => t.id === parsed.chosenTeamId);
+    meta.slots.push({
+      id, name: team ? `${team.city} ${team.name}` : "Slot 1",
+      lastSaved: Date.now(),
+      summary: { season: parsed.season, week: parsed.week, teamId: parsed.chosenTeamId, phase: parsed.phase },
+    });
+    meta.activeSlotId = id;
+    _writeSlotsMeta(meta);
+  } catch {}
+}
+
 function saveFranchise() {
   if (!franchise) return;
-  try { localStorage.setItem(FRANCHISE_KEY, JSON.stringify(franchise)); } catch(e) {}
+  const meta = _readSlotsMeta();
+  let activeId = meta.activeSlotId;
+  if (!activeId) {
+    activeId = (meta.slots.reduce((m,s)=>Math.max(m,s.id),0) || 0) + 1;
+    meta.slots.push({ id: activeId, name: "New Franchise", lastSaved: Date.now(), summary: {} });
+    meta.activeSlotId = activeId;
+  }
+  const slot = meta.slots.find(s => s.id === activeId);
+  if (!slot) { meta.activeSlotId = null; _writeSlotsMeta(meta); return; }
+  const team = getTeam(franchise.chosenTeamId);
+  const standing = franchise.standings?.[franchise.chosenTeamId];
+  slot.lastSaved = Date.now();
+  slot.summary = {
+    season: franchise.season, week: franchise.week,
+    teamId: franchise.chosenTeamId,
+    teamName: team ? `${team.city} ${team.name}` : "?",
+    phase: franchise.phase,
+    record: standing ? `${standing.w}-${standing.l}${standing.t?`-${standing.t}`:""}` : "0-0",
+  };
+  if ((slot.name === "New Franchise" || slot.name === "Untitled") && team) {
+    slot.name = `${team.city} ${team.name}`;
+  }
+  _writeSlotsMeta(meta);
+  try { localStorage.setItem(_slotDataKey(activeId), JSON.stringify(franchise)); } catch {}
 }
+
 function loadFranchise() {
+  _migrateLegacySave();
+  const meta = _readSlotsMeta();
+  if (!meta.activeSlotId) { franchise = null; return; }
   try {
-    const raw = localStorage.getItem(FRANCHISE_KEY);
+    const raw = localStorage.getItem(_slotDataKey(meta.activeSlotId));
     if (raw) {
       franchise = JSON.parse(raw);
-      // Stale pending game (user refreshed mid-game): just clear it
       if (franchise && franchise.pendingFranchiseGame) franchise.pendingFranchiseGame = null;
+    } else {
+      franchise = null;
     }
-  } catch(e) { franchise = null; }
+  } catch { franchise = null; }
+}
+
+function frnSwitchSlot(id) {
+  const meta = _readSlotsMeta();
+  if (!meta.slots.find(s => s.id === id)) return;
+  meta.activeSlotId = id;
+  _writeSlotsMeta(meta);
+  loadFranchise();
+  if (franchise) showFranchiseDashboard();
+  else renderFrnStartScreen();
+}
+
+function frnDeleteSlot(id) {
+  const meta = _readSlotsMeta();
+  const slot = meta.slots.find(s => s.id === id);
+  if (!slot) return;
+  if (!confirm(`Delete "${slot.name}"? This save will be permanently erased.`)) return;
+  meta.slots = meta.slots.filter(s => s.id !== id);
+  if (meta.activeSlotId === id) {
+    meta.activeSlotId = null;
+    franchise = null;
+  }
+  _writeSlotsMeta(meta);
+  try { localStorage.removeItem(_slotDataKey(id)); } catch {}
+  renderFrnStartScreen();
+}
+
+function frnRenameSlot(id) {
+  const meta = _readSlotsMeta();
+  const slot = meta.slots.find(s => s.id === id);
+  if (!slot) return;
+  const newName = prompt("Rename franchise:", slot.name);
+  if (!newName || !newName.trim()) return;
+  slot.name = newName.trim().slice(0, 40);
+  _writeSlotsMeta(meta);
+  renderFrnStartScreen();
 }
 
 // ── Schedule — Berger circle method (14 of 31 rounds for 32 teams) ───────────
@@ -14634,6 +14838,26 @@ function recordFranchiseResult(homeId, awayId, homeScore, awayScore) {
   if (homeScore > awayScore)      { h.w++; a.l++; }
   else if (awayScore > homeScore) { a.w++; h.l++; }
   else                            { h.t++; a.t++; }
+  // Roll injuries for both teams
+  _rollGameInjuries(homeId);
+  _rollGameInjuries(awayId);
+  // News: blowouts and upsets
+  const home = getTeam(homeId), away = getTeam(awayId);
+  if (!home || !away) return;
+  const diff = Math.abs(homeScore - awayScore);
+  const winner  = homeScore > awayScore ? home : away;
+  const loser   = homeScore > awayScore ? away : home;
+  const winScore = Math.max(homeScore, awayScore);
+  const loseScore= Math.min(homeScore, awayScore);
+  if (diff >= 24) {
+    _pushNews({ type:"blowout", label: `🔥 ${winner.name} blow out ${loser.name} ${winScore}-${loseScore}` });
+  }
+  // Upset = team rated 10+ lower won
+  const winRtg = frnTeamRating(winner.id), lossRtg = frnTeamRating(loser.id);
+  const winPower = winRtg.off + winRtg.def, lossPower = lossRtg.off + lossRtg.def;
+  if (lossPower - winPower >= 14 && diff >= 7) {
+    _pushNews({ type:"upset", label: `⚡ UPSET: ${winner.name} (${winRtg.off}/${winRtg.def}) over ${loser.name} (${lossRtg.off}/${lossRtg.def}) ${winScore}-${loseScore}` });
+  }
 }
 
 // ── Assign initial ages to all franchise rosters ─────────────────────────────
@@ -14792,10 +15016,39 @@ function frnSaveSummary() {
   return `${name} · ${phaseLabel} · ${s.w}-${s.l}`;
 }
 
-// Start screen — landing UI with New Game / Load Game choices
+// Start screen — landing UI listing all saved franchises (multi-slot)
 function renderFrnStartScreen() {
-  const hasSave = !!franchise;
-  const summary = hasSave ? frnSaveSummary() : "No saved franchise";
+  _migrateLegacySave();
+  const meta = _readSlotsMeta();
+  const slots = (meta.slots || []).slice().sort((a,b) => (b.lastSaved||0) - (a.lastSaved||0));
+
+  const slotsHtml = slots.length ? slots.map(s => {
+    const sm = s.summary || {};
+    const phaseLabel = sm.phase === "preseason" ? "Preseason"
+                     : sm.phase === "free_agency" ? "Free Agency"
+                     : sm.phase === "regular" ? `W${sm.week||"?"}`
+                     : sm.phase === "playoffs" ? "Playoffs"
+                     : sm.phase === "awards" ? "Awards"
+                     : sm.phase === "offseason" ? "Offseason"
+                     : sm.phase || "—";
+    const isActive = meta.activeSlotId === s.id;
+    return `<div class="frn-slot ${isActive?"active":""}">
+      <div class="frn-slot-info">
+        <div class="frn-slot-name">${s.name}</div>
+        <div class="frn-slot-summary">
+          ${sm.teamName ? sm.teamName + " · " : ""}Season ${sm.season || 1} · ${phaseLabel}
+          ${sm.record ? " · " + sm.record : ""}
+        </div>
+        <div class="frn-slot-time">${s.lastSaved ? new Date(s.lastSaved).toLocaleString() : ""}</div>
+      </div>
+      <div class="frn-slot-actions">
+        <button class="btn btn-gold" onclick="frnSwitchSlot(${s.id})">▶ Load</button>
+        <button class="btn btn-outline" onclick="frnRenameSlot(${s.id})">✎</button>
+        <button class="btn btn-outline" onclick="frnDeleteSlot(${s.id})" style="color:var(--red)">✗</button>
+      </div>
+    </div>`;
+  }).join("") : `<div style="color:var(--gray);font-size:.78rem;padding:.75rem;text-align:center;font-style:italic">
+      No franchises yet. Start a new one below.</div>`;
 
   $("frnHomeContent").innerHTML = `
     <div class="frn-welcome">
@@ -14805,35 +15058,31 @@ function renderFrnStartScreen() {
         <div class="frn-welcome-feat"><strong>14</strong> regular-season games</div>
         <div class="frn-welcome-feat"><strong>8-team</strong> playoff bracket</div>
         <div class="frn-welcome-feat">Real <strong>MVP awards</strong></div>
-        <div class="frn-welcome-feat">Aging + rookie offseason</div>
-        <div class="frn-welcome-feat">Auto-saves locally</div>
+        <div class="frn-welcome-feat">FA bidding wars</div>
+        <div class="frn-welcome-feat">Career stats + HOF</div>
       </div>
     </div>
 
-    <div class="frn-start-grid">
-      <button class="frn-start-btn frn-start-new" onclick="frnStartNew()">
+    <div class="frn-card-title" style="margin-top:1rem">📂 YOUR FRANCHISES (${slots.length})</div>
+    <div class="frn-slots-list">${slotsHtml}</div>
+
+    <div style="margin-top:1rem">
+      <button class="frn-start-btn frn-start-new" onclick="frnStartNew()" style="width:100%">
         <div class="frn-start-icon">＋</div>
-        <div class="frn-start-title">NEW GAME</div>
-        <div class="frn-start-sub">Pick a team and start a fresh career</div>
-      </button>
-      <button class="frn-start-btn frn-start-load ${hasSave ? "" : "disabled"}"
-              onclick="${hasSave ? "frnLoadGame()" : "void 0"}"
-              ${hasSave ? "" : "disabled"}>
-        <div class="frn-start-icon">${hasSave ? "📂" : "—"}</div>
-        <div class="frn-start-title">LOAD GAME</div>
-        <div class="frn-start-sub">${summary}</div>
+        <div class="frn-start-title">START NEW FRANCHISE</div>
+        <div class="frn-start-sub">Pick a team and begin a fresh career</div>
       </button>
     </div>
   `;
 }
 
-// "New Game" handler — confirms overwrite, generates draft league, opens picker
+// "New Game" handler — clears active slot so the next saveFranchise()
+// allocates a new one. Existing franchises are untouched.
 function frnStartNew() {
-  if (franchise) {
-    if (!confirm("Start a new game? Your saved franchise will be erased.")) return;
-    franchise = null;
-    try { localStorage.removeItem(FRANCHISE_KEY); } catch (e) {}
-  }
+  const meta = _readSlotsMeta();
+  meta.activeSlotId = null;
+  _writeSlotsMeta(meta);
+  franchise = null;
   franchiseDraft = _buildDraftLeague();
   renderFrnTeamPicker();
 }
@@ -14932,6 +15181,7 @@ function showFranchiseDashboard() {
     else if (phase === "free_agency")          renderFrnFA();
     else if (phase === "free_agency_results")  renderFrnFAResults();
     else if (phase === "fa_cuts")              renderFrnFACuts();
+    else if (phase === "draft")                renderFrnDraft();
     else if (phase === "regular")              renderFrnRegular();
     else if (phase === "playoffs_pending")     startFrnPlayoffs();
     else if (phase === "playoffs")         renderFrnPlayoffs();
@@ -15487,6 +15737,167 @@ function _preseasonScoutTab(myId, scoutId, view, selName) {
   </div>`;
 }
 
+// ── Career stats + Hall of Fame helpers ──────────────────────────────────────
+// Position-keyed HOF thresholds: combined career production benchmarks.
+// Tuned for ~5% retirement-rate inclusion of real-stat-line stars.
+const HOF_THRESHOLDS = {
+  QB: p => (p.careerStats?.pass_yds||0) >= 28000 || (p.careerStats?.pass_td||0) >= 200,
+  RB: p => (p.careerStats?.rush_yds||0) >= 8500 || (p.careerStats?.rush_td||0) >= 75,
+  WR: p => (p.careerStats?.rec_yds ||0) >= 9000 || (p.careerStats?.rec_td ||0) >= 70,
+  TE: p => (p.careerStats?.rec_yds ||0) >= 6000 || (p.careerStats?.rec_td ||0) >= 50,
+  DL: p => (p.careerStats?.sk||0) >= 75 || (p.careerStats?.tkl||0) >= 450,
+  LB: p => (p.careerStats?.tkl||0) >= 700 || (p.careerStats?.sk||0) >= 50,
+  CB: p => (p.careerStats?.int_made||0) >= 25 || (p.careerStats?.pd||0) >= 80,
+  S:  p => (p.careerStats?.int_made||0) >= 20 || (p.careerStats?.tkl||0) >= 500,
+  K:  p => (p.careerStats?.fg_made||0) >= 220,
+  P:  p => false,
+};
+
+function _maybeEnshrineHOF(player, team) {
+  const check = HOF_THRESHOLDS[player.position];
+  if (!check || !check(player)) return;
+  if (!franchise.hallOfFame) franchise.hallOfFame = [];
+  // Snapshot enough data to display the entry forever
+  franchise.hallOfFame.push({
+    name: player.name, pos: player.position,
+    age: player.age, season: franchise.season,
+    teamName: team ? `${team.city} ${team.name}` : "?",
+    careerStats: { ...(player.careerStats || {}) },
+    careerEarnings: player.careerEarnings || 0,
+    careerHistory: (player.careerHistory || []).slice(),
+  });
+  _pushNews({ type: "hof", season: franchise.season, label: `🏆 ${player.name} (${player.position}) enshrined in the Hall of Fame after ${player.careerHistory?.length || 0} seasons` });
+}
+
+// Build a career-stats card for any player — shown when you click into
+// a player from the scout / roster screens. Falls back gracefully for
+// rookies with no career data yet.
+function _buildCareerCard(p) {
+  const history = p.careerHistory || [];
+  const stats   = p.careerStats   || {};
+  if (history.length === 0) {
+    return `<div class="frn-career-card">
+      <div class="frn-card-title">📊 CAREER</div>
+      <div style="color:var(--gray);font-size:.72rem;padding:.4rem 0">
+        Rookie season — no career stats yet.
+      </div>
+      <div class="frn-player-meta">
+        <div><span class="frn-meta-label">DRAFT</span> ${draftStr(p)}</div>
+        <div><span class="frn-meta-label">CAREER $</span> ${careerEarningsStr(p)}</div>
+      </div>
+    </div>`;
+  }
+  // Pick stat columns based on position
+  const cols = _careerColsFor(p.position);
+  const headerHtml = `<tr><th>SZN</th><th>TEAM</th><th>GP</th>${cols.map(c => `<th>${c.label}</th>`).join("")}</tr>`;
+  const rowsHtml = history.slice().reverse().map(row => `
+    <tr>
+      <td style="color:var(--gold)">${row.season}</td>
+      <td style="font-size:.65rem;color:var(--gray)">${row.teamName}</td>
+      <td>${row.gp || 0}</td>
+      ${cols.map(c => `<td>${row[c.key] || 0}</td>`).join("")}
+    </tr>`).join("");
+  const totalsRow = `<tr style="border-top:2px solid var(--gold);font-weight:700">
+    <td colspan="2" style="color:var(--gold)">CAREER</td>
+    <td>${stats.gp || history.reduce((s,r)=>s+(r.gp||0),0)}</td>
+    ${cols.map(c => `<td style="color:var(--gold-lt)">${stats[c.key]||0}</td>`).join("")}
+  </tr>`;
+  return `<div class="frn-career-card">
+    <div class="frn-card-title">📊 CAREER · ${history.length} season${history.length>1?"s":""}</div>
+    <table class="frn-pre-roster-table"><thead>${headerHtml}</thead>
+      <tbody>${rowsHtml}${totalsRow}</tbody>
+    </table>
+    <div class="frn-player-meta">
+      <div><span class="frn-meta-label">DRAFT</span> ${draftStr(p)}</div>
+      <div><span class="frn-meta-label">CAREER $</span> ${careerEarningsStr(p)}</div>
+    </div>
+  </div>`;
+}
+
+function _careerColsFor(pos) {
+  if (pos === "QB") return [
+    { key:"pass_yds", label:"YDS" }, { key:"pass_td", label:"TD" },
+    { key:"pass_int", label:"INT" }, { key:"pass_comp", label:"CMP" },
+  ];
+  if (pos === "RB") return [
+    { key:"rush_yds", label:"YDS" }, { key:"rush_td", label:"TD" },
+    { key:"rush_att", label:"ATT" }, { key:"rec", label:"REC" },
+  ];
+  if (pos === "WR" || pos === "TE") return [
+    { key:"rec_yds", label:"YDS" }, { key:"rec_td", label:"TD" },
+    { key:"rec", label:"REC" }, { key:"targets", label:"TGT" },
+  ];
+  if (pos === "DL" || pos === "LB") return [
+    { key:"tkl", label:"TKL" }, { key:"sk", label:"SK" },
+    { key:"ff", label:"FF" }, { key:"pd", label:"PD" },
+  ];
+  if (pos === "CB" || pos === "S") return [
+    { key:"int_made", label:"INT" }, { key:"pd", label:"PD" },
+    { key:"tkl", label:"TKL" }, { key:"def_td", label:"TD" },
+  ];
+  if (pos === "K") return [
+    { key:"fg_made", label:"FG" }, { key:"fg_long", label:"LONG" },
+    { key:"xp_made", label:"XP" },
+  ];
+  return [{ key:"gp", label:"GP" }];
+}
+
+// ── Injuries ──────────────────────────────────────────────────────────────────
+// Per-game injury chance per player on a team, by position. Higher
+// numbers for trench positions where contact is constant.
+const INJURY_RATE = { QB:0.012, RB:0.022, WR:0.014, TE:0.016, OL:0.020,
+                     DL:0.020, LB:0.018, CB:0.014, S:0.012, K:0.002, P:0.002 };
+const INJURY_TYPES = [
+  { label:"hamstring",   min:1, max:3, w:30 },
+  { label:"ankle sprain",min:1, max:4, w:25 },
+  { label:"concussion",  min:1, max:2, w:15 },
+  { label:"knee",        min:3, max:8, w:10 },
+  { label:"shoulder",    min:2, max:5, w:10 },
+  { label:"hand/wrist",  min:1, max:3, w:10 },
+];
+function _pickInjuryType() {
+  const total = INJURY_TYPES.reduce((s,t)=>s+t.w,0);
+  let r = Math.random() * total;
+  for (const t of INJURY_TYPES) { if ((r -= t.w) < 0) return t; }
+  return INJURY_TYPES[0];
+}
+function _rollGameInjuries(teamId) {
+  const roster = franchise.rosters[teamId] || [];
+  const team = getTeam(teamId);
+  for (const p of roster) {
+    if (p.injury && p.injury.weeksRemaining > 0) continue;
+    const rate = INJURY_RATE[p.position] || 0.01;
+    if (Math.random() >= rate) continue;
+    const t = _pickInjuryType();
+    const wks = t.min + Math.floor(Math.random() * (t.max - t.min + 1));
+    p.injury = { label: t.label, weeksRemaining: wks };
+    // News only for notable injuries on user team or to top players
+    const isMine = teamId === franchise.chosenTeamId;
+    const grade = scoutGrade(p);
+    if (isMine || grade >= 80) {
+      _pushNews({ type:"injury",
+        label: `🩹 ${p.name} (${p.position}, ${team?.name||"?"}) — ${t.label}, ${wks} wk${wks===1?"":"s"}` });
+    }
+  }
+}
+function _tickInjuriesForWeek() {
+  for (const roster of Object.values(franchise.rosters || {})) {
+    for (const p of roster) {
+      if (!p.injury || p.injury.weeksRemaining <= 0) continue;
+      p.injury.weeksRemaining -= 1;
+      if (p.injury.weeksRemaining <= 0) p.injury = null;
+    }
+  }
+}
+
+// ── News ticker ──────────────────────────────────────────────────────────────
+function _pushNews(item) {
+  if (!franchise.news) franchise.news = [];
+  franchise.news.push({ week: franchise.week || 0, season: franchise.season, ...item });
+  // Cap to last 60 items so localStorage doesn't bloat
+  if (franchise.news.length > 60) franchise.news = franchise.news.slice(-60);
+}
+
 // Detail card for a single player — shown in Scout right side panel.
 // Deliberately hides OVR. Uses scout grade, combine measurables, draft
 // pedigree, and career earnings — same data a real scouting report works
@@ -15535,7 +15946,9 @@ function _buildPlayerDetailPanel(p) {
     </div>
     <div class="frn-card-title" style="margin-top:.55rem;margin-bottom:.3rem">COMBINE</div>
     ${combineHtml}
+    ${p.injury ? `<div class="frn-player-injury">🩹 ${p.injury.label} — ${p.injury.weeksRemaining} wk${p.injury.weeksRemaining===1?"":"s"} out</div>` : ""}
     ${flav ? `<div class="frn-player-flavor">${flav}</div>` : ""}
+    ${_buildCareerCard(p)}
   </div>`;
 }
 
@@ -16363,12 +16776,20 @@ function renderFrnRegular() {
     : "";
   // FA news banner — show signings/losses from last resolved week
   const news = franchise._faLastNews;
-  const newsHtml = (news && news.week === week - 1 && (news.signed.length + news.lost.length)) ? `
+  const faNewsHtml = (news && news.week === week - 1 && (news.signed.length + news.lost.length)) ? `
     <div class="frn-fa-news">
       <b style="color:var(--gold)">📰 FA Wire (Week ${news.week}):</b>
       ${news.signed.map(s => `<span style="color:var(--green-lt)">✓ Signed ${s.name} ($${s.aav.toFixed(1)}M)</span>`).join(" · ")}
       ${news.lost.map(l => `<span style="color:#c08080">✗ Lost ${l.name}${l.reason?` (${l.reason})`:""}</span>`).join(" · ")}
     </div>` : "";
+  // League news ticker: last 5 events from this season
+  const allNews = (franchise.news || []).filter(n => n.season === season).slice(-5).reverse();
+  const tickerHtml = allNews.length ? `
+    <div class="frn-news-ticker">
+      <span class="frn-ticker-label">📰 LEAGUE WIRE</span>
+      ${allNews.map(n => `<span class="frn-ticker-item">W${n.week}: ${n.label}</span>`).join(" ")}
+    </div>` : "";
+  const newsHtml = faNewsHtml + tickerHtml;
 
   const bannerHtml = `
     <div class="frn-team-banner" style="--banner-color:${myTeam.primary}">
@@ -16384,6 +16805,7 @@ function renderFrnRegular() {
           CAP $${capUsed.toFixed(1)}M / $${cap.toFixed(0)}M
           <span style="color:var(--gray);font-weight:400"> · ${capPct}% used</span>
           <button class="frn-cap-btn" onclick="renderFrnAnalytics('mysheet')">📊 Analytics</button>
+          ${week <= TRADE_DEADLINE_WEEK ? `<button class="frn-cap-btn" onclick="frnOpenTrade()">🔀 Trade</button>` : ""}
           ${faBtnHtml}
         </div>
       </div>
@@ -16756,6 +17178,8 @@ function advanceWeekIfDone() {
       _faResolveAfterWeek(w, seasonEnding);
       if (!seasonEnding) _faAIBidRound(w + 1, /*isInitial=*/false);
     }
+    // Tick down injury weeks
+    _tickInjuriesForWeek();
 
     franchise.week = w + 1;
     // Cap-grace deadline reached — force a cut screen if user is still over
@@ -17480,10 +17904,80 @@ function startFrnOffseason() {
   franchise.salaryCap = Math.round(
     ((franchise.salaryCap || SALARY_CAP_BASE) * (1 + growth)) * 10
   ) / 10;
+  // Detect unhappy stars on the user's roster — they'll demand extensions
+  // at the offseason summary screen.
+  _detectHoldouts();
   franchise.phase = "offseason";
   franchise._resignPending = null;
   saveFranchise();
   renderFrnResignings();
+}
+
+// ── Holdouts ──────────────────────────────────────────────────────────────────
+// A star (grade A or higher) with multiple years left whose AAV is well
+// below current market value will demand a new deal in the offseason.
+// Three resolutions: Extend (pay market), Trade (move them), Ignore
+// (risk a hold-out next season — player auto-leaves at contract end).
+function _detectHoldouts() {
+  const cap = franchise.salaryCap || SALARY_CAP_BASE;
+  const myRoster = franchise.rosters[franchise.chosenTeamId] || [];
+  const holdouts = [];
+  for (const p of myRoster) {
+    const grade = scoutGrade(p);
+    if (grade < 82) continue;                 // only A-grades+
+    if (!p.contract || p.contract.remaining < 2) continue; // walk-year not a holdout
+    const market = computeMarketValue(p, cap);
+    const aav = p.contract.aav || 0;
+    if (aav >= market * 0.85) continue;       // fairly paid
+    holdouts.push({
+      name: p.name, position: p.position,
+      currentAAV: aav, demandedAAV: Math.round(market * 10) / 10,
+      demandedYears: Math.max(p.contract.remaining + 2, 4),
+      resolved: null,
+    });
+  }
+  franchise._holdouts = holdouts;
+}
+
+function frnHoldoutExtend(name) {
+  const h = (franchise._holdouts || []).find(x => x.name === name);
+  if (!h) return;
+  const player = franchise.rosters[franchise.chosenTeamId].find(p => p.name === name);
+  if (!player) return;
+  player.contract = {
+    years: h.demandedYears,
+    remaining: h.demandedYears,
+    aav: h.demandedAAV,
+  };
+  h.resolved = "extended";
+  saveFranchise();
+  renderFrnOffseason();
+}
+
+function frnHoldoutTrade(name) {
+  const h = (franchise._holdouts || []).find(x => x.name === name);
+  if (!h) return;
+  h.resolved = "trade-block";
+  // Open the trade screen with this player pre-flagged
+  franchise._tradeProp = {
+    targetTeamId: TEAMS.find(t => t.id !== franchise.chosenTeamId).id,
+    youSend: [name],
+    youReceive: [],
+    result: null,
+  };
+  saveFranchise();
+  renderFrnTrade();
+}
+
+function frnHoldoutIgnore(name) {
+  const h = (franchise._holdouts || []).find(x => x.name === name);
+  if (!h) return;
+  h.resolved = "ignored";
+  // Mark player as flight risk — they leave when contract ends (or sooner)
+  const player = franchise.rosters[franchise.chosenTeamId].find(p => p.name === name);
+  if (player) player.unhappy = true;
+  saveFranchise();
+  renderFrnOffseason();
 }
 
 function runFrnOffseason() {
@@ -17511,6 +18005,8 @@ function runFrnOffseason() {
                     : p.age >= 31 ? 0.05
                     : 0;
       if (retProb > 0 && Math.random() < retProb) {
+        // Hall of Fame check — career production threshold by position
+        _maybeEnshrineHOF(p, t);
         changes.push({ type:"retire", tId, tName:t.name, name:p.name, pos:p.position, age:p.age });
         allNames.delete(p.name);
         continue;
@@ -17547,19 +18043,7 @@ function runFrnOffseason() {
       keep.push(p);
     }
 
-    // Fill gaps with rookies
-    for (const [pos, needed] of Object.entries(ROSTER_SLOTS)) {
-      const have = keep.filter(p => p.position === pos).length;
-      for (let i = have; i < needed; i++) {
-        const rookie = genUniquePlayer(pos, "average", localNames);
-        rookie.age   = 22;
-        rookie.contract = generateContract(rookie, franchise.salaryCap || SALARY_CAP_BASE);
-        keep.push(rookie);
-        localNames.add(rookie.name);
-        allNames.add(rookie.name);
-        changes.push({ type:"rookie", tId, tName:t.name, name:rookie.name, pos });
-      }
-    }
+    // Rookie filling now happens via the annual draft phase + UDFA fill.
     // AI teams: auto-resign expired players at market rate (stars more likely to stay)
     if (tId !== franchise.chosenTeamId) {
       for (const p of keep) {
@@ -17613,17 +18097,59 @@ function renderFrnOffseason() {
     </div>
     <div class="frn-sec-title">${myTeam.name} Roster Changes</div>
     <div class="frn-off-list">${chgHtml}</div>
+    ${_renderHoldoutsBlock()}
     <div class="frn-actions" style="justify-content:center;margin-top:1.2rem">
-      <button class="btn btn-gold" onclick="frnNewSeason()">▶ Start Season ${season + 1}</button>
+      <button class="btn btn-gold" onclick="frnGoToDraft()">📋 Go to Draft</button>
       <button class="btn btn-outline" onclick="frnAbandon()" style="color:var(--red)">× Abandon</button>
     </div>`;
 }
 
+function _renderHoldoutsBlock() {
+  const list = franchise._holdouts || [];
+  if (!list.length) return "";
+  const rows = list.map(h => {
+    if (h.resolved === "extended") {
+      return `<div class="frn-holdout-row resolved">
+        <span style="font-weight:700">${h.name}</span>
+        <span style="color:var(--gray);font-size:.65rem">(${h.position})</span>
+        <span style="color:var(--green-lt);margin-left:auto">✓ Extended at $${h.demandedAAV.toFixed(1)}M × ${h.demandedYears}yr</span>
+      </div>`;
+    }
+    if (h.resolved === "ignored") {
+      return `<div class="frn-holdout-row resolved">
+        <span style="font-weight:700">${h.name}</span>
+        <span style="color:var(--gray);font-size:.65rem">(${h.position})</span>
+        <span style="color:#e8a000;margin-left:auto">⚠ Ignored — flight risk</span>
+      </div>`;
+    }
+    const escName = (h.name||"").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    return `<div class="frn-holdout-row">
+      <div style="flex:1">
+        <div style="font-weight:700">${h.name} <span style="color:var(--gray);font-size:.65rem">(${h.position})</span></div>
+        <div style="color:var(--gray);font-size:.66rem">
+          Paid $${h.currentAAV.toFixed(1)}M · Wants <b style="color:var(--gold)">$${h.demandedAAV.toFixed(1)}M × ${h.demandedYears}yr</b>
+        </div>
+      </div>
+      <div style="display:flex;gap:.3rem">
+        <button class="btn btn-gold" onclick="frnHoldoutExtend('${escName}')" style="font-size:.6rem;padding:.2rem .45rem">✓ Extend</button>
+        <button class="btn btn-outline" onclick="frnHoldoutTrade('${escName}')" style="font-size:.6rem;padding:.2rem .45rem">🔀 Trade</button>
+        <button class="btn btn-outline" onclick="frnHoldoutIgnore('${escName}')" style="font-size:.6rem;padding:.2rem .45rem;color:var(--red)">✗ Ignore</button>
+      </div>
+    </div>`;
+  }).join("");
+  return `
+    <div class="frn-sec-title" style="margin-top:1rem">🗣 CONTRACT DEMANDS (${list.length})</div>
+    <div style="color:var(--gray);font-size:.68rem;margin-bottom:.4rem">Underpaid stars are demanding extensions. Resolve or risk losing them.</div>
+    <div class="frn-holdouts-list">${rows}</div>`;
+}
+
 // ── New season ────────────────────────────────────────────────────────────────
 function frnNewSeason() {
+  // Before wiping season stats, roll them into each player's career
+  _rollSeasonStatsToCareer();
   franchise.season       += 1;
   franchise.week          = 1;
-  franchise.phase         = "regular";
+  franchise.phase         = "free_agency";
   franchise.schedule      = generateFranchiseSchedule();
   franchise.standings     = initStandings();
   franchise.playoffBracket = null;
@@ -17632,8 +18158,478 @@ function frnNewSeason() {
   franchise.seasonStats   = {};
   franchise.seasonHighlights = [];
   franchise.superBowlGame = null;
+  franchise.faNegotiations = {};
+  franchise._faLastNews   = null;
+  franchise.capGraceDeadline = null;
+  // Each new season starts with a fresh FA pool
+  franchise.freeAgents = _generateFAPool();
+  franchise._faOffers = {};
+  franchise._faResults = null;
   saveFranchise();
   showFranchiseDashboard();
+}
+
+// ── Trades ─────────────────────────────────────────────────────────────────────
+// Player-for-player(s) trades. Trade deadline = Week 7. AI accepts if
+// you give them >= what they give you, weighted by team need at the
+// positions involved.
+const TRADE_DEADLINE_WEEK = 7;
+
+function _playerTradeValue(p) {
+  const ovr = p.overall || 60;
+  let v = Math.max(0, ovr - 50);
+  const age = p.age || 25;
+  if (age <= 25)      v *= 1.10;
+  else if (age >= 32) v *= 0.65;
+  else if (age >= 29) v *= 0.85;
+  if (p.injury && p.injury.weeksRemaining > 0) v *= 0.4;
+  return Math.round(v * 10) / 10;
+}
+
+function _aiTradeNeedBonus(teamId, players) {
+  if (!players.length) return 0;
+  const roster = franchise.rosters[teamId] || [];
+  let bonus = 0;
+  for (const p of players) {
+    const same = roster.filter(rp => rp.position === p.position).sort((a,b)=>b.overall-a.overall);
+    const bestSame = same[0]?.overall || 50;
+    if (p.overall > bestSame + 3) bonus += (p.overall - bestSame) * 0.5;
+  }
+  return bonus;
+}
+
+function frnOpenTrade(targetTeamId) {
+  if (franchise.week > TRADE_DEADLINE_WEEK && franchise.phase === "regular") {
+    alert("Trade deadline has passed.");
+    return;
+  }
+  if (!franchise._tradeProp) {
+    franchise._tradeProp = {
+      targetTeamId: Number(targetTeamId) || TEAMS.find(t => t.id !== franchise.chosenTeamId).id,
+      youSend: [], youReceive: [],
+      result: null,
+    };
+  } else if (targetTeamId) {
+    franchise._tradeProp.targetTeamId = Number(targetTeamId);
+    franchise._tradeProp.youSend = [];
+    franchise._tradeProp.youReceive = [];
+    franchise._tradeProp.result = null;
+  }
+  renderFrnTrade();
+}
+
+function frnToggleTradePlayer(side, name) {
+  const tp = franchise._tradeProp;
+  if (!tp) return;
+  const list = tp[side === "send" ? "youSend" : "youReceive"];
+  const idx = list.indexOf(name);
+  if (idx === -1) list.push(name);
+  else list.splice(idx, 1);
+  tp.result = null;
+  saveFranchise();
+  renderFrnTrade();
+}
+
+function frnSubmitTrade() {
+  const tp = franchise._tradeProp;
+  if (!tp || !tp.youSend.length || !tp.youReceive.length) {
+    alert("Add at least one player to each side.");
+    return;
+  }
+  const myId = franchise.chosenTeamId;
+  const otherId = tp.targetTeamId;
+  const myRoster = franchise.rosters[myId];
+  const theirRoster = franchise.rosters[otherId];
+
+  const sendPlayers = tp.youSend.map(n => myRoster.find(p => p.name === n)).filter(Boolean);
+  const recvPlayers = tp.youReceive.map(n => theirRoster.find(p => p.name === n)).filter(Boolean);
+
+  const sendValue = sendPlayers.reduce((s,p) => s + _playerTradeValue(p), 0);
+  const recvValue = recvPlayers.reduce((s,p) => s + _playerTradeValue(p), 0);
+  // AI need bonus: how much they want what you're sending
+  const theirNeedForSend = _aiTradeNeedBonus(otherId, sendPlayers);
+  const myNeedForRecv = _aiTradeNeedBonus(myId, recvPlayers);
+
+  // AI accepts if (sendValue + theirNeedForSend) >= recvValue * 0.97
+  const aiScore = (sendValue + theirNeedForSend) / Math.max(0.1, recvValue);
+  const accepted = aiScore >= 0.97;
+
+  if (accepted) {
+    // Execute
+    for (const p of sendPlayers) {
+      const i = myRoster.indexOf(p);
+      if (i !== -1) myRoster.splice(i, 1);
+      theirRoster.push(p);
+    }
+    for (const p of recvPlayers) {
+      const i = theirRoster.indexOf(p);
+      if (i !== -1) theirRoster.splice(i, 1);
+      myRoster.push(p);
+    }
+    const other = getTeam(otherId);
+    tp.result = {
+      accepted: true,
+      message: `Trade accepted! Welcome ${recvPlayers.map(p=>p.name).join(", ")}.`,
+    };
+    _pushNews({ type:"trade",
+      label: `🔀 Trade with ${other.name}: sent ${sendPlayers.map(p=>p.position+" "+p.name).join(", ")} for ${recvPlayers.map(p=>p.position+" "+p.name).join(", ")}` });
+  } else {
+    const reason = aiScore < 0.6 ? "Way too lopsided in your favor"
+                 : aiScore < 0.85 ? "Not enough value coming back to us"
+                 : "Close, but pass — try sweetening the deal";
+    tp.result = { accepted: false, message: `Rejected. ${reason}.`, aiScore };
+  }
+  saveFranchise();
+  renderFrnTrade();
+}
+
+function renderFrnTrade() {
+  const tp = franchise._tradeProp;
+  if (!tp) { showFranchiseDashboard(); return; }
+  const myId = franchise.chosenTeamId;
+  const myRoster = franchise.rosters[myId] || [];
+  const theirRoster = franchise.rosters[tp.targetTeamId] || [];
+  const myTeam = getTeam(myId);
+  const otherTeam = getTeam(tp.targetTeamId);
+
+  const renderRoster = (roster, side, selectedNames) => {
+    const selSet = new Set(selectedNames);
+    return roster.slice().sort((a,b) => (b.overall||0)-(a.overall||0)).map(p => {
+      const escName = (p.name||"").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+      const sel = selSet.has(p.name);
+      return `<label class="frn-trade-player ${sel?"selected":""}">
+        <input type="checkbox" ${sel?"checked":""}
+          onchange="frnToggleTradePlayer('${side}','${escName}')">
+        <span style="color:var(--gold);font-size:.58rem;font-weight:700">${p.position}</span>
+        <span style="flex:1;font-weight:${sel?700:400}">${p.name}</span>
+        <span>${gradeBadge(p)}</span>
+        <span style="color:var(--gray);font-size:.62rem">${p.age||"?"}</span>
+        <span style="color:var(--gold);font-size:.62rem">$${(p.contract?.aav||0).toFixed(0)}M</span>
+      </label>`;
+    }).join("");
+  };
+
+  // Cap impact
+  const sendCap = tp.youSend.reduce((s,n) => {
+    const p = myRoster.find(rp => rp.name === n);
+    return s + (p?.contract?.aav || 0);
+  }, 0);
+  const recvCap = tp.youReceive.reduce((s,n) => {
+    const p = theirRoster.find(rp => rp.name === n);
+    return s + (p?.contract?.aav || 0);
+  }, 0);
+  const cap = franchise.salaryCap || SALARY_CAP_BASE;
+  const myCapUsed = capUsedByTeam(myId);
+  const projCap = myCapUsed - sendCap + recvCap;
+
+  // Team selector
+  const teamOptionsHtml = TEAMS.filter(t => t.id !== myId).map(t =>
+    `<option value="${t.id}" ${t.id===tp.targetTeamId?"selected":""}>${t.city} ${t.name}</option>`
+  ).join("");
+
+  $("frnHomeContent").innerHTML = `
+    <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.8rem;flex-wrap:wrap">
+      <div style="font-size:1.05rem;font-weight:900;color:var(--gold)">🔀 TRADE BLOCK</div>
+      <div style="color:var(--gray);font-size:.72rem">Trade deadline: Week ${TRADE_DEADLINE_WEEK} · ${franchise.week > TRADE_DEADLINE_WEEK ? "<span style=\"color:var(--red)\">PASSED</span>" : `Week ${franchise.week} of ${FRANCHISE_WEEKS}`}</div>
+      <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="margin-left:auto">← Back</button>
+    </div>
+
+    <div class="frn-fa-summary">
+      Trade partner:
+      <select onchange="frnOpenTrade(this.value)" style="background:var(--bg3);color:var(--white);border:1px solid var(--border);padding:.25rem .4rem;font-family:inherit">${teamOptionsHtml}</select>
+      <span style="margin-left:auto">Your projected cap: <b style="color:${projCap>cap?'var(--red)':'var(--gold)'}">$${projCap.toFixed(1)}M</b> / $${cap.toFixed(0)}M</span>
+    </div>
+
+    <div class="frn-trade-layout">
+      <div class="frn-fa-pool-col">
+        <div class="frn-card-title">YOU SEND · ${myTeam.name} (${tp.youSend.length} selected)</div>
+        <div class="frn-trade-list">${renderRoster(myRoster, "send", tp.youSend)}</div>
+      </div>
+      <div class="frn-fa-pool-col">
+        <div class="frn-card-title">YOU RECEIVE · ${otherTeam.name} (${tp.youReceive.length} selected)</div>
+        <div class="frn-trade-list">${renderRoster(theirRoster, "receive", tp.youReceive)}</div>
+      </div>
+    </div>
+
+    ${tp.result ? `
+      <div class="frn-trade-result ${tp.result.accepted?'accepted':'rejected'}">
+        <b>${tp.result.accepted?"✓ ACCEPTED":"✗ REJECTED"}</b> · ${tp.result.message}
+      </div>` : ""}
+
+    <div class="frn-actions" style="justify-content:center;margin-top:.8rem">
+      <button class="btn btn-gold-big" onclick="frnSubmitTrade()"
+        ${(tp.youSend.length===0 || tp.youReceive.length===0 || franchise.week > TRADE_DEADLINE_WEEK)?"disabled style=\"opacity:.5;cursor:not-allowed\"":""}>
+        📨 SUBMIT PROPOSAL
+      </button>
+    </div>`;
+}
+
+// ── Annual Draft ──────────────────────────────────────────────────────────────
+// 7 rounds × 32 teams = 224 picks. Pick order = reverse standings (worst
+// team picks first). Class quality tapers across rounds — round 1 is
+// stocked with elite/good prospects; later rounds are mostly poor. User
+// picks for their team; AI auto-picks for others between user turns.
+// After the final pick, remaining roster gaps are filled with UDFAs.
+function frnGoToDraft() {
+  const rookieYear = (new Date().getFullYear()) + (franchise.season || 1);
+  franchise.draft = {
+    class: _buildDraftClass(rookieYear),
+    pickOrder: _buildDraftPickOrder(),
+    picks: [],
+    currentIdx: 0,
+  };
+  franchise.phase = "draft";
+  saveFranchise();
+  renderFrnDraft();
+}
+
+function _buildDraftClass(rookieYear) {
+  const allTaken = new Set();
+  for (const r of Object.values(franchise.rosters)) r.forEach(p => allTaken.add(p.name));
+  // Mixed-position pool (will be drawn at random per round)
+  const positions = [
+    "QB","QB","QB","RB","RB","RB","RB","WR","WR","WR","WR","WR","WR",
+    "TE","TE","TE","OL","OL","OL","OL","OL","OL","OL","OL",
+    "DL","DL","DL","DL","DL","LB","LB","LB","LB",
+    "CB","CB","CB","CB","S","S","K","P",
+  ];
+  const tierByRound = {
+    1: () => Math.random() < 0.35 ? "elite" : "good",
+    2: () => Math.random() < 0.20 ? "good"  : "average",
+    3: () => Math.random() < 0.40 ? "average" : "poor",
+    4: () => "poor", 5: () => "poor", 6: () => "poor", 7: () => "poor",
+  };
+  const cls = [];
+  for (let round = 1; round <= 7; round++) {
+    for (let pick = 1; pick <= 32; pick++) {
+      const pos = positions[Math.floor(Math.random() * positions.length)];
+      const tier = tierByRound[round]();
+      const p = genUniquePlayer(pos, tier, allTaken);
+      allTaken.add(p.name);
+      p.age = 21 + Math.floor(Math.random() * 3);
+      p.draftYear = rookieYear;
+      p.isProspect = true;
+      cls.push(p);
+    }
+  }
+  // Shuffle within each tier so positions feel mixed
+  cls.sort((a,b) => (b.overall || 0) - (a.overall || 0));
+  return cls;
+}
+
+function _buildDraftPickOrder() {
+  // Pick order = reverse standings; worst team picks 1.1. Champions pick last.
+  const sorted = TEAMS.slice().sort((a, b) => {
+    const sa = franchise.standings?.[a.id] || { w:0, l:0, pf:0, pa:0 };
+    const sb = franchise.standings?.[b.id] || { w:0, l:0, pf:0, pa:0 };
+    // worst record first; tiebreak on point differential (lower = worse)
+    const diffA = (sa.pf||0) - (sa.pa||0);
+    const diffB = (sb.pf||0) - (sb.pa||0);
+    return (sa.w - sa.l) - (sb.w - sb.l) || (diffA - diffB);
+  });
+  const order = [];
+  for (let r = 1; r <= 7; r++) {
+    for (const t of sorted) order.push({ round: r, teamId: t.id });
+  }
+  return order;
+}
+
+function renderFrnDraft() {
+  const d = franchise.draft;
+  const myId = franchise.chosenTeamId;
+
+  // Auto-advance AI picks until it's user's turn or draft is over
+  let aiAdvanced = 0;
+  while (d.currentIdx < d.pickOrder.length) {
+    const slot = d.pickOrder[d.currentIdx];
+    if (slot.teamId === myId) break;
+    _aiAutoPick(slot);
+    d.currentIdx++;
+    aiAdvanced++;
+    if (aiAdvanced > 250) break; // safety
+  }
+
+  if (d.currentIdx >= d.pickOrder.length) {
+    _draftFinalize();
+    return;
+  }
+  saveFranchise();
+
+  const currentSlot = d.pickOrder[d.currentIdx];
+  const onClock = getTeam(currentSlot.teamId);
+  const pickInRound = ((d.currentIdx) % 32) + 1;
+
+  // Available prospects sorted by grade desc
+  const taken = new Set(d.picks.map(p => p.prospectName));
+  const available = d.class.filter(p => !taken.has(p.name))
+    .sort((a,b) => scoutGrade(b) - scoutGrade(a));
+
+  // Show top 40 available
+  const boardHtml = available.slice(0, 40).map((p, i) => {
+    const escName = (p.name || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    return `<tr>
+      <td style="color:var(--gold);font-size:.65rem">${i+1}.</td>
+      <td style="font-weight:700">${p.name}</td>
+      <td style="color:var(--gold);font-size:.62rem">${p.position}</td>
+      <td>${gradeBadge(p)}</td>
+      <td style="color:var(--gray)">${p.age}</td>
+      <td style="color:var(--gray);font-size:.66rem">${p.archetype || "—"}</td>
+      <td><button class="btn btn-gold" style="padding:.2rem .55rem;font-size:.62rem"
+        onclick="frnDraftPick('${escName}')">DRAFT</button></td>
+    </tr>`;
+  }).join("");
+
+  // Recent picks (last 10)
+  const recentHtml = d.picks.slice(-10).reverse().map(pk => {
+    const team = getTeam(pk.teamId);
+    return `<div class="frn-draft-pick">
+      <span class="frn-draft-pick-no">${pk.round}.${(((pk.pick-1) % 32) + 1)}</span>
+      <span>${team?.name || "?"}</span>
+      <span style="color:var(--gold-lt);font-weight:700">${pk.prospectName}</span>
+      <span style="color:var(--gray);font-size:.62rem">${pk.pos}</span>
+    </div>`;
+  }).join("");
+
+  // Your team's picks so far
+  const myPicks = d.picks.filter(pk => pk.teamId === myId);
+  const myPicksHtml = myPicks.map(pk => `<div class="frn-draft-pick">
+    <span class="frn-draft-pick-no">${pk.round}.${(((pk.pick-1) % 32) + 1)}</span>
+    <span style="color:var(--gold-lt);font-weight:700">${pk.prospectName}</span>
+    <span style="color:var(--gray);font-size:.62rem">${pk.pos}</span>
+  </div>`).join("");
+
+  $("frnHomeContent").innerHTML = `
+    <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.8rem;flex-wrap:wrap">
+      <div style="font-size:1.05rem;font-weight:900;color:var(--gold)">📋 ANNUAL DRAFT · Season ${franchise.season + 1}</div>
+      <div style="color:var(--gray);font-size:.75rem">Pick ${d.currentIdx + 1} of ${d.pickOrder.length}</div>
+    </div>
+    <div class="frn-draft-onclock">
+      <div>
+        <div style="font-size:.62rem;color:var(--gold);letter-spacing:.5px">ROUND ${currentSlot.round} · PICK ${pickInRound}</div>
+        <div style="font-size:1.3rem;font-weight:900;color:var(--gold-lt)">YOU ARE ON THE CLOCK</div>
+        <div style="color:var(--gray);font-size:.75rem">${onClock.city} ${onClock.name}</div>
+      </div>
+    </div>
+    <div class="frn-fa-layout">
+      <div class="frn-fa-mid-col" style="grid-column: span 2">
+        <div class="frn-card-title">BEST AVAILABLE</div>
+        <table class="frn-pre-roster-table">
+          <thead><tr><th>#</th><th>Player</th><th>Pos</th><th>Grade</th><th>Age</th><th>Archetype</th><th></th></tr></thead>
+          <tbody>${boardHtml}</tbody>
+        </table>
+      </div>
+      <div class="frn-fa-pool-col">
+        <div class="frn-card-title">YOUR PICKS (${myPicks.length})</div>
+        ${myPicksHtml || `<div style="color:var(--gray);font-size:.7rem;font-style:italic">None yet</div>`}
+        <div class="frn-card-title" style="margin-top:.7rem">RECENT PICKS</div>
+        <div class="frn-draft-recents">${recentHtml || "<div style=\"color:var(--gray);font-size:.7rem;font-style:italic\">None yet</div>"}</div>
+      </div>
+    </div>`;
+}
+
+function _aiAutoPick(slot) {
+  const taken = new Set(franchise.draft.picks.map(p => p.prospectName));
+  const available = franchise.draft.class.filter(p => !taken.has(p.name));
+  if (!available.length) return;
+  // Score by overall + position need (weaker starter at FA's position = bonus)
+  const roster = franchise.rosters[slot.teamId] || [];
+  const startersByPos = {};
+  for (const pos of Object.keys(ROSTER_SLOTS)) {
+    const arr = roster.filter(p => p.position === pos).sort((a,b)=>b.overall-a.overall);
+    startersByPos[pos] = arr[0]?.overall || 50;
+  }
+  const scored = available.map(p => {
+    const needBonus = Math.max(0, 75 - (startersByPos[p.position] || 50));
+    return { p, score: (p.overall || 60) + needBonus * 0.20 + Math.random() * 4 };
+  }).sort((a,b) => b.score - a.score);
+  const pick = scored[0].p;
+  pick.contract = generateContract(pick, franchise.salaryCap || SALARY_CAP_BASE);
+  pick.draftRound = slot.round;
+  pick.draftPick  = ((franchise.draft.currentIdx) % 32) + 1;
+  pick.careerEarnings = 0;
+  delete pick.isProspect;
+  franchise.rosters[slot.teamId].push(pick);
+  franchise.draft.picks.push({
+    pick: franchise.draft.currentIdx + 1, round: slot.round,
+    teamId: slot.teamId, prospectName: pick.name, pos: pick.position,
+  });
+}
+
+function frnDraftPick(name) {
+  const d = franchise.draft;
+  const slot = d.pickOrder[d.currentIdx];
+  if (slot.teamId !== franchise.chosenTeamId) return;
+  const prospect = d.class.find(p => p.name === name);
+  if (!prospect) return;
+  prospect.contract = generateContract(prospect, franchise.salaryCap || SALARY_CAP_BASE);
+  prospect.draftRound = slot.round;
+  prospect.draftPick  = ((d.currentIdx) % 32) + 1;
+  prospect.careerEarnings = 0;
+  delete prospect.isProspect;
+  franchise.rosters[slot.teamId].push(prospect);
+  d.picks.push({
+    pick: d.currentIdx + 1, round: slot.round,
+    teamId: slot.teamId, prospectName: prospect.name, pos: prospect.position,
+  });
+  d.currentIdx++;
+  saveFranchise();
+  _pushNews({ type:"draft", label: `📋 You drafted ${prospect.name} (${prospect.position}) — R${slot.round}.${((d.currentIdx-1) % 32) + 1}` });
+  renderFrnDraft();
+}
+
+function _draftFinalize() {
+  // Fill remaining roster gaps with UDFAs
+  const rookieYear = (new Date().getFullYear()) + (franchise.season || 1);
+  for (const t of TEAMS) {
+    const roster = franchise.rosters[t.id];
+    const taken = new Set(roster.map(p => p.name));
+    for (const [pos, needed] of Object.entries(ROSTER_SLOTS)) {
+      const have = roster.filter(p => p.position === pos).length;
+      for (let i = have; i < needed; i++) {
+        const udfa = genUniquePlayer(pos, "poor", taken);
+        udfa.age = 22;
+        udfa.draftRound = 0; udfa.draftPick = null;
+        udfa.draftYear = rookieYear;
+        udfa.careerEarnings = 0;
+        udfa.contract = generateContract(udfa, franchise.salaryCap || SALARY_CAP_BASE);
+        roster.push(udfa);
+        taken.add(udfa.name);
+      }
+    }
+  }
+  franchise.draft = null;
+  // Bump into the new season (FA → regular)
+  frnNewSeason();
+}
+
+// Roll this season's per-game-aggregated stats into each player's
+// career totals + season-by-season log. Called once at end-of-season,
+// before seasonStats is wiped.
+function _rollSeasonStatsToCareer() {
+  const ss = franchise.seasonStats || {};
+  for (const [tIdStr, players] of Object.entries(ss)) {
+    const teamId = Number(tIdStr);
+    const team = getTeam(teamId);
+    const teamName = team ? `${team.city} ${team.name}` : "?";
+    const roster = franchise.rosters[teamId] || [];
+    for (const [name, st] of Object.entries(players)) {
+      const player = roster.find(p => p.name === name);
+      if (!player) continue;
+      if (!player.careerStats)   player.careerStats   = {};
+      if (!player.careerHistory) player.careerHistory = [];
+      // Accumulate every numeric stat field
+      for (const [k, v] of Object.entries(st)) {
+        if (typeof v !== "number") continue;
+        player.careerStats[k] = (player.careerStats[k] || 0) + v;
+      }
+      // Snapshot this season as a row
+      const yearRow = { season: franchise.season, teamId, teamName };
+      for (const [k, v] of Object.entries(st)) {
+        if (typeof v === "number" || k === "pos") yearRow[k] = v;
+      }
+      player.careerHistory.push(yearRow);
+    }
+  }
 }
 
 // ── Abandon franchise ─────────────────────────────────────────────────────────
