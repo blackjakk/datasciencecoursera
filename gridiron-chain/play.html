@@ -19103,33 +19103,10 @@ function frnReleasePlayer(name, pos) {
   const guaranteed = Math.min(remaining, p.contract?.guaranteedYears || 0);
   const deadPerYr = p.contract?.guaranteedAAV ?? p.contract?.aav ?? 0;
   const deadTotal = guaranteed * deadPerYr;
-  // Incoming club-transfer fees offset dead cap year-by-year — capUsedByTeam
-  // already nets them in the running total, but surface the math in the
-  // release dialog so the user can plan with it.
-  const refundInfo = refundsForTeam(teamId);
-  let offsetTotal = 0;
-  for (let yr = 0; yr < guaranteed; yr++) {
-    const yearlyOffset = (refundInfo.incoming || [])
-      .filter(r => r.yearsRemaining > yr)
-      .reduce((s, r) => s + r.amount, 0);
-    offsetTotal += Math.min(yearlyOffset, deadPerYr);
-  }
-  offsetTotal = Math.round(offsetTotal * 10) / 10;
-  const netDead = Math.max(0, deadTotal - offsetTotal);
-  const lines = [];
-  if (deadTotal > 0) {
-    lines.push(`Release ${name}?`);
-    lines.push(`Dead cap: $${deadTotal.toFixed(1)}M ($${deadPerYr.toFixed(1)}M × ${guaranteed}yr)`);
-    if (offsetTotal > 0) {
-      lines.push(`Offset by incoming club transfer fees: −$${offsetTotal.toFixed(1)}M`);
-      lines.push(`Net hit on your cap: $${netDead.toFixed(1)}M`);
-    } else {
-      lines.push(`This still counts against your cap.`);
-    }
-  } else {
-    lines.push(`Release ${name}? Contract has no guaranteed money left — your cap is fully freed.`);
-  }
-  if (!confirm(lines.join("\n"))) return;
+  const msg = deadTotal > 0
+    ? `Release ${name}? Dead cap: $${deadTotal.toFixed(1)}M ($${deadPerYr.toFixed(1)}M × ${guaranteed}yr) — this still counts against your cap.`
+    : `Release ${name}? Contract has no guaranteed money left — your cap is fully freed.`;
+  if (!confirm(msg)) return;
   roster.splice(idx, 1);
   if (deadTotal > 0) {
     franchise.refunds = franchise.refunds || [];
