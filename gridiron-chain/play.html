@@ -2444,6 +2444,84 @@
     font-size: .85rem; letter-spacing: .3px; margin-bottom: 1rem;
   }
 
+  /* Road-to-championship strip (when user is still alive) */
+  .bspnlive-road {
+    background: var(--blbg2); border: 1px solid var(--blborder);
+    border-left: 6px solid var(--blgold);
+    padding: .75rem 1rem; margin-bottom: 1rem;
+  }
+  .bspnlive-road-head {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1rem; letter-spacing: 1.5px; color: var(--blgold);
+    margin-bottom: .55rem;
+  }
+  .bspnlive-road-steps {
+    display: flex; gap: .5rem; align-items: stretch;
+    flex-wrap: wrap;
+  }
+  .bspnlive-road-round {
+    color: var(--blgray); font-size: .55rem;
+    letter-spacing: 1.5px; font-weight: 700;
+    margin-bottom: .2rem;
+  }
+  .bspnlive-road-team {
+    flex: 1 0 130px; min-width: 130px;
+    background: var(--blbg3); border: 1px solid var(--blborder);
+    padding: .4rem .55rem;
+    display: flex; flex-direction: column; gap: .15rem;
+    position: relative;
+  }
+  .bspnlive-road-team.next {
+    border: 2px solid var(--team-color, var(--blgold));
+    background: linear-gradient(180deg, #fffaf0 0%, var(--blbg2) 100%);
+    animation: bspnlive-road-pulse 2.2s ease-in-out infinite;
+  }
+  .bspnlive-road-tag {
+    position: absolute; top: -8px; left: 8px;
+    background: var(--team-color, var(--blgold)); color: #fff;
+    font-size: .52rem; letter-spacing: 1.5px; font-weight: 700;
+    padding: .1rem .35rem;
+  }
+  .bspnlive-road-team .abbr {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1rem; letter-spacing: 1.5px; font-weight: 700;
+  }
+  .bspnlive-road-team .name {
+    color: var(--blwhite); font-size: .68rem; font-weight: 600;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .bspnlive-road-team.tbd {
+    color: var(--blgray); font-style: italic; align-items: center;
+    justify-content: center; min-height: 50px;
+    border-style: dashed;
+  }
+  .bspnlive-road-team.possible {
+    align-items: center; justify-content: center; min-height: 50px;
+    font-size: .85rem; font-family: "Bebas Neue","Anton",sans-serif;
+    letter-spacing: 1px; padding: .6rem .4rem;
+  }
+  .bspnlive-road-arrow {
+    align-self: center; color: var(--blgold);
+    font-size: 1.3rem; font-weight: 700; padding: 0 .1rem;
+  }
+  @keyframes bspnlive-road-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(245,197,66,0); }
+    50%      { box-shadow: 0 0 0 4px rgba(245,197,66,0.18); }
+  }
+
+  /* Round-transition animations — when a new round becomes "current",
+     animate the round-head and featured matchup card. */
+  .bspnlive-bracket-current-title { animation: bspnlive-fade-in .55s ease-out; }
+  .bspnlive-bracket-card.featured { animation: bspnlive-slide-up .5s ease-out; }
+  @keyframes bspnlive-fade-in {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes bspnlive-slide-up {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
   /* Your-run recap strip */
   .bspnlive-recap {
     background: var(--blbg2); border: 1px solid var(--blborder);
@@ -24184,6 +24262,106 @@ function _renderYourRunRecap() {
     </div>`;
 }
 
+// Your road to the championship — for each round in the bracket
+// (including future rounds), figure out which slot the user lands in
+// and surface the most-likely opponent: if both feeder matchups are
+// decided, show the future opponent's name; otherwise show "X / Y".
+// Rendered next to the recap when the user is still alive.
+function _renderRoadToChampionship() {
+  const myId = franchise.chosenTeamId;
+  const pb = franchise.playoffBracket;
+  if (!pb || pb.champion) return "";
+  const status = _userPlayoffStatus();
+  if (!status.inBracket || status.eliminatedRound != null) return "";
+
+  // Find which matchup slot the user occupies in each round (works for
+  // all bracket sizes — derived from the existing rounds shape since
+  // the engine seeds them deterministically).
+  const roundNames = ["WILD CARD", "DIVISIONAL", "CHAMPIONSHIP"];
+  // Track which "future slot" the user is in by walking forward from
+  // their current matchup and applying the (paired-matchups) rule.
+  let userMatchIdx = pb.rounds[pb.roundIdx]?.findIndex(m =>
+    m.homeId === myId || m.awayId === myId);
+  if (userMatchIdx === -1) {
+    // Look in earlier rounds (already advanced)
+    for (let ri = pb.roundIdx - 1; ri >= 0; ri--) {
+      const idx = pb.rounds[ri]?.findIndex(m =>
+        m.winnerId === myId);
+      if (idx != null && idx !== -1) {
+        userMatchIdx = Math.floor(idx / 2);
+        break;
+      }
+    }
+  }
+  if (userMatchIdx == null || userMatchIdx === -1) return "";
+
+  const steps = [];
+  let curIdx = userMatchIdx;
+  for (let ri = pb.roundIdx; ri < pb.rounds.length; ri++) {
+    const m = pb.rounds[ri]?.[curIdx];
+    if (!m) break;
+    if (m.homeId === myId || m.awayId === myId) {
+      const oppId = m.homeId === myId ? m.awayId : m.homeId;
+      const opp = oppId ? getTeam(oppId) : null;
+      steps.push({ ri, kind: "now", opp, m });
+    } else {
+      // Future round — figure out which feeder pair from previous round
+      const prevRoundIdx = ri - 1;
+      const feederA = pb.rounds[prevRoundIdx]?.[curIdx * 2];
+      const feederB = pb.rounds[prevRoundIdx]?.[curIdx * 2 + 1];
+      // The user's feeder is whichever side they're in; the OTHER feeder
+      // gives us their projected opponent.
+      const userInA = feederA && (feederA.homeId === myId || feederA.awayId === myId);
+      const projFeeder = userInA ? feederB : feederA;
+      let possible = [];
+      if (projFeeder) {
+        if (projFeeder.winnerId != null) {
+          possible = [getTeam(projFeeder.winnerId)];
+        } else if (projFeeder.homeId && projFeeder.awayId) {
+          possible = [getTeam(projFeeder.homeId), getTeam(projFeeder.awayId)];
+        }
+      }
+      steps.push({ ri, kind: "future", possible });
+    }
+    curIdx = Math.floor(curIdx / 2);
+  }
+
+  if (!steps.length) return "";
+  const stepsHtml = steps.map(s => {
+    const head = `<div class="bspnlive-road-round">${roundNames[s.ri] || `ROUND ${s.ri+1}`}</div>`;
+    if (s.kind === "now") {
+      if (!s.opp) return `${head}<div class="bspnlive-road-team tbd">TBD</div>`;
+      return `${head}<div class="bspnlive-road-team next" style="--team-color:${s.opp.primary}">
+        <span class="bspnlive-road-tag">NEXT</span>
+        <span class="abbr" style="color:${s.opp.primary}">${s.opp.abbr || s.opp.name.slice(0,3).toUpperCase()}</span>
+        <span class="name">${s.opp.name}</span>
+      </div>`;
+    }
+    // future
+    if (!s.possible.length) {
+      return `${head}<div class="bspnlive-road-team tbd">TBD</div>`;
+    }
+    if (s.possible.length === 1 && s.possible[0]) {
+      const opp = s.possible[0];
+      return `${head}<div class="bspnlive-road-team" style="--team-color:${opp.primary}">
+        <span class="abbr" style="color:${opp.primary}">${opp.abbr || opp.name.slice(0,3).toUpperCase()}</span>
+        <span class="name">${opp.name}</span>
+      </div>`;
+    }
+    // Two possible opponents
+    return `${head}<div class="bspnlive-road-team possible">
+      ${s.possible.filter(Boolean).map(t =>
+        `<span style="color:${t.primary};font-weight:700">${t.abbr || t.name.slice(0,3).toUpperCase()}</span>`
+      ).join(`<span style="color:var(--blgray);margin:0 .25rem"> / </span>`)}
+    </div>`;
+  }).join(`<div class="bspnlive-road-arrow">→</div>`);
+  return `
+    <div class="bspnlive-road">
+      <div class="bspnlive-road-head">🛣 ROAD TO THE CHAMPIONSHIP</div>
+      <div class="bspnlive-road-steps">${stepsHtml}</div>
+    </div>`;
+}
+
 // Pregame matchup preview — surfaces head-to-head record this season,
 // top performers per side (regular-season FPTS), team off/def ratings,
 // and a one-line scout angle. Renders ABOVE the featured matchup card.
@@ -24498,6 +24676,7 @@ function renderFrnPlayoffs() {
       ${championBanner}
       <div style="padding:1rem 1.4rem">
         ${(userStatus.champion || userStatus.eliminatedRound != null) ? _renderYourRunRecap() : ""}
+        ${(userStatus.inBracket && userStatus.eliminatedRound == null && !userStatus.champion) ? _renderRoadToChampionship() : ""}
         ${pastRoundsStrip}
         ${currentRoundHtml}
       </div>
