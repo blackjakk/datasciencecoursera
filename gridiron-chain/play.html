@@ -20094,10 +20094,20 @@ function _buildGameLogBlock(p) {
     games.push({ g, line, teamId, oppId });
   }
   if (!games.length) return "";
+  // If the player suited up for multiple teams this season (mid-season
+  // trade), surface a "TM" column so the lineage is visible.
+  const distinctTeams = new Set(games.map(x => x.teamId));
+  const showTM = distinctTeams.size > 1;
+  const tmCell = (teamId) => {
+    if (!showTM) return "";
+    const t = getTeam(teamId);
+    return `<td style="font-weight:800;color:${t?.primary || "var(--gray)"};font-size:.62rem">${t ? _bspnLiveAbbr(t) : "—"}</td>`;
+  };
+  const tmHeader = showTM ? `<th>TM</th>` : "";
   // Render columns per position
   let headers = [], rowCells = [];
   if (pos === "QB") {
-    headers = ["WK","OPP","RES","CMP/ATT","YDS","TD","INT","RTG","FPTS"];
+    headers = ["WK", ...(showTM ? ["TM"] : []), "OPP","RES","CMP/ATT","YDS","TD","INT","RTG","FPTS"];
     rowCells = games.map(({ g, line, teamId, oppId }) => {
       const opp = getTeam(oppId), my = getTeam(teamId);
       const myHome = teamId === g.homeId;
@@ -20109,6 +20119,7 @@ function _buildGameLogBlock(p) {
       const fpts = _fantasyPPR(line, pos);
       return `<tr>
         <td>W${g.week}</td>
+        ${tmCell(teamId)}
         <td>${myHome ? "vs" : "@"} <span style="color:${opp?.primary}">${(opp?.name||"").slice(0,4)}</span></td>
         <td style="color:${resColor};font-weight:700">${res} ${myScore}-${themScore}</td>
         <td>${cmp}/${att}</td>
@@ -20120,7 +20131,7 @@ function _buildGameLogBlock(p) {
       </tr>`;
     });
   } else if (pos === "RB") {
-    headers = ["WK","OPP","RES","CAR","YDS","YPC","TD","REC","YDS","FPTS"];
+    headers = ["WK", ...(showTM ? ["TM"] : []), "OPP","RES","CAR","YDS","YPC","TD","REC","YDS","FPTS"];
     rowCells = games.map(({ g, line, teamId, oppId }) => {
       const opp = getTeam(oppId);
       const myHome = teamId === g.homeId;
@@ -20132,6 +20143,7 @@ function _buildGameLogBlock(p) {
       const fpts = _fantasyPPR(line, pos);
       return `<tr>
         <td>W${g.week}</td>
+        ${tmCell(teamId)}
         <td>${myHome ? "vs" : "@"} <span style="color:${opp?.primary}">${(opp?.name||"").slice(0,4)}</span></td>
         <td style="color:${resColor};font-weight:700">${res} ${myScore}-${themScore}</td>
         <td>${car}</td>
@@ -20144,7 +20156,7 @@ function _buildGameLogBlock(p) {
       </tr>`;
     });
   } else if (pos === "WR" || pos === "TE") {
-    headers = ["WK","OPP","RES","REC","TGT","YDS","YPR","TD","FPTS"];
+    headers = ["WK", ...(showTM ? ["TM"] : []), "OPP","RES","REC","TGT","YDS","YPR","TD","FPTS"];
     rowCells = games.map(({ g, line, teamId, oppId }) => {
       const opp = getTeam(oppId);
       const myHome = teamId === g.homeId;
@@ -20156,6 +20168,7 @@ function _buildGameLogBlock(p) {
       const fpts = _fantasyPPR(line, pos);
       return `<tr>
         <td>W${g.week}</td>
+        ${tmCell(teamId)}
         <td>${myHome ? "vs" : "@"} <span style="color:${opp?.primary}">${(opp?.name||"").slice(0,4)}</span></td>
         <td style="color:${resColor};font-weight:700">${res} ${myScore}-${themScore}</td>
         <td>${rec}</td>
@@ -20167,7 +20180,7 @@ function _buildGameLogBlock(p) {
       </tr>`;
     });
   } else if (pos === "DL" || pos === "LB" || pos === "CB" || pos === "S") {
-    headers = ["WK","OPP","RES","TKL","SK","INT","PD","FF","FPTS"];
+    headers = ["WK", ...(showTM ? ["TM"] : []), "OPP","RES","TKL","SK","INT","PD","FF","FPTS"];
     rowCells = games.map(({ g, line, teamId, oppId }) => {
       const opp = getTeam(oppId);
       const myHome = teamId === g.homeId;
@@ -20178,6 +20191,7 @@ function _buildGameLogBlock(p) {
       const fpts = _fantasyPPR(line, pos);
       return `<tr>
         <td>W${g.week}</td>
+        ${tmCell(teamId)}
         <td>${myHome ? "vs" : "@"} <span style="color:${opp?.primary}">${(opp?.name||"").slice(0,4)}</span></td>
         <td style="color:${resColor};font-weight:700">${res} ${myScore}-${themScore}</td>
         <td>${line.tkl||0}</td>
@@ -20189,7 +20203,7 @@ function _buildGameLogBlock(p) {
       </tr>`;
     });
   } else if (pos === "K") {
-    headers = ["WK","OPP","RES","FG","LONG","XP","FPTS"];
+    headers = ["WK", ...(showTM ? ["TM"] : []), "OPP","RES","FG","LONG","XP","FPTS"];
     rowCells = games.map(({ g, line, teamId, oppId }) => {
       const opp = getTeam(oppId);
       const myHome = teamId === g.homeId;
@@ -20200,6 +20214,7 @@ function _buildGameLogBlock(p) {
       const fpts = _fantasyPPR(line, pos);
       return `<tr>
         <td>W${g.week}</td>
+        ${tmCell(teamId)}
         <td>${myHome ? "vs" : "@"} <span style="color:${opp?.primary}">${(opp?.name||"").slice(0,4)}</span></td>
         <td style="color:${resColor};font-weight:700">${res} ${myScore}-${themScore}</td>
         <td>${line.fg_made||0}/${line.fg_att||0}</td>
@@ -22823,6 +22838,78 @@ function frnFireCoach() {
   renderFrnCoaches();
 }
 
+// ── Alumni view — recent former players of the user's team ──────────────────
+function renderFrnAlumni() {
+  frnHoverTipHide(); _frnHoverTipPgHide && _frnHoverTipPgHide();
+  const myId = franchise.chosenTeamId;
+  const myTeam = getTeam(myId);
+  const alumni = _computeAlumni(myId, 3);
+  const grouped = { team: [], hof: [], retired: [], unsigned: [] };
+  for (const a of alumni) (grouped[a.location] || (grouped[a.location] = [])).push(a);
+
+  const findCurrentPlayer = (name) => {
+    for (const r of Object.values(franchise.rosters || {})) {
+      const p = r.find(rp => rp.name === name);
+      if (p) return p;
+    }
+    return null;
+  };
+
+  const renderEntry = (a) => {
+    const live = findCurrentPlayer(a.name);
+    let locationCell = "";
+    if (a.location === "team" && a.currentTeam) {
+      locationCell = `<span style="color:${a.currentTeam.primary};font-weight:700">→ ${a.currentTeam.city} ${a.currentTeam.name}</span>`;
+    } else if (a.location === "hof") {
+      locationCell = `<span style="color:var(--blgold);font-weight:700">🏛 HALL OF FAME</span>`;
+    } else if (a.location === "retired") {
+      locationCell = `<span style="color:var(--blgray)">Retired</span>`;
+    } else {
+      locationCell = `<span style="color:var(--blgray);font-style:italic">Unsigned</span>`;
+    }
+    return `<tr>
+      <td>${playerLinkByName(a.name)} <span style="color:var(--blgray);font-size:.62rem">(${a.pos})</span></td>
+      <td style="color:var(--blgray);font-size:.66rem">S${a.lastSeasonWithUs}</td>
+      <td>${locationCell}</td>
+      <td style="color:${live ? "var(--blwhite)" : "var(--blgray)"};font-size:.66rem">${live ? "Age " + (live.age || "?") : "—"}</td>
+    </tr>`;
+  };
+
+  const buildSection = (label, list, color) => {
+    if (!list.length) return "";
+    return `<div class="frn-pg-card" style="margin-bottom:.6rem;border-left:3px solid ${color}">
+      <div class="frn-pg-card-title">${label} · ${list.length}</div>
+      <table class="frn-ana-table">
+        <thead><tr><th>Player</th><th>Last season w/ us</th><th>Now</th><th></th></tr></thead>
+        <tbody>${list.map(renderEntry).join("")}</tbody>
+      </table>
+    </div>`;
+  };
+
+  const body = alumni.length ? `
+    ${buildSection("ON ANOTHER TEAM",      grouped.team,     "#1a5fb4")}
+    ${buildSection("HALL OF FAME",         grouped.hof,      "var(--blgold)")}
+    ${buildSection("RETIRED",              grouped.retired,  "#8898a8")}
+    ${buildSection("CURRENTLY UNSIGNED",   grouped.unsigned, "#a0a0a0")}
+  ` : `<div style="color:var(--blgray);font-size:.78rem;padding:1.5rem;text-align:center;font-style:italic">No alumni yet — players who leave your roster (trade, release, free agency, retirement) will show up here once a season has rolled over.</div>`;
+
+  $("frnHomeContent").innerHTML = `
+    <div class="bspnlive-root" style="margin:-1rem -1.5rem 0 -1.5rem;padding-bottom:1rem">
+      <header class="bspnlive-header">
+        <div>
+          <div class="bspnlive-logo">BSPN</div>
+          <div class="bspnlive-logo-sub">${myTeam.city.toUpperCase()} ${myTeam.name.toUpperCase()} · ALUMNI · LAST 3 SEASONS</div>
+        </div>
+        <nav class="bspnlive-nav" style="flex-wrap:wrap;gap:.7rem .9rem">${_bspnNavHtml("LEGACY")}</nav>
+      </header>
+      <div style="padding:.55rem 1.4rem;border-bottom:1px solid var(--blborder);display:flex;gap:.55rem;flex-wrap:wrap;align-items:center">
+        <button class="bspn-back" onclick="showFranchiseDashboard()">‹ Return to Main Screen</button>
+        <div style="color:var(--blgray);font-size:.7rem;margin-left:auto">Players who suited up for ${myTeam.name} in any of the last 3 seasons</div>
+      </div>
+      <div style="padding:1rem 1.4rem">${body}</div>
+    </div>`;
+}
+
 // ── Visual depth chart for your own team ──────────────────────────────────────
 function renderFrnDepthChart() {
   frnHoverTipHide(); _frnHoverTipPgHide && _frnHoverTipPgHide();
@@ -23948,6 +24035,7 @@ function renderFrnRegular() {
           <button class="frn-cap-btn" onclick="renderFrnStandings()">📊 Standings</button>
           <button class="frn-cap-btn" onclick="renderFrnLeaders()">📈 Leaders</button>
           <button class="frn-cap-btn" onclick="renderFrnLegacy()">🏆 Legacy</button>
+          <button class="frn-cap-btn" onclick="renderFrnAlumni()">🎓 Alumni</button>
           ${week <= TRADE_DEADLINE_WEEK ? `<button class="frn-cap-btn" onclick="frnOpenTrade()">🔀 Trade</button>` : ""}
           <button class="frn-cap-btn" onclick="renderFrnChat()">💬 Chat${(() => {
             const unread = (franchise.chat || []).filter(m => m.season === season && m.week === week && m.teamId !== chosenTeamId).length;
@@ -24879,6 +24967,85 @@ function _computeActiveStreaks(p) {
   }
   // Filter overlapping streaks: only keep the longest streak per icon-ish
   return out;
+}
+
+// ── Alumni Tracker ──────────────────────────────────────────────────────────
+// At the end of each season we snapshot every team's roster (just names
+// + position + departure age). At render time we compute "alumni" =
+// names that appeared in the user's snapshot in any of the last 3
+// seasons but are NOT currently on the roster. Their current location
+// is resolved on-demand (other team, HoF, retired-unsigned).
+function _takeAlumniSnapshot() {
+  if (!franchise.rosterSnapshots) franchise.rosterSnapshots = [];
+  const byTeam = {};
+  for (const t of TEAMS) {
+    byTeam[t.id] = (franchise.rosters[t.id] || []).map(p => ({
+      name: p.name, pos: p.position,
+      age: p.age,
+      overall: p.overall, // internal — never shown
+    }));
+  }
+  franchise.rosterSnapshots.push({ season: franchise.season, byTeam });
+  // Keep only the last 4 (so "last 3 years" is fully covered)
+  if (franchise.rosterSnapshots.length > 4) {
+    franchise.rosterSnapshots = franchise.rosterSnapshots.slice(-4);
+  }
+}
+
+// Compute alumni for a given team using the last N seasons of snapshots.
+// Returns array sorted by season-departed descending. Each entry:
+//   { name, pos, lastSeasonWithUs, currentLocation: "team" | "hof" | "unsigned", currentTeam?, hofRow? }
+function _computeAlumni(teamId, yearsBack = 3) {
+  if (!franchise.rosterSnapshots) return [];
+  const currentNames = new Set((franchise.rosters[teamId] || []).map(p => p.name));
+  const seen = new Map(); // name → { lastSeasonWithUs, pos }
+  const snaps = franchise.rosterSnapshots.slice(-yearsBack - 1, -1); // exclude THIS season's snapshot if just taken
+  // If we haven't taken THIS season's snapshot yet, include all (current
+  // season's roster diff happens via "not on current roster")
+  const considered = (snaps.length > 0) ? snaps : franchise.rosterSnapshots;
+  for (const snap of considered) {
+    const names = snap.byTeam?.[teamId] || [];
+    for (const entry of names) {
+      if (currentNames.has(entry.name)) continue;
+      const prev = seen.get(entry.name);
+      if (!prev || snap.season > prev.lastSeasonWithUs) {
+        seen.set(entry.name, { lastSeasonWithUs: snap.season, pos: entry.pos });
+      }
+    }
+  }
+  // Resolve current location
+  const result = [];
+  for (const [name, info] of seen.entries()) {
+    let location = "unsigned", currentTeam = null, hofRow = null;
+    // On another team?
+    for (const t of TEAMS) {
+      if (t.id === teamId) continue;
+      if ((franchise.rosters[t.id] || []).some(p => p.name === name)) {
+        location = "team"; currentTeam = t; break;
+      }
+    }
+    // In HoF?
+    if (location === "unsigned") {
+      const h = (franchise.hallOfFame || []).find(x => x.name === name);
+      if (h) { location = "hof"; hofRow = h; }
+    }
+    // Retired but not in HoF — surface as "retired"
+    if (location === "unsigned") {
+      // Did they retire? Check retirees in history
+      for (let i = (franchise.history || []).length - 1; i >= 0; i--) {
+        const r = (franchise.history[i].retirees || []).find(x => x.name === name);
+        if (r) { location = "retired"; break; }
+      }
+    }
+    result.push({
+      name, pos: info.pos,
+      lastSeasonWithUs: info.lastSeasonWithUs,
+      location, currentTeam, hofRow,
+    });
+  }
+  result.sort((a, b) => b.lastSeasonWithUs - a.lastSeasonWithUs ||
+                       a.name.localeCompare(b.name));
+  return result;
 }
 
 function _buildStreaksBlock(p) {
@@ -26348,6 +26515,9 @@ function showFrnAwards() {
     // are already updated incrementally inside frnSimOnce.) Skip on
     // stale-refresh since the season records were already booked.
     if (!existing) _updateSingleSeasonRecords();
+    // Snapshot rosters for the alumni tracker — after retirements so
+    // retirees aren't included in the "active" snapshot.
+    if (!existing) _takeAlumniSnapshot();
 
     // New awards
     const opoy         = _computeOPOY();
