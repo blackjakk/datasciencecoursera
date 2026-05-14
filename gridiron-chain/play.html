@@ -17003,7 +17003,11 @@ function generateContract(player, cap) {
   // Clip by age — don't give a 36-year-old a 5-year deal
   maxYr = Math.min(maxYr, Math.max(1, 38 - age));
   const years = Math.max(1, Math.min(10, minYr + Math.floor(Math.random() * (maxYr - minYr + 1))));
-  return { years, remaining: years, aav };
+  return {
+    years, remaining: years, aav,
+    guaranteedYears: _guaranteedYearsForLength(years),
+    guaranteedAAV: aav,
+  };
 }
 
 // NFL-style rookie wage scale (slotted). AAV is anchored on draft
@@ -17043,7 +17047,11 @@ function rookieContract(player, cap) {
   // 4-year deals; UDFAs get a 3-year deal. Real NFL R1 picks also have
   // a 5th-year team option, but we don't model that.
   const years = round === 0 ? 3 : 4;
-  return { years, remaining: years, aav };
+  return {
+    years, remaining: years, aav,
+    guaranteedYears: _guaranteedYearsForLength(years),
+    guaranteedAAV: aav,
+  };
 }
 
 function assignContracts(rosters, cap) {
@@ -17844,6 +17852,16 @@ function showFranchiseDashboard() {
   // p.number (older saves, or new FA signees, or traded-in players).
   for (const [tid, roster] of Object.entries(franchise.rosters || {})) {
     if (roster.some(p => !p.number)) assignTeamJerseyNumbers(roster);
+  }
+  // Backfill guaranteed-money fields on contracts from older saves so
+  // released-player dead-cap math works for everyone.
+  for (const roster of Object.values(franchise.rosters || {})) {
+    for (const p of roster) {
+      if (p.contract && p.contract.guaranteedYears == null) {
+        p.contract.guaranteedYears = _guaranteedYearsForLength(p.contract.years || p.contract.remaining || 1);
+        p.contract.guaranteedAAV = p.contract.aav;
+      }
+    }
   }
   // Backfill career history for veterans loaded from older saves where
   // generateCareer hadn't run with the careerHistory shape yet.
@@ -19072,11 +19090,35 @@ function _buildPlayerDetailPanel(p) {
 }
 
 function frnReleasePlayer(name, pos) {
-  if (!confirm(`Release ${name}? They leave the team immediately and their AAV is freed from the cap.`)) return;
-  const roster = franchise.rosters[franchise.chosenTeamId];
+  const teamId = franchise.chosenTeamId;
+  const roster = franchise.rosters[teamId];
   const idx = roster.findIndex(p => p.name === name && p.position === pos);
   if (idx === -1) return;
+  const p = roster[idx];
+  // Dead-cap on release: any guaranteed years still on the deal continue
+  // to count against the team's cap as dead money. This is the downside
+  // of locking in long contracts — guaranteedYears > 0 = harder to walk
+  // away from.
+  const remaining = p.contract?.remaining || 0;
+  const guaranteed = Math.min(remaining, p.contract?.guaranteedYears || 0);
+  const deadPerYr = p.contract?.guaranteedAAV ?? p.contract?.aav ?? 0;
+  const deadTotal = guaranteed * deadPerYr;
+  const msg = deadTotal > 0
+    ? `Release ${name}? Dead cap: $${deadTotal.toFixed(1)}M ($${deadPerYr.toFixed(1)}M × ${guaranteed}yr) — this still counts against your cap.`
+    : `Release ${name}? Contract has no guaranteed money left — your cap is fully freed.`;
+  if (!confirm(msg)) return;
   roster.splice(idx, 1);
+  if (deadTotal > 0) {
+    franchise.refunds = franchise.refunds || [];
+    franchise.refunds.push({
+      kind: "dead_cap",
+      fromTeamId: teamId,
+      toTeamId: null,
+      amount: deadPerYr,
+      yearsRemaining: guaranteed,
+      label: `Dead cap: ${name}`,
+    });
+  }
   saveFranchise();
   renderFrnPreseason("roster"); // released player de-selects naturally
 }
@@ -19529,7 +19571,11 @@ function _faResolveAfterWeek(week, isSeasonEnd) {
       // it meets demand (95% threshold). Otherwise the player just
       // leaves the league.
       if (highId != null && highAav >= n.fa.demandedAAV * 0.95) {
-        n.fa.contract = { years: highYrs, remaining: highYrs, aav: highAav };
+        n.fa.contract = {
+          years: highYrs, remaining: highYrs, aav: highAav,
+          guaranteedYears: _guaranteedYearsForLength(highYrs),
+          guaranteedAAV: highAav,
+        };
         n.state = "signed";
         n.signedToTeamId = highId;
         franchise.rosters[highId].push(n.fa);
@@ -23181,6 +23227,15 @@ function _resignAavForYears(baseMarket, years) {
   const clamped = Math.max(0.85, Math.min(1.25, factor));
   return Math.max(0.5, Math.round(baseMarket * clamped * 10) / 10);
 }
+// Guaranteed years scale with length — this is the *downside* of long deals.
+// If the team releases the player, the guaranteed remaining years still
+// count against the cap (dead money).
+//   1yr→1 (fully guaranteed),  2yr→2,  3yr→2,  4yr→2,  5yr→3,  6yr→3
+function _guaranteedYearsForLength(years) {
+  if (years <= 2) return years;
+  if (years <= 4) return 2;
+  return 3;
+}
 function renderFrnResignings() {
   const { chosenTeamId, salaryCap } = franchise;
   const cap = salaryCap || SALARY_CAP_BASE;
@@ -23238,6 +23293,11 @@ function _renderResignUI(cap, capCommitted) {
               onclick="frnResignAdjustYears(${idx}, 1)">+</button>
           </div>
           <span style="color:var(--gray);font-size:.6rem;text-align:right">total $${(r.offer * r.offerYears).toFixed(1)}M</span>
+          ${(() => {
+            const gYrs = _guaranteedYearsForLength(r.offerYears);
+            const gAmt = gYrs * r.offer;
+            return `<span style="color:#ff9090;font-size:.6rem;text-align:right" title="If you release this player, this much continues to count against your cap as dead money.">🔒 GTD $${gAmt.toFixed(1)}M (${gYrs}yr)</span>`;
+          })()}
         </div>
         <div class="frn-resign-btns">
           ${isAccept
@@ -23311,7 +23371,12 @@ function frnConfirmResignings() {
     const player = myRoster.find(p => p.name === r.name && p.position === r.pos);
     if (!player) continue;
     if (r.decision === "accept") {
-      player.contract = { years: r.offerYears, remaining: r.offerYears, aav: r.offer };
+      const guaranteedYears = _guaranteedYearsForLength(r.offerYears);
+      player.contract = {
+        years: r.offerYears, remaining: r.offerYears, aav: r.offer,
+        guaranteedYears,                 // # of years still guaranteed
+        guaranteedAAV: r.offer,          // dead-cap per remaining guaranteed year
+      };
     } else {
       // Declined: remove from roster (enters FA — currently just lost)
       const idx = myRoster.indexOf(player);
