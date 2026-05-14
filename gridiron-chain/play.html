@@ -2858,6 +2858,39 @@
     color: var(--blgray); font-size: .66rem;
     letter-spacing: .25px;
   }
+  /* Records broken */
+  .bspnlive-broken-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: .5rem;
+  }
+  @media (max-width: 720px) { .bspnlive-broken-grid { grid-template-columns: 1fr; } }
+  .bspnlive-broken-row {
+    background: var(--blbg2);
+    border: 1px solid var(--blborder);
+    border-left: 4px solid var(--blgold);
+    padding: .5rem .65rem;
+    animation: bspnlive-fade-in .6s ease-out;
+  }
+  .bspnlive-broken-head {
+    display: flex; align-items: baseline; gap: .55rem;
+    margin-bottom: .25rem;
+  }
+  .bspnlive-broken-scope {
+    color: var(--blgray); font-size: .58rem;
+    letter-spacing: 1.5px; font-weight: 800;
+  }
+  .bspnlive-broken-cat {
+    color: var(--blwhite); font-size: .72rem;
+    letter-spacing: 1px; font-weight: 800;
+  }
+  .bspnlive-broken-new {
+    display: flex; align-items: baseline; gap: .35rem;
+    flex-wrap: wrap;
+  }
+  .bspnlive-broken-old {
+    margin-top: .15rem;
+    padding-top: .15rem;
+    border-top: 1px dashed var(--blborder);
+  }
   /* HoF + retirements */
   .bspnlive-hof-grid {
     display: grid; grid-template-columns: 1fr 1fr; gap: .55rem;
@@ -20221,6 +20254,7 @@ function _buildPlayerDetailPanel(p) {
   const potTag = potentialTag(p);
   const archBlock = _buildArchetypeBlock(p);
   const seasonBlock = _buildSeasonStatsBlock(p);
+  const streaksBlock = _buildStreaksBlock(p);
   const gameLogBlock = _buildGameLogBlock(p);
   const ratingsPanel = owned ? _buildOwnedStatsPanel(p) : "";
 
@@ -20259,6 +20293,7 @@ function _buildPlayerDetailPanel(p) {
       ${rightPanel}
     </div>
     ${seasonBlock ? `<div style="margin-top:.6rem">${seasonBlock}</div>` : ""}
+    ${streaksBlock}
     ${gameLogBlock ? `<div style="margin-top:.6rem">${gameLogBlock}</div>` : ""}
     ${p.injury ? `<div class="frn-player-injury" style="margin-top:.55rem">🩹 ${p.injury.label} — ${p.injury.weeksRemaining} wk${p.injury.weeksRemaining===1?"":"s"} out</div>` : ""}
     ${_isInjuryProne(p) ? `<div style="margin-top:.45rem;font-size:.6rem;color:#ff9090;letter-spacing:.5px;font-weight:700" title="Injured 3+ times — elevated recurrence risk">⚠ INJURY-PRONE · ${(p.injuryHistory||[]).length} prior injuries</div>` : ""}
@@ -22436,6 +22471,7 @@ function renderFrnLegacy(tab) {
     { id:"hof",         label:"🏛 HALL OF FAME" },
     { id:"career",      label:"📚 CAREER LEADERS" },
     { id:"season",      label:"📊 SINGLE-SEASON" },
+    { id:"records",     label:"📖 RECORD BOOK" },
     { id:"awards",      label:"⭐ AWARDS HISTORY" },
   ];
   const tabHtml = tabs.map(t =>
@@ -22447,6 +22483,7 @@ function renderFrnLegacy(tab) {
   else if (tab === "hof") body = _legacyHOF();
   else if (tab === "career") body = _legacyCareer();
   else if (tab === "season") body = _legacySeason();
+  else if (tab === "records") body = _legacyRecordBook();
   else if (tab === "awards") body = _legacyAwards();
 
   // BSPN broadcast chrome for the legacy/awards page — typography +
@@ -22625,6 +22662,47 @@ function _legacySeason() {
       </table>
     </div>`;
   }).join("");
+}
+
+function _legacyRecordBook() {
+  const rec = franchise.records || {};
+  const sg = rec.singleGame || {};
+  const ss = rec.singleSeason || {};
+  if (!Object.keys(sg).length && !Object.keys(ss).length) {
+    return `<div style="color:var(--gray);font-size:.78rem;padding:1rem;text-align:center;font-style:italic">The record book is empty. Play through a season to start the books.</div>`;
+  }
+
+  const renderRow = (def, entry, isSingleGame) => {
+    if (!entry) return "";
+    const t = entry.teamId ? getTeam(entry.teamId) : null;
+    const opp = isSingleGame && entry.oppId ? getTeam(entry.oppId) : null;
+    return `<tr>
+      <td style="color:var(--gold);font-weight:700">${def.label}</td>
+      <td style="font-family:'Anton','Teko','Impact',sans-serif;font-size:1.3rem;color:var(--gold-lt);font-weight:900">${entry.value}</td>
+      <td>${playerLinkByName(entry.playerName)} <span style="color:var(--gray);font-size:.6rem">(${entry.pos})</span></td>
+      <td style="color:var(--gray);font-size:.66rem">${t ? `${t.city} ${t.name}` : "—"}</td>
+      <td style="color:var(--gray);font-size:.66rem">S${entry.season}${isSingleGame ? ` · W${entry.week}` : ""}${opp ? ` · vs ${opp.name}` : ""}${entry.isPlayoff ? " · (PO)" : ""}</td>
+    </tr>`;
+  };
+
+  const buildTable = (title, source, isSingleGame) => {
+    const rows = _RECORD_CATS
+      .filter(def => isSingleGame ? true : def.key !== "fg_long")
+      .map(def => renderRow(def, source[def.key], isSingleGame))
+      .filter(Boolean)
+      .join("");
+    if (!rows) return "";
+    return `<div class="frn-pg-card" style="margin-bottom:.6rem">
+      <div class="frn-pg-card-title">${title}</div>
+      <table class="frn-ana-table">
+        <thead><tr><th>Record</th><th>Value</th><th>Holder</th><th>Team</th><th>When</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+  };
+
+  return `${buildTable("📖 SINGLE-GAME RECORDS", sg, true)}
+          ${buildTable("📅 SINGLE-SEASON RECORDS", ss, false)}`;
 }
 
 function _legacyAwards() {
@@ -24644,6 +24722,174 @@ function _stampSeasonAccolades(awards) {
   }
 }
 
+// ── Record Book ──────────────────────────────────────────────────────────────
+// Tracks the all-time single-game + single-season records of the league.
+// Single-game records are updated incrementally after each game (since
+// the schedule is wiped each offseason). Single-season records are
+// rolled up at season's end in showFrnAwards. Both stamp into
+// franchise.records.brokenLog so the awards screen can showcase what
+// fell this year.
+const _RECORD_CATS = [
+  { key:"pass_yds", label:"PASSING YARDS",   scope:["QB"] },
+  { key:"pass_td",  label:"PASSING TDs",     scope:["QB"] },
+  { key:"pass_comp",label:"COMPLETIONS",     scope:["QB"] },
+  { key:"rush_yds", label:"RUSHING YARDS",   scope:["RB","QB"] },
+  { key:"rush_td",  label:"RUSHING TDs",     scope:["RB","QB"] },
+  { key:"rec_yds",  label:"RECEIVING YARDS", scope:["WR","TE","RB"] },
+  { key:"rec_td",   label:"RECEIVING TDs",   scope:["WR","TE","RB"] },
+  { key:"rec",      label:"RECEPTIONS",      scope:["WR","TE","RB"] },
+  { key:"sk",       label:"SACKS",           scope:["DL","LB","S","CB"] },
+  { key:"int_made", label:"INTERCEPTIONS",   scope:["CB","S","LB","DL"] },
+  { key:"tkl",      label:"TACKLES",         scope:["LB","S","CB","DL"] },
+  { key:"fg_made",  label:"FIELD GOALS MADE",scope:["K"] },
+  { key:"fg_long",  label:"LONGEST FG",      scope:["K"] },
+];
+
+function _ensureRecordBook() {
+  if (!franchise.records) franchise.records = {};
+  if (!franchise.records.singleGame)   franchise.records.singleGame = {};
+  if (!franchise.records.singleSeason) franchise.records.singleSeason = {};
+  if (!franchise.records.brokenLog)    franchise.records.brokenLog = [];
+}
+
+// Hooked into frnSimOnce after stats merge. Updates single-game records;
+// stamps the previous holder onto brokenLog when toppled.
+function _updateSingleGameRecords(homeId, awayId, gameStats, week, isPlayoff) {
+  if (!gameStats) return;
+  _ensureRecordBook();
+  const sides = [
+    { teamId: homeId, oppId: awayId, players: gameStats.home?.players || {} },
+    { teamId: awayId, oppId: homeId, players: gameStats.away?.players || {} },
+  ];
+  for (const side of sides) {
+    for (const [name, line] of Object.entries(side.players)) {
+      const pos = line.pos || "";
+      for (const def of _RECORD_CATS) {
+        if (!def.scope.includes(pos)) continue;
+        const v = +line[def.key] || 0;
+        if (v <= 0) continue;
+        const existing = franchise.records.singleGame[def.key];
+        if (!existing || v > existing.value) {
+          const next = {
+            value: v, playerName: name, pos,
+            teamId: side.teamId, oppId: side.oppId,
+            season: franchise.season, week, isPlayoff: !!isPlayoff,
+          };
+          if (existing && existing.season != null) {
+            franchise.records.brokenLog.push({
+              recordType: "single-game",
+              category: def.key, label: def.label,
+              broken: { ...existing }, "new": next,
+              atSeason: franchise.season, atWeek: week,
+            });
+          }
+          franchise.records.singleGame[def.key] = next;
+        }
+      }
+    }
+  }
+}
+
+// Called at season's end from showFrnAwards. Walks franchise.seasonStats
+// for max-in-category and compares to all-time single-season records.
+function _updateSingleSeasonRecords() {
+  _ensureRecordBook();
+  for (const def of _RECORD_CATS) {
+    if (def.key === "fg_long") continue; // single-game only
+    let best = null;
+    for (const [tidStr, players] of Object.entries(franchise.seasonStats || {})) {
+      const tid = Number(tidStr);
+      for (const [name, p] of Object.entries(players)) {
+        if (!def.scope.includes(p.pos)) continue;
+        const v = +p[def.key] || 0;
+        if (v <= 0) continue;
+        if (!best || v > best.value) {
+          best = { value: v, playerName: name, pos: p.pos, teamId: tid, season: franchise.season };
+        }
+      }
+    }
+    if (!best) continue;
+    const existing = franchise.records.singleSeason[def.key];
+    if (!existing || best.value > existing.value) {
+      if (existing && existing.season != null) {
+        franchise.records.brokenLog.push({
+          recordType: "single-season",
+          category: def.key, label: def.label,
+          broken: { ...existing }, "new": best,
+          atSeason: franchise.season,
+        });
+      }
+      franchise.records.singleSeason[def.key] = best;
+    }
+  }
+}
+
+function _recordsBrokenThisSeason() {
+  if (!franchise.records?.brokenLog) return [];
+  return franchise.records.brokenLog.filter(b => b.atSeason === franchise.season);
+}
+
+// ── Active Streaks ──────────────────────────────────────────────────────────
+// Computed on demand from a player's current-season game log (the
+// franchise.schedule entries). Streaks reset at season boundaries, just
+// like real life. Returns a list of {count, label, icon} entries.
+function _computeActiveStreaks(p) {
+  if (!franchise?.schedule || !p) return [];
+  const games = [];
+  for (const g of franchise.schedule) {
+    if (!g.played || !g.stats) continue;
+    const line = g.stats.home?.players?.[p.name] || g.stats.away?.players?.[p.name];
+    if (!line) continue;
+    games.push({ week: g.week || 0, line });
+  }
+  games.sort((a, b) => a.week - b.week);
+  if (games.length < 2) return [];
+
+  const out = [];
+  const streak = (criterion, label, icon, min = 2) => {
+    let count = 0;
+    for (let i = games.length - 1; i >= 0; i--) {
+      if (criterion(games[i].line)) count++;
+      else break;
+    }
+    if (count >= min) out.push({ count, label, icon });
+  };
+
+  const pos = p.position;
+  if (pos === "QB") {
+    streak(l => (+l.pass_yds||0) >= 300, "games with 300+ pass yds", "🎯");
+    streak(l => (+l.pass_td||0)  >= 2,   "games with 2+ pass TDs",    "🚀");
+    streak(l => (+l.pass_int||0) === 0,  "INT-free games",            "✋", 3);
+  } else if (pos === "RB") {
+    streak(l => (+l.rush_yds||0) >= 100, "games with 100+ rush yds",  "🏃");
+    streak(l => (+l.rush_td||0)  >= 1,   "games with a rush TD",      "🔥");
+  } else if (pos === "WR" || pos === "TE") {
+    streak(l => (+l.rec_yds||0) >= 100,  "games with 100+ rec yds",   "🎯");
+    streak(l => (+l.rec_td||0)  >= 1,    "games with a TD reception", "🔥");
+    streak(l => (+l.rec||0)     >= 5,    "5+ catch games",            "🧲");
+  } else if (pos === "DL" || pos === "LB") {
+    streak(l => (+l.sk||0)      >= 1,    "games with a sack",         "💥");
+    streak(l => (+l.tkl||0)     >= 8,    "8+ tackle games",           "🛡");
+  } else if (pos === "CB" || pos === "S") {
+    streak(l => (+l.int_made||0)>= 1,    "games with an INT",         "🦅");
+    streak(l => (+l.pd||0)      >= 2,    "2+ PD games",               "🛡");
+  } else if (pos === "K") {
+    streak(l => (+l.fg_att||0) > 0 && (+l.fg_made||0) === (+l.fg_att||0),
+           "perfect FG games", "🎯");
+  }
+  // Filter overlapping streaks: only keep the longest streak per icon-ish
+  return out;
+}
+
+function _buildStreaksBlock(p) {
+  const streaks = _computeActiveStreaks(p);
+  if (!streaks.length) return "";
+  return `<div class="frn-pcard-section" style="background:rgba(255,200,80,0.08);padding:.45rem .65rem;border-left:3px solid var(--gold);margin-top:.4rem">
+    <div class="frn-card-title" style="margin-bottom:.25rem;color:var(--gold)">🔥 ACTIVE STREAKS</div>
+    ${streaks.map(s => `<div style="font-size:.72rem;color:var(--white);padding:.1rem 0">${s.icon} <b style="color:var(--gold-lt)">${s.count}</b> straight ${s.label}</div>`).join("")}
+  </div>`;
+}
+
 // ── All-Pro Bowl Tournament (Format C: 8 division all-star teams) ───────────
 // After the awards ceremony, the league stages an exhibition tournament:
 // each of the 8 divisions fields an all-star team built from its best
@@ -25084,6 +25330,7 @@ function frnSimOnce(homeId, awayId, isPlayoff = false) {
   r.weather = sim.weather;
   r.isRivalry = isRivalry;
   mergeSeasonStats(homeId, awayId, r.stats);
+  _updateSingleGameRecords(homeId, awayId, r.stats, franchise.week, isPlayoff);
   captureGameHighlights(homeId, awayId, r.plays, isPlayoff,
     isPlayoff ? `Playoff R${(franchise.playoffBracket?.roundIdx ?? 0) + 1}` : `W${franchise.week}`);
   return { homeScore: r.homeScore, awayScore: r.awayScore, full: r };
@@ -26097,6 +26344,11 @@ function showFrnAwards() {
     const userMVP      = computeTeamMVP(franchise.chosenTeamId);
     const champTeamMVP = computeTeamMVP(champId);
 
+    // Record book: roll up single-season records. (Single-game records
+    // are already updated incrementally inside frnSimOnce.) Skip on
+    // stale-refresh since the season records were already booked.
+    if (!existing) _updateSingleSeasonRecords();
+
     // New awards
     const opoy         = _computeOPOY();
     const dpoy         = _computeDPOY();
@@ -26992,6 +27244,32 @@ function renderFrnAwards() {
       }).join("")}
     </div>` : "";
 
+  // Records broken this season (single-game + single-season).
+  const broken = _recordsBrokenThisSeason();
+  const recordsBrokenSection = broken.length ? `
+    <div class="bspnlive-section-title">📖 RECORDS BROKEN</div>
+    <div class="bspnlive-broken-grid">
+      ${broken.slice(0, 10).map(b => {
+        const t = b["new"]?.teamId ? getTeam(b["new"].teamId) : null;
+        const oldT = b.broken?.teamId ? getTeam(b.broken.teamId) : null;
+        const stripe = t?.primary || "#b07a00";
+        return `<div class="bspnlive-broken-row" style="border-left-color:${stripe}">
+          <div class="bspnlive-broken-head">
+            <span class="bspnlive-broken-scope">${b.recordType === "single-game" ? "SINGLE-GAME" : "SINGLE-SEASON"}</span>
+            <span class="bspnlive-broken-cat">${b.label}</span>
+          </div>
+          <div class="bspnlive-broken-new">
+            <b style="color:var(--blgold);font-size:1.1rem;font-family:'Bebas Neue','Anton',sans-serif;letter-spacing:1px">${b["new"].value}</b>
+            ${playerLinkByName(b["new"].playerName)}
+            <span style="color:var(--blgray);font-size:.65rem">(${b["new"].pos}${t ? " · " + _bspnLiveAbbr(t) : ""})</span>
+          </div>
+          ${b.broken && b.broken.playerName ? `<div class="bspnlive-broken-old">
+            <span style="color:var(--blgray);font-size:.62rem">prev: <b>${b.broken.value}</b> · ${b.broken.playerName} · S${b.broken.season}${oldT ? " · " + _bspnLiveAbbr(oldT) : ""}</span>
+          </div>` : ""}
+        </div>`;
+      }).join("")}
+    </div>` : "";
+
   const histSection = history.length > 1 ? `
     <div class="bspnlive-section-title">📚 FRANCHISE HISTORY</div>
     <div class="bspnlive-history-list">
@@ -27036,6 +27314,7 @@ function renderFrnAwards() {
         ${allProSection}
         ${leadersSection}
         ${numbersSection}
+        ${recordsBrokenSection}
         ${retirementSection}
         ${hlSection}
         ${histSection}
