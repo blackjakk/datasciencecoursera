@@ -17031,12 +17031,10 @@ function rookieContract(player, cap) {
               :               1 - (pickPos / 32) * 0.10;
   const posMul = _ROOKIE_POS_MUL[player.position] ?? 1.0;
   const aav = Math.max(0.5, Math.round(capRef * baseRate * decay * posMul * 10) / 10);
-  // Contract length: matches NFL convention — R1-R4 get 4-year deals,
-  // R5-R6 get 3-year, R7 gets 2-year, UDFA gets 1-year tryout.
-  const years = round === 0 ? 1
-              : round <= 4  ? 4
-              : round <= 6  ? 3
-              :               2;
+  // Contract length: matches NFL — all drafted rookies (R1-R7) sign
+  // 4-year deals; UDFAs get a 3-year deal. Real NFL R1 picks also have
+  // a 5th-year team option, but we don't model that.
+  const years = round === 0 ? 3 : 4;
   return { years, remaining: years, aav };
 }
 
