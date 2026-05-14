@@ -18472,6 +18472,35 @@ function _isOwnedPlayer(p) {
   return roster.some(rp => rp === p || rp.name === p.name);
 }
 
+// Production-ready human label for an archetype. Prefers the
+// position-specific archetype table's `.label` (e.g.
+// "Dual Threat", "Field General"); falls back to title-casing
+// the raw key. Never returns the underscore-form like
+// "DUAL_THREAT" to UI.
+function _archetypeLabel(p) {
+  if (!p || !p.archetype) return "";
+  const tables = {
+    QB: typeof QB_ARCHETYPES !== "undefined" ? QB_ARCHETYPES : null,
+    RB: typeof RB_ARCHETYPES !== "undefined" ? RB_ARCHETYPES : null,
+    WR: typeof WR_ARCHETYPES !== "undefined" ? WR_ARCHETYPES : null,
+    TE: typeof TE_ARCHETYPES !== "undefined" ? TE_ARCHETYPES : null,
+    OL: typeof OL_ARCHETYPES !== "undefined" ? OL_ARCHETYPES : null,
+    DL: typeof DL_ARCHETYPES !== "undefined" ? DL_ARCHETYPES : null,
+    LB: typeof LB_ARCHETYPES !== "undefined" ? LB_ARCHETYPES : null,
+    CB: typeof CB_ARCHETYPES !== "undefined" ? CB_ARCHETYPES : null,
+    S:  typeof S_ARCHETYPES  !== "undefined" ? S_ARCHETYPES  : null,
+    K:  typeof K_ARCHETYPES  !== "undefined" ? K_ARCHETYPES  : null,
+    P:  typeof P_ARCHETYPES  !== "undefined" ? P_ARCHETYPES  : null,
+  };
+  const entry = (tables[p.position] || {})[p.archetype];
+  if (entry?.label) return entry.label;
+  // Fallback: title-case the raw key, replace underscores with spaces.
+  return String(p.archetype)
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, c => c.toUpperCase());
+}
+
 // Per-position stat keys to highlight. SPD/STR/AGI/AWR/THR/CAT/BLK/PRS/COV/TCK/KPW.
 const _STAT_INDEX = { SPD:0, STR:1, AGI:2, AWR:3, THR:4, CAT:5, BLK:6, PRS:7, COV:8, TCK:9, KPW:10 };
 const _OWNED_STATS_BY_POS = {
@@ -19073,7 +19102,7 @@ function renderFrnFA(selectedName) {
       <div class="frn-fa-detail-head">
         <div>
           <div style="font-size:1.05rem;font-weight:900">${selected.name}</div>
-          <div style="color:var(--gray);font-size:.7rem">${selected.position} · Age ${selected.age} · ${selected.archetype||"—"} · ${draftStr(selected)}</div>
+          <div style="color:var(--gray);font-size:.7rem">${selected.position} · Age ${selected.age} · ${_archetypeLabel(selected) || "—"} · ${draftStr(selected)}</div>
           <div style="color:var(--gray);font-size:.66rem;margin-top:.2rem">${careerEarningsStr(selected)} career earnings</div>
         </div>
         <div style="text-align:right">
@@ -20087,7 +20116,7 @@ function frnPlayerTipShow(anchorEl, name) {
         <div style="color:var(--gray);font-size:.62rem">
           ${p.position} · Age ${p.age||"?"} · ${team?.name||"?"}
         </div>
-        <div style="color:var(--gray);font-size:.62rem">${p.archetype||"—"}</div>
+        <div style="color:var(--gray);font-size:.62rem">${_archetypeLabel(p) || "—"}</div>
       </div>
       <div style="text-align:right">
         <span class="tt-ovr tier-${gCls}" style="font-size:.85rem;padding:.15rem .5rem">${gL}</span>
@@ -24965,7 +24994,7 @@ function renderFrnDraft() {
       <td style="color:var(--gold);font-size:.62rem">${p.position}</td>
       <td>${gradeBadge(p)}</td>
       <td style="color:var(--gray)">${p.age}</td>
-      <td style="color:var(--gray);font-size:.66rem">${p.archetype || "—"}</td>
+      <td style="color:var(--gray);font-size:.66rem">${_archetypeLabel(p) || "—"}</td>
       <td><button class="btn btn-gold" style="padding:.2rem .55rem;font-size:.62rem"
         onclick="frnDraftPick('${escName}')">DRAFT</button></td>
     </tr>`;
