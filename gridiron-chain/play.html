@@ -20439,14 +20439,37 @@ function renderFrnNewsArchive(season) {
       </ul>
     </div>`).join("")
     : `<div style="color:var(--gray);padding:1rem;text-align:center;font-style:italic">No wire entries for Season ${sel} yet.</div>`;
+  // BSPN broadcast chrome — matches the other "watch the league"
+  // pages (standings, leaders, legacy). Season picker becomes a
+  // nav-style tab row; week blocks render inside a single panel.
+  const seasonNav = allSeasons.map(s =>
+    `<button class="bspnlive-nav-item ${s===sel?"active":""}"
+      style="background:transparent;border:0;font-family:inherit;cursor:pointer;padding:0;${s===sel?"color:var(--blwhite)":""}"
+      onclick="renderFrnNewsArchive(${s})">[SEASON ${s}]</button>`
+  ).join(" ");
+
   $("frnHomeContent").innerHTML = `
-    <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem;flex-wrap:wrap">
-      <div style="font-size:1.05rem;font-weight:900;color:var(--gold)">📰 LEAGUE WIRE ARCHIVE</div>
-      <div style="color:var(--gray);font-size:.7rem">${items.length} entr${items.length===1?"y":"ies"} · Season ${sel}</div>
-      <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="margin-left:auto">← Back</button>
-    </div>
-    <div class="frn-ana-tabs" style="margin-bottom:.6rem">${seasonBtns}</div>
-    <div class="frn-wire-scroll">${weekBlocks}</div>`;
+    <div class="bspnlive-root" style="margin:-1rem -1.5rem 0 -1.5rem;padding-bottom:1rem">
+      <header class="bspnlive-header">
+        <div>
+          <div class="bspnlive-logo">BSPN</div>
+          <div class="bspnlive-logo-sub">LEAGUE WIRE ARCHIVE</div>
+        </div>
+        <nav class="bspnlive-nav" style="flex-wrap:wrap;gap:.7rem .9rem">${seasonNav}</nav>
+      </header>
+      <div style="padding:.6rem 1.4rem;border-bottom:1px solid var(--blborder);display:flex;gap:1rem;align-items:center">
+        <button class="bspn-back" onclick="showFranchiseDashboard()">‹ Return to Main Screen</button>
+        <span style="color:var(--blgray);font-size:.7rem;letter-spacing:.5px">
+          Season ${sel} · ${items.length} entr${items.length===1?"y":"ies"}
+        </span>
+      </div>
+      <div style="padding:1rem 1.4rem">
+        <section class="bspn-panel" style="padding:.7rem 1rem">
+          <div class="bspn-panel-title" style="color:var(--blgold);font-size:.75rem;letter-spacing:2px">CHRONOLOGICAL FEED</div>
+          <div class="frn-wire-scroll">${weekBlocks}</div>
+        </section>
+      </div>
+    </div>`;
 }
 
 // ── Projected free agents: everyone whose contract expires after this season ──
