@@ -1362,6 +1362,26 @@
   }
   .frn-pcard-seasonstats .k { color: var(--gray); }
   .frn-pcard-seasonstats .v { color: var(--white); font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+  .frn-gamelog-table {
+    width: 100%; border-collapse: collapse;
+    font-size: .62rem; font-variant-numeric: tabular-nums;
+    margin-top: .2rem;
+  }
+  .frn-gamelog-table th, .frn-gamelog-table td {
+    padding: .18rem .35rem; text-align: right;
+    border-bottom: 1px solid rgba(46,61,46,.3);
+    white-space: nowrap;
+  }
+  .frn-gamelog-table th {
+    color: var(--gold); font-size: .55rem; letter-spacing: .5px;
+    font-weight: 700;
+  }
+  .frn-gamelog-table th:first-child,
+  .frn-gamelog-table th:nth-child(2),
+  .frn-gamelog-table th:nth-child(3),
+  .frn-gamelog-table td:first-child,
+  .frn-gamelog-table td:nth-child(2),
+  .frn-gamelog-table td:nth-child(3) { text-align: left; }
   .frn-pcard-close {
     position: absolute; top: .25rem; right: .35rem;
     background: transparent; border: none;
@@ -18435,6 +18455,53 @@ function _buildArchetypeBlock(p) {
   </div>`;
 }
 
+// PPR fantasy points for a single stat line. Single source of truth so
+// season totals, per-game lines, and rank calculations all agree.
+function _fantasyPPR(line, pos) {
+  if (!line) return 0;
+  let f = 0;
+  if (pos === "QB") f += (line.pass_yds||0)*0.04 + (line.pass_td||0)*4 - (line.pass_int||0)*2;
+  f += (line.rush_yds||0)*0.1 + (line.rush_td||0)*6;
+  f += (line.rec||0)*1 + (line.rec_yds||0)*0.1 + (line.rec_td||0)*6;
+  f += (line.tkl||0)*1 + (line.sk||0)*2 + (line.int_made||0)*4 + (line.ff||0)*2 + (line.fr||0)*2 + (line.pd||0)*0.5;
+  f += (line.fg_made||0)*3 + (line.xp_made||0)*1;
+  // Bonus PPR yardage tiers — closer to standard fantasy with TD-only bonus
+  if ((line.pass_yds||0) >= 300) f += 3;
+  if ((line.rush_yds||0) >= 100) f += 3;
+  if ((line.rec_yds||0) >= 100) f += 3;
+  return Math.round(f * 10) / 10;
+}
+
+// Position-rank by total FPTS across every roster in the league.
+// Returns { rank, total } where total = number of players at that pos
+// who have logged any stats this season.
+function _fantasyPositionRank(playerName, pos) {
+  const seasonStats = franchise?.seasonStats || {};
+  const bucket = [];
+  for (const [tid, players] of Object.entries(seasonStats)) {
+    for (const [name, line] of Object.entries(players || {})) {
+      if (line && line.pos === pos) {
+        bucket.push({ name, fpts: _fantasyPPR(line, pos) });
+      }
+    }
+  }
+  if (!bucket.length) return null;
+  bucket.sort((a, b) => b.fpts - a.fpts);
+  const idx = bucket.findIndex(b => b.name === playerName);
+  if (idx === -1) return null;
+  return { rank: idx + 1, total: bucket.length, fpts: bucket[idx].fpts };
+}
+
+// Simple passer rating from CMP/ATT/YDS/TD/INT. NFL formula, clamped.
+function _passerRating(comp, att, yds, td, int_) {
+  if (!att) return 0;
+  const a = Math.max(0, Math.min(2.375, ((comp/att) - 0.3) * 5));
+  const b = Math.max(0, Math.min(2.375, ((yds/att) - 3) * 0.25));
+  const c = Math.max(0, Math.min(2.375, (td/att) * 20));
+  const d = Math.max(0, Math.min(2.375, 2.375 - (int_/att) * 25));
+  return Math.round(((a + b + c + d) / 6) * 100 * 10) / 10;
+}
+
 function _buildSeasonStatsBlock(p) {
   if (!franchise?.seasonStats) return "";
   // Search every team in case the player was traded mid-season.
@@ -18443,45 +18510,245 @@ function _buildSeasonStatsBlock(p) {
     if (ts && ts[p.name]) { stat = ts[p.name]; teamId = Number(tid); break; }
   }
   if (!stat || !stat.gp) return "";
-  // Position-specific stat lines
+  // Position-specific stat lines (totals + derived averages)
   const pos = p.position;
   const fmtTuples = [];
   const num = k => +(stat[k] || 0);
+  const gp = num("gp") || stat.gp || 1;
+  const per = v => (v / gp).toFixed(1);
   if (pos === "QB") {
-    fmtTuples.push(["CMP/ATT", `${num("pass_comp")}/${num("pass_att")}`]);
-    fmtTuples.push(["PASS YDS", num("pass_yds")]);
+    const cmp = num("pass_comp"), att = num("pass_att"), yds = num("pass_yds");
+    fmtTuples.push(["CMP/ATT", `${cmp}/${att}`]);
+    fmtTuples.push(["CMP %", att ? `${(cmp/att*100).toFixed(1)}%` : "—"]);
+    fmtTuples.push(["PASS YDS", yds]);
+    fmtTuples.push(["YDS/GAME", per(yds)]);
     fmtTuples.push(["PASS TD", num("pass_td")]);
     fmtTuples.push(["INT", num("pass_int")]);
+    fmtTuples.push(["RATING", _passerRating(cmp, att, yds, num("pass_td"), num("pass_int"))]);
     if (num("rush_yds")) fmtTuples.push(["RUSH YDS", num("rush_yds")]);
   } else if (pos === "RB") {
-    fmtTuples.push(["CAR", num("rush_att")]);
-    fmtTuples.push(["RUSH YDS", num("rush_yds")]);
+    const car = num("rush_att"), yds = num("rush_yds");
+    fmtTuples.push(["CAR", car]);
+    fmtTuples.push(["RUSH YDS", yds]);
+    fmtTuples.push(["YPC", car ? (yds/car).toFixed(1) : "—"]);
+    fmtTuples.push(["YDS/GAME", per(yds)]);
     fmtTuples.push(["RUSH TD", num("rush_td")]);
-    if (num("rec")) fmtTuples.push(["REC", num("rec")]);
-    if (num("rec_yds")) fmtTuples.push(["REC YDS", num("rec_yds")]);
+    if (num("rec")) {
+      fmtTuples.push(["REC", num("rec")]);
+      fmtTuples.push(["REC YDS", num("rec_yds")]);
+    }
   } else if (pos === "WR" || pos === "TE") {
-    fmtTuples.push(["REC", num("rec")]);
-    fmtTuples.push(["REC YDS", num("rec_yds")]);
+    const rec = num("rec"), yds = num("rec_yds"), tgt = num("rec_tgt");
+    fmtTuples.push(["REC", rec]);
+    fmtTuples.push(["TGT", tgt]);
+    fmtTuples.push(["REC YDS", yds]);
+    fmtTuples.push(["YPR", rec ? (yds/rec).toFixed(1) : "—"]);
+    fmtTuples.push(["YDS/GAME", per(yds)]);
     fmtTuples.push(["REC TD", num("rec_td")]);
-    fmtTuples.push(["TGT", num("rec_tgt")]);
+    fmtTuples.push(["CATCH %", tgt ? `${(rec/tgt*100).toFixed(1)}%` : "—"]);
   } else if (pos === "DL" || pos === "LB" || pos === "CB" || pos === "S") {
     fmtTuples.push(["TKL", num("tkl")]);
+    fmtTuples.push(["TKL/GAME", per(num("tkl"))]);
     if (num("sk")) fmtTuples.push(["SK", num("sk")]);
     if (num("int_made")) fmtTuples.push(["INT", num("int_made")]);
     if (num("pd")) fmtTuples.push(["PD", num("pd")]);
     if (num("ff")) fmtTuples.push(["FF", num("ff")]);
   } else if (pos === "K") {
     fmtTuples.push(["FG", `${num("fg_made")}/${num("fg_att")}`]);
+    fmtTuples.push(["FG %", num("fg_att") ? `${(num("fg_made")/num("fg_att")*100).toFixed(1)}%` : "—"]);
     fmtTuples.push(["LONG", num("fg_long")]);
     fmtTuples.push(["XP", `${num("xp_made")}/${num("xp_att")}`]);
   }
   if (!fmtTuples.length) return "";
+
+  // Fantasy stats — appended after position-specific stats. Computed
+  // from per-game lines so best/worst game is accurate.
+  let fantasyHtml = "";
+  if (["QB","RB","WR","TE","K"].includes(pos)) {
+    // Sum per-game FPTS by scanning every played game for this player.
+    const perGame = [];
+    for (const g of (franchise.schedule || [])) {
+      if (!g.played || !g.stats) continue;
+      const line = g.stats.home?.players?.[p.name] || g.stats.away?.players?.[p.name];
+      if (line) perGame.push({ week: g.week, fpts: _fantasyPPR(line, pos) });
+    }
+    const totalFpts = perGame.reduce((s, x) => s + x.fpts, 0);
+    const fptsPg = perGame.length ? (totalFpts / perGame.length).toFixed(1) : "0.0";
+    const best = perGame.length ? perGame.reduce((a, b) => b.fpts > a.fpts ? b : a) : null;
+    const worst = perGame.length ? perGame.reduce((a, b) => b.fpts < a.fpts ? b : a) : null;
+    const rank = _fantasyPositionRank(p.name, pos);
+    // Opportunities = touches (carries + targets) — top fantasy stat
+    const touches = num("rush_att") + num("rec_tgt");
+    const fantasyTuples = [
+      ["FPTS (PPR)", totalFpts.toFixed(1)],
+      ["FPTS / GAME", fptsPg],
+    ];
+    if (rank) fantasyTuples.push([`POS RANK`, `#${rank.rank} of ${rank.total}`]);
+    if (touches > 0) fantasyTuples.push(["TOUCHES", touches]);
+    if (best) fantasyTuples.push(["BEST WK", `W${best.week} (${best.fpts.toFixed(1)})`]);
+    if (worst && best && worst.week !== best.week) fantasyTuples.push(["WORST WK", `W${worst.week} (${worst.fpts.toFixed(1)})`]);
+    const fantasyCells = fantasyTuples.map(([k, v]) =>
+      `<div class="k">${k}</div><div class="v">${v}</div>`
+    ).join("");
+    fantasyHtml = `<div style="margin-top:.5rem;padding-top:.4rem;border-top:1px dashed var(--border)">
+      <div class="frn-card-title" style="margin-bottom:.25rem">FANTASY (PPR)</div>
+      <div class="frn-pcard-seasonstats">${fantasyCells}</div>
+    </div>`;
+  }
+
   const cells = fmtTuples.map(([k, v]) =>
     `<div class="k">${k}</div><div class="v">${v}</div>`
   ).join("");
   return `<div class="frn-pcard-section">
     <div class="frn-card-title">SEASON STATS · ${stat.gp || 0} GP</div>
     <div class="frn-pcard-seasonstats">${cells}</div>
+    ${fantasyHtml}
+  </div>`;
+}
+
+// Per-game stat line — walks the franchise schedule, finds every played
+// game where this player appeared, returns one row per game with a
+// position-appropriate line.
+function _buildGameLogBlock(p) {
+  if (!franchise?.schedule) return "";
+  const pos = p.position;
+  const games = [];
+  for (const g of franchise.schedule) {
+    if (!g.played || !g.stats) continue;
+    const homePlayers = g.stats.home?.players || {};
+    const awayPlayers = g.stats.away?.players || {};
+    let line = null, teamId = null, oppId = null;
+    if (homePlayers[p.name]) { line = homePlayers[p.name]; teamId = g.homeId; oppId = g.awayId; }
+    else if (awayPlayers[p.name]) { line = awayPlayers[p.name]; teamId = g.awayId; oppId = g.homeId; }
+    if (!line) continue;
+    games.push({ g, line, teamId, oppId });
+  }
+  if (!games.length) return "";
+  // Render columns per position
+  let headers = [], rowCells = [];
+  if (pos === "QB") {
+    headers = ["WK","OPP","RES","CMP/ATT","YDS","TD","INT","RTG","FPTS"];
+    rowCells = games.map(({ g, line, teamId, oppId }) => {
+      const opp = getTeam(oppId), my = getTeam(teamId);
+      const myHome = teamId === g.homeId;
+      const myScore = myHome ? g.homeScore : g.awayScore;
+      const themScore = myHome ? g.awayScore : g.homeScore;
+      const res = myScore > themScore ? "W" : myScore < themScore ? "L" : "T";
+      const resColor = res === "W" ? "var(--green-lt)" : res === "L" ? "#c08080" : "var(--gray)";
+      const cmp = +line.pass_comp || 0, att = +line.pass_att || 0;
+      const fpts = _fantasyPPR(line, pos);
+      return `<tr>
+        <td>W${g.week}</td>
+        <td>${myHome ? "vs" : "@"} <span style="color:${opp?.primary}">${(opp?.name||"").slice(0,4)}</span></td>
+        <td style="color:${resColor};font-weight:700">${res} ${myScore}-${themScore}</td>
+        <td>${cmp}/${att}</td>
+        <td>${line.pass_yds||0}</td>
+        <td>${line.pass_td||0}</td>
+        <td>${line.pass_int||0}</td>
+        <td>${_passerRating(cmp, att, line.pass_yds||0, line.pass_td||0, line.pass_int||0)}</td>
+        <td style="color:var(--gold);font-weight:700">${fpts.toFixed(1)}</td>
+      </tr>`;
+    });
+  } else if (pos === "RB") {
+    headers = ["WK","OPP","RES","CAR","YDS","YPC","TD","REC","YDS","FPTS"];
+    rowCells = games.map(({ g, line, teamId, oppId }) => {
+      const opp = getTeam(oppId);
+      const myHome = teamId === g.homeId;
+      const myScore = myHome ? g.homeScore : g.awayScore;
+      const themScore = myHome ? g.awayScore : g.homeScore;
+      const res = myScore > themScore ? "W" : myScore < themScore ? "L" : "T";
+      const resColor = res === "W" ? "var(--green-lt)" : res === "L" ? "#c08080" : "var(--gray)";
+      const car = +line.rush_att || 0, yds = +line.rush_yds || 0;
+      const fpts = _fantasyPPR(line, pos);
+      return `<tr>
+        <td>W${g.week}</td>
+        <td>${myHome ? "vs" : "@"} <span style="color:${opp?.primary}">${(opp?.name||"").slice(0,4)}</span></td>
+        <td style="color:${resColor};font-weight:700">${res} ${myScore}-${themScore}</td>
+        <td>${car}</td>
+        <td>${yds}</td>
+        <td>${car ? (yds/car).toFixed(1) : "—"}</td>
+        <td>${line.rush_td||0}</td>
+        <td>${line.rec||0}</td>
+        <td>${line.rec_yds||0}</td>
+        <td style="color:var(--gold);font-weight:700">${fpts.toFixed(1)}</td>
+      </tr>`;
+    });
+  } else if (pos === "WR" || pos === "TE") {
+    headers = ["WK","OPP","RES","REC","TGT","YDS","YPR","TD","FPTS"];
+    rowCells = games.map(({ g, line, teamId, oppId }) => {
+      const opp = getTeam(oppId);
+      const myHome = teamId === g.homeId;
+      const myScore = myHome ? g.homeScore : g.awayScore;
+      const themScore = myHome ? g.awayScore : g.homeScore;
+      const res = myScore > themScore ? "W" : myScore < themScore ? "L" : "T";
+      const resColor = res === "W" ? "var(--green-lt)" : res === "L" ? "#c08080" : "var(--gray)";
+      const rec = +line.rec || 0, yds = +line.rec_yds || 0;
+      const fpts = _fantasyPPR(line, pos);
+      return `<tr>
+        <td>W${g.week}</td>
+        <td>${myHome ? "vs" : "@"} <span style="color:${opp?.primary}">${(opp?.name||"").slice(0,4)}</span></td>
+        <td style="color:${resColor};font-weight:700">${res} ${myScore}-${themScore}</td>
+        <td>${rec}</td>
+        <td>${line.rec_tgt||0}</td>
+        <td>${yds}</td>
+        <td>${rec ? (yds/rec).toFixed(1) : "—"}</td>
+        <td>${line.rec_td||0}</td>
+        <td style="color:var(--gold);font-weight:700">${fpts.toFixed(1)}</td>
+      </tr>`;
+    });
+  } else if (pos === "DL" || pos === "LB" || pos === "CB" || pos === "S") {
+    headers = ["WK","OPP","RES","TKL","SK","INT","PD","FF","FPTS"];
+    rowCells = games.map(({ g, line, teamId, oppId }) => {
+      const opp = getTeam(oppId);
+      const myHome = teamId === g.homeId;
+      const myScore = myHome ? g.homeScore : g.awayScore;
+      const themScore = myHome ? g.awayScore : g.homeScore;
+      const res = myScore > themScore ? "W" : myScore < themScore ? "L" : "T";
+      const resColor = res === "W" ? "var(--green-lt)" : res === "L" ? "#c08080" : "var(--gray)";
+      const fpts = _fantasyPPR(line, pos);
+      return `<tr>
+        <td>W${g.week}</td>
+        <td>${myHome ? "vs" : "@"} <span style="color:${opp?.primary}">${(opp?.name||"").slice(0,4)}</span></td>
+        <td style="color:${resColor};font-weight:700">${res} ${myScore}-${themScore}</td>
+        <td>${line.tkl||0}</td>
+        <td>${line.sk||0}</td>
+        <td>${line.int_made||0}</td>
+        <td>${line.pd||0}</td>
+        <td>${line.ff||0}</td>
+        <td style="color:var(--gold);font-weight:700">${fpts.toFixed(1)}</td>
+      </tr>`;
+    });
+  } else if (pos === "K") {
+    headers = ["WK","OPP","RES","FG","LONG","XP","FPTS"];
+    rowCells = games.map(({ g, line, teamId, oppId }) => {
+      const opp = getTeam(oppId);
+      const myHome = teamId === g.homeId;
+      const myScore = myHome ? g.homeScore : g.awayScore;
+      const themScore = myHome ? g.awayScore : g.homeScore;
+      const res = myScore > themScore ? "W" : myScore < themScore ? "L" : "T";
+      const resColor = res === "W" ? "var(--green-lt)" : res === "L" ? "#c08080" : "var(--gray)";
+      const fpts = _fantasyPPR(line, pos);
+      return `<tr>
+        <td>W${g.week}</td>
+        <td>${myHome ? "vs" : "@"} <span style="color:${opp?.primary}">${(opp?.name||"").slice(0,4)}</span></td>
+        <td style="color:${resColor};font-weight:700">${res} ${myScore}-${themScore}</td>
+        <td>${line.fg_made||0}/${line.fg_att||0}</td>
+        <td>${line.fg_long||0}</td>
+        <td>${line.xp_made||0}/${line.xp_att||0}</td>
+        <td style="color:var(--gold);font-weight:700">${fpts.toFixed(1)}</td>
+      </tr>`;
+    });
+  } else {
+    return "";
+  }
+  return `<div class="frn-pcard-section">
+    <div class="frn-card-title">GAME LOG · ${games.length} GAME${games.length===1?"":"S"}</div>
+    <div style="overflow-x:auto">
+      <table class="frn-gamelog-table">
+        <thead><tr>${headers.map(h => `<th>${h}</th>`).join("")}</tr></thead>
+        <tbody>${rowCells.join("")}</tbody>
+      </table>
+    </div>
   </div>`;
 }
 
@@ -18517,6 +18784,7 @@ function _buildPlayerDetailPanel(p) {
   const potTag = potentialTag(p);
   const archBlock = _buildArchetypeBlock(p);
   const seasonBlock = _buildSeasonStatsBlock(p);
+  const gameLogBlock = _buildGameLogBlock(p);
   const ratingsPanel = owned ? _buildOwnedStatsPanel(p) : "";
 
   // Right-column content: owned → raw ratings, otherwise scout note.
@@ -18554,6 +18822,7 @@ function _buildPlayerDetailPanel(p) {
       ${rightPanel}
     </div>
     ${seasonBlock ? `<div style="margin-top:.6rem">${seasonBlock}</div>` : ""}
+    ${gameLogBlock ? `<div style="margin-top:.6rem">${gameLogBlock}</div>` : ""}
     ${p.injury ? `<div class="frn-player-injury" style="margin-top:.55rem">🩹 ${p.injury.label} — ${p.injury.weeksRemaining} wk${p.injury.weeksRemaining===1?"":"s"} out</div>` : ""}
     ${flav ? `<div class="frn-player-flavor" style="margin-top:.55rem">${flav}</div>` : ""}
     ${_buildCareerCard(p)}
