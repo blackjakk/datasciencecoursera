@@ -19128,15 +19128,17 @@ function _bspnBuildComparisonStats(stats) {
     homeValue: fmt ? fmt(h) : (h||0),
     awayBarValue: a||0, homeBarValue: h||0,
   });
+  // Field names match the simulator's stats[side].team shape: totalYds,
+  // passYds, rushYds, timeOfPoss (seconds), penalties (count), penaltyYds.
   return [
-    row("first_downs",   "FIRST DOWNS",       aT.firstDowns, hT.firstDowns),
-    row("total_yards",   "TOTAL YARDS",       aT.totalYards, hT.totalYards),
-    row("passing_yards", "PASSING YARDS",     aT.passYds,    hT.passYds),
-    row("rushing_yards", "RUSHING YARDS",     aT.rushYds,    hT.rushYds),
-    row("turnovers",     "TURNOVERS",         aT.turnovers,  hT.turnovers),
-    row("sacks",         "SACKS",             aT.sacks,      hT.sacks),
-    row("penalties",     "PENALTIES (YDS)",   aT.penaltyYds || aT.penalties || 0, hT.penaltyYds || hT.penalties || 0),
-    row("top",           "TIME OF POSSESSION", aT.topSec,    hT.topSec, fmtTOP),
+    row("first_downs",   "FIRST DOWNS",       aT.firstDowns,  hT.firstDowns),
+    row("total_yards",   "TOTAL YARDS",       aT.totalYds,    hT.totalYds),
+    row("passing_yards", "PASSING YARDS",     aT.passYds,     hT.passYds),
+    row("rushing_yards", "RUSHING YARDS",     aT.rushYds,     hT.rushYds),
+    row("turnovers",     "TURNOVERS",         aT.turnovers,   hT.turnovers),
+    row("sacks",         "SACKS",             aT.sacks,       hT.sacks),
+    row("penalties",     "PENALTIES (YDS)",   aT.penaltyYds,  hT.penaltyYds),
+    row("top",           "TIME OF POSSESSION", aT.timeOfPoss, hT.timeOfPoss, fmtTOP),
   ];
 }
 function _bspnBuildStatGroups(sidePlayers) {
@@ -19876,9 +19878,15 @@ function renderFrnRegular() {
   // Week-review interstitial comes first — once all 16 games this week
   // are done, the user must explicitly advance before seeing the next
   // game card.
+  // `nextGame` is the user's next *unplayed* game across the whole
+  // schedule — on a bye week or after they've already played, that's
+  // in a future week. Only treat it as "this week's matchup" when its
+  // .week matches the current week, otherwise fall through to the
+  // "your game is done — finalize the week" prompt.
+  const nextGameIsThisWeek = nextGame && nextGame.week === week;
   if (franchise.weekPending && !seasonDone) {
     nextCardHtml = _buildWeekReviewCard(week, chosenTeamId);
-  } else if (nextGame) {
+  } else if (nextGameIsThisWeek) {
     const isHome = nextGame.homeId === chosenTeamId;
     const oppId  = isHome ? nextGame.awayId : nextGame.homeId;
     const opp    = getTeam(oppId);
@@ -20335,9 +20343,12 @@ function _stripGameStatsForStorage(stats) {
   for (const side of ["home", "away"]) {
     const s = stats[side];
     if (!s) continue;
-    // Copy top-level numeric totals
-    for (const [k, v] of Object.entries(s)) {
-      if (typeof v === "number") out[side].totals[k] = v;
+    // Team totals live under s.team (firstDowns, totalYds, passYds, rushYds,
+    // turnovers, sacks, penalties, penaltyYds, timeOfPoss, …).
+    if (s.team) {
+      for (const [k, v] of Object.entries(s.team)) {
+        if (typeof v === "number") out[side].totals[k] = v;
+      }
     }
     if (s.players) {
       for (const [name, p] of Object.entries(s.players)) {
@@ -20417,6 +20428,15 @@ function advanceWeekIfDone() {
 }
 
 function frnSimGame(homeId, awayId) {
+  // Only allow simming a game in the current week — otherwise you can
+  // chain future-week games while leaving the current week unfinished.
+  const target = franchise.schedule.find(g =>
+    !g.played && g.homeId === Number(homeId) && g.awayId === Number(awayId));
+  if (!target) return;
+  if (target.week !== franchise.week) {
+    alert("Finish the current week before simming future games.");
+    return;
+  }
   const r = frnSimOnce(homeId, awayId);
   markGamePlayed(homeId, awayId, r.homeScore, r.awayScore, r.full?.stats, r.full?.plays,
     { weather: r.full?.weather, isRivalry: r.full?.isRivalry });
