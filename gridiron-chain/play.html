@@ -23571,6 +23571,11 @@ function runFrnOffseason() {
       if (p.age == null) {
         p.age = (p.overall >= 85 ? 27 : p.overall >= 75 ? 24 : 22) + Math.floor(Math.random() * 6);
       }
+      // Snapshot before age/OVR shifts so we can emit wire alerts for
+      // meaningful dev swings. preDeclineHit = was the player ALREADY
+      // past his decline age last season (so the cliff isn't news).
+      const preOvr = p.overall;
+      const preDeclineHit = (p.age >= (p.declineAge ?? Infinity));
       p.age += 1;
 
       // Retirement
@@ -23624,6 +23629,46 @@ function runFrnOffseason() {
           const k2 = Math.floor(Math.random() * p.stats.length);
           p.stats[k1] = Math.min(99, p.stats[k1] + Math.ceil(growth * 0.6));
           p.stats[k2] = Math.min(99, p.stats[k2] + Math.floor(growth * 0.4));
+        }
+      }
+
+      // Wire alerts for dev swings. Hybrid framing — your own players
+      // get explicit OVR numbers (you have full info); other teams'
+      // players surface only as noisy scout-grade changes, keeping the
+      // fog-of-war intact.
+      const delta = p.overall - preOvr;
+      const isMine = (tId === Number(franchise.chosenTeamId));
+      const team = getTeam(tId);
+      const teamName = team ? team.name : "";
+      const justHitCliff = !preDeclineHit && p.age >= (p.declineAge ?? Infinity);
+      // Filter what's newsworthy on other teams: only stars or large drops.
+      const otherTeamWorthy = !isMine && (p.overall >= 80 || delta <= -5 || delta >= 5);
+      if (delta >= 3 && (isMine || otherTeamWorthy)) {
+        if (isMine) {
+          _pushNews({ type:"breakout",
+            label: `🚀 BREAKOUT: ${p.position} ${p.name} (${preOvr} → ${p.overall} OVR) — your roster got stronger` });
+        } else {
+          const gradeNow = gradeLabel(scoutGrade(p));
+          _pushNews({ type:"breakout",
+            label: `🚀 ${teamName} ${p.position} ${p.name} grading up to ${gradeNow} — breakout season expected` });
+        }
+      } else if (delta <= -3 && (isMine || otherTeamWorthy)) {
+        if (isMine) {
+          _pushNews({ type:"decline",
+            label: `📉 DECLINE: ${p.position} ${p.name} (${preOvr} → ${p.overall} OVR)` });
+        } else {
+          const gradeNow = gradeLabel(scoutGrade(p));
+          _pushNews({ type:"decline",
+            label: `📉 ${teamName} ${p.position} ${p.name} grading down to ${gradeNow}` });
+        }
+      }
+      if (justHitCliff && (isMine || p.overall >= 80)) {
+        if (isMine) {
+          _pushNews({ type:"age_cliff",
+            label: `⏳ ${p.position} ${p.name} (age ${p.age}) starting to slow down — keep an eye on his snaps` });
+        } else {
+          _pushNews({ type:"age_cliff",
+            label: `⏳ ${teamName} ${p.position} ${p.name} reportedly losing a step at ${p.age}` });
         }
       }
 
