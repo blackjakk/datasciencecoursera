@@ -20156,6 +20156,54 @@ function renderFrnFANegotiations(selectedName) {
   const cutSavings = myRoster.filter(p => cutNames.has(p.name)).reduce((s,p) => s + (p.contract?.aav||0), 0);
   const proj = myCapUsed + projAdd - cutSavings;
 
+  // — Decision support: full detail panel + position market + verdict —
+  const fa = selNeg.fa;
+  const posMarket = (() => {
+    // Top 5 AAVs at this position currently signed in the league
+    const aavs = [];
+    for (const r of Object.values(franchise.rosters || {})) {
+      for (const p of r) if (p.position === fa.position && p.contract) aavs.push(p.contract.aav);
+    }
+    aavs.sort((a,b) => b-a);
+    const top5 = aavs.slice(0, 5);
+    if (!top5.length) return null;
+    const top5Avg = top5.reduce((s,v) => s+v, 0) / top5.length;
+    const median = aavs[Math.floor(aavs.length/2)] || 0;
+    return { top5Avg, median, top1: aavs[0] || 0 };
+  })();
+  // Verdict heuristic: scout grade + age + market vs demand
+  const grade = scoutGrade(fa);
+  const ageRisk = fa.age >= (fa.declineAge ?? 32) ? "declining"
+    : fa.age >= 30 ? "late prime"
+    : fa.age >= 27 ? "prime"
+    : fa.age >= 24 ? "ascending"
+    : "young";
+  const valueGap = posMarket ? (fa.demandedAAV - posMarket.top5Avg) : 0;
+  const valueTag = valueGap < -2 ? "BARGAIN"
+    : valueGap < 2 ? "FAIR"
+    : valueGap < 6 ? "PREMIUM"
+    : "OVERPRICED";
+  const verdictColor = valueTag === "BARGAIN" ? "var(--green-lt)"
+    : valueTag === "FAIR" ? "var(--gold-lt)"
+    : valueTag === "PREMIUM" ? "#e8a000"
+    : "var(--red)";
+  const recurrenceMul = _injuryRecurrenceMul(fa);
+  const proneStr = recurrenceMul > 1.2 ? `${(recurrenceMul*100-100).toFixed(0)}% above baseline` : "normal";
+  const verdictHtml = `
+    <div class="frn-card-title" style="margin-top:.6rem">📋 SCOUT VERDICT</div>
+    <div class="frn-fa-preview" style="display:grid;grid-template-columns:repeat(4,1fr);gap:.45rem;font-size:.7rem">
+      <div><span class="frn-meta-label">PRICE TAG</span> <b style="color:${verdictColor}">${valueTag}</b></div>
+      <div><span class="frn-meta-label">CAREER STAGE</span> <b style="color:var(--white)">${ageRisk}</b></div>
+      <div><span class="frn-meta-label">INJURY RISK</span> <b style="color:${recurrenceMul>1.4?"#ff9090":"var(--white)"}">${proneStr}</b></div>
+      <div><span class="frn-meta-label">SCOUT GRADE</span> <b style="color:var(--gold)">${gradeLabel(grade)}</b></div>
+    </div>
+    ${posMarket ? `<div style="margin-top:.35rem;color:var(--gray);font-size:.62rem">
+      ${fa.position} market — top 5 avg <b style="color:var(--gold-lt)">$${posMarket.top5Avg.toFixed(1)}M</b> ·
+      league median <b style="color:var(--gold-lt)">$${posMarket.median.toFixed(1)}M</b> ·
+      top-paid <b style="color:var(--gold)">$${posMarket.top1.toFixed(1)}M</b>.
+      He wants <b style="color:var(--gold-lt)">$${fa.demandedAAV.toFixed(1)}M</b>.
+    </div>` : ""}`;
+
   $("frnHomeContent").innerHTML = `
     <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem;flex-wrap:wrap">
       <div style="font-size:1.05rem;font-weight:900;color:var(--gold)">🆓 FA NEGOTIATIONS · Week ${franchise.week}</div>
@@ -20172,15 +20220,7 @@ function renderFrnFANegotiations(selectedName) {
         <div class="frn-fa-pool-list">${listHtml}</div>
       </div>
       <div class="frn-fa-mid-col" style="grid-column: span 2">
-        <div class="frn-fa-detail-head">
-          <div>
-            <div style="font-size:1.05rem;font-weight:900">${selNeg.fa.name}</div>
-            <div style="color:var(--gray);font-size:.7rem">${selNeg.fa.position} · Age ${selNeg.fa.age} · ${draftStr(selNeg.fa)}</div>
-            <div style="color:var(--gray);font-size:.66rem;margin-top:.2rem">${careerEarningsStr(selNeg.fa)} career earnings · Wanted $${selNeg.fa.demandedAAV.toFixed(1)}M × ${selNeg.fa.demandedYears}yr</div>
-          </div>
-          <div style="text-align:right">${gradeBadge(selNeg.fa)}</div>
-        </div>
-        <div class="frn-fa-preview" style="margin-bottom:.6rem">
+        <div class="frn-fa-preview">
           <div>Current high: <b style="color:var(--gold)">$${selHigh?selHigh.aav.toFixed(1):"0"}M × ${selHigh?selHigh.years:"-"}yr</b>
           ${selHigh ? `by <b style="color:${selHigh.isYou?"var(--green-lt)":"var(--white)"}">${selHigh.isYou ? "YOU" : (getTeam(selHigh.teamId).city+" "+getTeam(selHigh.teamId).name)}</b>` : ""}
           </div>
@@ -20190,6 +20230,9 @@ function renderFrnFANegotiations(selectedName) {
           </div>
         </div>
         ${actionsHtml}
+        ${verdictHtml}
+        <div class="frn-card-title" style="margin-top:.8rem">📊 FULL PLAYER REPORT</div>
+        ${_buildPlayerDetailPanel(fa)}
         <div class="frn-card-title" style="margin-top:.8rem">BID HISTORY</div>
         <table class="frn-pre-roster-table">
           <thead><tr><th>Wk</th><th>By</th><th>AAV</th><th>Years</th></tr></thead>
