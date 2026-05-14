@@ -1445,31 +1445,31 @@
     --blbordr2:  #a2aab3;
     --blgreen:   #1b8a3a;
     --blgreen-d: #0f5f25;
-    --blgold:    #b8860b;
-    --blwhite:   #14181d;   /* primary text on light bg */
-    --blgray:    #6c7681;
-    --blred:     #d62b2b;
+    --blgold:    #9a7409;       /* darker mustard — needs to read on white */
+    --blwhite:   #14181d;       /* primary text */
+    --blgray:    #4a5663;       /* darker than before — better contrast */
+    --blred:     #c2161f;
     --away-color:#444;
     --home-color:#444;
 
     background: var(--blbg); color: var(--blwhite);
     font-family: "IBM Plex Mono","JetBrains Mono","Roboto Mono","Courier New",monospace;
-    font-size: 13px; line-height: 1.35; letter-spacing: .2px;
+    font-size: 13.5px; line-height: 1.4; letter-spacing: .15px;
     padding: 0; margin: 0;
     min-height: 100vh; position: relative;
   }
   .bspnlive-root *,
   .bspnlive-root *::before,
   .bspnlive-root *::after { box-sizing: border-box; }
-  /* Subtle paper grain — replaces the CRT scanlines on the light bg */
+  /* Paper grain — VERY subtle so it doesn't fight readability */
   .bspnlive-root::after {
     content: ""; position: absolute; inset: 0; pointer-events: none;
-    background: repeating-linear-gradient(0deg, rgba(0,0,0,0) 0, rgba(0,0,0,0) 2px, rgba(0,0,0,0.025) 3px, rgba(0,0,0,0) 4px);
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,0) 0, rgba(0,0,0,0) 3px, rgba(0,0,0,0.012) 4px, rgba(0,0,0,0) 5px);
     z-index: 100; mix-blend-mode: multiply;
   }
   .bspnlive-root::before {
     content: ""; position: absolute; inset: 0; pointer-events: none;
-    background: radial-gradient(ellipse at center, transparent 65%, rgba(0,0,0,0.08) 100%);
+    background: radial-gradient(ellipse at center, transparent 78%, rgba(0,0,0,0.035) 100%);
     z-index: 100;
   }
   .bspnlive-num { font-variant-numeric: tabular-nums; }
@@ -2698,6 +2698,21 @@
     border-bottom: 1px dashed var(--bspn-border-strong);
   }
   .bspn-panel-title.accent-gold { color: var(--bspn-gold); }
+
+  /* When a .bspn-panel is mounted inside the LIGHT-theme .bspnlive-root
+     (e.g. the standings/leaders/legacy/wire pages), remap the dark-theme
+     colors to the light palette so text stays readable. */
+  .bspnlive-root .bspn-panel {
+    background: var(--blbg2);
+    border: 1px solid var(--blborder);
+    color: var(--blwhite);
+    box-shadow: 0 1px 0 rgba(0,0,0,0.04);
+  }
+  .bspnlive-root .bspn-panel-title {
+    color: #b07a00;
+    border-bottom: 1px dashed var(--blborder);
+  }
+  .bspnlive-root .bspn-panel-title.accent-gold { color: #b07a00; }
 
   /* Game summary strip */
   .bspn-summary {
