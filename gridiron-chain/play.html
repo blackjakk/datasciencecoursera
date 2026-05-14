@@ -1415,19 +1415,22 @@
      under .bspnlive-root.
      ────────────────────────────────────────────────────────────────────── */
   .bspnlive-root {
-    --blbg:      #000;
-    --blbg2:     #050807;
-    --blbg3:     #0a0f0a;
-    --blborder:  #1f3a1f;
-    --blbordr2:  #2e5c2e;
-    --blgreen:   #4ade80;
-    --blgreen-d: #2e7d32;
-    --blgold:    #f0cc30;
-    --blwhite:   #e6f0e6;
-    --blgray:    #6a7d6a;
-    --blred:     #ff3b3b;
-    --away-color:#888;
-    --home-color:#888;
+    /* Light "paper / broadcast graphic" palette — switched from the
+       black CRT look so dark-primary team colors (Ravens / Bulldogs /
+       Sentinels etc.) don't blend into the background. */
+    --blbg:      #f4f5f7;
+    --blbg2:     #ffffff;
+    --blbg3:     #eceef2;
+    --blborder:  #cdd2d8;
+    --blbordr2:  #a2aab3;
+    --blgreen:   #1b8a3a;
+    --blgreen-d: #0f5f25;
+    --blgold:    #b8860b;
+    --blwhite:   #14181d;   /* primary text on light bg */
+    --blgray:    #6c7681;
+    --blred:     #d62b2b;
+    --away-color:#444;
+    --home-color:#444;
 
     background: var(--blbg); color: var(--blwhite);
     font-family: "IBM Plex Mono","JetBrains Mono","Roboto Mono","Courier New",monospace;
@@ -1438,15 +1441,15 @@
   .bspnlive-root *,
   .bspnlive-root *::before,
   .bspnlive-root *::after { box-sizing: border-box; }
-  /* CRT scanlines + soft vignette */
+  /* Subtle paper grain — replaces the CRT scanlines on the light bg */
   .bspnlive-root::after {
     content: ""; position: absolute; inset: 0; pointer-events: none;
-    background: repeating-linear-gradient(0deg, rgba(0,0,0,0) 0, rgba(0,0,0,0) 2px, rgba(0,0,0,0.10) 3px, rgba(0,0,0,0) 4px);
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,0) 0, rgba(0,0,0,0) 2px, rgba(0,0,0,0.025) 3px, rgba(0,0,0,0) 4px);
     z-index: 100; mix-blend-mode: multiply;
   }
   .bspnlive-root::before {
     content: ""; position: absolute; inset: 0; pointer-events: none;
-    background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.45) 100%);
+    background: radial-gradient(ellipse at center, transparent 65%, rgba(0,0,0,0.08) 100%);
     z-index: 100;
   }
   .bspnlive-num { font-variant-numeric: tabular-nums; }
@@ -1455,21 +1458,21 @@
   /* Header */
   .bspnlive-header {
     display: grid; grid-template-columns: auto 1fr; align-items: center;
-    padding: .6rem 1.2rem; border-bottom: 1px solid var(--blbordr2);
-    gap: 1.4rem;
+    padding: .6rem 1.2rem; border-bottom: 2px solid var(--blbordr2);
+    gap: 1.4rem; background: var(--blbg2);
   }
   .bspnlive-logo {
     font-family: "Bebas Neue","Anton","Arial Black",sans-serif;
     font-size: 2.8rem; font-weight: 900; color: var(--blred);
     letter-spacing: -2px; font-style: italic; transform: skewX(-10deg);
-    text-shadow: 0 0 14px rgba(255,57,57,0.45), 0 2px 0 #200;
+    text-shadow: 0 1px 0 rgba(0,0,0,0.15);
     line-height: 1;
     /* Terminal-style horizontal scanline stripes inside the glyphs */
     background: linear-gradient(180deg,
       currentColor 0%, currentColor 38%,
-      rgba(0,0,0,0.6) 38%, rgba(0,0,0,0.6) 42%,
+      rgba(255,255,255,0.6) 38%, rgba(255,255,255,0.6) 42%,
       currentColor 42%, currentColor 70%,
-      rgba(0,0,0,0.6) 70%, rgba(0,0,0,0.6) 74%,
+      rgba(255,255,255,0.6) 70%, rgba(255,255,255,0.6) 74%,
       currentColor 74%, currentColor 100%);
     -webkit-background-clip: text; background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -1477,7 +1480,7 @@
   .bspnlive-logo-sub {
     display: block; font-family: "IBM Plex Mono", monospace;
     font-size: .54rem; font-style: normal; transform: skewX(7deg);
-    color: var(--blwhite); letter-spacing: 2.5px; font-weight: 700;
+    color: var(--blgray); letter-spacing: 2.5px; font-weight: 700;
     margin-top: .15rem;
   }
   .bspnlive-nav {
@@ -1486,14 +1489,14 @@
     font-weight: 700;
   }
   .bspnlive-nav-item { color: var(--blgray); }
-  .bspnlive-nav-item.active { color: var(--blwhite); }
+  .bspnlive-nav-item.active { color: var(--blred); border-bottom: 2px solid var(--blred); padding-bottom: .15rem; }
 
   /* Scoreboard strip */
   .bspnlive-score-strip {
     display: grid; grid-template-columns: 1fr auto 1fr;
     align-items: center; padding: .9rem 1.6rem;
     border-bottom: 1px solid var(--blborder);
-    background: linear-gradient(180deg, #050807, #000);
+    background: linear-gradient(180deg, #ffffff, #f0f2f6);
   }
   .bspnlive-score-team { display: flex; align-items: center; gap: 1.2rem; }
   .bspnlive-score-team.right { flex-direction: row-reverse; }
@@ -1527,10 +1530,10 @@
     font-weight: 900; line-height: .85;
     letter-spacing: -0.06em; font-variant-numeric: tabular-nums;
     color: var(--blwhite);
-    text-shadow: 0 0 8px rgba(255,255,255,0.2);
+    text-shadow: 0 1px 0 rgba(0,0,0,0.15);
     margin: 0 .5rem;
   }
-  .bspnlive-score-num.muted { color: #6a7d6a; text-shadow: none; }
+  .bspnlive-score-num.muted { color: #b0b7be; text-shadow: none; }
   .bspnlive-score-center {
     display: flex; flex-direction: column; align-items: center; gap: .35rem;
     min-width: 220px;
@@ -1569,6 +1572,7 @@
   }
   .bspnlive-side {
     padding: .8rem 1rem; min-width: 0;
+    background: var(--blbg2);
     border-left: 1px solid var(--blborder);
     border-right: 1px solid var(--blborder);
   }
@@ -1604,6 +1608,7 @@
   .bspnlive-center {
     padding: .5rem .8rem; min-width: 0;
     display: flex; flex-direction: column; gap: .5rem;
+    background: var(--blbg2);
   }
   .bspnlive-field-title {
     text-align: center; font-size: .68rem; letter-spacing: 2px;
@@ -1623,19 +1628,19 @@
   .bspnlive-field-overlay {
     position: absolute; top: .3rem; left: .55rem; right: .55rem;
     display: flex; justify-content: space-between;
-    color: var(--blgreen); font-size: .68rem; letter-spacing: 1px;
+    color: #4ade80; font-size: .68rem; letter-spacing: 1px;
     text-shadow: 0 0 4px rgba(74,222,128,.65);
     pointer-events: none;
   }
   .bspnlive-play-caption {
     text-align: center; padding: .55rem .75rem;
-    background: rgba(74,222,128,0.05);
+    background: rgba(0,0,0,0.03);
     border: 1px dashed var(--blbordr2);
     color: var(--blwhite); font-size: .8rem; letter-spacing: .5px;
     font-weight: 600;
   }
   .bspnlive-play-caption .scorer {
-    color: var(--blgold); font-weight: 800;
+    color: var(--blred); font-weight: 800;
   }
   .bspnlive-play-caption .down {
     display: block; margin-top: .25rem; color: var(--blgray);
@@ -1684,6 +1689,7 @@
   .bspnlive-bottom {
     display: grid; grid-template-columns: 1fr 360px; gap: 0;
     border-bottom: 1px solid var(--blborder);
+    background: var(--blbg2);
   }
   @media (max-width: 1100px) {
     .bspnlive-bottom { grid-template-columns: 1fr; }
@@ -1702,7 +1708,7 @@
   .bspnlive-pbp-row {
     display: grid; grid-template-columns: 60px 1.4rem 6.6rem 1fr;
     gap: .4rem; padding: .15rem .1rem;
-    border-bottom: 1px dashed rgba(46,92,46,.25);
+    border-bottom: 1px dashed rgba(0,0,0,.1);
   }
   .bspnlive-pbp-row .q { color: var(--blgreen); font-weight: 700; letter-spacing: .5px; }
   .bspnlive-pbp-row .t { font-weight: 700; }
@@ -1736,7 +1742,7 @@
   .bspnlive-ticker-wrap {
     display: flex; align-items: center; gap: 1rem;
     border-top: 1px solid var(--blbordr2);
-    background: var(--blbg2); padding: .55rem 1rem;
+    background: #1a1d22; color: #e6ebf0; padding: .55rem 1rem;
   }
   .bspnlive-ticker-label {
     color: var(--blred); font-weight: 800; font-size: .68rem;
@@ -1745,7 +1751,7 @@
   }
   .bspnlive-ticker {
     flex: 1; min-width: 0; overflow: hidden;
-    color: var(--blwhite); font-size: .72rem; letter-spacing: .5px;
+    color: #e6ebf0; font-size: .72rem; letter-spacing: .5px;
   }
   .bspnlive-ticker-inner {
     display: inline-block; white-space: nowrap;
@@ -1754,10 +1760,10 @@
   }
   @keyframes bspnlive-tk { from { transform: translateX(0); } to { transform: translateX(-100%); } }
   .bspnlive-ticker-item { padding: 0 1.5rem; }
-  .bspnlive-ticker-item .lbl { color: var(--blgold); font-weight: 700; margin-right: .4rem; }
+  .bspnlive-ticker-item .lbl { color: #f5c542; font-weight: 700; margin-right: .4rem; }
   .bspnlive-ticker-corner {
-    color: var(--blgray); font-size: .62rem; letter-spacing: 2px;
-    border-left: 1px solid var(--blbordr2); padding-left: .9rem;
+    color: #8a939c; font-size: .62rem; letter-spacing: 2px;
+    border-left: 1px solid #2c3441; padding-left: .9rem;
   }
 
   /* Opponent intel block (under the next-game card) */
@@ -10692,6 +10698,12 @@ function toBSPNLiveGameState(gr, head) {
   // Walk back from head for the latest snapshot (kickoff/markers don't
   // carry one). Mirrors currentStats() but local to keep the adapter
   // self-contained.
+  // `curPlay` here = most-recently-shown play (used for last-play
+  // description, score, clock, drive accounting). The next-snap
+  // situation (down/dist/yardLine/poss) lives on `nextSnapPlay`,
+  // computed below — engine snapshots play.down/ytg as the PRE-snap
+  // state of that play, so the next play's pre-snap fields are what
+  // the scoreboard should show after a play completes.
   let snap = null;
   let curPlay = null;
   for (let i = head - 1; i >= 0; i--) {
@@ -10706,6 +10718,21 @@ function toBSPNLiveGameState(gr, head) {
   const homeScore = last?.homeScore ?? 0;
   const awayScore = last?.awayScore ?? 0;
   const winner = ended ? gr.winner : null;
+  // The play whose pre-snap fields drive the scoreboard. Walk forward
+  // from `head` skipping any non-snap markers (quarter / halftime /
+  // 2-min warning / timeout / kickoff / fg_good / fg_miss / score)
+  // until we find the next true snap. If the game has ended or there
+  // is no upcoming snap, fall back to the most recently shown play.
+  const NON_SNAP = new Set(["quarter","halftime","ot","two_min_warning","timeout","kickoff","fg_good","fg_miss","score","punt"]);
+  let nextSnapPlay = null;
+  for (let i = head; i < gr.plays.length; i++) {
+    const p = gr.plays[i];
+    if (p.poss != null && p.yardLine != null && p.down) { nextSnapPlay = p; break; }
+  }
+  // For situation display (down/dist/yardLine/poss), prefer the next
+  // snap; if there isn't one (mid-marker, end of game), fall back to
+  // the last completed play.
+  const sitPlay = ended ? last : (nextSnapPlay || last);
 
   // Quarter scores: tally points per quarter from scoring events up to head.
   const qs = { 1: { home:0, away:0 }, 2: { home:0, away:0 }, 3: { home:0, away:0 }, 4: { home:0, away:0 } };
@@ -10717,12 +10744,21 @@ function toBSPNLiveGameState(gr, head) {
     }
   }
 
-  // Current drive — count plays + yards + clock since last drive marker.
+  // Current drive — count plays + yards + clock since last drive
+  // boundary. A drive boundary is any play whose kind ends a drive
+  // (kickoff, score, punt, int, fumble, fg_good, fg_miss), or the
+  // first play after one. Catches turnovers/punts/missed FGs that the
+  // earlier "kickoff || score" heuristic missed.
+  const DRIVE_END = new Set(["kickoff","score","punt","int","fumble","fg_good","fg_miss","halftime","ot"]);
   let driveStartIdx = 0;
   for (let i = head - 1; i >= 0; i--) {
     const p = gr.plays[i];
-    if (p.kind === "kickoff" || (i > 0 && gr.plays[i-1].kind === "score")) {
-      driveStartIdx = i; break;
+    if (DRIVE_END.has(p.kind)) {
+      // If this very play IS a drive-end, the current drive started
+      // AFTER it. If it's a regular play with a drive-end immediately
+      // before it, the drive started AT this index.
+      driveStartIdx = (i === head - 1) ? i : i + 1;
+      break;
     }
   }
   const driveSlice = gr.plays.slice(driveStartIdx, head);
@@ -10776,11 +10812,13 @@ function toBSPNLiveGameState(gr, head) {
   } : null;
 
   // Next-up: derived from current state (down/distance/yard line)
+  // NextUp panel shows the same upcoming-snap state as the scoreboard
+  // (sitPlay), not the just-played one.
   let nextUp = null;
-  if (curPlay && !ended && curPlay.down) {
+  if (sitPlay && !ended && sitPlay.down) {
     nextUp = {
-      downLabel: _bspnLiveDownLabel(curPlay),
-      yardLabel: _bspnLiveYardLabel(curPlay, homeT, awayT),
+      downLabel: _bspnLiveDownLabel(sitPlay),
+      yardLabel: _bspnLiveYardLabel(sitPlay, homeT, awayT),
     };
   }
 
@@ -10829,11 +10867,15 @@ function toBSPNLiveGameState(gr, head) {
     record: findRec(awayT),
     asciiMark: typeof teamAscii === "function" ? teamAscii(awayT) : "",
   };
-  const possessionTeamId = last?.poss === "home" ? homeT.id : last?.poss === "away" ? awayT.id : null;
-  const losAbs = _bspnLiveAbsoluteYardLine(last);
-  const fdLine = _bspnLiveFirstDownLine(last);
-  const yardLineText = _bspnLiveYardLabel(last, homeT, awayT);
-  const downLabel = _bspnLiveDownLabel(last);
+  // Situation fields come from `sitPlay` (next snap pre-state), not
+  // `last` (just-completed play). Engine snapshots play.down/ytg as
+  // pre-snap so the next play's pre-snap is what the scoreboard
+  // should show after the current play wraps up.
+  const possessionTeamId = sitPlay?.poss === "home" ? homeT.id : sitPlay?.poss === "away" ? awayT.id : null;
+  const losAbs = _bspnLiveAbsoluteYardLine(sitPlay);
+  const fdLine = _bspnLiveFirstDownLine(sitPlay);
+  const yardLineText = _bspnLiveYardLabel(sitPlay, homeT, awayT);
+  const downLabel = _bspnLiveDownLabel(sitPlay);
 
   return {
     // — Identity —
@@ -10853,10 +10895,10 @@ function toBSPNLiveGameState(gr, head) {
     ended, winner,
     timeouts: last?.timeouts || { home: 3, away: 3 },
 
-    // — Possession + situation —
+    // — Possession + situation — pulled from sitPlay (next snap)
     possessionTeamId,
-    down: last?.down ?? null,
-    distance: last?.ytg ?? null,
+    down: sitPlay?.down ?? null,
+    distance: sitPlay?.ytg ?? null,
     downLabel,
     yardLineText,
     absoluteYardLine: losAbs,
@@ -10871,10 +10913,10 @@ function toBSPNLiveGameState(gr, head) {
     },
 
     // — Field —
-    fieldPlayers: _bspnLiveFieldPlayers(last, homeT, awayT, gr),
+    fieldPlayers: _bspnLiveFieldPlayers(sitPlay, homeT, awayT, gr),
 
     // — Plays —
-    currentPlay: _bspnLiveCurrentPlay(last, homeT, awayT),
+    currentPlay: _bspnLiveCurrentPlay(sitPlay, homeT, awayT),
     lastPlay: lastPlayBlock,
     driveSummary: { plays: drivePlays, yards: driveYards, timeSec: driveTimeSec, resultText: null },
     nextUpText: nextUp ? `${nextUp.downLabel}${nextUp.yardLabel ? ` ON ${nextUp.yardLabel}` : ""}` : "",
@@ -10890,7 +10932,7 @@ function toBSPNLiveGameState(gr, head) {
     homeScore, awayScore,
     quarterLabel: _bspnLiveQuarterLabel(last?.quarter),
     yardLabel: yardLineText,
-    poss: last?.poss || null,
+    poss: sitPlay?.poss || null,
     nextUp,
     drive: { plays: drivePlays, yards: driveYards, timeSec: driveTimeSec },
     boxScore: {
