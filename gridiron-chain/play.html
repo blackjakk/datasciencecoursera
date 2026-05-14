@@ -11162,20 +11162,19 @@ const ScoreNumeral = {
 
 const BSPNHeader = {
   render() {
-    const items = [
-      "[SCORECENTER]","[STATS]","[BOX SCORE]","[PLAY-BY-PLAY]",
-      "[DRIVES]","[TEAM STATS]","[RECAP]",
-    ];
+    // PLAY-BY-PLAY is the implicit context during live game; show the
+    // unified nav (SCORECENTER/STANDINGS/STATS/LEGACY/WIRE) so the user
+    // can jump out of the game to a league surface. The dashboard
+    // launcher will yank them back into the live view anyway.
+    const navHtml = (typeof _bspnNavHtml === "function")
+      ? _bspnNavHtml("PLAY-BY-PLAY")
+      : "";
     return `<header class="bspnlive-header">
       <div>
         <div class="bspnlive-logo">BSPN</div>
         <div class="bspnlive-logo-sub">BALL. STRATEGY. PASSION. NOW.</div>
       </div>
-      <nav class="bspnlive-nav">
-        ${items.map((it, i) =>
-          `<span class="bspnlive-nav-item${it === "[PLAY-BY-PLAY]" ? " active" : ""}">${it}</span>`
-        ).join("")}
-      </nav>
+      <nav class="bspnlive-nav" style="flex-wrap:wrap;gap:.7rem .9rem">${navHtml}</nav>
     </header>`;
   },
 };
@@ -20470,13 +20469,14 @@ function renderFrnNewsArchive(season) {
           <div class="bspnlive-logo">BSPN</div>
           <div class="bspnlive-logo-sub">LEAGUE WIRE ARCHIVE</div>
         </div>
-        <nav class="bspnlive-nav" style="flex-wrap:wrap;gap:.7rem .9rem">${seasonNav}</nav>
+        <nav class="bspnlive-nav" style="flex-wrap:wrap;gap:.7rem .9rem">${_bspnNavHtml("WIRE")}</nav>
       </header>
-      <div style="padding:.6rem 1.4rem;border-bottom:1px solid var(--blborder);display:flex;gap:1rem;align-items:center">
+      <div style="padding:.55rem 1.4rem;border-bottom:1px solid var(--blborder);display:flex;gap:.55rem;flex-wrap:wrap;align-items:center">
         <button class="bspn-back" onclick="showFranchiseDashboard()">‹ Return to Main Screen</button>
-        <span style="color:var(--blgray);font-size:.7rem;letter-spacing:.5px">
-          Season ${sel} · ${items.length} entr${items.length===1?"y":"ies"}
-        </span>
+        ${seasonNav}
+      </div>
+      <div style="padding:.5rem 1.4rem;border-bottom:1px solid var(--blborder);color:var(--blgray);font-size:.7rem;letter-spacing:.5px">
+        Season ${sel} · ${items.length} entr${items.length===1?"y":"ies"}
       </div>
       <div style="padding:1rem 1.4rem">
         <section class="bspn-panel" style="padding:.7rem 1rem">
@@ -21284,6 +21284,24 @@ function renderFrnScrimmages() {
 
 // ── Past-game viewer ──────────────────────────────────────────────────────────
 // ── Legacy / all-time records ─────────────────────────────────────────────────
+// Top nav shared across every BSPN broadcast page (standings, leaders,
+// legacy, wire). Each entry is a real navigable button. Pass `active`
+// to highlight the current page (e.g. "STANDINGS", "STATS").
+const _BSPN_NAV_LINKS = [
+  { id: "SCORECENTER", action: "showFranchiseDashboard()" },
+  { id: "STANDINGS",   action: "renderFrnStandings()" },
+  { id: "STATS",       action: "renderFrnLeaders()" },
+  { id: "LEGACY",      action: "renderFrnLegacy()" },
+  { id: "WIRE",        action: "renderFrnNewsArchive()" },
+];
+function _bspnNavHtml(activeId) {
+  return _BSPN_NAV_LINKS.map(({ id, action }) =>
+    `<button class="bspnlive-nav-item ${id === activeId ? "active" : ""}"
+      style="background:transparent;border:0;font-family:inherit;cursor:pointer;padding:0;${id===activeId?"color:var(--blwhite)":""}"
+      onclick="${action}">[${id}]</button>`
+  ).join(" ");
+}
+
 // ── BSPN STANDINGS PAGE ─────────────────────────────────────────────────────
 // Broadcast-styled league standings — uses the BSPN scoped CSS already
 // loaded for the box-score page. Grouped by conference + division with
@@ -21393,12 +21411,7 @@ function renderFrnStandings() {
           <div class="bspnlive-logo">BSPN</div>
           <div class="bspnlive-logo-sub">LEAGUE STANDINGS · SEASON ${franchise.season}</div>
         </div>
-        <nav class="bspnlive-nav">
-          <span class="bspnlive-nav-item">[SCORECENTER]</span>
-          <span class="bspnlive-nav-item active">[STANDINGS]</span>
-          <span class="bspnlive-nav-item">[STATS]</span>
-          <span class="bspnlive-nav-item">[TEAMS]</span>
-        </nav>
+        <nav class="bspnlive-nav" style="flex-wrap:wrap;gap:.7rem .9rem">${_bspnNavHtml("STANDINGS")}</nav>
       </header>
       <div style="padding:.6rem 1.4rem;border-bottom:1px solid var(--blborder);display:flex;gap:1rem;align-items:center">
         <button class="bspn-back" onclick="showFranchiseDashboard()">‹ Return to Main Screen</button>
@@ -21497,13 +21510,14 @@ function renderFrnLeaders(tab) {
           <div class="bspnlive-logo">BSPN</div>
           <div class="bspnlive-logo-sub">LEAGUE LEADERS · SEASON ${franchise.season}</div>
         </div>
-        <nav class="bspnlive-nav" style="flex-wrap:wrap;gap:.7rem .9rem">${tabBar}</nav>
+        <nav class="bspnlive-nav" style="flex-wrap:wrap;gap:.7rem .9rem">${_bspnNavHtml("STATS")}</nav>
       </header>
-      <div style="padding:.6rem 1.4rem;border-bottom:1px solid var(--blborder);display:flex;gap:1rem;align-items:center">
+      <div style="padding:.55rem 1.4rem;border-bottom:1px solid var(--blborder);display:flex;gap:.55rem;flex-wrap:wrap;align-items:center">
         <button class="bspn-back" onclick="showFranchiseDashboard()">‹ Return to Main Screen</button>
-        <span style="color:var(--blgray);font-size:.7rem;letter-spacing:.5px">
-          Week ${Math.min(franchise.week, FRANCHISE_WEEKS)} of ${FRANCHISE_WEEKS} · Top 10 in ${cat.label.toLowerCase()}
-        </span>
+        ${tabBar}
+      </div>
+      <div style="padding:.5rem 1.4rem;border-bottom:1px solid var(--blborder);color:var(--blgray);font-size:.7rem;letter-spacing:.5px">
+        Week ${Math.min(franchise.week, FRANCHISE_WEEKS)} of ${FRANCHISE_WEEKS} · Top 10 in ${cat.label.toLowerCase()}
       </div>
       <div style="padding:1rem 1.4rem">
         <section class="bspn-panel" style="padding:.7rem 1rem">
@@ -21553,13 +21567,11 @@ function renderFrnLegacy(tab) {
           <div class="bspnlive-logo">BSPN</div>
           <div class="bspnlive-logo-sub">LEGACY · ${franchise.season} SEASON${franchise.season===1?"":"S"}</div>
         </div>
-        <nav class="bspnlive-nav" style="flex-wrap:wrap;gap:.7rem .9rem">${navHtml}</nav>
+        <nav class="bspnlive-nav" style="flex-wrap:wrap;gap:.7rem .9rem">${_bspnNavHtml("LEGACY")}</nav>
       </header>
-      <div style="padding:.6rem 1.4rem;border-bottom:1px solid var(--blborder);display:flex;gap:1rem;align-items:center">
+      <div style="padding:.55rem 1.4rem;border-bottom:1px solid var(--blborder);display:flex;gap:.55rem;flex-wrap:wrap;align-items:center">
         <button class="bspn-back" onclick="showFranchiseDashboard()">‹ Return to Main Screen</button>
-        <span style="color:var(--blgray);font-size:.7rem;letter-spacing:.5px">
-          ${tabs.find(t=>t.id===tab)?.label || ""}
-        </span>
+        ${navHtml}
       </div>
       <div style="padding:1rem 1.4rem">
         <section class="bspn-panel" style="padding:.8rem 1rem;background:var(--blbg2)">
