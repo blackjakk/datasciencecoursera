@@ -22839,13 +22839,34 @@ function frnFireCoach() {
 }
 
 // ── Alumni view — recent former players of the user's team ──────────────────
-function renderFrnAlumni() {
+function renderFrnAlumni(yearsBackArg) {
   frnHoverTipHide(); _frnHoverTipPgHide && _frnHoverTipPgHide();
   const myId = franchise.chosenTeamId;
   const myTeam = getTeam(myId);
-  const alumni = _computeAlumni(myId, 3);
+  // Persist selection so re-renders (e.g. after profile close) keep the range.
+  if (yearsBackArg !== undefined) franchise._alumniYearsBack = yearsBackArg;
+  const yearsBack = franchise._alumniYearsBack ?? 3;
+  const alumni = _computeAlumni(myId, yearsBack);
   const grouped = { team: [], hof: [], retired: [], unsigned: [] };
   for (const a of alumni) (grouped[a.location] || (grouped[a.location] = [])).push(a);
+  const totalSnapshots = (franchise.rosterSnapshots || []).length;
+  // Range options — only show options that have snapshots backing them.
+  const rangeOptions = [
+    { label: "Last 3", val: 3 },
+    { label: "Last 5", val: 5 },
+    { label: "Last 10", val: 10 },
+    { label: "All-time", val: "all" },
+  ];
+  const rangeChips = rangeOptions.map(r => {
+    const active = (yearsBack === r.val) ? "active" : "";
+    // Disable options that exceed current snapshot depth (cosmetic only;
+    // _computeAlumni handles the case gracefully)
+    const disabled = (r.val !== "all" && r.val > totalSnapshots) ? "disabled" : "";
+    return `<button class="bspnlive-nav-item ${active}"
+      style="background:transparent;border:1px solid ${active?'var(--blgold)':'var(--blborder)'};border-radius:3px;font-family:inherit;cursor:${disabled?'default':'pointer'};padding:.2rem .55rem;${active?'color:var(--blwhite);font-weight:700':disabled?'color:var(--blgray);opacity:.45':''}"
+      ${disabled ? "" : `onclick="renderFrnAlumni(${r.val === 'all' ? "'all'" : r.val})"`}
+      >${r.label}${r.val !== 'all' && r.val > totalSnapshots ? ` <span style="font-size:.55rem">(${totalSnapshots} avail)</span>` : ""}</button>`;
+  }).join("");
 
   const findCurrentPlayer = (name) => {
     for (const r of Object.values(franchise.rosters || {})) {
@@ -22904,7 +22925,9 @@ function renderFrnAlumni() {
       </header>
       <div style="padding:.55rem 1.4rem;border-bottom:1px solid var(--blborder);display:flex;gap:.55rem;flex-wrap:wrap;align-items:center">
         <button class="bspn-back" onclick="showFranchiseDashboard()">‹ Return to Main Screen</button>
-        <div style="color:var(--blgray);font-size:.7rem;margin-left:auto">Players who suited up for ${myTeam.name} in any of the last 3 seasons</div>
+        <span style="color:var(--blgray);font-size:.62rem;letter-spacing:1px;font-weight:700;margin-left:.6rem">RANGE:</span>
+        <div style="display:flex;gap:.3rem;flex-wrap:wrap">${rangeChips}</div>
+        <div style="color:var(--blgray);font-size:.65rem;margin-left:auto">${totalSnapshots} season snapshot${totalSnapshots===1?"":"s"} on file · cap 25</div>
       </div>
       <div style="padding:1rem 1.4rem">${body}</div>
     </div>`;
@@ -24986,23 +25009,28 @@ function _takeAlumniSnapshot() {
     }));
   }
   franchise.rosterSnapshots.push({ season: franchise.season, byTeam });
-  // Keep only the last 4 (so "last 3 years" is fully covered)
-  if (franchise.rosterSnapshots.length > 4) {
-    franchise.rosterSnapshots = franchise.rosterSnapshots.slice(-4);
+  // Cap retention at 25 seasons — well past any realistic franchise tenure
+  // for the user, while keeping localStorage size sane (~25 × 32 × 50
+  // small entries).
+  if (franchise.rosterSnapshots.length > 25) {
+    franchise.rosterSnapshots = franchise.rosterSnapshots.slice(-25);
   }
 }
 
 // Compute alumni for a given team using the last N seasons of snapshots.
-// Returns array sorted by season-departed descending. Each entry:
-//   { name, pos, lastSeasonWithUs, currentLocation: "team" | "hof" | "unsigned", currentTeam?, hofRow? }
+// yearsBack = "all" to use every retained snapshot.
 function _computeAlumni(teamId, yearsBack = 3) {
   if (!franchise.rosterSnapshots) return [];
   const currentNames = new Set((franchise.rosters[teamId] || []).map(p => p.name));
   const seen = new Map(); // name → { lastSeasonWithUs, pos }
-  const snaps = franchise.rosterSnapshots.slice(-yearsBack - 1, -1); // exclude THIS season's snapshot if just taken
-  // If we haven't taken THIS season's snapshot yet, include all (current
-  // season's roster diff happens via "not on current roster")
-  const considered = (snaps.length > 0) ? snaps : franchise.rosterSnapshots;
+  const all = franchise.rosterSnapshots;
+  // Exclude this season's snapshot from "former" computation if it was
+  // just stamped — current roster diff handles "still on the team."
+  const trimmed = all.length > 1 ? all.slice(0, -1) : all;
+  const snaps = (yearsBack === "all")
+    ? trimmed
+    : trimmed.slice(-yearsBack);
+  const considered = (snaps.length > 0) ? snaps : trimmed;
   for (const snap of considered) {
     const names = snap.byTeam?.[teamId] || [];
     for (const entry of names) {
