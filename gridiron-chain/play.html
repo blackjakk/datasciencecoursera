@@ -17904,6 +17904,7 @@ function renderFrnFANegotiations(selectedName) {
 
   // Actions row
   const yourCur = selNeg.yourBid?.aav || 0;
+  const yourYrs = selNeg.yourBid?.years || selNeg.fa.demandedYears;
   const beingOutbid = selHigh && !selHigh.isYou && selNeg.yourBid;
   const actionsHtml = `
     <div class="frn-fa-neg-actions">
@@ -17915,6 +17916,16 @@ function renderFrnFANegotiations(selectedName) {
       ` : `
         <button class="btn btn-gold" onclick="frnFAEnterBid('${escSel}')">+ Enter Bid (match current high)</button>
       `}
+    </div>
+    <div class="frn-fa-neg-actions" style="margin-top:.5rem;align-items:center;gap:.4rem">
+      <span class="frn-meta-label" style="margin:0">Contract length:</span>
+      <button class="btn btn-outline" onclick="frnFASetNegotiationYears('${escSel}',${Math.max(1, yourYrs-1)})" style="font-size:.65rem;padding:.2rem .55rem">− 1yr</button>
+      <span style="color:var(--gold-lt);font-weight:700;min-width:3rem;text-align:center">${yourYrs} yr</span>
+      <button class="btn btn-outline" onclick="frnFASetNegotiationYears('${escSel}',${Math.min(7, yourYrs+1)})" style="font-size:.65rem;padding:.2rem .55rem">+ 1yr</button>
+      <input type="number" min="1" max="7" step="1" value="${yourYrs}"
+        onchange="frnFASetNegotiationYears('${escSel}',this.value)"
+        style="width:3.6rem;background:var(--bg3);color:var(--white);border:1px solid var(--border);padding:.2rem .35rem;font-family:inherit;font-size:.7rem">
+      <span style="color:var(--gray);font-size:.62rem">FA wants ${selNeg.fa.demandedYears}yr · longer = more risk for you, more comfort for them</span>
     </div>`;
 
   // Cap math preview
@@ -17973,6 +17984,28 @@ function frnFAEnterBid(name) {
   const aav = high ? Math.round((high.aav + 0.5) * 10) / 10 : n.fa.demandedAAV;
   n.yourBid = { aav, years: n.fa.demandedYears, cutNames: [] };
   n.history.push({ teamId: franchise.chosenTeamId, label: "You (joined)", aav, years: n.fa.demandedYears, week: franchise.week });
+  n.raisedThisRound = true;
+  n.lastRaiseWeek = franchise.week;
+  saveFranchise();
+  renderFrnFANegotiations(name);
+}
+
+// Adjust contract length on an active offer. Capped at 1..7 years.
+// A longer contract reads as more commitment to the FA, but each
+// year also adds dead-money risk for the team — the AI agents
+// weight years × aav when picking the winning bid, so this is a
+// real lever for the user, not just cosmetic.
+function frnFASetNegotiationYears(name, years) {
+  const n = franchise.faNegotiations?.[name]; if (!n) return;
+  const y = Math.max(1, Math.min(7, Math.round(Number(years) || 1)));
+  if (!n.yourBid) {
+    // Allow setting years before placing a bid — they apply on entry.
+    n.yourBid = { aav: 0, years: y, cutNames: [] };
+  } else {
+    n.yourBid.years = y;
+  }
+  n.history.push({ teamId: franchise.chosenTeamId, label: `You (years → ${y})`,
+    aav: n.yourBid.aav || 0, years: y, week: franchise.week });
   n.raisedThisRound = true;
   n.lastRaiseWeek = franchise.week;
   saveFranchise();
@@ -21639,27 +21672,33 @@ function frnOpenTrade(targetTeamId, tab) {
   }
   // null/"" → browse mode (no partner locked). A real team id → lock it.
   const wantsBrowse = (targetTeamId === null || targetTeamId === "" || targetTeamId === undefined);
+  const fresh = () => ({
+    youSend: [], youReceive: [],
+    picksSend: [], picksReceive: [],
+    cashSend:    { amount: 0, years: 0 },
+    cashReceive: { amount: 0, years: 0 },
+    result: null,
+  });
   if (!franchise._tradeProp) {
     franchise._tradeProp = {
       targetTeamId: wantsBrowse ? null : Number(targetTeamId),
-      youSend: [], youReceive: [],
-      result: null,
+      ...fresh(),
       tab: tab || "propose",
       sortBy: "grade",
       posFilter: "ALL",
     };
   } else if (!wantsBrowse) {
     franchise._tradeProp.targetTeamId = Number(targetTeamId);
-    franchise._tradeProp.youSend = [];
-    franchise._tradeProp.youReceive = [];
-    franchise._tradeProp.result = null;
+    Object.assign(franchise._tradeProp, fresh());
   } else if (wantsBrowse && targetTeamId !== undefined) {
-    // Explicit clear via dropdown
     franchise._tradeProp.targetTeamId = null;
-    franchise._tradeProp.youSend = [];
-    franchise._tradeProp.youReceive = [];
-    franchise._tradeProp.result = null;
+    Object.assign(franchise._tradeProp, fresh());
   }
+  // Backfill new fields for older saves with a half-built proposal
+  const tp = franchise._tradeProp;
+  tp.picksSend    ||= []; tp.picksReceive ||= [];
+  tp.cashSend     ||= { amount: 0, years: 0 };
+  tp.cashReceive  ||= { amount: 0, years: 0 };
   if (tab) franchise._tradeProp.tab = tab;
   saveFranchise();
   renderFrnTrade();
@@ -22193,30 +22232,75 @@ function frnClearTradePartner() {
   const tp = franchise._tradeProp;
   if (!tp) return;
   tp.targetTeamId = null;
-  tp.youReceive = [];
-  tp.youSend = [];
+  tp.youReceive = []; tp.youSend = [];
+  tp.picksReceive = []; tp.picksSend = [];
+  tp.cashSend = { amount: 0, years: 0 };
+  tp.cashReceive = { amount: 0, years: 0 };
   tp.result = null;
   saveFranchise();
   renderFrnTrade();
 }
 
+// Picks don't have a primary key, so derive one from year+round+orig.
+function _tradePickKey(p) { return `${p.year}_R${p.round}_T${p.originalTeamId}`; }
+function _tradePickFromKey(key, ownerId) {
+  return (franchise.picks || []).find(p =>
+    p.currentOwnerId === ownerId && _tradePickKey(p) === key);
+}
+function frnToggleTradePick(side, key) {
+  const tp = franchise._tradeProp; if (!tp) return;
+  const arr = side === "send" ? tp.picksSend : tp.picksReceive;
+  const idx = arr.indexOf(key);
+  if (idx === -1) arr.push(key); else arr.splice(idx, 1);
+  tp.result = null;
+  saveFranchise();
+  renderFrnTrade();
+}
+function frnSetTradeCash(direction, field, val) {
+  const tp = franchise._tradeProp; if (!tp) return;
+  const target = direction === "send" ? tp.cashSend : tp.cashReceive;
+  const num = Math.max(0, Number(val) || 0);
+  if (field === "amount") target.amount = Math.round(num * 10) / 10;
+  else if (field === "years") target.years = Math.max(0, Math.min(7, Math.round(num)));
+  tp.result = null;
+  saveFranchise();
+}
+
 function frnSubmitTrade() {
   const tp = franchise._tradeProp;
-  if (!tp || !tp.youSend.length || !tp.youReceive.length) {
-    alert("Add at least one player to each side.");
+  if (!tp) return;
+  if (_tradeIsEmpty(tp)) {
+    alert("Add something on each side — players, picks, or cash.");
     return;
   }
   const myId = franchise.chosenTeamId;
   const otherId = tp.targetTeamId;
+  if (!otherId) { alert("Choose a trade partner first."); return; }
   const myRoster = franchise.rosters[myId];
   const theirRoster = franchise.rosters[otherId];
 
   const sendPlayers = tp.youSend.map(n => myRoster.find(p => p.name === n)).filter(Boolean);
   const recvPlayers = tp.youReceive.map(n => theirRoster.find(p => p.name === n)).filter(Boolean);
+  const sendPicks = (tp.picksSend || [])
+    .map(k => _tradePickFromKey(k, myId)).filter(Boolean);
+  const recvPicks = (tp.picksReceive || [])
+    .map(k => _tradePickFromKey(k, otherId)).filter(Boolean);
 
-  const sendValue = sendPlayers.reduce((s,p) => s + _playerTradeValue(p), 0);
-  const recvValue = recvPlayers.reduce((s,p) => s + _playerTradeValue(p), 0);
-  // AI need bonus: how much they want what you're sending
+  const playerSendValue = sendPlayers.reduce((s,p) => s + _playerTradeValue(p), 0);
+  const playerRecvValue = recvPlayers.reduce((s,p) => s + _playerTradeValue(p), 0);
+  const pickSendValue = sendPicks.reduce((s,p) => s + _pickValue(p), 0);
+  const pickRecvValue = recvPicks.reduce((s,p) => s + _pickValue(p), 0);
+  // Cash is a multi-year obligation; AI views it as ~70% of nominal because
+  // it's spread out and counts as dead money against their future caps.
+  const cashSendNom = (tp.cashSend.amount || 0)    * (tp.cashSend.years    || 0);
+  const cashRecvNom = (tp.cashReceive.amount || 0) * (tp.cashReceive.years || 0);
+  const cashSendValue = cashSendNom * 0.70;
+  const cashRecvValue = cashRecvNom * 0.70;
+
+  const sendValue = playerSendValue + pickSendValue + cashSendValue;
+  const recvValue = playerRecvValue + pickRecvValue + cashRecvValue;
+
+  // AI need bonus: how much they want what you're sending (players only)
   const theirNeedForSend = _aiTradeNeedBonus(otherId, sendPlayers);
   const myNeedForRecv = _aiTradeNeedBonus(myId, recvPlayers);
 
@@ -22225,7 +22309,7 @@ function frnSubmitTrade() {
   const accepted = aiScore >= 0.97;
 
   if (accepted) {
-    // Execute
+    // Players
     for (const p of sendPlayers) {
       const i = myRoster.indexOf(p);
       if (i !== -1) myRoster.splice(i, 1);
@@ -22236,13 +22320,35 @@ function frnSubmitTrade() {
       if (i !== -1) theirRoster.splice(i, 1);
       myRoster.push(p);
     }
+    // Picks — flip currentOwnerId
+    for (const pk of sendPicks)  pk.currentOwnerId = otherId;
+    for (const pk of recvPicks)  pk.currentOwnerId = myId;
+    // Cash — transfer fee = recurring refund obligation
+    franchise.refunds ||= [];
+    if (cashSendNom > 0) franchise.refunds.push({
+      fromTeamId: myId, toTeamId: otherId,
+      amount: tp.cashSend.amount, yearsRemaining: tp.cashSend.years,
+    });
+    if (cashRecvNom > 0) franchise.refunds.push({
+      fromTeamId: otherId, toTeamId: myId,
+      amount: tp.cashReceive.amount, yearsRemaining: tp.cashReceive.years,
+    });
+
     const other = getTeam(otherId);
+    const sendBits = [];
+    if (sendPlayers.length) sendBits.push(sendPlayers.map(p => p.position+" "+p.name).join(", "));
+    if (sendPicks.length)   sendBits.push(sendPicks.map(p => `${p.year} R${p.round}`).join(", "));
+    if (cashSendNom > 0)    sendBits.push(`$${tp.cashSend.amount}M×${tp.cashSend.years}yr fee`);
+    const recvBits = [];
+    if (recvPlayers.length) recvBits.push(recvPlayers.map(p => p.position+" "+p.name).join(", "));
+    if (recvPicks.length)   recvBits.push(recvPicks.map(p => `${p.year} R${p.round}`).join(", "));
+    if (cashRecvNom > 0)    recvBits.push(`$${tp.cashReceive.amount}M×${tp.cashReceive.years}yr fee`);
     tp.result = {
       accepted: true,
-      message: `Trade accepted! Welcome ${recvPlayers.map(p=>p.name).join(", ")}.`,
+      message: `Trade accepted! You got ${recvBits.join(" + ") || "nothing"}.`,
     };
     _pushNews({ type:"trade",
-      label: `🔀 Trade with ${other.name}: sent ${sendPlayers.map(p=>p.position+" "+p.name).join(", ")} for ${recvPlayers.map(p=>p.position+" "+p.name).join(", ")}` });
+      label: `🔀 Trade with ${other.name}: sent ${sendBits.join(" + ")} for ${recvBits.join(" + ")}` });
   } else {
     const reason = aiScore < 0.6 ? "Way too lopsided in your favor"
                  : aiScore < 0.85 ? "Not enough value coming back to us"
@@ -22440,16 +22546,101 @@ function _renderTradeProposeTab(tp, sortBy, myRoster, cap, myCapUsed) {
         <div class="frn-trade-list">${sendRows || `<div style="color:var(--gray);font-style:italic;font-size:.7rem;padding:.4rem">None at this position.</div>`}</div>
       </div>
     </div>
+    ${_renderTradePicksSection(myId, partnerId, tp)}
+    ${_renderTradeCashSection(myTeam, partnerTeam, tp)}
     ${tp.result ? `
       <div class="frn-trade-result ${tp.result.accepted?'accepted':'rejected'}">
         <b>${tp.result.accepted?"✓ ACCEPTED":"✗ REJECTED"}</b> · ${tp.result.message}
       </div>` : ""}
     <div class="frn-actions" style="justify-content:center;margin-top:.8rem">
       <button class="btn btn-gold-big" onclick="frnSubmitTrade()"
-        ${(tp.youSend.length===0 || tp.youReceive.length===0 || !partnerId || franchise.week > TRADE_DEADLINE_WEEK)?"disabled style=\"opacity:.5;cursor:not-allowed\"":""}>
+        ${(_tradeIsEmpty(tp) || !partnerId || franchise.week > TRADE_DEADLINE_WEEK)?"disabled style=\"opacity:.5;cursor:not-allowed\"":""}>
         📨 SUBMIT PROPOSAL
       </button>
     </div>`;
+}
+
+// A trade must move SOMETHING in each direction (players, picks, or cash)
+// — empty side is considered "give nothing for everything", which we block.
+function _tradeIsEmpty(tp) {
+  const sendSide = tp.youSend.length + tp.picksSend.length
+    + (tp.cashSend.amount * tp.cashSend.years > 0 ? 1 : 0);
+  const recvSide = tp.youReceive.length + tp.picksReceive.length
+    + (tp.cashReceive.amount * tp.cashReceive.years > 0 ? 1 : 0);
+  return sendSide === 0 || recvSide === 0;
+}
+
+function _renderTradePicksSection(myId, partnerId, tp) {
+  const yearLabel = yr => yr;
+  const myPicks = (franchise.picks || [])
+    .filter(p => p.currentOwnerId === myId)
+    .sort((a,b) => a.year - b.year || a.round - b.round);
+  const theirPicks = partnerId ? (franchise.picks || [])
+    .filter(p => p.currentOwnerId === partnerId)
+    .sort((a,b) => a.year - b.year || a.round - b.round) : [];
+  const renderPickRow = (p, isMine) => {
+    const key = _tradePickKey(p);
+    const sel = isMine ? tp.picksSend.includes(key) : tp.picksReceive.includes(key);
+    const origTeam = getTeam(p.originalTeamId);
+    const viaMine = isMine ? p.originalTeamId !== myId : p.originalTeamId !== partnerId;
+    const viaLabel = viaMine ? ` <span style="color:#7fbfff;font-size:.6rem">via ${origTeam?.name||"?"}</span>` : "";
+    return `<label class="frn-trade-row" style="display:flex;gap:.4rem;align-items:center;padding:.18rem .25rem;cursor:pointer;${sel?"background:rgba(200,169,0,0.12)":""}">
+      <input type="checkbox" ${sel?"checked":""} onchange="frnToggleTradePick('${isMine?"send":"receive"}','${key}')">
+      <span style="color:var(--gold);font-weight:700;font-size:.65rem;min-width:2.2rem">${yearLabel(p.year)} R${p.round}</span>
+      <span style="color:var(--gray);font-size:.6rem">~${_pickValue(p).toFixed(0)} val${viaLabel}</span>
+    </label>`;
+  };
+  const myList = myPicks.length
+    ? myPicks.map(p => renderPickRow(p, true)).join("")
+    : `<div style="color:var(--gray);font-style:italic;font-size:.65rem;padding:.3rem">No picks owned.</div>`;
+  const theirList = !partnerId
+    ? `<div style="color:var(--gray);font-style:italic;font-size:.65rem;padding:.3rem">Lock a trade partner to see their picks.</div>`
+    : (theirPicks.length
+        ? theirPicks.map(p => renderPickRow(p, false)).join("")
+        : `<div style="color:var(--gray);font-style:italic;font-size:.65rem;padding:.3rem">Partner has no picks.</div>`);
+  return `<div class="frn-trade-layout" style="margin-top:.7rem">
+    <div class="frn-fa-pool-col">
+      <div class="frn-card-title">PICKS YOU SEND <span style="color:var(--gray);font-weight:400;margin-left:auto">${tp.picksSend.length} selected</span></div>
+      <div class="frn-trade-list" style="max-height:14rem;overflow-y:auto">${myList}</div>
+    </div>
+    <div class="frn-fa-pool-col">
+      <div class="frn-card-title">PICKS YOU RECEIVE <span style="color:var(--gray);font-weight:400;margin-left:auto">${tp.picksReceive.length} selected</span></div>
+      <div class="frn-trade-list" style="max-height:14rem;overflow-y:auto">${theirList}</div>
+    </div>
+  </div>`;
+}
+
+function _renderTradeCashSection(myTeam, partnerTeam, tp) {
+  // Cash = transfer fee (soccer-style). One side pays $X/yr for Y years
+  // and that obligation lands on franchise.refunds when the deal goes through.
+  const partnerName = partnerTeam ? partnerTeam.name : "Partner";
+  const cashBox = (direction, label, hint, target) => `
+    <div class="frn-fa-pool-col">
+      <div class="frn-card-title">${label}<span style="color:var(--gray);font-weight:400;margin-left:auto;font-size:.6rem">${hint}</span></div>
+      <div style="display:flex;gap:.5rem;align-items:flex-end;padding:.4rem">
+        <label style="flex:1">
+          <div class="frn-meta-label">$ / YEAR</div>
+          <input type="number" min="0" max="40" step="0.5"
+            value="${target.amount || 0}"
+            oninput="frnSetTradeCash('${direction}','amount',this.value)"
+            style="width:100%;background:var(--bg3);color:var(--white);border:1px solid var(--border);padding:.25rem .35rem;font-family:inherit">
+        </label>
+        <label style="flex:1">
+          <div class="frn-meta-label">YEARS</div>
+          <input type="number" min="0" max="7" step="1"
+            value="${target.years || 0}"
+            oninput="frnSetTradeCash('${direction}','years',this.value)"
+            style="width:100%;background:var(--bg3);color:var(--white);border:1px solid var(--border);padding:.25rem .35rem;font-family:inherit">
+        </label>
+        <div style="color:var(--gold);font-weight:700;white-space:nowrap;padding-bottom:.25rem">
+          = $${((target.amount||0) * (target.years||0)).toFixed(1)}M total
+        </div>
+      </div>
+    </div>`;
+  return `<div class="frn-trade-layout" style="margin-top:.7rem">
+    ${cashBox("send",    "TRANSFER FEE YOU PAY",      `${myTeam.name} → ${partnerName}`, tp.cashSend)}
+    ${cashBox("receive", "TRANSFER FEE YOU RECEIVE",  `${partnerName} → ${myTeam.name}`, tp.cashReceive)}
+  </div>`;
 }
 
 function _renderTradeBlockTab(myRoster, sortBy) {
