@@ -5270,6 +5270,21 @@ class GameSimulator {
     // BEFORE any reads of this.offR.starters.X. Restores from base depth
     // chart at the top, then optionally swaps in backups.
     this._rotateForSnap();
+    // Snap counts: bump for offensive skill players actually on the
+    // field this snap (after rotation). Lets the post-game stats show
+    // "played 89% of snaps" — fantasy managers care about this more
+    // than raw touch totals.
+    {
+      const side = this.poss;
+      const starters = this.offR.starters;
+      for (const role of ["qb", "rb", "wr1", "wr2", "te"]) {
+        const name = starters[role];
+        if (!name) continue;
+        const pl = this.stats[side].players[name];
+        if (pl) pl.snaps = (pl.snaps || 0) + 1;
+      }
+      this.stats[side].team.snaps = (this.stats[side].team.snaps || 0) + 1;
+    }
     const adv = (this.offR.offense - this.defR.defense) / 100;
     // Trench matchup: positive = DL is winning vs OL (offense in trouble)
     // -1.0 ≈ OL dominates, 0 ≈ even, +1.0 ≈ DL crushes OL, +1.5 = absolute mismatch
@@ -18857,6 +18872,21 @@ function _pickInjuryType() {
   for (const t of INJURY_TYPES) { if ((r -= t.w) < 0) return t; }
   return INJURY_TYPES[0];
 }
+// Soft-tissue injuries recur at +20% per prior incident; structural
+// injuries (knee, shoulder, concussion) recur at +40%. Capped at 3x
+// the base rate so even chronically banged-up vets aren't auto-injured.
+const _SOFT_TISSUE_INJURIES = new Set(["hamstring", "ankle sprain", "hand/wrist"]);
+function _injuryRecurrenceMul(p) {
+  const hist = p.injuryHistory || [];
+  let mul = 1.0;
+  for (const past of hist) {
+    mul += _SOFT_TISSUE_INJURIES.has(past.label) ? 0.20 : 0.40;
+  }
+  return Math.min(3.0, mul);
+}
+function _isInjuryProne(p) {
+  return (p.injuryHistory || []).length >= 3;
+}
 function _rollGameInjuries(teamId) {
   const roster = franchise.rosters[teamId] || [];
   const team = getTeam(teamId);
@@ -18865,17 +18895,25 @@ function _rollGameInjuries(teamId) {
   const rateMul = coachTrait === "Hard-Ass" ? 0.80 : 1.0;
   for (const p of roster) {
     if (p.injury && p.injury.weeksRemaining > 0) continue;
-    const rate = (INJURY_RATE[p.position] || 0.01) * rateMul;
+    const recMul = _injuryRecurrenceMul(p);
+    const rate = (INJURY_RATE[p.position] || 0.01) * rateMul * recMul;
     if (Math.random() >= rate) continue;
     const t = _pickInjuryType();
     const wks = t.min + Math.floor(Math.random() * (t.max - t.min + 1));
     p.injury = { label: t.label, weeksRemaining: wks };
+    // Persist injury history so future recurrence rates know about it.
+    p.injuryHistory = p.injuryHistory || [];
+    p.injuryHistory.push({
+      label: t.label, week: franchise.week, season: franchise.season, weeks: wks,
+    });
+    if (p.injuryHistory.length > 20) p.injuryHistory = p.injuryHistory.slice(-20);
     // News only for notable injuries on user team or to top players
     const isMine = teamId === franchise.chosenTeamId;
     const grade = scoutGrade(p);
     if (isMine || grade >= 80) {
+      const proneTag = _isInjuryProne(p) ? " (injury-prone)" : "";
       _pushNews({ type:"injury",
-        label: `🩹 ${p.name} (${p.position}, ${team?.name||"?"}) — ${t.label}, ${wks} wk${wks===1?"":"s"}` });
+        label: `🩹 ${p.name} (${p.position}, ${team?.name||"?"})${proneTag} — ${t.label}, ${wks} wk${wks===1?"":"s"}` });
     }
   }
 }
@@ -19072,6 +19110,7 @@ function _buildSeasonStatsBlock(p) {
     fmtTuples.push(["PASS TD", num("pass_td")]);
     fmtTuples.push(["INT", num("pass_int")]);
     fmtTuples.push(["RATING", _passerRating(cmp, att, yds, num("pass_td"), num("pass_int"))]);
+    if (num("snaps")) fmtTuples.push(["SNAPS", num("snaps")]);
     if (num("rush_yds")) fmtTuples.push(["RUSH YDS", num("rush_yds")]);
   } else if (pos === "RB") {
     const car = num("rush_att"), yds = num("rush_yds");
@@ -19080,6 +19119,7 @@ function _buildSeasonStatsBlock(p) {
     fmtTuples.push(["YPC", car ? (yds/car).toFixed(1) : "—"]);
     fmtTuples.push(["YDS/GAME", per(yds)]);
     fmtTuples.push(["RUSH TD", num("rush_td")]);
+    if (num("snaps")) fmtTuples.push(["SNAPS", num("snaps")]);
     if (num("rec")) {
       fmtTuples.push(["REC", num("rec")]);
       fmtTuples.push(["REC YDS", num("rec_yds")]);
@@ -19091,6 +19131,7 @@ function _buildSeasonStatsBlock(p) {
     fmtTuples.push(["REC YDS", yds]);
     fmtTuples.push(["YPR", rec ? (yds/rec).toFixed(1) : "—"]);
     fmtTuples.push(["YDS/GAME", per(yds)]);
+    if (num("snaps")) fmtTuples.push(["SNAPS", num("snaps")]);
     fmtTuples.push(["REC TD", num("rec_td")]);
     fmtTuples.push(["CATCH %", tgt ? `${(rec/tgt*100).toFixed(1)}%` : "—"]);
   } else if (pos === "DL" || pos === "LB" || pos === "CB" || pos === "S") {
@@ -19371,6 +19412,7 @@ function _buildPlayerDetailPanel(p) {
     ${seasonBlock ? `<div style="margin-top:.6rem">${seasonBlock}</div>` : ""}
     ${gameLogBlock ? `<div style="margin-top:.6rem">${gameLogBlock}</div>` : ""}
     ${p.injury ? `<div class="frn-player-injury" style="margin-top:.55rem">🩹 ${p.injury.label} — ${p.injury.weeksRemaining} wk${p.injury.weeksRemaining===1?"":"s"} out</div>` : ""}
+    ${_isInjuryProne(p) ? `<div style="margin-top:.45rem;font-size:.6rem;color:#ff9090;letter-spacing:.5px;font-weight:700" title="Injured 3+ times — elevated recurrence risk">⚠ INJURY-PRONE · ${(p.injuryHistory||[]).length} prior injuries</div>` : ""}
     ${flav ? `<div class="frn-player-flavor" style="margin-top:.55rem">${flav}</div>` : ""}
     ${_buildCareerCard(p)}
   </div>`;
