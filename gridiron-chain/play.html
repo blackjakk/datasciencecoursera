@@ -19037,7 +19037,7 @@ function showFranchiseDashboard() {
     else if (phase === "regular")              renderFrnRegular();
     else if (phase === "playoffs_pending")     startFrnPlayoffs();
     else if (phase === "playoffs")         renderFrnPlayoffs();
-    else if (phase === "awards")           renderFrnAwards();
+    else if (phase === "awards")           showFrnAwards();
     else if (phase === "offseason") {
       if (franchise._resignPending?.length) {
         const cap = franchise.salaryCap || SALARY_CAP_BASE;
@@ -26062,23 +26062,35 @@ function showFrnAwards() {
   // Computes League MVP (best season stats × team-success multiplier), Super
   // Bowl MVP (top scorer from championship-winning side), and your team's MVP.
   const champId = franchise.playoffBracket?.champion;
-  if (champId && !franchise.history.some(h => h.season === franchise.season)) {
-    // Tick coach records + tenure first (only on season-end)
-    for (const t of TEAMS) {
-      const hc = franchise.coaches?.[t.id]?.hc;
-      if (!hc) continue;
-      const s = franchise.standings?.[t.id] || { w:0, l:0 };
-      hc.record = hc.record || { w:0, l:0, championships: 0 };
-      hc.record.w += s.w || 0;
-      hc.record.l += s.l || 0;
-      hc.yearsWithTeam = (hc.yearsWithTeam || 0) + 1;
-      hc.age = (hc.age || 50) + 1;
-      if (t.id === champId) hc.record.championships = (hc.record.championships || 0) + 1;
+  // Find an existing entry for this season — saves from before the
+  // expanded awards engine carry the OLD shape (missing opoy/dpoy/roy
+  // etc.). Detect that and re-compute on top of the existing entry so
+  // every award card populates without double-processing retirements.
+  const existingIdx = franchise.history.findIndex(h => h.season === franchise.season);
+  const existing = existingIdx >= 0 ? franchise.history[existingIdx] : null;
+  const isStale = existing && (existing.opoy === undefined || existing.allPros === undefined);
+  if (champId && (!existing || isStale)) {
+    // Tick coach records + tenure first (only on first entry — never on stale-refresh)
+    if (!existing) {
+      for (const t of TEAMS) {
+        const hc = franchise.coaches?.[t.id]?.hc;
+        if (!hc) continue;
+        const s = franchise.standings?.[t.id] || { w:0, l:0 };
+        hc.record = hc.record || { w:0, l:0, championships: 0 };
+        hc.record.w += s.w || 0;
+        hc.record.l += s.l || 0;
+        hc.yearsWithTeam = (hc.yearsWithTeam || 0) + 1;
+        hc.age = (hc.age || 50) + 1;
+        if (t.id === champId) hc.record.championships = (hc.record.championships || 0) + 1;
+      }
     }
     const champTeam = getTeam(champId);
     // Process retirements FIRST so all subsequent computations use the
-    // post-retirement state (HoF inductions stamped onto franchise.hallOfFame).
-    const { retirees, hofClass } = _processSeasonEndRetirements();
+    // post-retirement state. Skip on stale-refresh — retirees already
+    // captured in original entry (and may already be off the roster).
+    const { retirees, hofClass } = existing
+      ? { retirees: existing.retirees || [], hofClass: existing.hofClass || [] }
+      : _processSeasonEndRetirements();
 
     const leagueMVP    = computeLeagueMVP();
     const sbMVP        = computeSuperBowlMVP();
@@ -26108,7 +26120,7 @@ function showFrnAwards() {
     });
 
     const sb = franchise.superBowlGame;
-    franchise.history.push({
+    const entry = {
       season: franchise.season,
       champion: champId,
       championName: `${champTeam.city} ${champTeam.name}`,
@@ -26117,11 +26129,11 @@ function showFrnAwards() {
         homeId: sb.homeId, awayId: sb.awayId,
         homeScore: sb.homeScore, awayScore: sb.awayScore,
         winnerId: sb.winnerId,
-      } : null,
-      leagueMVP:    _snapshotAwardWinner(leagueMVP),
-      superBowlMVP: _snapshotAwardWinner(sbMVP),
-      userTeamMVP:  userMVP      ? { name: userMVP.name,      pos: userMVP.pos,      line: mvpStatLine(userMVP) }      : null,
-      champTeamMVP: champTeamMVP ? { name: champTeamMVP.name, pos: champTeamMVP.pos, line: mvpStatLine(champTeamMVP) } : null,
+      } : (existing?.superBowlScore || null),
+      leagueMVP:    _snapshotAwardWinner(leagueMVP)    || existing?.leagueMVP,
+      superBowlMVP: _snapshotAwardWinner(sbMVP)        || existing?.superBowlMVP,
+      userTeamMVP:  userMVP      ? { name: userMVP.name,      pos: userMVP.pos,      line: mvpStatLine(userMVP) }      : existing?.userTeamMVP,
+      champTeamMVP: champTeamMVP ? { name: champTeamMVP.name, pos: champTeamMVP.pos, line: mvpStatLine(champTeamMVP) } : existing?.champTeamMVP,
       opoy:         _snapshotAwardWinner(opoy),
       dpoy:         _snapshotAwardWinner(dpoy),
       roy:          _snapshotAwardWinner(roy),
@@ -26131,8 +26143,10 @@ function showFrnAwards() {
       allPros, statLeaders, byNumbers,
       retirees, hofClass,
       standingsSnapshot,
-      userRecord: { ...(franchise.standings[franchise.chosenTeamId] || { w:0, l:0 }) },
-    });
+      userRecord: existing?.userRecord || { ...(franchise.standings[franchise.chosenTeamId] || { w:0, l:0 }) },
+    };
+    if (existing) franchise.history[existingIdx] = entry;
+    else          franchise.history.push(entry);
   }
   saveFranchise();
   renderFrnAwards();
