@@ -2362,6 +2362,88 @@
   .bspnlive-bracket-btn.box { border-color: var(--blgreen); color: var(--blgreen); }
   .bspnlive-bracket-btn.box:hover { background: var(--blgreen); color: #fff; }
 
+  /* Round-gated playoff layout (current round prominent + past strip) */
+  .bspnlive-bracket-past {
+    background: var(--blbg3); border: 1px solid var(--blborder);
+    padding: .55rem .75rem; margin-bottom: 1rem;
+  }
+  .bspnlive-bracket-past-label {
+    color: var(--blgray); font-size: .58rem;
+    letter-spacing: 2px; font-weight: 700; margin-bottom: .35rem;
+  }
+  .bspnlive-bracket-past-grid {
+    display: grid; gap: .8rem;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  }
+  .bspnlive-bracket-past-col-head {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: .82rem; letter-spacing: 1.5px; color: var(--blwhite);
+    border-bottom: 1px dashed var(--blborder); padding-bottom: .15rem;
+    margin-bottom: .25rem;
+  }
+  .bspnlive-bracket-past-row {
+    display: flex; gap: .35rem; align-items: baseline;
+    width: 100%; padding: .2rem .25rem; font-size: .7rem;
+    background: transparent; border: 0; border-radius: 0;
+    text-align: left; cursor: pointer; font-family: inherit;
+  }
+  .bspnlive-bracket-past-row:hover { background: rgba(0,0,0,0.05); }
+
+  .bspnlive-bracket-current {
+    background: var(--blbg2); border: 1px solid var(--blborder);
+    padding: .8rem 1rem;
+  }
+  .bspnlive-bracket-current-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: .8rem; padding-bottom: .35rem;
+    border-bottom: 2px solid var(--blred);
+  }
+  .bspnlive-bracket-current-title {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1.6rem; letter-spacing: 2.5px; color: var(--blwhite);
+  }
+  .bspnlive-bracket-current-progress {
+    color: var(--blred); font-size: .68rem; letter-spacing: 1.5px;
+    font-weight: 700;
+  }
+  .bspnlive-bracket-current-section { margin-bottom: 1rem; }
+  .bspnlive-bracket-current-section:last-child { margin-bottom: 0; }
+  .bspnlive-bracket-others-label {
+    color: var(--blgray); font-size: .6rem; letter-spacing: 1.5px;
+    font-weight: 700; margin-bottom: .35rem;
+  }
+  .bspnlive-bracket-others-grid {
+    display: grid; gap: .7rem;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  }
+  .bspnlive-bracket-card.featured {
+    border: 3px solid var(--blgold); padding: 1rem 1.2rem;
+    background: linear-gradient(180deg, #fffaf0 0%, var(--blbg2) 80%);
+    position: relative;
+  }
+  .bspnlive-bracket-featured-tag {
+    position: absolute; top: -10px; left: 16px;
+    background: var(--blgold); color: #fff;
+    font-size: .58rem; letter-spacing: 2px; font-weight: 700;
+    padding: .2rem .55rem;
+  }
+  .bspnlive-bracket-card.featured .score {
+    font-size: 2.1rem;
+  }
+  .bspnlive-bracket-tag {
+    color: var(--blgray); font-size: .6rem; letter-spacing: .5px;
+    padding: .12rem .25rem; margin-bottom: .25rem; font-style: italic;
+  }
+  .bspnlive-bracket-blocker {
+    color: var(--blred); font-size: .68rem; letter-spacing: .5px;
+    font-weight: 700;
+  }
+  .bspnlive-bracket-eliminated {
+    background: rgba(184,17,24,0.08); border-left: 4px solid var(--blred);
+    color: var(--blwhite); padding: .65rem .85rem;
+    font-size: .85rem; letter-spacing: .3px; margin-bottom: 1rem;
+  }
+
   /* Champion banner — dark plate with team accent stripe so white text
      reads cleanly regardless of how light the team's primary color is. */
   .bspnlive-champ-banner {
@@ -23980,16 +24062,68 @@ function startFrnPlayoffs() {
   renderFrnPlayoffs();
 }
 
+// Narrative one-liner per playoff matchup. Reads season schedule for
+// rematches, weighs seed gap, surfaces "first appearance" hints.
+function _playoffMatchupTag(m, seeds) {
+  if (!m.homeId || !m.awayId) return "";
+  const hSeed = seeds.find(s => s.teamId === m.homeId)?.seed || 99;
+  const aSeed = seeds.find(s => s.teamId === m.awayId)?.seed || 99;
+  const gap = Math.abs(hSeed - aSeed);
+  // Rematch detection — was this exact matchup played in regular season?
+  const meetings = (franchise.schedule || []).filter(g =>
+    g.played && (
+      (g.homeId === m.homeId && g.awayId === m.awayId) ||
+      (g.homeId === m.awayId && g.awayId === m.homeId)
+    ));
+  if (meetings.length) {
+    const lastMeeting = meetings[meetings.length - 1];
+    const myHomeWon = lastMeeting.homeScore > lastMeeting.awayScore;
+    const winName = (myHomeWon ? getTeam(lastMeeting.homeId) : getTeam(lastMeeting.awayId))?.name;
+    return `🔁 Rematch — ${winName} won W${lastMeeting.week} ${lastMeeting.homeScore}-${lastMeeting.awayScore}`;
+  }
+  // Big-gap matchups
+  if (gap >= 5) {
+    const lower = aSeed < hSeed ? m.awayId : m.homeId;
+    return `🐍 #${Math.min(hSeed, aSeed)} vs #${Math.max(hSeed, aSeed)} — ${getTeam(lower)?.name} heavy favorite`;
+  }
+  if (gap >= 3) {
+    return `📊 #${Math.min(hSeed, aSeed)} vs #${Math.max(hSeed, aSeed)} — favorite has the edge`;
+  }
+  return `⚔ #${Math.min(hSeed, aSeed)} vs #${Math.max(hSeed, aSeed)} — toss-up`;
+}
+
+// Did the user's team get eliminated, and if so in which round?
+function _userPlayoffStatus() {
+  const myId = franchise.chosenTeamId;
+  const pb = franchise.playoffBracket;
+  if (!pb) return { inBracket: false };
+  const inBracket = pb.seeds.some(s => s.teamId === myId);
+  if (!inBracket) return { inBracket: false };
+  const champion = pb.champion === myId;
+  let eliminatedRound = null, eliminationMatch = null;
+  for (let ri = 0; ri < pb.rounds.length; ri++) {
+    for (const m of pb.rounds[ri]) {
+      if (m.winnerId == null) continue;
+      const lostHere = (m.homeId === myId || m.awayId === myId) && m.winnerId !== myId;
+      if (lostHere) { eliminatedRound = ri; eliminationMatch = m; break; }
+    }
+    if (eliminatedRound != null) break;
+  }
+  return { inBracket: true, champion, eliminatedRound, eliminationMatch };
+}
+
 function renderFrnPlayoffs() {
   const { playoffBracket, chosenTeamId } = franchise;
   if (!playoffBracket) { startFrnPlayoffs(); return; }
   const { seeds, rounds, roundIdx, champion } = playoffBracket;
   const roundNames = ["WILD CARD", "DIVISIONAL", "CHAMPIONSHIP"];
   const seedOf = id => seeds.find(s => s.teamId === id);
+  const userStatus = _userPlayoffStatus();
 
-  const matchupCard = (m, ri, mi) => {
+  const matchupCard = (m, ri, mi, opts = {}) => {
+    const featured = opts.featured;
     if (!m.homeId || !m.awayId) {
-      return `<div class="bspnlive-bracket-card tbd">
+      return `<div class="bspnlive-bracket-card tbd${featured?" featured":""}">
         <div style="color:var(--blgray);text-align:center;padding:.7rem;font-size:.72rem;letter-spacing:1px">TBD</div>
       </div>`;
     }
@@ -23999,7 +24133,9 @@ function renderFrnPlayoffs() {
     const played  = m.winnerId != null;
     const hw      = played && m.winnerId === m.homeId;
     const aw      = played && m.winnerId === m.awayId;
-    const showBtn = !played && ri === roundIdx;
+    const isCurrentRound = ri === roundIdx;
+    const showBtn = !played && isCurrentRound;
+    const tag = !played ? _playoffMatchupTag(m, seeds) : "";
     const teamRow = (team, seed, isWinner, isLoser, score) => `
       <div class="bspnlive-bracket-team ${isWinner?"win":""} ${isLoser?"loss":""}" style="--team-color:${team.primary}">
         <span class="seed">${seed?.seed||"?"}</span>
@@ -24011,19 +24147,22 @@ function renderFrnPlayoffs() {
       </div>`;
     const actions = showBtn ? `
       <div class="bspnlive-bracket-actions">
-        ${isUser ? `<button class="bspnlive-bracket-btn play" onclick="frnPlayGame(${m.homeId},${m.awayId},true)">▶ PLAY</button>` : ""}
+        ${isUser ? `<button class="bspnlive-bracket-btn play" onclick="frnPlayGame(${m.homeId},${m.awayId},true)">▶ PLAY GAME</button>` : ""}
         <button class="bspnlive-bracket-btn sim" onclick="frnSimPlayoffGame(${m.homeId},${m.awayId})">⏩ SIM</button>
       </div>` : (played ? `
       <div class="bspnlive-bracket-actions">
         <button class="bspnlive-bracket-btn box" onclick="frnOpenPlayoffBox(${ri}, ${mi})">📋 BOX SCORE</button>
-      </div>` : "");
-    return `<div class="bspnlive-bracket-card ${isUser?"user":""} ${played?"played":""}">
+      </div>` : `<div style="font-size:.6rem;color:var(--blgray);letter-spacing:.5px;padding:.15rem .25rem">Awaiting earlier round…</div>`);
+    return `<div class="bspnlive-bracket-card ${isUser?"user":""} ${played?"played":""} ${featured?"featured":""}">
+      ${featured ? `<div class="bspnlive-bracket-featured-tag">⭐ YOUR MATCHUP</div>` : ""}
+      ${tag ? `<div class="bspnlive-bracket-tag">${tag}</div>` : ""}
       ${teamRow(home, homeSeed, hw, played && !hw, m.homeScore ?? "")}
       ${teamRow(away, awaySeed, aw, played && !aw, m.awayScore ?? "")}
       ${actions}
     </div>`;
   };
 
+  // ── Champion banner (if decided) ────────────────────────────────────────
   const championBanner = champion ? (() => {
     const t = getTeam(champion);
     return `<section class="bspnlive-champ-banner" style="--team-color:${t.primary}">
@@ -24038,26 +24177,92 @@ function renderFrnPlayoffs() {
     </section>`;
   })() : "";
 
-  const columnsHtml = rounds.map((rd, ri) => {
-    const isCurrent = ri === roundIdx && !champion;
-    return `<div class="bspnlive-bracket-col ${isCurrent?"current":""}" data-round="${ri}">
-      <div class="bspnlive-bracket-col-head">
-        ${roundNames[ri] || `ROUND ${ri+1}`}
-        ${isCurrent ? `<span class="bspnlive-bracket-col-live">● LIVE</span>` : ""}
-      </div>
-      <div class="bspnlive-bracket-stack">
-        ${rd.map((m, mi) => matchupCard(m, ri, mi)).join("")}
+  // ── Past rounds collapsed strip ─────────────────────────────────────────
+  const pastRoundsStrip = (() => {
+    if (roundIdx === 0 && !champion) return "";
+    const finishedRounds = champion ? rounds : rounds.slice(0, roundIdx);
+    if (!finishedRounds.length) return "";
+    return `<div class="bspnlive-bracket-past">
+      <div class="bspnlive-bracket-past-label">PRIOR ROUNDS</div>
+      <div class="bspnlive-bracket-past-grid">
+        ${finishedRounds.map((rd, ri) => `
+          <div class="bspnlive-bracket-past-col">
+            <div class="bspnlive-bracket-past-col-head">${roundNames[ri] || `Round ${ri+1}`}</div>
+            ${rd.map((m, mi) => {
+              if (!m.homeId || !m.awayId || m.winnerId == null) return "";
+              const winT = getTeam(m.winnerId);
+              const losT = getTeam(m.homeId === m.winnerId ? m.awayId : m.homeId);
+              const wScore = m.winnerId === m.homeId ? m.homeScore : m.awayScore;
+              const lScore = m.winnerId === m.homeId ? m.awayScore : m.homeScore;
+              return `<button class="bspnlive-bracket-past-row" onclick="frnOpenPlayoffBox(${ri}, ${mi})">
+                <span style="color:${winT?.primary};font-weight:700">${winT?.abbr || winT?.name?.slice(0,3).toUpperCase()}</span>
+                <span style="color:var(--blwhite)">${wScore}</span>
+                <span style="color:var(--blgray)">—</span>
+                <span style="color:var(--blgray);text-decoration:line-through">${lScore}</span>
+                <span style="color:var(--blgray)">${losT?.abbr || losT?.name?.slice(0,3).toUpperCase()}</span>
+              </button>`;
+            }).join("")}
+          </div>
+        `).join("")}
       </div>
     </div>`;
-  }).join("");
+  })();
 
-  const curRd = rounds[roundIdx];
-  const pending = curRd ? curRd.filter(m => !m.winnerId && m.homeId && m.awayId) : [];
+  // ── Current round body ──────────────────────────────────────────────────
+  const currentRound = !champion && roundIdx < rounds.length ? rounds[roundIdx] : null;
+  let currentRoundHtml = "";
+  if (currentRound) {
+    const userMatchup = currentRound.find(m =>
+      m.homeId === chosenTeamId || m.awayId === chosenTeamId);
+    const otherMatchups = currentRound.filter(m => m !== userMatchup);
+    const userIdx = userMatchup ? currentRound.indexOf(userMatchup) : -1;
+    const totalInRound = currentRound.length;
+    const playedCount = currentRound.filter(m => m.winnerId != null).length;
+    currentRoundHtml = `
+      <div class="bspnlive-bracket-current">
+        <div class="bspnlive-bracket-current-head">
+          <div class="bspnlive-bracket-current-title">${roundNames[roundIdx] || `ROUND ${roundIdx+1}`}</div>
+          <div class="bspnlive-bracket-current-progress">${playedCount}/${totalInRound} GAMES PLAYED</div>
+        </div>
+        ${userMatchup ? `
+          <div class="bspnlive-bracket-current-section">
+            ${matchupCard(userMatchup, roundIdx, userIdx, { featured: true })}
+          </div>` : userStatus.eliminatedRound != null ? `
+          <div class="bspnlive-bracket-eliminated">
+            🚫 ELIMINATED — Your run ended in ${roundNames[userStatus.eliminatedRound] || "an earlier round"}.
+            ${(() => {
+              const elim = userStatus.eliminationMatch;
+              if (!elim) return "";
+              const us = elim.homeId === chosenTeamId ? elim.homeScore : elim.awayScore;
+              const them = elim.homeId === chosenTeamId ? elim.awayScore : elim.homeScore;
+              const oppId = elim.homeId === chosenTeamId ? elim.awayId : elim.homeId;
+              return ` Lost ${us}-${them} to ${getTeam(oppId)?.name}.`;
+            })()}
+          </div>` : ""}
+        <div class="bspnlive-bracket-current-section">
+          <div class="bspnlive-bracket-others-label">OTHER ${roundNames[roundIdx] || ""} MATCHUPS</div>
+          <div class="bspnlive-bracket-others-grid">
+            ${otherMatchups.map(m => matchupCard(m, roundIdx, currentRound.indexOf(m))).join("")}
+          </div>
+        </div>
+      </div>`;
+  }
+
+  // ── Header actions ──────────────────────────────────────────────────────
+  const pending = currentRound ? currentRound.filter(m => !m.winnerId && m.homeId && m.awayId) : [];
+  const userPending = currentRound?.find(m =>
+    (m.homeId === chosenTeamId || m.awayId === chosenTeamId) && m.winnerId == null);
+  // Advance button — only enabled when ALL games are done.
+  const allDone = pending.length === 0 && currentRound;
+  const advanceLabel = (() => {
+    if (champion) return null;
+    if (roundIdx >= rounds.length - 1) return "🌟 Crown Champion";
+    return `➡ Advance to ${roundNames[roundIdx + 1] || "Next Round"}`;
+  })();
   const headerActions = champion
     ? `<button class="bspn-back" onclick="showFrnAwards()" style="border-color:var(--blgold);color:var(--blgold)">🌟 Awards</button>`
-    : pending.length
-      ? `<button class="bspn-back" onclick="frnSimPlayoffRound()">⏩ Sim Remaining (${pending.length})</button>`
-      : "";
+    : `<button class="bspn-back" onclick="frnSimPlayoffRound()" ${pending.length === 0 ? "disabled style=\"opacity:.4;cursor:not-allowed\"" : ""}>⏩ Sim ${pending.length} remaining</button>
+       ${userPending ? `<span class="bspnlive-bracket-blocker">Play YOUR matchup first ⬇</span>` : ""}`;
 
   $("frnHomeContent").innerHTML = `
     <div class="bspnlive-root" style="margin:-1rem -1.5rem 0 -1.5rem;padding-bottom:1.2rem">
@@ -24072,12 +24277,13 @@ function renderFrnPlayoffs() {
         <button class="bspn-back" onclick="showFranchiseDashboard()">‹ Return to Main Screen</button>
         ${headerActions}
         <span style="color:var(--blgray);font-size:.7rem;letter-spacing:.5px;margin-left:.4rem">
-          ${champion ? "Postseason complete — review awards" : `Round ${roundIdx+1} of ${rounds.length}: ${roundNames[roundIdx] || ""}`}
+          ${champion ? "Postseason complete — review awards" : `Round ${roundIdx+1} of ${rounds.length}`}
         </span>
       </div>
       ${championBanner}
       <div style="padding:1rem 1.4rem">
-        <div class="bspnlive-bracket">${columnsHtml}</div>
+        ${pastRoundsStrip}
+        ${currentRoundHtml}
       </div>
     </div>`;
 }
