@@ -21435,7 +21435,7 @@ function renderFrnLeaders(tab) {
   const tabBar = cats.map(c =>
     `<button class="bspnlive-nav-item ${c.id === activeTab ? "active" : ""}"
        style="background:transparent;border:0;font-family:inherit;cursor:pointer;padding:0;${c.id===activeTab?"color:var(--blwhite)":""}"
-       onclick="renderFrnLeaders('${c.id}')">[${c.label.replace(/\s+/g,"+")}]</button>`
+       onclick="renderFrnLeaders('${c.id}')">[${c.label}]</button>`
   ).join(" ");
 
   const rows = top10.length ? top10.map((r, i) => {
@@ -21499,13 +21499,36 @@ function renderFrnLegacy(tab) {
   else if (tab === "season") body = _legacySeason();
   else if (tab === "awards") body = _legacyAwards();
 
+  // BSPN broadcast chrome for the legacy/awards page — typography +
+  // nav match the standings + leaders pages so the "watch the
+  // league" surface feels cohesive across screens.
+  const navHtml = tabs.map(t => `
+    <button class="bspnlive-nav-item ${t.id===tab?"active":""}"
+      style="background:transparent;border:0;font-family:inherit;cursor:pointer;padding:0;${t.id===tab?"color:var(--blwhite)":""}"
+      onclick="renderFrnLegacy('${t.id}')">[${t.label}]</button>
+  `).join(" ");
+
   $("frnHomeContent").innerHTML = `
-    <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem;flex-wrap:wrap">
-      <div style="font-size:1.05rem;font-weight:900;color:var(--gold)">🏆 LEGACY · ${franchise.season} SEASONS</div>
-      <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="margin-left:auto">← Back</button>
-    </div>
-    <div class="frn-ana-tabs">${tabHtml}</div>
-    <div class="frn-ana-body">${body}</div>`;
+    <div class="bspnlive-root" style="margin:-1rem -1.5rem 0 -1.5rem;padding-bottom:1rem">
+      <header class="bspnlive-header">
+        <div>
+          <div class="bspnlive-logo">BSPN</div>
+          <div class="bspnlive-logo-sub">LEGACY · ${franchise.season} SEASON${franchise.season===1?"":"S"}</div>
+        </div>
+        <nav class="bspnlive-nav" style="flex-wrap:wrap;gap:.7rem .9rem">${navHtml}</nav>
+      </header>
+      <div style="padding:.6rem 1.4rem;border-bottom:1px solid var(--blborder);display:flex;gap:1rem;align-items:center">
+        <button class="bspn-back" onclick="showFranchiseDashboard()">‹ Return to Main Screen</button>
+        <span style="color:var(--blgray);font-size:.7rem;letter-spacing:.5px">
+          ${tabs.find(t=>t.id===tab)?.label || ""}
+        </span>
+      </div>
+      <div style="padding:1rem 1.4rem">
+        <section class="bspn-panel" style="padding:.8rem 1rem;background:var(--blbg2)">
+          ${body}
+        </section>
+      </div>
+    </div>`;
 }
 
 function _legacyChampions() {
