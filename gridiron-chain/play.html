@@ -5305,6 +5305,9 @@ class GameSimulator {
     const dt = clamp(normal(dtMean, dtSd), dtMin, dtMax);
     this.time -= dt;
     if (this.time < 0) this.time = 0;
+    // Time of possession: every snap's elapsed clock counts toward the
+    // offense's TOP. Surfaces in team-stats comparison + box score.
+    this.stats[this.poss].team.timeOfPoss = (this.stats[this.poss].team.timeOfPoss || 0) + dt;
     const startYard = this.yardLine;
     const off = this.offStats, def = this.defStats;
     const QB = this.offR.starters.qb, RB = this.offR.starters.rb, K = this.offR.starters.k;
