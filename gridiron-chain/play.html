@@ -19103,10 +19103,33 @@ function frnReleasePlayer(name, pos) {
   const guaranteed = Math.min(remaining, p.contract?.guaranteedYears || 0);
   const deadPerYr = p.contract?.guaranteedAAV ?? p.contract?.aav ?? 0;
   const deadTotal = guaranteed * deadPerYr;
-  const msg = deadTotal > 0
-    ? `Release ${name}? Dead cap: $${deadTotal.toFixed(1)}M ($${deadPerYr.toFixed(1)}M × ${guaranteed}yr) — this still counts against your cap.`
-    : `Release ${name}? Contract has no guaranteed money left — your cap is fully freed.`;
-  if (!confirm(msg)) return;
+  // Incoming club-transfer fees offset dead cap year-by-year — capUsedByTeam
+  // already nets them in the running total, but surface the math in the
+  // release dialog so the user can plan with it.
+  const refundInfo = refundsForTeam(teamId);
+  let offsetTotal = 0;
+  for (let yr = 0; yr < guaranteed; yr++) {
+    const yearlyOffset = (refundInfo.incoming || [])
+      .filter(r => r.yearsRemaining > yr)
+      .reduce((s, r) => s + r.amount, 0);
+    offsetTotal += Math.min(yearlyOffset, deadPerYr);
+  }
+  offsetTotal = Math.round(offsetTotal * 10) / 10;
+  const netDead = Math.max(0, deadTotal - offsetTotal);
+  const lines = [];
+  if (deadTotal > 0) {
+    lines.push(`Release ${name}?`);
+    lines.push(`Dead cap: $${deadTotal.toFixed(1)}M ($${deadPerYr.toFixed(1)}M × ${guaranteed}yr)`);
+    if (offsetTotal > 0) {
+      lines.push(`Offset by incoming club transfer fees: −$${offsetTotal.toFixed(1)}M`);
+      lines.push(`Net hit on your cap: $${netDead.toFixed(1)}M`);
+    } else {
+      lines.push(`This still counts against your cap.`);
+    }
+  } else {
+    lines.push(`Release ${name}? Contract has no guaranteed money left — your cap is fully freed.`);
+  }
+  if (!confirm(lines.join("\n"))) return;
   roster.splice(idx, 1);
   if (deadTotal > 0) {
     franchise.refunds = franchise.refunds || [];
@@ -24440,6 +24463,41 @@ function frnSetTradeCash(direction, field, val) {
   saveFranchise();
 }
 
+// Sum a team's outstanding dead-cap obligations as `{totalDollars, maxYears}`.
+// Dead-cap entries are franchise.refunds rows with fromTeamId === teamId and
+// no kind:"dead_cap" check — we also include any other outgoing fee
+// obligation since they all eat the team's cap the same way.
+function _outstandingDeadCap(teamId) {
+  const refunds = (franchise?.refunds || []).filter(r =>
+    r.yearsRemaining > 0 && r.fromTeamId === teamId);
+  if (!refunds.length) return { totalDollars: 0, maxYears: 0, refunds: [] };
+  const totalDollars = refunds.reduce((s, r) => s + (r.amount * r.yearsRemaining), 0);
+  const maxYears = Math.max(...refunds.map(r => r.yearsRemaining));
+  return { totalDollars: Math.round(totalDollars * 10) / 10, maxYears, refunds };
+}
+
+// Auto-fill the cash box on a given side to match the target team's
+// outstanding dead cap, spread across maxYears so it nets out neatly.
+// Values are still editable afterward.
+function frnAutoFillCashFromDeadCap(direction) {
+  const tp = franchise._tradeProp; if (!tp) return;
+  // "send" = covering THEIR dead cap; "receive" = THEM covering mine.
+  const targetTeamId = direction === "send" ? tp.targetTeamId : franchise.chosenTeamId;
+  if (!targetTeamId) return;
+  const dc = _outstandingDeadCap(targetTeamId);
+  if (dc.totalDollars <= 0 || dc.maxYears <= 0) return;
+  // Cap-per-year is the dead-cap total divided over the longest
+  // remaining obligation, capped at $40/yr to stay in input range.
+  const years = Math.max(1, Math.min(7, dc.maxYears));
+  const perYr = Math.min(40, Math.round((dc.totalDollars / years) * 10) / 10);
+  const target = direction === "send" ? tp.cashSend : tp.cashReceive;
+  target.amount = perYr;
+  target.years  = years;
+  tp.result = null;
+  saveFranchise();
+  renderFrnTrade();
+}
+
 function frnSubmitTrade() {
   const tp = franchise._tradeProp;
   if (!tp) return;
@@ -24788,18 +24846,27 @@ function _renderTradeCashSection(myTeam, partnerTeam, tp) {
   // Cash = transfer fee (soccer-style). One side pays $X/yr for Y years
   // and that obligation lands on franchise.refunds when the deal goes through.
   const partnerName = partnerTeam ? partnerTeam.name : "Partner";
-  const cashBox = (direction, label, hint, target) => `
+  const myDeadCap     = _outstandingDeadCap(franchise.chosenTeamId);
+  const theirDeadCap  = partnerTeam ? _outstandingDeadCap(partnerTeam.id) : { totalDollars: 0, maxYears: 0 };
+  const cashBox = (direction, label, hint, target, targetDeadCap, targetTeamLabel) => {
+    const offsetBtn = targetDeadCap.totalDollars > 0
+      ? `<button class="btn btn-outline" style="font-size:.6rem;padding:.2rem .5rem;margin-left:.3rem"
+          onclick="frnAutoFillCashFromDeadCap('${direction}')">
+          ↻ Match ${targetTeamLabel} dead cap ($${targetDeadCap.totalDollars.toFixed(1)}M)
+        </button>`
+      : "";
+    return `
     <div class="frn-fa-pool-col">
       <div class="frn-card-title">${label}<span style="color:var(--gray);font-weight:400;margin-left:auto;font-size:.6rem">${hint}</span></div>
-      <div style="display:flex;gap:.5rem;align-items:flex-end;padding:.4rem">
-        <label style="flex:1">
+      <div style="display:flex;gap:.5rem;align-items:flex-end;padding:.4rem;flex-wrap:wrap">
+        <label style="flex:1;min-width:5rem">
           <div class="frn-meta-label">$ / YEAR</div>
           <input type="number" min="0" max="40" step="0.5"
             value="${target.amount || 0}"
             oninput="frnSetTradeCash('${direction}','amount',this.value)"
             style="width:100%;background:var(--bg3);color:var(--white);border:1px solid var(--border);padding:.25rem .35rem;font-family:inherit">
         </label>
-        <label style="flex:1">
+        <label style="flex:1;min-width:4rem">
           <div class="frn-meta-label">YEARS</div>
           <input type="number" min="0" max="7" step="1"
             value="${target.years || 0}"
@@ -24810,10 +24877,12 @@ function _renderTradeCashSection(myTeam, partnerTeam, tp) {
           = $${((target.amount||0) * (target.years||0)).toFixed(1)}M total
         </div>
       </div>
+      ${offsetBtn ? `<div style="padding:0 .4rem .4rem .4rem">${offsetBtn}</div>` : ""}
     </div>`;
+  };
   return `<div class="frn-trade-layout" style="margin-top:.7rem">
-    ${cashBox("send",    "TRANSFER FEE YOU PAY",      `${myTeam.name} → ${partnerName}`, tp.cashSend)}
-    ${cashBox("receive", "TRANSFER FEE YOU RECEIVE",  `${partnerName} → ${myTeam.name}`, tp.cashReceive)}
+    ${cashBox("send",    "TRANSFER FEE YOU PAY",      `${myTeam.name} → ${partnerName}`, tp.cashSend,    theirDeadCap, partnerName + "'s")}
+    ${cashBox("receive", "TRANSFER FEE YOU RECEIVE",  `${partnerName} → ${myTeam.name}`, tp.cashReceive, myDeadCap,    "your")}
   </div>`;
 }
 
