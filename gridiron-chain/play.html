@@ -2578,6 +2578,14 @@
   .frn-resign-btn.decline-btn:hover { background: var(--red); color: #fff; }
   .frn-resign-btn.accepted { border-color: var(--green); color: var(--green-lt); background: rgba(0,180,0,0.15); cursor: default; }
   .frn-resign-btn.declined  { border-color: var(--red);  color: #ff9090;        background: rgba(180,0,0,0.15); cursor: default; }
+  .frn-resign-yrbtn {
+    background: transparent; border: 1px solid var(--border); color: var(--gold);
+    font-family: inherit; font-size: .8rem; font-weight: 700;
+    width: 1.4rem; height: 1.4rem; cursor: pointer; line-height: 1;
+    padding: 0;
+  }
+  .frn-resign-yrbtn:hover:not(:disabled) { background: var(--gold); color: #000; }
+  .frn-resign-yrbtn:disabled { opacity: .35; cursor: not-allowed; }
 
   /* Cinema move callout */
   .cinema-callout {
@@ -23158,6 +23166,21 @@ function renderFrnAnalytics(defaultTab) {
 }
 
 // ── Re-signings screen ─────────────────────────────────────────────────────────
+// Per-player length picker (1-6 years) with AAV that scales inversely:
+// longer deal → small commitment discount, shorter deal → short-term
+// premium so the player gets more cash up front. Player accepts if the
+// offered AAV is within 92% of the length-adjusted market value;
+// otherwise they decline and enter FA.
+const _RESIGN_MIN_YEARS = 1;
+const _RESIGN_MAX_YEARS = 6;
+function _resignAavForYears(baseMarket, years) {
+  const delta = years - 3;
+  // Below 3yr: +5%/yr short-term premium. Above 3yr: -2%/yr commitment discount.
+  const factor = delta < 0 ? 1 + Math.abs(delta) * 0.05
+                           : 1 - delta * 0.02;
+  const clamped = Math.max(0.85, Math.min(1.25, factor));
+  return Math.max(0.5, Math.round(baseMarket * clamped * 10) / 10);
+}
 function renderFrnResignings() {
   const { chosenTeamId, salaryCap } = franchise;
   const cap = salaryCap || SALARY_CAP_BASE;
@@ -23171,13 +23194,18 @@ function renderFrnResignings() {
     return;
   }
 
-  // Store pending decisions
-  franchise._resignPending = expiring.map(p => ({
-    name: p.name, pos: p.position, overall: p.overall, age: p.age,
-    offer: computeMarketValue(p, cap),
-    offerYears: generateContract(p, cap).years,
-    decision: null,
-  }));
+  // Default offer: 3-year deal at market rate.
+  franchise._resignPending = expiring.map(p => {
+    const baseMarket = computeMarketValue(p, cap);
+    const offerYears = 3;
+    return {
+      name: p.name, pos: p.position, overall: p.overall, age: p.age,
+      baseMarket,
+      offer: _resignAavForYears(baseMarket, offerYears),
+      offerYears,
+      decision: null,
+    };
+  });
   saveFranchise();
   _renderResignUI(cap, capCommitted);
 }
@@ -23200,15 +23228,24 @@ function _renderResignUI(cap, capCommitted) {
         </div>
         <div class="frn-resign-offer">
           <span style="color:var(--gold);font-weight:700">$${r.offer.toFixed(1)}M/yr</span>
-          <span style="color:var(--gray);font-size:.68rem">${r.offerYears} yr</span>
+          <div style="display:flex;align-items:center;gap:.25rem;justify-content:flex-end;margin-top:.15rem">
+            <button class="frn-resign-yrbtn"
+              ${r.offerYears <= _RESIGN_MIN_YEARS || isAccept || isDecline ? "disabled" : ""}
+              onclick="frnResignAdjustYears(${idx}, -1)">−</button>
+            <span style="color:var(--gray);font-size:.7rem;min-width:2.5rem;text-align:center">${r.offerYears} yr</span>
+            <button class="frn-resign-yrbtn"
+              ${r.offerYears >= _RESIGN_MAX_YEARS || isAccept || isDecline ? "disabled" : ""}
+              onclick="frnResignAdjustYears(${idx}, 1)">+</button>
+          </div>
+          <span style="color:var(--gray);font-size:.6rem;text-align:right">total $${(r.offer * r.offerYears).toFixed(1)}M</span>
         </div>
         <div class="frn-resign-btns">
           ${isAccept
             ? `<button class="btn frn-resign-btn accepted">✓ Accepted</button>`
             : isDecline
               ? `<button class="btn frn-resign-btn declined">✗ Declined</button>`
-              : `<button class="btn frn-resign-btn accept-btn" onclick="frnResignDecide(${idx},'accept')">Accept</button>
-                 <button class="btn frn-resign-btn decline-btn" onclick="frnResignDecide(${idx},'decline')">Decline</button>`}
+              : `<button class="btn frn-resign-btn accept-btn" onclick="frnResignDecide(${idx},'accept')">Offer</button>
+                 <button class="btn frn-resign-btn decline-btn" onclick="frnResignDecide(${idx},'decline')">Let Walk</button>`}
         </div>
       </div>`;
   }).join("");
@@ -23246,6 +23283,21 @@ function frnResignDecide(idx, decision) {
     .filter(p => p.contract && p.contract.remaining > 0)
     .reduce((s, p) => s + p.contract.aav, 0);
   franchise._resignPending[idx].decision = decision;
+  saveFranchise();
+  _renderResignUI(cap, committed);
+}
+
+function frnResignAdjustYears(idx, delta) {
+  const row = franchise._resignPending?.[idx];
+  if (!row || row.decision) return;
+  const newYears = Math.max(_RESIGN_MIN_YEARS, Math.min(_RESIGN_MAX_YEARS, row.offerYears + delta));
+  if (newYears === row.offerYears) return;
+  row.offerYears = newYears;
+  row.offer = _resignAavForYears(row.baseMarket, newYears);
+  const cap = franchise.salaryCap || SALARY_CAP_BASE;
+  const committed = (franchise.rosters[franchise.chosenTeamId] || [])
+    .filter(p => p.contract && p.contract.remaining > 0)
+    .reduce((s, p) => s + p.contract.aav, 0);
   saveFranchise();
   _renderResignUI(cap, committed);
 }
