@@ -4775,6 +4775,14 @@ class GameSimulator {
     };
     this._lastBallCarrier = null; // who got the ball on the last positive play
     this._lastBallType = null;    // 'pass' | 'rush'
+    // Save base starters so per-snap rotation can always sub back to
+    // the depth-chart No. 1 unless the current context (fatigue / garbage
+    // time) calls for a backup. `homeR.starters` mutates per snap; this
+    // snapshot is the source of truth for "who's the official starter."
+    this._baseStarters = {
+      home: { ...this.homeR.starters },
+      away: { ...this.awayR.starters },
+    };
   }
   // True if the team with the ball is in 2-minute drill mode:
   // < 2:00 left in Q2 or Q4, and either trailing or tied (and 4th-quarter).
@@ -4824,6 +4832,75 @@ class GameSimulator {
     }
     return null;
   }
+  // ── Rotation ──────────────────────────────────────────────────────────
+  // Per-snap depth-chart rotation. Triggers:
+  //   - Garbage time (game out of reach late) — both teams sub
+  //   - Fatigue: starter accumulates touches over the game and rests
+  // Starts each snap from this._baseStarters (depth-chart No. 1) and
+  // optionally mutates this.offR.starters before the play runs so the
+  // existing read sites (no plumbing changes) see the active player.
+  _isGarbageTime() {
+    const diff = Math.abs(this.score.home - this.score.away);
+    if (this.quarter === 4 && this.time <= 600 && diff >= 17) return "heavy";
+    if (this.quarter === 4 && diff >= 14) return "mild";
+    if (this.quarter >= 3 && diff >= 28) return "mild";
+    return null;
+  }
+  _pickBackup(side, position, excludeNames) {
+    const roster = side === "home" ? this.hRoster : this.aRoster;
+    const set = new Set(excludeNames);
+    const candidates = roster.filter(p => p.position === position && !set.has(p.name))
+      .sort((a, b) => (b.overall || 0) - (a.overall || 0));
+    return candidates[0]?.name || null;
+  }
+  _ensurePlayerStat(side, name, pos) {
+    if (!name) return;
+    const players = this.stats[side].players;
+    if (!players[name]) players[name] = { name, pos, ...this._emptyLine() };
+  }
+  _touchesFor(side, name) {
+    const line = this.stats[side].players[name];
+    if (!line) return 0;
+    return (line.rush_att || 0) + (line.rec_tgt || 0);
+  }
+  _rotateForSnap() {
+    const side = this.poss;
+    // Always reset to base depth chart first, then optionally sub.
+    Object.assign(this.offR.starters, this._baseStarters[side]);
+    const garbage = this._isGarbageTime();
+    const trySub = (role, position) => {
+      const cur = this.offR.starters[role];
+      if (!cur) return;
+      let p = 0;
+      if (garbage === "heavy") p = 0.55;
+      else if (garbage === "mild") p = 0.25;
+      const t = this._touchesFor(side, cur);
+      if (t >= 20)      p = Math.max(p, 0.40);
+      else if (t >= 15) p = Math.max(p, 0.25);
+      else if (t >= 10) p = Math.max(p, 0.12);
+      if (p <= 0 || Math.random() > p) return;
+      const exclude = Object.values(this.offR.starters);
+      const backup = this._pickBackup(side, position, exclude);
+      if (backup) {
+        this.offR.starters[role] = backup;
+        this._ensurePlayerStat(side, backup, position);
+      }
+    };
+    trySub("rb",  "RB");
+    trySub("wr1", "WR");
+    trySub("wr2", "WR");
+    trySub("te",  "TE");
+    // QB only rotates in heavy garbage time — never on fatigue alone.
+    if (garbage === "heavy" && Math.random() < 0.35) {
+      const exclude = Object.values(this.offR.starters);
+      const backup = this._pickBackup(side, "QB", exclude);
+      if (backup) {
+        this.offR.starters.qb = backup;
+        this._ensurePlayerStat(side, backup, "QB");
+      }
+    }
+  }
+
   _buildTeamStats(starters) {
     const players = {};
     const add = (name, pos) => { if (name && !players[name]) players[name] = { name, pos, ...this._emptyLine() }; };
@@ -5121,6 +5198,10 @@ class GameSimulator {
     }
   }
   _play() {
+    // Depth-chart rotation: sub starters based on garbage time / fatigue
+    // BEFORE any reads of this.offR.starters.X. Restores from base depth
+    // chart at the top, then optionally swaps in backups.
+    this._rotateForSnap();
     const adv = (this.offR.offense - this.defR.defense) / 100;
     // Trench matchup: positive = DL is winning vs OL (offense in trouble)
     // -1.0 ≈ OL dominates, 0 ≈ even, +1.0 ≈ DL crushes OL, +1.5 = absolute mismatch
