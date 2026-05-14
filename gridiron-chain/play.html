@@ -2617,6 +2617,442 @@
     text-shadow: 0 1px 0 rgba(0,0,0,0.6);
   }
 
+  /* ====== AWARDS CEREMONY (BSPN) ====== */
+  .bspnlive-awards-body {
+    padding: 0 1.4rem 1.5rem;
+    display: flex; flex-direction: column; gap: .7rem;
+  }
+  .bspnlive-section-title {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1.15rem; letter-spacing: 2px;
+    color: var(--blwhite);
+    border-bottom: 2px solid var(--blborder);
+    padding: 1rem 0 .35rem;
+    margin-top: .3rem;
+  }
+  /* Champion hero card */
+  .bspnlive-awards-hero {
+    margin: 1rem 0 .5rem;
+    background: #0e1117;
+    border: 2px solid var(--champ-color);
+    border-left: 10px solid var(--champ-color);
+    display: grid; grid-template-columns: auto 1fr auto;
+    gap: 0; align-items: stretch; color: #fff;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+    overflow: hidden;
+    animation: bspnlive-fade-in .55s ease-out;
+  }
+  .bspnlive-awards-hero-stripe {
+    width: 0; /* the border-left does the work */
+  }
+  .bspnlive-awards-hero-body { padding: 1rem 1.2rem; flex: 1; }
+  .bspnlive-awards-hero-eyebrow {
+    color: #c9cfd6; font-size: .68rem;
+    letter-spacing: 2.5px; font-weight: 700;
+  }
+  .bspnlive-awards-hero-name {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 2.4rem; letter-spacing: 2px; line-height: 1.05;
+    color: var(--champ-color);
+    text-shadow: 0 1px 0 rgba(0,0,0,0.6);
+    margin: .15rem 0;
+  }
+  .bspnlive-awards-hero-meta {
+    color: #c9cfd6; font-size: .82rem;
+    letter-spacing: .35px;
+  }
+  .bspnlive-awards-hero-divider { margin: 0 .4rem; color: #4a525c; }
+  .bspnlive-awards-hero-sb { color: #e7ecf2; }
+  .bspnlive-awards-hero-flag {
+    margin-top: .55rem;
+    display: inline-block; padding: .25rem .65rem;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    font-size: .76rem; letter-spacing: .5px;
+  }
+  .bspnlive-awards-hero-flag.champ {
+    background: rgba(245,197,66,0.15);
+    border-color: var(--blgold); color: var(--blgold);
+    font-weight: 700;
+  }
+  .bspnlive-awards-hero-trophy {
+    font-size: 4.5rem; padding: .8rem 1.2rem;
+    display: flex; align-items: center;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+  }
+  /* League MVP hero strip */
+  .bspnlive-mvp-hero {
+    background: var(--blbg2);
+    border: 1px solid var(--blborder);
+    border-left: 6px solid var(--mvp-color);
+    padding: .9rem 1.1rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    animation: bspnlive-fade-in .6s ease-out;
+  }
+  .bspnlive-mvp-hero-eyebrow {
+    color: var(--mvp-color); font-size: .72rem;
+    letter-spacing: 2px; font-weight: 800;
+  }
+  .bspnlive-mvp-hero-name {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 2.1rem; letter-spacing: 1px; line-height: 1.05;
+    color: var(--blwhite); margin: .2rem 0;
+  }
+  .bspnlive-mvp-hero-meta { color: var(--blgray); font-size: .8rem; }
+  .bspnlive-mvp-hero-line {
+    margin-top: .35rem; padding: .35rem .55rem;
+    background: rgba(0,0,0,0.04); border-left: 3px solid var(--mvp-color);
+    color: var(--blwhite); font-size: .78rem; letter-spacing: .3px;
+  }
+  /* Major-award grid */
+  .bspnlive-awards-row {
+    display: grid; grid-template-columns: repeat(5, 1fr);
+    gap: .55rem; margin-bottom: .55rem;
+  }
+  @media (max-width: 980px) {
+    .bspnlive-awards-row { grid-template-columns: repeat(3, 1fr); }
+  }
+  @media (max-width: 640px) {
+    .bspnlive-awards-row { grid-template-columns: repeat(2, 1fr); }
+  }
+  .bspnlive-award-card {
+    position: relative;
+    background: var(--blbg2);
+    border: 1px solid var(--blborder);
+    border-top: 4px solid var(--card-color, var(--blgray));
+    padding: .65rem .7rem .7rem;
+    display: flex; flex-direction: column; gap: .12rem;
+    min-height: 110px;
+    transition: transform .15s ease;
+  }
+  .bspnlive-award-card:hover:not(.empty) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  }
+  .bspnlive-award-card.empty {
+    background: transparent; border-style: dashed;
+    border-top-color: var(--blborder);
+    opacity: .55;
+  }
+  .bspnlive-award-card-icon {
+    position: absolute; top: .5rem; right: .55rem;
+    font-size: 1.05rem; opacity: .85;
+  }
+  .bspnlive-award-card-label {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: .72rem; letter-spacing: 1.5px;
+    color: var(--card-color, var(--blgray));
+    font-weight: 700;
+  }
+  .bspnlive-award-card-name {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1.1rem; letter-spacing: .5px; line-height: 1.1;
+    color: var(--blwhite); margin-top: .15rem;
+  }
+  .bspnlive-award-card-meta {
+    color: var(--blgray); font-size: .65rem; letter-spacing: .3px;
+  }
+  .bspnlive-award-card-line {
+    margin-top: .25rem;
+    font-size: .67rem; color: var(--blwhite);
+    letter-spacing: .2px; line-height: 1.25;
+    padding: .25rem .35rem;
+    background: rgba(0,0,0,0.035);
+  }
+  .bspnlive-award-card-extra {
+    margin-top: .2rem;
+    color: var(--blgold); font-size: .62rem;
+    letter-spacing: .4px; font-weight: 700;
+  }
+  /* All-Pro blocks */
+  .bspnlive-allpro-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: .55rem;
+  }
+  @media (max-width: 720px) {
+    .bspnlive-allpro-grid { grid-template-columns: 1fr; }
+  }
+  .bspnlive-allpro-block {
+    background: var(--blbg2);
+    border: 1px solid var(--blborder);
+    border-top: 4px solid;
+    padding: .55rem .7rem;
+  }
+  .bspnlive-allpro-title {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: .92rem; letter-spacing: 1.5px;
+    color: var(--blwhite); margin-bottom: .35rem;
+  }
+  .bspnlive-allpro-table { width: 100%; border-collapse: collapse; }
+  .bspnlive-allpro-table tr + tr { border-top: 1px dashed var(--blborder); }
+  .bspnlive-allpro-pos {
+    color: var(--blgray); font-size: .65rem; letter-spacing: 1px;
+    width: 2.4rem; padding: .25rem .15rem .25rem 0;
+    vertical-align: top; font-weight: 700;
+  }
+  .bspnlive-allpro-names {
+    padding: .25rem 0; font-size: .76rem;
+    display: flex; flex-wrap: wrap; gap: .45rem;
+  }
+  .bspnlive-allpro-player {
+    display: inline-flex; align-items: baseline; gap: .25rem;
+    background: rgba(0,0,0,0.025); padding: .1rem .35rem;
+  }
+  .bspnlive-allpro-tm {
+    font-size: .58rem; font-weight: 800;
+    letter-spacing: .3px;
+  }
+  /* Statistical leaders */
+  .bspnlive-leaders-grid {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: .5rem;
+  }
+  @media (max-width: 980px) {
+    .bspnlive-leaders-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  .bspnlive-leader-cat {
+    background: var(--blbg2);
+    border: 1px solid var(--blborder);
+    padding: .45rem .55rem;
+  }
+  .bspnlive-leader-cat-title {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: .78rem; letter-spacing: 1px;
+    color: var(--blgold); margin-bottom: .25rem;
+  }
+  .bspnlive-leader-row {
+    display: grid;
+    grid-template-columns: 1.2rem 2.2rem 1fr auto;
+    gap: .35rem; align-items: baseline;
+    font-size: .7rem; padding: .12rem 0;
+  }
+  .bspnlive-leader-row.lead { font-weight: 800; }
+  .bspnlive-leader-rank { color: var(--blgray); font-size: .62rem; text-align: right; }
+  .bspnlive-leader-tm { font-weight: 800; font-size: .62rem; letter-spacing: .3px; }
+  .bspnlive-leader-name { color: var(--blwhite); }
+  .bspnlive-leader-val {
+    font-family: "Anton","Teko","Impact",sans-serif;
+    font-size: 1rem; color: var(--blwhite); font-weight: 900;
+  }
+  /* Season by the numbers */
+  .bspnlive-numbers-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: .6rem;
+  }
+  @media (max-width: 800px) { .bspnlive-numbers-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 520px) { .bspnlive-numbers-grid { grid-template-columns: 1fr; } }
+  .bspnlive-number-card {
+    background: var(--blbg2);
+    border: 1px solid var(--blborder);
+    border-left: 3px solid var(--blgold);
+    padding: .55rem .7rem;
+  }
+  .bspnlive-number-label {
+    color: var(--blgray); font-size: .63rem;
+    letter-spacing: 1.2px; font-weight: 700;
+  }
+  .bspnlive-number-val {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1.7rem; letter-spacing: .5px; line-height: 1;
+    color: var(--blwhite); margin: .15rem 0;
+  }
+  .bspnlive-number-sub {
+    color: var(--blgray); font-size: .66rem;
+    letter-spacing: .25px;
+  }
+  /* HoF + retirements */
+  .bspnlive-hof-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: .55rem;
+  }
+  @media (max-width: 720px) { .bspnlive-hof-grid { grid-template-columns: 1fr; } }
+  .bspnlive-hof-row {
+    display: flex; gap: .7rem; align-items: flex-start;
+    background: var(--blbg2);
+    border: 1px solid var(--blborder);
+    border-left: 4px solid var(--blgold);
+    padding: .55rem .7rem;
+  }
+  .bspnlive-hof-trophy { font-size: 1.5rem; color: var(--blgold); line-height: 1.2; }
+  .bspnlive-hof-body { flex: 1; }
+  .bspnlive-hof-name {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1.05rem; letter-spacing: .5px; color: var(--blwhite);
+  }
+  .bspnlive-hof-meta { color: var(--blgray); font-size: .65rem; }
+  .bspnlive-hof-line { color: var(--blwhite); font-size: .65rem; margin-top: .15rem; }
+  .bspnlive-retiree-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: .35rem;
+  }
+  @media (max-width: 800px) { .bspnlive-retiree-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 520px) { .bspnlive-retiree-grid { grid-template-columns: 1fr; } }
+  .bspnlive-retiree-row {
+    background: var(--blbg2);
+    border: 1px solid var(--blborder);
+    border-left: 3px solid var(--blgray);
+    padding: .35rem .5rem;
+  }
+  .bspnlive-retiree-name { color: var(--blwhite); font-size: .76rem; }
+  .bspnlive-retiree-meta { color: var(--blgray); font-size: .62rem; }
+  /* Highlights strip */
+  .bspnlive-highlights-grid { display: flex; flex-direction: column; gap: .15rem; }
+  .bspnlive-highlight-row {
+    display: grid; grid-template-columns: 3rem 1fr 1.3fr;
+    gap: .5rem; align-items: baseline;
+    padding: .25rem .4rem;
+    border-bottom: 1px solid var(--blborder);
+    font-size: .73rem;
+  }
+  .bspnlive-highlight-week { color: var(--blgold); font-weight: 800; font-size: .65rem; }
+  .bspnlive-highlight-teams { color: var(--blgray); font-size: .66rem; }
+  .bspnlive-highlight-label { color: var(--blwhite); font-weight: 700; }
+  /* Franchise history list */
+  .bspnlive-history-list { display: flex; flex-direction: column; }
+  .bspnlive-history-row {
+    display: grid; grid-template-columns: 2.5rem 1.4fr 1fr 1fr;
+    gap: .5rem; align-items: baseline;
+    padding: .25rem .4rem;
+    border-bottom: 1px solid var(--blborder);
+    font-size: .72rem;
+  }
+  .bspnlive-history-season { color: var(--blgold); font-weight: 800; }
+  .bspnlive-history-champ { color: var(--blwhite); font-weight: 700; }
+  .bspnlive-history-mvp { color: var(--blgray); font-size: .66rem; }
+  /* Action footer */
+  .bspnlive-awards-footer {
+    margin-top: 1rem; padding-top: 1rem;
+    border-top: 2px solid var(--blborder);
+    display: flex; gap: .55rem; flex-wrap: wrap; justify-content: center;
+  }
+  .bspnlive-btn-gold {
+    background: var(--blgold); color: #0e1117; border: 0;
+    padding: .55rem 1.1rem;
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: .92rem; letter-spacing: 1.5px;
+    font-weight: 800; cursor: pointer;
+    transition: transform .12s ease;
+  }
+  .bspnlive-btn-gold:hover { transform: translateY(-1px); }
+  .bspnlive-btn-outline {
+    background: transparent; border: 1px solid var(--blborder);
+    color: var(--blwhite);
+    padding: .5rem 1rem;
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: .88rem; letter-spacing: 1.2px;
+    cursor: pointer;
+  }
+  .bspnlive-btn-outline:hover { background: rgba(0,0,0,0.04); }
+
+  /* ====== ALL-PRO BOWL TOURNAMENT ====== */
+  .bspnlive-apb-hero {
+    margin: 1rem 0 .8rem;
+    background: linear-gradient(135deg, #0e1117 0%, #1a1f28 100%);
+    border: 2px solid var(--blgold);
+    border-left: 10px solid var(--blgold);
+    padding: 1.1rem 1.3rem;
+    color: #fff;
+  }
+  .bspnlive-apb-hero-eyebrow {
+    color: var(--blgold); font-size: .7rem;
+    letter-spacing: 2.5px; font-weight: 700;
+  }
+  .bspnlive-apb-hero-title {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 2.3rem; letter-spacing: 2px;
+    color: var(--blgold); margin: .15rem 0;
+  }
+  .bspnlive-apb-hero-sub { color: #c9cfd6; font-size: .85rem; }
+  .bspnlive-apb-rounds {
+    display: flex; flex-direction: column; gap: 1.2rem;
+  }
+  .bspnlive-apb-round {
+    background: var(--blbg2);
+    border: 1px solid var(--blborder);
+    padding: .7rem .9rem;
+  }
+  .bspnlive-apb-round-head {
+    display: flex; align-items: baseline; gap: .8rem;
+    margin-bottom: .55rem;
+    border-bottom: 1px solid var(--blborder);
+    padding-bottom: .35rem;
+  }
+  .bspnlive-apb-round-title {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1.1rem; letter-spacing: 2px;
+    color: var(--blwhite);
+  }
+  .bspnlive-apb-round-progress {
+    color: var(--blgold); font-size: .72rem; font-weight: 700;
+  }
+  .bspnlive-apb-matches {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: .55rem;
+  }
+  .bspnlive-apb-match {
+    background: rgba(0,0,0,0.025);
+    border: 1px solid var(--blborder);
+    padding: .55rem .65rem;
+    display: flex; flex-direction: column; gap: .3rem;
+  }
+  .bspnlive-apb-match.played { border-color: var(--blgray); }
+  .bspnlive-apb-match.upcoming { border-color: var(--blgold); box-shadow: 0 0 0 2px rgba(245,197,66,0.15); }
+  .bspnlive-apb-match-side {
+    display: grid; grid-template-columns: 2rem 1fr auto;
+    gap: .4rem; align-items: baseline;
+    padding: .15rem 0;
+  }
+  .bspnlive-apb-match-side.winner { font-weight: 800; }
+  .bspnlive-apb-match-side.loser { opacity: .55; }
+  .bspnlive-apb-seed {
+    color: var(--blgray); font-size: .7rem; font-weight: 700;
+    text-align: right;
+  }
+  .bspnlive-apb-team {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: .95rem; letter-spacing: .5px;
+    color: var(--blwhite);
+  }
+  .bspnlive-apb-team-stripe {
+    display: inline-block; width: 3px; height: 1em;
+    margin-right: .35rem; vertical-align: middle;
+  }
+  .bspnlive-apb-score {
+    font-family: "Anton","Teko","Impact",sans-serif;
+    font-size: 1.15rem; color: var(--blwhite); font-weight: 800;
+    text-align: right;
+  }
+  .bspnlive-apb-match-action {
+    margin-top: .25rem; display: flex; justify-content: flex-end; gap: .4rem;
+  }
+  .bspnlive-apb-trophy-card {
+    background: #0e1117; color: #fff;
+    border: 2px solid var(--blgold);
+    padding: 1rem 1.2rem;
+    display: grid; grid-template-columns: auto 1fr;
+    gap: 1rem; align-items: center;
+    margin-bottom: .8rem;
+  }
+  .bspnlive-apb-trophy-icon { font-size: 3rem; color: var(--blgold); }
+  .bspnlive-apb-trophy-eyebrow {
+    color: #c9cfd6; font-size: .68rem; letter-spacing: 2px; font-weight: 700;
+  }
+  .bspnlive-apb-trophy-name {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 2rem; letter-spacing: 1.5px;
+    color: var(--blgold);
+  }
+  .bspnlive-apb-trophy-mvp { color: var(--blwhite); font-size: .85rem; margin-top: .25rem; }
+  .bspnlive-apb-roster-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: .35rem;
+    margin-top: .4rem;
+  }
+  @media (max-width: 720px) { .bspnlive-apb-roster-grid { grid-template-columns: 1fr; } }
+  .bspnlive-apb-roster-row {
+    display: grid; grid-template-columns: 2rem 1fr auto;
+    gap: .4rem; padding: .15rem 0;
+    font-size: .68rem; border-bottom: 1px dashed var(--blborder);
+  }
+  .bspnlive-apb-roster-pos { color: var(--blgray); font-weight: 700; }
+  .bspnlive-apb-roster-name { color: var(--blwhite); }
+  .bspnlive-apb-roster-tm { color: var(--blgray); font-size: .58rem; }
+
   /* League chat */
   .frn-chat-list {
     background: var(--bg2); border: 1px solid var(--border);
@@ -23809,6 +24245,821 @@ function computeSuperBowlMVP() {
   return { ...ranked[0], teamId: g.winnerId };
 }
 
+// ── Comprehensive Awards Engine ──────────────────────────────────────────────
+// All-Pro formation per conference: 1 QB, 2 RB, 3 WR, 1 TE, 5 OL, 4 DL,
+// 3 LB, 2 CB, 2 S, 1 K, 1 P. 1st team + 2nd team selected per conference.
+const _ALLPRO_FORMATION = [
+  ["QB",1],["RB",2],["WR",3],["TE",1],["OL",5],
+  ["DL",4],["LB",3],["CB",2],["S",2],["K",1],["P",1],
+];
+
+// Score a live player for All-Pro consideration. Skill positions weighted
+// by season production; OL fall back to internal OVR since they don't
+// accumulate stat lines.
+function _allProPlayerScore(p, pos, statRow) {
+  if (pos === "OL") return p.overall || 0;
+  if (pos === "P")  return (statRow?.punts ? (statRow.punts * 1) : 0) + (p.overall || 0) * 0.4;
+  if (statRow) return mvpScore(statRow) * 0.7 + (p.overall || 0) * 0.3;
+  return (p.overall || 0) * 0.5;
+}
+
+function _allProRowSnapshot(r) {
+  const t = r.team;
+  return {
+    name: r.name, pos: r.pos, teamId: r.teamId,
+    teamName: t ? `${t.city} ${t.name}` : "",
+    teamAbbr: t ? _bspnLiveAbbr(t) : "—",
+    teamPrimary: t?.primary || "#888",
+    line: r.stats ? mvpStatLine(r.stats) : "",
+  };
+}
+
+function _selectAllPros() {
+  const result = {};
+  for (const conf of ["AFC", "NFC"]) {
+    const teamIds = new Set(TEAMS.filter(t => t.conference === conf).map(t => t.id));
+    const all = [];
+    for (const [tidStr, roster] of Object.entries(franchise.rosters || {})) {
+      const tid = Number(tidStr);
+      if (!teamIds.has(tid)) continue;
+      const team = getTeam(tid);
+      const ts = franchise.seasonStats?.[tid] || {};
+      for (const p of roster) {
+        const s = ts[p.name];
+        all.push({ live: p, name: p.name, pos: p.position, teamId: tid, team, stats: s || null });
+      }
+    }
+    const byPos = {};
+    for (const r of all) (byPos[r.pos] = byPos[r.pos] || []).push(r);
+    for (const pos of Object.keys(byPos)) {
+      byPos[pos].sort((a, b) =>
+        _allProPlayerScore(b.live, pos, b.stats) - _allProPlayerScore(a.live, pos, a.stats));
+    }
+    const firstTeam = {}, secondTeam = {}, alternates = {};
+    for (const [pos, n] of _ALLPRO_FORMATION) {
+      const list = byPos[pos] || [];
+      firstTeam[pos]  = list.slice(0, n).map(_allProRowSnapshot);
+      secondTeam[pos] = list.slice(n, n * 2).map(_allProRowSnapshot);
+      alternates[pos] = list.slice(n * 2, n * 3).map(_allProRowSnapshot);
+    }
+    result[conf] = { firstTeam, secondTeam, alternates };
+  }
+  return result;
+}
+
+// Offensive Player of the Year — best offensive production × team success.
+function _computeOPOY() {
+  let best = null;
+  for (const [tidStr, players] of Object.entries(franchise.seasonStats || {})) {
+    const tid = Number(tidStr);
+    const stand = franchise.standings[tid] || { w:0, l:0, t:0 };
+    const gp = (stand.w || 0) + (stand.l || 0) + (stand.t || 0);
+    const winPct = gp > 0 ? stand.w / gp : 0.5;
+    const teamMul = 0.6 + winPct * 0.8;
+    for (const p of Object.values(players)) {
+      if (!["QB","RB","WR","TE"].includes(p.pos)) continue;
+      const offScore = (p.pass_td||0)*6 + (p.pass_yds||0)*0.05 + (p.pass_comp||0)*0.30
+                     - (p.pass_int||0)*4 + (p.rush_td||0)*6 + (p.rush_yds||0)*0.08
+                     + (p.rec_td||0)*6 + (p.rec_yds||0)*0.10 + (p.rec||0)*0.5;
+      const s = offScore * teamMul;
+      if (!best || s > best.score) best = { ...p, teamId: tid, score: s };
+    }
+  }
+  return best && best.score > 30 ? best : null;
+}
+
+// Defensive Player of the Year — best defensive production × team success.
+function _computeDPOY() {
+  let best = null;
+  for (const [tidStr, players] of Object.entries(franchise.seasonStats || {})) {
+    const tid = Number(tidStr);
+    const stand = franchise.standings[tid] || { w:0, l:0, t:0 };
+    const gp = (stand.w || 0) + (stand.l || 0) + (stand.t || 0);
+    const winPct = gp > 0 ? stand.w / gp : 0.5;
+    const teamMul = 0.6 + winPct * 0.8;
+    for (const p of Object.values(players)) {
+      if (!["DL","LB","CB","S"].includes(p.pos)) continue;
+      const defScore = (p.tkl||0)*0.6 + (p.sk||0)*2.5 + (p.int_made||0)*5
+                     + (p.pd||0)*1.2 + (p.ff||0)*2 + (p.fr||0)*2 + (p.def_td||0)*8;
+      const s = defScore * teamMul;
+      if (!best || s > best.score) best = { ...p, teamId: tid, score: s };
+    }
+  }
+  return best && best.score > 20 ? best : null;
+}
+
+// Rookie of the Year — best stat score among first-year players.
+function _computeROY() {
+  const baseYear = new Date().getFullYear() + (franchise.season || 1) - 1;
+  let best = null;
+  for (const [tidStr, players] of Object.entries(franchise.seasonStats || {})) {
+    const tid = Number(tidStr);
+    const roster = franchise.rosters[tid] || [];
+    for (const p of Object.values(players)) {
+      const live = roster.find(r => r.name === p.name);
+      if (!live) continue;
+      // Treat anyone with a draftYear in the current league-year (or no
+      // career history) as a rookie. The age check filters edge cases.
+      const isRookie = live.draftYear === baseYear ||
+        (live.careerHistory && live.careerHistory.length === 0 && (live.age || 30) <= 23);
+      if (!isRookie) continue;
+      const s = mvpScore(p);
+      if (!best || s > best.score) best = { ...p, teamId: tid, score: s };
+    }
+  }
+  return best && best.score > 8 ? best : null;
+}
+
+// Coach of the Year — wins + improvement vs prior season + champ bonus.
+function _computeCOY() {
+  const champId = franchise.playoffBracket?.champion;
+  const prev = (franchise.history || []).find(h => h.season === franchise.season - 1);
+  const prevRecs = {};
+  if (prev?.standingsSnapshot) {
+    for (const [tid, s] of Object.entries(prev.standingsSnapshot)) prevRecs[+tid] = s.w || 0;
+  }
+  let best = null;
+  for (const t of TEAMS) {
+    const hc = franchise.coaches?.[t.id]?.hc;
+    if (!hc) continue;
+    const s = franchise.standings[t.id] || { w:0, l:0 };
+    const wins = s.w || 0;
+    const prevW = prevRecs[t.id];
+    const improvement = prevW != null ? Math.max(0, wins - prevW) : 0;
+    const isChamp = t.id === champId;
+    const score = wins * 1.0 + improvement * 1.5 + (isChamp ? 4 : 0);
+    if (!best || score > best.score) {
+      best = {
+        name: hc.name, trait: hc.trait, teamId: t.id,
+        teamName: `${t.city} ${t.name}`,
+        teamAbbr: _bspnLiveAbbr(t), teamPrimary: t.primary,
+        wins, prevWins: prevW, improvement, isChamp, score,
+      };
+    }
+  }
+  return best;
+}
+
+// Comeback Player of the Year — biggest mvpScore jump vs his last career row.
+function _computeComebackPOY() {
+  let best = null;
+  for (const [tidStr, players] of Object.entries(franchise.seasonStats || {})) {
+    const tid = Number(tidStr);
+    const roster = franchise.rosters[tid] || [];
+    for (const p of Object.values(players)) {
+      const live = roster.find(r => r.name === p.name);
+      if (!live) continue;
+      const hist = live.careerHistory || [];
+      if (hist.length < 2) continue;
+      const lastRow = hist[hist.length - 1] || {};
+      const thisScore = mvpScore(p);
+      const lastScore = mvpScore(lastRow);
+      if (lastScore >= 35 || thisScore < 55) continue;
+      const jump = thisScore - lastScore;
+      if (jump < 25) continue;
+      if (!best || jump > best.jump) best = {
+        ...p, teamId: tid, jump, lastScore: Math.round(lastScore), thisScore: Math.round(thisScore),
+      };
+    }
+  }
+  return best;
+}
+
+// Breakout Player of the Year — young non-rookie blowing past his career peak.
+function _computeBreakoutPOY() {
+  const baseYear = new Date().getFullYear() + (franchise.season || 1) - 1;
+  let best = null;
+  for (const [tidStr, players] of Object.entries(franchise.seasonStats || {})) {
+    const tid = Number(tidStr);
+    const roster = franchise.rosters[tid] || [];
+    for (const p of Object.values(players)) {
+      const live = roster.find(r => r.name === p.name);
+      if (!live) continue;
+      if ((live.age || 30) > 25) continue;
+      if (live.draftYear === baseYear) continue;
+      const hist = live.careerHistory || [];
+      const peak = hist.length ? Math.max(...hist.map(h => mvpScore(h))) : 0;
+      const thisScore = mvpScore(p);
+      if (thisScore < 60) continue;
+      const lift = thisScore - peak;
+      if (lift < 20) continue;
+      if (!best || lift > best.lift) best = {
+        ...p, teamId: tid, lift, prevPeak: Math.round(peak), thisScore: Math.round(thisScore),
+      };
+    }
+  }
+  return best;
+}
+
+// Top-3 league leaders in each major stat category (snapshot for history).
+function _seasonStatLeaders() {
+  const cats = [
+    { key:"pass_yds",  label:"Passing Yards",    pos:["QB"] },
+    { key:"pass_td",   label:"Passing TDs",      pos:["QB"] },
+    { key:"rush_yds",  label:"Rushing Yards",    pos:["RB"] },
+    { key:"rush_td",   label:"Rushing TDs",      pos:["RB"] },
+    { key:"rec_yds",   label:"Receiving Yards",  pos:["WR","TE"] },
+    { key:"rec_td",    label:"Receiving TDs",    pos:["WR","TE"] },
+    { key:"sk",        label:"Sacks",            pos:["DL","LB"] },
+    { key:"tkl",       label:"Tackles",          pos:["LB","S","CB","DL"] },
+    { key:"int_made",  label:"Interceptions",    pos:["CB","S","LB"] },
+    { key:"fg_made",   label:"Field Goals",      pos:["K"] },
+  ];
+  const all = [];
+  for (const [tidStr, players] of Object.entries(franchise.seasonStats || {})) {
+    const tid = Number(tidStr);
+    const team = getTeam(tid);
+    if (!team) continue;
+    for (const p of Object.values(players)) all.push({ ...p, teamId: tid, team });
+  }
+  const out = {};
+  for (const c of cats) {
+    out[c.key] = {
+      label: c.label,
+      leaders: all
+        .filter(r => c.pos.includes(r.pos) && (r[c.key] || 0) > 0)
+        .sort((a, b) => (b[c.key] || 0) - (a[c.key] || 0))
+        .slice(0, 3)
+        .map(r => ({
+          name: r.name, pos: r.pos, teamId: r.teamId,
+          teamAbbr: _bspnLiveAbbr(r.team),
+          teamPrimary: r.team.primary,
+          value: r[c.key] || 0,
+        })),
+    };
+  }
+  return out;
+}
+
+// "By the numbers" — extreme regular-season facts.
+function _seasonByTheNumbers() {
+  const games = (franchise.schedule || []).filter(g => g.played);
+  if (!games.length) return null;
+  let biggestBlowout = null, closestGame = null, highestScoring = null;
+  const teamPoints = {};
+  for (const g of games) {
+    const margin = Math.abs(g.homeScore - g.awayScore);
+    const total = (g.homeScore || 0) + (g.awayScore || 0);
+    const meta = {
+      homeId: g.homeId, awayId: g.awayId,
+      homeScore: g.homeScore, awayScore: g.awayScore,
+      week: g.week, margin, total,
+    };
+    if (!biggestBlowout || margin > biggestBlowout.margin) biggestBlowout = meta;
+    if (!closestGame   || margin < closestGame.margin)     closestGame   = meta;
+    if (!highestScoring|| total  > highestScoring.total)   highestScoring = meta;
+    teamPoints[g.homeId] = (teamPoints[g.homeId] || 0) + (g.homeScore || 0);
+    teamPoints[g.awayId] = (teamPoints[g.awayId] || 0) + (g.awayScore || 0);
+  }
+  const ranked = Object.entries(teamPoints)
+    .map(([tid, pts]) => ({ tid: Number(tid), pts }))
+    .sort((a, b) => b.pts - a.pts);
+  const sorted = TEAMS
+    .map(t => ({ t, s: franchise.standings[t.id] || { w:0, l:0 } }))
+    .sort((a, b) => (b.s.w || 0) - (a.s.w || 0) || (a.s.l || 0) - (b.s.l || 0));
+  return {
+    biggestBlowout, closestGame, highestScoring,
+    mostPointsTeam: ranked[0] ? { teamId: ranked[0].tid, pts: ranked[0].pts } : null,
+    bestRecord:  sorted[0]                    ? { teamId: sorted[0].t.id, w: sorted[0].s.w, l: sorted[0].s.l } : null,
+    worstRecord: sorted[sorted.length - 1]    ? { teamId: sorted[sorted.length-1].t.id, w: sorted[sorted.length-1].s.w, l: sorted[sorted.length-1].s.l } : null,
+  };
+}
+
+// Process retirements at season's end. Bumps age, rolls retirement,
+// auto-enshrines qualifying HoFers. Returns the list for the awards
+// screen. Pulled forward from `runFrnOffseason` so retirees + HoF
+// inductees can be honored on the awards ceremony page.
+function _processSeasonEndRetirements() {
+  const retirees = [];
+  const hofClass = [];
+  for (const t of TEAMS) {
+    const tId = t.id;
+    const roster = franchise.rosters[tId] || [];
+    const keep = [];
+    for (const p of roster) {
+      if (p.age == null) {
+        p.age = (p.overall >= 85 ? 27 : p.overall >= 75 ? 24 : 22) + Math.floor(Math.random() * 6);
+      }
+      p.age += 1;
+      const retProb = p.age >= 36 ? 1
+                    : p.age === 35 ? 0.60
+                    : p.age === 34 ? 0.35
+                    : p.age === 33 ? 0.15
+                    : p.age >= 31 ? 0.05
+                    : 0;
+      if (retProb > 0 && Math.random() < retProb) {
+        const preHofCount = (franchise.hallOfFame || []).length;
+        _maybeEnshrineHOF(p, t);
+        const wasInducted = (franchise.hallOfFame || []).length > preHofCount;
+        const entry = {
+          name: p.name, pos: p.position, age: p.age,
+          teamId: tId, teamName: `${t.city} ${t.name}`,
+          teamAbbr: _bspnLiveAbbr(t), teamPrimary: t.primary,
+          careerYears: p.careerHistory?.length || 0,
+          careerEarnings: Math.round((p.careerEarnings || 0) * 10) / 10,
+          isHof: wasInducted,
+          line: mvpStatLine(p.careerStats || {}),
+        };
+        retirees.push(entry);
+        if (wasInducted) hofClass.push(entry);
+        continue;
+      }
+      keep.push(p);
+    }
+    franchise.rosters[tId] = keep;
+  }
+  return { retirees, hofClass };
+}
+
+// Snapshot an award-winner record for permanent storage on history[].
+function _snapshotAwardWinner(p) {
+  if (!p) return null;
+  const team = p.teamId ? getTeam(p.teamId) : null;
+  return {
+    name: p.name, pos: p.pos, teamId: p.teamId,
+    teamName: team ? `${team.city} ${team.name}` : "",
+    teamAbbr: team ? _bspnLiveAbbr(team) : "",
+    teamPrimary: team?.primary || "#888",
+    line: mvpStatLine(p),
+    // Optional extra context the renderer can use (comeback jump etc.)
+    jump: p.jump, lastScore: p.lastScore, thisScore: p.thisScore,
+    lift: p.lift, prevPeak: p.prevPeak,
+  };
+}
+
+// Stamp accolades onto live players' careerHistory rows so trophy
+// counters + career profiles reflect what happened this season.
+function _stampSeasonAccolades(awards) {
+  const seasonNum = franchise.season;
+  const yearStamp = new Date().getFullYear() + seasonNum - 1;
+  const stamp = (rec, label) => {
+    if (!rec) return;
+    const player = _findPlayer(rec.name);
+    if (!player) return;
+    const hist = player.careerHistory || (player.careerHistory = []);
+    let row = hist.find(h => h.season === seasonNum || h.year === yearStamp);
+    if (!row) {
+      row = {
+        season: seasonNum, year: yearStamp,
+        age: player.age, ovr: player.overall, pos: player.position,
+        teamId: null, teamName: "—", accolades: [],
+      };
+      hist.push(row);
+    }
+    if (!row.accolades) row.accolades = [];
+    if (!row.accolades.includes(label)) row.accolades.push(label);
+  };
+  stamp(awards.leagueMVP,   "MVP");
+  stamp(awards.superBowlMVP,"Super Bowl MVP");
+  stamp(awards.opoy,        "OPOY");
+  stamp(awards.dpoy,        "DPOY");
+  stamp(awards.roy,         "ROY");
+  stamp(awards.comeback,    "Comeback POY");
+  stamp(awards.breakout,    "Breakout POY");
+  // Champion gets ring
+  const champId = franchise.playoffBracket?.champion;
+  if (champId) {
+    for (const p of (franchise.rosters[champId] || [])) stamp({ name: p.name }, "Super Bowl");
+  }
+  // All-Pro / Pro Bowl
+  for (const conf of ["AFC","NFC"]) {
+    const ap = awards.allPros?.[conf];
+    if (!ap) continue;
+    for (const list of Object.values(ap.firstTeam  || {})) for (const r of list) stamp(r, "All-Pro");
+    for (const list of Object.values(ap.secondTeam || {})) for (const r of list) stamp(r, "All-Pro (2nd)");
+    for (const list of Object.values(ap.alternates || {})) for (const r of list) stamp(r, "Pro Bowl");
+  }
+  // Refresh aggregate counters off careerHistory accolades.
+  for (const roster of Object.values(franchise.rosters || {})) {
+    for (const p of roster) {
+      const all = (p.careerHistory || []).flatMap(h => h.accolades || []);
+      p.proBowls = all.filter(a => a === "Pro Bowl" || a === "All-Pro" || a === "All-Pro (2nd)").length;
+      p.allPros  = all.filter(a => a === "All-Pro" || a === "All-Pro (2nd)").length;
+      p.mvps     = all.filter(a => a === "MVP").length;
+      p.opoys    = all.filter(a => a === "OPOY").length;
+      p.dpoys    = all.filter(a => a === "DPOY").length;
+      p.roys     = all.filter(a => a === "ROY").length;
+      p.sbRings  = all.filter(a => a === "Super Bowl" || a === "Super Bowl MVP").length;
+    }
+  }
+}
+
+// ── All-Pro Bowl Tournament (Format C: 8 division all-star teams) ───────────
+// After the awards ceremony, the league stages an exhibition tournament:
+// each of the 8 divisions fields an all-star team built from its best
+// regular-season performers; single-elimination bracket of 7 games crowns
+// the "Best Division in Football."
+const _APB_ROSTER_FORMATION = [
+  ["QB", 2], ["RB", 3], ["WR", 5], ["TE", 2], ["OL", 8],
+  ["DL", 6], ["LB", 5], ["CB", 4], ["S", 3], ["K", 1], ["P", 1],
+];
+
+// Synthetic team metadata per division. Primary color blends the
+// strongest division team's color; name reads "<DIV> All-Stars".
+function _apbBuildDivisionTeam(conf, div, seed) {
+  const teams = TEAMS.filter(t => t.conference === conf && t.division === div);
+  const teamIds = new Set(teams.map(t => t.id));
+  // Best-record team in division sets the color identity + playbook
+  const sortedByWins = teams.map(t => ({
+    t,
+    w: franchise.standings?.[t.id]?.w || 0,
+    l: franchise.standings?.[t.id]?.l || 0,
+  })).sort((a, b) => b.w - a.w);
+  const lead = sortedByWins[0]?.t || teams[0];
+  // Combined wins across the division — used for bracket seeding
+  const totalWins = sortedByWins.reduce((s, x) => s + x.w, 0);
+
+  // Pool all live players in division, sorted by score per position
+  const pool = {};
+  for (const t of teams) {
+    const ts = franchise.seasonStats?.[t.id] || {};
+    for (const p of (franchise.rosters[t.id] || [])) {
+      const stats = ts[p.name];
+      const score = _allProPlayerScore(p, p.position, stats);
+      (pool[p.position] = pool[p.position] || []).push({ player: p, score, srcTeam: t });
+    }
+  }
+  for (const k in pool) pool[k].sort((a, b) => b.score - a.score);
+
+  const roster = [];
+  const meta = [];
+  for (const [pos, n] of _APB_ROSTER_FORMATION) {
+    const picks = (pool[pos] || []).slice(0, n);
+    for (const { player, srcTeam } of picks) {
+      roster.push(player);
+      meta.push({
+        name: player.name, pos: player.position,
+        srcTeamId: srcTeam.id, srcTeamName: srcTeam.name,
+        srcTeamAbbr: _bspnLiveAbbr(srcTeam),
+        srcTeamPrimary: srcTeam.primary,
+        overall: player.overall, // internal — used for sorting only
+      });
+    }
+  }
+
+  return {
+    id: -1000 - seed,   // synthetic negative IDs to avoid TEAMS collision
+    name: `${div} All-Stars`,
+    city: `${conf} ${div}`,
+    conference: conf, division: div,
+    primary: lead.primary,
+    secondary: lead.secondary,
+    emoji: "🌟",
+    playbook: lead.playbook,
+    defPlaybook: lead.defPlaybook,
+    confDiv: `${conf} ${div}`,
+    seed, totalWins,
+    srcTeamIds: Array.from(teamIds),
+    roster, rosterMeta: meta,
+  };
+}
+
+// Build all 8 division all-star teams, seed them 1-8 by combined wins,
+// and lay out a single-elimination bracket (1v8, 4v5, 2v7, 3v6).
+function _apbInitTournament() {
+  const allTeams = [];
+  for (const conf of ["AFC", "NFC"]) {
+    for (const div of ["East", "North", "South", "West"]) {
+      allTeams.push(_apbBuildDivisionTeam(conf, div, 0));
+    }
+  }
+  // Seed by combined regular-season wins (tiebreak: random)
+  allTeams.sort((a, b) => b.totalWins - a.totalWins || Math.random() - 0.5);
+  allTeams.forEach((t, i) => { t.seed = i + 1; t.id = -1000 - t.seed; });
+
+  // Bracket layout (#-seed pairings)
+  const qf = [
+    { homeSeed: 1, awaySeed: 8 },
+    { homeSeed: 4, awaySeed: 5 },
+    { homeSeed: 2, awaySeed: 7 },
+    { homeSeed: 3, awaySeed: 6 },
+  ];
+  const teamBySeed = Object.fromEntries(allTeams.map(t => [t.seed, t]));
+  const round0 = qf.map(m => ({
+    homeId: teamBySeed[m.homeSeed].id,
+    awayId: teamBySeed[m.awaySeed].id,
+    homeScore: null, awayScore: null,
+    winnerId: null, played: false,
+    stats: null, scoring: null, mvp: null,
+  }));
+  const round1 = [
+    { homeId: null, awayId: null, homeScore: null, awayScore: null,
+      winnerId: null, played: false, stats: null, scoring: null, mvp: null,
+      from: [0, 1] },  // winners of QF1 + QF2
+    { homeId: null, awayId: null, homeScore: null, awayScore: null,
+      winnerId: null, played: false, stats: null, scoring: null, mvp: null,
+      from: [2, 3] },  // winners of QF3 + QF4
+  ];
+  const round2 = [
+    { homeId: null, awayId: null, homeScore: null, awayScore: null,
+      winnerId: null, played: false, stats: null, scoring: null, mvp: null,
+      from: [0, 1] },  // winners of SF1 + SF2
+  ];
+  return {
+    teams: allTeams,
+    rounds: [round0, round1, round2],
+    roundLabels: ["Quarterfinals", "Semifinals", "All-Pro Bowl Final"],
+    currentRound: 0,
+    champion: null,
+    runnerUp: null,
+    mvp: null,
+    complete: false,
+  };
+}
+
+// Lookup synthetic team by negative ID
+function _apbTeamById(t, tournament) {
+  return tournament.teams.find(x => x.id === t);
+}
+
+// Simulate one APB match. Uses GameSimulator directly with the synthetic
+// team + pooled roster — bypasses frnSimOnce so no franchise.seasonStats
+// merge happens (exhibition).
+function _apbSimMatch(tournament, roundIdx, matchIdx) {
+  const m = tournament.rounds[roundIdx][matchIdx];
+  if (m.played) return;
+  const home = _apbTeamById(m.homeId, tournament);
+  const away = _apbTeamById(m.awayId, tournament);
+  if (!home || !away) return;
+  const sim = new GameSimulator(home, away, home.roster, away.roster, {
+    homeFieldAdv: false, // neutral-site exhibition
+    isRivalry: false,
+  });
+  const r = sim.simulate();
+  m.homeScore = r.homeScore;
+  m.awayScore = r.awayScore;
+  m.winnerId  = r.homeScore >= r.awayScore ? home.id : away.id;
+  m.played    = true;
+  m.stats     = _stripGameStatsForStorage(r.stats);
+  if (r.plays) m.scoring = _extractScoringTimeline(r.plays, r.homeScore, r.awayScore);
+  // Per-game MVP — top mvpScore on the winning side
+  const winSide = m.winnerId === home.id ? "home" : "away";
+  const winPlayers = Object.values(r.stats?.[winSide]?.players || {});
+  if (winPlayers.length) {
+    const ranked = winPlayers.map(p => ({ ...p, score: mvpScore(p) }))
+                              .sort((a, b) => b.score - a.score);
+    m.mvp = {
+      name: ranked[0].name, pos: ranked[0].pos,
+      line: mvpStatLine(ranked[0]),
+      score: Math.round(ranked[0].score),
+    };
+  }
+  // Stamp Pro Bowl appearances onto every player who suited up for an
+  // All-Pro Bowl appearance (regardless of result). Already stamped from
+  // _stampSeasonAccolades for first/second-team selections — only add
+  // unique "APB Roster" so we can track via histories. Skip if already
+  // there.
+}
+
+// Carry winners forward to fill the next round.
+function _apbAdvanceWinners(tournament) {
+  for (let r = 0; r < tournament.rounds.length - 1; r++) {
+    const cur = tournament.rounds[r];
+    const next = tournament.rounds[r + 1];
+    for (const nm of next) {
+      if (nm.homeId != null && nm.awayId != null) continue;
+      const [a, b] = nm.from || [];
+      if (a == null || b == null) continue;
+      const aWin = cur[a]?.winnerId;
+      const bWin = cur[b]?.winnerId;
+      if (aWin) nm.homeId = aWin;
+      if (bWin) nm.awayId = bWin;
+    }
+  }
+  // Update currentRound — advance when current round is fully played.
+  while (tournament.currentRound < tournament.rounds.length &&
+         tournament.rounds[tournament.currentRound].every(m => m.played)) {
+    tournament.currentRound += 1;
+  }
+  // Finalize if final game is played.
+  const finalMatch = tournament.rounds[tournament.rounds.length - 1][0];
+  if (finalMatch.played && !tournament.complete) {
+    tournament.complete = true;
+    tournament.champion = finalMatch.winnerId;
+    tournament.runnerUp = finalMatch.winnerId === finalMatch.homeId ? finalMatch.awayId : finalMatch.homeId;
+    // Tournament MVP — highest mvpScore across all final-game players (not just winner side)
+    const finalStats = finalMatch.stats;
+    if (finalStats) {
+      const all = [
+        ...Object.values(finalStats.home?.players || {}),
+        ...Object.values(finalStats.away?.players || {}),
+      ];
+      const ranked = all.map(p => ({ ...p, score: mvpScore(p) }))
+                        .sort((a, b) => b.score - a.score);
+      if (ranked[0]) {
+        // Find the live player for click-through
+        const live = _findPlayer(ranked[0].name);
+        const champ = _apbTeamById(tournament.champion, tournament);
+        const meta = champ?.rosterMeta.find(m => m.name === ranked[0].name);
+        tournament.mvp = {
+          name: ranked[0].name, pos: ranked[0].pos,
+          srcTeamId: meta?.srcTeamId, srcTeamAbbr: meta?.srcTeamAbbr,
+          srcTeamPrimary: meta?.srcTeamPrimary,
+          line: mvpStatLine(ranked[0]),
+        };
+        // Stamp accolade
+        if (live) {
+          const hist = live.careerHistory || (live.careerHistory = []);
+          const row = hist.find(h => h.season === franchise.season);
+          if (row) {
+            row.accolades = row.accolades || [];
+            if (!row.accolades.includes("All-Pro Bowl MVP")) row.accolades.push("All-Pro Bowl MVP");
+          }
+        }
+        // News alert
+        const champTeam = _apbTeamById(tournament.champion, tournament);
+        _pushNews({
+          type: "apb_final",
+          label: `🏆 ${champTeam.confDiv} ALL-STARS take the All-Pro Bowl — ${tournament.mvp.name} (${tournament.mvp.pos}) named tournament MVP`,
+        });
+      }
+    }
+  }
+}
+
+// Public entry points
+function frnStartAllProBowl() {
+  if (!franchise.allProBowlTournament) {
+    franchise.allProBowlTournament = _apbInitTournament();
+    saveFranchise();
+  }
+  renderAllProBowl();
+}
+
+function frnSimApbMatch(roundIdx, matchIdx) {
+  const t = franchise.allProBowlTournament;
+  if (!t) return;
+  _apbSimMatch(t, roundIdx, matchIdx);
+  _apbAdvanceWinners(t);
+  saveFranchise();
+  renderAllProBowl();
+}
+
+function frnSimApbRound() {
+  const t = franchise.allProBowlTournament;
+  if (!t) return;
+  const r = t.currentRound;
+  if (r >= t.rounds.length) return;
+  for (let i = 0; i < t.rounds[r].length; i++) {
+    if (!t.rounds[r][i].played && t.rounds[r][i].homeId != null && t.rounds[r][i].awayId != null) {
+      _apbSimMatch(t, r, i);
+    }
+  }
+  _apbAdvanceWinners(t);
+  saveFranchise();
+  renderAllProBowl();
+}
+
+function frnSimApbAll() {
+  const t = franchise.allProBowlTournament;
+  if (!t) return;
+  while (t.currentRound < t.rounds.length && !t.complete) {
+    const r = t.currentRound;
+    let anyUnplayed = false;
+    for (let i = 0; i < t.rounds[r].length; i++) {
+      if (!t.rounds[r][i].played && t.rounds[r][i].homeId != null && t.rounds[r][i].awayId != null) {
+        _apbSimMatch(t, r, i);
+        anyUnplayed = true;
+      }
+    }
+    _apbAdvanceWinners(t);
+    if (!anyUnplayed) break;
+  }
+  saveFranchise();
+  renderAllProBowl();
+}
+
+// Build the All-Pro Bowl page
+function renderAllProBowl() {
+  frnHoverTipHide && frnHoverTipHide();
+  _frnHoverTipPgHide && _frnHoverTipPgHide();
+  const t = franchise.allProBowlTournament;
+  if (!t) { renderFrnAwards(); return; }
+  const link = (name) => playerLinkByName ? playerLinkByName(name) : name;
+
+  // Trophy card when complete
+  const champTeam = t.complete ? _apbTeamById(t.champion, t) : null;
+  const trophyCard = (t.complete && champTeam) ? `
+    <div class="bspnlive-apb-trophy-card">
+      <div class="bspnlive-apb-trophy-icon">🏆</div>
+      <div>
+        <div class="bspnlive-apb-trophy-eyebrow">ALL-PRO BOWL CHAMPIONS · SEASON ${franchise.season}</div>
+        <div class="bspnlive-apb-trophy-name">${champTeam.confDiv.toUpperCase()} ALL-STARS</div>
+        ${t.mvp ? `<div class="bspnlive-apb-trophy-mvp">⭐ Tournament MVP: <b>${link(t.mvp.name)}</b> (${t.mvp.pos}) · <span style="color:${t.mvp.srcTeamPrimary}">${t.mvp.srcTeamAbbr || ""}</span> · ${t.mvp.line}</div>` : ""}
+      </div>
+    </div>` : "";
+
+  // Hero
+  const hero = `
+    <div class="bspnlive-apb-hero">
+      <div class="bspnlive-apb-hero-eyebrow">EXHIBITION TOURNAMENT · SEASON ${franchise.season}</div>
+      <div class="bspnlive-apb-hero-title">ALL-PRO BOWL</div>
+      <div class="bspnlive-apb-hero-sub">8 division all-star squads · single-elimination · 7 games to division supremacy</div>
+    </div>`;
+
+  // Each round
+  const teamCell = (id, score, isWinner, isLoser) => {
+    const team = _apbTeamById(id, t);
+    if (!team) return `<div class="bspnlive-apb-match-side"><span class="bspnlive-apb-seed">—</span><span class="bspnlive-apb-team" style="color:var(--blgray);font-style:italic">TBD</span><span class="bspnlive-apb-score"></span></div>`;
+    return `<div class="bspnlive-apb-match-side ${isWinner ? 'winner' : ''} ${isLoser ? 'loser' : ''}">
+      <span class="bspnlive-apb-seed">#${team.seed}</span>
+      <span class="bspnlive-apb-team"><span class="bspnlive-apb-team-stripe" style="background:${team.primary}"></span>${team.confDiv} All-Stars</span>
+      <span class="bspnlive-apb-score">${score != null ? score : ""}</span>
+    </div>`;
+  };
+  const renderMatch = (m, ri, mi) => {
+    const cls = m.played ? "played" :
+                (m.homeId != null && m.awayId != null) ? "upcoming" : "";
+    const homeW = m.played && m.winnerId === m.homeId;
+    const awayW = m.played && m.winnerId === m.awayId;
+    const action = (!m.played && m.homeId != null && m.awayId != null)
+      ? `<div class="bspnlive-apb-match-action"><button class="bspnlive-btn-outline" onclick="frnSimApbMatch(${ri},${mi})" style="font-size:.72rem;padding:.25rem .65rem">▶ Sim</button></div>`
+      : "";
+    const mvpLine = (m.played && m.mvp)
+      ? `<div style="margin-top:.25rem;color:var(--blgray);font-size:.62rem">⭐ ${link(m.mvp.name)} (${m.mvp.pos}) · ${m.mvp.line}</div>`
+      : "";
+    return `<div class="bspnlive-apb-match ${cls}">
+      ${teamCell(m.awayId, m.awayScore, awayW, homeW && m.played)}
+      ${teamCell(m.homeId, m.homeScore, homeW, awayW && m.played)}
+      ${mvpLine}${action}
+    </div>`;
+  };
+  const roundsHtml = t.rounds.map((round, ri) => {
+    const played = round.filter(m => m.played).length;
+    const total  = round.length;
+    const isCurrent = ri === t.currentRound;
+    return `<div class="bspnlive-apb-round" style="${isCurrent && !t.complete ? 'border-color:var(--blgold)' : ''}">
+      <div class="bspnlive-apb-round-head">
+        <div class="bspnlive-apb-round-title">${t.roundLabels[ri]}</div>
+        <div class="bspnlive-apb-round-progress">${played}/${total}</div>
+      </div>
+      <div class="bspnlive-apb-matches">
+        ${round.map((m, mi) => renderMatch(m, ri, mi)).join("")}
+      </div>
+    </div>`;
+  }).join("");
+
+  // Rosters of teams still alive
+  const aliveTeams = t.teams.filter(team => {
+    if (t.complete) return team.id === t.champion;
+    // Alive if seen in current or later round
+    for (let r = t.currentRound; r < t.rounds.length; r++) {
+      for (const m of t.rounds[r]) {
+        if (m.homeId === team.id || m.awayId === team.id) return true;
+      }
+    }
+    return false;
+  });
+  const rosterHtml = aliveTeams.length && aliveTeams.length <= 8 ? `
+    <div class="bspnlive-section-title">📋 ${t.complete ? "CHAMPION ROSTER" : "TEAMS STILL ALIVE"}</div>
+    <div class="bspnlive-allpro-grid">
+      ${aliveTeams.map(team => `
+        <div class="bspnlive-allpro-block" style="border-top-color:${team.primary}">
+          <div class="bspnlive-allpro-title">#${team.seed} · ${team.confDiv.toUpperCase()} ALL-STARS</div>
+          <div class="bspnlive-apb-roster-grid">
+            ${team.rosterMeta.slice(0, 18).map(p => `
+              <div class="bspnlive-apb-roster-row">
+                <span class="bspnlive-apb-roster-pos">${p.pos}</span>
+                <span class="bspnlive-apb-roster-name">${link(p.name)}</span>
+                <span class="bspnlive-apb-roster-tm" style="color:${p.srcTeamPrimary}">${p.srcTeamAbbr}</span>
+              </div>`).join("")}
+          </div>
+        </div>`).join("")}
+    </div>` : "";
+
+  // Action buttons
+  const hasUnplayedInCurrent = t.currentRound < t.rounds.length &&
+    t.rounds[t.currentRound].some(m => !m.played && m.homeId != null && m.awayId != null);
+  const actions = `
+    <div class="bspnlive-awards-footer">
+      ${hasUnplayedInCurrent ? `<button class="bspnlive-btn-gold" onclick="frnSimApbRound()">⏩ Sim ${t.roundLabels[t.currentRound]}</button>` : ""}
+      ${!t.complete ? `<button class="bspnlive-btn-outline" onclick="frnSimApbAll()">⏭ Sim Tournament</button>` : ""}
+      <button class="bspnlive-btn-outline" onclick="renderFrnAwards()">‹ Awards Ceremony</button>
+      ${t.complete ? `<button class="bspnlive-btn-gold" onclick="startFrnOffseason()">⏭ Begin Offseason</button>` : ""}
+    </div>`;
+
+  $("frnHomeContent").innerHTML = `
+    <div class="bspnlive-root" style="margin:-1rem -1.5rem 0 -1.5rem;padding-bottom:1.2rem">
+      <header class="bspnlive-header">
+        <div>
+          <div class="bspnlive-logo">BSPN</div>
+          <div class="bspnlive-logo-sub">ALL-PRO BOWL · SEASON ${franchise.season}</div>
+        </div>
+        <nav class="bspnlive-nav" style="flex-wrap:wrap;gap:.7rem .9rem">${_bspnNavHtml("AWARDS")}</nav>
+      </header>
+      <div style="padding:.55rem 1.4rem;border-bottom:1px solid var(--blborder);display:flex;gap:.55rem;flex-wrap:wrap;align-items:center">
+        <button class="bspn-back" onclick="renderFrnAwards()">‹ Back to Awards</button>
+      </div>
+      <div class="bspnlive-awards-body">
+        ${trophyCard}
+        ${hero}
+        <div class="bspnlive-apb-rounds">${roundsHtml}</div>
+        ${rosterHtml}
+        ${actions}
+      </div>
+    </div>`;
+}
+
 // ── Sim helpers ──────────────────────────────────────────────────────────────
 // `frnSimOnce` returns the simulation result; callers use it to capture
 // season stats + highlights as a side effect. The full game object is
@@ -24825,32 +26076,61 @@ function showFrnAwards() {
       if (t.id === champId) hc.record.championships = (hc.record.championships || 0) + 1;
     }
     const champTeam = getTeam(champId);
-    const leagueMVP   = computeLeagueMVP();
-    const sbMVP       = computeSuperBowlMVP();
-    const userMVP     = computeTeamMVP(franchise.chosenTeamId);
+    // Process retirements FIRST so all subsequent computations use the
+    // post-retirement state (HoF inductions stamped onto franchise.hallOfFame).
+    const { retirees, hofClass } = _processSeasonEndRetirements();
+
+    const leagueMVP    = computeLeagueMVP();
+    const sbMVP        = computeSuperBowlMVP();
+    const userMVP      = computeTeamMVP(franchise.chosenTeamId);
     const champTeamMVP = computeTeamMVP(champId);
+
+    // New awards
+    const opoy         = _computeOPOY();
+    const dpoy         = _computeDPOY();
+    const roy          = _computeROY();
+    const coy          = _computeCOY();
+    const comeback     = _computeComebackPOY();
+    const breakout     = _computeBreakoutPOY();
+    const allPros      = _selectAllPros();
+    const statLeaders  = _seasonStatLeaders();
+    const byNumbers    = _seasonByTheNumbers();
+
+    // Standings snapshot — feeds next year's COY improvement calculation.
+    const standingsSnapshot = {};
+    for (const [tid, s] of Object.entries(franchise.standings || {})) {
+      standingsSnapshot[tid] = { w: s.w || 0, l: s.l || 0, t: s.t || 0 };
+    }
+
+    // Stamp accolades onto live players' careerHistory so trophy counters update.
+    _stampSeasonAccolades({
+      leagueMVP, superBowlMVP: sbMVP, opoy, dpoy, roy, comeback, breakout, allPros,
+    });
+
+    const sb = franchise.superBowlGame;
     franchise.history.push({
       season: franchise.season,
       champion: champId,
       championName: `${champTeam.city} ${champTeam.name}`,
-      leagueMVP:   leagueMVP   ? {
-        name: leagueMVP.name, pos: leagueMVP.pos,
-        teamId: leagueMVP.teamId, teamName: getTeam(leagueMVP.teamId)?.name || "",
-        line: mvpStatLine(leagueMVP),
+      championRecord: { ...(franchise.standings[champId] || { w:0, l:0 }) },
+      superBowlScore: sb ? {
+        homeId: sb.homeId, awayId: sb.awayId,
+        homeScore: sb.homeScore, awayScore: sb.awayScore,
+        winnerId: sb.winnerId,
       } : null,
-      superBowlMVP: sbMVP ? {
-        name: sbMVP.name, pos: sbMVP.pos,
-        teamId: sbMVP.teamId, teamName: getTeam(sbMVP.teamId)?.name || "",
-        line: mvpStatLine(sbMVP),
-      } : null,
-      userTeamMVP: userMVP ? {
-        name: userMVP.name, pos: userMVP.pos,
-        line: mvpStatLine(userMVP),
-      } : null,
-      champTeamMVP: champTeamMVP ? {
-        name: champTeamMVP.name, pos: champTeamMVP.pos,
-        line: mvpStatLine(champTeamMVP),
-      } : null,
+      leagueMVP:    _snapshotAwardWinner(leagueMVP),
+      superBowlMVP: _snapshotAwardWinner(sbMVP),
+      userTeamMVP:  userMVP      ? { name: userMVP.name,      pos: userMVP.pos,      line: mvpStatLine(userMVP) }      : null,
+      champTeamMVP: champTeamMVP ? { name: champTeamMVP.name, pos: champTeamMVP.pos, line: mvpStatLine(champTeamMVP) } : null,
+      opoy:         _snapshotAwardWinner(opoy),
+      dpoy:         _snapshotAwardWinner(dpoy),
+      roy:          _snapshotAwardWinner(roy),
+      coy:          coy,
+      comeback:     _snapshotAwardWinner(comeback),
+      breakout:     _snapshotAwardWinner(breakout),
+      allPros, statLeaders, byNumbers,
+      retirees, hofClass,
+      standingsSnapshot,
       userRecord: { ...(franchise.standings[franchise.chosenTeamId] || { w:0, l:0 }) },
     });
   }
@@ -25486,65 +26766,288 @@ function renderFrnAwards() {
   const isUserChamp= champId === chosenTeamId;
   const userStand  = standings[chosenTeamId] || { w:0, l:0 };
 
-  // Award row builder
-  const awardRow = (icon, title, p) => {
-    if (!p) return "";
-    const teamLabel = p.teamName ? ` · ${p.teamName}` : "";
-    return `<div style="padding:.45rem .6rem;background:var(--bg2);border:1px solid var(--border);margin-bottom:.35rem">
-      <div style="font-size:.62rem;color:var(--gold);letter-spacing:.4px;font-weight:700">${icon} ${title}</div>
-      <div style="font-size:.92rem;font-weight:700;margin-top:.15rem">${p.name}${p.pos ? ` (${p.pos})` : ""}${teamLabel}</div>
-      ${p.line ? `<div style="font-size:.7rem;color:var(--gray);margin-top:.1rem">${p.line}</div>` : ""}
+  const link = (rec) => (rec && rec.name) ? playerLinkByName(rec.name) : "—";
+
+  // Hero champion card
+  const sb = latest.superBowlScore;
+  const sbHomeT = sb ? getTeam(sb.homeId) : null;
+  const sbAwayT = sb ? getTeam(sb.awayId) : null;
+  const champRec = latest.championRecord || { w:0, l:0 };
+  const championHero = champTeam ? `
+    <div class="bspnlive-awards-hero" style="--champ-color:${champTeam.primary};--champ-2:${champTeam.secondary || '#fff'}">
+      <div class="bspnlive-awards-hero-stripe"></div>
+      <div class="bspnlive-awards-hero-body">
+        <div class="bspnlive-awards-hero-eyebrow">SEASON ${season} · CHAMPIONS</div>
+        <div class="bspnlive-awards-hero-name">${champTeam.city.toUpperCase()} ${champTeam.name.toUpperCase()}</div>
+        <div class="bspnlive-awards-hero-meta">
+          ${champRec.w}-${champRec.l} regular season
+          ${sb && sbHomeT && sbAwayT ? `<span class="bspnlive-awards-hero-divider">·</span>
+            <span class="bspnlive-awards-hero-sb">SB:
+              <b>${sbAwayT.name}</b> ${sb.awayScore} <span style="color:var(--blgray)">@</span>
+              <b>${sbHomeT.name}</b> ${sb.homeScore}</span>` : ""}
+        </div>
+        ${isUserChamp
+          ? `<div class="bspnlive-awards-hero-flag champ">🎉 YOUR TEAM WON IT ALL</div>`
+          : `<div class="bspnlive-awards-hero-flag">${userTeam.name} finished ${userStand.w}-${userStand.l}</div>`}
+      </div>
+      <div class="bspnlive-awards-hero-trophy">🏆</div>
+    </div>` : "";
+
+  // Hero League MVP
+  const mvp = latest.leagueMVP;
+  const mvpTeam = mvp ? getTeam(mvp.teamId) : null;
+  const mvpHero = mvp ? `
+    <div class="bspnlive-mvp-hero" style="--mvp-color:${mvpTeam?.primary || '#b07a00'}">
+      <div class="bspnlive-mvp-hero-stripe"></div>
+      <div class="bspnlive-mvp-hero-body">
+        <div class="bspnlive-mvp-hero-eyebrow">👑 LEAGUE MVP · SEASON ${season}</div>
+        <div class="bspnlive-mvp-hero-name">${link(mvp)}</div>
+        <div class="bspnlive-mvp-hero-meta">${mvp.pos}${mvpTeam ? ` · ${mvpTeam.city} ${mvpTeam.name}` : ""}</div>
+        ${mvp.line ? `<div class="bspnlive-mvp-hero-line">${mvp.line}</div>` : ""}
+      </div>
+    </div>` : "";
+
+  const awardCard = (icon, label, rec, extra) => {
+    if (!rec) return `<div class="bspnlive-award-card empty">
+      <div class="bspnlive-award-card-icon">${icon}</div>
+      <div class="bspnlive-award-card-label">${label}</div>
+      <div class="bspnlive-award-card-name" style="color:var(--blgray);font-style:italic">— vacant —</div>
+    </div>`;
+    const t = rec.teamId ? getTeam(rec.teamId) : null;
+    return `<div class="bspnlive-award-card" style="--card-color:${rec.teamPrimary || t?.primary || '#888'}">
+      <div class="bspnlive-award-card-stripe"></div>
+      <div class="bspnlive-award-card-icon">${icon}</div>
+      <div class="bspnlive-award-card-label">${label}</div>
+      <div class="bspnlive-award-card-name">${link(rec)}</div>
+      <div class="bspnlive-award-card-meta">${rec.pos || ""}${t ? ` · ${_bspnLiveAbbr(t)}` : ""}</div>
+      ${rec.line ? `<div class="bspnlive-award-card-line">${rec.line}</div>` : ""}
+      ${extra ? `<div class="bspnlive-award-card-extra">${extra}</div>` : ""}
     </div>`;
   };
+  const sbMvp = latest.superBowlMVP;
+  const coyCard = !latest.coy ? `<div class="bspnlive-award-card empty">
+      <div class="bspnlive-award-card-icon">🎩</div>
+      <div class="bspnlive-award-card-label">COACH OF THE YEAR</div>
+      <div class="bspnlive-award-card-name" style="color:var(--blgray);font-style:italic">— vacant —</div>
+    </div>` : `<div class="bspnlive-award-card" style="--card-color:${latest.coy.teamPrimary || '#888'}">
+      <div class="bspnlive-award-card-stripe"></div>
+      <div class="bspnlive-award-card-icon">🎩</div>
+      <div class="bspnlive-award-card-label">COACH OF THE YEAR</div>
+      <div class="bspnlive-award-card-name">${latest.coy.name}</div>
+      <div class="bspnlive-award-card-meta">HC · ${latest.coy.teamAbbr || ""}</div>
+      ${latest.coy.trait ? `<div class="bspnlive-award-card-line">${latest.coy.trait}</div>` : ""}
+      <div class="bspnlive-award-card-extra">${latest.coy.wins} wins${latest.coy.improvement > 0 ? ` · +${latest.coy.improvement} W/W` : ""}${latest.coy.isChamp ? " · 🏆" : ""}</div>
+    </div>`;
+  const majorAwards = `
+    <div class="bspnlive-awards-row">
+      ${awardCard("🏆", "SUPER BOWL MVP", sbMvp)}
+      ${awardCard("⚡", "OFFENSIVE POY", latest.opoy)}
+      ${awardCard("🛡", "DEFENSIVE POY", latest.dpoy)}
+      ${awardCard("🌱", "ROOKIE OF THE YEAR", latest.roy)}
+      ${coyCard}
+    </div>
+    <div class="bspnlive-awards-row">
+      ${awardCard("📈", "COMEBACK PLAYER", latest.comeback, latest.comeback ? `Score ${latest.comeback.lastScore} → ${latest.comeback.thisScore} · +${Math.round(latest.comeback.jump)}` : "")}
+      ${awardCard("🚀", "BREAKOUT PLAYER", latest.breakout, latest.breakout ? `Career-best by +${Math.round(latest.breakout.lift)}` : "")}
+      ${awardCard("⭐", "YOUR TEAM MVP", latest.userTeamMVP ? {...latest.userTeamMVP, teamPrimary: userTeam.primary, teamId: chosenTeamId} : null)}
+      ${!isUserChamp ? awardCard("🥇", `${champTeam?.name || "?"} MVP`, latest.champTeamMVP ? {...latest.champTeamMVP, teamPrimary: champTeam?.primary, teamId: champId} : null) : `<div class="bspnlive-award-card empty"></div>`}
+      <div class="bspnlive-award-card empty"></div>
+    </div>`;
 
-  // Top season highlights (top by weight; max 8)
+  const renderAllProList = (formation, title, accent) => {
+    if (!formation) return "";
+    const rows = [];
+    for (const [pos, n] of _ALLPRO_FORMATION) {
+      const arr = formation[pos] || [];
+      if (!arr.length) continue;
+      rows.push(`<tr>
+        <td class="bspnlive-allpro-pos">${pos}</td>
+        <td class="bspnlive-allpro-names">${arr.map(r => `
+          <span class="bspnlive-allpro-player">
+            ${link(r)}
+            <span class="bspnlive-allpro-tm" style="color:${r.teamPrimary}">${r.teamAbbr}</span>
+          </span>`).join("")}</td>
+      </tr>`);
+    }
+    return `<div class="bspnlive-allpro-block" style="border-top-color:${accent}">
+      <div class="bspnlive-allpro-title">${title}</div>
+      <table class="bspnlive-allpro-table"><tbody>${rows.join("")}</tbody></table>
+    </div>`;
+  };
+  const allProSection = latest.allPros ? `
+    <div class="bspnlive-section-title">★ ALL-PRO TEAMS</div>
+    <div class="bspnlive-allpro-grid">
+      ${renderAllProList(latest.allPros.AFC?.firstTeam,  "AFC FIRST TEAM",  "#d62c2c")}
+      ${renderAllProList(latest.allPros.NFC?.firstTeam,  "NFC FIRST TEAM",  "#1a5fb4")}
+      ${renderAllProList(latest.allPros.AFC?.secondTeam, "AFC SECOND TEAM", "#a04040")}
+      ${renderAllProList(latest.allPros.NFC?.secondTeam, "NFC SECOND TEAM", "#3a6090")}
+    </div>` : "";
+
+  const renderLeaderCat = (cat) => {
+    if (!cat || !cat.leaders?.length) return "";
+    return `<div class="bspnlive-leader-cat">
+      <div class="bspnlive-leader-cat-title">${cat.label}</div>
+      ${cat.leaders.map((r, i) => `
+        <div class="bspnlive-leader-row ${i===0?'lead':''}">
+          <span class="bspnlive-leader-rank">${i+1}</span>
+          <span class="bspnlive-leader-tm" style="color:${r.teamPrimary}">${r.teamAbbr}</span>
+          <span class="bspnlive-leader-name">${link(r)}</span>
+          <span class="bspnlive-leader-val">${r.value}</span>
+        </div>`).join("")}
+    </div>`;
+  };
+  const sl = latest.statLeaders || {};
+  const leadersSection = Object.keys(sl).length ? `
+    <div class="bspnlive-section-title">📊 STATISTICAL LEADERS</div>
+    <div class="bspnlive-leaders-grid">
+      ${["pass_yds","pass_td","rush_yds","rush_td","rec_yds","rec_td","sk","tkl","int_made","fg_made"]
+        .map(k => renderLeaderCat(sl[k])).join("")}
+    </div>` : "";
+
+  const bn = latest.byNumbers;
+  const tName = id => { const t = getTeam(id); return t ? `${t.city} ${t.name}` : "?"; };
+  const tAbbr = id => { const t = getTeam(id); return t ? _bspnLiveAbbr(t) : "—"; };
+  const numbersSection = bn ? `
+    <div class="bspnlive-section-title">📋 SEASON BY THE NUMBERS</div>
+    <div class="bspnlive-numbers-grid">
+      ${bn.biggestBlowout ? `<div class="bspnlive-number-card">
+        <div class="bspnlive-number-label">BIGGEST BLOWOUT</div>
+        <div class="bspnlive-number-val">${bn.biggestBlowout.margin}-pt</div>
+        <div class="bspnlive-number-sub">${tAbbr(bn.biggestBlowout.homeId)} ${bn.biggestBlowout.homeScore} — ${tAbbr(bn.biggestBlowout.awayId)} ${bn.biggestBlowout.awayScore} · W${bn.biggestBlowout.week}</div>
+      </div>` : ""}
+      ${bn.closestGame ? `<div class="bspnlive-number-card">
+        <div class="bspnlive-number-label">CLOSEST GAME</div>
+        <div class="bspnlive-number-val">${bn.closestGame.margin}-pt</div>
+        <div class="bspnlive-number-sub">${tAbbr(bn.closestGame.homeId)} ${bn.closestGame.homeScore} — ${tAbbr(bn.closestGame.awayId)} ${bn.closestGame.awayScore} · W${bn.closestGame.week}</div>
+      </div>` : ""}
+      ${bn.highestScoring ? `<div class="bspnlive-number-card">
+        <div class="bspnlive-number-label">HIGHEST SCORING</div>
+        <div class="bspnlive-number-val">${bn.highestScoring.total} pts</div>
+        <div class="bspnlive-number-sub">${tAbbr(bn.highestScoring.homeId)} ${bn.highestScoring.homeScore} — ${tAbbr(bn.highestScoring.awayId)} ${bn.highestScoring.awayScore} · W${bn.highestScoring.week}</div>
+      </div>` : ""}
+      ${bn.mostPointsTeam ? `<div class="bspnlive-number-card">
+        <div class="bspnlive-number-label">MOST POINTS SCORED</div>
+        <div class="bspnlive-number-val">${bn.mostPointsTeam.pts}</div>
+        <div class="bspnlive-number-sub">${tName(bn.mostPointsTeam.teamId)}</div>
+      </div>` : ""}
+      ${bn.bestRecord ? `<div class="bspnlive-number-card">
+        <div class="bspnlive-number-label">BEST RECORD</div>
+        <div class="bspnlive-number-val">${bn.bestRecord.w}-${bn.bestRecord.l}</div>
+        <div class="bspnlive-number-sub">${tName(bn.bestRecord.teamId)}</div>
+      </div>` : ""}
+      ${bn.worstRecord ? `<div class="bspnlive-number-card">
+        <div class="bspnlive-number-label">WORST RECORD</div>
+        <div class="bspnlive-number-val">${bn.worstRecord.w}-${bn.worstRecord.l}</div>
+        <div class="bspnlive-number-sub">${tName(bn.worstRecord.teamId)}</div>
+      </div>` : ""}
+    </div>` : "";
+
+  const hofRows = (latest.hofClass || []).map(r => `
+    <div class="bspnlive-hof-row" style="border-left-color:${r.teamPrimary}">
+      <div class="bspnlive-hof-trophy">🏛</div>
+      <div class="bspnlive-hof-body">
+        <div class="bspnlive-hof-name">${link(r)} <span style="color:var(--blgray);font-size:.65rem">(${r.pos})</span></div>
+        <div class="bspnlive-hof-meta">${r.teamName} · ${r.careerYears} season${r.careerYears===1?"":"s"} · Age ${r.age}${r.careerEarnings ? ` · $${r.careerEarnings}M career` : ""}</div>
+        ${r.line ? `<div class="bspnlive-hof-line">${r.line}</div>` : ""}
+      </div>
+    </div>`).join("");
+  const otherRetirees = (latest.retirees || []).filter(r => !r.isHof);
+  const retireeRows = otherRetirees.map(r => `
+    <div class="bspnlive-retiree-row" style="border-left-color:${r.teamPrimary}">
+      <div class="bspnlive-retiree-name">${link(r)} <span style="color:var(--blgray);font-size:.65rem">(${r.pos})</span></div>
+      <div class="bspnlive-retiree-meta">${r.teamAbbr} · Age ${r.age} · ${r.careerYears}yr</div>
+    </div>`).join("");
+  const retirementSection = (latest.hofClass?.length || otherRetirees.length) ? `
+    <div class="bspnlive-section-title">🏛 RETIREMENTS &amp; HALL OF FAME</div>
+    ${hofRows ? `<div class="bspnlive-hof-grid">${hofRows}</div>` : ""}
+    ${retireeRows ? `<div style="margin-top:.6rem"><div class="bspnlive-allpro-title" style="margin-bottom:.4rem">CALLING IT A CAREER</div><div class="bspnlive-retiree-grid">${retireeRows}</div></div>` : ""}
+  ` : "";
+
   const topHL = [...(seasonHighlights || [])]
-    .sort((a, b) => b.weight - a.weight).slice(0, 8);
-  const hlHtml = topHL.length ? `
-    <div class="frn-sec-title" style="margin-top:1rem">⭐ SEASON HIGHLIGHTS</div>
-    ${topHL.map(h => {
-      const hT = getTeam(h.homeId), aT = getTeam(h.awayId);
-      const tag = h.isPlayoff ? `<span style="color:var(--gold)">${h.week}</span>` : `<span style="color:var(--gray)">${h.week}</span>`;
-      const clutch = h.isClutch ? ` <span style="color:var(--gold-lt);font-size:.6rem">⚡CLUTCH</span>` : "";
-      return `<div style="font-size:.72rem;padding:.2rem 0;border-bottom:1px solid var(--border)">
-        ${tag} · ${hT?.name || "?"} vs ${aT?.name || "?"} · <b>${h.label}</b>${clutch}
-      </div>`;
-    }).join("")}` : "";
+    .sort((a, b) => b.weight - a.weight).slice(0, 6);
+  const hlSection = topHL.length ? `
+    <div class="bspnlive-section-title">⭐ SEASON HIGHLIGHTS</div>
+    <div class="bspnlive-highlights-grid">
+      ${topHL.map(h => {
+        const hT = getTeam(h.homeId), aT = getTeam(h.awayId);
+        return `<div class="bspnlive-highlight-row">
+          <span class="bspnlive-highlight-week">${h.week}</span>
+          <span class="bspnlive-highlight-teams">${hT?.name || "?"} vs ${aT?.name || "?"}</span>
+          <span class="bspnlive-highlight-label">${h.label}${h.isClutch ? ` <span style="color:#b07a00;font-size:.6rem">⚡CLUTCH</span>` : ""}</span>
+        </div>`;
+      }).join("")}
+    </div>` : "";
 
-  const histHtml = history.length > 1 ? `
-    <div class="frn-sec-title" style="margin-top:1rem">FRANCHISE HISTORY</div>
-    ${history.slice(-6).reverse().map(h => `
-      <div style="font-size:.72rem;padding:.18rem 0;border-bottom:1px solid var(--border)">
-        S${h.season}: 🏆 ${h.championName}${h.leagueMVP ? ` · MVP ${h.leagueMVP.name}` : ""}${h.superBowlMVP ? ` · SB MVP ${h.superBowlMVP.name}` : ""}
-      </div>`).join("")}` : "";
+  const histSection = history.length > 1 ? `
+    <div class="bspnlive-section-title">📚 FRANCHISE HISTORY</div>
+    <div class="bspnlive-history-list">
+      ${history.slice(-8).reverse().map(h => `
+        <div class="bspnlive-history-row">
+          <span class="bspnlive-history-season">S${h.season}</span>
+          <span class="bspnlive-history-champ">🏆 ${h.championName}</span>
+          ${h.leagueMVP ? `<span class="bspnlive-history-mvp">MVP ${link(h.leagueMVP)}</span>` : ""}
+          ${h.superBowlMVP ? `<span class="bspnlive-history-mvp">SB MVP ${link(h.superBowlMVP)}</span>` : ""}
+        </div>`).join("")}
+    </div>` : "";
+
+  const apbReady = !franchise.allProBowlTournament;
+  const apbInProgress = franchise.allProBowlTournament && !franchise.allProBowlTournament.complete;
+  const apbDone  = franchise.allProBowlTournament?.complete;
+  const actionFooter = `
+    <div class="bspnlive-awards-footer">
+      ${apbReady ? `<button class="bspnlive-btn-gold" onclick="frnStartAllProBowl()">🏟 BEGIN ALL-PRO BOWL TOURNAMENT</button>` : ""}
+      ${apbInProgress ? `<button class="bspnlive-btn-gold" onclick="renderAllProBowl()">🏟 CONTINUE ALL-PRO BOWL</button>` : ""}
+      ${apbDone  ? `<button class="bspnlive-btn-outline" onclick="renderAllProBowl()">🏆 VIEW ALL-PRO BOWL RESULTS</button>` : ""}
+      <button class="bspnlive-btn-gold" onclick="startFrnOffseason()">⏭ Begin Offseason</button>
+      <button class="bspnlive-btn-outline" onclick="frnAbandon()" style="color:#a02020">× Abandon</button>
+    </div>`;
 
   $("frnHomeContent").innerHTML = `
-    <div style="text-align:center;padding:1rem .5rem .8rem">
-      <div style="font-size:2.6rem;margin-bottom:.3rem">🏆</div>
-      <div style="font-size:1.7rem;font-weight:900;color:var(--gold)">${champTeam ? `${champTeam.city} ${champTeam.name}` : "—"}</div>
-      <div style="color:var(--gold-lt);margin-bottom:.5rem">SEASON ${season} CHAMPIONS</div>
-      ${isUserChamp
-        ? `<div style="font-size:1.15rem;color:var(--green-lt);margin:.4rem 0">🎉 YOUR TEAM WON IT ALL! 🎉</div>`
-        : `<div style="color:var(--gray);font-size:.85rem">${userTeam.name} finished ${userStand.w}-${userStand.l}</div>`}
-    </div>
-
-    <div class="frn-sec-title">🏅 AWARDS</div>
-    ${awardRow("👑", "LEAGUE MVP",       latest.leagueMVP)}
-    ${awardRow("🏆", "SUPER BOWL MVP",   latest.superBowlMVP)}
-    ${awardRow("⭐", "YOUR TEAM MVP",    latest.userTeamMVP)}
-    ${champId !== chosenTeamId ? awardRow("🥇", `${champTeam?.name} TEAM MVP`, latest.champTeamMVP) : ""}
-
-    ${hlHtml}
-    ${histHtml}
-
-    <div class="frn-actions" style="justify-content:center;margin-top:1rem">
-      <button class="btn btn-gold" onclick="startFrnOffseason()">⏭ Begin Offseason</button>
-      <button class="btn btn-outline" onclick="frnAbandon()" style="color:var(--red)">× Abandon</button>
+    <div class="bspnlive-root" style="margin:-1rem -1.5rem 0 -1.5rem;padding-bottom:1.2rem">
+      <header class="bspnlive-header">
+        <div>
+          <div class="bspnlive-logo">BSPN</div>
+          <div class="bspnlive-logo-sub">AWARDS CEREMONY · SEASON ${season}</div>
+        </div>
+        <nav class="bspnlive-nav" style="flex-wrap:wrap;gap:.7rem .9rem">${_bspnNavHtml("AWARDS")}</nav>
+      </header>
+      <div style="padding:.55rem 1.4rem;border-bottom:1px solid var(--blborder);display:flex;gap:.55rem;flex-wrap:wrap;align-items:center">
+        <button class="bspn-back" onclick="showFranchiseDashboard()">‹ Return to Main Screen</button>
+      </div>
+      <div class="bspnlive-awards-body">
+        ${championHero}
+        ${mvpHero}
+        <div class="bspnlive-section-title">🏅 SEASON AWARDS</div>
+        ${majorAwards}
+        ${allProSection}
+        ${leadersSection}
+        ${numbersSection}
+        ${retirementSection}
+        ${hlSection}
+        ${histSection}
+        ${actionFooter}
+      </div>
     </div>`;
 }
 
 // ── Offseason ─────────────────────────────────────────────────────────────────
 function startFrnOffseason() {
+  // Stash All-Pro Bowl result onto history (if complete) before clearing
+  // the tournament from active state. Incomplete tournaments are dropped.
+  if (franchise.allProBowlTournament?.complete) {
+    const t = franchise.allProBowlTournament;
+    const champ = t.teams.find(x => x.id === t.champion);
+    const runnerUp = t.teams.find(x => x.id === t.runnerUp);
+    const hist = franchise.history[franchise.history.length - 1];
+    if (hist) {
+      hist.allProBowl = {
+        champion: champ ? { confDiv: champ.confDiv, primary: champ.primary } : null,
+        runnerUp: runnerUp ? { confDiv: runnerUp.confDiv, primary: runnerUp.primary } : null,
+        mvp: t.mvp,
+      };
+    }
+  }
+  franchise.allProBowlTournament = null;
   // Roll contract years down for all players
   for (const roster of Object.values(franchise.rosters)) {
     for (const p of roster) {
@@ -25651,30 +27154,17 @@ function runFrnOffseason() {
     const localNames = new Set(allNames);
 
     for (const p of roster) {
+      // Age + retirement now happen at the awards-ceremony step so the
+      // ceremony can honor retirees + HoF inductees. By the time we reach
+      // here the roster has already been pruned. We still need a snapshot
+      // for dev-swing wire alerts.
       if (p.age == null) {
         p.age = (p.overall >= 85 ? 27 : p.overall >= 75 ? 24 : 22) + Math.floor(Math.random() * 6);
       }
-      // Snapshot before age/OVR shifts so we can emit wire alerts for
-      // meaningful dev swings. preDeclineHit = was the player ALREADY
-      // past his decline age last season (so the cliff isn't news).
       const preOvr = p.overall;
-      const preDeclineHit = (p.age >= (p.declineAge ?? Infinity));
-      p.age += 1;
-
-      // Retirement
-      const retProb = p.age >= 36 ? 1
-                    : p.age === 35 ? 0.60
-                    : p.age === 34 ? 0.35
-                    : p.age === 33 ? 0.15
-                    : p.age >= 31 ? 0.05
-                    : 0;
-      if (retProb > 0 && Math.random() < retProb) {
-        // Hall of Fame check — career production threshold by position
-        _maybeEnshrineHOF(p, t);
-        changes.push({ type:"retire", tId, tName:t.name, name:p.name, pos:p.position, age:p.age });
-        allNames.delete(p.name);
-        continue;
-      }
+      // Age has already been bumped in _processSeasonEndRetirements;
+      // last-season's age is p.age - 1.
+      const preDeclineHit = ((p.age - 1) >= (p.declineAge ?? Infinity));
 
       // Each player has a personal decline age. Drawn from a normal
       // distribution (mean 30, std 2) with no hard ceiling — typical
