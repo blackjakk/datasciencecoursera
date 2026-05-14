@@ -1407,6 +1407,350 @@
     padding: .35rem .65rem; margin: -.6rem 0 .7rem;
     font-size: .72rem; line-height: 1.5;
   }
+  /* ──────────────────────────────────────────────────────────────────────
+     BSPN LIVE broadcast (active play-by-play screen). Mirrors the
+     reference: header strip + giant scoreboard + ASCII field with sprites
+     + box-score / team-stats sidebars + last play + drive summary + next
+     up + play-by-play log + top performers + bottom ticker. All scoped
+     under .bspnlive-root.
+     ────────────────────────────────────────────────────────────────────── */
+  .bspnlive-root {
+    --blbg:      #000;
+    --blbg2:     #050807;
+    --blbg3:     #0a0f0a;
+    --blborder:  #1f3a1f;
+    --blbordr2:  #2e5c2e;
+    --blgreen:   #4ade80;
+    --blgreen-d: #2e7d32;
+    --blgold:    #f0cc30;
+    --blwhite:   #e6f0e6;
+    --blgray:    #6a7d6a;
+    --blred:     #ff3b3b;
+    --away-color:#888;
+    --home-color:#888;
+
+    background: var(--blbg); color: var(--blwhite);
+    font-family: "IBM Plex Mono","JetBrains Mono","Roboto Mono","Courier New",monospace;
+    font-size: 13px; line-height: 1.35; letter-spacing: .2px;
+    padding: 0; margin: 0;
+    min-height: 100vh; position: relative;
+  }
+  .bspnlive-root *,
+  .bspnlive-root *::before,
+  .bspnlive-root *::after { box-sizing: border-box; }
+  /* CRT scanlines + soft vignette */
+  .bspnlive-root::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,0) 0, rgba(0,0,0,0) 2px, rgba(0,0,0,0.10) 3px, rgba(0,0,0,0) 4px);
+    z-index: 100; mix-blend-mode: multiply;
+  }
+  .bspnlive-root::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.45) 100%);
+    z-index: 100;
+  }
+  .bspnlive-num { font-variant-numeric: tabular-nums; }
+  .bspnlive-glow { text-shadow: 0 0 8px rgba(255,255,255,0.18); }
+
+  /* Header */
+  .bspnlive-header {
+    display: grid; grid-template-columns: auto 1fr; align-items: center;
+    padding: .6rem 1.2rem; border-bottom: 1px solid var(--blbordr2);
+    gap: 1.4rem;
+  }
+  .bspnlive-logo {
+    font-family: "Bebas Neue","Anton","Arial Black",sans-serif;
+    font-size: 2.8rem; font-weight: 900; color: var(--blred);
+    letter-spacing: -2px; font-style: italic; transform: skewX(-7deg);
+    text-shadow: 0 0 14px rgba(255,57,57,0.45), 0 2px 0 #200;
+    line-height: 1;
+  }
+  .bspnlive-logo-sub {
+    display: block; font-family: "IBM Plex Mono", monospace;
+    font-size: .54rem; font-style: normal; transform: skewX(7deg);
+    color: var(--blwhite); letter-spacing: 2.5px; font-weight: 700;
+    margin-top: .15rem;
+  }
+  .bspnlive-nav {
+    display: flex; gap: 1.1rem; flex-wrap: wrap;
+    color: var(--blgray); font-size: .72rem; letter-spacing: 1.5px;
+    font-weight: 700;
+  }
+  .bspnlive-nav-item { color: var(--blgray); }
+  .bspnlive-nav-item.active { color: var(--blwhite); }
+
+  /* Scoreboard strip */
+  .bspnlive-score-strip {
+    display: grid; grid-template-columns: 1fr auto 1fr;
+    align-items: center; padding: .9rem 1.6rem;
+    border-bottom: 1px solid var(--blborder);
+    background: linear-gradient(180deg, #050807, #000);
+  }
+  .bspnlive-score-team { display: flex; align-items: center; gap: 1.2rem; }
+  .bspnlive-score-team.right { flex-direction: row-reverse; }
+  .bspnlive-score-team-meta { display: flex; flex-direction: column; }
+  .bspnlive-score-team.right .bspnlive-score-team-meta { align-items: flex-end; }
+  .bspnlive-score-rank {
+    color: var(--blgray); font-size: .82rem; font-weight: 700;
+    letter-spacing: 1px; margin-bottom: .25rem;
+  }
+  .bspnlive-score-name {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1.65rem; line-height: 1; letter-spacing: 1.5px;
+    color: var(--team-color, var(--blwhite));
+  }
+  .bspnlive-score-record { color: var(--blgray); font-size: .72rem; margin-top: .25rem; letter-spacing: 1px; }
+  .bspnlive-score-poss {
+    display: inline-block; margin-top: .35rem;
+    color: var(--team-color, var(--blgold)); font-size: .55rem; font-weight: 800;
+    letter-spacing: 1px; padding: .12rem .35rem;
+    border: 1px solid currentColor;
+  }
+  .bspnlive-score-mark {
+    width: 96px; height: 96px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--team-color, var(--blgold));
+    white-space: pre; font-size: 1rem; line-height: 1; overflow: hidden;
+  }
+  .bspnlive-score-num {
+    font-family: "Anton","Teko","Impact","Arial Black",system-ui,sans-serif;
+    font-size: clamp(3.5rem, 7vw, 6rem);
+    font-weight: 900; line-height: .85;
+    letter-spacing: -0.06em; font-variant-numeric: tabular-nums;
+    color: var(--blwhite);
+    text-shadow: 0 0 10px rgba(255,255,255,.25), 0 2px 0 rgba(0,0,0,.6);
+    margin: 0 .5rem;
+  }
+  .bspnlive-score-num.muted { color: #6a7d6a; text-shadow: none; }
+  .bspnlive-score-center {
+    display: flex; flex-direction: column; align-items: center; gap: .35rem;
+    min-width: 220px;
+  }
+  .bspnlive-score-meta {
+    color: var(--blgray); font-size: .72rem; letter-spacing: 1px;
+    text-align: center;
+  }
+  .bspnlive-score-clock {
+    font-family: "Anton","Teko","Impact",sans-serif; font-size: 2.2rem;
+    line-height: 1; letter-spacing: -.05em; color: var(--blwhite);
+    font-variant-numeric: tabular-nums;
+  }
+  .bspnlive-score-quarter {
+    color: var(--blgray); font-size: .9rem; letter-spacing: 2px;
+    font-weight: 700;
+  }
+  .bspnlive-score-down {
+    color: var(--blwhite); font-size: .78rem; letter-spacing: 1px;
+    font-weight: 700;
+  }
+  .bspnlive-score-down-sep { color: var(--blgray); margin: 0 .4rem; }
+  .bspnlive-score-poss-dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--blgold); box-shadow: 0 0 6px var(--blgold);
+    vertical-align: middle; margin: 0 .35rem;
+  }
+
+  /* Main grid: left sidebar | field | right sidebar */
+  .bspnlive-body {
+    display: grid; grid-template-columns: 220px 1fr 220px;
+    gap: 0; border-bottom: 1px solid var(--blborder);
+  }
+  @media (max-width: 1100px) {
+    .bspnlive-body { grid-template-columns: 1fr; }
+  }
+  .bspnlive-side {
+    padding: .8rem 1rem; min-width: 0;
+    border-left: 1px solid var(--blborder);
+    border-right: 1px solid var(--blborder);
+  }
+  .bspnlive-side.left { border-left: 0; }
+  .bspnlive-side.right { border-right: 0; }
+  .bspnlive-panel { margin-bottom: 1.4rem; }
+  .bspnlive-panel-title {
+    text-align: center; font-size: .72rem; letter-spacing: 2px;
+    color: var(--blwhite); font-weight: 700; padding-bottom: .35rem;
+    margin-bottom: .5rem;
+    border-bottom: 1px dashed var(--blbordr2);
+  }
+  .bspnlive-mini-table {
+    width: 100%; border-collapse: collapse;
+    font-size: .72rem; font-variant-numeric: tabular-nums;
+  }
+  .bspnlive-mini-table th,
+  .bspnlive-mini-table td {
+    padding: .2rem .25rem;
+    text-align: right;
+  }
+  .bspnlive-mini-table th { color: var(--blgray); font-weight: 600; font-size: .58rem; }
+  .bspnlive-mini-table th:first-child,
+  .bspnlive-mini-table td:first-child {
+    text-align: left; color: var(--blwhite); font-weight: 700;
+  }
+  .bspnlive-mini-table tr.team-h td:first-child,
+  .bspnlive-mini-table tr.team-h th:first-child { color: var(--home-color); }
+  .bspnlive-mini-table tr.team-a td:first-child,
+  .bspnlive-mini-table tr.team-a th:first-child { color: var(--away-color); }
+
+  /* Center field */
+  .bspnlive-center {
+    padding: .5rem .8rem; min-width: 0;
+    display: flex; flex-direction: column; gap: .5rem;
+  }
+  .bspnlive-field-title {
+    text-align: center; font-size: .68rem; letter-spacing: 2px;
+    color: var(--blwhite); padding-bottom: .25rem;
+    border-bottom: 1px dashed var(--blbordr2);
+  }
+  .bspnlive-field-wrap {
+    position: relative; background: #000;
+    border: 1px solid var(--blbordr2);
+    padding: .25rem;
+  }
+  .bspnlive-field-wrap canvas {
+    display: block; width: 100%; max-width: 100%;
+    height: auto;
+    filter: contrast(1.05) saturate(0.9);
+  }
+  .bspnlive-field-overlay {
+    position: absolute; top: .3rem; left: .55rem; right: .55rem;
+    display: flex; justify-content: space-between;
+    color: var(--blgreen); font-size: .68rem; letter-spacing: 1px;
+    text-shadow: 0 0 4px rgba(74,222,128,.65);
+    pointer-events: none;
+  }
+  .bspnlive-play-caption {
+    text-align: center; padding: .55rem .75rem;
+    background: rgba(74,222,128,0.05);
+    border: 1px dashed var(--blbordr2);
+    color: var(--blwhite); font-size: .8rem; letter-spacing: .5px;
+    font-weight: 600;
+  }
+  .bspnlive-play-caption .scorer {
+    color: var(--blgold); font-weight: 800;
+  }
+  .bspnlive-play-caption .down {
+    display: block; margin-top: .25rem; color: var(--blgray);
+    font-size: .65rem; letter-spacing: 1px;
+  }
+  .bspnlive-progress {
+    height: 6px; background: var(--blbg3); border: 1px solid var(--blborder);
+  }
+  .bspnlive-progress-fill {
+    height: 100%; background: linear-gradient(90deg, var(--blgreen-d), var(--blgreen));
+    width: 0%;
+  }
+  .bspnlive-progress-label {
+    display: flex; justify-content: space-between;
+    color: var(--blgray); font-size: .58rem; letter-spacing: 1px;
+  }
+
+  /* Side rail content blocks */
+  .bspnlive-lastplay-text {
+    color: var(--blwhite); font-size: .78rem; line-height: 1.45;
+  }
+  .bspnlive-lastplay-text .scorer { color: var(--blgold); font-weight: 700; }
+  .bspnlive-lastplay-down {
+    margin-top: .55rem; padding-top: .45rem;
+    border-top: 1px dashed var(--blbordr2);
+    color: var(--blwhite); font-size: .7rem; letter-spacing: .5px;
+  }
+  .bspnlive-stat-grid {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .2rem .4rem;
+    text-align: center;
+  }
+  .bspnlive-stat-grid .k {
+    color: var(--blgray); font-size: .56rem; letter-spacing: 1px;
+  }
+  .bspnlive-stat-grid .v {
+    color: var(--blwhite); font-size: 1rem; font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .bspnlive-nextup {
+    color: var(--blwhite); font-size: .9rem; font-weight: 700;
+    text-align: center; letter-spacing: .5px;
+  }
+  .bspnlive-nextup .at { color: var(--blgray); font-weight: 400; }
+
+  /* Bottom row: play-by-play + top performers */
+  .bspnlive-bottom {
+    display: grid; grid-template-columns: 1fr 360px; gap: 0;
+    border-bottom: 1px solid var(--blborder);
+  }
+  @media (max-width: 1100px) {
+    .bspnlive-bottom { grid-template-columns: 1fr; }
+  }
+  .bspnlive-pbp {
+    padding: .7rem 1rem;
+    border-right: 1px solid var(--blborder);
+    min-height: 220px;
+  }
+  .bspnlive-pbp-title { text-align: center; }
+  .bspnlive-pbp-list {
+    display: flex; flex-direction: column; gap: .1rem;
+    font-size: .7rem; line-height: 1.35;
+    max-height: 280px; overflow-y: auto;
+  }
+  .bspnlive-pbp-row {
+    display: grid; grid-template-columns: 60px 1.4rem 6.6rem 1fr;
+    gap: .4rem; padding: .15rem .1rem;
+    border-bottom: 1px dashed rgba(46,92,46,.25);
+  }
+  .bspnlive-pbp-row .q { color: var(--blgreen); font-weight: 700; letter-spacing: .5px; }
+  .bspnlive-pbp-row .t { font-weight: 700; }
+  .bspnlive-pbp-row .dd { color: var(--blgray); font-size: .62rem; font-variant-numeric: tabular-nums; }
+  .bspnlive-pbp-row .desc { color: var(--blwhite); }
+  .bspnlive-pbp-row.drive-start {
+    grid-template-columns: 1fr; text-align: center;
+    color: var(--blgray); font-style: italic;
+    border-bottom: 1px solid var(--blbordr2); padding: .35rem 0;
+  }
+  .bspnlive-perf {
+    padding: .7rem 1rem;
+  }
+  .bspnlive-perf-title { text-align: center; }
+  .bspnlive-perf-team {
+    color: var(--team-color, var(--blwhite));
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1.1rem; letter-spacing: 1.5px;
+    margin: .6rem 0 .25rem 0;
+    padding-bottom: .15rem; border-bottom: 1px solid var(--team-color, var(--blbordr2));
+  }
+  .bspnlive-perf-row {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: .4rem; font-size: .72rem;
+    padding: .15rem 0;
+  }
+  .bspnlive-perf-row .name { color: var(--blwhite); font-weight: 700; }
+  .bspnlive-perf-row .stat { color: var(--blgray); text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* Bottom ticker */
+  .bspnlive-ticker-wrap {
+    display: flex; align-items: center; gap: 1rem;
+    border-top: 1px solid var(--blbordr2);
+    background: var(--blbg2); padding: .55rem 1rem;
+  }
+  .bspnlive-ticker-label {
+    color: var(--blred); font-weight: 800; font-size: .68rem;
+    letter-spacing: 2px; padding: .15rem .45rem;
+    border: 1px solid var(--blred);
+  }
+  .bspnlive-ticker {
+    flex: 1; min-width: 0; overflow: hidden;
+    color: var(--blwhite); font-size: .72rem; letter-spacing: .5px;
+  }
+  .bspnlive-ticker-inner {
+    display: inline-block; white-space: nowrap;
+    animation: bspnlive-tk 60s linear infinite;
+    padding-left: 100%;
+  }
+  @keyframes bspnlive-tk { from { transform: translateX(0); } to { transform: translateX(-100%); } }
+  .bspnlive-ticker-item { padding: 0 1.5rem; }
+  .bspnlive-ticker-item .lbl { color: var(--blgold); font-weight: 700; margin-right: .4rem; }
+  .bspnlive-ticker-corner {
+    color: var(--blgray); font-size: .62rem; letter-spacing: 2px;
+    border-left: 1px solid var(--blbordr2); padding-left: .9rem;
+  }
+
   /* Opponent intel block (under the next-game card) */
   .frn-opp-intel {
     margin-top: .8rem; padding: .6rem .7rem;
@@ -10102,61 +10446,537 @@ function updateButtons() {
 
 let boxTab = "totals";
 
+// ─── BSPN live broadcast layer ──────────────────────────────────────────────
+// Phase 1: presentation only. Consumes the same gameResult / playHead as
+// the existing engine but re-shapes via toBSPNLiveGameState() so the
+// markup never reaches into raw simulator internals.
+
+function _bspnLiveAbbr(team) {
+  if (!team) return "TBD";
+  const c = (team.city || "").trim();
+  const n = (team.name || "").trim();
+  if (c && n) return (c[0] + n.slice(0, 2)).toUpperCase();
+  return (n || "TBD").slice(0, 3).toUpperCase();
+}
+function _bspnLiveQuarterLabel(q) {
+  if (q == null) return "—";
+  if (q === 5) return "OT";
+  return ["1ST","2ND","3RD","4TH"][q - 1] || `Q${q}`;
+}
+function _bspnLiveClock(secs) {
+  const s = Math.max(0, Math.round(Number(secs) || 0));
+  return `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
+}
+function _bspnLiveDownLabel(play) {
+  if (!play || !play.down || play.down < 1) return "";
+  const ord = ["1ST","2ND","3RD","4TH"][play.down - 1] || `${play.down}TH`;
+  return `${ord} & ${play.ytg ?? "—"}`;
+}
+function _bspnLiveYardLabel(play, homeT, awayT) {
+  // play.yardLine is from the offense's perspective (0..100). We surface
+  // a quick "MEM 28" style label using the possession team's abbr +
+  // current ball spot.
+  if (play?.yardLine == null) return "";
+  const possT = play.poss === "home" ? homeT : awayT;
+  const otherT = play.poss === "home" ? awayT : homeT;
+  if (!possT) return "";
+  const yl = play.yardLine;
+  const abbr = yl > 50 ? _bspnLiveAbbr(otherT) : _bspnLiveAbbr(possT);
+  const spot = yl > 50 ? (100 - yl) : yl;
+  return `${abbr} ${spot}`;
+}
+
+// Compute a top-N performers list for either side from the latest
+// statsSnap on `gameResult.plays`. Used by renderBSPN_TopPerformers.
+function _bspnLiveTopPerformers(stats, side) {
+  const players = Object.values(stats?.[side]?.players || {});
+  if (!players.length) return [];
+  const score = p =>
+    (p.pass_yds||0) * 1.0 + (p.pass_td||0) * 25 - (p.pass_int||0) * 10 +
+    (p.rush_yds||0) * 1.0 + (p.rush_td||0) * 18 +
+    (p.rec_yds||0) * 1.0 + (p.rec_td||0) * 18 +
+    (p.tkl||0) * 1.5 + (p.sk||0) * 6 + (p.int_made||0) * 12 +
+    (p.fg_made||0) * 4;
+  return players
+    .map(p => ({ p, s: score(p) }))
+    .filter(x => x.s > 0)
+    .sort((a, b) => b.s - a.s)
+    .slice(0, 3)
+    .map(x => {
+      const p = x.p;
+      let line = "";
+      if (p.pos === "QB" && (p.pass_att||0) > 0) {
+        line = `${p.pass_comp||0}-${p.pass_att||0}, ${p.pass_yds||0} YDS, ${p.pass_td||0} TD`;
+      } else if (p.pos === "RB" || (p.rush_att||0) > 0) {
+        line = `${p.rush_att||0} CAR, ${p.rush_yds||0} YDS${p.rush_td?`, ${p.rush_td} TD`:""}`;
+      } else if (p.rec || p.rec_yds) {
+        line = `${p.rec||0} REC, ${p.rec_yds||0} YDS${p.rec_td?`, ${p.rec_td} TD`:""}`;
+      } else if (p.tkl || p.sk) {
+        line = `${p.tkl||0} TKL${p.sk?`, ${p.sk} SK`:""}${p.int_made?`, ${p.int_made} INT`:""}`;
+      } else if (p.fg_made || p.xp_made) {
+        line = `${p.fg_made||0}/${p.fg_att||0} FG${p.xp_made?`, ${p.xp_made}/${p.xp_att||0} XP`:""}`;
+      }
+      return { name: p.name, pos: p.pos, statLine: line };
+    });
+}
+
+/** Adapter: gameResult + playHead → BSPNLiveGameState. */
+function toBSPNLiveGameState(gr, head) {
+  if (!gr) return null;
+  head = Math.max(0, Math.min(head ?? 0, gr.plays.length));
+  // Walk back from head for the latest snapshot (kickoff/markers don't
+  // carry one). Mirrors currentStats() but local to keep the adapter
+  // self-contained.
+  let snap = null;
+  let curPlay = null;
+  for (let i = head - 1; i >= 0; i--) {
+    const p = gr.plays[i];
+    if (!curPlay) curPlay = p;
+    if (p.statsSnap) { snap = p.statsSnap; break; }
+  }
+  if (!snap) snap = { home: { team: {}, players: {} }, away: { team: {}, players: {} } };
+  const homeT = gr.homeTeam, awayT = gr.awayTeam;
+  const ended = head >= gr.plays.length;
+  const last = curPlay || gr.plays[0];
+  const homeScore = last?.homeScore ?? 0;
+  const awayScore = last?.awayScore ?? 0;
+  const winner = ended ? gr.winner : null;
+
+  // Quarter scores: tally points per quarter from scoring events up to head.
+  const qs = { 1: { home:0, away:0 }, 2: { home:0, away:0 }, 3: { home:0, away:0 }, 4: { home:0, away:0 } };
+  for (let i = 0; i < head; i++) {
+    const p = gr.plays[i];
+    if (p.kind === "score" && p.poss && p.pts) {
+      const q = Math.min(4, Math.max(1, p.quarter || 1));
+      qs[q][p.poss] += p.pts;
+    }
+  }
+
+  // Current drive — count plays + yards + clock since last drive marker.
+  let driveStartIdx = 0;
+  for (let i = head - 1; i >= 0; i--) {
+    const p = gr.plays[i];
+    if (p.kind === "kickoff" || (i > 0 && gr.plays[i-1].kind === "score")) {
+      driveStartIdx = i; break;
+    }
+  }
+  const driveSlice = gr.plays.slice(driveStartIdx, head);
+  const drivePlays = driveSlice.filter(p =>
+    !["kickoff","quarter","halftime","ot","two_min_warning","timeout"].includes(p.kind)).length;
+  const driveYards = driveSlice.reduce((s, p) => s + (p.yards || 0), 0);
+  // Time elapsed since drive start (clock counts DOWN, so subtract)
+  const startT = driveSlice[0]?.time ?? last?.time ?? 0;
+  const endT   = last?.time ?? 0;
+  const driveTimeSec = Math.max(0, startT - endT);
+
+  // Play-by-play rows from the current drive (latest first)
+  const pbpRows = [];
+  for (let i = head - 1; i >= 0 && pbpRows.length < 12; i--) {
+    const p = gr.plays[i];
+    if (p.kind === "kickoff") {
+      pbpRows.push({ kind: "drive-start", desc: "— DRIVE START —" });
+      break;
+    }
+    if (["quarter","halftime","ot","two_min_warning"].includes(p.kind)) continue;
+    const possT = p.poss === "home" ? homeT : awayT;
+    pbpRows.push({
+      kind: p.kind, q: `Q${p.quarter || "?"}`,
+      t: _bspnLiveClock(p.time),
+      poss: p.poss,
+      teamAbbr: possT ? _bspnLiveAbbr(possT)[0] : "",
+      teamColor: possT?.primary,
+      dd: p.down ? `${p.down}-${p.ytg ?? "?"}` : "",
+      ydLabel: _bspnLiveYardLabel(p, homeT, awayT),
+      desc: p.desc || "",
+    });
+  }
+  pbpRows.reverse();
+
+  // Records / abbrev — use franchise if available, else first 3 chars
+  const findRec = team => {
+    if (!team) return null;
+    const s = (typeof franchise !== "undefined" && franchise?.standings) ? franchise.standings[team.id] : null;
+    if (!s) return null;
+    return `${s.w||0}-${s.l||0}${s.t?`-${s.t}`:""}`;
+  };
+
+  // Last-play summary
+  const lastPlayBlock = curPlay ? {
+    desc: curPlay.desc || "",
+    downLabel: _bspnLiveDownLabel(curPlay),
+    yardLabel: _bspnLiveYardLabel(curPlay, homeT, awayT),
+    poss: curPlay.poss,
+    teamColor: curPlay.poss === "home" ? homeT?.primary : awayT?.primary,
+    kind: curPlay.kind,
+  } : null;
+
+  // Next-up: derived from current state (down/distance/yard line)
+  let nextUp = null;
+  if (curPlay && !ended && curPlay.down) {
+    nextUp = {
+      downLabel: _bspnLiveDownLabel(curPlay),
+      yardLabel: _bspnLiveYardLabel(curPlay, homeT, awayT),
+    };
+  }
+
+  // Top performers per side
+  const topHome = _bspnLiveTopPerformers(snap, "home");
+  const topAway = _bspnLiveTopPerformers(snap, "away");
+
+  // Ticker items — accumulate notable events as the game progresses
+  const tickerItems = [];
+  for (let i = 0; i < head; i++) {
+    const p = gr.plays[i];
+    if (p.kind === "score" && p.pts >= 6) {
+      const possT = p.poss === "home" ? homeT : awayT;
+      tickerItems.push({ label: `${possT?.name || ""} TD`, text: p.desc || "Touchdown" });
+    } else if (p.kind === "int" || p.kind === "fumble") {
+      tickerItems.push({ label: "TURNOVER", text: p.desc || (p.kind === "int" ? "Interception" : "Fumble") });
+    }
+  }
+  // Cap to last 8 to keep ticker tight
+  while (tickerItems.length > 8) tickerItems.shift();
+
+  // Bottom-line marquee text
+  const leaderSide = homeScore > awayScore ? "home" : awayScore > homeScore ? "away" : null;
+  const bottomLine = ended
+    ? (winner === "tie"
+      ? `FINAL · ${homeT.name} ${homeScore} – ${awayT.name} ${awayScore} — TIE`
+      : `FINAL · ${(winner === "home" ? homeT : awayT).name.toUpperCase()} WIN ${homeScore}-${awayScore}`)
+    : leaderSide
+      ? `${(leaderSide === "home" ? homeT : awayT).name.toUpperCase()} LEAD ${Math.max(homeScore,awayScore)}-${Math.min(homeScore,awayScore)} · ${_bspnLiveQuarterLabel(last?.quarter)} ${_bspnLiveClock(last?.time)}`
+      : `${homeT.name} & ${awayT.name} TIED ${homeScore}-${homeScore} · ${_bspnLiveQuarterLabel(last?.quarter)} ${_bspnLiveClock(last?.time)}`;
+
+  return {
+    homeTeam: {
+      id: homeT.id, name: homeT.name, city: homeT.city,
+      abbr: _bspnLiveAbbr(homeT),
+      primary: homeT.primary, secondary: homeT.secondary,
+      record: findRec(homeT),
+      asciiMark: typeof teamAscii === "function" ? teamAscii(homeT) : "",
+    },
+    awayTeam: {
+      id: awayT.id, name: awayT.name, city: awayT.city,
+      abbr: _bspnLiveAbbr(awayT),
+      primary: awayT.primary, secondary: awayT.secondary,
+      record: findRec(awayT),
+      asciiMark: typeof teamAscii === "function" ? teamAscii(awayT) : "",
+    },
+    homeScore, awayScore,
+    quarterScores: [1,2,3,4].map(q => ({ q: `${q}`, home: qs[q].home, away: qs[q].away })),
+    status: ended
+      ? (winner === "tie" ? "FINAL · TIE" : winner === "home" ? "FINAL" : "FINAL")
+      : "LIVE",
+    ended, winner,
+    clock: _bspnLiveClock(last?.time),
+    quarterLabel: _bspnLiveQuarterLabel(last?.quarter),
+    downLabel: _bspnLiveDownLabel(last),
+    yardLabel: _bspnLiveYardLabel(last, homeT, awayT),
+    poss: last?.poss || null,
+    timeouts: last?.timeouts || { home: 3, away: 3 },
+    lastPlay: lastPlayBlock,
+    nextUp,
+    drive: { plays: drivePlays, yards: driveYards, timeSec: driveTimeSec },
+    boxScore: {
+      home: {
+        team: snap.home.team || {},
+        players: snap.home.players || {},
+      },
+      away: {
+        team: snap.away.team || {},
+        players: snap.away.players || {},
+      },
+    },
+    topPerformers: { home: topHome, away: topAway },
+    playByPlay: pbpRows,
+    ticker: tickerItems,
+    bottomLine,
+    weather: gr.weather || null,
+  };
+}
+
+function _bspnLiveScoreNumeral(v, muted) {
+  return `<span class="bspnlive-score-num bspnlive-num${muted?" muted":""}">${v}</span>`;
+}
+function _bspnLiveScoreTeamBlock(t, score, opts) {
+  const isWinner = opts?.winner;
+  const otherWon = opts?.otherWon;
+  const showPoss = opts?.poss;
+  const right = opts?.right;
+  const recHtml = t.record ? `<div class="bspnlive-score-record">(${t.record})</div>` : "";
+  const possHtml = showPoss ? `<div class="bspnlive-score-poss" style="color:${t.primary};border-color:${t.primary}">● POSS</div>` : "";
+  const numCls = isWinner ? "" : (otherWon ? "muted" : "");
+  return `<div class="bspnlive-score-team${right?" right":""}" style="--team-color:${t.primary}">
+    <pre class="bspnlive-score-mark">${t.asciiMark || ""}</pre>
+    <div class="bspnlive-score-meta-block bspnlive-score-team-meta">
+      <div class="bspnlive-score-rank">${right ? "" : ""}<span class="bspnlive-num">${t.abbr || ""}</span></div>
+      <div class="bspnlive-score-name">${t.city || ""} ${t.name || ""}</div>
+      ${recHtml}
+      ${possHtml}
+    </div>
+    <span class="bspnlive-score-num bspnlive-num${numCls?" "+numCls:""}">${score}</span>
+  </div>`;
+}
+function _bspnLive_renderScoreboard(state) {
+  const sb = $("scoreboard"); if (!sb) return;
+  const homeWon = state.winner === "home";
+  const awayWon = state.winner === "away";
+  const possHome = !state.ended && state.poss === "home";
+  const possAway = !state.ended && state.poss === "away";
+  const centerStatus = state.ended
+    ? `<div class="bspnlive-score-meta">${state.status}</div>`
+    : `<div class="bspnlive-score-quarter">${state.quarterLabel} QTR</div>
+       <div class="bspnlive-score-clock">${state.clock}</div>
+       ${state.downLabel ? `<div class="bspnlive-score-down"><span class="bspnlive-num">${state.downLabel}</span><span class="bspnlive-score-down-sep">·</span><span class="bspnlive-num">${state.yardLabel||""}</span></div>` : ""}`;
+  sb.innerHTML = `
+    ${_bspnLiveScoreTeamBlock(state.awayTeam, state.awayScore, { winner: awayWon, otherWon: homeWon, poss: possAway })}
+    <div class="bspnlive-score-center">
+      <div class="bspnlive-score-meta">BSPN SATURDAY NIGHT FOOTBALL</div>
+      ${centerStatus}
+    </div>
+    ${_bspnLiveScoreTeamBlock(state.homeTeam, state.homeScore, { winner: homeWon, otherWon: awayWon, poss: possHome, right: true })}
+  `;
+}
+function _bspnLive_renderLastPlay(state) {
+  const el = document.getElementById("bspnlive-lastplay"); if (!el) return;
+  if (!state.lastPlay) {
+    el.innerHTML = `<div class="bspnlive-lastplay-text" style="color:var(--blgray);font-style:italic">Waiting for first play…</div>`;
+    return;
+  }
+  const p = state.lastPlay;
+  const desc = (p.desc || "").replace(/^([A-Z]\. [A-Z][a-z]+)/, '<span class="scorer">$1</span>');
+  el.innerHTML = `
+    <div class="bspnlive-lastplay-text">${desc}</div>
+    ${p.downLabel ? `<div class="bspnlive-lastplay-down"><span class="bspnlive-num">${p.downLabel}</span>${p.yardLabel?` <span style="color:var(--blgray)">ON</span> <span class="bspnlive-num">${p.yardLabel}</span>`:""}</div>` : ""}
+  `;
+}
+function _bspnLive_renderDriveSummary(state) {
+  const el = document.getElementById("bspnlive-drive"); if (!el) return;
+  const d = state.drive || { plays: 0, yards: 0, timeSec: 0 };
+  el.innerHTML = `
+    <div class="bspnlive-stat-grid">
+      <div class="k">PLAYS</div><div class="k">YARDS</div><div class="k">TIME</div>
+      <div class="v">${d.plays}</div>
+      <div class="v">${d.yards}</div>
+      <div class="v">${_bspnLiveClock(d.timeSec)}</div>
+    </div>`;
+}
+function _bspnLive_renderNextUp(state) {
+  const el = document.getElementById("bspnlive-nextup"); if (!el) return;
+  if (!state.nextUp) {
+    el.innerHTML = `<div class="bspnlive-nextup" style="color:var(--blgray)">—</div>`;
+    return;
+  }
+  const n = state.nextUp;
+  el.innerHTML = `<div class="bspnlive-nextup">
+    <span class="bspnlive-num">${n.downLabel}</span>
+    ${n.yardLabel ? `<span class="at">ON</span> <span class="bspnlive-num">${n.yardLabel}</span>` : ""}
+  </div>`;
+}
+function _bspnLive_renderTeamStats(state) {
+  const el = document.getElementById("bspnlive-teamstats"); if (!el) return;
+  const hT = state.boxScore?.home?.team || {};
+  const aT = state.boxScore?.away?.team || {};
+  const fmtTOP = v => `${Math.floor((v||0)/60)}:${String((v||0)%60).padStart(2,"0")}`;
+  const rows = [
+    ["1ST DOWNS",     hT.firstDowns, aT.firstDowns],
+    ["RUSH YARDS",    hT.rushYds,    aT.rushYds],
+    ["PASS YARDS",    hT.passYds,    aT.passYds],
+    ["TOTAL YARDS",   hT.totalYds,   aT.totalYds],
+    ["TURNOVERS",     hT.turnovers,  aT.turnovers],
+    ["TIME OF POSS",  fmtTOP(hT.timeOfPoss), fmtTOP(aT.timeOfPoss)],
+  ];
+  el.innerHTML = `<table class="bspnlive-mini-table">
+    <thead><tr>
+      <th></th>
+      <th style="color:${state.awayTeam.primary}">${state.awayTeam.abbr}</th>
+      <th style="color:${state.homeTeam.primary}">${state.homeTeam.abbr}</th>
+    </tr></thead>
+    <tbody>
+      ${rows.map(([label, h, a]) => `<tr>
+        <td>${label}</td>
+        <td>${a ?? "0"}</td>
+        <td>${h ?? "0"}</td>
+      </tr>`).join("")}
+    </tbody>
+  </table>`;
+}
+function _bspnLive_renderBoxScoreMini(state) {
+  const el = document.getElementById("bspnlive-boxscore"); if (!el) return;
+  const qs = state.quarterScores || [];
+  const head = qs.map(q => `<th>${q.q}</th>`).join("") + `<th>T</th>`;
+  const aRow = qs.map(q => `<td>${q.away}</td>`).join("") + `<td><b>${state.awayScore}</b></td>`;
+  const hRow = qs.map(q => `<td>${q.home}</td>`).join("") + `<td><b>${state.homeScore}</b></td>`;
+  el.innerHTML = `<table class="bspnlive-mini-table">
+    <thead><tr><th></th>${head}</tr></thead>
+    <tbody>
+      <tr class="team-a"><td>${state.awayTeam.abbr}</td>${aRow}</tr>
+      <tr class="team-h"><td>${state.homeTeam.abbr}</td>${hRow}</tr>
+    </tbody>
+  </table>`;
+}
+function _bspnLive_renderPlayByPlay(state) {
+  const el = document.getElementById("bspnlive-pbp"); if (!el) return;
+  const rows = (state.playByPlay || []).map(r => {
+    if (r.kind === "drive-start") {
+      return `<div class="bspnlive-pbp-row drive-start">${r.desc}</div>`;
+    }
+    return `<div class="bspnlive-pbp-row">
+      <span class="q">${r.q} ${r.t}</span>
+      <span class="t" style="color:${r.teamColor||"var(--blgreen)"}">${r.teamAbbr||""}</span>
+      <span class="dd">${r.dd} ${r.ydLabel||""}</span>
+      <span class="desc">${_bspnEsc(r.desc)}</span>
+    </div>`;
+  }).join("");
+  el.innerHTML = rows || `<div style="color:var(--blgray);font-style:italic;font-size:.7rem">Play-by-play will appear here.</div>`;
+  el.scrollTop = el.scrollHeight;
+}
+function _bspnLive_renderTopPerformers(state) {
+  const el = document.getElementById("bspnlive-perf-body"); if (!el) return;
+  const block = (team, list) => `
+    <div class="bspnlive-perf-team" style="--team-color:${team.primary}">${team.city.toUpperCase()}</div>
+    ${list.length ? list.map(p =>
+      `<div class="bspnlive-perf-row">
+        <span class="name">${_bspnEsc(p.name)}</span>
+        <span class="stat">${_bspnEsc(p.statLine || "")}</span>
+      </div>`).join("")
+      : `<div style="color:var(--blgray);font-size:.7rem;font-style:italic">No stats yet.</div>`}
+  `;
+  el.innerHTML = block(state.awayTeam, state.topPerformers?.away || []) +
+                 block(state.homeTeam, state.topPerformers?.home || []);
+}
+function _bspnLive_renderTicker(state) {
+  const el = document.getElementById("bspnlive-ticker-inner"); if (!el) return;
+  const items = (state.ticker && state.ticker.length) ? state.ticker : [
+    { label: "BSPN", text: state.bottomLine || "GRIDIRON. CODE. GLORY." },
+  ];
+  el.innerHTML = items.map(it =>
+    `<span class="bspnlive-ticker-item"><span class="lbl">${_bspnEsc(it.label)}:</span>${_bspnEsc(it.text)}</span>`
+  ).join("");
+}
+
+// Render everything off the adapter. Cheap enough to call on every play.
+function renderBSPNLive() {
+  if (!gameResult || !document.querySelector(".bspnlive-root")) return;
+  const state = toBSPNLiveGameState(gameResult, playHead);
+  if (!state) return;
+  // Update CSS custom props so panels can color-by-team via var().
+  const root = document.querySelector(".bspnlive-root");
+  root.style.setProperty("--away-color", state.awayTeam.primary || "#888");
+  root.style.setProperty("--home-color", state.homeTeam.primary || "#888");
+  _bspnLive_renderScoreboard(state);
+  _bspnLive_renderLastPlay(state);
+  _bspnLive_renderDriveSummary(state);
+  _bspnLive_renderNextUp(state);
+  _bspnLive_renderTeamStats(state);
+  _bspnLive_renderBoxScoreMini(state);
+  _bspnLive_renderPlayByPlay(state);
+  _bspnLive_renderTopPerformers(state);
+  _bspnLive_renderTicker(state);
+}
+
 function renderGameLayout() {
   gameArea.classList.remove("empty");
   boxTab = "totals";
   gameArea.innerHTML = `
-    <div class="game-grid">
-      <div>
-        <div id="scoreboard" class="scoreboard"></div>
-        <div class="field-wrap">
-          <canvas id="field" width="${FIELD.W}" height="${FIELD.H}"></canvas>
-          <div class="cinema-callout" id="cinemaCallout"></div>
-          <div class="field-overlay">
-            <div class="field-status" id="fieldStatus">Pre-game</div>
-            <div id="quarterClock">—</div>
-          </div>
-          <div id="playCaption" class="play-caption">Game starting…</div>
+    <div class="bspnlive-root">
+      <div class="bspnlive-header">
+        <div>
+          <div class="bspnlive-logo">BSPN</div>
+          <div class="bspnlive-logo-sub">BALL. STRATEGY. PASSION. NOW.</div>
         </div>
-        <div class="progress-wrap">
-          <div class="progress-label"><span id="progLabel">Play 0/0</span><span id="quarterLabel"></span></div>
-          <div class="progress-bar"><div class="progress-fill" id="progFill" style="width:0%"></div></div>
-        </div>
-        <div id="playLog" class="play-log"></div>
+        <nav class="bspnlive-nav">
+          <span class="bspnlive-nav-item">[SCORECENTER]</span>
+          <span class="bspnlive-nav-item">[STATS]</span>
+          <span class="bspnlive-nav-item">[BOX SCORE]</span>
+          <span class="bspnlive-nav-item active">[PLAY-BY-PLAY]</span>
+          <span class="bspnlive-nav-item">[DRIVES]</span>
+          <span class="bspnlive-nav-item">[TEAM STATS]</span>
+          <span class="bspnlive-nav-item">[RECAP]</span>
+        </nav>
       </div>
-      <div>
-        <div class="card">
-          <div class="card-header">Box Score</div>
-          <div class="boxscore-tabs" id="boxTabs">
-            <div class="boxscore-tab active" data-tab="totals">Totals</div>
-            <div class="boxscore-tab" data-tab="home">Home</div>
-            <div class="boxscore-tab" data-tab="away">Away</div>
+
+      <div id="scoreboard" class="bspnlive-score-strip"></div>
+
+      <div class="bspnlive-body">
+        <aside class="bspnlive-side left">
+          <div class="bspnlive-panel">
+            <div class="bspnlive-panel-title">BOX SCORE</div>
+            <div id="bspnlive-boxscore"></div>
           </div>
-          <div id="boxScore"></div>
-        </div>
-        <div class="card">
-          <div class="card-header">Team Ratings</div>
-          <table class="ratings-table" id="ratings"></table>
-        </div>
-        <div class="card">
-          <div class="card-header">Drive Log</div>
-          <div id="driveLog" style="max-height: 220px; overflow-y: auto;"></div>
-        </div>
+          <div class="bspnlive-panel">
+            <div class="bspnlive-panel-title">TEAM STATS</div>
+            <div id="bspnlive-teamstats"></div>
+          </div>
+        </aside>
+
+        <main class="bspnlive-center">
+          <div class="bspnlive-field-title">WATCH LIVE</div>
+          <div class="bspnlive-field-wrap field-wrap">
+            <canvas id="field" width="${FIELD.W}" height="${FIELD.H}"></canvas>
+            <div class="cinema-callout" id="cinemaCallout"></div>
+            <div class="bspnlive-field-overlay field-overlay">
+              <div class="field-status" id="fieldStatus">Pre-game</div>
+              <div id="quarterClock">—</div>
+            </div>
+          </div>
+          <div id="playCaption" class="bspnlive-play-caption play-caption">Game starting…</div>
+          <div class="bspnlive-progress-label">
+            <span id="progLabel">Play 0/0</span>
+            <span id="quarterLabel"></span>
+          </div>
+          <div class="bspnlive-progress progress-bar">
+            <div class="bspnlive-progress-fill progress-fill" id="progFill" style="width:0%"></div>
+          </div>
+        </main>
+
+        <aside class="bspnlive-side right">
+          <div class="bspnlive-panel">
+            <div class="bspnlive-panel-title">LAST PLAY</div>
+            <div id="bspnlive-lastplay"></div>
+          </div>
+          <div class="bspnlive-panel">
+            <div class="bspnlive-panel-title">DRIVE SUMMARY</div>
+            <div id="bspnlive-drive"></div>
+          </div>
+          <div class="bspnlive-panel">
+            <div class="bspnlive-panel-title">NEXT UP</div>
+            <div id="bspnlive-nextup"></div>
+          </div>
+        </aside>
       </div>
+
+      <div class="bspnlive-bottom">
+        <div class="bspnlive-pbp">
+          <div class="bspnlive-panel-title bspnlive-pbp-title">PLAY-BY-PLAY</div>
+          <div id="bspnlive-pbp" class="bspnlive-pbp-list"></div>
+          <div id="playLog" class="play-log" style="display:none"></div>
+        </div>
+        <aside class="bspnlive-perf">
+          <div class="bspnlive-panel-title bspnlive-perf-title">TOP PERFORMERS</div>
+          <div id="bspnlive-perf-body"></div>
+        </aside>
+      </div>
+
+      <div class="bspnlive-ticker-wrap">
+        <span class="bspnlive-ticker-label">BSPN BOTTOM LINE</span>
+        <div class="bspnlive-ticker">
+          <div class="bspnlive-ticker-inner" id="bspnlive-ticker-inner"></div>
+        </div>
+        <span class="bspnlive-ticker-corner">[SCORES] · [SCHEDULE] · [SETTINGS]</span>
+      </div>
+
+      <!-- Hidden legacy nodes kept so existing render helpers don't blow up -->
+      <div id="boxScore" style="display:none"></div>
+      <table id="ratings" style="display:none"></table>
+      <div id="driveLog" style="display:none"></div>
     </div>
   `;
-  renderRatings();
-  renderDrives();
-  renderScoreboard();
-  renderBoxScore();
-  // Wire box score tabs
-  document.querySelectorAll("#boxTabs .boxscore-tab").forEach(el => {
-    el.addEventListener("click", () => {
-      boxTab = el.dataset.tab;
-      document.querySelectorAll("#boxTabs .boxscore-tab").forEach(x => x.classList.toggle("active", x.dataset.tab === boxTab));
-      renderBoxScore();
-    });
-  });
+  // Hidden tabs wiring (legacy renderBoxScore reads boxTab)
+  // Legacy helpers stay no-ops for the active screen because their target
+  // elements are hidden — they only matter for the standalone game tester.
+  // Initial render through the BSPN adapter:
+  renderBSPNLive();
   // Initial field draw
   const ctx = $("field").getContext("2d");
   if (viewMode === "cinema") {
@@ -15250,6 +16070,10 @@ function setFieldStatus(play) {
 
 function renderScoreboard(curPlay) {
   if (!gameResult) return;
+  // Phase 1: when the BSPN broadcast layout is mounted, the new
+  // panels own all per-play rendering. The legacy helper would
+  // overwrite the new scoreboard if we let it run.
+  if (document.querySelector(".bspnlive-root")) { renderBSPNLive(); return; }
   const last = curPlay || (playHead > 0 ? gameResult.plays[playHead - 1] : gameResult.plays[0]);
   const homeScore = last?.homeScore ?? 0;
   const awayScore = last?.awayScore ?? 0;
@@ -15325,6 +16149,8 @@ function emptyTeamTotals() {
 }
 
 function renderBoxScore() {
+  // BSPN broadcast: the new layout owns the box-score panel.
+  if (document.querySelector(".bspnlive-root")) { renderBSPNLive(); return; }
   const el = $("boxScore"); if (!el) return;
   const stats = currentStats();
   const hT = stats.home.team, aT = stats.away.team;
@@ -15461,6 +16287,8 @@ function renderBoxScore() {
 }
 
 function renderPlayLog() {
+  // BSPN broadcast: the new pbp panel handles this through the adapter.
+  if (document.querySelector(".bspnlive-root")) { renderBSPNLive(); return; }
   const log = $("playLog");
   const visible = gameResult.plays.slice(0, playHead);
   log.innerHTML = visible.map(p => playEntry(p)).join("");
