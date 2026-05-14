@@ -21027,11 +21027,10 @@ function frnOpenPlayerCard(name) {
          </a>
        </div>`
     : "";
-  const compareTag = franchise._compareAName === p.name
-    ? `<span style="color:var(--gold);font-size:.6rem;margin-right:.4rem">⚖ A-side selected</span>`
-    : franchise._compareAName
-      ? `<button class="frn-pcard-yrbtn" style="margin-right:.4rem;border-color:var(--gold-lt);color:var(--gold-lt)" onclick="frnSelectForCompare('${name.replace(/'/g, "\\'")}')">Compare with ${franchise._compareAName}</button>`
-      : `<button class="frn-pcard-yrbtn" style="margin-right:.4rem" onclick="frnSelectForCompare('${name.replace(/'/g, "\\'")}')">⚖ Compare</button>`;
+  // One-shot compare: this button opens the dedicated compare modal
+  // pre-populated with this player on the left and a position-filtered
+  // picker on the right. No hidden multi-step state.
+  const compareTag = `<button class="frn-pcard-yrbtn" style="margin-right:.4rem" onclick="frnSelectForCompare('${name.replace(/'/g, "\\'")}')">⚖ Compare</button>`;
   overlay.innerHTML = `
     <div class="frn-pcard-overlay-inner">
       <div style="position:absolute;top:.3rem;right:2.2rem;z-index:3">${compareTag}</div>
@@ -21059,47 +21058,133 @@ function frnCloseCompareModal() {
   const ov = document.getElementById("frn-compare-overlay");
   if (ov) ov.remove();
 }
-// Picks A: first call → store as A. Second call → compare A vs the picked B.
-// State persisted on franchise._compareAName so a hover-link click can
-// "find an opponent" then come back without losing context.
+// One-shot compare: clicking "⚖ Compare" on a player opens the modal
+// IMMEDIATELY with player A on the left + an inline searchable picker
+// for player B on the right. No hidden multi-step state, no navigating
+// away to find the second player. Pick from the dropdown (filtered by
+// position by default), the right side fills in with the detail panel.
 function frnSelectForCompare(name) {
-  if (!franchise._compareAName) {
-    franchise._compareAName = name;
-    saveFranchise();
-    alert(`Selected ${name} for comparison. Click another player's name and choose "Compare with ${name}".`);
-    return;
-  }
-  const a = franchise._compareAName;
-  if (a === name) {
-    franchise._compareAName = null;
-    saveFranchise();
-    return;
-  }
-  franchise._compareAName = null;
-  saveFranchise();
-  frnOpenCompareModal(a, name);
+  frnOpenCompareModal(name, null);
 }
 function frnOpenCompareModal(nameA, nameB) {
-  const pA = _findPlayer(nameA), pB = _findPlayer(nameB);
-  if (!pA || !pB) return;
+  const pA = _findPlayer(nameA);
+  if (!pA) return;
   frnCloseCompareModal();
   const overlay = document.createElement("div");
   overlay.className = "frn-pcard-overlay";
   overlay.id = "frn-compare-overlay";
-  // Reuse the modal scaffold + put two narrow cards side by side.
-  overlay.innerHTML = `
-    <div class="frn-pcard-overlay-inner" style="max-width:1100px;width:96vw">
+  overlay.innerHTML = _bspnCompareInner(pA, nameB ? _findPlayer(nameB) : null);
+  overlay.addEventListener("click", e => { if (e.target === overlay) frnCloseCompareModal(); });
+  document.body.appendChild(overlay);
+}
+
+// Build the inner markup for the compare modal. Left side = player A
+// (locked). Right side = either a player detail panel (when B is set)
+// or a picker UI: a position-filter dropdown + a player list (search
+// pre-filters by team and position so the user finds the right guy fast).
+function _bspnCompareInner(pA, pB) {
+  const myId = franchise?.chosenTeamId;
+  // Collect every player league-wide for the picker.
+  const allPlayers = [];
+  for (const [tidStr, roster] of Object.entries(franchise?.rosters || {})) {
+    for (const p of roster) allPlayers.push({ ...p, _teamId: Number(tidStr) });
+  }
+  // Default filter: same position as player A.
+  const defaultFilter = pA.position || "ALL";
+  const filtered = allPlayers
+    .filter(p => p.name !== pA.name)
+    .filter(p => defaultFilter === "ALL" || p.position === defaultFilter)
+    .sort((a, b) => (b.overall || 0) - (a.overall || 0));
+  const POS_OPTIONS = ["ALL","QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"];
+  const posSelect = POS_OPTIONS.map(p =>
+    `<option value="${p}" ${p === defaultFilter ? "selected" : ""}>${p}</option>`
+  ).join("");
+  const playerOptions = filtered.slice(0, 200).map(p => {
+    const team = getTeam(p._teamId);
+    const isMine = p._teamId === myId;
+    const ovrTag = isMine ? ` · ${p.overall||"?"} OVR` : ` · ${gradeLabel(scoutGrade(p))} grade`;
+    const escName = (p.name || "").replace(/"/g, "&quot;");
+    return `<option value="${escName}">${p.position} · ${p.name} · ${team?.name || "?"}${ovrTag}</option>`;
+  }).join("");
+  const rightPane = pB
+    ? `<div style="padding:.5rem">
+         <div style="margin-bottom:.4rem;display:flex;justify-content:space-between;align-items:center">
+           <span style="color:var(--gray);font-size:.65rem;letter-spacing:.5px">COMPARING WITH</span>
+           <button onclick="_bspnCompareClearB()" style="background:transparent;border:1px solid var(--border);color:var(--gray);font-family:inherit;cursor:pointer;font-size:.65rem;padding:.15rem .45rem">← Pick a different player</button>
+         </div>
+         ${_buildPlayerDetailPanel(pB)}
+       </div>`
+    : `<div style="padding:1rem;display:flex;flex-direction:column;gap:.55rem">
+         <div style="color:var(--gold);font-size:.7rem;letter-spacing:.5px;font-weight:700;text-transform:uppercase">Pick a player to compare</div>
+         <div style="color:var(--gray);font-size:.66rem">Filtered by ${defaultFilter} by default — switch position to widen the list.</div>
+         <div style="display:flex;gap:.4rem;align-items:center">
+           <span style="color:var(--gray);font-size:.65rem">Position:</span>
+           <select id="bspn-compare-pos" onchange="_bspnCompareRefilter()" style="background:var(--bg3);color:var(--white);border:1px solid var(--border);padding:.25rem .35rem;font-family:inherit;font-size:.72rem">${posSelect}</select>
+         </div>
+         <select id="bspn-compare-player" size="14" onchange="_bspnCompareSelectB()" style="background:var(--bg3);color:var(--white);border:1px solid var(--border);padding:.35rem;font-family:inherit;font-size:.72rem">
+           ${playerOptions || `<option disabled>No players at this position</option>`}
+         </select>
+         <div style="color:var(--gray);font-size:.6rem;font-style:italic">Tip: click a player's name anywhere in the app first to pre-select A, then choose B here.</div>
+       </div>`;
+  // Compact A panel: use the existing detail panel but keep some breathing room.
+  return `
+    <div class="frn-pcard-overlay-inner" style="max-width:1180px;width:96vw">
       <button class="frn-pcard-close" onclick="frnCloseCompareModal()">×</button>
-      <div style="padding:.6rem 1rem;border-bottom:1px solid var(--border);font-weight:700;color:var(--gold)">
-        ⚖ Player Comparison
+      <div style="padding:.55rem 1rem;border-bottom:1px solid var(--border);font-weight:700;color:var(--gold)">
+        ⚖ Player Comparison · <span style="color:var(--gray);font-weight:400;font-size:.7rem">${pA.position} ${pA.name} vs ${pB ? pB.name : "?"}</span>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem">
         <div style="border-right:1px dashed var(--border);padding:.4rem">${_buildPlayerDetailPanel(pA)}</div>
-        <div style="padding:.4rem">${_buildPlayerDetailPanel(pB)}</div>
+        ${rightPane}
       </div>
     </div>`;
-  overlay.addEventListener("click", e => { if (e.target === overlay) frnCloseCompareModal(); });
-  document.body.appendChild(overlay);
+}
+// Stash player A's name so the inline picker handlers can refer to it.
+function _bspnCompareCurrentA() {
+  const head = document.querySelector("#frn-compare-overlay .frn-pcard-overlay-inner > div:nth-child(2)");
+  if (!head) return null;
+  const m = head.textContent.match(/^\s*⚖ Player Comparison · \w+ (.+?) vs/);
+  return m ? m[1].trim() : null;
+}
+function _bspnCompareRefilter() {
+  // Re-render the modal preserving A but with a different position filter.
+  const aName = _bspnCompareCurrentA();
+  const select = document.getElementById("bspn-compare-pos");
+  if (!aName || !select) return;
+  const overlay = document.getElementById("frn-compare-overlay");
+  const pA = _findPlayer(aName);
+  if (!pA || !overlay) return;
+  // Rebuild with the new position filter applied via a temp re-shape.
+  // Easiest: just monkey-patch by replacing the player select options.
+  const playerSelect = document.getElementById("bspn-compare-player");
+  if (!playerSelect) return;
+  const filter = select.value;
+  const all = [];
+  for (const [tidStr, roster] of Object.entries(franchise?.rosters || {})) {
+    for (const p of roster) all.push({ ...p, _teamId: Number(tidStr) });
+  }
+  const myId = franchise?.chosenTeamId;
+  const filtered = all
+    .filter(p => p.name !== pA.name)
+    .filter(p => filter === "ALL" || p.position === filter)
+    .sort((a, b) => (b.overall || 0) - (a.overall || 0));
+  playerSelect.innerHTML = filtered.slice(0, 200).map(p => {
+    const team = getTeam(p._teamId);
+    const isMine = p._teamId === myId;
+    const ovrTag = isMine ? ` · ${p.overall||"?"} OVR` : ` · ${gradeLabel(scoutGrade(p))} grade`;
+    const escName = (p.name || "").replace(/"/g, "&quot;");
+    return `<option value="${escName}">${p.position} · ${p.name} · ${team?.name || "?"}${ovrTag}</option>`;
+  }).join("") || `<option disabled>No players at this position</option>`;
+}
+function _bspnCompareSelectB() {
+  const aName = _bspnCompareCurrentA();
+  const select = document.getElementById("bspn-compare-player");
+  if (!aName || !select) return;
+  frnOpenCompareModal(aName, select.value);
+}
+function _bspnCompareClearB() {
+  const aName = _bspnCompareCurrentA();
+  if (aName) frnOpenCompareModal(aName, null);
 }
 // Team click still uses the existing scout page — but only when it
 // makes sense (preseason/regular/playoffs). In offseason/draft/FA
