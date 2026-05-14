@@ -17147,8 +17147,12 @@ function _yearsInLeague(p) {
 }
 function draftStr(p) {
   if (!p?.draftRound && !p?.draftYear) return "—";
+  // _yearsInLeague returns seasons COMPLETED. "Yr N" here is read as
+  // "N years of experience" — matches the career history table (a
+  // player with 1 finished season has 1 row labeled "Yr 1"). 0
+  // completed seasons → still in his rookie year.
   const yrs = _yearsInLeague(p);
-  const yrTag = yrs === 0 ? "Rookie" : `Yr ${yrs + 1}`;
+  const yrTag = yrs === 0 ? "Rookie" : `Yr ${yrs}`;
   if (p.draftRound === 0) return `${yrTag} · UDFA`;
   return `${yrTag} · R${p.draftRound} #${p.draftPick}`;
 }
