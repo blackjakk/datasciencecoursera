@@ -17777,13 +17777,75 @@ function generateFranchiseSchedule() {
 function initStandings() {
   return Object.fromEntries(TEAMS.map(t => [t.id, { w: 0, l: 0, t: 0, pf: 0, pa: 0 }]));
 }
+// Compute per-team division + conference + head-to-head records from
+// franchise.schedule. NFL-style tiebreakers: when two teams have the
+// same W-L%, prefer the one with the better division record, then
+// conference record, then head-to-head, then point differential.
+function _detailedRecord(teamId) {
+  const team = getTeam(teamId);
+  if (!team) return null;
+  const out = {
+    divW: 0, divL: 0, divT: 0,
+    confW: 0, confL: 0, confT: 0,
+    pointDiff: 0,
+    h2h: {},   // { otherTeamId: [w, l, t] }
+  };
+  for (const g of (franchise.schedule || [])) {
+    if (!g.played) continue;
+    let me, them, myScore, themScore, themId;
+    if (g.homeId === teamId)      { me = team; themId = g.awayId; myScore = g.homeScore; themScore = g.awayScore; }
+    else if (g.awayId === teamId) { me = team; themId = g.homeId; myScore = g.awayScore; themScore = g.homeScore; }
+    else continue;
+    them = getTeam(themId);
+    if (!them) continue;
+    const won = myScore > themScore;
+    const tied = myScore === themScore;
+    out.pointDiff += myScore - themScore;
+    if (them.division === me.division) {
+      if (won) out.divW++; else if (tied) out.divT++; else out.divL++;
+    }
+    if (them.conference === me.conference) {
+      if (won) out.confW++; else if (tied) out.confT++; else out.confL++;
+    }
+    out.h2h[themId] = out.h2h[themId] || [0, 0, 0];
+    if (won) out.h2h[themId][0]++;
+    else if (tied) out.h2h[themId][2]++;
+    else out.h2h[themId][1]++;
+  }
+  return out;
+}
+function _winPct(w, l, t) {
+  const total = (w + l + t);
+  return total ? (w * 2 + t) / (total * 2) : 0;
+}
 function standingsSorted() {
   return Object.entries(franchise.standings)
-    .map(([id, s]) => ({ id: +id, team: getTeam(+id), ...s }))
+    .map(([id, s]) => {
+      const detailed = _detailedRecord(+id);
+      return { id: +id, team: getTeam(+id), ...s, detailed };
+    })
     .sort((a, b) => {
-      const pA = (a.w * 2 + a.t) / Math.max(1, (a.w + a.l + a.t) * 2);
-      const pB = (b.w * 2 + b.t) / Math.max(1, (b.w + b.l + b.t) * 2);
-      return pB - pA || b.pf - a.pf || b.w - a.w;
+      const pA = _winPct(a.w, a.l, a.t);
+      const pB = _winPct(b.w, b.l, b.t);
+      if (pA !== pB) return pB - pA;
+      // Division record
+      const aDiv = _winPct(a.detailed?.divW || 0, a.detailed?.divL || 0, a.detailed?.divT || 0);
+      const bDiv = _winPct(b.detailed?.divW || 0, b.detailed?.divL || 0, b.detailed?.divT || 0);
+      if (aDiv !== bDiv) return bDiv - aDiv;
+      // Conference record
+      const aConf = _winPct(a.detailed?.confW || 0, a.detailed?.confL || 0, a.detailed?.confT || 0);
+      const bConf = _winPct(b.detailed?.confW || 0, b.detailed?.confL || 0, b.detailed?.confT || 0);
+      if (aConf !== bConf) return bConf - aConf;
+      // Head-to-head (only meaningful for the two teams being compared)
+      const h2hA = a.detailed?.h2h?.[b.id];
+      const h2hB = b.detailed?.h2h?.[a.id];
+      if (h2hA && h2hB) {
+        const aPct = _winPct(h2hA[0], h2hA[1], h2hA[2]);
+        const bPct = _winPct(h2hB[0], h2hB[1], h2hB[2]);
+        if (aPct !== bPct) return bPct - aPct;
+      }
+      // Point differential, then raw wins.
+      return (b.detailed?.pointDiff || 0) - (a.detailed?.pointDiff || 0) || b.w - a.w;
     });
 }
 function recordFranchiseResult(homeId, awayId, homeScore, awayScore) {
@@ -20924,8 +20986,14 @@ function frnOpenPlayerCard(name) {
          </a>
        </div>`
     : "";
+  const compareTag = franchise._compareAName === p.name
+    ? `<span style="color:var(--gold);font-size:.6rem;margin-right:.4rem">⚖ A-side selected</span>`
+    : franchise._compareAName
+      ? `<button class="frn-pcard-yrbtn" style="margin-right:.4rem;border-color:var(--gold-lt);color:var(--gold-lt)" onclick="frnSelectForCompare('${name.replace(/'/g, "\\'")}')">Compare with ${franchise._compareAName}</button>`
+      : `<button class="frn-pcard-yrbtn" style="margin-right:.4rem" onclick="frnSelectForCompare('${name.replace(/'/g, "\\'")}')">⚖ Compare</button>`;
   overlay.innerHTML = `
     <div class="frn-pcard-overlay-inner">
+      <div style="position:absolute;top:.3rem;right:2.2rem;z-index:3">${compareTag}</div>
       <button class="frn-pcard-close" onclick="frnClosePlayerModal()" title="Close">×</button>
       ${_buildPlayerDetailPanel(p)}
       ${teamLine}
@@ -20945,6 +21013,52 @@ function frnOpenPlayerCard(name) {
 function frnClosePlayerModal() {
   const ov = document.getElementById("frn-pcard-overlay");
   if (ov) ov.remove();
+}
+function frnCloseCompareModal() {
+  const ov = document.getElementById("frn-compare-overlay");
+  if (ov) ov.remove();
+}
+// Picks A: first call → store as A. Second call → compare A vs the picked B.
+// State persisted on franchise._compareAName so a hover-link click can
+// "find an opponent" then come back without losing context.
+function frnSelectForCompare(name) {
+  if (!franchise._compareAName) {
+    franchise._compareAName = name;
+    saveFranchise();
+    alert(`Selected ${name} for comparison. Click another player's name and choose "Compare with ${name}".`);
+    return;
+  }
+  const a = franchise._compareAName;
+  if (a === name) {
+    franchise._compareAName = null;
+    saveFranchise();
+    return;
+  }
+  franchise._compareAName = null;
+  saveFranchise();
+  frnOpenCompareModal(a, name);
+}
+function frnOpenCompareModal(nameA, nameB) {
+  const pA = _findPlayer(nameA), pB = _findPlayer(nameB);
+  if (!pA || !pB) return;
+  frnCloseCompareModal();
+  const overlay = document.createElement("div");
+  overlay.className = "frn-pcard-overlay";
+  overlay.id = "frn-compare-overlay";
+  // Reuse the modal scaffold + put two narrow cards side by side.
+  overlay.innerHTML = `
+    <div class="frn-pcard-overlay-inner" style="max-width:1100px;width:96vw">
+      <button class="frn-pcard-close" onclick="frnCloseCompareModal()">×</button>
+      <div style="padding:.6rem 1rem;border-bottom:1px solid var(--border);font-weight:700;color:var(--gold)">
+        ⚖ Player Comparison
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem">
+        <div style="border-right:1px dashed var(--border);padding:.4rem">${_buildPlayerDetailPanel(pA)}</div>
+        <div style="padding:.4rem">${_buildPlayerDetailPanel(pB)}</div>
+      </div>
+    </div>`;
+  overlay.addEventListener("click", e => { if (e.target === overlay) frnCloseCompareModal(); });
+  document.body.appendChild(overlay);
 }
 // Team click still uses the existing scout page — but only when it
 // makes sense (preseason/regular/playoffs). In offseason/draft/FA
@@ -22323,6 +22437,27 @@ function _buildWeekReviewCard(week, myId) {
 // Pulls recent form, PPG / PA averages, injury list, current top performers,
 // and head-to-head this season — all data we already have. Marked OPP INTEL
 // so the user knows where it comes from.
+// Late-season "must-win" detection — flagged in opp intel banner.
+// True when (a) week ≥ 10 and (b) user trails in division OR on the
+// playoff bubble (rank 7 or 8 in their conference).
+function _isMustWinForUser(week, nextGame) {
+  if (week < 10) return false;
+  const myId = franchise.chosenTeamId;
+  const myTeam = getTeam(myId);
+  const oppId = nextGame.homeId === myId ? nextGame.awayId : nextGame.homeId;
+  const opp = getTeam(oppId);
+  // (a) Division opponent + I'm not currently leading
+  if (opp && myTeam && opp.division === myTeam.division && opp.conference === myTeam.conference) {
+    const divTeams = standingsSorted().filter(t => t.team?.division === myTeam.division && t.team?.conference === myTeam.conference);
+    if (divTeams[0]?.id !== myId) return true;
+  }
+  // (b) On the playoff bubble in own conference
+  const confTeams = standingsSorted().filter(t => t.team?.conference === myTeam.conference);
+  const myRank = confTeams.findIndex(t => t.id === myId) + 1;
+  if (myRank >= 5 && myRank <= 8) return true;
+  return false;
+}
+
 function _buildOpponentIntelBlock(oppId, isHome, week, nextGame) {
   const myId = franchise.chosenTeamId;
   const opp = getTeam(oppId);
@@ -22414,7 +22549,7 @@ function _buildOpponentIntelBlock(oppId, isHome, week, nextGame) {
 
   return `<div class="frn-opp-intel">
     <div class="frn-opp-intel-head">
-      <div class="frn-card-title" style="margin:0">📡 OPP INTEL — ${opp.city} ${opp.name}</div>
+      <div class="frn-card-title" style="margin:0">📡 OPP INTEL — ${opp.city} ${opp.name} ${_isMustWinForUser(week, nextGame) ? `<span style="color:#ff5a5a;background:rgba(255,80,80,0.15);border:1px solid #ff5a5a;padding:.1rem .35rem;margin-left:.4rem;font-size:.55rem;letter-spacing:.5px">🚨 MUST WIN</span>` : ""}</div>
       ${intelTag}
     </div>
     <div class="frn-opp-intel-grid">
@@ -23087,6 +23222,8 @@ function _runWeekEndResolution() {
   // Mid-season extension demands: stars in their contract year roll
   // for "wants a new deal" / forces 1-week sit-out if ignored.
   _checkHoldoutDemands();
+  // Coach hot-seat alerts after a clear early-season sample.
+  _checkCoachHotSeat();
   // League chat: AI teams react to last week's news
   _generateAITrashTalk();
 }
@@ -23759,6 +23896,28 @@ function renderFrnAnalytics(defaultTab) {
     </div>
     <div class="frn-ana-tabs">${tabBarHtml}</div>
     <div class="frn-ana-body">${bodyHtml}</div>`;
+}
+
+// ── Coach hot seat ───────────────────────────────────────────────────────────
+// After week 7, head coaches with .350-or-worse win rate get a hot-seat
+// alert in the wire. One alert per coach per season so the wire doesn't
+// get spammed. Persisted on franchise.hotSeats = { [teamId]: season }.
+function _checkCoachHotSeat() {
+  if (franchise.week < 8) return;
+  franchise.hotSeats = franchise.hotSeats || {};
+  for (const t of TEAMS) {
+    const s = franchise.standings?.[t.id]; if (!s) continue;
+    const gp = (s.w || 0) + (s.l || 0) + (s.t || 0);
+    if (gp < 6) continue;
+    const pct = (s.w + s.t * 0.5) / gp;
+    if (pct > 0.35) continue;
+    if (franchise.hotSeats[t.id] === franchise.season) continue;
+    franchise.hotSeats[t.id] = franchise.season;
+    const coach = franchise.coaches?.[t.id]?.hc;
+    if (!coach) continue;
+    _pushNews({ type: "hot_seat",
+      label: `🔥 ${coach.name} (${t.name}) on the hot seat — ${s.w}-${s.l}${s.t?`-${s.t}`:""} record drawing scrutiny` });
+  }
 }
 
 // ── Franchise tag ─────────────────────────────────────────────────────────────
