@@ -23077,6 +23077,7 @@ function _runWeekEndResolution() {
   if (w + 1 <= TRADE_DEADLINE_WEEK) {
     _generateWeeklyAIOffers();
     _processBlockAsks();
+    _generateAIvsAITrades();
   }
   // Practice squad: weekly flash roll + poach pass. Auto-spend any
   // remaining scout visits if the user has that toggle on.
@@ -24944,6 +24945,64 @@ function _seedAITradeBlocks() {
 // AT us specifically), AI may submit a trade offer this week. Stored in
 // franchise.tradeOffers and surfaced in the week-end review + trade
 // screen's OFFERS tab.
+// AI-to-AI trades. Each week (pre-deadline) a small chance two AI
+// teams swap a depth player for a future pick — makes the league feel
+// alive and surfaces in the user's wire ticker.
+function _generateAIvsAITrades() {
+  if (franchise.week > TRADE_DEADLINE_WEEK) return;
+  // 35% chance of generating ONE AI-AI trade this week.
+  if (Math.random() > 0.35) return;
+  const myId = franchise.chosenTeamId;
+  const aiTeams = TEAMS.filter(t => t.id !== myId);
+  if (aiTeams.length < 2) return;
+  const seller = aiTeams[Math.floor(Math.random() * aiTeams.length)];
+  const sellerRoster = franchise.rosters[seller.id] || [];
+  // Find a position with depth — top guy ≥80 OVR AND #3 ≥70 OVR
+  // (so the seller is dealing from strength, not desperation).
+  const POS_KEYS = ["QB","RB","WR","TE","OL","DL","LB","CB","S"];
+  const candidatePositions = POS_KEYS.filter(pos => {
+    const at = sellerRoster.filter(p => p.position === pos)
+      .sort((a,b) => (b.overall||0) - (a.overall||0));
+    return at.length >= 3 && (at[0]?.overall||0) >= 80 && (at[2]?.overall||0) >= 70;
+  });
+  if (!candidatePositions.length) return;
+  const sellPos = candidatePositions[Math.floor(Math.random() * candidatePositions.length)];
+  // Trade the 2nd or 3rd best at that position (keep the starter).
+  const atPos = sellerRoster.filter(p => p.position === sellPos)
+    .sort((a,b) => (b.overall||0) - (a.overall||0));
+  const seedIdx = Math.random() < 0.5 ? 1 : 2;
+  const player = atPos[seedIdx];
+  if (!player || !player.contract || player.contract.remaining < 1) return;
+  // Find a buyer with real positional need.
+  const buyers = aiTeams
+    .filter(t => t.id !== seller.id)
+    .map(t => {
+      const topOvr = (franchise.rosters[t.id] || [])
+        .filter(p => p.position === sellPos)
+        .sort((a,b) => (b.overall||0) - (a.overall||0))[0]?.overall || 50;
+      return { t, need: 75 - topOvr };
+    })
+    .filter(b => b.need >= 8)
+    .sort((a,b) => b.need - a.need);
+  if (!buyers.length) return;
+  const buyer = buyers[0].t;
+  // Pick to compensate the seller (round scales with player value).
+  const playerValue = _playerTradeValue(player);
+  const targetRound = playerValue >= 20 ? 2 : playerValue >= 10 ? 3 : 4;
+  const buyerPicks = (franchise.picks || [])
+    .filter(p => p.currentOwnerId === buyer.id && p.round === targetRound);
+  if (!buyerPicks.length) return;
+  const pickToSend = buyerPicks[0];
+  // Execute.
+  const seIdx = sellerRoster.indexOf(player);
+  if (seIdx === -1) return;
+  sellerRoster.splice(seIdx, 1);
+  (franchise.rosters[buyer.id] || []).push(player);
+  pickToSend.currentOwnerId = seller.id;
+  _pushNews({ type: "trade",
+    label: `🔀 ${buyer.name} acquire ${sellPos} ${player.name} from ${seller.name} for ${pickToSend.year} R${pickToSend.round} pick` });
+}
+
 function _generateWeeklyAIOffers() {
   if (!franchise.tradeOffers) franchise.tradeOffers = [];
   // Prune expired offers (>2 weeks old)
@@ -26057,11 +26116,31 @@ function renderFrnDraft() {
     </div>`;
 }
 
+// Position value premium — how much each position is worth above its
+// raw OVR in AI draft scoring. Reflects NFL "premier position" reality
+// where QB / OT / EDGE / CB go higher than equally-rated RB/S/etc.
+const _DRAFT_POS_PREMIUM = {
+  QB: 8, OL: 5, DL: 4, CB: 4, WR: 3,
+  LB: 1, TE: 0, S: 0, RB: -2, K: -4, P: -5,
+};
+// Scheme fit — if the team's playbook favors a position group, give a
+// modest bump to prospects of that position.
+function _draftSchemeBonus(teamId, pos) {
+  const pb = (typeof getPlaybook === "function") ? getPlaybook(getTeam(teamId)) : null;
+  if (!pb) return 0;
+  const id = pb.id || "";
+  if (id === "AIR_RAID"         && (pos === "QB" || pos === "WR")) return 3;
+  if (id === "GROUND_AND_POUND" && (pos === "RB" || pos === "OL")) return 3;
+  if (id === "DUAL_THREAT"      && (pos === "QB" || pos === "WR")) return 2;
+  if (id === "OPTION"           && (pos === "QB" || pos === "RB")) return 3;
+  return 0;
+}
 function _aiAutoPick(slot) {
   const taken = new Set(franchise.draft.picks.map(p => p.prospectName));
   const available = franchise.draft.class.filter(p => !taken.has(p.name));
   if (!available.length) return;
-  // Score by overall + position need (weaker starter at FA's position = bonus)
+  // Score by overall + position need (weaker starter = bonus) +
+  // positional value premium + scheme fit + tiny random.
   const roster = franchise.rosters[slot.teamId] || [];
   const startersByPos = {};
   for (const pos of Object.keys(ROSTER_SLOTS)) {
@@ -26070,7 +26149,9 @@ function _aiAutoPick(slot) {
   }
   const scored = available.map(p => {
     const needBonus = Math.max(0, 75 - (startersByPos[p.position] || 50));
-    return { p, score: (p.overall || 60) + needBonus * 0.20 + Math.random() * 4 };
+    const posPrem  = _DRAFT_POS_PREMIUM[p.position] ?? 0;
+    const scheme   = _draftSchemeBonus(slot.teamId, p.position);
+    return { p, score: (p.overall || 60) + needBonus * 0.20 + posPrem + scheme + Math.random() * 4 };
   }).sort((a,b) => b.score - a.score);
   const pick = scored[0].p;
   // Draft info first — rookieContract() reads draftRound + draftPick
