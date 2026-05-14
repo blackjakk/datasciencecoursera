@@ -16998,6 +16998,48 @@ function generateContract(player, cap) {
   return { years, remaining: years, aav };
 }
 
+// NFL-style rookie wage scale (slotted). AAV is anchored on draft
+// round + pick, with a small position multiplier so QB / OL / EDGE
+// see a premium and K/P see a discount. Deliberately decoupled from
+// the player's OVR — a 4th-round QB who happens to be good still
+// only signs a 4th-round-money deal.
+const _ROOKIE_AAV_BY_ROUND = {
+  1: 0.045,    // R1: 4.5% of cap base
+  2: 0.018,
+  3: 0.012,
+  4: 0.008,
+  5: 0.0055,
+  6: 0.0045,
+  7: 0.0038,
+  0: 0.0035,   // UDFA — close to league minimum
+};
+const _ROOKIE_POS_MUL = {
+  QB: 1.30, OL: 1.10, DL: 1.05, CB: 1.05, WR: 1.05,
+  LB: 1.00, S: 0.95, TE: 0.95, RB: 0.92, K: 0.70, P: 0.70,
+};
+function rookieContract(player, cap) {
+  const round  = player.draftRound ?? 0;
+  const pick   = player.draftPick  ?? 1;
+  const capRef = cap || SALARY_CAP_BASE;
+  const baseRate = _ROOKIE_AAV_BY_ROUND[round] ?? _ROOKIE_AAV_BY_ROUND[7];
+  // Within-round pick decay: top of round earns more, end of round less.
+  // R1 spread is widest (1.0 → 0.6); later rounds get progressively flatter.
+  const pickPos = Math.max(0, (pick || 1) - 1);
+  const decay = round === 1 ? 1 - (pickPos / 32) * 0.40
+              : round === 2 ? 1 - (pickPos / 32) * 0.25
+              : round <= 4  ? 1 - (pickPos / 32) * 0.15
+              :               1 - (pickPos / 32) * 0.10;
+  const posMul = _ROOKIE_POS_MUL[player.position] ?? 1.0;
+  const aav = Math.max(0.5, Math.round(capRef * baseRate * decay * posMul * 10) / 10);
+  // Contract length: matches NFL convention — R1-R4 get 4-year deals,
+  // R5-R6 get 3-year, R7 gets 2-year, UDFA gets 1-year tryout.
+  const years = round === 0 ? 1
+              : round <= 4  ? 4
+              : round <= 6  ? 3
+              :               2;
+  return { years, remaining: years, aav };
+}
+
 function assignContracts(rosters, cap) {
   for (const roster of Object.values(rosters)) {
     for (const p of roster) {
@@ -25148,9 +25190,11 @@ function _aiAutoPick(slot) {
     return { p, score: (p.overall || 60) + needBonus * 0.20 + Math.random() * 4 };
   }).sort((a,b) => b.score - a.score);
   const pick = scored[0].p;
-  pick.contract = generateContract(pick, franchise.salaryCap || SALARY_CAP_BASE);
+  // Draft info first — rookieContract() reads draftRound + draftPick
+  // to slot the contract value, so it has to be set before signing.
   pick.draftRound = slot.round;
   pick.draftPick  = ((franchise.draft.currentIdx) % 32) + 1;
+  pick.contract = rookieContract(pick, franchise.salaryCap || SALARY_CAP_BASE);
   pick.careerEarnings = 0;
   delete pick.isProspect;
   franchise.rosters[slot.teamId].push(pick);
@@ -25166,9 +25210,10 @@ function frnDraftPick(name) {
   if (slot.teamId !== franchise.chosenTeamId) return;
   const prospect = d.class.find(p => p.name === name);
   if (!prospect) return;
-  prospect.contract = generateContract(prospect, franchise.salaryCap || SALARY_CAP_BASE);
+  // Draft info first — rookieContract() reads draftRound + draftPick.
   prospect.draftRound = slot.round;
   prospect.draftPick  = ((d.currentIdx) % 32) + 1;
+  prospect.contract = rookieContract(prospect, franchise.salaryCap || SALARY_CAP_BASE);
   prospect.careerEarnings = 0;
   delete prospect.isProspect;
   franchise.rosters[slot.teamId].push(prospect);
@@ -25197,7 +25242,7 @@ function _draftFinalize() {
         udfa.draftYear = rookieYear;
         udfa.draftSeason = (franchise?.season || 1) + 1;
         udfa.careerEarnings = 0;
-        udfa.contract = generateContract(udfa, franchise.salaryCap || SALARY_CAP_BASE);
+        udfa.contract = rookieContract(udfa, franchise.salaryCap || SALARY_CAP_BASE);
         roster.push(udfa);
         taken.add(udfa.name);
       }
