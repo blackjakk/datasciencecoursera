@@ -1407,6 +1407,43 @@
     padding: .35rem .65rem; margin: -.6rem 0 .7rem;
     font-size: .72rem; line-height: 1.5;
   }
+  /* Opponent intel block (under the next-game card) */
+  .frn-opp-intel {
+    margin-top: .8rem; padding: .6rem .7rem;
+    background: rgba(46,61,46,0.15); border: 1px dashed var(--border);
+  }
+  .frn-opp-intel-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: .5rem; flex-wrap: wrap; gap: .5rem;
+  }
+  .frn-opp-intel-tag {
+    font-size: .55rem; letter-spacing: .5px; color: var(--gray);
+    padding: .12rem .4rem; border: 1px solid var(--gray);
+  }
+  .frn-opp-intel-tag.scouted { color: var(--gold); border-color: var(--gold); }
+  .frn-opp-intel-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: .5rem;
+    margin-bottom: .5rem;
+  }
+  @media (max-width: 700px) { .frn-opp-intel-grid { grid-template-columns: 1fr; } }
+  .frn-opp-intel-row { padding: .25rem 0; }
+  .frn-opp-form-pill {
+    display: inline-block; font-size: .62rem; font-weight: 700;
+    padding: .1rem .35rem; border: 1px solid currentColor;
+    letter-spacing: .3px;
+  }
+  .frn-opp-keyplayers { display: flex; flex-direction: column; gap: .2rem; }
+  .frn-opp-keyplayer-row {
+    display: grid; grid-template-columns: 2rem 1fr auto auto;
+    gap: .4rem; align-items: center; font-size: .68rem;
+    padding: .15rem .2rem;
+    border-bottom: 1px solid rgba(46,61,46,.3);
+  }
+  .frn-opp-keyplayer-pos {
+    color: var(--gold); font-weight: 700; font-size: .6rem;
+    letter-spacing: .3px;
+  }
+
   /* League wire archive */
   .frn-wire-scroll {
     max-height: 70vh; overflow-y: auto;
@@ -16406,6 +16443,11 @@ function showFranchiseDashboard() {
   if (!franchise.picks || !franchise.picks.length) _initFranchisePicks();
   // Backfill coaching staff
   if (!franchise.coaches) _initCoachingStaff();
+  // Backfill jersey numbers for any roster where players are missing
+  // p.number (older saves, or new FA signees, or traded-in players).
+  for (const [tid, roster] of Object.entries(franchise.rosters || {})) {
+    if (roster.some(p => !p.number)) assignTeamJerseyNumbers(roster);
+  }
 
   $("franchiseHome").style.display = "block";
   const { phase } = franchise;
@@ -17313,7 +17355,7 @@ function _buildPlayerDetailPanel(p) {
       <div style="flex:1;min-width:0">
         <div style="font-size:1.15rem;font-weight:900">${p.name}</div>
         <div style="color:var(--gray);font-size:.72rem;margin-top:.1rem">
-          #${p.jersey ?? "?"} · ${p.position} · Age ${p.age || "?"}${p.height?` · ${formatHeight(p.height)}, ${p.weight||"?"} lbs`:""}
+          #${jerseyForPlayer(p) || "—"} · ${p.position} · Age ${p.age || "?"}${p.height?` · ${formatHeight(p.height)}, ${p.weight||"?"} lbs`:""}
         </div>
         <div style="color:var(--gray);font-size:.65rem;margin-top:.1rem">${draftStr(p)} · Career ${careerEarningsStr(p)}</div>
         ${potTag ? `<div style="margin-top:.2rem;font-size:.62rem;color:var(--gold-lt);font-weight:700">${potTag}</div>` : ""}
@@ -18274,6 +18316,78 @@ function renderFrnNewsArchive(season) {
     </div>
     <div class="frn-ana-tabs" style="margin-bottom:.6rem">${seasonBtns}</div>
     <div class="frn-wire-scroll">${weekBlocks}</div>`;
+}
+
+// ── Projected free agents: everyone whose contract expires after this season ──
+// Sorted by scout grade, grouped into "Your expiring deals" + "League pool".
+// Lets the user plan re-signs and identify likely opening-day FA targets.
+function renderFrnProjectedFAs(sort) {
+  const myId = franchise.chosenTeamId;
+  const myTeam = getTeam(myId);
+  const sortBy = sort || "grade";
+  // A player is a "projected FA" if their contract has only 1 year left
+  // (they hit the market next offseason). Rookies on their first deal
+  // and just-signed FAs typically have more years, so this picks the
+  // right cohort.
+  const collect = teamId => (franchise.rosters[teamId] || [])
+    .filter(p => p.contract && p.contract.remaining === 1)
+    .map(p => ({ ...p, _teamId: teamId }));
+  const mine = collect(myId);
+  const league = TEAMS.filter(t => t.id !== myId).flatMap(t => collect(t.id));
+  const sorters = {
+    grade: (a, b) => scoutGrade(b) - scoutGrade(a),
+    age:   (a, b) => (a.age||0) - (b.age||0),
+    pos:   (a, b) => (a.position||"").localeCompare(b.position||"") || (scoutGrade(b)-scoutGrade(a)),
+    aav:   (a, b) => (b.contract?.aav||0) - (a.contract?.aav||0),
+  };
+  mine.sort(sorters[sortBy]); league.sort(sorters[sortBy]);
+  const sortBtn = (id, label) =>
+    `<button class="frn-ana-tab ${sortBy===id?"active":""}" onclick="renderFrnProjectedFAs('${id}')">${label}</button>`;
+  const sortBar = `<div class="frn-ana-tabs" style="margin-bottom:.6rem">
+    ${sortBtn("grade","Grade")}${sortBtn("age","Age")}${sortBtn("pos","Position")}${sortBtn("aav","AAV")}
+  </div>`;
+  const row = p => {
+    const tm = getTeam(p._teamId);
+    return `<tr>
+      <td style="color:var(--gold);font-size:.62rem">${p.position}</td>
+      <td style="font-weight:700">${playerLinkByName(p.name)}</td>
+      <td>${gradeBadge(p)}</td>
+      <td style="color:var(--gray)">${p.age||"?"}</td>
+      <td style="color:var(--gray);font-size:.62rem">${draftStr(p)}</td>
+      <td style="color:var(--gold)">$${(p.contract?.aav||0).toFixed(1)}M</td>
+      <td style="color:var(--gray);font-size:.62rem">${tm ? tm.name : "—"}</td>
+      ${p.injury ? `<td style="color:#ff9090;font-size:.62rem">🩹 ${_bspnEsc(p.injury.label)}</td>` : `<td></td>`}
+    </tr>`;
+  };
+  const tableHead = `<thead><tr>
+    <th>Pos</th><th>Player</th><th>Grade</th><th>Age</th>
+    <th>Draft</th><th>AAV</th><th>Team</th><th></th>
+  </tr></thead>`;
+  const mineHtml = mine.length ? `
+    <table class="frn-pre-roster-table">
+      ${tableHead}
+      <tbody>${mine.map(row).join("")}</tbody>
+    </table>` : `<div style="color:var(--gray);padding:.5rem;text-align:center;font-style:italic">
+      No players on your roster have an expiring deal — your books are clean.
+    </div>`;
+  const leagueHtml = league.length ? `
+    <table class="frn-pre-roster-table">
+      ${tableHead}
+      <tbody>${league.map(row).join("")}</tbody>
+    </table>` : `<div style="color:var(--gray);padding:.5rem;text-align:center;font-style:italic">
+      No projected free agents league-wide.
+    </div>`;
+  $("frnHomeContent").innerHTML = `
+    <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem;flex-wrap:wrap">
+      <div style="font-size:1.05rem;font-weight:900;color:var(--gold)">📅 PROJECTED FREE AGENTS</div>
+      <div style="color:var(--gray);font-size:.7rem">Players whose contract expires after Season ${franchise.season}</div>
+      <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="margin-left:auto">← Back</button>
+    </div>
+    ${sortBar}
+    <div class="frn-card-title" style="margin-bottom:.4rem">${myTeam.city.toUpperCase()} ${myTeam.name.toUpperCase()} · ${mine.length} expiring</div>
+    ${mineHtml}
+    <div class="frn-card-title" style="margin-top:1rem;margin-bottom:.4rem">LEAGUE POOL · ${league.length} expiring</div>
+    ${leagueHtml}`;
 }
 
 // ── Injury report: every injured player on your roster + key opponents ────────
@@ -19393,9 +19507,17 @@ function _bspnFantasy(p) {
 }
 function _bspnBuildLeaders(stats, awayT, homeT) {
   if (!stats) return { leaderGroups: [], topPerformers: undefined };
+  // Per-game stat records don't carry the jersey number — look it up from
+  // the team's roster snapshot. This also surfaces .age, .archetype, etc.
+  // if any downstream code wants them.
+  const enrich = (slim, team) => {
+    const roster = franchise.rosters?.[team.id] || [];
+    const rosterP = roster.find(r => r.name === slim.name) || {};
+    return { ...slim, _team: team, _rosterP: rosterP };
+  };
   const all = [
-    ...Object.values(stats.away?.players || {}).map(p => ({ ...p, _team: awayT })),
-    ...Object.values(stats.home?.players || {}).map(p => ({ ...p, _team: homeT })),
+    ...Object.values(stats.away?.players || {}).map(p => enrich(p, awayT)),
+    ...Object.values(stats.home?.players || {}).map(p => enrich(p, homeT)),
   ];
   const top = (scoreFn, threshold) => {
     let best = null, b = -Infinity;
@@ -19411,7 +19533,7 @@ function _bspnBuildLeaders(stats, awayT, homeT) {
   const td = top(p => (p.tkl||0)*1 + (p.sk||0)*3 + (p.int_made||0)*5, 4);
   const mkLeader = (label, p, statLine) => p ? {
     label, playerName: p.name, teamId: p._team.id,
-    jersey: p.jersey != null ? String(p.jersey) : "",
+    jersey: jerseyForPlayer(p._rosterP || p),
     statLine,
   } : null;
   const offRows = [
@@ -19431,7 +19553,7 @@ function _bspnBuildLeaders(stats, awayT, homeT) {
     else detail = `${p.tkl||0} TKL, ${p.sk||0} SK`;
     return {
       label: "", playerName: p.name, teamId: p._team.id,
-      jersey: p.jersey != null ? String(p.jersey) : "",
+      jersey: jerseyForPlayer(p._rosterP || p),
       statLine: `${_bspnFantasy(p).toFixed(1)} FPTS · ${detail}`,
       value: _bspnFantasy(p),
     };
@@ -19938,6 +20060,127 @@ function _buildWeekReviewCard(week, myId) {
     </div>`;
 }
 
+// ── Opponent intel block: shown beneath the next-game matchup card ────────────
+// Pulls recent form, PPG / PA averages, injury list, current top performers,
+// and head-to-head this season — all data we already have. Marked OPP INTEL
+// so the user knows where it comes from.
+function _buildOpponentIntelBlock(oppId, isHome, week, nextGame) {
+  const myId = franchise.chosenTeamId;
+  const opp = getTeam(oppId);
+  if (!opp) return "";
+  const oppStand = franchise.standings?.[oppId] || { w:0, l:0, t:0, pf:0, pa:0 };
+  const gp = (oppStand.w||0) + (oppStand.l||0) + (oppStand.t||0);
+  const ppg = gp ? ((oppStand.pf||0) / gp).toFixed(1) : "—";
+  const paPg = gp ? ((oppStand.pa||0) / gp).toFixed(1) : "—";
+  const diff = (oppStand.pf||0) - (oppStand.pa||0);
+  const diffColor = diff > 0 ? "var(--green-lt)" : diff < 0 ? "#c08080" : "var(--gray)";
+  const diffStr = `${diff > 0 ? "+" : ""}${diff}`;
+  // Last 3 results
+  const lastGames = (franchise.schedule || [])
+    .filter(g => g.played && (g.homeId === oppId || g.awayId === oppId))
+    .sort((a, b) => b.week - a.week).slice(0, 3);
+  const formHtml = lastGames.length ? lastGames.map(g => {
+    const oppIsHome = g.homeId === oppId;
+    const my = oppIsHome ? g.homeScore : g.awayScore;
+    const them = oppIsHome ? g.awayScore : g.homeScore;
+    const otherTeam = getTeam(oppIsHome ? g.awayId : g.homeId);
+    const wl = my > them ? "W" : my < them ? "L" : "T";
+    const wlColor = wl === "W" ? "var(--green-lt)" : wl === "L" ? "#c08080" : "var(--gray)";
+    return `<span class="frn-opp-form-pill" style="color:${wlColor}" title="W${g.week} ${oppIsHome?"vs":"@"} ${otherTeam?.name||"?"}">${wl} ${my}-${them}</span>`;
+  }).join(" ") : `<span style="color:var(--gray);font-style:italic">No prior games</span>`;
+
+  // Top players — pulled by scout grade with whatever intel level we have
+  const oppRoster = (franchise.rosters[oppId] || []).slice()
+    .sort((a, b) => scoutGrade(b) - scoutGrade(a));
+  const scouted = !!franchise.scoutingIntel?.[oppId] &&
+    franchise.scoutingIntel[oppId].season === franchise.season;
+  const topByPos = pos => {
+    const list = oppRoster.filter(p => p.position === pos);
+    return list[0] || null;
+  };
+  const keyPositions = ["QB","RB","WR","DL","LB","CB"];
+  const topRows = keyPositions.map(pos => {
+    const p = topByPos(pos);
+    if (!p) return "";
+    return `<div class="frn-opp-keyplayer-row">
+      <span class="frn-opp-keyplayer-pos">${pos}</span>
+      <span style="font-weight:700">${playerLinkByName(p.name)}</span>
+      <span>${gradeBadge(p)}</span>
+      <span style="color:var(--gray);font-size:.6rem">Age ${p.age||"?"}</span>
+    </div>`;
+  }).join("");
+
+  // Injured key players on the opponent
+  const oppInjured = oppRoster.filter(p => p.injury && p.injury.weeksRemaining > 0).slice(0, 4);
+  const injuryHtml = oppInjured.length ? `
+    <div class="frn-opp-intel-row">
+      <div class="frn-card-title" style="margin-bottom:.25rem">🩹 INJURIES (THEM)</div>
+      ${oppInjured.map(p => `
+        <div style="font-size:.7rem;color:#ff9090">
+          ${p.position} ${playerLinkByName(p.name)} — ${_bspnEsc(p.injury.label)} (${p.injury.weeksRemaining}wk)
+        </div>`).join("")}
+    </div>` : "";
+
+  // Head-to-head this season
+  const h2h = (franchise.schedule || []).filter(g => g.played &&
+    ((g.homeId === oppId && g.awayId === myId) ||
+     (g.awayId === oppId && g.homeId === myId)));
+  const h2hHtml = h2h.length ? `
+    <div class="frn-opp-intel-row">
+      <div class="frn-card-title" style="margin-bottom:.25rem">📜 HEAD-TO-HEAD (S${franchise.season})</div>
+      ${h2h.map(g => {
+        const youHome = g.homeId === myId;
+        const youScore = youHome ? g.homeScore : g.awayScore;
+        const themScore = youHome ? g.awayScore : g.homeScore;
+        const wl = youScore > themScore ? "W" : youScore < themScore ? "L" : "T";
+        const color = wl === "W" ? "var(--green-lt)" : wl === "L" ? "#c08080" : "var(--gray)";
+        return `<div style="font-size:.7rem">
+          <span style="color:${color};font-weight:700">${wl}</span>
+          ${youScore}-${themScore} (Wk ${g.week}, ${youHome?"home":"away"})
+          <a href="javascript:void(0)" onclick="renderFrnPastGame(${g.week},${g.homeId},${g.awayId})"
+             style="color:var(--gold);margin-left:.3rem">box →</a>
+        </div>`;
+      }).join("")}
+    </div>` : "";
+
+  const intelTag = scouted
+    ? `<span class="frn-opp-intel-tag scouted">🏟 SCOUTED — sharp grades</span>`
+    : `<span class="frn-opp-intel-tag">noisy grades · run a scrimmage to sharpen</span>`;
+
+  // Weather hint for the matchup (set when game is played, but we can
+  // hint at venue if home)
+  const venueHtml = `<span style="color:var(--gray);font-size:.62rem">
+    ${isHome ? `Home — ${getTeam(myId).city}` : `Away @ ${opp.city}`}
+  </span>`;
+
+  return `<div class="frn-opp-intel">
+    <div class="frn-opp-intel-head">
+      <div class="frn-card-title" style="margin:0">📡 OPP INTEL — ${opp.city} ${opp.name}</div>
+      ${intelTag}
+    </div>
+    <div class="frn-opp-intel-grid">
+      <div class="frn-opp-intel-row">
+        <div class="frn-card-title" style="margin-bottom:.25rem">FORM (LAST 3)</div>
+        <div style="display:flex;gap:.35rem;flex-wrap:wrap">${formHtml}</div>
+      </div>
+      <div class="frn-opp-intel-row">
+        <div class="frn-card-title" style="margin-bottom:.25rem">SCORING</div>
+        <div style="font-size:.7rem">
+          PPG <b style="color:var(--gold-lt)">${ppg}</b> · PAPG <b style="color:var(--gold-lt)">${paPg}</b>
+          · DIFF <b style="color:${diffColor}">${diffStr}</b>
+        </div>
+        ${venueHtml}
+      </div>
+    </div>
+    <div class="frn-opp-intel-row">
+      <div class="frn-card-title" style="margin-bottom:.25rem">KEY STARTERS</div>
+      <div class="frn-opp-keyplayers">${topRows}</div>
+    </div>
+    ${injuryHtml}
+    ${h2hHtml}
+  </div>`;
+}
+
 function renderFrnRegular() {
   const { chosenTeamId, season, week, schedule, standings, seasonHighlights } = franchise;
   const myTeam  = getTeam(chosenTeamId);
@@ -20025,6 +20268,7 @@ function renderFrnRegular() {
             const color = injured ? "color:#ff9090;border-color:#ff9090" : "";
             return `<button class="frn-cap-btn" onclick="renderFrnInjuryReport()" style="${color}">🩹 Injuries${injured?` (${injured})`:""}</button>`;
           })()}
+          <button class="frn-cap-btn" onclick="renderFrnProjectedFAs()">📅 Future FAs</button>
           ${faBtnHtml}
         </div>
       </div>
@@ -20088,6 +20332,7 @@ function renderFrnRegular() {
           <button class="btn btn-outline" onclick="frnSimWeek()">⏭ Sim Week ${week}</button>
           <button class="btn btn-outline" onclick="frnSimSeason()" style="color:var(--gray)">⏭⏭ Sim Season</button>
         </div>
+        ${_buildOpponentIntelBlock(oppId, isHome, week, nextGame)}
       </div>`;
   } else if (seasonDone) {
     nextCardHtml = `
