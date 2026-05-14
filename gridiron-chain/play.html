@@ -5659,6 +5659,13 @@ class GameSimulator {
       home: this._buildTeamStats(this.homeR.starters),
       away: this._buildTeamStats(this.awayR.starters),
     };
+    // Register OL players so pancakes / sacks_allowed accumulate per-player
+    for (const [side, olArr] of [["home", this.homeOL], ["away", this.awayOL]]) {
+      for (const p of olArr || []) {
+        if (p?.name && !this.stats[side].players[p.name])
+          this.stats[side].players[p.name] = { name: p.name, pos: p.subPos || "OL", ...this._emptyLine() };
+      }
+    }
     this._lastBallCarrier = null; // who got the ball on the last positive play
     this._lastBallType = null;    // 'pass' | 'rush'
     // Save base starters so per-snap rotation can always sub back to
@@ -5824,6 +5831,8 @@ class GameSimulator {
       // Defensive stats
       tkl: 0, sk: 0, sk_yds: 0, int_made: 0, int_yds: 0, int_long: 0, int_td: 0,
       pd: 0, ff: 0, fr: 0, def_td: 0,
+      // OL-specific
+      pancakes: 0, sacks_allowed: 0,
     };
   }
   // Pick a defender (weighted by position) and credit a stat field
@@ -6718,6 +6727,9 @@ class GameSimulator {
           def.players[reps.dl.name].sk_yds = (def.players[reps.dl.name].sk_yds || 0) + loss;
           def.players[reps.dl.name].tkl = (def.players[reps.dl.name].tkl || 0) + 1;
         }
+        // Charge the sack to the OL who lost the rep
+        if (reps.ol?.name && off.players[reps.ol.name])
+          off.players[reps.ol.name].sacks_allowed = (off.players[reps.ol.name].sacks_allowed || 0) + 1;
         // Pick a move from the DL's archetype toolkit
         const moves = DL_ARCHETYPES[reps.dlType]?.moves || ["SACK"];
         const move = moves[Math.floor(Math.random() * moves.length)];
@@ -7392,6 +7404,15 @@ class GameSimulator {
       if (brokenTackles) carrierStats.broken_tackles = (carrierStats.broken_tackles || 0) + brokenTackles;
     }
     off.team.rush_att++; off.team.rushYds += yards; off.team.totalYds += yards;
+    // Award a pancake block to a random OL on quality runs (≥5 yards, not a QB scramble)
+    if (yards >= 5 && !isQBRun) {
+      const olArr = this.offOL || [];
+      if (olArr.length && Math.random() < 0.38) {
+        const blocker = olArr[Math.floor(Math.random() * olArr.length)];
+        if (blocker?.name && off.players[blocker.name])
+          off.players[blocker.name].pancakes = (off.players[blocker.name].pancakes || 0) + 1;
+      }
+    }
     this._lastBallCarrier = carrier; this._lastBallType = "rush";
     const brokeNote = brokenTackles > 0 ? ` (${brokenTackles} broken tackle${brokenTackles > 1 ? "s" : ""}!)` : "";
     const runVariantTag = runType === "counter" ? "counter" :
@@ -22423,6 +22444,8 @@ function renderFrnLeaders(tab) {
       extra: r => `${r.pd||0} PD · ${r.tkl||0} TKL` },
     { id: "fg",        label: "FIELD GOALS",    key: "fg_made",   scope: "K",
       extra: r => `${r.fg_att||0} ATT · LNG ${r.fg_long||0}` },
+    { id: "pancakes",  label: "PANCAKE BLOCKS", key: "pancakes",  scope: ["OL","LT","LG","C","RG","RT"],
+      extra: r => `${r.sacks_allowed||0} sacks allowed` },
   ];
   const activeTab = tab && cats.find(c => c.id === tab) ? tab : cats[0].id;
   const cat = cats.find(c => c.id === activeTab) || cats[0];
@@ -22566,6 +22589,7 @@ function _legacyHOF() {
     else if (h.pos === "DL" || h.pos === "LB") highlights = `${cs.tkl||0} tkl · ${cs.sk||0} sk · ${cs.ff||0} FF`;
     else if (h.pos === "CB" || h.pos === "S") highlights = `${cs.int_made||0} INT · ${cs.pd||0} PD · ${cs.tkl||0} tkl`;
     else if (h.pos === "K") highlights = `${cs.fg_made||0} FG (long ${cs.fg_long||0}) · ${cs.xp_made||0} XP`;
+    else if (["OL","LT","LG","C","RG","RT"].includes(h.pos)) highlights = `${cs.pancakes||0} pancakes · ${cs.sacks_allowed||0} sacks allowed`;
     return `<div class="frn-hof-row">
       <div style="font-size:1.6rem;color:var(--gold)">🏛</div>
       <div style="flex:1">
@@ -22611,6 +22635,7 @@ function _legacyCareer() {
     { label:"TACKLES",          key:"tkl",       posFilter:p => ["DL","LB","CB","S"].includes(p.pos) },
     { label:"INTERCEPTIONS",    key:"int_made",  posFilter:p => ["CB","S","LB"].includes(p.pos) },
     { label:"FIELD GOALS",      key:"fg_made",   posFilter:p => p.pos === "K" },
+    { label:"PANCAKE BLOCKS",   key:"pancakes",  posFilter:p => ["OL","LT","LG","C","RG","RT"].includes(p.pos) },
   ];
   return cats.map(c => {
     const list = all
@@ -22657,6 +22682,7 @@ function _legacySeason() {
     { label:"RECEIVING YARDS (SEASON)", key:"rec_yds" },
     { label:"SACKS (SEASON)",           key:"sk" },
     { label:"INTERCEPTIONS (SEASON)",   key:"int_made" },
+    { label:"PANCAKE BLOCKS (SEASON)",  key:"pancakes" },
   ];
   return cats.map(c => {
     const list = rows.filter(r => (r[c.key]||0) > 0)
@@ -24231,6 +24257,32 @@ function renderFrnRegular() {
       ${h.isClutch ? `<span class="frn-hl-clutch">⚡CLUTCH</span>` : ""}
     </div>`).join("") : `<div style="color:var(--gray);font-size:.72rem;padding:.5rem 0">Highlights show up as you play. ⚡ clutch tags mark Q4 close-game plays.</div>`;
 
+  // ─── Player of the Week ─────────────────────────────────────────────────
+  const potwSeason = franchise.potw?.[franchise.season] || {};
+  const potwWeeks = Object.keys(potwSeason).map(Number).sort((a, b) => b - a);
+  const latestPotwWeek = potwWeeks[0];
+  const latestPotw = latestPotwWeek != null ? potwSeason[latestPotwWeek] : null;
+  const potwRow = (label, entry) => {
+    if (!entry) return "";
+    const isMine = entry.teamId === chosenTeamId;
+    return `<div class="frn-leader-row" style="${isMine ? "background:rgba(245,197,66,0.08)" : ""}">
+      <span class="frn-leader-cat" style="width:2.4rem;font-size:.58rem">${label}</span>
+      <span class="frn-leader-name" style="font-weight:${isMine?900:600}">
+        ${playerLinkByName(entry.name)}
+        <span style="color:${entry.teamPrimary};font-size:.6rem;margin-left:.3rem">${entry.teamAbbr}</span>
+        <span style="color:var(--gray);font-size:.58rem;margin-left:.25rem">${entry.pos}</span>
+      </span>
+      <span class="frn-leader-stat" style="font-size:.65rem;color:var(--gray)">${entry.statLine}</span>
+    </div>`;
+  };
+  const potwHtml = latestPotw ? `
+    <div style="color:var(--gray);font-size:.6rem;letter-spacing:.5px;margin-bottom:.3rem">WEEK ${latestPotwWeek} WINNERS</div>
+    ${potwRow("OFF", latestPotw.offense)}
+    ${potwRow("DEF", latestPotw.defense)}
+    ${potwRow("OL",  latestPotw.ol)}
+    ${potwRow("ST",  latestPotw.specialTeams)}
+  ` : `<div style="color:var(--gray);font-size:.72rem;padding:.5rem 0">Player of the Week is awarded after each simmed week.</div>`;
+
   // ─── Final composition ─────────────────────────────────────────────────
   $("frnHomeContent").innerHTML = `
     ${bannerHtml}
@@ -24253,6 +24305,12 @@ function renderFrnRegular() {
       <div class="frn-card-box">
         <div class="frn-card-title">RECENT HIGHLIGHTS</div>
         ${hlHtml}
+      </div>
+    </div>
+    <div class="frn-dash-grid">
+      <div class="frn-card-box">
+        <div class="frn-card-title">PLAYER OF THE WEEK</div>
+        ${potwHtml}
       </div>
     </div>
     <div class="frn-footer-row">
@@ -24310,6 +24368,12 @@ function mvpStatLine(p) {
     parts.push(d.join(", "));
   }
   if (p.fg_att) parts.push(`${p.fg_made || 0}/${p.fg_att} FG`);
+  if (p.pancakes || p.sacks_allowed) {
+    const ol = [];
+    if (p.pancakes)      ol.push(`${p.pancakes} PNK`);
+    if (p.sacks_allowed) ol.push(`${p.sacks_allowed} SA`);
+    parts.push(ol.join(" / "));
+  }
   return parts.join(" · ");
 }
 
@@ -24334,35 +24398,60 @@ function mergeSeasonStats(homeId, awayId, gameStats) {
   merge(awayId, gameStats.away);
 }
 
-// Pull the top 3-4 highlight-worthy plays from a game; weight by clutch
+// Pull the top 4-5 highlight-worthy plays from a game; weight by clutch
 // context (Q4 + close, OT, playoff) so big moments rise to the top.
+// Also appends one game-level capsule (OT, shutout, blowout, walk-off).
 function captureGameHighlights(homeId, awayId, plays, isPlayoff, weekLabel) {
   if (!plays || !plays.length) return;
   if (!franchise.seasonHighlights) franchise.seasonHighlights = [];
+  const homeTeam = getTeam(homeId), awayTeam = getTeam(awayId);
+  const homeName = homeTeam?.name || "HOME", awayName = awayTeam?.name || "AWAY";
   const hl = [];
+
+  const scoreCtx = (p) => {
+    if (p.homeScore == null || p.awayScore == null) return "";
+    const diff = p.homeScore - p.awayScore;
+    if (diff === 0) return " (tied)";
+    const leader = diff > 0 ? homeName : awayName;
+    return ` (${leader} +${Math.abs(diff)})`;
+  };
+
   for (const p of plays) {
     let w = 0, label = "";
     if (p.kind === "score") {
-      const scorer = p.poss === "home" ? getTeam(homeId).name : getTeam(awayId).name;
+      const scorer = p.poss === "home" ? homeName : awayName;
       const is_td = !!(p.passer || p.rusher || p.receiver) ||
                     (p.desc && /touchdown/i.test(p.desc));
       w = is_td ? 6 : 2.5;
-      label = `${scorer} ${is_td ? "TD" : "FG"}`;
-    } else if (p.kind === "run" && (p.yards || 0) >= 25) {
-      w = 4 + Math.min(4, ((p.yards || 0) - 25) / 10);
-      label = `${p.rusher || "RB"} ${p.yards} yd run`;
-    } else if (p.kind === "complete" && (p.yards || 0) >= 30) {
-      w = 4 + Math.min(4, ((p.yards || 0) - 30) / 10);
-      label = `${p.passer || "QB"}→${p.receiver || "WR"} ${p.yards} yd`;
+      // Enrich label with scorer details from the last play before the score event
+      if (is_td) {
+        if (p.rusher)   label = `${p.rusher} rush TD${scoreCtx(p)}`;
+        else if (p.passer && p.receiver) label = `${p.passer}→${p.receiver} TD${scoreCtx(p)}`;
+        else label = `${scorer} TD${scoreCtx(p)}`;
+      } else {
+        label = `${scorer} FG${scoreCtx(p)}`;
+      }
+    } else if (p.kind === "int" && p.isPickSix) {
+      w = 14;
+      label = `PICK-SIX! ${p.defender || "DEF"} ${p.intReturnYds || 0} yds`;
     } else if (p.kind === "int") {
       w = 7;
-      label = `INT by ${p.interceptor || p.defender || "DEF"}`;
+      label = `INT — ${p.defender || "DEF"}${p.intReturnYds > 10 ? ` ret ${p.intReturnYds} yds` : ""}`;
+    } else if (p.kind === "run" && (p.yards || 0) >= 20) {
+      w = 4 + Math.min(4, ((p.yards || 0) - 20) / 10);
+      label = `${p.rusher || "RB"} ${p.yards}-yd run${p.brokenTackles ? ` (${p.brokenTackles} broken)` : ""}`;
+    } else if (p.kind === "complete" && (p.yards || 0) >= 25) {
+      w = 4 + Math.min(4, ((p.yards || 0) - 25) / 10);
+      label = `${p.passer || "QB"}→${p.receiver || "WR"} ${p.yards} yds`;
+    } else if (p.kind === "sack" && (p.sackLoss || 0) >= 8) {
+      w = 3.5;
+      label = `${p.dlName || "DEF"} sacks ${p.passer || "QB"} (-${p.sackLoss} yds)`;
     } else if (p.kind === "fumble") {
       w = 5;
-      label = `FUM forced by ${p.forcedBy || "DEF"}`;
-    } else if (p.kind === "fg_good" && (p.distance || 0) >= 48) {
-      w = 3 + ((p.distance || 0) - 48) / 5;
-      label = `${p.kicker || "K"} ${p.distance} yd FG`;
+      label = `FUM — ${p.forcedBy || p.defender || "DEF"} forces it`;
+    } else if (p.kind === "fg_good" && (p.distance || 0) >= 45) {
+      w = 3 + ((p.distance || 0) - 45) / 5;
+      label = `${p.kicker || "K"} ${p.distance}-yd FG`;
     }
     if (w === 0) continue;
 
@@ -24375,22 +24464,42 @@ function captureGameHighlights(homeId, awayId, plays, isPlayoff, weekLabel) {
     if (isPlayoff)             w *= 1.5;
 
     hl.push({
-      weight: w,
-      label,
-      desc: p.desc || "",
-      quarter: p.quarter,
-      time: p.time,
-      homeScore: p.homeScore,
-      awayScore: p.awayScore,
-      homeId,
-      awayId,
-      isPlayoff: !!isPlayoff,
-      week: weekLabel,
-      isClutch,
+      weight: w, label, desc: p.desc || "",
+      quarter: p.quarter, time: p.time,
+      homeScore: p.homeScore, awayScore: p.awayScore,
+      homeId, awayId, isPlayoff: !!isPlayoff, week: weekLabel, isClutch,
     });
   }
-  // Top 4 per game so we don't bury the season
-  const top = hl.sort((a, b) => b.weight - a.weight).slice(0, 4);
+
+  // ── Game-level capsule ──────────────────────────────────────────────────────
+  // Derive final score from the last play that carries score fields
+  const lastWithScore = [...plays].reverse().find(p => p.homeScore != null);
+  if (lastWithScore) {
+    const fh = lastWithScore.homeScore, fa = lastWithScore.awayScore;
+    const isOT = plays.some(p => (p.quarter || 0) >= 5);
+    const winId = fh > fa ? homeId : awayId;
+    const loseId = fh > fa ? awayId : homeId;
+    const winName = fh > fa ? homeName : awayName;
+    const margin2 = Math.abs(fh - fa);
+    const loserPts = Math.min(fh, fa);
+
+    if (isOT) {
+      hl.push({ weight: 18, label: `OT THRILLER — ${winName} wins ${Math.max(fh,fa)}-${loserPts}`,
+        desc: `Overtime game`, homeId, awayId, isPlayoff: !!isPlayoff, week: weekLabel, isClutch: true });
+    } else if (loserPts === 0) {
+      hl.push({ weight: 16, label: `SHUTOUT — ${winName} blanks opponent`,
+        desc: `${winName} shutout`, homeId, awayId, isPlayoff: !!isPlayoff, week: weekLabel, isClutch: false });
+    } else if (loserPts <= 7 && margin2 >= 14) {
+      hl.push({ weight: 9, label: `Dominant W — ${winName} ${Math.max(fh,fa)}-${loserPts}`,
+        desc: `Dominant victory`, homeId, awayId, isPlayoff: !!isPlayoff, week: weekLabel, isClutch: false });
+    } else if (margin2 <= 3 && !isOT) {
+      hl.push({ weight: 11, label: `One-score game — ${winName} wins by ${margin2}`,
+        desc: `Nail-biter`, homeId, awayId, isPlayoff: !!isPlayoff, week: weekLabel, isClutch: true });
+    }
+  }
+
+  // Top 5 per game so we don't bury the season
+  const top = hl.sort((a, b) => b.weight - a.weight).slice(0, 5);
   franchise.seasonHighlights.push(...top);
 }
 
@@ -24446,7 +24555,12 @@ const _ALLPRO_FORMATION = [
 // by season production; OL fall back to internal OVR since they don't
 // accumulate stat lines.
 function _allProPlayerScore(p, pos, statRow) {
-  if (pos === "OL") return p.overall || 0;
+  if (pos === "OL") {
+    const pk = statRow?.pancakes || 0;
+    const sa = statRow?.sacks_allowed || 0;
+    const hasStats = pk > 0 || sa > 0;
+    return (p.overall || 0) * (hasStats ? 0.35 : 1.0) + pk * 2.2 - sa * 6;
+  }
   if (pos === "P")  return (statRow?.punts ? (statRow.punts * 1) : 0) + (p.overall || 0) * 0.4;
   if (statRow) return mvpScore(statRow) * 0.7 + (p.overall || 0) * 0.3;
   return (p.overall || 0) * 0.5;
@@ -24854,6 +24968,7 @@ const _RECORD_CATS = [
   { key:"tkl",      label:"TACKLES",         scope:["LB","S","CB","DL"] },
   { key:"fg_made",  label:"FIELD GOALS MADE",scope:["K"] },
   { key:"fg_long",  label:"LONGEST FG",      scope:["K"] },
+  { key:"pancakes", label:"PANCAKE BLOCKS",  scope:["OL","LT","LG","C","RG","RT"] },
 ];
 
 function _ensureRecordBook() {
@@ -25741,6 +25856,57 @@ function frnSimGame(homeId, awayId) {
   showFranchiseDashboard();
 }
 
+// ── Player of the Week ────────────────────────────────────────────────────────
+// Scans all games played in `week` and picks the top performer per group.
+// Stored in franchise.potw[season][week] = { offense, defense, ol, specialTeams }.
+function _computeAndStorePOTW(week) {
+  if (!franchise.potw) franchise.potw = {};
+  const seasonKey = franchise.season;
+  if (!franchise.potw[seasonKey]) franchise.potw[seasonKey] = {};
+
+  const weekGames = franchise.schedule.filter(g => g.week === week && g.played && g.stats);
+  if (!weekGames.length) return;
+
+  // Collect per-player stat lines from this week's games
+  const pMap = {}; // name → { ...stats, teamId }
+  for (const g of weekGames) {
+    for (const [side, teamId] of [["home", g.homeId], ["away", g.awayId]]) {
+      const players = g.stats[side]?.players || {};
+      for (const [name, p] of Object.entries(players)) {
+        if (!pMap[name]) pMap[name] = { ...p, teamId };
+        else {
+          // Shouldn't happen (player only plays once per week) but merge safely
+          for (const [k, v] of Object.entries(p)) {
+            if (typeof v === "number") pMap[name][k] = (pMap[name][k] || 0) + v;
+          }
+        }
+      }
+    }
+  }
+
+  const allP = Object.values(pMap);
+  const OL_POS = new Set(["OL","LT","LG","C","RG","RT"]);
+  const SKILL_POS = new Set(["QB","RB","WR","TE"]);
+  const DEF_POS = new Set(["DL","LB","CB","S","DE","DT","FS","SS"]);
+  const ST_POS = new Set(["K","P"]);
+
+  const pick = (filter, scoreF) => {
+    const pool = allP.filter(filter).map(p => ({ ...p, _s: scoreF(p) })).filter(p => p._s > 0);
+    if (!pool.length) return null;
+    pool.sort((a, b) => b._s - a._s);
+    const w = pool[0];
+    const t = getTeam(w.teamId);
+    return { name: w.name, pos: w.pos, teamId: w.teamId, teamAbbr: t ? _bspnLiveAbbr(t) : "—", teamPrimary: t?.primary || "#888", statLine: mvpStatLine(w), score: w._s };
+  };
+
+  franchise.potw[seasonKey][week] = {
+    offense:      pick(p => SKILL_POS.has(p.pos), mvpScore),
+    defense:      pick(p => DEF_POS.has(p.pos), mvpScore),
+    ol:           pick(p => OL_POS.has(p.pos), p => (p.pancakes||0)*3 - (p.sacks_allowed||0)*4),
+    specialTeams: pick(p => ST_POS.has(p.pos), mvpScore),
+  };
+}
+
 function frnSimWeek() {
   const w      = franchise.week;
   const wGames = franchise.schedule.filter(g => g.week === w && !g.played);
@@ -25753,6 +25919,7 @@ function frnSimWeek() {
     if (r.full?.isRivalry) g.isRivalry = true;
     recordFranchiseResult(g.homeId, g.awayId, r.homeScore, r.awayScore);
   }
+  _computeAndStorePOTW(w);
   _checkWeekComplete();
   saveFranchise();
   showFranchiseDashboard();
@@ -25772,6 +25939,7 @@ function frnSimSeason() {
       if (r.full?.isRivalry) g.isRivalry = true;
       recordFranchiseResult(g.homeId, g.awayId, r.homeScore, r.awayScore);
     }
+    _computeAndStorePOTW(w);
     _runWeekEndResolution();
     _bumpWeek();
     franchise.weekPending = false;
