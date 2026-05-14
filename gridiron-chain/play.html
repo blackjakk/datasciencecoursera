@@ -4341,6 +4341,9 @@ function generateCareer(player) {
   if (seasonsPlayed === 0) {
     player.career = [];
     player.careerTotals = {};
+    // careerHistory is what the player card reads; keep its shape too.
+    player.careerHistory = [];
+    player.careerStats = {};
     player.proBowls = 0; player.allPros = 0; player.sbRings = 0;
     player.mvps = 0; player.opoys = 0; player.dpoys = 0; player.roys = 0;
     player.records = [];
@@ -4350,6 +4353,8 @@ function generateCareer(player) {
   const ovr = player.overall || 70;
   const pos = player.position;
   const career = [];
+  const history = [];      // Card-compatible per-season rows
+  const totals  = {};      // Card-compatible totals
   let bestSeasonOvr = 0;
   for (let i = 0; i < seasonsPlayed; i++) {
     const seasonYear = currentYear - seasonsPlayed + i;
@@ -4370,9 +4375,26 @@ function generateCareer(player) {
     stats.ovr = effOvr;
     stats.accolades = generateAccolades(player, stats, effOvr, seasonAge);
     career.push(stats);
+
+    // Mirror into careerHistory shape (what _buildCareerCard reads).
+    // teamId/teamName are placeholders here — assignCareerTeams() patches
+    // them after rosters are assembled into the franchise.
+    const histRow = {
+      season: seasonYear, year: seasonYear, age: seasonAge, ovr: effOvr,
+      teamId: null, teamName: "—", pos,
+    };
+    for (const [k, v] of Object.entries(stats)) {
+      if (typeof v === "number") {
+        histRow[k] = v;
+        totals[k] = (totals[k] || 0) + v;
+      }
+    }
+    history.push(histRow);
   }
   player.career = career;
   player.careerTotals = computeCareerTotals(career, pos);
+  player.careerHistory = history;
+  player.careerStats = totals;
   // Aggregate trophies
   const all = career.flatMap(s => s.accolades || []);
   player.proBowls = all.filter(a => a === "Pro Bowl").length;
@@ -4384,6 +4406,44 @@ function generateCareer(player) {
   player.roys     = all.filter(a => a === "ROY").length;
   // Single-season records — only for monster seasons (best season >= 95 OVR)
   player.records = generateRecords(player, career, bestSeasonOvr);
+}
+
+// Stamp realistic team names onto each player's past-season history rows.
+// Called once rosters are assembled into a franchise so we know the
+// player's CURRENT team. Most vets stay put their whole career; ~25%
+// are "well-traveled" and have 1-2 past seasons on a former team.
+// Choice is deterministic from the player name hash so reloads stay
+// stable.
+function assignCareerTeams(rosters) {
+  for (const [teamIdStr, roster] of Object.entries(rosters || {})) {
+    const teamId = Number(teamIdStr);
+    const team = getTeam(teamId);
+    if (!team) continue;
+    const teamName = `${team.city} ${team.name}`;
+    for (const p of roster) {
+      const hist = p.careerHistory || [];
+      if (!hist.length) continue;
+      let h = 0;
+      for (const c of (p.name || "")) h = (h * 31 + c.charCodeAt(0)) | 0;
+      const ah = Math.abs(h);
+      const isWellTraveled = (ah % 100) < 25;
+      const formerTeam = isWellTraveled
+        ? TEAMS.filter(t => t.id !== teamId)[(ah >> 4) % (TEAMS.length - 1)]
+        : null;
+      const formerName = formerTeam ? `${formerTeam.city} ${formerTeam.name}` : null;
+      // First half of career on former team; second half on current team.
+      const switchAt = Math.max(1, Math.floor(hist.length / 2));
+      for (let i = 0; i < hist.length; i++) {
+        if (isWellTraveled && i < switchAt && formerTeam) {
+          hist[i].teamId = formerTeam.id;
+          hist[i].teamName = formerName;
+        } else {
+          hist[i].teamId = teamId;
+          hist[i].teamName = teamName;
+        }
+      }
+    }
+  }
 }
 
 function mockSeasonStats(pos, ovr, archetype) {
@@ -17645,6 +17705,10 @@ function _buildDraftLeague() {
   assignContracts(rosters, SALARY_CAP_BASE);
   const currentYear = new Date().getFullYear();
   assignDraftInfo(rosters, currentYear);
+  // Stamp the player's current team into their pre-existing career
+  // history so veterans show realistic team logos / city names per
+  // season (with occasional former-team trades for ~25% of vets).
+  assignCareerTeams(rosters);
   return { rosters, teamTiers };
 }
 
@@ -17729,6 +17793,17 @@ function showFranchiseDashboard() {
   for (const [tid, roster] of Object.entries(franchise.rosters || {})) {
     if (roster.some(p => !p.number)) assignTeamJerseyNumbers(roster);
   }
+  // Backfill career history for veterans loaded from older saves where
+  // generateCareer hadn't run with the careerHistory shape yet.
+  for (const [tid, roster] of Object.entries(franchise.rosters || {})) {
+    for (const p of roster) {
+      const age = p.age || 22;
+      if (age > 22 && (!p.careerHistory || !p.careerHistory.length)) {
+        generateCareer(p);
+      }
+    }
+  }
+  assignCareerTeams(franchise.rosters || {});
 
   $("franchiseHome").style.display = "block";
   const { phase } = franchise;
