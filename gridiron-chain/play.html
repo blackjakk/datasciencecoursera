@@ -18423,14 +18423,19 @@ function _buildCareerCard(p) {
   }
   // Pick stat columns based on position
   const cols = _careerColsFor(p.position);
-  const headerHtml = `<tr><th>SZN</th><th>TEAM</th><th>GP</th>${cols.map(c => `<th>${c.label}</th>`).join("")}</tr>`;
-  const rowsHtml = history.slice().reverse().map(row => `
-    <tr>
-      <td style="color:var(--gold)">${row.season}</td>
+  // YR = career year (1-indexed) — aligns with the "Yr N" used by
+  // draftStr. We don't display calendar year because multiple
+  // franchise seasons can map to the same calendar year.
+  const headerHtml = `<tr><th>YR</th><th>TEAM</th><th>GP</th>${cols.map(c => `<th>${c.label}</th>`).join("")}</tr>`;
+  const rowsHtml = history.slice().reverse().map((row, idx) => {
+    const careerYr = history.length - idx;
+    return `<tr>
+      <td style="color:var(--gold)">Yr ${careerYr}</td>
       <td style="font-size:.65rem;color:var(--gray)">${row.teamName}</td>
       <td>${row.gp || 0}</td>
       ${cols.map(c => `<td>${row[c.key] || 0}</td>`).join("")}
-    </tr>`).join("");
+    </tr>`;
+  }).join("");
   const totalsRow = `<tr style="border-top:2px solid var(--gold);font-weight:700">
     <td colspan="2" style="color:var(--gold)">CAREER</td>
     <td>${stats.gp || history.reduce((s,r)=>s+(r.gp||0),0)}</td>
