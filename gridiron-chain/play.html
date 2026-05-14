@@ -2444,6 +2444,52 @@
     font-size: .85rem; letter-spacing: .3px; margin-bottom: 1rem;
   }
 
+  /* Pregame matchup preview (above the featured user matchup card) */
+  .bspnlive-preview {
+    margin-bottom: .8rem; padding: .7rem .9rem;
+    background: var(--blbg3); border-left: 4px solid var(--blgold);
+  }
+  .bspnlive-preview-head {
+    color: var(--blgold); font-size: .65rem;
+    letter-spacing: 2px; font-weight: 700; margin-bottom: .55rem;
+  }
+  .bspnlive-preview-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: .9rem;
+  }
+  @media (max-width: 800px) { .bspnlive-preview-grid { grid-template-columns: 1fr; } }
+  .bspnlive-preview-meta { display: flex; flex-direction: column; gap: .25rem; }
+  .bspnlive-preview-h2h {
+    font-size: .72rem; color: var(--blwhite);
+    display: flex; gap: .35rem; align-items: baseline; flex-wrap: wrap;
+  }
+  .bspnlive-preview-label {
+    color: var(--blgray); font-size: .55rem; letter-spacing: 1.5px;
+    font-weight: 700; min-width: 3.5rem;
+  }
+  .bspnlive-preview-perfs {
+    display: grid; grid-template-columns: 1fr 1fr; gap: .55rem;
+  }
+  .bspnlive-preview-side { border: 1px solid var(--blborder); padding: .45rem .55rem; }
+  .bspnlive-preview-side-head {
+    display: flex; gap: .35rem; align-items: baseline;
+    color: var(--blwhite); font-size: .76rem; font-weight: 700;
+    margin-bottom: .25rem; padding-bottom: .15rem;
+    border-bottom: 1px dashed var(--blborder);
+  }
+  .bspnlive-preview-perf {
+    display: grid; grid-template-columns: 2rem 1fr auto;
+    gap: .35rem; align-items: baseline;
+    font-size: .7rem; padding: .12rem 0;
+  }
+  .bspnlive-preview-pos {
+    color: var(--blgold); font-size: .58rem; font-weight: 700;
+    letter-spacing: .5px;
+  }
+  .bspnlive-preview-fpts {
+    color: var(--blgray); font-size: .62rem; font-weight: 600;
+    text-align: right;
+  }
+
   /* Champion banner — dark plate with team accent stripe so white text
      reads cleanly regardless of how light the team's primary color is. */
   .bspnlive-champ-banner {
@@ -24062,6 +24108,98 @@ function startFrnPlayoffs() {
   renderFrnPlayoffs();
 }
 
+// Pregame matchup preview — surfaces head-to-head record this season,
+// top performers per side (regular-season FPTS), team off/def ratings,
+// and a one-line scout angle. Renders ABOVE the featured matchup card.
+function _renderPregamePreview(m, seeds) {
+  if (!m.homeId || !m.awayId || m.winnerId != null) return "";
+  const home = getTeam(m.homeId), away = getTeam(m.awayId);
+  if (!home || !away) return "";
+  // Season head-to-head from played schedule
+  const meetings = (franchise.schedule || []).filter(g =>
+    g.played && (
+      (g.homeId === m.homeId && g.awayId === m.awayId) ||
+      (g.homeId === m.awayId && g.awayId === m.homeId)
+    ));
+  const h2hHtml = meetings.length ? `
+    <div class="bspnlive-preview-h2h">
+      <span class="bspnlive-preview-label">H2H</span>
+      ${meetings.map(g => {
+        const winner = g.homeScore > g.awayScore ? g.homeId : g.awayScore > g.homeScore ? g.awayId : null;
+        const winT = winner ? getTeam(winner) : null;
+        return `<button onclick="frnOpenPlayoffBox === undefined || renderFrnPastGame(${g.week}, ${g.homeId}, ${g.awayId})"
+          style="background:transparent;border:0;color:var(--blwhite);font-family:inherit;cursor:pointer;font-size:.7rem;padding:0">
+          W${g.week}: <span style="color:${winT?.primary||'inherit'};font-weight:700">${winT?.name||"?"}</span> ${g.homeScore}-${g.awayScore}
+        </button>`;
+      }).join(" · ")}
+    </div>` : `<div class="bspnlive-preview-h2h"><span class="bspnlive-preview-label">H2H</span> <span style="color:var(--blgray)">No regular-season meeting</span></div>`;
+
+  // Top 3 performers each side, season-wide
+  const topForTeam = teamId => {
+    const players = franchise.seasonStats?.[teamId] || {};
+    const arr = Object.values(players).map(p => ({
+      name: p.name, pos: p.pos, fpts: _fantasyPPR ? _fantasyPPR(p, p.pos) : 0,
+    })).filter(p => p.fpts > 0).sort((a,b) => b.fpts - a.fpts).slice(0, 3);
+    return arr;
+  };
+  const renderTopList = (team, list) => `
+    <div class="bspnlive-preview-side" style="--team-color:${team.primary}">
+      <div class="bspnlive-preview-side-head">
+        <span style="color:${team.primary};font-weight:700">${team.abbr || team.name.slice(0,3).toUpperCase()}</span>
+        <span>${team.name}</span>
+      </div>
+      ${list.length ? list.map(p => `
+        <div class="bspnlive-preview-perf">
+          <span class="bspnlive-preview-pos">${p.pos}</span>
+          <span>${playerLinkByName(p.name)}</span>
+          <span class="bspnlive-preview-fpts">${p.fpts.toFixed(1)} FPTS</span>
+        </div>`).join("")
+      : `<div style="color:var(--blgray);font-size:.66rem;font-style:italic">No stats yet</div>`}
+    </div>`;
+
+  // Team ratings (off / def)
+  const homeRtg = (typeof frnTeamRating === "function") ? frnTeamRating(home.id) : { off: 50, def: 50 };
+  const awayRtg = (typeof frnTeamRating === "function") ? frnTeamRating(away.id) : { off: 50, def: 50 };
+  const offDiff = (awayRtg.off || 0) - (homeRtg.def || 0);
+  const defDiff = (homeRtg.off || 0) - (awayRtg.def || 0);
+  // Scout angle — pick the larger mismatch
+  let scout = "";
+  if (Math.abs(offDiff) > Math.abs(defDiff) && Math.abs(offDiff) >= 8) {
+    const adv = offDiff > 0 ? away : home;
+    scout = `Edge: ${adv.name} offense vs ${offDiff > 0 ? home.name : away.name} defense (${Math.abs(offDiff).toFixed(0)} pt gap)`;
+  } else if (Math.abs(defDiff) >= 8) {
+    const adv = defDiff > 0 ? home : away;
+    scout = `Edge: ${adv.name} offense vs ${defDiff > 0 ? away.name : home.name} defense (${Math.abs(defDiff).toFixed(0)} pt gap)`;
+  } else {
+    scout = `Evenly matched on paper — execution wins this one`;
+  }
+
+  return `
+    <div class="bspnlive-preview">
+      <div class="bspnlive-preview-head">📋 MATCHUP PREVIEW</div>
+      <div class="bspnlive-preview-grid">
+        <div class="bspnlive-preview-meta">
+          ${h2hHtml}
+          <div class="bspnlive-preview-h2h">
+            <span class="bspnlive-preview-label">RATINGS</span>
+            <span style="color:${away.primary};font-weight:700">${away.abbr || away.name.slice(0,3).toUpperCase()}</span>
+            OFF ${awayRtg.off?.toFixed?.(0) ?? "—"} / DEF ${awayRtg.def?.toFixed?.(0) ?? "—"} —
+            <span style="color:${home.primary};font-weight:700">${home.abbr || home.name.slice(0,3).toUpperCase()}</span>
+            OFF ${homeRtg.off?.toFixed?.(0) ?? "—"} / DEF ${homeRtg.def?.toFixed?.(0) ?? "—"}
+          </div>
+          <div class="bspnlive-preview-h2h">
+            <span class="bspnlive-preview-label">SCOUT</span>
+            <span style="color:var(--blwhite)">${scout}</span>
+          </div>
+        </div>
+        <div class="bspnlive-preview-perfs">
+          ${renderTopList(away, topForTeam(away.id))}
+          ${renderTopList(home, topForTeam(home.id))}
+        </div>
+      </div>
+    </div>`;
+}
+
 // Narrative one-liner per playoff matchup. Reads season schedule for
 // rematches, weighs seed gap, surfaces "first appearance" hints.
 function _playoffMatchupTag(m, seeds) {
@@ -24226,6 +24364,7 @@ function renderFrnPlayoffs() {
         </div>
         ${userMatchup ? `
           <div class="bspnlive-bracket-current-section">
+            ${userMatchup.winnerId == null ? _renderPregamePreview(userMatchup, seeds) : ""}
             ${matchupCard(userMatchup, roundIdx, userIdx, { featured: true })}
           </div>` : userStatus.eliminatedRound != null ? `
           <div class="bspnlive-bracket-eliminated">
