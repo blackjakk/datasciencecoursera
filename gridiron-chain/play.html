@@ -1445,10 +1445,10 @@
     --blbordr2:  #a2aab3;
     --blgreen:   #1b8a3a;
     --blgreen-d: #0f5f25;
-    --blgold:    #9a7409;       /* darker mustard — needs to read on white */
-    --blwhite:   #14181d;       /* primary text */
-    --blgray:    #4a5663;       /* darker than before — better contrast */
-    --blred:     #c2161f;
+    --blgold:    #8a6500;       /* darker mustard — reads on white & light cards */
+    --blwhite:   #0b0e13;       /* near-black primary text */
+    --blgray:    #3b4654;       /* readable secondary on white bg */
+    --blred:     #b81118;
     --away-color:#444;
     --home-color:#444;
 
@@ -2325,30 +2325,30 @@
   .bspnlive-bracket-team {
     display: grid; grid-template-columns: 1.5rem 2.4rem 1fr auto;
     gap: .5rem; align-items: baseline;
-    padding: .3rem .25rem;
-    border-bottom: 1px dashed rgba(0,0,0,0.06);
+    padding: .35rem .25rem;
+    border-bottom: 1px dashed rgba(0,0,0,0.08);
   }
   .bspnlive-bracket-team:last-of-type { border-bottom: 0; }
-  .bspnlive-bracket-team.loss { opacity: .42; }
+  .bspnlive-bracket-team.loss { opacity: .55; }
   .bspnlive-bracket-team .seed {
-    color: var(--blgray); font-size: .62rem; font-weight: 700;
+    color: var(--blwhite); font-size: .65rem; font-weight: 700;
     text-align: center; letter-spacing: .5px;
   }
   .bspnlive-bracket-team .abbr {
     font-family: "Bebas Neue","Anton",sans-serif;
-    font-size: .9rem; letter-spacing: 1.5px; font-weight: 700;
+    font-size: .95rem; letter-spacing: 1.5px; font-weight: 700;
   }
   .bspnlive-bracket-team .name {
-    color: var(--blwhite); font-size: .72rem;
+    color: var(--blwhite); font-size: .76rem; font-weight: 600;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .bspnlive-bracket-team .score {
     font-family: "Anton","Teko","Impact",sans-serif;
-    font-size: 1.6rem; line-height: 1; letter-spacing: -.04em;
-    font-variant-numeric: tabular-nums;
+    font-size: 1.7rem; line-height: 1; letter-spacing: -.04em;
+    font-variant-numeric: tabular-nums; font-weight: 900;
   }
-  .bspnlive-bracket-team .score.win { color: var(--blgold); }
-  .bspnlive-bracket-team .score.loss { color: var(--blgray); }
+  .bspnlive-bracket-team .score.win { color: #1f6b34; }   /* deep green pops on white */
+  .bspnlive-bracket-team .score.loss { color: #6b7280; }
   .bspnlive-bracket-actions { display: flex; gap: .35rem; margin-top: .2rem; flex-wrap: wrap; }
   .bspnlive-bracket-btn {
     background: transparent; border: 1px solid var(--blborder);
@@ -2362,24 +2362,28 @@
   .bspnlive-bracket-btn.box { border-color: var(--blgreen); color: var(--blgreen); }
   .bspnlive-bracket-btn.box:hover { background: var(--blgreen); color: #fff; }
 
-  /* Champion banner */
+  /* Champion banner — dark plate with team accent stripe so white text
+     reads cleanly regardless of how light the team's primary color is. */
   .bspnlive-champ-banner {
     margin: .8rem 1.4rem; padding: 1rem 1.4rem;
-    background: linear-gradient(90deg, var(--team-color, var(--blgold)) 0%, rgba(245,197,66,0.18) 100%);
+    background: #0e1117;
     border: 2px solid var(--team-color, var(--blgold));
+    border-left: 8px solid var(--team-color, var(--blgold));
     display: grid; grid-template-columns: auto 1fr auto;
     gap: 1.2rem; align-items: center;
     color: #fff;
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.05);
   }
-  .bspnlive-champ-crown { font-size: 2.4rem; line-height: 1; }
+  .bspnlive-champ-crown { font-size: 2.6rem; line-height: 1; }
   .bspnlive-champ-label {
-    color: rgba(255,255,255,0.85); font-size: .65rem;
+    color: #c9cfd6; font-size: .68rem;
     letter-spacing: 2.5px; font-weight: 700;
   }
   .bspnlive-champ-team {
     font-family: "Bebas Neue","Anton",sans-serif;
-    font-size: 1.8rem; letter-spacing: 1.5px; color: #fff;
-    text-shadow: 0 1px 1px rgba(0,0,0,0.4);
+    font-size: 2rem; letter-spacing: 1.5px;
+    color: var(--team-color, #fff);
+    text-shadow: 0 1px 0 rgba(0,0,0,0.6);
   }
 
   /* League chat */
