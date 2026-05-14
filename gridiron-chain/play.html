@@ -22495,7 +22495,20 @@ function renderFrnRegular() {
       ${allNews.map(n => `<span class="frn-ticker-item">W${n.week}: ${n.label}</span>`).join(" ")}
       <a href="javascript:void(0)" onclick="renderFrnNewsArchive()" style="color:var(--gold);font-weight:700;margin-left:auto;font-size:.62rem;text-decoration:none">Archive →</a>
     </div>` : "";
-  const newsHtml = faNewsHtml + tickerHtml;
+  // Active extension demands — surface as a banner alert with action buttons.
+  const demands = (franchise.holdoutDemands || []).filter(d => d.deadlineWeek >= franchise.week);
+  const demandsHtml = demands.length ? `
+    <div class="frn-fa-news" style="background:rgba(232,160,0,0.10);border:1px solid #e8a000">
+      <b style="color:#ffc850">📣 Extension demands (${demands.length}):</b>
+      ${demands.map(d => `
+        <span style="margin-left:.4rem">
+          ${d.position} ${playerLinkByName(d.name)} (~$${d.marketValue.toFixed(1)}M) —
+          extend by Wk ${d.deadlineWeek}
+          <button class="frn-cap-btn" style="margin-left:.2rem;color:var(--gold);border-color:var(--gold)"
+            onclick="frnExtendPlayer('${d.name.replace(/'/g, "\\'")}')">📝 Extend</button>
+        </span>`).join(" · ")}
+    </div>` : "";
+  const newsHtml = demandsHtml + faNewsHtml + tickerHtml;
 
   const bannerHtml = `
     <div class="frn-team-banner" style="--banner-color:${myTeam.primary}">
@@ -23070,6 +23083,9 @@ function _runWeekEndResolution() {
   if (franchise.autoSpendScouts !== false) _psAutoSpendVisits();
   _psWeeklyFlashRoll();
   _psPoachPass();
+  // Mid-season extension demands: stars in their contract year roll
+  // for "wants a new deal" / forces 1-week sit-out if ignored.
+  _checkHoldoutDemands();
   // League chat: AI teams react to last week's news
   _generateAITrashTalk();
 }
@@ -23744,6 +23760,98 @@ function renderFrnAnalytics(defaultTab) {
     <div class="frn-ana-body">${bodyHtml}</div>`;
 }
 
+// ── Franchise tag ─────────────────────────────────────────────────────────────
+// One per offseason. 1-year fully-guaranteed deal at the top-5 position
+// average AAV. Second consecutive tag on the same player carries a +20%
+// premium (which mirrors the NFL "second franchise tag" rule).
+function _positionTopAvgAAV(position, cap, n = 5) {
+  const all = [];
+  for (const roster of Object.values(franchise.rosters || {})) {
+    for (const p of roster) {
+      if (p.position === position && p.contract) all.push(p.contract.aav);
+    }
+  }
+  all.sort((a, b) => b - a);
+  const top = all.slice(0, n);
+  if (!top.length) return computeMarketValue({ position, overall: 80 }, cap);
+  return Math.round((top.reduce((s, v) => s + v, 0) / top.length) * 10) / 10;
+}
+function _franchiseTagAAV(player, cap) {
+  const base = _positionTopAvgAAV(player.position, cap);
+  const tagged = (franchise.franchiseTagHistory?.[player.name] || 0);
+  return Math.round(base * (1 + 0.20 * tagged) * 10) / 10;
+}
+function _franchiseTagAvailable() {
+  return franchise.franchiseTagUsed !== franchise.season;
+}
+
+// ── Mid-season holdouts ──────────────────────────────────────────────────────
+// Stars in the last year of their deal can demand a new contract DURING
+// the season. If user doesn't extend or move them within 4 weeks, they
+// hold out for a game (injury-style 1-week sit) and the demand expires.
+function _checkHoldoutDemands() {
+  const myId = franchise.chosenTeamId;
+  const roster = franchise.rosters[myId] || [];
+  franchise.holdoutDemands = franchise.holdoutDemands || [];
+  // New demand rolls — only for stars in their contract year, age ≤30
+  for (const p of roster) {
+    if (!p.contract || p.contract.remaining !== 1) continue;
+    if ((p.overall || 0) < 85) continue;
+    if ((p.age || 0) > 30) continue;
+    if (p.injury?.weeksRemaining > 0) continue;
+    if (franchise.holdoutDemands.some(d => d.name === p.name)) continue;
+    if (Math.random() >= 0.04) continue;
+    franchise.holdoutDemands.push({
+      name: p.name, position: p.position,
+      week: franchise.week, deadlineWeek: franchise.week + 4,
+      marketValue: computeMarketValue(p, franchise.salaryCap),
+    });
+    _pushNews({ type: "holdout_demand",
+      label: `📣 ${p.position} ${p.name} wants a new deal before his contract expires — extend by Week ${franchise.week + 4}` });
+  }
+  // Resolve expired demands → 1-game sit-out
+  for (const d of franchise.holdoutDemands.slice()) {
+    if (d.deadlineWeek <= franchise.week) {
+      const p = roster.find(r => r.name === d.name);
+      if (p && !p.injury) {
+        p.injury = { label: "holdout", weeksRemaining: 1 };
+        _pushNews({ type: "holdout",
+          label: `🚫 ${p.position} ${p.name} is holding out — not playing this week` });
+      }
+      franchise.holdoutDemands = franchise.holdoutDemands.filter(x => x.name !== d.name);
+    }
+  }
+}
+// Mid-season extension — replaces the player's contract with a fresh
+// one. Cancels any active holdout demand.
+function frnExtendPlayer(name) {
+  const myId = franchise.chosenTeamId;
+  const roster = franchise.rosters[myId] || [];
+  const p = roster.find(r => r.name === name);
+  if (!p) return;
+  const cap = franchise.salaryCap || SALARY_CAP_BASE;
+  const baseMarket = computeMarketValue(p, cap);
+  // Open inline modal-style picker — user picks 2-6 years.
+  const years = parseInt(prompt(
+    `Extend ${name}? Pick length (2-6 years):`, "4"
+  ), 10);
+  if (!years || years < 2 || years > 6) return;
+  const aav = _resignAavForYears(baseMarket, years);
+  const newTotal = aav * years;
+  if (!confirm(`Sign ${name} to ${years}yr / $${aav.toFixed(1)}M/yr ($${newTotal.toFixed(1)}M total)?`)) return;
+  const guaranteedYears = _guaranteedYearsForLength(years);
+  p.contract = {
+    years, remaining: years, aav,
+    guaranteedYears, guaranteedAAV: aav,
+    signedAav: aav,
+  };
+  franchise.holdoutDemands = (franchise.holdoutDemands || []).filter(d => d.name !== name);
+  _pushNews({ type: "extension",
+    label: `🤝 Extended ${p.position} ${name} — ${years}yr / $${aav.toFixed(1)}M/yr` });
+  saveFranchise();
+  showFranchiseDashboard();
+}
+
 // ── Re-signings screen ─────────────────────────────────────────────────────────
 // Per-player length picker (1-6 years) with AAV that scales inversely:
 // longer deal → small commitment discount, shorter deal → short-term
@@ -23833,12 +23941,16 @@ function _renderResignUI(cap, capCommitted) {
           })()}
         </div>
         <div class="frn-resign-btns">
-          ${isAccept
-            ? `<button class="btn frn-resign-btn accepted">✓ Accepted</button>`
-            : isDecline
-              ? `<button class="btn frn-resign-btn declined">✗ Declined</button>`
-              : `<button class="btn frn-resign-btn accept-btn" onclick="frnResignDecide(${idx},'accept')">Offer</button>
-                 <button class="btn frn-resign-btn decline-btn" onclick="frnResignDecide(${idx},'decline')">Let Walk</button>`}
+          ${r.decision === "tag"
+            ? `<button class="btn frn-resign-btn accepted" title="Franchise tagged: 1yr fully guaranteed">🏷 Tagged $${r.tagAAV?.toFixed(1)}M</button>`
+            : isAccept
+              ? `<button class="btn frn-resign-btn accepted">✓ Accepted</button>`
+              : isDecline
+                ? `<button class="btn frn-resign-btn declined">✗ Declined</button>`
+                : `<button class="btn frn-resign-btn accept-btn" onclick="frnResignDecide(${idx},'accept')">Offer</button>
+                   ${_franchiseTagAvailable() ? `<button class="btn frn-resign-btn accept-btn" style="border-color:var(--gold);color:var(--gold)"
+                     onclick="frnResignTag(${idx})" title="Franchise tag: 1yr fully guaranteed at top-5 position avg ($${_franchiseTagAAV({position: r.pos, name: r.name}, cap).toFixed(1)}M)">🏷 Tag</button>` : ""}
+                   <button class="btn frn-resign-btn decline-btn" onclick="frnResignDecide(${idx},'decline')">Let Walk</button>`}
         </div>
       </div>`;
   }).join("");
@@ -23867,6 +23979,23 @@ function _renderResignUI(cap, capCommitted) {
         ? `<div style="color:var(--gray);font-size:.72rem">${pending} decision${pending>1?"s":""} remaining</div>`
         : `<button class="btn btn-gold" onclick="frnConfirmResignings()">✓ Confirm & Continue Offseason</button>`}
     </div>`;
+}
+
+function frnResignTag(idx) {
+  if (!_franchiseTagAvailable()) { alert("You've already used your franchise tag this offseason."); return; }
+  const row = franchise._resignPending?.[idx];
+  if (!row || row.decision) return;
+  const cap = franchise.salaryCap || SALARY_CAP_BASE;
+  const tagAAV = _franchiseTagAAV({ position: row.pos, name: row.name }, cap);
+  if (!confirm(`Franchise tag ${row.name}? 1yr fully guaranteed at $${tagAAV.toFixed(1)}M. You only get one tag per offseason.`)) return;
+  row.decision = "tag";
+  row.tagAAV = tagAAV;
+  franchise.franchiseTagUsed = franchise.season;
+  saveFranchise();
+  const committed = (franchise.rosters[franchise.chosenTeamId] || [])
+    .filter(p => p.contract && p.contract.remaining > 0)
+    .reduce((s, p) => s + p.contract.aav, 0);
+  _renderResignUI(cap, committed);
 }
 
 function frnResignDecide(idx, decision) {
@@ -23903,12 +24032,27 @@ function frnConfirmResignings() {
   for (const r of (_resignPending || [])) {
     const player = myRoster.find(p => p.name === r.name && p.position === r.pos);
     if (!player) continue;
-    if (r.decision === "accept") {
+    if (r.decision === "tag") {
+      // Franchise tag: 1yr fully guaranteed at top-5 position avg.
+      // signedAav marks this contract as "already finalized" so the
+      // load-time retrofit doesn't add negotiation noise on top of
+      // what the user just locked in.
+      player.contract = {
+        years: 1, remaining: 1, aav: r.tagAAV,
+        guaranteedYears: 1, guaranteedAAV: r.tagAAV,
+        signedAav: r.tagAAV,
+      };
+      franchise.franchiseTagHistory = franchise.franchiseTagHistory || {};
+      franchise.franchiseTagHistory[r.name] = (franchise.franchiseTagHistory[r.name] || 0) + 1;
+      _pushNews({ type: "tag",
+        label: `🏷 Franchise-tagged ${r.pos} ${r.name} — 1yr / $${r.tagAAV.toFixed(1)}M fully guaranteed` });
+    } else if (r.decision === "accept") {
       const guaranteedYears = _guaranteedYearsForLength(r.offerYears);
       player.contract = {
         years: r.offerYears, remaining: r.offerYears, aav: r.offer,
-        guaranteedYears,                 // # of years still guaranteed
-        guaranteedAAV: r.offer,          // dead-cap per remaining guaranteed year
+        guaranteedYears,
+        guaranteedAAV: r.offer,
+        signedAav: r.offer,
       };
     } else {
       // Declined: remove from roster (enters FA — currently just lost)
