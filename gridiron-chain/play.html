@@ -21385,6 +21385,99 @@ function renderFrnStandings() {
     </div>`;
 }
 
+// ── BSPN LEAGUE LEADERS PAGE ───────────────────────────────────────────────
+// Top-10 leaders league-wide for the current season in: passing yards,
+// passing TDs, rushing yards, rushing TDs, receiving yards, receiving TDs,
+// sacks, tackles, INTs, FG made. Built from franchise.seasonStats which
+// already aggregates per-player numeric totals across played games.
+function renderFrnLeaders(tab) {
+  frnHoverTipHide(); _frnHoverTipPgHide && _frnHoverTipPgHide();
+  const myId = franchise.chosenTeamId;
+  // Flatten every player + team into a single list with team context
+  const all = [];
+  for (const [tidStr, players] of Object.entries(franchise.seasonStats || {})) {
+    const tid = Number(tidStr);
+    const team = getTeam(tid);
+    if (!team) continue;
+    for (const [name, p] of Object.entries(players || {})) {
+      all.push({ ...p, _teamId: tid, _team: team });
+    }
+  }
+  const cats = [
+    { id: "passing",   label: "PASSING YARDS",  key: "pass_yds",  scope: "QB",
+      extra: r => `${r.pass_td||0} TD · ${r.pass_int||0} INT` },
+    { id: "passingTd", label: "PASSING TDs",    key: "pass_td",   scope: "QB",
+      extra: r => `${r.pass_yds||0} YDS` },
+    { id: "rushing",   label: "RUSHING YARDS",  key: "rush_yds",  scope: "RB",
+      extra: r => `${r.rush_att||0} CAR · ${r.rush_td||0} TD` },
+    { id: "rushingTd", label: "RUSHING TDs",    key: "rush_td",   scope: "RB",
+      extra: r => `${r.rush_yds||0} YDS` },
+    { id: "receiving", label: "RECEIVING YARDS",key: "rec_yds",   scope: ["WR","TE"],
+      extra: r => `${r.rec||0} REC · ${r.rec_td||0} TD` },
+    { id: "receivingTd", label: "RECEIVING TDs",key: "rec_td",    scope: ["WR","TE"],
+      extra: r => `${r.rec_yds||0} YDS` },
+    { id: "sacks",     label: "SACKS",          key: "sk",        scope: ["DL","LB"],
+      extra: r => `${r.tkl||0} TKL` },
+    { id: "tackles",   label: "TACKLES",        key: "tkl",       scope: ["LB","S","CB","DL"],
+      extra: r => `${r.sk||0} SK · ${r.int_made||0} INT` },
+    { id: "ints",      label: "INTERCEPTIONS",  key: "int_made",  scope: ["CB","S","LB"],
+      extra: r => `${r.pd||0} PD · ${r.tkl||0} TKL` },
+    { id: "fg",        label: "FIELD GOALS",    key: "fg_made",   scope: "K",
+      extra: r => `${r.fg_att||0} ATT · LNG ${r.fg_long||0}` },
+  ];
+  const activeTab = tab && cats.find(c => c.id === tab) ? tab : cats[0].id;
+  const cat = cats.find(c => c.id === activeTab) || cats[0];
+  const scopeMatches = pos => Array.isArray(cat.scope) ? cat.scope.includes(pos) : cat.scope === pos;
+  const filtered = all.filter(r => scopeMatches(r.pos) && (r[cat.key] || 0) > 0);
+  filtered.sort((a, b) => (b[cat.key] || 0) - (a[cat.key] || 0));
+  const top10 = filtered.slice(0, 10);
+
+  const tabBar = cats.map(c =>
+    `<button class="bspnlive-nav-item ${c.id === activeTab ? "active" : ""}"
+       style="background:transparent;border:0;font-family:inherit;cursor:pointer;padding:0;${c.id===activeTab?"color:var(--blwhite)":""}"
+       onclick="renderFrnLeaders('${c.id}')">[${c.label.replace(/\s+/g,"+")}]</button>`
+  ).join(" ");
+
+  const rows = top10.length ? top10.map((r, i) => {
+    const isMine = r._teamId === myId;
+    return `<tr ${isMine ? `style="background:rgba(245,197,66,0.08)"` : ""}>
+      <td style="color:var(--blgold);font-weight:900;width:2rem;text-align:center;font-family:'Bebas Neue','Anton',sans-serif;font-size:1.1rem">${i + 1}</td>
+      <td>
+        <span style="font-family:'Bebas Neue','Anton',sans-serif;letter-spacing:1px;font-size:1rem;color:${isMine?"var(--blgold)":"var(--blwhite)"}">${playerLinkByName(r.name)}</span>
+        <span style="color:${r._team.primary};font-weight:700;margin-left:.45rem;font-size:.7rem">${r._team.abbr || r._team.name.slice(0,3).toUpperCase()}</span>
+        <span style="color:var(--blgray);font-size:.6rem;margin-left:.4rem">${r.pos}</span>
+      </td>
+      <td style="text-align:right;font-family:'Anton','Teko','Impact',sans-serif;font-size:1.5rem;line-height:1;font-weight:900;color:var(--blwhite)">${r[cat.key] || 0}</td>
+      <td style="text-align:right;color:var(--blgray);font-size:.65rem;letter-spacing:.4px;padding-left:.7rem">${cat.extra(r)}</td>
+    </tr>`;
+  }).join("") : `<tr><td colspan="4" style="color:var(--blgray);font-style:italic;text-align:center;padding:1.5rem">No qualifying players yet — sim more games.</td></tr>`;
+
+  $("frnHomeContent").innerHTML = `
+    <div class="bspnlive-root" style="margin:-1rem -1.5rem 0 -1.5rem;padding-bottom:1rem">
+      <header class="bspnlive-header">
+        <div>
+          <div class="bspnlive-logo">BSPN</div>
+          <div class="bspnlive-logo-sub">LEAGUE LEADERS · SEASON ${franchise.season}</div>
+        </div>
+        <nav class="bspnlive-nav" style="flex-wrap:wrap;gap:.7rem .9rem">${tabBar}</nav>
+      </header>
+      <div style="padding:.6rem 1.4rem;border-bottom:1px solid var(--blborder);display:flex;gap:1rem;align-items:center">
+        <button class="bspn-back" onclick="showFranchiseDashboard()">‹ Return to Main Screen</button>
+        <span style="color:var(--blgray);font-size:.7rem;letter-spacing:.5px">
+          Week ${Math.min(franchise.week, FRANCHISE_WEEKS)} of ${FRANCHISE_WEEKS} · Top 10 in ${cat.label.toLowerCase()}
+        </span>
+      </div>
+      <div style="padding:1rem 1.4rem">
+        <section class="bspn-panel" style="padding:.7rem 1rem">
+          <div class="bspn-panel-title" style="color:var(--blgold);font-size:.85rem;letter-spacing:2px">${cat.label}</div>
+          <table style="width:100%;border-collapse:collapse">
+            <tbody>${rows}</tbody>
+          </table>
+        </section>
+      </div>
+    </div>`;
+}
+
 function renderFrnLegacy(tab) {
   frnHoverTipHide(); _frnHoverTipPgHide && _frnHoverTipPgHide();
   tab = tab || "champions";
@@ -22804,6 +22897,7 @@ function renderFrnRegular() {
           <button class="frn-cap-btn" onclick="renderFrnDepthChart()">📋 Depth</button>
           <button class="frn-cap-btn" onclick="renderFrnCoaches()">🎩 Coaches</button>
           <button class="frn-cap-btn" onclick="renderFrnStandings()">📊 Standings</button>
+          <button class="frn-cap-btn" onclick="renderFrnLeaders()">📈 Leaders</button>
           <button class="frn-cap-btn" onclick="renderFrnLegacy()">🏆 Legacy</button>
           ${week <= TRADE_DEADLINE_WEEK ? `<button class="frn-cap-btn" onclick="frnOpenTrade()">🔀 Trade</button>` : ""}
           <button class="frn-cap-btn" onclick="renderFrnChat()">💬 Chat${(() => {
