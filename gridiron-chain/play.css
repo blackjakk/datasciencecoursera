@@ -711,20 +711,37 @@
   .frn-close-btn:hover { color: var(--white); }
   #frnBody { padding: .75rem 1rem; overflow-y: auto; flex: 1; }
 
-  .frn-team-grid { display: flex; flex-direction: column; gap: .25rem; }
+  .frn-team-grid { display: flex; flex-direction: column; gap: .22rem; }
   .frn-team-btn {
     background: var(--bg2); border: 1px solid var(--border);
-    padding: .35rem .6rem; cursor: pointer; text-align: left;
+    padding: .32rem .6rem; cursor: pointer; text-align: left;
     color: var(--white); font-family: inherit; font-size: .78rem;
-    display: flex; align-items: center; gap: .5rem;
+    display: grid; grid-template-columns: 2.4rem 1fr auto;
+    align-items: center; gap: .45rem;
     transition: background .1s, border-color .1s;
   }
   .frn-team-btn:hover { background: var(--bg3); border-color: var(--gold); }
-  .frn-ascii { color: var(--gold); font-size: .82rem; width: 3ch; text-align: center; flex-shrink: 0; }
-
-  .frn-dash { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-  @media (max-width: 650px) { .frn-dash { grid-template-columns: 1fr; } }
-  .frn-sec-title { font-size: .64rem; font-weight: 700; color: var(--gold); letter-spacing: .5px; margin-bottom: .4rem; padding-bottom: .2rem; border-bottom: 1px solid var(--border); }
+  .frn-ascii { color: var(--gold); font-size: .82rem; text-align: center; flex-shrink: 0; }
+  .frn-team-btn-body { display: flex; flex-direction: column; gap: .06rem; min-width: 0; }
+  .frn-team-btn-name { font-weight: 700; font-size: .75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .frn-team-btn-meta { font-size: .58rem; color: var(--gray); }
+  .frn-team-btn-right { display: flex; flex-direction: column; align-items: flex-end; gap: .2rem; }
+  .frn-team-colors { display: flex; gap: .18rem; }
+  .frn-color-swatch { width: .65rem; height: .65rem; border-radius: 1px; display: inline-block; border: 1px solid rgba(255,255,255,0.1); }
+  /* Franchise vitals card */
+  .frn-vitals-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: .5rem;
+    padding: .55rem .65rem; background: var(--bg2); border: 1px solid var(--border);
+    margin-bottom: .7rem;
+  }
+  @media (max-width: 650px) { .frn-vitals-grid { grid-template-columns: repeat(2, 1fr); } }
+  .frn-vital-cell { display: flex; flex-direction: column; gap: .12rem; }
+  .frn-vital-label { font-size: .56rem; letter-spacing: .5px; color: var(--gray); font-weight: 700; }
+  .frn-vital-value { font-size: .82rem; font-weight: 700; color: var(--white); }
+  .frn-vital-sub { font-size: .58rem; color: var(--gray); }
+  /* Color bar in detail banner */
+  .frn-color-bar { display: flex; height: .3rem; overflow: hidden; border-radius: 1px; margin-top: .4rem; gap: 1px; }
+  .frn-color-bar-seg { flex: 1; }
 
   .frn-schedule { max-height: 270px; overflow-y: auto; margin-bottom: .5rem; }
   .frn-game-row {

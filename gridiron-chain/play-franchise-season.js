@@ -178,15 +178,26 @@ function renderFrnTeamPicker() {
       <div style="font-size:.62rem;color:var(--gold);letter-spacing:.5px;margin-bottom:.3rem">${divKey.toUpperCase()}</div>
       <div class="frn-team-grid">`;
     for (const t of teams) {
-      const tier = _draftTierFor(t.id);
+      const tier    = _draftTierFor(t.id);
+      const roster  = _draftRosterFor(t.id);
+      const ratings = buildRatings(roster);
       pickerHtml += `<button class="frn-team-btn"
         onclick="renderFrnTeamDetail(${t.id})"
         onmouseenter="frnTeamTipShow(event,${t.id})"
         onmouseleave="frnTeamTipHide()"
         style="border-left:4px solid ${t.primary}">
-        <span class="frn-ascii">${teamAscii(t)}</span>
-        <span style="font-weight:700">${t.city} ${t.name}</span>
-        <span class="frn-team-tier tier-${tier}">${tier[0].toUpperCase()}</span>
+        <span class="frn-ascii">${t.emoji || teamAscii(t)}</span>
+        <div class="frn-team-btn-body">
+          <span class="frn-team-btn-name">${t.city} ${t.name}</span>
+          <span class="frn-team-btn-meta">OFF ${Math.round(ratings.offense)} · DEF ${Math.round(ratings.defense)} · ${roster.length} players</span>
+        </div>
+        <div class="frn-team-btn-right">
+          <div class="frn-team-colors">
+            <span class="frn-color-swatch" style="background:${t.primary}" title="${t.primary}"></span>
+            <span class="frn-color-swatch" style="background:${t.secondary||'#fff'}" title="${t.secondary||''}"></span>
+          </div>
+          <span class="frn-team-tier tier-${tier}">${tier[0].toUpperCase()}</span>
+        </div>
       </button>`;
     }
     pickerHtml += `</div></div>`;
@@ -292,10 +303,28 @@ function renderFrnTeamDetail(teamId) {
   // Star players — top 6 by scout grade
   const stars = roster.slice().sort((a,b) => scoutGrade(b) - scoutGrade(a)).slice(0, 6);
 
+  // ── Franchise vitals ───────────────────────────────────────────────────────
+  const capUsedPrev = roster.reduce((s,p) => s+(p.contract?.aav||0), 0);
+  const capBase = SALARY_CAP_BASE || 220;
+  const capLeft = capBase - capUsedPrev;
+  const avgAge  = roster.length ? (roster.reduce((s,p)=>s+(p.age||25),0)/roster.length).toFixed(1) : "—";
+  const qb      = roster.filter(p=>p.position==="QB").sort((a,b)=>b.overall-a.overall)[0];
+  const pb      = (typeof getPlaybook === "function") ? getPlaybook(team) : null;
+  const pbLabel = pb?.name || team.playbook?.replace(/_/g," ") || "Balanced";
+  const tierDesc = { powerhouse:"Turn-Key Contender", contender:"Solid Foundation", average:"Development Mode", rebuilding:"Full Rebuild" }[summary.tier] || "";
+  const diffColor = { powerhouse:"#7dff97", contender:"#aaffaa", average:"var(--gold)", rebuilding:"#ff9090" }[summary.tier] || "var(--gray)";
+
+  // Position depth counts
+  const posCounts = {};
+  for (const p of roster) posCounts[p.position] = (posCounts[p.position]||0)+1;
+  const depthStr = ["QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"]
+    .filter(p => posCounts[p])
+    .map(p => `${p} ×${posCounts[p]}`).join("  ·  ");
+
   $("frnHomeContent").innerHTML = `
-    <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.8rem;flex-wrap:wrap">
+    <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem;flex-wrap:wrap">
       <button class="btn btn-outline" onclick="renderFrnTeamPicker()">← Back to picker</button>
-      <div style="font-size:.78rem;color:var(--gray)">Inspect roster before choosing</div>
+      <div style="font-size:.75rem;color:var(--gray)">Inspect roster before committing</div>
       <button class="btn btn-gold-big" onclick="startFranchise(${teamId})" style="margin-left:auto">
         ✓ CHOOSE ${team.name.toUpperCase()}
       </button>
@@ -303,16 +332,44 @@ function renderFrnTeamDetail(teamId) {
 
     <div class="frn-team-banner" style="--banner-color:${team.primary}">
       <div class="frn-banner-stripe"></div>
-      <div class="frn-banner-ascii">${teamAscii(team)}</div>
-      <div class="frn-banner-info">
+      <div class="frn-banner-ascii" style="font-size:1.6rem">${team.emoji || teamAscii(team)}</div>
+      <div class="frn-banner-info" style="flex:1">
         <div class="frn-banner-name">${team.city.toUpperCase()} ${team.name.toUpperCase()}</div>
-        <div class="frn-banner-sub">
-          ${team.conference} ${team.division} ·
-          <span style="color:var(--gold-lt)">${TIER_LABEL[summary.tier]}</span> ·
-          OFF ${Math.round(ratings.offense)} · DEF ${Math.round(ratings.defense)}
+        <div class="frn-banner-sub">${team.conference} ${team.division} · <span style="color:var(--gold-lt)">${TIER_LABEL[summary.tier]}</span> · OFF ${Math.round(ratings.offense)} · DEF ${Math.round(ratings.defense)}</div>
+        <div class="frn-color-bar" style="max-width:120px">
+          <div class="frn-color-bar-seg" style="background:${team.primary}"></div>
+          <div class="frn-color-bar-seg" style="background:${team.secondary||'#fff'}"></div>
         </div>
       </div>
     </div>
+
+    <div class="frn-vitals-grid">
+      <div class="frn-vital-cell">
+        <span class="frn-vital-label">FRANCHISE MODE</span>
+        <span class="frn-vital-value" style="color:${diffColor}">${tierDesc}</span>
+        <span class="frn-vital-sub">${TIER_LABEL[summary.tier]}</span>
+      </div>
+      <div class="frn-vital-cell">
+        <span class="frn-vital-label">ROSTER</span>
+        <span class="frn-vital-value">${roster.length} players</span>
+        <span class="frn-vital-sub">Avg age ${avgAge}</span>
+      </div>
+      <div class="frn-vital-cell">
+        <span class="frn-vital-label">CAP SPACE</span>
+        <span class="frn-vital-value" style="color:${capLeft<20?'#ff9090':capLeft>50?'#7dff97':'var(--gold)'}">$${capLeft.toFixed(0)}M</span>
+        <span class="frn-vital-sub">$${capUsedPrev.toFixed(0)}M committed</span>
+      </div>
+      <div class="frn-vital-cell">
+        <span class="frn-vital-label">COLORS</span>
+        <span class="frn-vital-value" style="display:flex;align-items:center;gap:.3rem">
+          <span style="background:${team.primary};width:1.1rem;height:1.1rem;display:inline-block;border-radius:2px;border:1px solid rgba(255,255,255,0.15)"></span>
+          <span style="background:${team.secondary||'#fff'};width:1.1rem;height:1.1rem;display:inline-block;border-radius:2px;border:1px solid rgba(255,255,255,0.15)"></span>
+        </span>
+        <span class="frn-vital-sub">${pbLabel}</span>
+      </div>
+    </div>
+
+    <div style="font-size:.58rem;color:var(--gray);margin-bottom:.7rem;letter-spacing:.3px">${depthStr}</div>
 
     <div class="frn-card-box" style="margin-bottom:.8rem">
       <div class="frn-card-title">📋 SCOUT REPORT</div>
