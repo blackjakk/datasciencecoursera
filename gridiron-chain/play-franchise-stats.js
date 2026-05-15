@@ -1101,20 +1101,45 @@ function renderFrnStandings() {
 
 // ── BSPN LEAGUE LEADERS PAGE ───────────────────────────────────────────────
 // Top-10 leaders league-wide for the current season in: passing yards,
+// Aggregate a player's season stats across all team buckets — handles traded
+// players whose games are split across two team entries in franchise.seasonStats.
+function _playerSeasonStatsAgg(name) {
+  const agg = {};
+  for (const players of Object.values(franchise.seasonStats || {})) {
+    const entry = players[name];
+    if (!entry) continue;
+    for (const [k, v] of Object.entries(entry)) {
+      if (typeof v === "number") agg[k] = (agg[k] || 0) + v;
+      else if (!agg[k]) agg[k] = v;
+    }
+  }
+  return Object.keys(agg).length ? agg : null;
+}
+
 // passing TDs, rushing yards, rushing TDs, receiving yards, receiving TDs,
 // sacks, tackles, INTs, FG made. Built from franchise.seasonStats which
 // already aggregates per-player numeric totals across played games.
 function renderFrnLeaders(tab) {
   frnHoverTipHide(); _frnHoverTipPgHide && _frnHoverTipPgHide();
   const myId = franchise.chosenTeamId;
-  // Flatten every player + team into a single list with team context
+  // Flatten every player + team into a single list with team context,
+  // aggregating across buckets so traded players show full-season totals.
+  const seen = new Set();
   const all = [];
   for (const [tidStr, players] of Object.entries(franchise.seasonStats || {})) {
     const tid = Number(tidStr);
     const team = getTeam(tid);
     if (!team) continue;
     for (const [name, p] of Object.entries(players || {})) {
-      all.push({ ...p, _teamId: tid, _team: team });
+      if (seen.has(name)) continue; // already added via aggregation
+      seen.add(name);
+      const agg = _playerSeasonStatsAgg(name);
+      // Find current team for display (where the player is on the live roster)
+      let currentTeam = team;
+      for (const t of TEAMS) {
+        if ((franchise.rosters[t.id] || []).some(r => r.name === name)) { currentTeam = getTeam(t.id) || team; break; }
+      }
+      all.push({ ...agg, _teamId: currentTeam.id, _team: currentTeam });
     }
   }
   const cats = [

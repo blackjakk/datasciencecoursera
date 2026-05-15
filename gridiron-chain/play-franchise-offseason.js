@@ -2789,10 +2789,8 @@ function _renderResignUI(cap, capCommitted) {
   const myTeam = getTeam(chosenTeamId);
   let runningCap = capCommitted;
   const _statLine = name => {
-    for (const players of Object.values(franchise.seasonStats || {})) {
-      if (players[name]) return mvpStatLine(players[name]);
-    }
-    return "";
+    const agg = _playerSeasonStatsAgg(name);
+    return agg ? mvpStatLine(agg) : "";
   };
 
   const rows = _resignPending.map((r, idx) => {
@@ -3640,40 +3638,53 @@ function renderFrnOffseason() {
 function _renderHoldoutsBlock() {
   const list = franchise._holdouts || [];
   if (!list.length) return "";
+  const myRoster = franchise.rosters[franchise.chosenTeamId] || [];
   const rows = list.map(h => {
+    const live = myRoster.find(p => p.name === h.name);
+    const ovr = live?.overall ?? h.overall ?? "?";
+    const statLine = (() => { const agg = _playerSeasonStatsAgg(h.name); return agg ? mvpStatLine(agg) : ""; })();
+    const escName = (h.name||"").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
     if (h.resolved === "extended") {
-      return `<div class="frn-holdout-row resolved">
-        <span style="font-weight:700">${h.name}</span>
-        <span style="color:var(--gray);font-size:.65rem">(${h.position})</span>
-        <span style="color:var(--green-lt);margin-left:auto">✓ Extended at $${h.demandedAAV.toFixed(1)}M × ${h.demandedYears}yr</span>
+      return `<div class="frn-resign-row accepted">
+        <div class="frn-resign-info">
+          <span style="font-weight:700;color:var(--white)">${h.name}</span>
+          <span style="color:var(--gray);font-size:.7rem">${h.position} · ${ovr} OVR</span>
+        </div>
+        <div class="frn-resign-offer"><span style="color:var(--green-lt)">✓ Extended $${h.demandedAAV.toFixed(1)}M × ${h.demandedYears}yr</span></div>
       </div>`;
     }
     if (h.resolved === "ignored") {
-      return `<div class="frn-holdout-row resolved">
-        <span style="font-weight:700">${h.name}</span>
-        <span style="color:var(--gray);font-size:.65rem">(${h.position})</span>
-        <span style="color:#e8a000;margin-left:auto">⚠ Ignored — flight risk</span>
+      return `<div class="frn-resign-row declined">
+        <div class="frn-resign-info">
+          <span style="font-weight:700;color:var(--white)">${h.name}</span>
+          <span style="color:var(--gray);font-size:.7rem">${h.position} · ${ovr} OVR</span>
+        </div>
+        <div class="frn-resign-offer"><span style="color:#e8a000">⚠ Ignored — flight risk</span></div>
       </div>`;
     }
-    const escName = (h.name||"").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-    return `<div class="frn-holdout-row">
-      <div style="flex:1">
-        <div style="font-weight:700">${h.name} <span style="color:var(--gray);font-size:.65rem">(${h.position})</span></div>
-        <div style="color:var(--gray);font-size:.66rem">
-          Paid $${h.currentAAV.toFixed(1)}M · Wants <b style="color:var(--gold)">$${h.demandedAAV.toFixed(1)}M × ${h.demandedYears}yr</b>
-        </div>
+    const raise = h.demandedAAV - h.currentAAV;
+    return `<div class="frn-resign-row">
+      <div class="frn-resign-info">
+        <span style="font-weight:700;color:var(--white)">${h.name}</span>
+        <span style="color:var(--gray);font-size:.7rem">${h.position} · ${ovr} OVR · Age ${live?.age ?? "?"}</span>
+        ${statLine ? `<span style="color:var(--gray);font-size:.6rem;font-style:italic">${statLine}</span>` : ""}
       </div>
-      <div style="display:flex;gap:.3rem">
-        <button class="btn btn-gold" onclick="frnHoldoutExtend('${escName}')" style="font-size:.6rem;padding:.2rem .45rem">✓ Extend</button>
-        <button class="btn btn-outline" onclick="frnHoldoutTrade('${escName}')" style="font-size:.6rem;padding:.2rem .45rem">🔀 Trade</button>
-        <button class="btn btn-outline" onclick="frnHoldoutIgnore('${escName}')" style="font-size:.6rem;padding:.2rem .45rem;color:var(--red)">✗ Ignore</button>
+      <div class="frn-resign-offer">
+        <span style="color:var(--gold);font-weight:700">$${h.demandedAAV.toFixed(1)}M/yr × ${h.demandedYears}yr</span>
+        <span style="color:var(--gray);font-size:.6rem">Currently $${h.currentAAV.toFixed(1)}M · +$${raise.toFixed(1)}M raise</span>
+        <span style="color:var(--gray);font-size:.6rem">Total $${(h.demandedAAV * h.demandedYears).toFixed(1)}M</span>
+      </div>
+      <div class="frn-resign-btns">
+        <button class="btn frn-resign-btn accept-btn" onclick="frnHoldoutExtend('${escName}')">✓ Extend</button>
+        <button class="btn frn-resign-btn" onclick="frnHoldoutTrade('${escName}')" style="border-color:var(--gold);color:var(--gold)">🔀 Trade</button>
+        <button class="btn frn-resign-btn decline-btn" onclick="frnHoldoutIgnore('${escName}')">✗ Ignore</button>
       </div>
     </div>`;
   }).join("");
   return `
     <div class="frn-sec-title" style="margin-top:1rem">🗣 CONTRACT DEMANDS (${list.length})</div>
-    <div style="color:var(--gray);font-size:.68rem;margin-bottom:.4rem">Underpaid stars are demanding extensions. Resolve or risk losing them.</div>
-    <div class="frn-holdouts-list">${rows}</div>`;
+    <div style="color:var(--gray);font-size:.68rem;margin-bottom:.4rem">Underpaid stars demanding extensions — same buttons, same style as re-signings.</div>
+    <div class="frn-resign-list">${rows}</div>`;
 }
 
 // ── New season ────────────────────────────────────────────────────────────────
@@ -4530,27 +4541,6 @@ function frnSubmitTrade() {
       if (i !== -1) theirRoster.splice(i, 1);
       myRoster.push(p);
     }
-    // Move season stats with the player so their full-season totals stay intact
-    const _moveStats = (fromId, toId, players) => {
-      if (!franchise.seasonStats) return;
-      const fromBucket = franchise.seasonStats[fromId];
-      if (!fromBucket) return;
-      if (!franchise.seasonStats[toId]) franchise.seasonStats[toId] = {};
-      const toBucket = franchise.seasonStats[toId];
-      for (const p of players) {
-        const entry = fromBucket[p.name];
-        if (!entry) continue;
-        if (toBucket[p.name]) {
-          for (const [k, v] of Object.entries(entry))
-            if (typeof v === "number") toBucket[p.name][k] = (toBucket[p.name][k] || 0) + v;
-        } else {
-          toBucket[p.name] = entry;
-        }
-        delete fromBucket[p.name];
-      }
-    };
-    _moveStats(myId, otherId, sendPlayers);
-    _moveStats(otherId, myId, recvPlayers);
     // Picks — flip currentOwnerId
     for (const pk of sendPicks)  pk.currentOwnerId = otherId;
     for (const pk of recvPicks)  pk.currentOwnerId = myId;
