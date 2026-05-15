@@ -443,9 +443,66 @@ function renderFrnPreseason(tab, scoutId, scoutView, selName) {
   else if (tab === "schedule") body = _preseasonScheduleTab(schedule, chosenTeamId);
   else                         body = _preseasonScoutTab(chosenTeamId, scoutId, scoutView, selName);
 
+  // Fix 3: Over-cap wizard — shown instead of normal content when significantly over cap.
+  const overCapWizard = (() => {
+    if (capLeft >= 0) return "";
+    const overBy = Math.abs(capLeft);
+    const roster = myRoster.filter(p => p.contract);
+
+    // Sort candidates: free cuts first (no dead cap), then by net savings descending
+    const candidates = roster.map(p => {
+      const hit = currentYearCapHit(p);
+      const { perYear: deadPY, years: deadYrs } = deadCapOnRelease(p);
+      const dead = deadPY * Math.min(deadYrs, 1); // Only this year's dead cap matters for relief
+      const netSave = hit - dead;
+      return { p, hit, dead, deadPY, deadYrs, netSave };
+    }).filter(c => c.netSave > 0.3)
+      .sort((a, b) => {
+        // Free cuts (no dead cap) first, then by net savings
+        const aFree = a.dead < 0.5 ? 1 : 0;
+        const bFree = b.dead < 0.5 ? 1 : 0;
+        if (aFree !== bFree) return bFree - aFree;
+        return b.netSave - a.netSave;
+      })
+      .slice(0, 12);
+
+    const rows = candidates.map(({ p, hit, dead, deadPY, deadYrs, netSave }) => {
+      const escN = p.name.replace(/'/g, "\\'");
+      const isFree = dead < 0.5;
+      return `<tr style="${isFree ? "background:rgba(0,180,0,.06)" : ""}">
+        <td style="font-weight:700;color:${isFree?"var(--green-lt)":"var(--white)"}">${isFree?"✓ ":""}${p.name}</td>
+        <td style="color:var(--gray);font-size:.68rem">${p.position}</td>
+        <td>${gradeBadge(p)}</td>
+        <td style="color:var(--red);font-weight:700">$${hit.toFixed(1)}M</td>
+        <td style="color:${isFree?"var(--gray)":"#ff9090"};font-size:.65rem">${isFree ? "No dead cap" : `☠ $${deadPY.toFixed(1)}M×${deadYrs}yr`}</td>
+        <td style="color:var(--green-lt);font-weight:700">+$${netSave.toFixed(1)}M</td>
+        <td style="color:var(--gray);font-size:.65rem">${p.contract.remaining}yr</td>
+        <td><button class="btn btn-outline" onclick="frnReleasePlayer('${escN}','${p.position}')" style="font-size:.6rem;padding:.15rem .4rem;color:var(--red)">✗ Cut</button></td>
+      </tr>`;
+    }).join("");
+
+    return `<div style="background:rgba(220,50,50,.08);border:1px solid rgba(220,50,50,.4);border-radius:6px;padding:.8rem 1rem;margin-bottom:.8rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;flex-wrap:wrap;gap:.4rem">
+        <div>
+          <span style="font-size:1rem;font-weight:900;color:var(--red)">⚠ OVER THE CAP BY $${overBy.toFixed(1)}M</span>
+          <span style="color:var(--gray);font-size:.72rem;margin-left:.6rem">Must get under $${cap.toFixed(0)}M to start the season</span>
+        </div>
+        <div style="display:flex;gap:.5rem">
+          <button class="btn btn-outline" onclick="renderFrnAnalytics('cuts')" style="font-size:.68rem">📋 Full Cut List</button>
+          <button class="btn btn-outline" onclick="renderFrnAnalytics('caphealth')" style="font-size:.68rem">↺ Restructures</button>
+        </div>
+      </div>
+      <p style="font-size:.63rem;color:var(--gray);margin-bottom:.5rem">✓ Green rows = free cuts (no dead cap). Cut these first. Net save = cap relief after dead money.</p>
+      <div style="overflow-x:auto"><table class="frn-ana-table" style="font-size:.7rem">
+        <thead><tr><th>Player</th><th>Pos</th><th>Grade</th><th>Cap Hit</th><th>Dead Cap</th><th>Net Save</th><th>Yrs</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>
+    </div>`;
+  })();
+
   $("frnHomeContent").innerHTML = `
     ${bannerHtml}
-    ${overCap ? `<div class="frn-pre-warn">⚠ You are over the cap by $${Math.abs(capLeft).toFixed(1)}M. Cut players to get under $${cap.toFixed(0)}M before starting the season.</div>` : ""}
+    ${overCapWizard}
     <div class="frn-ana-tabs">${tabBar}</div>
     <div class="frn-ana-body">${body}</div>
     <div class="frn-footer-row">

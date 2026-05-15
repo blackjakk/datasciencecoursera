@@ -140,14 +140,30 @@ function _defaultStructure(age, ovr) {
 function generateContract(player, cap, structureOverride) {
   const ovr = player.overall || 70;
   const age = player.age || 25;
+
+  // Fix 1: Minimum salary for low-OVR players — 1yr, no signing bonus, zero dead cap.
+  // These are the easy "camp cut" candidates that give GMs roster flexibility.
+  if (ovr < 70) {
+    const minAav = Math.max(0.8, Math.round((0.8 + Math.random() * 0.7) * 10) / 10);
+    return {
+      years: 1, remaining: 1, aav: minAav, structure: "BALANCED",
+      baseSalaries: [minAav], signingBonus: 0, bonusProration: 0,
+      guaranteedYears: 0, guaranteedAAV: minAav, incentives: [], signedAav: minAav,
+    };
+  }
+
   const market = computeMarketValue(player, cap);
   const factor = negotiationFactor(player);
   const aav = Math.max(0.5, Math.round(market * factor * 10) / 10);
-  // Contract length: rookies get 4yr; stars (85+) get 4-7; others 2-5; all capped at 10
+
+  // Fix 4: Backup contract length cap — lower-OVR players get shorter deals
+  // so there's always a pool of cuttable contracts without long dead-cap tails.
   let minYr = 2, maxYr = 5;
   if (age <= 23)      { minYr = 4; maxYr = 4; }
   else if (ovr >= 88) { minYr = 4; maxYr = 7; }
-  else if (ovr >= 80) { minYr = 3; maxYr = 6; }
+  else if (ovr >= 82) { minYr = 3; maxYr = 6; }
+  else if (ovr >= 76) { minYr = 2; maxYr = 3; } // solid backups: 2-3yr max
+  else                { minYr = 1; maxYr = 2; } // fringe starters: 1-2yr only
   maxYr = Math.min(maxYr, Math.max(1, 38 - age));
   const years = Math.max(1, Math.min(10, minYr + Math.floor(Math.random() * (maxYr - minYr + 1))));
   const structure = structureOverride || _defaultStructure(age, ovr);
@@ -157,7 +173,7 @@ function generateContract(player, cap, structureOverride) {
     years, remaining: years, aav, structure,
     baseSalaries, signingBonus, bonusProration,
     guaranteedYears: _guaranteedYearsForLength(years),
-    guaranteedAAV: aav,
+    guaranteedAAV: aav, incentives: [],
   };
 }
 
@@ -208,15 +224,56 @@ function rookieContract(player, cap) {
 }
 
 function assignContracts(rosters, cap) {
+  const capTarget = (cap || SALARY_CAP_BASE) * 0.90; // Fix 2: target 90% of cap per roster
   for (const roster of Object.values(rosters)) {
+    const freshPlayers = [];
     for (const p of roster) {
       if (!p.contract) {
         p.contract = generateContract(p, cap);
         if ((p.age || 25) > 23) {
           p.contract.remaining = Math.max(1, Math.ceil(Math.random() * p.contract.years));
         }
+        freshPlayers.push(p);
       }
     }
+
+    // Fix 2: Cap-aware normalization for fresh rosters.
+    // If total cap hit exceeds 90% of cap, scale down lower-OVR players first,
+    // then proportionally scale everyone until we're within budget.
+    if (freshPlayers.length >= roster.length * 0.8) {
+      let totalHit = roster.reduce((s, p) => s + currentYearCapHit(p), 0);
+      if (totalHit > capTarget) {
+        // First pass: convert OVR<75 players to minimum deals if still over
+        for (const p of roster) {
+          if (totalHit <= capTarget) break;
+          if ((p.overall || 70) < 75 && p.contract && p.contract.bonusProration > 0) {
+            const oldHit = currentYearCapHit(p);
+            const minAav = Math.max(0.8, Math.round((0.8 + Math.random() * 0.5) * 10) / 10);
+            p.contract = { years:1, remaining:1, aav:minAav, structure:"BALANCED",
+              baseSalaries:[minAav], signingBonus:0, bonusProration:0,
+              guaranteedYears:0, guaranteedAAV:minAav, incentives:[], signedAav:minAav };
+            totalHit -= (oldHit - minAav);
+          }
+        }
+        // Second pass: proportional scale-down of everyone if still over
+        totalHit = roster.reduce((s, p) => s + currentYearCapHit(p), 0);
+        if (totalHit > capTarget) {
+          const scale = capTarget / totalHit;
+          for (const p of roster) {
+            if (!p.contract) continue;
+            p.contract.aav = Math.max(0.5, Math.round(p.contract.aav * scale * 10) / 10);
+            const { signingBonus, bonusProration } = _signingBonusCalc(p.contract.aav, p.contract.years || 1, p.overall || 70);
+            p.contract.signingBonus   = signingBonus;
+            p.contract.bonusProration = bonusProration;
+            p.contract.baseSalaries   = _baseSalarySchedule(p.contract.aav, p.contract.years || 1, p.contract.structure || "BALANCED", bonusProration);
+          }
+        }
+      }
+      // Mark all as having been through the new system
+      for (const p of roster) if (p.contract) p.contract.signedAav = p.contract.aav;
+      continue;
+    }
+
     // Retrofit older saves: apply negotiation variance, normalise so AAV total is preserved.
     const needsRetrofit = roster.some(p => p.contract && p.contract.signedAav == null);
     if (!needsRetrofit) {
