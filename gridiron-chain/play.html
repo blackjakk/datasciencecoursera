@@ -18666,7 +18666,14 @@ function _migrateLegacySave() {
   } catch {}
 }
 
+let _saveFranchiseTimer = null;
 function saveFranchise() {
+  if (!franchise) return;
+  if (_saveFranchiseTimer) clearTimeout(_saveFranchiseTimer);
+  _saveFranchiseTimer = setTimeout(_flushSaveFranchise, 600);
+}
+function _flushSaveFranchise() {
+  _saveFranchiseTimer = null;
   if (!franchise) return;
   const meta = _readSlotsMeta();
   let activeId = meta.activeSlotId;
@@ -18693,6 +18700,7 @@ function saveFranchise() {
   _writeSlotsMeta(meta);
   try { localStorage.setItem(_slotDataKey(activeId), JSON.stringify(franchise)); } catch {}
 }
+window.addEventListener("beforeunload", () => { if (_saveFranchiseTimer) _flushSaveFranchise(); });
 
 function loadFranchise() {
   _migrateLegacySave();
@@ -19824,13 +19832,19 @@ function _maybeEnshrineHOF(player, team) {
   if (!check || !check(player)) return;
   if (!franchise.hallOfFame) franchise.hallOfFame = [];
   // Snapshot enough data to display the entry forever
+  const _hofStatKeys = ["pass_yds","pass_td","rush_yds","rec_yds","sk","int_made","pancakes"];
   franchise.hallOfFame.push({
     name: player.name, pos: player.position,
     age: player.age, season: franchise.season,
     teamName: team ? `${team.city} ${team.name}` : "?",
     careerStats: { ...(player.careerStats || {}) },
     careerEarnings: player.careerEarnings || 0,
-    careerHistory: (player.careerHistory || []).slice(),
+    careerYears: (player.careerHistory || []).length,
+    careerHistory: (player.careerHistory || []).map(r => {
+      const slim = { season: r.season, pos: r.pos };
+      for (const k of _hofStatKeys) if (r[k]) slim[k] = r[k];
+      return slim;
+    }),
   });
   _pushNews({ type: "hof", season: franchise.season, label: `🏆 ${player.name} (${player.position}) enshrined in the Hall of Fame after ${player.careerHistory?.length || 0} seasons` });
 }
@@ -23133,7 +23147,7 @@ function _legacyHOF() {
   if (!list.length) return `<div style="color:var(--gray);font-size:.78rem;padding:1rem;text-align:center;font-style:italic">The Hall of Fame opens with the first elite retirement.</div>`;
   return list.map(h => {
     const cs = h.careerStats || {};
-    const yrs = h.careerHistory?.length || 0;
+    const yrs = h.careerYears ?? h.careerHistory?.length ?? 0;
     // Position-aware stat highlights
     let highlights = "";
     if (h.pos === "QB") highlights = `${cs.pass_yds||0} yds · ${cs.pass_td||0} TD · ${cs.pass_int||0} INT`;
@@ -30720,6 +30734,7 @@ function _rollSeasonStatsToCareer() {
         if (typeof v === "number" || k === "pos") yearRow[k] = v;
       }
       player.careerHistory.push(yearRow);
+      if (player.careerHistory.length > 20) player.careerHistory = player.careerHistory.slice(-20);
     }
   }
 }
