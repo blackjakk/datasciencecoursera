@@ -2637,6 +2637,26 @@ function _checkCoachHotSeat() {
 
 // ── Franchise tag ─────────────────────────────────────────────────────────────
 // One per offseason. 1-year fully-guaranteed deal at the top-5 position
+// Highest single AAV at a position across all league rosters.
+function _positionLeagueMax(position) {
+  let max = 0;
+  for (const roster of Object.values(franchise.rosters || {}))
+    for (const p of roster)
+      if (p.position === position && p.contract && p.contract.aav > max) max = p.contract.aav;
+  return Math.round(max * 10) / 10;
+}
+
+// Render a compact contract-context bar: market / top-5 avg / league max.
+function _contractContextBar(position, marketValue, cap) {
+  const avg5 = _positionTopAvgAAV(position, cap);
+  const lmax = _positionLeagueMax(position);
+  return `<div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.2rem">
+    <span style="font-size:.58rem;color:var(--gray)">MKT <b style="color:var(--white)">$${marketValue.toFixed(1)}M</b></span>
+    <span style="font-size:.58rem;color:var(--gray)">TOP-5 AVG <b style="color:var(--gold)">$${avg5.toFixed(1)}M</b></span>
+    <span style="font-size:.58rem;color:var(--gray)">LG MAX <b style="color:#e8a000">$${lmax.toFixed(1)}M</b></span>
+  </div>`;
+}
+
 // average AAV. Second consecutive tag on the same player carries a +20%
 // premium (which mirrors the NFL "second franchise tag" rule).
 function _positionTopAvgAAV(position, cap, n = 5) {
@@ -2837,10 +2857,10 @@ function _renderResignUI(cap, capCommitted) {
           <span style="font-weight:700;color:var(--white)">${r.name}</span>
           <span style="color:var(--gray);font-size:.7rem">${r.pos} · ${r.overall} OVR · Age ${r.age}</span>
           ${_statLine(r.name) ? `<span style="color:var(--gray);font-size:.6rem;font-style:italic">${_statLine(r.name)}</span>` : ""}
-          <span style="font-size:.6rem;color:var(--gray)">Mkt: <span style="color:${r.offer <= r.baseMarket * 1.05 ? 'var(--green-lt)' : '#e8a000'}">$${r.baseMarket.toFixed(1)}M</span></span>
+          ${_contractContextBar(r.pos, r.baseMarket, cap)}
         </div>
         <div class="frn-resign-offer">
-          <span style="color:var(--gold);font-weight:700">$${r.offer.toFixed(1)}M/yr</span>
+          <span style="color:${r.offer > r.baseMarket * 1.1 ? 'var(--red)' : r.offer < r.baseMarket * 0.9 ? 'var(--green-lt)' : 'var(--gold)'};font-weight:700">$${r.offer.toFixed(1)}M/yr ${vsMarketCell(r.offer, r.baseMarket)}</span>
           <div style="display:flex;align-items:center;gap:.25rem;justify-content:flex-end;margin-top:.15rem">
             <button class="frn-resign-yrbtn"
               ${r.offerYears <= _RESIGN_MIN_YEARS || isLocked ? "disabled" : ""}
@@ -3662,17 +3682,22 @@ function _renderHoldoutsBlock() {
         <div class="frn-resign-offer"><span style="color:#e8a000">⚠ Ignored — flight risk</span></div>
       </div>`;
     }
+    const cap = franchise.salaryCap || SALARY_CAP_BASE;
+    const marketVal = live ? computeMarketValue(live, cap) : h.demandedAAV;
     const raise = h.demandedAAV - h.currentAAV;
+    const demandVsMarket = h.demandedAAV - marketVal;
+    const demandColor = demandVsMarket > 2 ? "var(--red)" : demandVsMarket < -1 ? "var(--green-lt)" : "var(--gold)";
     return `<div class="frn-resign-row">
       <div class="frn-resign-info">
         <span style="font-weight:700;color:var(--white)">${h.name}</span>
         <span style="color:var(--gray);font-size:.7rem">${h.position} · ${ovr} OVR · Age ${live?.age ?? "?"}</span>
         ${statLine ? `<span style="color:var(--gray);font-size:.6rem;font-style:italic">${statLine}</span>` : ""}
+        ${_contractContextBar(h.position, marketVal, cap)}
       </div>
       <div class="frn-resign-offer">
-        <span style="color:var(--gold);font-weight:700">$${h.demandedAAV.toFixed(1)}M/yr × ${h.demandedYears}yr</span>
+        <span style="color:${demandColor};font-weight:700">$${h.demandedAAV.toFixed(1)}M/yr × ${h.demandedYears}yr</span>
         <span style="color:var(--gray);font-size:.6rem">Currently $${h.currentAAV.toFixed(1)}M · +$${raise.toFixed(1)}M raise</span>
-        <span style="color:var(--gray);font-size:.6rem">Total $${(h.demandedAAV * h.demandedYears).toFixed(1)}M</span>
+        <span style="color:var(--gray);font-size:.6rem">Total $${(h.demandedAAV * h.demandedYears).toFixed(1)}M · ${demandVsMarket > 1 ? `<span style="color:var(--red)">+$${demandVsMarket.toFixed(1)}M above mkt</span>` : demandVsMarket < -1 ? `<span style="color:var(--green-lt)">$${Math.abs(demandVsMarket).toFixed(1)}M below mkt</span>` : `<span style="color:var(--gray)">≈ market</span>`}</span>
       </div>
       <div class="frn-resign-btns">
         <button class="btn frn-resign-btn accept-btn" onclick="frnHoldoutExtend('${escName}')">✓ Extend</button>
