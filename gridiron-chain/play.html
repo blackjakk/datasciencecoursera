@@ -20777,11 +20777,19 @@ function _faAIBidAmount(teamId, fa, currentHighAav) {
   const bigNeed = !bestSame || bestSame.overall < fa.overall - 5;
   const ampleRoom = room >= demand * 1.6;
   const goNuclear = bigNeed && ampleRoom && Math.random() < 0.08;
-  const ceilMul = goNuclear ? 1.7 : 1.35;
+  // Knockout war: any team that has already bid in this neg and has
+  // sunk-cost commitment will fight past their normal ceiling.
+  const neg = franchise.faNegotiations?.[fa.name];
+  const knockoutWar = neg?.knockoutWar;
+  const isWarParticipant = knockoutWar
+    && ((neg.aiBids?.[teamId]?.aav || 0) >= demand * FA_KNOCKOUT_MULT * 0.7);
+  let ceilMul = goNuclear ? 1.7 : 1.35;
+  if (isWarParticipant) ceilMul = 2.1;
   const ceil  = Math.min(demand * ceilMul, room);
   if (floor > ceil) return null;
-  // Nuclear bids skew toward the top of the range so they actually trigger
-  const t = goNuclear ? 0.6 + Math.random() * 0.4 : Math.random();
+  // Nuclear / war bids skew toward the top of the range so they actually escalate
+  const skewTop = goNuclear || isWarParticipant;
+  const t = skewTop ? 0.6 + Math.random() * 0.4 : Math.random();
   const aav = Math.round((floor + t * (ceil - floor)) * 10) / 10;
   const years = Math.max(2, Math.min(fa.demandedYears, 5));
   return { aav, years };
@@ -20807,9 +20815,14 @@ function _faAIBidRound(week, isInitial) {
       }
     }
 
+    const koThreshold = fa.demandedAAV * FA_KNOCKOUT_MULT;
     for (const t of TEAMS) {
       if (t.id === franchise.chosenTeamId) continue;
-      if (Math.random() > _faAIInterest(t.id, fa)) continue;
+      // War participants (teams that already crossed the knockout threshold)
+      // skip the interest roll — they have sunk cost and stay in the fight.
+      const isWarParticipant = neg?.knockoutWar
+        && (neg.aiBids?.[t.id]?.aav || 0) >= koThreshold * 0.7;
+      if (!isWarParticipant && Math.random() > _faAIInterest(t.id, fa)) continue;
       // If this AI team is already the high bidder, don't outbid themselves
       if (t.id === highId) continue;
       const bid = _faAIBidAmount(t.id, fa, highAav);
@@ -20827,10 +20840,12 @@ function _faAIBidRound(week, isInitial) {
       n.raisedThisRound = true;
       n.lastRaiseWeek = week;
       highAav = bid.aav; highId = t.id;
-      // Knockout check: if this bid clears 150% of demand, FA signs now
-      // and we stop the rest of the round for this player.
-      if (_faTryKnockout(fa.name)) break;
     }
+  }
+  // After every team has had its turn, resolve knockouts: solo-knockout
+  // signs immediately; contested 150%+ bids escalate into a war.
+  for (const fa of candidates) {
+    if (negs[fa.name]?.state === "negotiating") _faTryKnockout(fa.name);
   }
 }
 
@@ -20964,15 +20979,31 @@ function _faNegCurrentHigh(n) {
   return high;
 }
 
-// Knockout sign: if any standing bid clears 150% of demand the FA accepts
-// on the spot and the negotiation closes. Returns true if it fired.
+// Knockout sign: if exactly ONE standing bid clears 150% of demand the FA
+// accepts on the spot. If TWO+ teams clear the threshold, a bidding war
+// is declared (knockoutWar=true) and the negotiation continues; both
+// teams will need to keep raising. Returns "signed" | "war" | "none".
 const FA_KNOCKOUT_MULT = 1.5;
 function _faTryKnockout(name) {
   const n = franchise.faNegotiations?.[name];
-  if (!n || n.state !== "negotiating") return false;
-  const high = _faNegCurrentHigh(n);
-  if (!high) return false;
-  if (high.aav < n.fa.demandedAAV * FA_KNOCKOUT_MULT) return false;
+  if (!n || n.state !== "negotiating") return "none";
+  const threshold = n.fa.demandedAAV * FA_KNOCKOUT_MULT;
+  const ko = [];
+  if (n.yourBid && n.yourBid.aav >= threshold)
+    ko.push({ teamId: franchise.chosenTeamId, ...n.yourBid, isYou: true });
+  for (const [tid, b] of Object.entries(n.aiBids))
+    if (b.aav >= threshold) ko.push({ teamId: Number(tid), ...b, isYou: false });
+  if (ko.length === 0) return "none";
+  if (ko.length > 1) {
+    if (!n.knockoutWar) {
+      n.knockoutWar = true;
+      _pushNews({ type:"fa_war",
+        label: `🆓⚔ KNOCKOUT WAR — ${ko.length} teams over $${threshold.toFixed(1)}M for ${n.fa.position} ${name}` });
+    }
+    return "war";
+  }
+  // Solo knockout — sign immediately
+  const high = ko[0];
   n.fa.contract = {
     years: high.years, remaining: high.years, aav: high.aav,
     guaranteedYears: _guaranteedYearsForLength(high.years),
@@ -20999,7 +21030,7 @@ function _faTryKnockout(name) {
     _pushNews({ type:"fa_sign",
       label: `🆓💥 KNOCKOUT — ${signTeam.name} sign ${n.fa.position} ${name} for $${high.aav.toFixed(1)}M × ${high.years}yr` });
   }
-  return true;
+  return "signed";
 }
 
 function frnFAOpenSelf() { renderFrnFANegotiations(); }
@@ -21034,13 +21065,15 @@ function renderFrnFANegotiations(selectedName) {
     const isSel = name === selKey;
     const isHotForYou = n.yourBid && high && !high.isYou; // you're being outbid
     const escName = name.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    const warFlag = n.knockoutWar
+      ? `<span class="frn-fa-flag" style="color:var(--red);font-weight:900">⚔ WAR</span>` : "";
     return `<button class="frn-fa-row ${isSel?"selected":""} ${n.yourBid?"offered":""}"
       onclick="renderFrnFANegotiations('${escName}')">
       <span>${gradeBadge(n.fa)}</span>
       <span class="frn-fa-name">${n.fa.name}</span>
       <span class="frn-fa-pos">${n.fa.position}</span>
       <span class="frn-fa-ask">high $${high?high.aav.toFixed(0):"-"}M</span>
-      ${high ? `<span class="frn-fa-flag" style="color:${high.isYou?"var(--green-lt)":"var(--red)"}">${high.isYou?"YOU LEAD":isHotForYou?"OUTBID":(getTeam(high.teamId)?.name||"?")+" leads"}</span>` : ""}
+      ${warFlag || (high ? `<span class="frn-fa-flag" style="color:${high.isYou?"var(--green-lt)":"var(--red)"}">${high.isYou?"YOU LEAD":isHotForYou?"OUTBID":(getTeam(high.teamId)?.name||"?")+" leads"}</span>` : "")}
     </button>`;
   }).join("");
 
@@ -21057,19 +21090,22 @@ function renderFrnFANegotiations(selectedName) {
   const yourCur = selNeg.yourBid?.aav || 0;
   const yourYrs = selNeg.yourBid?.years || selNeg.fa.demandedYears;
   const beingOutbid = selHigh && !selHigh.isYou && selNeg.yourBid;
-  const knockoutAav = +(selNeg.fa.demandedAAV * FA_KNOCKOUT_MULT).toFixed(1);
-  const knockoutNeed = Math.max(0, +(knockoutAav - yourCur).toFixed(1));
+  const baseKO = +(selNeg.fa.demandedAAV * FA_KNOCKOUT_MULT).toFixed(1);
+  const isKWar = !!selNeg.knockoutWar;
+  const minKBid = +(Math.max(baseKO, (selHigh?.aav || 0) + 0.5)).toFixed(1);
+  const knockoutNeed = Math.max(0, +(minKBid - yourCur).toFixed(1));
+  const koLabel = isKWar ? `⚔ TOP WAR $${minKBid.toFixed(1)}M` : `💥 KNOCKOUT $${minKBid.toFixed(1)}M`;
   const actionsHtml = `
     <div class="frn-fa-neg-actions">
       ${selNeg.yourBid ? `
         <button class="btn btn-gold" onclick="frnFARaiseBid('${escSel}', 1)">↑ +$1M</button>
         <button class="btn btn-gold" onclick="frnFARaiseBid('${escSel}', 3)">↑ +$3M</button>
         ${beingOutbid ? `<button class="btn btn-gold" onclick="frnFAMatchHigh('${escSel}')">→ Outbid by $0.5M</button>` : ""}
-        <button class="btn btn-gold" onclick="frnFAKnockoutBid('${escSel}')" style="background:var(--gold);color:#000;font-weight:900" title="Bid $${knockoutAav.toFixed(1)}M to sign instantly">💥 KNOCKOUT $${knockoutAav.toFixed(1)}M${knockoutNeed > 0 ? ` (+$${knockoutNeed.toFixed(1)}M)` : ""}</button>
+        <button class="btn btn-gold" onclick="frnFAKnockoutBid('${escSel}')" style="background:var(--gold);color:#000;font-weight:900" title="${isKWar?'War on — bidders past 150% threshold':'Bid past 150% to win instantly'}">${koLabel}${knockoutNeed > 0 ? ` (+$${knockoutNeed.toFixed(1)}M)` : ""}</button>
         <button class="btn btn-outline" onclick="frnFAFoldNeg('${escSel}')" style="color:var(--red)">✗ Fold</button>
       ` : `
         <button class="btn btn-gold" onclick="frnFAEnterBid('${escSel}')">+ Enter Bid (match current high)</button>
-        <button class="btn btn-gold" onclick="frnFAKnockoutBid('${escSel}')" style="background:var(--gold);color:#000;font-weight:900">💥 KNOCKOUT $${knockoutAav.toFixed(1)}M</button>
+        <button class="btn btn-gold" onclick="frnFAKnockoutBid('${escSel}')" style="background:var(--gold);color:#000;font-weight:900">${koLabel}</button>
       `}
     </div>
     <div class="frn-fa-neg-actions" style="margin-top:.5rem;align-items:center;gap:.4rem">
@@ -21163,7 +21199,9 @@ function renderFrnFANegotiations(selectedName) {
             · ${selNeg.raisedThisRound ? "<span style='color:var(--gold-lt)'>This round had a raise — won't sign yet</span>" : "<span style='color:var(--green-lt)'>Stable — will sign at end of this week if no one raises</span>"}
           </div>
           <div style="color:var(--gray);font-size:.62rem;margin-top:.15rem">
-            💥 <b style="color:var(--gold-lt)">Knockout bid:</b> any offer ≥ <b style="color:var(--gold)">$${(selNeg.fa.demandedAAV * FA_KNOCKOUT_MULT).toFixed(1)}M</b> (${(FA_KNOCKOUT_MULT*100).toFixed(0)}% of demand) wins instantly — no waiting on raise rounds.
+            ${isKWar
+              ? `⚔ <b style="color:var(--red)">KNOCKOUT WAR ACTIVE</b> — multiple teams over $${baseKO.toFixed(1)}M. Sole knockout signs; ties keep escalating.`
+              : `💥 <b style="color:var(--gold-lt)">Knockout bid:</b> sole offer ≥ <b style="color:var(--gold)">$${baseKO.toFixed(1)}M</b> (${(FA_KNOCKOUT_MULT*100).toFixed(0)}% of demand) wins instantly. Two teams over → bidding war.`}
           </div>
         </div>
         ${actionsHtml}
@@ -21192,12 +21230,16 @@ function frnFAEnterBid(name) {
   renderFrnFANegotiations(n.state === "signed" ? null : name);
 }
 
-// Drop a knockout bid: bumps yourBid to 150% of demand and triggers
-// instant signing if you're the high bidder. Confirms because it's a
-// big cap commitment.
+// Drop a knockout bid: at minimum 150% of demand, but in an ongoing war
+// it must clear the current high by $0.5M. Triggers instant sign only
+// if you're the SOLE team over the knockout threshold; otherwise the
+// war keeps escalating.
 function frnFAKnockoutBid(name) {
   const n = franchise.faNegotiations?.[name]; if (!n) return;
-  const knockoutAav = Math.round(n.fa.demandedAAV * FA_KNOCKOUT_MULT * 10) / 10;
+  const baseKO  = n.fa.demandedAAV * FA_KNOCKOUT_MULT;
+  const curHigh = _faNegCurrentHigh(n);
+  const minBid  = Math.max(baseKO, (curHigh?.aav || 0) + 0.5);
+  const knockoutAav = Math.round(minBid * 10) / 10;
   const myId = franchise.chosenTeamId;
   const cap = franchise.salaryCap || SALARY_CAP_BASE;
   const room = cap - capUsedByTeam(myId);
@@ -21209,16 +21251,21 @@ function frnFAKnockoutBid(name) {
     alert(`Not enough cap room: knockout needs $${knockoutAav.toFixed(1)}M, you have $${(room + cutSavings).toFixed(1)}M (after planned cuts).`);
     return;
   }
-  if (!confirm(`💥 KNOCKOUT BID — pay $${knockoutAav.toFixed(1)}M × ${n.yourBid?.years || n.fa.demandedYears}yr to sign ${name} immediately?`)) return;
+  const isWar = !!n.knockoutWar;
+  const label = isWar ? "TOP KNOCKOUT" : "KNOCKOUT BID";
+  if (!confirm(`💥 ${label} — pay $${knockoutAav.toFixed(1)}M × ${n.yourBid?.years || n.fa.demandedYears}yr for ${name}?${isWar ? "\n\nThis is a bidding war — other teams may keep raising next week." : ""}`)) return;
   n.yourBid = {
     aav: knockoutAav,
     years: n.yourBid?.years || n.fa.demandedYears,
     cutNames: n.yourBid?.cutNames || [],
   };
-  n.history.push({ teamId: myId, label: "You (KNOCKOUT)", aav: knockoutAav, years: n.yourBid.years, week: franchise.week });
+  n.history.push({ teamId: myId, label: `You (${label})`, aav: knockoutAav, years: n.yourBid.years, week: franchise.week });
   n.raisedThisRound = true;
   n.lastRaiseWeek = franchise.week;
-  _faTryKnockout(name);
+  const result = _faTryKnockout(name);
+  if (result === "war") {
+    alert(`⚔ BIDDING WAR — another team is also over $${baseKO.toFixed(1)}M for ${name}. Keep raising next week to outlast them.`);
+  }
   saveFranchise();
   renderFrnFANegotiations(n.state === "signed" ? null : name);
 }
