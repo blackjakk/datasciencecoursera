@@ -3265,26 +3265,112 @@
   .frn-trade-result.accepted { color: var(--green-lt); border-color: var(--green); background: rgba(0,180,0,0.08); }
   .frn-trade-result.rejected { color: #ff9090;        border-color: var(--red);   background: rgba(180,0,0,0.08); }
 
-  /* Draft */
-  .frn-draft-onclock {
-    background: linear-gradient(180deg, rgba(200,169,0,0.18), rgba(200,169,0,0.05));
-    border: 2px solid var(--gold); padding: .7rem 1rem;
-    margin-bottom: .8rem; text-align: center;
+  /* ── Draft ───────────────────────────────────────────────────────────────── */
+  .frn-draft-clock-card {
+    background: linear-gradient(135deg, rgba(200,169,0,0.16), rgba(200,169,0,0.04));
+    border: 2px solid var(--gold); padding: .65rem 1rem;
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: .55rem; gap: .6rem;
   }
-  .frn-draft-pick {
-    display: grid; grid-template-columns: 2.6rem 1fr auto;
+  .frn-draft-day-badge {
+    display: inline-block; font-size: .58rem; font-weight: 900;
+    letter-spacing: .8px; padding: .12rem .45rem;
+    background: rgba(200,169,0,0.13); border: 1px solid var(--gold);
+    color: var(--gold); vertical-align: middle;
+  }
+  .frn-draft-run-alert {
+    background: rgba(200,140,0,0.14); border: 1px solid var(--gold);
+    padding: .28rem .7rem; font-size: .64rem; font-weight: 700;
+    color: var(--gold-lt); letter-spacing: .3px; margin-bottom: .45rem;
+  }
+  .frn-draft-target-gone {
+    background: rgba(220,40,40,0.14); border: 1px solid var(--red);
+    color: #ff9090; padding: .28rem .7rem; font-size: .66rem;
+    font-weight: 700; margin-bottom: .35rem;
+  }
+  /* Filter tabs */
+  .frn-draft-filters { display: flex; gap: .25rem; flex-wrap: wrap; margin-bottom: .45rem; }
+  .frn-draft-filter-btn {
+    padding: .18rem .45rem; font-size: .6rem; font-weight: 700;
+    background: var(--bg3); border: 1px solid var(--border);
+    color: var(--gray); cursor: pointer; font-family: inherit;
+    letter-spacing: .3px; transition: all .1s;
+  }
+  .frn-draft-filter-btn:hover { border-color: var(--gold-lt); color: var(--white); }
+  .frn-draft-filter-btn.active { background: rgba(200,169,0,0.85); color: #111; border-color: var(--gold); }
+  /* Prospect cards */
+  .frn-draft-board { display: flex; flex-direction: column; gap: .22rem; max-height: 500px; overflow-y: auto; }
+  .frn-draft-prospect {
+    display: grid; grid-template-columns: 2rem 1fr auto;
+    gap: .45rem; align-items: center;
+    background: var(--bg3); border: 1px solid var(--border);
+    padding: .35rem .55rem; transition: border-color .12s;
+  }
+  .frn-draft-prospect:hover { border-color: rgba(200,169,0,0.5); }
+  .frn-draft-prospect.targeted { border-color: var(--gold-lt); background: rgba(200,169,0,0.05); }
+  .frn-dp-rank { color: var(--gold); font-size: .6rem; font-weight: 700; text-align: right; align-self: flex-start; padding-top: .15rem; }
+  .frn-dp-body { display: flex; flex-direction: column; gap: .1rem; }
+  .frn-dp-top  { display: flex; align-items: center; gap: .28rem; flex-wrap: wrap; }
+  .frn-dp-name { font-weight: 700; font-size: .76rem; }
+  .frn-dp-bottom { display: flex; align-items: center; gap: .35rem; }
+  .frn-dp-meta    { font-size: .59rem; color: var(--gray); }
+  .frn-dp-combine { font-size: .59rem; color: var(--gold-lt); font-family: monospace; }
+  .frn-dp-actions { display: flex; gap: .3rem; align-items: center; }
+  .frn-draft-need-crit {
+    font-size: .53rem; font-weight: 900; letter-spacing: .3px;
+    padding: .08rem .28rem; background: rgba(220,40,40,0.2);
+    border: 1px solid var(--red); color: #ff9090;
+  }
+  .frn-draft-need-need {
+    font-size: .53rem; font-weight: 900; letter-spacing: .3px;
+    padding: .08rem .28rem; background: rgba(200,140,0,0.2);
+    border: 1px solid var(--gold); color: var(--gold);
+  }
+  .frn-draft-target-btn {
+    background: none; border: 1px solid var(--border);
+    color: var(--gray); font-size: .78rem; cursor: pointer;
+    padding: .12rem .32rem; line-height: 1; transition: all .1s; font-family: inherit;
+  }
+  .frn-draft-target-btn:hover { border-color: var(--gold); color: var(--gold-lt); }
+  .frn-draft-target-btn.active { border-color: var(--gold); color: var(--gold); background: rgba(200,169,0,0.1); }
+  /* Info panel */
+  .frn-draft-info-panel { display: flex; flex-direction: column; gap: .45rem; }
+  .frn-draft-info-card  { background: var(--bg2); border: 1px solid var(--border); padding: .5rem .6rem; }
+  /* Live ticker */
+  .frn-draft-ticker { max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: .08rem; }
+  .frn-draft-ticker-item {
+    display: grid; grid-template-columns: 2.8rem 1fr auto;
     gap: .3rem; align-items: center;
-    padding: .2rem .35rem; font-size: .68rem;
+    padding: .18rem .28rem; font-size: .64rem;
     border-bottom: 1px solid var(--border);
   }
+  .frn-draft-ticker-item:last-child { border-bottom: none; }
+  .frn-draft-ticker-item.my-pick { background: rgba(200,169,0,0.07); }
+  .frn-draft-ticker-pick-no { color: var(--gold); font-weight: 700; font-size: .58rem; }
+  /* Needs */
+  .frn-draft-need-row {
+    display: flex; align-items: center; gap: .4rem;
+    padding: .16rem 0; font-size: .64rem;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .frn-draft-need-row:last-child { border-bottom: none; }
+  /* Post-draft grade */
+  .frn-draft-grade-card {
+    text-align: center; padding: 1.4rem 1rem;
+    background: var(--bg2); border: 2px solid var(--gold);
+  }
+  .frn-draft-grade-letter { font-size: 3.8rem; font-weight: 900; line-height: 1; margin-bottom: .4rem; }
+  .frn-draft-pick-review {
+    display: grid; grid-template-columns: 3rem 1fr auto auto;
+    gap: .4rem; align-items: center;
+    padding: .22rem .4rem; border-bottom: 1px solid var(--border); font-size: .67rem;
+  }
+  .frn-draft-pick-review:last-child { border-bottom: none; }
+  /* Legacy pick list used in trade screens */
+  .frn-draft-pick { display: grid; grid-template-columns: 2.6rem 1fr auto; gap: .3rem; align-items: center; padding: .2rem .35rem; font-size: .68rem; border-bottom: 1px solid var(--border); }
   .frn-draft-pick:last-child { border-bottom: none; }
-  .frn-draft-pick-no {
-    color: var(--gold); font-weight: 700; font-size: .6rem;
-  }
-  .frn-draft-recents {
-    max-height: 320px; overflow-y: auto;
-    background: var(--bg3); padding: .35rem;
-  }
+  .frn-draft-pick-no { color: var(--gold); font-weight: 700; font-size: .6rem; }
+  .frn-draft-recents { max-height: 320px; overflow-y: auto; background: var(--bg3); padding: .35rem; }
 
   /* Career card inside player detail */
   .frn-career-card {

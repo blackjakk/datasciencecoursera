@@ -5289,6 +5289,9 @@ function frnGoToDraft() {
     pickOrder: _buildDraftPickOrder(),
     picks: [],
     currentIdx: 0,
+    targets: [],
+    boardFilter: "ALL",
+    _targetGone: [],
   };
   franchise.phase = "draft";
   saveFranchise();
@@ -5356,9 +5359,75 @@ function _buildDraftPickOrder() {
   return order;
 }
 
+// ── Draft UI helpers ──────────────────────────────────────────────────────────
+
+const _DRAFT_NFL_COMPS = {
+  QB: { POCKET:"Stafford-type arm", GUNSLINGER:"Gunslinger — Favre comp", GAME_MANAGER:"Alex Smith comp", DUAL_THREAT:"Lamar Jackson-type", FIELD_GENERAL:"Peyton Manning IQ" },
+  RB: { POWER:"Derrick Henry comp", ELUSIVE:"Barry Sanders type", SPEED:"Home-run hitter", WORKHORSE:"Every-down back", RECEIVING:"CMC receiving back" },
+  WR: { DEEP_THREAT:"DeSean Jackson comp", POSSESSION:"Keenan Allen type", SLOT:"PPR machine", RED_ZONE:"Jump-ball threat", ROUTE_RUNNER:"Davante Adams type" },
+  TE: { RECEIVING:"Travis Kelce comp", BLOCKING:"Old-school blocker", HYBRID:"Dual-threat TE" },
+  OL: { ANCHOR:"Dominant run blocker", ATHLETIC:"Zone-scheme fit", TECHNICIAN:"Technique-first", PLUG:"Interior plug", MAULER:"Nasty road-grader" },
+  DL: { POWER:"Penetrating 3-tech", SPEED:"Von Miller comp", TWEENER:"Versatile 5-tech", PENETRATOR:"Interior wrecker", TECHNICIAN:"Hand-fighter" },
+  LB: { THUMPER:"Run-stuffer", COVER:"Coverage LB", BLITZER:"Blitz specialist", SIGNAL:"Mike LB anchor", HYBRID:"3-down athlete" },
+  CB: { SHUTDOWN:"Island corner", BALL_HAWK:"INT machine", PHYSICAL:"Press corner", SLOT_CB:"Nickel specialist", ZONE:"Cover-2 corner" },
+  S:  { BALL_HAWK:"Ed Reed comp", BOX:"Box enforcer", CENTER_FIELD:"True free safety", HYBRID:"Chess piece" },
+  K:  { LEG:"Deep-range threat", PRECISION:"Automatic inside 50", CLUTCH:"Ice in his veins", BALANCED:"Reliable veteran" },
+  P:  { BOOMER:"Distance punter", DIRECTIONAL:"Field-position artist", HANG_TIME:"Sky kick specialist", ATHLETE:"Fake-punt threat", BALANCED:"Consistent performer" },
+};
+function _draftNFLComp(p) { return (_DRAFT_NFL_COMPS[p.position] || {})[p.archetype] || ""; }
+
+// Compact position-specific combine string.
+function _draftCombineStr(p) {
+  const m = combineMeasurables(p);
+  const pos = p.position;
+  const [,,,,thr=50,,,,,, kpw=50] = p.stats || [];
+  if (pos === "QB") { const arm = Math.round(55 + (thr - 50) * 0.55); return `${m.fortyTime}s · ${arm}yd arm`; }
+  if (pos === "RB") return `${m.fortyTime}s · ${m.coneTime} cone`;
+  if (pos === "WR") return `${m.fortyTime}s · ${m.verticalIn}" vert`;
+  if (pos === "TE") return `${m.fortyTime}s · ${m.benchReps} reps`;
+  if (pos === "OL") return `${m.benchReps} reps · ${m.coneTime} cone`;
+  if (pos === "DL") return `${m.fortyTime}s · ${m.benchReps} reps`;
+  if (pos === "LB") return `${m.fortyTime}s · ${m.verticalIn}" vert`;
+  if (pos === "CB") return `${m.fortyTime}s · ${m.coneTime} cone`;
+  if (pos === "S")  return `${m.fortyTime}s · ${m.verticalIn}" vert`;
+  if (pos === "K" || pos === "P") return `Leg: ${kpw}`;
+  return `${m.fortyTime}s`;
+}
+
+// 0=fine  1=need (starter <75 OVR)  2=critical (no starter or <68 OVR)
+function _draftNeedLevel(teamId, pos) {
+  const best = (franchise.rosters[teamId] || [])
+    .filter(p => p.position === pos).sort((a,b) => b.overall - a.overall)[0];
+  if (!best) return 2;
+  if (best.overall < 68) return 2;
+  if (best.overall < 75) return 1;
+  return 0;
+}
+
+// Returns {pos, cnt} if ≥3 of same position taken in last `lookback` picks, else null.
+function _draftPositionRun(picks, lookback = 6) {
+  const recent = picks.slice(-lookback).map(p => p.pos);
+  const counts = {};
+  for (const pos of recent) counts[pos] = (counts[pos] || 0) + 1;
+  const top = Object.entries(counts).sort((a,b) => b[1]-a[1])[0];
+  return top && top[1] >= 3 ? { pos: top[0], cnt: top[1] } : null;
+}
+
+// Coloured position pill HTML (inline styles, no extra class dependencies).
+function _posPillHtml(pos) {
+  const s = { QB:"background:#1a2d7c;color:#91b4ff", RB:"background:#1a4d2a;color:#7dff97",
+    WR:"background:#1a4d2a;color:#7dff97", TE:"background:#1a4d2a;color:#7dff97",
+    OL:"background:#5c3200;color:#ffb347", DL:"background:#5a1515;color:#ff8080",
+    LB:"background:#5a1515;color:#ff8080", CB:"background:#301a6b;color:#c090ff",
+    S:"background:#301a6b;color:#c090ff",  K:"background:#2a2a2a;color:#999",
+    P:"background:#2a2a2a;color:#999" }[pos] || "background:#222;color:#aaa";
+  return `<span style="${s};padding:.07rem .27rem;font-size:.54rem;font-weight:900;letter-spacing:.3px">${pos}</span>`;
+}
+
 function renderFrnDraft() {
   const d = franchise.draft;
   const myId = franchise.chosenTeamId;
+  const myTeam = getTeam(myId);
 
   // Auto-advance AI picks until it's user's turn or draft is over
   let aiAdvanced = 0;
@@ -5368,86 +5437,256 @@ function renderFrnDraft() {
     _aiAutoPick(slot);
     d.currentIdx++;
     aiAdvanced++;
-    if (aiAdvanced > 250) break; // safety
+    if (aiAdvanced > 250) break;
   }
 
   if (d.currentIdx >= d.pickOrder.length) {
+    const myPicksFinal = d.picks.filter(pk => pk.teamId === myId);
     _draftFinalize();
+    _renderPostDraftGrade(myPicksFinal);
     return;
   }
-  saveFranchise();
+  if (aiAdvanced > 0) _flushSaveFranchise();
 
   const currentSlot = d.pickOrder[d.currentIdx];
-  const onClock = getTeam(currentSlot.teamId);
-  const pickInRound = ((d.currentIdx) % 32) + 1;
+  const round = currentSlot.round;
+  const pickInRound = (d.currentIdx % 32) + 1;
+  const dayLabel = round <= 2 ? "DAY 1 · PRIMETIME" : round === 3 ? "DAY 2" : "DAY 3";
+  const filter = d.boardFilter || "ALL";
 
-  // Available prospects sorted by grade desc
+  // Build available pool
   const taken = new Set(d.picks.map(p => p.prospectName));
-  const available = d.class.filter(p => !taken.has(p.name))
+  const allAvail = d.class.filter(p => !taken.has(p.name))
     .sort((a,b) => scoutGrade(b) - scoutGrade(a));
+  const filtered = filter === "K/P" ? allAvail.filter(p => p.position==="K"||p.position==="P")
+    : filter === "ALL" ? allAvail : allAvail.filter(p => p.position === filter);
+  const board = filtered.slice(0, 45);
+  const targets = new Set(d.targets || []);
 
-  // Show top 40 available
-  const boardHtml = available.slice(0, 40).map((p, i) => {
-    const escName = (p.name || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-    return `<tr>
-      <td style="color:var(--gold);font-size:.65rem">${i+1}.</td>
-      <td style="font-weight:700">${p.name}</td>
-      <td style="color:var(--gold);font-size:.62rem">${p.position}</td>
-      <td>${gradeBadge(p)}</td>
-      <td style="color:var(--gray)">${p.age}</td>
-      <td style="color:var(--gray);font-size:.66rem">${_archetypeLabel(p) || "—"}</td>
-      <td><button class="btn btn-gold" style="padding:.2rem .55rem;font-size:.62rem"
-        onclick="frnDraftPick('${escName}')">DRAFT</button></td>
-    </tr>`;
+  // Collect and clear target-gone alerts
+  const gone = (d._targetGone || []).splice(0);
+
+  // Position run
+  const posRun = _draftPositionRun(d.picks);
+
+  // ── Filter tabs ──────────────────────────────────────────────────────────
+  const TABS = ["ALL","QB","RB","WR","TE","OL","DL","LB","CB","S","K/P"];
+  const filterHtml = TABS.map(f => {
+    const cnt = f==="ALL" ? allAvail.length
+      : f==="K/P" ? allAvail.filter(p=>p.position==="K"||p.position==="P").length
+      : allAvail.filter(p=>p.position===f).length;
+    return `<button class="frn-draft-filter-btn${filter===f?" active":""}" onclick="frnDraftSetFilter('${f}')">${f} <span style="opacity:.55;font-size:.52rem">${cnt}</span></button>`;
   }).join("");
 
-  // Recent picks (last 10)
-  const recentHtml = d.picks.slice(-10).reverse().map(pk => {
+  // ── Prospect board ───────────────────────────────────────────────────────
+  const boardHtml = board.length ? board.map((p, i) => {
+    const esc = (p.name||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'");
+    const needLvl = _draftNeedLevel(myId, p.position);
+    const needBadge = needLvl===2 ? `<span class="frn-draft-need-crit">❗NEED</span>`
+                    : needLvl===1 ? `<span class="frn-draft-need-need">⚠ NEED</span>` : "";
+    const isTargeted = targets.has(p.name);
+    const potTag = potentialTag(p);
+    const comp = _draftNFLComp(p);
+    const arch = _archetypeLabel(p) || "—";
+    const meta = comp ? `${arch} · ${comp}` : arch;
+    return `<div class="frn-draft-prospect${isTargeted?" targeted":""}">
+      <div class="frn-dp-rank">#${i+1}</div>
+      <div class="frn-dp-body">
+        <div class="frn-dp-top">
+          <span class="frn-dp-name">${p.name}</span>
+          ${_posPillHtml(p.position)}
+          ${needBadge}
+          ${gradeBadge(p)}
+          ${potTag?`<span style="font-size:.56rem;color:var(--gold-lt)">${potTag}</span>`:""}
+          <span style="color:var(--gray);font-size:.56rem">Age ${p.age}</span>
+        </div>
+        <div class="frn-dp-bottom">
+          <span class="frn-dp-meta">${meta}</span>
+          <span class="frn-dp-combine"> · ${_draftCombineStr(p)}</span>
+        </div>
+      </div>
+      <div class="frn-dp-actions">
+        <button class="frn-draft-target-btn${isTargeted?" active":""}" onclick="frnDraftToggleTarget('${esc}')" title="${isTargeted?"Remove target":"Mark as target"}">★</button>
+        <button class="btn btn-gold" style="padding:.2rem .5rem;font-size:.6rem" onclick="frnDraftPick('${esc}')">DRAFT</button>
+      </div>
+    </div>`;
+  }).join("") : `<div style="color:var(--gray);font-size:.7rem;padding:.5rem">No ${filter!=="ALL"?filter:""} prospects available</div>`;
+
+  // ── Live ticker ──────────────────────────────────────────────────────────
+  const tickerHtml = d.picks.length ? d.picks.slice().reverse().slice(0,30).map(pk => {
     const team = getTeam(pk.teamId);
-    return `<div class="frn-draft-pick">
-      <span class="frn-draft-pick-no">${pk.round}.${(((pk.pick-1) % 32) + 1)}</span>
-      <span>${team?.name || "?"}</span>
-      <span style="color:var(--gold-lt);font-weight:700">${pk.prospectName}</span>
-      <span style="color:var(--gray);font-size:.62rem">${pk.pos}</span>
+    const isMe = pk.teamId === myId;
+    return `<div class="frn-draft-ticker-item${isMe?" my-pick":""}">
+      <span class="frn-draft-ticker-pick-no">${pk.round}.${(((pk.pick-1)%32)+1)}</span>
+      <span><span style="font-weight:700">${pk.prospectName}</span><span style="color:var(--gray);font-size:.57rem"> · ${pk.pos}</span></span>
+      <span style="color:var(--gray);font-size:.6rem">${team?.name||"?"}</span>
+    </div>`;
+  }).join("") : `<div style="color:var(--gray);font-size:.64rem;font-style:italic">No picks yet</div>`;
+
+  // ── Team needs ───────────────────────────────────────────────────────────
+  const needsHtml = ["QB","RB","WR","TE","OL","DL","LB","CB","S"].map(pos => {
+    const top = (franchise.rosters[myId]||[]).filter(p=>p.position===pos).sort((a,b)=>b.overall-a.overall)[0];
+    const lvl = _draftNeedLevel(myId, pos);
+    const badge = lvl===2 ? `<span style="color:#ff9090;font-size:.53rem;font-weight:700">CRITICAL</span>`
+      : lvl===1 ? `<span style="color:var(--gold);font-size:.53rem;font-weight:700">NEED</span>`
+      : `<span style="color:var(--gray);font-size:.53rem">OK</span>`;
+    return `<div class="frn-draft-need-row">
+      <span style="font-weight:700;font-size:.64rem;min-width:2rem">${pos}</span>
+      <span style="color:var(--gray);font-size:.58rem">${top?`OVR ${top.overall}`:"—"}</span>
+      <span style="margin-left:auto">${badge}</span>
     </div>`;
   }).join("");
 
-  // Your team's picks so far
-  const myPicks = d.picks.filter(pk => pk.teamId === myId);
-  const myPicksHtml = myPicks.map(pk => `<div class="frn-draft-pick">
-    <span class="frn-draft-pick-no">${pk.round}.${(((pk.pick-1) % 32) + 1)}</span>
-    <span style="color:var(--gold-lt);font-weight:700">${pk.prospectName}</span>
-    <span style="color:var(--gray);font-size:.62rem">${pk.pos}</span>
-  </div>`).join("");
+  // ── Your class ───────────────────────────────────────────────────────────
+  const myPicks = d.picks.filter(pk=>pk.teamId===myId);
+  const myPicksHtml = myPicks.length ? myPicks.map(pk=>`
+    <div class="frn-draft-ticker-item my-pick">
+      <span class="frn-draft-ticker-pick-no">R${pk.round}.${(((pk.pick-1)%32)+1)}</span>
+      <span style="font-weight:700">${pk.prospectName}</span>
+      <span style="color:var(--gold);font-size:.57rem">${pk.pos}</span>
+    </div>`).join("")
+    : `<div style="color:var(--gray);font-size:.63rem;font-style:italic;padding:.25rem 0">No picks yet</div>`;
 
+  // ── Alerts ───────────────────────────────────────────────────────────────
+  const alertsHtml = gone.map(t=>{
+    const team = getTeam(t.teamId);
+    return `<div class="frn-draft-target-gone">📌 TARGET GONE — ${t.name} taken by ${team?.name||"?"} at ${t.round}.${t.pick}</div>`;
+  }).join("");
+
+  // ── Render ───────────────────────────────────────────────────────────────
   $("frnHomeContent").innerHTML = `
-    <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.8rem;flex-wrap:wrap">
-      <div style="font-size:1.05rem;font-weight:900;color:var(--gold)">📋 ANNUAL DRAFT · Season ${franchise.season + 1}</div>
-      <div style="color:var(--gray);font-size:.75rem">Pick ${d.currentIdx + 1} of ${d.pickOrder.length}</div>
+    <div style="display:flex;align-items:center;gap:.55rem;margin-bottom:.55rem;flex-wrap:wrap">
+      <span style="font-size:1rem;font-weight:900;color:var(--gold)">📋 DRAFT · Season ${franchise.season+1}</span>
+      <span class="frn-draft-day-badge">${dayLabel}</span>
+      <span style="color:var(--gray);font-size:.7rem">Pick ${d.currentIdx+1} of ${d.pickOrder.length}</span>
     </div>
-    <div class="frn-draft-onclock">
+    ${posRun?`<div class="frn-draft-run-alert">🔥 ${posRun.pos} RUN — ${posRun.cnt} taken in last 6 picks · value elsewhere</div>`:""}
+    ${alertsHtml}
+    <div style="display:grid;grid-template-columns:1fr 270px;gap:.65rem;align-items:start">
       <div>
-        <div style="font-size:.62rem;color:var(--gold);letter-spacing:.5px">ROUND ${currentSlot.round} · PICK ${pickInRound}</div>
-        <div style="font-size:1.3rem;font-weight:900;color:var(--gold-lt)">YOU ARE ON THE CLOCK</div>
-        <div style="color:var(--gray);font-size:.75rem">${onClock.city} ${onClock.name}</div>
+        <div class="frn-draft-clock-card">
+          <div>
+            <div style="font-size:.58rem;color:var(--gold);letter-spacing:.6px">ROUND ${round} · PICK ${pickInRound}</div>
+            <div style="font-size:1.15rem;font-weight:900;color:var(--gold-lt)">YOU ARE ON THE CLOCK</div>
+            <div style="color:var(--gray);font-size:.73rem">${myTeam?.city} ${myTeam?.name}</div>
+          </div>
+          <button class="btn btn-outline" style="font-size:.6rem;padding:.22rem .55rem;white-space:nowrap"
+            onclick="frnSimRound()">⏭ Sim Rest of R${round}</button>
+        </div>
+        <div class="frn-draft-filters">${filterHtml}</div>
+        <div class="frn-draft-board">${boardHtml}</div>
       </div>
-    </div>
-    <div class="frn-fa-layout">
-      <div class="frn-fa-mid-col" style="grid-column: span 2">
-        <div class="frn-card-title">BEST AVAILABLE</div>
-        <table class="frn-pre-roster-table">
-          <thead><tr><th>#</th><th>Player</th><th>Pos</th><th>Grade</th><th>Age</th><th>Archetype</th><th></th></tr></thead>
-          <tbody>${boardHtml}</tbody>
-        </table>
-      </div>
-      <div class="frn-fa-pool-col">
-        <div class="frn-card-title">YOUR PICKS (${myPicks.length})</div>
-        ${myPicksHtml || `<div style="color:var(--gray);font-size:.7rem;font-style:italic">None yet</div>`}
-        <div class="frn-card-title" style="margin-top:.7rem">RECENT PICKS</div>
-        <div class="frn-draft-recents">${recentHtml || "<div style=\"color:var(--gray);font-size:.7rem;font-style:italic\">None yet</div>"}</div>
+      <div class="frn-draft-info-panel">
+        <div class="frn-draft-info-card">
+          <div class="frn-card-title" style="margin-bottom:.35rem">TEAM NEEDS</div>
+          ${needsHtml}
+        </div>
+        <div class="frn-draft-info-card">
+          <div class="frn-card-title" style="margin-bottom:.25rem">YOUR CLASS (${myPicks.length})</div>
+          ${myPicksHtml}
+        </div>
+        <div class="frn-draft-info-card">
+          <div class="frn-card-title" style="margin-bottom:.25rem">LIVE PICKS</div>
+          <div class="frn-draft-ticker">${tickerHtml}</div>
+        </div>
       </div>
     </div>`;
 }
+
+function frnDraftSetFilter(pos) {
+  if (franchise.draft) { franchise.draft.boardFilter = pos; renderFrnDraft(); }
+}
+
+function frnDraftToggleTarget(name) {
+  if (!franchise.draft) return;
+  franchise.draft.targets = franchise.draft.targets || [];
+  const idx = franchise.draft.targets.indexOf(name);
+  if (idx >= 0) franchise.draft.targets.splice(idx, 1);
+  else franchise.draft.targets.push(name);
+  renderFrnDraft();
+}
+
+// Sim all remaining CPU picks in the current round, including the user's
+// current pick. Pauses at the start of the next round (or end of draft).
+function frnSimRound() {
+  const d = franchise.draft;
+  if (!d) return;
+  const myId = franchise.chosenTeamId;
+  const curRound = d.pickOrder[d.currentIdx]?.round;
+  if (!curRound) return;
+  while (d.currentIdx < d.pickOrder.length) {
+    const slot = d.pickOrder[d.currentIdx];
+    if (slot.round !== curRound) break;
+    _aiAutoPick(slot);
+    d.currentIdx++;
+  }
+  _flushSaveFranchise();
+  renderFrnDraft();
+}
+
+// ── Post-draft grade screen ───────────────────────────────────────────────────
+function _renderPostDraftGrade(myPicks) {
+  const myTeam = getTeam(franchise.chosenTeamId);
+  const roundExp = {1:80,2:72,3:65,4:58,5:54,6:50,7:47};
+  const scored = myPicks.map(pk => {
+    const prospect = (franchise.rosters[franchise.chosenTeamId]||[]).find(p=>p.name===pk.prospectName) || {};
+    const sg = scoutGrade({...prospect, overall: prospect.overall||60, name:pk.prospectName});
+    const exp = roundExp[pk.round]||58;
+    return {...pk, sg, delta: sg - exp};
+  });
+  const avg = scored.length ? scored.reduce((s,p)=>s+p.sg,0)/scored.length : 60;
+  const [letter, col] = avg>=82?["A+","#ffe066"]:avg>=77?["A","#ffe066"]:avg>=72?["A-","#ffcc44"]
+    :avg>=68?["B+","#aaffaa"]:avg>=63?["B","#aaffaa"]:avg>=58?["B-","#aaffaa"]
+    :avg>=53?["C+","#aaaaff"]:avg>=48?["C","#aaaaff"]:avg>=43?["D","#ffaaaa"]:["F","#ff7070"];
+  const quotes = {
+    "A+":["A dominant class — every pick fills a need at above-market value.","This front office absolutely crushed it. Best haul in the league."],
+    "A": ["Strong class top to bottom — smart picks and good value throughout.","Hard to find a real miss here. Solid first-round value."],
+    "A-":["Above-average class with a few steals in the later rounds.","Front office did their homework. The late-round picks stand out."],
+    "B+":["Solid draft — some good value picks mixed with a couple of reaches.","Addressed the biggest needs. Nothing flashy but very functional."],
+    "B": ["Decent class overall — some early-round questions but later rounds were smart.","A wait-and-see draft. Could look better or worse in two years."],
+    "B-":["Mixed bag — reached early but steadied in the middle rounds.","Serviceable draft. A few picks that raise eyebrows but nothing catastrophic."],
+    "C+":["Underwhelming — value wasn't there in the early rounds.","The fourth and fifth rounds might save this class from a C."],
+    "C": ["A forgettable draft. Reached too often, left better players on the board.","Hard to find a signature pick here. Needs work in the next class."],
+    "D": ["Poor draft — value misses and few needs addressed.","Front office left a lot of talent on the board. Concerning."],
+    "F": ["A historically bad class — reaches at every level.","This front office has some serious explaining to do."],
+  };
+  const qList = quotes[letter]||quotes["C"];
+  const quote = qList[Math.floor(Math.random()*qList.length)];
+  const sortedByDelta = scored.slice().sort((a,b)=>b.delta-a.delta);
+  const bestVal  = sortedByDelta[0];
+  const bigReach = sortedByDelta[sortedByDelta.length-1];
+  const picksHtml = scored.sort((a,b)=>a.pick-b.pick).map(pk=>{
+    const tag = pk.delta>=6 ? `<span style="color:var(--green-lt);font-size:.56rem;font-weight:700">★ VALUE</span>`
+              : pk.delta<=-6? `<span style="color:#ff9090;font-size:.56rem;font-weight:700">▼ REACH</span>` : "";
+    const sg = pk.sg;
+    const fakeP = {name:pk.prospectName||"",overall:sg,stats:[]};
+    return `<div class="frn-draft-pick-review">
+      <span class="frn-draft-ticker-pick-no">R${pk.round}.${(((pk.pick-1)%32)+1)}</span>
+      <span style="font-weight:700">${pk.prospectName}</span>
+      <span style="color:var(--gold);font-size:.6rem">${pk.pos}</span>
+      <span>${tag||gradeBadge(fakeP)}</span>
+    </div>`;
+  }).join("");
+  $("frnHomeContent").innerHTML = `
+    <div style="max-width:540px;margin:0 auto">
+      <div class="frn-draft-grade-card">
+        <div style="font-size:.58rem;letter-spacing:1px;color:var(--gray);margin-bottom:.3rem">DRAFT CLASS · ${myTeam?.city} ${myTeam?.name}</div>
+        <div class="frn-draft-grade-letter" style="color:${col}">${letter}</div>
+        <div style="color:var(--gray);font-size:.76rem;font-style:italic;max-width:360px;margin:0 auto .8rem">"${quote}"</div>
+        ${bestVal?.delta>=4?`<div style="font-size:.63rem;color:var(--green-lt);margin-bottom:.15rem">★ Best value: ${bestVal.prospectName} (R${bestVal.round})</div>`:""}
+        ${bigReach?.delta<=-4?`<div style="font-size:.63rem;color:#ff9090;margin-bottom:.5rem">▼ Biggest reach: ${bigReach.prospectName} (R${bigReach.round})</div>`:""}
+      </div>
+      <div style="margin-top:.65rem;background:var(--bg2);border:1px solid var(--border);padding:.5rem .65rem">
+        <div class="frn-card-title" style="margin-bottom:.25rem">YOUR CLASS (${myPicks.length} picks)</div>
+        ${picksHtml||`<div style="color:var(--gray);font-size:.7rem;font-style:italic">No picks made</div>`}
+      </div>
+      <div style="margin-top:.75rem;text-align:center">
+        <button class="btn btn-gold-big" onclick="frnDraftContinueToSeason()">▶ BEGIN NEW SEASON</button>
+      </div>
+    </div>`;
+}
+
+function frnDraftContinueToSeason() { frnNewSeason(); }
 
 // Position value premium — how much each position is worth above its
 // raw OVR in AI draft scoring. Reflects NFL "premier position" reality
@@ -5487,8 +5726,6 @@ function _aiAutoPick(slot) {
     return { p, score: (p.overall || 60) + needBonus * 0.20 + posPrem + scheme + Math.random() * 4 };
   }).sort((a,b) => b.score - a.score);
   const pick = scored[0].p;
-  // Draft info first — rookieContract() reads draftRound + draftPick
-  // to slot the contract value, so it has to be set before signing.
   pick.draftRound = slot.round;
   pick.draftPick  = ((franchise.draft.currentIdx) % 32) + 1;
   pick.contract = rookieContract(pick, franchise.salaryCap || SALARY_CAP_BASE);
@@ -5499,6 +5736,11 @@ function _aiAutoPick(slot) {
     pick: franchise.draft.currentIdx + 1, round: slot.round,
     teamId: slot.teamId, prospectName: pick.name, pos: pick.position,
   });
+  // Alert user if one of their targets was just stolen.
+  if (franchise.draft.targets?.includes(pick.name)) {
+    franchise.draft._targetGone = franchise.draft._targetGone || [];
+    franchise.draft._targetGone.push({ name: pick.name, teamId: slot.teamId, round: slot.round, pick: pick.draftPick });
+  }
 }
 
 function frnDraftPick(name) {
@@ -5552,8 +5794,7 @@ function _draftFinalize() {
   const lastYear = (franchise.picks || []).reduce((m,p) => Math.max(m, p.year), draftYear);
   _ensurePicksForYear(lastYear + 1);
   franchise.draft = null;
-  // Bump into the new season (FA → regular)
-  frnNewSeason();
+  _flushSaveFranchise();
 }
 
 // Roll this season's per-game-aggregated stats into each player's
