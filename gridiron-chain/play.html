@@ -20575,6 +20575,50 @@ function _generateFAPool() {
   return pool;
 }
 
+// Download the current FA pool as a CSV (opens cleanly in Excel/Sheets).
+// Includes combine measurables, scout grade, contract demands, and story.
+function frnFAExportCSV() {
+  const fas = franchise.freeAgents || [];
+  if (!fas.length) { alert("No free agents to export."); return; }
+  const headers = [
+    "Name", "Pos", "Age", "Height", "Weight (lbs)", "Scout Grade",
+    "40-yd (s)", "Bench (reps)", "3-Cone (s)", "Vertical (in)", "Leg/KPW",
+    "Archetype",
+    "Demanded AAV ($M)", "Demanded Years",
+    "Draft Round", "Draft Pick", "Draft Year",
+    "Career Earnings ($M)", "Story",
+  ];
+  const rows = fas.map(p => {
+    const c = combineMeasurables(p);
+    const g = gradeLabel(scoutGrade(p));
+    const heightStr = p.height ? formatHeight(p.height) : "";
+    const draftR = p.draftRound === 0 ? "UDFA" : (p.draftRound ?? "");
+    return [
+      p.name, p.position, p.age, heightStr, p.weight ?? "", g,
+      c.fortyTime, c.benchReps, c.coneTime, c.verticalIn, c.kpw,
+      p.archetype || "",
+      p.demandedAAV, p.demandedYears,
+      draftR, p.draftPick ?? "", p.draftYear ?? "",
+      p.careerEarnings ?? "", p.faStory || "",
+    ];
+  });
+  const escapeCell = v => {
+    const s = String(v ?? "");
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const csv = [headers, ...rows].map(r => r.map(escapeCell).join(",")).join("\r\n");
+  // BOM so Excel reads UTF-8 names correctly
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `fa-pool-season-${franchise.season || 1}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 function frnFASetFilter(field, value) {
   if (!franchise._faFilters) franchise._faFilters = {};
   franchise._faFilters[field] = value;
@@ -20765,7 +20809,10 @@ function renderFrnFA(selectedName) {
   $("frnHomeContent").innerHTML = `
     <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem;flex-wrap:wrap">
       <div style="font-size:1.05rem;font-weight:900;color:var(--gold)">🆓 FREE AGENCY · Season ${season}</div>
-      <button class="btn btn-gold-big" onclick="frnFAProcessOffers()" style="margin-left:auto">
+      <button class="btn btn-outline" onclick="frnFAExportCSV()" style="margin-left:auto;font-size:.7rem">
+        📊 Export Pool CSV
+      </button>
+      <button class="btn btn-gold-big" onclick="frnFAProcessOffers()">
         ⏭ END FA & ADVANCE WEEK →
       </button>
     </div>
