@@ -20881,9 +20881,9 @@ function _faResolveAfterWeek(week, isSeasonEnd) {
 
     if (!n.raisedThisRound) {
       // Stable round → player signs to the standing high bidder if
-      // it meets demand (95% threshold). Otherwise the player just
-      // leaves the league.
-      if (highId != null && highAav >= n.fa.demandedAAV * 0.95) {
+      // it meets demand (95% threshold). Otherwise the FA lowers
+      // their asking and stays on the market.
+      const signFn = () => {
         n.fa.contract = {
           years: highYrs, remaining: highYrs, aav: highAav,
           guaranteedYears: _guaranteedYearsForLength(highYrs),
@@ -20894,7 +20894,6 @@ function _faResolveAfterWeek(week, isSeasonEnd) {
         franchise.rosters[highId].push(n.fa);
         const signTeam = getTeam(highId);
         if (highIsYou) {
-          // Execute any planned cuts
           const myRoster = franchise.rosters[myId];
           for (const cut of (n.yourBid.cutNames || [])) {
             const i = myRoster.findIndex(p => p.name === cut);
@@ -20908,11 +20907,34 @@ function _faResolveAfterWeek(week, isSeasonEnd) {
           _pushNews({ type:"fa_sign",
             label: `🆓 ${signTeam.name} sign ${n.fa.position} ${name} — $${highAav.toFixed(1)}M × ${highYrs}yr` });
         }
+      };
+
+      if (highId != null && highAav >= n.fa.demandedAAV * 0.95) {
+        signFn();
       } else {
-        n.state = "unsigned";
-        newsLost.push({ name, pos: n.fa.position });
-        _pushNews({ type:"fa_unsigned",
-          label: `🆓 ${n.fa.position} ${name} went unsigned — demands not met` });
+        // FA didn't get a satisfactory offer this week — they lower
+        // their asking. Slow drop if someone's at least bidding;
+        // faster if there are no bids at all.
+        n.fa.originalDemandAAV ??= n.fa.demandedAAV;
+        const floor = +(n.fa.originalDemandAAV * 0.65).toFixed(1);
+        const dropMul = highId != null ? 0.93 : 0.88;  // 7% w/ bids, 12% without
+        const newDemand = Math.max(floor, n.fa.demandedAAV * dropMul);
+        const atFloor = (n.fa.demandedAAV - floor) < 0.05;
+        if (atFloor) {
+          // Already at the floor and nobody's biting → off the market
+          n.state = "unsigned";
+          newsLost.push({ name, pos: n.fa.position });
+          _pushNews({ type:"fa_unsigned",
+            label: `🆓 ${n.fa.position} ${name} went unsigned — no takers at his floor of $${n.fa.demandedAAV.toFixed(1)}M` });
+        } else {
+          const prev = n.fa.demandedAAV;
+          n.fa.demandedAAV = Math.round(newDemand * 10) / 10;
+          n.fa.demandDropsCount = (n.fa.demandDropsCount || 0) + 1;
+          _pushNews({ type:"fa_demand_drop",
+            label: `🆓📉 ${n.fa.position} ${name} drops asking $${prev.toFixed(1)}M → $${n.fa.demandedAAV.toFixed(1)}M${highId == null ? " (no offers)" : ""}` });
+          // Re-check sign threshold against the lowered demand
+          if (highId != null && highAav >= n.fa.demandedAAV * 0.95) signFn();
+        }
       }
     } else if (isSeasonEnd) {
       // Continuous counter-bidding all season → never signs
@@ -21171,7 +21193,7 @@ function renderFrnFANegotiations(selectedName) {
       ${fa.position} market — top 5 avg <b style="color:var(--gold-lt)">$${posMarket.top5Avg.toFixed(1)}M</b> ·
       league median <b style="color:var(--gold-lt)">$${posMarket.median.toFixed(1)}M</b> ·
       top-paid <b style="color:var(--gold)">$${posMarket.top1.toFixed(1)}M</b>.
-      He wants <b style="color:var(--gold-lt)">$${fa.demandedAAV.toFixed(1)}M</b>.
+      He wants <b style="color:var(--gold-lt)">$${fa.demandedAAV.toFixed(1)}M</b>${fa.originalDemandAAV && fa.originalDemandAAV > fa.demandedAAV ? ` <span style="color:#ff9090">(was $${fa.originalDemandAAV.toFixed(1)}M · dropped ${fa.demandDropsCount}×)</span>` : ""}.
     </div>` : ""}`;
 
   $("frnHomeContent").innerHTML = `
