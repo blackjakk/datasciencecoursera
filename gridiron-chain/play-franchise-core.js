@@ -1471,7 +1471,9 @@ let _saveLastSize = 0;
 // current week's games and aggregated seasonStats matter for continuity.
 function _trimFranchiseForStorage() {
   if (!franchise) return;
-  const curWeek = franchise.week || 1;
+  const curWeek  = franchise.week || 1;
+  const userTeam = franchise.chosenTeamId;
+
   // Drop play-by-play timelines and per-game player stats from completed games
   // older than the previous week. seasonStats already has the aggregates.
   (franchise.schedule || []).forEach(g => {
@@ -1480,15 +1482,31 @@ function _trimFranchiseForStorage() {
       delete g.stats;
     }
   });
-  // Trim news/highlights to last 30
-  if (franchise.news && franchise.news.length > 30) franchise.news = franchise.news.slice(-30);
-  if (franchise.seasonHighlights && franchise.seasonHighlights.length > 30) franchise.seasonHighlights = franchise.seasonHighlights.slice(-30);
-  // Trim chat to last 20
-  if (franchise.chat && franchise.chat.length > 20) franchise.chat = franchise.chat.slice(-20);
-  // Per-player careerHistory cap to 12 (was 20)
-  for (const roster of Object.values(franchise.rosters || {}))
-    for (const p of roster)
-      if (p.careerHistory && p.careerHistory.length > 12) p.careerHistory = p.careerHistory.slice(-12);
+
+  // Trim news/highlights/chat
+  if (franchise.news?.length > 30)            franchise.news            = franchise.news.slice(-30);
+  if (franchise.seasonHighlights?.length > 30) franchise.seasonHighlights = franchise.seasonHighlights.slice(-30);
+  if (franchise.chat?.length > 20)            franchise.chat            = franchise.chat.slice(-20);
+
+  // Per-player trimming: CPU rosters carry veterans with many seasons of
+  // per-season stats — cap aggressively since only the user's own team needs
+  // the full history. injuryHistory only needs 3+ entries for the injury-prone
+  // flag, so cap at 4 everywhere.
+  const _trimPlayerList = (players, isCPU) => {
+    for (const p of players) {
+      if (p.injuryHistory?.length > 4) p.injuryHistory = p.injuryHistory.slice(-4);
+      const historyCap = isCPU ? 4 : 12;
+      const careerCap  = isCPU ? 4 : 12;
+      if (p.careerHistory?.length > historyCap) p.careerHistory = p.careerHistory.slice(-historyCap);
+      if (p.career?.length      > careerCap)  p.career         = p.career.slice(-careerCap);
+    }
+  };
+
+  for (const [tidStr, roster] of Object.entries(franchise.rosters || {}))
+    _trimPlayerList(roster, Number(tidStr) !== userTeam);
+
+  for (const [tidStr, squad] of Object.entries(franchise.practiceSquads || {}))
+    _trimPlayerList(squad, Number(tidStr) !== userTeam);
 }
 window.addEventListener("beforeunload", () => { if (_saveFranchiseTimer) _flushSaveFranchise(); });
 
