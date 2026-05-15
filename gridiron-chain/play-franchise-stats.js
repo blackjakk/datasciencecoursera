@@ -3261,10 +3261,57 @@ const _ALLPRO_FORMATION = [
   ["DL",4],["LB",3],["CB",2],["S",2],["K",1],["P",1],
 ];
 
+// Per-position IDP scoring — secondary earns more per INT/PD to offset
+// fewer tackle opportunities vs. LBs/DLs. Shared by _allProPlayerScore
+// and _computeDPOY so both awards always agree on who's best.
+function _idpScore(pos, s) {
+  if (pos === "DL") {
+    // Pass-rush specialists: sacks are premium
+    return (s.tkl      || 0) * 1.0
+         + (s.sk       || 0) * 4
+         + (s.ff       || 0) * 3
+         + (s.fr       || 0) * 2
+         + (s.int_made || 0) * 3
+         + (s.pd       || 0) * 1
+         + (s.def_td   || 0) * 6;
+  }
+  if (pos === "LB") {
+    // Coverage + run stop: tackles and sacks both valued, INT rewarded
+    return (s.tkl      || 0) * 1.5
+         + (s.sk       || 0) * 3
+         + (s.int_made || 0) * 4
+         + (s.pd       || 0) * 1.5
+         + (s.ff       || 0) * 3
+         + (s.fr       || 0) * 2
+         + (s.def_td   || 0) * 6;
+  }
+  if (pos === "CB") {
+    // Coverage specialists: INT and PD boosted, fewer raw tackles expected
+    return (s.tkl      || 0) * 0.75
+         + (s.sk       || 0) * 2
+         + (s.int_made || 0) * 6
+         + (s.pd       || 0) * 2.5
+         + (s.ff       || 0) * 3
+         + (s.fr       || 0) * 2
+         + (s.def_td   || 0) * 6;
+  }
+  if (pos === "S") {
+    // Hybrid: strong tackle scorer + good INT value
+    return (s.tkl      || 0) * 1.0
+         + (s.sk       || 0) * 2
+         + (s.int_made || 0) * 5
+         + (s.pd       || 0) * 2
+         + (s.ff       || 0) * 3
+         + (s.fr       || 0) * 2
+         + (s.def_td   || 0) * 6;
+  }
+  return 0;
+}
+
 // Score a player for All-Pro consideration using fantasy football point
 // equivalents so the formula is intuitive and OVR-free.
-// Offense = standard PPR scoring. Defense = standard IDP scoring.
-// OL uses pancakes/sacks-allowed since they have no traditional stat line.
+// Offense = standard PPR. Defense = per-position IDP. OL = pancakes/SA.
+// K = tiered FG value (3/4/5 pts by distance).
 function _allProPlayerScore(p, pos, statRow) {
   if (!statRow) return 0;
   const s = statRow;
@@ -3276,24 +3323,20 @@ function _allProPlayerScore(p, pos, statRow) {
   }
 
   if (pos === "K") {
+    // Tiered FG value: <40yd=3, 40-49=4, 50+=5. We only know fg_long so
+    // apply the distance bonus once as a range indicator, not per-FG.
+    const distBonus = (s.fg_long || 0) >= 50 ? 2 : (s.fg_long || 0) >= 40 ? 1 : 0;
+    const missPenalty = Math.max(0, (s.fg_att || 0) - (s.fg_made || 0));
     return (s.fg_made || 0) * 3
+         + distBonus
          + (s.xp_made || 0) * 1
-         + Math.max(0, (s.fg_long || 0) - 49) * 2;
+         - missPenalty * 1;
   }
 
   if (pos === "P") return (s.punts || 0) * 1.5;
 
   const DEF_POS = new Set(["DL","LB","CB","S"]);
-  if (DEF_POS.has(pos)) {
-    // IDP scoring
-    return (s.tkl      || 0) * 1.0
-         + (s.sk       || 0) * 3
-         + (s.int_made || 0) * 4
-         + (s.pd       || 0) * 1
-         + (s.ff       || 0) * 3
-         + (s.fr       || 0) * 2
-         + (s.def_td   || 0) * 6;
-  }
+  if (DEF_POS.has(pos)) return _idpScore(pos, s);
 
   // PPR offense
   return (s.pass_yds     || 0) * 0.04
@@ -3383,9 +3426,7 @@ function _computeDPOY() {
     const teamMul = 0.6 + winPct * 0.8;
     for (const p of Object.values(players)) {
       if (!["DL","LB","CB","S"].includes(p.pos)) continue;
-      const defScore = (p.tkl||0)*0.6 + (p.sk||0)*2.5 + (p.int_made||0)*5
-                     + (p.pd||0)*1.2 + (p.ff||0)*2 + (p.fr||0)*2 + (p.def_td||0)*8;
-      const s = defScore * teamMul;
+      const s = _idpScore(p.pos, p) * teamMul;
       if (!best || s > best.score) best = { ...p, teamId: tid, score: s };
     }
   }
