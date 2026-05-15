@@ -3054,11 +3054,13 @@ function renderFrnRegular() {
     </div>
     <div class="frn-footer-row">
       <div class="frn-footer-info">${(() => {
-        if (_saveLastError && _saveLastError.startsWith("quota")) return `<span style="color:#ff7070">⚠ SAVE FAILING — localStorage quota exceeded (${_saveLastError}). Click for emergency trim.</span>`;
+        if (_saveLastError && _saveLastError.startsWith("idb-only")) return `<span style="color:#e8a000">ℹ Save running from IndexedDB only (localStorage too small at ${_saveLastError.split(":")[1]}). Your data is safe.</span>`;
         if (_saveLastError) return `<span style="color:#ff7070">⚠ Save error: ${_saveLastError}</span>`;
         const mb = (_saveLastSize / 1024 / 1024).toFixed(2);
-        return `Franchise auto-saves to your browser · ${mb}MB · Reload to keep playing`;
+        return `Auto-saved to IndexedDB + localStorage · ${mb}MB cache · Reload to keep playing`;
       })()}</div>
+      <button class="btn btn-outline" onclick="frnExportSave()" style="font-size:.62rem;color:var(--gray)" title="Download a backup .json file of your franchise">⬇ Export</button>
+      <button class="btn btn-outline" onclick="frnImportSave()" style="font-size:.62rem;color:var(--gray)" title="Replace current franchise with a previously exported .json">⬆ Import</button>
       <button class="btn btn-outline frn-abandon-btn" onclick="frnAbandon()">× Abandon Franchise</button>
     </div>`;
 }

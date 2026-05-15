@@ -1336,6 +1336,63 @@ function _migrateLegacySave() {
 }
 
 let _saveFranchiseTimer = null;
+// ── IndexedDB primary store ──────────────────────────────────────────────────
+// Unlimited capacity (hundreds of MB possible). localStorage is now a
+// fast-path mirror; IDB is the canonical source of truth.
+const _IDB_DB = "gridiron_chain";
+const _IDB_STORE = "franchise_saves";
+let _idbPromise = null;
+function _idbOpen() {
+  if (_idbPromise) return _idbPromise;
+  _idbPromise = new Promise((resolve, reject) => {
+    const req = indexedDB.open(_IDB_DB, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(_IDB_STORE)) db.createObjectStore(_IDB_STORE);
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  return _idbPromise;
+}
+function _idbPut(slotId, value) {
+  return _idbOpen().then(db => new Promise((res, rej) => {
+    const tx = db.transaction(_IDB_STORE, "readwrite");
+    tx.objectStore(_IDB_STORE).put(value, String(slotId));
+    tx.oncomplete = res;
+    tx.onerror = () => rej(tx.error);
+  }));
+}
+function _idbGet(slotId) {
+  return _idbOpen().then(db => new Promise((res, rej) => {
+    const tx = db.transaction(_IDB_STORE, "readonly");
+    const req = tx.objectStore(_IDB_STORE).get(String(slotId));
+    req.onsuccess = () => res(req.result || null);
+    req.onerror = () => rej(req.error);
+  }));
+}
+function _idbDelete(slotId) {
+  return _idbOpen().then(db => new Promise((res, rej) => {
+    const tx = db.transaction(_IDB_STORE, "readwrite");
+    tx.objectStore(_IDB_STORE).delete(String(slotId));
+    tx.oncomplete = res;
+    tx.onerror = () => rej(tx.error);
+  }));
+}
+
+// Ask the browser to make our storage persistent — it survives eviction
+// pressure when the user is low on disk. Fired once per session on first save.
+let _persistRequested = false;
+function _requestPersistentStorage() {
+  if (_persistRequested) return;
+  _persistRequested = true;
+  if (navigator.storage && navigator.storage.persist) {
+    navigator.storage.persist().then(granted => {
+      console.log(`[storage] persistent storage ${granted ? "granted" : "denied"}`);
+    }).catch(() => {});
+  }
+}
+
 function saveFranchise() {
   if (!franchise) return;
   if (_saveFranchiseTimer) clearTimeout(_saveFranchiseTimer);
@@ -1367,6 +1424,12 @@ function _flushSaveFranchise() {
     slot.name = `${team.city} ${team.name}`;
   }
   _writeSlotsMeta(meta);
+  franchise._saveStamp = Date.now();
+  // Always-on: ask for persistent storage so the IDB store doesn't get evicted.
+  _requestPersistentStorage();
+  // Async write to IDB — primary store, no size limit. Fire and forget.
+  _idbPut(activeId, franchise).catch(e => console.warn("[IDB save] failed:", e));
+
   let payload;
   try { payload = JSON.stringify(franchise); }
   catch (e) { console.error("[save] JSON serialize failed:", e); _saveLastError = "serialize:" + e.message; return; }
@@ -1382,20 +1445,22 @@ function _flushSaveFranchise() {
     _saveLastError = null;
     _saveLastSize = payload.length;
   } catch (e) {
-    console.error(`[save] localStorage write failed (payload ${(payload.length/1024/1024).toFixed(2)}MB):`, e);
-    _saveLastError = `quota:${(payload.length/1024/1024).toFixed(2)}MB`;
-    // Try aggressive trim and retry once
-    if (e.name === "QuotaExceededError" || /quota/i.test(e.message || "")) {
-      _trimFranchiseForStorage();
-      try {
-        const trimmed = JSON.stringify(franchise);
-        localStorage.setItem(_slotDataKey(activeId), trimmed);
-        _saveLastError = `quota-recovered:trimmed-to-${(trimmed.length/1024/1024).toFixed(2)}MB`;
-        _saveLastSize = trimmed.length;
-        console.warn("[save] recovered after trim");
-      } catch (e2) {
-        console.error("[save] still failing after trim:", e2);
-      }
+    // localStorage hit quota — that's OK, IDB has the canonical save.
+    // We still want a localStorage entry so sync loads find SOMETHING, so try
+    // trimming and retry once.
+    console.warn(`[save] localStorage full (${(payload.length/1024/1024).toFixed(2)}MB) — IDB has the full save. Trimming localStorage cache.`);
+    _trimFranchiseForStorage();
+    try {
+      const trimmed = JSON.stringify(franchise);
+      localStorage.setItem(_slotDataKey(activeId), trimmed);
+      _saveLastError = null;
+      _saveLastSize = trimmed.length;
+    } catch (e2) {
+      // Even trimmed version doesn't fit. Just remove the stale entry — load
+      // will fall through to IDB.
+      try { localStorage.removeItem(_slotDataKey(activeId)); } catch {}
+      _saveLastError = `idb-only:${(payload.length/1024/1024).toFixed(2)}MB`;
+      _saveLastSize = 0;
     }
   }
 }
@@ -1431,13 +1496,33 @@ function loadFranchise() {
   _migrateLegacySave();
   const meta = _readSlotsMeta();
   if (!meta.activeSlotId) { franchise = null; return; }
+  const slotId = meta.activeSlotId;
   try {
-    const raw = localStorage.getItem(_slotDataKey(meta.activeSlotId));
+    const raw = localStorage.getItem(_slotDataKey(slotId));
     if (raw) {
       franchise = JSON.parse(raw);
       if (franchise && franchise.pendingFranchiseGame) franchise.pendingFranchiseGame = null;
+      // Race the IDB read — if IDB has a newer save (lastSaved timestamp via
+      // _saveLastFlush on franchise), use it. Otherwise keep the sync result.
+      _idbGet(slotId).then(idbFranchise => {
+        if (!idbFranchise) return;
+        const lsTime = franchise?._saveStamp || 0;
+        const idbTime = idbFranchise._saveStamp || 0;
+        if (idbTime > lsTime) {
+          franchise = idbFranchise;
+          if (franchise.pendingFranchiseGame) franchise.pendingFranchiseGame = null;
+          if (typeof showFranchiseDashboard === "function") showFranchiseDashboard();
+        }
+      }).catch(() => {});
     } else {
       franchise = null;
+      // Async IDB fallback — common case is localStorage cleared but IDB intact.
+      _idbGet(slotId).then(idbFranchise => {
+        if (!idbFranchise) return;
+        franchise = idbFranchise;
+        if (franchise.pendingFranchiseGame) franchise.pendingFranchiseGame = null;
+        if (typeof showFranchiseDashboard === "function") showFranchiseDashboard();
+      }).catch(() => {});
     }
   } catch { franchise = null; }
 }
@@ -1464,7 +1549,50 @@ function frnDeleteSlot(id) {
   }
   _writeSlotsMeta(meta);
   try { localStorage.removeItem(_slotDataKey(id)); } catch {}
+  _idbDelete(id).catch(() => {});
   renderFrnStartScreen();
+}
+
+// ── Export / Import save to file ─────────────────────────────────────────────
+function frnExportSave() {
+  if (!franchise) { alert("No franchise to export."); return; }
+  const team = getTeam(franchise.chosenTeamId);
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  const teamSlug = team ? `${team.city}_${team.name}`.replace(/\s+/g, "_") : "franchise";
+  const filename = `gridiron_${teamSlug}_S${franchise.season}W${franchise.week}_${stamp}.json`;
+  const payload = JSON.stringify({ __gridironSave: 1, exportedAt: Date.now(), franchise }, null, 0);
+  const blob = new Blob([payload], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+}
+
+function frnImportSave() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "application/json,.json";
+  input.onchange = async () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const incoming = parsed.__gridironSave ? parsed.franchise : parsed;
+      if (!incoming || !incoming.chosenTeamId || !incoming.rosters) {
+        alert("That doesn't look like a Gridiron Chain save file.");
+        return;
+      }
+      if (franchise && !confirm("Importing will replace your current active franchise. Continue?")) return;
+      franchise = incoming;
+      _flushSaveFranchise();
+      if (typeof showFranchiseDashboard === "function") showFranchiseDashboard();
+    } catch (e) {
+      alert("Failed to import save: " + e.message);
+    }
+  };
+  input.click();
 }
 
 function frnRenameSlot(id) {
