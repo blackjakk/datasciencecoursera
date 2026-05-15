@@ -3261,19 +3261,50 @@ const _ALLPRO_FORMATION = [
   ["DL",4],["LB",3],["CB",2],["S",2],["K",1],["P",1],
 ];
 
-// Score a live player for All-Pro consideration. Skill positions weighted
-// by season production; OL fall back to internal OVR since they don't
-// accumulate stat lines.
+// Score a player for All-Pro consideration using fantasy football point
+// equivalents so the formula is intuitive and OVR-free.
+// Offense = standard PPR scoring. Defense = standard IDP scoring.
+// OL uses pancakes/sacks-allowed since they have no traditional stat line.
 function _allProPlayerScore(p, pos, statRow) {
-  if (pos === "OL") {
-    const pk = statRow?.pancakes || 0;
-    const sa = statRow?.sacks_allowed || 0;
-    const hasStats = pk > 0 || sa > 0;
-    return (p.overall || 0) * (hasStats ? 0.35 : 1.0) + pk * 2.2 - sa * 6;
+  if (!statRow) return 0;
+  const s = statRow;
+  const OL_POS = new Set(["OL","LT","LG","C","RG","RT"]);
+
+  if (OL_POS.has(pos)) {
+    const pk = s.pancakes || 0, sa = s.sacks_allowed || 0;
+    return (pk === 0 && sa === 0) ? 0 : pk * 3 - sa * 10;
   }
-  if (pos === "P")  return (statRow?.punts ? (statRow.punts * 1) : 0) + (p.overall || 0) * 0.4;
-  if (statRow) return mvpScore(statRow) * 0.7 + (p.overall || 0) * 0.3;
-  return (p.overall || 0) * 0.5;
+
+  if (pos === "K") {
+    return (s.fg_made || 0) * 3
+         + (s.xp_made || 0) * 1
+         + Math.max(0, (s.fg_long || 0) - 49) * 2;
+  }
+
+  if (pos === "P") return (s.punts || 0) * 1.5;
+
+  const DEF_POS = new Set(["DL","LB","CB","S"]);
+  if (DEF_POS.has(pos)) {
+    // IDP scoring
+    return (s.tkl      || 0) * 1.0
+         + (s.sk       || 0) * 3
+         + (s.int_made || 0) * 4
+         + (s.pd       || 0) * 1
+         + (s.ff       || 0) * 3
+         + (s.fr       || 0) * 2
+         + (s.def_td   || 0) * 6;
+  }
+
+  // PPR offense
+  return (s.pass_yds     || 0) * 0.04
+       + (s.pass_td      || 0) * 4
+       - (s.pass_int     || 0) * 2
+       + (s.rush_yds     || 0) * 0.10
+       + (s.rush_td      || 0) * 6
+       + (s.rec          || 0) * 1.0
+       + (s.rec_yds      || 0) * 0.10
+       + (s.rec_td       || 0) * 6
+       - (s.fumbles_lost || 0) * 2;
 }
 
 function _allProRowSnapshot(r) {
