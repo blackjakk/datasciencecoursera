@@ -19209,6 +19209,13 @@ function showFranchiseDashboard() {
         p.contract.guaranteedYears = _guaranteedYearsForLength(p.contract.years || p.contract.remaining || 1);
         p.contract.guaranteedAAV = p.contract.aav;
       }
+      // Clamp guaranteed years so there's always at least 1 free year at the end.
+      // Fixes saves where guaranteedYears was never decremented and every contract
+      // became 100% dead cap.
+      if (p.contract && p.contract.guaranteedYears != null) {
+        const rem = p.contract.remaining || 0;
+        p.contract.guaranteedYears = Math.max(0, Math.min(p.contract.guaranteedYears, rem - 1));
+      }
     }
   }
   // Backfill practice squad data for older saves.
@@ -28070,7 +28077,8 @@ function _resignAavForYears(baseMarket, years) {
 // count against the cap (dead money).
 //   1yr→1 (fully guaranteed),  2yr→2,  3yr→2,  4yr→2,  5yr→3,  6yr→3
 function _guaranteedYearsForLength(years) {
-  if (years <= 2) return years;
+  if (years <= 1) return 0;
+  if (years <= 2) return 1;
   if (years <= 4) return 2;
   return 3;
 }
@@ -28620,6 +28628,7 @@ function startFrnOffseason() {
     for (const p of roster) {
       if (p.contract && p.contract.remaining > 0) {
         p.contract.remaining -= 1;
+        if (p.contract.guaranteedYears > 0) p.contract.guaranteedYears -= 1;
       }
     }
   }
