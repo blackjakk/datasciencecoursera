@@ -2715,6 +2715,42 @@
   @media (max-width: 640px) {
     .bspnlive-awards-row { grid-template-columns: repeat(2, 1fr); }
   }
+  /* ── POTW Voting Cards ──────────────────────────────────────────────── */
+  .potw-group { margin-bottom: 1.4rem; }
+  .potw-group-title {
+    font-family: 'Bebas Neue','Anton',sans-serif;
+    font-size: .95rem; letter-spacing: 2px; color: var(--blgold);
+    margin-bottom: .55rem; border-bottom: 1px solid var(--blborder); padding-bottom: .2rem;
+  }
+  .potw-group-cards { display: grid; grid-template-columns: repeat(3,1fr); gap: .55rem; }
+  .potw-vote-card {
+    position: relative; background: var(--blbg2);
+    border: 2px solid var(--blborder); border-left: 4px solid var(--c, var(--blgray));
+    padding: .6rem .7rem; cursor: pointer;
+    transition: border-color .12s ease, background .12s ease;
+  }
+  .potw-vote-card:hover { border-color: var(--blgold); background: rgba(245,197,66,.05); }
+  .potw-vote-card.selected {
+    border-color: var(--blgold); background: rgba(245,197,66,.12);
+    box-shadow: 0 0 0 1px var(--blgold);
+  }
+  .potw-vote-card.selected .potw-vote-card-name { color: var(--blgold); }
+  .potw-vote-card.selected .potw-vote-card-badge { color: var(--blgold); font-weight:900; }
+  .potw-vote-card-rank {
+    position: absolute; top:.35rem; right:.45rem;
+    font-size:.62rem; color:var(--blgray); letter-spacing:1px;
+    font-family:'Bebas Neue','Anton',sans-serif;
+  }
+  .potw-vote-card-name { font-weight:900; font-size:.88rem; color:var(--blwhite); margin-bottom:.12rem; }
+  .potw-vote-card-meta { font-size:.62rem; color:var(--blgray); margin-bottom:.18rem; }
+  .potw-vote-card-stat { font-size:.6rem; color:var(--blgray); line-height:1.35; }
+  .potw-vote-card-badge { margin-top:.35rem; font-size:.58rem; letter-spacing:.8px; color:var(--blgray); }
+  .potw-group-skip { margin-top:.3rem; }
+  .potw-poty-row { display:grid; grid-template-columns:repeat(4,1fr); gap:.55rem; margin-bottom:.55rem; }
+  @media (max-width:700px) {
+    .potw-group-cards { grid-template-columns:1fr; }
+    .potw-poty-row { grid-template-columns:repeat(2,1fr); }
+  }
   .bspnlive-award-card {
     position: relative;
     background: var(--blbg2);
@@ -24262,7 +24298,11 @@ function renderFrnRegular() {
   const potwWeeks = Object.keys(potwSeason).map(Number).sort((a, b) => b - a);
   const latestPotwWeek = potwWeeks[0];
   const latestPotw = latestPotwWeek != null ? potwSeason[latestPotwWeek] : null;
-  const potwRow = (label, entry) => {
+  // Detect unvoted candidate weeks so we can surface the VOTE NOW CTA
+  const candWeeks = Object.keys(franchise.potwCandidates?.[franchise.season] || {}).map(Number).sort((a,b)=>b-a);
+  const votesByWeek = franchise.potwVotes?.[franchise.season] || {};
+  const unvotedWeek = candWeeks.find(w => !votesByWeek[w]);
+  const potwRow = (label, entry, isVoted) => {
     if (!entry) return "";
     const isMine = entry.teamId === chosenTeamId;
     return `<div class="frn-leader-row" style="${isMine ? "background:rgba(245,197,66,0.08)" : ""}">
@@ -24271,17 +24311,24 @@ function renderFrnRegular() {
         ${playerLinkByName(entry.name)}
         <span style="color:${entry.teamPrimary};font-size:.6rem;margin-left:.3rem">${entry.teamAbbr}</span>
         <span style="color:var(--gray);font-size:.58rem;margin-left:.25rem">${entry.pos}</span>
+        ${isVoted && votesByWeek[latestPotwWeek]?.[label.toLowerCase()] === entry.name ? `<span style="color:var(--gold);font-size:.55rem;margin-left:.25rem">✓</span>` : ""}
       </span>
       <span class="frn-leader-stat" style="font-size:.65rem;color:var(--gray)">${entry.statLine}</span>
     </div>`;
   };
+  const isLatestVoted = latestPotwWeek != null && !!votesByWeek[latestPotwWeek];
   const potwHtml = latestPotw ? `
-    <div style="color:var(--gray);font-size:.6rem;letter-spacing:.5px;margin-bottom:.3rem">WEEK ${latestPotwWeek} WINNERS</div>
-    ${potwRow("OFF", latestPotw.offense)}
-    ${potwRow("DEF", latestPotw.defense)}
-    ${potwRow("OL",  latestPotw.ol)}
-    ${potwRow("ST",  latestPotw.specialTeams)}
-  ` : `<div style="color:var(--gray);font-size:.72rem;padding:.5rem 0">Player of the Week is awarded after each simmed week.</div>`;
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.3rem">
+      <span style="color:var(--gray);font-size:.6rem;letter-spacing:.5px">WEEK ${latestPotwWeek} WINNERS${isLatestVoted ? " · <span style='color:var(--gold)'>VOTED</span>" : ""}</span>
+      ${unvotedWeek != null ? `<button class="frn-cap-btn" onclick="renderPotwVoting(${unvotedWeek})" style="padding:.2rem .6rem;font-size:.6rem;letter-spacing:.8px;background:var(--gold);color:#000;font-weight:900;border:0">🗳 VOTE W${unvotedWeek}</button>` : ""}
+    </div>
+    ${potwRow("OFF", latestPotw.offense, isLatestVoted)}
+    ${potwRow("DEF", latestPotw.defense, isLatestVoted)}
+    ${potwRow("OL",  latestPotw.ol, isLatestVoted)}
+    ${potwRow("ST",  latestPotw.specialTeams, isLatestVoted)}
+  ` : unvotedWeek != null ? `<div style="padding:.5rem 0">
+    <button class="frn-cap-btn" onclick="renderPotwVoting(${unvotedWeek})" style="padding:.35rem .9rem;font-size:.7rem;letter-spacing:.8px;background:var(--gold);color:#000;font-weight:900;border:0">🗳 VOTE — WEEK ${unvotedWeek} CANDIDATES READY</button>
+  </div>` : `<div style="color:var(--gray);font-size:.72rem;padding:.5rem 0">Player of the Week is awarded after each simmed week.</div>`;
 
   // ─── Final composition ─────────────────────────────────────────────────
   $("frnHomeContent").innerHTML = `
@@ -25857,54 +25904,193 @@ function frnSimGame(homeId, awayId) {
 }
 
 // ── Player of the Week ────────────────────────────────────────────────────────
-// Scans all games played in `week` and picks the top performer per group.
-// Stored in franchise.potw[season][week] = { offense, defense, ol, specialTeams }.
+// Generates top-3 candidates per group and auto-selects the leader as winner.
+// User can override via renderPotwVoting(); votes tally toward POTY at season end.
 function _computeAndStorePOTW(week) {
   if (!franchise.potw) franchise.potw = {};
+  if (!franchise.potwCandidates) franchise.potwCandidates = {};
   const seasonKey = franchise.season;
   if (!franchise.potw[seasonKey]) franchise.potw[seasonKey] = {};
+  if (!franchise.potwCandidates[seasonKey]) franchise.potwCandidates[seasonKey] = {};
 
   const weekGames = franchise.schedule.filter(g => g.week === week && g.played && g.stats);
   if (!weekGames.length) return;
 
-  // Collect per-player stat lines from this week's games
-  const pMap = {}; // name → { ...stats, teamId }
+  const pMap = {};
   for (const g of weekGames) {
     for (const [side, teamId] of [["home", g.homeId], ["away", g.awayId]]) {
       const players = g.stats[side]?.players || {};
       for (const [name, p] of Object.entries(players)) {
         if (!pMap[name]) pMap[name] = { ...p, teamId };
-        else {
-          // Shouldn't happen (player only plays once per week) but merge safely
-          for (const [k, v] of Object.entries(p)) {
-            if (typeof v === "number") pMap[name][k] = (pMap[name][k] || 0) + v;
-          }
+        else for (const [k, v] of Object.entries(p)) {
+          if (typeof v === "number") pMap[name][k] = (pMap[name][k] || 0) + v;
         }
       }
     }
   }
 
   const allP = Object.values(pMap);
-  const OL_POS = new Set(["OL","LT","LG","C","RG","RT"]);
+  const OL_POS    = new Set(["OL","LT","LG","C","RG","RT"]);
   const SKILL_POS = new Set(["QB","RB","WR","TE"]);
-  const DEF_POS = new Set(["DL","LB","CB","S","DE","DT","FS","SS"]);
-  const ST_POS = new Set(["K","P"]);
+  const DEF_POS   = new Set(["DL","LB","CB","S","DE","DT","FS","SS"]);
+  const ST_POS    = new Set(["K","P"]);
 
-  const pick = (filter, scoreF) => {
+  const pickTop = (filter, scoreF, n = 3) => {
     const pool = allP.filter(filter).map(p => ({ ...p, _s: scoreF(p) })).filter(p => p._s > 0);
-    if (!pool.length) return null;
     pool.sort((a, b) => b._s - a._s);
-    const w = pool[0];
-    const t = getTeam(w.teamId);
-    return { name: w.name, pos: w.pos, teamId: w.teamId, teamAbbr: t ? _bspnLiveAbbr(t) : "—", teamPrimary: t?.primary || "#888", statLine: mvpStatLine(w), score: w._s };
+    return pool.slice(0, n).map(p => {
+      const t = getTeam(p.teamId);
+      return { name: p.name, pos: p.pos, teamId: p.teamId,
+        teamAbbr: t ? _bspnLiveAbbr(t) : "—", teamPrimary: t?.primary || "#888",
+        statLine: mvpStatLine(p), score: p._s };
+    });
   };
 
-  franchise.potw[seasonKey][week] = {
-    offense:      pick(p => SKILL_POS.has(p.pos), mvpScore),
-    defense:      pick(p => DEF_POS.has(p.pos), mvpScore),
-    ol:           pick(p => OL_POS.has(p.pos), p => (p.pancakes||0)*3 - (p.sacks_allowed||0)*4),
-    specialTeams: pick(p => ST_POS.has(p.pos), mvpScore),
+  const candidates = {
+    offense:      pickTop(p => SKILL_POS.has(p.pos), mvpScore),
+    defense:      pickTop(p => DEF_POS.has(p.pos),   mvpScore),
+    ol:           pickTop(p => OL_POS.has(p.pos),    p => (p.pancakes||0)*3 - (p.sacks_allowed||0)*4),
+    specialTeams: pickTop(p => ST_POS.has(p.pos),    mvpScore),
   };
+  franchise.potwCandidates[seasonKey][week] = candidates;
+
+  // Auto-winner = top of each list; overridden when user votes
+  franchise.potw[seasonKey][week] = {
+    offense:      candidates.offense[0]      || null,
+    defense:      candidates.defense[0]      || null,
+    ol:           candidates.ol[0]           || null,
+    specialTeams: candidates.specialTeams[0] || null,
+  };
+}
+
+// Tally user votes across the season to find the Player of the Year per group.
+function _computePOTY() {
+  const votes = franchise.potwVotes?.[franchise.season] || {};
+  const cands = franchise.potwCandidates?.[franchise.season] || {};
+  const tally = { offense: {}, defense: {}, ol: {}, specialTeams: {} };
+  for (const weekVotes of Object.values(votes)) {
+    for (const g of ["offense","defense","ol","specialTeams"]) {
+      const n = weekVotes[g];
+      if (n) tally[g][n] = (tally[g][n] || 0) + 1;
+    }
+  }
+  const winner = (groupTally, group) => {
+    const entries = Object.entries(groupTally).sort((a,b) => b[1] - a[1]);
+    if (!entries.length) return null;
+    const [name, wins] = entries[0];
+    for (const weekCands of Object.values(cands)) {
+      const found = (weekCands[group] || []).find(c => c.name === name);
+      if (found) return { ...found, wins };
+    }
+    return { name, wins, pos: "?", teamAbbr: "—", teamPrimary: "#888", statLine: "" };
+  };
+  return {
+    offense:      winner(tally.offense,      "offense"),
+    defense:      winner(tally.defense,      "defense"),
+    ol:           winner(tally.ol,           "ol"),
+    specialTeams: winner(tally.specialTeams, "specialTeams"),
+  };
+}
+
+// Module-level pending votes for the voting page (cleared on open)
+let _potwPendingVotes = {};
+
+function renderPotwVoting(week) {
+  frnHoverTipHide(); _frnHoverTipPgHide && _frnHoverTipPgHide();
+  const season = franchise.season;
+  const candidates = franchise.potwCandidates?.[season]?.[week];
+  if (!candidates) { showFranchiseDashboard(); return; }
+
+  const existingVotes = franchise.potwVotes?.[season]?.[week] || {};
+  _potwPendingVotes = { ...existingVotes };
+
+  const GROUPS = [
+    { key: "offense",      label: "OFFENSIVE PLAYER",   icon: "⚡" },
+    { key: "defense",      label: "DEFENSIVE PLAYER",   icon: "🛡" },
+    { key: "ol",           label: "OFFENSIVE LINEMAN",  icon: "🧱" },
+    { key: "specialTeams", label: "SPECIAL TEAMS",      icon: "🦵" },
+  ];
+
+  const renderGroup = (g) => {
+    const list = candidates[g.key] || [];
+    if (!list.length) return "";
+    return `<div class="potw-group">
+      <div class="potw-group-title">${g.icon} ${g.label}</div>
+      <div class="potw-group-cards">
+        ${list.map((c, i) => {
+          const isSel = _potwPendingVotes[g.key] === c.name;
+          return `<div class="potw-vote-card ${isSel ? "selected" : ""}"
+                       onclick="_potwSelect('${g.key}','${c.name.replace(/['"\\]/g,"")}')"
+                       style="--c:${c.teamPrimary}">
+            <div class="potw-vote-card-rank">#${i+1}</div>
+            <div class="potw-vote-card-name">${c.name}</div>
+            <div class="potw-vote-card-meta">${c.pos} · <span style="color:${c.teamPrimary}">${c.teamAbbr}</span></div>
+            <div class="potw-vote-card-stat">${c.statLine || "—"}</div>
+            <div class="potw-vote-card-badge">${isSel ? "✓ YOUR PICK" : "VOTE"}</div>
+          </div>`;
+        }).join("")}
+      </div>
+      ${_potwPendingVotes[g.key]
+        ? `<div class="potw-group-skip"><button class="bspn-back" onclick="_potwSelect('${g.key}',null)" style="font-size:.6rem">Clear vote</button></div>`
+        : ""}
+    </div>`;
+  };
+
+  const isRevote = Object.keys(existingVotes).length > 0;
+  $("frnHomeContent").innerHTML = `
+    <div class="bspnlive-root" style="margin:-1rem -1.5rem 0 -1.5rem;padding-bottom:2rem">
+      <header class="bspnlive-header">
+        <div>
+          <div class="bspnlive-logo">BSPN</div>
+          <div class="bspnlive-logo-sub">PLAYER OF THE WEEK · WEEK ${week} VOTING · SEASON ${season}</div>
+        </div>
+        <nav class="bspnlive-nav" style="flex-wrap:wrap;gap:.7rem .9rem">${_bspnNavHtml("AWARDS")}</nav>
+      </header>
+      <div style="padding:.55rem 1.4rem;border-bottom:1px solid var(--blborder);display:flex;gap:.55rem;align-items:center;flex-wrap:wrap">
+        <button class="bspn-back" onclick="showFranchiseDashboard()">‹ Return to Dashboard</button>
+        <span style="color:var(--blgray);font-size:.67rem;letter-spacing:.4px">
+          ${isRevote ? "Changing your Week " + week + " votes — wins contribute to Player of the Year"
+                     : "Pick one winner per category — your votes build the POTY race all season"}
+        </span>
+      </div>
+      <div style="padding:.8rem 1.4rem">${GROUPS.map(renderGroup).join("")}</div>
+      <div style="padding:.3rem 1.4rem 1rem;display:flex;gap:.8rem;align-items:center">
+        <button class="frn-cap-btn" onclick="_potwSubmitVotes(${week})"
+                style="padding:.55rem 1.6rem;font-size:.78rem;letter-spacing:1px">
+          LOCK IN VOTES
+        </button>
+        <button class="bspn-back" onclick="showFranchiseDashboard()">Skip &amp; return</button>
+      </div>
+    </div>`;
+}
+
+function _potwSelect(group, name) {
+  if (!name || name === "null") delete _potwPendingVotes[group];
+  else _potwPendingVotes[group] = name;
+  // Find the week currently shown from page context
+  const sub = document.querySelector(".bspnlive-logo-sub");
+  const m = sub ? sub.textContent.match(/WEEK (\d+) VOTING/) : null;
+  if (m) renderPotwVoting(+m[1]);
+}
+
+function _potwSubmitVotes(week) {
+  if (!franchise.potwVotes) franchise.potwVotes = {};
+  const season = franchise.season;
+  if (!franchise.potwVotes[season]) franchise.potwVotes[season] = {};
+  franchise.potwVotes[season][week] = { ...(_potwPendingVotes || {}) };
+
+  // Promote voted players to POTW winners
+  const cands = franchise.potwCandidates?.[season]?.[week] || {};
+  if (!franchise.potw?.[season]?.[week]) { franchise.potw = franchise.potw || {}; franchise.potw[season] = franchise.potw[season] || {}; franchise.potw[season][week] = {}; }
+  for (const g of ["offense","defense","ol","specialTeams"]) {
+    const votedName = _potwPendingVotes[g];
+    if (votedName) {
+      const found = (cands[g] || []).find(c => c.name === votedName);
+      if (found) franchise.potw[season][week][g] = found;
+    }
+  }
+  saveFranchise();
+  showFranchiseDashboard();
 }
 
 function frnSimWeek() {
@@ -26725,6 +26911,7 @@ function showFrnAwards() {
     const allPros      = _selectAllPros();
     const statLeaders  = _seasonStatLeaders();
     const byNumbers    = _seasonByTheNumbers();
+    const poty         = _computePOTY();
 
     // Standings snapshot — feeds next year's COY improvement calculation.
     const standingsSnapshot = {};
@@ -26758,7 +26945,7 @@ function showFrnAwards() {
       coy:          coy,
       comeback:     _snapshotAwardWinner(comeback),
       breakout:     _snapshotAwardWinner(breakout),
-      allPros, statLeaders, byNumbers,
+      allPros, statLeaders, byNumbers, poty,
       retirees, hofClass,
       standingsSnapshot,
       userRecord: existing?.userRecord || { ...(franchise.standings[franchise.chosenTeamId] || { w:0, l:0 }) },
@@ -27486,6 +27673,34 @@ function renderFrnAwards() {
       <div class="bspnlive-award-card empty"></div>
     </div>`;
 
+  // ── POTY section ────────────────────────────────────────────────────────────
+  const poty = latest.poty;
+  const voteWeeks = Object.keys(franchise.potwVotes?.[season] || {}).length;
+  const potyCard = (icon, label, rec) => {
+    if (!rec) return `<div class="bspnlive-award-card empty">
+      <div class="bspnlive-award-card-icon">${icon}</div>
+      <div class="bspnlive-award-card-label">${label}</div>
+      <div class="bspnlive-award-card-name" style="color:var(--blgray);font-style:italic">— no votes cast —</div>
+    </div>`;
+    const t = rec.teamId ? getTeam(rec.teamId) : null;
+    return `<div class="bspnlive-award-card" style="--card-color:${rec.teamPrimary || t?.primary || '#888'}">
+      <div class="bspnlive-award-card-stripe"></div>
+      <div class="bspnlive-award-card-icon">${icon}</div>
+      <div class="bspnlive-award-card-label">${label}</div>
+      <div class="bspnlive-award-card-name">${link(rec)}</div>
+      <div class="bspnlive-award-card-meta">${rec.pos || ""}${t ? ` · ${_bspnLiveAbbr(t)}` : ""}</div>
+      <div class="bspnlive-award-card-extra">${rec.wins} weekly vote${rec.wins===1?"":"s"}</div>
+    </div>`;
+  };
+  const potySection = poty ? `
+    <div class="bspnlive-section-title">🗳 PLAYER OF THE YEAR <span style="font-size:.65rem;font-weight:400;letter-spacing:.5px;color:var(--blgray);margin-left:.5rem">FAN VOTES · ${voteWeeks} WEEK${voteWeeks===1?"":"S"} VOTED</span></div>
+    <div class="potw-poty-row">
+      ${potyCard("⚡", "OFFENSIVE POTY",   poty.offense)}
+      ${potyCard("🛡", "DEFENSIVE POTY",   poty.defense)}
+      ${potyCard("🧱", "OL POTY",          poty.ol)}
+      ${potyCard("🦵", "SPECIAL TEAMS POTY", poty.specialTeams)}
+    </div>` : "";
+
   const renderAllProList = (formation, title, accent) => {
     if (!formation) return "";
     const rows = [];
@@ -27677,6 +27892,7 @@ function renderFrnAwards() {
         ${mvpHero}
         <div class="bspnlive-section-title">🏅 SEASON AWARDS</div>
         ${majorAwards}
+        ${potySection}
         ${allProSection}
         ${leadersSection}
         ${numbersSection}
