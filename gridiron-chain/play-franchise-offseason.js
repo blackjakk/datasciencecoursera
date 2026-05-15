@@ -2767,6 +2767,7 @@ function renderFrnResignings() {
   }
 
   // Default offer: 3-year deal at market rate.
+  expiring.sort((a, b) => (b.overall || 0) - (a.overall || 0));
   franchise._resignPending = expiring.map(p => {
     const baseMarket = computeMarketValue(p, cap);
     const offerYears = 3;
@@ -2787,6 +2788,12 @@ function _renderResignUI(cap, capCommitted) {
   const { chosenTeamId, _resignPending } = franchise;
   const myTeam = getTeam(chosenTeamId);
   let runningCap = capCommitted;
+  const _statLine = name => {
+    for (const players of Object.values(franchise.seasonStats || {})) {
+      if (players[name]) return mvpStatLine(players[name]);
+    }
+    return "";
+  };
 
   const rows = _resignPending.map((r, idx) => {
     const newCap = runningCap + (r.decision === "accept" ? r.offer : 0);
@@ -2831,6 +2838,8 @@ function _renderResignUI(cap, capCommitted) {
         <div class="frn-resign-info">
           <span style="font-weight:700;color:var(--white)">${r.name}</span>
           <span style="color:var(--gray);font-size:.7rem">${r.pos} · ${r.overall} OVR · Age ${r.age}</span>
+          ${_statLine(r.name) ? `<span style="color:var(--gray);font-size:.6rem;font-style:italic">${_statLine(r.name)}</span>` : ""}
+          <span style="font-size:.6rem;color:var(--gray)">Mkt: <span style="color:${r.offer <= r.baseMarket * 1.05 ? 'var(--green-lt)' : '#e8a000'}">$${r.baseMarket.toFixed(1)}M</span></span>
         </div>
         <div class="frn-resign-offer">
           <span style="color:var(--gold);font-weight:700">$${r.offer.toFixed(1)}M/yr</span>
@@ -2888,10 +2897,13 @@ function _renderResignUI(cap, capCommitted) {
       accepted players re-sign at market rate; declined players enter free agency (lost for now).
     </div>
     <div class="frn-resign-list">${rows}</div>
-    <div class="frn-actions" style="justify-content:center;margin-top:1rem">
+    <div class="frn-actions" style="justify-content:center;margin-top:1rem;flex-wrap:wrap;gap:.5rem">
       ${pending > 0
         ? `<div style="color:var(--gray);font-size:.72rem">${pending} decision${pending>1?"s":""} remaining</div>`
         : `<button class="btn btn-gold" onclick="frnConfirmResignings()">✓ Confirm & Continue Offseason</button>`}
+      ${_resignPending.some(r => r.decision === null && (r.overall || 0) < 75)
+        ? `<button class="btn btn-outline" style="font-size:.7rem;color:var(--gray)"
+            onclick="frnResignBulkDecline(75)">✗ Let Walk All &lt;75 OVR</button>` : ""}
     </div>`;
 }
 
@@ -2901,6 +2913,14 @@ function _renderResignUIRefresh() {
     .filter(p => p.contract && p.contract.remaining > 0)
     .reduce((s, p) => s + currentYearCapHit(p), 0);
   _renderResignUI(cap, committed);
+}
+
+function frnResignBulkDecline(ovrThreshold) {
+  if (!franchise._resignPending) return;
+  for (const r of franchise._resignPending) {
+    if (r.decision === null && (r.overall || 0) < ovrThreshold) r.decision = "decline";
+  }
+  _renderResignUIRefresh();
 }
 
 function frnResignSetStructure(idx, structure) {
@@ -4510,6 +4530,27 @@ function frnSubmitTrade() {
       if (i !== -1) theirRoster.splice(i, 1);
       myRoster.push(p);
     }
+    // Move season stats with the player so their full-season totals stay intact
+    const _moveStats = (fromId, toId, players) => {
+      if (!franchise.seasonStats) return;
+      const fromBucket = franchise.seasonStats[fromId];
+      if (!fromBucket) return;
+      if (!franchise.seasonStats[toId]) franchise.seasonStats[toId] = {};
+      const toBucket = franchise.seasonStats[toId];
+      for (const p of players) {
+        const entry = fromBucket[p.name];
+        if (!entry) continue;
+        if (toBucket[p.name]) {
+          for (const [k, v] of Object.entries(entry))
+            if (typeof v === "number") toBucket[p.name][k] = (toBucket[p.name][k] || 0) + v;
+        } else {
+          toBucket[p.name] = entry;
+        }
+        delete fromBucket[p.name];
+      }
+    };
+    _moveStats(myId, otherId, sendPlayers);
+    _moveStats(otherId, myId, recvPlayers);
     // Picks — flip currentOwnerId
     for (const pk of sendPicks)  pk.currentOwnerId = otherId;
     for (const pk of recvPicks)  pk.currentOwnerId = myId;

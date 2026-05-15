@@ -1130,7 +1130,7 @@ function renderFrnLeaders(tab) {
       extra: r => `${r.rec||0} REC · ${r.rec_td||0} TD` },
     { id: "receivingTd", label: "RECEIVING TDs",key: "rec_td",    scope: ["WR","TE"],
       extra: r => `${r.rec_yds||0} YDS` },
-    { id: "sacks",     label: "SACKS",          key: "sk",        scope: ["DL","LB"],
+    { id: "sacks",     label: "SACKS",          key: "sk",        scope: ["DL","LB","CB","S"],
       extra: r => `${r.tkl||0} TKL` },
     { id: "tackles",   label: "TACKLES",        key: "tkl",       scope: ["LB","S","CB","DL"],
       extra: r => `${r.sk||0} SK · ${r.int_made||0} INT` },
@@ -1139,13 +1139,17 @@ function renderFrnLeaders(tab) {
     { id: "fg",        label: "FIELD GOALS",    key: "fg_made",   scope: "K",
       extra: r => `${r.fg_att||0} ATT · LNG ${r.fg_long||0}` },
     { id: "pancakes",  label: "PANCAKE BLOCKS", key: "pancakes",  scope: ["OL","LT","LG","C","RG","RT"],
-      extra: r => `${r.sacks_allowed||0} sacks allowed` },
+      extra: r => `${r.sacks_allowed||0} SA` },
+    { id: "sacksAllowed", label: "SACKS ALLOWED (OL)", key: "sacks_allowed", scope: ["OL","LT","LG","C","RG","RT"],
+      extra: r => `${r.pancakes||0} pancakes`, sortAsc: true },
   ];
   const activeTab = tab && cats.find(c => c.id === tab) ? tab : cats[0].id;
   const cat = cats.find(c => c.id === activeTab) || cats[0];
   const scopeMatches = pos => Array.isArray(cat.scope) ? cat.scope.includes(pos) : cat.scope === pos;
   const filtered = all.filter(r => scopeMatches(r.pos) && (r[cat.key] || 0) > 0);
-  filtered.sort((a, b) => (b[cat.key] || 0) - (a[cat.key] || 0));
+  filtered.sort((a, b) => cat.sortAsc
+    ? (a[cat.key] || 0) - (b[cat.key] || 0)
+    : (b[cat.key] || 0) - (a[cat.key] || 0));
   const top10 = filtered.slice(0, 10);
 
   const tabBar = cats.map(c =>
