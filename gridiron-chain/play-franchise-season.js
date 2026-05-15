@@ -478,6 +478,23 @@ function _preseasonRosterTab(roster, selName) {
             const isSel = selected && selected.name === p.name;
             const aav = p.contract?.aav || 0;
             const yrs = p.contract?.remaining || 0;
+            const isPendingRelease = _releasePending?.name === p.name && _releasePending?.pos === p.position;
+            if (isPendingRelease) {
+              const { deadPerYr, deadYrs, deadTotal } = _releasePending;
+              const deadMsg = deadTotal > 0
+                ? `☠ Dead cap: <b style="color:var(--red)">$${deadPerYr.toFixed(1)}M × ${deadYrs}yr = $${deadTotal.toFixed(1)}M</b>`
+                : `<span style="color:var(--green-lt)">No dead cap — fully freed</span>`;
+              return `<tr style="background:rgba(220,50,50,.12)">
+                <td colspan="6" style="padding:.4rem .6rem">
+                  <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+                    <span style="font-weight:700;color:var(--red)">Release ${p.name}?</span>
+                    <span style="font-size:.68rem">${deadMsg}</span>
+                    <button class="btn btn-outline" onclick="frnReleasePlayerConfirm()" style="font-size:.62rem;padding:.2rem .5rem;border-color:var(--red);color:var(--red)">✓ Confirm Release</button>
+                    <button class="btn btn-outline" onclick="frnReleasePlayerCancel()" style="font-size:.62rem;padding:.2rem .5rem">✗ Cancel</button>
+                  </div>
+                </td>
+              </tr>`;
+            }
             return `<tr class="frn-scout-row ${isSel?"selected":""}" onclick="renderFrnPreseason('roster',null,null,'${escName}')">
               <td class="frn-scout-slot">${isStarter?"★":"#"+(i+1)}</td>
               <td style="font-weight:${isStarter?700:400}">${playerLink(p)}</td>

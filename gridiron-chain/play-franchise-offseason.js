@@ -2170,21 +2170,37 @@ function renderFrnAnalytics(defaultTab) {
         && (c.baseSalaries?.[(c.years||1)-(c.remaining||1)] ?? (c.aav-(c.bonusProration||0))) >= 2.0
         && c.restructuredSeason !== franchise.season;
       // Year-by-year schedule tooltip
-      const scheduleRows = (c.baseSalaries || []).map((base, i) => {
-        const yr = i + 1;
-        const hit = Math.round((base + (c.bonusProration || 0)) * 10) / 10;
-        const isCur = i === Math.max(0, (c.years||1) - (c.remaining||1));
-        return `<tr style="${isCur?"font-weight:700;color:var(--gold)":"color:var(--gray)"}">
-          <td style="padding:1px 6px">Yr ${yr}</td>
-          <td style="padding:1px 6px">$${base.toFixed(1)}M base</td>
-          <td style="padding:1px 6px">+$${(c.bonusProration||0).toFixed(1)}M bonus</td>
-          <td style="padding:1px 6px;font-weight:700">=$${hit.toFixed(1)}M</td>
-        </tr>`;
-      }).join("");
+      const curYrIdx = Math.max(0, (c.years||1) - (c.remaining||1));
       const scheduleHtml = c.baseSalaries?.length
-        ? `<details style="margin-top:.25rem"><summary style="font-size:.6rem;color:var(--gray);cursor:pointer">${c.structure||"BALANCED"} · $${(c.bonusProration||0).toFixed(1)}M/yr bonus proration</summary><table style="font-size:.6rem;margin-top:.2rem">${scheduleRows}</table></details>`
+        ? `<div style="display:flex;flex-wrap:wrap;gap:.15rem .25rem;margin-top:.2rem">${
+            c.baseSalaries.map((base, i) => {
+              const isCur = i === curYrIdx;
+              const hit = Math.round((base + (c.bonusProration || 0)) * 10) / 10;
+              return `<span title="Yr${i+1}: $${base.toFixed(1)}M base + $${(c.bonusProration||0).toFixed(1)}M proration" style="font-size:.55rem;padding:.1rem .28rem;border-radius:3px;background:${isCur?"var(--gold)":"var(--bg3)"};color:${isCur?"#000":"var(--gray)"}">Yr${i+1} $${hit.toFixed(1)}M</span>`;
+            }).join("")
+          }</div>`
         : "";
       const escName = p.name.replace(/'/g, "\\'");
+      const isPendingRestructure = _restructurePending?.name === p.name && _restructurePending?.pos === p.position;
+      // Inline restructure confirmation row — no browser dialog
+      if (isPendingRestructure) {
+        const { freed, newProration, currentBase, remaining } = _restructurePending;
+        return `<tr style="background:rgba(200,169,0,.1)">
+          <td style="font-weight:700;color:var(--gold)">${p.name}</td>
+          <td style="color:var(--gray)">${p.position}</td>
+          <td colspan="6" style="font-size:.68rem;padding:.4rem .5rem">
+            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:.5rem">
+              <span>Convert <b style="color:var(--white)">$${currentBase.toFixed(1)}M</b> base → signing bonus</span>
+              <span style="color:var(--green-lt)">▼ Frees <b>$${freed.toFixed(1)}M</b> now</span>
+              <span style="color:#ff9090">▲ Dead $${newProration.toFixed(1)}M/yr × ${remaining}yr = $${(newProration*remaining).toFixed(1)}M</span>
+            </div>
+          </td>
+          <td colspan="2" style="white-space:nowrap;padding:.4rem .5rem">
+            <button class="btn btn-gold" onclick="frnRestructureConfirm()" style="font-size:.62rem;padding:.2rem .55rem;margin-right:.3rem">✓ Restructure</button>
+            <button class="btn btn-outline" onclick="frnRestructureCancel()" style="font-size:.62rem;padding:.2rem .55rem">✗ Cancel</button>
+          </td>
+        </tr>`;
+      }
       return `<tr>
         <td style="color:${aavColor(capHit)};font-weight:700">${playerLink(p)}${scheduleHtml}</td>
         <td style="color:var(--gray)">${p.position}</td>
@@ -2615,6 +2631,7 @@ function renderFrnResignings() {
       baseMarket,
       offer: _resignAavForYears(baseMarket, offerYears),
       offerYears,
+      structure: _defaultStructure(p.age || 27, p.overall || 70),
       decision: null,
     };
   });
@@ -2632,6 +2649,39 @@ function _renderResignUI(cap, capCommitted) {
     const capAfter = cap - newCap;
     const isAccept  = r.decision === "accept";
     const isDecline = r.decision === "decline";
+    const isLocked  = isAccept || isDecline || r.decision === "tag";
+    const struct = r.structure || "BALANCED";
+    const { bonusProration } = _signingBonusCalc(r.offer, r.offerYears, r.overall || 70);
+    const deadTotal = bonusProration * r.offerYears;
+
+    // ── Signing preview panel (year-by-year breakdown before committing) ──
+    if (_resignPreview === idx && !isLocked) {
+      const bases = _baseSalarySchedule(r.offer, r.offerYears, struct, bonusProration);
+      const yearPills = bases.map((base, i) => {
+        const hit = Math.round((base + bonusProration) * 10) / 10;
+        return `<div style="display:flex;justify-content:space-between;padding:.18rem .4rem;border-radius:4px;background:var(--bg3);font-size:.67rem;gap:.8rem">
+          <span style="color:var(--gray)">Yr ${i+1}</span>
+          <span>$${base.toFixed(1)}M base</span>
+          <span style="color:var(--gray)">+$${bonusProration.toFixed(1)}M bonus</span>
+          <span style="color:var(--gold);font-weight:700">= $${hit.toFixed(1)}M</span>
+        </div>`;
+      }).join("");
+      return `
+        <div class="frn-resign-row" style="border-color:var(--gold);background:rgba(200,169,0,.07)">
+          <div class="frn-resign-info">
+            <span style="font-weight:700;color:var(--gold)">${r.name}</span>
+            <span style="color:var(--gray);font-size:.7rem">${r.pos} · ${r.overall} OVR · Age ${r.age}</span>
+            <span style="font-size:.6rem;color:var(--gray);margin-top:.1rem">${struct} · $${r.offer.toFixed(1)}M/yr · ${r.offerYears}yr</span>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:.2rem;margin:0 .6rem">${yearPills}</div>
+          <div class="frn-resign-btns" style="flex-direction:column;gap:.3rem">
+            ${deadTotal >= 0.5 ? `<span style="color:#ff9090;font-size:.6rem;text-align:center">☠ Dead $${bonusProration.toFixed(1)}M×${r.offerYears}yr</span>` : ""}
+            <button class="btn btn-gold" onclick="frnResignDecide(${idx},'accept')" style="white-space:nowrap">✓ Sign Deal</button>
+            <button class="btn btn-outline" onclick="_resignPreview=null;_renderResignUIRefresh()" style="font-size:.65rem">← Back</button>
+          </div>
+        </div>`;
+    }
+
     return `
       <div class="frn-resign-row ${isAccept?"accepted":isDecline?"declined":""}">
         <div class="frn-resign-info">
@@ -2642,20 +2692,23 @@ function _renderResignUI(cap, capCommitted) {
           <span style="color:var(--gold);font-weight:700">$${r.offer.toFixed(1)}M/yr</span>
           <div style="display:flex;align-items:center;gap:.25rem;justify-content:flex-end;margin-top:.15rem">
             <button class="frn-resign-yrbtn"
-              ${r.offerYears <= _RESIGN_MIN_YEARS || isAccept || isDecline ? "disabled" : ""}
+              ${r.offerYears <= _RESIGN_MIN_YEARS || isLocked ? "disabled" : ""}
               onclick="frnResignAdjustYears(${idx}, -1)">−</button>
             <span style="color:var(--gray);font-size:.7rem;min-width:2.5rem;text-align:center">${r.offerYears} yr</span>
             <button class="frn-resign-yrbtn"
-              ${r.offerYears >= _RESIGN_MAX_YEARS || isAccept || isDecline ? "disabled" : ""}
+              ${r.offerYears >= _RESIGN_MAX_YEARS || isLocked ? "disabled" : ""}
               onclick="frnResignAdjustYears(${idx}, 1)">+</button>
           </div>
           <span style="color:var(--gray);font-size:.6rem;text-align:right">total $${(r.offer * r.offerYears).toFixed(1)}M</span>
-          ${(() => {
-            const { signingBonus, bonusProration } = _signingBonusCalc(r.offer, r.offerYears, r.overall || 70);
-            const deadTotal = bonusProration * r.offerYears;
-            if (deadTotal < 0.5) return `<span style="color:var(--gray);font-size:.6rem">No dead cap</span>`;
-            return `<span style="color:#ff9090;font-size:.6rem;text-align:right" title="Prorated signing bonus — counts as dead cap if you release this player.">☠ Dead $${bonusProration.toFixed(1)}M×${r.offerYears}yr = $${deadTotal.toFixed(1)}M</span>`;
-          })()}
+          ${deadTotal < 0.5 ? `<span style="color:var(--gray);font-size:.6rem">No dead cap</span>`
+            : `<span style="color:#ff9090;font-size:.6rem;text-align:right" title="Prorated signing bonus — counts as dead cap if you release this player.">☠ Dead $${bonusProration.toFixed(1)}M×${r.offerYears}yr = $${deadTotal.toFixed(1)}M</span>`}
+          ${isLocked ? "" : `<div style="display:flex;gap:.2rem;justify-content:flex-end;margin-top:.25rem;align-items:center;flex-wrap:wrap">
+            <span style="color:var(--gray);font-size:.58rem">Structure:</span>
+            ${["BALANCED","BACKLOADED","FRONTLOADED"].map(s => {
+              const desc = s==="BALANCED"?"flat salaries":s==="BACKLOADED"?"cheap now, costly later":"costly now, cheap later";
+              return `<button class="btn ${struct===s?"btn-gold":"btn-outline"}" onclick="frnResignSetStructure(${idx},'${s}')" style="font-size:.55rem;padding:.1rem .3rem" title="${desc}">${s[0]+s.slice(1).toLowerCase()}</button>`;
+            }).join("")}
+          </div>`}
         </div>
         <div class="frn-resign-btns">
           ${r.decision === "tag"
@@ -2664,7 +2717,7 @@ function _renderResignUI(cap, capCommitted) {
               ? `<button class="btn frn-resign-btn accepted">✓ Accepted</button>`
               : isDecline
                 ? `<button class="btn frn-resign-btn declined">✗ Declined</button>`
-                : `<button class="btn frn-resign-btn accept-btn" onclick="frnResignDecide(${idx},'accept')">Offer</button>
+                : `<button class="btn frn-resign-btn accept-btn" onclick="_resignPreview=${idx};_renderResignUIRefresh()">Review & Sign</button>
                    ${_franchiseTagAvailable() ? `<button class="btn frn-resign-btn accept-btn" style="border-color:var(--gold);color:var(--gold)"
                      onclick="frnResignTag(${idx})" title="Franchise tag: 1yr fully guaranteed at top-5 position avg ($${_franchiseTagAAV({position: r.pos, name: r.name}, cap).toFixed(1)}M)">🏷 Tag</button>` : ""}
                    <button class="btn frn-resign-btn decline-btn" onclick="frnResignDecide(${idx},'decline')">Let Walk</button>`}
@@ -2698,6 +2751,22 @@ function _renderResignUI(cap, capCommitted) {
     </div>`;
 }
 
+function _renderResignUIRefresh() {
+  const cap = franchise.salaryCap || SALARY_CAP_BASE;
+  const committed = (franchise.rosters[franchise.chosenTeamId] || [])
+    .filter(p => p.contract && p.contract.remaining > 0)
+    .reduce((s, p) => s + currentYearCapHit(p), 0);
+  _renderResignUI(cap, committed);
+}
+
+function frnResignSetStructure(idx, structure) {
+  const row = franchise._resignPending?.[idx];
+  if (!row || row.decision) return;
+  row.structure = structure;
+  saveFranchise();
+  _renderResignUIRefresh();
+}
+
 function frnResignTag(idx) {
   if (!_franchiseTagAvailable()) { alert("You've already used your franchise tag this offseason."); return; }
   const row = franchise._resignPending?.[idx];
@@ -2716,14 +2785,10 @@ function frnResignTag(idx) {
 }
 
 function frnResignDecide(idx, decision) {
-  const { salaryCap, chosenTeamId } = franchise;
-  const cap = salaryCap || SALARY_CAP_BASE;
-  const committed = (franchise.rosters[chosenTeamId] || [])
-    .filter(p => p.contract && p.contract.remaining > 0)
-    .reduce((s, p) => s + p.contract.aav, 0);
+  _resignPreview = null;
   franchise._resignPending[idx].decision = decision;
   saveFranchise();
-  _renderResignUI(cap, committed);
+  _renderResignUIRefresh();
 }
 
 function frnResignAdjustYears(idx, delta) {
@@ -2766,7 +2831,7 @@ function frnConfirmResignings() {
         label: `🏷 Franchise-tagged ${r.pos} ${r.name} — 1yr / $${r.tagAAV.toFixed(1)}M fully guaranteed` });
     } else if (r.decision === "accept") {
       const guaranteedYears = _guaranteedYearsForLength(r.offerYears);
-      const _rsStruct = _defaultStructure(player.age || 27, player.overall || 70);
+      const _rsStruct = r.structure || _defaultStructure(player.age || 27, player.overall || 70);
       const _rsBonus  = _signingBonusCalc(r.offer, r.offerYears, player.overall || 70);
       player.contract = {
         years: r.offerYears, remaining: r.offerYears, aav: r.offer,
@@ -2784,6 +2849,7 @@ function frnConfirmResignings() {
     }
   }
   franchise._resignPending = null;
+  _resignPreview = null;
   saveFranchise();
   frnProceedToRosterChanges();
 }

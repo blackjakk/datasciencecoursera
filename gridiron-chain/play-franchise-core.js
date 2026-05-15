@@ -8,6 +8,11 @@ const FRANCHISE_WEEKS = 14;
 const PLAYOFF_TEAMS   = 8;
 const SALARY_CAP_BASE = 200; // $M — grows ~5-9% each offseason
 
+// Inline confirmation state — avoids browser confirm()/alert() dialogs.
+let _restructurePending = null; // {teamId,name,pos,currentBase,newProration,freed,remaining}
+let _releasePending     = null; // {name,pos,deadPerYr,deadYrs,deadTotal}
+let _resignPreview      = null; // idx of resign row showing year-by-year signing preview
+
 // ── Practice squad system ────────────────────────────────────────────────────
 // Each team carries a 6-spot PS roster of young players (≤2 yrs exp, age ≤24).
 // Per-spot cost ($0.5M) loads against the cap separately from active roster.
@@ -328,43 +333,97 @@ function currentCap() {
 // Converts the current year's base salary into a new signing bonus, prorated
 // over remaining years. Frees cap space now; increases dead cap if cut later.
 // Limited to once per player per offseason (restructuredSeason guard).
+// Uses inline confirmation instead of browser confirm() dialog.
 function frnRestructure(teamId, name, pos) {
+  // Toggle off if clicking the same player again.
+  if (_restructurePending?.name === name && _restructurePending?.pos === pos) {
+    _restructurePending = null;
+    renderFrnAnalytics("mysheet");
+    return;
+  }
   const roster = franchise?.rosters?.[teamId];
   if (!roster) return;
   const p = roster.find(q => q.name === name && q.position === pos);
   if (!p?.contract) return;
   const c = p.contract;
   const remaining = c.remaining || 0;
-  if (remaining < 2) {
-    alert("Can't restructure — fewer than 2 years remaining."); return;
-  }
-  if (c.restructuredSeason === franchise.season) {
-    alert("Already restructured this player once this offseason."); return;
-  }
+  if (remaining < 2) return;
+  if (c.restructuredSeason === franchise.season) return;
   const yearIndex = Math.max(0, (c.years || 1) - remaining);
   const currentBase = c.baseSalaries?.[yearIndex] ?? (c.aav - (c.bonusProration || 0));
-  if (currentBase < 2.0) {
-    alert("Base salary too low to restructure (minimum $2M)."); return;
-  }
-  // New proration spread over all remaining years (including current).
+  if (currentBase < 2.0) return;
   const newProration = Math.round(currentBase / remaining * 10) / 10;
   const freed = Math.round((currentBase - newProration) * 10) / 10;
-  if (!confirm(
-    `Restructure ${name}?\n\n` +
-    `Convert $${currentBase.toFixed(1)}M base → signing bonus.\n` +
-    `Frees $${freed.toFixed(1)}M this year.\n` +
-    `Adds $${newProration.toFixed(1)}M/yr to cap hit for ${remaining} remaining years.\n` +
-    `Dead cap on future release increases by $${newProration.toFixed(1)}M × ${remaining}yr = $${(newProration * remaining).toFixed(1)}M.`
-  )) return;
-  // Apply: zero out current year base, increase proration for all remaining years.
+  _restructurePending = { teamId, name, pos, currentBase, newProration, freed, remaining };
+  renderFrnAnalytics("mysheet");
+}
+
+function frnRestructureConfirm() {
+  if (!_restructurePending) return;
+  const { teamId, name, pos, currentBase, newProration, freed } = _restructurePending;
+  const roster = franchise?.rosters?.[teamId];
+  const p = roster?.find(q => q.name === name && q.position === pos);
+  if (!p?.contract) { _restructurePending = null; return; }
+  const c = p.contract;
+  const remaining = c.remaining || 0;
+  const yearIndex = Math.max(0, (c.years || 1) - remaining);
   if (c.baseSalaries) c.baseSalaries[yearIndex] = 0;
-  c.bonusProration  = Math.round(((c.bonusProration || 0) + newProration) * 10) / 10;
-  c.signingBonus    = Math.round(((c.signingBonus   || 0) + currentBase) * 10) / 10;
+  c.bonusProration     = Math.round(((c.bonusProration || 0) + newProration) * 10) / 10;
+  c.signingBonus       = Math.round(((c.signingBonus   || 0) + currentBase) * 10) / 10;
   c.restructuredSeason = franchise.season;
+  _restructurePending  = null;
   saveFranchise();
   _pushNews({ type: "restructure",
     label: `🔀 Restructured ${p.position} ${name} — freed $${freed.toFixed(1)}M, added $${newProration.toFixed(1)}M/yr dead` });
   renderFrnAnalytics("mysheet");
+}
+
+function frnRestructureCancel() {
+  _restructurePending = null;
+  renderFrnAnalytics("mysheet");
+}
+
+// ── Release player (two-step: prompt then confirm) ──────────────────────────
+function frnReleasePlayer(name, pos) {
+  // If already pending this same player, cancel (toggle).
+  if (_releasePending?.name === name && _releasePending?.pos === pos) {
+    _releasePending = null;
+    renderFrnPreseason("roster");
+    return;
+  }
+  const teamId = franchise.chosenTeamId;
+  const roster = franchise.rosters[teamId];
+  const p = roster?.find(q => q.name === name && q.position === pos);
+  if (!p) return;
+  const { perYear: deadPerYr, years: deadYrs } = deadCapOnRelease(p);
+  const deadTotal = deadPerYr * deadYrs;
+  _releasePending = { name, pos, deadPerYr, deadYrs, deadTotal };
+  renderFrnPreseason("roster");
+}
+
+function frnReleasePlayerConfirm() {
+  if (!_releasePending) return;
+  const { name, pos, deadPerYr, deadYrs, deadTotal } = _releasePending;
+  const teamId = franchise.chosenTeamId;
+  const roster = franchise.rosters[teamId];
+  const idx = roster.findIndex(p => p.name === name && p.position === pos);
+  if (idx === -1) { _releasePending = null; renderFrnPreseason("roster"); return; }
+  roster.splice(idx, 1);
+  if (deadTotal > 0) {
+    franchise.refunds = franchise.refunds || [];
+    franchise.refunds.push({
+      kind: "dead_cap", fromTeamId: teamId, toTeamId: null,
+      amount: deadPerYr, yearsRemaining: deadYrs, label: `Dead cap: ${name}`,
+    });
+  }
+  _releasePending = null;
+  saveFranchise();
+  renderFrnPreseason("roster");
+}
+
+function frnReleasePlayerCancel() {
+  _releasePending = null;
+  renderFrnPreseason("roster");
 }
 
 // ── Scouting representation: never expose raw OVR. Players are shown to the
