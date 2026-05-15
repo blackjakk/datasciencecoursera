@@ -85,7 +85,54 @@ function negotiationFactor(p) {
   return Math.max(0.78, Math.min(1.25, 1 + base + tilt));
 }
 
-function generateContract(player, cap) {
+// ── Contract structure helpers ──────────────────────────────────────────────
+// Signing bonus as a % of total contract value, prorated over min(years,5).
+// Stars get bigger bonuses (more dead cap risk), backups get nothing.
+function _signingBonusCalc(aav, years, ovr) {
+  let pct = 0;
+  if      (ovr >= 90) pct = 0.40;
+  else if (ovr >= 85) pct = 0.28;
+  else if (ovr >= 80) pct = 0.16;
+  else if (ovr >= 75) pct = 0.08;
+  const prorationYears = Math.min(years, 5);
+  const signingBonus = Math.round(aav * years * pct * 10) / 10;
+  const bonusProration = signingBonus > 0
+    ? Math.round(signingBonus / prorationYears * 10) / 10
+    : 0;
+  return { signingBonus, bonusProration };
+}
+
+// Per-year base salaries (cap hit = base + bonusProration each year).
+// BACKLOADED: ramps from ~65% to ~135% of average base — cheap now, expensive later.
+// FRONTLOADED: opposite — player secures money early.
+// BALANCED: flat.
+function _baseSalarySchedule(aav, years, structure, bonusProration) {
+  const basePerYear = aav - bonusProration;
+  if (years <= 1 || structure === "BALANCED") {
+    return Array(years).fill(Math.round(basePerYear * 10) / 10);
+  }
+  const spread = 0.35;
+  const raw = [];
+  for (let i = 0; i < years; i++) {
+    const t = i / Math.max(1, years - 1);
+    const scale = structure === "BACKLOADED"
+      ? 1 - spread / 2 + spread * t
+      : 1 + spread / 2 - spread * t;
+    raw.push(scale);
+  }
+  const mean = raw.reduce((s, x) => s + x, 0) / years;
+  return raw.map(s => Math.max(0.5, Math.round(basePerYear * (s / mean) * 10) / 10));
+}
+
+// Default structure: veterans lean backloaded (team-friendly now),
+// young stars tend frontloaded (player secures early money).
+function _defaultStructure(age, ovr) {
+  if (age <= 25 && ovr >= 82) return "FRONTLOADED";
+  if (age >= 30)               return "BACKLOADED";
+  return "BALANCED";
+}
+
+function generateContract(player, cap, structureOverride) {
   const ovr = player.overall || 70;
   const age = player.age || 25;
   const market = computeMarketValue(player, cap);
@@ -93,14 +140,17 @@ function generateContract(player, cap) {
   const aav = Math.max(0.5, Math.round(market * factor * 10) / 10);
   // Contract length: rookies get 4yr; stars (85+) get 4-7; others 2-5; all capped at 10
   let minYr = 2, maxYr = 5;
-  if (age <= 23)   { minYr = 4; maxYr = 4; }
+  if (age <= 23)      { minYr = 4; maxYr = 4; }
   else if (ovr >= 88) { minYr = 4; maxYr = 7; }
   else if (ovr >= 80) { minYr = 3; maxYr = 6; }
-  // Clip by age — don't give a 36-year-old a 5-year deal
   maxYr = Math.min(maxYr, Math.max(1, 38 - age));
   const years = Math.max(1, Math.min(10, minYr + Math.floor(Math.random() * (maxYr - minYr + 1))));
+  const structure = structureOverride || _defaultStructure(age, ovr);
+  const { signingBonus, bonusProration } = _signingBonusCalc(aav, years, ovr);
+  const baseSalaries = _baseSalarySchedule(aav, years, structure, bonusProration);
   return {
-    years, remaining: years, aav,
+    years, remaining: years, aav, structure,
+    baseSalaries, signingBonus, bonusProration,
     guaranteedYears: _guaranteedYearsForLength(years),
     guaranteedAAV: aav,
   };
@@ -130,8 +180,6 @@ function rookieContract(player, cap) {
   const pick   = player.draftPick  ?? 1;
   const capRef = cap || SALARY_CAP_BASE;
   const baseRate = _ROOKIE_AAV_BY_ROUND[round] ?? _ROOKIE_AAV_BY_ROUND[7];
-  // Within-round pick decay: top of round earns more, end of round less.
-  // R1 spread is widest (1.0 → 0.6); later rounds get progressively flatter.
   const pickPos = Math.max(0, (pick || 1) - 1);
   const decay = round === 1 ? 1 - (pickPos / 32) * 0.40
               : round === 2 ? 1 - (pickPos / 32) * 0.25
@@ -139,12 +187,15 @@ function rookieContract(player, cap) {
               :               1 - (pickPos / 32) * 0.10;
   const posMul = _ROOKIE_POS_MUL[player.position] ?? 1.0;
   const aav = Math.max(0.5, Math.round(capRef * baseRate * decay * posMul * 10) / 10);
-  // Contract length: matches NFL — all drafted rookies (R1-R7) sign
-  // 4-year deals; UDFAs get a 3-year deal. Real NFL R1 picks also have
-  // a 5th-year team option, but we don't model that.
   const years = round === 0 ? 3 : 4;
+  // Rookies always get balanced/slotted deals — no signing bonus for UDFA,
+  // small bonus for drafted players (R1 gets meaningful proration).
+  const ovr = player.overall || 70;
+  const { signingBonus, bonusProration } = _signingBonusCalc(aav, years, ovr);
+  const baseSalaries = _baseSalarySchedule(aav, years, "BALANCED", bonusProration);
   return {
-    years, remaining: years, aav,
+    years, remaining: years, aav, structure: "BALANCED",
+    baseSalaries, signingBonus, bonusProration,
     guaranteedYears: _guaranteedYearsForLength(years),
     guaranteedAAV: aav,
   };
@@ -155,27 +206,40 @@ function assignContracts(rosters, cap) {
     for (const p of roster) {
       if (!p.contract) {
         p.contract = generateContract(p, cap);
-        // Stagger existing roster: randomise how far into the contract they are
         if ((p.age || 25) > 23) {
           p.contract.remaining = Math.max(1, Math.ceil(Math.random() * p.contract.years));
         }
       }
     }
-    // Retrofit older saves whose contracts were generated without
-    // negotiation variance (so the "vs Market" column wasn't useful).
-    // Apply negotiation factors but renormalise per-team so total AAV
-    // is preserved — never push a team over the cap on load.
+    // Retrofit older saves: apply negotiation variance, normalise so AAV total is preserved.
     const needsRetrofit = roster.some(p => p.contract && p.contract.signedAav == null);
-    if (!needsRetrofit) continue;
+    if (!needsRetrofit) {
+      // Backfill signing-bonus fields for saves that pre-date this feature.
+      for (const p of roster) {
+        if (!p.contract) continue;
+        if (p.contract.bonusProration == null) {
+          const { signingBonus, bonusProration } = _signingBonusCalc(p.contract.aav, p.contract.years || 1, p.overall || 70);
+          p.contract.signingBonus   = signingBonus;
+          p.contract.bonusProration = bonusProration;
+        }
+        if (!p.contract.structure) {
+          p.contract.structure = _defaultStructure(p.age || 27, p.overall || 70);
+        }
+        if (!p.contract.baseSalaries) {
+          p.contract.baseSalaries = _baseSalarySchedule(
+            p.contract.aav, p.contract.years || 1,
+            p.contract.structure, p.contract.bonusProration
+          );
+        }
+      }
+      continue;
+    }
     let oldTotal = 0, newTotal = 0;
     for (const p of roster) {
       if (!p.contract) continue;
-      p.contract.signedAav = p.contract.aav; // mark as retrofitted
+      p.contract.signedAav = p.contract.aav;
       oldTotal += p.contract.aav;
-      const tentative = Math.max(
-        0.5,
-        Math.round(computeMarketValue(p, cap) * negotiationFactor(p) * 10) / 10
-      );
+      const tentative = Math.max(0.5, Math.round(computeMarketValue(p, cap) * negotiationFactor(p) * 10) / 10);
       p.contract.aav = tentative;
       newTotal += tentative;
     }
@@ -186,12 +250,53 @@ function assignContracts(rosters, cap) {
         p.contract.aav = Math.max(0.5, Math.round(p.contract.aav * scale * 10) / 10);
       }
     }
+    // Now backfill bonus/structure on the retrofitted contracts too.
+    for (const p of roster) {
+      if (!p.contract) continue;
+      if (p.contract.bonusProration == null) {
+        const { signingBonus, bonusProration } = _signingBonusCalc(p.contract.aav, p.contract.years || 1, p.overall || 70);
+        p.contract.signingBonus   = signingBonus;
+        p.contract.bonusProration = bonusProration;
+      }
+      if (!p.contract.structure) p.contract.structure = _defaultStructure(p.age || 27, p.overall || 70);
+      if (!p.contract.baseSalaries) {
+        p.contract.baseSalaries = _baseSalarySchedule(
+          p.contract.aav, p.contract.years || 1,
+          p.contract.structure, p.contract.bonusProration
+        );
+      }
+    }
   }
+}
+
+// Cap hit for the current contract year = base salary for this year + bonus proration.
+// Falls back to flat AAV for old saves that haven't been backfilled yet.
+function currentYearCapHit(player) {
+  const c = player.contract;
+  if (!c) return 0;
+  if (!c.baseSalaries || c.bonusProration == null) return c.aav || 0;
+  const yearIndex = Math.max(0, (c.years || 1) - (c.remaining || 1));
+  const base = c.baseSalaries[yearIndex] ?? (c.aav - (c.bonusProration || 0));
+  return Math.round((base + (c.bonusProration || 0)) * 10) / 10;
+}
+
+// Dead cap owed if the player is released right now = prorated bonus remaining.
+// For old saves without bonusProration, falls back to the old guaranteedYears model.
+function deadCapOnRelease(player) {
+  const c = player.contract;
+  if (!c) return { perYear: 0, years: 0 };
+  const remaining = c.remaining || 0;
+  if (c.bonusProration > 0) {
+    return { perYear: c.bonusProration, years: remaining };
+  }
+  // Legacy fallback
+  const gYrs = Math.min(remaining, c.guaranteedYears || 0);
+  return { perYear: c.guaranteedAAV ?? c.aav ?? 0, years: gYrs };
 }
 
 function capUsedByTeam(teamId) {
   const roster = (franchise?.rosters || {})[teamId] || [];
-  let used = roster.reduce((s, p) => s + (p.contract?.aav || 0), 0);
+  let used = roster.reduce((s, p) => s + currentYearCapHit(p), 0);
   // Practice squad: each PS spot costs PS_COST_PER_SLOT, charged to cap.
   used += psCostForTeam(teamId);
   // Salary refunds: outgoing refunds count against the sender's cap
@@ -217,6 +322,49 @@ function refundsForTeam(teamId) {
 
 function currentCap() {
   return franchise?.salaryCap || SALARY_CAP_BASE;
+}
+
+// ── Restructure contract ────────────────────────────────────────────────────
+// Converts the current year's base salary into a new signing bonus, prorated
+// over remaining years. Frees cap space now; increases dead cap if cut later.
+// Limited to once per player per offseason (restructuredSeason guard).
+function frnRestructure(teamId, name, pos) {
+  const roster = franchise?.rosters?.[teamId];
+  if (!roster) return;
+  const p = roster.find(q => q.name === name && q.position === pos);
+  if (!p?.contract) return;
+  const c = p.contract;
+  const remaining = c.remaining || 0;
+  if (remaining < 2) {
+    alert("Can't restructure — fewer than 2 years remaining."); return;
+  }
+  if (c.restructuredSeason === franchise.season) {
+    alert("Already restructured this player once this offseason."); return;
+  }
+  const yearIndex = Math.max(0, (c.years || 1) - remaining);
+  const currentBase = c.baseSalaries?.[yearIndex] ?? (c.aav - (c.bonusProration || 0));
+  if (currentBase < 2.0) {
+    alert("Base salary too low to restructure (minimum $2M)."); return;
+  }
+  // New proration spread over all remaining years (including current).
+  const newProration = Math.round(currentBase / remaining * 10) / 10;
+  const freed = Math.round((currentBase - newProration) * 10) / 10;
+  if (!confirm(
+    `Restructure ${name}?\n\n` +
+    `Convert $${currentBase.toFixed(1)}M base → signing bonus.\n` +
+    `Frees $${freed.toFixed(1)}M this year.\n` +
+    `Adds $${newProration.toFixed(1)}M/yr to cap hit for ${remaining} remaining years.\n` +
+    `Dead cap on future release increases by $${newProration.toFixed(1)}M × ${remaining}yr = $${(newProration * remaining).toFixed(1)}M.`
+  )) return;
+  // Apply: zero out current year base, increase proration for all remaining years.
+  if (c.baseSalaries) c.baseSalaries[yearIndex] = 0;
+  c.bonusProration  = Math.round(((c.bonusProration || 0) + newProration) * 10) / 10;
+  c.signingBonus    = Math.round(((c.signingBonus   || 0) + currentBase) * 10) / 10;
+  c.restructuredSeason = franchise.season;
+  saveFranchise();
+  _pushNews({ type: "restructure",
+    label: `🔀 Restructured ${p.position} ${name} — freed $${freed.toFixed(1)}M, added $${newProration.toFixed(1)}M/yr dead` });
+  renderFrnAnalytics("mysheet");
 }
 
 // ── Scouting representation: never expose raw OVR. Players are shown to the

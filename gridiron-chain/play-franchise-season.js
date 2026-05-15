@@ -1333,17 +1333,11 @@ function frnReleasePlayer(name, pos) {
   const idx = roster.findIndex(p => p.name === name && p.position === pos);
   if (idx === -1) return;
   const p = roster[idx];
-  // Dead-cap on release: any guaranteed years still on the deal continue
-  // to count against the team's cap as dead money. This is the downside
-  // of locking in long contracts — guaranteedYears > 0 = harder to walk
-  // away from.
-  const remaining = p.contract?.remaining || 0;
-  const guaranteed = Math.min(remaining, p.contract?.guaranteedYears || 0);
-  const deadPerYr = p.contract?.guaranteedAAV ?? p.contract?.aav ?? 0;
-  const deadTotal = guaranteed * deadPerYr;
+  const { perYear: deadPerYr, years: deadYrs } = deadCapOnRelease(p);
+  const deadTotal = deadPerYr * deadYrs;
   const msg = deadTotal > 0
-    ? `Release ${name}? Dead cap: $${deadTotal.toFixed(1)}M ($${deadPerYr.toFixed(1)}M × ${guaranteed}yr) — this still counts against your cap.`
-    : `Release ${name}? Contract has no guaranteed money left — your cap is fully freed.`;
+    ? `Release ${name}?\n\nDead cap: $${deadPerYr.toFixed(1)}M × ${deadYrs}yr = $${deadTotal.toFixed(1)}M — prorated signing bonus still counts against your cap.`
+    : `Release ${name}? No signing bonus remaining — cap is fully freed.`;
   if (!confirm(msg)) return;
   roster.splice(idx, 1);
   if (deadTotal > 0) {
@@ -1353,12 +1347,12 @@ function frnReleasePlayer(name, pos) {
       fromTeamId: teamId,
       toTeamId: null,
       amount: deadPerYr,
-      yearsRemaining: guaranteed,
+      yearsRemaining: deadYrs,
       label: `Dead cap: ${name}`,
     });
   }
   saveFranchise();
-  renderFrnPreseason("roster"); // released player de-selects naturally
+  renderFrnPreseason("roster");
 }
 
 function frnStartSeason() {
@@ -2071,8 +2065,13 @@ function _faResolveAfterWeek(week, isSeasonEnd) {
       // it meets demand (95% threshold). Otherwise the FA lowers
       // their asking and stays on the market.
       const signFn = () => {
+        const _faStruct1 = n.yourBid?.structure || _defaultStructure(n.fa.age || 27, n.fa.overall || 70);
+        const _faBonus1  = _signingBonusCalc(highAav, highYrs, n.fa.overall || 70);
         n.fa.contract = {
           years: highYrs, remaining: highYrs, aav: highAav,
+          structure: _faStruct1,
+          baseSalaries: _baseSalarySchedule(highAav, highYrs, _faStruct1, _faBonus1.bonusProration),
+          signingBonus: _faBonus1.signingBonus, bonusProration: _faBonus1.bonusProration,
           guaranteedYears: _guaranteedYearsForLength(highYrs),
           guaranteedAAV: highAav,
         };
@@ -2213,8 +2212,13 @@ function _faTryKnockout(name) {
   }
   // Solo knockout — sign immediately
   const high = ko[0];
+  const _faStruct2 = high.structure || _defaultStructure(n.fa.age || 27, n.fa.overall || 70);
+  const _faBonus2  = _signingBonusCalc(high.aav, high.years, n.fa.overall || 70);
   n.fa.contract = {
     years: high.years, remaining: high.years, aav: high.aav,
+    structure: _faStruct2,
+    baseSalaries: _baseSalarySchedule(high.aav, high.years, _faStruct2, _faBonus2.bonusProration),
+    signingBonus: _faBonus2.signingBonus, bonusProration: _faBonus2.bonusProration,
     guaranteedYears: _guaranteedYearsForLength(high.years),
     guaranteedAAV: high.aav,
   };
@@ -2326,6 +2330,15 @@ function renderFrnFANegotiations(selectedName) {
         onchange="frnFASetNegotiationYears('${escSel}',this.value)"
         style="width:3.6rem;background:var(--bg3);color:var(--white);border:1px solid var(--border);padding:.2rem .35rem;font-family:inherit;font-size:.7rem">
       <span style="color:var(--gray);font-size:.62rem">FA wants ${selNeg.fa.demandedYears}yr · longer = more risk for you, more comfort for them</span>
+    </div>
+    <div class="frn-fa-neg-actions" style="margin-top:.4rem;align-items:center;gap:.4rem">
+      <span class="frn-meta-label" style="margin:0">Structure:</span>
+      ${["BALANCED","BACKLOADED","FRONTLOADED"].map(s => {
+        const cur = selNeg.yourBid?.structure || _defaultStructure(selNeg.fa.age||27, selNeg.fa.overall||70);
+        const desc = s === "BALANCED" ? "flat salaries" : s === "BACKLOADED" ? "cheap now, costly later" : "costly now, cheap later";
+        return `<button class="btn ${cur===s?"btn-gold":"btn-outline"}" onclick="frnFASetStructure('${escSel}','${s}')" style="font-size:.62rem;padding:.2rem .5rem" title="${desc}">${s[0]+s.slice(1).toLowerCase()}</button>`;
+      }).join("")}
+      <span style="color:var(--gray);font-size:.62rem">affects year-by-year cap hits &amp; dead cap if cut</span>
     </div>`;
 
   // Cap math preview
@@ -2484,6 +2497,14 @@ function frnFAKnockoutBid(name) {
 // year also adds dead-money risk for the team — the AI agents
 // weight years × aav when picking the winning bid, so this is a
 // real lever for the user, not just cosmetic.
+function frnFASetStructure(name, structure) {
+  const n = franchise.faNegotiations?.[name]; if (!n) return;
+  if (!n.yourBid) n.yourBid = { aav: 0, years: n.fa.demandedYears, cutNames: [] };
+  n.yourBid.structure = structure;
+  saveFranchise();
+  renderFrnFANegotiations(name);
+}
+
 function frnFASetNegotiationYears(name, years) {
   const n = franchise.faNegotiations?.[name]; if (!n) return;
   const y = Math.max(1, Math.min(7, Math.round(Number(years) || 1)));

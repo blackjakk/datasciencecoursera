@@ -2156,24 +2156,52 @@ function renderFrnAnalytics(defaultTab) {
   function myCapSheet() {
     const roster = (rosters[chosenTeamId] || [])
       .filter(p => p.contract)
-      .sort((a, b) => b.contract.aav - a.contract.aav);
-    const totalUsed = roster.reduce((s, p) => s + p.contract.aav, 0);
+      .sort((a, b) => currentYearCapHit(b) - currentYearCapHit(a));
+    const totalUsed = roster.reduce((s, p) => s + currentYearCapHit(p), 0);
     const capLeft   = cap - totalUsed;
     const rows = roster.map(p => {
       const c = p.contract;
       const expiring = c.remaining <= 1;
       const mv = computeMarketValue(p, cap);
+      const capHit = currentYearCapHit(p);
+      const { perYear: deadPY, years: deadYrs } = deadCapOnRelease(p);
+      const deadTotal = deadPY * deadYrs;
+      const canRestructure = c.remaining >= 2
+        && (c.baseSalaries?.[(c.years||1)-(c.remaining||1)] ?? (c.aav-(c.bonusProration||0))) >= 2.0
+        && c.restructuredSeason !== franchise.season;
+      // Year-by-year schedule tooltip
+      const scheduleRows = (c.baseSalaries || []).map((base, i) => {
+        const yr = i + 1;
+        const hit = Math.round((base + (c.bonusProration || 0)) * 10) / 10;
+        const isCur = i === Math.max(0, (c.years||1) - (c.remaining||1));
+        return `<tr style="${isCur?"font-weight:700;color:var(--gold)":"color:var(--gray)"}">
+          <td style="padding:1px 6px">Yr ${yr}</td>
+          <td style="padding:1px 6px">$${base.toFixed(1)}M base</td>
+          <td style="padding:1px 6px">+$${(c.bonusProration||0).toFixed(1)}M bonus</td>
+          <td style="padding:1px 6px;font-weight:700">=$${hit.toFixed(1)}M</td>
+        </tr>`;
+      }).join("");
+      const scheduleHtml = c.baseSalaries?.length
+        ? `<details style="margin-top:.25rem"><summary style="font-size:.6rem;color:var(--gray);cursor:pointer">${c.structure||"BALANCED"} · $${(c.bonusProration||0).toFixed(1)}M/yr bonus proration</summary><table style="font-size:.6rem;margin-top:.2rem">${scheduleRows}</table></details>`
+        : "";
+      const escName = p.name.replace(/'/g, "\\'");
       return `<tr>
-        <td style="color:${aavColor(c.aav)};font-weight:700">${playerLink(p)}</td>
+        <td style="color:${aavColor(capHit)};font-weight:700">${playerLink(p)}${scheduleHtml}</td>
         <td style="color:var(--gray)">${p.position}</td>
         <td>${gradeBadge(p)}</td>
         <td style="color:var(--gray)">${p.age || "?"}</td>
         <td style="color:var(--gray);font-size:.65rem">${draftStr(p)}</td>
-        <td style="color:${aavColor(c.aav)};font-weight:700">$${c.aav.toFixed(1)}M</td>
+        <td style="color:${aavColor(capHit)};font-weight:700">$${capHit.toFixed(1)}M
+          <div style="font-size:.58rem;color:var(--gray)">AAV $${c.aav.toFixed(1)}M</div></td>
         <td>${vsMarketCell(c.aav, mv)}</td>
-        <td style="color:var(--gold);font-size:.65rem">${careerEarningsStr(p)}</td>
+        <td style="font-size:.6rem;color:${deadTotal>0?"#ff9090":"var(--gray)"}">
+          ${deadTotal > 0 ? `☠ $${deadPY.toFixed(1)}M×${deadYrs}yr` : "—"}
+        </td>
         <td style="color:var(--gray);font-size:.65rem">${c.remaining}yr left</td>
-        <td style="font-size:.65rem;color:${expiring?"var(--red)":"var(--gray)"}">${expiring?"EXPIRING":""}</td>
+        <td style="font-size:.65rem">
+          ${canRestructure ? `<button class="btn btn-outline" onclick="frnRestructure(${chosenTeamId},'${escName}','${p.position}')" style="font-size:.58rem;padding:.15rem .4rem;color:var(--gold)" title="Convert base salary to signing bonus — frees cap now, adds dead money">↺ Restructure</button>` : ""}
+          ${expiring ? `<span style="color:var(--red)">EXPIRING</span>` : ""}
+        </td>
       </tr>`;
     }).join("");
     return `
@@ -2185,8 +2213,9 @@ function renderFrnAnalytics(defaultTab) {
         <span>Cap: <b style="color:var(--gold)">$${cap.toFixed(0)}M</b></span>
         <span style="color:${capLeft<0?"var(--red)":"var(--green-lt)"}">Room: <b>$${capLeft.toFixed(1)}M</b></span>
       </div>
+      <p style="font-size:.62rem;color:var(--gray);margin-bottom:.5rem">Cap Hit = this year's base salary + annual bonus proration. Dead Cap = prorated bonus remaining if player is cut. ↺ Restructure converts base salary to bonus — frees cap now, increases dead cap later.</p>
       <table class="frn-ana-table"><thead>
-        <tr><th>Player</th><th>Pos</th><th>Grade</th><th>Age</th><th>Draft</th><th>AAV</th><th>vs Market</th><th>Career $</th><th>Length</th><th></th></tr>
+        <tr><th>Player</th><th>Pos</th><th>Grade</th><th>Age</th><th>Draft</th><th>Cap Hit</th><th>vs Market</th><th>Dead Cap</th><th>Length</th><th></th></tr>
       </thead><tbody>${rows}</tbody></table>`;
   }
 
@@ -2570,7 +2599,7 @@ function renderFrnResignings() {
   const myRoster   = franchise.rosters[chosenTeamId] || [];
   const expiring   = myRoster.filter(p => p.contract && p.contract.remaining <= 0);
   const committed  = myRoster.filter(p => p.contract && p.contract.remaining > 0);
-  const capCommitted = committed.reduce((s, p) => s + p.contract.aav, 0);
+  const capCommitted = committed.reduce((s, p) => s + currentYearCapHit(p), 0);
 
   if (expiring.length === 0) {
     frnProceedToRosterChanges();
@@ -2622,9 +2651,10 @@ function _renderResignUI(cap, capCommitted) {
           </div>
           <span style="color:var(--gray);font-size:.6rem;text-align:right">total $${(r.offer * r.offerYears).toFixed(1)}M</span>
           ${(() => {
-            const gYrs = _guaranteedYearsForLength(r.offerYears);
-            const gAmt = gYrs * r.offer;
-            return `<span style="color:#ff9090;font-size:.6rem;text-align:right" title="If you release this player, this much continues to count against your cap as dead money.">🔒 GTD $${gAmt.toFixed(1)}M (${gYrs}yr)</span>`;
+            const { signingBonus, bonusProration } = _signingBonusCalc(r.offer, r.offerYears, r.overall || 70);
+            const deadTotal = bonusProration * r.offerYears;
+            if (deadTotal < 0.5) return `<span style="color:var(--gray);font-size:.6rem">No dead cap</span>`;
+            return `<span style="color:#ff9090;font-size:.6rem;text-align:right" title="Prorated signing bonus — counts as dead cap if you release this player.">☠ Dead $${bonusProration.toFixed(1)}M×${r.offerYears}yr = $${deadTotal.toFixed(1)}M</span>`;
           })()}
         </div>
         <div class="frn-resign-btns">
@@ -2720,12 +2750,13 @@ function frnConfirmResignings() {
     const player = myRoster.find(p => p.name === r.name && p.position === r.pos);
     if (!player) continue;
     if (r.decision === "tag") {
-      // Franchise tag: 1yr fully guaranteed at top-5 position avg.
-      // signedAav marks this contract as "already finalized" so the
-      // load-time retrofit doesn't add negotiation noise on top of
-      // what the user just locked in.
+      // Franchise tag: 1yr fully guaranteed — always balanced, small bonus.
+      const _tagBonus = _signingBonusCalc(r.tagAAV, 1, player.overall || 70);
       player.contract = {
         years: 1, remaining: 1, aav: r.tagAAV,
+        structure: "BALANCED",
+        baseSalaries: [r.tagAAV - _tagBonus.bonusProration],
+        signingBonus: _tagBonus.signingBonus, bonusProration: _tagBonus.bonusProration,
         guaranteedYears: 1, guaranteedAAV: r.tagAAV,
         signedAav: r.tagAAV,
       };
@@ -2735,8 +2766,13 @@ function frnConfirmResignings() {
         label: `🏷 Franchise-tagged ${r.pos} ${r.name} — 1yr / $${r.tagAAV.toFixed(1)}M fully guaranteed` });
     } else if (r.decision === "accept") {
       const guaranteedYears = _guaranteedYearsForLength(r.offerYears);
+      const _rsStruct = _defaultStructure(player.age || 27, player.overall || 70);
+      const _rsBonus  = _signingBonusCalc(r.offer, r.offerYears, player.overall || 70);
       player.contract = {
         years: r.offerYears, remaining: r.offerYears, aav: r.offer,
+        structure: _rsStruct,
+        baseSalaries: _baseSalarySchedule(r.offer, r.offerYears, _rsStruct, _rsBonus.bonusProration),
+        signingBonus: _rsBonus.signingBonus, bonusProration: _rsBonus.bonusProration,
         guaranteedYears,
         guaranteedAAV: r.offer,
         signedAav: r.offer,
