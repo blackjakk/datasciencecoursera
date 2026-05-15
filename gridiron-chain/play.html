@@ -20442,7 +20442,7 @@ function frnStartSeason() {
 // trust their gut on a cheap young guy with "tools".
 const FA_POOL_TEMPLATES = [
   // Veteran stars — proven, expensive, won't take a discount easily
-  { kind:"vet_star",  count: 6,  ageMin:27, ageMax:32, tier:"elite",
+  { kind:"vet_star",  count: 15, ageMin:27, ageMax:32, tier:"elite",
     drMin:1, drMax:3, demandMult:1.00, yearsMin:3, yearsMax:5,
     posPool:["QB","WR","WR","RB","OL","OL","DL","DL","LB","CB","TE","S"],
     stories:[
@@ -20454,7 +20454,7 @@ const FA_POOL_TEMPLATES = [
       "Big-money guy looking for a bigger role",
     ] },
   // Steady veterans — depth, decent prices
-  { kind:"vet_depth", count: 8,  ageMin:27, ageMax:33, tier:"good",
+  { kind:"vet_depth", count: 28, ageMin:27, ageMax:33, tier:"good",
     drMin:2, drMax:5, demandMult:0.95, yearsMin:2, yearsMax:4,
     posPool:["QB","RB","WR","WR","TE","OL","OL","OL","DL","DL","LB","LB","CB","S"],
     stories:[
@@ -20466,7 +20466,7 @@ const FA_POOL_TEMPLATES = [
       "Underrated grinder with starts on tape",
     ] },
   // Veteran minimums — cheap depth, locker room glue
-  { kind:"vet_min",   count: 10, ageMin:31, ageMax:35, tier:"average",
+  { kind:"vet_min",   count: 45, ageMin:31, ageMax:35, tier:"average",
     drMin:3, drMax:7, demandMult:0.65, yearsMin:1, yearsMax:2,
     posPool:["RB","WR","TE","OL","DL","LB","CB","S","K","P"],
     stories:[
@@ -20478,7 +20478,7 @@ const FA_POOL_TEMPLATES = [
       "Wants to mentor a rookie at his position",
     ] },
   // Young camp bodies — cheap, room to grow
-  { kind:"camp_body", count: 12, ageMin:22, ageMax:25, tier:"average",
+  { kind:"camp_body", count: 70, ageMin:22, ageMax:25, tier:"average",
     drMin:5, drMax:7, demandMult:0.55, yearsMin:1, yearsMax:3,
     posPool:["QB","RB","WR","WR","TE","OL","DL","LB","CB","S"],
     stories:[
@@ -20494,7 +20494,7 @@ const FA_POOL_TEMPLATES = [
       "Late bloomer waiting for an opportunity",
     ] },
   // UDFAs — bottom of the pool, raw upside
-  { kind:"udfa",      count: 6,  ageMin:22, ageMax:23, tier:"poor",
+  { kind:"udfa",      count: 40, ageMin:22, ageMax:23, tier:"poor",
     drMin:0, drMax:0, demandMult:0.42, yearsMin:1, yearsMax:2,
     posPool:["RB","WR","WR","WR","TE","OL","DL","LB","CB","S"],
     stories:[
@@ -20507,7 +20507,7 @@ const FA_POOL_TEMPLATES = [
     ] },
   // Diamonds in the rough — secretly good young players, undervalued
   // grade. Same story bucket as camp bodies so they don't out themselves.
-  { kind:"diamond",   count: 4,  ageMin:22, ageMax:25, tier:"good",
+  { kind:"diamond",   count: 18, ageMin:22, ageMax:25, tier:"good",
     drMin:5, drMax:7, demandMult:0.55, yearsMin:2, yearsMax:3,
     posPool:["QB","RB","WR","TE","OL","DL","LB","CB","S"],
     stories:[
@@ -20575,17 +20575,73 @@ function _generateFAPool() {
   return pool;
 }
 
+function frnFASetFilter(field, value) {
+  if (!franchise._faFilters) franchise._faFilters = {};
+  franchise._faFilters[field] = value;
+  renderFrnFA();
+  // Re-focus the search input after re-render so typing flows naturally
+  if (field === "search") {
+    const input = document.querySelector('.frn-fa-pool-col input[placeholder^="Search"]');
+    if (input) {
+      input.focus();
+      const len = input.value.length;
+      input.setSelectionRange(len, len);
+    }
+  }
+}
+
 function renderFrnFA(selectedName) {
   const { chosenTeamId, freeAgents = [], _faOffers = {}, salaryCap, season } = franchise;
   const cap = salaryCap || SALARY_CAP_BASE;
   const myRoster = franchise.rosters[chosenTeamId] || [];
   const myCapUsed = capUsedByTeam(chosenTeamId);
 
+  // Filters — persisted on franchise so they survive renders
+  const filters = (franchise._faFilters = franchise._faFilters || {
+    pos: "ALL", age: "ALL", sort: "price", search: "",
+  });
+  let filtered = freeAgents.slice();
+  if (filters.pos && filters.pos !== "ALL") filtered = filtered.filter(p => p.position === filters.pos);
+  if (filters.age === "YOUNG") filtered = filtered.filter(p => p.age <= 25);
+  else if (filters.age === "VET") filtered = filtered.filter(p => p.age >= 26);
+  if (filters.search) {
+    const s = filters.search.toLowerCase();
+    filtered = filtered.filter(p => p.name.toLowerCase().includes(s));
+  }
+  if (filters.sort === "age")        filtered.sort((a, b) => a.age - b.age);
+  else if (filters.sort === "grade") filtered.sort((a, b) => scoutGrade(b) - scoutGrade(a));
+  // default "price" already matches the source ordering (desc)
+
   let selected = selectedName ? freeAgents.find(p => p.name === selectedName) : null;
-  if (!selected) selected = freeAgents[0];
+  if (!selected) selected = filtered[0] || freeAgents[0];
+
+  // Filter chip helper
+  const chip = (active, label, onclick, color) => `<button onclick="${onclick}" style="padding:.18rem .45rem;font-size:.6rem;letter-spacing:.5px;border:1px solid ${active?"var(--gold)":"var(--border)"};background:${active?"rgba(245,197,66,.15)":"transparent"};color:${active?"var(--gold-lt)":(color||"var(--blgray)")};border-radius:3px;font-family:inherit;cursor:pointer;font-weight:${active?700:400}">${label}</button>`;
+
+  const POS_LIST = ["ALL","QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"];
+  const posChips = POS_LIST.map(pos =>
+    chip(filters.pos === pos, pos === "ALL" ? "ALL" : pos, `frnFASetFilter('pos','${pos}')`)
+  ).join("");
+  const ageChips = [["ALL","ALL"],["YOUNG","🌱 ≤25"],["VET","26+"]].map(([k,l]) =>
+    chip(filters.age === k, l, `frnFASetFilter('age','${k}')`)
+  ).join("");
+  const sortChips = [["price","$↓"],["age","AGE↑"],["grade","GRADE↓"]].map(([k,l]) =>
+    chip(filters.sort === k, l, `frnFASetFilter('sort','${k}')`)
+  ).join("");
+  const filterBar = `
+    <div style="display:flex;flex-wrap:wrap;gap:.2rem;margin-bottom:.4rem;align-items:center">
+      <span style="color:var(--blgray);font-size:.55rem;letter-spacing:.5px;margin-right:.15rem">POS</span>${posChips}
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:.2rem;margin-bottom:.4rem;align-items:center">
+      <span style="color:var(--blgray);font-size:.55rem;letter-spacing:.5px;margin-right:.15rem">AGE</span>${ageChips}
+      <span style="color:var(--blgray);font-size:.55rem;letter-spacing:.5px;margin:0 .15rem 0 .4rem">SORT</span>${sortChips}
+      <input type="text" placeholder="Search name…" value="${(filters.search || "").replace(/"/g,'&quot;')}"
+        oninput="frnFASetFilter('search', this.value)"
+        style="flex:1;min-width:6rem;background:var(--bg3);color:var(--white);border:1px solid var(--border);padding:.18rem .35rem;font-family:inherit;font-size:.65rem;border-radius:3px">
+    </div>`;
 
   // FA list (left column)
-  const faListHtml = freeAgents.map(p => {
+  const faListHtml = filtered.map(p => {
     const myOffer = _faOffers[p.name];
     const offered = !!myOffer;
     const isSel = selected && p.name === selected.name;
@@ -20724,8 +20780,9 @@ function renderFrnFA(selectedName) {
     </div>
     <div class="frn-fa-layout">
       <div class="frn-fa-pool-col">
-        <div class="frn-card-title">FREE AGENT POOL (${freeAgents.length})</div>
-        <div class="frn-fa-pool-list">${faListHtml}</div>
+        <div class="frn-card-title">FREE AGENT POOL (${filtered.length}${filtered.length !== freeAgents.length ? ` / ${freeAgents.length}` : ""})</div>
+        ${filterBar}
+        <div class="frn-fa-pool-list">${faListHtml.length ? faListHtml : `<div style="color:var(--blgray);font-size:.7rem;padding:.6rem;text-align:center;font-style:italic">No free agents match the filters.</div>`}</div>
       </div>
       <div class="frn-fa-mid-col">
         ${detailHtml || `<div style="color:var(--gray);font-size:.78rem;padding:1rem;text-align:center;font-style:italic">Select a free agent on the left to make an offer.</div>`}
