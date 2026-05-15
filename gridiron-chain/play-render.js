@@ -1,0 +1,2788 @@
+// ─── Field rendering ───────────────────────────────────────────────────────
+const FIELD = {
+  // Bumped internal resolution: 1280x540 → 1700x720 (+33%) for sharper player
+  // detail. CSS still scales to 100% of the container; the higher resolution
+  // gives the player sprites more pixels to play with.
+  W: 1700, H: 720,
+  EZ_PX: 100,
+  PX_PER_YARD: 15,   // 100 yd × 15 = 1500px playable (100 + 1500 + 100 = 1700 ✓)
+  TOP: 50,
+  BOT: 670,
+};
+
+// Convert yard line + possession to absolute X (0=home goal, 100=away goal)
+function yardToAbsX(yardLine, poss) {
+  // When home has ball: yardLine 0 = home's own goal (left); yardLine 100 = away goal (right)
+  // When away has ball: yardLine 0 = away's own goal (right); yardLine 100 = home goal (left)
+  const absYard = poss === "home" ? yardLine : 100 - yardLine;
+  return FIELD.EZ_PX + absYard * FIELD.PX_PER_YARD;
+}
+function absYardToX(absYard) {
+  return FIELD.EZ_PX + absYard * FIELD.PX_PER_YARD;
+}
+
+function drawField(ctx, homeTeam, awayTeam, ctx_state) {
+  const W = FIELD.W, H = FIELD.H;
+  // grass bands
+  ctx.fillStyle = "#1f6b34";
+  ctx.fillRect(0, 0, W, H);
+  // alternating mowed bands
+  for (let i = 0; i < 10; i++) {
+    ctx.fillStyle = i % 2 === 0 ? "#236d36" : "#1f6431";
+    const x = FIELD.EZ_PX + i * 10 * FIELD.PX_PER_YARD;
+    ctx.fillRect(x, FIELD.TOP, 10 * FIELD.PX_PER_YARD, FIELD.BOT - FIELD.TOP);
+  }
+  // end zones (team colors)
+  ctx.fillStyle = homeTeam.primary;
+  ctx.fillRect(0, FIELD.TOP, FIELD.EZ_PX, FIELD.BOT - FIELD.TOP);
+  ctx.fillStyle = awayTeam.primary;
+  ctx.fillRect(W - FIELD.EZ_PX, FIELD.TOP, FIELD.EZ_PX, FIELD.BOT - FIELD.TOP);
+
+  // End zone team text — sized to FILL the endzone. Font size fills the
+  // narrow dimension (EZ width = 100 px after rotation becomes text height),
+  // then horizontally scaled to fit the long dimension (field height between
+  // sidelines becomes text width).
+  const ezSpan = FIELD.BOT - FIELD.TOP;
+  const ezPad  = 8;   // tiny breathing room from the sidelines
+  const ezTargetH = FIELD.EZ_PX * 0.78;          // text height (cap height) target
+  const ezTargetW = ezSpan - ezPad * 2;          // available length along the field
+  const hName = homeTeam.name.toUpperCase();
+  const aName = awayTeam.name.toUpperCase();
+  ctx.save();
+  ctx.font = `900 ${ezTargetH}px monospace`;
+  const hMeasure = ctx.measureText(hName).width || 1;
+  const hScaleX  = ezTargetW / hMeasure;
+  ctx.fillStyle = "rgba(255,255,255,0.55)";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.translate(FIELD.EZ_PX / 2, (FIELD.TOP + FIELD.BOT) / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.scale(hScaleX, 1);
+  ctx.fillText(hName, 0, 0);
+  ctx.restore();
+  ctx.save();
+  ctx.font = `900 ${ezTargetH}px monospace`;
+  const aMeasure = ctx.measureText(aName).width || 1;
+  const aScaleX  = ezTargetW / aMeasure;
+  ctx.fillStyle = "rgba(255,255,255,0.55)";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.translate(W - FIELD.EZ_PX / 2, (FIELD.TOP + FIELD.BOT) / 2);
+  ctx.rotate(Math.PI / 2);
+  ctx.scale(aScaleX, 1);
+  ctx.fillText(aName, 0, 0);
+  ctx.restore();
+
+  // sidelines
+  ctx.strokeStyle = "rgba(255,255,255,0.85)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, FIELD.TOP); ctx.lineTo(W, FIELD.TOP);
+  ctx.moveTo(0, FIELD.BOT); ctx.lineTo(W, FIELD.BOT);
+  ctx.stroke();
+
+  // yard lines (every 5 thin, every 10 thick + numbers)
+  for (let yd = 0; yd <= 100; yd += 5) {
+    const x = absYardToX(yd);
+    const isMajor = yd % 10 === 0;
+    ctx.strokeStyle = isMajor ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.4)";
+    ctx.lineWidth = isMajor ? 1.5 : 1;
+    ctx.beginPath();
+    ctx.moveTo(x, FIELD.TOP);
+    ctx.lineTo(x, FIELD.BOT);
+    ctx.stroke();
+  }
+
+  // Yard numbers (10, 20, 30, 40, 50, 40, 30, 20, 10)
+  ctx.fillStyle = "rgba(255,255,255,0.85)";
+  ctx.font = "bold 18px sans-serif";
+  ctx.textAlign = "center";
+  for (let yd = 10; yd <= 90; yd += 10) {
+    const x = absYardToX(yd);
+    const num = yd <= 50 ? yd : 100 - yd;
+    ctx.fillText(num, x, FIELD.TOP + 30);
+    ctx.fillText(num, x, FIELD.BOT - 14);
+  }
+
+  // Hash marks (small ticks every yard)
+  ctx.strokeStyle = "rgba(255,255,255,0.55)";
+  ctx.lineWidth = 1;
+  for (let yd = 1; yd <= 99; yd++) {
+    if (yd % 5 === 0) continue;
+    const x = absYardToX(yd);
+    // top hash
+    ctx.beginPath();
+    ctx.moveTo(x, FIELD.TOP + 75);
+    ctx.lineTo(x, FIELD.TOP + 80);
+    ctx.stroke();
+    // bottom hash
+    ctx.beginPath();
+    ctx.moveTo(x, FIELD.BOT - 80);
+    ctx.lineTo(x, FIELD.BOT - 75);
+    ctx.stroke();
+    // sideline ticks
+    ctx.beginPath();
+    ctx.moveTo(x, FIELD.TOP); ctx.lineTo(x, FIELD.TOP + 6);
+    ctx.moveTo(x, FIELD.BOT); ctx.lineTo(x, FIELD.BOT - 6);
+    ctx.stroke();
+  }
+
+  // 50 yard line midfield logo — ASCII block letter for the home team
+  // (their initial), drawn in their primary color, with a faded gold ring
+  // for contrast against the grass.
+  const midX = absYardToX(50);
+  const midY = (FIELD.TOP + FIELD.BOT) / 2;
+  ctx.fillStyle = "rgba(200,169,0,0.14)";
+  ctx.beginPath();
+  ctx.arc(midX, midY, 56, 0, Math.PI * 2);
+  ctx.fill();
+  if (homeTeam) {
+    const initial = (homeTeam.name || "?")[0].toUpperCase();
+    ctx.save();
+    ctx.fillStyle = homeTeam.primary;
+    ctx.strokeStyle = homeTeam.secondary;
+    ctx.lineWidth = 3;
+    ctx.font = "900 88px monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.globalAlpha = 0.55;
+    ctx.strokeText(initial, midX, midY);
+    ctx.fillText(initial, midX, midY);
+    ctx.restore();
+  }
+
+  // LOS and first down marker
+  if (ctx_state) {
+    const { los, firstDownAbs, possColor } = ctx_state;
+    if (los != null) {
+      ctx.strokeStyle = possColor || "#4b9bd5";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(los, FIELD.TOP); ctx.lineTo(los, FIELD.BOT);
+      ctx.stroke();
+    }
+    if (firstDownAbs != null) {
+      ctx.strokeStyle = "#f0cc30";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(firstDownAbs, FIELD.TOP); ctx.lineTo(firstDownAbs, FIELD.BOT);
+      ctx.stroke();
+    }
+  }
+
+  // Goal line posts indicator
+  ctx.strokeStyle = "#f0cc30";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(FIELD.EZ_PX, FIELD.TOP); ctx.lineTo(FIELD.EZ_PX, FIELD.BOT);
+  ctx.moveTo(W - FIELD.EZ_PX, FIELD.TOP); ctx.lineTo(W - FIELD.EZ_PX, FIELD.BOT);
+  ctx.stroke();
+  // ── Weather effects: badge + particles ──
+  const wx = (typeof gameResult !== "undefined") ? gameResult?.weather : null;
+  if (wx && wx.label !== "CLEAR") {
+    const time = Date.now() / 1000;
+    const icon = wx.label === "WINDY" ? "💨"
+               : wx.label === "RAIN"  ? "🌧"
+               : wx.label === "SNOW"  ? "❄"
+               : wx.label === "HOT"   ? "☀"
+               : "";
+    // Badge top-right
+    ctx.save();
+    ctx.fillStyle = "rgba(0,0,0,0.45)";
+    ctx.fillRect(W - 110, 8, 102, 24);
+    ctx.fillStyle = "#f1f1f1";
+    ctx.font = "bold 13px sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText(`${icon} ${wx.label}`, W - 102, 20);
+    ctx.restore();
+    // Rain particles — diagonal streaks, fast
+    if (wx.label === "RAIN" || wx.label === "SNOW") {
+      ctx.save();
+      ctx.strokeStyle = wx.label === "RAIN" ? "rgba(180,200,220,0.45)" : "rgba(255,255,255,0.75)";
+      ctx.lineWidth = wx.label === "RAIN" ? 0.8 : 1.4;
+      ctx.fillStyle = wx.label === "SNOW" ? "rgba(255,255,255,0.85)" : null;
+      const driftX = wx.label === "RAIN" ? 6 : 1.5;     // rain falls more diagonally
+      const dropY  = wx.label === "RAIN" ? 14 : 4;       // rain falls fast
+      // Distribute ~140 particles deterministically across the field
+      const N = wx.label === "RAIN" ? 180 : 140;
+      const cycle = wx.label === "RAIN" ? 0.7 : 2.5;     // seconds per fall
+      for (let i = 0; i < N; i++) {
+        // Each particle has a fixed seed; its y wraps based on time
+        const px = ((i * 73) % W);
+        const baseY = ((i * 191) % (FIELD.BOT - FIELD.TOP));
+        const fall = ((time / cycle) * (FIELD.BOT - FIELD.TOP)) + baseY + (i % 13) * 18;
+        const py = FIELD.TOP + (fall % (FIELD.BOT - FIELD.TOP));
+        if (wx.label === "RAIN") {
+          ctx.beginPath();
+          ctx.moveTo(px, py);
+          ctx.lineTo(px + driftX, py + dropY);
+          ctx.stroke();
+        } else {
+          // Snowflake — tiny dot, drifts laterally
+          const drift = Math.sin(time * 0.6 + i * 0.5) * 1.4;
+          ctx.beginPath();
+          ctx.arc(px + drift, py, 1.3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+    }
+    // Wind: subtle horizontal streak indicators in the foreground
+    if (wx.label === "WINDY") {
+      ctx.save();
+      ctx.strokeStyle = "rgba(220,230,240,0.20)";
+      ctx.lineWidth = 1.2;
+      const speed = wx.windStrength * 60;
+      for (let i = 0; i < 14; i++) {
+        const yLine = FIELD.TOP + 30 + (i * (FIELD.BOT - FIELD.TOP - 60)) / 14;
+        const xStart = ((time * speed * wx.windDir + i * 87) % (W + 200)) - 100;
+        ctx.beginPath();
+        ctx.moveTo(xStart, yLine);
+        ctx.lineTo(xStart + 24 * wx.windDir, yLine);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+}
+
+// Stick-figure player: head (circle) + torso + 2 arms + 2 legs as articulated
+// lines. `pose` drives limb angles; `t` is an animation phase 0..1 for run cycles.
+// Backwards compatible — old calls without pose render as idle.
+// Per-position default running style + signature celebration
+const RUN_STYLES = {
+  smooth:   { armAmp: 0.95, legAmp: 0.70, lean: 0.05, kneeBend: 0.55, bob: 1.0 },
+  powerful: { armAmp: 1.20, legAmp: 0.95, lean: 0.10, kneeBend: 0.85, bob: 1.6 },  // RBs — high knees, churn
+  loping:   { armAmp: 0.70, legAmp: 1.05, lean: 0.02, kneeBend: 0.30, bob: 1.2 },  // burners — long stride
+  short:    { armAmp: 0.85, legAmp: 0.55, lean: 0.03, kneeBend: 0.65, bob: 0.7 },  // shifty — high turnover
+  plodding: { armAmp: 0.55, legAmp: 0.45, lean: 0.06, kneeBend: 0.40, bob: 0.5 },  // OL/DL — big guys
+  glider:   { armAmp: 0.80, legAmp: 0.80, lean: 0.0,  kneeBend: 0.35, bob: 0.4 },  // WR — smooth tempo
+  scrambler:{ armAmp: 1.10, legAmp: 0.75, lean: 0.12, kneeBend: 0.70, bob: 1.0 },  // mobile QB — frantic
+};
+const CELEB_STYLES = ["fist_pump", "ref_signal", "spike", "first_down", "point_sky", "shimmy", "bow", "leap_yell", "kneel"];
+
+// Body type profiles — drive shoulder width, torso shape, leg/arm length.
+// BIG = upside-down triangle (massive shoulders, thick torso) — OL/DL/POWER RB
+// BROAD = stocky triangle — default RBs, thumper LBs
+// NORMAL = balanced — QB / DB
+// LEAN = narrow shoulders, longer limbs — most WRs, shutdown CBs
+// COMPACT = short and small — slot WR/CB, elusive RB
+const BODY_TYPES = {
+  //               padW   torsoLen  torsoBotW  legLen  armLen  helmH   scale  bulk
+  HUGE:        { padW: 16.0, torsoLen: 9.8, torsoBotW: 6.0, legLen: 9.0,  armLen: 7.8, helmH: 5.9, scale: 1.45, bulk: 1.6 },
+  BIG:         { padW: 13.5, torsoLen: 9.0, torsoBotW: 4.8, legLen: 8.8,  armLen: 7.5, helmH: 5.7, scale: 1.35, bulk: 1.0 },
+  HEAVY_SHORT: { padW: 14.5, torsoLen: 7.8, torsoBotW: 5.5, legLen: 7.5,  armLen: 7.0, helmH: 5.6, scale: 1.36, bulk: 1.4 },
+  TALL_HEAVY:  { padW: 14.0, torsoLen: 10.2,torsoBotW: 5.2, legLen: 10.0, armLen: 8.2, helmH: 5.7, scale: 1.40, bulk: 1.2 },
+  BROAD:       { padW: 11.8, torsoLen: 8.5, torsoBotW: 4.0, legLen: 9.0,  armLen: 7.5, helmH: 5.5, scale: 1.30, bulk: 0.8 },
+  NORMAL:      { padW: 10.0, torsoLen: 8.5, torsoBotW: 3.5, legLen: 9.0,  armLen: 7.5, helmH: 5.5, scale: 1.30, bulk: 0.5 },
+  LEAN:        { padW: 9.0,  torsoLen: 9.5, torsoBotW: 2.6, legLen: 10.2, armLen: 8.4, helmH: 5.3, scale: 1.30, bulk: 0.2 },
+  COMPACT:     { padW: 8.8,  torsoLen: 7.5, torsoBotW: 3.0, legLen: 8.2,  armLen: 6.8, helmH: 5.2, scale: 1.24, bulk: 0.4 },
+};
+const LINE_BODY_POOL = ["HUGE", "BIG", "HEAVY_SHORT", "TALL_HEAVY", "BIG", "TALL_HEAVY"];
+function pickBodyType(pos, archetype) {
+  if (pos === "OL" || pos === "DL") {
+    // Linemen come in different sizes — pick from a pool so a line is visually varied.
+    // Archetype tilts toward specific looks: POWER → HUGE, SPEED → TALL_HEAVY/BIG, etc.
+    if (pos === "DL") {
+      if (archetype === "POWER")      return Math.random() < 0.55 ? "HUGE" : "BIG";
+      if (archetype === "SPEED")      return Math.random() < 0.55 ? "TALL_HEAVY" : "BIG";
+      if (archetype === "PENETRATOR") return Math.random() < 0.50 ? "BIG" : "TALL_HEAVY";
+      if (archetype === "TWEENER")    return "BIG";
+      return Math.random() < 0.45 ? "TALL_HEAVY" : "BIG";
+    }
+    // OL
+    if (archetype === "ANCHOR")    return Math.random() < 0.55 ? "HUGE" : "HEAVY_SHORT";
+    if (archetype === "MAULER")    return Math.random() < 0.55 ? "HUGE" : "BIG";
+    if (archetype === "ATHLETIC")  return Math.random() < 0.6  ? "TALL_HEAVY" : "BIG";
+    if (archetype === "PLUG")      return Math.random() < 0.65 ? "HEAVY_SHORT" : "HUGE";
+    if (archetype === "TECHNICIAN")return Math.random() < 0.55 ? "BIG" : "TALL_HEAVY";
+    return LINE_BODY_POOL[Math.floor(Math.random() * LINE_BODY_POOL.length)];
+  }
+  if (pos === "RB") {
+    if (archetype === "POWER") return "BIG";
+    if (archetype === "ELUSIVE") return "COMPACT";
+    if (archetype === "SPEED") return "BROAD";
+    return "BROAD";
+  }
+  if (pos === "WR") {
+    if (archetype === "DEEP_THREAT" || archetype === "POSSESSION" || archetype === "ROUTE_RUNNER") return "LEAN";
+    if (archetype === "RED_ZONE") return "BROAD";
+    if (archetype === "SLOT") return "COMPACT";
+    return Math.random() < 0.7 ? "LEAN" : "NORMAL";
+  }
+  if (pos === "TE") return archetype === "RECEIVING" ? "BROAD" : Math.random() < 0.5 ? "TALL_HEAVY" : "BIG";
+  if (pos === "LB") return archetype === "THUMPER" ? "BIG" : "BROAD";
+  if (pos === "CB") {
+    if (archetype === "SHUTDOWN") return "LEAN";
+    if (archetype === "SLOT_CB")  return "COMPACT";
+    return "NORMAL";
+  }
+  if (pos === "S")  return archetype === "BOX" ? "BROAD" : "NORMAL";
+  if (pos === "QB") return "NORMAL";
+  if (pos === "K" || pos === "P") return "LEAN";
+  return "NORMAL";
+}
+
+function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style = {}) {
+  pose = pose || "idle";
+  t = t || 0;
+  facing = facing || 1;
+  const runStyle = style.runStyle || "smooth";
+  const celebStyle = style.celebStyle || "fist_pump";
+  // Auto-stance for ALL roles when idle — keeps players in position-appropriate
+  // pre-snap setups instead of standing flat-footed.
+  if (pose === "idle" && style.role) pose = "stance";
+  const rs = RUN_STYLES[runStyle] || RUN_STYLES.smooth;
+  const bt = BODY_TYPES[style.bodyType] || BODY_TYPES.NORMAL;
+
+  // Per-player phase offset + amplitude jitter — derived from the jersey/role
+  // so the same player always animates the same way. Desynchronizes the squad
+  // so they don't all swing arms in unison.
+  let phaseHash = 0;
+  const phaseStr = String(label || "") + String(style.role || "");
+  for (let i = 0; i < phaseStr.length; i++) phaseHash = (phaseHash * 31 + phaseStr.charCodeAt(i)) >>> 0;
+  const phaseOffset = ((phaseHash % 1000) / 1000);             // 0–1
+  const ampJitter   = 0.78 + ((phaseHash >> 10) % 100) / 220;  // ~0.78–1.23
+  const legAmp = rs.legAmp * ampJitter;
+  const armAmp = rs.armAmp * ampJitter;
+  // Shift t by per-player offset for run/carry/celebrate cycles
+  if (pose === "run" || pose === "carry") {
+    t = (t + phaseOffset) % 1;
+  }
+
+  // Shade helpers — multiply RGB by factor to get a darker / lighter variant
+  // for shading the body parts. Falls back to the input on parse error.
+  const tweakColor = (c, factor) => {
+    if (!c || c[0] !== "#" || c.length !== 7) return c;
+    const r = Math.min(255, Math.max(0, Math.round(parseInt(c.slice(1,3),16) * factor)));
+    const g = Math.min(255, Math.max(0, Math.round(parseInt(c.slice(3,5),16) * factor)));
+    const b = Math.min(255, Math.max(0, Math.round(parseInt(c.slice(5,7),16) * factor)));
+    return `rgb(${r},${g},${b})`;
+  };
+  const shadeDark  = tweakColor(color, 0.62);
+  const shadeMid   = tweakColor(color, 0.85);
+  const shadeLight = tweakColor(color, 1.18);
+
+  // Per-player skin tone — deterministic from the jersey label so the same
+  // player always renders with the same complexion. Roblox-style chunky look
+  // shows skin on forearms + hands (short-sleeved jersey) and on the face.
+  // SKIN_TONES is shared with the portrait sampler at module level.
+  // Skin tone preference order:
+  //   1. Sampled from the player's actual AI portrait PNG (best match)
+  //   2. Hash of name+position (deterministic, matches canvas-portrait fallback)
+  //   3. Label+role hash (for unnamed kickoff coverage / dive piles)
+  let skinIdx = -1;
+  if (style.name && style.position) {
+    const portraitFile = portraitFileForPlayer({ name: style.name, position: style.position, archetype: style.archetype });
+    const sampled = getPortraitSkinIndex(portraitFile);
+    if (sampled != null) skinIdx = sampled;
+  }
+  if (skinIdx < 0) {
+    let skinSeed = 0;
+    const skinSeedSrc = style.name
+      ? (style.name + (style.position || ""))
+      : (String(label || "") + (style.role || ""));
+    for (let i = 0; i < skinSeedSrc.length; i++) skinSeed = (skinSeed * 31 + skinSeedSrc.charCodeAt(i)) >>> 0;
+    skinIdx = skinSeed % SKIN_TONES.length;
+  }
+  const skin = SKIN_TONES[skinIdx];
+
+  const headR = 4.2;
+  const helmH = bt.helmH;
+  const torsoLen = bt.torsoLen;
+  const padW = bt.padW;
+  const armLen = bt.armLen;
+  const legLen = bt.legLen;
+  const runPhase = Math.sin(t * Math.PI * 2);
+
+  // Limb angles. 0 rad = pointing DOWN. Positive = swings FORWARD (in facing dir).
+  let lArm = 0, rArm = 0, lLeg = 0, rLeg = 0;
+  let lLegLift = 0, rLegLift = 0;   // vertical lift (foot off ground) for each leg
+  let bodyRot = 0, bodyTilt = 0;
+  let armReachY = 0, bodyDY = 0;
+  // Y-axis spin (faked in 2D by scaling X to cos(angle) — at 90° the player
+  // is edge-on / invisible; at 180° they're mirrored; at 360° back to start).
+  let spinXScale = 1;
+  let leftHandBall = false, rightHandBall = false;
+  let rForearmOverride = null;   // throw pose drives a custom forearm angle
+  let lForearmOverride = null;   // for right-facing QB throw (left arm is throw arm)
+  let exclaim = null;
+  let drawGroundHand = false;   // for 3-point stance
+
+  switch (pose) {
+    case "idle":
+      bodyDY = Math.sin(t * Math.PI * 1.5) * 0.4;
+      break;
+    case "run":
+    case "carry": {
+      const ph = runPhase;
+      // Legs alternate, jittered amplitude per player so they don't all sync
+      lLeg =  ph * legAmp;
+      rLeg = -ph * legAmp;
+      lLegLift = Math.max(0, -ph) * 7;
+      rLegLift = Math.max(0,  ph) * 7;
+      // Arms swing opposite to legs — but a sliver of players (notably some
+      // pursuing defenders) hold one arm out steady as a "pointing/reaching"
+      // gesture instead of pumping both. Looks more natural than perfect
+      // metronome arms.
+      const lockedArm = pose === "run" && (phaseHash % 9) === 0;
+      if (lockedArm) {
+        // One arm pointed forward in the facing direction (tracking the ball
+        // carrier or QB), the other swings at half amplitude. Positive angle
+        // is forward in player-local space; drawArm handles the facing flip.
+        lArm = 0.6;
+        rArm =  ph * armAmp * 0.4;
+      } else {
+        lArm = -ph * armAmp;
+        rArm =  ph * armAmp;
+      }
+      bodyTilt = facing * rs.lean;
+      bodyDY = -(Math.abs(ph) * 0.5 + 0.2) * rs.bob;
+      if (pose === "carry") {
+        if (style.role === "QB") {
+          // QB pre-throw — ball cradled at the chest with BOTH hands while
+          // dropping back / scanning. Override the run-phase arm swing.
+          lArm = 1.3;
+          rArm = 1.3;
+          rightHandBall = true;
+        } else {
+          // Ball carrier in the open field — ball HELD TIGHT AT THE CHEST.
+          // Bicep hangs at the side (only slightly forward); forearm wraps
+          // inward AND up so the hand ends up at chest-center, cradling the
+          // ball like a real RB / KR (NOT extended out front like a punter).
+          // The forearm angles are negated by facing so the same wrap reads
+          // correctly whether the player faces left or right.
+          lArm = 0.2;
+          rArm = 0.2;
+          rForearmOverride = -2.0 * facing;   // right forearm wraps left+up to chest
+          lForearmOverride =  2.0 * facing;   // left forearm wraps right+up to chest
+          rightHandBall = true;
+        }
+      }
+      break;
+    }
+    case "point": {
+      // Defender pointing at the offense pre-snap (calling out the back,
+      // signaling coverage). Lead arm extended FORWARD at shoulder height,
+      // body upright with slight forward lean.
+      bodyDY = 0.6 + Math.sin(t * Math.PI * 1.2) * 0.4;
+      bodyTilt = facing * 0.06;
+      lArm = 1.45;   // pointing forward at the offense
+      rArm = 0;
+      break;
+    }
+    case "stance": {
+      // Role-specific pre-snap stances. Kept clean and rigid — the trenches
+      // have 9+ bodies clustered face-to-face, so arms and legs are forced
+      // to neutral (hanging at sides, planted) to avoid a visual mess of
+      // interlocking limbs. Body posture (crouch / lean) still differentiates
+      // roles. On the snap they switch to the active poses with full motion.
+      const sway = Math.sin(t * Math.PI * 0.8) * 0.4;
+      const role = style.role || "";
+      if (role === "OL" || role === "DL") {
+        // 3-point stance — body crouched, NO extended limbs (just body lean)
+        bodyDY = 5;
+        bodyTilt = facing * 0.45;
+        lArm = 0; rArm = 0;
+        lLeg = 0; rLeg = 0;
+      } else if (role === "WR1" || role === "WR2") {
+        bodyDY = 0.5 + sway;
+        bodyTilt = facing * 0.08;
+      } else if (role === "TE") {
+        bodyDY = 1.5;
+        bodyTilt = facing * 0.10;
+      } else if (role === "RB") {
+        bodyDY = 1.8;
+        bodyTilt = facing * 0.08;
+      } else if (role === "QB") {
+        // QB shotgun — only role that keeps arms out, since hands forward
+        // is the visual cue that he's about to receive the snap.
+        bodyDY = 0.8;
+        bodyTilt = 0;
+        lArm = 1.05; rArm = 1.05;
+      } else if (role === "LB") {
+        bodyDY = 1.2 + sway;
+        bodyTilt = facing * 0.05;
+      } else if (role === "CB") {
+        bodyDY = 0.6 + sway;
+        bodyTilt = facing * 0.05;
+      } else if (role === "S") {
+        bodyDY = 0.8 + sway;
+        bodyTilt = facing * 0.05;
+      } else {
+        // Generic idle bob
+        bodyDY = Math.sin(t * Math.PI * 1.5) * 0.4;
+      }
+      break;
+    }
+    case "throw": {
+      // FOUR phases of a real football throw (not a volleyball windmill):
+      //  CRADLE (0 - 0.18): both hands clutch the ball at chest
+      //  COCK   (0.18 - 0.42): pull the ball back to the ear, elbow at ear height
+      //  SNAP   (0.42 - 0.62): forearm WHIPS through release, ball comes out at 0.55
+      //  FOLLOW (0.62 - 1.0): arm extends forward and slightly down
+      // The bicep makes a SHORT 90° sweep — only the forearm whips long.
+      // Per-QB throw-slot — hashes the player name into a release-point.
+      //   ~12% sidearm specialists (Mahomes / Rivers style — low release)
+      //   ~22% three-quarter
+      //   ~55% standard over-the-top (elbow at ear, ball at head level)
+      //   ~11% pure over-the-top high release (Marino)
+      // Throw-slot release points. The bicep at peak is rotated FAR
+      // back-and-up so the elbow rises ABOVE the shoulder — the classic
+      // combine-photo cock pose where the arm is nearly vertical with
+      // the ball held high-and-behind the head. (Earlier values put the
+      // elbow only horizontally back, which read as "arm not going back".)
+      // sin(bicepPeak) determines how far back the elbow goes;
+      // cos(bicepPeak) determines how high. At -2.3, the elbow ends up
+      // right at body centerline AND well above the shoulder.
+      let bicepPeak = -2.30, forearmPeak = -2.45;
+      if (style.name) {
+        let _h = 0;
+        for (let i = 0; i < style.name.length; i++) _h = (_h * 31 + style.name.charCodeAt(i)) >>> 0;
+        const slot = (_h % 100) / 100;
+        if      (slot < 0.12) { bicepPeak = -1.30; forearmPeak = -1.80; }   // sidearm — elbow stays low
+        else if (slot < 0.34) { bicepPeak = -1.90; forearmPeak = -2.25; }   // three-quarter
+        else if (slot < 0.89) { bicepPeak = -2.30; forearmPeak = -2.45; }   // standard over-the-top
+        else                  { bicepPeak = -2.55; forearmPeak = -2.70; }   // very high slot
+      }
+      let bicepA, forearmA, leadA;
+      if (t < 0.18) {
+        const ph = t / 0.18;
+        bicepA   = -0.15 + ph * (-0.25);  // -0.15 → -0.4 (elbow tucked at the side)
+        forearmA =  0.5  + ph * (-0.2);   // 0.5 → 0.3 (forearm forward holding ball at chest)
+        leadA    =  0.7;                   // lead hand on the ball at the chest, FORWARD
+      } else if (t < 0.42) {
+        const ph = (t - 0.18) / 0.24;
+        const sm = ph * ph * (3 - 2 * ph);
+        // Wind-up: elbow rises toward head level (overhand) — exact height
+        // varies by per-QB throw slot above.
+        bicepA   = -0.4  + sm * (bicepPeak - (-0.4));     // -0.4 → bicepPeak
+        forearmA =  0.3  + sm * (forearmPeak - 0.3);      // 0.3 → forearmPeak
+        leadA    =  0.7  + sm * 0.5;                       // off arm extends FORWARD at chest level (not raised to face — keeps it distinct from the cocked throw arm)
+      } else if (t < 0.62) {
+        const ph = (t - 0.42) / 0.20;
+        const sm = ph * ph * (3 - 2 * ph);
+        // SNAP: bicep STAYS at peak (elbow at ear height — frozen). Only the
+        // forearm whips, but only as far as -0.4 (slightly forward of the
+        // elbow at shoulder height) — NOT past straight-down, which would
+        // sweep the ball through a "golf swing" arc below the elbow.
+        // The ball releases with the hand still ABOVE/AT shoulder height.
+        bicepA   = bicepPeak;                              // no change — stays high
+        forearmA = forearmPeak + sm * (-0.4 - forearmPeak); // peak → -0.4 (release at front-of-elbow)
+        leadA    =  1.2  - sm * 0.4;                       // off arm relaxes slightly as throw releases
+      } else {
+        const ph = (t - 0.62) / 0.38;
+        // FOLLOW: arm drives forward AND down across the body — bicep finally
+        // rotates from horizontal-back through straight-down to slight-forward,
+        // forearm extends out front. This is when the visible "release" motion
+        // happens; the ball is already gone but the arm follows through.
+        bicepA   = bicepPeak + ph * (0.30 - bicepPeak);    // peak → +0.30
+        forearmA = -0.4  + ph * 1.9;                        // -0.4 → +1.5 (full extension forward)
+        leadA    =  0.8  - ph * 0.6;                       // off arm relaxes down (0.8 → 0.2)
+      }
+      // Mirrored throw — the arm is anchored on the BACK-side shoulder of
+      // the player, so it cocks OUTWARD to the back without crossing the
+      // body. For facing=-1 (left-facing), the back is screen-RIGHT, so
+      // the throw arm is the rArm (side=+1). For facing=+1 (right-facing),
+      // the back is screen-LEFT, so the throw arm is the lArm (side=-1).
+      // Same bicepA / forearmA values — the * facing flip in drawArm and
+      // the choice of shoulder mirror the motion automatically.
+      if (facing === 1) {
+        lArm = bicepA;
+        rArm = leadA;
+        lForearmOverride = forearmA;
+        leftHandBall = t < 0.55;
+      } else {
+        rArm = bicepA;
+        lArm = leadA;
+        rForearmOverride = forearmA;
+        rightHandBall = t < 0.55;
+      }
+      // Body / legs progress through CRADLE → COCK → SNAP → FOLLOW:
+      //  CRADLE  — square stance, both feet on the ground, body neutral
+      //  COCK    — lead foot strides forward, body rises slightly as the
+      //            QB winds up onto the back foot
+      //  SNAP    — feet PLANT firmly into the ground (bodyDY back to 0),
+      //            weight transfers forward — this is the "throw stance"
+      //  FOLLOW  — lead foot stays planted, back foot drags forward,
+      //            body settles slightly forward as weight finishes the
+      //            transfer
+      // Previously these were all fixed (lLeg=0.45, bodyDY=-1) which made
+      // the QB look like he was hovering off the ground for the whole
+      // throw — read as "throwing off-balance".
+      if (t < 0.18) {
+        const ph = t / 0.18;
+        lLeg = 0.10 + ph * 0.05;        // slight forward shift
+        rLeg = -0.10 - ph * 0.05;
+        bodyDY = 0;                      // feet flat on ground
+        bodyTilt = facing * 0.02;
+      } else if (t < 0.42) {
+        const ph = (t - 0.18) / 0.24;
+        const sm = ph * ph * (3 - 2 * ph);
+        // Stride: lead foot reaches forward, back foot pushes off
+        lLeg = 0.15 + sm * 0.40;         // 0.15 → 0.55 (lead leg strides out)
+        rLeg = -0.15 - sm * 0.15;        // -0.15 → -0.30 (back leg pushing)
+        bodyDY = -sm * 0.8;              // 0 → -0.8 (slight rise as winding)
+        bodyTilt = facing * (0.02 + sm * 0.03);
+      } else if (t < 0.62) {
+        const ph = (t - 0.42) / 0.20;
+        const sm = ph * ph * (3 - 2 * ph);
+        // PLANT: feet are FIXED — no movement in the leg angles at all.
+        // bodyDY descends back to 0 as the QB drives down into the plant.
+        lLeg = 0.55;
+        rLeg = -0.30;
+        bodyDY = -0.8 + sm * 0.8;        // -0.8 → 0 (foot plant!)
+        bodyTilt = facing * (0.05 + sm * 0.10);
+      } else {
+        const ph = (t - 0.62) / 0.38;
+        // Lead foot stays planted; back foot drags forward as weight settles.
+        lLeg = 0.55 - ph * 0.10;         // 0.55 → 0.45 (lead foot stays put)
+        rLeg = -0.30 + ph * 0.25;        // -0.30 → -0.05 (back foot comes up)
+        bodyDY = ph * 0.4;               // 0 → +0.4 (slight settle forward)
+        bodyTilt = facing * 0.15;
+      }
+      break;
+    }
+    case "reach": case "catch":
+      lArm = -2.4; rArm = -2.4;
+      armReachY = -3;
+      break;
+    case "celebrate": {
+      // TD celebration — both arms raised high, slight wave, body
+      // bouncing in place. t goes 0→1 across the celebration window.
+      lArm = -2.4 + Math.sin(t * Math.PI * 5) * 0.35;
+      rArm = -2.4 + Math.sin(t * Math.PI * 5 + Math.PI * 0.5) * 0.35;
+      armReachY = -4 + Math.sin(t * Math.PI * 4) * 1.2;
+      bodyDY = -2 - Math.abs(Math.sin(t * Math.PI * 4)) * 2;
+      bodyTilt = Math.sin(t * Math.PI * 6) * 0.04;
+      break;
+    }
+    case "leap": {
+      // Spectacular full-extension diving catch — body airborne and angled
+      // forward like Odell Beckham / DK Metcalf, one arm fully extended at
+      // the ball, the other trailing back for balance, legs kicked back.
+      // t goes 0→1 across the leap; peak extension around t=0.5.
+      const leapPhase = Math.sin(Math.max(0.001, t) * Math.PI);   // 0→1→0
+      // Airborne — peaks around 16 px above ground at apex
+      bodyDY = -6 - leapPhase * 10;
+      // Body angles forward in the direction of the catch (~35-45° lean)
+      bodyTilt = facing * (0.30 + leapPhase * 0.45);
+      // LEFT arm extended FULL toward the ball (lead hand). Positive angle
+      // is forward in player-local space; drawArm handles the facing flip.
+      lArm = 1.45;
+      // Right arm trails behind for counterbalance
+      rArm = -0.85;
+      // Reach offset — pulls the hands up toward the ball during peak
+      armReachY = -2 - leapPhase * 4;
+      // Legs trail behind the body (kicked back like a layout dive)
+      lLeg = -0.55;
+      rLeg = -0.25;
+      break;
+    }
+    case "celebrate": {
+      const cs = celebStyle;
+      if (cs === "ref_signal") {
+        lArm = -Math.PI; rArm = -Math.PI;
+      } else if (cs === "spike") {
+        const phase = (t * 1.2) % 1;
+        const cock = phase < 0.4 ? phase / 0.4 : 1;
+        const swing = phase < 0.4 ? 0 : (phase - 0.4) / 0.6;
+        lArm = -Math.PI * (1 - swing * 0.7) + (1 - cock) * 0.6;
+        rArm = 0.3;
+        leftHandBall = phase < 0.55;
+      } else if (cs === "fist_pump") {
+        lArm = -Math.PI * 0.78 - Math.abs(Math.sin(t * Math.PI * 5)) * 0.25;
+        rArm = 0.4;
+      } else if (cs === "first_down") {
+        lArm = Math.PI * 0.5;
+        rArm = -0.4;
+        bodyTilt = facing * 0.1;
+      } else if (cs === "point_sky") {
+        lArm = -Math.PI; rArm = -Math.PI;
+      } else if (cs === "shimmy") {
+        bodyRot = Math.sin(t * Math.PI * 6) * 0.12;
+        lArm = -0.4 + Math.sin(t * Math.PI * 5) * 0.6;
+        rArm = 0.4 - Math.sin(t * Math.PI * 5) * 0.6;
+      } else if (cs === "bow") {
+        bodyTilt = facing * 0.6;
+        lArm = -0.3; rArm = 0.3;
+      } else if (cs === "leap_yell") {
+        bodyDY = -Math.abs(Math.sin(t * Math.PI * 2)) * 5;
+        lArm = -Math.PI * 0.8;
+        rArm = -Math.PI * 0.8;
+      } else if (cs === "kneel") {
+        bodyDY = 4;
+        lLeg = 0.9; rLeg = -0.3;
+        lArm = -0.6; rArm = 0.2;
+        bodyTilt = facing * 0.15;
+      } else {
+        lArm = -2.3; rArm = 2.3;
+      }
+      break;
+    }
+    case "juke":
+      bodyRot = facing * 0.35;
+      lArm = 0.4;  rArm = -0.4;
+      lLeg = -0.7; rLeg = 0.3;
+      break;
+    case "spin": {
+      // Real spin move: rotate around the vertical axis (not a front flip).
+      // X-scale = cos(angle) gives the 2D illusion of the body twisting.
+      const spinA = t * Math.PI * 2;
+      spinXScale = Math.cos(spinA);
+      // Arms tucked in tight against the chest during the spin
+      lArm = 0.45; rArm = -0.45;
+      // Slight stagger in the legs to keep some motion
+      lLeg = -0.15; rLeg = 0.15;
+      // Carrier holds the ball securely against the body
+      rightHandBall = true;
+      break;
+    }
+    case "hurdle":
+      // Mid-air hurdle — both legs tucked up, body airborne
+      bodyDY = -7;
+      bodyTilt = facing * 0.3;
+      lLeg = -1.3;  // back leg tucked up
+      rLeg = -0.4;  // front leg slightly bent forward
+      lArm = -0.3;
+      rArm = 0.4;
+      break;
+    case "truck":
+      // Truck stick — shoulder lowered, body driving forward, knees high
+      bodyTilt = facing * 0.45;
+      bodyDY = 1.5;
+      lArm = -0.7;          // off arm cocked back
+      rArm = -1.0;           // lead arm/shoulder driving forward
+      lLeg = Math.abs(Math.sin(t * Math.PI * 4)) * 0.7;
+      rLeg = -Math.abs(Math.sin(t * Math.PI * 4 + Math.PI)) * 0.7;
+      break;
+    case "tackled": {
+      // Ragdoll fall: t is interpreted as fall progress (0=just hit, 1=flat on ground).
+      // Body rotates from upright to horizontal, limbs splay outward, body bobs down
+      // with a small upward bounce at impact.
+      const fallT = Math.min(1, Math.max(0, t));
+      const fallEase = fallT * fallT * (3 - 2 * fallT);     // smoothstep
+      bodyRot = -Math.PI / 2 * facing * fallEase;            // rotate toward horizontal
+      bodyDY = fallEase * 5 + Math.sin(fallT * Math.PI) * -2;// downward + small upward bump at peak
+      // Arms flail outward as the body falls
+      lArm = -0.4 - fallEase * 0.8;                          // -0.4 → -1.2
+      rArm =  0.4 + fallEase * 0.8;                          //  0.4 →  1.2
+      // Legs splay out
+      lLeg = -fallEase * 0.85;
+      rLeg =  fallEase * 0.85;
+      // Slight body wobble while falling
+      bodyTilt += Math.sin(fallT * Math.PI * 2.2) * 0.05 * (1 - fallEase);
+      break;
+    }
+    case "stiff":
+      lArm = Math.PI / 2;
+      rArm = 0.4;
+      lLeg = runPhase * 0.3; rLeg = -runPhase * 0.3;
+      break;
+    case "block":
+      lArm = -0.5; rArm = 0.5;
+      lLeg = 0.1;  rLeg = -0.1;
+      bodyTilt = facing * 0.15;
+      break;
+    case "engage":
+      lArm = Math.PI / 2 - 0.2;
+      rArm = Math.PI / 2 + 0.2;
+      lLeg = 0.4; rLeg = -0.4;
+      bodyTilt = facing * 0.2;
+      bodyDY = Math.sin(t * Math.PI * 6) * 0.4;
+      break;
+    case "sack":
+      lArm = -0.6; rArm = -0.6;
+      lLeg = -0.5; rLeg = 0.5;
+      bodyTilt = facing * 0.25;
+      break;
+    case "kick":
+      lArm = -0.4; rArm = -0.8;
+      lLeg = -1.4;
+      rLeg = facing * (1.1 - Math.abs(t - 0.5) * 1.5);
+      bodyTilt = facing * -0.15;
+      break;
+    case "lateral":
+      lArm = -Math.PI * 0.7;
+      rArm = 0.3;
+      bodyRot = facing * -0.2;
+      leftHandBall = t < 0.5;
+      break;
+  }
+  // Players are scaled by their body-type scale × a global multiplier.
+  // Bumped to make them look meatier against the larger 1280-wide field.
+  const PLAYER_SCALE_MUL = 1.55;
+  const totalScale = (bt.scale || 1) * PLAYER_SCALE_MUL;
+  // Foot Y in local coords (used by the shadow + seal so they sit at the
+  // cleats regardless of body animation). Computed up front so both the
+  // ground-decal pass and the body pass agree on it.
+  const footYLocal = (-headR + 1) + torsoLen + legLen * 1.05;
+
+  // ── GROUND DECALS — drawn at the player's planted (x, y) WITHOUT bodyDY or
+  // body rotation, so they stay flat on the field even when the player ragdolls
+  // on a tackle. Like Madden's star marker that acts as a ground shadow.
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(totalScale, totalScale);
+  // Drop shadow at foot height
+  ctx.fillStyle = "rgba(0,0,0,0.40)";
+  ctx.beginPath();
+  ctx.ellipse(0, footYLocal + 0.5, 7.5 + bt.bulk * 0.8, 2.0, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // ── BODY — animated/rotated/translated as before.
+  ctx.save();
+  ctx.translate(x, y + bodyDY);
+  if (bodyTilt !== 0) ctx.rotate(bodyTilt);
+  if (bodyRot !== 0) ctx.rotate(bodyRot);
+  ctx.scale(totalScale, totalScale);
+  // Y-axis spin: squash X to fake the body twisting around the vertical
+  // axis. Don't let the scale hit exactly zero or a sliver of mesh remains.
+  if (spinXScale !== 1) ctx.scale(Math.max(0.05, Math.abs(spinXScale)) * Math.sign(spinXScale || 1), 1);
+  ctx.lineCap = "round";
+
+  const shoulderY = -headR + 1;
+  const hipY = shoulderY + torsoLen;
+
+  // ── Blocky limb helper: a rectangular segment (no round end caps) with a
+  // dark side shadow + bright lit edge. x1,y1 → x2,y2 is the centerline; w is
+  // half-width perpendicular to it. Roblox-style flat ends.
+  function drawSegment(x1, y1, x2, y2, w, baseColor, darkColor, lightColor) {
+    const dx = x2 - x1, dy = y2 - y1;
+    const len = Math.hypot(dx, dy) || 0.001;
+    const nx = -dy / len, ny = dx / len;   // perpendicular (across)
+    const tx = dx / len,  ty = dy / len;   // along centerline
+    // Extend caps slightly past endpoints so joints don't show gaps
+    const ex = tx * w * 0.15, ey = ty * w * 0.15;
+    const ax = x1 - ex, ay = y1 - ey;
+    const bx = x2 + ex, by = y2 + ey;
+    // Filled rectangle (square ends)
+    ctx.fillStyle = baseColor;
+    ctx.beginPath();
+    ctx.moveTo(ax + nx * w, ay + ny * w);
+    ctx.lineTo(bx + nx * w, by + ny * w);
+    ctx.lineTo(bx - nx * w, by - ny * w);
+    ctx.lineTo(ax - nx * w, ay - ny * w);
+    ctx.closePath();
+    ctx.fill();
+    // Solid dark outline — gives every limb a hard block edge
+    ctx.strokeStyle = "rgba(0,0,0,0.55)";
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+    // Dark side (shadow on one face)
+    ctx.fillStyle = darkColor;
+    ctx.beginPath();
+    ctx.moveTo(ax - nx * w,         ay - ny * w);
+    ctx.lineTo(bx - nx * w,         by - ny * w);
+    ctx.lineTo(bx - nx * w * 0.55,  by - ny * w * 0.55);
+    ctx.lineTo(ax - nx * w * 0.55,  ay - ny * w * 0.55);
+    ctx.closePath();
+    ctx.fill();
+    // Lit edge (highlight on opposite face)
+    if (lightColor) {
+      ctx.fillStyle = lightColor;
+      ctx.beginPath();
+      ctx.moveTo(ax + nx * w,         ay + ny * w);
+      ctx.lineTo(bx + nx * w,         by + ny * w);
+      ctx.lineTo(bx + nx * w * 0.7,   by + ny * w * 0.7);
+      ctx.lineTo(ax + nx * w * 0.7,   ay + ny * w * 0.7);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  // ── Legs — chunky Lego-style blocks, NO feet, just color change for cleats ──
+  // Thick rectangular thighs/shins, single-piece per leg, with the bottom
+  // segment colored black to imply the cleat.
+  const thighW = 2.6 + bt.bulk * 0.55;
+  const shinW  = 2.4 + bt.bulk * 0.45;
+  const drawLeg = (side, angle, lift) => {
+    const a = angle * facing;
+    const sx = side * 2.6;
+    const upperLen = legLen * 0.52;
+    const lowerLen = legLen * 0.52;
+    const bending = pose === "run" || pose === "carry";
+    const bendBase = bending ? rs.kneeBend * Math.abs(Math.sin(a)) : 0;
+    const bend = bendBase + (lift / 7) * 0.8;
+    const kneeX = sx + Math.sin(a) * upperLen;
+    const kneeY = hipY + Math.cos(a) * upperLen - lift * 0.55;
+    const lowerA = a + facing * bend * (a >= 0 ? 1 : -1);
+    const footX = kneeX + Math.sin(lowerA) * lowerLen;
+    const footY = kneeY + Math.cos(lowerA) * lowerLen - lift * 0.35;
+    // White pants (thigh)
+    drawSegment(sx, hipY, kneeX, kneeY, thighW, "#f1f1f1", "#bcbcbc", "#ffffff");
+    // Team-color pant stripe on the OUTSIDE of the thigh
+    const stripeDX = side * (thighW * 0.6);
+    drawSegment(sx + stripeDX * 0.55, hipY + 0.5, kneeX + stripeDX * 0.55, kneeY,
+                thighW * 0.28, color, shadeDark, shadeLight);
+    // Sock — team color, upper half of the lower leg
+    const sockEndX = kneeX + Math.sin(lowerA) * lowerLen * 0.55;
+    const sockEndY = kneeY + Math.cos(lowerA) * lowerLen * 0.55 - lift * 0.20;
+    drawSegment(kneeX, kneeY, sockEndX, sockEndY, shinW, color, shadeDark, shadeLight);
+    // White stripe ring on the sock
+    const ringStartX = kneeX + Math.sin(lowerA) * lowerLen * 0.48;
+    const ringStartY = kneeY + Math.cos(lowerA) * lowerLen * 0.48 - lift * 0.16;
+    drawSegment(ringStartX, ringStartY, sockEndX, sockEndY, shinW * 0.95,
+                "#f1f1f1", "#c8c8c8", "#ffffff");
+    // Cleat — bottom half of the lower leg in BLACK (the "foot" implied by color)
+    drawSegment(sockEndX, sockEndY, footX, footY, shinW * 1.02,
+                "#15151c", "#000000", "#3a3a44");
+  };
+  // ── Arms — Lego-style chunky tubes. Bicep = sleeve, forearm = skin.
+  // Nearly as wide as the helmet (helmRx≈6.4 → arm half-width ~2.7) and
+  // attached right at the outer shoulder pad edge.
+  const bicepW   = 2.7 + bt.bulk * 0.55;
+  const forearmW = 2.5 + bt.bulk * 0.45;
+  const drawArm = (side, angle, holdsBall, forearmOverride) => {
+    const a = angle * facing;
+    const sx = side * (padW/2 + 0.1);
+    const upper = armLen * 0.55;
+    const lower = armLen * 0.55;
+    const elbowX = sx + Math.sin(a) * upper;
+    const elbowY = shoulderY + Math.cos(a) * upper + armReachY * 0.4;
+    // Forearm angle: caller can override (used for throwing whip).
+    const lowerA = forearmOverride != null
+      ? forearmOverride * facing
+      : a - facing * 0.35 * Math.sign(Math.cos(a));
+    const handX = elbowX + Math.sin(lowerA) * lower;
+    const handY = elbowY + Math.cos(lowerA) * lower + armReachY * 0.6;
+    // Jersey sleeve (bicep) — team color, very thick
+    drawSegment(sx, shoulderY, elbowX, elbowY, bicepW, color, shadeDark, shadeLight);
+    // Forearm — skin tone (short-sleeved jersey), almost as thick
+    drawSegment(elbowX, elbowY, handX, handY, forearmW, skin.base, skin.dark, skin.light);
+    // Wristband — thin colored band at the wrist (just inside the hand)
+    const wbX = elbowX + (handX - elbowX) * 0.82;
+    const wbY = elbowY + (handY - elbowY) * 0.82;
+    drawSegment(wbX, wbY, handX, handY, forearmW * 1.08, "#f1f1f1", "#bcbcbc", "#ffffff");
+    // No separate hand — the arm just ends. Knuckle highlight on the very tip.
+    ctx.fillStyle = skin.light;
+    const tipDX = Math.sin(lowerA) * forearmW * 0.25;
+    const tipDY = Math.cos(lowerA) * forearmW * 0.25;
+    ctx.beginPath();
+    ctx.arc(handX - tipDX * 0.4, handY - tipDY * 0.4, forearmW * 0.35, 0, Math.PI * 2);
+    ctx.fill();
+    if (holdsBall) {
+      // Black cube held in the hand (replaces the football)
+      ctx.save();
+      ctx.translate(handX, handY + 0.4);
+      const s = 3.6;                   // cube half-edge in the hand
+      ctx.fillStyle = "#0a0a0a";
+      ctx.beginPath();
+      ctx.moveTo(-s,  s * 0.6); ctx.lineTo( s,  s * 0.6);
+      ctx.lineTo( s, -s * 0.4); ctx.lineTo(-s, -s * 0.4); ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "#2a2a2e";
+      ctx.beginPath();
+      ctx.moveTo(-s,        -s * 0.4); ctx.lineTo( s,        -s * 0.4);
+      ctx.lineTo( s + s * 0.4, -s * 0.85); ctx.lineTo(-s + s * 0.4, -s * 0.85);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "#1a1a1d";
+      ctx.beginPath();
+      ctx.moveTo( s,            s * 0.6);
+      ctx.lineTo( s + s * 0.4,  s * 0.15);
+      ctx.lineTo( s + s * 0.4, -s * 0.85);
+      ctx.lineTo( s,           -s * 0.4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,0.9)";
+      ctx.lineWidth = 0.6;
+      ctx.beginPath();
+      ctx.moveTo(-s,  s * 0.6); ctx.lineTo( s,  s * 0.6);
+      ctx.lineTo( s, -s * 0.4); ctx.lineTo(-s, -s * 0.4); ctx.closePath();
+      ctx.moveTo(-s,           -s * 0.4); ctx.lineTo(-s + s * 0.4, -s * 0.85);
+      ctx.moveTo( s,           -s * 0.4); ctx.lineTo( s + s * 0.4, -s * 0.85);
+      ctx.moveTo(-s + s * 0.4, -s * 0.85); ctx.lineTo( s + s * 0.4, -s * 0.85);
+      ctx.moveTo( s,            s * 0.6); ctx.lineTo( s + s * 0.4,  s * 0.15);
+      ctx.moveTo( s + s * 0.4,  s * 0.15); ctx.lineTo( s + s * 0.4, -s * 0.85);
+      ctx.stroke();
+      ctx.restore();
+    }
+    return { handX, handY };
+  };
+  // ── Z-ordered limb draw — FAR limbs (away from the camera) go BEHIND
+  // the body, NEAR limbs go IN FRONT, so arms and the front leg never
+  // visually overlap the torso in an awkward way.
+  // Camera is looking at the player from his FRONT-near-side, which means
+  // the side OPPOSITE the facing direction is the NEAR side:
+  //   facing=+1 (right-facing) → NEAR = left side (side=-1)
+  //   facing=-1 (left-facing)  → NEAR = right side (side=+1)
+  const farSide  = facing;       // the side AWAY from the camera
+  const nearSide = -facing;
+  // FAR leg first (gets covered by the torso where they overlap)
+  if (farSide === 1) drawLeg(1, rLeg, rLegLift);
+  else               drawLeg(-1, lLeg, lLegLift);
+  // FAR arm — drawn behind the body, before the shoulder pads
+  const farHand = farSide === 1
+    ? drawArm(1, rArm, rightHandBall, rForearmOverride)
+    : drawArm(-1, lArm, leftHandBall, lForearmOverride);
+
+  // ── Shoulder pads — BLOCKY rectangle slab on top of the torso ──
+  const padTopY = shoulderY - 1.8;
+  const padBotY = shoulderY + 2.2;
+  const padGrad = ctx.createLinearGradient(0, padTopY, 0, padBotY);
+  padGrad.addColorStop(0,    shadeLight);
+  padGrad.addColorStop(0.55, color);
+  padGrad.addColorStop(1,    shadeDark);
+  ctx.fillStyle = padGrad;
+  ctx.fillRect(-padW/2, padTopY, padW, padBotY - padTopY);
+  ctx.strokeStyle = "rgba(0,0,0,0.7)";
+  ctx.lineWidth = 1.0;
+  ctx.strokeRect(-padW/2, padTopY, padW, padBotY - padTopY);
+  // Pad lip — dark shadow line under the pad
+  ctx.fillStyle = "rgba(0,0,0,0.35)";
+  ctx.fillRect(-padW/2 + 0.3, padBotY - 0.6, padW - 0.6, 0.5);
+
+  // ── Torso — flat RECTANGLE (Roblox-style block torso) ──
+  const torsoW = (padW - 1.6);   // slightly narrower than the pads
+  const torsoX = -torsoW / 2;
+  const torsoTop = shoulderY + 2;
+  const torsoH = hipY - torsoTop;
+  const torsoGradH = ctx.createLinearGradient(-torsoW/2, 0, torsoW/2, 0);
+  torsoGradH.addColorStop(0,    shadeDark);
+  torsoGradH.addColorStop(0.30, color);
+  torsoGradH.addColorStop(0.70, color);
+  torsoGradH.addColorStop(1,    shadeMid);
+  ctx.fillStyle = torsoGradH;
+  ctx.fillRect(torsoX, torsoTop, torsoW, torsoH);
+  ctx.strokeStyle = "rgba(0,0,0,0.7)";
+  ctx.lineWidth = 1.0;
+  ctx.strokeRect(torsoX, torsoTop, torsoW, torsoH);
+  // Secondary-color trim on the sides of the jersey (vertical stripes)
+  ctx.fillStyle = secondary || "#fff";
+  ctx.fillRect(torsoX, torsoTop, 0.9, torsoH);
+  ctx.fillRect(torsoX + torsoW - 0.9, torsoTop, 0.9, torsoH);
+  // Belt — dark band at the bottom of the torso
+  ctx.fillStyle = "rgba(0,0,0,0.55)";
+  ctx.fillRect(torsoX, hipY - 1.2, torsoW, 1.2);
+  // Subtle vertical chest highlight on the LIT side
+  ctx.fillStyle = "rgba(255,255,255,0.16)";
+  ctx.fillRect(torsoX + torsoW * 0.65, torsoTop + 0.5, torsoW * 0.18, torsoH - 1.5);
+
+  if (label && /^\d{1,2}$/.test(label)) {
+    // Big, block-style jersey number with a dark drop shadow
+    ctx.font = "bold 8.5px Impact, Arial Black, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const ny = shoulderY + torsoLen * 0.5;
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.fillText(label, 0.6, ny + 0.6);
+    ctx.fillStyle = secondary || "#fff";
+    ctx.fillText(label, 0, ny);
+    // Thin dark outline so the number reads cleanly over any jersey
+    ctx.strokeStyle = "rgba(0,0,0,0.35)";
+    ctx.lineWidth = 0.4;
+    ctx.strokeText(label, 0, ny);
+  }
+
+  // ── Arms — Lego-style chunky tubes. Bicep = sleeve, forearm = skin.
+  // Nearly as wide as the helmet (helmRx≈6.4 → arm half-width ~2.7) and
+  // attached right at the outer shoulder pad edge.
+  // (drawArm function + bicepW/forearmW were moved up to before the FAR
+  // leg/arm draws — see the z-ordered limb section.)
+
+  // NEAR leg — drawn AFTER the torso so the front-of-body leg correctly
+  // overlaps the lower torso (instead of disappearing behind it).
+  if (nearSide === 1) drawLeg(1, rLeg, rLegLift);
+  else                drawLeg(-1, lLeg, lLegLift);
+
+  // ── Helmet — ROUND chunky dome (Roblox-style head). Big sphere on top. ─────
+  const helmRx = headR + 2.2;             // wider
+  const helmRy = helmH + 1.4;             // taller
+  const helmY  = shoulderY - helmRy - 0.6;
+  // Visible chin/jaw — skin block peeking out below the round dome
+  ctx.fillStyle = skin.base;
+  ctx.beginPath();
+  ctx.ellipse(facing * 0.2, helmY + helmRy * 0.88, helmRx * 0.6, helmRy * 0.32, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = skin.dark;
+  ctx.lineWidth = 0.6;
+  ctx.stroke();
+  // Round helmet dome — radial gradient (highlight up-front, shadow back-bottom)
+  const helmGrad = ctx.createRadialGradient(facing * 1.8, helmY - helmRy * 0.45, 0.5,
+                                            0, helmY, helmRx + 1.6);
+  helmGrad.addColorStop(0,    shadeLight);
+  helmGrad.addColorStop(0.4,  color);
+  helmGrad.addColorStop(1,    shadeDark);
+  ctx.fillStyle = helmGrad;
+  ctx.beginPath();
+  ctx.ellipse(0, helmY, helmRx, helmRy, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(0,0,0,0.8)";
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+  // Bottom rim — solid dark crescent so the helmet reads as a heavy sphere
+  ctx.strokeStyle = "rgba(0,0,0,0.55)";
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.ellipse(0, helmY + 0.6, helmRx - 0.3, helmRy - 0.4, 0, 0.18, Math.PI - 0.18);
+  ctx.stroke();
+  // Center stripe — NFL-style mohawk that runs front-to-back across the TOP of
+  // the helmet. From a side view it reads as a thin arc tracing the upper crown.
+  ctx.strokeStyle = secondary || "#fff";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.ellipse(0, helmY, helmRx * 0.92, helmRy * 0.92, 0,
+              Math.PI * 1.18, Math.PI * 1.82);
+  ctx.stroke();
+  // Top-front highlight — bright reflection on the upper-front dome
+  ctx.strokeStyle = "rgba(255,255,255,0.45)";
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.ellipse(facing * 1.2, helmY - helmRy * 0.35, helmRx * 0.5, helmRy * 0.55, 0,
+              Math.PI * 1.05, Math.PI * 1.6);
+  ctx.stroke();
+  // Ear hole — small dark dot on the BACK side of the helmet
+  ctx.fillStyle = "rgba(0,0,0,0.65)";
+  ctx.beginPath();
+  ctx.arc(-facing * 1.9, helmY + 0.7, 1.1, 0, Math.PI * 2);
+  ctx.fill();
+  // ── Team logo decal on the side of the helmet (small badge with team's
+  // secondary color outline, primary fill) ─────
+  const logoX = facing * helmRx * 0.05;
+  const logoY = helmY + helmRy * 0.05;
+  ctx.fillStyle = secondary || "#fff";
+  ctx.beginPath();
+  ctx.ellipse(logoX, logoY, 2.2, 2.2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.ellipse(logoX, logoY, 1.5, 1.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Tiny highlight on logo
+  ctx.fillStyle = "rgba(255,255,255,0.4)";
+  ctx.beginPath();
+  ctx.arc(logoX - 0.3, logoY - 0.4, 0.5, 0, Math.PI * 2);
+  ctx.fill();
+  // ── Facemask cage — chrome bars across the front of the round helmet ─────
+  const fxOuter = facing * (helmRx + 0.2);
+  const fxInner = facing * (helmRx * 0.22);
+  const cageTop = helmY - helmRy * 0.10;
+  const cageBot = helmY + helmRy * 0.42;
+  // Vertical "nose" bar curving slightly outward
+  ctx.strokeStyle = "#2c2c34";
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(fxOuter - facing * 0.3, cageTop);
+  ctx.quadraticCurveTo(fxOuter + facing * 0.4, (cageTop + cageBot) / 2,
+                       fxOuter - facing * 0.4, cageBot);
+  ctx.stroke();
+  // Horizontal cage bars (4 rows, slight downward sweep toward the front)
+  ctx.lineWidth = 1.3;
+  const cageHeights = [cageTop + 0.4, cageTop + (cageBot - cageTop) * 0.34,
+                       cageTop + (cageBot - cageTop) * 0.62, cageBot - 0.2];
+  for (const cy of cageHeights) {
+    ctx.beginPath();
+    ctx.moveTo(fxOuter - facing * 0.3, cy);
+    ctx.lineTo(fxInner, cy);
+    ctx.stroke();
+  }
+  // Chrome highlight on top of each bar
+  ctx.strokeStyle = "#b8b8c0";
+  ctx.lineWidth = 0.5;
+  for (const cy of cageHeights) {
+    ctx.beginPath();
+    ctx.moveTo(fxOuter - facing * 0.4, cy - 0.45);
+    ctx.lineTo(fxInner * 0.7, cy - 0.45);
+    ctx.stroke();
+  }
+  // Chinstrap — white band under the jaw
+  ctx.fillStyle = "#f1f1f1";
+  ctx.fillRect(-helmRx * 0.7, helmY + helmRy * 0.95, helmRx * 1.4, 0.9);
+  ctx.strokeStyle = "rgba(0,0,0,0.5)";
+  ctx.lineWidth = 0.3;
+  ctx.strokeRect(-helmRx * 0.7, helmY + helmRy * 0.95, helmRx * 1.4, 0.9);
+
+  // NEAR arm — drawn LAST, after both the body AND the helmet, so it
+  // appears in front of everything else. The arm on the camera-near side
+  // is the one visually closest to the viewer, and the throw cock-pose's
+  // raised arm will end up here too (eliminating the old behind-helmet
+  // disappear bug without needing a special-case defer).
+  const nearHand = nearSide === 1
+    ? drawArm(1, rArm, rightHandBall, rForearmOverride)
+    : drawArm(-1, lArm, leftHandBall, lForearmOverride);
+  // lHand / rHand for any downstream consumers (3-point ground-hand decal).
+  const lHand = farSide === -1 ? farHand : nearHand;
+  const rHand = farSide === 1  ? farHand : nearHand;
+  // For 3-point stance, draw a ground line where the lead hand plants.
+  if (drawGroundHand) {
+    ctx.fillStyle = "rgba(0,0,0,0.25)";
+    ctx.beginPath();
+    ctx.ellipse(lHand.handX, lHand.handY + 0.5, 3, 1.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  if (exclaim) {
+    ctx.fillStyle = "#f0cc30";
+    ctx.font = "bold 9px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(exclaim, 0, helmY - helmH - 4);
+  }
+
+  ctx.restore();
+}
+
+// Goalpost (Y-shape, tall yellow uprights) at (cx, cy) — used in tactical view
+function drawGoalposts(ctx, cx, cy) {
+  const POST_HALF = 40;     // distance from center to each upright
+  const POST_TOP  = FIELD.TOP - 4;
+  const POST_BOT  = cy + 22;
+  ctx.save();
+  ctx.strokeStyle = "#ffe048";
+  ctx.lineWidth = 4;
+  ctx.lineCap = "round";
+  // Crossbar
+  ctx.beginPath();
+  ctx.moveTo(cx - POST_HALF, cy);
+  ctx.lineTo(cx + POST_HALF, cy);
+  ctx.stroke();
+  // Uprights
+  ctx.beginPath();
+  ctx.moveTo(cx - POST_HALF, cy);
+  ctx.lineTo(cx - POST_HALF, POST_TOP);
+  ctx.moveTo(cx + POST_HALF, cy);
+  ctx.lineTo(cx + POST_HALF, POST_TOP);
+  ctx.stroke();
+  // Center support down to ground
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx, POST_BOT);
+  ctx.stroke();
+  // Base
+  ctx.fillStyle = "#ffe048";
+  ctx.beginPath();
+  ctx.ellipse(cx, POST_BOT, 6, 2.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawBall(ctx, x, y, scale = 1) {
+  // Black cube — the new "ball". Rendered as a small isometric 3D box with
+  // a top face, a front face, and a side face so it reads as solid.
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+  ctx.shadowColor = "rgba(0,0,0,0.6)";
+  ctx.shadowBlur = 4;
+  ctx.shadowOffsetY = 2;
+  const s = 5;                     // half-edge of the cube in screen px
+  // Front face — darkest
+  ctx.fillStyle = "#0a0a0a";
+  ctx.beginPath();
+  ctx.moveTo(-s,  s * 0.6);
+  ctx.lineTo( s,  s * 0.6);
+  ctx.lineTo( s, -s * 0.4);
+  ctx.lineTo(-s, -s * 0.4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  // Top face — lighter (light hits the top)
+  ctx.fillStyle = "#2a2a2e";
+  ctx.beginPath();
+  ctx.moveTo(-s,        -s * 0.4);
+  ctx.lineTo( s,        -s * 0.4);
+  ctx.lineTo( s + s * 0.4, -s * 0.85);
+  ctx.lineTo(-s + s * 0.4, -s * 0.85);
+  ctx.closePath();
+  ctx.fill();
+  // Right side face — mid-tone (shadowed but visible)
+  ctx.fillStyle = "#1a1a1d";
+  ctx.beginPath();
+  ctx.moveTo( s,            s * 0.6);
+  ctx.lineTo( s + s * 0.4,  s * 0.15);
+  ctx.lineTo( s + s * 0.4, -s * 0.85);
+  ctx.lineTo( s,           -s * 0.4);
+  ctx.closePath();
+  ctx.fill();
+  // Crisp outline
+  ctx.strokeStyle = "rgba(0,0,0,0.85)";
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  // Front face outline
+  ctx.moveTo(-s,  s * 0.6); ctx.lineTo( s,  s * 0.6);
+  ctx.lineTo( s, -s * 0.4); ctx.lineTo(-s, -s * 0.4); ctx.closePath();
+  // Top edges going back
+  ctx.moveTo(-s,           -s * 0.4); ctx.lineTo(-s + s * 0.4, -s * 0.85);
+  ctx.moveTo( s,           -s * 0.4); ctx.lineTo( s + s * 0.4, -s * 0.85);
+  ctx.moveTo(-s + s * 0.4, -s * 0.85); ctx.lineTo( s + s * 0.4, -s * 0.85);
+  // Right edge going back
+  ctx.moveTo( s,            s * 0.6); ctx.lineTo( s + s * 0.4,  s * 0.15);
+  ctx.moveTo( s + s * 0.4,  s * 0.15); ctx.lineTo( s + s * 0.4, -s * 0.85);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// ─── Formation & animation ────────────────────────────────────────────────
+// Generate 11 offensive + 11 defensive player positions for a given LOS (abs X)
+// poss = "home" | "away" → home offense moves left→right, away moves right→left
+function makeFormation(losX, poss, opts = {}) {
+  const dir = poss === "home" ? 1 : -1;  // direction offense moves (positive = right)
+  const cy = (FIELD.TOP + FIELD.BOT) / 2;
+  const PX = FIELD.PX_PER_YARD;
+  // Goal-line: offense inside the opp 5 (yardLine >= 95). Compresses both
+  // sides — defense crashes the box, offense uses a heavy front. Wide
+  // receivers come tight, safeties walk down, LBs press to the LOS.
+  const isGL = !!opts.isGoalLine;
+
+  // Personnel grouping — defaults to BASE (legacy 1RB/1TE/2WR). twoBack
+  // legacy flag forces I_FORM. Defensive package matches the WR count.
+  let personnel = opts.personnel || (opts.twoBack ? "I_FORM" : "BASE");
+  if (!PERSONNEL[personnel]) personnel = "BASE";
+  const personDef = PERSONNEL[personnel];
+  const defPackage = opts.defPackage || packageForPersonnel(personnel);
+  const dpDef = DEF_PACKAGE[defPackage] || DEF_PACKAGE.BASE_43;
+
+  // Offensive line (5) along LOS — wider gaps so the middle of the field
+  // isn't visually cramped at the bigger field resolution. Goal-line:
+  // tighter splits to give a heavier wall.
+  const oline = [];
+  const olGap = isGL ? 26 : 32;
+  for (let i = -2; i <= 2; i++) {
+    oline.push({ x: losX - dir * 2, y: cy + i * olGap, role: "OL" });
+  }
+
+  // ── WIDE RECEIVERS (1-5 depending on personnel) ──
+  // wr1/wr2: outside on the numbers. wr3 in slot left. wr4 in slot right
+  // (or trips bunch on the wr1 side). 5th WR (00 personnel) inside slot.
+  const wrSplit  = isGL ? 110 : 240;
+  const slotWide = isGL ? 70  : 150;
+  const slotInner = isGL ? 40 : 95;
+  const wrSlots = [];
+  if (personDef.wr >= 1) wrSlots.push({ x: losX, y: cy - wrSplit, role: "WR1" });
+  if (personDef.wr >= 2) wrSlots.push({ x: losX, y: cy + wrSplit, role: "WR2" });
+  if (personDef.wr >= 3) wrSlots.push({ x: losX, y: cy - slotWide, role: "WR3" }); // slot left
+  if (personDef.wr >= 4) wrSlots.push({ x: losX, y: cy + slotWide, role: "WR4" }); // slot right
+  if (personDef.wr >= 5) wrSlots.push({ x: losX, y: cy + slotInner, role: "WR5" }); // tight slot
+
+  // ── TIGHT ENDS (0-2) ──
+  // TE1 outside RT; TE2 (HEAVY personnel) on the opposite side as a Y-flex.
+  const teSlots = [];
+  if (personDef.te >= 1) teSlots.push({ x: losX - dir * 2, y: cy + (isGL ? 60 : 78), role: "TE1" });
+  if (personDef.te >= 2) teSlots.push({ x: losX - dir * 2, y: cy - (isGL ? 60 : 78), role: "TE2" });
+
+  // QB — goal-line, QB is closer to the LOS (no deep dropback needed)
+  const qb = { x: losX - dir * (isGL ? 3 : 6) * PX, y: cy, role: "QB" };
+
+  // ── RUNNING BACKS (0-2) ──
+  // 0 RB = empty backfield (00/01 personnel). 1 RB = standard. 2 RB = I-form
+  // (FB stacked behind QB) or pro-set (side-by-side).
+  let rb = null, fb = null;
+  if (personDef.rb >= 1) {
+    rb = { x: losX - dir * (isGL ? 6 : 8) * PX, y: cy + (isGL ? 18 : 28), role: "RB" };
+  }
+  if (personDef.rb >= 2) {
+    const style = opts.twoBackStyle || (Math.random() < 0.5 ? "I" : "PRO");
+    if (style === "I") {
+      fb = { x: losX - dir * (isGL ? 5 : 7) * PX, y: cy + 4, role: "FB" };
+      rb = { x: losX - dir * (isGL ? 7 : 10) * PX, y: cy + 6, role: "RB" };
+    } else {
+      fb = { x: losX - dir * (isGL ? 6 : 8) * PX, y: cy - (isGL ? 14 : 22), role: "FB" };
+      rb = { x: losX - dir * (isGL ? 6 : 8) * PX, y: cy + (isGL ? 18 : 28), role: "RB" };
+    }
+  }
+
+  // Defensive line (4) — wider stance to match the OL spread. Goal-line:
+  // tighter and crashing harder.
+  const dline = [];
+  const dlGap = isGL ? 26 : 34;
+  for (let i = -1.5; i <= 1.5; i += 1) {
+    dline.push({ x: losX + dir * (isGL ? 0.5 : 1.5) * PX, y: cy + i * dlGap, role: "DL" });
+  }
+
+  // ── LINEBACKERS (0-3 by package) ──
+  // BASE_43: 3 LBs (W/M/S). NICKEL: 2 LBs (W/M, drop SAM). DIME: 1 LB (M).
+  // QUARTER: 0 LBs (5-DB look vs empty/00).
+  const lbDepth = isGL ? 1.5 : 4;
+  const lbs = [];
+  if (dpDef.lb === 3) {
+    lbs.push({ x: losX + dir * lbDepth * PX, y: cy - (isGL ? 28 : 44), role: "LB" });
+    lbs.push({ x: losX + dir * lbDepth * PX, y: cy,                     role: "LB" });
+    lbs.push({ x: losX + dir * lbDepth * PX, y: cy + (isGL ? 28 : 44), role: "LB" });
+  } else if (dpDef.lb === 2) {
+    lbs.push({ x: losX + dir * lbDepth * PX, y: cy - 22, role: "LB" });
+    lbs.push({ x: losX + dir * lbDepth * PX, y: cy + 22, role: "LB" });
+  } else if (dpDef.lb === 1) {
+    lbs.push({ x: losX + dir * lbDepth * PX, y: cy, role: "LB" });
+  }
+
+  // ── CORNERBACKS / NICKEL DBs (2-5 by package) ──
+  // cb1 / cb2 press the outside WRs. cb3 (nickel) covers the slot WR3.
+  // cb4 (dime) covers WR4. cb5 covers WR5 in QUARTER.
+  const cbWide = isGL ? 110 : 240;
+  const cbs = [];
+  if (dpDef.cb >= 1) cbs.push({ x: losX + dir * (isGL ? 3 : 7) * PX, y: cy - cbWide, role: "CB" });
+  if (dpDef.cb >= 2) cbs.push({ x: losX + dir * (isGL ? 3 : 7) * PX, y: cy + cbWide, role: "CB" });
+  // Nickel back over the slot WR3 (left-slot)
+  if (dpDef.cb >= 3) cbs.push({ x: losX + dir * 5 * PX, y: cy - slotWide - 6, role: "NB" });
+  // Dime back over WR4 (right-slot) — sits a tick deeper
+  if (dpDef.cb >= 4) cbs.push({ x: losX + dir * 5 * PX, y: cy + slotWide - 6, role: "DB" });
+  // QUARTER: 5th DB in the middle of the field (covers WR5 / acts as deep MIKE)
+  if (dpDef.cb >= 5) cbs.push({ x: losX + dir * 7 * PX, y: cy + slotInner, role: "DB" });
+
+  // 2 Safeties — goal-line: walk them into the box (single-high replaced
+  // by two-deep loaded).
+  const sDepth = isGL ? 4 : 14;
+  const s1 = { x: losX + dir * sDepth * PX, y: cy - (isGL ? 30 : 56), role: "S" };
+  const s2 = { x: losX + dir * sDepth * PX, y: cy + (isGL ? 30 : 56), role: "S" };
+
+  // Backwards-compat slot keys (wr1/wr2/te/cb1/cb2) for existing callers,
+  // plus new wr3/wr4/wr5/te2/cb3/cb4 slots that may be null in BASE personnel.
+  const wr1 = wrSlots[0] || null;
+  const wr2 = wrSlots[1] || null;
+  const wr3 = wrSlots[2] || null;
+  const wr4 = wrSlots[3] || null;
+  const wr5 = wrSlots[4] || null;
+  const te  = teSlots[0] || null;
+  const te2 = teSlots[1] || null;
+  const cb1 = cbs[0] || null;
+  const cb2 = cbs[1] || null;
+  const cb3 = cbs[2] || null;
+  const cb4 = cbs[3] || null;
+  const cb5 = cbs[4] || null;
+
+  // Build the offense / defense lists from whichever slots actually exist
+  const offenseSlots = [...oline, ...teSlots, ...wrSlots, qb];
+  if (rb) offenseSlots.push(rb);
+  if (fb) offenseSlots.push(fb);
+
+  // Animation-safety phantoms — when personnel has no RB/TE on the field
+  // (EMPTY / SPREAD), code that reads formation.rb/.te for fallback positions
+  // (screen flares, designed QB runs) gets a non-null reference. Phantoms
+  // are NOT added to offenseSlots so they don't render as extra sprites.
+  const rbSlot = rb || { x: qb.x - dir * 2 * PX, y: qb.y, role: "RB", phantom: true };
+  const teSlot = teSlots[0] || (wrSlots[2] ? { ...wrSlots[2], role: "TE", phantom: true } : { x: qb.x, y: qb.y + 60, role: "TE", phantom: true });
+
+  return {
+    offense: offenseSlots,
+    defense: [...dline, ...lbs, ...cbs, s1, s2],
+    qb, rb: rbSlot, fb,
+    wr1, wr2, wr3, wr4, wr5,
+    te: teSlot, te2,
+    dline, lbs,
+    cb1, cb2, cb3, cb4, cb5,
+    s1, s2,
+    oline, // expose for style attachment
+    personnel,
+    defPackage,
+    // Real (non-phantom) handles for code that needs to know if the slot is
+    // actually on the field for this personnel (e.g., target picker).
+    realRb: rb,
+    realTe: teSlots[0] || null,
+  };
+}
+
+// Map each formation slot to a real roster player so drawPlayer can use
+// their personal running style + signature celebration. Mutates the passed
+// formation in place — attaches `runStyle`, `celebStyle`, and `label` (jersey #).
+const JERSEYS_BY_POS = {
+  QB: ["1","7","9","10","12","17"],  RB: ["20","21","22","23","26","28","32"],
+  WR: ["10","11","13","14","17","18","19","80","81","84","87","88"],
+  TE: ["44","82","83","85","86","89"],
+  OL: ["50","53","60","61","65","66","68","70","72","74","76","77","79"],
+  DL: ["52","55","58","69","73","75","90","91","92","93","94","95","97","98","99"],
+  LB: ["40","42","43","45","48","51","54","56","57","59"],
+  CB: ["21","22","23","24","25","27","29","31"],
+  S:  ["20","26","30","32","33","36","37","38","39"],
+  K:  ["2","3","4","5","6","8"], P: ["2","3","4","5","6","8"],
+};
+
+// Legend numbers by position — iconic NFL/college players whose number a
+// rookie might adopt as a tribute. ~12% of players are tagged with a tribute
+// at gen time; `p.numberTribute` is surfaced in the tooltip ("in honor of …").
+const LEGEND_NUMBERS = {
+  QB: [
+    ["12","Tom Brady"],["12","Aaron Rodgers"],["12","Roger Staubach"],["12","Terry Bradshaw"],
+    ["16","Joe Montana"],["19","Johnny Unitas"],["7","John Elway"],["7","Michael Vick"],["7","Ben Roethlisberger"],
+    ["9","Drew Brees"],["8","Troy Aikman"],["8","Steve Young"],["10","Fran Tarkenton"],["10","Eli Manning"],
+    ["15","Bart Starr"],["15","Patrick Mahomes"],["17","Doug Williams"],["17","Josh Allen"],
+    ["14","Otto Graham"],["14","Dan Fouts"],["11","Phil Simms"],["11","Drew Bledsoe"],
+    ["4","Brett Favre"],["5","Donovan McNabb"],["5","Paul Hornung"],["1","Cam Newton"],["2","Matt Ryan"],
+  ],
+  RB: [
+    ["20","Barry Sanders"],["21","LaDainian Tomlinson"],["21","Tiki Barber"],
+    ["22","Emmitt Smith"],["23","Devin Hester"],["24","Marshawn Lynch"],
+    ["25","LeSean McCoy"],["26","Saquon Barkley"],["26","Le'Veon Bell"],
+    ["27","Eddie George"],["28","Adrian Peterson"],["28","Curtis Martin"],
+    ["29","Eric Dickerson"],["30","Terrell Davis"],
+    ["32","Jim Brown"],["32","Marcus Allen"],["32","O.J. Simpson"],
+    ["33","Tony Dorsett"],["34","Walter Payton"],["34","Earl Campbell"],["34","Bo Jackson"],
+    ["44","John Riggins"],
+  ],
+  WR: [
+    ["80","Jerry Rice"],["80","Steve Largent"],["81","Terrell Owens"],["81","Tim Brown"],["81","Anquan Boldin"],
+    ["82","Raymond Berry"],["83","Andre Reed"],["83","Wes Welker"],
+    ["84","Randy Moss"],["84","Antonio Brown"],["85","Chad Johnson"],
+    ["87","Sterling Sharpe"],["88","Lynn Swann"],["88","Michael Irvin"],["88","Drew Pearson"],["88","Mike Evans"],
+    ["89","Steve Smith"],["11","Larry Fitzgerald"],["13","Odell Beckham Jr."],["13","Keenan Allen"],
+    ["17","Davante Adams"],["18","Justin Jefferson"],["10","DeSean Jackson"],["10","Tyreek Hill"],
+  ],
+  TE: [
+    ["80","Kellen Winslow"],["82","Jason Witten"],["82","Ozzie Newsome"],
+    ["83","Mark Bavaro"],["85","Antonio Gates"],
+    ["87","Rob Gronkowski"],["87","Travis Kelce"],["87","Dave Casper"],
+    ["88","Tony Gonzalez"],["88","Jackie Smith"],["44","John Mackey"],
+  ],
+  OL: [
+    ["63","Gene Upshaw"],["64","Jerry Kramer"],["65","Tom Mack"],
+    ["68","Larry Allen"],["70","Sam Huff"],["70","Art Donovan"],["71","Walter Jones"],
+    ["73","Joe Klecko"],["74","Bob Lilly"],["75","Forrest Gregg"],
+    ["76","Lou Groza"],["77","Anthony Munoz"],["77","Red Grange"],
+    ["78","Bruce Smith"],["79","Bob Brown"],["60","Chuck Bednarik"],
+  ],
+  DL: [
+    ["72","Joe Greene"],["75","Reggie White"],["78","Bruce Smith"],
+    ["90","Julius Peppers"],["90","Jadeveon Clowney"],["91","Tamba Hali"],
+    ["92","Michael Strahan"],["93","Kevin Greene"],["93","John Randle"],
+    ["94","Charles Haley"],["94","DeMarcus Ware"],["95","Richard Dent"],
+    ["97","Cornelius Bennett"],["98","Aaron Donald"],
+    ["99","J.J. Watt"],["99","Jerome Brown"],["99","Mark Gastineau"],
+  ],
+  LB: [
+    ["52","Patrick Willis"],["52","Khalil Mack"],["52","Ray Lewis"],
+    ["54","Bobby Wagner"],["54","Brian Urlacher"],
+    ["55","Junior Seau"],["55","Derrick Brooks"],
+    ["56","Lawrence Taylor"],["57","Rickey Jackson"],
+    ["58","Derrick Thomas"],["58","Wilber Marshall"],
+    ["59","Jack Ham"],["59","London Fletcher"],
+    ["50","Mike Singletary"],["51","Sam Mills"],["53","Harry Carson"],
+  ],
+  CB: [
+    ["21","Deion Sanders"],["22","Asante Samuel"],["23","Champ Bailey"],
+    ["24","Charles Woodson"],["24","Darrelle Revis"],["25","Tyrann Mathieu"],
+    ["26","Rod Woodson"],["28","Marcus Peters"],["32","Jack Tatum"],
+  ],
+  S: [
+    ["20","Ed Reed"],["20","Brian Dawkins"],["21","Sean Taylor"],
+    ["24","Eric Berry"],["27","Earl Thomas"],["29","Tyrann Mathieu"],
+    ["31","Antrel Rolle"],["32","Eric Weddle"],["33","Sammy Baugh"],
+    ["42","Ronnie Lott"],["42","Charles Tillman"],
+  ],
+  K: [["1","Jan Stenerud"],["2","Adam Vinatieri"],["2","Justin Tucker"],["3","Stephen Gostkowski"],["5","Morten Andersen"],["8","Jason Hanson"],["9","Sebastian Janikowski"]],
+  P: [["4","Pat McAfee"],["5","Bryan Anger"],["6","Sam Koch"],["7","Donnie Jones"],["8","Andy Lee"]],
+};
+
+// Assign the player a "college number" — what they wore at the college level
+// and would prefer to wear in the pros. Most pick from a realistic
+// position-based pool; ~12% adopt a legend's number as a tribute.
+function assignCollegeNumber(p) {
+  const pos = p.position;
+  const legends = LEGEND_NUMBERS[pos];
+  if (legends && legends.length && Math.random() < 0.12) {
+    const t = legends[Math.floor(Math.random() * legends.length)];
+    p.collegeNumber = t[0];
+    p.numberTribute = t[1];
+    return;
+  }
+  const pool = JERSEYS_BY_POS[pos] || ["00"];
+  p.collegeNumber = pool[Math.floor(Math.random() * pool.length)];
+}
+
+// Resolve final per-team jersey numbers. NFL rule: no two players on the same
+// team share a number. Best players (by overall) claim first — rookies and
+// scrubs whose preferred number is taken switch to an alternate from their
+// position pool. Sets p.number on every player; p.collegeNumberLost flags
+// anyone who had to give up their preferred digit.
+function assignTeamJerseyNumbers(roster) {
+  const sorted = roster.slice().sort((a, b) => (b.overall || 0) - (a.overall || 0));
+  const taken = new Set();
+  for (const p of sorted) {
+    if (!p.collegeNumber) assignCollegeNumber(p);
+    if (p.collegeNumber && !taken.has(p.collegeNumber)) {
+      p.number = p.collegeNumber;
+      taken.add(p.number);
+      continue;
+    }
+    p.collegeNumberLost = true;
+    const pool = (JERSEYS_BY_POS[p.position] || ["00"]).slice();
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    let picked = pool.find(n => !taken.has(n));
+    if (!picked) {
+      for (let i = 1; i <= 99 && !picked; i++) {
+        const s = String(i);
+        if (!taken.has(s)) picked = s;
+      }
+    }
+    p.number = picked || "00";
+    taken.add(p.number);
+  }
+}
+
+function jerseyForPlayer(p) {
+  // Deterministic jersey: prefer the persistent p.number assigned at roster
+  // build time; fall back to a name-hash pick for any legacy code path.
+  if (!p) return "";
+  if (p.number) return p.number;
+  const pool = JERSEYS_BY_POS[p.position] || ["00"];
+  let hash = 0;
+  for (let i = 0; i < p.name.length; i++) hash = (hash * 31 + p.name.charCodeAt(i)) >>> 0;
+  return pool[hash % pool.length];
+}
+function attachPlayerStyles(formation, offStarters, defStarters, lookup) {
+  if (!lookup) return;
+  const pickup = (name) => name ? lookup.get(name) : null;
+  const decorate = (slot, p) => {
+    if (!slot) return;
+    if (p) {
+      slot.runStyle = p.runStyle;
+      slot.celebStyle = p.celebStyle;
+      slot.bodyType = p.bodyType;
+      slot.label = jerseyForPlayer(p);
+      slot.archetype = p.archetype;
+      slot.position = p.position;
+      slot.elite = !!p.nickname;
+      slot.nickname = p.nickname;
+      // Pass the player's NAME through so the in-game model's skin tone can
+      // be seeded from the same hash the portrait uses, keeping them
+      // visually consistent.
+      slot.name = p.name;
+    }
+  };
+  if (offStarters) {
+    decorate(formation.qb,  pickup(offStarters.qb));
+    if (formation.rb)  decorate(formation.rb,  pickup(offStarters.rb));
+    if (formation.wr1) decorate(formation.wr1, pickup(offStarters.wr1));
+    if (formation.wr2) decorate(formation.wr2, pickup(offStarters.wr2));
+    if (formation.wr3) decorate(formation.wr3, pickup(offStarters.wr3));
+    if (formation.wr4) decorate(formation.wr4, pickup(offStarters.wr4));
+    if (formation.wr5) decorate(formation.wr5, pickup(offStarters.wr3));  // 5th WR reuses WR3 player
+    if (formation.te)  decorate(formation.te,  pickup(offStarters.te));
+    if (formation.te2) decorate(formation.te2, pickup(offStarters.te2));
+    if (formation.fb)  decorate(formation.fb,  pickup(offStarters.rb2));
+  }
+  if (formation.oline) for (const ol of formation.oline) {
+    ol.runStyle = "plodding";
+    ol.bodyType = "BIG";
+    ol.label = JERSEYS_BY_POS.OL[Math.floor(Math.random() * JERSEYS_BY_POS.OL.length)];
+  }
+  if (defStarters) {
+    const dl = [defStarters.de1, defStarters.dt1, defStarters.dt2, defStarters.de2];
+    const lb = [defStarters.lb1, defStarters.lb2, defStarters.lb3];
+    formation.dline.forEach((slot, i) => decorate(slot, pickup(dl[i])));
+    formation.lbs.forEach((slot, i) => decorate(slot, pickup(lb[i])));
+    if (formation.cb1) decorate(formation.cb1, pickup(defStarters.cb1));
+    if (formation.cb2) decorate(formation.cb2, pickup(defStarters.cb2));
+    if (formation.cb3) decorate(formation.cb3, pickup(defStarters.cb3));   // nickel back
+    if (formation.cb4) decorate(formation.cb4, pickup(defStarters.cb4));   // dime back
+    if (formation.cb5) decorate(formation.cb5, pickup(defStarters.cb4));   // 5th DB reuses dime
+    decorate(formation.s1,  pickup(defStarters.fs));
+    decorate(formation.s2,  pickup(defStarters.ss));
+  }
+}
+
+// Easing functions
+const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
+const easeInOutCubic = t => t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2, 3) / 2;
+
+// ─── UI / playback ────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const homeSel  = $("homeTeam"), awaySel  = $("awayTeam");
+const simBtn   = $("simBtn"),   playBtn  = $("playBtn");
+const pauseBtn = $("pauseBtn"), endBtn   = $("endBtn");
+const speedSlider = $("speedSlider"), speedLabel = $("speedLabel");
+const gameArea = $("gameArea");
+
+let gameResult = null, playHead = 0, playing = false;
+
+// ─── Player hover tooltip ─────────────────────────────────────────────────
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+}
+function nameSpan(name) {
+  if (!name) return "";
+  const safe = escapeHtml(name);
+  return `<span class="player-name" data-player="${safe}">${safe}</span>`;
+}
+function playerTier(ovr) {
+  if (ovr >= 85) return "elite";
+  if (ovr >= 75) return "good";
+  if (ovr >= 60) return "average";
+  return "poor";
+}
+function buildPlayerTooltip(p) {
+  const [spd, str, agi, awr, thr, cat, blk, prs, cov, tck, kpw] = p.stats;
+  const keys = {
+    QB: [["SPD",spd],["AGI",agi],["AWR",awr],["THR",thr]],
+    RB: [["SPD",spd],["STR",str],["AGI",agi],["CAT",cat]],
+    WR: [["SPD",spd],["AGI",agi],["CAT",cat],["AWR",awr]],
+    TE: [["CAT",cat],["BLK",blk],["STR",str],["SPD",spd]],
+    OL: [["STR",str],["BLK",blk],["AGI",agi],["AWR",awr]],
+    DL: [["STR",str],["PRS",prs],["SPD",spd],["TCK",tck]],
+    LB: [["PRS",prs],["COV",cov],["TCK",tck],["SPD",spd]],
+    CB: [["SPD",spd],["AGI",agi],["COV",cov],["AWR",awr]],
+    S:  [["SPD",spd],["COV",cov],["TCK",tck],["AWR",awr]],
+    K:  [["KPW",kpw],["AWR",awr]],
+    P:  [["KPW",kpw],["AWR",awr]],
+  }[p.position] || [];
+  const tier = playerTier(p.overall);
+  const teamLabel = p.team === "home"
+    ? (gameResult ? gameResult.homeTeam.name : "")
+    : (gameResult ? gameResult.awayTeam.name : "");
+  const statRows = keys.map(([k, v]) => `
+    <div class="tt-stat">
+      <span class="tt-key">${k}</span><span class="tt-val">${v}</span>
+    </div>`).join("");
+  // Archetype block — every position with archetypes shows label + blurb
+  // (DL also gets a moves bar)
+  const ARCHETYPE_BY_POS = {
+    QB: QB_ARCHETYPES, DL: DL_ARCHETYPES, OL: OL_ARCHETYPES, RB: RB_ARCHETYPES,
+    WR: WR_ARCHETYPES, TE: TE_ARCHETYPES, LB: LB_ARCHETYPES, CB: CB_ARCHETYPES, S: S_ARCHETYPES,
+    K: K_ARCHETYPES, P: P_ARCHETYPES,
+  };
+  let archHtml = "";
+  if (p.archetype) {
+    const a = (ARCHETYPE_BY_POS[p.position] || {})[p.archetype];
+    if (a) {
+      const movesBar = a.moves
+        ? `<div class="tt-arch-moves">${a.moves.map(m => `<span class="tt-move">${m}</span>`).join("")}</div>`
+        : "";
+      const anomalies = (p.anomalies || []).map(x => `<div class="tt-anomaly">~ ${escapeHtml(x)}</div>`).join("");
+      archHtml = `<div class="tt-arch">
+        <div class="tt-arch-name">${a.label.toUpperCase()}</div>
+        <div class="tt-arch-blurb">${a.blurb}</div>
+        ${anomalies}
+        ${movesBar}
+      </div>`;
+    }
+  }
+  const flav = p.flavor && PLAYER_FLAVORS[p.flavor]
+    ? `<div class="tt-flavor"><b>${PLAYER_FLAVORS[p.flavor].label}</b> — ${PLAYER_FLAVORS[p.flavor].blurb}</div>`
+    : "";
+  // Display name — fold the nickname in subtly if the player has one. If the
+  // player's display name is the initials version ("T.J. Watt"), show the
+  // full legal name underneath.
+  const nameDisplay = p.nickname
+    ? `${escapeHtml(p.name.split(" ")[0])} <span class="tt-nick">"${escapeHtml(p.nickname)}"</span> ${escapeHtml(p.name.split(" ").slice(1).join(" "))}`
+    : escapeHtml(p.name);
+  // Legal name line — only shown when the display name differs (initials,
+  // or "goes by middle"). e.g. "Trent Jordan Watt" under "T.J. Watt".
+  let legalName = null;
+  if (p.firstName && p.lastName) {
+    const fullLegal = p.middleName
+      ? `${p.firstName} ${p.middleName} ${p.lastName}`
+      : `${p.firstName} ${p.lastName}`;
+    if (fullLegal !== p.name) legalName = fullLegal;
+  }
+  const legalHtml = legalName
+    ? `<div class="tt-legal">${escapeHtml(legalName)}</div>` : "";
+  const collegeHtml = p.collegeNickname
+    ? `<div class="tt-college">★ Earned in college</div>` : "";
+  const tributeHtml = p.numberTribute && !p.collegeNumberLost
+    ? `<div class="tt-tribute">#${p.number} — in honor of ${escapeHtml(p.numberTribute)}</div>`
+    : "";
+  const jerseyTag = p.number ? `#${p.number} · ` : "";
+  // ── PROFILE PAGE EXTENSIONS — mugshot, career stats, trophy case ──
+  // Try the AI-generated portrait first (deterministic by name+pos hash); if
+  // that file is missing the <img> onerror falls back to the canvas portrait.
+  const portraitFile = portraitFileForPlayer(p);
+  let fallbackUrl;
+  try { fallbackUrl = generateMugshotDataUrl(p); }
+  catch (e) { console.warn("[tooltip] mugshot fallback failed for", p.name, e); fallbackUrl = ""; }
+  // Encode each path segment so folder names containing spaces/commas
+  // ("DE, rushers", "Oline and DTs", "WRs and DBs") become valid URLs.
+  const safePath = portraitFile.split("/").map(encodeURIComponent).join("/");
+  const mugshotImg = `<img class="tt-mugshot" src="portraits/${safePath}" width="128" height="144" alt="mugshot" onerror="this.onerror=null;this.src='${fallbackUrl}'">`;
+  const careerHtml = buildCareerTable(p);
+  const trophyHtml = buildTrophyShelf(p);
+  return `
+    <div class="tt-header">
+      ${mugshotImg}
+      <div class="tt-header-body">
+        <div class="tt-name">${nameDisplay}</div>
+        ${legalHtml}
+        <div class="tt-sub">${jerseyTag}${p.position} · ${teamLabel.toUpperCase()} · AGE ${p.age}</div>
+        ${p.height ? `<div class="tt-hw">${formatHeight(p.height)} · ${p.weight} lbs</div>` : ""}
+        <div><span class="tt-ovr tier-${tier}">${p.overall} OVR</span></div>
+        <div class="tt-bar"><div class="tt-bar-fill" style="width:${p.overall}%"></div></div>
+      </div>
+    </div>
+    <div class="tt-stats">${statRows}</div>
+    ${collegeHtml}
+    ${tributeHtml}
+    ${flav}
+    ${archHtml}
+    ${trophyHtml}
+    ${careerHtml}
+  `;
+}
+
+// ─── PROFILE-PAGE HELPERS ──────────────────────────────────────────────────
+// Map a player to a portrait filename in /portraits. Deterministic by name+
+// position so the same player always gets the same face. We assume the pool
+// is `p001.png ... pNNN.png` zero-padded 3 digits; PORTRAIT_POOL_SIZE caps
+// the hash so we don't reach for files that don't exist. If the <img> 404s,
+// the onerror handler in buildPlayerTooltip falls back to the canvas portrait.
+// Portraits live in /portraits/Characters/<GROUP>/pNNN.png. Folders are
+// grouped by visual body-type rather than strict NFL position, so:
+//   Characters/Qbs              → QB, K, P
+//   Characters/RBs              → RB, TE
+//   Characters/WRs and DBs      → WR, CB, S
+//   Characters/Oline and DTs    → OL, plus interior DL (POWER / PENETRATOR)
+//   Characters/DE, rushers      → edge DL (SPEED / TWEENER / TECHNICIAN)
+//   Characters/LBs              → LB
+// The hash uses the player name only so a player keeps the same face even
+// if their game position changes. PORTRAIT_COUNTS holds the actual number of
+// portraits available per folder — UPDATE THIS when you add more files,
+// otherwise hashes will land on missing pNNN.png and fall back to the
+// canvas-drawn portrait.
+const PORTRAIT_COUNTS = {
+  "Characters/Qbs":           10,
+  "Characters/RBs":           10,
+  "Characters/WRs and DBs":   30,
+  "Characters/Oline and DTs": 10,
+  "Characters/DE, rushers":   10,
+  "Characters/LBs":           10,
+};
+function portraitFolderFor(p) {
+  const pos = p.position;
+  if (pos === "QB" || pos === "K" || pos === "P") return "Characters/Qbs";
+  if (pos === "RB" || pos === "TE") return "Characters/RBs";
+  if (pos === "WR" || pos === "CB" || pos === "S") return "Characters/WRs and DBs";
+  if (pos === "OL") return "Characters/Oline and DTs";
+  if (pos === "LB") return "Characters/LBs";
+  if (pos === "DL") {
+    const a = p.archetype;
+    if (a === "POWER" || a === "PENETRATOR") return "Characters/Oline and DTs";
+    return "Characters/DE, rushers";
+  }
+  return "Characters/Qbs";
+}
+function portraitFileForPlayer(p) {
+  let hash = 0;
+  const seedStr = p.name || "";
+  for (let i = 0; i < seedStr.length; i++) hash = (hash * 31 + seedStr.charCodeAt(i)) >>> 0;
+  const folder = portraitFolderFor(p);
+  const count = PORTRAIT_COUNTS[folder] || 1;
+  const n = (hash % count) + 1;
+  return `${folder}/p${String(n).padStart(3, "0")}.png`;
+}
+
+// Skin-tone palette used by the on-field player models. Lifted to module
+// scope so the portrait sampler can map sampled face pixels back to one of
+// these five buckets for matching color.
+const SKIN_TONES = [
+  { base: "#eccaa3", dark: "#b08966", light: "#fce0bd" }, // light
+  { base: "#d6a878", dark: "#9b7448", light: "#ecc69a" }, // tan
+  { base: "#b4805a", dark: "#7e553a", light: "#d6a17c" }, // medium
+  { base: "#8a5d3a", dark: "#5d3d22", light: "#a87a52" }, // dark
+  { base: "#6b4128", dark: "#42271a", light: "#8a5a3a" }, // very dark
+];
+
+// Per-portrait skin-tone cache. Keyed by portrait filename ("Characters/
+// Qbs/p003.png" etc.). Values are an integer index into SKIN_TONES (0-4)
+// that's the closest match to the average face pixel sampled from the
+// portrait PNG. Resolves asynchronously — first call kicks off the load
+// and returns null; subsequent calls return the cached index. While null
+// the player model falls back to its hash-based skin tone.
+const _portraitSkinCache = new Map();
+const _portraitSkinLoading = new Set();
+function getPortraitSkinIndex(filename) {
+  if (!filename) return null;
+  if (_portraitSkinCache.has(filename)) return _portraitSkinCache.get(filename);
+  if (_portraitSkinLoading.has(filename)) return null;
+  _portraitSkinLoading.add(filename);
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  img.onload = () => {
+    try {
+      const W = img.naturalWidth || img.width;
+      const H = img.naturalHeight || img.height;
+      if (!W || !H) { _portraitSkinCache.set(filename, null); return; }
+      const c = document.createElement("canvas");
+      c.width = W; c.height = H;
+      const cx = c.getContext("2d");
+      cx.drawImage(img, 0, 0);
+      // Sample a grid of pixels in the center face area, skipping pixels
+      // that look like hair (very dark) or background/highlight (very light
+      // or highly desaturated cool tones). Average the survivors.
+      let totR = 0, totG = 0, totB = 0, n = 0;
+      const xs = [0.42, 0.50, 0.58];
+      const ys = [0.48, 0.55, 0.62];
+      let pixels;
+      try { pixels = cx.getImageData(0, 0, W, H).data; }
+      catch (e) { _portraitSkinCache.set(filename, null); return; }
+      for (const fx of xs) for (const fy of ys) {
+        const px = (Math.floor(fy * H) * W + Math.floor(fx * W)) * 4;
+        const r = pixels[px], g = pixels[px+1], b = pixels[px+2], a = pixels[px+3];
+        if (a < 200) continue;
+        const lum = (r + g + b) / 3;
+        if (lum < 35 || lum > 240) continue;
+        // Skin requires R >= G >= B-ish. Filter out blues/greens.
+        if (b > r || g > r + 10) continue;
+        totR += r; totG += g; totB += b; n++;
+      }
+      if (n === 0) { _portraitSkinCache.set(filename, null); return; }
+      const avgR = totR / n, avgG = totG / n, avgB = totB / n;
+      let bestIdx = 0, bestDist = Infinity;
+      for (let i = 0; i < SKIN_TONES.length; i++) {
+        const sc = SKIN_TONES[i].base;
+        const sr = parseInt(sc.slice(1,3),16);
+        const sg = parseInt(sc.slice(3,5),16);
+        const sb = parseInt(sc.slice(5,7),16);
+        const d = (sr-avgR)*(sr-avgR) + (sg-avgG)*(sg-avgG) + (sb-avgB)*(sb-avgB);
+        if (d < bestDist) { bestDist = d; bestIdx = i; }
+      }
+      _portraitSkinCache.set(filename, bestIdx);
+    } catch (e) {
+      _portraitSkinCache.set(filename, null);
+    }
+  };
+  img.onerror = () => _portraitSkinCache.set(filename, null);
+  const safe = filename.split("/").map(encodeURIComponent).join("/");
+  img.src = `portraits/${safe}`;
+  return null;
+}
+
+// Helper to shade a hex color by a factor
+function _shadeColor(c, f) {
+  if (!c || c[0] !== "#" || c.length !== 7) return c;
+  const r = Math.min(255, Math.max(0, Math.round(parseInt(c.slice(1,3),16) * f)));
+  const g = Math.min(255, Math.max(0, Math.round(parseInt(c.slice(3,5),16) * f)));
+  const b = Math.min(255, Math.max(0, Math.round(parseInt(c.slice(5,7),16) * f)));
+  return `rgb(${r},${g},${b})`;
+}
+function generateMugshotDataUrl(p) {
+  // Anime/manga-style portrait with a military-uniform high collar (gakuran
+  // descended from 19th-century Prussian military dress). Stylized hair,
+  // sharp features, stoic expression that varies by archetype.
+  const W = 78, H = 88;
+  const canvas = document.createElement("canvas");
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext("2d");
+  const team = p.team === "home" ? (gameResult && gameResult.homeTeam) : (gameResult && gameResult.awayTeam);
+  const primary = team?.primary || "#1a1a24";
+  const secondary = team?.secondary || "#c8a040";
+  // Deterministic per-player traits
+  let hash = 0;
+  const seedStr = (p.name || "") + (p.position || "");
+  for (let i = 0; i < seedStr.length; i++) hash = (hash * 31 + seedStr.charCodeAt(i)) >>> 0;
+  // Skin tones
+  const SKIN_TONES = [
+    { base: "#eccaa3", dark: "#b08966", light: "#fce0bd" },
+    { base: "#d6a878", dark: "#9b7448", light: "#ecc69a" },
+    { base: "#b4805a", dark: "#7e553a", light: "#d6a17c" },
+    { base: "#8a5d3a", dark: "#5d3d22", light: "#a87a52" },
+    { base: "#6b4128", dark: "#42271a", light: "#8a5a3a" },
+  ];
+  const skin = SKIN_TONES[hash % SKIN_TONES.length];
+  // Hair colors — black-dominant, with rarer alternates
+  const HAIR = [
+    { base: "#1a1a1f", shade: "#08080c", hi: "#3a3a44" },
+    { base: "#1a1a1f", shade: "#08080c", hi: "#3a3a44" },
+    { base: "#1a1a1f", shade: "#08080c", hi: "#3a3a44" },
+    { base: "#1a1a1f", shade: "#08080c", hi: "#3a3a44" },
+    { base: "#2a1a10", shade: "#160e08", hi: "#4a2e1c" },
+    { base: "#3a2510", shade: "#1f1305", hi: "#5a3a18" },
+    { base: "#5a3a1c", shade: "#3a2510", hi: "#7c5530" },
+    { base: "#a07050", shade: "#705038", hi: "#c08868" },
+    { base: "#c8a060", shade: "#806040", hi: "#e0c080" },
+    { base: "#a02020", shade: "#601010", hi: "#d04040" },
+    { base: "#d0d0d8", shade: "#a0a0a8", hi: "#ffffff" },
+  ];
+  const hair = HAIR[(hash >>> 7) % HAIR.length];
+  // Hair style index — 6 different silhouettes
+  const hairStyle = (hash >>> 13) % 6;
+  // Eye style — narrow/sharp vs rounded
+  const isAggressive = ["POWER","THUMPER","GUNSLINGER","PENETRATOR","SHUTDOWN","SPEED"].includes(p.archetype);
+  const isWise = ["GAME_MANAGER","POCKET","POSSESSION","ROUTE_RUNNER","TECHNICIAN","BALLHAWK"].includes(p.archetype);
+
+  // ── BACKDROP ──
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, "#1a1a22");
+  bg.addColorStop(0.6, _shadeColor(primary, 0.45));
+  bg.addColorStop(1, _shadeColor(primary, 0.30));
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+  // Vignette
+  const vig = ctx.createRadialGradient(W/2, H/2, 20, W/2, H/2, 60);
+  vig.addColorStop(0, "rgba(0,0,0,0)");
+  vig.addColorStop(1, "rgba(0,0,0,0.5)");
+  ctx.fillStyle = vig;
+  ctx.fillRect(0, 0, W, H);
+
+  // ── MILITARY UNIFORM (drawn first, head sits on top) ──
+  const collarTop = H - 28;
+  // Shoulder block — full-width dark slab at the bottom
+  ctx.fillStyle = _shadeColor(primary, 0.35);
+  ctx.beginPath();
+  ctx.moveTo(-2, H);
+  ctx.lineTo(-2, collarTop + 2);
+  ctx.lineTo(8, collarTop - 6);
+  ctx.lineTo(W - 8, collarTop - 6);
+  ctx.lineTo(W + 2, collarTop + 2);
+  ctx.lineTo(W + 2, H);
+  ctx.closePath();
+  ctx.fill();
+  // Uniform body — slightly lighter than the shoulders so the silhouette reads
+  ctx.fillStyle = _shadeColor(primary, 0.50);
+  ctx.fillRect(8, collarTop - 4, W - 16, H - collarTop + 4);
+  // Top piping stripe (secondary color band along the shoulders)
+  ctx.fillStyle = secondary;
+  ctx.fillRect(10, collarTop - 4, W - 20, 1.2);
+  // Shoulder boards / epaulets — small rectangles at each shoulder
+  ctx.fillStyle = secondary;
+  ctx.fillRect(W * 0.13, collarTop - 3, W * 0.16, 3);
+  ctx.fillRect(W * 0.71, collarTop - 3, W * 0.16, 3);
+  ctx.strokeStyle = "rgba(0,0,0,0.5)";
+  ctx.lineWidth = 0.5;
+  ctx.strokeRect(W * 0.13, collarTop - 3, W * 0.16, 3);
+  ctx.strokeRect(W * 0.71, collarTop - 3, W * 0.16, 3);
+  // Center button strip — dark vertical band down the middle
+  const cx = W / 2;
+  const stripeY = collarTop + 5;
+  ctx.fillStyle = _shadeColor(primary, 0.25);
+  ctx.fillRect(cx - 4, stripeY, 8, H - stripeY);
+  // Buttons — 2-3 small metal discs down the strip
+  ctx.fillStyle = secondary;
+  for (let i = 0; i < 3; i++) {
+    const by = stripeY + 4 + i * 6;
+    if (by > H - 4) break;
+    ctx.beginPath();
+    ctx.arc(cx, by, 1.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(0,0,0,0.5)";
+    ctx.lineWidth = 0.4;
+    ctx.stroke();
+    // Tiny highlight on button
+    ctx.fillStyle = "rgba(255,255,255,0.5)";
+    ctx.fillRect(cx - 0.6, by - 0.6, 0.5, 0.5);
+    ctx.fillStyle = secondary;
+  }
+  // Jersey number — small at the very bottom corner (military rank patch feel)
+  const num = p.label || p.jersey || "";
+  if (num) {
+    ctx.font = "900 8px Impact, Arial Black, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "rgba(0,0,0,0.7)";
+    ctx.fillText(num, cx + 0.4, H - 4.5);
+    ctx.fillStyle = secondary;
+    ctx.fillText(num, cx, H - 5);
+  }
+  // ── HIGH STAND COLLAR (the gakuran/military hallmark) ──
+  const neckW = 18;
+  const collarH = 14;
+  // Neck (skin) showing inside the collar
+  ctx.fillStyle = skin.base;
+  ctx.fillRect(cx - 6, collarTop - 12, 12, 14);
+  ctx.fillStyle = skin.dark;
+  ctx.fillRect(cx - 6, collarTop - 5, 12, 3);   // jaw shadow
+  // Stand collar itself — high stiff vertical band
+  ctx.fillStyle = _shadeColor(primary, 0.30);
+  ctx.beginPath();
+  ctx.moveTo(cx - neckW/2, collarTop);
+  ctx.lineTo(cx - neckW/2 - 2, collarTop - collarH + 2);
+  ctx.lineTo(cx - 3, collarTop - collarH);
+  ctx.lineTo(cx + 3, collarTop - collarH);
+  ctx.lineTo(cx + neckW/2 + 2, collarTop - collarH + 2);
+  ctx.lineTo(cx + neckW/2, collarTop);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "rgba(0,0,0,0.6)";
+  ctx.lineWidth = 0.8;
+  ctx.stroke();
+  // Collar piping (secondary color trim along the top edge)
+  ctx.strokeStyle = secondary;
+  ctx.lineWidth = 1.1;
+  ctx.beginPath();
+  ctx.moveTo(cx - neckW/2 - 2, collarTop - collarH + 2);
+  ctx.lineTo(cx - 3, collarTop - collarH);
+  ctx.lineTo(cx + 3, collarTop - collarH);
+  ctx.lineTo(cx + neckW/2 + 2, collarTop - collarH + 2);
+  ctx.stroke();
+  // Collar tabs / pins — small badges on each side of the throat opening
+  ctx.fillStyle = secondary;
+  ctx.beginPath();
+  ctx.moveTo(cx - 3, collarTop - 4);
+  ctx.lineTo(cx - 1, collarTop - 1);
+  ctx.lineTo(cx - 3, collarTop - 1);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx + 3, collarTop - 4);
+  ctx.lineTo(cx + 1, collarTop - 1);
+  ctx.lineTo(cx + 3, collarTop - 1);
+  ctx.closePath();
+  ctx.fill();
+
+  // ── HEAD / FACE ──
+  // Face shape — slightly elongated oval with sharper chin
+  const faceCy = H * 0.40;
+  const faceW = 38;
+  const faceH = 44;
+  // Chin/jaw — pointed
+  ctx.fillStyle = skin.base;
+  ctx.beginPath();
+  ctx.moveTo(cx - faceW/2, faceCy - 4);
+  ctx.quadraticCurveTo(cx - faceW/2 - 1, faceCy + faceH/3, cx - 6, faceCy + faceH/2 + 1);
+  ctx.lineTo(cx - 3, faceCy + faceH/2 + 4);
+  ctx.lineTo(cx + 3, faceCy + faceH/2 + 4);
+  ctx.lineTo(cx + 6, faceCy + faceH/2 + 1);
+  ctx.quadraticCurveTo(cx + faceW/2 + 1, faceCy + faceH/3, cx + faceW/2, faceCy - 4);
+  ctx.quadraticCurveTo(cx + faceW/2 + 1, faceCy - faceH/2, cx, faceCy - faceH/2 - 1);
+  ctx.quadraticCurveTo(cx - faceW/2 - 1, faceCy - faceH/2, cx - faceW/2, faceCy - 4);
+  ctx.closePath();
+  ctx.fill();
+  // Anime cheek shadow — soft on the right side
+  ctx.globalAlpha = 0.32;
+  ctx.fillStyle = skin.dark;
+  ctx.beginPath();
+  ctx.moveTo(cx + 4, faceCy + 4);
+  ctx.quadraticCurveTo(cx + faceW/2 + 1, faceCy + faceH/3, cx + 5, faceCy + faceH/2 + 1);
+  ctx.lineTo(cx + 3, faceCy + faceH/2 + 4);
+  ctx.lineTo(cx + 1, faceCy + faceH/2 - 2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  // Jaw shading line — subtle definition
+  ctx.strokeStyle = _shadeColor(skin.base, 0.75);
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.moveTo(cx - 6, faceCy + faceH/2 + 1);
+  ctx.quadraticCurveTo(cx, faceCy + faceH/2 + 4, cx + 6, faceCy + faceH/2 + 1);
+  ctx.stroke();
+  // Ear hints — small skin protrusions on the sides
+  ctx.fillStyle = skin.dark;
+  ctx.beginPath();
+  ctx.ellipse(cx - faceW/2 - 1, faceCy + 4, 2, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(cx + faceW/2 + 1, faceCy + 4, 2, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // ── HAIR BACK LAYER (silhouette behind the face) ──
+  ctx.fillStyle = hair.base;
+  if (hairStyle === 0 || hairStyle === 1) {
+    // Medium — flows down past ears
+    ctx.beginPath();
+    ctx.moveTo(cx - faceW/2 - 3, faceCy - 4);
+    ctx.quadraticCurveTo(cx - faceW/2 - 5, faceCy - faceH/2 - 6, cx, faceCy - faceH/2 - 8);
+    ctx.quadraticCurveTo(cx + faceW/2 + 5, faceCy - faceH/2 - 6, cx + faceW/2 + 3, faceCy - 4);
+    ctx.quadraticCurveTo(cx + faceW/2 + 4, faceCy + faceH/3, cx + faceW/2, faceCy + faceH/2);
+    ctx.lineTo(cx + faceW/2 - 2, faceCy + faceH/2);
+    ctx.quadraticCurveTo(cx + faceW/2 + 1, faceCy + faceH/3, cx + faceW/2, faceCy + 2);
+    ctx.lineTo(cx + faceW/2, faceCy - 4);
+    ctx.quadraticCurveTo(cx + faceW/2 + 1, faceCy - faceH/2, cx, faceCy - faceH/2);
+    ctx.quadraticCurveTo(cx - faceW/2 - 1, faceCy - faceH/2, cx - faceW/2, faceCy - 4);
+    ctx.lineTo(cx - faceW/2, faceCy + 2);
+    ctx.quadraticCurveTo(cx - faceW/2 - 1, faceCy + faceH/3, cx - faceW/2 + 2, faceCy + faceH/2);
+    ctx.lineTo(cx - faceW/2, faceCy + faceH/2);
+    ctx.quadraticCurveTo(cx - faceW/2 - 4, faceCy + faceH/3, cx - faceW/2 - 3, faceCy - 4);
+    ctx.closePath();
+    ctx.fill();
+  } else {
+    // Short — only top of head
+    ctx.beginPath();
+    ctx.moveTo(cx - faceW/2 - 1, faceCy - 4);
+    ctx.quadraticCurveTo(cx - faceW/2 - 3, faceCy - faceH/2 - 4, cx, faceCy - faceH/2 - 6);
+    ctx.quadraticCurveTo(cx + faceW/2 + 3, faceCy - faceH/2 - 4, cx + faceW/2 + 1, faceCy - 4);
+    ctx.quadraticCurveTo(cx + faceW/2, faceCy - faceH/2 + 2, cx, faceCy - faceH/2 + 1);
+    ctx.quadraticCurveTo(cx - faceW/2, faceCy - faceH/2 + 2, cx - faceW/2 - 1, faceCy - 4);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // ── EYEBROWS ──
+  const browY = faceCy - 6;
+  ctx.strokeStyle = hair.shade;
+  ctx.lineCap = "round";
+  ctx.lineWidth = 2.2;
+  if (isAggressive) {
+    // V-shape angry brows
+    ctx.beginPath();
+    ctx.moveTo(cx - 11, browY - 2);
+    ctx.lineTo(cx - 3, browY + 1);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx + 11, browY - 2);
+    ctx.lineTo(cx + 3, browY + 1);
+    ctx.stroke();
+  } else if (isWise) {
+    // Calm slightly raised brows
+    ctx.beginPath();
+    ctx.moveTo(cx - 11, browY);
+    ctx.lineTo(cx - 3, browY - 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx + 11, browY);
+    ctx.lineTo(cx + 3, browY - 2);
+    ctx.stroke();
+  } else {
+    // Standard horizontal brows
+    ctx.beginPath();
+    ctx.moveTo(cx - 11, browY - 0.5);
+    ctx.lineTo(cx - 3, browY);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx + 11, browY - 0.5);
+    ctx.lineTo(cx + 3, browY);
+    ctx.stroke();
+  }
+
+  // ── EYES — anime style, narrow for stoic male leads ──
+  const eyeY = faceCy - 1;
+  const eyeColors = ["#1a1a1f","#2a1a10","#3a4a1a","#1a3a5a"];
+  const eyeColor = eyeColors[(hash >>> 19) % eyeColors.length];
+  // Eye whites — long ovals
+  ctx.fillStyle = "#fff8f0";
+  ctx.beginPath();
+  ctx.ellipse(cx - 7, eyeY, 3.5, isAggressive ? 1.6 : 2.2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(cx + 7, eyeY, 3.5, isAggressive ? 1.6 : 2.2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Top eyelid — heavy dark line
+  ctx.strokeStyle = hair.shade;
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.moveTo(cx - 10.5, eyeY - 1.6);
+  ctx.quadraticCurveTo(cx - 7, eyeY - 2.5, cx - 3.5, eyeY - 1.4);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx + 3.5, eyeY - 1.4);
+  ctx.quadraticCurveTo(cx + 7, eyeY - 2.5, cx + 10.5, eyeY - 1.6);
+  ctx.stroke();
+  // Iris — large dark with the chosen eye color visible at the edge
+  ctx.fillStyle = eyeColor;
+  ctx.beginPath();
+  ctx.ellipse(cx - 7, eyeY, 2.0, 2.0, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(cx + 7, eyeY, 2.0, 2.0, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Pupil
+  ctx.fillStyle = "#000";
+  ctx.beginPath();
+  ctx.arc(cx - 7, eyeY, 1.0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(cx + 7, eyeY, 1.0, 0, Math.PI * 2);
+  ctx.fill();
+  // Highlight (catchlight) — small white pixel
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(cx - 7.8, eyeY - 1.3, 1.0, 1.0);
+  ctx.fillRect(cx + 6.2, eyeY - 1.3, 1.0, 1.0);
+
+  // ── NOSE — minimal anime indication ──
+  ctx.strokeStyle = _shadeColor(skin.base, 0.72);
+  ctx.lineWidth = 0.8;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(cx + 0.5, faceCy + 2);
+  ctx.lineTo(cx + 1.5, faceCy + 6);
+  ctx.stroke();
+  // Subtle nostril shadow
+  ctx.fillStyle = _shadeColor(skin.base, 0.65);
+  ctx.fillRect(cx - 1.2, faceCy + 6.5, 0.8, 0.6);
+  ctx.fillRect(cx + 0.6, faceCy + 6.5, 0.8, 0.6);
+
+  // ── MOUTH ──
+  ctx.strokeStyle = "#3a1a14";
+  ctx.lineWidth = 1.1;
+  ctx.lineCap = "round";
+  const mouthY = faceCy + 11;
+  ctx.beginPath();
+  if (isAggressive) {
+    // Firm flat scowl
+    ctx.moveTo(cx - 4, mouthY);
+    ctx.lineTo(cx + 4, mouthY);
+  } else if (isWise) {
+    // Subtle smirk
+    ctx.moveTo(cx - 4, mouthY + 0.5);
+    ctx.quadraticCurveTo(cx, mouthY - 0.5, cx + 4, mouthY + 0.5);
+  } else {
+    // Neutral slight curve
+    ctx.moveTo(cx - 4, mouthY);
+    ctx.quadraticCurveTo(cx, mouthY + 1, cx + 4, mouthY);
+  }
+  ctx.stroke();
+
+  // ── HAIR FRONT LAYER (bangs over forehead) — varies by hairStyle ──
+  ctx.fillStyle = hair.base;
+  if (hairStyle === 0) {
+    // Center-parted bangs (reference image style)
+    ctx.beginPath();
+    ctx.moveTo(cx - faceW/2 + 2, faceCy - 4);
+    ctx.quadraticCurveTo(cx - faceW/2 - 2, faceCy - faceH/2, cx - 4, faceCy - faceH/2 + 4);
+    ctx.lineTo(cx - 1, faceCy - 9);
+    ctx.lineTo(cx, faceCy - 11);
+    ctx.lineTo(cx + 1, faceCy - 9);
+    ctx.lineTo(cx + 4, faceCy - faceH/2 + 4);
+    ctx.quadraticCurveTo(cx + faceW/2 + 2, faceCy - faceH/2, cx + faceW/2 - 2, faceCy - 4);
+    ctx.quadraticCurveTo(cx + faceW/2, faceCy - 10, cx + 3, faceCy - 9);
+    ctx.lineTo(cx + 1, faceCy - 11);
+    ctx.lineTo(cx - 1, faceCy - 11);
+    ctx.lineTo(cx - 3, faceCy - 9);
+    ctx.quadraticCurveTo(cx - faceW/2, faceCy - 10, cx - faceW/2 + 2, faceCy - 4);
+    ctx.closePath();
+    ctx.fill();
+  } else if (hairStyle === 1) {
+    // Side-swept (covers left, forehead exposed on right)
+    ctx.beginPath();
+    ctx.moveTo(cx - faceW/2 + 1, faceCy - 4);
+    ctx.quadraticCurveTo(cx - faceW/2 - 2, faceCy - faceH/2, cx - 2, faceCy - faceH/2 + 2);
+    ctx.quadraticCurveTo(cx + 8, faceCy - 12, cx + 12, faceCy - 4);
+    ctx.quadraticCurveTo(cx + faceW/2, faceCy - 6, cx + faceW/2 + 1, faceCy - 8);
+    ctx.lineTo(cx + faceW/2 + 1, faceCy - faceH/2);
+    ctx.quadraticCurveTo(cx, faceCy - faceH/2 - 3, cx - faceW/2 - 1, faceCy - faceH/2);
+    ctx.closePath();
+    ctx.fill();
+  } else if (hairStyle === 2) {
+    // Spiky — sharp upward tufts (aggressive look)
+    ctx.beginPath();
+    ctx.moveTo(cx - faceW/2 - 1, faceCy - 2);
+    ctx.lineTo(cx - 12, faceCy - faceH/2 - 3);
+    ctx.lineTo(cx - 7, faceCy - faceH/2 + 1);
+    ctx.lineTo(cx - 4, faceCy - faceH/2 - 5);
+    ctx.lineTo(cx, faceCy - faceH/2 + 1);
+    ctx.lineTo(cx + 4, faceCy - faceH/2 - 5);
+    ctx.lineTo(cx + 7, faceCy - faceH/2 + 1);
+    ctx.lineTo(cx + 12, faceCy - faceH/2 - 3);
+    ctx.lineTo(cx + faceW/2 + 1, faceCy - 2);
+    ctx.quadraticCurveTo(cx + faceW/2, faceCy - 6, cx + 8, faceCy - 8);
+    ctx.lineTo(cx - 8, faceCy - 8);
+    ctx.quadraticCurveTo(cx - faceW/2, faceCy - 6, cx - faceW/2 - 1, faceCy - 2);
+    ctx.closePath();
+    ctx.fill();
+  } else if (hairStyle === 3) {
+    // Slick back — minimal forehead coverage
+    ctx.beginPath();
+    ctx.moveTo(cx - faceW/2 - 1, faceCy - 4);
+    ctx.quadraticCurveTo(cx - faceW/2 - 3, faceCy - faceH/2 - 1, cx, faceCy - faceH/2 - 3);
+    ctx.quadraticCurveTo(cx + faceW/2 + 3, faceCy - faceH/2 - 1, cx + faceW/2 + 1, faceCy - 4);
+    ctx.quadraticCurveTo(cx + faceW/2 - 2, faceCy - faceH/2 + 4, cx, faceCy - faceH/2 + 4);
+    ctx.quadraticCurveTo(cx - faceW/2 + 2, faceCy - faceH/2 + 4, cx - faceW/2 - 1, faceCy - 4);
+    ctx.closePath();
+    ctx.fill();
+  } else if (hairStyle === 4) {
+    // Long bangs covering most of forehead
+    ctx.beginPath();
+    ctx.moveTo(cx - faceW/2 - 1, faceCy - 4);
+    ctx.quadraticCurveTo(cx - faceW/2 - 3, faceCy - faceH/2 - 2, cx, faceCy - faceH/2 - 4);
+    ctx.quadraticCurveTo(cx + faceW/2 + 3, faceCy - faceH/2 - 2, cx + faceW/2 + 1, faceCy - 4);
+    ctx.quadraticCurveTo(cx + faceW/2 - 2, faceCy - 4, cx + 6, faceCy - 4);
+    ctx.lineTo(cx + 4, faceCy - 2);
+    ctx.lineTo(cx - 4, faceCy - 2);
+    ctx.lineTo(cx - 6, faceCy - 4);
+    ctx.quadraticCurveTo(cx - faceW/2 + 2, faceCy - 4, cx - faceW/2 - 1, faceCy - 4);
+    ctx.closePath();
+    ctx.fill();
+  } else {
+    // Buzz cut — barely-there hair
+    ctx.beginPath();
+    ctx.moveTo(cx - faceW/2 + 2, faceCy - 5);
+    ctx.quadraticCurveTo(cx - faceW/2, faceCy - faceH/2 + 1, cx, faceCy - faceH/2 + 2);
+    ctx.quadraticCurveTo(cx + faceW/2, faceCy - faceH/2 + 1, cx + faceW/2 - 2, faceCy - 5);
+    ctx.lineTo(cx + faceW/2 - 4, faceCy - 5);
+    ctx.quadraticCurveTo(cx, faceCy - faceH/2 + 5, cx - faceW/2 + 4, faceCy - 5);
+    ctx.closePath();
+    ctx.fill();
+  }
+  // Hair highlight strands
+  ctx.strokeStyle = hair.hi;
+  ctx.lineWidth = 0.7;
+  for (let i = 0; i < 4; i++) {
+    ctx.beginPath();
+    const sx = cx - 14 + i * 9;
+    ctx.moveTo(sx, faceCy - faceH/2 + 2);
+    ctx.lineTo(sx + 1.5, faceCy - faceH/2 + 7);
+    ctx.stroke();
+  }
+
+  return canvas.toDataURL();
+}
+function buildTrophyShelf(p) {
+  const trophies = [];
+  if (p.sbRings) trophies.push({ icon: "🏆", count: p.sbRings, label: "SB", color: "#f0cc30" });
+  if (p.mvps)    trophies.push({ icon: "🏅", count: p.mvps,    label: "MVP", color: "#c890ff" });
+  if (p.opoys)   trophies.push({ icon: "⚡", count: p.opoys,   label: "OPOY", color: "#ffb060" });
+  if (p.dpoys)   trophies.push({ icon: "💀", count: p.dpoys,   label: "DPOY", color: "#ff7070" });
+  if (p.roys)    trophies.push({ icon: "🌱", count: p.roys,    label: "ROY", color: "#9be09b" });
+  if (p.allPros) trophies.push({ icon: "★",  count: p.allPros, label: "All-Pro", color: "#f0cc30" });
+  if (p.proBowls)trophies.push({ icon: "✦",  count: p.proBowls,label: "Pro Bowls", color: "#9bd0ff" });
+  if (!trophies.length && !(p.records && p.records.length)) return "";
+  const trophyChips = trophies.map(t => `
+    <span class="tt-trophy" style="border-color:${t.color}">
+      <span style="color:${t.color}">${t.icon}</span>
+      <span class="tt-trophy-count">${t.count}</span>
+      <span class="tt-trophy-label">${t.label}</span>
+    </span>`).join("");
+  const recordsHtml = p.records && p.records.length
+    ? `<div class="tt-records-list">${p.records.map(r => `<div class="tt-record">📜 ${r}</div>`).join("")}</div>`
+    : "";
+  return `<div class="tt-trophies">
+    <div class="tt-section-title">Trophy Case</div>
+    <div class="tt-trophy-row">${trophyChips || '<span class="tt-empty">No accolades yet</span>'}</div>
+    ${recordsHtml}
+  </div>`;
+}
+
+function buildCareerTable(p) {
+  if (!p.career || !p.career.length) return "";
+  const pos = p.position;
+  // Stat columns per position
+  const colsByPos = {
+    QB: [["YDS","pass_yds"],["TD","pass_td"],["INT","pass_int"],["CMP%","__cmpPct"]],
+    RB: [["ATT","rush_att"],["YDS","rush_yds"],["TD","rush_td"],["REC","rec"]],
+    WR: [["REC","rec"],["YDS","rec_yds"],["TD","rec_td"],["TGT","rec_tgt"]],
+    TE: [["REC","rec"],["YDS","rec_yds"],["TD","rec_td"],["TGT","rec_tgt"]],
+    DL: [["SK","sk"],["TKL","tkl"],["FF","ff"],["PD","pd"]],
+    LB: [["TKL","tkl"],["SK","sk"],["INT","int_made"],["FF","ff"]],
+    CB: [["INT","int_made"],["PD","pd"],["TKL","tkl"],["",""]],
+    S:  [["TKL","tkl"],["INT","int_made"],["PD","pd"],["SK","sk"]],
+    OL: [["GS","gs"],["SK ALLOW","sacks_allowed"],["PEN","penalties"],["",""]],
+  };
+  const cols = colsByPos[pos] || [["GP","gp"],["",""],["",""],["",""]];
+  const validCols = cols.filter(c => c[0]);
+  const headerCells = validCols.map(c => `<th>${c[0]}</th>`).join("");
+  const fmtVal = (s, k) => {
+    if (k === "__cmpPct" && s.pass_att) return ((s.pass_comp / s.pass_att) * 100).toFixed(1) + "%";
+    if (s[k] == null) return "—";
+    return s[k];
+  };
+  const accBadge = (a) => {
+    const colorMap = { MVP: "#c890ff", "All-Pro": "#f0cc30", "Pro Bowl": "#9bd0ff",
+                       OPOY: "#ffb060", DPOY: "#ff7070", ROY: "#9be09b", "Super Bowl": "#f0cc30" };
+    const c = colorMap[a] || "#888";
+    return `<span class="tt-acc-badge" style="color:${c};border-color:${c}" title="${a}">${a === "Super Bowl" ? "🏆" : a === "MVP" ? "🏅" : a.split(" ").map(w => w[0]).join("")}</span>`;
+  };
+  const rows = p.career.map(s => {
+    const cells = validCols.map(([_, k]) => `<td>${fmtVal(s, k)}</td>`).join("");
+    const accs = (s.accolades || []).map(accBadge).join("");
+    return `<tr><td class="tt-yr">${s.year}</td><td class="tt-age">${s.age}</td>${cells}<td class="tt-honors">${accs}</td></tr>`;
+  }).join("");
+  // Totals row
+  const tot = p.careerTotals || {};
+  const totalCells = validCols.map(([_, k]) => {
+    let v;
+    if (k === "__cmpPct" && tot.pass_att) v = ((tot.pass_comp / tot.pass_att) * 100).toFixed(1) + "%";
+    else v = tot[k] != null ? tot[k] : "";
+    return `<td><b>${v}</b></td>`;
+  }).join("");
+  return `<div class="tt-career">
+    <div class="tt-section-title">Career Stats</div>
+    <table class="tt-career-table">
+      <thead><tr><th>YR</th><th>AGE</th>${headerCells}<th>HONORS</th></tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr><td colspan="2"><b>TOTAL</b></td>${totalCells}<td></td></tr></tfoot>
+    </table>
+  </div>`;
+}
+let _playerTooltipEl = null;
+function ensureTooltipEl() {
+  if (_playerTooltipEl) return _playerTooltipEl;
+  _playerTooltipEl = document.createElement("div");
+  _playerTooltipEl.className = "player-tooltip";
+  document.body.appendChild(_playerTooltipEl);
+  return _playerTooltipEl;
+}
+document.addEventListener("mouseover", e => {
+  const el = e.target.closest && e.target.closest(".player-name[data-player]");
+  if (!el) return;
+  const name = el.dataset.player;
+  const p = gameResult && gameResult.playerLookup && gameResult.playerLookup.get(name);
+  if (!p) return;
+  const tt = ensureTooltipEl();
+  tt.innerHTML = buildPlayerTooltip(p);
+  tt.classList.add("show");
+});
+document.addEventListener("mousemove", e => {
+  if (!_playerTooltipEl || !_playerTooltipEl.classList.contains("show")) return;
+  const tt = _playerTooltipEl;
+  const pad = 16;
+  const rect = tt.getBoundingClientRect();
+  let x = e.clientX + pad, y = e.clientY + pad;
+  if (x + rect.width > window.innerWidth - 8) x = e.clientX - rect.width - pad;
+  if (y + rect.height > window.innerHeight - 8) y = e.clientY - rect.height - pad;
+  tt.style.left = Math.max(8, x) + "px";
+  tt.style.top  = Math.max(8, y) + "px";
+});
+document.addEventListener("mouseout", e => {
+  const el = e.target.closest && e.target.closest(".player-name[data-player]");
+  if (!el) return;
+  if (_playerTooltipEl) _playerTooltipEl.classList.remove("show");
+});
+let speedMul = 1.0; // 1.0 = normal
+let animState = null; // current play animation state
+let rafId = null;
+
+function buildOptions(sel, defaultId) {
+  sel.innerHTML = "";
+  for (const conf of ["AFC", "NFC"]) {
+    const og = document.createElement("optgroup");
+    og.label = conf;
+    for (const t of TEAMS.filter(x => x.conference === conf)) {
+      const o = document.createElement("option");
+      o.value = t.id;
+      const pb = getPlaybook(t);
+      const pbTag = pb.id !== "BALANCED" ? ` · ${pb.badge}` : "";
+      o.textContent = `${teamAscii(t)} ${t.city} ${t.name} (${t.division})${pbTag}`;
+      og.appendChild(o);
+    }
+    sel.appendChild(og);
+  }
+  sel.value = defaultId;
+}
+buildOptions(homeSel, 1);
+buildOptions(awaySel, 14);
+
+// ─── Depth chart preview ─────────────────────────────────────────────────
+// Each slot: {pos, idx, label, group}. Label is the visual position name.
+const DEPTH_SLOTS = [
+  { pos: "QB", idx: 0, label: "QB",  group: "OFFENSE" },
+  { pos: "RB", idx: 0, label: "RB",  group: "OFFENSE" },
+  { pos: "WR", idx: 0, label: "WR1", group: "OFFENSE" },
+  { pos: "WR", idx: 1, label: "WR2", group: "OFFENSE" },
+  { pos: "TE", idx: 0, label: "TE",  group: "OFFENSE" },
+  { pos: "OL", idx: 0, label: "LT",  group: "O-LINE" },
+  { pos: "OL", idx: 1, label: "LG",  group: "O-LINE" },
+  { pos: "OL", idx: 2, label: "C",   group: "O-LINE" },
+  { pos: "OL", idx: 3, label: "RG",  group: "O-LINE" },
+  { pos: "OL", idx: 4, label: "RT",  group: "O-LINE" },
+  { pos: "DL", idx: 0, label: "LDE", group: "DEFENSE" },
+  { pos: "DL", idx: 1, label: "LDT", group: "DEFENSE" },
+  { pos: "DL", idx: 2, label: "RDT", group: "DEFENSE" },
+  { pos: "DL", idx: 3, label: "RDE", group: "DEFENSE" },
+  { pos: "LB", idx: 0, label: "WLB", group: "DEFENSE" },
+  { pos: "LB", idx: 1, label: "MLB", group: "DEFENSE" },
+  { pos: "LB", idx: 2, label: "SLB", group: "DEFENSE" },
+  { pos: "CB", idx: 0, label: "CB1", group: "DEFENSE" },
+  { pos: "CB", idx: 1, label: "CB2", group: "DEFENSE" },
+  { pos: "S",  idx: 0, label: "FS",  group: "DEFENSE" },
+  { pos: "S",  idx: 1, label: "SS",  group: "DEFENSE" },
+  { pos: "K",  idx: 0, label: "K",   group: "SPECIAL" },
+  { pos: "P",  idx: 0, label: "P",   group: "SPECIAL" },
+];
+// Absolute index of (pos, idx) within a roster array.
+function rosterSlotAbs(pos, idx) {
+  let abs = 0;
+  for (const [p, count] of Object.entries(ROSTER_SLOTS)) {
+    if (p === pos) return idx < count ? abs + idx : -1;
+    abs += count;
+  }
+  return -1;
+}
+function defaultTierFor(pos, idx, playbook) {
+  if (idx === 0) return playbook.tierBias[pos] || "good";
+  if (idx === 1) return "average";
+  return "poor";
+}
+function tierClassFor(ovr) {
+  if (ovr >= 85) return "elite";
+  if (ovr >= 75) return "good";
+  if (ovr >= 60) return "average";
+  return "poor";
+}
+// Side state — keyed roster + per-slot overrides
+const preview = {
+  home: { id: null, roster: null, overrides: {} },
+  away: { id: null, roster: null, overrides: {} },
+};
+function regenerateFullRoster(team, overrides, blockNames = null) {
+  const pb = getPlaybook(team);
+  const r = genRoster(pb, {}, blockNames);
+  for (const [key, tier] of Object.entries(overrides)) {
+    const [pos, idxStr] = key.split(":");
+    const abs = rosterSlotAbs(pos, +idxStr);
+    if (abs >= 0) {
+      // Block all CURRENT names in this roster (except the slot being replaced) + cross-team
+      const block = new Set([
+        ...r.filter((_, i) => i !== abs).map(p => p.name),
+        ...(blockNames || []),
+      ]);
+      r[abs] = genUniquePlayer(pos, tier, block);
+    }
+  }
+  return r;
+}
+// Collect the OTHER side's player names so the team we're regenerating
+// doesn't accidentally produce duplicates that break the hover lookup.
+function otherSideNames(side) {
+  const other = side === "home" ? "away" : "home";
+  const otherRoster = preview[other].roster;
+  return new Set((otherRoster || []).map(p => p.name));
+}
+function setupPreview(side, force = false) {
+  const state = preview[side];
+  const sel = side === "home" ? homeSel : awaySel;
+  const newId = +sel.value;
+  if (state.id !== newId || force) {
+    state.id = newId;
+    state.overrides = {};
+    state.roster = regenerateFullRoster(getTeam(newId), {}, otherSideNames(side));
+  }
+  renderDepthChart(side);
+}
+function toggleSlotBoost(side, pos, idx, checked) {
+  const state = preview[side];
+  if (!state.roster) return;
+  const key = `${pos}:${idx}`;
+  if (checked) state.overrides[key] = "elite";
+  else delete state.overrides[key];
+  const team = getTeam(state.id);
+  const pb = getPlaybook(team);
+  const tier = state.overrides[key] || defaultTierFor(pos, idx, pb);
+  const abs = rosterSlotAbs(pos, idx);
+  if (abs >= 0) {
+    // Avoid name collisions with the rest of the roster + the other team
+    const block = new Set([
+      ...state.roster.filter((_, i) => i !== abs).map(p => p.name),
+      ...otherSideNames(side),
+    ]);
+    state.roster[abs] = genUniquePlayer(pos, tier, block);
+  }
+  renderDepthChart(side);
+}
+function renderDepthChart(side) {
+  const state = preview[side];
+  const el = $(`${side}Depth`);
+  if (!el || !state.roster) return;
+  const team = getTeam(state.id);
+  const pb = getPlaybook(team);
+  // Group slots by display group
+  const groups = {};
+  for (const slot of DEPTH_SLOTS) {
+    (groups[slot.group] = groups[slot.group] || []).push(slot);
+  }
+  let html = "";
+  for (const groupName of Object.keys(groups)) {
+    html += `<div class="depth-section">
+      <div class="depth-section-title">${groupName}${groupName === "OFFENSE" ? ` <span class="pb-tag">${pb.name}</span>` : ""}</div>`;
+    for (const slot of groups[groupName]) {
+      const abs = rosterSlotAbs(slot.pos, slot.idx);
+      if (abs < 0) continue;
+      const p = state.roster[abs];
+      if (!p) continue;
+      // Update the lookup map so the hover tooltip sees the latest player
+      const key = `${slot.pos}:${slot.idx}`;
+      const isBoosted = !!state.overrides[key];
+      const tier = tierClassFor(p.overall);
+      // Archetype mini-tag — all positions with archetypes
+      const ARCH_BY_POS = {
+        DL: DL_ARCHETYPES, OL: OL_ARCHETYPES, RB: RB_ARCHETYPES, WR: WR_ARCHETYPES,
+        TE: TE_ARCHETYPES, LB: LB_ARCHETYPES, CB: CB_ARCHETYPES, S: S_ARCHETYPES,
+        K: K_ARCHETYPES, P: P_ARCHETYPES,
+      };
+      const archTag = p.archetype
+        ? `<span class="depth-arch arch-${p.position.toLowerCase()}">${(ARCH_BY_POS[p.position] || {})[p.archetype]?.label || p.archetype}</span>`
+        : "";
+      html += `<div class="depth-row${isBoosted ? " boosted" : ""}">
+        <span class="depth-slot">${slot.label}</span>
+        <span class="depth-name">${nameSpan(p.name)}${archTag}</span>
+        <span class="depth-ovr tier-${tier}">${p.overall}</span>
+        <input type="checkbox" class="depth-boost" data-side="${side}" data-pos="${slot.pos}" data-idx="${slot.idx}"${isBoosted ? " checked" : ""} title="Force elite tier" />
+      </div>`;
+    }
+    html += `</div>`;
+  }
+  el.innerHTML = html;
+  // Keep a local lookup so hover tooltips work pre-game
+  if (!window._pregameLookup) window._pregameLookup = new Map();
+  for (const p of state.roster) window._pregameLookup.set(p.name, { ...p, team: side });
+}
+// Boost checkbox event delegation
+document.addEventListener("change", e => {
+  const cb = e.target.closest && e.target.closest(".depth-boost");
+  if (!cb) return;
+  toggleSlotBoost(cb.dataset.side, cb.dataset.pos, +cb.dataset.idx, cb.checked);
+});
+// Re-render previews when team selection changes
+homeSel.addEventListener("change", () => setupPreview("home"));
+awaySel.addEventListener("change", () => setupPreview("away"));
+
+// Pre-game hover lookup: when no game is active, use _pregameLookup
+const _origLookupGet = (name) => {
+  if (gameResult && gameResult.playerLookup) {
+    const p = gameResult.playerLookup.get(name);
+    if (p) return p;
+  }
+  return window._pregameLookup && window._pregameLookup.get(name);
+};
+// Patch the hover handler to use our combined lookup
+document.addEventListener("mouseover", e => {
+  const el = e.target.closest && e.target.closest(".player-name[data-player]");
+  if (!el) return;
+  const name = el.dataset.player;
+  const p = _origLookupGet(name);
+  if (!p) {
+    console.warn("[tooltip] No player found for name:", JSON.stringify(name));
+    return;
+  }
+  const tt = ensureTooltipEl();
+  try {
+    tt.innerHTML = buildPlayerTooltip(p);
+    tt.classList.add("show");
+  } catch (err) {
+    console.error("[tooltip] buildPlayerTooltip threw for player:", p, err);
+  }
+}, true);
+
+// Initial depth charts
+setupPreview("home", true);
+setupPreview("away", true);
+
+speedSlider.addEventListener("input", e => {
+  const v = +e.target.value; // 1-10
+  // 1 → 0.25× (very slow), 5 → 1×, 10 → 3× (fast)
+  speedMul = v <= 5 ? (0.25 + (v - 1) * 0.1875) : (1 + (v - 5) * 0.4);
+  speedLabel.textContent = `${speedMul.toFixed(2)}×`;
+});
+
+// Lazy-cached "rest of the league" — the other 30 team rosters. Generated
+// once per session and reused so career nicknames stay stable across games.
+let _otherLeagueRosters = null;
+function ensureLeague(homeId, awayId, homeRoster, awayRoster) {
+  if (!_otherLeagueRosters) {
+    _otherLeagueRosters = {};
+    for (const t of TEAMS) {
+      if (t.id === homeId || t.id === awayId) continue;
+      _otherLeagueRosters[t.id] = regenerateFullRoster(t, {});
+    }
+  }
+  // Build a combined rosters dict including the user's current home/away
+  const rosters = { ..._otherLeagueRosters, [homeId]: homeRoster, [awayId]: awayRoster };
+  assignLeagueNicknames(rosters);
+}
+
+simBtn.addEventListener("click", () => {
+  const homeId = +homeSel.value, awayId = +awaySel.value;
+  if (homeId === awayId) { alert("Pick two different teams!"); return; }
+  const home = getTeam(homeId), away = getTeam(awayId);
+  // Use the previewed rosters (with any per-slot elite overrides applied)
+  const homeRoster = (preview.home.id === homeId && preview.home.roster)
+    ? preview.home.roster
+    : regenerateFullRoster(home, {});
+  const homeBlock = new Set(homeRoster.map(p => p.name));
+  const awayRoster = (preview.away.id === awayId && preview.away.roster)
+    ? preview.away.roster
+    : regenerateFullRoster(away, {}, homeBlock);
+  // Sanity check: if any duplicates slipped through, rename them
+  const allNames = new Set();
+  for (const roster of [homeRoster, awayRoster]) {
+    for (const p of roster) {
+      if (allNames.has(p.name)) {
+        for (const s of ["II","III","IV","V","VI"]) {
+          const candidate = `${p.name} ${s}`;
+          if (!allNames.has(candidate)) { p.name = candidate; break; }
+        }
+      }
+      allNames.add(p.name);
+    }
+  }
+  // Grant career nicknames to the league's top 10 per position. Done before
+  // the game so the names show up in tooltips, play logs, and the field.
+  ensureLeague(homeId, awayId, homeRoster, awayRoster);
+  const sim = new GameSimulator(home, away, homeRoster, awayRoster);
+  gameResult = sim.simulate();
+  playHead = 0;
+  $("playbackControls").style.display = "flex";
+  renderGameLayout();
+  startNextPlay();
+  playing = true;
+  updateButtons();
+});
+

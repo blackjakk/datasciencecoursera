@@ -1,0 +1,281 @@
+// ─── 32 fictional teams ────────────────────────────────────────────────────
+const TEAMS = [
+  { id:1,  city:"New Albion",  name:"Kraken",     conference:"AFC", division:"East",  primary:"#00264D", secondary:"#84B6F4", emoji:"🦑" },
+  { id:2,  city:"Stonehaven",  name:"Titans",     conference:"AFC", division:"East",  primary:"#4B92DB", secondary:"#FFFFFF", emoji:"⚡" },
+  { id:3,  city:"Ironport",    name:"Wolves",     conference:"AFC", division:"East",  primary:"#1A1A1A", secondary:"#A0A0A0", emoji:"🐺" },
+  { id:4,  city:"Coldwater",   name:"Buccaneers", conference:"AFC", division:"East",  primary:"#0072CE", secondary:"#FFB81C", emoji:"🏴‍☠️" },
+  { id:5,  city:"Steelforge",  name:"Hammers",    conference:"AFC", division:"North", primary:"#FFB612", secondary:"#101820", emoji:"🔨", playbook:"GROUND_AND_POUND" },
+  { id:6,  city:"Riverdale",   name:"Grizzlies",  conference:"AFC", division:"North", primary:"#FB4F14", secondary:"#000000", emoji:"🐻" },
+  { id:7,  city:"Coalport",    name:"Ravens",     conference:"AFC", division:"North", primary:"#241773", secondary:"#9E7C0C", emoji:"🦅" },
+  { id:8,  city:"Lakewood",    name:"Bulldogs",   conference:"AFC", division:"North", primary:"#0B162A", secondary:"#C83803", emoji:"🐶" },
+  { id:9,  city:"Sunbelt",     name:"Vipers",     conference:"AFC", division:"South", primary:"#002244", secondary:"#69BE28", emoji:"🐍" },
+  { id:10, city:"Palmetto",    name:"Jaguars",    conference:"AFC", division:"South", primary:"#006778", secondary:"#D7A22A", emoji:"🐆" },
+  { id:11, city:"Bayou",       name:"Gators",     conference:"AFC", division:"South", primary:"#03202F", secondary:"#A71930", emoji:"🐊", playbook:"GROUND_AND_POUND" },
+  { id:12, city:"Redrock",     name:"Stallions",  conference:"AFC", division:"South", primary:"#4F2683", secondary:"#FFC62F", emoji:"🐎" },
+  { id:13, city:"Desert",      name:"Scorpions",  conference:"AFC", division:"West",  primary:"#002244", secondary:"#C60C30", emoji:"🦂" },
+  { id:14, city:"Silicon",     name:"Raiders",    conference:"AFC", division:"West",  primary:"#101820", secondary:"#A5ACAF", emoji:"⚔️", playbook:"AIR_RAID" },
+  { id:15, city:"Cascade",     name:"Thunder",    conference:"AFC", division:"West",  primary:"#002C5F", secondary:"#69BE28", emoji:"⛈️" },
+  { id:16, city:"Frontier",    name:"Outlaws",    conference:"AFC", division:"West",  primary:"#E31837", secondary:"#FFB81C", emoji:"🤠", playbook:"OPTION" },
+  { id:17, city:"Capitol",     name:"Sentinels",  conference:"NFC", division:"East",  primary:"#003594", secondary:"#869397", emoji:"🛡️" },
+  { id:18, city:"Metro",       name:"Predators",  conference:"NFC", division:"East",  primary:"#004C54", secondary:"#A5ACAF", emoji:"🦁" },
+  { id:19, city:"Eastport",    name:"Eagles",     conference:"NFC", division:"East",  primary:"#004C54", secondary:"#A5ACAF", emoji:"🦅" },
+  { id:20, city:"Colonial",    name:"Minutemen",  conference:"NFC", division:"East",  primary:"#003366", secondary:"#B0B7BC", emoji:"🎯", playbook:"AIR_RAID" },
+  { id:21, city:"Great Lakes", name:"Frost",      conference:"NFC", division:"North", primary:"#4F2683", secondary:"#FFC62F", emoji:"❄️" },
+  { id:22, city:"Ironwood",    name:"Vikings",    conference:"NFC", division:"North", primary:"#4B2E83", secondary:"#FFC62F", emoji:"🪓" },
+  { id:23, city:"Prairie",     name:"Wolves",     conference:"NFC", division:"North", primary:"#203731", secondary:"#FFB612", emoji:"🐺" },
+  { id:24, city:"Blizzard",    name:"Bears",      conference:"NFC", division:"North", primary:"#0B162A", secondary:"#C83803", emoji:"🐻" },
+  { id:25, city:"Magnolia",    name:"Saints",     conference:"NFC", division:"South", primary:"#D3BC8D", secondary:"#101820", emoji:"⚜️", playbook:"DUAL_THREAT" },
+  { id:26, city:"Gulf",        name:"Marauders",  conference:"NFC", division:"South", primary:"#D50A0A", secondary:"#0A0A08", emoji:"🏴" },
+  { id:27, city:"Swamp",       name:"Kings",      conference:"NFC", division:"South", primary:"#002244", secondary:"#FFC62F", emoji:"👑" },
+  { id:28, city:"Peach State", name:"Falcons",    conference:"NFC", division:"South", primary:"#A71930", secondary:"#000000", emoji:"🦅" },
+  { id:29, city:"Pacific",     name:"Surge",      conference:"NFC", division:"West",  primary:"#002244", secondary:"#69BE28", emoji:"🌊", playbook:"AIR_RAID" },
+  { id:30, city:"Redwood",     name:"Giants",     conference:"NFC", division:"West",  primary:"#0B2265", secondary:"#A71930", emoji:"🌲", playbook:"GROUND_AND_POUND" },
+  { id:31, city:"Canyon",      name:"Hawks",      conference:"NFC", division:"West",  primary:"#002244", secondary:"#A5ACAF", emoji:"🦅" },
+  { id:32, city:"Volcanic",    name:"Fury",       conference:"NFC", division:"West",  primary:"#97233F", secondary:"#000000", emoji:"🌋" },
+];
+const getTeam = id => TEAMS.find(t => t.id === Number(id));
+
+// ASCII team identifier — replaces the emoji column in selectors, scoreboards,
+// power-rankings, etc. Custom 3-char tokens per mascot where possible, else
+// falls back to a bracketed first letter `[X]`. Pure ASCII so it renders the
+// same on any system + reads as a terminal label rather than a sticker.
+// NOTE: avoid sequences like `<S>` `<v>` `<H>` — the HTML parser will
+// interpret them as real tags (e.g. <s> is strikethrough) and clobber
+// every subsequent element rendered via innerHTML.
+const TEAM_ASCII_OVERRIDES = {
+  Kraken:"~8~",  Titans:"]T[",  Wolves:"/W\\", Buccaneers:">+<",
+  Hammers:"=H=", Grizzlies:"oGo", Ravens:"\\v/", Bulldogs:"[B]",
+  Vipers:"}S{",  Jaguars:">J<", Gators:"}G{",  Stallions:"/H\\",
+  Scorpions:"~S~", Raiders:"X-X", Thunder:"/!\\", Outlaws:"[O]",
+  Sentinels:"{S}", Predators:"/P\\", Eagles:"^v^", Minutemen:"(*)",
+  Frost:"*F*",   Vikings:"(V)", Pirates:">P<", Steamers:"=S=",
+  Comets:"~C~",  Storm:"/!\\",  Mustangs:"/M\\", Bandits:"[B]",
+  Riders:"/R\\", Giants:"]G[",  Hawks:"^H^",   Fury:"!F!",
+};
+function teamAscii(team) {
+  if (!team) return "[?]";
+  return TEAM_ASCII_OVERRIDES[team.name] || `[${(team.name || "?")[0]}]`;
+}
+
+// ─── Personnel groupings ──────────────────────────────────────────────────
+// Offensive personnel (which skill players are on the field) and the
+// defensive package that subs in to match. Real NFL notation: first
+// digit = RB count, second = TE count, WR = 5 - (RB+TE).
+//   I_FORM (21): 2RB-1TE-2WR — power/run heavy
+//   HEAVY  (12): 1RB-2TE-2WR — jumbo, run/PA threat
+//   BASE   (11): 1RB-1TE-2WR — legacy default (4 skill, slim split)
+//   TRIPS  (11): 1RB-1TE-3WR — modern NFL standard, slot WR3
+//   SPREAD (10): 1RB-0TE-4WR — passing down
+//   EMPTY  (01): 0RB-1TE-4WR — no back, true 5-out
+const PERSONNEL = {
+  I_FORM: { rb: 2, te: 1, wr: 2, label: "I-Form (21)",  skill: 5 },
+  HEAVY:  { rb: 1, te: 2, wr: 2, label: "Heavy (12)",   skill: 5 },
+  BASE:   { rb: 1, te: 1, wr: 2, label: "Base (11)",    skill: 4 },
+  TRIPS:  { rb: 1, te: 1, wr: 3, label: "Trips (11)",   skill: 5 },
+  SPREAD: { rb: 1, te: 0, wr: 4, label: "Spread (10)",  skill: 5 },
+  EMPTY:  { rb: 0, te: 1, wr: 4, label: "Empty (01)",   skill: 5 },
+};
+// Defensive package counts — subs are made off the base 4-3 (DL stays 4).
+const DEF_PACKAGE = {
+  BASE_43: { dl: 4, lb: 3, cb: 2, s: 2, label: "4-3 Base" },
+  NICKEL:  { dl: 4, lb: 2, cb: 3, s: 2, label: "Nickel"   },
+  DIME:    { dl: 4, lb: 1, cb: 4, s: 2, label: "Dime"     },
+  QUARTER: { dl: 4, lb: 0, cb: 5, s: 2, label: "Quarter"  },
+};
+function packageForPersonnel(p) {
+  const wr = PERSONNEL[p]?.wr ?? 2;
+  if (wr >= 5) return "QUARTER";
+  if (wr >= 4) return "DIME";
+  if (wr >= 3) return "NICKEL";
+  return "BASE_43";
+}
+// Personnel selection — playbook-weighted plus situational tilts.
+// Goal-line favors HEAVY/I_FORM; long-yardage favors SPREAD/EMPTY.
+function pickPersonnel(playbook, situation) {
+  const sit = situation || {};
+  if (sit.isGoalLine) {
+    return Math.random() < 0.55 ? "HEAVY" : (Math.random() < 0.6 ? "I_FORM" : "BASE");
+  }
+  if (sit.isLongYardage) {
+    const r = Math.random();
+    return r < 0.45 ? "SPREAD" : r < 0.65 ? "EMPTY" : "TRIPS";
+  }
+  const mix = playbook.personnelMix || { TRIPS: 0.45, BASE: 0.20, SPREAD: 0.15, HEAVY: 0.12, I_FORM: 0.05, EMPTY: 0.03 };
+  let roll = Math.random();
+  for (const [key, prob] of Object.entries(mix)) {
+    if (roll < prob) return key;
+    roll -= prob;
+  }
+  return "BASE";
+}
+
+// ─── Playbooks ────────────────────────────────────────────────────────────
+const PLAYBOOKS = {
+  BALANCED: {
+    id: "BALANCED", name: "Balanced", badge: "BAL",
+    passProb: { long: 0.72, mid: 0.58, short: 0.42 },
+    targetMix: { wr1: 0.40, wr2: 0.30, te: 0.22, rb: 0.08 },
+    personnelMix: { TRIPS: 0.40, BASE: 0.25, HEAVY: 0.12, SPREAD: 0.13, I_FORM: 0.05, EMPTY: 0.05 },
+    tierBias: {},
+    airYdsMean: 7.5, airYdsSd: 6,
+    rushYdsMean: 4.3, rushYdsSd: 5.5,
+    compMul: 1.0, sackMul: 1.0,
+  },
+  AIR_RAID: {
+    id: "AIR_RAID", name: "Air Raid", badge: "AIR",
+    // Pass volume trimmed — was throwing 87% of plays so even mediocre
+    // WRs racked up 130+ yds vs elite secondaries on volume alone.
+    passProb: { long: 0.82, mid: 0.66, short: 0.50 },
+    targetMix: { wr1: 0.42, wr2: 0.32, te: 0.16, rb: 0.10 },
+    personnelMix: { TRIPS: 0.40, SPREAD: 0.30, EMPTY: 0.12, BASE: 0.10, HEAVY: 0.05, I_FORM: 0.03 },
+    tierBias: { QB: "elite", WR: "elite" },
+    // Elite QB + WRs hit at high comp% with normal air-yard depth; pay the
+    // tax in sack volume from extra dropbacks and a weaker run game.
+    airYdsMean: 7.5, airYdsSd: 7,
+    rushYdsMean: 4.0, rushYdsSd: 5,
+    // sackMul bumped (1.15 → 1.32) — defense knows pass is coming, pins ears back
+    compMul: 1.01, sackMul: 1.32,
+  },
+  GROUND_AND_POUND: {
+    id: "GROUND_AND_POUND", name: "Ground & Pound", badge: "G&P",
+    passProb: { long: 0.55, mid: 0.34, short: 0.20 },
+    targetMix: { wr1: 0.28, wr2: 0.20, te: 0.34, rb: 0.18 },
+    personnelMix: { I_FORM: 0.30, HEAVY: 0.30, BASE: 0.22, TRIPS: 0.13, SPREAD: 0.05 },
+    tierBias: { RB: "elite", OL: "elite" },
+    // Run-first; when they DO pass it's deeper play-action — but those deep
+    // shots are LOWER comp%. Sack rate is normal (no auto-discount).
+    airYdsMean: 9, airYdsSd: 7,
+    rushYdsMean: 4.7, rushYdsSd: 5,
+    compMul: 0.92, sackMul: 1.0,
+  },
+  // Dual-threat QB scheme: QB scrambles when pressured
+  DUAL_THREAT: {
+    id: "DUAL_THREAT", name: "Dual Threat", badge: "DT",
+    passProb: { long: 0.75, mid: 0.52, short: 0.30 },
+    targetMix: { wr1: 0.34, wr2: 0.26, te: 0.22, rb: 0.18 },
+    personnelMix: { TRIPS: 0.35, SPREAD: 0.20, BASE: 0.20, HEAVY: 0.15, I_FORM: 0.08, EMPTY: 0.02 },
+    tierBias: { QB: "elite", WR: "good", RB: "good" },
+    airYdsMean: 7.5, airYdsSd: 6.5,
+    rushYdsMean: 4.8, rushYdsSd: 5.5,
+    compMul: 1.0, sackMul: 1.05,
+    qbScramblePct: 0.22,
+  },
+  // Read-Option / RPO: mobile QB carries — option-style with explosive QB
+  OPTION: {
+    id: "OPTION", name: "Read Option", badge: "OPT",
+    passProb: { long: 0.65, mid: 0.45, short: 0.30 },
+    targetMix: { wr1: 0.30, wr2: 0.22, te: 0.28, rb: 0.20 },
+    personnelMix: { I_FORM: 0.32, HEAVY: 0.28, BASE: 0.22, TRIPS: 0.18 },
+    tierBias: { QB: "elite", RB: "good" },
+    airYdsMean: 7.5, airYdsSd: 6.5,
+    rushYdsMean: 4.5, rushYdsSd: 6,        // good but not elite (G&P still better at pure run)
+    compMul: 0.97, sackMul: 1.05,          // QB holds for reads → small comp/sack penalty
+    qbScramblePct: 0.16,                   // bails sometimes (vs DT 0.22, but more impact)
+    qbRushPct: 0.28,                       // ~28% of designed runs are QB carries
+    qbRushFumbleMul: 1.4,                  // option exchanges fumble more
+  },
+};
+
+function getPlaybook(team) { return PLAYBOOKS[team?.playbook] || PLAYBOOKS.BALANCED; }
+
+// ── DEFENSIVE PLAYBOOKS ────────────────────────────────────────────────
+// Each team has a base scheme that tilts run / pass / sack / deep-coverage
+// outcomes. Multipliers are FROM the offense's perspective:
+//   runMul > 1 → offense gains more yards on the ground
+//   passMul > 1 → offense completes more / gains more on passes
+//   sackMul > 1 → MORE sacks (defense generates pressure)
+//   deepCovMul > 1 → defense gives up more deep yards
+const DEF_PLAYBOOKS = {
+  BASE_43: {
+    id: "BASE_43", name: "4-3 Base", badge: "4-3",
+    runMul: 1.00, passMul: 1.00, sackMul: 1.00, deepCovMul: 1.00,
+    archBias: { LB: { COVER: 0.30, SIGNAL: 0.25, BLITZER: 0.20, THUMPER: 0.25 } },
+  },
+  BASE_34: {
+    id: "BASE_34", name: "3-4 Base", badge: "3-4",
+    runMul: 0.97, passMul: 0.98, sackMul: 1.10, deepCovMul: 1.00,
+    archBias: { LB: { BLITZER: 0.35, THUMPER: 0.30, COVER: 0.20, SIGNAL: 0.15 } },
+  },
+  NICKEL: {
+    id: "NICKEL", name: "Nickel", badge: "NCK",
+    runMul: 1.05, passMul: 0.93, sackMul: 1.00, deepCovMul: 0.95,
+    archBias: { CB: { SLOT_CB: 0.40, ZONE: 0.30, SHUTDOWN: 0.20, PHYSICAL: 0.10 } },
+  },
+  DIME: {
+    id: "DIME", name: "Dime", badge: "DM",
+    runMul: 1.12, passMul: 0.88, sackMul: 0.95, deepCovMul: 0.85,
+    archBias: { S: { CENTER_FIELD: 0.50, BALL_HAWK: 0.30, BOX: 0.05, PHYSICAL: 0.15 } },
+  },
+  BLITZ_46: {
+    id: "BLITZ_46", name: "46 Blitz", badge: "46",
+    runMul: 0.88, passMul: 1.12, sackMul: 1.25, deepCovMul: 1.15,
+    archBias: { LB: { BLITZER: 0.55, THUMPER: 0.30, SIGNAL: 0.10, COVER: 0.05 } },
+  },
+  PREVENT: {
+    id: "PREVENT", name: "Prevent", badge: "PRV",
+    runMul: 1.10, passMul: 0.92, sackMul: 0.85, deepCovMul: 0.55,
+    archBias: { S: { CENTER_FIELD: 0.55, BALL_HAWK: 0.25, PHYSICAL: 0.10, BOX: 0.10 } },
+  },
+};
+function getDefPlaybook(team) {
+  if (team?.defPlaybook && DEF_PLAYBOOKS[team.defPlaybook]) return DEF_PLAYBOOKS[team.defPlaybook];
+  if (!team) return DEF_PLAYBOOKS.BASE_43;
+  // Hardcoded defensive identities for a few teams. Steel/Ravens/Gators
+  // run a classic 3-4. Bears (Blizzard) + Bulldogs are aggressive 4-3
+  // with heavy LB pressure. Others get a deterministic base pick.
+  const idMap = {
+    5:  "BASE_34",   // Steelforge Hammers
+    7:  "BASE_34",   // Coalport Ravens
+    8:  "BASE_43",   // Lakewood Bulldogs (aggressive front-4)
+    11: "BASE_34",   // Bayou Gators
+    24: "BASE_43",   // Blizzard Bears
+  };
+  if (idMap[team.id]) return DEF_PLAYBOOKS[idMap[team.id]];
+  // Deterministic per-team pick from the base schemes. BASE_43 is the
+  // most common; nickel/dime sprinkled in.
+  const pool = ["BASE_43", "BASE_43", "BASE_43", "BASE_34", "NICKEL", "DIME"];
+  return DEF_PLAYBOOKS[pool[(team.id * 7) % pool.length]] || DEF_PLAYBOOKS.BASE_43;
+}
+
+function pickReceiver(playbook, starters, personnel) {
+  const p = PERSONNEL[personnel] || PERSONNEL.BASE;
+  const base = playbook.targetMix;
+  // Adjust mix to match what's actually on the field for this personnel.
+  // 3-WR sets: carve a slot-WR share from wr1+wr2.
+  // 4-WR / SPREAD: another slice for wr4.
+  // No-TE (10): fold TE share into WRs.
+  // No-RB (01/EMPTY): fold RB share into WRs.
+  let mix = { wr1: base.wr1 || 0, wr2: base.wr2 || 0, wr3: 0, wr4: 0, te: base.te || 0, rb: base.rb || 0 };
+  if (p.te === 0) {
+    mix.wr1 += mix.te * 0.45;
+    mix.wr2 += mix.te * 0.30;
+    mix.te = 0;
+  }
+  if (p.rb === 0) {
+    mix.wr1 += mix.rb * 0.40;
+    mix.wr2 += mix.rb * 0.30;
+    mix.rb = 0;
+  }
+  if (p.wr >= 3) {
+    const slice = Math.min(0.18, (mix.wr1 + mix.wr2) * 0.22);
+    mix.wr1 -= slice * 0.55;
+    mix.wr2 -= slice * 0.45;
+    mix.wr3 = slice;
+  }
+  if (p.wr >= 4) {
+    const slice = 0.10;
+    mix.wr1 -= slice * 0.40;
+    mix.wr2 -= slice * 0.30;
+    mix.wr3 -= slice * 0.30;
+    mix.wr4 = slice;
+  }
+  let roll = Math.random();
+  for (const key of ["wr1", "wr2", "wr3", "wr4", "te", "rb"]) {
+    const prob = mix[key] || 0;
+    if (prob <= 0) continue;
+    if (roll < prob) return starters[key] || starters.wr1;
+    roll -= prob;
+  }
+  return starters.wr1;
+}
+
