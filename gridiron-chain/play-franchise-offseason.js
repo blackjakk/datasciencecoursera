@@ -1111,7 +1111,7 @@ function frnSimWeek() {
   }
   _computeAndStorePOTW(w);
   _checkWeekComplete();
-  saveFranchise();
+  _flushSaveFranchise();
   showFranchiseDashboard();
 }
 
