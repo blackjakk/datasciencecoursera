@@ -24316,11 +24316,16 @@ function renderFrnRegular() {
       <span class="frn-leader-stat" style="font-size:.65rem;color:var(--gray)">${entry.statLine}</span>
     </div>`;
   };
+  const potwRoundLabel = w => {
+    if (w <= FRANCHISE_WEEKS) return `WEEK ${w}`;
+    const ri = w - FRANCHISE_WEEKS - 1;
+    return ["WILD CARD","DIVISIONAL","CHAMPIONSHIP"][ri] || `PLAYOFF R${ri+1}`;
+  };
   const isLatestVoted = latestPotwWeek != null && !!votesByWeek[latestPotwWeek];
   const potwHtml = latestPotw ? `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.3rem">
-      <span style="color:var(--gray);font-size:.6rem;letter-spacing:.5px">WEEK ${latestPotwWeek} WINNERS${isLatestVoted ? " · <span style='color:var(--gold)'>VOTED</span>" : ""}</span>
-      ${unvotedWeek != null ? `<button class="frn-cap-btn" onclick="renderPotwVoting(${unvotedWeek})" style="padding:.2rem .6rem;font-size:.6rem;letter-spacing:.8px;background:var(--gold);color:#000;font-weight:900;border:0">🗳 VOTE W${unvotedWeek}</button>` : ""}
+      <span style="color:var(--gray);font-size:.6rem;letter-spacing:.5px">${potwRoundLabel(latestPotwWeek)} WINNERS${isLatestVoted ? " · <span style='color:var(--gold)'>VOTED</span>" : ""}</span>
+      ${unvotedWeek != null ? `<button class="frn-cap-btn" onclick="renderPotwVoting(${unvotedWeek})" style="padding:.2rem .6rem;font-size:.6rem;letter-spacing:.8px;background:var(--gold);color:#000;font-weight:900;border:0">🗳 VOTE${unvotedWeek <= FRANCHISE_WEEKS ? " W"+unvotedWeek : " "+potwRoundLabel(unvotedWeek)}</button>` : ""}
     </div>
     ${potwRow("OFF", latestPotw.offense, isLatestVoted)}
     ${potwRow("DEF", latestPotw.defense, isLatestVoted)}
@@ -26416,87 +26421,197 @@ function _renderPregamePreview(m, seeds) {
   if (!m.homeId || !m.awayId || m.winnerId != null) return "";
   const home = getTeam(m.homeId), away = getTeam(m.awayId);
   if (!home || !away) return "";
-  // Season head-to-head from played schedule
+
+  // ── Helpers ─────────────────────────────────────────────────────────────────
+  const abbr = t => t.abbr || t.name.slice(0, 3).toUpperCase();
+
+  // Season games played by a team (regular season only)
+  const teamGames = teamId => (franchise.schedule || []).filter(g =>
+    g.played && (g.homeId === teamId || g.awayId === teamId)
+  ).sort((a, b) => a.week - b.week);
+
+  // Scoring avg: returns { pf, pa, gp } for a team
+  const scoringAvg = teamId => {
+    const gs = teamGames(teamId);
+    if (!gs.length) return { pf: 0, pa: 0, gp: 0 };
+    let pf = 0, pa = 0;
+    for (const g of gs) {
+      if (g.homeId === teamId) { pf += g.homeScore; pa += g.awayScore; }
+      else                      { pf += g.awayScore; pa += g.homeScore; }
+    }
+    return { pf: pf / gs.length, pa: pa / gs.length, gp: gs.length };
+  };
+
+  // Last N results (most recent last in the sorted list → reverse)
+  const recentForm = (teamId, n = 4) => {
+    const gs = teamGames(teamId).slice(-n);
+    return gs.map(g => {
+      const myScore  = g.homeId === teamId ? g.homeScore : g.awayScore;
+      const oppScore = g.homeId === teamId ? g.awayScore : g.homeScore;
+      const isHome   = g.homeId === teamId;
+      const opp      = getTeam(isHome ? g.awayId : g.homeId);
+      const result   = myScore > oppScore ? "W" : myScore < oppScore ? "L" : "T";
+      return { result, myScore, oppScore, oppAbbr: abbr(opp || { name: "???" }), week: g.week };
+    });
+  };
+
+  // Season stat leaders for a team, with real line stats
+  const teamFilmStats = teamId => {
+    const players = Object.values(franchise.seasonStats?.[teamId] || {});
+    const best = (key, cmp) => players.filter(p => (p[key] || 0) > 0)
+      .sort((a, b) => (b[key] || 0) - (a[key] || 0))[0];
+    const qb  = best("pass_yds");
+    const rb  = best("rush_yds");
+    const wr  = best("rec_yds");
+    const sk  = best("sk");
+    const itp = best("int_made");
+    const lines = [];
+    if (qb) lines.push({ cat: "QB", name: qb.name,
+      stat: `${qb.pass_yds||0} yds · ${qb.pass_td||0} TD · ${qb.pass_int||0} INT`,
+      pos: qb.pos });
+    if (rb) lines.push({ cat: "RUSH", name: rb.name,
+      stat: `${rb.rush_yds||0} yds · ${rb.rush_td||0} TD · ${(rb.rush_att||0)} att`,
+      pos: rb.pos });
+    if (wr) lines.push({ cat: "REC", name: wr.name,
+      stat: `${wr.rec_yds||0} yds · ${wr.rec||0} rec · ${wr.rec_td||0} TD`,
+      pos: wr.pos });
+    if (sk) lines.push({ cat: "PASS RUSH", name: sk.name,
+      stat: `${(+sk.sk).toFixed(1)} sacks · ${sk.tkl||0} tkl`,
+      pos: sk.pos });
+    if (itp && (!sk || itp.name !== sk.name)) lines.push({ cat: "DB", name: itp.name,
+      stat: `${itp.int_made||0} INT · ${itp.pd||0} PD`,
+      pos: itp.pos });
+    return lines;
+  };
+
+  // ── H2H ─────────────────────────────────────────────────────────────────────
   const meetings = (franchise.schedule || []).filter(g =>
     g.played && (
       (g.homeId === m.homeId && g.awayId === m.awayId) ||
       (g.homeId === m.awayId && g.awayId === m.homeId)
     ));
-  const h2hHtml = meetings.length ? `
-    <div class="bspnlive-preview-h2h">
-      <span class="bspnlive-preview-label">H2H</span>
-      ${meetings.map(g => {
+  const h2hHtml = meetings.length
+    ? meetings.map(g => {
         const winner = g.homeScore > g.awayScore ? g.homeId : g.awayScore > g.homeScore ? g.awayId : null;
         const winT = winner ? getTeam(winner) : null;
-        return `<button onclick="frnOpenPlayoffBox === undefined || renderFrnPastGame(${g.week}, ${g.homeId}, ${g.awayId})"
-          style="background:transparent;border:0;color:var(--blwhite);font-family:inherit;cursor:pointer;font-size:.7rem;padding:0">
-          W${g.week}: <span style="color:${winT?.primary||'inherit'};font-weight:700">${winT?.name||"?"}</span> ${g.homeScore}-${g.awayScore}
-        </button>`;
-      }).join(" · ")}
-    </div>` : `<div class="bspnlive-preview-h2h"><span class="bspnlive-preview-label">H2H</span> <span style="color:var(--blgray)">No regular-season meeting</span></div>`;
+        return `<span>W${g.week}: <b style="color:${winT?.primary||'inherit'}">${winT ? abbr(winT) : "?"}</b> ${g.homeScore}–${g.awayScore}</span>`;
+      }).join(" &nbsp;·&nbsp; ")
+    : `<span style="color:var(--blgray);font-style:italic">No meeting this season</span>`;
 
-  // Top 3 performers each side, season-wide
-  const topForTeam = teamId => {
-    const players = franchise.seasonStats?.[teamId] || {};
-    const arr = Object.values(players).map(p => ({
-      name: p.name, pos: p.pos, fpts: _fantasyPPR ? _fantasyPPR(p, p.pos) : 0,
-    })).filter(p => p.fpts > 0).sort((a,b) => b.fpts - a.fpts).slice(0, 3);
-    return arr;
+  // ── Recent form bars ─────────────────────────────────────────────────────────
+  const formPill = r => {
+    const bg  = r.result === "W" ? "var(--green)" : r.result === "L" ? "var(--red)" : "#888";
+    const tip = `W${r.week} ${r.result} ${r.myScore}–${r.oppScore} vs ${r.oppAbbr}`;
+    return `<span title="${tip}" style="display:inline-block;width:1.4rem;height:1.4rem;line-height:1.4rem;text-align:center;border-radius:3px;background:${bg};color:#fff;font-size:.6rem;font-weight:900;margin:0 1px">${r.result}</span>`;
   };
-  const renderTopList = (team, list) => `
-    <div class="bspnlive-preview-side" style="--team-color:${team.primary}">
-      <div class="bspnlive-preview-side-head">
-        <span style="color:${team.primary};font-weight:700">${team.abbr || team.name.slice(0,3).toUpperCase()}</span>
-        <span>${team.name}</span>
-      </div>
-      ${list.length ? list.map(p => `
-        <div class="bspnlive-preview-perf">
-          <span class="bspnlive-preview-pos">${p.pos}</span>
-          <span>${playerLinkByName(p.name)}</span>
-          <span class="bspnlive-preview-fpts">${p.fpts.toFixed(1)} FPTS</span>
-        </div>`).join("")
-      : `<div style="color:var(--blgray);font-size:.66rem;font-style:italic">No stats yet</div>`}
-    </div>`;
+  const renderForm = (team, n = 4) => {
+    const form = recentForm(team.id, n);
+    const avg  = scoringAvg(team.id);
+    const streak = (() => {
+      if (!form.length) return "";
+      const last = form[form.length - 1].result;
+      let cnt = 0;
+      for (let i = form.length - 1; i >= 0 && form[i].result === last; i--) cnt++;
+      return cnt > 1 ? `${cnt}${last} streak` : "";
+    })();
+    return `
+      <div style="margin-bottom:.5rem">
+        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.25rem">
+          <span style="color:${team.primary};font-weight:900;font-size:.75rem;letter-spacing:.5px">${abbr(team)}</span>
+          <span style="color:var(--blgray);font-size:.6rem">${avg.gp ? `${avg.pf.toFixed(1)} PPG · ${avg.pa.toFixed(1)} opp PPG` : "No games"}</span>
+          ${streak ? `<span style="color:${streak.startsWith("L") ? "var(--red)" : "var(--green-lt)"};font-size:.6rem;margin-left:auto">${streak}</span>` : ""}
+        </div>
+        <div>${form.length ? form.map(formPill).join("") : `<span style="color:var(--blgray);font-size:.65rem;font-style:italic">—</span>`}</div>
+      </div>`;
+  };
 
-  // Team ratings (off / def)
+  // ── Film / stat leaders per team ─────────────────────────────────────────────
+  const renderFilm = team => {
+    const lines = teamFilmStats(team.id);
+    if (!lines.length) return `<div style="color:var(--blgray);font-size:.65rem;font-style:italic;padding:.25rem 0">No season data</div>`;
+    return lines.map(l => `
+      <div style="display:flex;gap:.4rem;align-items:baseline;padding:.15rem 0;border-bottom:1px solid rgba(255,255,255,.04)">
+        <span style="color:var(--blgray);font-size:.58rem;letter-spacing:.5px;min-width:3.8rem;flex-shrink:0">${l.cat}</span>
+        <span style="font-size:.68rem;color:var(--blwhite)">${playerLinkByName(l.name)}</span>
+        <span style="font-size:.62rem;color:var(--blgray);margin-left:auto;white-space:nowrap">${l.stat}</span>
+      </div>`).join("");
+  };
+
+  // ── Scout angle (roster ratings + scoring avg mismatch) ───────────────────────
   const homeRtg = (typeof frnTeamRating === "function") ? frnTeamRating(home.id) : { off: 50, def: 50 };
   const awayRtg = (typeof frnTeamRating === "function") ? frnTeamRating(away.id) : { off: 50, def: 50 };
+  const homeAvg = scoringAvg(home.id);
+  const awayAvg = scoringAvg(away.id);
+
+  // Build stat-based scout angles
+  const angles = [];
+  // Pass rush vs QB: away pass rush vs home QB pocket
+  const awayPassRush = Object.values(franchise.seasonStats?.[away.id] || {}).reduce((s, p) => s + (p.sk || 0), 0);
+  const homePassRush = Object.values(franchise.seasonStats?.[home.id] || {}).reduce((s, p) => s + (p.sk || 0), 0);
+  const homePassYds  = Object.values(franchise.seasonStats?.[home.id] || {}).reduce((s, p) => s + (p.pass_yds || 0), 0);
+  const awayPassYds  = Object.values(franchise.seasonStats?.[away.id] || {}).reduce((s, p) => s + (p.pass_yds || 0), 0);
+  if (awayPassRush >= homePassRush * 1.35 && awayPassRush > 5)
+    angles.push(`${abbr(away)} pass rush (${awayPassRush.toFixed(1)} sacks) pressures ${abbr(home)} QB`);
+  else if (homePassRush >= awayPassRush * 1.35 && homePassRush > 5)
+    angles.push(`${abbr(home)} pass rush (${homePassRush.toFixed(1)} sacks) pressures ${abbr(away)} QB`);
+  // Scoring differential
+  if (homeAvg.gp && awayAvg.gp) {
+    if (homeAvg.pf - awayAvg.pa >= 5)
+      angles.push(`${abbr(home)} offense (${homeAvg.pf.toFixed(1)} PPG) vs ${abbr(away)} defense (${awayAvg.pa.toFixed(1)} opp PPG) — ${abbr(home)} edge`);
+    else if (awayAvg.pf - homeAvg.pa >= 5)
+      angles.push(`${abbr(away)} offense (${awayAvg.pf.toFixed(1)} PPG) vs ${abbr(home)} defense (${homeAvg.pa.toFixed(1)} opp PPG) — ${abbr(away)} edge`);
+  }
+  // Roster ratings fallback
   const offDiff = (awayRtg.off || 0) - (homeRtg.def || 0);
   const defDiff = (homeRtg.off || 0) - (awayRtg.def || 0);
-  // Scout angle — pick the larger mismatch
-  let scout = "";
-  if (Math.abs(offDiff) > Math.abs(defDiff) && Math.abs(offDiff) >= 8) {
-    const adv = offDiff > 0 ? away : home;
-    scout = `Edge: ${adv.name} offense vs ${offDiff > 0 ? home.name : away.name} defense (${Math.abs(offDiff).toFixed(0)} pt gap)`;
-  } else if (Math.abs(defDiff) >= 8) {
-    const adv = defDiff > 0 ? home : away;
-    scout = `Edge: ${adv.name} offense vs ${defDiff > 0 ? away.name : home.name} defense (${Math.abs(defDiff).toFixed(0)} pt gap)`;
-  } else {
-    scout = `Evenly matched on paper — execution wins this one`;
+  if (!angles.length) {
+    if (Math.abs(offDiff) >= 8 || Math.abs(defDiff) >= 8) {
+      const bigger = Math.abs(offDiff) >= Math.abs(defDiff) ? offDiff : defDiff;
+      const adv = bigger > 0 ? away : home;
+      const opp = bigger > 0 ? home : away;
+      angles.push(`Roster edge: ${abbr(adv)} offense vs ${abbr(opp)} defense (${Math.abs(bigger).toFixed(0)} pt gap)`);
+    } else {
+      angles.push("Evenly matched on paper — execution wins this one");
+    }
   }
 
   return `
     <div class="bspnlive-preview">
       <div class="bspnlive-preview-head">📋 MATCHUP PREVIEW</div>
-      <div class="bspnlive-preview-grid">
-        <div class="bspnlive-preview-meta">
-          ${h2hHtml}
-          <div class="bspnlive-preview-h2h">
-            <span class="bspnlive-preview-label">RATINGS</span>
-            <span style="color:${away.primary};font-weight:700">${away.abbr || away.name.slice(0,3).toUpperCase()}</span>
-            OFF ${awayRtg.off?.toFixed?.(0) ?? "—"} / DEF ${awayRtg.def?.toFixed?.(0) ?? "—"} —
-            <span style="color:${home.primary};font-weight:700">${home.abbr || home.name.slice(0,3).toUpperCase()}</span>
-            OFF ${homeRtg.off?.toFixed?.(0) ?? "—"} / DEF ${homeRtg.def?.toFixed?.(0) ?? "—"}
-          </div>
-          <div class="bspnlive-preview-h2h">
-            <span class="bspnlive-preview-label">SCOUT</span>
-            <span style="color:var(--blwhite)">${scout}</span>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.6rem">
+        <div>
+          <div style="font-size:.58rem;letter-spacing:.8px;color:var(--blgray);margin-bottom:.2rem">RECENT FORM</div>
+          ${renderForm(away)}
+          ${renderForm(home)}
+        </div>
+        <div>
+          <div style="font-size:.58rem;letter-spacing:.8px;color:var(--blgray);margin-bottom:.2rem">THIS SEASON H2H</div>
+          <div style="font-size:.68rem;line-height:1.8;margin-bottom:.5rem">${h2hHtml}</div>
+          <div style="font-size:.58rem;letter-spacing:.8px;color:var(--blgray);margin-bottom:.2rem">ROSTER RATINGS</div>
+          <div style="font-size:.67rem;color:var(--blwhite)">
+            <span style="color:${away.primary};font-weight:700">${abbr(away)}</span>
+            OFF ${awayRtg.off ?? "—"} / DEF ${awayRtg.def ?? "—"} &nbsp;·&nbsp;
+            <span style="color:${home.primary};font-weight:700">${abbr(home)}</span>
+            OFF ${homeRtg.off ?? "—"} / DEF ${homeRtg.def ?? "—"}
           </div>
         </div>
-        <div class="bspnlive-preview-perfs">
-          ${renderTopList(away, topForTeam(away.id))}
-          ${renderTopList(home, topForTeam(home.id))}
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.6rem">
+        <div>
+          <div style="font-size:.58rem;letter-spacing:.8px;color:${away.primary};margin-bottom:.2rem">${abbr(away)} SEASON FILM</div>
+          ${renderFilm(away)}
         </div>
+        <div>
+          <div style="font-size:.58rem;letter-spacing:.8px;color:${home.primary};margin-bottom:.2rem">${abbr(home)} SEASON FILM</div>
+          ${renderFilm(home)}
+        </div>
+      </div>
+
+      <div style="background:rgba(255,255,255,.04);border-left:3px solid var(--gold);padding:.35rem .6rem;border-radius:0 4px 4px 0">
+        <div style="font-size:.58rem;letter-spacing:.8px;color:var(--gold);margin-bottom:.2rem">KEY ANGLES</div>
+        ${angles.map(a => `<div style="font-size:.68rem;color:var(--blwhite);margin-bottom:.15rem">▸ ${a}</div>`).join("")}
       </div>
     </div>`;
 }
@@ -26689,20 +26804,20 @@ function renderFrnPlayoffs() {
   }
 
   // ── Header actions ──────────────────────────────────────────────────────
+  const roundPending = !!playoffBracket.roundPending;
   const pending = currentRound ? currentRound.filter(m => !m.winnerId && m.homeId && m.awayId) : [];
+  const allRoundDone = currentRound && currentRound.every(m => m.winnerId != null);
   const userPending = currentRound?.find(m =>
     (m.homeId === chosenTeamId || m.awayId === chosenTeamId) && m.winnerId == null);
-  // Advance button — only enabled when ALL games are done.
-  const allDone = pending.length === 0 && currentRound;
-  const advanceLabel = (() => {
-    if (champion) return null;
-    if (roundIdx >= rounds.length - 1) return "🌟 Crown Champion";
-    return `➡ Advance to ${roundNames[roundIdx + 1] || "Next Round"}`;
-  })();
+  const advanceLabel = roundIdx >= rounds.length - 1
+    ? "🌟 Crown Champion"
+    : `➡ Advance to ${roundNames[roundIdx + 1] || "Next Round"}`;
   const headerActions = champion
     ? `<button class="bspn-back" onclick="showFrnAwards()" style="border-color:var(--blgold);color:var(--blgold)">🌟 Awards</button>`
-    : `<button class="bspn-back" onclick="frnSimPlayoffRound()" ${pending.length === 0 ? "disabled style=\"opacity:.4;cursor:not-allowed\"" : ""}>⏩ Sim ${pending.length} remaining</button>
-       ${userPending ? `<span class="bspnlive-bracket-blocker">Play YOUR matchup first ⬇</span>` : ""}`;
+    : allRoundDone
+      ? `<button class="frn-cap-btn" onclick="frnAdvancePlayoffRound()" style="padding:.3rem 1rem;font-size:.75rem;letter-spacing:.8px">${advanceLabel}</button>`
+      : `<button class="bspn-back" onclick="frnSimPlayoffRound()" ${!pending.length ? "disabled style=\"opacity:.4;cursor:not-allowed\"" : ""}>⏩ Sim ${pending.length} remaining</button>
+         ${userPending ? `<span class="bspnlive-bracket-blocker">Play YOUR matchup first ⬇</span>` : ""}`;
 
   $("frnHomeContent").innerHTML = `
     <div class="bspnlive-root" style="margin:-1rem -1.5rem 0 -1.5rem;padding-bottom:1.2rem">
@@ -26760,7 +26875,6 @@ function frnSimPlayoffRound() {
       const r = frnSimOnce(m.homeId, m.awayId, /* isPlayoff */ true);
       m.homeScore = r.homeScore; m.awayScore = r.awayScore;
       m.winnerId  = r.homeScore >= r.awayScore ? m.homeId : m.awayId;
-      // Save stats + scoring so the matchup is clickable from the bracket.
       m.stats   = _stripGameStatsForStorage(r.full?.stats);
       m.scoring = _extractScoringTimeline(r.full?.plays, r.homeScore, r.awayScore);
       m.weather = r.full?.weather
@@ -26776,9 +26890,76 @@ function frnSimPlayoffRound() {
       }
     }
   }
-  advancePlayoffRound();
+  // Mark round pending for review — user clicks "Advance" to proceed
+  if (rd.every(m => m.winnerId)) playoffBracket.roundPending = true;
   saveFranchise();
   renderFrnPlayoffs();
+}
+
+// User-clicked "Advance to [Next Round]" after reviewing playoff results.
+function frnAdvancePlayoffRound() {
+  const pb = franchise.playoffBracket;
+  if (!pb) return;
+  // Compute POTW for the completed round (treated as playoff week 15/16/17)
+  const playoffWeek = FRANCHISE_WEEKS + pb.roundIdx + 1;
+  _computePlayoffRoundPOTW(pb.roundIdx, playoffWeek);
+  pb.roundPending = false;
+  advancePlayoffRound();
+  saveFranchise();
+  if (pb.champion) showFrnAwards();
+  else renderFrnPlayoffs();
+}
+
+// Compute POTW for a completed playoff round from bracket matchup stats.
+function _computePlayoffRoundPOTW(roundIdx, weekNum) {
+  if (!franchise.potw) franchise.potw = {};
+  if (!franchise.potwCandidates) franchise.potwCandidates = {};
+  const seasonKey = franchise.season;
+  if (!franchise.potw[seasonKey]) franchise.potw[seasonKey] = {};
+  if (!franchise.potwCandidates[seasonKey]) franchise.potwCandidates[seasonKey] = {};
+
+  const rd = franchise.playoffBracket?.rounds?.[roundIdx] || [];
+  const pMap = {};
+  for (const m of rd) {
+    if (!m.stats) continue;
+    for (const [side, teamId] of [["home", m.homeId], ["away", m.awayId]]) {
+      const players = m.stats[side]?.players || {};
+      for (const [name, p] of Object.entries(players)) {
+        if (!pMap[name]) pMap[name] = { ...p, teamId };
+        else for (const [k, v] of Object.entries(p)) {
+          if (typeof v === "number") pMap[name][k] = (pMap[name][k] || 0) + v;
+        }
+      }
+    }
+  }
+  const allP = Object.values(pMap);
+  const OL_POS    = new Set(["OL","LT","LG","C","RG","RT"]);
+  const SKILL_POS = new Set(["QB","RB","WR","TE"]);
+  const DEF_POS   = new Set(["DL","LB","CB","S","DE","DT","FS","SS"]);
+  const ST_POS    = new Set(["K","P"]);
+  const pickTop = (filter, scoreF, n = 3) => {
+    const pool = allP.filter(filter).map(p => ({ ...p, _s: scoreF(p) })).filter(p => p._s > 0);
+    pool.sort((a, b) => b._s - a._s);
+    return pool.slice(0, n).map(p => {
+      const t = getTeam(p.teamId);
+      return { name: p.name, pos: p.pos, teamId: p.teamId,
+        teamAbbr: t ? _bspnLiveAbbr(t) : "—", teamPrimary: t?.primary || "#888",
+        statLine: mvpStatLine(p), score: p._s };
+    });
+  };
+  const candidates = {
+    offense:      pickTop(p => SKILL_POS.has(p.pos), mvpScore),
+    defense:      pickTop(p => DEF_POS.has(p.pos),   mvpScore),
+    ol:           pickTop(p => OL_POS.has(p.pos),    p => (p.pancakes||0)*3 - (p.sacks_allowed||0)*4),
+    specialTeams: pickTop(p => ST_POS.has(p.pos),    mvpScore),
+  };
+  franchise.potwCandidates[seasonKey][weekNum] = candidates;
+  franchise.potw[seasonKey][weekNum] = {
+    offense:      candidates.offense[0]      || null,
+    defense:      candidates.defense[0]      || null,
+    ol:           candidates.ol[0]           || null,
+    specialTeams: candidates.specialTeams[0] || null,
+  };
 }
 
 // Find the matchup in the round that matches the team pair and stash
@@ -26829,7 +27010,8 @@ function applyPlayoffResult(homeId, awayId, homeScore, awayScore) {
   if (!m) return;
   m.homeScore = homeScore; m.awayScore = awayScore;
   m.winnerId  = homeScore >= awayScore ? homeId : awayId;
-  if (rd.every(x => x.winnerId !== null)) advancePlayoffRound();
+  // Don't auto-advance — let user review results then click Advance
+  if (rd.every(x => x.winnerId !== null)) playoffBracket.roundPending = true;
 }
 
 function advancePlayoffRound() {
