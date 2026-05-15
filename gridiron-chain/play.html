@@ -21060,9 +21060,7 @@ function frnFAProcessOffers() {
       yourBid: { aav: offer.aav, years: offer.years, cutNames: offer.cutNames || [] },
       aiBids: {},
       history: [{ teamId: myId, label: "You", aav: offer.aav, years: offer.years, week: 0 }],
-      // raisedThisRound is true so the FIRST resolution after a full quiet
-      // week is the soonest a signing can happen
-      raisedThisRound: true,
+      raisedThisRound: false,
       lastRaiseWeek: 0,
     };
   }
