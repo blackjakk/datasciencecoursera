@@ -877,7 +877,7 @@ function _bumpWeek() {
 // User-clicked "Advance to next week" from the review interstitial.
 function frnAdvanceWeek() {
   if (!franchise.weekPending) return;
-  _runWeekEndResolution();
+  try { _runWeekEndResolution(); } catch(e) { console.error("[frnAdvanceWeek] resolution error (non-fatal):", e); }
   _bumpWeek();
   franchise.weekPending = false;
   _flushSaveFranchise();
@@ -1111,6 +1111,11 @@ function frnSimWeek() {
   }
   _computeAndStorePOTW(w);
   _checkWeekComplete();
+  if (franchise.weekPending) {
+    try { _runWeekEndResolution(); } catch(e) { console.error("[frnSimWeek] resolution error (non-fatal):", e); }
+    _bumpWeek();
+    franchise.weekPending = false;
+  }
   _flushSaveFranchise();
   showFranchiseDashboard();
 }
@@ -1130,7 +1135,7 @@ function frnSimSeason() {
       recordFranchiseResult(g.homeId, g.awayId, r.homeScore, r.awayScore);
     }
     _computeAndStorePOTW(w);
-    _runWeekEndResolution();
+    try { _runWeekEndResolution(); } catch(e) { console.error("[frnSimSeason] resolution error (non-fatal):", e); }
     _bumpWeek();
     franchise.weekPending = false;
     if (franchise.phase === "fa_cuts" || franchise.phase === "playoffs_pending") break;
@@ -2637,6 +2642,43 @@ function _checkCoachHotSeat() {
 
 // ── Franchise tag ─────────────────────────────────────────────────────────────
 // One per offseason. 1-year fully-guaranteed deal at the top-5 position
+// ── Contract context helpers ──────────────────────────────────────────────────
+
+// OVR delta vs last season (null if no history stored yet).
+function _ovrTrend(player) {
+  const hist = player?.careerHistory || [];
+  const last = hist[hist.length - 1];
+  if (!last || last.overall == null) return null;
+  return (player.overall || 70) - last.overall;
+}
+
+// Age at contract expiry + warning string if risky.
+function _ageCurveWarning(age, years) {
+  const endAge = (age || 25) + (years || 1);
+  if (endAge >= 36) return { endAge, level: "danger",  label: `⚠ age ${endAge} at expiry — deep decline risk` };
+  if (endAge >= 33) return { endAge, level: "caution", label: `age ${endAge} at expiry — late-career deal` };
+  return { endAge, level: "ok", label: null };
+}
+
+// Count teammates at the same position with OVR >= threshold (excludes self).
+function _posDepth(position, excludeName, ovrMin = 75) {
+  return (franchise.rosters[franchise.chosenTeamId] || [])
+    .filter(p => p.position === position && p.name !== excludeName && (p.overall || 0) >= ovrMin).length;
+}
+
+// Seasons the player has been on the current roster (from careerHistory).
+function _yearsWithTeam(playerName) {
+  const myId = franchise.chosenTeamId;
+  const player = (franchise.rosters[myId] || []).find(p => p.name === playerName);
+  if (!player) return 0;
+  return (player.careerHistory || []).filter(h => h.teamId === myId).length;
+}
+
+// Number of matching-position players in the current FA pool.
+function _faMktDepth(position) {
+  return (franchise.freeAgents || []).filter(p => p.position === position).length;
+}
+
 // Highest single AAV at a position across all league rosters.
 function _positionLeagueMax(position) {
   let max = 0;
@@ -2851,13 +2893,31 @@ function _renderResignUI(cap, capCommitted) {
         </div>`;
     }
 
+    const livePlayer = (franchise.rosters[chosenTeamId] || []).find(p => p.name === r.name);
+    const trend = _ovrTrend(livePlayer);
+    const trendHtml = trend == null ? "" : trend > 0
+      ? `<span style="color:var(--green-lt);font-size:.6rem">↑ +${trend} OVR</span>`
+      : trend < 0 ? `<span style="color:var(--red);font-size:.6rem">↓ ${trend} OVR</span>`
+      : `<span style="color:var(--gray);font-size:.6rem">→ flat</span>`;
+    const curve = _ageCurveWarning(r.age, r.offerYears);
+    const curveHtml = curve.label ? `<span style="color:${curve.level==="danger"?"var(--red)":"#e8a000"};font-size:.58rem">${curve.label}</span>` : "";
+    const depth = _posDepth(r.pos, r.name);
+    const depthHtml = `<span style="font-size:.58rem;color:var(--gray)">${depth} other ${r.pos} ≥75 OVR</span>`;
+    const yrs = _yearsWithTeam(r.name);
+    const yrsHtml = yrs >= 1 ? `<span style="font-size:.58rem;color:var(--gray)">${yrs}-yr veteran</span>` : "";
+    const faMkt = _faMktDepth(r.pos);
+    const faMktHtml = faMkt > 0 ? `<span style="font-size:.58rem;color:var(--gray)">${faMkt} FA${r.pos}s available</span>` : "";
+    const flightRisk = livePlayer?.unhappy;
+    const flightHtml = flightRisk ? `<span style="font-size:.58rem;color:var(--red)">⚠ flight risk — likely leaves</span>` : "";
+
     return `
       <div class="frn-resign-row ${isAccept?"accepted":isDecline?"declined":""}">
         <div class="frn-resign-info">
           <span style="font-weight:700;color:var(--white)">${r.name}</span>
-          <span style="color:var(--gray);font-size:.7rem">${r.pos} · ${r.overall} OVR · Age ${r.age}</span>
+          <span style="color:var(--gray);font-size:.7rem">${r.pos} · ${r.overall} OVR ${trendHtml} · Age ${r.age}</span>
           ${_statLine(r.name) ? `<span style="color:var(--gray);font-size:.6rem;font-style:italic">${_statLine(r.name)}</span>` : ""}
           ${_contractContextBar(r.pos, r.baseMarket, cap)}
+          <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.15rem">${depthHtml}${yrsHtml ? " · "+yrsHtml : ""}${faMktHtml ? " · "+faMktHtml : ""}${flightHtml}</div>
         </div>
         <div class="frn-resign-offer">
           <span style="color:${r.offer > r.baseMarket * 1.1 ? 'var(--red)' : r.offer < r.baseMarket * 0.9 ? 'var(--green-lt)' : 'var(--gold)'};font-weight:700">$${r.offer.toFixed(1)}M/yr ${vsMarketCell(r.offer, r.baseMarket)}</span>
@@ -2871,6 +2931,7 @@ function _renderResignUI(cap, capCommitted) {
               onclick="frnResignAdjustYears(${idx}, 1)">+</button>
           </div>
           <span style="color:var(--gray);font-size:.6rem;text-align:right">total $${(r.offer * r.offerYears).toFixed(1)}M</span>
+          ${curveHtml}
           ${deadTotal < 0.5 ? `<span style="color:var(--gray);font-size:.6rem">No dead cap</span>`
             : `<span style="color:#ff9090;font-size:.6rem;text-align:right" title="Prorated signing bonus — counts as dead cap if you release this player.">☠ Dead $${bonusProration.toFixed(1)}M×${r.offerYears}yr = $${deadTotal.toFixed(1)}M</span>`}
           ${isLocked ? "" : `<div style="display:flex;gap:.2rem;justify-content:flex-end;margin-top:.25rem;align-items:center;flex-wrap:wrap">
@@ -3687,17 +3748,33 @@ function _renderHoldoutsBlock() {
     const raise = h.demandedAAV - h.currentAAV;
     const demandVsMarket = h.demandedAAV - marketVal;
     const demandColor = demandVsMarket > 2 ? "var(--red)" : demandVsMarket < -1 ? "var(--green-lt)" : "var(--gold)";
+    const trend = _ovrTrend(live);
+    const trendHtml = trend == null ? "" : trend > 0
+      ? `<span style="color:var(--green-lt);font-size:.6rem">↑ +${trend}</span>`
+      : trend < 0 ? `<span style="color:var(--red);font-size:.6rem">↓ ${trend}</span>`
+      : `<span style="color:var(--gray);font-size:.6rem">→</span>`;
+    const curve = _ageCurveWarning(live?.age, h.demandedYears);
+    const curveHtml = curve.label ? `<span style="color:${curve.level==="danger"?"var(--red)":"#e8a000"};font-size:.58rem">${curve.label}</span>` : "";
+    const depth = _posDepth(h.position, h.name);
+    const yrs = _yearsWithTeam(h.name);
+    const faMkt = _faMktDepth(h.position);
     return `<div class="frn-resign-row">
       <div class="frn-resign-info">
         <span style="font-weight:700;color:var(--white)">${h.name}</span>
-        <span style="color:var(--gray);font-size:.7rem">${h.position} · ${ovr} OVR · Age ${live?.age ?? "?"}</span>
+        <span style="color:var(--gray);font-size:.7rem">${h.position} · ${ovr} OVR ${trendHtml} · Age ${live?.age ?? "?"}</span>
         ${statLine ? `<span style="color:var(--gray);font-size:.6rem;font-style:italic">${statLine}</span>` : ""}
         ${_contractContextBar(h.position, marketVal, cap)}
+        <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.15rem">
+          <span style="font-size:.58rem;color:var(--gray)">${depth} other ${h.position}s ≥75 OVR</span>
+          ${yrs >= 1 ? `<span style="font-size:.58rem;color:var(--gray)"> · ${yrs}-yr veteran</span>` : ""}
+          ${faMkt > 0 ? `<span style="font-size:.58rem;color:var(--gray)"> · ${faMkt} FA${h.position}s available</span>` : ""}
+        </div>
       </div>
       <div class="frn-resign-offer">
         <span style="color:${demandColor};font-weight:700">$${h.demandedAAV.toFixed(1)}M/yr × ${h.demandedYears}yr</span>
         <span style="color:var(--gray);font-size:.6rem">Currently $${h.currentAAV.toFixed(1)}M · +$${raise.toFixed(1)}M raise</span>
         <span style="color:var(--gray);font-size:.6rem">Total $${(h.demandedAAV * h.demandedYears).toFixed(1)}M · ${demandVsMarket > 1 ? `<span style="color:var(--red)">+$${demandVsMarket.toFixed(1)}M above mkt</span>` : demandVsMarket < -1 ? `<span style="color:var(--green-lt)">$${Math.abs(demandVsMarket).toFixed(1)}M below mkt</span>` : `<span style="color:var(--gray)">≈ market</span>`}</span>
+        ${curveHtml}
       </div>
       <div class="frn-resign-btns">
         <button class="btn frn-resign-btn accept-btn" onclick="frnHoldoutExtend('${escName}')">✓ Extend</button>
@@ -5500,7 +5577,7 @@ function _rollSeasonStatsToCareer() {
         player.careerStats[k] = (player.careerStats[k] || 0) + v;
       }
       // Snapshot this season as a row
-      const yearRow = { season: franchise.season, teamId, teamName };
+      const yearRow = { season: franchise.season, teamId, teamName, overall: player.overall };
       for (const [k, v] of Object.entries(st)) {
         if (typeof v === "number" || k === "pos") yearRow[k] = v;
       }
