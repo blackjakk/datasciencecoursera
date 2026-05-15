@@ -20769,10 +20769,20 @@ function _faAIBidAmount(teamId, fa, currentHighAav) {
   const demand = fa.demandedAAV;
   // Floor: just above current high if any, else ~95% of demand
   const floor = currentHighAav ? currentHighAav + 0.5 : demand * 0.92;
-  // Ceiling: stretch up to ~135% of demand, but never exceed AI room
-  const ceil  = Math.min(demand * 1.35, room);
+  // Knockout chance: high-need team with cap room may go nuclear past
+  // 1.35× to lock the player in immediately (≥1.5× triggers knockout sign).
+  const roster = franchise.rosters[teamId] || [];
+  const same = roster.filter(p => p.position === fa.position);
+  const bestSame = same.sort((a,b) => b.overall - a.overall)[0];
+  const bigNeed = !bestSame || bestSame.overall < fa.overall - 5;
+  const ampleRoom = room >= demand * 1.6;
+  const goNuclear = bigNeed && ampleRoom && Math.random() < 0.08;
+  const ceilMul = goNuclear ? 1.7 : 1.35;
+  const ceil  = Math.min(demand * ceilMul, room);
   if (floor > ceil) return null;
-  const aav   = Math.round((floor + Math.random() * (ceil - floor)) * 10) / 10;
+  // Nuclear bids skew toward the top of the range so they actually trigger
+  const t = goNuclear ? 0.6 + Math.random() * 0.4 : Math.random();
+  const aav = Math.round((floor + t * (ceil - floor)) * 10) / 10;
   const years = Math.max(2, Math.min(fa.demandedYears, 5));
   return { aav, years };
 }
@@ -20817,6 +20827,9 @@ function _faAIBidRound(week, isInitial) {
       n.raisedThisRound = true;
       n.lastRaiseWeek = week;
       highAav = bid.aav; highId = t.id;
+      // Knockout check: if this bid clears 150% of demand, FA signs now
+      // and we stop the rest of the round for this player.
+      if (_faTryKnockout(fa.name)) break;
     }
   }
 }
@@ -20914,8 +20927,9 @@ function frnFARaiseBid(name, byAmount) {
   n.history.push({ teamId: franchise.chosenTeamId, label: "You", aav: newAav, years: n.yourBid.years, week: franchise.week });
   n.raisedThisRound = true;
   n.lastRaiseWeek = franchise.week;
+  _faTryKnockout(name);
   saveFranchise();
-  renderFrnFANegotiations(name);
+  renderFrnFANegotiations(n.state === "signed" ? null : name);
 }
 function frnFAMatchHigh(name) {
   const n = franchise.faNegotiations?.[name]; if (!n) return;
@@ -20929,8 +20943,9 @@ function frnFAMatchHigh(name) {
   n.history.push({ teamId: franchise.chosenTeamId, label: "You (raise)", aav: n.yourBid.aav, years: n.yourBid.years, week: franchise.week });
   n.raisedThisRound = true;
   n.lastRaiseWeek = franchise.week;
+  _faTryKnockout(name);
   saveFranchise();
-  renderFrnFANegotiations(name);
+  renderFrnFANegotiations(n.state === "signed" ? null : name);
 }
 function frnFAFoldNeg(name) {
   const n = franchise.faNegotiations?.[name]; if (!n) return;
@@ -20947,6 +20962,44 @@ function _faNegCurrentHigh(n) {
     if (!high || b.aav > high.aav) high = { teamId: Number(tid), ...b, isYou: false };
   }
   return high;
+}
+
+// Knockout sign: if any standing bid clears 150% of demand the FA accepts
+// on the spot and the negotiation closes. Returns true if it fired.
+const FA_KNOCKOUT_MULT = 1.5;
+function _faTryKnockout(name) {
+  const n = franchise.faNegotiations?.[name];
+  if (!n || n.state !== "negotiating") return false;
+  const high = _faNegCurrentHigh(n);
+  if (!high) return false;
+  if (high.aav < n.fa.demandedAAV * FA_KNOCKOUT_MULT) return false;
+  n.fa.contract = {
+    years: high.years, remaining: high.years, aav: high.aav,
+    guaranteedYears: _guaranteedYearsForLength(high.years),
+    guaranteedAAV: high.aav,
+  };
+  n.state = "signed";
+  n.signedToTeamId = high.teamId;
+  n.history.push({ teamId: high.teamId,
+    label: high.isYou ? "You KNOCKOUT" : `${getTeam(high.teamId)?.name || "?"} KNOCKOUT`,
+    aav: high.aav, years: high.years, week: franchise.week });
+  franchise.rosters[high.teamId].push(n.fa);
+  const signTeam = getTeam(high.teamId);
+  if (high.isYou) {
+    const myId = franchise.chosenTeamId;
+    const myRoster = franchise.rosters[myId];
+    for (const cut of (n.yourBid?.cutNames || [])) {
+      const i = myRoster.findIndex(p => p.name === cut);
+      if (i !== -1) myRoster.splice(i, 1);
+    }
+    _pushNews({ type:"fa_sign",
+      label: `🆓💥 KNOCKOUT — You signed ${n.fa.position} ${name} for $${high.aav.toFixed(1)}M × ${high.years}yr (over market)` });
+  } else {
+    n.signedToTeamName = `${signTeam.city} ${signTeam.name}`;
+    _pushNews({ type:"fa_sign",
+      label: `🆓💥 KNOCKOUT — ${signTeam.name} sign ${n.fa.position} ${name} for $${high.aav.toFixed(1)}M × ${high.years}yr` });
+  }
+  return true;
 }
 
 function frnFAOpenSelf() { renderFrnFANegotiations(); }
@@ -21004,15 +21057,19 @@ function renderFrnFANegotiations(selectedName) {
   const yourCur = selNeg.yourBid?.aav || 0;
   const yourYrs = selNeg.yourBid?.years || selNeg.fa.demandedYears;
   const beingOutbid = selHigh && !selHigh.isYou && selNeg.yourBid;
+  const knockoutAav = +(selNeg.fa.demandedAAV * FA_KNOCKOUT_MULT).toFixed(1);
+  const knockoutNeed = Math.max(0, +(knockoutAav - yourCur).toFixed(1));
   const actionsHtml = `
     <div class="frn-fa-neg-actions">
       ${selNeg.yourBid ? `
         <button class="btn btn-gold" onclick="frnFARaiseBid('${escSel}', 1)">↑ +$1M</button>
         <button class="btn btn-gold" onclick="frnFARaiseBid('${escSel}', 3)">↑ +$3M</button>
         ${beingOutbid ? `<button class="btn btn-gold" onclick="frnFAMatchHigh('${escSel}')">→ Outbid by $0.5M</button>` : ""}
+        <button class="btn btn-gold" onclick="frnFAKnockoutBid('${escSel}')" style="background:var(--gold);color:#000;font-weight:900" title="Bid $${knockoutAav.toFixed(1)}M to sign instantly">💥 KNOCKOUT $${knockoutAav.toFixed(1)}M${knockoutNeed > 0 ? ` (+$${knockoutNeed.toFixed(1)}M)` : ""}</button>
         <button class="btn btn-outline" onclick="frnFAFoldNeg('${escSel}')" style="color:var(--red)">✗ Fold</button>
       ` : `
         <button class="btn btn-gold" onclick="frnFAEnterBid('${escSel}')">+ Enter Bid (match current high)</button>
+        <button class="btn btn-gold" onclick="frnFAKnockoutBid('${escSel}')" style="background:var(--gold);color:#000;font-weight:900">💥 KNOCKOUT $${knockoutAav.toFixed(1)}M</button>
       `}
     </div>
     <div class="frn-fa-neg-actions" style="margin-top:.5rem;align-items:center;gap:.4rem">
@@ -21105,6 +21162,9 @@ function renderFrnFANegotiations(selectedName) {
             Your bid: <b style="color:${yourCur?"var(--gold-lt)":"var(--gray)"}">${selNeg.yourBid?`$${yourCur.toFixed(1)}M × ${selNeg.yourBid.years}yr`:"not bidding"}</b>
             · ${selNeg.raisedThisRound ? "<span style='color:var(--gold-lt)'>This round had a raise — won't sign yet</span>" : "<span style='color:var(--green-lt)'>Stable — will sign at end of this week if no one raises</span>"}
           </div>
+          <div style="color:var(--gray);font-size:.62rem;margin-top:.15rem">
+            💥 <b style="color:var(--gold-lt)">Knockout bid:</b> any offer ≥ <b style="color:var(--gold)">$${(selNeg.fa.demandedAAV * FA_KNOCKOUT_MULT).toFixed(1)}M</b> (${(FA_KNOCKOUT_MULT*100).toFixed(0)}% of demand) wins instantly — no waiting on raise rounds.
+          </div>
         </div>
         ${actionsHtml}
         ${verdictHtml}
@@ -21127,8 +21187,40 @@ function frnFAEnterBid(name) {
   n.history.push({ teamId: franchise.chosenTeamId, label: "You (joined)", aav, years: n.fa.demandedYears, week: franchise.week });
   n.raisedThisRound = true;
   n.lastRaiseWeek = franchise.week;
+  _faTryKnockout(name);
   saveFranchise();
-  renderFrnFANegotiations(name);
+  renderFrnFANegotiations(n.state === "signed" ? null : name);
+}
+
+// Drop a knockout bid: bumps yourBid to 150% of demand and triggers
+// instant signing if you're the high bidder. Confirms because it's a
+// big cap commitment.
+function frnFAKnockoutBid(name) {
+  const n = franchise.faNegotiations?.[name]; if (!n) return;
+  const knockoutAav = Math.round(n.fa.demandedAAV * FA_KNOCKOUT_MULT * 10) / 10;
+  const myId = franchise.chosenTeamId;
+  const cap = franchise.salaryCap || SALARY_CAP_BASE;
+  const room = cap - capUsedByTeam(myId);
+  const cutSavings = (n.yourBid?.cutNames || []).reduce((s, cutName) => {
+    const p = (franchise.rosters[myId] || []).find(x => x.name === cutName);
+    return s + (p?.contract?.aav || 0);
+  }, 0);
+  if (knockoutAav - cutSavings > room) {
+    alert(`Not enough cap room: knockout needs $${knockoutAav.toFixed(1)}M, you have $${(room + cutSavings).toFixed(1)}M (after planned cuts).`);
+    return;
+  }
+  if (!confirm(`💥 KNOCKOUT BID — pay $${knockoutAav.toFixed(1)}M × ${n.yourBid?.years || n.fa.demandedYears}yr to sign ${name} immediately?`)) return;
+  n.yourBid = {
+    aav: knockoutAav,
+    years: n.yourBid?.years || n.fa.demandedYears,
+    cutNames: n.yourBid?.cutNames || [],
+  };
+  n.history.push({ teamId: myId, label: "You (KNOCKOUT)", aav: knockoutAav, years: n.yourBid.years, week: franchise.week });
+  n.raisedThisRound = true;
+  n.lastRaiseWeek = franchise.week;
+  _faTryKnockout(name);
+  saveFranchise();
+  renderFrnFANegotiations(n.state === "signed" ? null : name);
 }
 
 // Adjust contract length on an active offer. Capped at 1..7 years.
