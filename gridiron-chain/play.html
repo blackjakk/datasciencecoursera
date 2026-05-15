@@ -20349,6 +20349,7 @@ function _buildPlayerDetailPanel(p) {
           #${jerseyForPlayer(p) || "—"} · ${p.position} · Age ${p.age || "?"}${p.height?` · ${formatHeight(p.height)}, ${p.weight||"?"} lbs`:""}
         </div>
         <div style="color:var(--gray);font-size:.65rem;margin-top:.1rem">${draftStr(p)} · Career ${careerEarningsStr(p)}</div>
+        ${p.faStory && !_isOwnedPlayer(p) ? `<div style="margin-top:.2rem;font-size:.62rem;color:var(--gold-lt);font-style:italic">"${p.faStory}"</div>` : ""}
         ${potTag ? `<div style="margin-top:.2rem;font-size:.62rem;color:var(--gold-lt);font-weight:700">${potTag}</div>` : ""}
       </div>
       <div style="text-align:right;flex-shrink:0">
@@ -20433,58 +20434,144 @@ function frnStartSeason() {
 // room, and at "End FA" all offers resolve based on whether the offer
 // meets the player's demand. AI teams don't compete for now.
 
-const FA_POOL_SIZE = 14;
+
+// FA pool templates — each kind defines its own age band, draft pedigree,
+// pricing, and a story pool. Diamond-in-the-rough kind quietly bumps the
+// player's true overall after generation; the scouting noise + low draft
+// pedigree keeps the displayed grade conservative so the user has to
+// trust their gut on a cheap young guy with "tools".
+const FA_POOL_TEMPLATES = [
+  // Veteran stars — proven, expensive, won't take a discount easily
+  { kind:"vet_star",  count: 6,  ageMin:27, ageMax:32, tier:"elite",
+    drMin:1, drMax:3, demandMult:1.00, yearsMin:3, yearsMax:5,
+    posPool:["QB","WR","WR","RB","OL","OL","DL","DL","LB","CB","TE","S"],
+    stories:[
+      "Former Pro Bowler hitting the open market",
+      "Coming off a career year — wants top-of-market",
+      "Cap casualty looking for a contender",
+      "Wants one more chance to chase a ring",
+      "Lost his locker last spring — still has plenty in the tank",
+      "Big-money guy looking for a bigger role",
+    ] },
+  // Steady veterans — depth, decent prices
+  { kind:"vet_depth", count: 8,  ageMin:27, ageMax:33, tier:"good",
+    drMin:2, drMax:5, demandMult:0.95, yearsMin:2, yearsMax:4,
+    posPool:["QB","RB","WR","WR","TE","OL","OL","OL","DL","DL","LB","LB","CB","S"],
+    stories:[
+      "Reliable starter looking for a fresh start",
+      "Productive rotation piece on his third team",
+      "Solid film — needs the right system",
+      "Plug-and-play veteran",
+      "Pushed out by a 1st-round rookie",
+      "Underrated grinder with starts on tape",
+    ] },
+  // Veteran minimums — cheap depth, locker room glue
+  { kind:"vet_min",   count: 10, ageMin:31, ageMax:35, tier:"average",
+    drMin:3, drMax:7, demandMult:0.65, yearsMin:1, yearsMax:2,
+    posPool:["RB","WR","TE","OL","DL","LB","CB","S","K","P"],
+    stories:[
+      "Looking for one more shot",
+      "Locker room glue guy",
+      "Special teams ace on the back nine of his career",
+      "Knows three playbooks cold",
+      "End of the bench but earns his keep",
+      "Wants to mentor a rookie at his position",
+    ] },
+  // Young camp bodies — cheap, room to grow
+  { kind:"camp_body", count: 12, ageMin:22, ageMax:25, tier:"average",
+    drMin:5, drMax:7, demandMult:0.55, yearsMin:1, yearsMax:3,
+    posPool:["QB","RB","WR","WR","TE","OL","DL","LB","CB","S"],
+    stories:[
+      "Practice squad standout",
+      "Training camp body — last team kept him in the building",
+      "Late-round project who never got real reps",
+      "Bounced around three rosters last year",
+      "Young legs, chip on his shoulder",
+      "Quietly impressed in joint practices",
+      "Tools look promising — needs a coach",
+      "Flashed in limited reps last preseason",
+      "Coaches keep saying he's about to break out",
+      "Late bloomer waiting for an opportunity",
+    ] },
+  // UDFAs — bottom of the pool, raw upside
+  { kind:"udfa",      count: 6,  ageMin:22, ageMax:23, tier:"poor",
+    drMin:0, drMax:0, demandMult:0.42, yearsMin:1, yearsMax:2,
+    posPool:["RB","WR","WR","WR","TE","OL","DL","LB","CB","S"],
+    stories:[
+      "Undrafted out of a small school",
+      "Pro Day standout who slid through the draft",
+      "Workout warrior — needs to translate it",
+      "Walked on in college, kept earning reps",
+      "Tape doesn't pop but he flies around",
+      "All-conference at the FCS level",
+    ] },
+  // Diamonds in the rough — secretly good young players, undervalued
+  // grade. Same story bucket as camp bodies so they don't out themselves.
+  { kind:"diamond",   count: 4,  ageMin:22, ageMax:25, tier:"good",
+    drMin:5, drMax:7, demandMult:0.55, yearsMin:2, yearsMax:3,
+    posPool:["QB","RB","WR","TE","OL","DL","LB","CB","S"],
+    stories:[
+      "Tools look promising — needs a coach",
+      "Quietly impressed in joint practices",
+      "Late bloomer waiting for an opportunity",
+      "Coaches keep saying he's about to break out",
+      "Flashed in limited reps last preseason",
+      "Training camp body — last team kept him in the building",
+    ] },
+];
 
 function _generateFAPool() {
   const taken = new Set();
   for (const r of Object.values(franchise.rosters)) r.forEach(p => taken.add(p.name));
   const pool = [];
-  // Position mix — leans skill/lineman so most teams have a use
-  const slots = [
-    { pos:"QB", tier:"good"    }, { pos:"QB", tier:"average" },
-    { pos:"RB", tier:"good"    }, { pos:"RB", tier:"average" },
-    { pos:"WR", tier:"elite"   }, { pos:"WR", tier:"good"    }, { pos:"WR", tier:"average" },
-    { pos:"TE", tier:"good"    },
-    { pos:"OL", tier:"elite"   }, { pos:"OL", tier:"good"    },
-    { pos:"DL", tier:"elite"   }, { pos:"DL", tier:"good"    },
-    { pos:"LB", tier:"good"    },
-    { pos:"CB", tier:"good"    },
-  ];
-  // Shuffle for variety, then take FA_POOL_SIZE
-  for (let i = slots.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [slots[i], slots[j]] = [slots[j], slots[i]];
-  }
-  const chosen = slots.slice(0, FA_POOL_SIZE);
   const cap = franchise.salaryCap || SALARY_CAP_BASE;
   const currentYear = new Date().getFullYear() + (franchise.season || 1) - 1;
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 
-  for (const s of chosen) {
-    const p = genUniquePlayer(s.pos, s.tier, taken);
-    taken.add(p.name);
-    // FAs skew older — these are guys nobody re-signed
-    p.age = 26 + Math.floor(Math.random() * 8); // 26-33
-    // Draft pedigree
-    const expectedPick = Math.max(1, Math.min(224,
-      Math.round(260 - (p.overall - 50) * 4.8 + (Math.random() - 0.5) * 80)
-    ));
-    if (Math.random() < 0.10 && p.overall < 82) {
-      p.draftRound = 0; p.draftPick = null;
-    } else {
-      p.draftRound = Math.min(7, Math.ceil(expectedPick / 32));
-      p.draftPick  = ((expectedPick - 1) % 32) + 1;
+  for (const tmpl of FA_POOL_TEMPLATES) {
+    for (let i = 0; i < tmpl.count; i++) {
+      const pos = pick(tmpl.posPool);
+      const p = genUniquePlayer(pos, tmpl.tier, taken);
+      taken.add(p.name);
+
+      // Age band per kind
+      p.age = tmpl.ageMin + Math.floor(Math.random() * (tmpl.ageMax - tmpl.ageMin + 1));
+
+      // Draft pedigree per kind (0 = undrafted)
+      if (tmpl.drMin === 0 && tmpl.drMax === 0) {
+        p.draftRound = 0; p.draftPick = null;
+      } else {
+        const round = tmpl.drMin + Math.floor(Math.random() * (tmpl.drMax - tmpl.drMin + 1));
+        p.draftRound = round;
+        p.draftPick  = (round - 1) * 32 + 1 + Math.floor(Math.random() * 32);
+      }
+      p.draftYear = currentYear - (p.age - 22);
+
+      // Diamond bump: real overall pushed higher while draft pedigree
+      // stays late. Scouting noise + draft penalty keeps the displayed
+      // grade conservative. They'll come at a steep discount.
+      if (tmpl.kind === "diamond") {
+        const bump = 4 + Math.floor(Math.random() * 3);  // +4..+6
+        p.overall = Math.min(99, p.overall + bump);
+      }
+
+      // Career earnings reflect years in league
+      p.careerEarnings = Math.round((p.age - 22) * computeMarketValue(p, cap) * 0.6 * 10) / 10;
+
+      // What they want
+      p.demandedAAV   = Math.round(computeMarketValue(p, cap) * tmpl.demandMult * (0.90 + Math.random() * 0.20) * 10) / 10;
+      p.demandedYears = tmpl.yearsMin + Math.floor(Math.random() * (tmpl.yearsMax - tmpl.yearsMin + 1));
+
+      // Story flavor — visible to user; doesn't change stats
+      p.faStory = pick(tmpl.stories);
+      p.faKind  = tmpl.kind;  // internal — never displayed directly
+
+      pool.push(p);
     }
-    p.draftYear = currentYear - (p.age - 22);
-    p.careerEarnings = Math.round((p.age - 22) * computeMarketValue(p, cap) * 0.6 * 10) / 10;
-
-    // What they want
-    p.demandedAAV   = Math.round(computeMarketValue(p, cap) * (0.95 + Math.random() * 0.25) * 10) / 10;
-    p.demandedYears = p.age <= 27 ? 4 : p.age <= 30 ? 3 : 2;
-    p.flavor = p.flavor || null;
-    pool.push(p);
   }
-  // Sort by demanded AAV desc — best FAs at top
-  pool.sort((a,b) => b.demandedAAV - a.demandedAAV);
+
+  // Sort by demanded AAV desc — heavy hitters at top, scrubs at bottom
+  pool.sort((a, b) => b.demandedAAV - a.demandedAAV);
   return pool;
 }
 
@@ -20503,14 +20590,16 @@ function renderFrnFA(selectedName) {
     const offered = !!myOffer;
     const isSel = selected && p.name === selected.name;
     const escName = (p.name || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    const young = p.age <= 25;
+    const ageColor = young ? "color:var(--green-lt);font-weight:700" : p.age >= 32 ? "color:#e8a000" : "";
     return `<button class="frn-fa-row ${isSel?"selected":""} ${offered?"offered":""}"
       onclick="renderFrnFA('${escName}')">
       <span>${gradeBadge(p)}</span>
-      <span class="frn-fa-name">${p.name}</span>
+      <span class="frn-fa-name">${p.name}${young ? " 🌱" : ""}</span>
       <span class="frn-fa-pos">${p.position}</span>
-      <span class="frn-fa-age">age ${p.age}</span>
-      <span class="frn-fa-ask">asks $${p.demandedAAV.toFixed(0)}M</span>
-      ${offered ? `<span class="frn-fa-flag">$${myOffer.aav.toFixed(0)}M offer</span>` : ""}
+      <span class="frn-fa-age" style="${ageColor}">age ${p.age}</span>
+      <span class="frn-fa-ask">asks $${p.demandedAAV.toFixed(1)}M</span>
+      ${offered ? `<span class="frn-fa-flag">$${myOffer.aav.toFixed(1)}M offer</span>` : ""}
     </button>`;
   }).join("");
 
@@ -20560,8 +20649,9 @@ function renderFrnFA(selectedName) {
     detailHtml = `<div class="frn-fa-detail">
       <div class="frn-fa-detail-head">
         <div>
-          <div style="font-size:1.05rem;font-weight:900">${selected.name}</div>
+          <div style="font-size:1.05rem;font-weight:900">${selected.name}${selected.age <= 25 ? " <span style='color:var(--green-lt);font-size:.7rem'>🌱 YOUNG</span>" : ""}</div>
           <div style="color:var(--gray);font-size:.7rem">${selected.position} · Age ${selected.age} · ${_archetypeLabel(selected) || "—"} · ${draftStr(selected)}</div>
+          ${selected.faStory ? `<div style="color:var(--gold-lt);font-size:.7rem;margin-top:.25rem;font-style:italic">"${selected.faStory}"</div>` : ""}
           <div style="color:var(--gray);font-size:.66rem;margin-top:.2rem">${careerEarningsStr(selected)} career earnings</div>
         </div>
         <div style="text-align:right">
