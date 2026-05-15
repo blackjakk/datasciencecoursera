@@ -880,7 +880,7 @@ function frnAdvanceWeek() {
   _runWeekEndResolution();
   _bumpWeek();
   franchise.weekPending = false;
-  saveFranchise();
+  _flushSaveFranchise();
   showFranchiseDashboard();
 }
 
@@ -903,7 +903,7 @@ function frnSimGame(homeId, awayId) {
   markGamePlayed(homeId, awayId, r.homeScore, r.awayScore, r.full?.stats, r.full?.plays,
     { weather: r.full?.weather, isRivalry: r.full?.isRivalry });
   _checkWeekComplete();
-  saveFranchise();
+  _flushSaveFranchise();
   showFranchiseDashboard();
 }
 
@@ -1135,7 +1135,7 @@ function frnSimSeason() {
     franchise.weekPending = false;
     if (franchise.phase === "fa_cuts" || franchise.phase === "playoffs_pending") break;
   }
-  saveFranchise();
+  _flushSaveFranchise();
   showFranchiseDashboard();
 }
 
@@ -1226,7 +1226,7 @@ function frnFinishGame() {
       { weather: gameResult?.weather, isRivalry: gameResult?.isRivalry });
     advanceWeekIfDone();
   }
-  saveFranchise();
+  _flushSaveFranchise();
   showFranchiseDashboard();
 }
 

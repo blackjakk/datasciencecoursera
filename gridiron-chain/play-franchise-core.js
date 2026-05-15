@@ -173,7 +173,7 @@ function generateContract(player, cap, structureOverride) {
     years, remaining: years, aav, structure,
     baseSalaries, signingBonus, bonusProration,
     guaranteedYears: _guaranteedYearsForLength(years),
-    guaranteedAAV: aav, incentives: [],
+    guaranteedAAV: aav, incentives: [], signedAav: aav,
   };
 }
 
