@@ -2091,6 +2091,7 @@ function _faResolveAfterWeek(week, isSeasonEnd) {
           signingBonus: _faBonus1.signingBonus, bonusProration: _faBonus1.bonusProration,
           guaranteedYears: _guaranteedYearsForLength(highYrs),
           guaranteedAAV: highAav,
+          incentives: _generateIncentives(n.fa, highAav),
         };
         n.state = "signed";
         n.signedToTeamId = highId;
@@ -2238,6 +2239,7 @@ function _faTryKnockout(name) {
     signingBonus: _faBonus2.signingBonus, bonusProration: _faBonus2.bonusProration,
     guaranteedYears: _guaranteedYearsForLength(high.years),
     guaranteedAAV: high.aav,
+    incentives: _generateIncentives(n.fa, high.aav),
   };
   n.state = "signed";
   n.signedToTeamId = high.teamId;
@@ -2445,6 +2447,36 @@ function renderFrnFANegotiations(selectedName) {
         </div>
         ${actionsHtml}
         ${verdictHtml}
+        ${(() => {
+          // Contract advisor — show 2-3 construction suggestions
+          const goals = [
+            { id:"flex",    label:"Maximize Flexibility" },
+            { id:"capnow",  label:"Minimize Cap Now" },
+            { id:"lockup",  label:"Lock Up Long Term" },
+            { id:"lowrisk", label:"Low Risk" },
+          ];
+          const capRoom = cap - myCapUsed;
+          const suggs = _contractAdvisor(fa, selNeg._advisorGoal || "flex", cap);
+          const goalBtns = goals.map(g => {
+            const active = (selNeg._advisorGoal || "flex") === g.id;
+            return `<button class="btn ${active?"btn-gold":"btn-outline"}" onclick="frnFASetAdvisorGoal('${escSel}','${g.id}')" style="font-size:.58rem;padding:.15rem .4rem">${g.label}</button>`;
+          }).join("");
+          const suggHtml = suggs.map(s => {
+            const capHitNow = s.aav; // Simplified; real cap hit depends on structure
+            return `<div style="background:var(--bg3);border-radius:4px;padding:.4rem .55rem;margin-top:.3rem;display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem">
+              <div>
+                <div style="font-weight:700;font-size:.68rem;color:var(--gold)">${s.label}</div>
+                <div style="color:var(--gray);font-size:.6rem;margin-top:.1rem">${s.note}</div>
+              </div>
+              <button class="btn btn-outline" onclick="frnFAApplyAdvisor('${escSel}',${s.years},${s.aav},'${s.structure}')" style="font-size:.58rem;padding:.15rem .4rem;white-space:nowrap">Use $${s.aav.toFixed(1)}M × ${s.years}yr</button>
+            </div>`;
+          }).join("");
+          return `<div style="margin-top:.7rem;padding:.5rem .6rem;background:rgba(200,169,0,.06);border:1px solid rgba(200,169,0,.2);border-radius:6px">
+            <div style="font-size:.68rem;font-weight:700;color:var(--gold);margin-bottom:.4rem">🤝 CONTRACT ADVISOR</div>
+            <div style="display:flex;flex-wrap:wrap;gap:.25rem;margin-bottom:.2rem">${goalBtns}</div>
+            ${suggHtml}
+          </div>`;
+        })()}
         <div class="frn-card-title" style="margin-top:.8rem">📊 FULL PLAYER REPORT</div>
         ${_buildPlayerDetailPanel(fa)}
         <div class="frn-card-title" style="margin-top:.8rem">BID HISTORY</div>
@@ -2535,6 +2567,26 @@ function frnFASetNegotiationYears(name, years) {
     aav: n.yourBid.aav || 0, years: y, week: franchise.week });
   n.raisedThisRound = true;
   n.lastRaiseWeek = franchise.week;
+  saveFranchise();
+  renderFrnFANegotiations(name);
+}
+
+function frnFASetAdvisorGoal(name, goal) {
+  const n = franchise.faNegotiations?.[name]; if (!n) return;
+  n._advisorGoal = goal;
+  saveFranchise();
+  renderFrnFANegotiations(name);
+}
+
+function frnFAApplyAdvisor(name, years, aav, structure) {
+  const n = franchise.faNegotiations?.[name]; if (!n) return;
+  if (!n.yourBid) n.yourBid = { aav: 0, years, cutNames: [], structure };
+  n.yourBid.years = years;
+  n.yourBid.aav   = aav;
+  n.yourBid.structure = structure;
+  n.raisedThisRound = true;
+  n.lastRaiseWeek = franchise.week;
+  n.history.push({ teamId: franchise.chosenTeamId, label: `You (advisor: $${aav}M × ${years}yr)`, aav, years, week: franchise.week });
   saveFranchise();
   renderFrnFANegotiations(name);
 }

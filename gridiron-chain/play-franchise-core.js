@@ -203,6 +203,7 @@ function rookieContract(player, cap) {
     baseSalaries, signingBonus, bonusProration,
     guaranteedYears: _guaranteedYearsForLength(years),
     guaranteedAAV: aav,
+    incentives: [],
   };
 }
 
@@ -236,6 +237,7 @@ function assignContracts(rosters, cap) {
             p.contract.structure, p.contract.bonusProration
           );
         }
+        if (!p.contract.incentives) p.contract.incentives = [];
       }
       continue;
     }
@@ -270,6 +272,7 @@ function assignContracts(rosters, cap) {
           p.contract.structure, p.contract.bonusProration
         );
       }
+      if (!p.contract.incentives) p.contract.incentives = [];
     }
   }
 }
@@ -279,10 +282,10 @@ function assignContracts(rosters, cap) {
 function currentYearCapHit(player) {
   const c = player.contract;
   if (!c) return 0;
-  if (!c.baseSalaries || c.bonusProration == null) return c.aav || 0;
+  if (!c.baseSalaries || c.bonusProration == null) return (c.aav || 0) + _ltbeIncentivesTotal(player);
   const yearIndex = Math.max(0, (c.years || 1) - (c.remaining || 1));
   const base = c.baseSalaries[yearIndex] ?? (c.aav - (c.bonusProration || 0));
-  return Math.round((base + (c.bonusProration || 0)) * 10) / 10;
+  return Math.round((base + (c.bonusProration || 0) + _ltbeIncentivesTotal(player)) * 10) / 10;
 }
 
 // Dead cap owed if the player is released right now = prorated bonus remaining.
@@ -329,7 +332,225 @@ function currentCap() {
   return franchise?.salaryCap || SALARY_CAP_BASE;
 }
 
-// ── Restructure contract ────────────────────────────────────────────────────
+// ── Incentive clause system ─────────────────────────────────────────────────
+// Contracts carry 0-3 performance bonuses. LTBE (Likely To Be Earned) bonuses
+// count against the cap now because the player hit the threshold last season.
+// NLTBE bonuses don't count until earned; if earned they hit next year's cap.
+const INCENTIVE_TEMPLATES = {
+  QB:  [
+    { label:"4500+ Pass Yds", stat:"pass_yds", threshold:4500, bonus:1.0 },
+    { label:"4000+ Pass Yds", stat:"pass_yds", threshold:4000, bonus:0.75 },
+    { label:"35+ Pass TDs",   stat:"pass_td",  threshold:35,   bonus:1.0 },
+    { label:"30+ Pass TDs",   stat:"pass_td",  threshold:30,   bonus:0.75 },
+    { label:"Pro Bowl",       stat:"pro_bowl", threshold:1,    bonus:1.5 },
+  ],
+  RB:  [
+    { label:"1400+ Rush Yds", stat:"rush_yds", threshold:1400, bonus:1.0 },
+    { label:"1200+ Rush Yds", stat:"rush_yds", threshold:1200, bonus:0.75 },
+    { label:"1000+ Rush Yds", stat:"rush_yds", threshold:1000, bonus:0.5 },
+    { label:"12+ Rush TDs",   stat:"rush_td",  threshold:12,   bonus:0.75 },
+    { label:"Pro Bowl",       stat:"pro_bowl", threshold:1,    bonus:1.0 },
+  ],
+  WR:  [
+    { label:"1400+ Rec Yds",  stat:"rec_yds", threshold:1400, bonus:1.0 },
+    { label:"1200+ Rec Yds",  stat:"rec_yds", threshold:1200, bonus:0.75 },
+    { label:"1000+ Rec Yds",  stat:"rec_yds", threshold:1000, bonus:0.5 },
+    { label:"100+ Receptions",stat:"rec",     threshold:100,  bonus:0.75 },
+    { label:"Pro Bowl",       stat:"pro_bowl", threshold:1,    bonus:1.0 },
+  ],
+  TE:  [
+    { label:"900+ Rec Yds",  stat:"rec_yds", threshold:900, bonus:0.75 },
+    { label:"700+ Rec Yds",  stat:"rec_yds", threshold:700, bonus:0.5 },
+    { label:"Pro Bowl",      stat:"pro_bowl",threshold:1,   bonus:1.0 },
+  ],
+  DL:  [
+    { label:"12+ Sacks",     stat:"sk",      threshold:12, bonus:1.0 },
+    { label:"10+ Sacks",     stat:"sk",      threshold:10, bonus:0.75 },
+    { label:"8+ Sacks",      stat:"sk",      threshold:8,  bonus:0.5 },
+    { label:"Pro Bowl",      stat:"pro_bowl",threshold:1,  bonus:1.0 },
+  ],
+  LB:  [
+    { label:"100+ Tackles",  stat:"tkl",     threshold:100, bonus:0.75 },
+    { label:"8+ Sacks",      stat:"sk",      threshold:8,   bonus:0.75 },
+    { label:"Pro Bowl",      stat:"pro_bowl",threshold:1,   bonus:1.0 },
+  ],
+  CB:  [
+    { label:"6+ INTs",       stat:"int_made",threshold:6, bonus:1.0 },
+    { label:"4+ INTs",       stat:"int_made",threshold:4, bonus:0.75 },
+    { label:"Pro Bowl",      stat:"pro_bowl",threshold:1, bonus:1.0 },
+  ],
+  S:   [
+    { label:"4+ INTs",       stat:"int_made",threshold:4, bonus:0.75 },
+    { label:"80+ Tackles",   stat:"tkl",     threshold:80, bonus:0.5 },
+    { label:"Pro Bowl",      stat:"pro_bowl",threshold:1, bonus:1.0 },
+  ],
+  OL:  [{ label:"Pro Bowl",  stat:"pro_bowl",threshold:1, bonus:1.0 }],
+  K:   [
+    { label:"30+ FG Made",   stat:"fg_made", threshold:30, bonus:0.5 },
+    { label:"Pro Bowl",      stat:"pro_bowl",threshold:1,  bonus:0.75 },
+  ],
+};
+
+function _getLastSeasonStat(player, stat) {
+  if (stat === "pro_bowl") return 0; // Pro Bowl determined separately
+  for (const teamStats of Object.values(franchise?.seasonStats || {})) {
+    const row = teamStats[player.name];
+    if (row) return row[stat] || 0;
+  }
+  return 0;
+}
+
+function _playerIncentiveWillingness(player) {
+  const ovr = player.overall || 70;
+  const age = player.age || 27;
+  if (ovr >= 88) return 0.04;
+  if (ovr >= 82) return 0.10;
+  if (age >= 32) return 0.25;
+  if (ovr >= 76) return 0.18;
+  return 0.22;
+}
+
+function _generateIncentives(player, aav) {
+  const templates = INCENTIVE_TEMPLATES[player.position] || [];
+  if (!templates.length) return [];
+  const willingness = _playerIncentiveWillingness(player);
+  if (willingness < 0.05) return [];
+  const maxVal = aav * willingness;
+  const incentives = [];
+  let total = 0;
+  for (const tmpl of templates) {
+    if (total + tmpl.bonus > maxVal + 0.1) continue;
+    const lastStat = _getLastSeasonStat(player, tmpl.stat);
+    const type = lastStat >= tmpl.threshold ? "LTBE" : "NLTBE";
+    incentives.push({ label: tmpl.label, stat: tmpl.stat, threshold: tmpl.threshold, bonus: tmpl.bonus, type });
+    total += tmpl.bonus;
+    if (incentives.length >= 3) break;
+  }
+  return incentives;
+}
+
+function _ltbeIncentivesTotal(player) {
+  return (player.contract?.incentives || [])
+    .filter(inc => inc.type === "LTBE")
+    .reduce((s, inc) => s + (inc.bonus || 0), 0);
+}
+
+// ── Cap projections ─────────────────────────────────────────────────────────
+function projectPlayerCapHit(player, yearsAhead) {
+  const c = player.contract;
+  if (!c) return 0;
+  const futureRemaining = (c.remaining || 0) - yearsAhead;
+  if (futureRemaining <= 0) return 0;
+  const yearIndex = Math.max(0, (c.years || 1) - futureRemaining);
+  if (!c.baseSalaries || yearIndex >= c.baseSalaries.length) return c.aav || 0;
+  const base = c.baseSalaries[yearIndex] ?? (c.aav - (c.bonusProration || 0));
+  return Math.round((base + (c.bonusProration || 0)) * 10) / 10;
+}
+
+function projectTeamCap(teamId, yearsAhead) {
+  const roster = (franchise?.rosters || {})[teamId] || [];
+  return Math.round(roster.reduce((s, p) => s + projectPlayerCapHit(p, yearsAhead), 0) * 10) / 10;
+}
+
+// ── Trade value classification ───────────────────────────────────────────────
+function _tradeValueTag(player, cap) {
+  if (!player.contract) return null;
+  const hit = currentYearCapHit(player);
+  const market = computeMarketValue(player, cap);
+  const remaining = player.contract.remaining || 0;
+  if (remaining < 2) return null;
+  if (hit < market - 2.5) return "asset";
+  if (hit > market + 3.5 && remaining >= 3) return "blocker";
+  return null;
+}
+
+// ── Contract advisor ─────────────────────────────────────────────────────────
+// Returns 2-3 structured contract suggestions for a given player + goal.
+function _contractAdvisor(player, goal, cap) {
+  const market = computeMarketValue(player, cap || SALARY_CAP_BASE);
+  const age = player.age || 27;
+  const suggestions = [];
+  const struct = _defaultStructure(age, player.overall || 70);
+
+  if (goal === "flex") {
+    suggestions.push({
+      label:"2yr Flexible", years:2, aav: Math.round(market*1.05*10)/10, structure:"BALANCED",
+      note:`Low dead cap — hit FA again in 2 years while still productive`,
+    });
+    suggestions.push({
+      label:"3yr + Voidable", years:3, aav: Math.round(market*0.97*10)/10, structure:"BALANCED",
+      teamOption:{ year:3 },
+      note:`Slightly below market — you control whether year 3 happens`,
+    });
+  } else if (goal === "capnow") {
+    suggestions.push({
+      label:"4yr Backloaded", years:4, aav: Math.round(market*0.95*10)/10, structure:"BACKLOADED",
+      note:`Cheap cap hits years 1-2, escalates later — good if you expect future space`,
+    });
+    suggestions.push({
+      label:"3yr Backloaded", years:3, aav: Math.round(market*0.93*10)/10, structure:"BACKLOADED",
+      note:`Below market to offset back-heavy structure — shortest backload option`,
+    });
+  } else if (goal === "lockup") {
+    suggestions.push({
+      label:"5yr Max", years:5, aav: Math.round(market*1.10*10)/10, structure:"FRONTLOADED",
+      note:`Premium to lock him in — high dead cap risk if he declines`,
+    });
+    suggestions.push({
+      label:"4yr Bridge+", years:4, aav: Math.round(market*1.03*10)/10, structure:"FRONTLOADED",
+      note:`Player gets paid up front — can extend again when you see how he develops`,
+    });
+  } else { // lowrisk
+    suggestions.push({
+      label:"2yr Prove-It", years:2, aav: Math.round(market*0.90*10)/10, structure:"BALANCED",
+      note:`Below market, minimal signing bonus — nearly zero dead cap if you cut`,
+    });
+    suggestions.push({
+      label:"1yr Show Deal", years:1, aav: Math.round(market*1.02*10)/10, structure:"BALANCED",
+      note:`Zero dead cap commitment — he earns a real deal next offseason`,
+    });
+  }
+  return suggestions;
+}
+
+// ── Contract options processing ──────────────────────────────────────────────
+// Called at offseason start. Handles expiring team/player options.
+// Player options: auto-resolved by market vs option value.
+// Team options on user's roster: flagged as _teamOptionPending for UI decision.
+function _processContractOptions() {
+  if (!franchise) return [];
+  const cap = franchise.salaryCap || SALARY_CAP_BASE;
+  const alerts = [];
+  for (const [tidStr, roster] of Object.entries(franchise.rosters || {})) {
+    const teamId = Number(tidStr);
+    for (const p of roster) {
+      const c = p.contract;
+      if (!c) continue;
+      if (c.playerOption && c.remaining === c.playerOption.year) {
+        const market = computeMarketValue(p, cap);
+        if (market > c.playerOption.value * 1.08) {
+          c.remaining = 0; // Will be caught as expiring
+          alerts.push({ type:"playerOpt", teamId, name:p.name, pos:p.position,
+            label:`${p.name} opted out — market ($${market.toFixed(1)}M) beat option ($${c.playerOption.value.toFixed(1)}M)` });
+        } else {
+          alerts.push({ type:"playerOptStay", teamId, name:p.name,
+            label:`${p.name} accepted player option ($${c.playerOption.value.toFixed(1)}M)` });
+        }
+      }
+      if (c.teamOption && c.remaining === c.teamOption.year) {
+        if (teamId === franchise.chosenTeamId) {
+          c._teamOptionPending = true;
+        } else {
+          const market = computeMarketValue(p, cap);
+          if (market < c.teamOption.value * 0.80) c.remaining = 0; // AI declines if player is overpaid
+        }
+      }
+    }
+  }
+  return alerts;
+}
+
+
 // Converts the current year's base salary into a new signing bonus, prorated
 // over remaining years. Frees cap space now; increases dead cap if cut later.
 // Limited to once per player per offseason (restructuredSeason guard).

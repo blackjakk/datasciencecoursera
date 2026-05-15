@@ -2180,6 +2180,11 @@ function renderFrnAnalytics(defaultTab) {
             }).join("")
           }</div>`
         : "";
+      const incentiveHtml = (c.incentives||[]).length
+        ? `<div style="display:flex;flex-wrap:wrap;gap:.1rem .25rem;margin-top:.15rem">${
+            c.incentives.map(inc => `<span title="${inc.label}: $${inc.bonus.toFixed(1)}M ${inc.type}" style="font-size:.52rem;padding:.08rem .25rem;border-radius:3px;background:${inc.type==="LTBE"?"rgba(200,169,0,.25)":"rgba(100,100,100,.25)"};color:${inc.type==="LTBE"?"var(--gold)":"var(--gray)"}">${inc.type} $${inc.bonus.toFixed(1)}M</span>`).join("")
+          }</div>`
+        : "";
       const escName = p.name.replace(/'/g, "\\'");
       const isPendingRestructure = _restructurePending?.name === p.name && _restructurePending?.pos === p.position;
       // Inline restructure confirmation row — no browser dialog
@@ -2202,14 +2207,19 @@ function renderFrnAnalytics(defaultTab) {
         </tr>`;
       }
       return `<tr>
-        <td style="color:${aavColor(capHit)};font-weight:700">${playerLink(p)}${scheduleHtml}</td>
+        <td style="color:${aavColor(capHit)};font-weight:700">${playerLink(p)}${scheduleHtml}${incentiveHtml}</td>
         <td style="color:var(--gray)">${p.position}</td>
         <td>${gradeBadge(p)}</td>
         <td style="color:var(--gray)">${p.age || "?"}</td>
         <td style="color:var(--gray);font-size:.65rem">${draftStr(p)}</td>
         <td style="color:${aavColor(capHit)};font-weight:700">$${capHit.toFixed(1)}M
           <div style="font-size:.58rem;color:var(--gray)">AAV $${c.aav.toFixed(1)}M</div></td>
-        <td>${vsMarketCell(c.aav, mv)}</td>
+        <td>${vsMarketCell(c.aav, mv)}${(() => {
+          const tag = _tradeValueTag(p, cap);
+          if (tag === "asset")   return `<div style="font-size:.52rem;color:var(--green-lt);margin-top:.1rem">▲ TRADE ASSET</div>`;
+          if (tag === "blocker") return `<div style="font-size:.52rem;color:var(--red);margin-top:.1rem">▼ TRADE BLOCKER</div>`;
+          return "";
+        })()}</td>
         <td style="font-size:.6rem;color:${deadTotal>0?"#ff9090":"var(--gray)"}">
           ${deadTotal > 0 ? `☠ $${deadPY.toFixed(1)}M×${deadYrs}yr` : "—"}
         </td>
@@ -2233,6 +2243,134 @@ function renderFrnAnalytics(defaultTab) {
       <table class="frn-ana-table"><thead>
         <tr><th>Player</th><th>Pos</th><th>Grade</th><th>Age</th><th>Draft</th><th>Cap Hit</th><th>vs Market</th><th>Dead Cap</th><th>Length</th><th></th></tr>
       </thead><tbody>${rows}</tbody></table>`;
+  }
+
+  // ── Cap Health Dashboard ────────────────────────────────────────────────
+  function capHealthDashboard() {
+    const roster = (rosters[chosenTeamId] || []).filter(p => p.contract);
+    const used1  = roster.reduce((s,p) => s + currentYearCapHit(p), 0);
+    const used2  = projectTeamCap(chosenTeamId, 1);
+    const used3  = projectTeamCap(chosenTeamId, 2);
+    const deadTotal = roster.reduce((s,p) => {
+      const { perYear, years } = deadCapOnRelease(p);
+      return s + perYear * years;
+    }, 0);
+    const expiring = roster.filter(p => p.contract.remaining <= 1).length;
+    const capBar = (used, label) => {
+      const pct = Math.min(100, used/cap*100);
+      const color = pct>=95?"var(--red)":pct>=85?"#e8a000":"var(--green)";
+      return `<div style="margin-bottom:.6rem">
+        <div style="display:flex;justify-content:space-between;font-size:.68rem;margin-bottom:.2rem">
+          <span style="color:var(--gray)">${label}</span>
+          <span style="color:${color};font-weight:700">$${used.toFixed(1)}M / $${cap.toFixed(0)}M (${pct.toFixed(0)}%)</span>
+        </div>
+        <div style="background:var(--bg3);height:8px;border-radius:4px">
+          <div style="width:${pct.toFixed(1)}%;height:100%;border-radius:4px;background:${color}"></div>
+        </div>
+      </div>`;
+    };
+    const restructureCandidates = roster.filter(p => {
+      const c = p.contract;
+      const yi = Math.max(0,(c.years||1)-(c.remaining||1));
+      const base = c.baseSalaries?.[yi] ?? (c.aav-(c.bonusProration||0));
+      return c.remaining>=2 && base>=2.0 && c.restructuredSeason !== franchise.season;
+    });
+    return `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.6rem;margin-bottom:1rem">
+        <div class="frn-stat-box"><div class="frn-stat-val" style="color:${used1/cap>0.9?"var(--red)":"var(--gold)"}">$${used1.toFixed(1)}M</div><div class="frn-stat-lbl">CAP USED</div></div>
+        <div class="frn-stat-box"><div class="frn-stat-val" style="color:var(--green-lt)">$${(cap-used1).toFixed(1)}M</div><div class="frn-stat-lbl">CAP ROOM</div></div>
+        <div class="frn-stat-box"><div class="frn-stat-val" style="color:#ff9090">$${deadTotal.toFixed(1)}M</div><div class="frn-stat-lbl">TOTAL DEAD CAP</div></div>
+        <div class="frn-stat-box"><div class="frn-stat-val">${expiring}</div><div class="frn-stat-lbl">EXPIRING</div></div>
+        <div class="frn-stat-box"><div class="frn-stat-val">${restructureCandidates.length}</div><div class="frn-stat-lbl">RESTRUCTURE-ELIGIBLE</div></div>
+      </div>
+      <div style="margin-bottom:1rem">
+        <div style="font-size:.75rem;font-weight:700;color:var(--gold);margin-bottom:.5rem">3-YEAR CAP PROJECTION</div>
+        ${capBar(used1, "This Season (Yr 1)")}
+        ${capBar(used2, "Next Season (Yr 2)")}
+        ${capBar(used3, "Season After (Yr 3)")}
+      </div>
+      ${restructureCandidates.length ? `
+        <div style="font-size:.75rem;font-weight:700;color:var(--gold);margin-bottom:.4rem">RESTRUCTURE CANDIDATES</div>
+        <div style="display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.8rem">
+          ${restructureCandidates.map(p => {
+            const escN = p.name.replace(/'/g,"\'");
+            const capHit = currentYearCapHit(p);
+            return `<button class="btn btn-outline" onclick="renderFrnAnalytics('mysheet');setTimeout(()=>frnRestructure(${chosenTeamId},'${escN}','${p.position}'),50)" style="font-size:.62rem;padding:.2rem .5rem;color:var(--gold)">↺ ${p.name} $${capHit.toFixed(1)}M</button>`;
+          }).join("")}
+        </div>` : ""}
+      <div style="font-size:.62rem;color:var(--gray)">Yr 2/3 projections assume current roster with age progression. Expiring contracts show as $0.</div>`;
+  }
+
+  // ── Cut Candidates Smart List ────────────────────────────────────────────
+  function cutCandidatesList() {
+    const roster = (rosters[chosenTeamId] || []).filter(p => p.contract);
+    const candidates = roster.map(p => {
+      const capHit = currentYearCapHit(p);
+      const market = computeMarketValue(p, cap);
+      const { perYear: deadPY, years: deadYrs } = deadCapOnRelease(p);
+      const deadTotal = deadPY * deadYrs;
+      const savings = capHit - deadPY; // Net cap relief after accounting for dead money
+      const overpaid = capHit - market;
+      const score = overpaid * 2 + (deadTotal < 2 ? 3 : 0) + (p.contract.remaining <= 1 ? 1 : 0);
+      return { p, capHit, market, deadTotal, deadPY, deadYrs, savings, overpaid, score };
+    }).filter(c => c.score > 1 && c.savings > 0.5)
+      .sort((a,b) => b.score - a.score)
+      .slice(0, 10);
+
+    if (!candidates.length) return `<p style="color:var(--gray);font-size:.78rem">No obvious cut candidates — your roster looks cap-healthy.</p>`;
+
+    const rows = candidates.map(({ p, capHit, market, deadTotal, deadPY, deadYrs, savings, overpaid }) => {
+      const escN = p.name.replace(/'/g,"\\'");
+      return `<tr>
+        <td style="font-weight:700">${playerLink(p)}</td>
+        <td style="color:var(--gray)">${p.position}</td>
+        <td>${gradeBadge(p)}</td>
+        <td style="color:var(--red);font-weight:700">$${capHit.toFixed(1)}M</td>
+        <td style="color:var(--gray);font-size:.65rem">$${market.toFixed(1)}M mkt</td>
+        <td style="color:${overpaid>3?"var(--red)":"var(--gray)"};font-size:.65rem">${overpaid>0?"+$"+overpaid.toFixed(1)+"M over":"≈ fair"}</td>
+        <td style="color:#ff9090;font-size:.65rem">${deadTotal>0.5?`☠ $${deadPY.toFixed(1)}M×${deadYrs}yr`:"No dead cap"}</td>
+        <td style="color:var(--green-lt);font-weight:700">+$${savings.toFixed(1)}M</td>
+        <td style="color:var(--gray);font-size:.65rem">${p.contract.remaining}yr left</td>
+        <td><button class="btn btn-outline" onclick="frnReleasePlayer('${escN}','${p.position}');showFranchiseDashboard()" style="font-size:.58rem;padding:.15rem .4rem;color:var(--red)">✗ Release</button></td>
+      </tr>`;
+    }).join("");
+
+    return `
+      <p style="font-size:.65rem;color:var(--gray);margin-bottom:.6rem">Players ranked by overpay + low dead cap + short tenure. Net savings = cap relief minus dead cap this year.</p>
+      <table class="frn-ana-table"><thead>
+        <tr><th>Player</th><th>Pos</th><th>Grade</th><th>Cap Hit</th><th>Market</th><th>vs Mkt</th><th>Dead Cap</th><th>Net Save</th><th>Yrs</th><th></th></tr>
+      </thead><tbody>${rows}</tbody></table>`;
+  }
+
+  // ── Contract Timeline (Gantt) ────────────────────────────────────────────
+  function contractTimeline() {
+    const roster = (rosters[chosenTeamId] || [])
+      .filter(p => p.contract && p.contract.remaining > 0)
+      .sort((a,b) => currentYearCapHit(b) - currentYearCapHit(a));
+    const maxYears = 5;
+    const yearLabels = Array.from({length:maxYears}, (_,i) => `Yr ${i+1}`);
+    const rows = roster.map(p => {
+      const c = p.contract;
+      const cells = yearLabels.map((_, i) => {
+        const hit = projectPlayerCapHit(p, i);
+        if (hit === 0) return `<td style="background:var(--bg2);opacity:.3"></td>`;
+        const pct = Math.min(1, hit / (cap * 0.15));
+        const r = Math.round(180 * pct), g = Math.round(180 * (1-pct));
+        return `<td style="background:rgba(${r},${g},0,.3);font-size:.6rem;text-align:center;color:var(--white);font-weight:${i===0?700:400}">$${hit.toFixed(1)}M</td>`;
+      }).join("");
+      return `<tr>
+        <td style="font-weight:700;white-space:nowrap">${playerLink(p)}</td>
+        <td style="color:var(--gray);font-size:.65rem">${p.position}</td>
+        ${cells}
+        <td style="color:var(--gray);font-size:.6rem">${c.remaining}yr</td>
+      </tr>`;
+    }).join("");
+    return `
+      <p style="font-size:.65rem;color:var(--gray);margin-bottom:.5rem">Cap hit per player per year. Green = cheap, amber/red = expensive. Dark cell = contract expired.</p>
+      <div style="overflow-x:auto"><table class="frn-ana-table">
+        <thead><tr><th>Player</th><th>Pos</th>${yearLabels.map(y=>`<th>${y}</th>`).join("")}<th>Rem</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>`;
   }
 
   // ── League Cap Health ───────────────────────────────────────────────────
@@ -2340,11 +2478,14 @@ function renderFrnAnalytics(defaultTab) {
   }
 
   const tabs = [
-    { id:"mysheet",  label:"MY CAP SHEET" },
-    { id:"league",   label:"LEAGUE HEALTH" },
-    { id:"top",      label:"TOP CONTRACTS" },
-    { id:"picks",    label:"DRAFT CAPITAL" },
-    { id:"power",    label:"POWER RANKINGS" },
+    { id:"mysheet",   label:"MY CAP SHEET" },
+    { id:"caphealth", label:"CAP HEALTH" },
+    { id:"cuts",      label:"CUT LIST" },
+    { id:"timeline",  label:"TIMELINE" },
+    { id:"league",    label:"LEAGUE HEALTH" },
+    { id:"top",       label:"TOP CONTRACTS" },
+    { id:"picks",     label:"DRAFT CAPITAL" },
+    { id:"power",     label:"POWER RANKINGS" },
     { id:"QB",  label:"QB" }, { id:"RB",  label:"RB" },
     { id:"WR",  label:"WR" }, { id:"TE",  label:"TE" },
     { id:"DL",  label:"DL" }, { id:"LB",  label:"LB" }, { id:"CB",  label:"CB" },
@@ -2452,12 +2593,15 @@ function renderFrnAnalytics(defaultTab) {
   }
 
   let bodyHtml;
-  if      (tab === "mysheet") bodyHtml = myCapSheet();
-  else if (tab === "league")  bodyHtml = leagueCapHealth();
-  else if (tab === "top")     bodyHtml = topContracts();
-  else if (tab === "picks")   bodyHtml = draftCapital();
-  else if (tab === "power")   bodyHtml = powerRankings();
-  else                        bodyHtml = posMarket(tab);
+  if      (tab === "mysheet")   bodyHtml = myCapSheet();
+  else if (tab === "caphealth") bodyHtml = capHealthDashboard();
+  else if (tab === "cuts")      bodyHtml = cutCandidatesList();
+  else if (tab === "timeline")  bodyHtml = contractTimeline();
+  else if (tab === "league")    bodyHtml = leagueCapHealth();
+  else if (tab === "top")       bodyHtml = topContracts();
+  else if (tab === "picks")     bodyHtml = draftCapital();
+  else if (tab === "power")     bodyHtml = powerRankings();
+  else                          bodyHtml = posMarket(tab);
 
   $("frnHomeContent").innerHTML = `
     <div style="display:flex;align-items:center;gap:.8rem;margin-bottom:.7rem;flex-wrap:wrap">
@@ -2841,6 +2985,7 @@ function frnConfirmResignings() {
         guaranteedYears,
         guaranteedAAV: r.offer,
         signedAav: r.offer,
+        incentives: _generateIncentives(player, r.offer),
       };
     } else {
       // Declined: remove from roster (enters FA — currently just lost)
