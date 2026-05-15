@@ -3053,7 +3053,12 @@ function renderFrnRegular() {
       </div>
     </div>
     <div class="frn-footer-row">
-      <div class="frn-footer-info">Franchise auto-saves to your browser · Reload to keep playing</div>
+      <div class="frn-footer-info">${(() => {
+        if (_saveLastError && _saveLastError.startsWith("quota")) return `<span style="color:#ff7070">⚠ SAVE FAILING — localStorage quota exceeded (${_saveLastError}). Click for emergency trim.</span>`;
+        if (_saveLastError) return `<span style="color:#ff7070">⚠ Save error: ${_saveLastError}</span>`;
+        const mb = (_saveLastSize / 1024 / 1024).toFixed(2);
+        return `Franchise auto-saves to your browser · ${mb}MB · Reload to keep playing`;
+      })()}</div>
       <button class="btn btn-outline frn-abandon-btn" onclick="frnAbandon()">× Abandon Franchise</button>
     </div>`;
 }

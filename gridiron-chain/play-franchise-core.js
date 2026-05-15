@@ -1367,7 +1367,63 @@ function _flushSaveFranchise() {
     slot.name = `${team.city} ${team.name}`;
   }
   _writeSlotsMeta(meta);
-  try { localStorage.setItem(_slotDataKey(activeId), JSON.stringify(franchise)); } catch {}
+  let payload;
+  try { payload = JSON.stringify(franchise); }
+  catch (e) { console.error("[save] JSON serialize failed:", e); _saveLastError = "serialize:" + e.message; return; }
+  // Proactively trim if payload is approaching the 5MB safe zone — most browsers
+  // hard-cap localStorage around 5-10MB per origin.
+  if (payload.length > 4_000_000) {
+    console.warn(`[save] payload ${(payload.length/1024/1024).toFixed(2)}MB — proactively trimming`);
+    _trimFranchiseForStorage();
+    try { payload = JSON.stringify(franchise); } catch {}
+  }
+  try {
+    localStorage.setItem(_slotDataKey(activeId), payload);
+    _saveLastError = null;
+    _saveLastSize = payload.length;
+  } catch (e) {
+    console.error(`[save] localStorage write failed (payload ${(payload.length/1024/1024).toFixed(2)}MB):`, e);
+    _saveLastError = `quota:${(payload.length/1024/1024).toFixed(2)}MB`;
+    // Try aggressive trim and retry once
+    if (e.name === "QuotaExceededError" || /quota/i.test(e.message || "")) {
+      _trimFranchiseForStorage();
+      try {
+        const trimmed = JSON.stringify(franchise);
+        localStorage.setItem(_slotDataKey(activeId), trimmed);
+        _saveLastError = `quota-recovered:trimmed-to-${(trimmed.length/1024/1024).toFixed(2)}MB`;
+        _saveLastSize = trimmed.length;
+        console.warn("[save] recovered after trim");
+      } catch (e2) {
+        console.error("[save] still failing after trim:", e2);
+      }
+    }
+  }
+}
+let _saveLastError = null;
+let _saveLastSize = 0;
+// Drop the heaviest non-essential payloads when localStorage is full. Stats and
+// scoring timelines for prior weeks aren't needed for save resume — only the
+// current week's games and aggregated seasonStats matter for continuity.
+function _trimFranchiseForStorage() {
+  if (!franchise) return;
+  const curWeek = franchise.week || 1;
+  // Drop play-by-play timelines and per-game player stats from completed games
+  // older than the previous week. seasonStats already has the aggregates.
+  (franchise.schedule || []).forEach(g => {
+    if (g.played && g.week < curWeek - 1) {
+      delete g.scoring;
+      delete g.stats;
+    }
+  });
+  // Trim news/highlights to last 30
+  if (franchise.news && franchise.news.length > 30) franchise.news = franchise.news.slice(-30);
+  if (franchise.seasonHighlights && franchise.seasonHighlights.length > 30) franchise.seasonHighlights = franchise.seasonHighlights.slice(-30);
+  // Trim chat to last 20
+  if (franchise.chat && franchise.chat.length > 20) franchise.chat = franchise.chat.slice(-20);
+  // Per-player careerHistory cap to 12 (was 20)
+  for (const roster of Object.values(franchise.rosters || {}))
+    for (const p of roster)
+      if (p.careerHistory && p.careerHistory.length > 12) p.careerHistory = p.careerHistory.slice(-12);
 }
 window.addEventListener("beforeunload", () => { if (_saveFranchiseTimer) _flushSaveFranchise(); });
 
