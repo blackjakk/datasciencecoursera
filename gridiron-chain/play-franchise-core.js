@@ -104,7 +104,11 @@ function _signingBonusCalc(aav, years, ovr) {
   const bonusProration = signingBonus > 0
     ? Math.round(signingBonus / prorationYears * 10) / 10
     : 0;
-  return { signingBonus, bonusProration };
+  // Trade kicker: elite players protect against being flipped cheaply.
+  // Receiving team absorbs this as a one-time cap hit when they acquire the player.
+  const kickerPct = ovr >= 90 ? 0.15 : ovr >= 85 ? 0.10 : ovr >= 82 ? 0.05 : 0;
+  const tradeKicker = kickerPct > 0 ? Math.round(aav * kickerPct * 10) / 10 : 0;
+  return { signingBonus, bonusProration, tradeKicker };
 }
 
 // Per-year base salaries (cap hit = base + bonusProration each year).
@@ -167,11 +171,11 @@ function generateContract(player, cap, structureOverride) {
   maxYr = Math.min(maxYr, Math.max(1, 38 - age));
   const years = Math.max(1, Math.min(10, minYr + Math.floor(Math.random() * (maxYr - minYr + 1))));
   const structure = structureOverride || _defaultStructure(age, ovr);
-  const { signingBonus, bonusProration } = _signingBonusCalc(aav, years, ovr);
+  const { signingBonus, bonusProration, tradeKicker } = _signingBonusCalc(aav, years, ovr);
   const baseSalaries = _baseSalarySchedule(aav, years, structure, bonusProration);
   return {
     years, remaining: years, aav, structure,
-    baseSalaries, signingBonus, bonusProration,
+    baseSalaries, signingBonus, bonusProration, tradeKicker,
     guaranteedYears: _guaranteedYearsForLength(years),
     guaranteedAAV: aav, incentives: [], signedAav: aav,
   };
@@ -212,11 +216,11 @@ function rookieContract(player, cap) {
   // Rookies always get balanced/slotted deals — no signing bonus for UDFA,
   // small bonus for drafted players (R1 gets meaningful proration).
   const ovr = player.overall || 70;
-  const { signingBonus, bonusProration } = _signingBonusCalc(aav, years, ovr);
+  const { signingBonus, bonusProration, tradeKicker } = _signingBonusCalc(aav, years, ovr);
   const baseSalaries = _baseSalarySchedule(aav, years, "BALANCED", bonusProration);
   return {
     years, remaining: years, aav, structure: "BALANCED",
-    baseSalaries, signingBonus, bonusProration,
+    baseSalaries, signingBonus, bonusProration, tradeKicker,
     guaranteedYears: _guaranteedYearsForLength(years),
     guaranteedAAV: aav,
     incentives: [],

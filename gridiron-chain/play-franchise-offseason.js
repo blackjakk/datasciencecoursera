@@ -4392,6 +4392,39 @@ function _generateAIOffersForBlockedPlayer(p) {
   }
 }
 
+// Applies NFL-style trade mechanics to both sides of a deal:
+// - Sending team eats remaining prorated signing bonus as dead cap (all accelerated).
+// - Receiving team pays any trade kicker as a one-year cap hit.
+// - Proration is stripped from the traded player (receiver only pays base salaries).
+// Call BEFORE moving players so we read proration from the original contract.
+function _applyTradeMechanics(sendPlayers, recvPlayers, sendTeamId, recvTeamId) {
+  franchise.refunds ||= [];
+  for (const p of sendPlayers) {
+    const proration = p.contract?.bonusProration || 0;
+    const remYrs    = p.contract?.remaining      || 0;
+    const deadTotal = Math.round(proration * remYrs * 10) / 10;
+    if (deadTotal >= 0.05) {
+      franchise.refunds.push({
+        kind: "dead_cap", label: `Dead cap (traded): ${p.name}`,
+        fromTeamId: sendTeamId, toTeamId: null,
+        amount: deadTotal, yearsRemaining: 1,
+      });
+    }
+    if (p.contract) p.contract.bonusProration = 0;
+  }
+  for (const p of recvPlayers) {
+    const kicker = p.contract?.tradeKicker || 0;
+    if (kicker >= 0.05) {
+      franchise.refunds.push({
+        kind: "trade_kicker", label: `Trade kicker: ${p.name}`,
+        fromTeamId: recvTeamId, toTeamId: null,
+        amount: kicker, yearsRemaining: 1,
+      });
+      p.contract.tradeKicker = 0;
+    }
+  }
+}
+
 function frnAcceptOffer(offerId) {
   const off = (franchise.tradeOffers||[]).find(o => o.id === offerId);
   if (!off || off.status !== "pending") return;
@@ -4406,6 +4439,8 @@ function frnAcceptOffer(offerId) {
     renderFrnTrade();
     return;
   }
+  // NFL dead cap + trade kicker (must run before player objects are moved)
+  _applyTradeMechanics(sending, receiving, myId, myId);
   // Execute player swaps
   for (const p of sending) {
     p.onTradeBlock = false;
@@ -4632,6 +4667,8 @@ function frnSubmitTrade() {
   const accepted = aiScore >= 0.97;
 
   if (accepted) {
+    // NFL dead cap + trade kicker (must run before player objects are moved)
+    _applyTradeMechanics(sendPlayers, recvPlayers, myId, myId);
     // Players
     for (const p of sendPlayers) {
       const i = myRoster.indexOf(p);
@@ -4791,12 +4828,16 @@ function _renderTradeProposeTab(tp, sortBy, myRoster, cap, myCapUsed) {
   const browseRows = cappedBrowse.map(({p, teamId, team}) => {
     const escName = (p.name||"").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
     const sel = receiveSet.has(p.name) && partnerId === teamId;
+    const kicker = p.contract?.tradeKicker || 0;
+    const kickerTag = kicker >= 0.05
+      ? `<span style="color:#e8a000;font-size:.55rem;font-weight:700" title="Trade kicker — one-time cap hit if acquired">⚡ $${kicker.toFixed(1)}M</span>` : "";
     return `<label class="frn-trade-player ${sel?"selected":""}">
       <input type="checkbox" ${sel?"checked":""}
         onchange="frnAddReceiveFromBrowse(${teamId},'${escName}')">
       <span style="color:var(--gold);font-size:.58rem;font-weight:700">${p.position}</span>
       <span style="flex:1;font-weight:${sel?700:400}">${p.name}</span>
       ${!partnerId ? `<span style="color:var(--gray);font-size:.6rem">${team.name}</span>` : ""}
+      ${kickerTag}
       <span>${gradeBadge(p)}</span>
       <span style="color:var(--gray);font-size:.62rem">${p.age||"?"}</span>
       <span style="color:var(--gold);font-size:.62rem">$${(p.contract?.aav||0).toFixed(0)}M</span>
@@ -4812,11 +4853,15 @@ function _renderTradeProposeTab(tp, sortBy, myRoster, cap, myCapUsed) {
     const escName = (p.name||"").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
     const sel = sendSet.has(p.name);
     const blockTag = p.onTradeBlock ? `<span style="color:#e8a000;font-size:.55rem;font-weight:700">●BLK</span>` : "";
+    const dead = (p.contract?.bonusProration || 0) * (p.contract?.remaining || 0);
+    const deadTag = dead >= 0.05 && sel
+      ? `<span style="color:#ff9090;font-size:.55rem;font-weight:700" title="Dead cap you'll absorb">☠ $${dead.toFixed(1)}M</span>` : "";
     return `<label class="frn-trade-player ${sel?"selected":""}">
       <input type="checkbox" ${sel?"checked":""}
         onchange="frnToggleTradePlayer('send','${escName}')">
       <span style="color:var(--gold);font-size:.58rem;font-weight:700">${p.position}</span>
       <span style="flex:1;font-weight:${sel?700:400}">${p.name} ${blockTag}</span>
+      ${deadTag}
       <span>${gradeBadge(p)}</span>
       <span style="color:var(--gray);font-size:.62rem">${p.age||"?"}</span>
       <span style="color:var(--gold);font-size:.62rem">$${(p.contract?.aav||0).toFixed(0)}M</span>
@@ -4827,7 +4872,17 @@ function _renderTradeProposeTab(tp, sortBy, myRoster, cap, myCapUsed) {
   const theirRoster = partnerId ? (franchise.rosters[partnerId] || []) : [];
   const sendCap = tp.youSend.reduce((s,n) => s + (myRoster.find(p=>p.name===n)?.contract?.aav || 0), 0);
   const recvCap = tp.youReceive.reduce((s,n) => s + (theirRoster.find(p=>p.name===n)?.contract?.aav || 0), 0);
-  const projCap = myCapUsed - sendCap + recvCap;
+  // Dead cap you'd absorb by trading away selected players
+  const sendDeadCap = tp.youSend.reduce((s, n) => {
+    const p = myRoster.find(x => x.name === n);
+    return s + (p ? (p.contract?.bonusProration || 0) * (p.contract?.remaining || 0) : 0);
+  }, 0);
+  // Trade kickers on players you're receiving
+  const recvKickers = tp.youReceive.reduce((s, n) => {
+    const p = theirRoster.find(x => x.name === n);
+    return s + (p?.contract?.tradeKicker || 0);
+  }, 0);
+  const projCap = myCapUsed - sendCap + recvCap + sendDeadCap + recvKickers;
 
   // Manual partner-override dropdown
   const teamOptionsHtml = `<option value="">— choose / clear —</option>` +
@@ -4844,7 +4899,15 @@ function _renderTradeProposeTab(tp, sortBy, myRoster, cap, myCapUsed) {
       <span style="margin-left:auto">Override:
         <select onchange="frnOpenTrade(this.value||null,'propose')" style="background:var(--bg3);color:var(--white);border:1px solid var(--border);padding:.2rem .35rem;font-family:inherit;font-size:.7rem">${teamOptionsHtml}</select>
       </span>
-      <span>Projected cap: <b style="color:${projCap>cap?'var(--red)':'var(--gold)'}">$${projCap.toFixed(1)}M</b></span>
+      <span>Proj cap: <b style="color:${projCap>cap?'var(--red)':'var(--gold)'}">$${projCap.toFixed(1)}M</b></span>
+      ${sendDeadCap >= 0.05 ? `<span style="color:#ff9090;font-size:.65rem" title="Prorated bonus you absorb when trading these players away">☠ Dead: $${sendDeadCap.toFixed(1)}M</span>` : ""}
+      ${recvKickers >= 0.05 ? `<span style="color:#e8a000;font-size:.65rem" title="One-time trade kicker cap hit on elite player acquisition">⚡ Kicker: $${recvKickers.toFixed(1)}M</span>` : ""}
+      ${(() => {
+        const myDC = _outstandingDeadCap(franchise.chosenTeamId);
+        return myDC.totalDollars >= 0.5
+          ? `<button class="btn btn-outline" onclick="frnAutoFillCashFromDeadCap('receive');renderFrnTrade()" style="color:#ff9090;border-color:#ff9090;font-size:.6rem;padding:.15rem .45rem" title="Auto-fill cash demand to recover your $${myDC.totalDollars.toFixed(1)}M in dead cap">💸 Recoup $${myDC.totalDollars.toFixed(1)}M dead</button>`
+          : "";
+      })()}
     </div>
     <div class="frn-pos-tabs">${posTabs}</div>
     <div class="frn-trade-layout" style="margin-top:.5rem">
@@ -4977,6 +5040,14 @@ function _renderTradeCashSection(myTeam, partnerTeam, tp) {
   </div>`;
 }
 
+function frnRecoupDeadCapMode() {
+  const tp = franchise._tradeProp; if (!tp) return;
+  tp.tab = "propose";
+  frnAutoFillCashFromDeadCap("receive");
+  saveFranchise();
+  renderFrnTrade();
+}
+
 function _renderTradeBlockTab(myRoster, sortBy) {
   const tp = franchise._tradeProp || {};
   // If editing an ask, swap the tab body for the ask form
@@ -5023,7 +5094,20 @@ function _renderTradeBlockTab(myRoster, sortBy) {
       </td>
     </tr>`;
   }).join("");
+  const myDeadCap = _outstandingDeadCap(franchise.chosenTeamId);
+  const deadCapBanner = myDeadCap.totalDollars >= 0.5 ? `
+    <div style="background:rgba(255,100,100,0.08);border:1px solid rgba(255,100,100,.3);padding:.5rem .75rem;margin-bottom:.6rem;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+      <div>
+        <div style="color:#ff9090;font-weight:900;font-size:.75rem">☠ DEAD CAP: $${myDeadCap.totalDollars.toFixed(1)}M outstanding</div>
+        <div style="color:var(--gray);font-size:.62rem;margin-top:.15rem">From traded / released players. Demand cash in a trade proposal to offset it.</div>
+      </div>
+      <button class="btn btn-outline" onclick="frnRecoupDeadCapMode()" style="color:#ff9090;border-color:#ff9090;white-space:nowrap;margin-left:auto">
+        💸 Set Up Cash Demand to Recoup
+      </button>
+    </div>` : "";
+
   return `
+    ${deadCapBanner}
     <div style="color:var(--gray);font-size:.72rem;margin-bottom:.5rem">
       Listings go public when the week ends. Set an asking price to send a direct proposal — the target team can accept on the spot or counter, with counters arriving the following week.
     </div>
@@ -5207,12 +5291,16 @@ function _renderTradeOffersTab() {
       : `<span class="frn-offer-status stale">STALE</span>`;
     // Build "they give" items: players + picks + refund
     const giveItems = [];
-    for (const p of theyGive) giveItems.push(`<div class="frn-offer-player">
-      <span style="color:var(--gold);font-size:.58rem;font-weight:700">${p.position}</span>
-      <span style="font-weight:700">${p.name}</span>
-      <span>${gradeBadge(p)}</span>
-      <span style="color:var(--gray);font-size:.62rem">${p.age||"?"}</span>
-    </div>`);
+    for (const p of theyGive) {
+      const kicker = p.contract?.tradeKicker || 0;
+      giveItems.push(`<div class="frn-offer-player">
+        <span style="color:var(--gold);font-size:.58rem;font-weight:700">${p.position}</span>
+        <span style="font-weight:700">${p.name}</span>
+        <span>${gradeBadge(p)}</span>
+        <span style="color:var(--gray);font-size:.62rem">${p.age||"?"}</span>
+        ${kicker >= 0.05 ? `<span style="color:#e8a000;font-size:.55rem;font-weight:700" title="Trade kicker — one-time cap hit you'll absorb">⚡ $${kicker.toFixed(1)}M kicker</span>` : ""}
+      </div>`);
+    }
     if (o.pickIds && o.pickIds.length) {
       // Group by round for display
       const byRd = {};
@@ -5242,15 +5330,23 @@ function _renderTradeOffersTab() {
     const giveCol = `<div class="frn-offer-side">
       <div class="frn-offer-side-label" style="color:var(--green-lt)">THEY GIVE</div>
       ${giveItems.length ? giveItems.join("") : `<div style="color:var(--gray);font-style:italic;font-size:.65rem">No longer available</div>`}
+      ${totalKicker >= 0.05 ? `<div style="color:#e8a000;font-size:.62rem;margin-top:.3rem;padding-top:.25rem;border-top:1px solid rgba(232,160,0,.2)">⚡ Kicker cap hit you absorb: <b>$${totalKicker.toFixed(1)}M</b></div>` : ""}
     </div>`;
+    const totalDeadCap = theyWant.reduce((s, p) => s + (p.contract?.bonusProration||0) * (p.contract?.remaining||0), 0);
+    const totalKicker  = theyGive.reduce((s, p) => s + (p.contract?.tradeKicker||0), 0);
     const wantCol = `<div class="frn-offer-side">
       <div class="frn-offer-side-label" style="color:var(--gold-lt)">THEY WANT</div>
-      ${theyWant.length ? theyWant.map(p => `<div class="frn-offer-player">
-        <span style="color:var(--gold);font-size:.58rem;font-weight:700">${p.position}</span>
-        <span style="font-weight:700">${p.name}</span>
-        <span>${gradeBadge(p)}</span>
-        <span style="color:var(--gray);font-size:.62rem">${p.age||"?"}</span>
-      </div>`).join("") : `<div style="color:var(--gray);font-style:italic;font-size:.65rem">No longer available</div>`}
+      ${theyWant.length ? theyWant.map(p => {
+        const dead = (p.contract?.bonusProration||0) * (p.contract?.remaining||0);
+        return `<div class="frn-offer-player">
+          <span style="color:var(--gold);font-size:.58rem;font-weight:700">${p.position}</span>
+          <span style="font-weight:700">${p.name}</span>
+          <span>${gradeBadge(p)}</span>
+          <span style="color:var(--gray);font-size:.62rem">${p.age||"?"}</span>
+          ${dead >= 0.05 ? `<span style="color:#ff9090;font-size:.55rem;font-weight:700" title="Dead cap you'll absorb">☠ $${dead.toFixed(1)}M dead</span>` : ""}
+        </div>`;
+      }).join("") : `<div style="color:var(--gray);font-style:italic;font-size:.65rem">No longer available</div>`}
+      ${totalDeadCap >= 0.05 ? `<div style="color:#ff9090;font-size:.62rem;margin-top:.3rem;padding-top:.25rem;border-top:1px solid rgba(255,100,100,.2)">☠ Total dead cap absorbed: <b>$${totalDeadCap.toFixed(1)}M</b></div>` : ""}
     </div>`;
     return `<div class="frn-offer-card ${o.status}">
       <div class="frn-offer-head">
