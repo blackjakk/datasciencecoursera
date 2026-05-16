@@ -1210,7 +1210,7 @@ function _buildSeasonStatsBlock(p) {
     `<div class="k">${k}</div><div class="v">${v}</div>`
   ).join("");
   return `<div class="frn-pcard-section">
-    <div class="frn-card-title">SEASON STATS · ${stat.gp || 0} GP</div>
+    <div class="frn-card-title">📈 SEASON TOTALS · ${stat.gp || 0} GP</div>
     <div class="frn-pcard-seasonstats">${cells}</div>
     ${fantasyHtml}
   </div>`;
@@ -2259,8 +2259,20 @@ function _faResolveAfterWeek(week, isSeasonEnd) {
       n.state = "unsigned";
       newsLost.push({ name, pos: n.fa.position, reason: "endless negotiation" });
     } else {
-      // Reset for next round
-      n.raisedThisRound = false;
+      // Active bidding week: demand still drifts down slowly (3%) even with
+      // counter-bids, then check if the high bid now clears the threshold.
+      // This prevents infinite negotiation when AI teams keep making tiny
+      // incremental counter-bids that reset the stable-round clock.
+      n.fa.originalDemandAAV ??= n.fa.demandedAAV;
+      const slowFloor = +(n.fa.originalDemandAAV * 0.65).toFixed(1);
+      const driftedDemand = Math.max(slowFloor, Math.round(n.fa.demandedAAV * 0.97 * 10) / 10);
+      if (driftedDemand < n.fa.demandedAAV) n.fa.demandedAAV = driftedDemand;
+      // If the standing high bid now clears 95% of the drifted demand → sign
+      if (highId != null && highAav >= n.fa.demandedAAV * 0.95) {
+        signFn();
+      } else {
+        n.raisedThisRound = false;
+      }
     }
   }
   franchise._faLastNews = { week, signed: newsSigned, lost: newsLost };
