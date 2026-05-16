@@ -4263,6 +4263,31 @@ function runFrnOffseason() {
         }
       }
 
+      // Physical decline — SPD/AGI/STR scale with years past each stat's onset age.
+      // Pre-peak players have a small growth window. K/P excluded (stats irrelevant).
+      if (p.position !== "K" && p.position !== "P" && p._physicalPeak && p.stats) {
+        const age = p.age || 25;
+        const pp  = p._physicalPeak;
+        const _dc = (onset) => {
+          const yrs = age - onset;
+          return yrs <= 0 ? 0 : yrs === 1 ? 0.20 : yrs === 2 ? 0.30 : 0.40;
+        };
+        // SPD (0)
+        const spdD = _dc(pp.spd.onset);
+        if      (spdD > 0 && Math.random() < spdD)          p.stats[0] = Math.max(38, p.stats[0] - 1);
+        else if (age < pp.spd.peak && Math.random() < 0.08) p.stats[0] = Math.min(99, p.stats[0] + 1);
+        // STR (1)
+        const strD = _dc(pp.str.onset);
+        if      (strD > 0 && Math.random() < strD)          p.stats[1] = Math.max(38, p.stats[1] - 1);
+        else if (age < pp.str.peak && Math.random() < 0.05) p.stats[1] = Math.min(99, p.stats[1] + 1);
+        // AGI (2)
+        const agiD = _dc(pp.agi.onset);
+        if      (agiD > 0 && Math.random() < agiD)          p.stats[2] = Math.max(36, p.stats[2] - 1);
+        else if (age < pp.agi.peak && Math.random() < 0.07) p.stats[2] = Math.min(99, p.stats[2] + 1);
+        // Recalculate overall to reflect physical changes
+        p.overall = calcOverall(p.position, p.stats);
+      }
+
       // Wire alerts for dev swings. Hybrid framing — your own players
       // get explicit OVR numbers (you have full info); other teams'
       // players surface only as noisy scout-grade changes, keeping the

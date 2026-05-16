@@ -1503,6 +1503,25 @@ function _backfillCoachable() {
   (franchise.freeAgents || []).forEach(stamp);
 }
 
+// Backfill physical peak ages onto legacy saves that predate the system.
+function _backfillPhysicalPeak() {
+  if (!franchise) return;
+  const stamp = p => {
+    if (p._physicalPeak) return;
+    const fl = p.flavor;
+    if (fl === "RAW_ATHLETE") {
+      p._physicalPeak = { spd:{peak:23,onset:26}, agi:{peak:24,onset:27}, str:{peak:26,onset:29} };
+    } else if (fl === "HIGH_FOOTBALL_IQ") {
+      p._physicalPeak = { spd:{peak:27,onset:30}, agi:{peak:28,onset:31}, str:{peak:29,onset:33} };
+    } else {
+      p._physicalPeak = { spd:{peak:25,onset:28}, agi:{peak:26,onset:29}, str:{peak:28,onset:31} };
+    }
+  };
+  for (const roster of Object.values(franchise.rosters || {})) roster.forEach(stamp);
+  for (const squad  of Object.values(franchise.practiceSquads || {})) squad.forEach(stamp);
+  (franchise.freeAgents || []).forEach(stamp);
+}
+
 // Backfill pid onto any player object that doesn't have one (legacy saves).
 function _backfillPlayerPids() {
   if (!franchise) return;
@@ -1724,7 +1743,7 @@ function loadFranchise() {
     if (raw) {
       franchise = JSON.parse(raw);
       if (franchise && franchise.pendingFranchiseGame) franchise.pendingFranchiseGame = null;
-      _backfillPlayerPids(); _backfillTEC(); _backfillCoachingStaff(); _backfillCoachable();
+      _backfillPlayerPids(); _backfillTEC(); _backfillCoachingStaff(); _backfillCoachable(); _backfillPhysicalPeak();
       // Race the IDB read — if IDB has a newer save (lastSaved timestamp via
       // _saveLastFlush on franchise), use it. Otherwise keep the sync result.
       _idbGet(slotId).then(idbFranchise => {
@@ -1734,7 +1753,7 @@ function loadFranchise() {
         if (idbTime > lsTime) {
           franchise = idbFranchise;
           if (franchise.pendingFranchiseGame) franchise.pendingFranchiseGame = null;
-          _backfillPlayerPids(); _backfillTEC(); _backfillCoachingStaff(); _backfillCoachable();
+          _backfillPlayerPids(); _backfillTEC(); _backfillCoachingStaff(); _backfillCoachable(); _backfillPhysicalPeak();
           if (typeof showFranchiseDashboard === "function") showFranchiseDashboard();
         }
       }).catch(() => {});
@@ -1745,7 +1764,7 @@ function loadFranchise() {
         if (!idbFranchise) return;
         franchise = idbFranchise;
         if (franchise.pendingFranchiseGame) franchise.pendingFranchiseGame = null;
-        _backfillPlayerPids(); _backfillTEC(); _backfillCoachingStaff(); _backfillCoachable();
+        _backfillPlayerPids(); _backfillTEC(); _backfillCoachingStaff(); _backfillCoachable(); _backfillPhysicalPeak();
         if (typeof showFranchiseDashboard === "function") showFranchiseDashboard();
       }).catch(() => {});
     }

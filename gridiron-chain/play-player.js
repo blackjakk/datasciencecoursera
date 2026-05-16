@@ -1056,6 +1056,15 @@ function genPlayer(pos, tier) {
                      : flavor === "RAW_ATHLETE"       ? rand(55, 72)
                      : rand(65, 82);
   player.coachable = Math.random() < (flavor === "HIGH_FOOTBALL_IQ" ? 0.45 : flavor === "RAW_ATHLETE" ? 0.10 : 0.25);
+  // Physical peak ages — onset is when decline begins; pre-peak players can still gain.
+  // RAW_ATHLETE peaks explosively early and falls faster; HIGH_IQ ages gracefully.
+  if (flavor === "RAW_ATHLETE") {
+    player._physicalPeak = { spd:{peak:23,onset:26}, agi:{peak:24,onset:27}, str:{peak:26,onset:29} };
+  } else if (flavor === "HIGH_FOOTBALL_IQ") {
+    player._physicalPeak = { spd:{peak:27,onset:30}, agi:{peak:28,onset:31}, str:{peak:29,onset:33} };
+  } else {
+    player._physicalPeak = { spd:{peak:25,onset:28}, agi:{peak:26,onset:29}, str:{peak:28,onset:31} };
+  }
   // Recalculate overall now that TEC is set properly.
   player.overall = calcOverall(pos, player.stats);
 
