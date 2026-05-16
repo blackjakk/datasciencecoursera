@@ -1317,6 +1317,21 @@ function _writeSlotsMeta(meta) {
 }
 function _slotDataKey(id) { return `gc_franchise_v1_slot_${id}`; }
 
+// Backfill pid onto any player object that doesn't have one (legacy saves).
+function _backfillPlayerPids() {
+  if (!franchise) return;
+  const seen = new Set();
+  const stamp = p => {
+    if (!p.pid) p.pid = Math.random().toString(36).slice(2, 10);
+    // Guarantee uniqueness within this save
+    while (seen.has(p.pid)) p.pid = Math.random().toString(36).slice(2, 10);
+    seen.add(p.pid);
+  };
+  for (const roster of Object.values(franchise.rosters || {})) roster.forEach(stamp);
+  for (const squad of Object.values(franchise.practiceSquads || {})) squad.forEach(stamp);
+  (franchise.freeAgents || []).forEach(stamp);
+}
+
 function _migrateLegacySave() {
   const meta = _readSlotsMeta();
   if (meta.slots.length > 0) return;
@@ -1478,12 +1493,11 @@ function _trimFranchiseForStorage() {
   const curWeek  = franchise.week || 1;
   const userTeam = franchise.chosenTeamId;
 
-  // Drop play-by-play timelines and per-game player stats from completed games
-  // older than the previous week. seasonStats already has the aggregates.
+  // Drop only play-by-play scoring timelines from old games — keep per-game
+  // player stats (g.stats) so the full game log remains available.
   (franchise.schedule || []).forEach(g => {
     if (g.played && g.week < curWeek - 1) {
       delete g.scoring;
-      delete g.stats;
     }
   });
 
@@ -1499,8 +1513,8 @@ function _trimFranchiseForStorage() {
   const _trimPlayerList = (players, isCPU) => {
     for (const p of players) {
       if (p.injuryHistory?.length > 4) p.injuryHistory = p.injuryHistory.slice(-4);
-      const historyCap = isCPU ? 4 : 12;
-      const careerCap  = isCPU ? 4 : 12;
+      const historyCap = isCPU ? 10 : 20;
+      const careerCap  = isCPU ? 10 : 20;
       if (p.careerHistory?.length > historyCap) p.careerHistory = p.careerHistory.slice(-historyCap);
       if (p.career?.length      > careerCap)  p.career         = p.career.slice(-careerCap);
     }
@@ -1524,6 +1538,7 @@ function loadFranchise() {
     if (raw) {
       franchise = JSON.parse(raw);
       if (franchise && franchise.pendingFranchiseGame) franchise.pendingFranchiseGame = null;
+      _backfillPlayerPids();
       // Race the IDB read — if IDB has a newer save (lastSaved timestamp via
       // _saveLastFlush on franchise), use it. Otherwise keep the sync result.
       _idbGet(slotId).then(idbFranchise => {
@@ -1533,6 +1548,7 @@ function loadFranchise() {
         if (idbTime > lsTime) {
           franchise = idbFranchise;
           if (franchise.pendingFranchiseGame) franchise.pendingFranchiseGame = null;
+          _backfillPlayerPids();
           if (typeof showFranchiseDashboard === "function") showFranchiseDashboard();
         }
       }).catch(() => {});
@@ -1543,6 +1559,7 @@ function loadFranchise() {
         if (!idbFranchise) return;
         franchise = idbFranchise;
         if (franchise.pendingFranchiseGame) franchise.pendingFranchiseGame = null;
+        _backfillPlayerPids();
         if (typeof showFranchiseDashboard === "function") showFranchiseDashboard();
       }).catch(() => {});
     }

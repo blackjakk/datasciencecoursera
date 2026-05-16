@@ -988,6 +988,7 @@ function genPlayer(pos, tier) {
     }
   }
   const player = {
+    pid: Math.random().toString(36).slice(2, 10),
     name: displayName,
     firstName, middleName, lastName,
     position: pos,
@@ -1161,63 +1162,248 @@ function assignCareerTeams(rosters) {
 function mockSeasonStats(pos, ovr, archetype) {
   const noise = () => (Math.random() - 0.4) * 0.30 + 1;   // 0.85–1.16 typical
   const r = (n) => Math.round(n);
+
+  // --- Games played: scale by ovr tier, clamp [1, 17] ---
+  let gp;
+  if (ovr >= 82)      gp = Math.round(14 + Math.random() * 3);
+  else if (ovr >= 72) gp = Math.round(10 + Math.random() * 6);
+  else if (ovr >= 62) gp = Math.round(5  + Math.random() * 7);
+  else                gp = Math.round(1  + Math.random() * 5);
+  gp = Math.min(17, Math.max(1, gp));
+
+  const gpF = gp / 17;
+  // rc() scales a full-season base count down to games-played equivalent
+  const rc = (n) => Math.round(n * gpF);
+
   if (pos === "QB") {
-    const att = Math.max(60, r((420 + (ovr - 70) * 9) * noise()));
-    const cmpPct = Math.min(0.74, Math.max(0.48, 0.55 + (ovr - 70) * 0.0045));
-    const yds = r(att * cmpPct * Math.max(5.2, 6.6 + (ovr - 70) * 0.06) * noise());
-    const td = Math.max(2, r((18 + (ovr - 70) * 0.65) * noise()));
-    const ints = Math.max(2, r((16 - (ovr - 70) * 0.22) * noise()));
-    return { gp: 17, pass_att: att, pass_comp: r(att * cmpPct), pass_yds: yds, pass_td: td, pass_int: ints };
+    // --- base formula variables ---
+    let attBase = (420 + (ovr - 70) * 9);
+    let cmpPct  = Math.min(0.74, Math.max(0.48, 0.55 + (ovr - 70) * 0.0045));
+    let ypa     = Math.max(5.2, 6.6 + (ovr - 70) * 0.06);
+    let tdBase  = (18 + (ovr - 70) * 0.65);
+    let intBase = (16 - (ovr - 70) * 0.22);
+
+    // --- archetype modifiers (applied to base variables) ---
+    let addRush = false;
+    if (archetype === "GUNSLINGER") {
+      tdBase  *= 1.25; intBase *= 1.30; ypa += 0.5; cmpPct -= 0.03;
+    } else if (archetype === "GAME_MANAGER") {
+      cmpPct  += 0.05; tdBase *= 0.75; intBase *= 0.65;
+    } else if (archetype === "DUAL_THREAT") {
+      cmpPct  -= 0.03; addRush = true;
+    } else if (archetype === "FIELD_GENERAL") {
+      cmpPct  += 0.03; intBase *= 0.75; ypa += 0.2;
+    }
+    cmpPct = Math.min(0.74, Math.max(0.48, cmpPct));
+
+    // --- final counting stats ---
+    const att  = Math.max(rc(60), rc(attBase * noise()));
+    const comp = r(att * cmpPct);
+    const yds  = r(att * ypa * noise());
+    const td   = Math.max(rc(2), rc(tdBase * noise()));
+    const ints = Math.max(rc(2), rc(Math.max(1, intBase) * noise()));
+
+    const result = { gp, pass_att: att, pass_comp: comp, pass_yds: yds, pass_td: td, pass_int: ints };
+
+    if (addRush) {
+      const rush_att = rc((40 + (ovr - 70) * 1.5) * noise());
+      const rush_yds = Math.round(rush_att * (4.5 + (ovr - 70) * 0.04) * noise());
+      const rush_td  = Math.max(0, rc((3 + (ovr - 70) * 0.10) * noise()));
+      result.rush_att = rush_att; result.rush_yds = rush_yds; result.rush_td = rush_td;
+    }
+    return result;
   }
+
   if (pos === "RB") {
-    const att = Math.max(40, r((175 + (ovr - 70) * 6) * noise()));
-    const ypc = Math.min(5.4, Math.max(3.1, 3.6 + (ovr - 70) * 0.038));
+    // --- base formula variables ---
+    let attBase = (175 + (ovr - 70) * 6);
+    let ypc     = Math.min(5.4, Math.max(3.1, 3.6 + (ovr - 70) * 0.038));
+    let recBase = (20  + (ovr - 70) * 0.7);
+
+    // --- archetype modifiers ---
+    if (archetype === "POWER") {
+      attBase *= 1.15; ypc -= 0.15; recBase *= 0.50;
+    } else if (archetype === "ELUSIVE") {
+      attBase *= 0.88; ypc += 0.25;
+    } else if (archetype === "SPEED") {
+      attBase *= 0.80; ypc += 0.45; recBase *= 0.65;
+    } else if (archetype === "WORKHORSE") {
+      attBase *= 1.20;
+    } else if (archetype === "RECEIVING") {
+      attBase *= 0.55; recBase *= 1.90;
+    }
+    ypc = Math.min(5.4, Math.max(3.1, ypc));
+
+    // --- final counting stats ---
+    const att = Math.max(rc(40), rc(attBase * noise()));
     const yds = r(att * ypc * noise());
-    const td = Math.max(1, r((6 + (ovr - 70) * 0.22) * noise()));
-    const rec = Math.max(0, r((20 + (ovr - 70) * 0.7) * noise()));
-    return { gp: 17, rush_att: att, rush_yds: yds, rush_td: td, rec, rec_yds: r(rec * 8.5) };
+    const td  = Math.max(rc(1), rc((6 + (ovr - 70) * 0.22) * noise()));
+    const rec = Math.max(0, rc(recBase * noise()));
+    return { gp, rush_att: att, rush_yds: yds, rush_td: td, rec, rec_yds: r(rec * 8.5) };
   }
-  if (pos === "WR" || pos === "TE") {
-    const tgt = Math.max(20, r(((pos === "WR" ? 95 : 70) + (ovr - 70) * 3.5) * noise()));
-    const recRate = Math.min(0.78, Math.max(0.5, 0.60 + (ovr - 70) * 0.003));
+
+  if (pos === "WR") {
+    // --- base formula variables ---
+    let tgtBase = (95  + (ovr - 70) * 3.5);
+    let recRate = Math.min(0.78, Math.max(0.5, 0.60 + (ovr - 70) * 0.003));
+    let yprBase = Math.min(17, Math.max(8, 12 + (ovr - 70) * 0.09));
+    let tdBase  = (5   + (ovr - 70) * 0.18);
+
+    // --- archetype modifiers ---
+    if (archetype === "DEEP_THREAT") {
+      tgtBase *= 0.72; yprBase *= 1.42; recRate -= 0.07; tdBase *= 1.10;
+    } else if (archetype === "POSSESSION") {
+      tgtBase *= 1.18; yprBase *= 0.80; recRate += 0.09; tdBase *= 0.80;
+    } else if (archetype === "SLOT") {
+      tgtBase *= 1.28; yprBase *= 0.88; recRate += 0.04;
+    } else if (archetype === "RED_ZONE") {
+      tgtBase *= 0.75; yprBase *= 0.82; tdBase  *= 1.55;
+    } else if (archetype === "ROUTE_RUNNER") {
+      recRate += 0.07; tgtBase *= 1.05;
+    }
+    recRate = Math.min(0.78, Math.max(0.5, recRate));
+    yprBase = Math.min(17, Math.max(8, yprBase));
+
+    // --- final counting stats ---
+    const tgt = Math.max(rc(20), rc(tgtBase * noise()));
     const rec = r(tgt * recRate);
-    const ypr = Math.min(17, Math.max(8, (pos === "WR" ? 12 : 11) + (ovr - 70) * 0.09));
-    const yds = r(rec * ypr * noise());
-    const td = Math.max(0, r(((pos === "WR" ? 5 : 4) + (ovr - 70) * 0.18) * noise()));
-    return { gp: 17, rec_tgt: tgt, rec, rec_yds: yds, rec_td: td };
+    const yds = r(rec * yprBase * noise());
+    const td  = Math.max(0, rc(tdBase * noise()));
+    return { gp, rec_tgt: tgt, rec, rec_yds: yds, rec_td: td };
   }
+
+  if (pos === "TE") {
+    // --- base formula variables ---
+    let tgtBase = (70  + (ovr - 70) * 3.5);
+    let recRate = Math.min(0.78, Math.max(0.5, 0.60 + (ovr - 70) * 0.003));
+    let yprBase = Math.min(17, Math.max(8, 11 + (ovr - 70) * 0.09));
+    let tdBase  = (4   + (ovr - 70) * 0.18);
+
+    // --- archetype modifiers ---
+    if (archetype === "BLOCKING") {
+      tgtBase *= 0.28; tdBase *= 0.45; recRate -= 0.08;
+    } else if (archetype === "RECEIVING") {
+      tgtBase *= 1.25; yprBase *= 1.08;
+    }
+    recRate = Math.min(0.78, Math.max(0.5, recRate));
+    yprBase = Math.min(17, Math.max(8, yprBase));
+
+    // --- final counting stats ---
+    const tgt = Math.max(rc(20), rc(tgtBase * noise()));
+    const rec = r(tgt * recRate);
+    const yds = r(rec * yprBase * noise());
+    const td  = Math.max(0, rc(tdBase * noise()));
+    return { gp, rec_tgt: tgt, rec, rec_yds: yds, rec_td: td };
+  }
+
   if (pos === "DL") {
-    const sk = Math.round(Math.max(0, (4 + (ovr - 70) * 0.30) * noise()) * 10) / 10;
-    const tkl = Math.max(8, r((45 + (ovr - 70) * 1.2) * noise()));
-    const ff = Math.max(0, r((1 + (ovr - 70) * 0.04) * noise()));
-    const pd = Math.max(0, r((3 + (ovr - 70) * 0.10) * noise()));
-    return { gp: 17, sk, tkl, ff, pd };
+    // --- base formula variables ---
+    let skBase  = Math.max(1.5, 4 + (ovr - 70) * 0.30);
+    let tklBase = Math.max(10,  45 + (ovr - 70) * 1.2);
+    const ffBase  = Math.max(0.5, 1 + (ovr - 70) * 0.04);
+    const pdBase  = Math.max(1,   3 + (ovr - 70) * 0.10);
+
+    // --- archetype modifiers ---
+    if (archetype === "SPEED" || archetype === "PENETRATOR") {
+      skBase  *= 1.45; tklBase *= 0.80;
+    } else if (archetype === "POWER") {
+      skBase  *= 0.75; tklBase *= 1.30;
+    } else if (archetype === "TECHNICIAN") {
+      skBase  *= 1.15;
+    }
+    // TWEENER: no change
+
+    // --- final counting stats ---
+    const sk  = Math.round(Math.max(0, rc(skBase  * noise())) * 10) / 10;
+    const tkl = Math.max(0, rc(tklBase * noise()));
+    const ff  = Math.max(0, rc(ffBase  * noise()));
+    const pd  = Math.max(0, rc(pdBase  * noise()));
+    return { gp, sk, tkl, ff, pd };
   }
+
   if (pos === "LB") {
-    const sk = Math.round(Math.max(0, (2 + (ovr - 70) * 0.20) * noise()) * 10) / 10;
-    const tkl = Math.max(20, r((70 + (ovr - 70) * 1.6) * noise()));
-    const ff = Math.max(0, r((1 + (ovr - 70) * 0.04) * noise()));
-    const int_made = Math.max(0, r((1 + (ovr - 70) * 0.06) * noise()));
-    return { gp: 17, sk, tkl, ff, int_made };
+    // --- base formula variables ---
+    let skBase  = Math.max(0.8, 2 + (ovr - 70) * 0.20);
+    let tklBase = Math.max(25,  70 + (ovr - 70) * 1.6);
+    const ffBase  = Math.max(0.5, 1 + (ovr - 70) * 0.04);
+    let intBase = Math.max(0.5, 1 + (ovr - 70) * 0.06);
+
+    // --- archetype modifiers ---
+    if (archetype === "BLITZER") {
+      skBase  *= 1.70; tklBase *= 0.72; intBase *= 0.45;
+    } else if (archetype === "THUMPER") {
+      skBase  *= 0.50; tklBase *= 1.35; intBase *= 0.40;
+    } else if (archetype === "COVER") {
+      skBase  *= 0.65; tklBase *= 0.78; intBase *= 2.10;
+    }
+    // SIGNAL / HYBRID: no change
+
+    // --- final counting stats ---
+    const sk       = Math.round(Math.max(0, rc(skBase  * noise())) * 10) / 10;
+    const tkl      = Math.max(0, rc(tklBase * noise()));
+    const ff       = Math.max(0, rc(ffBase  * noise()));
+    const int_made = Math.max(0, rc(intBase * noise()));
+    return { gp, sk, tkl, ff, int_made };
   }
+
   if (pos === "CB") {
-    const int_made = Math.max(0, r((2 + (ovr - 70) * 0.14) * noise()));
-    const pd = Math.max(0, r((10 + (ovr - 70) * 0.50) * noise()));
-    const tkl = Math.max(10, r((50 + (ovr - 70) * 0.7) * noise()));
-    return { gp: 17, int_made, pd, tkl };
+    // --- base formula variables ---
+    let intBase = Math.max(0.5, 2  + (ovr - 70) * 0.14);
+    let pdBase  = Math.max(2,   10 + (ovr - 70) * 0.50);
+    let tklBase = Math.max(12,  50 + (ovr - 70) * 0.7);
+
+    // --- archetype modifiers ---
+    if (archetype === "BALL_HAWK") {
+      intBase *= 1.65; pdBase  *= 0.80; tklBase *= 1.15;
+    } else if (archetype === "SHUTDOWN") {
+      intBase *= 0.45; pdBase  *= 1.35;
+    } else if (archetype === "PHYSICAL") {
+      tklBase *= 1.40; intBase *= 0.80;
+    } else if (archetype === "ZONE") {
+      pdBase  *= 1.45; intBase *= 0.65; tklBase *= 0.82;
+    } else if (archetype === "SLOT_CB") {
+      tklBase *= 1.15;
+    }
+
+    // --- final counting stats ---
+    const int_made = Math.max(0, rc(intBase * noise()));
+    const pd       = Math.max(0, rc(pdBase  * noise()));
+    const tkl      = Math.max(0, rc(tklBase * noise()));
+    return { gp, int_made, pd, tkl };
   }
+
   if (pos === "S") {
-    const int_made = Math.max(0, r((1 + (ovr - 70) * 0.10) * noise()));
-    const tkl = Math.max(20, r((75 + (ovr - 70) * 1.0) * noise()));
-    const pd = Math.max(0, r((6 + (ovr - 70) * 0.30) * noise()));
-    const sk = Math.round(Math.max(0, (1 + (ovr - 70) * 0.05) * noise()) * 10) / 10;
-    return { gp: 17, int_made, tkl, pd, sk };
+    // --- base formula variables ---
+    let intBase = Math.max(0.5, 1  + (ovr - 70) * 0.10);
+    let tklBase = Math.max(20,  75 + (ovr - 70) * 1.0);
+    let pdBase  = Math.max(1.5, 6  + (ovr - 70) * 0.30);
+    const skBase  = Math.max(0.4, 1  + (ovr - 70) * 0.05);
+
+    // --- archetype modifiers ---
+    if (archetype === "BALL_HAWK") {
+      intBase *= 1.80; tklBase *= 0.78;
+    } else if (archetype === "BOX") {
+      intBase *= 0.38; tklBase *= 1.50; pdBase  *= 0.70;
+    } else if (archetype === "CENTER_FIELD") {
+      intBase *= 1.25; tklBase *= 0.62; pdBase  *= 1.30;
+    }
+    // HYBRID: no change
+
+    // --- final counting stats ---
+    const int_made = Math.max(0, rc(intBase * noise()));
+    const tkl      = Math.max(0, rc(tklBase * noise()));
+    const pd       = Math.max(0, rc(pdBase  * noise()));
+    const sk       = Math.round(Math.max(0, rc(skBase  * noise())) * 10) / 10;
+    return { gp, int_made, tkl, pd, sk };
   }
+
   if (pos === "OL") {
-    const pen = Math.max(0, r((4 - (ovr - 70) * 0.08) * noise()));
-    return { gp: 17, gs: 17, sacks_allowed: Math.max(0, r((4 - (ovr - 70) * 0.07) * noise())), penalties: pen };
+    const pen           = Math.max(0, rc((4 - (ovr - 70) * 0.08) * noise()));
+    const sacks_allowed = Math.max(0, rc((4 - (ovr - 70) * 0.07) * noise()));
+    return { gp, gs: gp, sacks_allowed, penalties: pen };
   }
-  return { gp: 17 };
+
+  return { gp };
 }
 
 function generateAccolades(player, season, effOvr, seasonAge) {

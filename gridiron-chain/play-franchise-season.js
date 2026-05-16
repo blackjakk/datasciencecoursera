@@ -575,7 +575,7 @@ function _preseasonRosterTab(roster, selName) {
 
   // Default selected: highest-OVR player on the team
   let selected = null;
-  if (selName) selected = roster.find(p => p.name === selName);
+  if (selName) selected = roster.find(p => p.pid === selName || p.name === selName);
   if (!selected) selected = roster.slice().sort((a,b) => b.overall - a.overall)[0];
 
   let listHtml = "";
@@ -587,9 +587,10 @@ function _preseasonRosterTab(roster, selName) {
       <table class="frn-pre-roster-table">
         <tbody>
           ${players.map((p, i) => {
-            const escName = (p.name || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+            const pKey = p.pid || p.name;
+            const escName = pKey.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
             const isStarter = i === 0;
-            const isSel = selected && selected.name === p.name;
+            const isSel = selected && (selected.pid ? selected.pid === p.pid : selected.name === p.name);
             const aav = p.contract?.aav || 0;
             const yrs = p.contract?.remaining || 0;
             const isPendingRelease = _releasePending?.name === p.name && _releasePending?.pos === p.position;
@@ -689,13 +690,14 @@ function _preseasonScoutTab(myId, scoutId, view, selName) {
 
   // Resolve which player is selected (defaults to the team's best player)
   let selected = null;
-  if (selName) selected = oppRoster.find(p => p.name === selName);
+  if (selName) selected = oppRoster.find(p => p.pid === selName || p.name === selName);
   if (!selected) selected = oppRoster.slice().sort((a,b) => b.overall - a.overall)[0];
 
   const posOrder = ["QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"];
   const rowHtml = (p, slotLabel) => {
-    const isSel = selected && selected.name === p.name;
-    const escName = (p.name || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    const pKey = p.pid || p.name;
+    const isSel = selected && (selected.pid ? selected.pid === p.pid : selected.name === p.name);
+    const escName = pKey.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
     return `<tr class="frn-scout-row ${isSel?"selected":""}"
       onclick="renderFrnPreseason('scout',${scoutId},'${view}','${escName}')">
       <td class="frn-scout-slot">${slotLabel}</td>
@@ -1852,7 +1854,7 @@ function frnFASetFilter(field, value) {
   }
 }
 
-function renderFrnFA(selectedName) {
+function renderFrnFA(selectedKey) {
   const { chosenTeamId, freeAgents = [], _faOffers = {}, salaryCap, season } = franchise;
   const cap = salaryCap || SALARY_CAP_BASE;
   const myRoster = franchise.rosters[chosenTeamId] || [];
@@ -1874,7 +1876,10 @@ function renderFrnFA(selectedName) {
   else if (filters.sort === "grade") filtered.sort((a, b) => scoutGrade(b) - scoutGrade(a));
   // default "price" already matches the source ordering (desc)
 
-  let selected = selectedName ? freeAgents.find(p => p.name === selectedName) : null;
+  // Match by pid (new saves) then by name (legacy saves)
+  let selected = selectedKey
+    ? (freeAgents.find(p => p.pid === selectedKey) || freeAgents.find(p => p.name === selectedKey))
+    : null;
   if (!selected) selected = filtered[0] || freeAgents[0];
 
   // Filter chip helper
@@ -1905,16 +1910,17 @@ function renderFrnFA(selectedName) {
   // FA list (left column)
   const workoutResults = franchise._faWorkoutResults || {};
   const faListHtml = filtered.map(p => {
-    const myOffer = _faOffers[p.name];
+    const faKey = p.pid || p.name;
+    const myOffer = _faOffers[faKey] || _faOffers[p.name];
     const offered = !!myOffer;
-    const isSel = selected && p.name === selected.name;
-    const escName = (p.name || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    const isSel = selected && (p.pid ? p.pid === selected.pid : p.name === selected.name);
+    const escKey = (faKey || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
     const young = p.age <= 25;
     const ageColor = young ? "color:var(--green-lt);font-weight:700" : p.age >= 32 ? "color:#e8a000" : "";
     const wo = workoutResults[p.name];
     const woIcon = wo ? (wo.result === "standout" ? "⭐" : wo.result === "solid" ? "✅" : wo.result === "mixed" ? "〰️" : "❌") : "";
     return `<button class="frn-fa-row ${isSel?"selected":""} ${offered?"offered":""}"
-      onclick="renderFrnFA('${escName}')">
+      onclick="renderFrnFA('${escKey}')">
       <span>${gradeBadge(p)}</span>
       <span class="frn-fa-name">${p.name}${young ? " 🌱" : ""}${woIcon ? ` <span title="Workout: ${wo.result}" style="font-size:.7rem">${woIcon}</span>` : ""}</span>
       <span class="frn-fa-pos">${p.position}</span>
@@ -1938,12 +1944,13 @@ function renderFrnFA(selectedName) {
 
   // Right side: roster, sorted by AAV desc
   const rosterByCost = myRoster.slice().sort((a,b) => (b.contract?.aav||0) - (a.contract?.aav||0));
-  const escSelName = selected ? selected.name.replace(/\\/g, "\\\\").replace(/'/g, "\\'") : "";
+  const selFaKey   = selected ? (selected.pid || selected.name) : "";
+  const escSelName = selFaKey.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 
   // Detail panel + offer form for selected FA
   let detailHtml = "";
   if (selected) {
-    const existing = _faOffers[selected.name];
+    const existing = _faOffers[selFaKey] || _faOffers[selected.name];
     const offer = existing || {
       aav: selected.demandedAAV,
       years: selected.demandedYears,
@@ -2167,18 +2174,22 @@ function _buildFAOfferContractPreview(player, offer) {
   </div>`;
 }
 
-function _ensureFAOffer(faName) {
+function _ensureFAOffer(faKey) {
   if (!franchise._faOffers) franchise._faOffers = {};
-  if (franchise._faOffers[faName]) return franchise._faOffers[faName];
-  const fa = franchise.freeAgents.find(p => p.name === faName);
+  if (franchise._faOffers[faKey]) return franchise._faOffers[faKey];
+  // Find by pid (new) or name (legacy)
+  const fa = franchise.freeAgents.find(p => p.pid === faKey || p.name === faKey);
   if (!fa) return null;
-  franchise._faOffers[faName] = {
-    aav: fa.demandedAAV,
-    years: fa.demandedYears,
-    structure: _defaultStructure(fa.age || 27, fa.overall || 70),
-    cutNames: [],
-  };
-  return franchise._faOffers[faName];
+  const key = fa.pid || fa.name;
+  if (!franchise._faOffers[key]) {
+    franchise._faOffers[key] = {
+      aav: fa.demandedAAV,
+      years: fa.demandedYears,
+      structure: _defaultStructure(fa.age || 27, fa.overall || 70),
+      cutNames: [],
+    };
+  }
+  return franchise._faOffers[key];
 }
 
 function frnFASetOffer(faName, field, value) {
@@ -2206,7 +2217,10 @@ function frnFASubmitOffer(faName) {
 }
 
 function frnFAWithdrawOffer(faName) {
-  if (franchise._faOffers) delete franchise._faOffers[faName];
+  // faName may be a pid or legacy name — delete whichever key exists
+  if (franchise._faOffers) {
+    delete franchise._faOffers[faName];
+  }
   saveFranchise();
   renderFrnFA(faName);
 }
@@ -2222,10 +2236,11 @@ function frnFAProcessOffers() {
 
   // Seed: every offer you made becomes a negotiation with you as
   // current high bidder.
-  for (const [faName, offer] of Object.entries(franchise._faOffers || {})) {
-    const fa = franchise.freeAgents.find(p => p.name === faName);
+  for (const [offerKey, offer] of Object.entries(franchise._faOffers || {})) {
+    const fa = franchise.freeAgents.find(p => p.pid === offerKey || p.name === offerKey);
     if (!fa) continue;
-    franchise.faNegotiations[faName] = {
+    const negKey = fa.pid || fa.name;
+    franchise.faNegotiations[negKey] = {
       fa,
       state: "negotiating",
       yourBid: { aav: offer.aav, years: offer.years, structure: offer.structure, cutNames: offer.cutNames || [] },
@@ -2299,7 +2314,7 @@ function _faAIBidAmount(teamId, fa, currentHighAav) {
   const goNuclear = bigNeed && ampleRoom && Math.random() < 0.08;
   // Knockout war: any team that has already bid in this neg and has
   // sunk-cost commitment will fight past their normal ceiling.
-  const neg = franchise.faNegotiations?.[fa.name];
+  const neg = franchise.faNegotiations?.[_negKey(fa)];
   const knockoutWar = neg?.knockoutWar;
   const isWarParticipant = knockoutWar
     && ((neg.aiBids?.[teamId]?.aav || 0) >= demand * FA_KNOCKOUT_MULT * 0.7);
@@ -2315,6 +2330,9 @@ function _faAIBidAmount(teamId, fa, currentHighAav) {
   return { aav, years };
 }
 
+// Stable key for faNegotiations — pid when available, name as fallback.
+function _negKey(fa) { return (fa && (fa.pid || fa.name)) || ""; }
+
 // Run one AI bidding round. If isInitial, AI can also OPEN negotiations
 // on FAs the user didn't bid on. Otherwise AI only counter-bids on FAs
 // already in negotiations.
@@ -2325,7 +2343,7 @@ function _faAIBidRound(week, isInitial) {
     : Object.values(negs).filter(n => n.state === "negotiating").map(n => n.fa);
 
   for (const fa of candidates) {
-    const neg = negs[fa.name];
+    const neg = negs[_negKey(fa)];
     // Current high across yourBid + aiBids
     let highAav = 0, highId = null;
     if (neg?.yourBid) { highAav = neg.yourBid.aav; highId = franchise.chosenTeamId; }
@@ -2348,9 +2366,10 @@ function _faAIBidRound(week, isInitial) {
       const bid = _faAIBidAmount(t.id, fa, highAav);
       if (!bid) continue;
       // Lazy-create negotiation if AI is opening a new one
-      let n = negs[fa.name];
+      const nk = _negKey(fa);
+      let n = negs[nk];
       if (!n) {
-        n = negs[fa.name] = {
+        n = negs[nk] = {
           fa, state: "negotiating", yourBid: null, aiBids: {},
           history: [], raisedThisRound: true, lastRaiseWeek: week,
         };
