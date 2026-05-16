@@ -3905,8 +3905,8 @@ function frnOpenTrade(targetTeamId, tab) {
   const fresh = () => ({
     youSend: [], youReceive: [],
     picksSend: [], picksReceive: [],
-    cashSend:    { amount: 0, years: 0 },
-    cashReceive: { amount: 0, years: 0 },
+    theirAbsorb: 0,
+    yourAbsorb:  0,
     result: null,
   });
   if (!franchise._tradeProp) {
@@ -3927,8 +3927,8 @@ function frnOpenTrade(targetTeamId, tab) {
   // Backfill new fields for older saves with a half-built proposal
   const tp = franchise._tradeProp;
   tp.picksSend    ||= []; tp.picksReceive ||= [];
-  tp.cashSend     ||= { amount: 0, years: 0 };
-  tp.cashReceive  ||= { amount: 0, years: 0 };
+  tp.theirAbsorb ??= 0;
+  tp.yourAbsorb  ??= 0;
   if (tab) franchise._tradeProp.tab = tab;
   saveFranchise();
   renderFrnTrade();
@@ -4135,7 +4135,7 @@ function _processBlockAsks() {
         theyGive: pkg.extraPlayerName ? [pkg.extraPlayerName] : [],
         theyWant: [player.name],
         pickIds: pkg.pickIds,
-        refund: pkg.refund,
+        absorb: pkg.absorb || 0,
         week: franchise.week,
         status: "pending",
         isFromAsk: true,
@@ -4171,14 +4171,8 @@ function _buildBestOfferPackage(teamId, player, targetValue) {
     }
   }
 
-  // 2. Required cash (only matters if direction=theyPay, which costs AI)
-  const refund = ask.refund ? { ...ask.refund } : null;
-  if (refund && refund.direction === "theyPay") {
-    if (aiRoom < refund.amount * 1.1) return null;
-  }
-  const cashUnits = refund && refund.amount > 0 && refund.years > 0
-    ? refund.amount * refund.years * 1.5 * (refund.direction === "theyPay" ? 1 : -1)
-    : 0;
+  // 2. (Cash / transfer fee removed — absorption is computed internally)
+  const cashUnits = 0;
 
   // 3. Optional grade-min player
   let extraPlayerName = null;
@@ -4195,33 +4189,18 @@ function _buildBestOfferPackage(teamId, player, targetValue) {
 
   let totalValue = pickValue + cashUnits + extraPlayerValue;
 
-  // 4. Sweeten with extra cash so the offer approaches targetValue.
-  //    Only works if we can pile on "theyPay" cash (we can't sweeten a
-  //    youPay ask by raising the amount AI is receiving from user).
-  if (totalValue < targetValue && (!refund || refund.direction === "theyPay")) {
+  // 4. Sweeten by absorbing some of the user's dead cap from this trade.
+  const userDeadCap = (player.contract?.bonusProration || 0) * (player.contract?.remaining || 0);
+  let absorb = 0;
+  if (totalValue < targetValue && userDeadCap >= 0.5) {
     const deficit = targetValue - totalValue;
-    const desiredPerYr = deficit / 1.5 / 3;            // spread over 3 years
-    const maxPerYr = Math.min(10, Math.max(0, aiRoom * 0.4));
-    const sweetPerYr = Math.min(desiredPerYr, maxPerYr);
-    if (sweetPerYr >= 0.5) {
-      let sweetenedRefund = refund;
-      if (sweetenedRefund && sweetenedRefund.direction === "theyPay") {
-        sweetenedRefund = {
-          ...sweetenedRefund,
-          amount: Math.round((sweetenedRefund.amount + sweetPerYr) * 10) / 10,
-        };
-      } else {
-        sweetenedRefund = {
-          amount: Math.round(sweetPerYr * 10) / 10, years: 3, direction: "theyPay",
-        };
-      }
-      // Reassign local refund reference (do NOT mutate ask)
-      const newCashUnits = sweetenedRefund.amount * sweetenedRefund.years * 1.5;
-      totalValue = pickValue + newCashUnits + extraPlayerValue;
-      return { pickIds, extraPlayerName, refund: sweetenedRefund, totalValue };
+    const sweetAbsorb = Math.min(userDeadCap, Math.max(0, deficit));
+    if (sweetAbsorb >= 0.5) {
+      absorb = Math.round(sweetAbsorb * 10) / 10;
+      totalValue = pickValue + extraPlayerValue + absorb;
     }
   }
-  return { pickIds, extraPlayerName, refund, totalValue };
+  return { pickIds, extraPlayerName, absorb, totalValue };
 }
 
 // Run during _runWeekEndResolution: convert queued counters into
@@ -4397,32 +4376,35 @@ function _generateAIOffersForBlockedPlayer(p) {
 // - Receiving team pays any trade kicker as a one-year cap hit.
 // - Proration is stripped from the traded player (receiver only pays base salaries).
 // Call BEFORE moving players so we read proration from the original contract.
-function _applyTradeMechanics(sendPlayers, recvPlayers, sendTeamId, recvTeamId) {
+function _applyTradeMechanics(sendPlayers, recvPlayers, sendTeamId, recvTeamId, theirAbsorb = 0, yourAbsorb = 0) {
   franchise.refunds ||= [];
+  // Dead cap for sent players, minus any absorption the other team agreed to
+  let absorbLeft = Math.max(0, theirAbsorb);
   for (const p of sendPlayers) {
     const proration = p.contract?.bonusProration || 0;
     const remYrs    = p.contract?.remaining      || 0;
     const deadTotal = Math.round(proration * remYrs * 10) / 10;
-    if (deadTotal >= 0.05) {
-      franchise.refunds.push({
-        kind: "dead_cap", label: `Dead cap (traded): ${p.name}`,
-        fromTeamId: sendTeamId, toTeamId: null,
-        amount: deadTotal, yearsRemaining: 1,
-      });
-    }
+    const absorbed  = Math.min(absorbLeft, deadTotal);
+    absorbLeft = Math.max(0, Math.round((absorbLeft - absorbed) * 10) / 10);
+    const senderDead = Math.round((deadTotal - absorbed) * 10) / 10;
+    if (senderDead >= 0.05)
+      franchise.refunds.push({ kind: "dead_cap", label: `Dead cap (traded): ${p.name}`, fromTeamId: sendTeamId, toTeamId: null, amount: senderDead, yearsRemaining: 1 });
+    if (absorbed >= 0.05)
+      franchise.refunds.push({ kind: "salary_absorption", label: `Salary absorbed (${p.name})`, fromTeamId: recvTeamId, toTeamId: null, amount: absorbed, yearsRemaining: 1 });
     if (p.contract) p.contract.bonusProration = 0;
   }
+  // Trade kicker for received players + optional sender absorbs receiver's dead cap
   for (const p of recvPlayers) {
     const kicker = p.contract?.tradeKicker || 0;
     if (kicker >= 0.05) {
-      franchise.refunds.push({
-        kind: "trade_kicker", label: `Trade kicker: ${p.name}`,
-        fromTeamId: recvTeamId, toTeamId: null,
-        amount: kicker, yearsRemaining: 1,
-      });
+      franchise.refunds.push({ kind: "trade_kicker", label: `Trade kicker: ${p.name}`, fromTeamId: recvTeamId, toTeamId: null, amount: kicker, yearsRemaining: 1 });
       p.contract.tradeKicker = 0;
     }
+    if (p.contract) p.contract.bonusProration = 0;
   }
+  // User absorbing the other team's dead cap as a sweetener
+  if (yourAbsorb >= 0.05)
+    franchise.refunds.push({ kind: "salary_absorption", label: "Salary absorbed (agreement)", fromTeamId: sendTeamId, toTeamId: null, amount: yourAbsorb, yearsRemaining: 1 });
 }
 
 function frnAcceptOffer(offerId) {
@@ -4440,7 +4422,7 @@ function frnAcceptOffer(offerId) {
     return;
   }
   // NFL dead cap + trade kicker (must run before player objects are moved)
-  _applyTradeMechanics(sending, receiving, myId, myId);
+  _applyTradeMechanics(sending, receiving, myId, off.fromTeamId, off.absorb || 0, 0);
   // Execute player swaps
   for (const p of sending) {
     p.onTradeBlock = false;
@@ -4464,27 +4446,12 @@ function frnAcceptOffer(offerId) {
       if (pick) pick.currentOwnerId = myId;
     }
   }
-  // Persist the cash obligation if any
-  if (off.refund && off.refund.amount > 0 && off.refund.years > 0) {
-    if (!franchise.refunds) franchise.refunds = [];
-    const dir = off.refund.direction || "theyPay";
-    const player = sending[0];
-    const yearsLeft = player?.contract?.remaining || off.refund.years;
-    franchise.refunds.push({
-      fromTeamId: dir === "youPay" ? myId : off.fromTeamId,
-      toTeamId:   dir === "youPay" ? off.fromTeamId : myId,
-      amount: off.refund.amount,
-      yearsRemaining: Math.min(off.refund.years, yearsLeft),
-      playerName: player?.name,
-      sinceSeason: franchise.season,
-    });
-  }
   off.status = "accepted";
   const team = getTeam(off.fromTeamId);
   const pickLine = off.pickIds?.length ? ` + ${off.pickIds.length} pick${off.pickIds.length>1?"s":""}` : "";
-  const refundLine = off.refund ? ` + $${off.refund.amount.toFixed(1)}M/yr×${off.refund.years}yr` : "";
+  const absorbLine = off.absorb > 0 ? ` + $${off.absorb.toFixed(1)}M absorbed` : "";
   _pushNews({ type:"trade",
-    label: `🔀 Trade with ${team.name}: ${sending.map(p=>p.position+" "+p.name).join(", ")} for ${receiving.map(p=>p.position+" "+p.name).join(", ") || "—"}${pickLine}${refundLine}` });
+    label: `🔀 Trade with ${team.name}: ${sending.map(p=>p.position+" "+p.name).join(", ")} for ${receiving.map(p=>p.position+" "+p.name).join(", ") || "—"}${pickLine}${absorbLine}` });
   // Stale any other offers on the same player
   for (const other of franchise.tradeOffers) {
     if (other === off || other.status !== "pending") continue;
@@ -4557,8 +4524,8 @@ function frnClearTradePartner() {
   tp.targetTeamId = null;
   tp.youReceive = []; tp.youSend = [];
   tp.picksReceive = []; tp.picksSend = [];
-  tp.cashSend = { amount: 0, years: 0 };
-  tp.cashReceive = { amount: 0, years: 0 };
+  tp.theirAbsorb = 0;
+  tp.yourAbsorb  = 0;
   tp.result = null;
   saveFranchise();
   renderFrnTrade();
@@ -4579,12 +4546,11 @@ function frnToggleTradePick(side, key) {
   saveFranchise();
   renderFrnTrade();
 }
-function frnSetTradeCash(direction, field, val) {
+function frnSetAbsorption(side, val) {
   const tp = franchise._tradeProp; if (!tp) return;
-  const target = direction === "send" ? tp.cashSend : tp.cashReceive;
-  const num = Math.max(0, Number(val) || 0);
-  if (field === "amount") target.amount = Math.round(num * 10) / 10;
-  else if (field === "years") target.years = Math.max(0, Math.min(7, Math.round(num)));
+  const num = Math.max(0, Math.round((Number(val) || 0) * 10) / 10);
+  if (side === "their") tp.theirAbsorb = num;
+  else tp.yourAbsorb = num;
   tp.result = null;
   saveFranchise();
 }
@@ -4602,23 +4568,15 @@ function _outstandingDeadCap(teamId) {
   return { totalDollars: Math.round(totalDollars * 10) / 10, maxYears, refunds };
 }
 
-// Auto-fill the cash box on a given side to match the target team's
-// outstanding dead cap, spread across maxYears so it nets out neatly.
-// Values are still editable afterward.
-function frnAutoFillCashFromDeadCap(direction) {
+// Auto-fill the theirAbsorb field to match the dead cap this trade would generate.
+function frnAutoFillAbsorption() {
   const tp = franchise._tradeProp; if (!tp) return;
-  // "send" = covering THEIR dead cap; "receive" = THEM covering mine.
-  const targetTeamId = direction === "send" ? tp.targetTeamId : franchise.chosenTeamId;
-  if (!targetTeamId) return;
-  const dc = _outstandingDeadCap(targetTeamId);
-  if (dc.totalDollars <= 0 || dc.maxYears <= 0) return;
-  // Cap-per-year is the dead-cap total divided over the longest
-  // remaining obligation, capped at $40/yr to stay in input range.
-  const years = Math.max(1, Math.min(7, dc.maxYears));
-  const perYr = Math.min(40, Math.round((dc.totalDollars / years) * 10) / 10);
-  const target = direction === "send" ? tp.cashSend : tp.cashReceive;
-  target.amount = perYr;
-  target.years  = years;
+  const myId = franchise.chosenTeamId;
+  const sendDeadCap = (tp.youSend || []).reduce((s, n) => {
+    const p = (franchise.rosters[myId] || []).find(x => x.name === n);
+    return s + (p ? (p.contract?.bonusProration || 0) * (p.contract?.remaining || 0) : 0);
+  }, 0);
+  tp.theirAbsorb = Math.round(sendDeadCap * 10) / 10;
   tp.result = null;
   saveFranchise();
   renderFrnTrade();
@@ -4648,15 +4606,13 @@ function frnSubmitTrade() {
   const playerRecvValue = recvPlayers.reduce((s,p) => s + _playerTradeValue(p), 0);
   const pickSendValue = sendPicks.reduce((s,p) => s + _pickValue(p), 0);
   const pickRecvValue = recvPicks.reduce((s,p) => s + _pickValue(p), 0);
-  // Cash is a multi-year obligation; AI views it as ~70% of nominal because
-  // it's spread out and counts as dead money against their future caps.
-  const cashSendNom = (tp.cashSend.amount || 0)    * (tp.cashSend.years    || 0);
-  const cashRecvNom = (tp.cashReceive.amount || 0) * (tp.cashReceive.years || 0);
-  const cashSendValue = cashSendNom * 0.70;
-  const cashRecvValue = cashRecvNom * 0.70;
+  const theirAbsorb = Math.max(0, tp.theirAbsorb || 0);
+  const yourAbsorb  = Math.max(0, tp.yourAbsorb  || 0);
 
-  const sendValue = playerSendValue + pickSendValue + cashSendValue;
-  const recvValue = playerRecvValue + pickRecvValue + cashRecvValue;
+  // Absorption: theirAbsorb = they reduce my dead cap (value I receive)
+  //             yourAbsorb  = I reduce their dead cap (value I give)
+  const sendValue = playerSendValue + pickSendValue + yourAbsorb;
+  const recvValue = playerRecvValue + pickRecvValue + theirAbsorb;
 
   // AI need bonus: how much they want what you're sending (players only)
   const theirNeedForSend = _aiTradeNeedBonus(otherId, sendPlayers);
@@ -4668,7 +4624,7 @@ function frnSubmitTrade() {
 
   if (accepted) {
     // NFL dead cap + trade kicker (must run before player objects are moved)
-    _applyTradeMechanics(sendPlayers, recvPlayers, myId, myId);
+    _applyTradeMechanics(sendPlayers, recvPlayers, myId, otherId, tp.theirAbsorb || 0, tp.yourAbsorb || 0);
     // Players
     for (const p of sendPlayers) {
       const i = myRoster.indexOf(p);
@@ -4683,26 +4639,17 @@ function frnSubmitTrade() {
     // Picks — flip currentOwnerId
     for (const pk of sendPicks)  pk.currentOwnerId = otherId;
     for (const pk of recvPicks)  pk.currentOwnerId = myId;
-    // Cash — transfer fee = recurring refund obligation
     franchise.refunds ||= [];
-    if (cashSendNom > 0) franchise.refunds.push({
-      fromTeamId: myId, toTeamId: otherId,
-      amount: tp.cashSend.amount, yearsRemaining: tp.cashSend.years,
-    });
-    if (cashRecvNom > 0) franchise.refunds.push({
-      fromTeamId: otherId, toTeamId: myId,
-      amount: tp.cashReceive.amount, yearsRemaining: tp.cashReceive.years,
-    });
 
     const other = getTeam(otherId);
     const sendBits = [];
     if (sendPlayers.length) sendBits.push(sendPlayers.map(p => p.position+" "+p.name).join(", "));
     if (sendPicks.length)   sendBits.push(sendPicks.map(p => `${p.year} R${p.round}`).join(", "));
-    if (cashSendNom > 0)    sendBits.push(`$${tp.cashSend.amount}M×${tp.cashSend.years}yr fee`);
+    if (yourAbsorb  > 0) sendBits.push(`$${yourAbsorb.toFixed(1)}M absorbed`);
     const recvBits = [];
     if (recvPlayers.length) recvBits.push(recvPlayers.map(p => p.position+" "+p.name).join(", "));
     if (recvPicks.length)   recvBits.push(recvPicks.map(p => `${p.year} R${p.round}`).join(", "));
-    if (cashRecvNom > 0)    recvBits.push(`$${tp.cashReceive.amount}M×${tp.cashReceive.years}yr fee`);
+    if (theirAbsorb > 0) recvBits.push(`$${theirAbsorb.toFixed(1)}M absorbed`);
     tp.result = {
       accepted: true,
       message: `Trade accepted! You got ${recvBits.join(" + ") || "nothing"}.`,
@@ -4882,7 +4829,12 @@ function _renderTradeProposeTab(tp, sortBy, myRoster, cap, myCapUsed) {
     const p = theirRoster.find(x => x.name === n);
     return s + (p?.contract?.tradeKicker || 0);
   }, 0);
-  const projCap = myCapUsed - sendCap + recvCap + sendDeadCap + recvKickers;
+  const theirAbsorb_p = Math.min(tp.theirAbsorb || 0, sendDeadCap);
+  const yourAbsorb_p  = Math.min(tp.yourAbsorb  || 0, (tp.youReceive || []).reduce((s, n) => {
+    const p = theirRoster.find(x => x.name === n);
+    return s + (p ? (p.contract?.bonusProration || 0) * (p.contract?.remaining || 0) : 0);
+  }, 0));
+  const projCap = myCapUsed - sendCap + recvCap + (sendDeadCap - theirAbsorb_p) + recvKickers + yourAbsorb_p;
 
   // Manual partner-override dropdown
   const teamOptionsHtml = `<option value="">— choose / clear —</option>` +
@@ -4905,7 +4857,7 @@ function _renderTradeProposeTab(tp, sortBy, myRoster, cap, myCapUsed) {
       ${(() => {
         const myDC = _outstandingDeadCap(franchise.chosenTeamId);
         return myDC.totalDollars >= 0.5
-          ? `<button class="btn btn-outline" onclick="frnAutoFillCashFromDeadCap('receive');renderFrnTrade()" style="color:#ff9090;border-color:#ff9090;font-size:.6rem;padding:.15rem .45rem" title="Auto-fill cash demand to recover your $${myDC.totalDollars.toFixed(1)}M in dead cap">💸 Recoup $${myDC.totalDollars.toFixed(1)}M dead</button>`
+          ? `<button class="btn btn-outline" onclick="frnAutoFillAbsorption()" style="color:#ff9090;border-color:#ff9090;font-size:.6rem;padding:.15rem .45rem" title="Request partner absorbs your $${myDC.totalDollars.toFixed(1)}M in dead cap">💸 Recoup $${myDC.totalDollars.toFixed(1)}M dead</button>`
           : "";
       })()}
     </div>
@@ -4933,7 +4885,7 @@ function _renderTradeProposeTab(tp, sortBy, myRoster, cap, myCapUsed) {
       </div>
     </div>
     ${_renderTradePicksSection(myId, partnerId, tp)}
-    ${_renderTradeCashSection(myTeam, partnerTeam, tp)}
+    ${_renderSalaryAbsorptionSection(myTeam, partnerTeam, tp)}
     ${tp.result ? `
       <div class="frn-trade-result ${tp.result.accepted?'accepted':'rejected'}">
         <b>${tp.result.accepted?"✓ ACCEPTED":"✗ REJECTED"}</b> · ${tp.result.message}
@@ -4949,10 +4901,8 @@ function _renderTradeProposeTab(tp, sortBy, myRoster, cap, myCapUsed) {
 // A trade must move SOMETHING in each direction (players, picks, or cash)
 // — empty side is considered "give nothing for everything", which we block.
 function _tradeIsEmpty(tp) {
-  const sendSide = tp.youSend.length + tp.picksSend.length
-    + (tp.cashSend.amount * tp.cashSend.years > 0 ? 1 : 0);
-  const recvSide = tp.youReceive.length + tp.picksReceive.length
-    + (tp.cashReceive.amount * tp.cashReceive.years > 0 ? 1 : 0);
+  const sendSide = tp.youSend.length + tp.picksSend.length;
+  const recvSide = tp.youReceive.length + tp.picksReceive.length;
   return sendSide === 0 || recvSide === 0;
 }
 
@@ -4996,56 +4946,100 @@ function _renderTradePicksSection(myId, partnerId, tp) {
   </div>`;
 }
 
-function _renderTradeCashSection(myTeam, partnerTeam, tp) {
-  // Cash = transfer fee (soccer-style). One side pays $X/yr for Y years
-  // and that obligation lands on franchise.refunds when the deal goes through.
+function _renderSalaryAbsorptionSection(myTeam, partnerTeam, tp) {
+  const myId = franchise.chosenTeamId;
+  const theirRoster = partnerTeam ? (franchise.rosters[partnerTeam.id] || []) : [];
   const partnerName = partnerTeam ? partnerTeam.name : "Partner";
-  const myDeadCap     = _outstandingDeadCap(franchise.chosenTeamId);
-  const theirDeadCap  = partnerTeam ? _outstandingDeadCap(partnerTeam.id) : { totalDollars: 0, maxYears: 0 };
-  const cashBox = (direction, label, hint, target, targetDeadCap, targetTeamLabel) => {
-    const offsetBtn = targetDeadCap.totalDollars > 0
-      ? `<button class="btn btn-outline" style="font-size:.6rem;padding:.2rem .5rem;margin-left:.3rem"
-          onclick="frnAutoFillCashFromDeadCap('${direction}')">
-          ↻ Match ${targetTeamLabel} dead cap ($${targetDeadCap.totalDollars.toFixed(1)}M)
-        </button>`
-      : "";
-    return `
-    <div class="frn-fa-pool-col">
-      <div class="frn-card-title">${label}<span style="color:var(--gray);font-weight:400;margin-left:auto;font-size:.6rem">${hint}</span></div>
-      <div style="display:flex;gap:.5rem;align-items:flex-end;padding:.4rem;flex-wrap:wrap">
-        <label style="flex:1;min-width:5rem">
-          <div class="frn-meta-label">$ / YEAR</div>
-          <input type="number" min="0" max="40" step="0.5"
-            value="${target.amount || 0}"
-            oninput="frnSetTradeCash('${direction}','amount',this.value)"
-            style="width:100%;background:var(--bg3);color:var(--white);border:1px solid var(--border);padding:.25rem .35rem;font-family:inherit">
-        </label>
-        <label style="flex:1;min-width:4rem">
-          <div class="frn-meta-label">YEARS</div>
-          <input type="number" min="0" max="7" step="1"
-            value="${target.years || 0}"
-            oninput="frnSetTradeCash('${direction}','years',this.value)"
-            style="width:100%;background:var(--bg3);color:var(--white);border:1px solid var(--border);padding:.25rem .35rem;font-family:inherit">
-        </label>
-        <div style="color:var(--gold);font-weight:700;white-space:nowrap;padding-bottom:.25rem">
-          = $${((target.amount||0) * (target.years||0)).toFixed(1)}M total
-        </div>
-      </div>
-      ${offsetBtn ? `<div style="padding:0 .4rem .4rem .4rem">${offsetBtn}</div>` : ""}
+
+  const sendDeadCap = (tp.youSend || []).reduce((s, n) => {
+    const p = (franchise.rosters[myId] || []).find(x => x.name === n);
+    return s + (p ? (p.contract?.bonusProration || 0) * (p.contract?.remaining || 0) : 0);
+  }, 0);
+  const recvDeadCap = (tp.youReceive || []).reduce((s, n) => {
+    const p = theirRoster.find(x => x.name === n);
+    return s + (p ? (p.contract?.bonusProration || 0) * (p.contract?.remaining || 0) : 0);
+  }, 0);
+
+  const theirAbsorb = Math.min(tp.theirAbsorb || 0, sendDeadCap);
+  const yourAbsorb  = Math.min(tp.yourAbsorb  || 0, recvDeadCap);
+
+  if (sendDeadCap < 0.05 && recvDeadCap < 0.05) {
+    return `<div style="color:var(--gray);font-size:.68rem;padding:.45rem .6rem;background:var(--bg2);border:1px dashed var(--border);margin-top:.7rem">
+      ✓ No salary absorption — neither side generates dead cap in this trade.
     </div>`;
-  };
-  return `<div class="frn-trade-layout" style="margin-top:.7rem">
-    ${cashBox("send",    "TRANSFER FEE YOU PAY",      `${myTeam.name} → ${partnerName}`, tp.cashSend,    theirDeadCap, partnerName + "'s")}
-    ${cashBox("receive", "TRANSFER FEE YOU RECEIVE",  `${partnerName} → ${myTeam.name}`, tp.cashReceive, myDeadCap,    "your")}
+  }
+
+  const panels = [];
+
+  if (sendDeadCap >= 0.05) {
+    const myRemaining = Math.max(0, sendDeadCap - theirAbsorb).toFixed(1);
+    panels.push(`<div class="frn-fa-pool-col">
+      <div class="frn-card-title">THEY ABSORB YOUR DEAD CAP
+        <span style="color:var(--gray);font-weight:400;margin-left:auto;font-size:.6rem">${partnerName} covers your cost</span>
+      </div>
+      <div style="padding:.4rem .6rem;background:var(--bg3);font-size:.7rem;margin-bottom:.4rem;border-left:3px solid #ff9090">
+        Trading these players generates <b style="color:#ff9090">$${sendDeadCap.toFixed(1)}M</b> dead cap for you.
+        Request that ${partnerName} absorbs part of it.
+      </div>
+      <div style="display:flex;gap:.6rem;align-items:flex-end;padding:.4rem .5rem;flex-wrap:wrap">
+        <label style="flex:1;min-width:8rem">
+          <div class="frn-meta-label">THEY ABSORB ($M · ONE-TIME)</div>
+          <input type="number" min="0" max="${sendDeadCap.toFixed(1)}" step="0.5"
+            value="${theirAbsorb.toFixed(1)}"
+            oninput="frnSetAbsorption('their', Math.min(${sendDeadCap.toFixed(1)}, Math.max(0, +this.value||0)))"
+            style="width:100%;background:var(--bg3);color:var(--white);border:1px solid var(--border);padding:.25rem .35rem;font-family:inherit">
+        </label>
+        <div style="padding-bottom:.25rem;white-space:nowrap">
+          <div style="color:var(--gray);font-size:.6rem">Your dead cap</div>
+          <div style="font-weight:700">
+            <span style="color:#ff9090${theirAbsorb > 0 ? ";text-decoration:line-through" : ""}">$${sendDeadCap.toFixed(1)}M</span>
+            ${theirAbsorb > 0 ? ` → <span style="color:var(--green-lt)">$${myRemaining}M</span>` : ""}
+          </div>
+        </div>
+        <button class="btn btn-outline" onclick="frnSetAbsorption('their',${sendDeadCap.toFixed(1)})" style="font-size:.6rem;padding:.2rem .45rem">Max</button>
+        <button class="btn btn-outline" onclick="frnSetAbsorption('their',0)" style="font-size:.6rem;padding:.2rem .45rem;color:var(--gray)">Clear</button>
+      </div>
+    </div>`);
+  }
+
+  if (recvDeadCap >= 0.05) {
+    panels.push(`<div class="frn-fa-pool-col">
+      <div class="frn-card-title">YOU ABSORB THEIR DEAD CAP
+        <span style="color:var(--gray);font-weight:400;margin-left:auto;font-size:.6rem">Sweetener — you cover their cost</span>
+      </div>
+      <div style="padding:.4rem .6rem;background:var(--bg3);font-size:.7rem;margin-bottom:.4rem;border-left:3px solid #e8a000">
+        Their players carry <b style="color:#e8a000">$${recvDeadCap.toFixed(1)}M</b> dead cap.
+        Offer to absorb some to sweeten your proposal (hits your cap).
+      </div>
+      <div style="display:flex;gap:.6rem;align-items:flex-end;padding:.4rem .5rem;flex-wrap:wrap">
+        <label style="flex:1;min-width:8rem">
+          <div class="frn-meta-label">YOU ABSORB ($M · ONE-TIME)</div>
+          <input type="number" min="0" max="${recvDeadCap.toFixed(1)}" step="0.5"
+            value="${yourAbsorb.toFixed(1)}"
+            oninput="frnSetAbsorption('your', Math.min(${recvDeadCap.toFixed(1)}, Math.max(0, +this.value||0)))"
+            style="width:100%;background:var(--bg3);color:var(--white);border:1px solid var(--border);padding:.25rem .35rem;font-family:inherit">
+        </label>
+        <div style="padding-bottom:.25rem;white-space:nowrap">
+          <div style="color:var(--gray);font-size:.6rem">Extra cap hit (you)</div>
+          <div style="font-weight:700;color:${yourAbsorb > 0 ? "var(--red)" : "var(--gray)"}">
+            ${yourAbsorb > 0 ? `+$${yourAbsorb.toFixed(1)}M` : "—"}
+          </div>
+        </div>
+        <button class="btn btn-outline" onclick="frnSetAbsorption('your',0)" style="font-size:.6rem;padding:.2rem .45rem;color:var(--gray)">Clear</button>
+      </div>
+    </div>`);
+  }
+
+  return `<div style="margin-top:.7rem">
+    <div class="frn-card-title" style="margin-bottom:.5rem">SALARY ABSORPTION</div>
+    <div class="frn-trade-layout">${panels.join("")}</div>
   </div>`;
 }
 
 function frnRecoupDeadCapMode() {
   const tp = franchise._tradeProp; if (!tp) return;
   tp.tab = "propose";
-  frnAutoFillCashFromDeadCap("receive");
-  saveFranchise();
-  renderFrnTrade();
+  frnAutoFillAbsorption();
 }
 
 function _renderTradeBlockTab(myRoster, sortBy) {
@@ -5102,7 +5096,7 @@ function _renderTradeBlockTab(myRoster, sortBy) {
         <div style="color:var(--gray);font-size:.62rem;margin-top:.15rem">From traded / released players. Demand cash in a trade proposal to offset it.</div>
       </div>
       <button class="btn btn-outline" onclick="frnRecoupDeadCapMode()" style="color:#ff9090;border-color:#ff9090;white-space:nowrap;margin-left:auto">
-        💸 Set Up Cash Demand to Recoup
+        💸 Request Salary Absorption to Recoup
       </button>
     </div>` : "";
 
@@ -5317,13 +5311,10 @@ function _renderTradeOffersTab() {
         </div>`);
       }
     }
-    if (o.refund && o.refund.amount > 0 && o.refund.years > 0) {
-      const dir = o.refund.direction || "theyPay";
-      const lbl = dir === "theyPay" ? "+$" : "−$";
-      const color = dir === "theyPay" ? "var(--green-lt)" : "var(--red)";
+    if (o.absorb > 0) {
       giveItems.push(`<div class="frn-offer-player">
-        <span style="color:${color};font-size:.58rem;font-weight:700">CASH</span>
-        <span style="font-weight:700">${lbl}${o.refund.amount.toFixed(1)}M/yr × ${o.refund.years}yr</span>
+        <span style="color:var(--green-lt);font-size:.58rem;font-weight:700">ABSORB</span>
+        <span style="font-weight:700" title="They absorb this much of your dead cap from the trade">$${o.absorb.toFixed(1)}M of your dead cap</span>
       </div>`);
     }
 
