@@ -1121,23 +1121,36 @@
   .frn-leader-name { flex: 1; }
   .frn-leader-stat { color: var(--gray); font-size: .68rem; }
 
-  /* Highlights */
-  .frn-hl-row {
-    padding: .3rem 0; font-size: .72rem;
-    border-bottom: 1px solid rgba(46,61,46,0.5);
-    display: flex; align-items: baseline; gap: .4rem;
+  /* Highlights — featured card */
+  .frn-hl-feat {
+    border: 1px solid transparent; border-radius: 4px;
+    padding: .6rem .7rem; margin-bottom: .45rem;
   }
-  .frn-hl-row:last-child { border-bottom: none; }
-  .frn-hl-tag {
-    color: var(--gold); font-size: .58rem;
-    min-width: 2.5rem; font-weight: 700; flex-shrink: 0;
+  .frn-hl-badge {
+    font-size: .54rem; letter-spacing: .8px; font-weight: 900;
+    border: 1px solid; padding: .08rem .32rem; border-radius: 2px;
   }
-  .frn-hl-tag.playoff { color: var(--gold-lt); }
-  .frn-hl-label { flex: 1; }
-  .frn-hl-clutch {
-    color: var(--gold-lt); font-size: .55rem;
-    background: rgba(200,169,0,0.18); padding: 0 .3rem;
-    border: 1px solid rgba(200,169,0,0.3);
+  .frn-hl-section-sep {
+    font-size: .57rem; color: var(--gray); letter-spacing: .8px;
+    text-transform: uppercase; padding: .25rem 0 .15rem;
+    border-top: 1px solid var(--border); margin-top: .1rem;
+  }
+  /* Highlights — compact season rows */
+  .frn-hl-row2 {
+    display: flex; align-items: baseline; gap: .35rem;
+    padding: .28rem 0; border-bottom: 1px solid rgba(46,61,46,0.5);
+  }
+  .frn-hl-row2:last-child { border-bottom: none; }
+  .frn-hl2-badge {
+    font-size: .54rem; font-weight: 900; letter-spacing: .4px;
+    white-space: nowrap; min-width: 2.8rem; flex-shrink: 0;
+  }
+  .frn-hl2-label {
+    font-size: .68rem; color: var(--blwhite); flex: 1;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .frn-hl2-week {
+    font-size: .57rem; color: var(--gray); white-space: nowrap; flex-shrink: 0;
   }
 
   /* Footer action row */

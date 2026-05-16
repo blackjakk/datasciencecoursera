@@ -2855,6 +2855,165 @@ function _buildMatchupStatsStrip(myId, oppId, myStand, oppStand, myRtg, oppRtg) 
   </div>`;
 }
 
+function _buildHighlightsSidebar(teamId, seasonHighlights) {
+  const myHL = (seasonHighlights || [])
+    .filter(h => h.homeId === teamId || h.awayId === teamId);
+
+  if (!myHL.length) return `<div style="color:var(--gray);font-size:.72rem;padding:.5rem 0">Highlights appear as you play.</div>`;
+
+  // Numeric sort key: playoff games rank above regular season
+  const weekOrd = h => {
+    if (h.weekNum != null) return h.weekNum;
+    if (h.isPlayoff) return 100 + (parseInt(h.week?.match(/\d+/)?.[0]) || 0);
+    return parseInt(h.week?.match(/\d+/)?.[0]) || 0;
+  };
+
+  // Group by game (home-away-week triplet)
+  const games = {};
+  for (const h of myHL) {
+    const k = `${h.homeId}|${h.awayId}|${h.week}`;
+    if (!games[k]) games[k] = { ord: weekOrd(h), items: [] };
+    games[k].items.push(h);
+  }
+  const sortedGames = Object.values(games).sort((a, b) => b.ord - a.ord);
+
+  // Opponent context + win/loss line
+  const hlCtx = (h) => {
+    const oppId = h.homeId === teamId ? h.awayId : h.homeId;
+    const opp   = getTeam(oppId);
+    const abbr  = opp?.abbreviation || opp?.name?.slice(0, 3).toUpperCase() || "OPP";
+    if (h.finalHome == null) return `vs. ${abbr}`;
+    const myPts  = h.homeId === teamId ? h.finalHome : h.finalAway;
+    const oppPts = h.homeId === teamId ? h.finalAway  : h.finalHome;
+    const wl = myPts > oppPts ? "W" : myPts < oppPts ? "L" : "T";
+    return `vs. ${abbr} — ${wl} ${myPts}-${oppPts}`;
+  };
+
+  // Visual config per type
+  const typeCfg = (h) => {
+    if (h.type === "def")  return { badge: h.isClutch ? "CLUTCH DEF" : "DEF",  color: "#4dbdbd" };
+    if (h.type === "game") return { badge: h.isClutch ? "OT"          : "GAME", color: "#a78bfa" };
+    return                        { badge: h.isClutch ? "CLUTCH"      : "OFF",  color: "#f5c542" };
+  };
+
+  // ── Featured card: best moment from most recent game ─────────────────────
+  const latestItems = sortedGames[0].items.sort((a, b) => b.weight - a.weight);
+  const feat = latestItems[0];
+  const { badge: fBadge, color: fColor } = typeCfg(feat);
+  const featHtml = `
+    <div class="frn-hl-feat" style="border-color:${fColor}33;background:${fColor}0d">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.28rem">
+        <span class="frn-hl-badge" style="color:${fColor};border-color:${fColor}55">${fBadge}</span>
+        <span style="font-size:.57rem;color:var(--gray);letter-spacing:.3px">${feat.week}${feat.isPlayoff ? " · PLAYOFF" : ""}</span>
+      </div>
+      <div style="font-size:.6rem;color:var(--gray);margin-bottom:.3rem">${hlCtx(feat)}</div>
+      <div style="font-size:.8rem;color:var(--blwhite);font-weight:700;line-height:1.3">${feat.label}</div>
+      ${feat.isClutch ? `<div style="font-size:.57rem;color:#f87171;margin-top:.22rem;letter-spacing:.5px">⚡ CLUTCH MOMENT</div>` : ""}
+    </div>`;
+
+  // ── Compact rows: top pick from each prior game (up to 4) ────────────────
+  const priorBests = sortedGames.slice(1)
+    .map(g => g.items.sort((a, b) => b.weight - a.weight)[0])
+    .slice(0, 4);
+  const compactHtml = priorBests.map(h => {
+    const { badge, color } = typeCfg(h);
+    return `
+      <div class="frn-hl-row2">
+        <span class="frn-hl2-badge" style="color:${color}">${badge}</span>
+        <span class="frn-hl2-label">${h.label}</span>
+        <span class="frn-hl2-week">${h.week}</span>
+      </div>`;
+  }).join("");
+
+  const totalGames = sortedGames.length;
+  const moreBtn = totalGames > 5
+    ? `<button class="frn-cap-btn" onclick="renderFrnHighlightsAll()" style="margin-top:.45rem;font-size:.6rem;width:100%">View all ${myHL.length} moments →</button>`
+    : "";
+
+  return `
+    ${featHtml}
+    ${compactHtml ? `<div class="frn-hl-section-sep">SEASON MOMENTS</div>${compactHtml}` : ""}
+    ${moreBtn}`;
+}
+
+function renderFrnHighlightsAll() {
+  const { chosenTeamId, season, seasonHighlights } = franchise;
+  const myTeam = getTeam(chosenTeamId);
+  const myHL = (seasonHighlights || [])
+    .filter(h => h.homeId === chosenTeamId || h.awayId === chosenTeamId);
+
+  const weekOrd = h => {
+    if (h.isPlayoff) return 100 + (parseInt(h.week?.match(/\d+/)?.[0]) || 0);
+    return parseInt(h.week?.match(/\d+/)?.[0]) || 0;
+  };
+  const games = {};
+  for (const h of myHL) {
+    const k = `${h.homeId}|${h.awayId}|${h.week}`;
+    if (!games[k]) games[k] = { ord: weekOrd(h), week: h.week, isPlayoff: h.isPlayoff, homeId: h.homeId, awayId: h.awayId, items: [] };
+    games[k].items.push(h);
+  }
+  const sortedGames = Object.values(games).sort((a, b) => b.ord - a.ord);
+
+  const typeCfg = (h) => {
+    if (h.type === "def")  return { badge: h.isClutch ? "CLUTCH DEF" : "DEF",  color: "#4dbdbd" };
+    if (h.type === "game") return { badge: h.isClutch ? "OT"          : "GAME", color: "#a78bfa" };
+    return                        { badge: h.isClutch ? "CLUTCH"      : "OFF",  color: "#f5c542" };
+  };
+  const hlCtx = (h) => {
+    const oppId = h.homeId === chosenTeamId ? h.awayId : h.homeId;
+    const opp   = getTeam(oppId);
+    const abbr  = opp?.abbreviation || opp?.name?.slice(0, 3).toUpperCase() || "OPP";
+    if (h.finalHome == null) return `vs. ${abbr}`;
+    const myPts  = h.homeId === chosenTeamId ? h.finalHome : h.finalAway;
+    const oppPts = h.homeId === chosenTeamId ? h.finalAway  : h.finalHome;
+    const wl = myPts > oppPts ? "W" : myPts < oppPts ? "L" : "T";
+    return `vs. ${abbr} — ${wl} ${myPts}-${oppPts}`;
+  };
+
+  const blocksHtml = sortedGames.map(g => {
+    const oppId = g.homeId === chosenTeamId ? g.awayId : g.homeId;
+    const oppTeam = getTeam(oppId);
+    const oppName = oppTeam?.name || "Opponent";
+    const sorted = g.items.sort((a, b) => b.weight - a.weight);
+    const ctx = hlCtx(sorted[0]);
+    const rows = sorted.map(h => {
+      const { badge, color } = typeCfg(h);
+      return `
+        <div class="frn-hl-row2" style="padding:.35rem 0">
+          <span class="frn-hl2-badge" style="color:${color}">${badge}</span>
+          <span class="frn-hl2-label" style="white-space:normal">${h.label}</span>
+          ${h.isClutch ? `<span style="font-size:.57rem;color:#f87171">⚡</span>` : ""}
+        </div>`;
+    }).join("");
+    return `
+      <section class="bspn-panel" style="margin-bottom:.75rem">
+        <div class="bspn-panel-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>${g.week}${g.isPlayoff ? " · PLAYOFF" : ""}</span>
+          <span style="color:var(--blgray);font-size:.67rem;font-weight:400">${ctx}</span>
+        </div>
+        ${rows}
+      </section>`;
+  }).join("");
+
+  $("frnHomeContent").innerHTML = `
+    <div class="bspnlive-root" style="margin:-1rem -1.5rem 0;padding-bottom:1rem">
+      <header class="bspnlive-header">
+        <div>
+          <div class="bspnlive-logo">BSPN</div>
+          <div class="bspnlive-logo-sub">SEASON ${season} HIGHLIGHTS</div>
+        </div>
+        <nav class="bspnlive-nav">${_bspnNavHtml("")}</nav>
+      </header>
+      <div style="padding:.55rem 1.4rem;border-bottom:1px solid var(--blborder)">
+        <button class="bspn-back" onclick="showFranchiseDashboard()">‹ Back to Dashboard</button>
+      </div>
+      <div style="padding:1rem 1.4rem">
+        <div style="color:var(--blgold);font-size:.7rem;letter-spacing:1.5px;margin-bottom:.75rem">${myTeam?.name?.toUpperCase()} · ${myHL.length} MOMENTS ACROSS ${sortedGames.length} GAMES</div>
+        ${blocksHtml || `<div style="color:var(--blgray);padding:1rem">No highlights yet — play some games!</div>`}
+      </div>
+    </div>`;
+}
+
 function _frnCheckItem(key) {
   const { season, week } = franchise;
   if (!franchise._weeklyChecklist) franchise._weeklyChecklist = {};
@@ -3201,15 +3360,7 @@ function renderFrnRegular() {
       <span class="frn-leader-stat">${l.stat}</span>
     </div>`).join("") : `<div style="color:var(--gray);font-size:.72rem;padding:.5rem 0">Play games to see leaders.</div>`;
 
-  const myHL = (seasonHighlights || [])
-    .filter(h => h.homeId === chosenTeamId || h.awayId === chosenTeamId)
-    .sort((a, b) => b.weight - a.weight).slice(0, 5);
-  const hlHtml = myHL.length ? myHL.map(h => `
-    <div class="frn-hl-row">
-      <span class="frn-hl-tag ${h.isPlayoff ? "playoff" : ""}">${h.week}</span>
-      <span class="frn-hl-label">${h.label}</span>
-      ${h.isClutch ? `<span class="frn-hl-clutch">⚡</span>` : ""}
-    </div>`).join("") : `<div style="color:var(--gray);font-size:.72rem;padding:.5rem 0">Highlights appear as you play.</div>`;
+  const hlHtml = _buildHighlightsSidebar(chosenTeamId, seasonHighlights);
 
   const potwRowFn = (label, entry) => {
     if (!entry) return "";
@@ -3380,7 +3531,7 @@ function captureGameHighlights(homeId, awayId, plays, isPlayoff, weekLabel) {
   };
 
   for (const p of plays) {
-    let w = 0, label = "";
+    let w = 0, label = "", hlType = "off";
     if (p.kind === "score") {
       const scorer = p.poss === "home" ? homeName : awayName;
       const is_td = !!(p.passer || p.rusher || p.receiver) ||
@@ -3395,10 +3546,10 @@ function captureGameHighlights(homeId, awayId, plays, isPlayoff, weekLabel) {
         label = `${scorer} FG${scoreCtx(p)}`;
       }
     } else if (p.kind === "int" && p.isPickSix) {
-      w = 14;
+      w = 14; hlType = "def";
       label = `PICK-SIX! ${p.defender || "DEF"} ${p.intReturnYds || 0} yds`;
     } else if (p.kind === "int") {
-      w = 7;
+      w = 7; hlType = "def";
       label = `INT — ${p.defender || "DEF"}${p.intReturnYds > 10 ? ` ret ${p.intReturnYds} yds` : ""}`;
     } else if (p.kind === "run" && (p.yards || 0) >= 20) {
       w = 4 + Math.min(4, ((p.yards || 0) - 20) / 10);
@@ -3407,10 +3558,10 @@ function captureGameHighlights(homeId, awayId, plays, isPlayoff, weekLabel) {
       w = 4 + Math.min(4, ((p.yards || 0) - 25) / 10);
       label = `${p.passer || "QB"}→${p.receiver || "WR"} ${p.yards} yds`;
     } else if (p.kind === "sack" && (p.sackLoss || 0) >= 8) {
-      w = 3.5;
+      w = 3.5; hlType = "def";
       label = `${p.dlName || "DEF"} sacks ${p.passer || "QB"} (-${p.sackLoss} yds)`;
     } else if (p.kind === "fumble") {
-      w = 5;
+      w = 5; hlType = "def";
       label = `FUM — ${p.forcedBy || p.defender || "DEF"} forces it`;
     } else if (p.kind === "fg_good" && (p.distance || 0) >= 45) {
       w = 3 + ((p.distance || 0) - 45) / 5;
@@ -3427,7 +3578,7 @@ function captureGameHighlights(homeId, awayId, plays, isPlayoff, weekLabel) {
     if (isPlayoff)             w *= 1.5;
 
     hl.push({
-      weight: w, label, desc: p.desc || "",
+      weight: w, label, desc: p.desc || "", type: hlType,
       quarter: p.quarter, time: p.time,
       homeScore: p.homeScore, awayScore: p.awayScore,
       homeId, awayId, isPlayoff: !!isPlayoff, week: weekLabel, isClutch,
@@ -3441,23 +3592,27 @@ function captureGameHighlights(homeId, awayId, plays, isPlayoff, weekLabel) {
     const fh = lastWithScore.homeScore, fa = lastWithScore.awayScore;
     const isOT = plays.some(p => (p.quarter || 0) >= 5);
     const winId = fh > fa ? homeId : awayId;
-    const loseId = fh > fa ? awayId : homeId;
     const winName = fh > fa ? homeName : awayName;
     const margin2 = Math.abs(fh - fa);
     const loserPts = Math.min(fh, fa);
+    const capsule = { homeId, awayId, isPlayoff: !!isPlayoff, week: weekLabel, finalHome: fh, finalAway: fa, winId };
 
     if (isOT) {
       hl.push({ weight: 18, label: `OT THRILLER — ${winName} wins ${Math.max(fh,fa)}-${loserPts}`,
-        desc: `Overtime game`, homeId, awayId, isPlayoff: !!isPlayoff, week: weekLabel, isClutch: true });
+        desc: `Overtime game`, ...capsule, type: "game", isClutch: true });
     } else if (loserPts === 0) {
       hl.push({ weight: 16, label: `SHUTOUT — ${winName} blanks opponent`,
-        desc: `${winName} shutout`, homeId, awayId, isPlayoff: !!isPlayoff, week: weekLabel, isClutch: false });
+        desc: `${winName} shutout`, ...capsule, type: "def", isClutch: false });
     } else if (loserPts <= 7 && margin2 >= 14) {
       hl.push({ weight: 9, label: `Dominant W — ${winName} ${Math.max(fh,fa)}-${loserPts}`,
-        desc: `Dominant victory`, homeId, awayId, isPlayoff: !!isPlayoff, week: weekLabel, isClutch: false });
+        desc: `Dominant victory`, ...capsule, type: "game", isClutch: false });
     } else if (margin2 <= 3 && !isOT) {
       hl.push({ weight: 11, label: `One-score game — ${winName} wins by ${margin2}`,
-        desc: `Nail-biter`, homeId, awayId, isPlayoff: !!isPlayoff, week: weekLabel, isClutch: true });
+        desc: `Nail-biter`, ...capsule, type: "game", isClutch: true });
+    }
+    // Back-fill final score onto play-level highlights from this game
+    for (const h of hl) {
+      if (h.finalHome == null) { h.finalHome = fh; h.finalAway = fa; h.winId = winId; }
     }
   }
 
