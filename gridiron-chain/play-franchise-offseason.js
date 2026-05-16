@@ -3695,6 +3695,58 @@ function runFrnOffseason() {
     }
 
     franchise.rosters[tId] = keep;
+
+    // Practice squad development — they get coaching and install reps but
+    // no live game action, so growth is 60% of the active-roster rate.
+    // Gems still develop (this is exactly why teams stash them there), but
+    // their progress stays off-radar: no wire alerts until promotion.
+    const PS_DEV_MULT = 0.6;
+    const psSquad = franchise.practiceSquads?.[tId] || [];
+    for (const p of psSquad) {
+      if (p.age == null) {
+        p.age = (p.overall >= 85 ? 27 : p.overall >= 75 ? 24 : 22) + Math.floor(Math.random() * 6);
+      }
+      // Stamp declineAge now so it's ready when they're activated; PS players
+      // don't take the stat-decay hit since they aren't playing meaningful snaps.
+      if (p.declineAge == null) {
+        let u1 = Math.random(); if (u1 < 1e-10) u1 = 1e-10;
+        const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * Math.random());
+        p.declineAge = Math.max(25, Math.round(30 + 2 * z));
+      }
+      if (p.potential == null) p.potential = _rollPotential(p);
+      const psCoachBoost = (franchise.coaches?.[tId]?.hc?.trait === "Player Developer") ? 1.35 : 1.0;
+
+      if (p.hiddenGem && p.overall >= p.hiddenGem.ceiling) delete p.hiddenGem;
+
+      if (p.hiddenGem && p.age <= 28) {
+        p.potential = Math.max(p.potential, p.hiddenGem.ceiling);
+        const growth = Math.max(0, Math.min(
+          p.hiddenGem.ceiling - p.overall,
+          Math.round(p.hiddenGem.growthRate * psCoachBoost * PS_DEV_MULT)
+        ));
+        if (growth > 0) {
+          p.overall = Math.min(p.hiddenGem.ceiling, p.overall + growth);
+          const k1 = Math.floor(Math.random() * p.stats.length);
+          const k2 = Math.floor(Math.random() * p.stats.length);
+          p.stats[k1] = Math.min(99, p.stats[k1] + Math.ceil(growth * 0.6));
+          p.stats[k2] = Math.min(99, p.stats[k2] + Math.floor(growth * 0.4));
+        }
+        if (p.overall >= p.hiddenGem.ceiling) delete p.hiddenGem;
+      } else if (!p.hiddenGem) {
+        const gap = p.potential - p.overall;
+        if (gap > 0 && p.age <= 27) {
+          const baseRate = p.age <= 22 ? 0.45 : p.age <= 24 ? 0.30 : p.age <= 26 ? 0.15 : 0.06;
+          const growth = Math.max(0, Math.round(gap * baseRate * psCoachBoost * PS_DEV_MULT));
+          if (growth > 0) {
+            p.overall = Math.min(99, p.overall + growth);
+            const k1 = Math.floor(Math.random() * p.stats.length);
+            const k2 = Math.floor(Math.random() * p.stats.length);
+            p.stats[k1] = Math.min(99, p.stats[k1] + Math.ceil(growth * 0.6));
+            p.stats[k2] = Math.min(99, p.stats[k2] + Math.floor(growth * 0.4));
+          }
+        }
+      }
+    }
   }
   return changes;
 }
