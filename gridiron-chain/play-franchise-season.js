@@ -826,11 +826,13 @@ function _buildCareerCard(p) {
   }[p._trajectory] || "";
   const headerHtml = `<tr><th>AGE</th><th>TEAM</th><th>OVR</th><th>GP</th>${cols.map(c => `<th>${c.label}</th>`).join("")}</tr>`;
   const rowsHtml = history.slice().reverse().map((row) => {
-    const isCareerBest = row.ovr === Math.max(...history.map(r => r.ovr));
+    const rowOvr = row.ovr ?? row.overall;
+    const peakOvr = Math.max(...history.map(r => r.ovr ?? r.overall ?? 0));
+    const isCareerBest = rowOvr != null && rowOvr === peakOvr;
     return `<tr>
-      <td style="color:var(--gray);font-size:.63rem">${row.age}</td>
+      <td style="color:var(--gray);font-size:.63rem">${row.age ?? "?"}</td>
       <td style="font-size:.62rem;color:var(--gray)">${row.teamName}</td>
-      <td style="color:${isCareerBest?"var(--gold)":"var(--blgray)"};font-weight:${isCareerBest?700:400}">${row.ovr || "—"}</td>
+      <td style="color:${isCareerBest?"var(--gold)":"var(--blgray)"};font-weight:${isCareerBest?700:400}">${rowOvr || "—"}</td>
       <td>${row.gp || 0}</td>
       ${cols.map(c => `<td>${row[c.key] || 0}</td>`).join("")}
     </tr>`;

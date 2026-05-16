@@ -6160,6 +6160,12 @@ function _buildDraftClass(rookieYear) {
       p.draftYear = rookieYear;
       p.draftSeason = (franchise?.season || 1) + 1;
       p.isProspect = true;
+      // genPlayer called generateCareer with the original random age (up to 33),
+      // which can leave multi-year synthetic history on a 21-year-old prospect.
+      // Wipe it so the player card correctly shows "Rookie season."
+      p.careerHistory = []; p.careerStats = {}; p.career = []; p.careerTotals = {};
+      p.proBowls = 0; p.allPros = 0; p.sbRings = 0;
+      p.mvps = 0; p.opoys = 0; p.dpoys = 0; p.roys = 0; p.records = [];
       cls.push(p);
     }
   }
@@ -6619,6 +6625,9 @@ function _draftFinalize() {
         _rollHiddenGem(udfa);
         udfa.draftSeason = (franchise?.season || 1) + 1;
         udfa.careerEarnings = 0;
+        udfa.careerHistory = []; udfa.careerStats = {}; udfa.career = []; udfa.careerTotals = {};
+        udfa.proBowls = 0; udfa.allPros = 0; udfa.sbRings = 0;
+        udfa.mvps = 0; udfa.opoys = 0; udfa.dpoys = 0; udfa.roys = 0; udfa.records = [];
         udfa.contract = rookieContract(udfa, franchise.salaryCap || SALARY_CAP_BASE);
         roster.push(udfa);
         taken.add(udfa.name);
@@ -6656,7 +6665,8 @@ function _rollSeasonStatsToCareer() {
         player.careerStats[k] = (player.careerStats[k] || 0) + v;
       }
       // Snapshot this season as a row
-      const yearRow = { season: franchise.season, teamId, teamName, overall: player.overall };
+      const yearRow = { season: franchise.season, teamId, teamName, overall: player.overall,
+                        ovr: player.overall, age: player.age };
       for (const [k, v] of Object.entries(st)) {
         if (typeof v === "number" || k === "pos") yearRow[k] = v;
       }
