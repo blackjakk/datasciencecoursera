@@ -1196,36 +1196,91 @@ function generateCareer(player) {
 }
 
 // Stamp realistic team names onto each player's past-season history rows.
-// Called once rosters are assembled into a franchise so we know the
-// player's CURRENT team. Most vets stay put their whole career; ~25%
-// are "well-traveled" and have 1-2 past seasons on a former team.
-// Choice is deterministic from the player name hash so reloads stay
-// stable.
+// Career travel probability scales with career length. Multiple prior teams
+// possible for veterans. All choices are deterministic from name+teamId hash.
 function assignCareerTeams(rosters) {
   for (const [teamIdStr, roster] of Object.entries(rosters || {})) {
     const teamId = Number(teamIdStr);
     const team = getTeam(teamId);
     if (!team) continue;
     const teamName = `${team.city} ${team.name}`;
+
     for (const p of roster) {
       const hist = p.careerHistory || [];
-      if (!hist.length) continue;
-      let h = 0;
-      for (const c of (p.name || "")) h = (h * 31 + c.charCodeAt(0)) | 0;
-      const ah = Math.abs(h);
-      const isWellTraveled = (ah % 100) < 25;
-      const formerTeam = isWellTraveled
-        ? TEAMS.filter(t => t.id !== teamId)[(ah >> 4) % (TEAMS.length - 1)]
-        : null;
-      const formerName = formerTeam ? `${formerTeam.city} ${formerTeam.name}` : null;
-      // First half of career on former team; second half on current team.
-      const switchAt = Math.max(1, Math.floor(hist.length / 2));
-      for (let i = 0; i < hist.length; i++) {
-        if (isWellTraveled && i < switchAt && formerTeam) {
-          hist[i].teamId = formerTeam.id;
-          hist[i].teamName = formerName;
+      const n = hist.length;
+      if (!n) continue;
+
+      // Seeded LCG — stable across reloads. Mix name, pid and teamId.
+      let seed = 0;
+      for (const c of (p.pid || p.name || "")) seed = (seed * 31 + c.charCodeAt(0)) | 0;
+      seed = Math.abs(seed) ^ (teamId * 7919);
+      const rng = () => {
+        seed = (Math.imul(seed | 0, 1664525) + 1013904223) | 0;
+        return (seed >>> 0) / 4294967296;
+      };
+
+      // Probability of having spent time on ≥1 prior team:
+      // Short career (1-3yr) → 20%, medium (4-6yr) → 52%, long (7-9yr) → 72%, 10+yr → 88%
+      const travelProb = n <= 3 ? 0.20 : n <= 6 ? 0.52 : n <= 9 ? 0.72 : 0.88;
+      if (rng() >= travelProb) {
+        hist.forEach(row => { row.teamId = teamId; row.teamName = teamName; });
+        continue;
+      }
+
+      // How many seasons on CURRENT team? Skewed recent — most trades/signings
+      // are in the last 1-4 years. Always ≥1 and ≤ n-1.
+      const maxCur = n - 1;
+      const seasonsOnCurrent = rng() < 0.60
+        ? 1 + Math.floor(rng() * Math.min(3, maxCur))   // recent signing: 1-3yr
+        : 1 + Math.floor(rng() * maxCur);                // or anywhere in career
+      const priorSeasons = n - seasonsOnCurrent;
+
+      if (priorSeasons <= 0) {
+        hist.forEach(row => { row.teamId = teamId; row.teamName = teamName; });
+        continue;
+      }
+
+      // How many distinct prior teams? Caps at 3; short prior stretches stay at 1.
+      const maxPrior = priorSeasons <= 2 ? 1 : priorSeasons <= 5 ? 2 : 3;
+      const numPrior = 1 + Math.floor(rng() * maxPrior);
+
+      // Pick distinct prior teams (not current)
+      const others = TEAMS.filter(t => t.id !== teamId);
+      const priorTeams = [];
+      const used = new Set();
+      for (let k = 0; k < numPrior && priorTeams.length < others.length; k++) {
+        let idx;
+        let attempts = 0;
+        do { idx = Math.floor(rng() * others.length); } while (used.has(idx) && ++attempts < 20);
+        used.add(idx);
+        priorTeams.push(others[idx]);
+      }
+
+      // Distribute priorSeasons across priorTeams (at least 1yr each)
+      const assignment = new Array(priorSeasons); // season index → team
+      let cursor = 0;
+      for (let k = 0; k < priorTeams.length; k++) {
+        const isLast = k === priorTeams.length - 1;
+        let years;
+        if (isLast) {
+          years = priorSeasons - cursor;
         } else {
-          hist[i].teamId = teamId;
+          const slack = priorSeasons - cursor - (priorTeams.length - k - 1);
+          years = Math.max(1, 1 + Math.floor(rng() * slack));
+        }
+        for (let j = 0; j < years && cursor < priorSeasons; j++, cursor++) {
+          assignment[cursor] = priorTeams[k];
+        }
+      }
+
+      // Apply to history rows (prior seasons come first chronologically)
+      for (let i = 0; i < n; i++) {
+        if (i < priorSeasons && assignment[i]) {
+          const t = assignment[i];
+          hist[i].teamId   = t.id;
+          hist[i].teamName = `${t.city} ${t.name}`;
+        } else {
+          hist[i].teamId   = teamId;
           hist[i].teamName = teamName;
         }
       }
