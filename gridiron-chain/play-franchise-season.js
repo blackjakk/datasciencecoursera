@@ -2387,14 +2387,61 @@ function renderFrnFANegotiations(selectedName) {
   const cap = franchise.salaryCap || SALARY_CAP_BASE;
   const myCapUsed = capUsedByTeam(myId);
 
-  const active = Object.entries(negs).filter(([, n]) => n.state === "negotiating");
-  if (active.length === 0) {
-    $("frnHomeContent").innerHTML = `
-      <div style="text-align:center;padding:1rem">
-        <div style="font-size:1.05rem;font-weight:700;color:var(--gold)">No active free-agent negotiations.</div>
-        <div style="color:var(--gray);font-size:.78rem;margin-top:.4rem">All FAs have signed elsewhere, left the league, or been resolved.</div>
-        <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="margin-top:1rem">← Back to Dashboard</button>
+  const active   = Object.entries(negs).filter(([, n]) => n.state === "negotiating");
+  const resolved = Object.entries(negs).filter(([, n]) => n.state !== "negotiating" && n.yourBid);
+
+  // Build results section (user-bid-on negotiations that have concluded)
+  const _buildResultsHtml = () => {
+    if (!resolved.length) return "";
+    const items = resolved.map(([name, n]) => {
+      const won      = n.state === "signed" && n.signedToTeamId === myId;
+      const unsigned = n.state === "unsigned";
+      const statusColor = won ? "var(--green-lt)" : unsigned ? "var(--gray)" : "var(--red)";
+      const statusLabel = won ? "WON" : unsigned ? "UNSIGNED" : "LOST";
+      const rowClass    = won ? "won" : unsigned ? "unsigned" : "lost";
+      // AAV: for won use yourBid; for lost use last history entry by winner; for unsigned use demand at time
+      let aav, years;
+      if (won) {
+        aav   = n.yourBid.aav;
+        years = n.yourBid.years;
+      } else if (n.state === "signed") {
+        const lastH = n.history.slice().reverse().find(h => h.teamId === n.signedToTeamId);
+        aav   = lastH ? lastH.aav   : (n.history[n.history.length - 1]?.aav   || 0);
+        years = lastH ? lastH.years : (n.history[n.history.length - 1]?.years || "?");
+      } else {
+        aav   = n.fa.demandedAAV || 0;
+        years = "—";
+      }
+      const destStr = won
+        ? "You signed them"
+        : unsigned
+          ? `Went unsigned · floor $${aav.toFixed ? aav.toFixed(1) : aav}M`
+          : `Signed with ${n.signedToTeamName || "another team"} · $${aav.toFixed ? aav.toFixed(1) : aav}M × ${years}yr`;
+      return `<div class="frn-fa-result-row ${rowClass}">
+        <span>${gradeBadge(n.fa)}</span>
+        <span class="frn-fa-name">${n.fa.name}</span>
+        <span class="frn-fa-pos">${n.fa.position}</span>
+        <span style="color:${statusColor};font-weight:900;font-size:.62rem;letter-spacing:.3px">${statusLabel}</span>
+        <span style="color:var(--gray);font-size:.62rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${destStr}</span>
       </div>`;
+    }).join("");
+    return `<div style="margin-bottom:.7rem">
+      <div class="frn-card-title">📋 YOUR BID RESULTS</div>
+      <div class="frn-fa-results-list">${items}</div>
+    </div>`;
+  };
+
+  if (active.length === 0) {
+    const resultsHtml = _buildResultsHtml();
+    $("frnHomeContent").innerHTML = `
+      <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem;flex-wrap:wrap">
+        <div style="font-size:1.05rem;font-weight:900;color:var(--gold)">🆓 FA TRACKER · Week ${franchise.week}</div>
+        <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="margin-left:auto">← Dashboard</button>
+      </div>
+      ${resultsHtml || `<div style="text-align:center;padding:1.5rem 1rem">
+        <div style="font-size:1.05rem;font-weight:700;color:var(--gold)">No active free-agent negotiations.</div>
+        <div style="color:var(--gray);font-size:.78rem;margin-top:.4rem">Submit bids during FA to track outcomes here.</div>
+      </div>`}`;
     return;
   }
 
@@ -2543,6 +2590,7 @@ function renderFrnFANegotiations(selectedName) {
       <div class="frn-fa-pool-col">
         <div class="frn-card-title">ACTIVE NEGOTIATIONS</div>
         <div class="frn-fa-pool-list">${listHtml}</div>
+        ${_buildResultsHtml()}
       </div>
       <div class="frn-fa-mid-col" style="grid-column: span 2">
         <div class="frn-fa-preview">

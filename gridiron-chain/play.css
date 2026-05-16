@@ -1012,6 +1012,81 @@
   }
   .btn-gold-big:hover { background: var(--gold-lt) !important; }
 
+  /* Pregame action bar */
+  .frn-pregame-actions { margin-bottom: .85rem; }
+  .frn-pregame-cta {
+    display: flex; align-items: center; justify-content: center; gap: .6rem;
+    width: 100%; background: var(--gold); color: #000;
+    border: none; padding: .85rem 1.5rem; font-size: 1.05rem;
+    font-weight: 900; cursor: pointer; font-family: inherit;
+    letter-spacing: .8px; margin-bottom: .4rem; transition: background .1s;
+  }
+  .frn-pregame-cta:hover { background: var(--gold-lt); }
+  .frn-pregame-cta-sub {
+    font-size: .58rem; font-weight: 400; opacity: .65; letter-spacing: .2px;
+  }
+  .frn-pregame-sims {
+    display: flex; gap: .4rem; justify-content: center; flex-wrap: wrap;
+  }
+  .frn-sim-btn {
+    background: var(--bg3); color: var(--white); border: 1px solid var(--border);
+    padding: .4rem .9rem; font-size: .72rem; font-weight: 700;
+    cursor: pointer; font-family: inherit; transition: border-color .1s, color .1s;
+    letter-spacing: .3px;
+  }
+  .frn-sim-btn:hover { border-color: var(--gold-lt); color: var(--gold-lt); }
+  .frn-sim-btn.frn-sim-season { color: var(--gray); border-color: rgba(255,255,255,.15); }
+  .frn-sim-btn.frn-sim-season:hover { color: var(--white); border-color: var(--border); }
+
+  /* Season stats matchup strip */
+  .frn-matchup-compare {
+    padding: .5rem .7rem; margin: .6rem 0;
+    background: var(--bg2); border: 1px solid var(--border);
+  }
+  .frn-matchup-compare-title {
+    font-size: .6rem; font-weight: 700; color: var(--gold); letter-spacing: .7px;
+    text-align: center; margin-bottom: .45rem; padding-bottom: .2rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .frn-matchup-stat-row {
+    display: grid; grid-template-columns: 1fr auto 1fr;
+    align-items: center; gap: .4rem; padding: .14rem 0; font-size: .7rem;
+  }
+  .frn-matchup-stat-val { font-weight: 700; color: var(--white); }
+  .frn-matchup-stat-val:first-child { text-align: right; }
+  .frn-matchup-stat-val:last-child  { text-align: left; }
+  .frn-matchup-stat-val.edge { color: var(--gold-lt); }
+  .frn-matchup-stat-label {
+    color: var(--gray); font-size: .58rem; letter-spacing: .4px;
+    text-align: center; white-space: nowrap;
+  }
+  .frn-matchup-edge-row {
+    display: grid; grid-template-columns: 1fr auto 1fr;
+    align-items: center; gap: .4rem; padding-top: .3rem;
+    margin-top: .15rem; border-top: 1px solid var(--border);
+  }
+
+  /* Side-by-side starters */
+  .frn-matchup-starters-header {
+    display: grid; grid-template-columns: 1fr auto 1fr;
+    align-items: center; gap: .4rem; margin-bottom: .3rem;
+    font-size: .62rem; font-weight: 700; letter-spacing: .4px;
+  }
+  .frn-matchup-starters-header > span:first-child { text-align: right; }
+  .frn-matchup-starters { display: flex; flex-direction: column; gap: .1rem; }
+  .frn-matchup-starters-row {
+    display: grid; grid-template-columns: 1fr 2rem 1fr;
+    align-items: center; gap: .3rem; padding: .15rem .1rem;
+    border-bottom: 1px solid rgba(46,61,46,.3); font-size: .67rem;
+  }
+  .frn-matchup-starters-row:last-child { border-bottom: none; }
+  .frn-matchup-starter-my {
+    display: flex; align-items: center; justify-content: flex-end; gap: .3rem; text-align: right;
+  }
+  .frn-matchup-starter-opp {
+    display: flex; align-items: center; justify-content: flex-start; gap: .3rem;
+  }
+
   /* Dashboard grid (schedule / standings / leaders / highlights) */
   .frn-dash-grid {
     display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
@@ -3440,6 +3515,16 @@
     color: var(--green-lt); font-size: .55rem;
     font-weight: 700; letter-spacing: .3px;
   }
+  .frn-fa-results-list { display: flex; flex-direction: column; gap: .18rem; margin-top: .35rem; }
+  .frn-fa-result-row {
+    display: grid; grid-template-columns: auto auto auto auto 1fr;
+    gap: .35rem; align-items: center;
+    padding: .28rem .45rem; font-size: .65rem; font-family: inherit;
+    background: var(--bg3); border: 1px solid var(--border);
+  }
+  .frn-fa-result-row.won  { border-left: 3px solid var(--green); }
+  .frn-fa-result-row.lost { border-left: 3px solid var(--red); }
+  .frn-fa-result-row.unsigned { border-left: 3px solid var(--gray); opacity: .75; }
 
   /* Selected FA detail panel */
   .frn-fa-detail-head {

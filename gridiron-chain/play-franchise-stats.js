@@ -2627,33 +2627,50 @@ function _buildOpponentIntelBlock(oppId, isHome, week, nextGame) {
   }).join(" ") : `<span style="color:var(--gray);font-style:italic">No prior games</span>`;
 
   // Top players — pulled by scout grade with whatever intel level we have
+  const myRosterSorted = (franchise.rosters[myId] || []).slice()
+    .sort((a, b) => scoutGrade(b) - scoutGrade(a));
   const oppRoster = (franchise.rosters[oppId] || []).slice()
     .sort((a, b) => scoutGrade(b) - scoutGrade(a));
   const scouted = !!franchise.scoutingIntel?.[oppId] &&
     franchise.scoutingIntel[oppId].season === franchise.season;
-  const topByPos = pos => {
-    const list = oppRoster.filter(p => p.position === pos);
-    return list[0] || null;
-  };
+
+  // Side-by-side starters comparison
   const keyPositions = ["QB","RB","WR","DL","LB","CB"];
-  const topRows = keyPositions.map(pos => {
-    const p = topByPos(pos);
-    if (!p) return "";
-    return `<div class="frn-opp-keyplayer-row">
+  const myTeam = getTeam(myId);
+  const starterRows = keyPositions.map(pos => {
+    const myP  = myRosterSorted.find(p => p.position === pos);
+    const oppP = oppRoster.find(p => p.position === pos);
+    if (!myP && !oppP) return "";
+    const myCell = myP
+      ? `<span style="font-weight:700;font-size:.68rem">${playerLinkByName(myP.name)}</span>
+         <span>${gradeBadge(myP)}</span>
+         <span style="color:var(--gray);font-size:.58rem">Age ${myP.age||"?"}</span>`
+      : `<span style="color:var(--gray);font-size:.65rem">—</span>`;
+    const oppCell = oppP
+      ? `<span style="color:var(--gray);font-size:.58rem">Age ${oppP.age||"?"}</span>
+         <span>${gradeBadge(oppP)}</span>
+         <span style="font-weight:700;font-size:.68rem">${playerLinkByName(oppP.name)}</span>`
+      : `<span style="color:var(--gray);font-size:.65rem">—</span>`;
+    return `<div class="frn-matchup-starters-row">
+      <div class="frn-matchup-starter-my">${myCell}</div>
       <span class="frn-opp-keyplayer-pos">${pos}</span>
-      <span style="font-weight:700">${playerLinkByName(p.name)}</span>
-      <span>${gradeBadge(p)}</span>
-      <span style="color:var(--gray);font-size:.6rem">Age ${p.age||"?"}</span>
+      <div class="frn-matchup-starter-opp">${oppCell}</div>
     </div>`;
   }).join("");
 
-  // Injured key players on the opponent
+  // Both teams' injuries
+  const myInjured  = myRosterSorted.filter(p => p.injury && p.injury.weeksRemaining > 0).slice(0, 3);
   const oppInjured = oppRoster.filter(p => p.injury && p.injury.weeksRemaining > 0).slice(0, 4);
-  const injuryHtml = oppInjured.length ? `
+  const allInjuries = [
+    ...myInjured.map(p => ({ side: "YOU", p, color: "#ffb0b0" })),
+    ...oppInjured.map(p => ({ side: "OPP", p, color: "#ff9090" })),
+  ];
+  const injuryHtml = allInjuries.length ? `
     <div class="frn-opp-intel-row">
-      <div class="frn-card-title" style="margin-bottom:.25rem">🩹 INJURIES (THEM)</div>
-      ${oppInjured.map(p => `
-        <div style="font-size:.7rem;color:#ff9090">
+      <div class="frn-card-title" style="margin-bottom:.3rem">🩹 INJURY REPORT</div>
+      ${allInjuries.map(({ side, p, color }) => `
+        <div style="font-size:.68rem;color:${color};display:flex;gap:.4rem;align-items:center;padding:.1rem 0">
+          <span style="color:${side==="YOU"?"var(--gold-lt)":"#c08080"};font-size:.55rem;font-weight:700;border:1px solid currentColor;padding:.05rem .22rem;flex-shrink:0">${side}</span>
           ${p.position} ${playerLinkByName(p.name)} — ${_bspnEsc(p.injury.label)} (${p.injury.weeksRemaining}wk)
         </div>`).join("")}
     </div>` : "";
@@ -2684,37 +2701,110 @@ function _buildOpponentIntelBlock(oppId, isHome, week, nextGame) {
     ? `<span class="frn-opp-intel-tag scouted">🏟 SCOUTED — sharp grades</span>`
     : `<span class="frn-opp-intel-tag">noisy grades · run a scrimmage to sharpen</span>`;
 
-  // Weather hint for the matchup (set when game is played, but we can
-  // hint at venue if home)
-  const venueHtml = `<span style="color:var(--gray);font-size:.62rem">
-    ${isHome ? `Home — ${getTeam(myId).city}` : `Away @ ${opp.city}`}
-  </span>`;
+  const venueStr = isHome ? `Home — ${getTeam(myId).city}` : `Away @ ${opp.city}`;
+  const mustWinTag = _isMustWinForUser(week, nextGame)
+    ? `<span style="color:#ff5a5a;background:rgba(255,80,80,0.15);border:1px solid #ff5a5a;padding:.1rem .35rem;margin-left:.4rem;font-size:.55rem;letter-spacing:.5px">🚨 MUST WIN</span>`
+    : "";
 
   return `<div class="frn-opp-intel">
     <div class="frn-opp-intel-head">
-      <div class="frn-card-title" style="margin:0">📡 OPP INTEL — ${opp.city} ${opp.name} ${_isMustWinForUser(week, nextGame) ? `<span style="color:#ff5a5a;background:rgba(255,80,80,0.15);border:1px solid #ff5a5a;padding:.1rem .35rem;margin-left:.4rem;font-size:.55rem;letter-spacing:.5px">🚨 MUST WIN</span>` : ""}</div>
-      ${intelTag}
+      <div class="frn-card-title" style="margin:0">📡 MATCHUP INTEL — ${opp.city} ${opp.name} ${mustWinTag}</div>
+      <div style="display:flex;gap:.5rem;align-items:center">
+        <span style="color:var(--gray);font-size:.62rem">${venueStr}</span>
+        ${intelTag}
+      </div>
     </div>
     <div class="frn-opp-intel-grid">
       <div class="frn-opp-intel-row">
-        <div class="frn-card-title" style="margin-bottom:.25rem">FORM (LAST 3)</div>
+        <div class="frn-card-title" style="margin-bottom:.25rem">FORM (LAST 3) · ${opp.name.toUpperCase()}</div>
         <div style="display:flex;gap:.35rem;flex-wrap:wrap">${formHtml}</div>
       </div>
       <div class="frn-opp-intel-row">
-        <div class="frn-card-title" style="margin-bottom:.25rem">SCORING</div>
+        <div class="frn-card-title" style="margin-bottom:.25rem">SCORING · ${opp.name.toUpperCase()}</div>
         <div style="font-size:.7rem">
           PPG <b style="color:var(--gold-lt)">${ppg}</b> · PAPG <b style="color:var(--gold-lt)">${paPg}</b>
           · DIFF <b style="color:${diffColor}">${diffStr}</b>
         </div>
-        ${venueHtml}
       </div>
     </div>
     <div class="frn-opp-intel-row">
-      <div class="frn-card-title" style="margin-bottom:.25rem">KEY STARTERS</div>
-      <div class="frn-opp-keyplayers">${topRows}</div>
+      <div class="frn-matchup-starters-header">
+        <span style="color:var(--gold-lt)">${myTeam ? myTeam.name.toUpperCase() : "YOU"}</span>
+        <div class="frn-card-title" style="margin:0;border:none;padding:0">KEY STARTERS</div>
+        <span style="color:#c08080">${opp.name.toUpperCase()}</span>
+      </div>
+      <div class="frn-matchup-starters">${starterRows}</div>
     </div>
     ${injuryHtml}
     ${h2hHtml}
+  </div>`;
+}
+
+function _buildMatchupStatsStrip(myId, oppId, myStand, oppStand, myRtg, oppRtg) {
+  const myGP  = (myStand.w||0)  + (myStand.l||0)  + (myStand.t||0);
+  const oppGP = (oppStand.w||0) + (oppStand.l||0) + (oppStand.t||0);
+  const myPPG   = myGP  ? ((myStand.pf||0)  / myGP).toFixed(1)  : "—";
+  const myPAPG  = myGP  ? ((myStand.pa||0)  / myGP).toFixed(1)  : "—";
+  const oppPPG  = oppGP ? ((oppStand.pf||0) / oppGP).toFixed(1) : "—";
+  const oppPAPG = oppGP ? ((oppStand.pa||0) / oppGP).toFixed(1) : "—";
+  const myDiff  = (myStand.pf||0)  - (myStand.pa||0);
+  const oppDiff = (oppStand.pf||0) - (oppStand.pa||0);
+
+  const formPills = (teamId) => {
+    const games = (franchise.schedule || [])
+      .filter(g => g.played && (g.homeId === teamId || g.awayId === teamId))
+      .sort((a, b) => b.week - a.week).slice(0, 3);
+    if (!games.length) return `<span style="color:var(--gray)">—</span>`;
+    return games.map(g => {
+      const isH = g.homeId === teamId;
+      const my = isH ? g.homeScore : g.awayScore;
+      const them = isH ? g.awayScore : g.homeScore;
+      const wl = my > them ? "W" : my < them ? "L" : "T";
+      const c = wl === "W" ? "var(--green-lt)" : wl === "L" ? "#c08080" : "var(--gray)";
+      return `<span class="frn-opp-form-pill" style="color:${c}">${wl}</span>`;
+    }).join("");
+  };
+
+  const statRow = (label, myVal, oppVal, higherBetter = true) => {
+    const mn = parseFloat(myVal), on = parseFloat(oppVal);
+    const myEdge  = !isNaN(mn) && !isNaN(on) && (higherBetter ? mn > on : mn < on);
+    const oppEdge = !isNaN(mn) && !isNaN(on) && (higherBetter ? on > mn : on < mn);
+    return `<div class="frn-matchup-stat-row">
+      <span class="frn-matchup-stat-val ${myEdge ? "edge" : ""}">${myVal}</span>
+      <span class="frn-matchup-stat-label">${label}</span>
+      <span class="frn-matchup-stat-val ${oppEdge ? "edge" : ""}">${oppVal}</span>
+    </div>`;
+  };
+
+  // Simple win probability from OFF+DEF delta
+  const myTotal  = (myRtg.off  || 0) + (myRtg.def  || 0);
+  const oppTotal = (oppRtg.off || 0) + (oppRtg.def || 0);
+  const rawPct   = Math.round(50 + (myTotal - oppTotal) * 0.35);
+  const myWinPct = Math.min(84, Math.max(16, rawPct));
+  const edgeLabel = myWinPct > 53 ? `YOU FAV ${myWinPct}%`
+    : myWinPct < 47 ? `OPP FAV ${100 - myWinPct}%`
+    : "PICK 'EM";
+  const edgeColor = myWinPct > 53 ? "var(--green-lt)"
+    : myWinPct < 47 ? "#c08080"
+    : "var(--gold)";
+
+  return `<div class="frn-matchup-compare">
+    <div class="frn-matchup-compare-title">SEASON STATS MATCHUP</div>
+    <div class="frn-matchup-stat-row">
+      <div style="display:flex;justify-content:flex-end;gap:.2rem">${formPills(myId)}</div>
+      <span class="frn-matchup-stat-label">FORM L3</span>
+      <div style="display:flex;justify-content:flex-start;gap:.2rem">${formPills(oppId)}</div>
+    </div>
+    ${statRow("PPG", myPPG, oppPPG, true)}
+    ${statRow("PAPG", myPAPG, oppPAPG, false)}
+    ${statRow("PT DIFF", myDiff >= 0 ? `+${myDiff}` : String(myDiff), oppDiff >= 0 ? `+${oppDiff}` : String(oppDiff), true)}
+    ${statRow("OFF", myRtg.off, oppRtg.off, true)}
+    ${statRow("DEF", myRtg.def, oppRtg.def, true)}
+    <div class="frn-matchup-edge-row">
+      <span></span>
+      <span style="color:${edgeColor};font-weight:900;font-size:.62rem;letter-spacing:.5px">⚡ ${edgeLabel}</span>
+      <span></span>
+    </div>
   </div>`;
 }
 
@@ -2876,6 +2966,16 @@ function renderFrnRegular() {
           <span>WEEK ${nextGame.week} · ${isHome ? "HOME GAME" : "AWAY GAME"}</span>
           <span class="frn-next-badge">NEXT UP</span>
         </div>
+        <div class="frn-pregame-actions">
+          <button class="frn-pregame-cta" onclick="frnPlayGame(${nextGame.homeId},${nextGame.awayId},false)">
+            ▶ PLAY GAME <span class="frn-pregame-cta-sub">interactive · live simulation</span>
+          </button>
+          <div class="frn-pregame-sims">
+            <button class="frn-sim-btn" onclick="frnSimGame(${nextGame.homeId},${nextGame.awayId})">⏩ Sim Game</button>
+            <button class="frn-sim-btn" onclick="frnSimWeek()">⏭ Sim Week ${week}</button>
+            <button class="frn-sim-btn frn-sim-season" onclick="frnSimSeason()">⏭⏭ Sim Season</button>
+          </div>
+        </div>
         <div class="frn-next-matchup">
           ${isHome
             ? teamCard(myTeam, myStand, myRtg, true)
@@ -2885,12 +2985,7 @@ function renderFrnRegular() {
             ? teamCard(opp, oppStand, oppRtg, false)
             : teamCard(myTeam, myStand, myRtg, true)}
         </div>
-        <div class="frn-next-actions">
-          <button class="btn btn-gold-big" onclick="frnPlayGame(${nextGame.homeId},${nextGame.awayId},false)">▶ PLAY GAME</button>
-          <button class="btn btn-outline" onclick="frnSimGame(${nextGame.homeId},${nextGame.awayId})">⏩ Sim Game</button>
-          <button class="btn btn-outline" onclick="frnSimWeek()">⏭ Sim Week ${week}</button>
-          <button class="btn btn-outline" onclick="frnSimSeason()" style="color:var(--gray)">⏭⏭ Sim Season</button>
-        </div>
+        ${_buildMatchupStatsStrip(chosenTeamId, oppId, myStand, oppStand, myRtg, oppRtg)}
         ${_buildOpponentIntelBlock(oppId, isHome, week, nextGame)}
       </div>`;
   } else if (seasonDone) {
