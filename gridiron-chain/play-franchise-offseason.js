@@ -827,6 +827,64 @@ function _checkWeekComplete() {
   }
 }
 
+// AWR grows from game reps — pattern recognition and situational awareness
+// compound over a season of live looks. Growth is FLAT-RATE regardless of
+// archetype: a RAW_ATHLETE and HIGH_IQ player grow AWR at the same pace.
+// The difference is where they START and what their ceiling is (_awrCeiling).
+// Trench positions (OL/DL/LB/RB/TE) grow AWR too, but AWR feeds engine
+// behavior for them (snap timing, gap reads, blitz pickup) rather than OVR.
+function _inSeasonAwrGrowth() {
+  const starterDepth = { QB:1, RB:2, WR:3, TE:2, OL:5, DL:4, LB:3, CB:3, S:2, K:1, P:1 };
+  // AWR OVR weight by position — only these positions get an OVR nudge when AWR grows.
+  // Accumulate fractionally; apply a +1 OVR only when the running total hits 1.0.
+  const awrOvrWeight = { QB:0.21, WR:0.08, CB:0.08, S:0.08, K:0.42, P:0.42 };
+
+  for (const t of TEAMS) {
+    const roster = franchise.rosters[t.id] || [];
+    const byPos = {};
+    for (const p of roster) {
+      if (!byPos[p.position]) byPos[p.position] = [];
+      byPos[p.position].push(p);
+    }
+    for (const arr of Object.values(byPos)) arr.sort((a, b) => (b.overall||0) - (a.overall||0));
+
+    for (const p of roster) {
+      const age = p.age || 25;
+      if (age > 30) continue;
+
+      const posGroup = byPos[p.position] || [];
+      const depth    = starterDepth[p.position] || 2;
+      const isStarter = posGroup.indexOf(p) < depth;
+      const repRate   = isStarter ? 1.0 : 0.35;
+      const sysMul    = (p.systemYears || 0) >= 1 ? 1.0 : 0.55;
+      const ageMul    = age <= 22 ? 1.5 : age <= 25 ? 1.2 : age <= 28 ? 0.85 : 0.45;
+
+      // Backfill _awrCeiling for any player that predates this system.
+      if (p._awrCeiling == null) {
+        p._awrCeiling = p.flavor === "HIGH_FOOTBALL_IQ" ? 82 + Math.floor(Math.random() * 14)
+                      : p.flavor === "RAW_ATHLETE"       ? 55 + Math.floor(Math.random() * 18)
+                      : 65 + Math.floor(Math.random() * 18);
+      }
+
+      if ((p.stats?.[3] ?? 70) >= p._awrCeiling) continue;
+
+      if (Math.random() >= 0.25 * repRate * sysMul * ageMul) continue;
+
+      p.stats[3] = Math.min(p._awrCeiling, (p.stats[3] ?? 70) + 1);
+
+      // Nudge OVR for positions where AWR appears in the OVR formula.
+      const w = awrOvrWeight[p.position];
+      if (w) {
+        p._awrOvrAccum = (p._awrOvrAccum || 0) + w;
+        if (p._awrOvrAccum >= 1.0) {
+          p.overall = Math.min(99, (p.overall || 60) + 1);
+          p._awrOvrAccum -= 1.0;
+        }
+      }
+    }
+  }
+}
+
 // Split out from the old advanceWeekIfDone: end-of-week resolution.
 // Runs FA bid resolution + AI counter-bid round + injury tick. Does NOT
 // bump the week counter.
@@ -850,6 +908,10 @@ function _runWeekEndResolution() {
   if (franchise.autoSpendScouts !== false) _psAutoSpendVisits();
   _psWeeklyFlashRoll();
   _psPoachPass();
+  // In-season AWR growth: game reps build pattern recognition and situational
+  // awareness for all active-roster players. Flat rate regardless of archetype —
+  // the starting AWR value is the differentiator, not the growth speed.
+  _inSeasonAwrGrowth();
   // Mid-season extension demands: stars in their contract year roll
   // for "wants a new deal" / forces 1-week sit-out if ignored.
   _checkHoldoutDemands();
@@ -3632,6 +3694,31 @@ function runFrnOffseason() {
         }
       }
 
+      // TEC (technique) — changes only through intentional coaching, never
+      // automatically from reps. Player Developer HCs run focused technique
+      // clinics; 20% chance per eligible player per offseason. Age 30+ mechanics
+      // calcify and start to slip as physical tools compensate differently.
+      if (p.stats) {
+        const curTec = p.stats[11] ?? 68;
+        const isDevCoach = franchise.coaches?.[tId]?.hc?.trait === "Player Developer";
+        if (isDevCoach && (p.age || 25) <= 30 && Math.random() < 0.20) {
+          const gain = 1 + Math.floor(Math.random() * 3); // +1 to +3
+          p.stats[11] = Math.min(99, curTec + gain);
+          p._tecOvrAccum = (p._tecOvrAccum || 0) + 0.15 * gain;
+          if (p._tecOvrAccum >= 1.0) {
+            p.overall = Math.min(99, (p.overall || 60) + 1);
+            p._tecOvrAccum -= 1.0;
+          }
+        } else if ((p.age || 25) >= 30 && Math.random() < 0.25) {
+          p.stats[11] = Math.max(40, curTec - 1);
+          p._tecOvrAccum = (p._tecOvrAccum || 0) - 0.15;
+          if (p._tecOvrAccum <= -1.0) {
+            p.overall = Math.max(40, (p.overall || 60) - 1);
+            p._tecOvrAccum += 1.0;
+          }
+        }
+      }
+
       // Wire alerts for dev swings. Hybrid framing — your own players
       // get explicit OVR numbers (you have full info); other teams'
       // players surface only as noisy scout-grade changes, keeping the
@@ -3695,6 +3782,9 @@ function runFrnOffseason() {
     }
 
     franchise.rosters[tId] = keep;
+
+    // Increment system familiarity for players staying with the team.
+    for (const p of keep) p.systemYears = (p.systemYears || 0) + 1;
 
     // Practice squad development — they get coaching and install reps but
     // no live game action, so growth is 60% of the active-roster rate.
@@ -4502,11 +4592,13 @@ function frnAcceptOffer(offerId) {
   for (const p of sending) {
     p.onTradeBlock = false;
     delete p.blockAsk;
+    p.systemYears = 0; // new system — familiarity resets
     const i = myRoster.indexOf(p); if (i !== -1) myRoster.splice(i, 1);
     theirRoster.push(p);
   }
   for (const p of receiving) {
     p.onTradeBlock = false;
+    p.systemYears = 0; // new system — familiarity resets
     const i = theirRoster.indexOf(p); if (i !== -1) theirRoster.splice(i, 1);
     myRoster.push(p);
   }

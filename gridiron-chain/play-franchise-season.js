@@ -2443,6 +2443,7 @@ function _faResolveAfterWeek(week, isSeasonEnd) {
         };
         n.state = "signed";
         n.signedToTeamId = highId;
+        n.fa.systemYears = 0; // new system — familiarity resets
         franchise.rosters[highId].push(n.fa);
         const signTeam = getTeam(highId);
         if (highIsYou) {
@@ -2606,6 +2607,7 @@ function _faTryKnockout(name) {
   n.history.push({ teamId: high.teamId,
     label: high.isYou ? "You KNOCKOUT" : `${getTeam(high.teamId)?.name || "?"} KNOCKOUT`,
     aav: high.aav, years: high.years, week: franchise.week });
+  n.fa.systemYears = 0; // new system — familiarity resets
   franchise.rosters[high.teamId].push(n.fa);
   const signTeam = getTeam(high.teamId);
   if (high.isYou) {

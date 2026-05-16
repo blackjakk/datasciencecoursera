@@ -1317,6 +1317,43 @@ function _writeSlotsMeta(meta) {
 }
 function _slotDataKey(id) { return `gc_franchise_v1_slot_${id}`; }
 
+// Backfill TEC (stats[11]) and _awrCeiling on players from saves that predate
+// the technique stat. Estimates from flavor + archetype so saves stay coherent.
+function _backfillTEC() {
+  if (!franchise) return;
+  const highTecArchs = new Set(["TECHNICIAN","FIELD_GENERAL","GAME_MANAGER","ROUTE_RUNNER",
+    "SHUTDOWN","SLOT_CB","COVER","BOX","BLOCKING","POSSESSION","SLOT","WORKHORSE",
+    "RECEIVING","ANCHOR"]);
+  const lowTecArchs = new Set(["POWER","SPEED","THUMPER","RED_ZONE","GUNSLINGER",
+    "DUAL_THREAT","PHYSICAL","PENETRATOR"]);
+  const stamp = p => {
+    if (!p.stats) return;
+    while (p.stats.length < 12) p.stats.push(68);
+    // Only backfill — don't overwrite if already explicitly set (not the placeholder 68)
+    if (p.stats[11] !== 68 && p.stats[11] != null) {
+      if (p._awrCeiling == null) {
+        p._awrCeiling = p.flavor === "HIGH_FOOTBALL_IQ" ? 88
+                      : p.flavor === "RAW_ATHLETE"       ? 63 : 73;
+      }
+      return;
+    }
+    const fl = p.flavor;
+    if      (fl === "RAW_ATHLETE")       p.stats[11] = 72;
+    else if (fl === "HIGH_FOOTBALL_IQ")  p.stats[11] = 58;
+    else if (highTecArchs.has(p.archetype)) p.stats[11] = 75;
+    else if (lowTecArchs.has(p.archetype))  p.stats[11] = 63;
+    else p.stats[11] = 68;
+    if (p._awrCeiling == null) {
+      p._awrCeiling = fl === "HIGH_FOOTBALL_IQ" ? 88
+                    : fl === "RAW_ATHLETE"       ? 63 : 73;
+    }
+    if (p.position) p.overall = calcOverall(p.position, p.stats);
+  };
+  for (const roster of Object.values(franchise.rosters || {})) roster.forEach(stamp);
+  for (const squad  of Object.values(franchise.practiceSquads || {})) squad.forEach(stamp);
+  (franchise.freeAgents || []).forEach(stamp);
+}
+
 // Backfill pid onto any player object that doesn't have one (legacy saves).
 function _backfillPlayerPids() {
   if (!franchise) return;
@@ -1538,7 +1575,7 @@ function loadFranchise() {
     if (raw) {
       franchise = JSON.parse(raw);
       if (franchise && franchise.pendingFranchiseGame) franchise.pendingFranchiseGame = null;
-      _backfillPlayerPids();
+      _backfillPlayerPids(); _backfillTEC();
       // Race the IDB read — if IDB has a newer save (lastSaved timestamp via
       // _saveLastFlush on franchise), use it. Otherwise keep the sync result.
       _idbGet(slotId).then(idbFranchise => {
@@ -1548,7 +1585,7 @@ function loadFranchise() {
         if (idbTime > lsTime) {
           franchise = idbFranchise;
           if (franchise.pendingFranchiseGame) franchise.pendingFranchiseGame = null;
-          _backfillPlayerPids();
+          _backfillPlayerPids(); _backfillTEC();
           if (typeof showFranchiseDashboard === "function") showFranchiseDashboard();
         }
       }).catch(() => {});
@@ -1559,7 +1596,7 @@ function loadFranchise() {
         if (!idbFranchise) return;
         franchise = idbFranchise;
         if (franchise.pendingFranchiseGame) franchise.pendingFranchiseGame = null;
-        _backfillPlayerPids();
+        _backfillPlayerPids(); _backfillTEC();
         if (typeof showFranchiseDashboard === "function") showFranchiseDashboard();
       }).catch(() => {});
     }

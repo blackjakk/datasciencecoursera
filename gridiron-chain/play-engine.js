@@ -682,9 +682,27 @@ class GameSimulator {
       this.stats[side].team.snaps = (this.stats[side].team.snaps || 0) + 1;
     }
     const adv = (this.offR.offense - this.defR.defense) / 100;
+
+    // AWR in the trenches — affects engine behavior, not OVR.
+    // DL snap timing: smart rushers read the center's weight shift and get a
+    // half-step jump. Small but compounding over 60+ snaps a game.
+    const defDLList = this.defArch?.DL || [];
+    const dlAwrAvg = defDLList.length
+      ? defDLList.reduce((s, p) => s + (this._playerByName.get(p?.name)?.stats?.[3] ?? 70), 0) / defDLList.length
+      : 70;
+    const snapTimingBonus = (dlAwrAvg - 70) / 250; // AWR 85 → +0.06, AWR 55 → -0.06
+
+    // OL blitz pickup: high-AWR linemen make correct protection calls vs stunts
+    // and blitzes, keeping the QB clean even under exotic pressure packages.
+    const offOLList = (this.poss === "home" ? this.homeOL : this.awayOL) || [];
+    const olAwrAvg = offOLList.length
+      ? offOLList.reduce((s, p) => s + (this._playerByName.get(p?.name)?.stats?.[3] ?? 70), 0) / offOLList.length
+      : 70;
+    const blitzPickupBonus = (70 - olAwrAvg) / 280; // high OL AWR reduces pressure
+
     // Trench matchup: positive = DL is winning vs OL (offense in trouble)
     // -1.0 ≈ OL dominates, 0 ≈ even, +1.0 ≈ DL crushes OL, +1.5 = absolute mismatch
-    const basePressure = clamp((this.defR.dl - this.offR.ol) / 35, -1.2, 1.5);
+    const basePressure = clamp((this.defR.dl - this.offR.ol) / 35 + snapTimingBonus + blitzPickupBonus, -1.2, 1.5);
     // Pick the DL rep + OL rep for THIS play, look up the matchup multiplier
     const reps = this._pickTrenchRep();
     const passMul = (PASS_MATCHUP[reps.dlType]?.[reps.olType]) ?? 1.0;
@@ -1921,6 +1939,16 @@ class GameSimulator {
     const defArchRun = this.defArch;
     const boxSafetyStuff = ((defArchRun.S || []).filter(s => s?.archetype === "BOX").length * 0.2);
     const thumperStuff   = ((defArchRun.LB || []).filter(l => l?.archetype === "THUMPER").length * 0.18);
+    // LB gap recognition: high-AWR linebackers read the run key pre-snap and fill
+    // the right gap — smart LBs are in the right place before the RB gets there.
+    const lbRunList = defArchRun.LB || [];
+    const lbAwrAvg = lbRunList.length
+      ? lbRunList.reduce((s, p) => s + (this._playerByName.get(p?.name)?.stats?.[3] ?? 70), 0) / lbRunList.length
+      : 70;
+    const lbGapRead = (lbAwrAvg - 70) / 300; // AWR 85 → +0.05 yds stuffed, AWR 55 → -0.05
+    // RB gap vision: aware backs find the right crease without hesitation.
+    const rbAwr = rbPlayer?.stats?.[3] ?? 70;
+    const rbGapVision = (rbAwr - 70) / 280; // AWR 85 → +0.054 yds gained, AWR 55 → -0.054
     // Trench pressure drives run efficiency: elite DL stuffs runs at/near the LOS
     const trenchYds = -pressure * 1.9;   // dominant DL = average lost ~2 yds per carry
     const lbTackle  = (this.defR.lb - 60) / 60;  // strong LBs add minor stuffing
@@ -1933,7 +1961,7 @@ class GameSimulator {
     // Defensive scheme tilt for run defense: 46 blitz stuffs runs, dime
     // gets gashed.
     const defPbRun = this.currentDefPlaybook;
-    let yards = clamp(normal((rushMean + rbBoost + fbBoost + runVarMean + adv * 1.4 + runTrenchYds + fbStuffReduction - lbTackle * 0.5 - boxSafetyStuff - thumperStuff + carrierBoost + reverseBonus) * defPbRun.runMul, rushSd * rbSdMul * runVarSd * reverseSdMul), -8, 75);
+    let yards = clamp(normal((rushMean + rbBoost + fbBoost + runVarMean + adv * 1.4 + runTrenchYds + fbStuffReduction - lbTackle * 0.5 - boxSafetyStuff - thumperStuff - lbGapRead + rbGapVision + carrierBoost + reverseBonus) * defPbRun.runMul, rushSd * rbSdMul * runVarSd * reverseSdMul), -8, 75);
     // Cap at distance to end zone so a 1-yd goal-line carry doesn't get reported as a 17-yd TD
     if (yards > 0) yards = Math.min(yards, 100 - startYard);
     // Broken tackles — carrier physicality vs defender tackle rating.

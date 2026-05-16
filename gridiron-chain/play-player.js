@@ -465,17 +465,19 @@ function statsFor(pos, tier) {
   // always stay below the primary ceiling so they can't inflate OVR.
   const l = () => rand(Math.max(r.lo, 30), Math.max(r.hi - 10, r.lo + 5));
   let stats;
+  // stats[11] = TEC (technique/execution). Placeholder here — overridden by
+  // applyFlavor (flavor-based) and genPlayer (archetype-based) immediately after.
   switch (pos) {
-    case "QB": stats = [l(),l(),b(),b(),b(),l(),l(),l(),l(),l(),l()]; break;
-    case "RB": stats = [b(),b(),b(),b(),l(),b(),l(),l(),l(),l(),l()]; break;
-    case "WR": stats = [b(),l(),b(),b(),l(),b(),l(),l(),b(),l(),l()]; break;
-    case "TE": stats = [b(),b(),b(),b(),l(),b(),b(),l(),l(),l(),l()]; break;
-    case "OL": stats = [l(),b(),b(),b(),l(),l(),b(),l(),l(),l(),l()]; break;
-    case "DL": stats = [b(),b(),b(),b(),l(),l(),l(),b(),l(),b(),l()]; break;
-    case "LB": stats = [b(),b(),b(),b(),l(),l(),l(),b(),b(),b(),l()]; break;
-    case "CB": stats = [b(),l(),b(),b(),l(),l(),l(),l(),b(),b(),l()]; break;
-    case "S":  stats = [b(),b(),b(),b(),l(),l(),l(),l(),b(),b(),l()]; break;
-    default:   stats = [l(),l(),l(),b(),l(),l(),l(),l(),l(),l(),b()];
+    case "QB": stats = [l(),l(),b(),b(),b(),l(),l(),l(),l(),l(),l(),l()]; break;
+    case "RB": stats = [b(),b(),b(),b(),l(),b(),l(),l(),l(),l(),l(),l()]; break;
+    case "WR": stats = [b(),l(),b(),b(),l(),b(),l(),l(),b(),l(),l(),l()]; break;
+    case "TE": stats = [b(),b(),b(),b(),l(),b(),b(),l(),l(),l(),l(),l()]; break;
+    case "OL": stats = [l(),b(),b(),b(),l(),l(),b(),l(),l(),l(),l(),l()]; break;
+    case "DL": stats = [b(),b(),b(),b(),l(),l(),l(),b(),l(),b(),l(),l()]; break;
+    case "LB": stats = [b(),b(),b(),b(),l(),l(),l(),b(),b(),b(),l(),l()]; break;
+    case "CB": stats = [b(),l(),b(),b(),l(),l(),l(),l(),b(),b(),l(),l()]; break;
+    case "S":  stats = [b(),b(),b(),b(),l(),l(),l(),l(),b(),b(),l(),l()]; break;
+    default:   stats = [l(),l(),l(),b(),l(),l(),l(),l(),l(),l(),b(),l()];
   }
   // Signature stat — every player has at least one calling card. Picks a
   // random stat and ensures it lands in the 70-85 range so even "poor" tier
@@ -503,48 +505,55 @@ const PLAYER_FLAVORS = {
 function applyFlavor(stats, pos) {
   // Returns the flavor key (or null) and mutates stats in place
   const r = Math.random();
-  // Indices: 0=SPD, 1=STR, 2=AGI, 3=AWR, 4=THR, 5=CAT, 6=BLK, 7=PRS, 8=COV, 9=TCK, 10=KPW
+  // Indices: 0=SPD, 1=STR, 2=AGI, 3=AWR, 4=THR, 5=CAT, 6=BLK, 7=PRS, 8=COV, 9=TCK, 10=KPW, 11=TEC
   if (r < 0.45) {
-    // RAW_ATHLETE: pump physical, sink AWR (and THR for QB).
-    // Caps at solid-starter range (not elite) so poor-tier players
-    // with raw athleticism don't end up with elite OVRs.
+    // RAW_ATHLETE: elite physical tools, poor reads. High TEC — natural physical
+    // execution is their calling card even if their football IQ lags.
     stats[0] = Math.max(stats[0], rand(68, 80));   // SPD
     stats[1] = Math.max(stats[1], rand(65, 78));   // STR
     stats[2] = Math.max(stats[2], rand(68, 80));   // AGI
     stats[3] = Math.min(stats[3], rand(35, 50));   // AWR (poor instincts)
-    if (pos === "QB") stats[4] = Math.min(stats[4], rand(45, 60));  // THR limited
-    if (pos === "WR" || pos === "TE") stats[5] = Math.min(stats[5], rand(45, 60));  // bad hands
-    if (pos === "CB" || pos === "S") stats[8] = Math.min(stats[8], rand(45, 58));   // bad coverage
+    stats[11] = rand(68, 82);                       // TEC high — body does the right thing naturally
+    if (pos === "QB") stats[4] = Math.min(stats[4], rand(45, 60));
+    if (pos === "WR" || pos === "TE") stats[5] = Math.min(stats[5], rand(45, 60));
+    if (pos === "CB" || pos === "S") stats[8] = Math.min(stats[8], rand(45, 58));
     return "RAW_ATHLETE";
   } else if (r < 0.90) {
-    // HIGH_FOOTBALL_IQ: pump AWR (+ pos-specific skill), sink physical
+    // HIGH_FOOTBALL_IQ: sharp reads, physically limited. Lower TEC — they know
+    // what to do but the execution isn't always clean.
     stats[3] = Math.max(stats[3], rand(78, 92));   // AWR
+    stats[11] = rand(48, 65);                       // TEC lower — mechanics are rougher
     stats[0] = Math.min(stats[0], rand(42, 55));   // SPD
     stats[1] = Math.min(stats[1], rand(45, 58));   // STR
     stats[2] = Math.min(stats[2], rand(45, 58));   // AGI
-    if (pos === "QB") stats[4] = Math.max(stats[4], rand(75, 88));  // good throws (accuracy)
-    if (pos === "WR" || pos === "TE") stats[5] = Math.max(stats[5], rand(78, 92));  // great hands
-    if (pos === "CB" || pos === "S" || pos === "LB") stats[8] = Math.max(stats[8], rand(75, 90));  // coverage smarts
-    if (pos === "OL") stats[6] = Math.max(stats[6], rand(78, 92));  // technician blocker
-    if (pos === "DL" || pos === "LB") stats[7] = Math.max(stats[7], rand(75, 88));  // pass-rush technique
+    if (pos === "QB") stats[4] = Math.max(stats[4], rand(75, 88));
+    if (pos === "WR" || pos === "TE") stats[5] = Math.max(stats[5], rand(78, 92));
+    if (pos === "CB" || pos === "S" || pos === "LB") stats[8] = Math.max(stats[8], rand(75, 90));
+    if (pos === "OL") stats[6] = Math.max(stats[6], rand(78, 92));
+    if (pos === "DL" || pos === "LB") stats[7] = Math.max(stats[7], rand(75, 88));
     return "HIGH_FOOTBALL_IQ";
   }
   return null;
 }
 function calcOverall(pos, s) {
   const [spd,str,agi,awr,thr,cat,blk,prs,cov,tck,kpw] = s;
+  // TEC (technique/execution) — stats[11]. Default 68 for saves predating this stat.
+  const tec = s[11] ?? 68;
   let v;
+  // TEC contributes 15% to every position. Physical/skill weights reduced proportionally.
+  // For trench positions (OL/DL/LB/RB/TE), AWR is NOT in the OVR formula — it feeds
+  // engine behavior (snap timing, gap reads, blitz pickup) instead.
   switch (pos) {
-    case "QB": v = spd*10+agi*15+awr*25+thr*50; break;
-    case "RB": v = spd*35+str*20+agi*25+cat*20; break;
-    case "WR": v = spd*30+agi*25+cat*35+awr*10; break;
-    case "TE": v = spd*20+cat*40+blk*30+str*10; break;
-    case "OL": v = str*35+blk*45+agi*20;        break;
-    case "DL": v = str*35+prs*40+spd*25;        break;
-    case "LB": v = prs*25+cov*25+tck*30+spd*20; break;
-    case "CB": v = spd*30+agi*25+cov*35+awr*10; break;
-    case "S":  v = spd*25+cov*35+tck*30+awr*10; break;
-    default:   v = kpw*50+awr*50;
+    case "QB": v = spd*9+agi*13+awr*21+thr*42+tec*15; break;
+    case "RB": v = spd*30+str*17+agi*21+cat*17+tec*15; break;
+    case "WR": v = spd*26+agi*21+cat*30+awr*8+tec*15;  break;
+    case "TE": v = spd*17+cat*34+blk*25+str*9+tec*15;  break;
+    case "OL": v = str*30+blk*38+agi*17+tec*15;        break;
+    case "DL": v = str*30+prs*34+spd*21+tec*15;        break;
+    case "LB": v = prs*21+cov*22+tck*26+spd*16+tec*15; break;
+    case "CB": v = spd*26+agi*21+cov*30+awr*8+tec*15;  break;
+    case "S":  v = spd*21+cov*30+tck*26+awr*8+tec*15;  break;
+    default:   v = kpw*43+awr*42+tec*15;
   }
   return Math.min(99, Math.max(40, Math.round(v / 100)));
 }
@@ -1010,6 +1019,45 @@ function genPlayer(pos, tier) {
     case "K":  player.archetype = pickKArchetype(stats);  break;
     case "P":  player.archetype = pickPArchetype(stats);  break;
   }
+  // TEC by archetype — only applied when no flavor overrode it (null flavor = ~10% of players).
+  // Flavor already set a meaningful TEC for RAW_ATHLETE / HIGH_FOOTBALL_IQ players.
+  if (!flavor) {
+    const arch = player.archetype;
+    const tec = {
+      // QB
+      FIELD_GENERAL:72, GAME_MANAGER:74, POCKET:68, GUNSLINGER:58, DUAL_THREAT:57,
+      // OL
+      TECHNICIAN:80, ANCHOR:72, MAULER:60, ATHLETIC:65, PLUG:65,
+      // DL
+      POWER:61, SPEED:65, TWEENER:70, PENETRATOR:67,
+      // LB
+      COVER:72, THUMPER:60, BLITZER:65,
+      // CB
+      SHUTDOWN:74, PHYSICAL:66, SLOT_CB:76, ZONE:67,
+      // S
+      CENTER_FIELD:70, BOX:71, HYBRID:64,
+      // WR
+      ROUTE_RUNNER:80, POSSESSION:72, SLOT:73, RED_ZONE:60,
+      // RB
+      WORKHORSE:72, RECEIVING:70, ELUSIVE:70,
+      // TE
+      BLOCKING:76, SEAM:66,
+    }[arch];
+    if (tec != null) {
+      player.stats[11] = rand(tec - 5, tec + 5);
+    } else {
+      player.stats[11] = rand(62, 72); // fallback
+    }
+  }
+  // AWR ceiling — how high this player's awareness can grow from game reps.
+  // Sealed at creation so it's stable across loads. HIGH_IQ players are already
+  // near their ceiling; RAW_ATHLETEs have a hard cap on how smart they can get.
+  player._awrCeiling = flavor === "HIGH_FOOTBALL_IQ" ? rand(82, 95)
+                     : flavor === "RAW_ATHLETE"       ? rand(55, 72)
+                     : rand(65, 82);
+  // Recalculate overall now that TEC is set properly.
+  player.overall = calcOverall(pos, player.stats);
+
   // Tag any "anomaly" — a rare strength outside what the archetype typically
   // implies (e.g. a Thumper LB who can also cover). Surfaced in the tooltip
   // as a fun-fact. Doesn't change the stats; the archetype label is still the
