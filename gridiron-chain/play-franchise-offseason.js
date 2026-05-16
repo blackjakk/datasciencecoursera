@@ -823,9 +823,7 @@ function frnSimOnce(homeId, awayId, isPlayoff = false) {
     if (!def.length) return 0;
     const top5 = def.map(p => p.stats?.[11] ?? 68).sort((a,b) => b-a).slice(0,5);
     const avg = top5.reduce((s,v) => s+v, 0) / top5.length;
-    const baseBonus = avg >= 83 ? 2 : avg >= 75 ? 1 : 0;
-    const coachableDensity = def.filter(p => p.coachable).length / def.length;
-    return Math.min(3, baseBonus + (coachableDensity >= 0.40 ? 1 : 0));
+    return avg >= 95 ? 3 : avg >= 85 ? 2 : avg >= 75 ? 1 : 0;
   };
   if (dcHome === "Film Mastermind") sim.homeR.defense += _filmBonus(homeId);
   if (dcAway === "Film Mastermind") sim.awayR.defense += _filmBonus(awayId);
