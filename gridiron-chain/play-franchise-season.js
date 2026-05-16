@@ -819,26 +819,32 @@ function _buildCareerCard(p) {
   }
   // Pick stat columns based on position
   const cols = _careerColsFor(p.position);
-  // YR = career year (1-indexed) — aligns with the "Yr N" used by
-  // draftStr. We don't display calendar year because multiple
-  // franchise seasons can map to the same calendar year.
-  const headerHtml = `<tr><th>YR</th><th>TEAM</th><th>GP</th>${cols.map(c => `<th>${c.label}</th>`).join("")}</tr>`;
-  const rowsHtml = history.slice().reverse().map((row, idx) => {
-    const careerYr = history.length - idx;
+  const trajLabel = {
+    EARLY_BLOOM: "⚡ Early Bloomer", LATE_BLOOM: "🌱 Late Bloomer",
+    CONSISTENT: "📈 Consistent",    STREAKY: "〰 Streaky",
+    FLASH: "💥 Flash",
+  }[p._trajectory] || "";
+  const headerHtml = `<tr><th>AGE</th><th>TEAM</th><th>OVR</th><th>GP</th>${cols.map(c => `<th>${c.label}</th>`).join("")}</tr>`;
+  const rowsHtml = history.slice().reverse().map((row) => {
+    const isCareerBest = row.ovr === Math.max(...history.map(r => r.ovr));
     return `<tr>
-      <td style="color:var(--gold)">Yr ${careerYr}</td>
-      <td style="font-size:.65rem;color:var(--gray)">${row.teamName}</td>
+      <td style="color:var(--gray);font-size:.63rem">${row.age}</td>
+      <td style="font-size:.62rem;color:var(--gray)">${row.teamName}</td>
+      <td style="color:${isCareerBest?"var(--gold)":"var(--blgray)"};font-weight:${isCareerBest?700:400}">${row.ovr || "—"}</td>
       <td>${row.gp || 0}</td>
       ${cols.map(c => `<td>${row[c.key] || 0}</td>`).join("")}
     </tr>`;
   }).join("");
   const totalsRow = `<tr style="border-top:2px solid var(--gold);font-weight:700">
-    <td colspan="2" style="color:var(--gold)">CAREER</td>
+    <td colspan="3" style="color:var(--gold)">CAREER</td>
     <td>${stats.gp || history.reduce((s,r)=>s+(r.gp||0),0)}</td>
     ${cols.map(c => `<td style="color:var(--gold-lt)">${stats[c.key]||0}</td>`).join("")}
   </tr>`;
   return `<div class="frn-career-card">
-    <div class="frn-card-title">📊 CAREER · ${history.length} season${history.length>1?"s":""}</div>
+    <div style="display:flex;align-items:center;gap:.55rem;margin-bottom:.3rem">
+      <div class="frn-card-title" style="margin:0">📊 CAREER · ${history.length} season${history.length>1?"s":""}</div>
+      ${trajLabel ? `<span style="font-size:.58rem;color:var(--blgray)">${trajLabel}</span>` : ""}
+    </div>
     <table class="frn-pre-roster-table"><thead>${headerHtml}</thead>
       <tbody>${rowsHtml}${totalsRow}</tbody>
     </table>
@@ -860,7 +866,7 @@ function _careerColsFor(pos) {
   ];
   if (pos === "WR" || pos === "TE") return [
     { key:"rec_yds", label:"YDS" }, { key:"rec_td", label:"TD" },
-    { key:"rec", label:"REC" }, { key:"targets", label:"TGT" },
+    { key:"rec", label:"REC" }, { key:"rec_tgt", label:"TGT" },
   ];
   if (pos === "DL" || pos === "LB") return [
     { key:"tkl", label:"TKL" }, { key:"sk", label:"SK" },

@@ -1054,7 +1054,6 @@ function generateCareer(player) {
   if (seasonsPlayed === 0) {
     player.career = [];
     player.careerTotals = {};
-    // careerHistory is what the player card reads; keep its shape too.
     player.careerHistory = [];
     player.careerStats = {};
     player.proBowls = 0; player.allPros = 0; player.sbRings = 0;
@@ -1065,33 +1064,109 @@ function generateCareer(player) {
   const currentYear = 2026;
   const ovr = player.overall || 70;
   const pos = player.position;
+
+  // ── Trajectory type ─────────────────────────────────────────────────────
+  // Deterministic from name hash so career arc is stable across reloads.
+  let nameHash = 0;
+  for (const c of (player.name || "")) nameHash = (nameHash * 31 + c.charCodeAt(0)) | 0;
+  const nh = Math.abs(nameHash);
+
+  // Elite players skew toward early bloom / consistency.
+  // Average players skew toward late bloom / streaky.
+  let trajectory;
+  if (ovr >= 88) {
+    const t = nh % 10;
+    trajectory = t < 4 ? "EARLY_BLOOM" : t < 7 ? "CONSISTENT" : t < 9 ? "LATE_BLOOM" : "STREAKY";
+  } else if (ovr >= 78) {
+    const t = nh % 10;
+    trajectory = t < 2 ? "EARLY_BLOOM" : t < 5 ? "CONSISTENT" : t < 8 ? "LATE_BLOOM" : "STREAKY";
+  } else if (ovr >= 68) {
+    const t = nh % 10;
+    trajectory = t < 1 ? "EARLY_BLOOM" : t < 3 ? "CONSISTENT" : t < 6 ? "LATE_BLOOM" : t < 9 ? "STREAKY" : "FLASH";
+  } else {
+    const t = nh % 10;
+    trajectory = t < 2 ? "CONSISTENT" : t < 5 ? "LATE_BLOOM" : t < 8 ? "STREAKY" : "FLASH";
+  }
+
+  // Peak age and shape params.
+  // rampYears: seasons from age-22 to reach peak (shorter = faster rise)
+  // postPeakDrop: fraction of effOvr lost per year after peak
+  // Higher OVR → faster ramp, slower decline (elite players are further ahead earlier)
+  const ovrT = Math.max(0, Math.min(1, (ovr - 60) / 39)); // 0 at OVR60, 1 at OVR99
+  const TRAJ = {
+    EARLY_BLOOM: { peakAge: 24, rampYears: 2,  postPeakDrop: 0.018 - ovrT * 0.006 },
+    CONSISTENT:  { peakAge: 26, rampYears: 4,  postPeakDrop: 0.022 - ovrT * 0.006 },
+    LATE_BLOOM:  { peakAge: 28, rampYears: 6,  postPeakDrop: 0.028 - ovrT * 0.007 },
+    STREAKY:     { peakAge: 25, rampYears: 3,  postPeakDrop: 0.035 - ovrT * 0.008 },
+    FLASH:       { peakAge: 23, rampYears: 1,  postPeakDrop: 0.055 - ovrT * 0.010 },
+  };
+  const { peakAge, rampYears, postPeakDrop } = TRAJ[trajectory];
+
+  // Seeded LCG for per-season events — same career arc every time called.
+  let seed = nh ^ (ovr * 1234567);
+  const rng = () => {
+    seed = (Math.imul(seed | 0, 1664525) + 1013904223) | 0;
+    return (seed >>> 0) / 4294967296;
+  };
+
   const career = [];
-  const history = [];      // Card-compatible per-season rows
-  const totals  = {};      // Card-compatible totals
+  const history = [];
+  const totals  = {};
   let bestSeasonOvr = 0;
+
   for (let i = 0; i < seasonsPlayed; i++) {
     const seasonYear = currentYear - seasonsPlayed + i;
-    const seasonAge = 22 + i;
-    // Skill curve — peak around age 26-29, slow decline after 30
-    const ageFactor = seasonAge < 24 ? 0.86
-                    : seasonAge < 26 ? 0.94
-                    : seasonAge < 30 ? 1.00
-                    : seasonAge < 33 ? 0.94
-                    :                  0.86;
-    // Career trajectory variance — early breakout, late bloomer, steady, etc.
-    const noise = (Math.random() - 0.5) * 8;
-    const effOvr = Math.round(Math.min(99, Math.max(55, ovr * ageFactor + noise)));
+    const seasonAge  = 22 + i;
+
+    // ── Base trajectory factor ─────────────────────────────────────────
+    let baseFactor;
+    if (seasonAge <= peakAge) {
+      // Pre-peak: non-linear ramp using a power curve (accelerating rise)
+      const t = rampYears > 0 ? Math.min(1, (seasonAge - 22) / rampYears) : 1;
+      // Power 0.7 gives a concave-up curve: slow start, fast approach to peak
+      // Elite players get a flatter (more linear) early career since they were
+      // good right away. Less-elite players have a steeper approach.
+      const power = 0.55 + ovrT * 0.35;  // 0.55 for avg, 0.90 for elite
+      baseFactor = 0.68 + 0.32 * Math.pow(t, power);
+    } else {
+      // Post-peak: linear decline, slope tuned per trajectory and OVR
+      const yearsPast = seasonAge - peakAge;
+      baseFactor = 1.0 - yearsPast * postPeakDrop;
+    }
+
+    // ── Per-season events (seeded, so stable) ─────────────────────────
+    let eventMod = 0;
+    const roll = rng();
+    if (i === 1 && rng() < 0.28) {
+      // Sophomore slump — common enough to be realistic
+      eventMod = -(0.05 + rng() * 0.08);
+    } else if (roll < 0.06) {
+      // Breakout / career-best season
+      eventMod = 0.08 + rng() * 0.09;
+    } else if (roll < 0.13) {
+      // Injury / down year
+      eventMod = -(0.11 + rng() * 0.11);
+    } else if (roll < 0.22) {
+      // Hot streak / contract year
+      eventMod = 0.04 + rng() * 0.06;
+    }
+    // STREAKY careers get amplified swings
+    if (trajectory === "STREAKY") eventMod *= 1.9;
+
+    const totalFactor = Math.max(0.46, Math.min(1.12, baseFactor + eventMod));
+
+    // Small gaussian-ish noise on top (±2 OVR)
+    const microNoise = (rng() + rng() - 1.0) * 2;
+    const effOvr = Math.round(Math.min(99, Math.max(44, ovr * totalFactor + microNoise)));
     if (effOvr > bestSeasonOvr) bestSeasonOvr = effOvr;
+
     const stats = mockSeasonStats(pos, effOvr, player.archetype);
     stats.year = seasonYear;
-    stats.age = seasonAge;
-    stats.ovr = effOvr;
+    stats.age  = seasonAge;
+    stats.ovr  = effOvr;
     stats.accolades = generateAccolades(player, stats, effOvr, seasonAge);
     career.push(stats);
 
-    // Mirror into careerHistory shape (what _buildCareerCard reads).
-    // teamId/teamName are placeholders here — assignCareerTeams() patches
-    // them after rosters are assembled into the franchise.
     const histRow = {
       season: seasonYear, year: seasonYear, age: seasonAge, ovr: effOvr,
       teamId: null, teamName: "—", pos,
@@ -1104,11 +1179,11 @@ function generateCareer(player) {
     }
     history.push(histRow);
   }
-  player.career = career;
+  player.career       = career;
   player.careerTotals = computeCareerTotals(career, pos);
   player.careerHistory = history;
-  player.careerStats = totals;
-  // Aggregate trophies
+  player.careerStats   = totals;
+  player._trajectory   = trajectory;   // visible on player card for flavor
   const all = career.flatMap(s => s.accolades || []);
   player.proBowls = all.filter(a => a === "Pro Bowl").length;
   player.allPros  = all.filter(a => a === "All-Pro").length;
@@ -1117,8 +1192,7 @@ function generateCareer(player) {
   player.opoys    = all.filter(a => a === "OPOY").length;
   player.dpoys    = all.filter(a => a === "DPOY").length;
   player.roys     = all.filter(a => a === "ROY").length;
-  // Single-season records — only for monster seasons (best season >= 95 OVR)
-  player.records = generateRecords(player, career, bestSeasonOvr);
+  player.records  = generateRecords(player, career, bestSeasonOvr);
 }
 
 // Stamp realistic team names onto each player's past-season history rows.
