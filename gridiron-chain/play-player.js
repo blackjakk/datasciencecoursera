@@ -460,9 +460,10 @@ const randName = () => `${pickFirstName()} ${pickLastName()}`;
 function statsFor(pos, tier) {
   const r = { elite:{lo:78,hi:99}, good:{lo:63,hi:80}, average:{lo:48,hi:67}, poor:{lo:35,hi:54} }[tier];
   const b = () => rand(r.lo, r.hi);
-  // Lesser stats — floor raised so even role players don't look broken.
-  // Even an NFL bench guy is athletic at SOMETHING.
-  const l = () => rand(Math.max(48, r.lo - 12), Math.max(62, r.hi - 12));
+  // Lesser stats — secondary attributes below the primary range.
+  // Floor kept at r.lo so secondary stats never go absurdly low, but
+  // always stay below the primary ceiling so they can't inflate OVR.
+  const l = () => rand(Math.max(r.lo, 30), Math.max(r.hi - 10, r.lo + 5));
   let stats;
   switch (pos) {
     case "QB": stats = [l(),l(),b(),b(),b(),l(),l(),l(),l(),l(),l()]; break;
@@ -479,10 +480,14 @@ function statsFor(pos, tier) {
   // Signature stat — every player has at least one calling card. Picks a
   // random stat and ensures it lands in the 70-85 range so even "poor" tier
   // guys can be "the guy with the strong arm" or "the speedster off the bench."
+  // Signature stat: every player has a calling card, but the ceiling
+  // scales with tier so poor-tier UDFAs don't land near starter range.
   const sigCount = (tier === "poor" || tier === "average") ? 2 : 1;
+  const sigMin = tier === "elite" ? 82 : tier === "good" ? 74 : tier === "average" ? 66 : 58;
+  const sigMax = tier === "elite" ? 95 : tier === "good" ? 84 : tier === "average" ? 76 : 68;
   for (let i = 0; i < sigCount; i++) {
     const idx = rand(0, stats.length - 1);
-    const sigVal = rand(70, 85);
+    const sigVal = rand(sigMin, sigMax);
     if (stats[idx] < sigVal) stats[idx] = sigVal;
   }
   return stats;
@@ -500,10 +505,12 @@ function applyFlavor(stats, pos) {
   const r = Math.random();
   // Indices: 0=SPD, 1=STR, 2=AGI, 3=AWR, 4=THR, 5=CAT, 6=BLK, 7=PRS, 8=COV, 9=TCK, 10=KPW
   if (r < 0.45) {
-    // RAW_ATHLETE: pump physical, sink AWR (and THR for QB)
-    stats[0] = Math.max(stats[0], rand(78, 92));   // SPD
-    stats[1] = Math.max(stats[1], rand(75, 90));   // STR
-    stats[2] = Math.max(stats[2], rand(78, 92));   // AGI
+    // RAW_ATHLETE: pump physical, sink AWR (and THR for QB).
+    // Caps at solid-starter range (not elite) so poor-tier players
+    // with raw athleticism don't end up with elite OVRs.
+    stats[0] = Math.max(stats[0], rand(68, 80));   // SPD
+    stats[1] = Math.max(stats[1], rand(65, 78));   // STR
+    stats[2] = Math.max(stats[2], rand(68, 80));   // AGI
     stats[3] = Math.min(stats[3], rand(35, 50));   // AWR (poor instincts)
     if (pos === "QB") stats[4] = Math.min(stats[4], rand(45, 60));  // THR limited
     if (pos === "WR" || pos === "TE") stats[5] = Math.min(stats[5], rand(45, 60));  // bad hands
