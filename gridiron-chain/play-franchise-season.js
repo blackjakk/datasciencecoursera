@@ -661,23 +661,132 @@ function _preseasonScheduleTab(schedule, myId) {
 // Number of "starters" we display per position in the depth-chart view.
 const SCOUT_STARTER_COUNTS = { QB:1, RB:1, WR:3, TE:1, OL:5, DL:4, LB:3, CB:2, S:2, K:1, P:1 };
 
+// ── Scout UI helpers ─────────────────────────────────────────────────────────
+
+// Grade badge that shows a dashed-border "fuzzy" style when the team is
+// unscouted (grades are noisy ±8 estimates rather than sharpened ±2).
+function _scoutGradeBadge(p, scouted) {
+  const g  = scoutGrade(p);
+  const gL = gradeLabel(g);
+  const gc = gradeClass(g);
+  if (scouted) {
+    return `<span class="tt-ovr tier-${gc}">${gL}</span>`;
+  }
+  return `<span class="tt-ovr tier-${gc} frn-scout-fuzzy">~${gL}</span>`;
+}
+
+// Compact player panel for the scout screen — omits career card, game log,
+// recent-form strip, streaks, injury-prone/coachable flags, and flavor text.
+function _buildScoutPlayerPanel(p, scouted) {
+  const g   = scoutGrade(p);
+  const gL  = gradeLabel(g);
+  const gc  = gradeClass(g);
+  const aav = p.contract?.aav || 0;
+  const yrs = p.contract?.remaining || 0;
+  const cmb = combineMeasurables(p);
+
+  const isKicker = p.position === "K" || p.position === "P";
+  const combineHtml = isKicker
+    ? `<div class="frn-combine-grid">
+         <div><span class="frn-meta-label">LEG</span> ${Math.round(70 + (cmb.kpw - 50) * 0.45)} yds</div>
+         <div><span class="frn-meta-label">40-YD</span> ${cmb.fortyTime}s</div>
+       </div>`
+    : `<div class="frn-combine-grid">
+         <div><span class="frn-meta-label">40-YD</span> ${cmb.fortyTime}s</div>
+         <div><span class="frn-meta-label">BENCH</span> ${cmb.benchReps} reps</div>
+         <div><span class="frn-meta-label">CONE</span> ${cmb.coneTime}s</div>
+         <div><span class="frn-meta-label">VERT</span> ${cmb.verticalIn}"</div>
+       </div>`;
+
+  const archBlock    = _buildArchetypeBlock(p);
+  const seasonBlock  = _buildSeasonStatsBlock(p);
+  const noiseNote    = scouted
+    ? `<div style="font-size:.58rem;color:#4dbd64;margin-top:.45rem">grades ±2 (scouted)</div>`
+    : `<div style="font-size:.58rem;color:#f5a028;margin-top:.45rem">~grades are ±8 estimates</div>`;
+
+  const gradeBadgeHtml = scouted
+    ? `<span class="tt-ovr tier-${gc}">${gL}</span>`
+    : `<span class="tt-ovr tier-${gc} frn-scout-fuzzy">~${gL}</span>`;
+
+  return `<div class="frn-player-card">
+    <div class="frn-player-card-head" style="display:flex;gap:.9rem;align-items:flex-start">
+      ${_playerPortrait(p, 90)}
+      <div style="flex:1;min-width:0">
+        <div style="font-size:1.05rem;font-weight:900">${p.name}</div>
+        <div style="color:var(--gray);font-size:.7rem;margin-top:.1rem">
+          #${jerseyForPlayer(p) || "—"} · ${p.position} · Age ${p.age || "?"}${p.height ? ` · ${formatHeight(p.height)}, ${p.weight||"?"} lbs` : ""}
+        </div>
+        <div style="margin-top:.25rem;display:flex;align-items:center;gap:.5rem">
+          ${gradeBadgeHtml}
+          <span style="color:var(--gold);font-size:.75rem;font-weight:700">$${aav.toFixed(1)}M/yr</span>
+          <span style="color:var(--gray);font-size:.62rem">${yrs}yr left</span>
+        </div>
+        ${noiseNote}
+      </div>
+    </div>
+    ${archBlock ? `<div style="margin:.5rem 0">${archBlock}</div>` : ""}
+    <div class="frn-pcard-section" style="margin-top:.5rem">
+      <div class="frn-card-title">COMBINE</div>
+      ${combineHtml}
+    </div>
+    ${seasonBlock ? `<div style="margin-top:.5rem">${seasonBlock}</div>` : ""}
+    ${p.injury ? `<div class="frn-player-injury" style="margin-top:.5rem">&#x1F9F9; ${p.injury.label} &mdash; ${p.injury.weeksRemaining} wk${p.injury.weeksRemaining===1?"":"s"} out</div>` : ""}
+  </div>`;
+}
+
 function _preseasonScoutTab(myId, scoutId, view, selName) {
   view = view || "starters";
-  // Default opponent: your Week 1 matchup
+
+  // ── Default opponent: your next unplayed game ────────────────────────────
   if (!scoutId) {
-    const next = franchise.schedule.find(g => g.homeId === myId || g.awayId === myId);
-    scoutId = next ? (next.homeId === myId ? next.awayId : next.homeId) : TEAMS.find(t => t.id !== myId).id;
+    const next = franchise.schedule.find(g =>
+      !g.played && (g.homeId === myId || g.awayId === myId));
+    if (next) {
+      scoutId = next.homeId === myId ? next.awayId : next.homeId;
+    } else {
+      const any = franchise.schedule.find(g => g.homeId === myId || g.awayId === myId);
+      scoutId = any
+        ? (any.homeId === myId ? any.awayId : any.homeId)
+        : TEAMS.find(t => t.id !== myId).id;
+    }
   }
   scoutId = Number(scoutId);
 
-  const opponents = TEAMS.filter(t => t.id !== myId);
+  // ── Build team list sorted by schedule week ──────────────────────────────
+  // Find each opponent's week number in the schedule (vs myId).
+  const opponentWeekMap = {};
+  for (const g of franchise.schedule) {
+    if (g.homeId === myId || g.awayId === myId) {
+      const oppId = g.homeId === myId ? g.awayId : g.homeId;
+      if (!(oppId in opponentWeekMap)) opponentWeekMap[oppId] = g.week;
+    }
+  }
+
+  // Find the next opponent (next unplayed game vs myId).
+  let nextOppId = null;
+  const nextGame = franchise.schedule.find(g =>
+    !g.played && (g.homeId === myId || g.awayId === myId));
+  if (nextGame) nextOppId = nextGame.homeId === myId ? nextGame.awayId : nextGame.homeId;
+
+  const opponents = TEAMS.filter(t => t.id !== myId).slice().sort((a, b) => {
+    const wa = opponentWeekMap[a.id] ?? 999;
+    const wb = opponentWeekMap[b.id] ?? 999;
+    return wa - wb;
+  });
+
   const listHtml = opponents.map(t => {
-    const rtg = frnTeamRating(t.id);
-    const active = t.id === scoutId;
+    const active  = t.id === scoutId;
+    const wk      = opponentWeekMap[t.id];
+    const wkLabel = wk != null ? `WK ${wk}` : "";
+    const st      = franchise.standings?.[t.id] || { w:0, l:0, t:0 };
+    const rec     = `${st.w}-${st.l}${st.t ? `-${st.t}` : ""}`;
+    const isNext  = t.id === nextOppId;
     return `<button class="frn-scout-team ${active?"active":""}" onclick="renderFrnPreseason('scout',${t.id})" style="border-left:3px solid ${t.primary}">
+      <span class="frn-scout-team-week">${wkLabel}</span>
       <span style="color:var(--gold)">${teamAscii(t)}</span>
       <span>${t.name}</span>
-      <span style="color:var(--gray);font-size:.55rem;margin-left:auto">${rtg.off}/${rtg.def}</span>
+      ${isNext ? `<span class="frn-scout-next-chip">NEXT</span>` : ""}
+      <span class="frn-scout-team-rec">${rec}</span>
     </button>`;
   }).join("");
 
@@ -686,36 +795,114 @@ function _preseasonScoutTab(myId, scoutId, view, selName) {
   const oppRtg    = frnTeamRating(scoutId);
   const oppCap    = capUsedByTeam(scoutId);
 
-  // Group roster by position, sorted by OVR desc (depth-chart order)
+  // ── Scouting intel ────────────────────────────────────────────────────────
+  const intel           = franchise?.scoutingIntel?.[scoutId];
+  const scoutedThisSeason = intel?.season === franchise.season;
+
+  // ── Opponent record & schedule info ──────────────────────────────────────
+  const oppSt      = franchise.standings?.[scoutId] || { w:0, l:0, t:0 };
+  const oppRec     = `${oppSt.w}-${oppSt.l}${oppSt.t ? `-${oppSt.t}` : ""}`;
+  const oppWeek    = opponentWeekMap[scoutId];
+  const oppWkLabel = oppWeek != null ? `· WK ${oppWeek}` : "";
+
+  // Count injured starters (starter positions, injury present)
+  const starterPositions = new Set(["QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"]);
+  const injuredStarterCount = oppRoster.filter(p =>
+    p.injury && starterPositions.has(p.position)).length;
+  const injuredStr = injuredStarterCount > 0
+    ? ` · ${injuredStarterCount} starter${injuredStarterCount>1?"s":""} out &#x1F9F9;`
+    : "";
+
+  // ── Group roster by position, sorted by OVR desc ──────────────────────────
   const byPos = {};
   for (const p of oppRoster) (byPos[p.position] = byPos[p.position] || []).push(p);
   for (const pos of Object.keys(byPos)) byPos[pos].sort((a,b) => b.overall - a.overall);
 
-  // Resolve which player is selected (defaults to the team's best player)
+  // ── Selected player ───────────────────────────────────────────────────────
   let selected = null;
   if (selName) selected = oppRoster.find(p => p.pid === selName || p.name === selName);
   if (!selected) selected = oppRoster.slice().sort((a,b) => b.overall - a.overall)[0];
 
+  // ── Key threats ───────────────────────────────────────────────────────────
+  const offSkillPos  = new Set(["QB","RB","WR","TE"]);
+  const defPos       = new Set(["DL","LB","CB","S"]);
+  const bestOff  = oppRoster.filter(p => offSkillPos.has(p.position)).sort((a,b) => b.overall - a.overall)[0] || null;
+  const bestDef  = oppRoster.filter(p => defPos.has(p.position)).sort((a,b) => b.overall - a.overall)[0] || null;
+  const injured  = oppRoster.filter(p => p.injury);
+  const topInj   = injured.length > 0 ? injured.sort((a,b) => b.overall - a.overall)[0] : null;
+
+  // One-line season stat summary for a player.
+  const _threatStatLine = (p) => {
+    const ts = franchise?.seasonStats?.[scoutId] || {};
+    const st = ts[p.name];
+    if (!st || !st.gp) return "";
+    const pos = p.position;
+    if (pos === "QB") return `${st.pass_yds||0} yds · ${st.pass_td||0} TD`;
+    if (pos === "RB") return `${st.rush_yds||0} yds · ${st.rush_td||0} TD`;
+    if (pos === "WR" || pos === "TE") return `${st.rec||0} rec · ${st.rec_yds||0} yds`;
+    if (pos === "DL" || pos === "LB" || pos === "CB" || pos === "S")
+      return `${st.tkl||0} tkl${st.sk ? ` · ${st.sk} sk` : ""}${st.int_made ? ` · ${st.int_made} int` : ""}`;
+    return "";
+  };
+
+  const _threatCard = (labelText, p) => {
+    if (!p) return "";
+    const pKey = (p.pid || p.name).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    const statLine = _threatStatLine(p);
+    return `<div class="frn-scout-threat-card"
+      onclick="renderFrnPreseason('scout',${scoutId},'${view}','${pKey}')">
+      <div class="frn-scout-threat-lbl">${labelText}</div>
+      <div class="frn-scout-threat-name">${playerLink(p)}</div>
+      <div style="margin-top:.15rem">${_scoutGradeBadge(p, scoutedThisSeason)}</div>
+      ${statLine ? `<div class="frn-scout-threat-stat">${statLine}</div>` : ""}
+    </div>`;
+  };
+
+  const threatsHtml = (bestOff || bestDef || topInj)
+    ? `<div class="frn-scout-threats">
+        ${_threatCard("BEST OFFENSE", bestOff)}
+        ${_threatCard("BEST DEFENSE", bestDef)}
+        ${topInj ? _threatCard("INJURY RISK", topInj) : ""}
+      </div>`
+    : "";
+
+  // ── Noise banner ──────────────────────────────────────────────────────────
+  const noiseBanner = scoutedThisSeason
+    ? `<div class="frn-scout-noise-banner scouted">
+        &#x2713; Intel active &middot; Grades sharpened to &plusmn;2 (Wk ${intel.gainedWeek})
+       </div>`
+    : `<div class="frn-scout-noise-banner unscouted">
+        &#x26A0; Grade noise &plusmn;8 &mdash; grades are estimates.
+        <a onclick="renderFrnScrimmages()">Run a scrimmage to sharpen to &plusmn;2.</a>
+       </div>`;
+
+  // ── Roster table rows ─────────────────────────────────────────────────────
   const posOrder = ["QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"];
+  const groupHeaders = { QB: "OFFENSE", DL: "DEFENSE", K: "SPECIAL TEAMS" };
+
   const rowHtml = (p, slotLabel) => {
     const pKey = p.pid || p.name;
     const isSel = selected && (selected.pid ? selected.pid === p.pid : selected.name === p.name);
     const escName = pKey.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    const isStarter = slotLabel.includes("1") || slotLabel === "QB" || slotLabel === "RB"
+      || slotLabel === "TE" || slotLabel === "K" || slotLabel === "P";
     return `<tr class="frn-scout-row ${isSel?"selected":""}"
       onclick="renderFrnPreseason('scout',${scoutId},'${view}','${escName}')">
       <td class="frn-scout-slot">${slotLabel}</td>
-      <td style="font-weight:${slotLabel.includes("1")||slotLabel==="QB"||slotLabel==="RB"||slotLabel==="TE"||slotLabel==="K"||slotLabel==="P"?700:400}">${playerLink(p)}</td>
-      <td>${gradeBadge(p)}</td>
+      <td style="font-weight:${isStarter?700:400}">${playerLink(p)}</td>
+      <td>${_scoutGradeBadge(p, scoutedThisSeason)}</td>
       <td style="color:var(--gray)">${p.age || "?"}</td>
       <td style="color:var(--gray);font-size:.66rem">${draftStr(p)}</td>
       <td style="color:var(--gold);font-size:.7rem">$${(p.contract?.aav||0).toFixed(1)}M</td>
     </tr>`;
   };
 
-  // Build rows: starters view shows top N per position; full shows everyone
   const rows = [];
   for (const pos of posOrder) {
-    const all = byPos[pos] || [];
+    if (groupHeaders[pos]) {
+      rows.push(`<tr class="frn-scout-group-hdr"><td colspan="6">${groupHeaders[pos]}</td></tr>`);
+    }
+    const all   = byPos[pos] || [];
     const limit = view === "starters" ? (SCOUT_STARTER_COUNTS[pos] || 1) : all.length;
     const shown = all.slice(0, limit);
     shown.forEach((p, i) => {
@@ -733,7 +920,6 @@ function _preseasonScoutTab(myId, scoutId, view, selName) {
               onclick="renderFrnPreseason('scout',${scoutId},'full','${escSel}')">FULL ROSTER (${oppRoster.length})</button>
     </div>`;
 
-  const scoutedThisSeason = franchise?.scoutingIntel?.[scoutId]?.season === franchise.season;
   return `<div class="frn-scout-layout">
     <div class="frn-scout-list">${listHtml}</div>
     <div class="frn-scout-detail">
@@ -741,15 +927,18 @@ function _preseasonScoutTab(myId, scoutId, view, selName) {
         <span style="font-size:1.8rem;color:var(--gold)">${teamAscii(oppTeam)}</span>
         <div style="flex:1">
           <div style="font-weight:900;font-size:1.05rem">${oppTeam.city} ${oppTeam.name.toUpperCase()}
-            ${scoutedThisSeason ? `<span style="color:var(--gold-lt);font-size:.6rem;border:1px solid var(--gold-lt);padding:.05rem .3rem;margin-left:.4rem">🏟 SCOUTED</span>` : ""}
+            <span style="font-size:.75rem;font-weight:400;color:var(--gray);margin-left:.4rem">${oppRec}</span>
+            ${scoutedThisSeason ? `<span style="color:var(--gold-lt);font-size:.6rem;border:1px solid var(--gold-lt);padding:.05rem .3rem;margin-left:.4rem">&#x1F3DF; SCOUTED</span>` : ""}
           </div>
           <div style="color:var(--gray);font-size:.7rem">
             OFF <b style="color:var(--gold)">${oppRtg.off}</b> ·
             DEF <b style="color:var(--gold)">${oppRtg.def}</b> ·
-            Cap $${oppCap.toFixed(0)}M
+            Cap $${oppCap.toFixed(0)}M${oppWkLabel}${injuredStr}
           </div>
         </div>
       </div>
+      ${noiseBanner}
+      ${threatsHtml}
       ${viewTabsHtml}
       <div class="frn-scout-split">
         <div class="frn-scout-roster">
@@ -758,7 +947,7 @@ function _preseasonScoutTab(myId, scoutId, view, selName) {
             <tbody>${rows.join("")}</tbody>
           </table>
         </div>
-        <div class="frn-scout-player">${selected ? _buildPlayerDetailPanel(selected) : ""}</div>
+        <div class="frn-scout-player">${selected ? _buildScoutPlayerPanel(selected, scoutedThisSeason) : ""}</div>
       </div>
     </div>
   </div>`;

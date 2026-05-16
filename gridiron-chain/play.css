@@ -1382,6 +1382,23 @@
     letter-spacing: .3px; width: 2.2rem;
   }
 
+  /* Scout improvements */
+  .frn-scout-team-week { font-size:.52rem; color:var(--gray); letter-spacing:.5px; min-width:2.2rem; flex-shrink:0; }
+  .frn-scout-team-rec  { font-size:.55rem; color:var(--gray); margin-left:auto; }
+  .frn-scout-next-chip { font-size:.48rem; font-weight:900; background:var(--green-lt); color:#0d1a0d; padding:.05rem .28rem; letter-spacing:.5px; flex-shrink:0; }
+  .frn-scout-noise-banner { font-size:.68rem; padding:.45rem .65rem; border-radius:2px; margin-bottom:.55rem; display:flex; align-items:center; gap:.5rem; }
+  .frn-scout-noise-banner.unscouted { background:rgba(245,160,40,.12); border:1px solid rgba(245,160,40,.3); color:#f5a028; }
+  .frn-scout-noise-banner.scouted   { background:rgba(77,189,100,.10); border:1px solid rgba(77,189,100,.25); color:#4dbd64; }
+  .frn-scout-noise-banner a { color:inherit; font-weight:700; cursor:pointer; text-decoration:underline; }
+  .frn-scout-threats { display:flex; gap:.45rem; margin-bottom:.55rem; }
+  .frn-scout-threat-card { flex:1; background:var(--bg3); border:1px solid var(--border); padding:.4rem .5rem; cursor:pointer; border-radius:2px; }
+  .frn-scout-threat-card:hover { border-color:var(--gold); }
+  .frn-scout-threat-lbl { font-size:.5rem; letter-spacing:.8px; color:var(--gray); font-weight:700; text-transform:uppercase; margin-bottom:.18rem; }
+  .frn-scout-threat-name { font-size:.7rem; font-weight:700; }
+  .frn-scout-threat-stat { font-size:.58rem; color:var(--gray); margin-top:.1rem; }
+  .frn-scout-group-hdr td { font-size:.52rem; letter-spacing:1.2px; color:var(--gray); font-weight:700; padding:.3rem .35rem .15rem; border-bottom:1px solid var(--border); background:transparent; pointer-events:none; }
+  .frn-scout-fuzzy { border-style:dashed !important; opacity:.82; }
+
   /* Player detail card */
   .frn-player-card {
     background: var(--bg3); border: 1px solid var(--gold);
