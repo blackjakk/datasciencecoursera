@@ -1003,8 +1003,49 @@ function potentialTag(p) {
 }
 
 // ── Coaching staff ────────────────────────────────────────────────────────────
-// Each team has a head coach with one trait that biases sim / dev /
-// roster outcomes. Coaches are fired or extended in the offseason.
+// Full coaching staff: HC (culture + specialty traits), OC, DC, position staff.
+// Redesigned for franchise season 2+. Legacy saves are backfilled via
+// _backfillCoachingStaff().
+
+const HC_CULTURE_TRAITS = [
+  { key:"Disciplinarian", desc:"Injury rate −20%, re-sign rate −10%" },
+  { key:"Players' Coach", desc:"Re-sign rate +15%, injury rate +5%" },
+  { key:"Business-Like",  desc:"Stable — no modifier, hard to fire" },
+];
+
+const HC_SPECIALTY_TRAITS = [
+  { key:"Player Developer",  desc:"Young player dev +35%, TEC coaching" },
+  { key:"Game Manager",      desc:"Better 4th-down calls, turnovers −12%" },
+  { key:"Motivator",         desc:"Late-game boost when trailing ≤7 in Q4" },
+  { key:"Roster Builder",    desc:"FA acceptance +20%" },
+  { key:"Offensive Minded",  desc:"Team offense +2, OC chemistry bonus" },
+  { key:"Defensive Minded",  desc:"Team defense +2, DC chemistry bonus" },
+];
+
+const OC_TRAITS = [
+  { key:"QB Whisperer",    desc:"QB TEC growth ×2, QB AWR ceiling +5" },
+  { key:"Air Attack",      desc:"Air yards +1.0 mean" },
+  { key:"Red Zone Genius", desc:"RZ TD conversion +8%" },
+  { key:"Run Architect",   desc:"Run variant effectiveness +10%" },
+  { key:"Balanced",        desc:"No modifier — adapts to HC scheme" },
+];
+
+const DC_TRAITS = [
+  { key:"Pressure Package", desc:"Pass rush +15%, sack rate +1.5%" },
+  { key:"Cover Scheme",     desc:"Pass completion allowed −3%" },
+  { key:"Ball Hawk",        desc:"INT rate +1.8%" },
+  { key:"Run Stopper",      desc:"Run yards allowed −0.4/carry" },
+  { key:"Hybrid",           desc:"No modifier — scheme-agnostic" },
+];
+
+const POSITION_COACH_TIERS = {
+  Journeyman: { tecMul:1.0, salary:0.5 },
+  Good:       { tecMul:1.3, salary:1.2 },
+  Elite:      { tecMul:1.6, tecCeilingBonus:3, salary:2.5 },
+};
+const POSITION_COACH_GROUPS = ["QB","OL","Skill","DL","LB/DB"];
+
+// Keep legacy constant so old saves that reference COACH_TRAITS don't break.
 const COACH_TRAITS = [
   { key:"Player Developer",     desc:"Young player growth +35%" },
   { key:"Offensive Guru",       desc:"+2 team offense rating" },
@@ -1014,23 +1055,117 @@ const COACH_TRAITS = [
 ];
 
 function _rollCoach() {
-  const first = pickFirstName();
-  const last  = pickLastName();
-  const trait = COACH_TRAITS[Math.floor(Math.random() * COACH_TRAITS.length)];
+  const rating = 45 + Math.floor(Math.random() * 45); // 45-89
+  const salary = +(2 + (rating - 45) * 0.18 + Math.random() * 1.5).toFixed(1);
   return {
-    name: `${first} ${last}`,
-    trait: trait.key,
+    name: `${pickFirstName()} ${pickLastName()}`,
+    rating,
+    cultureTrait:   HC_CULTURE_TRAITS[Math.floor(Math.random() * HC_CULTURE_TRAITS.length)].key,
+    specialtyTrait: HC_SPECIALTY_TRAITS[Math.floor(Math.random() * HC_SPECIALTY_TRAITS.length)].key,
     age: 42 + Math.floor(Math.random() * 22),
     yearsWithTeam: 0,
     record: { w: 0, l: 0, championships: 0 },
+    salary,
+    contractYears: 3 + Math.floor(Math.random() * 3),
+  };
+}
+
+function _rollOC() {
+  const rating = 40 + Math.floor(Math.random() * 50); // 40-89
+  const salary = +(1 + (rating - 40) * 0.06 + Math.random()).toFixed(1);
+  return {
+    name: `${pickFirstName()} ${pickLastName()}`,
+    rating,
+    trait: OC_TRAITS[Math.floor(Math.random() * OC_TRAITS.length)].key,
+    age: 35 + Math.floor(Math.random() * 25),
+    yearsWithTeam: 0,
+    salary,
+    contractYears: 2 + Math.floor(Math.random() * 3),
+  };
+}
+
+function _rollDC() {
+  const rating = 40 + Math.floor(Math.random() * 50);
+  const salary = +(1 + (rating - 40) * 0.06 + Math.random()).toFixed(1);
+  return {
+    name: `${pickFirstName()} ${pickLastName()}`,
+    rating,
+    trait: DC_TRAITS[Math.floor(Math.random() * DC_TRAITS.length)].key,
+    age: 35 + Math.floor(Math.random() * 25),
+    yearsWithTeam: 0,
+    salary,
+    contractYears: 2 + Math.floor(Math.random() * 3),
+  };
+}
+
+function _rollPositionCoach(group) {
+  const tiers = Object.keys(POSITION_COACH_TIERS);
+  const tier = tiers[Math.floor(Math.random() * tiers.length)];
+  return {
+    name: `${pickFirstName()} ${pickLastName()}`,
+    group,
+    tier,
+    salary: POSITION_COACH_TIERS[tier].salary,
   };
 }
 
 function _initCoachingStaff() {
   if (!franchise.coaches) franchise.coaches = {};
   for (const t of TEAMS) {
-    if (!franchise.coaches[t.id]) franchise.coaches[t.id] = { hc: _rollCoach() };
+    if (!franchise.coaches[t.id]) {
+      const groups = [...POSITION_COACH_GROUPS].sort(() => Math.random() - 0.5).slice(0, 2);
+      franchise.coaches[t.id] = {
+        hc: _rollCoach(),
+        oc: _rollOC(),
+        dc: _rollDC(),
+        positionStaff: groups.map(g => _rollPositionCoach(g)),
+      };
+    }
   }
+}
+
+// Migration: add missing oc/dc/positionStaff to existing saves.
+// Also maps old single-trait HC to the new cultureTrait / specialtyTrait fields.
+function _backfillCoachingStaff() {
+  if (!franchise || !franchise.coaches) return;
+  const traitMap = {
+    "Hard-Ass":            { culture: "Disciplinarian",  specialty: null },
+    "Players' Coach":      { culture: "Players' Coach",  specialty: null },
+    "Offensive Guru":      { culture: "Business-Like",   specialty: "Offensive Minded" },
+    "Defensive Mastermind":{ culture: "Business-Like",   specialty: "Defensive Minded" },
+    "Player Developer":    { culture: "Business-Like",   specialty: "Player Developer" },
+  };
+  for (const t of TEAMS) {
+    const staff = franchise.coaches[t.id];
+    if (!staff) { franchise.coaches[t.id] = { hc: _rollCoach(), oc: _rollOC(), dc: _rollDC(), positionStaff: [] }; continue; }
+    // Backfill HC new fields
+    const hc = staff.hc;
+    if (hc) {
+      if (!hc.cultureTrait || !hc.specialtyTrait) {
+        const mapped = traitMap[hc.trait] || { culture: "Business-Like", specialty: null };
+        if (!hc.cultureTrait)   hc.cultureTrait   = mapped.culture;
+        if (!hc.specialtyTrait) hc.specialtyTrait = mapped.specialty || HC_SPECIALTY_TRAITS[Math.floor(Math.random() * HC_SPECIALTY_TRAITS.length)].key;
+      }
+      if (hc.rating == null) hc.rating = 55 + Math.floor(Math.random() * 30);
+      if (hc.salary == null) hc.salary = +(2 + (hc.rating - 45) * 0.18 + Math.random() * 1.5).toFixed(1);
+      if (hc.contractYears == null) hc.contractYears = 2 + Math.floor(Math.random() * 3);
+    }
+    if (!staff.oc) staff.oc = _rollOC();
+    if (!staff.dc) staff.dc = _rollDC();
+    if (!staff.positionStaff) {
+      const groups = [...POSITION_COACH_GROUPS].sort(() => Math.random() - 0.5).slice(0, 2);
+      staff.positionStaff = groups.map(g => _rollPositionCoach(g));
+    }
+  }
+}
+
+// Total coaching salary spend for a team (display only — separate from player cap).
+function coachingBudgetUsed(teamId) {
+  const c = franchise.coaches?.[teamId];
+  if (!c) return 0;
+  let total = (c.hc?.salary || 0) + (c.oc?.salary || 0) + (c.dc?.salary || 0);
+  for (const ps of (c.positionStaff || [])) total += ps.salary || 0;
+  return +total.toFixed(1);
 }
 
 // ── Practice squad helpers ───────────────────────────────────────────────────
@@ -1575,7 +1710,7 @@ function loadFranchise() {
     if (raw) {
       franchise = JSON.parse(raw);
       if (franchise && franchise.pendingFranchiseGame) franchise.pendingFranchiseGame = null;
-      _backfillPlayerPids(); _backfillTEC();
+      _backfillPlayerPids(); _backfillTEC(); _backfillCoachingStaff();
       // Race the IDB read — if IDB has a newer save (lastSaved timestamp via
       // _saveLastFlush on franchise), use it. Otherwise keep the sync result.
       _idbGet(slotId).then(idbFranchise => {
@@ -1585,7 +1720,7 @@ function loadFranchise() {
         if (idbTime > lsTime) {
           franchise = idbFranchise;
           if (franchise.pendingFranchiseGame) franchise.pendingFranchiseGame = null;
-          _backfillPlayerPids(); _backfillTEC();
+          _backfillPlayerPids(); _backfillTEC(); _backfillCoachingStaff();
           if (typeof showFranchiseDashboard === "function") showFranchiseDashboard();
         }
       }).catch(() => {});
@@ -1596,7 +1731,7 @@ function loadFranchise() {
         if (!idbFranchise) return;
         franchise = idbFranchise;
         if (franchise.pendingFranchiseGame) franchise.pendingFranchiseGame = null;
-        _backfillPlayerPids(); _backfillTEC();
+        _backfillPlayerPids(); _backfillTEC(); _backfillCoachingStaff();
         if (typeof showFranchiseDashboard === "function") showFranchiseDashboard();
       }).catch(() => {});
     }

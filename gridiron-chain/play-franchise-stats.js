@@ -1534,7 +1534,7 @@ function renderFrnCoaches() {
     return `<tr style="${isMe?"background:rgba(200,169,0,0.10)":""}">
       <td style="font-weight:${isMe?700:400}">${teamLink(t)}</td>
       <td>${hc?.name || "—"}</td>
-      <td style="color:var(--gold);font-size:.66rem">${hc?.trait || "—"}</td>
+      <td style="color:var(--gold);font-size:.66rem">${hc?.specialtyTrait || hc?.trait || "—"}</td>
       <td style="color:var(--gray)">${hc?.age || "?"}</td>
       <td style="color:var(--gray);font-size:.65rem">${hc?.yearsWithTeam ?? 0}yr</td>
       <td>${hc?.record?.w || 0}-${hc?.record?.l || 0}${hc?.record?.championships ? " · 🏆"+hc.record.championships : ""}</td>
@@ -1564,8 +1564,11 @@ function renderFrnCoaches() {
         ${myHc ? `
           <div style="padding:.45rem 0">
             <div style="font-size:1rem;font-weight:900">${myHc.name}</div>
-            <div style="color:var(--gold);font-size:.78rem;margin-top:.15rem">${myHc.trait}</div>
-            <div style="color:var(--gray);font-size:.65rem;margin-top:.1rem">${traitDesc(myHc.trait)}</div>
+            <div style="color:var(--gold);font-size:.78rem;margin-top:.15rem">
+              ${myHc.specialtyTrait || myHc.trait || "—"}
+              ${myHc.cultureTrait ? `<span style="color:var(--gray);margin-left:.4rem">· ${myHc.cultureTrait}</span>` : ""}
+            </div>
+            ${myHc.rating != null ? `<div style="color:var(--gray);font-size:.62rem">Rating: <b>${myHc.rating}</b></div>` : ""}
             <div style="color:var(--gray);font-size:.66rem;margin-top:.3rem">
               Age ${myHc.age} · ${myHc.yearsWithTeam}yr with team · Record ${myHc.record.w}-${myHc.record.l}
               ${myHc.record.championships ? " · 🏆 "+myHc.record.championships : ""}
@@ -1573,6 +1576,9 @@ function renderFrnCoaches() {
           </div>
           <button class="btn btn-outline" onclick="frnFireCoach()" style="color:var(--red);font-size:.65rem;padding:.25rem .65rem">
             ✗ Fire coach (forfeit experience)
+          </button>
+          <button class="btn btn-outline" onclick="renderFrnCoachingStaff()" style="font-size:.65rem;padding:.25rem .65rem;margin-top:.3rem">
+            View Full Staff
           </button>` : `<div style="color:var(--gray);font-style:italic">No head coach. Hire from free agents below.</div>`}
       </div>
       <div class="frn-pg-card" style="flex:1.2">
@@ -2949,6 +2955,7 @@ function renderFrnRegular() {
             const color = alerts ? "color:#ff9090;border-color:#ff9090" : "";
             return `<button class="frn-cap-btn" onclick="renderFrnPracticeSquad()" style="${color}">🏈 PS${alerts?` ⚠️${alerts}`:""}</button>`;
           })()}
+          <button class="frn-cap-btn" onclick="renderFrnCoachingStaff()">🎓 Coaches</button>
           ${faBtnHtml}
         </div>
       </div>
@@ -3889,5 +3896,262 @@ function _stampSeasonAccolades(awards) {
       p.sbRings  = all.filter(a => a === "Super Bowl" || a === "Super Bowl MVP").length;
     }
   }
+}
+
+// ── Coaching Staff Panel ─────────────────────────────────────────────────────
+// Shows the user team's full coaching staff and allows hires/fires from the
+// coach market. Market is populated by _generateCoachMarket() each offseason.
+function renderFrnCoachingStaff() {
+  const myId   = franchise.chosenTeamId;
+  const myTeam = getTeam(myId);
+  const staff  = franchise.coaches?.[myId] || {};
+  const hc     = staff.hc;
+  const oc     = staff.oc;
+  const dc     = staff.dc;
+  const posStaff = staff.positionStaff || [];
+  const market = franchise._coachMarket || [];
+  const BUDGET_CAP = 15; // $15M coaching budget cap (display only)
+
+  const ratingColor = r => r >= 80 ? "var(--green-lt)" : r >= 65 ? "var(--gold)" : "var(--red)";
+  const ratingBadge = (r) => r != null
+    ? `<span style="font-size:.7rem;font-weight:700;padding:.1rem .4rem;border-radius:3px;background:${ratingColor(r)};color:#000">${r}</span>`
+    : "";
+
+  // ── HC Card ──
+  const hcHtml = hc ? `
+    <div class="frn-coach-card frn-coach-hc">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem">
+        <div>
+          <div style="font-size:.95rem;font-weight:700;color:var(--white)">${hc.name}</div>
+          <div style="font-size:.65rem;color:var(--gray);margin-top:.1rem">HEAD COACH · Age ${hc.age||"?"} · ${hc.yearsWithTeam||0} yr${(hc.yearsWithTeam||0)===1?"":"s"} w/team</div>
+        </div>
+        ${ratingBadge(hc.rating)}
+      </div>
+      <div style="margin-top:.5rem;font-size:.7rem;display:flex;flex-wrap:wrap;gap:.3rem">
+        <span style="background:rgba(255,255,255,.08);padding:.15rem .5rem;border-radius:3px">Culture: <b>${hc.cultureTrait||"—"}</b></span>
+        <span style="background:rgba(255,255,255,.08);padding:.15rem .5rem;border-radius:3px">Specialty: <b>${hc.specialtyTrait||"—"}</b></span>
+      </div>
+      <div style="margin-top:.4rem;font-size:.68rem;color:var(--gray)">
+        Record: ${hc.record?.w||0}–${hc.record?.l||0}${(hc.record?.championships||0)>0?" · "+hc.record.championships+" ring"+(hc.record.championships>1?"s":""):""} ·
+        $${(hc.salary||0).toFixed(1)}M/yr · ${hc.contractYears||"?"} yr${(hc.contractYears||1)===1?"":"s"} left
+      </div>
+      <div style="margin-top:.5rem;text-align:right">
+        <button class="btn btn-outline" style="font-size:.65rem;color:var(--red);border-color:var(--red)"
+          onclick="frnFireStaffSlot('hc')">Fire HC</button>
+      </div>
+    </div>` : `<div class="frn-coach-card" style="color:var(--gray);font-style:italic">No head coach — hire from market</div>`;
+
+  // ── Coordinator Cards ──
+  const coordCard = (label, coord, slot) => coord ? `
+    <div class="frn-coach-card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.4rem">
+        <div>
+          <div style="font-size:.8rem;font-weight:700;color:var(--white)">${coord.name}</div>
+          <div style="font-size:.62rem;color:var(--gray)">${label} · Age ${coord.age||"?"} · ${coord.yearsWithTeam||0} yr${(coord.yearsWithTeam||0)===1?"":"s"}</div>
+        </div>
+        ${ratingBadge(coord.rating)}
+      </div>
+      <div style="margin-top:.35rem;font-size:.68rem">
+        <span style="background:rgba(255,255,255,.07);padding:.12rem .45rem;border-radius:3px">Trait: <b>${coord.trait||"—"}</b></span>
+      </div>
+      <div style="margin-top:.3rem;font-size:.65rem;color:var(--gray)">$${(coord.salary||0).toFixed(1)}M/yr · ${coord.contractYears||"?"} yr${(coord.contractYears||1)===1?"":"s"} left</div>
+      <div style="margin-top:.4rem;text-align:right">
+        <button class="btn btn-outline" style="font-size:.62rem;padding:.15rem .5rem"
+          onclick="frnFireStaffSlot('${slot}')">Replace ${label}</button>
+      </div>
+    </div>`
+  : `<div class="frn-coach-card" style="color:var(--gray);font-style:italic">No ${label} — hire from market</div>`;
+
+  // ── Position Staff ──
+  const tierColor = t => t === "Elite" ? "var(--gold)" : t === "Good" ? "var(--green-lt)" : "var(--gray)";
+  const posSlots = POSITION_COACH_GROUPS.map((g, i) => {
+    const coach = posStaff.find(s => s.group === g);
+    return coach
+      ? `<div class="frn-coach-pos-slot">
+          <div style="font-size:.65rem;color:var(--gray);text-transform:uppercase;letter-spacing:.5px">${g}</div>
+          <div style="font-size:.75rem;font-weight:700;color:var(--white);margin:.1rem 0">${coach.name}</div>
+          <div style="font-size:.62rem;color:${tierColor(coach.tier)}">${coach.tier} · $${(coach.salary||0).toFixed(1)}M</div>
+          <button class="btn btn-outline" style="font-size:.58rem;padding:.1rem .4rem;margin-top:.3rem"
+            onclick="frnUpgradePositionCoach('${g}')">Upgrade</button>
+        </div>`
+      : `<div class="frn-coach-pos-slot" style="border-style:dashed;opacity:.6">
+          <div style="font-size:.65rem;color:var(--gray);text-transform:uppercase;letter-spacing:.5px">${g}</div>
+          <div style="font-size:.75rem;color:var(--gray);margin:.2rem 0">—</div>
+          <button class="btn btn-outline" style="font-size:.58rem;padding:.1rem .4rem;margin-top:.3rem"
+            onclick="frnHirePositionCoach('${g}')">Hire</button>
+        </div>`;
+  }).join("");
+
+  // ── Budget Bar ──
+  const budgetUsed = typeof coachingBudgetUsed === "function" ? coachingBudgetUsed(myId) : 0;
+  const budgetPct  = Math.min(100, (budgetUsed / BUDGET_CAP) * 100);
+  const budgetColor= budgetUsed > BUDGET_CAP ? "var(--red)" : budgetUsed > BUDGET_CAP * 0.85 ? "var(--gold)" : "var(--green-lt)";
+  const budgetHtml = `
+    <div style="margin:1rem 0 .5rem">
+      <div style="font-size:.68rem;color:var(--gray);margin-bottom:.25rem;letter-spacing:.5px;text-transform:uppercase">
+        Coaching Budget: <span style="color:${budgetColor}">$${budgetUsed.toFixed(1)}M</span> / $${BUDGET_CAP}M
+      </div>
+      <div style="height:5px;background:rgba(255,255,255,.12);border-radius:3px">
+        <div style="height:100%;width:${budgetPct.toFixed(0)}%;background:${budgetColor};border-radius:3px;transition:width .3s"></div>
+      </div>
+    </div>`;
+
+  // ── Coach Market ──
+  const marketHcHtml  = market.filter(c => c.type === "hc").map((c, i) => `
+    <div class="frn-coach-market-row">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:.78rem;font-weight:700">${c.name} ${ratingBadge(c.rating)}</div>
+        <div style="font-size:.62rem;color:var(--gray)">Culture: ${c.cultureTrait||"—"} · Spec: ${c.specialtyTrait||"—"} · $${(c.salary||0).toFixed(1)}M/yr · Age ${c.age||"?"}</div>
+      </div>
+      <button class="btn btn-outline" style="font-size:.65rem;white-space:nowrap"
+        onclick="frnHireCoachFromMarket('hc',${i})">Hire as HC</button>
+    </div>`).join("") || `<div style="color:var(--gray);font-size:.72rem;font-style:italic">No HC candidates available.</div>`;
+
+  const marketOCHtml  = market.filter(c => c.type === "oc").map((c, i) => `
+    <div class="frn-coach-market-row">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:.78rem;font-weight:700">${c.name} ${ratingBadge(c.rating)}</div>
+        <div style="font-size:.62rem;color:var(--gray)">Trait: ${c.trait||"—"} · $${(c.salary||0).toFixed(1)}M/yr · Age ${c.age||"?"}</div>
+      </div>
+      <button class="btn btn-outline" style="font-size:.65rem;white-space:nowrap"
+        onclick="frnHireCoachFromMarket('oc',${i})">Hire as OC</button>
+    </div>`).join("") || `<div style="color:var(--gray);font-size:.72rem;font-style:italic">No OC candidates available.</div>`;
+
+  const marketDCHtml  = market.filter(c => c.type === "dc").map((c, i) => `
+    <div class="frn-coach-market-row">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:.78rem;font-weight:700">${c.name} ${ratingBadge(c.rating)}</div>
+        <div style="font-size:.62rem;color:var(--gray)">Trait: ${c.trait||"—"} · $${(c.salary||0).toFixed(1)}M/yr · Age ${c.age||"?"}</div>
+      </div>
+      <button class="btn btn-outline" style="font-size:.65rem;white-space:nowrap"
+        onclick="frnHireCoachFromMarket('dc',${i})">Hire as DC</button>
+    </div>`).join("") || `<div style="color:var(--gray);font-size:.72rem;font-style:italic">No DC candidates available.</div>`;
+
+  $("frnHomeContent").innerHTML = `
+    <style>
+      .frn-coach-card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:.75rem 1rem;margin-bottom:.6rem}
+      .frn-coach-hc{border-color:var(--gold);background:rgba(255,200,0,.06)}
+      .frn-coach-pos-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.5rem;margin:.5rem 0}
+      .frn-coach-pos-slot{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.10);border-radius:5px;padding:.5rem .75rem}
+      .frn-coach-market-row{display:flex;align-items:center;gap:.75rem;padding:.45rem 0;border-bottom:1px solid rgba(255,255,255,.07)}
+      .frn-coach-market-row:last-child{border-bottom:0}
+    </style>
+    <div style="max-width:600px;margin:0 auto;padding:.5rem 0">
+      <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem">
+        <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="font-size:.7rem;padding:.2rem .6rem">← Back</button>
+        <div style="font-size:1rem;font-weight:700;color:var(--gold)">${myTeam?.city} ${myTeam?.name} — Coaching Staff</div>
+      </div>
+      ${budgetHtml}
+      <div class="frn-sec-title" style="margin-top:.8rem">Head Coach</div>
+      ${hcHtml}
+      <div class="frn-sec-title" style="margin-top:.8rem">Coordinators</div>
+      ${coordCard("OC", oc, "oc")}
+      ${coordCard("DC", dc, "dc")}
+      <div class="frn-sec-title" style="margin-top:.8rem">Position Staff <span style="font-size:.65rem;font-weight:400;color:var(--gray)">(up to ${POSITION_COACH_GROUPS.length} groups)</span></div>
+      <div class="frn-coach-pos-grid">${posSlots}</div>
+      <div class="frn-sec-title" style="margin-top:1rem">Available Coaches</div>
+      ${market.length === 0
+        ? `<div style="color:var(--gray);font-size:.75rem;font-style:italic;margin:.5rem 0">No market available yet — coaches become available after the season ends.</div>`
+        : `<div style="margin:.4rem 0">
+             <div style="font-size:.72rem;font-weight:700;color:var(--gold);letter-spacing:.5px;margin:.4rem 0 .2rem">HEAD COACHES</div>
+             ${marketHcHtml}
+             <div style="font-size:.72rem;font-weight:700;color:var(--gold);letter-spacing:.5px;margin:.8rem 0 .2rem">OFFENSIVE COORDINATORS</div>
+             ${marketOCHtml}
+             <div style="font-size:.72rem;font-weight:700;color:var(--gold);letter-spacing:.5px;margin:.8rem 0 .2rem">DEFENSIVE COORDINATORS</div>
+             ${marketDCHtml}
+           </div>`
+      }
+    </div>`;
+}
+
+// ── Coaching staff action handlers ───────────────────────────────────────────
+function frnFireStaffSlot(slot) {
+  const myId  = franchise.chosenTeamId;
+  const staff = franchise.coaches?.[myId];
+  if (!staff) return;
+  const name = staff[slot]?.name || "coach";
+  if (!confirm(`Fire ${name}? They will be released. You can hire a replacement from the market.`)) return;
+  if (slot === "hc") {
+    staff.hc = _rollCoach(); // auto-replace immediately with random
+    _pushNews({ type:"coach_hire", label: `Your team hired new HC ${staff.hc.name}` });
+  } else if (slot === "oc") {
+    staff.oc = _rollOC();
+    _pushNews({ type:"coach_hire", label: `Your team hired new OC ${staff.oc.name}` });
+  } else if (slot === "dc") {
+    staff.dc = _rollDC();
+    _pushNews({ type:"coach_hire", label: `Your team hired new DC ${staff.dc.name}` });
+  }
+  saveFranchise();
+  renderFrnCoachingStaff();
+}
+
+function frnHireCoachFromMarket(slot, marketIdx) {
+  const myId  = franchise.chosenTeamId;
+  const staff = franchise.coaches?.[myId];
+  if (!staff) return;
+  const market = franchise._coachMarket || [];
+  const pool = market.filter(c => c.type === slot);
+  const pick = pool[marketIdx];
+  if (!pick) return;
+  if (slot === "hc") {
+    const existing = staff.hc;
+    staff.hc = { ...pick, yearsWithTeam: 0, record: existing?.record || { w:0, l:0, championships:0 } };
+    delete staff.hc.type;
+    _pushNews({ type:"coach_hire", label: `You hired HC ${staff.hc.name}` });
+  } else if (slot === "oc") {
+    staff.oc = { ...pick, yearsWithTeam: 0 };
+    delete staff.oc.type;
+    _pushNews({ type:"coach_hire", label: `You hired OC ${staff.oc.name}` });
+  } else if (slot === "dc") {
+    staff.dc = { ...pick, yearsWithTeam: 0 };
+    delete staff.dc.type;
+    _pushNews({ type:"coach_hire", label: `You hired DC ${staff.dc.name}` });
+  }
+  // Remove from market to prevent double-hiring
+  const globalIdx = market.indexOf(pick);
+  if (globalIdx !== -1) market.splice(globalIdx, 1);
+  saveFranchise();
+  renderFrnCoachingStaff();
+}
+
+function frnHirePositionCoach(group) {
+  const myId  = franchise.chosenTeamId;
+  const staff = franchise.coaches?.[myId];
+  if (!staff) return;
+  if (!staff.positionStaff) staff.positionStaff = [];
+  const MAX_SLOTS = 3;
+  if (staff.positionStaff.length >= MAX_SLOTS) {
+    alert(`You already have ${MAX_SLOTS} position coaches. Upgrade one instead.`);
+    return;
+  }
+  const newCoach = _rollPositionCoach(group);
+  staff.positionStaff.push(newCoach);
+  _pushNews({ type:"coach_hire", label: `Hired ${group} coach ${newCoach.name} (${newCoach.tier})` });
+  saveFranchise();
+  renderFrnCoachingStaff();
+}
+
+function frnUpgradePositionCoach(group) {
+  const myId  = franchise.chosenTeamId;
+  const staff = franchise.coaches?.[myId];
+  if (!staff) return;
+  const tiers = Object.keys(POSITION_COACH_TIERS);
+  const idx = (staff.positionStaff || []).findIndex(s => s.group === group);
+  if (idx === -1) { frnHirePositionCoach(group); return; }
+  const cur = staff.positionStaff[idx];
+  const curTierIdx = tiers.indexOf(cur.tier);
+  if (curTierIdx >= tiers.length - 1) {
+    alert(`${group} coach is already at Elite tier.`);
+    return;
+  }
+  const nextTier = tiers[curTierIdx + 1];
+  const cost = POSITION_COACH_TIERS[nextTier].salary;
+  if (!confirm(`Upgrade ${group} coach to ${nextTier} tier? Cost: $${cost}M/yr`)) return;
+  cur.tier    = nextTier;
+  cur.salary  = cost;
+  cur.name    = `${pickFirstName()} ${pickLastName()}`; // new hire at that tier
+  _pushNews({ type:"coach_hire", label: `Upgraded ${group} coach to ${nextTier}: ${cur.name}` });
+  saveFranchise();
+  renderFrnCoachingStaff();
 }
 

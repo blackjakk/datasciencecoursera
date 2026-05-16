@@ -678,14 +678,35 @@ function frnSimOnce(homeId, awayId, isPlayoff = false) {
     franchise.rosters[homeId], franchise.rosters[awayId],
     { isRivalry }
   );
-  // Coaching trait bumps applied AFTER constructor so they layer on
-  // top of HFA. Offensive/Defensive guru = +2 in their phase.
-  const hcHome = franchise.coaches?.[homeId]?.hc?.trait;
-  const hcAway = franchise.coaches?.[awayId]?.hc?.trait;
-  if (hcHome === "Offensive Guru")        sim.homeR.offense += 2;
-  if (hcHome === "Defensive Mastermind")  sim.homeR.defense += 2;
-  if (hcAway === "Offensive Guru")        sim.awayR.offense += 2;
-  if (hcAway === "Defensive Mastermind")  sim.awayR.defense += 2;
+  // Coaching trait bumps applied AFTER constructor so they layer on top of HFA.
+  const hcHome = franchise.coaches?.[homeId]?.hc?.specialtyTrait;
+  const hcAway = franchise.coaches?.[awayId]?.hc?.specialtyTrait;
+  // HC specialty — Offensive/Defensive Minded = +2 in their phase
+  if (hcHome === "Offensive Minded")  sim.homeR.offense += 2;
+  if (hcHome === "Defensive Minded")  sim.homeR.defense += 2;
+  if (hcAway === "Offensive Minded")  sim.awayR.offense += 2;
+  if (hcAway === "Defensive Minded")  sim.awayR.defense += 2;
+  // HC+OC/DC chemistry: matching specialty + non-neutral coordinator = +1 more
+  const ocHome = franchise.coaches?.[homeId]?.oc?.trait;
+  const ocAway = franchise.coaches?.[awayId]?.oc?.trait;
+  const dcHome = franchise.coaches?.[homeId]?.dc?.trait;
+  const dcAway = franchise.coaches?.[awayId]?.dc?.trait;
+  if (hcHome === "Offensive Minded" && ocHome && ocHome !== "Balanced") sim.homeR.offense += 1;
+  if (hcHome === "Defensive Minded" && dcHome && dcHome !== "Hybrid")   sim.homeR.defense += 1;
+  if (hcAway === "Offensive Minded" && ocAway && ocAway !== "Balanced") sim.awayR.offense += 1;
+  if (hcAway === "Defensive Minded" && dcAway && dcAway !== "Hybrid")   sim.awayR.defense += 1;
+  // DC trait boosts (defense rating)
+  if (dcHome === "Pressure Package") sim.homeR.defense += 1;
+  if (dcAway === "Pressure Package") sim.awayR.defense += 1;
+  if (dcHome === "Run Stopper")      sim.homeR.defense += 1;
+  if (dcAway === "Run Stopper")      sim.awayR.defense += 1;
+  // HC rating modifier: elite HCs squeeze a small additional boost
+  const hcRatingHome = franchise.coaches?.[homeId]?.hc?.rating || 60;
+  const hcRatingAway = franchise.coaches?.[awayId]?.hc?.rating || 60;
+  sim.homeR.offense += Math.round((hcRatingHome - 60) / 30);
+  sim.homeR.defense += Math.round((hcRatingHome - 60) / 30);
+  sim.awayR.offense += Math.round((hcRatingAway - 60) / 30);
+  sim.awayR.defense += Math.round((hcRatingAway - 60) / 30);
   const r = sim.simulate();
   // Stamp gameday context onto the result so callers can persist it
   r.weather = sim.weather;
@@ -868,7 +889,11 @@ function _inSeasonAwrGrowth() {
 
       if ((p.stats?.[3] ?? 70) >= p._awrCeiling) continue;
 
-      if (Math.random() >= 0.25 * repRate * sysMul * ageMul) continue;
+      // QB Whisperer OC boosts QB's in-season AWR development
+      const ocTrait = franchise.coaches?.[t.id]?.oc?.trait;
+      const awrBoost = (p.position === "QB" && ocTrait === "QB Whisperer") ? 1.3 : 1.0;
+
+      if (Math.random() >= 0.25 * repRate * sysMul * ageMul * awrBoost) continue;
 
       p.stats[3] = Math.min(p._awrCeiling, (p.stats[3] ?? 70) + 1);
 
@@ -2117,7 +2142,8 @@ function showFrnAwards() {
     // Tick coach records + tenure first (only on first entry — never on stale-refresh)
     if (!existing) {
       for (const t of TEAMS) {
-        const hc = franchise.coaches?.[t.id]?.hc;
+        const staff = franchise.coaches?.[t.id];
+        const hc = staff?.hc;
         if (!hc) continue;
         const s = franchise.standings?.[t.id] || { w:0, l:0 };
         hc.record = hc.record || { w:0, l:0, championships: 0 };
@@ -2125,7 +2151,19 @@ function showFrnAwards() {
         hc.record.l += s.l || 0;
         hc.yearsWithTeam = (hc.yearsWithTeam || 0) + 1;
         hc.age = (hc.age || 50) + 1;
+        if (hc.contractYears != null) hc.contractYears = Math.max(1, hc.contractYears - 1);
         if (t.id === champId) hc.record.championships = (hc.record.championships || 0) + 1;
+        // Tick OC/DC age and tenure
+        if (staff.oc) {
+          staff.oc.yearsWithTeam = (staff.oc.yearsWithTeam || 0) + 1;
+          staff.oc.age = (staff.oc.age || 40) + 1;
+          if (staff.oc.contractYears != null) staff.oc.contractYears = Math.max(1, staff.oc.contractYears - 1);
+        }
+        if (staff.dc) {
+          staff.dc.yearsWithTeam = (staff.dc.yearsWithTeam || 0) + 1;
+          staff.dc.age = (staff.dc.age || 40) + 1;
+          if (staff.dc.contractYears != null) staff.dc.contractYears = Math.max(1, staff.dc.contractYears - 1);
+        }
       }
     }
     const champTeam = getTeam(champId);
@@ -3161,6 +3199,7 @@ function frnConfirmResignings() {
 }
 
 function frnProceedToRosterChanges() {
+  _runCoachingCarousel();
   franchise._offChanges = runFrnOffseason();
   saveFranchise();
   renderFrnOffseason();
@@ -3608,6 +3647,111 @@ function frnHoldoutIgnore(name) {
   renderFrnOffseason();
 }
 
+// ── Coaching carousel ─────────────────────────────────────────────────────────
+// Generates a pool of available coaches for AI hiring and player UI.
+function _generateCoachMarket() {
+  const pool = [];
+  for (let i = 0; i < 8; i++) pool.push({ type:"hc", ..._rollCoach() });
+  for (let i = 0; i < 4; i++) pool.push({ type:"oc", ..._rollOC() });
+  for (let i = 0; i < 4; i++) pool.push({ type:"dc", ..._rollDC() });
+  franchise._coachMarket = pool;
+}
+
+// End-of-season coaching changes for AI teams.
+function _runCoachingCarousel() {
+  _generateCoachMarket();
+  const champId = franchise.playoffBracket?.champion;
+  const market  = franchise._coachMarket;
+
+  // Track consecutive playoff misses per team
+  if (!franchise._coachMissedPlayoffs) franchise._coachMissedPlayoffs = {};
+  // Determine which teams made playoffs this season
+  const playoffTeamIds = new Set(
+    (franchise.playoffBracket?.rounds?.[0] || []).flatMap(g => [g.homeId, g.awayId])
+  );
+
+  for (const t of TEAMS) {
+    const tId = t.id;
+    if (tId === franchise.chosenTeamId) continue; // user manages their own staff
+    const staff = franchise.coaches?.[tId];
+    if (!staff) continue;
+    const hc  = staff.hc;
+    if (!hc) continue;
+
+    const s   = franchise.standings?.[tId] || { w:0, l:0 };
+    const gp  = (s.w || 0) + (s.l || 0) + (s.t || 0);
+    const pct = gp > 0 ? (s.w + (s.t || 0) * 0.5) / gp : 0;
+
+    // Track consecutive playoff misses
+    if (!playoffTeamIds.has(tId)) {
+      franchise._coachMissedPlayoffs[tId] = (franchise._coachMissedPlayoffs[tId] || 0) + 1;
+    } else {
+      franchise._coachMissedPlayoffs[tId] = 0;
+    }
+    const missedRun = franchise._coachMissedPlayoffs[tId] || 0;
+
+    // Champion team: HC stays unless ancient
+    if (tId === champId && (hc.age || 55) <= 70) continue;
+
+    let fireChance = 0;
+    if (pct < 0.40 && (hc.yearsWithTeam || 0) >= 2) fireChance = 0.55;
+    if (missedRun >= 3) fireChance = Math.max(fireChance, 0.75);
+    if ((hc.age || 55) > 70) fireChance = Math.max(fireChance, 0.60);
+
+    if (fireChance > 0 && Math.random() < fireChance) {
+      // OC promotion: if OC has rating >= 75 and HC is fired, 50% chance to promote
+      const oc = staff.oc;
+      const promoted = oc && (oc.rating || 0) >= 75 && Math.random() < 0.50;
+      if (promoted) {
+        // Promote OC to HC — build a new HC record from OC's traits
+        staff.hc = {
+          name: oc.name,
+          rating: Math.min(89, (oc.rating || 60) + Math.floor(Math.random() * 5)),
+          cultureTrait: HC_CULTURE_TRAITS[Math.floor(Math.random() * HC_CULTURE_TRAITS.length)].key,
+          specialtyTrait: "Offensive Minded",
+          age: oc.age || 45,
+          yearsWithTeam: 0,
+          record: { w:0, l:0, championships:0 },
+          salary: +(oc.salary * 1.5).toFixed(1),
+          contractYears: 3 + Math.floor(Math.random() * 2),
+        };
+        _pushNews({ type:"coach_hire",
+          label: `🏟 ${t.name} promote OC ${oc.name} to head coach` });
+        staff.oc = _rollOC(); // fill empty OC slot
+      } else {
+        // Hire from market
+        const candidates = market.filter(c => c.type === "hc");
+        if (candidates.length) {
+          const pick = candidates[Math.floor(Math.random() * candidates.length)];
+          staff.hc = { ...pick, yearsWithTeam: 0, record: { w:0, l:0, championships:0 } };
+          delete staff.hc.type;
+          _pushNews({ type:"coach_hire",
+            label: `🏟 ${t.name} hire ${staff.hc.name} as new head coach` });
+        }
+        franchise._coachMissedPlayoffs[tId] = 0;
+      }
+    }
+
+    // Occasional OC/DC turnover independent of HC firing
+    if (Math.random() < 0.18) {
+      const candidates = market.filter(c => c.type === "oc");
+      if (candidates.length) {
+        const pick = candidates[Math.floor(Math.random() * candidates.length)];
+        staff.oc = { ...pick, yearsWithTeam: 0 };
+        delete staff.oc.type;
+      }
+    }
+    if (Math.random() < 0.18) {
+      const candidates = market.filter(c => c.type === "dc");
+      if (candidates.length) {
+        const pick = candidates[Math.floor(Math.random() * candidates.length)];
+        staff.dc = { ...pick, yearsWithTeam: 0 };
+        delete staff.dc.type;
+      }
+    }
+  }
+}
+
 function runFrnOffseason() {
   const changes  = [];
   const allNames = new Set();
@@ -3656,7 +3800,8 @@ function runFrnOffseason() {
       // Hidden gems use a flat per-season rate toward their true ceiling;
       // normal players use the age-weighted percentage-of-gap approach.
       if (p.potential == null) p.potential = _rollPotential(p);
-      const coachBoost = (franchise.coaches?.[tId]?.hc?.trait === "Player Developer") ? 1.35 : 1.0;
+      const coachBoost = (franchise.coaches?.[tId]?.hc?.specialtyTrait === "Player Developer"
+                       || franchise.coaches?.[tId]?.hc?.trait === "Player Developer") ? 1.35 : 1.0;
 
       // Resolve gem ceiling — remove flag once reached
       if (p.hiddenGem && p.overall >= p.hiddenGem.ceiling) delete p.hiddenGem;
@@ -3694,16 +3839,33 @@ function runFrnOffseason() {
         }
       }
 
-      // TEC (technique) — changes only through intentional coaching, never
-      // automatically from reps. Player Developer HCs run focused technique
-      // clinics; 20% chance per eligible player per offseason. Age 30+ mechanics
-      // calcify and start to slip as physical tools compensate differently.
+      // TEC (technique) — position staff quality + HC specialty drive growth.
+      // Age 30+ mechanics calcify and start to slip.
       if (p.stats) {
         const curTec = p.stats[11] ?? 68;
-        const isDevCoach = franchise.coaches?.[tId]?.hc?.trait === "Player Developer";
-        if (isDevCoach && (p.age || 25) <= 30 && Math.random() < 0.20) {
-          const gain = 1 + Math.floor(Math.random() * 3); // +1 to +3
+        const posStaff    = franchise.coaches?.[tId]?.positionStaff || [];
+        const hcSpecialty = franchise.coaches?.[tId]?.hc?.specialtyTrait
+                         || (franchise.coaches?.[tId]?.hc?.trait === "Player Developer" ? "Player Developer" : null);
+        const ocTrait     = franchise.coaches?.[tId]?.oc?.trait;
+        const hcDevMul    = hcSpecialty === "Player Developer" ? 1.35 : 1.0;
+
+        const pGroup = p.position === "QB" ? "QB"
+                     : p.position === "OL" ? "OL"
+                     : ["WR","TE","RB"].includes(p.position) ? "Skill"
+                     : p.position === "DL" ? "DL"
+                     : ["LB","CB","S"].includes(p.position) ? "LB/DB" : null;
+        const staffCoach = pGroup ? posStaff.find(s => s.group === pGroup) : null;
+        const tierInfo   = staffCoach ? POSITION_COACH_TIERS[staffCoach.tier] : POSITION_COACH_TIERS["Journeyman"];
+        const tecMul     = tierInfo.tecMul * hcDevMul;
+        const effectiveTecMul = (p.position === "QB" && ocTrait === "QB Whisperer") ? tecMul * 2 : tecMul;
+
+        const baseChance = 0.12;
+        if ((p.age || 25) <= 30 && Math.random() < baseChance * effectiveTecMul) {
+          const gain = 1 + Math.floor(Math.random() * 3);
           p.stats[11] = Math.min(99, curTec + gain);
+          if (staffCoach?.tier === "Elite") {
+            p._tecCeiling = Math.min(99, (p._tecCeiling || 90) + (tierInfo.tecCeilingBonus || 0));
+          }
           p._tecOvrAccum = (p._tecOvrAccum || 0) + 0.15 * gain;
           if (p._tecOvrAccum >= 1.0) {
             p.overall = Math.min(99, (p.overall || 60) + 1);
@@ -3716,6 +3878,10 @@ function runFrnOffseason() {
             p.overall = Math.max(40, (p.overall || 60) - 1);
             p._tecOvrAccum += 1.0;
           }
+        }
+        // OC QB Whisperer raises QB AWR ceiling
+        if (p.position === "QB" && ocTrait === "QB Whisperer") {
+          p._awrCeiling = Math.min(99, (p._awrCeiling || 80) + 5);
         }
       }
 
@@ -3765,8 +3931,11 @@ function runFrnOffseason() {
     // Rookie filling now happens via the annual draft phase + UDFA fill.
     // AI teams: auto-resign expired players at market rate (stars more likely to stay)
     if (tId !== franchise.chosenTeamId) {
-      const aiCoachTrait = franchise.coaches?.[tId]?.hc?.trait;
-      const stayBoost = aiCoachTrait === "Players' Coach" ? 0.15 : 0;
+      const hcCulture = franchise.coaches?.[tId]?.hc?.cultureTrait
+                     || (franchise.coaches?.[tId]?.hc?.trait === "Hard-Ass" ? "Disciplinarian"
+                       : franchise.coaches?.[tId]?.hc?.trait === "Players' Coach" ? "Players' Coach" : null);
+      const stayBoost = hcCulture === "Players' Coach" ? 0.15
+                      : hcCulture === "Disciplinarian" ? -0.10 : 0;
       for (const p of keep) {
         if (p.contract && p.contract.remaining <= 0) {
           let stayProb = p.overall >= 85 ? 0.85 : p.overall >= 75 ? 0.70 : 0.55;
@@ -3804,7 +3973,9 @@ function runFrnOffseason() {
         p.declineAge = Math.max(25, Math.round(30 + 2 * z));
       }
       if (p.potential == null) p.potential = _rollPotential(p);
-      const psCoachBoost = (franchise.coaches?.[tId]?.hc?.trait === "Player Developer") ? 1.35 : 1.0;
+      const psHcSpecialty = franchise.coaches?.[tId]?.hc?.specialtyTrait
+                          || franchise.coaches?.[tId]?.hc?.trait;
+      const psCoachBoost = psHcSpecialty === "Player Developer" ? 1.35 : 1.0;
 
       if (p.hiddenGem && p.overall >= p.hiddenGem.ceiling) delete p.hiddenGem;
 

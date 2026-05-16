@@ -681,7 +681,20 @@ class GameSimulator {
       }
       this.stats[side].team.snaps = (this.stats[side].team.snaps || 0) + 1;
     }
-    const adv = (this.offR.offense - this.defR.defense) / 100;
+    // ── COACHING TRAIT LOOKUPS ────────────────────────────────────────────────
+    // Determine offensive/defensive team IDs for franchise.coaches lookups.
+    const _offTeamId = this.poss === "home" ? this.home.id : this.away.id;
+    const _defTeamId = this.poss === "home" ? this.away.id : this.home.id;
+    const _ocTrait   = (typeof franchise !== "undefined") ? franchise.coaches?.[_offTeamId]?.oc?.trait  : null;
+    const _dcTrait   = (typeof franchise !== "undefined") ? franchise.coaches?.[_defTeamId]?.dc?.trait  : null;
+    const _hcSpec    = (typeof franchise !== "undefined") ? franchise.coaches?.[_offTeamId]?.hc?.specialtyTrait : null;
+    // HC Motivator: +1 offense rating when trailing by ≤7 in Q4
+    const _offScore = this.score[this.poss];
+    const _defScore2= this.score[this.poss === "home" ? "away" : "home"];
+    const _trailDiff= _defScore2 - _offScore;
+    const _motivatorBoost = (_hcSpec === "Motivator" && this.quarter >= 4 && _trailDiff >= 1 && _trailDiff <= 7) ? 1 : 0;
+
+    const adv = (this.offR.offense + _motivatorBoost - this.defR.defense) / 100;
 
     // AWR in the trenches — affects engine behavior, not OVR.
     // DL snap timing: smart rushers read the center's weight shift and get a
@@ -1137,7 +1150,10 @@ class GameSimulator {
       // Aggressive QBs (high aggression score) accept more risk on deep shots →
       // small additive INT uptick on top of the archetype's qbIntMod.
       const qbAggIntMod = (this._aggTilt(this._qbAggression()) - 1) * 0.008; // agg=80→+0.0024, agg=20→-0.0024
-      const intPct = clamp(0.022 - adv * 0.010 + defIntMod + pressure * 0.022 + ballHawkBonus + qbIntMod + qbIntFromOvr + qbAggIntMod, 0.003, 0.20);
+      // DC Ball Hawk: additional INT rate multiplier; Game Manager HC: reduces turnovers
+      const dcBallHawkMul  = _dcTrait  === "Ball Hawk"    ? 1.025 : 1.0;
+      const hcGameMgrIntMul= _hcSpec   === "Game Manager" ? 0.88  : 1.0;
+      const intPct = clamp((0.022 - adv * 0.010 + defIntMod + pressure * 0.022 + ballHawkBonus + qbIntMod + qbIntFromOvr + qbAggIntMod) * dcBallHawkMul * hcGameMgrIntMul, 0.003, 0.20);
       if (Math.random() < intPct) {
         const targetDepth = clamp(normal(11, 7), 2, 35);
         if (qbStats) { qbStats.pass_att++; qbStats.pass_int++; }
@@ -1406,6 +1422,9 @@ class GameSimulator {
       else if (rcvrArch === "SLOT")         archCompMod = 0.025;
       else if (rcvrArch === "DEEP_THREAT")  archCompMod = -0.040;
       else if (rcvrArch === "RED_ZONE")     archCompMod = isRedZone ? 0.055 : -0.010;
+      // OC Red Zone Genius: +8% comp in the red zone
+      const ocRZGeniusMod = (isRedZone && _ocTrait === "Red Zone Genius") ? 0.08 : 0;
+      archCompMod += ocRZGeniusMod;
       // CB MATCHUP — the specific covering CB's COV stat is a major factor.
       // Top WR (wr1) is covered by top CB (cb1); WR2 by CB2. TE/RB get LBs.
       // Plus a small safety-help term so a great deep safety helps overall.
@@ -1484,9 +1503,10 @@ class GameSimulator {
       const wxCompMod = wxPass.label === "RAIN" ? -0.05
                       : wxPass.label === "SNOW" ? -0.08
                       : 0;
-      // Defensive-scheme tilt: nickel / dime tighten pass coverage,
-      // 46 blitz leaves big windows open.
-      const compPct = clamp((0.60 + adv * 0.14 + qbCompFromOvr - pressure * 0.12 - shutdownPenalty + possessionBonus + qbCompMod + paCompMod + catCompMod + awrCompMod + cbCoverMod + mismatchBonus + coverLbMod + signalLbMod + physicalJamMod + wxCompMod + archCompMod) * compPbMul * defPbCurrent.passMul, 0.12, 0.92);
+      // Defensive-scheme tilt: nickel / dime tighten pass coverage, 46 blitz leaves windows open.
+      // DC Cover Scheme: -3% completion rate for the offense
+      const dcCoverSchemeMul = _dcTrait === "Cover Scheme" ? 0.97 : 1.0;
+      const compPct = clamp((0.60 + adv * 0.14 + qbCompFromOvr - pressure * 0.12 - shutdownPenalty + possessionBonus + qbCompMod + paCompMod + catCompMod + awrCompMod + cbCoverMod + mismatchBonus + coverLbMod + signalLbMod + physicalJamMod + wxCompMod + archCompMod) * compPbMul * defPbCurrent.passMul * dcCoverSchemeMul, 0.12, 0.92);
       if (Math.random() < compPct) {
         // Air yards drop when pressure shortens the QB's reads (check-downs / dump-offs)
         // Weaker QBs also throw shorter — they can't push the ball downfield reliably.
@@ -1523,7 +1543,9 @@ class GameSimulator {
                          : 0;
         // Aggressive QBs call more deep shots — tilts target depth up/down.
         const qbAggAirMod = (this._aggTilt(this._qbAggression()) - 1) * 3.0; // agg=80→+0.9yds, agg=20→-0.9yds
-        const airMean = (pb.airYdsMean ?? 7.5) - pressure * 2.8 + qbAirMod + qbAirFromOvr + paAirMod + qbPocketAirBonus + centerFieldCap + wxAirMod + defDeepBonus + archAirMod + qbAggAirMod;
+        // OC Air Attack: +1.0 to air yards mean
+        const ocAirAttackMod = _ocTrait === "Air Attack" ? 1.0 : 0;
+        const airMean = (pb.airYdsMean ?? 7.5) - pressure * 2.8 + qbAirMod + qbAirFromOvr + paAirMod + qbPocketAirBonus + centerFieldCap + wxAirMod + defDeepBonus + archAirMod + qbAggAirMod + ocAirAttackMod;
         const airSd   = (pb.airYdsSd   ?? 6) * (qbArch === "GUNSLINGER" ? 1.25 : 1.0);
         const airYds  = clamp(normal(airMean + adv * 2, airSd), -2, 55);
         // YAC distribution — short catches / screens get more YAC potential
@@ -1961,7 +1983,10 @@ class GameSimulator {
     // Defensive scheme tilt for run defense: 46 blitz stuffs runs, dime
     // gets gashed.
     const defPbRun = this.currentDefPlaybook;
-    let yards = clamp(normal((rushMean + rbBoost + fbBoost + runVarMean + adv * 1.4 + runTrenchYds + fbStuffReduction - lbTackle * 0.5 - boxSafetyStuff - thumperStuff - lbGapRead + rbGapVision + carrierBoost + reverseBonus) * defPbRun.runMul, rushSd * rbSdMul * runVarSd * reverseSdMul), -8, 75);
+    // OC Run Architect: +0.3 to variant mean; DC Run Stopper: -0.4 to run mean
+    const ocRunArchBonus    = _ocTrait === "Run Architect" ? 0.3  : 0;
+    const dcRunStopperMalus = _dcTrait === "Run Stopper"  ? -0.4 : 0;
+    let yards = clamp(normal((rushMean + rbBoost + fbBoost + runVarMean + adv * 1.4 + runTrenchYds + fbStuffReduction - lbTackle * 0.5 - boxSafetyStuff - thumperStuff - lbGapRead + rbGapVision + carrierBoost + reverseBonus + ocRunArchBonus + dcRunStopperMalus) * defPbRun.runMul, rushSd * rbSdMul * runVarSd * reverseSdMul), -8, 75);
     // Cap at distance to end zone so a 1-yd goal-line carry doesn't get reported as a 17-yd TD
     if (yards > 0) yards = Math.min(yards, 100 - startYard);
     // Broken tackles — carrier physicality vs defender tackle rating.

@@ -920,9 +920,11 @@ function _isInjuryProne(p) {
 function _rollGameInjuries(teamId) {
   const roster = franchise.rosters[teamId] || [];
   const team = getTeam(teamId);
-  // Hard-Ass head coach: −20% injury rate for the team
-  const coachTrait = franchise.coaches?.[teamId]?.hc?.trait;
-  const rateMul = coachTrait === "Hard-Ass" ? 0.80 : 1.0;
+  // Disciplinarian HC culture: −20% injury rate; Players' Coach: +5%
+  const cultureTrait = franchise.coaches?.[teamId]?.hc?.cultureTrait
+                    || (franchise.coaches?.[teamId]?.hc?.trait === "Hard-Ass" ? "Disciplinarian" : null);
+  const rateMul = cultureTrait === "Disciplinarian" ? 0.80
+                : cultureTrait === "Players' Coach" ? 1.05 : 1.0;
   for (const p of roster) {
     if (p.injury && p.injury.weeksRemaining > 0) continue;
     const recMul = _injuryRecurrenceMul(p);
