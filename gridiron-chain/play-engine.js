@@ -543,9 +543,15 @@ class GameSimulator {
   }
   _score(pts, type) {
     this.score[this.poss] += pts;
+    // Capture scorer for box-score display
+    const scorer = (pts === 6 || pts === 2) ? (this._lastBallCarrier || null) : null;
+    const passer = (pts === 6 && this._lastBallType === "pass") ? (this.offR.starters.qb || null) : null;
+    const kicker = (type.includes("FG") || type === "Extra Point") ? (this.offR.starters.k || null) : null;
     this._pushVisual({
       kind: "score",
       desc: `${this.possTeam.city} ${this.possTeam.name} — ${type} (+${pts})`,
+      scoreType: type,
+      scorer, passer, kicker,
       poss: this.poss, pts,
       quarter: this.quarter,
       clockAfter: this.clock,

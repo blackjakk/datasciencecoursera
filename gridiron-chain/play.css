@@ -3983,23 +3983,47 @@
   @media (max-width: 900px) { .bspn-teams-row { grid-template-columns: 1fr; } }
 
   /* Scoring summary */
-  .bspn-scoring-table {
-    width: 100%; border-collapse: collapse;
-    font-size: .68rem; font-variant-numeric: tabular-nums;
-  }
-  .bspn-scoring-table th, .bspn-scoring-table td {
-    padding: .3rem .35rem;
+  /* Scoring summary — redesigned card layout */
+  .bspn-scoring-list { display: flex; flex-direction: column; gap: 0; }
+  .bspn-scoring-qtr-hdr {
+    font-size: .56rem; font-weight: 700; letter-spacing: 2px; color: var(--bspn-gold);
+    padding: .55rem .4rem .2rem; text-transform: uppercase;
     border-bottom: 1px solid var(--bspn-border);
+    margin-top: .25rem;
   }
-  .bspn-scoring-table th {
-    color: var(--bspn-gray); font-weight: 600; font-size: .56rem;
-    letter-spacing: 1px; text-transform: uppercase; text-align: left;
+  .bspn-scoring-qtr-hdr:first-child { margin-top: 0; }
+  .bspn-scoring-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: .42rem .5rem .42rem .55rem;
+    border-bottom: 1px solid rgba(255,255,255,.04);
+    gap: .5rem; font-size: .68rem;
   }
-  .bspn-scoring-table td.qtr  { color: var(--bspn-gold); font-weight: 700; width: 2.2rem; }
-  .bspn-scoring-table td.time { color: var(--bspn-gray); width: 3rem; }
-  .bspn-scoring-table td.team { font-weight: 700; width: 2.6rem; }
-  .bspn-scoring-table td.score { color: var(--bspn-terminal); font-weight: 700; text-align: right; width: 3.5rem; }
-  .bspn-scoring-legend { margin-top: .5rem; color: var(--bspn-gray-dim); font-size: .56rem; letter-spacing: 1px; }
+  .bspn-scoring-sub {
+    padding-left: 1.4rem; opacity: .82; font-size: .63rem;
+  }
+  .bspn-sc-left  { display: flex; align-items: center; gap: .4rem; flex: 1; min-width: 0; }
+  .bspn-sc-right { display: flex; align-items: center; gap: .55rem; flex-shrink: 0; }
+  .bspn-sc-badge {
+    font-size: .5rem; font-weight: 900; letter-spacing: .8px;
+    border: 1px solid; padding: .06rem .3rem; flex-shrink: 0;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .bspn-sc-team  { font-weight: 700; font-size: .63rem; flex-shrink: 0; }
+  .bspn-sc-desc  { color: var(--bspn-white); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bspn-sc-desc .frn-pname { color: var(--bspn-white); cursor: pointer; }
+  .bspn-sc-desc .frn-pname:hover { color: var(--bspn-gold); text-decoration: underline; }
+  .bspn-sc-pts {
+    font-size: .55rem; font-weight: 700; color: var(--bspn-gray);
+    letter-spacing: .5px; flex-shrink: 0;
+  }
+  .bspn-sc-score {
+    display: flex; align-items: center; gap: .25rem;
+    font-size: .67rem; font-variant-numeric: tabular-nums; flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .bspn-sc-away, .bspn-sc-home { font-weight: 400; opacity: .7; }
+  .bspn-sc-lead  { font-weight: 900; opacity: 1; }
+  .bspn-sc-sep   { color: var(--bspn-gray-dim); font-size: .6rem; }
 
   /* Leaders */
   .bspn-leader-row {

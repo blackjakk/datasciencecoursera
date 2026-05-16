@@ -2067,15 +2067,30 @@ function _bspnBuildScoringSummary(scoring, awayT, homeT) {
     if (ev.isScore === false) continue;
     if (!ev.pts) continue;
     const tm = ev.poss === "home" ? homeT : awayT;
-    const secs = ev.clock || 0;
-    const mm = String(Math.floor(secs/60)).padStart(2,"0");
-    const ss = String(secs%60).padStart(2,"0");
+    // Classify the score type from stored field or desc string
+    const rawType = ev.scoreType || ev.desc || "";
+    let type = "TD";
+    if (/FG|field goal/i.test(rawType))               type = "FG";
+    else if (/Extra Point|extra point/i.test(rawType)) type = "XP";
+    else if (/2-Point/i.test(rawType))                 type = "2PT";
+    else if (/Safety/i.test(rawType))                  type = "SAF";
+    else if (/Punt Return/i.test(rawType))              type = "TD";
+    // Subordinate events (XP/2PT) get visually nested under the preceding TD
+    const isSub = type === "XP" || type === "2PT";
+    // Extract FG distance from desc like "47-yd FG"
+    const fgDist = type === "FG" ? (rawType.match(/(\d+)-yd/) || [])[1] : null;
     out.push({
       period: ev.qtr <= 4 ? `Q${ev.qtr}` : "OT",
-      time: `${mm}:${ss}`,
       teamId: tm.id,
-      description: (ev.desc || "").replace(/\(\+\d+\)/, "").trim(),
-      scoreText: `${ev.awayScore}-${ev.homeScore}`,
+      type, isSub, fgDist,
+      scorer: ev.scorer || null,
+      passer: ev.passer || null,
+      kicker: ev.kicker || null,
+      pts: ev.pts,
+      awayScore: ev.awayScore,
+      homeScore: ev.homeScore,
+      awayId: awayT.id,
+      homeId: homeT.id,
     });
   }
   return out;
@@ -2372,23 +2387,79 @@ function _bspnRenderScoring(plays, teamsById) {
       <div style="color:var(--bspn-gray);font-size:.7rem;font-style:italic">No scoring events.</div>
     </section>`;
   }
-  const rows = plays.map(p => {
-    const tm = teamsById[p.teamId];
-    return `<tr>
-      <td class="qtr">${_bspnEsc(p.period)}</td>
-      <td class="time">${_bspnEsc(p.time)}</td>
-      <td class="team" style="color:${tm?.primaryColor || "var(--bspn-white)"}">${_bspnEsc(tm?.abbreviation || "")}</td>
-      <td>${_bspnEsc(p.description)}</td>
-      <td class="score">${_bspnEsc(p.scoreText)}</td>
-    </tr>`;
-  }).join("");
+  const TYPE_META = {
+    TD:  { label:"TD",  color:"#f5c542", bg:"rgba(245,197,66,.13)"  },
+    FG:  { label:"FG",  color:"#4dbdbd", bg:"rgba(77,189,189,.12)"  },
+    XP:  { label:"XP",  color:"#888",    bg:"rgba(136,136,136,.08)" },
+    "2PT":{ label:"2PT",color:"#a78bfa", bg:"rgba(167,139,250,.12)" },
+    SAF: { label:"SAF", color:"#f87171", bg:"rgba(248,113,113,.12)" },
+  };
+
+  // Group by quarter
+  const byQtr = {};
+  for (const p of plays) {
+    if (!byQtr[p.period]) byQtr[p.period] = [];
+    byQtr[p.period].push(p);
+  }
+
+  const rows = [];
+  for (const [period, events] of Object.entries(byQtr)) {
+    rows.push(`<div class="bspn-scoring-qtr-hdr">${_bspnEsc(period === "Q5" ? "OT" : period)}</div>`);
+    for (const p of events) {
+      const tm = teamsById[p.teamId];
+      const meta = TYPE_META[p.type] || TYPE_META.TD;
+      // Scorer line
+      let scorerHtml = "";
+      if (p.scorer && p.passer) {
+        scorerHtml = `${_playerLinkSmart(p.passer)} → ${_playerLinkSmart(p.scorer)}`;
+      } else if (p.scorer) {
+        scorerHtml = _playerLinkSmart(p.scorer);
+      } else if (p.kicker) {
+        scorerHtml = _playerLinkSmart(p.kicker);
+      }
+      const fgLabel = p.fgDist ? ` · ${p.fgDist} yds` : "";
+      // Score display — bold the leading team
+      const awayLead = p.awayScore > p.homeScore;
+      const homeLead = p.homeScore > p.awayScore;
+      const awayTm = teamsById[p.awayId];
+      const homeTm = teamsById[p.homeId];
+      const awayAbbr = awayTm?.abbreviation || "AWY";
+      const homeAbbr = homeTm?.abbreviation || "HME";
+      const scoreHtml = `
+        <span class="bspn-sc-away${awayLead?" bspn-sc-lead":""}"
+              style="color:${awayTm?.primaryColor||"var(--bspn-white)"}">
+          ${_bspnEsc(awayAbbr)} ${p.awayScore}
+        </span>
+        <span class="bspn-sc-sep">–</span>
+        <span class="bspn-sc-home${homeLead?" bspn-sc-lead":""}"
+              style="color:${homeTm?.primaryColor||"var(--bspn-white)"}">
+          ${p.homeScore} ${_bspnEsc(homeAbbr)}
+        </span>`;
+      const ptsBadge = `<span class="bspn-sc-pts">+${p.pts}</span>`;
+      rows.push(`
+        <div class="bspn-scoring-row${p.isSub?" bspn-scoring-sub":""}"
+             style="background:${meta.bg};border-left:3px solid ${meta.color}">
+          <div class="bspn-sc-left">
+            <span class="bspn-sc-badge" style="color:${meta.color};border-color:${meta.color}">
+              ${meta.label}
+            </span>
+            <span class="bspn-sc-team" style="color:${tm?.primaryColor||"var(--bspn-white)"}">
+              ${_bspnEsc(tm?.abbreviation || "")}
+            </span>
+            <span class="bspn-sc-desc">
+              ${scorerHtml}${fgLabel ? `<span style="color:var(--bspn-gray)">${_bspnEsc(fgLabel)}</span>` : ""}
+            </span>
+          </div>
+          <div class="bspn-sc-right">
+            ${ptsBadge}
+            <div class="bspn-sc-score">${scoreHtml}</div>
+          </div>
+        </div>`);
+    }
+  }
   return `<section class="bspn-panel">
     <div class="bspn-panel-title">SCORING SUMMARY</div>
-    <table class="bspn-scoring-table">
-      <thead><tr><th>QTR</th><th>TIME</th><th>TEAM</th><th>PLAY (SCORER)</th><th style="text-align:right">SCORE</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-    <div class="bspn-scoring-legend">TD = TOUCHDOWN &nbsp;&nbsp; FG = FIELD GOAL &nbsp;&nbsp; XP = EXTRA POINT</div>
+    <div class="bspn-scoring-list">${rows.join("")}</div>
   </section>`;
 }
 function _bspnRenderLeadersGroup(group, teamsById) {

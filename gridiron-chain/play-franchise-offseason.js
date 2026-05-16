@@ -885,6 +885,8 @@ function _extractScoringTimeline(plays, finalHome, finalAway) {
         out.push({
           qtr: lastQtr, clock: p.clockAfter,
           poss: p.poss, pts: p.pts, desc: p.desc || "",
+          scoreType: p.scoreType || null,
+          scorer: p.scorer || null, passer: p.passer || null, kicker: p.kicker || null,
           homeScore: h, awayScore: a, isScore: true,
         });
       } else if (p.homeScore != null && p.awayScore != null) {
