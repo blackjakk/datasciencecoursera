@@ -1983,16 +1983,24 @@ function _bspnBuildComparisonStats(stats) {
     row("top",           "TIME OF POSSESSION", aT.timeOfPoss, hT.timeOfPoss, fmtTOP),
   ];
 }
-function _bspnBuildStatGroups(sidePlayers) {
+function _bspnBuildStatGroups(sidePlayers, teamId) {
   const players = Object.values(sidePlayers || {});
   if (!players.length) return [];
   const filter = (fn, sortKey) => players
     .filter(fn).sort((a,b) => (b[sortKey]||0) - (a[sortKey]||0));
   const pNameCell = p => {
-    // Use pid from the stat object (stamped by the engine) for collision-proof lookup.
-    // Falls back to name-only for old saved games that predate pid stamping.
-    const live = _findPlayer(p.name, p.pid);
-    return live ? playerLink(live) : playerLinkByName(p.name);
+    // 1. pid lookup — collision-proof for games played after engine fix.
+    if (p.pid) {
+      const byPid = _findPlayerByPid(p.pid);
+      if (byPid) return playerLink(byPid);
+    }
+    // 2. Team-roster-first — handles old saves without pid: search the
+    //    specific side's roster before scanning the whole league.
+    if (teamId) {
+      const inTeam = (franchise?.rosters?.[teamId] || []).find(rp => rp.name === p.name);
+      if (inTeam) return playerLink(inTeam);
+    }
+    return playerLinkByName(p.name);
   };
   const passingRows = filter(p => (p.pass_att||0) > 0, "pass_yds").map(p => ({
     id: `pass-${p.name}`, cells: {
@@ -2205,8 +2213,8 @@ function _franchiseGameToBSPNData(g, week) {
   return {
     summary,
     comparisonStats: _bspnBuildComparisonStats(g.stats),
-    awayBoxScoreGroups: _bspnBuildStatGroups(g.stats?.away?.players),
-    homeBoxScoreGroups: _bspnBuildStatGroups(g.stats?.home?.players),
+    awayBoxScoreGroups: _bspnBuildStatGroups(g.stats?.away?.players, g.awayId),
+    homeBoxScoreGroups: _bspnBuildStatGroups(g.stats?.home?.players, g.homeId),
     scoringSummary: _bspnBuildScoringSummary(g.scoring, awayT, homeT),
     leaderGroups: leaders.leaderGroups,
     topPerformers: leaders.topPerformers,
