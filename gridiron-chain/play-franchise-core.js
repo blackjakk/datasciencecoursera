@@ -1050,7 +1050,7 @@ const POSITION_COACH_GROUPS = ["QB","OL","Skill","DL","LB/DB"];
 // and which other slots its backup is flex-eligible to cover.
 const DEPTH_CHART_SLOTS = {
   offense: [
-    { key:"QB",  pos:"QB", rule:"QB_SPECIAL", flex:[] },
+    { key:"QB",  pos:"QB", snapFloor:95, flex:[] },
     { key:"RB1", pos:"RB", flex:[] },
     { key:"WR1", pos:"WR", flex:["WR2","WR3"] },
     { key:"WR2", pos:"WR", flex:["WR3","WR4"] },
@@ -1079,8 +1079,8 @@ const DEPTH_CHART_SLOTS = {
     { key:"FS",  pos:"S",  flex:["SS"] },
   ],
   specialTeams: [
-    { key:"K", pos:"K", flex:[] },
-    { key:"P", pos:"P", flex:[] },
+    { key:"K", pos:"K", snapFloor:98, flex:[] },
+    { key:"P", pos:"P", snapFloor:98, flex:[] },
   ],
 };
 
@@ -1563,9 +1563,10 @@ function _backfillPhysicalPeak() {
 // ── Depth Chart & Snap Shares ────────────────────────────────────────────────
 
 // Compute optimal starterPct for one slot given starter + backup + rule.
-function _computeOptimalPct(starter, backup, rule) {
-  if (rule === "QB_SPECIAL") return { starterPct: 97, manual: false };
-  if (!starter) return { starterPct: 100, manual: false };
+function _computeOptimalPct(starter, backup, snapFloor, snapCeil) {
+  const floor = snapFloor ?? 35;
+  const ceil  = snapCeil  ?? 98;
+  if (!starter) return { starterPct: ceil, manual: false };
   const sOvr    = starter.overall ?? 60;
   const bOvr    = backup?.overall ?? 55;
   const stamina = starter._stamina ?? 75;
@@ -1575,7 +1576,7 @@ function _computeOptimalPct(starter, backup, rule) {
   else if (stamina < 65) base = Math.min(base, 62);
   if      (age >= 36)    base -= 10;
   else if (age >= 33)    base -= 5;
-  return { starterPct: Math.round(Math.min(98, Math.max(35, base))), manual: false };
+  return { starterPct: Math.round(Math.min(ceil, Math.max(floor, base))), manual: false };
 }
 
 // Build a fresh depth chart + snap shares for one team from their current roster.
@@ -1604,12 +1605,13 @@ function _initDepthChart(teamId) {
       const starter = take(next(slotDef.pos));
       const backup  = take(next(slotDef.pos));
       dc[slotDef.key] = {
-        starter: starter?.pid ?? null,
-        backup:  backup?.pid  ?? null,
-        flex:    slotDef.flex,
-        rule:    slotDef.rule ?? null,
+        starter:   starter?.pid ?? null,
+        backup:    backup?.pid  ?? null,
+        flex:      slotDef.flex,
+        snapFloor: slotDef.snapFloor ?? 35,
+        snapCeil:  slotDef.snapCeil  ?? 98,
       };
-      ss[slotDef.key] = _computeOptimalPct(starter, backup, slotDef.rule);
+      ss[slotDef.key] = _computeOptimalPct(starter, backup, slotDef.snapFloor, slotDef.snapCeil);
     }
   }
   franchise.depthChart[teamId] = dc;
@@ -1628,7 +1630,7 @@ function _optimizeSnapShares(teamId) {
     if (ss[key]?.manual) continue;
     const starter = slot.starter ? byPid[slot.starter] : null;
     const backup  = slot.backup  ? byPid[slot.backup]  : null;
-    ss[key] = _computeOptimalPct(starter, backup, slot.rule);
+    ss[key] = _computeOptimalPct(starter, backup, slot.snapFloor, slot.snapCeil);
   }
   franchise.snapShares[teamId] = ss;
 }
