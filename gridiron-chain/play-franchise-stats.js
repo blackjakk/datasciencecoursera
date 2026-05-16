@@ -3098,6 +3098,139 @@ function renderFrnHighlightsAll() {
     </div>`;
 }
 
+function _buildPostGameHeadline(teamId) {
+  const { schedule, seasonHighlights, standings } = franchise;
+  const myGames = (schedule || [])
+    .filter(g => g.played && (g.homeId === teamId || g.awayId === teamId))
+    .sort((a, b) => b.week - a.week);
+  if (!myGames.length) return "";
+
+  const g = myGames[0];
+  const isHome    = g.homeId === teamId;
+  const myScore   = isHome ? g.homeScore : g.awayScore;
+  const oppScore  = isHome ? g.awayScore : g.homeScore;
+  const oppId     = isHome ? g.awayId   : g.homeId;
+  const myTeam    = getTeam(teamId);
+  const oppTeam   = getTeam(oppId);
+  const myName    = myTeam?.name  || "HOME";
+  const oppName   = oppTeam?.name || "AWAY";
+  const myCity    = myTeam?.city  || myName;
+  const oppCity   = oppTeam?.city || oppName;
+
+  const isWin  = myScore > oppScore;
+  const isTie  = myScore === oppScore;
+  const margin = Math.abs(myScore - oppScore);
+  const isDom  = margin >= 14;
+  const isNail = margin <= 3;
+
+  // Highlights for this specific game
+  const gameHL = (seasonHighlights || []).filter(h =>
+    h.homeId === g.homeId && h.awayId === g.awayId
+  );
+  const isOT      = gameHL.some(h => h.label?.includes("OT THRILLER"));
+  const isShutout = gameHL.some(h => h.label?.includes("SHUTOUT") && isWin);
+  const topPlay   = gameHL.filter(h => h.type === "off" || h.type === "def")
+                          .sort((a, b) => b.weight - a.weight)[0];
+
+  // Stable pick: same headline each time you open the dashboard for the same game
+  const si = (arr) => arr[(g.week * 3 + myScore + oppScore) % arr.length];
+
+  // ── Headline ────────────────────────────────────────────────────────────────
+  let headline;
+  if (isWin) {
+    if (isOT)        headline = si([`${myName} OUTLASTS ${oppName} IN OVERTIME THRILLER`, `OVERTIME MAGIC LIFTS ${myName} PAST ${oppName}`, `${myName} WINS OT CLASSIC AGAINST ${oppName}`]);
+    else if (isShutout) headline = si([`LOCKDOWN: ${myName} SHUTS OUT ${oppName}`, `${myName} DEFENSE SUFFOCATES ${oppName}`, `BLANKED: ${myName} HOLDS ${oppName} SCORELESS`]);
+    else if (isDom)  headline = si([`${myName} DOMINATES ${oppName} ${myScore}-${oppScore}`, `NO CONTEST: ${myName} ROLLS PAST ${oppName}`, `${myName} PUTS ON A SHOW IN CONVINCING WIN`]);
+    else if (isNail) headline = si([`${myName} EDGES ${oppName} IN NAIL-BITER`, `LATE HEROICS LIFT ${myName} PAST ${oppName}`, `${myName} SURVIVES ${oppName} SCARE, WINS ${myScore}-${oppScore}`]);
+    else             headline = si([`${myName} HANDLES ${oppName} IN SOLID WIN`, `${myName} TAKES CARE OF BUSINESS AGAINST ${oppName}`, `${myName} DEFEATS ${oppName} ${myScore}-${oppScore}`]);
+  } else if (isTie) {
+    headline = `${myName} AND ${oppName} PLAY TO A ${myScore}-${oppScore} DRAW`;
+  } else {
+    if (isOT)        headline = si([`OVERTIME HEARTBREAK FOR ${myName}`, `${oppName} STEALS ONE IN OT FROM ${myName}`, `${myName} FALLS IN HEARTBREAKING OT LOSS`]);
+    else if (!isWin && gameHL.some(h => h.label?.includes("SHUTOUT")))
+                     headline = si([`OFFENSE GOES DARK: ${myName} BLANKED BY ${oppName}`, `${oppName} HOLDS ${myName} SCORELESS`, `${myName} SHUT OUT IN TOUGH LOSS`]);
+    else if (isDom)  headline = si([`${oppName} RUNS OVER ${myName}`, `ROUGH NIGHT: ${myName} FALLS IN BLOWOUT TO ${oppName}`, `${myName} OVERWHELMED IN LOPSIDED DEFEAT`]);
+    else if (isNail) headline = si([`${myName} FALLS IN HEARTBREAKER TO ${oppName}`, `SO CLOSE: ${myName} COMES UP SHORT`, `${oppName} EDGES ${myName} IN CLOSE ONE`]);
+    else             headline = si([`${myName} DROPS ONE TO ${oppName}`, `${oppName} HANDLES BUSINESS AGAINST ${myName}`, `${myName} SUFFERS DEFEAT AT HANDS OF ${oppName}`]);
+  }
+
+  // ── Blurb sentence 1: game flow ─────────────────────────────────────────────
+  let s1;
+  if (isOT) {
+    s1 = isWin
+      ? `The ${myName} and ${oppName} needed overtime to settle it, with ${myName} striking for the game-winner after a tense regulation.`
+      : `${oppName} broke ${myName} hearts in overtime after the teams played to a stalemate through four quarters.`;
+  } else if (isShutout) {
+    s1 = `The ${myName} defense turned in a masterclass, suffocating the ${oppName} offense for all 60 minutes.`;
+  } else if (isDom && isWin) {
+    s1 = `It was never in doubt as the ${myName} controlled both lines of scrimmage from the opening drive and never let up.`;
+  } else if (isDom && !isWin) {
+    s1 = `${oppName} came in locked in, imposing their will on both sides of the ball and giving ${myName} few answers all night.`;
+  } else if (isNail && isWin) {
+    s1 = `A hard-fought battle in ${isHome ? myCity : oppCity} went down to the wire before the ${myName} found a way to close it out.`;
+  } else if (isNail && !isWin) {
+    s1 = `The ${myName} had their chances but ultimately could not convert when it mattered most against a stubborn ${oppName} squad.`;
+  } else {
+    s1 = isWin
+      ? `A balanced performance on both sides of the ball carried the ${myName} to a comfortable victory over ${oppName}.`
+      : `${oppName} proved to be too much for the ${myName} to handle on this occasion, putting together a complete game.`;
+  }
+
+  // ── Blurb sentence 2: top play reference ───────────────────────────────────
+  let s2 = "";
+  if (topPlay) {
+    const lbl = topPlay.label;
+    if (topPlay.type === "def") {
+      if (lbl.includes("PICK-SIX"))   s2 = `A pick-six was the highlight-reel moment that swung the momentum decisively.`;
+      else if (lbl.includes("INT"))   s2 = `A timely interception gave the ${myName} offense a short field and changed the game's trajectory.`;
+      else if (lbl.includes("sacks")) s2 = `A crushing sack at a pivotal moment derailed the opponent's drive and sparked the sideline.`;
+      else if (lbl.includes("FUM"))   s2 = `A forced fumble provided the ${myName} with a critical possession change.`;
+      else s2 = `The defense delivered a game-changing play that won't be forgotten.`;
+    } else {
+      const tdPass = lbl.match(/^([A-Za-z'-]+)→([A-Za-z'-]+) TD/);
+      const tdRush = lbl.match(/^([A-Za-z'-]+) rush TD/);
+      const bigRun = lbl.match(/^([A-Za-z'-]+) (\d+)-yd run/);
+      const bigPass= lbl.match(/^([A-Za-z'-]+)→([A-Za-z'-]+) (\d+) yds/);
+      const bigFG  = lbl.match(/^([A-Za-z'-]+) (\d+)-yd FG/);
+      if (tdPass)    s2 = `${tdPass[1]} connected with ${tdPass[2]} for a touchdown — the signature play of the day.`;
+      else if (tdRush) s2 = `${tdRush[1]} punched it in on the ground for a score the crowd will be talking about.`;
+      else if (bigRun) s2 = `${bigRun[1]}'s ${bigRun[2]}-yard burst was the defining moment of the running game.`;
+      else if (bigPass)s2 = `${bigPass[1]} found ${bigPass[2]} for ${bigPass[3]} yards — a play that moved the chains at a crucial moment.`;
+      else if (bigFG)  s2 = `${bigFG[1]}'s ${bigFG[2]}-yard field goal provided the breathing room the ${myName} needed.`;
+      else s2 = `The offense delivered the key play when the situation demanded it.`;
+    }
+    if (topPlay.isClutch && !s2.includes("clutch")) s2 += ` A clutch play in every sense of the word.`;
+  }
+
+  // ── Blurb sentence 3: record ────────────────────────────────────────────────
+  const stand = standings?.[teamId];
+  const rec   = stand ? `${stand.w}-${stand.l}${stand.t ? `-${stand.t}` : ""}` : "";
+  const s3 = rec
+    ? (isWin ? `The win improves ${myName} to ${rec} on the season.`
+             : isTie ? `${myName} now sit at ${rec} on the year.`
+                     : `The loss drops ${myName} to ${rec}.`)
+    : "";
+
+  const blurb = [s1, s2, s3].filter(Boolean).join(" ");
+
+  // Visual
+  const wlColor  = isWin ? "var(--green-lt)"        : isTie ? "var(--gray)" : "var(--red)";
+  const wlBorder = isWin ? "rgba(74,222,128,.18)"   : isTie ? "rgba(128,128,128,.15)" : "rgba(220,50,50,.18)";
+  const wlBg     = isWin ? "rgba(74,222,128,.04)"   : isTie ? "rgba(128,128,128,.04)" : "rgba(220,50,50,.04)";
+  const isPlayoffGame = g.week > FRANCHISE_WEEKS;
+  const weekLabel = isPlayoffGame ? "PLAYOFF" : `WEEK ${g.week}`;
+
+  return `
+    <div class="frn-postgame-headline" style="border-color:${wlBorder};background:${wlBg}">
+      <div class="frn-postgame-eyebrow">
+        <span style="color:var(--gray);font-size:.62rem;letter-spacing:.5px">${weekLabel} · FINAL</span>
+        <span class="frn-postgame-wl" style="color:${wlColor}">${isWin?"W":isTie?"T":"L"} ${myScore}–${oppScore}</span>
+      </div>
+      <div class="frn-postgame-hed">${headline}</div>
+      <div class="frn-postgame-blurb">${blurb}</div>
+    </div>`;
+}
+
 function _frnCheckItem(key) {
   const { season, week } = franchise;
   if (!franchise._weeklyChecklist) franchise._weeklyChecklist = {};
@@ -3495,10 +3628,12 @@ function renderFrnRegular() {
     </div>`;
 
   // ─── Final composition ────────────────────────────────────────────────
+  const postGameHtml = _buildPostGameHeadline(chosenTeamId);
   $("frnHomeContent").innerHTML = `
     ${bannerHtml}
     ${quickNavHtml}
     ${alertStripHtml}
+    ${postGameHtml}
     <div class="frn-dashboard-grid">
       ${leftColHtml}
       <div>${centerHtml}</div>

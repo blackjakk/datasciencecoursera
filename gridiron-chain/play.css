@@ -1153,6 +1153,26 @@
     font-size: .57rem; color: var(--gray); white-space: nowrap; flex-shrink: 0;
   }
 
+  /* Post-game headline card */
+  .frn-postgame-headline {
+    border: 1px solid transparent; border-radius: 4px;
+    padding: .9rem 1.1rem; margin-bottom: .75rem;
+    border-left-width: 3px;
+  }
+  .frn-postgame-eyebrow {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: .4rem;
+  }
+  .frn-postgame-wl { font-weight: 900; font-size: .8rem; letter-spacing: .3px; }
+  .frn-postgame-hed {
+    font-size: 1.1rem; font-weight: 900; letter-spacing: .4px;
+    line-height: 1.25; margin-bottom: .45rem; text-transform: uppercase;
+    color: var(--blwhite);
+  }
+  .frn-postgame-blurb {
+    font-size: .73rem; color: var(--gray); line-height: 1.7;
+  }
+
   /* Compact row replay button */
   .frn-replay-btn {
     background: transparent; border: 1px solid var(--border);
