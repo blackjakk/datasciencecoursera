@@ -2443,6 +2443,16 @@ function _bspnRenderPage(data) {
   </div>`;
 }
 
+function renderFrnSnapShares() {
+  $("frnHomeContent").innerHTML = `
+    <div style="padding:1.5rem;color:var(--gray);font-size:.85rem">
+      <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="margin-bottom:1rem">← Back</button>
+      <div style="color:var(--gold);font-weight:700;font-size:1rem;margin-bottom:.5rem">⚡ Snap Percentages</div>
+      <div>Snap share management is coming in the next build phase. Use the Depth Chart to set your starters for now.</div>
+      <button class="btn btn-outline" onclick="renderFrnDepthChart()" style="margin-top:1rem">Open Depth Chart →</button>
+    </div>`;
+}
+
 function renderFrnPastGame(week, homeId, awayId) {
   frnHoverTipHide();
   _frnHoverTipPgHide();
@@ -2845,6 +2855,15 @@ function _buildMatchupStatsStrip(myId, oppId, myStand, oppStand, myRtg, oppRtg) 
   </div>`;
 }
 
+function _frnCheckItem(key) {
+  const { season, week } = franchise;
+  if (!franchise._weeklyChecklist) franchise._weeklyChecklist = {};
+  if (!franchise._weeklyChecklist[season]) franchise._weeklyChecklist[season] = {};
+  if (!franchise._weeklyChecklist[season][week]) franchise._weeklyChecklist[season][week] = {};
+  franchise._weeklyChecklist[season][week][key] = true;
+  _scheduleSaveFranchise();
+}
+
 function renderFrnRegular() {
   const { chosenTeamId, season, week, schedule, standings, seasonHighlights } = franchise;
   const myTeam  = getTeam(chosenTeamId);
@@ -2859,64 +2878,78 @@ function renderFrnRegular() {
   const recStr  = `${myStand.w}-${myStand.l}${myStand.t ? `-${myStand.t}` : ""}`;
   const myRtg   = frnTeamRating(chosenTeamId);
 
-  // ─── Team banner ───────────────────────────────────────────────────────
+  const myRoster = franchise.rosters[chosenTeamId] || [];
+
+  // ─── Cap ───────────────────────────────────────────────────────────────
   const cap = franchise.salaryCap || SALARY_CAP_BASE;
   const capUsed = capUsedByTeam(chosenTeamId);
   const capPct  = Math.round(capUsed / cap * 100);
   const capColor = capPct >= 95 ? "var(--red)" : capPct >= 85 ? "#e8a000" : "var(--green-lt)";
   const refundsInfo = refundsForTeam(chosenTeamId);
   const refundLine = (refundsInfo.outgoingTotal || refundsInfo.incomingTotal)
-    ? ` <span style="color:var(--gray);font-weight:400">·</span>${refundsInfo.outgoingTotal > 0
-        ? ` <span style="color:var(--red);font-size:.6rem">Fees out −$${refundsInfo.outgoingTotal.toFixed(1)}M/yr</span>` : ""}${refundsInfo.incomingTotal > 0
-        ? ` <span style="color:var(--green-lt);font-size:.6rem">Fees in +$${refundsInfo.incomingTotal.toFixed(1)}M/yr</span>` : ""}`
+    ? ` · ${refundsInfo.outgoingTotal > 0 ? `<span style="color:var(--red);font-size:.6rem">Fees −$${refundsInfo.outgoingTotal.toFixed(1)}M</span>` : ""}${refundsInfo.incomingTotal > 0 ? `<span style="color:var(--green-lt);font-size:.6rem">+$${refundsInfo.incomingTotal.toFixed(1)}M</span>` : ""}`
     : "";
 
-  // FA negotiations summary — banner button when active
+  // ─── FA negotiations ──────────────────────────────────────────────────
   const negs = franchise.faNegotiations || {};
   const activeNegs = Object.values(negs).filter(n => n.state === "negotiating");
   const myActiveNegs = activeNegs.filter(n => n.yourBid);
-  const outbidCount = myActiveNegs.filter(n => {
-    const high = _faNegCurrentHigh(n);
-    return high && !high.isYou;
-  }).length;
-  const faBtnHtml = activeNegs.length
-    ? `<button class="frn-cap-btn" onclick="renderFrnFANegotiations()" style="color:${outbidCount?'var(--red)':'var(--gold)'};border-color:${outbidCount?'var(--red)':'var(--gold)'}">
-        🆓 FA: ${activeNegs.length} active${outbidCount?` · ${outbidCount} outbid!`:""}
-      </button>`
-    : "";
-  // FA news banner — show signings/losses from last resolved week
-  const news = franchise._faLastNews;
-  const faNewsHtml = (news && news.week === week - 1 && (news.signed.length + news.lost.length)) ? `
-    <div class="frn-fa-news">
-      <b style="color:var(--gold)">📰 FA Wire (Week ${news.week}):</b>
-      ${news.signed.map(s => `<span style="color:var(--green-lt)">✓ Signed ${s.name} ($${s.aav.toFixed(1)}M)</span>`).join(" · ")}
-      ${news.lost.map(l => `<span style="color:#c08080">✗ Lost ${l.name}${l.reason?` (${l.reason})`:""}</span>`).join(" · ")}
-    </div>` : "";
-  // League news ticker: last 5 events from this season
-  const allNews = (franchise.news || []).filter(n => n.season === season).slice(-5).reverse();
-  const tickerHtml = allNews.length ? `
-    <div class="frn-news-ticker">
-      <span class="frn-ticker-label">📰 LEAGUE WIRE</span>
-      ${allNews.map(n => `<span class="frn-ticker-item">W${n.week}: ${n.label}</span>`).join(" ")}
-      <a href="javascript:void(0)" onclick="renderFrnNewsArchive()" style="color:var(--gold);font-weight:700;margin-left:auto;font-size:.62rem;text-decoration:none">Archive →</a>
-    </div>` : "";
-  // Active extension demands — surface as a banner alert with action buttons.
-  const demands = (franchise.holdoutDemands || []).filter(d => d.deadlineWeek >= franchise.week);
-  const demandsHtml = demands.length ? `
-    <div class="frn-fa-news" style="background:rgba(232,160,0,0.10);border:1px solid #e8a000">
-      <b style="color:#ffc850">📣 Extension demands (${demands.length}):</b>
-      ${demands.map(d => `
-        <span style="margin-left:.4rem">
-          ${d.position} ${playerLinkByName(d.name)} (~$${d.marketValue.toFixed(1)}M) —
-          extend by Wk ${d.deadlineWeek}
-          <button class="frn-cap-btn" style="margin-left:.2rem;color:var(--gold);border-color:var(--gold)"
-            onclick="frnExtendPlayer('${d.name.replace(/'/g, "\\'")}')">📝 Extend</button>
-        </span>`).join(" · ")}
-    </div>` : "";
-  const newsHtml = demandsHtml + faNewsHtml + tickerHtml;
+  const outbidCount  = myActiveNegs.filter(n => { const h = _faNegCurrentHigh(n); return h && !h.isYou; }).length;
 
+  // ─── Contextual data ──────────────────────────────────────────────────
+  const injured  = myRoster.filter(p => p.injury && p.injury.weeksRemaining > 0);
+  const demands  = (franchise.holdoutDemands || []).filter(d => d.deadlineWeek >= week);
+  const psAlerts = (franchise.psPoachAlerts || []).filter(a => a.ownerTeamId === chosenTeamId && a.deadlineWeek >= week).length;
+
+  // Form strip: last 5 results
+  const playedGames = myGames.filter(g => g.played).slice(-5);
+  const formStrip = playedGames.map(g => {
+    const isHome = g.homeId === chosenTeamId;
+    const my = isHome ? g.homeScore : g.awayScore;
+    const their = isHome ? g.awayScore : g.homeScore;
+    const r = my > their ? "W" : my < their ? "L" : "T";
+    const col = r === "W" ? "var(--green-lt)" : r === "L" ? "var(--red)" : "var(--gray)";
+    return `<span style="color:${col};font-weight:900">${r}</span>`;
+  }).join("<span style='color:var(--border)'>·</span>");
+
+  // Playoff position
+  const myPos    = sorted.findIndex(s => s.id === chosenTeamId) + 1;
+  const inPlayoffs = myPos > 0 && myPos <= PLAYOFF_TEAMS;
+  const leader   = sorted[0];
+  const gamesBack = leader && leader.id !== chosenTeamId
+    ? ((leader.w - myStand.w) - (myStand.l - leader.l)) / 2 : 0;
+  const playoffStr = inPlayoffs
+    ? `<span style="color:var(--green-lt);font-size:.6rem;font-weight:700">#${myPos} SEED · IN</span>`
+    : `<span style="color:var(--gray);font-size:.6rem">#${myPos} · ${gamesBack > 0 ? gamesBack.toFixed(1)+" GB" : "out"}</span>`;
+
+  // Snap/stamina conflicts
+  const dcLocal  = franchise.depthChart?.[chosenTeamId] || {};
+  const ssLocal  = franchise.snapShares?.[chosenTeamId] || {};
+  const byPidDash = {};
+  for (const p of myRoster) byPidDash[p.pid] = p;
+  let snapConflicts = 0;
+  for (const [key, slot] of Object.entries(dcLocal)) {
+    const starter = slot.starter ? byPidDash[slot.starter] : null;
+    const share   = ssLocal[key];
+    if (starter && share) {
+      const stam = starter._stamina ?? 75;
+      const pct  = share.starterPct ?? 75;
+      if ((pct > 80 && stam < 55) || (pct > 65 && stam < 65)) snapConflicts++;
+    }
+  }
+
+  // POTW
+  const potwSeason   = franchise.potw?.[season] || {};
+  const potwWks      = Object.keys(potwSeason).map(Number).sort((a,b) => b-a);
+  const latestPotwWk = potwWks[0];
+  const latestPotw   = latestPotwWk != null ? potwSeason[latestPotwWk] : null;
+  const candWeeks    = Object.keys(franchise.potwCandidates?.[season] || {}).map(Number).sort((a,b)=>b-a);
+  const votesByWeek  = franchise.potwVotes?.[season] || {};
+  const unvotedWeek  = candWeeks.find(w => !votesByWeek[w]);
+
+  // ─── Banner (compact, 3-zone) ─────────────────────────────────────────
   const bannerHtml = `
-    <div class="frn-team-banner" style="--banner-color:${myTeam.primary}">
+    <div class="frn-team-banner frn-dash-banner" style="--banner-color:${myTeam.primary}">
       <div class="frn-banner-stripe"></div>
       <div class="frn-banner-ascii">${teamAscii(myTeam)}</div>
       <div class="frn-banner-info">
@@ -2924,58 +2957,117 @@ function renderFrnRegular() {
         <div class="frn-banner-sub">
           Season ${season} · Week ${Math.min(week, FRANCHISE_WEEKS)} of ${FRANCHISE_WEEKS} ·
           PF ${myStand.pf} / PA ${myStand.pa} · OFF ${myRtg.off} · DEF ${myRtg.def}
+          ${playedGames.length ? ` · <span style="letter-spacing:.1rem">${formStrip}</span>` : ""}
         </div>
         <div class="frn-banner-cap" style="color:${capColor}">
           CAP $${capUsed.toFixed(1)}M / $${cap.toFixed(0)}M
-          <span style="color:var(--gray);font-weight:400"> · ${capPct}% used</span>${refundLine}
-          <button class="frn-cap-btn" onclick="renderFrnAnalytics('mysheet')">📊 Analytics</button>
-          <button class="frn-cap-btn" onclick="renderFrnDepthChart()">📋 Depth</button>
-          <button class="frn-cap-btn" onclick="renderFrnCoaches()">🎩 Coaches</button>
-          <button class="frn-cap-btn" onclick="renderFrnStandings()">📊 Standings</button>
-          <button class="frn-cap-btn" onclick="renderFrnLeaders()">📈 Leaders</button>
-          <button class="frn-cap-btn" onclick="renderFrnLegacy()">🏆 Legacy</button>
-          <button class="frn-cap-btn" onclick="renderFrnAlumni()">🎓 Alumni</button>
-          ${week <= TRADE_DEADLINE_WEEK ? `<button class="frn-cap-btn" onclick="frnOpenTrade()">🔀 Trade</button>` : ""}
-          <button class="frn-cap-btn" onclick="renderFrnChat()">💬 Chat${(() => {
-            const unread = (franchise.chat || []).filter(m => m.season === season && m.week === week && m.teamId !== chosenTeamId).length;
-            return unread ? ` (${unread})` : "";
-          })()}</button>
-          <button class="frn-cap-btn" onclick="renderFrnScrimmages()">🏟 Scrim</button>
-          <button class="frn-cap-btn" onclick="renderFrnNewsArchive()">📰 Wire</button>
-          ${(() => {
-            const injured = (franchise.rosters[chosenTeamId] || [])
-              .filter(p => p.injury && p.injury.weeksRemaining > 0).length;
-            const color = injured ? "color:#ff9090;border-color:#ff9090" : "";
-            return `<button class="frn-cap-btn" onclick="renderFrnInjuryReport()" style="${color}">🩹 Injuries${injured?` (${injured})`:""}</button>`;
-          })()}
-          <button class="frn-cap-btn" onclick="renderFrnProjectedFAs()">📅 Future FAs</button>
-          ${(() => {
-            const myId = chosenTeamId;
-            const alerts = (franchise.psPoachAlerts || []).filter(a => a.ownerTeamId === myId && a.deadlineWeek >= franchise.week).length;
-            const color = alerts ? "color:#ff9090;border-color:#ff9090" : "";
-            return `<button class="frn-cap-btn" onclick="renderFrnPracticeSquad()" style="${color}">🏈 PS${alerts?` ⚠️${alerts}`:""}</button>`;
-          })()}
-          <button class="frn-cap-btn" onclick="renderFrnCoachingStaff()">🎓 Coaches</button>
-          ${faBtnHtml}
+          <span style="color:var(--gray);font-weight:400">· ${capPct}% used</span>${refundLine}
         </div>
       </div>
-      <div>
+      <div style="text-align:right;flex-shrink:0">
         <div class="frn-banner-record">${recStr}</div>
         <div class="frn-banner-record-sub">RECORD</div>
+        <div style="margin-top:.3rem">${playoffStr}</div>
       </div>
-    </div>
-    ${newsHtml}`;
+    </div>`;
+
+  // ─── Quick nav (secondary actions, out of the way) ────────────────────
+  const quickNavHtml = `
+    <div class="frn-quick-nav">
+      <button class="frn-cap-btn" onclick="renderFrnAnalytics('mysheet')">📊 Analytics</button>
+      ${week <= TRADE_DEADLINE_WEEK ? `<button class="frn-cap-btn" onclick="frnOpenTrade()">🔀 Trade</button>` : ""}
+      <button class="frn-cap-btn" onclick="renderFrnChat()">💬 Chat${(()=>{ const u=(franchise.chat||[]).filter(m=>m.season===season&&m.week===week&&m.teamId!==chosenTeamId).length; return u?` (${u})`:""; })()}</button>
+      <button class="frn-cap-btn" onclick="renderFrnNewsArchive()">📰 Wire</button>
+      <button class="frn-cap-btn" onclick="renderFrnLegacy()">🏆 Legacy</button>
+      <button class="frn-cap-btn" onclick="renderFrnAlumni()">🎓 Alumni</button>
+      <button class="frn-cap-btn" onclick="renderFrnProjectedFAs()">📅 Future FAs</button>
+      <button class="frn-cap-btn ${psAlerts?"frn-cap-btn-alert":""}" onclick="renderFrnPracticeSquad()">🏈 Practice Squad${psAlerts?` ⚠${psAlerts}`:""}</button>
+      <button class="frn-cap-btn" onclick="renderFrnCoachingStaff()">🎩 Coaches</button>
+      <button class="frn-cap-btn" onclick="renderFrnStandings()">📊 Standings</button>
+      <button class="frn-cap-btn" onclick="renderFrnLeaders()">📈 Leaders</button>
+    </div>`;
+
+  // ─── Alert strip (urgent items only, above the grid) ─────────────────
+  const alerts = [];
+  const faNews = franchise._faLastNews;
+  if (faNews && faNews.week === week - 1 && (faNews.signed.length + faNews.lost.length)) {
+    alerts.push({ msg: `<b style="color:var(--gold)">📰 FA Wire W${faNews.week}:</b> ` +
+      faNews.signed.map(s=>`<span style="color:var(--green-lt)">✓ ${s.name} $${s.aav.toFixed(1)}M</span>`).join(" ") + " " +
+      faNews.lost.map(l=>`<span style="color:#c08080">✗ Lost ${l.name}</span>`).join(" ") });
+  }
+  demands.forEach(d => {
+    const esc = d.name.replace(/'/g,"\\'");
+    alerts.push({ urgent: true, msg: `<b style="color:#ffc850">📣 ${d.position} ${playerLinkByName(d.name)}</b> demands extension ~$${d.marketValue.toFixed(1)}M — Wk ${d.deadlineWeek} deadline <button class="frn-cap-btn" onclick="frnExtendPlayer('${esc}')" style="margin-left:.3rem">📝 Extend</button>` });
+  });
+  if (outbidCount) alerts.push({ urgent: true, msg: `<span style="color:var(--red)">⚡ Outbid on ${outbidCount} FA target${outbidCount>1?"s":""}!</span> <button class="frn-cap-btn" onclick="renderFrnFANegotiations()" style="color:var(--red);border-color:var(--red);margin-left:.3rem">View Bids</button>` });
+  const wireItems = (franchise.news||[]).filter(n=>n.season===season).slice(-4).reverse();
+  if (wireItems.length) alerts.push({ msg: `<span style="color:var(--gold);font-weight:700;font-size:.62rem;letter-spacing:.4px">WIRE</span> ${wireItems.map(n=>`<span style="color:var(--gray);font-size:.68rem">W${n.week}: ${n.label}</span>`).join(" · ")} <a href="javascript:void(0)" onclick="renderFrnNewsArchive()" style="color:var(--gold);font-size:.62rem;margin-left:auto;text-decoration:none">Archive →</a>` });
+  const alertStripHtml = alerts.length ? `
+    <div class="frn-alert-strip">
+      ${alerts.map(a=>`<div class="frn-alert-item${a.urgent?" urgent":""}">${a.msg}</div>`).join("")}
+    </div>` : "";
+
+  // ─── Weekly checklist ────────────────────────────────────────────────
+  const cl = franchise._weeklyChecklist?.[season]?.[week] || {};
+  const mkItem = (key, icon, label, sub, action, urgent=false) => {
+    const done = !!cl[key];
+    return `<div class="frn-checklist-item${done?" done":""}${urgent&&!done?" urgent":""}"
+      onclick="_frnCheckItem('${key}');${action}">
+      <span class="frn-check-icon">${done?"✓":"○"}</span>
+      <div class="frn-check-body">
+        <div class="frn-check-label">${icon} ${label}</div>
+        ${sub?`<div class="frn-check-sub">${sub}</div>`:""}
+      </div>
+      <span class="frn-check-arrow">›</span>
+    </div>`;
+  };
+  const oppId0   = nextGame ? (nextGame.homeId === chosenTeamId ? nextGame.awayId : nextGame.homeId) : null;
+  const oppName0 = oppId0 ? (getTeam(oppId0)?.name || "opponent") : "Bye week";
+  const checklistItems = [
+    mkItem("scout",    "🔍","Scout Opponent",    nextGame ? `vs ${oppName0}` : "Bye week",                           `renderFrnPreseason('scout')`),
+    mkItem("depth",    "📋","Depth Chart",        "Set your starters",                                                 `renderFrnDepthChart()`),
+    mkItem("snaps",    "⚡","Snap Percentages",   snapConflicts ? `⚠ ${snapConflicts} stamina conflict${snapConflicts>1?"s":""}` : "Optimize rotations", `renderFrnSnapShares()`, snapConflicts > 0),
+    mkItem("practice", "🏟","Scrimmage",          "Run a joint practice",                                              `renderFrnScrimmages()`),
+    mkItem("injuries", "🩹","Injury Report",      injured.length ? `${injured.length} player${injured.length>1?"s":""} out` : "All clear", `renderFrnInjuryReport()`, injured.length > 0),
+    ...(activeNegs.length ? [mkItem("fa","🆓","FA Negotiations",`${activeNegs.length} active${outbidCount?` · ${outbidCount} outbid!`:""}`,`renderFrnFANegotiations()`,outbidCount>0)] : []),
+    ...(demands.length ? [mkItem("extensions","📝","Extension Demands",`${demands.length} pending`,`renderFrnAnalytics('extensions')`,true)] : []),
+    ...(week <= TRADE_DEADLINE_WEEK ? [mkItem("trade","🔀","Trade Window",`Open until Wk ${TRADE_DEADLINE_WEEK}`,`frnOpenTrade()`)] : []),
+    ...(unvotedWeek!=null ? [mkItem("potw","🗳","POTW Vote",`Week ${unvotedWeek} candidates ready`,`renderPotwVoting(${unvotedWeek})`)] : []),
+  ];
+  const doneCount = checklistItems.filter(s => s.includes('class="frn-checklist-item done')).length;
+
+  // ─── Unit bars ────────────────────────────────────────────────────────
+  const ratings = buildRatings(myRoster);
+  const unitRows = [
+    ["QB", ratings.qb || Math.round(myRtg.off*.9)],
+    ["WR", ratings.wr], ["RB", ratings.rb], ["OL", ratings.ol], ["TE", ratings.te||70],
+    ["DL", ratings.dl], ["LB", ratings.lb], ["CB", ratings.cb], ["S", ratings.saf],
+  ].map(([lbl, raw]) => {
+    const val = Math.round(raw || 0);
+    const pct = Math.round(Math.max(0, Math.min(100, (val - 50) / 49 * 100)));
+    const col = val >= 82 ? "var(--green-lt)" : val >= 72 ? "var(--gold-lt)" : val >= 62 ? "var(--gray)" : "var(--red)";
+    return `<div class="frn-unit-bar-row">
+      <span class="frn-unit-bar-label">${lbl}</span>
+      <div class="frn-unit-bar-track"><div class="frn-unit-bar-fill" style="width:${pct}%;background:${col}"></div></div>
+      <span class="frn-unit-bar-val" style="color:${col}">${val}</span>
+    </div>`;
+  }).join("");
+
+  // ─── Left column: checklist + unit bars ──────────────────────────────
+  const leftColHtml = `
+    <div>
+      <div class="frn-card-box" style="padding:0">
+        <div class="frn-card-title" style="padding:.5rem .7rem">WEEK ${week} TASKS <span class="frn-card-title-sub">${doneCount}/${checklistItems.length} done</span></div>
+        <div class="frn-checklist">${checklistItems.join("")}</div>
+      </div>
+      <div class="frn-card-box" style="margin-top:1rem">
+        <div class="frn-card-title">UNIT RATINGS</div>
+        ${unitRows}
+      </div>
+    </div>`;
 
   // ─── Next-game card ────────────────────────────────────────────────────
   let nextCardHtml = "";
-  // Week-review interstitial comes first — once all 16 games this week
-  // are done, the user must explicitly advance before seeing the next
-  // game card.
-  // `nextGame` is the user's next *unplayed* game across the whole
-  // schedule — on a bye week or after they've already played, that's
-  // in a future week. Only treat it as "this week's matchup" when its
-  // .week matches the current week, otherwise fall through to the
-  // "your game is done — finalize the week" prompt.
   const nextGameIsThisWeek = nextGame && nextGame.week === week;
   if (franchise.weekPending && !seasonDone) {
     nextCardHtml = _buildWeekReviewCard(week, chosenTeamId);
@@ -3046,7 +3138,12 @@ function renderFrnRegular() {
       </div>`;
   }
 
-  // ─── Schedule list ─────────────────────────────────────────────────────
+  // ─── Center column: next game + schedule ─────────────────────────────
+  const centerHtml = `
+    ${nextCardHtml}
+    <div class="frn-card-box" style="margin-top:1rem">
+      <div class="frn-card-title">MY SCHEDULE <span class="frn-card-title-sub">${FRANCHISE_WEEKS} games</span></div>
+      ${(()=>{
   const schHtml = myGames.map(g => {
     const isHome = g.homeId === chosenTeamId;
     const oppId  = isHome ? g.awayId : g.homeId;
@@ -3077,8 +3174,11 @@ function renderFrnRegular() {
       ${isNext ? `<span class="frn-res" style="color:var(--gold)">NEXT</span>` : ""}
     </div>`;
   }).join("");
+  return schHtml;
+      })()}
+    </div>`;
 
-  // ─── Standings ─────────────────────────────────────────────────────────
+  // ─── Sidebar: standings + leaders + highlights + POTW ────────────────
   const standHtml = sorted.slice(0, 14).map((s, i) => {
     const isMine   = s.id === chosenTeamId;
     const playoff  = i < PLAYOFF_TEAMS;
@@ -3092,109 +3192,93 @@ function renderFrnRegular() {
     </div>`;
   }).join("");
 
-  // ─── Team leaders ──────────────────────────────────────────────────────
+  // ─── Sidebar: standings + leaders + highlights + POTW ────────────────
   const leaders = frnTeamLeaders(chosenTeamId);
   const leadersHtml = leaders.length ? leaders.map(l => `
     <div class="frn-leader-row">
       <span class="frn-leader-cat">${l.cat}</span>
       <span class="frn-leader-name">${playerLinkByName(l.name)}</span>
       <span class="frn-leader-stat">${l.stat}</span>
-    </div>`).join("") : `<div style="color:var(--gray);font-size:.72rem;padding:.5rem 0">Play games to see season leaders.</div>`;
+    </div>`).join("") : `<div style="color:var(--gray);font-size:.72rem;padding:.5rem 0">Play games to see leaders.</div>`;
 
-  // ─── Recent highlights (user's team) ───────────────────────────────────
   const myHL = (seasonHighlights || [])
     .filter(h => h.homeId === chosenTeamId || h.awayId === chosenTeamId)
-    .sort((a, b) => b.weight - a.weight)
-    .slice(0, 6);
+    .sort((a, b) => b.weight - a.weight).slice(0, 5);
   const hlHtml = myHL.length ? myHL.map(h => `
     <div class="frn-hl-row">
       <span class="frn-hl-tag ${h.isPlayoff ? "playoff" : ""}">${h.week}</span>
       <span class="frn-hl-label">${h.label}</span>
-      ${h.isClutch ? `<span class="frn-hl-clutch">⚡CLUTCH</span>` : ""}
-    </div>`).join("") : `<div style="color:var(--gray);font-size:.72rem;padding:.5rem 0">Highlights show up as you play. ⚡ clutch tags mark Q4 close-game plays.</div>`;
+      ${h.isClutch ? `<span class="frn-hl-clutch">⚡</span>` : ""}
+    </div>`).join("") : `<div style="color:var(--gray);font-size:.72rem;padding:.5rem 0">Highlights appear as you play.</div>`;
 
-  // ─── Player of the Week ─────────────────────────────────────────────────
-  const potwSeason = franchise.potw?.[franchise.season] || {};
-  const potwWeeks = Object.keys(potwSeason).map(Number).sort((a, b) => b - a);
-  const latestPotwWeek = potwWeeks[0];
-  const latestPotw = latestPotwWeek != null ? potwSeason[latestPotwWeek] : null;
-  // Detect unvoted candidate weeks so we can surface the VOTE NOW CTA
-  const candWeeks = Object.keys(franchise.potwCandidates?.[franchise.season] || {}).map(Number).sort((a,b)=>b-a);
-  const votesByWeek = franchise.potwVotes?.[franchise.season] || {};
-  const unvotedWeek = candWeeks.find(w => !votesByWeek[w]);
-  const potwRow = (label, entry, isVoted) => {
+  const potwRowFn = (label, entry) => {
     if (!entry) return "";
     const isMine = entry.teamId === chosenTeamId;
-    return `<div class="frn-leader-row" style="${isMine ? "background:rgba(245,197,66,0.08)" : ""}">
-      <span class="frn-leader-cat" style="width:2.4rem;font-size:.58rem">${label}</span>
-      <span class="frn-leader-name" style="font-weight:${isMine?900:600}">
-        ${playerLinkByName(entry.name)}
-        <span style="color:${entry.teamPrimary};font-size:.6rem;margin-left:.3rem">${entry.teamAbbr}</span>
-        <span style="color:var(--gray);font-size:.58rem;margin-left:.25rem">${entry.pos}</span>
-        ${isVoted && votesByWeek[latestPotwWeek]?.[label.toLowerCase()] === entry.name ? `<span style="color:var(--gold);font-size:.55rem;margin-left:.25rem">✓</span>` : ""}
+    return `<div class="frn-leader-row" style="${isMine?"background:rgba(245,197,66,0.08)":""}">
+      <span class="frn-leader-cat" style="width:2rem;font-size:.58rem">${label}</span>
+      <span class="frn-leader-name">${playerLinkByName(entry.name)}
+        <span style="color:${entry.teamPrimary};font-size:.58rem;margin-left:.25rem">${entry.teamAbbr}</span>
       </span>
-      <span class="frn-leader-stat" style="font-size:.65rem;color:var(--gray)">${entry.statLine}</span>
+      <span class="frn-leader-stat" style="font-size:.62rem;color:var(--gray)">${entry.statLine}</span>
     </div>`;
   };
   const potwRoundLabel = w => {
     if (w <= FRANCHISE_WEEKS) return `WEEK ${w}`;
     const ri = w - FRANCHISE_WEEKS - 1;
-    return ["WILD CARD","DIVISIONAL","CHAMPIONSHIP"][ri] || `PLAYOFF R${ri+1}`;
+    return ["WILD CARD","DIVISIONAL","CHAMPIONSHIP"][ri] || `R${ri+1}`;
   };
-  const isLatestVoted = latestPotwWeek != null && !!votesByWeek[latestPotwWeek];
+  const isLatestVoted = latestPotwWk != null && !!votesByWeek[latestPotwWk];
   const potwHtml = latestPotw ? `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.3rem">
-      <span style="color:var(--gray);font-size:.6rem;letter-spacing:.5px">${potwRoundLabel(latestPotwWeek)} WINNERS${isLatestVoted ? " · <span style='color:var(--gold)'>VOTED</span>" : ""}</span>
-      ${unvotedWeek != null ? `<button class="frn-cap-btn" onclick="renderPotwVoting(${unvotedWeek})" style="padding:.2rem .6rem;font-size:.6rem;letter-spacing:.8px;background:var(--gold);color:#000;font-weight:900;border:0">🗳 VOTE${unvotedWeek <= FRANCHISE_WEEKS ? " W"+unvotedWeek : " "+potwRoundLabel(unvotedWeek)}</button>` : ""}
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">
+      <span style="color:var(--gray);font-size:.6rem">${potwRoundLabel(latestPotwWk)}</span>
+      ${unvotedWeek!=null?`<button class="frn-cap-btn" onclick="renderPotwVoting(${unvotedWeek})" style="background:var(--gold);color:#000;font-weight:900;border:0;font-size:.6rem">🗳 VOTE W${unvotedWeek}</button>`:""}
     </div>
-    ${potwRow("OFF", latestPotw.offense, isLatestVoted)}
-    ${potwRow("DEF", latestPotw.defense, isLatestVoted)}
-    ${potwRow("OL",  latestPotw.ol, isLatestVoted)}
-    ${potwRow("ST",  latestPotw.specialTeams, isLatestVoted)}
-  ` : unvotedWeek != null ? `<div style="padding:.5rem 0">
-    <button class="frn-cap-btn" onclick="renderPotwVoting(${unvotedWeek})" style="padding:.35rem .9rem;font-size:.7rem;letter-spacing:.8px;background:var(--gold);color:#000;font-weight:900;border:0">🗳 VOTE — WEEK ${unvotedWeek} CANDIDATES READY</button>
-  </div>` : `<div style="color:var(--gray);font-size:.72rem;padding:.5rem 0">Player of the Week is awarded after each simmed week.</div>`;
+    ${potwRowFn("OFF",latestPotw.offense)}${potwRowFn("DEF",latestPotw.defense)}${potwRowFn("OL",latestPotw.ol)}${potwRowFn("ST",latestPotw.specialTeams)}
+  ` : unvotedWeek!=null ? `<button class="frn-cap-btn" onclick="renderPotwVoting(${unvotedWeek})" style="padding:.35rem .9rem;font-size:.7rem;background:var(--gold);color:#000;font-weight:900;border:0">🗳 VOTE — WEEK ${unvotedWeek} READY</button>`
+    : `<div style="color:var(--gray);font-size:.72rem;padding:.3rem 0">Awarded each week.</div>`;
 
-  // ─── Final composition ─────────────────────────────────────────────────
-  $("frnHomeContent").innerHTML = `
-    ${bannerHtml}
-    ${nextCardHtml}
-    <div class="frn-dash-grid">
+  const sidebarHtml = `
+    <div style="display:flex;flex-direction:column;gap:1rem">
       <div class="frn-card-box">
-        <div class="frn-card-title">MY SCHEDULE <span class="frn-card-title-sub">14 games</span></div>
-        ${schHtml}
-      </div>
-      <div class="frn-card-box">
-        <div class="frn-card-title">LEAGUE STANDINGS <span class="frn-card-title-sub">top ${PLAYOFF_TEAMS} → playoffs</span></div>
+        <div class="frn-card-title">STANDINGS <span class="frn-card-title-sub">top ${PLAYOFF_TEAMS} → playoffs</span></div>
         ${standHtml}
+        <button class="frn-cap-btn" onclick="renderFrnStandings()" style="margin-top:.5rem;font-size:.6rem">Full Standings →</button>
       </div>
-    </div>
-    <div class="frn-dash-grid">
       <div class="frn-card-box">
-        <div class="frn-card-title">${myTeam.name.toUpperCase()} TEAM LEADERS</div>
+        <div class="frn-card-title">${myTeam.name.toUpperCase()} LEADERS</div>
         ${leadersHtml}
+        <button class="frn-cap-btn" onclick="renderFrnLeaders()" style="margin-top:.5rem;font-size:.6rem">Full Leaders →</button>
       </div>
       <div class="frn-card-box">
-        <div class="frn-card-title">RECENT HIGHLIGHTS</div>
+        <div class="frn-card-title">HIGHLIGHTS</div>
         ${hlHtml}
       </div>
-    </div>
-    <div class="frn-dash-grid">
       <div class="frn-card-box">
         <div class="frn-card-title">PLAYER OF THE WEEK</div>
         ${potwHtml}
       </div>
+    </div>`;
+
+  // ─── Final composition ────────────────────────────────────────────────
+  $("frnHomeContent").innerHTML = `
+    ${bannerHtml}
+    ${quickNavHtml}
+    ${alertStripHtml}
+    <div class="frn-dashboard-grid">
+      ${leftColHtml}
+      <div>${centerHtml}</div>
+      ${sidebarHtml}
     </div>
     <div class="frn-footer-row">
       <div class="frn-footer-info">${(() => {
-        if (_saveLastError && _saveLastError.startsWith("idb-only")) return `<span style="color:#e8a000">ℹ Save running from IndexedDB only (localStorage too small at ${_saveLastError.split(":")[1]}). Your data is safe.</span>`;
+        if (_saveLastError?.startsWith("idb-only")) return `<span style="color:#e8a000">ℹ Save in IndexedDB only (localStorage full). Data is safe.</span>`;
         if (_saveLastError) return `<span style="color:#ff7070">⚠ Save error: ${_saveLastError}</span>`;
         const mb = (_saveLastSize / 1024 / 1024).toFixed(2);
-        return `Auto-saved to IndexedDB + localStorage · ${mb}MB cache · Reload to keep playing`;
+        return `Auto-saved · ${mb}MB · Reload to keep playing`;
       })()}</div>
-      <button class="btn btn-outline" onclick="frnExportSave()" style="font-size:.62rem;color:var(--gray)" title="Download a backup .json file of your franchise">⬇ Export</button>
-      <button class="btn btn-outline" onclick="frnImportSave()" style="font-size:.62rem;color:var(--gray)" title="Replace current franchise with a previously exported .json">⬆ Import</button>
-      <button class="btn btn-outline frn-abandon-btn" onclick="frnAbandon()">× Abandon Franchise</button>
+      <button class="btn btn-outline" onclick="frnExportSave()" style="font-size:.62rem;color:var(--gray)" title="Download backup .json">⬇ Export</button>
+      <button class="btn btn-outline" onclick="frnImportSave()" style="font-size:.62rem;color:var(--gray)" title="Restore from .json">⬆ Import</button>
+      <button class="btn btn-outline frn-abandon-btn" onclick="frnAbandon()">× Abandon</button>
     </div>`;
 }
 

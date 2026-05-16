@@ -3946,3 +3946,51 @@
     display: block; color: var(--bspn-gray); font-size: .56rem;
     letter-spacing: 2.5px; margin-top: .25rem; font-weight: 600;
   }
+
+  /* ── Weekly Dashboard redesign ──────────────────────────────────────────── */
+  .frn-dashboard-grid {
+    display: grid;
+    grid-template-columns: 210px 1fr 210px;
+    gap: 1rem;
+    align-items: start;
+  }
+  @media (max-width: 900px) { .frn-dashboard-grid { grid-template-columns: 1fr; } }
+
+  .frn-quick-nav { display: flex; flex-wrap: wrap; gap: .3rem; margin-bottom: .55rem; }
+
+  .frn-alert-strip { display: flex; flex-direction: column; gap: .3rem; margin-bottom: .65rem; }
+  .frn-alert-item {
+    background: rgba(200,169,0,.07); border: 1px solid rgba(200,169,0,.2);
+    padding: .35rem .7rem; font-size: .7rem;
+    display: flex; align-items: center; gap: .4rem; flex-wrap: wrap;
+  }
+  .frn-alert-item.urgent { background: rgba(220,50,50,.07); border-color: rgba(220,50,50,.3); }
+
+  .frn-checklist { border: 1px solid var(--border); }
+  .frn-checklist-item {
+    display: flex; align-items: flex-start; gap: .5rem;
+    padding: .5rem .55rem; cursor: pointer;
+    border-left: 3px solid transparent;
+    border-bottom: 1px solid var(--border);
+    transition: background .1s, border-color .1s;
+  }
+  .frn-checklist-item:last-child { border-bottom: none; }
+  .frn-checklist-item:hover { background: rgba(200,169,0,.06); border-left-color: var(--gold); }
+  .frn-checklist-item.done { opacity: .4; }
+  .frn-checklist-item.done .frn-check-icon { color: var(--green-lt); }
+  .frn-checklist-item.urgent { border-left-color: var(--red); }
+  .frn-checklist-item.urgent .frn-check-label { color: #ff9090; }
+  .frn-check-icon { font-size: .78rem; color: var(--gold); width: 1em; flex-shrink: 0; margin-top: .12rem; }
+  .frn-check-body { flex: 1; min-width: 0; }
+  .frn-check-label { font-size: .72rem; font-weight: 700; }
+  .frn-check-sub { font-size: .59rem; color: var(--gray); margin-top: .05rem; }
+  .frn-check-arrow { color: var(--gold); font-size: .85rem; flex-shrink: 0; align-self: center; opacity: .6; }
+
+  .frn-unit-bar-row { display: flex; align-items: center; gap: .35rem; padding: .2rem 0; }
+  .frn-unit-bar-track { flex: 1; height: 4px; background: rgba(255,255,255,.1); border-radius: 2px; overflow: hidden; }
+  .frn-unit-bar-fill { height: 100%; border-radius: 2px; }
+  .frn-unit-bar-label { width: 2ch; color: var(--gray); font-size: .62rem; flex-shrink: 0; }
+  .frn-unit-bar-val { width: 2ch; text-align: right; font-size: .62rem; font-weight: 700; flex-shrink: 0; }
+
+  .frn-cap-btn-alert { color: var(--red) !important; border-color: var(--red) !important; }
+  .frn-dash-banner { margin-bottom: .5rem !important; }
