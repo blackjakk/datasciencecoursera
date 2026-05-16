@@ -424,7 +424,8 @@ function renderFrnChat() {
 function playerLink(p) {
   if (!p) return "";
   const escName = String(p.name || "").replace(/"/g, "&quot;");
-  return `<span class="frn-pname" data-player-name="${escName}">${p.name}</span>`;
+  const pidAttr = p.pid ? ` data-player-pid="${p.pid}"` : "";
+  return `<span class="frn-pname" data-player-name="${escName}"${pidAttr}>${p.name}</span>`;
 }
 function playerLinkByName(name) {
   if (!name) return "";
@@ -437,10 +438,21 @@ function teamLink(team, full) {
   return `<span class="frn-tname" data-team-id="${team.id}">${label}</span>`;
 }
 
-// Locate a player by name across all rosters (for tooltips/detail).
-function _findPlayer(name) {
+// Locate a player by pid (preferred — collision-proof) or by name.
+function _findPlayerByPid(pid) {
+  if (!pid) return null;
   for (const roster of Object.values(franchise?.rosters || {})) {
-    const p = roster.find(rp => rp.name === name);
+    const p = roster.find(rp => rp.pid === pid);
+    if (p) return p;
+  }
+  return null;
+}
+function _findPlayer(nameOrPid, pid) {
+  // Try pid first so same-name players on different teams never collide.
+  const byPid = _findPlayerByPid(pid);
+  if (byPid) return byPid;
+  for (const roster of Object.values(franchise?.rosters || {})) {
+    const p = roster.find(rp => rp.name === nameOrPid);
     if (p) return p;
   }
   return null;
@@ -481,8 +493,8 @@ function _playerPortrait(p, size) {
     onerror="${onErr}">`;
 }
 
-function frnPlayerTipShow(anchorEl, name) {
-  const p = _findPlayer(name);
+function frnPlayerTipShow(anchorEl, name, pid) {
+  const p = _findPlayer(name, pid);
   if (!p) return;
   const team = _findPlayerTeam(p);
   const tip = _getHoverTip();
@@ -618,8 +630,8 @@ function frnHoverTipHide() {
 // Player click opens a modal overlay anchored at the dashboard — no
 // page-swap, no phase mutation. Closing returns you to whatever
 // screen you were already on.
-function frnOpenPlayerCard(name) {
-  const p = _findPlayer(name);
+function frnOpenPlayerCard(name, pid) {
+  const p = _findPlayer(name, pid);
   if (!p) return;
   frnHoverTipHide();
   frnClosePlayerModal();
@@ -639,7 +651,8 @@ function frnOpenPlayerCard(name) {
   // One-shot compare: this button opens the dedicated compare modal
   // pre-populated with this player on the left and a position-filtered
   // picker on the right. No hidden multi-step state.
-  const compareTag = `<button class="frn-pcard-yrbtn" style="margin-right:.4rem" onclick="frnSelectForCompare('${name.replace(/'/g, "\\'")}')">⚖ Compare</button>`;
+  const escapedPid = (p.pid || "").replace(/'/g, "\\'");
+  const compareTag = `<button class="frn-pcard-yrbtn" style="margin-right:.4rem" onclick="frnSelectForCompare('${name.replace(/'/g, "\\'")}','${escapedPid}')">⚖ Compare</button>`;
   overlay.innerHTML = `
     <div class="frn-pcard-overlay-inner">
       <div style="position:absolute;top:.3rem;right:2.2rem;z-index:3">${compareTag}</div>
@@ -672,11 +685,11 @@ function frnCloseCompareModal() {
 // for player B on the right. No hidden multi-step state, no navigating
 // away to find the second player. Pick from the dropdown (filtered by
 // position by default), the right side fills in with the detail panel.
-function frnSelectForCompare(name) {
-  frnOpenCompareModal(name, null);
+function frnSelectForCompare(name, pid) {
+  frnOpenCompareModal(name, null, pid);
 }
-function frnOpenCompareModal(nameA, nameB) {
-  const pA = _findPlayer(nameA);
+function frnOpenCompareModal(nameA, nameB, pidA) {
+  const pA = _findPlayer(nameA, pidA);
   if (!pA) return;
   frnCloseCompareModal();
   const overlay = document.createElement("div");
@@ -810,7 +823,7 @@ function _frnInstallHoverDelegation() {
   document.addEventListener("mouseover", e => {
     const el = e.target.closest?.("[data-player-name],[data-team-id]");
     if (!el) return;
-    if (el.dataset.playerName) frnPlayerTipShow(el, el.dataset.playerName);
+    if (el.dataset.playerName) frnPlayerTipShow(el, el.dataset.playerName, el.dataset.playerPid);
     else if (el.dataset.teamId) frnTeamTipShow2(el, el.dataset.teamId);
   });
   document.addEventListener("mouseout", e => {
@@ -832,7 +845,7 @@ function _frnInstallHoverDelegation() {
     if (el.parentElement?.closest("[onclick]")) return;
     if (el.dataset.playerName) {
       e.preventDefault(); e.stopPropagation();
-      frnOpenPlayerCard(el.dataset.playerName);
+      frnOpenPlayerCard(el.dataset.playerName, el.dataset.playerPid);
     } else if (el.dataset.teamId) {
       e.preventDefault(); e.stopPropagation();
       frnOpenTeamCard(el.dataset.teamId);
@@ -1761,8 +1774,9 @@ function renderFrnDepthChart() {
         ? `<span class="frn-depth-injured">🩹 ${pl.injury.weeksRemaining}w</span>` : "";
       const blockTag = pl.onTradeBlock
         ? `<span class="frn-depth-block">●BLK</span>` : "";
+      const escPid = (pl.pid || "").replace(/'/g, "\\'");
       return `<div class="frn-depth-slot ${isStarter?'starter':''}"
-        onclick="frnOpenPlayerCard('${escName}')">
+        onclick="frnOpenPlayerCard('${escName}','${escPid}')">
         <div class="frn-depth-slot-num">${isStarter ? "★ ST" : "#"+(i+1)}</div>
         <div class="frn-depth-slot-name">${pl.name}</div>
         <div class="frn-depth-slot-meta">
