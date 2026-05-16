@@ -232,7 +232,7 @@ class GameSimulator {
     for (const [side, olArr] of [["home", this.homeOL], ["away", this.awayOL]]) {
       for (const p of olArr || []) {
         if (p?.name && !this.stats[side].players[p.name])
-          this.stats[side].players[p.name] = { name: p.name, pos: p.subPos || "OL", ...this._emptyLine() };
+          this.stats[side].players[p.name] = { name: p.name, pos: p.subPos || "OL", pid: p.pid || null, ...this._emptyLine() };
       }
     }
     this._lastBallCarrier = null; // who got the ball on the last positive play
@@ -318,7 +318,10 @@ class GameSimulator {
   _ensurePlayerStat(side, name, pos) {
     if (!name) return;
     const players = this.stats[side].players;
-    if (!players[name]) players[name] = { name, pos, ...this._emptyLine() };
+    if (!players[name]) {
+      const pid = this._playerByName?.get(name)?.pid || null;
+      players[name] = { name, pos, pid, ...this._emptyLine() };
+    }
   }
   _touchesFor(side, name) {
     const line = this.stats[side].players[name];
@@ -365,7 +368,7 @@ class GameSimulator {
 
   _buildTeamStats(starters) {
     const players = {};
-    const add = (name, pos) => { if (name && !players[name]) players[name] = { name, pos, ...this._emptyLine() }; };
+    const add = (name, pos) => { if (name && !players[name]) { const pid = this._playerByName?.get(name)?.pid || null; players[name] = { name, pos, pid, ...this._emptyLine() }; } };
     add(starters.qb, "QB");
     add(starters.rb, "RB");
     add(starters.wr1, "WR");

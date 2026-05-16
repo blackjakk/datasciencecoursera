@@ -97,7 +97,7 @@ function renderFrnProjectedFAs(sort) {
     const tm = getTeam(p._teamId);
     return `<tr>
       <td style="color:var(--gold);font-size:.62rem">${p.position}</td>
-      <td style="font-weight:700">${playerLinkByName(p.name)}</td>
+      <td style="font-weight:700">${playerLink(p)}</td>
       <td>${gradeBadge(p)}</td>
       <td style="color:var(--gray)">${p.age||"?"}</td>
       <td style="color:var(--gray);font-size:.62rem">${draftStr(p)}</td>
@@ -207,7 +207,7 @@ function _renderPSMyTab(myId, ps, alerts) {
     const escName = (p.name || "").replace(/\\/g,"\\\\").replace(/'/g,"\\'");
     return `<tr>
       <td style="color:var(--gold);font-size:.62rem">${p.position}</td>
-      <td style="font-weight:700">${playerLinkByName(p.name)} ${tag}</td>
+      <td style="font-weight:700">${playerLink(p)} ${tag}</td>
       <td>${gradeBadge(p)}</td>
       <td style="color:var(--gray)">${p.age||"?"}</td>
       <td style="color:var(--gray);font-size:.62rem">${draftStr(p)}</td>
@@ -344,7 +344,7 @@ function renderFrnInjuryReport() {
     .filter(x => x.injured.length);
   const rowHtml = (p, opp) => `
     <tr>
-      <td style="font-weight:700">${playerLinkByName(p.name)}</td>
+      <td style="font-weight:700">${playerLink(p)}</td>
       <td style="color:var(--gray)">${p.position}</td>
       <td style="color:var(--gray)">${p.age||"?"}</td>
       <td style="color:#ff9090">🩹 ${_bspnEsc(p.injury.label||"Injury")}</td>
@@ -431,6 +431,13 @@ function playerLinkByName(name) {
   if (!name) return "";
   const escName = String(name).replace(/"/g, "&quot;");
   return `<span class="frn-pname" data-player-name="${escName}">${name}</span>`;
+}
+// Prefer a live-player lookup so pid is embedded for collision-free hover.
+// Falls back to name-only link for retired / historical players not on any roster.
+function _playerLinkSmart(name) {
+  if (!name) return "";
+  const live = _findPlayer(name);
+  return live ? playerLink(live) : playerLinkByName(name);
 }
 function teamLink(team, full) {
   if (!team) return "";
@@ -1232,7 +1239,7 @@ function renderFrnLeaders(tab) {
     return `<tr ${isMine ? `style="background:rgba(245,197,66,0.08)"` : ""}>
       <td style="color:var(--blgold);font-weight:900;width:2rem;text-align:center;font-family:'Bebas Neue','Anton',sans-serif;font-size:1.1rem">${i + 1}</td>
       <td>
-        <span style="font-family:'Bebas Neue','Anton',sans-serif;letter-spacing:1px;font-size:1rem;color:${isMine?"var(--blgold)":"var(--blwhite)"}">${playerLinkByName(r.name)}</span>
+        <span style="font-family:'Bebas Neue','Anton',sans-serif;letter-spacing:1px;font-size:1rem;color:${isMine?"var(--blgold)":"var(--blwhite)"}">${_playerLinkSmart(r.name)}</span>
         <span style="color:${r._team.primary};font-weight:700;margin-left:.45rem;font-size:.7rem">${r._team.abbr || r._team.name.slice(0,3).toUpperCase()}</span>
         <span style="color:var(--blgray);font-size:.6rem;margin-left:.4rem">${r.pos}</span>
       </td>
@@ -1334,8 +1341,8 @@ function _legacyChampions() {
       return `<tr>
         <td style="color:var(--gold);font-weight:700">S${h.season}</td>
         <td style="font-weight:700">${champTeam ? teamLink(champTeam) : "?"}</td>
-        <td>${h.leagueMVP ? playerLinkByName(h.leagueMVP.name) + ` <span style="color:var(--gray);font-size:.62rem">(${h.leagueMVP.pos})</span>` : "—"}</td>
-        <td>${h.superBowlMVP ? playerLinkByName(h.superBowlMVP.name) : "—"}</td>
+        <td>${h.leagueMVP ? _playerLinkSmart(h.leagueMVP.name) + ` <span style="color:var(--gray);font-size:.62rem">(${h.leagueMVP.pos})</span>` : "—"}</td>
+        <td>${h.superBowlMVP ? _playerLinkSmart(h.superBowlMVP.name) : "—"}</td>
         <td style="color:var(--gray);font-size:.66rem">${hc?.name || "—"}</td>
       </tr>`;
     }).join("")}
@@ -1416,7 +1423,7 @@ function _legacyCareer() {
         <thead><tr><th>#</th><th>Player</th><th>${c.label}</th></tr></thead>
         <tbody>${list.map((p,i) => `<tr>
           <td style="color:var(--gold)">${i+1}</td>
-          <td>${playerLinkByName(p.name)} ${p.isHOF?'<span style="color:var(--gold);font-size:.55rem">🏛</span>':''} <span style="color:var(--gray);font-size:.6rem">(${p.pos})</span></td>
+          <td>${_playerLinkSmart(p.name)} ${p.isHOF?'<span style="color:var(--gold);font-size:.55rem">🏛</span>':''} <span style="color:var(--gray);font-size:.6rem">(${p.pos})</span></td>
           <td style="color:var(--gold-lt);font-weight:700">${p.careerStats[c.key] || 0}</td>
         </tr>`).join("")}</tbody>
       </table>
@@ -1462,7 +1469,7 @@ function _legacySeason() {
         <thead><tr><th>#</th><th>Player</th><th>Season</th><th>Team</th><th>${c.label.split(" (")[0]}</th></tr></thead>
         <tbody>${list.map((r,i) => `<tr>
           <td style="color:var(--gold)">${i+1}</td>
-          <td>${playerLinkByName(r.name)} <span style="color:var(--gray);font-size:.6rem">(${r.pos})</span></td>
+          <td>${_playerLinkSmart(r.name)} <span style="color:var(--gray);font-size:.6rem">(${r.pos})</span></td>
           <td>S${r.season}</td>
           <td style="color:var(--gray);font-size:.66rem">${r.teamName || "—"}</td>
           <td style="color:var(--gold-lt);font-weight:700">${r[c.key] || 0}</td>
@@ -1487,7 +1494,7 @@ function _legacyRecordBook() {
     return `<tr>
       <td style="color:var(--gold);font-weight:700">${def.label}</td>
       <td style="font-family:'Anton','Teko','Impact',sans-serif;font-size:1.3rem;color:var(--gold-lt);font-weight:900">${entry.value}</td>
-      <td>${playerLinkByName(entry.playerName)} <span style="color:var(--gray);font-size:.6rem">(${entry.pos})</span></td>
+      <td>${_playerLinkSmart(entry.playerName)} <span style="color:var(--gray);font-size:.6rem">(${entry.pos})</span></td>
       <td style="color:var(--gray);font-size:.66rem">${t ? `${t.city} ${t.name}` : "—"}</td>
       <td style="color:var(--gray);font-size:.66rem">S${entry.season}${isSingleGame ? ` · W${entry.week}` : ""}${opp ? ` · vs ${opp.name}` : ""}${entry.isPlayoff ? " · (PO)" : ""}</td>
     </tr>`;
@@ -1521,9 +1528,9 @@ function _legacyAwards() {
   </thead><tbody>
     ${history.map(h => `<tr>
       <td style="color:var(--gold);font-weight:700">S${h.season}</td>
-      <td>${h.leagueMVP ? `${playerLinkByName(h.leagueMVP.name)} <span style="color:var(--gray);font-size:.62rem">(${h.leagueMVP.pos}, ${h.leagueMVP.teamName})</span>` : "—"}</td>
-      <td>${h.superBowlMVP ? `${playerLinkByName(h.superBowlMVP.name)} <span style="color:var(--gray);font-size:.62rem">(${h.superBowlMVP.pos})</span>` : "—"}</td>
-      <td>${h.champTeamMVP ? `${playerLinkByName(h.champTeamMVP.name)} <span style="color:var(--gray);font-size:.62rem">(${h.champTeamMVP.pos})</span>` : "—"}</td>
+      <td>${h.leagueMVP ? `${_playerLinkSmart(h.leagueMVP.name)} <span style="color:var(--gray);font-size:.62rem">(${h.leagueMVP.pos}, ${h.leagueMVP.teamName})</span>` : "—"}</td>
+      <td>${h.superBowlMVP ? `${_playerLinkSmart(h.superBowlMVP.name)} <span style="color:var(--gray);font-size:.62rem">(${h.superBowlMVP.pos})</span>` : "—"}</td>
+      <td>${h.champTeamMVP ? `${_playerLinkSmart(h.champTeamMVP.name)} <span style="color:var(--gray);font-size:.62rem">(${h.champTeamMVP.pos})</span>` : "—"}</td>
     </tr>`).join("")}
   </tbody></table>`;
 }
@@ -1688,7 +1695,7 @@ function renderFrnAlumni(yearsBackArg) {
       locationCell = `<span style="color:var(--blgray);font-style:italic">Unsigned</span>`;
     }
     return `<tr>
-      <td>${playerLinkByName(a.name)} <span style="color:var(--blgray);font-size:.62rem">(${a.pos})</span></td>
+      <td>${_playerLinkSmart(a.name)} <span style="color:var(--blgray);font-size:.62rem">(${a.pos})</span></td>
       <td style="color:var(--blgray);font-size:.66rem">S${a.lastSeasonWithUs}</td>
       <td>${locationCell}</td>
       <td style="color:${live ? "var(--blwhite)" : "var(--blgray)"};font-size:.66rem">${live ? "Age " + (live.age || "?") : "—"}</td>
@@ -1981,9 +1988,12 @@ function _bspnBuildStatGroups(sidePlayers) {
   if (!players.length) return [];
   const filter = (fn, sortKey) => players
     .filter(fn).sort((a,b) => (b[sortKey]||0) - (a[sortKey]||0));
-  const pNameCell = p => (typeof playerLinkByName === "function"
-    ? playerLinkByName(p.name)
-    : _bspnEsc(p.name));
+  const pNameCell = p => {
+    // Use pid from the stat object (stamped by the engine) for collision-proof lookup.
+    // Falls back to name-only for old saved games that predate pid stamping.
+    const live = _findPlayer(p.name, p.pid);
+    return live ? playerLink(live) : playerLinkByName(p.name);
+  };
   const passingRows = filter(p => (p.pass_att||0) > 0, "pass_yds").map(p => ({
     id: `pass-${p.name}`, cells: {
       player: pNameCell(p),
@@ -2377,7 +2387,7 @@ function _bspnRenderLeadersGroup(group, teamsById) {
   if (!group?.rows?.length) return "";
   const rows = group.rows.map(r => {
     const tm = teamsById[r.teamId];
-    const nameLink = (typeof playerLinkByName === "function") ? playerLinkByName(r.playerName) : _bspnEsc(r.playerName);
+    const nameLink = (typeof _playerLinkSmart === "function") ? _playerLinkSmart(r.playerName) : _bspnEsc(r.playerName);
     return `<div class="bspn-leader-row" style="--team-color:${tm?.primaryColor || "var(--bspn-gold)"}">
       <div class="bspn-leader-helm">${_bspnEsc(tm?.abbreviation || "—")}</div>
       <div class="bspn-leader-meta">
@@ -2703,14 +2713,14 @@ function _buildOpponentIntelBlock(oppId, isHome, week, nextGame) {
     const oppP = oppRoster.find(p => p.position === pos);
     if (!myP && !oppP) return "";
     const myCell = myP
-      ? `<span style="font-weight:700;font-size:.68rem">${playerLinkByName(myP.name)}</span>
+      ? `<span style="font-weight:700;font-size:.68rem">${playerLink(myP)}</span>
          <span>${gradeBadge(myP)}</span>
          <span style="color:var(--gray);font-size:.58rem">Age ${myP.age||"?"}</span>`
       : `<span style="color:var(--gray);font-size:.65rem">—</span>`;
     const oppCell = oppP
       ? `<span style="color:var(--gray);font-size:.58rem">Age ${oppP.age||"?"}</span>
          <span>${gradeBadge(oppP)}</span>
-         <span style="font-weight:700;font-size:.68rem">${playerLinkByName(oppP.name)}</span>`
+         <span style="font-weight:700;font-size:.68rem">${playerLink(oppP)}</span>`
       : `<span style="color:var(--gray);font-size:.65rem">—</span>`;
     return `<div class="frn-matchup-starters-row">
       <div class="frn-matchup-starter-my">${myCell}</div>
@@ -2732,7 +2742,7 @@ function _buildOpponentIntelBlock(oppId, isHome, week, nextGame) {
       ${allInjuries.map(({ side, p, color }) => `
         <div style="font-size:.68rem;color:${color};display:flex;gap:.4rem;align-items:center;padding:.1rem 0">
           <span style="color:${side==="YOU"?"var(--gold-lt)":"#c08080"};font-size:.55rem;font-weight:700;border:1px solid currentColor;padding:.05rem .22rem;flex-shrink:0">${side}</span>
-          ${p.position} ${playerLinkByName(p.name)} — ${_bspnEsc(p.injury.label)} (${p.injury.weeksRemaining}wk)
+          ${p.position} ${playerLink(p)} — ${_bspnEsc(p.injury.label)} (${p.injury.weeksRemaining}wk)
         </div>`).join("")}
     </div>` : "";
 
@@ -3387,7 +3397,7 @@ function renderFrnRegular() {
   }
   demands.forEach(d => {
     const esc = d.name.replace(/'/g,"\\'");
-    alerts.push({ urgent: true, msg: `<b style="color:#ffc850">📣 ${d.position} ${playerLinkByName(d.name)}</b> demands extension ~$${d.marketValue.toFixed(1)}M — Wk ${d.deadlineWeek} deadline <button class="frn-cap-btn" onclick="frnExtendPlayer('${esc}')" style="margin-left:.3rem">📝 Extend</button>` });
+    alerts.push({ urgent: true, msg: `<b style="color:#ffc850">📣 ${d.position} ${_playerLinkSmart(d.name)}</b> demands extension ~$${d.marketValue.toFixed(1)}M — Wk ${d.deadlineWeek} deadline <button class="frn-cap-btn" onclick="frnExtendPlayer('${esc}')" style="margin-left:.3rem">📝 Extend</button>` });
   });
   if (outbidCount) alerts.push({ urgent: true, msg: `<span style="color:var(--red)">⚡ Outbid on ${outbidCount} FA target${outbidCount>1?"s":""}!</span> <button class="frn-cap-btn" onclick="renderFrnFANegotiations()" style="color:var(--red);border-color:var(--red);margin-left:.3rem">View Bids</button>` });
   const wireItems = (franchise.news||[]).filter(n=>n.season===season).slice(-4).reverse();
@@ -3587,7 +3597,7 @@ function renderFrnRegular() {
   const leadersHtml = leaders.length ? leaders.map(l => `
     <div class="frn-leader-row">
       <span class="frn-leader-cat">${l.cat}</span>
-      <span class="frn-leader-name">${playerLinkByName(l.name)}</span>
+      <span class="frn-leader-name">${_playerLinkSmart(l.name)}</span>
       <span class="frn-leader-stat">${l.stat}</span>
     </div>`).join("") : `<div style="color:var(--gray);font-size:.72rem;padding:.5rem 0">Play games to see leaders.</div>`;
 
@@ -3598,7 +3608,7 @@ function renderFrnRegular() {
     const isMine = entry.teamId === chosenTeamId;
     return `<div class="frn-leader-row" style="${isMine?"background:rgba(245,197,66,0.08)":""}">
       <span class="frn-leader-cat" style="width:2rem;font-size:.58rem">${label}</span>
-      <span class="frn-leader-name">${playerLinkByName(entry.name)}
+      <span class="frn-leader-name">${_playerLinkSmart(entry.name)}
         <span style="color:${entry.teamPrimary};font-size:.58rem;margin-left:.25rem">${entry.teamAbbr}</span>
       </span>
       <span class="frn-leader-stat" style="font-size:.62rem;color:var(--gray)">${entry.statLine}</span>

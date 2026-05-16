@@ -542,7 +542,7 @@ function renderAllProBowl() {
   _frnHoverTipPgHide && _frnHoverTipPgHide();
   const t = franchise.allProBowlTournament;
   if (!t) { renderFrnAwards(); return; }
-  const link = (name) => playerLinkByName ? playerLinkByName(name) : name;
+  const link = (name) => (typeof _playerLinkSmart === "function") ? _playerLinkSmart(name) : name;
 
   // Trophy card when complete
   const champTeam = t.complete ? _apbTeamById(t.champion, t) : null;
@@ -1750,7 +1750,7 @@ function _renderPregamePreview(m, seeds) {
     return lines.map(l => `
       <div style="display:flex;gap:.4rem;align-items:baseline;padding:.15rem 0;border-bottom:1px solid rgba(255,255,255,.04)">
         <span style="color:var(--blgray);font-size:.58rem;letter-spacing:.5px;min-width:3.8rem;flex-shrink:0">${l.cat}</span>
-        <span style="font-size:.68rem;color:var(--blwhite)">${playerLinkByName(l.name)}</span>
+        <span style="font-size:.68rem;color:var(--blwhite)">${_playerLinkSmart(l.name)}</span>
         <span style="font-size:.62rem;color:var(--blgray);margin-left:auto;white-space:nowrap">${l.stat}</span>
       </div>`).join("");
   };
@@ -3341,7 +3341,7 @@ function renderFrnAwards() {
   const isUserChamp= champId === chosenTeamId;
   const userStand  = standings[chosenTeamId] || { w:0, l:0 };
 
-  const link = (rec) => (rec && rec.name) ? playerLinkByName(rec.name) : "—";
+  const link = (rec) => (rec && rec.name) ? _playerLinkSmart(rec.name) : "—";
 
   // Hero champion card
   const sb = latest.superBowlScore;
@@ -3597,7 +3597,7 @@ function renderFrnAwards() {
           </div>
           <div class="bspnlive-broken-new">
             <b style="color:var(--blgold);font-size:1.1rem;font-family:'Bebas Neue','Anton',sans-serif;letter-spacing:1px">${b["new"].value}</b>
-            ${playerLinkByName(b["new"].playerName)}
+            ${_playerLinkSmart(b["new"].playerName)}
             <span style="color:var(--blgray);font-size:.65rem">(${b["new"].pos}${t ? " · " + _bspnLiveAbbr(t) : ""})</span>
           </div>
           ${b.broken && b.broken.playerName ? `<div class="bspnlive-broken-old">
