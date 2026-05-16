@@ -4107,14 +4107,13 @@ function frnFireStaffSlot(slot) {
   const staff = franchise.coaches?.[myId];
   if (!staff) return;
   const name = staff[slot]?.name || "coach";
-  if (!confirm(`Fire ${name}? They will be released. You can hire a replacement from the market.`)) return;
   if (slot === "hc") {
-    staff.hc = _rollCoach();
-    staff._chemistry = null;
-    _pushNews({ type:"coach_hire", label: `Your team hired new HC ${staff.hc.name}` });
-    // New HC installs their preferred coordinators
-    for (const msg of _applyHcStaffSweep(staff, "Your team")) _pushNews(msg);
-  } else if (slot === "oc") {
+    if (!confirm(`Release ${name}? You will choose a replacement on the next screen.`)) return;
+    _renderHcVacancyPanel();
+    return;
+  }
+  if (!confirm(`Release ${name}? A replacement will be hired immediately.`)) return;
+  if (slot === "oc") {
     if (staff._chemistry) staff._chemistry.qbOcBond = false;
     staff.oc = _rollOC();
     _pushNews({ type:"coach_hire", label: `Your team hired new OC ${staff.oc.name}` });
@@ -4122,6 +4121,149 @@ function frnFireStaffSlot(slot) {
     staff.dc = _rollDC();
     _pushNews({ type:"coach_hire", label: `Your team hired new DC ${staff.dc.name}` });
   }
+  saveFranchise();
+  renderFrnCoachingStaff();
+}
+
+// Vacancy decision panel — shown after user confirms releasing the HC.
+// The old HC is still in staff.hc here; each path fires them as part of its action.
+function _renderHcVacancyPanel() {
+  const myId   = franchise.chosenTeamId;
+  const myTeam = getTeam(myId);
+  const staff  = franchise.coaches?.[myId] || {};
+  const oldHc  = staff.hc;
+  const oc     = staff.oc;
+  const dc     = staff.dc;
+  const mktHcs = (franchise._coachMarket || []).filter(c => c.type === "hc");
+
+  const ratingColor = r => r >= 80 ? "var(--green-lt)" : r >= 65 ? "var(--gold)" : "var(--red)";
+  const ratingBadge = r => r != null
+    ? `<span style="font-size:.7rem;font-weight:700;padding:.15rem .45rem;border-radius:3px;background:${ratingColor(r)};color:#000">${r}</span>`
+    : "";
+  const riskNote = r =>
+    r < 50 ? `<div style="font-size:.64rem;color:var(--red);margin:.25rem 0">High-risk promotion — rating only ${r}</div>`
+    : r < 65 ? `<div style="font-size:.64rem;color:var(--gold);margin:.25rem 0">Risky promotion — rating only ${r}</div>`
+    : "";
+
+  const coordCard = (coord, fromSlot, specialty, otherSlot) => coord ? `
+    <div class="frn-coach-card" style="border-color:rgba(255,255,255,.22)">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div style="font-size:.85rem;font-weight:700;color:var(--white)">${coord.name} ${ratingBadge(coord.rating)}</div>
+          <div style="font-size:.63rem;color:var(--gray);margin:.1rem 0">${fromSlot.toUpperCase()} · ${coord.trait||"—"} · ${coord.yearsWithTeam||0} yr${(coord.yearsWithTeam||0)===1?"":"s"} w/team</div>
+        </div>
+      </div>
+      ${riskNote(coord.rating || 60)}
+      <div style="font-size:.67rem;color:var(--gray);line-height:1.7;margin:.4rem 0">
+        Becomes HC · <b style="color:var(--white)">${specialty}</b> specialty<br>
+        Always hires new ${fromSlot.toUpperCase()} from their network<br>
+        40% chance also replaces ${otherSlot.toUpperCase()}<br>
+        Chemistry <b style="color:var(--green-lt)">preserved</b> — knows the staff
+      </div>
+      <button class="btn btn-outline" style="font-size:.7rem"
+        onclick="frnPromoteCoordinator('${fromSlot}')">Promote to Head Coach</button>
+    </div>`
+  : `<div class="frn-coach-card" style="opacity:.35;font-size:.7rem;font-style:italic;padding:.6rem 1rem">No ${fromSlot.toUpperCase()} on staff to promote</div>`;
+
+  $("frnHomeContent").innerHTML = `
+    <div style="max-width:500px;margin:0 auto;padding:.5rem 0">
+      <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.6rem">
+        <button class="btn btn-outline" onclick="renderFrnCoachingStaff()" style="font-size:.7rem;padding:.2rem .6rem">← Cancel</button>
+        <div style="font-size:1rem;font-weight:700;color:var(--gold)">${myTeam?.city} ${myTeam?.name} — HC Vacancy</div>
+      </div>
+      <div style="font-size:.7rem;color:var(--gray);margin-bottom:.8rem">
+        Releasing <b style="color:var(--white)">${oldHc?.name || "head coach"}</b>.
+        How do you want to fill the position?
+      </div>
+      <div class="frn-sec-title">Promote from Within</div>
+      ${coordCard(oc, "oc", "Offensive Minded", "dc")}
+      ${coordCard(dc, "dc", "Defensive Minded", "oc")}
+      <div class="frn-sec-title" style="margin-top:.9rem">Outside Hire</div>
+      <div class="frn-coach-card" style="border-color:rgba(255,255,255,.22)">
+        <div style="font-size:.85rem;font-weight:700;color:var(--white)">
+          Hire from Market
+          <span style="font-size:.65rem;font-weight:400;color:var(--gray);margin-left:.5rem">${mktHcs.length} candidate${mktHcs.length===1?"":"s"} available</span>
+        </div>
+        <div style="font-size:.67rem;color:var(--gray);line-height:1.7;margin:.4rem 0">
+          You pick the HC from available candidates<br>
+          <b>75%</b> chance new HC replaces OC with their guy<br>
+          <b>40%</b> chance new HC replaces DC with their guy<br>
+          Chemistry <b style="color:var(--red)">resets</b> — outside hire, no prior relationships
+        </div>
+        <button class="btn btn-outline" style="font-size:.7rem" onclick="frnBrowseHcMarket()">
+          Browse Head Coach Market
+        </button>
+      </div>
+    </div>`;
+}
+
+// Promotes OC or DC to HC. Fires old HC, builds new HC from the coordinator,
+// fills the vacated slot from new HC's network, and 40% chance replaces the other
+// coordinator. Chemistry is preserved — internal promotion keeps staff relationships.
+function frnPromoteCoordinator(fromSlot) {
+  const myId  = franchise.chosenTeamId;
+  const staff = franchise.coaches?.[myId];
+  if (!staff) return;
+  const coord = staff[fromSlot];
+  if (!coord) return;
+
+  const oldHcName = staff.hc?.name;
+  if (oldHcName) _pushNews({ type:"coach_depart", label: `🚪 HC ${oldHcName} released` });
+
+  staff.hc = {
+    name:          coord.name,
+    rating:        Math.min(89, (coord.rating || 60) + Math.floor(Math.random() * 5)),
+    cultureTrait:  HC_CULTURE_TRAITS[Math.floor(Math.random() * HC_CULTURE_TRAITS.length)].key,
+    specialtyTrait: fromSlot === "oc" ? "Offensive Minded" : "Defensive Minded",
+    age:           coord.age || 45,
+    yearsWithTeam: 0,
+    record:        { w:0, l:0, championships:0 },
+    salary:        +((coord.salary || 1.5) * 1.5).toFixed(1),
+    contractYears: 3 + Math.floor(Math.random() * 2),
+  };
+  _pushNews({ type:"coach_hire",
+    label: `🏟 Your team promoted ${fromSlot.toUpperCase()} ${coord.name} to head coach` });
+
+  // Vacated slot always filled from new HC's network
+  const isOC = fromSlot === "oc";
+  if (isOC) {
+    if (staff._chemistry) staff._chemistry.qbOcBond = false;
+    staff.oc = _rollOC();
+  } else {
+    staff.dc = _rollDC();
+  }
+  _pushNews({ type:"coach_hire",
+    label: `🏟 New HC ${staff.hc.name} hires ${fromSlot.toUpperCase()} ${staff[fromSlot].name} from their network` });
+
+  // 40% chance: also replaces the other coordinator
+  const otherSlot = isOC ? "dc" : "oc";
+  if (Math.random() < 0.40) {
+    const oldOtherName = staff[otherSlot]?.name;
+    if (isOC) {
+      staff.dc = _rollDC();
+    } else {
+      if (staff._chemistry) staff._chemistry.qbOcBond = false;
+      staff.oc = _rollOC();
+    }
+    _pushNews({ type:"coach_hire",
+      label: `🏟 New HC also installs ${otherSlot.toUpperCase()} ${staff[otherSlot].name}${oldOtherName ? ` (replaces ${oldOtherName})` : ""}` });
+  }
+  // _chemistry NOT nulled — internal promotions preserve existing staff relationships
+
+  saveFranchise();
+  renderFrnCoachingStaff();
+}
+
+// Fires the current HC and re-renders the staff page in vacancy state.
+// The HC market candidates at the bottom let the user pick their replacement.
+function frnBrowseHcMarket() {
+  const myId  = franchise.chosenTeamId;
+  const staff = franchise.coaches?.[myId];
+  if (!staff) return;
+  const oldName    = staff.hc?.name;
+  staff.hc         = null;
+  staff._chemistry = null;
+  if (oldName) _pushNews({ type:"coach_depart", label: `🚪 HC ${oldName} released` });
   saveFranchise();
   renderFrnCoachingStaff();
 }
