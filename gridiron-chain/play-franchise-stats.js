@@ -4109,10 +4109,13 @@ function frnFireStaffSlot(slot) {
   const name = staff[slot]?.name || "coach";
   if (!confirm(`Fire ${name}? They will be released. You can hire a replacement from the market.`)) return;
   if (slot === "hc") {
-    staff.hc = _rollCoach(); // auto-replace immediately with random
-    staff._chemistry = null; // philosophy alignment resets with new HC
+    staff.hc = _rollCoach();
+    staff._chemistry = null;
     _pushNews({ type:"coach_hire", label: `Your team hired new HC ${staff.hc.name}` });
+    // New HC installs their preferred coordinators
+    for (const msg of _applyHcStaffSweep(staff, "Your team")) _pushNews(msg);
   } else if (slot === "oc") {
+    if (staff._chemistry) staff._chemistry.qbOcBond = false;
     staff.oc = _rollOC();
     _pushNews({ type:"coach_hire", label: `Your team hired new OC ${staff.oc.name}` });
   } else if (slot === "dc") {
@@ -4135,9 +4138,11 @@ function frnHireCoachFromMarket(slot, marketIdx) {
     const existing = staff.hc;
     staff.hc = { ...pick, yearsWithTeam: 0, record: existing?.record || { w:0, l:0, championships:0 } };
     delete staff.hc.type;
-    staff._chemistry = null; // philosophy alignment resets with new HC
+    staff._chemistry = null;
     _pushNews({ type:"coach_hire", label: `You hired HC ${staff.hc.name}` });
+    for (const msg of _applyHcStaffSweep(staff, "Your team")) _pushNews(msg);
   } else if (slot === "oc") {
+    if (staff._chemistry) staff._chemistry.qbOcBond = false;
     staff.oc = { ...pick, yearsWithTeam: 0 };
     delete staff.oc.type;
     _pushNews({ type:"coach_hire", label: `You hired OC ${staff.oc.name}` });

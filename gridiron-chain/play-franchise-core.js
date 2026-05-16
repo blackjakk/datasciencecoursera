@@ -1035,6 +1035,7 @@ const DC_TRAITS = [
   { key:"Cover Scheme",     desc:"Pass completion allowed −3%" },
   { key:"Ball Hawk",        desc:"INT rate +1.8%" },
   { key:"Run Stopper",      desc:"Run yards allowed −0.4/carry" },
+  { key:"Film Mastermind",  desc:"Player TEC growth +20%, DEVELOP alignment group" },
   { key:"Hybrid",           desc:"No modifier — scheme-agnostic" },
 ];
 

@@ -688,6 +688,7 @@ function _chemGroup(role, trait) {
   }
   if (role === "dc") {
     if (["Pressure Package","Cover Scheme","Ball Hawk","Run Stopper"].includes(trait)) return "DEFENSE";
+    if (trait === "Film Mastermind") return "DEVELOP";
     return null;
   }
   return null;
@@ -713,12 +714,13 @@ function _computeChemistryBonus(teamId) {
   if (hcG === "DEVELOP" && ocG === "DEVELOP") devMul   *= alYrs >= 2 ? 1.15 : 1.08;
   // Triple synergy: all three same group
   if (hcG && hcG === ocG && hcG === dcG) { offBonus += 1; defBonus += 1; devMul *= 1.10; }
-  // Cross-friction: philosophically opposed roles — activates after 2+ friction years
+  // Cross-friction: philosophically opposed roles — activates after 2+ friction years.
+  // A neutral HC (null group) buffers OC-DC conflict by mediating; non-neutral HC amplifies it.
   const hasCrossFriction = (hcG === "OFFENSE" && dcG === "DEFENSE")
                         || (hcG === "DEFENSE" && ocG === "OFFENSE")
-                        || (ocG === "OFFENSE" && dcG === "DEFENSE");
+                        || (hcG !== null && ocG === "OFFENSE" && dcG === "DEFENSE");
   if (hasCrossFriction && frYrs >= 2) { offBonus -= 1; defBonus -= 1; }
-  // Chaotic: all three non-null, all different, and friction is active
+  // Chaotic: all three non-null, all different groups, friction active
   const chaotic = !!(hcG && ocG && dcG
     && hcG !== ocG && hcG !== dcG && ocG !== dcG && frYrs >= 2);
   return { offBonus: Math.round(offBonus), defBonus: Math.round(defBonus), devMul, chaotic };
@@ -735,9 +737,10 @@ function _updateChemistryState() {
     const dcG = _chemGroup("dc", staff.dc?.trait);
     if (!staff._chemistry) staff._chemistry = { alignmentYears:0, frictionYears:0, qbOcBond:false };
     const chem = staff._chemistry;
+    // Neutral HC (null group) mediates OC-DC conflict; non-neutral HC amplifies it.
     const hasFriction  = (hcG === "OFFENSE" && dcG === "DEFENSE")
                       || (hcG === "DEFENSE" && ocG === "OFFENSE")
-                      || (ocG === "OFFENSE" && dcG === "DEFENSE");
+                      || (hcG !== null && ocG === "OFFENSE" && dcG === "DEFENSE");
     const hasAlignment = (hcG && ocG && hcG === ocG) || (hcG && dcG && hcG === dcG);
     if (hasFriction) {
       chem.frictionYears  = (chem.frictionYears  || 0) + 1;
@@ -749,21 +752,28 @@ function _updateChemistryState() {
       chem.frictionYears  = Math.max(0, (chem.frictionYears  || 0) - 1);
       chem.alignmentYears = Math.max(0, (chem.alignmentYears || 0) - 1);
     }
-    // QB-OC bond: QB Whisperer OC + young QB (≤25, 2+ systemYears)
+    // QB-OC bond: forms with a young QB (≤25, 2+ systemYears) and persists until
+    // the QB leaves the team or the OC is replaced — age alone doesn't break a bond.
     if (staff.oc?.trait === "QB Whisperer") {
-      const roster  = franchise.rosters[t.id] || [];
-      const youngQB = roster.find(p => p.position === "QB"
-        && (p.age || 25) <= 25 && (p.systemYears || 0) >= 2);
-      if (youngQB && chem.qbOcBond !== youngQB.name) {
-        youngQB._awrCeiling = Math.min(99, (youngQB._awrCeiling || 80) + 8);
-        chem.qbOcBond = youngQB.name;
-        _pushNews({ type:"coach_bond",
-          label: `🔗 QB-OC Bond: ${youngQB.name} + OC ${staff.oc.name} — chemistry locked in, AWR ceiling raised` });
-      } else if (!youngQB) {
-        chem.qbOcBond = false;
+      const roster = franchise.rosters[t.id] || [];
+      if (chem.qbOcBond) {
+        // Bond active — keep it unless the QB is no longer on the roster
+        if (!roster.find(p => p.name === chem.qbOcBond && p.position === "QB")) {
+          chem.qbOcBond = false;
+        }
+      } else {
+        // No bond yet — try to form one with a qualifying young QB
+        const youngQB = roster.find(p => p.position === "QB"
+          && (p.age || 25) <= 25 && (p.systemYears || 0) >= 2);
+        if (youngQB) {
+          youngQB._awrCeiling = Math.min(99, (youngQB._awrCeiling || 80) + 8);
+          chem.qbOcBond = youngQB.name;
+          _pushNews({ type:"coach_bond",
+            label: `🔗 QB-OC Bond: ${youngQB.name} + OC ${staff.oc.name} — chemistry locked in, AWR ceiling raised` });
+        }
       }
     } else {
-      chem.qbOcBond = false;
+      chem.qbOcBond = false; // OC no longer QB Whisperer — bond ends
     }
   }
 }
@@ -3762,6 +3772,29 @@ function _generateCoachMarket() {
   franchise._coachMarket = pool;
 }
 
+// New HC installs their preferred staff. Called any time an HC changes.
+// 75% chance the incoming HC replaces the OC with their own guy;
+// 40% chance they also replace the DC. Generates news for each swap.
+// Returns an array of news labels so callers can push them in context.
+function _applyHcStaffSweep(staff, teamLabel) {
+  const msgs = [];
+  if (Math.random() < 0.75) {
+    const old = staff.oc;
+    staff.oc = _rollOC();
+    msgs.push({ type:"coach_hire",
+      label: `🏟 ${teamLabel}: new HC installs OC ${staff.oc.name}${old ? ` (replaces ${old.name})` : ""}` });
+    // OC change clears any QB-OC bond immediately
+    if (staff._chemistry) staff._chemistry.qbOcBond = false;
+  }
+  if (Math.random() < 0.40) {
+    const old = staff.dc;
+    staff.dc = _rollDC();
+    msgs.push({ type:"coach_hire",
+      label: `🏟 ${teamLabel}: new HC installs DC ${staff.dc.name}${old ? ` (replaces ${old.name})` : ""}` });
+  }
+  return msgs;
+}
+
 // End-of-season coaching changes for AI teams.
 function _runCoachingCarousel() {
   _generateCoachMarket();
@@ -3808,7 +3841,7 @@ function _runCoachingCarousel() {
       const oc = staff.oc;
       const promoted = oc && (oc.rating || 0) >= 75 && Math.random() < 0.50;
       if (promoted) {
-        // Promote OC to HC — build a new HC record from OC's traits
+        // OC promoted to HC — OC slot opens, promoted HC typically keeps the existing DC
         staff.hc = {
           name: oc.name,
           rating: Math.min(89, (oc.rating || 60) + Math.floor(Math.random() * 5)),
@@ -3822,10 +3855,12 @@ function _runCoachingCarousel() {
         };
         _pushNews({ type:"coach_hire",
           label: `🏟 ${t.name} promote OC ${oc.name} to head coach` });
-        staff.oc = _rollOC(); // fill empty OC slot
-        staff._chemistry = null; // chemistry resets with new leadership
+        // Promoted HC fills their old OC slot from their network (always — it's now open)
+        staff.oc = _rollOC();
+        _pushNews({ type:"coach_hire", label: `🏟 ${t.name} hire OC ${staff.oc.name}` });
+        staff._chemistry = null;
       } else {
-        // Hire from market
+        // Hire from market — new HC installs their own preferred staff
         const candidates = market.filter(c => c.type === "hc");
         if (candidates.length) {
           const pick = candidates[Math.floor(Math.random() * candidates.length)];
@@ -3834,20 +3869,10 @@ function _runCoachingCarousel() {
           _pushNews({ type:"coach_hire",
             label: `🏟 ${t.name} hire ${staff.hc.name} as new head coach` });
         }
-        // Fire cascade: OC with a strong trait and 2+ years may leave with the departing HC
-        const depOC = staff.oc;
-        if (depOC && depOC.trait !== "Balanced" && (depOC.yearsWithTeam || 0) >= 2 && Math.random() < 0.40) {
-          const ocCands = market.filter(c => c.type === "oc");
-          if (ocCands.length) {
-            const ocPick = ocCands[Math.floor(Math.random() * ocCands.length)];
-            staff.oc = { ...ocPick, yearsWithTeam: 0 };
-            delete staff.oc.type;
-            _pushNews({ type:"coach_depart",
-              label: `🚪 OC ${depOC.name} departs ${t.name} following head coach change` });
-          }
-        }
+        // New HC brings their preferred coordinator(s)
+        for (const msg of _applyHcStaffSweep(staff, t.name)) _pushNews(msg);
         franchise._coachMissedPlayoffs[tId] = 0;
-        staff._chemistry = null; // chemistry resets when HC changes
+        staff._chemistry = null;
       }
     }
 
@@ -3970,7 +3995,10 @@ function runFrnOffseason() {
         const hcSpecialty = franchise.coaches?.[tId]?.hc?.specialtyTrait
                          || (franchise.coaches?.[tId]?.hc?.trait === "Player Developer" ? "Player Developer" : null);
         const ocTrait     = franchise.coaches?.[tId]?.oc?.trait;
-        const hcDevMul    = (hcSpecialty === "Player Developer" ? 1.35 : 1.0) * chemBonus.devMul;
+        const dcTrait     = franchise.coaches?.[tId]?.dc?.trait;
+        // Film Mastermind DC improves TEC coaching across the whole roster (+20%)
+        const dcDevMul    = dcTrait === "Film Mastermind" ? 1.20 : 1.0;
+        const hcDevMul    = (hcSpecialty === "Player Developer" ? 1.35 : 1.0) * chemBonus.devMul * dcDevMul;
 
         const pGroup = p.position === "QB" ? "QB"
                      : p.position === "OL" ? "OL"
