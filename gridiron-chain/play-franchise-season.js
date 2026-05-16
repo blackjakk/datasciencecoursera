@@ -1234,6 +1234,16 @@ function _buildGameLogBlock(p) {
     games.push({ g, line, teamId, oppId });
   }
   if (!games.length) return "";
+  // Show newest game first
+  games.sort((a, b) => b.g.week - a.g.week);
+  // Detect if older games were trimmed: look up season GP from seasonStats
+  let seasonGP = 0;
+  for (const ts of Object.values(franchise.seasonStats || {})) {
+    if (ts && ts[p.name]) { seasonGP = +(ts[p.name].gp || 0); break; }
+  }
+  const missingNote = (seasonGP > 0 && games.length < seasonGP)
+    ? `<div style="font-size:.6rem;color:var(--gray);font-style:italic;margin-bottom:.3rem">Showing ${games.length} of ${seasonGP} games — earlier stats compressed for storage</div>`
+    : "";
   // If the player suited up for multiple teams this season (mid-season
   // trade), surface a "TM" column so the lineage is visible.
   const distinctTeams = new Set(games.map(x => x.teamId));
@@ -1368,12 +1378,60 @@ function _buildGameLogBlock(p) {
   }
   return `<div class="frn-pcard-section">
     <div class="frn-card-title">GAME LOG · ${games.length} GAME${games.length===1?"":"S"}</div>
+    ${missingNote}
     <div style="overflow-x:auto">
       <table class="frn-gamelog-table">
         <thead><tr>${headers.map(h => `<th>${h}</th>`).join("")}</tr></thead>
         <tbody>${rowCells.join("")}</tbody>
       </table>
     </div>
+  </div>`;
+}
+
+// Compact strip showing the player's last 3 games with colour-coded FPTS pills.
+function _buildRecentFormStrip(p) {
+  if (!franchise?.schedule) return "";
+  const pos = p.position;
+  const played = [];
+  for (const g of franchise.schedule) {
+    if (!g.played || !g.stats) continue;
+    const line = g.stats.home?.players?.[p.name] || g.stats.away?.players?.[p.name];
+    if (!line) continue;
+    played.push({ week: g.week, line, oppId: g.stats.home?.players?.[p.name] ? g.awayId : g.homeId });
+  }
+  if (!played.length) return "";
+  played.sort((a, b) => b.week - a.week);
+  const recent = played.slice(0, 3);
+  // Season average FPTS (all played games we have stats for)
+  const allFpts = played.map(x => _fantasyPPR(x.line, pos));
+  const avgFpts = allFpts.length ? allFpts.reduce((s, v) => s + v, 0) / allFpts.length : 0;
+  const pills = recent.map(({ week, line, oppId }) => {
+    const fpts = _fantasyPPR(line, pos);
+    const opp = getTeam(oppId);
+    const oppAbbr = opp ? (opp.abbr || opp.name.slice(0, 4)) : "?";
+    let color = "var(--gray)";
+    if (avgFpts > 0) {
+      if (fpts >= avgFpts * 1.2) color = "var(--green-lt)";
+      else if (fpts >= avgFpts * 0.8) color = "var(--gold)";
+      else color = "#c08080";
+    } else {
+      if (fpts >= 15) color = "var(--green-lt)";
+      else if (fpts >= 8) color = "var(--gold)";
+      else color = "#c08080";
+    }
+    let secondary = "";
+    if (pos === "QB") {
+      const rating = _passerRating(+line.pass_comp||0, +line.pass_att||0, +line.pass_yds||0, +line.pass_td||0, +line.pass_int||0);
+      secondary = ` · RTG ${rating}`;
+    }
+    return `<div style="display:inline-flex;align-items:center;gap:.3rem;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:.3rem;padding:.15rem .45rem;font-size:.62rem;white-space:nowrap">
+      <span style="color:var(--gray)">W${week} vs ${oppAbbr}</span>
+      <span style="color:${color};font-weight:700">${fpts.toFixed(1)} pts${secondary}</span>
+    </div>`;
+  }).join("");
+  return `<div class="frn-pcard-section">
+    <div class="frn-card-title" style="margin-bottom:.3rem">LAST 3 GAMES</div>
+    <div style="display:flex;flex-wrap:wrap;gap:.35rem">${pills}</div>
   </div>`;
 }
 
@@ -1409,6 +1467,7 @@ function _buildPlayerDetailPanel(p) {
   const potTag = potentialTag(p);
   const archBlock = _buildArchetypeBlock(p);
   const seasonBlock = _buildSeasonStatsBlock(p);
+  const recentFormStrip = _buildRecentFormStrip(p);
   const streaksBlock = _buildStreaksBlock(p);
   const gameLogBlock = _buildGameLogBlock(p);
   const ratingsPanel = owned ? _buildOwnedStatsPanel(p) : "";
@@ -1449,6 +1508,7 @@ function _buildPlayerDetailPanel(p) {
       ${rightPanel}
     </div>
     ${seasonBlock ? `<div style="margin-top:.6rem">${seasonBlock}</div>` : ""}
+    ${recentFormStrip ? `<div style="margin-top:.6rem">${recentFormStrip}</div>` : ""}
     ${streaksBlock}
     ${gameLogBlock ? `<div style="margin-top:.6rem">${gameLogBlock}</div>` : ""}
     ${p.injury ? `<div class="frn-player-injury" style="margin-top:.55rem">🩹 ${p.injury.label} — ${p.injury.weeksRemaining} wk${p.injury.weeksRemaining===1?"":"s"} out</div>` : ""}

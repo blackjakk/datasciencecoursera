@@ -489,6 +489,36 @@ function frnPlayerTipShow(anchorEl, name) {
   const g = scoutGrade(p), gL = gradeLabel(g), gCls = gradeClass(g);
   const aav = p.contract?.aav || 0;
   const yrs = p.contract?.remaining || 0;
+  // Build a compact "this season" stat line from seasonStats
+  let seasonLine = "";
+  {
+    let stat = null;
+    for (const ts of Object.values(franchise?.seasonStats || {})) {
+      if (ts && ts[p.name]) { stat = ts[p.name]; break; }
+    }
+    if (stat && (+(stat.gp || 0)) >= 1) {
+      const pos = p.position;
+      const num = k => +(stat[k] || 0);
+      const gp = num("gp") || 1;
+      if (pos === "QB") {
+        const ypg = (num("pass_yds") / gp).toFixed(1);
+        seasonLine = `${ypg} YPG · ${num("pass_td")} TD`;
+      } else if (pos === "RB") {
+        const ypg = (num("rush_yds") / gp).toFixed(1);
+        seasonLine = `${ypg} RY/G · ${num("rush_td")} TD`;
+      } else if (pos === "WR" || pos === "TE") {
+        const ypg = (num("rec_yds") / gp).toFixed(1);
+        seasonLine = `${ypg} REC Y/G · ${num("rec_td")} TD`;
+      } else if (pos === "DL" || pos === "LB" || pos === "CB" || pos === "S") {
+        const tklpg = (num("tkl") / gp).toFixed(1);
+        seasonLine = `${tklpg} TKL/G · ${num("sk")} SK`;
+      } else if (pos === "K") {
+        const made = num("fg_made"), att = num("fg_att");
+        const pct = att ? (made / att * 100).toFixed(1) : "0.0";
+        seasonLine = `${made}/${att} FG · ${pct}%`;
+      }
+    }
+  }
   tip.innerHTML = `
     <div class="frn-ptip-head">
       ${_playerPortrait(p, 56)}
@@ -509,6 +539,7 @@ function frnPlayerTipShow(anchorEl, name) {
       <div><span class="frn-meta-label">CAREER $</span> ${careerEarningsStr(p)}</div>
       ${p.injury?.weeksRemaining ? `<div style="color:#ff9090">🩹 ${p.injury.label} · ${p.injury.weeksRemaining}wk</div>` : ""}
       ${p.onTradeBlock ? `<div style="color:#e8a000">●BLOCK</div>` : ""}
+      ${seasonLine ? `<div style="color:var(--gold-lt);font-size:.62rem">${seasonLine}</div>` : ""}
     </div>
     <div class="frn-tip-foot">Click for full career</div>
   `;
