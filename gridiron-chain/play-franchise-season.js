@@ -1603,6 +1603,7 @@ function _buildPlayerDetailPanel(p) {
     ${gameLogBlock ? `<div style="margin-top:.6rem">${gameLogBlock}</div>` : ""}
     ${p.injury ? `<div class="frn-player-injury" style="margin-top:.55rem">🩹 ${p.injury.label} — ${p.injury.weeksRemaining} wk${p.injury.weeksRemaining===1?"":"s"} out</div>` : ""}
     ${_isInjuryProne(p) ? `<div style="margin-top:.45rem;font-size:.6rem;color:#ff9090;letter-spacing:.5px;font-weight:700" title="Injured 3+ times — elevated recurrence risk">⚠ INJURY-PRONE · ${(p.injuryHistory||[]).length} prior injuries</div>` : ""}
+    ${p.coachable ? `<div style="margin-top:.45rem;font-size:.6rem;color:#7ec8e3;letter-spacing:.5px;font-weight:700" title="Absorbs coaching exceptionally well — amplified TEC growth with a Film Mastermind DC">📋 COACHABLE</div>` : ""}
     ${flav ? `<div class="frn-player-flavor" style="margin-top:.55rem">${flav}</div>` : ""}
     ${contractBlock ? `<div style="margin-top:.6rem">${contractBlock}</div>` : ""}
     ${_buildCareerCard(p)}

@@ -820,8 +820,11 @@ function frnSimOnce(homeId, awayId, isPlayoff = false) {
   // the film work only translates if the players have the technique to execute it.
   const _filmBonus = (teamId) => {
     const def = (franchise.rosters[teamId] || []).filter(p => ["DL","LB","CB","S"].includes(p.position));
-    const avg = def.length ? def.reduce((s,p) => s + (p.stats?.[11] ?? 68), 0) / def.length : 68;
-    return avg >= 80 ? 2 : avg >= 72 ? 1 : 0;
+    if (!def.length) return 0;
+    const avg = def.reduce((s,p) => s + (p.stats?.[11] ?? 68), 0) / def.length;
+    const baseBonus = avg >= 80 ? 2 : avg >= 72 ? 1 : 0;
+    const coachableDensity = def.filter(p => p.coachable).length / def.length;
+    return Math.min(3, baseBonus + (coachableDensity >= 0.40 ? 1 : 0));
   };
   if (dcHome === "Film Mastermind") sim.homeR.defense += _filmBonus(homeId);
   if (dcAway === "Film Mastermind") sim.awayR.defense += _filmBonus(awayId);
@@ -4222,9 +4225,7 @@ function runFrnOffseason() {
                          || (franchise.coaches?.[tId]?.hc?.trait === "Player Developer" ? "Player Developer" : null);
         const ocTrait     = franchise.coaches?.[tId]?.oc?.trait;
         const dcTrait     = franchise.coaches?.[tId]?.dc?.trait;
-        // Film Mastermind DC improves TEC coaching across the whole roster (+20%)
-        const dcDevMul    = dcTrait === "Film Mastermind" ? 1.20 : 1.0;
-        const hcDevMul    = (hcSpecialty === "Player Developer" ? 1.35 : 1.0) * chemBonus.devMul * dcDevMul;
+        const hcDevMul    = (hcSpecialty === "Player Developer" ? 1.35 : 1.0) * chemBonus.devMul;
 
         const pGroup = p.position === "QB" ? "QB"
                      : p.position === "OL" ? "OL"
@@ -4233,7 +4234,8 @@ function runFrnOffseason() {
                      : ["LB","CB","S"].includes(p.position) ? "LB/DB" : null;
         const staffCoach = pGroup ? posStaff.find(s => s.group === pGroup) : null;
         const tierInfo   = staffCoach ? POSITION_COACH_TIERS[staffCoach.tier] : POSITION_COACH_TIERS["Journeyman"];
-        const tecMul     = tierInfo.tecMul * hcDevMul;
+        const filmMul     = dcTrait === "Film Mastermind" ? (p.coachable ? 2.0 : 1.2) : 1.0;
+        const tecMul     = tierInfo.tecMul * hcDevMul * filmMul;
         const effectiveTecMul = (p.position === "QB" && ocTrait === "QB Whisperer") ? tecMul * 2 : tecMul;
 
         const baseChance = 0.12;

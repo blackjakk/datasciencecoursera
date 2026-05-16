@@ -1055,6 +1055,7 @@ function genPlayer(pos, tier) {
   player._awrCeiling = flavor === "HIGH_FOOTBALL_IQ" ? rand(82, 95)
                      : flavor === "RAW_ATHLETE"       ? rand(55, 72)
                      : rand(65, 82);
+  player.coachable = Math.random() < (flavor === "HIGH_FOOTBALL_IQ" ? 0.45 : flavor === "RAW_ATHLETE" ? 0.10 : 0.25);
   // Recalculate overall now that TEC is set properly.
   player.overall = calcOverall(pos, player.stats);
 
