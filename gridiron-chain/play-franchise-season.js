@@ -1435,6 +1435,85 @@ function _buildRecentFormStrip(p) {
   </div>`;
 }
 
+function _buildContractBreakdownBlock(p) {
+  const c = p.contract;
+  if (!c || !c.aav) return "";
+  const years      = c.years || 1;
+  const remaining  = c.remaining || 1;
+  const proration  = c.bonusProration || 0;
+  const bases      = c.baseSalaries || Array(years).fill(+(c.aav - proration).toFixed(1));
+  const curYrIdx   = Math.max(0, years - remaining);
+  const guaranteed = c.guaranteedYears || 0;
+  const structLabel = c.structure === "FRONTLOADED" ? "⬆ Front-loaded" :
+                      c.structure === "BACKLOADED"  ? "⬇ Back-loaded"  : "— Balanced";
+  const structColor = c.structure === "FRONTLOADED" ? "var(--green-lt)" :
+                      c.structure === "BACKLOADED"  ? "#ff9090"         : "var(--gray)";
+
+  // Build year rows
+  const rows = bases.map((base, i) => {
+    const capHit    = Math.round((base + proration) * 10) / 10;
+    const isCur     = i === curYrIdx;
+    const isPast    = i < curYrIdx;
+    const isGuarant = i < guaranteed;
+    // Dead cap = proration × years left after this cut point
+    const deadCap   = proration > 0
+      ? Math.round(proration * (Math.min(years, curYrIdx + (years - curYrIdx)) - i) * 10) / 10
+      : 0;
+    // Actually dead cap if cut at start of this year = proration × remaining years of bonus
+    const prorationYears = Math.min(years, 5);
+    const prorationRemaining = Math.max(0, prorationYears - i);
+    const deadIfCut = Math.round(proration * prorationRemaining * 10) / 10;
+
+    const rowBg = isCur ? "rgba(200,169,0,.12)" : isPast ? "rgba(255,255,255,.02)" : "";
+    const textColor = isPast ? "var(--gray)" : isCur ? "var(--white)" : "rgba(255,255,255,.85)";
+    const hitColor = isCur ? "var(--gold)" : isPast ? "var(--gray)" : "rgba(255,255,255,.85)";
+    return `<tr style="background:${rowBg}">
+      <td style="color:${textColor};font-size:.64rem;white-space:nowrap">
+        Yr ${i+1}${isCur ? " <span style=\"color:var(--gold);font-size:.55rem\">◀ NOW</span>" : isPast ? " <span style=\"color:var(--gray);font-size:.55rem\">✓</span>" : ""}
+        ${isGuarant ? "<span style=\"color:var(--green-lt);font-size:.52rem;margin-left:.2rem\">GTD</span>" : ""}
+      </td>
+      <td style="color:${textColor};font-size:.64rem;text-align:right">$${base.toFixed(1)}M</td>
+      <td style="color:${proration>0?"var(--gold-lt)":"var(--gray)"};font-size:.64rem;text-align:right">
+        ${proration > 0 ? `+$${proration.toFixed(1)}M` : "—"}
+      </td>
+      <td style="color:${hitColor};font-weight:${isCur?"700":"400"};font-size:.64rem;text-align:right">
+        $${capHit.toFixed(1)}M
+      </td>
+      <td style="color:${deadIfCut > 0 ? "#ff9090" : "var(--gray)"};font-size:.62rem;text-align:right">
+        ${deadIfCut > 0.05 ? `☠ $${deadIfCut.toFixed(1)}M` : "—"}
+      </td>
+    </tr>`;
+  }).join("");
+
+  const totalGuaranteed = Math.round(c.guaranteedAAV * (c.years||1) * 10) / 10;
+  const totalRemaining  = Math.round(c.aav * remaining * 10) / 10;
+
+  return `<div class="frn-pcard-section" style="margin-top:.6rem">
+    <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.35rem;flex-wrap:wrap">
+      <div class="frn-card-title">📋 CONTRACT BREAKDOWN</div>
+      <span style="color:${structColor};font-size:.6rem;font-weight:700">${structLabel}</span>
+      ${c.tradeKicker > 0 ? `<span style="color:var(--gold);font-size:.6rem" title="One-time cap hit if acquired via trade">⚡ Trade kicker $${c.tradeKicker.toFixed(1)}M</span>` : ""}
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:.65rem">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border)">
+          <th style="text-align:left;color:var(--gray);font-weight:600;padding:.15rem .2rem;font-size:.58rem">YR</th>
+          <th style="text-align:right;color:var(--gray);font-weight:600;padding:.15rem .2rem;font-size:.58rem">BASE</th>
+          <th style="text-align:right;color:var(--gray);font-weight:600;padding:.15rem .2rem;font-size:.58rem">BONUS</th>
+          <th style="text-align:right;color:var(--gray);font-weight:600;padding:.15rem .2rem;font-size:.58rem">CAP HIT</th>
+          <th style="text-align:right;color:var(--gray);font-weight:600;padding:.15rem .2rem;font-size:.58rem">DEAD (IF CUT)</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div style="display:flex;gap:1rem;margin-top:.4rem;flex-wrap:wrap;font-size:.6rem;color:var(--gray)">
+      <span>Remaining: <b style="color:var(--white)">$${totalRemaining.toFixed(1)}M</b></span>
+      ${c.signingBonus > 0 ? `<span>Sign bonus: <b style="color:var(--gold-lt)">$${c.signingBonus.toFixed(1)}M</b> (÷${Math.min(c.years||1,5)}yr)</span>` : ""}
+      ${guaranteed > 0 ? `<span>Guaranteed yrs: <b style="color:var(--green-lt)">${guaranteed}</b></span>` : ""}
+    </div>
+  </div>`;
+}
+
 function _buildPlayerDetailPanel(p) {
   const g    = scoutGrade(p);
   const gL   = gradeLabel(g);
@@ -1470,6 +1549,7 @@ function _buildPlayerDetailPanel(p) {
   const recentFormStrip = _buildRecentFormStrip(p);
   const streaksBlock = _buildStreaksBlock(p);
   const gameLogBlock = _buildGameLogBlock(p);
+  const contractBlock = _buildContractBreakdownBlock(p);
   const ratingsPanel = owned ? _buildOwnedStatsPanel(p) : "";
 
   // Right-column content: owned → raw ratings, otherwise scout note.
@@ -1514,6 +1594,7 @@ function _buildPlayerDetailPanel(p) {
     ${p.injury ? `<div class="frn-player-injury" style="margin-top:.55rem">🩹 ${p.injury.label} — ${p.injury.weeksRemaining} wk${p.injury.weeksRemaining===1?"":"s"} out</div>` : ""}
     ${_isInjuryProne(p) ? `<div style="margin-top:.45rem;font-size:.6rem;color:#ff9090;letter-spacing:.5px;font-weight:700" title="Injured 3+ times — elevated recurrence risk">⚠ INJURY-PRONE · ${(p.injuryHistory||[]).length} prior injuries</div>` : ""}
     ${flav ? `<div class="frn-player-flavor" style="margin-top:.55rem">${flav}</div>` : ""}
+    ${contractBlock ? `<div style="margin-top:.6rem">${contractBlock}</div>` : ""}
     ${_buildCareerCard(p)}
   </div>`;
 }
