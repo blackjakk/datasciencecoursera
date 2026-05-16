@@ -4027,6 +4027,41 @@ function renderFrnCoachingStaff() {
         onclick="frnHireCoachFromMarket('dc',${i})">Hire as DC</button>
     </div>`).join("") || `<div style="color:var(--gray);font-size:.72rem;font-style:italic">No DC candidates available.</div>`;
 
+  // ── Chemistry Panel ──
+  const chem      = staff._chemistry || {};
+  const hcGrp     = typeof _chemGroup === "function" ? _chemGroup("hc", hc?.specialtyTrait) : null;
+  const ocGrp     = typeof _chemGroup === "function" ? _chemGroup("oc", oc?.trait) : null;
+  const dcGrp     = typeof _chemGroup === "function" ? _chemGroup("dc", dc?.trait) : null;
+  const chemBonus = typeof _computeChemistryBonus === "function" ? _computeChemistryBonus(myId) : { offBonus:0, defBonus:0, devMul:1.0, chaotic:false };
+  const alYrs     = chem.alignmentYears || 0;
+  const frYrs     = chem.frictionYears  || 0;
+  const grpTag    = g => g
+    ? `<span style="font-size:.62rem;font-weight:700;padding:.1rem .4rem;border-radius:3px;background:${g==="OFFENSE"?"rgba(0,180,120,.25)":g==="DEFENSE"?"rgba(60,120,255,.25)":g==="DEVELOP"?"rgba(200,160,0,.25)":"rgba(255,255,255,.1)"}">${g}</span>`
+    : `<span style="font-size:.62rem;color:var(--gray);opacity:.6">NEUTRAL</span>`;
+  const chemStatusColor = frYrs >= 2 ? "var(--red)" : alYrs >= 2 ? "var(--green-lt)" : alYrs >= 1 ? "var(--gold)" : "rgba(255,255,255,.35)";
+  const chemStatusLabel = frYrs >= 2 ? `Friction (${frYrs} yr${frYrs===1?"":"s"})` : alYrs >= 1 ? `Alignment (${alYrs} yr${alYrs===1?"":"s"})` : "Neutral — building";
+  const bondHtml = chem.qbOcBond
+    ? `<div style="margin-top:.4rem;font-size:.67rem;color:var(--gold)">🔗 QB-OC Bond active — ${chem.qbOcBond}</div>` : "";
+  const chemHtml = `
+    <div class="frn-coach-card" style="border-color:${chemStatusColor};background:rgba(255,255,255,.03)">
+      <div style="font-size:.72rem;font-weight:700;color:${chemStatusColor};letter-spacing:.5px;text-transform:uppercase;margin-bottom:.4rem">
+        ${chemStatusLabel}${chemBonus.chaotic ? " · CHAOTIC" : ""}
+      </div>
+      <div style="display:flex;gap:.75rem;flex-wrap:wrap;font-size:.68rem;align-items:center">
+        <div>HC ${grpTag(hcGrp)}</div>
+        <div>OC ${grpTag(ocGrp)}</div>
+        <div>DC ${grpTag(dcGrp)}</div>
+      </div>
+      <div style="margin-top:.45rem;font-size:.67rem;color:var(--gray);display:flex;flex-wrap:wrap;gap:.6rem">
+        ${chemBonus.offBonus !== 0 ? `<span style="color:${chemBonus.offBonus>0?"var(--green-lt)":"var(--red)"}">OFF ${chemBonus.offBonus>0?"+":""}${chemBonus.offBonus}</span>` : ""}
+        ${chemBonus.defBonus !== 0 ? `<span style="color:${chemBonus.defBonus>0?"var(--green-lt)":"var(--red)"}">DEF ${chemBonus.defBonus>0?"+":""}${chemBonus.defBonus}</span>` : ""}
+        ${chemBonus.devMul > 1.0 ? `<span style="color:var(--green-lt)">DEV x${chemBonus.devMul.toFixed(2)}</span>` : ""}
+        ${chemBonus.chaotic ? `<span style="color:var(--red)">+/-2 swing per game</span>` : ""}
+        ${chemBonus.offBonus===0 && chemBonus.defBonus===0 && chemBonus.devMul<=1.0 && !chemBonus.chaotic ? `<span style="opacity:.5">Bonuses unlock as alignment builds across seasons</span>` : ""}
+      </div>
+      ${bondHtml}
+    </div>`;
+
   $("frnHomeContent").innerHTML = `
     <style>
       .frn-coach-card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:.75rem 1rem;margin-bottom:.6rem}
@@ -4047,6 +4082,8 @@ function renderFrnCoachingStaff() {
       <div class="frn-sec-title" style="margin-top:.8rem">Coordinators</div>
       ${coordCard("OC", oc, "oc")}
       ${coordCard("DC", dc, "dc")}
+      <div class="frn-sec-title" style="margin-top:.8rem">Staff Chemistry</div>
+      ${chemHtml}
       <div class="frn-sec-title" style="margin-top:.8rem">Position Staff <span style="font-size:.65rem;font-weight:400;color:var(--gray)">(up to ${POSITION_COACH_GROUPS.length} groups)</span></div>
       <div class="frn-coach-pos-grid">${posSlots}</div>
       <div class="frn-sec-title" style="margin-top:1rem">Available Coaches</div>
@@ -4073,6 +4110,7 @@ function frnFireStaffSlot(slot) {
   if (!confirm(`Fire ${name}? They will be released. You can hire a replacement from the market.`)) return;
   if (slot === "hc") {
     staff.hc = _rollCoach(); // auto-replace immediately with random
+    staff._chemistry = null; // philosophy alignment resets with new HC
     _pushNews({ type:"coach_hire", label: `Your team hired new HC ${staff.hc.name}` });
   } else if (slot === "oc") {
     staff.oc = _rollOC();
@@ -4097,6 +4135,7 @@ function frnHireCoachFromMarket(slot, marketIdx) {
     const existing = staff.hc;
     staff.hc = { ...pick, yearsWithTeam: 0, record: existing?.record || { w:0, l:0, championships:0 } };
     delete staff.hc.type;
+    staff._chemistry = null; // philosophy alignment resets with new HC
     _pushNews({ type:"coach_hire", label: `You hired HC ${staff.hc.name}` });
   } else if (slot === "oc") {
     staff.oc = { ...pick, yearsWithTeam: 0 };
