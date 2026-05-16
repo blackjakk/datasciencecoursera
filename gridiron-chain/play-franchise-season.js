@@ -1772,6 +1772,7 @@ function _generateFAPool() {
         p.draftPick  = (round - 1) * 32 + 1 + Math.floor(Math.random() * 32);
       }
       p.draftYear = currentYear - (p.age - 22);
+      _rollHiddenGem(p);
 
       // Diamond bump: real overall pushed higher while draft pedigree
       // stays late. Scouting noise + draft penalty keeps the displayed

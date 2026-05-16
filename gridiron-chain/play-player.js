@@ -1045,6 +1045,21 @@ function genPlayer(pos, tier) {
 }
 
 // ─── MOCK CAREER GENERATION ─────────────────────────────────────────────────
+
+// Assign a hidden gem flag to a newly-created draft pick or UDFA.
+// Called immediately after draftRound is stamped on the player.
+// Rates are grounded in NFL history: ~1 UDFA star per 4-5 classes league-wide,
+// ~5-6% of rounds 5-7 produce pro-bowl caliber players over time.
+// The gem is fully invisible — no scout grade tell, no combine signal.
+function _rollHiddenGem(player) {
+  const rates = { 0: 0.025, 7: 0.040, 6: 0.050, 5: 0.060, 4: 0.040, 3: 0.020 };
+  const rate = rates[player.draftRound] ?? 0;
+  if (!rate || Math.random() >= rate) return;
+  player.hiddenGem = {
+    ceiling:    78 + Math.floor(Math.random() * 16), // 78–93 true ceiling
+    growthRate:  4 + Math.floor(Math.random() * 5),  // 4–8 OVR per active season
+  };
+}
 // Fabricates a believable multi-season career for each player based on their
 // age + overall rating + position. Used to populate the profile-page hover.
 function generateCareer(player) {

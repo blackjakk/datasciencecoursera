@@ -3590,22 +3590,45 @@ function runFrnOffseason() {
         }
         p.overall = Math.max(50, p.overall - (regress >= 2 ? 2 : 1));
       }
-      // Young progression: grow toward hidden potential ceiling.
-      // Growth rate falls with age; player-developer head coach speeds it.
+      // Young progression: grow toward potential ceiling each offseason.
+      // Hidden gems use a flat per-season rate toward their true ceiling;
+      // normal players use the age-weighted percentage-of-gap approach.
       if (p.potential == null) p.potential = _rollPotential(p);
-      const gap = p.potential - p.overall;
-      if (gap > 0 && p.age <= 27) {
-        const coachBoost = (franchise.coaches?.[tId]?.hc?.trait === "Player Developer") ? 1.35 : 1.0;
-        const baseRate = p.age <= 22 ? 0.45 : p.age <= 24 ? 0.30 : p.age <= 26 ? 0.15 : 0.06;
-        // Average growth per offseason = baseRate * gap, with floor/ceil
-        const growth = Math.max(0, Math.round(gap * baseRate * coachBoost));
+      const coachBoost = (franchise.coaches?.[tId]?.hc?.trait === "Player Developer") ? 1.35 : 1.0;
+
+      // Resolve gem ceiling — remove flag once reached
+      if (p.hiddenGem && p.overall >= p.hiddenGem.ceiling) delete p.hiddenGem;
+
+      if (p.hiddenGem && p.age <= 28) {
+        // Hidden gem path: steady flat growth, independent of the normal
+        // potential system. Potential is raised to reflect the true ceiling
+        // so the UI (if it ever shows potential) stays consistent.
+        p.potential = Math.max(p.potential, p.hiddenGem.ceiling);
+        const growth = Math.max(0, Math.min(
+          p.hiddenGem.ceiling - p.overall,
+          Math.round(p.hiddenGem.growthRate * coachBoost)
+        ));
         if (growth > 0) {
-          p.overall = Math.min(99, p.overall + growth);
-          // Spread the gain across 2 random stats
+          p.overall = Math.min(p.hiddenGem.ceiling, p.overall + growth);
           const k1 = Math.floor(Math.random() * p.stats.length);
           const k2 = Math.floor(Math.random() * p.stats.length);
           p.stats[k1] = Math.min(99, p.stats[k1] + Math.ceil(growth * 0.6));
           p.stats[k2] = Math.min(99, p.stats[k2] + Math.floor(growth * 0.4));
+        }
+        if (p.overall >= p.hiddenGem.ceiling) delete p.hiddenGem;
+      } else if (!p.hiddenGem) {
+        // Normal potential-based development
+        const gap = p.potential - p.overall;
+        if (gap > 0 && p.age <= 27) {
+          const baseRate = p.age <= 22 ? 0.45 : p.age <= 24 ? 0.30 : p.age <= 26 ? 0.15 : 0.06;
+          const growth = Math.max(0, Math.round(gap * baseRate * coachBoost));
+          if (growth > 0) {
+            p.overall = Math.min(99, p.overall + growth);
+            const k1 = Math.floor(Math.random() * p.stats.length);
+            const k2 = Math.floor(Math.random() * p.stats.length);
+            p.stats[k1] = Math.min(99, p.stats[k1] + Math.ceil(growth * 0.6));
+            p.stats[k2] = Math.min(99, p.stats[k2] + Math.floor(growth * 0.4));
+          }
         }
       }
 
@@ -5815,6 +5838,7 @@ function _aiAutoPick(slot) {
   const pick = scored[0].p;
   pick.draftRound = slot.round;
   pick.draftPick  = ((franchise.draft.currentIdx) % 32) + 1;
+  _rollHiddenGem(pick);
   pick.contract = rookieContract(pick, franchise.salaryCap || SALARY_CAP_BASE);
   pick.careerEarnings = 0;
   delete pick.isProspect;
@@ -5839,6 +5863,7 @@ function frnDraftPick(name) {
   // Draft info first — rookieContract() reads draftRound + draftPick.
   prospect.draftRound = slot.round;
   prospect.draftPick  = ((d.currentIdx) % 32) + 1;
+  _rollHiddenGem(prospect);
   prospect.contract = rookieContract(prospect, franchise.salaryCap || SALARY_CAP_BASE);
   prospect.careerEarnings = 0;
   delete prospect.isProspect;
@@ -5866,6 +5891,7 @@ function _draftFinalize() {
         udfa.age = 22;
         udfa.draftRound = 0; udfa.draftPick = null;
         udfa.draftYear = rookieYear;
+        _rollHiddenGem(udfa);
         udfa.draftSeason = (franchise?.season || 1) + 1;
         udfa.careerEarnings = 0;
         udfa.contract = rookieContract(udfa, franchise.salaryCap || SALARY_CAP_BASE);
