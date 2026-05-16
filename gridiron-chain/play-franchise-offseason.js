@@ -821,8 +821,9 @@ function frnSimOnce(homeId, awayId, isPlayoff = false) {
   const _filmBonus = (teamId) => {
     const def = (franchise.rosters[teamId] || []).filter(p => ["DL","LB","CB","S"].includes(p.position));
     if (!def.length) return 0;
-    const avg = def.reduce((s,p) => s + (p.stats?.[11] ?? 68), 0) / def.length;
-    const baseBonus = avg >= 80 ? 2 : avg >= 72 ? 1 : 0;
+    const top5 = def.map(p => p.stats?.[11] ?? 68).sort((a,b) => b-a).slice(0,5);
+    const avg = top5.reduce((s,v) => s+v, 0) / top5.length;
+    const baseBonus = avg >= 83 ? 2 : avg >= 75 ? 1 : 0;
     const coachableDensity = def.filter(p => p.coachable).length / def.length;
     return Math.min(3, baseBonus + (coachableDensity >= 0.40 ? 1 : 0));
   };
