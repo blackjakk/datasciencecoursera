@@ -1046,6 +1046,44 @@ const POSITION_COACH_TIERS = {
 };
 const POSITION_COACH_GROUPS = ["QB","OL","Skill","DL","LB/DB"];
 
+// Depth chart slot definitions — each slot maps to a position group, fill order,
+// and which other slots its backup is flex-eligible to cover.
+const DEPTH_CHART_SLOTS = {
+  offense: [
+    { key:"QB",  pos:"QB", rule:"QB_SPECIAL", flex:[] },
+    { key:"RB1", pos:"RB", flex:[] },
+    { key:"WR1", pos:"WR", flex:["WR2","WR3"] },
+    { key:"WR2", pos:"WR", flex:["WR3","WR4"] },
+    { key:"WR3", pos:"WR", flex:["WR4"] },
+    { key:"WR4", pos:"WR", flex:[] },
+    { key:"TE1", pos:"TE", flex:["TE2"] },
+    { key:"TE2", pos:"TE", flex:[] },
+    { key:"LT",  pos:"OL", flex:["LG"] },
+    { key:"LG",  pos:"OL", flex:["LT","C"] },
+    { key:"C",   pos:"OL", flex:["LG","RG"] },
+    { key:"RG",  pos:"OL", flex:["C","RT"] },
+    { key:"RT",  pos:"OL", flex:["RG"] },
+  ],
+  defense: [
+    { key:"DL1", pos:"DL", flex:["DL2"] },
+    { key:"DL2", pos:"DL", flex:["DL1","DL3"] },
+    { key:"DL3", pos:"DL", flex:["DL2","DL4"] },
+    { key:"DL4", pos:"DL", flex:["DL3"] },
+    { key:"LB1", pos:"LB", flex:["LB2"] },
+    { key:"LB2", pos:"LB", flex:["LB1","LB3"] },
+    { key:"LB3", pos:"LB", flex:["LB2"] },
+    { key:"CB1", pos:"CB", flex:["CB2","NB"] },
+    { key:"CB2", pos:"CB", flex:["CB1","NB"] },
+    { key:"NB",  pos:"CB", flex:["CB2"] },
+    { key:"SS",  pos:"S",  flex:["FS"] },
+    { key:"FS",  pos:"S",  flex:["SS"] },
+  ],
+  specialTeams: [
+    { key:"K", pos:"K", flex:[] },
+    { key:"P", pos:"P", flex:[] },
+  ],
+};
+
 // Keep legacy constant so old saves that reference COACH_TRAITS don't break.
 const COACH_TRAITS = [
   { key:"Player Developer",     desc:"Young player growth +35%" },
@@ -1522,6 +1560,102 @@ function _backfillPhysicalPeak() {
   (franchise.freeAgents || []).forEach(stamp);
 }
 
+// ── Depth Chart & Snap Shares ────────────────────────────────────────────────
+
+// Compute optimal starterPct for one slot given starter + backup + rule.
+function _computeOptimalPct(starter, backup, rule) {
+  if (rule === "QB_SPECIAL") return { starterPct: 97, manual: false };
+  if (!starter) return { starterPct: 100, manual: false };
+  const sOvr    = starter.overall ?? 60;
+  const bOvr    = backup?.overall ?? 55;
+  const stamina = starter._stamina ?? 75;
+  const age     = starter.age ?? 25;
+  let base = 60 + (sOvr - bOvr) * 0.6;
+  if      (stamina < 55) base = Math.min(base, 52);
+  else if (stamina < 65) base = Math.min(base, 62);
+  if      (age >= 36)    base -= 10;
+  else if (age >= 33)    base -= 5;
+  return { starterPct: Math.round(Math.min(98, Math.max(35, base))), manual: false };
+}
+
+// Build a fresh depth chart + snap shares for one team from their current roster.
+// Sorts each position group by overall descending, fills slots in order, marks
+// any player not placed as Unassigned (not in depthChart at all).
+function _initDepthChart(teamId) {
+  const roster = franchise.rosters[teamId] || [];
+  if (!franchise.depthChart) franchise.depthChart = {};
+  if (!franchise.snapShares) franchise.snapShares = {};
+
+  const byPos = {};
+  for (const p of roster) {
+    if (!byPos[p.position]) byPos[p.position] = [];
+    byPos[p.position].push(p);
+  }
+  for (const grp of Object.values(byPos)) grp.sort((a,b) => (b.overall||60) - (a.overall||60));
+
+  const used = new Set();
+  const next = pos => (byPos[pos] || []).find(p => !used.has(p.pid)) ?? null;
+  const take = p  => { if (p) used.add(p.pid); return p; };
+
+  const dc = {};
+  const ss = {};
+  for (const side of ["offense","defense","specialTeams"]) {
+    for (const slotDef of DEPTH_CHART_SLOTS[side]) {
+      const starter = take(next(slotDef.pos));
+      const backup  = take(next(slotDef.pos));
+      dc[slotDef.key] = {
+        starter: starter?.pid ?? null,
+        backup:  backup?.pid  ?? null,
+        flex:    slotDef.flex,
+        rule:    slotDef.rule ?? null,
+      };
+      ss[slotDef.key] = _computeOptimalPct(starter, backup, slotDef.rule);
+    }
+  }
+  franchise.depthChart[teamId] = dc;
+  franchise.snapShares[teamId] = ss;
+}
+
+// Re-run the optimizer for all non-manual slots on a team.
+// Call after any roster change (signing, trade, injury return).
+function _optimizeSnapShares(teamId) {
+  if (!franchise.depthChart?.[teamId]) { _initDepthChart(teamId); return; }
+  const dc    = franchise.depthChart[teamId];
+  const ss    = franchise.snapShares[teamId] || {};
+  const byPid = {};
+  for (const p of franchise.rosters[teamId] || []) byPid[p.pid] = p;
+  for (const [key, slot] of Object.entries(dc)) {
+    if (ss[key]?.manual) continue;
+    const starter = slot.starter ? byPid[slot.starter] : null;
+    const backup  = slot.backup  ? byPid[slot.backup]  : null;
+    ss[key] = _computeOptimalPct(starter, backup, slot.rule);
+  }
+  franchise.snapShares[teamId] = ss;
+}
+
+// Backfill stamina onto legacy saves.
+function _backfillStamina() {
+  if (!franchise) return;
+  const stamp = p => {
+    if (p._stamina != null) return;
+    const fl = p.flavor;
+    p._stamina = fl === "RAW_ATHLETE"      ? 82 + Math.floor(Math.random() * 14)
+               : fl === "HIGH_FOOTBALL_IQ" ? 50 + Math.floor(Math.random() * 19)
+               : 68 + Math.floor(Math.random() * 15);
+  };
+  for (const roster of Object.values(franchise.rosters || {})) roster.forEach(stamp);
+  for (const squad  of Object.values(franchise.practiceSquads || {})) squad.forEach(stamp);
+  (franchise.freeAgents || []).forEach(stamp);
+}
+
+// Backfill depth chart + snap shares for any team that doesn't have one yet.
+function _backfillDepthChart() {
+  if (!franchise) return;
+  for (const teamId of Object.keys(franchise.rosters || {})) {
+    if (!franchise.depthChart?.[teamId]) _initDepthChart(Number(teamId));
+  }
+}
+
 // Backfill pid onto any player object that doesn't have one (legacy saves).
 function _backfillPlayerPids() {
   if (!franchise) return;
@@ -1743,7 +1877,7 @@ function loadFranchise() {
     if (raw) {
       franchise = JSON.parse(raw);
       if (franchise && franchise.pendingFranchiseGame) franchise.pendingFranchiseGame = null;
-      _backfillPlayerPids(); _backfillTEC(); _backfillCoachingStaff(); _backfillCoachable(); _backfillPhysicalPeak();
+      _backfillPlayerPids(); _backfillTEC(); _backfillCoachingStaff(); _backfillCoachable(); _backfillPhysicalPeak(); _backfillStamina(); _backfillDepthChart();
       // Race the IDB read — if IDB has a newer save (lastSaved timestamp via
       // _saveLastFlush on franchise), use it. Otherwise keep the sync result.
       _idbGet(slotId).then(idbFranchise => {
@@ -1753,7 +1887,7 @@ function loadFranchise() {
         if (idbTime > lsTime) {
           franchise = idbFranchise;
           if (franchise.pendingFranchiseGame) franchise.pendingFranchiseGame = null;
-          _backfillPlayerPids(); _backfillTEC(); _backfillCoachingStaff(); _backfillCoachable(); _backfillPhysicalPeak();
+          _backfillPlayerPids(); _backfillTEC(); _backfillCoachingStaff(); _backfillCoachable(); _backfillPhysicalPeak(); _backfillStamina(); _backfillDepthChart();
           if (typeof showFranchiseDashboard === "function") showFranchiseDashboard();
         }
       }).catch(() => {});
@@ -1764,7 +1898,7 @@ function loadFranchise() {
         if (!idbFranchise) return;
         franchise = idbFranchise;
         if (franchise.pendingFranchiseGame) franchise.pendingFranchiseGame = null;
-        _backfillPlayerPids(); _backfillTEC(); _backfillCoachingStaff(); _backfillCoachable(); _backfillPhysicalPeak();
+        _backfillPlayerPids(); _backfillTEC(); _backfillCoachingStaff(); _backfillCoachable(); _backfillPhysicalPeak(); _backfillStamina(); _backfillDepthChart();
         if (typeof showFranchiseDashboard === "function") showFranchiseDashboard();
       }).catch(() => {});
     }

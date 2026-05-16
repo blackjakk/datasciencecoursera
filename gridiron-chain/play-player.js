@@ -1056,6 +1056,11 @@ function genPlayer(pos, tier) {
                      : flavor === "RAW_ATHLETE"       ? rand(55, 72)
                      : rand(65, 82);
   player.coachable = Math.random() < (flavor === "HIGH_FOOTBALL_IQ" ? 0.45 : flavor === "RAW_ATHLETE" ? 0.10 : 0.25);
+  // Stamina — how many snaps a player can handle before fatigue degrades performance.
+  // RAW_ATHLETE: high stamina (physical engine), HIGH_IQ: lower (cerebral, needs rotation).
+  player._stamina = flavor === "RAW_ATHLETE"      ? rand(82, 95)
+                  : flavor === "HIGH_FOOTBALL_IQ" ? rand(50, 68)
+                  : rand(68, 82);
   // Physical peak ages — onset is when decline begins; pre-peak players can still gain.
   // RAW_ATHLETE peaks explosively early and falls faster; HIGH_IQ ages gracefully.
   if (flavor === "RAW_ATHLETE") {
