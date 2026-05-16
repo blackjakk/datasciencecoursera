@@ -3764,6 +3764,166 @@ function frnHoldoutIgnore(name) {
 
 // ── Coaching carousel ─────────────────────────────────────────────────────────
 // Generates a pool of available coaches for AI hiring and player UI.
+
+// Returns { teamId → rank } sorted by value. lowIsGood=true ranks lowest value as #1.
+function _rankTeams(valueMap, lowIsGood) {
+  const sorted = Object.entries(valueMap)
+    .sort((a, b) => lowIsGood ? a[1] - b[1] : b[1] - a[1]);
+  const ranks = {};
+  sorted.forEach(([tId], i) => { ranks[Number(tId)] = i + 1; });
+  return ranks;
+}
+
+// End-of-season coach performance evaluation. Runs before fire/hire decisions so
+// a bad year erodes the coach's rating before the firing threshold is applied.
+//   OC → ranked by points scored   (offensive output)
+//   DC → ranked by points allowed  (defensive output)
+//   HC → raw win total
+// Bumps and declines are probabilistic — a good year doesn't guarantee growth,
+// a bad year doesn't guarantee decline.
+function _evaluateCoachPerformance() {
+  const n = TEAMS.length;
+  if (!n) return;
+
+  // Aggregate regular-season points from the schedule
+  const scored = {}, allowed = {};
+  for (const g of (franchise.schedule || [])) {
+    if (!g.played || g.homeScore == null) continue;
+    scored[g.homeId]  = (scored[g.homeId]  || 0) + g.homeScore;
+    scored[g.awayId]  = (scored[g.awayId]  || 0) + g.awayScore;
+    allowed[g.homeId] = (allowed[g.homeId] || 0) + g.awayScore;
+    allowed[g.awayId] = (allowed[g.awayId] || 0) + g.homeScore;
+  }
+
+  const offRanks = _rankTeams(scored,  false); // high points = low rank number = good
+  const defRanks = _rankTeams(allowed, true);  // low points allowed = low rank number = good
+
+  const top5    = Math.ceil(n * 5  / 32);
+  const top11   = Math.ceil(n * 11 / 32);
+  const bot11   = n - Math.ceil(n * 11 / 32) + 1; // rank threshold for bottom tier
+  const champId = franchise.playoffBracket?.champion;
+  const myId    = franchise.chosenTeamId;
+
+  for (const t of TEAMS) {
+    const tId  = t.id;
+    const staff = franchise.coaches?.[tId];
+    if (!staff) continue;
+    const isMine = tId === Number(myId);
+
+    // ── OC ──
+    const oc = staff.oc;
+    if (oc) {
+      const rank = offRanks[tId] || n;
+      const age  = oc.age || 45;
+      const ageMul = age < 40 ? 1.2 : age > 60 ? 0.7 : 1.0;
+
+      if (rank <= top5) {
+        const chance = 0.55 * ageMul;
+        if (Math.random() < chance) {
+          const bump = rank <= 3 ? 2 : 1;
+          oc.rating = Math.min(89, (oc.rating || 60) + bump);
+          if (isMine) {
+            _pushNews({ type:"coach_grow",
+              label: `📈 OC ${oc.name} rated up to ${oc.rating} — #${rank} offense in the league` });
+          } else if (rank <= 3) {
+            _pushNews({ type:"coach_grow",
+              label: `📈 ${t.name} OC ${oc.name} earns league recognition after #${rank} offense` });
+          }
+        }
+      } else if (rank <= top11) {
+        if (Math.random() < 0.30 * ageMul) {
+          oc.rating = Math.min(89, (oc.rating || 60) + 1);
+          if (isMine) {
+            _pushNews({ type:"coach_grow",
+              label: `📈 OC ${oc.name} rated up to ${oc.rating} — top-${rank} offense` });
+          }
+        }
+      } else if (rank >= bot11) {
+        if (Math.random() < 0.25) {
+          oc.rating = Math.max(30, (oc.rating || 60) - 1);
+          if (isMine) {
+            _pushNews({ type:"coach_decline",
+              label: `📉 OC ${oc.name} rated down to ${oc.rating} — bottom-third offense` });
+          }
+        }
+      }
+    }
+
+    // ── DC ──
+    const dc = staff.dc;
+    if (dc) {
+      const rank = defRanks[tId] || n;
+      const age  = dc.age || 45;
+      const ageMul = age < 40 ? 1.2 : age > 60 ? 0.7 : 1.0;
+
+      if (rank <= top5) {
+        const chance = 0.55 * ageMul;
+        if (Math.random() < chance) {
+          const bump = rank <= 3 ? 2 : 1;
+          dc.rating = Math.min(89, (dc.rating || 60) + bump);
+          if (isMine) {
+            _pushNews({ type:"coach_grow",
+              label: `📈 DC ${dc.name} rated up to ${dc.rating} — #${rank} defense in the league` });
+          } else if (rank <= 3) {
+            _pushNews({ type:"coach_grow",
+              label: `📈 ${t.name} DC ${dc.name} earns league recognition after #${rank} defense` });
+          }
+        }
+      } else if (rank <= top11) {
+        if (Math.random() < 0.30 * ageMul) {
+          dc.rating = Math.min(89, (dc.rating || 60) + 1);
+          if (isMine) {
+            _pushNews({ type:"coach_grow",
+              label: `📈 DC ${dc.name} rated up to ${dc.rating} — top-${rank} defense` });
+          }
+        }
+      } else if (rank >= bot11) {
+        if (Math.random() < 0.25) {
+          dc.rating = Math.max(30, (dc.rating || 60) - 1);
+          if (isMine) {
+            _pushNews({ type:"coach_decline",
+              label: `📉 DC ${dc.name} rated down to ${dc.rating} — bottom-third defense` });
+          }
+        }
+      }
+    }
+
+    // ── HC ──
+    const hc = staff.hc;
+    if (hc) {
+      const wins  = franchise.standings?.[tId]?.w || 0;
+      const age   = hc.age || 50;
+      const ageMul = age < 40 ? 1.2 : age > 60 ? 0.7 : 1.0;
+
+      if (tId === champId) {
+        if (Math.random() < 0.70 * ageMul) {
+          hc.rating = Math.min(89, (hc.rating || 60) + 2);
+          if (isMine) _pushNews({ type:"coach_grow",
+            label: `📈 HC ${hc.name} rated up to ${hc.rating} — championship season` });
+        }
+      } else if (wins >= 12) {
+        if (Math.random() < 0.55 * ageMul) {
+          hc.rating = Math.min(89, (hc.rating || 60) + 1);
+          if (isMine) _pushNews({ type:"coach_grow",
+            label: `📈 HC ${hc.name} rated up to ${hc.rating} — ${wins}-win season` });
+        }
+      } else if (wins >= 10) {
+        if (Math.random() < 0.30 * ageMul) {
+          hc.rating = Math.min(89, (hc.rating || 60) + 1);
+          if (isMine) _pushNews({ type:"coach_grow",
+            label: `📈 HC ${hc.name} rated up to ${hc.rating} — double-digit wins` });
+        }
+      } else if (wins <= 4) {
+        if (Math.random() < 0.30) {
+          hc.rating = Math.max(30, (hc.rating || 60) - 1);
+          if (isMine) _pushNews({ type:"coach_decline",
+            label: `📉 HC ${hc.name} rated down to ${hc.rating} — ${wins}-win season` });
+        }
+      }
+    }
+  }
+}
+
 function _generateCoachMarket() {
   const pool = [];
   for (let i = 0; i < 8; i++) pool.push({ type:"hc", ..._rollCoach() });
@@ -3797,6 +3957,10 @@ function _applyHcStaffSweep(staff, teamLabel) {
 
 // End-of-season coaching changes for AI teams.
 function _runCoachingCarousel() {
+  // Evaluate performance first — ratings change before fire decisions are made,
+  // so a coordinator who tanked their unit has a lower rating going into the
+  // firing threshold check.
+  _evaluateCoachPerformance();
   _generateCoachMarket();
   const champId = franchise.playoffBracket?.champion;
   const market  = franchise._coachMarket;
