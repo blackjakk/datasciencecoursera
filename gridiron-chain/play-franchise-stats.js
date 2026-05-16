@@ -3942,8 +3942,16 @@ function renderFrnCoachingStaff() {
     </div>` : `<div class="frn-coach-card" style="color:var(--gray);font-style:italic">No head coach — hire from market</div>`;
 
   // ── Coordinator Cards ──
-  const coordCard = (label, coord, slot) => coord ? `
-    <div class="frn-coach-card">
+  const coordCard = (label, coord, slot) => {
+    if (!coord) return `<div class="frn-coach-card" style="color:var(--gray);font-style:italic">No ${label} — hire from market</div>`;
+    const cYrs = coord.contractYears ?? 2;
+    const expiryWarn = cYrs === 0
+      ? `<div style="font-size:.63rem;color:var(--red);margin:.25rem 0">⚠ Contract expired — may depart this offseason</div>`
+      : cYrs === 1
+      ? `<div style="font-size:.63rem;color:var(--gold);margin:.25rem 0">Final contract year — extension needed</div>`
+      : "";
+    return `
+    <div class="frn-coach-card" style="${cYrs === 0 ? "border-color:var(--red);" : cYrs === 1 ? "border-color:var(--gold);" : ""}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.4rem">
         <div>
           <div style="font-size:.8rem;font-weight:700;color:var(--white)">${coord.name}</div>
@@ -3951,16 +3959,17 @@ function renderFrnCoachingStaff() {
         </div>
         ${ratingBadge(coord.rating)}
       </div>
+      ${expiryWarn}
       <div style="margin-top:.35rem;font-size:.68rem">
         <span style="background:rgba(255,255,255,.07);padding:.12rem .45rem;border-radius:3px">Trait: <b>${coord.trait||"—"}</b></span>
       </div>
-      <div style="margin-top:.3rem;font-size:.65rem;color:var(--gray)">$${(coord.salary||0).toFixed(1)}M/yr · ${coord.contractYears||"?"} yr${(coord.contractYears||1)===1?"":"s"} left</div>
+      <div style="margin-top:.3rem;font-size:.65rem;color:var(--gray)">$${(coord.salary||0).toFixed(1)}M/yr · ${cYrs} yr${cYrs===1?"":"s"} left</div>
       <div style="margin-top:.4rem;text-align:right">
         <button class="btn btn-outline" style="font-size:.62rem;padding:.15rem .5rem"
           onclick="frnFireStaffSlot('${slot}')">Replace ${label}</button>
       </div>
-    </div>`
-  : `<div class="frn-coach-card" style="color:var(--gray);font-style:italic">No ${label} — hire from market</div>`;
+    </div>`;
+  };
 
   // ── Position Staff ──
   const tierColor = t => t === "Elite" ? "var(--gold)" : t === "Good" ? "var(--green-lt)" : "var(--gray)";
@@ -4134,6 +4143,8 @@ function _renderHcVacancyPanel() {
   const oldHc  = staff.hc;
   const oc     = staff.oc;
   const dc     = staff.dc;
+  // Generate emergency market if the offseason carousel hasn't run yet
+  if (typeof _ensureCoachMarket === "function") _ensureCoachMarket();
   const mktHcs = (franchise._coachMarket || []).filter(c => c.type === "hc");
 
   const ratingColor = r => r >= 80 ? "var(--green-lt)" : r >= 65 ? "var(--gold)" : "var(--red)";

@@ -2464,7 +2464,10 @@ function _faResolveAfterWeek(week, isSeasonEnd) {
         }
       };
 
-      if (highId != null && highAav >= n.fa.demandedAAV * 0.95) {
+      // Roster Builder HC lowers the acceptance threshold — FAs take less to play here.
+      const _myHcSpec     = franchise.coaches?.[myId]?.hc?.specialtyTrait;
+      const _acceptThresh = (highIsYou && _myHcSpec === "Roster Builder") ? 0.80 : 0.95;
+      if (highId != null && highAav >= n.fa.demandedAAV * _acceptThresh) {
         signFn();
       } else {
         // FA didn't get a satisfactory offer this week — they lower
