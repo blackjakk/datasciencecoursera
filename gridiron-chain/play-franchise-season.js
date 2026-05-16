@@ -2036,13 +2036,54 @@ function renderFrnFA(selectedName) {
           ${existing ? `<button class="btn btn-outline" onclick="frnFAWithdrawOffer('${escSelName}')">Withdraw</button>` : ""}
         </div>
       </div>
-      <div class="frn-fa-preview">
+      <div style="display:flex;align-items:center;gap:.35rem;flex-wrap:wrap;margin-top:.45rem">
+        <span class="frn-meta-label" style="margin:0">Structure:</span>
+        ${["BALANCED","BACKLOADED","FRONTLOADED"].map(s => {
+          const cur = offer.structure || _defaultStructure(selected.age || 27, scoutGrade(selected));
+          const desc = s === "BALANCED" ? "flat salaries" : s === "BACKLOADED" ? "cheap now, costly later" : "costly now, cheap later";
+          return `<button class="btn ${cur===s?"btn-gold":"btn-outline"}" onclick="frnFASetOffer('${escSelName}','structure','${s}')" style="font-size:.62rem;padding:.2rem .5rem" title="${desc}">${s[0]+s.slice(1).toLowerCase()}</button>`;
+        }).join("")}
+        <span style="color:var(--gray);font-size:.6rem">affects year-by-year cap hits &amp; dead cap</span>
+      </div>
+      <div class="frn-fa-preview" style="margin-top:.5rem">
         <div>Acceptance: <b style="color:${lkColor}">${likelihood}</b></div>
         <div style="color:var(--gray);font-size:.68rem;margin-top:.2rem">
           If accepted: cap goes to <b style="color:${room<0?"var(--red)":"var(--green-lt)"}">$${myProjAfterCuts.toFixed(1)}M</b>
           (${room<0 ? `<b style="color:var(--red)">${Math.abs(room).toFixed(1)}M over</b>` : `$${room.toFixed(1)}M room`})
         </div>
       </div>
+      ${_buildFAOfferContractPreview(selected, offer)}
+      ${(() => {
+        // Position market + value verdict
+        const aavs = [];
+        for (const r of Object.values(franchise.rosters || {})) {
+          for (const p of r) if (p.position === selected.position && p.contract) aavs.push(p.contract.aav);
+        }
+        aavs.sort((a,b) => b-a);
+        const top5 = aavs.slice(0, 5);
+        if (!top5.length) return "";
+        const top5Avg = top5.reduce((s,v) => s+v, 0) / top5.length;
+        const median  = aavs[Math.floor(aavs.length/2)] || 0;
+        const top1    = aavs[0] || 0;
+        const valueGap = offer.aav - top5Avg;
+        const valueTag = valueGap < -2 ? "BARGAIN" : valueGap < 2 ? "FAIR" : valueGap < 6 ? "PREMIUM" : "OVERPRICED";
+        const vColor   = valueTag === "BARGAIN" ? "var(--green-lt)" : valueTag === "FAIR" ? "var(--gold-lt)" : valueTag === "PREMIUM" ? "#e8a000" : "var(--red)";
+        const ageStage = selected.age <= 25 ? "ascending" : selected.age <= 27 ? "young prime" : selected.age <= 30 ? "prime" : selected.age <= 32 ? "late prime" : "declining";
+        return `<div style="margin-top:.5rem;padding:.45rem .55rem;background:var(--bg3);border-radius:5px;border:1px solid var(--border)">
+          <div style="font-size:.6rem;letter-spacing:.7px;color:var(--blgray);margin-bottom:.3rem">MARKET CONTEXT</div>
+          <div style="display:flex;gap:.8rem;flex-wrap:wrap;font-size:.68rem">
+            <div><span class="frn-meta-label">PRICE TAG</span> <b style="color:${vColor}">${valueTag}</b></div>
+            <div><span class="frn-meta-label">STAGE</span> <b style="color:var(--white)">${ageStage}</b></div>
+            <div><span class="frn-meta-label">TOP GRADE</span> <b style="color:var(--gold)">${gradeLabel(scoutGrade(selected))}</b></div>
+          </div>
+          <div style="color:var(--gray);font-size:.62rem;margin-top:.3rem">
+            ${selected.position} market — top 5 avg <b style="color:var(--gold-lt)">$${top5Avg.toFixed(1)}M</b> ·
+            league median <b style="color:var(--gold-lt)">$${median.toFixed(1)}M</b> ·
+            top-paid <b style="color:var(--gold)">$${top1.toFixed(1)}M</b>.
+            Your offer: <b style="color:${vColor}">$${offer.aav.toFixed(1)}M</b>
+          </div>
+        </div>`;
+      })()}
     </div>`;
   }
 
@@ -2102,6 +2143,30 @@ function renderFrnFA(selectedName) {
     </div>`;
 }
 
+// Build an estimated year-by-year contract breakdown for an FA offer preview.
+// Uses scout grade as the OVR proxy (real OVR is hidden at offer stage).
+function _buildFAOfferContractPreview(player, offer) {
+  const proxyOvr = scoutGrade(player);
+  const struct   = offer.structure || _defaultStructure(player.age || 27, proxyOvr);
+  const bonus    = _signingBonusCalc(offer.aav, offer.years, proxyOvr);
+  const bases    = _baseSalarySchedule(offer.aav, offer.years, struct, bonus.bonusProration);
+  const gtdYrs   = _guaranteedYearsForLength(offer.years);
+  const synth    = { contract: {
+    aav: offer.aav, years: offer.years, remaining: offer.years, structure: struct,
+    baseSalaries: bases, bonusProration: bonus.bonusProration,
+    signingBonus: bonus.signingBonus, tradeKicker: bonus.tradeKicker,
+    guaranteedYears: gtdYrs,
+  }};
+  const inner = _buildContractBreakdownBlock(synth);
+  if (!inner) return "";
+  return `<div style="margin-top:.5rem">
+    ${inner}
+    <div style="font-size:.57rem;color:var(--blgray);margin-top:.2rem;font-style:italic">
+      ★ Bonus estimated from scout grade — actual proration may differ by ±1yr
+    </div>
+  </div>`;
+}
+
 function _ensureFAOffer(faName) {
   if (!franchise._faOffers) franchise._faOffers = {};
   if (franchise._faOffers[faName]) return franchise._faOffers[faName];
@@ -2110,6 +2175,7 @@ function _ensureFAOffer(faName) {
   franchise._faOffers[faName] = {
     aav: fa.demandedAAV,
     years: fa.demandedYears,
+    structure: _defaultStructure(fa.age || 27, fa.overall || 70),
     cutNames: [],
   };
   return franchise._faOffers[faName];
@@ -2117,8 +2183,9 @@ function _ensureFAOffer(faName) {
 
 function frnFASetOffer(faName, field, value) {
   const offer = _ensureFAOffer(faName); if (!offer) return;
-  if (field === "aav")   offer.aav   = Math.max(0.5, parseFloat(value) || 0);
-  if (field === "years") offer.years = Math.max(1, Math.min(7, parseInt(value, 10) || 1));
+  if (field === "aav")       offer.aav       = Math.max(0.5, parseFloat(value) || 0);
+  if (field === "years")     offer.years     = Math.max(1, Math.min(7, parseInt(value, 10) || 1));
+  if (field === "structure") offer.structure = value;
   saveFranchise();
   renderFrnFA(faName);
 }
@@ -2161,7 +2228,7 @@ function frnFAProcessOffers() {
     franchise.faNegotiations[faName] = {
       fa,
       state: "negotiating",
-      yourBid: { aav: offer.aav, years: offer.years, cutNames: offer.cutNames || [] },
+      yourBid: { aav: offer.aav, years: offer.years, structure: offer.structure, cutNames: offer.cutNames || [] },
       aiBids: {},
       history: [{ teamId: myId, label: "You", aav: offer.aav, years: offer.years, week: 0 }],
       raisedThisRound: false,
