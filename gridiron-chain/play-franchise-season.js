@@ -482,7 +482,10 @@ function renderFrnPreseason(tab, scoutId, scoutView, selName) {
         </div>
       </div>
       <div style="text-align:right">
-        <button class="btn btn-gold-big" onclick="frnStartSeason()">▶ START SEASON ${season}</button>
+        ${franchise.phase === "preseason"
+          ? `<button class="btn btn-gold-big" onclick="frnStartSeason()">▶ START SEASON ${season}</button>`
+          : `<button class="btn btn-outline" onclick="showFranchiseDashboard()">◀ Back to Week ${franchise.week || ""}</button>`
+        }
       </div>
     </div>`;
 
