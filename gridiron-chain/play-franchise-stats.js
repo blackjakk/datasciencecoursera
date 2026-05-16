@@ -3237,7 +3237,7 @@ function _frnCheckItem(key) {
   if (!franchise._weeklyChecklist[season]) franchise._weeklyChecklist[season] = {};
   if (!franchise._weeklyChecklist[season][week]) franchise._weeklyChecklist[season][week] = {};
   franchise._weeklyChecklist[season][week][key] = true;
-  _scheduleSaveFranchise();
+  saveFranchise();
 }
 
 function renderFrnRegular() {
