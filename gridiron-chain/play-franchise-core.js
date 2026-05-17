@@ -1273,6 +1273,8 @@ function _posCoachToCoord(pc, teamId) {
       proBowls: pc.proBowls || 0,
       allPros: pc.allPros || 0,
       sbRings: pc.sbRings || 0,
+      careerStatLine: pc.careerStatLine || "",
+      careerYears: pc.careerYears || 0,
       developedByTeamId: pc.developedByTeamId || teamId,
     },
   };
@@ -1423,6 +1425,7 @@ function _retiredPlayerToCoach(rp, currentSeason) {
     formerTeamId: rp.formerTeamId, formerTeamName: rp.formerTeamName,
     proBowls: rp.proBowls || 0, allPros: rp.allPros || 0, sbRings: rp.sbRings || 0,
     peakOvr: rp.peakOvr, pid: rp.pid,
+    careerStatLine: rp.careerStatLine || "", careerYears: rp.careerYears || 0,
   };
 }
 

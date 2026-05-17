@@ -4469,6 +4469,8 @@ function _processSeasonEndRetirements() {
               awr: p.stats?.[3] ?? 70, archetype: p.archetype,
               proBowls: p.proBowls || 0, allPros: p.allPros || 0, sbRings: p.sbRings || 0,
               formerTeamId: tId, formerTeamName: `${t.city} ${t.name}`,
+              careerStatLine: mvpStatLine(p.careerStats || {}),
+              careerYears: p.careerHistory?.length || 0,
             });
             franchise._retiredPlayerPool = franchise._retiredPlayerPool
               .filter(rp => franchise.season - rp.retiredSeason <= 10);
@@ -4495,6 +4497,8 @@ function _processSeasonEndRetirements() {
               salary: POSITION_COACH_TIERS[_pcTier].salary,
               peakOvr: _pcPeak, proBowls: p.proBowls||0, allPros: p.allPros||0, sbRings: p.sbRings||0,
               isFormerPlayer: true, retiredSeason: franchise.season||1, retiredAge: p.age||30,
+              careerStatLine: mvpStatLine(p.careerStats || {}),
+              careerYears: p.careerHistory?.length || 0,
             });
           }
         }
@@ -4707,7 +4711,7 @@ function renderFrnCoachingStaff() {
         <span style="background:rgba(255,255,255,.08);padding:.15rem .5rem;border-radius:3px">Culture: <b>${hc.cultureTrait||"—"}</b></span>
         <span style="background:rgba(255,255,255,.08);padding:.15rem .5rem;border-radius:3px">Specialty: <b>${hc.specialtyTrait||"—"}</b></span>
       </div>
-      ${hc.isFormerPlayer ? `<div style="margin-top:.3rem"><span style="font-size:.6rem;padding:.1rem .4rem;border-radius:3px;background:rgba(255,200,0,.18);color:var(--gold);border:1px solid rgba(255,200,0,.4)">🏈 Ex-${hc.formerPos||"?"}${hc.peakOvr?" · OVR "+hc.peakOvr:""}${hc.proBowls>0?" · "+hc.proBowls+"x PB":""}${hc.allPros>0?" · "+hc.allPros+"x AP":""}${hc.sbRings>0?" · "+hc.sbRings+"x SB":""}</span></div>` : ""}
+      ${hc.isFormerPlayer ? `<div style="margin-top:.3rem"><span style="font-size:.6rem;padding:.1rem .4rem;border-radius:3px;background:rgba(255,200,0,.18);color:var(--gold);border:1px solid rgba(255,200,0,.4)">🏈 Ex-${hc.formerPos||"?"}${hc.peakOvr?" · OVR "+hc.peakOvr:""}${hc.proBowls>0?" · "+hc.proBowls+"x PB":""}${hc.allPros>0?" · "+hc.allPros+"x AP":""}${hc.sbRings>0?" · "+hc.sbRings+"x SB":""}</span>${hc.careerStatLine ? `<div style="font-size:.58rem;color:var(--gray);margin-top:.2rem">${hc.careerStatLine}</div>` : ""}</div>` : ""}
       <div style="margin-top:.4rem;font-size:.68rem;color:var(--gray)">
         Record: ${hc.record?.w||0}–${hc.record?.l||0}${(hc.record?.championships||0)>0?" · "+hc.record.championships+" ring"+(hc.record.championships>1?"s":""):""} ·
         $${(hc.salary||0).toFixed(1)}M/yr · ${hc.contractYears??1} yr${(hc.contractYears??1)===1?"":"s"} left
@@ -4746,6 +4750,7 @@ function renderFrnCoachingStaff() {
         <span style="background:rgba(255,255,255,.07);padding:.12rem .45rem;border-radius:3px">Trait: <b>${coord.trait||"—"}</b></span>
         ${schemeKey ? _schemeBadge(schemeKey, true) : ""}
       </div>
+      ${coord.isFormerPlayer ? `<div style="margin-top:.25rem"><span style="font-size:.57rem;padding:.08rem .35rem;border-radius:3px;background:rgba(255,200,0,.15);color:var(--gold)">🏈 Ex-${coord.formerPos||"?"}${coord.peakOvr?" · OVR "+coord.peakOvr:""}${coord.proBowls>0?" · "+coord.proBowls+"xPB":""}${coord.allPros>0?" · "+coord.allPros+"xAP":""}${coord.sbRings>0?" · "+coord.sbRings+"xSB":""}</span>${coord.careerStatLine ? `<div style="font-size:.57rem;color:var(--gray);margin-top:.15rem">${coord.careerStatLine}</div>` : ""}</div>` : ""}
       <div style="margin-top:.3rem;font-size:.65rem;color:var(--gray)">$${(coord.salary||0).toFixed(1)}M/yr · ${cYrs} yr${cYrs===1?"":"s"} left</div>
       <div style="margin-top:.4rem;display:flex;justify-content:flex-end;gap:.4rem">
         ${cYrs <= 1 ? `<button class="btn btn-outline" style="font-size:.62rem;padding:.15rem .5rem;color:var(--gold);border-color:var(--gold)"
@@ -4774,7 +4779,7 @@ function renderFrnCoachingStaff() {
           <span style="font-size:.62rem;font-weight:700;padding:.05rem .3rem;border-radius:3px;background:${tierColor(coach.tier)};color:#000">${pcRating}</span>
         </div>
         ${isLoyal ? `<div style="font-size:.57rem;color:var(--gold)">🏠 Team loyalist</div>` : ""}
-        ${coach.isFormerPlayer ? `<div style="font-size:.57rem;color:var(--gold)">🏈 Ex-${coach.formerPos||"?"} · Pk ${coach.peakOvr||"?"}</div>` : ""}
+        ${coach.isFormerPlayer ? `<div style="font-size:.57rem;color:var(--gold)">🏈 Ex-${coach.formerPos||"?"} · Pk ${coach.peakOvr||"?"}${coach.proBowls>0?" · "+coach.proBowls+"xPB":""}${coach.allPros>0?" · "+coach.allPros+"xAP":""}${coach.sbRings>0?" · "+coach.sbRings+"xSB":""}</div>${coach.careerStatLine ? `<div style="font-size:.55rem;color:var(--gray)">${coach.careerStatLine}</div>` : ""}` : ""}
         <div style="font-size:.6rem;color:${tierColor(coach.tier)}">${coach.tier} · $${(coach.salary||0).toFixed(1)}M${coach.age ? " · Age "+coach.age : ""}</div>
         <div style="display:flex;gap:.25rem;margin-top:.3rem;flex-wrap:wrap">
           ${promoteSlot ? `<button class="btn btn-outline" style="font-size:.53rem;padding:.08rem .3rem;color:var(--green-lt);border-color:var(--green-lt)"
@@ -4811,6 +4816,7 @@ function renderFrnCoachingStaff() {
             <div style="flex:1;min-width:0">
               <span style="font-size:.75rem;font-weight:700;color:var(--white)">${c.name}</span>
               ${c.isFormerPlayer ? `<span style="font-size:.58rem;padding:.05rem .35rem;border-radius:3px;background:rgba(255,200,0,.15);color:var(--gold);margin-left:.3rem">🏈 Ex-${c.formerPos} · Pk ${c.peakOvr}${c.proBowls>0?" · "+c.proBowls+"xPB":""}${c.allPros>0?" · "+c.allPros+"xAP":""}${c.sbRings>0?" · "+c.sbRings+"xSB":""}</span>` : ""}
+              ${c.isFormerPlayer && c.careerStatLine ? `<div style="font-size:.57rem;color:var(--gray);margin-top:.1rem">${c.careerStatLine}</div>` : ""}
               <div style="font-size:.62rem;color:${tierColor(c.tier)};margin-top:.1rem">${c.tier} · $${(c.salary||0).toFixed(1)}M/yr</div>
             </div>
             <button class="btn btn-outline" style="font-size:.62rem;padding:.15rem .5rem;color:var(--green-lt);border-color:var(--green-lt);white-space:nowrap"
@@ -4893,6 +4899,7 @@ function renderFrnCoachingStaff() {
         <div style="flex:1;min-width:0">
           <div style="font-size:.78rem;font-weight:700;display:flex;align-items:center;flex-wrap:wrap;gap:.3rem">${c.name} ${ratingBadge(c.rating)}${fmrBadge}${loyalBadge}</div>
           <div style="font-size:.62rem;color:var(--gray)">Culture: ${c.cultureTrait||"—"} · Spec: ${c.specialtyTrait||"—"} · $${(c.salary||0).toFixed(1)}M/yr · Age ${c.age||"?"}</div>
+          ${c.isFormerPlayer && c.careerStatLine ? `<div style="font-size:.58rem;color:var(--gray);margin-top:.1rem">${c.careerStatLine}</div>` : ""}
           ${proposedHtml}
         </div>
         <button class="btn btn-outline" style="font-size:.65rem;white-space:nowrap;align-self:flex-start"
@@ -4917,6 +4924,7 @@ function renderFrnCoachingStaff() {
             ${fmrBadge}
           </div>
           <div style="font-size:.62rem;color:var(--gray);margin-top:.1rem">Trait: ${c.trait||"—"} · $${(c.salary||0).toFixed(1)}M/yr · Age ${c.age||"?"}</div>
+          ${c.isFormerPlayer && c.careerStatLine ? `<div style="font-size:.58rem;color:var(--gray);margin-top:.1rem">${c.careerStatLine}</div>` : ""}
           ${preview}
         </div>
         <button class="btn btn-outline" style="font-size:.65rem;white-space:nowrap;align-self:flex-start"
@@ -4941,6 +4949,7 @@ function renderFrnCoachingStaff() {
             ${fmrBadge}
           </div>
           <div style="font-size:.62rem;color:var(--gray);margin-top:.1rem">Trait: ${c.trait||"—"} · $${(c.salary||0).toFixed(1)}M/yr · Age ${c.age||"?"}</div>
+          ${c.isFormerPlayer && c.careerStatLine ? `<div style="font-size:.58rem;color:var(--gray);margin-top:.1rem">${c.careerStatLine}</div>` : ""}
           ${preview}
         </div>
         <button class="btn btn-outline" style="font-size:.65rem;white-space:nowrap;align-self:flex-start"
@@ -5349,6 +5358,8 @@ function frnHirePositionCoachFromPool(group, filteredIdx) {
     tier: candidate.tier, salary: candidate.salary,
     isFormerPlayer: candidate.isFormerPlayer,
     formerPos: candidate.formerPos, peakOvr: candidate.peakOvr,
+    proBowls: candidate.proBowls || 0, allPros: candidate.allPros || 0, sbRings: candidate.sbRings || 0,
+    careerStatLine: candidate.careerStatLine || "", careerYears: candidate.careerYears || 0,
     age: (candidate.retiredAge || 32) + yearsOut,
     yearsWithTeam: 0,
   });
