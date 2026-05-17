@@ -1851,20 +1851,33 @@ function _initDepthChart(teamId) {
 
   const dc = {};
   const ss = {};
-  for (const side of ["offense","defense","specialTeams"]) {
-    for (const slotDef of DEPTH_CHART_SLOTS[side]) {
-      const starter = take(next(slotDef.pos));
-      const backup  = take(next(slotDef.pos));
-      dc[slotDef.key] = {
-        starter:   starter?.pid ?? null,
-        backup:    backup?.pid  ?? null,
-        flex:      slotDef.flex,
-        snapFloor: slotDef.snapFloor ?? 35,
-        snapCeil:  slotDef.snapCeil  ?? 98,
-      };
-      ss[slotDef.key] = _computeOptimalPct(starter, backup, slotDef.snapFloor, slotDef.snapCeil);
-    }
+  const allSlots = [
+    ...DEPTH_CHART_SLOTS.offense,
+    ...DEPTH_CHART_SLOTS.defense,
+    ...DEPTH_CHART_SLOTS.specialTeams,
+  ];
+
+  // Pass 1: fill every starter slot before assigning any backup.
+  // This ensures all OL/DL/etc. positions get a starter even with a thin roster.
+  for (const slotDef of allSlots) {
+    const starter = take(next(slotDef.pos));
+    dc[slotDef.key] = {
+      starter:   starter?.pid ?? null,
+      backup:    null,
+      flex:      slotDef.flex,
+      snapFloor: slotDef.snapFloor ?? 35,
+      snapCeil:  slotDef.snapCeil  ?? 98,
+    };
   }
+
+  // Pass 2: fill backup slots with the next-best available player per position.
+  for (const slotDef of allSlots) {
+    const backup = take(next(slotDef.pos));
+    dc[slotDef.key].backup = backup?.pid ?? null;
+    const starter = dc[slotDef.key].starter ? (franchise.rosters[teamId]||[]).find(p=>p.pid===dc[slotDef.key].starter) : null;
+    ss[slotDef.key] = _computeOptimalPct(starter, backup, slotDef.snapFloor, slotDef.snapCeil);
+  }
+
   franchise.depthChart[teamId] = dc;
   franchise.snapShares[teamId] = ss;
 }
