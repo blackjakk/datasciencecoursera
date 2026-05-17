@@ -2215,10 +2215,14 @@ function renderFrnFA(selectedKey) {
     const ageColor = young ? "color:var(--green-lt);font-weight:700" : p.age >= 32 ? "color:#e8a000" : "";
     const wo = workoutResults[p.name];
     const woIcon = wo ? (wo.result === "standout" ? "⭐" : wo.result === "solid" ? "✅" : wo.result === "mixed" ? "〰️" : "❌") : "";
+    const pGrade = scoutGrade(p);
+    const heatIcon = pGrade >= 88 ? ` <span title="Heavy league-wide interest expected" style="font-size:.7rem">🔥</span>`
+                   : pGrade >= 80 ? ` <span title="Multiple teams likely interested" style="font-size:.7rem">👀</span>`
+                   : "";
     return `<button class="frn-fa-row ${isSel?"selected":""} ${offered?"offered":""}"
       onclick="renderFrnFA('${escKey}')">
       <span>${gradeBadge(p)}</span>
-      <span class="frn-fa-name">${p.name}${young ? " 🌱" : ""}${woIcon ? ` <span title="Workout: ${wo.result}" style="font-size:.7rem">${woIcon}</span>` : ""}</span>
+      <span class="frn-fa-name">${p.name}${young ? " 🌱" : ""}${woIcon ? ` <span title="Workout: ${wo.result}" style="font-size:.7rem">${woIcon}</span>` : ""}${heatIcon}</span>
       <span class="frn-fa-pos">${p.position}</span>
       <span class="frn-fa-age" style="${ageColor}">age ${p.age}</span>
       <span class="frn-fa-ask">asks $${p.demandedAAV.toFixed(1)}M</span>
@@ -2286,6 +2290,13 @@ function renderFrnFA(selectedKey) {
       <div class="frn-fa-demand">
         Wants <b style="color:var(--gold)">$${selected.demandedAAV.toFixed(1)}M/yr × ${selected.demandedYears}yr</b>
       </div>
+      ${(() => {
+        const suitors = TEAMS.filter(t => t.id !== franchise.chosenTeamId && _faAIInterest(t.id, selected) >= 0.1).length;
+        if (suitors === 0) return "";
+        const col = suitors >= 6 ? "var(--red)" : suitors >= 3 ? "#e8a000" : "var(--gray)";
+        const label = suitors >= 6 ? "heavy interest" : suitors >= 3 ? "moderate interest" : "some interest";
+        return `<div style="font-size:.65rem;color:${col};margin-bottom:.35rem">~${suitors} team${suitors !== 1 ? "s" : ""} showing ${label}</div>`;
+      })()}
       ${(() => {
         const wr = (franchise._faWorkoutResults || {})[selected.name];
         const slotsLeft = _workoutSlotsRemaining();
@@ -2553,6 +2564,13 @@ function frnFAProcessOffers() {
   // user ignored.
   _faAIBidRound(0, /*isInitial=*/true);
 
+  // Surface a news item showing how many AI-only negotiations opened
+  const aiOnlyCount = Object.values(franchise.faNegotiations || {})
+    .filter(n => !n.yourBid && Object.keys(n.aiBids || {}).length > 0).length;
+  if (aiOnlyCount > 0) {
+    _pushNews({ type: "fa_activity", label: `📋 ${aiOnlyCount} free agent${aiOnlyCount > 1 ? "s" : ""} entered AI-only negotiations — act before they sign.` });
+  }
+
   // Players the AI didn't bid on either become negotiations with no
   // bids (drop) — they leave the pool.
   franchise._faOffers = {};
@@ -2582,7 +2600,7 @@ function _faAIInterest(teamId, fa) {
   let base = 0.04;
   if (grade >= 88) base = 0.28;
   else if (grade >= 80) base = 0.16;
-  else if (grade >= 72) base = 0.08;
+  else if (grade >= 72) base = 0.12;
   if (fa._workoutHot) base = Math.min(0.55, base * 1.6); // standout workout drew league-wide attention
   // Team-need factor: teams weaker at this FA's position bid more
   const roster = franchise.rosters[teamId] || [];
