@@ -718,9 +718,7 @@ function _buildScoutPlayerPanel(p, scouted) {
     ? `<div style="font-size:.58rem;color:#4dbd64;margin-top:.45rem">grades ±2 (scouted)</div>`
     : `<div style="font-size:.58rem;color:#f5a028;margin-top:.45rem">~grades are ±8 estimates</div>`;
 
-  const gradeBadgeHtml = scouted
-    ? `<span class="tt-ovr tier-${gc}">${gL}</span>`
-    : `<span class="tt-ovr tier-${gc} frn-scout-fuzzy">~${gL}</span>`;
+  const gradeBadgeHtml = _scoutGradeBadge(p, scouted);
 
   return `<div class="frn-player-card">
     <div class="frn-player-card-head" style="display:flex;gap:.9rem;align-items:flex-start">
