@@ -1221,16 +1221,60 @@ function _rollDC() {
   };
 }
 
+function _posCoachTierFromRating(r) {
+  return r >= 80 ? "Elite" : r >= 65 ? "Good" : "Journeyman";
+}
+
 function _rollPositionCoach(group) {
   const roll = Math.random();
   const tier = roll < 0.50 ? "Journeyman" : roll < 0.85 ? "Good" : "Elite";
+  const rating = tier === "Elite" ? 80 + Math.floor(Math.random() * 11)
+               : tier === "Good"  ? 65 + Math.floor(Math.random() * 15)
+               :                    40 + Math.floor(Math.random() * 25);
   return {
     name: `${pickFirstName()} ${pickLastName()}`,
     group,
-    tier,
+    rating,
+    tier: _posCoachTierFromRating(rating),
     age: 30 + Math.floor(Math.random() * 15),
     yearsWithTeam: 0,
-    salary: POSITION_COACH_TIERS[tier].salary,
+    salary: POSITION_COACH_TIERS[_posCoachTierFromRating(rating)].salary,
+  };
+}
+
+// Converts a position coach into a coordinator candidate.
+// Rating discounted ~88% (deep positional expertise ≠ full play-calling experience).
+// Trait auto-assigned from coaching background. Loyalty bond preserved.
+function _posCoachToCoord(pc, teamId) {
+  const pcR    = pc.rating || 60;
+  const coordR = Math.min(84, Math.round(pcR * 0.88));
+  const traitFn = {
+    "QB":    () => ({ type:"oc", trait:"QB Whisperer" }),
+    "OL":    () => ({ type:"oc", trait:"Trench General" }),
+    "Skill": () => ({ type:"oc", trait: Math.random() < 0.5 ? "Run Architect" : "Air Attack" }),
+    "DL":    () => ({ type:"dc", trait: Math.random() < 0.5 ? "Pressure Package" : "Run Stopper" }),
+    "LB/DB": () => ({ type:"dc", trait: Math.random() < 0.5 ? "Cover Scheme" : "Ball Hawk" }),
+  };
+  const { type, trait } = (traitFn[pc.group] || (() => ({ type:"oc", trait:"Balanced" })))();
+  const sal = +(_marketSalaryForCoach({ rating: coordR, trait }, type)).toFixed(1);
+  return {
+    type,
+    coord: {
+      name: pc.name,
+      rating: coordR,
+      trait,
+      age: pc.age || 40,
+      yearsWithTeam: pc.yearsWithTeam || 0,
+      salary: sal,
+      contractYears: 2 + Math.floor(Math.random() * 3),
+      isFormerPlayer: pc.isFormerPlayer || false,
+      formerPos: pc.formerPos,
+      peakOvr: pc.peakOvr,
+      proBowls: pc.proBowls || 0,
+      allPros: pc.allPros || 0,
+      sbRings: pc.sbRings || 0,
+      developedByTeamId: pc.developedByTeamId || teamId,
+    },
   };
 }
 

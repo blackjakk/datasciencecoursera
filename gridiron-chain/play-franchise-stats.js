@@ -4479,14 +4479,20 @@ function _processSeasonEndRetirements() {
           const _pcGrpMap = { QB:"QB", OL:"OL", WR:"Skill", RB:"Skill", TE:"Skill", DL:"DL", LB:"LB/DB", CB:"LB/DB", S:"LB/DB" };
           const _pcGrp = _pcGrpMap[p.position];
           if (_pcGrp) {
-            const _pcPeak = Math.max(...(p.careerHistory||[]).map(h=>h.ovr??h.overall??0), p.overall||0);
-            const _pcTier = (_pcPeak>=85||(p.proBowls||0)>=3||(p.allPros||0)>=1) ? "Elite"
-                          : (_pcPeak>=75||(p.proBowls||0)>=1) ? "Good" : "Journeyman";
+            const _pcPeak  = Math.max(...(p.careerHistory||[]).map(h=>h.ovr??h.overall??0), p.overall||0);
+            const _awr     = p.stats?.[3] ?? 70;
+            const _pcRating = Math.max(40, Math.min(90,
+              Math.round(_pcPeak * 0.60 + _awr * 0.40 + (Math.random() * 10 - 5))));
+            const _pcTier  = typeof _posCoachTierFromRating === "function"
+              ? _posCoachTierFromRating(_pcRating)
+              : (_pcPeak>=85||(p.proBowls||0)>=3||(p.allPros||0)>=1) ? "Elite"
+              : (_pcPeak>=75||(p.proBowls||0)>=1) ? "Good" : "Journeyman";
             if (!franchise._posCoachPool) franchise._posCoachPool = [];
             franchise._posCoachPool.push({
               name: p.name, pid: p.pid,
               formerPos: p.position, group: _pcGrp,
-              tier: _pcTier, salary: POSITION_COACH_TIERS[_pcTier].salary,
+              rating: _pcRating, tier: _pcTier,
+              salary: POSITION_COACH_TIERS[_pcTier].salary,
               peakOvr: _pcPeak, proBowls: p.proBowls||0, allPros: p.allPros||0, sbRings: p.sbRings||0,
               isFormerPlayer: true, retiredSeason: franchise.season||1, retiredAge: p.age||30,
             });
@@ -4718,18 +4724,19 @@ function renderFrnCoachingStaff() {
   // ── Coordinator Cards ──
   const coordCard = (label, coord, slot) => {
     if (!coord) return `<div class="frn-coach-card" style="color:var(--gray);font-style:italic">No ${label} — hire from market</div>`;
-    const cYrs = coord.contractYears ?? 2;
+    const cYrs   = coord.contractYears ?? 2;
+    const isLoyal = coord.developedByTeamId === myId;
     const expiryWarn = cYrs === 0
-      ? `<div style="font-size:.63rem;color:var(--red);margin:.25rem 0">⚠ Contract expired — may depart this offseason</div>`
+      ? `<div style="font-size:.63rem;color:var(--red);margin:.25rem 0">⚠ Contract expired — may depart this offseason${isLoyal?" · Hometown loyalty reduces departure risk":""}</div>`
       : cYrs === 1
-      ? `<div style="font-size:.63rem;color:var(--gold);margin:.25rem 0">Final contract year — extension needed</div>`
+      ? `<div style="font-size:.63rem;color:var(--gold);margin:.25rem 0">Final contract year — extension needed${isLoyal?" · 🏠 Hometown discount applies":""}</div>`
       : "";
     const schemeKey = slot === "oc" ? OFF_SCHEME_MAP[coord.trait] : DEF_SCHEME_MAP[coord.trait];
     return `
     <div class="frn-coach-card" style="${cYrs === 0 ? "border-color:var(--red);" : cYrs === 1 ? "border-color:var(--gold);" : ""}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.4rem">
         <div>
-          <div style="font-size:.8rem;font-weight:700;color:var(--white)">${coord.name}</div>
+          <div style="font-size:.8rem;font-weight:700;color:var(--white)">${coord.name}${isLoyal ? ` <span style="font-size:.6rem;color:var(--gold)">🏠</span>` : ""}</div>
           <div style="font-size:.62rem;color:var(--gray)">${label} · Age ${coord.age||"?"} · ${coord.yearsWithTeam||0} yr${(coord.yearsWithTeam||0)===1?"":"s"}</div>
         </div>
         ${ratingBadge(coord.rating)}
@@ -4754,19 +4761,31 @@ function renderFrnCoachingStaff() {
   const posSlots = POSITION_COACH_GROUPS.map((g) => {
     const coach = posStaff.find(s => s.group === g);
     const isBrowsing = _posCoachBrowseGroup === g;
-    if (coach) return `
+    if (coach) {
+      const pcRating = coach.rating || (coach.tier === "Elite" ? 82 : coach.tier === "Good" ? 68 : 52);
+      const isLoyal = coach.developedByTeamId === myId;
+      const offGroups = ["QB","OL","Skill"], defGroups = ["DL","LB/DB"];
+      const promoteSlot = offGroups.includes(g) ? "OC" : defGroups.includes(g) ? "DC" : null;
+      return `
       <div class="frn-coach-pos-slot${isBrowsing ? '" style="border-color:var(--gold)' : ''}">
         <div style="font-size:.65rem;color:var(--gray);text-transform:uppercase;letter-spacing:.5px">${g}</div>
-        <div style="font-size:.75rem;font-weight:700;color:var(--white);margin:.1rem 0">${coach.name}</div>
-        ${coach.isFormerPlayer ? `<div style="font-size:.58rem;color:var(--gold)">🏈 Ex-${coach.formerPos||"?"} · Pk ${coach.peakOvr||"?"}</div>` : ""}
-        <div style="font-size:.62rem;color:${tierColor(coach.tier)}">${coach.tier} · $${(coach.salary||0).toFixed(1)}M${coach.age ? " · Age "+coach.age : ""}</div>
-        <div style="display:flex;gap:.3rem;margin-top:.3rem">
-          ${coach.tier !== "Elite" ? `<button class="btn btn-outline" style="font-size:.55rem;padding:.1rem .35rem;flex:1"
-            onclick="frnUpgradePositionCoach('${g}')">↑ Promote</button>` : `<div style="flex:1"></div>`}
-          <button class="btn btn-outline" style="font-size:.55rem;padding:.1rem .35rem;color:var(--red);border-color:var(--red)"
+        <div style="display:flex;align-items:center;gap:.3rem;margin:.1rem 0">
+          <span style="font-size:.75rem;font-weight:700;color:var(--white)">${coach.name}</span>
+          <span style="font-size:.62rem;font-weight:700;padding:.05rem .3rem;border-radius:3px;background:${tierColor(coach.tier)};color:#000">${pcRating}</span>
+        </div>
+        ${isLoyal ? `<div style="font-size:.57rem;color:var(--gold)">🏠 Team loyalist</div>` : ""}
+        ${coach.isFormerPlayer ? `<div style="font-size:.57rem;color:var(--gold)">🏈 Ex-${coach.formerPos||"?"} · Pk ${coach.peakOvr||"?"}</div>` : ""}
+        <div style="font-size:.6rem;color:${tierColor(coach.tier)}">${coach.tier} · $${(coach.salary||0).toFixed(1)}M${coach.age ? " · Age "+coach.age : ""}</div>
+        <div style="display:flex;gap:.25rem;margin-top:.3rem;flex-wrap:wrap">
+          ${promoteSlot ? `<button class="btn btn-outline" style="font-size:.53rem;padding:.08rem .3rem;color:var(--green-lt);border-color:var(--green-lt)"
+            onclick="frnPromotePositionCoach('${g}')">→ ${promoteSlot}</button>` : ""}
+          ${coach.tier !== "Elite" ? `<button class="btn btn-outline" style="font-size:.53rem;padding:.08rem .3rem"
+            onclick="frnUpgradePositionCoach('${g}')">↑ Tier</button>` : ""}
+          <button class="btn btn-outline" style="font-size:.53rem;padding:.08rem .3rem;color:var(--red);border-color:var(--red)"
             onclick="frnReleasePositionCoach('${g}')">✕</button>
         </div>
       </div>`;
+    }
     return `
       <div class="frn-coach-pos-slot" style="border-style:dashed;${isBrowsing ? "border-color:var(--gold);opacity:1" : "opacity:.6"}">
         <div style="font-size:.65rem;color:var(--gray);text-transform:uppercase;letter-spacing:.5px">${g}</div>
@@ -4832,6 +4851,9 @@ function renderFrnCoachingStaff() {
     const fmrBadge = c.isFormerPlayer
       ? `<span style="font-size:.58rem;padding:.1rem .35rem;border-radius:3px;background:rgba(255,200,0,.18);color:var(--gold);border:1px solid rgba(255,200,0,.4);white-space:nowrap;margin-left:.3rem">🏈 Ex-${c.formerPos||"?"}${c.peakOvr?" OVR "+c.peakOvr:""}${c.proBowls>0?" "+c.proBowls+"xPB":""}${c.sbRings>0?" "+c.sbRings+"xSB":""}</span>`
       : "";
+    const loyalBadge = c.developedByTeamId === myId
+      ? `<span style="font-size:.58rem;padding:.1rem .35rem;border-radius:3px;background:rgba(255,200,0,.12);color:var(--gold);border:1px solid rgba(255,200,0,.35);white-space:nowrap;margin-left:.3rem">🏠 Former ${myTeam?.name||""} coach</span>`
+      : "";
 
     // Proposed staff — show the actual named coordinators he'd bring
     let proposedHtml = "";
@@ -4869,7 +4891,7 @@ function renderFrnCoachingStaff() {
     <div class="frn-coach-market-row" style="flex-direction:column;align-items:stretch">
       <div style="display:flex;align-items:flex-start;gap:.75rem">
         <div style="flex:1;min-width:0">
-          <div style="font-size:.78rem;font-weight:700;display:flex;align-items:center;flex-wrap:wrap;gap:.3rem">${c.name} ${ratingBadge(c.rating)}${fmrBadge}</div>
+          <div style="font-size:.78rem;font-weight:700;display:flex;align-items:center;flex-wrap:wrap;gap:.3rem">${c.name} ${ratingBadge(c.rating)}${fmrBadge}${loyalBadge}</div>
           <div style="font-size:.62rem;color:var(--gray)">Culture: ${c.cultureTrait||"—"} · Spec: ${c.specialtyTrait||"—"} · $${(c.salary||0).toFixed(1)}M/yr · Age ${c.age||"?"}</div>
           ${proposedHtml}
         </div>
@@ -5085,13 +5107,16 @@ function frnExtendCoordinator(slot) {
   if (!staff) return;
   const coord = staff[slot];
   if (!coord) return;
-  const label    = slot === "oc" ? "OC" : "DC";
-  const newSal   = +(_marketSalaryForCoach(coord, slot) * 1.12).toFixed(1);
-  const newYears = 2 + Math.floor(Math.random() * 2);
-  if (!confirm(`Extend ${coord.name} (${label})?\n$${newSal}M/yr · ${newYears} years`)) return;
+  const label     = slot === "oc" ? "OC" : "DC";
+  const isLoyal   = coord.developedByTeamId === myId;
+  const loyalMul  = isLoyal ? 0.87 : 1.0;
+  const newSal    = +(_marketSalaryForCoach(coord, slot) * 1.12 * loyalMul).toFixed(1);
+  const newYears  = 2 + Math.floor(Math.random() * 2);
+  const loyalNote = isLoyal ? "\n🏠 Hometown discount applied (−13%)" : "";
+  if (!confirm(`Extend ${coord.name} (${label})?\n$${newSal}M/yr · ${newYears} years${loyalNote}`)) return;
   coord.salary       = newSal;
   coord.contractYears = newYears;
-  _pushNews({ type:"coach_hire", label: `📝 Extended ${label} ${coord.name} — $${newSal}M/yr · ${newYears} yrs` });
+  _pushNews({ type:"coach_hire", label: `📝 Extended ${label} ${coord.name} — $${newSal}M/yr · ${newYears} yrs${isLoyal?" (hometown)":""}` });
   saveFranchise();
   renderFrnCoachingStaff();
 }
@@ -5320,6 +5345,7 @@ function frnHirePositionCoachFromPool(group, filteredIdx) {
   const yearsOut = Math.max(0, (franchise.season || 1) - (candidate.retiredSeason || franchise.season || 1));
   staff.positionStaff.push({
     name: candidate.name, group: candidate.group,
+    rating: candidate.rating || 60,
     tier: candidate.tier, salary: candidate.salary,
     isFormerPlayer: candidate.isFormerPlayer,
     formerPos: candidate.formerPos, peakOvr: candidate.peakOvr,
@@ -5386,6 +5412,34 @@ function frnReleasePositionCoach(group) {
   if (!franchise._posCoachPool) franchise._posCoachPool = [];
   franchise._posCoachPool.push({ ...coach, retiredSeason: franchise.season || 1 });
   _pushNews({ type:"coach_depart", label: `Released ${group} coach ${coach.name} — now available to hire` });
+  saveFranchise();
+  renderFrnCoachingStaff();
+}
+
+function frnPromotePositionCoach(group) {
+  const myId  = franchise.chosenTeamId;
+  const staff = franchise.coaches?.[myId];
+  if (!staff?.positionStaff) return;
+  const idx = staff.positionStaff.findIndex(s => s.group === group);
+  if (idx === -1) return;
+  const pc = staff.positionStaff[idx];
+  const { type, coord } = _posCoachToCoord(pc, myId);
+  const label = type === "oc" ? "OC" : "DC";
+  const existingName = staff[type]?.name || "current coordinator";
+  const loyalNote = coord.developedByTeamId === myId ? "\n🏠 Developing them here gives a hometown discount on future extensions." : "";
+  if (!confirm(
+    `Promote ${pc.group} coach ${pc.name} to ${label}?\n` +
+    `PC rating ${pc.rating || "?"} → ${label} rating ${coord.rating} · $${coord.salary}M/yr\n` +
+    `Trait: ${coord.trait}\n` +
+    `This replaces ${existingName} and opens your ${group} slot.${loyalNote}`
+  )) return;
+  _coachFAAdd(staff[type], type);
+  if (type === "oc" && staff._chemistry) staff._chemistry.qbOcBond = false;
+  staff[type] = { ...coord };
+  staff._chemistry = null;
+  staff.positionStaff.splice(idx, 1);
+  _pushNews({ type:"coach_hire",
+    label: `🏟 Promoted ${group} coach ${pc.name} to ${label} (rating ${coord.rating} · ${coord.trait})` });
   saveFranchise();
   renderFrnCoachingStaff();
 }
