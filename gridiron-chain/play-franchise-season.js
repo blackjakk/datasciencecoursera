@@ -2306,8 +2306,6 @@ function renderFrnFA(selectedKey) {
   const projectedCap = myCapUsed + totalOfferedAAV - totalCutSavings;
   const overCap = projectedCap > cap;
 
-  // Right side: roster, sorted by AAV desc
-  const rosterByCost = myRoster.slice().sort((a,b) => (b.contract?.aav||0) - (a.contract?.aav||0));
   const selFaKey   = selected ? (selected.pid || selected.name) : "";
   const escSelName = selFaKey.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 
@@ -2432,6 +2430,22 @@ function renderFrnFA(selectedKey) {
         <div style="font-size:.7rem;color:${fitColor};font-weight:${fit.upgrade||fit.compete?700:400}">${fitIcon} ${fit.label}</div>
       </div>
 
+      <!-- ③b Stats + Athletic Profile -->
+      ${(()=>{
+        const lastSzn = (selected.careerHistory||[]).slice(-1)[0];
+        const cols = _careerColsFor(selected.position);
+        const statCells = lastSzn ? cols.map(c =>
+          `<div style="text-align:center"><div style="font-size:.52rem;color:var(--blgray);letter-spacing:.3px">${c.label}</div><div style="font-size:.78rem;font-weight:700;color:var(--blwhite)">${lastSzn[c.key]||0}</div></div>`
+        ).join("") : "";
+        const combineStr = _draftCombineStr(selected);
+        if (!lastSzn && !combineStr) return "";
+        return `<div style="padding:.38rem .5rem;background:rgba(0,0,0,.15);border:1px solid var(--border);border-radius:4px;margin-bottom:.45rem">
+          ${lastSzn ? `<div style="font-size:.53rem;letter-spacing:.7px;color:var(--blgray);margin-bottom:.22rem">LAST SEASON · ${lastSzn.gp||0} GP · age ${lastSzn.age||"?"}</div>
+          <div style="display:flex;gap:.65rem;flex-wrap:wrap;margin-bottom:.25rem">${statCells}</div>` : ""}
+          <div style="font-size:.6rem;color:var(--gray)">📐 ${combineStr}</div>
+        </div>`;
+      })()}
+
       <!-- ④ Offer Builder -->
       <div class="frn-fa-offer-form">
         <label><span class="frn-meta-label">AAV ($M/yr)</span>
@@ -2473,20 +2487,43 @@ function renderFrnFA(selectedKey) {
     </div>`;
   }
 
-  // Right side: my roster with cut checkboxes (only meaningful when an FA is selected)
+  // Right side: my roster — sort checked cuts to top, then starters, then by AAV
   const escForSel = selected ? selected.name.replace(/\\/g, "\\\\").replace(/'/g, "\\'") : "";
   const cutSet = selected ? new Set((_faOffers[selected.name]?.cutNames) || []) : new Set();
-  const rosterHtml = rosterByCost.map(p => {
+  const dcStarters = new Set(
+    Object.values(franchise.depthChart?.[chosenTeamId] || {}).map(s => s.starter).filter(Boolean)
+  );
+  const rosterForCut = myRoster.slice().sort((a, b) => {
+    const ac = cutSet.has(a.name), bc = cutSet.has(b.name);
+    if (ac !== bc) return ac ? -1 : 1;
+    const as = a.pid && dcStarters.has(a.pid), bs = b.pid && dcStarters.has(b.pid);
+    if (as !== bs) return as ? -1 : 1;
+    return (b.contract?.aav||0) - (a.contract?.aav||0);
+  });
+  const rosterHtml = rosterForCut.map(p => {
     const aav = p.contract?.aav || 0;
-    const checked = cutSet.has(p.name) ? "checked" : "";
+    const isChecked = cutSet.has(p.name);
     const escPlayer = (p.name || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-    return `<label class="frn-cut-option">
-      <input type="checkbox" ${checked} ${selected?"":"disabled"}
+    const { perYear: deadPY, years: deadYrs } = deadCapOnRelease(p);
+    const hasDeadCap = deadYrs > 0 && deadPY > 0;
+    const netSavings = aav - (hasDeadCap ? deadPY : 0);
+    const isStarter = !!(p.pid && dcStarters.has(p.pid));
+    return `<label class="frn-cut-option" style="${isChecked?"background:rgba(255,70,70,.08);border-left:2px solid #ff6b6b;padding-left:.3rem":""}">
+      <input type="checkbox" ${isChecked?"checked":""} ${selected?"":"disabled"}
         onchange="frnFAToggleCut('${escForSel}','${escPlayer}',this.checked)">
       <span class="frn-fa-cut-pos">${p.position}</span>
-      <span class="frn-fa-cut-name">${p.name}</span>
-      <span class="frn-fa-cut-grade">${gradeBadge(p)}</span>
-      <span class="frn-fa-cut-cost">-$${aav.toFixed(1)}M</span>
+      <span class="frn-fa-cut-name" style="flex:1">${p.name}</span>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.05rem">
+        ${gradeBadge(p)}
+        ${isStarter?`<span style="font-size:.47rem;color:var(--gold);font-weight:700;letter-spacing:.2px">STARTER</span>`:""}
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.04rem;min-width:3.8rem;text-align:right">
+        <span style="font-size:.63rem;color:var(--green-lt);font-weight:700">+$${aav.toFixed(1)}M</span>
+        ${hasDeadCap
+          ? `<span style="font-size:.54rem;color:var(--red)">☠ $${deadPY.toFixed(1)}M dead</span>
+             <span style="font-size:.52rem;color:var(--gray)">net +$${netSavings.toFixed(1)}M</span>`
+          : `<span style="font-size:.52rem;color:var(--gray)">no dead cap</span>`}
+      </div>
     </label>`;
   }).join("");
 
