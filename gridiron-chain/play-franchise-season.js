@@ -1083,12 +1083,12 @@ function _careerColsFor(pos) {
     { key:"ff", label:"FF" }, { key:"pd", label:"PD" },
   ];
   if (pos === "LB") return [
-    { key:"tkl", label:"TKL" }, { key:"sk", label:"SK" },
-    { key:"int_made", label:"INT" }, { key:"pd", label:"PD" },
+    { key:"tkl", label:"TKL" }, { key:"missed_tkl", label:"MISS" },
+    { key:"sk", label:"SK" }, { key:"pd", label:"PD" },
   ];
   if (pos === "CB" || pos === "S") return [
     { key:"int_made", label:"INT" }, { key:"pd", label:"PD" },
-    { key:"tkl", label:"TKL" }, { key:"def_td", label:"TD" },
+    { key:"tkl", label:"TKL" }, { key:"missed_tkl", label:"MISS" },
   ];
   if (pos === "K") return [
     { key:"fg_made", label:"FGM" }, { key:"fg_att", label:"FGA" },
@@ -1386,8 +1386,14 @@ function _buildSeasonStatsBlock(p) {
     fmtTuples.push(["REC TD", num("rec_td")]);
     fmtTuples.push(["CATCH %", tgt ? `${(rec/tgt*100).toFixed(1)}%` : "—"]);
   } else if (pos === "DL" || pos === "LB" || pos === "CB" || pos === "S") {
-    fmtTuples.push(["TKL", num("tkl")]);
-    fmtTuples.push(["TKL/GAME", per(num("tkl"))]);
+    const tklN = num("tkl"), missN = num("missed_tkl");
+    fmtTuples.push(["TKL", tklN]);
+    fmtTuples.push(["TKL/GAME", per(tklN)]);
+    if (missN) fmtTuples.push(["MISS TKL", missN]);
+    if (missN || tklN) {
+      const total = tklN + missN;
+      fmtTuples.push(["TKL%", total ? `${((tklN / total) * 100).toFixed(0)}%` : "—"]);
+    }
     if (num("sk")) fmtTuples.push(["SK", num("sk")]);
     if (num("int_made")) fmtTuples.push(["INT", num("int_made")]);
     if (num("pd")) fmtTuples.push(["PD", num("pd")]);
@@ -1567,7 +1573,7 @@ function _buildGameLogBlock(p) {
       </tr>`;
     });
   } else if (pos === "DL" || pos === "LB" || pos === "CB" || pos === "S") {
-    headers = ["WK", ...(showTM ? ["TM"] : []), "OPP","RES","TKL","SK","INT","PD","FF","FPTS"];
+    headers = ["WK", ...(showTM ? ["TM"] : []), "OPP","RES","TKL","MISS","SK","INT","PD","FF","FPTS"];
     rowCells = games.map(({ g, line, teamId, oppId }) => {
       const opp = getTeam(oppId);
       const myHome = teamId === g.homeId;
@@ -1576,12 +1582,14 @@ function _buildGameLogBlock(p) {
       const res = myScore > themScore ? "W" : myScore < themScore ? "L" : "T";
       const resColor = res === "W" ? "var(--green-lt)" : res === "L" ? "#c08080" : "var(--gray)";
       const fpts = _fantasyPPR(line, pos);
+      const miss = line.missed_tkl || 0;
       return `<tr>
         <td>W${g.week}</td>
         ${tmCell(teamId)}
         <td>${myHome ? "vs" : "@"} <span style="color:${opp?.primary}">${(opp?.name||"").slice(0,4)}</span></td>
         <td style="color:${resColor};font-weight:700">${res} ${myScore}-${themScore}</td>
         <td>${line.tkl||0}</td>
+        <td style="color:${miss > 0 ? "#c08080" : "var(--gray)"}">${miss}</td>
         <td>${line.sk||0}</td>
         <td>${line.int_made||0}</td>
         <td>${line.pd||0}</td>

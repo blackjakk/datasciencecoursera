@@ -402,7 +402,7 @@ class GameSimulator {
       fg_made: 0, fg_att: 0, fg_long: 0, xp_made: 0, xp_att: 0,
       // Defensive stats
       tkl: 0, sk: 0, sk_yds: 0, int_made: 0, int_yds: 0, int_long: 0, int_td: 0,
-      pd: 0, ff: 0, fr: 0, def_td: 0,
+      pd: 0, ff: 0, fr: 0, def_td: 0, missed_tkl: 0,
       // OL-specific
       pancakes: 0, sacks_allowed: 0,
     };
@@ -2032,7 +2032,13 @@ class GameSimulator {
       carrierStats.rush_att++;
       carrierStats.rush_yds += yards;
       if (yards > carrierStats.rush_long) carrierStats.rush_long = yards;
-      if (brokenTackles) carrierStats.broken_tackles = (carrierStats.broken_tackles || 0) + brokenTackles;
+      if (brokenTackles) {
+        carrierStats.broken_tackles = (carrierStats.broken_tackles || 0) + brokenTackles;
+        // Credit a missed tackle to the defender who whiffed
+        this._creditDefStat("missed_tkl", yards >= 10
+          ? { S: 0.40, CB: 0.20, LB: 0.30, DL: 0.10 }
+          : { LB: 0.45, DL: 0.30, S: 0.15, CB: 0.10 });
+      }
     }
     off.team.rush_att++; off.team.rushYds += yards; off.team.totalYds += yards;
     // Award a pancake block to a random OL on quality runs (≥5 yards, not a QB scramble)
