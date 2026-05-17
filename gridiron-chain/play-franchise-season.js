@@ -627,7 +627,7 @@ function _preseasonRosterTab(roster, selName) {
             }
             return `<tr class="frn-scout-row ${isSel?"selected":""}" onclick="renderFrnPreseason('roster',null,null,'${escName}')">
               <td class="frn-scout-slot">${isStarter?"★":"#"+(i+1)}</td>
-              <td style="font-weight:${isStarter?700:400}">${playerLink(p)}</td>
+              <td style="font-weight:${isStarter?700:400}"><span style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px" onclick="event.stopPropagation();frnOpenPlayerCard('${escName}','${(p.pid||"").replace(/'/g,"\\'")}')">${p.name}</span></td>
               <td>${gradeBadge(p)}</td>
               <td style="color:var(--gray)">${p.age || "?"}</td>
               <td style="color:var(--gold);font-size:.7rem">$${aav.toFixed(1)}M · ${yrs}yr</td>
@@ -689,60 +689,162 @@ function _scoutGradeBadge(p, scouted) {
     : `<span style="${base};opacity:.8;outline:1px dashed ${bg}">~${gL}</span>`;
 }
 
-// Compact player panel for the scout screen — omits career card, game log,
-// recent-form strip, streaks, injury-prone/coachable flags, and flavor text.
+// Full scouting report panel — everything a scout needs to evaluate a player.
 function _buildScoutPlayerPanel(p, scouted) {
   const g   = scoutGrade(p);
-  const gL  = gradeLabel(g);
-  const gc  = gradeClass(g);
   const aav = p.contract?.aav || 0;
   const yrs = p.contract?.remaining || 0;
+  const pos = p.position;
   const cmb = combineMeasurables(p);
+  const isKicker = pos === "K" || pos === "P";
+  const escN   = (p.name||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'");
+  const escPid = (p.pid||"").replace(/'/g,"\\'");
 
-  const isKicker = p.position === "K" || p.position === "P";
+  // Grade + confidence
+  const gradeBadgeHtml = _scoutGradeBadge(p, scouted);
+  const noiseNote = scouted
+    ? `<span style="font-size:.55rem;color:#4dbd64">±2 scouted</span>`
+    : `<span style="font-size:.55rem;color:#f5a028">~±8 estimate</span>`;
+
+  // Accolades banner
+  const accolades = [];
+  if (p.mvps)     accolades.push(`🏆 ${p.mvps}× MVP`);
+  if (p.sbRings)  accolades.push(`💍 ${p.sbRings}× SB`);
+  if (p.allPros)  accolades.push(`⭐ ${p.allPros}× All-Pro`);
+  if (p.proBowls) accolades.push(`🌟 ${p.proBowls}× Pro Bowl`);
+  const accoladeHtml = accolades.length
+    ? `<div style="display:flex;flex-wrap:wrap;gap:.28rem;margin-top:.3rem">
+        ${accolades.map(a=>`<span style="font-size:.58rem;background:rgba(245,197,66,.1);border:1px solid rgba(245,197,66,.3);padding:.08rem .32rem;border-radius:3px;color:var(--gold-lt)">${a}</span>`).join("")}
+       </div>` : "";
+
+  // Potential tag (always fuzzy for opponents)
+  const potTag = potentialTag(p, { known: false });
+
+  // Career history
+  const hist = p.careerHistory || [];
+  const careerYrs = hist.length;
+  const recentSeasons = hist.slice(-3);
+
+  // Career totals one-liner
+  const ct = p.careerStats || {};
+  let careerStatLine = "";
+  if (pos==="QB" && ct.pass_yds)            careerStatLine = `${(ct.pass_yds||0).toLocaleString()} pass yds · ${ct.pass_td||0} TD · ${ct.pass_int||0} INT`;
+  else if (pos==="RB" && ct.rush_yds)       careerStatLine = `${(ct.rush_yds||0).toLocaleString()} rush yds · ${ct.rush_td||0} TD`;
+  else if ((pos==="WR"||pos==="TE") && ct.rec_yds) careerStatLine = `${ct.rec||0} rec · ${(ct.rec_yds||0).toLocaleString()} yds · ${ct.rec_td||0} TD`;
+  else if ((pos==="DL"||pos==="LB"))        careerStatLine = `${ct.tkl||0} tkl · ${ct.sk||0} sk · ${ct.ff||0} FF`;
+  else if ((pos==="CB"||pos==="S"))         careerStatLine = `${ct.tkl||0} tkl · ${ct.int_made||0} INT · ${ct.pd||0} PD`;
+
+  // Recent seasons mini-table
+  let recentHtml = "";
+  if (recentSeasons.length) {
+    const keyCols = _careerColsFor(pos).slice(0, 3);
+    recentHtml = `<div style="margin-top:.5rem;border-top:1px solid var(--border);padding-top:.45rem">
+      <div style="font-size:.52rem;letter-spacing:.7px;color:var(--blgray);margin-bottom:.22rem">RECENT SEASONS</div>
+      <table style="width:100%;border-collapse:collapse;font-size:.6rem">
+        <thead><tr style="color:var(--gray)">
+          <th style="text-align:left;font-weight:400;padding:.1rem .2rem .12rem">YR</th>
+          <th style="text-align:left;font-weight:400;padding:.1rem .2rem .12rem">TEAM</th>
+          <th style="text-align:center;font-weight:400;padding:.1rem .2rem .12rem">OVR</th>
+          ${keyCols.map(c=>`<th style="text-align:center;font-weight:400;padding:.1rem .2rem .12rem">${c.label}</th>`).join("")}
+        </tr></thead>
+        <tbody>${recentSeasons.map(s=>{
+          const ovrCol = s.ovr>=88?"var(--gold)":s.ovr>=75?"var(--green-lt)":"var(--gray)";
+          const lastWord = (s.teamName||"—").split(" ").slice(-1)[0];
+          return `<tr style="border-top:1px solid rgba(255,255,255,.05)">
+            <td style="padding:.12rem .2rem;color:var(--gray)">'${String(s.season||s.year||"").slice(-2)}</td>
+            <td style="padding:.12rem .2rem;color:var(--blgray)">${lastWord}</td>
+            <td style="padding:.12rem .2rem;text-align:center;font-weight:700;color:${ovrCol}">${s.ovr||"—"}</td>
+            ${keyCols.map(c=>`<td style="padding:.12rem .2rem;text-align:center">${s[c.key]??0}</td>`).join("")}
+          </tr>`;
+        }).join("")}</tbody>
+      </table>
+    </div>`;
+  }
+
+  // Injury flags
+  const injHist = p.injuryHistory || [];
+  const injRiskBit = injHist.length >= 3
+    ? `<span style="font-size:.57rem;color:var(--red);font-weight:700">⚠ Injury-prone (${injHist.length}×)</span>`
+    : injHist.length
+    ? `<span style="font-size:.57rem;color:#e8a000">${injHist.length}× prior injury</span>` : "";
+  const curInjHtml = p.injury
+    ? `<div style="margin:.38rem 0;padding:.28rem .42rem;background:rgba(220,50,50,.1);border:1px solid rgba(220,50,50,.35);border-radius:3px;font-size:.64rem;color:var(--red)">🩹 ${p.injury.label} — ${p.injury.weeksRemaining} wk${p.injury.weeksRemaining===1?"":"s"} out</div>`
+    : "";
+
+  // Contract + dead cap intel
+  const { perYear: deadPY, years: deadYrs } = deadCapOnRelease(p);
+  const hasDeadCap = deadYrs > 0 && deadPY > 0;
+  const contractDetail = `$${aav.toFixed(1)}M/yr · ${yrs}yr left · ${hasDeadCap?`☠ $${deadPY.toFixed(1)}M dead if cut`:"clean — no dead cap"}`;
+
+  // Combine
   const combineHtml = isKicker
-    ? `<div class="frn-combine-grid">
-         <div><span class="frn-meta-label">LEG</span> ${Math.round(70 + (cmb.kpw - 50) * 0.45)} yds</div>
+    ? `<div style="display:flex;gap:1.2rem;flex-wrap:wrap;font-size:.65rem">
+         <div><span class="frn-meta-label">LEG</span> ${Math.round(70+(cmb.kpw-50)*0.45)} yds</div>
          <div><span class="frn-meta-label">40-YD</span> ${cmb.fortyTime}s</div>
        </div>`
-    : `<div class="frn-combine-grid">
+    : `<div style="display:grid;grid-template-columns:1fr 1fr;gap:.25rem .8rem;font-size:.65rem">
          <div><span class="frn-meta-label">40-YD</span> ${cmb.fortyTime}s</div>
          <div><span class="frn-meta-label">BENCH</span> ${cmb.benchReps} reps</div>
-         <div><span class="frn-meta-label">CONE</span> ${cmb.coneTime}s</div>
+         <div><span class="frn-meta-label">3-CONE</span> ${cmb.coneTime}s</div>
          <div><span class="frn-meta-label">VERT</span> ${cmb.verticalIn}"</div>
        </div>`;
 
-  const archBlock    = _buildArchetypeBlock(p);
-  const seasonBlock  = _buildSeasonStatsBlock(p);
-  const noiseNote    = scouted
-    ? `<div style="font-size:.58rem;color:#4dbd64;margin-top:.45rem">grades ±2 (scouted)</div>`
-    : `<div style="font-size:.58rem;color:#f5a028;margin-top:.45rem">~grades are ±8 estimates</div>`;
+  // Current season stats (if in-season)
+  const seasonBlock = _buildSeasonStatsBlock(p);
 
-  const gradeBadgeHtml = _scoutGradeBadge(p, scouted);
+  // Archetype
+  const archBlock = _buildArchetypeBlock(p);
 
-  return `<div class="frn-player-card">
-    <div class="frn-player-card-head" style="display:flex;gap:.9rem;align-items:flex-start">
-      ${_playerPortrait(p, 90)}
+  return `<div class="frn-player-card" style="padding:.6rem .72rem">
+
+    <!-- ① Identity + Full Card button -->
+    <div style="display:flex;gap:.8rem;align-items:flex-start;margin-bottom:.45rem">
+      ${_playerPortrait(p, 80)}
       <div style="flex:1;min-width:0">
-        <div style="font-size:1.05rem;font-weight:900">${p.name}</div>
-        <div style="color:var(--gray);font-size:.7rem;margin-top:.1rem">
-          #${jerseyForPlayer(p) || "—"} · ${p.position} · Age ${p.age || "?"}${p.height ? ` · ${formatHeight(p.height)}, ${p.weight||"?"} lbs` : ""}
+        <div style="display:flex;align-items:flex-start;gap:.4rem;flex-wrap:wrap">
+          <span style="font-size:.98rem;font-weight:900;flex:1">${p.name}</span>
+          <button onclick="frnOpenPlayerCard('${escN}','${escPid}')"
+            style="background:none;border:1px solid var(--border);color:var(--blgray);font-size:.54rem;padding:.12rem .32rem;border-radius:3px;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0"
+            onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'"
+            onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--blgray)'">📋 Full Card</button>
         </div>
-        <div style="margin-top:.25rem;display:flex;align-items:center;gap:.5rem">
-          ${gradeBadgeHtml}
-          <span style="color:var(--gold);font-size:.75rem;font-weight:700">$${aav.toFixed(1)}M/yr</span>
-          <span style="color:var(--gray);font-size:.62rem">${yrs}yr left</span>
+        <div style="color:var(--gray);font-size:.67rem;margin-top:.06rem">
+          #${jerseyForPlayer(p)||"—"} · ${pos} · Age ${p.age||"?"}${p.height?` · ${formatHeight(p.height)}, ${p.weight||"?"}lbs`:""}
         </div>
-        ${noiseNote}
+        <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-top:.28rem">
+          ${gradeBadgeHtml} ${noiseNote}
+          ${potTag?`<span style="font-size:.58rem;color:var(--gold-lt);font-weight:700">${potTag}</span>`:""}
+        </div>
+        ${accoladeHtml}
       </div>
     </div>
-    ${archBlock ? `<div style="margin:.5rem 0">${archBlock}</div>` : ""}
-    <div class="frn-pcard-section" style="margin-top:.5rem">
-      <div class="frn-card-title">COMBINE</div>
+
+    <!-- ② Contract + pedigree intel -->
+    <div style="padding:.3rem .42rem;background:var(--bg3);border:1px solid var(--border);border-radius:3px;margin-bottom:.4rem;font-size:.6rem">
+      <div style="color:var(--blgray);margin-bottom:.08rem"><span class="frn-meta-label">CONTRACT</span> ${contractDetail}</div>
+      <div style="color:var(--gray)"><span class="frn-meta-label">DRAFT</span> ${draftStr(p)} · ${careerYrs} season${careerYrs!==1?"s":""} in league${injRiskBit?` · ${injRiskBit}`:""}</div>
+    </div>
+
+    ${curInjHtml}
+
+    <!-- ③ Archetype -->
+    ${archBlock?`<div style="margin-bottom:.4rem">${archBlock}</div>`:""}
+
+    <!-- ④ Career totals -->
+    ${careerStatLine?`<div style="font-size:.62rem;color:var(--blgray);padding:.26rem .42rem;background:rgba(255,255,255,.03);border-radius:3px;margin-bottom:.4rem"><span class="frn-meta-label">CAREER TOTALS</span> ${careerStatLine}</div>`:""}
+
+    <!-- ⑤ Recent seasons -->
+    ${recentHtml}
+
+    <!-- ⑥ This season stats -->
+    ${seasonBlock?`<div style="margin-top:.45rem;border-top:1px solid var(--border);padding-top:.42rem">${seasonBlock}</div>`:""}
+
+    <!-- ⑦ Combine / athleticism -->
+    <div style="margin-top:.45rem;border-top:1px solid var(--border);padding-top:.42rem">
+      <div style="font-size:.52rem;letter-spacing:.7px;color:var(--blgray);margin-bottom:.2rem">COMBINE · ATHLETICISM</div>
       ${combineHtml}
     </div>
-    ${seasonBlock ? `<div style="margin-top:.5rem">${seasonBlock}</div>` : ""}
-    ${p.injury ? `<div class="frn-player-injury" style="margin-top:.5rem">&#x1F9F9; ${p.injury.label} &mdash; ${p.injury.weeksRemaining} wk${p.injury.weeksRemaining===1?"":"s"} out</div>` : ""}
+
   </div>`;
 }
 
@@ -867,7 +969,7 @@ function _preseasonScoutTab(myId, scoutId, view, selName) {
     return `<div class="frn-scout-threat-card"
       onclick="renderFrnPreseason('scout',${scoutId},'${view}','${pKey}')">
       <div class="frn-scout-threat-lbl">${labelText}</div>
-      <div class="frn-scout-threat-name">${playerLink(p)}</div>
+      <div class="frn-scout-threat-name"><span style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px" onclick="event.stopPropagation();frnOpenPlayerCard('${(p.name||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'")}','${(p.pid||"").replace(/'/g,"\\'")}')">${p.name}</span></div>
       <div style="margin-top:.15rem">${_scoutGradeBadge(p, scoutedThisSeason)}</div>
       ${statLine ? `<div class="frn-scout-threat-stat">${statLine}</div>` : ""}
     </div>`;
@@ -904,7 +1006,7 @@ function _preseasonScoutTab(myId, scoutId, view, selName) {
     return `<tr class="frn-scout-row ${isSel?"selected":""}"
       onclick="renderFrnPreseason('scout',${scoutId},'${view}','${escName}')">
       <td class="frn-scout-slot">${slotLabel}</td>
-      <td style="font-weight:${isStarter?700:400}">${playerLink(p)}</td>
+      <td style="font-weight:${isStarter?700:400}"><span style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px" onclick="event.stopPropagation();frnOpenPlayerCard('${escName}','${(p.pid||"").replace(/'/g,"\\'")}')">${p.name}</span></td>
       <td>${_scoutGradeBadge(p, scoutedThisSeason)}</td>
       <td style="color:var(--gray)">${p.age || "?"}</td>
       <td style="color:var(--gray);font-size:.66rem">${draftStr(p)}</td>
