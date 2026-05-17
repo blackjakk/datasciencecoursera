@@ -2276,25 +2276,21 @@ function renderFrnFA(selectedKey) {
       ? TEAMS.filter(t => t.id !== chosenTeamId && _faAIInterest(t.id, p) >= 0.1).length : 0;
     const suitorBit = rowSuitors >= 3
       ? `<span style="font-size:.52rem;color:${rowSuitors>=6?"var(--red)":"#e8a000"};flex-shrink:0">${rowSuitors} teams</span>` : "";
-    const escPid = (p.pid||"").replace(/'/g,"\\'");
     return `<div class="frn-fa-row ${isSel?"selected":""} ${offered?"offered":""}"
-      style="border-left:3px solid ${borderCol};padding-left:.45rem;cursor:pointer"
+      style="border-left:3px solid ${borderCol};padding-left:.45rem;cursor:pointer;display:block"
       onclick="renderFrnFA('${escKey}')">
-      <div style="display:flex;align-items:center;gap:.28rem">
-        ${heatBadge}${gradeBadge(p)}
-        <span class="frn-fa-name" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}${young?" 🌱":""}${woIcon?` ${woIcon}`:""}</span>
-        <span class="frn-fa-pos" style="flex-shrink:0">${p.position}</span>
+      <div style="display:flex;align-items:center;gap:.3rem">
+        ${heatBadge ? heatBadge : `<span style="display:inline-block;width:.7rem"></span>`}
+        <span style="font-size:.58rem;color:var(--gold);font-weight:700;flex-shrink:0">${p.position}</span>
+        ${gradeBadge(p)}
+        <span class="frn-fa-name" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.68rem">${p.name}${young?" 🌱":""}${woIcon?` ${woIcon}`:""}</span>
         ${needBadge}
-        <button onclick="event.stopPropagation();frnOpenPlayerCard('${escKey}','${escPid}')"
-          title="View player card"
-          style="background:none;border:none;color:var(--gray);font-size:.65rem;cursor:pointer;padding:.05rem .15rem;border-radius:3px;flex-shrink:0;line-height:1"
-          onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color='var(--gray)'">📋</button>
       </div>
-      <div style="display:flex;align-items:center;gap:.4rem;margin-top:.08rem;padding-left:.05rem">
-        <span style="color:var(--gray);font-size:.57rem">age ${p.age}</span>
-        <span class="frn-fa-ask" style="font-size:.6rem">$${p.demandedAAV.toFixed(1)}M</span>
+      <div style="display:flex;align-items:center;gap:.3rem;margin-top:.06rem;padding-left:1rem">
+        <span class="frn-fa-ask" style="font-size:.62rem">$${p.demandedAAV.toFixed(1)}M</span>
+        <span style="color:var(--gray);font-size:.55rem">· ${p.age}yr</span>
         ${suitorBit}
-        ${offered ? `<span class="frn-fa-flag" style="font-size:.56rem;margin-left:auto">✓ $${myOffer.aav.toFixed(1)}M</span>` : ""}
+        ${offered ? `<span style="font-size:.55rem;color:var(--green-lt);font-weight:700;margin-left:auto">✓ $${myOffer.aav.toFixed(1)}M offered</span>` : ""}
       </div>
     </div>`;
   }).join("");
@@ -2403,16 +2399,14 @@ function renderFrnFA(selectedKey) {
       <div class="frn-fa-detail-head" style="margin-bottom:.4rem">
         <div style="flex:1">
           <div style="display:flex;align-items:center;gap:.38rem;flex-wrap:wrap;margin-bottom:.12rem">
-            <span style="font-size:1.05rem;font-weight:900">${selected.name}</span>
+            <span style="font-size:1.05rem;font-weight:900;cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px"
+              onclick="frnOpenPlayerCard('${escSelName}','${(selected.pid||'').replace(/'/g,"\\'")}')"
+              title="View full player card">${selected.name}</span>
             ${_posPillHtml(selected.position)}
             ${gradeBadge(selected)}
-            <span style="font-size:.6rem;color:var(--blgray)">${ageStage} · age ${selected.age}</span>
-            <button onclick="frnOpenPlayerCard('${escSelName}','${(selected.pid||'').replace(/'/g,"\\'")}')"
-              style="margin-left:auto;background:none;border:1px solid var(--border);color:var(--blgray);font-size:.58rem;padding:.15rem .4rem;border-radius:3px;cursor:pointer;font-family:inherit;letter-spacing:.3px"
-              onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'"
-              onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--blgray)'">
-              📋 FULL CARD
-            </button>
+            ${!wr ? `<button onclick="frnFAInviteWorkout('${escSelName}')" ${slotsLeft<=0?"disabled":""}
+              style="background:rgba(245,197,66,.1);border:1px solid var(--gold);color:var(--gold-lt);font-size:.6rem;padding:.14rem .4rem;border-radius:3px;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;${slotsLeft<=0?"opacity:.4;cursor:not-allowed;":""}">🏋 WORKOUT${slotsLeft<=0?" (0 left)":` (${slotsLeft} left)`}</button>` : ""}
+            <span style="font-size:.6rem;color:var(--blgray);margin-left:auto">${ageStage} · age ${selected.age}</span>
           </div>
           <div style="color:var(--gray);font-size:.64rem">${_archetypeLabel(selected)||"—"} · ${draftStr(selected)} · ${careerEarningsStr(selected)}</div>
           ${potTag ? `<div style="font-size:.68rem;color:${isKnown?"var(--green-lt)":"var(--gold-lt)"};font-weight:700;margin-top:.2rem">${potTag}</div>` : ""}
@@ -2428,11 +2422,6 @@ function renderFrnFA(selectedKey) {
           ? `<div style="font-size:.67rem;color:${heatColor};margin-top:.18rem">${suitors >= 6 ? "🔥" : "👀"} ~${suitors} team${suitors!==1?"s":""} showing ${suitors>=6?"heavy":suitors>=3?"moderate":"some"} interest</div>`
           : `<div style="font-size:.63rem;color:var(--gray);margin-top:.15rem">No known competing interest</div>`}
         ${workoutHtml}
-        ${!wr ? `<div style="margin-top:.35rem">
-          <button class="btn btn-outline" onclick="frnFAInviteWorkout('${escSelName}')" ${slotsLeft<=0?"disabled":""}
-            style="font-size:.63rem;width:100%;${slotsLeft<=0?"opacity:.4;cursor:not-allowed":""}">🏋 INVITE TO WORKOUT</button>
-          <div style="text-align:right;font-size:.55rem;color:var(--blgray);margin-top:.12rem">${slotsLeft}/${WORKOUT_SLOTS_PER_FA_SEASON} workout slots left</div>
-        </div>` : ""}
       </div>
 
       <!-- ③ Roster Fit -->
@@ -2556,10 +2545,30 @@ function renderFrnFA(selectedKey) {
     </div>`;
   };
 
+  const _buildQueuedCard = p => {
+    const aav  = p.contract?.aav || 0;
+    const ep   = (p.name || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    const epid = (p.pid  || "").replace(/'/g, "\\'");
+    return `<div style="background:rgba(255,60,60,.13);border:1px solid rgba(255,107,107,.55);border-radius:4px;padding:.38rem .48rem;margin-bottom:.28rem">
+      <div style="display:flex;align-items:center;gap:.35rem;margin-bottom:.28rem">
+        <span style="font-size:.58rem;color:#ff9090;font-weight:700;flex-shrink:0">${p.position}</span>
+        <span style="font-size:.74rem;font-weight:900;color:#ffcccc;flex:1;cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px"
+          onclick="event.stopPropagation();frnOpenPlayerCard('${ep}','${epid}')">${p.name}</span>
+        ${gradeBadge(p)}
+        <span style="font-size:.62rem;color:var(--green-lt);font-weight:700;flex-shrink:0">+$${aav.toFixed(1)}M</span>
+      </div>
+      <button onclick="frnFAToggleCut('${escForSel}','${ep}',false)"
+        style="width:100%;background:rgba(255,70,70,.22);border:1px solid #ff6b6b;color:#ffaaaa;font-size:.66rem;font-weight:700;padding:.28rem .4rem;border-radius:3px;cursor:pointer;font-family:inherit;letter-spacing:.4px;text-align:center"
+        onmouseover="this.style.background='rgba(255,70,70,.38)';this.style.color='#fff'"
+        onmouseout="this.style.background='rgba(255,70,70,.22)';this.style.color='#ffaaaa'">
+        × UNDO CUT — Keep ${p.name}
+      </button>
+    </div>`;
+  };
   const queuedSection = _cutQueued.length
-    ? `<div style="font-size:.53rem;letter-spacing:.5px;color:#ff9090;font-weight:700;margin:.1rem 0 .22rem">✂ QUEUED TO CUT (${_cutQueued.length})</div>`
-      + _cutQueued.map(p => _buildCutRow(p, true)).join("")
-      + `<div style="height:.45rem"></div>`
+    ? `<div style="font-size:.55rem;letter-spacing:.6px;color:#ff9090;font-weight:700;margin:.1rem 0 .28rem;display:flex;align-items:center;gap:.35rem">✂ QUEUED TO CUT <span style="background:rgba(255,70,70,.25);border-radius:3px;padding:.05rem .3rem">${_cutQueued.length}</span></div>`
+      + _cutQueued.map(_buildQueuedCard).join("")
+      + `<div style="height:.3rem;border-bottom:1px solid var(--border);margin-bottom:.4rem"></div>`
     : "";
   const safeSection = _cutSafe.length
     ? _cutSafe.map(p => _buildCutRow(p, false)).join("")
