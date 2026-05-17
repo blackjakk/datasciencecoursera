@@ -2044,6 +2044,31 @@ const FA_POOL_TEMPLATES = [
     ] },
 ];
 
+// Assign stable mock team names to an FA player's career history rows.
+// FA players never pass through assignCareerTeams (which only runs on
+// franchise.rosters), so without this every history row shows "—".
+function _assignFACareerTeams(p) {
+  const hist = p.careerHistory;
+  if (!hist || !hist.length) return;
+  const n = hist.length;
+  let seed = 0;
+  for (const c of (p.pid || p.name || "")) seed = (seed * 31 + c.charCodeAt(0)) | 0;
+  seed = Math.abs(seed) ^ 0xfa_cafe;
+  const rng = () => {
+    seed = (Math.imul(seed | 0, 1664525) + 1013904223) | 0;
+    return (seed >>> 0) / 4294967296;
+  };
+  const lastTeam = TEAMS[Math.floor(rng() * TEAMS.length)];
+  const seasonsOnLast = Math.min(n, 1 + Math.floor(rng() * Math.min(4, n)));
+  const priorCount = n - seasonsOnLast;
+  const priorTeam  = TEAMS.filter(t => t.id !== lastTeam.id)[Math.floor(rng() * (TEAMS.length - 1))];
+  for (let i = 0; i < n; i++) {
+    const t = i >= priorCount ? lastTeam : priorTeam;
+    hist[i].teamId   = t.id;
+    hist[i].teamName = `${t.city} ${t.name}`;
+  }
+}
+
 function _generateFAPool() {
   const taken = new Set();
   for (const r of Object.values(franchise.rosters)) r.forEach(p => taken.add(p.name));
@@ -2071,6 +2096,13 @@ function _generateFAPool() {
       }
       p.draftYear = currentYear - (p.age - 22);
       _rollHiddenGem(p);
+
+      // Rebuild career history now that age is locked — genUniquePlayer ran
+      // generateCareer with a random internal age which is now stale.
+      generateCareer(p);
+      // Assign mock team names (FA players skip assignCareerTeams which only
+      // runs on franchise.rosters). Use seeded RNG so cards are stable.
+      _assignFACareerTeams(p);
 
       // Diamond bump: real overall pushed higher while draft pedigree
       // stays late. Scouting noise + draft penalty keeps the displayed
