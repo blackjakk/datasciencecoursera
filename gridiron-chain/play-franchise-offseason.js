@@ -3101,8 +3101,8 @@ function _guaranteedYearsForLength(years) {
   return 3;
 }
 function renderFrnResignings() {
-  const { chosenTeamId, salaryCap } = franchise;
-  const cap = salaryCap || SALARY_CAP_BASE;
+  const { chosenTeamId } = franchise;
+  const cap = effectiveSalaryCap(chosenTeamId);
   const myRoster   = franchise.rosters[chosenTeamId] || [];
   const expiring   = myRoster.filter(p => p.contract && p.contract.remaining <= 0);
   const committed  = myRoster.filter(p => p.contract && p.contract.remaining > 0);
@@ -3272,7 +3272,7 @@ function _renderResignUI(cap, capCommitted) {
 }
 
 function _renderResignUIRefresh() {
-  const cap = franchise.salaryCap || SALARY_CAP_BASE;
+  const cap = effectiveSalaryCap(franchise.chosenTeamId);
   const committed = (franchise.rosters[franchise.chosenTeamId] || [])
     .filter(p => p.contract && p.contract.remaining > 0)
     .reduce((s, p) => s + currentYearCapHit(p), 0);
@@ -3299,7 +3299,7 @@ function frnResignTag(idx) {
   if (!_franchiseTagAvailable()) { alert("You've already used your franchise tag this offseason."); return; }
   const row = franchise._resignPending?.[idx];
   if (!row || row.decision) return;
-  const cap = franchise.salaryCap || SALARY_CAP_BASE;
+  const cap = effectiveSalaryCap(franchise.chosenTeamId);
   const tagAAV = _franchiseTagAAV({ position: row.pos, name: row.name }, cap);
   if (!confirm(`Franchise tag ${row.name}? 1yr fully guaranteed at $${tagAAV.toFixed(1)}M. You only get one tag per offseason.`)) return;
   row.decision = "tag";
@@ -3326,7 +3326,7 @@ function frnResignAdjustYears(idx, delta) {
   if (newYears === row.offerYears) return;
   row.offerYears = newYears;
   row.offer = _resignAavForYears(row.baseMarket, newYears);
-  const cap = franchise.salaryCap || SALARY_CAP_BASE;
+  const cap = effectiveSalaryCap(franchise.chosenTeamId);
   const committed = (franchise.rosters[franchise.chosenTeamId] || [])
     .filter(p => p.contract && p.contract.remaining > 0)
     .reduce((s, p) => s + p.contract.aav, 0);
@@ -3335,8 +3335,8 @@ function frnResignAdjustYears(idx, delta) {
 }
 
 function frnConfirmResignings() {
-  const { chosenTeamId, salaryCap, _resignPending } = franchise;
-  const cap = salaryCap || SALARY_CAP_BASE;
+  const { chosenTeamId, _resignPending } = franchise;
+  const cap = effectiveSalaryCap(chosenTeamId);
   const myRoster = franchise.rosters[chosenTeamId] || [];
 
   for (const r of (_resignPending || [])) {

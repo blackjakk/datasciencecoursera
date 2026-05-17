@@ -452,7 +452,7 @@ function frnTeamLeaders(teamId) {
 function renderFrnPreseason(tab, scoutId, scoutView, selName) {
   tab = tab || "roster";
   const { chosenTeamId, season, salaryCap, schedule, teamTiers } = franchise;
-  const cap = salaryCap || SALARY_CAP_BASE;
+  const cap = effectiveSalaryCap(chosenTeamId);
   const myTeam = getTeam(chosenTeamId);
   const myRoster = franchise.rosters[chosenTeamId] || [];
   const capUsed = capUsedByTeam(chosenTeamId);
@@ -2067,7 +2067,7 @@ function frnFASetFilter(field, value) {
 
 function renderFrnFA(selectedKey) {
   const { chosenTeamId, freeAgents = [], _faOffers = {}, salaryCap, season } = franchise;
-  const cap = salaryCap || SALARY_CAP_BASE;
+  const cap = effectiveSalaryCap(chosenTeamId);
   const myRoster = franchise.rosters[chosenTeamId] || [];
   const myCapUsed = capUsedByTeam(chosenTeamId);
 
@@ -2474,7 +2474,7 @@ function frnFAProcessOffers() {
   // We jump straight into regular-season Week 1 — the dashboard banner
   // surfaces the open negotiations. If the user is over cap they go to
   // the cuts screen first.
-  const cap = franchise.salaryCap || SALARY_CAP_BASE;
+  const cap = effectiveSalaryCap(myId);
   const used = capUsedByTeam(myId);
   if (used > cap) {
     franchise._faResults = { signed: [], lost: [] };
@@ -2488,7 +2488,7 @@ function frnFAProcessOffers() {
 
 // Probability that a given AI team enters / counter-bids on a given FA.
 function _faAIInterest(teamId, fa) {
-  const cap   = franchise.salaryCap || SALARY_CAP_BASE;
+  const cap   = effectiveSalaryCap(teamId);
   const used  = capUsedByTeam(teamId);
   const room  = cap - used;
   if (room < fa.demandedAAV * 0.6) return 0;        // no chance of affording
@@ -2510,7 +2510,7 @@ function _faAIInterest(teamId, fa) {
 // Decide what an AI bid would be given the current high. Returns
 // { aav, years } or null if they can't / won't bid.
 function _faAIBidAmount(teamId, fa, currentHighAav) {
-  const cap   = franchise.salaryCap || SALARY_CAP_BASE;
+  const cap   = effectiveSalaryCap(teamId);
   const room  = cap - capUsedByTeam(teamId);
   const demand = fa.demandedAAV;
   // Floor: just above current high if any, else ~95% of demand

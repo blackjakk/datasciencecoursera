@@ -1289,6 +1289,19 @@ function coachingBudgetUsed(teamId) {
   return +total.toFixed(1);
 }
 
+// Dollars by which a team's coaching spend exceeds the $15M hard line,
+// doubled to reflect the player-cap hit. $0 when under the line.
+function coachingCapPenalty(teamId) {
+  const overage = Math.max(0, coachingBudgetUsed(teamId) - 15);
+  return +(overage * 2).toFixed(1);
+}
+
+// Player salary cap adjusted downward by any coaching overspend penalty.
+// Floored at $150M so extreme coaching spend can't make the cap unworkable.
+function effectiveSalaryCap(teamId) {
+  return Math.max(150, (franchise.salaryCap || SALARY_CAP_BASE) - coachingCapPenalty(teamId));
+}
+
 // Returns the fair-market salary for a coach at their current rating.
 function _marketSalaryForCoach(coach, type) {
   const r = coach?.rating || 60;

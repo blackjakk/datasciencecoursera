@@ -302,7 +302,7 @@ function frnPSPromote(name) {
   const ps = franchise.practiceSquads?.[myId] || [];
   const p = ps.find(x => x.name === name);
   if (!p) return;
-  const cap = franchise.salaryCap || SALARY_CAP_BASE;
+  const cap = effectiveSalaryCap(myId);
   if (capUsedByTeam(myId) + 1.0 > cap) {
     if (!confirm(`Promoting ${name} pushes you over the cap. Continue?`)) return;
   }
@@ -3405,7 +3405,7 @@ function renderFrnRegular() {
   const myRoster = franchise.rosters[chosenTeamId] || [];
 
   // ─── Cap ───────────────────────────────────────────────────────────────
-  const cap = franchise.salaryCap || SALARY_CAP_BASE;
+  const cap = effectiveSalaryCap(chosenTeamId);
   const capUsed = capUsedByTeam(chosenTeamId);
   const capPct  = Math.round(capUsed / cap * 100);
   const capColor = capPct >= 95 ? "var(--red)" : capPct >= 85 ? "#e8a000" : "var(--green-lt)";
@@ -4752,9 +4752,14 @@ function renderFrnCoachingStaff() {
   }).join("");
 
   // ── Budget Bar ──
-  const budgetUsed = typeof coachingBudgetUsed === "function" ? coachingBudgetUsed(myId) : 0;
-  const budgetPct  = Math.min(100, (budgetUsed / BUDGET_CAP) * 100);
-  const budgetColor= budgetUsed > BUDGET_CAP ? "var(--red)" : budgetUsed > BUDGET_CAP * 0.85 ? "var(--gold)" : "var(--green-lt)";
+  const budgetUsed  = typeof coachingBudgetUsed === "function" ? coachingBudgetUsed(myId) : 0;
+  const capPenalty  = typeof coachingCapPenalty  === "function" ? coachingCapPenalty(myId)  : 0;
+  const effCap      = typeof effectiveSalaryCap  === "function" ? effectiveSalaryCap(myId)  : (franchise.salaryCap || 220);
+  const budgetPct   = Math.min(100, (budgetUsed / BUDGET_CAP) * 100);
+  const budgetColor = budgetUsed > BUDGET_CAP ? "var(--red)" : budgetUsed > BUDGET_CAP * 0.85 ? "var(--gold)" : "var(--green-lt)";
+  const penaltyLine = capPenalty > 0
+    ? `<div style="font-size:.64rem;color:var(--red);margin-top:.2rem">⚠ $${capPenalty.toFixed(1)}M coaching overspend → −$${capPenalty.toFixed(1)}M player cap · Effective cap: $${effCap.toFixed(0)}M</div>`
+    : "";
   const budgetHtml = `
     <div style="margin:1rem 0 .5rem">
       <div style="font-size:.68rem;color:var(--gray);margin-bottom:.25rem;letter-spacing:.5px;text-transform:uppercase">
@@ -4763,6 +4768,7 @@ function renderFrnCoachingStaff() {
       <div style="height:5px;background:rgba(255,255,255,.12);border-radius:3px">
         <div style="height:100%;width:${budgetPct.toFixed(0)}%;background:${budgetColor};border-radius:3px;transition:width .3s"></div>
       </div>
+      ${penaltyLine}
     </div>`;
 
   // ── Coach Market ──
