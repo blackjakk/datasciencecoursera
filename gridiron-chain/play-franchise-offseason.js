@@ -4048,6 +4048,12 @@ function _generateCoachMarket() {
   franchise._retiredPlayerPool = franchise._retiredPlayerPool.filter(rp =>
     (currentSeason - (rp.retiredSeason || 1)) <= 10
   );
+  // Position coach candidates age out faster — 5 seasons
+  if (franchise._posCoachPool) {
+    franchise._posCoachPool = franchise._posCoachPool.filter(rp =>
+      (currentSeason - (rp.retiredSeason || 1)) <= 5
+    );
+  }
 
   const pool = [];
 
@@ -4108,6 +4114,14 @@ function _generateCoachMarket() {
     }
   }
 
+  // 40% of HC candidates bring a position coach from their network
+  for (const c of pool) {
+    if (c.type === "hc" && !c.broughtPosCoach && Math.random() < 0.40) {
+      const grp = POSITION_COACH_GROUPS[Math.floor(Math.random() * POSITION_COACH_GROUPS.length)];
+      c.broughtPosCoach = _rollPositionCoach(grp);
+    }
+  }
+
   franchise._coachMarket = pool;
 }
 
@@ -4163,11 +4177,12 @@ function _ensureCoachMarket() {
 // Returns an array of news labels so callers can push them in context.
 function _applyHcStaffSweep(staff, teamLabel) {
   const msgs = [];
-  // Use the HC's pre-attached proposed staff if available; fall back to a fresh roll.
-  // The probability check still applies — negotiations can break down even for a named target.
   const hc = staff.hc;
   if (Math.random() < 0.75) {
     const old = staff.oc;
+    const taken = _coordMayTakePosCoach(staff, "oc", teamLabel, old?.name);
+    if (taken) msgs.push({ type:"coach_depart",
+      label: `🚪 ${teamLabel}: departing OC ${old?.name || "?"} takes ${taken.group} coach ${taken.name}` });
     _coachFAAdd(staff.oc, "oc");
     staff.oc = hc?.proposedOC ? { ...hc.proposedOC } : _rollOC();
     msgs.push({ type:"coach_hire",
@@ -4176,12 +4191,37 @@ function _applyHcStaffSweep(staff, teamLabel) {
   }
   if (Math.random() < 0.40) {
     const old = staff.dc;
+    const taken = _coordMayTakePosCoach(staff, "dc", teamLabel, old?.name);
+    if (taken) msgs.push({ type:"coach_depart",
+      label: `🚪 ${teamLabel}: departing DC ${old?.name || "?"} takes ${taken.group} coach ${taken.name}` });
     _coachFAAdd(staff.dc, "dc");
     staff.dc = hc?.proposedDC ? { ...hc.proposedDC } : _rollDC();
     msgs.push({ type:"coach_hire",
       label: `🏟 ${teamLabel}: new HC installs DC ${staff.dc.name}${old ? ` (replaces ${old.name})` : ""}` });
   }
+  // HC brings a position coach from their network
+  if (hc?.broughtPosCoach) {
+    if (!staff.positionStaff) staff.positionStaff = [];
+    if (staff.positionStaff.length < 3) {
+      staff.positionStaff.push({ ...hc.broughtPosCoach });
+      msgs.push({ type:"coach_hire",
+        label: `🏟 ${teamLabel}: ${hc.name} brings ${hc.broughtPosCoach.group} coach ${hc.broughtPosCoach.name}` });
+    }
+  }
   return msgs;
+}
+
+// When a coordinator departs, 35% chance they take a relevant position coach with them.
+// Removed coach is added to _posCoachPool so other teams (including user) can hire them.
+function _coordMayTakePosCoach(staff, slot) {
+  if (!staff?.positionStaff?.length) return null;
+  const groups = slot === "oc" ? ["QB","OL","Skill"] : ["DL","LB/DB"];
+  const idx = staff.positionStaff.findIndex(pc => groups.includes(pc.group));
+  if (idx === -1 || Math.random() >= 0.35) return null;
+  const taken = staff.positionStaff.splice(idx, 1)[0];
+  if (!franchise._posCoachPool) franchise._posCoachPool = [];
+  franchise._posCoachPool.push({ ...taken, retiredSeason: franchise.season || 1 });
+  return taken;
 }
 
 // End-of-season coaching changes for AI teams.
@@ -4334,6 +4374,10 @@ function _runCoachingCarousel() {
     if (Math.random() < 0.18) {
       const candidates = market.filter(c => c.type === "oc");
       if (candidates.length) {
+        const depName = staff.oc?.name;
+        const taken = _coordMayTakePosCoach(staff, "oc");
+        if (taken) _pushNews({ type:"coach_depart",
+          label: `🚪 ${t.name} OC ${depName} departs, takes ${taken.group} coach ${taken.name}` });
         const pick = candidates[Math.floor(Math.random() * candidates.length)];
         staff.oc = { ...pick, yearsWithTeam: 0 };
         delete staff.oc.type;
@@ -4342,6 +4386,10 @@ function _runCoachingCarousel() {
     if (Math.random() < 0.18) {
       const candidates = market.filter(c => c.type === "dc");
       if (candidates.length) {
+        const depName = staff.dc?.name;
+        const taken = _coordMayTakePosCoach(staff, "dc");
+        if (taken) _pushNews({ type:"coach_depart",
+          label: `🚪 ${t.name} DC ${depName} departs, takes ${taken.group} coach ${taken.name}` });
         const pick = candidates[Math.floor(Math.random() * candidates.length)];
         staff.dc = { ...pick, yearsWithTeam: 0 };
         delete staff.dc.type;
@@ -4353,11 +4401,12 @@ function _runCoachingCarousel() {
     // independently here since their market is separate from HC decisions.
     if ((staff.oc?.contractYears ?? 1) === 0 && Math.random() < 0.35) {
       const depName = staff.oc.name;
+      const taken = _coordMayTakePosCoach(staff, "oc");
       _coachFAAdd(staff.oc, "oc");
       staff.oc = _rollOC();
       if (tId === franchise.chosenTeamId) {
         _pushNews({ type:"coach_depart",
-          label: `🚪 OC ${depName} departs — contract expired, seeking new opportunity` });
+          label: `🚪 OC ${depName} departs — contract expired${taken ? `, took ${taken.group} coach ${taken.name}` : ""}` });
       }
     } else if (staff.oc && (staff.oc.contractYears ?? 1) === 0) {
       // Stayed — reprice to current market rate
@@ -4369,11 +4418,12 @@ function _runCoachingCarousel() {
     }
     if ((staff.dc?.contractYears ?? 1) === 0 && Math.random() < 0.35) {
       const depName = staff.dc.name;
+      const taken = _coordMayTakePosCoach(staff, "dc");
       _coachFAAdd(staff.dc, "dc");
       staff.dc = _rollDC();
       if (tId === franchise.chosenTeamId) {
         _pushNews({ type:"coach_depart",
-          label: `🚪 DC ${depName} departs — contract expired, seeking new opportunity` });
+          label: `🚪 DC ${depName} departs — contract expired${taken ? `, took ${taken.group} coach ${taken.name}` : ""}` });
       }
     } else if (staff.dc && (staff.dc.contractYears ?? 1) === 0) {
       // Stayed — reprice to current market rate

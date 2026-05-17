@@ -4454,8 +4454,8 @@ function _processSeasonEndRetirements() {
           line: mvpStatLine(p.careerStats || {}),
         };
         retirees.push(entry);
-        // Add to retired player pool so they can surface as coach candidates 2-10 seasons later
-        if (!["OL","K","P"].includes(p.position)) {
+        // Add to retired player pool so they can surface as HC/OC/DC candidates 2-10 seasons later
+        if (!["K","P"].includes(p.position)) {
           const peakOvr = Math.max(
             ...(p.careerHistory || []).map(h => h.ovr ?? h.overall ?? 0),
             p.overall || 0
@@ -4470,9 +4470,26 @@ function _processSeasonEndRetirements() {
               proBowls: p.proBowls || 0, allPros: p.allPros || 0, sbRings: p.sbRings || 0,
               formerTeamId: tId, formerTeamName: `${t.city} ${t.name}`,
             });
-            // Prune entries older than 10 seasons
             franchise._retiredPlayerPool = franchise._retiredPlayerPool
               .filter(rp => franchise.season - rp.retiredSeason <= 10);
+          }
+        }
+        // Immediately eligible as position coach — any retired player except K/P
+        if (!["K","P"].includes(p.position)) {
+          const _pcGrpMap = { QB:"QB", OL:"OL", WR:"Skill", RB:"Skill", TE:"Skill", DL:"DL", LB:"LB/DB", CB:"LB/DB", S:"LB/DB" };
+          const _pcGrp = _pcGrpMap[p.position];
+          if (_pcGrp) {
+            const _pcPeak = Math.max(...(p.careerHistory||[]).map(h=>h.ovr??h.overall??0), p.overall||0);
+            const _pcTier = (_pcPeak>=85||(p.proBowls||0)>=3||(p.allPros||0)>=1) ? "Elite"
+                          : (_pcPeak>=75||(p.proBowls||0)>=1) ? "Good" : "Journeyman";
+            if (!franchise._posCoachPool) franchise._posCoachPool = [];
+            franchise._posCoachPool.push({
+              name: p.name, pid: p.pid,
+              formerPos: p.position, group: _pcGrp,
+              tier: _pcTier, salary: POSITION_COACH_TIERS[_pcTier].salary,
+              peakOvr: _pcPeak, proBowls: p.proBowls||0, allPros: p.allPros||0, sbRings: p.sbRings||0,
+              isFormerPlayer: true, retiredSeason: franchise.season||1,
+            });
           }
         }
         if (wasInducted) hofClass.push(entry);
@@ -4651,7 +4668,8 @@ function _schemeBadge(scheme, small) {
 // ── Coaching Staff Panel ─────────────────────────────────────────────────────
 // Shows the user team's full coaching staff and allows hires/fires from the
 // coach market. Market is populated by _generateCoachMarket() each offseason.
-let _coachHireResult = null; // set by frnHireCoachFromMarket; cleared after one render
+let _coachHireResult    = null; // set by frnHireCoachFromMarket; cleared after one render
+let _posCoachBrowseGroup = null; // set when user opens position coach candidate browser
 
 function renderFrnCoachingStaff() {
   const myId   = franchise.chosenTeamId;
@@ -4733,23 +4751,51 @@ function renderFrnCoachingStaff() {
 
   // ── Position Staff ──
   const tierColor = t => t === "Elite" ? "var(--gold)" : t === "Good" ? "var(--green-lt)" : "var(--gray)";
-  const posSlots = POSITION_COACH_GROUPS.map((g, i) => {
+  const posSlots = POSITION_COACH_GROUPS.map((g) => {
     const coach = posStaff.find(s => s.group === g);
-    return coach
-      ? `<div class="frn-coach-pos-slot">
-          <div style="font-size:.65rem;color:var(--gray);text-transform:uppercase;letter-spacing:.5px">${g}</div>
-          <div style="font-size:.75rem;font-weight:700;color:var(--white);margin:.1rem 0">${coach.name}</div>
-          <div style="font-size:.62rem;color:${tierColor(coach.tier)}">${coach.tier} · $${(coach.salary||0).toFixed(1)}M</div>
-          <button class="btn btn-outline" style="font-size:.58rem;padding:.1rem .4rem;margin-top:.3rem"
-            onclick="frnUpgradePositionCoach('${g}')">Upgrade</button>
-        </div>`
-      : `<div class="frn-coach-pos-slot" style="border-style:dashed;opacity:.6">
-          <div style="font-size:.65rem;color:var(--gray);text-transform:uppercase;letter-spacing:.5px">${g}</div>
-          <div style="font-size:.75rem;color:var(--gray);margin:.2rem 0">—</div>
-          <button class="btn btn-outline" style="font-size:.58rem;padding:.1rem .4rem;margin-top:.3rem"
-            onclick="frnHirePositionCoach('${g}')">Hire</button>
-        </div>`;
+    const isBrowsing = _posCoachBrowseGroup === g;
+    if (coach) return `
+      <div class="frn-coach-pos-slot${isBrowsing ? '" style="border-color:var(--gold)' : ''}">
+        <div style="font-size:.65rem;color:var(--gray);text-transform:uppercase;letter-spacing:.5px">${g}</div>
+        <div style="font-size:.75rem;font-weight:700;color:var(--white);margin:.1rem 0">${coach.name}</div>
+        ${coach.isFormerPlayer ? `<div style="font-size:.58rem;color:var(--gold)">🏈 Ex-${coach.formerPos||"?"} · Pk ${coach.peakOvr||"?"}</div>` : ""}
+        <div style="font-size:.62rem;color:${tierColor(coach.tier)}">${coach.tier} · $${(coach.salary||0).toFixed(1)}M</div>
+        <button class="btn btn-outline" style="font-size:.58rem;padding:.1rem .4rem;margin-top:.3rem"
+          onclick="frnUpgradePositionCoach('${g}')">Upgrade</button>
+      </div>`;
+    return `
+      <div class="frn-coach-pos-slot" style="border-style:dashed;${isBrowsing ? "border-color:var(--gold);opacity:1" : "opacity:.6"}">
+        <div style="font-size:.65rem;color:var(--gray);text-transform:uppercase;letter-spacing:.5px">${g}</div>
+        <div style="font-size:.75rem;color:var(--gray);margin:.2rem 0">—</div>
+        <button class="btn btn-outline" style="font-size:.58rem;padding:.1rem .4rem;margin-top:.3rem"
+          onclick="frnHirePositionCoach('${g}')">Hire</button>
+      </div>`;
   }).join("");
+
+  // Position coach candidate browser
+  const pcPool = (franchise._posCoachPool || []).filter(c => c.group === _posCoachBrowseGroup);
+  const posBrowseHtml = _posCoachBrowseGroup ? `
+    <div style="margin-top:.6rem;background:rgba(255,200,0,.05);border:1px solid rgba(255,200,0,.25);border-radius:6px;padding:.65rem .9rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
+        <div style="font-size:.75rem;font-weight:700;color:var(--gold)">${_posCoachBrowseGroup} Coach Candidates</div>
+        <button class="btn btn-outline" style="font-size:.6rem;padding:.1rem .45rem"
+          onclick="_posCoachBrowseGroup=null;renderFrnCoachingStaff()">✕ Cancel</button>
+      </div>
+      ${pcPool.length === 0
+        ? `<div style="font-size:.7rem;color:var(--gray);font-style:italic;margin-bottom:.4rem">No known candidates available right now.</div>`
+        : pcPool.map((c, i) => `
+          <div style="display:flex;align-items:center;gap:.5rem;padding:.35rem 0;border-bottom:1px solid rgba(255,255,255,.07)">
+            <div style="flex:1;min-width:0">
+              <span style="font-size:.75rem;font-weight:700;color:var(--white)">${c.name}</span>
+              ${c.isFormerPlayer ? `<span style="font-size:.58rem;padding:.05rem .35rem;border-radius:3px;background:rgba(255,200,0,.15);color:var(--gold);margin-left:.3rem">🏈 Ex-${c.formerPos} · Pk ${c.peakOvr}${c.proBowls>0?" · "+c.proBowls+"xPB":""}${c.allPros>0?" · "+c.allPros+"xAP":""}${c.sbRings>0?" · "+c.sbRings+"xSB":""}</span>` : ""}
+              <div style="font-size:.62rem;color:${tierColor(c.tier)};margin-top:.1rem">${c.tier} · $${(c.salary||0).toFixed(1)}M/yr</div>
+            </div>
+            <button class="btn btn-outline" style="font-size:.62rem;padding:.15rem .5rem;color:var(--green-lt);border-color:var(--green-lt);white-space:nowrap"
+              onclick="frnHirePositionCoachFromPool('${_posCoachBrowseGroup}',${i})">Hire</button>
+          </div>`).join("")}
+      <button class="btn btn-outline" style="font-size:.65rem;margin-top:.5rem;width:100%"
+        onclick="frnScoutRandomPositionCoach('${_posCoachBrowseGroup}')">🎲 Scout Unknown (Random Tier)</button>
+    </div>` : "";
 
   // ── Budget Bar ──
   const budgetUsed  = typeof coachingBudgetUsed === "function" ? coachingBudgetUsed(myId) : 0;
@@ -4807,6 +4853,11 @@ function renderFrnCoachingStaff() {
             ${dcScheme ? _schemeBadge(dcScheme, true) : ""}
             <span style="color:var(--gray);font-size:.6rem">$${(c.proposedDC.salary||0).toFixed(1)}M · Age ${c.proposedDC.age||"?"}</span>
           </div>${dcPreview}` : ""}
+          ${c.broughtPosCoach ? `<div style="margin-top:.2rem;display:flex;align-items:center;gap:.35rem;font-size:.65rem">
+            <span style="color:var(--gray)">+ brings</span>
+            <b style="color:var(--white)">${c.broughtPosCoach.name}</b>
+            <span style="color:${tierColor(c.broughtPosCoach.tier)}">${c.broughtPosCoach.group} coach · ${c.broughtPosCoach.tier} · $${(c.broughtPosCoach.salary||0).toFixed(1)}M</span>
+          </div>` : ""}
         </div>`;
     }
 
@@ -4958,8 +5009,9 @@ function renderFrnCoachingStaff() {
       ${schemeOverviewHtml}
       <div class="frn-sec-title" style="margin-top:.8rem">Staff Chemistry</div>
       ${chemHtml}
-      <div class="frn-sec-title" style="margin-top:.8rem">Position Staff <span style="font-size:.65rem;font-weight:400;color:var(--gray)">(up to ${POSITION_COACH_GROUPS.length} groups)</span></div>
+      <div class="frn-sec-title" style="margin-top:.8rem">Position Staff <span style="font-size:.65rem;font-weight:400;color:var(--gray)">(up to 3 of ${POSITION_COACH_GROUPS.length} groups)</span></div>
       <div class="frn-coach-pos-grid">${posSlots}</div>
+      ${posBrowseHtml}
       <div class="frn-sec-title" style="margin-top:1rem">Available Coaches</div>
       ${market.length === 0
         ? `<div style="color:var(--gray);font-size:.75rem;font-style:italic;margin:.5rem 0">No market available yet — coaches become available after the season ends.</div>`
@@ -4989,11 +5041,17 @@ function frnFireStaffSlot(slot) {
   }
   if (!confirm(`Release ${name}? A replacement will be hired immediately.`)) return;
   if (slot === "oc") {
+    const taken = typeof _coordMayTakePosCoach === "function" ? _coordMayTakePosCoach(staff, "oc") : null;
+    if (taken) _pushNews({ type:"coach_depart",
+      label: `🚪 Outgoing OC ${name} took ${taken.group} coach ${taken.name} with them` });
     _coachFAAdd(staff.oc, "oc");
     if (staff._chemistry) staff._chemistry.qbOcBond = false;
     staff.oc = _rollOC();
     _pushNews({ type:"coach_hire", label: `Your team hired new OC ${staff.oc.name}` });
   } else if (slot === "dc") {
+    const taken = typeof _coordMayTakePosCoach === "function" ? _coordMayTakePosCoach(staff, "dc") : null;
+    if (taken) _pushNews({ type:"coach_depart",
+      label: `🚪 Outgoing DC ${name} took ${taken.group} coach ${taken.name} with them` });
     _coachFAAdd(staff.dc, "dc");
     staff.dc = _rollDC();
     _pushNews({ type:"coach_hire", label: `Your team hired new DC ${staff.dc.name}` });
@@ -5232,15 +5290,52 @@ function frnHirePositionCoach(group) {
   const myId  = franchise.chosenTeamId;
   const staff = franchise.coaches?.[myId];
   if (!staff) return;
-  if (!staff.positionStaff) staff.positionStaff = [];
-  const MAX_SLOTS = 3;
-  if (staff.positionStaff.length >= MAX_SLOTS) {
-    alert(`You already have ${MAX_SLOTS} position coaches. Upgrade one instead.`);
+  if ((staff.positionStaff||[]).length >= 3) {
+    alert("You already have 3 position coaches. Upgrade one instead.");
     return;
   }
+  _posCoachBrowseGroup = group;
+  renderFrnCoachingStaff();
+}
+
+function frnHirePositionCoachFromPool(group, filteredIdx) {
+  const myId  = franchise.chosenTeamId;
+  const staff = franchise.coaches?.[myId];
+  if (!staff) return;
+  if (!staff.positionStaff) staff.positionStaff = [];
+  if (staff.positionStaff.length >= 3) { alert("Already have 3 position coaches."); return; }
+  const pool     = franchise._posCoachPool || [];
+  const filtered = pool.filter(c => c.group === group);
+  const candidate = filtered[filteredIdx];
+  if (!candidate) return;
+  const poolIdx = pool.findIndex(c =>
+    c.group === candidate.group && c.name === candidate.name && c.retiredSeason === candidate.retiredSeason
+  );
+  if (poolIdx !== -1) pool.splice(poolIdx, 1);
+  franchise._posCoachPool = pool;
+  staff.positionStaff.push({
+    name: candidate.name, group: candidate.group,
+    tier: candidate.tier, salary: candidate.salary,
+    isFormerPlayer: candidate.isFormerPlayer,
+    formerPos: candidate.formerPos, peakOvr: candidate.peakOvr,
+  });
+  _pushNews({ type:"coach_hire",
+    label: `Hired ${group} coach ${candidate.name}${candidate.isFormerPlayer ? ` (former ${candidate.formerPos} · Pk ${candidate.peakOvr})` : ""} · ${candidate.tier}` });
+  _posCoachBrowseGroup = null;
+  saveFranchise();
+  renderFrnCoachingStaff();
+}
+
+function frnScoutRandomPositionCoach(group) {
+  const myId  = franchise.chosenTeamId;
+  const staff = franchise.coaches?.[myId];
+  if (!staff) return;
+  if (!staff.positionStaff) staff.positionStaff = [];
+  if (staff.positionStaff.length >= 3) { alert("Already have 3 position coaches."); return; }
   const newCoach = _rollPositionCoach(group);
   staff.positionStaff.push(newCoach);
-  _pushNews({ type:"coach_hire", label: `Hired ${group} coach ${newCoach.name} (${newCoach.tier})` });
+  _pushNews({ type:"coach_hire", label: `Scouted ${group} coach ${newCoach.name} (${newCoach.tier})` });
+  _posCoachBrowseGroup = null;
   saveFranchise();
   renderFrnCoachingStaff();
 }
