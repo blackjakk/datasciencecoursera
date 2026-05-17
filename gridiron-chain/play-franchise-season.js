@@ -1005,11 +1005,20 @@ function _buildCareerCard(p) {
   const history = p.careerHistory || [];
   const stats   = p.careerStats   || {};
   if (history.length === 0) {
+    const collLine  = p.collegeProfile?.line  || "";
+    const collKnock = p.collegeProfile?.knock || "";
+    const collBlock = collLine ? `
+      <div style="margin:.35rem 0 .1rem;padding:.35rem .5rem;background:rgba(255,255,255,.04);border-left:2px solid var(--gray);border-radius:2px">
+        <div style="font-size:.57rem;color:var(--gray);letter-spacing:.4px;margin-bottom:.18rem">COLLEGE</div>
+        <div style="font-size:.65rem;color:var(--blgray)">${collLine}</div>
+        ${collKnock ? `<div style="font-size:.62rem;color:#e8a000;margin-top:.15rem">⚠ ${collKnock}</div>` : ""}
+      </div>` : "";
     return `<div class="frn-career-card">
       <div class="frn-card-title">📊 CAREER</div>
       <div style="color:var(--gray);font-size:.72rem;padding:.4rem 0">
         Rookie season — no career stats yet.
       </div>
+      ${collBlock}
       <div class="frn-player-meta">
         <div><span class="frn-meta-label">DRAFT</span> ${draftStr(p)}</div>
         <div><span class="frn-meta-label">CAREER $</span> ${careerEarningsStr(p)}</div>
@@ -2216,8 +2225,9 @@ function renderFrnFA(selectedKey) {
     const wo = workoutResults[p.name];
     const woIcon = wo ? (wo.result === "standout" ? "⭐" : wo.result === "solid" ? "✅" : wo.result === "mixed" ? "〰️" : "❌") : "";
     const pGrade = scoutGrade(p);
-    const heatIcon = pGrade >= 88 ? ` <span title="Heavy league-wide interest expected" style="font-size:.7rem">🔥</span>`
-                   : pGrade >= 80 ? ` <span title="Multiple teams likely interested" style="font-size:.7rem">👀</span>`
+    const heatGrade = p._workoutHot ? Math.max(pGrade, 80) : pGrade;
+    const heatIcon = heatGrade >= 88 ? ` <span title="${p._workoutHot?"Standout workout — ":""}Heavy league-wide interest" style="font-size:.7rem">🔥</span>`
+                   : heatGrade >= 80 ? ` <span title="${p._workoutHot?"Standout workout drew attention":"Multiple teams likely interested"}" style="font-size:.7rem">👀</span>`
                    : "";
     return `<button class="frn-fa-row ${isSel?"selected":""} ${offered?"offered":""}"
       onclick="renderFrnFA('${escKey}')">

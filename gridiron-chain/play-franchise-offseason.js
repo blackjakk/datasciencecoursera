@@ -6931,7 +6931,7 @@ function _buildCollegeProfile(p, round) {
     const cmp = _clamp(_lerpR(55, 70, t) + nz(h3, 3), 50, 76);
     if (knockType === "one_year_wonder") {
       const pYds = Math.round(yds * 0.38 + nz(h1 >> 3, 80));
-      line = `Jr: ${pYds.toLocaleString()} YDS · ${Math.max(3,Math.round(td*0.37))} TD → Sr: ${yds.toLocaleString()} YDS · ${td} TD · ${cmp}%`;
+      line = `Jr: ${pYds.toLocaleString()} YDS · ${Math.max(1,Math.round(td*0.37))} TD → Sr: ${yds.toLocaleString()} YDS · ${td} TD · ${cmp}%`;
     } else {
       line = `${yds.toLocaleString()} YDS · ${td} TD · ${cmp}% comp · ${games}G`;
     }
@@ -6945,7 +6945,7 @@ function _buildCollegeProfile(p, round) {
       ? ` · ${Math.max(5, _lerpR(12, 52, scl1(cat)) + nz(h3 >> 2, 5))} REC` : "";
     if (knockType === "one_year_wonder") {
       const pYds = Math.round(yds * 0.45 + nz(h1 >> 3, 60));
-      line = `Jr: ${pYds} YDS · ${Math.max(2,Math.round(td*0.4))} TD → Sr: ${yds} YDS · ${td} TD · ${ypc} YPC`;
+      line = `Jr: ${pYds} YDS · ${Math.max(1,Math.round(td*0.4))} TD → Sr: ${yds} YDS · ${td} TD · ${ypc} YPC`;
     } else {
       line = `${yds} YDS · ${td} TD · ${ypc} YPC${recLine} · ${games}G`;
     }
