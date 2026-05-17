@@ -2890,6 +2890,51 @@ function _buildOpponentIntelBlock(oppId, isHome, week, nextGame) {
   </div>`;
 }
 
+function _buildSchemeMatchupCard(myId, oppId) {
+  const myOff  = _getTeamOffScheme(myId);
+  const myDef  = _getTeamDefScheme(myId);
+  const oppOff = _getTeamOffScheme(oppId);
+  const oppDef = _getTeamDefScheme(oppId);
+
+  const offMod = _schemeMatchup(myOff, oppDef);   // +ve = my offense wins
+  const defMod = _schemeMatchup(oppOff, myDef);   // +ve = their offense wins (bad for me)
+
+  const modColor = m => m >= 4 ? "#00e676" : m >= 1 ? "#69f0ae" : m >= -2 ? "rgba(255,255,255,.45)" : m >= -5 ? "#ffb74d" : "#ef5350";
+  const modLabel = m => m >= 4 ? "FAVORABLE" : m >= 1 ? "SLIGHT EDGE" : m >= -1 ? "NEUTRAL" : m >= -4 ? "DISADVANTAGE" : "TOUGH";
+
+  const row = (label, myScheme, oppScheme, mod, flipped) => {
+    const edgeColor = modColor(flipped ? -mod : mod);
+    const verdict   = modLabel(flipped ? -mod : mod);
+    const arrow     = mod > 2 ? "▲" : mod < -2 ? "▼" : "—";
+    const arrowColor = mod > 2 ? "#00e676" : mod < -2 ? "#ef5350" : "rgba(255,255,255,.3)";
+    return `<div style="display:flex;align-items:center;gap:.5rem;padding:.3rem 0;border-bottom:1px solid rgba(255,255,255,.06)">
+      <div style="flex:1;min-width:0;text-align:right">
+        <div style="font-size:.6rem;color:var(--gray);text-transform:uppercase;letter-spacing:.4px;margin-bottom:.15rem">${label}</div>
+        ${_schemeBadge(myScheme, true)}
+      </div>
+      <div style="text-align:center;min-width:44px">
+        <div style="font-size:.62rem;font-weight:700;color:${arrowColor}">${arrow}</div>
+        <div style="font-size:.58rem;color:${edgeColor};font-weight:700;letter-spacing:.3px">${verdict}</div>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:.6rem;color:var(--gray);text-transform:uppercase;letter-spacing:.4px;margin-bottom:.15rem">vs OPP ${label === "MY OFFENSE" ? "DEFENSE" : "OFFENSE"}</div>
+        ${_schemeBadge(oppScheme, true)}
+      </div>
+    </div>`;
+  };
+
+  const net = offMod - defMod;
+  const netColor = modColor(net);
+  const verdict = net >= 5 ? "Schematic edge — exploit it" : net >= 2 ? "Slight scheme advantage" : net <= -5 ? "Scheme disadvantage" : net <= -2 ? "Slight scheme disadvantage" : "Even matchup scheme-wise";
+
+  return `<div style="margin:.6rem 0;padding:.6rem .8rem;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.10);border-radius:6px">
+    <div style="font-size:.6rem;font-weight:700;color:var(--gray);letter-spacing:.6px;text-transform:uppercase;margin-bottom:.4rem">SCHEME MATCHUP</div>
+    ${row("MY OFFENSE", myOff, oppDef, offMod, false)}
+    ${row("MY DEFENSE", myDef, oppOff, defMod, true)}
+    <div style="margin-top:.4rem;font-size:.65rem;color:${netColor};font-weight:700">${verdict}</div>
+  </div>`;
+}
+
 function _buildMatchupStatsStrip(myId, oppId, myStand, oppStand, myRtg, oppRtg) {
   const myGP  = (myStand.w||0)  + (myStand.l||0)  + (myStand.t||0);
   const oppGP = (oppStand.w||0) + (oppStand.l||0) + (oppStand.t||0);
@@ -3595,6 +3640,7 @@ function renderFrnRegular() {
             : teamCard(myTeam, myStand, myRtg, true)}
         </div>
         ${_buildMatchupStatsStrip(chosenTeamId, oppId, myStand, oppStand, myRtg, oppRtg)}
+        ${_buildSchemeMatchupCard(chosenTeamId, oppId)}
         ${_buildOpponentIntelBlock(oppId, isHome, week, nextGame)}
       </div>`;
   } else if (seasonDone) {

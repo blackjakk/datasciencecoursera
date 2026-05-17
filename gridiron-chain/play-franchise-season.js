@@ -781,12 +781,15 @@ function _preseasonScoutTab(myId, scoutId, view, selName) {
     const st      = franchise.standings?.[t.id] || { w:0, l:0, t:0 };
     const rec     = `${st.w}-${st.l}${st.t ? `-${st.t}` : ""}`;
     const isNext  = t.id === nextOppId;
+    const tOff    = typeof _getTeamOffScheme === "function" ? _getTeamOffScheme(t.id) : null;
+    const tDef    = typeof _getTeamDefScheme === "function" ? _getTeamDefScheme(t.id) : null;
     return `<button class="frn-scout-team ${active?"active":""}" onclick="renderFrnPreseason('scout',${t.id})" style="border-left:3px solid ${t.primary}">
       <span class="frn-scout-team-week">${wkLabel}</span>
       <span style="color:var(--gold)">${teamAscii(t)}</span>
       <span>${t.name}</span>
       ${isNext ? `<span class="frn-scout-next-chip">NEXT</span>` : ""}
       <span class="frn-scout-team-rec">${rec}</span>
+      ${tOff ? `<span style="display:block;margin-top:.15rem">${_schemeBadge(tOff,true)} ${_schemeBadge(tDef,true)}</span>` : ""}
     </button>`;
   }).join("");
 
@@ -934,6 +937,10 @@ function _preseasonScoutTab(myId, scoutId, view, selName) {
             OFF <b style="color:var(--gold)">${oppRtg.off}</b> ·
             DEF <b style="color:var(--gold)">${oppRtg.def}</b> ·
             Cap $${oppCap.toFixed(0)}M${oppWkLabel}${injuredStr}
+          </div>
+          <div style="margin-top:.3rem;display:flex;gap:.35rem;flex-wrap:wrap">
+            ${typeof _getTeamOffScheme === "function" ? _schemeBadge(_getTeamOffScheme(scoutId)) : ""}
+            ${typeof _getTeamDefScheme === "function" ? _schemeBadge(_getTeamDefScheme(scoutId)) : ""}
           </div>
         </div>
       </div>
