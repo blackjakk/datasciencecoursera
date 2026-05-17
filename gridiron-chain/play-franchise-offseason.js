@@ -834,6 +834,17 @@ function frnSimOnce(homeId, awayId, isPlayoff = false) {
   sim.homeR.defense += Math.round((hcRatingHome - 60) / 30);
   sim.awayR.offense += Math.round((hcRatingAway - 60) / 30);
   sim.awayR.defense += Math.round((hcRatingAway - 60) / 30);
+  // Scheme matchup: OC's offensive scheme vs opponent DC's defensive scheme.
+  // _schemeMatchup returns +ve = offense wins the schematic battle.
+  // Scaled ×0.5 so the max swing (±3-4 OVR) stays comparable to chemistry bonuses.
+  const homeOffScheme = _getTeamOffScheme(homeId);
+  const awayOffScheme = _getTeamOffScheme(awayId);
+  const homeDefScheme = _getTeamDefScheme(homeId);
+  const awayDefScheme = _getTeamDefScheme(awayId);
+  const homeSchemeMod = Math.round(_schemeMatchup(homeOffScheme, awayDefScheme) * 0.5);
+  const awaySchemeMod = Math.round(_schemeMatchup(awayOffScheme, homeDefScheme) * 0.5);
+  sim.homeR.offense += homeSchemeMod;
+  sim.awayR.offense += awaySchemeMod;
   const r = sim.simulate();
   // Stamp gameday context onto the result so callers can persist it
   r.weather = sim.weather;
