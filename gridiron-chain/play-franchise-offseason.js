@@ -4654,7 +4654,47 @@ function _devStatPool(pos, age) {
   }
 }
 
+// At the end of each season, unlock accurate potential knowledge for:
+//   active roster players (1 season = known)
+//   practice squad players (2 seasons = known)
+// Knowledge persists forever even if the player later leaves.
+function _unlockSeasonKnowledge() {
+  if (!franchise) return;
+  const myId = franchise.chosenTeamId;
+  franchise.knownPotentialPids = franchise.knownPotentialPids || [];
+  franchise._psSeasons          = franchise._psSeasons         || {};
+  const knownSet  = new Set(franchise.knownPotentialPids);
+  const newlyKnown = [];
+
+  for (const p of franchise.rosters[myId] || []) {
+    if (!p.pid || knownSet.has(p.pid)) continue;
+    knownSet.add(p.pid);
+    newlyKnown.push(p);
+  }
+
+  for (const p of franchise.practiceSquads?.[myId] || []) {
+    if (!p.pid || knownSet.has(p.pid)) continue;
+    franchise._psSeasons[p.pid] = (franchise._psSeasons[p.pid] || 0) + 1;
+    if (franchise._psSeasons[p.pid] >= 2) {
+      knownSet.add(p.pid);
+      newlyKnown.push(p);
+    }
+  }
+
+  franchise.knownPotentialPids = [...knownSet];
+
+  // Surface news items only for notable outcomes (HIGH CEILING / Bust risk)
+  for (const p of newlyKnown) {
+    const tag = potentialTag(p, { known: true });
+    if (tag.includes("HIGH CEILING") || tag.includes("Bust risk")) {
+      _pushNews({ type: "scout_reveal",
+        label: `🔍 After a full season in your system, the read on ${p.name} is clear: ${tag}` });
+    }
+  }
+}
+
 function runFrnOffseason() {
+  _unlockSeasonKnowledge();
   const changes  = [];
   const allNames = new Set();
   for (const r of Object.values(franchise.rosters)) r.forEach(p => allNames.add(p.name));
@@ -6718,7 +6758,8 @@ function frnGoToDraft() {
     boardFilter: "ALL",
     _targetGone: [],
   };
-  franchise.draftScouts = []; // reset scout slots for new class
+  franchise.draftScouts = [];       // reset scout slots for new class
+  franchise.draftScoutReveals = {}; // reset per-prospect reveal rolls
   franchise.phase = "draft";
   saveFranchise();
   renderFrnDraft();
@@ -6918,10 +6959,11 @@ function renderFrnDraft() {
     const needLvl = _draftNeedLevel(myId, p.position);
     const needBadge = needLvl===2 ? `<span class="frn-draft-need-crit">❗NEED</span>`
                     : needLvl===1 ? `<span class="frn-draft-need-need">⚠ NEED</span>` : "";
-    const isTargeted  = targets.has(p.name);
-    const isScouted   = scoutsList.includes(p.name);
-    const canAddScout = !isScouted && slotsUsed < DRAFT_SCOUT_SLOTS;
-    const potTag = potentialTag(p);
+    const isTargeted    = targets.has(p.name);
+    const isScouted     = scoutsList.includes(p.name);
+    const scoutRevealed = isScouted && _isDraftScoutRevealed(p.name);
+    const canAddScout   = !isScouted && slotsUsed < DRAFT_SCOUT_SLOTS;
+    const potTag = potentialTag(p, { known: false, scoutRevealed });
     const comp = _draftNFLComp(p);
     const arch = _archetypeLabel(p) || "—";
     const meta = comp ? `${arch} · ${comp}` : arch;
@@ -7054,15 +7096,25 @@ function frnDraftToggleTarget(name) {
 
 const DRAFT_SCOUT_SLOTS = 8;
 
+// Returns true if this scout assignment rolled a full potential reveal (30% chance,
+// set once on assignment and stable for the rest of the draft).
+function _isDraftScoutRevealed(name) {
+  return !!(franchise.draftScoutReveals?.[name]);
+}
+
 function frnDraftScout(name) {
   if (!franchise.draft) return;
-  franchise.draftScouts = franchise.draftScouts || [];
+  franchise.draftScouts        = franchise.draftScouts        || [];
+  franchise.draftScoutReveals  = franchise.draftScoutReveals  || {};
   const idx = franchise.draftScouts.indexOf(name);
   if (idx !== -1) {
     franchise.draftScouts.splice(idx, 1);
+    delete franchise.draftScoutReveals[name];
   } else {
     if (franchise.draftScouts.length >= DRAFT_SCOUT_SLOTS) return;
     franchise.draftScouts.push(name);
+    // 30% chance of a full potential reveal — locked in at assignment time
+    franchise.draftScoutReveals[name] = Math.random() < 0.30;
   }
   saveFranchise();
   renderFrnDraft();

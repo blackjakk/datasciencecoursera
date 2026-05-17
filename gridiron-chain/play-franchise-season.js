@@ -1838,7 +1838,7 @@ function _buildPlayerDetailPanel(p) {
     ${combineHtml}
   </div>`;
 
-  const potTag = potentialTag(p);
+  const potTag = potentialTag(p, { known: _isKnownPlayer(p) });
   const archBlock = _buildArchetypeBlock(p);
   const seasonBlock = _buildSeasonStatsBlock(p);
   const recentFormStrip = _buildRecentFormStrip(p);
@@ -2279,7 +2279,7 @@ function renderFrnFA(selectedKey) {
         <div>
           <div style="font-size:1.05rem;font-weight:900">${selected.name}${selected.age <= 25 ? " <span style='color:var(--green-lt);font-size:.7rem'>🌱 YOUNG</span>" : ""}</div>
           <div style="color:var(--gray);font-size:.7rem">${selected.position} · Age ${selected.age} · ${_archetypeLabel(selected) || "—"} · ${draftStr(selected)}</div>
-          ${(() => { const pt = potentialTag(selected); return pt ? `<div style="font-size:.63rem;color:var(--gold-lt);margin-top:.15rem">${pt}</div>` : ""; })()}
+          ${(() => { const pt = potentialTag(selected, { known: _isKnownPlayer(selected) }); return pt ? `<div style="font-size:.63rem;color:${_isKnownPlayer(selected)?"var(--green-lt)":"var(--gold-lt)"};margin-top:.15rem">${pt}</div>` : ""; })()}
           ${selected.faStory ? `<div style="color:var(--gold-lt);font-size:.7rem;margin-top:.25rem;font-style:italic">"${selected.faStory}"</div>` : ""}
           <div style="color:var(--gray);font-size:.66rem;margin-top:.2rem">${careerEarningsStr(selected)} career earnings</div>
         </div>

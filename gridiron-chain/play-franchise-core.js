@@ -989,20 +989,46 @@ function _rollPotential(p) {
   return potential;
 }
 
-// Public-ish scouting hint (single word) derived from draft slot vs
-// hidden potential. Returns short phrase or "" for boring middle.
-function potentialTag(p) {
+// Public scouting hint derived from potential ceiling.
+// known=true  → accurate label (coached this player 1+ season), prefixed with 📋
+// scoutRevealed=true → accurate label, no prefix (lucky scout intel)
+// default     → fuzzy label with "?" — noise width scales by draft round,
+//               pedigree bias skews R1 optimistic and late rounds pessimistic.
+function potentialTag(p, { known = false, scoutRevealed = false } = {}) {
   if (p.potential == null) return "";
-  const r = p.draftRound || 7;
-  const pot = p.potential;
-  // Pretend the draft slot's "expected" ceiling is the round's mean
-  const expected = { 1: 88, 2: 81, 3: 75, 4: 70, 5: 66, 6: 63, 7: 60, 0: 58 }[r] ?? 65;
-  const delta = pot - expected;
-  if (delta >= 8)  return "⭐ HIGH CEILING";
-  if (delta >= 4)  return "↗ Late bloomer";
-  if (delta <= -8) return "⚠ Bust risk";
-  if (delta <= -4) return "▾ Capped";
+  const r = p.draftRound ?? 4;
+  const expected = { 1:88, 2:81, 3:75, 4:70, 5:66, 6:63, 7:60, 0:58 }[r] ?? 65;
+
+  if (known || scoutRevealed) {
+    const delta = p.potential - expected;
+    const pre = known ? "📋 " : "";
+    if (delta >= 8)  return `${pre}⭐ HIGH CEILING`;
+    if (delta >= 4)  return `${pre}↗ Late bloomer`;
+    if (delta <= -8) return `${pre}⚠ Bust risk`;
+    if (delta <= -4) return `${pre}▾ Capped`;
+    return "";
+  }
+
+  // Fuzzy path — stable hash noise independent from OVR fuzz (different seed ×53)
+  let h = 0;
+  const name = p.name || "";
+  for (let i = 0; i < name.length; i++) h = (h * 53 + name.charCodeAt(i)) | 0;
+  const noiseWidth = r === 1 ? 6 : r <= 3 ? 8 : 12;
+  const pedigreeBias = r === 1 ? 3 : r === 2 ? 1 : r >= 6 ? -3 : r === 5 ? -1 : 0;
+  const noise = (Math.abs(h) % (noiseWidth * 2 + 1)) - noiseWidth;
+  const perceived = p.potential + noise + pedigreeBias;
+  const delta = perceived - expected;
+  if (delta >= 8)  return "⭐ LOOKS ELITE?";
+  if (delta >= 4)  return "↗ UPSIDE?";
+  if (delta <= -8) return "⚠ CONCERNS?";
+  if (delta <= -4) return "▾ LIMITED?";
   return "";
+}
+
+// True if the user's franchise has coached this player for at least one full season.
+function _isKnownPlayer(p) {
+  if (!p?.pid) return false;
+  return (franchise?.knownPotentialPids || []).includes(p.pid);
 }
 
 // ── Coaching staff ────────────────────────────────────────────────────────────
