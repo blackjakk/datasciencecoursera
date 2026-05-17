@@ -1386,7 +1386,47 @@ function frnPlayGame(homeId, awayId, isPlayoff) {
   // Use franchise rosters for league nickname computation
   assignLeagueNicknames(franchise.rosters);
 
-  const sim = new GameSimulator(home, away, homeRoster, awayRoster);
+  const isRivalry = _areRivals(homeId, awayId);
+  const sim = new GameSimulator(home, away, homeRoster, awayRoster, { isRivalry });
+  // Apply the same coaching + scheme boosts as frnSimOnce so live games
+  // and auto-sims are driven by identical modifiers.
+  const hcHome = franchise.coaches?.[homeId]?.hc?.specialtyTrait;
+  const hcAway = franchise.coaches?.[awayId]?.hc?.specialtyTrait;
+  if (hcHome === "Offensive Minded") sim.homeR.offense += 2;
+  if (hcHome === "Defensive Minded") sim.homeR.defense += 2;
+  if (hcAway === "Offensive Minded") sim.awayR.offense += 2;
+  if (hcAway === "Defensive Minded") sim.awayR.defense += 2;
+  const chemHome = _computeChemistryBonus(homeId);
+  const chemAway = _computeChemistryBonus(awayId);
+  sim.homeR.offense += chemHome.offBonus; sim.homeR.defense += chemHome.defBonus;
+  sim.awayR.offense += chemAway.offBonus; sim.awayR.defense += chemAway.defBonus;
+  if (chemHome.chaotic) { const s = Math.random() < 0.5 ? 2 : -2; sim.homeR.offense += s; sim.homeR.defense += s; }
+  if (chemAway.chaotic) { const s = Math.random() < 0.5 ? 2 : -2; sim.awayR.offense += s; sim.awayR.defense += s; }
+  const dcHome = franchise.coaches?.[homeId]?.dc?.trait;
+  const dcAway = franchise.coaches?.[awayId]?.dc?.trait;
+  if (dcHome === "Pressure Package") sim.homeR.defense += 1;
+  if (dcAway === "Pressure Package") sim.awayR.defense += 1;
+  if (dcHome === "Run Stopper")      sim.homeR.defense += 1;
+  if (dcAway === "Run Stopper")      sim.awayR.defense += 1;
+  const _filmBonus = (teamId) => {
+    const def = (franchise.rosters[teamId] || []).filter(p => ["DL","LB","CB","S"].includes(p.position));
+    if (!def.length) return 0;
+    const top5 = def.map(p => p.stats?.[11] ?? 68).sort((a,b) => b-a).slice(0,5);
+    const avg = top5.reduce((s,v) => s+v, 0) / top5.length;
+    return avg >= 95 ? 3 : avg >= 85 ? 2 : avg >= 75 ? 1 : 0;
+  };
+  if (dcHome === "Film Mastermind") sim.homeR.defense += _filmBonus(homeId);
+  if (dcAway === "Film Mastermind") sim.awayR.defense += _filmBonus(awayId);
+  const hcRatingHome = franchise.coaches?.[homeId]?.hc?.rating || 60;
+  const hcRatingAway = franchise.coaches?.[awayId]?.hc?.rating || 60;
+  sim.homeR.offense += Math.round((hcRatingHome - 60) / 30);
+  sim.homeR.defense += Math.round((hcRatingHome - 60) / 30);
+  sim.awayR.offense += Math.round((hcRatingAway - 60) / 30);
+  sim.awayR.defense += Math.round((hcRatingAway - 60) / 30);
+  const homeSchemeMod = Math.round(_schemeMatchup(_getTeamOffScheme(homeId), _getTeamDefScheme(awayId)) * 0.5);
+  const awaySchemeMod = Math.round(_schemeMatchup(_getTeamOffScheme(awayId), _getTeamDefScheme(homeId)) * 0.5);
+  sim.homeR.offense += homeSchemeMod;
+  sim.awayR.offense += awaySchemeMod;
   gameResult = sim.simulate();
   playHead = 0; animState = null; playing = false;
   cancelAnimationFrame(rafId);
