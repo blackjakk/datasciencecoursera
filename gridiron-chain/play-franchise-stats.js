@@ -4488,7 +4488,7 @@ function _processSeasonEndRetirements() {
               formerPos: p.position, group: _pcGrp,
               tier: _pcTier, salary: POSITION_COACH_TIERS[_pcTier].salary,
               peakOvr: _pcPeak, proBowls: p.proBowls||0, allPros: p.allPros||0, sbRings: p.sbRings||0,
-              isFormerPlayer: true, retiredSeason: franchise.season||1,
+              isFormerPlayer: true, retiredSeason: franchise.season||1, retiredAge: p.age||30,
             });
           }
         }
@@ -4759,9 +4759,13 @@ function renderFrnCoachingStaff() {
         <div style="font-size:.65rem;color:var(--gray);text-transform:uppercase;letter-spacing:.5px">${g}</div>
         <div style="font-size:.75rem;font-weight:700;color:var(--white);margin:.1rem 0">${coach.name}</div>
         ${coach.isFormerPlayer ? `<div style="font-size:.58rem;color:var(--gold)">🏈 Ex-${coach.formerPos||"?"} · Pk ${coach.peakOvr||"?"}</div>` : ""}
-        <div style="font-size:.62rem;color:${tierColor(coach.tier)}">${coach.tier} · $${(coach.salary||0).toFixed(1)}M</div>
-        <button class="btn btn-outline" style="font-size:.58rem;padding:.1rem .4rem;margin-top:.3rem"
-          onclick="frnUpgradePositionCoach('${g}')">Upgrade</button>
+        <div style="font-size:.62rem;color:${tierColor(coach.tier)}">${coach.tier} · $${(coach.salary||0).toFixed(1)}M${coach.age ? " · Age "+coach.age : ""}</div>
+        <div style="display:flex;gap:.3rem;margin-top:.3rem">
+          ${coach.tier !== "Elite" ? `<button class="btn btn-outline" style="font-size:.55rem;padding:.1rem .35rem;flex:1"
+            onclick="frnUpgradePositionCoach('${g}')">↑ Promote</button>` : `<div style="flex:1"></div>`}
+          <button class="btn btn-outline" style="font-size:.55rem;padding:.1rem .35rem;color:var(--red);border-color:var(--red)"
+            onclick="frnReleasePositionCoach('${g}')">✕</button>
+        </div>
       </div>`;
     return `
       <div class="frn-coach-pos-slot" style="border-style:dashed;${isBrowsing ? "border-color:var(--gold);opacity:1" : "opacity:.6"}">
@@ -5313,11 +5317,14 @@ function frnHirePositionCoachFromPool(group, filteredIdx) {
   );
   if (poolIdx !== -1) pool.splice(poolIdx, 1);
   franchise._posCoachPool = pool;
+  const yearsOut = Math.max(0, (franchise.season || 1) - (candidate.retiredSeason || franchise.season || 1));
   staff.positionStaff.push({
     name: candidate.name, group: candidate.group,
     tier: candidate.tier, salary: candidate.salary,
     isFormerPlayer: candidate.isFormerPlayer,
     formerPos: candidate.formerPos, peakOvr: candidate.peakOvr,
+    age: (candidate.retiredAge || 32) + yearsOut,
+    yearsWithTeam: 0,
   });
   _pushNews({ type:"coach_hire",
     label: `Hired ${group} coach ${candidate.name}${candidate.isFormerPlayer ? ` (former ${candidate.formerPos} · Pk ${candidate.peakOvr})` : ""} · ${candidate.tier}` });
@@ -5355,11 +5362,30 @@ function frnUpgradePositionCoach(group) {
   }
   const nextTier = tiers[curTierIdx + 1];
   const cost = POSITION_COACH_TIERS[nextTier].salary;
-  if (!confirm(`Upgrade ${group} coach to ${nextTier} tier? Cost: $${cost}M/yr`)) return;
-  cur.tier    = nextTier;
-  cur.salary  = cost;
-  cur.name    = `${pickFirstName()} ${pickLastName()}`; // new hire at that tier
-  _pushNews({ type:"coach_hire", label: `Upgraded ${group} coach to ${nextTier}: ${cur.name}` });
+  const budgetAfter = (typeof coachingBudgetUsed === "function" ? coachingBudgetUsed(myId) : 0)
+                    - (cur.salary || 0) + cost;
+  const capWarn = budgetAfter > 15
+    ? `\n⚠ Coaching budget will be $${budgetAfter.toFixed(1)}M — overage penalizes player cap.` : "";
+  if (!confirm(`Promote ${group} coach ${cur.name} to ${nextTier} tier?\n$${cost}M/yr${capWarn}`)) return;
+  cur.tier   = nextTier;
+  cur.salary = cost;
+  _pushNews({ type:"coach_hire", label: `Promoted ${group} coach ${cur.name} to ${nextTier} tier` });
+  saveFranchise();
+  renderFrnCoachingStaff();
+}
+
+function frnReleasePositionCoach(group) {
+  const myId  = franchise.chosenTeamId;
+  const staff = franchise.coaches?.[myId];
+  if (!staff?.positionStaff) return;
+  const idx = staff.positionStaff.findIndex(s => s.group === group);
+  if (idx === -1) return;
+  const coach = staff.positionStaff[idx];
+  if (!confirm(`Release ${group} coach ${coach.name}? They will enter the coaching pool.`)) return;
+  staff.positionStaff.splice(idx, 1);
+  if (!franchise._posCoachPool) franchise._posCoachPool = [];
+  franchise._posCoachPool.push({ ...coach, retiredSeason: franchise.season || 1 });
+  _pushNews({ type:"coach_depart", label: `Released ${group} coach ${coach.name} — now available to hire` });
   saveFranchise();
   renderFrnCoachingStaff();
 }

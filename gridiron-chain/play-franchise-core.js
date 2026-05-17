@@ -1222,12 +1222,14 @@ function _rollDC() {
 }
 
 function _rollPositionCoach(group) {
-  const tiers = Object.keys(POSITION_COACH_TIERS);
-  const tier = tiers[Math.floor(Math.random() * tiers.length)];
+  const roll = Math.random();
+  const tier = roll < 0.50 ? "Journeyman" : roll < 0.85 ? "Good" : "Elite";
   return {
     name: `${pickFirstName()} ${pickLastName()}`,
     group,
     tier,
+    age: 30 + Math.floor(Math.random() * 15),
+    yearsWithTeam: 0,
     salary: POSITION_COACH_TIERS[tier].salary,
   };
 }

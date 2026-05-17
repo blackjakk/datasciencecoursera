@@ -4114,11 +4114,23 @@ function _generateCoachMarket() {
     }
   }
 
-  // 40% of HC candidates bring a position coach from their network
+  // 40% of HC candidates bring a position coach from their network.
+  // Tier scales with HC prestige — elite coaches attract better position coaches.
   for (const c of pool) {
     if (c.type === "hc" && !c.broughtPosCoach && Math.random() < 0.40) {
-      const grp = POSITION_COACH_GROUPS[Math.floor(Math.random() * POSITION_COACH_GROUPS.length)];
-      c.broughtPosCoach = _rollPositionCoach(grp);
+      const grp  = POSITION_COACH_GROUPS[Math.floor(Math.random() * POSITION_COACH_GROUPS.length)];
+      const hcR  = c.rating || 60;
+      const pcRoll = Math.random();
+      const pcTier = hcR >= 82 ? (pcRoll < 0.45 ? "Elite" : pcRoll < 0.80 ? "Good" : "Journeyman")
+                   : hcR >= 70 ? (pcRoll < 0.20 ? "Elite" : pcRoll < 0.60 ? "Good" : "Journeyman")
+                   :              (pcRoll < 0.05 ? "Elite" : pcRoll < 0.30 ? "Good" : "Journeyman");
+      c.broughtPosCoach = {
+        name: `${pickFirstName()} ${pickLastName()}`,
+        group: grp, tier: pcTier,
+        age: 32 + Math.floor(Math.random() * 12),
+        yearsWithTeam: 0,
+        salary: POSITION_COACH_TIERS[pcTier].salary,
+      };
     }
   }
 
@@ -4166,6 +4178,23 @@ function _ensureCoachMarket() {
       dc.rating = Math.max(40, Math.min(85, dc.rating + coordBonus));
       dc.salary = +_marketSalaryForCoach(dc, "dc").toFixed(1);
       c.proposedDC = dc;
+    }
+  }
+  for (const c of pool) {
+    if (c.type === "hc" && !c.broughtPosCoach && Math.random() < 0.40) {
+      const grp  = POSITION_COACH_GROUPS[Math.floor(Math.random() * POSITION_COACH_GROUPS.length)];
+      const hcR  = c.rating || 60;
+      const pcRoll = Math.random();
+      const pcTier = hcR >= 82 ? (pcRoll < 0.45 ? "Elite" : pcRoll < 0.80 ? "Good" : "Journeyman")
+                   : hcR >= 70 ? (pcRoll < 0.20 ? "Elite" : pcRoll < 0.60 ? "Good" : "Journeyman")
+                   :              (pcRoll < 0.05 ? "Elite" : pcRoll < 0.30 ? "Good" : "Journeyman");
+      c.broughtPosCoach = {
+        name: `${pickFirstName()} ${pickLastName()}`,
+        group: grp, tier: pcTier,
+        age: 32 + Math.floor(Math.random() * 12),
+        yearsWithTeam: 0,
+        salary: POSITION_COACH_TIERS[pcTier].salary,
+      };
     }
   }
   franchise._coachMarket = pool;
@@ -4503,6 +4532,27 @@ function _runCoachingCarousel() {
         uStaff.dc = null;
       }
     }
+  }
+
+  // Age and retire position coaches for all teams, including user's.
+  const _pcRetireProb = (age) =>
+    age >= 72 ? 0.50 : age >= 65 ? 0.20 : age >= 60 ? 0.08 : 0;
+  for (const t of TEAMS) {
+    const pcStaff = franchise.coaches?.[t.id];
+    if (!pcStaff?.positionStaff) continue;
+    const isUser = t.id === franchise.chosenTeamId;
+    pcStaff.positionStaff = pcStaff.positionStaff.filter(pc => {
+      if (!pc.age) pc.age = 35 + Math.floor(Math.random() * 10);
+      pc.age++;
+      pc.yearsWithTeam = (pc.yearsWithTeam || 0) + 1;
+      const p = _pcRetireProb(pc.age);
+      if (p > 0 && Math.random() < p) {
+        if (isUser) _pushNews({ type:"coach_depart",
+          label: `🎓 Your ${pc.group} coach ${pc.name} has retired (age ${pc.age}) — slot is open` });
+        return false;
+      }
+      return true;
+    });
   }
 }
 
