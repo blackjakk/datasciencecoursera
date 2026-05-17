@@ -4077,7 +4077,6 @@ function _generateCoachMarket() {
   franchise._coachFA = [];
 
   // 2. Retired players surfacing as coach candidates (2-10 seasons out, peakOvr ≥ 72, 20% chance each)
-  const currentSeason = franchise.season || 1;
   const eligible = franchise._retiredPlayerPool.filter(rp => {
     const yo = currentSeason - (rp.retiredSeason || 1);
     return yo >= 2 && yo <= 10 && (rp.peakOvr || 0) >= 72;
