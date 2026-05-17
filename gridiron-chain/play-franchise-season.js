@@ -62,6 +62,18 @@ function showFranchiseDashboard() {
   }
   assignCareerTeams(franchise.rosters || {});
 
+  // Heal FA players whose career history was built with the wrong age
+  // (generated before the _generateFAPool fix). History length must equal
+  // max(0, age - 22); if it doesn't, regenerate and re-assign team names.
+  for (const p of franchise.freeAgents || []) {
+    const expected = Math.max(0, (p.age || 22) - 22);
+    const actual   = (p.careerHistory || []).length;
+    if (actual !== expected) {
+      generateCareer(p);
+      _assignFACareerTeams(p);
+    }
+  }
+
   $("franchiseHome").style.display = "block";
   const { phase } = franchise;
   try {
