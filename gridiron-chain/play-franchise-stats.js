@@ -4681,11 +4681,15 @@ function renderFrnCoachingStaff() {
         <span style="background:rgba(255,255,255,.08);padding:.15rem .5rem;border-radius:3px">Culture: <b>${hc.cultureTrait||"—"}</b></span>
         <span style="background:rgba(255,255,255,.08);padding:.15rem .5rem;border-radius:3px">Specialty: <b>${hc.specialtyTrait||"—"}</b></span>
       </div>
+      ${hc.isFormerPlayer ? `<div style="margin-top:.3rem"><span style="font-size:.6rem;padding:.1rem .4rem;border-radius:3px;background:rgba(255,200,0,.18);color:var(--gold);border:1px solid rgba(255,200,0,.4)">🏈 Ex-${hc.formerPos||"?"}${hc.peakOvr?" · OVR "+hc.peakOvr:""}${hc.proBowls>0?" · "+hc.proBowls+"x PB":""}${hc.allPros>0?" · "+hc.allPros+"x AP":""}${hc.sbRings>0?" · "+hc.sbRings+"x SB":""}</span></div>` : ""}
       <div style="margin-top:.4rem;font-size:.68rem;color:var(--gray)">
         Record: ${hc.record?.w||0}–${hc.record?.l||0}${(hc.record?.championships||0)>0?" · "+hc.record.championships+" ring"+(hc.record.championships>1?"s":""):""} ·
-        $${(hc.salary||0).toFixed(1)}M/yr · ${hc.contractYears||"?"} yr${(hc.contractYears||1)===1?"":"s"} left
+        $${(hc.salary||0).toFixed(1)}M/yr · ${hc.contractYears??1} yr${(hc.contractYears??1)===1?"":"s"} left
       </div>
-      <div style="margin-top:.5rem;text-align:right">
+      ${ (hc.contractYears??2) === 0 ? `<div style="font-size:.63rem;color:var(--red);margin:.25rem 0">⚠ Contract expired — may seek new opportunity</div>` : (hc.contractYears??2) === 1 ? `<div style="font-size:.63rem;color:var(--gold);margin:.25rem 0">Final contract year — extension recommended</div>` : "" }
+      <div style="margin-top:.5rem;display:flex;justify-content:flex-end;gap:.4rem">
+        ${(hc.contractYears??2) <= 1 ? `<button class="btn btn-outline" style="font-size:.65rem;color:var(--gold);border-color:var(--gold)"
+          onclick="frnExtendHC()">Extend HC</button>` : ""}
         <button class="btn btn-outline" style="font-size:.65rem;color:var(--red);border-color:var(--red)"
           onclick="frnFireStaffSlot('hc')">Fire HC</button>
       </div>
@@ -4771,6 +4775,12 @@ function renderFrnCoachingStaff() {
     return null;
   };
 
+  const hcMarketSchemeNote = `
+    <div style="font-size:.64rem;color:var(--gray);background:rgba(255,255,255,.04);border-radius:4px;padding:.4rem .6rem;margin-bottom:.4rem">
+      Your current scheme: ${_schemeBadge(myOffScheme, true)} offense · ${_schemeBadge(myDefScheme, true)} defense
+      <span style="opacity:.6;margin-left:.4rem">— a new HC has a 75% chance to change your OC (and thus your offense), 40% chance to change your DC</span>
+    </div>`;
+
   const marketHcHtml  = market.filter(c => c.type === "hc").map((c, i) => {
     const implOff = hcImpliedOff(c.specialtyTrait);
     const implDef = hcImpliedDef(c.specialtyTrait);
@@ -4782,12 +4792,15 @@ function renderFrnCoachingStaff() {
            ${implDef ? `${implOff ? "·" : ""} ${_schemeBadge(implDef, true)} defense` : ""}
          </div>
          ${offPrev}${defPrev}`
+      : `<div style="font-size:.62rem;color:var(--gray);opacity:.6;margin-top:.2rem">Scheme-neutral — may keep current coordinators</div>`;
+    const fmrBadge = c.isFormerPlayer
+      ? `<span style="font-size:.58rem;padding:.1rem .35rem;border-radius:3px;background:rgba(255,200,0,.18);color:var(--gold);border:1px solid rgba(255,200,0,.4);white-space:nowrap;margin-left:.3rem">🏈 Ex-${c.formerPos||"?"}${c.peakOvr?" OVR "+c.peakOvr:""}${c.proBowls>0?" "+c.proBowls+"xPB":""}${c.sbRings>0?" "+c.sbRings+"xSB":""}</span>`
       : "";
     return `
     <div class="frn-coach-market-row" style="flex-direction:column;align-items:stretch">
       <div style="display:flex;align-items:flex-start;gap:.75rem">
         <div style="flex:1;min-width:0">
-          <div style="font-size:.78rem;font-weight:700">${c.name} ${ratingBadge(c.rating)}</div>
+          <div style="font-size:.78rem;font-weight:700;display:flex;align-items:center;flex-wrap:wrap;gap:.3rem">${c.name} ${ratingBadge(c.rating)}${fmrBadge}</div>
           <div style="font-size:.62rem;color:var(--gray)">Culture: ${c.cultureTrait||"—"} · Spec: ${c.specialtyTrait||"—"} · $${(c.salary||0).toFixed(1)}M/yr · Age ${c.age||"?"}</div>
           ${schemeHint}
         </div>
@@ -4800,6 +4813,9 @@ function renderFrnCoachingStaff() {
   const marketOCHtml  = market.filter(c => c.type === "oc").map((c, i) => {
     const scheme = OFF_SCHEME_MAP[c.trait];
     const preview = scheme ? _schemePreviewHtml("off", scheme, myId) : "";
+    const fmrBadge = c.isFormerPlayer
+      ? `<span style="font-size:.58rem;padding:.1rem .35rem;border-radius:3px;background:rgba(255,200,0,.18);color:var(--gold);border:1px solid rgba(255,200,0,.4);white-space:nowrap">🏈 Ex-${c.formerPos||"?"}${c.peakOvr?" OVR "+c.peakOvr:""}${c.proBowls>0?" "+c.proBowls+"xPB":""}${c.sbRings>0?" "+c.sbRings+"xSB":""}</span>`
+      : "";
     return `
     <div class="frn-coach-market-row" style="flex-direction:column;align-items:stretch">
       <div style="display:flex;align-items:flex-start;gap:.75rem">
@@ -4807,6 +4823,7 @@ function renderFrnCoachingStaff() {
           <div style="font-size:.78rem;font-weight:700;display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">
             ${c.name} ${ratingBadge(c.rating)}
             ${scheme ? _schemeBadge(scheme, true) : ""}
+            ${fmrBadge}
           </div>
           <div style="font-size:.62rem;color:var(--gray);margin-top:.1rem">Trait: ${c.trait||"—"} · $${(c.salary||0).toFixed(1)}M/yr · Age ${c.age||"?"}</div>
           ${preview}
@@ -4820,6 +4837,9 @@ function renderFrnCoachingStaff() {
   const marketDCHtml  = market.filter(c => c.type === "dc").map((c, i) => {
     const scheme = DEF_SCHEME_MAP[c.trait];
     const preview = scheme ? _schemePreviewHtml("def", scheme, myId) : "";
+    const fmrBadge = c.isFormerPlayer
+      ? `<span style="font-size:.58rem;padding:.1rem .35rem;border-radius:3px;background:rgba(255,200,0,.18);color:var(--gold);border:1px solid rgba(255,200,0,.4);white-space:nowrap">🏈 Ex-${c.formerPos||"?"}${c.peakOvr?" OVR "+c.peakOvr:""}${c.proBowls>0?" "+c.proBowls+"xPB":""}${c.sbRings>0?" "+c.sbRings+"xSB":""}</span>`
+      : "";
     return `
     <div class="frn-coach-market-row" style="flex-direction:column;align-items:stretch">
       <div style="display:flex;align-items:flex-start;gap:.75rem">
@@ -4827,6 +4847,7 @@ function renderFrnCoachingStaff() {
           <div style="font-size:.78rem;font-weight:700;display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">
             ${c.name} ${ratingBadge(c.rating)}
             ${scheme ? _schemeBadge(scheme, true) : ""}
+            ${fmrBadge}
           </div>
           <div style="font-size:.62rem;color:var(--gray);margin-top:.1rem">Trait: ${c.trait||"—"} · $${(c.salary||0).toFixed(1)}M/yr · Age ${c.age||"?"}</div>
           ${preview}
@@ -4924,6 +4945,7 @@ function renderFrnCoachingStaff() {
         ? `<div style="color:var(--gray);font-size:.75rem;font-style:italic;margin:.5rem 0">No market available yet — coaches become available after the season ends.</div>`
         : `<div style="margin:.4rem 0">
              <div style="font-size:.72rem;font-weight:700;color:var(--gold);letter-spacing:.5px;margin:.4rem 0 .2rem">HEAD COACHES</div>
+             ${hcMarketSchemeNote}
              ${marketHcHtml}
              <div style="font-size:.72rem;font-weight:700;color:var(--gold);letter-spacing:.5px;margin:.8rem 0 .2rem">OFFENSIVE COORDINATORS</div>
              ${marketOCHtml}
@@ -4956,6 +4978,21 @@ function frnFireStaffSlot(slot) {
     staff.dc = _rollDC();
     _pushNews({ type:"coach_hire", label: `Your team hired new DC ${staff.dc.name}` });
   }
+  saveFranchise();
+  renderFrnCoachingStaff();
+}
+
+function frnExtendHC() {
+  const myId  = franchise.chosenTeamId;
+  const staff = franchise.coaches?.[myId];
+  if (!staff?.hc) return;
+  const hc = staff.hc;
+  const newSal   = +(_marketSalaryForCoach(hc, "hc") * 1.12).toFixed(1);
+  const newYears = 4 + Math.floor(Math.random() * 2); // 4-5 year HC deal
+  if (!confirm(`Extend HC ${hc.name}?\n$${newSal}M/yr · ${newYears} years`)) return;
+  hc.salary       = newSal;
+  hc.contractYears = newYears;
+  _pushNews({ type:"coach_hire", label: `📝 Extended HC ${hc.name} — $${newSal}M/yr · ${newYears} yrs` });
   saveFranchise();
   renderFrnCoachingStaff();
 }

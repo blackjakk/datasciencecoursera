@@ -3991,6 +3991,13 @@ function _evaluateCoachPerformance() {
 
 function _generateCoachMarket() {
   if (!franchise._retiredPlayerPool) franchise._retiredPlayerPool = [];
+
+  // Prune retired pool — remove entries older than 10 seasons
+  const currentSeason = franchise.season || 1;
+  franchise._retiredPlayerPool = franchise._retiredPlayerPool.filter(rp =>
+    (currentSeason - (rp.retiredSeason || 1)) <= 10
+  );
+
   const pool = [];
 
   // 1. Real coaches who were fired/departed this season
@@ -4040,13 +4047,23 @@ function _generateCoachMarket() {
 function _ensureCoachMarket() {
   if (franchise._coachMarket?.length) return;
   const pool = [];
-  for (let i = 0; i < 4; i++) {
+  // Drain real departed coaches first — same logic as _generateCoachMarket
+  const fa = franchise._coachFA || [];
+  for (const c of fa) {
+    if ((c.age || 50) < 72) pool.push({ ...c });
+  }
+  franchise._coachFA = [];
+  // Pad with fresh rolls; mid-season hires skew slightly weaker since elite coaches wait for the full offseason cycle
+  const hcN = pool.filter(c => c.type === "hc").length;
+  const ocN = pool.filter(c => c.type === "oc").length;
+  const dcN = pool.filter(c => c.type === "dc").length;
+  for (let i = hcN; i < 4; i++) {
     const hc = _rollCoach();
-    hc.rating = Math.max(40, hc.rating - 8); // mid-season hires skew slightly weaker
+    hc.rating = Math.max(40, hc.rating - 8);
     pool.push({ type:"hc", ...hc });
   }
-  for (let i = 0; i < 2; i++) pool.push({ type:"oc", ..._rollOC() });
-  for (let i = 0; i < 2; i++) pool.push({ type:"dc", ..._rollDC() });
+  for (let i = ocN; i < 2; i++) pool.push({ type:"oc", ..._rollOC() });
+  for (let i = dcN; i < 2; i++) pool.push({ type:"dc", ..._rollDC() });
   franchise._coachMarket = pool;
 }
 
@@ -4294,6 +4311,54 @@ function _runCoachingCarousel() {
       staff.hc.contractYears = 3 + Math.floor(Math.random() * 2);
       if (tId === franchise.chosenTeamId) {
         _pushNews({ type:"coach_hire", label: `📝 HC ${staff.hc.name} renewed — $${staff.hc.salary}M/yr` });
+      }
+    }
+  }
+
+  // ── User team: retirement checks ─────────────────────────────────────────────
+  // AI carousel skips the user's team entirely, but coaches still age. Run a
+  // separate retirement pass here and surface each event as an urgent news item
+  // so the user knows they need to fill a vacancy.
+  const _retireP = (age, isHC) => {
+    if (age < 62) return 0;
+    if (isHC) {
+      if (age <= 65) return 0.04; if (age <= 69) return 0.12; if (age <= 73) return 0.28; return 0.50;
+    } else {
+      if (age <= 65) return 0.07; if (age <= 69) return 0.18; if (age <= 73) return 0.40; return 0.65;
+    }
+  };
+  const uId    = franchise.chosenTeamId;
+  const uStaff = franchise.coaches?.[uId];
+  if (uStaff) {
+    if (uStaff.hc) {
+      const hcP = _retireP(uStaff.hc.age || 55, true)
+        * (uId === champId ? 0.5 : 1)
+        * ((uStaff.hc.rating || 60) >= 80 ? 0.7 : 1)
+        * ((uStaff.hc.rating || 60) <= 50 ? 1.3 : 1);
+      if (hcP > 0 && Math.random() < hcP) {
+        _pushNews({ type:"coach_depart",
+          label: `⚠️ YOUR HC ${uStaff.hc.name} has retired — HC vacancy on your staff, hire a replacement` });
+        _coachFAAdd(uStaff.hc, "hc");
+        uStaff.hc = null;
+      }
+    }
+    if (uStaff.oc) {
+      const ocP = _retireP(uStaff.oc.age || 45, false);
+      if (ocP > 0 && Math.random() < ocP) {
+        _pushNews({ type:"coach_depart",
+          label: `⚠️ YOUR OC ${uStaff.oc.name} has retired — OC vacancy on your staff` });
+        _coachFAAdd(uStaff.oc, "oc");
+        if (uStaff._chemistry) uStaff._chemistry.qbOcBond = false;
+        uStaff.oc = null;
+      }
+    }
+    if (uStaff.dc) {
+      const dcP = _retireP(uStaff.dc.age || 45, false);
+      if (dcP > 0 && Math.random() < dcP) {
+        _pushNews({ type:"coach_depart",
+          label: `⚠️ YOUR DC ${uStaff.dc.name} has retired — DC vacancy on your staff` });
+        _coachFAAdd(uStaff.dc, "dc");
+        uStaff.dc = null;
       }
     }
   }
