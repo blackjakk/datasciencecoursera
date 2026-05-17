@@ -722,9 +722,12 @@ function scoutGrade(p) {
   const name = p.name || "";
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
   const scouted = _isPlayerScouted(p);
-  const noise = scouted
-    ? ((Math.abs(h) % 5) - 2)      // ±2 with intel
-    : ((Math.abs(h) % 17) - 8);    // ±8 without
+  const draftScouted = p.isProspect && (franchise?.draftScouts || []).includes(p.name);
+  const noise = (scouted || draftScouted)
+    ? ((Math.abs(h) % 5)  - 2)   // ±2 — focused intel (in-season scout or draft scout slot)
+    : p.isProspect
+    ? ((Math.abs(h) % 11) - 5)   // ±5 — combine grade (all prospects baseline)
+    : ((Math.abs(h) % 17) - 8);  // ±8 — unscouted opponent player
   score += noise;
   // Draft pedigree tilt — recency bias in real scouting
   const r = p.draftRound;

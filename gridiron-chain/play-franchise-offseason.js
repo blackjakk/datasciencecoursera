@@ -6718,6 +6718,7 @@ function frnGoToDraft() {
     boardFilter: "ALL",
     _targetGone: [],
   };
+  franchise.draftScouts = []; // reset scout slots for new class
   franchise.phase = "draft";
   saveFranchise();
   renderFrnDraft();
@@ -6893,6 +6894,8 @@ function renderFrnDraft() {
     : filter === "ALL" ? allAvail : allAvail.filter(p => p.position === filter);
   const board = filtered.slice(0, 45);
   const targets = new Set(d.targets || []);
+  const scoutsList = franchise.draftScouts || [];
+  const slotsUsed  = scoutsList.length;
 
   // Collect and clear target-gone alerts
   const gone = (d._targetGone || []).splice(0);
@@ -6915,12 +6918,14 @@ function renderFrnDraft() {
     const needLvl = _draftNeedLevel(myId, p.position);
     const needBadge = needLvl===2 ? `<span class="frn-draft-need-crit">❗NEED</span>`
                     : needLvl===1 ? `<span class="frn-draft-need-need">⚠ NEED</span>` : "";
-    const isTargeted = targets.has(p.name);
+    const isTargeted  = targets.has(p.name);
+    const isScouted   = scoutsList.includes(p.name);
+    const canAddScout = !isScouted && slotsUsed < DRAFT_SCOUT_SLOTS;
     const potTag = potentialTag(p);
     const comp = _draftNFLComp(p);
     const arch = _archetypeLabel(p) || "—";
     const meta = comp ? `${arch} · ${comp}` : arch;
-    return `<div class="frn-draft-prospect${isTargeted?" targeted":""}">
+    return `<div class="frn-draft-prospect${isTargeted?" targeted":""}${isScouted?" scouted":""}">
       <div class="frn-dp-rank">#${i+1}</div>
       <div class="frn-dp-body">
         <div class="frn-dp-top">
@@ -6928,6 +6933,7 @@ function renderFrnDraft() {
           ${_posPillHtml(p.position)}
           ${needBadge}
           ${gradeBadge(p)}
+          ${isScouted ? `<span style="font-size:.52rem;color:var(--green-lt);font-weight:700;letter-spacing:.3px">SCOUTED</span>` : ""}
           ${potTag?`<span style="font-size:.56rem;color:var(--gold-lt)">${potTag}</span>`:""}
           <span style="color:var(--gray);font-size:.56rem">Age ${p.age}</span>
         </div>
@@ -6938,6 +6944,10 @@ function renderFrnDraft() {
       </div>
       <div class="frn-dp-actions">
         <button class="frn-draft-target-btn${isTargeted?" active":""}" onclick="frnDraftToggleTarget('${esc}')" title="${isTargeted?"Remove target":"Mark as target"}">★</button>
+        <button class="frn-draft-target-btn${isScouted?" active":""}"
+          onclick="frnDraftScout('${esc}')"
+          title="${isScouted ? "Remove scout" : canAddScout ? `Assign scout (${DRAFT_SCOUT_SLOTS-slotsUsed} left)` : "Scout slots full"}"
+          ${!isScouted && !canAddScout ? 'style="opacity:.35;cursor:not-allowed"' : ""}>🔍</button>
         <button class="btn btn-gold" style="padding:.2rem .5rem;font-size:.6rem" onclick="frnDraftPick('${esc}')">DRAFT</button>
       </div>
     </div>`;
@@ -7009,7 +7019,12 @@ function renderFrnDraft() {
       </div>
       <div class="frn-draft-info-panel">
         <div class="frn-draft-info-card">
-          <div class="frn-card-title" style="margin-bottom:.35rem">TEAM NEEDS</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.35rem">
+            <div class="frn-card-title">TEAM NEEDS</div>
+            <div style="font-size:.6rem;color:${slotsUsed>=DRAFT_SCOUT_SLOTS?"var(--red)":"var(--green-lt)"}">
+              🔍 ${slotsUsed}/${DRAFT_SCOUT_SLOTS} scouts
+            </div>
+          </div>
           ${needsHtml}
         </div>
         <div class="frn-draft-info-card">
@@ -7034,6 +7049,22 @@ function frnDraftToggleTarget(name) {
   const idx = franchise.draft.targets.indexOf(name);
   if (idx >= 0) franchise.draft.targets.splice(idx, 1);
   else franchise.draft.targets.push(name);
+  renderFrnDraft();
+}
+
+const DRAFT_SCOUT_SLOTS = 8;
+
+function frnDraftScout(name) {
+  if (!franchise.draft) return;
+  franchise.draftScouts = franchise.draftScouts || [];
+  const idx = franchise.draftScouts.indexOf(name);
+  if (idx !== -1) {
+    franchise.draftScouts.splice(idx, 1);
+  } else {
+    if (franchise.draftScouts.length >= DRAFT_SCOUT_SLOTS) return;
+    franchise.draftScouts.push(name);
+  }
+  saveFranchise();
   renderFrnDraft();
 }
 
