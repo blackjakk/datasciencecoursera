@@ -1289,6 +1289,80 @@ function coachingBudgetUsed(teamId) {
   return +total.toFixed(1);
 }
 
+// Returns the fair-market salary for a coach at their current rating.
+function _marketSalaryForCoach(coach, type) {
+  const r = coach?.rating || 60;
+  if (type === "hc") return +(2 + Math.max(0, r - 45) * 0.18 + 0.5).toFixed(1);
+  return +(1 + Math.max(0, r - 40) * 0.06 + 0.3).toFixed(1);
+}
+
+// Push a departing coach into the FA pool for the next offseason market.
+function _coachFAAdd(coach, type) {
+  if (!coach || !franchise) return;
+  if (!franchise._coachFA) franchise._coachFA = [];
+  if (franchise._coachFA.some(c => c.name === coach.name && c.type === type)) return;
+  franchise._coachFA.push({ ...coach, type, _faSeason: franchise.season || 1 });
+}
+
+// Dev penalty for exceeding the coaching budget ($15M soft, $18M hard).
+function _coachBudgetPenaltyMul(teamId) {
+  const used = coachingBudgetUsed(teamId);
+  if (used <= 15) return 1.0;
+  if (used <= 18) return 0.90;
+  return 0.80;
+}
+
+// Convert a retired player stub into a coach market candidate.
+// Returns null if the position doesn't map to a coordinator role.
+function _retiredPlayerToCoach(rp, currentSeason) {
+  const pos = rp.pos;
+  if (!pos || ["OL","K","P"].includes(pos)) return null;
+  const yearsOut = (currentSeason || 1) - (rp.retiredSeason || 1);
+  const growthBonus = Math.min(yearsOut - 2, 5) * 0.8;
+  const raw = (rp.peakOvr || 70) * 0.35 + (rp.retirementOvr || 65) * 0.25
+            + (rp.awr || 70) * 0.40 + growthBonus + (Math.random() * 8 - 4);
+  const rating = Math.max(40, Math.min(79, Math.round(raw * 0.82)));
+  let type, trait, specialtyTrait, cultureTrait;
+  if (pos === "QB") {
+    type = Math.random() < 0.65 ? "oc" : "hc";
+    trait = rp.archetype === "SCRAMBLER" ? "Balanced" : Math.random() < 0.5 ? "QB Whisperer" : "Air Attack";
+  } else if (pos === "RB") {
+    type = "oc"; trait = "Run Architect";
+  } else if (pos === "WR") {
+    type = "oc"; trait = Math.random() < 0.5 ? "Air Attack" : "Red Zone Genius";
+  } else if (pos === "TE") {
+    type = "oc"; trait = Math.random() < 0.5 ? "Red Zone Genius" : "Balanced";
+  } else if (pos === "DL") {
+    type = "dc"; trait = Math.random() < 0.6 ? "Pressure Package" : "Run Stopper";
+  } else if (pos === "LB") {
+    type = "dc"; trait = Math.random() < 0.5 ? "Run Stopper" : "Pressure Package";
+  } else if (pos === "CB") {
+    type = "dc"; trait = Math.random() < 0.5 ? "Cover Scheme" : "Ball Hawk";
+  } else if (pos === "S") {
+    type = "dc"; trait = Math.random() < 0.5 ? "Ball Hawk" : "Cover Scheme";
+  } else {
+    return null;
+  }
+  if (type === "hc") {
+    specialtyTrait = "Player Developer";
+    cultureTrait = HC_CULTURE_TRAITS[Math.floor(Math.random() * HC_CULTURE_TRAITS.length)].key;
+  }
+  const salary = _marketSalaryForCoach({ rating }, type);
+  return {
+    type, name: rp.name, rating,
+    trait: type !== "hc" ? trait : undefined,
+    specialtyTrait: type === "hc" ? specialtyTrait : undefined,
+    cultureTrait:   type === "hc" ? cultureTrait   : undefined,
+    age: (rp.retiredAge || 33) + yearsOut,
+    salary, contractYears: 2 + Math.floor(Math.random() * 2), yearsWithTeam: 0,
+    record: type === "hc" ? { w:0, l:0, championships:0 } : undefined,
+    isFormerPlayer: true, formerPos: pos,
+    formerTeamId: rp.formerTeamId, formerTeamName: rp.formerTeamName,
+    proBowls: rp.proBowls || 0, allPros: rp.allPros || 0, sbRings: rp.sbRings || 0,
+    peakOvr: rp.peakOvr, pid: rp.pid,
+  };
+}
+
 // ── Practice squad helpers ───────────────────────────────────────────────────
 // Eligibility rule: ≤PS_MAX_YEARS_EXP years in league AND ≤PS_MAX_AGE old.
 function _psEligible(p) {

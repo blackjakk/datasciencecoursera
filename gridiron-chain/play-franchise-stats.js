@@ -4454,6 +4454,27 @@ function _processSeasonEndRetirements() {
           line: mvpStatLine(p.careerStats || {}),
         };
         retirees.push(entry);
+        // Add to retired player pool so they can surface as coach candidates 2-10 seasons later
+        if (!["OL","K","P"].includes(p.position)) {
+          const peakOvr = Math.max(
+            ...(p.careerHistory || []).map(h => h.ovr ?? h.overall ?? 0),
+            p.overall || 0
+          );
+          if (peakOvr >= 72) {
+            if (!franchise._retiredPlayerPool) franchise._retiredPlayerPool = [];
+            franchise._retiredPlayerPool.push({
+              name: p.name, pid: p.pid, pos: p.position,
+              retiredSeason: franchise.season, retiredAge: p.age,
+              peakOvr, retirementOvr: p.overall || 65,
+              awr: p.stats?.[3] ?? 70, archetype: p.archetype,
+              proBowls: p.proBowls || 0, allPros: p.allPros || 0, sbRings: p.sbRings || 0,
+              formerTeamId: tId, formerTeamName: `${t.city} ${t.name}`,
+            });
+            // Prune entries older than 10 seasons
+            franchise._retiredPlayerPool = franchise._retiredPlayerPool
+              .filter(rp => franchise.season - rp.retiredSeason <= 10);
+          }
+        }
         if (wasInducted) hofClass.push(entry);
         continue;
       }
@@ -4695,7 +4716,9 @@ function renderFrnCoachingStaff() {
         ${schemeKey ? _schemeBadge(schemeKey, true) : ""}
       </div>
       <div style="margin-top:.3rem;font-size:.65rem;color:var(--gray)">$${(coord.salary||0).toFixed(1)}M/yr · ${cYrs} yr${cYrs===1?"":"s"} left</div>
-      <div style="margin-top:.4rem;text-align:right">
+      <div style="margin-top:.4rem;display:flex;justify-content:flex-end;gap:.4rem">
+        ${cYrs <= 1 ? `<button class="btn btn-outline" style="font-size:.62rem;padding:.15rem .5rem;color:var(--gold);border-color:var(--gold)"
+          onclick="frnExtendCoordinator('${slot}')">Extend</button>` : ""}
         <button class="btn btn-outline" style="font-size:.62rem;padding:.15rem .5rem"
           onclick="frnFireStaffSlot('${slot}')">Replace ${label}</button>
       </div>
@@ -4924,13 +4947,32 @@ function frnFireStaffSlot(slot) {
   }
   if (!confirm(`Release ${name}? A replacement will be hired immediately.`)) return;
   if (slot === "oc") {
+    _coachFAAdd(staff.oc, "oc");
     if (staff._chemistry) staff._chemistry.qbOcBond = false;
     staff.oc = _rollOC();
     _pushNews({ type:"coach_hire", label: `Your team hired new OC ${staff.oc.name}` });
   } else if (slot === "dc") {
+    _coachFAAdd(staff.dc, "dc");
     staff.dc = _rollDC();
     _pushNews({ type:"coach_hire", label: `Your team hired new DC ${staff.dc.name}` });
   }
+  saveFranchise();
+  renderFrnCoachingStaff();
+}
+
+function frnExtendCoordinator(slot) {
+  const myId  = franchise.chosenTeamId;
+  const staff = franchise.coaches?.[myId];
+  if (!staff) return;
+  const coord = staff[slot];
+  if (!coord) return;
+  const label    = slot === "oc" ? "OC" : "DC";
+  const newSal   = +(_marketSalaryForCoach(coord, slot) * 1.12).toFixed(1);
+  const newYears = 2 + Math.floor(Math.random() * 2);
+  if (!confirm(`Extend ${coord.name} (${label})?\n$${newSal}M/yr · ${newYears} years`)) return;
+  coord.salary       = newSal;
+  coord.contractYears = newYears;
+  _pushNews({ type:"coach_hire", label: `📝 Extended ${label} ${coord.name} — $${newSal}M/yr · ${newYears} yrs` });
   saveFranchise();
   renderFrnCoachingStaff();
 }
