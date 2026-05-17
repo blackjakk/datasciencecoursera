@@ -3451,16 +3451,19 @@ function renderFrnFANegotiations(selectedName) {
         aav = lastH ? lastH.aav : (n.history[n.history.length-1]?.aav || 0);
         years = lastH ? lastH.years : (n.history[n.history.length-1]?.years || "?");
       } else { aav = n.fa.demandedAAV || 0; years = "—"; }
-      const destStr = won ? "Signed to your roster"
+      const destStr = won
+        ? `$${aav.toFixed?aav.toFixed(1):aav}M × ${years}yr · your roster`
         : unsigned ? `Went unsigned`
-        : `Signed with ${n.signedToTeamName || "another team"} · $${aav.toFixed?aav.toFixed(1):aav}M × ${years}yr`;
+        : `${n.signedToTeamName || "rival"} · $${aav.toFixed?aav.toFixed(1):aav}M × ${years}yr`;
       const borderCol = won ? "rgba(75,189,100,.35)" : unsigned ? "var(--border)" : "rgba(220,50,50,.35)";
-      return `<div style="display:flex;align-items:center;gap:.35rem;padding:.28rem .4rem;border-left:3px solid ${borderCol};margin-bottom:.2rem;background:var(--bg2)">
-        <span style="font-size:.58rem;color:var(--gold);font-weight:700;flex-shrink:0">${n.fa.position}</span>
-        ${gradeBadge(n.fa)}
-        <span style="font-size:.68rem;font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${n.fa.name}</span>
-        <span style="font-size:.58rem;font-weight:700;color:${statusColor};flex-shrink:0">${statusLabel}</span>
-        <span style="font-size:.55rem;color:var(--gray);flex-shrink:0;max-width:9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${destStr}</span>
+      return `<div style="padding:.3rem .45rem;border-left:3px solid ${borderCol};margin-bottom:.22rem;background:var(--bg2)">
+        <div style="display:flex;align-items:center;gap:.3rem">
+          <span style="font-size:.58rem;color:var(--gold);font-weight:700;flex-shrink:0">${n.fa.position}</span>
+          ${gradeBadge(n.fa)}
+          <span style="font-size:.68rem;font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${n.fa.name}</span>
+          <span style="font-size:.58rem;font-weight:700;color:${statusColor};flex-shrink:0">${statusLabel}</span>
+        </div>
+        <div style="font-size:.58rem;color:var(--gray);margin-top:.1rem;padding-left:1.8rem;white-space:normal;line-height:1.3">${destStr}</div>
       </div>`;
     }).join("");
     return `<div style="margin-top:.6rem;border-top:1px solid var(--border);padding-top:.5rem">
