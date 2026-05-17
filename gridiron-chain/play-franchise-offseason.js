@@ -3881,12 +3881,21 @@ function _evaluateCoachPerformance() {
       const rank = offRanks[tId] || n;
       const age  = oc.age || 45;
       const ageMul = age < 40 ? 1.2 : age > 60 ? 0.7 : 1.0;
+      // Higher-rated OCs absorb knowledge faster; lower-rated ones have more friction.
+      const ratingMul = (oc.rating || 60) >= 85 ? 1.20
+                      : (oc.rating || 60) >= 75 ? 1.12
+                      : (oc.rating || 60) >= 60 ? 1.00 : 0.85;
+      const decayMul  = (oc.rating || 60) >= 85 ? 0.80
+                      : (oc.rating || 60) >= 75 ? 0.90
+                      : (oc.rating || 60) >= 60 ? 1.00 : 1.20;
+      let ocGrew = false;
 
       if (rank <= top5) {
-        const chance = 0.55 * ageMul;
+        const chance = 0.55 * ageMul * ratingMul;
         if (Math.random() < chance) {
           const bump = rank <= 3 ? 2 : 1;
           oc.rating = Math.min(89, (oc.rating || 60) + bump);
+          ocGrew = true;
           if (isMine) {
             _pushNews({ type:"coach_grow",
               label: `📈 OC ${oc.name} rated up to ${oc.rating} — #${rank} offense in the league` });
@@ -3896,20 +3905,32 @@ function _evaluateCoachPerformance() {
           }
         }
       } else if (rank <= top11) {
-        if (Math.random() < 0.30 * ageMul) {
+        if (Math.random() < 0.30 * ageMul * ratingMul) {
           oc.rating = Math.min(89, (oc.rating || 60) + 1);
+          ocGrew = true;
           if (isMine) {
             _pushNews({ type:"coach_grow",
               label: `📈 OC ${oc.name} rated up to ${oc.rating} — top-${rank} offense` });
           }
         }
       } else if (rank >= bot11) {
-        if (Math.random() < 0.25) {
+        if (Math.random() < 0.25 * decayMul) {
           oc.rating = Math.max(30, (oc.rating || 60) - 1);
           if (isMine) {
             _pushNews({ type:"coach_decline",
               label: `📉 OC ${oc.name} rated down to ${oc.rating} — bottom-third offense` });
           }
+        }
+      }
+
+      // Elite HC nudge: great coaches occasionally push solid coordinators one step further.
+      // Fires only when the OC already grew this season — not a shortcut, a refinement.
+      const hcRating = staff.hc?.rating || 60;
+      if (ocGrew && hcRating >= 80 && (oc.rating || 60) >= 75 && Math.random() < 0.15) {
+        oc.rating = Math.min(89, oc.rating + 1);
+        if (isMine) {
+          _pushNews({ type:"coach_grow",
+            label: `📈 OC ${oc.name} pushed to ${oc.rating} under HC ${staff.hc.name}'s mentorship` });
         }
       }
     }
@@ -3920,12 +3941,20 @@ function _evaluateCoachPerformance() {
       const rank = defRanks[tId] || n;
       const age  = dc.age || 45;
       const ageMul = age < 40 ? 1.2 : age > 60 ? 0.7 : 1.0;
+      const ratingMul = (dc.rating || 60) >= 85 ? 1.20
+                      : (dc.rating || 60) >= 75 ? 1.12
+                      : (dc.rating || 60) >= 60 ? 1.00 : 0.85;
+      const decayMul  = (dc.rating || 60) >= 85 ? 0.80
+                      : (dc.rating || 60) >= 75 ? 0.90
+                      : (dc.rating || 60) >= 60 ? 1.00 : 1.20;
+      let dcGrew = false;
 
       if (rank <= top5) {
-        const chance = 0.55 * ageMul;
+        const chance = 0.55 * ageMul * ratingMul;
         if (Math.random() < chance) {
           const bump = rank <= 3 ? 2 : 1;
           dc.rating = Math.min(89, (dc.rating || 60) + bump);
+          dcGrew = true;
           if (isMine) {
             _pushNews({ type:"coach_grow",
               label: `📈 DC ${dc.name} rated up to ${dc.rating} — #${rank} defense in the league` });
@@ -3935,20 +3964,30 @@ function _evaluateCoachPerformance() {
           }
         }
       } else if (rank <= top11) {
-        if (Math.random() < 0.30 * ageMul) {
+        if (Math.random() < 0.30 * ageMul * ratingMul) {
           dc.rating = Math.min(89, (dc.rating || 60) + 1);
+          dcGrew = true;
           if (isMine) {
             _pushNews({ type:"coach_grow",
               label: `📈 DC ${dc.name} rated up to ${dc.rating} — top-${rank} defense` });
           }
         }
       } else if (rank >= bot11) {
-        if (Math.random() < 0.25) {
+        if (Math.random() < 0.25 * decayMul) {
           dc.rating = Math.max(30, (dc.rating || 60) - 1);
           if (isMine) {
             _pushNews({ type:"coach_decline",
               label: `📉 DC ${dc.name} rated down to ${dc.rating} — bottom-third defense` });
           }
+        }
+      }
+
+      const hcRating = staff.hc?.rating || 60;
+      if (dcGrew && hcRating >= 80 && (dc.rating || 60) >= 75 && Math.random() < 0.15) {
+        dc.rating = Math.min(89, dc.rating + 1);
+        if (isMine) {
+          _pushNews({ type:"coach_grow",
+            label: `📈 DC ${dc.name} pushed to ${dc.rating} under HC ${staff.hc.name}'s mentorship` });
         }
       }
     }
