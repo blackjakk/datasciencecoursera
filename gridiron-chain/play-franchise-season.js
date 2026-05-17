@@ -2144,6 +2144,43 @@ function frnFAExportCSV() {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+// ── FA screen helpers ─────────────────────────────────────────────────────────
+function _faRosterFit(p, teamId) {
+  const pos = p.position;
+  const grade = scoutGrade(p);
+  const roster = franchise.rosters[teamId] || [];
+  const samePos = roster.filter(r => r.position === pos).sort((a,b) => scoutGrade(b) - scoutGrade(a));
+  if (!samePos.length) return { label: `No ${pos} on roster — fills a void`, upgrade: true };
+  const starter = samePos[0];
+  const sg = scoutGrade(starter);
+  if (grade >= sg + 3) return { label: `Upgrades ${pos}1 — starts over ${starter.name} (${gradeLabel(sg)})`, upgrade: true };
+  if (grade >= sg - 2) return { label: `Competes for ${pos}1 with ${starter.name} (${gradeLabel(sg)})`, compete: true };
+  let slot = samePos.length + 1;
+  for (let i = 1; i < samePos.length; i++) {
+    if (grade >= scoutGrade(samePos[i]) - 2) { slot = i + 1; break; }
+  }
+  return { label: `${pos}${slot} depth — ${samePos.length} already on roster` };
+}
+
+function _faNeedsSnippet(teamId, highlightPos) {
+  const rows = ["QB","RB","WR","TE","OL","DL","LB","CB","S"].map(pos => {
+    const top = (franchise.rosters[teamId]||[]).filter(p=>p.position===pos).sort((a,b)=>scoutGrade(b)-scoutGrade(a))[0];
+    const lvl = _draftNeedLevel(teamId, pos);
+    const hl = pos === highlightPos;
+    const col = lvl === 2 ? "#ff9090" : lvl === 1 ? "#e8a000" : "var(--gray)";
+    const badge = lvl === 2 ? "NEED" : lvl === 1 ? "THIN" : "OK";
+    return `<div style="display:flex;align-items:center;gap:.35rem;padding:.1rem ${hl?".35rem":0};${hl?"background:rgba(245,197,66,.1);margin:0 -.35rem;border-radius:3px":""}">
+      <span style="font-size:.58rem;font-weight:700;color:${hl?"var(--gold)":"var(--blgray)"};min-width:1.8rem">${pos}</span>
+      <span style="font-size:.58rem;color:var(--blgray);flex:1">${top ? gradeLabel(scoutGrade(top)) : "—"}</span>
+      <span style="font-size:.52rem;font-weight:700;color:${col}">${badge}</span>
+    </div>`;
+  }).join("");
+  return `<div style="padding:.4rem .45rem;background:var(--bg3);border-radius:4px;border:1px solid var(--border);margin-bottom:.5rem">
+    <div style="font-size:.53rem;letter-spacing:.6px;color:var(--blgray);margin-bottom:.22rem">POSITION NEEDS</div>
+    ${rows}
+  </div>`;
+}
+
 function frnFASetFilter(field, value) {
   if (!franchise._faFilters) franchise._faFilters = {};
   franchise._faFilters[field] = value;
@@ -2221,22 +2258,39 @@ function renderFrnFA(selectedKey) {
     const isSel = selected && (p.pid ? p.pid === selected.pid : p.name === selected.name);
     const escKey = (faKey || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
     const young = p.age <= 25;
-    const ageColor = young ? "color:var(--green-lt);font-weight:700" : p.age >= 32 ? "color:#e8a000" : "";
     const wo = workoutResults[p.name];
     const woIcon = wo ? (wo.result === "standout" ? "⭐" : wo.result === "solid" ? "✅" : wo.result === "mixed" ? "〰️" : "❌") : "";
     const pGrade = scoutGrade(p);
     const heatGrade = p._workoutHot ? Math.max(pGrade, 80) : pGrade;
-    const heatIcon = heatGrade >= 88 ? ` <span title="${p._workoutHot?"Standout workout — ":""}Heavy league-wide interest" style="font-size:.7rem">🔥</span>`
-                   : heatGrade >= 80 ? ` <span title="${p._workoutHot?"Standout workout drew attention":"Multiple teams likely interested"}" style="font-size:.7rem">👀</span>`
-                   : "";
+    const hot = heatGrade >= 88, warm = !hot && heatGrade >= 80;
+    const needLvl = _draftNeedLevel(chosenTeamId, p.position);
+    // Left border: need takes priority over heat
+    const borderCol = needLvl === 2 ? "#ff6b6b44" : needLvl === 1 ? "#e8a00044" : hot ? "#ff993344" : "transparent";
+    const heatBadge = hot ? `<span style="font-size:.6rem;line-height:1">🔥</span>` : warm ? `<span style="font-size:.6rem;line-height:1">👀</span>` : "";
+    const needBadge = needLvl === 2
+      ? `<span style="font-size:.5rem;color:#ff9090;font-weight:700;letter-spacing:.2px;flex-shrink:0">NEED</span>`
+      : needLvl === 1
+      ? `<span style="font-size:.5rem;color:#e8a000;font-weight:700;letter-spacing:.2px;flex-shrink:0">FILL</span>` : "";
+    // Show suitor count on the row for hot players (saves a click)
+    const rowSuitors = (hot || warm)
+      ? TEAMS.filter(t => t.id !== chosenTeamId && _faAIInterest(t.id, p) >= 0.1).length : 0;
+    const suitorBit = rowSuitors >= 3
+      ? `<span style="font-size:.52rem;color:${rowSuitors>=6?"var(--red)":"#e8a000"};flex-shrink:0">${rowSuitors} teams</span>` : "";
     return `<button class="frn-fa-row ${isSel?"selected":""} ${offered?"offered":""}"
+      style="border-left:3px solid ${borderCol};padding-left:.45rem;display:block"
       onclick="renderFrnFA('${escKey}')">
-      <span>${gradeBadge(p)}</span>
-      <span class="frn-fa-name">${p.name}${young ? " 🌱" : ""}${woIcon ? ` <span title="Workout: ${wo.result}" style="font-size:.7rem">${woIcon}</span>` : ""}${heatIcon}</span>
-      <span class="frn-fa-pos">${p.position}</span>
-      <span class="frn-fa-age" style="${ageColor}">age ${p.age}</span>
-      <span class="frn-fa-ask">asks $${p.demandedAAV.toFixed(1)}M</span>
-      ${offered ? `<span class="frn-fa-flag">$${myOffer.aav.toFixed(1)}M offer</span>` : ""}
+      <div style="display:flex;align-items:center;gap:.28rem">
+        ${heatBadge}${gradeBadge(p)}
+        <span class="frn-fa-name" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}${young?" 🌱":""}${woIcon?` ${woIcon}`:""}</span>
+        <span class="frn-fa-pos" style="flex-shrink:0">${p.position}</span>
+        ${needBadge}
+      </div>
+      <div style="display:flex;align-items:center;gap:.4rem;margin-top:.08rem;padding-left:.05rem">
+        <span style="color:var(--gray);font-size:.57rem">age ${p.age}</span>
+        <span class="frn-fa-ask" style="font-size:.6rem">$${p.demandedAAV.toFixed(1)}M</span>
+        ${suitorBit}
+        ${offered ? `<span class="frn-fa-flag" style="font-size:.56rem;margin-left:auto">✓ $${myOffer.aav.toFixed(1)}M</span>` : ""}
+      </div>
     </button>`;
   }).join("");
 
@@ -2261,154 +2315,161 @@ function renderFrnFA(selectedKey) {
   let detailHtml = "";
   if (selected) {
     const existing = _faOffers[selFaKey] || _faOffers[selected.name];
-    const offer = existing || {
-      aav: selected.demandedAAV,
-      years: selected.demandedYears,
-      cutNames: [],
-    };
+    const offer = existing || { aav: selected.demandedAAV, years: selected.demandedYears, cutNames: [] };
     const cutSet = new Set(offer.cutNames || []);
     const myProjAfterCuts = myCapUsed + offer.aav -
       myRoster.filter(p => cutSet.has(p.name)).reduce((s,p) => s + (p.contract?.aav||0), 0);
     const room = cap - myProjAfterCuts;
+    const score = (offer.aav / selected.demandedAAV) * Math.min(offer.years / selected.demandedYears, 1);
+    const likelihood = score >= 1.05 ? "Very likely" : score >= 1.00 ? "Likely" : score >= 0.90 ? "Toss-up" : score >= 0.80 ? "Unlikely" : "Will reject";
+    const lkColor = score >= 1.00 ? "var(--green-lt)" : score >= 0.90 ? "#e8a000" : "var(--red)";
 
-    // Acceptance preview
-    const aavRatio = offer.aav / selected.demandedAAV;
-    const yearsRatio = Math.min(offer.years / selected.demandedYears, 1);
-    const score = aavRatio * yearsRatio;
-    const likelihood = score >= 1.05 ? "Very likely"
-                     : score >= 1.00 ? "Likely"
-                     : score >= 0.90 ? "Toss-up"
-                     : score >= 0.80 ? "Unlikely"
-                     : "Will reject";
-    const lkColor = score >= 1.00 ? "var(--green-lt)"
-                  : score >= 0.90 ? "#e8a000"
-                  : "var(--red)";
+    // Player intel
+    const potTag  = potentialTag(selected, { known: _isKnownPlayer(selected) });
+    const isKnown = _isKnownPlayer(selected);
+    const sGrade  = scoutGrade(selected);
+    const heatGrade = selected._workoutHot ? Math.max(sGrade, 80) : sGrade;
+    const suitors = TEAMS.filter(t => t.id !== chosenTeamId && _faAIInterest(t.id, selected) >= 0.1).length;
+    const heatColor = suitors >= 6 ? "var(--red)" : suitors >= 3 ? "#e8a000" : heatGrade >= 80 ? "#e8a000" : "var(--border)";
+    const ageStage = selected.age <= 25 ? "🌱 Ascending" : selected.age <= 27 ? "⬆ Young Prime"
+                   : selected.age <= 30 ? "★ Prime" : selected.age <= 32 ? "⬇ Late Prime" : "↘ Declining";
+
+    // Workout block
+    const wr = (franchise._faWorkoutResults || {})[selected.name];
+    const slotsLeft = _workoutSlotsRemaining();
+    let workoutHtml = "";
+    if (wr) {
+      const rCol = { standout:"var(--gold)", solid:"var(--green-lt)", mixed:"#e8a000", bombed:"var(--red)" }[wr.result];
+      const rLbl = { standout:"⭐ STANDOUT", solid:"✅ SOLID", mixed:"〰️ MIXED", bombed:"❌ BOMBED" }[wr.result];
+      const rGrade = gradeLabel(sGrade), sLabel = gradeLabel(wr.sharpGrade);
+      const gradeChanged = rGrade !== sLabel;
+      const demandNote = wr.demandDeltaPct > 0
+        ? `<span style="color:var(--red);font-size:.62rem">⬆ Demand up ${wr.demandDeltaPct.toFixed(1)}% · $${wr.demandBefore.toFixed(1)}M→$${selected.demandedAAV.toFixed(1)}M</span>`
+        : wr.demandDeltaPct < 0
+        ? `<span style="color:var(--green-lt);font-size:.62rem">⬇ Demand down ${Math.abs(wr.demandDeltaPct).toFixed(1)}% · $${wr.demandBefore.toFixed(1)}M→$${selected.demandedAAV.toFixed(1)}M</span>` : "";
+      const traitHtml = wr.result === "mixed"
+        ? `<div style="font-size:.64rem;color:var(--green-lt)">+ ${wr.posTrait}</div><div style="font-size:.64rem;color:var(--red)">− ${wr.negTrait}</div>`
+        : wr.result === "bombed"
+        ? `<div style="font-size:.64rem;color:var(--red)">− ${wr.negTrait}</div>`
+        : `<div style="font-size:.64rem;color:var(--green-lt)">+ ${wr.posTrait}</div>`;
+      workoutHtml = `<div style="margin-top:.35rem;padding-top:.35rem;border-top:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:.45rem;flex-wrap:wrap">
+          <span style="font-size:.55rem;letter-spacing:.6px;color:var(--blgray)">WORKOUT</span>
+          <b style="color:${rCol};font-size:.72rem">${rLbl}</b>
+          ${gradeChanged
+            ? `<span style="font-size:.6rem;color:var(--blgray)">${rGrade} → <b style="color:${rCol}">${sLabel}</b> <span style="font-size:.56rem">(fog lifted)</span></span>`
+            : `<span style="font-size:.6rem;color:var(--gray)">${rGrade} holds under scrutiny</span>`}
+        </div>
+        ${traitHtml}
+        ${demandNote ? `<div style="margin-top:.2rem">${demandNote}</div>` : ""}
+      </div>`;
+    }
+
+    // Roster fit
+    const fit = _faRosterFit(selected, chosenTeamId);
+    const needLvl = _draftNeedLevel(chosenTeamId, selected.position);
+    const fitIcon = fit.upgrade ? "⬆" : fit.compete ? "⟺" : needLvl === 2 ? "❗" : needLvl === 1 ? "⚠" : "→";
+    const fitColor = fit.upgrade ? "var(--green-lt)" : fit.compete ? "var(--gold-lt)" : needLvl === 2 ? "#ff9090" : needLvl === 1 ? "#e8a000" : "var(--blgray)";
+
+    // Market context
+    const posAavs = [];
+    for (const r of Object.values(franchise.rosters || {}))
+      for (const p of r) if (p.position === selected.position && p.contract) posAavs.push(p.contract.aav);
+    posAavs.sort((a,b) => b-a);
+    let mktHtml = "";
+    if (posAavs.length) {
+      const top5Avg = posAavs.slice(0,5).reduce((s,v)=>s+v,0) / Math.min(posAavs.length,5);
+      const median  = posAavs[Math.floor(posAavs.length/2)] || 0;
+      const top1    = posAavs[0] || 0;
+      const vGap    = offer.aav - top5Avg;
+      const vTag    = vGap < -2 ? "BARGAIN" : vGap < 2 ? "FAIR" : vGap < 6 ? "PREMIUM" : "OVERPRICED";
+      const vCol    = vTag === "BARGAIN" ? "var(--green-lt)" : vTag === "FAIR" ? "var(--gold-lt)" : vTag === "PREMIUM" ? "#e8a000" : "var(--red)";
+      mktHtml = `<div style="padding:.38rem .5rem;background:var(--bg3);border-radius:4px;border:1px solid var(--border);margin-top:.45rem">
+        <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;font-size:.63rem">
+          <span style="font-size:.53rem;letter-spacing:.6px;color:var(--blgray)">MARKET CTX</span>
+          <b style="color:${vCol}">${vTag}</b>
+          <span style="color:var(--border)">|</span>
+          <span style="color:var(--blgray)">${selected.position} top5 avg <b style="color:var(--gold-lt)">$${top5Avg.toFixed(1)}M</b> · median <b style="color:var(--gold-lt)">$${median.toFixed(1)}M</b> · top <b style="color:var(--gold)">$${top1.toFixed(1)}M</b></span>
+        </div>
+      </div>`;
+    }
 
     detailHtml = `<div class="frn-fa-detail">
-      <div class="frn-fa-detail-head">
-        <div>
-          <div style="font-size:1.05rem;font-weight:900">${selected.name}${selected.age <= 25 ? " <span style='color:var(--green-lt);font-size:.7rem'>🌱 YOUNG</span>" : ""}</div>
-          <div style="color:var(--gray);font-size:.7rem">${selected.position} · Age ${selected.age} · ${_archetypeLabel(selected) || "—"} · ${draftStr(selected)}</div>
-          ${(() => { const pt = potentialTag(selected, { known: _isKnownPlayer(selected) }); return pt ? `<div style="font-size:.63rem;color:${_isKnownPlayer(selected)?"var(--green-lt)":"var(--gold-lt)"};margin-top:.15rem">${pt}</div>` : ""; })()}
-          ${selected.faStory ? `<div style="color:var(--gold-lt);font-size:.7rem;margin-top:.25rem;font-style:italic">"${selected.faStory}"</div>` : ""}
-          <div style="color:var(--gray);font-size:.66rem;margin-top:.2rem">${careerEarningsStr(selected)} career earnings</div>
-        </div>
-        <div style="text-align:right">
-          ${gradeBadge(selected)}
+
+      <!-- ① Identity -->
+      <div class="frn-fa-detail-head" style="margin-bottom:.4rem">
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:.38rem;flex-wrap:wrap;margin-bottom:.12rem">
+            <span style="font-size:1.05rem;font-weight:900">${selected.name}</span>
+            ${_posPillHtml(selected.position)}
+            ${gradeBadge(selected)}
+            <span style="font-size:.6rem;color:var(--blgray)">${ageStage} · age ${selected.age}</span>
+          </div>
+          <div style="color:var(--gray);font-size:.64rem">${_archetypeLabel(selected)||"—"} · ${draftStr(selected)} · ${careerEarningsStr(selected)}</div>
+          ${potTag ? `<div style="font-size:.68rem;color:${isKnown?"var(--green-lt)":"var(--gold-lt)"};font-weight:700;margin-top:.2rem">${potTag}</div>` : ""}
+          ${selected.faStory ? `<div style="color:var(--gold-lt);font-size:.67rem;margin-top:.18rem;font-style:italic">"${selected.faStory}"</div>` : ""}
         </div>
       </div>
-      <div class="frn-fa-demand">
-        Wants <b style="color:var(--gold)">$${selected.demandedAAV.toFixed(1)}M/yr × ${selected.demandedYears}yr</b>
+
+      <!-- ② Market Pulse -->
+      <div style="padding:.45rem .55rem;background:rgba(0,0,0,.2);border-left:3px solid ${heatColor};border-radius:0 4px 4px 0;margin-bottom:.45rem">
+        <div style="font-size:.53rem;letter-spacing:.7px;color:var(--blgray);margin-bottom:.22rem">MARKET PULSE</div>
+        <div style="font-size:.82rem;font-weight:700">$${selected.demandedAAV.toFixed(1)}M / yr × ${selected.demandedYears} yr</div>
+        ${suitors > 0
+          ? `<div style="font-size:.67rem;color:${heatColor};margin-top:.18rem">${suitors >= 6 ? "🔥" : "👀"} ~${suitors} team${suitors!==1?"s":""} showing ${suitors>=6?"heavy":suitors>=3?"moderate":"some"} interest</div>`
+          : `<div style="font-size:.63rem;color:var(--gray);margin-top:.15rem">No known competing interest</div>`}
+        ${workoutHtml}
+        ${!wr ? `<div style="margin-top:.35rem">
+          <button class="btn btn-outline" onclick="frnFAInviteWorkout('${escSelName}')" ${slotsLeft<=0?"disabled":""}
+            style="font-size:.63rem;width:100%;${slotsLeft<=0?"opacity:.4;cursor:not-allowed":""}">🏋 INVITE TO WORKOUT</button>
+          <div style="text-align:right;font-size:.55rem;color:var(--blgray);margin-top:.12rem">${slotsLeft}/${WORKOUT_SLOTS_PER_FA_SEASON} workout slots left</div>
+        </div>` : ""}
       </div>
-      ${(() => {
-        const suitors = TEAMS.filter(t => t.id !== franchise.chosenTeamId && _faAIInterest(t.id, selected) >= 0.1).length;
-        if (suitors === 0) return "";
-        const col = suitors >= 6 ? "var(--red)" : suitors >= 3 ? "#e8a000" : "var(--gray)";
-        const label = suitors >= 6 ? "heavy interest" : suitors >= 3 ? "moderate interest" : "some interest";
-        return `<div style="font-size:.65rem;color:${col};margin-bottom:.35rem">~${suitors} team${suitors !== 1 ? "s" : ""} showing ${label}</div>`;
-      })()}
-      ${(() => {
-        const wr = (franchise._faWorkoutResults || {})[selected.name];
-        const slotsLeft = _workoutSlotsRemaining();
-        if (wr) {
-          const resultLabels = { standout: "⭐ STANDOUT", solid: "✅ SOLID", mixed: "〰️ MIXED", bombed: "❌ BOMBED" };
-          const resultColors = { standout: "var(--gold)", solid: "var(--green-lt)", mixed: "#e8a000", bombed: "var(--red)" };
-          const regularGrade = gradeLabel(scoutGrade(selected));
-          const sharpLabel   = gradeLabel(wr.sharpGrade);
-          const gradeChanged = regularGrade !== sharpLabel;
-          const demandNote   = wr.demandDeltaPct > 0
-            ? `<span style="color:var(--red);font-size:.65rem">⬆ Demand up ${wr.demandDeltaPct.toFixed(1)}% after strong session ($${wr.demandBefore.toFixed(1)}M → $${selected.demandedAAV.toFixed(1)}M)</span>`
-            : wr.demandDeltaPct < 0
-            ? `<span style="color:var(--green-lt);font-size:.65rem">⬇ Demand down ${Math.abs(wr.demandDeltaPct).toFixed(1)}% after rough session ($${wr.demandBefore.toFixed(1)}M → $${selected.demandedAAV.toFixed(1)}M)</span>`
-            : "";
-          const traitHtml = wr.result === "mixed"
-            ? `<div style="font-size:.68rem;margin-top:.2rem;color:var(--green-lt)">+ ${wr.posTrait}</div>
-               <div style="font-size:.68rem;color:var(--red)">− ${wr.negTrait}</div>`
-            : wr.result === "bombed"
-            ? `<div style="font-size:.68rem;margin-top:.2rem;color:var(--red)">− ${wr.negTrait}</div>`
-            : `<div style="font-size:.68rem;margin-top:.2rem;color:var(--green-lt)">+ ${wr.posTrait}</div>`;
-          return `<div style="border:1px solid ${resultColors[wr.result]};border-radius:5px;padding:.5rem .65rem;margin-bottom:.5rem;background:rgba(0,0,0,.25)">
-            <div style="font-size:.62rem;letter-spacing:.8px;color:var(--blgray);margin-bottom:.2rem">WORKOUT REPORT</div>
-            <div style="font-weight:900;color:${resultColors[wr.result]};font-size:.8rem">${resultLabels[wr.result]}</div>
-            ${gradeChanged ? `<div style="font-size:.68rem;margin-top:.25rem">Scout grade <b>${regularGrade}</b> → Workout grade <b style="color:${resultColors[wr.result]}">${sharpLabel}</b> <span style="color:var(--blgray);font-size:.6rem">(fog lifted)</span></div>` : `<div style="font-size:.68rem;margin-top:.25rem;color:var(--gray)">Grade holds at <b>${regularGrade}</b> under scrutiny</div>`}
-            ${traitHtml}
-            ${demandNote ? `<div style="margin-top:.3rem">${demandNote}</div>` : ""}
-          </div>`;
-        }
-        return `<div style="margin-bottom:.5rem">
-          <button class="btn btn-outline" onclick="frnFAInviteWorkout('${escSelName}')" ${slotsLeft <= 0 ? "disabled" : ""}
-            style="font-size:.65rem;width:100%;${slotsLeft <= 0 ? "opacity:.45;cursor:not-allowed" : ""}">
-            🏋 INVITE TO WORKOUT
-          </button>
-          <div style="text-align:right;font-size:.58rem;color:var(--blgray);margin-top:.2rem">${slotsLeft} / ${WORKOUT_SLOTS_PER_FA_SEASON} slots remaining this offseason</div>
-        </div>`;
-      })()}
+
+      <!-- ③ Roster Fit -->
+      <div style="padding:.38rem .5rem;background:rgba(0,0,0,.15);border:1px solid var(--border);border-radius:4px;margin-bottom:.45rem">
+        <div style="font-size:.53rem;letter-spacing:.7px;color:var(--blgray);margin-bottom:.18rem">ROSTER FIT</div>
+        <div style="font-size:.7rem;color:${fitColor};font-weight:${fit.upgrade||fit.compete?700:400}">${fitIcon} ${fit.label}</div>
+      </div>
+
+      <!-- ④ Offer Builder -->
       <div class="frn-fa-offer-form">
-        <label>
-          <span class="frn-meta-label">AAV ($M/yr)</span>
+        <label><span class="frn-meta-label">AAV ($M/yr)</span>
           <input type="number" min="0.5" max="60" step="0.5" value="${offer.aav.toFixed(1)}"
             id="faOfferAav" onchange="frnFASetOffer('${escSelName}','aav',this.value)">
         </label>
-        <label>
-          <span class="frn-meta-label">YEARS</span>
+        <label><span class="frn-meta-label">YEARS</span>
           <input type="number" min="1" max="7" step="1" value="${offer.years}"
             id="faOfferYears" onchange="frnFASetOffer('${escSelName}','years',this.value)">
         </label>
         <div class="frn-fa-offer-actions">
-          <button class="btn btn-gold" onclick="frnFASubmitOffer('${escSelName}')">
-            ${existing ? "✓ Update Offer" : "+ Submit Offer"}
-          </button>
-          ${existing ? `<button class="btn btn-outline" onclick="frnFAWithdrawOffer('${escSelName}')">Withdraw</button>` : ""}
+          <button class="btn btn-gold" onclick="frnFASubmitOffer('${escSelName}')">${existing?"✓ Update Offer":"+ Submit Offer"}</button>
+          ${existing?`<button class="btn btn-outline" onclick="frnFAWithdrawOffer('${escSelName}')">Withdraw</button>`:""}
         </div>
       </div>
-      <div style="display:flex;align-items:center;gap:.35rem;flex-wrap:wrap;margin-top:.45rem">
+      <div style="display:flex;align-items:center;gap:.3rem;flex-wrap:wrap;margin-top:.35rem">
         <span class="frn-meta-label" style="margin:0">Structure:</span>
         ${["BALANCED","BACKLOADED","FRONTLOADED"].map(s => {
-          const cur = offer.structure || _defaultStructure(selected.age || 27, scoutGrade(selected));
-          const desc = s === "BALANCED" ? "flat salaries" : s === "BACKLOADED" ? "cheap now, costly later" : "costly now, cheap later";
-          return `<button class="btn ${cur===s?"btn-gold":"btn-outline"}" onclick="frnFASetOffer('${escSelName}','structure','${s}')" style="font-size:.62rem;padding:.2rem .5rem" title="${desc}">${s[0]+s.slice(1).toLowerCase()}</button>`;
+          const cur = offer.structure || _defaultStructure(selected.age||27, scoutGrade(selected));
+          const desc = s==="BALANCED"?"flat salaries":s==="BACKLOADED"?"cheap now, costly later":"costly now, cheap later";
+          return `<button class="btn ${cur===s?"btn-gold":"btn-outline"}" onclick="frnFASetOffer('${escSelName}','structure','${s}')" style="font-size:.61rem;padding:.18rem .45rem" title="${desc}">${s[0]+s.slice(1).toLowerCase()}</button>`;
         }).join("")}
-        <span style="color:var(--gray);font-size:.6rem">affects year-by-year cap hits &amp; dead cap</span>
       </div>
-      <div class="frn-fa-preview" style="margin-top:.5rem">
-        <div>Acceptance: <b style="color:${lkColor}">${likelihood}</b></div>
-        <div style="color:var(--gray);font-size:.68rem;margin-top:.2rem">
-          If accepted: cap goes to <b style="color:${room<0?"var(--red)":"var(--green-lt)"}">$${myProjAfterCuts.toFixed(1)}M</b>
-          (${room<0 ? `<b style="color:var(--red)">${Math.abs(room).toFixed(1)}M over</b>` : `$${room.toFixed(1)}M room`})
+
+      <!-- ⑤ Acceptance + Cap Impact -->
+      <div style="display:flex;align-items:center;gap:.6rem;padding:.42rem .55rem;background:var(--bg3);border-radius:4px;margin-top:.42rem;flex-wrap:wrap;border:1px solid var(--border)">
+        <div style="font-size:.72rem">Acceptance: <b style="color:${lkColor};font-size:.85rem">${likelihood}</b></div>
+        <div style="font-size:.64rem;color:var(--gray);margin-left:auto">
+          Cap hit: <b style="color:${room<0?"var(--red)":"var(--green-lt)"}">$${myProjAfterCuts.toFixed(1)}M</b>
+          <span style="color:var(--gray)"> (${room<0?`<b style="color:var(--red)">${Math.abs(room).toFixed(1)}M over cap</b>`:`$${room.toFixed(1)}M room`})</span>
         </div>
       </div>
+
+      <!-- ⑥ Contract Preview -->
       ${_buildFAOfferContractPreview(selected, offer)}
-      ${(() => {
-        // Position market + value verdict
-        const aavs = [];
-        for (const r of Object.values(franchise.rosters || {})) {
-          for (const p of r) if (p.position === selected.position && p.contract) aavs.push(p.contract.aav);
-        }
-        aavs.sort((a,b) => b-a);
-        const top5 = aavs.slice(0, 5);
-        if (!top5.length) return "";
-        const top5Avg = top5.reduce((s,v) => s+v, 0) / top5.length;
-        const median  = aavs[Math.floor(aavs.length/2)] || 0;
-        const top1    = aavs[0] || 0;
-        const valueGap = offer.aav - top5Avg;
-        const valueTag = valueGap < -2 ? "BARGAIN" : valueGap < 2 ? "FAIR" : valueGap < 6 ? "PREMIUM" : "OVERPRICED";
-        const vColor   = valueTag === "BARGAIN" ? "var(--green-lt)" : valueTag === "FAIR" ? "var(--gold-lt)" : valueTag === "PREMIUM" ? "#e8a000" : "var(--red)";
-        const ageStage = selected.age <= 25 ? "ascending" : selected.age <= 27 ? "young prime" : selected.age <= 30 ? "prime" : selected.age <= 32 ? "late prime" : "declining";
-        return `<div style="margin-top:.5rem;padding:.45rem .55rem;background:var(--bg3);border-radius:5px;border:1px solid var(--border)">
-          <div style="font-size:.6rem;letter-spacing:.7px;color:var(--blgray);margin-bottom:.3rem">MARKET CONTEXT</div>
-          <div style="display:flex;gap:.8rem;flex-wrap:wrap;font-size:.68rem">
-            <div><span class="frn-meta-label">PRICE TAG</span> <b style="color:${vColor}">${valueTag}</b></div>
-            <div><span class="frn-meta-label">STAGE</span> <b style="color:var(--white)">${ageStage}</b></div>
-            <div><span class="frn-meta-label">TOP GRADE</span> <b style="color:var(--gold)">${gradeLabel(scoutGrade(selected))}</b></div>
-          </div>
-          <div style="color:var(--gray);font-size:.62rem;margin-top:.3rem">
-            ${selected.position} market — top 5 avg <b style="color:var(--gold-lt)">$${top5Avg.toFixed(1)}M</b> ·
-            league median <b style="color:var(--gold-lt)">$${median.toFixed(1)}M</b> ·
-            top-paid <b style="color:var(--gold)">$${top1.toFixed(1)}M</b>.
-            Your offer: <b style="color:${vColor}">$${offer.aav.toFixed(1)}M</b>
-          </div>
-        </div>`;
-      })()}
+
+      <!-- ⑦ Market Context -->
+      ${mktHtml}
     </div>`;
   }
 
@@ -2462,7 +2523,7 @@ function renderFrnFA(selectedKey) {
       </div>
       <div class="frn-fa-roster-col">
         <div class="frn-card-title">YOUR ROSTER · cut to make room</div>
-        ${selected ? "" : `<div style="color:var(--gray);font-size:.7rem;margin-bottom:.4rem;font-style:italic">Pick an FA first, then flag cuts here.</div>`}
+        ${selected ? _faNeedsSnippet(chosenTeamId, selected.position) : `<div style="color:var(--gray);font-size:.7rem;margin-bottom:.4rem;font-style:italic">Pick an FA first, then flag cuts here.</div>`}
         <div class="frn-fa-roster-list">${rosterHtml}</div>
       </div>
     </div>`;
