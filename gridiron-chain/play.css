@@ -1333,19 +1333,20 @@
 
   /* Scout layout */
   .frn-scout-layout {
-    display: grid; grid-template-columns: 230px 1fr; gap: .8rem;
+    display: grid; grid-template-columns: 270px 1fr; gap: .8rem;
   }
   @media (max-width: 700px) { .frn-scout-layout { grid-template-columns: 1fr; } }
   .frn-scout-list {
     display: flex; flex-direction: column; gap: .15rem;
-    max-height: 620px; overflow-y: auto;
+    max-height: 620px; overflow-y: auto; overflow-x: hidden;
   }
   .frn-scout-team {
     background: var(--bg2); border: 1px solid var(--border);
-    padding: .3rem .55rem; cursor: pointer; text-align: left;
-    font-family: inherit; font-size: .68rem; color: var(--white);
-    display: flex; align-items: center; gap: .35rem;
-    transition: all .1s;
+    padding: .28rem .45rem; cursor: pointer; text-align: left;
+    font-family: inherit; font-size: .67rem; color: var(--white);
+    display: flex; align-items: center; gap: .3rem;
+    transition: all .1s; width: 100%; box-sizing: border-box;
+    flex-wrap: wrap;
   }
   .frn-scout-team:hover { background: var(--bg3); border-color: var(--gold); }
   .frn-scout-team.active {

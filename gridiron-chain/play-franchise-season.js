@@ -681,10 +681,12 @@ function _scoutGradeBadge(p, scouted) {
   const g  = scoutGrade(p);
   const gL = gradeLabel(g);
   const gc = gradeClass(g);
-  if (scouted) {
-    return `<span class="tt-ovr tier-${gc}">${gL}</span>`;
-  }
-  return `<span class="tt-ovr tier-${gc} frn-scout-fuzzy">~${gL}</span>`;
+  const bg  = gc === "elite" ? "#f0cc30" : gc === "good" ? "#9be09b" : gc === "average" ? "#c0c0c0" : "#c08080";
+  const col = gc === "poor" ? "#200" : "#000";
+  const base = `display:inline-block;background:${bg};color:${col};font-weight:800;padding:.1rem .35rem;border-radius:3px;font-size:.68rem;font-family:inherit;letter-spacing:.2px;white-space:nowrap`;
+  return scouted
+    ? `<span style="${base}">${gL}</span>`
+    : `<span style="${base};opacity:.8;outline:1px dashed ${bg}">~${gL}</span>`;
 }
 
 // Compact player panel for the scout screen — omits career card, game log,
@@ -797,11 +799,11 @@ function _preseasonScoutTab(myId, scoutId, view, selName) {
     const tDef    = typeof _getTeamDefScheme === "function" ? _getTeamDefScheme(t.id) : null;
     return `<button class="frn-scout-team ${active?"active":""}" onclick="renderFrnPreseason('scout',${t.id})" style="border-left:3px solid ${t.primary}">
       <span class="frn-scout-team-week">${wkLabel}</span>
-      <span style="color:var(--gold)">${teamAscii(t)}</span>
-      <span>${t.name}</span>
+      <span style="color:var(--gold);flex-shrink:0;font-size:.75rem">${teamAscii(t)}</span>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">${t.city} ${t.name}</span>
       ${isNext ? `<span class="frn-scout-next-chip">NEXT</span>` : ""}
       <span class="frn-scout-team-rec">${rec}</span>
-      ${tOff ? `<span style="display:block;margin-top:.15rem">${_schemeBadge(tOff,true)} ${_schemeBadge(tDef,true)}</span>` : ""}
+      ${tOff ? `<span style="width:100%;margin-top:.1rem;display:flex;gap:.25rem">${_schemeBadge(tOff,true)} ${_schemeBadge(tDef,true)}</span>` : ""}
     </button>`;
   }).join("");
 
