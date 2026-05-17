@@ -1024,8 +1024,8 @@ const HC_SPECIALTY_TRAITS = [
 
 const OC_TRAITS = [
   { key:"QB Whisperer",    desc:"QB TEC growth ×2, QB AWR ceiling +5" },
-  { key:"Air Attack",      desc:"Air yards +1.0 mean" },
-  { key:"Red Zone Genius", desc:"RZ TD conversion +8%" },
+  { key:"Air Attack",      desc:"WR TEC growth ×1.5, TE TEC growth ×1.3 — builds the passing corps" },
+  { key:"Red Zone Genius", desc:"TE TEC growth ×1.5, RB TEC growth ×1.2 — +1 offense when running WEST COAST" },
   { key:"Run Architect",   desc:"RB TEC growth ×1.5 — develops the ball carrier" },
   { key:"Trench General",  desc:"OL TEC growth ×2, +1 offense when running SMASHMOUTH" },
   { key:"Balanced",        desc:"No modifier — adapts to HC scheme" },

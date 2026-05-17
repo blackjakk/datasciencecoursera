@@ -830,6 +830,9 @@ function frnSimOnce(homeId, awayId, isPlayoff = false) {
   // Trench General OC running SMASHMOUTH: elite O-line coaching translates directly to run game power.
   if (ocHome === "Trench General" && _getTeamOffScheme(homeId) === "SMASHMOUTH") sim.homeR.offense += 1;
   if (ocAway === "Trench General" && _getTeamOffScheme(awayId) === "SMASHMOUTH") sim.awayR.offense += 1;
+  // Red Zone Genius OC running WEST COAST: better TD conversion efficiency — shifts FG drives into TDs.
+  if (ocHome === "Red Zone Genius" && _getTeamOffScheme(homeId) === "WEST COAST") sim.homeR.offense += 1;
+  if (ocAway === "Red Zone Genius" && _getTeamOffScheme(awayId) === "WEST COAST") sim.awayR.offense += 1;
   // Coaching rating modifiers — tiered: <55=-1, 55-71=0, 72-82=+1, 83+=+2
   // HC affects both sides; OC affects offense only; DC affects defense only.
   const _cb = r => r >= 83 ? 2 : r >= 72 ? 1 : r >= 55 ? 0 : -1;
@@ -1427,6 +1430,8 @@ function frnPlayGame(homeId, awayId, isPlayoff) {
   if (dcAway === "Film Mastermind") sim.awayR.defense += _filmBonus(awayId);
   if (ocHome === "Trench General" && _getTeamOffScheme(homeId) === "SMASHMOUTH") sim.homeR.offense += 1;
   if (ocAway === "Trench General" && _getTeamOffScheme(awayId) === "SMASHMOUTH") sim.awayR.offense += 1;
+  if (ocHome === "Red Zone Genius" && _getTeamOffScheme(homeId) === "WEST COAST") sim.homeR.offense += 1;
+  if (ocAway === "Red Zone Genius" && _getTeamOffScheme(awayId) === "WEST COAST") sim.awayR.offense += 1;
   const _cb = r => r >= 83 ? 2 : r >= 72 ? 1 : r >= 55 ? 0 : -1;
   const _hc = (id) => franchise.coaches?.[id]?.hc?.rating || 60;
   const _oc = (id) => franchise.coaches?.[id]?.oc?.rating || 60;
@@ -4750,9 +4755,13 @@ function runFrnOffseason() {
                           : 1.0;
         const tecMul      = tierInfo.tecMul * hcDevMul * filmMul * coordDevMul;
         const effectiveTecMul = Math.min(5.0,
-          (p.position === "QB" && ocTrait === "QB Whisperer")  ? tecMul * 2.0 :
-          (p.position === "OL" && ocTrait === "Trench General") ? tecMul * 2.0 :
-          (p.position === "RB" && ocTrait === "Run Architect")  ? tecMul * 1.5 : tecMul);
+          (p.position === "QB" && ocTrait === "QB Whisperer")   ? tecMul * 2.0 :
+          (p.position === "OL" && ocTrait === "Trench General")  ? tecMul * 2.0 :
+          (p.position === "RB" && ocTrait === "Run Architect")   ? tecMul * 1.5 :
+          (p.position === "WR" && ocTrait === "Air Attack")      ? tecMul * 1.5 :
+          (p.position === "TE" && ocTrait === "Air Attack")      ? tecMul * 1.3 :
+          (p.position === "TE" && ocTrait === "Red Zone Genius") ? tecMul * 1.5 :
+          (p.position === "RB" && ocTrait === "Red Zone Genius") ? tecMul * 1.2 : tecMul);
 
         const baseChance = 0.12;
         if ((p.age || 25) <= 30 && Math.random() < baseChance * effectiveTecMul) {
