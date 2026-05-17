@@ -503,6 +503,7 @@ function renderFrnPreseason(tab, scoutId, scoutView, selName) {
 
   const tabs = [
     { id:"roster",   label:"📋 MY ROSTER" },
+    { id:"ps",       label:"🏋 PRACTICE SQUAD" },
     { id:"schedule", label:"📅 SCHEDULE" },
     { id:"scout",    label:"🔍 SCOUT" },
   ];
@@ -512,6 +513,7 @@ function renderFrnPreseason(tab, scoutId, scoutView, selName) {
 
   let body;
   if      (tab === "roster")   body = _preseasonRosterTab(myRoster, selName);
+  else if (tab === "ps")       body = _buildPSTab(chosenTeamId);
   else if (tab === "schedule") body = _preseasonScheduleTab(schedule, chosenTeamId);
   else                         body = _preseasonScoutTab(chosenTeamId, scoutId, scoutView, selName);
 
@@ -581,6 +583,118 @@ function renderFrnPreseason(tab, scoutId, scoutView, selName) {
       <div class="frn-footer-info">Pre-season — review and tinker before Week 1 kicks off</div>
       <button class="btn btn-outline frn-abandon-btn" onclick="frnAbandon()">× Abandon</button>
     </div>`;
+}
+
+function _buildPSTab(myId) {
+  const myPS = franchise.practiceSquads?.[myId] || [];
+  const myRoster = franchise.rosters[myId] || [];
+  const psCost = psCostForTeam(myId);
+  const poachAlerts = (franchise.psPoachAlerts || []).filter(a => a.ownerTeamId === myId);
+  const eligible = myRoster.filter(p => _psEligible(p));
+
+  const alertsHtml = poachAlerts.map(a => {
+    const ep = (a.playerName || "").replace(/'/g, "\\'");
+    return `<div style="background:rgba(220,50,50,.12);border:1px solid rgba(220,50,50,.4);border-radius:4px;padding:.45rem .55rem;margin-bottom:.4rem">
+      <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+        <span style="font-size:.88rem">⚠️</span>
+        <b style="color:var(--red);font-size:.78rem">${a.position} ${a.playerName}</b>
+        <span style="font-size:.62rem;color:var(--gray)">being scouted by ${getTeam(a.suitorTeamId)?.name||"rival"} — promote by end of Wk ${a.deadlineWeek}</span>
+        <button onclick="frnPSPromote('${ep}')"
+          style="margin-left:auto;background:rgba(245,197,66,.15);border:1px solid var(--gold);color:var(--gold-lt);font-size:.63rem;padding:.18rem .55rem;border-radius:3px;cursor:pointer;font-family:inherit;font-weight:700">
+          ⬆ PROMOTE NOW
+        </button>
+      </div>
+    </div>`;
+  }).join("");
+
+  const psRows = myPS.map(p => {
+    const ep = (p.name || "").replace(/'/g, "\\'");
+    const epid = (p.pid || "").replace(/'/g, "\\'");
+    const flashLog = p._psFlashLog || [];
+    const recentFlashes = flashLog.filter(f => f.season === franchise.season);
+    const gemFlash = recentFlashes.find(f => f.kind === "gem");
+    const wowFlash = recentFlashes.find(f => f.kind === "wow");
+    const flashBadge = gemFlash
+      ? `<span style="font-size:.6rem;color:var(--gold);font-weight:700">💎 GEM +${gemFlash.ovrBoost}</span>`
+      : wowFlash
+      ? `<span style="font-size:.6rem;color:#9be09b;font-weight:700">⭐ +${wowFlash.ovrBoost}</span>` : "";
+    const isAlert = poachAlerts.some(a => a.playerName === p.name);
+    return `<div style="display:flex;align-items:center;gap:.4rem;padding:.32rem .45rem;background:${isAlert?"rgba(220,50,50,.08)":"var(--bg2)"};border:1px solid ${isAlert?"rgba(220,50,50,.35)":"var(--border)"};border-radius:4px;margin-bottom:.22rem">
+      <span style="font-size:.58rem;color:var(--gold);font-weight:700;min-width:1.6rem">${p.position}</span>
+      <span style="font-size:.72rem;font-weight:700;flex:1;cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px"
+        onclick="frnOpenPlayerCard('${ep}','${epid}')">${p.name}</span>
+      ${gradeBadge(p)}
+      <span style="font-size:.6rem;color:var(--gray)">Age ${p.age||"?"}</span>
+      ${flashBadge}
+      <button onclick="frnPSPromote('${ep}')"
+        style="background:rgba(245,197,66,.1);border:1px solid var(--gold);color:var(--gold-lt);font-size:.58rem;padding:.12rem .38rem;border-radius:3px;cursor:pointer;font-family:inherit;flex-shrink:0">
+        ⬆ Promote
+      </button>
+    </div>`;
+  }).join("");
+
+  const eligRows = eligible.filter(p => !myPS.some(x => x.name === p.name)).map(p => {
+    const ep = (p.name || "").replace(/'/g, "\\'");
+    const epid = (p.pid || "").replace(/'/g, "\\'");
+    const slotsLeft = Math.max(0, PS_SLOTS - myPS.length);
+    return `<div style="display:flex;align-items:center;gap:.4rem;padding:.28rem .45rem;background:var(--bg3);border:1px solid var(--border);border-radius:4px;margin-bottom:.18rem;opacity:${slotsLeft<=0?.45:1}">
+      <span style="font-size:.58rem;color:var(--gold);font-weight:700;min-width:1.6rem">${p.position}</span>
+      <span style="font-size:.68rem;font-weight:700;flex:1;cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px"
+        onclick="frnOpenPlayerCard('${ep}','${epid}')">${p.name}</span>
+      ${gradeBadge(p)}
+      <span style="font-size:.6rem;color:var(--gray)">Age ${p.age||"?"}</span>
+      <button onclick="frnPSStash('${ep}')" ${slotsLeft<=0?"disabled":""}
+        style="background:rgba(100,100,255,.1);border:1px solid #8888ff;color:#aaaaff;font-size:.58rem;padding:.12rem .38rem;border-radius:3px;cursor:${slotsLeft<=0?"not-allowed":"pointer"};font-family:inherit;flex-shrink:0">
+        ↓ Stash
+      </button>
+    </div>`;
+  }).join("");
+
+  return `<div style="max-width:680px">
+    <div style="padding:.5rem .65rem;background:var(--bg3);border:1px solid var(--border);border-radius:4px;margin-bottom:.7rem;display:flex;gap:1.2rem;flex-wrap:wrap;font-size:.65rem">
+      <div><span style="color:var(--blgray);font-size:.52rem;letter-spacing:.5px">SLOTS</span><br><b style="color:${myPS.length>=PS_SLOTS?"var(--red)":"var(--green-lt)"};font-size:.85rem">${myPS.length}/${PS_SLOTS}</b></div>
+      <div><span style="color:var(--blgray);font-size:.52rem;letter-spacing:.5px">PS CAP COST</span><br><b style="font-size:.85rem">$${psCost.toFixed(1)}M/yr</b></div>
+      <div style="flex:1;font-size:.6rem;color:var(--gray);align-self:center">
+        PS players flash in practice and can earn promotion. Rival teams can poach your gems — promote before the deadline.
+      </div>
+    </div>
+    ${alertsHtml ? `<div style="margin-bottom:.5rem">${alertsHtml}</div>` : ""}
+    <div style="font-size:.55rem;letter-spacing:.6px;color:var(--blgray);font-weight:700;margin-bottom:.28rem">MY PRACTICE SQUAD (${myPS.length}/${PS_SLOTS})</div>
+    ${myPS.length ? psRows : `<div style="color:var(--gray);font-size:.7rem;font-style:italic;padding:.4rem 0">No players on your practice squad.</div>`}
+    ${eligRows ? `
+    <div style="font-size:.55rem;letter-spacing:.6px;color:var(--blgray);font-weight:700;margin:1rem 0 .28rem">ELIGIBLE TO STASH (age ≤${PS_MAX_AGE}, ≤${PS_MAX_YEARS_EXP} seasons exp)</div>
+    ${eligRows}` : ""}
+  </div>`;
+}
+
+function frnPSPromote(playerName) {
+  const myId = franchise.chosenTeamId;
+  const ps = franchise.practiceSquads?.[myId] || [];
+  const p = ps.find(x => x.name === playerName);
+  if (!p) return;
+  const myRoster = franchise.rosters[myId] || [];
+  if (myRoster.length >= 53) {
+    if (!confirm(`Your roster is full (53 players). Promote ${p.name} anyway? You'll need to cut someone.`)) return;
+  }
+  _psPromote(myId, p);
+  saveFranchise();
+  renderFrnPreseason("ps");
+}
+
+function frnPSStash(playerName) {
+  const myId = franchise.chosenTeamId;
+  const myPS = franchise.practiceSquads?.[myId];
+  if (!myPS) return;
+  if (myPS.length >= PS_SLOTS) { alert(`Practice squad is full (${PS_SLOTS} slots).`); return; }
+  const roster = franchise.rosters[myId] || [];
+  const idx = roster.findIndex(p => p.name === playerName);
+  if (idx === -1) return;
+  const [p] = roster.splice(idx, 1);
+  p._psFlashLog = p._psFlashLog || [];
+  p._psStashedSeason = franchise.season || 1;
+  myPS.push(p);
+  saveFranchise();
+  renderFrnPreseason("ps");
 }
 
 function _preseasonRosterTab(roster, selName) {
@@ -848,6 +962,22 @@ function _buildScoutPlayerPanel(p, scouted) {
   </div>`;
 }
 
+function _scoutNeedsBar(myId) {
+  const posOrder = ["QB","RB","WR","TE","OL","DL","LB","CB","S"];
+  const pills = posOrder.map(pos => {
+    const lvl = _draftNeedLevel(myId, pos);
+    if (lvl === 0) return null;
+    const col = lvl === 2 ? "#ff9090" : "#e8a000";
+    const label = lvl === 2 ? "NEED" : "THIN";
+    return `<span style="font-size:.52rem;font-weight:700;color:${col};background:rgba(0,0,0,.25);border:1px solid ${col}55;padding:.06rem .3rem;border-radius:3px;white-space:nowrap">${pos} <span style="opacity:.75">${label}</span></span>`;
+  }).filter(Boolean);
+  if (!pills.length) return "";
+  return `<div style="display:flex;flex-wrap:wrap;gap:.25rem;align-items:center;margin-bottom:.55rem;padding:.3rem .4rem;background:rgba(0,0,0,.2);border-radius:4px;border:1px solid var(--border)">
+    <span style="font-size:.5rem;letter-spacing:.6px;color:var(--blgray);flex-shrink:0">MY NEEDS</span>
+    ${pills.join("")}
+  </div>`;
+}
+
 function _preseasonScoutTab(myId, scoutId, view, selName) {
   view = view || "starters";
 
@@ -1040,6 +1170,7 @@ function _preseasonScoutTab(myId, scoutId, view, selName) {
   return `<div class="frn-scout-layout">
     <div class="frn-scout-list">${listHtml}</div>
     <div class="frn-scout-detail">
+      ${_scoutNeedsBar(myId)}
       <div style="display:flex;align-items:center;gap:.7rem;margin-bottom:.5rem">
         <span style="font-size:1.8rem;color:var(--gold)">${teamAscii(oppTeam)}</span>
         <div style="flex:1">
@@ -2596,7 +2727,7 @@ function renderFrnFA(selectedKey) {
       <div class="frn-fa-offer-form">
         <label><span class="frn-meta-label">AAV ($M/yr)</span>
           <input type="number" min="0.5" max="60" step="0.5" value="${offer.aav.toFixed(1)}"
-            id="faOfferAav" onchange="frnFASetOffer('${escSelName}','aav',this.value)">
+            id="faOfferAav" onchange="frnFASetOffer('${escSelName}','aav',this.value)" oninput="frnFACapLiveUpdate(parseFloat(this.value)||0)">
         </label>
         <label><span class="frn-meta-label">YEARS</span>
           <input type="number" min="1" max="7" step="1" value="${offer.years}"
@@ -2748,7 +2879,7 @@ function renderFrnFA(selectedKey) {
         ⏭ END FA & ADVANCE WEEK →
       </button>
     </div>
-    <div class="frn-fa-summary">
+    <div class="frn-fa-summary" id="frn-fa-summary-bar">
       <span>Roster: <b>$${myCapUsed.toFixed(1)}M</b></span>
       <span style="color:var(--gold)">+ Offers: <b>$${totalOfferedAAV.toFixed(1)}M</b></span>
       <span style="color:var(--gold)">− Cuts: <b>$${totalCutSavings.toFixed(1)}M</b></span>
@@ -2768,7 +2899,7 @@ function renderFrnFA(selectedKey) {
       </div>
       <div class="frn-fa-roster-col">
         <div class="frn-card-title">CUT LIST</div>
-        ${selected ? _faNeedsSnippet(chosenTeamId, selected.position) : `<div style="color:var(--gray);font-size:.7rem;margin-bottom:.4rem;font-style:italic">Pick an FA first, then flag cuts here.</div>`}
+        ${_faNeedsSnippet(chosenTeamId, selected?.position ?? null)}
         <div class="frn-fa-roster-list">${rosterHtml}</div>
       </div>
     </div>`;
@@ -2823,6 +2954,32 @@ function frnFASetOffer(faName, field, value) {
   if (field === "structure") offer.structure = value;
   saveFranchise();
   renderFrnFA(faName);
+}
+
+function frnFACapLiveUpdate(newAavForSelected) {
+  const bar = document.getElementById("frn-fa-summary-bar");
+  if (!bar || !franchise) return;
+  const myId = franchise.chosenTeamId;
+  const cap = effectiveSalaryCap(myId);
+  const myCapUsed = capUsedByTeam(myId);
+  let totalOfferedAAV = 0;
+  const allCutNames = new Set();
+  for (const o of Object.values(franchise._faOffers || {})) {
+    totalOfferedAAV += o.aav;
+    (o.cutNames || []).forEach(n => allCutNames.add(n));
+  }
+  const myRoster = franchise.rosters[myId] || [];
+  const totalCutSavings = myRoster.filter(p => allCutNames.has(p.name)).reduce((s,p)=>s+(p.contract?.aav||0),0);
+  const projectedCap = myCapUsed + totalOfferedAAV - totalCutSavings;
+  const overCap = projectedCap > cap;
+  bar.innerHTML = `
+    <span>Roster: <b>$${myCapUsed.toFixed(1)}M</b></span>
+    <span style="color:var(--gold)">+ Offers: <b>$${totalOfferedAAV.toFixed(1)}M</b></span>
+    <span style="color:var(--gold)">− Cuts: <b>$${totalCutSavings.toFixed(1)}M</b></span>
+    <span style="color:${overCap?"var(--red)":"var(--green-lt)"}">
+      = Projected: <b>$${projectedCap.toFixed(1)}M</b> / $${cap.toFixed(0)}M
+      ${overCap ? `(${(projectedCap-cap).toFixed(1)}M OVER)` : `(${(cap-projectedCap).toFixed(1)}M room)`}
+    </span>`;
 }
 
 function frnFAToggleCut(faName, cutName, checked) {

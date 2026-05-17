@@ -871,10 +871,15 @@ function _frnInstallHoverDelegation() {
   document.addEventListener("click", e => {
     const el = e.target.closest?.("[data-player-name],[data-team-id]");
     if (!el) return;
-    // If this name is inside a parent that has its OWN click handler
-    // (e.g., a schedule row that opens the past-game viewer), let
-    // that handler win — don't hijack the click for the tooltip.
-    if (el.parentElement?.closest("[onclick]")) return;
+    // If inside a parent with its own onclick, only intercept when the click
+    // landed directly on the tracked frn-pname/frn-tname span itself —
+    // not on a sibling or ancestor. This lets schedule rows open the game
+    // viewer while player names inside those rows still open the player card.
+    const insideParentOnclick = el.parentElement?.closest("[onclick]");
+    if (insideParentOnclick) {
+      const isTrackedSpan = el.classList.contains("frn-pname") || el.classList.contains("frn-tname");
+      if (!isTrackedSpan) return;
+    }
     if (el.dataset.playerName) {
       e.preventDefault(); e.stopPropagation();
       frnOpenPlayerCard(el.dataset.playerName, el.dataset.playerPid);
