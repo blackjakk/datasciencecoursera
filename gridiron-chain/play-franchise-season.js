@@ -1084,11 +1084,11 @@ function _careerColsFor(pos) {
   ];
   if (pos === "LB") return [
     { key:"tkl", label:"TKL" }, { key:"missed_tkl", label:"MISS" },
-    { key:"sk", label:"SK" }, { key:"int_made", label:"INT" },
+    { key:"sk", label:"SK" }, { key:"int_made", label:"INT" }, { key:"pd", label:"PD" },
   ];
   if (pos === "CB" || pos === "S") return [
-    { key:"int_made", label:"INT" }, { key:"def_td", label:"DEF TD" },
-    { key:"tkl", label:"TKL" }, { key:"missed_tkl", label:"MISS" },
+    { key:"int_made", label:"INT" }, { key:"pd", label:"PD" },
+    { key:"tkl", label:"TKL" }, { key:"missed_tkl", label:"MISS" }, { key:"def_td", label:"DEF TD" },
   ];
   if (pos === "K") return [
     { key:"fg_made", label:"FGM" }, { key:"fg_att", label:"FGA" },
