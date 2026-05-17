@@ -871,14 +871,14 @@ function _frnInstallHoverDelegation() {
   document.addEventListener("click", e => {
     const el = e.target.closest?.("[data-player-name],[data-team-id]");
     if (!el) return;
-    // If inside a parent with its own onclick, only intercept when the click
-    // landed directly on the tracked frn-pname/frn-tname span itself —
-    // not on a sibling or ancestor. This lets schedule rows open the game
-    // viewer while player names inside those rows still open the player card.
+    // If inside a parent with its own onclick, only intercept when the
+    // click landed directly on the tracked element itself (not the parent row).
+    // This lets schedule rows open the game viewer but frn-pname spans still
+    // open the player card regardless of their container.
     const insideParentOnclick = el.parentElement?.closest("[onclick]");
     if (insideParentOnclick) {
-      const isTrackedSpan = el.classList.contains("frn-pname") || el.classList.contains("frn-tname");
-      if (!isTrackedSpan) return;
+      // Only intercept if the click target IS the tracked element itself
+      if (e.target !== el && !el.classList.contains("frn-pname") && !el.classList.contains("frn-tname")) return;
     }
     if (el.dataset.playerName) {
       e.preventDefault(); e.stopPropagation();
