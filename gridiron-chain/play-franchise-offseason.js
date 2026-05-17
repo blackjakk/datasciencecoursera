@@ -4683,14 +4683,11 @@ function runFrnOffseason() {
       }
       if (p.age >= p.declineAge) {
         const yearsPast = p.age - p.declineAge;
-        const regress   = 1 + Math.floor(yearsPast / 2); // 1, 1, 2, 2, 3, 3, ...
-        p.stats[0] = Math.max(30, p.stats[0] - regress); // SPD
-        p.stats[2] = Math.max(30, p.stats[2] - regress); // AGI
-        // 50% chance to also chip STR/AWR for deeper veterans
+        // Physical decay handled by _physicalPeak block below (SPD/AGI/STR).
+        // This block adds a deeper STR chip for veterans well past their cliff.
         if (yearsPast >= 2 && Math.random() < 0.5) {
           p.stats[1] = Math.max(30, p.stats[1] - 1); // STR
         }
-        p.overall = Math.max(50, p.overall - (regress >= 2 ? 2 : 1));
       }
       // Young progression: grow toward potential ceiling each offseason.
       // Hidden gems use a flat per-season rate toward their true ceiling;
@@ -4703,6 +4700,25 @@ function runFrnOffseason() {
       // Resolve gem ceiling — remove flag once reached
       if (p.hiddenGem && p.overall >= p.hiddenGem.ceiling) delete p.hiddenGem;
 
+      // Position-specific stat pools for development. Speed (0) and agility (2)
+      // are physical gifts that don't improve through coaching — only low-value
+      // players see tiny physical gains via the _physicalPeak pre-peak window.
+      // Every other stat here is a learnable skill or fillable physical trait.
+      const _devStatPool = (pos, age) => {
+        switch (pos) {
+          case "QB": return [4, 3];                                    // THR, AWR
+          case "RB": return [5, age <= 26 ? 1 : 5];                   // CAT, STR→CAT
+          case "WR": return [5, 3];                                    // CAT, AWR
+          case "TE": return [5, 6];                                    // CAT, BLK
+          case "OL": return [6, age <= 27 ? 1 : 6];                   // BLK, STR→BLK
+          case "DL": return [7, age <= 27 ? 1 : 7];                   // PRS, STR→PRS
+          case "LB": return [9, Math.random() < 0.5 ? 8 : 7];        // TCK, COV/PRS
+          case "CB": return [8, 3];                                    // COV, AWR
+          case "S":  return [8, 9];                                    // COV, TCK
+          default:   return [11, 11];                                  // TEC only
+        }
+      };
+
       if (p.hiddenGem && p.age <= 28) {
         // Hidden gem path: steady flat growth, independent of the normal
         // potential system. Potential is raised to reflect the true ceiling
@@ -4714,8 +4730,7 @@ function runFrnOffseason() {
         ));
         if (growth > 0) {
           p.overall = Math.min(p.hiddenGem.ceiling, p.overall + growth);
-          const k1 = Math.floor(Math.random() * p.stats.length);
-          const k2 = Math.floor(Math.random() * p.stats.length);
+          const [k1, k2] = _devStatPool(p.position, p.age);
           p.stats[k1] = Math.min(99, p.stats[k1] + Math.ceil(growth * 0.6));
           p.stats[k2] = Math.min(99, p.stats[k2] + Math.floor(growth * 0.4));
         }
@@ -4728,8 +4743,7 @@ function runFrnOffseason() {
           const growth = Math.max(0, Math.round(gap * baseRate * coachBoost));
           if (growth > 0) {
             p.overall = Math.min(99, p.overall + growth);
-            const k1 = Math.floor(Math.random() * p.stats.length);
-            const k2 = Math.floor(Math.random() * p.stats.length);
+            const [k1, k2] = _devStatPool(p.position, p.age);
             p.stats[k1] = Math.min(99, p.stats[k1] + Math.ceil(growth * 0.6));
             p.stats[k2] = Math.min(99, p.stats[k2] + Math.floor(growth * 0.4));
           }
@@ -4814,18 +4828,18 @@ function runFrnOffseason() {
           const yrs = age - onset;
           return yrs <= 0 ? 0 : yrs === 1 ? 0.20 : yrs === 2 ? 0.30 : 0.40;
         };
-        // SPD (0)
+        // SPD (0) — genetic; only very slow players see tiny pre-peak gains
         const spdD = _dc(pp.spd.onset);
-        if      (spdD > 0 && Math.random() < spdD)          p.stats[0] = Math.max(38, p.stats[0] - 1);
-        else if (age < pp.spd.peak && Math.random() < 0.08) p.stats[0] = Math.min(99, p.stats[0] + 1);
-        // STR (1)
+        if      (spdD > 0 && Math.random() < spdD)                              p.stats[0] = Math.max(38, p.stats[0] - 1);
+        else if (age < pp.spd.peak && p.stats[0] < 58 && Math.random() < 0.08) p.stats[0] = Math.min(57, p.stats[0] + 1);
+        // STR (1) — weight room gains; grows until peak, fades after onset
         const strD = _dc(pp.str.onset);
         if      (strD > 0 && Math.random() < strD)          p.stats[1] = Math.max(38, p.stats[1] - 1);
         else if (age < pp.str.peak && Math.random() < 0.05) p.stats[1] = Math.min(99, p.stats[1] + 1);
-        // AGI (2)
+        // AGI (2) — genetic; only very low-agility players see tiny pre-peak gains
         const agiD = _dc(pp.agi.onset);
-        if      (agiD > 0 && Math.random() < agiD)          p.stats[2] = Math.max(36, p.stats[2] - 1);
-        else if (age < pp.agi.peak && Math.random() < 0.07) p.stats[2] = Math.min(99, p.stats[2] + 1);
+        if      (agiD > 0 && Math.random() < agiD)                              p.stats[2] = Math.max(36, p.stats[2] - 1);
+        else if (age < pp.agi.peak && p.stats[2] < 58 && Math.random() < 0.07) p.stats[2] = Math.min(57, p.stats[2] + 1);
         // Recalculate overall to reflect physical changes
         p.overall = calcOverall(p.position, p.stats);
       }
