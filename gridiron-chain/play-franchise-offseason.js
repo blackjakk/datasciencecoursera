@@ -4581,8 +4581,9 @@ function runFrnOffseason() {
                           : 1.0;
         const tecMul      = tierInfo.tecMul * hcDevMul * filmMul * coordDevMul;
         const effectiveTecMul = Math.min(5.0,
-          (p.position === "QB" && ocTrait === "QB Whisperer") ? tecMul * 2 :
-          (p.position === "OL" && ocTrait === "Trench General") ? tecMul * 2 : tecMul);
+          (p.position === "QB" && ocTrait === "QB Whisperer")  ? tecMul * 2.0 :
+          (p.position === "OL" && ocTrait === "Trench General") ? tecMul * 2.0 :
+          (p.position === "RB" && ocTrait === "Run Architect")  ? tecMul * 1.5 : tecMul);
 
         const baseChance = 0.12;
         if ((p.age || 25) <= 30 && Math.random() < baseChance * effectiveTecMul) {

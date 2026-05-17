@@ -1026,7 +1026,7 @@ const OC_TRAITS = [
   { key:"QB Whisperer",    desc:"QB TEC growth ×2, QB AWR ceiling +5" },
   { key:"Air Attack",      desc:"Air yards +1.0 mean" },
   { key:"Red Zone Genius", desc:"RZ TD conversion +8%" },
-  { key:"Run Architect",   desc:"Run variant effectiveness +10%" },
+  { key:"Run Architect",   desc:"RB TEC growth ×1.5 — develops the ball carrier" },
   { key:"Trench General",  desc:"OL TEC growth ×2, +1 offense when running SMASHMOUTH" },
   { key:"Balanced",        desc:"No modifier — adapts to HC scheme" },
 ];
