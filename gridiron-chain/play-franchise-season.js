@@ -2695,9 +2695,11 @@ function frnFASubmitOffer(faName) {
 }
 
 function frnFAWithdrawOffer(faName) {
-  // faName may be a pid or legacy name — delete whichever key exists
   if (franchise._faOffers) {
+    // Delete both pid-keyed and name-keyed entries so legacy saves can't ghost
     delete franchise._faOffers[faName];
+    const alt = (franchise.freeAgents || []).find(p => p.pid === faName || p.name === faName);
+    if (alt) delete franchise._faOffers[alt.pid || alt.name];
   }
   saveFranchise();
   renderFrnFA(faName);
@@ -2869,7 +2871,8 @@ function _faAIBidRound(week, isInitial) {
   // After every team has had its turn, resolve knockouts: solo-knockout
   // signs immediately; contested 150%+ bids escalate into a war.
   for (const fa of candidates) {
-    if (negs[fa.name]?.state === "negotiating") _faTryKnockout(fa.name);
+    const nk = _negKey(fa);
+    if (negs[nk]?.state === "negotiating") _faTryKnockout(nk);
   }
 }
 
