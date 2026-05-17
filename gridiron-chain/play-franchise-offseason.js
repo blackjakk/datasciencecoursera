@@ -6747,6 +6747,281 @@ function _renderTradeOffersTab() {
 // stocked with elite/good prospects; later rounds are mostly poor. User
 // picks for their team; AI auto-picks for others between user turns.
 // After the final pick, remaining roster gaps are filled with UDFAs.
+// ── College Profile System ────────────────────────────────────────────────────
+function _nameHash(name, seed) {
+  let h = seed | 0;
+  for (let i = 0; i < (name || "").length; i++) h = (h * 53 + name.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+function _clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+function _lerpR(a, b, t) { return Math.round(a + (b - a) * _clamp(t, 0, 1)); }
+
+const _KNOCK_TYPES_BY_POS = {
+  QB:  ["system_player","small_school","injury","one_year_wonder"],
+  RB:  ["scheme_fit","durability","pass_blocking"],
+  WR:  ["system_player","combine_flop","small_school","one_year_wonder"],
+  TE:  ["system_player","technique","scheme_fit"],
+  OL:  ["short_arms","medical","technique","converted"],
+  DL:  ["weight_concern","production_drop","scheme_fit"],
+  LB:  ["coverage","size","scheme_fit"],
+  CB:  ["combine_flop","technique","small_school"],
+  S:   ["range","box_only","combine_flop"],
+  K:   ["accuracy","leg_strength"],
+  P:   ["directional","consistency"],
+};
+
+function _selectKnock(p, round) {
+  const knockList = _KNOCK_TYPES_BY_POS[p.position] || [];
+  if (!knockList.length) return null;
+  const expected = { 1:88,2:81,3:75,4:70,5:66,6:63,7:60,0:58 }[round] ?? 65;
+  const isHighUpsideLate = (p.potential || 65) >= expected + 4 && round >= 4;
+  const knockProb = { 1:0.12,2:0.12,3:0.30,4:0.55,5:0.55,6:0.70,7:0.70 }[round] ?? 0.50;
+  const h = _nameHash(p.name, 97);
+  if (!isHighUpsideLate && (h % 1000) / 1000 >= knockProb) return null;
+  return knockList[(h >> 8) % knockList.length];
+}
+
+function _knockStr(knockType, pos, fortyTime) {
+  const slow40 = parseFloat(fortyTime) > 4.60;
+  const table = {
+    system_player:   { QB:"Spread system QB — reads simplified; rarely worked under center",
+                       WR:"System receiver — 90% of routes within 10 yds of LOS",
+                       TE:"Air-raid TE — almost exclusively lined up in slot",
+                       default:"Production inflated by scheme — fits one system" },
+    small_school:    { QB:"Limited reps vs Power-5 pass rushers — competition level unclear",
+                       WR:"Small-school corners exposed route-running limitations",
+                       CB:"Small-school competition — rarely tested by top receivers",
+                       default:"Small-school production — NFL competition level unknown" },
+    injury:          { QB:"Shoulder strain history — two injury-shortened seasons",
+                       RB:"Two injury-shortened seasons — durability is the main concern",
+                       DL:"Knee scope sophomore year — missed half of junior season",
+                       default:"Injury history — missed significant game time in college" },
+    medical:         { OL:"Failed initial medical — ligament scar tissue in both knees",
+                       default:"Medical red flag — multiple teams paused scouting" },
+    one_year_wonder: { QB:"Breakout only in final season — prior years show inconsistency",
+                       WR:"Single explosive year raises system-dependency concerns",
+                       default:"Production concentrated in one season — trajectory unclear" },
+    scheme_fit:      { RB:"Zone-specific back — struggles in gap/power looks",
+                       TE:"Inline blocker only — won't contribute as a receiver early",
+                       DL:"One-gap fit — production drops in two-gap schemes",
+                       LB:"Strong-side only — range and coverage limit three-down value",
+                       default:"Scheme-specific production — limited versatility" },
+    durability:      { RB:"Carry load trending down each season — needs load management",
+                       default:"Durability concern — wear showing on film" },
+    pass_blocking:   { RB:"Pass protection near bottom of class — sub-package liability early",
+                       default:"Pass protection technique needs NFL development" },
+    combine_flop:    { WR:slow40 ? `${fortyTime}s 40 is a concern for his college alignment` : "Combine disappointed — separation questions at next level",
+                       CB:slow40 ? `${fortyTime}s raised alarms for a press corner` : "Combine underwhelmed — relies on technique over athleticism",
+                       S:"Combine was flat — range in coverage must develop",
+                       default:"Combine measurables raised concern — athletic ceiling in question" },
+    technique:       { TE:"Blocking footwork inconsistent — false steps against speed rushers",
+                       OL:"Hand placement sloppy under pressure — needs technique overhaul",
+                       CB:"Press technique breaks down vs physical receivers",
+                       default:"Technique needs refinement — raw athleticism ahead of polish" },
+    converted:       { OL:"Converted from DL — two years at tackle, one at guard",
+                       default:"Positional convert — learning curve ahead" },
+    short_arms:      { OL:`32¼" arm length — below threshold for tackle; interior project`,
+                       default:"Arm length concern at the position" },
+    weight_concern:  { DL:"Listed at 278 — scouts question gap integrity at NFL weight",
+                       default:"Weight projection concern — body type questions" },
+    production_drop: { DL:"Senior sack total dropped from 10.5 to 4.0 — opponents adjusted",
+                       default:"Production declined in final season — questions remain" },
+    coverage:        { LB:"Man coverage grade near bottom of class — base-down only",
+                       default:"Coverage limitations — will be scheme-dependent" },
+    size:            { LB:`Listed at 6'0" 225 — teams question gap integrity vs power backs`,
+                       default:"Size concern at the position" },
+    range:           { S:"Limited range — plays best within 8 yards of LOS on film",
+                       default:"Range concerns in zone — struggles to cover ground" },
+    box_only:        { S:"Box safety archetype — single-high and cover-2 expose limitations",
+                       default:"Fits a limited role — versatility in question" },
+    accuracy:        { K:"Strong inside 40 but percentage drops sharply on distance kicks",
+                       default:"Accuracy concerns at distance" },
+    leg_strength:    { K:"Consistent inside 45 but rarely attempted beyond — range development needed",
+                       default:"Leg strength development needed" },
+    directional:     { P:"Elite distance but directional hang time is inconsistent",
+                       default:"Directional technique needs work" },
+    consistency:     { P:"High game-to-game variance on film — boom or bust",
+                       default:"Consistency is the key development area" },
+  };
+  const grp = table[knockType];
+  if (!grp) return "Scouting concern";
+  return grp[pos] || grp.default || "Scouting concern";
+}
+
+function _buildScoutKnockNote(knockType, isHighUpside) {
+  const notes = {
+    system_player:    { dismiss:"Film in 1-on-1 drills is pro-ready — routes aren't scheme-dependent",
+                        confirm:"Scheme reliance confirmed — struggles vs press coverage in workout film" },
+    small_school:     { dismiss:"Senior Bowl reps were exceptional — dominated Power-5 corners all week",
+                        confirm:"Struggled vs first-round corner in Senior Bowl — athleticism gap is real" },
+    injury:           { dismiss:"Team physician cleared him — structural MRI clean, no restrictions",
+                        confirm:"Medical review flagged incomplete healing — Year 1 workload will be limited" },
+    medical:          { dismiss:"Second opinion clean — initial concern overblown by combine staff",
+                        confirm:"Three teams passed on medical — our physician agrees with the concern" },
+    one_year_wonder:  { dismiss:"QB change unlocked him — prior years' production was scheme, not ability",
+                        confirm:"1-on-1 drill film shows the breakout was coaching-driven, not repeatable" },
+    scheme_fit:       { dismiss:"Private workout outstanding — footwork translates across schemes",
+                        confirm:"Didn't recognize a single coverage adjustment in workout — one-system fit" },
+    durability:       { dismiss:"Conditioning blew scouts away — fastest RB on the board at the combine",
+                        confirm:"Showed fatigue in late-game carries junior year — load management needed" },
+    pass_blocking:    { dismiss:"Sat through a full protection clinic — technique cleaned up noticeably",
+                        confirm:"Failed to disengage from blitz twice in practice — third-down liability" },
+    combine_flop:     { dismiss:"Pro day re-test significantly faster — combine surface was the factor",
+                        confirm:"Pro day didn't move the needle — this is his athletic ceiling" },
+    technique:        { dismiss:"Private workout shows dramatic improvement — extremely coachable",
+                        confirm:"Footwork didn't improve in workout — needs intensive coaching from Day 1" },
+    converted:        { dismiss:"Two years at position is enough — Senior Bowl showed NFL-ready technique",
+                        confirm:"Technique gaps still visible — project as a reserve for at least a season" },
+    short_arms:       { dismiss:"Compensates with exceptional anchor and hand speed — plays longer than measured",
+                        confirm:"Arm length confirmed — gets pushed around by bull rushers with longer leverage" },
+    weight_concern:   { dismiss:"Body fat at combine was elite — the weight is functional muscle",
+                        confirm:"Asked to add 10 lbs — struggled to stay over 270; project to lose gap battles" },
+    production_drop:  { dismiss:"Coaches schemed away from him — targeted by every OC in the conference",
+                        confirm:"Motor seemed to dial back after sophomore year — needs a culture reset" },
+    coverage:         { dismiss:"Zone instincts excellent in workout — two-down starter ceiling at worst",
+                        confirm:"Third-down liability confirmed — will come off the field in dime packages" },
+    size:             { dismiss:"Plays bigger than listed — elite pad level compensates at every level",
+                        confirm:"Tested against power backs at Senior Bowl — got pushed off blocks twice" },
+    range:            { dismiss:"Shrine Game shows deceptively fast closing burst — more range than timed speed",
+                        confirm:"Range limitation confirmed in drills — best fit is strong safety in two-high shell" },
+    box_only:         { dismiss:"Covered a TE down the seam in practice — more versatile than usage shows",
+                        confirm:"Zone breaks down past 15 yards — center-field role not viable" },
+    accuracy:         { dismiss:"Kicked in rain and wind at combine — controlled conditions show 90%+ inside 50",
+                        confirm:"Beyond-50 accuracy didn't improve at pro day — situational kicker ceiling" },
+    leg_strength:     { dismiss:"Building strength in the program — pro day leg was 5 yards longer than combine",
+                        confirm:"Pro day didn't move the needle — realistic ceiling is 50 yards" },
+    directional:      { dismiss:"Directional technique cleaned up at pro day — punted inside the 10 three times",
+                        confirm:"Directional work inconsistent at pro day — distance is his only reliable tool" },
+    consistency:      { dismiss:"Variance on film is game-context driven — bad program, not bad punter",
+                        confirm:"Confirmed variance — three shank-level kicks in a 20-ball pro day session" },
+  };
+  const pair = notes[knockType];
+  if (!pair) return null;
+  return isHighUpside ? pair.dismiss : pair.confirm;
+}
+
+function _getScoutKnockNote(name) {
+  return franchise.draftScoutReveals?.[name]?.knockNote || null;
+}
+
+function _buildCollegeProfile(p, round) {
+  const pos = p.position;
+  const s = p.stats || [];
+  const [spd=50, str=50, agi=50, awr=50, thr=50, cat=50, blk=50, prs=50, cov=50, tck=50, kpw=50] = s;
+  const h1 = _nameHash(p.name, 17);
+  const h2 = _nameHash(p.name, 41);
+  const h3 = _nameHash(p.name, 67);
+  const nz  = (h, r) => (h % (r * 2 + 1)) - r;
+  const scl1 = v => _clamp((v - 45) / 35, 0, 1);
+  const scl2 = (a, b) => _clamp(((a + b) - 90) / 70, 0, 1);
+  const rf   = round <= 2 ? 0.40 : round <= 4 ? 0.20 : 0.10;
+
+  const knockType = _selectKnock(p, round);
+  const knock     = knockType ? _knockStr(knockType, pos, combineMeasurables(p).fortyTime) : null;
+
+  const injKnock = ["injury","medical","durability"].includes(knockType);
+  const games    = Math.max(5, Math.min(15, (injKnock ? 7 : 13) + nz(h3, 2)));
+  const sys      = knockType === "system_player" ? 1.25 : 1.0;
+
+  let line = "";
+  if (pos === "QB") {
+    const t   = Math.max(rf, scl2(thr, awr));
+    const yds = Math.round((_lerpR(1200, 3800, t) + nz(h1, 120)) * sys);
+    const td  = Math.max(6,  _lerpR(8, 30, t) + nz(h2, 3));
+    const cmp = _clamp(_lerpR(55, 70, t) + nz(h3, 3), 50, 76);
+    if (knockType === "one_year_wonder") {
+      const pYds = Math.round(yds * 0.38 + nz(h1 >> 3, 80));
+      line = `Jr: ${pYds.toLocaleString()} YDS · ${Math.max(3,Math.round(td*0.37))} TD → Sr: ${yds.toLocaleString()} YDS · ${td} TD · ${cmp}%`;
+    } else {
+      line = `${yds.toLocaleString()} YDS · ${td} TD · ${cmp}% comp · ${games}G`;
+    }
+  } else if (pos === "RB") {
+    const t   = Math.max(rf, scl2(spd, agi));
+    const yds = Math.round((_lerpR(450, 1500, t) + nz(h1, 100)) * sys);
+    const att = Math.max(60, _lerpR(100, 280, t) + nz(h2, 20));
+    const td  = Math.max(3,  _lerpR(4, 15, t)  + nz(h3, 2));
+    const ypc = (yds / att).toFixed(1);
+    const recLine = cat > 52 && knockType !== "pass_blocking"
+      ? ` · ${Math.max(5, _lerpR(12, 52, scl1(cat)) + nz(h3 >> 2, 5))} REC` : "";
+    if (knockType === "one_year_wonder") {
+      const pYds = Math.round(yds * 0.45 + nz(h1 >> 3, 60));
+      line = `Jr: ${pYds} YDS · ${Math.max(2,Math.round(td*0.4))} TD → Sr: ${yds} YDS · ${td} TD · ${ypc} YPC`;
+    } else {
+      line = `${yds} YDS · ${td} TD · ${ypc} YPC${recLine} · ${games}G`;
+    }
+  } else if (pos === "WR") {
+    const t   = Math.max(rf, scl2(spd, cat));
+    const rec = Math.round((_lerpR(22, 88, t) + nz(h1, 8)) * sys);
+    const yds = Math.round((_lerpR(280, 1350, t) + nz(h2, 80)) * sys);
+    const td  = Math.max(2,  _lerpR(2, 13, t) + nz(h3, 2));
+    const ypr = (yds / Math.max(1, rec)).toFixed(1);
+    if (knockType === "one_year_wonder") {
+      const pRec = Math.round(rec * 0.35 + nz(h1 >> 3, 5));
+      const pYds = Math.round(yds * 0.35 + nz(h2 >> 3, 40));
+      line = `Jr: ${pRec} REC · ${pYds} YDS → Sr: ${rec} REC · ${yds} YDS · ${td} TD`;
+    } else {
+      line = `${rec} REC · ${yds} YDS · ${td} TD · ${ypr} YPR · ${games}G`;
+    }
+  } else if (pos === "TE") {
+    const t   = Math.max(rf, scl2(cat, blk));
+    const rec = Math.round((_lerpR(14, 62, t) + nz(h1, 6)) * sys);
+    const yds = Math.round((_lerpR(160, 820, t) + nz(h2, 60)) * sys);
+    const td  = Math.max(1,  _lerpR(1, 10, t) + nz(h3, 2));
+    line = `${rec} REC · ${yds} YDS · ${td} TD · ${games}G`;
+  } else if (pos === "OL") {
+    const t   = Math.max(rf, scl2(str, blk));
+    const gs  = Math.max(8,  _lerpR(18, 50, t) + nz(h1, 5));
+    const pbr = _clamp(_lerpR(72, 96, t) + nz(h2 % 100, 5), 60, 98);
+    const hon = t > 0.82 ? (t > 0.92 ? " · 1st-Tm All-Conf" : " · 2nd-Tm All-Conf") : "";
+    line = `${gs} GS${hon} · ${pbr}.${Math.abs(nz(h3,9))} pass block rtg`;
+  } else if (pos === "DL") {
+    const t   = Math.max(rf, scl2(prs, str));
+    const skR = Math.max(5,  _lerpR(15, 140, t) + nz(h1, 15));
+    const flR = Math.max(10, _lerpR(30, 190, t) + nz(h2, 20));
+    const tkl = Math.max(12, _lerpR(22, 55, t)  + nz(h3, 6));
+    const sk  = (skR / 10).toFixed(1);
+    const tfl = (flR / 10).toFixed(1);
+    if (knockType === "production_drop") {
+      const priorSk = ((skR + 40 + nz(h1 >> 4, 10)) / 10).toFixed(1);
+      line = `Jr: ${priorSk} SK → Sr: ${sk} SK · ${tfl} TFL · ${tkl} TKL`;
+    } else {
+      line = `${sk} SK · ${tfl} TFL · ${tkl} TKL · ${games}G`;
+    }
+  } else if (pos === "LB") {
+    const t   = Math.max(rf, scl2(tck, prs));
+    const tkl = Math.max(30, _lerpR(48, 128, t) + nz(h1, 10));
+    const skR = Math.max(5,  _lerpR(10, 90, t)  + nz(h2, 10));
+    const ints = Math.max(0, _lerpR(0, 5, scl1(cov)) + nz(h3 % 5, 1));
+    line = `${tkl} TKL · ${(skR/10).toFixed(1)} SK · ${ints} INT · ${games}G`;
+  } else if (pos === "CB") {
+    const t   = Math.max(rf, scl2(cov, spd));
+    const pds  = Math.max(2, _lerpR(4, 20, t) + nz(h1, 3));
+    const ints = Math.max(0, _lerpR(0, 7, t)  + nz(h2, 2));
+    const pRtg = _clamp(_lerpR(105, 50, t) + nz(h3, 8), 42, 118);
+    line = `${pds} PD · ${ints} INT · ${pRtg} passer rtg allowed · ${games}G`;
+  } else if (pos === "S") {
+    const t   = Math.max(rf, scl2(tck, cov));
+    const tkl  = Math.max(25, _lerpR(40, 115, t) + nz(h1, 10));
+    const ints = Math.max(0,  _lerpR(0, 7, t)    + nz(h2, 2));
+    const pds  = Math.max(0,  _lerpR(2, 14, t)   + nz(h3, 3));
+    line = `${tkl} TKL · ${ints} INT · ${pds} PD · ${games}G`;
+  } else if (pos === "K") {
+    const t    = scl1(kpw);
+    const made = Math.max(6,  _lerpR(12, 28, t) + nz(h1, 3));
+    const att  = made + Math.max(1, _lerpR(2, 6, t) + nz(h2, 2));
+    const lng  = Math.max(38, _lerpR(43, 60, t) + nz(h3, 3));
+    line = `${made}/${att} FG · ${Math.round((made/att)*100)}% · ${lng}yd long`;
+  } else if (pos === "P") {
+    const t    = scl1(kpw);
+    const net  = ((_lerpR(370, 460, t) + nz(h1, 12)) / 10).toFixed(1);
+    const i20  = Math.max(6,  _lerpR(10, 26, t) + nz(h2, 3));
+    const gross = (parseFloat(net) + 1.5 + (Math.abs(nz(h3 % 20, 8)) / 10)).toFixed(1);
+    line = `${gross} gross · ${net} net · ${i20} inside-20`;
+  }
+
+  return { line, knock, knockType };
+}
+
 function frnGoToDraft() {
   const rookieYear = (new Date().getFullYear()) + (franchise.season || 1);
   franchise.draft = {
@@ -6792,6 +7067,10 @@ function _buildDraftClass(rookieYear) {
       p.draftYear = rookieYear;
       p.draftSeason = (franchise?.season || 1) + 1;
       p.isProspect = true;
+      p._generatedRound = round;
+      p.draftRound = round; // temporary — overwritten at pick time; needed by _rollPotential
+      p.potential = _rollPotential(p);
+      p.collegeProfile = _buildCollegeProfile(p, round);
       // genPlayer called generateCareer with the original random age (up to 33),
       // which can leave multi-year synthetic history on a 21-year-old prospect.
       // Wipe it so the player card correctly shows "Rookie season."
@@ -6983,6 +7262,9 @@ function renderFrnDraft() {
           <span class="frn-dp-meta">${meta}</span>
           <span class="frn-dp-combine"> · ${_draftCombineStr(p)}</span>
         </div>
+        ${p.collegeProfile?.line ? `<div style="font-size:.58rem;color:var(--gray);margin-top:.1rem">${p.collegeProfile.line}</div>` : ""}
+        ${p.collegeProfile?.knock ? `<div style="font-size:.58rem;color:#e8a000;margin-top:.06rem">⚠ ${p.collegeProfile.knock}</div>` : ""}
+        ${isScouted && _getScoutKnockNote(p.name) ? `<div style="font-size:.57rem;color:var(--green-lt);margin-top:.06rem">🔍 Scout: ${_getScoutKnockNote(p.name)}</div>` : ""}
       </div>
       <div class="frn-dp-actions">
         <button class="frn-draft-target-btn${isTargeted?" active":""}" onclick="frnDraftToggleTarget('${esc}')" title="${isTargeted?"Remove target":"Mark as target"}">★</button>
@@ -7099,7 +7381,10 @@ const DRAFT_SCOUT_SLOTS = 8;
 // Returns true if this scout assignment rolled a full potential reveal (30% chance,
 // set once on assignment and stable for the rest of the draft).
 function _isDraftScoutRevealed(name) {
-  return !!(franchise.draftScoutReveals?.[name]);
+  const val = franchise.draftScoutReveals?.[name];
+  if (!val) return false;
+  if (typeof val === "boolean") return val; // legacy saves
+  return !!(val.revealed);
 }
 
 function frnDraftScout(name) {
@@ -7113,8 +7398,14 @@ function frnDraftScout(name) {
   } else {
     if (franchise.draftScouts.length >= DRAFT_SCOUT_SLOTS) return;
     franchise.draftScouts.push(name);
+    const prospect   = franchise.draft.class.find(q => q.name === name);
+    const knockType  = prospect?.collegeProfile?.knockType || null;
+    const r          = prospect?._generatedRound || 5;
+    const expPot     = { 1:88,2:81,3:75,4:70,5:66,6:63,7:60,0:58 }[r] ?? 65;
+    const isHiUp     = (prospect?.potential || 65) >= expPot + 4;
+    const knockNote  = knockType ? _buildScoutKnockNote(knockType, isHiUp) : null;
     // 30% chance of a full potential reveal — locked in at assignment time
-    franchise.draftScoutReveals[name] = Math.random() < 0.30;
+    franchise.draftScoutReveals[name] = { revealed: Math.random() < 0.30, knockNote };
   }
   saveFranchise();
   renderFrnDraft();
