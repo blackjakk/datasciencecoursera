@@ -2323,6 +2323,9 @@
   .frn-dc-player.s1 { border-left: 2px solid rgba(212,175,55,.45); }
   .frn-dc-player.s2 { border-left: 2px solid rgba(255,255,255,.07); opacity: .88; }
   .frn-dc-player.s2:hover { opacity: 1; }
+  /* Cascade slot: player is a starter elsewhere who slides up on injury */
+  .frn-dc-player.sc { border-left: 2px solid rgba(124,200,232,.35); opacity: .82; }
+  .frn-dc-player.sc:hover { opacity: 1; }
   .frn-dc-player.injured { opacity: .7; }
   .frn-dc-player.empty   { opacity: .4; }
   .frn-dc-rank {
@@ -2330,6 +2333,7 @@
   }
   .frn-dc-rank.r1 { color: var(--gold); }
   .frn-dc-rank.r2 { color: var(--blgray); }
+  .frn-dc-rank.rc { color: #7ac8e8; }
   .frn-dc-name {
     font-size: .69rem; font-weight: 700; cursor: pointer; flex-shrink: 0;
     text-decoration: underline; text-decoration-style: dotted;
@@ -2349,7 +2353,8 @@
   .frn-dc-badge.red { background: var(--red); color: #fff; }
   .frn-dc-badge.exp { border: 1px solid #ff6b6b; color: #ff6b6b; }
   .frn-dc-badge.blk { color: #e8a000; }
-  .frn-dc-badge.pot { color: var(--blgray); font-size: .44rem; }
+  .frn-dc-badge.pot    { color: var(--blgray); font-size: .44rem; }
+  .frn-dc-badge.cascade { color: #7ac8e8; border: 1px solid rgba(124,200,232,.4); border-radius: 2px; }
 
   /* Snap bar (center column) */
   .frn-dc-snap-col {

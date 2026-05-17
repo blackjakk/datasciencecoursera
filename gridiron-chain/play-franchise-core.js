@@ -1870,12 +1870,47 @@ function _initDepthChart(teamId) {
     };
   }
 
-  // Pass 2: fill backup slots with the next-best available player per position.
+  // Group slots by position to determine cascade eligibility.
+  // Sequential multi-slot groups (WR, OL, DL, LB, CB, TE) use cascade backups:
+  //   slot[i].backup = slot[i+1].starter  (e.g. WR1 backup = WR2 starter)
+  // This reflects reality — if WR1 is injured, WR2 slides up.
+  // SS/FS are distinct roles (not sequential), so they get independent backups.
+  const slotsByPos = {};
+  for (const sd of allSlots) {
+    if (!slotsByPos[sd.pos]) slotsByPos[sd.pos] = [];
+    slotsByPos[sd.pos].push(sd);
+  }
+  const cascadePos = new Set(
+    Object.entries(slotsByPos)
+      .filter(([pos, slots]) => slots.length > 1 && pos !== "S")
+      .map(([pos]) => pos)
+  );
+
+  // Pass 2: assign backups — cascade for sequential groups, traditional otherwise.
+  const usedBackup = new Set(); // only blocks double-backup in non-cascade slots
   for (const slotDef of allSlots) {
-    const backup = take(next(slotDef.pos));
-    dc[slotDef.key].backup = backup?.pid ?? null;
-    const starter = dc[slotDef.key].starter ? (franchise.rosters[teamId]||[]).find(p=>p.pid===dc[slotDef.key].starter) : null;
-    ss[slotDef.key] = _computeOptimalPct(starter, backup, slotDef.snapFloor, slotDef.snapCeil);
+    const posSlots = slotsByPos[slotDef.pos];
+    const slotIdx  = posSlots.findIndex(s => s.key === slotDef.key);
+    let backupPid  = null;
+
+    if (cascadePos.has(slotDef.pos) && slotIdx < posSlots.length - 1) {
+      // Cascade: backup is whoever starts in the next slot (they slide up on injury).
+      backupPid = dc[posSlots[slotIdx + 1].key]?.starter ?? null;
+    } else {
+      // Last slot in a cascade group OR independent position (QB, RB, S, K, P):
+      // find the best remaining player of this position not starting anywhere in the group.
+      const groupStarterPids = new Set(posSlots.map(s => dc[s.key]?.starter).filter(Boolean));
+      const backup = (byPos[slotDef.pos] || [])
+        .find(p => !groupStarterPids.has(p.pid) && !usedBackup.has(p.pid)) ?? null;
+      if (backup) { backupPid = backup.pid; usedBackup.add(backup.pid); }
+    }
+
+    dc[slotDef.key].backup = backupPid;
+    const starterObj = dc[slotDef.key].starter
+      ? (franchise.rosters[teamId]||[]).find(p => p.pid === dc[slotDef.key].starter) : null;
+    const backupObj  = backupPid
+      ? (franchise.rosters[teamId]||[]).find(p => p.pid === backupPid) : null;
+    ss[slotDef.key] = _computeOptimalPct(starterObj, backupObj, slotDef.snapFloor, slotDef.snapCeil);
   }
 
   franchise.depthChart[teamId] = dc;

@@ -1853,6 +1853,18 @@ function renderFrnDepthChart() {
     if (slot.backup)  assignedPids.add(slot.backup);
   }
 
+  // Map each pid → every slot it appears in (starter or backup), for cascade labels.
+  const pidSlotMap = {};
+  for (const [key, slot] of Object.entries(dc)) {
+    const add = (pid, role) => {
+      if (!pid) return;
+      if (!pidSlotMap[pid]) pidSlotMap[pid] = [];
+      pidSlotMap[pid].push({ key, role });
+    };
+    add(slot.starter, "starter");
+    add(slot.backup,  "backup");
+  }
+
   // ── Strength helpers ──────────────────────────────────────────────────────
   const _groupOVR = slots => {
     const ovrs = slots.map(k => dc[k]?.starter ? (byPid[dc[k].starter]?.overall || 60) : 0).filter(Boolean);
@@ -1890,15 +1902,27 @@ function renderFrnDepthChart() {
     const potTag     = potentialTag(p, { known: true });
     const potBadge   = potTag
       ? `<span class="frn-dc-badge pot">${potTag}</span>` : "";
-    const promoteBtn = !isStarter
+
+    // Cascade badge: if this player is also a starter in another slot, show it.
+    // e.g. WR1 backup row shows "(WR2)" because that player is the WR2 starter.
+    const allSlots    = pidSlotMap[p.pid] || [];
+    const starterElsewhere = allSlots.find(e => e.key !== slotKey && e.role === "starter");
+    const cascadeBadge = (!isStarter && starterElsewhere)
+      ? `<span class="frn-dc-badge cascade" title="This player is ${starterElsewhere.key} starter — slides up on injury">⤴ ${starterElsewhere.key}</span>` : "";
+    // If cascade, suppress the promote button (they're already a starter elsewhere)
+    const isCascade   = !isStarter && !!starterElsewhere;
+    const promoteBtn  = (!isStarter && !isCascade)
       ? `<button class="frn-dc-promote" onclick="event.stopPropagation();frnDepthSwapInSlot('${slotKey}')" title="Make starter">▲</button>` : "";
 
-    return `<div class="frn-dc-player ${isStarter?"s1":"s2"}${isInjured?" injured":""}">
-      <span class="frn-dc-rank ${isStarter?"r1":"r2"}">${isStarter?"★1":"▸2"}</span>
+    const rankLabel = isStarter ? "★1" : (isCascade ? "⤴" : "▸2");
+    const rankClass = isStarter ? "r1"  : (isCascade ? "rc" : "r2");
+
+    return `<div class="frn-dc-player ${isStarter?"s1":isCascade?"sc":"s2"}${isInjured?" injured":""}">
+      <span class="frn-dc-rank ${rankClass}">${rankLabel}</span>
       ${gradeBadge(p)}
       <span class="frn-dc-name" onclick="frnOpenPlayerCard('${escName}','${escPid}')">${p.name}</span>
       <span class="frn-dc-meta">${p.age} · $${aav}M · ${yrs}yr</span>
-      ${injBadge}${expBadge}${blkBadge}${potBadge}
+      ${cascadeBadge}${injBadge}${expBadge}${blkBadge}${potBadge}
       ${promoteBtn}
     </div>`;
   };
