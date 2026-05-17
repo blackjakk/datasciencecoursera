@@ -2236,6 +2236,163 @@
   .frn-depth2-rank.r1 { color: var(--gold); }
   .frn-depth2-rank.r2 { color: var(--blgray); }
 
+  /* ── Depth Chart — table-row redesign ─────────────────────────────────── */
+  .frn-dc-page-header {
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: .5rem; margin-bottom: .45rem;
+  }
+  .frn-dc-title { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
+  .frn-dc-team-name { font-size: .82rem; font-weight: 700; color: var(--blwhite); }
+  .frn-dc-ratings { font-size: .65rem; color: var(--gray); }
+  .frn-dc-hint {
+    font-size: .54rem; color: var(--blgray); margin-bottom: .38rem; letter-spacing: .2px;
+  }
+
+  /* Unit strength strip */
+  .frn-dc-strength-strip {
+    display: flex; flex-wrap: wrap; gap: .22rem; align-items: stretch;
+    margin-bottom: .42rem; padding: .28rem .45rem;
+    background: var(--bg2); border: 1px solid var(--border);
+  }
+  .frn-dc-strip-label {
+    font-size: .46rem; letter-spacing: .7px; color: var(--blgray);
+    align-self: center; margin-right: .15rem; flex-shrink: 0;
+  }
+  .frn-dc-strip-unit {
+    display: flex; flex-direction: column; align-items: center; gap: .06rem;
+    padding: .12rem .28rem; background: rgba(0,0,0,.25);
+    border: 1px solid rgba(255,255,255,.06); border-radius: 3px;
+  }
+  .frn-dc-strip-pos  { font-size: .48rem; font-weight: 900; color: var(--gray); }
+  .frn-dc-strip-val  { font-size: .68rem; font-weight: 900; line-height: 1; }
+  .frn-dc-strip-tier { font-size: .42rem; font-weight: 700; letter-spacing: .4px; }
+
+  /* Table */
+  .frn-dc-table { display: flex; flex-direction: column; gap: 0; }
+
+  .frn-dc-col-header {
+    display: grid;
+    grid-template-columns: 48px 1fr 52px 1fr 68px;
+    align-items: center; gap: 0;
+    padding: .16rem .45rem; background: var(--bg3); border: 1px solid var(--border);
+    border-bottom: 2px solid rgba(212,175,55,.3); margin-bottom: .15rem;
+  }
+  .frn-dc-col-hdr-label {
+    font-size: .48rem; letter-spacing: .7px; font-weight: 700; color: var(--blgray);
+    padding: 0 .3rem;
+  }
+
+  /* Position group */
+  .frn-dc-group { margin-bottom: .4rem; }
+  .frn-dc-group-hdr {
+    display: flex; align-items: center; gap: .5rem;
+    padding: .22rem .45rem; background: var(--bg3);
+    border-bottom: 1px solid var(--border);
+  }
+  .frn-dc-group-pos   { font-size: .78rem; font-weight: 900; color: var(--gold); min-width: 2rem; }
+  .frn-dc-group-label { font-size: .52rem; letter-spacing: .5px; color: var(--blgray); font-weight: 700; flex: 1; }
+  .frn-dc-group-str   {
+    font-size: .48rem; font-weight: 700; padding: .04rem .22rem;
+    border-radius: 3px; border: 1px solid; background: rgba(0,0,0,.3);
+  }
+
+  /* Depth row */
+  .frn-dc-row {
+    display: grid;
+    grid-template-columns: 48px 1fr 52px 1fr 68px;
+    align-items: center; gap: 0;
+    background: var(--bg2); border-bottom: 1px solid rgba(255,255,255,.04);
+    min-height: 2.6rem;
+  }
+  .frn-dc-row.alt { background: var(--bg3); }
+  .frn-dc-row:hover { background: rgba(212,175,55,.04); }
+
+  /* Slot label */
+  .frn-dc-slot-lbl {
+    display: flex; align-items: center; justify-content: center;
+    padding: .3rem .2rem; border-right: 1px solid rgba(255,255,255,.06);
+    align-self: stretch;
+  }
+  .frn-dc-slot-name { font-size: .58rem; font-weight: 900; color: var(--gold); letter-spacing: .5px; }
+
+  /* Player cell */
+  .frn-dc-player {
+    display: flex; align-items: center; gap: .25rem;
+    padding: .28rem .35rem; min-width: 0; flex-wrap: wrap; row-gap: .1rem;
+  }
+  .frn-dc-player.s1 { border-left: 2px solid rgba(212,175,55,.45); }
+  .frn-dc-player.s2 { border-left: 2px solid rgba(255,255,255,.07); opacity: .88; }
+  .frn-dc-player.s2:hover { opacity: 1; }
+  .frn-dc-player.injured { opacity: .7; }
+  .frn-dc-player.empty   { opacity: .4; }
+  .frn-dc-rank {
+    font-size: .46rem; font-weight: 700; flex-shrink: 0; line-height: 1;
+  }
+  .frn-dc-rank.r1 { color: var(--gold); }
+  .frn-dc-rank.r2 { color: var(--blgray); }
+  .frn-dc-name {
+    font-size: .69rem; font-weight: 700; cursor: pointer; flex-shrink: 0;
+    text-decoration: underline; text-decoration-style: dotted;
+    text-underline-offset: 2px; white-space: nowrap;
+  }
+  .frn-dc-player.s2 .frn-dc-name { font-size: .64rem; font-weight: 600; }
+  .frn-dc-meta {
+    font-size: .54rem; color: var(--gray); white-space: nowrap; flex-shrink: 0;
+  }
+  .frn-dc-empty { font-size: .6rem; color: var(--gray); font-style: italic; margin-left: .2rem; }
+
+  /* Badges */
+  .frn-dc-badge {
+    font-size: .46rem; font-weight: 700; padding: .03rem .2rem;
+    border-radius: 2px; flex-shrink: 0; line-height: 1.4;
+  }
+  .frn-dc-badge.red { background: var(--red); color: #fff; }
+  .frn-dc-badge.exp { border: 1px solid #ff6b6b; color: #ff6b6b; }
+  .frn-dc-badge.blk { color: #e8a000; }
+  .frn-dc-badge.pot { color: var(--blgray); font-size: .44rem; }
+
+  /* Snap bar (center column) */
+  .frn-dc-snap-col {
+    display: flex; flex-direction: column; align-items: center; gap: .08rem;
+    padding: .25rem .25rem; border-left: 1px solid rgba(255,255,255,.06);
+    border-right: 1px solid rgba(255,255,255,.06); align-self: stretch;
+    justify-content: center;
+  }
+  .frn-dc-snap-pct { font-size: .44rem; font-weight: 700; line-height: 1; }
+  .frn-dc-snap-pct.s { color: var(--gold-lt); }
+  .frn-dc-snap-pct.b { color: var(--blgray); }
+  .frn-dc-snap-bar {
+    width: 6px; height: 2.2rem; background: rgba(255,255,255,.08);
+    border-radius: 3px; overflow: hidden; position: relative;
+  }
+  .frn-dc-snap-fill {
+    position: absolute; bottom: 0; width: 100%;
+    background: linear-gradient(to top, var(--gold), rgba(212,175,55,.4));
+    border-radius: 3px;
+  }
+
+  /* Controls */
+  .frn-dc-controls {
+    display: flex; align-items: center; justify-content: flex-end;
+    gap: .15rem; padding: .2rem .35rem; align-self: stretch;
+    border-left: 1px solid rgba(255,255,255,.06);
+  }
+  .frn-dc-ctrl-btn {
+    background: var(--bg3); border: 1px solid var(--border); color: var(--blgray);
+    font-size: .58rem; padding: .1rem .25rem; cursor: pointer;
+    font-family: inherit; line-height: 1; border-radius: 2px;
+    transition: background .1s, color .1s;
+  }
+  .frn-dc-ctrl-btn:hover { background: var(--bg); color: var(--gold); border-color: var(--gold); }
+  .frn-dc-ctrl-spacer { display: inline-block; width: 1.4rem; }
+  .frn-dc-promote {
+    background: transparent; border: 1px solid var(--gold); color: var(--gold);
+    font-size: .48rem; padding: .05rem .22rem; cursor: pointer;
+    font-family: inherit; border-radius: 2px; flex-shrink: 0;
+    transition: background .1s;
+  }
+  .frn-dc-promote:hover { background: rgba(212,175,55,.15); }
+
   /* BSPN logo — block-letter parody header */
   .frn-bspn-logo {
     margin: 0; padding: 0;

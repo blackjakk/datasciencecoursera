@@ -1834,102 +1834,28 @@ function frnDepthAutoSetOVR() {
   renderFrnDepthChart();
 }
 
+
 function renderFrnDepthChart() {
   frnHoverTipHide(); _frnHoverTipPgHide && _frnHoverTipPgHide();
   const myId   = franchise.chosenTeamId;
   const myTeam = getTeam(myId);
   const roster = franchise.rosters[myId] || [];
-  const dc     = franchise.depthChart?.[myId] || {};
-  const ss     = franchise.snapShares?.[myId] || {};
-
   if (!franchise.depthChart?.[myId]) _initDepthChart(myId);
+  const dc = franchise.depthChart[myId];
+  const ss = franchise.snapShares?.[myId] || {};
 
   const byPid = {};
   for (const p of roster) if (p.pid) byPid[p.pid] = p;
 
-  // Track every pid placed in a slot (starter or backup).
   const assignedPids = new Set();
   for (const slot of Object.values(dc)) {
     if (slot.starter) assignedPids.add(slot.starter);
     if (slot.backup)  assignedPids.add(slot.backup);
   }
 
-  // ── Player row (shared for #1 starter and #2 backup) ─────────────────────
-  const playerRow = (p, isStarter, snapPct, slotKey) => {
-    if (!p) {
-      return `<div class="frn-depth2-player ${isStarter ? "s1" : "s2"}">
-        <span class="frn-depth2-rank ${isStarter ? "r1" : "r2"}">${isStarter ? "★1" : "▸2"}</span>
-        <span style="color:var(--gray);font-style:italic;font-size:.62rem;margin-left:.25rem">— open —</span>
-      </div>`;
-    }
-    const escName   = (p.name||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'");
-    const escPid    = (p.pid||"").replace(/'/g,"\\'");
-    const isInjured = (p.injury?.weeksRemaining || 0) > 0;
-    const isExpiring = (p.contract?.remaining || 0) <= 1;
-    const snapStr   = snapPct != null
-      ? `<span style="font-size:.5rem;color:var(--blgray);margin-left:auto;flex-shrink:0">~${snapPct}%</span>` : "";
-    const injBadge  = isInjured
-      ? `<span style="background:var(--red);color:#fff;font-size:.48rem;padding:0 .18rem;font-weight:700;flex-shrink:0">🩹${p.injury.weeksRemaining}w</span>` : "";
-    const expBadge  = isExpiring
-      ? `<span style="border:1px solid #ff6b6b;color:#ff6b6b;font-size:.48rem;padding:0 .18rem;font-weight:700">EXP</span>` : "";
-    const blkBadge  = p.onTradeBlock
-      ? `<span style="color:#e8a000;font-size:.48rem;font-weight:700">BLK</span>` : "";
-    const potTag    = potentialTag(p, { known: true });
-    const potBadge  = potTag
-      ? `<span style="font-size:.48rem;color:var(--blgray)">${potTag}</span>` : "";
-    const aav       = (p.contract?.aav||0).toFixed(1);
-    const yrs       = p.contract?.remaining || 0;
-    const makeStarterBtn = !isStarter
-      ? `<button onclick="event.stopPropagation();frnDepthSwapInSlot('${slotKey}')"
-          style="margin-top:.2rem;background:transparent;border:1px solid var(--gold);color:var(--gold);
-                 font-size:.48rem;padding:.07rem .3rem;cursor:pointer;font-family:inherit;width:100%;
-                 letter-spacing:.3px;font-weight:700"
-          onmouseover="this.style.background='rgba(212,175,55,.15)'"
-          onmouseout="this.style.background='transparent'">▲ MAKE STARTER</button>` : "";
-
-    return `<div class="frn-depth2-player ${isStarter ? "s1" : "s2"}${isInjured ? " injured" : ""}">
-      <div style="display:flex;align-items:center;gap:.22rem;min-width:0">
-        <span class="frn-depth2-rank ${isStarter ? "r1" : "r2"}">${isStarter ? "★1" : "▸2"}</span>
-        ${gradeBadge(p)}
-        <span onclick="frnOpenPlayerCard('${escName}','${escPid}')"
-          style="font-size:${isStarter ? ".69rem" : ".63rem"};font-weight:${isStarter ? 700 : 600};
-                 cursor:pointer;text-decoration:underline;text-decoration-style:dotted;
-                 text-underline-offset:2px;flex:1;min-width:0;overflow:hidden;
-                 text-overflow:ellipsis;white-space:nowrap">${p.name}</span>
-        ${injBadge}${snapStr}
-      </div>
-      <div style="display:flex;gap:.2rem;align-items:center;flex-wrap:wrap;
-                  padding-left:.7rem;margin-top:.05rem">
-        <span style="font-size:.53rem;color:var(--gray)">age ${p.age||"?"}</span>
-        <span style="font-size:.53rem;color:var(--gold-lt)">$${aav}M ${yrs}yr</span>
-        ${expBadge}${blkBadge}${potBadge}
-      </div>
-      ${makeStarterBtn}
-    </div>`;
-  };
-
-  // ── Control buttons ────────────────────────────────────────────────────────
-  const arrowBtn = (label, onclick) =>
-    `<button onclick="${onclick}"
-      style="background:var(--bg3);border:1px solid var(--border);color:var(--gold);
-             font-size:.58rem;padding:.07rem .25rem;cursor:pointer;line-height:1;
-             font-family:inherit"
-      onmouseover="this.style.background='var(--bg)'"
-      onmouseout="this.style.background='var(--bg3)'">${label}</button>`;
-
-  const swapSlotBtn = slotKey =>
-    `<button onclick="frnDepthSwapInSlot('${slotKey}')" title="Swap #1 ↕ #2"
-      style="background:var(--bg3);border:1px solid var(--border);color:var(--blgray);
-             font-size:.58rem;padding:.07rem .25rem;cursor:pointer;line-height:1;
-             font-family:inherit"
-      onmouseover="this.style.background='var(--bg)'"
-      onmouseout="this.style.background='var(--bg3)'">⇅</button>`;
-
-  // ── Unit strength helpers ──────────────────────────────────────────────────
+  // ── Strength helpers ──────────────────────────────────────────────────────
   const _groupOVR = slots => {
-    const ovrs = slots
-      .map(k => dc[k]?.starter ? (byPid[dc[k].starter]?.overall || 60) : 0)
-      .filter(Boolean);
+    const ovrs = slots.map(k => dc[k]?.starter ? (byPid[dc[k].starter]?.overall || 60) : 0).filter(Boolean);
     return ovrs.length ? Math.round(ovrs.reduce((a,b)=>a+b,0)/ovrs.length) : 0;
   };
   const _strength = ovr => {
@@ -1938,10 +1864,136 @@ function renderFrnDepthChart() {
     if (ovr >= 72) return { label:"SOLID",  col:"#7ac8e8" };
     if (ovr >= 65) return { label:"AVG",    col:"#e8a000" };
     if (ovr  > 0)  return { label:"THIN",   col:"#ff6b6b" };
-    return              { label:"EMPTY", col:"#666"    };
+    return              { label:"EMPTY", col:"#555"    };
   };
 
-  // ── Unit strength bar ──────────────────────────────────────────────────────
+  // ── Player cell ───────────────────────────────────────────────────────────
+  const playerCell = (p, isStarter, slotKey) => {
+    if (!p) {
+      return `<div class="frn-dc-player ${isStarter?"s1":"s2"} empty">
+        <span class="frn-dc-rank ${isStarter?"r1":"r2"}">${isStarter?"★1":"▸2"}</span>
+        <span class="frn-dc-empty">— open —</span>
+      </div>`;
+    }
+    const escName    = (p.name||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'");
+    const escPid     = (p.pid||"").replace(/'/g,"\\'");
+    const isInjured  = (p.injury?.weeksRemaining || 0) > 0;
+    const isExpiring = (p.contract?.remaining || 0) <= 1;
+    const aav        = (p.contract?.aav||0).toFixed(1);
+    const yrs        = p.contract?.remaining || 0;
+    const injBadge   = isInjured
+      ? `<span class="frn-dc-badge red">🩹${p.injury.weeksRemaining}w</span>` : "";
+    const expBadge   = isExpiring
+      ? `<span class="frn-dc-badge exp">EXP</span>` : "";
+    const blkBadge   = p.onTradeBlock
+      ? `<span class="frn-dc-badge blk">BLK</span>` : "";
+    const potTag     = potentialTag(p, { known: true });
+    const potBadge   = potTag
+      ? `<span class="frn-dc-badge pot">${potTag}</span>` : "";
+    const promoteBtn = !isStarter
+      ? `<button class="frn-dc-promote" onclick="event.stopPropagation();frnDepthSwapInSlot('${slotKey}')" title="Make starter">▲</button>` : "";
+
+    return `<div class="frn-dc-player ${isStarter?"s1":"s2"}${isInjured?" injured":""}">
+      <span class="frn-dc-rank ${isStarter?"r1":"r2"}">${isStarter?"★1":"▸2"}</span>
+      ${gradeBadge(p)}
+      <span class="frn-dc-name" onclick="frnOpenPlayerCard('${escName}','${escPid}')">${p.name}</span>
+      <span class="frn-dc-meta">${p.age} · $${aav}M · ${yrs}yr</span>
+      ${injBadge}${expBadge}${blkBadge}${potBadge}
+      ${promoteBtn}
+    </div>`;
+  };
+
+  // ── Snap bar ──────────────────────────────────────────────────────────────
+  const snapBar = (slotKey) => {
+    const sd  = ss[slotKey];
+    const pct = sd?.starterPct ?? 70;
+    const bPct = Math.max(5, Math.round((100 - pct) * 0.55));
+    return `<div class="frn-dc-snap-col">
+      <span class="frn-dc-snap-pct s">${pct}%</span>
+      <div class="frn-dc-snap-bar">
+        <div class="frn-dc-snap-fill" style="height:${pct}%"></div>
+      </div>
+      <span class="frn-dc-snap-pct b">${bPct}%</span>
+    </div>`;
+  };
+
+  // ── Control buttons ───────────────────────────────────────────────────────
+  const ctrlBtn = (label, onclick, title) =>
+    `<button class="frn-dc-ctrl-btn" onclick="${onclick}" title="${title}">${label}</button>`;
+
+  // ── Group sections ────────────────────────────────────────────────────────
+  const groupSections = DEPTH_POS_GROUPS.map(group => {
+    const groupOvr = _groupOVR(group.slots);
+    const { label: strLabel, col: strCol } = _strength(groupOvr);
+
+    const rows = group.slots.map((slotKey, idx) => {
+      const slot    = dc[slotKey];
+      const starter = slot?.starter ? byPid[slot.starter] : null;
+      const backup  = slot?.backup  ? byPid[slot.backup]  : null;
+      const canUp   = idx > 0;
+      const canDown = idx < group.slots.length - 1;
+      const slotLabel = _depthSlotLabel(slotKey, idx);
+      const isEvenRow = idx % 2 === 0;
+
+      return `<div class="frn-dc-row${isEvenRow?"":" alt"}">
+        <div class="frn-dc-slot-lbl">
+          <span class="frn-dc-slot-name">${slotKey}</span>
+        </div>
+        ${playerCell(starter, true,  slotKey)}
+        ${snapBar(slotKey)}
+        ${playerCell(backup,  false, slotKey)}
+        <div class="frn-dc-controls">
+          ${ctrlBtn("⇅", `frnDepthSwapInSlot('${slotKey}')`, "Swap #1 ↔ #2")}
+          ${canUp   ? ctrlBtn("↑", `frnDepthSwap('${group.pos}',${idx-1})`, "Move slot up")   : `<span class="frn-dc-ctrl-spacer"></span>`}
+          ${canDown ? ctrlBtn("↓", `frnDepthSwap('${group.pos}',${idx})`,   "Move slot down") : `<span class="frn-dc-ctrl-spacer"></span>`}
+        </div>
+      </div>`;
+    }).join("");
+
+    return `<div class="frn-dc-group">
+      <div class="frn-dc-group-hdr" style="border-left:3px solid ${strCol}">
+        <span class="frn-dc-group-pos">${group.pos}</span>
+        <span class="frn-dc-group-label">${group.label}</span>
+        <span class="frn-dc-group-str" style="color:${strCol};border-color:${strCol}44">${groupOvr > 0 ? groupOvr+" " : ""}${strLabel}</span>
+      </div>
+      ${rows}
+    </div>`;
+  }).join("");
+
+  // ── Unassigned panel ──────────────────────────────────────────────────────
+  const unassigned = roster
+    .filter(p => p.pid && !assignedPids.has(p.pid))
+    .sort((a,b) => (b.overall||60) - (a.overall||60));
+  let unassignedHtml = "";
+  if (unassigned.length) {
+    const rows = unassigned.map(p => {
+      const escName    = (p.name||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'");
+      const escPid     = (p.pid||"").replace(/'/g,"\\'");
+      const isExpiring = (p.contract?.remaining||0) <= 1;
+      return `<div class="frn-dc-row">
+        <div class="frn-dc-slot-lbl">
+          <span class="frn-dc-slot-name" style="color:var(--blgray)">${p.position}</span>
+        </div>
+        <div class="frn-dc-player s1" style="grid-column:2/5">
+          ${gradeBadge(p)}
+          <span class="frn-dc-name" onclick="frnOpenPlayerCard('${escName}','${escPid}')">${p.name}</span>
+          <span class="frn-dc-meta">${p.age} · $${(p.contract?.aav||0).toFixed(1)}M · ${p.contract?.remaining||0}yr</span>
+          ${isExpiring ? `<span class="frn-dc-badge exp">EXP</span>` : ""}
+        </div>
+        <div class="frn-dc-controls"></div>
+      </div>`;
+    }).join("");
+    unassignedHtml = `<div class="frn-dc-group" style="margin-top:.6rem">
+      <div class="frn-dc-group-hdr" style="border-left:3px solid var(--border)">
+        <span class="frn-dc-group-pos" style="color:var(--blgray)">—</span>
+        <span class="frn-dc-group-label">UNASSIGNED</span>
+        <span class="frn-dc-group-str" style="color:var(--gray);border-color:var(--border)">${unassigned.length} players not in any slot</span>
+      </div>
+      ${rows}
+    </div>`;
+  }
+
+  // ── Unit strength strip ───────────────────────────────────────────────────
   const unitGroups = [
     { label:"QB", slots:["QB"] },
     { label:"RB", slots:["RB1"] },
@@ -1953,112 +2005,49 @@ function renderFrnDepthChart() {
     { label:"CB", slots:["CB1","CB2","NB"] },
     { label:"S",  slots:["SS","FS"] },
   ];
-  const strengthBarHtml = `<div style="display:flex;gap:.28rem;flex-wrap:wrap;align-items:center;
-      margin-bottom:.5rem;padding:.28rem .45rem;background:var(--bg2);border:1px solid var(--border)">
-    <span style="font-size:.48rem;letter-spacing:.6px;color:var(--blgray);margin-right:.1rem">UNIT STRENGTH</span>
+  const strengthStrip = `<div class="frn-dc-strength-strip">
+    <span class="frn-dc-strip-label">UNITS</span>
     ${unitGroups.map(u => {
       const ovr = _groupOVR(u.slots);
       const { label, col } = _strength(ovr);
-      return `<div style="display:flex;align-items:center;gap:.15rem">
-        <span style="font-size:.5rem;font-weight:900;color:var(--gray)">${u.label}</span>
-        <span style="font-size:.48rem;font-weight:700;color:${col};background:rgba(0,0,0,.3);
-               padding:.03rem .2rem;border-radius:3px;border:1px solid ${col}44">${ovr > 0 ? ovr+" " : ""}${label}</span>
+      return `<div class="frn-dc-strip-unit">
+        <span class="frn-dc-strip-pos">${u.label}</span>
+        <span class="frn-dc-strip-val" style="color:${col};border-color:${col}33">${ovr > 0 ? ovr : "—"}</span>
+        <span class="frn-dc-strip-tier" style="color:${col}">${label}</span>
       </div>`;
     }).join("")}
   </div>`;
 
-  // ── Position group rows ────────────────────────────────────────────────────
-  const rowsHtml = DEPTH_POS_GROUPS.map(group => {
-    const slotsHtml = group.slots.map((slotKey, idx) => {
-      const slot      = dc[slotKey];
-      const starter   = slot?.starter ? byPid[slot.starter] : null;
-      const backup    = slot?.backup  ? byPid[slot.backup]  : null;
-      const canUp     = idx > 0;
-      const canDown   = idx < group.slots.length - 1;
-      const label     = _depthSlotLabel(slotKey, idx);
-      const snapData  = ss[slotKey];
-      const starterPct = snapData?.starterPct ?? null;
-      const backupPct  = starterPct != null
-        ? Math.max(5, Math.round((100 - starterPct) * 0.55)) : null;
-
-      return `<div class="frn-depth2-slot">
-        <div class="frn-depth2-slot-header">
-          <span class="frn-depth2-slot-label">${label}</span>
-          <div style="display:flex;gap:.1rem">
-            ${canUp   ? arrowBtn("↑", `frnDepthSwap('${group.pos}',${idx-1})`) : ""}
-            ${canDown ? arrowBtn("↓", `frnDepthSwap('${group.pos}',${idx})`) : ""}
-            ${swapSlotBtn(slotKey)}
-          </div>
-        </div>
-        ${playerRow(starter, true,  starterPct, slotKey)}
-        <div class="frn-depth2-divider"></div>
-        ${playerRow(backup,  false, backupPct,  slotKey)}
-      </div>`;
-    }).join("");
-
-    const groupOvr = _groupOVR(group.slots);
-    const { label: strLabel, col: strCol } = _strength(groupOvr);
-
-    return `<div class="frn-depth-row">
-      <div class="frn-depth-pos-label">
-        <div style="font-size:1rem;font-weight:900;color:var(--gold)">${group.pos}</div>
-        <div style="font-size:.48rem;color:var(--gray);letter-spacing:.3px;margin-top:.1rem">${group.label}</div>
-        <div style="font-size:.46rem;font-weight:700;color:${strCol};margin-top:.18rem;letter-spacing:.3px">${groupOvr > 0 ? groupOvr+" " : ""}${strLabel}</div>
-      </div>
-      <div class="frn-depth-slots">${slotsHtml}</div>
-    </div>`;
-  }).join("");
-
-  // ── Unassigned players ─────────────────────────────────────────────────────
-  const unassigned = roster
-    .filter(p => p.pid && !assignedPids.has(p.pid))
-    .sort((a,b) => (b.overall||60) - (a.overall||60));
-  let unassignedHtml = "";
-  if (unassigned.length) {
-    const rows = unassigned.map(p => {
-      const escName    = (p.name||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'");
-      const escPid     = (p.pid||"").replace(/'/g,"\\'");
-      const isExpiring = (p.contract?.remaining||0) <= 1;
-      return `<div style="display:flex;align-items:center;gap:.32rem;padding:.18rem .3rem;
-                border-bottom:1px solid var(--border)">
-        <span style="font-size:.53rem;color:var(--gold-lt);min-width:1.8rem;font-weight:700">${p.position}</span>
-        ${gradeBadge(p)}
-        <span onclick="frnOpenPlayerCard('${escName}','${escPid}')"
-          style="font-size:.64rem;font-weight:600;cursor:pointer;text-decoration:underline;
-                 text-decoration-style:dotted;text-underline-offset:2px;flex:1">${p.name}</span>
-        <span style="font-size:.53rem;color:var(--gray)">age ${p.age||"?"}</span>
-        <span style="font-size:.53rem;color:var(--gold-lt)">$${(p.contract?.aav||0).toFixed(1)}M ${p.contract?.remaining||0}yr</span>
-        ${isExpiring ? `<span style="border:1px solid #ff6b6b;color:#ff6b6b;font-size:.48rem;padding:0 .18rem;font-weight:700">EXP</span>` : ""}
-      </div>`;
-    }).join("");
-    unassignedHtml = `<div style="margin-top:.55rem;border:1px solid var(--border);background:var(--bg2)">
-      <div style="padding:.2rem .4rem;background:var(--bg3);border-bottom:1px solid var(--border);
-                  font-size:.56rem;font-weight:700;color:var(--blgray);letter-spacing:.4px">
-        UNASSIGNED (${unassigned.length})
-        <span style="font-size:.5rem;color:var(--gray);font-weight:400;margin-left:.3rem">— not placed in any slot</span>
-      </div>
-      ${rows}
-    </div>`;
-  }
+  // ── Column header bar ─────────────────────────────────────────────────────
+  const colHeader = `<div class="frn-dc-col-header">
+    <div class="frn-dc-slot-lbl"></div>
+    <div class="frn-dc-col-hdr-label">★ STARTER</div>
+    <div style="width:52px"></div>
+    <div class="frn-dc-col-hdr-label">▸ BACKUP</div>
+    <div style="width:68px"></div>
+  </div>`;
 
   const rtg = frnTeamRating(myId);
   $("frnHomeContent").innerHTML = `
-    <div style="display:flex;align-items:center;gap:.55rem;margin-bottom:.5rem;flex-wrap:wrap">
-      <div style="font-size:1.05rem;font-weight:900;color:var(--gold)">📋 DEPTH CHART · ${myTeam.city} ${myTeam.name}</div>
-      <div style="color:var(--gray);font-size:.72rem">${roster.length} players · OFF ${rtg.off} · DEF ${rtg.def}</div>
-      <div style="display:flex;gap:.3rem;margin-left:auto">
+    <div class="frn-dc-page-header">
+      <div class="frn-dc-title">
+        <span style="font-size:1.05rem;font-weight:900;color:var(--gold)">📋 DEPTH CHART</span>
+        <span class="frn-dc-team-name">${myTeam.city} ${myTeam.name}</span>
+        <span class="frn-dc-ratings">OFF ${rtg.off} · DEF ${rtg.def} · ${roster.length} players</span>
+      </div>
+      <div style="display:flex;gap:.3rem;align-items:center">
         <button class="btn btn-outline" onclick="frnDepthAutoSetOVR()" style="font-size:.58rem">⟳ AUTO-SET OVR</button>
         <button class="btn btn-outline" onclick="showFranchiseDashboard()">← Back</button>
       </div>
     </div>
-    ${strengthBarHtml}
-    <div style="color:var(--blgray);font-size:.56rem;margin-bottom:.4rem">
-      ↑↓ reorder slots within position · ⇅ swap #1 ↔ #2 · click name to view player card
-    </div>
-    <div class="frn-depth-chart">${rowsHtml}</div>
-    ${unassignedHtml}`;
+    ${strengthStrip}
+    <div class="frn-dc-hint">↑↓ reorder slots · ⇅ swap #1↔#2 · ▲ on backup to promote · click name for player card</div>
+    <div class="frn-dc-table">
+      ${colHeader}
+      ${groupSections}
+      ${unassignedHtml}
+    </div>`;
 }
-
 
 // Compute a team's W-L-T record AS OF a given week (before that week's game).
 // confW/confL only count games against teams in the same conference.
