@@ -4076,11 +4076,23 @@ function _generateCoachMarket() {
   for (let i = dcN; i < 3; i++) pool.push({ type:"dc", ..._rollDC() });
 
   // Every HC candidate comes pre-packaged with their preferred staff tree.
-  // Shown on the market card so the user knows the full deal before hiring.
+  // Quality of proposed coords scales with the HC's prestige — elite coaches
+  // have better networks and can attract better coordinators.
   for (const c of pool) {
     if (c.type === "hc" && !c.proposedOC) {
-      c.proposedOC = _rollOC();
-      c.proposedDC = _rollDC();
+      const hcR = c.rating || 60;
+      const coordBonus = hcR >= 85 ? 4 + Math.floor(Math.random() * 5)  // +4 to +8
+                       : hcR >= 78 ? 2 + Math.floor(Math.random() * 4)  // +2 to +5
+                       : hcR >= 68 ? Math.floor(Math.random() * 3)       // +0 to +2
+                       :            -Math.floor(Math.random() * 3);       // -2 to 0
+      const oc = _rollOC();
+      oc.rating = Math.max(40, Math.min(85, oc.rating + coordBonus));
+      oc.salary = +_marketSalaryForCoach(oc, "oc").toFixed(1);
+      c.proposedOC = oc;
+      const dc = _rollDC();
+      dc.rating = Math.max(40, Math.min(85, dc.rating + coordBonus));
+      dc.salary = +_marketSalaryForCoach(dc, "dc").toFixed(1);
+      c.proposedDC = dc;
     }
   }
 
@@ -4112,11 +4124,22 @@ function _ensureCoachMarket() {
   }
   for (let i = ocN; i < 2; i++) pool.push({ type:"oc", ..._rollOC() });
   for (let i = dcN; i < 2; i++) pool.push({ type:"dc", ..._rollDC() });
-  // Attach proposed staff to all HC candidates
+  // Attach proposed staff — same prestige scaling as _generateCoachMarket
   for (const c of pool) {
     if (c.type === "hc" && !c.proposedOC) {
-      c.proposedOC = _rollOC();
-      c.proposedDC = _rollDC();
+      const hcR = c.rating || 60;
+      const coordBonus = hcR >= 85 ? 4 + Math.floor(Math.random() * 5)
+                       : hcR >= 78 ? 2 + Math.floor(Math.random() * 4)
+                       : hcR >= 68 ? Math.floor(Math.random() * 3)
+                       :            -Math.floor(Math.random() * 3);
+      const oc = _rollOC();
+      oc.rating = Math.max(40, Math.min(85, oc.rating + coordBonus));
+      oc.salary = +_marketSalaryForCoach(oc, "oc").toFixed(1);
+      c.proposedOC = oc;
+      const dc = _rollDC();
+      dc.rating = Math.max(40, Math.min(85, dc.rating + coordBonus));
+      dc.salary = +_marketSalaryForCoach(dc, "dc").toFixed(1);
+      c.proposedDC = dc;
     }
   }
   franchise._coachMarket = pool;
@@ -4435,6 +4458,15 @@ function runFrnOffseason() {
     // Computed once per team per offseason; applied to all growth chances below.
     const chemBonus = _computeChemistryBonus(tId);
 
+    // Coordinator rating → player dev: higher-rated OC lifts skill positions,
+    // higher-rated DC lifts defensive positions. Scales linearly 0→+15% across
+    // the 60–89 band. Elite HC (≥80) has a season-level 25% chance to amplify
+    // coord contributions by 8% — models a great coach extracting more from his staff.
+    const _tStaff    = franchise.coaches?.[tId] || {};
+    const _ocDevBonus = Math.max(0, ((_tStaff.oc?.rating || 60) - 60) / 29 * 0.15);
+    const _dcDevBonus = Math.max(0, ((_tStaff.dc?.rating || 60) - 60) / 29 * 0.15);
+    const _hcCoordAmp = ((_tStaff.hc?.rating || 60) >= 80 && Math.random() < 0.25) ? 1.08 : 1.0;
+
     for (const p of roster) {
       // Age + retirement now happen at the awards-ceremony step so the
       // ceremony can honor retirees + HoF inductees. By the time we reach
@@ -4531,7 +4563,12 @@ function runFrnOffseason() {
         const staffCoach = pGroup ? posStaff.find(s => s.group === pGroup) : null;
         const tierInfo   = staffCoach ? POSITION_COACH_TIERS[staffCoach.tier] : POSITION_COACH_TIERS["Journeyman"];
         const filmMul     = dcTrait === "Film Mastermind" ? (p.coachable ? 2.0 : 1.2) : 1.0;
-        const tecMul     = tierInfo.tecMul * hcDevMul * filmMul;
+        const isOffPos    = ["QB","WR","RB","TE"].includes(p.position);
+        const isDefPos    = ["DL","LB","CB","S"].includes(p.position);
+        const coordDevMul = isOffPos ? (1 + _ocDevBonus * _hcCoordAmp)
+                          : isDefPos ? (1 + _dcDevBonus * _hcCoordAmp)
+                          : 1.0;
+        const tecMul      = tierInfo.tecMul * hcDevMul * filmMul * coordDevMul;
         const effectiveTecMul = (p.position === "QB" && ocTrait === "QB Whisperer") ? tecMul * 2 : tecMul;
 
         const baseChance = 0.12;
