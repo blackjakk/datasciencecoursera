@@ -1369,6 +1369,7 @@ function _buildSeasonStatsBlock(p) {
     fmtTuples.push(["YPC", car ? (yds/car).toFixed(1) : "—"]);
     fmtTuples.push(["YDS/GAME", per(yds)]);
     fmtTuples.push(["RUSH TD", num("rush_td")]);
+    if (num("broken_tackles")) fmtTuples.push(["BROKEN TKL", num("broken_tackles")]);
     if (num("snaps")) fmtTuples.push(["SNAPS", num("snaps")]);
     if (num("rec")) {
       fmtTuples.push(["REC", num("rec")]);
@@ -1524,7 +1525,8 @@ function _buildGameLogBlock(p) {
       </tr>`;
     });
   } else if (pos === "RB") {
-    headers = ["WK", ...(showTM ? ["TM"] : []), "OPP","RES","CAR","YDS","YPC","TD","REC","REC YDS","FPTS"];
+    const hasBT = games.some(({ line }) => (line.broken_tackles || 0) > 0);
+    headers = ["WK", ...(showTM ? ["TM"] : []), "OPP","RES","CAR","YDS","YPC","TD",...(hasBT?["BT"]:[]),"REC","REC YDS","FPTS"];
     rowCells = games.map(({ g, line, teamId, oppId }) => {
       const opp = getTeam(oppId);
       const myHome = teamId === g.homeId;
@@ -1533,6 +1535,7 @@ function _buildGameLogBlock(p) {
       const res = myScore > themScore ? "W" : myScore < themScore ? "L" : "T";
       const resColor = res === "W" ? "var(--green-lt)" : res === "L" ? "#c08080" : "var(--gray)";
       const car = +line.rush_att || 0, yds = +line.rush_yds || 0;
+      const bt = line.broken_tackles || 0;
       const fpts = _fantasyPPR(line, pos);
       return `<tr>
         <td>W${g.week}</td>
@@ -1543,6 +1546,7 @@ function _buildGameLogBlock(p) {
         <td>${yds}</td>
         <td>${car ? (yds/car).toFixed(1) : "—"}</td>
         <td>${line.rush_td||0}</td>
+        ${hasBT ? `<td style="color:${bt>0?"var(--green-lt)":"var(--gray)"}">${bt}</td>` : ""}
         <td>${line.rec||0}</td>
         <td>${line.rec_yds||0}</td>
         <td style="color:var(--gold);font-weight:700">${fpts.toFixed(1)}</td>
@@ -2271,6 +2275,7 @@ function renderFrnFA(selectedKey) {
         <div>
           <div style="font-size:1.05rem;font-weight:900">${selected.name}${selected.age <= 25 ? " <span style='color:var(--green-lt);font-size:.7rem'>🌱 YOUNG</span>" : ""}</div>
           <div style="color:var(--gray);font-size:.7rem">${selected.position} · Age ${selected.age} · ${_archetypeLabel(selected) || "—"} · ${draftStr(selected)}</div>
+          ${(() => { const pt = potentialTag(selected); return pt ? `<div style="font-size:.63rem;color:var(--gold-lt);margin-top:.15rem">${pt}</div>` : ""; })()}
           ${selected.faStory ? `<div style="color:var(--gold-lt);font-size:.7rem;margin-top:.25rem;font-style:italic">"${selected.faStory}"</div>` : ""}
           <div style="color:var(--gray);font-size:.66rem;margin-top:.2rem">${careerEarningsStr(selected)} career earnings</div>
         </div>

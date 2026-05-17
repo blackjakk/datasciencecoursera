@@ -541,7 +541,8 @@ function frnPlayerTipShow(anchorEl, name, pid) {
         seasonLine = `${ypg} YPG · ${num("pass_td")} TD`;
       } else if (pos === "RB") {
         const ypg = (num("rush_yds") / gp).toFixed(1);
-        seasonLine = `${ypg} RY/G · ${num("rush_td")} TD`;
+        const bt = num("broken_tackles");
+        seasonLine = `${ypg} RY/G · ${num("rush_td")} TD${bt ? ` · ${bt} BT` : ""}`;
       } else if (pos === "WR" || pos === "TE") {
         const ypg = (num("rec_yds") / gp).toFixed(1);
         seasonLine = `${ypg} REC Y/G · ${num("rec_td")} TD`;
