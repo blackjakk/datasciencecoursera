@@ -4036,6 +4036,15 @@ function _generateCoachMarket() {
   for (let i = ocN; i < 3; i++) pool.push({ type:"oc", ..._rollOC() });
   for (let i = dcN; i < 3; i++) pool.push({ type:"dc", ..._rollDC() });
 
+  // Every HC candidate comes pre-packaged with their preferred staff tree.
+  // Shown on the market card so the user knows the full deal before hiring.
+  for (const c of pool) {
+    if (c.type === "hc" && !c.proposedOC) {
+      c.proposedOC = _rollOC();
+      c.proposedDC = _rollDC();
+    }
+  }
+
   franchise._coachMarket = pool;
 }
 
@@ -4064,6 +4073,13 @@ function _ensureCoachMarket() {
   }
   for (let i = ocN; i < 2; i++) pool.push({ type:"oc", ..._rollOC() });
   for (let i = dcN; i < 2; i++) pool.push({ type:"dc", ..._rollDC() });
+  // Attach proposed staff to all HC candidates
+  for (const c of pool) {
+    if (c.type === "hc" && !c.proposedOC) {
+      c.proposedOC = _rollOC();
+      c.proposedDC = _rollDC();
+    }
+  }
   franchise._coachMarket = pool;
 }
 
@@ -4073,19 +4089,21 @@ function _ensureCoachMarket() {
 // Returns an array of news labels so callers can push them in context.
 function _applyHcStaffSweep(staff, teamLabel) {
   const msgs = [];
+  // Use the HC's pre-attached proposed staff if available; fall back to a fresh roll.
+  // The probability check still applies — negotiations can break down even for a named target.
+  const hc = staff.hc;
   if (Math.random() < 0.75) {
     const old = staff.oc;
     _coachFAAdd(staff.oc, "oc");
-    staff.oc = _rollOC();
+    staff.oc = hc?.proposedOC ? { ...hc.proposedOC } : _rollOC();
     msgs.push({ type:"coach_hire",
       label: `🏟 ${teamLabel}: new HC installs OC ${staff.oc.name}${old ? ` (replaces ${old.name})` : ""}` });
-    // OC change clears any QB-OC bond immediately
     if (staff._chemistry) staff._chemistry.qbOcBond = false;
   }
   if (Math.random() < 0.40) {
     const old = staff.dc;
     _coachFAAdd(staff.dc, "dc");
-    staff.dc = _rollDC();
+    staff.dc = hc?.proposedDC ? { ...hc.proposedDC } : _rollDC();
     msgs.push({ type:"coach_hire",
       label: `🏟 ${teamLabel}: new HC installs DC ${staff.dc.name}${old ? ` (replaces ${old.name})` : ""}` });
   }

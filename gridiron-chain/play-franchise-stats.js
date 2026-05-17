@@ -4764,17 +4764,6 @@ function renderFrnCoachingStaff() {
     </div>`;
 
   // ── Coach Market ──
-  // For HC candidates we derive implied OC/DC scheme preference from specialty trait.
-  const hcImpliedOff = spec => {
-    if (spec === "Offensive Minded") return "SPREAD OPTION";
-    if (spec === "Defensive Minded") return null;
-    return null;
-  };
-  const hcImpliedDef = spec => {
-    if (spec === "Defensive Minded") return "HYBRID ZONE";
-    return null;
-  };
-
   const hcMarketSchemeNote = `
     <div style="font-size:.64rem;color:var(--gray);background:rgba(255,255,255,.04);border-radius:4px;padding:.4rem .6rem;margin-bottom:.4rem">
       Your current scheme: ${_schemeBadge(myOffScheme, true)} offense · ${_schemeBadge(myDefScheme, true)} defense
@@ -4782,27 +4771,44 @@ function renderFrnCoachingStaff() {
     </div>`;
 
   const marketHcHtml  = market.filter(c => c.type === "hc").map((c, i) => {
-    const implOff = hcImpliedOff(c.specialtyTrait);
-    const implDef = hcImpliedDef(c.specialtyTrait);
-    const offPrev = implOff ? _schemePreviewHtml("off", implOff, myId) : "";
-    const defPrev = implDef ? _schemePreviewHtml("def", implDef, myId) : "";
-    const schemeHint = (implOff || implDef)
-      ? `<div style="margin-top:.3rem;display:flex;flex-wrap:wrap;gap:.3rem;align-items:center;font-size:.62rem;color:var(--gray)">
-           ${implOff ? `Likely installs ${_schemeBadge(implOff, true)} offense` : ""}
-           ${implDef ? `${implOff ? "·" : ""} ${_schemeBadge(implDef, true)} defense` : ""}
-         </div>
-         ${offPrev}${defPrev}`
-      : `<div style="font-size:.62rem;color:var(--gray);opacity:.6;margin-top:.2rem">Scheme-neutral — may keep current coordinators</div>`;
     const fmrBadge = c.isFormerPlayer
       ? `<span style="font-size:.58rem;padding:.1rem .35rem;border-radius:3px;background:rgba(255,200,0,.18);color:var(--gold);border:1px solid rgba(255,200,0,.4);white-space:nowrap;margin-left:.3rem">🏈 Ex-${c.formerPos||"?"}${c.peakOvr?" OVR "+c.peakOvr:""}${c.proBowls>0?" "+c.proBowls+"xPB":""}${c.sbRings>0?" "+c.sbRings+"xSB":""}</span>`
       : "";
+
+    // Proposed staff — show the actual named coordinators he'd bring
+    let proposedHtml = "";
+    if (c.proposedOC || c.proposedDC) {
+      const ocScheme  = c.proposedOC ? (OFF_SCHEME_MAP[c.proposedOC.trait] || "") : "";
+      const dcScheme  = c.proposedDC ? (DEF_SCHEME_MAP[c.proposedDC.trait] || "") : "";
+      const ocPreview = ocScheme ? _schemePreviewHtml("off", ocScheme, myId) : "";
+      const dcPreview = dcScheme ? _schemePreviewHtml("def", dcScheme, myId) : "";
+      proposedHtml = `
+        <div style="margin-top:.45rem;border-top:1px solid rgba(255,255,255,.08);padding-top:.4rem">
+          <div style="font-size:.6rem;color:var(--gray);letter-spacing:.4px;text-transform:uppercase;margin-bottom:.25rem">Proposed staff (75% OC swap · 40% DC swap)</div>
+          ${c.proposedOC ? `<div style="margin-bottom:.2rem;display:flex;align-items:center;gap:.35rem;flex-wrap:wrap;font-size:.68rem">
+            <span style="color:var(--gray)">OC</span>
+            <b style="color:var(--white)">${c.proposedOC.name}</b>
+            ${ratingBadge(c.proposedOC.rating)}
+            ${ocScheme ? _schemeBadge(ocScheme, true) : ""}
+            <span style="color:var(--gray);font-size:.6rem">$${(c.proposedOC.salary||0).toFixed(1)}M · Age ${c.proposedOC.age||"?"}</span>
+          </div>${ocPreview}` : ""}
+          ${c.proposedDC ? `<div style="margin-top:.2rem;display:flex;align-items:center;gap:.35rem;flex-wrap:wrap;font-size:.68rem">
+            <span style="color:var(--gray)">DC</span>
+            <b style="color:var(--white)">${c.proposedDC.name}</b>
+            ${ratingBadge(c.proposedDC.rating)}
+            ${dcScheme ? _schemeBadge(dcScheme, true) : ""}
+            <span style="color:var(--gray);font-size:.6rem">$${(c.proposedDC.salary||0).toFixed(1)}M · Age ${c.proposedDC.age||"?"}</span>
+          </div>${dcPreview}` : ""}
+        </div>`;
+    }
+
     return `
     <div class="frn-coach-market-row" style="flex-direction:column;align-items:stretch">
       <div style="display:flex;align-items:flex-start;gap:.75rem">
         <div style="flex:1;min-width:0">
           <div style="font-size:.78rem;font-weight:700;display:flex;align-items:center;flex-wrap:wrap;gap:.3rem">${c.name} ${ratingBadge(c.rating)}${fmrBadge}</div>
           <div style="font-size:.62rem;color:var(--gray)">Culture: ${c.cultureTrait||"—"} · Spec: ${c.specialtyTrait||"—"} · $${(c.salary||0).toFixed(1)}M/yr · Age ${c.age||"?"}</div>
-          ${schemeHint}
+          ${proposedHtml}
         </div>
         <button class="btn btn-outline" style="font-size:.65rem;white-space:nowrap;align-self:flex-start"
           onclick="frnHireCoachFromMarket('hc',${i})">Hire as HC</button>
