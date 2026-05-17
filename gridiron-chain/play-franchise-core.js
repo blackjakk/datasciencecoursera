@@ -1027,6 +1027,7 @@ const OC_TRAITS = [
   { key:"Air Attack",      desc:"Air yards +1.0 mean" },
   { key:"Red Zone Genius", desc:"RZ TD conversion +8%" },
   { key:"Run Architect",   desc:"Run variant effectiveness +10%" },
+  { key:"Trench General",  desc:"OL TEC growth ×2, +1 offense when running SMASHMOUTH" },
   { key:"Balanced",        desc:"No modifier — adapts to HC scheme" },
 ];
 
@@ -1048,6 +1049,7 @@ const OFF_SCHEME_MAP = {
   "QB Whisperer":    "AIR RAID",
   "Red Zone Genius": "WEST COAST",
   "Run Architect":   "SMASHMOUTH",
+  "Trench General":  "SMASHMOUTH",
   "Balanced":        "SPREAD OPTION",
 };
 
@@ -1329,7 +1331,7 @@ function _coachBudgetPenaltyMul(teamId) {
 // Returns null if the position doesn't map to a coordinator role.
 function _retiredPlayerToCoach(rp, currentSeason) {
   const pos = rp.pos;
-  if (!pos || ["OL","K","P"].includes(pos)) return null;
+  if (!pos || ["K","P"].includes(pos)) return null;
   const yearsOut = (currentSeason || 1) - (rp.retiredSeason || 1);
   const growthBonus = Math.min(yearsOut - 2, 5) * 0.8;
   const raw = (rp.peakOvr || 70) * 0.35 + (rp.retirementOvr || 65) * 0.25
@@ -1339,6 +1341,8 @@ function _retiredPlayerToCoach(rp, currentSeason) {
   if (pos === "QB") {
     type = Math.random() < 0.65 ? "oc" : "hc";
     trait = rp.archetype === "SCRAMBLER" ? "Balanced" : Math.random() < 0.5 ? "QB Whisperer" : "Air Attack";
+  } else if (pos === "OL") {
+    type = "oc"; trait = "Trench General";
   } else if (pos === "RB") {
     type = "oc"; trait = "Run Architect";
   } else if (pos === "WR") {

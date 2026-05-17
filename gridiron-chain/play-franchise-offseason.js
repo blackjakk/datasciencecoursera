@@ -670,7 +670,7 @@ function renderAllProBowl() {
 // ── Coaching chemistry ────────────────────────────────────────────────────────
 // Each coaching role maps to a philosophy group. Neutral/wildcard traits return
 // null and don't anchor an axis — they bend to whichever philosophy is strongest.
-//   OFFENSE: Offensive Minded HC | Air Attack / Red Zone Genius / Run Architect OC
+//   OFFENSE: Offensive Minded HC | Air Attack / Red Zone Genius / Run Architect / Trench General OC
 //   DEFENSE: Defensive Minded HC | Pressure Package / Cover Scheme / Ball Hawk / Run Stopper DC
 //   DEVELOP: Player Developer HC | QB Whisperer OC
 //   null   : Motivator, Game Manager, Roster Builder HC | Balanced OC | Hybrid DC
@@ -682,7 +682,7 @@ function _chemGroup(role, trait) {
     return null;
   }
   if (role === "oc") {
-    if (["Air Attack","Red Zone Genius","Run Architect"].includes(trait)) return "OFFENSE";
+    if (["Air Attack","Red Zone Genius","Run Architect","Trench General"].includes(trait)) return "OFFENSE";
     if (trait === "QB Whisperer") return "DEVELOP";
     return null;
   }
@@ -827,6 +827,9 @@ function frnSimOnce(homeId, awayId, isPlayoff = false) {
   };
   if (dcHome === "Film Mastermind") sim.homeR.defense += _filmBonus(homeId);
   if (dcAway === "Film Mastermind") sim.awayR.defense += _filmBonus(awayId);
+  // Trench General OC running SMASHMOUTH: elite O-line coaching translates directly to run game power.
+  if (ocHome === "Trench General" && _getTeamOffScheme(homeId) === "SMASHMOUTH") sim.homeR.offense += 1;
+  if (ocAway === "Trench General" && _getTeamOffScheme(awayId) === "SMASHMOUTH") sim.awayR.offense += 1;
   // Coaching rating modifiers — tiered: <55=-1, 55-71=0, 72-82=+1, 83+=+2
   // HC affects both sides; OC affects offense only; DC affects defense only.
   const _cb = r => r >= 83 ? 2 : r >= 72 ? 1 : r >= 55 ? 0 : -1;
@@ -1405,6 +1408,8 @@ function frnPlayGame(homeId, awayId, isPlayoff) {
   sim.awayR.offense += chemAway.offBonus; sim.awayR.defense += chemAway.defBonus;
   if (chemHome.chaotic) { const s = Math.random() < 0.5 ? 2 : -2; sim.homeR.offense += s; sim.homeR.defense += s; }
   if (chemAway.chaotic) { const s = Math.random() < 0.5 ? 2 : -2; sim.awayR.offense += s; sim.awayR.defense += s; }
+  const ocHome = franchise.coaches?.[homeId]?.oc?.trait;
+  const ocAway = franchise.coaches?.[awayId]?.oc?.trait;
   const dcHome = franchise.coaches?.[homeId]?.dc?.trait;
   const dcAway = franchise.coaches?.[awayId]?.dc?.trait;
   if (dcHome === "Pressure Package") sim.homeR.defense += 1;
@@ -1420,6 +1425,8 @@ function frnPlayGame(homeId, awayId, isPlayoff) {
   };
   if (dcHome === "Film Mastermind") sim.homeR.defense += _filmBonus(homeId);
   if (dcAway === "Film Mastermind") sim.awayR.defense += _filmBonus(awayId);
+  if (ocHome === "Trench General" && _getTeamOffScheme(homeId) === "SMASHMOUTH") sim.homeR.offense += 1;
+  if (ocAway === "Trench General" && _getTeamOffScheme(awayId) === "SMASHMOUTH") sim.awayR.offense += 1;
   const _cb = r => r >= 83 ? 2 : r >= 72 ? 1 : r >= 55 ? 0 : -1;
   const _hc = (id) => franchise.coaches?.[id]?.hc?.rating || 60;
   const _oc = (id) => franchise.coaches?.[id]?.oc?.rating || 60;
@@ -4574,7 +4581,8 @@ function runFrnOffseason() {
                           : 1.0;
         const tecMul      = tierInfo.tecMul * hcDevMul * filmMul * coordDevMul;
         const effectiveTecMul = Math.min(5.0,
-          (p.position === "QB" && ocTrait === "QB Whisperer") ? tecMul * 2 : tecMul);
+          (p.position === "QB" && ocTrait === "QB Whisperer") ? tecMul * 2 :
+          (p.position === "OL" && ocTrait === "Trench General") ? tecMul * 2 : tecMul);
 
         const baseChance = 0.12;
         if ((p.age || 25) <= 30 && Math.random() < baseChance * effectiveTecMul) {
