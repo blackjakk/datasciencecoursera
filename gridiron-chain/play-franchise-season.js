@@ -2285,7 +2285,7 @@ function renderFrnFA(selectedKey) {
         <span class="frn-fa-name" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}${young?" 🌱":""}${woIcon?` ${woIcon}`:""}</span>
         <span class="frn-fa-pos" style="flex-shrink:0">${p.position}</span>
         ${needBadge}
-        <button onclick="event.stopPropagation();frnOpenPlayerCard('${esc}','${escPid}')"
+        <button onclick="event.stopPropagation();frnOpenPlayerCard('${escKey}','${escPid}')"
           title="View player card"
           style="background:none;border:none;color:var(--gray);font-size:.65rem;cursor:pointer;padding:.05rem .15rem;border-radius:3px;flex-shrink:0;line-height:1"
           onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color='var(--gray)'">📋</button>
