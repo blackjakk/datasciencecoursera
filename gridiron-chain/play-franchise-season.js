@@ -3416,273 +3416,431 @@ function _faTryKnockout(name) {
 
 function frnFAOpenSelf() { renderFrnFANegotiations(); }
 
+function frnNegToggleCut(negKey, cutName, checked) {
+  const n = franchise.faNegotiations?.[negKey]; if (!n) return;
+  if (!n.yourBid) n.yourBid = { aav: 0, years: n.fa.demandedYears, cutNames: [] };
+  if (!Array.isArray(n.yourBid.cutNames)) n.yourBid.cutNames = [];
+  if (checked && !n.yourBid.cutNames.includes(cutName)) n.yourBid.cutNames.push(cutName);
+  else n.yourBid.cutNames = n.yourBid.cutNames.filter(c => c !== cutName);
+  saveFranchise();
+  renderFrnFANegotiations(negKey);
+}
+
 function renderFrnFANegotiations(selectedName) {
   const negs = franchise.faNegotiations || {};
   const myId = franchise.chosenTeamId;
-  const cap = franchise.salaryCap || SALARY_CAP_BASE;
+  const cap = effectiveSalaryCap(myId);
   const myCapUsed = capUsedByTeam(myId);
+  const myRoster = franchise.rosters[myId] || [];
 
   const active   = Object.entries(negs).filter(([, n]) => n.state === "negotiating");
   const resolved = Object.entries(negs).filter(([, n]) => n.state !== "negotiating" && n.yourBid);
 
-  // Build results section (user-bid-on negotiations that have concluded)
+  // ── Results section (concluded negotiations you bid on) ──────────────────
   const _buildResultsHtml = () => {
     if (!resolved.length) return "";
     const items = resolved.map(([name, n]) => {
       const won      = n.state === "signed" && n.signedToTeamId === myId;
       const unsigned = n.state === "unsigned";
       const statusColor = won ? "var(--green-lt)" : unsigned ? "var(--gray)" : "var(--red)";
-      const statusLabel = won ? "WON" : unsigned ? "UNSIGNED" : "LOST";
-      const rowClass    = won ? "won" : unsigned ? "unsigned" : "lost";
-      // AAV: for won use yourBid; for lost use last history entry by winner; for unsigned use demand at time
+      const statusLabel = won ? "✓ WON" : unsigned ? "UNSIGNED" : "✗ LOST";
       let aav, years;
-      if (won) {
-        aav   = n.yourBid.aav;
-        years = n.yourBid.years;
-      } else if (n.state === "signed") {
+      if (won) { aav = n.yourBid.aav; years = n.yourBid.years; }
+      else if (n.state === "signed") {
         const lastH = n.history.slice().reverse().find(h => h.teamId === n.signedToTeamId);
-        aav   = lastH ? lastH.aav   : (n.history[n.history.length - 1]?.aav   || 0);
-        years = lastH ? lastH.years : (n.history[n.history.length - 1]?.years || "?");
-      } else {
-        aav   = n.fa.demandedAAV || 0;
-        years = "—";
-      }
-      const destStr = won
-        ? "You signed them"
-        : unsigned
-          ? `Went unsigned · floor $${aav.toFixed ? aav.toFixed(1) : aav}M`
-          : `Signed with ${n.signedToTeamName || "another team"} · $${aav.toFixed ? aav.toFixed(1) : aav}M × ${years}yr`;
-      return `<div class="frn-fa-result-row ${rowClass}">
-        <span>${gradeBadge(n.fa)}</span>
-        <span class="frn-fa-name">${n.fa.name}</span>
-        <span class="frn-fa-pos">${n.fa.position}</span>
-        <span style="color:${statusColor};font-weight:900;font-size:.62rem;letter-spacing:.3px">${statusLabel}</span>
-        <span style="color:var(--gray);font-size:.62rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${destStr}</span>
+        aav = lastH ? lastH.aav : (n.history[n.history.length-1]?.aav || 0);
+        years = lastH ? lastH.years : (n.history[n.history.length-1]?.years || "?");
+      } else { aav = n.fa.demandedAAV || 0; years = "—"; }
+      const destStr = won ? "Signed to your roster"
+        : unsigned ? `Went unsigned`
+        : `Signed with ${n.signedToTeamName || "another team"} · $${aav.toFixed?aav.toFixed(1):aav}M × ${years}yr`;
+      const borderCol = won ? "rgba(75,189,100,.35)" : unsigned ? "var(--border)" : "rgba(220,50,50,.35)";
+      return `<div style="display:flex;align-items:center;gap:.35rem;padding:.28rem .4rem;border-left:3px solid ${borderCol};margin-bottom:.2rem;background:var(--bg2)">
+        <span style="font-size:.58rem;color:var(--gold);font-weight:700;flex-shrink:0">${n.fa.position}</span>
+        ${gradeBadge(n.fa)}
+        <span style="font-size:.68rem;font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${n.fa.name}</span>
+        <span style="font-size:.58rem;font-weight:700;color:${statusColor};flex-shrink:0">${statusLabel}</span>
+        <span style="font-size:.55rem;color:var(--gray);flex-shrink:0;max-width:9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${destStr}</span>
       </div>`;
     }).join("");
-    return `<div style="margin-bottom:.7rem">
-      <div class="frn-card-title">📋 YOUR BID RESULTS</div>
-      <div class="frn-fa-results-list">${items}</div>
+    return `<div style="margin-top:.6rem;border-top:1px solid var(--border);padding-top:.5rem">
+      <div style="font-size:.53rem;letter-spacing:.6px;color:var(--blgray);font-weight:700;margin-bottom:.28rem">CONCLUDED</div>
+      ${items}
     </div>`;
   };
 
   if (active.length === 0) {
-    const resultsHtml = _buildResultsHtml();
     $("frnHomeContent").innerHTML = `
       <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem;flex-wrap:wrap">
+        <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="font-size:.7rem;padding:.2rem .5rem">⌂</button>
         <div style="font-size:1.05rem;font-weight:900;color:var(--gold)">🆓 FA TRACKER · Week ${franchise.week}</div>
-        <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="margin-left:auto">← Dashboard</button>
       </div>
-      ${resultsHtml || `<div style="text-align:center;padding:1.5rem 1rem">
+      ${_buildResultsHtml() || `<div style="text-align:center;padding:1.5rem 1rem">
         <div style="font-size:1.05rem;font-weight:700;color:var(--gold)">No active free-agent negotiations.</div>
         <div style="color:var(--gray);font-size:.78rem;margin-top:.4rem">Submit bids during FA to track outcomes here.</div>
       </div>`}`;
     return;
   }
 
-  // Pick selected (default: first negotiation involving you)
+  // ── Selected negotiation ──────────────────────────────────────────────────
   let selKey = selectedName && negs[selectedName]?.state === "negotiating" ? selectedName : null;
   if (!selKey) selKey = active.find(([, n]) => n.yourBid)?.[0] || active[0][0];
   const selNeg = negs[selKey];
   const selHigh = _faNegCurrentHigh(selNeg);
   const escSel  = selKey.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  const fa = selNeg.fa;
 
-  // Left: list of all negotiations
+  // ── Bid state ─────────────────────────────────────────────────────────────
+  const yourCur   = selNeg.yourBid?.aav || 0;
+  const yourYrs   = selNeg.yourBid?.years || fa.demandedYears;
+  const beingOutbid = selHigh && !selHigh.isYou && selNeg.yourBid;
+  const baseKO    = +(fa.demandedAAV * FA_KNOCKOUT_MULT).toFixed(1);
+  const isKWar    = !!selNeg.knockoutWar;
+  const minKBid   = +(Math.max(baseKO, (selHigh?.aav || 0) + 0.5)).toFixed(1);
+  const knockoutNeed = Math.max(0, +(minKBid - yourCur).toFixed(1));
+  const koLabel   = isKWar ? `⚔ TOP WAR $${minKBid.toFixed(1)}M` : `💥 KNOCKOUT $${minKBid.toFixed(1)}M`;
+
+  // ── Cap math ──────────────────────────────────────────────────────────────
+  const cutNamesSet = new Set(selNeg.yourBid?.cutNames || []);
+  const cutSavings  = myRoster.filter(p => cutNamesSet.has(p.name)).reduce((s,p)=>s+(p.contract?.aav||0),0);
+  const proj        = myCapUsed + yourCur - cutSavings;
+  const overCap     = proj > cap;
+
+  // ── Left column: negotiation list rows ───────────────────────────────────
   const listHtml = active.map(([name, n]) => {
     const high = _faNegCurrentHigh(n);
     const isSel = name === selKey;
-    const isHotForYou = n.yourBid && high && !high.isYou; // you're being outbid
     const escName = name.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-    const warFlag = n.knockoutWar
-      ? `<span class="frn-fa-flag" style="color:var(--red);font-weight:900">⚔ WAR</span>` : "";
-    return `<button class="frn-fa-row ${isSel?"selected":""} ${n.yourBid?"offered":""}"
+    const youLead = high?.isYou;
+    const outbid  = n.yourBid && high && !high.isYou;
+    const war     = n.knockoutWar;
+    const borderCol = war ? "#ff6b6b44" : outbid ? "#ff6b6b44" : youLead ? "#4dbd6444" : "transparent";
+    const statusBadge = war
+      ? `<span style="font-size:.5rem;color:var(--red);font-weight:700;flex-shrink:0">⚔ WAR</span>`
+      : outbid
+      ? `<span style="font-size:.5rem;color:var(--red);font-weight:700;flex-shrink:0">OUTBID</span>`
+      : youLead
+      ? `<span style="font-size:.5rem;color:var(--green-lt);font-weight:700;flex-shrink:0">YOU LEAD</span>`
+      : n.yourBid ? `<span style="font-size:.5rem;color:var(--blgray);flex-shrink:0">BIDDING</span>` : "";
+    const heatBadge = war ? `<span style="font-size:.6rem;line-height:1">⚔</span>`
+      : outbid ? `<span style="font-size:.6rem;line-height:1">🔥</span>`
+      : youLead ? `<span style="font-size:.6rem;line-height:1">👀</span>`
+      : `<span style="display:inline-block;width:.7rem"></span>`;
+    return `<div class="frn-fa-row ${isSel?"selected":""} ${n.yourBid?"offered":""}"
+      style="border-left:3px solid ${borderCol};padding-left:.45rem;cursor:pointer;display:block"
       onclick="renderFrnFANegotiations('${escName}')">
-      <span>${gradeBadge(n.fa)}</span>
-      <span class="frn-fa-name">${n.fa.name}</span>
-      <span class="frn-fa-pos">${n.fa.position}</span>
-      <span class="frn-fa-ask">high $${high?high.aav.toFixed(0):"-"}M</span>
-      ${warFlag || (high ? `<span class="frn-fa-flag" style="color:${high.isYou?"var(--green-lt)":"var(--red)"}">${high.isYou?"YOU LEAD":isHotForYou?"OUTBID":(getTeam(high.teamId)?.name||"?")+" leads"}</span>` : "")}
-    </button>`;
+      <div style="display:flex;align-items:center;gap:.3rem">
+        ${heatBadge}
+        <span style="font-size:.58rem;color:var(--gold);font-weight:700;flex-shrink:0">${n.fa.position}</span>
+        ${gradeBadge(n.fa)}
+        <span class="frn-fa-name" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.68rem">${n.fa.name}</span>
+        ${statusBadge}
+      </div>
+      <div style="display:flex;align-items:center;gap:.3rem;margin-top:.06rem;padding-left:1rem">
+        <span class="frn-fa-ask" style="font-size:.62rem">$${high?high.aav.toFixed(1):"—"}M high</span>
+        <span style="color:var(--gray);font-size:.55rem">· ${n.fa.age}yr</span>
+        ${n.yourBid ? `<span style="font-size:.55rem;color:var(--gold-lt);font-weight:700;margin-left:auto">Your: $${(n.yourBid.aav||0).toFixed(1)}M</span>` : ""}
+      </div>
+    </div>`;
   }).join("");
 
-  // History table
-  const histHtml = selNeg.history.slice(-12).reverse().map(h => `
+  // ── Middle column ─────────────────────────────────────────────────────────
+  const potTag   = potentialTag(fa, { known: _isKnownPlayer(fa) });
+  const isKnown  = _isKnownPlayer(fa);
+  const sGrade   = scoutGrade(fa);
+  const ageStage = fa.age<=25?"🌱 Ascending":fa.age<=27?"⬆ Young Prime":fa.age<=30?"★ Prime":fa.age<=32?"⬇ Late Prime":"↘ Declining";
+
+  const posAavs = [];
+  for (const r of Object.values(franchise.rosters||{})) for (const p of r) if (p.position===fa.position && p.contract) posAavs.push(p.contract.aav);
+  posAavs.sort((a,b)=>b-a);
+  const top5Avg  = posAavs.length ? posAavs.slice(0,5).reduce((s,v)=>s+v,0)/Math.min(posAavs.length,5) : 0;
+  const mktMedian = posAavs.length ? posAavs[Math.floor(posAavs.length/2)] : 0;
+  const mktTop1   = posAavs[0] || 0;
+  const valueGap  = top5Avg ? fa.demandedAAV - top5Avg : 0;
+  const valueTag  = valueGap < -2 ? "BARGAIN" : valueGap < 2 ? "FAIR" : valueGap < 6 ? "PREMIUM" : "OVERPRICED";
+  const vCol      = valueTag==="BARGAIN"?"var(--green-lt)":valueTag==="FAIR"?"var(--gold-lt)":valueTag==="PREMIUM"?"#e8a000":"var(--red)";
+  const recMul    = _injuryRecurrenceMul(fa);
+
+  const fit = _faRosterFit(fa, myId);
+  const needLvl = _draftNeedLevel(myId, fa.position);
+  const fitIcon  = fit.upgrade?"⬆":fit.compete?"⟺":needLvl===2?"❗":needLvl===1?"⚠":"→";
+  const fitColor = fit.upgrade?"var(--green-lt)":fit.compete?"var(--gold-lt)":needLvl===2?"#ff9090":needLvl===1?"#e8a000":"var(--blgray)";
+
+  const lastSzn = (fa.careerHistory||[]).slice(-1)[0];
+  const cols = _careerColsFor(fa.position);
+  const statCells = lastSzn ? cols.map(c=>`<div style="text-align:center"><div style="font-size:.52rem;color:var(--blgray);letter-spacing:.3px">${c.label}</div><div style="font-size:.78rem;font-weight:700;color:var(--blwhite)">${lastSzn[c.key]||0}</div></div>`).join("") : "";
+  const combineStr = _draftCombineStr(fa);
+
+  const histHtml = selNeg.history.slice(-12).reverse().map(h=>`
     <tr>
       <td style="color:var(--gray);font-size:.6rem">W${h.week}</td>
-      <td>${h.label}</td>
-      <td style="color:var(--gold)">$${h.aav.toFixed(1)}M</td>
-      <td style="color:var(--gray)">${h.years || "—"}yr</td>
+      <td style="font-size:.65rem">${h.label}</td>
+      <td style="color:var(--gold);font-size:.65rem">$${h.aav.toFixed(1)}M</td>
+      <td style="color:var(--gray);font-size:.62rem">${h.years||"—"}yr</td>
     </tr>`).join("");
 
-  // Actions row
-  const yourCur = selNeg.yourBid?.aav || 0;
-  const yourYrs = selNeg.yourBid?.years || selNeg.fa.demandedYears;
-  const beingOutbid = selHigh && !selHigh.isYou && selNeg.yourBid;
-  const baseKO = +(selNeg.fa.demandedAAV * FA_KNOCKOUT_MULT).toFixed(1);
-  const isKWar = !!selNeg.knockoutWar;
-  const minKBid = +(Math.max(baseKO, (selHigh?.aav || 0) + 0.5)).toFixed(1);
-  const knockoutNeed = Math.max(0, +(minKBid - yourCur).toFixed(1));
-  const koLabel = isKWar ? `⚔ TOP WAR $${minKBid.toFixed(1)}M` : `💥 KNOCKOUT $${minKBid.toFixed(1)}M`;
-  const actionsHtml = `
-    <div class="frn-fa-neg-actions">
+  const detailHtml = `<div class="frn-fa-detail">
+
+    <div class="frn-fa-detail-head" style="margin-bottom:.4rem">
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:.38rem;flex-wrap:wrap;margin-bottom:.12rem">
+          <span style="font-size:1.05rem;font-weight:900;cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px"
+            onclick="frnOpenPlayerCard('${escSel}','${(fa.pid||"").replace(/'/g,"\\'")}')">${fa.name}</span>
+          ${_posPillHtml(fa.position)}
+          ${gradeBadge(fa)}
+          <span style="font-size:.6rem;color:var(--blgray);margin-left:auto">${ageStage} · age ${fa.age}</span>
+        </div>
+        <div style="color:var(--gray);font-size:.64rem">${_archetypeLabel(fa)||"—"} · ${draftStr(fa)} · ${careerEarningsStr(fa)}</div>
+        ${potTag?`<div style="font-size:.68rem;color:${isKnown?"var(--green-lt)":"var(--gold-lt)"};font-weight:700;margin-top:.18rem">${potTag}</div>`:""}
+        ${fa.faStory?`<div style="color:var(--gold-lt);font-size:.67rem;margin-top:.18rem;font-style:italic">"${fa.faStory}"</div>`:""}
+      </div>
+    </div>
+
+    <div style="padding:.45rem .55rem;background:rgba(0,0,0,.2);border-left:3px solid ${isKWar?"var(--red)":selHigh?.isYou?"var(--green-lt)":beingOutbid?"var(--red)":"var(--border)"};border-radius:0 4px 4px 0;margin-bottom:.45rem">
+      <div style="font-size:.53rem;letter-spacing:.7px;color:var(--blgray);margin-bottom:.22rem">BID STATUS · Week ${franchise.week}</div>
+      <div style="font-size:.82rem;font-weight:700">
+        $${selHigh?selHigh.aav.toFixed(1):"—"}M × ${selHigh?selHigh.years:"—"}yr
+        <span style="font-size:.62rem;font-weight:400;color:${selHigh?.isYou?"var(--green-lt)":"var(--gray)"}">
+          by ${selHigh ? (selHigh.isYou ? "YOU" : (getTeam(selHigh.teamId)?.name||"?")) : "—"}
+        </span>
+      </div>
       ${selNeg.yourBid ? `
-        <button class="btn btn-gold" onclick="frnFARaiseBid('${escSel}', 1)">↑ +$1M</button>
-        <button class="btn btn-gold" onclick="frnFARaiseBid('${escSel}', 3)">↑ +$3M</button>
-        ${beingOutbid ? `<button class="btn btn-gold" onclick="frnFAMatchHigh('${escSel}')">→ Outbid by $0.5M</button>` : ""}
-        <button class="btn btn-gold" onclick="frnFAKnockoutBid('${escSel}')" style="background:var(--gold);color:#000;font-weight:900" title="${isKWar?'War on — bidders past 150% threshold':'Bid past 150% to win instantly'}">${koLabel}${knockoutNeed > 0 ? ` (+$${knockoutNeed.toFixed(1)}M)` : ""}</button>
-        <button class="btn btn-outline" onclick="frnFAFoldNeg('${escSel}')" style="color:var(--red)">✗ Fold</button>
-      ` : `
-        <button class="btn btn-gold" onclick="frnFAEnterBid('${escSel}')">+ Enter Bid (match current high)</button>
-        <button class="btn btn-gold" onclick="frnFAKnockoutBid('${escSel}')" style="background:var(--gold);color:#000;font-weight:900">${koLabel}</button>
-      `}
+        <div style="font-size:.68rem;color:${beingOutbid?"var(--red)":"var(--green-lt)"};margin-top:.16rem">
+          ${beingOutbid?"⚠ You're being outbid":"✓ You're the high bidder"}
+          · Your bid: <b>$${yourCur.toFixed(1)}M × ${selNeg.yourBid.years}yr</b>
+        </div>` : `
+        <div style="font-size:.65rem;color:var(--gray);margin-top:.16rem">You have not entered a bid on this player.</div>`}
+      <div style="font-size:.62rem;color:var(--gray);margin-top:.14rem">
+        ${selNeg.raisedThisRound
+          ? "<span style='color:var(--gold-lt)'>↑ Raise this round — won't sign until next week</span>"
+          : "<span style='color:var(--green-lt)'>Stable — signs at end of week if no raise</span>"}
+      </div>
+      <div style="font-size:.6rem;color:var(--gray);margin-top:.1rem">
+        ${isKWar
+          ? `⚔ <b style="color:var(--red)">KNOCKOUT WAR</b> — multiple teams over $${baseKO.toFixed(1)}M.`
+          : `💥 Sole offer ≥ <b style="color:var(--gold)">$${baseKO.toFixed(1)}M</b> wins instantly (${(FA_KNOCKOUT_MULT*100).toFixed(0)}% of demand).`}
+      </div>
     </div>
-    <div class="frn-fa-neg-actions" style="margin-top:.5rem;align-items:center;gap:.4rem">
-      <span class="frn-meta-label" style="margin:0">Contract length:</span>
-      <button class="btn btn-outline" onclick="frnFASetNegotiationYears('${escSel}',${Math.max(1, yourYrs-1)})" style="font-size:.65rem;padding:.2rem .55rem">− 1yr</button>
-      <span style="color:var(--gold-lt);font-weight:700;min-width:3rem;text-align:center">${yourYrs} yr</span>
-      <button class="btn btn-outline" onclick="frnFASetNegotiationYears('${escSel}',${Math.min(7, yourYrs+1)})" style="font-size:.65rem;padding:.2rem .55rem">+ 1yr</button>
-      <input type="number" min="1" max="7" step="1" value="${yourYrs}"
-        onchange="frnFASetNegotiationYears('${escSel}',this.value)"
-        style="width:3.6rem;background:var(--bg3);color:var(--white);border:1px solid var(--border);padding:.2rem .35rem;font-family:inherit;font-size:.7rem">
-      <span style="color:var(--gray);font-size:.62rem">FA wants ${selNeg.fa.demandedYears}yr · longer = more risk for you, more comfort for them</span>
+
+    <div style="padding:.38rem .5rem;background:rgba(0,0,0,.15);border:1px solid var(--border);border-radius:4px;margin-bottom:.45rem">
+      <div style="font-size:.53rem;letter-spacing:.7px;color:var(--blgray);margin-bottom:.18rem">ROSTER FIT</div>
+      <div style="font-size:.7rem;color:${fitColor};font-weight:${fit.upgrade||fit.compete?700:400}">${fitIcon} ${fit.label}</div>
     </div>
-    <div class="frn-fa-neg-actions" style="margin-top:.4rem;align-items:center;gap:.4rem">
-      <span class="frn-meta-label" style="margin:0">Structure:</span>
-      ${["BALANCED","BACKLOADED","FRONTLOADED"].map(s => {
-        const cur = selNeg.yourBid?.structure || _defaultStructure(selNeg.fa.age||27, selNeg.fa.overall||70);
-        const desc = s === "BALANCED" ? "flat salaries" : s === "BACKLOADED" ? "cheap now, costly later" : "costly now, cheap later";
-        return `<button class="btn ${cur===s?"btn-gold":"btn-outline"}" onclick="frnFASetStructure('${escSel}','${s}')" style="font-size:.62rem;padding:.2rem .5rem" title="${desc}">${s[0]+s.slice(1).toLowerCase()}</button>`;
-      }).join("")}
-      <span style="color:var(--gray);font-size:.62rem">affects year-by-year cap hits &amp; dead cap if cut</span>
+
+    ${(lastSzn||combineStr)?`<div style="padding:.38rem .5rem;background:rgba(0,0,0,.15);border:1px solid var(--border);border-radius:4px;margin-bottom:.45rem">
+      ${lastSzn?`<div style="font-size:.53rem;letter-spacing:.7px;color:var(--blgray);margin-bottom:.22rem">LAST SEASON · ${lastSzn.gp||0} GP · age ${lastSzn.age||"?"}</div>
+        <div style="display:flex;gap:.65rem;flex-wrap:wrap;margin-bottom:.25rem">${statCells}</div>`:""}
+      ${combineStr?`<div style="font-size:.6rem;color:var(--gray)">📐 ${combineStr}</div>`:""}
+    </div>`:""}
+
+    <div class="frn-fa-offer-form" style="gap:.35rem;flex-direction:column">
+      <div style="display:flex;flex-wrap:wrap;gap:.3rem;align-items:center">
+        ${selNeg.yourBid ? `
+          <button class="btn btn-gold" onclick="frnFARaiseBid('${escSel}',1)">↑ +$1M</button>
+          <button class="btn btn-gold" onclick="frnFARaiseBid('${escSel}',3)">↑ +$3M</button>
+          ${beingOutbid?`<button class="btn btn-gold" onclick="frnFAMatchHigh('${escSel}')">⟺ Match +$0.5M</button>`:""}
+          <button class="btn btn-gold" onclick="frnFAKnockoutBid('${escSel}')"
+            style="background:var(--gold);color:#000;font-weight:900">${koLabel}${knockoutNeed>0?` (+$${knockoutNeed.toFixed(1)}M)`:""}</button>
+          <button class="btn btn-outline" onclick="frnFAFoldNeg('${escSel}')" style="color:var(--red);margin-left:auto">✗ Fold</button>
+        ` : `
+          <button class="btn btn-gold" onclick="frnFAEnterBid('${escSel}')">+ Enter Bid</button>
+          <button class="btn btn-gold" onclick="frnFAKnockoutBid('${escSel}')"
+            style="background:var(--gold);color:#000;font-weight:900">${koLabel}</button>
+        `}
+      </div>
+      <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">
+        <span class="frn-meta-label" style="margin:0">YEARS</span>
+        <button class="btn btn-outline" onclick="frnFASetNegotiationYears('${escSel}',${Math.max(1,yourYrs-1)})" style="font-size:.65rem;padding:.18rem .45rem">−</button>
+        <span style="color:var(--gold-lt);font-weight:700;min-width:2.4rem;text-align:center">${yourYrs}yr</span>
+        <button class="btn btn-outline" onclick="frnFASetNegotiationYears('${escSel}',${Math.min(7,yourYrs+1)})" style="font-size:.65rem;padding:.18rem .45rem">+</button>
+        <span style="color:var(--gray);font-size:.6rem">FA wants ${fa.demandedYears}yr</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:.35rem;flex-wrap:wrap">
+        <span class="frn-meta-label" style="margin:0">STRUCTURE</span>
+        ${["BALANCED","BACKLOADED","FRONTLOADED"].map(s=>{
+          const cur = selNeg.yourBid?.structure||_defaultStructure(fa.age||27,fa.overall||70);
+          return `<button class="btn ${cur===s?"btn-gold":"btn-outline"}" onclick="frnFASetStructure('${escSel}','${s}')" style="font-size:.6rem;padding:.18rem .42rem">${s[0]+s.slice(1).toLowerCase()}</button>`;
+        }).join("")}
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:.6rem;padding:.42rem .55rem;background:var(--bg3);border-radius:4px;margin-top:.42rem;flex-wrap:wrap;border:1px solid var(--border)">
+      <div style="font-size:.72rem">If you win: <b style="color:${overCap?"var(--red)":"var(--green-lt)"}">$${proj.toFixed(1)}M</b>
+        <span style="font-size:.6rem;color:var(--gray)"> / $${cap.toFixed(0)}M ${overCap?`(${(proj-cap).toFixed(1)}M over)`:`(${(cap-proj).toFixed(1)}M room)`}</span>
+      </div>
+      ${cutSavings?`<span style="font-size:.62rem;color:var(--gold)">− $${cutSavings.toFixed(1)}M planned cuts</span>`:""}
+    </div>
+
+    ${(()=>{
+      const goals = [{id:"flex",label:"Flexibility"},{id:"capnow",label:"Cap Now"},{id:"lockup",label:"Long Term"},{id:"lowrisk",label:"Low Risk"}];
+      const suggs = _contractAdvisor(fa, selNeg._advisorGoal||"flex", cap);
+      const goalBtns = goals.map(g=>{
+        const isActive=(selNeg._advisorGoal||"flex")===g.id;
+        return `<button class="btn ${isActive?"btn-gold":"btn-outline"}" onclick="frnFASetAdvisorGoal('${escSel}','${g.id}')" style="font-size:.58rem;padding:.15rem .38rem">${g.label}</button>`;
+      }).join("");
+      const suggHtml = suggs.map(s=>`<div style="background:var(--bg3);border-radius:4px;padding:.38rem .5rem;margin-top:.28rem;display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem">
+        <div><div style="font-weight:700;font-size:.67rem;color:var(--gold)">${s.label}</div>
+          <div style="color:var(--gray);font-size:.59rem;margin-top:.08rem">${s.note}</div></div>
+        <button class="btn btn-outline" onclick="frnFAApplyAdvisor('${escSel}',${s.years},${s.aav},'${s.structure}')" style="font-size:.58rem;padding:.15rem .4rem;white-space:nowrap">Use $${s.aav.toFixed(1)}M × ${s.years}yr</button>
+      </div>`).join("");
+      return `<div style="margin-top:.6rem;padding:.45rem .55rem;background:rgba(200,169,0,.06);border:1px solid rgba(200,169,0,.2);border-radius:6px">
+        <div style="font-size:.67rem;font-weight:700;color:var(--gold);margin-bottom:.35rem">🤝 CONTRACT ADVISOR</div>
+        <div style="display:flex;flex-wrap:wrap;gap:.22rem">${goalBtns}</div>
+        ${suggHtml}
+      </div>`;
+    })()}
+
+    <div style="padding:.4rem .5rem;background:var(--bg3);border:1px solid var(--border);border-radius:4px;margin-top:.55rem">
+      <div style="font-size:.53rem;letter-spacing:.6px;color:var(--blgray);margin-bottom:.22rem">SCOUT VERDICT</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.4rem;font-size:.68rem">
+        <div><span class="frn-meta-label">PRICE</span><b style="color:${vCol}">${valueTag}</b></div>
+        <div><span class="frn-meta-label">GRADE</span><b style="color:var(--gold)">${gradeLabel(sGrade)}</b></div>
+        <div><span class="frn-meta-label">STAGE</span><b>${fa.age<=27?"Ascending":fa.age<=30?"Prime":fa.age<=32?"Late Prime":"Declining"}</b></div>
+        <div><span class="frn-meta-label">INJ RISK</span><b style="color:${recMul>1.4?"#ff9090":"var(--white)"}">${recMul>1.2?`${(recMul*100-100).toFixed(0)}% ↑`:"Normal"}</b></div>
+      </div>
+      ${posAavs.length?`<div style="font-size:.6rem;color:var(--gray);margin-top:.3rem">
+        ${fa.position} market — top5 avg <b style="color:var(--gold-lt)">$${top5Avg.toFixed(1)}M</b> · median <b style="color:var(--gold-lt)">$${mktMedian.toFixed(1)}M</b> · top <b style="color:var(--gold)">$${mktTop1.toFixed(1)}M</b>.
+        Demand: <b style="color:var(--gold-lt)">$${fa.demandedAAV.toFixed(1)}M</b>${fa.originalDemandAAV&&fa.originalDemandAAV>fa.demandedAAV?` <span style="color:#ff9090">(was $${fa.originalDemandAAV.toFixed(1)}M, dropped ${fa.demandDropsCount}×)</span>`:""}.
+      </div>`:""}
+    </div>
+
+    <div style="margin-top:.6rem">
+      <div style="font-size:.53rem;letter-spacing:.6px;color:var(--blgray);font-weight:700;margin-bottom:.25rem">BID HISTORY</div>
+      <table class="frn-pre-roster-table">
+        <thead><tr><th>Wk</th><th>By</th><th>AAV</th><th>Yrs</th></tr></thead>
+        <tbody>${histHtml}</tbody>
+      </table>
+    </div>
+
+  </div>`;
+
+  // ── Right column: cut list tied to this negotiation ───────────────────────
+  const dcStarters = new Set(Object.values(franchise.depthChart?.[myId]||{}).map(s=>s.starter).filter(Boolean));
+  const _cutQueued = myRoster.filter(p => cutNamesSet.has(p.name));
+  const _cutSafe   = myRoster.filter(p => {
+    if (cutNamesSet.has(p.name)) return false;
+    const { perYear, years } = deadCapOnRelease(p);
+    return !(years>0 && perYear>0);
+  }).sort((a,b)=>{
+    const as=!!(a.pid&&dcStarters.has(a.pid)), bs=!!(b.pid&&dcStarters.has(b.pid));
+    if (as!==bs) return as?-1:1;
+    return (b.contract?.aav||0)-(a.contract?.aav||0);
+  });
+  const _cutDead = myRoster.filter(p => {
+    if (cutNamesSet.has(p.name)) return false;
+    const { perYear, years } = deadCapOnRelease(p);
+    return years>0 && perYear>0;
+  }).sort((a,b)=>(b.contract?.aav||0)-(a.contract?.aav||0));
+  const _showDeadCap = !!(window._faCutShowDeadCap);
+
+  const _negCutRow = p => {
+    const ep   = (p.name||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'");
+    const epid = (p.pid||"").replace(/'/g,"\\'");
+    const aav  = p.contract?.aav||0;
+    const {perYear:dPY,years:dYrs} = deadCapOnRelease(p);
+    const hasDead = dYrs>0&&dPY>0;
+    const isStarter = !!(p.pid&&dcStarters.has(p.pid));
+    const isQueued = cutNamesSet.has(p.name);
+    const rowStyle = isQueued
+      ? "background:rgba(255,70,70,.1);border-left:3px solid #ff6b6b;padding:.32rem .35rem .32rem .45rem;margin-bottom:.2rem;border-radius:0 3px 3px 0;display:flex;align-items:center;gap:.3rem"
+      : "display:flex;align-items:center;gap:.3rem;padding:.22rem .05rem;border-bottom:1px solid rgba(255,255,255,.04)";
+    const actionBtn = isQueued
+      ? `<button onclick="frnNegToggleCut('${escSel}','${ep}',false)"
+          style="background:rgba(255,70,70,.18);border:1px solid #ff6b6b;color:#ff9090;font-size:.56rem;padding:.12rem .3rem;border-radius:3px;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0"
+          onmouseover="this.style.background='rgba(255,70,70,.35)'" onmouseout="this.style.background='rgba(255,70,70,.18)'">× UNDO</button>`
+      : `<button onclick="frnNegToggleCut('${escSel}','${ep}',true)"
+          style="background:none;border:1px solid var(--border);color:var(--gray);font-size:.56rem;padding:.12rem .3rem;border-radius:3px;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0"
+          onmouseover="this.style.borderColor='#ff9090';this.style.color='#ff9090'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--gray)'">✂ CUT</button>`;
+    return `<div style="${rowStyle}">
+      <span style="font-size:.57rem;color:var(--blgray);font-weight:700;min-width:1.5rem">${p.position}</span>
+      <span style="flex:1;font-size:.66rem;cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px;${isQueued?"color:#ffaaaa":""}"
+        onclick="event.stopPropagation();frnOpenPlayerCard('${ep}','${epid}')">${p.name}</span>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:.03rem">
+        ${gradeBadge(p)}${isStarter?`<span style="font-size:.43rem;color:var(--gold);font-weight:700">START</span>`:""}
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.03rem;min-width:3.2rem">
+        <span style="font-size:.61rem;color:var(--green-lt);font-weight:700">+$${aav.toFixed(1)}M</span>
+        ${hasDead?`<span style="font-size:.49rem;color:var(--red)">☠ $${dPY.toFixed(1)}M dead</span>`:""}
+      </div>
+      ${actionBtn}
     </div>`;
+  };
 
-  // Cap math preview
-  const projAdd = selNeg.yourBid ? selNeg.yourBid.aav : 0;
-  const cutNames = new Set(selNeg.yourBid?.cutNames || []);
-  const myRoster = franchise.rosters[myId];
-  const cutSavings = myRoster.filter(p => cutNames.has(p.name)).reduce((s,p) => s + (p.contract?.aav||0), 0);
-  const proj = myCapUsed + projAdd - cutSavings;
+  const _negQueuedCard = p => {
+    const ep   = (p.name||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'");
+    const epid = (p.pid||"").replace(/'/g,"\\'");
+    const aav  = p.contract?.aav||0;
+    return `<div style="background:rgba(255,60,60,.13);border:1px solid rgba(255,107,107,.55);border-radius:4px;padding:.38rem .48rem;margin-bottom:.28rem">
+      <div style="display:flex;align-items:center;gap:.35rem;margin-bottom:.28rem">
+        <span style="font-size:.58rem;color:#ff9090;font-weight:700;flex-shrink:0">${p.position}</span>
+        <span style="font-size:.74rem;font-weight:900;color:#ffcccc;flex:1;cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px"
+          onclick="event.stopPropagation();frnOpenPlayerCard('${ep}','${epid}')">${p.name}</span>
+        ${gradeBadge(p)}
+        <span style="font-size:.62rem;color:var(--green-lt);font-weight:700;flex-shrink:0">+$${aav.toFixed(1)}M</span>
+      </div>
+      <button onclick="frnNegToggleCut('${escSel}','${ep}',false)"
+        style="width:100%;background:rgba(255,70,70,.22);border:1px solid #ff6b6b;color:#ffaaaa;font-size:.66rem;font-weight:700;padding:.28rem .4rem;border-radius:3px;cursor:pointer;font-family:inherit;letter-spacing:.4px;text-align:center"
+        onmouseover="this.style.background='rgba(255,70,70,.38)';this.style.color='#fff'"
+        onmouseout="this.style.background='rgba(255,70,70,.22)';this.style.color='#ffaaaa'">
+        × UNDO CUT — Keep ${p.name}
+      </button>
+    </div>`;
+  };
 
-  // — Decision support: full detail panel + position market + verdict —
-  const fa = selNeg.fa;
-  const posMarket = (() => {
-    // Top 5 AAVs at this position currently signed in the league
-    const aavs = [];
-    for (const r of Object.values(franchise.rosters || {})) {
-      for (const p of r) if (p.position === fa.position && p.contract) aavs.push(p.contract.aav);
-    }
-    aavs.sort((a,b) => b-a);
-    const top5 = aavs.slice(0, 5);
-    if (!top5.length) return null;
-    const top5Avg = top5.reduce((s,v) => s+v, 0) / top5.length;
-    const median = aavs[Math.floor(aavs.length/2)] || 0;
-    return { top5Avg, median, top1: aavs[0] || 0 };
-  })();
-  // Verdict heuristic: scout grade + age + market vs demand
-  const grade = scoutGrade(fa);
-  const ageRisk = fa.age >= (fa.declineAge ?? 32) ? "declining"
-    : fa.age >= 30 ? "late prime"
-    : fa.age >= 27 ? "prime"
-    : fa.age >= 24 ? "ascending"
-    : "young";
-  const valueGap = posMarket ? (fa.demandedAAV - posMarket.top5Avg) : 0;
-  const valueTag = valueGap < -2 ? "BARGAIN"
-    : valueGap < 2 ? "FAIR"
-    : valueGap < 6 ? "PREMIUM"
-    : "OVERPRICED";
-  const verdictColor = valueTag === "BARGAIN" ? "var(--green-lt)"
-    : valueTag === "FAIR" ? "var(--gold-lt)"
-    : valueTag === "PREMIUM" ? "#e8a000"
-    : "var(--red)";
-  const recurrenceMul = _injuryRecurrenceMul(fa);
-  const proneStr = recurrenceMul > 1.2 ? `${(recurrenceMul*100-100).toFixed(0)}% above baseline` : "normal";
-  const verdictHtml = `
-    <div class="frn-card-title" style="margin-top:.6rem">📋 SCOUT VERDICT</div>
-    <div class="frn-fa-preview" style="display:grid;grid-template-columns:repeat(4,1fr);gap:.45rem;font-size:.7rem">
-      <div><span class="frn-meta-label">PRICE TAG</span> <b style="color:${verdictColor}">${valueTag}</b></div>
-      <div><span class="frn-meta-label">CAREER STAGE</span> <b style="color:var(--white)">${ageRisk}</b></div>
-      <div><span class="frn-meta-label">INJURY RISK</span> <b style="color:${recurrenceMul>1.4?"#ff9090":"var(--white)"}">${proneStr}</b></div>
-      <div><span class="frn-meta-label">SCOUT GRADE</span> <b style="color:var(--gold)">${gradeLabel(grade)}</b></div>
-    </div>
-    ${posMarket ? `<div style="margin-top:.35rem;color:var(--gray);font-size:.62rem">
-      ${fa.position} market — top 5 avg <b style="color:var(--gold-lt)">$${posMarket.top5Avg.toFixed(1)}M</b> ·
-      league median <b style="color:var(--gold-lt)">$${posMarket.median.toFixed(1)}M</b> ·
-      top-paid <b style="color:var(--gold)">$${posMarket.top1.toFixed(1)}M</b>.
-      He wants <b style="color:var(--gold-lt)">$${fa.demandedAAV.toFixed(1)}M</b>${fa.originalDemandAAV && fa.originalDemandAAV > fa.demandedAAV ? ` <span style="color:#ff9090">(was $${fa.originalDemandAAV.toFixed(1)}M · dropped ${fa.demandDropsCount}×)</span>` : ""}.
-    </div>` : ""}`;
+  const queuedSection = _cutQueued.length
+    ? `<div style="font-size:.55rem;letter-spacing:.6px;color:#ff9090;font-weight:700;margin:.1rem 0 .28rem;display:flex;align-items:center;gap:.35rem">✂ QUEUED TO CUT <span style="background:rgba(255,70,70,.25);border-radius:3px;padding:.05rem .3rem">${_cutQueued.length}</span></div>`
+      + _cutQueued.map(_negQueuedCard).join("")
+      + `<div style="height:.3rem;border-bottom:1px solid var(--border);margin-bottom:.4rem"></div>`
+    : "";
+  const safeSection = _cutSafe.length
+    ? _cutSafe.map(p=>_negCutRow(p)).join("")
+    : `<div style="color:var(--gray);font-size:.64rem;padding:.4rem 0;font-style:italic">No clean contracts to cut.</div>`;
+  const deadSection = _cutDead.length
+    ? `<div style="margin-top:.5rem">
+        <button onclick="window._faCutShowDeadCap=!window._faCutShowDeadCap;renderFrnFANegotiations('${escSel}')"
+          style="background:none;border:none;color:var(--blgray);font-size:.57rem;cursor:pointer;font-family:inherit;padding:.08rem 0;display:flex;align-items:center;gap:.25rem">
+          <span style="color:var(--red)">⚠</span> ${_showDeadCap?"▾":"▸"} ${_cutDead.length} player${_cutDead.length!==1?"s":""} with dead cap ${_showDeadCap?"":"— show anyway"}
+        </button>
+        ${_showDeadCap?`<div style="margin-top:.25rem;padding:.25rem .3rem;background:rgba(255,70,70,.04);border-left:2px solid rgba(255,70,70,.4);border-radius:0 3px 3px 0">${_cutDead.map(p=>_negCutRow(p)).join("")}</div>`:""}
+      </div>` : "";
+  const rosterHtml = queuedSection
+    + `<div style="font-size:.53rem;letter-spacing:.5px;color:var(--blgray);font-weight:700;margin-bottom:.22rem">SAFE CUTS · NO DEAD CAP</div>`
+    + safeSection + deadSection;
 
   $("frnHomeContent").innerHTML = `
     <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem;flex-wrap:wrap">
+      <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="font-size:.7rem;padding:.2rem .5rem" title="Return to franchise home">⌂</button>
       <div style="font-size:1.05rem;font-weight:900;color:var(--gold)">🆓 FA NEGOTIATIONS · Week ${franchise.week}</div>
-      <div style="color:var(--gray);font-size:.72rem">${active.length} active · raises lock the player in for another week</div>
-      <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="margin-left:auto">← Dashboard</button>
+      <div style="font-size:.6rem;color:var(--blgray);letter-spacing:.4px;padding:.18rem .45rem;border:1px solid var(--border);border-radius:3px">
+        ${active.length} active · ${resolved.length} concluded
+      </div>
+      <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="margin-left:auto;font-size:.7rem">← Dashboard</button>
     </div>
     <div class="frn-fa-summary">
-      <span>Your cap: <b>$${myCapUsed.toFixed(1)}M / $${cap.toFixed(0)}M</b></span>
-      <span>If you win this FA: <b style="color:${proj>cap?"var(--red)":"var(--gold)"}">$${proj.toFixed(1)}M projected</b></span>
+      <span>Roster: <b>$${myCapUsed.toFixed(1)}M</b></span>
+      ${yourCur?`<span style="color:var(--gold)">+ This bid: <b>$${yourCur.toFixed(1)}M</b></span>`:""}
+      ${cutSavings?`<span style="color:var(--gold)">− Cuts: <b>$${cutSavings.toFixed(1)}M</b></span>`:""}
+      <span style="color:${overCap?"var(--red)":"var(--green-lt)"}">
+        = Projected: <b>$${proj.toFixed(1)}M</b> / $${cap.toFixed(0)}M
+        ${overCap?`(${(proj-cap).toFixed(1)}M OVER)`:`(${(cap-proj).toFixed(1)}M room)`}
+      </span>
     </div>
     <div class="frn-fa-layout">
       <div class="frn-fa-pool-col">
-        <div class="frn-card-title">ACTIVE NEGOTIATIONS</div>
+        <div class="frn-card-title">ACTIVE NEGOTIATIONS (${active.length})</div>
         <div class="frn-fa-pool-list">${listHtml}</div>
         ${_buildResultsHtml()}
       </div>
-      <div class="frn-fa-mid-col" style="grid-column: span 2">
-        <div class="frn-fa-preview">
-          <div>Current high: <b style="color:var(--gold)">$${selHigh?selHigh.aav.toFixed(1):"0"}M × ${selHigh?selHigh.years:"-"}yr</b>
-          ${selHigh ? `by <b style="color:${selHigh.isYou?"var(--green-lt)":"var(--white)"}">${selHigh.isYou ? "YOU" : (getTeam(selHigh.teamId).city+" "+getTeam(selHigh.teamId).name)}</b>` : ""}
-          </div>
-          <div style="color:var(--gray);font-size:.68rem;margin-top:.2rem">
-            Your bid: <b style="color:${yourCur?"var(--gold-lt)":"var(--gray)"}">${selNeg.yourBid?`$${yourCur.toFixed(1)}M × ${selNeg.yourBid.years}yr`:"not bidding"}</b>
-            · ${selNeg.raisedThisRound ? "<span style='color:var(--gold-lt)'>This round had a raise — won't sign yet</span>" : "<span style='color:var(--green-lt)'>Stable — will sign at end of this week if no one raises</span>"}
-          </div>
-          <div style="color:var(--gray);font-size:.62rem;margin-top:.15rem">
-            ${isKWar
-              ? `⚔ <b style="color:var(--red)">KNOCKOUT WAR ACTIVE</b> — multiple teams over $${baseKO.toFixed(1)}M. Sole knockout signs; ties keep escalating.`
-              : `💥 <b style="color:var(--gold-lt)">Knockout bid:</b> sole offer ≥ <b style="color:var(--gold)">$${baseKO.toFixed(1)}M</b> (${(FA_KNOCKOUT_MULT*100).toFixed(0)}% of demand) wins instantly. Two teams over → bidding war.`}
-          </div>
-        </div>
-        ${actionsHtml}
-        ${verdictHtml}
-        ${(() => {
-          // Contract advisor — show 2-3 construction suggestions
-          const goals = [
-            { id:"flex",    label:"Maximize Flexibility" },
-            { id:"capnow",  label:"Minimize Cap Now" },
-            { id:"lockup",  label:"Lock Up Long Term" },
-            { id:"lowrisk", label:"Low Risk" },
-          ];
-          const capRoom = cap - myCapUsed;
-          const suggs = _contractAdvisor(fa, selNeg._advisorGoal || "flex", cap);
-          const goalBtns = goals.map(g => {
-            const active = (selNeg._advisorGoal || "flex") === g.id;
-            return `<button class="btn ${active?"btn-gold":"btn-outline"}" onclick="frnFASetAdvisorGoal('${escSel}','${g.id}')" style="font-size:.58rem;padding:.15rem .4rem">${g.label}</button>`;
-          }).join("");
-          const suggHtml = suggs.map(s => {
-            const capHitNow = s.aav; // Simplified; real cap hit depends on structure
-            return `<div style="background:var(--bg3);border-radius:4px;padding:.4rem .55rem;margin-top:.3rem;display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem">
-              <div>
-                <div style="font-weight:700;font-size:.68rem;color:var(--gold)">${s.label}</div>
-                <div style="color:var(--gray);font-size:.6rem;margin-top:.1rem">${s.note}</div>
-              </div>
-              <button class="btn btn-outline" onclick="frnFAApplyAdvisor('${escSel}',${s.years},${s.aav},'${s.structure}')" style="font-size:.58rem;padding:.15rem .4rem;white-space:nowrap">Use $${s.aav.toFixed(1)}M × ${s.years}yr</button>
-            </div>`;
-          }).join("");
-          return `<div style="margin-top:.7rem;padding:.5rem .6rem;background:rgba(200,169,0,.06);border:1px solid rgba(200,169,0,.2);border-radius:6px">
-            <div style="font-size:.68rem;font-weight:700;color:var(--gold);margin-bottom:.4rem">🤝 CONTRACT ADVISOR</div>
-            <div style="display:flex;flex-wrap:wrap;gap:.25rem;margin-bottom:.2rem">${goalBtns}</div>
-            ${suggHtml}
-          </div>`;
-        })()}
-        <div class="frn-card-title" style="margin-top:.8rem">📊 FULL PLAYER REPORT</div>
-        ${_buildPlayerDetailPanel(fa)}
-        <div class="frn-card-title" style="margin-top:.8rem">BID HISTORY</div>
-        <table class="frn-pre-roster-table">
-          <thead><tr><th>Wk</th><th>By</th><th>AAV</th><th>Years</th></tr></thead>
-          <tbody>${histHtml}</tbody>
-        </table>
+      <div class="frn-fa-mid-col">
+        ${detailHtml}
+      </div>
+      <div class="frn-fa-roster-col">
+        <div class="frn-card-title">CUT LIST</div>
+        ${_faNeedsSnippet(myId, fa.position)}
+        <div class="frn-fa-roster-list">${rosterHtml}</div>
       </div>
     </div>`;
+
 }
 
 function frnFAEnterBid(name) {
