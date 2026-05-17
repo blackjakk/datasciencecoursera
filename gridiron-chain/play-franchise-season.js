@@ -1023,23 +1023,30 @@ function _buildCareerCard(p) {
     CONSISTENT: "📈 Consistent",    STREAKY: "〰 Streaky",
     FLASH: "💥 Flash",
   }[p._trajectory] || "";
-  const headerHtml = `<tr><th>AGE</th><th>TEAM</th><th>OVR</th><th>GP</th>${cols.map(c => `<th>${c.label}</th>`).join("")}</tr>`;
+  const _accAbbr = a => a === "MVP" ? "MVP" : a === "Super Bowl MVP" ? "SB MVP" : a === "Super Bowl" ? "💍" : a === "All-Pro" ? "AP1" : a === "All-Pro (2nd)" ? "AP2" : a === "Pro Bowl" ? "PB" : a === "OPOY" ? "OPOY" : a === "DPOY" ? "DPOY" : a === "ROY" ? "ROY" : a === "Comeback POY" ? "CPOY" : a === "Breakout POY" ? "BPOY" : "";
+  const hasAcc = history.some(r => (r.accolades||[]).length > 0);
+  const headerHtml = `<tr><th>AGE</th><th>TEAM</th><th>OVR</th><th>GP</th>${cols.map(c => `<th>${c.label}</th>`).join("")}${hasAcc ? "<th>🏆</th>" : ""}</tr>`;
   const rowsHtml = history.slice().reverse().map((row) => {
     const rowOvr = row.ovr ?? row.overall;
     const peakOvr = Math.max(...history.map(r => r.ovr ?? r.overall ?? 0));
     const isCareerBest = rowOvr != null && rowOvr === peakOvr;
+    const accCell = hasAcc
+      ? `<td style="font-size:.55rem;color:var(--gold);white-space:nowrap">${(row.accolades||[]).map(_accAbbr).filter(Boolean).join(" ")}</td>`
+      : "";
     return `<tr>
       <td style="color:var(--gray);font-size:.63rem">${row.age ?? "?"}</td>
       <td style="font-size:.62rem;color:var(--gray)">${row.teamName}</td>
       <td style="color:${isCareerBest?"var(--gold)":"var(--blgray)"};font-weight:${isCareerBest?700:400}">${rowOvr || "—"}</td>
       <td>${row.gp || 0}</td>
       ${cols.map(c => `<td>${row[c.key] || 0}</td>`).join("")}
+      ${accCell}
     </tr>`;
   }).join("");
   const totalsRow = `<tr style="border-top:2px solid var(--gold);font-weight:700">
     <td colspan="3" style="color:var(--gold)">CAREER</td>
     <td>${stats.gp || history.reduce((s,r)=>s+(r.gp||0),0)}</td>
     ${cols.map(c => `<td style="color:var(--gold-lt)">${stats[c.key]||0}</td>`).join("")}
+    ${hasAcc ? "<td></td>" : ""}
   </tr>`;
   return `<div class="frn-career-card">
     <div style="display:flex;align-items:center;gap:.55rem;margin-bottom:.3rem">
@@ -1059,27 +1066,31 @@ function _buildCareerCard(p) {
 function _careerColsFor(pos) {
   if (pos === "QB") return [
     { key:"pass_yds", label:"YDS" }, { key:"pass_td", label:"TD" },
-    { key:"pass_int", label:"INT" }, { key:"pass_comp", label:"CMP" },
+    { key:"pass_int", label:"INT" }, { key:"pass_att", label:"ATT" },
   ];
   if (pos === "RB") return [
     { key:"rush_yds", label:"YDS" }, { key:"rush_td", label:"TD" },
-    { key:"rush_att", label:"ATT" }, { key:"rec", label:"REC" },
+    { key:"rush_att", label:"ATT" }, { key:"rec_yds", label:"REC YDS" },
   ];
   if (pos === "WR" || pos === "TE") return [
     { key:"rec_yds", label:"YDS" }, { key:"rec_td", label:"TD" },
     { key:"rec", label:"REC" }, { key:"rec_tgt", label:"TGT" },
   ];
-  if (pos === "DL" || pos === "LB") return [
+  if (pos === "DL") return [
     { key:"tkl", label:"TKL" }, { key:"sk", label:"SK" },
     { key:"ff", label:"FF" }, { key:"pd", label:"PD" },
+  ];
+  if (pos === "LB") return [
+    { key:"tkl", label:"TKL" }, { key:"sk", label:"SK" },
+    { key:"int_made", label:"INT" }, { key:"pd", label:"PD" },
   ];
   if (pos === "CB" || pos === "S") return [
     { key:"int_made", label:"INT" }, { key:"pd", label:"PD" },
     { key:"tkl", label:"TKL" }, { key:"def_td", label:"TD" },
   ];
   if (pos === "K") return [
-    { key:"fg_made", label:"FG" }, { key:"fg_long", label:"LONG" },
-    { key:"xp_made", label:"XP" },
+    { key:"fg_made", label:"FGM" }, { key:"fg_att", label:"FGA" },
+    { key:"fg_long", label:"LONG" }, { key:"xp_made", label:"XP" },
   ];
   return [{ key:"gp", label:"GP" }];
 }
@@ -1344,7 +1355,8 @@ function _buildSeasonStatsBlock(p) {
     fmtTuples.push(["INT", num("pass_int")]);
     fmtTuples.push(["RATING", _passerRating(cmp, att, yds, num("pass_td"), num("pass_int"))]);
     if (num("snaps")) fmtTuples.push(["SNAPS", num("snaps")]);
-    if (num("rush_yds")) fmtTuples.push(["RUSH YDS", num("rush_yds")]);
+    if (num("rush_att")) { fmtTuples.push(["RUSH ATT", num("rush_att")]); fmtTuples.push(["RUSH YDS", num("rush_yds")]); }
+    if (num("rush_td")) fmtTuples.push(["RUSH TD", num("rush_td")]);
   } else if (pos === "RB") {
     const car = num("rush_att"), yds = num("rush_yds");
     fmtTuples.push(["CAR", car]);
@@ -1356,6 +1368,7 @@ function _buildSeasonStatsBlock(p) {
     if (num("rec")) {
       fmtTuples.push(["REC", num("rec")]);
       fmtTuples.push(["REC YDS", num("rec_yds")]);
+      fmtTuples.push(["REC TD", num("rec_td")]);
     }
   } else if (pos === "WR" || pos === "TE") {
     const rec = num("rec"), yds = num("rec_yds"), tgt = num("rec_tgt");
@@ -1374,6 +1387,8 @@ function _buildSeasonStatsBlock(p) {
     if (num("int_made")) fmtTuples.push(["INT", num("int_made")]);
     if (num("pd")) fmtTuples.push(["PD", num("pd")]);
     if (num("ff")) fmtTuples.push(["FF", num("ff")]);
+    if (num("fr")) fmtTuples.push(["FR", num("fr")]);
+    if (num("def_td")) fmtTuples.push(["DEF TD", num("def_td")]);
   } else if (pos === "K") {
     fmtTuples.push(["FG", `${num("fg_made")}/${num("fg_att")}`]);
     fmtTuples.push(["FG %", num("fg_att") ? `${(num("fg_made")/num("fg_att")*100).toFixed(1)}%` : "—"]);
@@ -1725,6 +1740,30 @@ function _buildContractBreakdownBlock(p) {
   </div>`;
 }
 
+function _buildAccoladesBanner(p) {
+  const chips = [];
+  const isHof = (franchise.hallOfFame || []).some(h => h.name === p.name);
+  const allAcc = (p.careerHistory || []).flatMap(h => h.accolades || []);
+  const sbMvpCount = allAcc.filter(a => a === "Super Bowl MVP").length;
+  const pureRings  = allAcc.filter(a => a === "Super Bowl").length;
+  const purePB     = Math.max(0, (p.proBowls || 0) - (p.allPros || 0));
+  if (isHof)             chips.push(["🏛", "HOF",                  "var(--gold)"]);
+  if ((p.mvps||0) > 0)  chips.push(["🥇", `${p.mvps}× MVP`,       "var(--gold)"]);
+  if ((p.opoys||0) > 0) chips.push(["⚡", `${p.opoys}× OPOY`,     "var(--gold)"]);
+  if ((p.dpoys||0) > 0) chips.push(["🛡", `${p.dpoys}× DPOY`,     "var(--gold)"]);
+  if ((p.roys||0) > 0)  chips.push(["🌟", `${p.roys}× ROY`,       "var(--gold-lt)"]);
+  if (sbMvpCount > 0)   chips.push(["🏆", `${sbMvpCount}× SB MVP`,"var(--gold)"]);
+  if (pureRings > 0)    chips.push(["💍", `${pureRings}× Ring`,    "var(--gold)"]);
+  if ((p.allPros||0) > 0) chips.push(["⭐", `${p.allPros}× All-Pro`, "var(--gold-lt)"]);
+  if (purePB > 0)       chips.push(["🎳", `${purePB}× Pro Bowl`,   "var(--blgray)"]);
+  if (!chips.length) return "";
+  return `<div style="display:flex;flex-wrap:wrap;gap:.25rem;margin-top:.3rem">
+    ${chips.map(([icon, text, color]) =>
+      `<span style="font-size:.58rem;padding:.1rem .4rem;border-radius:4px;background:rgba(255,200,0,.12);color:${color};border:1px solid rgba(255,200,0,.25);white-space:nowrap">${icon} ${text}</span>`
+    ).join("")}
+  </div>`;
+}
+
 function _buildPlayerDetailPanel(p) {
   const g    = scoutGrade(p);
   const gL   = gradeLabel(g);
@@ -1778,7 +1817,8 @@ function _buildPlayerDetailPanel(p) {
       ${_playerPortrait(p, 110)}
       <div style="flex:1;min-width:0">
         <div style="font-size:1.15rem;font-weight:900">${p.name}</div>
-        <div style="color:var(--gray);font-size:.72rem;margin-top:.1rem">
+        ${_buildAccoladesBanner(p)}
+        <div style="color:var(--gray);font-size:.72rem;margin-top:.2rem">
           #${jerseyForPlayer(p) || "—"} · ${p.position} · Age ${p.age || "?"}${p.height?` · ${formatHeight(p.height)}, ${p.weight||"?"} lbs`:""}
         </div>
         <div style="color:var(--gray);font-size:.65rem;margin-top:.1rem">${draftStr(p)} · Career ${careerEarningsStr(p)}</div>

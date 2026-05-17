@@ -547,6 +547,7 @@ function frnPlayerTipShow(anchorEl, name, pid) {
           ${p.position} · Age ${p.age||"?"} · ${team?.name||"?"}
         </div>
         <div style="color:var(--gray);font-size:.62rem">${_archetypeLabel(p) || "—"}</div>
+        ${(() => { const parts = []; if ((p.mvps||0)>0) parts.push(`${p.mvps}×MVP`); if ((p.sbRings||0)>0) parts.push(`${p.sbRings}×Ring`); if ((p.allPros||0)>0) parts.push(`${p.allPros}×AP`); else if ((p.proBowls||0)>0) parts.push(`${p.proBowls}×PB`); return parts.length ? `<div style="font-size:.57rem;color:var(--gold);margin-top:.1rem">${parts.join(" · ")}</div>` : ""; })()}
       </div>
       <div style="text-align:right">
         <span class="tt-ovr tier-${gCls}" style="font-size:.85rem;padding:.15rem .5rem">${gL}</span>
