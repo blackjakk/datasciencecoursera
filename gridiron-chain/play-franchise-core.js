@@ -1032,10 +1032,10 @@ const OC_TRAITS = [
 ];
 
 const DC_TRAITS = [
-  { key:"Pressure Package", desc:"Pass rush +15%, sack rate +1.5%" },
-  { key:"Cover Scheme",     desc:"Pass completion allowed −3%" },
-  { key:"Ball Hawk",        desc:"INT rate +1.8%" },
-  { key:"Run Stopper",      desc:"Run yards allowed −0.4/carry" },
+  { key:"Pressure Package", desc:"DL TEC growth ×1.5 — +1 defense every game; develops elite pass rushers" },
+  { key:"Cover Scheme",     desc:"S TEC growth ×1.5, LB TEC growth ×1.3 — builds zone-reading secondary" },
+  { key:"Ball Hawk",        desc:"CB TEC growth ×1.5, S TEC growth ×1.3 — +1 defense every game; develops ball-hawking secondary" },
+  { key:"Run Stopper",      desc:"DL TEC growth ×1.2, LB TEC growth ×1.3 — +1 defense vs SMASHMOUTH opponents" },
   { key:"Film Mastermind",  desc:"Player TEC growth +20%, DEVELOP alignment group" },
   { key:"Hybrid",           desc:"No modifier — scheme-agnostic" },
 ];

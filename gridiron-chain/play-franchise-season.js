@@ -1053,9 +1053,11 @@ function _buildCareerCard(p) {
       <div class="frn-card-title" style="margin:0">📊 CAREER · ${history.length} season${history.length>1?"s":""}</div>
       ${trajLabel ? `<span style="font-size:.58rem;color:var(--blgray)">${trajLabel}</span>` : ""}
     </div>
-    <table class="frn-pre-roster-table"><thead>${headerHtml}</thead>
-      <tbody>${rowsHtml}${totalsRow}</tbody>
-    </table>
+    <div style="overflow-x:auto">
+      <table class="frn-pre-roster-table"><thead>${headerHtml}</thead>
+        <tbody>${rowsHtml}${totalsRow}</tbody>
+      </table>
+    </div>
     <div class="frn-player-meta">
       <div><span class="frn-meta-label">DRAFT</span> ${draftStr(p)}</div>
       <div><span class="frn-meta-label">CAREER $</span> ${careerEarningsStr(p)}</div>
@@ -1483,7 +1485,8 @@ function _buildGameLogBlock(p) {
   // Render columns per position
   let headers = [], rowCells = [];
   if (pos === "QB") {
-    headers = ["WK", ...(showTM ? ["TM"] : []), "OPP","RES","CMP/ATT","YDS","TD","INT","RTG","FPTS"];
+    const hasQBRush = games.some(({ line }) => (line.rush_att || 0) > 0);
+    headers = ["WK", ...(showTM ? ["TM"] : []), "OPP","RES","CMP/ATT","YDS","TD","INT","RTG",...(hasQBRush ? ["CAR","RYD","RTD"] : []),"FPTS"];
     rowCells = games.map(({ g, line, teamId, oppId }) => {
       const opp = getTeam(oppId), my = getTeam(teamId);
       const myHome = teamId === g.homeId;
@@ -1503,11 +1506,12 @@ function _buildGameLogBlock(p) {
         <td>${line.pass_td||0}</td>
         <td>${line.pass_int||0}</td>
         <td>${_passerRating(cmp, att, line.pass_yds||0, line.pass_td||0, line.pass_int||0)}</td>
+        ${hasQBRush ? `<td>${line.rush_att||0}</td><td>${line.rush_yds||0}</td><td>${line.rush_td||0}</td>` : ""}
         <td style="color:var(--gold);font-weight:700">${fpts.toFixed(1)}</td>
       </tr>`;
     });
   } else if (pos === "RB") {
-    headers = ["WK", ...(showTM ? ["TM"] : []), "OPP","RES","CAR","YDS","YPC","TD","REC","YDS","FPTS"];
+    headers = ["WK", ...(showTM ? ["TM"] : []), "OPP","RES","CAR","YDS","YPC","TD","REC","REC YDS","FPTS"];
     rowCells = games.map(({ g, line, teamId, oppId }) => {
       const opp = getTeam(oppId);
       const myHome = teamId === g.homeId;
@@ -1743,19 +1747,22 @@ function _buildContractBreakdownBlock(p) {
 function _buildAccoladesBanner(p) {
   const chips = [];
   const isHof = (franchise.hallOfFame || []).some(h => h.name === p.name);
-  const allAcc = (p.careerHistory || []).flatMap(h => h.accolades || []);
+  const allAcc  = (p.careerHistory || []).flatMap(h => h.accolades || []);
   const sbMvpCount = allAcc.filter(a => a === "Super Bowl MVP").length;
   const pureRings  = allAcc.filter(a => a === "Super Bowl").length;
-  const purePB     = Math.max(0, (p.proBowls || 0) - (p.allPros || 0));
-  if (isHof)             chips.push(["🏛", "HOF",                  "var(--gold)"]);
-  if ((p.mvps||0) > 0)  chips.push(["🥇", `${p.mvps}× MVP`,       "var(--gold)"]);
-  if ((p.opoys||0) > 0) chips.push(["⚡", `${p.opoys}× OPOY`,     "var(--gold)"]);
-  if ((p.dpoys||0) > 0) chips.push(["🛡", `${p.dpoys}× DPOY`,     "var(--gold)"]);
-  if ((p.roys||0) > 0)  chips.push(["🌟", `${p.roys}× ROY`,       "var(--gold-lt)"]);
-  if (sbMvpCount > 0)   chips.push(["🏆", `${sbMvpCount}× SB MVP`,"var(--gold)"]);
-  if (pureRings > 0)    chips.push(["💍", `${pureRings}× Ring`,    "var(--gold)"]);
-  if ((p.allPros||0) > 0) chips.push(["⭐", `${p.allPros}× All-Pro`, "var(--gold-lt)"]);
-  if (purePB > 0)       chips.push(["🎳", `${purePB}× Pro Bowl`,   "var(--blgray)"]);
+  const ap1Count   = allAcc.filter(a => a === "All-Pro").length;
+  const ap2Count   = allAcc.filter(a => a === "All-Pro (2nd)").length;
+  const purePB     = Math.max(0, (p.proBowls || 0) - ap1Count - ap2Count);
+  if (isHof)             chips.push(["🏛", "HOF",                    "var(--gold)"]);
+  if ((p.mvps||0) > 0)  chips.push(["🥇", `${p.mvps}× MVP`,         "var(--gold)"]);
+  if ((p.opoys||0) > 0) chips.push(["⚡", `${p.opoys}× OPOY`,       "var(--gold)"]);
+  if ((p.dpoys||0) > 0) chips.push(["🛡", `${p.dpoys}× DPOY`,       "var(--gold)"]);
+  if ((p.roys||0) > 0)  chips.push(["🌟", "ROY",                     "var(--gold-lt)"]);
+  if (sbMvpCount > 0)   chips.push(["🏆", `${sbMvpCount}× SB MVP`,  "var(--gold)"]);
+  if (pureRings > 0)    chips.push(["💍", `${pureRings}× Ring`,      "var(--gold)"]);
+  if (ap1Count > 0)     chips.push(["⭐", `${ap1Count}× AP 1st`,     "var(--gold)"]);
+  if (ap2Count > 0)     chips.push(["✦",  `${ap2Count}× AP 2nd`,     "var(--gold-lt)"]);
+  if (purePB > 0)       chips.push(["🎳", `${purePB}× Pro Bowl`,     "var(--blgray)"]);
   if (!chips.length) return "";
   return `<div style="display:flex;flex-wrap:wrap;gap:.25rem;margin-top:.3rem">
     ${chips.map(([icon, text, color]) =>

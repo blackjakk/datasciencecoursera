@@ -508,6 +508,23 @@ function frnPlayerTipShow(anchorEl, name, pid) {
   const g = scoutGrade(p), gL = gradeLabel(g), gCls = gradeClass(g);
   const aav = p.contract?.aav || 0;
   const yrs = p.contract?.remaining || 0;
+  // Compact accolade line for tooltip
+  const tipAccoladeLine = (() => {
+    const acc = (p.careerHistory || []).flatMap(h => h.accolades || []);
+    const parts = [];
+    if ((p.mvps||0) > 0) parts.push(`${p.mvps}×MVP`);
+    const pureRings = acc.filter(a => a === "Super Bowl").length;
+    if (pureRings > 0) parts.push(`${pureRings}×Ring`);
+    const ap1 = acc.filter(a => a === "All-Pro").length;
+    const ap2 = acc.filter(a => a === "All-Pro (2nd)").length;
+    if (ap1 > 0) parts.push(`${ap1}×AP1`);
+    if (ap2 > 0) parts.push(`${ap2}×AP2`);
+    const pb = Math.max(0, (p.proBowls || 0) - ap1 - ap2);
+    if (pb > 0) parts.push(`${pb}×PB`);
+    return parts.length
+      ? `<div style="font-size:.57rem;color:var(--gold);margin-top:.1rem">${parts.join(" · ")}</div>`
+      : "";
+  })();
   // Build a compact "this season" stat line from seasonStats
   let seasonLine = "";
   {
@@ -547,7 +564,7 @@ function frnPlayerTipShow(anchorEl, name, pid) {
           ${p.position} · Age ${p.age||"?"} · ${team?.name||"?"}
         </div>
         <div style="color:var(--gray);font-size:.62rem">${_archetypeLabel(p) || "—"}</div>
-        ${(() => { const parts = []; if ((p.mvps||0)>0) parts.push(`${p.mvps}×MVP`); if ((p.sbRings||0)>0) parts.push(`${p.sbRings}×Ring`); if ((p.allPros||0)>0) parts.push(`${p.allPros}×AP`); else if ((p.proBowls||0)>0) parts.push(`${p.proBowls}×PB`); return parts.length ? `<div style="font-size:.57rem;color:var(--gold);margin-top:.1rem">${parts.join(" · ")}</div>` : ""; })()}
+        ${tipAccoladeLine}
       </div>
       <div style="text-align:right">
         <span class="tt-ovr tier-${gCls}" style="font-size:.85rem;padding:.15rem .5rem">${gL}</span>

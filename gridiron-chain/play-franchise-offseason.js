@@ -811,10 +811,15 @@ function frnSimOnce(homeId, awayId, isPlayoff = false) {
   if (chemHome.chaotic) { const s = Math.random() < 0.5 ? 2 : -2; sim.homeR.offense += s; sim.homeR.defense += s; }
   if (chemAway.chaotic) { const s = Math.random() < 0.5 ? 2 : -2; sim.awayR.offense += s; sim.awayR.defense += s; }
   // DC trait boosts (defense rating)
+  // Pressure Package: always-on pass rush pressure, regardless of opponent scheme.
   if (dcHome === "Pressure Package") sim.homeR.defense += 1;
   if (dcAway === "Pressure Package") sim.awayR.defense += 1;
-  if (dcHome === "Run Stopper")      sim.homeR.defense += 1;
-  if (dcAway === "Run Stopper")      sim.awayR.defense += 1;
+  // Run Stopper: peaks vs run-heavy opponents — no bonus against passing teams.
+  if (dcHome === "Run Stopper" && _getTeamOffScheme(awayId) === "SMASHMOUTH") sim.homeR.defense += 1;
+  if (dcAway === "Run Stopper" && _getTeamOffScheme(homeId) === "SMASHMOUTH") sim.awayR.defense += 1;
+  // Ball Hawk: always-on secondary pressure, forces tighter throwing windows.
+  if (dcHome === "Ball Hawk") sim.homeR.defense += 1;
+  if (dcAway === "Ball Hawk") sim.awayR.defense += 1;
   // Film Mastermind: scheme execution scales with defenders' average TEC.
   // Rewards teams that pair this trait with a development-focused staff —
   // the film work only translates if the players have the technique to execute it.
@@ -1417,8 +1422,10 @@ function frnPlayGame(homeId, awayId, isPlayoff) {
   const dcAway = franchise.coaches?.[awayId]?.dc?.trait;
   if (dcHome === "Pressure Package") sim.homeR.defense += 1;
   if (dcAway === "Pressure Package") sim.awayR.defense += 1;
-  if (dcHome === "Run Stopper")      sim.homeR.defense += 1;
-  if (dcAway === "Run Stopper")      sim.awayR.defense += 1;
+  if (dcHome === "Run Stopper" && _getTeamOffScheme(awayId) === "SMASHMOUTH") sim.homeR.defense += 1;
+  if (dcAway === "Run Stopper" && _getTeamOffScheme(homeId) === "SMASHMOUTH") sim.awayR.defense += 1;
+  if (dcHome === "Ball Hawk") sim.homeR.defense += 1;
+  if (dcAway === "Ball Hawk") sim.awayR.defense += 1;
   const _filmBonus = (teamId) => {
     const def = (franchise.rosters[teamId] || []).filter(p => ["DL","LB","CB","S"].includes(p.position));
     if (!def.length) return 0;
@@ -4755,13 +4762,22 @@ function runFrnOffseason() {
                           : 1.0;
         const tecMul      = tierInfo.tecMul * hcDevMul * filmMul * coordDevMul;
         const effectiveTecMul = Math.min(5.0,
-          (p.position === "QB" && ocTrait === "QB Whisperer")   ? tecMul * 2.0 :
-          (p.position === "OL" && ocTrait === "Trench General")  ? tecMul * 2.0 :
-          (p.position === "RB" && ocTrait === "Run Architect")   ? tecMul * 1.5 :
-          (p.position === "WR" && ocTrait === "Air Attack")      ? tecMul * 1.5 :
-          (p.position === "TE" && ocTrait === "Air Attack")      ? tecMul * 1.3 :
-          (p.position === "TE" && ocTrait === "Red Zone Genius") ? tecMul * 1.5 :
-          (p.position === "RB" && ocTrait === "Red Zone Genius") ? tecMul * 1.2 : tecMul);
+          // OC developer bonuses
+          (p.position === "QB" && ocTrait === "QB Whisperer")    ? tecMul * 2.0 :
+          (p.position === "OL" && ocTrait === "Trench General")   ? tecMul * 2.0 :
+          (p.position === "RB" && ocTrait === "Run Architect")    ? tecMul * 1.5 :
+          (p.position === "WR" && ocTrait === "Air Attack")       ? tecMul * 1.5 :
+          (p.position === "TE" && ocTrait === "Air Attack")       ? tecMul * 1.3 :
+          (p.position === "TE" && ocTrait === "Red Zone Genius")  ? tecMul * 1.5 :
+          (p.position === "RB" && ocTrait === "Red Zone Genius")  ? tecMul * 1.2 :
+          // DC developer bonuses
+          (p.position === "DL" && dcTrait === "Pressure Package") ? tecMul * 1.5 :
+          (p.position === "DL" && dcTrait === "Run Stopper")      ? tecMul * 1.2 :
+          (p.position === "LB" && dcTrait === "Run Stopper")      ? tecMul * 1.3 :
+          (p.position === "CB" && dcTrait === "Ball Hawk")        ? tecMul * 1.5 :
+          (p.position === "S"  && dcTrait === "Ball Hawk")        ? tecMul * 1.3 :
+          (p.position === "S"  && dcTrait === "Cover Scheme")     ? tecMul * 1.5 :
+          (p.position === "LB" && dcTrait === "Cover Scheme")     ? tecMul * 1.3 : tecMul);
 
         const baseChance = 0.12;
         if ((p.age || 25) <= 30 && Math.random() < baseChance * effectiveTecMul) {
