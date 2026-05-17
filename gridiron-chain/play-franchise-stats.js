@@ -3791,7 +3791,7 @@ function renderFrnRegular() {
     mkItem("snaps",    "⚡","Snap Percentages",   snapConflicts ? `⚠ ${snapConflicts} stamina conflict${snapConflicts>1?"s":""}` : "Optimize rotations", `renderFrnSnapShares()`, snapConflicts > 0),
     mkItem("practice", "🏟","Scrimmage",          "Run a joint practice",                                              `renderFrnScrimmages()`),
     mkItem("injuries", "🩹","Injury Report",      injured.length ? `${injured.length} player${injured.length>1?"s":""} out` : "All clear", `renderFrnInjuryReport()`, injured.length > 0),
-    ...(activeNegs.length ? [mkItem("fa","🆓","FA Negotiations",`${activeNegs.length} active${outbidCount?` · ${outbidCount} outbid!`:""}`,`renderFrnFANegotiations()`,outbidCount>0)] : []),
+    mkItem("fa","🆓","FA Negotiations", activeNegs.length ? `${activeNegs.length} active${outbidCount?` · ${outbidCount} outbid!`:""}` : "Browse free agents", `renderFrnFANegotiations()`, outbidCount>0),
     ...(demands.length ? [mkItem("extensions","📝","Extension Demands",`${demands.length} pending`,`renderFrnAnalytics('extensions')`,true)] : []),
     ...(week <= TRADE_DEADLINE_WEEK ? [mkItem("trade","🔀","Trade Window",`Open until Wk ${TRADE_DEADLINE_WEEK}`,`frnOpenTrade()`)] : []),
     ...(unvotedWeek!=null ? [mkItem("potw","🗳","POTW Vote",`Week ${unvotedWeek} candidates ready`,`renderPotwVoting(${unvotedWeek})`)] : []),
