@@ -1759,84 +1759,152 @@ function renderFrnAlumni(yearsBackArg) {
 }
 
 // ── Visual depth chart for your own team ──────────────────────────────────────
+// Maps each position group to its ordered slot keys in franchise.depthChart.
+// Order within slots[] defines depth order (index 0 = starter / most snaps).
+const DEPTH_POS_GROUPS = [
+  { pos:"QB", label:"QUARTERBACK",    slots:["QB"]                     },
+  { pos:"RB", label:"RUNNING BACK",   slots:["RB1"]                    },
+  { pos:"WR", label:"WIDE RECEIVER",  slots:["WR1","WR2","WR3","WR4"] },
+  { pos:"TE", label:"TIGHT END",      slots:["TE1","TE2"]              },
+  { pos:"OL", label:"OFFENSIVE LINE", slots:["LT","LG","C","RG","RT"] },
+  { pos:"DL", label:"DEFENSIVE LINE", slots:["DL1","DL2","DL3","DL4"] },
+  { pos:"LB", label:"LINEBACKER",     slots:["LB1","LB2","LB3"]       },
+  { pos:"CB", label:"CORNERBACK",     slots:["CB1","CB2","NB"]        },
+  { pos:"S",  label:"SAFETY",         slots:["SS","FS"]               },
+  { pos:"K",  label:"KICKER",         slots:["K"]                     },
+  { pos:"P",  label:"PUNTER",         slots:["P"]                     },
+];
+
+function _depthSlotLabel(slotKey, idx) {
+  const named = { LT:"★ LT", LG:"★ LG", C:"★ C", RG:"★ RG", RT:"★ RT",
+                  SS:"★ SS", FS:"★ FS", NB:"NICKEL", K:"★ KICKER", P:"★ PUNTER" };
+  if (named[slotKey]) return named[slotKey];
+  return idx === 0 ? "★ STARTER" : `#${idx + 1}`;
+}
+
+// Swap starters at slots[idx] and slots[idx+1] within a position group,
+// then reoptimize snap shares so the engine reflects the new order.
+function frnDepthSwap(posKey, idx) {
+  const myId = franchise.chosenTeamId;
+  const dc = franchise.depthChart?.[myId];
+  if (!dc) return;
+  const group = DEPTH_POS_GROUPS.find(g => g.pos === posKey);
+  if (!group || idx < 0 || idx >= group.slots.length - 1) return;
+  const keyA = group.slots[idx], keyB = group.slots[idx + 1];
+  if (!dc[keyA] || !dc[keyB]) return;
+  const tmp = dc[keyA].starter;
+  dc[keyA].starter = dc[keyB].starter;
+  dc[keyB].starter = tmp;
+  _optimizeSnapShares(myId);
+  saveFranchise();
+  renderFrnDepthChart();
+}
+
 function renderFrnDepthChart() {
   frnHoverTipHide(); _frnHoverTipPgHide && _frnHoverTipPgHide();
   const myId = franchise.chosenTeamId;
   const myTeam = getTeam(myId);
   const roster = franchise.rosters[myId] || [];
-  const byPos = {};
-  for (const p of roster) (byPos[p.position] ||= []).push(p);
-  for (const pos of Object.keys(byPos)) byPos[pos].sort((a,b) => b.overall - a.overall);
+  const dc = franchise.depthChart?.[myId] || {};
 
-  // Position display config: slot count + label
-  const POS_ROWS = [
-    { key:"QB", label:"QUARTERBACK", slots: 3 },
-    { key:"RB", label:"RUNNING BACK", slots: 4 },
-    { key:"WR", label:"WIDE RECEIVER", slots: 6 },
-    { key:"TE", label:"TIGHT END", slots: 3 },
-    { key:"OL", label:"OFFENSIVE LINE", slots: 8 },
-    { key:"DL", label:"DEFENSIVE LINE", slots: 6 },
-    { key:"LB", label:"LINEBACKER", slots: 5 },
-    { key:"CB", label:"CORNERBACK", slots: 5 },
-    { key:"S",  label:"SAFETY", slots: 3 },
-    { key:"K",  label:"KICKER", slots: 1 },
-    { key:"P",  label:"PUNTER", slots: 1 },
-  ];
+  // Ensure depth chart exists for this team before rendering
+  if (!franchise.depthChart?.[myId]) _initDepthChart(myId);
 
-  const rowsHtml = POS_ROWS.map(p => {
-    const players = (byPos[p.key] || []).slice(0, p.slots);
-    const filled = players.length;
-    const slotsHtml = Array.from({ length: p.slots }, (_, i) => {
-      const pl = players[i];
-      if (!pl) {
+  const byPid = {};
+  for (const p of roster) if (p.pid) byPid[p.pid] = p;
+
+  const arrowBtn = (label, onclick) =>
+    `<button onclick="${onclick}"
+      style="background:var(--bg3);border:1px solid var(--border);color:var(--gold);
+             font-size:.65rem;padding:.1rem .35rem;cursor:pointer;line-height:1;
+             font-family:inherit;transition:background .1s"
+      onmouseover="this.style.background='var(--bg)'"
+      onmouseout="this.style.background='var(--bg3)'">${label}</button>`;
+
+  const rowsHtml = DEPTH_POS_GROUPS.map(group => {
+    const slotsHtml = group.slots.map((slotKey, idx) => {
+      const slot    = dc[slotKey];
+      const starter = slot?.starter ? byPid[slot.starter] : null;
+      const backup  = slot?.backup  ? byPid[slot.backup]  : null;
+      const canUp   = idx > 0;
+      const canDown = idx < group.slots.length - 1;
+      const label   = _depthSlotLabel(slotKey, idx);
+      const isNamedStarter = ["LT","LG","C","RG","RT","SS","FS","K","P"].includes(slotKey);
+      const isStarter = idx === 0 || isNamedStarter;
+
+      if (!starter) {
         return `<div class="frn-depth-slot empty">
-          <div class="frn-depth-slot-num">#${i+1}</div>
+          <div class="frn-depth-slot-num">${label}</div>
           <div class="frn-depth-slot-empty">— empty —</div>
+          <div style="display:flex;justify-content:flex-end;gap:.2rem;margin-top:.3rem">
+            ${canUp   ? arrowBtn("↑", `frnDepthSwap('${group.pos}',${idx-1})`) : ""}
+            ${canDown ? arrowBtn("↓", `frnDepthSwap('${group.pos}',${idx})`)   : ""}
+          </div>
         </div>`;
       }
-      const escName = (pl.name || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-      const isStarter = i === 0;
-      const injuredTag = pl.injury?.weeksRemaining > 0
-        ? `<span class="frn-depth-injured">🩹 ${pl.injury.weeksRemaining}w</span>` : "";
-      const blockTag = pl.onTradeBlock
+
+      const isInjured = (starter.injury?.weeksRemaining || 0) > 0;
+      const escName = (starter.name || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+      const escPid  = (starter.pid  || "").replace(/'/g, "\\'");
+      const blockTag = starter.onTradeBlock
         ? `<span class="frn-depth-block">●BLK</span>` : "";
-      const escPid = (pl.pid || "").replace(/'/g, "\\'");
-      return `<div class="frn-depth-slot ${isStarter?'starter':''}"
-        onclick="frnOpenPlayerCard('${escName}','${escPid}')">
-        <div class="frn-depth-slot-num">${isStarter ? "★ ST" : "#"+(i+1)}</div>
-        <div class="frn-depth-slot-name">${pl.name}</div>
-        <div class="frn-depth-slot-meta">
-          ${gradeBadge(pl)}
-          <span style="color:var(--gray);font-size:.6rem">age ${pl.age||"?"}</span>
+
+      const backupHtml = backup ? (() => {
+        const bEsc = (backup.name || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+        const bPid = (backup.pid  || "").replace(/'/g, "\\'");
+        return `<div style="border-top:1px solid var(--border);margin-top:.25rem;padding-top:.2rem">
+          ${isInjured ? `<div style="color:var(--green-lt);font-size:.55rem;font-weight:700;margin-bottom:.1rem">▲ ACTING STARTER</div>` : ""}
+          <div onclick="frnOpenPlayerCard('${bEsc}','${bPid}')"
+            style="display:flex;gap:.3rem;align-items:center;cursor:pointer">
+            <span style="font-size:.6rem;color:var(--gray)">▸</span>
+            <span style="font-size:.68rem;font-weight:600">${backup.name}</span>
+            ${gradeBadge(backup)}
+            <span style="font-size:.58rem;color:var(--gray)">age ${backup.age||"?"}</span>
+          </div>
+        </div>`;
+      })() : "";
+
+      return `<div class="frn-depth-slot ${isStarter ? "starter" : ""}" style="position:relative">
+        ${isInjured
+          ? `<span class="frn-depth-injured">🩹 ${starter.injury.weeksRemaining}w</span>`
+          : blockTag}
+        <div class="frn-depth-slot-num" style="${isInjured ? "color:var(--red)" : ""}">${label}</div>
+        <div onclick="frnOpenPlayerCard('${escName}','${escPid}')"
+          style="cursor:pointer;${isInjured ? "opacity:.6" : ""}">
+          <div class="frn-depth-slot-name">${starter.name}</div>
+          <div class="frn-depth-slot-meta">
+            ${gradeBadge(starter)}
+            <span style="color:var(--gray);font-size:.6rem">age ${starter.age||"?"}</span>
+          </div>
+          <div class="frn-depth-slot-aav">$${(starter.contract?.aav||0).toFixed(1)}M · ${starter.contract?.remaining||0}yr</div>
         </div>
-        <div class="frn-depth-slot-aav">$${(pl.contract?.aav||0).toFixed(1)}M · ${pl.contract?.remaining||0}yr</div>
-        ${injuredTag}${blockTag}
+        ${backupHtml}
+        <div style="display:flex;justify-content:flex-end;gap:.2rem;margin-top:.3rem">
+          ${canUp   ? arrowBtn("↑", `frnDepthSwap('${group.pos}',${idx-1})`) : ""}
+          ${canDown ? arrowBtn("↓", `frnDepthSwap('${group.pos}',${idx})`)   : ""}
+        </div>
       </div>`;
     }).join("");
+
     return `<div class="frn-depth-row">
       <div class="frn-depth-pos-label">
-        <div style="font-size:1rem;font-weight:900;color:var(--gold)">${p.key}</div>
-        <div style="font-size:.55rem;color:var(--gray);letter-spacing:.3px">${p.label}</div>
-        <div style="font-size:.55rem;color:var(--gray);margin-top:.15rem">${filled}/${p.slots}</div>
+        <div style="font-size:1rem;font-weight:900;color:var(--gold)">${group.pos}</div>
+        <div style="font-size:.55rem;color:var(--gray);letter-spacing:.3px">${group.label}</div>
       </div>
       <div class="frn-depth-slots">${slotsHtml}</div>
     </div>`;
   }).join("");
 
-  // Quick summary header
-  const totalPlayers = roster.length;
-  const starters = POS_ROWS.reduce((s, p) => {
-    const top = (byPos[p.key] || [])[0];
-    return s + (top ? scoutGrade(top) : 0);
-  }, 0);
-  const avgStarterGrade = totalPlayers ? Math.round(starters / POS_ROWS.length) : 0;
   const rtg = frnTeamRating(myId);
 
   $("frnHomeContent").innerHTML = `
     <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem;flex-wrap:wrap">
       <div style="font-size:1.05rem;font-weight:900;color:var(--gold)">📋 DEPTH CHART · ${myTeam.city} ${myTeam.name}</div>
-      <div style="color:var(--gray);font-size:.72rem">${totalPlayers} players · OFF ${rtg.off} · DEF ${rtg.def} · Avg starter ${gradeLabel(avgStarterGrade)}</div>
+      <div style="color:var(--gray);font-size:.72rem">${roster.length} players · OFF ${rtg.off} · DEF ${rtg.def}</div>
       <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="margin-left:auto">← Back</button>
+    </div>
+    <div style="color:var(--blgray);font-size:.6rem;margin-bottom:.5rem">
+      ↑↓ reorder starters within each position group · click a name to view player card
     </div>
     <div class="frn-depth-chart">${rowsHtml}</div>`;
 }
