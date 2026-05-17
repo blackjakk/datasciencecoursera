@@ -4637,6 +4637,23 @@ function _runCoachingCarousel() {
   }
 }
 
+// Returns [primaryStatIdx, secondaryStatIdx] for OVR-growth stat allocation.
+// Speed (0) and agility (2) are physical gifts excluded from coaching development.
+function _devStatPool(pos, age) {
+  switch (pos) {
+    case "QB": return [4, 3];                                 // THR, AWR
+    case "RB": return [5, age <= 26 ? 1 : 5];                // CAT, STR→CAT
+    case "WR": return [5, 3];                                 // CAT, AWR
+    case "TE": return [5, 6];                                 // CAT, BLK
+    case "OL": return [6, age <= 27 ? 1 : 6];                // BLK, STR→BLK
+    case "DL": return [7, age <= 27 ? 1 : 7];                // PRS, STR→PRS
+    case "LB": return [9, Math.random() < 0.5 ? 8 : 7];     // TCK, COV/PRS
+    case "CB": return [8, 3];                                 // COV, AWR
+    case "S":  return [8, 9];                                 // COV, TCK
+    default:   return [11, 11];                               // TEC only
+  }
+}
+
 function runFrnOffseason() {
   const changes  = [];
   const allNames = new Set();
@@ -4699,25 +4716,6 @@ function runFrnOffseason() {
 
       // Resolve gem ceiling — remove flag once reached
       if (p.hiddenGem && p.overall >= p.hiddenGem.ceiling) delete p.hiddenGem;
-
-      // Position-specific stat pools for development. Speed (0) and agility (2)
-      // are physical gifts that don't improve through coaching — only low-value
-      // players see tiny physical gains via the _physicalPeak pre-peak window.
-      // Every other stat here is a learnable skill or fillable physical trait.
-      const _devStatPool = (pos, age) => {
-        switch (pos) {
-          case "QB": return [4, 3];                                    // THR, AWR
-          case "RB": return [5, age <= 26 ? 1 : 5];                   // CAT, STR→CAT
-          case "WR": return [5, 3];                                    // CAT, AWR
-          case "TE": return [5, 6];                                    // CAT, BLK
-          case "OL": return [6, age <= 27 ? 1 : 6];                   // BLK, STR→BLK
-          case "DL": return [7, age <= 27 ? 1 : 7];                   // PRS, STR→PRS
-          case "LB": return [9, Math.random() < 0.5 ? 8 : 7];        // TCK, COV/PRS
-          case "CB": return [8, 3];                                    // COV, AWR
-          case "S":  return [8, 9];                                    // COV, TCK
-          default:   return [11, 11];                                  // TEC only
-        }
-      };
 
       if (p.hiddenGem && p.age <= 28) {
         // Hidden gem path: steady flat growth, independent of the normal
@@ -4950,8 +4948,7 @@ function runFrnOffseason() {
         ));
         if (growth > 0) {
           p.overall = Math.min(p.hiddenGem.ceiling, p.overall + growth);
-          const k1 = Math.floor(Math.random() * p.stats.length);
-          const k2 = Math.floor(Math.random() * p.stats.length);
+          const [k1, k2] = _devStatPool(p.position, p.age);
           p.stats[k1] = Math.min(99, p.stats[k1] + Math.ceil(growth * 0.6));
           p.stats[k2] = Math.min(99, p.stats[k2] + Math.floor(growth * 0.4));
         }
@@ -4963,8 +4960,7 @@ function runFrnOffseason() {
           const growth = Math.max(0, Math.round(gap * baseRate * psCoachBoost * PS_DEV_MULT));
           if (growth > 0) {
             p.overall = Math.min(99, p.overall + growth);
-            const k1 = Math.floor(Math.random() * p.stats.length);
-            const k2 = Math.floor(Math.random() * p.stats.length);
+            const [k1, k2] = _devStatPool(p.position, p.age);
             p.stats[k1] = Math.min(99, p.stats[k1] + Math.ceil(growth * 0.6));
             p.stats[k2] = Math.min(99, p.stats[k2] + Math.floor(growth * 0.4));
           }
