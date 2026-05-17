@@ -1811,114 +1811,254 @@ function frnDepthSwap(posKey, idx) {
   renderFrnDepthChart();
 }
 
+// Swap starter↔backup within a single depth chart slot.
+function frnDepthSwapInSlot(slotKey) {
+  const myId = franchise.chosenTeamId;
+  const dc = franchise.depthChart?.[myId];
+  if (!dc?.[slotKey]) return;
+  const slot = dc[slotKey];
+  const tmp = slot.starter;
+  slot.starter = slot.backup;
+  slot.backup = tmp;
+  _optimizeSnapShares(myId);
+  saveFranchise();
+  renderFrnDepthChart();
+}
+
+// Reset the entire depth chart to OVR-sorted defaults.
+function frnDepthAutoSetOVR() {
+  const myId = franchise.chosenTeamId;
+  if (franchise.depthChart) delete franchise.depthChart[myId];
+  _initDepthChart(myId);
+  saveFranchise();
+  renderFrnDepthChart();
+}
+
 function renderFrnDepthChart() {
   frnHoverTipHide(); _frnHoverTipPgHide && _frnHoverTipPgHide();
-  const myId = franchise.chosenTeamId;
+  const myId   = franchise.chosenTeamId;
   const myTeam = getTeam(myId);
   const roster = franchise.rosters[myId] || [];
-  const dc = franchise.depthChart?.[myId] || {};
+  const dc     = franchise.depthChart?.[myId] || {};
+  const ss     = franchise.snapShares?.[myId] || {};
 
-  // Ensure depth chart exists for this team before rendering
   if (!franchise.depthChart?.[myId]) _initDepthChart(myId);
 
   const byPid = {};
   for (const p of roster) if (p.pid) byPid[p.pid] = p;
 
+  // Track every pid placed in a slot (starter or backup).
+  const assignedPids = new Set();
+  for (const slot of Object.values(dc)) {
+    if (slot.starter) assignedPids.add(slot.starter);
+    if (slot.backup)  assignedPids.add(slot.backup);
+  }
+
+  // ── Player row (shared for #1 starter and #2 backup) ─────────────────────
+  const playerRow = (p, isStarter, snapPct, slotKey) => {
+    if (!p) {
+      return `<div class="frn-depth2-player ${isStarter ? "s1" : "s2"}">
+        <span class="frn-depth2-rank ${isStarter ? "r1" : "r2"}">${isStarter ? "★1" : "▸2"}</span>
+        <span style="color:var(--gray);font-style:italic;font-size:.62rem;margin-left:.25rem">— open —</span>
+      </div>`;
+    }
+    const escName   = (p.name||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'");
+    const escPid    = (p.pid||"").replace(/'/g,"\\'");
+    const isInjured = (p.injury?.weeksRemaining || 0) > 0;
+    const isExpiring = (p.contract?.remaining || 0) <= 1;
+    const snapStr   = snapPct != null
+      ? `<span style="font-size:.5rem;color:var(--blgray);margin-left:auto;flex-shrink:0">~${snapPct}%</span>` : "";
+    const injBadge  = isInjured
+      ? `<span style="background:var(--red);color:#fff;font-size:.48rem;padding:0 .18rem;font-weight:700;flex-shrink:0">🩹${p.injury.weeksRemaining}w</span>` : "";
+    const expBadge  = isExpiring
+      ? `<span style="border:1px solid #ff6b6b;color:#ff6b6b;font-size:.48rem;padding:0 .18rem;font-weight:700">EXP</span>` : "";
+    const blkBadge  = p.onTradeBlock
+      ? `<span style="color:#e8a000;font-size:.48rem;font-weight:700">BLK</span>` : "";
+    const potTag    = potentialTag(p, { known: true });
+    const potBadge  = potTag
+      ? `<span style="font-size:.48rem;color:var(--blgray)">${potTag}</span>` : "";
+    const aav       = (p.contract?.aav||0).toFixed(1);
+    const yrs       = p.contract?.remaining || 0;
+    const makeStarterBtn = !isStarter
+      ? `<button onclick="event.stopPropagation();frnDepthSwapInSlot('${slotKey}')"
+          style="margin-top:.2rem;background:transparent;border:1px solid var(--gold);color:var(--gold);
+                 font-size:.48rem;padding:.07rem .3rem;cursor:pointer;font-family:inherit;width:100%;
+                 letter-spacing:.3px;font-weight:700"
+          onmouseover="this.style.background='rgba(212,175,55,.15)'"
+          onmouseout="this.style.background='transparent'">▲ MAKE STARTER</button>` : "";
+
+    return `<div class="frn-depth2-player ${isStarter ? "s1" : "s2"}${isInjured ? " injured" : ""}">
+      <div style="display:flex;align-items:center;gap:.22rem;min-width:0">
+        <span class="frn-depth2-rank ${isStarter ? "r1" : "r2"}">${isStarter ? "★1" : "▸2"}</span>
+        ${gradeBadge(p)}
+        <span onclick="frnOpenPlayerCard('${escName}','${escPid}')"
+          style="font-size:${isStarter ? ".69rem" : ".63rem"};font-weight:${isStarter ? 700 : 600};
+                 cursor:pointer;text-decoration:underline;text-decoration-style:dotted;
+                 text-underline-offset:2px;flex:1;min-width:0;overflow:hidden;
+                 text-overflow:ellipsis;white-space:nowrap">${p.name}</span>
+        ${injBadge}${snapStr}
+      </div>
+      <div style="display:flex;gap:.2rem;align-items:center;flex-wrap:wrap;
+                  padding-left:.7rem;margin-top:.05rem">
+        <span style="font-size:.53rem;color:var(--gray)">age ${p.age||"?"}</span>
+        <span style="font-size:.53rem;color:var(--gold-lt)">$${aav}M ${yrs}yr</span>
+        ${expBadge}${blkBadge}${potBadge}
+      </div>
+      ${makeStarterBtn}
+    </div>`;
+  };
+
+  // ── Control buttons ────────────────────────────────────────────────────────
   const arrowBtn = (label, onclick) =>
     `<button onclick="${onclick}"
       style="background:var(--bg3);border:1px solid var(--border);color:var(--gold);
-             font-size:.65rem;padding:.1rem .35rem;cursor:pointer;line-height:1;
-             font-family:inherit;transition:background .1s"
+             font-size:.58rem;padding:.07rem .25rem;cursor:pointer;line-height:1;
+             font-family:inherit"
       onmouseover="this.style.background='var(--bg)'"
       onmouseout="this.style.background='var(--bg3)'">${label}</button>`;
 
+  const swapSlotBtn = slotKey =>
+    `<button onclick="frnDepthSwapInSlot('${slotKey}')" title="Swap #1 ↕ #2"
+      style="background:var(--bg3);border:1px solid var(--border);color:var(--blgray);
+             font-size:.58rem;padding:.07rem .25rem;cursor:pointer;line-height:1;
+             font-family:inherit"
+      onmouseover="this.style.background='var(--bg)'"
+      onmouseout="this.style.background='var(--bg3)'">⇅</button>`;
+
+  // ── Unit strength helpers ──────────────────────────────────────────────────
+  const _groupOVR = slots => {
+    const ovrs = slots
+      .map(k => dc[k]?.starter ? (byPid[dc[k].starter]?.overall || 60) : 0)
+      .filter(Boolean);
+    return ovrs.length ? Math.round(ovrs.reduce((a,b)=>a+b,0)/ovrs.length) : 0;
+  };
+  const _strength = ovr => {
+    if (ovr >= 82) return { label:"ELITE",  col:"#ffd700" };
+    if (ovr >= 77) return { label:"STRONG", col:"#4caf82" };
+    if (ovr >= 72) return { label:"SOLID",  col:"#7ac8e8" };
+    if (ovr >= 65) return { label:"AVG",    col:"#e8a000" };
+    if (ovr  > 0)  return { label:"THIN",   col:"#ff6b6b" };
+    return              { label:"EMPTY", col:"#666"    };
+  };
+
+  // ── Unit strength bar ──────────────────────────────────────────────────────
+  const unitGroups = [
+    { label:"QB", slots:["QB"] },
+    { label:"RB", slots:["RB1"] },
+    { label:"WR", slots:["WR1","WR2","WR3","WR4"] },
+    { label:"TE", slots:["TE1","TE2"] },
+    { label:"OL", slots:["LT","LG","C","RG","RT"] },
+    { label:"DL", slots:["DL1","DL2","DL3","DL4"] },
+    { label:"LB", slots:["LB1","LB2","LB3"] },
+    { label:"CB", slots:["CB1","CB2","NB"] },
+    { label:"S",  slots:["SS","FS"] },
+  ];
+  const strengthBarHtml = `<div style="display:flex;gap:.28rem;flex-wrap:wrap;align-items:center;
+      margin-bottom:.5rem;padding:.28rem .45rem;background:var(--bg2);border:1px solid var(--border)">
+    <span style="font-size:.48rem;letter-spacing:.6px;color:var(--blgray);margin-right:.1rem">UNIT STRENGTH</span>
+    ${unitGroups.map(u => {
+      const ovr = _groupOVR(u.slots);
+      const { label, col } = _strength(ovr);
+      return `<div style="display:flex;align-items:center;gap:.15rem">
+        <span style="font-size:.5rem;font-weight:900;color:var(--gray)">${u.label}</span>
+        <span style="font-size:.48rem;font-weight:700;color:${col};background:rgba(0,0,0,.3);
+               padding:.03rem .2rem;border-radius:3px;border:1px solid ${col}44">${ovr > 0 ? ovr+" " : ""}${label}</span>
+      </div>`;
+    }).join("")}
+  </div>`;
+
+  // ── Position group rows ────────────────────────────────────────────────────
   const rowsHtml = DEPTH_POS_GROUPS.map(group => {
     const slotsHtml = group.slots.map((slotKey, idx) => {
-      const slot    = dc[slotKey];
-      const starter = slot?.starter ? byPid[slot.starter] : null;
-      const backup  = slot?.backup  ? byPid[slot.backup]  : null;
-      const canUp   = idx > 0;
-      const canDown = idx < group.slots.length - 1;
-      const label   = _depthSlotLabel(slotKey, idx);
-      const isNamedStarter = ["LT","LG","C","RG","RT","SS","FS","K","P"].includes(slotKey);
-      const isStarter = idx === 0 || isNamedStarter;
+      const slot      = dc[slotKey];
+      const starter   = slot?.starter ? byPid[slot.starter] : null;
+      const backup    = slot?.backup  ? byPid[slot.backup]  : null;
+      const canUp     = idx > 0;
+      const canDown   = idx < group.slots.length - 1;
+      const label     = _depthSlotLabel(slotKey, idx);
+      const snapData  = ss[slotKey];
+      const starterPct = snapData?.starterPct ?? null;
+      const backupPct  = starterPct != null
+        ? Math.max(5, Math.round((100 - starterPct) * 0.55)) : null;
 
-      if (!starter) {
-        return `<div class="frn-depth-slot empty">
-          <div class="frn-depth-slot-num">${label}</div>
-          <div class="frn-depth-slot-empty">— empty —</div>
-          <div style="display:flex;justify-content:flex-end;gap:.2rem;margin-top:.3rem">
+      return `<div class="frn-depth2-slot">
+        <div class="frn-depth2-slot-header">
+          <span class="frn-depth2-slot-label">${label}</span>
+          <div style="display:flex;gap:.1rem">
             ${canUp   ? arrowBtn("↑", `frnDepthSwap('${group.pos}',${idx-1})`) : ""}
-            ${canDown ? arrowBtn("↓", `frnDepthSwap('${group.pos}',${idx})`)   : ""}
+            ${canDown ? arrowBtn("↓", `frnDepthSwap('${group.pos}',${idx})`) : ""}
+            ${swapSlotBtn(slotKey)}
           </div>
-        </div>`;
-      }
-
-      const isInjured = (starter.injury?.weeksRemaining || 0) > 0;
-      const escName = (starter.name || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-      const escPid  = (starter.pid  || "").replace(/'/g, "\\'");
-      const blockTag = starter.onTradeBlock
-        ? `<span class="frn-depth-block">●BLK</span>` : "";
-
-      const backupHtml = backup ? (() => {
-        const bEsc = (backup.name || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-        const bPid = (backup.pid  || "").replace(/'/g, "\\'");
-        return `<div style="border-top:1px solid var(--border);margin-top:.25rem;padding-top:.2rem">
-          ${isInjured ? `<div style="color:var(--green-lt);font-size:.55rem;font-weight:700;margin-bottom:.1rem">▲ ACTING STARTER</div>` : ""}
-          <div onclick="frnOpenPlayerCard('${bEsc}','${bPid}')"
-            style="display:flex;gap:.3rem;align-items:center;cursor:pointer">
-            <span style="font-size:.6rem;color:var(--gray)">▸</span>
-            <span style="font-size:.68rem;font-weight:600">${backup.name}</span>
-            ${gradeBadge(backup)}
-            <span style="font-size:.58rem;color:var(--gray)">age ${backup.age||"?"}</span>
-          </div>
-        </div>`;
-      })() : "";
-
-      return `<div class="frn-depth-slot ${isStarter ? "starter" : ""}" style="position:relative">
-        ${isInjured
-          ? `<span class="frn-depth-injured">🩹 ${starter.injury.weeksRemaining}w</span>`
-          : blockTag}
-        <div class="frn-depth-slot-num" style="${isInjured ? "color:var(--red)" : ""}">${label}</div>
-        <div onclick="frnOpenPlayerCard('${escName}','${escPid}')"
-          style="cursor:pointer;${isInjured ? "opacity:.6" : ""}">
-          <div class="frn-depth-slot-name">${starter.name}</div>
-          <div class="frn-depth-slot-meta">
-            ${gradeBadge(starter)}
-            <span style="color:var(--gray);font-size:.6rem">age ${starter.age||"?"}</span>
-          </div>
-          <div class="frn-depth-slot-aav">$${(starter.contract?.aav||0).toFixed(1)}M · ${starter.contract?.remaining||0}yr</div>
         </div>
-        ${backupHtml}
-        <div style="display:flex;justify-content:flex-end;gap:.2rem;margin-top:.3rem">
-          ${canUp   ? arrowBtn("↑", `frnDepthSwap('${group.pos}',${idx-1})`) : ""}
-          ${canDown ? arrowBtn("↓", `frnDepthSwap('${group.pos}',${idx})`)   : ""}
-        </div>
+        ${playerRow(starter, true,  starterPct, slotKey)}
+        <div class="frn-depth2-divider"></div>
+        ${playerRow(backup,  false, backupPct,  slotKey)}
       </div>`;
     }).join("");
+
+    const groupOvr = _groupOVR(group.slots);
+    const { label: strLabel, col: strCol } = _strength(groupOvr);
 
     return `<div class="frn-depth-row">
       <div class="frn-depth-pos-label">
         <div style="font-size:1rem;font-weight:900;color:var(--gold)">${group.pos}</div>
-        <div style="font-size:.55rem;color:var(--gray);letter-spacing:.3px">${group.label}</div>
+        <div style="font-size:.48rem;color:var(--gray);letter-spacing:.3px;margin-top:.1rem">${group.label}</div>
+        <div style="font-size:.46rem;font-weight:700;color:${strCol};margin-top:.18rem;letter-spacing:.3px">${groupOvr > 0 ? groupOvr+" " : ""}${strLabel}</div>
       </div>
       <div class="frn-depth-slots">${slotsHtml}</div>
     </div>`;
   }).join("");
 
-  const rtg = frnTeamRating(myId);
+  // ── Unassigned players ─────────────────────────────────────────────────────
+  const unassigned = roster
+    .filter(p => p.pid && !assignedPids.has(p.pid))
+    .sort((a,b) => (b.overall||60) - (a.overall||60));
+  let unassignedHtml = "";
+  if (unassigned.length) {
+    const rows = unassigned.map(p => {
+      const escName    = (p.name||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'");
+      const escPid     = (p.pid||"").replace(/'/g,"\\'");
+      const isExpiring = (p.contract?.remaining||0) <= 1;
+      return `<div style="display:flex;align-items:center;gap:.32rem;padding:.18rem .3rem;
+                border-bottom:1px solid var(--border)">
+        <span style="font-size:.53rem;color:var(--gold-lt);min-width:1.8rem;font-weight:700">${p.position}</span>
+        ${gradeBadge(p)}
+        <span onclick="frnOpenPlayerCard('${escName}','${escPid}')"
+          style="font-size:.64rem;font-weight:600;cursor:pointer;text-decoration:underline;
+                 text-decoration-style:dotted;text-underline-offset:2px;flex:1">${p.name}</span>
+        <span style="font-size:.53rem;color:var(--gray)">age ${p.age||"?"}</span>
+        <span style="font-size:.53rem;color:var(--gold-lt)">$${(p.contract?.aav||0).toFixed(1)}M ${p.contract?.remaining||0}yr</span>
+        ${isExpiring ? `<span style="border:1px solid #ff6b6b;color:#ff6b6b;font-size:.48rem;padding:0 .18rem;font-weight:700">EXP</span>` : ""}
+      </div>`;
+    }).join("");
+    unassignedHtml = `<div style="margin-top:.55rem;border:1px solid var(--border);background:var(--bg2)">
+      <div style="padding:.2rem .4rem;background:var(--bg3);border-bottom:1px solid var(--border);
+                  font-size:.56rem;font-weight:700;color:var(--blgray);letter-spacing:.4px">
+        UNASSIGNED (${unassigned.length})
+        <span style="font-size:.5rem;color:var(--gray);font-weight:400;margin-left:.3rem">— not placed in any slot</span>
+      </div>
+      ${rows}
+    </div>`;
+  }
 
+  const rtg = frnTeamRating(myId);
   $("frnHomeContent").innerHTML = `
-    <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem;flex-wrap:wrap">
+    <div style="display:flex;align-items:center;gap:.55rem;margin-bottom:.5rem;flex-wrap:wrap">
       <div style="font-size:1.05rem;font-weight:900;color:var(--gold)">📋 DEPTH CHART · ${myTeam.city} ${myTeam.name}</div>
       <div style="color:var(--gray);font-size:.72rem">${roster.length} players · OFF ${rtg.off} · DEF ${rtg.def}</div>
-      <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="margin-left:auto">← Back</button>
+      <div style="display:flex;gap:.3rem;margin-left:auto">
+        <button class="btn btn-outline" onclick="frnDepthAutoSetOVR()" style="font-size:.58rem">⟳ AUTO-SET OVR</button>
+        <button class="btn btn-outline" onclick="showFranchiseDashboard()">← Back</button>
+      </div>
     </div>
-    <div style="color:var(--blgray);font-size:.6rem;margin-bottom:.5rem">
-      ↑↓ reorder starters within each position group · click a name to view player card
+    ${strengthBarHtml}
+    <div style="color:var(--blgray);font-size:.56rem;margin-bottom:.4rem">
+      ↑↓ reorder slots within position · ⇅ swap #1 ↔ #2 · click name to view player card
     </div>
-    <div class="frn-depth-chart">${rowsHtml}</div>`;
+    <div class="frn-depth-chart">${rowsHtml}</div>
+    ${unassignedHtml}`;
 }
+
 
 // Compute a team's W-L-T record AS OF a given week (before that week's game).
 // confW/confL only count games against teams in the same conference.
