@@ -2498,47 +2498,84 @@ function renderFrnFA(selectedKey) {
     </div>`;
   }
 
-  // Right side: my roster — sort checked cuts to top, then starters, then by AAV
+  // Right panel: cut list — queued cuts at top with UNDO, safe (no dead cap) shown by default
   const escForSel = selected ? selected.name.replace(/\\/g, "\\\\").replace(/'/g, "\\'") : "";
   const cutSet = selected ? new Set((_faOffers[selected.name]?.cutNames) || []) : new Set();
   const dcStarters = new Set(
     Object.values(franchise.depthChart?.[chosenTeamId] || {}).map(s => s.starter).filter(Boolean)
   );
-  const rosterForCut = myRoster.slice().sort((a, b) => {
-    const ac = cutSet.has(a.name), bc = cutSet.has(b.name);
-    if (ac !== bc) return ac ? -1 : 1;
-    const as = a.pid && dcStarters.has(a.pid), bs = b.pid && dcStarters.has(b.pid);
+
+  const _cutQueued = myRoster.filter(p => cutSet.has(p.name));
+  const _cutSafe   = myRoster.filter(p => {
+    if (cutSet.has(p.name)) return false;
+    const { perYear, years } = deadCapOnRelease(p);
+    return !(years > 0 && perYear > 0);
+  }).sort((a, b) => {
+    const as = !!(a.pid && dcStarters.has(a.pid)), bs = !!(b.pid && dcStarters.has(b.pid));
     if (as !== bs) return as ? -1 : 1;
     return (b.contract?.aav||0) - (a.contract?.aav||0);
   });
-  const rosterHtml = rosterForCut.map(p => {
+  const _cutDead = myRoster.filter(p => {
+    if (cutSet.has(p.name)) return false;
+    const { perYear, years } = deadCapOnRelease(p);
+    return years > 0 && perYear > 0;
+  }).sort((a, b) => (b.contract?.aav||0) - (a.contract?.aav||0));
+
+  const _showDeadCap = !!(window._faCutShowDeadCap);
+  const _buildCutRow = (p, isQueued) => {
     const aav = p.contract?.aav || 0;
-    const isChecked = cutSet.has(p.name);
-    const escPlayer = (p.name || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-    const { perYear: deadPY, years: deadYrs } = deadCapOnRelease(p);
-    const hasDeadCap = deadYrs > 0 && deadPY > 0;
-    const netSavings = aav - (hasDeadCap ? deadPY : 0);
+    const ep   = (p.name || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    const epid = (p.pid  || "").replace(/'/g, "\\'");
+    const { perYear: dPY, years: dYrs } = deadCapOnRelease(p);
+    const hasDead = dYrs > 0 && dPY > 0;
     const isStarter = !!(p.pid && dcStarters.has(p.pid));
-    return `<label class="frn-cut-option" style="${isChecked?"background:rgba(255,70,70,.08);border-left:2px solid #ff6b6b;padding-left:.3rem":""}">
-      <input type="checkbox" ${isChecked?"checked":""} ${selected?"":"disabled"}
-        onchange="frnFAToggleCut('${escForSel}','${escPlayer}',this.checked)">
-      <span class="frn-fa-cut-pos">${p.position}</span>
-      <span class="frn-fa-cut-name" style="flex:1;cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px"
-        onclick="event.stopPropagation();frnOpenPlayerCard('${escPlayer}','${(p.pid||'').replace(/'/g,"\\'")}')"
-        title="View player card">${p.name}</span>
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.05rem">
+    const rowStyle = isQueued
+      ? "background:rgba(255,70,70,.1);border-left:3px solid #ff6b6b;padding:.32rem .35rem .32rem .45rem;margin-bottom:.2rem;border-radius:0 3px 3px 0;display:flex;align-items:center;gap:.3rem"
+      : "display:flex;align-items:center;gap:.3rem;padding:.22rem .05rem;border-bottom:1px solid rgba(255,255,255,.04)";
+    const actionBtn = selected ? (isQueued
+      ? `<button onclick="frnFAToggleCut('${escForSel}','${ep}',false)" title="Undo — keep this player"
+          style="background:rgba(255,70,70,.18);border:1px solid #ff6b6b;color:#ff9090;font-size:.56rem;padding:.12rem .3rem;border-radius:3px;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0"
+          onmouseover="this.style.background='rgba(255,70,70,.35)'" onmouseout="this.style.background='rgba(255,70,70,.18)'">× UNDO</button>`
+      : `<button onclick="frnFAToggleCut('${escForSel}','${ep}',true)" title="Flag for cut"
+          style="background:none;border:1px solid var(--border);color:var(--gray);font-size:.56rem;padding:.12rem .3rem;border-radius:3px;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0"
+          onmouseover="this.style.borderColor='#ff9090';this.style.color='#ff9090'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--gray)'">✂ CUT</button>`
+    ) : "";
+    return `<div style="${rowStyle}">
+      <span style="font-size:.57rem;color:var(--blgray);font-weight:700;min-width:1.5rem">${p.position}</span>
+      <span style="flex:1;font-size:.66rem;cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px;${isQueued?"color:#ffaaaa":""}"
+        onclick="event.stopPropagation();frnOpenPlayerCard('${ep}','${epid}')" title="View player card">${p.name}</span>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:.03rem">
         ${gradeBadge(p)}
-        ${isStarter?`<span style="font-size:.47rem;color:var(--gold);font-weight:700;letter-spacing:.2px">STARTER</span>`:""}
+        ${isStarter?`<span style="font-size:.43rem;color:var(--gold);font-weight:700">START</span>`:""}
       </div>
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.04rem;min-width:3.8rem;text-align:right">
-        <span style="font-size:.63rem;color:var(--green-lt);font-weight:700">+$${aav.toFixed(1)}M</span>
-        ${hasDeadCap
-          ? `<span style="font-size:.54rem;color:var(--red)">☠ $${deadPY.toFixed(1)}M dead</span>
-             <span style="font-size:.52rem;color:var(--gray)">net +$${netSavings.toFixed(1)}M</span>`
-          : `<span style="font-size:.52rem;color:var(--gray)">no dead cap</span>`}
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.03rem;min-width:3.2rem">
+        <span style="font-size:.61rem;color:var(--green-lt);font-weight:700">+$${aav.toFixed(1)}M</span>
+        ${hasDead?`<span style="font-size:.49rem;color:var(--red)">☠ $${dPY.toFixed(1)}M dead</span>`:""}
       </div>
-    </label>`;
-  }).join("");
+      ${actionBtn}
+    </div>`;
+  };
+
+  const queuedSection = _cutQueued.length
+    ? `<div style="font-size:.53rem;letter-spacing:.5px;color:#ff9090;font-weight:700;margin:.1rem 0 .22rem">✂ QUEUED TO CUT (${_cutQueued.length})</div>`
+      + _cutQueued.map(p => _buildCutRow(p, true)).join("")
+      + `<div style="height:.45rem"></div>`
+    : "";
+  const safeSection = _cutSafe.length
+    ? _cutSafe.map(p => _buildCutRow(p, false)).join("")
+    : `<div style="color:var(--gray);font-size:.64rem;padding:.4rem 0;font-style:italic">No clean contracts available to cut.</div>`;
+  const deadSection = _cutDead.length
+    ? `<div style="margin-top:.5rem">
+        <button onclick="window._faCutShowDeadCap=!window._faCutShowDeadCap;renderFrnFA('${escForSel}')"
+          style="background:none;border:none;color:var(--blgray);font-size:.57rem;cursor:pointer;font-family:inherit;padding:.08rem 0;display:flex;align-items:center;gap:.25rem">
+          <span style="color:var(--red)">⚠</span> ${_showDeadCap ? "▾" : "▸"} ${_cutDead.length} player${_cutDead.length!==1?"s":""} with dead cap ${_showDeadCap ? "" : "— show anyway"}
+        </button>
+        ${_showDeadCap ? `<div style="margin-top:.25rem;padding:.25rem .3rem;background:rgba(255,70,70,.04);border-left:2px solid rgba(255,70,70,.4);border-radius:0 3px 3px 0">${_cutDead.map(p => _buildCutRow(p, false)).join("")}</div>` : ""}
+      </div>`
+    : "";
+  const rosterHtml = queuedSection
+    + `<div style="font-size:.53rem;letter-spacing:.5px;color:var(--blgray);font-weight:700;margin-bottom:.22rem">SAFE CUTS · NO DEAD CAP</div>`
+    + safeSection + deadSection;
 
   $("frnHomeContent").innerHTML = `
     <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem;flex-wrap:wrap">
@@ -2572,7 +2609,7 @@ function renderFrnFA(selectedKey) {
         ${detailHtml || `<div style="color:var(--gray);font-size:.78rem;padding:1rem;text-align:center;font-style:italic">Select a free agent on the left to make an offer.</div>`}
       </div>
       <div class="frn-fa-roster-col">
-        <div class="frn-card-title">YOUR ROSTER · cut to make room</div>
+        <div class="frn-card-title">CUT LIST</div>
         ${selected ? _faNeedsSnippet(chosenTeamId, selected.position) : `<div style="color:var(--gray);font-size:.7rem;margin-bottom:.4rem;font-style:italic">Pick an FA first, then flag cuts here.</div>`}
         <div class="frn-fa-roster-list">${rosterHtml}</div>
       </div>
