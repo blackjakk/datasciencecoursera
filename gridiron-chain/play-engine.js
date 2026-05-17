@@ -1680,8 +1680,9 @@ class GameSimulator {
         if (rcvrStats) rcvrStats.rec_drops = (rcvrStats.rec_drops || 0) + 1;
         off.team.drops = (off.team.drops || 0) + 1;
       } else {
-        // 35% of non-drop incompletions are pass deflections
-        pdName = Math.random() < 0.35 ? this._creditDefStat("pd", { CB: 0.55, S: 0.30, LB: 0.15 }) : null;
+        // 55% of non-drop incompletions are pass deflections (overthroughs,
+        // throwways, bad releases account for the other ~45%)
+        pdName = Math.random() < 0.55 ? this._creditDefStat("pd", { CB: 0.55, S: 0.30, LB: 0.15 }) : null;
       }
       // CATCH RADIUS / NEAR-MISS LEAP — for deep throws, the receiver leaps
       // and the ball flies past their fingertips. Cosmetic flag for the animation.
