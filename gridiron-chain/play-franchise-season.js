@@ -2276,14 +2276,19 @@ function renderFrnFA(selectedKey) {
       ? TEAMS.filter(t => t.id !== chosenTeamId && _faAIInterest(t.id, p) >= 0.1).length : 0;
     const suitorBit = rowSuitors >= 3
       ? `<span style="font-size:.52rem;color:${rowSuitors>=6?"var(--red)":"#e8a000"};flex-shrink:0">${rowSuitors} teams</span>` : "";
-    return `<button class="frn-fa-row ${isSel?"selected":""} ${offered?"offered":""}"
-      style="border-left:3px solid ${borderCol};padding-left:.45rem;display:block"
+    const escPid = (p.pid||"").replace(/'/g,"\\'");
+    return `<div class="frn-fa-row ${isSel?"selected":""} ${offered?"offered":""}"
+      style="border-left:3px solid ${borderCol};padding-left:.45rem;cursor:pointer"
       onclick="renderFrnFA('${escKey}')">
       <div style="display:flex;align-items:center;gap:.28rem">
         ${heatBadge}${gradeBadge(p)}
         <span class="frn-fa-name" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}${young?" 🌱":""}${woIcon?` ${woIcon}`:""}</span>
         <span class="frn-fa-pos" style="flex-shrink:0">${p.position}</span>
         ${needBadge}
+        <button onclick="event.stopPropagation();frnOpenPlayerCard('${esc}','${escPid}')"
+          title="View player card"
+          style="background:none;border:none;color:var(--gray);font-size:.65rem;cursor:pointer;padding:.05rem .15rem;border-radius:3px;flex-shrink:0;line-height:1"
+          onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color='var(--gray)'">📋</button>
       </div>
       <div style="display:flex;align-items:center;gap:.4rem;margin-top:.08rem;padding-left:.05rem">
         <span style="color:var(--gray);font-size:.57rem">age ${p.age}</span>
@@ -2291,7 +2296,7 @@ function renderFrnFA(selectedKey) {
         ${suitorBit}
         ${offered ? `<span class="frn-fa-flag" style="font-size:.56rem;margin-left:auto">✓ $${myOffer.aav.toFixed(1)}M</span>` : ""}
       </div>
-    </button>`;
+    </div>`;
   }).join("");
 
   // Cap math across ALL active offers
@@ -2402,6 +2407,12 @@ function renderFrnFA(selectedKey) {
             ${_posPillHtml(selected.position)}
             ${gradeBadge(selected)}
             <span style="font-size:.6rem;color:var(--blgray)">${ageStage} · age ${selected.age}</span>
+            <button onclick="frnOpenPlayerCard('${escSelName}','${(selected.pid||'').replace(/'/g,"\\'")}')"
+              style="margin-left:auto;background:none;border:1px solid var(--border);color:var(--blgray);font-size:.58rem;padding:.15rem .4rem;border-radius:3px;cursor:pointer;font-family:inherit;letter-spacing:.3px"
+              onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'"
+              onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--blgray)'">
+              📋 FULL CARD
+            </button>
           </div>
           <div style="color:var(--gray);font-size:.64rem">${_archetypeLabel(selected)||"—"} · ${draftStr(selected)} · ${careerEarningsStr(selected)}</div>
           ${potTag ? `<div style="font-size:.68rem;color:${isKnown?"var(--green-lt)":"var(--gold-lt)"};font-weight:700;margin-top:.2rem">${potTag}</div>` : ""}
@@ -2512,7 +2523,9 @@ function renderFrnFA(selectedKey) {
       <input type="checkbox" ${isChecked?"checked":""} ${selected?"":"disabled"}
         onchange="frnFAToggleCut('${escForSel}','${escPlayer}',this.checked)">
       <span class="frn-fa-cut-pos">${p.position}</span>
-      <span class="frn-fa-cut-name" style="flex:1">${p.name}</span>
+      <span class="frn-fa-cut-name" style="flex:1;cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px"
+        onclick="event.stopPropagation();frnOpenPlayerCard('${escPlayer}','${(p.pid||'').replace(/'/g,"\\'")}')"
+        title="View player card">${p.name}</span>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.05rem">
         ${gradeBadge(p)}
         ${isStarter?`<span style="font-size:.47rem;color:var(--gold);font-weight:700;letter-spacing:.2px">STARTER</span>`:""}

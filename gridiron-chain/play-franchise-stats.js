@@ -462,6 +462,12 @@ function _findPlayer(nameOrPid, pid) {
     const p = roster.find(rp => rp.name === nameOrPid);
     if (p) return p;
   }
+  // Also search free agents and practice squads
+  for (const pool of [franchise?.freeAgents, ...Object.values(franchise?.practiceSquads || {})]) {
+    if (!pool) continue;
+    const p = pool.find(rp => (pid && rp.pid === pid) || rp.name === nameOrPid);
+    if (p) return p;
+  }
   return null;
 }
 function _findPlayerTeam(p) {
