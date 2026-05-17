@@ -2489,7 +2489,9 @@ function renderFrnFA(selectedKey) {
 
   // Right panel: cut list — queued cuts at top with UNDO, safe (no dead cap) shown by default
   const escForSel = selected ? selected.name.replace(/\\/g, "\\\\").replace(/'/g, "\\'") : "";
-  const cutSet = selected ? new Set((_faOffers[selected.name]?.cutNames) || []) : new Set();
+  // Offers can be keyed by pid or name — check both like the detail panel does
+  const _selCutOffer = selected ? (_faOffers[selFaKey] || _faOffers[selected.name]) : null;
+  const cutSet = _selCutOffer ? new Set(_selCutOffer.cutNames || []) : new Set();
   const dcStarters = new Set(
     Object.values(franchise.depthChart?.[chosenTeamId] || {}).map(s => s.starter).filter(Boolean)
   );
@@ -2588,6 +2590,7 @@ function renderFrnFA(selectedKey) {
 
   $("frnHomeContent").innerHTML = `
     <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem;flex-wrap:wrap">
+      <button class="btn btn-outline" onclick="renderFrnStartScreen()" style="font-size:.7rem;padding:.2rem .5rem" title="Return to franchise home">⌂</button>
       <div style="font-size:1.05rem;font-weight:900;color:var(--gold)">🆓 FREE AGENCY · Season ${season}</div>
       <div style="font-size:.6rem;color:var(--blgray);letter-spacing:.4px;padding:.18rem .45rem;border:1px solid var(--border);border-radius:3px">
         🏋 WORKOUTS <b style="color:${_workoutSlotsRemaining()>0?"var(--gold-lt)":"var(--red)"}">${_workoutSlotsRemaining()}/${WORKOUT_SLOTS_PER_FA_SEASON}</b>

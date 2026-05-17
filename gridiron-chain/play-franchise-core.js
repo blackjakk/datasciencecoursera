@@ -820,12 +820,12 @@ function _computeSharpGrade(p) {
   return Math.max(20, Math.min(99, Math.round(score)));
 }
 
-function frnFAInviteWorkout(name) {
+function frnFAInviteWorkout(nameOrKey) {
   if (_workoutSlotsRemaining() <= 0) {
     alert(`No workout slots left this offseason (${WORKOUT_SLOTS_PER_FA_SEASON} total).`);
     return;
   }
-  const fa = (franchise.freeAgents || []).find(p => p.name === name);
+  const fa = (franchise.freeAgents || []).find(p => p.pid === nameOrKey || p.name === nameOrKey);
   if (!fa) return;
 
   _consumeWorkoutSlot();
@@ -858,15 +858,15 @@ function frnFAInviteWorkout(name) {
     fa.demandedAAV = Math.max(0.5, +(fa.demandedAAV * (1 + demandDeltaPct / 100)).toFixed(1));
   }
 
-  franchise._faWorkoutResults[name] = { result, posTrait, negTrait, sharpGrade, demandBefore, demandDeltaPct };
+  franchise._faWorkoutResults[fa.name] = { result, posTrait, negTrait, sharpGrade, demandBefore, demandDeltaPct };
 
   if (result === "standout") {
     fa._workoutHot = true;
-    _pushNews({ type: "workout", label: `👀 ${fa.position} ${name}'s workout impresses — rival teams taking notice` });
+    _pushNews({ type: "workout", label: `👀 ${fa.position} ${fa.name}'s workout impresses — rival teams taking notice` });
   }
 
   saveFranchise();
-  renderFrnFA(name);
+  renderFrnFA(nameOrKey);
 }
 
 function gradeLabel(score) {
