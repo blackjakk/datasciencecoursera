@@ -1068,28 +1068,28 @@ const SCHEME_COUNTER = {
     "COVER 2 ZONE":  -5,  // two-deep drops kill timing routes
     "MAN PRESS":     -4,  // physical coverage disrupts receiver releases
     "STACK 46":      +5,  // heavy box can't cover spread receivers
-    "HYBRID ZONE":   -2,
+    "HYBRID ZONE":   -4,  // zone flexibility disciplines short-hitting reads
   },
   "SMASHMOUTH": {
     "BLITZ PACKAGE": +4,  // downhill run punishes overloaded A-gap
     "COVER 2 ZONE":  +5,  // power through the middle of zone
     "MAN PRESS":     +3,  // physical run game wins line battles
     "STACK 46":      -8,  // 8-man box is a run-stopper's dream
-    "HYBRID ZONE":   +2,
+    "HYBRID ZONE":   +2,  // power run can still punch through
   },
   "SPREAD OPTION": {
     "BLITZ PACKAGE": +3,  // mobile QB exploits vacated blitz lanes
     "COVER 2 ZONE":  +4,  // spread formations flood zone seams
     "MAN PRESS":     -5,  // receivers isolated, limited YAC
     "STACK 46":      +1,  // QB run threat offsets heavy box
-    "HYBRID ZONE":   0,
+    "HYBRID ZONE":   +5,  // multiple receiver levels collapse hybrid assignments
   },
   "WEST COAST": {
     "BLITZ PACKAGE": -4,  // timing routes disrupted by early pressure
     "COVER 2 ZONE":  +6,  // horizontal stretches flood underneath zones
     "MAN PRESS":     +3,  // crossing routes create natural picks
     "STACK 46":      -3,  // compression limits crossing-route depth
-    "HYBRID ZONE":   +1,
+    "HYBRID ZONE":   +2,  // short-to-mid route tree exploits zone gaps
   },
 };
 

@@ -827,13 +827,16 @@ function frnSimOnce(homeId, awayId, isPlayoff = false) {
   };
   if (dcHome === "Film Mastermind") sim.homeR.defense += _filmBonus(homeId);
   if (dcAway === "Film Mastermind") sim.awayR.defense += _filmBonus(awayId);
-  // HC rating modifier: elite HCs squeeze a small additional boost
-  const hcRatingHome = franchise.coaches?.[homeId]?.hc?.rating || 60;
-  const hcRatingAway = franchise.coaches?.[awayId]?.hc?.rating || 60;
-  sim.homeR.offense += Math.round((hcRatingHome - 60) / 30);
-  sim.homeR.defense += Math.round((hcRatingHome - 60) / 30);
-  sim.awayR.offense += Math.round((hcRatingAway - 60) / 30);
-  sim.awayR.defense += Math.round((hcRatingAway - 60) / 30);
+  // Coaching rating modifiers — tiered: <55=-1, 55-71=0, 72-82=+1, 83+=+2
+  // HC affects both sides; OC affects offense only; DC affects defense only.
+  const _cb = r => r >= 83 ? 2 : r >= 72 ? 1 : r >= 55 ? 0 : -1;
+  const _hc = (id) => franchise.coaches?.[id]?.hc?.rating || 60;
+  const _oc = (id) => franchise.coaches?.[id]?.oc?.rating || 60;
+  const _dc = (id) => franchise.coaches?.[id]?.dc?.rating || 60;
+  sim.homeR.offense += _cb(_hc(homeId)) + _cb(_oc(homeId));
+  sim.homeR.defense += _cb(_hc(homeId)) + _cb(_dc(homeId));
+  sim.awayR.offense += _cb(_hc(awayId)) + _cb(_oc(awayId));
+  sim.awayR.defense += _cb(_hc(awayId)) + _cb(_dc(awayId));
   // Scheme matchup: OC's offensive scheme vs opponent DC's defensive scheme.
   // _schemeMatchup returns +ve = offense wins the schematic battle.
   // Scaled ×0.5 so the max swing (±3-4 OVR) stays comparable to chemistry bonuses.
@@ -1417,12 +1420,14 @@ function frnPlayGame(homeId, awayId, isPlayoff) {
   };
   if (dcHome === "Film Mastermind") sim.homeR.defense += _filmBonus(homeId);
   if (dcAway === "Film Mastermind") sim.awayR.defense += _filmBonus(awayId);
-  const hcRatingHome = franchise.coaches?.[homeId]?.hc?.rating || 60;
-  const hcRatingAway = franchise.coaches?.[awayId]?.hc?.rating || 60;
-  sim.homeR.offense += Math.round((hcRatingHome - 60) / 30);
-  sim.homeR.defense += Math.round((hcRatingHome - 60) / 30);
-  sim.awayR.offense += Math.round((hcRatingAway - 60) / 30);
-  sim.awayR.defense += Math.round((hcRatingAway - 60) / 30);
+  const _cb = r => r >= 83 ? 2 : r >= 72 ? 1 : r >= 55 ? 0 : -1;
+  const _hc = (id) => franchise.coaches?.[id]?.hc?.rating || 60;
+  const _oc = (id) => franchise.coaches?.[id]?.oc?.rating || 60;
+  const _dc = (id) => franchise.coaches?.[id]?.dc?.rating || 60;
+  sim.homeR.offense += _cb(_hc(homeId)) + _cb(_oc(homeId));
+  sim.homeR.defense += _cb(_hc(homeId)) + _cb(_dc(homeId));
+  sim.awayR.offense += _cb(_hc(awayId)) + _cb(_oc(awayId));
+  sim.awayR.defense += _cb(_hc(awayId)) + _cb(_dc(awayId));
   const homeSchemeMod = Math.round(_schemeMatchup(_getTeamOffScheme(homeId), _getTeamDefScheme(awayId)) * 0.5);
   const awaySchemeMod = Math.round(_schemeMatchup(_getTeamOffScheme(awayId), _getTeamDefScheme(homeId)) * 0.5);
   sim.homeR.offense += homeSchemeMod;
@@ -4458,13 +4463,12 @@ function runFrnOffseason() {
     // Computed once per team per offseason; applied to all growth chances below.
     const chemBonus = _computeChemistryBonus(tId);
 
-    // Coordinator rating → player dev: higher-rated OC lifts skill positions,
-    // higher-rated DC lifts defensive positions. Scales linearly 0→+15% across
-    // the 60–89 band. Elite HC (≥80) has a season-level 25% chance to amplify
-    // coord contributions by 8% — models a great coach extracting more from his staff.
-    const _tStaff    = franchise.coaches?.[tId] || {};
-    const _ocDevBonus = Math.max(0, ((_tStaff.oc?.rating || 60) - 60) / 29 * 0.15);
-    const _dcDevBonus = Math.max(0, ((_tStaff.dc?.rating || 60) - 60) / 29 * 0.15);
+    // Coordinator rating → player dev: higher-rated OC lifts skill+OL positions,
+    // higher-rated DC lifts defensive positions. Smooth ramp from 50→89 (0→+15%).
+    // Elite HC (≥80) has a season-level 25% chance to amplify coord contributions 8%.
+    const _tStaff     = franchise.coaches?.[tId] || {};
+    const _ocDevBonus = Math.max(0, ((_tStaff.oc?.rating || 60) - 50) / 39 * 0.15);
+    const _dcDevBonus = Math.max(0, ((_tStaff.dc?.rating || 60) - 50) / 39 * 0.15);
     const _hcCoordAmp = ((_tStaff.hc?.rating || 60) >= 80 && Math.random() < 0.25) ? 1.08 : 1.0;
 
     for (const p of roster) {
@@ -4562,14 +4566,15 @@ function runFrnOffseason() {
                      : ["LB","CB","S"].includes(p.position) ? "LB/DB" : null;
         const staffCoach = pGroup ? posStaff.find(s => s.group === pGroup) : null;
         const tierInfo   = staffCoach ? POSITION_COACH_TIERS[staffCoach.tier] : POSITION_COACH_TIERS["Journeyman"];
-        const filmMul     = dcTrait === "Film Mastermind" ? (p.coachable ? 2.0 : 1.2) : 1.0;
-        const isOffPos    = ["QB","WR","RB","TE"].includes(p.position);
+        const isOffPos    = ["QB","WR","RB","TE","OL"].includes(p.position);
         const isDefPos    = ["DL","LB","CB","S"].includes(p.position);
+        const filmMul     = (dcTrait === "Film Mastermind" && isDefPos) ? (p.coachable ? 2.0 : 1.2) : 1.0;
         const coordDevMul = isOffPos ? (1 + _ocDevBonus * _hcCoordAmp)
                           : isDefPos ? (1 + _dcDevBonus * _hcCoordAmp)
                           : 1.0;
         const tecMul      = tierInfo.tecMul * hcDevMul * filmMul * coordDevMul;
-        const effectiveTecMul = (p.position === "QB" && ocTrait === "QB Whisperer") ? tecMul * 2 : tecMul;
+        const effectiveTecMul = Math.min(5.0,
+          (p.position === "QB" && ocTrait === "QB Whisperer") ? tecMul * 2 : tecMul);
 
         const baseChance = 0.12;
         if ((p.age || 25) <= 30 && Math.random() < baseChance * effectiveTecMul) {

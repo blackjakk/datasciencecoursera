@@ -4651,6 +4651,8 @@ function _schemeBadge(scheme, small) {
 // ── Coaching Staff Panel ─────────────────────────────────────────────────────
 // Shows the user team's full coaching staff and allows hires/fires from the
 // coach market. Market is populated by _generateCoachMarket() each offseason.
+let _coachHireResult = null; // set by frnHireCoachFromMarket; cleared after one render
+
 function renderFrnCoachingStaff() {
   const myId   = franchise.chosenTeamId;
   const myTeam = getTeam(myId);
@@ -4920,6 +4922,11 @@ function renderFrnCoachingStaff() {
       ${_schemePreviewHtml("def", myDefScheme, myId)}
     </div>`;
 
+  const hireBanner = _coachHireResult
+    ? `<div style="background:rgba(0,200,100,.12);border:1px solid rgba(0,200,100,.4);border-radius:5px;padding:.5rem .75rem;margin-bottom:.6rem;font-size:.7rem;color:var(--green-lt)">✅ ${_coachHireResult}</div>`
+    : "";
+  _coachHireResult = null;
+
   $("frnHomeContent").innerHTML = `
     <style>
       .frn-coach-card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:.75rem 1rem;margin-bottom:.6rem}
@@ -4934,6 +4941,7 @@ function renderFrnCoachingStaff() {
         <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="font-size:.7rem;padding:.2rem .6rem">← Back</button>
         <div style="font-size:1rem;font-weight:700;color:var(--gold)">${myTeam?.city} ${myTeam?.name} — Coaching Staff</div>
       </div>
+      ${hireBanner}
       ${budgetHtml}
       <div class="frn-sec-title" style="margin-top:.8rem">Head Coach</div>
       ${hcHtml}
@@ -5186,11 +5194,15 @@ function frnHireCoachFromMarket(slot, marketIdx) {
   if (slot === "hc") {
     const existing = staff.hc;
     _coachFAAdd(existing, "hc");
-    staff.hc = { ...pick, yearsWithTeam: 0, record: existing?.record || { w:0, l:0, championships:0 } };
+    staff.hc = { ...pick, yearsWithTeam: 0, record: { w:0, l:0, championships:0 } };
     delete staff.hc.type;
     staff._chemistry = null;
     _pushNews({ type:"coach_hire", label: `You hired HC ${staff.hc.name}` });
-    for (const msg of _applyHcStaffSweep(staff, "Your team")) _pushNews(msg);
+    const _sweepMsgs = _applyHcStaffSweep(staff, "Your team");
+    _sweepMsgs.forEach(m => _pushNews(m));
+    _coachHireResult = _sweepMsgs.length
+      ? _sweepMsgs.map(m => m.label).join(" · ")
+      : `No coordinator changes — ${staff.oc?.name || "OC"} and ${staff.dc?.name || "DC"} retained`;
   } else if (slot === "oc") {
     _coachFAAdd(staff.oc, "oc");
     if (staff._chemistry) staff._chemistry.qbOcBond = false;
