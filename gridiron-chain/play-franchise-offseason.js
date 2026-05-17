@@ -5960,7 +5960,35 @@ function frnSubmitTrade() {
     const reason = aiScore < 0.6 ? "Way too lopsided in your favor"
                  : aiScore < 0.85 ? "Not enough value coming back to us"
                  : "Close, but pass — try sweetening the deal";
-    tp.result = { accepted: false, message: `Rejected. ${reason}.`, aiScore };
+    // Compute gap and pick suggestion so the user knows how to close it
+    let gapLabel = null, suggestion = null;
+    if (aiScore >= 0.60) {
+      const gap = recvValue * 0.97 - (sendValue + theirNeedForSend);
+      if      (gap < 1.5)  gapLabel = "less than a late-round pick away";
+      else if (gap < 3)    gapLabel = "~a 7th-round pick short";
+      else if (gap < 5)    gapLabel = "~a 5th/6th-round pick short";
+      else if (gap < 9)    gapLabel = "~a 3rd-round pick short";
+      else if (gap < 16)   gapLabel = "~a 2nd-round pick short";
+      else                 gapLabel = "~a 1st-round pick or more short";
+
+      const sentKeys = new Set(tp.picksSend || []);
+      const myPicks = (franchise.picks || [])
+        .filter(p => p.currentOwnerId === myId && !sentKeys.has(_tradePickKey(p)))
+        .sort((a, b) => _pickValue(a) - _pickValue(b));
+      // Prefer the cheapest pick that fully covers the gap
+      const exact = myPicks.find(p => _pickValue(p) >= gap);
+      const best  = myPicks[myPicks.length - 1];
+      const candidate = exact || best;
+      if (candidate) {
+        suggestion = {
+          type: "pick",
+          key: _tradePickKey(candidate),
+          label: `${candidate.year} Round ${candidate.round} pick`,
+          partial: !exact,
+        };
+      }
+    }
+    tp.result = { accepted: false, message: `Rejected. ${reason}.`, aiScore, gapLabel, suggestion };
   }
   saveFranchise();
   renderFrnTrade();
@@ -6189,6 +6217,16 @@ function _renderTradeProposeTab(tp, sortBy, myRoster, cap, myCapUsed) {
     ${tp.result ? `
       <div class="frn-trade-result ${tp.result.accepted?'accepted':'rejected'}">
         <b>${tp.result.accepted?"✓ ACCEPTED":"✗ REJECTED"}</b> · ${tp.result.message}
+        ${!tp.result.accepted && tp.result.gapLabel ? `
+          <div style="font-size:.62rem;color:var(--gray);margin-top:.25rem">You're ${tp.result.gapLabel}.</div>` : ""}
+        ${!tp.result.accepted && tp.result.suggestion ? `
+          <div style="margin-top:.35rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+            <span style="font-size:.63rem;color:var(--gray)">${tp.result.suggestion.partial ? "Closest pick you have:" : "Try adding:"}</span>
+            <button class="btn" style="font-size:.63rem;padding:.2rem .5rem;background:var(--bg3);color:var(--gold);border:1px solid var(--gold)"
+              onclick="frnToggleTradePick('send','${tp.result.suggestion.key}')">
+              ➕ ${tp.result.suggestion.label}
+            </button>
+          </div>` : ""}
       </div>` : ""}
     <div class="frn-actions" style="justify-content:center;margin-top:.8rem">
       <button class="btn btn-gold-big" onclick="frnSubmitTrade()"
