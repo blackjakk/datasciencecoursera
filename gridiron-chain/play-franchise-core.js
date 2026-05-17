@@ -1039,6 +1039,88 @@ const DC_TRAITS = [
   { key:"Hybrid",           desc:"No modifier — scheme-agnostic" },
 ];
 
+// ── Coaching Scheme System (Rock-Paper-Scissors) ──────────────────────────────
+// Each OC trait maps to an offensive scheme; each DC trait to a defensive scheme.
+// The counter matrix drives OVR modifiers in game sim (+ve = offense advantage).
+
+const OFF_SCHEME_MAP = {
+  "Air Attack":      "AIR RAID",
+  "QB Whisperer":    "AIR RAID",
+  "Red Zone Genius": "WEST COAST",
+  "Run Architect":   "SMASHMOUTH",
+  "Balanced":        "SPREAD OPTION",
+};
+
+const DEF_SCHEME_MAP = {
+  "Pressure Package": "BLITZ PACKAGE",
+  "Cover Scheme":     "COVER 2 ZONE",
+  "Ball Hawk":        "MAN PRESS",
+  "Run Stopper":      "STACK 46",
+  "Film Mastermind":  "COVER 2 ZONE",
+  "Hybrid":           "HYBRID ZONE",
+};
+
+// Modifier table: row = offensive scheme, col = defensive scheme.
+// Positive = offense gains effective OVR; negative = defense gains.
+const SCHEME_COUNTER = {
+  "AIR RAID": {
+    "BLITZ PACKAGE": +7,  // quick release burns over-aggressive rush
+    "COVER 2 ZONE":  -5,  // two-deep drops kill timing routes
+    "MAN PRESS":     -4,  // physical coverage disrupts receiver releases
+    "STACK 46":      +5,  // heavy box can't cover spread receivers
+    "HYBRID ZONE":   -2,
+  },
+  "SMASHMOUTH": {
+    "BLITZ PACKAGE": +4,  // downhill run punishes overloaded A-gap
+    "COVER 2 ZONE":  +5,  // power through the middle of zone
+    "MAN PRESS":     +3,  // physical run game wins line battles
+    "STACK 46":      -8,  // 8-man box is a run-stopper's dream
+    "HYBRID ZONE":   +2,
+  },
+  "SPREAD OPTION": {
+    "BLITZ PACKAGE": +3,  // mobile QB exploits vacated blitz lanes
+    "COVER 2 ZONE":  +4,  // spread formations flood zone seams
+    "MAN PRESS":     -5,  // receivers isolated, limited YAC
+    "STACK 46":      +1,  // QB run threat offsets heavy box
+    "HYBRID ZONE":   0,
+  },
+  "WEST COAST": {
+    "BLITZ PACKAGE": -4,  // timing routes disrupted by early pressure
+    "COVER 2 ZONE":  +6,  // horizontal stretches flood underneath zones
+    "MAN PRESS":     +3,  // crossing routes create natural picks
+    "STACK 46":      -3,  // compression limits crossing-route depth
+    "HYBRID ZONE":   +1,
+  },
+};
+
+// Flavor labels for matchup strength
+const SCHEME_MATCHUP_LABELS = [
+  { min:  6, label: "DOMINANT",    color: "#00e676" },
+  { min:  3, label: "FAVORABLE",   color: "#69f0ae" },
+  { min: -2, label: "NEUTRAL",     color: "rgba(255,255,255,.45)" },
+  { min: -5, label: "UNFAVORABLE", color: "#ffb74d" },
+  { min: -99,label: "BAD",         color: "#ef5350" },
+];
+
+function _schemeMatchupLabel(mod) {
+  return SCHEME_MATCHUP_LABELS.find(e => mod >= e.min) || SCHEME_MATCHUP_LABELS.at(-1);
+}
+
+function _getTeamOffScheme(teamId) {
+  const ocTrait = franchise?.coaches?.[teamId]?.oc?.trait;
+  return OFF_SCHEME_MAP[ocTrait] || "SPREAD OPTION";
+}
+
+function _getTeamDefScheme(teamId) {
+  const dcTrait = franchise?.coaches?.[teamId]?.dc?.trait;
+  return DEF_SCHEME_MAP[dcTrait] || "HYBRID ZONE";
+}
+
+// Returns the raw modifier (positive = offense advantage, negative = defense advantage).
+function _schemeMatchup(offScheme, defScheme) {
+  return (SCHEME_COUNTER[offScheme] || {})[defScheme] ?? 0;
+}
+
 const POSITION_COACH_TIERS = {
   Journeyman: { tecMul:1.0, salary:0.5 },
   Good:       { tecMul:1.3, salary:1.2 },

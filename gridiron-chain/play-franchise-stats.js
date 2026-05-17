@@ -4491,6 +4491,96 @@ function _stampSeasonAccolades(awards) {
   }
 }
 
+// ── Scheme Matchup Analysis ───────────────────────────────────────────────────
+// Builds the scheme-preview HTML used in both the staff panel and market cards.
+// role: "off" | "def"
+// scheme: the scheme string (e.g. "AIR RAID")
+// myId: your team ID (used to get division peers)
+function _schemePreviewHtml(role, scheme, myId) {
+  if (!scheme || !TEAMS) return "";
+
+  const myTeam = getTeam(myId);
+  const myDiv  = myTeam?.division || null;
+  const myConf = myTeam?.conference || null;
+
+  // Division = same conference + same division name
+  const inMyDiv = t => t.id !== myId && t.conference === myConf && t.division === myDiv;
+  const divTeams = TEAMS.filter(inMyDiv);
+  const lgTeams  = TEAMS.filter(t => t.id !== myId && !inMyDiv(t));
+
+  // For an offensive scheme we look at opponents' defensive schemes; vice versa.
+  const opponentScheme = (tId) => role === "off" ? _getTeamDefScheme(tId) : _getTeamOffScheme(tId);
+  const modifier       = (tId) => {
+    const opp = opponentScheme(tId);
+    return role === "off" ? _schemeMatchup(scheme, opp) : -_schemeMatchup(opp, scheme);
+  };
+
+  const summarize = (teams) => {
+    if (!teams.length) return null;
+    const mods = teams.map(t => modifier(t.id));
+    const avg  = mods.reduce((a, b) => a + b, 0) / mods.length;
+    const favorable   = mods.filter(m => m >= 3).length;
+    const unfavorable = mods.filter(m => m <= -3).length;
+    const neutral     = mods.length - favorable - unfavorable;
+    return { avg, favorable, unfavorable, neutral, count: mods.length };
+  };
+
+  const divSummary = summarize(divTeams);
+  const lgSummary  = summarize(lgTeams);
+
+  const pct = (n, t) => t ? Math.round(n / t * 100) : 0;
+  const avgColor = (avg) => avg >= 4 ? "#00e676" : avg >= 1 ? "#69f0ae" : avg >= -2 ? "rgba(255,255,255,.45)" : avg >= -4 ? "#ffb74d" : "#ef5350";
+
+  const sectionHtml = (title, s) => {
+    if (!s) return "";
+    const { avg, favorable, unfavorable, neutral, count } = s;
+    const c = avgColor(avg);
+    const bar = (n, color, tt) => n === 0 ? "" :
+      `<div title="${n} ${tt}" style="flex:${n};height:6px;background:${color};border-radius:2px"></div>`;
+    return `
+      <div style="margin-bottom:.55rem">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.2rem">
+          <span style="font-size:.63rem;color:var(--gray);text-transform:uppercase;letter-spacing:.5px">${title}</span>
+          <span style="font-size:.68rem;font-weight:700;color:${c}">${avg >= 0 ? "+" : ""}${avg.toFixed(1)} avg</span>
+        </div>
+        <div style="display:flex;gap:2px;height:6px;border-radius:3px;overflow:hidden;background:rgba(255,255,255,.08)">
+          ${bar(favorable, "#00e676", "favorable")}
+          ${bar(neutral, "rgba(255,255,255,.25)", "neutral")}
+          ${bar(unfavorable, "#ef5350", "unfavorable")}
+        </div>
+        <div style="display:flex;gap:.5rem;font-size:.6rem;margin-top:.2rem">
+          ${favorable   ? `<span style="color:#00e676">${favorable} favorable</span>` : ""}
+          ${neutral     ? `<span style="color:rgba(255,255,255,.35)">${neutral} neutral</span>` : ""}
+          ${unfavorable ? `<span style="color:#ef5350">${unfavorable} tough</span>` : ""}
+        </div>
+      </div>`;
+  };
+
+  return `<div style="margin-top:.4rem">
+    ${sectionHtml("Division matchups", divSummary)}
+    ${sectionHtml("Rest of league", lgSummary)}
+  </div>`;
+}
+
+// Inline chip for a scheme name
+function _schemeBadge(scheme, small) {
+  if (!scheme) return "";
+  const colors = {
+    "AIR RAID":      "#64b5f6",
+    "SMASHMOUTH":    "#ef5350",
+    "SPREAD OPTION": "#ba68c8",
+    "WEST COAST":    "#4db6ac",
+    "BLITZ PACKAGE": "#ff8a65",
+    "COVER 2 ZONE":  "#4fc3f7",
+    "MAN PRESS":     "#aed581",
+    "STACK 46":      "#ffb74d",
+    "HYBRID ZONE":   "rgba(255,255,255,.35)",
+  };
+  const c = colors[scheme] || "rgba(255,255,255,.4)";
+  const sz = small ? ".57rem" : ".62rem";
+  return `<span style="font-size:${sz};font-weight:700;padding:.1rem .4rem;border-radius:3px;background:${c}22;color:${c};border:1px solid ${c}55;white-space:nowrap">${scheme}</span>`;
+}
+
 // ── Coaching Staff Panel ─────────────────────────────────────────────────────
 // Shows the user team's full coaching staff and allows hires/fires from the
 // coach market. Market is populated by _generateCoachMarket() each offseason.
@@ -4543,6 +4633,7 @@ function renderFrnCoachingStaff() {
       : cYrs === 1
       ? `<div style="font-size:.63rem;color:var(--gold);margin:.25rem 0">Final contract year — extension needed</div>`
       : "";
+    const schemeKey = slot === "oc" ? OFF_SCHEME_MAP[coord.trait] : DEF_SCHEME_MAP[coord.trait];
     return `
     <div class="frn-coach-card" style="${cYrs === 0 ? "border-color:var(--red);" : cYrs === 1 ? "border-color:var(--gold);" : ""}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.4rem">
@@ -4553,8 +4644,9 @@ function renderFrnCoachingStaff() {
         ${ratingBadge(coord.rating)}
       </div>
       ${expiryWarn}
-      <div style="margin-top:.35rem;font-size:.68rem">
+      <div style="margin-top:.35rem;font-size:.68rem;display:flex;flex-wrap:wrap;gap:.35rem;align-items:center">
         <span style="background:rgba(255,255,255,.07);padding:.12rem .45rem;border-radius:3px">Trait: <b>${coord.trait||"—"}</b></span>
+        ${schemeKey ? _schemeBadge(schemeKey, true) : ""}
       </div>
       <div style="margin-top:.3rem;font-size:.65rem;color:var(--gray)">$${(coord.salary||0).toFixed(1)}M/yr · ${cYrs} yr${cYrs===1?"":"s"} left</div>
       <div style="margin-top:.4rem;text-align:right">
@@ -4599,35 +4691,82 @@ function renderFrnCoachingStaff() {
     </div>`;
 
   // ── Coach Market ──
-  const marketHcHtml  = market.filter(c => c.type === "hc").map((c, i) => `
-    <div class="frn-coach-market-row">
-      <div style="flex:1;min-width:0">
-        <div style="font-size:.78rem;font-weight:700">${c.name} ${ratingBadge(c.rating)}</div>
-        <div style="font-size:.62rem;color:var(--gray)">Culture: ${c.cultureTrait||"—"} · Spec: ${c.specialtyTrait||"—"} · $${(c.salary||0).toFixed(1)}M/yr · Age ${c.age||"?"}</div>
-      </div>
-      <button class="btn btn-outline" style="font-size:.65rem;white-space:nowrap"
-        onclick="frnHireCoachFromMarket('hc',${i})">Hire as HC</button>
-    </div>`).join("") || `<div style="color:var(--gray);font-size:.72rem;font-style:italic">No HC candidates available.</div>`;
+  // For HC candidates we derive implied OC/DC scheme preference from specialty trait.
+  const hcImpliedOff = spec => {
+    if (spec === "Offensive Minded") return "SPREAD OPTION";
+    if (spec === "Defensive Minded") return null;
+    return null;
+  };
+  const hcImpliedDef = spec => {
+    if (spec === "Defensive Minded") return "HYBRID ZONE";
+    return null;
+  };
 
-  const marketOCHtml  = market.filter(c => c.type === "oc").map((c, i) => `
-    <div class="frn-coach-market-row">
-      <div style="flex:1;min-width:0">
-        <div style="font-size:.78rem;font-weight:700">${c.name} ${ratingBadge(c.rating)}</div>
-        <div style="font-size:.62rem;color:var(--gray)">Trait: ${c.trait||"—"} · $${(c.salary||0).toFixed(1)}M/yr · Age ${c.age||"?"}</div>
+  const marketHcHtml  = market.filter(c => c.type === "hc").map((c, i) => {
+    const implOff = hcImpliedOff(c.specialtyTrait);
+    const implDef = hcImpliedDef(c.specialtyTrait);
+    const offPrev = implOff ? _schemePreviewHtml("off", implOff, myId) : "";
+    const defPrev = implDef ? _schemePreviewHtml("def", implDef, myId) : "";
+    const schemeHint = (implOff || implDef)
+      ? `<div style="margin-top:.3rem;display:flex;flex-wrap:wrap;gap:.3rem;align-items:center;font-size:.62rem;color:var(--gray)">
+           ${implOff ? `Likely installs ${_schemeBadge(implOff, true)} offense` : ""}
+           ${implDef ? `${implOff ? "·" : ""} ${_schemeBadge(implDef, true)} defense` : ""}
+         </div>
+         ${offPrev}${defPrev}`
+      : "";
+    return `
+    <div class="frn-coach-market-row" style="flex-direction:column;align-items:stretch">
+      <div style="display:flex;align-items:flex-start;gap:.75rem">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:.78rem;font-weight:700">${c.name} ${ratingBadge(c.rating)}</div>
+          <div style="font-size:.62rem;color:var(--gray)">Culture: ${c.cultureTrait||"—"} · Spec: ${c.specialtyTrait||"—"} · $${(c.salary||0).toFixed(1)}M/yr · Age ${c.age||"?"}</div>
+          ${schemeHint}
+        </div>
+        <button class="btn btn-outline" style="font-size:.65rem;white-space:nowrap;align-self:flex-start"
+          onclick="frnHireCoachFromMarket('hc',${i})">Hire as HC</button>
       </div>
-      <button class="btn btn-outline" style="font-size:.65rem;white-space:nowrap"
-        onclick="frnHireCoachFromMarket('oc',${i})">Hire as OC</button>
-    </div>`).join("") || `<div style="color:var(--gray);font-size:.72rem;font-style:italic">No OC candidates available.</div>`;
+    </div>`;
+  }).join("") || `<div style="color:var(--gray);font-size:.72rem;font-style:italic">No HC candidates available.</div>`;
 
-  const marketDCHtml  = market.filter(c => c.type === "dc").map((c, i) => `
-    <div class="frn-coach-market-row">
-      <div style="flex:1;min-width:0">
-        <div style="font-size:.78rem;font-weight:700">${c.name} ${ratingBadge(c.rating)}</div>
-        <div style="font-size:.62rem;color:var(--gray)">Trait: ${c.trait||"—"} · $${(c.salary||0).toFixed(1)}M/yr · Age ${c.age||"?"}</div>
+  const marketOCHtml  = market.filter(c => c.type === "oc").map((c, i) => {
+    const scheme = OFF_SCHEME_MAP[c.trait];
+    const preview = scheme ? _schemePreviewHtml("off", scheme, myId) : "";
+    return `
+    <div class="frn-coach-market-row" style="flex-direction:column;align-items:stretch">
+      <div style="display:flex;align-items:flex-start;gap:.75rem">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:.78rem;font-weight:700;display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">
+            ${c.name} ${ratingBadge(c.rating)}
+            ${scheme ? _schemeBadge(scheme, true) : ""}
+          </div>
+          <div style="font-size:.62rem;color:var(--gray);margin-top:.1rem">Trait: ${c.trait||"—"} · $${(c.salary||0).toFixed(1)}M/yr · Age ${c.age||"?"}</div>
+          ${preview}
+        </div>
+        <button class="btn btn-outline" style="font-size:.65rem;white-space:nowrap;align-self:flex-start"
+          onclick="frnHireCoachFromMarket('oc',${i})">Hire as OC</button>
       </div>
-      <button class="btn btn-outline" style="font-size:.65rem;white-space:nowrap"
-        onclick="frnHireCoachFromMarket('dc',${i})">Hire as DC</button>
-    </div>`).join("") || `<div style="color:var(--gray);font-size:.72rem;font-style:italic">No DC candidates available.</div>`;
+    </div>`;
+  }).join("") || `<div style="color:var(--gray);font-size:.72rem;font-style:italic">No OC candidates available.</div>`;
+
+  const marketDCHtml  = market.filter(c => c.type === "dc").map((c, i) => {
+    const scheme = DEF_SCHEME_MAP[c.trait];
+    const preview = scheme ? _schemePreviewHtml("def", scheme, myId) : "";
+    return `
+    <div class="frn-coach-market-row" style="flex-direction:column;align-items:stretch">
+      <div style="display:flex;align-items:flex-start;gap:.75rem">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:.78rem;font-weight:700;display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">
+            ${c.name} ${ratingBadge(c.rating)}
+            ${scheme ? _schemeBadge(scheme, true) : ""}
+          </div>
+          <div style="font-size:.62rem;color:var(--gray);margin-top:.1rem">Trait: ${c.trait||"—"} · $${(c.salary||0).toFixed(1)}M/yr · Age ${c.age||"?"}</div>
+          ${preview}
+        </div>
+        <button class="btn btn-outline" style="font-size:.65rem;white-space:nowrap;align-self:flex-start"
+          onclick="frnHireCoachFromMarket('dc',${i})">Hire as DC</button>
+      </div>
+    </div>`;
+  }).join("") || `<div style="color:var(--gray);font-size:.72rem;font-style:italic">No DC candidates available.</div>`;
 
   // ── Chemistry Panel ──
   const chem      = staff._chemistry || {};
@@ -4664,13 +4803,34 @@ function renderFrnCoachingStaff() {
       ${bondHtml}
     </div>`;
 
+  // ── Scheme Overview ──
+  const myOffScheme = _getTeamOffScheme(myId);
+  const myDefScheme = _getTeamDefScheme(myId);
+  const schemeOverviewHtml = `
+    <div class="frn-coach-card" style="background:rgba(255,255,255,.03)">
+      <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:center;margin-bottom:.6rem">
+        <div>
+          <div style="font-size:.6rem;color:var(--gray);letter-spacing:.5px;text-transform:uppercase;margin-bottom:.2rem">Offense</div>
+          ${_schemeBadge(myOffScheme)}
+        </div>
+        <div>
+          <div style="font-size:.6rem;color:var(--gray);letter-spacing:.5px;text-transform:uppercase;margin-bottom:.2rem">Defense</div>
+          ${_schemeBadge(myDefScheme)}
+        </div>
+      </div>
+      <div style="font-size:.63rem;color:var(--gray);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:.3rem">Offensive matchup outlook</div>
+      ${_schemePreviewHtml("off", myOffScheme, myId)}
+      <div style="font-size:.63rem;color:var(--gray);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin:.55rem 0 .3rem">Defensive matchup outlook</div>
+      ${_schemePreviewHtml("def", myDefScheme, myId)}
+    </div>`;
+
   $("frnHomeContent").innerHTML = `
     <style>
       .frn-coach-card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:.75rem 1rem;margin-bottom:.6rem}
       .frn-coach-hc{border-color:var(--gold);background:rgba(255,200,0,.06)}
       .frn-coach-pos-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.5rem;margin:.5rem 0}
       .frn-coach-pos-slot{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.10);border-radius:5px;padding:.5rem .75rem}
-      .frn-coach-market-row{display:flex;align-items:center;gap:.75rem;padding:.45rem 0;border-bottom:1px solid rgba(255,255,255,.07)}
+      .frn-coach-market-row{display:flex;align-items:stretch;gap:.75rem;padding:.55rem 0;border-bottom:1px solid rgba(255,255,255,.07)}
       .frn-coach-market-row:last-child{border-bottom:0}
     </style>
     <div style="max-width:600px;margin:0 auto;padding:.5rem 0">
@@ -4684,6 +4844,8 @@ function renderFrnCoachingStaff() {
       <div class="frn-sec-title" style="margin-top:.8rem">Coordinators</div>
       ${coordCard("OC", oc, "oc")}
       ${coordCard("DC", dc, "dc")}
+      <div class="frn-sec-title" style="margin-top:.8rem">Scheme Overview</div>
+      ${schemeOverviewHtml}
       <div class="frn-sec-title" style="margin-top:.8rem">Staff Chemistry</div>
       ${chemHtml}
       <div class="frn-sec-title" style="margin-top:.8rem">Position Staff <span style="font-size:.65rem;font-weight:400;color:var(--gray)">(up to ${POSITION_COACH_GROUPS.length} groups)</span></div>
@@ -4749,7 +4911,15 @@ function _renderHcVacancyPanel() {
     : r < 65 ? `<div style="font-size:.64rem;color:var(--gold);margin:.25rem 0">Risky promotion — rating only ${r}</div>`
     : "";
 
-  const coordCard = (coord, fromSlot, specialty, otherSlot) => coord ? `
+  const coordCard = (coord, fromSlot, specialty, otherSlot) => {
+    if (!coord) return `<div class="frn-coach-card" style="opacity:.35;font-size:.7rem;font-style:italic;padding:.6rem 1rem">No ${fromSlot.toUpperCase()} on staff to promote</div>`;
+    const schemeKey = fromSlot === "oc" ? OFF_SCHEME_MAP[coord.trait] : DEF_SCHEME_MAP[coord.trait];
+    const schemeRole = fromSlot === "oc" ? "off" : "def";
+    const schemeHtml = schemeKey
+      ? `<div style="margin:.3rem 0">${_schemeBadge(schemeKey, true)}</div>
+         ${_schemePreviewHtml(schemeRole, schemeKey, myId)}`
+      : "";
+    return `
     <div class="frn-coach-card" style="border-color:rgba(255,255,255,.22)">
       <div style="display:flex;justify-content:space-between;align-items:flex-start">
         <div>
@@ -4758,6 +4928,7 @@ function _renderHcVacancyPanel() {
         </div>
       </div>
       ${riskNote(coord.rating || 60)}
+      ${schemeHtml}
       <div style="font-size:.67rem;color:var(--gray);line-height:1.7;margin:.4rem 0">
         Becomes HC · <b style="color:var(--white)">${specialty}</b> specialty<br>
         Always hires new ${fromSlot.toUpperCase()} from their network<br>
@@ -4766,8 +4937,8 @@ function _renderHcVacancyPanel() {
       </div>
       <button class="btn btn-outline" style="font-size:.7rem"
         onclick="frnPromoteCoordinator('${fromSlot}')">Promote to Head Coach</button>
-    </div>`
-  : `<div class="frn-coach-card" style="opacity:.35;font-size:.7rem;font-style:italic;padding:.6rem 1rem">No ${fromSlot.toUpperCase()} on staff to promote</div>`;
+    </div>`;
+  };
 
   $("frnHomeContent").innerHTML = `
     <div style="max-width:500px;margin:0 auto;padding:.5rem 0">
