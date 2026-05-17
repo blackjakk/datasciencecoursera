@@ -1094,6 +1094,9 @@ function _careerColsFor(pos) {
     { key:"fg_made", label:"FGM" }, { key:"fg_att", label:"FGA" },
     { key:"fg_long", label:"LONG" }, { key:"xp_made", label:"XP" },
   ];
+  if (pos === "OL") return [
+    { key:"pancakes", label:"PNK" }, { key:"sacks_allowed", label:"SA" },
+  ];
   return [{ key:"gp", label:"GP" }];
 }
 
@@ -1396,6 +1399,10 @@ function _buildSeasonStatsBlock(p) {
     fmtTuples.push(["FG %", num("fg_att") ? `${(num("fg_made")/num("fg_att")*100).toFixed(1)}%` : "—"]);
     fmtTuples.push(["LONG", num("fg_long")]);
     fmtTuples.push(["XP", `${num("xp_made")}/${num("xp_att")}`]);
+  } else if (pos === "OL") {
+    fmtTuples.push(["PANCAKES", num("pancakes")]);
+    fmtTuples.push(["SACKS ALLOWED", num("sacks_allowed")]);
+    if (num("penalties")) fmtTuples.push(["PENALTIES", num("penalties")]);
   }
   if (!fmtTuples.length) return "";
 
@@ -1601,6 +1608,25 @@ function _buildGameLogBlock(p) {
         <td>${line.fg_long||0}</td>
         <td>${line.xp_made||0}/${line.xp_att||0}</td>
         <td style="color:var(--gold);font-weight:700">${fpts.toFixed(1)}</td>
+      </tr>`;
+    });
+  } else if (pos === "OL") {
+    headers = ["WK", ...(showTM ? ["TM"] : []), "OPP","RES","PNK","SA","PEN"];
+    rowCells = games.map(({ g, line, teamId, oppId }) => {
+      const opp = getTeam(oppId);
+      const myHome = teamId === g.homeId;
+      const myScore = myHome ? g.homeScore : g.awayScore;
+      const themScore = myHome ? g.awayScore : g.homeScore;
+      const res = myScore > themScore ? "W" : myScore < themScore ? "L" : "T";
+      const resColor = res === "W" ? "var(--green-lt)" : res === "L" ? "#c08080" : "var(--gray)";
+      return `<tr>
+        <td>W${g.week}</td>
+        ${tmCell(teamId)}
+        <td>${myHome ? "vs" : "@"} <span style="color:${opp?.primary}">${(opp?.name||"").slice(0,4)}</span></td>
+        <td style="color:${resColor};font-weight:700">${res} ${myScore}-${themScore}</td>
+        <td>${line.pancakes||0}</td>
+        <td style="color:${(line.sacks_allowed||0)>0?"#c08080":"inherit"}">${line.sacks_allowed||0}</td>
+        <td>${line.penalties||0}</td>
       </tr>`;
     });
   } else {
