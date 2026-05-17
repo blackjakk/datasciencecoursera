@@ -5072,6 +5072,7 @@ function frnPromoteCoordinator(fromSlot) {
 
   const oldHcName = staff.hc?.name;
   if (oldHcName) _pushNews({ type:"coach_depart", label: `🚪 HC ${oldHcName} released` });
+  _coachFAAdd(staff.hc, "hc");
 
   staff.hc = {
     name:          coord.name,
@@ -5141,17 +5142,20 @@ function frnHireCoachFromMarket(slot, marketIdx) {
   if (!pick) return;
   if (slot === "hc") {
     const existing = staff.hc;
+    _coachFAAdd(existing, "hc");
     staff.hc = { ...pick, yearsWithTeam: 0, record: existing?.record || { w:0, l:0, championships:0 } };
     delete staff.hc.type;
     staff._chemistry = null;
     _pushNews({ type:"coach_hire", label: `You hired HC ${staff.hc.name}` });
     for (const msg of _applyHcStaffSweep(staff, "Your team")) _pushNews(msg);
   } else if (slot === "oc") {
+    _coachFAAdd(staff.oc, "oc");
     if (staff._chemistry) staff._chemistry.qbOcBond = false;
     staff.oc = { ...pick, yearsWithTeam: 0 };
     delete staff.oc.type;
     _pushNews({ type:"coach_hire", label: `You hired OC ${staff.oc.name}` });
   } else if (slot === "dc") {
+    _coachFAAdd(staff.dc, "dc");
     staff.dc = { ...pick, yearsWithTeam: 0 };
     delete staff.dc.type;
     _pushNews({ type:"coach_hire", label: `You hired DC ${staff.dc.name}` });

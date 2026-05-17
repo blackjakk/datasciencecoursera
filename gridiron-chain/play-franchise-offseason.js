@@ -3990,10 +3990,45 @@ function _evaluateCoachPerformance() {
 }
 
 function _generateCoachMarket() {
+  if (!franchise._retiredPlayerPool) franchise._retiredPlayerPool = [];
   const pool = [];
-  for (let i = 0; i < 8; i++) pool.push({ type:"hc", ..._rollCoach() });
-  for (let i = 0; i < 4; i++) pool.push({ type:"oc", ..._rollOC() });
-  for (let i = 0; i < 4; i++) pool.push({ type:"dc", ..._rollDC() });
+
+  // 1. Real coaches who were fired/departed this season
+  const fa = franchise._coachFA || [];
+  for (const c of fa) {
+    if ((c.age || 50) < 72) pool.push({ ...c });
+  }
+  franchise._coachFA = [];
+
+  // 2. Retired players surfacing as coach candidates (2-10 seasons out, peakOvr ≥ 72, 20% chance each)
+  const currentSeason = franchise.season || 1;
+  const eligible = franchise._retiredPlayerPool.filter(rp => {
+    const yo = currentSeason - (rp.retiredSeason || 1);
+    return yo >= 2 && yo <= 10 && (rp.peakOvr || 0) >= 72;
+  }).sort(() => Math.random() - 0.5);
+
+  let retiredAdded = 0;
+  for (const rp of eligible) {
+    if (retiredAdded >= 3) break;
+    if (Math.random() < 0.20) {
+      const candidate = _retiredPlayerToCoach(rp, currentSeason);
+      if (candidate) {
+        pool.push(candidate);
+        retiredAdded++;
+        _pushNews({ type:"coach_hire",
+          label: `🏈 Former ${rp.pos} ${rp.name} enters coaching — available as ${candidate.type.toUpperCase()}` });
+      }
+    }
+  }
+
+  // 3. Fresh rolls to meet minimum pool size
+  const hcN = pool.filter(c => c.type === "hc").length;
+  const ocN = pool.filter(c => c.type === "oc").length;
+  const dcN = pool.filter(c => c.type === "dc").length;
+  for (let i = hcN; i < 6; i++) pool.push({ type:"hc", ..._rollCoach() });
+  for (let i = ocN; i < 3; i++) pool.push({ type:"oc", ..._rollOC() });
+  for (let i = dcN; i < 3; i++) pool.push({ type:"dc", ..._rollDC() });
+
   franchise._coachMarket = pool;
 }
 
@@ -4023,6 +4058,7 @@ function _applyHcStaffSweep(staff, teamLabel) {
   const msgs = [];
   if (Math.random() < 0.75) {
     const old = staff.oc;
+    _coachFAAdd(staff.oc, "oc");
     staff.oc = _rollOC();
     msgs.push({ type:"coach_hire",
       label: `🏟 ${teamLabel}: new HC installs OC ${staff.oc.name}${old ? ` (replaces ${old.name})` : ""}` });
@@ -4031,6 +4067,7 @@ function _applyHcStaffSweep(staff, teamLabel) {
   }
   if (Math.random() < 0.40) {
     const old = staff.dc;
+    _coachFAAdd(staff.dc, "dc");
     staff.dc = _rollDC();
     msgs.push({ type:"coach_hire",
       label: `🏟 ${teamLabel}: new HC installs DC ${staff.dc.name}${old ? ` (replaces ${old.name})` : ""}` });
@@ -4062,6 +4099,63 @@ function _runCoachingCarousel() {
     if (!staff) continue;
     const hc  = staff.hc;
     if (!hc) continue;
+
+    // ── Coach retirement by age ──────────────────────────────────────────────
+    const _retireProb = (age, isHC) => {
+      if (age < 62) return 0;
+      if (isHC) {
+        if (age <= 65) return 0.04;
+        if (age <= 69) return 0.12;
+        if (age <= 73) return 0.28;
+        return 0.50;
+      } else {
+        if (age <= 65) return 0.07;
+        if (age <= 69) return 0.18;
+        if (age <= 73) return 0.40;
+        return 0.65;
+      }
+    };
+    const isChamp = tId === champId;
+    const hcRetProb = _retireProb(hc.age || 55, true)
+      * (isChamp ? 0.5 : 1)
+      * ((hc.rating || 60) >= 80 ? 0.7 : 1)
+      * ((hc.rating || 60) <= 50 ? 1.3 : 1);
+    if (hcRetProb > 0 && Math.random() < hcRetProb) {
+      _coachFAAdd(hc, "hc");
+      _pushNews({ type:"coach_depart",
+        label: `🎓 ${t.name} HC ${hc.name} retires after ${hc.yearsWithTeam||0} season${(hc.yearsWithTeam||0)===1?"":"s"}` });
+      const candidates = market.filter(c => c.type === "hc");
+      if (candidates.length) {
+        const pick = candidates[Math.floor(Math.random() * candidates.length)];
+        staff.hc = { ...pick, yearsWithTeam:0, record:{ w:0, l:0, championships:0 } };
+        delete staff.hc.type;
+        for (const msg of _applyHcStaffSweep(staff, t.name)) _pushNews(msg);
+        staff._chemistry = null;
+      } else {
+        staff.hc = _rollCoach();
+      }
+      franchise._coachMissedPlayoffs[tId] = 0;
+      continue; // skip further processing for this team this carousel
+    }
+    if (staff.oc) {
+      const ocRetProb = _retireProb(staff.oc.age || 45, false);
+      if (ocRetProb > 0 && Math.random() < ocRetProb) {
+        _pushNews({ type:"coach_depart",
+          label: `🎓 ${t.name} OC ${staff.oc.name} retires` });
+        _coachFAAdd(staff.oc, "oc");
+        if (staff._chemistry) staff._chemistry.qbOcBond = false;
+        staff.oc = _rollOC();
+      }
+    }
+    if (staff.dc) {
+      const dcRetProb = _retireProb(staff.dc.age || 45, false);
+      if (dcRetProb > 0 && Math.random() < dcRetProb) {
+        _pushNews({ type:"coach_depart",
+          label: `🎓 ${t.name} DC ${staff.dc.name} retires` });
+        _coachFAAdd(staff.dc, "dc");
+        staff.dc = _rollDC();
+      }
+    }
 
     const s   = franchise.standings?.[tId] || { w:0, l:0 };
     const gp  = (s.w || 0) + (s.l || 0) + (s.t || 0);
@@ -4110,7 +4204,11 @@ function _runCoachingCarousel() {
         // Hire from market — new HC installs their own preferred staff
         const candidates = market.filter(c => c.type === "hc");
         if (candidates.length) {
-          const pick = candidates[Math.floor(Math.random() * candidates.length)];
+          _coachFAAdd(hc, "hc");
+          const budgetRoom = 20 - (coachingBudgetUsed(tId) - (hc?.salary || 0));
+          const affordable = candidates.filter(c => c.salary <= budgetRoom);
+          const pickPool = affordable.length ? affordable : candidates;
+          const pick = pickPool[Math.floor(Math.random() * pickPool.length)];
           staff.hc = { ...pick, yearsWithTeam: 0, record: { w:0, l:0, championships:0 } };
           delete staff.hc.type;
           _pushNews({ type:"coach_hire",
@@ -4146,24 +4244,41 @@ function _runCoachingCarousel() {
     // independently here since their market is separate from HC decisions.
     if ((staff.oc?.contractYears ?? 1) === 0 && Math.random() < 0.35) {
       const depName = staff.oc.name;
+      _coachFAAdd(staff.oc, "oc");
       staff.oc = _rollOC();
       if (tId === franchise.chosenTeamId) {
         _pushNews({ type:"coach_depart",
           label: `🚪 OC ${depName} departs — contract expired, seeking new opportunity` });
       }
+    } else if (staff.oc && (staff.oc.contractYears ?? 1) === 0) {
+      // Stayed — reprice to current market rate
+      staff.oc.salary = _marketSalaryForCoach(staff.oc, "oc");
+      staff.oc.contractYears = 2 + Math.floor(Math.random() * 2);
+      if (tId === franchise.chosenTeamId) {
+        _pushNews({ type:"coach_hire", label: `📝 OC ${staff.oc.name} renewed — $${staff.oc.salary}M/yr` });
+      }
     }
     if ((staff.dc?.contractYears ?? 1) === 0 && Math.random() < 0.35) {
       const depName = staff.dc.name;
+      _coachFAAdd(staff.dc, "dc");
       staff.dc = _rollDC();
       if (tId === franchise.chosenTeamId) {
         _pushNews({ type:"coach_depart",
           label: `🚪 DC ${depName} departs — contract expired, seeking new opportunity` });
+      }
+    } else if (staff.dc && (staff.dc.contractYears ?? 1) === 0) {
+      // Stayed — reprice to current market rate
+      staff.dc.salary = _marketSalaryForCoach(staff.dc, "dc");
+      staff.dc.contractYears = 2 + Math.floor(Math.random() * 2);
+      if (tId === franchise.chosenTeamId) {
+        _pushNews({ type:"coach_hire", label: `📝 DC ${staff.dc.name} renewed — $${staff.dc.salary}M/yr` });
       }
     }
     // HC on expired contract: chance to seek better situation unless champion
     if ((hc.contractYears ?? 1) === 0 && tId !== champId && Math.random() < 0.30) {
       const candidates = market.filter(c => c.type === "hc");
       if (candidates.length) {
+        _coachFAAdd(hc, "hc");
         const pick = candidates[Math.floor(Math.random() * candidates.length)];
         const depName = hc.name;
         staff.hc = { ...pick, yearsWithTeam: 0, record: { w:0, l:0, championships:0 } };
@@ -4172,6 +4287,13 @@ function _runCoachingCarousel() {
         staff._chemistry = null;
         _pushNews({ type:"coach_depart",
           label: `🚪 ${t.name} HC ${depName} departs — contract expired` });
+      }
+    } else if ((hc.contractYears ?? 1) === 0) {
+      // HC stays on expired contract — renew at market rate
+      staff.hc.salary = _marketSalaryForCoach(staff.hc, "hc");
+      staff.hc.contractYears = 3 + Math.floor(Math.random() * 2);
+      if (tId === franchise.chosenTeamId) {
+        _pushNews({ type:"coach_hire", label: `📝 HC ${staff.hc.name} renewed — $${staff.hc.salary}M/yr` });
       }
     }
   }
@@ -4277,7 +4399,7 @@ function runFrnOffseason() {
                          || (franchise.coaches?.[tId]?.hc?.trait === "Player Developer" ? "Player Developer" : null);
         const ocTrait     = franchise.coaches?.[tId]?.oc?.trait;
         const dcTrait     = franchise.coaches?.[tId]?.dc?.trait;
-        const hcDevMul    = (hcSpecialty === "Player Developer" ? 1.35 : 1.0) * chemBonus.devMul;
+        const hcDevMul    = (hcSpecialty === "Player Developer" ? 1.35 : 1.0) * chemBonus.devMul * _coachBudgetPenaltyMul(tId);
 
         const pGroup = p.position === "QB" ? "QB"
                      : p.position === "OL" ? "OL"
