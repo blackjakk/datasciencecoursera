@@ -8522,10 +8522,16 @@ function _rollSeasonStatsToCareer() {
       if (!player) continue;
       if (!player.careerStats)   player.careerStats   = {};
       if (!player.careerHistory) player.careerHistory = [];
-      // Accumulate every numeric stat field
+      // Accumulate every numeric stat field. "Long" stats are maxima
+      // not totals, so take max across seasons instead of summing.
+      const MAX_STATS = new Set(["pass_long","rush_long","rec_long","fg_long","int_long","punt_long","kr_long","pr_long"]);
       for (const [k, v] of Object.entries(st)) {
         if (typeof v !== "number") continue;
-        player.careerStats[k] = (player.careerStats[k] || 0) + v;
+        if (MAX_STATS.has(k)) {
+          player.careerStats[k] = Math.max(player.careerStats[k] || 0, v);
+        } else {
+          player.careerStats[k] = (player.careerStats[k] || 0) + v;
+        }
       }
       // Snapshot this season as a row
       const yearRow = { season: franchise.season, teamId, teamName, overall: player.overall,

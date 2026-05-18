@@ -5350,6 +5350,10 @@ function mergeSeasonStats(homeId, awayId, gameStats, gameKey) {
     }
     franchise._mergedGameKeys[gameKey] = true;
   }
+  // "Long" stats are per-play maxima, not counting stats. Take the max
+  // across games instead of summing — otherwise a player's season-long
+  // reception ends up being the sum of every longest catch they had.
+  const MAX_STATS = new Set(["pass_long","rush_long","rec_long","fg_long","int_long","punt_long","kr_long","pr_long"]);
   const merge = (teamId, side) => {
     if (!side || !side.players) return;
     if (!franchise.seasonStats[teamId]) franchise.seasonStats[teamId] = {};
@@ -5359,7 +5363,12 @@ function mergeSeasonStats(homeId, awayId, gameStats, gameKey) {
       ts[name].gp = (ts[name].gp || 0) + 1;
       for (const [k, v] of Object.entries(p)) {
         if (k === "name" || k === "pos") continue;
-        if (typeof v === "number") ts[name][k] = (ts[name][k] || 0) + v;
+        if (typeof v !== "number") continue;
+        if (MAX_STATS.has(k)) {
+          ts[name][k] = Math.max(ts[name][k] || 0, v);
+        } else {
+          ts[name][k] = (ts[name][k] || 0) + v;
+        }
       }
     }
   };

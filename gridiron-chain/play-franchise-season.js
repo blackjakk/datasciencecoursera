@@ -46,6 +46,15 @@ function showFranchiseDashboard() {
   // team, re-stamp them with the FA-seeded distribution.
   // v2 flag: prior v1 repair had an off-by-one that overlaid the most-recent
   // row with the user's team even for systemYears=0 FAs. Run again to fix.
+  // One-time repair for "long" stats (rec_long, pass_long, rush_long,
+  // fg_long, int_long, punt_long) that were summed instead of maxed
+  // across games. Rebuilds the current season's totals from per-game
+  // blobs, recomputes career-long maxima from careerHistory, and clamps
+  // any historical row above 99 yards (which can only be the sum bug).
+  if (!franchise._longStatsRepaired) {
+    try { _repairLongStats(); } catch (e) { console.warn("[long stats repair]", e); }
+    franchise._longStatsRepaired = true;
+  }
   if (!franchise._careerHistoryFaRepaired_v2) {
     // Clear the per-player "already assigned" flag so the v2 repair gets a
     // fresh pass at signed FAs the broken v1 pass already touched.
@@ -1536,6 +1545,38 @@ function _repairClobberedAavs() {
         if (c.guaranteedAAV == null) c.guaranteedAAV = realAav;
       } else if (c.signedAav == null) {
         c.signedAav = c.aav;
+      }
+    }
+  }
+}
+
+// One-time repair: "_long" stats were summed across games / seasons
+// instead of taking the max. Rebuild current-season totals from the
+// per-game blobs (now-fixed mergeSeasonStats takes max), recompute
+// career-long maxima from careerHistory rows, and clamp any past row
+// whose long-stat exceeds 99 — physically impossible for a single play.
+function _repairLongStats() {
+  if (!franchise) return;
+  const LONG_KEYS = ["pass_long","rush_long","rec_long","fg_long","int_long","punt_long","kr_long","pr_long"];
+  // 1) Rebuild current season's seasonStats from per-game blobs.
+  franchise._mergedGameKeys = null;
+  if (typeof _repairSeasonStatsFromSchedule === "function") _repairSeasonStatsFromSchedule();
+  // 2) Walk every roster: clamp historical careerHistory rows, then
+  //    recompute careerStats long fields from the (corrected) rows.
+  for (const roster of Object.values(franchise.rosters || {})) {
+    for (const p of roster) {
+      const hist = p.careerHistory || [];
+      for (const row of hist) {
+        for (const k of LONG_KEYS) {
+          if (typeof row[k] === "number" && row[k] > 99) row[k] = 99;
+        }
+      }
+      if (p.careerStats) {
+        for (const k of LONG_KEYS) {
+          const max = hist.reduce((m, r) => Math.max(m, +r[k] || 0), 0);
+          if (max > 0) p.careerStats[k] = max;
+          else if (p.careerStats[k] > 99) p.careerStats[k] = 99;
+        }
       }
     }
   }
