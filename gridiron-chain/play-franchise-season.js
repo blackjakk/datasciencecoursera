@@ -3237,8 +3237,9 @@ function _faResolveAfterWeek(week, isSeasonEnd) {
   const newsSigned = [];
   const newsLost   = [];
 
-  for (const [name, n] of Object.entries(negs)) {
+  for (const [negKey, n] of Object.entries(negs)) {
     if (n.state !== "negotiating") continue;
+    const name = n.fa.name; // display name — negKey is the pid-or-name lookup key
 
     // Find highest bid (your + AI)
     let highAav = 0, highYrs = 0, highId = null, highIsYou = false;
@@ -3393,9 +3394,9 @@ function frnFAMatchHigh(name) {
   saveFranchise();
   renderFrnFANegotiations(n.state === "signed" ? null : name);
 }
-function frnFAFoldNeg(name) {
-  const n = franchise.faNegotiations?.[name]; if (!n) return;
-  if (!confirm(`Withdraw from negotiations for ${name}?`)) return;
+function frnFAFoldNeg(negKey) {
+  const n = franchise.faNegotiations?.[negKey]; if (!n) return;
+  if (!confirm(`Withdraw from negotiations for ${n.fa.name}?`)) return;
   n.yourBid = null;
   n.history.push({ teamId: franchise.chosenTeamId, label: "You FOLDED", aav: 0, years: 0, week: franchise.week });
   saveFranchise();
@@ -3415,9 +3416,10 @@ function _faNegCurrentHigh(n) {
 // is declared (knockoutWar=true) and the negotiation continues; both
 // teams will need to keep raising. Returns "signed" | "war" | "none".
 const FA_KNOCKOUT_MULT = 1.5;
-function _faTryKnockout(name) {
-  const n = franchise.faNegotiations?.[name];
+function _faTryKnockout(negKey) {
+  const n = franchise.faNegotiations?.[negKey];
   if (!n || n.state !== "negotiating") return "none";
+  const name = n.fa.name; // display name — negKey is the pid-or-name lookup key
   // Round to 0.1 to match the rounding applied to bid AAVs — otherwise
   // demand × 1.5 can produce a value an ULP above the rounded bid
   // (e.g. 18.6 × 1.5 → 27.900000000000002 vs bid 27.9) and the >=
@@ -3924,8 +3926,9 @@ function frnFAEnterBid(name) {
 // it must clear the current high by $0.5M. Triggers instant sign only
 // if you're the SOLE team over the knockout threshold; otherwise the
 // war keeps escalating.
-function frnFAKnockoutBid(name) {
-  const n = franchise.faNegotiations?.[name]; if (!n) return;
+function frnFAKnockoutBid(negKey) {
+  const n = franchise.faNegotiations?.[negKey]; if (!n) return;
+  const name = n.fa.name; // display name — negKey is the pid-or-name lookup key
   const baseKO  = n.fa.demandedAAV * FA_KNOCKOUT_MULT;
   const curHigh = _faNegCurrentHigh(n);
   const minBid  = Math.max(baseKO, (curHigh?.aav || 0) + 0.5);
@@ -3952,12 +3955,12 @@ function frnFAKnockoutBid(name) {
   n.history.push({ teamId: myId, label: `You (${label})`, aav: knockoutAav, years: n.yourBid.years, week: franchise.week });
   n.raisedThisRound = true;
   n.lastRaiseWeek = franchise.week;
-  const result = _faTryKnockout(name);
+  const result = _faTryKnockout(negKey);
   if (result === "war") {
     alert(`⚔ BIDDING WAR — another team is also over $${baseKO.toFixed(1)}M for ${name}. Keep raising next week to outlast them.`);
   }
   saveFranchise();
-  renderFrnFANegotiations(n.state === "signed" ? null : name);
+  renderFrnFANegotiations(n.state === "signed" ? null : negKey);
 }
 
 // Adjust contract length on an active offer. Capped at 1..7 years.
