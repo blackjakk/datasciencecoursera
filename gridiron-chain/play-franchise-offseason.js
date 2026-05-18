@@ -2600,6 +2600,89 @@ function advancePlayoffRound() {
   }
 }
 
+// ── Coach escalators ─────────────────────────────────────────────────────────
+// End-of-season pass — triggers performance bonuses on each coach's
+// contract. Winning-season escalators bump next year's base salary
+// permanently; one-shots (division title, SB appearance, championship)
+// book as one-year cap hits and are paid out of the coaching budget.
+function _processCoachEscalators() {
+  if (!franchise || !franchise.coaches) return [];
+  const season  = franchise.season || 1;
+  const champId = franchise.playoffBracket?.champion;
+  const sbGame  = franchise.superBowlGame;
+  const sbIds   = new Set([sbGame?.homeId, sbGame?.awayId].filter(x => x != null));
+  // Compute division winners (best W% per division).
+  const byDivision = {};
+  for (const t of TEAMS) {
+    const key = `${t.conference}-${t.division}`;
+    const s = franchise.standings?.[t.id] || { w:0, l:0, t:0 };
+    const pct = _winPct(s.w, s.l, s.t);
+    if (!byDivision[key] || pct > byDivision[key].pct) {
+      byDivision[key] = { id: t.id, pct };
+    }
+  }
+  const divisionWinners = new Set(Object.values(byDivision).map(x => x.id));
+  const triggered = [];
+  const userId = franchise.chosenTeamId;
+  const bumpCoach = (tId, role, coach) => {
+    if (!coach || !Array.isArray(coach.escalators)) return;
+    const s = franchise.standings?.[tId] || { w:0, l:0, t:0 };
+    const pct = _winPct(s.w, s.l, s.t);
+    for (const esc of coach.escalators) {
+      // Each escalator fires at most once per season per contract iteration.
+      if ((esc.triggered || []).some(t => t.season === season)) continue;
+      let fired = false;
+      if (esc.kind === "winRate" && esc.threshold && pct >= esc.threshold && esc.bumpAav) {
+        // Bump the upcoming year's base salary by bumpAav. contractYears
+        // has already been decremented for the season that just ended, so
+        // yrsTotal - yrsLeft is the index of the year about to be played.
+        const yrsLeft  = coach.contractYears || 0;
+        const yrsTotal = coach.contractLength || yrsLeft;
+        if (yrsLeft >= 1 && Array.isArray(coach.baseSalaries)) {
+          const idx = Math.max(0, Math.min(coach.baseSalaries.length - 1, yrsTotal - yrsLeft));
+          coach.baseSalaries[idx] = +((coach.baseSalaries[idx] || 0) + esc.bumpAav).toFixed(2);
+          coach.aav    = +((coach.aav || coach.salary || 0) + esc.bumpAav).toFixed(2);
+          coach.salary = coach.aav;
+          fired = true;
+        }
+      } else if (esc.kind === "division" && divisionWinners.has(tId) && esc.bumpOnce) {
+        fired = true;
+      } else if (esc.kind === "sbAppearance" && sbIds.has(tId) && esc.bumpOnce) {
+        fired = true;
+      } else if (esc.kind === "championship" && tId === champId && esc.bumpOnce) {
+        fired = true;
+      }
+      if (!fired) continue;
+      esc.triggered = esc.triggered || [];
+      esc.triggered.push({ season });
+      // One-shots book as a single-year cap hit.
+      if (esc.bumpOnce) {
+        if (!franchise.refunds) franchise.refunds = [];
+        franchise.refunds.push({
+          kind: "coach_escalator",
+          label: `Coach bonus (${role.toUpperCase()} ${coach.name}): ${esc.label || esc.kind}`,
+          fromTeamId: tId, toTeamId: null,
+          amount: +esc.bumpOnce.toFixed(2),
+          yearsRemaining: 1,
+        });
+      }
+      triggered.push({ tId, role, coach: coach.name, label: esc.label || esc.kind });
+      if (tId === userId) {
+        _pushNews({ type:"coach_hire",
+          label: `🎯 ${role.toUpperCase()} ${coach.name} escalator hit: ${esc.label || esc.kind}` });
+      }
+    }
+  };
+  for (const t of TEAMS) {
+    const staff = franchise.coaches[t.id];
+    if (!staff) continue;
+    bumpCoach(t.id, "hc", staff.hc);
+    bumpCoach(t.id, "oc", staff.oc);
+    bumpCoach(t.id, "dc", staff.dc);
+  }
+  return triggered;
+}
+
 // ── Awards ceremony ───────────────────────────────────────────────────────────
 function showFrnAwards() {
   franchise.phase = "awards";
@@ -2641,6 +2724,9 @@ function showFrnAwards() {
           if (staff.dc.contractYears != null) staff.dc.contractYears = Math.max(0, staff.dc.contractYears - 1);
         }
       }
+      // Performance escalators: triggers AFTER contract years have ticked,
+      // so a winning-season bump lands on the (new) current-year base.
+      _processCoachEscalators();
     }
     const champTeam = getTeam(champId);
     // Process retirements FIRST so all subsequent computations use the
@@ -4389,11 +4475,11 @@ function _generateCoachMarket() {
                        :            -Math.floor(Math.random() * 3);       // -2 to 0
       const oc = _rollOC();
       oc.rating = Math.max(40, Math.min(85, oc.rating + coordBonus));
-      oc.salary = +_marketSalaryForCoach(oc, "oc").toFixed(1);
+      _renewCoachAtMarket(oc, "oc", 1.0);
       c.proposedOC = oc;
       const dc = _rollDC();
       dc.rating = Math.max(40, Math.min(85, dc.rating + coordBonus));
-      dc.salary = +_marketSalaryForCoach(dc, "dc").toFixed(1);
+      _renewCoachAtMarket(dc, "dc", 1.0);
       c.proposedDC = dc;
     }
   }
@@ -4456,11 +4542,11 @@ function _ensureCoachMarket() {
                        :            -Math.floor(Math.random() * 3);
       const oc = _rollOC();
       oc.rating = Math.max(40, Math.min(85, oc.rating + coordBonus));
-      oc.salary = +_marketSalaryForCoach(oc, "oc").toFixed(1);
+      _renewCoachAtMarket(oc, "oc", 1.0);
       c.proposedOC = oc;
       const dc = _rollDC();
       dc.rating = Math.max(40, Math.min(85, dc.rating + coordBonus));
-      dc.salary = +_marketSalaryForCoach(dc, "dc").toFixed(1);
+      _renewCoachAtMarket(dc, "dc", 1.0);
       c.proposedDC = dc;
     }
   }
@@ -4645,6 +4731,9 @@ function _runCoachingCarousel() {
       const promoted = oc && (oc.rating || 0) >= 75 && Math.random() < 0.50;
       if (promoted) {
         // OC promoted to HC — OC slot opens, promoted HC typically keeps the existing DC
+        const promotedAav   = +(oc.salary * 1.5).toFixed(1);
+        const promotedYears = 3 + Math.floor(Math.random() * 2);
+        const promotedSb    = +(promotedAav * promotedYears * COACH_SB_PCT.hc * 0.8).toFixed(1);
         staff.hc = {
           name: oc.name,
           rating: Math.min(89, (oc.rating || 60) + Math.floor(Math.random() * 5)),
@@ -4653,9 +4742,8 @@ function _runCoachingCarousel() {
           age: oc.age || 45,
           yearsWithTeam: 0,
           record: { w:0, l:0, championships:0 },
-          salary: +(oc.salary * 1.5).toFixed(1),
-          contractYears: 3 + Math.floor(Math.random() * 2),
         };
+        _coachApplyContract(staff.hc, promotedAav, promotedYears, promotedSb, "hc");
         _pushNews({ type:"coach_hire",
           label: `🏟 ${t.name} promote OC ${oc.name} to head coach` });
         // Promoted HC fills their old OC slot from their network (always — it's now open)
@@ -4756,17 +4844,13 @@ function _runCoachingCarousel() {
             label: `🚪 OC ${depName} departs — contract expired${taken ? `, took ${taken.group} coach ${taken.name}` : ""}` });
         }
       } else {
-        staff.oc.salary = _marketSalaryForCoach(staff.oc, "oc");
-        if (ocLoyal) staff.oc.salary = +(staff.oc.salary * 0.87).toFixed(1);
-        staff.oc.contractYears = 2 + Math.floor(Math.random() * 2);
+        _renewCoachAtMarket(staff.oc, "oc", ocLoyal ? 0.87 : 1.0);
         if (tId === franchise.chosenTeamId) {
           _pushNews({ type:"coach_hire", label: `📝 OC ${staff.oc.name} renewed${ocLoyal ? " (hometown discount)" : ""} — $${staff.oc.salary}M/yr` });
         }
       }
     } else if (staff.oc && (staff.oc.contractYears ?? 1) === 0) {
-      // Stayed — reprice to current market rate
-      staff.oc.salary = _marketSalaryForCoach(staff.oc, "oc");
-      staff.oc.contractYears = 2 + Math.floor(Math.random() * 2);
+      _renewCoachAtMarket(staff.oc, "oc", 1.0);
       if (tId === franchise.chosenTeamId) {
         _pushNews({ type:"coach_hire", label: `📝 OC ${staff.oc.name} renewed — $${staff.oc.salary}M/yr` });
       }
@@ -4783,17 +4867,13 @@ function _runCoachingCarousel() {
             label: `🚪 DC ${depName} departs — contract expired${taken ? `, took ${taken.group} coach ${taken.name}` : ""}` });
         }
       } else {
-        staff.dc.salary = _marketSalaryForCoach(staff.dc, "dc");
-        if (dcLoyal) staff.dc.salary = +(staff.dc.salary * 0.87).toFixed(1);
-        staff.dc.contractYears = 2 + Math.floor(Math.random() * 2);
+        _renewCoachAtMarket(staff.dc, "dc", dcLoyal ? 0.87 : 1.0);
         if (tId === franchise.chosenTeamId) {
           _pushNews({ type:"coach_hire", label: `📝 DC ${staff.dc.name} renewed${dcLoyal ? " (hometown discount)" : ""} — $${staff.dc.salary}M/yr` });
         }
       }
     } else if (staff.dc && (staff.dc.contractYears ?? 1) === 0) {
-      // Stayed — reprice to current market rate
-      staff.dc.salary = _marketSalaryForCoach(staff.dc, "dc");
-      staff.dc.contractYears = 2 + Math.floor(Math.random() * 2);
+      _renewCoachAtMarket(staff.dc, "dc", 1.0);
       if (tId === franchise.chosenTeamId) {
         _pushNews({ type:"coach_hire", label: `📝 DC ${staff.dc.name} renewed — $${staff.dc.salary}M/yr` });
       }
@@ -4813,9 +4893,7 @@ function _runCoachingCarousel() {
           label: `🚪 ${t.name} HC ${depName} departs — contract expired` });
       }
     } else if ((hc.contractYears ?? 1) === 0) {
-      // HC stays on expired contract — renew at market rate
-      staff.hc.salary = _marketSalaryForCoach(staff.hc, "hc");
-      staff.hc.contractYears = 3 + Math.floor(Math.random() * 2);
+      _renewCoachAtMarket(staff.hc, "hc", 1.0);
       if (tId === franchise.chosenTeamId) {
         _pushNews({ type:"coach_hire", label: `📝 HC ${staff.hc.name} renewed — $${staff.hc.salary}M/yr` });
       }

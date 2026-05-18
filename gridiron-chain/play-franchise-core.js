@@ -1217,10 +1217,102 @@ const COACH_TRAITS = [
   { key:"Players' Coach",       desc:"+15% re-signing acceptance" },
 ];
 
+// ── Coach contract helpers ──────────────────────────────────────────────────
+// Coach contracts mirror player contracts in structure: an AAV, a signing
+// bonus prorated over the contract length, per-year base salaries, and a
+// performance escalator package that triggers on end-of-season results.
+// Cap impact = base + proration each year (so big bonuses spread, dead cap
+// on early termination = remaining proration).
+
+const COACH_SB_PCT = { hc: 0.30, oc: 0.18, dc: 0.18 };
+
+// Standard escalator package by role. Bumps are FLAT dollars added to
+// next year's base when triggered (or refunded same year for one-shots).
+function _coachDefaultEscalators(role) {
+  if (role === "hc") {
+    return [
+      { kind:"winRate",      threshold:0.625, bumpAav:0.5, label:"Winning season → +$0.5M/yr",   triggered:[] },
+      { kind:"division",                       bumpOnce:0.5, label:"Division title → +$0.5M bonus", triggered:[] },
+      { kind:"sbAppearance",                   bumpOnce:1.0, label:"SB appearance → +$1.0M bonus",  triggered:[] },
+      { kind:"championship",                   bumpOnce:1.5, label:"Championship → +$1.5M bonus",   triggered:[] },
+    ];
+  }
+  // Coordinators get smaller, fewer escalators
+  return [
+    { kind:"winRate",      threshold:0.625, bumpAav:0.25, label:"Winning season → +$0.25M/yr", triggered:[] },
+    { kind:"sbAppearance",                   bumpOnce:0.5, label:"SB appearance → +$0.5M bonus", triggered:[] },
+  ];
+}
+
+// Build a structured contract from AAV / Years / Signing Bonus.
+// Bases are flat (AAV − proration each year); escalators templated by role.
+function _coachContractCreate(aav, years, signingBonus, role) {
+  const yrs = Math.max(1, Math.round(years || 1));
+  const sb  = Math.max(0, +signingBonus || 0);
+  const aavR = Math.max(0.5, +(aav || 1).toFixed(1));
+  const proration = sb > 0 ? +(sb / yrs).toFixed(2) : 0;
+  const basePerYr = +Math.max(0.5, aavR - proration).toFixed(2);
+  const baseSalaries = Array(yrs).fill(basePerYr);
+  return {
+    salary: aavR,                  // legacy display field (kept for callers reading .salary)
+    aav: aavR,
+    contractYears: yrs,            // years remaining (decrements each season)
+    contractLength: yrs,           // original length (constant)
+    signingBonus: +sb.toFixed(1),
+    bonusProration: proration,
+    baseSalaries,
+    escalators: _coachDefaultEscalators(role || "hc"),
+  };
+}
+
+// Cap hit for the current year = base salary + bonus proration.
+// Falls back to flat .salary for un-migrated legacy contracts.
+function _coachCapHit(coach) {
+  if (!coach) return 0;
+  if (coach.baseSalaries && coach.baseSalaries.length) {
+    const yrsLeft = Math.max(1, coach.contractYears || 1);
+    const yrsTotal = Math.max(yrsLeft, coach.contractLength || yrsLeft);
+    const idx = Math.max(0, Math.min(coach.baseSalaries.length - 1, yrsTotal - yrsLeft));
+    const base = coach.baseSalaries[idx] ?? 0;
+    return +(base + (coach.bonusProration || 0)).toFixed(2);
+  }
+  return +(coach.salary || 0);
+}
+
+// Dead cap if fired today = remaining proration × years left.
+function _coachDeadCapOnFire(coach) {
+  if (!coach) return 0;
+  const yrsLeft = Math.max(0, (coach.contractYears || 0));
+  const prore   = coach.bonusProration || 0;
+  return +(prore * yrsLeft).toFixed(2);
+}
+
+// Apply a structured contract to an existing coach object (extend / renew).
+function _coachApplyContract(coach, aav, years, signingBonus, role) {
+  if (!coach) return;
+  const c = _coachContractCreate(aav, years, signingBonus, role);
+  coach.salary          = c.salary;
+  coach.aav             = c.aav;
+  coach.contractYears   = c.contractYears;
+  coach.contractLength  = c.contractLength;
+  coach.signingBonus    = c.signingBonus;
+  coach.bonusProration  = c.bonusProration;
+  coach.baseSalaries    = c.baseSalaries;
+  // Preserve previously-triggered escalators if extending (so the same
+  // milestone doesn't pay twice across consecutive contracts).
+  const oldEsc = coach.escalators || [];
+  coach.escalators = c.escalators.map(esc => {
+    const prev = oldEsc.find(e => e.kind === esc.kind);
+    return prev?.triggered ? { ...esc, triggered: prev.triggered.slice() } : esc;
+  });
+}
+
 function _rollCoach() {
   const rating = 45 + Math.floor(Math.random() * 45); // 45-89
-  const salary = +(2 + (rating - 45) * 0.18 + Math.random() * 1.5).toFixed(1);
-  return {
+  const aav = +(2 + (rating - 45) * 0.18 + Math.random() * 1.5).toFixed(1);
+  const years = 3 + Math.floor(Math.random() * 3);
+  const sb = +(aav * years * COACH_SB_PCT.hc * (0.7 + Math.random() * 0.6)).toFixed(1);
+  const base = {
     name: `${pickFirstName()} ${pickLastName()}`,
     rating,
     cultureTrait:   HC_CULTURE_TRAITS[Math.floor(Math.random() * HC_CULTURE_TRAITS.length)].key,
@@ -1228,37 +1320,41 @@ function _rollCoach() {
     age: 42 + Math.floor(Math.random() * 22),
     yearsWithTeam: 0,
     record: { w: 0, l: 0, championships: 0 },
-    salary,
-    contractYears: 3 + Math.floor(Math.random() * 3),
   };
+  _coachApplyContract(base, aav, years, sb, "hc");
+  return base;
 }
 
 function _rollOC() {
   const rating = 40 + Math.floor(Math.random() * 50); // 40-89
-  const salary = +(1 + (rating - 40) * 0.06 + Math.random()).toFixed(1);
-  return {
+  const aav = +(1 + (rating - 40) * 0.06 + Math.random()).toFixed(1);
+  const years = 2 + Math.floor(Math.random() * 3);
+  const sb = +(aav * years * COACH_SB_PCT.oc * (0.6 + Math.random() * 0.8)).toFixed(1);
+  const base = {
     name: `${pickFirstName()} ${pickLastName()}`,
     rating,
     trait: OC_TRAITS[Math.floor(Math.random() * OC_TRAITS.length)].key,
     age: 35 + Math.floor(Math.random() * 25),
     yearsWithTeam: 0,
-    salary,
-    contractYears: 2 + Math.floor(Math.random() * 3),
   };
+  _coachApplyContract(base, aav, years, sb, "oc");
+  return base;
 }
 
 function _rollDC() {
   const rating = 40 + Math.floor(Math.random() * 50);
-  const salary = +(1 + (rating - 40) * 0.06 + Math.random()).toFixed(1);
-  return {
+  const aav = +(1 + (rating - 40) * 0.06 + Math.random()).toFixed(1);
+  const years = 2 + Math.floor(Math.random() * 3);
+  const sb = +(aav * years * COACH_SB_PCT.dc * (0.6 + Math.random() * 0.8)).toFixed(1);
+  const base = {
     name: `${pickFirstName()} ${pickLastName()}`,
     rating,
     trait: DC_TRAITS[Math.floor(Math.random() * DC_TRAITS.length)].key,
     age: 35 + Math.floor(Math.random() * 25),
     yearsWithTeam: 0,
-    salary,
-    contractYears: 2 + Math.floor(Math.random() * 3),
   };
+  _coachApplyContract(base, aav, years, sb, "dc");
+  return base;
 }
 
 function _posCoachTierFromRating(r) {
@@ -1346,6 +1442,19 @@ function _backfillCoachingStaff() {
     "Defensive Mastermind":{ culture: "Business-Like",   specialty: "Defensive Minded" },
     "Player Developer":    { culture: "Business-Like",   specialty: "Player Developer" },
   };
+  // One-time migration: give every coach a structured contract (signing
+  // bonus, baseSalaries, escalators). Coaches signed before Tier 3 only
+  // had a flat .salary + .contractYears.
+  const _migrateContract = (coach, role) => {
+    if (!coach) return;
+    if (coach.baseSalaries && coach.escalators) return; // already migrated
+    const aav   = coach.salary || (role === "hc" ? 4 : 2);
+    const years = Math.max(1, coach.contractYears || (role === "hc" ? 3 : 2));
+    // Backdate a signing bonus equal to ~1 year of AAV * proration tier.
+    // Keeps cap impact stable (base = aav − proration ≈ same as old flat).
+    const sb = +(aav * Math.min(years, 5) * (COACH_SB_PCT[role] || 0.2)).toFixed(1);
+    _coachApplyContract(coach, aav, years, sb, role);
+  };
   for (const t of TEAMS) {
     const staff = franchise.coaches[t.id];
     if (!staff) { franchise.coaches[t.id] = { hc: _rollCoach(), oc: _rollOC(), dc: _rollDC(), positionStaff: [] }; continue; }
@@ -1360,9 +1469,12 @@ function _backfillCoachingStaff() {
       if (hc.rating == null) hc.rating = 55 + Math.floor(Math.random() * 30);
       if (hc.salary == null) hc.salary = +(2 + (hc.rating - 45) * 0.18 + Math.random() * 1.5).toFixed(1);
       if (hc.contractYears == null) hc.contractYears = 2 + Math.floor(Math.random() * 3);
+      _migrateContract(hc, "hc");
     }
     if (!staff.oc) staff.oc = _rollOC();
+    else _migrateContract(staff.oc, "oc");
     if (!staff.dc) staff.dc = _rollDC();
+    else _migrateContract(staff.dc, "dc");
     if (!staff.positionStaff) {
       const groups = [...POSITION_COACH_GROUPS].sort(() => Math.random() - 0.5).slice(0, 2);
       staff.positionStaff = groups.map(g => _rollPositionCoach(g));
@@ -1371,12 +1483,21 @@ function _backfillCoachingStaff() {
 }
 
 // Total coaching salary spend for a team (display only — separate from player cap).
+// Cap hit per coach = base salary (this year) + bonus proration, mirroring
+// player contracts. Dead-cap refunds from prior firings and one-shot
+// performance escalators also count against the coaching budget.
 function coachingBudgetUsed(teamId) {
   const c = franchise.coaches?.[teamId];
   if (!c) return 0;
-  let total = (c.hc?.salary || 0) + (c.oc?.salary || 0) + (c.dc?.salary || 0);
+  let total = _coachCapHit(c.hc) + _coachCapHit(c.oc) + _coachCapHit(c.dc);
   for (const ps of (c.positionStaff || [])) total += ps.salary || 0;
-  return +total.toFixed(1);
+  for (const r of (franchise.refunds || [])) {
+    if (r.yearsRemaining > 0 && r.fromTeamId === teamId &&
+        (r.kind === "coach_dead_cap" || r.kind === "coach_escalator")) {
+      total += r.amount || 0;
+    }
+  }
+  return +total.toFixed(2);
 }
 
 // Dollars by which a team's coaching spend exceeds the $15M hard line,
@@ -1399,12 +1520,45 @@ function _marketSalaryForCoach(coach, type) {
   return +(1 + Math.max(0, r - 40) * 0.06 + 0.3).toFixed(1);
 }
 
+// Renew a coach at fair market rate with a default new contract length.
+// Loyalty discount multiplies AAV (e.g. 0.87 for "hometown").
+function _renewCoachAtMarket(coach, role, loyaltyMul) {
+  if (!coach) return;
+  const mul = loyaltyMul || 1.0;
+  const aav = +(_marketSalaryForCoach(coach, role) * mul).toFixed(1);
+  const years = role === "hc" ? (3 + Math.floor(Math.random() * 2))
+                              : (2 + Math.floor(Math.random() * 2));
+  const sb = +(aav * years * (COACH_SB_PCT[role] || 0.18) * (0.7 + Math.random() * 0.6)).toFixed(1);
+  _coachApplyContract(coach, aav, years, sb, role);
+}
+
 // Push a departing coach into the FA pool for the next offseason market.
 function _coachFAAdd(coach, type) {
   if (!coach || !franchise) return;
   if (!franchise._coachFA) franchise._coachFA = [];
   if (franchise._coachFA.some(c => c.name === coach.name && c.type === type)) return;
   franchise._coachFA.push({ ...coach, type, _faSeason: franchise.season || 1 });
+}
+
+// Book a coach's dead cap against the firing team. Prorated bonus hits the
+// coaching budget over the remaining years of the original contract (NFL
+// "June 1" style is overkill here — we just spread it linearly).
+function _bookCoachDeadCap(teamId, coach, role) {
+  if (!franchise || !coach || !teamId) return 0;
+  const dead = _coachDeadCapOnFire(coach);
+  if (dead <= 0) return 0;
+  const yrs = Math.max(1, coach.contractYears || 1);
+  const perYr = +(dead / yrs).toFixed(2);
+  if (!franchise.refunds) franchise.refunds = [];
+  franchise.refunds.push({
+    kind: "coach_dead_cap",
+    label: `Coach dead cap (${role?.toUpperCase()||"COACH"}): ${coach.name}`,
+    fromTeamId: teamId,
+    toTeamId: null,
+    amount: perYr,
+    yearsRemaining: yrs,
+  });
+  return dead;
 }
 
 // Dev penalty for exceeding the coaching budget ($15M soft, $18M hard).

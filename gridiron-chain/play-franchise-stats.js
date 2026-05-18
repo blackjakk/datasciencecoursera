@@ -6326,17 +6326,16 @@ function frnSubmitPoachOffer() {
   });
   const decision = _aiPoachDecision(teamId, role, coord, offer);
   if (decision.result === "accepted") {
-    // Old user-side coordinator goes to the FA pool
+    // User's old coordinator: book dead cap + send to FA pool.
     const oldMine = role === "oc" ? myStaff.oc : myStaff.dc;
-    if (oldMine && typeof _coachFAAdd === "function") _coachFAAdd(oldMine, role);
-    // Poached coach moves to user's staff on the new contract terms
-    const moved = {
-      ...coord,
-      salary: offer.aav,
-      contractYears: offer.years,
-      signingBonus: offer.signingBonus || 0,
-      yearsWithTeam: 0,
-    };
+    if (oldMine) {
+      _bookCoachDeadCap(myId, oldMine, role);
+      if (typeof _coachFAAdd === "function") _coachFAAdd(oldMine, role);
+    }
+    // Poached coach moves to user's staff and gets a freshly-built contract
+    // with the negotiated AAV / years / signing bonus.
+    const moved = { ...coord, yearsWithTeam: 0 };
+    _coachApplyContract(moved, offer.aav, offer.years, offer.signingBonus || 0, role);
     if (role === "oc") {
       myStaff.oc = moved;
       targetStaff.oc = (typeof _rollOC === "function") ? _rollOC() : null;
@@ -6351,10 +6350,13 @@ function frnSubmitPoachOffer() {
       label: `🎩 ${targetTeam?.name} hired ${role.toUpperCase()} ${targetStaff[role].name} to replace ${coord.name}` });
     _coachHireResult = `Poached ${coord.name} from ${targetTeam?.name}.`;
   } else if (decision.result === "matched") {
-    coord.salary = Math.max(coord.salary || 0, offer.aav);
-    coord.contractYears = Math.max(coord.contractYears || 1, offer.years);
+    // Source team bumps coord to match the offer — rebuild contract too.
+    const matchAav = Math.max(coord.aav || coord.salary || 0, offer.aav);
+    const matchYrs = Math.max(coord.contractYears || 1, offer.years);
+    const matchSb  = Math.max(coord.signingBonus || 0, +(offer.signingBonus || 0));
+    _coachApplyContract(coord, matchAav, matchYrs, matchSb, role);
     _pushNews({ type:"coach_hire",
-      label: `🎩 ${targetTeam?.name} matched your offer — ${coord.name} stays at $${coord.salary.toFixed(1)}M × ${coord.contractYears}yr` });
+      label: `🎩 ${targetTeam?.name} matched your offer — ${coord.name} stays at $${matchAav.toFixed(1)}M × ${matchYrs}yr` });
     _coachHireResult = `${targetTeam?.name} matched. ${coord.name} stays put. Fee burned: $${COACH_INTERVIEW_FEE}M.`;
   } else {
     _pushNews({ type:"coach_depart",
@@ -6481,9 +6483,9 @@ function renderFrnCoachingStaff() {
       </div>
       ${hc.isFormerPlayer ? `<div style="margin-top:.3rem"><span style="font-size:.6rem;padding:.1rem .4rem;border-radius:3px;background:rgba(255,200,0,.18);color:var(--gold);border:1px solid rgba(255,200,0,.4)">🏈 Ex-${hc.formerPos||"?"}${hc.peakOvr?" · OVR "+hc.peakOvr:""}${hc.proBowls>0?" · "+hc.proBowls+"x PB":""}${hc.allPros>0?" · "+hc.allPros+"x AP":""}${hc.sbRings>0?" · "+hc.sbRings+"x SB":""}</span>${hc.careerStatLine ? `<div style="font-size:.58rem;color:var(--gray);margin-top:.2rem">${hc.careerStatLine}</div>` : ""}</div>` : ""}
       <div style="margin-top:.4rem;font-size:.68rem;color:var(--gray)">
-        Record: ${hc.record?.w||0}–${hc.record?.l||0}${(hc.record?.championships||0)>0?" · "+hc.record.championships+" ring"+(hc.record.championships>1?"s":""):""} ·
-        $${(hc.salary||0).toFixed(1)}M/yr · ${hc.contractYears??1} yr${(hc.contractYears??1)===1?"":"s"} left
+        Record: ${hc.record?.w||0}–${hc.record?.l||0}${(hc.record?.championships||0)>0?" · "+hc.record.championships+" ring"+(hc.record.championships>1?"s":""):""}
       </div>
+      ${_renderCoachContractBlock(hc, "hc")}
       ${ (hc.contractYears??2) === 0 ? `<div style="font-size:.63rem;color:var(--red);margin:.25rem 0">⚠ Contract expired — may seek new opportunity</div>` : (hc.contractYears??2) === 1 ? `<div style="font-size:.63rem;color:var(--gold);margin:.25rem 0">Final contract year — extension recommended</div>` : "" }
       <div style="margin-top:.5rem;display:flex;justify-content:flex-end;gap:.4rem">
         ${(hc.contractYears??2) <= 1 ? `<button class="btn btn-outline" style="font-size:.65rem;color:var(--gold);border-color:var(--gold)"
@@ -6537,7 +6539,7 @@ function renderFrnCoachingStaff() {
         ${schemeKey ? _schemeBadge(schemeKey, true) : ""}
       </div>
       ${coord.isFormerPlayer ? `<div style="margin-top:.25rem"><span style="font-size:.57rem;padding:.08rem .35rem;border-radius:3px;background:rgba(255,200,0,.15);color:var(--gold)">🏈 Ex-${coord.formerPos||"?"}${coord.peakOvr?" · OVR "+coord.peakOvr:""}${coord.proBowls>0?" · "+coord.proBowls+"xPB":""}${coord.allPros>0?" · "+coord.allPros+"xAP":""}${coord.sbRings>0?" · "+coord.sbRings+"xSB":""}</span>${coord.careerStatLine ? `<div style="font-size:.57rem;color:var(--gray);margin-top:.15rem">${coord.careerStatLine}</div>` : ""}</div>` : ""}
-      <div style="margin-top:.3rem;font-size:.65rem;color:var(--gray)">$${(coord.salary||0).toFixed(1)}M/yr · ${cYrs} yr${cYrs===1?"":"s"} left</div>
+      ${_renderCoachContractBlock(coord, slot)}
       <div style="margin-top:.4rem;display:flex;justify-content:flex-end;gap:.4rem">
         ${cYrs <= 1 ? `<button class="btn btn-outline" style="font-size:.62rem;padding:.15rem .5rem;color:var(--gold);border-color:var(--gold)"
           onclick="frnExtendCoordinator('${slot}')">Extend</button>` : ""}
@@ -6618,6 +6620,19 @@ function renderFrnCoachingStaff() {
   const effCap      = typeof effectiveSalaryCap  === "function" ? effectiveSalaryCap(myId)  : (franchise.salaryCap || 220);
   const budgetPct   = Math.min(100, (budgetUsed / BUDGET_CAP) * 100);
   const budgetColor = budgetUsed > BUDGET_CAP ? "var(--red)" : budgetUsed > BUDGET_CAP * 0.85 ? "var(--gold)" : "var(--green-lt)";
+  // Surface dead-cap-from-firings and one-shot escalator bonuses so the user
+  // sees why their budget jumped beyond just AAVs.
+  const coachRefunds = (franchise.refunds || []).filter(r =>
+    r.yearsRemaining > 0 && r.fromTeamId === myId &&
+    (r.kind === "coach_dead_cap" || r.kind === "coach_escalator"));
+  const deadCapTotal = coachRefunds.filter(r => r.kind === "coach_dead_cap").reduce((s,r) => s + (r.amount||0), 0);
+  const escTotal     = coachRefunds.filter(r => r.kind === "coach_escalator").reduce((s,r) => s + (r.amount||0), 0);
+  const extraLine = (deadCapTotal > 0 || escTotal > 0)
+    ? `<div style="font-size:.6rem;color:var(--gray);margin-top:.18rem">
+        ${deadCapTotal > 0 ? `<span style="color:#ff8a8a">Dead cap: $${deadCapTotal.toFixed(2)}M</span>` : ""}
+        ${deadCapTotal > 0 && escTotal > 0 ? " · " : ""}
+        ${escTotal > 0 ? `<span style="color:var(--gold)">Escalators paid: $${escTotal.toFixed(2)}M</span>` : ""}
+      </div>` : "";
   const penaltyLine = capPenalty > 0
     ? `<div style="font-size:.64rem;color:var(--red);margin-top:.2rem">⚠ $${capPenalty.toFixed(1)}M coaching overspend → −$${capPenalty.toFixed(1)}M player cap · Effective cap: $${effCap.toFixed(0)}M</div>`
     : "";
@@ -6629,6 +6644,7 @@ function renderFrnCoachingStaff() {
       <div style="height:5px;background:rgba(255,255,255,.12);border-radius:3px">
         <div style="height:100%;width:${budgetPct.toFixed(0)}%;background:${budgetColor};border-radius:3px;transition:width .3s"></div>
       </div>
+      ${extraLine}
       ${penaltyLine}
     </div>`;
 
@@ -6841,6 +6857,7 @@ function renderFrnCoachingStaff() {
   _coachHireResult = null;
 
   // ── Staff tab body (current coaches + scheme + chemistry + dev) ──
+  const contractEditorHtml = _renderContractEditor();
   const staffTabHtml = `
     ${budgetHtml}
     <div class="frn-sec-title" style="margin-top:.8rem">Head Coach</div>
@@ -6988,6 +7005,7 @@ function renderFrnCoachingStaff() {
       </div>
       ${hireBanner}
       ${subNavHtml}
+      ${contractEditorHtml}
       ${activeBody}
     </div>`;
 }
@@ -7234,17 +7252,24 @@ function frnFireStaffSlot(slot) {
   const myId  = franchise.chosenTeamId;
   const staff = franchise.coaches?.[myId];
   if (!staff) return;
-  const name = staff[slot]?.name || "coach";
+  const coach = staff[slot];
+  const name  = coach?.name || "coach";
+  const dead  = _coachDeadCapOnFire(coach);
+  const yrsLeft = coach?.contractYears || 0;
+  const deadMsg = dead > 0
+    ? `\n\n⚠ Dead cap: $${dead.toFixed(1)}M over ${yrsLeft} yr${yrsLeft===1?"":"s"} ($${(dead/Math.max(1,yrsLeft)).toFixed(1)}M/yr against coaching budget)`
+    : "";
   if (slot === "hc") {
-    if (!confirm(`Release ${name}? You will choose a replacement on the next screen.`)) return;
+    if (!confirm(`Release ${name}?${deadMsg}\n\nYou will choose a replacement on the next screen.`)) return;
     _renderHcVacancyPanel();
     return;
   }
-  if (!confirm(`Release ${name}? A replacement will be hired immediately.`)) return;
+  if (!confirm(`Release ${name}?${deadMsg}\n\nA replacement will be hired immediately.`)) return;
   if (slot === "oc") {
     const taken = typeof _coordMayTakePosCoach === "function" ? _coordMayTakePosCoach(staff, "oc") : null;
     if (taken) _pushNews({ type:"coach_depart",
       label: `🚪 Outgoing OC ${name} took ${taken.group} coach ${taken.name} with them` });
+    _bookCoachDeadCap(myId, staff.oc, "oc");
     _coachFAAdd(staff.oc, "oc");
     if (staff._chemistry) staff._chemistry.qbOcBond = false;
     staff.oc = _rollOC();
@@ -7253,6 +7278,7 @@ function frnFireStaffSlot(slot) {
     const taken = typeof _coordMayTakePosCoach === "function" ? _coordMayTakePosCoach(staff, "dc") : null;
     if (taken) _pushNews({ type:"coach_depart",
       label: `🚪 Outgoing DC ${name} took ${taken.group} coach ${taken.name} with them` });
+    _bookCoachDeadCap(myId, staff.dc, "dc");
     _coachFAAdd(staff.dc, "dc");
     staff.dc = _rollDC();
     _pushNews({ type:"coach_hire", label: `Your team hired new DC ${staff.dc.name}` });
@@ -7265,35 +7291,191 @@ function frnExtendHC() {
   const myId  = franchise.chosenTeamId;
   const staff = franchise.coaches?.[myId];
   if (!staff?.hc) return;
-  const hc = staff.hc;
-  const newSal   = +(_marketSalaryForCoach(hc, "hc") * 1.12).toFixed(1);
-  const newYears = 4 + Math.floor(Math.random() * 2); // 4-5 year HC deal
-  if (!confirm(`Extend HC ${hc.name}?\n$${newSal}M/yr · ${newYears} years`)) return;
-  hc.salary       = newSal;
-  hc.contractYears = newYears;
-  _pushNews({ type:"coach_hire", label: `📝 Extended HC ${hc.name} — $${newSal}M/yr · ${newYears} yrs` });
-  saveFranchise();
-  renderFrnCoachingStaff();
+  _frnOpenContractEditor("hc", "extend");
 }
 
 function frnExtendCoordinator(slot) {
   const myId  = franchise.chosenTeamId;
   const staff = franchise.coaches?.[myId];
+  if (!staff?.[slot]) return;
+  _frnOpenContractEditor(slot, "extend");
+}
+
+// ── Coach contract editor ────────────────────────────────────────────────────
+// Inline panel for negotiating extensions and outside hires. The same form
+// drives Extend HC, Extend OC/DC, and Hire-from-market — kind + slot decide
+// the submit path. Draft lives on a module-level holder so re-renders keep
+// the user's last-typed AAV/Years/SB without resetting.
+let _frnCoachContractDraft = null;
+
+function _suggestCoachTerms(coach, slot, kind) {
+  const role = slot === "hc" ? "hc" : slot;
+  const isLoyal = coach && coach.developedByTeamId === franchise.chosenTeamId;
+  const loyalMul = (kind === "extend" && isLoyal) ? 0.87 : 1.0;
+  const markup   = kind === "extend" ? 1.12 : 1.0;
+  const aav = +(_marketSalaryForCoach(coach || { rating: 70 }, role) * markup * loyalMul).toFixed(1);
+  const years = role === "hc" ? (4 + Math.floor(Math.random() * 2))
+                              : (2 + Math.floor(Math.random() * 2));
+  const sb = +(aav * years * (COACH_SB_PCT[role] || 0.18) * 0.8).toFixed(1);
+  return { aav, years, sb, isLoyal };
+}
+
+function _frnOpenContractEditor(slot, kind, marketIdx) {
+  const myId  = franchise.chosenTeamId;
+  const staff = franchise.coaches?.[myId];
+  let coach = null;
+  if (kind === "extend") coach = staff?.[slot];
+  else if (kind === "hire") {
+    const market = franchise._coachMarket || [];
+    const pool = market.filter(c => c.type === slot);
+    coach = pool[marketIdx];
+  }
+  if (!coach) return;
+  const sugg = _suggestCoachTerms(coach, slot, kind);
+  _frnCoachContractDraft = {
+    slot, kind, marketIdx,
+    aav: sugg.aav, years: sugg.years, sb: sugg.sb,
+    coachName: coach.name, coachRating: coach.rating || 60,
+    isLoyal: sugg.isLoyal,
+  };
+  // Always re-render the coaches page so the editor panel is visible.
+  // (Market sub-tab still shows the candidate list underneath.)
+  if (kind === "hire") _frnCoachesSubTab = "market";
+  renderFrnCoachingStaff();
+}
+
+function frnCloseContractEditor() {
+  _frnCoachContractDraft = null;
+  renderFrnCoachingStaff();
+}
+
+function frnContractDraftSet(field, value) {
+  if (!_frnCoachContractDraft) return;
+  const v = Math.max(0, +value || 0);
+  if (field === "aav")   _frnCoachContractDraft.aav   = +v.toFixed(1);
+  if (field === "years") _frnCoachContractDraft.years = Math.max(1, Math.round(v));
+  if (field === "sb")    _frnCoachContractDraft.sb    = +v.toFixed(1);
+  renderFrnCoachingStaff();
+}
+
+function frnSubmitContract() {
+  const d = _frnCoachContractDraft;
+  if (!d) return;
+  const myId  = franchise.chosenTeamId;
+  const staff = franchise.coaches?.[myId];
   if (!staff) return;
-  const coord = staff[slot];
-  if (!coord) return;
-  const label     = slot === "oc" ? "OC" : "DC";
-  const isLoyal   = coord.developedByTeamId === myId;
-  const loyalMul  = isLoyal ? 0.87 : 1.0;
-  const newSal    = +(_marketSalaryForCoach(coord, slot) * 1.12 * loyalMul).toFixed(1);
-  const newYears  = 2 + Math.floor(Math.random() * 2);
-  const loyalNote = isLoyal ? "\n🏠 Hometown discount applied (−13%)" : "";
-  if (!confirm(`Extend ${coord.name} (${label})?\n$${newSal}M/yr · ${newYears} years${loyalNote}`)) return;
-  coord.salary       = newSal;
-  coord.contractYears = newYears;
-  _pushNews({ type:"coach_hire", label: `📝 Extended ${label} ${coord.name} — $${newSal}M/yr · ${newYears} yrs${isLoyal?" (hometown)":""}` });
+  const role = d.slot;
+  if (d.kind === "extend") {
+    const coach = staff[role];
+    if (!coach) { _frnCoachContractDraft = null; return; }
+    _coachApplyContract(coach, d.aav, d.years, d.sb, role);
+    _pushNews({ type:"coach_hire",
+      label: `📝 Extended ${role.toUpperCase()} ${coach.name} — $${d.aav}M/yr · ${d.years} yrs · $${d.sb}M SB${d.isLoyal?" (hometown)":""}` });
+  } else if (d.kind === "hire") {
+    const market = franchise._coachMarket || [];
+    const pool = market.filter(c => c.type === role);
+    const pick = pool[d.marketIdx];
+    if (!pick) { _frnCoachContractDraft = null; return; }
+    // For HC slot: the old HC was already fired (dead cap booked) when the
+    // user clicked "Browse Market" — staff.hc is null here. For OC/DC slot,
+    // the user is hot-swapping a sitting coordinator with someone from the
+    // market, so book dead cap + push to FA on the existing coord first.
+    if (role === "hc") {
+      staff.hc = { ...pick, yearsWithTeam: 0, record: { w:0, l:0, championships:0 } };
+      delete staff.hc.type;
+      _coachApplyContract(staff.hc, d.aav, d.years, d.sb, "hc");
+      staff._chemistry = null;
+      _pushNews({ type:"coach_hire", label: `You hired HC ${staff.hc.name} — $${d.aav}M/yr · ${d.years} yrs · $${d.sb}M SB` });
+      const _sweepMsgs = _applyHcStaffSweep(staff, "Your team");
+      _sweepMsgs.forEach(m => _pushNews(m));
+      _coachHireResult = _sweepMsgs.length
+        ? _sweepMsgs.map(m => m.label).join(" · ")
+        : `No coordinator changes — ${staff.oc?.name || "OC"} and ${staff.dc?.name || "DC"} retained`;
+    } else if (role === "oc") {
+      if (staff.oc) { _bookCoachDeadCap(myId, staff.oc, "oc"); _coachFAAdd(staff.oc, "oc"); }
+      if (staff._chemistry) staff._chemistry.qbOcBond = false;
+      staff.oc = { ...pick, yearsWithTeam: 0 };
+      delete staff.oc.type;
+      _coachApplyContract(staff.oc, d.aav, d.years, d.sb, "oc");
+      _pushNews({ type:"coach_hire", label: `You hired OC ${staff.oc.name} — $${d.aav}M/yr · ${d.years} yrs · $${d.sb}M SB` });
+    } else if (role === "dc") {
+      if (staff.dc) { _bookCoachDeadCap(myId, staff.dc, "dc"); _coachFAAdd(staff.dc, "dc"); }
+      staff.dc = { ...pick, yearsWithTeam: 0 };
+      delete staff.dc.type;
+      _coachApplyContract(staff.dc, d.aav, d.years, d.sb, "dc");
+      _pushNews({ type:"coach_hire", label: `You hired DC ${staff.dc.name} — $${d.aav}M/yr · ${d.years} yrs · $${d.sb}M SB` });
+    }
+    const globalIdx = market.indexOf(pick);
+    if (globalIdx !== -1) market.splice(globalIdx, 1);
+  }
+  _frnCoachContractDraft = null;
   saveFranchise();
   renderFrnCoachingStaff();
+}
+
+// Compact contract breakdown — AAV / signing bonus / cap hit / dead cap if fired.
+// Adds a tooltip with the per-year base schedule and escalator package.
+function _renderCoachContractBlock(coach, role) {
+  if (!coach) return "";
+  const aav = coach.aav ?? coach.salary ?? 0;
+  const yrsLeft = coach.contractYears || 0;
+  const sb = coach.signingBonus || 0;
+  const proration = coach.bonusProration || 0;
+  const capHit = _coachCapHit(coach);
+  const dead = _coachDeadCapOnFire(coach);
+  const baseSched = (coach.baseSalaries || []).map((b,i) => `Yr${i+1}: $${(+b).toFixed(1)}M base + $${proration.toFixed(2)}M prorate = $${(b+proration).toFixed(2)}M`).join("\n");
+  const escList = (coach.escalators || []).map(e => `• ${e.label || e.kind}`).join("\n");
+  const tooltip = `Per-year cap:\n${baseSched}\n\nEscalators:\n${escList || "(none)"}`;
+  return `
+    <div class="frn-coach-contract-block" title="${tooltip.replace(/"/g, '&quot;')}">
+      <span><b>$${aav.toFixed(1)}M</b>/yr · ${yrsLeft}yr left</span>
+      <span class="sep">·</span>
+      <span>SB <b>$${sb.toFixed(1)}M</b></span>
+      <span class="sep">·</span>
+      <span>Cap hit <b>$${capHit.toFixed(2)}M</b></span>
+      ${dead > 0 ? `<span class="sep">·</span><span class="dead">Dead cap if fired: $${dead.toFixed(1)}M</span>` : ""}
+    </div>`;
+}
+
+// Renders the inline contract editor panel. Returns "" when no draft active.
+function _renderContractEditor() {
+  const d = _frnCoachContractDraft;
+  if (!d) return "";
+  const proration = d.sb > 0 ? +(d.sb / d.years).toFixed(2) : 0;
+  const basePerYr = +Math.max(0.5, d.aav - proration).toFixed(2);
+  const capHit    = +(basePerYr + proration).toFixed(2);
+  const total     = +(d.aav * d.years).toFixed(1);
+  const deadCap   = +(proration * d.years).toFixed(2);
+  const kindLabel = d.kind === "extend" ? "Extend" : "Hire";
+  const roleLabel = d.slot.toUpperCase();
+  return `
+    <div class="frn-coach-contract-editor">
+      <div class="frn-coach-contract-editor-head">
+        <span class="frn-coach-contract-editor-title">${kindLabel} ${roleLabel}: ${d.coachName}${d.isLoyal?` <span style="font-size:.6rem;color:var(--gold)">🏠 Loyal</span>`:""}</span>
+        <button class="frn-coach-contract-editor-close" onclick="frnCloseContractEditor()">×</button>
+      </div>
+      <div class="frn-coach-contract-editor-grid">
+        <label>AAV ($M)<input type="number" min="0.5" step="0.1" value="${d.aav}" onchange="frnContractDraftSet('aav', this.value)"></label>
+        <label>Years<input type="number" min="1" max="7" step="1" value="${d.years}" onchange="frnContractDraftSet('years', this.value)"></label>
+        <label>Signing Bonus ($M)<input type="number" min="0" step="0.1" value="${d.sb}" onchange="frnContractDraftSet('sb', this.value)"></label>
+      </div>
+      <div class="frn-coach-contract-editor-summary">
+        <span><b>Total $${total}M</b> over ${d.years} yr${d.years===1?"":"s"}</span>
+        <span>Base $${basePerYr}M/yr + proration $${proration.toFixed(2)}M/yr</span>
+        <span><b>Cap hit $${capHit}M/yr</b></span>
+        <span class="dead">Dead cap if fired today: $${deadCap.toFixed(2)}M</span>
+      </div>
+      <div class="frn-coach-contract-editor-escalators">
+        <div class="esc-head">Escalator package</div>
+        ${_coachDefaultEscalators(d.slot).map(esc => `
+          <div class="esc-row"><span class="esc-dot"></span>${esc.label}</div>
+        `).join("")}
+      </div>
+      <div class="frn-coach-contract-editor-actions">
+        <button class="btn btn-outline" onclick="frnCloseContractEditor()">Cancel</button>
+        <button class="btn btn-gold" onclick="frnSubmitContract()">${d.kind === "extend" ? "Submit Extension" : "Submit Offer"}</button>
+      </div>
+    </div>`;
 }
 
 // Vacancy decision panel — shown after user confirms releasing the HC.
@@ -7391,8 +7573,12 @@ function frnPromoteCoordinator(fromSlot) {
 
   const oldHcName = staff.hc?.name;
   if (oldHcName) _pushNews({ type:"coach_depart", label: `🚪 HC ${oldHcName} released` });
+  _bookCoachDeadCap(myId, staff.hc, "hc");
   _coachFAAdd(staff.hc, "hc");
 
+  const promotedAav   = +((coord.salary || 1.5) * 1.5).toFixed(1);
+  const promotedYears = 3 + Math.floor(Math.random() * 2);
+  const promotedSb    = +(promotedAav * promotedYears * COACH_SB_PCT.hc * 0.85).toFixed(1);
   staff.hc = {
     name:          coord.name,
     rating:        Math.min(89, (coord.rating || 60) + Math.floor(Math.random() * 5)),
@@ -7401,9 +7587,8 @@ function frnPromoteCoordinator(fromSlot) {
     age:           coord.age || 45,
     yearsWithTeam: 0,
     record:        { w:0, l:0, championships:0 },
-    salary:        +((coord.salary || 1.5) * 1.5).toFixed(1),
-    contractYears: 3 + Math.floor(Math.random() * 2),
   };
+  _coachApplyContract(staff.hc, promotedAav, promotedYears, promotedSb, "hc");
   _pushNews({ type:"coach_hire",
     label: `🏟 Your team promoted ${fromSlot.toUpperCase()} ${coord.name} to head coach` });
 
@@ -7443,51 +7628,28 @@ function frnBrowseHcMarket() {
   const myId  = franchise.chosenTeamId;
   const staff = franchise.coaches?.[myId];
   if (!staff) return;
-  const oldName    = staff.hc?.name;
+  const oldName = staff.hc?.name;
+  _bookCoachDeadCap(myId, staff.hc, "hc");
+  _coachFAAdd(staff.hc, "hc");
   staff.hc         = null;
   staff._chemistry = null;
   if (oldName) _pushNews({ type:"coach_depart", label: `🚪 HC ${oldName} released` });
+  // Switch to the market sub-tab so candidates are visible.
+  _frnCoachesSubTab = "market";
   saveFranchise();
   renderFrnCoachingStaff();
 }
 
+// Opens the contract editor so the user can set AAV / Years / Signing Bonus
+// before the hire fires. Submit path is frnSubmitContract().
 function frnHireCoachFromMarket(slot, marketIdx) {
   const myId  = franchise.chosenTeamId;
   const staff = franchise.coaches?.[myId];
   if (!staff) return;
   const market = franchise._coachMarket || [];
   const pool = market.filter(c => c.type === slot);
-  const pick = pool[marketIdx];
-  if (!pick) return;
-  if (slot === "hc") {
-    const existing = staff.hc;
-    _coachFAAdd(existing, "hc");
-    staff.hc = { ...pick, yearsWithTeam: 0, record: { w:0, l:0, championships:0 } };
-    delete staff.hc.type;
-    staff._chemistry = null;
-    _pushNews({ type:"coach_hire", label: `You hired HC ${staff.hc.name}` });
-    const _sweepMsgs = _applyHcStaffSweep(staff, "Your team");
-    _sweepMsgs.forEach(m => _pushNews(m));
-    _coachHireResult = _sweepMsgs.length
-      ? _sweepMsgs.map(m => m.label).join(" · ")
-      : `No coordinator changes — ${staff.oc?.name || "OC"} and ${staff.dc?.name || "DC"} retained`;
-  } else if (slot === "oc") {
-    _coachFAAdd(staff.oc, "oc");
-    if (staff._chemistry) staff._chemistry.qbOcBond = false;
-    staff.oc = { ...pick, yearsWithTeam: 0 };
-    delete staff.oc.type;
-    _pushNews({ type:"coach_hire", label: `You hired OC ${staff.oc.name}` });
-  } else if (slot === "dc") {
-    _coachFAAdd(staff.dc, "dc");
-    staff.dc = { ...pick, yearsWithTeam: 0 };
-    delete staff.dc.type;
-    _pushNews({ type:"coach_hire", label: `You hired DC ${staff.dc.name}` });
-  }
-  // Remove from market to prevent double-hiring
-  const globalIdx = market.indexOf(pick);
-  if (globalIdx !== -1) market.splice(globalIdx, 1);
-  saveFranchise();
-  renderFrnCoachingStaff();
+  if (!pool[marketIdx]) return;
+  _frnOpenContractEditor(slot, "hire", marketIdx);
 }
 
 function frnHirePositionCoach(group) {
