@@ -3549,6 +3549,13 @@ function _faResolveAfterWeek(week, isSeasonEnd) {
           const i = myRoster.findIndex(p => p.name === cut);
           if (i !== -1) myRoster.splice(i, 1);
         }
+        // Comp-pick accounting — each qualifying ($3M+) FA signing offsets
+        // one of your declined re-signings for next-draft comp picks.
+        franchise._faSignsPending = franchise._faSignsPending || {};
+        franchise._faSignsPending[myId] = franchise._faSignsPending[myId] || [];
+        franchise._faSignsPending[myId].push({
+          name, pos: n.fa.position, aav: highAav, season: franchise.season,
+        });
         newsSigned.push({ name, pos: n.fa.position, aav: highAav, years: highYrs });
         _pushNews({ type:"fa_sign",
           label: `🆓 You signed ${n.fa.position} ${name} — $${highAav.toFixed(1)}M × ${highYrs}yr` });

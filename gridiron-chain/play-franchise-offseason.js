@@ -5272,14 +5272,15 @@ function _resignRiskBadges(player, r, ageWarn, trend) {
   return out;
 }
 
-// Compensatory-pick estimate for letting a player walk.
+// Compensatory-pick estimate for letting a player walk. Uses the same
+// AAV brackets as the actual comp pick computation in _computeCompPicks
+// so the projection matches what's awarded.
 function _resignCompPick(r) {
-  const ovr = r.overall || 0;
-  if (ovr >= 85) return { round: 3, label: "3rd-rd comp pick projected" };
-  if (ovr >= 80) return { round: 4, label: "4th-rd comp pick projected" };
-  if (ovr >= 75) return { round: 5, label: "5th-rd comp pick projected" };
-  if (ovr >= 70) return { round: 7, label: "7th-rd comp pick projected" };
-  return null;
+  const aav = r.baseMarket || 0;
+  if (aav <= 0) return null;
+  const round = _compPickRoundForAAV(aav);
+  const labels = { 3: "3rd-rd", 4: "4th-rd", 5: "5th-rd", 6: "6th-rd", 7: "7th-rd" };
+  return { round, label: `${labels[round]} comp pick projected` };
 }
 
 // Multi-year cap projection — sums existing kept contracts + accepted
@@ -5863,9 +5864,17 @@ function frnConfirmResignings() {
         incentives: _generateIncentives(player, r.offer),
       };
     } else {
-      // Declined: remove from roster (enters FA — currently just lost)
+      // Declined: remove from roster (enters FA — currently just lost).
+      // Log as a qualifying loss for next-draft comp picks.
       const idx = myRoster.indexOf(player);
       if (idx !== -1) myRoster.splice(idx, 1);
+      franchise._faLossesPending = franchise._faLossesPending || {};
+      franchise._faLossesPending[chosenTeamId] = franchise._faLossesPending[chosenTeamId] || [];
+      franchise._faLossesPending[chosenTeamId].push({
+        name: r.name, pos: r.pos,
+        marketAAV: r.baseMarket || computeMarketValue(player, cap),
+        season: franchise.season,
+      });
     }
   }
   franchise._resignPending = null;
@@ -8232,7 +8241,10 @@ function _ensurePicksForYear(year) {
 // Round 1 expected value is the average of the 32 round-1 prospects.
 const PICK_VALUE_BY_ROUND = { 1: 32, 2: 16, 3: 9, 4: 5, 5: 3, 6: 2, 7: 1.5 };
 function _pickValue(pick) {
-  return PICK_VALUE_BY_ROUND[pick.round] || 1;
+  // Comp picks land at the end of their round, so they're worth a touch
+  // less than a regular pick in the same round (≈80% of round value).
+  const base = PICK_VALUE_BY_ROUND[pick.round] || 1;
+  return pick.isComp ? Math.max(1, Math.round(base * 0.80)) : base;
 }
 
 function _teamPicks(teamId) {
@@ -9196,7 +9208,12 @@ function frnClearTradePartner() {
 }
 
 // Picks don't have a primary key, so derive one from year+round+orig.
-function _tradePickKey(p) { return `${p.year}_R${p.round}_T${p.originalTeamId}`; }
+// Comp picks include their per-team-per-round index so two comps from
+// the same team in the same round don't collide.
+function _tradePickKey(p) {
+  const suffix = p.isComp ? `_C${p.compIdx ?? 0}` : "";
+  return `${p.year}_R${p.round}_T${p.originalTeamId}${suffix}`;
+}
 function _tradePickFromKey(key, ownerId) {
   return (franchise.picks || []).find(p =>
     p.currentOwnerId === ownerId && _tradePickKey(p) === key);
@@ -9880,9 +9897,10 @@ function _renderTradePicksSection(myId, partnerId, tp) {
     const origTeam = getTeam(p.originalTeamId);
     const viaMine = isMine ? p.originalTeamId !== myId : p.originalTeamId !== partnerId;
     const viaLabel = viaMine ? ` <span style="color:#7fbfff;font-size:.6rem">via ${origTeam?.name||"?"}</span>` : "";
+    const compTag = p.isComp ? `<span style="color:var(--gold-lt);font-size:.55rem;letter-spacing:.4px"> COMP</span>` : "";
     return `<label class="frn-trade-row" style="display:flex;gap:.4rem;align-items:center;padding:.18rem .25rem;cursor:pointer;${sel?"background:rgba(200,169,0,0.12)":""}">
       <input type="checkbox" ${sel?"checked":""} onchange="frnToggleTradePick('${isMine?"send":"receive"}','${key}')">
-      <span style="color:var(--gold);font-weight:700;font-size:.65rem;min-width:2.2rem">${yearLabel(p.year)} R${p.round}</span>
+      <span style="color:var(--gold);font-weight:700;font-size:.65rem;min-width:2.2rem">${yearLabel(p.year)} R${p.round}${compTag}</span>
       <span style="color:var(--gray);font-size:.6rem">~${_pickValue(p).toFixed(0)} val${viaLabel}</span>
     </label>`;
   };
@@ -10612,6 +10630,7 @@ function _buildCollegeProfile(p, round) {
 
 function frnGoToDraft() {
   const rookieYear = (new Date().getFullYear()) + (franchise.season || 1);
+  _injectCompPicks(rookieYear);
   franchise.draft = {
     class: _buildDraftClass(rookieYear),
     pickOrder: _buildDraftPickOrder(),
@@ -10624,8 +10643,112 @@ function frnGoToDraft() {
   franchise.draftScouts = [];       // reset scout slots for new class
   franchise.draftScoutReveals = {}; // reset per-prospect reveal rolls
   franchise.phase = "draft";
+  // Comp pick tallies have been consumed → clear for next offseason
+  franchise._faLossesPending = {};
+  franchise._faSignsPending  = {};
   saveFranchise();
   renderFrnDraft();
+}
+
+// ── Compensatory picks ──────────────────────────────────────────────────────
+// Real-NFL rule (simplified): teams that lose more qualifying FAs than they
+// sign get bonus picks at the end of rounds 3-7. Pick quality scales with
+// AAV of the departed player. Per-team cap 4; league cap 32.
+const _COMP_PICK_AAV_BRACKETS = [
+  { minAAV: 25, round: 3 },
+  { minAAV: 15, round: 4 },
+  { minAAV:  8, round: 5 },
+  { minAAV:  3, round: 6 },
+  { minAAV:  0, round: 7 },
+];
+const _COMP_PICK_PER_TEAM_CAP = 4;
+const _COMP_PICK_LEAGUE_CAP = 32;
+
+function _compPickRoundForAAV(aav) {
+  for (const b of _COMP_PICK_AAV_BRACKETS) if (aav >= b.minAAV) return b.round;
+  return 7;
+}
+
+// User comp pick allocations from the current offseason's tracked
+// losses/signings. AI teams get hash-based allocations so the league
+// still has natural comp-pick variance without us simulating their FA.
+function _computeCompPicks(forDraftYear) {
+  const out = [];
+  const myId = franchise.chosenTeamId;
+  const losses = (franchise._faLossesPending?.[myId] || []).slice()
+    .sort((a, b) => (b.marketAAV || 0) - (a.marketAAV || 0));
+  const signs  = (franchise._faSignsPending?.[myId] || []).slice()
+    .filter(s => (s.aav || 0) >= 3)
+    .sort((a, b) => (b.aav || 0) - (a.aav || 0));
+  // Each qualifying signing offsets the lowest-AAV remaining loss
+  // (NFL's "net loss" rule). Take top _COMP_PICK_PER_TEAM_CAP after offsets.
+  const netLossCount = Math.max(0, losses.length - signs.length);
+  const netLosses = losses.slice(0, Math.min(netLossCount, _COMP_PICK_PER_TEAM_CAP));
+  for (const loss of netLosses) {
+    out.push({
+      teamId: myId,
+      round:  _compPickRoundForAAV(loss.marketAAV || 0),
+      playerName: loss.name,
+      aav: loss.marketAAV || 0,
+    });
+  }
+  // AI teams: deterministic hash-based allocation keyed on (season, team)
+  // so a given league still gets consistent comp picks across renders.
+  const seed = ((franchise.season || 0) * 73) ^ ((forDraftYear || 0) * 19);
+  for (const t of TEAMS) {
+    if (t.id === myId) continue;
+    let h = seed ^ ((t.id + 1) * 2654435761) | 0;
+    h = Math.abs(h);
+    // 35% chance 1 pick · 15% chance 2 picks · 5% chance 3 picks · else 0
+    const r0 = h % 100;
+    const count = r0 < 5 ? 3 : r0 < 20 ? 2 : r0 < 55 ? 1 : 0;
+    for (let i = 0; i < count; i++) {
+      // Per-pick AAV from a different bit slice — 0-28M range
+      const aavSeed = ((h >>> (i * 5)) & 0x3f) / 64;
+      const aav = +(aavSeed * 28).toFixed(1);
+      out.push({
+        teamId: t.id,
+        round:  _compPickRoundForAAV(aav),
+        playerName: null,
+        aav,
+      });
+    }
+  }
+  // Trim to league cap, dropping the lowest-AAV comps first.
+  out.sort((a, b) => (b.aav || 0) - (a.aav || 0));
+  return out.slice(0, _COMP_PICK_LEAGUE_CAP);
+}
+
+function _injectCompPicks(forDraftYear) {
+  franchise._compPicksInjected = franchise._compPicksInjected || {};
+  if (franchise._compPicksInjected[forDraftYear]) return;
+  franchise.picks = franchise.picks || [];
+  const comps = _computeCompPicks(forDraftYear);
+  // Per-team-per-round counter so comp picks have unique trade keys
+  // (a team can land two comps in the same round).
+  const idxKey = new Map();
+  for (const c of comps) {
+    const key = `${c.teamId}-${c.round}`;
+    const compIdx = idxKey.get(key) || 0;
+    idxKey.set(key, compIdx + 1);
+    franchise.picks.push({
+      year: forDraftYear, round: c.round,
+      originalTeamId: c.teamId, currentOwnerId: c.teamId,
+      isComp: true, compIdx,
+      compFor: c.playerName ? { playerName: c.playerName, aav: c.aav } : { aav: c.aav },
+    });
+  }
+  franchise._compPicksInjected[forDraftYear] = comps.length;
+  // News wire — only flag the user's awarded comps
+  const myId = franchise.chosenTeamId;
+  for (const c of comps) {
+    if (c.teamId === myId) {
+      const label = c.playerName
+        ? `🎁 Awarded R${c.round} compensatory pick (for ${c.playerName})`
+        : `🎁 Awarded R${c.round} compensatory pick`;
+      _pushNews({ type: "draft", label });
+    }
+  }
 }
 
 function _buildDraftClass(rookieYear) {
@@ -10767,12 +10890,36 @@ function _buildDraftPickOrder() {
   const draftYear = (new Date().getFullYear()) + (franchise.season || 1);
   _ensurePicksForYear(draftYear);
   const order = [];
+  const reverseIdx = (tId) => sorted.findIndex(t => t.id === tId);
   for (let r = 1; r <= 7; r++) {
+    let inRound = 0;
+    // Regular picks — 32 per round, slot position by reverse-standings of
+    // the ORIGINAL owner.
     for (const origTeam of sorted) {
       const pick = (franchise.picks || []).find(p =>
-        p.year === draftYear && p.round === r && p.originalTeamId === origTeam.id);
+        p.year === draftYear && p.round === r && p.originalTeamId === origTeam.id && !p.isComp);
       const ownerId = pick?.currentOwnerId ?? origTeam.id;
-      order.push({ round: r, teamId: ownerId, originalTeamId: origTeam.id, year: draftYear });
+      inRound += 1;
+      order.push({
+        round: r, teamId: ownerId, originalTeamId: origTeam.id,
+        year: draftYear, isComp: false, pickInRound: inRound,
+      });
+    }
+    // Compensatory picks — appended to end of rounds 3-7, sorted by
+    // recipient team's reverse-standings (worst comp-recipient picks
+    // first among the comp tier).
+    if (r >= 3) {
+      const comps = (franchise.picks || []).filter(p =>
+        p.year === draftYear && p.round === r && p.isComp);
+      comps.sort((a, b) => reverseIdx(a.originalTeamId) - reverseIdx(b.originalTeamId));
+      for (const cp of comps) {
+        inRound += 1;
+        order.push({
+          round: r, teamId: cp.currentOwnerId, originalTeamId: cp.originalTeamId,
+          year: draftYear, isComp: true, pickInRound: inRound,
+          compFor: cp.compFor,
+        });
+      }
     }
   }
   return order;
@@ -10869,7 +11016,8 @@ function renderFrnDraft() {
 
   const currentSlot = d.pickOrder[d.currentIdx];
   const round = currentSlot.round;
-  const pickInRound = (d.currentIdx % 32) + 1;
+  const pickInRound = currentSlot.pickInRound || ((d.currentIdx % 32) + 1);
+  const isCurrentComp = !!currentSlot.isComp;
   const dayLabel = round <= 2 ? "DAY 1 · PRIMETIME" : round === 3 ? "DAY 2" : "DAY 3";
   const filter = d.boardFilter || "ALL";
 
@@ -11004,7 +11152,7 @@ function renderFrnDraft() {
     const team = getTeam(pk.teamId);
     const isMe = pk.teamId === myId;
     return `<div class="frn-draft-ticker-item${isMe?" my-pick":""}">
-      <span class="frn-draft-ticker-pick-no">${pk.round}.${(((pk.pick-1)%32)+1)}</span>
+      <span class="frn-draft-ticker-pick-no">${pk.round}.${pk.pickInRound ?? (((pk.pick-1)%32)+1)}${pk.isComp ? "c" : ""}</span>
       <span><span style="font-weight:700">${pk.prospectName}</span><span style="color:var(--gray);font-size:.57rem"> · ${pk.pos}</span></span>
       <span style="color:var(--gray);font-size:.6rem">${team?.name||"?"}</span>
     </div>`;
@@ -11028,7 +11176,7 @@ function renderFrnDraft() {
   const myPicks = d.picks.filter(pk=>pk.teamId===myId);
   const myPicksHtml = myPicks.length ? myPicks.map(pk=>`
     <div class="frn-draft-ticker-item my-pick">
-      <span class="frn-draft-ticker-pick-no">R${pk.round}.${(((pk.pick-1)%32)+1)}</span>
+      <span class="frn-draft-ticker-pick-no">R${pk.round}.${pk.pickInRound ?? (((pk.pick-1)%32)+1)}${pk.isComp ? "c" : ""}</span>
       <span style="font-weight:700">${pk.prospectName}</span>
       <span style="color:var(--gold);font-size:.57rem">${pk.pos}</span>
     </div>`).join("")
@@ -11053,7 +11201,7 @@ function renderFrnDraft() {
       <div>
         <div class="frn-draft-clock-card">
           <div>
-            <div style="font-size:.58rem;color:var(--gold);letter-spacing:.6px">ROUND ${round} · PICK ${pickInRound}</div>
+            <div style="font-size:.58rem;color:var(--gold);letter-spacing:.6px">ROUND ${round} · PICK ${pickInRound}${isCurrentComp ? `<span style="color:var(--gold-lt);margin-left:.3rem">· COMP</span>` : ""}</div>
             <div style="font-size:1.15rem;font-weight:900;color:var(--gold-lt)">YOU ARE ON THE CLOCK</div>
             <div style="color:var(--gray);font-size:.73rem">${myTeam?.city} ${myTeam?.name}</div>
           </div>
@@ -11327,7 +11475,7 @@ function _renderPostDraftGrade(myPicks) {
     const sg = pk.sg;
     const fakeP = {name:pk.prospectName||"",overall:sg,stats:[]};
     return `<div class="frn-draft-pick-review">
-      <span class="frn-draft-ticker-pick-no">R${pk.round}.${(((pk.pick-1)%32)+1)}</span>
+      <span class="frn-draft-ticker-pick-no">R${pk.round}.${pk.pickInRound ?? (((pk.pick-1)%32)+1)}${pk.isComp ? "c" : ""}</span>
       <span style="font-weight:700">${pk.prospectName}</span>
       <span style="color:var(--gold);font-size:.6rem">${pk.pos}</span>
       <span>${tag||gradeBadge(fakeP)}</span>
@@ -11402,6 +11550,7 @@ function _aiAutoPick(slot) {
   franchise.draft.picks.push({
     pick: franchise.draft.currentIdx + 1, round: slot.round,
     teamId: slot.teamId, prospectName: pick.name, pos: pick.position,
+    pickInRound: slot.pickInRound, isComp: !!slot.isComp,
   });
   // Alert user if one of their targets was just stolen.
   if (franchise.draft.targets?.includes(pick.name)) {
@@ -11434,10 +11583,12 @@ function frnDraftPick(name) {
   d.picks.push({
     pick: d.currentIdx + 1, round: slot.round,
     teamId: slot.teamId, prospectName: prospect.name, pos: prospect.position,
+    pickInRound: slot.pickInRound, isComp: !!slot.isComp,
   });
   d.currentIdx++;
   saveFranchise();
-  _pushNews({ type:"draft", label: `📋 You drafted ${prospect.name} (${prospect.position}) — R${slot.round}.${((d.currentIdx-1) % 32) + 1}` });
+  const pickLabel = `R${slot.round}.${slot.pickInRound}${slot.isComp ? "c" : ""}`;
+  _pushNews({ type:"draft", label: `📋 You drafted ${prospect.name} (${prospect.position}) — ${pickLabel}` });
   renderFrnDraft();
 }
 
