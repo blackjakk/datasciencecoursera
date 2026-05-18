@@ -755,25 +755,35 @@ function scoutGrade(p) {
 function _scoutSourceLabel(p) {
   const band = _playerNoiseBand(p);
   if (band === 0) return "owned";
-  if (band === 1) return "faced in playoffs · ±1";
-  if (band === 2) {
-    if (p?._apbScoutedSeason != null) return "seen in APB · ±2";
-    if ((p?._postseasonDepth ?? -1) >= 2) return "reached championship · ±2";
-    if (p?.isProspect)                 return "draft scout · ±2";
-    return "scouted · ±2";
+  // Build a multi-source description so stacking is visible.
+  const fr = franchise;
+  const season = fr?.season;
+  const myId   = fr?.chosenTeamId;
+  const parts = [];
+  if (p?._facedInPlayoffsSeason != null && season != null && (season - p._facedInPlayoffsSeason) <= 1) parts.push("faced in playoffs");
+  if (p?.isProspect && (fr?.draftScouts || []).includes(p.name)) parts.push("draft scout");
+  if (p?._apbScoutedSeason != null && season != null && (season - p._apbScoutedSeason) <= 1) parts.push("APB");
+  if (p?._postseasonDepthSeason != null && season != null && (season - p._postseasonDepthSeason) <= 1) {
+    const d = p._postseasonDepth ?? 0;
+    parts.push(d >= 2 ? "reached championship" : d === 1 ? "reached divisional" : "played wild card");
   }
-  if (band === 3) return "reached divisional · ±3";
-  if (band === 4) {
-    // Could be Wild Card tape OR live-pads JP — both equal-fidelity
-    if ((p?._postseasonDepth ?? -1) === 0) return "played wild card · ±4";
-    return "live-pads practice · ±4";
+  if (p?._regSeasonFacedSeason != null && season != null && (season - p._regSeasonFacedSeason) <= 1) parts.push("reg-season opp");
+  // Practice (skip own team)
+  if (myId != null) {
+    for (const [tid, roster] of Object.entries(fr.rosters || {})) {
+      if (!roster.includes(p)) continue;
+      if (Number(tid) === myId) break;
+      const intel = fr.scoutingIntel?.[tid];
+      if (intel && intel.season === season) {
+        parts.push(intel.intensity === "live" ? "live-pads JP" : "joint practice");
+      }
+      break;
+    }
   }
-  if (band === 5) {
-    if (p?.isProspect) return "combine grade · ±5";
-    return "regular-season opponent · ±5";
-  }
-  if (band === 6) return "joint practice · ±6";
-  return "no scouting · ±8";
+  if (!parts.length && p?.isProspect) parts.push("combine grade");
+  if (!parts.length) return `no scouting · ±${band}`;
+  const stacked = parts.length > 1 ? " · stacked" : "";
+  return `${parts.join(" + ")}${stacked} · ±${band}`;
 }
 
 // Has the user scouted this player's team this season (via scrimmage)?
@@ -782,17 +792,22 @@ function _scoutSourceLabel(p) {
 //   1 = faced in any playoff game (this season or last)
 //   2 = APB / reached SB / draft-scouted prospect
 //   3 = reached Divisional
-//   4 = Wild Card OR live-pads joint practice (full contact)
+//   4 = Wild Card tape (one playoff game of tape)
 //   5 = regular-season opponent / unscouted prospect
-//   6 = standard joint practice (no pads)
-//   8 = walk-through (no grade reveal) / unscouted
+//   6 = Live Pads JP (full contact, controlled environment)
+//   7 = standard Joint Practice (no pads, walk-through speed)
+//   8 = walk-through (no grade reveal by design) / unscouted
 //
-// Practice-vs-game philosophy: a real regular-season game tells you more
-// than any non-contact practice session. Live Pads is closest to game
-// fidelity (full contact, real reps) so it ties with Wild Card tape.
-// Standard Joint Practice (controlled, no pads) is one step worse than
-// playing them in a real game. Walk-through grants nothing.
-// First match wins, so order of checks matters — sharpest reads first.
+// Practice-vs-game philosophy: a real regular-season game ALWAYS beats
+// any practice — controlled environment, players self-protect from
+// injury, scripted scenarios, no crowd / no stakes. Even Live Pads
+// (band 6) lands below reg-season tape (band 5).
+//
+// Stacking: practice + game-tape reveals different things (live
+// presence + performance under stakes). When the user has both for the
+// same player, band drops by 1 (Live Pads) or 1 (Standard JP) — Live
+// Pads gives the larger stacking bonus because the in-person fidelity
+// pays off more when paired with game film. Floored at 1.
 function _playerNoiseBand(p) {
   if (!p) return 8;
   const fr = franchise;
@@ -810,54 +825,55 @@ function _playerNoiseBand(p) {
     }
   }
 
-  // 1: you faced them in a playoff game this season or last
-  if (p._facedInPlayoffsSeason != null && (season - p._facedInPlayoffsSeason) <= 1) return 1;
+  // Collect every applicable evidence source so we can find the best
+  // band and decide whether stacking applies.
+  const bands = [];
+  let hasGameTape = false;
+  let practiceBand = null; // 6 for live, 7 for standard, null otherwise
 
-  // 2: draft-scouted prospects (you visited them, used a slot)
-  if (p.isProspect && (fr.draftScouts || []).includes(p.name)) return 2;
-
-  // 2: APB participation — multiple high-stakes games of footage
-  if (p._apbScoutedSeason != null && (season - p._apbScoutedSeason) <= 1) return 2;
-
-  // 2: reached Championship/SB — entire postseason run on tape
-  if (p._postseasonDepthSeason != null && (season - p._postseasonDepthSeason) <= 1
-      && (p._postseasonDepth ?? 0) >= 2) return 2;
-
-  // 3: reached Divisional (postseason participant)
-  if (p._postseasonDepthSeason != null && (season - p._postseasonDepthSeason) <= 1
-      && (p._postseasonDepth ?? 0) === 1) return 3;
-
-  // 4: joint practice — depends on intensity. Live-pads ties Wild Card
-  // tape (full-contact reps ≈ a game). Standard Joint sits at 6 (worse
-  // than facing them in a regular-season game).
-  let jpBand = null;
+  if (p._facedInPlayoffsSeason != null && (season - p._facedInPlayoffsSeason) <= 1) {
+    bands.push(1); hasGameTape = true;
+  }
+  if (p.isProspect && (fr.draftScouts || []).includes(p.name)) {
+    bands.push(2);
+  }
+  if (p._apbScoutedSeason != null && (season - p._apbScoutedSeason) <= 1) {
+    bands.push(2); hasGameTape = true;
+  }
+  if (p._postseasonDepthSeason != null && (season - p._postseasonDepthSeason) <= 1) {
+    const d = p._postseasonDepth ?? 0;
+    if (d >= 2) bands.push(2);
+    else if (d === 1) bands.push(3);
+    else bands.push(4);
+    hasGameTape = true;
+  }
+  if (p._regSeasonFacedSeason != null && (season - p._regSeasonFacedSeason) <= 1) {
+    bands.push(5); hasGameTape = true;
+  }
+  // Joint practice (skip walk-through — it doesn't set scoutingIntel)
   for (const [tid, roster] of Object.entries(fr.rosters || {})) {
     if (!roster.includes(p)) continue;
     if (Number(tid) === myId) continue;
     const intel = fr.scoutingIntel?.[tid];
     if (intel && intel.season === season) {
-      jpBand = intel.intensity === "live" ? 4 : 6;
+      practiceBand = intel.intensity === "live" ? 6 : 7;
+      bands.push(practiceBand);
     }
     break;
   }
+  // Unscouted prospect baseline (combine grade only)
+  if (p.isProspect && !bands.length) bands.push(5);
 
-  // 4: Wild Card only — one game of tape
-  if (p._postseasonDepthSeason != null && (season - p._postseasonDepthSeason) <= 1
-      && (p._postseasonDepth ?? 0) === 0) {
-    return jpBand != null ? Math.min(jpBand, 4) : 4;
+  if (!bands.length) return 8;
+
+  // Best individual band wins. If user has BOTH practice and game tape,
+  // stack: -2 for Live Pads, -1 for Standard JP. Floor at 1.
+  let best = Math.min(...bands);
+  if (practiceBand != null && hasGameTape) {
+    const stackBonus = practiceBand === 6 ? 2 : 1;
+    best = Math.max(1, best - stackBonus);
   }
-  if (jpBand === 4) return 4;
-
-  // 5: regular-season opponent (faced your team this season or last)
-  if (p._regSeasonFacedSeason != null && (season - p._regSeasonFacedSeason) <= 1) return 5;
-
-  // 6: standard joint practice (no pads) — explicitly worse than a real game
-  if (jpBand === 6) return 6;
-
-  // Baseline prospect (no scouting): combine-grade view
-  if (p.isProspect) return 5;
-
-  return 8;
+  return best;
 }
 
 function _isPlayerScouted(p) {
