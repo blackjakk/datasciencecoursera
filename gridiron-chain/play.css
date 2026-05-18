@@ -4007,11 +4007,34 @@
   }
   .frn-trade-list { max-height: 480px; overflow-y: auto; display: flex; flex-direction: column; gap: .15rem; }
   .frn-trade-player {
-    display: grid; grid-template-columns: 2rem 1fr auto auto auto auto;
-    gap: .35rem; align-items: center;
+    display: grid;
+    grid-template-columns: 1.6rem 1.8rem minmax(0, 1fr) auto auto 3.2rem;
+    gap: .4rem; align-items: center;
     background: var(--bg3); border: 1px solid var(--border);
     padding: .25rem .45rem; font-size: .68rem; cursor: pointer;
   }
+  .frn-trade-pos {
+    color: var(--gold); font-size: .58rem; font-weight: 700;
+    text-align: center;
+  }
+  .frn-trade-name-row {
+    display: flex; align-items: center; gap: .35rem;
+    min-width: 0;
+  }
+  .frn-trade-name {
+    flex: 1; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .frn-trade-team { color: var(--gray); font-size: .6rem; flex-shrink: 0; }
+  .frn-trade-age { color: var(--gray); font-size: .62rem; text-align: right; }
+  .frn-trade-aav { color: var(--gold); font-size: .62rem; text-align: right; }
+  .frn-trade-stance {
+    font-size: .5rem; letter-spacing: .4px; font-weight: 800;
+    padding: .03rem .26rem; border: 1px solid; border-radius: 2px;
+    background: rgba(0,0,0,.25);
+  }
+  .frn-trade-stance.ut { color: #ff8a8a; border-color: #ff8a8a55; }
+  .frn-trade-stance.sh { color: var(--green-lt); border-color: rgba(122,200,232,.4); }
   .frn-trade-player:hover { border-color: var(--gold-lt); }
   .frn-trade-player.selected { border-color: var(--gold); background: rgba(200,169,0,0.12); }
   .frn-trade-result {

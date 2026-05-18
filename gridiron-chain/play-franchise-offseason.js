@@ -5315,14 +5315,119 @@ function _teamPicksByYear(teamId) {
 const TRADE_DEADLINE_WEEK = 7;
 
 function _playerTradeValue(p) {
-  const ovr = p.overall || 60;
-  let v = Math.max(0, ovr - 50);
-  const age = p.age || 25;
-  if (age <= 25)      v *= 1.10;
-  else if (age >= 32) v *= 0.65;
-  else if (age >= 29) v *= 0.85;
-  if (p.injury && p.injury.weeksRemaining > 0) v *= 0.4;
-  return Math.round(v * 10) / 10;
+  // 1. Non-linear OVR curve: top-end talent compresses, so the gap
+  //    between OVR 95 and 99 is way bigger than 75 and 80.
+  const ovrBase = Math.pow(Math.max(0, (p.overall || 60) - 50), 1.5) / 4;
+  // 2. Position scarcity multiplier — QBs / pass rushers / blindside
+  //    tackles cost more than RBs / kickers / punters.
+  const posMul = POSITION_CHIP_MULT[p.position] || 1.0;
+  // 3. Position-aware age curve: RBs cliff at 28, QBs play to 38.
+  const ageMul = _ageCurveForPos(p.age || 27, p.position);
+  // 4. Contract surplus or anchor — what's the player's actual deal
+  //    relative to market. Rookie-deal stars carry massive surplus.
+  const cap = franchise.salaryCap || SALARY_CAP_BASE;
+  const market = (typeof computeMarketValue === "function") ? computeMarketValue(p, cap) : (p.contract?.aav || 1);
+  const remaining = p.contract?.remaining || 0;
+  const surplusPerYr = market - (p.contract?.aav || 0);
+  const contractDelta = surplusPerYr * remaining * 0.6;   // cap-$ → trade points
+  // 5. Years-remaining bonus — more team control = more value.
+  const yrsMul = remaining === 0 ? 0.5
+    : remaining === 1 ? 0.85
+    : remaining === 2 ? 0.95
+    : remaining >= 4 ? 1.10
+    : 1.0;
+  // 6. Injury haircut.
+  const injMul = (p.injury?.weeksRemaining > 0) ? 0.4 : 1.0;
+  const v = (ovrBase * posMul * ageMul * yrsMul + contractDelta) * injMul;
+  return Math.max(0.5, Math.round(v * 10) / 10);
+}
+
+// Trade-chip scarcity. Distinct from CAP_POS_RATE (which prices
+// salaries) because some positions are worth more on the open market
+// than their cap weight implies — e.g. a young franchise QB or
+// premier edge rusher is rarely available at any price.
+const POSITION_CHIP_MULT = {
+  QB: 1.80, OL: 1.20, DL: 1.15, CB: 1.10,
+  WR: 1.05, LB: 1.00, TE: 0.95, S:  0.95,
+  RB: 0.80, K:  0.45, P:  0.45,
+};
+
+// Position-specific age curves. Returns a 0..1.10 multiplier vs prime.
+function _ageCurveForPos(age, pos) {
+  const peaks = {
+    QB:  { peakLo: 26, peakHi: 35, decline: 0.04 },
+    RB:  { peakLo: 22, peakHi: 27, decline: 0.10 },
+    WR:  { peakLo: 24, peakHi: 30, decline: 0.06 },
+    TE:  { peakLo: 25, peakHi: 31, decline: 0.06 },
+    OL:  { peakLo: 26, peakHi: 32, decline: 0.04 },
+    DL:  { peakLo: 24, peakHi: 30, decline: 0.06 },
+    LB:  { peakLo: 23, peakHi: 29, decline: 0.07 },
+    CB:  { peakLo: 23, peakHi: 29, decline: 0.08 },
+    S:   { peakLo: 24, peakHi: 30, decline: 0.07 },
+    K:   { peakLo: 25, peakHi: 38, decline: 0.02 },
+    P:   { peakLo: 25, peakHi: 38, decline: 0.02 },
+  };
+  const p = peaks[pos] || { peakLo: 24, peakHi: 30, decline: 0.07 };
+  if (age >= p.peakLo && age <= p.peakHi) return 1.0;
+  if (age < p.peakLo) {
+    // Young player approaching peak — 22yo gets ~0.92, peak gets 1.0
+    const undershoot = p.peakLo - age;
+    return Math.max(0.85, 1.0 - undershoot * 0.025);
+  }
+  const yearsPast = age - p.peakHi;
+  return Math.max(0.30, 1.0 - yearsPast * p.decline);
+}
+
+// A team's stance on each of its own players: untouchable (won't move
+// for any price), shopping (would deal at favorable ratio), or
+// available (standard market). Computed on demand from roster + age
+// + contract + draft pedigree; no per-team state required.
+function _aiTeamPlayerStance(teamId, p) {
+  const roster = franchise.rosters[teamId] || [];
+  const sameByOvr = roster.filter(rp => rp.position === p.position)
+    .sort((a, b) => (b.overall || 0) - (a.overall || 0));
+  const rank = sameByOvr.indexOf(p) + 1;  // 1 = top-of-position
+
+  // FRANCHISE FACE — top of position + young / mid-career + on contract
+  // at a premium position. These guys are not for sale at any price.
+  const FRANCHISE_FACE_POS = new Set(["QB","DL","CB","OL","WR"]);
+  const ovr = p.overall || 0;
+  const age = p.age || 30;
+  const yrsLeft = p.contract?.remaining || 0;
+  if (rank === 1 && ovr >= 88 && age <= 30 && yrsLeft >= 1 && FRANCHISE_FACE_POS.has(p.position)) {
+    return "untouchable";
+  }
+  // RECENT HIGH PICK — last two drafts, first round, still developing.
+  if (p.draftRound === 1 && p.draftYear &&
+      (franchise.season + new Date().getFullYear() - 1 - p.draftYear) <= 2 &&
+      age <= 25) {
+    return "untouchable";
+  }
+
+  // SHOPPING — aging, overpaid, redundant, or contract anchor.
+  const cap = franchise.salaryCap || SALARY_CAP_BASE;
+  const market = (typeof computeMarketValue === "function") ? computeMarketValue(p, cap) : (p.contract?.aav || 0);
+  const overpaid = (p.contract?.aav || 0) > market + 5;
+  const redundant = rank >= 3 && ovr < ((sameByOvr[0]?.overall || 50) - 5);
+  const aging = age >= 33 && ovr <= 78;
+  const contractAnchor = (p.contract?.aav || 0) >= 18 && ovr <= 80;
+  if (overpaid || redundant || aging || contractAnchor) return "shopping";
+
+  return "available";
+}
+
+// AI acceptance threshold based on the stance of every player the user
+// is asking for. Default is 0.97 (current). If everything is on the
+// shopping list, drop to 0.85. Mix? Use 0.92. Untouchable in the list
+// short-circuits to hard reject.
+function _aiAcceptanceRatio(otherId, recvPlayers) {
+  if (!recvPlayers.length) return 0.97;
+  const stances = recvPlayers.map(p => _aiTeamPlayerStance(otherId, p));
+  const untouchables = recvPlayers.filter((_, i) => stances[i] === "untouchable");
+  if (untouchables.length) return { reject: true, untouchables };
+  if (stances.every(s => s === "shopping")) return 0.85;
+  if (stances.some(s => s === "shopping"))  return 0.92;
+  return 0.97;
 }
 
 function _aiTradeNeedBonus(teamId, players) {
@@ -5392,17 +5497,17 @@ function _aiInterestCount(player) {
   return n;
 }
 
-// On a borderline rejection (0.85 <= ratio < 0.97), assemble the
-// cheapest user assets that would close the gap and ship the result
-// back as a counter-offer card in the inbox. Returns the counter
-// description (added items) or null if no clean fix exists.
-function _aiBuildCounter(myId, otherId, originalSendNames, originalRecvNames, originalSendPicks, originalRecvPicks, sendValue, recvValue, theirNeedForSend, tp) {
+// On a borderline rejection (0.85 <= ratio < acceptThreshold), assemble
+// the cheapest user assets that would close the gap and ship the
+// result back as a counter-offer card in the inbox. Returns the
+// counter description (added items) or null if no clean fix exists.
+function _aiBuildCounter(myId, otherId, originalSendNames, originalRecvNames, originalSendPicks, originalRecvPicks, sendValue, recvValue, theirNeedForSend, tp, acceptanceRatio) {
   const myRoster = franchise.rosters[myId] || [];
   const usedPickKeys = new Set(originalSendPicks);
   const myPicksAvail = (franchise.picks || [])
     .filter(p => p.currentOwnerId === myId && !usedPickKeys.has(_tradePickKey(p)))
     .sort((a, b) => _pickValue(a) - _pickValue(b)); // smallest first
-  const targetValue = recvValue * 0.97 - theirNeedForSend;
+  const targetValue = recvValue * (acceptanceRatio || 0.97) - theirNeedForSend;
   const extraPicks = [];
   let runningValue = sendValue;
   for (const pick of myPicksAvail) {
@@ -6161,9 +6266,23 @@ function frnSubmitTrade() {
   const theirNeedForSend = _aiTradeNeedBonus(otherId, sendPlayers);
   const myNeedForRecv = _aiTradeNeedBonus(myId, recvPlayers);
 
-  // AI accepts if (sendValue + theirNeedForSend) >= recvValue * 0.97
+  // Stance-based acceptance: untouchables short-circuit to a hard
+  // reject; shopping-list players accept at a favorable ratio.
+  const accRule = _aiAcceptanceRatio(otherId, recvPlayers);
+  if (accRule && accRule.reject) {
+    const names = accRule.untouchables.map(p => `${p.position} ${p.name}`).join(", ");
+    tp.result = {
+      accepted: false,
+      message: `Off-limits — ${getTeam(otherId)?.name} isn't moving ${names} for any package.`,
+      untouchable: true,
+    };
+    saveFranchise();
+    renderFrnTrade();
+    return;
+  }
+  const acceptanceRatio = accRule;  // numeric 0.85 / 0.92 / 0.97
   const aiScore = (sendValue + theirNeedForSend) / Math.max(0.1, recvValue);
-  const accepted = aiScore >= 0.97;
+  const accepted = aiScore >= acceptanceRatio;
 
   if (accepted) {
     // NFL dead cap + trade kicker (must run before player objects are moved)
@@ -6206,7 +6325,7 @@ function frnSubmitTrade() {
     // Compute gap and pick suggestion so the user knows how to close it
     let gapLabel = null, suggestion = null;
     if (aiScore >= 0.60) {
-      const gap = recvValue * 0.97 - (sendValue + theirNeedForSend);
+      const gap = recvValue * acceptanceRatio - (sendValue + theirNeedForSend);
       if      (gap < 1.5)  gapLabel = "less than a late-round pick away";
       else if (gap < 3)    gapLabel = "~a 7th-round pick short";
       else if (gap < 5)    gapLabel = "~a 5th/6th-round pick short";
@@ -6240,7 +6359,7 @@ function frnSubmitTrade() {
       counterRef = _aiBuildCounter(myId, otherId,
         tp.youSend.slice(), tp.youReceive.slice(),
         (tp.picksSend || []).slice(), (tp.picksReceive || []).slice(),
-        sendValue, recvValue, theirNeedForSend, tp);
+        sendValue, recvValue, theirNeedForSend, tp, acceptanceRatio);
     }
     tp.result = {
       accepted: false,
@@ -6371,16 +6490,26 @@ function _renderTradeProposeTab(tp, sortBy, myRoster, cap, myCapUsed) {
     const kicker = p.contract?.tradeKicker || 0;
     const kickerTag = kicker >= 0.05
       ? `<span style="color:#e8a000;font-size:.55rem;font-weight:700" title="Trade kicker — one-time cap hit if acquired">⚡ $${kicker.toFixed(1)}M</span>` : "";
+    // Stance tag: ⛔ untouchable / 💸 on the partner's shopping list
+    let stanceTag = "";
+    if (partnerId) {
+      const stance = _aiTeamPlayerStance(teamId, p);
+      if (stance === "untouchable") stanceTag = `<span class="frn-trade-stance ut" title="${team.name} won't move this player — franchise face / recent high pick">⛔ OFF-LIMITS</span>`;
+      else if (stance === "shopping") stanceTag = `<span class="frn-trade-stance sh" title="${team.name} is open to dealing this player at a favorable price">💸 SHOPPING</span>`;
+    }
     return `<label class="frn-trade-player ${sel?"selected":""}">
       <input type="checkbox" ${sel?"checked":""}
         onchange="frnAddReceiveFromBrowse(${teamId},'${escName}')">
-      <span style="color:var(--gold);font-size:.58rem;font-weight:700">${p.position}</span>
-      <span style="flex:1;font-weight:${sel?700:400}">${p.name}</span>
-      ${!partnerId ? `<span style="color:var(--gray);font-size:.6rem">${team.name}</span>` : ""}
-      ${kickerTag}
+      <span class="frn-trade-pos">${p.position}</span>
+      <span class="frn-trade-name-row">
+        <span class="frn-trade-name" style="font-weight:${sel?700:400}">${p.name}</span>
+        ${!partnerId ? `<span class="frn-trade-team">${team.name}</span>` : ""}
+        ${stanceTag}
+        ${kickerTag}
+      </span>
       <span>${gradeBadge(p)}</span>
-      <span style="color:var(--gray);font-size:.62rem">${p.age||"?"}</span>
-      <span style="color:var(--gold);font-size:.62rem">$${(p.contract?.aav||0).toFixed(0)}M</span>
+      <span class="frn-trade-age">${p.age||"?"}</span>
+      <span class="frn-trade-aav">$${(p.contract?.aav||0).toFixed(0)}M</span>
     </label>`;
   }).join("");
 
@@ -6399,12 +6528,15 @@ function _renderTradeProposeTab(tp, sortBy, myRoster, cap, myCapUsed) {
     return `<label class="frn-trade-player ${sel?"selected":""}">
       <input type="checkbox" ${sel?"checked":""}
         onchange="frnToggleTradePlayer('send','${escName}')">
-      <span style="color:var(--gold);font-size:.58rem;font-weight:700">${p.position}</span>
-      <span style="flex:1;font-weight:${sel?700:400}">${p.name} ${blockTag}</span>
-      ${deadTag}
+      <span class="frn-trade-pos">${p.position}</span>
+      <span class="frn-trade-name-row">
+        <span class="frn-trade-name" style="font-weight:${sel?700:400}">${p.name}</span>
+        ${blockTag}
+        ${deadTag}
+      </span>
       <span>${gradeBadge(p)}</span>
-      <span style="color:var(--gray);font-size:.62rem">${p.age||"?"}</span>
-      <span style="color:var(--gold);font-size:.62rem">$${(p.contract?.aav||0).toFixed(0)}M</span>
+      <span class="frn-trade-age">${p.age||"?"}</span>
+      <span class="frn-trade-aav">$${(p.contract?.aav||0).toFixed(0)}M</span>
     </label>`;
   }).join("");
 
