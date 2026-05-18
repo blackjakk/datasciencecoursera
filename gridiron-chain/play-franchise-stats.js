@@ -5109,10 +5109,11 @@ function renderFrnRegular() {
     </div>` : "";
 
   // ─── Center column: next game + schedule ─────────────────────────────
-  const centerHtml = `
-    ${nextCardHtml}
-    ${scheduleStripHtml}
-    <div class="frn-card-box" style="margin-top:1rem">
+  // Full schedule is built as a standalone fragment so it can live in
+  // the right sidebar (compact rows fit naturally there). Center keeps
+  // focus on the Next Up card + the glanceable schedule strip.
+  const fullScheduleHtml = `
+    <div class="frn-card-box">
       <div class="frn-card-title">FULL SCHEDULE <span class="frn-card-title-sub">${FRANCHISE_WEEKS} games</span></div>
       ${(()=>{
   const schHtml = myGames.map(g => {
@@ -5148,6 +5149,10 @@ function renderFrnRegular() {
   return schHtml;
       })()}
     </div>`;
+
+  const centerHtml = `
+    ${nextCardHtml}
+    ${scheduleStripHtml}`;
 
   // ─── Sidebar: compact league snapshot + highlights + POTW ───────────
   // Full Standings + Leaders moved to the League tab. Sidebar shows a
@@ -5216,12 +5221,13 @@ function renderFrnRegular() {
         <button class="frn-cap-btn" onclick="frnSetTab('league')" style="margin-top:.5rem;font-size:.6rem">Full League →</button>
       </div>
       <div class="frn-card-box">
-        <div class="frn-card-title">HIGHLIGHTS</div>
-        ${hlHtml}
-      </div>
-      <div class="frn-card-box">
         <div class="frn-card-title">PLAYER OF THE WEEK</div>
         ${potwHtml}
+      </div>
+      ${fullScheduleHtml}
+      <div class="frn-card-box">
+        <div class="frn-card-title">HIGHLIGHTS</div>
+        ${hlHtml}
       </div>
     </div>`;
 

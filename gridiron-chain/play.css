@@ -4855,21 +4855,22 @@
   }
 
   /* ── Weekly Dashboard redesign ──────────────────────────────────────────── */
-  /* Center column is capped (the cards inside don't need to spread); the
-     right sidebar takes the remaining space so League Snapshot / Team
-     Leaders / POTW always fit without being pushed off-screen. */
+  /* Three-column layout, rebalanced so each column carries proportional
+     weight. Left grows for the inbox; center stays focused on the Next
+     Up card (full schedule moved into the right sidebar); right takes
+     the remaining width for league snapshot / POTW / schedule. */
   .frn-dashboard-grid {
     display: grid;
-    grid-template-columns: 210px minmax(0, 520px) minmax(280px, 1fr);
+    grid-template-columns: 260px minmax(0, 500px) minmax(300px, 1fr);
     gap: 1rem;
     align-items: start;
-    max-width: 1240px;
+    max-width: 1280px;
   }
-  @media (max-width: 1000px) {
+  @media (max-width: 1040px) {
     .frn-dashboard-grid {
-      grid-template-columns: 200px minmax(0, 1fr);
+      grid-template-columns: 240px minmax(0, 1fr);
     }
-    /* Right sidebar drops below the center column on medium screens */
+    /* Right sidebar drops below the two main columns on medium screens */
     .frn-dashboard-grid > :nth-child(3) { grid-column: 1 / -1; }
   }
   @media (max-width: 720px) {
