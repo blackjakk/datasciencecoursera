@@ -2237,6 +2237,81 @@
   .frn-depth2-rank.r2 { color: var(--blgray); }
 
   /* ── Depth Chart — table-row redesign ─────────────────────────────────── */
+  /* ── Snap Percentages editor ───────────────────────────────────────── */
+  .frn-snap-table { display: flex; flex-direction: column; gap: .25rem; }
+  .frn-snap-group { margin-bottom: .55rem; }
+  .frn-snap-group-hdr {
+    display: flex; align-items: center; gap: .5rem;
+    padding: .22rem .45rem; background: var(--bg3);
+    border-bottom: 1px solid var(--border); margin-bottom: .12rem;
+  }
+  .frn-snap-group-pos   { font-size: .78rem; font-weight: 900; color: var(--gold); min-width: 2rem; }
+  .frn-snap-group-label { font-size: .52rem; letter-spacing: .5px; color: var(--blgray); font-weight: 700; }
+  .frn-snap-row {
+    display: grid;
+    grid-template-columns: 64px 1fr 200px 1fr 38px;
+    align-items: center; gap: .5rem;
+    padding: .35rem .45rem;
+    background: var(--bg2); border: 1px solid var(--border);
+  }
+  .frn-snap-row.conflict {
+    border-left: 3px solid #ff6b6b;
+    background: linear-gradient(180deg, rgba(255,107,107,.05), rgba(255,107,107,.01));
+  }
+  .frn-snap-slot {
+    display: flex; flex-direction: column; align-items: flex-start; gap: .12rem;
+  }
+  .frn-snap-slot-key { font-size: .8rem; font-weight: 900; color: var(--gold); }
+  .frn-snap-advisory {
+    font-size: .42rem; letter-spacing: .8px; color: var(--blgray); font-weight: 700;
+    padding: .04rem .22rem; background: rgba(255,255,255,.04); border-radius: 2px;
+  }
+  .frn-snap-manual {
+    font-size: .65rem; color: var(--gold-lt);
+  }
+  .frn-snap-player {
+    display: flex; flex-direction: column; gap: .12rem;
+    padding: .25rem .45rem; background: var(--bg3); min-width: 0;
+  }
+  .frn-snap-player.faded { opacity: .78; }
+  .frn-snap-player.empty {
+    align-items: center; justify-content: center; color: var(--blgray);
+    font-style: italic; font-size: .65rem;
+  }
+  .frn-snap-name {
+    font-size: .72rem; font-weight: 700; color: var(--blwhite); cursor: pointer;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .frn-snap-name:hover { color: var(--gold); }
+  .frn-snap-meta { font-size: .56rem; color: var(--blgray); letter-spacing: .2px; }
+  .frn-snap-stam-row { display: flex; align-items: center; gap: .35rem; margin-top: .12rem; }
+  .frn-snap-stam {
+    font-size: .5rem; font-weight: 800; letter-spacing: .5px;
+    padding: .04rem .25rem; border: 1px solid; border-radius: 2px;
+    background: rgba(0,0,0,.25);
+  }
+  .frn-snap-snaps { font-size: .54rem; color: var(--gray); letter-spacing: .3px; }
+  .frn-snap-slider-col {
+    display: flex; flex-direction: column; align-items: center; gap: .12rem;
+    padding: 0 .45rem;
+  }
+  .frn-snap-pct {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    font-size: .92rem; font-weight: 900; color: var(--gold-lt);
+  }
+  .frn-snap-slider {
+    width: 100%; accent-color: var(--gold);
+    cursor: pointer; margin: .15rem 0;
+  }
+  .frn-snap-range { font-size: .48rem; color: var(--blgray); letter-spacing: .4px; }
+  .frn-snap-warn {
+    font-size: .52rem; font-weight: 800; color: #ff6b6b; letter-spacing: .5px;
+    padding: .04rem .3rem; border: 1px solid #ff6b6b55;
+    background: rgba(255,107,107,.08); border-radius: 2px;
+    margin-top: .15rem;
+  }
+  .frn-snap-actions { display: flex; justify-content: center; }
+
   .frn-dc-page-header {
     display: flex; align-items: center; justify-content: space-between;
     flex-wrap: wrap; gap: .5rem; margin-bottom: .45rem;

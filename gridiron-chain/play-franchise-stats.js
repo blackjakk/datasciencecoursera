@@ -2865,14 +2865,193 @@ function _bspnRenderPage(data) {
   </div>`;
 }
 
+// Slots whose snap shares the engine actually honors today. Defensive
+// + OL/K/P slots can be edited and are stored, but they're advisory
+// (engine doesn't rotate those positions per-snap yet).
+const SNAP_ENGINE_SLOTS = new Set(["QB","RB1","WR1","WR2","TE1"]);
+// Rough snaps per game per side, used for the "≈ X snaps/G" readout.
+const SNAPS_PER_GAME = 65;
+
+let _snapActiveUnit = "OFF";
+function frnSnapSetTab(unit) {
+  if (!DEPTH_UNIT_LABELS[unit]) return;
+  _snapActiveUnit = unit;
+  renderFrnSnapShares();
+}
+
+function frnSnapSet(slotKey, pct) {
+  const myId = franchise.chosenTeamId;
+  if (!franchise.snapShares) franchise.snapShares = {};
+  if (!franchise.snapShares[myId]) franchise.snapShares[myId] = {};
+  const slotDef = [...DEPTH_CHART_SLOTS.offense, ...DEPTH_CHART_SLOTS.defense, ...DEPTH_CHART_SLOTS.specialTeams]
+    .find(s => s.key === slotKey);
+  const floor = slotDef?.snapFloor ?? 35;
+  const ceil  = slotDef?.snapCeil  ?? 98;
+  const clamped = Math.max(floor, Math.min(ceil, Math.round(+pct || 0)));
+  franchise.snapShares[myId][slotKey] = { starterPct: clamped, manual: true };
+  saveFranchise();
+  renderFrnSnapShares();
+}
+
+function frnSnapResetSlot(slotKey) {
+  const myId = franchise.chosenTeamId;
+  const dc   = franchise.depthChart?.[myId];
+  if (!dc || !dc[slotKey]) return;
+  const roster = franchise.rosters[myId] || [];
+  const starter = roster.find(p => p.pid === dc[slotKey].starter);
+  const backup  = roster.find(p => p.pid === dc[slotKey].backup);
+  const optimal = _computeOptimalPct(starter, backup, dc[slotKey].snapFloor, dc[slotKey].snapCeil);
+  if (!franchise.snapShares) franchise.snapShares = {};
+  if (!franchise.snapShares[myId]) franchise.snapShares[myId] = {};
+  franchise.snapShares[myId][slotKey] = optimal;
+  saveFranchise();
+  renderFrnSnapShares();
+}
+
+function frnSnapResetAll() {
+  if (!confirm("Reset every slot's snap share to the auto-recommended value? Clears all manual edits.")) return;
+  _optimizeSnapShares(franchise.chosenTeamId);
+  // _optimizeSnapShares skips manual=true slots, so wipe the flags first.
+  const ss = franchise.snapShares?.[franchise.chosenTeamId] || {};
+  for (const k of Object.keys(ss)) ss[k].manual = false;
+  _optimizeSnapShares(franchise.chosenTeamId);
+  saveFranchise();
+  renderFrnSnapShares();
+}
+
+function frnSnapClearManual() {
+  const ss = franchise.snapShares?.[franchise.chosenTeamId] || {};
+  let cleared = 0;
+  for (const k of Object.keys(ss)) {
+    if (ss[k].manual) { ss[k].manual = false; cleared++; }
+  }
+  saveFranchise();
+  alert(`Cleared manual flag on ${cleared} slot${cleared===1?"":"s"} — they'll re-optimize automatically on depth-chart changes.`);
+  renderFrnSnapShares();
+}
+
 function renderFrnSnapShares() {
-  $("frnHomeContent").innerHTML = `
-    <div style="padding:1.5rem;color:var(--gray);font-size:.85rem">
-      <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="margin-bottom:1rem">← Back</button>
-      <div style="color:var(--gold);font-weight:700;font-size:1rem;margin-bottom:.5rem">⚡ Snap Percentages</div>
-      <div>Snap share management is coming in the next build phase. Use the Depth Chart to set your starters for now.</div>
-      <button class="btn btn-outline" onclick="renderFrnDepthChart()" style="margin-top:1rem">Open Depth Chart →</button>
+  frnHoverTipHide(); _frnHoverTipPgHide && _frnHoverTipPgHide();
+  const myId   = franchise.chosenTeamId;
+  const myTeam = getTeam(myId);
+  const roster = franchise.rosters[myId] || [];
+  if (!franchise.depthChart?.[myId]) _initDepthChart(myId);
+  const dc = franchise.depthChart[myId];
+  const ss = franchise.snapShares?.[myId] || {};
+
+  const byPid = {};
+  for (const p of roster) if (p.pid) byPid[p.pid] = p;
+
+  const staminaCol = (s) => s >= 80 ? "var(--green-lt)" : s >= 65 ? "var(--gold-lt)" : "#ff6b6b";
+  const staminaWarn = (pct, stam) => (pct > 80 && stam < 55) || (pct > 65 && stam < 65);
+
+  let totalConflicts = 0;
+  const manualCount = Object.values(ss).filter(s => s?.manual).length;
+
+  // Per-unit tabs (matches depth-chart pattern)
+  const tabsHtml = `<div class="frn-dc-tabs">
+    ${Object.entries(DEPTH_UNIT_LABELS).map(([key, u]) => {
+      const groups = DEPTH_POS_GROUPS.filter(g => g.unit === key);
+      const slots  = groups.flatMap(g => g.slots);
+      let conflicts = 0;
+      for (const slotKey of slots) {
+        const slot = dc[slotKey]; if (!slot?.starter) continue;
+        const starter = byPid[slot.starter]; if (!starter) continue;
+        const pct = ss[slotKey]?.starterPct ?? 75;
+        if (staminaWarn(pct, starter._stamina ?? 75)) conflicts++;
+      }
+      if (key === _snapActiveUnit) totalConflicts = conflicts;
+      const active = key === _snapActiveUnit;
+      return `<button class="frn-dc-tab${active?" active":""}" onclick="frnSnapSetTab('${key}')" style="--unit-color:${u.color}">
+        <span class="frn-dc-tab-icon">${u.icon}</span>
+        <span class="frn-dc-tab-title">${u.name}</span>
+        ${conflicts ? `<span class="frn-dc-tab-mis" title="${conflicts} stamina conflict${conflicts>1?"s":""}">⚠ ${conflicts}</span>` : ""}
+      </button>`;
+    }).join("")}
+  </div>`;
+
+  const renderSlotRow = (slotKey, slotDef) => {
+    const slot    = dc[slotKey] || {};
+    const starter = slot.starter ? byPid[slot.starter] : null;
+    const backup  = slot.backup  ? byPid[slot.backup]  : null;
+    const share   = ss[slotKey] || _computeOptimalPct(starter, backup, slotDef.snapFloor, slotDef.snapCeil);
+    const pct     = share.starterPct ?? 75;
+    const floor   = slotDef.snapFloor ?? 35;
+    const ceil    = slotDef.snapCeil  ?? 98;
+    const stam    = starter?._stamina ?? 75;
+    const isManual  = !!share.manual;
+    const isConflict = starter && staminaWarn(pct, stam);
+    const advisory   = !SNAP_ENGINE_SLOTS.has(slotKey);
+    const sSnaps  = Math.round(SNAPS_PER_GAME * pct / 100);
+    const bSnaps  = SNAPS_PER_GAME - sSnaps;
+    const playerCell = (p, snaps, faded) => {
+      if (!p) return `<div class="frn-snap-player empty"><span class="frn-snap-empty">— open —</span></div>`;
+      const escName = (p.name||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'");
+      const escPid  = (p.pid||"").replace(/'/g,"\\'");
+      const pStam = p._stamina ?? 75;
+      return `<div class="frn-snap-player${faded?" faded":""}">
+        <span class="frn-snap-name" onclick="frnOpenPlayerCard('${escName}','${escPid}')">${p.name}</span>
+        <span class="frn-snap-meta">${p.position} · ${p.overall||"—"} OVR · age ${p.age||"?"}</span>
+        <div class="frn-snap-stam-row">
+          <span class="frn-snap-stam" title="Stamina ${pStam}" style="color:${staminaCol(pStam)};border-color:${staminaCol(pStam)}55">STAM ${pStam}</span>
+          <span class="frn-snap-snaps">≈ ${snaps} snaps/G</span>
+        </div>
+      </div>`;
+    };
+    return `<div class="frn-snap-row${isConflict?" conflict":""}">
+      <div class="frn-snap-slot">
+        <div class="frn-snap-slot-key">${slotKey}</div>
+        ${advisory ? `<div class="frn-snap-advisory" title="Engine doesn't rotate this position per-snap yet — preference is stored but not simulated">ADV</div>` : ""}
+        ${isManual ? `<div class="frn-snap-manual" title="You've manually set this — it won't re-optimize on depth-chart changes">📌</div>` : ""}
+      </div>
+      ${playerCell(starter, sSnaps, false)}
+      <div class="frn-snap-slider-col">
+        <div class="frn-snap-pct">${pct}%</div>
+        <input type="range" class="frn-snap-slider"
+               min="${floor}" max="${ceil}" step="1" value="${pct}"
+               oninput="this.nextElementSibling.textContent=this.value+'%';"
+               onchange="frnSnapSet('${slotKey}', this.value)">
+        <div class="frn-snap-range">${floor} — ${ceil}</div>
+        ${isConflict ? `<div class="frn-snap-warn" title="High snap share + low stamina = high injury / late-game drop-off risk">⚠ STAMINA</div>` : ""}
+      </div>
+      ${playerCell(backup, bSnaps, true)}
+      <div class="frn-snap-actions">
+        <button class="frn-dc-ctrl-btn" onclick="frnSnapResetSlot('${slotKey}')" title="Reset to auto-recommended value">↺</button>
+      </div>
     </div>`;
+  };
+
+  const activeGroups = DEPTH_POS_GROUPS.filter(g => g.unit === _snapActiveUnit);
+  const groupSections = activeGroups.map(group => {
+    const slotDefs = [...DEPTH_CHART_SLOTS.offense, ...DEPTH_CHART_SLOTS.defense, ...DEPTH_CHART_SLOTS.specialTeams]
+      .filter(s => group.slots.includes(s.key));
+    const rows = slotDefs.map(sd => renderSlotRow(sd.key, sd)).join("");
+    return `<div class="frn-snap-group">
+      <div class="frn-snap-group-hdr">
+        <span class="frn-snap-group-pos">${group.pos}</span>
+        <span class="frn-snap-group-label">${group.label}</span>
+      </div>
+      ${rows}
+    </div>`;
+  }).join("");
+
+  $("frnHomeContent").innerHTML = `
+    <div class="frn-dc-page-header">
+      <div class="frn-dc-title">
+        <span style="font-size:1.05rem;font-weight:900;color:var(--gold)">⚡ SNAP PERCENTAGES</span>
+        <span class="frn-dc-team-name">${myTeam.city} ${myTeam.name}</span>
+        <span class="frn-dc-ratings">${manualCount} manual · ${totalConflicts} stamina conflict${totalConflicts===1?"":"s"} in this unit</span>
+      </div>
+      <div style="display:flex;gap:.45rem;align-items:center">
+        <button class="frn-dc-auto-btn hot" onclick="frnSnapResetAll()">⟳ AUTO ALL <span class="frn-dc-auto-count">recompute every slot</span></button>
+        ${manualCount ? `<button class="btn btn-outline" onclick="frnSnapClearManual()" style="font-size:.6rem">📌 CLEAR ${manualCount} MANUAL</button>` : ""}
+        <button class="btn btn-outline" onclick="renderFrnDepthChart()" style="font-size:.6rem">→ DEPTH CHART</button>
+        <button class="btn btn-outline" onclick="showFranchiseDashboard()">← Back</button>
+      </div>
+    </div>
+    ${tabsHtml}
+    <div class="frn-dc-hint">drag slider to set starter % · ⚠ = high snaps + low stamina · ADV = stored preference (engine doesn't rotate this position yet) · 📌 = manually set (won't auto-rebalance)</div>
+    <div class="frn-snap-table">${groupSections}</div>`;
 }
 
 function renderFrnPastGame(week, homeId, awayId) {

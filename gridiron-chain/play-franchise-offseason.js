@@ -778,6 +778,26 @@ function _updateChemistryState() {
   }
 }
 
+// Build the per-snap rotation target map the engine consumes. Maps the
+// depth-chart slot keys whose positions actually rotate per-snap today
+// to engine starter roles, expressed as 0..1 fractions.
+function _buildSnapMap(teamId) {
+  const ss = franchise.snapShares?.[teamId];
+  if (!ss) return null;
+  const frac = (slotKey) => {
+    const pct = ss[slotKey]?.starterPct;
+    return (pct != null) ? Math.max(0, Math.min(1, pct / 100)) : null;
+  };
+  const map = {};
+  const set = (role, slotKey) => { const v = frac(slotKey); if (v != null) map[role] = v; };
+  set("qb",  "QB");
+  set("rb",  "RB1");
+  set("wr1", "WR1");
+  set("wr2", "WR2");
+  set("te",  "TE1");
+  return Object.keys(map).length ? map : null;
+}
+
 // ── Sim helpers ──────────────────────────────────────────────────────────────
 // `frnSimOnce` returns the simulation result; callers use it to capture
 // season stats + highlights as a side effect. The full game object is
@@ -787,7 +807,9 @@ function frnSimOnce(homeId, awayId, isPlayoff = false) {
   const sim = new GameSimulator(
     getTeam(homeId), getTeam(awayId),
     franchise.rosters[homeId], franchise.rosters[awayId],
-    { isRivalry }
+    { isRivalry,
+      homeSnaps: _buildSnapMap(homeId),
+      awaySnaps: _buildSnapMap(awayId) }
   );
   // Coaching trait bumps applied AFTER constructor so they layer on top of HFA.
   const hcHome = franchise.coaches?.[homeId]?.hc?.specialtyTrait;
@@ -1429,7 +1451,10 @@ function frnPlayGame(homeId, awayId, isPlayoff) {
   assignLeagueNicknames(franchise.rosters);
 
   const isRivalry = _areRivals(homeId, awayId);
-  const sim = new GameSimulator(home, away, homeRoster, awayRoster, { isRivalry });
+  const sim = new GameSimulator(home, away, homeRoster, awayRoster,
+    { isRivalry,
+      homeSnaps: _buildSnapMap(homeId),
+      awaySnaps: _buildSnapMap(awayId) });
   // Apply the same coaching + scheme boosts as frnSimOnce so live games
   // and auto-sims are driven by identical modifiers.
   const hcHome = franchise.coaches?.[homeId]?.hc?.specialtyTrait;

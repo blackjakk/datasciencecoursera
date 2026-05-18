@@ -82,6 +82,12 @@ class GameSimulator {
     this.opts = opts || {};
     this.isRivalry = !!this.opts.isRivalry;
     this.homeFieldAdv = this.opts.homeFieldAdv !== false; // default on
+    // Per-snap rotation targets, keyed by engine starter role
+    // (qb/rb/wr1/wr2/te). Each value is the starter's intended
+    // share as a 0..1 fraction; absent keys fall back to the legacy
+    // touches-based rotation.
+    this.homeSnaps = this.opts.homeSnaps || null;
+    this.awaySnaps = this.opts.awaySnaps || null;
     this._playerByName = new Map();
     for (const p of hRoster) this._playerByName.set(p.name, p);
     for (const p of aRoster) this._playerByName.set(p.name, p);
@@ -333,12 +339,17 @@ class GameSimulator {
     // Always reset to base depth chart first, then optionally sub.
     Object.assign(this.offR.starters, this._baseStarters[side]);
     const garbage = this._isGarbageTime();
+    const snapMap = side === "home" ? this.homeSnaps : this.awaySnaps;
     const trySub = (role, position) => {
       const cur = this.offR.starters[role];
       if (!cur) return;
-      let p = 0;
-      if (garbage === "heavy") p = 0.55;
-      else if (garbage === "mild") p = 0.25;
+      // Per-snap sub probability. Base comes from the user-set snap share
+      // when present (1 - starterPct); garbage time + accumulated touches
+      // can boost it but never lower it.
+      const targetStarterPct = snapMap?.[role];
+      let p = (targetStarterPct != null) ? Math.max(0, 1 - targetStarterPct) : 0;
+      if (garbage === "heavy") p = Math.max(p, 0.55);
+      else if (garbage === "mild") p = Math.max(p, 0.25);
       const t = this._touchesFor(side, cur);
       if (t >= 20)      p = Math.max(p, 0.40);
       else if (t >= 15) p = Math.max(p, 0.25);
