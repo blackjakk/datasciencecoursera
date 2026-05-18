@@ -755,6 +755,11 @@ function scoutGrade(p) {
 
 // Has the user scouted this player's team this season (via scrimmage)?
 function _isPlayerScouted(p) {
+  // APB participants get sharpened scouting for this season and the
+  // next — you watched them play live against top competition, so
+  // your read on them carries forward across trades / FA / etc.
+  if (p?._apbScoutedSeason != null && franchise?.season != null
+      && (franchise.season - p._apbScoutedSeason) <= 1) return true;
   const myId = franchise?.chosenTeamId;
   // Find which team currently owns this player. Own roster is always
   // "scouted" — you coach them, you know.

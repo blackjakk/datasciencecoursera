@@ -457,6 +457,19 @@ function _apbSimMatch(tournament, roundIdx, matchIdx) {
   m.played    = true;
   m.stats     = _stripGameStatsForStorage(r.stats);
   if (r.plays) m.scoring = _extractScoringTimeline(r.plays, r.homeScore, r.awayScore);
+  // Stamp APB-scouted on every participating player. You watched them
+  // play against top competition → grade noise sharpens to ±2 for the
+  // rest of this season and the next. Lookup by name into the live
+  // rosters (the live player object — APB rosters reference the same
+  // refs but stamping by name is robust to trades / cuts mid-offseason).
+  const participants = new Set([
+    ...Object.values(r.stats?.home?.players || {}).map(p => p.name),
+    ...Object.values(r.stats?.away?.players || {}).map(p => p.name),
+  ]);
+  for (const name of participants) {
+    const live = _findPlayer(name);
+    if (live) live._apbScoutedSeason = franchise.season;
+  }
   // Per-game MVP — top mvpScore on the winning side
   const winSide = m.winnerId === home.id ? "home" : "away";
   const winPlayers = Object.values(r.stats?.[winSide]?.players || {});
@@ -653,6 +666,181 @@ function frnSimApbAll() {
 // ── Helper shared across all 3 APB views ────────────────────────────
 function _apbLink(name) {
   return (typeof _playerLinkSmart === "function") ? _playerLinkSmart(name) : name;
+}
+
+// Click a played APB game → modal box score. Synthetic team IDs
+// (-1000…) would break the regular renderFrnPastGame path, so build a
+// purpose-specific modal with scoring summary + per-team totals + per-
+// side top performers + per-game MVP.
+function frnOpenApbBox(roundIdx, matchIdx) {
+  const t = franchise.allProBowlTournament;
+  const m = t?.rounds?.[roundIdx]?.[matchIdx];
+  if (!m || !m.played) return;
+  const home = _apbTeamById(m.homeId, t);
+  const away = _apbTeamById(m.awayId, t);
+  if (!home || !away) return;
+  const myId = franchise.chosenTeamId;
+  const roundName = t.roundLabels?.[roundIdx] || `Round ${roundIdx+1}`;
+  const stats = m.stats || { home: { totals:{}, players:{} }, away: { totals:{}, players:{} } };
+  const homeWon = m.winnerId === m.homeId;
+
+  // Top performers per side (top 4 by mvpScore)
+  const topSide = (side) => Object.values(side?.players || {})
+    .map(p => ({ ...p, score: mvpScore(p) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 4);
+
+  // Helper: get source team chip for a player by name (from rosterMeta).
+  const srcOf = (name, side) => {
+    const team = side === "home" ? home : away;
+    return team.rosterMeta?.find(x => x.name === name) || null;
+  };
+  const isMine = (name, side) => srcOf(name, side)?.srcTeamId === myId;
+
+  // Position-aware stat line — same shape as the crowning screen uses.
+  const lineFor = (p) => {
+    const s = p; const parts = [];
+    if (p.pos === "QB") {
+      if (s.pass_yds) parts.push(`${s.pass_yds} PYDS`);
+      if (s.pass_td) parts.push(`${s.pass_td} TD`);
+      if (s.pass_int) parts.push(`${s.pass_int} INT`);
+      if (s.rush_yds) parts.push(`${s.rush_yds} RYDS`);
+    } else if (p.pos === "RB") {
+      if (s.rush_yds) parts.push(`${s.rush_yds} RYDS`);
+      if (s.rush_td) parts.push(`${s.rush_td} TD`);
+      if (s.rec) parts.push(`${s.rec}/${s.rec_yds||0}rec`);
+    } else if (p.pos === "WR" || p.pos === "TE") {
+      if (s.rec) parts.push(`${s.rec} REC`);
+      if (s.rec_yds) parts.push(`${s.rec_yds} YDS`);
+      if (s.rec_td) parts.push(`${s.rec_td} TD`);
+    } else if (p.pos === "K") {
+      if (s.fg_made) parts.push(`${s.fg_made}/${s.fg_att||0} FG`);
+    } else {
+      if (s.tkl) parts.push(`${s.tkl} TKL`);
+      if (s.sk) parts.push(`${s.sk} SK`);
+      if (s.int_made) parts.push(`${s.int_made} INT`);
+    }
+    return parts.join(" · ");
+  };
+
+  const performerRow = (p, side) => {
+    const mine = isMine(p.name, side);
+    const src = srcOf(p.name, side);
+    return `<div class="frn-apb-box-perf ${mine?"mine":""}">
+      <span class="name">${_apbLink(p.name)}</span>
+      <span class="pos">${p.pos}</span>
+      ${src ? `<span class="src" style="color:${src.srcTeamPrimary}">${src.srcTeamAbbr}</span>` : ""}
+      <span class="line">${lineFor(p)}</span>
+    </div>`;
+  };
+
+  // Scoring timeline — reuse the same isScore filter pattern as the
+  // playoff recap.
+  const scoring = (m.scoring || []).filter(ev => ev.isScore);
+  const teamIdForPoss = (poss) => poss === "home" ? home.id : poss === "away" ? away.id : null;
+  const scoreLabel = (ev) => {
+    if (ev.desc && ev.desc.length > 1) return ev.desc;
+    if (ev.scoreType === "TD")     return `TD${ev.scorer?` — ${ev.scorer}`:""}`;
+    if (ev.scoreType === "FG")     return `FG${ev.kicker?` — ${ev.kicker}`:""}`;
+    if (ev.scoreType === "XP")     return "XP";
+    if (ev.scoreType === "2PT")    return "2-pt";
+    if (ev.scoreType === "SAFETY") return "Safety";
+    if (ev.pts === 7 || ev.pts === 6) return "TD";
+    if (ev.pts === 3) return "FG";
+    return `+${ev.pts}`;
+  };
+  const scoringHtml = scoring.length ? scoring.map(ev => {
+    const tId = teamIdForPoss(ev.poss);
+    const team = tId === home.id ? home : tId === away.id ? away : null;
+    return `<div class="frn-apb-box-score-row">
+      <span class="q">Q${ev.qtr||"?"}</span>
+      <span class="team" style="color:${team?.primary||'var(--blwhite)'}">${team?.confDiv?.slice(0,3).toUpperCase() || "?"}</span>
+      <span class="desc">${scoreLabel(ev)}</span>
+      <span class="num">${ev.homeScore}-${ev.awayScore}</span>
+    </div>`;
+  }).join("") : `<div style="color:var(--blgray);font-style:italic;font-size:.65rem;padding:.3rem 0">No scoring data captured for this matchup.</div>`;
+
+  // Team totals comparison
+  const cmpRows = [
+    ["Total yards",   stats.home?.totals?.totalYds || 0, stats.away?.totals?.totalYds || 0],
+    ["Passing",       stats.home?.totals?.passYds  || 0, stats.away?.totals?.passYds  || 0],
+    ["Rushing",       stats.home?.totals?.rushYds  || 0, stats.away?.totals?.rushYds  || 0],
+    ["First downs",   stats.home?.totals?.firstDowns || 0, stats.away?.totals?.firstDowns || 0],
+    ["Turnovers",     stats.home?.totals?.turnovers || 0, stats.away?.totals?.turnovers || 0, true],
+    ["Sacks",         stats.home?.totals?.sacks    || 0, stats.away?.totals?.sacks    || 0],
+  ].filter(r => (r[1] || 0) + (r[2] || 0) > 0);
+  const cmpRowHtml = ([label, h, a, lowerBetter]) => {
+    const winner = h === a ? "tie" : (lowerBetter ? (h < a ? "home" : "away") : (h > a ? "home" : "away"));
+    return `<tr>
+      <td class="v ${winner==='home'?'win':''}">${h}</td>
+      <td class="lbl">${label}</td>
+      <td class="v away ${winner==='away'?'win':''}">${a}</td>
+    </tr>`;
+  };
+
+  // Modal
+  const close = `_closeApbBoxScore`;
+  const existing = document.getElementById("frn-apb-box-modal");
+  if (existing) existing.remove();
+  const el = document.createElement("div");
+  el.id = "frn-apb-box-modal";
+  el.className = "frn-apb-box-overlay";
+  el.innerHTML = `
+    <div class="frn-apb-box-card">
+      <button class="frn-apb-box-close" onclick="_closeApbBoxScore()">×</button>
+      <div class="frn-apb-box-eyebrow">ALL-PRO BOWL · ${roundName}</div>
+      <div class="frn-apb-box-score-banner">
+        <div class="side ${homeWon?"win":"loss"}" style="--accent:${home.primary}">
+          <div class="seed">#${home.seed}</div>
+          <div class="abbr">${home.confDiv.toUpperCase()}</div>
+          <div class="score">${m.homeScore}</div>
+        </div>
+        <div class="vs">—</div>
+        <div class="side ${!homeWon?"win":"loss"}" style="--accent:${away.primary}">
+          <div class="score">${m.awayScore}</div>
+          <div class="abbr">${away.confDiv.toUpperCase()}</div>
+          <div class="seed">#${away.seed}</div>
+        </div>
+      </div>
+
+      ${m.mvp ? `<div class="frn-apb-box-mvp">
+        <span class="lbl">⭐ GAME MVP</span>
+        <span class="name">${_apbLink(m.mvp.name)}</span>
+        <span class="pos">${m.mvp.pos}</span>
+        <span class="line">${m.mvp.line}</span>
+      </div>` : ""}
+
+      <div class="frn-apb-box-grid">
+        <section>
+          <div class="frn-apb-box-section-title">${home.confDiv} TOP PERFORMERS</div>
+          ${topSide(stats.home).map(p => performerRow(p, "home")).join("")}
+        </section>
+        <section>
+          <div class="frn-apb-box-section-title">${away.confDiv} TOP PERFORMERS</div>
+          ${topSide(stats.away).map(p => performerRow(p, "away")).join("")}
+        </section>
+      </div>
+
+      ${cmpRows.length ? `<section class="frn-apb-box-cmp-wrap">
+        <div class="frn-apb-box-section-title">TEAM STATS</div>
+        <table class="frn-apb-box-cmp">
+          <thead><tr><th>${home.confDiv.slice(0,3).toUpperCase()}</th><th></th><th>${away.confDiv.slice(0,3).toUpperCase()}</th></tr></thead>
+          <tbody>${cmpRows.map(cmpRowHtml).join("")}</tbody>
+        </table>
+      </section>` : ""}
+
+      <section class="frn-apb-box-scoring-wrap">
+        <div class="frn-apb-box-section-title">SCORING SUMMARY</div>
+        <div class="frn-apb-box-scoring">${scoringHtml}</div>
+      </section>
+    </div>`;
+  el.addEventListener("click", e => { if (e.target === el) _closeApbBoxScore(); });
+  document.body.appendChild(el);
+}
+
+function _closeApbBoxScore() {
+  const el = document.getElementById("frn-apb-box-modal");
+  if (el) el.remove();
 }
 
 // ── Beat 1: SELECTIONS REVEAL ──────────────────────────────────────
@@ -1069,6 +1257,8 @@ function _renderApbTournament(t) {
     const awayW = m.played && m.winnerId === m.awayId;
     const action = (!m.played && m.homeId != null && m.awayId != null)
       ? `<div class="bspnlive-apb-match-action"><button class="bspnlive-btn-outline" onclick="frnSimApbMatch(${ri},${mi})" style="font-size:.72rem;padding:.25rem .65rem">▶ Sim</button></div>`
+      : (m.played)
+      ? `<div class="bspnlive-apb-match-action"><button class="bspnlive-btn-outline" onclick="frnOpenApbBox(${ri},${mi})" style="font-size:.72rem;padding:.25rem .65rem">📋 Box Score</button></div>`
       : "";
     const mvpLine = (m.played && m.mvp)
       ? `<div style="margin-top:.25rem;color:var(--blgray);font-size:.62rem">⭐ ${_apbLink(m.mvp.name)} (${m.mvp.pos}) · ${m.mvp.line}</div>`

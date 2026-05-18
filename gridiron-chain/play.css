@@ -4728,6 +4728,140 @@
   .frn-apb-performer-stats .gp { color: var(--blgray); }
   .frn-apb-performer-stats .score { color: var(--blwhite); font-weight: 700; margin-left: auto; }
 
+  /* APB box score modal */
+  .frn-apb-box-overlay {
+    position: fixed; inset: 0; z-index: 9990;
+    background: rgba(0,0,0,.7);
+    display: flex; align-items: center; justify-content: center;
+    padding: 1rem;
+  }
+  .frn-apb-box-card {
+    position: relative;
+    background: var(--blbg2); border: 1px solid var(--blgold);
+    border-radius: 4px; padding: 1.2rem 1.3rem;
+    max-width: 760px; width: 100%;
+    max-height: 90vh; overflow-y: auto;
+    box-shadow: 0 0 30px rgba(212,175,55,.25);
+  }
+  .frn-apb-box-close {
+    position: absolute; top: .55rem; right: .65rem;
+    background: transparent; border: 0; color: var(--blgray);
+    font-size: 1.4rem; cursor: pointer; padding: .1rem .5rem;
+  }
+  .frn-apb-box-close:hover { color: var(--blwhite); }
+  .frn-apb-box-eyebrow {
+    font-size: .6rem; letter-spacing: 2.5px; color: var(--blgold);
+    font-weight: 800; margin-bottom: .7rem;
+  }
+  .frn-apb-box-score-banner {
+    display: grid; grid-template-columns: 1fr auto 1fr;
+    gap: .5rem; align-items: center; margin-bottom: .85rem;
+  }
+  .frn-apb-box-score-banner .side {
+    display: flex; flex-direction: column; align-items: center; gap: .15rem;
+    padding: .5rem; background: var(--blbg3);
+    border: 1px solid var(--blborder);
+    border-top: 3px solid var(--accent, var(--blgold));
+    border-radius: 3px;
+  }
+  .frn-apb-box-score-banner .side.win { box-shadow: 0 0 0 1px var(--blgold); }
+  .frn-apb-box-score-banner .side.loss .score { opacity: .6; }
+  .frn-apb-box-score-banner .seed {
+    font-size: .55rem; color: var(--blgray); letter-spacing: 1px; font-weight: 800;
+  }
+  .frn-apb-box-score-banner .abbr {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1.1rem; letter-spacing: 1.5px; color: var(--blwhite);
+  }
+  .frn-apb-box-score-banner .score {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 2.5rem; line-height: 1; color: var(--blwhite); font-weight: 900;
+  }
+  .frn-apb-box-score-banner .vs {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1.3rem; color: var(--blgray);
+  }
+  .frn-apb-box-mvp {
+    display: flex; gap: .55rem; align-items: baseline; flex-wrap: wrap;
+    padding: .55rem .75rem; background: rgba(212,175,55,.08);
+    border: 1px solid var(--blgold); border-radius: 3px;
+    margin-bottom: .85rem;
+  }
+  .frn-apb-box-mvp .lbl {
+    font-size: .55rem; letter-spacing: 1.5px; color: var(--blgold);
+    font-weight: 800;
+  }
+  .frn-apb-box-mvp .name { color: var(--blwhite); font-weight: 700; font-size: .8rem; }
+  .frn-apb-box-mvp .pos { color: var(--blgold); font-size: .58rem; font-weight: 700; }
+  .frn-apb-box-mvp .line {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    font-size: .65rem; color: var(--blgold); margin-left: auto;
+  }
+  .frn-apb-box-section-title {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: .85rem; letter-spacing: 1.3px; color: var(--blgold);
+    margin-bottom: .35rem;
+  }
+  .frn-apb-box-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: .9rem;
+    margin-bottom: .85rem;
+  }
+  @media (max-width: 600px) { .frn-apb-box-grid { grid-template-columns: 1fr; } }
+  .frn-apb-box-perf {
+    display: grid; grid-template-columns: 1fr auto auto 1fr;
+    gap: .35rem; align-items: baseline;
+    padding: .25rem .45rem; font-size: .68rem;
+    background: var(--blbg3); border: 1px solid var(--blborder);
+    border-radius: 2px; margin-bottom: .2rem;
+  }
+  .frn-apb-box-perf.mine {
+    border-color: var(--blgold); background: rgba(212,175,55,.08);
+  }
+  .frn-apb-box-perf .name { color: var(--blwhite); font-weight: 700; }
+  .frn-apb-box-perf .pos { color: var(--blgold); font-weight: 700; font-size: .58rem; }
+  .frn-apb-box-perf .src {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: .62rem; letter-spacing: .6px; font-weight: 700;
+  }
+  .frn-apb-box-perf .line {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    font-size: .6rem; color: var(--blgold); text-align: right;
+  }
+  .frn-apb-box-cmp-wrap, .frn-apb-box-scoring-wrap { margin-bottom: .85rem; }
+  .frn-apb-box-cmp { width: 100%; border-collapse: collapse; font-size: .7rem; }
+  .frn-apb-box-cmp th {
+    padding: .15rem .25rem; color: var(--blgray); font-size: .58rem;
+    letter-spacing: 1px; border-bottom: 1px solid var(--blborder);
+  }
+  .frn-apb-box-cmp td {
+    padding: .25rem .25rem; border-bottom: 1px solid rgba(255,255,255,.04);
+  }
+  .frn-apb-box-cmp td.v {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    font-weight: 700; color: var(--blwhite); width: 30%; text-align: left;
+  }
+  .frn-apb-box-cmp td.v.away { text-align: right; }
+  .frn-apb-box-cmp td.v.win  { color: var(--blgold); }
+  .frn-apb-box-cmp td.lbl    { text-align: center; color: var(--blgray); font-size: .62rem; }
+  .frn-apb-box-scoring {
+    display: flex; flex-direction: column; gap: .15rem;
+  }
+  .frn-apb-box-score-row {
+    display: grid; grid-template-columns: 1.5rem 2.6rem 1fr 3rem;
+    gap: .5rem; align-items: center;
+    padding: .15rem .3rem; background: rgba(0,0,0,.18);
+    border-radius: 2px; font-size: .65rem;
+  }
+  .frn-apb-box-score-row .q { color: var(--blgray); font-weight: 700; font-size: .55rem; }
+  .frn-apb-box-score-row .team {
+    font-family: "Bebas Neue","Anton",sans-serif; letter-spacing: .8px; font-weight: 700;
+  }
+  .frn-apb-box-score-row .desc { color: var(--blwhite); }
+  .frn-apb-box-score-row .num {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    color: var(--blgray); text-align: right;
+  }
+
   /* Outcome chips (Champion / Final / Semis / QF exit) */
   .outcome {
     font-family: "IBM Plex Mono","JetBrains Mono",monospace;
