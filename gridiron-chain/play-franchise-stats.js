@@ -1488,7 +1488,11 @@ function _jpRunPractice(offer) {
   const awrBoost    = _practiceAwrBoost(myId, oppId, intensity.awrRolls);
   if (intensity.revealsGrades) {
     if (!franchise.scoutingIntel) franchise.scoutingIntel = {};
-    franchise.scoutingIntel[oppId] = { season: franchise.season, gainedWeek: franchise.week };
+    franchise.scoutingIntel[oppId] = {
+      season: franchise.season,
+      gainedWeek: franchise.week,
+      intensity: offer.resolvedIntensity, // "joint" or "live" — band check reads this
+    };
   }
   if (!franchise.scrimmagesDone) franchise.scrimmagesDone = [];
   const report = {

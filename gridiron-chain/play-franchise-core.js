@@ -762,29 +762,37 @@ function _scoutSourceLabel(p) {
     if (p?.isProspect)                 return "draft scout · ±2";
     return "scouted · ±2";
   }
-  if (band === 3) {
-    if ((p?._postseasonDepth ?? -1) === 1) return "reached divisional · ±3";
-    return "joint practice · ±3";
+  if (band === 3) return "reached divisional · ±3";
+  if (band === 4) {
+    // Could be Wild Card tape OR live-pads JP — both equal-fidelity
+    if ((p?._postseasonDepth ?? -1) === 0) return "played wild card · ±4";
+    return "live-pads practice · ±4";
   }
-  if (band === 4) return "played wild card · ±4";
   if (band === 5) {
     if (p?.isProspect) return "combine grade · ±5";
     return "regular-season opponent · ±5";
   }
+  if (band === 6) return "joint practice · ±6";
   return "no scouting · ±8";
 }
 
 // Has the user scouted this player's team this season (via scrimmage)?
 // Returns the noise band for this player's scout grade. Lower = sharper.
 //   0 = exact OVR (owned)
-//   1 = faced in any playoff game (this season or last) — biggest stakes
-//   2 = APB / reached SB / draft-scouted prospect — most thorough passive
-//       scouting (multiple games or a full draft visit)
-//   3 = joint practice / reached Divisional — one snapshot
-//   4 = Wild Card only — one game of tape
+//   1 = faced in any playoff game (this season or last)
+//   2 = APB / reached SB / draft-scouted prospect
+//   3 = reached Divisional
+//   4 = Wild Card OR live-pads joint practice (full contact)
 //   5 = regular-season opponent / unscouted prospect
-//   8 = unscouted baseline
-// First match wins, so the order of checks matters — sharpest reads first.
+//   6 = standard joint practice (no pads)
+//   8 = walk-through (no grade reveal) / unscouted
+//
+// Practice-vs-game philosophy: a real regular-season game tells you more
+// than any non-contact practice session. Live Pads is closest to game
+// fidelity (full contact, real reps) so it ties with Wild Card tape.
+// Standard Joint Practice (controlled, no pads) is one step worse than
+// playing them in a real game. Walk-through grants nothing.
+// First match wins, so order of checks matters — sharpest reads first.
 function _playerNoiseBand(p) {
   if (!p) return 8;
   const fr = franchise;
@@ -815,23 +823,36 @@ function _playerNoiseBand(p) {
   if (p._postseasonDepthSeason != null && (season - p._postseasonDepthSeason) <= 1
       && (p._postseasonDepth ?? 0) >= 2) return 2;
 
-  // 3: joint-practice on their current team (one practice session)
+  // 3: reached Divisional (postseason participant)
+  if (p._postseasonDepthSeason != null && (season - p._postseasonDepthSeason) <= 1
+      && (p._postseasonDepth ?? 0) === 1) return 3;
+
+  // 4: joint practice — depends on intensity. Live-pads ties Wild Card
+  // tape (full-contact reps ≈ a game). Standard Joint sits at 6 (worse
+  // than facing them in a regular-season game).
+  let jpBand = null;
   for (const [tid, roster] of Object.entries(fr.rosters || {})) {
     if (!roster.includes(p)) continue;
     if (Number(tid) === myId) continue;
     const intel = fr.scoutingIntel?.[tid];
-    if (intel && intel.season === season) return 3;
+    if (intel && intel.season === season) {
+      jpBand = intel.intensity === "live" ? 4 : 6;
+    }
+    break;
   }
 
-  // 3/4: postseason depth — reached Divisional / Wild Card only
-  if (p._postseasonDepthSeason != null && (season - p._postseasonDepthSeason) <= 1) {
-    const d = p._postseasonDepth ?? 0;
-    if (d === 1) return 3; // Divisional
-    return 4;              // Wild Card only
+  // 4: Wild Card only — one game of tape
+  if (p._postseasonDepthSeason != null && (season - p._postseasonDepthSeason) <= 1
+      && (p._postseasonDepth ?? 0) === 0) {
+    return jpBand != null ? Math.min(jpBand, 4) : 4;
   }
+  if (jpBand === 4) return 4;
 
   // 5: regular-season opponent (faced your team this season or last)
   if (p._regSeasonFacedSeason != null && (season - p._regSeasonFacedSeason) <= 1) return 5;
+
+  // 6: standard joint practice (no pads) — explicitly worse than a real game
+  if (jpBand === 6) return 6;
 
   // Baseline prospect (no scouting): combine-grade view
   if (p.isProspect) return 5;
