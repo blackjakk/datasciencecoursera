@@ -7562,14 +7562,21 @@ function runFrnOffseason() {
       // last-season's age is p.age - 1.
       const preDeclineHit = ((p.age - 1) >= (p.declineAge ?? Infinity));
 
-      // Each player has a personal decline age. Drawn from a normal
-      // distribution (mean 30, std 2) with no hard ceiling — typical
-      // players fall off in 28-32, but iron-man outliers can hang on
-      // way later (P[≥38] ≈ 1 in 30k, ≥40 ≈ 1 in 3.5M).
+      // Each player has a personal decline age — drawn from a normal
+      // distribution per position. RBs decline early (high-contact),
+      // QBs / K / P play longest. Iron-man tails still possible at any
+      // position via the std-dev sampling.
       if (p.declineAge == null) {
         let u1 = Math.random(); if (u1 < 1e-10) u1 = 1e-10;
         const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * Math.random());
-        p.declineAge = Math.max(25, Math.round(30 + 2 * z));
+        const meanByPos = {
+          RB: 28, WR: 30, TE: 30,
+          QB: 33, OL: 31,
+          DL: 30, LB: 30, CB: 30, S: 30,
+          K: 36, P: 36,
+        };
+        const mean = meanByPos[p.position] ?? 30;
+        p.declineAge = Math.max(25, Math.round(mean + 2 * z));
       }
       if (p.age >= p.declineAge) {
         const yearsPast = p.age - p.declineAge;
@@ -7617,6 +7624,27 @@ function runFrnOffseason() {
             const [k1, k2] = _devStatPool(p.position, p.age);
             p.stats[k1] = Math.min(99, p.stats[k1] + Math.ceil(growth * 0.6));
             p.stats[k2] = Math.min(99, p.stats[k2] + Math.floor(growth * 0.4));
+          }
+        }
+      }
+
+      // Veteran resurgence — late-career renaissance for 30+ players
+      // who haven't hit decline yet. Rare; amplified by Player Developer
+      // HC. Models real-world examples like Brady's age-40 MVP or
+      // Tannehill's career rebirth in Tennessee.
+      if (!p.hiddenGem && p.age >= 30 && p.age <= 37 && !preDeclineHit && (p.overall || 0) < 99) {
+        const surgeOdds = coachBoost > 1.0 ? 0.06 : 0.025;
+        if (Math.random() < surgeOdds) {
+          const surge = 1 + Math.floor(Math.random() * 2);
+          p.overall = Math.min(99, p.overall + surge);
+          if (p.stats) {
+            const [k1, k2] = _devStatPool(p.position, p.age);
+            p.stats[k1] = Math.min(99, p.stats[k1] + Math.ceil(surge * 0.6));
+            p.stats[k2] = Math.min(99, p.stats[k2] + Math.floor(surge * 0.4));
+          }
+          if (tId === franchise.chosenTeamId) {
+            _pushNews({ type: "scout_reveal",
+              label: `📈 ${p.position} ${p.name} — late-career resurgence (+${surge} OVR)` });
           }
         }
       }

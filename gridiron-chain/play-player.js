@@ -1115,12 +1115,25 @@ function genPlayer(pos, tier) {
 // ~5-6% of rounds 5-7 produce pro-bowl caliber players over time.
 // The gem is fully invisible — no scout grade tell, no combine signal.
 function _rollHiddenGem(player) {
-  const rates = { 0: 0.025, 7: 0.040, 6: 0.050, 5: 0.060, 4: 0.040, 3: 0.020 };
+  // Inverted rate curve: UDFAs / late-rounders are the most likely hidden
+  // gems (pure flyers, no scouting consensus to "hide" against). Early
+  // rounds are heavily scouted so there's less room for surprise.
+  const rates = { 0: 0.090, 7: 0.060, 6: 0.050, 5: 0.040, 4: 0.025, 3: 0.012 };
   const rate = rates[player.draftRound] ?? 0;
   if (!rate || Math.random() >= rate) return;
+  // Ceiling: heavily skewed low with a long tail. Most gems are solid
+  // starters (78-89); some become Pro Bowlers (90-95); a rare extreme
+  // tail produces all-time-great prospects (96-99). 3% of gems land in
+  // the extreme tail — enough that a Brady-tier emergence is possible
+  // over a multi-decade sim without being common.
+  const r = Math.random();
+  let ceiling;
+  if (r < 0.85)      ceiling = 78 + Math.floor(Math.random() * 12); // 78-89 common
+  else if (r < 0.97) ceiling = 90 + Math.floor(Math.random() * 6);  // 90-95 rare
+  else               ceiling = 96 + Math.floor(Math.random() * 4);  // 96-99 extreme
   player.hiddenGem = {
-    ceiling:    78 + Math.floor(Math.random() * 16), // 78–93 true ceiling
-    growthRate:  4 + Math.floor(Math.random() * 5),  // 4–8 OVR per active season
+    ceiling,
+    growthRate: 4 + Math.floor(Math.random() * 5),  // 4-8 OVR per active season
   };
 }
 // Fabricates a believable multi-season career for each player based on their

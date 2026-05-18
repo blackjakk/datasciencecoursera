@@ -6352,6 +6352,19 @@ function computeTeamMVP(teamId) {
 
 // League MVP — best score across all teams, weighted by team success so
 // production on winning teams matters more.
+// Voter fatigue — recent MVP winners get a vote-weight haircut so the
+// award rotates the way real-NFL voting does (back-to-back MVPs are
+// historically rare; never-three-peats since the modern era).
+function _mvpFatigueMul(livePlayer) {
+  if (!livePlayer?.careerHistory?.length) return 1.0;
+  const hist = livePlayer.careerHistory;
+  const last = hist[hist.length - 1];
+  if (last?.accolades?.includes("MVP")) return 0.82;
+  const prev = hist[hist.length - 2];
+  if (prev?.accolades?.includes("MVP")) return 0.93;
+  return 1.0;
+}
+
 function computeLeagueMVP() {
   let best = null;
   for (const [teamId, players] of Object.entries(franchise.seasonStats || {})) {
@@ -6359,8 +6372,10 @@ function computeLeagueMVP() {
     const gp    = stand ? stand.w + stand.l + stand.t : 1;
     const winPct = gp > 0 ? stand.w / gp : 0.5;
     const teamMul = 0.55 + winPct * 0.85; // 0.55x → 1.40x
+    const roster = franchise.rosters?.[+teamId] || [];
     for (const p of Object.values(players)) {
-      const s = mvpScore(p) * teamMul;
+      const livePlayer = roster.find(rp => rp.name === p.name);
+      const s = mvpScore(p) * teamMul * _mvpFatigueMul(livePlayer);
       if (!best || s > best.score) best = { ...p, teamId: +teamId, score: s };
     }
   }
@@ -6438,34 +6453,48 @@ function _idpScore(pos, s) {
 // equivalents so the formula is intuitive and OVR-free.
 // Offense = standard PPR. Defense = per-position IDP. OL = pancakes/SA.
 // K = tiered FG value (3/4/5 pts by distance).
+// Pro Bowl / All-Pro streak fatigue — softens consecutive selections so
+// the spread feels closer to real-NFL voting. 4% haircut per recent
+// honor in the last 3 seasons, floored at 88% so a true elite can still
+// repeat.
+function _proBowlFatigueMul(livePlayer) {
+  if (!livePlayer?.careerHistory?.length) return 1.0;
+  const recent = livePlayer.careerHistory.slice(-3);
+  let streak = 0;
+  for (const h of recent) {
+    if (h.accolades?.some(a => a === "Pro Bowl" || a === "All-Pro" || a === "All-Pro (2nd)")) streak++;
+  }
+  return Math.max(0.88, 1.0 - streak * 0.04);
+}
+
 function _allProPlayerScore(p, pos, statRow) {
   if (!statRow) return 0;
+  const fatigue = _proBowlFatigueMul(p);
   const s = statRow;
   const OL_POS = new Set(["OL","LT","LG","C","RG","RT"]);
 
   if (OL_POS.has(pos)) {
     const pk = s.pancakes || 0, sa = s.sacks_allowed || 0;
-    return (pk === 0 && sa === 0) ? 0 : pk * 3 - sa * 10;
+    const base = (pk === 0 && sa === 0) ? 0 : pk * 3 - sa * 10;
+    return base * fatigue;
   }
 
   if (pos === "K") {
-    // Tiered FG value: <40yd=3, 40-49=4, 50+=5. We only know fg_long so
-    // apply the distance bonus once as a range indicator, not per-FG.
     const distBonus = (s.fg_long || 0) >= 50 ? 2 : (s.fg_long || 0) >= 40 ? 1 : 0;
     const missPenalty = Math.max(0, (s.fg_att || 0) - (s.fg_made || 0));
-    return (s.fg_made || 0) * 3
+    return ((s.fg_made || 0) * 3
          + distBonus
          + (s.xp_made || 0) * 1
-         - missPenalty * 1;
+         - missPenalty * 1) * fatigue;
   }
 
-  if (pos === "P") return (s.punts || 0) * 1.5;
+  if (pos === "P") return (s.punts || 0) * 1.5 * fatigue;
 
   const DEF_POS = new Set(["DL","LB","CB","S"]);
-  if (DEF_POS.has(pos)) return _idpScore(pos, s);
+  if (DEF_POS.has(pos)) return _idpScore(pos, s) * fatigue;
 
   // PPR offense
-  return (s.pass_yds     || 0) * 0.04
+  const offBase = (s.pass_yds     || 0) * 0.04
        + (s.pass_td      || 0) * 4
        - (s.pass_int     || 0) * 2
        + (s.rush_yds     || 0) * 0.10
@@ -6474,6 +6503,7 @@ function _allProPlayerScore(p, pos, statRow) {
        + (s.rec_yds      || 0) * 0.10
        + (s.rec_td       || 0) * 6
        - (s.fumbles_lost || 0) * 2;
+  return offBase * fatigue;
 }
 
 function _allProRowSnapshot(r) {
@@ -6740,7 +6770,58 @@ function _seasonByTheNumbers() {
 // auto-enshrines qualifying HoFers. Returns the list for the awards
 // screen. Pulled forward from `runFrnOffseason` so retirees + HoF
 // inductees can be honored on the awards ceremony page.
+// Standout rookies / second-year players whose stats land in the top 5%
+// at their position get a "stock rises" potential bump. Models real-NFL
+// dynamic where a late-round flash forces the league to re-evaluate
+// upward (Brady year 2, Antonio Brown year 2-3, Tannehill in Tennessee).
+// Run idempotently before season-end retirement so the new ceiling is
+// already in effect for the upcoming offseason's development pass.
+function _rerollPotentialForBreakouts() {
+  if (franchise._potentialRerolledForSeason === franchise.season) return;
+  franchise._potentialRerolledForSeason = franchise.season;
+  // Group all players' mvpScore by position from this season's stats
+  const byPos = {};
+  for (const teamPlayers of Object.values(franchise.seasonStats || {})) {
+    for (const p of Object.values(teamPlayers)) {
+      (byPos[p.pos] = byPos[p.pos] || []).push({ name: p.name, score: mvpScore(p) });
+    }
+  }
+  for (const list of Object.values(byPos)) list.sort((a, b) => b.score - a.score);
+  // Bump rookies / year-2 players who placed top-5% at their position
+  const seasonNum = franchise.season;
+  for (const roster of Object.values(franchise.rosters || {})) {
+    for (const player of roster) {
+      if (player._potentialRerolled) continue;
+      const draftSeason = player.draftSeason ?? null;
+      if (draftSeason == null) continue;
+      const yearsInLeague = seasonNum - draftSeason;
+      if (yearsInLeague < 0 || yearsInLeague > 1) continue;
+      const list = byPos[player.position] || [];
+      if (!list.length) continue;
+      const idx = list.findIndex(r => r.name === player.name);
+      if (idx === -1) continue;
+      const top5pct = Math.max(1, Math.floor(list.length * 0.05));
+      if (idx >= top5pct) continue;
+      // Bump 5-10 OVR worth of potential ceiling
+      const bump = 5 + Math.floor(Math.random() * 6);
+      const newPot = Math.min(99, (player.potential || 65) + bump);
+      if (newPot <= (player.potential || 65)) continue;
+      player.potential = newPot;
+      player._potentialRerolled = true;
+      // Promote hidden-gem ceiling if it's now the constraint
+      if (player.hiddenGem && player.hiddenGem.ceiling < newPot) {
+        player.hiddenGem.ceiling = newPot;
+      }
+      if (typeof _pushNews === "function") {
+        _pushNews({ type: "scout_reveal",
+          label: `📈 ${player.position} ${player.name} — stock rises after breakout (potential ceiling ↑${bump})` });
+      }
+    }
+  }
+}
+
 function _processSeasonEndRetirements() {
+  _rerollPotentialForBreakouts();
   const retirees = [];
   const hofClass = [];
   for (const t of TEAMS) {
@@ -6752,11 +6833,21 @@ function _processSeasonEndRetirements() {
         p.age = (p.overall >= 85 ? 27 : p.overall >= 75 ? 24 : 22) + Math.floor(Math.random() * 6);
       }
       p.age += 1;
-      const retProb = p.age >= 36 ? 1
-                    : p.age === 35 ? 0.60
-                    : p.age === 34 ? 0.35
-                    : p.age === 33 ? 0.15
-                    : p.age >= 31 ? 0.05
+      // Position-aware retirement curve. QB / K / P play later than
+      // contact positions; RBs retire earliest. Offset shifts the
+      // effective age in the curve below.
+      const _retOffset = { RB:-3, WR:-1, TE:0, OL:0, DL:-1, LB:-1, CB:-1, S:-1, QB:3, K:5, P:5 };
+      const adjAge = p.age - (_retOffset[p.position] || 0);
+      const retProb = adjAge >= 40 ? 0.97
+                    : adjAge === 39 ? 0.90
+                    : adjAge === 38 ? 0.78
+                    : adjAge === 37 ? 0.62
+                    : adjAge === 36 ? 0.45
+                    : adjAge === 35 ? 0.30
+                    : adjAge === 34 ? 0.18
+                    : adjAge === 33 ? 0.10
+                    : adjAge === 32 ? 0.06
+                    : adjAge === 31 ? 0.04
                     : 0;
       if (retProb > 0 && Math.random() < retProb) {
         const preHofCount = (franchise.hallOfFame || []).length;
