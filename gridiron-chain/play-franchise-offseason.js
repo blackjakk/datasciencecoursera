@@ -2363,7 +2363,7 @@ function _renderCurrentGameHub(currentRound) {
   const userStatus = _userPlayoffStatus();
 
   const userMatchup = currentRound?.find(m =>
-    m.homeId === myId || m.awayId === myId);
+    (m.homeId === myId || m.awayId === myId) && m.winnerId == null);
   const allRoundDone = currentRound && currentRound.every(m => m.winnerId != null);
   const pending = currentRound ? currentRound.filter(m => !m.winnerId && m.homeId && m.awayId) : [];
 
@@ -2384,14 +2384,24 @@ function _renderCurrentGameHub(currentRound) {
     </div>`;
   }
 
-  // ── Mode 2: User eliminated OR not in playoffs but round pending ──
+  // ── Mode 2: User has nothing to play this round (already played and
+  //          won, eliminated, or wasn't in playoffs at all). Show
+  //          progress + a sim-remaining CTA. Sub-line depends on which.
   if (!userMatchup) {
     const playedCount = currentRound.filter(m => m.winnerId != null).length;
     const totalInRound = currentRound.length;
+    // Did the user just play and win their game this round?
+    const userJustAdvanced = currentRound.some(m =>
+      (m.homeId === myId || m.awayId === myId) && m.winnerId === myId);
     const eliminated = userStatus.eliminatedRound != null;
-    const elimText = eliminated
-      ? `Your run ended in ${roundNames[userStatus.eliminatedRound] || "an earlier round"}.`
-      : `Watching from the couch this postseason.`;
+    let elimText;
+    if (userJustAdvanced) {
+      elimText = "Your matchup is final — sim the rest of the round to see who's next.";
+    } else if (eliminated) {
+      elimText = `Your run ended in ${roundNames[userStatus.eliminatedRound] || "an earlier round"}.`;
+    } else {
+      elimText = "Watching from the couch this postseason.";
+    }
     return `<div class="frn-playoff-hub spectate">
       <div class="frn-playoff-hub-eyebrow">${roundNames[roundIdx]} — IN PROGRESS</div>
       <div class="frn-playoff-hub-title">${playedCount} of ${totalInRound} games played</div>
@@ -2572,10 +2582,15 @@ function renderFrnPlayoffs() {
 }
 
 function frnSimPlayoffGame(homeId, awayId) {
+  // Guard against double-clicks / stale buttons triggering a sim on a
+  // matchup that's already decided — silently no-op, no double scores.
+  const pb = franchise.playoffBracket;
+  const decided = pb?.rounds?.[pb.roundIdx]?.some(m =>
+    m.homeId === homeId && m.awayId === awayId && m.winnerId != null);
+  if (decided) { renderFrnPlayoffs(); return; }
   const r = frnSimOnce(homeId, awayId, /* isPlayoff */ true);
   // Persist stats + scoring on the matchup so the user can click into
   // the box score for any played playoff game (not just the final).
-  const pb = franchise.playoffBracket;
   const isChamp = pb.roundIdx === pb.rounds.length - 1;
   if (isChamp) {
     franchise.superBowlGame = {
