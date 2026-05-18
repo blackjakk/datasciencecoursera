@@ -7873,13 +7873,47 @@ function renderFrnOffseason() {
     <div class="frn-off-list">${chgHtml}</div>
     ${_renderHoldoutsBlock()}
     ${(() => {
-      const pending = (franchise._holdouts || []).filter(h => !h.resolved).length;
-      const warn = pending > 0
-        ? `<div style="color:#e8a000;font-size:.7rem;text-align:center;margin-bottom:.4rem">⚠ ${pending} contract demand${pending===1?"":"s"} unresolved — proceeding will defer ${pending===1?"it":"them"} to next season</div>`
-        : "";
-      return `${warn}<div class="frn-actions" style="justify-content:center;margin-top:1.2rem">
-        <button class="btn btn-gold" onclick="frnConfirmGoToDraft()">📋 Go to Draft</button>
-        <button class="btn btn-outline" onclick="frnAbandon()" style="color:var(--red)">× Abandon</button>
+      const list     = franchise._holdouts || [];
+      const hasAny   = list.length > 0;
+      const pending  = list.filter(h => !h.resolved).length;
+      const decided  = list.length - pending;
+      const extended = list.filter(h => h.resolved === "extended").length;
+      const traded   = list.filter(h => h.resolved === "trade-block").length;
+      const ignored  = list.filter(h => h.resolved === "ignored").length;
+
+      // Subtitle / CTA shape depends on whether there are demands at all.
+      let title, sub, cta;
+      if (!hasAny) {
+        title = "READY TO DRAFT?";
+        sub   = "All offseason changes settled. The draft is up next.";
+        cta   = `<button class="btn btn-gold-big" onclick="frnConfirmGoToDraft()">📋 Go to Draft →</button>`;
+      } else if (pending > 0) {
+        title = "READY TO ADVANCE?";
+        const chips = [
+          `<span class="chip green">✓ ${extended} extended</span>`,
+          traded  ? `<span class="chip gold">🔀 ${traded} traded</span>` : "",
+          ignored ? `<span class="chip red">✗ ${ignored} ignored</span>` : "",
+          `<span class="chip neutral">${pending} pending</span>`,
+        ].filter(Boolean).join("");
+        sub = `<div style="display:flex;gap:.35rem;justify-content:center;flex-wrap:wrap;margin-bottom:.35rem">${chips}</div>
+               <div style="color:#e8a000;font-size:.7rem">⚠ Proceeding will defer ${pending===1?"this demand":"these demands"} to next season as ${pending===1?"a flight risk":"flight risks"}.</div>`;
+        cta = `<button class="btn btn-gold-big" onclick="frnOpenHoldoutRecap()">📋 Review &amp; Continue to Draft →</button>`;
+      } else {
+        title = "READY TO ADVANCE?";
+        const chips = [
+          extended ? `<span class="chip green">✓ ${extended} extended</span>` : "",
+          traded   ? `<span class="chip gold">🔀 ${traded} traded</span>` : "",
+          ignored  ? `<span class="chip red">✗ ${ignored} ignored</span>` : "",
+        ].filter(Boolean).join("");
+        sub = `<div style="display:flex;gap:.35rem;justify-content:center;flex-wrap:wrap">${chips}</div>`;
+        cta = `<button class="btn btn-gold-big" onclick="frnOpenHoldoutRecap()">📋 Review &amp; Continue to Draft →</button>`;
+      }
+
+      return `<div class="frn-off-footer">
+        <div class="frn-off-footer-title">${title}</div>
+        <div class="frn-off-footer-sub">${sub}</div>
+        <div class="frn-off-footer-cta">${cta}</div>
+        <button class="frn-off-footer-abandon" onclick="frnAbandon()">× Abandon franchise</button>
       </div>`;
     })()}`;
 }
@@ -8129,11 +8163,6 @@ function _renderHoldoutsBlock() {
       </div>
 
       ${sections}
-
-      ${decided > 0 ? `
-      <div style="text-align:center;margin-top:.6rem">
-        <button class="btn btn-outline" onclick="frnOpenHoldoutRecap()" style="font-size:.7rem">📋 Review Demand Decisions</button>
-      </div>` : ""}
     </div>`;
 }
 

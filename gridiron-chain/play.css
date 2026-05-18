@@ -5696,6 +5696,49 @@
   .frn-resign-hero-progress .chip.red   { color: #ff8a8a;         border-color: #ff8a8a;         background: rgba(220,80,80,.08); }
   .frn-resign-hero-progress .chip.neutral { color: var(--gray);   border-color: var(--gray); }
 
+  /* Offseason footer card — separates the page-level "advance" CTA from
+     per-row decision buttons. Picks up the same chip styling used in
+     the re-signings hero so progress dots look consistent. */
+  .frn-off-footer {
+    margin: 1.8rem auto 0;
+    max-width: 640px;
+    padding: 1rem 1.2rem 1.1rem;
+    border: 1px solid var(--border);
+    border-top: 2px solid var(--gold);
+    background: linear-gradient(180deg, rgba(212,175,55,.05), rgba(0,0,0,.18));
+    text-align: center;
+    border-radius: 4px;
+  }
+  .frn-off-footer-title {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    color: var(--gold); letter-spacing: 2px; font-size: 1.15rem;
+    margin-bottom: .4rem;
+  }
+  .frn-off-footer-sub {
+    color: var(--gray); font-size: .72rem;
+    margin-bottom: .85rem; line-height: 1.5;
+  }
+  .frn-off-footer-sub .chip {
+    font-size: .58rem; letter-spacing: .8px; font-weight: 800;
+    padding: .15rem .5rem; border-radius: 2px; border: 1px solid;
+    display: inline-block;
+  }
+  .frn-off-footer-sub .chip.green   { color: var(--green-lt); border-color: var(--green-lt); background: rgba(0,180,0,.08); }
+  .frn-off-footer-sub .chip.gold    { color: var(--gold);     border-color: var(--gold);     background: rgba(212,175,55,.08); }
+  .frn-off-footer-sub .chip.red     { color: #ff8a8a;         border-color: #ff8a8a;         background: rgba(220,80,80,.08); }
+  .frn-off-footer-sub .chip.neutral { color: var(--gray);     border-color: var(--gray); }
+  .frn-off-footer-cta { margin-bottom: .65rem; }
+  .frn-off-footer-cta .btn-gold-big {
+    padding: .55rem 1.4rem; font-size: .9rem; letter-spacing: 1.4px;
+  }
+  .frn-off-footer-abandon {
+    background: none; border: none; color: var(--gray);
+    font-size: .62rem; font-family: inherit; letter-spacing: .4px;
+    cursor: pointer; padding: .25rem .5rem; opacity: .6;
+    text-decoration: underline;
+  }
+  .frn-off-footer-abandon:hover { color: #ff8a8a; opacity: 1; }
+
   /* Multi-year cap timeline */
   .frn-resign-cap-wrap {
     background: var(--bg2); border: 1px solid var(--border);
