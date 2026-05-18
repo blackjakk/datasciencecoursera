@@ -7628,12 +7628,22 @@ function runFrnOffseason() {
         }
       }
 
-      // Veteran resurgence — late-career renaissance for 30+ players
-      // who haven't hit decline yet. Rare; amplified by Player Developer
-      // HC. Models real-world examples like Brady's age-40 MVP or
-      // Tannehill's career rebirth in Tennessee.
-      if (!p.hiddenGem && p.age >= 30 && p.age <= 37 && !preDeclineHit && (p.overall || 0) < 99) {
-        const surgeOdds = coachBoost > 1.0 ? 0.06 : 0.025;
+      // Elite plateau — push decline age back for players who reach
+      // OVR 90+ at age 28+. Position-specific so QB / K / P get the
+      // biggest stretches and RBs barely any.
+      if (typeof _maybeApplyElitePlateauBump === "function") {
+        _maybeApplyElitePlateauBump(p);
+      }
+
+      // Veteran resurgence — late-career renaissance for 30+ players who
+      // haven't hit decline yet. Rare for average vets; significantly
+      // amplified for elite (88+) vets who model real "Brady-at-40"
+      // sustained-prime arcs.
+      if (!p.hiddenGem && p.age >= 30 && p.age <= 42 && !preDeclineHit && (p.overall || 0) < 99) {
+        const isElite = (p.overall || 0) >= 88;
+        const surgeOdds = isElite
+          ? (coachBoost > 1.0 ? 0.18 : 0.10)
+          : (coachBoost > 1.0 ? 0.06 : 0.025);
         if (Math.random() < surgeOdds) {
           const surge = 1 + Math.floor(Math.random() * 2);
           p.overall = Math.min(99, p.overall + surge);
@@ -7644,7 +7654,7 @@ function runFrnOffseason() {
           }
           if (tId === franchise.chosenTeamId) {
             _pushNews({ type: "scout_reveal",
-              label: `📈 ${p.position} ${p.name} — late-career resurgence (+${surge} OVR)` });
+              label: `📈 ${p.position} ${p.name} — ${isElite ? "elite form sustained" : "late-career resurgence"} (+${surge} OVR)` });
           }
         }
       }

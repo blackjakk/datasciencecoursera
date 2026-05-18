@@ -6805,17 +6805,76 @@ function _rerollPotentialForBreakouts() {
       // Bump 5-10 OVR worth of potential ceiling
       const bump = 5 + Math.floor(Math.random() * 6);
       const newPot = Math.min(99, (player.potential || 65) + bump);
-      if (newPot <= (player.potential || 65)) continue;
-      player.potential = newPot;
+      if (newPot > (player.potential || 65)) {
+        player.potential = newPot;
+      }
       player._potentialRerolled = true;
       // Promote hidden-gem ceiling if it's now the constraint
       if (player.hiddenGem && player.hiddenGem.ceiling < newPot) {
         player.hiddenGem.ceiling = newPot;
       }
-      if (typeof _pushNews === "function") {
+      // ── BREAKOUT JUMP ────────────────────────────────────────────────
+      // Real-NFL "step function" growth: a year-2 starter who lands top-
+      // 5% at his position is treated as having ALREADY proven his ceiling.
+      // Hidden gems jump straight to 82-87% of their (now-bumped) ceiling
+      // — models Brady-year-2-SBMVP, Antonio Brown breakout, Patrick
+      // Mahomes year 2. Non-gem standouts get a smaller direct OVR
+      // bump (5-9) on top of the potential re-roll.
+      const curOvr = player.overall || 60;
+      let jumpedTo = curOvr;
+      if (player.hiddenGem) {
+        const ceiling = player.hiddenGem.ceiling;
+        const target = Math.round(ceiling * (0.82 + Math.random() * 0.05));
+        if (target > curOvr) {
+          jumpedTo = Math.min(99, target);
+        }
+      } else {
+        const bonus = 5 + Math.floor(Math.random() * 5);
+        jumpedTo = Math.min(99, Math.min(player.potential || 99, curOvr + bonus));
+      }
+      if (jumpedTo > curOvr) {
+        // Distribute the jump across primary skill stats so the OVR
+        // recompute matches.
+        const delta = jumpedTo - curOvr;
+        if (player.stats && typeof _devStatPool === "function") {
+          const [k1, k2] = _devStatPool(player.position, player.age);
+          player.stats[k1] = Math.min(99, player.stats[k1] + Math.ceil(delta * 0.6));
+          player.stats[k2] = Math.min(99, player.stats[k2] + Math.floor(delta * 0.4));
+        }
+        player.overall = jumpedTo;
+        if (typeof _pushNews === "function") {
+          _pushNews({ type: "scout_reveal",
+            label: `🚀 ${player.position} ${player.name} — breakout year unlocks his ceiling (OVR ${curOvr}→${jumpedTo})` });
+        }
+      } else if (typeof _pushNews === "function") {
         _pushNews({ type: "scout_reveal",
           label: `📈 ${player.position} ${player.name} — stock rises after breakout (potential ceiling ↑${bump})` });
       }
+    }
+  }
+}
+
+// Elite-plateau bump — preserve elite veterans by pushing their decline
+// age back. Position-specific magnitudes mirror real-NFL longevity for
+// each position's outlier careers (QB/K/P → biggest extension; RB →
+// barely any, since physical attrition is brutal at the position).
+const _ELITE_PLATEAU_BUMP = {
+  QB: 4, K: 5, P: 5, OL: 3,
+  WR: 2, TE: 2, DL: 2, LB: 2, CB: 2, S: 2,
+  RB: 1,
+};
+function _maybeApplyElitePlateauBump(p) {
+  if (!p || p._elitePlateauBumped) return;
+  if ((p.overall || 0) < 90) return;
+  if ((p.age || 0) < 28) return;
+  if (p.age >= (p.declineAge ?? Infinity)) return; // already declining → no rescue
+  const bump = _ELITE_PLATEAU_BUMP[p.position] ?? 2;
+  p.declineAge = (p.declineAge || 30) + bump;
+  p._elitePlateauBumped = true;
+  if (p === (franchise.rosters?.[franchise.chosenTeamId] || []).find(rp => rp === p)) {
+    if (typeof _pushNews === "function") {
+      _pushNews({ type: "scout_reveal",
+        label: `⚓ ${p.position} ${p.name} — elite form locks in (extended prime through age ${p.declineAge})` });
     }
   }
 }
