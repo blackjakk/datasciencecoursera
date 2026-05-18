@@ -1383,12 +1383,23 @@ function _buildCareerCard(p) {
   // OVR column visibility: matches the rest of the app's scout-grade
   // philosophy. Owned players + HOF/retired show real OVR; opposing
   // players + FAs see grades / public stats only. HOF detection is
-  // duck-typed on the absence of a roster reference (they aren't on
-  // any roster, and HOF entries lack a position field on the object
-  // itself — they live under franchise.hallOfFame).
+  // duck-typed on the absence of a roster reference. FA-pool members
+  // are explicitly hidden — historical OVRs from when they were on an
+  // AI team must not leak through their FA player card.
   const isHofEntry = !!p.careerYears && !p.position && !p.archetype;
   const isRetiredAlumni = !!p.retiredAt;
-  const showOvr = _isOwnedPlayer(p) || isHofEntry || isRetiredAlumni;
+  const isFreeAgent = !!(franchise?.freeAgents?.some(fa =>
+    fa === p || (fa.pid && p.pid && fa.pid === p.pid) || (fa.name === p.name && fa.position === p.position)
+  ));
+  const isOpposingRoster = !isFreeAgent && (() => {
+    const myId = franchise?.chosenTeamId;
+    for (const [tid, roster] of Object.entries(franchise?.rosters || {})) {
+      if (Number(tid) === myId) continue;
+      if (roster.some(rp => rp === p || (rp.pid && p.pid && rp.pid === p.pid) || (rp.name === p.name && rp.position === p.position))) return true;
+    }
+    return false;
+  })();
+  const showOvr = !isFreeAgent && !isOpposingRoster && (_isOwnedPlayer(p) || isHofEntry || isRetiredAlumni);
   const trajLabel = {
     EARLY_BLOOM: "⚡ Early Bloomer", LATE_BLOOM: "🌱 Late Bloomer",
     CONSISTENT: "📈 Consistent",    STREAKY: "〰 Streaky",
