@@ -1265,7 +1265,7 @@ function renderPotwVoting(week) {
         ${list.map((c, i) => {
           const isSel = _potwPendingVotes[g.key] === c.name;
           return `<div class="potw-vote-card ${isSel ? "selected" : ""}"
-                       onclick="_potwSelect('${g.key}','${c.name.replace(/['"\\]/g,"")}')"
+                       onclick="_potwSelect('${g.key}',${i},${week})"
                        style="--c:${c.teamPrimary}">
             <div class="potw-vote-card-rank">#${i+1}</div>
             <div class="potw-vote-card-name">${c.name}</div>
@@ -1276,7 +1276,7 @@ function renderPotwVoting(week) {
         }).join("")}
       </div>
       ${_potwPendingVotes[g.key]
-        ? `<div class="potw-group-skip"><button class="bspn-back" onclick="_potwSelect('${g.key}',null)" style="font-size:.6rem">Clear vote</button></div>`
+        ? `<div class="potw-group-skip"><button class="bspn-back" onclick="_potwSelect('${g.key}',-1,${week})" style="font-size:.6rem">Clear vote</button></div>`
         : ""}
     </div>`;
   };
@@ -1309,13 +1309,17 @@ function renderPotwVoting(week) {
     </div>`;
 }
 
-function _potwSelect(group, name) {
-  if (!name || name === "null") delete _potwPendingVotes[group];
-  else _potwPendingVotes[group] = name;
-  // Find the week currently shown from page context
-  const sub = document.querySelector(".bspnlive-logo-sub");
-  const m = sub ? sub.textContent.match(/WEEK (\d+) VOTING/) : null;
-  if (m) renderPotwVoting(+m[1]);
+function _potwSelect(group, idx, week) {
+  const season = franchise.season;
+  const candidates = franchise.potwCandidates?.[season]?.[week];
+  if (!candidates) return;
+  if (idx == null || idx < 0) delete _potwPendingVotes[group];
+  else {
+    const c = candidates[group]?.[idx];
+    if (!c) return;
+    _potwPendingVotes[group] = c.name;
+  }
+  renderPotwVoting(week);
 }
 
 function _potwSubmitVotes(week) {
