@@ -4460,6 +4460,277 @@
   }
   .bspnlive-btn-outline:hover { background: rgba(0,0,0,0.04); }
 
+  /* ====== ALL-PRO BOWL — Selections + Crowning + Tournament tweaks ====== */
+  .frn-apb-selections, .frn-apb-crowning {
+    padding: 1rem 1.4rem;
+    display: flex; flex-direction: column; gap: 1rem;
+    max-width: 1100px; margin: 0 auto;
+  }
+  .frn-apb-hero {
+    background: linear-gradient(135deg, rgba(212,175,55,.12) 0%, var(--blbg2) 70%);
+    border: 1px solid var(--blgold);
+    box-shadow: 0 0 18px rgba(212,175,55,.18);
+    border-radius: 4px;
+    padding: 1.4rem 1.2rem;
+    text-align: center;
+  }
+  .frn-apb-hero-eyebrow {
+    font-size: .65rem; letter-spacing: 4px; color: var(--blgold);
+    font-weight: 800; margin-bottom: .4rem;
+  }
+  .frn-apb-hero-title {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 2.4rem; letter-spacing: 2px; color: var(--blwhite);
+    margin: 0 0 .35rem;
+  }
+  .frn-apb-hero-sub { font-size: .75rem; color: var(--blgray); }
+
+  /* Your Pro Bowlers callout */
+  .frn-apb-yours {
+    background: var(--blbg2); border: 1px solid var(--blborder);
+    border-left: 4px solid var(--blgold);
+    border-radius: 4px; padding: .9rem 1.1rem;
+  }
+  .frn-apb-yours.empty { border-left-color: var(--blborder); }
+  .frn-apb-yours-head {
+    display: flex; align-items: baseline; gap: .6rem; margin-bottom: .55rem;
+  }
+  .frn-apb-yours-eyebrow {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1rem; letter-spacing: 1.4px; color: var(--blgold);
+  }
+  .frn-apb-yours-count {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    color: var(--blgray); font-size: .6rem;
+    padding: .08rem .4rem; background: rgba(0,0,0,.3); border-radius: 2px;
+  }
+  .frn-apb-yours-grid { display: flex; flex-direction: column; gap: .3rem; }
+  .frn-apb-yours-row {
+    display: grid; grid-template-columns: 2.3rem 1fr auto auto;
+    gap: .5rem; align-items: baseline;
+    padding: .35rem .5rem;
+    background: var(--blbg3); border: 1px solid var(--blborder);
+    border-left: 3px solid var(--accent, var(--blgold));
+    border-radius: 2px; font-size: .72rem;
+  }
+  .frn-apb-yours-row .pos {
+    color: var(--blgold); font-weight: 800; font-size: .6rem;
+    letter-spacing: 1px; text-align: center;
+  }
+  .frn-apb-yours-row .name { color: var(--blwhite); font-weight: 700; }
+  .frn-apb-yours-row .div { color: var(--blgray); font-size: .62rem; }
+  .frn-apb-yours-row .stat {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    color: var(--blgold); font-size: .62rem;
+  }
+
+  /* Section title */
+  .frn-apb-section {
+    background: var(--blbg2); border: 1px solid var(--blborder);
+    border-radius: 4px; padding: .85rem 1rem;
+  }
+  .frn-apb-section-title {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1rem; letter-spacing: 1.4px; color: var(--blgold);
+    margin-bottom: .55rem;
+  }
+
+  /* 8 all-star team mini-grid */
+  .frn-apb-team-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: .55rem;
+  }
+  @media (max-width: 900px) { .frn-apb-team-grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 600px) { .frn-apb-team-grid { grid-template-columns: 1fr; } }
+  .frn-apb-team-card {
+    background: var(--blbg3); border: 1px solid var(--blborder);
+    border-top: 3px solid var(--accent, var(--blgold));
+    border-radius: 3px; padding: .55rem .65rem;
+  }
+  .frn-apb-team-card-head {
+    display: flex; align-items: baseline; gap: .35rem; margin-bottom: .4rem;
+  }
+  .frn-apb-team-card-head .seed {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    color: var(--blgold); font-size: .95rem;
+  }
+  .frn-apb-team-card-head .name {
+    font-weight: 700; color: var(--blwhite); font-size: .75rem; flex: 1;
+  }
+  .frn-apb-team-card-head .mine {
+    font-size: .52rem; color: var(--blgold); font-weight: 800;
+    background: rgba(212,175,55,.15); padding: .05rem .3rem;
+    border-radius: 2px;
+  }
+  .frn-apb-team-card-roster {
+    display: flex; flex-direction: column; gap: .2rem;
+    font-size: .62rem;
+  }
+  .frn-apb-team-card-roster .role {
+    display: grid; grid-template-columns: 1.6rem 1fr auto;
+    gap: .35rem; color: var(--blwhite);
+  }
+  .frn-apb-team-card-roster .pos {
+    color: var(--blgold); font-weight: 700; font-size: .55rem;
+    letter-spacing: .8px;
+  }
+  .frn-apb-team-card-roster .src {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: .6rem; letter-spacing: .8px;
+  }
+
+  /* Bracket preview grid */
+  .frn-apb-bracket-prev-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: .45rem;
+  }
+  @media (max-width: 700px) { .frn-apb-bracket-prev-grid { grid-template-columns: 1fr; } }
+  .frn-apb-bracket-prev {
+    display: grid; grid-template-columns: 1fr auto 1fr;
+    gap: .45rem; align-items: center;
+    background: var(--blbg3); border: 1px solid var(--blborder);
+    border-radius: 3px; padding: .45rem .65rem;
+  }
+  .frn-apb-bracket-prev.mine {
+    border-color: var(--blgold); background: rgba(212,175,55,.08);
+  }
+  .frn-apb-bracket-prev .side {
+    display: grid; grid-template-columns: 1.6rem 1fr; gap: .35rem;
+    border-left: 2px solid var(--accent, transparent);
+    padding-left: .35rem;
+  }
+  .frn-apb-bracket-prev .side .seed {
+    color: var(--blgray); font-size: .6rem; font-weight: 700; text-align: center;
+  }
+  .frn-apb-bracket-prev .side .name { color: var(--blwhite); font-weight: 700; font-size: .7rem; }
+  .frn-apb-bracket-prev .vs { color: var(--blgray); font-size: .58rem; letter-spacing: 1px; }
+
+  /* Trophy banner on crowning */
+  .frn-apb-trophy {
+    background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 18%, var(--blbg2)) 0%, var(--blbg2) 70%);
+    border: 1px solid var(--accent, var(--blgold));
+    box-shadow: 0 0 22px color-mix(in srgb, var(--accent) 20%, transparent);
+    border-radius: 4px;
+    padding: 1.5rem 1.2rem 1.2rem;
+    text-align: center;
+  }
+  .frn-apb-trophy-icon { font-size: 3rem; line-height: 1; margin-bottom: .35rem; }
+  .frn-apb-trophy-eyebrow {
+    font-size: .58rem; letter-spacing: 3px; color: var(--blgold);
+    font-weight: 800; margin-bottom: .25rem;
+  }
+  .frn-apb-trophy-name {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 2.6rem; letter-spacing: 2.5px; color: var(--blwhite);
+    margin: 0;
+  }
+  .frn-apb-trophy-sub { font-size: .7rem; color: var(--blgray); margin-top: .3rem; }
+
+  /* MVP card */
+  .frn-apb-mvp-card {
+    background: var(--blbg2); border: 1px solid var(--accent, var(--blgold));
+    border-left: 5px solid var(--accent, var(--blgold));
+    border-radius: 3px; padding: 1rem 1.2rem;
+    text-align: center;
+  }
+  .frn-apb-mvp-eyebrow {
+    font-size: .6rem; letter-spacing: 2px; color: var(--blgold);
+    font-weight: 800; margin-bottom: .3rem;
+  }
+  .frn-apb-mvp-name {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1.7rem; letter-spacing: 1.5px; color: var(--blwhite);
+    margin-bottom: .25rem;
+  }
+  .frn-apb-mvp-meta { font-size: .68rem; color: var(--blgray); margin-bottom: .25rem; }
+  .frn-apb-mvp-line {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    color: var(--blgold); font-size: .68rem;
+  }
+
+  /* Performers list */
+  .frn-apb-performers { display: flex; flex-direction: column; gap: .25rem; }
+  .frn-apb-performer-row {
+    display: grid; grid-template-columns: 1.6rem 1fr auto auto auto;
+    gap: .5rem; align-items: baseline;
+    padding: .35rem .55rem; background: var(--blbg3);
+    border: 1px solid var(--blborder); border-radius: 2px;
+    font-size: .7rem;
+  }
+  .frn-apb-performer-row.mine {
+    border-color: var(--blgold); background: rgba(212,175,55,.1);
+  }
+  .frn-apb-performer-row .rank {
+    color: var(--blgold); font-weight: 900;
+    font-family: "Bebas Neue","Anton",sans-serif; text-align: center;
+  }
+  .frn-apb-performer-row .name { color: var(--blwhite); font-weight: 700; }
+  .frn-apb-performer-row .pos { color: var(--blgold); font-weight: 700; font-size: .6rem; }
+  .frn-apb-performer-row .src {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: .65rem; letter-spacing: .8px; font-weight: 700;
+  }
+  .frn-apb-performer-row .score {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    color: var(--blgold); font-weight: 700;
+  }
+
+  /* Your-team recap */
+  .frn-apb-yourrecap {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: .55rem;
+  }
+  @media (max-width: 600px) { .frn-apb-yourrecap { grid-template-columns: 1fr; } }
+  .frn-apb-yourrecap-stat {
+    background: var(--blbg3); border: 1px solid var(--blborder);
+    border-radius: 3px; padding: .55rem .7rem;
+    display: flex; flex-direction: column; gap: .15rem;
+  }
+  .frn-apb-yourrecap-stat .lbl {
+    font-size: .54rem; letter-spacing: 1.2px; color: var(--blgray);
+    font-weight: 700;
+  }
+  .frn-apb-yourrecap-stat .val {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1.4rem; letter-spacing: 1px; color: var(--blwhite);
+    line-height: 1.05;
+  }
+  .frn-apb-yourrecap-note {
+    margin-top: .55rem; padding: .45rem .55rem;
+    background: rgba(212,175,55,.08); border: 1px dashed var(--blgold);
+    border-radius: 2px;
+    font-size: .68rem; color: var(--blwhite);
+  }
+  .frn-apb-yourrecap-note b { color: var(--blgold); }
+
+  /* CTA row */
+  .frn-apb-cta-row {
+    display: flex; justify-content: center; gap: .65rem; padding: .4rem 0;
+  }
+  .frn-apb-cta {
+    background: var(--blgold); color: #000; border: 0;
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1.3rem; letter-spacing: 1.8px; font-weight: 900;
+    padding: .85rem 2rem; cursor: pointer; border-radius: 3px;
+    transition: transform .12s ease, box-shadow .12s ease;
+    box-shadow: 0 4px 12px rgba(212,175,55,.3);
+  }
+  .frn-apb-cta:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(212,175,55,.45); }
+  .frn-apb-cta.secondary {
+    background: transparent; color: var(--blgold);
+    border: 1px solid var(--blgold); box-shadow: none;
+  }
+  .frn-apb-cta.secondary:hover { background: rgba(212,175,55,.12); }
+
+  /* Tournament view tweaks — highlight teams with user's players */
+  .bspnlive-apb-match-side.mine { box-shadow: inset 0 0 0 1px var(--blgold); }
+  .bspnlive-apb-mine-pill {
+    display: inline-block; background: var(--blgold); color: #000;
+    font-size: .5rem; font-weight: 800; padding: .04rem .3rem;
+    border-radius: 2px; margin-left: .25rem; letter-spacing: .4px;
+  }
+  .bspnlive-allpro-block.has-mine { border-top-width: 4px; box-shadow: 0 0 0 1px var(--blgold); }
+  .bspnlive-apb-roster-row.mine {
+    background: rgba(212,175,55,.06);
+  }
+
   /* ====== ALL-PRO BOWL TOURNAMENT ====== */
   .bspnlive-apb-hero {
     margin: 1rem 0 .8rem;

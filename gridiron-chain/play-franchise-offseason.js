@@ -551,6 +551,62 @@ function frnStartAllProBowl() {
   renderAllProBowl();
 }
 
+// User dismisses the Selections Reveal → tournament can begin.
+function frnApbKickoff() {
+  const t = franchise.allProBowlTournament;
+  if (!t) return;
+  t._selectionsAcknowledged = true;
+  saveFranchise();
+  renderAllProBowl();
+}
+
+// User dismisses the Crowning screen → start offseason. Stamps the
+// dismiss flag so re-entering the page goes to the tournament recap
+// (with the crowning still accessible via a button).
+function frnApbProceedToOffseason() {
+  const t = franchise.allProBowlTournament;
+  if (t) { t._crowningDismissed = true; saveFranchise(); }
+  startFrnOffseason();
+}
+
+// "View Crowning" button from the tournament view re-opens the crown
+// screen by clearing the dismiss flag.
+function frnApbReopenCrowning() {
+  const t = franchise.allProBowlTournament;
+  if (t) { t._crowningDismissed = false; saveFranchise(); }
+  renderAllProBowl();
+}
+
+// "Review Tournament" from the crowning screen — keeps user inside APB
+// but routes them to the bracket view (the standard tournament screen).
+function frnApbReviewTournament() {
+  const t = franchise.allProBowlTournament;
+  if (t) { t._crowningDismissed = true; saveFranchise(); }
+  renderAllProBowl();
+}
+
+// Apply end-of-tournament stakes — champion-side players get a
+// "Pro Bowl Champion" accolade on this season's careerHistory row;
+// tournament MVP already gets "All-Pro Bowl MVP" inside
+// _apbAdvanceWinners. Both stakes are idempotent via "if not already
+// in the list" checks. Called from the crowning screen render so
+// they only apply once the user actually sees the champion crowned.
+function _apbApplyChampionStakes(t) {
+  if (!t || !t.complete || t._stakesApplied) return;
+  const champ = t.teams.find(x => x.id === t.champion);
+  if (!champ) return;
+  for (const meta of (champ.rosterMeta || [])) {
+    const p = _findPlayer(meta.name);
+    if (!p) continue;
+    const hist = p.careerHistory || (p.careerHistory = []);
+    const row = hist.find(h => h.season === franchise.season);
+    if (!row) continue;
+    row.accolades = row.accolades || [];
+    if (!row.accolades.includes("Pro Bowl Champion")) row.accolades.push("Pro Bowl Champion");
+  }
+  t._stakesApplied = true;
+}
+
 function frnSimApbMatch(roundIdx, matchIdx) {
   const t = franchise.allProBowlTournament;
   if (!t) return;
@@ -594,15 +650,270 @@ function frnSimApbAll() {
   renderAllProBowl();
 }
 
-// Build the All-Pro Bowl page
-function renderAllProBowl() {
-  frnHoverTipHide && frnHoverTipHide();
-  _frnHoverTipPgHide && _frnHoverTipPgHide();
-  const t = franchise.allProBowlTournament;
-  if (!t) { renderFrnAwards(); return; }
-  const link = (name) => (typeof _playerLinkSmart === "function") ? _playerLinkSmart(name) : name;
+// ── Helper shared across all 3 APB views ────────────────────────────
+function _apbLink(name) {
+  return (typeof _playerLinkSmart === "function") ? _playerLinkSmart(name) : name;
+}
 
-  // Trophy card when complete
+// ── Beat 1: SELECTIONS REVEAL ──────────────────────────────────────
+// Hero "Pro Bowl Selections" → your team's selected players highlighted
+// → 8 division teams mini-grid → bracket preview → kickoff CTA.
+function _renderApbSelections(t) {
+  const myId = franchise.chosenTeamId;
+  const myTeam = getTeam(myId);
+  const mySelections = [];
+  for (const team of t.teams) {
+    for (const m of (team.rosterMeta || [])) {
+      if (m.srcTeamId === myId) mySelections.push({ ...m, allStarTeam: team });
+    }
+  }
+
+  // Your-pro-bowlers card
+  const stat = (name) => {
+    const ts = franchise.seasonStats?.[myId];
+    if (!ts) return "";
+    const s = ts[name];
+    if (!s) return "";
+    if (s.pos === "QB") return `${s.pass_yds||0} pyds · ${s.pass_td||0} TD`;
+    if (s.pos === "RB") return `${s.rush_yds||0} ryds · ${s.rush_td||0} TD`;
+    if (s.pos === "WR" || s.pos === "TE") return `${s.rec_yds||0} recyds · ${s.rec_td||0} TD`;
+    if (s.pos === "K")  return `${s.fg_made||0}/${s.fg_att||0} FG`;
+    return `${s.tkl||0} TKL${s.sk?` · ${s.sk} SK`:""}${s.int_made?` · ${s.int_made} INT`:""}`;
+  };
+  const yourCard = mySelections.length ? `
+    <div class="frn-apb-yours">
+      <div class="frn-apb-yours-head">
+        <span class="frn-apb-yours-eyebrow">YOUR PRO BOWLERS</span>
+        <span class="frn-apb-yours-count">${mySelections.length} selected</span>
+      </div>
+      <div class="frn-apb-yours-grid">
+        ${mySelections.map(m => `
+          <div class="frn-apb-yours-row" style="--accent:${myTeam?.primary}">
+            <span class="pos">${m.pos}</span>
+            <span class="name">${_apbLink(m.name)}</span>
+            <span class="div">→ ${m.allStarTeam.confDiv} All-Stars</span>
+            <span class="stat">${stat(m.name)}</span>
+          </div>`).join("")}
+      </div>
+    </div>` : `
+    <div class="frn-apb-yours empty">
+      <div class="frn-apb-yours-eyebrow">YOUR PRO BOWLERS</div>
+      <div style="color:var(--blgray);font-style:italic;font-size:.72rem">No selections from ${myTeam?.city} ${myTeam?.name} this season.</div>
+    </div>`;
+
+  // 8 division mini-cards (top players preview)
+  const teamGrid = t.teams.slice().sort((a, b) => a.seed - b.seed).map(team => {
+    const topStarters = (team.rosterMeta || []).slice(0, 4);
+    const myCount = (team.rosterMeta || []).filter(m => m.srcTeamId === myId).length;
+    return `<div class="frn-apb-team-card" style="--accent:${team.primary}">
+      <div class="frn-apb-team-card-head">
+        <span class="seed">#${team.seed}</span>
+        <span class="name">${team.confDiv} All-Stars</span>
+        ${myCount > 0 ? `<span class="mine">${myCount} of yours</span>` : ""}
+      </div>
+      <div class="frn-apb-team-card-roster">
+        ${topStarters.map(p => `<span class="role" title="${p.name}">
+          <span class="pos">${p.pos}</span> ${p.name.split(" ").slice(-1)[0]}
+          <span class="src" style="color:${p.srcTeamPrimary}">${p.srcTeamAbbr}</span>
+        </span>`).join("")}
+      </div>
+    </div>`;
+  }).join("");
+
+  // Bracket preview (no scores)
+  const bracketPreview = t.rounds[0].map((m, i) => {
+    const home = _apbTeamById(m.homeId, t);
+    const away = _apbTeamById(m.awayId, t);
+    const userMatch = (home?.rosterMeta?.some(x => x.srcTeamId === myId))
+      || (away?.rosterMeta?.some(x => x.srcTeamId === myId));
+    return `<div class="frn-apb-bracket-prev ${userMatch?"mine":""}">
+      <div class="side" style="--accent:${home?.primary}">
+        <span class="seed">#${home?.seed}</span>
+        <span class="name">${home?.confDiv}</span>
+      </div>
+      <div class="vs">vs</div>
+      <div class="side" style="--accent:${away?.primary}">
+        <span class="seed">#${away?.seed}</span>
+        <span class="name">${away?.confDiv}</span>
+      </div>
+    </div>`;
+  }).join("");
+
+  $("frnHomeContent").innerHTML = `
+    <div class="bspnlive-root" style="margin:-1rem -1.5rem 0 -1.5rem;padding-bottom:1.2rem">
+      <header class="bspnlive-header">
+        <div>
+          <div class="bspnlive-logo">BSPN</div>
+          <div class="bspnlive-logo-sub">PRO BOWL SELECTIONS · SEASON ${franchise.season}</div>
+        </div>
+        <nav class="bspnlive-nav" style="flex-wrap:wrap;gap:.7rem .9rem">${_bspnNavHtml("AWARDS")}</nav>
+      </header>
+      <div style="padding:.55rem 1.4rem;border-bottom:1px solid var(--blborder);display:flex;gap:.55rem;flex-wrap:wrap;align-items:center">
+        <button class="bspn-back" onclick="renderFrnAwards()">‹ Back to Awards</button>
+      </div>
+      <div class="frn-apb-selections">
+        <header class="frn-apb-hero">
+          <div class="frn-apb-hero-eyebrow">🌟 EXHIBITION TOURNAMENT</div>
+          <h1 class="frn-apb-hero-title">PRO BOWL SELECTIONS</h1>
+          <div class="frn-apb-hero-sub">${t.teams.reduce((s, x) => s + (x.rosterMeta?.length||0), 0)} of the league's best · 8 division all-star squads · single-elimination</div>
+        </header>
+
+        ${yourCard}
+
+        <section class="frn-apb-section">
+          <div class="frn-apb-section-title">📋 ALL-STAR ROSTERS · 8 DIVISIONS</div>
+          <div class="frn-apb-team-grid">${teamGrid}</div>
+        </section>
+
+        <section class="frn-apb-section">
+          <div class="frn-apb-section-title">🎯 QUARTERFINAL BRACKET</div>
+          <div class="frn-apb-bracket-prev-grid">${bracketPreview}</div>
+        </section>
+
+        <div class="frn-apb-cta-row">
+          <button class="frn-apb-cta" onclick="frnApbKickoff()">▶ KICK OFF QUARTERFINALS</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ── Beat 3: CHAMPION CROWNING ──────────────────────────────────────
+// Trophy banner + tournament MVP + top performers + your team's recap.
+function _renderApbCrowning(t) {
+  const myId = franchise.chosenTeamId;
+  const champTeam = _apbTeamById(t.champion, t);
+  const runnerUp  = _apbTeamById(t.runnerUp, t);
+  if (!champTeam) { return _renderApbTournament(t); }
+
+  // Apply champion stakes (idempotent)
+  _apbApplyChampionStakes(t);
+
+  // Tournament top performers — aggregate mvpScore across every game.
+  // Each rosterMeta player on either side accumulates per-game stats
+  // via per-game m.stats. We build a name → totalScore map.
+  const performerByName = new Map();
+  const playerInfo = new Map();
+  for (const round of t.rounds) {
+    for (const m of round) {
+      if (!m.played || !m.stats) continue;
+      const both = [...Object.values(m.stats.home?.players || {}),
+                    ...Object.values(m.stats.away?.players || {})];
+      for (const p of both) {
+        const s = mvpScore(p);
+        performerByName.set(p.name, (performerByName.get(p.name) || 0) + s);
+        if (!playerInfo.has(p.name)) playerInfo.set(p.name, { name: p.name, pos: p.pos });
+      }
+    }
+  }
+  const performers = [...performerByName.entries()]
+    .map(([name, score]) => ({ ...playerInfo.get(name), score }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 6);
+
+  // Your-team recap
+  const myAllPros = [];
+  for (const team of t.teams) {
+    for (const m of (team.rosterMeta || [])) {
+      if (m.srcTeamId === myId) {
+        const onChampTeam = team.id === t.champion;
+        myAllPros.push({ ...m, onChampTeam, allStarTeam: team });
+      }
+    }
+  }
+  const myOnChamp = myAllPros.filter(x => x.onChampTeam).length;
+
+  const sourceTagFor = (playerName) => {
+    // Find player's source team for color/abbr
+    for (const team of t.teams) {
+      const m = team.rosterMeta?.find(x => x.name === playerName);
+      if (m) return { primary: m.srcTeamPrimary, abbr: m.srcTeamAbbr };
+    }
+    return { primary: "var(--blgray)", abbr: "—" };
+  };
+  const isMine = (playerName) => {
+    for (const team of t.teams) {
+      const m = team.rosterMeta?.find(x => x.name === playerName);
+      if (m) return m.srcTeamId === myId;
+    }
+    return false;
+  };
+
+  $("frnHomeContent").innerHTML = `
+    <div class="bspnlive-root" style="margin:-1rem -1.5rem 0 -1.5rem;padding-bottom:1.2rem">
+      <header class="bspnlive-header">
+        <div>
+          <div class="bspnlive-logo">BSPN</div>
+          <div class="bspnlive-logo-sub">ALL-PRO BOWL · CHAMPIONS · SEASON ${franchise.season}</div>
+        </div>
+        <nav class="bspnlive-nav" style="flex-wrap:wrap;gap:.7rem .9rem">${_bspnNavHtml("AWARDS")}</nav>
+      </header>
+      <div style="padding:.55rem 1.4rem;border-bottom:1px solid var(--blborder);display:flex;gap:.55rem;flex-wrap:wrap;align-items:center">
+        <button class="bspn-back" onclick="renderFrnAwards()">‹ Back to Awards</button>
+      </div>
+      <div class="frn-apb-crowning">
+        <header class="frn-apb-trophy" style="--accent:${champTeam.primary}">
+          <div class="frn-apb-trophy-icon">🏆</div>
+          <div class="frn-apb-trophy-eyebrow">SEASON ${franchise.season} ALL-PRO BOWL CHAMPIONS</div>
+          <h1 class="frn-apb-trophy-name">${champTeam.confDiv.toUpperCase()} ALL-STARS</h1>
+          ${runnerUp ? `<div class="frn-apb-trophy-sub">defeated ${runnerUp.confDiv} All-Stars in the final</div>` : ""}
+        </header>
+
+        ${t.mvp ? `
+          <section class="frn-apb-mvp-card" style="--accent:${t.mvp.srcTeamPrimary || 'var(--blgold)'}">
+            <div class="frn-apb-mvp-eyebrow">🌟 TOURNAMENT MVP</div>
+            <div class="frn-apb-mvp-name">${_apbLink(t.mvp.name)}</div>
+            <div class="frn-apb-mvp-meta">${t.mvp.pos} · <span style="color:${t.mvp.srcTeamPrimary||'var(--blgray)'}">${t.mvp.srcTeamAbbr || "?"}</span></div>
+            <div class="frn-apb-mvp-line">${t.mvp.line}</div>
+          </section>` : ""}
+
+        <section class="frn-apb-section">
+          <div class="frn-apb-section-title">⭐ TOURNAMENT TOP PERFORMERS</div>
+          <div class="frn-apb-performers">
+            ${performers.map((p, i) => {
+              const src = sourceTagFor(p.name);
+              const mine = isMine(p.name);
+              return `<div class="frn-apb-performer-row ${mine?"mine":""}">
+                <span class="rank">${i+1}</span>
+                <span class="name">${_apbLink(p.name)}</span>
+                <span class="pos">${p.pos}</span>
+                <span class="src" style="color:${src.primary}">${src.abbr}</span>
+                <span class="score">★ ${Math.round(p.score)}</span>
+              </div>`;
+            }).join("")}
+          </div>
+        </section>
+
+        ${myAllPros.length ? `
+          <section class="frn-apb-section">
+            <div class="frn-apb-section-title">⭐ YOUR TEAM'S RECAP</div>
+            <div class="frn-apb-yourrecap">
+              <div class="frn-apb-yourrecap-stat">
+                <span class="lbl">PRO BOWLERS</span>
+                <span class="val">${myAllPros.length}</span>
+              </div>
+              <div class="frn-apb-yourrecap-stat">
+                <span class="lbl">CHAMPION-SIDE</span>
+                <span class="val" style="color:${myOnChamp>0?"var(--blgold)":"var(--blgray)"}">${myOnChamp}</span>
+              </div>
+              ${t.mvp && isMine(t.mvp.name) ? `<div class="frn-apb-yourrecap-stat">
+                <span class="lbl">TOURNAMENT MVP</span>
+                <span class="val" style="color:var(--blgold)">✓ ${t.mvp.name.split(" ").slice(-1)[0]}</span>
+              </div>` : ""}
+            </div>
+            ${myOnChamp>0 ? `<div class="frn-apb-yourrecap-note">🏆 Your ${myOnChamp} champion-side player${myOnChamp===1?"":"s"} earned a <b>Pro Bowl Champion</b> career accolade.</div>` : ""}
+          </section>` : ""}
+
+        <div class="frn-apb-cta-row">
+          <button class="frn-apb-cta secondary" onclick="frnApbReviewTournament()">📋 Review Tournament</button>
+          <button class="frn-apb-cta" onclick="frnApbProceedToOffseason()">▶ BEGIN OFFSEASON</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ── Beat 2: TOURNAMENT VIEW (existing bracket — kept lean) ─────────
+function _renderApbTournament(t) {
+  // Trophy card (only if user came back here AFTER crowning was dismissed)
   const champTeam = t.complete ? _apbTeamById(t.champion, t) : null;
   const trophyCard = (t.complete && champTeam) ? `
     <div class="bspnlive-apb-trophy-card">
@@ -610,11 +921,10 @@ function renderAllProBowl() {
       <div>
         <div class="bspnlive-apb-trophy-eyebrow">ALL-PRO BOWL CHAMPIONS · SEASON ${franchise.season}</div>
         <div class="bspnlive-apb-trophy-name">${champTeam.confDiv.toUpperCase()} ALL-STARS</div>
-        ${t.mvp ? `<div class="bspnlive-apb-trophy-mvp">⭐ Tournament MVP: <b>${link(t.mvp.name)}</b> (${t.mvp.pos}) · <span style="color:${t.mvp.srcTeamPrimary}">${t.mvp.srcTeamAbbr || ""}</span> · ${t.mvp.line}</div>` : ""}
+        ${t.mvp ? `<div class="bspnlive-apb-trophy-mvp">⭐ Tournament MVP: <b>${_apbLink(t.mvp.name)}</b> (${t.mvp.pos}) · <span style="color:${t.mvp.srcTeamPrimary}">${t.mvp.srcTeamAbbr || ""}</span> · ${t.mvp.line}</div>` : ""}
       </div>
     </div>` : "";
 
-  // Hero
   const hero = `
     <div class="bspnlive-apb-hero">
       <div class="bspnlive-apb-hero-eyebrow">EXHIBITION TOURNAMENT · SEASON ${franchise.season}</div>
@@ -622,13 +932,16 @@ function renderAllProBowl() {
       <div class="bspnlive-apb-hero-sub">8 division all-star squads · single-elimination · 7 games to division supremacy</div>
     </div>`;
 
-  // Each round
+  const myId = franchise.chosenTeamId;
+  const teamHasMine = (team) => team?.rosterMeta?.some(m => m.srcTeamId === myId);
+
   const teamCell = (id, score, isWinner, isLoser) => {
     const team = _apbTeamById(id, t);
     if (!team) return `<div class="bspnlive-apb-match-side"><span class="bspnlive-apb-seed">—</span><span class="bspnlive-apb-team" style="color:var(--blgray);font-style:italic">TBD</span><span class="bspnlive-apb-score"></span></div>`;
-    return `<div class="bspnlive-apb-match-side ${isWinner ? 'winner' : ''} ${isLoser ? 'loser' : ''}">
+    const mineCount = (team.rosterMeta || []).filter(m => m.srcTeamId === myId).length;
+    return `<div class="bspnlive-apb-match-side ${isWinner ? 'winner' : ''} ${isLoser ? 'loser' : ''}${mineCount?" mine":""}">
       <span class="bspnlive-apb-seed">#${team.seed}</span>
-      <span class="bspnlive-apb-team"><span class="bspnlive-apb-team-stripe" style="background:${team.primary}"></span>${team.confDiv} All-Stars</span>
+      <span class="bspnlive-apb-team"><span class="bspnlive-apb-team-stripe" style="background:${team.primary}"></span>${team.confDiv} All-Stars${mineCount?` <span class="bspnlive-apb-mine-pill">${mineCount}</span>`:""}</span>
       <span class="bspnlive-apb-score">${score != null ? score : ""}</span>
     </div>`;
   };
@@ -641,7 +954,7 @@ function renderAllProBowl() {
       ? `<div class="bspnlive-apb-match-action"><button class="bspnlive-btn-outline" onclick="frnSimApbMatch(${ri},${mi})" style="font-size:.72rem;padding:.25rem .65rem">▶ Sim</button></div>`
       : "";
     const mvpLine = (m.played && m.mvp)
-      ? `<div style="margin-top:.25rem;color:var(--blgray);font-size:.62rem">⭐ ${link(m.mvp.name)} (${m.mvp.pos}) · ${m.mvp.line}</div>`
+      ? `<div style="margin-top:.25rem;color:var(--blgray);font-size:.62rem">⭐ ${_apbLink(m.mvp.name)} (${m.mvp.pos}) · ${m.mvp.line}</div>`
       : "";
     return `<div class="bspnlive-apb-match ${cls}">
       ${teamCell(m.awayId, m.awayScore, awayW, homeW && m.played)}
@@ -664,10 +977,8 @@ function renderAllProBowl() {
     </div>`;
   }).join("");
 
-  // Rosters of teams still alive
   const aliveTeams = t.teams.filter(team => {
     if (t.complete) return team.id === t.champion;
-    // Alive if seen in current or later round
     for (let r = t.currentRound; r < t.rounds.length; r++) {
       for (const m of t.rounds[r]) {
         if (m.homeId === team.id || m.awayId === team.id) return true;
@@ -679,20 +990,19 @@ function renderAllProBowl() {
     <div class="bspnlive-section-title">📋 ${t.complete ? "CHAMPION ROSTER" : "TEAMS STILL ALIVE"}</div>
     <div class="bspnlive-allpro-grid">
       ${aliveTeams.map(team => `
-        <div class="bspnlive-allpro-block" style="border-top-color:${team.primary}">
+        <div class="bspnlive-allpro-block ${teamHasMine(team)?"has-mine":""}" style="border-top-color:${team.primary}">
           <div class="bspnlive-allpro-title">#${team.seed} · ${team.confDiv.toUpperCase()} ALL-STARS</div>
           <div class="bspnlive-apb-roster-grid">
             ${team.rosterMeta.slice(0, 18).map(p => `
-              <div class="bspnlive-apb-roster-row">
+              <div class="bspnlive-apb-roster-row ${p.srcTeamId===myId?"mine":""}">
                 <span class="bspnlive-apb-roster-pos">${p.pos}</span>
-                <span class="bspnlive-apb-roster-name">${link(p.name)}</span>
+                <span class="bspnlive-apb-roster-name">${_apbLink(p.name)}</span>
                 <span class="bspnlive-apb-roster-tm" style="color:${p.srcTeamPrimary}">${p.srcTeamAbbr}</span>
               </div>`).join("")}
           </div>
         </div>`).join("")}
     </div>` : "";
 
-  // Action buttons
   const hasUnplayedInCurrent = t.currentRound < t.rounds.length &&
     t.rounds[t.currentRound].some(m => !m.played && m.homeId != null && m.awayId != null);
   const actions = `
@@ -700,7 +1010,8 @@ function renderAllProBowl() {
       ${hasUnplayedInCurrent ? `<button class="bspnlive-btn-gold" onclick="frnSimApbRound()">⏩ Sim ${t.roundLabels[t.currentRound]}</button>` : ""}
       ${!t.complete ? `<button class="bspnlive-btn-outline" onclick="frnSimApbAll()">⏭ Sim Tournament</button>` : ""}
       <button class="bspnlive-btn-outline" onclick="renderFrnAwards()">‹ Awards Ceremony</button>
-      ${t.complete ? `<button class="bspnlive-btn-gold" onclick="startFrnOffseason()">⏭ Begin Offseason</button>` : ""}
+      ${t.complete ? `<button class="bspnlive-btn-gold" onclick="frnApbReopenCrowning()">🏆 View Crowning</button>` : ""}
+      ${t.complete ? `<button class="bspnlive-btn-gold" onclick="frnApbProceedToOffseason()">⏭ Begin Offseason</button>` : ""}
     </div>`;
 
   $("frnHomeContent").innerHTML = `
@@ -723,6 +1034,27 @@ function renderAllProBowl() {
         ${actions}
       </div>
     </div>`;
+}
+
+// Router — selections → tournament → crowning, based on tournament state.
+function renderAllProBowl() {
+  frnHoverTipHide && frnHoverTipHide();
+  _frnHoverTipPgHide && _frnHoverTipPgHide();
+  const t = franchise.allProBowlTournament;
+  if (!t) { renderFrnAwards(); return; }
+
+  // Pre-tournament selections reveal — until user kicks off
+  const anyPlayed = t.rounds.some(round => round.some(m => m.played));
+  if (!anyPlayed && !t._selectionsAcknowledged) {
+    return _renderApbSelections(t);
+  }
+
+  // Post-tournament crowning — until user dismisses
+  if (t.complete && !t._crowningDismissed) {
+    return _renderApbCrowning(t);
+  }
+
+  return _renderApbTournament(t);
 }
 
 // ── Coaching chemistry ────────────────────────────────────────────────────────
