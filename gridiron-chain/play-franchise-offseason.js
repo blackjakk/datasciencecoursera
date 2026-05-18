@@ -10862,8 +10862,22 @@ function _buildDraftClass(rookieYear, themesArg, positionsArg) {
   // Drafted-tier prospects: 7 rounds × 32 picks.
   for (let round = 1; round <= 7; round++) {
     for (let pick = 1; pick <= 32; pick++) {
-      const pos = positions[Math.floor(Math.random() * positions.length)];
-      const tier = tierByRound[round]();
+      let pos = positions[Math.floor(Math.random() * positions.length)];
+      // Specialists (K/P) almost never go in early rounds in real NFL.
+      // Re-roll if a K/P was drawn for rounds 1-4 — push them into the
+      // late rounds where the dropoff in OVR is invisible anyway.
+      if ((pos === "K" || pos === "P") && round <= 4) {
+        pos = positions[Math.floor(Math.random() * positions.length)];
+        if ((pos === "K" || pos === "P") && round <= 4) {
+          // Two K/P rolls in a row — replace with a high-volume position
+          pos = ["WR","DL","OL","CB"][Math.floor(Math.random() * 4)];
+        }
+      }
+      // K/P also cap at "good" max tier — even when they land in R1
+      // (very rare), they don't roll elite stats. Real specialists are
+      // OVR 70-78 in their prime, not 85+.
+      let tier = tierByRound[round]();
+      if ((pos === "K" || pos === "P") && tier === "elite") tier = "good";
       const p = genUniquePlayer(pos, tier, allTaken);
       allTaken.add(p.name);
       p.age = 21 + Math.floor(Math.random() * 3);
@@ -11160,13 +11174,16 @@ function renderFrnDraft() {
     : filter === "K/P" ? draftablePool.filter(p => p.position==="K"||p.position==="P")
     : filter === "ALL" ? draftablePool
     : draftablePool.filter(p => p.position === filter);
-  // Top 45 by consensus + ALWAYS keep scouted prospects visible (pin them
-  // even if they'd fall below the cutoff). Prevents the "scouted player
-  // disappears" bug.
+  // Scouted prospects live in their own visible lane above the main
+  // board (filtered out of the main board to avoid dupes). Guarantees
+  // they're always visible regardless of consensus rank.
   const scoutedSet = new Set(franchise.draftScouts || []);
-  const topBoard = filtered.slice(0, 45);
-  const pinnedScouted = filtered.slice(45).filter(p => scoutedSet.has(p.name));
-  const board = topBoard.concat(pinnedScouted);
+  // Sort scouted by consensus too so they're stable.
+  const scoutedLane = (filter === "ALL" || filter === "UDFA")
+    ? d.class.filter(p => !taken.has(p.name) && scoutedSet.has(p.name))
+        .sort((a, b) => _draftBoardScore(b) - _draftBoardScore(a))
+    : filtered.filter(p => scoutedSet.has(p.name));
+  const board = filtered.filter(p => !scoutedSet.has(p.name)).slice(0, 45);
   const targets = new Set(d.targets || []);
   _migrateDraftScouts();
   const scoutsList = franchise.draftScouts || [];
@@ -11185,8 +11202,10 @@ function renderFrnDraft() {
       : f==="UDFA"         ? udfaPool.length
       : f==="K/P"          ? draftablePool.filter(p=>p.position==="K"||p.position==="P").length
       :                      draftablePool.filter(p=>p.position===f).length;
-    const cls = f === "UDFA" ? "frn-draft-filter-btn udfa" : "frn-draft-filter-btn";
-    return `<button class="${cls}${filter===f?" active":""}" onclick="frnDraftSetFilter('${f}')">${f} <span style="opacity:.55;font-size:.52rem">${cnt}</span></button>`;
+    let cls = f === "UDFA" ? "frn-draft-filter-btn udfa" : "frn-draft-filter-btn";
+    if (cnt === 0) cls += " empty";
+    if (f === filter) cls += " active";
+    return `<button class="${cls}" onclick="frnDraftSetFilter('${f}')">${f} <span style="opacity:.55;font-size:.52rem">${cnt}</span></button>`;
   }).join("");
 
   // ── Class strengths chips (per-year theme display) ───────────────────────
@@ -11200,7 +11219,7 @@ function renderFrnDraft() {
   // ── Prospect board ───────────────────────────────────────────────────────
   _migrateDraftScouts();
   const slotsUsedCats = _draftScoutSlotsUsed();
-  const boardHtml = board.length ? board.map((p, i) => {
+  const renderProspectCard = (p, displayRank) => {
     const esc = (p.name||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'");
     const needLvl = _draftNeedLevel(myId, p.position);
     const needBadge = needLvl===2 ? `<span class="frn-draft-need-crit">❗NEED</span>`
@@ -11215,6 +11234,10 @@ function renderFrnDraft() {
     const arch = _archetypeLabel(p) || "—";
     const meta = comp ? `${arch} · ${comp}` : arch;
     const knockCat = p.collegeProfile?.knockType ? _DRAFT_KNOCK_CATEGORY[p.collegeProfile.knockType] : null;
+    // Projected-round badge — derived from where this prospect was
+    // generated. UDFA-tier (round 0) labels as "~UDFA".
+    const genR = p._generatedRound;
+    const projRoundLabel = genR === 0 ? "~UDFA" : genR ? `~R${genR}` : "";
 
     // 4-category scout cluster
     const catButtons = DRAFT_SCOUT_CATEGORIES.map(c => {
@@ -11256,19 +11279,19 @@ function renderFrnDraft() {
       ? `<div class="frn-dp-intel">${intelBits.map(b => `<div class="frn-dp-intel-row">${b}</div>`).join("")}</div>`
       : "";
 
-    // Scouted badge + which cat resolves the knock (hint)
     const knockHint = p.collegeProfile?.knock
       ? `<div style="font-size:.58rem;color:#e8a000;margin-top:.06rem">⚠ ${p.collegeProfile.knock}${knockCat?`<span style="color:var(--gray);font-weight:400"> · ${DRAFT_SCOUT_CAT_META[knockCat].icon} ${DRAFT_SCOUT_CAT_META[knockCat].label} can resolve</span>`:""}</div>`
       : "";
 
     return `<div class="frn-draft-prospect${isTargeted?" targeted":""}${isScouted?" scouted":""}">
-      <div class="frn-dp-rank">#${i+1}</div>
+      <div class="frn-dp-rank">${displayRank}</div>
       <div class="frn-dp-body">
         <div class="frn-dp-top">
           <span class="frn-dp-name">${p.name}</span>
           ${_posPillHtml(p.position)}
           ${needBadge}
           ${gradeBadge(p)}
+          ${projRoundLabel ? `<span style="font-size:.55rem;color:var(--gold-lt);letter-spacing:.3px;font-weight:700">${projRoundLabel}</span>` : ""}
           ${isScouted ? `<span style="font-size:.52rem;color:var(--green-lt);font-weight:700;letter-spacing:.3px">SCOUTED ${scoutedCats.length}/4</span>` : ""}
           ${potTag?`<span style="font-size:.56rem;color:var(--gold-lt)">${potTag}</span>`:""}
           <span style="color:var(--gray);font-size:.56rem">Age ${p.age}</span>
@@ -11287,7 +11310,18 @@ function renderFrnDraft() {
         <button class="btn btn-gold" style="padding:.2rem .5rem;font-size:.6rem" onclick="frnDraftPick('${esc}')">DRAFT</button>
       </div>
     </div>`;
-  }).join("") : `<div style="color:var(--gray);font-size:.7rem;padding:.5rem">No ${filter!=="ALL"?filter:""} prospects available</div>`;
+  };
+  const boardHtml = board.length
+    ? board.map((p, i) => renderProspectCard(p, `#${i+1}`)).join("")
+    : `<div style="color:var(--gray);font-size:.7rem;padding:.5rem">No ${filter!=="ALL"?filter:""} prospects available</div>`;
+
+  // ── Scouted lane (your prospects, always visible) ────────────────────────
+  const scoutedLaneHtml = scoutedLane.length
+    ? `<div class="frn-draft-scouted-lane">
+        <div class="frn-draft-scouted-header">🔍 YOUR SCOUTED PROSPECTS · ${scoutedLane.length}</div>
+        ${scoutedLane.map(p => renderProspectCard(p, "🔍")).join("")}
+      </div>`
+    : "";
 
   // ── Live ticker ──────────────────────────────────────────────────────────
   const tickerHtml = d.picks.length ? d.picks.slice().reverse().slice(0,30).map(pk => {
@@ -11301,9 +11335,12 @@ function renderFrnDraft() {
   }).join("") : `<div style="color:var(--gray);font-size:.64rem;font-style:italic">No picks yet</div>`;
 
   // ── Team needs ───────────────────────────────────────────────────────────
-  const needsHtml = ["QB","RB","WR","TE","OL","DL","LB","CB","S"].map(pos => {
+  const NEED_POSITIONS = ["QB","RB","WR","TE","OL","DL","LB","CB","S"];
+  const needLevels = {};
+  for (const pos of NEED_POSITIONS) needLevels[pos] = _draftNeedLevel(myId, pos);
+  const needsHtml = NEED_POSITIONS.map(pos => {
     const top = (franchise.rosters[myId]||[]).filter(p=>p.position===pos).sort((a,b)=>b.overall-a.overall)[0];
-    const lvl = _draftNeedLevel(myId, pos);
+    const lvl = needLevels[pos];
     const badge = lvl===2 ? `<span style="color:#ff9090;font-size:.53rem;font-weight:700">CRITICAL</span>`
       : lvl===1 ? `<span style="color:var(--gold);font-size:.53rem;font-weight:700">NEED</span>`
       : `<span style="color:var(--gray);font-size:.53rem">OK</span>`;
@@ -11313,6 +11350,33 @@ function renderFrnDraft() {
       <span style="margin-left:auto">${badge}</span>
     </div>`;
   }).join("");
+
+  // ── Best at need ────────────────────────────────────────────────────────
+  // Top-ranked available prospect at each of your top 3 position needs.
+  // Reduces filter-tab clicking when you have a clear hole to fill.
+  const needPositions = NEED_POSITIONS
+    .filter(pos => needLevels[pos] > 0)
+    .sort((a, b) => needLevels[b] - needLevels[a])
+    .slice(0, 3);
+  const bestAtNeedRows = needPositions.map(pos => {
+    const best = draftablePool.find(p => p.position === pos);
+    if (!best) return `<div class="frn-draft-best-row">
+      <span style="font-weight:700;font-size:.64rem;min-width:2rem">${pos}</span>
+      <span style="color:var(--gray);font-size:.58rem;font-style:italic">none left</span>
+    </div>`;
+    const sg = scoutGrade(best);
+    const lvl = needLevels[pos];
+    const lvlColor = lvl === 2 ? "#ff9090" : "var(--gold)";
+    return `<div class="frn-draft-best-row" onclick="frnDraftSetFilter('${pos}')" title="Filter to ${pos}">
+      <span style="font-weight:700;font-size:.64rem;min-width:2rem;color:${lvlColor}">${pos}</span>
+      <span style="font-size:.62rem;color:var(--white);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${best.name}</span>
+      <span style="color:var(--gray);font-size:.55rem">${sg}</span>
+    </div>`;
+  }).join("");
+  const bestAtNeedHtml = bestAtNeedRows ? `<div class="frn-draft-info-card">
+    <div class="frn-card-title" style="margin-bottom:.25rem">⚡ BEST AT NEED</div>
+    ${bestAtNeedRows}
+  </div>` : "";
 
   // ── Your class ───────────────────────────────────────────────────────────
   const myPicks = d.picks.filter(pk=>pk.teamId===myId);
@@ -11352,6 +11416,7 @@ function renderFrnDraft() {
             onclick="frnSimRound()">⏭ Sim Rest of R${round}</button>
         </div>
         <div class="frn-draft-filters">${filterHtml}</div>
+        ${scoutedLaneHtml}
         <div class="frn-draft-board">${boardHtml}</div>
       </div>
       <div class="frn-draft-info-panel">
@@ -11364,6 +11429,7 @@ function renderFrnDraft() {
           </div>
           ${needsHtml}
         </div>
+        ${bestAtNeedHtml}
         <div class="frn-draft-info-card">
           <div class="frn-card-title" style="margin-bottom:.25rem">YOUR CLASS (${myPicks.length})</div>
           ${myPicksHtml}

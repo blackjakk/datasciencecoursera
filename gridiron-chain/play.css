@@ -5467,6 +5467,32 @@
   .frn-draft-filter-btn.udfa.active {
     background: rgba(212,175,55,.12);
   }
+  /* Filter tab with no prospects left — visually dimmed but still clickable */
+  .frn-draft-filter-btn.empty {
+    opacity: .35; color: var(--gray); border-color: var(--border);
+  }
+
+  /* Scouted prospects lane — own visual section above the consensus board */
+  .frn-draft-scouted-lane {
+    margin-bottom: .55rem;
+    padding: .35rem .45rem .5rem;
+    background: rgba(0,180,80,.06);
+    border-left: 2px solid var(--green-lt);
+    border-radius: 2px;
+  }
+  .frn-draft-scouted-header {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    color: var(--green-lt); letter-spacing: 1.4px; font-size: .68rem;
+    margin-bottom: .35rem; padding-left: .2rem;
+  }
+
+  /* Best at need sidebar rows */
+  .frn-draft-best-row {
+    display: flex; gap: .4rem; align-items: center;
+    padding: .2rem .35rem; cursor: pointer;
+    border-radius: 2px; transition: background .1s;
+  }
+  .frn-draft-best-row:hover { background: rgba(212,175,55,.08); }
 
   /* UDFA Scramble screen */
   .frn-udfa-hero {

@@ -945,17 +945,30 @@ function _draftScoutCategories(name) {
   return [];
 }
 
+// Position-value offsets for the consensus board only. Real NFL drafts
+// QBs and LTs near the top of every class and almost never spends day-1
+// picks on specialists, regardless of raw talent. K/P-at-pick-1 was a
+// real bug under pure-OVR sorting.
+const _DRAFT_BOARD_POS_VALUE = {
+  QB:  5,
+  OL:  3,
+  DL:  2,
+  CB:  1,
+  WR:  0,
+  RB: -1, S: -1, LB: -1,
+  TE: -2,
+  K: -15, P: -15,
+};
+
 // Stable consensus "big board" score for sorting the draft board. Does
 // NOT depend on scout state, so clicking scout doesn't shuffle the board
 // out from under the user. Uses true OVR + name-hashed noise + pedigree
-// + age cliff. Effectively a "league consensus" view.
+// + age cliff + position value. Effectively a "league consensus" view.
 function _draftBoardScore(p) {
   let score = p.overall || 60;
   let h = 0;
   const name = p.name || "";
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
-  // Fixed band of 3 so the board has natural variance but doesn't shift
-  // when you scout.
   const noise = (Math.abs(h) % 7) - 3;
   score += noise;
   const r = p.draftRound;
@@ -966,6 +979,7 @@ function _draftBoardScore(p) {
   const age = p.age || 25;
   if (age >= 34)      score -= 6;
   else if (age >= 32) score -= 3;
+  score += _DRAFT_BOARD_POS_VALUE[p.position] ?? 0;
   return score;
 }
 
