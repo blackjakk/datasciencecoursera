@@ -788,20 +788,31 @@ function _renderApbCrowning(t) {
   // Apply champion stakes (idempotent)
   _apbApplyChampionStakes(t);
 
-  // Tournament top performers — aggregate mvpScore across every game.
-  // Each rosterMeta player on either side accumulates per-game stats
-  // via per-game m.stats. We build a name → totalScore map.
+  // Tournament top performers — aggregate impact score AND raw stat
+  // totals across every game so we can show actual stat lines (not
+  // just an opaque score) and per-category leaders.
   const performerByName = new Map();
   const playerInfo = new Map();
-  for (const round of t.rounds) {
-    for (const m of round) {
+  const ROUND_FOR_TEAM = new Map();  // teamId → deepest round index reached
+  for (let ri = 0; ri < t.rounds.length; ri++) {
+    for (const m of t.rounds[ri]) {
       if (!m.played || !m.stats) continue;
-      const both = [...Object.values(m.stats.home?.players || {}),
-                    ...Object.values(m.stats.away?.players || {})];
+      // Track each team's deepest round for outcome chips
+      if (m.homeId != null) ROUND_FOR_TEAM.set(m.homeId, Math.max(ROUND_FOR_TEAM.get(m.homeId) || 0, ri));
+      if (m.awayId != null) ROUND_FOR_TEAM.set(m.awayId, Math.max(ROUND_FOR_TEAM.get(m.awayId) || 0, ri));
+      const both = [
+        ...Object.values(m.stats.home?.players || {}),
+        ...Object.values(m.stats.away?.players || {}),
+      ];
       for (const p of both) {
         const s = mvpScore(p);
+        if (!playerInfo.has(p.name)) playerInfo.set(p.name, { name: p.name, pos: p.pos, totals: {}, gp: 0 });
+        const info = playerInfo.get(p.name);
+        info.gp += 1;
+        for (const [k, v] of Object.entries(p)) {
+          if (typeof v === "number" && k !== "gp") info.totals[k] = (info.totals[k] || 0) + v;
+        }
         performerByName.set(p.name, (performerByName.get(p.name) || 0) + s);
-        if (!playerInfo.has(p.name)) playerInfo.set(p.name, { name: p.name, pos: p.pos });
       }
     }
   }
@@ -809,6 +820,78 @@ function _renderApbCrowning(t) {
     .map(([name, score]) => ({ ...playerInfo.get(name), score }))
     .sort((a, b) => b.score - a.score)
     .slice(0, 6);
+
+  // Position-aware stat line — exposes what the impact score is actually
+  // made of. Keeps each line tight so the row stays readable.
+  const performerStatLine = (p) => {
+    const s = p.totals || {};
+    const parts = [];
+    if (p.pos === "QB") {
+      if (s.pass_yds) parts.push(`${s.pass_yds} PYDS`);
+      if (s.pass_td) parts.push(`${s.pass_td} TD`);
+      if (s.pass_int) parts.push(`${s.pass_int} INT`);
+      if (s.rush_yds) parts.push(`${s.rush_yds} RYDS`);
+      if (s.rush_td) parts.push(`${s.rush_td} rTD`);
+    } else if (p.pos === "RB") {
+      if (s.rush_yds) parts.push(`${s.rush_yds} RYDS`);
+      if (s.rush_td) parts.push(`${s.rush_td} TD`);
+      if (s.rec_yds) parts.push(`${s.rec_yds} recYDS`);
+      if (s.rec_td) parts.push(`${s.rec_td} recTD`);
+    } else if (p.pos === "WR" || p.pos === "TE") {
+      if (s.rec) parts.push(`${s.rec} REC`);
+      if (s.rec_yds) parts.push(`${s.rec_yds} YDS`);
+      if (s.rec_td) parts.push(`${s.rec_td} TD`);
+    } else if (p.pos === "K") {
+      if (s.fg_made) parts.push(`${s.fg_made}/${s.fg_att||0} FG`);
+      if (s.fg_long) parts.push(`LONG ${s.fg_long}`);
+    } else {
+      // Defense
+      if (s.tkl) parts.push(`${s.tkl} TKL`);
+      if (s.sk) parts.push(`${s.sk} SK`);
+      if (s.int_made) parts.push(`${s.int_made} INT`);
+      if (s.ff) parts.push(`${s.ff} FF`);
+      if (s.def_td) parts.push(`${s.def_td} TD`);
+    }
+    return parts.join(" · ");
+  };
+
+  // Team-outcome chip — Champion / Final / Semis / QF exit / DNP.
+  const outcomeChipFor = (playerName) => {
+    // Find which all-star team this player is on
+    let team = null;
+    for (const tt of t.teams) {
+      if (tt.rosterMeta?.some(x => x.name === playerName)) { team = tt; break; }
+    }
+    if (!team) return { label: "", cls: "" };
+    if (team.id === t.champion) return { label: "🏆 CHAMPION", cls: "champ" };
+    if (team.id === t.runnerUp) return { label: "FINAL", cls: "final" };
+    const deepest = ROUND_FOR_TEAM.get(team.id);
+    if (deepest === 1) return { label: "SEMIS", cls: "semis" };
+    if (deepest === 0) return { label: "QF EXIT", cls: "qf" };
+    return { label: "", cls: "" };
+  };
+
+  // Stat-leader strip — top passing / rushing / receiving / defender by
+  // raw totals, regardless of impact score. Answers "who was the best X".
+  const leaderOf = (predicate, sortKey, label) => {
+    const candidates = [...playerInfo.values()].filter(predicate);
+    if (!candidates.length) return null;
+    candidates.sort((a, b) => (b.totals?.[sortKey] || 0) - (a.totals?.[sortKey] || 0));
+    const top = candidates[0];
+    if (!top || !top.totals?.[sortKey]) return null;
+    return { ...top, leaderLabel: label, leaderStat: top.totals[sortKey] };
+  };
+  const defScore = (info) => (info.totals?.sk || 0) * 4 + (info.totals?.int_made || 0) * 6
+    + (info.totals?.ff || 0) * 4 + (info.totals?.def_td || 0) * 6 + (info.totals?.tkl || 0);
+  const defLeaderCandidates = [...playerInfo.values()]
+    .filter(p => ["DL","LB","CB","S"].includes(p.pos) && defScore(p) > 0)
+    .sort((a, b) => defScore(b) - defScore(a));
+  const statLeaders = [
+    leaderOf(p => p.pos === "QB" && (p.totals?.pass_yds || 0) > 0, "pass_yds", "Top Passer"),
+    leaderOf(p => p.pos === "RB" && (p.totals?.rush_yds || 0) > 0, "rush_yds", "Top Rusher"),
+    leaderOf(p => (p.pos === "WR" || p.pos === "TE") && (p.totals?.rec_yds || 0) > 0, "rec_yds", "Top Receiver"),
+    defLeaderCandidates[0] ? { ...defLeaderCandidates[0], leaderLabel: "Top Defender" } : null,
+  ].filter(Boolean);
 
   // Your-team recap
   const myAllPros = [];
@@ -866,18 +949,52 @@ function _renderApbCrowning(t) {
             <div class="frn-apb-mvp-line">${t.mvp.line}</div>
           </section>` : ""}
 
+        ${statLeaders.length ? `
+          <section class="frn-apb-section">
+            <div class="frn-apb-section-title">📊 STAT LEADERS</div>
+            <div class="frn-apb-leader-grid">
+              ${statLeaders.map(l => {
+                const src = sourceTagFor(l.name);
+                const mine = isMine(l.name);
+                const oc = outcomeChipFor(l.name);
+                return `<div class="frn-apb-leader-card ${mine?"mine":""}" style="--accent:${src.primary}">
+                  <div class="frn-apb-leader-label">${l.leaderLabel}</div>
+                  <div class="frn-apb-leader-name">${_apbLink(l.name)}</div>
+                  <div class="frn-apb-leader-meta">
+                    <span class="pos">${l.pos}</span>
+                    <span class="src" style="color:${src.primary}">${src.abbr}</span>
+                    <span class="gp">${l.gp}gp</span>
+                    ${oc.label?`<span class="outcome ${oc.cls}">${oc.label}</span>`:""}
+                  </div>
+                  <div class="frn-apb-leader-stat">${performerStatLine(l)}</div>
+                </div>`;
+              }).join("")}
+            </div>
+          </section>` : ""}
+
         <section class="frn-apb-section">
-          <div class="frn-apb-section-title">⭐ TOURNAMENT TOP PERFORMERS</div>
+          <div class="frn-apb-section-title">⭐ TOURNAMENT TOP PERFORMERS <span style="font-size:.55rem;color:var(--blgray);font-weight:400;letter-spacing:1px;margin-left:.4rem">ranked by impact score</span></div>
           <div class="frn-apb-performers">
             ${performers.map((p, i) => {
               const src = sourceTagFor(p.name);
               const mine = isMine(p.name);
+              const oc = outcomeChipFor(p.name);
+              const sl = performerStatLine(p);
               return `<div class="frn-apb-performer-row ${mine?"mine":""}">
-                <span class="rank">${i+1}</span>
-                <span class="name">${_apbLink(p.name)}</span>
-                <span class="pos">${p.pos}</span>
-                <span class="src" style="color:${src.primary}">${src.abbr}</span>
-                <span class="score">★ ${Math.round(p.score)}</span>
+                <div class="frn-apb-performer-rank">${i+1}</div>
+                <div class="frn-apb-performer-body">
+                  <div class="frn-apb-performer-head">
+                    <span class="name">${_apbLink(p.name)}</span>
+                    <span class="pos">${p.pos}</span>
+                    <span class="src" style="color:${src.primary}">${src.abbr}</span>
+                    ${oc.label?`<span class="outcome ${oc.cls}">${oc.label}</span>`:""}
+                  </div>
+                  <div class="frn-apb-performer-stats">
+                    <span class="line">${sl || "—"}</span>
+                    <span class="gp">${p.gp} GP</span>
+                    <span class="score">★ ${Math.round(p.score)}</span>
+                  </div>
+                </div>
               </div>`;
             }).join("")}
           </div>

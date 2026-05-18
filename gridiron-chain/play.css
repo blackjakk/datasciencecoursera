@@ -4646,32 +4646,98 @@
     color: var(--blgold); font-size: .68rem;
   }
 
-  /* Performers list */
-  .frn-apb-performers { display: flex; flex-direction: column; gap: .25rem; }
+  /* Stat-leader strip (top passer / rusher / receiver / defender) */
+  .frn-apb-leader-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: .55rem;
+  }
+  @media (max-width: 800px) { .frn-apb-leader-grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 500px) { .frn-apb-leader-grid { grid-template-columns: 1fr; } }
+  .frn-apb-leader-card {
+    background: var(--blbg3); border: 1px solid var(--blborder);
+    border-top: 3px solid var(--accent, var(--blgold));
+    border-radius: 3px; padding: .55rem .7rem;
+    display: flex; flex-direction: column; gap: .25rem;
+  }
+  .frn-apb-leader-card.mine {
+    box-shadow: inset 0 0 0 1px var(--blgold);
+    background: rgba(212,175,55,.08);
+  }
+  .frn-apb-leader-label {
+    font-size: .52rem; letter-spacing: 1.5px; color: var(--blgold);
+    font-weight: 800;
+  }
+  .frn-apb-leader-name {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: .95rem; letter-spacing: .8px; color: var(--blwhite);
+    line-height: 1.15;
+  }
+  .frn-apb-leader-meta {
+    display: flex; gap: .35rem; align-items: center; flex-wrap: wrap;
+    font-size: .56rem;
+  }
+  .frn-apb-leader-meta .pos { color: var(--blgold); font-weight: 700; letter-spacing: .5px; }
+  .frn-apb-leader-meta .src {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: .62rem; letter-spacing: .6px; font-weight: 700;
+  }
+  .frn-apb-leader-meta .gp {
+    color: var(--blgray); font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+  }
+  .frn-apb-leader-stat {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    font-size: .68rem; color: var(--blgold); font-weight: 700;
+    margin-top: .15rem; line-height: 1.25;
+  }
+
+  /* Performers list — two-line rows now (head + stats) */
+  .frn-apb-performers { display: flex; flex-direction: column; gap: .3rem; }
   .frn-apb-performer-row {
-    display: grid; grid-template-columns: 1.6rem 1fr auto auto auto;
-    gap: .5rem; align-items: baseline;
-    padding: .35rem .55rem; background: var(--blbg3);
+    display: grid; grid-template-columns: 1.8rem 1fr;
+    gap: .55rem; align-items: stretch;
+    padding: .45rem .6rem; background: var(--blbg3);
     border: 1px solid var(--blborder); border-radius: 2px;
-    font-size: .7rem;
   }
   .frn-apb-performer-row.mine {
     border-color: var(--blgold); background: rgba(212,175,55,.1);
   }
-  .frn-apb-performer-row .rank {
+  .frn-apb-performer-rank {
     color: var(--blgold); font-weight: 900;
-    font-family: "Bebas Neue","Anton",sans-serif; text-align: center;
-  }
-  .frn-apb-performer-row .name { color: var(--blwhite); font-weight: 700; }
-  .frn-apb-performer-row .pos { color: var(--blgold); font-weight: 700; font-size: .6rem; }
-  .frn-apb-performer-row .src {
     font-family: "Bebas Neue","Anton",sans-serif;
-    font-size: .65rem; letter-spacing: .8px; font-weight: 700;
+    font-size: 1.3rem; text-align: center;
+    line-height: 1.05;
   }
-  .frn-apb-performer-row .score {
+  .frn-apb-performer-body {
+    display: flex; flex-direction: column; gap: .15rem; min-width: 0;
+  }
+  .frn-apb-performer-head {
+    display: flex; gap: .45rem; align-items: baseline; flex-wrap: wrap;
+    font-size: .72rem;
+  }
+  .frn-apb-performer-head .name { color: var(--blwhite); font-weight: 700; }
+  .frn-apb-performer-head .pos { color: var(--blgold); font-weight: 700; font-size: .58rem; letter-spacing: .8px; }
+  .frn-apb-performer-head .src {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: .62rem; letter-spacing: .8px; font-weight: 700;
+  }
+  .frn-apb-performer-stats {
+    display: flex; gap: .65rem; align-items: baseline; flex-wrap: wrap;
     font-family: "IBM Plex Mono","JetBrains Mono",monospace;
-    color: var(--blgold); font-weight: 700;
+    font-size: .62rem; color: var(--blgold);
   }
+  .frn-apb-performer-stats .line { color: var(--blgold); font-weight: 700; }
+  .frn-apb-performer-stats .gp { color: var(--blgray); }
+  .frn-apb-performer-stats .score { color: var(--blwhite); font-weight: 700; margin-left: auto; }
+
+  /* Outcome chips (Champion / Final / Semis / QF exit) */
+  .outcome {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    font-size: .5rem; font-weight: 800; letter-spacing: .8px;
+    padding: .06rem .35rem; border-radius: 2px; border: 1px solid;
+  }
+  .outcome.champ { color: var(--blgold); border-color: var(--blgold); background: rgba(212,175,55,.12); }
+  .outcome.final { color: #e8a000; border-color: #e8a000; background: rgba(232,160,0,.08); }
+  .outcome.semis { color: #a78bfa; border-color: #a78bfa; background: rgba(167,139,250,.08); }
+  .outcome.qf    { color: var(--blgray); border-color: var(--blgray); background: rgba(0,0,0,.2); }
 
   /* Your-team recap */
   .frn-apb-yourrecap {
