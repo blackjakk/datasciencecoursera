@@ -6373,6 +6373,27 @@ function renderFrnCoachingStaff() {
       ${penaltyLine}
     </div>`;
 
+  // ── Scheme variables — hoisted so hcMarketSchemeNote can use them ──
+  const myOffScheme = _getTeamOffScheme(myId);
+  const myDefScheme = _getTeamDefScheme(myId);
+  const schemeOverviewHtml = `
+    <div class="frn-coach-card" style="background:rgba(255,255,255,.03)">
+      <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:center;margin-bottom:.6rem">
+        <div>
+          <div style="font-size:.6rem;color:var(--gray);letter-spacing:.5px;text-transform:uppercase;margin-bottom:.2rem">Offense</div>
+          ${_schemeBadge(myOffScheme)}
+        </div>
+        <div>
+          <div style="font-size:.6rem;color:var(--gray);letter-spacing:.5px;text-transform:uppercase;margin-bottom:.2rem">Defense</div>
+          ${_schemeBadge(myDefScheme)}
+        </div>
+      </div>
+      <div style="font-size:.63rem;color:var(--gray);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:.3rem">Offensive matchup outlook</div>
+      ${_schemePreviewHtml("off", myOffScheme, myId)}
+      <div style="font-size:.63rem;color:var(--gray);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin:.55rem 0 .3rem">Defensive matchup outlook</div>
+      ${_schemePreviewHtml("def", myDefScheme, myId)}
+    </div>`;
+
   // ── Coach Market ──
   const hcMarketSchemeNote = `
     <div style="font-size:.64rem;color:var(--gray);background:rgba(255,255,255,.04);border-radius:4px;padding:.4rem .6rem;margin-bottom:.4rem">
@@ -6518,27 +6539,6 @@ function renderFrnCoachingStaff() {
         ${chemBonus.offBonus===0 && chemBonus.defBonus===0 && chemBonus.devMul<=1.0 && !chemBonus.chaotic ? `<span style="opacity:.5">Bonuses unlock as alignment builds across seasons</span>` : ""}
       </div>
       ${bondHtml}
-    </div>`;
-
-  // ── Scheme Overview ──
-  const myOffScheme = _getTeamOffScheme(myId);
-  const myDefScheme = _getTeamDefScheme(myId);
-  const schemeOverviewHtml = `
-    <div class="frn-coach-card" style="background:rgba(255,255,255,.03)">
-      <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:center;margin-bottom:.6rem">
-        <div>
-          <div style="font-size:.6rem;color:var(--gray);letter-spacing:.5px;text-transform:uppercase;margin-bottom:.2rem">Offense</div>
-          ${_schemeBadge(myOffScheme)}
-        </div>
-        <div>
-          <div style="font-size:.6rem;color:var(--gray);letter-spacing:.5px;text-transform:uppercase;margin-bottom:.2rem">Defense</div>
-          ${_schemeBadge(myDefScheme)}
-        </div>
-      </div>
-      <div style="font-size:.63rem;color:var(--gray);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:.3rem">Offensive matchup outlook</div>
-      ${_schemePreviewHtml("off", myOffScheme, myId)}
-      <div style="font-size:.63rem;color:var(--gray);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin:.55rem 0 .3rem">Defensive matchup outlook</div>
-      ${_schemePreviewHtml("def", myDefScheme, myId)}
     </div>`;
 
   const hireBanner = _coachHireResult
