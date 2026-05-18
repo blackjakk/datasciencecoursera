@@ -4855,13 +4855,27 @@
   }
 
   /* ── Weekly Dashboard redesign ──────────────────────────────────────────── */
+  /* Center column is capped (the cards inside don't need to spread); the
+     right sidebar takes the remaining space so League Snapshot / Team
+     Leaders / POTW always fit without being pushed off-screen. */
   .frn-dashboard-grid {
     display: grid;
-    grid-template-columns: 220px 1fr 270px;
+    grid-template-columns: 210px minmax(0, 520px) minmax(280px, 1fr);
     gap: 1rem;
     align-items: start;
+    max-width: 1240px;
   }
-  @media (max-width: 900px) { .frn-dashboard-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 1000px) {
+    .frn-dashboard-grid {
+      grid-template-columns: 200px minmax(0, 1fr);
+    }
+    /* Right sidebar drops below the center column on medium screens */
+    .frn-dashboard-grid > :nth-child(3) { grid-column: 1 / -1; }
+  }
+  @media (max-width: 720px) {
+    .frn-dashboard-grid { grid-template-columns: 1fr; }
+    .frn-dashboard-grid > :nth-child(3) { grid-column: auto; }
+  }
 
   /* ── App shell (regular-season tabs) ────────────────────────────── */
   #frnAppShell {
