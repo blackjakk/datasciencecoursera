@@ -849,8 +849,20 @@ function _playerNoiseBand(p) {
     bands.push(2); hasGameTape = true; // minor role — one band worse
   }
 
-  // Draft scout
-  if (p.isProspect && (fr.draftScouts || []).includes(p.name)) bands.push(2);
+  // Draft scout — band scales with how many categories you've scouted:
+  //   0 cats (default unscouted prospect, falls through) → 5 (combine info)
+  //   1 cat = 4 · 2 cats = 3 · 3 cats = 2 · 4 cats = 1 (full intel)
+  if (p.isProspect) {
+    const cats = _draftScoutCategories(p.name);
+    if (cats.length >= 1) {
+      bands.push(Math.max(1, 5 - cats.length));
+    }
+  }
+  // Owned-player carryover: a prospect you drafted after scouting them
+  // keeps their sharpened read for their first season on your roster.
+  if (p._scoutedAtDraftSeason != null && within(p._scoutedAtDraftSeason)) {
+    bands.push(Math.max(1, 5 - (p._scoutedAtDraftCats || 1)));
+  }
 
   // APB participation — curated rosters, treat as major
   if (within(p._apbScoutedSeason)) { bands.push(2); hasGameTape = true; }
@@ -919,6 +931,42 @@ function _playerNoiseBand(p) {
 function _isPlayerScouted(p) {
   // Backward-compat: returns true for any sharpened read (band ≤ 5).
   return _playerNoiseBand(p) <= 5;
+}
+
+// Returns the list of scouting categories assigned to a draft prospect.
+// Handles both the new shape (categories array on draftScoutReveals[name])
+// and legacy saves (just present in draftScouts[]) which are treated as a
+// single generic "film" scout.
+function _draftScoutCategories(name) {
+  if (!franchise) return [];
+  const rev = franchise.draftScoutReveals?.[name];
+  if (rev?.categories && Array.isArray(rev.categories)) return rev.categories;
+  if ((franchise.draftScouts || []).includes(name)) return ["film"]; // legacy
+  return [];
+}
+
+// Stable consensus "big board" score for sorting the draft board. Does
+// NOT depend on scout state, so clicking scout doesn't shuffle the board
+// out from under the user. Uses true OVR + name-hashed noise + pedigree
+// + age cliff. Effectively a "league consensus" view.
+function _draftBoardScore(p) {
+  let score = p.overall || 60;
+  let h = 0;
+  const name = p.name || "";
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
+  // Fixed band of 3 so the board has natural variance but doesn't shift
+  // when you scout.
+  const noise = (Math.abs(h) % 7) - 3;
+  score += noise;
+  const r = p.draftRound;
+  if (r === 1)      score += 3;
+  else if (r === 2) score += 1;
+  else if (r >= 5)  score -= 2;
+  else if (r === 0) score -= 4;
+  const age = p.age || 25;
+  if (age >= 34)      score -= 6;
+  else if (age >= 32) score -= 3;
+  return score;
 }
 
 // Did this player have a meaningful in-game role? Used to gate game-

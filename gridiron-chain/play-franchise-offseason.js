@@ -10794,16 +10794,24 @@ function renderFrnDraft() {
   const dayLabel = round <= 2 ? "DAY 1 · PRIMETIME" : round === 3 ? "DAY 2" : "DAY 3";
   const filter = d.boardFilter || "ALL";
 
-  // Build available pool
+  // Build available pool — sort by stable consensus score so scouting a
+  // player doesn't shuffle them off the visible board.
   const taken = new Set(d.picks.map(p => p.prospectName));
   const allAvail = d.class.filter(p => !taken.has(p.name))
-    .sort((a,b) => scoutGrade(b) - scoutGrade(a));
+    .sort((a,b) => _draftBoardScore(b) - _draftBoardScore(a));
   const filtered = filter === "K/P" ? allAvail.filter(p => p.position==="K"||p.position==="P")
     : filter === "ALL" ? allAvail : allAvail.filter(p => p.position === filter);
-  const board = filtered.slice(0, 45);
+  // Top 45 by consensus + ALWAYS keep scouted prospects visible (pin them
+  // even if they'd fall below the cutoff). Prevents the "scouted player
+  // disappears" bug.
+  const scoutedSet = new Set(franchise.draftScouts || []);
+  const topBoard = filtered.slice(0, 45);
+  const pinnedScouted = filtered.slice(45).filter(p => scoutedSet.has(p.name));
+  const board = topBoard.concat(pinnedScouted);
   const targets = new Set(d.targets || []);
+  _migrateDraftScouts();
   const scoutsList = franchise.draftScouts || [];
-  const slotsUsed  = scoutsList.length;
+  const slotsUsed  = _draftScoutSlotsUsed();
 
   // Collect and clear target-gone alerts
   const gone = (d._targetGone || []).splice(0);
@@ -10821,19 +10829,69 @@ function renderFrnDraft() {
   }).join("");
 
   // ── Prospect board ───────────────────────────────────────────────────────
+  _migrateDraftScouts();
+  const slotsUsedCats = _draftScoutSlotsUsed();
   const boardHtml = board.length ? board.map((p, i) => {
     const esc = (p.name||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'");
     const needLvl = _draftNeedLevel(myId, p.position);
     const needBadge = needLvl===2 ? `<span class="frn-draft-need-crit">❗NEED</span>`
                     : needLvl===1 ? `<span class="frn-draft-need-need">⚠ NEED</span>` : "";
     const isTargeted    = targets.has(p.name);
-    const isScouted     = scoutsList.includes(p.name);
+    const scoutedCats   = _draftScoutCategories(p.name);
+    const isScouted     = scoutedCats.length > 0;
     const scoutRevealed = isScouted && _isDraftScoutRevealed(p.name);
-    const canAddScout   = !isScouted && slotsUsed < DRAFT_SCOUT_SLOTS;
+    const slotsLeft     = DRAFT_SCOUT_SLOTS - slotsUsedCats;
     const potTag = potentialTag(p, { known: false, scoutRevealed });
     const comp = _draftNFLComp(p);
     const arch = _archetypeLabel(p) || "—";
     const meta = comp ? `${arch} · ${comp}` : arch;
+    const knockCat = p.collegeProfile?.knockType ? _DRAFT_KNOCK_CATEGORY[p.collegeProfile.knockType] : null;
+
+    // 4-category scout cluster
+    const catButtons = DRAFT_SCOUT_CATEGORIES.map(c => {
+      const meta = DRAFT_SCOUT_CAT_META[c];
+      const has = scoutedCats.includes(c);
+      const canAdd = !has && slotsLeft > 0;
+      const disabled = !has && !canAdd;
+      return `<button class="frn-dp-cat-btn${has?" active":""}" data-cat="${c}"
+        onclick="frnDraftScoutCategory('${esc}','${c}')"
+        title="${has?`Remove ${meta.label} scout`:disabled?"Scout slots full":`${meta.label} scout · ${meta.desc} · ${slotsLeft-1} slots left`}"
+        ${disabled ? 'disabled style="opacity:.3;cursor:not-allowed"' : ''}
+        style="${has?`color:${meta.color};border-color:${meta.color}aa;background:${meta.color}15`:""}">${meta.icon}</button>`;
+    }).join("");
+
+    // Per-category intel reveals — only show what's been scouted
+    const intelBits = [];
+    const rev = franchise.draftScoutReveals?.[p.name];
+    if (scoutedCats.includes("medical")) {
+      const risk = _draftScoutMedicalRisk(p);
+      const note = rev?.knockNotes?.medical;
+      intelBits.push(`<span style="color:${risk.color}">🏥 Medical risk <b>${risk.label}</b></span>${note?` · <span style="color:var(--green-lt)">${note}</span>`:""}`);
+    }
+    if (scoutedCats.includes("film")) {
+      const note = rev?.knockNotes?.film;
+      const reveal = rev?.revealed ? " · <span style=\"color:var(--gold-lt)\">potential confirmed</span>" : "";
+      intelBits.push(`<span style="color:var(--gold-lt)">🎬 Film study</span>${note?` · <span style="color:var(--green-lt)">${note}</span>`:""}${reveal}`);
+    }
+    if (scoutedCats.includes("interview")) {
+      const fit = _draftScoutSchemeFit(p);
+      const note = rev?.knockNotes?.interview;
+      intelBits.push(`<span style="color:#aaffaa">🗣 Scheme fit <b style="color:${fit.color}">${fit.label}</b></span>${note?` · <span style="color:var(--green-lt)">${note}</span>`:""}`);
+    }
+    if (scoutedCats.includes("workout")) {
+      const line = _draftScoutWorkoutLine(p);
+      const note = rev?.knockNotes?.workout;
+      intelBits.push(`<span style="color:#aaccff">🎯 Workout</span> · ${line}${note?` · <span style="color:var(--green-lt)">${note}</span>`:""}`);
+    }
+    const intelHtml = intelBits.length
+      ? `<div class="frn-dp-intel">${intelBits.map(b => `<div class="frn-dp-intel-row">${b}</div>`).join("")}</div>`
+      : "";
+
+    // Scouted badge + which cat resolves the knock (hint)
+    const knockHint = p.collegeProfile?.knock
+      ? `<div style="font-size:.58rem;color:#e8a000;margin-top:.06rem">⚠ ${p.collegeProfile.knock}${knockCat?`<span style="color:var(--gray);font-weight:400"> · ${DRAFT_SCOUT_CAT_META[knockCat].icon} ${DRAFT_SCOUT_CAT_META[knockCat].label} can resolve</span>`:""}</div>`
+      : "";
+
     return `<div class="frn-draft-prospect${isTargeted?" targeted":""}${isScouted?" scouted":""}">
       <div class="frn-dp-rank">#${i+1}</div>
       <div class="frn-dp-body">
@@ -10842,7 +10900,7 @@ function renderFrnDraft() {
           ${_posPillHtml(p.position)}
           ${needBadge}
           ${gradeBadge(p)}
-          ${isScouted ? `<span style="font-size:.52rem;color:var(--green-lt);font-weight:700;letter-spacing:.3px">SCOUTED</span>` : ""}
+          ${isScouted ? `<span style="font-size:.52rem;color:var(--green-lt);font-weight:700;letter-spacing:.3px">SCOUTED ${scoutedCats.length}/4</span>` : ""}
           ${potTag?`<span style="font-size:.56rem;color:var(--gold-lt)">${potTag}</span>`:""}
           <span style="color:var(--gray);font-size:.56rem">Age ${p.age}</span>
         </div>
@@ -10851,15 +10909,12 @@ function renderFrnDraft() {
           <span class="frn-dp-combine"> · ${_draftCombineStr(p)}</span>
         </div>
         ${p.collegeProfile?.line ? `<div style="font-size:.58rem;color:var(--gray);margin-top:.1rem">${p.collegeProfile.line}</div>` : ""}
-        ${p.collegeProfile?.knock ? `<div style="font-size:.58rem;color:#e8a000;margin-top:.06rem">⚠ ${p.collegeProfile.knock}</div>` : ""}
-        ${isScouted && _getScoutKnockNote(p.name) ? `<div style="font-size:.57rem;color:var(--green-lt);margin-top:.06rem">🔍 Scout: ${_getScoutKnockNote(p.name)}</div>` : ""}
+        ${knockHint}
+        ${intelHtml}
       </div>
       <div class="frn-dp-actions">
         <button class="frn-draft-target-btn${isTargeted?" active":""}" onclick="frnDraftToggleTarget('${esc}')" title="${isTargeted?"Remove target":"Mark as target"}">★</button>
-        <button class="frn-draft-target-btn${isScouted?" active":""}"
-          onclick="frnDraftScout('${esc}')"
-          title="${isScouted ? "Remove scout" : canAddScout ? `Assign scout (${DRAFT_SCOUT_SLOTS-slotsUsed} left)` : "Scout slots full"}"
-          ${!isScouted && !canAddScout ? 'style="opacity:.35;cursor:not-allowed"' : ""}>🔍</button>
+        <div class="frn-dp-cat-cluster">${catButtons}</div>
         <button class="btn btn-gold" style="padding:.2rem .5rem;font-size:.6rem" onclick="frnDraftPick('${esc}')">DRAFT</button>
       </div>
     </div>`;
@@ -10965,9 +11020,50 @@ function frnDraftToggleTarget(name) {
 }
 
 const DRAFT_SCOUT_SLOTS = 8;
+const DRAFT_SCOUT_CATEGORIES = ["medical", "film", "interview", "workout"];
+const DRAFT_SCOUT_CAT_META = {
+  medical:   { icon: "🏥", label: "Medical",   color: "#ff9090",
+               desc: "Medical risk dial · resolves injury/durability concerns" },
+  film:      { icon: "🎬", label: "Film",      color: "var(--gold-lt)",
+               desc: "50% potential reveal · resolves scheme/technique concerns" },
+  interview: { icon: "🗣", label: "Interview", color: "#aaffaa",
+               desc: "Scheme fit · resolves character/production concerns" },
+  workout:   { icon: "🎯", label: "Workout",   color: "#aaccff",
+               desc: "Sharpened measurables · resolves combine concerns" },
+};
+// Which scout category resolves each knock type. Categories also produce
+// generic intel even when the prospect's knock isn't in their domain.
+const _DRAFT_KNOCK_CATEGORY = {
+  injury: "medical", medical: "medical", durability: "medical",
+  short_arms: "medical", weight_concern: "medical",
+  system_player: "film", scheme_fit: "film", technique: "film",
+  converted: "film", pass_blocking: "film", coverage: "film",
+  size: "film", range: "film", box_only: "film",
+  one_year_wonder: "interview", production_drop: "interview",
+  combine_flop: "workout", small_school: "workout",
+  accuracy: "workout", leg_strength: "workout",
+  directional: "workout", consistency: "workout",
+};
 
-// Returns true if this scout assignment rolled a full potential reveal (30% chance,
-// set once on assignment and stable for the rest of the draft).
+function _draftScoutSlotsUsed() {
+  let n = 0;
+  const reveals = franchise.draftScoutReveals || {};
+  for (const r of Object.values(reveals)) {
+    if (r?.categories?.length) n += r.categories.length;
+    else if (r) n += 1; // legacy single-scout entry
+  }
+  return n;
+}
+
+function _draftScoutHasCategory(name, cat) {
+  const rev = franchise.draftScoutReveals?.[name];
+  if (rev?.categories) return rev.categories.includes(cat);
+  if (rev && cat === "film") return true; // legacy treated as film scout
+  return false;
+}
+
+// Returns true if film-category scouting unlocked the full-potential reveal
+// (50% odds, set once per film-cat assignment and stable).
 function _isDraftScoutRevealed(name) {
   const val = franchise.draftScoutReveals?.[name];
   if (!val) return false;
@@ -10975,28 +11071,126 @@ function _isDraftScoutRevealed(name) {
   return !!(val.revealed);
 }
 
-function frnDraftScout(name) {
+// Stable per-prospect hash for category-specific deterministic intel.
+function _draftProspectHash(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+// Medical risk dial — combines knock type + age + a stable hash so the
+// dial is consistent across re-renders. Returns { level: "low"|"med"|"high", label, color }.
+function _draftScoutMedicalRisk(prospect) {
+  const knock = prospect?.collegeProfile?.knockType || "";
+  const isMed = _DRAFT_KNOCK_CATEGORY[knock] === "medical";
+  const age = prospect?.age || 22;
+  const h = _draftProspectHash(prospect?.name || "");
+  let score = (h % 100);            // 0-99
+  if (isMed) score += 30;            // medical knock = much more likely high
+  if (age >= 23) score += 10;
+  if (score >= 75) return { level: "high", label: "HIGH",  color: "#ff8a8a" };
+  if (score >= 45) return { level: "med",  label: "MED",   color: "#e8a000" };
+  return                   { level: "low",  label: "LOW",   color: "var(--green-lt)" };
+}
+
+// Scheme fit — hashed per (prospect, your team OC philosophy if any).
+// Returns { fit: "good"|"neutral"|"poor", label, color }.
+function _draftScoutSchemeFit(prospect) {
+  const myId = franchise.chosenTeamId;
+  const oc   = franchise.coaches?.[myId]?.oc;
+  const ocStyle = oc?.style || "balanced";
+  const h = _draftProspectHash((prospect?.name || "") + "::" + ocStyle);
+  const score = h % 100;
+  if (score >= 70) return { fit: "good",    label: "✓ GOOD",    color: "var(--green-lt)" };
+  if (score >= 30) return { fit: "neutral", label: "— NEUTRAL", color: "var(--gray)" };
+  return                   { fit: "poor",    label: "✗ POOR",    color: "#ff8a8a" };
+}
+
+// Workout reveal — sharpens combine measurables by un-fuzzing the listed
+// 40-yard time. For now we surface the 40 time and a brief "athleticism
+// score" derived from speed+agility ratings.
+function _draftScoutWorkoutLine(prospect) {
+  const m = (typeof combineMeasurables === "function") ? combineMeasurables(prospect) : {};
+  const fortyTime = m.fortyTime || "—";
+  const stats = prospect.stats || [];
+  const [spd=50, str=50, agi=50] = stats;
+  const ath = Math.round((spd * 0.5 + agi * 0.35 + str * 0.15));
+  const ag = ath >= 85 ? "★ ELITE" : ath >= 78 ? "↗ STRONG" : ath >= 68 ? "— SOLID" : "▾ BELOW AVG";
+  const agColor = ath >= 85 ? "var(--gold-lt)" : ath >= 78 ? "var(--green-lt)" : ath >= 68 ? "var(--gray)" : "#e8a000";
+  return `40-yd <b>${fortyTime}</b>s · Athleticism <b style="color:${agColor}">${ag}</b>`;
+}
+
+// One-time migration to the new shape. Legacy: `draftScouts[name]` only,
+// `draftScoutReveals[name] = { revealed, knockNote }`. New: each reveal
+// stores a categories array + per-category notes.
+function _migrateDraftScouts() {
+  if (!franchise.draftScouts || !franchise.draftScoutReveals) return;
+  if (franchise._draftScoutsMigrated) return;
+  for (const name of franchise.draftScouts) {
+    const rev = franchise.draftScoutReveals[name];
+    if (rev && !rev.categories) {
+      // Convert legacy "one scout" → film category (closest analog).
+      rev.categories = ["film"];
+      rev.knockNotes = rev.knockNote ? { film: rev.knockNote } : {};
+      delete rev.knockNote;
+    }
+  }
+  franchise._draftScoutsMigrated = true;
+}
+
+// Add or remove a scout category for a prospect. Each category costs 1
+// slot. Toggling the same category clears it.
+function frnDraftScoutCategory(name, cat) {
   if (!franchise.draft) return;
-  franchise.draftScouts        = franchise.draftScouts        || [];
-  franchise.draftScoutReveals  = franchise.draftScoutReveals  || {};
-  const idx = franchise.draftScouts.indexOf(name);
-  if (idx !== -1) {
-    franchise.draftScouts.splice(idx, 1);
-    delete franchise.draftScoutReveals[name];
+  if (!DRAFT_SCOUT_CATEGORIES.includes(cat)) return;
+  _migrateDraftScouts();
+  franchise.draftScouts       = franchise.draftScouts || [];
+  franchise.draftScoutReveals = franchise.draftScoutReveals || {};
+  let rev = franchise.draftScoutReveals[name];
+  if (!rev) {
+    rev = { categories: [], knockNotes: {}, revealed: false };
+    franchise.draftScoutReveals[name] = rev;
+  } else if (!rev.categories) {
+    rev.categories = []; rev.knockNotes = rev.knockNotes || {};
+  }
+  const has = rev.categories.includes(cat);
+  if (has) {
+    rev.categories = rev.categories.filter(c => c !== cat);
+    delete rev.knockNotes[cat];
+    if (cat === "film") rev.revealed = false;
+    if (!rev.categories.length) {
+      delete franchise.draftScoutReveals[name];
+      const idx = franchise.draftScouts.indexOf(name);
+      if (idx !== -1) franchise.draftScouts.splice(idx, 1);
+    }
   } else {
-    if (franchise.draftScouts.length >= DRAFT_SCOUT_SLOTS) return;
-    franchise.draftScouts.push(name);
+    if (_draftScoutSlotsUsed() >= DRAFT_SCOUT_SLOTS) return;
+    rev.categories.push(cat);
+    if (!franchise.draftScouts.includes(name)) franchise.draftScouts.push(name);
     const prospect   = franchise.draft.class.find(q => q.name === name);
     const knockType  = prospect?.collegeProfile?.knockType || null;
-    const r          = prospect?._generatedRound || 5;
-    const expPot     = { 1:88,2:81,3:75,4:70,5:66,6:63,7:60,0:58 }[r] ?? 65;
-    const isHiUp     = (prospect?.potential || 65) >= expPot + 4;
-    const knockNote  = knockType ? _buildScoutKnockNote(knockType, isHiUp) : null;
-    // 30% chance of a full potential reveal — locked in at assignment time
-    franchise.draftScoutReveals[name] = { revealed: Math.random() < 0.30, knockNote };
+    const knockCat   = knockType ? _DRAFT_KNOCK_CATEGORY[knockType] : null;
+    // If this category resolves the prospect's actual knock, generate the
+    // dismiss/confirm note. Otherwise the category-specific intel
+    // (medical risk dial / scheme fit / etc.) carries the value.
+    if (knockType && knockCat === cat) {
+      const r       = prospect?._generatedRound || 5;
+      const expPot  = { 1:88,2:81,3:75,4:70,5:66,6:63,7:60,0:58 }[r] ?? 65;
+      const isHiUp  = (prospect?.potential || 65) >= expPot + 4;
+      rev.knockNotes[cat] = _buildScoutKnockNote(knockType, isHiUp);
+    }
+    // Film category triggers the potential-reveal roll (50% odds).
+    if (cat === "film") rev.revealed = rev.revealed || (Math.random() < 0.50);
   }
   saveFranchise();
   renderFrnDraft();
+}
+
+// Back-compat shim — old callers used frnDraftScout(name). Route to the
+// film category so existing UI paths keep working until everything is
+// migrated.
+function frnDraftScout(name) {
+  frnDraftScoutCategory(name, "film");
 }
 
 // Sim all remaining CPU picks in the current round, including the user's
@@ -11150,6 +11344,13 @@ function frnDraftPick(name) {
   prospect.contract = rookieContract(prospect, franchise.salaryCap || SALARY_CAP_BASE);
   prospect.careerEarnings = 0;
   delete prospect.isProspect;
+  // Carryover — pre-draft scouting persists into the rookie's first season
+  // on your roster (one-year window via _playerNoiseBand's `within` helper).
+  const scoutedCats = _draftScoutCategories(prospect.name);
+  if (scoutedCats.length > 0) {
+    prospect._scoutedAtDraftSeason = franchise.season;
+    prospect._scoutedAtDraftCats   = scoutedCats.length;
+  }
   franchise.rosters[slot.teamId].push(prospect);
   d.picks.push({
     pick: d.currentIdx + 1, round: slot.round,
