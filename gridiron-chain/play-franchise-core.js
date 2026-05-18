@@ -1833,11 +1833,11 @@ function _computeOptimalPct(starter, backup, snapFloor, snapCeil) {
 // Build a fresh depth chart + snap shares for one team from their current roster.
 // Sorts each position group by overall descending, fills slots in order, marks
 // any player not placed as Unassigned (not in depthChart at all).
-function _initDepthChart(teamId) {
+// Pure compute: returns { dc, ss } for the given team's auto-by-OVR chart
+// without mutating franchise state. Used by both _initDepthChart (apply)
+// and the depth chart UI's "would-change" preview / misplaced highlight.
+function _computeAutoDepthChart(teamId) {
   const roster = franchise.rosters[teamId] || [];
-  if (!franchise.depthChart) franchise.depthChart = {};
-  if (!franchise.snapShares) franchise.snapShares = {};
-
   const byPos = {};
   for (const p of roster) {
     if (!byPos[p.position]) byPos[p.position] = [];
@@ -1857,8 +1857,6 @@ function _initDepthChart(teamId) {
     ...DEPTH_CHART_SLOTS.specialTeams,
   ];
 
-  // Pass 1: fill every starter slot before assigning any backup.
-  // This ensures all OL/DL/etc. positions get a starter even with a thin roster.
   for (const slotDef of allSlots) {
     const starter = take(next(slotDef.pos));
     dc[slotDef.key] = {
@@ -1870,11 +1868,6 @@ function _initDepthChart(teamId) {
     };
   }
 
-  // Group slots by position to determine cascade eligibility.
-  // Sequential multi-slot groups (WR, OL, DL, LB, CB, TE) use cascade backups:
-  //   slot[i].backup = slot[i+1].starter  (e.g. WR1 backup = WR2 starter)
-  // This reflects reality — if WR1 is injured, WR2 slides up.
-  // SS/FS are distinct roles (not sequential), so they get independent backups.
   const slotsByPos = {};
   for (const sd of allSlots) {
     if (!slotsByPos[sd.pos]) slotsByPos[sd.pos] = [];
@@ -1886,19 +1879,15 @@ function _initDepthChart(teamId) {
       .map(([pos]) => pos)
   );
 
-  // Pass 2: assign backups — cascade for sequential groups, traditional otherwise.
-  const usedBackup = new Set(); // only blocks double-backup in non-cascade slots
+  const usedBackup = new Set();
   for (const slotDef of allSlots) {
     const posSlots = slotsByPos[slotDef.pos];
     const slotIdx  = posSlots.findIndex(s => s.key === slotDef.key);
     let backupPid  = null;
 
     if (cascadePos.has(slotDef.pos) && slotIdx < posSlots.length - 1) {
-      // Cascade: backup is whoever starts in the next slot (they slide up on injury).
       backupPid = dc[posSlots[slotIdx + 1].key]?.starter ?? null;
     } else {
-      // Last slot in a cascade group OR independent position (QB, RB, S, K, P):
-      // find the best remaining player of this position not starting anywhere in the group.
       const groupStarterPids = new Set(posSlots.map(s => dc[s.key]?.starter).filter(Boolean));
       const backup = (byPos[slotDef.pos] || [])
         .find(p => !groupStarterPids.has(p.pid) && !usedBackup.has(p.pid)) ?? null;
@@ -1906,13 +1895,18 @@ function _initDepthChart(teamId) {
     }
 
     dc[slotDef.key].backup = backupPid;
-    const starterObj = dc[slotDef.key].starter
-      ? (franchise.rosters[teamId]||[]).find(p => p.pid === dc[slotDef.key].starter) : null;
-    const backupObj  = backupPid
-      ? (franchise.rosters[teamId]||[]).find(p => p.pid === backupPid) : null;
+    const starterObj = dc[slotDef.key].starter ? roster.find(p => p.pid === dc[slotDef.key].starter) : null;
+    const backupObj  = backupPid ? roster.find(p => p.pid === backupPid) : null;
     ss[slotDef.key] = _computeOptimalPct(starterObj, backupObj, slotDef.snapFloor, slotDef.snapCeil);
   }
 
+  return { dc, ss };
+}
+
+function _initDepthChart(teamId) {
+  if (!franchise.depthChart) franchise.depthChart = {};
+  if (!franchise.snapShares) franchise.snapShares = {};
+  const { dc, ss } = _computeAutoDepthChart(teamId);
   franchise.depthChart[teamId] = dc;
   franchise.snapShares[teamId] = ss;
 }

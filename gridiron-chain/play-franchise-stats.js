@@ -1773,18 +1773,24 @@ function renderFrnAlumni(yearsBackArg) {
 // Maps each position group to its ordered slot keys in franchise.depthChart.
 // Order within slots[] defines depth order (index 0 = starter / most snaps).
 const DEPTH_POS_GROUPS = [
-  { pos:"QB", label:"QUARTERBACK",    slots:["QB"]                     },
-  { pos:"RB", label:"RUNNING BACK",   slots:["RB1"]                    },
-  { pos:"WR", label:"WIDE RECEIVER",  slots:["WR1","WR2","WR3","WR4"] },
-  { pos:"TE", label:"TIGHT END",      slots:["TE1","TE2"]              },
-  { pos:"OL", label:"OFFENSIVE LINE", slots:["LT","LG","C","RG","RT"] },
-  { pos:"DL", label:"DEFENSIVE LINE", slots:["DL1","DL2","DL3","DL4"] },
-  { pos:"LB", label:"LINEBACKER",     slots:["LB1","LB2","LB3"]       },
-  { pos:"CB", label:"CORNERBACK",     slots:["CB1","CB2","NB"]        },
-  { pos:"S",  label:"SAFETY",         slots:["SS","FS"]               },
-  { pos:"K",  label:"KICKER",         slots:["K"]                     },
-  { pos:"P",  label:"PUNTER",         slots:["P"]                     },
+  { pos:"QB", label:"QUARTERBACK",    slots:["QB"],                    unit:"OFF" },
+  { pos:"RB", label:"RUNNING BACK",   slots:["RB1"],                   unit:"OFF" },
+  { pos:"WR", label:"WIDE RECEIVER",  slots:["WR1","WR2","WR3","WR4"], unit:"OFF" },
+  { pos:"TE", label:"TIGHT END",      slots:["TE1","TE2"],             unit:"OFF" },
+  { pos:"OL", label:"OFFENSIVE LINE", slots:["LT","LG","C","RG","RT"], unit:"OFF" },
+  { pos:"DL", label:"DEFENSIVE LINE", slots:["DL1","DL2","DL3","DL4"], unit:"DEF" },
+  { pos:"LB", label:"LINEBACKER",     slots:["LB1","LB2","LB3"],       unit:"DEF" },
+  { pos:"CB", label:"CORNERBACK",     slots:["CB1","CB2","NB"],        unit:"DEF" },
+  { pos:"S",  label:"SAFETY",         slots:["SS","FS"],               unit:"DEF" },
+  { pos:"K",  label:"KICKER",         slots:["K"],                     unit:"ST"  },
+  { pos:"P",  label:"PUNTER",         slots:["P"],                     unit:"ST"  },
 ];
+
+const DEPTH_UNIT_LABELS = {
+  OFF: { name:"OFFENSE",        icon:"⚡", color:"var(--gold)" },
+  DEF: { name:"DEFENSE",        icon:"🛡", color:"#7ac8e8" },
+  ST:  { name:"SPECIAL TEAMS",  icon:"🦵", color:"#c08fff" },
+};
 
 function _depthSlotLabel(slotKey, idx) {
   const named = { LT:"★ LT", LG:"★ LG", C:"★ C", RG:"★ RG", RT:"★ RT",
@@ -1853,6 +1859,19 @@ function renderFrnDepthChart() {
     if (slot.backup)  assignedPids.add(slot.backup);
   }
 
+  // Dry-run the auto-by-OVR chart so we can flag slots whose current
+  // picks differ — those cells light up and the AUTO-SET button shows
+  // a count of how many slots would change.
+  const autoChart = _computeAutoDepthChart(myId).dc;
+  const isStarterMisplaced = (slotKey) =>
+    !!(autoChart[slotKey] && dc[slotKey] && autoChart[slotKey].starter !== dc[slotKey].starter);
+  const isBackupMisplaced = (slotKey) =>
+    !!(autoChart[slotKey] && dc[slotKey] && autoChart[slotKey].backup !== dc[slotKey].backup);
+  let autoChangedSlots = 0;
+  for (const slotKey of Object.keys(autoChart)) {
+    if (isStarterMisplaced(slotKey) || isBackupMisplaced(slotKey)) autoChangedSlots++;
+  }
+
   // Map each pid → every slot it appears in (starter or backup), for cascade labels.
   const pidSlotMap = {};
   for (const [key, slot] of Object.entries(dc)) {
@@ -1881,10 +1900,17 @@ function renderFrnDepthChart() {
 
   // ── Player cell ───────────────────────────────────────────────────────────
   const playerCell = (p, isStarter, slotKey) => {
+    const misplaced = isStarter ? isStarterMisplaced(slotKey) : isBackupMisplaced(slotKey);
+    const autoPid   = autoChart[slotKey]?.[isStarter ? "starter" : "backup"];
+    const autoP     = autoPid ? byPid[autoPid] : null;
+    const misBadge  = (misplaced && autoP)
+      ? `<span class="frn-dc-badge mis" title="AUTO-by-OVR would place ${autoP.name} (OVR ${autoP.overall}) here">⚠ ${autoP.name.split(" ").slice(-1)[0]}</span>`
+      : "";
     if (!p) {
-      return `<div class="frn-dc-player ${isStarter?"s1":"s2"} empty">
+      return `<div class="frn-dc-player ${isStarter?"s1":"s2"} empty${misplaced?" misplaced":""}">
         <span class="frn-dc-rank ${isStarter?"r1":"r2"}">${isStarter?"★1":"▸2"}</span>
         <span class="frn-dc-empty">— open —</span>
+        ${misBadge}
       </div>`;
     }
     const escName    = (p.name||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'");
@@ -1917,12 +1943,12 @@ function renderFrnDepthChart() {
     const rankLabel = isStarter ? "★1" : (isCascade ? "⤴" : "▸2");
     const rankClass = isStarter ? "r1"  : (isCascade ? "rc" : "r2");
 
-    return `<div class="frn-dc-player ${isStarter?"s1":isCascade?"sc":"s2"}${isInjured?" injured":""}">
+    return `<div class="frn-dc-player ${isStarter?"s1":isCascade?"sc":"s2"}${isInjured?" injured":""}${misplaced?" misplaced":""}">
       <span class="frn-dc-rank ${rankClass}">${rankLabel}</span>
       ${gradeBadge(p)}
       <span class="frn-dc-name" onclick="frnOpenPlayerCard('${escName}','${escPid}')">${p.name}</span>
       <span class="frn-dc-meta">${p.age} · $${aav}M · ${yrs}yr</span>
-      ${cascadeBadge}${injBadge}${expBadge}${blkBadge}${potBadge}
+      ${cascadeBadge}${injBadge}${expBadge}${blkBadge}${potBadge}${misBadge}
       ${promoteBtn}
     </div>`;
   };
@@ -1945,8 +1971,8 @@ function renderFrnDepthChart() {
   const ctrlBtn = (label, onclick, title) =>
     `<button class="frn-dc-ctrl-btn" onclick="${onclick}" title="${title}">${label}</button>`;
 
-  // ── Group sections ────────────────────────────────────────────────────────
-  const groupSections = DEPTH_POS_GROUPS.map(group => {
+  // ── Group sections (split by Offense / Defense / Special Teams) ───────────
+  const renderGroup = (group) => {
     const groupOvr = _groupOVR(group.slots);
     const { label: strLabel, col: strCol } = _strength(groupOvr);
 
@@ -1956,7 +1982,6 @@ function renderFrnDepthChart() {
       const backup  = slot?.backup  ? byPid[slot.backup]  : null;
       const canUp   = idx > 0;
       const canDown = idx < group.slots.length - 1;
-      const slotLabel = _depthSlotLabel(slotKey, idx);
       const isEvenRow = idx % 2 === 0;
 
       return `<div class="frn-dc-row${isEvenRow?"":" alt"}">
@@ -1982,7 +2007,26 @@ function renderFrnDepthChart() {
       </div>
       ${rows}
     </div>`;
-  }).join("");
+  };
+
+  const unitSection = (unitKey) => {
+    const groups = DEPTH_POS_GROUPS.filter(g => g.unit === unitKey);
+    if (!groups.length) return "";
+    const u = DEPTH_UNIT_LABELS[unitKey];
+    const allSlots = groups.flatMap(g => g.slots);
+    const unitOvr  = _groupOVR(allSlots);
+    const unitMisplaced = allSlots.filter(k => isStarterMisplaced(k) || isBackupMisplaced(k)).length;
+    return `<div class="frn-dc-unit" data-unit="${unitKey}">
+      <div class="frn-dc-unit-hdr" style="border-left:5px solid ${u.color}">
+        <span class="frn-dc-unit-icon">${u.icon}</span>
+        <span class="frn-dc-unit-title" style="color:${u.color}">${u.name}</span>
+        <span class="frn-dc-unit-ovr">UNIT OVR <b style="color:${u.color}">${unitOvr || "—"}</b></span>
+        ${unitMisplaced ? `<span class="frn-dc-unit-mis">⚠ ${unitMisplaced} non-optimal slot${unitMisplaced>1?"s":""}</span>` : ""}
+      </div>
+      ${groups.map(renderGroup).join("")}
+    </div>`;
+  };
+  const groupSections = unitSection("OFF") + unitSection("DEF") + unitSection("ST");
 
   // ── Unassigned panel ──────────────────────────────────────────────────────
   const unassigned = roster
@@ -2052,6 +2096,12 @@ function renderFrnDepthChart() {
   </div>`;
 
   const rtg = frnTeamRating(myId);
+  const autoBtnLabel = autoChangedSlots > 0
+    ? `⟳ AUTO-SET BY OVR <span class="frn-dc-auto-count">${autoChangedSlots} slot${autoChangedSlots>1?"s":""} would change</span>`
+    : `⟳ AUTO-SET BY OVR <span class="frn-dc-auto-count optimal">chart is already optimal</span>`;
+  const autoBtnConfirm = autoChangedSlots > 0
+    ? `Auto-set the depth chart by overall? ${autoChangedSlots} slot${autoChangedSlots>1?"s":""} will change.`
+    : `Re-run auto-set? The chart is already optimal by OVR.`;
   $("frnHomeContent").innerHTML = `
     <div class="frn-dc-page-header">
       <div class="frn-dc-title">
@@ -2059,13 +2109,13 @@ function renderFrnDepthChart() {
         <span class="frn-dc-team-name">${myTeam.city} ${myTeam.name}</span>
         <span class="frn-dc-ratings">OFF ${rtg.off} · DEF ${rtg.def} · ${roster.length} players</span>
       </div>
-      <div style="display:flex;gap:.3rem;align-items:center">
-        <button class="btn btn-outline" onclick="frnDepthAutoSetOVR()" style="font-size:.58rem">⟳ AUTO-SET OVR</button>
+      <div style="display:flex;gap:.45rem;align-items:center">
+        <button class="frn-dc-auto-btn${autoChangedSlots>0?" hot":""}" onclick="if(confirm('${autoBtnConfirm}'))frnDepthAutoSetOVR()">${autoBtnLabel}</button>
         <button class="btn btn-outline" onclick="showFranchiseDashboard()">← Back</button>
       </div>
     </div>
     ${strengthStrip}
-    <div class="frn-dc-hint">↑↓ reorder slots · ⇅ swap #1↔#2 · ▲ on backup to promote · click name for player card</div>
+    <div class="frn-dc-hint">↑↓ reorder slots · ⇅ swap #1↔#2 · ▲ on backup to promote · ⚠ on a cell = AUTO-by-OVR would put someone else there</div>
     <div class="frn-dc-table">
       ${colHeader}
       ${groupSections}

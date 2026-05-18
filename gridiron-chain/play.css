@@ -2282,6 +2282,67 @@
     padding: 0 .3rem;
   }
 
+  /* Unit section (Offense / Defense / Special Teams) */
+  .frn-dc-unit { margin-bottom: .9rem; }
+  .frn-dc-unit-hdr {
+    display: flex; align-items: center; gap: .6rem;
+    padding: .42rem .6rem .42rem .55rem; margin-bottom: .15rem;
+    background: linear-gradient(90deg, rgba(255,255,255,.04), rgba(255,255,255,.01));
+    border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+  }
+  .frn-dc-unit-icon  { font-size: 1.05rem; }
+  .frn-dc-unit-title {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1.05rem; letter-spacing: 2.4px; font-weight: 900;
+  }
+  .frn-dc-unit-ovr {
+    font-size: .58rem; color: var(--blgray); letter-spacing: .6px;
+    margin-left: auto;
+  }
+  .frn-dc-unit-mis {
+    font-size: .58rem; color: #ffb347; font-weight: 800;
+    padding: .12rem .42rem; border: 1px solid #ffb34755;
+    background: rgba(255,179,71,.08); border-radius: 3px;
+  }
+
+  /* Prominent AUTO-SET button */
+  .frn-dc-auto-btn {
+    display: inline-flex; flex-direction: column; align-items: center; gap: .05rem;
+    padding: .42rem .9rem;
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: .82rem; font-weight: 900; letter-spacing: 1.6px;
+    background: var(--bg3); color: var(--gray);
+    border: 2px solid var(--border); border-radius: 0;
+    cursor: pointer; transition: all .12s ease;
+  }
+  .frn-dc-auto-btn:hover { background: var(--bg2); }
+  .frn-dc-auto-btn.hot {
+    background: linear-gradient(135deg, #d4af37, #b8941f);
+    color: #0c0e13; border-color: #d4af37;
+    box-shadow: 0 0 0 1px #d4af37, 0 3px 12px rgba(212,175,55,.35);
+  }
+  .frn-dc-auto-btn.hot:hover {
+    background: linear-gradient(135deg, #e8c247, #c9a32b);
+    box-shadow: 0 0 0 1px #d4af37, 0 4px 16px rgba(212,175,55,.5);
+  }
+  .frn-dc-auto-count {
+    display: block; font-size: .54rem; letter-spacing: .8px; font-weight: 700;
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    color: rgba(0,0,0,.7); margin-top: .05rem;
+  }
+  .frn-dc-auto-btn:not(.hot) .frn-dc-auto-count { color: var(--blgray); }
+  .frn-dc-auto-count.optimal { color: var(--green-lt); }
+
+  /* Misplaced cell highlight (current pick differs from AUTO-by-OVR) */
+  .frn-dc-player.misplaced {
+    background: linear-gradient(180deg, rgba(255,179,71,.08), rgba(255,179,71,.03));
+    border-left: 2px solid #ffb347;
+  }
+  .frn-dc-badge.mis {
+    background: rgba(255,179,71,.18); color: #ffb347;
+    border: 1px solid #ffb34755; font-weight: 800;
+  }
+
   /* Position group */
   .frn-dc-group { margin-bottom: .4rem; }
   .frn-dc-group-hdr {
