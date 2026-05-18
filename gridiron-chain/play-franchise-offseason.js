@@ -1659,6 +1659,9 @@ function markGamePlayed(homeId, awayId, homeScore, awayScore, gameStats, plays, 
     if (ctx?.isRivalry)   g.isRivalry = true;
   }
   recordFranchiseResult(homeId, awayId, homeScore, awayScore);
+  // Reg-season "faced your team" scouting bump on opposing players
+  // who recorded a stat. ±5 noise, carries one season forward.
+  _stampRegSeasonScouting(homeId, awayId, gameStats);
 }
 
 // Extract a compact scoring timeline from sim plays. Each entry:
@@ -3748,6 +3751,63 @@ function _savePlayoffMatchupStats(roundIdx, homeId, awayId, r) {
   m.weather = r.full?.weather
     ? { label: r.full.weather.label, windStrength: r.full.weather.windStrength }
     : null;
+  // Scout-from-watching: stamp every player who recorded a stat in
+  // this playoff game with their postseason depth, and stamp the
+  // user's opponents with "faced in playoffs" if it was the user's
+  // game. Carries one season forward for sharper scout reads.
+  _stampPlayoffScouting(roundIdx, homeId, awayId, r.full?.stats);
+}
+
+// Stamp postseason scouting flags on live players who recorded stats
+// in this playoff game. Run from _savePlayoffMatchupStats so it covers
+// both interactive and sim paths uniformly.
+function _stampPlayoffScouting(roundIdx, homeId, awayId, stats) {
+  if (!stats || !franchise) return;
+  const myId    = franchise.chosenTeamId;
+  const season  = franchise.season;
+  const myIsHome = homeId === myId;
+  const myIsAway = awayId === myId;
+  const isUserGame = myIsHome || myIsAway;
+  const oppSide = myIsHome ? "away" : myIsAway ? "home" : null;
+
+  for (const sideName of ["home", "away"]) {
+    const players = stats[sideName]?.players || {};
+    for (const playerName of Object.keys(players)) {
+      const live = _findPlayer(playerName);
+      if (!live) continue;
+      // Postseason depth — track the deepest round the player reached
+      // this season. Resets each new season via the season check.
+      const sameSeason = live._postseasonDepthSeason === season;
+      const prevDepth = sameSeason ? (live._postseasonDepth ?? -1) : -1;
+      if (roundIdx > prevDepth) {
+        live._postseasonDepth = roundIdx;
+        live._postseasonDepthSeason = season;
+      } else if (!sameSeason) {
+        live._postseasonDepth = roundIdx;
+        live._postseasonDepthSeason = season;
+      }
+      // Faced-in-playoffs — only when the user's team was the opponent
+      if (isUserGame && sideName === oppSide) {
+        live._facedInPlayoffsSeason = season;
+      }
+    }
+  }
+}
+
+// Stamp regular-season "faced your team" scouting on opposing players
+// who recorded a stat. Run from markGamePlayed so it covers both sim
+// and interactive paths uniformly.
+function _stampRegSeasonScouting(homeId, awayId, stats) {
+  if (!stats || !franchise) return;
+  const myId = franchise.chosenTeamId;
+  if (homeId !== myId && awayId !== myId) return;
+  const oppSide = homeId === myId ? "away" : "home";
+  const season = franchise.season;
+  const players = stats[oppSide]?.players || {};
+  for (const playerName of Object.keys(players)) {
+    const live = _findPlayer(playerName);
+    if (live) live._regSeasonFacedSeason = season;
+  }
 }
 
 // Click a played playoff matchup → BSPN box score. Synthesizes a

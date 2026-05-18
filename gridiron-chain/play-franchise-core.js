@@ -726,20 +726,17 @@ function frnReleasePlayerCancel() {
 // observer's estimate, not the truth.
 function scoutGrade(p) {
   let score = p.overall || 60;
-  // Stable per-player noise (-8..+8) from a hash of the name.
-  // If the user has scouted this player's team (joint practice this
-  // season), the noise band shrinks dramatically — sharper view.
+  const band = _playerNoiseBand(p);
+  // Stable per-player noise from hash of the name. Band 0 = owned →
+  // skip noise entirely (exact OVR). Otherwise scale the noise band
+  // to ±band, sourced via `(hash mod (2N+1)) - N`.
   let h = 0;
   const name = p.name || "";
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
-  const scouted = _isPlayerScouted(p);
-  const draftScouted = p.isProspect && (franchise?.draftScouts || []).includes(p.name);
-  const noise = (scouted || draftScouted)
-    ? ((Math.abs(h) % 5)  - 2)   // ±2 — focused intel (in-season scout or draft scout slot)
-    : p.isProspect
-    ? ((Math.abs(h) % 11) - 5)   // ±5 — combine grade (all prospects baseline)
-    : ((Math.abs(h) % 17) - 8);  // ±8 — unscouted opponent player
-  score += noise;
+  if (band > 0) {
+    const noise = (Math.abs(h) % (band * 2 + 1)) - band;
+    score += noise;
+  }
   // Draft pedigree tilt — recency bias in real scouting
   const r = p.draftRound;
   if (r === 1)      score += 3;
@@ -753,23 +750,98 @@ function scoutGrade(p) {
   return Math.max(20, Math.min(99, Math.round(score)));
 }
 
-// Has the user scouted this player's team this season (via scrimmage)?
-function _isPlayerScouted(p) {
-  // APB participants get sharpened scouting for this season and the
-  // next — you watched them play live against top competition, so
-  // your read on them carries forward across trades / FA / etc.
-  if (p?._apbScoutedSeason != null && franchise?.season != null
-      && (franchise.season - p._apbScoutedSeason) <= 1) return true;
-  const myId = franchise?.chosenTeamId;
-  // Find which team currently owns this player. Own roster is always
-  // "scouted" — you coach them, you know.
-  for (const [tid, roster] of Object.entries(franchise?.rosters || {})) {
-    if (!roster.includes(p)) continue;
-    if (Number(tid) === myId) return true;
-    const intel = franchise?.scoutingIntel?.[tid];
-    return !!(intel && intel.season === franchise.season);
+// Human-readable scouting source — used in tooltips so the user can
+// understand why some grades are sharper than others.
+function _scoutSourceLabel(p) {
+  const band = _playerNoiseBand(p);
+  if (band === 0) return "owned";
+  if (band === 1) return "faced in playoffs · ±1";
+  if (band === 2) {
+    if (p?._apbScoutedSeason != null) return "seen in APB · ±2";
+    if ((p?._postseasonDepth ?? -1) >= 2) return "reached championship · ±2";
+    if (p?.isProspect)                 return "draft scout · ±2";
+    return "scouted · ±2";
   }
-  return false;
+  if (band === 3) {
+    if ((p?._postseasonDepth ?? -1) === 1) return "reached divisional · ±3";
+    return "joint practice · ±3";
+  }
+  if (band === 4) return "played wild card · ±4";
+  if (band === 5) {
+    if (p?.isProspect) return "combine grade · ±5";
+    return "regular-season opponent · ±5";
+  }
+  return "no scouting · ±8";
+}
+
+// Has the user scouted this player's team this season (via scrimmage)?
+// Returns the noise band for this player's scout grade. Lower = sharper.
+//   0 = exact OVR (owned)
+//   1 = faced in any playoff game (this season or last) — biggest stakes
+//   2 = APB / reached SB / draft-scouted prospect — most thorough passive
+//       scouting (multiple games or a full draft visit)
+//   3 = joint practice / reached Divisional — one snapshot
+//   4 = Wild Card only — one game of tape
+//   5 = regular-season opponent / unscouted prospect
+//   8 = unscouted baseline
+// First match wins, so the order of checks matters — sharpest reads first.
+function _playerNoiseBand(p) {
+  if (!p) return 8;
+  const fr = franchise;
+  if (!fr) return 8;
+  const myId  = fr.chosenTeamId;
+  const season = fr.season;
+  if (season == null) return 8;
+
+  // 0: owned — your roster, you coach them, exact OVR
+  if (myId != null) {
+    const myRoster = fr.rosters?.[myId] || [];
+    if (myRoster.includes(p) ||
+        myRoster.some(rp => rp.name === p?.name && rp.position === p?.position)) {
+      return 0;
+    }
+  }
+
+  // 1: you faced them in a playoff game this season or last
+  if (p._facedInPlayoffsSeason != null && (season - p._facedInPlayoffsSeason) <= 1) return 1;
+
+  // 2: draft-scouted prospects (you visited them, used a slot)
+  if (p.isProspect && (fr.draftScouts || []).includes(p.name)) return 2;
+
+  // 2: APB participation — multiple high-stakes games of footage
+  if (p._apbScoutedSeason != null && (season - p._apbScoutedSeason) <= 1) return 2;
+
+  // 2: reached Championship/SB — entire postseason run on tape
+  if (p._postseasonDepthSeason != null && (season - p._postseasonDepthSeason) <= 1
+      && (p._postseasonDepth ?? 0) >= 2) return 2;
+
+  // 3: joint-practice on their current team (one practice session)
+  for (const [tid, roster] of Object.entries(fr.rosters || {})) {
+    if (!roster.includes(p)) continue;
+    if (Number(tid) === myId) continue;
+    const intel = fr.scoutingIntel?.[tid];
+    if (intel && intel.season === season) return 3;
+  }
+
+  // 3/4: postseason depth — reached Divisional / Wild Card only
+  if (p._postseasonDepthSeason != null && (season - p._postseasonDepthSeason) <= 1) {
+    const d = p._postseasonDepth ?? 0;
+    if (d === 1) return 3; // Divisional
+    return 4;              // Wild Card only
+  }
+
+  // 5: regular-season opponent (faced your team this season or last)
+  if (p._regSeasonFacedSeason != null && (season - p._regSeasonFacedSeason) <= 1) return 5;
+
+  // Baseline prospect (no scouting): combine-grade view
+  if (p.isProspect) return 5;
+
+  return 8;
+}
+
+function _isPlayerScouted(p) {
+  // Backward-compat: returns true for any sharpened read (band ≤ 5).
+  return _playerNoiseBand(p) <= 5;
 }
 
 // ── Workout system ────────────────────────────────────────────────────────────
@@ -920,7 +992,8 @@ function gradeBadge(p) {
     }
   }
   const s = scoutGrade(p);
-  return `<span class="tt-ovr tier-${gradeClass(s)}" title="Scout grade — not exact ability">${gradeLabel(s)}</span>`;
+  const source = _scoutSourceLabel(p);
+  return `<span class="tt-ovr tier-${gradeClass(s)}" title="Scout grade — ${source}">${gradeLabel(s)}</span>`;
 }
 
 // Years-in-league is what the user actually cares about. Calendar years
