@@ -6795,41 +6795,57 @@ function _rerollPotentialForBreakouts() {
       const draftSeason = player.draftSeason ?? null;
       if (draftSeason == null) continue;
       const yearsInLeague = seasonNum - draftSeason;
-      if (yearsInLeague < 0 || yearsInLeague > 1) continue;
+      if (yearsInLeague < 0) continue;
+      // Window tiered by experience:
+      //   Y0-1: top 5%, full jump (Brady year-2 SBMVP arc)
+      //   Y2-3: top 5%, HALF jump (Antonio Brown year-3 breakout)
+      //   Y4+:  top 3% AND sustained — needs back-to-back top-10% to
+      //         qualify (Drew Brees in San Diego, Cooper Kupp arc)
       const list = byPos[player.position] || [];
       if (!list.length) continue;
       const idx = list.findIndex(r => r.name === player.name);
       if (idx === -1) continue;
-      const top5pct = Math.max(1, Math.floor(list.length * 0.05));
-      if (idx >= top5pct) continue;
-      // Bump 5-10 OVR worth of potential ceiling
-      const bump = 5 + Math.floor(Math.random() * 6);
+      let phase, gateOk;
+      if (yearsInLeague <= 1) {
+        const top5 = Math.max(1, Math.floor(list.length * 0.05));
+        phase = "full"; gateOk = idx < top5;
+      } else if (yearsInLeague <= 3) {
+        const top5 = Math.max(1, Math.floor(list.length * 0.05));
+        phase = "half"; gateOk = idx < top5;
+      } else {
+        const top3 = Math.max(1, Math.floor(list.length * 0.03));
+        // Sustained: previous-season careerHistory row also placed top-10%
+        // by accolade presence is hard to derive — proxy by checking
+        // whether last season had any accolade (Pro Bowl / All-Pro / award).
+        const last = (player.careerHistory || []).slice(-1)[0];
+        const sustained = !!(last?.accolades?.length);
+        phase = "tiny"; gateOk = idx < top3 && sustained;
+      }
+      if (!gateOk) continue;
+      // Magnitude scales by phase — full jump for Y0-1 prodigies, half
+      // for Y2-3 late-rises, tiny for Y4+ sustained breakouts.
+      const phaseScale = phase === "full" ? 1.0 : phase === "half" ? 0.55 : 0.30;
+      const bump = Math.max(1, Math.round((5 + Math.floor(Math.random() * 6)) * phaseScale));
       const newPot = Math.min(99, (player.potential || 65) + bump);
       if (newPot > (player.potential || 65)) {
         player.potential = newPot;
       }
       player._potentialRerolled = true;
-      // Promote hidden-gem ceiling if it's now the constraint
       if (player.hiddenGem && player.hiddenGem.ceiling < newPot) {
         player.hiddenGem.ceiling = newPot;
       }
       // ── BREAKOUT JUMP ────────────────────────────────────────────────
-      // Real-NFL "step function" growth: a year-2 starter who lands top-
-      // 5% at his position is treated as having ALREADY proven his ceiling.
-      // Hidden gems jump straight to 82-87% of their (now-bumped) ceiling
-      // — models Brady-year-2-SBMVP, Antonio Brown breakout, Patrick
-      // Mahomes year 2. Non-gem standouts get a smaller direct OVR
-      // bump (5-9) on top of the potential re-roll.
       const curOvr = player.overall || 60;
       let jumpedTo = curOvr;
       if (player.hiddenGem) {
         const ceiling = player.hiddenGem.ceiling;
-        const target = Math.round(ceiling * (0.82 + Math.random() * 0.05));
-        if (target > curOvr) {
-          jumpedTo = Math.min(99, target);
-        }
+        // Full jump → 82-87% of ceiling, half → 70-78%, tiny → 60-68%
+        const lo = phase === "full" ? 0.82 : phase === "half" ? 0.70 : 0.60;
+        const hi = phase === "full" ? 0.87 : phase === "half" ? 0.78 : 0.68;
+        const target = Math.round(ceiling * (lo + Math.random() * (hi - lo)));
+        if (target > curOvr) jumpedTo = Math.min(99, target);
       } else {
-        const bonus = 5 + Math.floor(Math.random() * 5);
+        const bonus = Math.max(1, Math.round((5 + Math.floor(Math.random() * 5)) * phaseScale));
         jumpedTo = Math.min(99, Math.min(player.potential || 99, curOvr + bonus));
       }
       if (jumpedTo > curOvr) {
@@ -6896,18 +6912,31 @@ function _processSeasonEndRetirements() {
       // contact positions; RBs retire earliest. Offset shifts the
       // effective age in the curve below.
       const _retOffset = { RB:-3, WR:-1, TE:0, OL:0, DL:-1, LB:-1, CB:-1, S:-1, QB:3, K:5, P:5 };
-      const adjAge = p.age - (_retOffset[p.position] || 0);
-      const retProb = adjAge >= 40 ? 0.97
-                    : adjAge === 39 ? 0.90
-                    : adjAge === 38 ? 0.78
-                    : adjAge === 37 ? 0.62
-                    : adjAge === 36 ? 0.45
-                    : adjAge === 35 ? 0.30
-                    : adjAge === 34 ? 0.18
-                    : adjAge === 33 ? 0.10
-                    : adjAge === 32 ? 0.06
-                    : adjAge === 31 ? 0.04
-                    : 0;
+      let adjAge = p.age - (_retOffset[p.position] || 0);
+      // Injury-prone players retire earlier — Andrew Luck arc. Adds
+      // 2-3 years to adjAge so the curve fires sooner.
+      if (typeof _isInjuryProne === "function" && _isInjuryProne(p)) {
+        adjAge += 2 + (((p.injuryHistory || []).length >= 5) ? 1 : 0);
+      }
+      let retProb = adjAge >= 40 ? 0.97
+                  : adjAge === 39 ? 0.90
+                  : adjAge === 38 ? 0.78
+                  : adjAge === 37 ? 0.62
+                  : adjAge === 36 ? 0.45
+                  : adjAge === 35 ? 0.30
+                  : adjAge === 34 ? 0.18
+                  : adjAge === 33 ? 0.10
+                  : adjAge === 32 ? 0.06
+                  : adjAge === 31 ? 0.04
+                  : 0;
+      // Accolade-based longevity — multi-time All-Pros / Pro Bowlers hang
+      // on. Each career All-Pro shaves 5% off retirement (max -25%).
+      // Models real "veteran with a HoF resume keeps playing."
+      const allProCount = (p.allPros || 0) + Math.floor((p.proBowls || 0) / 3);
+      if (allProCount > 0 && retProb > 0) {
+        const shave = Math.min(0.25, allProCount * 0.05);
+        retProb = Math.max(0, retProb - shave);
+      }
       if (retProb > 0 && Math.random() < retProb) {
         const preHofCount = (franchise.hallOfFame || []).length;
         _maybeEnshrineHOF(p, t);

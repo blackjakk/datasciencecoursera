@@ -7578,6 +7578,21 @@ function runFrnOffseason() {
         const mean = meanByPos[p.position] ?? 30;
         p.declineAge = Math.max(25, Math.round(mean + 2 * z));
       }
+      // Peak age — when growth stops but decline hasn't started. Between
+      // peakAge and declineAge the player plateaus (no growth, no decay).
+      // Position-aware: RBs peak earliest (25), QBs latest (28). Adds a
+      // multi-year "in their prime" zone instead of an instant cliff.
+      if (p.peakAge == null) {
+        const peakByPos = {
+          RB: 25, WR: 27, TE: 28,
+          QB: 28, OL: 28,
+          DL: 27, LB: 27, CB: 27, S: 27,
+          K: 30, P: 30,
+        };
+        const basePeak = peakByPos[p.position] ?? 27;
+        // Ensure peakAge < declineAge with at least a 2-year plateau.
+        p.peakAge = Math.min(basePeak, Math.max(23, p.declineAge - 2));
+      }
       if (p.age >= p.declineAge) {
         const yearsPast = p.age - p.declineAge;
         // Physical decay handled by _physicalPeak block below (SPD/AGI/STR).
@@ -7590,21 +7605,30 @@ function runFrnOffseason() {
       // Hidden gems use a flat per-season rate toward their true ceiling;
       // normal players use the age-weighted percentage-of-gap approach.
       if (p.potential == null) p.potential = _rollPotential(p);
-      const coachBoost = ((franchise.coaches?.[tId]?.hc?.specialtyTrait === "Player Developer"
+      let coachBoost = ((franchise.coaches?.[tId]?.hc?.specialtyTrait === "Player Developer"
                        || franchise.coaches?.[tId]?.hc?.trait === "Player Developer") ? 1.35 : 1.0)
                        * chemBonus.devMul;
+      // Coachable trait: +25% growth from any coaching staff. Captures
+      // real-world "high-floor player who maximizes the gift" — they
+      // get more out of any coach.
+      if (p.coachable) coachBoost *= 1.25;
+      // Trade fresh-start boost: a player traded last season gets a
+      // one-time growth amplifier next offseason (Tannehill / Stafford /
+      // Mahomes-after-Smith arcs). Applies once, then clears.
+      let tradeBoost = 1.0;
+      if (p._tradedAtSeason != null && (franchise.season - p._tradedAtSeason) === 1) {
+        tradeBoost = 1.20;
+        delete p._tradedAtSeason; // one-time bonus
+      }
 
       // Resolve gem ceiling — remove flag once reached
       if (p.hiddenGem && p.overall >= p.hiddenGem.ceiling) delete p.hiddenGem;
 
       if (p.hiddenGem && p.age <= 28) {
-        // Hidden gem path: steady flat growth, independent of the normal
-        // potential system. Potential is raised to reflect the true ceiling
-        // so the UI (if it ever shows potential) stays consistent.
         p.potential = Math.max(p.potential, p.hiddenGem.ceiling);
         const growth = Math.max(0, Math.min(
           p.hiddenGem.ceiling - p.overall,
-          Math.round(p.hiddenGem.growthRate * coachBoost)
+          Math.round(p.hiddenGem.growthRate * coachBoost * tradeBoost)
         ));
         if (growth > 0) {
           p.overall = Math.min(p.hiddenGem.ceiling, p.overall + growth);
@@ -7614,11 +7638,14 @@ function runFrnOffseason() {
         }
         if (p.overall >= p.hiddenGem.ceiling) delete p.hiddenGem;
       } else if (!p.hiddenGem) {
-        // Normal potential-based development
+        // Normal potential-based development. Peak-age plateau zone:
+        // between peakAge and declineAge, players hold steady (no growth,
+        // no decline). Growth resumes only for players who haven't
+        // reached their peak.
         const gap = p.potential - p.overall;
-        if (gap > 0 && p.age <= 27) {
+        if (gap > 0 && p.age < (p.peakAge ?? 27) + 1) {
           const baseRate = p.age <= 22 ? 0.45 : p.age <= 24 ? 0.30 : p.age <= 26 ? 0.15 : 0.06;
-          const growth = Math.max(0, Math.round(gap * baseRate * coachBoost));
+          const growth = Math.max(0, Math.round(gap * baseRate * coachBoost * tradeBoost));
           if (growth > 0) {
             p.overall = Math.min(99, p.overall + growth);
             const [k1, k2] = _devStatPool(p.position, p.age);
@@ -7626,6 +7653,11 @@ function runFrnOffseason() {
             p.stats[k2] = Math.min(99, p.stats[k2] + Math.floor(growth * 0.4));
           }
         }
+      }
+      // Trade-boost news — only emit if applied AND player is on user's team
+      if (tradeBoost > 1.0 && tId === franchise.chosenTeamId) {
+        _pushNews({ type: "scout_reveal",
+          label: `🔄 ${p.position} ${p.name} — fresh-start dev boost after trade` });
       }
 
       // Elite plateau — push decline age back for players who reach
@@ -7714,7 +7746,9 @@ function runFrnOffseason() {
             p.overall = Math.min(99, (p.overall || 60) + 1);
             p._tecOvrAccum -= 1.0;
           }
-        } else if ((p.age || 25) >= 30 && Math.random() < 0.25) {
+        } else if ((p.age || 25) >= 30 && Math.random() < (p.coachable ? 0.12 : 0.25)) {
+          // Coachable players halve their TEC decline rate (12% vs 25%).
+          // Mental side of the game preserves longer for high-IQ players.
           p.stats[11] = Math.max(40, curTec - 1);
           p._tecOvrAccum = (p._tecOvrAccum || 0) - 0.15;
           if (p._tecOvrAccum <= -1.0) {
@@ -9140,12 +9174,14 @@ function frnAcceptOffer(offerId) {
     p.onTradeBlock = false;
     delete p.blockAsk;
     p.systemYears = 0; // new system — familiarity resets
+    p._tradedAtSeason = franchise.season; // fresh-start dev bonus
     const i = myRoster.indexOf(p); if (i !== -1) myRoster.splice(i, 1);
     theirRoster.push(p);
   }
   for (const p of receiving) {
     p.onTradeBlock = false;
     p.systemYears = 0; // new system — familiarity resets
+    p._tradedAtSeason = franchise.season;
     const i = theirRoster.indexOf(p); if (i !== -1) theirRoster.splice(i, 1);
     myRoster.push(p);
   }
@@ -9365,11 +9401,13 @@ function frnSubmitTrade() {
       const i = myRoster.indexOf(p);
       if (i !== -1) myRoster.splice(i, 1);
       theirRoster.push(p);
+      p._tradedAtSeason = franchise.season;       // fresh-start dev bonus next offseason
     }
     for (const p of recvPlayers) {
       const i = theirRoster.indexOf(p);
       if (i !== -1) theirRoster.splice(i, 1);
       myRoster.push(p);
+      p._tradedAtSeason = franchise.season;
     }
     // Picks — flip currentOwnerId
     for (const pk of sendPicks)  pk.currentOwnerId = otherId;
