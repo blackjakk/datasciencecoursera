@@ -1841,6 +1841,13 @@ function frnDepthAutoSetOVR() {
 }
 
 
+let _dcActiveUnit = "OFF"; // persists across re-renders (swap, promote, auto-set)
+function frnDepthSetTab(unit) {
+  if (!DEPTH_UNIT_LABELS[unit]) return;
+  _dcActiveUnit = unit;
+  renderFrnDepthChart();
+}
+
 function renderFrnDepthChart() {
   frnHoverTipHide(); _frnHoverTipPgHide && _frnHoverTipPgHide();
   const myId   = franchise.chosenTeamId;
@@ -2009,28 +2016,38 @@ function renderFrnDepthChart() {
     </div>`;
   };
 
-  const unitSection = (unitKey) => {
-    const groups = DEPTH_POS_GROUPS.filter(g => g.unit === unitKey);
-    if (!groups.length) return "";
-    const u = DEPTH_UNIT_LABELS[unitKey];
+  // Per-unit metrics, for both tab labels and the active unit's header.
+  const unitMetrics = {};
+  for (const key of Object.keys(DEPTH_UNIT_LABELS)) {
+    const groups   = DEPTH_POS_GROUPS.filter(g => g.unit === key);
     const allSlots = groups.flatMap(g => g.slots);
-    const unitOvr  = _groupOVR(allSlots);
-    const unitMisplaced = allSlots.filter(k => isStarterMisplaced(k) || isBackupMisplaced(k)).length;
-    return `<div class="frn-dc-unit" data-unit="${unitKey}">
-      <div class="frn-dc-unit-hdr" style="border-left:5px solid ${u.color}">
-        <span class="frn-dc-unit-icon">${u.icon}</span>
-        <span class="frn-dc-unit-title" style="color:${u.color}">${u.name}</span>
-        <span class="frn-dc-unit-ovr">UNIT OVR <b style="color:${u.color}">${unitOvr || "—"}</b></span>
-        ${unitMisplaced ? `<span class="frn-dc-unit-mis">⚠ ${unitMisplaced} non-optimal slot${unitMisplaced>1?"s":""}</span>` : ""}
-      </div>
-      ${groups.map(renderGroup).join("")}
-    </div>`;
-  };
-  const groupSections = unitSection("OFF") + unitSection("DEF") + unitSection("ST");
+    unitMetrics[key] = {
+      ovr:       _groupOVR(allSlots),
+      misplaced: allSlots.filter(k => isStarterMisplaced(k) || isBackupMisplaced(k)).length,
+      groups,
+    };
+  }
 
-  // ── Unassigned panel ──────────────────────────────────────────────────────
+  const tabsHtml = `<div class="frn-dc-tabs">
+    ${Object.entries(DEPTH_UNIT_LABELS).map(([key, u]) => {
+      const m = unitMetrics[key];
+      const active = key === _dcActiveUnit;
+      return `<button class="frn-dc-tab${active?" active":""}" onclick="frnDepthSetTab('${key}')" style="--unit-color:${u.color}">
+        <span class="frn-dc-tab-icon">${u.icon}</span>
+        <span class="frn-dc-tab-title">${u.name}</span>
+        <span class="frn-dc-tab-ovr">${m.ovr || "—"}</span>
+        ${m.misplaced ? `<span class="frn-dc-tab-mis" title="${m.misplaced} non-optimal slot${m.misplaced>1?"s":""}">⚠ ${m.misplaced}</span>` : ""}
+      </button>`;
+    }).join("")}
+  </div>`;
+
+  const activeGroups = unitMetrics[_dcActiveUnit].groups;
+  const groupSections = activeGroups.map(renderGroup).join("");
+
+  // ── Unassigned panel (filtered to the active unit's positions) ────────────
+  const activePositions = new Set(activeGroups.map(g => g.pos));
   const unassigned = roster
-    .filter(p => p.pid && !assignedPids.has(p.pid))
+    .filter(p => p.pid && !assignedPids.has(p.pid) && activePositions.has(p.position))
     .sort((a,b) => (b.overall||60) - (a.overall||60));
   let unassignedHtml = "";
   if (unassigned.length) {
@@ -2115,6 +2132,7 @@ function renderFrnDepthChart() {
       </div>
     </div>
     ${strengthStrip}
+    ${tabsHtml}
     <div class="frn-dc-hint">↑↓ reorder slots · ⇅ swap #1↔#2 · ▲ on backup to promote · ⚠ on a cell = AUTO-by-OVR would put someone else there</div>
     <div class="frn-dc-table">
       ${colHeader}
