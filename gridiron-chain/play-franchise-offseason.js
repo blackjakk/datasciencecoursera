@@ -7668,14 +7668,23 @@ function runFrnOffseason() {
       }
 
       // Rehab decay — restore OVR for players still recovering from a
-      // structural injury last season. Spreads the lost OVR back over
-      // 1-2 seasons so a torn ACL doesn't permanently nuke a career.
+      // structural injury last season. Outcomes from _rollRehabOutcome:
+      //   full       → no rehab needed, never enters this block
+      //   better     → +1 perm boost applied when rehab clears (AP MVP arc)
+      //   standard   → restores fully across the seasons window
+      //   lingering  → restores fully but takes longer
+      //   altering   → restoreCap is half the penalty, never fully recovers
       if ((p._rehabRestore || 0) > 0 && (p._rehabSeasons || 0) > 0) {
         const restore = Math.ceil(p._rehabRestore / p._rehabSeasons);
         p.overall = Math.min(99, (p.overall || 60) + restore);
         p._rehabRestore -= restore;
         p._rehabSeasons -= 1;
         if (p._rehabRestore <= 0 || p._rehabSeasons <= 0) {
+          // Apply permanent OVR boost (AP-style "comeback stronger")
+          if ((p._rehabPermGain || 0) > 0) {
+            p.overall = Math.min(99, p.overall + p._rehabPermGain);
+            delete p._rehabPermGain;
+          }
           delete p._rehabRestore; delete p._rehabSeasons;
           if (tId === franchise.chosenTeamId) {
             _pushNews({ type:"scout_reveal",
@@ -7683,6 +7692,8 @@ function runFrnOffseason() {
           }
         }
       }
+      // Reset concussion protocol counter for the new season.
+      if (p._concussionsThisSeason) delete p._concussionsThisSeason;
 
       // Veteran resurgence — late-career renaissance for 30+ players who
       // haven't hit decline yet. Rare for average vets; significantly

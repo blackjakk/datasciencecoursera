@@ -1535,31 +1535,129 @@ const _POS_INJURY_PENALTY_MUL = {
   OL: 0.7, K: 0.5, P: 0.5,
 };
 
-function _pickInjuryType() {
-  const total = INJURY_TYPES.reduce((s,t)=>s+t.w,0);
+// Position-specific injury type weights. Skill / contact positions skew
+// toward what they actually get — RBs/WRs hamstrings + knees, OL shoulders
+// + hands (interior trench work), QBs concussions + shoulders (sacks),
+// kickers/punters mostly leg/foot tweaks.
+const _POS_INJURY_WEIGHTS = {
+  QB: { "hamstring":12, "ankle sprain":12, "concussion":28, "knee":15, "shoulder":28, "hand/wrist":5 },
+  RB: { "hamstring":28, "ankle sprain":22, "concussion":10, "knee":25, "shoulder":7,  "hand/wrist":8 },
+  WR: { "hamstring":38, "ankle sprain":22, "concussion":10, "knee":15, "shoulder":7,  "hand/wrist":8 },
+  TE: { "hamstring":22, "ankle sprain":18, "concussion":15, "knee":15, "shoulder":20, "hand/wrist":10 },
+  OL: { "hamstring":10, "ankle sprain":15, "concussion":5,  "knee":15, "shoulder":35, "hand/wrist":20 },
+  DL: { "hamstring":14, "ankle sprain":15, "concussion":10, "knee":20, "shoulder":30, "hand/wrist":11 },
+  LB: { "hamstring":20, "ankle sprain":20, "concussion":15, "knee":20, "shoulder":15, "hand/wrist":10 },
+  CB: { "hamstring":38, "ankle sprain":22, "concussion":10, "knee":15, "shoulder":7,  "hand/wrist":8 },
+  S:  { "hamstring":25, "ankle sprain":20, "concussion":22, "knee":15, "shoulder":10, "hand/wrist":8 },
+  K:  { "hamstring":28, "ankle sprain":32, "concussion":3,  "knee":15, "shoulder":5,  "hand/wrist":17 },
+  P:  { "hamstring":28, "ankle sprain":32, "concussion":3,  "knee":15, "shoulder":5,  "hand/wrist":17 },
+};
+
+function _pickInjuryType(position) {
+  const weights = _POS_INJURY_WEIGHTS[position];
+  if (!weights) {
+    // Legacy fallback — uniform sample
+    const total = INJURY_TYPES.reduce((s,t)=>s+t.w,0);
+    let r = Math.random() * total;
+    for (const t of INJURY_TYPES) { if ((r -= t.w) < 0) return t; }
+    return INJURY_TYPES[0];
+  }
+  const total = Object.values(weights).reduce((s, v) => s + v, 0);
   let r = Math.random() * total;
-  for (const t of INJURY_TYPES) { if ((r -= t.w) < 0) return t; }
+  for (const t of INJURY_TYPES) {
+    const w = weights[t.label] ?? 1;
+    if ((r -= w) < 0) return t;
+  }
   return INJURY_TYPES[0];
 }
 
-// Apply rehab OVR penalty when an injury fully resolves. Decay handled
-// at offseason. Penalty subtracts from OVR directly; restoration adds it
-// back across 1-2 seasons (or instantly resolves for short injuries).
+// Roll the QUALITY of a player's recovery from a structural injury.
+// Real NFL outcomes span: Adrian Peterson MVP-after-ACL (full bounce or
+// stronger), Carson Palmer Pro Bowl Y1 back (standard), Wes Welker
+// lingering (worse than original), Robert Griffin III never-recovered
+// (career-altering, permanent loss).
+function _rollRehabOutcome(player) {
+  const age = player.age || 27;
+  let probFull       = 0.15;
+  let probBetter     = 0.03;
+  let probStandard   = 0.60;
+  let probLingering  = 0.17;
+  // careerAltering is the remainder
+  if (age <= 25) { probFull += 0.05; probLingering -= 0.03; }
+  if (age >= 30) { probFull -= 0.05; probLingering += 0.05; }
+  if (player.ironman) probFull += 0.10;
+  if (player.coachable) probFull += 0.05;
+  probFull = Math.max(0, Math.min(0.45, probFull));
+  probLingering = Math.max(0, probLingering);
+  const probCareerAlter = Math.max(0, 1 - probFull - probBetter - probStandard - probLingering);
+  const r = Math.random();
+  let acc = probFull;        if (r < acc) return "full";
+  acc += probBetter;         if (r < acc) return "better";
+  acc += probStandard;       if (r < acc) return "standard";
+  acc += probLingering;      if (r < acc) return "lingering";
+  return "career-altering";
+}
+
+// Apply rehab OVR penalty when an injury fully resolves. The outcome
+// roll picks one of five recovery quality bands — most players recover
+// normally, a lucky few bounce back instantly or stronger, a rare few
+// never quite recover. Decay handled at offseason.
 function _applyRehabPenalty(p, tId, isCatastrophic) {
   const inj = p.injury;
   if (!inj) return;
   const baseOvr = inj._ovrPenalty || 0;
   if (baseOvr <= 0) return;
   const posMul = _POS_INJURY_PENALTY_MUL[p.position] ?? 1.0;
-  const penalty = Math.max(1, Math.round(baseOvr * posMul));
-  const seasons = isCatastrophic ? 2 : 1;
-  const oldOvr = p.overall || 60;
-  p.overall = Math.max(40, oldOvr - penalty);
-  p._rehabRestore = (p._rehabRestore || 0) + penalty;
+  const basePenalty = Math.max(1, Math.round(baseOvr * posMul));
+  const outcome = _rollRehabOutcome(p);
+  const myId = franchise.chosenTeamId;
+  const isMine = tId === myId;
+  const newsName = `${p.name} (${p.position})`;
+
+  if (outcome === "full") {
+    if (isMine && typeof _pushNews === "function") {
+      _pushNews({ type:"injury",
+        label: `✨ ${newsName} — made a clean recovery from ${inj.label}, no rehab penalty` });
+    }
+    return;
+  }
+  if (outcome === "better") {
+    // Tiny temp penalty + permanent OVR boost on the back end (AP MVP arc)
+    const tempPenalty = 2;
+    p.overall = Math.max(40, (p.overall || 60) - tempPenalty);
+    p._rehabRestore = (p._rehabRestore || 0) + tempPenalty;
+    p._rehabSeasons = Math.max(p._rehabSeasons || 0, 1);
+    p._rehabPermGain = (p._rehabPermGain || 0) + 1;
+    if (isMine && typeof _pushNews === "function") {
+      _pushNews({ type:"injury",
+        label: `🌟 ${newsName} — comeback story after ${inj.label}, return at −2 OVR but +1 permanent at full health` });
+    }
+    return;
+  }
+  const seasonsFor = isCatastrophic ? 2 : 1;
+  let penalty = basePenalty;
+  let restoreCap = basePenalty;
+  let seasons = seasonsFor;
+  if (outcome === "lingering") {
+    penalty = Math.max(1, Math.round(basePenalty * 1.5));
+    restoreCap = penalty;          // fully recovers, just takes longer
+    seasons = seasonsFor + 1;
+  } else if (outcome === "career-altering") {
+    penalty = Math.max(1, Math.round(basePenalty * 2));
+    // Only half the penalty ever recovers — the other half is permanent
+    restoreCap = Math.round(penalty * 0.5);
+    seasons = seasonsFor;
+  }
+  p.overall = Math.max(40, (p.overall || 60) - penalty);
+  p._rehabRestore = (p._rehabRestore || 0) + restoreCap;
   p._rehabSeasons = Math.max(p._rehabSeasons || 0, seasons);
-  if (tId === franchise.chosenTeamId && typeof _pushNews === "function") {
+  if (isMine && typeof _pushNews === "function") {
+    const tag = outcome === "lingering"      ? "⚠ Lingering damage"
+              : outcome === "career-altering"? "💔 Career-altering"
+              :                                 "🩹";
+    const permNote = outcome === "career-altering" ? ` · ${penalty - restoreCap} OVR permanent loss` : "";
     _pushNews({ type:"injury",
-      label: `🩹 ${p.name} (${p.position}) returns from ${inj.label} — −${penalty} OVR rehabbing for ${seasons} season${seasons===1?"":"s"}` });
+      label: `${tag} ${newsName} — returns from ${inj.label}: −${penalty} OVR, ${seasons}-season rehab${permNote}` });
   }
 }
 
@@ -1592,13 +1690,33 @@ function _rollGameInjuries(teamId) {
     const ironmanMul = p.ironman ? 0.50 : 1.0;
     const rate = (INJURY_RATE[p.position] || 0.01) * rateMul * recMul * ironmanMul;
     if (Math.random() >= rate) continue;
-    let t = _pickInjuryType();
+    let t = _pickInjuryType(p.position);
     let isCatastrophic = false;
     let careerEnding = false;
+    // Concussion protocol stacking — players with multiple concussions in
+    // the same season face longer mandatory rest and elevated catastrophic
+    // risk (modern-NFL safety protocol). Reset annually in offseason.
+    if (t.label === "concussion") {
+      p._concussionsThisSeason = (p._concussionsThisSeason || 0) + 1;
+      if (p._concussionsThisSeason >= 2) {
+        // 2nd concussion in a season: extended rest (4-8 weeks)
+        t = { ...t, min: 4, max: 8 };
+      }
+      if (p._concussionsThisSeason >= 3) {
+        // 3rd: 40% chance forced into the catastrophic variant
+        if (Math.random() < 0.40) {
+          t = { ...t, ..._CATASTROPHIC_VARIANTS["concussion"] };
+          isCatastrophic = true;
+          if (Math.random() < (t.careerEndingChance || 0) * 1.5) {
+            careerEnding = true;
+          }
+        }
+      }
+    }
     // Catastrophic upgrade — small chance the rolled injury escalates to
     // a season-altering version. Of those, a rare careerEndingChance
     // forces immediate retirement at season's end.
-    if (Math.random() < _CATASTROPHIC_UPGRADE_CHANCE) {
+    if (!isCatastrophic && Math.random() < _CATASTROPHIC_UPGRADE_CHANCE) {
       const variant = _CATASTROPHIC_VARIANTS[t.label];
       if (variant) {
         t = { ...t, ...variant };
