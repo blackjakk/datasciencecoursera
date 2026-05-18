@@ -2680,19 +2680,46 @@ function _renderPlayoffGameRecap() {
     </tr>`;
   };
 
-  // ── Scoring timeline (compact) ──────────────────────────────────────
-  const scoring = m.scoring || [];
+  // ── Scoring timeline (compact, score events only) ───────────────────
+  const scoring = (m.scoring || []).filter(ev => ev.isScore);
+  // Map "home"/"away" poss → teamId on this matchup.
+  const teamIdForPoss = (poss) => poss === "home" ? m.homeId
+    : poss === "away" ? m.awayId : null;
+  // Build a readable label from whatever the extractor preserved.
+  const scoreLabel = (ev) => {
+    if (ev.desc && ev.desc.length > 1) return ev.desc;
+    if (ev.scoreType) {
+      if (ev.scoreType === "TD")      return `Touchdown${ev.scorer?` — ${ev.scorer}`:""}`;
+      if (ev.scoreType === "FG")      return `Field goal${ev.kicker?` — ${ev.kicker}`:""}`;
+      if (ev.scoreType === "XP")      return "Extra point";
+      if (ev.scoreType === "2PT")     return "2-point conversion";
+      if (ev.scoreType === "SAFETY")  return "Safety";
+      return ev.scoreType;
+    }
+    if (ev.pts === 7 || ev.pts === 6) return "Touchdown";
+    if (ev.pts === 3) return "Field goal";
+    if (ev.pts === 2) return "Safety / 2-pt";
+    if (ev.pts === 1) return "Extra point";
+    return `+${ev.pts} pts`;
+  };
+  const fmtClock = (sec) => {
+    if (sec == null) return "";
+    const mm = Math.floor(sec / 60), ss = sec % 60;
+    return `${mm}:${String(ss).padStart(2,"0")}`;
+  };
   const scoringHtml = scoring.length ? `
     <div class="frn-prg-card">
       <div class="frn-prg-card-title">SCORING SUMMARY</div>
       <div class="frn-prg-scoring">
         ${scoring.map(ev => {
-          const t = getTeam(ev.teamId);
-          const isMine = ev.teamId === myId;
+          const tId = teamIdForPoss(ev.poss);
+          const t = tId ? getTeam(tId) : null;
+          const isMine = tId === myId;
+          const tAbbr = t ? (t.abbr || t.name.slice(0,3).toUpperCase()) : "—";
           return `<div class="frn-prg-scoring-row">
             <span class="q">Q${ev.qtr || "?"}</span>
-            <span class="team" style="color:${t?.primary || 'var(--blwhite)'};font-weight:${isMine?700:400}">${t?.abbr || t?.name?.slice(0,3).toUpperCase() || "?"}</span>
-            <span class="desc">${ev.label || ev.kind || "Score"}</span>
+            <span class="team" style="color:${t?.primary || 'var(--blwhite)'};font-weight:${isMine?700:400}">${tAbbr}</span>
+            <span class="desc">${scoreLabel(ev)}${ev.clock != null ? ` <span style="color:var(--blgray);font-weight:400;font-size:.55rem">(${fmtClock(ev.clock)})</span>` : ""}</span>
             <span class="score">${ev.homeScore}-${ev.awayScore}</span>
           </div>`;
         }).join("")}
@@ -2766,7 +2793,7 @@ function _renderPlayoffGameRecap() {
       <div class="frn-prg-card frn-prg-compare">
         <div class="frn-prg-card-title">MATCHUP STATS</div>
         <table class="frn-prg-cmp-table">
-          <thead><tr><th>${myTeam.abbr}</th><th></th><th>${oppTeam.abbr}</th></tr></thead>
+          <thead><tr><th>${myTeam.abbr || myTeam.name.slice(0,3).toUpperCase()}</th><th></th><th>${oppTeam.abbr || oppTeam.name.slice(0,3).toUpperCase()}</th></tr></thead>
           <tbody>${cmpRows.map(cmpRowHtml).join("")}</tbody>
         </table>
       </div>
