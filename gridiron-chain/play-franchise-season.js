@@ -23,6 +23,13 @@ function showFranchiseDashboard() {
       }
     }
   }
+  // One-time repair for stale PID-as-name strings baked into news and
+  // _faLastNews from before the FA-news pid-leak fix. Replace any 8-char
+  // base-36 token that maps to a real player's pid with that player's name.
+  if (!franchise._pidNamesRepaired) {
+    try { _repairNewsPidNames(); } catch (e) { console.warn("[news pid repair]", e); }
+    franchise._pidNamesRepaired = true;
+  }
   if (!franchise.seasonHighlights) franchise.seasonHighlights = [];
   if (!franchise.history)          franchise.history = [];
   if (!franchise.rosters)          franchise.rosters = {};
@@ -1453,6 +1460,41 @@ function _pushNews(item) {
   // Cap kept high so a multi-season wire history survives. Each entry
   // is ~120 bytes so 500 entries is still small in localStorage.
   if (franchise.news.length > 500) franchise.news = franchise.news.slice(-500);
+}
+
+// One-time migration: news/_faLastNews entries written before the
+// FA pid-leak fix have the FA's pid in place of the name. Walk every
+// player we still know about (rosters, PS, FA pool, active negotiations,
+// HOF, alumni), build a pid → name map, and replace any matching 8-char
+// base-36 token in each label. Anyone we no longer have a record of
+// (signed elsewhere then released, etc.) stays as-is.
+function _repairNewsPidNames() {
+  if (!franchise) return;
+  const pidToName = {};
+  const collect = (pool) => {
+    for (const p of (pool || [])) {
+      if (p?.pid && p?.name) pidToName[p.pid] = p.name;
+    }
+  };
+  for (const r of Object.values(franchise.rosters || {})) collect(r);
+  for (const ps of Object.values(franchise.practiceSquads || {})) collect(ps);
+  collect(franchise.freeAgents);
+  for (const n of Object.values(franchise.faNegotiations || {})) {
+    if (n?.fa?.pid && n?.fa?.name) pidToName[n.fa.pid] = n.fa.name;
+  }
+  collect(franchise.hallOfFame);
+  collect(franchise.alumni);
+  const pidRe = /\b[a-z0-9]{8}\b/g;
+  const fix = (s) => typeof s === "string"
+    ? s.replace(pidRe, (m) => pidToName[m] || m) : s;
+  for (const item of (franchise.news || [])) item.label = fix(item.label);
+  if (franchise._faLastNews) {
+    for (const k of ["signed", "lost"]) {
+      for (const e of (franchise._faLastNews[k] || [])) {
+        if (e?.name && pidToName[e.name]) e.name = pidToName[e.name];
+      }
+    }
+  }
 }
 
 // Detail card for a single player — shown in Scout right side panel.
