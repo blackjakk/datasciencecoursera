@@ -4577,10 +4577,14 @@ function renderFrnAwards() {
     ${retireeRows ? `<div style="margin-top:.6rem"><div class="bspnlive-allpro-title" style="margin-bottom:.4rem">CALLING IT A CAREER</div><div class="bspnlive-retiree-grid">${retireeRows}</div></div>` : ""}
   ` : "";
 
-  const topHL = [...(seasonHighlights || [])]
-    .sort((a, b) => b.weight - a.weight).slice(0, 6);
+  // Awards screen is your season's celebration — filter highlights to
+  // games your team was in. League-wide moments live on the dedicated
+  // highlights page where the user can scope to LEAGUE explicitly.
+  const myHL = (seasonHighlights || []).filter(h =>
+    h.homeId === chosenTeamId || h.awayId === chosenTeamId);
+  const topHL = myHL.slice().sort((a, b) => b.weight - a.weight).slice(0, 6);
   const hlSection = topHL.length ? `
-    <div class="bspnlive-section-title">⭐ SEASON HIGHLIGHTS</div>
+    <div class="bspnlive-section-title">⭐ YOUR SEASON HIGHLIGHTS</div>
     <div class="bspnlive-highlights-grid">
       ${topHL.map(h => {
         const hT = getTeam(h.homeId), aT = getTeam(h.awayId);
