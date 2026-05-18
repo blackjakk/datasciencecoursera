@@ -3214,43 +3214,51 @@ function _faResolveAfterWeek(week, isSeasonEnd) {
       }
     }
 
+    // signFn is referenced from BOTH the stable-round branch and the
+    // active-bidding else-branch below, so it must be hoisted out of
+    // either block. (Previously declared inside the !raisedThisRound
+    // arm — calling it from the else-branch threw ReferenceError and
+    // aborted the rest of end-of-week resolution.)
+    const signFn = () => {
+      const _faStruct1 = n.yourBid?.structure || _defaultStructure(n.fa.age || 27, n.fa.overall || 70);
+      const _faBonus1  = _signingBonusCalc(highAav, highYrs, n.fa.overall || 70);
+      n.fa.contract = {
+        years: highYrs, remaining: highYrs, aav: highAav,
+        structure: _faStruct1,
+        baseSalaries: _baseSalarySchedule(highAav, highYrs, _faStruct1, _faBonus1.bonusProration),
+        signingBonus: _faBonus1.signingBonus, bonusProration: _faBonus1.bonusProration,
+        guaranteedYears: _guaranteedYearsForLength(highYrs),
+        guaranteedAAV: highAav,
+        incentives: _generateIncentives(n.fa, highAav),
+      };
+      n.state = "signed";
+      n.signedToTeamId = highId;
+      n.history.push({ teamId: highId,
+        label: highIsYou ? "You SIGN" : `${getTeam(highId)?.name || "?"} SIGN`,
+        aav: highAav, years: highYrs, week });
+      n.fa.systemYears = 0; // new system — familiarity resets
+      franchise.rosters[highId].push(n.fa);
+      const signTeam = getTeam(highId);
+      if (highIsYou) {
+        const myRoster = franchise.rosters[myId];
+        for (const cut of (n.yourBid?.cutNames || [])) {
+          const i = myRoster.findIndex(p => p.name === cut);
+          if (i !== -1) myRoster.splice(i, 1);
+        }
+        newsSigned.push({ name, pos: n.fa.position, aav: highAav, years: highYrs });
+        _pushNews({ type:"fa_sign",
+          label: `🆓 You signed ${n.fa.position} ${name} — $${highAav.toFixed(1)}M × ${highYrs}yr` });
+      } else {
+        n.signedToTeamName = `${signTeam.city} ${signTeam.name}`;
+        _pushNews({ type:"fa_sign",
+          label: `🆓 ${signTeam.name} sign ${n.fa.position} ${name} — $${highAav.toFixed(1)}M × ${highYrs}yr` });
+      }
+    };
+
     if (!n.raisedThisRound) {
       // Stable round → player signs to the standing high bidder if
       // it meets demand (95% threshold). Otherwise the FA lowers
       // their asking and stays on the market.
-      const signFn = () => {
-        const _faStruct1 = n.yourBid?.structure || _defaultStructure(n.fa.age || 27, n.fa.overall || 70);
-        const _faBonus1  = _signingBonusCalc(highAav, highYrs, n.fa.overall || 70);
-        n.fa.contract = {
-          years: highYrs, remaining: highYrs, aav: highAav,
-          structure: _faStruct1,
-          baseSalaries: _baseSalarySchedule(highAav, highYrs, _faStruct1, _faBonus1.bonusProration),
-          signingBonus: _faBonus1.signingBonus, bonusProration: _faBonus1.bonusProration,
-          guaranteedYears: _guaranteedYearsForLength(highYrs),
-          guaranteedAAV: highAav,
-          incentives: _generateIncentives(n.fa, highAav),
-        };
-        n.state = "signed";
-        n.signedToTeamId = highId;
-        n.fa.systemYears = 0; // new system — familiarity resets
-        franchise.rosters[highId].push(n.fa);
-        const signTeam = getTeam(highId);
-        if (highIsYou) {
-          const myRoster = franchise.rosters[myId];
-          for (const cut of (n.yourBid.cutNames || [])) {
-            const i = myRoster.findIndex(p => p.name === cut);
-            if (i !== -1) myRoster.splice(i, 1);
-          }
-          newsSigned.push({ name, pos: n.fa.position, aav: highAav, years: highYrs });
-          _pushNews({ type:"fa_sign",
-            label: `🆓 You signed ${n.fa.position} ${name} — $${highAav.toFixed(1)}M × ${highYrs}yr` });
-        } else {
-          n.signedToTeamName = `${signTeam.city} ${signTeam.name}`;
-          _pushNews({ type:"fa_sign",
-            label: `🆓 ${signTeam.name} sign ${n.fa.position} ${name} — $${highAav.toFixed(1)}M × ${highYrs}yr` });
-        }
-      };
-
       // Roster Builder HC lowers the acceptance threshold — FAs take less to play here.
       const _myHcSpec     = franchise.coaches?.[myId]?.hc?.specialtyTrait;
       const _acceptThresh = (highIsYou && _myHcSpec === "Roster Builder") ? 0.80 : 0.95;
@@ -3293,7 +3301,10 @@ function _faResolveAfterWeek(week, isSeasonEnd) {
       n.fa.originalDemandAAV ??= n.fa.demandedAAV;
       const slowFloor = +(n.fa.originalDemandAAV * 0.65).toFixed(1);
       const driftedDemand = Math.max(slowFloor, Math.round(n.fa.demandedAAV * 0.97 * 10) / 10);
-      if (driftedDemand < n.fa.demandedAAV) n.fa.demandedAAV = driftedDemand;
+      if (driftedDemand < n.fa.demandedAAV) {
+        n.fa.demandedAAV = driftedDemand;
+        n.fa.demandDropsCount = (n.fa.demandDropsCount || 0) + 1;
+      }
       // If the standing high bid now clears 95% of the drifted demand → sign
       if (highId != null && highAav >= n.fa.demandedAAV * 0.95) {
         signFn();
@@ -3366,7 +3377,11 @@ const FA_KNOCKOUT_MULT = 1.5;
 function _faTryKnockout(name) {
   const n = franchise.faNegotiations?.[name];
   if (!n || n.state !== "negotiating") return "none";
-  const threshold = n.fa.demandedAAV * FA_KNOCKOUT_MULT;
+  // Round to 0.1 to match the rounding applied to bid AAVs — otherwise
+  // demand × 1.5 can produce a value an ULP above the rounded bid
+  // (e.g. 18.6 × 1.5 → 27.900000000000002 vs bid 27.9) and the >=
+  // comparison silently fails.
+  const threshold = Math.round(n.fa.demandedAAV * FA_KNOCKOUT_MULT * 10) / 10;
   const ko = [];
   if (n.yourBid && n.yourBid.aav >= threshold)
     ko.push({ teamId: franchise.chosenTeamId, ...n.yourBid, isYou: true });
