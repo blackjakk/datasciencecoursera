@@ -1615,9 +1615,13 @@ function _buildSeasonStatsBlock(p) {
     fmtTuples.push(["CMP %", att ? `${(cmp/att*100).toFixed(1)}%` : "—"]);
     fmtTuples.push(["PASS YDS", yds]);
     fmtTuples.push(["YDS/GAME", per(yds)]);
+    fmtTuples.push(["Y/A", att ? (yds/att).toFixed(1) : "—"]);
     fmtTuples.push(["PASS TD", num("pass_td")]);
     fmtTuples.push(["INT", num("pass_int")]);
     fmtTuples.push(["RATING", _passerRating(cmp, att, yds, num("pass_td"), num("pass_int"))]);
+    if (num("pass_long")) fmtTuples.push(["LONG", num("pass_long")]);
+    if (num("sacks_taken")) fmtTuples.push(["SACKED", `${num("sacks_taken")} (-${num("sack_yds")})`]);
+    if (num("fumbles")) fmtTuples.push(["FUM", `${num("fumbles")}${num("fumbles_lost")?` · ${num("fumbles_lost")} LOST`:""}`]);
     if (num("snaps")) fmtTuples.push(["SNAPS", num("snaps")]);
     if (num("rush_att")) { fmtTuples.push(["RUSH ATT", num("rush_att")]); fmtTuples.push(["RUSH YDS", num("rush_yds")]); }
     if (num("rush_td")) fmtTuples.push(["RUSH TD", num("rush_td")]);
@@ -1628,12 +1632,15 @@ function _buildSeasonStatsBlock(p) {
     fmtTuples.push(["YPC", car ? (yds/car).toFixed(1) : "—"]);
     fmtTuples.push(["YDS/GAME", per(yds)]);
     fmtTuples.push(["RUSH TD", num("rush_td")]);
+    if (num("rush_long")) fmtTuples.push(["LONG", num("rush_long")]);
     if (num("broken_tackles")) fmtTuples.push(["BROKEN TKL", num("broken_tackles")]);
+    if (num("fumbles")) fmtTuples.push(["FUM", `${num("fumbles")}${num("fumbles_lost")?` · ${num("fumbles_lost")} LOST`:""}`]);
     if (num("snaps")) fmtTuples.push(["SNAPS", num("snaps")]);
     if (num("rec")) {
-      fmtTuples.push(["REC", num("rec")]);
+      fmtTuples.push(["REC", `${num("rec")}/${num("rec_tgt")||num("rec")}`]);
       fmtTuples.push(["REC YDS", num("rec_yds")]);
       fmtTuples.push(["REC TD", num("rec_td")]);
+      if (num("rec_long")) fmtTuples.push(["REC LONG", num("rec_long")]);
     }
   } else if (pos === "WR" || pos === "TE") {
     const rec = num("rec"), yds = num("rec_yds"), tgt = num("rec_tgt");
@@ -1642,9 +1649,13 @@ function _buildSeasonStatsBlock(p) {
     fmtTuples.push(["REC YDS", yds]);
     fmtTuples.push(["YPR", rec ? (yds/rec).toFixed(1) : "—"]);
     fmtTuples.push(["YDS/GAME", per(yds)]);
-    if (num("snaps")) fmtTuples.push(["SNAPS", num("snaps")]);
     fmtTuples.push(["REC TD", num("rec_td")]);
     fmtTuples.push(["CATCH %", tgt ? `${(rec/tgt*100).toFixed(1)}%` : "—"]);
+    if (num("rec_long")) fmtTuples.push(["LONG", num("rec_long")]);
+    if (num("rec_drops")) fmtTuples.push(["DROPS", num("rec_drops")]);
+    if (num("fumbles")) fmtTuples.push(["FUM", `${num("fumbles")}${num("fumbles_lost")?` · ${num("fumbles_lost")} LOST`:""}`]);
+    if (num("snaps")) fmtTuples.push(["SNAPS", num("snaps")]);
+    if (num("rush_att")) { fmtTuples.push(["RUSH ATT", num("rush_att")]); fmtTuples.push(["RUSH YDS", num("rush_yds")]); }
   } else if (pos === "DL" || pos === "LB" || pos === "CB" || pos === "S") {
     const tklN = num("tkl"), missN = num("missed_tkl");
     fmtTuples.push(["TKL", tklN]);
@@ -1654,12 +1665,20 @@ function _buildSeasonStatsBlock(p) {
       const total = tklN + missN;
       fmtTuples.push(["TKL%", total ? `${((tklN / total) * 100).toFixed(0)}%` : "—"]);
     }
-    if (num("sk")) fmtTuples.push(["SK", num("sk")]);
-    if (num("int_made")) fmtTuples.push(["INT", num("int_made")]);
+    if (num("sk")) {
+      fmtTuples.push(["SK", num("sk")]);
+      if (num("sk_yds")) fmtTuples.push(["SK YDS", num("sk_yds")]);
+    }
+    if (num("int_made")) {
+      fmtTuples.push(["INT", num("int_made")]);
+      if (num("int_yds")) fmtTuples.push(["INT YDS", num("int_yds")]);
+      if (num("int_long")) fmtTuples.push(["INT LONG", num("int_long")]);
+      if (num("int_td")) fmtTuples.push(["INT TD", num("int_td")]);
+    }
     if (num("pd")) fmtTuples.push(["PD", num("pd")]);
     if (num("ff")) fmtTuples.push(["FF", num("ff")]);
     if (num("fr")) fmtTuples.push(["FR", num("fr")]);
-    if (num("def_td")) fmtTuples.push(["DEF TD", num("def_td")]);
+    if (num("def_td") && !num("int_td")) fmtTuples.push(["DEF TD", num("def_td")]);
   } else if (pos === "K") {
     fmtTuples.push(["FG", `${num("fg_made")}/${num("fg_att")}`]);
     fmtTuples.push(["FG %", num("fg_att") ? `${(num("fg_made")/num("fg_att")*100).toFixed(1)}%` : "—"]);
@@ -1759,7 +1778,11 @@ function _buildGameLogBlock(p) {
   let headers = [], rowCells = [];
   if (pos === "QB") {
     const hasQBRush = games.some(({ line }) => (line.rush_att || 0) > 0);
-    headers = ["WK", ...(showTM ? ["TM"] : []), "OPP","RES","CMP/ATT","YDS","TD","INT","RTG",...(hasQBRush ? ["CAR","RYD","RTD"] : []),"FPTS"];
+    const hasSk    = games.some(({ line }) => (line.sacks_taken || 0) > 0);
+    headers = ["WK", ...(showTM ? ["TM"] : []), "OPP","RES","CMP/ATT","YDS","TD","INT","LONG","RTG",
+               ...(hasSk ? ["SK"] : []),
+               ...(hasQBRush ? ["CAR","RYD","RTD"] : []),
+               "FPTS"];
     rowCells = games.map(({ g, line, teamId, oppId }) => {
       const opp = getTeam(oppId), my = getTeam(teamId);
       const myHome = teamId === g.homeId;
@@ -1778,14 +1801,20 @@ function _buildGameLogBlock(p) {
         <td>${line.pass_yds||0}</td>
         <td>${line.pass_td||0}</td>
         <td>${line.pass_int||0}</td>
+        <td>${line.pass_long||0}</td>
         <td>${_passerRating(cmp, att, line.pass_yds||0, line.pass_td||0, line.pass_int||0)}</td>
+        ${hasSk ? `<td>${line.sacks_taken||0}</td>` : ""}
         ${hasQBRush ? `<td>${line.rush_att||0}</td><td>${line.rush_yds||0}</td><td>${line.rush_td||0}</td>` : ""}
         <td style="color:var(--gold);font-weight:700">${fpts.toFixed(1)}</td>
       </tr>`;
     });
   } else if (pos === "RB") {
-    const hasBT = games.some(({ line }) => (line.broken_tackles || 0) > 0);
-    headers = ["WK", ...(showTM ? ["TM"] : []), "OPP","RES","CAR","YDS","YPC","TD",...(hasBT?["BT"]:[]),"REC","REC YDS","FPTS"];
+    const hasBT  = games.some(({ line }) => (line.broken_tackles || 0) > 0);
+    const hasRec = games.some(({ line }) => (line.rec || 0) > 0 || (line.rec_td || 0) > 0);
+    headers = ["WK", ...(showTM ? ["TM"] : []), "OPP","RES","CAR","YDS","YPC","TD","LONG",
+               ...(hasBT?["BT"]:[]),
+               ...(hasRec?["REC","REC YDS","REC TD"]:[]),
+               "FPTS"];
     rowCells = games.map(({ g, line, teamId, oppId }) => {
       const opp = getTeam(oppId);
       const myHome = teamId === g.homeId;
@@ -1805,14 +1834,14 @@ function _buildGameLogBlock(p) {
         <td>${yds}</td>
         <td>${car ? (yds/car).toFixed(1) : "—"}</td>
         <td>${line.rush_td||0}</td>
+        <td>${line.rush_long||0}</td>
         ${hasBT ? `<td style="color:${bt>0?"var(--green-lt)":"var(--gray)"}">${bt}</td>` : ""}
-        <td>${line.rec||0}</td>
-        <td>${line.rec_yds||0}</td>
+        ${hasRec ? `<td>${line.rec||0}</td><td>${line.rec_yds||0}</td><td style="color:${(line.rec_td||0)>0?"var(--green-lt)":""}">${line.rec_td||0}</td>` : ""}
         <td style="color:var(--gold);font-weight:700">${fpts.toFixed(1)}</td>
       </tr>`;
     });
   } else if (pos === "WR" || pos === "TE") {
-    headers = ["WK", ...(showTM ? ["TM"] : []), "OPP","RES","REC","TGT","YDS","YPR","TD","FPTS"];
+    headers = ["WK", ...(showTM ? ["TM"] : []), "OPP","RES","REC","TGT","YDS","YPR","TD","LONG","FPTS"];
     rowCells = games.map(({ g, line, teamId, oppId }) => {
       const opp = getTeam(oppId);
       const myHome = teamId === g.homeId;
@@ -1832,6 +1861,7 @@ function _buildGameLogBlock(p) {
         <td>${yds}</td>
         <td>${rec ? (yds/rec).toFixed(1) : "—"}</td>
         <td>${line.rec_td||0}</td>
+        <td>${line.rec_long||0}</td>
         <td style="color:var(--gold);font-weight:700">${fpts.toFixed(1)}</td>
       </tr>`;
     });
