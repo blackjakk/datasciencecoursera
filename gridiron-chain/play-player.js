@@ -451,7 +451,7 @@ function assignLeagueNicknames(rosters) {
   }
 }
 
-const ROSTER_SLOTS = { QB:3, RB:4, WR:6, TE:3, OL:8, DL:6, LB:5, CB:5, S:3, K:1, P:1 };
+const ROSTER_SLOTS = { QB:3, RB:4, WR:6, TE:3, OL:9, DL:6, LB:5, CB:6, S:4, K:1, P:1 };
 
 const rand = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
 const randf = (a, b) => Math.random() * (b - a) + a;
@@ -1006,6 +1006,10 @@ function genPlayer(pos, tier) {
     overall: calcOverall(pos, stats),
     flavor,
   };
+  // Rare durability trait (~3%) — halves per-game injury rate. Brett Favre /
+  // Eli Manning / Cal Ripken style. Mostly invisible mechanic; shows as a
+  // small flag on the owned-player card.
+  if (Math.random() < 0.03) player.ironman = true;
   switch (pos) {
     case "QB": player.archetype = pickQBArchetype(stats); break;
     case "DL": player.archetype = pickDLArchetype(stats); break;

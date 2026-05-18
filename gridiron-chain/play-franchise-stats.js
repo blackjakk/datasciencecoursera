@@ -6908,6 +6908,11 @@ function _processSeasonEndRetirements() {
         p.age = (p.overall >= 85 ? 27 : p.overall >= 75 ? 24 : 22) + Math.floor(Math.random() * 6);
       }
       p.age += 1;
+      // Career-ending injury → force retirement this offseason.
+      if (p._retiringFromInjury) {
+        // Set retProb=1 below by jumping adjAge sky-high
+        p._forceRetire = true;
+      }
       // Position-aware retirement curve. QB / K / P play later than
       // contact positions; RBs retire earliest. Offset shifts the
       // effective age in the curve below.
@@ -6918,7 +6923,17 @@ function _processSeasonEndRetirements() {
       if (typeof _isInjuryProne === "function" && _isInjuryProne(p)) {
         adjAge += 2 + (((p.injuryHistory || []).length >= 5) ? 1 : 0);
       }
-      let retProb = adjAge >= 40 ? 0.97
+      // RB cumulative wear — high-mileage RBs decline faster (Eddie George,
+      // Earl Campbell, Le'Veon Bell burnout arcs). 2000+ touches = +1
+      // adjAge, 2500+ = +2, 3000+ = +3.
+      if (p.position === "RB") {
+        const t = p._careerTouches || 0;
+        if (t >= 3000) adjAge += 3;
+        else if (t >= 2500) adjAge += 2;
+        else if (t >= 2000) adjAge += 1;
+      }
+      let retProb = p._forceRetire ? 1 :
+                  adjAge >= 40 ? 0.97
                   : adjAge === 39 ? 0.90
                   : adjAge === 38 ? 0.78
                   : adjAge === 37 ? 0.62

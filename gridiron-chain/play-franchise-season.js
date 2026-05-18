@@ -1503,20 +1503,66 @@ function _careerColsFor(pos) {
 // numbers for trench positions where contact is constant.
 const INJURY_RATE = { QB:0.012, RB:0.022, WR:0.014, TE:0.016, OL:0.020,
                      DL:0.020, LB:0.018, CB:0.014, S:0.012, K:0.002, P:0.002 };
+// Each injury type carries a baseline OVR penalty applied AFTER recovery
+// to model the "rehabbing back to full speed" arc. Soft-tissue stuff
+// heals clean (penalty 0); structural injuries leave lingering damage.
 const INJURY_TYPES = [
-  { label:"hamstring",   min:1, max:3, w:30 },
-  { label:"ankle sprain",min:1, max:4, w:25 },
-  { label:"concussion",  min:1, max:2, w:15 },
-  { label:"knee",        min:3, max:8, w:10 },
-  { label:"shoulder",    min:2, max:5, w:10 },
-  { label:"hand/wrist",  min:1, max:3, w:10 },
+  { label:"hamstring",   min:1, max:3, w:30, severity:"soft",       ovrPenalty:0 },
+  { label:"ankle sprain",min:1, max:4, w:25, severity:"soft",       ovrPenalty:0 },
+  { label:"concussion",  min:1, max:2, w:15, severity:"soft",       ovrPenalty:0 },
+  { label:"knee",        min:3, max:8, w:10, severity:"structural", ovrPenalty:3 },
+  { label:"shoulder",    min:2, max:5, w:10, severity:"structural", ovrPenalty:2 },
+  { label:"hand/wrist",  min:1, max:3, w:10, severity:"soft",       ovrPenalty:0 },
 ];
+// Catastrophic upgrade variants — 8% of all rolled injuries upgrade to a
+// season-altering version. Of those, a small careerEndingChance retires
+// the player (Andrew Luck, Bo Jackson arcs). Multi-month durations exceed
+// the regular-season length, so the player is functionally lost for the
+// season.
+const _CATASTROPHIC_VARIANTS = {
+  "knee":         { label:"torn ACL",                     min:12, max:24, ovrPenalty:6, careerEndingChance:0.05 },
+  "concussion":   { label:"chronic concussion syndrome",  min:8,  max:16, ovrPenalty:5, careerEndingChance:0.08 },
+  "shoulder":     { label:"labrum tear",                  min:12, max:20, ovrPenalty:5, careerEndingChance:0.03 },
+  "ankle sprain": { label:"Lisfranc fracture",            min:10, max:18, ovrPenalty:4, careerEndingChance:0.02 },
+};
+const _CATASTROPHIC_UPGRADE_CHANCE = 0.08;
+// Position-aware severity multiplier on the rehab OVR penalty. Speed-
+// dependent positions (CB/WR/RB) lose more from structural injuries; OL/K
+// lose less because they don't rely on explosiveness.
+const _POS_INJURY_PENALTY_MUL = {
+  CB: 1.5, WR: 1.5, S: 1.3, RB: 1.3,
+  TE: 1.0, LB: 1.0, DL: 1.0, QB: 1.0,
+  OL: 0.7, K: 0.5, P: 0.5,
+};
+
 function _pickInjuryType() {
   const total = INJURY_TYPES.reduce((s,t)=>s+t.w,0);
   let r = Math.random() * total;
   for (const t of INJURY_TYPES) { if ((r -= t.w) < 0) return t; }
   return INJURY_TYPES[0];
 }
+
+// Apply rehab OVR penalty when an injury fully resolves. Decay handled
+// at offseason. Penalty subtracts from OVR directly; restoration adds it
+// back across 1-2 seasons (or instantly resolves for short injuries).
+function _applyRehabPenalty(p, tId, isCatastrophic) {
+  const inj = p.injury;
+  if (!inj) return;
+  const baseOvr = inj._ovrPenalty || 0;
+  if (baseOvr <= 0) return;
+  const posMul = _POS_INJURY_PENALTY_MUL[p.position] ?? 1.0;
+  const penalty = Math.max(1, Math.round(baseOvr * posMul));
+  const seasons = isCatastrophic ? 2 : 1;
+  const oldOvr = p.overall || 60;
+  p.overall = Math.max(40, oldOvr - penalty);
+  p._rehabRestore = (p._rehabRestore || 0) + penalty;
+  p._rehabSeasons = Math.max(p._rehabSeasons || 0, seasons);
+  if (tId === franchise.chosenTeamId && typeof _pushNews === "function") {
+    _pushNews({ type:"injury",
+      label: `🩹 ${p.name} (${p.position}) returns from ${inj.label} — −${penalty} OVR rehabbing for ${seasons} season${seasons===1?"":"s"}` });
+  }
+}
+
 // Soft-tissue injuries recur at +20% per prior incident; structural
 // injuries (knee, shoulder, concussion) recur at +40%. Capped at 3x
 // the base rate so even chronically banged-up vets aren't auto-injured.
@@ -1543,33 +1589,64 @@ function _rollGameInjuries(teamId) {
   for (const p of roster) {
     if (p.injury && p.injury.weeksRemaining > 0) continue;
     const recMul = _injuryRecurrenceMul(p);
-    const rate = (INJURY_RATE[p.position] || 0.01) * rateMul * recMul;
+    const ironmanMul = p.ironman ? 0.50 : 1.0;
+    const rate = (INJURY_RATE[p.position] || 0.01) * rateMul * recMul * ironmanMul;
     if (Math.random() >= rate) continue;
-    const t = _pickInjuryType();
-    const wks = t.min + Math.floor(Math.random() * (t.max - t.min + 1));
-    p.injury = { label: t.label, weeksRemaining: wks };
-    // Persist injury history so future recurrence rates know about it.
+    let t = _pickInjuryType();
+    let isCatastrophic = false;
+    let careerEnding = false;
+    // Catastrophic upgrade — small chance the rolled injury escalates to
+    // a season-altering version. Of those, a rare careerEndingChance
+    // forces immediate retirement at season's end.
+    if (Math.random() < _CATASTROPHIC_UPGRADE_CHANCE) {
+      const variant = _CATASTROPHIC_VARIANTS[t.label];
+      if (variant) {
+        t = { ...t, ...variant };
+        isCatastrophic = true;
+        if (Math.random() < (variant.careerEndingChance || 0)) {
+          careerEnding = true;
+        }
+      }
+    }
+    const wks = careerEnding ? 99
+      : t.min + Math.floor(Math.random() * (t.max - t.min + 1));
+    p.injury = {
+      label: t.label, weeksRemaining: wks,
+      _ovrPenalty: t.ovrPenalty || 0,
+      _catastrophic: isCatastrophic,
+      _careerEnding: careerEnding,
+    };
+    if (careerEnding) p._retiringFromInjury = true;
     p.injuryHistory = p.injuryHistory || [];
     p.injuryHistory.push({
-      label: t.label, week: franchise.week, season: franchise.season, weeks: wks,
+      label: t.label, week: franchise.week, season: franchise.season,
+      weeks: wks, catastrophic: isCatastrophic,
     });
     if (p.injuryHistory.length > 20) p.injuryHistory = p.injuryHistory.slice(-20);
-    // News only for notable injuries on user team or to top players
     const isMine = teamId === franchise.chosenTeamId;
     const grade = scoutGrade(p);
-    if (isMine || grade >= 80) {
+    if (isMine || grade >= 80 || isCatastrophic) {
       const proneTag = _isInjuryProne(p) ? " (injury-prone)" : "";
+      const sevTag = careerEnding ? " — CAREER-ENDING"
+                   : isCatastrophic ? " — SEASON-ENDING" : "";
       _pushNews({ type:"injury",
-        label: `🩹 ${p.name} (${p.position}, ${team?.name||"?"})${proneTag} — ${t.label}, ${wks} wk${wks===1?"":"s"}` });
+        label: `${careerEnding ? "💔" : isCatastrophic ? "🚑" : "🩹"} ${p.name} (${p.position}, ${team?.name||"?"})${proneTag} — ${t.label}, ${wks >= 99 ? "out indefinitely" : `${wks} wk${wks===1?"":"s"}`}${sevTag}` });
     }
   }
 }
 function _tickInjuriesForWeek() {
-  for (const roster of Object.values(franchise.rosters || {})) {
+  for (const [tid, roster] of Object.entries(franchise.rosters || {})) {
     for (const p of roster) {
       if (!p.injury || p.injury.weeksRemaining <= 0) continue;
       p.injury.weeksRemaining -= 1;
-      if (p.injury.weeksRemaining <= 0) p.injury = null;
+      if (p.injury.weeksRemaining <= 0) {
+        // Apply post-recovery rehab penalty BEFORE clearing the injury,
+        // so we still have access to severity metadata.
+        if (!p.injury._careerEnding) {
+          _applyRehabPenalty(p, Number(tid), !!p.injury._catastrophic);
+        }
+        p.injury = null;
+      }
     }
   }
 }
@@ -2525,7 +2602,7 @@ const FA_POOL_TEMPLATES = [
   // Veteran stars — proven, expensive, won't take a discount easily
   { kind:"vet_star",  count: 15, ageMin:27, ageMax:32, tier:"elite",
     drMin:1, drMax:3, demandMult:1.00, yearsMin:3, yearsMax:5,
-    posPool:["QB","WR","WR","RB","OL","OL","DL","DL","LB","CB","TE","S"],
+    posPool:["QB","WR","WR","RB","OL","OL","OL","DL","DL","LB","CB","CB","TE","S","S"],
     stories:[
       "Former Pro Bowler hitting the open market",
       "Coming off a career year — wants top-of-market",
@@ -2537,7 +2614,7 @@ const FA_POOL_TEMPLATES = [
   // Steady veterans — depth, decent prices
   { kind:"vet_depth", count: 28, ageMin:27, ageMax:33, tier:"good",
     drMin:2, drMax:5, demandMult:0.95, yearsMin:2, yearsMax:4,
-    posPool:["QB","RB","WR","WR","TE","OL","OL","OL","DL","DL","LB","LB","CB","S"],
+    posPool:["QB","RB","WR","WR","TE","OL","OL","OL","OL","DL","DL","LB","LB","CB","CB","S","S"],
     stories:[
       "Reliable starter looking for a fresh start",
       "Productive rotation piece on his third team",
@@ -2561,7 +2638,7 @@ const FA_POOL_TEMPLATES = [
   // Young camp bodies — cheap, room to grow
   { kind:"camp_body", count: 70, ageMin:22, ageMax:25, tier:"average",
     drMin:5, drMax:7, demandMult:0.55, yearsMin:1, yearsMax:3,
-    posPool:["QB","RB","WR","WR","TE","OL","DL","LB","CB","S"],
+    posPool:["QB","RB","WR","WR","TE","OL","OL","DL","LB","CB","CB","S"],
     stories:[
       "Practice squad standout",
       "Training camp body — last team kept him in the building",

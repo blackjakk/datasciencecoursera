@@ -7667,6 +7667,23 @@ function runFrnOffseason() {
         _maybeApplyElitePlateauBump(p);
       }
 
+      // Rehab decay — restore OVR for players still recovering from a
+      // structural injury last season. Spreads the lost OVR back over
+      // 1-2 seasons so a torn ACL doesn't permanently nuke a career.
+      if ((p._rehabRestore || 0) > 0 && (p._rehabSeasons || 0) > 0) {
+        const restore = Math.ceil(p._rehabRestore / p._rehabSeasons);
+        p.overall = Math.min(99, (p.overall || 60) + restore);
+        p._rehabRestore -= restore;
+        p._rehabSeasons -= 1;
+        if (p._rehabRestore <= 0 || p._rehabSeasons <= 0) {
+          delete p._rehabRestore; delete p._rehabSeasons;
+          if (tId === franchise.chosenTeamId) {
+            _pushNews({ type:"scout_reveal",
+              label: `✅ ${p.position} ${p.name} — fully recovered, back to peak form` });
+          }
+        }
+      }
+
       // Veteran resurgence — late-career renaissance for 30+ players who
       // haven't hit decline yet. Rare for average vets; significantly
       // amplified for elite (88+) vets who model real "Brady-at-40"
@@ -10861,7 +10878,10 @@ function _rollClassThemes() {
 // roster needs (QB:3 RB:4 WR:6 OL:8 etc.) multiplied by the per-year
 // theme. The returned array is what each pick samples from uniformly.
 function _buildClassPositionPool(themes) {
-  const baseUnits = { QB:3, RB:4, WR:6, TE:3, OL:8, DL:5, LB:4, CB:4, S:2, K:1, P:1 };
+  // Base weights track roster needs (QB:3 RB:4 WR:6 OL:9 etc.) so the class
+  // produces ~proportional volume per position. Bumped CB/S/OL to match the
+  // expanded ROSTER_SLOTS.
+  const baseUnits = { QB:3, RB:4, WR:6, TE:3, OL:9, DL:5, LB:4, CB:5, S:3, K:1, P:1 };
   const pool = [];
   for (const pos of Object.keys(baseUnits)) {
     const count = Math.max(1, Math.round(baseUnits[pos] * (themes[pos] || 1)));
@@ -12140,6 +12160,13 @@ function _rollSeasonStatsToCareer() {
           player.careerStats[k] = Math.max(player.careerStats[k] || 0, v);
         } else {
           player.careerStats[k] = (player.careerStats[k] || 0) + v;
+        }
+      }
+      // RB cumulative wear tracking — feed the retirement curve's wear bump
+      if (player.position === "RB") {
+        const touches = (st.rush_att || 0) + (st.rec || 0);
+        if (touches > 0) {
+          player._careerTouches = (player._careerTouches || 0) + touches;
         }
       }
       // Snapshot this season as a row. If a placeholder row already
