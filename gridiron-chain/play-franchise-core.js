@@ -755,14 +755,14 @@ function scoutGrade(p) {
 
 // Has the user scouted this player's team this season (via scrimmage)?
 function _isPlayerScouted(p) {
-  if (!franchise?.scoutingIntel) return false;
-  const myId = franchise.chosenTeamId;
-  // Find which team currently owns this player
-  for (const [tid, roster] of Object.entries(franchise.rosters || {})) {
-    if (Number(tid) === myId) continue;          // your own roster is always known
+  const myId = franchise?.chosenTeamId;
+  // Find which team currently owns this player. Own roster is always
+  // "scouted" — you coach them, you know.
+  for (const [tid, roster] of Object.entries(franchise?.rosters || {})) {
     if (!roster.includes(p)) continue;
-    const intel = franchise.scoutingIntel[tid];
-    return intel && intel.season === franchise.season;
+    if (Number(tid) === myId) return true;
+    const intel = franchise?.scoutingIntel?.[tid];
+    return !!(intel && intel.season === franchise.season);
   }
   return false;
 }
@@ -901,7 +901,19 @@ function gradeClass(score) {
   return "poor";
 }
 
+// Ownership-aware badge — owned players (current roster) show exact
+// OVR, everyone else shows a scout-grade letter with noise. Matches
+// the rest of the app's visibility model so you don't have to look at
+// a noisy letter grade for your own QB.
 function gradeBadge(p) {
+  const myId = franchise?.chosenTeamId;
+  if (myId != null) {
+    const myRoster = franchise?.rosters?.[myId] || [];
+    if (myRoster.includes(p) || myRoster.some(rp => rp.name === p?.name && rp.position === p?.position)) {
+      const ovr = p.overall || 60;
+      return `<span class="tt-ovr tier-${gradeClass(ovr)}" title="OVR — internal rating">${ovr}</span>`;
+    }
+  }
   const s = scoutGrade(p);
   return `<span class="tt-ovr tier-${gradeClass(s)}" title="Scout grade — not exact ability">${gradeLabel(s)}</span>`;
 }
