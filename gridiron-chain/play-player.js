@@ -1287,6 +1287,13 @@ function assignCareerTeams(rosters) {
       const hist = p.careerHistory || [];
       const n = hist.length;
       if (!n) continue;
+      // Idempotency: once career-team names are stamped (either by this
+      // function or by _assignFACareerTeams), leave them alone. Otherwise
+      // FAs who get signed have their history rewritten on every dashboard
+      // render — appearing to have spent their entire career with you.
+      if (p._careerTeamsAssigned) continue;
+      const firstStamped = hist[0]?.teamName && hist[0].teamName !== "—";
+      if (firstStamped) { p._careerTeamsAssigned = true; continue; }
 
       // Seeded LCG — stable across reloads. Mix name, pid and teamId.
       let seed = 0;
@@ -1302,6 +1309,7 @@ function assignCareerTeams(rosters) {
       const travelProb = n <= 3 ? 0.20 : n <= 6 ? 0.52 : n <= 9 ? 0.72 : 0.88;
       if (rng() >= travelProb) {
         hist.forEach(row => { row.teamId = teamId; row.teamName = teamName; });
+        p._careerTeamsAssigned = true;
         continue;
       }
 
@@ -1315,6 +1323,7 @@ function assignCareerTeams(rosters) {
 
       if (priorSeasons <= 0) {
         hist.forEach(row => { row.teamId = teamId; row.teamName = teamName; });
+        p._careerTeamsAssigned = true;
         continue;
       }
 
@@ -1362,6 +1371,7 @@ function assignCareerTeams(rosters) {
           hist[i].teamName = teamName;
         }
       }
+      p._careerTeamsAssigned = true;
     }
   }
 }

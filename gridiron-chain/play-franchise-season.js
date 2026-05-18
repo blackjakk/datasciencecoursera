@@ -39,6 +39,15 @@ function showFranchiseDashboard() {
     try { _repairClobberedAavs(); } catch (e) { console.warn("[aav repair]", e); }
     franchise._contractAavRepaired = true;
   }
+  // One-time repair for signed-FA career histories that were rewritten by
+  // assignCareerTeams' seeded RNG every dashboard render. Any player whose
+  // systemYears < careerHistory length was acquired (FA / trade) and should
+  // have prior-team seasons — if their whole history collapsed to a single
+  // team, re-stamp them with the FA-seeded distribution.
+  if (!franchise._careerHistoryFaRepaired) {
+    try { _repairSignedFaCareerHistories(); } catch (e) { console.warn("[fa career repair]", e); }
+    franchise._careerHistoryFaRepaired = true;
+  }
   if (!franchise.seasonHighlights) franchise.seasonHighlights = [];
   if (!franchise.history)          franchise.history = [];
   if (!franchise.rosters)          franchise.rosters = {};
@@ -1507,6 +1516,48 @@ function _repairClobberedAavs() {
   }
 }
 
+// One-time repair: signed FAs whose careerHistory was collapsed to a
+// single team (the user's) by the now-fixed assignCareerTeams clobber.
+// Detect via systemYears < careerHistory.length (player joined after
+// some pre-team seasons) AND all rows pointing to the same teamId.
+// Re-stamp with the FA-seeded prior-team / last-team distribution so
+// the player's pre-acquisition career reads correctly again.
+function _repairSignedFaCareerHistories() {
+  if (!franchise?.rosters) return;
+  let repaired = 0;
+  for (const [tidStr, roster] of Object.entries(franchise.rosters)) {
+    const teamId = Number(tidStr);
+    for (const p of roster) {
+      if (p._careerTeamsAssigned) continue;
+      const hist = p.careerHistory || [];
+      if (hist.length < 2) { p._careerTeamsAssigned = true; continue; }
+      const sysYrs = p.systemYears;
+      if (sysYrs == null || sysYrs >= hist.length) {
+        // Original player (drafted by team, never moved) — leave intact.
+        p._careerTeamsAssigned = true;
+        continue;
+      }
+      const ids = new Set(hist.map(r => r.teamId).filter(x => x != null));
+      // Only collapse-bug pattern: every row shows the current team.
+      if (ids.size === 1 && ids.has(teamId)) {
+        _assignFACareerTeams(p);
+        // After the FA stamp, ensure the most recent `sysYrs + 1` rows
+        // show the current team (since they've been here that long).
+        const showHere = Math.min(hist.length, (sysYrs || 0) + 1);
+        const team = getTeam(teamId);
+        const teamName = team ? `${team.city} ${team.name}` : "?";
+        for (let i = hist.length - showHere; i < hist.length; i++) {
+          hist[i].teamId = teamId;
+          hist[i].teamName = teamName;
+        }
+        repaired++;
+      }
+      p._careerTeamsAssigned = true;
+    }
+  }
+  if (repaired > 0) console.log(`[fa career repair] re-stamped ${repaired} signed-FA histories`);
+}
+
 // One-time migration: news/_faLastNews entries written before the
 // FA pid-leak fix have the FA's pid in place of the name. Walk every
 // player we still know about (rosters, PS, FA pool, active negotiations,
@@ -2445,6 +2496,10 @@ function _assignFACareerTeams(p) {
     hist[i].teamId   = t.id;
     hist[i].teamName = `${t.city} ${t.name}`;
   }
+  // Lock in — assignCareerTeams skips players already stamped, so a
+  // signed FA's history is preserved instead of being rewritten by the
+  // user's-team seed on the next dashboard render.
+  p._careerTeamsAssigned = true;
 }
 
 function _generateFAPool() {
