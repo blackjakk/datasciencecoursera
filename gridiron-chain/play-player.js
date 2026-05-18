@@ -1010,6 +1010,22 @@ function genPlayer(pos, tier) {
   // Eli Manning / Cal Ripken style. Mostly invisible mechanic; shows as a
   // small flag on the owned-player card.
   if (Math.random() < 0.03) player.ironman = true;
+
+  // Personality archetype — drives subtle locker-room dynamics. Most
+  // players are "normal" (no flag); the rest fall into 5 archetypes that
+  // affect dev rates, team chemistry, and longevity.
+  //   captain    8%  : +5% dev to young teammates around them
+  //   cancer     2%  : −5% team chemistry, drains dev for the whole roster
+  //   quiet_pro 12%  : both slower growth AND slower decline (longer prime)
+  //   showman    8%  : flavor-only for now (playoff scaling not modeled)
+  //   coachs_son 4%  : extra TEC growth, max coachability
+  //   normal    66%  : no special trait
+  const pr = Math.random();
+  if      (pr < 0.08) player.personality = "captain";
+  else if (pr < 0.10) player.personality = "cancer";
+  else if (pr < 0.22) player.personality = "quiet_pro";
+  else if (pr < 0.30) player.personality = "showman";
+  else if (pr < 0.34) player.personality = "coachs_son";
   switch (pos) {
     case "QB": player.archetype = pickQBArchetype(stats); break;
     case "DL": player.archetype = pickDLArchetype(stats); break;

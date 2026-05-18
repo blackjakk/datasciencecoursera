@@ -1872,6 +1872,9 @@ function _runWeekEndResolution() {
   _checkHoldoutDemands();
   // Coach hot-seat alerts after a clear early-season sample.
   _checkCoachHotSeat();
+  // Weekly auto-storylines: surprise teams, free fall, dumpster fire,
+  // dark horse playoff push — once per condition per team per season.
+  if (typeof _emitWeeklyStorylines === "function") _emitWeeklyStorylines();
   // League chat: AI teams react to last week's news
   _generateAITrashTalk();
 }
@@ -4037,7 +4040,7 @@ function showFrnAwards() {
     // retirees aren't included in the "active" snapshot.
     if (!existing) _takeAlumniSnapshot();
 
-    // New awards
+    // New awards (incl. expanded position-specific tiers)
     const opoy         = _computeOPOY();
     const dpoy         = _computeDPOY();
     const roy          = _computeROY();
@@ -4048,6 +4051,43 @@ function showFrnAwards() {
     const statLeaders  = _seasonStatLeaders();
     const byNumbers    = _seasonByTheNumbers();
     const poty         = _computePOTY();
+    const oloy         = (typeof _computeOLOY === "function") ? _computeOLOY() : null;
+    const stpoty       = (typeof _computeSTPOTY === "function") ? _computeSTPOTY() : null;
+    const assistantCOY = (typeof _computeAssistantCOY === "function") ? _computeAssistantCOY() : null;
+    const gameOfYear   = (typeof _computeGameOfYear === "function") ? _computeGameOfYear() : null;
+    // Coordinator track — tag any coordinator whose unit ranked top-3
+    // this season; if they accumulate 2+ top-3 finishes they're flagged
+    // as HC-bound (visible on coach card, surfaces via news wire).
+    try {
+      const scored = {}, allowed = {};
+      for (const g of (franchise.schedule || [])) {
+        if (!g.played || g.homeScore == null) continue;
+        scored[g.homeId]  = (scored[g.homeId]  || 0) + g.homeScore;
+        scored[g.awayId]  = (scored[g.awayId]  || 0) + g.awayScore;
+        allowed[g.homeId] = (allowed[g.homeId] || 0) + g.awayScore;
+        allowed[g.awayId] = (allowed[g.awayId] || 0) + g.homeScore;
+      }
+      const sortedOff = Object.entries(scored).sort((a,b) => b[1] - a[1]).slice(0, 3).map(e => Number(e[0]));
+      const sortedDef = Object.entries(allowed).sort((a,b) => a[1] - b[1]).slice(0, 3).map(e => Number(e[0]));
+      for (const tid of sortedOff) {
+        const oc = franchise.coaches?.[tid]?.oc; if (!oc) continue;
+        oc._top3Seasons = (oc._top3Seasons || 0) + 1;
+        if (oc._top3Seasons >= 2 && !oc._hcBoundFlagged) {
+          oc._hcBoundFlagged = true;
+          _pushNews({ type: "coach_hire",
+            label: `📈 ${oc.name} (${getTeam(tid)?.name || "?"} OC) — ${oc._top3Seasons}× top-3 offense, HC candidacy rising` });
+        }
+      }
+      for (const tid of sortedDef) {
+        const dc = franchise.coaches?.[tid]?.dc; if (!dc) continue;
+        dc._top3Seasons = (dc._top3Seasons || 0) + 1;
+        if (dc._top3Seasons >= 2 && !dc._hcBoundFlagged) {
+          dc._hcBoundFlagged = true;
+          _pushNews({ type: "coach_hire",
+            label: `📈 ${dc.name} (${getTeam(tid)?.name || "?"} DC) — ${dc._top3Seasons}× top-3 defense, HC candidacy rising` });
+        }
+      }
+    } catch (e) {}
 
     // Standings snapshot — feeds next year's COY improvement calculation.
     const standingsSnapshot = {};
@@ -4061,7 +4101,28 @@ function showFrnAwards() {
     // stats, not a teamId-null placeholder.)
     _stampSeasonAccolades({
       leagueMVP, superBowlMVP: sbMVP, opoy, dpoy, roy, comeback, breakout, allPros,
+      oloy, stpoty,
     });
+    // Emit award wire entries for the user's eye-line
+    if (oloy && typeof _pushNews === "function") {
+      const t = getTeam(oloy.teamId);
+      _pushNews({ type: "scout_reveal",
+        label: `🏆 OL OF THE YEAR: ${oloy.name} (${t?.name || "?"}) — pancake king` });
+    }
+    if (stpoty && typeof _pushNews === "function") {
+      const t = getTeam(stpoty.teamId);
+      _pushNews({ type: "scout_reveal",
+        label: `🏆 ST POTY: ${stpoty.name} (${stpoty.pos}, ${t?.name || "?"})` });
+    }
+    if (assistantCOY && typeof _pushNews === "function") {
+      const t = getTeam(assistantCOY.teamId);
+      _pushNews({ type: "scout_reveal",
+        label: `🏆 ASSISTANT COY: ${assistantCOY.name} (${assistantCOY.type}, ${t?.name || "?"})` });
+    }
+    if (gameOfYear && typeof _pushNews === "function") {
+      _pushNews({ type: "scout_reveal",
+        label: `🎬 GAME OF THE YEAR: Wk${gameOfYear.week} — ${gameOfYear.label}` });
+    }
 
     const sb = franchise.superBowlGame;
     const entry = {
@@ -4575,6 +4636,112 @@ function renderFrnAnalytics(defaultTab) {
 // After week 7, head coaches with .350-or-worse win rate get a hot-seat
 // alert in the wire. One alert per coach per season so the wire doesn't
 // get spammed. Persisted on franchise.hotSeats = { [teamId]: season }.
+// Weekly auto-storyline emitter. Surfaces narrative threads as wire
+// entries based on standings movement. Each storyline-team combo fires
+// at most once per season (tracked in franchise._storylinesSeenSeason).
+function _emitWeeklyStorylines() {
+  const w = franchise.week || 1;
+  if (w < 4) return; // need a sample
+  if (w > FRANCHISE_WEEKS) return;
+  const season = franchise.season;
+  franchise._storylinesSeenSeason = franchise._storylinesSeenSeason || {};
+  const seenKey = `${season}`;
+  const seen = franchise._storylinesSeenSeason[seenKey] = franchise._storylinesSeenSeason[seenKey] || {};
+  const fire = (storyKey, label) => {
+    if (seen[storyKey]) return;
+    seen[storyKey] = true;
+    _pushNews({ type: "scout_reveal", label });
+  };
+  const standings = franchise.standings || {};
+  for (const t of TEAMS) {
+    const s = standings[t.id]; if (!s) continue;
+    const wins = s.w || 0, losses = s.l || 0, gp = wins + losses + (s.t || 0);
+    if (gp < 4) continue;
+    const winPct = gp ? wins / gp : 0;
+    const k = (tag) => `${t.id}-${tag}`;
+    // Free fall: lost 4+ straight (compute from schedule)
+    const myGames = (franchise.schedule || []).filter(g => g.played && (g.homeId === t.id || g.awayId === t.id))
+      .sort((a, b) => a.week - b.week);
+    const last4 = myGames.slice(-4);
+    if (last4.length === 4 && last4.every(g => {
+      const isHome = g.homeId === t.id;
+      return (isHome ? g.homeScore : g.awayScore) < (isHome ? g.awayScore : g.homeScore);
+    })) {
+      fire(k("freefall"), `📉 IN FREE FALL: ${t.city} ${t.name} drop their 4th straight, now ${wins}-${losses}`);
+    }
+    // Hot streak: won 4+ straight
+    if (last4.length === 4 && last4.every(g => {
+      const isHome = g.homeId === t.id;
+      return (isHome ? g.homeScore : g.awayScore) > (isHome ? g.awayScore : g.homeScore);
+    })) {
+      fire(k("hotstreak"), `🔥 ROLLING: ${t.city} ${t.name} win their 4th straight to climb to ${wins}-${losses}`);
+    }
+    // Dumpster fire: 1-7 or worse through 8 weeks
+    if (w >= 8 && wins <= 1 && losses >= 7) {
+      fire(k("dumpsterfire"), `🗑 DUMPSTER FIRE WATCH: ${t.city} ${t.name} stumble to ${wins}-${losses}, eyes on the #1 pick`);
+    }
+    // Dark horse: 8+ wins after week 12, didn't make playoffs last year
+    const lastSznId = franchise.history?.length;
+    const lastSznEntry = lastSznId ? franchise.history[lastSznId - 1] : null;
+    const wasUnderdog = !lastSznEntry || ((lastSznEntry.standingsSnapshot?.[t.id]?.w || 0) < 8);
+    if (w >= 12 && wins >= 8 && wasUnderdog) {
+      fire(k("darkhorse"), `🐴 DARK HORSE: ${t.city} ${t.name} hit ${wins} wins after a sub-.500 prior year — playoff push real`);
+    }
+    // Surprise team: 4+ wins exceeding the .500 pace by week 8+
+    if (w >= 8 && wins >= losses + 3) {
+      fire(k("surprise"), `✨ SURPRISE TEAM: ${t.city} ${t.name} at ${wins}-${losses} — nobody saw this coming`);
+    }
+  }
+}
+
+// Career milestones — when a player crosses a threshold for a major
+// counting stat, emit a wire entry. Run after _rollSeasonStatsToCareer
+// so the crossing-check sees the updated career totals.
+const _CAREER_MILESTONES = [
+  { stat: "pass_yds", thresh: 30000, label: "joins the 30,000 career passing yards club" },
+  { stat: "pass_yds", thresh: 50000, label: "becomes a 50,000-yard passer" },
+  { stat: "pass_yds", thresh: 70000, label: "joins the all-time top tier with 70,000 career passing yards" },
+  { stat: "pass_td",  thresh: 200,   label: "throws his 200th career TD pass" },
+  { stat: "pass_td",  thresh: 300,   label: "joins the 300 career TD passes club" },
+  { stat: "pass_td",  thresh: 400,   label: "becomes a 400 career TD passer — HoF territory" },
+  { stat: "rush_yds", thresh: 8000,  label: "passes 8,000 career rushing yards" },
+  { stat: "rush_yds", thresh: 12000, label: "becomes a 12,000-yard rusher" },
+  { stat: "rush_yds", thresh: 15000, label: "joins the 15,000 career rushing yards club" },
+  { stat: "rush_td",  thresh: 75,    label: "hits 75 career rushing TDs" },
+  { stat: "rush_td",  thresh: 100,   label: "joins the 100 career rushing TDs club" },
+  { stat: "rec_yds",  thresh: 8000,  label: "tops 8,000 career receiving yards" },
+  { stat: "rec_yds",  thresh: 12000, label: "becomes a 12,000-yard receiver" },
+  { stat: "rec_yds",  thresh: 15000, label: "joins the all-time receiving yardage tier" },
+  { stat: "rec_td",   thresh: 75,    label: "hits 75 career receiving TDs" },
+  { stat: "rec_td",   thresh: 100,   label: "joins the 100 receiving TDs club" },
+  { stat: "rec",      thresh: 800,   label: "becomes an 800-catch career receiver" },
+  { stat: "rec",      thresh: 1200,  label: "joins the 1,200 career receptions club" },
+  { stat: "sacks",    thresh: 100,   label: "hits 100 career sacks" },
+  { stat: "sacks",    thresh: 150,   label: "joins the 150 career sacks club" },
+  { stat: "def_int",  thresh: 50,    label: "hits 50 career interceptions" },
+  { stat: "fg_made",  thresh: 300,   label: "drills his 300th career FG" },
+  { stat: "fg_made",  thresh: 500,   label: "joins the 500 career FG club" },
+];
+function _checkCareerMilestones() {
+  if (franchise._milestonesCheckedSeason === franchise.season) return;
+  franchise._milestonesCheckedSeason = franchise.season;
+  for (const [tIdStr, roster] of Object.entries(franchise.rosters || {})) {
+    const team = getTeam(Number(tIdStr));
+    for (const p of roster) {
+      const cs = p.careerStats || {};
+      const seen = p._milestonesSeen || (p._milestonesSeen = {});
+      for (const m of _CAREER_MILESTONES) {
+        const v = cs[m.stat] || 0;
+        if (v >= m.thresh && !seen[m.stat + ":" + m.thresh]) {
+          seen[m.stat + ":" + m.thresh] = true;
+          _pushNews({ type: "scout_reveal",
+            label: `🏛 ${p.position} ${p.name} (${team?.name || "?"}) ${m.label}` });
+        }
+      }
+    }
+  }
+}
+
 function _checkCoachHotSeat() {
   if (franchise.week < 8) return;
   franchise.hotSeats = franchise.hotSeats || {};
@@ -7541,6 +7708,10 @@ function runFrnOffseason() {
     // Chemistry dev multiplier — reflects philosophy alignment built up over prior seasons.
     // Computed once per team per offseason; applied to all growth chances below.
     const chemBonus = _computeChemistryBonus(tId);
+    // Personality cluster — team-wide effects from captains + cancers
+    const teamCaptains = roster.filter(q => q.personality === "captain" && (q.age || 0) >= 28).length;
+    const teamCancers  = roster.filter(q => q.personality === "cancer").length;
+    const cancerPenalty = Math.max(0.85, 1.0 - 0.05 * teamCancers);
 
     // Coordinator rating → player dev: higher-rated OC lifts skill+OL positions,
     // higher-rated DC lifts defensive positions. Smooth ramp from 50→89 (0→+15%).
@@ -7578,6 +7749,9 @@ function runFrnOffseason() {
         };
         const mean = meanByPos[p.position] ?? 30;
         p.declineAge = Math.max(25, Math.round(mean + 2 * z));
+        // Quiet Pro personalities sustain — both their growth AND decline
+        // are dampened. Net effect: longer prime, slower fade.
+        if (p.personality === "quiet_pro") p.declineAge += 1;
       }
       // Peak age — when growth stops but decline hasn't started. Between
       // peakAge and declineAge the player plateaus (no growth, no decay).
@@ -7613,6 +7787,13 @@ function runFrnOffseason() {
       // real-world "high-floor player who maximizes the gift" — they
       // get more out of any coach.
       if (p.coachable) coachBoost *= 1.25;
+      // Personality modifiers
+      if (p.personality === "quiet_pro")  coachBoost *= 0.88; // slower growth (also slower decline below)
+      if (p.personality === "coachs_son") coachBoost *= 1.15; // extra technique absorption
+      if (teamCaptains > 0 && (p.age || 0) <= 25 && p.personality !== "captain") {
+        coachBoost *= 1.0 + Math.min(0.10, teamCaptains * 0.04); // up to +10% from team captains
+      }
+      coachBoost *= cancerPenalty; // team-wide drain from locker-room cancers
       // Trade fresh-start boost: a player traded last season gets a
       // one-time growth amplifier next offseason (Tannehill / Stafford /
       // Mahomes-after-Smith arcs). Applies once, then clears.
@@ -12214,6 +12395,9 @@ function _rollSeasonStatsToCareer() {
     }
   }
   franchise._statsRolledForSeason = franchise.season;
+  // Career milestone check — runs once per season after totals are
+  // finalized. Emits wire entries for crossings.
+  try { _checkCareerMilestones(); } catch (e) {}
 }
 
 // ── Abandon franchise ─────────────────────────────────────────────────────────

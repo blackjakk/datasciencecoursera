@@ -6550,6 +6550,97 @@ function _selectAllPros() {
   return result;
 }
 
+// Offensive Lineman of the Year — best OL by pancake-vs-sacks-allowed.
+// Team success matters but less than for skill positions.
+function _computeOLOY() {
+  let best = null;
+  for (const [tidStr, players] of Object.entries(franchise.seasonStats || {})) {
+    const tid = Number(tidStr);
+    const stand = franchise.standings[tid] || { w:0, l:0, t:0 };
+    const gp = (stand.w || 0) + (stand.l || 0) + (stand.t || 0);
+    const winPct = gp > 0 ? stand.w / gp : 0.5;
+    const teamMul = 0.7 + winPct * 0.6;
+    for (const p of Object.values(players)) {
+      if (p.pos !== "OL" && !["LT","LG","C","RG","RT"].includes(p.pos)) continue;
+      const score = ((p.pancakes || 0) * 3 - (p.sacks_allowed || 0) * 10) * teamMul;
+      if (!best || score > best.score) best = { ...p, teamId: tid, score };
+    }
+  }
+  return best && best.score > 15 ? best : null;
+}
+
+// Special Teams Player of the Year — best K + best P composite.
+function _computeSTPOTY() {
+  let bestK = null, bestP = null;
+  for (const [tidStr, players] of Object.entries(franchise.seasonStats || {})) {
+    const tid = Number(tidStr);
+    for (const p of Object.values(players)) {
+      if (p.pos === "K") {
+        const fgPct = (p.fg_att || 0) > 0 ? (p.fg_made || 0) / p.fg_att : 0;
+        const distBonus = (p.fg_long || 0) >= 55 ? 5 : (p.fg_long || 0) >= 50 ? 3 : 0;
+        const score = fgPct * 100 + distBonus + (p.xp_made || 0) * 0.5 - ((p.fg_att || 0) - (p.fg_made || 0)) * 5;
+        if (!bestK || score > bestK.score) bestK = { ...p, teamId: tid, score };
+      } else if (p.pos === "P") {
+        const yds = p.punts || 0;
+        const score = yds * 1.5;
+        if (!bestP || score > bestP.score) bestP = { ...p, teamId: tid, score };
+      }
+    }
+  }
+  return (bestK && (!bestP || bestK.score >= bestP.score)) ? bestK : bestP;
+}
+
+// Assistant Coach of the Year — top OC by points scored OR top DC by
+// points allowed, whichever performance was more extreme vs league avg.
+function _computeAssistantCOY() {
+  const scored = {}, allowed = {};
+  for (const g of (franchise.schedule || [])) {
+    if (!g.played || g.homeScore == null) continue;
+    scored[g.homeId]  = (scored[g.homeId]  || 0) + g.homeScore;
+    scored[g.awayId]  = (scored[g.awayId]  || 0) + g.awayScore;
+    allowed[g.homeId] = (allowed[g.homeId] || 0) + g.awayScore;
+    allowed[g.awayId] = (allowed[g.awayId] || 0) + g.homeScore;
+  }
+  const sortedOff = Object.entries(scored).sort((a,b) => b[1] - a[1]);
+  const sortedDef = Object.entries(allowed).sort((a,b) => a[1] - b[1]);
+  const topOffTid = Number(sortedOff[0]?.[0]);
+  const topDefTid = Number(sortedDef[0]?.[0]);
+  const oc = franchise.coaches?.[topOffTid]?.oc;
+  const dc = franchise.coaches?.[topDefTid]?.dc;
+  // Pick whichever extreme is bigger relative to league avg.
+  const ocResult = oc ? { type: "OC", name: oc.name, teamId: topOffTid, points: sortedOff[0][1] } : null;
+  const dcResult = dc ? { type: "DC", name: dc.name, teamId: topDefTid, pointsAllowed: sortedDef[0][1] } : null;
+  // Default to OC if both exist (offense more rewarded historically)
+  return ocResult || dcResult;
+}
+
+// Game of the Year — most exciting game by composite of margin
+// (closeness) + comeback (largest deficit overcome). Sourced from
+// franchise.schedule.
+function _computeGameOfYear() {
+  let best = null;
+  for (const g of (franchise.schedule || [])) {
+    if (!g.played || g.homeScore == null) continue;
+    const margin = Math.abs((g.homeScore || 0) - (g.awayScore || 0));
+    const total  = (g.homeScore || 0) + (g.awayScore || 0);
+    // Score: total points (excitement) + 0 if margin > 14, +20 if margin ≤ 3
+    let score = total * 0.5;
+    if (margin <= 3)  score += 30;
+    else if (margin <= 7) score += 15;
+    if (total >= 70)  score += 10;
+    if (!best || score > best.score) {
+      const home = getTeam(g.homeId);
+      const away = getTeam(g.awayId);
+      best = {
+        score, week: g.week,
+        label: `${away?.name || "?"} ${g.awayScore} @ ${home?.name || "?"} ${g.homeScore}`,
+        margin, total,
+      };
+    }
+  }
+  return best;
+}
+
 // Offensive Player of the Year — best offensive production × team success.
 function _computeOPOY() {
   let best = null;
@@ -7078,6 +7169,8 @@ function _stampSeasonAccolades(awards) {
   stamp(awards.roy,         "ROY");
   stamp(awards.comeback,    "Comeback POY");
   stamp(awards.breakout,    "Breakout POY");
+  stamp(awards.oloy,        "OL of the Year");
+  stamp(awards.stpoty,      "ST PoY");
   // Champion gets ring
   const champId = franchise.playoffBracket?.champion;
   if (champId) {
