@@ -1094,6 +1094,9 @@ function _inSeasonAwrGrowth() {
       byPos[p.position].push(p);
     }
     for (const arr of Object.values(byPos)) arr.sort((a, b) => (b.overall||0) - (a.overall||0));
+    // Hot-seat teams have a fractured locker room — AWR growth is
+    // dampened until ownership resolves the coaching question.
+    const hotSeatMul = (franchise.hotSeats?.[t.id] === franchise.season) ? 0.5 : 1.0;
 
     for (const p of roster) {
       const age = p.age || 25;
@@ -1119,7 +1122,7 @@ function _inSeasonAwrGrowth() {
       const ocTrait = franchise.coaches?.[t.id]?.oc?.trait;
       const awrBoost = (p.position === "QB" && ocTrait === "QB Whisperer") ? 1.3 : 1.0;
 
-      if (Math.random() >= 0.25 * repRate * sysMul * ageMul * awrBoost) continue;
+      if (Math.random() >= 0.25 * repRate * sysMul * ageMul * awrBoost * hotSeatMul) continue;
 
       p.stats[3] = Math.min(p._awrCeiling, (p.stats[3] ?? 70) + 1);
 

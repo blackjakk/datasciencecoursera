@@ -6231,6 +6231,141 @@ function _frnCoachesToggleCompare(role, idx, name) {
 }
 function _frnCoachesClearCompare() { _frnCoachesCompare = []; renderFrnCoachingStaff(); }
 
+// ── Coordinator poaching ────────────────────────────────────────────
+// New gameplay axis: pursue another team's OC/DC directly. Each
+// attempt costs a $2M interview-rights fee whether or not the coach
+// agrees. The target team can match (keep the coach with a raise),
+// the coach can accept (and move to your staff immediately), or
+// decline outright. Position-coach poaching is out of scope for now
+// — focus is on the named coordinators that actually shape schemes.
+let _frnPoachTarget = null; // { teamId, role: "oc"|"dc" }
+let _frnPoachDraft  = { aav: 4.0, years: 3, signingBonus: 2 };
+const COACH_INTERVIEW_FEE = 2; // $M, paid regardless of outcome
+
+function frnOpenPoach(teamId, role) {
+  const tId = Number(teamId);
+  const staff = franchise.coaches?.[tId];
+  const coord = role === "oc" ? staff?.oc : staff?.dc;
+  if (!coord) return;
+  _frnPoachTarget = { teamId: tId, role };
+  // Seed the offer at +15% on current salary, matching contract length,
+  // small signing bonus — gives the user a starting point in the form.
+  _frnPoachDraft = {
+    aav: Math.round((coord.salary || 3) * 1.15 * 10) / 10,
+    years: Math.max(2, coord.contractYears || 2),
+    signingBonus: 2,
+  };
+  renderFrnCoachingStaff();
+}
+function frnCancelPoach() { _frnPoachTarget = null; renderFrnCoachingStaff(); }
+function _frnPoachSetField(field, value) {
+  const n = Math.max(0, Number(value) || 0);
+  _frnPoachDraft[field] = field === "years" ? Math.max(1, Math.min(5, Math.round(n))) : n;
+}
+
+// AI decision: weighs offer-vs-current contract delta against coach
+// loyalty, ambition (age), and the target owner's situation.
+// Returns { result: "accepted" | "matched" | "declined", reason? }.
+function _aiPoachDecision(targetTeamId, role, coordIn, offerIn) {
+  const currentAav = coordIn.salary || 3;
+  const currentYrs = coordIn.contractYears || 1;
+  // Composite scores
+  const offerScore = offerIn.aav * 1.0 + offerIn.years * 0.5 + (offerIn.signingBonus || 0) * 0.6;
+  const currScore  = currentAav   * 1.0 + currentYrs    * 0.5;
+  const delta = offerScore - currScore;
+  // Loyalty — coordinators developed by this team are harder to flip
+  const loyal = coordIn.developedByTeamId === targetTeamId;
+  // Hot seat — owner less invested in retention
+  const hotSeat = _isCoachHotSeat(targetTeamId);
+  // Ambition — younger coaches more mobile; older coaches set in their ways
+  const age = coordIn.age || 50;
+  const ambitionMul = age >= 60 ? 0.55 : age <= 45 ? 1.25 : 1.0;
+  // Expiring contract — much easier to pry loose
+  const expiringMul = currentYrs <= 1 ? 1.5 : 1.0;
+  let acceptProb = Math.max(0, Math.min(0.85, delta * 0.045)) * ambitionMul * expiringMul;
+  if (loyal && !hotSeat) acceptProb *= 0.45;
+  if (hotSeat) acceptProb = Math.max(acceptProb, 0.35);
+  // Match logic: only if delta is small AND not hot-seat (otherwise let go)
+  const canMatch = !hotSeat && delta < 8 && delta > 0;
+  const roll = Math.random();
+  if (roll < acceptProb) {
+    return { result: "accepted",
+      reason: hotSeat   ? "Owner mid-meltdown — let him walk"
+            : currentYrs <= 1 ? "Final contract year — coach took the better deal"
+            : loyal     ? "Loyalty cracked under a stronger offer"
+            : "Better deal accepted" };
+  }
+  if (canMatch) return { result: "matched" };
+  return { result: "declined",
+    reason: loyal ? "Loyal to the staff that developed him"
+          : age >= 60 ? "Too late in career to relocate"
+          : "Not interested at these terms" };
+}
+
+function frnSubmitPoachOffer() {
+  if (!_frnPoachTarget) return;
+  const { teamId, role } = _frnPoachTarget;
+  const targetStaff = franchise.coaches?.[teamId];
+  const coord = role === "oc" ? targetStaff?.oc : targetStaff?.dc;
+  if (!coord) { _frnPoachTarget = null; return; }
+  const offer = { ..._frnPoachDraft };
+  if (offer.aav <= 0 || offer.years <= 0) {
+    alert("Set a salary and contract length before submitting.");
+    return;
+  }
+  const myId = franchise.chosenTeamId;
+  const myStaff = franchise.coaches?.[myId];
+  if (!myStaff) return;
+  const targetTeam = getTeam(teamId);
+  // Pay interview fee regardless of outcome
+  if (!franchise.refunds) franchise.refunds = [];
+  franchise.refunds.push({
+    kind: "coach_interview_fee", label: `Interview rights — ${coord.name}`,
+    fromTeamId: myId, toTeamId: null,
+    amount: COACH_INTERVIEW_FEE, yearsRemaining: 1,
+  });
+  const decision = _aiPoachDecision(teamId, role, coord, offer);
+  if (decision.result === "accepted") {
+    // Old user-side coordinator goes to the FA pool
+    const oldMine = role === "oc" ? myStaff.oc : myStaff.dc;
+    if (oldMine && typeof _coachFAAdd === "function") _coachFAAdd(oldMine, role);
+    // Poached coach moves to user's staff on the new contract terms
+    const moved = {
+      ...coord,
+      salary: offer.aav,
+      contractYears: offer.years,
+      signingBonus: offer.signingBonus || 0,
+      yearsWithTeam: 0,
+    };
+    if (role === "oc") {
+      myStaff.oc = moved;
+      targetStaff.oc = (typeof _rollOC === "function") ? _rollOC() : null;
+      myStaff._chemistry = null; // alignment resets
+    } else {
+      myStaff.dc = moved;
+      targetStaff.dc = (typeof _rollDC === "function") ? _rollDC() : null;
+    }
+    _pushNews({ type:"coach_hire",
+      label: `🎩 You poached ${role.toUpperCase()} ${coord.name} from ${targetTeam?.name} — $${offer.aav.toFixed(1)}M × ${offer.years}yr (${decision.reason})` });
+    if (targetStaff[role]) _pushNews({ type:"coach_hire",
+      label: `🎩 ${targetTeam?.name} hired ${role.toUpperCase()} ${targetStaff[role].name} to replace ${coord.name}` });
+    _coachHireResult = `Poached ${coord.name} from ${targetTeam?.name}.`;
+  } else if (decision.result === "matched") {
+    coord.salary = Math.max(coord.salary || 0, offer.aav);
+    coord.contractYears = Math.max(coord.contractYears || 1, offer.years);
+    _pushNews({ type:"coach_hire",
+      label: `🎩 ${targetTeam?.name} matched your offer — ${coord.name} stays at $${coord.salary.toFixed(1)}M × ${coord.contractYears}yr` });
+    _coachHireResult = `${targetTeam?.name} matched. ${coord.name} stays put. Fee burned: $${COACH_INTERVIEW_FEE}M.`;
+  } else {
+    _pushNews({ type:"coach_depart",
+      label: `🎩 ${coord.name} declined your poach offer — ${decision.reason}` });
+    _coachHireResult = `${coord.name} declined: ${decision.reason}. Fee burned: $${COACH_INTERVIEW_FEE}M.`;
+  }
+  _frnPoachTarget = null;
+  saveFranchise();
+  renderFrnCoachingStaff();
+}
+
 // True if this team's HC has been flagged as on the hot seat this season.
 function _isCoachHotSeat(teamId) {
   return franchise.hotSeats?.[teamId] === franchise.season;
@@ -6325,7 +6460,7 @@ function renderFrnCoachingStaff() {
   const delivering = hc ? _hcDelivering(myId) : null;
   const deliveringPill = delivering ? `<span class="frn-hc-delivering-pill ${delivering.state}" title="${delivering.desc}">${delivering.label}</span>` : "";
   const hotSeat = hc && _isCoachHotSeat(myId);
-  const hotSeatChip = hotSeat ? `<span class="frn-hc-hotseat-chip" title="W% under .350 with 6+ games played — owner watching closely">🔥 HOT SEAT</span>` : "";
+  const hotSeatChip = hotSeat ? `<span class="frn-hc-hotseat-chip" title="W% under .350 with 6+ games played — owner watching closely. Locker room is dampened: under-25 AWR growth runs at half-rate until resolved.">🔥 HOT SEAT · 0.5× player development</span>` : "";
   const hcHtml = hc ? `
     <div class="frn-coach-card frn-coach-hc${hotSeat?" hot":""}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem">
@@ -6943,8 +7078,98 @@ function _renderLeagueCoachesTab(myId) {
         <tbody>${tableRows}</tbody>
       </table>
     </div>
+    ${_renderCoordinatorMarket(myId)}
     <div class="frn-sec-title" style="margin-top:1rem">Recent Coach Moves</div>
     ${movesHtml}`;
+}
+
+// Coordinator Market — every team's OC/DC laid out in one place so the
+// user can pursue (poach) someone they want. Each row has a Poach
+// button that opens an inline offer form. Submit → AI decides.
+function _renderCoordinatorMarket(myId) {
+  const coords = [];
+  for (const t of TEAMS) {
+    if (t.id === myId) continue; // can't poach your own
+    const staff = franchise.coaches?.[t.id] || {};
+    if (staff.oc) coords.push({ t, role: "oc", c: staff.oc });
+    if (staff.dc) coords.push({ t, role: "dc", c: staff.dc });
+  }
+  // Sort by rating desc — biggest fish first
+  coords.sort((a, b) => (b.c.rating || 0) - (a.c.rating || 0));
+  const isActiveTarget = (teamId, role) => _frnPoachTarget && _frnPoachTarget.teamId === teamId && _frnPoachTarget.role === role;
+  const rows = coords.slice(0, 24).map(({ t, role, c }) => {
+    const schemeKey = role === "oc" ? OFF_SCHEME_MAP?.[c.trait] : DEF_SCHEME_MAP?.[c.trait];
+    const schemeChip = schemeKey ? (typeof _schemeBadge === "function" ? _schemeBadge(schemeKey, true) : `<span style="font-size:.55rem;color:var(--gold)">${schemeKey}</span>`) : "";
+    const ratingChip = (c.rating || 0) >= 80 ? `<span style="font-weight:700;color:var(--green-lt)">${c.rating}</span>`
+      : (c.rating || 0) >= 65 ? `<span style="font-weight:700;color:var(--gold)">${c.rating}</span>`
+      : `<span style="font-weight:700;color:var(--red)">${c.rating || "?"}</span>`;
+    const expiringFlag = (c.contractYears || 99) <= 1 ? `<span style="font-size:.52rem;color:var(--gold);background:rgba(212,175,55,.1);padding:.04rem .3rem;border:1px solid var(--gold-lt);border-radius:2px;margin-left:.3rem" title="Final contract year — easier to poach">⏳ EXPIRING</span>` : "";
+    const hotChip = _isCoachHotSeat(t.id) ? `<span style="font-size:.52rem;color:#ff8a8a;margin-left:.3rem" title="Their owner is mid-meltdown — coordinator more likely to leave">🔥 HOT-SEAT TEAM</span>` : "";
+    const isActive = isActiveTarget(t.id, role);
+    return `<div class="frn-poach-row${isActive?" active":""}">
+      <div class="frn-poach-meta">
+        <span style="color:${t.primary||"var(--gold)"};font-weight:700;font-size:.66rem">${t.name}</span>
+        <span style="color:var(--blgray);font-size:.55rem;letter-spacing:.4px">${role.toUpperCase()}</span>
+        ${schemeChip}
+        ${expiringFlag}${hotChip}
+      </div>
+      <div class="frn-poach-name">${c.name}</div>
+      <div class="frn-poach-stats">
+        <span>Age <b>${c.age||"?"}</b></span>
+        <span>$<b>${(c.salary||0).toFixed(1)}M</b>/yr</span>
+        <span><b>${c.contractYears||"?"}</b>yr left</span>
+        <span>${ratingChip} rtg</span>
+      </div>
+      <div class="frn-poach-action">
+        ${isActive
+          ? `<button class="btn btn-outline" style="font-size:.62rem;padding:.15rem .45rem;color:var(--gray)" onclick="frnCancelPoach()">× Close</button>`
+          : `<button class="btn btn-outline" style="font-size:.62rem;padding:.15rem .55rem;color:var(--gold);border-color:var(--gold-lt)" onclick="frnOpenPoach(${t.id},'${role}')">💼 Poach</button>`}
+      </div>
+      ${isActive ? _renderPoachForm(t, role, c) : ""}
+    </div>`;
+  }).join("");
+  return `
+    <div class="frn-sec-title" style="margin-top:1rem">Coordinator Market <span style="font-size:.6rem;font-weight:400;color:var(--gray);margin-left:.4rem">target another team's OC or DC · $${COACH_INTERVIEW_FEE}M fee per attempt</span></div>
+    <div class="frn-poach-list">${rows}</div>`;
+}
+
+function _renderPoachForm(targetTeam, role, coord) {
+  const d = _frnPoachDraft;
+  const totalNew  = d.aav * d.years + (d.signingBonus || 0);
+  const totalCurr = (coord.salary || 0) * (coord.contractYears || 1);
+  const deltaCol  = totalNew > totalCurr ? "var(--green-lt)" : "#ff8a8a";
+  return `
+    <div class="frn-poach-form">
+      <div class="frn-poach-form-head">
+        ⇆ POACH OFFER FOR <b>${coord.name}</b> · currently $${(coord.salary||0).toFixed(1)}M × ${coord.contractYears||"?"}yr at ${targetTeam.name}
+      </div>
+      <div class="frn-poach-inputs">
+        <label class="frn-poach-input">
+          <span>AAV ($M/yr)</span>
+          <input type="number" min="0.5" max="20" step="0.1" value="${d.aav.toFixed(1)}"
+            oninput="_frnPoachSetField('aav',this.value)">
+        </label>
+        <label class="frn-poach-input">
+          <span>Years</span>
+          <input type="number" min="1" max="5" step="1" value="${d.years}"
+            oninput="_frnPoachSetField('years',this.value)">
+        </label>
+        <label class="frn-poach-input">
+          <span>Signing Bonus ($M)</span>
+          <input type="number" min="0" max="10" step="0.5" value="${d.signingBonus}"
+            oninput="_frnPoachSetField('signingBonus',this.value)">
+        </label>
+        <div class="frn-poach-summary">
+          <div>Total: <b style="color:${deltaCol}">$${totalNew.toFixed(1)}M</b></div>
+          <div style="font-size:.55rem;color:var(--gray)">vs current $${totalCurr.toFixed(1)}M</div>
+          <div style="font-size:.55rem;color:#ff8a8a;margin-top:.1rem">+ $${COACH_INTERVIEW_FEE}M interview fee (paid regardless)</div>
+        </div>
+      </div>
+      <div class="frn-poach-form-actions">
+        <button class="btn btn-outline" onclick="frnCancelPoach()" style="font-size:.62rem;color:var(--gray)">Cancel</button>
+        <button class="btn btn-gold" onclick="frnSubmitPoachOffer()" style="font-size:.65rem">📨 SUBMIT POACH OFFER</button>
+      </div>
+    </div>`;
 }
 
 // Player Development panel — surfaces the under-25 players whose AWR

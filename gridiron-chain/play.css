@@ -5014,6 +5014,65 @@
   .frn-cm-compare-row > span { color: var(--gray); letter-spacing: .3px; }
   .frn-cm-compare-row > b { color: var(--blwhite); font-family: "IBM Plex Mono","JetBrains Mono",monospace; }
 
+  /* Coordinator Market (League sub-tab → poaching) */
+  .frn-poach-list { display: flex; flex-direction: column; gap: .2rem; }
+  .frn-poach-row {
+    display: grid;
+    grid-template-columns: 1fr 1.4fr auto auto;
+    align-items: center; gap: .6rem;
+    padding: .35rem .55rem;
+    background: var(--bg2); border: 1px solid var(--border);
+  }
+  .frn-poach-row.active { border-color: var(--gold-lt); box-shadow: 0 0 0 1px rgba(212,175,55,.18); }
+  .frn-poach-meta {
+    display: flex; align-items: center; gap: .35rem; flex-wrap: wrap;
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+  }
+  .frn-poach-name {
+    font-weight: 700; color: var(--blwhite); font-size: .72rem;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .frn-poach-stats {
+    display: flex; gap: .55rem; font-size: .58rem; color: var(--gray);
+    white-space: nowrap;
+  }
+  .frn-poach-stats b {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    color: var(--blwhite);
+  }
+  .frn-poach-action { display: flex; justify-content: flex-end; }
+  .frn-poach-form {
+    grid-column: 1 / -1; margin-top: .4rem;
+    padding: .55rem .65rem;
+    background: var(--bg3); border: 1px dashed var(--gold-lt);
+  }
+  .frn-poach-form-head {
+    font-size: .6rem; letter-spacing: .4px; color: var(--gold);
+    margin-bottom: .35rem;
+  }
+  .frn-poach-inputs {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: .4rem; align-items: end;
+  }
+  .frn-poach-input { display: flex; flex-direction: column; gap: .1rem; }
+  .frn-poach-input > span {
+    font-size: .5rem; letter-spacing: .5px; color: var(--blgray); font-weight: 700;
+  }
+  .frn-poach-input input {
+    background: var(--bg2); color: var(--blwhite);
+    border: 1px solid var(--border);
+    padding: .2rem .35rem; font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    font-size: .8rem; font-weight: 700; text-align: center;
+  }
+  .frn-poach-summary {
+    background: rgba(0,0,0,.25); border: 1px solid var(--border);
+    padding: .3rem .45rem; font-size: .65rem;
+  }
+  .frn-poach-form-actions {
+    display: flex; justify-content: flex-end; gap: .4rem; margin-top: .45rem;
+  }
+
   /* Tab landing tiles (Tools / future) */
   .frn-tab-landing { padding: .8rem .2rem; }
   .frn-tab-landing-title {
