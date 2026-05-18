@@ -1380,6 +1380,15 @@ function _buildCareerCard(p) {
   // RUSH/R-TD columns, a non-receiving RB from showing REC TD, etc.
   const _allCols = _careerColsFor(p.position);
   const cols = _allCols.filter(c => history.some(r => (r[c.key] || 0) > 0));
+  // OVR column visibility: matches the rest of the app's scout-grade
+  // philosophy. Owned players + HOF/retired show real OVR; opposing
+  // players + FAs see grades / public stats only. HOF detection is
+  // duck-typed on the absence of a roster reference (they aren't on
+  // any roster, and HOF entries lack a position field on the object
+  // itself — they live under franchise.hallOfFame).
+  const isHofEntry = !!p.careerYears && !p.position && !p.archetype;
+  const isRetiredAlumni = !!p.retiredAt;
+  const showOvr = _isOwnedPlayer(p) || isHofEntry || isRetiredAlumni;
   const trajLabel = {
     EARLY_BLOOM: "⚡ Early Bloomer", LATE_BLOOM: "🌱 Late Bloomer",
     CONSISTENT: "📈 Consistent",    STREAKY: "〰 Streaky",
@@ -1387,25 +1396,30 @@ function _buildCareerCard(p) {
   }[p._trajectory] || "";
   const _accAbbr = a => a === "MVP" ? "MVP" : a === "Super Bowl MVP" ? "SB MVP" : a === "Super Bowl" ? "💍" : a === "All-Pro" ? "AP1" : a === "All-Pro (2nd)" ? "AP2" : a === "Pro Bowl" ? "PB" : a === "OPOY" ? "OPOY" : a === "DPOY" ? "DPOY" : a === "ROY" ? "ROY" : a === "Comeback POY" ? "CPOY" : a === "Breakout POY" ? "BPOY" : "";
   const hasAcc = history.some(r => (r.accolades||[]).length > 0);
-  const headerHtml = `<tr><th>AGE</th><th>TEAM</th><th>OVR</th><th>GP</th>${cols.map(c => `<th>${c.label}</th>`).join("")}${hasAcc ? "<th>🏆</th>" : ""}</tr>`;
+  const ovrTh = showOvr ? `<th>OVR</th>` : "";
+  const headerHtml = `<tr><th>AGE</th><th>TEAM</th>${ovrTh}<th>GP</th>${cols.map(c => `<th>${c.label}</th>`).join("")}${hasAcc ? "<th>🏆</th>" : ""}</tr>`;
+  const peakOvr = Math.max(...history.map(r => r.ovr ?? r.overall ?? 0));
   const rowsHtml = history.slice().reverse().map((row) => {
     const rowOvr = row.ovr ?? row.overall;
-    const peakOvr = Math.max(...history.map(r => r.ovr ?? r.overall ?? 0));
     const isCareerBest = rowOvr != null && rowOvr === peakOvr;
     const accCell = hasAcc
       ? `<td style="font-size:.55rem;color:var(--gold);white-space:nowrap">${(row.accolades||[]).map(_accAbbr).filter(Boolean).join(" ")}</td>`
       : "";
+    const ovrTd = showOvr
+      ? `<td style="color:${isCareerBest?"var(--gold)":"var(--blgray)"};font-weight:${isCareerBest?700:400}">${rowOvr || "—"}</td>`
+      : "";
     return `<tr>
       <td style="color:var(--gray);font-size:.63rem">${row.age ?? "?"}</td>
       <td style="font-size:.62rem;color:var(--gray)">${row.teamName}</td>
-      <td style="color:${isCareerBest?"var(--gold)":"var(--blgray)"};font-weight:${isCareerBest?700:400}">${rowOvr || "—"}</td>
+      ${ovrTd}
       <td>${row.gp || 0}</td>
       ${cols.map(c => `<td>${row[c.key] || 0}</td>`).join("")}
       ${accCell}
     </tr>`;
   }).join("");
+  const totalsColspan = showOvr ? 3 : 2;
   const totalsRow = `<tr style="border-top:2px solid var(--gold);font-weight:700">
-    <td colspan="3" style="color:var(--gold)">CAREER</td>
+    <td colspan="${totalsColspan}" style="color:var(--gold)">CAREER</td>
     <td>${stats.gp || history.reduce((s,r)=>s+(r.gp||0),0)}</td>
     ${cols.map(c => `<td style="color:var(--gold-lt)">${stats[c.key]||0}</td>`).join("")}
     ${hasAcc ? "<td></td>" : ""}
