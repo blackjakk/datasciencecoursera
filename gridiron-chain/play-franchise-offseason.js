@@ -6177,6 +6177,7 @@ function frnHoldoutReopen(name) {
 // End-of-flow recap modal — shown when user clicks "Review Demands".
 function frnOpenHoldoutRecap() {
   const list = franchise._holdouts || [];
+  _migrateHoldoutShape(list);
   const extended = list.filter(h => h.resolved === "extended");
   const traded   = list.filter(h => h.resolved === "trade-block");
   const ignored  = list.filter(h => h.resolved === "ignored");
@@ -7471,9 +7472,30 @@ function renderFrnOffseason() {
     })()}`;
 }
 
+// Migrate pre-existing holdout objects (created before the T1+T2 rebuild)
+// to the new shape so old saves don't crash on the new UI.
+function _migrateHoldoutShape(list) {
+  if (!list || !list.length) return;
+  const myId = franchise.chosenTeamId;
+  const myRoster = franchise.rosters[myId] || [];
+  const cap = franchise.salaryCap || SALARY_CAP_BASE;
+  for (const h of list) {
+    if (!h) continue;
+    const live = myRoster.find(p => p.name === h.name);
+    if (h.marketAAV == null)        h.marketAAV = h.demandedAAV;
+    if (h.offer == null)            h.offer = h.demandedAAV;
+    if (h.offerYears == null)       h.offerYears = h.demandedYears;
+    if (h.structure == null)        h.structure = _defaultStructure(live?.age || 27, live?.overall || 70);
+    if (h.overall == null)          h.overall = live?.overall ?? 70;
+    if (h.age == null)              h.age = live?.age ?? 27;
+    if (h.currentRemaining == null) h.currentRemaining = live?.contract?.remaining ?? 1;
+  }
+}
+
 function _renderHoldoutsBlock() {
   const list = franchise._holdouts || [];
   if (!list.length) return "";
+  _migrateHoldoutShape(list);
   const myId = franchise.chosenTeamId;
   const myRoster = franchise.rosters[myId] || [];
   const cap = effectiveSalaryCap(myId);
