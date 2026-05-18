@@ -1850,6 +1850,7 @@ function _runWeekEndResolution() {
     if (!seasonEnding) _faAIBidRound(w + 1, /*isInitial=*/false);
   }
   _tickInjuriesForWeek();
+  if (typeof _tickYipsForWeek === "function") _tickYipsForWeek();
   // Trade-block: unsolicited offers (no public ask) + price-tag offers
   // (public ask matched against AI inventories).
   if (w + 1 <= TRADE_DEADLINE_WEEK) {
@@ -7694,6 +7695,9 @@ function runFrnOffseason() {
       }
       // Reset concussion protocol counter for the new season.
       if (p._concussionsThisSeason) delete p._concussionsThisSeason;
+      // Specialist yips roll — small per-season chance that a K/P
+      // collapses into a confidence spiral.
+      if (typeof _maybeTriggerYips === "function") _maybeTriggerYips(p);
 
       // Veteran resurgence — late-career renaissance for 30+ players who
       // haven't hit decline yet. Rare for average vets; significantly
@@ -12172,9 +12176,14 @@ function _rollSeasonStatsToCareer() {
           player.careerStats[k] = (player.careerStats[k] || 0) + v;
         }
       }
-      // RB cumulative wear tracking — feed the retirement curve's wear bump
+      // RB cumulative wear tracking — feed the retirement curve's wear bump.
+      // Between-the-tackles carries are punishing; receiving touches are
+      // far gentler (CMC vs Eddie George). Receiving-archetype backs get
+      // an additional 30% wear discount on the whole load.
       if (player.position === "RB") {
-        const touches = (st.rush_att || 0) + (st.rec || 0);
+        const wear = (st.rush_att || 0) + 0.4 * (st.rec || 0);
+        const archMul = player.archetype === "RECEIVING" ? 0.70 : 1.0;
+        const touches = Math.round(wear * archMul);
         if (touches > 0) {
           player._careerTouches = (player._careerTouches || 0) + touches;
         }

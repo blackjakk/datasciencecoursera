@@ -6876,15 +6876,23 @@ function _rerollPotentialForBreakouts() {
 // barely any, since physical attrition is brutal at the position).
 const _ELITE_PLATEAU_BUMP = {
   QB: 5, K: 3, P: 3, OL: 3,
-  WR: 1, TE: 2, DL: 2, LB: 2, CB: 2, S: 2,
+  WR: 1, TE: 3, DL: 2, LB: 2, CB: 2, S: 2,
   RB: 2,
 };
 function _maybeApplyElitePlateauBump(p) {
   if (!p || p._elitePlateauBumped) return;
   if ((p.overall || 0) < 90) return;
   if ((p.age || 0) < 28) return;
-  if (p.age >= (p.declineAge ?? Infinity)) return; // already declining → no rescue
-  const bump = _ELITE_PLATEAU_BUMP[p.position] ?? 2;
+  if (p.age >= (p.declineAge ?? Infinity)) return;
+  let bump = _ELITE_PLATEAU_BUMP[p.position] ?? 2;
+  // Archetype-aware: pass-catching TEs / possession WRs / signal-callers
+  // sustain technique-driven longevity beyond their position baseline.
+  if (p.position === "TE" && p.archetype === "RECEIVING")   bump += 1;
+  if (p.position === "WR" && p.archetype === "POSSESSION")  bump += 1;
+  if (p.position === "WR" && p.archetype === "ROUTE_RUNNER")bump += 1;
+  if (p.position === "LB" && p.archetype === "SIGNAL")      bump += 1;
+  if (p.position === "DL" && p.archetype === "TECHNICIAN")  bump += 1;
+  if (p.position === "OL" && p.archetype === "TECHNICIAN")  bump += 1;
   p.declineAge = (p.declineAge || 30) + bump;
   p._elitePlateauBumped = true;
   if (p === (franchise.rosters?.[franchise.chosenTeamId] || []).find(rp => rp === p)) {

@@ -1688,7 +1688,15 @@ function _rollGameInjuries(teamId) {
     if (p.injury && p.injury.weeksRemaining > 0) continue;
     const recMul = _injuryRecurrenceMul(p);
     const ironmanMul = p.ironman ? 0.50 : 1.0;
-    const rate = (INJURY_RATE[p.position] || 0.01) * rateMul * recMul * ironmanMul;
+    // Archetype-aware: slot specialists run shorter routes / less exposure
+    // → reduced injury rate. Possession-style WRs / outside CBs use the
+    // default rate.
+    let archMul = 1.0;
+    if (p.position === "WR" && p.archetype === "SLOT")       archMul = 0.82;
+    if (p.position === "CB" && p.archetype === "SLOT_CB")    archMul = 0.85;
+    if (p.position === "RB" && p.archetype === "RECEIVING")  archMul = 0.85;
+    if (p.position === "TE" && p.archetype === "BLOCKING")   archMul = 0.90; // OL-like
+    const rate = (INJURY_RATE[p.position] || 0.01) * rateMul * recMul * ironmanMul * archMul;
     if (Math.random() >= rate) continue;
     let t = _pickInjuryType(p.position);
     let isCatastrophic = false;
@@ -1752,6 +1760,122 @@ function _rollGameInjuries(teamId) {
     }
   }
 }
+// ── Kicker / Punter yips ────────────────────────────────────────────────────
+// Real-NFL specialists are mentally fragile. A small per-season chance of
+// "the yips" — a temporary collapse of accuracy that takes anywhere from
+// 3 to 16 weeks to shake. Severe cases can leave permanent damage. The
+// mechanic is mostly cosmetic for play-by-play but generates wonderful
+// wire entries.
+const _YIPS_TRIGGER_CHANCE = 0.05;
+const _YIPS_ONSET_HEADLINES = [
+  "🏈 {name} ({team}) suddenly forgets how to kick — coaches 'looking into it'",
+  "💀 {name} hits the upright on a 22-yarder. From the right hash.",
+  "📉 {name} 'completely lost his swing,' says ST coordinator. ST coordinator is also new.",
+  "🧠 {name} tells reporters 'I just don't know anymore' after pre-game warmup misses",
+  "⚰️ {name}'s confidence officially declared 'critically ill' by the locker room",
+  "🎯 {name} drilled a 56-yarder, then missed an extra point. Right after.",
+  "🥶 {name} now ices himself before kicking. Twice.",
+  "👻 {name} 'seeing the laces in his sleep,' even though there are no laces",
+  "🤡 {name}'s last 4 kicks: doink, doink, doink, somehow doink again",
+  "📞 {name}'s mother calls into local sports radio: 'He's a good boy!'",
+];
+const _YIPS_MISS_HEADLINES = [
+  "💀 {name} ({team}) misses {dist}-yard FG. Reports of a 'mystical wind' debunked.",
+  "🤦 {name} kicks ball backwards. Officially recorded as a punt.",
+  "🎤 {name} on the miss: 'It just… veered. Don't ask me how.'",
+  "🌪 {name} blames the wind. Stadium is indoor.",
+  "🎪 {name}'s {dist}-yard try sails 3 feet, then 35 feet sideways. Crowd uncertain how to react.",
+  "📐 {name} now blaming geometry. Geometry not available for comment.",
+  "🎭 {name} bows after another miss. Reporters unclear if joke.",
+  "🧪 {name} 'experimenting with eyes closed,' says holder. Holder visibly worried.",
+  "💭 {name} 'thinking too much,' says HC. {name} also 'thinking too little,' adds the OC.",
+  "🪦 {name} shanks a 25-yard chip shot. Long snapper begins quietly updating résumé.",
+];
+const _YIPS_RECOVERY_HEADLINES = [
+  "✨ {name} ({team}) 'snaps out of it' — drills 5 straight in practice",
+  "🧘 {name}'s yoga retreat paying off — drains 55-yarder cleanly",
+  "🍀 {name} now wearing lucky socks. Inside-out. Backwards. Whatever works.",
+  "📚 {name} reads sports psychology book between kicks. Coaches keep their distance.",
+  "👨‍⚕️ {name} cleared by team psychologist — 'he just needed to talk it out'",
+  "🏆 {name} ends slump with last-second 47-yard game-winner. Locker room weeps.",
+];
+function _pickYipsHeadline(p, list, dist) {
+  const tpl = list[Math.floor(Math.random() * list.length)];
+  const team = (() => {
+    for (const [tid, roster] of Object.entries(franchise.rosters || {})) {
+      if (roster.some(rp => rp === p || rp.name === p.name)) return getTeam(Number(tid))?.name || "?";
+    }
+    return "?";
+  })();
+  return tpl
+    .replace(/\{name\}/g, p.name)
+    .replace(/\{team\}/g, team)
+    .replace(/\{dist\}/g, dist || (28 + Math.floor(Math.random() * 28)));
+}
+function _maybeTriggerYips(p) {
+  if (p.position !== "K" && p.position !== "P") return false;
+  if (p._yips) return false;
+  if (Math.random() >= _YIPS_TRIGGER_CHANCE) return false;
+  const sev = Math.random();
+  const weeks = sev < 0.3 ? 3 + Math.floor(Math.random() * 3)
+              : sev < 0.7 ? 6 + Math.floor(Math.random() * 4)
+              :             10 + Math.floor(Math.random() * 6);
+  const severity = sev < 0.3 ? "mild" : sev < 0.7 ? "moderate" : "severe";
+  const accPenalty = sev < 0.3 ? 5 : sev < 0.7 ? 12 : 18;
+  p._yips = { weeksRemaining: weeks, severity };
+  p._yipsAccPenalty = accPenalty;
+  p.stats = p.stats || [];
+  p.stats[3] = Math.max(20, (p.stats[3] || 70) - accPenalty);
+  // Lower OVR via stat change naturally; recompute if calcOverall exists
+  if (typeof calcOverall === "function") {
+    p.overall = calcOverall(p.position, p.stats);
+  }
+  if (typeof _pushNews === "function") {
+    _pushNews({ type: "injury", label: _pickYipsHeadline(p, _YIPS_ONSET_HEADLINES) });
+  }
+  return true;
+}
+function _tickYipsForWeek() {
+  for (const [tid, roster] of Object.entries(franchise.rosters || {})) {
+    for (const p of roster) {
+      if (!p._yips || p._yips.weeksRemaining <= 0) continue;
+      const isMine = Number(tid) === franchise.chosenTeamId;
+      p._yips.weeksRemaining -= 1;
+      // 20% chance per week of a hilarious in-public miss while yips persist.
+      if (isMine && Math.random() < 0.20) {
+        if (typeof _pushNews === "function") {
+          _pushNews({ type: "injury", label: _pickYipsHeadline(p, _YIPS_MISS_HEADLINES) });
+        }
+      }
+      if (p._yips.weeksRemaining <= 0) {
+        const wasSevere = p._yips.severity === "severe";
+        // Restore accuracy penalty (~70% chance full, 25% partial, 5% none)
+        const recoveryRoll = Math.random();
+        const restorePct = recoveryRoll < 0.70 ? 1.0
+                         : recoveryRoll < 0.95 ? 0.5
+                         :                       0.0;
+        const restore = Math.round((p._yipsAccPenalty || 0) * restorePct);
+        if (restore > 0 && p.stats) {
+          p.stats[3] = Math.min(99, (p.stats[3] || 70) + restore);
+          if (typeof calcOverall === "function") p.overall = calcOverall(p.position, p.stats);
+        }
+        delete p._yips; delete p._yipsAccPenalty;
+        if (isMine && typeof _pushNews === "function") {
+          if (restorePct === 1.0) {
+            _pushNews({ type: "injury", label: _pickYipsHeadline(p, _YIPS_RECOVERY_HEADLINES) });
+          } else if (restorePct === 0) {
+            _pushNews({ type: "injury",
+              label: `📉 ${p.name} never fully shakes the yips — accuracy stays diminished` });
+          } else {
+            _pushNews({ type: "injury",
+              label: `⚠ ${p.name} works back from yips but isn't quite the same — partial recovery` });
+          }
+        }
+      }
+    }
+  }
+}
+
 function _tickInjuriesForWeek() {
   for (const [tid, roster] of Object.entries(franchise.rosters || {})) {
     for (const p of roster) {
