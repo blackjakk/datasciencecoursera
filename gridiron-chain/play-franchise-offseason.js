@@ -5777,7 +5777,19 @@ function _modeAcceptanceModifier(receiverId, sendPlayers, sendPicks, recvPlayers
 
 function frnOpenTrade(targetTeamId, tab) {
   if (franchise.week > TRADE_DEADLINE_WEEK && franchise.phase === "regular") {
-    alert("Trade deadline has passed.");
+    // Render a real panel instead of an alert+return — otherwise the
+    // Front Office tab aggregator has nothing to wrap and prepends its
+    // sub-nav onto stale content.
+    $("frnHomeContent").innerHTML = `
+      <div style="padding:2.2rem 1.5rem;text-align:center;max-width:560px;margin:0 auto">
+        <div style="font-size:1.4rem;font-weight:900;color:var(--gold);margin-bottom:.5rem">🔀 TRADE DEADLINE PASSED</div>
+        <div style="color:var(--gray);font-size:.85rem;line-height:1.5">
+          The trade window closed after Week ${TRADE_DEADLINE_WEEK}. Trades will reopen during the offseason.
+        </div>
+        <div style="color:var(--blgray);font-size:.7rem;margin-top:.75rem">
+          You're in Week ${franchise.week}. Free agency and waiver claims stay open year-round.
+        </div>
+      </div>`;
     return;
   }
   // null/"" → browse mode (no partner locked). A real team id → lock it.

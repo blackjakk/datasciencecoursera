@@ -4611,16 +4611,18 @@ function frnSetRosterSubTab(id) {
   renderFrnRosterHome();
 }
 function renderFrnRosterHome() {
+  const el = $("frnHomeContent");
+  if (el) el.innerHTML = ""; // clear first so an early-returning sub-render can't stack sub-navs
   const active = _FRN_ROSTER_TABS.find(t => t.id === _frnRosterSubTab) || _FRN_ROSTER_TABS[0];
   active.fn();
-  const el = $("frnHomeContent");
-  if (!el) return;
+  const newEl = $("frnHomeContent");
+  if (!newEl) return;
   const sub = document.createElement("div");
   sub.className = "frn-subnav";
   sub.innerHTML = _FRN_ROSTER_TABS.map(t =>
     `<button class="frn-subnav-btn${t.id===active.id?" active":""}" onclick="frnSetRosterSubTab('${t.id}')">${t.label}</button>`
   ).join("");
-  el.insertBefore(sub, el.firstChild);
+  newEl.insertBefore(sub, newEl.firstChild);
 }
 
 // ── Front Office tab aggregator ───────────────────────────────────────
@@ -4639,16 +4641,18 @@ function frnSetFOSubTab(id) {
   renderFrnFrontOfficeHome();
 }
 function renderFrnFrontOfficeHome() {
+  const el = $("frnHomeContent");
+  if (el) el.innerHTML = ""; // clear first so an early-returning sub-render can't stack sub-navs
   const active = _FRN_FO_TABS.find(t => t.id === _frnFOSubTab) || _FRN_FO_TABS[0];
   active.fn();
-  const el = $("frnHomeContent");
-  if (!el) return;
+  const newEl = $("frnHomeContent");
+  if (!newEl) return;
   const sub = document.createElement("div");
   sub.className = "frn-subnav";
   sub.innerHTML = _FRN_FO_TABS.map(t =>
     `<button class="frn-subnav-btn${t.id===active.id?" active":""}" onclick="frnSetFOSubTab('${t.id}')">${t.label}</button>`
   ).join("");
-  el.insertBefore(sub, el.firstChild);
+  newEl.insertBefore(sub, newEl.firstChild);
 }
 
 // League tab — sub-nav across the league context (standings, stat
@@ -4669,19 +4673,21 @@ function frnSetLeagueSubTab(id) {
   renderFrnLeagueHome();
 }
 function renderFrnLeagueHome() {
+  const el = $("frnHomeContent");
+  if (el) el.innerHTML = ""; // clear first so an early-returning sub-render can't stack sub-navs
   const active = _FRN_LEAGUE_TABS.find(t => t.id === _frnLeagueSubTab) || _FRN_LEAGUE_TABS[0];
   active.fn();
   // Prepend a sub-nav strip so the user can move between league views
   // without leaving the tab. The underlying renders set innerHTML
   // wholesale, so we attach our sub-nav after the fact.
-  const el = $("frnHomeContent");
-  if (!el) return;
+  const newEl = $("frnHomeContent");
+  if (!newEl) return;
   const sub = document.createElement("div");
   sub.className = "frn-subnav";
   sub.innerHTML = _FRN_LEAGUE_TABS.map(t =>
     `<button class="frn-subnav-btn${t.id===active.id?" active":""}" onclick="frnSetLeagueSubTab('${t.id}')">${t.label}</button>`
   ).join("");
-  el.insertBefore(sub, el.firstChild);
+  newEl.insertBefore(sub, newEl.firstChild);
 }
 
 // Tools tab landing — links to existing utility pages (analytics, joint
