@@ -1333,8 +1333,11 @@ function _buildCareerCard(p) {
       </div>
     </div>`;
   }
-  // Pick stat columns based on position
-  const cols = _careerColsFor(p.position);
+  // Pick stat columns based on position. Drop columns whose total across
+  // the entire history is zero — keeps a non-mobile QB from showing all-0
+  // RUSH/R-TD columns, a non-receiving RB from showing REC TD, etc.
+  const _allCols = _careerColsFor(p.position);
+  const cols = _allCols.filter(c => history.some(r => (r[c.key] || 0) > 0));
   const trajLabel = {
     EARLY_BLOOM: "⚡ Early Bloomer", LATE_BLOOM: "🌱 Late Bloomer",
     CONSISTENT: "📈 Consistent",    STREAKY: "〰 Streaky",
@@ -1386,10 +1389,12 @@ function _careerColsFor(pos) {
   if (pos === "QB") return [
     { key:"pass_yds", label:"YDS" }, { key:"pass_td", label:"TD" },
     { key:"pass_int", label:"INT" }, { key:"pass_att", label:"ATT" },
+    { key:"rush_yds", label:"RUSH" }, { key:"rush_td", label:"R-TD" },
   ];
   if (pos === "RB") return [
     { key:"rush_yds", label:"YDS" }, { key:"rush_td", label:"TD" },
-    { key:"rush_att", label:"ATT" }, { key:"rec_yds", label:"REC YDS" },
+    { key:"rush_att", label:"ATT" },
+    { key:"rec", label:"REC" }, { key:"rec_yds", label:"REC YDS" }, { key:"rec_td", label:"REC TD" },
   ];
   if (pos === "WR" || pos === "TE") return [
     { key:"rec_yds", label:"YDS" }, { key:"rec_td", label:"TD" },
@@ -1397,22 +1402,31 @@ function _careerColsFor(pos) {
   ];
   if (pos === "DL") return [
     { key:"tkl", label:"TKL" }, { key:"sk", label:"SK" },
-    { key:"ff", label:"FF" }, { key:"pd", label:"PD" },
+    { key:"ff", label:"FF" }, { key:"fr", label:"FR" },
+    { key:"pd", label:"PD" }, { key:"def_td", label:"TD" },
   ];
   if (pos === "LB") return [
-    { key:"tkl", label:"TKL" }, { key:"missed_tkl", label:"MISS" },
-    { key:"sk", label:"SK" }, { key:"int_made", label:"INT" }, { key:"pd", label:"PD" },
+    { key:"tkl", label:"TKL" }, { key:"sk", label:"SK" },
+    { key:"int_made", label:"INT" }, { key:"pd", label:"PD" },
+    { key:"ff", label:"FF" }, { key:"def_td", label:"TD" },
   ];
   if (pos === "CB" || pos === "S") return [
     { key:"int_made", label:"INT" }, { key:"pd", label:"PD" },
-    { key:"tkl", label:"TKL" }, { key:"missed_tkl", label:"MISS" }, { key:"def_td", label:"DEF TD" },
+    { key:"tkl", label:"TKL" }, { key:"ff", label:"FF" },
+    { key:"def_td", label:"TD" },
   ];
   if (pos === "K") return [
     { key:"fg_made", label:"FGM" }, { key:"fg_att", label:"FGA" },
-    { key:"fg_long", label:"LONG" }, { key:"xp_made", label:"XP" },
+    { key:"fg_long", label:"LONG" },
+    { key:"xp_made", label:"XPM" }, { key:"xp_att", label:"XPA" },
+  ];
+  if (pos === "P") return [
+    { key:"punts", label:"PNT" }, { key:"punt_yds", label:"YDS" },
+    { key:"punt_long", label:"LONG" },
   ];
   if (pos === "OL") return [
     { key:"pancakes", label:"PNK" }, { key:"sacks_allowed", label:"SA" },
+    { key:"penalties", label:"PEN" },
   ];
   return [{ key:"gp", label:"GP" }];
 }

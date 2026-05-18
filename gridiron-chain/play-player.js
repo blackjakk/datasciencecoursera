@@ -1456,7 +1456,12 @@ function mockSeasonStats(pos, ovr, archetype) {
     const yds = r(att * ypc * noise());
     const td  = Math.max(rc(1), rc((6 + (ovr - 70) * 0.22) * noise()));
     const rec = Math.max(0, rc(recBase * noise()));
-    return { gp, rush_att: att, rush_yds: yds, rush_td: td, rec, rec_yds: r(rec * 8.5) };
+    const recYds = r(rec * 8.5);
+    // Receiving TDs scale with rec volume — receiving backs catch more TDs.
+    const recTdRate = archetype === "RECEIVING" ? 0.10 : 0.06;
+    const recTd = Math.max(0, rc(rec * recTdRate * noise()));
+    return { gp, rush_att: att, rush_yds: yds, rush_td: td,
+             rec, rec_tgt: r(rec / 0.72), rec_yds: recYds, rec_td: recTd };
   }
 
   if (pos === "WR") {
@@ -1535,7 +1540,9 @@ function mockSeasonStats(pos, ovr, archetype) {
     const tkl = Math.max(0, rc(tklBase * noise()));
     const ff  = Math.max(0, rc(ffBase  * noise()));
     const pd  = Math.max(0, rc(pdBase  * noise()));
-    return { gp, sk, tkl, ff, pd };
+    const fr  = Math.max(0, rc(ffBase * 0.5 * noise()));
+    const def_td = Math.random() < 0.10 ? 1 : 0;
+    return { gp, sk, tkl, ff, pd, fr, def_td };
   }
 
   if (pos === "LB") {
@@ -1560,7 +1567,10 @@ function mockSeasonStats(pos, ovr, archetype) {
     const tkl      = Math.max(0, rc(tklBase * noise()));
     const ff       = Math.max(0, rc(ffBase  * noise()));
     const int_made = Math.max(0, rc(intBase * noise()));
-    return { gp, sk, tkl, ff, int_made };
+    const pd       = Math.max(0, rc((4 + (ovr - 70) * 0.15) * noise()));
+    const fr       = Math.max(0, rc(ffBase * 0.5 * noise()));
+    const def_td   = Math.random() < 0.08 ? 1 : 0;
+    return { gp, sk, tkl, ff, int_made, pd, fr, def_td };
   }
 
   if (pos === "CB") {
@@ -1586,7 +1596,9 @@ function mockSeasonStats(pos, ovr, archetype) {
     const int_made = Math.max(0, rc(intBase * noise()));
     const pd       = Math.max(0, rc(pdBase  * noise()));
     const tkl      = Math.max(0, rc(tklBase * noise()));
-    return { gp, int_made, pd, tkl };
+    const ff       = Math.max(0, rc(0.5 * noise()));
+    const def_td   = Math.random() < 0.10 ? 1 : 0;
+    return { gp, int_made, pd, tkl, ff, def_td };
   }
 
   if (pos === "S") {
@@ -1611,13 +1623,32 @@ function mockSeasonStats(pos, ovr, archetype) {
     const tkl      = Math.max(0, rc(tklBase * noise()));
     const pd       = Math.max(0, rc(pdBase  * noise()));
     const sk       = Math.round(Math.max(0, rc(skBase  * noise())) * 10) / 10;
-    return { gp, int_made, tkl, pd, sk };
+    const ff       = Math.max(0, rc(0.8 * noise()));
+    const def_td   = Math.random() < 0.10 ? 1 : 0;
+    return { gp, int_made, tkl, pd, sk, ff, def_td };
   }
 
   if (pos === "OL") {
     const pen           = Math.max(0, rc((4 - (ovr - 70) * 0.08) * noise()));
     const sacks_allowed = Math.max(0, rc((4 - (ovr - 70) * 0.07) * noise()));
     return { gp, gs: gp, sacks_allowed, penalties: pen };
+  }
+
+  if (pos === "K") {
+    // FG accuracy scales with OVR (~75% league avg, ~92% elite).
+    const fgPct = Math.min(0.95, Math.max(0.62, 0.74 + (ovr - 70) * 0.005));
+    const fg_att  = Math.max(rc(8), rc((22 + (ovr - 70) * 0.4) * noise()));
+    const fg_made = Math.min(fg_att, r(fg_att * fgPct * noise()));
+    const fg_long = Math.max(38, Math.min(60, Math.round(45 + (ovr - 70) * 0.4 + (Math.random() * 6 - 3))));
+    const xp_att  = Math.max(rc(12), rc((28 + (ovr - 70) * 0.3) * noise()));
+    const xp_made = Math.min(xp_att, r(xp_att * Math.min(0.99, 0.92 + (ovr - 70) * 0.003) * noise()));
+    return { gp, fg_made, fg_att, fg_long, xp_made, xp_att };
+  }
+
+  if (pos === "P") {
+    const punts = Math.max(rc(20), rc((58 - (ovr - 70) * 0.2) * noise()));
+    const avgYds = Math.min(52, Math.max(38, 44 + (ovr - 70) * 0.25));
+    return { gp, punts, punt_yds: r(punts * avgYds), punt_long: Math.max(50, Math.min(75, Math.round(58 + (ovr - 70) * 0.4))) };
   }
 
   return { gp };
