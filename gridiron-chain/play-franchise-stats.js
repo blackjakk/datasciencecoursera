@@ -4587,12 +4587,68 @@ function _frnRenderAppShell() {
 function _frnRenderActiveTab() {
   switch (_frnActiveTab) {
     case "overview":    return renderFrnRegular();
-    case "roster":      return renderFrnDepthChart();
-    case "frontoffice": return frnOpenTrade();
+    case "roster":      return renderFrnRosterHome();
+    case "frontoffice": return renderFrnFrontOfficeHome();
     case "league":      return renderFrnLeagueHome();
     case "tools":       return _frnRenderTabTools();
     default:            return renderFrnRegular();
   }
+}
+
+// ── Roster tab aggregator ─────────────────────────────────────────────
+// Sub-nav across the player-management views: depth chart, snap shares,
+// injury report, practice squad. Same prepend-subnav pattern as League.
+let _frnRosterSubTab = "depth";
+const _FRN_ROSTER_TABS = [
+  { id: "depth",     label: "Depth Chart",    fn: () => typeof renderFrnDepthChart    === "function" && renderFrnDepthChart() },
+  { id: "snaps",     label: "Snap Shares",    fn: () => typeof renderFrnSnapShares    === "function" && renderFrnSnapShares() },
+  { id: "injuries",  label: "Injury Report",  fn: () => typeof renderFrnInjuryReport  === "function" && renderFrnInjuryReport() },
+  { id: "ps",        label: "Practice Squad", fn: () => typeof renderFrnPracticeSquad === "function" && renderFrnPracticeSquad() },
+];
+function frnSetRosterSubTab(id) {
+  if (!_FRN_ROSTER_TABS.some(t => t.id === id)) return;
+  _frnRosterSubTab = id;
+  renderFrnRosterHome();
+}
+function renderFrnRosterHome() {
+  const active = _FRN_ROSTER_TABS.find(t => t.id === _frnRosterSubTab) || _FRN_ROSTER_TABS[0];
+  active.fn();
+  const el = $("frnHomeContent");
+  if (!el) return;
+  const sub = document.createElement("div");
+  sub.className = "frn-subnav";
+  sub.innerHTML = _FRN_ROSTER_TABS.map(t =>
+    `<button class="frn-subnav-btn${t.id===active.id?" active":""}" onclick="frnSetRosterSubTab('${t.id}')">${t.label}</button>`
+  ).join("");
+  el.insertBefore(sub, el.firstChild);
+}
+
+// ── Front Office tab aggregator ───────────────────────────────────────
+// Sub-nav across the GM-decision pages: trade, free agency, coaching
+// staff, and the cap sheet (via Analytics). Same prepend pattern.
+let _frnFOSubTab = "trade";
+const _FRN_FO_TABS = [
+  { id: "trade",   label: "Trade",       fn: () => typeof frnOpenTrade            === "function" && frnOpenTrade() },
+  { id: "fa",      label: "Free Agents", fn: () => typeof renderFrnFANegotiations === "function" && renderFrnFANegotiations() },
+  { id: "coaches", label: "Coaches",     fn: () => typeof renderFrnCoachingStaff  === "function" && renderFrnCoachingStaff() },
+  { id: "cap",     label: "Cap Sheet",   fn: () => typeof renderFrnAnalytics      === "function" && renderFrnAnalytics("mysheet") },
+];
+function frnSetFOSubTab(id) {
+  if (!_FRN_FO_TABS.some(t => t.id === id)) return;
+  _frnFOSubTab = id;
+  renderFrnFrontOfficeHome();
+}
+function renderFrnFrontOfficeHome() {
+  const active = _FRN_FO_TABS.find(t => t.id === _frnFOSubTab) || _FRN_FO_TABS[0];
+  active.fn();
+  const el = $("frnHomeContent");
+  if (!el) return;
+  const sub = document.createElement("div");
+  sub.className = "frn-subnav";
+  sub.innerHTML = _FRN_FO_TABS.map(t =>
+    `<button class="frn-subnav-btn${t.id===active.id?" active":""}" onclick="frnSetFOSubTab('${t.id}')">${t.label}</button>`
+  ).join("");
+  el.insertBefore(sub, el.firstChild);
 }
 
 // League tab — sub-nav across the league context (standings, stat
