@@ -3792,7 +3792,7 @@ function _buildWeekReviewCard(week, myId) {
       ${tasksHtml}
       <div class="frn-next-actions">
         <button class="btn btn-gold-big" onclick="frnAdvanceWeek()">▶ ADVANCE TO WEEK ${week + 1}</button>
-        <button class="btn btn-outline" onclick="frnSimSeason()" style="color:var(--gray)">⏭⏭ Sim Rest of Season</button>
+        ${_renderSimForwardPanel()}
       </div>
     </div>`;
 }
@@ -4470,6 +4470,69 @@ function _frnTogglePregame() {
   renderFrnRegular();
 }
 
+// Sim-forward panel state. The two-click model: clicking "Sim Forward"
+// opens the panel; a specific sim target inside the panel triggers a
+// confirm() before it actually runs. Defaults to a target one week
+// past the current week so the input has a sensible value.
+let _frnSimPanelOpen = false;
+let _frnSimTargetWeek = null;
+function _frnToggleSimPanel() {
+  _frnSimPanelOpen = !_frnSimPanelOpen;
+  if (_frnSimPanelOpen && _frnSimTargetWeek == null) {
+    _frnSimTargetWeek = Math.min(franchise.week + 2, FRANCHISE_WEEKS);
+  }
+  renderFrnRegular();
+}
+function _frnSetSimTarget(v) {
+  const n = Math.max(franchise.week, Math.min(FRANCHISE_WEEKS, Number(v) || franchise.week));
+  _frnSimTargetWeek = n;
+  // Update displayed value without a full re-render (input keeps focus)
+  const el = document.getElementById("frn-sim-target-input");
+  if (el && +el.value !== n) el.value = n;
+}
+function _renderSimForwardPanel() {
+  const w = franchise.week;
+  if (w > FRANCHISE_WEEKS) return "";
+  if (!_frnSimPanelOpen) {
+    return `<button class="frn-sim-btn frn-sim-forward-trigger" onclick="_frnToggleSimPanel()">⏭ Sim Forward ▾</button>`;
+  }
+  const target = _frnSimTargetWeek ?? Math.min(w + 2, FRANCHISE_WEEKS);
+  const remaining = FRANCHISE_WEEKS - w;
+  return `<div class="frn-sim-panel">
+    <div class="frn-sim-panel-head">
+      <span>⏭ SIM FORWARD</span>
+      <span class="frn-sim-panel-sub">${remaining} regular-season week${remaining===1?"":"s"} left · ${remaining===0?"playoffs next":"playoffs at W"+FRANCHISE_WEEKS}</span>
+      <button class="frn-sim-panel-cancel" onclick="_frnToggleSimPanel()">× Cancel</button>
+    </div>
+    <div class="frn-sim-options">
+      <button class="frn-sim-opt" onclick="frnConfirmSimWeek()">
+        <span class="frn-sim-opt-icon">⏭</span>
+        <span class="frn-sim-opt-label">Finish Week ${w}</span>
+        <span class="frn-sim-opt-sub">close out the current week</span>
+      </button>
+      <div class="frn-sim-opt frn-sim-opt-custom">
+        <span class="frn-sim-opt-icon">⏩</span>
+        <span class="frn-sim-opt-label">Sim to Week
+          <input type="number" id="frn-sim-target-input"
+                 min="${w}" max="${FRANCHISE_WEEKS}" value="${target}" step="1"
+                 oninput="_frnSetSimTarget(this.value)">
+        </span>
+        <button class="frn-sim-opt-go" onclick="frnConfirmSimToWeek(_frnSimTargetWeek)">Go →</button>
+      </div>
+      <button class="frn-sim-opt" onclick="frnConfirmSimToPlayoffs()" ${remaining===0?"disabled":""}>
+        <span class="frn-sim-opt-icon">⏭⏭</span>
+        <span class="frn-sim-opt-label">Sim to Playoffs</span>
+        <span class="frn-sim-opt-sub">finish W${FRANCHISE_WEEKS} · land on bracket</span>
+      </button>
+      <button class="frn-sim-opt frn-sim-opt-warn" onclick="frnConfirmSimToEndOfSeason()">
+        <span class="frn-sim-opt-icon">⚠ ⏭⏭⏭</span>
+        <span class="frn-sim-opt-label">Sim to End of Season</span>
+        <span class="frn-sim-opt-sub">incl. playoffs · skip all mid-season mgmt</span>
+      </button>
+    </div>
+  </div>`;
+}
+
 // ─── App shell + tab routing ────────────────────────────────────────────
 // The dashboard is a tabbed app shell during the regular season. Tabs
 // route to focused sub-views; the shell itself is just identity +
@@ -4912,8 +4975,7 @@ function renderFrnRegular() {
           </button>
           <div class="frn-pregame-sims">
             <button class="frn-sim-btn" onclick="frnSimGame(${nextGame.homeId},${nextGame.awayId})">⏩ Sim Game</button>
-            <button class="frn-sim-btn" onclick="frnSimWeek()">⏭ Sim Week ${week}</button>
-            <button class="frn-sim-btn frn-sim-season" onclick="frnSimSeason()">⏭⏭ Sim Season</button>
+            ${_renderSimForwardPanel()}
           </div>
         </div>
         <div class="frn-next-matchup">
@@ -4943,9 +5005,8 @@ function renderFrnRegular() {
       <div class="frn-next-card" style="text-align:center;border-style:dashed">
         <div style="color:var(--gold);font-weight:700;margin-bottom:.4rem">Your Week ${week} game is done</div>
         <div style="color:var(--gray);font-size:.8rem;margin-bottom:.8rem">${FRANCHISE_WEEKS - week + 1} weeks of action remaining</div>
-        <div class="frn-next-actions">
-          <button class="btn btn-gold-big" onclick="frnSimWeek()">⏭ Finalize Week ${week} Results</button>
-          <button class="btn btn-outline" onclick="frnSimSeason()" style="color:var(--gray)">⏭⏭ Sim Season</button>
+        <div class="frn-next-actions" style="justify-content:center">
+          ${_renderSimForwardPanel()}
         </div>
       </div>`;
   }

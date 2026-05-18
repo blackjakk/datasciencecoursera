@@ -1461,6 +1461,132 @@ function frnSimWeek() {
   showFranchiseDashboard();
 }
 
+// Generalized regular-season sim: runs from the current week up to and
+// including targetWeek. Bails early if the phase transitions (cap
+// over-spend forces fa_cuts, or the schedule completes and we land in
+// playoffs_pending). Single source of truth — frnSimWeek and
+// frnSimSeason are special-case wrappers around this.
+function frnSimToWeek(targetWeek) {
+  const target = Math.min(targetWeek, FRANCHISE_WEEKS);
+  for (let w = franchise.week; w <= target; w++) {
+    const wGames = franchise.schedule.filter(g => g.week === w && !g.played);
+    for (const g of wGames) {
+      const r = frnSimOnce(g.homeId, g.awayId);
+      g.homeScore = r.homeScore; g.awayScore = r.awayScore; g.played = true;
+      g.stats = _stripGameStatsForStorage(r.full?.stats);
+      g.scoring = _extractScoringTimeline(r.full?.plays, r.homeScore, r.awayScore);
+      if (r.full?.weather) g.weather = { label: r.full.weather.label, windStrength: r.full.weather.windStrength };
+      if (r.full?.isRivalry) g.isRivalry = true;
+      recordFranchiseResult(g.homeId, g.awayId, r.homeScore, r.awayScore);
+    }
+    _computeAndStorePOTW(w);
+    try { _runWeekEndResolution(); } catch(e) { console.error("[frnSimToWeek] resolution error (non-fatal):", e); }
+    _bumpWeek();
+    franchise.weekPending = false;
+    if (franchise.phase === "fa_cuts" || franchise.phase === "playoffs_pending") break;
+  }
+  _flushSaveFranchise();
+  showFranchiseDashboard();
+}
+
+// Sim regular season + auto-play through every playoff round to the
+// championship. Lands on the awards/offseason screen.
+function frnSimToEndOfSeason() {
+  // Regular season
+  for (let w = franchise.week; w <= FRANCHISE_WEEKS; w++) {
+    const wGames = franchise.schedule.filter(g => g.week === w && !g.played);
+    for (const g of wGames) {
+      const r = frnSimOnce(g.homeId, g.awayId);
+      g.homeScore = r.homeScore; g.awayScore = r.awayScore; g.played = true;
+      g.stats = _stripGameStatsForStorage(r.full?.stats);
+      g.scoring = _extractScoringTimeline(r.full?.plays, r.homeScore, r.awayScore);
+      if (r.full?.weather) g.weather = { label: r.full.weather.label, windStrength: r.full.weather.windStrength };
+      if (r.full?.isRivalry) g.isRivalry = true;
+      recordFranchiseResult(g.homeId, g.awayId, r.homeScore, r.awayScore);
+    }
+    _computeAndStorePOTW(w);
+    try { _runWeekEndResolution(); } catch(e) { console.error("[frnSimToEndOfSeason] resolution error:", e); }
+    _bumpWeek();
+    franchise.weekPending = false;
+    if (franchise.phase === "fa_cuts") {
+      _flushSaveFranchise(); showFranchiseDashboard();
+      return; // user has to handle the cap-overage cuts before continuing
+    }
+  }
+  // Bracket setup (transitions phase to "playoffs")
+  if (franchise.phase === "playoffs_pending") startFrnPlayoffs();
+  // Loop every playoff round to championship
+  let safety = 12;
+  while (franchise.playoffBracket && safety-- > 0) {
+    const pb = franchise.playoffBracket;
+    if (pb.roundIdx >= pb.rounds.length) break;
+    const rd = pb.rounds[pb.roundIdx];
+    const isChampRound = pb.roundIdx === pb.rounds.length - 1;
+    for (const m of rd) {
+      if (!m.winnerId && m.homeId && m.awayId) {
+        const r = frnSimOnce(m.homeId, m.awayId, /* isPlayoff */ true);
+        m.homeScore = r.homeScore; m.awayScore = r.awayScore;
+        m.winnerId  = r.homeScore >= r.awayScore ? m.homeId : m.awayId;
+        m.stats = _stripGameStatsForStorage(r.full?.stats);
+        m.scoring = _extractScoringTimeline(r.full?.plays, r.homeScore, r.awayScore);
+        m.weather = r.full?.weather ? { label: r.full.weather.label, windStrength: r.full.weather.windStrength } : null;
+        if (isChampRound) {
+          franchise.superBowlGame = {
+            homeId: m.homeId, awayId: m.awayId,
+            homeScore: r.homeScore, awayScore: r.awayScore,
+            stats: r.full.stats, winnerId: m.winnerId,
+          };
+        }
+      }
+    }
+    const playoffWeek = FRANCHISE_WEEKS + pb.roundIdx + 1;
+    try { _computePlayoffRoundPOTW(pb.roundIdx, playoffWeek); } catch(e) { console.error("[frnSimToEndOfSeason] POTW error:", e); }
+    advancePlayoffRound();
+    if (franchise.phase === "awards") break;
+  }
+  _flushSaveFranchise();
+  showFranchiseDashboard();
+}
+
+// Confirm-wrapped UI entry points — every sim that advances time
+// requires an explicit second click so a misclick can't burn weeks
+// of franchise management.
+function frnConfirmSimWeek() {
+  const w = franchise.week;
+  const games = franchise.schedule.filter(g => g.week === w && !g.played).length;
+  if (!confirm(`Sim through Week ${w}? ${games} game${games===1?"":"s"} will play and the week will close.`)) return;
+  _frnSimPanelOpen = false;
+  frnSimWeek();
+}
+function frnConfirmSimToWeek(target) {
+  const t = Math.max(franchise.week, Math.min(FRANCHISE_WEEKS, Number(target) || franchise.week));
+  if (t <= franchise.week) return frnConfirmSimWeek();
+  const weeks = t - franchise.week + 1;
+  if (!confirm(`Sim through Week ${t}? That's ${weeks} weeks — you won't be able to make roster moves in the interim.`)) return;
+  _frnSimPanelOpen = false;
+  frnSimToWeek(t);
+}
+function frnConfirmSimToPlayoffs() {
+  const t = FRANCHISE_WEEKS;
+  const weeks = t - franchise.week + 1;
+  if (weeks <= 0) return;
+  if (!confirm(`Sim to end of regular season (Week ${t})? That's ${weeks} weeks. You'll land on the playoff bracket.`)) return;
+  _frnSimPanelOpen = false;
+  frnSimToWeek(t);
+}
+function frnConfirmSimToEndOfSeason() {
+  const msg = "⚠ SIM TO END OF SEASON\n\n" +
+              "This will:\n" +
+              " • Sim every remaining regular-season game\n" +
+              " • Auto-run the entire playoff bracket\n" +
+              " • Land you on the awards / offseason screen\n\n" +
+              "You'll lose all ability to manage your team this season.\n\n" +
+              "Continue?";
+  if (!confirm(msg)) return;
+  _frnSimPanelOpen = false;
+  frnSimToEndOfSeason();
+}
+
 // Sim-season skips week-end review interstitials and just flies
 // through to the playoffs.
 function frnSimSeason() {
