@@ -6141,6 +6141,17 @@ function _schemeBadge(scheme, small) {
 let _coachHireResult    = null; // set by frnHireCoachFromMarket; cleared after one render
 let _posCoachBrowseGroup = null; // set when user opens position coach candidate browser
 
+// ── Coaches page ──────────────────────────────────────────────────────────────
+// Three sub-tabs: My Staff (current coaches + chemistry + scheme +
+// player development), Market (HC/OC/DC/Position-Coach hire pool),
+// League (other teams' HCs + COTY race + recent moves).
+let _frnCoachesSubTab = "staff";
+function frnSetCoachesSubTab(id) {
+  if (!["staff","market","league"].includes(id)) return;
+  _frnCoachesSubTab = id;
+  renderFrnCoachingStaff();
+}
+
 function renderFrnCoachingStaff() {
   const myId   = franchise.chosenTeamId;
   const myTeam = getTeam(myId);
@@ -6479,6 +6490,58 @@ function renderFrnCoachingStaff() {
     : "";
   _coachHireResult = null;
 
+  // ── Staff tab body (current coaches + scheme + chemistry + dev) ──
+  const staffTabHtml = `
+    ${budgetHtml}
+    <div class="frn-sec-title" style="margin-top:.8rem">Head Coach</div>
+    ${hcHtml}
+    <div class="frn-sec-title" style="margin-top:.8rem">Coordinators</div>
+    ${coordCard("OC", oc, "oc")}
+    ${coordCard("DC", dc, "dc")}
+    <div class="frn-sec-title" style="margin-top:.8rem">Staff Chemistry</div>
+    ${chemHtml}
+    <div class="frn-sec-title" style="margin-top:.8rem">Scheme Outlook</div>
+    ${schemeOverviewHtml}
+    <div class="frn-sec-title" style="margin-top:.8rem">Position Staff <span style="font-size:.65rem;font-weight:400;color:var(--gray)">(up to 3 of ${POSITION_COACH_GROUPS.length} groups)</span></div>
+    <div class="frn-coach-pos-grid">${posSlots}</div>
+    ${posBrowseHtml}
+    ${_renderPlayerDevelopmentPanel(myId, staff)}`;
+
+  // ── Market tab body — role sub-filter then candidate lists ──
+  const _activeRoleFilter = _frnCoachesMarketRole || "all";
+  const showHC = _activeRoleFilter === "all" || _activeRoleFilter === "hc";
+  const showOC = _activeRoleFilter === "all" || _activeRoleFilter === "oc";
+  const showDC = _activeRoleFilter === "all" || _activeRoleFilter === "dc";
+  const showPos = _activeRoleFilter === "all" || _activeRoleFilter === "pos";
+  const marketRoleNav = ["all","hc","oc","dc","pos"].map(r => {
+    const labels = { all:"ALL", hc:"HC", oc:"OC", dc:"DC", pos:"POSITION" };
+    return `<button class="frn-subnav-btn${_activeRoleFilter===r?" active":""}" onclick="_frnCoachesMarketRole='${r}';renderFrnCoachingStaff()">${labels[r]}</button>`;
+  }).join("");
+  const positionMarketHtml = `<div style="color:var(--gray);font-size:.7rem;margin:.3rem 0 .5rem">Browse position-coach candidates from the My Staff → Position Staff section. Each empty slot has its own ${`<b>Hire</b>`} button that opens a focused candidate pool.</div>`;
+  const marketTabHtml = market.length === 0 && !showPos
+    ? `${budgetHtml}<div style="color:var(--gray);font-size:.78rem;font-style:italic;margin:.6rem 0;padding:.7rem .9rem;background:rgba(255,255,255,.04);border:1px dashed rgba(255,255,255,.2);border-radius:6px">No HC/OC/DC market right now — those candidates open up after the season ends. Position coaches are always available from the My Staff tab.</div>`
+    : `${budgetHtml}
+       <div class="frn-subnav" style="margin:.5rem 0">${marketRoleNav}</div>
+       ${showHC ? `<div class="frn-sec-title" style="margin-top:.8rem">Head Coach Candidates</div>${hcMarketSchemeNote}${marketHcHtml}` : ""}
+       ${showOC ? `<div class="frn-sec-title" style="margin-top:.8rem">Offensive Coordinators</div>${marketOCHtml}` : ""}
+       ${showDC ? `<div class="frn-sec-title" style="margin-top:.8rem">Defensive Coordinators</div>${marketDCHtml}` : ""}
+       ${showPos ? `<div class="frn-sec-title" style="margin-top:.8rem">Position Coaches</div>${positionMarketHtml}` : ""}`;
+
+  // ── League tab body — all-team HC table + COTY race + recent moves ──
+  const leagueTabHtml = _renderLeagueCoachesTab(myId);
+
+  const subTabs = [
+    { id: "staff",  label: "My Staff" },
+    { id: "market", label: "Market" },
+    { id: "league", label: "League" },
+  ];
+  const subNavHtml = `<div class="frn-subnav" style="margin:.4rem 0 .8rem">
+    ${subTabs.map(t => `<button class="frn-subnav-btn${t.id===_frnCoachesSubTab?" active":""}" onclick="frnSetCoachesSubTab('${t.id}')">${t.label}</button>`).join("")}
+  </div>`;
+  const activeBody = _frnCoachesSubTab === "market" ? marketTabHtml
+                   : _frnCoachesSubTab === "league" ? leagueTabHtml
+                   : staffTabHtml;
+
   $("frnHomeContent").innerHTML = `
     <style>
       .frn-coach-card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:.75rem 1rem;margin-bottom:.6rem}
@@ -6488,39 +6551,165 @@ function renderFrnCoachingStaff() {
       .frn-coach-market-row{display:flex;align-items:stretch;gap:.75rem;padding:.55rem 0;border-bottom:1px solid rgba(255,255,255,.07)}
       .frn-coach-market-row:last-child{border-bottom:0}
     </style>
-    <div style="max-width:600px;margin:0 auto;padding:.5rem 0">
-      <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem">
+    <div style="max-width:780px;margin:0 auto;padding:.5rem 0">
+      <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.5rem">
         <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="font-size:.7rem;padding:.2rem .6rem">← Back</button>
-        <div style="font-size:1rem;font-weight:700;color:var(--gold)">${myTeam?.city} ${myTeam?.name} — Coaching Staff</div>
+        <div style="font-size:1rem;font-weight:700;color:var(--gold)">${myTeam?.city} ${myTeam?.name} — Coaching</div>
       </div>
       ${hireBanner}
-      ${budgetHtml}
-      <div class="frn-sec-title" style="margin-top:.8rem">Head Coach</div>
-      ${hcHtml}
-      <div class="frn-sec-title" style="margin-top:.8rem">Coordinators</div>
-      ${coordCard("OC", oc, "oc")}
-      ${coordCard("DC", dc, "dc")}
-      <div class="frn-sec-title" style="margin-top:.8rem">Scheme Overview</div>
-      ${schemeOverviewHtml}
-      <div class="frn-sec-title" style="margin-top:.8rem">Staff Chemistry</div>
-      ${chemHtml}
-      <div class="frn-sec-title" style="margin-top:.8rem">Position Staff <span style="font-size:.65rem;font-weight:400;color:var(--gray)">(up to 3 of ${POSITION_COACH_GROUPS.length} groups)</span></div>
-      <div class="frn-coach-pos-grid">${posSlots}</div>
-      ${posBrowseHtml}
-      <div class="frn-sec-title" style="margin-top:1rem">Available Coaches</div>
-      ${market.length === 0
-        ? `<div style="color:var(--gray);font-size:.75rem;font-style:italic;margin:.5rem 0">No market available yet — coaches become available after the season ends.</div>`
-        : `<div style="margin:.4rem 0">
-             <div style="font-size:.72rem;font-weight:700;color:var(--gold);letter-spacing:.5px;margin:.4rem 0 .2rem">HEAD COACHES</div>
-             ${hcMarketSchemeNote}
-             ${marketHcHtml}
-             <div style="font-size:.72rem;font-weight:700;color:var(--gold);letter-spacing:.5px;margin:.8rem 0 .2rem">OFFENSIVE COORDINATORS</div>
-             ${marketOCHtml}
-             <div style="font-size:.72rem;font-weight:700;color:var(--gold);letter-spacing:.5px;margin:.8rem 0 .2rem">DEFENSIVE COORDINATORS</div>
-             ${marketDCHtml}
-           </div>`
-      }
+      ${subNavHtml}
+      ${activeBody}
     </div>`;
+}
+
+// Module-level filter for which role to show in the Market sub-tab.
+let _frnCoachesMarketRole = "all";
+
+// ── League coaches sub-tab ───────────────────────────────────────────
+// Aggregates every team's HC, the COTY race, recent coach-related news,
+// and any free-agent coaches (recently fired) you could potentially
+// pursue next offseason.
+function _renderLeagueCoachesTab(myId) {
+  const rows = TEAMS.map(t => {
+    const staff = franchise.coaches?.[t.id] || {};
+    const hc = staff.hc;
+    const stand = franchise.standings?.[t.id] || { w: 0, l: 0, t: 0 };
+    const games = stand.w + stand.l + (stand.t || 0);
+    const pct = games ? (stand.w / games) : 0;
+    const isMine = t.id === myId;
+    const hotSeat = staff._hcHotSeat;
+    return { t, hc, stand, games, pct, isMine, hotSeat };
+  }).sort((a, b) => b.pct - a.pct || b.stand.w - a.stand.w);
+
+  const ratingChip = (r) => r == null ? `<span style="color:var(--gray)">—</span>`
+    : `<span style="font-weight:700;color:${r>=80?"var(--green-lt)":r>=65?"var(--gold)":"var(--red)"}">${r}</span>`;
+  const hotChip = (h) => h
+    ? `<span style="font-size:.55rem;padding:.04rem .3rem;border:1px solid var(--red);color:var(--red);border-radius:2px;background:rgba(255,80,80,.08)">🔥 HOT SEAT</span>`
+    : "";
+
+  const tableRows = rows.map(({ t, hc, stand, games, pct, isMine, hotSeat }) => {
+    const rec = games ? `${stand.w}-${stand.l}${stand.t?`-${stand.t}`:""}` : "—";
+    const pctStr = games ? pct.toFixed(3).replace(/^0/, "") : ".—";
+    return `<tr class="${isMine?"frn-me":""}" style="${isMine?"background:rgba(212,175,55,.08)":""}">
+      <td style="padding:.25rem .45rem;color:${t.primary||"var(--gold)"};font-weight:${isMine?900:700};font-size:.7rem">${isMine?"» ":""}${t.city} ${t.name}</td>
+      <td style="padding:.25rem .45rem;font-size:.7rem;color:var(--blwhite)">${hc?.name || "<i style='color:var(--gray)'>vacant</i>"}</td>
+      <td style="padding:.25rem .45rem;text-align:center">${ratingChip(hc?.rating)}</td>
+      <td style="padding:.25rem .45rem;text-align:center;font-size:.62rem;color:var(--gray)">${hc?.yearsWithTeam||0}yr</td>
+      <td style="padding:.25rem .45rem;text-align:right;font-family:'IBM Plex Mono','JetBrains Mono',monospace;font-size:.66rem">${rec}</td>
+      <td style="padding:.25rem .45rem;text-align:right;font-size:.6rem;color:var(--gray)">${pctStr}</td>
+      <td style="padding:.25rem .45rem">${hc ? `<span style="font-size:.58rem;color:var(--gray)">${hc.cultureTrait||"—"} / ${hc.specialtyTrait||"—"}</span>` : ""}</td>
+      <td style="padding:.25rem .45rem;text-align:right">${hotChip(hotSeat)}</td>
+    </tr>`;
+  }).join("");
+
+  // Coach of the Year race — top 5 by W% (a proxy for over-performance
+  // until we track preseason expectations explicitly).
+  const cotyTop = rows.filter(r => r.hc && r.games > 0).slice(0, 5);
+  const cotyHtml = cotyTop.length ? `
+    <div style="display:flex;flex-direction:column;gap:.25rem">
+      ${cotyTop.map((r, i) => `<div style="display:flex;align-items:center;gap:.55rem;padding:.3rem .5rem;background:${r.isMine?"rgba(212,175,55,.08)":"var(--bg2)"};border-left:3px solid ${i===0?"var(--gold)":i<3?"var(--gold-lt)":"var(--border)"}">
+        <span style="font-family:'Bebas Neue','Anton',sans-serif;font-size:1rem;color:${i===0?"var(--gold)":"var(--blgray)"};min-width:1.5rem">#${i+1}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:.72rem;font-weight:700;color:var(--blwhite)">${r.hc.name}</div>
+          <div style="font-size:.58rem;color:var(--gray)">${r.t.city} ${r.t.name} · ${r.stand.w}-${r.stand.l} · ${r.pct.toFixed(3).replace(/^0/,"")}</div>
+        </div>
+        ${ratingChip(r.hc.rating)}
+      </div>`).join("")}
+    </div>` : `<div style="color:var(--gray);font-style:italic;font-size:.7rem">Race opens once games are played.</div>`;
+
+  // Recent coach moves — scrape news feed for coach-related items
+  const coachNewsTypes = new Set(["coach_hire","coach_depart","coach_bond","extension"]);
+  const recentMoves = (franchise.news || [])
+    .filter(n => coachNewsTypes.has(n.type) || (n.label && /coach|🎩|🚪/i.test(n.label)))
+    .slice(-8).reverse();
+  const movesHtml = recentMoves.length ? `
+    <div style="display:flex;flex-direction:column;gap:.18rem">
+      ${recentMoves.map(n => `<div style="padding:.22rem .5rem;background:var(--bg2);border:1px solid var(--border);font-size:.66rem">
+        <span style="color:var(--blgray);font-size:.55rem;margin-right:.4rem">S${n.season||franchise.season} · W${n.week||"?"}</span>
+        ${n.label}
+      </div>`).join("")}
+    </div>` : `<div style="color:var(--gray);font-style:italic;font-size:.7rem">No recent coaching news.</div>`;
+
+  return `
+    <div class="frn-sec-title" style="margin-top:.2rem">🏆 Coach of the Year Race</div>
+    ${cotyHtml}
+    <div class="frn-sec-title" style="margin-top:1rem">League Head Coaches</div>
+    <div style="overflow-x:auto;background:var(--bg2);border:1px solid var(--border)">
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr style="background:var(--bg3);border-bottom:1px solid var(--border)">
+            <th style="text-align:left;padding:.25rem .45rem;font-size:.55rem;color:var(--blgray);letter-spacing:.5px">TEAM</th>
+            <th style="text-align:left;padding:.25rem .45rem;font-size:.55rem;color:var(--blgray);letter-spacing:.5px">HEAD COACH</th>
+            <th style="text-align:center;padding:.25rem .45rem;font-size:.55rem;color:var(--blgray);letter-spacing:.5px">RTG</th>
+            <th style="text-align:center;padding:.25rem .45rem;font-size:.55rem;color:var(--blgray);letter-spacing:.5px">TEN</th>
+            <th style="text-align:right;padding:.25rem .45rem;font-size:.55rem;color:var(--blgray);letter-spacing:.5px">REC</th>
+            <th style="text-align:right;padding:.25rem .45rem;font-size:.55rem;color:var(--blgray);letter-spacing:.5px">PCT</th>
+            <th style="text-align:left;padding:.25rem .45rem;font-size:.55rem;color:var(--blgray);letter-spacing:.5px">TRAITS</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>
+    <div class="frn-sec-title" style="margin-top:1rem">Recent Coach Moves</div>
+    ${movesHtml}`;
+}
+
+// Player Development panel — surfaces the under-25 players whose AWR
+// is climbing under the current staff. Today _inSeasonAwrGrowth runs
+// silently; this exposes who's benefiting so the user has a tangible
+// reason to invest in position coaches and HC development traits.
+function _renderPlayerDevelopmentPanel(myId, staff) {
+  const roster = (franchise.rosters?.[myId] || []);
+  const youngsters = roster
+    .filter(p => (p.age || 30) <= 25 && Array.isArray(p.stats))
+    .map(p => {
+      const awr = p.stats[3] ?? 70;
+      const ceil = p._awrCeiling ?? 85;
+      const room = Math.max(0, ceil - awr);
+      return { p, awr, ceil, room };
+    })
+    .filter(x => x.room > 0)
+    .sort((a, b) => b.room - a.room)
+    .slice(0, 8);
+  if (!youngsters.length) {
+    return `<div class="frn-sec-title" style="margin-top:.8rem">Player Development</div>
+      <div style="color:var(--gray);font-style:italic;font-size:.7rem;padding:.6rem .85rem;background:var(--bg2);border:1px solid var(--border)">No under-25 players with AWR growth room — your young core is already peaking or you don't have one.</div>`;
+  }
+  // Coach hint — who's driving development at each position
+  const posToCoach = {};
+  for (const sc of (staff.positionStaff || [])) {
+    if (sc.group === "QB")     posToCoach.QB = sc;
+    else if (sc.group === "OL") posToCoach.OL = sc;
+    else if (sc.group === "Skill") { posToCoach.RB = sc; posToCoach.WR = sc; posToCoach.TE = sc; }
+    else if (sc.group === "DL") posToCoach.DL = sc;
+    else if (sc.group === "LB/DB") { posToCoach.LB = sc; posToCoach.CB = sc; posToCoach.S = sc; }
+  }
+  const oc = staff.oc, dc = staff.dc;
+  const devMul = typeof _computeChemistryBonus === "function" ? (_computeChemistryBonus(myId).devMul || 1) : 1;
+  const rows = youngsters.map(({ p, awr, ceil, room }) => {
+    const coach = posToCoach[p.position];
+    const coachNote = coach ? `${coach.name} (${coach.tier||"?"})` : `<i style='color:var(--gray)'>no position coach</i>`;
+    const pct = ceil > 0 ? Math.min(100, Math.max(0, (awr / ceil) * 100)) : 100;
+    return `<div style="display:flex;align-items:center;gap:.5rem;padding:.32rem .55rem;background:var(--bg2);border:1px solid var(--border);font-size:.66rem">
+      <span style="color:var(--gold);font-weight:700;width:1.8rem">${p.position}</span>
+      <span style="flex:1;min-width:0;font-weight:700;color:var(--blwhite);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</span>
+      <span style="color:var(--gray);font-size:.58rem;width:5rem;text-align:right">age ${p.age||"?"} · OVR ${p.overall||"?"}</span>
+      <div style="width:120px;display:flex;align-items:center;gap:.35rem">
+        <span style="font-family:'IBM Plex Mono','JetBrains Mono',monospace;font-size:.62rem;color:var(--blgray)">${awr}</span>
+        <div style="flex:1;height:5px;background:rgba(255,255,255,.08);border:1px solid var(--border)">
+          <div style="height:100%;width:${pct}%;background:var(--gold-lt)"></div>
+        </div>
+        <span style="font-family:'IBM Plex Mono','JetBrains Mono',monospace;font-size:.62rem;color:var(--gold)">${ceil}</span>
+      </div>
+      <span style="color:var(--blgray);font-size:.56rem;width:10rem;text-align:right">${coachNote}</span>
+    </div>`;
+  }).join("");
+  const devBonus = devMul > 1.0 ? `<span style="color:var(--green-lt);font-weight:700">+${Math.round((devMul-1)*100)}% staff dev bonus active</span>` : `<span style="color:var(--gray);font-style:italic">Build alignment for a dev multiplier (HC=Player Developer pairings)</span>`;
+  return `
+    <div class="frn-sec-title" style="margin-top:.8rem">Player Development <span style="font-size:.6rem;font-weight:400;margin-left:.5rem">${devBonus}</span></div>
+    <div style="font-size:.58rem;color:var(--gray);margin-bottom:.3rem">Under-25 players with AWR room — their position coach drives growth (Elite tier ~3× the bumps of a Mediocre).</div>
+    <div style="display:flex;flex-direction:column;gap:.18rem">${rows}</div>`;
 }
 
 // ── Coaching staff action handlers ───────────────────────────────────────────
