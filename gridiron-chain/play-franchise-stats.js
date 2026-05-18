@@ -6208,10 +6208,85 @@ let _posCoachBrowseGroup = null; // set when user opens position coach candidate
 // player development), Market (HC/OC/DC/Position-Coach hire pool),
 // League (other teams' HCs + COTY race + recent moves).
 let _frnCoachesSubTab = "staff";
+// Market controls + compare state — persisted across re-renders.
+let _frnCoachesMarketRole = "all";
+let _frnCoachesMarketSort = "rating";  // "rating" | "salary" | "fit"
+let _frnCoachesMarketTraitFilter = "";
+let _frnCoachesMarketFormerOnly = false;
+let _frnCoachesCompare = [];  // array of {role,idx,name}
+
 function frnSetCoachesSubTab(id) {
   if (!["staff","market","league"].includes(id)) return;
   _frnCoachesSubTab = id;
   renderFrnCoachingStaff();
+}
+function _frnCoachesToggleCompare(role, idx, name) {
+  const i = _frnCoachesCompare.findIndex(x => x.role === role && x.idx === idx);
+  if (i >= 0) _frnCoachesCompare.splice(i, 1);
+  else {
+    if (_frnCoachesCompare.length >= 2) _frnCoachesCompare.shift();
+    _frnCoachesCompare.push({ role, idx, name });
+  }
+  renderFrnCoachingStaff();
+}
+function _frnCoachesClearCompare() { _frnCoachesCompare = []; renderFrnCoachingStaff(); }
+
+// True if this team's HC has been flagged as on the hot seat this season.
+function _isCoachHotSeat(teamId) {
+  return franchise.hotSeats?.[teamId] === franchise.season;
+}
+
+// Team's league rank in PPG. defensive=true → lowest PPG-allowed is #1.
+function _unitRankPPG(teamId, defensive = false) {
+  const rows = TEAMS.map(t => {
+    const s = franchise.standings?.[t.id] || { w:0, l:0, t:0, pf:0, pa:0 };
+    const gp = (s.w || 0) + (s.l || 0) + (s.t || 0);
+    const ppg = gp ? (defensive ? s.pa : s.pf) / gp : 0;
+    return { id: t.id, ppg, gp };
+  });
+  // Only rank teams with at least one game played
+  const ranked = rows.filter(r => r.gp > 0).sort((a, b) => defensive ? a.ppg - b.ppg : b.ppg - a.ppg);
+  const idx = ranked.findIndex(r => r.id === teamId);
+  if (idx < 0) return null;
+  return { rank: idx + 1, total: ranked.length, ppg: ranked[idx].ppg };
+}
+
+// Last N played-game results for the user's team — used in the HC card.
+function _hcRecentResults(myId, n = 3) {
+  return (franchise.schedule || [])
+    .filter(g => g.played && (g.homeId === myId || g.awayId === myId))
+    .sort((a, b) => a.week - b.week)
+    .slice(-n)
+    .map(g => {
+      const isHome = g.homeId === myId;
+      const my   = isHome ? g.homeScore : g.awayScore;
+      const them = isHome ? g.awayScore : g.homeScore;
+      return { result: my > them ? "W" : my < them ? "L" : "T", my, them, week: g.week, oppId: isHome ? g.awayId : g.homeId };
+    });
+}
+
+// Compare W% rank to talent (OFF+DEF) rank — large positive delta = HC
+// is squeezing more out of the roster than expected. Negative = the
+// talent's outrunning the staff.
+function _hcDelivering(myId) {
+  const s = franchise.standings?.[myId] || { w:0, l:0, t:0 };
+  const gp = (s.w || 0) + (s.l || 0) + (s.t || 0);
+  if (gp < 3) return null;
+  const ratingRanked = TEAMS.map(t => {
+    const r = frnTeamRating(t.id);
+    return { id: t.id, total: (r.off || 0) + (r.def || 0) };
+  }).sort((a, b) => b.total - a.total);
+  const ratingRank = ratingRanked.findIndex(x => x.id === myId) + 1;
+  const wpctRanked = TEAMS.map(t => {
+    const st = franchise.standings?.[t.id] || { w:0, l:0, t:0 };
+    const gp2 = (st.w || 0) + (st.l || 0) + (st.t || 0);
+    return { id: t.id, pct: gp2 ? (st.w + (st.t || 0) * 0.5) / gp2 : 0 };
+  }).sort((a, b) => b.pct - a.pct);
+  const wpctRank = wpctRanked.findIndex(x => x.id === myId) + 1;
+  const delta = ratingRank - wpctRank;  // positive = winning above your talent
+  if (delta >= 6) return { state: "delivering",   label: "✓ OUTPERFORMING", desc: `Winning ${delta} spots better than talent rank #${ratingRank}` };
+  if (delta <= -6) return { state: "underwater",  label: "✗ UNDERPERFORMING", desc: `Talent ranked #${ratingRank} but only #${wpctRank} in W%` };
+  return { state: "on_pace", label: "ON PACE", desc: `W% rank #${wpctRank} · talent rank #${ratingRank}` };
 }
 
 function renderFrnCoachingStaff() {
@@ -6231,15 +6306,40 @@ function renderFrnCoachingStaff() {
     : "";
 
   // ── HC Card ──
+  // Hot-seat chip, last-3-results strip, delivering pill — surfaced
+  // alongside the existing identity / traits / contract block so the
+  // user can read "how is the coach actually doing" without leaving
+  // the page.
+  const recent = hc ? _hcRecentResults(myId, 3) : [];
+  const recentStrip = recent.length
+    ? `<div class="frn-hc-recent-strip">
+        <span class="frn-hc-recent-label">L${recent.length}</span>
+        ${recent.map(r => {
+          const col = r.result === "W" ? "var(--green-lt)" : r.result === "L" ? "#ff8a8a" : "var(--gray)";
+          const opp = getTeam(r.oppId);
+          return `<span class="frn-hc-recent-game" style="border-color:${col}66;color:${col}" title="W${r.week} vs ${opp?.name||"?"} ${r.my}-${r.them}">
+            <b>${r.result}</b> ${r.my}–${r.them}
+          </span>`;
+        }).join("")}
+      </div>` : "";
+  const delivering = hc ? _hcDelivering(myId) : null;
+  const deliveringPill = delivering ? `<span class="frn-hc-delivering-pill ${delivering.state}" title="${delivering.desc}">${delivering.label}</span>` : "";
+  const hotSeat = hc && _isCoachHotSeat(myId);
+  const hotSeatChip = hotSeat ? `<span class="frn-hc-hotseat-chip" title="W% under .350 with 6+ games played — owner watching closely">🔥 HOT SEAT</span>` : "";
   const hcHtml = hc ? `
-    <div class="frn-coach-card frn-coach-hc">
+    <div class="frn-coach-card frn-coach-hc${hotSeat?" hot":""}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem">
         <div>
           <div style="font-size:.95rem;font-weight:700;color:var(--white)">${hc.name}</div>
           <div style="font-size:.65rem;color:var(--gray);margin-top:.1rem">HEAD COACH · Age ${hc.age||"?"} · ${hc.yearsWithTeam||0} yr${(hc.yearsWithTeam||0)===1?"":"s"} w/team</div>
         </div>
-        ${ratingBadge(hc.rating)}
+        <div style="display:flex;align-items:center;gap:.4rem;flex-shrink:0">
+          ${deliveringPill}
+          ${ratingBadge(hc.rating)}
+        </div>
       </div>
+      ${hotSeatChip ? `<div style="margin-top:.3rem">${hotSeatChip}</div>` : ""}
+      ${recentStrip}
       <div style="margin-top:.5rem;font-size:.7rem;display:flex;flex-wrap:wrap;gap:.3rem">
         <span style="background:rgba(255,255,255,.08);padding:.15rem .5rem;border-radius:3px">Culture: <b>${hc.cultureTrait||"—"}</b></span>
         <span style="background:rgba(255,255,255,.08);padding:.15rem .5rem;border-radius:3px">Specialty: <b>${hc.specialtyTrait||"—"}</b></span>
@@ -6269,6 +6369,21 @@ function renderFrnCoachingStaff() {
       ? `<div style="font-size:.63rem;color:var(--gold);margin:.25rem 0">Final contract year — extension needed${isLoyal?" · 🏠 Hometown discount applies":""}</div>`
       : "";
     const schemeKey = slot === "oc" ? OFF_SCHEME_MAP[coord.trait] : DEF_SCHEME_MAP[coord.trait];
+    // Unit-rank pill — concrete "how the unit is doing" context the
+    // user otherwise has to dig for. OC reads PPG scored, DC reads
+    // PPG allowed; tier breakpoints map to league quartiles.
+    const unitRank = _unitRankPPG(myId, slot === "dc");
+    const unitPill = unitRank ? (() => {
+      const { rank, total, ppg } = unitRank;
+      const tier = rank <= Math.ceil(total * 0.25) ? { col: "var(--green-lt)", label: rank <= 3 ? "ELITE" : "TOP-10" }
+                  : rank <= Math.ceil(total * 0.5)  ? { col: "var(--gold-lt)",  label: "ABOVE AVG" }
+                  : rank <= Math.ceil(total * 0.75) ? { col: "#e8a000",         label: "BELOW AVG" }
+                  :                                    { col: "#ff8a8a",        label: "BOTTOM-10" };
+      const metric = slot === "dc" ? "PPG allowed" : "PPG scored";
+      return `<span class="frn-coord-unit-pill" style="color:${tier.col};border-color:${tier.col}66" title="${metric} · ${ppg.toFixed(1)}">
+        #${rank} ${slot.toUpperCase()} · ${tier.label}
+      </span>`;
+    })() : "";
     return `
     <div class="frn-coach-card" style="${cYrs === 0 ? "border-color:var(--red);" : cYrs === 1 ? "border-color:var(--gold);" : ""}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.4rem">
@@ -6276,7 +6391,10 @@ function renderFrnCoachingStaff() {
           <div style="font-size:.8rem;font-weight:700;color:var(--white)">${coord.name}${isLoyal ? ` <span style="font-size:.6rem;color:var(--gold)">🏠</span>` : ""}</div>
           <div style="font-size:.62rem;color:var(--gray)">${label} · Age ${coord.age||"?"} · ${coord.yearsWithTeam||0} yr${(coord.yearsWithTeam||0)===1?"":"s"}</div>
         </div>
-        ${ratingBadge(coord.rating)}
+        <div style="display:flex;align-items:center;gap:.35rem;flex-shrink:0">
+          ${unitPill}
+          ${ratingBadge(coord.rating)}
+        </div>
       </div>
       ${expiryWarn}
       <div style="margin-top:.35rem;font-size:.68rem;display:flex;flex-wrap:wrap;gap:.35rem;align-items:center">
@@ -6407,7 +6525,33 @@ function renderFrnCoachingStaff() {
       <span style="opacity:.6;margin-left:.4rem">— a new HC has a 75% chance to change your OC (and thus your offense), 40% chance to change your DC</span>
     </div>`;
 
-  const marketHcHtml  = market.filter(c => c.type === "hc").map((c, i) => {
+  // Sort + filter helper for the market lists — preserves original
+  // type-pool index so frnHireCoachFromMarket(role, idx) keeps working.
+  const _filterSortMarket = (pool) => {
+    let list = pool.map((c, idx) => ({ c, idx }));
+    if (_frnCoachesMarketTraitFilter) {
+      list = list.filter(({ c }) => c.cultureTrait === _frnCoachesMarketTraitFilter
+        || c.specialtyTrait === _frnCoachesMarketTraitFilter
+        || c.trait === _frnCoachesMarketTraitFilter);
+    }
+    if (_frnCoachesMarketFormerOnly) {
+      list = list.filter(({ c }) => c.isFormerPlayer);
+    }
+    list.sort((a, b) => {
+      if (_frnCoachesMarketSort === "rating") return (b.c.rating || 0) - (a.c.rating || 0);
+      if (_frnCoachesMarketSort === "salary") return (a.c.salary || 0) - (b.c.salary || 0);
+      if (_frnCoachesMarketSort === "age")    return (a.c.age || 99) - (b.c.age || 99);
+      return 0;
+    });
+    return list;
+  };
+  // Compare toggle button — appears on every market card.
+  const _compareBtn = (role, idx, name) => {
+    const isOn = _frnCoachesCompare.some(x => x.role === role && x.idx === idx);
+    const escName = String(name || "").replace(/'/g,"\\'");
+    return `<button class="frn-coach-compare-btn${isOn?" on":""}" onclick="event.stopPropagation();_frnCoachesToggleCompare('${role}',${idx},'${escName}')" title="Add to compare (max 2)">${isOn?"✓ Comparing":"⇆ Compare"}</button>`;
+  };
+  const marketHcHtml  = _filterSortMarket(market.filter(c => c.type === "hc")).map(({ c, idx: i }) => {
     const fmrBadge = c.isFormerPlayer
       ? `<span style="font-size:.58rem;padding:.1rem .35rem;border-radius:3px;background:rgba(255,200,0,.18);color:var(--gold);border:1px solid rgba(255,200,0,.4);white-space:nowrap;margin-left:.3rem">🏈 Ex-${c.formerPos||"?"}${c.peakOvr?" OVR "+c.peakOvr:""}${c.proBowls>0?" "+c.proBowls+"xPB":""}${c.sbRings>0?" "+c.sbRings+"xSB":""}</span>`
       : "";
@@ -6456,13 +6600,16 @@ function renderFrnCoachingStaff() {
           ${c.isFormerPlayer && c.careerStatLine ? `<div style="font-size:.58rem;color:var(--gray);margin-top:.1rem">${c.careerStatLine}</div>` : ""}
           ${proposedHtml}
         </div>
-        <button class="btn btn-outline" style="font-size:.65rem;white-space:nowrap;align-self:flex-start"
-          onclick="frnHireCoachFromMarket('hc',${i})">Hire as HC</button>
+        <div style="display:flex;flex-direction:column;gap:.3rem;align-self:flex-start;flex-shrink:0">
+          <button class="btn btn-outline" style="font-size:.65rem;white-space:nowrap"
+            onclick="frnHireCoachFromMarket('hc',${i})">Hire as HC</button>
+          ${_compareBtn("hc", i, c.name)}
+        </div>
       </div>
     </div>`;
-  }).join("") || `<div style="color:var(--gray);font-size:.72rem;font-style:italic">No HC candidates available.</div>`;
+  }).join("") || `<div style="color:var(--gray);font-size:.72rem;font-style:italic">No HC candidates match the current filters.</div>`;
 
-  const marketOCHtml  = market.filter(c => c.type === "oc").map((c, i) => {
+  const marketOCHtml  = _filterSortMarket(market.filter(c => c.type === "oc")).map(({ c, idx: i }) => {
     const scheme = OFF_SCHEME_MAP[c.trait];
     const preview = scheme ? _schemePreviewHtml("off", scheme, myId) : "";
     const fmrBadge = c.isFormerPlayer
@@ -6481,13 +6628,16 @@ function renderFrnCoachingStaff() {
           ${c.isFormerPlayer && c.careerStatLine ? `<div style="font-size:.58rem;color:var(--gray);margin-top:.1rem">${c.careerStatLine}</div>` : ""}
           ${preview}
         </div>
-        <button class="btn btn-outline" style="font-size:.65rem;white-space:nowrap;align-self:flex-start"
-          onclick="frnHireCoachFromMarket('oc',${i})">Hire as OC</button>
+        <div style="display:flex;flex-direction:column;gap:.3rem;align-self:flex-start;flex-shrink:0">
+          <button class="btn btn-outline" style="font-size:.65rem;white-space:nowrap"
+            onclick="frnHireCoachFromMarket('oc',${i})">Hire as OC</button>
+          ${_compareBtn("oc", i, c.name)}
+        </div>
       </div>
     </div>`;
-  }).join("") || `<div style="color:var(--gray);font-size:.72rem;font-style:italic">No OC candidates available.</div>`;
+  }).join("") || `<div style="color:var(--gray);font-size:.72rem;font-style:italic">No OC candidates match the current filters.</div>`;
 
-  const marketDCHtml  = market.filter(c => c.type === "dc").map((c, i) => {
+  const marketDCHtml  = _filterSortMarket(market.filter(c => c.type === "dc")).map(({ c, idx: i }) => {
     const scheme = DEF_SCHEME_MAP[c.trait];
     const preview = scheme ? _schemePreviewHtml("def", scheme, myId) : "";
     const fmrBadge = c.isFormerPlayer
@@ -6506,11 +6656,14 @@ function renderFrnCoachingStaff() {
           ${c.isFormerPlayer && c.careerStatLine ? `<div style="font-size:.58rem;color:var(--gray);margin-top:.1rem">${c.careerStatLine}</div>` : ""}
           ${preview}
         </div>
-        <button class="btn btn-outline" style="font-size:.65rem;white-space:nowrap;align-self:flex-start"
-          onclick="frnHireCoachFromMarket('dc',${i})">Hire as DC</button>
+        <div style="display:flex;flex-direction:column;gap:.3rem;align-self:flex-start;flex-shrink:0">
+          <button class="btn btn-outline" style="font-size:.65rem;white-space:nowrap"
+            onclick="frnHireCoachFromMarket('dc',${i})">Hire as DC</button>
+          ${_compareBtn("dc", i, c.name)}
+        </div>
       </div>
     </div>`;
-  }).join("") || `<div style="color:var(--gray);font-size:.72rem;font-style:italic">No DC candidates available.</div>`;
+  }).join("") || `<div style="color:var(--gray);font-size:.72rem;font-style:italic">No DC candidates match the current filters.</div>`;
 
   // ── Chemistry Panel ──
   const chem      = staff._chemistry || {};
@@ -6579,11 +6732,91 @@ function renderFrnCoachingStaff() {
     const labels = { all:"ALL", hc:"HC", oc:"OC", dc:"DC", pos:"POSITION" };
     return `<button class="frn-subnav-btn${_activeRoleFilter===r?" active":""}" onclick="_frnCoachesMarketRole='${r}';renderFrnCoachingStaff()">${labels[r]}</button>`;
   }).join("");
+
+  // Collect all unique traits across the market for the filter dropdown.
+  const allTraits = new Set();
+  for (const c of market) {
+    if (c.cultureTrait) allTraits.add(c.cultureTrait);
+    if (c.specialtyTrait) allTraits.add(c.specialtyTrait);
+    if (c.trait) allTraits.add(c.trait);
+  }
+  const traitOpts = [...allTraits].sort().map(t =>
+    `<option value="${t}" ${t===_frnCoachesMarketTraitFilter?"selected":""}>${t}</option>`).join("");
+
+  // Sort + filter controls bar
+  const marketControlsHtml = `
+    <div class="frn-coach-market-controls">
+      <label class="frn-cm-ctrl">
+        <span class="frn-cm-ctrl-lbl">SORT</span>
+        <select onchange="_frnCoachesMarketSort=this.value;renderFrnCoachingStaff()">
+          <option value="rating" ${_frnCoachesMarketSort==="rating"?"selected":""}>Rating ↓</option>
+          <option value="salary" ${_frnCoachesMarketSort==="salary"?"selected":""}>Salary ↑</option>
+          <option value="age"    ${_frnCoachesMarketSort==="age"?"selected":""}>Age ↑</option>
+        </select>
+      </label>
+      <label class="frn-cm-ctrl">
+        <span class="frn-cm-ctrl-lbl">TRAIT</span>
+        <select onchange="_frnCoachesMarketTraitFilter=this.value;renderFrnCoachingStaff()">
+          <option value="">— any —</option>
+          ${traitOpts}
+        </select>
+      </label>
+      <label class="frn-cm-ctrl frn-cm-toggle">
+        <input type="checkbox" ${_frnCoachesMarketFormerOnly?"checked":""}
+          onchange="_frnCoachesMarketFormerOnly=this.checked;renderFrnCoachingStaff()">
+        Former player only
+      </label>
+      ${(_frnCoachesMarketTraitFilter || _frnCoachesMarketFormerOnly || _frnCoachesMarketSort !== "rating") ? `<button class="frn-cm-clear" onclick="_frnCoachesMarketSort='rating';_frnCoachesMarketTraitFilter='';_frnCoachesMarketFormerOnly=false;renderFrnCoachingStaff()">× Reset</button>` : ""}
+    </div>`;
+
+  // Compare panel — renders only when 2 candidates picked. Resolves
+  // each pick back to the original market pool by role + idx.
+  let compareHtml = "";
+  if (_frnCoachesCompare.length >= 1) {
+    const resolved = _frnCoachesCompare.map(({ role, idx, name }) => {
+      const pool = market.filter(c => c.type === role);
+      const c = pool[idx];
+      return { role, idx, name: c?.name || name, c };
+    });
+    const cards = resolved.map(({ role, c, name }) => {
+      if (!c) return `<div class="frn-cm-compare-card empty"><b>${name}</b><div style="color:var(--gray);font-size:.6rem">no longer in market</div></div>`;
+      const scheme = role === "oc" ? OFF_SCHEME_MAP[c.trait] : role === "dc" ? DEF_SCHEME_MAP[c.trait] : null;
+      return `<div class="frn-cm-compare-card">
+        <div class="frn-cm-compare-head">
+          <span class="frn-cm-compare-role">${role.toUpperCase()}</span>
+          ${ratingBadge(c.rating)}
+        </div>
+        <div class="frn-cm-compare-name">${c.name}</div>
+        <div class="frn-cm-compare-row"><span>Age</span><b>${c.age||"?"}</b></div>
+        <div class="frn-cm-compare-row"><span>Salary</span><b>$${(c.salary||0).toFixed(1)}M/yr</b></div>
+        ${role === "hc"
+          ? `<div class="frn-cm-compare-row"><span>Culture</span><b>${c.cultureTrait||"—"}</b></div>
+             <div class="frn-cm-compare-row"><span>Specialty</span><b>${c.specialtyTrait||"—"}</b></div>`
+          : `<div class="frn-cm-compare-row"><span>Trait</span><b>${c.trait||"—"}</b></div>
+             ${scheme?`<div class="frn-cm-compare-row"><span>Scheme</span><b>${scheme}</b></div>`:""}`
+        }
+        ${c.isFormerPlayer ? `<div class="frn-cm-compare-row"><span>Ex-player</span><b style="color:var(--gold)">${c.formerPos||"?"} · OVR ${c.peakOvr||"?"}</b></div>` : ""}
+        <button class="btn btn-outline" style="font-size:.62rem;margin-top:.35rem;width:100%"
+          onclick="frnHireCoachFromMarket('${role}',${resolved.find(r => r.role===role && r.name===name).idx})">Hire</button>
+      </div>`;
+    }).join("");
+    compareHtml = `
+      <div class="frn-cm-compare-strip">
+        <div class="frn-cm-compare-head-row">
+          <span class="frn-cm-compare-title">⇆ COMPARING ${_frnCoachesCompare.length}/2</span>
+          <button class="frn-cm-clear" onclick="_frnCoachesClearCompare()">× Clear</button>
+        </div>
+        <div class="frn-cm-compare-grid">${cards}</div>
+        ${_frnCoachesCompare.length === 1 ? `<div style="font-size:.58rem;color:var(--gray);margin-top:.3rem;text-align:center">Pick a second candidate to compare side-by-side.</div>` : ""}
+      </div>`;
+  }
   const positionMarketHtml = `<div style="color:var(--gray);font-size:.7rem;margin:.3rem 0 .5rem">Browse position-coach candidates from the My Staff → Position Staff section. Each empty slot has its own ${`<b>Hire</b>`} button that opens a focused candidate pool.</div>`;
   const marketTabHtml = market.length === 0 && !showPos
     ? `${budgetHtml}<div style="color:var(--gray);font-size:.78rem;font-style:italic;margin:.6rem 0;padding:.7rem .9rem;background:rgba(255,255,255,.04);border:1px dashed rgba(255,255,255,.2);border-radius:6px">No HC/OC/DC market right now — those candidates open up after the season ends. Position coaches are always available from the My Staff tab.</div>`
     : `${budgetHtml}
+       ${compareHtml}
        <div class="frn-subnav" style="margin:.5rem 0">${marketRoleNav}</div>
+       ${marketControlsHtml}
        ${showHC ? `<div class="frn-sec-title" style="margin-top:.8rem">Head Coach Candidates</div>${hcMarketSchemeNote}${marketHcHtml}` : ""}
        ${showOC ? `<div class="frn-sec-title" style="margin-top:.8rem">Offensive Coordinators</div>${marketOCHtml}` : ""}
        ${showDC ? `<div class="frn-sec-title" style="margin-top:.8rem">Defensive Coordinators</div>${marketDCHtml}` : ""}
@@ -6624,9 +6857,6 @@ function renderFrnCoachingStaff() {
     </div>`;
 }
 
-// Module-level filter for which role to show in the Market sub-tab.
-let _frnCoachesMarketRole = "all";
-
 // ── League coaches sub-tab ───────────────────────────────────────────
 // Aggregates every team's HC, the COTY race, recent coach-related news,
 // and any free-agent coaches (recently fired) you could potentially
@@ -6639,7 +6869,7 @@ function _renderLeagueCoachesTab(myId) {
     const games = stand.w + stand.l + (stand.t || 0);
     const pct = games ? (stand.w / games) : 0;
     const isMine = t.id === myId;
-    const hotSeat = staff._hcHotSeat;
+    const hotSeat = _isCoachHotSeat(t.id);
     return { t, hc, stand, games, pct, isMine, hotSeat };
   }).sort((a, b) => b.pct - a.pct || b.stand.w - a.stand.w);
 

@@ -4908,6 +4908,112 @@
     font-weight: 700;
   }
 
+  /* ── Coaches: HC + coordinator card additions ─────────────────────── */
+  .frn-coach-hc.hot {
+    border-color: #ff8a8a !important;
+    box-shadow: inset 0 0 0 1px rgba(255,138,138,.4);
+  }
+  .frn-hc-hotseat-chip {
+    display: inline-block; font-size: .58rem; font-weight: 800; letter-spacing: .5px;
+    padding: .12rem .45rem; border: 1px solid #ff8a8a;
+    background: rgba(255,138,138,.12); color: #ff8a8a; border-radius: 2px;
+  }
+  .frn-hc-recent-strip {
+    display: flex; align-items: center; gap: .25rem; margin-top: .35rem;
+    flex-wrap: wrap;
+  }
+  .frn-hc-recent-label {
+    font-size: .55rem; letter-spacing: .5px; color: var(--blgray);
+    font-weight: 700; margin-right: .2rem;
+  }
+  .frn-hc-recent-game {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    font-size: .58rem; padding: .1rem .35rem; border: 1px solid;
+    background: rgba(0,0,0,.25); border-radius: 2px;
+  }
+  .frn-hc-delivering-pill {
+    font-size: .54rem; font-weight: 800; letter-spacing: .4px;
+    padding: .1rem .35rem; border: 1px solid; border-radius: 2px;
+    background: rgba(0,0,0,.25);
+  }
+  .frn-hc-delivering-pill.delivering { color: var(--green-lt); border-color: var(--green-lt); }
+  .frn-hc-delivering-pill.on_pace    { color: var(--gold-lt);  border-color: var(--gold-lt); }
+  .frn-hc-delivering-pill.underwater { color: #ff8a8a;          border-color: #ff8a8a; }
+  .frn-coord-unit-pill {
+    font-size: .54rem; font-weight: 800; letter-spacing: .4px;
+    padding: .1rem .35rem; border: 1px solid; border-radius: 2px;
+    background: rgba(0,0,0,.25);
+  }
+
+  /* Coaches market: sort/filter controls + compare strip */
+  .frn-coach-market-controls {
+    display: flex; gap: .55rem; align-items: center; flex-wrap: wrap;
+    padding: .4rem .55rem; margin: .35rem 0;
+    background: var(--bg2); border: 1px solid var(--border);
+  }
+  .frn-cm-ctrl { display: flex; align-items: center; gap: .3rem; font-size: .6rem; }
+  .frn-cm-ctrl-lbl { color: var(--blgray); letter-spacing: .5px; font-weight: 700; }
+  .frn-cm-ctrl select {
+    background: var(--bg3); color: var(--blwhite);
+    border: 1px solid var(--border); padding: .12rem .35rem;
+    font-family: inherit; font-size: .64rem;
+  }
+  .frn-cm-toggle { color: var(--gray); cursor: pointer; }
+  .frn-cm-toggle input { margin-right: .25rem; }
+  .frn-cm-clear {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--gray); padding: .12rem .4rem; font-size: .58rem;
+    cursor: pointer; font-family: inherit;
+  }
+  .frn-cm-clear:hover { color: var(--blwhite); border-color: var(--blwhite); }
+  .frn-coach-compare-btn {
+    font-size: .55rem; letter-spacing: .4px; padding: .15rem .4rem;
+    background: var(--bg3); color: var(--gray);
+    border: 1px solid var(--border); border-radius: 2px;
+    cursor: pointer; font-family: inherit;
+  }
+  .frn-coach-compare-btn:hover { color: var(--gold-lt); border-color: var(--gold-lt); }
+  .frn-coach-compare-btn.on {
+    color: var(--gold); border-color: var(--gold);
+    background: rgba(212,175,55,.1); font-weight: 700;
+  }
+  .frn-cm-compare-strip {
+    background: var(--bg2); border: 1px solid var(--gold-lt);
+    box-shadow: 0 0 0 1px rgba(212,175,55,.18);
+    padding: .55rem .65rem; margin: .35rem 0;
+  }
+  .frn-cm-compare-head-row {
+    display: flex; align-items: center; gap: .5rem; margin-bottom: .4rem;
+  }
+  .frn-cm-compare-title {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: .78rem; letter-spacing: 1.3px; color: var(--gold);
+  }
+  .frn-cm-compare-head-row .frn-cm-clear { margin-left: auto; }
+  .frn-cm-compare-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: .45rem;
+  }
+  @media (max-width: 700px) { .frn-cm-compare-grid { grid-template-columns: 1fr; } }
+  .frn-cm-compare-card {
+    background: var(--bg3); border: 1px solid var(--border);
+    padding: .5rem .6rem; display: flex; flex-direction: column; gap: .15rem;
+  }
+  .frn-cm-compare-card.empty { color: var(--gray); }
+  .frn-cm-compare-head { display: flex; align-items: center; gap: .35rem; }
+  .frn-cm-compare-role {
+    font-size: .55rem; letter-spacing: .5px; color: var(--blgray);
+    font-weight: 800;
+  }
+  .frn-cm-compare-name {
+    font-size: .82rem; font-weight: 700; color: var(--blwhite); margin: .15rem 0;
+  }
+  .frn-cm-compare-row {
+    display: flex; justify-content: space-between; gap: .35rem;
+    font-size: .6rem; padding: .08rem 0;
+  }
+  .frn-cm-compare-row > span { color: var(--gray); letter-spacing: .3px; }
+  .frn-cm-compare-row > b { color: var(--blwhite); font-family: "IBM Plex Mono","JetBrains Mono",monospace; }
+
   /* Tab landing tiles (Tools / future) */
   .frn-tab-landing { padding: .8rem .2rem; }
   .frn-tab-landing-title {
