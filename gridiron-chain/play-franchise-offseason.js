@@ -863,7 +863,7 @@ function frnSimOnce(homeId, awayId, isPlayoff = false) {
   // Stamp gameday context onto the result so callers can persist it
   r.weather = sim.weather;
   r.isRivalry = isRivalry;
-  mergeSeasonStats(homeId, awayId, r.stats);
+  mergeSeasonStats(homeId, awayId, r.stats, _gameMergeKey(homeId, awayId, isPlayoff));
   _updateSingleGameRecords(homeId, awayId, r.stats, franchise.week, isPlayoff);
   captureGameHighlights(homeId, awayId, r.plays, isPlayoff,
     isPlayoff ? `Playoff R${(franchise.playoffBracket?.roundIdx ?? 0) + 1}` : `W${franchise.week}`);
@@ -1493,7 +1493,7 @@ function frnFinishGame() {
 
   // Capture stats and highlights from the played game
   if (gameResult) {
-    mergeSeasonStats(homeId, awayId, gameResult.stats);
+    mergeSeasonStats(homeId, awayId, gameResult.stats, _gameMergeKey(homeId, awayId, isPlayoff));
     captureGameHighlights(homeId, awayId, gameResult.plays, isPlayoff,
       isPlayoff ? `Playoff R${(franchise.playoffBracket?.roundIdx ?? 0) + 1}` : `W${franchise.week}`);
   }
@@ -5139,6 +5139,7 @@ function frnNewSeason() {
   franchise.pendingFranchiseGame = null;
   franchise._offChanges   = null;
   franchise.seasonStats   = {};
+  franchise._mergedGameKeys = {};
   franchise.seasonHighlights = [];
   franchise.superBowlGame = null;
   franchise.faNegotiations = {};

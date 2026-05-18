@@ -4110,10 +4110,32 @@ function mvpStatLine(p) {
   return parts.join(" · ");
 }
 
+// Unique key for a scheduled game — lets mergeSeasonStats stay idempotent
+// across reruns (refresh mid-game, Sim Week racing with frnFinishGame, etc.).
+function _gameMergeKey(homeId, awayId, isPlayoff) {
+  const s = franchise?.season ?? 1;
+  if (isPlayoff) {
+    const rIdx = franchise?.playoffBracket?.roundIdx ?? 0;
+    return `S${s}-PR${rIdx}-${homeId}-${awayId}`;
+  }
+  return `S${s}-W${franchise?.week ?? 0}-${homeId}-${awayId}`;
+}
+
 // Merge a single game's per-player stats into season-long totals.
-function mergeSeasonStats(homeId, awayId, gameStats) {
+// gameKey (optional) gates duplicate merges — if the same game is merged
+// twice (e.g. user finishes their live game AND a later Sim Week sees the
+// schedule entry still marked unplayed), the second call no-ops.
+function mergeSeasonStats(homeId, awayId, gameStats, gameKey) {
   if (!gameStats) return;
   if (!franchise.seasonStats) franchise.seasonStats = {};
+  if (!franchise._mergedGameKeys) franchise._mergedGameKeys = {};
+  if (gameKey) {
+    if (franchise._mergedGameKeys[gameKey]) {
+      console.warn(`[seasonStats] skipping duplicate merge for ${gameKey}`);
+      return;
+    }
+    franchise._mergedGameKeys[gameKey] = true;
+  }
   const merge = (teamId, side) => {
     if (!side || !side.players) return;
     if (!franchise.seasonStats[teamId]) franchise.seasonStats[teamId] = {};
@@ -4129,6 +4151,29 @@ function mergeSeasonStats(homeId, awayId, gameStats) {
   };
   merge(homeId, gameStats.home);
   merge(awayId, gameStats.away);
+}
+
+// Rebuild franchise.seasonStats from the per-game stat blobs stored on the
+// schedule (and playoff bracket). Used as a one-time repair for saves
+// created before mergeSeasonStats became idempotent — older saves could
+// double-count if any path called the merge twice for the same game.
+function _repairSeasonStatsFromSchedule() {
+  if (!franchise) return;
+  franchise.seasonStats = {};
+  franchise._mergedGameKeys = {};
+  for (const g of franchise.schedule || []) {
+    if (!g.played || !g.stats) continue;
+    const key = `S${franchise.season}-W${g.week}-${g.homeId}-${g.awayId}`;
+    mergeSeasonStats(g.homeId, g.awayId, g.stats, key);
+  }
+  const rounds = franchise.playoffBracket?.rounds || [];
+  rounds.forEach((round, rIdx) => {
+    for (const m of round || []) {
+      if (!m?.played || !m.stats) continue;
+      const key = `S${franchise.season}-PR${rIdx}-${m.homeId}-${m.awayId}`;
+      mergeSeasonStats(m.homeId, m.awayId, m.stats, key);
+    }
+  });
 }
 
 // Pull the top 4-5 highlight-worthy plays from a game; weight by clutch

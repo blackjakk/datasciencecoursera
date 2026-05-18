@@ -7,6 +7,11 @@ function showFranchiseDashboard() {
   // Defensive defaults for older saves missing newer fields
   if (!franchise.phase)            franchise.phase = "regular";
   if (!franchise.seasonStats)      franchise.seasonStats = {};
+  // One-time repair for saves predating idempotent stat-merge. If the
+  // merged-game tracker is missing, the save may have double-counted
+  // games whose markGamePlayed silently failed before a later Sim Week
+  // re-merged them. Rebuild seasonStats from per-game schedule blobs.
+  if (!franchise._mergedGameKeys) _repairSeasonStatsFromSchedule();
   if (!franchise.seasonHighlights) franchise.seasonHighlights = [];
   if (!franchise.history)          franchise.history = [];
   if (!franchise.rosters)          franchise.rosters = {};
