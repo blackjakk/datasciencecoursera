@@ -30,6 +30,15 @@ function showFranchiseDashboard() {
     try { _repairNewsPidNames(); } catch (e) { console.warn("[news pid repair]", e); }
     franchise._pidNamesRepaired = true;
   }
+  // One-time repair for contracts whose aav was clobbered by the
+  // assignContracts retrofit pass (triggered when a fresh signing
+  // lacked signedAav). baseSalaries + signingBonus still reflect the
+  // true deal — recompute aav from them when there's a meaningful
+  // mismatch.
+  if (!franchise._contractAavRepaired) {
+    try { _repairClobberedAavs(); } catch (e) { console.warn("[aav repair]", e); }
+    franchise._contractAavRepaired = true;
+  }
   if (!franchise.seasonHighlights) franchise.seasonHighlights = [];
   if (!franchise.history)          franchise.history = [];
   if (!franchise.rosters)          franchise.rosters = {};
@@ -1460,6 +1469,31 @@ function _pushNews(item) {
   // Cap kept high so a multi-season wire history survives. Each entry
   // is ~120 bytes so 500 entries is still small in localStorage.
   if (franchise.news.length > 500) franchise.news = franchise.news.slice(-500);
+}
+
+// One-time migration: recompute contract.aav from baseSalaries +
+// signingBonus when assignContracts' legacy-retrofit pass overwrote it
+// (it scaled aav to market value but left baseSalaries / bonusProration
+// alone). Only writes back when the implied AAV differs from the stored
+// one by ≥ $0.5M, so clean contracts aren't touched.
+function _repairClobberedAavs() {
+  if (!franchise?.rosters) return;
+  for (const roster of Object.values(franchise.rosters)) {
+    for (const p of roster) {
+      const c = p?.contract;
+      if (!c || !Array.isArray(c.baseSalaries) || !c.years) continue;
+      const baseSum = c.baseSalaries.reduce((s, v) => s + (+v || 0), 0);
+      const sigBonus = +c.signingBonus || 0;
+      const realAav = Math.round(((baseSum + sigBonus) / c.years) * 10) / 10;
+      if (realAav > 0 && Math.abs(realAav - (c.aav || 0)) >= 0.5) {
+        c.aav = realAav;
+        if (c.signedAav == null || Math.abs(c.signedAav - realAav) >= 0.5) c.signedAav = realAav;
+        if (c.guaranteedAAV == null) c.guaranteedAAV = realAav;
+      } else if (c.signedAav == null) {
+        c.signedAav = c.aav;
+      }
+    }
+  }
 }
 
 // One-time migration: news/_faLastNews entries written before the
@@ -3314,6 +3348,9 @@ function _faResolveAfterWeek(week, isSeasonEnd) {
         guaranteedYears: _guaranteedYearsForLength(highYrs),
         guaranteedAAV: highAav,
         incentives: _generateIncentives(n.fa, highAav),
+        // signedAav prevents assignContracts' legacy-save retrofit pass
+        // from clobbering this AAV back down to computed market value.
+        signedAav: highAav,
       };
       n.state = "signed";
       n.signedToTeamId = highId;
@@ -3493,6 +3530,7 @@ function _faTryKnockout(negKey) {
     guaranteedYears: _guaranteedYearsForLength(high.years),
     guaranteedAAV: high.aav,
     incentives: _generateIncentives(n.fa, high.aav),
+    signedAav: high.aav,
   };
   n.state = "signed";
   n.signedToTeamId = high.teamId;

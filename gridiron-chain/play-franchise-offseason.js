@@ -3847,6 +3847,7 @@ function frnHoldoutExtend(name) {
     years: h.demandedYears,
     remaining: h.demandedYears,
     aav: h.demandedAAV,
+    signedAav: h.demandedAAV,
   };
   h.resolved = "extended";
   saveFranchise();
@@ -4972,7 +4973,7 @@ function runFrnOffseason() {
             p.contract = generateContract(p, franchise.salaryCap || SALARY_CAP_BASE);
           } else {
             // Declined — give a minimum deal so they don't disappear
-            p.contract = { years: 1, remaining: 1, aav: 0.5 };
+            p.contract = { years: 1, remaining: 1, aav: 0.5, signedAav: 0.5 };
           }
         }
       }

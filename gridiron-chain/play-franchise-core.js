@@ -279,7 +279,18 @@ function assignContracts(rosters, cap) {
     }
 
     // Retrofit older saves: apply negotiation variance, normalise so AAV total is preserved.
-    const needsRetrofit = roster.some(p => p.contract && p.contract.signedAav == null);
+    // Only treat as a true legacy save when the bulk of the roster lacks signedAav —
+    // otherwise a single fresh signing without the field would clobber every
+    // contract on the roster (e.g. a mid-season FA bid going from $27.9M → market $13M).
+    const missingCount = roster.filter(p => p.contract && p.contract.signedAav == null).length;
+    const isLegacy     = roster.length > 0 && missingCount >= roster.length * 0.5;
+    if (!isLegacy) {
+      // Stamp signedAav on any individual stragglers so future loads don't trip.
+      for (const p of roster) {
+        if (p.contract && p.contract.signedAav == null) p.contract.signedAav = p.contract.aav;
+      }
+    }
+    const needsRetrofit = isLegacy;
     if (!needsRetrofit) {
       // Backfill signing-bonus fields for saves that pre-date this feature.
       for (const p of roster) {
@@ -1640,7 +1651,7 @@ function _psPoachPass() {
       if (idx !== -1) {
         const player = ps.splice(idx, 1)[0];
         player.contract = { years: 2, remaining: 2, aav: 1.0,
-          guaranteedYears: 1, guaranteedAAV: 1.0 };
+          guaranteedYears: 1, guaranteedAAV: 1.0, signedAav: 1.0 };
         (franchise.rosters[a.suitorTeamId] || []).push(player);
         _pushNews({ type:"ps_lost",
           label: `❌ Lost ${player.position} ${player.name} — signed by ${getTeam(a.suitorTeamId)?.name} off your PS` });
@@ -1659,6 +1670,7 @@ function _psPromote(teamId, player, opts = {}) {
   player.contract = {
     years: 2, remaining: 2, aav: 1.0,
     guaranteedYears: 1, guaranteedAAV: 1.0,
+    signedAav: 1.0,
   };
   delete player._psFlashLog; delete player._psStashedSeason;
   (franchise.rosters[teamId] || []).push(player);
