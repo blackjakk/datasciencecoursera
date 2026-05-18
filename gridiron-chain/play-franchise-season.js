@@ -137,11 +137,20 @@ function showFranchiseDashboard() {
 
   $("franchiseHome").style.display = "block";
   const { phase } = franchise;
+  // Regular-season → playoffs transition screen. Detected by: phase
+  // still "regular", every week of the season played, no bracket built
+  // yet. Replaces the dashboard entirely so the moment feels like an
+  // actual milestone instead of another button to click.
+  const seasonOver = (franchise.week || 1) > FRANCHISE_WEEKS;
+  const showRecap = phase === "regular" && seasonOver && !franchise.playoffBracket
+    && typeof renderFrnSeasonRecap === "function";
+
   // App shell shows only during the regular season — playoffs / offseason /
-  // free agency / draft each have their own self-contained UIs.
+  // free agency / draft each have their own self-contained UIs. Also
+  // hidden during the season recap (full-screen takeover).
   const shellEl = $("frnAppShell");
   if (shellEl) {
-    if (phase === "regular") {
+    if (phase === "regular" && !showRecap) {
       shellEl.style.display = "block";
       if (typeof _frnRenderAppShell === "function") _frnRenderAppShell();
     } else {
@@ -149,7 +158,8 @@ function showFranchiseDashboard() {
     }
   }
   try {
-    if      (phase === "preseason")            renderFrnPreseason();
+    if      (showRecap)                        renderFrnSeasonRecap();
+    else if (phase === "preseason")            renderFrnPreseason();
     else if (phase === "free_agency")          renderFrnFA();
     else if (phase === "free_agency_results")  renderFrnFAResults();
     else if (phase === "fa_cuts")              renderFrnFACuts();

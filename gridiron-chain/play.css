@@ -5215,6 +5215,268 @@
   .frn-tab-tile-sub { font-size: .65rem; color: var(--gray); }
 
   /* Slim identity strip on the Overview tab (banner replacement) */
+  /* ── Season Recap (reg → playoffs transition) ─────────────────────────── */
+  .frn-recap-wrap {
+    max-width: 1240px; margin: 0 auto; padding: .25rem 0 1.2rem;
+    display: flex; flex-direction: column; gap: 1rem;
+  }
+  .frn-recap-hero {
+    position: relative;
+    background: linear-gradient(135deg, rgba(212,175,55,.10) 0%, var(--bg2) 60%);
+    border: 1px solid var(--gold-lt); border-radius: 4px;
+    padding: 1.5rem 1.4rem 1.2rem;
+    text-align: center;
+  }
+  .frn-recap-hero-eyebrow {
+    font-size: .68rem; letter-spacing: 4px; color: var(--gold);
+    font-weight: 700; margin-bottom: .3rem;
+  }
+  .frn-recap-hero-title {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 2.6rem; letter-spacing: 3px; color: var(--blwhite);
+    margin: 0 0 .35rem; line-height: 1;
+  }
+  @media (max-width: 700px) { .frn-recap-hero-title { font-size: 1.8rem; letter-spacing: 2px; } }
+  .frn-recap-hero-sub { font-size: .72rem; color: var(--gray); margin-bottom: 1rem; }
+
+  .frn-recap-status {
+    display: inline-flex; flex-direction: column; align-items: center;
+    padding: .7rem 1.4rem; border-radius: 4px;
+    border: 1px solid;
+    background: rgba(0,0,0,.3);
+  }
+  .frn-recap-status.in {
+    border-color: var(--accent, var(--gold));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+  .frn-recap-status.out { border-color: #c08080; }
+  .frn-recap-status-lbl {
+    font-size: .58rem; letter-spacing: 3px; font-weight: 800;
+    color: var(--gray); margin-bottom: .25rem;
+  }
+  .frn-recap-status.in .frn-recap-status-lbl { color: var(--accent, var(--gold)); }
+  .frn-recap-status.out .frn-recap-status-lbl { color: #c08080; }
+  .frn-recap-status-main {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1.8rem; letter-spacing: 2px; color: var(--blwhite);
+    line-height: 1.05;
+  }
+  .frn-recap-status-sub {
+    font-size: .65rem; color: var(--gray); margin-top: .25rem;
+  }
+
+  .frn-recap-card {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 3px;
+    padding: .85rem 1rem;
+  }
+  .frn-recap-card-title {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: .95rem; letter-spacing: 1.6px; color: var(--gold);
+    margin-bottom: .6rem;
+  }
+  .frn-recap-card-title .sub {
+    font-family: inherit; font-size: .55rem; letter-spacing: 1px;
+    color: var(--gray); font-weight: 400; margin-left: .4rem;
+  }
+
+  /* Your-season card */
+  .frn-recap-your { border-left: 4px solid var(--accent, var(--gold)); }
+  .frn-recap-team-head {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: .6rem; gap: 1rem;
+  }
+  .frn-recap-team-name {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1.45rem; letter-spacing: 2px; color: var(--blwhite);
+  }
+  .frn-recap-team-rec {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    font-size: 1.7rem; font-weight: 900; color: var(--accent, var(--gold));
+  }
+  .frn-recap-team-grid {
+    display: grid; grid-template-columns: repeat(8, 1fr); gap: .35rem;
+    background: rgba(0,0,0,.25); padding: .55rem; border-radius: 3px;
+    margin-bottom: .55rem;
+  }
+  @media (max-width: 700px) { .frn-recap-team-grid { grid-template-columns: repeat(4, 1fr); } }
+  .frn-recap-team-grid > div {
+    display: flex; flex-direction: column; align-items: center; gap: .12rem;
+  }
+  .frn-recap-team-grid .lbl {
+    font-size: .5rem; letter-spacing: 1px; color: var(--blgray); font-weight: 700;
+  }
+  .frn-recap-team-grid .val {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    font-size: .95rem; font-weight: 700; color: var(--blwhite);
+  }
+  .frn-recap-form-row {
+    display: flex; align-items: center; gap: .55rem; margin-bottom: .5rem;
+    font-size: .72rem; padding: .25rem 0;
+  }
+  .frn-recap-form-row .lbl {
+    font-size: .55rem; letter-spacing: 1px; color: var(--gray); font-weight: 700;
+  }
+  .frn-recap-form-row .form {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    letter-spacing: .25rem; font-size: .85rem;
+  }
+  .frn-recap-bestworst {
+    display: flex; flex-wrap: wrap; gap: .45rem;
+  }
+  .frn-recap-bestworst .bw {
+    flex: 1 1 240px; padding: .35rem .55rem; border-radius: 3px;
+    font-size: .68rem; background: rgba(0,0,0,.22); border: 1px solid;
+  }
+  .frn-recap-bestworst .bw.win  { border-color: rgba(120,200,140,.35); color: var(--blwhite); }
+  .frn-recap-bestworst .bw.loss { border-color: rgba(220,140,140,.35); color: var(--blwhite); }
+  .frn-recap-bestworst .bw .lbl {
+    font-size: .52rem; letter-spacing: 1px; color: var(--gray);
+    font-weight: 700; margin-right: .4rem;
+  }
+  .frn-recap-bestworst .bw .score {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    font-weight: 700; margin-left: .3rem;
+  }
+
+  /* Two-col grid: standings on left, awards + bracket on right */
+  .frn-recap-grid {
+    display: grid; grid-template-columns: 1fr 360px; gap: 1rem;
+    align-items: start;
+  }
+  .frn-recap-grid-side {
+    display: flex; flex-direction: column; gap: 1rem;
+  }
+  @media (max-width: 1000px) {
+    .frn-recap-grid { grid-template-columns: 1fr; }
+  }
+
+  /* Final standings table */
+  .frn-recap-stand-table {
+    width: 100%; border-collapse: collapse; font-size: .68rem;
+  }
+  .frn-recap-stand-table th {
+    text-align: left; padding: .2rem .35rem; color: var(--blgray);
+    font-size: .55rem; letter-spacing: .8px; font-weight: 700;
+    border-bottom: 1px solid var(--border);
+  }
+  .frn-recap-stand-table td {
+    padding: .2rem .35rem; border-bottom: 1px solid rgba(255,255,255,.04);
+  }
+  .frn-recap-stand-row.playoff { background: rgba(212,175,55,.04); }
+  .frn-recap-stand-row.mine { background: rgba(212,175,55,.14) !important; }
+  .frn-recap-stand-table td.seed { width: 2.2rem; }
+  .frn-recap-stand-table td.team { font-weight: 700; }
+  .frn-recap-stand-table td.rec, .frn-recap-stand-table td.pct,
+  .frn-recap-stand-table td.pf, .frn-recap-stand-table td.pa,
+  .frn-recap-stand-table td.diff {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    text-align: right; width: 3.2rem;
+  }
+  .frn-recap-stand-table .seed-pill {
+    display: inline-block; min-width: 1.4rem; text-align: center;
+    background: var(--gold); color: #000; font-weight: 800;
+    border-radius: 2px; padding: .02rem .25rem;
+  }
+
+  /* Award race cards */
+  .frn-recap-award-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: .45rem;
+  }
+  .frn-recap-award-card {
+    background: rgba(0,0,0,.25); border: 1px solid var(--border);
+    padding: .45rem .55rem; border-radius: 3px;
+  }
+  .frn-recap-award-card.mine {
+    border-color: var(--gold); background: rgba(212,175,55,.1);
+  }
+  .frn-recap-award-card .lbl {
+    font-size: .5rem; letter-spacing: 1px; color: var(--gold);
+    font-weight: 700; margin-bottom: .25rem;
+  }
+  .frn-recap-award-card .name {
+    font-size: .8rem; font-weight: 700; color: var(--blwhite);
+  }
+  .frn-recap-award-card .meta {
+    font-size: .58rem; color: var(--gray); margin-top: .12rem;
+  }
+  .frn-recap-award-card .stat {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    font-size: .62rem; color: var(--gold-lt); margin-top: .2rem;
+  }
+  .frn-recap-award-card.empty .empty-note {
+    font-size: .62rem; color: var(--gray); font-style: italic;
+  }
+  .frn-recap-award-note {
+    font-size: .55rem; color: var(--blgray); font-style: italic;
+    margin-top: .5rem; text-align: center;
+  }
+
+  /* Bracket reveal */
+  .frn-recap-bracket-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: .45rem;
+  }
+  .frn-recap-bracket-match {
+    background: rgba(0,0,0,.3); border: 1px solid var(--border);
+    border-radius: 3px; padding: .4rem .5rem;
+    display: flex; flex-direction: column; gap: .25rem;
+    position: relative;
+  }
+  .frn-recap-bracket-match.mine {
+    border-color: var(--gold); background: rgba(212,175,55,.12);
+    box-shadow: 0 0 0 1px var(--gold);
+  }
+  .frn-recap-bracket-match .user-tag {
+    position: absolute; top: -.55rem; right: .35rem;
+    background: var(--gold); color: #000; font-size: .5rem;
+    font-weight: 800; letter-spacing: .5px; padding: .08rem .35rem;
+    border-radius: 2px;
+  }
+  .frn-recap-bracket-match .team {
+    display: grid; grid-template-columns: 1.5rem 1fr auto; gap: .35rem;
+    align-items: baseline; font-size: .68rem;
+  }
+  .frn-recap-bracket-match .seed {
+    color: var(--gray); font-weight: 700; text-align: center;
+  }
+  .frn-recap-bracket-match .name {
+    font-weight: 800; color: var(--accent, var(--blwhite));
+  }
+  .frn-recap-bracket-match .rec {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    color: var(--gray); font-size: .58rem;
+  }
+  .frn-recap-bracket-match .vs {
+    text-align: center; font-size: .52rem; color: var(--blgray);
+    letter-spacing: 1.5px; font-weight: 700;
+  }
+  .frn-recap-bracket-path {
+    text-align: center; font-size: .68rem; color: var(--gold);
+    font-weight: 700; letter-spacing: 1px; margin-top: .55rem;
+    padding-top: .45rem; border-top: 1px dashed var(--gold-lt);
+  }
+
+  /* CTA */
+  .frn-recap-cta-row {
+    display: flex; justify-content: center; padding: .5rem 0 .25rem;
+  }
+  .frn-recap-cta-btn {
+    background: var(--gold); color: #000; border: 0;
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1.45rem; letter-spacing: 2px; font-weight: 900;
+    padding: .85rem 2.2rem; cursor: pointer; border-radius: 3px;
+    display: flex; flex-direction: column; align-items: center; gap: .15rem;
+    transition: transform .12s ease, box-shadow .12s ease;
+    box-shadow: 0 4px 12px rgba(212,175,55,.25);
+  }
+  .frn-recap-cta-btn:hover {
+    transform: translateY(-2px); box-shadow: 0 6px 18px rgba(212,175,55,.4);
+  }
+  .frn-recap-cta-btn .sub {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    font-size: .58rem; letter-spacing: .8px; font-weight: 400;
+    text-transform: none; color: rgba(0,0,0,.7);
+  }
+
   .frn-overview-identity {
     display: grid; grid-template-columns: 1fr auto auto;
     gap: 1rem; align-items: center;

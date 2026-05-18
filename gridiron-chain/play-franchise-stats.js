@@ -4718,6 +4718,217 @@ function _frnRenderTabTools() {
     </div>`;
 }
 
+// ── Season Recap (regular → playoffs transition) ─────────────────────────────
+// Full-screen interstitial shown after the final regular-season game and
+// before the playoff bracket opens. Hero banner + your-season summary +
+// final standings + award race + bracket reveal + start-playoffs CTA.
+// Replaces the dashboard during this brief window so the moment feels
+// like an actual milestone, not just another button to click.
+function renderFrnSeasonRecap() {
+  const myId    = franchise.chosenTeamId;
+  const myTeam  = getTeam(myId);
+  const myStand = franchise.standings?.[myId] || { w:0, l:0, t:0, pf:0, pa:0 };
+  const sorted  = standingsSorted();
+  const myIdx   = sorted.findIndex(s => s.id === myId);
+  const seed    = myIdx + 1;
+  const inPlayoffs = seed > 0 && seed <= PLAYOFF_TEAMS;
+  const myRtg   = frnTeamRating(myId);
+  const recStr  = `${myStand.w}-${myStand.l}${myStand.t?`-${myStand.t}`:""}`;
+  const pf      = myStand.pf || 0, pa = myStand.pa || 0;
+  const diff    = pf - pa;
+  // Rank lookups for OFF / DEF — sort by points scored / allowed.
+  const ppgSort = (key, asc=false) => Object.entries(franchise.standings || {})
+    .map(([tid, s]) => ({ id:+tid, val: s[key] || 0 }))
+    .sort((a,b) => asc ? a.val - b.val : b.val - a.val);
+  const offRank = ppgSort("pf").findIndex(x => x.id === myId) + 1;
+  const defRank = ppgSort("pa", true).findIndex(x => x.id === myId) + 1;
+
+  // Best win / worst loss — search this season's schedule for the user.
+  const myGames = (franchise.schedule || []).filter(g =>
+    g.played && (g.homeId === myId || g.awayId === myId));
+  const gameMargin = g => {
+    const isHome = g.homeId === myId;
+    const my = isHome ? g.homeScore : g.awayScore;
+    const them = isHome ? g.awayScore : g.homeScore;
+    const oppId = isHome ? g.awayId : g.homeId;
+    return { my, them, oppId, isWin: my > them, isLoss: my < them, margin: my - them, week: g.week };
+  };
+  const margins = myGames.map(gameMargin);
+  const bestWin  = margins.filter(m => m.isWin).sort((a,b) => b.margin - a.margin)[0];
+  const worstLoss = margins.filter(m => m.isLoss).sort((a,b) => a.margin - b.margin)[0];
+  const formStrip = margins.slice(-6).map(m => {
+    const col = m.isWin ? "var(--green-lt)" : m.isLoss ? "#c08080" : "var(--gray)";
+    return `<span style="color:${col};font-weight:700">${m.isWin?"W":m.isLoss?"L":"T"}</span>`;
+  }).join(" ");
+
+  // ── Hero status callout ────────────────────────────────────────────────
+  const statusCallout = inPlayoffs
+    ? `<div class="frn-recap-status in" style="--accent:${myTeam.primary||'var(--gold)'}">
+        <div class="frn-recap-status-lbl">PLAYOFF BOUND</div>
+        <div class="frn-recap-status-main">#${seed} seed</div>
+        <div class="frn-recap-status-sub">Heading to ${seed === 1 ? "Wild Card weekend with a top seed" : "Wild Card weekend"}</div>
+      </div>`
+    : `<div class="frn-recap-status out">
+        <div class="frn-recap-status-lbl">SEASON OVER</div>
+        <div class="frn-recap-status-main">#${seed} of ${TEAMS.length}</div>
+        <div class="frn-recap-status-sub">Missed the cut — top ${PLAYOFF_TEAMS} advance. Offseason work begins.</div>
+      </div>`;
+
+  // ── Your-season summary card ───────────────────────────────────────────
+  const yourSeasonHtml = `
+    <div class="frn-recap-card frn-recap-your" style="--accent:${myTeam.primary||'var(--gold)'}">
+      <div class="frn-recap-team-head">
+        <div class="frn-recap-team-name">${myTeam.city.toUpperCase()} ${myTeam.name.toUpperCase()}</div>
+        <div class="frn-recap-team-rec">${recStr}</div>
+      </div>
+      <div class="frn-recap-team-grid">
+        <div><span class="lbl">PF</span><span class="val">${pf}</span></div>
+        <div><span class="lbl">PA</span><span class="val">${pa}</span></div>
+        <div><span class="lbl">DIFF</span><span class="val" style="color:${diff>=0?'var(--green-lt)':'#c08080'}">${diff>=0?"+":""}${diff}</span></div>
+        <div><span class="lbl">OFF</span><span class="val">#${offRank}</span></div>
+        <div><span class="lbl">DEF</span><span class="val">#${defRank}</span></div>
+        <div><span class="lbl">OFF RTG</span><span class="val">${myRtg.off}</span></div>
+        <div><span class="lbl">DEF RTG</span><span class="val">${myRtg.def}</span></div>
+        <div><span class="lbl">SEED</span><span class="val" style="color:${inPlayoffs?'var(--gold)':'var(--gray)'}">${inPlayoffs?`#${seed}`:"—"}</span></div>
+      </div>
+      <div class="frn-recap-form-row">
+        <span class="lbl">LAST 6</span>
+        <span class="form">${formStrip || `<span style="color:var(--gray)">—</span>`}</span>
+      </div>
+      ${(bestWin || worstLoss) ? `<div class="frn-recap-bestworst">
+        ${bestWin ? `<div class="bw win"><span class="lbl">SIGNATURE WIN</span> W${bestWin.week} vs <b>${getTeam(bestWin.oppId)?.name||"?"}</b> <span class="score">${bestWin.my}–${bestWin.them}</span></div>`:""}
+        ${worstLoss ? `<div class="bw loss"><span class="lbl">WORST LOSS</span> W${worstLoss.week} vs <b>${getTeam(worstLoss.oppId)?.name||"?"}</b> <span class="score">${worstLoss.my}–${worstLoss.them}</span></div>`:""}
+      </div>` : ""}
+    </div>`;
+
+  // ── Final Standings (32-team compact) ──────────────────────────────────
+  const standingsRows = sorted.map((s, i) => {
+    const isPlayoff = i < PLAYOFF_TEAMS;
+    const isMine    = s.id === myId;
+    const t = s.team;
+    const gp = s.w + s.l + s.t;
+    const pct = gp ? (s.w / gp).toFixed(3).replace(/^0/,"") : ".000";
+    const pdiff = (s.pf || 0) - (s.pa || 0);
+    return `<tr class="frn-recap-stand-row ${isMine?"mine":""} ${isPlayoff?"playoff":""}">
+      <td class="seed">${isPlayoff ? `<span class="seed-pill">${i+1}</span>` : i+1}</td>
+      <td class="team" style="color:${t.primary}">${isMine?"» ":""}${t.city} ${t.name}</td>
+      <td class="rec">${s.w}-${s.l}${s.t?`-${s.t}`:""}</td>
+      <td class="pct">${pct}</td>
+      <td class="pf">${s.pf}</td>
+      <td class="pa">${s.pa}</td>
+      <td class="diff" style="color:${pdiff>=0?'var(--green-lt)':'#c08080'}">${pdiff>=0?"+":""}${pdiff}</td>
+    </tr>`;
+  }).join("");
+  const standingsHtml = `
+    <div class="frn-recap-card frn-recap-standings">
+      <div class="frn-recap-card-title">FINAL STANDINGS <span class="sub">top ${PLAYOFF_TEAMS} → playoffs</span></div>
+      <table class="frn-recap-stand-table">
+        <thead><tr><th></th><th>Team</th><th>W-L</th><th>%</th><th>PF</th><th>PA</th><th>±</th></tr></thead>
+        <tbody>${standingsRows}</tbody>
+      </table>
+    </div>`;
+
+  // ── Award race ─────────────────────────────────────────────────────────
+  const awardCard = (label, entry, statFn) => {
+    if (!entry) return `<div class="frn-recap-award-card empty"><div class="lbl">${label}</div><div class="empty-note">No clear favorite yet</div></div>`;
+    const t = getTeam(entry.teamId);
+    const isMine = entry.teamId === myId;
+    return `<div class="frn-recap-award-card${isMine?" mine":""}">
+      <div class="lbl">${label}</div>
+      <div class="name">${entry.name}</div>
+      <div class="meta">${entry.pos||"?"} · <span style="color:${t?.primary||'var(--gold)'}">${t?.name||"?"}</span></div>
+      ${statFn ? `<div class="stat">${statFn(entry)}</div>` : ""}
+    </div>`;
+  };
+  const fmtMVPStat = (e) => {
+    const pos = e.pos || "";
+    if (pos === "QB") return `${e.pass_yds||0} pyds · ${e.pass_td||0} TD`;
+    if (pos === "RB") return `${e.rush_yds||0} ryds · ${e.rush_td||0} TD`;
+    if (pos === "WR" || pos === "TE") return `${e.rec_yds||0} ryds · ${e.rec_td||0} TD`;
+    return "";
+  };
+  const fmtDefStat = (e) => `${e.tkl||0} TKL${e.sk?` · ${e.sk} SK`:""}${e.int_made?` · ${e.int_made} INT`:""}`;
+  const mvpFav  = (typeof computeLeagueMVP === "function") ? computeLeagueMVP() : null;
+  const opoyFav = (typeof _computeOPOY === "function") ? _computeOPOY() : null;
+  const dpoyFav = (typeof _computeDPOY === "function") ? _computeDPOY() : null;
+  const royFav  = (typeof _computeROY === "function") ? _computeROY() : null;
+  const awardsHtml = `
+    <div class="frn-recap-card frn-recap-awards">
+      <div class="frn-recap-card-title">AWARD RACE <span class="sub">frontrunners going into the playoffs</span></div>
+      <div class="frn-recap-award-grid">
+        ${awardCard("LEAGUE MVP",     mvpFav,  fmtMVPStat)}
+        ${awardCard("OFFENSIVE POY",  opoyFav, fmtMVPStat)}
+        ${awardCard("DEFENSIVE POY",  dpoyFav, fmtDefStat)}
+        ${awardCard("ROOKIE OF YEAR", royFav,  fmtMVPStat)}
+      </div>
+      <div class="frn-recap-award-note">Final awards locked in at season's end after the championship.</div>
+    </div>`;
+
+  // ── Bracket reveal ─────────────────────────────────────────────────────
+  // Show the seeded 8-team bracket pre-render (1v8, 4v5, 2v7, 3v6 → semis → final)
+  const top8 = sorted.slice(0, PLAYOFF_TEAMS);
+  const mkBracketMatchup = (highSeedIdx, lowSeedIdx) => {
+    const hi = top8[highSeedIdx], lo = top8[lowSeedIdx];
+    if (!hi || !lo) return `<div class="frn-recap-bracket-match empty">TBD</div>`;
+    const hiMine = hi.id === myId, loMine = lo.id === myId;
+    const userMatch = hiMine || loMine;
+    return `<div class="frn-recap-bracket-match${userMatch?" mine":""}">
+      ${userMatch?`<div class="user-tag">⭐ YOUR MATCHUP</div>`:""}
+      <div class="team" style="--accent:${hi.team.primary}">
+        <span class="seed">${highSeedIdx+1}</span>
+        <span class="name">${hi.team.abbr || hi.team.name.slice(0,3).toUpperCase()}</span>
+        <span class="rec">${hi.w}-${hi.l}</span>
+      </div>
+      <div class="vs">vs</div>
+      <div class="team" style="--accent:${lo.team.primary}">
+        <span class="seed">${lowSeedIdx+1}</span>
+        <span class="name">${lo.team.abbr || lo.team.name.slice(0,3).toUpperCase()}</span>
+        <span class="rec">${lo.w}-${lo.l}</span>
+      </div>
+    </div>`;
+  };
+  // Round 1 in seed pairing: 1v8, 4v5, 2v7, 3v6
+  const r1Pairs = [[0,7],[3,4],[1,6],[2,5]];
+  const bracketHtml = `
+    <div class="frn-recap-card frn-recap-bracket">
+      <div class="frn-recap-card-title">PLAYOFF BRACKET <span class="sub">wild card weekend</span></div>
+      <div class="frn-recap-bracket-grid">
+        ${r1Pairs.map(([h,l]) => mkBracketMatchup(h,l)).join("")}
+      </div>
+      ${inPlayoffs ? `<div class="frn-recap-bracket-path">
+        Win 3 in a row → SEASON ${franchise.season} CHAMPION
+      </div>` : ""}
+    </div>`;
+
+  // ── CTA ────────────────────────────────────────────────────────────────
+  const ctaHtml = `
+    <div class="frn-recap-cta-row">
+      <button class="frn-recap-cta-btn" onclick="frnConfirmStartPlayoffs()">
+        ${inPlayoffs ? "▶ BEGIN WILD CARD WEEKEND" : "▶ START THE PLAYOFFS"}
+        <span class="sub">${inPlayoffs ? "Your path to the championship starts now" : "Watch how the bracket plays out"}</span>
+      </button>
+    </div>`;
+
+  $("frnHomeContent").innerHTML = `
+    <div class="frn-recap-wrap">
+      <header class="frn-recap-hero">
+        <div class="frn-recap-hero-eyebrow">SEASON ${franchise.season}</div>
+        <h1 class="frn-recap-hero-title">REGULAR SEASON COMPLETE</h1>
+        <div class="frn-recap-hero-sub">${PLAYOFF_TEAMS} teams play on · ${TEAMS.length - PLAYOFF_TEAMS} head into the offseason</div>
+        ${statusCallout}
+      </header>
+      ${yourSeasonHtml}
+      <div class="frn-recap-grid">
+        ${standingsHtml}
+        <div class="frn-recap-grid-side">
+          ${awardsHtml}
+          ${bracketHtml}
+        </div>
+      </div>
+      ${ctaHtml}
+    </div>`;
+}
+
 function renderFrnRegular() {
   const { chosenTeamId, season, week, schedule, standings, seasonHighlights } = franchise;
   const myTeam  = getTeam(chosenTeamId);
