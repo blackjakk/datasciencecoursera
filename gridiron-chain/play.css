@@ -3930,6 +3930,24 @@
     padding: .06rem .35rem; border: 1px solid; border-radius: 2px;
     margin-left: auto; background: rgba(0,0,0,.25);
   }
+  .frn-tp-mode-row {
+    display: flex; align-items: center; gap: .35rem;
+  }
+  .frn-tp-mode {
+    font-size: .54rem; font-weight: 800; letter-spacing: .5px;
+    padding: .06rem .35rem; border: 1px solid; border-radius: 2px;
+    background: rgba(0,0,0,.25);
+  }
+  .frn-tp-cross {
+    font-size: .5rem; font-weight: 800; letter-spacing: .4px;
+    padding: .04rem .3rem; border: 1px solid var(--green-lt);
+    color: var(--green-lt); border-radius: 2px;
+    background: rgba(122,200,232,.08);
+  }
+  .frn-trade-balance-mode {
+    margin-top: .25rem; font-size: .58rem; letter-spacing: .3px;
+    padding-top: .2rem; border-top: 1px dashed var(--border);
+  }
 
   /* Balance bar */
   .frn-trade-balance {

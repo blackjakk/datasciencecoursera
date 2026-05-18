@@ -5482,6 +5482,13 @@ function _partnerWillingness(myId, partnerId) {
   const cap = effectiveSalaryCap(partnerId);
   const used = capUsedByTeam(partnerId);
   if (used > cap * 0.95) score += 10;
+  // Cross-mode trade synergy: contender ↔ rebuilder pairs are the
+  // natural trade partners (one has vets the other won't, one has
+  // picks the other won't).
+  const myMode    = _aiTeamMode(myId);
+  const theirMode = _aiTeamMode(partnerId);
+  if ((myMode === "win_now" && theirMode === "rebuild") ||
+      (myMode === "rebuild" && theirMode === "win_now")) score += 10;
   return Math.max(5, Math.min(95, Math.round(score)));
 }
 
@@ -5539,6 +5546,67 @@ function _aiBuildCounter(myId, otherId, originalSendNames, originalRecvNames, or
     offerId: offer.id,
     extraPicks: extraPicks.map(p => `${p.year} R${p.round}`),
   };
+}
+
+// Team mode — "win_now" / "rebuild" / "balanced". Drives receiver
+// bias: contenders pay premium for vets and discount picks; rebuilders
+// pay premium for picks/young talent and offload vets cheap. Scored
+// from win pct, cap pressure, top-22 avg age, and deadline urgency.
+function _aiTeamMode(teamId) {
+  const stand = franchise.standings?.[teamId] || { w: 0, l: 0, t: 0 };
+  const games = stand.w + stand.l + (stand.t || 0);
+  const pct = games > 0 ? stand.w / games : 0.5;
+  const cap = effectiveSalaryCap(teamId);
+  const used = capUsedByTeam(teamId);
+  const capPressure = cap > 0 ? used / cap : 0;
+  const roster = franchise.rosters[teamId] || [];
+  const top22 = roster.slice().sort((a, b) => (b.overall || 0) - (a.overall || 0)).slice(0, 22);
+  const avgAge = top22.length ? top22.reduce((s, p) => s + (p.age || 25), 0) / top22.length : 26;
+
+  let score = 0;
+  if      (pct >= 0.70) score += 30;
+  else if (pct >= 0.55) score += 15;
+  else if (pct <= 0.30) score -= 30;
+  else if (pct <= 0.40) score -= 15;
+  if      (capPressure > 0.95) score += 15;
+  else if (capPressure < 0.80) score -= 5;
+  if      (avgAge >= 29) score += 20;
+  else if (avgAge <= 25) score -= 20;
+  // Deadline urgency: last regular-season trade week everyone presses
+  if ((TRADE_DEADLINE_WEEK - franchise.week) <= 1) score += 5;
+
+  if (score >= 25)  return "win_now";
+  if (score <= -25) return "rebuild";
+  return "balanced";
+}
+
+const _AI_MODE_META = {
+  win_now:  { icon: "🏆", label: "WIN-NOW",  col: "var(--gold)" },
+  rebuild:  { icon: "🔨", label: "REBUILD",  col: "#7ac8e8" },
+  balanced: { icon: "⚖", label: "BALANCED", col: "var(--gray)" },
+};
+
+// Tweaks the acceptance threshold based on what's in the package and
+// the receiver's mode. Negative = receiver more eager (lower bar);
+// positive = pickier. Clamped at ±0.15 so mode never overrides stance.
+function _modeAcceptanceModifier(receiverId, sendPlayers, sendPicks, recvPlayers) {
+  const mode = _aiTeamMode(receiverId);
+  if (mode === "balanced") return 0;
+  const pickV = sendPicks.reduce((s, p) => s + _pickValue(p), 0);
+  const playerV = sendPlayers.reduce((s, p) => s + _playerTradeValue(p), 0);
+  const totalV = playerV + pickV;
+  const pickShare = totalV > 0 ? pickV / totalV : 0;
+  let mod = 0;
+  if (mode === "win_now") {
+    mod += pickShare * 0.10;                                                          // pick-averse
+    mod -= sendPlayers.filter(p => (p.age||25) >= 27 && (p.overall||0) >= 80).length * 0.05;  // proven vet
+    mod -= recvPlayers.filter(p => (p.age||25) >= 31 && (p.overall||0) <= 85).length * 0.05;  // dump fading vets
+  } else {  // rebuild
+    mod -= pickShare * 0.10;                                                          // pick-loving
+    mod -= sendPlayers.filter(p => (p.age||25) <= 24 && (p.overall||0) >= 70).length * 0.05;  // young talent
+    mod -= recvPlayers.filter(p => (p.age||25) >= 29).length * 0.05;                          // dump vets
+  }
+  return Math.max(-0.15, Math.min(0.15, mod));
 }
 
 function frnOpenTrade(targetTeamId, tab) {
@@ -6280,7 +6348,9 @@ function frnSubmitTrade() {
     renderFrnTrade();
     return;
   }
-  const acceptanceRatio = accRule;  // numeric 0.85 / 0.92 / 0.97
+  // Layer in receiver-mode bias (win-now / rebuild reweight the bar)
+  const modeMod = _modeAcceptanceModifier(otherId, sendPlayers, sendPicks, recvPlayers);
+  const acceptanceRatio = Math.max(0.55, Math.min(1.10, accRule + modeMod));
   const aiScore = (sendValue + theirNeedForSend) / Math.max(0.1, recvValue);
   const accepted = aiScore >= acceptanceRatio;
 
@@ -6581,8 +6651,11 @@ function _renderTradeProposeTab(tp, sortBy, myRoster, cap, myCapUsed) {
     : balanceRatio >= 0.85 ? "close"
     : balanceRatio >= 0.60 ? "thin"
     : "lopsided";
+  const partnerMode = _aiTeamMode(partnerId);
+  const modeAccMod = _modeAcceptanceModifier(partnerId, sendPlayersLive, sendPicksLive, recvPlayersLive);
   const balanceBarHtml = _renderTradeBalanceBar({
     sendV, recvV, needBonus, ratio: balanceRatio, verdict: balanceVerdict,
+    partnerMode, modeAccMod,
   });
   const multiYearCapHtml = _renderMultiYearCapImpact(
     myId, partnerId, sendPlayersLive, recvPlayersLive, tp.yourAbsorb || 0, tp.theirAbsorb || 0
@@ -6675,6 +6748,7 @@ function _tradeIsEmpty(tp) {
 // top 2 strengths + a willingness pill. Click locks the partner.
 function _renderTradePartnerPicker(myId, myCap, myCapUsed) {
   const myStrong = new Set(_teamNeedsProfile(myId).strengths.map(s => s.key));
+  const myMode = _aiTeamMode(myId);
   const cards = TEAMS.filter(t => t.id !== myId).map(t => {
     const stand = franchise.standings?.[t.id] || { w: 0, l: 0, t: 0 };
     const cap = effectiveSalaryCap(t.id);
@@ -6682,20 +6756,28 @@ function _renderTradePartnerPicker(myId, myCap, myCapUsed) {
     const room = Math.max(0, cap - used);
     const overCap = used > cap;
     const profile = _teamNeedsProfile(t.id);
+    const mode = _aiTeamMode(t.id);
     const willingness = _partnerWillingness(myId, t.id);
     const matched = profile.needs.filter(n => myStrong.has(n.key)).length;
-    return { t, stand, room, overCap, profile, willingness, matched };
+    const crossMode = (myMode === "win_now" && mode === "rebuild") || (myMode === "rebuild" && mode === "win_now");
+    return { t, stand, room, overCap, profile, mode, willingness, matched, crossMode };
   }).sort((a, b) => b.willingness - a.willingness);
 
   const verdictCol = (w) => w >= 70 ? "var(--green-lt)" : w >= 50 ? "var(--gold-lt)" : w >= 30 ? "#e8a000" : "#c08080";
   const verdictLbl = (w) => w >= 70 ? "EAGER" : w >= 50 ? "OPEN" : w >= 30 ? "COOL" : "ICY";
   const unitCell = (u, col) => `<span class="frn-tp-unit" style="color:${col}">${u.label} <b>${u.val}</b></span>`;
 
-  const cardsHtml = cards.map(c => `
+  const cardsHtml = cards.map(c => {
+    const mm = _AI_MODE_META[c.mode];
+    return `
     <button class="frn-tp-card" onclick="frnOpenTrade(${c.t.id},'propose')" style="--accent:${c.t.primary||'var(--gold)'}">
       <div class="frn-tp-card-head">
         <span class="frn-tp-team">${c.t.city} ${c.t.name}</span>
         <span class="frn-tp-rec">${c.stand.w}-${c.stand.l}${c.stand.t?`-${c.stand.t}`:""}</span>
+      </div>
+      <div class="frn-tp-mode-row">
+        <span class="frn-tp-mode" title="${c.mode === "win_now" ? "Contender — pays premium for vets, discounts incoming picks" : c.mode === "rebuild" ? "Rebuilder — pays premium for picks / young talent, dumps vets cheap" : "Balanced — standard valuation across the board"}" style="color:${mm.col};border-color:${mm.col}55">${mm.icon} ${mm.label}</span>
+        ${c.crossMode ? `<span class="frn-tp-cross" title="Cross-mode pair — you have what they want and vice versa">↔ NATURAL FIT</span>` : ""}
       </div>
       <div class="frn-tp-cap">
         <span style="color:var(--gray)">Cap room</span>
@@ -6709,7 +6791,8 @@ function _renderTradePartnerPicker(myId, myCap, myCapUsed) {
         ${c.matched ? `<span class="frn-tp-match" title="${c.matched} of their weak units overlap with your strengths">★ ${c.matched} fit</span>` : `<span class="frn-tp-match dim">no obvious fit</span>`}
         <span class="frn-tp-willing" style="color:${verdictCol(c.willingness)};border-color:${verdictCol(c.willingness)}55">${verdictLbl(c.willingness)} · ${c.willingness}%</span>
       </div>
-    </button>`).join("");
+    </button>`;
+  }).join("");
 
   const overrideHtml = TEAMS.filter(t => t.id !== myId).map(t =>
     `<option value="${t.id}">${t.city} ${t.name}</option>`
@@ -6719,7 +6802,8 @@ function _renderTradePartnerPicker(myId, myCap, myCapUsed) {
     <div class="frn-tp-header">
       <div>
         <div style="font-size:.95rem;font-weight:900;color:var(--gold);margin-bottom:.2rem">PICK A TRADE PARTNER</div>
-        <div style="font-size:.66rem;color:var(--gray)">Teams sorted by deal-fit with you (their needs ↔ your strengths · cap pressure · deadline urgency).</div>
+        <div style="font-size:.66rem;color:var(--gray)">Sorted by deal-fit (needs ↔ strengths · cap pressure · deadline urgency · cross-mode synergy).</div>
+        <div style="font-size:.62rem;margin-top:.18rem">Your team is <b style="color:${_AI_MODE_META[myMode].col}">${_AI_MODE_META[myMode].icon} ${_AI_MODE_META[myMode].label}</b> — ${myMode === "win_now" ? "you'll pay premium for proven vets and undervalue picks." : myMode === "rebuild" ? "you'll pay premium for picks / young talent and offload vets cheap." : "standard market valuation."}</div>
       </div>
       <div style="margin-left:auto;display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
         <span style="color:var(--gray);font-size:.62rem">Your cap: <b style="color:var(--gold)">$${myCapUsed.toFixed(1)}M</b> / $${myCap.toFixed(0)}M</span>
@@ -6774,6 +6858,11 @@ function _renderTradeBalanceBar(b) {
         ? `add a small pick or sweetener to clear the threshold`
         : `you need to put more on your side`}
     </div>
+    ${b.partnerMode && b.partnerMode !== "balanced" ? `<div class="frn-trade-balance-mode" style="color:${_AI_MODE_META[b.partnerMode].col}">
+      ${_AI_MODE_META[b.partnerMode].icon} <b>${_AI_MODE_META[b.partnerMode].label}</b>: ${b.partnerMode === "win_now"
+        ? `picks count less here, proven vets count extra`
+        : `picks count extra here, vets get devalued`}${b.modeAccMod ? ` · threshold ${b.modeAccMod > 0 ? "+" : ""}${(b.modeAccMod * 100).toFixed(0)}%` : ""}
+    </div>` : ""}
   </div>`;
 }
 
