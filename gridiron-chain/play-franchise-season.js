@@ -4150,7 +4150,7 @@ function renderFrnFAResults() {
       ${overCap
         ? `<button class="btn btn-gold-big" onclick="frnFAGoToCuts()">→ MAKE CUTS NOW</button>
            <button class="btn btn-outline" onclick="frnFAStartWithGrace()" style="color:var(--gold)">Defer cuts — start Week 1 anyway</button>`
-        : `<button class="btn btn-gold-big" onclick="frnFAFinish()">▶ START WEEK 1</button>`}
+        : `<button class="btn btn-gold-big" onclick="frnConfirmFAFinish()">▶ START WEEK 1</button>`}
     </div>`;
 }
 
@@ -4204,7 +4204,7 @@ function renderFrnFACuts() {
       <tbody>${rows}</tbody>
     </table>
     <div class="frn-actions" style="justify-content:center;margin-top:1rem">
-      <button class="btn btn-gold-big" onclick="frnFAFinish()" ${overCap?"disabled style=\"opacity:.5;cursor:not-allowed\"":""}>
+      <button class="btn btn-gold-big" onclick="frnConfirmFAFinish()" ${overCap?"disabled style=\"opacity:.5;cursor:not-allowed\"":""}>
         ▶ START WEEK 1
       </button>
     </div>`;

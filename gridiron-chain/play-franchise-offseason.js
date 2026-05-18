@@ -1587,6 +1587,46 @@ function frnConfirmSimToEndOfSeason() {
   frnSimToEndOfSeason();
 }
 
+// ── Two-click guards on phase-advance buttons ────────────────────────────
+// Each underlying primitive (frnAdvanceWeek / startFrnPlayoffs / ...) is
+// kept raw so programmatic chains (sim → auto-advance) still work without
+// nagging the user. The frnConfirm* versions wrap with confirm() and are
+// what the UI buttons route through, making every advance two-click.
+function frnConfirmAdvanceWeek() {
+  const nextW = (franchise.week || 0) + 1;
+  if (!confirm(`Advance to Week ${nextW}? Week-end resolution (FA round, injuries, AWR growth) runs now.`)) return;
+  frnAdvanceWeek();
+}
+function frnConfirmStartPlayoffs() {
+  if (!confirm("Start the playoffs? The regular season closes and the bracket gets seeded.")) return;
+  startFrnPlayoffs();
+}
+function frnConfirmAdvancePlayoffRound() {
+  if (!confirm("Advance to the next playoff round?")) return;
+  frnAdvancePlayoffRound();
+}
+function frnConfirmFAFinish() {
+  if (!confirm("Lock in free agency and start Week 1? You won't be able to make further signings until the offseason.")) return;
+  frnFAFinish();
+}
+function frnConfirmGoToDraft() {
+  if (!confirm("Open the draft? Roster moves still happen in FA after, but this leaves the offseason home.")) return;
+  frnGoToDraft();
+}
+function frnConfirmNewSeason() {
+  const nextS = (franchise.season || 1) + 1;
+  const msg = "⚠ BEGIN SEASON " + nextS + "\n\n" +
+              "This will:\n" +
+              " • Generate a fresh schedule and reset standings\n" +
+              " • Wipe season stats, highlights, and weekly state\n" +
+              " • Roll players' careers forward (age, retire, develop)\n" +
+              " • Open a new free-agency window\n\n" +
+              "Continue?";
+  if (!confirm(msg)) return;
+  frnNewSeason();
+}
+function frnConfirmDraftContinueToSeason() { frnConfirmNewSeason(); }
+
 // Sim-season skips week-end review interstitials and just flies
 // through to the playoffs.
 function frnSimSeason() {
@@ -2339,7 +2379,7 @@ function renderFrnPlayoffs() {
   const headerActions = champion
     ? `<button class="bspn-back" onclick="showFrnAwards()" style="border-color:var(--blgold);color:var(--blgold)">🌟 Awards</button>`
     : allRoundDone
-      ? `<button class="frn-cap-btn" onclick="frnAdvancePlayoffRound()" style="padding:.3rem 1rem;font-size:.75rem;letter-spacing:.8px">${advanceLabel}</button>`
+      ? `<button class="frn-cap-btn" onclick="frnConfirmAdvancePlayoffRound()" style="padding:.3rem 1rem;font-size:.75rem;letter-spacing:.8px">${advanceLabel}</button>`
       : `<button class="bspn-back" onclick="frnSimPlayoffRound()" ${!pending.length ? "disabled style=\"opacity:.4;cursor:not-allowed\"" : ""}>⏩ Sim ${pending.length} remaining</button>
          ${userPending ? `<span class="bspnlive-bracket-blocker">Play YOUR matchup first ⬇</span>` : ""}`;
 
@@ -5278,7 +5318,7 @@ function renderFrnOffseason() {
     <div class="frn-off-list">${chgHtml}</div>
     ${_renderHoldoutsBlock()}
     <div class="frn-actions" style="justify-content:center;margin-top:1.2rem">
-      <button class="btn btn-gold" onclick="frnGoToDraft()">📋 Go to Draft</button>
+      <button class="btn btn-gold" onclick="frnConfirmGoToDraft()">📋 Go to Draft</button>
       <button class="btn btn-outline" onclick="frnAbandon()" style="color:var(--red)">× Abandon</button>
     </div>`;
 }
@@ -8252,7 +8292,7 @@ function _renderPostDraftGrade(myPicks) {
         ${picksHtml||`<div style="color:var(--gray);font-size:.7rem;font-style:italic">No picks made</div>`}
       </div>
       <div style="margin-top:.75rem;text-align:center">
-        <button class="btn btn-gold-big" onclick="frnDraftContinueToSeason()">▶ BEGIN NEW SEASON</button>
+        <button class="btn btn-gold-big" onclick="frnConfirmDraftContinueToSeason()">▶ BEGIN NEW SEASON</button>
       </div>
     </div>`;
 }
