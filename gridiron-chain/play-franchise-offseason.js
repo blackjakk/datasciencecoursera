@@ -1237,8 +1237,12 @@ function _computePOTY() {
   };
 }
 
-// Module-level pending votes for the voting page (cleared on open)
+// Module-level pending votes for the voting page. _potwPendingVotesKey
+// tracks which week/season the pending state belongs to, so re-renders
+// triggered by card clicks preserve in-flight picks (only the first open
+// of a new week re-seeds from saved votes).
 let _potwPendingVotes = {};
+let _potwPendingVotesKey = null;
 
 function renderPotwVoting(week) {
   frnHoverTipHide(); _frnHoverTipPgHide && _frnHoverTipPgHide();
@@ -1246,8 +1250,14 @@ function renderPotwVoting(week) {
   const candidates = franchise.potwCandidates?.[season]?.[week];
   if (!candidates) { showFranchiseDashboard(); return; }
 
+  // Only seed pending votes from saved votes on first open of this week.
+  // Re-renders during card selection must preserve the user's in-flight picks.
+  if (_potwPendingVotesKey !== `${season}-${week}`) {
+    const existingVotes = franchise.potwVotes?.[season]?.[week] || {};
+    _potwPendingVotes = { ...existingVotes };
+    _potwPendingVotesKey = `${season}-${week}`;
+  }
   const existingVotes = franchise.potwVotes?.[season]?.[week] || {};
-  _potwPendingVotes = { ...existingVotes };
 
   const GROUPS = [
     { key: "offense",      label: "OFFENSIVE PLAYER",   icon: "⚡" },
