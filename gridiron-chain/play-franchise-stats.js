@@ -4210,8 +4210,20 @@ function captureGameHighlights(homeId, awayId, plays, isPlayoff, weekLabel) {
     if (p.kind === "punt")       return "Punt";
     return p.kind || "Play";
   };
+  const fieldPosLabel = (yl) => {
+    if (yl == null) return "?";
+    if (yl < 50) return `OWN ${yl}`;
+    if (yl > 50) return `OPP ${100 - yl}`;
+    return "50";
+  };
+  const sitLabel = (p) => {
+    if (!p.down) return "";
+    const goalToGo = p.yardLine != null && p.ytg != null && (100 - p.yardLine) <= p.ytg;
+    const ytgPart = goalToGo ? "G" : (p.ytg ?? "?");
+    return `${p.down}${ordSfx(p.down)} & ${ytgPart} · ${fieldPosLabel(p.yardLine)}`;
+  };
   const trimPlay = (p, isHl) => ({
-    sit: p.down ? `${p.down}${ordSfx(p.down)} & ${p.toGo} · ${p.fieldPos || "?"}` : "",
+    sit: sitLabel(p),
     desc: playDesc(p),
     hs: p.homeScore ?? 0, as: p.awayScore ?? 0,
     q: p.quarter, t: p.time, hi: !!isHl,
