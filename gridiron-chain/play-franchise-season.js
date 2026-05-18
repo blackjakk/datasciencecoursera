@@ -1152,7 +1152,7 @@ function _preseasonScoutTab(myId, scoutId, view, selName) {
        </div>`
     : `<div class="frn-scout-noise-banner unscouted">
         &#x26A0; Grade noise &plusmn;8 &mdash; grades are estimates.
-        <a onclick="renderFrnScrimmages()">Run a scrimmage to sharpen to &plusmn;2.</a>
+        <a onclick="renderFrnScrimmages()">Run a joint practice to sharpen to &plusmn;2.</a>
        </div>`;
 
   // ── Roster table rows ─────────────────────────────────────────────────────
@@ -2228,7 +2228,7 @@ function _buildPlayerDetailPanel(p) {
     <div class="frn-card-title">SCOUTING NOTE</div>
     <div style="font-size:.68rem;color:var(--gray);line-height:1.4">
       Internal ratings are hidden for opposing players. Run a joint
-      practice (Scrimmage tab) against this team to sharpen the
+      practice against this team to sharpen the
       grade noise from ±8 to ±2.
     </div>
   </div>`;

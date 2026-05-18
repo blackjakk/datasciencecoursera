@@ -624,7 +624,7 @@ function frnTeamTipShow2(anchorEl, teamId) {
       DEF <b style="color:var(--gold)">${rtg.def}</b> ·
       Rec ${rec}
     </div>
-    ${scoutLines || `<div class="frn-tip-bullet" style="color:var(--gray);font-style:italic">Run a scrimmage to scout this team.</div>`}
+    ${scoutLines || `<div class="frn-tip-bullet" style="color:var(--gray);font-style:italic">Run a joint practice to scout this team.</div>`}
     <div class="frn-tip-foot">Click to scout this team</div>
   `;
   _positionTip(tip, anchorEl);
@@ -897,14 +897,14 @@ function _escHtml(s) {
     .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-// ── Scrimmages / joint practices ──────────────────────────────────────────────
-// Between weeks, you can propose a scrimmage to another team. If they
-// accept, a practice game sims (no W/L, no season stats) and BOTH
-// teams gain scouting intel — the opposing roster's noisy grades
-// sharpen and combine measurables flip from estimated to revealed for
-// the rest of the season. Bumpy roads here: in the MegaETH version,
-// the matchup commits via dual signatures and the sim runs from a VRF
-// seed; intel is encrypted to the participating wallets.
+// ── Joint Practices ───────────────────────────────────────────────────────────
+// Between weeks, you can propose a joint practice to another team. If
+// they accept, an exhibition sim runs (no W/L, no season stats, no
+// injury risk) and you walk away with scouting intel that sharpens
+// their roster's grades + reveals combine measurables for the rest of
+// the season. After the practice you get a full report card —
+// final score, the players whose grades moved most, and the top
+// highlight plays.
 function frnScrimmageInterest(otherId) {
   // AI willingness based on relative talent + their own week's bye
   const myId = franchise.chosenTeamId;
@@ -916,95 +916,310 @@ function frnScrimmageInterest(otherId) {
   let interest = 0.55;
   if (gap > 25) interest *= 0.5;
   else if (gap > 12) interest *= 0.8;
-  // Already scrimmaged this season? Refuse a rematch.
+  // Already practiced this season? Refuse a rematch.
   if ((franchise.scrimmagesDone || []).some(s =>
        s.season === franchise.season && s.teamId === otherId)) return 0;
   return Math.min(0.85, interest);
 }
 
+// Convert an OVR score to a letter (matches gradeLabel logic locally so
+// the report doesn't depend on importer order — pure mapping).
+function _gradeLetter(score) { return gradeLabel(score); }
+
+// Detect each opponent player whose perceived grade moves meaningfully
+// after the intel boost. Mutates franchise.scoutingIntel — flip it
+// before/after to read both grade snapshots.
+function _practiceIntelDiscoveries(oppId) {
+  const oppRoster = (franchise.rosters[oppId] || []).slice();
+  if (!oppRoster.length) return [];
+  if (!franchise.scoutingIntel) franchise.scoutingIntel = {};
+  const prevIntel = franchise.scoutingIntel[oppId];
+  // Force unscouted view to measure "before"
+  delete franchise.scoutingIntel[oppId];
+  const before = oppRoster.map(p => ({ p, g: scoutGrade(p) }));
+  // Now scouted view
+  franchise.scoutingIntel[oppId] = { season: franchise.season, gainedWeek: franchise.week };
+  const after = oppRoster.map(p => ({ p, g: scoutGrade(p) }));
+  // Restore prevIntel snapshot so we don't mutate twice (final write happens at call site)
+  if (prevIntel) franchise.scoutingIntel[oppId] = prevIntel;
+  else delete franchise.scoutingIntel[oppId];
+  const movers = oppRoster.map((p, i) => ({
+    pid: p.pid, name: p.name, pos: p.position,
+    age: p.age, overall: p.overall,
+    beforeScore: before[i].g, afterScore: after[i].g,
+    before: _gradeLetter(before[i].g),
+    after:  _gradeLetter(after[i].g),
+    delta:  after[i].g - before[i].g,
+  })).filter(x => x.before !== x.after && Math.abs(x.delta) >= 1)
+     .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+     .slice(0, 8);
+  return movers;
+}
+
+// Pull 3–4 highlight-worthy plays from the practice game. Lighter
+// version of captureGameHighlights — same heuristic, no storage in
+// seasonHighlights (practices shouldn't pollute the season tape).
+function _practiceHighlights(plays, homeId, awayId) {
+  if (!Array.isArray(plays) || !plays.length) return [];
+  const homeName = getTeam(homeId)?.name || "HOME";
+  const awayName = getTeam(awayId)?.name || "AWAY";
+  const hl = [];
+  const recentBuf = [];
+  const trimPlay = (p, isHl) => ({
+    sit: p.down ? `${p.down}${(p.down === 1 ? "st" : p.down === 2 ? "nd" : p.down === 3 ? "rd" : "th")} & ${p.ytg ?? "?"}` : "",
+    desc: p.desc || p.kind || "",
+    hs: p.homeScore ?? 0, as: p.awayScore ?? 0,
+    q: p.quarter, t: p.time, hi: !!isHl,
+  });
+  for (const p of plays) {
+    let w = 0, label = "";
+    if (p.kind === "score") {
+      const scorer = p.poss === "home" ? homeName : awayName;
+      const isTd = !!(p.passer || p.rusher || p.receiver) || (p.desc && /touchdown/i.test(p.desc));
+      w = isTd ? 6 : 2.5;
+      label = p.rusher ? `${p.rusher} TD rush`
+            : (p.passer && p.receiver) ? `${p.passer}→${p.receiver} TD`
+            : `${scorer} ${isTd ? "TD" : "FG"}`;
+    } else if (p.kind === "int" && p.isPickSix) { w = 14; label = `PICK-SIX! ${p.defender || "DEF"}`; }
+    else if (p.kind === "int")                  { w = 7;  label = `INT — ${p.defender || "DEF"}`; }
+    else if (p.kind === "fumble")               { w = 5;  label = `FUM — ${p.forcedBy || p.defender || "DEF"}`; }
+    else if (p.kind === "run" && (p.yards || 0) >= 25)       { w = 4; label = `${p.rusher || "RB"} ${p.yards}-yd run`; }
+    else if (p.kind === "complete" && (p.yards || 0) >= 30)  { w = 4; label = `${p.passer || "QB"}→${p.receiver || "WR"} ${p.yards} yds`; }
+    else if (p.kind === "sack" && (p.sackLoss || 0) >= 8)    { w = 3.5; label = `${p.dlName || "DEF"} sack`; }
+    if (w > 0) {
+      const clip = [...recentBuf.slice(-2).map(cp => trimPlay(cp, false)), trimPlay(p, true)];
+      hl.push({ weight: w, label, desc: p.desc || "", clip,
+        quarter: p.quarter, time: p.time,
+        homeScore: p.homeScore, awayScore: p.awayScore });
+    }
+    recentBuf.push(p); if (recentBuf.length > 4) recentBuf.shift();
+  }
+  return hl.sort((a, b) => b.weight - a.weight).slice(0, 4);
+}
+
 function frnRequestScrimmage(otherId) {
   otherId = Number(otherId);
-  // Hard caps: one scrimmage per week (just like real teams only get
-  // one joint practice between games), four total per season.
   const allDone = (franchise.scrimmagesDone || []);
   const thisWeek = allDone.filter(s => s.season === franchise.season && s.week === franchise.week);
   if (thisWeek.length >= 1) {
-    alert("You've already scrimmaged this week. Only one joint practice per week.");
+    alert("You've already run a joint practice this week. Only one per week.");
     renderFrnScrimmages();
     return;
   }
   const thisSeason = allDone.filter(s => s.season === franchise.season);
   if (thisSeason.length >= 4) {
-    alert("You've used your 4 scrimmage slots for the season.");
+    alert("You've used all 4 joint-practice slots for the season.");
     renderFrnScrimmages();
     return;
   }
   const interest = frnScrimmageInterest(otherId);
   if (Math.random() > interest) {
-    alert("They turned down the scrimmage — schedule too tight.");
+    alert("They turned down the joint practice — schedule too tight.");
     renderFrnScrimmages();
     return;
   }
-  // Simulate the practice game using the existing simulator path
+
+  // Sim the exhibition (no season-stat or highlight side effects)
   const myId = franchise.chosenTeamId;
-  const r = frnSimOnce(myId, otherId);
-  // No W/L, no season stats. Just intel + a one-line news.
-  if (!franchise.scrimmagesDone) franchise.scrimmagesDone = [];
-  franchise.scrimmagesDone.push({
-    season: franchise.season, week: franchise.week, teamId: otherId,
-    score: `${r.homeScore}-${r.awayScore}`,
-  });
+  const r = frnSimPractice(myId, otherId);
+
+  // Capture intel discoveries BEFORE we set the scouting flag so the
+  // "before" grades reflect the unscouted noise band.
+  const discoveries = _practiceIntelDiscoveries(otherId);
+  const highlights  = _practiceHighlights(r.full?.plays || [], myId, otherId);
+
   if (!franchise.scoutingIntel) franchise.scoutingIntel = {};
-  // Intel marker valid for the rest of this season
   franchise.scoutingIntel[otherId] = { season: franchise.season, gainedWeek: franchise.week };
+
+  if (!franchise.scrimmagesDone) franchise.scrimmagesDone = [];
+  const report = {
+    season: franchise.season, week: franchise.week, teamId: otherId,
+    homeScore: r.homeScore, awayScore: r.awayScore,
+    score: `${r.homeScore}-${r.awayScore}`,
+    discoveries, highlights,
+  };
+  franchise.scrimmagesDone.push(report);
   const team = getTeam(otherId);
   _pushNews({ type:"scrimmage",
     label: `🏟 Joint practice with ${team.name} — scouting intel gathered (final: ${r.homeScore}-${r.awayScore})` });
   saveFranchise();
-  alert(`🏟 Scrimmage done — final ${r.homeScore}–${r.awayScore}. Their roster now shows revealed combine numbers + sharper grades for the rest of the season.`);
-  renderFrnScrimmages();
+  // Open the report immediately
+  renderFrnPracticeReport(franchise.scrimmagesDone.length - 1);
+}
+
+// Render the report card for a completed joint practice. Reused by the
+// practice log (click any past practice to re-read it).
+function renderFrnPracticeReport(idx) {
+  frnHoverTipHide(); _frnHoverTipPgHide && _frnHoverTipPgHide();
+  const all = franchise.scrimmagesDone || [];
+  const report = all[idx];
+  if (!report) { renderFrnScrimmages(); return; }
+  const myId = franchise.chosenTeamId;
+  const myTeam = getTeam(myId);
+  const oppTeam = getTeam(report.teamId);
+  const discoveries = report.discoveries || [];
+  const highlights  = report.highlights  || [];
+  const deltaCol = (d) => d > 0 ? "var(--green-lt)" : d < 0 ? "#ff8a8a" : "var(--gray)";
+
+  const intelRows = discoveries.length
+    ? discoveries.map(d => `<tr>
+        <td style="padding:.18rem .4rem;font-size:.66rem"><b>${d.pos}</b> <span style="color:var(--blwhite)">${d.name}</span> <span style="color:var(--gray);font-size:.58rem">age ${d.age||"?"}</span></td>
+        <td style="padding:.18rem .4rem;color:var(--gray);font-size:.62rem">was <b>${d.before}</b></td>
+        <td style="padding:.18rem .4rem;font-size:.62rem">→ <b style="color:${deltaCol(d.delta)}">${d.after}</b></td>
+        <td style="padding:.18rem .4rem;font-size:.58rem;color:${deltaCol(d.delta)};font-weight:800;text-align:right">${d.delta > 0 ? "+" : ""}${d.delta}</td>
+      </tr>`).join("")
+    : `<tr><td colspan="4" style="padding:.4rem;color:var(--gray);font-style:italic;font-size:.65rem">No meaningful grade revisions — your scouts had them dialed in already.</td></tr>`;
+
+  const highlightCards = highlights.length
+    ? highlights.map((h, i) => {
+        const clipLines = (h.clip || []).map(c =>
+          `<div style="font-size:.58rem;color:${c.hi?"var(--gold-lt)":"var(--blgray)"};padding:.08rem 0">${c.sit ? `<span style="color:var(--gray);margin-right:.4rem">${c.sit}</span>` : ""}${c.desc || ""}</div>`
+        ).join("");
+        return `<div style="background:var(--bg2);border:1px solid var(--border);border-left:3px solid var(--gold);padding:.4rem .55rem;margin-bottom:.3rem">
+          <div style="font-size:.7rem;font-weight:900;color:var(--gold);margin-bottom:.2rem">▶ ${h.label}</div>
+          ${clipLines}
+          ${h.homeScore != null ? `<div style="font-size:.54rem;color:var(--gray);margin-top:.18rem">Q${h.quarter||"?"} · ${myTeam.name} ${h.homeScore} — ${oppTeam.name} ${h.awayScore}</div>` : ""}
+        </div>`;
+      }).join("")
+    : `<div style="color:var(--gray);font-style:italic;font-size:.65rem">No marquee plays — clean controlled practice.</div>`;
+
+  $("frnHomeContent").innerHTML = `
+    <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem;flex-wrap:wrap">
+      <div style="font-size:1.05rem;font-weight:900;color:var(--gold)">🏟 JOINT PRACTICE REPORT</div>
+      <div style="color:var(--gray);font-size:.72rem">Wk ${report.week} · vs <b style="color:${oppTeam?.primary||"var(--gold)"}">${oppTeam?.city||""} ${oppTeam?.name||"?"}</b></div>
+      <button class="btn btn-outline" onclick="renderFrnScrimmages()" style="margin-left:auto">← Back to practices</button>
+    </div>
+    <div style="display:grid;grid-template-columns:auto 1fr;gap:.6rem;align-items:start;margin-bottom:.6rem">
+      <div style="background:var(--bg2);border:1px solid var(--border);padding:.55rem .8rem;text-align:center">
+        <div style="font-size:.5rem;letter-spacing:.7px;color:var(--gray)">FINAL</div>
+        <div style="font-size:1.6rem;font-weight:900;font-family:'IBM Plex Mono','JetBrains Mono',monospace">
+          <span style="color:${myTeam?.primary||"var(--gold)"}">${report.homeScore}</span>
+          <span style="color:var(--gray);margin:0 .35rem">—</span>
+          <span style="color:${oppTeam?.primary||"var(--blwhite)"}">${report.awayScore}</span>
+        </div>
+        <div style="font-size:.52rem;color:var(--gray);margin-top:.15rem">Exhibition · no W/L</div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--border);border-left:3px solid var(--gold);padding:.5rem .7rem">
+        <div style="font-size:.55rem;letter-spacing:.6px;color:var(--gold);font-weight:800">SCOUTING INTEL GAINED</div>
+        <div style="font-size:.7rem;color:var(--blwhite);margin-top:.18rem">Their full roster now reveals combine measurables and grades sharpen from ±8 to ±2 for the rest of Season ${report.season}.</div>
+      </div>
+    </div>
+    <div class="frn-card-title" style="margin-top:.8rem">📋 GRADE REVISIONS (${discoveries.length})</div>
+    <div style="font-size:.58rem;color:var(--gray);margin-bottom:.25rem">Players whose perceived grade moved after the joint reps. + = your scouts undervalued them; − = the tape was hiding warts.</div>
+    <table style="width:100%;border-collapse:collapse;background:var(--bg2);border:1px solid var(--border)">${intelRows}</table>
+    <div class="frn-card-title" style="margin-top:.8rem">🎬 HIGHLIGHTS</div>
+    ${highlightCards}`;
 }
 
 function renderFrnScrimmages() {
   const myId = franchise.chosenTeamId;
+  const myTeam = getTeam(myId);
+  const myConfDiv = `${myTeam?.conference}-${myTeam?.division}`;
   const done = (franchise.scrimmagesDone || []).filter(s => s.season === franchise.season);
+  const allDoneIdx = (franchise.scrimmagesDone || []).map((s, i) => ({ s, i }))
+    .filter(({ s }) => s.season === franchise.season);
   const doneThisWeek = done.filter(s => s.week === franchise.week);
-  const doneSet = new Set(done.map(s => s.teamId));
+  const doneByTeam = new Map(done.map(s => [s.teamId, s]));
   const SEASON_CAP = 4;
   const lockedThisWeek = doneThisWeek.length >= 1;
   const lockedThisSeason = done.length >= SEASON_CAP;
 
-  const candidates = TEAMS.filter(t => t.id !== myId).map(t => {
-    const interest = frnScrimmageInterest(t.id);
-    const rtg = frnTeamRating(t.id);
-    return { t, interest, rtg };
-  }).sort((a,b) => b.interest - a.interest);
+  // Schedule context: which teams do I play this season, and when?
+  const remainingWeekByOpp = new Map();
+  for (const g of (franchise.schedule || [])) {
+    if (g.played) continue;
+    if (g.homeId === myId)      remainingWeekByOpp.set(g.awayId, g.week);
+    else if (g.awayId === myId) remainingWeekByOpp.set(g.homeId, g.week);
+  }
+  const playedThisSeason = new Set();
+  for (const g of (franchise.schedule || [])) {
+    if (!g.played) continue;
+    if (g.homeId === myId) playedThisSeason.add(g.awayId);
+    else if (g.awayId === myId) playedThisSeason.add(g.homeId);
+  }
 
-  const rows = candidates.map(({ t, interest, rtg }) => {
-    const already = doneSet.has(t.id);
-    const tag = already ? `<span style="color:var(--gray);font-size:.62rem">Already scrimmaged</span>`
-      : interest >= 0.55 ? `<span style="color:var(--green-lt);font-size:.62rem">Very willing</span>`
-      : interest >= 0.35 ? `<span style="color:#e8a000;font-size:.62rem">Open to it</span>`
-      : interest > 0     ? `<span style="color:#c08080;font-size:.62rem">Unlikely</span>`
-      :                    `<span style="color:var(--gray);font-size:.62rem">Refused</span>`;
-    const disabled = already || lockedThisWeek || lockedThisSeason;
-    return `<tr>
-      <td style="font-weight:700">${teamLink(t, true)}</td>
-      <td style="color:var(--gray);font-size:.66rem">OFF ${rtg.off} · DEF ${rtg.def}</td>
-      <td>${tag}</td>
-      <td>${already
-        ? `<span style="color:var(--gold);font-size:.62rem">✓ Intel gained</span>`
-        : `<button class="btn btn-gold" style="font-size:.62rem;padding:.2rem .55rem${disabled?";opacity:.4;cursor:not-allowed":""}"
-            ${disabled?"disabled":""}
-            onclick="frnRequestScrimmage(${t.id})">Request</button>`}</td>
+  const candidates = TEAMS.filter(t => t.id !== myId).map(t => {
+    const interest  = frnScrimmageInterest(t.id);
+    const rtg       = frnTeamRating(t.id);
+    const upcomingWk = remainingWeekByOpp.get(t.id) ?? null;
+    const isDivision = `${t.conference}-${t.division}` === myConfDiv;
+    const isUpcoming = upcomingWk != null && upcomingWk - franchise.week <= 4;
+    const alreadyDone = doneByTeam.has(t.id);
+    const alreadyPlayed = playedThisSeason.has(t.id);
+    // Strategic value: future opponents > division foes > others; demoted if
+    // we already scrimmaged or already played them.
+    let priority = 0;
+    if (alreadyDone)        priority -= 100;
+    if (upcomingWk != null) priority += 30 - Math.min(20, upcomingWk - franchise.week);
+    if (isUpcoming)         priority += 15;
+    if (isDivision)         priority += 10;
+    if (alreadyPlayed)      priority -= 5;
+    priority += interest * 5;
+    return { t, interest, rtg, upcomingWk, isDivision, isUpcoming, alreadyDone, alreadyPlayed, priority };
+  }).sort((a, b) => b.priority - a.priority);
+
+  const renderRow = (c) => {
+    const { t, interest, rtg, upcomingWk, isDivision, isUpcoming, alreadyDone, alreadyPlayed } = c;
+    const willTag = alreadyDone ? `<span style="color:var(--gray);font-size:.6rem">— scrimmaged W${doneByTeam.get(t.id)?.week} —</span>`
+      : interest >= 0.55 ? `<span style="color:var(--green-lt);font-size:.6rem;font-weight:700">VERY WILLING</span>`
+      : interest >= 0.35 ? `<span style="color:#e8a000;font-size:.6rem;font-weight:700">OPEN</span>`
+      : interest > 0     ? `<span style="color:#c08080;font-size:.6rem;font-weight:700">UNLIKELY</span>`
+      :                    `<span style="color:var(--gray);font-size:.6rem">REFUSED</span>`;
+    const chips = [];
+    if (upcomingWk != null) {
+      const wksAway = upcomingWk - franchise.week;
+      const col = wksAway <= 2 ? "#ff6b6b" : wksAway <= 4 ? "#e8a000" : "var(--gold-lt)";
+      chips.push(`<span class="frn-jp-chip" style="border-color:${col};color:${col}" title="On your remaining schedule — practice here pays off Week ${upcomingWk}">▶ WK ${upcomingWk}${wksAway <= 4 ? ` (${wksAway}w)` : ""}</span>`);
+    }
+    if (isDivision)   chips.push(`<span class="frn-jp-chip" style="border-color:var(--gold);color:var(--gold)" title="Division foe — you'll see them again">🏟 DIVISION</span>`);
+    if (alreadyPlayed)chips.push(`<span class="frn-jp-chip muted" title="Already played them this season — intel is less actionable">✓ PLAYED</span>`);
+    if (alreadyDone)  chips.push(`<span class="frn-jp-chip muted" title="Intel already gained">📋 INTEL</span>`);
+    const disabled = alreadyDone || lockedThisWeek || lockedThisSeason;
+    const intel = alreadyDone
+      ? `<span style="color:var(--gold);font-size:.58rem">✓ ${doneByTeam.get(t.id)?.discoveries?.length || 0} grade revisions</span>`
+      : `<span style="color:var(--gray);font-size:.58rem">Reveals combine + sharpens ~${(franchise.rosters[t.id]||[]).length} grades</span>`;
+    const actionCell = alreadyDone
+      ? `<button class="btn btn-outline" style="font-size:.6rem;padding:.2rem .55rem"
+           onclick="renderFrnPracticeReport(${allDoneIdx.find(({s}) => s.teamId === t.id)?.i ?? -1})">View report →</button>`
+      : `<button class="btn btn-gold" style="font-size:.62rem;padding:.2rem .55rem${disabled?";opacity:.4;cursor:not-allowed":""}"
+           ${disabled?"disabled":""}
+           onclick="frnRequestScrimmage(${t.id})">Request →</button>`;
+    return `<tr class="frn-jp-row${isUpcoming?" upcoming":""}${isDivision?" division":""}">
+      <td style="font-weight:700;padding:.3rem .45rem">
+        ${teamLink(t, true)}
+        <div style="display:flex;flex-wrap:wrap;gap:.2rem;margin-top:.15rem">${chips.join("")}</div>
+      </td>
+      <td style="color:var(--gray);font-size:.62rem;padding:.3rem .45rem">OFF ${rtg.off} · DEF ${rtg.def}</td>
+      <td style="padding:.3rem .45rem">${willTag}<div>${intel}</div></td>
+      <td style="padding:.3rem .45rem;text-align:right">${actionCell}</td>
     </tr>`;
-  }).join("");
+  };
+
+  const rows = candidates.map(renderRow).join("");
 
   const capBanner = lockedThisSeason
-    ? `<div class="frn-pre-warn">⚠ You've used all ${SEASON_CAP} scrimmage slots for the season.</div>`
+    ? `<div class="frn-pre-warn">⚠ You've used all ${SEASON_CAP} joint-practice slots for the season.</div>`
     : lockedThisWeek
     ? `<div class="frn-pre-warn" style="border-color:var(--gold-lt);color:var(--gold-lt);background:rgba(200,169,0,0.10)">
-         ✓ You already scrimmaged this week with ${getTeam(doneThisWeek[0].teamId)?.name||"a team"}. Try again next week.
+         ✓ You already ran a joint practice this week with ${getTeam(doneThisWeek[0].teamId)?.name||"a team"}. Next slot opens at week start.
+       </div>`
+    : "";
+
+  const logHtml = allDoneIdx.length
+    ? `<div class="frn-card-title" style="margin-top:.9rem">📓 PRACTICES THIS SEASON</div>
+       <div style="display:flex;flex-direction:column;gap:.25rem">
+         ${allDoneIdx.slice().reverse().map(({ s, i }) => {
+           const opp = getTeam(s.teamId);
+           const revs = s.discoveries?.length || 0;
+           const hls  = s.highlights?.length  || 0;
+           return `<div class="frn-jp-log-row" onclick="renderFrnPracticeReport(${i})">
+             <span class="frn-jp-log-wk">W${s.week}</span>
+             <span class="frn-jp-log-opp" style="color:${opp?.primary||"var(--gold)"}">vs ${opp?.name||"?"}</span>
+             <span class="frn-jp-log-score">${s.homeScore != null ? `${s.homeScore}-${s.awayScore}` : (s.score || "")}</span>
+             <span class="frn-jp-log-meta">${revs} revisions · ${hls} highlights</span>
+             <span class="frn-jp-log-arrow">›</span>
+           </div>`;
+         }).join("")}
        </div>`
     : "";
 
@@ -1012,18 +1227,19 @@ function renderFrnScrimmages() {
     <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem;flex-wrap:wrap">
       <div style="font-size:1.05rem;font-weight:900;color:var(--gold)">🏟 JOINT PRACTICES</div>
       <div style="color:var(--gray);font-size:.72rem">
-        One per week · ${done.length}/${SEASON_CAP} done this season
+        One per week · ${done.length}/${SEASON_CAP} used this season
       </div>
       <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="margin-left:auto">← Back</button>
     </div>
     <div class="frn-fa-summary">
-      Joint practices count as exhibition games — no W/L, no stat lines, no risk of injury <i>and</i> you walk away with scouting intel (their grades sharpen for the rest of the season). One per week, up to ${SEASON_CAP} per season, one per opponent per season.
+      Joint practices are exhibitions — no W/L, no stat lines, no injuries. You walk away with their full combine numbers + sharpened scouting grades (±8 → ±2) for the rest of the season. One per week, ${SEASON_CAP} per season, one per opponent per season. Future opponents and division foes are sorted first.
     </div>
     ${capBanner}
     <table class="frn-pre-roster-table" style="margin-top:.5rem">
-      <thead><tr><th>Team</th><th>Rating</th><th>Willingness</th><th></th></tr></thead>
+      <thead><tr><th>Team</th><th>Rating</th><th>Willingness · Intel</th><th></th></tr></thead>
       <tbody>${rows}</tbody>
-    </table>`;
+    </table>
+    ${logHtml}`;
 }
 
 // ── Past-game viewer ──────────────────────────────────────────────────────────
@@ -4100,7 +4316,7 @@ function renderFrnRegular() {
     mkItem("scout",    "🔍","Scout Opponent",    nextGame ? `vs ${oppName0}` : "Bye week",                           `renderFrnPreseason('scout')`),
     mkItem("depth",    "📋","Depth Chart",        "Set your starters",                                                 `renderFrnDepthChart()`),
     mkItem("snaps",    "⚡","Snap Percentages",   snapConflicts ? `⚠ ${snapConflicts} stamina conflict${snapConflicts>1?"s":""}` : "Optimize rotations", `renderFrnSnapShares()`, snapConflicts > 0),
-    mkItem("practice", "🏟","Scrimmage",          "Run a joint practice",                                              `renderFrnScrimmages()`),
+    mkItem("practice", "🏟","Joint Practice",     "Scout an opponent in shared reps",                                  `renderFrnScrimmages()`),
     mkItem("injuries", "🩹","Injury Report",      injured.length ? `${injured.length} player${injured.length>1?"s":""} out` : "All clear", `renderFrnInjuryReport()`, injured.length > 0),
     mkItem("fa","🆓","FA Negotiations", activeNegs.length ? `${activeNegs.length} active${outbidCount?` · ${outbidCount} outbid!`:""}` : "Browse free agents", `renderFrnFANegotiations()`, outbidCount>0),
     ...(demands.length ? [mkItem("extensions","📝","Extension Demands",`${demands.length} pending`,`renderFrnAnalytics('extensions')`,true)] : []),

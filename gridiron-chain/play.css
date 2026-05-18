@@ -4005,6 +4005,39 @@
     padding: .5rem; background: var(--bg3); border: 1px solid var(--border);
   }
 
+  /* ── Joint Practices screen ───────────────────────────────────────── */
+  .frn-jp-chip {
+    font-size: .5rem; letter-spacing: .5px; font-weight: 800;
+    padding: .04rem .3rem; border: 1px solid; border-radius: 2px;
+    background: rgba(0,0,0,.25); display: inline-block;
+  }
+  .frn-jp-chip.muted {
+    color: var(--blgray); border-color: var(--border); background: transparent;
+  }
+  .frn-jp-row.upcoming td:first-child {
+    border-left: 3px solid var(--gold); padding-left: .35rem;
+  }
+  .frn-jp-row.division:not(.upcoming) td:first-child {
+    border-left: 3px solid var(--gold-lt); padding-left: .35rem;
+  }
+  .frn-jp-log-row {
+    display: grid;
+    grid-template-columns: 38px 1fr 90px 1fr 18px;
+    align-items: center; gap: .55rem;
+    padding: .32rem .55rem; background: var(--bg2);
+    border: 1px solid var(--border); cursor: pointer;
+    transition: background .12s ease, border-color .12s ease;
+  }
+  .frn-jp-log-row:hover { background: var(--bg3); border-color: var(--gold-lt); }
+  .frn-jp-log-wk   { font-size: .58rem; font-weight: 900; color: var(--blgray); letter-spacing: .5px; }
+  .frn-jp-log-opp  { font-size: .72rem; font-weight: 800; }
+  .frn-jp-log-score{
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    font-size: .68rem; color: var(--blwhite);
+  }
+  .frn-jp-log-meta { font-size: .55rem; color: var(--gray); }
+  .frn-jp-log-arrow{ color: var(--blgray); text-align: right; }
+
   /* Free Agency screen */
   .frn-fa-summary {
     display: flex; gap: 1.1rem; flex-wrap: wrap;

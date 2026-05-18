@@ -892,6 +892,56 @@ function frnSimOnce(homeId, awayId, isPlayoff = false) {
   return { homeScore: r.homeScore, awayScore: r.awayScore, full: r };
 }
 
+// Run a Joint Practice sim — same engine and coaching/scheme modifiers
+// as frnSimOnce but no side effects (no season-stats merge, no
+// single-game records, no season highlights). Practices are
+// exhibitions: zero W/L, zero stat lines, just scouting intel + a
+// report card.
+function frnSimPractice(homeId, awayId) {
+  const sim = new GameSimulator(
+    getTeam(homeId), getTeam(awayId),
+    franchise.rosters[homeId], franchise.rosters[awayId],
+    { isRivalry: false, homeFieldAdv: false,
+      homeSnaps: _buildSnapMap(homeId),
+      awaySnaps: _buildSnapMap(awayId) }
+  );
+  // Same coaching/scheme overlays as frnSimOnce so a practice plays
+  // the way the real matchup would.
+  const hcHome = franchise.coaches?.[homeId]?.hc?.specialtyTrait;
+  const hcAway = franchise.coaches?.[awayId]?.hc?.specialtyTrait;
+  if (hcHome === "Offensive Minded") sim.homeR.offense += 2;
+  if (hcHome === "Defensive Minded") sim.homeR.defense += 2;
+  if (hcAway === "Offensive Minded") sim.awayR.offense += 2;
+  if (hcAway === "Defensive Minded") sim.awayR.defense += 2;
+  const chemHome = _computeChemistryBonus(homeId);
+  const chemAway = _computeChemistryBonus(awayId);
+  sim.homeR.offense += chemHome.offBonus; sim.homeR.defense += chemHome.defBonus;
+  sim.awayR.offense += chemAway.offBonus; sim.awayR.defense += chemAway.defBonus;
+  const ocHome = franchise.coaches?.[homeId]?.oc?.trait;
+  const ocAway = franchise.coaches?.[awayId]?.oc?.trait;
+  const dcHome = franchise.coaches?.[homeId]?.dc?.trait;
+  const dcAway = franchise.coaches?.[awayId]?.dc?.trait;
+  if (dcHome === "Pressure Package") sim.homeR.defense += 1;
+  if (dcAway === "Pressure Package") sim.awayR.defense += 1;
+  if (dcHome === "Ball Hawk") sim.homeR.defense += 1;
+  if (dcAway === "Ball Hawk") sim.awayR.defense += 1;
+  if (ocHome === "Trench General" && _getTeamOffScheme(homeId) === "SMASHMOUTH") sim.homeR.offense += 1;
+  if (ocAway === "Trench General" && _getTeamOffScheme(awayId) === "SMASHMOUTH") sim.awayR.offense += 1;
+  if (ocHome === "Red Zone Genius" && _getTeamOffScheme(homeId) === "WEST COAST") sim.homeR.offense += 1;
+  if (ocAway === "Red Zone Genius" && _getTeamOffScheme(awayId) === "WEST COAST") sim.awayR.offense += 1;
+  const _cb = r => r >= 83 ? 2 : r >= 72 ? 1 : r >= 55 ? 0 : -1;
+  const _hc = (id) => franchise.coaches?.[id]?.hc?.rating || 60;
+  const _oc = (id) => franchise.coaches?.[id]?.oc?.rating || 60;
+  const _dc = (id) => franchise.coaches?.[id]?.dc?.rating || 60;
+  sim.homeR.offense += _cb(_hc(homeId)) + _cb(_oc(homeId));
+  sim.homeR.defense += _cb(_hc(homeId)) + _cb(_dc(homeId));
+  sim.awayR.offense += _cb(_hc(awayId)) + _cb(_oc(awayId));
+  sim.awayR.defense += _cb(_hc(awayId)) + _cb(_dc(awayId));
+  const r = sim.simulate();
+  r.weather = sim.weather;
+  return { homeScore: r.homeScore, awayScore: r.awayScore, full: r };
+}
+
 // Two teams are "rivals" if they share a division. Tagged on schedule
 // entries at season-init by _assignRivalries; runtime fallback below.
 function _areRivals(aId, bId) {
