@@ -898,13 +898,58 @@ function _escHtml(s) {
 }
 
 // ── Joint Practices ───────────────────────────────────────────────────────────
-// Between weeks, you can propose a joint practice to another team. If
-// they accept, an exhibition sim runs (no W/L, no season stats, no
-// injury risk) and you walk away with scouting intel that sharpens
-// their roster's grades + reveals combine measurables for the rest of
-// the season. After the practice you get a full report card —
-// final score, the players whose grades moved most, and the top
-// highlight plays.
+// Between weeks, you can propose a joint practice to another team. The
+// initiator picks an intensity; the receiver picks theirs; the
+// resolved intensity is the MIN of the two (the conservative side has
+// veto power, matching how real NFL joint-practice negotiations
+// shake out). The offer model is multiplayer-shaped — in single
+// player the AI receiver auto-responds the same tick, but the same
+// store maps onto an async transport later.
+const JP_INTENSITIES = {
+  walkthrough: {
+    rank: 1, slotCost: 0.5, label: "Walk-through", icon: "🚶",
+    desc: "Scheme + tendencies only · ½ slot · zero injury risk",
+    revealsGrades: false, injuryChance: 0, awrRolls: 0,
+  },
+  joint: {
+    rank: 2, slotCost: 1.0, label: "Joint Practice", icon: "🤝",
+    desc: "Full intel (combine + grade sharpening) · 1 slot · minimal injury risk",
+    revealsGrades: true,  injuryChance: 0.005, awrRolls: 1,
+  },
+  live: {
+    rank: 3, slotCost: 1.0, label: "Live Pads", icon: "💥",
+    desc: "Full intel + tendency report + AWR boost · 1 slot · real injury risk",
+    revealsGrades: true,  injuryChance: 0.015, awrRolls: 2,
+  },
+};
+const JP_ORDER = ["walkthrough", "joint", "live"];
+const JP_SEASON_CAP = 4;
+
+function _jpMin(a, b) { return JP_INTENSITIES[a].rank < JP_INTENSITIES[b].rank ? a : b; }
+function _jpUsedSlots(season) {
+  return (franchise.scrimmagesDone || [])
+    .filter(s => s.season === season)
+    .reduce((sum, s) => sum + (JP_INTENSITIES[s.intensity]?.slotCost ?? 1), 0);
+}
+function _jpRemainingSlots(season) { return Math.max(0, JP_SEASON_CAP - _jpUsedSlots(season)); }
+
+// AI receiver's preferred intensity given the initiator's pick.
+// Conservative when underdog (avoid injuries); aggressive when ahead
+// (scout the upset hopefuls); matches initiator when roughly even.
+function _jpAiResponderIntensity(receiverId, initiatorId) {
+  const myRtg = frnTeamRating(receiverId);
+  const themRtg = frnTeamRating(initiatorId);
+  const gap = (myRtg.off + myRtg.def) - (themRtg.off + themRtg.def);
+  if (gap < -8) return "walkthrough";
+  if (gap >  8 && Math.random() < 0.5) return "live";
+  return "joint";
+}
+
+// Module-level UI state for the inline intensity picker.
+let _jpPickerTeam = null;
+function frnJpShowPicker(otherId) { _jpPickerTeam = Number(otherId); renderFrnScrimmages(); }
+function frnJpCancelPicker() { _jpPickerTeam = null; renderFrnScrimmages(); }
+
 function frnScrimmageInterest(otherId) {
   // AI willingness based on relative talent + their own week's bye
   const myId = franchise.chosenTeamId;
@@ -997,6 +1042,96 @@ function _practiceHighlights(plays, homeId, awayId) {
   return hl.sort((a, b) => b.weight - a.weight).slice(0, 4);
 }
 
+// Tendency snapshot mined from a single practice's plays — what a
+// walk-through reveals. No grade/combine info, just situational
+// percentages a film-study staffer would call out the next morning.
+function _practiceTendencies(plays, oppId) {
+  if (!Array.isArray(plays) || !plays.length) return [];
+  // Only count plays where the opponent had the ball (poss === "away"
+  // since we're always home in practices).
+  const oppPlays = plays.filter(p => p.poss === "away" && (p.kind === "run" || p.kind === "complete" || p.kind === "incomplete" || p.kind === "sack" || p.kind === "int" || p.kind === "fumble"));
+  if (!oppPlays.length) return [];
+  const passKinds = new Set(["complete","incomplete","sack","int"]);
+  const total      = oppPlays.length;
+  const passes     = oppPlays.filter(p => passKinds.has(p.kind)).length;
+  const passRate   = passes / total;
+  const first      = oppPlays.filter(p => p.down === 1);
+  const firstPassRate = first.length ? first.filter(p => passKinds.has(p.kind)).length / first.length : 0;
+  const third      = oppPlays.filter(p => p.down === 3);
+  const thirdPassRate = third.length ? third.filter(p => passKinds.has(p.kind)).length / third.length : 0;
+  const redZone    = oppPlays.filter(p => (p.yardLine || 0) >= 80);
+  const rzRunRate  = redZone.length ? redZone.filter(p => p.kind === "run").length / redZone.length : 0;
+  const sacks      = oppPlays.filter(p => p.kind === "sack").length;
+  return [
+    { label: "Overall pass rate",  value: `${Math.round(passRate*100)}%`,
+      note: passRate > 0.62 ? "pass-heavy" : passRate < 0.42 ? "run-heavy" : "balanced" },
+    { label: "1st-down pass",      value: `${Math.round(firstPassRate*100)}%`,
+      note: firstPassRate > 0.55 ? "aggressive early" : firstPassRate < 0.40 ? "establish the run" : "" },
+    { label: "3rd-down pass",      value: `${Math.round(thirdPassRate*100)}%`,
+      note: thirdPassRate > 0.85 ? "almost always throws" : thirdPassRate < 0.70 ? "willing to run" : "" },
+    { label: "Red-zone run rate",  value: redZone.length ? `${Math.round(rzRunRate*100)}%` : "—",
+      note: redZone.length === 0 ? "no RZ trips" : rzRunRate > 0.65 ? "pounds it" : rzRunRate < 0.35 ? "throws TDs" : "" },
+    { label: "Pressures taken",    value: `${sacks} sack${sacks===1?"":"s"} in ${total} plays`,
+      note: sacks >= 4 ? "OL leaks" : sacks === 0 ? "OL holds up" : "" },
+  ];
+}
+
+// Roll incidental injuries for a Live Pads practice. Caps at 2 per
+// side so it never wrecks a roster. Returns the list of affected
+// players (mutates franchise.rosters to stamp the injury).
+function _practiceInjuriesRoll(myId, oppId, chance, capPerSide = 2) {
+  if (!chance || chance <= 0) return [];
+  const out = [];
+  const rollSide = (teamId) => {
+    const roster = franchise.rosters[teamId] || [];
+    // Only roll for the top 22 by overall — the guys actually taking
+    // first-team reps. Everyone else is on a back field.
+    const starters = roster.slice().sort((a, b) => (b.overall||0) - (a.overall||0)).slice(0, 22);
+    let hits = 0;
+    for (const p of starters) {
+      if (hits >= capPerSide) break;
+      if (p.injury && p.injury.weeksRemaining > 0) continue;
+      if (Math.random() < chance) {
+        const weeks = 1 + Math.floor(Math.random() * 2); // 1–2 weeks
+        const label = Math.random() < 0.6 ? "Tweaked hammy" : Math.random() < 0.5 ? "Stinger" : "Bruised ribs";
+        p.injury = { label, weeksRemaining: weeks };
+        out.push({ teamId, pid: p.pid, name: p.name, pos: p.position, label, weeks });
+        hits++;
+      }
+    }
+  };
+  rollSide(myId);
+  rollSide(oppId);
+  return out;
+}
+
+// Award practice-driven AWR rolls to under-25 players on both teams
+// (Live = 2 rolls, Joint = 1, Walkthrough = 0). Each roll has a
+// modest chance to nudge AWR up by 1, capped at _awrCeiling.
+function _practiceAwrBoost(myId, oppId, rolls) {
+  if (!rolls || rolls <= 0) return { my: 0, opp: 0 };
+  const bump = (teamId) => {
+    let n = 0;
+    for (const p of (franchise.rosters[teamId] || [])) {
+      if ((p.age || 25) > 25) continue;
+      if (!Array.isArray(p.stats)) continue;
+      if ((p.stats[3] ?? 70) >= (p._awrCeiling ?? 85)) continue;
+      for (let i = 0; i < rolls; i++) {
+        if (Math.random() < 0.18) {
+          p.stats[3] = Math.min(p._awrCeiling ?? 85, (p.stats[3] ?? 70) + 1);
+          n++;
+          break; // one bump max per practice per player
+        }
+      }
+    }
+    return n;
+  };
+  return { my: bump(myId), opp: bump(oppId) };
+}
+
+// Open the inline intensity picker. Called by the Request button on
+// each row. The user picks one of the three intensities, which sends
+// an "offer" to the (AI) receiver. Same shape as multiplayer.
 function frnRequestScrimmage(otherId) {
   otherId = Number(otherId);
   const allDone = (franchise.scrimmagesDone || []);
@@ -1006,49 +1141,97 @@ function frnRequestScrimmage(otherId) {
     renderFrnScrimmages();
     return;
   }
-  const thisSeason = allDone.filter(s => s.season === franchise.season);
-  if (thisSeason.length >= 4) {
-    alert("You've used all 4 joint-practice slots for the season.");
+  if (_jpRemainingSlots(franchise.season) < JP_INTENSITIES.walkthrough.slotCost) {
+    alert(`You've used all ${JP_SEASON_CAP} joint-practice slots for the season.`);
     renderFrnScrimmages();
     return;
   }
   const interest = frnScrimmageInterest(otherId);
   if (Math.random() > interest) {
-    alert("They turned down the joint practice — schedule too tight.");
+    alert("They turned down the request — schedule too tight.");
     renderFrnScrimmages();
     return;
   }
+  // They're willing — let the user pick intensity now.
+  frnJpShowPicker(otherId);
+}
 
-  // Sim the exhibition (no season-stat or highlight side effects)
+// Send the offer at the chosen intensity and (in single player) let
+// the AI receiver respond immediately. Resolved intensity = min of
+// both picks. Same code path will plug into an async transport later
+// — the offer object outlives the request.
+function frnJpSendOffer(otherId, initiatorIntensity) {
+  otherId = Number(otherId);
+  if (!JP_INTENSITIES[initiatorIntensity]) return;
+  _jpPickerTeam = null;
+  const remaining = _jpRemainingSlots(franchise.season);
+  if (JP_INTENSITIES[initiatorIntensity].slotCost > remaining + 0.01) {
+    alert(`Not enough slot budget left — only ${remaining.toFixed(1)} remaining.`);
+    renderFrnScrimmages();
+    return;
+  }
   const myId = franchise.chosenTeamId;
-  const r = frnSimPractice(myId, otherId);
+  if (!franchise.jointPracticeOffers) franchise.jointPracticeOffers = [];
+  const offer = {
+    id: `${franchise.season}-W${franchise.week}-${myId}-${otherId}-${Date.now()}`,
+    season: franchise.season, week: franchise.week,
+    fromTeamId: myId, toTeamId: otherId,
+    fromIntensity: initiatorIntensity,
+    status: "pending", createdAt: Date.now(),
+  };
+  franchise.jointPracticeOffers.push(offer);
+  // AI receiver auto-responds same tick in single player.
+  const receiverPref = _jpAiResponderIntensity(otherId, myId);
+  offer.toIntensity   = receiverPref;
+  offer.status        = "accepted";
+  offer.respondedAt   = Date.now();
+  offer.resolvedIntensity = _jpMin(initiatorIntensity, receiverPref);
+  _jpRunPractice(offer);
+}
 
-  // Capture intel discoveries BEFORE we set the scouting flag so the
-  // "before" grades reflect the unscouted noise band.
-  const discoveries = _practiceIntelDiscoveries(otherId);
-  const highlights  = _practiceHighlights(r.full?.plays || [], myId, otherId);
-
-  if (!franchise.scoutingIntel) franchise.scoutingIntel = {};
-  franchise.scoutingIntel[otherId] = { season: franchise.season, gainedWeek: franchise.week };
-
+// Actually run the resolved practice. Builds the report, awards
+// intel + AWR + injuries per the intensity rules, stamps news.
+function _jpRunPractice(offer) {
+  const intensity = JP_INTENSITIES[offer.resolvedIntensity];
+  const myId  = offer.fromTeamId;
+  const oppId = offer.toTeamId;
+  const r = frnSimPractice(myId, oppId);
+  // Compute intel BEFORE flipping the scoutingIntel flag.
+  const discoveries = intensity.revealsGrades ? _practiceIntelDiscoveries(oppId) : [];
+  const tendencies  = (offer.resolvedIntensity !== "joint") ? _practiceTendencies(r.full?.plays || [], oppId) : [];
+  const highlights  = (offer.resolvedIntensity !== "walkthrough") ? _practiceHighlights(r.full?.plays || [], myId, oppId) : [];
+  const injuries    = _practiceInjuriesRoll(myId, oppId, intensity.injuryChance);
+  const awrBoost    = _practiceAwrBoost(myId, oppId, intensity.awrRolls);
+  if (intensity.revealsGrades) {
+    if (!franchise.scoutingIntel) franchise.scoutingIntel = {};
+    franchise.scoutingIntel[oppId] = { season: franchise.season, gainedWeek: franchise.week };
+  }
   if (!franchise.scrimmagesDone) franchise.scrimmagesDone = [];
   const report = {
-    season: franchise.season, week: franchise.week, teamId: otherId,
+    season: franchise.season, week: franchise.week, teamId: oppId,
     homeScore: r.homeScore, awayScore: r.awayScore,
     score: `${r.homeScore}-${r.awayScore}`,
-    discoveries, highlights,
+    intensity: offer.resolvedIntensity,
+    requestedIntensity: offer.fromIntensity,
+    receiverIntensity:  offer.toIntensity,
+    slotCost: intensity.slotCost,
+    discoveries, tendencies, highlights, injuries, awrBoost,
+    offerId: offer.id,
   };
   franchise.scrimmagesDone.push(report);
-  const team = getTeam(otherId);
+  offer.reportIdx = franchise.scrimmagesDone.length - 1;
+  const oppTeam = getTeam(oppId);
+  const intensityNote = offer.fromIntensity !== offer.resolvedIntensity ? ` (downgraded by ${oppTeam?.name})` : "";
   _pushNews({ type:"scrimmage",
-    label: `🏟 Joint practice with ${team.name} — scouting intel gathered (final: ${r.homeScore}-${r.awayScore})` });
+    label: `🏟 ${intensity.label} with ${oppTeam.name}${intensityNote} — ${intensity.revealsGrades?"scouting intel":"tendency notes"} gathered (final: ${r.homeScore}-${r.awayScore})` });
   saveFranchise();
-  // Open the report immediately
-  renderFrnPracticeReport(franchise.scrimmagesDone.length - 1);
+  renderFrnPracticeReport(report.offerId ? franchise.scrimmagesDone.length - 1 : 0);
 }
 
 // Render the report card for a completed joint practice. Reused by the
-// practice log (click any past practice to re-read it).
+// practice log (click any past practice to re-read it). Adapts panels
+// to the resolved intensity — Walkthrough hides highlights + grade
+// revisions, Live adds an injuries panel + AWR boost note.
 function renderFrnPracticeReport(idx) {
   frnHoverTipHide(); _frnHoverTipPgHide && _frnHoverTipPgHide();
   const all = franchise.scrimmagesDone || [];
@@ -1057,9 +1240,25 @@ function renderFrnPracticeReport(idx) {
   const myId = franchise.chosenTeamId;
   const myTeam = getTeam(myId);
   const oppTeam = getTeam(report.teamId);
+  const intensityKey = report.intensity || "joint"; // legacy reports default
+  const intensity = JP_INTENSITIES[intensityKey] || JP_INTENSITIES.joint;
   const discoveries = report.discoveries || [];
+  const tendencies  = report.tendencies  || [];
   const highlights  = report.highlights  || [];
+  const injuries    = report.injuries    || [];
+  const awrBoost    = report.awrBoost    || { my: 0, opp: 0 };
+  const downgraded  = report.requestedIntensity && report.requestedIntensity !== intensityKey;
   const deltaCol = (d) => d > 0 ? "var(--green-lt)" : d < 0 ? "#ff8a8a" : "var(--gray)";
+
+  const intelPanel = intensity.revealsGrades
+    ? `<div style="background:var(--bg2);border:1px solid var(--border);border-left:3px solid var(--gold);padding:.5rem .7rem">
+        <div style="font-size:.55rem;letter-spacing:.6px;color:var(--gold);font-weight:800">SCOUTING INTEL GAINED</div>
+        <div style="font-size:.7rem;color:var(--blwhite);margin-top:.18rem">Full roster combine measurables revealed and grades sharpen ±8 → ±2 for the rest of Season ${report.season}.</div>
+      </div>`
+    : `<div style="background:var(--bg2);border:1px solid var(--border);border-left:3px solid var(--blgray);padding:.5rem .7rem">
+        <div style="font-size:.55rem;letter-spacing:.6px;color:var(--blgray);font-weight:800">TENDENCY-ONLY (WALK-THROUGH)</div>
+        <div style="font-size:.7rem;color:var(--blwhite);margin-top:.18rem">No live reps — grades stay noisy and combines stay estimated. You got their playcall tendencies (see below) and that's it.</div>
+      </div>`;
 
   const intelRows = discoveries.length
     ? discoveries.map(d => `<tr>
@@ -1068,10 +1267,27 @@ function renderFrnPracticeReport(idx) {
         <td style="padding:.18rem .4rem;font-size:.62rem">→ <b style="color:${deltaCol(d.delta)}">${d.after}</b></td>
         <td style="padding:.18rem .4rem;font-size:.58rem;color:${deltaCol(d.delta)};font-weight:800;text-align:right">${d.delta > 0 ? "+" : ""}${d.delta}</td>
       </tr>`).join("")
-    : `<tr><td colspan="4" style="padding:.4rem;color:var(--gray);font-style:italic;font-size:.65rem">No meaningful grade revisions — your scouts had them dialed in already.</td></tr>`;
+    : "";
+  const gradeBlock = intensity.revealsGrades
+    ? `<div class="frn-card-title" style="margin-top:.8rem">📋 GRADE REVISIONS (${discoveries.length})</div>
+       <div style="font-size:.58rem;color:var(--gray);margin-bottom:.25rem">Players whose perceived grade moved. + = your scouts undervalued them; − = the tape was hiding warts.</div>
+       ${discoveries.length
+         ? `<table style="width:100%;border-collapse:collapse;background:var(--bg2);border:1px solid var(--border)">${intelRows}</table>`
+         : `<div style="color:var(--gray);font-style:italic;font-size:.65rem">Your scouts had them dialed in — no meaningful revisions.</div>`}`
+    : "";
+
+  const tendenciesBlock = tendencies.length
+    ? `<div class="frn-card-title" style="margin-top:.8rem">🎯 TENDENCIES (${oppTeam?.name||"opponent"})</div>
+       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.3rem">
+         ${tendencies.map(t => `<div style="background:var(--bg2);border:1px solid var(--border);padding:.32rem .5rem">
+           <div style="font-size:.52rem;letter-spacing:.6px;color:var(--blgray);font-weight:700">${t.label.toUpperCase()}</div>
+           <div style="font-size:.86rem;font-weight:900;color:var(--gold-lt);font-family:'IBM Plex Mono','JetBrains Mono',monospace">${t.value}</div>
+           ${t.note ? `<div style="font-size:.55rem;color:var(--gray);font-style:italic">${t.note}</div>` : ""}
+         </div>`).join("")}
+       </div>` : "";
 
   const highlightCards = highlights.length
-    ? highlights.map((h, i) => {
+    ? highlights.map(h => {
         const clipLines = (h.clip || []).map(c =>
           `<div style="font-size:.58rem;color:${c.hi?"var(--gold-lt)":"var(--blgray)"};padding:.08rem 0">${c.sit ? `<span style="color:var(--gray);margin-right:.4rem">${c.sit}</span>` : ""}${c.desc || ""}</div>`
         ).join("");
@@ -1081,14 +1297,46 @@ function renderFrnPracticeReport(idx) {
           ${h.homeScore != null ? `<div style="font-size:.54rem;color:var(--gray);margin-top:.18rem">Q${h.quarter||"?"} · ${myTeam.name} ${h.homeScore} — ${oppTeam.name} ${h.awayScore}</div>` : ""}
         </div>`;
       }).join("")
-    : `<div style="color:var(--gray);font-style:italic;font-size:.65rem">No marquee plays — clean controlled practice.</div>`;
+    : "";
+  const highlightsBlock = intensityKey !== "walkthrough"
+    ? `<div class="frn-card-title" style="margin-top:.8rem">🎬 HIGHLIGHTS</div>
+       ${highlightCards || `<div style="color:var(--gray);font-style:italic;font-size:.65rem">No marquee plays — clean controlled practice.</div>`}`
+    : "";
+
+  const injuriesBlock = injuries.length
+    ? `<div class="frn-card-title" style="margin-top:.8rem;color:#ff8a8a">🚑 INJURIES (LIVE PADS)</div>
+       <div style="font-size:.58rem;color:var(--gray);margin-bottom:.25rem">Reps in pads come with a cost — these guys missed snaps. Yours are flagged on your depth chart now.</div>
+       <div style="display:flex;flex-direction:column;gap:.2rem">
+         ${injuries.map(i => `<div style="background:var(--bg2);border:1px solid #ff6b6b33;border-left:3px solid #ff8a8a;padding:.3rem .55rem;font-size:.66rem">
+           <b style="color:${i.teamId===myId?"var(--gold)":"var(--blwhite)"}">${i.teamId===myId ? "YOU" : oppTeam?.name}</b>
+           · <b>${i.pos}</b> ${i.name} — ${i.label} (${i.weeks}w)
+         </div>`).join("")}
+       </div>`
+    : "";
+
+  const awrBlock = (awrBoost.my + awrBoost.opp) > 0
+    ? `<div style="background:var(--bg2);border:1px solid var(--border);border-left:3px solid var(--green-lt);padding:.4rem .6rem;margin-top:.6rem">
+        <div style="font-size:.55rem;letter-spacing:.6px;color:var(--green-lt);font-weight:800">⬆ AWR DEVELOPMENT</div>
+        <div style="font-size:.66rem;color:var(--blwhite);margin-top:.18rem">${awrBoost.my} of your under-25 players bumped AWR · ${awrBoost.opp} on ${oppTeam?.name}'s side.</div>
+      </div>`
+    : "";
+
+  const intensityChip = `<span style="background:var(--bg3);border:1px solid var(--border);padding:.18rem .42rem;font-size:.58rem;letter-spacing:.6px;color:var(--gold-lt);font-weight:800">
+    ${intensity.icon} ${intensity.label.toUpperCase()} · ${intensity.slotCost} SLOT${intensity.slotCost===1?"":""}
+  </span>`;
+  const downgradeBanner = downgraded
+    ? `<div style="background:rgba(232,160,0,.08);border:1px solid rgba(232,160,0,.35);padding:.3rem .5rem;font-size:.6rem;color:var(--gold-lt);margin-bottom:.5rem">
+        ⚠ You requested <b>${JP_INTENSITIES[report.requestedIntensity]?.label}</b>; ${oppTeam?.name} answered <b>${JP_INTENSITIES[report.receiverIntensity]?.label}</b>. The lower intensity wins — you ran a <b>${intensity.label}</b>.
+      </div>` : "";
 
   $("frnHomeContent").innerHTML = `
     <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem;flex-wrap:wrap">
-      <div style="font-size:1.05rem;font-weight:900;color:var(--gold)">🏟 JOINT PRACTICE REPORT</div>
+      <div style="font-size:1.05rem;font-weight:900;color:var(--gold)">🏟 PRACTICE REPORT</div>
+      ${intensityChip}
       <div style="color:var(--gray);font-size:.72rem">Wk ${report.week} · vs <b style="color:${oppTeam?.primary||"var(--gold)"}">${oppTeam?.city||""} ${oppTeam?.name||"?"}</b></div>
       <button class="btn btn-outline" onclick="renderFrnScrimmages()" style="margin-left:auto">← Back to practices</button>
     </div>
+    ${downgradeBanner}
     <div style="display:grid;grid-template-columns:auto 1fr;gap:.6rem;align-items:start;margin-bottom:.6rem">
       <div style="background:var(--bg2);border:1px solid var(--border);padding:.55rem .8rem;text-align:center">
         <div style="font-size:.5rem;letter-spacing:.7px;color:var(--gray)">FINAL</div>
@@ -1099,16 +1347,13 @@ function renderFrnPracticeReport(idx) {
         </div>
         <div style="font-size:.52rem;color:var(--gray);margin-top:.15rem">Exhibition · no W/L</div>
       </div>
-      <div style="background:var(--bg2);border:1px solid var(--border);border-left:3px solid var(--gold);padding:.5rem .7rem">
-        <div style="font-size:.55rem;letter-spacing:.6px;color:var(--gold);font-weight:800">SCOUTING INTEL GAINED</div>
-        <div style="font-size:.7rem;color:var(--blwhite);margin-top:.18rem">Their full roster now reveals combine measurables and grades sharpen from ±8 to ±2 for the rest of Season ${report.season}.</div>
-      </div>
+      ${intelPanel}
     </div>
-    <div class="frn-card-title" style="margin-top:.8rem">📋 GRADE REVISIONS (${discoveries.length})</div>
-    <div style="font-size:.58rem;color:var(--gray);margin-bottom:.25rem">Players whose perceived grade moved after the joint reps. + = your scouts undervalued them; − = the tape was hiding warts.</div>
-    <table style="width:100%;border-collapse:collapse;background:var(--bg2);border:1px solid var(--border)">${intelRows}</table>
-    <div class="frn-card-title" style="margin-top:.8rem">🎬 HIGHLIGHTS</div>
-    ${highlightCards}`;
+    ${gradeBlock}
+    ${tendenciesBlock}
+    ${highlightsBlock}
+    ${injuriesBlock}
+    ${awrBlock}`;
 }
 
 function renderFrnScrimmages() {
@@ -1120,9 +1365,14 @@ function renderFrnScrimmages() {
     .filter(({ s }) => s.season === franchise.season);
   const doneThisWeek = done.filter(s => s.week === franchise.week);
   const doneByTeam = new Map(done.map(s => [s.teamId, s]));
-  const SEASON_CAP = 4;
+  const usedSlots = _jpUsedSlots(franchise.season);
+  const remainingSlots = JP_SEASON_CAP - usedSlots;
   const lockedThisWeek = doneThisWeek.length >= 1;
-  const lockedThisSeason = done.length >= SEASON_CAP;
+  const lockedThisSeason = remainingSlots < JP_INTENSITIES.walkthrough.slotCost;
+  // Pending inbox offers (multiplayer-ready; single player auto-resolves
+  // so this almost always empty, but the shape is the same).
+  const pendingIncoming = (franchise.jointPracticeOffers || [])
+    .filter(o => o.status === "pending" && o.toTeamId === myId);
 
   // Schedule context: which teams do I play this season, and when?
   const remainingWeekByOpp = new Map();
@@ -1198,11 +1448,57 @@ function renderFrnScrimmages() {
   const rows = candidates.map(renderRow).join("");
 
   const capBanner = lockedThisSeason
-    ? `<div class="frn-pre-warn">⚠ You've used all ${SEASON_CAP} joint-practice slots for the season.</div>`
+    ? `<div class="frn-pre-warn">⚠ You've used all ${JP_SEASON_CAP} joint-practice slots for the season.</div>`
     : lockedThisWeek
     ? `<div class="frn-pre-warn" style="border-color:var(--gold-lt);color:var(--gold-lt);background:rgba(200,169,0,0.10)">
          ✓ You already ran a joint practice this week with ${getTeam(doneThisWeek[0].teamId)?.name||"a team"}. Next slot opens at week start.
        </div>`
+    : "";
+
+  // Inline intensity picker — opens when the user clicks Request on a row.
+  let pickerHtml = "";
+  if (_jpPickerTeam) {
+    const picked = getTeam(_jpPickerTeam);
+    pickerHtml = `<div class="frn-jp-picker">
+      <div style="display:flex;align-items:baseline;gap:.5rem;flex-wrap:wrap;margin-bottom:.4rem">
+        <span style="font-size:.85rem;font-weight:900;color:var(--gold)">PICK INTENSITY</span>
+        <span style="color:var(--gray);font-size:.7rem">vs <b style="color:${picked?.primary||"var(--gold)"}">${picked?.city} ${picked?.name}</b></span>
+        <button class="btn btn-outline" onclick="frnJpCancelPicker()" style="margin-left:auto;font-size:.6rem">Cancel</button>
+      </div>
+      <div style="font-size:.58rem;color:var(--gray);margin-bottom:.45rem">
+        ${picked?.name} also picks an intensity privately. The <b>lower</b> of the two is what you actually run — the conservative side has veto power.
+      </div>
+      <div class="frn-jp-picker-grid">
+        ${JP_ORDER.map(key => {
+          const i = JP_INTENSITIES[key];
+          const canAfford = i.slotCost <= remainingSlots + 0.01;
+          return `<button class="frn-jp-int-btn${!canAfford?" disabled":""}"
+            ${!canAfford?"disabled":""}
+            onclick="frnJpSendOffer(${_jpPickerTeam}, '${key}')">
+            <div class="frn-jp-int-head"><span class="frn-jp-int-icon">${i.icon}</span><span class="frn-jp-int-label">${i.label}</span></div>
+            <div class="frn-jp-int-cost">${i.slotCost === 0.5 ? "½" : i.slotCost} slot${i.slotCost===1?"":""}</div>
+            <div class="frn-jp-int-desc">${i.desc}</div>
+            ${!canAfford ? `<div class="frn-jp-int-warn">not enough slot budget</div>` : ""}
+          </button>`;
+        }).join("")}
+      </div>
+    </div>`;
+  }
+
+  // Pending incoming offers (multiplayer hook — in single player these
+  // auto-resolve immediately so this is normally empty).
+  const inboxHtml = pendingIncoming.length
+    ? `<div class="frn-jp-inbox">
+        <div style="font-size:.55rem;letter-spacing:.6px;color:#ffb347;font-weight:800;margin-bottom:.25rem">📬 INCOMING REQUESTS (${pendingIncoming.length})</div>
+        ${pendingIncoming.map(o => {
+          const from = getTeam(o.fromTeamId);
+          const i = JP_INTENSITIES[o.fromIntensity];
+          return `<div class="frn-jp-inbox-row">
+            <span><b style="color:${from?.primary||"var(--gold)"}">${from?.name}</b> requested ${i.icon} <b>${i.label}</b> · Wk ${o.week}</span>
+            <span style="margin-left:auto;color:var(--gray);font-size:.58rem">awaiting response</span>
+          </div>`;
+        }).join("")}
+      </div>`
     : "";
 
   const logHtml = allDoneIdx.length
@@ -1210,13 +1506,21 @@ function renderFrnScrimmages() {
        <div style="display:flex;flex-direction:column;gap:.25rem">
          ${allDoneIdx.slice().reverse().map(({ s, i }) => {
            const opp = getTeam(s.teamId);
+           const ikey = s.intensity || "joint";
+           const intensity = JP_INTENSITIES[ikey] || JP_INTENSITIES.joint;
            const revs = s.discoveries?.length || 0;
            const hls  = s.highlights?.length  || 0;
+           const inj  = s.injuries?.length    || 0;
+           const meta = [`${intensity.icon} ${intensity.label}`,
+             revs ? `${revs} revisions` : "",
+             hls  ? `${hls} highlights` : "",
+             inj  ? `🚑 ${inj} injuries` : "",
+           ].filter(Boolean).join(" · ");
            return `<div class="frn-jp-log-row" onclick="renderFrnPracticeReport(${i})">
              <span class="frn-jp-log-wk">W${s.week}</span>
              <span class="frn-jp-log-opp" style="color:${opp?.primary||"var(--gold)"}">vs ${opp?.name||"?"}</span>
              <span class="frn-jp-log-score">${s.homeScore != null ? `${s.homeScore}-${s.awayScore}` : (s.score || "")}</span>
-             <span class="frn-jp-log-meta">${revs} revisions · ${hls} highlights</span>
+             <span class="frn-jp-log-meta">${meta}</span>
              <span class="frn-jp-log-arrow">›</span>
            </div>`;
          }).join("")}
@@ -1227,14 +1531,16 @@ function renderFrnScrimmages() {
     <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem;flex-wrap:wrap">
       <div style="font-size:1.05rem;font-weight:900;color:var(--gold)">🏟 JOINT PRACTICES</div>
       <div style="color:var(--gray);font-size:.72rem">
-        One per week · ${done.length}/${SEASON_CAP} used this season
+        One per week · ${usedSlots.toFixed(1)}/${JP_SEASON_CAP} slot budget used (Live Pads + Joint = 1 each, Walk-through = ½)
       </div>
       <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="margin-left:auto">← Back</button>
     </div>
     <div class="frn-fa-summary">
-      Joint practices are exhibitions — no W/L, no stat lines, no injuries. You walk away with their full combine numbers + sharpened scouting grades (±8 → ±2) for the rest of the season. One per week, ${SEASON_CAP} per season, one per opponent per season. Future opponents and division foes are sorted first.
+      Joint practices are exhibitions — no W/L, no stat lines, no season-stat pollution. Three intensities: <b>🚶 Walk-through</b> (tendencies only, ½ slot, zero risk), <b>🤝 Joint Practice</b> (full intel, 1 slot), <b>💥 Live Pads</b> (full intel + AWR boost, 1 slot, real injury risk). Resolved intensity is the MIN of your pick and theirs.
     </div>
+    ${inboxHtml}
     ${capBanner}
+    ${pickerHtml}
     <table class="frn-pre-roster-table" style="margin-top:.5rem">
       <thead><tr><th>Team</th><th>Rating</th><th>Willingness · Intel</th><th></th></tr></thead>
       <tbody>${rows}</tbody>

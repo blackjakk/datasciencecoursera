@@ -4037,6 +4037,47 @@
   }
   .frn-jp-log-meta { font-size: .55rem; color: var(--gray); }
   .frn-jp-log-arrow{ color: var(--blgray); text-align: right; }
+  .frn-jp-picker {
+    background: var(--bg2); border: 1px solid var(--gold-lt);
+    box-shadow: 0 0 0 1px rgba(212,175,55,.2);
+    padding: .6rem .75rem; margin: .5rem 0;
+  }
+  .frn-jp-picker-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: .35rem;
+  }
+  .frn-jp-int-btn {
+    text-align: left; cursor: pointer;
+    background: var(--bg3); color: var(--blwhite);
+    border: 1px solid var(--border); padding: .5rem .65rem;
+    font-family: inherit; transition: all .12s ease;
+    display: flex; flex-direction: column; gap: .15rem;
+  }
+  .frn-jp-int-btn:hover:not(.disabled) {
+    background: rgba(212,175,55,.06); border-color: var(--gold);
+    transform: translateY(-1px);
+  }
+  .frn-jp-int-btn.disabled { opacity: .35; cursor: not-allowed; }
+  .frn-jp-int-head { display: flex; align-items: baseline; gap: .35rem; }
+  .frn-jp-int-icon { font-size: .9rem; }
+  .frn-jp-int-label {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: .85rem; letter-spacing: 1.4px; color: var(--gold);
+    font-weight: 900;
+  }
+  .frn-jp-int-cost {
+    font-size: .56rem; letter-spacing: .5px; color: var(--gold-lt);
+    font-weight: 800;
+  }
+  .frn-jp-int-desc { font-size: .58rem; color: var(--gray); line-height: 1.35; }
+  .frn-jp-int-warn { font-size: .54rem; color: #ff8a8a; margin-top: .15rem; }
+  .frn-jp-inbox {
+    background: rgba(255,179,71,.06); border: 1px solid rgba(255,179,71,.3);
+    padding: .4rem .55rem; margin-bottom: .45rem;
+  }
+  .frn-jp-inbox-row {
+    display: flex; align-items: center; font-size: .65rem;
+    padding: .15rem 0;
+  }
 
   /* Free Agency screen */
   .frn-fa-summary {
