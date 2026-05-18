@@ -10673,16 +10673,95 @@ function _buildDraftClass(rookieYear) {
   return cls;
 }
 
+// ── Draft order helpers ─────────────────────────────────────────────────────
+// NFL-style playoff tier — teams that went deeper in the playoffs are
+// pushed to the back of the round. Lower rank = picks earlier.
+const _DRAFT_PLAYOFF_TIER = {
+  "non_playoff": 0,
+  "wc_loser":    1,
+  "div_loser":   2,
+  "sb_loser":    3,
+  "champion":    4,
+};
+
+// Inspects franchise.playoffBracket to determine how a team finished.
+// Returns one of: "champion" · "sb_loser" · "div_loser" · "wc_loser" ·
+// "non_playoff". If the bracket isn't built yet (e.g. mid-season call),
+// every team returns "non_playoff" so order falls back to pure
+// reverse-standings.
+function _teamPlayoffFinish(teamId) {
+  const pb = franchise.playoffBracket;
+  if (!pb || !pb.rounds) return "non_playoff";
+  if (pb.champion === teamId) return "champion";
+  const sb = pb.rounds[2]?.[0];
+  if (sb && sb.winnerId && sb.winnerId !== teamId &&
+      (sb.homeId === teamId || sb.awayId === teamId)) return "sb_loser";
+  for (const g of (pb.rounds[1] || [])) {
+    if (g.winnerId && g.winnerId !== teamId &&
+        (g.homeId === teamId || g.awayId === teamId)) return "div_loser";
+  }
+  for (const g of (pb.rounds[0] || [])) {
+    if (g.winnerId && g.winnerId !== teamId &&
+        (g.homeId === teamId || g.awayId === teamId)) return "wc_loser";
+  }
+  return "non_playoff";
+}
+
+// Strength of schedule = average win-percentage of opponents played this
+// season (weighted by how many times you played them). Used as the NFL
+// tiebreaker: lower SOS = you played weaker teams and still got this
+// record, so you pick earlier.
+function _strengthOfSchedule(teamId) {
+  const oppGameCount = new Map();
+  for (const g of (franchise.schedule || [])) {
+    if (!g.played) continue;
+    let oppId;
+    if (g.homeId === teamId)      oppId = g.awayId;
+    else if (g.awayId === teamId) oppId = g.homeId;
+    else continue;
+    oppGameCount.set(oppId, (oppGameCount.get(oppId) || 0) + 1);
+  }
+  let weightedWin = 0;
+  let totalGames = 0;
+  for (const [oppId, gc] of oppGameCount) {
+    const s = franchise.standings?.[oppId] || { w: 0, l: 0, t: 0 };
+    const total = (s.w || 0) + (s.l || 0) + (s.t || 0);
+    if (total <= 0) continue;
+    const winPct = ((s.w || 0) + (s.t || 0) * 0.5) / total;
+    weightedWin += winPct * gc;
+    totalGames  += gc;
+  }
+  return totalGames > 0 ? weightedWin / totalGames : 0;
+}
+
 function _buildDraftPickOrder() {
-  // Pick slot order = reverse standings of ORIGINAL pick owner; worst
-  // team's pick goes 1.1. But the actual team making the pick is the
-  // CURRENT owner of that pick (whoever traded for it).
+  // Pick slot order = NFL-style:
+  //  · Non-playoff teams (1..N-8) sorted reverse standings, SOS tiebreaker
+  //  · Wild Card losers (N-7..N-4) sorted same way
+  //  · Divisional losers (N-3..N-2)
+  //  · SB loser (N-1), SB winner (N)
+  // The actual team making the pick is the CURRENT owner of that pick
+  // (whoever traded for it); the slot position is set by the ORIGINAL
+  // owner's reverse-standings rank.
   const sorted = TEAMS.slice().sort((a, b) => {
+    const tierA = _DRAFT_PLAYOFF_TIER[_teamPlayoffFinish(a.id)] ?? 0;
+    const tierB = _DRAFT_PLAYOFF_TIER[_teamPlayoffFinish(b.id)] ?? 0;
+    if (tierA !== tierB) return tierA - tierB;
     const sa = franchise.standings?.[a.id] || { w:0, l:0, pf:0, pa:0 };
     const sb = franchise.standings?.[b.id] || { w:0, l:0, pf:0, pa:0 };
+    const wlA = sa.w - sa.l;
+    const wlB = sb.w - sb.l;
+    if (wlA !== wlB) return wlA - wlB;
+    // NFL tiebreaker: strength of schedule — lower opponent win% picks
+    // first (you faced an easier road and still ended with this record).
+    const sosA = _strengthOfSchedule(a.id);
+    const sosB = _strengthOfSchedule(b.id);
+    if (Math.abs(sosA - sosB) > 0.001) return sosA - sosB;
+    // Final fallback: point differential (worse pick first), keeps the
+    // sort deterministic when SOS is identical.
     const diffA = (sa.pf||0) - (sa.pa||0);
     const diffB = (sb.pf||0) - (sb.pa||0);
-    return (sa.w - sa.l) - (sb.w - sb.l) || (diffA - diffB);
+    return diffA - diffB;
   });
   // Use upcoming draft year (season + 1 in real-clock terms)
   const draftYear = (new Date().getFullYear()) + (franchise.season || 1);
