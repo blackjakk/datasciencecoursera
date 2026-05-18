@@ -2993,6 +2993,185 @@
     flex: 1; justify-content: space-around;
   }
   /* Connector lines between rounds — pure CSS borders pointing right. */
+  /* ── Post-game playoff recap (full takeover) ─────────────────────────── */
+  .frn-prg-wrap {
+    padding: 1rem 1.4rem;
+    display: flex; flex-direction: column; gap: 1rem;
+    max-width: 1100px; margin: 0 auto;
+  }
+  .frn-prg-hero-banner {
+    background: linear-gradient(135deg,
+      color-mix(in srgb, var(--my-color, var(--blgold)) 14%, var(--blbg2)) 0%,
+      var(--blbg2) 70%);
+    border: 1px solid var(--blborder); border-radius: 4px;
+    padding: 1.4rem 1.2rem 1.1rem;
+    text-align: center;
+  }
+  .frn-prg-hero-banner.win { border-color: var(--blgold); box-shadow: 0 0 0 1px var(--blgold), 0 0 18px rgba(212,175,55,.18); }
+  .frn-prg-hero-banner.loss { border-color: #6e3a3a; }
+  .frn-prg-round {
+    font-size: .65rem; letter-spacing: 4px; color: var(--blgold);
+    font-weight: 700; margin-bottom: .5rem;
+  }
+  .frn-prg-score-row {
+    display: grid; grid-template-columns: 1fr auto 1fr;
+    gap: .8rem; align-items: center; max-width: 540px;
+    margin: 0 auto .65rem;
+  }
+  .frn-prg-score-side {
+    display: flex; flex-direction: column; align-items: center; gap: .15rem;
+  }
+  .frn-prg-score-side.opp { align-items: center; }
+  .frn-prg-score-side .abbr {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1.6rem; letter-spacing: 1.5px;
+    color: var(--team-color, var(--blwhite)); font-weight: 900;
+  }
+  .frn-prg-score-side .city {
+    font-size: .58rem; letter-spacing: 1.5px; color: var(--blgray);
+  }
+  .frn-prg-score-side .score {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 3.4rem; line-height: 1;
+    color: var(--blwhite); font-weight: 900;
+  }
+  .frn-prg-hero-banner.win .frn-prg-score-side.mine .score { color: var(--blgold); }
+  .frn-prg-hero-banner.loss .frn-prg-score-side.opp .score { color: var(--blgold); }
+  .frn-prg-score-divider {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1.6rem; color: var(--blgray);
+  }
+  .frn-prg-status-main {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1.5rem; letter-spacing: 1.8px;
+  }
+  .frn-prg-hero-banner.win  .frn-prg-status-main { color: var(--blgold); }
+  .frn-prg-hero-banner.loss .frn-prg-status-main { color: #c08080; }
+  .frn-prg-status-sub {
+    font-size: .65rem; letter-spacing: 1px; color: var(--blgray);
+    margin-top: .15rem;
+  }
+
+  .frn-prg-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
+    align-items: start;
+  }
+  @media (max-width: 900px) { .frn-prg-grid { grid-template-columns: 1fr; } }
+  .frn-prg-card {
+    background: var(--blbg2); border: 1px solid var(--blborder);
+    border-radius: 3px; padding: .85rem 1rem;
+  }
+  .frn-prg-card-title {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: .95rem; letter-spacing: 1.5px; color: var(--blgold);
+    margin-bottom: .6rem;
+  }
+  .frn-prg-card-title .sub {
+    font-family: inherit; font-size: .55rem; letter-spacing: 1px;
+    color: var(--blgray); font-weight: 400; margin-left: .4rem;
+  }
+
+  .frn-prg-hero {
+    display: grid; grid-template-columns: 2rem 1fr; gap: .5rem;
+    align-items: center; padding: .45rem .55rem;
+    background: var(--blbg3); border: 1px solid var(--blborder);
+    border-radius: 3px; margin-bottom: .35rem;
+  }
+  .frn-prg-hero.mine { border-left: 3px solid var(--blgold); }
+  .frn-prg-hero.opp  { border-left: 3px solid #6e3a3a; background: var(--blbg2); opacity: .9; }
+  .frn-prg-hero-icon { font-size: 1.3rem; text-align: center; }
+  .frn-prg-hero-name {
+    font-size: .85rem; font-weight: 700; color: var(--blwhite);
+  }
+  .frn-prg-hero-name .pos {
+    font-size: .55rem; letter-spacing: 1px; color: var(--blgray);
+    margin-left: .35rem;
+  }
+  .frn-prg-hero-stat {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    font-size: .66rem; color: var(--blgold); margin-top: .1rem;
+  }
+  .frn-prg-hero.opp .frn-prg-hero-stat { color: #c08080; }
+  .frn-prg-villain-divider {
+    font-size: .55rem; letter-spacing: 2px; color: #c08080;
+    font-weight: 700; margin: .55rem 0 .25rem; text-align: center;
+  }
+  .frn-prg-empty {
+    font-size: .68rem; color: var(--blgray); font-style: italic;
+    padding: .3rem 0;
+  }
+
+  .frn-prg-cmp-table {
+    width: 100%; border-collapse: collapse; font-size: .75rem;
+  }
+  .frn-prg-cmp-table th {
+    text-align: center; padding: .15rem .25rem; color: var(--blgray);
+    font-size: .58rem; letter-spacing: 1px;
+    border-bottom: 1px solid var(--blborder);
+  }
+  .frn-prg-cmp-table td {
+    padding: .3rem .25rem; border-bottom: 1px solid rgba(255,255,255,.04);
+  }
+  .frn-prg-cmp-table td.v {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    font-weight: 700; width: 30%;
+    color: var(--blwhite); text-align: left;
+  }
+  .frn-prg-cmp-table td.v.opp { text-align: right; }
+  .frn-prg-cmp-table td.v.win { color: var(--blgold); }
+  .frn-prg-cmp-table td.lbl {
+    text-align: center; color: var(--blgray);
+    font-size: .62rem; letter-spacing: .5px;
+  }
+
+  .frn-prg-scoring { display: flex; flex-direction: column; gap: .15rem; }
+  .frn-prg-scoring-row {
+    display: grid; grid-template-columns: 1.6rem 3rem 1fr 3rem;
+    gap: .5rem; align-items: center;
+    font-size: .65rem; padding: .15rem .35rem;
+    background: rgba(0,0,0,.18); border-radius: 2px;
+  }
+  .frn-prg-scoring-row .q { color: var(--blgray); font-weight: 700; font-size: .58rem; }
+  .frn-prg-scoring-row .team { font-family: "Bebas Neue","Anton",sans-serif; letter-spacing: .8px; }
+  .frn-prg-scoring-row .desc { color: var(--blwhite); }
+  .frn-prg-scoring-row .score {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    color: var(--blgray); text-align: right;
+  }
+
+  .frn-prg-around {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: .35rem;
+  }
+  .frn-prg-around-row {
+    display: flex; gap: .35rem; align-items: baseline;
+    padding: .35rem .55rem; background: var(--blbg3);
+    border: 1px solid var(--blborder); border-radius: 3px;
+    font-size: .7rem;
+  }
+
+  .frn-prg-cta-row {
+    display: flex; justify-content: center; gap: .8rem;
+    padding: .6rem 0 .2rem;
+  }
+  .frn-prg-cta-primary {
+    background: var(--blgold); color: #000; border: 0;
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1.4rem; letter-spacing: 2px; font-weight: 900;
+    padding: .85rem 2rem; cursor: pointer; border-radius: 3px;
+    transition: transform .12s ease, box-shadow .12s ease;
+    box-shadow: 0 4px 12px rgba(212,175,55,.3);
+  }
+  .frn-prg-cta-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(212,175,55,.45); }
+  .frn-prg-cta-secondary {
+    background: transparent; color: var(--blgold);
+    border: 1px solid var(--blgold);
+    font-family: inherit; font-size: .8rem; letter-spacing: 1px;
+    padding: .55rem 1.1rem; cursor: pointer; border-radius: 3px;
+    transition: background .12s ease;
+  }
+  .frn-prg-cta-secondary:hover { background: rgba(212,175,55,.12); }
+
   /* ── New playoff layout: bracket tree + current game hub + others ─────── */
   .frn-bracket-tree {
     display: grid; grid-template-columns: 1fr 1fr 1fr;

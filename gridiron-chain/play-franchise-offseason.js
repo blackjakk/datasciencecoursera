@@ -1789,6 +1789,16 @@ function frnFinishGame() {
       });
     }
     applyPlayoffResult(homeId, awayId, homeScore, awayScore);
+    // Queue the post-game recap if this was the user's matchup.
+    if (pb && (homeId === franchise.chosenTeamId || awayId === franchise.chosenTeamId)) {
+      const rd = pb.rounds?.[pb.roundIdx];
+      const mi = rd?.findIndex(x =>
+        (x.homeId === homeId && x.awayId === awayId) ||
+        (x.homeId === awayId && x.awayId === homeId));
+      if (mi != null && mi !== -1) {
+        _frnPlayoffRecapPending = { roundIdx: pb.roundIdx, matchupIdx: mi };
+      }
+    }
   } else {
     markGamePlayed(homeId, awayId, homeScore, awayScore, gameResult?.stats, gameResult?.plays,
       { weather: gameResult?.weather, isRivalry: gameResult?.isRivalry });
@@ -2344,6 +2354,16 @@ function _renderBracketTree() {
 // Module state — pregame breakdown is collapsed by default in the new
 // playoff layout so the bracket stays the visual centerpiece.
 let _frnPlayoffPregameExpanded = false;
+
+// Pending post-game recap for the user's most recently played playoff
+// matchup. Set by frnFinishGame / frnSimPlayoffGame, consumed and
+// cleared by renderFrnPlayoffs (which routes to the recap takeover
+// instead of the bracket on this pass).
+let _frnPlayoffRecapPending = null; // { roundIdx, matchupIdx } | null
+function frnDismissPlayoffRecap() {
+  _frnPlayoffRecapPending = null;
+  renderFrnPlayoffs();
+}
 function _frnTogglePlayoffPregame() {
   _frnPlayoffPregameExpanded = !_frnPlayoffPregameExpanded;
   renderFrnPlayoffs();
@@ -2499,6 +2519,269 @@ function _renderOtherMatchups(currentRound) {
   </div>`;
 }
 
+// ── Post-game recap (user's playoff matchup) ────────────────────────────────
+// Full-screen takeover shown right after the user finishes a playoff game
+// (sim or interactive). Surfaces the final score, advancement / elimination
+// status, heroes from both sides, team-stat comparison, scoring timeline,
+// and how the rest of the round shook out.
+function _renderPlayoffGameRecap() {
+  const ref = _frnPlayoffRecapPending;
+  if (!ref) return "";
+  const pb = franchise.playoffBracket;
+  if (!pb) return "";
+  const m = pb.rounds?.[ref.roundIdx]?.[ref.matchupIdx];
+  if (!m || m.winnerId == null) return "";
+  const myId = franchise.chosenTeamId;
+  const isUserGame = m.homeId === myId || m.awayId === myId;
+  if (!isUserGame) return "";
+  const roundNames = ["WILD CARD", "DIVISIONAL", "CHAMPIONSHIP"];
+  const roundName = roundNames[ref.roundIdx] || `ROUND ${ref.roundIdx + 1}`;
+  const nextRoundName = roundNames[ref.roundIdx + 1];
+  const isFinalRound = ref.roundIdx >= (pb.rounds.length - 1);
+
+  // ── Score + framing ─────────────────────────────────────────────────
+  const home = getTeam(m.homeId), away = getTeam(m.awayId);
+  const myTeam = home.id === myId ? home : away;
+  const oppTeam = home.id === myId ? away : home;
+  const myScore = m.homeId === myId ? m.homeScore : m.awayScore;
+  const oppScore = m.homeId === myId ? m.awayScore : m.homeScore;
+  const userWon = m.winnerId === myId;
+  const margin = myScore - oppScore;
+  let headlineMain, headlineSub, statusClass;
+  if (userWon) {
+    statusClass = "win";
+    if (isFinalRound) {
+      headlineMain = "🏆 CHAMPIONS";
+      headlineSub = `Season ${franchise.season} title — ${myTeam.city} ${myTeam.name}`;
+    } else {
+      headlineMain = "✓ ADVANCING";
+      headlineSub = `On to the ${nextRoundName || "next round"}`;
+    }
+  } else {
+    statusClass = "loss";
+    headlineMain = "✗ ELIMINATED";
+    headlineSub = `Season ends in the ${roundName.toLowerCase()}`;
+  }
+
+  // ── Heroes ──────────────────────────────────────────────────────────
+  // Per-player game score. Higher = bigger impact. Position-aware so a
+  // QB's 300 yds doesn't drown out a DB's 2-INT game.
+  const scorePlayer = (p) => {
+    const pos = p.pos || "";
+    if (pos === "QB") {
+      return (p.pass_yds || 0) * 0.04 + (p.pass_td || 0) * 4 - (p.pass_int || 0) * 2
+        + (p.rush_yds || 0) * 0.1 + (p.rush_td || 0) * 6;
+    }
+    if (pos === "RB") {
+      return (p.rush_yds || 0) * 0.1 + (p.rush_td || 0) * 6
+        + (p.rec || 0) * 1 + (p.rec_yds || 0) * 0.1 + (p.rec_td || 0) * 6;
+    }
+    if (pos === "WR" || pos === "TE") {
+      return (p.rec || 0) * 1 + (p.rec_yds || 0) * 0.1 + (p.rec_td || 0) * 6;
+    }
+    // Defense / OL
+    return (p.tkl || 0) * 1 + (p.sk || 0) * 4 + (p.int_made || 0) * 6
+      + (p.ff || 0) * 4 + (p.fr || 0) * 3 + (p.def_td || 0) * 6 + (p.pd || 0) * 1.5;
+  };
+  const statLine = (p) => {
+    const pos = p.pos || "";
+    if (pos === "QB") {
+      const parts = [];
+      if (p.pass_yds) parts.push(`${p.pass_yds} YDS`);
+      if (p.pass_td) parts.push(`${p.pass_td} TD`);
+      if (p.pass_int) parts.push(`${p.pass_int} INT`);
+      if (p.rush_yds) parts.push(`${p.rush_yds} ryds`);
+      if (p.rush_td) parts.push(`${p.rush_td} rTD`);
+      return parts.join(" · ");
+    }
+    if (pos === "RB") {
+      const parts = [];
+      if (p.rush_yds) parts.push(`${p.rush_yds} YDS`);
+      if (p.rush_td) parts.push(`${p.rush_td} TD`);
+      if (p.rush_att) parts.push(`${p.rush_att} ATT`);
+      if (p.rec) parts.push(`${p.rec} REC · ${p.rec_yds||0} YDS`);
+      if (p.rec_td) parts.push(`${p.rec_td} recTD`);
+      return parts.join(" · ");
+    }
+    if (pos === "WR" || pos === "TE") {
+      const parts = [];
+      if (p.rec) parts.push(`${p.rec}/${p.rec_tgt||p.rec} REC`);
+      if (p.rec_yds) parts.push(`${p.rec_yds} YDS`);
+      if (p.rec_td) parts.push(`${p.rec_td} TD`);
+      return parts.join(" · ");
+    }
+    const parts = [];
+    if (p.tkl) parts.push(`${p.tkl} TKL`);
+    if (p.sk) parts.push(`${p.sk} SK`);
+    if (p.int_made) parts.push(`${p.int_made} INT`);
+    if (p.ff) parts.push(`${p.ff} FF`);
+    if (p.pd) parts.push(`${p.pd} PD`);
+    if (p.def_td) parts.push(`${p.def_td} TD`);
+    return parts.join(" · ") || `${p.gp||1} game`;
+  };
+  const mySide = (m.homeId === myId) ? m.stats?.home : m.stats?.away;
+  const oppSide = (m.homeId === myId) ? m.stats?.away : m.stats?.home;
+  const mineRanked  = Object.values(mySide?.players || {})
+    .map(p => ({ p, score: scorePlayer(p) }))
+    .filter(x => x.score >= 5)
+    .sort((a,b) => b.score - a.score);
+  const oppRanked = Object.values(oppSide?.players || {})
+    .map(p => ({ p, score: scorePlayer(p) }))
+    .filter(x => x.score >= 5)
+    .sort((a,b) => b.score - a.score);
+  const heroes = mineRanked.slice(0, 3);
+  const villain = oppRanked[0];
+
+  const heroIcon = (pos) => pos === "QB" ? "🎯"
+    : pos === "RB" ? "💨" : pos === "WR" || pos === "TE" ? "🪂"
+    : "🛡";
+  const heroCardHtml = (h, sideClass) => {
+    const escName = (h.p.name || "").replace(/'/g, "\\'");
+    const escPid  = (h.p.pid || "").replace(/'/g, "\\'");
+    return `<div class="frn-prg-hero ${sideClass}">
+      <div class="frn-prg-hero-icon">${heroIcon(h.p.pos)}</div>
+      <div class="frn-prg-hero-body">
+        <div class="frn-prg-hero-name">
+          <span style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px"
+                onclick="frnOpenPlayerCard('${escName}','${escPid}')">${h.p.name}</span>
+          <span class="pos">${h.p.pos || ""}</span>
+        </div>
+        <div class="frn-prg-hero-stat">${statLine(h.p)}</div>
+      </div>
+    </div>`;
+  };
+
+  // ── Team stat comparison ────────────────────────────────────────────
+  const mineT = mySide?.totals || {};
+  const oppT  = oppSide?.totals || {};
+  const cmpRows = [
+    ["Total yards",   mineT.totalYds || 0, oppT.totalYds || 0],
+    ["Passing",       mineT.passYds  || 0, oppT.passYds  || 0],
+    ["Rushing",       mineT.rushYds  || 0, oppT.rushYds  || 0],
+    ["First downs",   mineT.firstDowns || 0, oppT.firstDowns || 0],
+    ["Turnovers",     mineT.turnovers || 0, oppT.turnovers || 0, /* lowerBetter */ true],
+    ["Sacks",         mineT.sacks    || 0, oppT.sacks    || 0],
+    ["Penalties",     mineT.penalties || 0, oppT.penalties || 0, true],
+    ["Time of poss",  mineT.timeOfPoss || 0, oppT.timeOfPoss || 0],
+  ].filter(r => (r[1] || 0) + (r[2] || 0) > 0);
+  const fmtTOP = (sec) => {
+    if (!sec) return "—";
+    const mm = Math.floor(sec / 60), ss = sec % 60;
+    return `${mm}:${String(ss).padStart(2,"0")}`;
+  };
+  const cmpRowHtml = ([label, mineV, oppV, lowerBetter]) => {
+    const showMine = label === "Time of poss" ? fmtTOP(mineV) : mineV;
+    const showOpp  = label === "Time of poss" ? fmtTOP(oppV)  : oppV;
+    const winner = mineV === oppV ? "tie" : (lowerBetter ? (mineV < oppV ? "mine" : "opp") : (mineV > oppV ? "mine" : "opp"));
+    return `<tr>
+      <td class="v ${winner==='mine'?'win':''}">${showMine}</td>
+      <td class="lbl">${label}</td>
+      <td class="v opp ${winner==='opp'?'win':''}">${showOpp}</td>
+    </tr>`;
+  };
+
+  // ── Scoring timeline (compact) ──────────────────────────────────────
+  const scoring = m.scoring || [];
+  const scoringHtml = scoring.length ? `
+    <div class="frn-prg-card">
+      <div class="frn-prg-card-title">SCORING SUMMARY</div>
+      <div class="frn-prg-scoring">
+        ${scoring.map(ev => {
+          const t = getTeam(ev.teamId);
+          const isMine = ev.teamId === myId;
+          return `<div class="frn-prg-scoring-row">
+            <span class="q">Q${ev.qtr || "?"}</span>
+            <span class="team" style="color:${t?.primary || 'var(--blwhite)'};font-weight:${isMine?700:400}">${t?.abbr || t?.name?.slice(0,3).toUpperCase() || "?"}</span>
+            <span class="desc">${ev.label || ev.kind || "Score"}</span>
+            <span class="score">${ev.homeScore}-${ev.awayScore}</span>
+          </div>`;
+        }).join("")}
+      </div>
+    </div>` : "";
+
+  // ── Around the playoffs (other matchups this round) ─────────────────
+  const otherRoundResults = (pb.rounds[ref.roundIdx] || [])
+    .filter((mm, i) => i !== ref.matchupIdx && mm.winnerId != null);
+  const aroundHtml = otherRoundResults.length ? `
+    <div class="frn-prg-card">
+      <div class="frn-prg-card-title">AROUND THE ${roundName}</div>
+      <div class="frn-prg-around">
+        ${otherRoundResults.map(mm => {
+          const winT = getTeam(mm.winnerId);
+          const losId = mm.homeId === mm.winnerId ? mm.awayId : mm.homeId;
+          const losT = getTeam(losId);
+          const wScore = mm.winnerId === mm.homeId ? mm.homeScore : mm.awayScore;
+          const lScore = mm.winnerId === mm.homeId ? mm.awayScore : mm.homeScore;
+          return `<div class="frn-prg-around-row">
+            <span style="color:${winT?.primary};font-weight:800">${winT?.abbr || winT?.name?.slice(0,3).toUpperCase()}</span>
+            <span style="font-family:'IBM Plex Mono','JetBrains Mono',monospace;color:var(--blwhite);font-weight:700">${wScore}</span>
+            <span style="color:var(--blgray)">def.</span>
+            <span style="color:${losT?.primary};font-weight:600;opacity:.75">${losT?.abbr || losT?.name?.slice(0,3).toUpperCase()}</span>
+            <span style="font-family:'IBM Plex Mono','JetBrains Mono',monospace;color:var(--blgray);text-decoration:line-through">${lScore}</span>
+          </div>`;
+        }).join("")}
+      </div>
+    </div>` : "";
+
+  // ── CTA ─────────────────────────────────────────────────────────────
+  const ctaLabel = isFinalRound && userWon ? "▶ TO THE AWARDS"
+    : userWon ? "▶ TO THE BRACKET"
+    : "▶ TO THE BRACKET";
+  const ctaOnClick = isFinalRound && userWon
+    ? `frnDismissPlayoffRecap();showFrnAwards();`
+    : `frnDismissPlayoffRecap();`;
+
+  // Full takeover layout
+  return `<div class="frn-prg-wrap">
+    <header class="frn-prg-hero-banner ${statusClass}" style="--my-color:${myTeam.primary}">
+      <div class="frn-prg-round">${roundName}</div>
+      <div class="frn-prg-score-row">
+        <div class="frn-prg-score-side mine" style="--team-color:${myTeam.primary}">
+          <div class="abbr">${myTeam.abbr || myTeam.name.slice(0,3).toUpperCase()}</div>
+          <div class="city">${myTeam.city.toUpperCase()}</div>
+          <div class="score">${myScore}</div>
+        </div>
+        <div class="frn-prg-score-divider">—</div>
+        <div class="frn-prg-score-side opp" style="--team-color:${oppTeam.primary}">
+          <div class="score">${oppScore}</div>
+          <div class="city">${oppTeam.city.toUpperCase()}</div>
+          <div class="abbr">${oppTeam.abbr || oppTeam.name.slice(0,3).toUpperCase()}</div>
+        </div>
+      </div>
+      <div class="frn-prg-status">
+        <div class="frn-prg-status-main">${headlineMain}</div>
+        <div class="frn-prg-status-sub">${headlineSub} · ${userWon?"by":"lost by"} ${Math.abs(margin)}</div>
+      </div>
+    </header>
+
+    <div class="frn-prg-grid">
+      <div class="frn-prg-card frn-prg-heroes">
+        <div class="frn-prg-card-title">🏈 HEROES <span class="sub">your difference-makers</span></div>
+        ${heroes.length
+          ? heroes.map(h => heroCardHtml(h, "mine")).join("")
+          : `<div class="frn-prg-empty">Tough day — no standouts on your side.</div>`}
+        ${villain ? `<div class="frn-prg-villain-divider">THEIR BEST</div>${heroCardHtml(villain, "opp")}` : ""}
+      </div>
+
+      <div class="frn-prg-card frn-prg-compare">
+        <div class="frn-prg-card-title">MATCHUP STATS</div>
+        <table class="frn-prg-cmp-table">
+          <thead><tr><th>${myTeam.abbr}</th><th></th><th>${oppTeam.abbr}</th></tr></thead>
+          <tbody>${cmpRows.map(cmpRowHtml).join("")}</tbody>
+        </table>
+      </div>
+    </div>
+
+    ${scoringHtml}
+    ${aroundHtml}
+
+    <div class="frn-prg-cta-row">
+      <button class="frn-prg-cta-secondary" onclick="frnOpenPlayoffBox(${ref.roundIdx},${ref.matchupIdx})">📋 Full Box Score</button>
+      <button class="frn-prg-cta-primary" onclick="${ctaOnClick}">${ctaLabel}</button>
+    </div>
+  </div>`;
+}
+
 // Did the user's team get eliminated, and if so in which round?
 function _userPlayoffStatus() {
   const myId = franchise.chosenTeamId;
@@ -2525,6 +2808,20 @@ function renderFrnPlayoffs() {
   const { rounds, roundIdx, champion } = playoffBracket;
   const userStatus = _userPlayoffStatus();
   const currentRound = !champion && roundIdx < rounds.length ? rounds[roundIdx] : null;
+
+  // Post-game recap takeover — if the user just played/simmed a playoff
+  // matchup, show the curated recap (heroes / stats / scoring / around
+  // the round) before returning to the bracket. Cleared by the "▶ TO
+  // THE BRACKET" button via frnDismissPlayoffRecap.
+  if (_frnPlayoffRecapPending) {
+    const recap = _renderPlayoffGameRecap();
+    if (recap) {
+      $("frnHomeContent").innerHTML = `<div class="bspnlive-root" style="margin:-1rem -1.5rem 0 -1.5rem;padding-bottom:1.2rem">${recap}</div>`;
+      return;
+    }
+    // Bad ref or empty render — drop the flag and fall through to the bracket.
+    _frnPlayoffRecapPending = null;
+  }
 
   // ── Champion banner (if decided) ────────────────────────────────────────
   const championBanner = champion ? (() => {
@@ -2603,6 +2900,16 @@ function frnSimPlayoffGame(homeId, awayId) {
   // Stash stats + scoring on the round's matchup before we mutate it.
   _savePlayoffMatchupStats(pb.roundIdx, homeId, awayId, r);
   applyPlayoffResult(homeId, awayId, r.homeScore, r.awayScore);
+  // Queue the post-game recap if this was the user's matchup.
+  if (homeId === franchise.chosenTeamId || awayId === franchise.chosenTeamId) {
+    const rd = pb.rounds?.[pb.roundIdx];
+    const mi = rd?.findIndex(x =>
+      (x.homeId === homeId && x.awayId === awayId) ||
+      (x.homeId === awayId && x.awayId === homeId));
+    if (mi != null && mi !== -1) {
+      _frnPlayoffRecapPending = { roundIdx: pb.roundIdx, matchupIdx: mi };
+    }
+  }
   saveFranchise();
   renderFrnPlayoffs();
 }
