@@ -155,6 +155,11 @@ function _updateSingleSeasonRecords() {
 }
 
 function _recordsBrokenThisSeason() {
+  // Ensure baselines + prune have run before reading the broken log —
+  // otherwise re-rendering the awards screen on an already-processed
+  // season would never run the prune (it only happens inside the
+  // first-time season update).
+  _ensureRecordBook();
   if (!franchise.records?.brokenLog) return [];
   return franchise.records.brokenLog.filter(b => b.atSeason === franchise.season);
 }
