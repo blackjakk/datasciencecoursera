@@ -646,6 +646,23 @@ function renderFrnPreseason(tab, scoutId, scoutView, selName) {
     </div>`;
   })();
 
+  // In-season scout view: the app shell already provides Roster / Front
+  // Office / League / Tools tabs at the top, so drop the preseason wrapper
+  // (banner + 4-tab bar + footer) and render just the scout body with a
+  // small back button. Preseason keeps the full wrapper since the app
+  // shell isn't rendered until the regular season starts.
+  if (franchise.phase !== "preseason" && tab === "scout") {
+    $("frnHomeContent").innerHTML = `
+      <div class="frn-scout-standalone">
+        <div class="frn-scout-standalone-head">
+          <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="font-size:.7rem;padding:.2rem .6rem">← Back</button>
+          <div class="frn-scout-standalone-title">🔍 Scout</div>
+        </div>
+        ${body}
+      </div>`;
+    return;
+  }
+
   $("frnHomeContent").innerHTML = `
     ${bannerHtml}
     ${overCapWizard}
@@ -1231,12 +1248,18 @@ function _preseasonScoutTab(myId, scoutId, view, selName) {
   }
 
   const escSel = selected ? (selected.name || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'") : "";
-  const viewTabsHtml = `
-    <div class="frn-scout-view-tabs">
-      <button class="${view==="starters"?"active":""}"
-              onclick="renderFrnPreseason('scout',${scoutId},'starters','${escSel}')">DEPTH CHART</button>
-      <button class="${view==="full"?"active":""}"
-              onclick="renderFrnPreseason('scout',${scoutId},'full','${escSel}')">FULL ROSTER (${oppRoster.length})</button>
+  // Single toggle replaces the old Depth Chart / Full Roster sub-tabs —
+  // depth chart is the default, click to fold in every backup.
+  const starterCount = posOrder.reduce((s, pos) =>
+    s + Math.min((byPos[pos] || []).length, (SCOUT_STARTER_COUNTS[pos] || 1)), 0);
+  const backupCount = Math.max(0, oppRoster.length - starterCount);
+  const isFull = view === "full";
+  const toggleHtml = `
+    <div class="frn-scout-roster-toggle">
+      <button class="${isFull?"active":""}"
+              onclick="renderFrnPreseason('scout',${scoutId},'${isFull?"starters":"full"}','${escSel}')">
+        ${isFull ? `− Hide backups (${oppRoster.length} → starters only)` : `+ Show backups (${backupCount} more)`}
+      </button>
     </div>`;
 
   return `<div class="frn-scout-layout">
@@ -1263,7 +1286,7 @@ function _preseasonScoutTab(myId, scoutId, view, selName) {
       </div>
       ${noiseBanner}
       ${threatsHtml}
-      ${viewTabsHtml}
+      ${toggleHtml}
       <div class="frn-scout-split">
         <div class="frn-scout-roster">
           <table class="frn-pre-roster-table">

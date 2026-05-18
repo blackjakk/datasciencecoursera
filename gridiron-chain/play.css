@@ -1438,15 +1438,37 @@
     background: var(--bg2); border: 1px solid var(--border);
     padding: .7rem .9rem;
   }
-  .frn-scout-view-tabs {
-    display: flex; gap: .25rem; margin-bottom: .5rem;
+  /* Single "show/hide backups" toggle that replaced Depth Chart / Full
+     Roster sub-tabs in the scout view. Subtle by default, gold when on. */
+  .frn-scout-roster-toggle {
+    display: flex; justify-content: flex-end; margin: .25rem 0 .4rem;
   }
-  .frn-scout-view-tabs button {
-    background: var(--bg3); border: 1px solid var(--border); color: var(--gray);
-    padding: .25rem .7rem; font-size: .62rem; font-weight: 700;
-    cursor: pointer; font-family: inherit; letter-spacing: .4px;
+  .frn-scout-roster-toggle button {
+    background: transparent; border: 1px dashed var(--border);
+    color: var(--gray); padding: .2rem .55rem;
+    font-family: inherit; font-size: .58rem; font-weight: 600;
+    letter-spacing: .4px; cursor: pointer;
+    transition: all .12s ease;
   }
-  .frn-scout-view-tabs button.active { background: var(--gold); color: #000; border-color: var(--gold); }
+  .frn-scout-roster-toggle button:hover {
+    color: var(--gold-lt); border-color: var(--gold-lt); border-style: solid;
+  }
+  .frn-scout-roster-toggle button.active {
+    color: var(--gold); border-color: var(--gold); border-style: solid;
+    background: rgba(212,175,55,.08);
+  }
+
+  /* In-season standalone Scout — used when the app shell already provides
+     top-level navigation, so we render scout without the preseason banner
+     / 4-tab bar / footer wrapper. */
+  .frn-scout-standalone { padding: .35rem 0; }
+  .frn-scout-standalone-head {
+    display: flex; align-items: center; gap: .7rem; margin-bottom: .55rem;
+  }
+  .frn-scout-standalone-title {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1.05rem; letter-spacing: 1.4px; color: var(--gold);
+  }
   .frn-scout-split {
     display: grid; grid-template-columns: 1fr 420px; gap: .7rem;
     align-items: start;
