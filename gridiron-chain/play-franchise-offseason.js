@@ -10631,19 +10631,25 @@ function _buildCollegeProfile(p, round) {
 function frnGoToDraft() {
   const rookieYear = (new Date().getFullYear()) + (franchise.season || 1);
   _injectCompPicks(rookieYear);
+  // Roll class themes first so the class generator can use them and we
+  // can stamp them onto franchise.draft for the UI chips.
+  const themes = _rollClassThemes();
+  const positions = _buildClassPositionPool(themes);
   franchise.draft = {
-    class: _buildDraftClass(rookieYear),
+    class: _buildDraftClass(rookieYear, themes, positions),
     pickOrder: _buildDraftPickOrder(),
     picks: [],
     currentIdx: 0,
     targets: [],
     boardFilter: "ALL",
     _targetGone: [],
+    classThemes: { multipliers: themes, chips: _classThemeChips(themes) },
+    udfaPhase: false,       // becomes true after the last draft pick
+    udfaUserClaims: [],     // user's UDFA scramble picks
   };
-  franchise.draftScouts = [];       // reset scout slots for new class
-  franchise.draftScoutReveals = {}; // reset per-prospect reveal rolls
+  franchise.draftScouts = [];
+  franchise.draftScoutReveals = {};
   franchise.phase = "draft";
-  // Comp pick tallies have been consumed → clear for next offseason
   franchise._faLossesPending = {};
   franchise._faSignsPending  = {};
   saveFranchise();
@@ -10751,23 +10757,81 @@ function _injectCompPicks(forDraftYear) {
   }
 }
 
-function _buildDraftClass(rookieYear) {
+// Per-year position-depth multipliers. Couples skill / trenches /
+// secondary so years feel thematic ("passing class", "trench-heavy")
+// rather than identically random. Returns multipliers in roughly
+// [0.6, 1.6]; >1 = deep, <1 = thin.
+function _rollClassThemes() {
+  const r = () => 0.6 + Math.random() * 1.0;
+  const skill     = r();   // QB · WR · TE move together
+  const trenches  = r();   // OL · DL move together
+  const secondary = r();   // CB · S move together
+  return {
+    QB: skill * (0.95 + Math.random() * 0.10),
+    WR: skill * (0.95 + Math.random() * 0.10),
+    TE: skill * (0.90 + Math.random() * 0.15),
+    RB: 0.75 + Math.random() * 0.75,    // semi-independent
+    OL: trenches * (0.95 + Math.random() * 0.10),
+    DL: trenches * (0.95 + Math.random() * 0.10),
+    LB: 0.85 + Math.random() * 0.45,    // semi-independent
+    CB: secondary * (0.95 + Math.random() * 0.10),
+    S:  secondary * (0.90 + Math.random() * 0.15),
+    K:  0.90 + Math.random() * 0.30,
+    P:  0.90 + Math.random() * 0.30,
+  };
+}
+
+// Build the weighted position pool for one class. Base weights mirror
+// roster needs (QB:3 RB:4 WR:6 OL:8 etc.) multiplied by the per-year
+// theme. The returned array is what each pick samples from uniformly.
+function _buildClassPositionPool(themes) {
+  const baseUnits = { QB:3, RB:4, WR:6, TE:3, OL:8, DL:5, LB:4, CB:4, S:2, K:1, P:1 };
+  const pool = [];
+  for (const pos of Object.keys(baseUnits)) {
+    const count = Math.max(1, Math.round(baseUnits[pos] * (themes[pos] || 1)));
+    for (let i = 0; i < count; i++) pool.push(pos);
+  }
+  return pool;
+}
+
+// Human-readable strength chips derived from the multipliers. Top-2
+// boosted positions get a "Deep" chip; bottom-2 nerfed positions get a
+// "Thin" chip. If nothing meaningfully diverges from the mean, returns
+// a single "Balanced class" chip.
+function _classThemeChips(themes) {
+  const entries = Object.entries(themes).sort((a, b) => b[1] - a[1]);
+  const deep = entries.filter(([, v]) => v >= 1.15).slice(0, 2).map(([p]) => p);
+  const thin = entries.filter(([, v]) => v <= 0.85).slice(-2).map(([p]) => p);
+  const chips = [];
+  if (deep.length) chips.push({ text: `🔥 Deep at ${deep.join("/")}`, color: "var(--green-lt)" });
+  if (thin.length) chips.push({ text: `⚠ Thin at ${thin.join("/")}`,  color: "#e8a000" });
+  if (!chips.length) chips.push({ text: "— Balanced class", color: "var(--gray)" });
+  return chips;
+}
+
+const _CLASS_DRAFTED_SIZE = 224;   // 7 rounds × 32 picks
+const _CLASS_UDFA_SIZE    = 56;    // ~24% UDFA-tier prospects below the drafted slice
+
+function _buildDraftClass(rookieYear, themesArg, positionsArg) {
   const allTaken = new Set();
   for (const r of Object.values(franchise.rosters)) r.forEach(p => allTaken.add(p.name));
-  // Mixed-position pool (will be drawn at random per round)
-  const positions = [
-    "QB","QB","QB","RB","RB","RB","RB","WR","WR","WR","WR","WR","WR",
-    "TE","TE","TE","OL","OL","OL","OL","OL","OL","OL","OL",
-    "DL","DL","DL","DL","DL","LB","LB","LB","LB",
-    "CB","CB","CB","CB","S","S","K","P",
-  ];
+
+  // Per-year themes drive position depth + show as class-strength chips.
+  // Caller can pass pre-rolled themes/pool (frnGoToDraft does, so the
+  // chips it stamps on franchise.draft match the actual class).
+  const themes    = themesArg    || _rollClassThemes();
+  const positions = positionsArg || _buildClassPositionPool(themes);
+
   const tierByRound = {
     1: () => Math.random() < 0.35 ? "elite" : "good",
     2: () => Math.random() < 0.20 ? "good"  : "average",
     3: () => Math.random() < 0.40 ? "average" : "poor",
     4: () => "poor", 5: () => "poor", 6: () => "poor", 7: () => "poor",
   };
+
   const cls = [];
+
+  // Drafted-tier prospects: 7 rounds × 32 picks.
   for (let round = 1; round <= 7; round++) {
     for (let pick = 1; pick <= 32; pick++) {
       const pos = positions[Math.floor(Math.random() * positions.length)];
@@ -10779,20 +10843,40 @@ function _buildDraftClass(rookieYear) {
       p.draftSeason = (franchise?.season || 1) + 1;
       p.isProspect = true;
       p._generatedRound = round;
-      p.draftRound = round; // temporary — overwritten at pick time; needed by _rollPotential
+      p.draftRound = round;
       p.potential = _rollPotential(p);
       p.collegeProfile = _buildCollegeProfile(p, round);
-      // genPlayer called generateCareer with the original random age (up to 33),
-      // which can leave multi-year synthetic history on a 21-year-old prospect.
-      // Wipe it so the player card correctly shows "Rookie season."
       p.careerHistory = []; p.careerStats = {}; p.career = []; p.careerTotals = {};
       p.proBowls = 0; p.allPros = 0; p.sbRings = 0;
       p.mvps = 0; p.opoys = 0; p.dpoys = 0; p.roys = 0; p.records = [];
       cls.push(p);
     }
   }
-  // Shuffle within each tier so positions feel mixed
-  cls.sort((a,b) => (b.overall || 0) - (a.overall || 0));
+
+  // UDFA-tier prospects: another 56 below the draftable line. They're
+  // scoutable + targetable during the draft, surface via the "UDFA" filter
+  // tab, and feed the post-draft UDFA Scramble screen. Marked with
+  // _generatedRound: 0 so existing potentialTag math treats them as UDFA
+  // pedigree.
+  for (let i = 0; i < _CLASS_UDFA_SIZE; i++) {
+    const pos = positions[Math.floor(Math.random() * positions.length)];
+    const p = genUniquePlayer(pos, "poor", allTaken);
+    allTaken.add(p.name);
+    p.age = 22;
+    p.draftYear = rookieYear;
+    p.draftSeason = (franchise?.season || 1) + 1;
+    p.isProspect = true;
+    p._generatedRound = 0;
+    p.draftRound = 0;
+    p.potential = _rollPotential(p);
+    p.collegeProfile = _buildCollegeProfile(p, 7); // late-round-style knock notes
+    p.careerHistory = []; p.careerStats = {}; p.career = []; p.careerTotals = {};
+    p.proBowls = 0; p.allPros = 0; p.sbRings = 0;
+    p.mvps = 0; p.opoys = 0; p.dpoys = 0; p.roys = 0; p.records = [];
+    cls.push(p);
+  }
+
+  cls.sort((a, b) => (b.overall || 0) - (a.overall || 0));
   return cls;
 }
 
@@ -11007,6 +11091,19 @@ function renderFrnDraft() {
   }
 
   if (d.currentIdx >= d.pickOrder.length) {
+    // After the last pick: hand off to the UDFA Scramble screen (new
+    // saves) or fall back to immediate finalize (legacy saves with no
+    // UDFA pool prepared).
+    if (d.udfaPhase !== true && d.class.some(p => p._generatedRound === 0 && !d.picks.some(pk => pk.prospectName === p.name))) {
+      d.udfaPhase = true;
+      saveFranchise();
+      renderFrnUDFAScramble();
+      return;
+    }
+    if (d.udfaPhase === true) {
+      renderFrnUDFAScramble();
+      return;
+    }
     const myPicksFinal = d.picks.filter(pk => pk.teamId === myId);
     _draftFinalize();
     _renderPostDraftGrade(myPicksFinal);
@@ -11022,12 +11119,19 @@ function renderFrnDraft() {
   const filter = d.boardFilter || "ALL";
 
   // Build available pool — sort by stable consensus score so scouting a
-  // player doesn't shuffle them off the visible board.
+  // player doesn't shuffle them off the visible board. UDFA-tier
+  // prospects (_generatedRound === 0) are hidden from the regular
+  // filters and only appear under the "UDFA" filter tab.
   const taken = new Set(d.picks.map(p => p.prospectName));
-  const allAvail = d.class.filter(p => !taken.has(p.name))
+  const draftablePool = d.class.filter(p => !taken.has(p.name) && p._generatedRound !== 0)
     .sort((a,b) => _draftBoardScore(b) - _draftBoardScore(a));
-  const filtered = filter === "K/P" ? allAvail.filter(p => p.position==="K"||p.position==="P")
-    : filter === "ALL" ? allAvail : allAvail.filter(p => p.position === filter);
+  const udfaPool = d.class.filter(p => !taken.has(p.name) && p._generatedRound === 0)
+    .sort((a,b) => _draftBoardScore(b) - _draftBoardScore(a));
+  const allAvail = filter === "UDFA" ? udfaPool : draftablePool;
+  const filtered = filter === "UDFA" ? udfaPool
+    : filter === "K/P" ? draftablePool.filter(p => p.position==="K"||p.position==="P")
+    : filter === "ALL" ? draftablePool
+    : draftablePool.filter(p => p.position === filter);
   // Top 45 by consensus + ALWAYS keep scouted prospects visible (pin them
   // even if they'd fall below the cutoff). Prevents the "scouted player
   // disappears" bug.
@@ -11047,13 +11151,23 @@ function renderFrnDraft() {
   const posRun = _draftPositionRun(d.picks);
 
   // ── Filter tabs ──────────────────────────────────────────────────────────
-  const TABS = ["ALL","QB","RB","WR","TE","OL","DL","LB","CB","S","K/P"];
+  const TABS = ["ALL","QB","RB","WR","TE","OL","DL","LB","CB","S","K/P","UDFA"];
   const filterHtml = TABS.map(f => {
-    const cnt = f==="ALL" ? allAvail.length
-      : f==="K/P" ? allAvail.filter(p=>p.position==="K"||p.position==="P").length
-      : allAvail.filter(p=>p.position===f).length;
-    return `<button class="frn-draft-filter-btn${filter===f?" active":""}" onclick="frnDraftSetFilter('${f}')">${f} <span style="opacity:.55;font-size:.52rem">${cnt}</span></button>`;
+    const cnt = f==="ALL"  ? draftablePool.length
+      : f==="UDFA"         ? udfaPool.length
+      : f==="K/P"          ? draftablePool.filter(p=>p.position==="K"||p.position==="P").length
+      :                      draftablePool.filter(p=>p.position===f).length;
+    const cls = f === "UDFA" ? "frn-draft-filter-btn udfa" : "frn-draft-filter-btn";
+    return `<button class="${cls}${filter===f?" active":""}" onclick="frnDraftSetFilter('${f}')">${f} <span style="opacity:.55;font-size:.52rem">${cnt}</span></button>`;
   }).join("");
+
+  // ── Class strengths chips (per-year theme display) ───────────────────────
+  const chips = d.classThemes?.chips || [];
+  const chipsHtml = chips.length
+    ? `<div class="frn-draft-class-chips">${chips.map(c =>
+        `<span style="color:${c.color};border-color:${c.color}55">${c.text}</span>`
+      ).join("")}</div>`
+    : "";
 
   // ── Prospect board ───────────────────────────────────────────────────────
   _migrateDraftScouts();
@@ -11195,6 +11309,7 @@ function renderFrnDraft() {
       <span class="frn-draft-day-badge">${dayLabel}</span>
       <span style="color:var(--gray);font-size:.7rem">Pick ${d.currentIdx+1} of ${d.pickOrder.length}</span>
     </div>
+    ${chipsHtml}
     ${posRun?`<div class="frn-draft-run-alert">🔥 ${posRun.pos} RUN — ${posRun.cnt} taken in last 6 picks · value elsewhere</div>`:""}
     ${alertsHtml}
     <div style="display:grid;grid-template-columns:1fr 270px;gap:.65rem;align-items:start">
@@ -11592,27 +11707,55 @@ function frnDraftPick(name) {
   renderFrnDraft();
 }
 
+// Finalize a UDFA-tier prospect into a signed player on a team. Mirrors
+// the legacy synthetic-UDFA fields so the resulting roster entry is
+// indistinguishable from a freshly-generated UDFA.
+function _signUdfaTo(roster, prospect, rookieYear) {
+  prospect.age = prospect.age || 22;
+  prospect.draftRound = 0;
+  prospect.draftPick = null;
+  prospect.draftYear = rookieYear;
+  prospect.draftSeason = (franchise?.season || 1) + 1;
+  prospect.careerEarnings = 0;
+  prospect.careerHistory = []; prospect.careerStats = {};
+  prospect.career = []; prospect.careerTotals = {};
+  prospect.proBowls = 0; prospect.allPros = 0; prospect.sbRings = 0;
+  prospect.mvps = 0; prospect.opoys = 0; prospect.dpoys = 0;
+  prospect.roys = 0; prospect.records = [];
+  _rollHiddenGem(prospect);
+  prospect.contract = rookieContract(prospect, franchise.salaryCap || SALARY_CAP_BASE);
+  delete prospect.isProspect;
+  roster.push(prospect);
+}
+
 function _draftFinalize() {
-  // Fill remaining roster gaps with UDFAs
   const rookieYear = (new Date().getFullYear()) + (franchise.season || 1);
+  const d = franchise.draft;
+  // Pull from the in-class UDFA pool first (these were generated as part
+  // of the draft class and have college profiles, knock notes, potential
+  // rolls — much richer than the legacy synthetic UDFAs). When the pool
+  // is exhausted, fall back to genUniquePlayer for the remaining gaps.
+  const drafted = new Set((d?.picks || []).map(pk => pk.prospectName));
+  const userClaimed = new Set(d?.udfaUserClaims || []);
+  const claimedByAi = new Set(d?.udfaAiClaims?.map(c => c.name) || []);
+  const remainingPool = (d?.class || []).filter(p =>
+    p._generatedRound === 0 && !drafted.has(p.name) && !userClaimed.has(p.name) && !claimedByAi.has(p.name)
+  );
   for (const t of TEAMS) {
     const roster = franchise.rosters[t.id];
     const taken = new Set(roster.map(p => p.name));
     for (const [pos, needed] of Object.entries(ROSTER_SLOTS)) {
       const have = roster.filter(p => p.position === pos).length;
       for (let i = have; i < needed; i++) {
-        const udfa = genUniquePlayer(pos, "poor", taken);
-        udfa.age = 22;
-        udfa.draftRound = 0; udfa.draftPick = null;
-        udfa.draftYear = rookieYear;
-        _rollHiddenGem(udfa);
-        udfa.draftSeason = (franchise?.season || 1) + 1;
-        udfa.careerEarnings = 0;
-        udfa.careerHistory = []; udfa.careerStats = {}; udfa.career = []; udfa.careerTotals = {};
-        udfa.proBowls = 0; udfa.allPros = 0; udfa.sbRings = 0;
-        udfa.mvps = 0; udfa.opoys = 0; udfa.dpoys = 0; udfa.roys = 0; udfa.records = [];
-        udfa.contract = rookieContract(udfa, franchise.salaryCap || SALARY_CAP_BASE);
-        roster.push(udfa);
+        // Try to pull from the remaining UDFA pool first
+        const poolIdx = remainingPool.findIndex(p => p.position === pos && !taken.has(p.name));
+        let udfa;
+        if (poolIdx !== -1) {
+          udfa = remainingPool.splice(poolIdx, 1)[0];
+        } else {
+          udfa = genUniquePlayer(pos, "poor", taken);
+        }
+        _signUdfaTo(roster, udfa, rookieYear);
         taken.add(udfa.name);
       }
     }
@@ -11625,6 +11768,209 @@ function _draftFinalize() {
   _ensurePicksForYear(lastYear + 1);
   franchise.draft = null;
   _flushSaveFranchise();
+}
+
+// ── UDFA Scramble ──────────────────────────────────────────────────────────
+// After the last draft pick (incl. comp picks), the user is given a
+// brief window to sign up to 3 priority UDFAs from the in-class pool.
+// AI teams then claim 1-2 UDFAs each based on positional need, and the
+// remaining roster gaps are filled by _draftFinalize.
+const UDFA_USER_CLAIM_CAP = 3;
+
+function frnDraftClaimUDFA(name) {
+  const d = franchise.draft;
+  if (!d?.udfaPhase) return;
+  d.udfaUserClaims = d.udfaUserClaims || [];
+  if (d.udfaUserClaims.includes(name)) return;
+  if (d.udfaUserClaims.length >= UDFA_USER_CLAIM_CAP) {
+    alert(`You can claim at most ${UDFA_USER_CLAIM_CAP} UDFAs.`);
+    return;
+  }
+  d.udfaUserClaims.push(name);
+  saveFranchise();
+  renderFrnUDFAScramble();
+}
+function frnDraftUnclaimUDFA(name) {
+  const d = franchise.draft;
+  if (!d?.udfaPhase) return;
+  d.udfaUserClaims = (d.udfaUserClaims || []).filter(n => n !== name);
+  saveFranchise();
+  renderFrnUDFAScramble();
+}
+function frnDraftSetUdfaFilter(pos) {
+  if (!franchise.draft) return;
+  franchise.draft.udfaFilter = pos;
+  renderFrnUDFAScramble();
+}
+
+// AI teams scan the remaining pool and grab top-OVR UDFAs at positions
+// where they have the biggest gap vs ROSTER_SLOTS.
+function _runUdfaAiClaims() {
+  const d = franchise.draft;
+  if (!d) return;
+  const myId = franchise.chosenTeamId;
+  const claimedSet = new Set(d.udfaUserClaims || []);
+  // Working pool — sorted by board score, mutable
+  const pool = d.class.filter(p =>
+    p._generatedRound === 0 && !claimedSet.has(p.name)
+  ).sort((a, b) => _draftBoardScore(b) - _draftBoardScore(a));
+  const aiClaims = [];
+  for (const t of TEAMS) {
+    if (t.id === myId) continue;
+    const roster = franchise.rosters[t.id] || [];
+    // Top 2 position needs
+    const needs = [];
+    for (const [pos, needed] of Object.entries(ROSTER_SLOTS)) {
+      const have = roster.filter(p => p.position === pos).length;
+      if (have < needed) needs.push({ pos, gap: needed - have });
+    }
+    needs.sort((a, b) => b.gap - a.gap);
+    // Claim 1-2 UDFAs at the top need positions
+    const claimsThisTeam = 1 + (Math.random() < 0.40 ? 1 : 0);
+    for (let i = 0; i < claimsThisTeam && i < needs.length; i++) {
+      const need = needs[i];
+      const idx = pool.findIndex(p => p.position === need.pos);
+      if (idx === -1) continue;
+      const pick = pool.splice(idx, 1)[0];
+      aiClaims.push({ teamId: t.id, name: pick.name, pos: pick.position });
+    }
+  }
+  d.udfaAiClaims = aiClaims;
+}
+
+function frnDraftFinishScramble() {
+  const d = franchise.draft;
+  if (!d) return;
+  const myId = franchise.chosenTeamId;
+  const myRoster = franchise.rosters[myId];
+  const rookieYear = (new Date().getFullYear()) + (franchise.season || 1);
+
+  // Sign user's claimed UDFAs to their roster
+  for (const name of (d.udfaUserClaims || [])) {
+    const prospect = d.class.find(p => p.name === name);
+    if (!prospect) continue;
+    _signUdfaTo(myRoster, prospect, rookieYear);
+  }
+
+  // AI claims (computed once, persisted on the draft state for the recap)
+  if (!d.udfaAiClaims) _runUdfaAiClaims();
+  for (const c of (d.udfaAiClaims || [])) {
+    const prospect = d.class.find(p => p.name === c.name);
+    if (!prospect) continue;
+    const roster = franchise.rosters[c.teamId] || [];
+    _signUdfaTo(roster, prospect, rookieYear);
+  }
+
+  // Finalize fills remaining deficits and clears franchise.draft
+  const myPicksFinal = d.picks.filter(pk => pk.teamId === myId);
+  _draftFinalize();
+  _renderPostDraftGrade(myPicksFinal);
+}
+
+function renderFrnUDFAScramble() {
+  const d = franchise.draft;
+  const myId = franchise.chosenTeamId;
+  const myTeam = getTeam(myId);
+  const myRoster = franchise.rosters[myId] || [];
+  const claims = new Set(d.udfaUserClaims || []);
+  const drafted = new Set(d.picks.map(pk => pk.prospectName));
+  const filter = d.udfaFilter || "ALL";
+
+  // Available pool — not drafted, not user-claimed, UDFA tier only
+  const pool = d.class
+    .filter(p => p._generatedRound === 0 && !drafted.has(p.name) && !claims.has(p.name))
+    .sort((a, b) => _draftBoardScore(b) - _draftBoardScore(a));
+  const filtered = filter === "K/P" ? pool.filter(p => p.position==="K"||p.position==="P")
+    : filter === "ALL" ? pool : pool.filter(p => p.position === filter);
+
+  // Position deficits on the user's roster (informational sidebar)
+  const deficits = [];
+  for (const [pos, needed] of Object.entries(ROSTER_SLOTS)) {
+    const have = myRoster.filter(p => p.position === pos).length;
+    if (have < needed) deficits.push({ pos, deficit: needed - have });
+  }
+  deficits.sort((a, b) => b.deficit - a.deficit);
+
+  const claimedRows = (d.udfaUserClaims || []).map(name => {
+    const p = d.class.find(q => q.name === name);
+    if (!p) return "";
+    return `<div class="frn-udfa-claim-row">
+      <span style="font-weight:700">${p.name}</span>
+      ${_posPillHtml(p.position)}
+      ${gradeBadge(p)}
+      <button class="btn btn-outline" onclick="frnDraftUnclaimUDFA('${(p.name||'').replace(/'/g,"\\'")}')">× Remove</button>
+    </div>`;
+  }).join("");
+
+  const TABS = ["ALL","QB","RB","WR","TE","OL","DL","LB","CB","S","K/P"];
+  const filterHtml = TABS.map(f => {
+    const cnt = f==="ALL" ? pool.length
+      : f==="K/P" ? pool.filter(p=>p.position==="K"||p.position==="P").length
+      : pool.filter(p=>p.position===f).length;
+    return `<button class="frn-draft-filter-btn${filter===f?" active":""}" onclick="frnDraftSetUdfaFilter('${f}')">${f} <span style="opacity:.55;font-size:.52rem">${cnt}</span></button>`;
+  }).join("");
+
+  const poolHtml = filtered.slice(0, 40).map((p, i) => {
+    const esc = (p.name||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'");
+    const needLvl = _draftNeedLevel(myId, p.position);
+    const needBadge = needLvl===2 ? `<span class="frn-draft-need-crit">❗NEED</span>`
+                    : needLvl===1 ? `<span class="frn-draft-need-need">⚠ NEED</span>` : "";
+    const arch = _archetypeLabel(p) || "—";
+    const canClaim = claims.size < UDFA_USER_CLAIM_CAP;
+    return `<div class="frn-draft-prospect">
+      <div class="frn-dp-rank">#${i+1}</div>
+      <div class="frn-dp-body">
+        <div class="frn-dp-top">
+          <span class="frn-dp-name">${p.name}</span>
+          ${_posPillHtml(p.position)}
+          ${needBadge}
+          ${gradeBadge(p)}
+          <span style="color:var(--gray);font-size:.56rem">Age ${p.age}</span>
+        </div>
+        <div class="frn-dp-bottom">
+          <span class="frn-dp-meta">${arch}</span>
+          <span class="frn-dp-combine"> · ${_draftCombineStr(p)}</span>
+        </div>
+        ${p.collegeProfile?.line ? `<div style="font-size:.58rem;color:var(--gray);margin-top:.1rem">${p.collegeProfile.line}</div>` : ""}
+      </div>
+      <div class="frn-dp-actions">
+        <button class="btn btn-gold" ${canClaim?"":"disabled style=\"opacity:.35;cursor:not-allowed\""} onclick="frnDraftClaimUDFA('${esc}')">+ SIGN</button>
+      </div>
+    </div>`;
+  }).join("") || `<div style="color:var(--gray);font-style:italic;text-align:center;padding:1rem">No UDFAs in this filter.</div>`;
+
+  $("frnHomeContent").innerHTML = `
+    <div class="frn-udfa-hero">
+      <div class="frn-udfa-eyebrow">SEASON ${franchise.season + 1} · DRAFT COMPLETE</div>
+      <h1 class="frn-udfa-title">🏷 UDFA SCRAMBLE</h1>
+      <div class="frn-udfa-sub">Sign up to ${UDFA_USER_CLAIM_CAP} priority undrafted free agents before they're claimed by other teams.</div>
+      <div class="frn-udfa-progress">${claims.size}/${UDFA_USER_CLAIM_CAP} signed</div>
+    </div>
+
+    ${claimedRows ? `<div class="frn-udfa-claimed-wrap">
+      <div class="frn-card-title">✓ Signed</div>
+      ${claimedRows}
+    </div>` : ""}
+
+    ${deficits.length ? `<div class="frn-udfa-deficit">
+      <span style="color:var(--gold);font-weight:700;font-size:.7rem">Roster gaps:</span>
+      ${deficits.map(n => `<span style="font-size:.65rem;color:#ff9090;margin-left:.5rem">${n.pos} (-${n.deficit})</span>`).join("")}
+    </div>` : ""}
+
+    <div style="display:grid;grid-template-columns:1fr;gap:.5rem;margin-top:.5rem">
+      <div>
+        <div class="frn-draft-filters">${filterHtml}</div>
+        <div class="frn-draft-board">${poolHtml}</div>
+      </div>
+    </div>
+
+    <div class="frn-off-footer" style="margin-top:1.2rem">
+      <div class="frn-off-footer-title">READY TO FINISH?</div>
+      <div class="frn-off-footer-sub">AI teams will claim 1-2 UDFAs each, then remaining roster gaps auto-fill.</div>
+      <div class="frn-off-footer-cta">
+        <button class="btn btn-gold-big" onclick="frnDraftFinishScramble()">✓ FINISH DRAFT →</button>
+      </div>
+    </div>`;
 }
 
 // Roll this season's per-game-aggregated stats into each player's
