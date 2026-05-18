@@ -4328,6 +4328,90 @@
   .bspnlive-retiree-name { color: var(--blwhite); font-size: .76rem; }
   .bspnlive-retiree-meta { color: var(--blgray); font-size: .62rem; }
   /* Highlights strip */
+  /* ── Awards screen: Season Highlights yearbook page ────────────────── */
+  .frn-awards-hl-hero { margin-bottom: 1rem; }
+  .frn-awards-hl-hero-eyebrow {
+    font-size: .6rem; letter-spacing: 3px; color: var(--blgold);
+    font-weight: 800; margin-bottom: .45rem;
+  }
+  .frn-awards-hl-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: .8rem;
+    align-items: start; margin-bottom: .9rem;
+  }
+  @media (max-width: 800px) { .frn-awards-hl-grid { grid-template-columns: 1fr; } }
+  .frn-awards-hl-col-title {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: .9rem; letter-spacing: 1.4px; color: var(--blgold);
+    margin-bottom: .45rem;
+  }
+  .frn-awards-hl-col-cards {
+    display: flex; flex-direction: column; gap: .4rem;
+  }
+  .frn-awards-hl-card {
+    display: grid; grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto auto;
+    gap: .1rem .55rem; align-items: baseline;
+    background: var(--blbg2); border: 1px solid var(--blborder);
+    border-left: 3px solid var(--accent, var(--blgold));
+    border-radius: 3px; padding: .55rem .7rem;
+    text-align: left; color: var(--blwhite);
+    font-family: inherit; cursor: pointer;
+    transition: transform .12s ease, border-color .12s ease;
+  }
+  .frn-awards-hl-card:hover { transform: translateY(-1px); border-left-color: var(--blgold); }
+  .frn-awards-hl-card.hero {
+    background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 15%, var(--blbg2)) 0%, var(--blbg2) 70%);
+    border: 1px solid var(--accent); border-left-width: 5px;
+    box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 18%, transparent);
+    padding: 1rem 1.2rem;
+  }
+  .frn-awards-hl-meta {
+    grid-row: 1; grid-column: 1 / -1;
+    display: flex; gap: .4rem; align-items: center;
+    margin-bottom: .15rem;
+  }
+  .frn-awards-hl-badge {
+    font-size: .52rem; letter-spacing: .8px; font-weight: 900;
+    border: 1px solid; padding: .05rem .35rem; border-radius: 2px;
+  }
+  .frn-awards-hl-when {
+    font-size: .55rem; letter-spacing: 1px; color: var(--blgray);
+    font-weight: 700;
+  }
+  .frn-awards-hl-headline {
+    grid-row: 2; grid-column: 1;
+    color: var(--blwhite); font-weight: 700; font-size: .8rem; line-height: 1.25;
+  }
+  .frn-awards-hl-card.hero .frn-awards-hl-headline {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1.5rem; letter-spacing: 1px; line-height: 1.2;
+  }
+  .frn-awards-hl-matchup {
+    grid-row: 3; grid-column: 1;
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    font-size: .58rem; color: var(--blgray); margin-top: .15rem;
+  }
+  .frn-awards-hl-watch {
+    grid-row: 2 / span 2; grid-column: 2;
+    align-self: center;
+    color: var(--accent, var(--blgold)); font-size: .6rem;
+    letter-spacing: .8px; font-weight: 700;
+    opacity: .8;
+  }
+  .frn-awards-hl-card:hover .frn-awards-hl-watch { opacity: 1; }
+
+  .frn-awards-hl-cta-row {
+    display: flex; justify-content: center; margin-top: .35rem;
+  }
+  .frn-awards-hl-cta {
+    background: transparent; color: var(--blgold);
+    border: 1px solid var(--blgold);
+    font-family: inherit; font-size: .75rem; font-weight: 700;
+    letter-spacing: 1px; padding: .5rem 1.2rem; cursor: pointer;
+    border-radius: 3px; transition: background .12s ease;
+  }
+  .frn-awards-hl-cta:hover { background: rgba(212,175,55,.12); }
+
   .bspnlive-highlights-grid { display: flex; flex-direction: column; gap: .15rem; }
   .bspnlive-highlight-row {
     display: grid; grid-template-columns: 3rem 1fr 1.3fr;

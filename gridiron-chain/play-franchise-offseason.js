@@ -4577,23 +4577,100 @@ function renderFrnAwards() {
     ${retireeRows ? `<div style="margin-top:.6rem"><div class="bspnlive-allpro-title" style="margin-bottom:.4rem">CALLING IT A CAREER</div><div class="bspnlive-retiree-grid">${retireeRows}</div></div>` : ""}
   ` : "";
 
-  // Awards screen is your season's celebration — filter highlights to
-  // games your team was in. League-wide moments live on the dedicated
-  // highlights page where the user can scope to LEAGUE explicitly.
-  const myHL = (seasonHighlights || []).filter(h =>
+  // Season Highlights — yearbook page. Hero card for the single biggest
+  // moment, two columns below for your team's best year-end moments and
+  // notable around-the-league plays. Deep links into the full highlight
+  // reel via the dedicated highlights page.
+  const allHL = (seasonHighlights || []).map((h, i) => ({ h, i }));
+  const mineHL = allHL.filter(({ h }) =>
     h.homeId === chosenTeamId || h.awayId === chosenTeamId);
-  const topHL = myHL.slice().sort((a, b) => b.weight - a.weight).slice(0, 6);
-  const hlSection = topHL.length ? `
-    <div class="bspnlive-section-title">⭐ YOUR SEASON HIGHLIGHTS</div>
-    <div class="bspnlive-highlights-grid">
-      ${topHL.map(h => {
-        const hT = getTeam(h.homeId), aT = getTeam(h.awayId);
-        return `<div class="bspnlive-highlight-row">
-          <span class="bspnlive-highlight-week">${h.week}</span>
-          <span class="bspnlive-highlight-teams">${hT?.name || "?"} vs ${aT?.name || "?"}</span>
-          <span class="bspnlive-highlight-label">${h.label}${h.isClutch ? ` <span style="color:#b07a00;font-size:.6rem">⚡CLUTCH</span>` : ""}</span>
-        </div>`;
-      }).join("")}
+  const leagueHL = allHL.filter(({ h }) =>
+    h.homeId !== chosenTeamId && h.awayId !== chosenTeamId);
+
+  // Pick the absolute biggest moment of the season as the hero.
+  const heroPick = allHL.slice().sort((a, b) => b.h.weight - a.h.weight)[0];
+
+  // Pick a balanced trio of your moments: best offense + best defense +
+  // best game capsule. Falls through to top-weight if a category is empty.
+  const pickByType = (pool, type) => pool
+    .filter(({ h }) => h.type === type && (heroPick == null || h !== heroPick.h))
+    .sort((a, b) => b.h.weight - a.h.weight)[0];
+  const fillRemaining = (pool, taken, target) => {
+    const seen = new Set(taken.map(x => x?.i));
+    const extras = pool
+      .filter(({ i, h }) => !seen.has(i) && (heroPick == null || h !== heroPick.h))
+      .sort((a, b) => b.h.weight - a.h.weight);
+    const out = taken.filter(Boolean);
+    for (const e of extras) { if (out.length >= target) break; out.push(e); }
+    return out.slice(0, target);
+  };
+
+  const myCandidates = fillRemaining(mineHL, [
+    pickByType(mineHL, "off"),
+    pickByType(mineHL, "def"),
+    pickByType(mineHL, "game"),
+  ], 3);
+  const leagueCandidates = fillRemaining(leagueHL, [], 3);
+
+  const typeCfg = (h) => h.type === "def" ? { badge: h.isClutch ? "CLUTCH DEF" : "DEF", color: "#4dbdbd" }
+    : h.type === "game" ? { badge: h.isClutch ? "OT" : "GAME", color: "#a78bfa" }
+    : { badge: h.isClutch ? "CLUTCH" : "OFF", color: "#f5c542" };
+
+  const hlMatchupLine = (h) => {
+    const home = getTeam(h.homeId), away = getTeam(h.awayId);
+    const hAbbr = home?.abbr || home?.name?.slice(0,3).toUpperCase();
+    const aAbbr = away?.abbr || away?.name?.slice(0,3).toUpperCase();
+    if (h.finalHome == null) return `${hAbbr} vs ${aAbbr}`;
+    return `${hAbbr} ${h.finalHome}-${h.finalAway} ${aAbbr}`;
+  };
+
+  const hlCard = ({ h, i }, size) => {
+    if (!h) return "";
+    const { badge, color } = typeCfg(h);
+    return `<button class="frn-awards-hl-card ${size || ""}"
+        style="--accent:${color}" onclick="renderHighlightReplay(${i})">
+      <div class="frn-awards-hl-meta">
+        <span class="frn-awards-hl-badge" style="color:${color};border-color:${color}55">${badge}</span>
+        <span class="frn-awards-hl-when">${h.week}${h.isPlayoff?" · PLAYOFF":""}</span>
+      </div>
+      <div class="frn-awards-hl-headline">${h.label}</div>
+      <div class="frn-awards-hl-matchup">${hlMatchupLine(h)}</div>
+      <div class="frn-awards-hl-watch">▶ Watch</div>
+    </button>`;
+  };
+
+  const heroHtml = heroPick ? `
+    <div class="frn-awards-hl-hero">
+      <div class="frn-awards-hl-hero-eyebrow">🌟 THE BIG MOMENT</div>
+      ${hlCard(heroPick, "hero")}
+    </div>` : "";
+
+  const myColHtml = myCandidates.length ? `
+    <div class="frn-awards-hl-col">
+      <div class="frn-awards-hl-col-title">⭐ YOUR TEAM'S YEAR</div>
+      <div class="frn-awards-hl-col-cards">
+        ${myCandidates.map(c => hlCard(c)).join("")}
+      </div>
+    </div>` : "";
+  const leagueColHtml = leagueCandidates.length ? `
+    <div class="frn-awards-hl-col">
+      <div class="frn-awards-hl-col-title">🌐 AROUND THE LEAGUE</div>
+      <div class="frn-awards-hl-col-cards">
+        ${leagueCandidates.map(c => hlCard(c)).join("")}
+      </div>
+    </div>` : "";
+
+  const hlSection = heroPick ? `
+    <div class="bspnlive-section-title">⭐ SEASON HIGHLIGHTS</div>
+    ${heroHtml}
+    <div class="frn-awards-hl-grid">
+      ${myColHtml}
+      ${leagueColHtml}
+    </div>
+    <div class="frn-awards-hl-cta-row">
+      <button class="frn-awards-hl-cta" onclick="renderFrnHighlightsAll()">
+        🎬 View full highlight reel →
+      </button>
     </div>` : "";
 
   // Records broken this season (single-game + single-season).
