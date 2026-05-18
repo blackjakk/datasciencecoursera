@@ -5928,8 +5928,11 @@ function startFrnOffseason() {
 // ── Holdouts ──────────────────────────────────────────────────────────────────
 // A star (grade A or higher) with multiple years left whose AAV is well
 // below current market value will demand a new deal in the offseason.
-// Three resolutions: Extend (pay market), Trade (move them), Ignore
-// (risk a hold-out next season — player auto-leaves at contract end).
+// Resolutions: Extend (sign at current offer) · Counter (drop offer to 95% of
+// demand) · Trade (move them) · Ignore (player becomes a flight risk).
+const _HOLDOUT_MIN_YEARS = 1;
+const _HOLDOUT_MAX_YEARS = 6;
+
 function _detectHoldouts() {
   const cap = franchise.salaryCap || SALARY_CAP_BASE;
   const myRoster = franchise.rosters[franchise.chosenTeamId] || [];
@@ -5941,29 +5944,192 @@ function _detectHoldouts() {
     const market = computeMarketValue(p, cap);
     const aav = p.contract.aav || 0;
     if (aav >= market * 0.85) continue;       // fairly paid
+    const demandAAV = Math.round(market * 10) / 10;
+    const demandYrs = Math.max(p.contract.remaining + 2, 4);
     holdouts.push({
       name: p.name, position: p.position,
-      currentAAV: aav, demandedAAV: Math.round(market * 10) / 10,
-      demandedYears: Math.max(p.contract.remaining + 2, 4),
+      overall: p.overall || 70,
+      age: p.age || 27,
+      currentAAV: aav,
+      currentRemaining: p.contract.remaining,
+      marketAAV: demandAAV,
+      demandedAAV: demandAAV,
+      demandedYears: demandYrs,
+      offer: demandAAV,           // start matching their demand (100% accept)
+      offerYears: demandYrs,
+      structure: _defaultStructure(p.age || 27, p.overall || 70),
       resolved: null,
     });
   }
   franchise._holdouts = holdouts;
 }
 
+// Tier for visual sectioning (parallels _resignTier but the bar is higher
+// because detectHoldouts already filters to grade ≥82 / A-).
+function _holdoutTier(h) {
+  const ovr = h.overall || 0;
+  if (ovr >= 90) return "foundation";
+  if (ovr >= 85) return "starter";
+  return "depth";
+}
+
+// Odds the player accepts your current offer vs their demand. Same shape
+// as _resignAcceptOdds — gap below demand cuts odds.
+function _holdoutAcceptOdds(offerAAV, offerYears, demandAAV, demandYears) {
+  if (!demandAAV) return 1;
+  const aavGap   = (offerAAV - demandAAV) / Math.max(0.5, demandAAV);
+  const yearGap  = offerYears - demandYears;
+  let odds = 1 + Math.min(0, aavGap) * 2.0 + Math.min(0, yearGap) * 0.08;
+  return Math.max(0, Math.min(1, odds));
+}
+
+// Quick trade-value heuristic so the Trade button shows what the player
+// is worth in pick terms.
+function _holdoutTradeValue(h, livePlayer) {
+  const ovr = h.overall || 0;
+  const age = livePlayer?.age ?? h.age ?? 28;
+  if (ovr >= 90 && age <= 26) return "≈ 1st-rd + asset";
+  if (ovr >= 90)              return "≈ 1st-rd pick";
+  if (ovr >= 85 && age <= 28) return "≈ 1st-rd pick";
+  if (ovr >= 85)              return "≈ 2nd-rd pick";
+  if (ovr >= 82)              return "≈ 2nd-rd pick";
+  return "≈ 3rd-rd pick";
+}
+
+// System recommendation for a demand. Mirrors _resignRecommendation but
+// the actions are PAY / COUNTER / TRADE / IGNORE.
+function _holdoutRecommendation(h, depth, faMkt, ageWarn, isInjuryProne, trend) {
+  const ovr = h.overall || 0;
+  const aboveMarket = h.demandedAAV > h.marketAAV * 1.10;
+  const declining = trend != null && trend <= -3;
+  const ageDanger = ageWarn?.level === "danger";
+
+  if (ovr >= 90 && !ageDanger && !declining && !aboveMarket) {
+    return { action: "PAY", color: "var(--green-lt)",
+      reason: "Franchise cornerstone — extension before he gets unhappier" };
+  }
+  if (ageDanger || (declining && ovr >= 88)) {
+    return { action: "COUNTER", color: "#e8a000",
+      reason: "Age / decline risk on a long deal — counter shorter and cheaper" };
+  }
+  if (depth >= 2 && faMkt >= 3 && ovr < 90) {
+    return { action: "TRADE", color: "var(--gold)",
+      reason: `${depth} starter-grade ${h.position} on roster · flip for picks` };
+  }
+  if (isInjuryProne) {
+    return { action: "COUNTER", color: "#e8a000",
+      reason: "Injury history makes long money risky" };
+  }
+  if (aboveMarket) {
+    return { action: "COUNTER", color: "#e8a000",
+      reason: "Demand sits above market — counter at value" };
+  }
+  return { action: "PAY", color: "var(--green-lt)",
+    reason: "Underpaid star — extension is the right move" };
+}
+
+// Multi-year cap projection — mirrors _resignCapProjection but extended
+// demands REPLACE the player's existing contract (vs adding a new one).
+function _holdoutCapProjection(years = 4) {
+  const myId = franchise.chosenTeamId;
+  const myRoster = franchise.rosters[myId] || [];
+  const holdouts = franchise._holdouts || [];
+  const extendedByName = new Map();
+  for (const h of holdouts) {
+    if (h.resolved === "extended") extendedByName.set(h.name, h);
+  }
+  const out = new Array(years).fill(0);
+  for (const p of myRoster) {
+    if (!p.contract || p.contract.remaining <= 0) continue;
+    if (extendedByName.has(p.name)) continue; // replaced by the extension below
+    const proration = p.contract.bonusProration || 0;
+    const bases = p.contract.baseSalaries || [];
+    const curIdx = (p.contract.years || 1) - (p.contract.remaining || 1);
+    for (let i = 0; i < years && (curIdx + i) < bases.length; i++) {
+      out[i] += (bases[curIdx + i] || 0) + proration;
+    }
+  }
+  for (const h of extendedByName.values()) {
+    const aav = h.offer ?? h.demandedAAV;
+    const yrs = h.offerYears ?? h.demandedYears;
+    const ovr = h.overall || 70;
+    const { bonusProration } = _signingBonusCalc(aav, yrs, ovr);
+    const struct = h.structure || "BALANCED";
+    const bases = _baseSalarySchedule(aav, yrs, struct, bonusProration);
+    for (let i = 0; i < years && i < bases.length; i++) {
+      out[i] += bases[i] + bonusProration;
+    }
+  }
+  return out.map(v => Math.round(v * 10) / 10);
+}
+
+// Preview index — which row is currently in "review year-by-year" mode.
+let _holdoutPreview = null;
+
 function frnHoldoutExtend(name) {
   const h = (franchise._holdouts || []).find(x => x.name === name);
   if (!h) return;
-  const player = franchise.rosters[franchise.chosenTeamId].find(p => p.name === name);
+  const player = (franchise.rosters[franchise.chosenTeamId] || []).find(p => p.name === name);
   if (!player) return;
+  const aav    = h.offer ?? h.demandedAAV;
+  const years  = h.offerYears ?? h.demandedYears;
+  const struct = h.structure || "BALANCED";
+  const ovr    = player.overall || h.overall || 70;
+  const { signingBonus, bonusProration, tradeKicker } = _signingBonusCalc(aav, years, ovr);
+  const baseSalaries = _baseSalarySchedule(aav, years, struct, bonusProration);
+  // Low accept odds → player is unhappy after signing.
+  const odds = _holdoutAcceptOdds(aav, years, h.demandedAAV, h.demandedYears);
+  if (odds < 0.5) player.unhappy = true;
+  else delete player.unhappy;
   player.contract = {
-    years: h.demandedYears,
-    remaining: h.demandedYears,
-    aav: h.demandedAAV,
-    signedAav: h.demandedAAV,
+    years, remaining: years, aav, structure: struct,
+    baseSalaries, signingBonus, bonusProration, tradeKicker,
+    guaranteedYears: _guaranteedYearsForLength(years),
+    guaranteedAAV: aav, incentives: [], signedAav: aav,
   };
   h.resolved = "extended";
+  _holdoutPreview = null;
+  _pushNews({ type: "extension",
+    label: `🤝 Extended ${player.position} ${name} — ${years}yr / $${aav.toFixed(1)}M/yr` });
   saveFranchise();
+  renderFrnOffseason();
+}
+
+// Drop offer to 95% of demand — gives the user a one-click "below market"
+// path that they can then refine with the year / structure pickers.
+function frnHoldoutCounter(name) {
+  const h = (franchise._holdouts || []).find(x => x.name === name);
+  if (!h || h.resolved) return;
+  h.offer = Math.round(h.demandedAAV * 0.95 * 10) / 10;
+  h.offerYears = Math.max(_HOLDOUT_MIN_YEARS, Math.min(_HOLDOUT_MAX_YEARS, h.demandedYears));
+  saveFranchise();
+  renderFrnOffseason();
+}
+
+function frnHoldoutAdjustYears(name, delta) {
+  const h = (franchise._holdouts || []).find(x => x.name === name);
+  if (!h || h.resolved) return;
+  const newYears = Math.max(_HOLDOUT_MIN_YEARS, Math.min(_HOLDOUT_MAX_YEARS, (h.offerYears || h.demandedYears) + delta));
+  if (newYears === h.offerYears) return;
+  h.offerYears = newYears;
+  saveFranchise();
+  renderFrnOffseason();
+}
+
+function frnHoldoutSetStructure(name, struct) {
+  const h = (franchise._holdouts || []).find(x => x.name === name);
+  if (!h || h.resolved) return;
+  h.structure = struct;
+  saveFranchise();
+  renderFrnOffseason();
+}
+
+function frnHoldoutPreview(name) {
+  _holdoutPreview = name;
+  renderFrnOffseason();
+}
+function frnHoldoutPreviewClose() {
+  _holdoutPreview = null;
   renderFrnOffseason();
 }
 
@@ -5991,6 +6157,118 @@ function frnHoldoutIgnore(name) {
   if (player) player.unhappy = true;
   saveFranchise();
   renderFrnOffseason();
+}
+
+// Click a collapsed completed row → reopen it for editing.
+function frnHoldoutReopen(name) {
+  const h = (franchise._holdouts || []).find(x => x.name === name);
+  if (!h) return;
+  // Undo side effects on the player record before clearing resolved.
+  const player = (franchise.rosters[franchise.chosenTeamId] || []).find(p => p.name === name);
+  if (h.resolved === "ignored" && player) delete player.unhappy;
+  h.resolved = null;
+  // Reset offer to match demand so re-opening starts from neutral.
+  h.offer = h.demandedAAV;
+  h.offerYears = h.demandedYears;
+  saveFranchise();
+  renderFrnOffseason();
+}
+
+// End-of-flow recap modal — shown when user clicks "Review Demands".
+function frnOpenHoldoutRecap() {
+  const list = franchise._holdouts || [];
+  const extended = list.filter(h => h.resolved === "extended");
+  const traded   = list.filter(h => h.resolved === "trade-block");
+  const ignored  = list.filter(h => h.resolved === "ignored");
+  const cap = effectiveSalaryCap(franchise.chosenTeamId);
+  const proj = _holdoutCapProjection(4);
+
+  const projHtml = proj.map((v, i) => {
+    const pct = Math.min(100, (v / Math.max(1, cap)) * 100);
+    const color = v > cap ? "var(--red)" : v > cap * 0.90 ? "#e8a000" : "var(--green-lt)";
+    return `<div class="frn-resign-cap-year">
+      <div class="lbl">Y${i+1}</div>
+      <div class="bar"><div class="fill" style="width:${pct}%;background:${color}"></div></div>
+      <div class="num" style="color:${color}">$${v.toFixed(0)}M</div>
+    </div>`;
+  }).join("");
+
+  const existing = document.getElementById("frn-holdout-recap-modal");
+  if (existing) existing.remove();
+  const el = document.createElement("div");
+  el.id = "frn-holdout-recap-modal";
+  el.className = "frn-resign-recap-overlay";
+  el.innerHTML = `
+    <div class="frn-resign-recap-card">
+      <button class="frn-resign-recap-close" onclick="frnCloseHoldoutRecap()">×</button>
+      <div class="frn-resign-recap-eyebrow">OFFSEASON DEMANDS</div>
+      <h2 class="frn-resign-recap-title">DEMANDS SUMMARY</h2>
+
+      <div class="frn-resign-recap-grid">
+        <div class="frn-resign-recap-stat">
+          <span class="lbl">EXTENDED</span>
+          <span class="val" style="color:var(--green-lt)">${extended.length}</span>
+          <span class="sub">${extended.length ? `$${extended.reduce((s,h)=>s+(h.offer||h.demandedAAV),0).toFixed(1)}M / yr` : "—"}</span>
+        </div>
+        <div class="frn-resign-recap-stat">
+          <span class="lbl">TRADED</span>
+          <span class="val" style="color:${traded.length?"var(--gold)":"var(--blgray)"}">${traded.length}</span>
+          <span class="sub">${traded.length?"on trade block":"—"}</span>
+        </div>
+        <div class="frn-resign-recap-stat">
+          <span class="lbl">IGNORED</span>
+          <span class="val" style="color:${ignored.length?"#ff8a8a":"var(--blgray)"}">${ignored.length}</span>
+          <span class="sub">${ignored.length?"flight risk":"—"}</span>
+        </div>
+      </div>
+
+      <section class="frn-resign-recap-section">
+        <div class="frn-resign-recap-section-title">📊 PROJECTED CAP — NEXT 4 SEASONS</div>
+        <div class="frn-resign-cap-timeline">${projHtml}</div>
+        <div class="frn-resign-recap-note">Includes extended demands. Cap line: <b style="color:var(--blgold)">$${cap.toFixed(0)}M</b></div>
+      </section>
+
+      ${extended.length ? `
+      <section class="frn-resign-recap-section">
+        <div class="frn-resign-recap-section-title">✓ EXTENDED</div>
+        ${extended.map(h => `<div class="frn-resign-recap-row">
+          <span style="color:var(--blwhite);font-weight:700">${h.name}</span>
+          <span style="color:var(--blgray)">${h.position} · ${h.overall} OVR</span>
+          <span style="color:var(--blgold);margin-left:auto">$${(h.offer||h.demandedAAV).toFixed(1)}M × ${h.offerYears||h.demandedYears}yr</span>
+        </div>`).join("")}
+      </section>` : ""}
+
+      ${traded.length ? `
+      <section class="frn-resign-recap-section">
+        <div class="frn-resign-recap-section-title">🔀 ON TRADE BLOCK</div>
+        ${traded.map(h => `<div class="frn-resign-recap-row">
+          <span style="color:var(--blwhite)">${h.name}</span>
+          <span style="color:var(--blgray)">${h.position} · ${h.overall} OVR</span>
+          <span style="color:var(--blgray);margin-left:auto">${_holdoutTradeValue(h)}</span>
+        </div>`).join("")}
+      </section>` : ""}
+
+      ${ignored.length ? `
+      <section class="frn-resign-recap-section">
+        <div class="frn-resign-recap-section-title">✗ IGNORED — FLIGHT RISK</div>
+        ${ignored.map(h => `<div class="frn-resign-recap-row">
+          <span style="color:var(--blwhite)">${h.name}</span>
+          <span style="color:var(--blgray)">${h.position} · ${h.overall} OVR</span>
+          <span style="color:#ff8a8a;margin-left:auto">walks at expiry</span>
+        </div>`).join("")}
+      </section>` : ""}
+
+      <div class="frn-resign-recap-cta">
+        <button class="btn btn-outline" onclick="frnCloseHoldoutRecap()">← Back to edit</button>
+        <button class="btn btn-gold-big" onclick="frnCloseHoldoutRecap();frnConfirmGoToDraft()">📋 Continue to Draft →</button>
+      </div>
+    </div>`;
+  el.addEventListener("click", e => { if (e.target === el) frnCloseHoldoutRecap(); });
+  document.body.appendChild(el);
+}
+function frnCloseHoldoutRecap() {
+  const el = document.getElementById("frn-holdout-recap-modal");
+  if (el) el.remove();
 }
 
 // ── Coaching carousel ─────────────────────────────────────────────────────────
@@ -7181,83 +7459,248 @@ function renderFrnOffseason() {
     <div class="frn-sec-title">${myTeam.name} Roster Changes</div>
     <div class="frn-off-list">${chgHtml}</div>
     ${_renderHoldoutsBlock()}
-    <div class="frn-actions" style="justify-content:center;margin-top:1.2rem">
-      <button class="btn btn-gold" onclick="frnConfirmGoToDraft()">📋 Go to Draft</button>
-      <button class="btn btn-outline" onclick="frnAbandon()" style="color:var(--red)">× Abandon</button>
-    </div>`;
+    ${(() => {
+      const pending = (franchise._holdouts || []).filter(h => !h.resolved).length;
+      const warn = pending > 0
+        ? `<div style="color:#e8a000;font-size:.7rem;text-align:center;margin-bottom:.4rem">⚠ ${pending} contract demand${pending===1?"":"s"} unresolved — proceeding will defer ${pending===1?"it":"them"} to next season</div>`
+        : "";
+      return `${warn}<div class="frn-actions" style="justify-content:center;margin-top:1.2rem">
+        <button class="btn btn-gold" onclick="frnConfirmGoToDraft()">📋 Go to Draft</button>
+        <button class="btn btn-outline" onclick="frnAbandon()" style="color:var(--red)">× Abandon</button>
+      </div>`;
+    })()}`;
 }
 
 function _renderHoldoutsBlock() {
   const list = franchise._holdouts || [];
   if (!list.length) return "";
-  const myRoster = franchise.rosters[franchise.chosenTeamId] || [];
-  const rows = list.map(h => {
-    const live = myRoster.find(p => p.name === h.name);
-    const ovr = live?.overall ?? h.overall ?? "?";
-    const statLine = (() => { const agg = _playerSeasonStatsAgg(h.name); return agg ? mvpStatLine(agg) : ""; })();
+  const myId = franchise.chosenTeamId;
+  const myRoster = franchise.rosters[myId] || [];
+  const cap = effectiveSalaryCap(myId);
+
+  const _statLine = name => {
+    const agg = _playerSeasonStatsAgg(name);
+    return agg ? mvpStatLine(agg) : "";
+  };
+
+  const rowFor = (h) => {
     const escName = (h.name||"").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-    if (h.resolved === "extended") {
-      return `<div class="frn-resign-row accepted">
-        <div class="frn-resign-info">
-          <span style="font-weight:700;color:var(--white)">${h.name}</span>
-          <span style="color:var(--gray);font-size:.7rem">${h.position} · ${ovr} OVR</span>
-        </div>
-        <div class="frn-resign-offer"><span style="color:var(--green-lt)">✓ Extended $${h.demandedAAV.toFixed(1)}M × ${h.demandedYears}yr</span></div>
+    const live = myRoster.find(p => p.name === h.name);
+    const ovr = live?.overall ?? h.overall ?? 70;
+    const age = live?.age ?? h.age ?? "?";
+
+    // ── Locked / completed decision → collapsed strip ──────────────
+    if (h.resolved) {
+      const labels = {
+        "extended":    { cls: "accepted", lbl: `<span style="color:var(--green-lt);font-weight:700">✓ EXTENDED</span> · $${(h.offer||h.demandedAAV).toFixed(1)}M × ${(h.offerYears||h.demandedYears)}yr` },
+        "trade-block": { cls: "tagged",   lbl: `<span style="color:var(--gold);font-weight:700">🔀 TRADE BLOCK</span> · ${_holdoutTradeValue(h, live)}` },
+        "ignored":     { cls: "declined", lbl: `<span style="color:#ff8a8a;font-weight:700">✗ IGNORED</span> · flight risk` },
+      };
+      const spec = labels[h.resolved] || { cls: "", lbl: h.resolved };
+      return `<div class="frn-resign-collapsed ${spec.cls}"
+           onclick="frnHoldoutReopen('${escName}')" title="Click to reopen">
+        <span class="name">${h.name}</span>
+        <span class="meta">${h.position} · ${ovr} OVR · Age ${age}</span>
+        <span class="decision">${spec.lbl}</span>
+        <span class="reopen">↻ Reopen</span>
       </div>`;
     }
-    if (h.resolved === "ignored") {
-      return `<div class="frn-resign-row declined">
+
+    const struct = h.structure || "BALANCED";
+    const offer  = h.offer ?? h.demandedAAV;
+    const offerYears = h.offerYears ?? h.demandedYears;
+    const { bonusProration } = _signingBonusCalc(offer, offerYears, ovr);
+    const deadTotal = bonusProration * offerYears;
+
+    // ── Year-by-year preview before signing ────────────────────────
+    if (_holdoutPreview === h.name) {
+      const bases = _baseSalarySchedule(offer, offerYears, struct, bonusProration);
+      const yearPills = bases.map((base, i) => {
+        const hit = Math.round((base + bonusProration) * 10) / 10;
+        return `<div style="display:flex;justify-content:space-between;padding:.18rem .4rem;border-radius:4px;background:var(--bg3);font-size:.67rem;gap:.8rem">
+          <span style="color:var(--gray)">Yr ${i+1}</span>
+          <span>$${base.toFixed(1)}M base</span>
+          <span style="color:var(--gray)">+$${bonusProration.toFixed(1)}M bonus</span>
+          <span style="color:var(--gold);font-weight:700">= $${hit.toFixed(1)}M</span>
+        </div>`;
+      }).join("");
+      return `<div class="frn-resign-row" style="border-color:var(--gold);background:rgba(200,169,0,.07)">
         <div class="frn-resign-info">
-          <span style="font-weight:700;color:var(--white)">${h.name}</span>
-          <span style="color:var(--gray);font-size:.7rem">${h.position} · ${ovr} OVR</span>
+          <span style="font-weight:700;color:var(--gold)">${h.name}</span>
+          <span style="color:var(--gray);font-size:.7rem">${h.position} · ${ovr} OVR · Age ${age}</span>
+          <span style="font-size:.6rem;color:var(--gray);margin-top:.1rem">${struct} · $${offer.toFixed(1)}M/yr · ${offerYears}yr</span>
         </div>
-        <div class="frn-resign-offer"><span style="color:#e8a000">⚠ Ignored — flight risk</span></div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:.2rem;margin:0 .6rem">${yearPills}</div>
+        <div class="frn-resign-btns" style="flex-direction:column;gap:.3rem">
+          ${deadTotal >= 0.5 ? `<span style="color:#ff9090;font-size:.6rem;text-align:center">☠ Dead $${bonusProration.toFixed(1)}M×${offerYears}yr</span>` : ""}
+          <button class="btn btn-gold" onclick="frnHoldoutExtend('${escName}')" style="white-space:nowrap">✓ Sign Extension</button>
+          <button class="btn btn-outline" onclick="frnHoldoutPreviewClose()" style="font-size:.65rem">← Back</button>
+        </div>
       </div>`;
     }
-    const cap = franchise.salaryCap || SALARY_CAP_BASE;
-    const marketVal = live ? computeMarketValue(live, cap) : h.demandedAAV;
-    const raise = h.demandedAAV - h.currentAAV;
-    const demandVsMarket = h.demandedAAV - marketVal;
-    const demandColor = demandVsMarket > 2 ? "var(--red)" : demandVsMarket < -1 ? "var(--green-lt)" : "var(--gold)";
+
     const trend = _ovrTrend(live);
     const trendHtml = trend == null ? "" : trend > 0
-      ? `<span style="color:var(--green-lt);font-size:.6rem">↑ +${trend}</span>`
-      : trend < 0 ? `<span style="color:var(--red);font-size:.6rem">↓ ${trend}</span>`
-      : `<span style="color:var(--gray);font-size:.6rem">→</span>`;
-    const curve = _ageCurveWarning(live?.age, h.demandedYears);
-    const curveHtml = curve.label ? `<span style="color:${curve.level==="danger"?"var(--red)":"#e8a000"};font-size:.58rem">${curve.label}</span>` : "";
+      ? `<span style="color:var(--green-lt);font-size:.6rem">↑ +${trend} OVR</span>`
+      : trend < 0 ? `<span style="color:var(--red);font-size:.6rem">↓ ${trend} OVR</span>`
+      : `<span style="color:var(--gray);font-size:.6rem">→ flat</span>`;
+    const curve = _ageCurveWarning(age === "?" ? null : age, offerYears);
     const depth = _posDepth(h.position, h.name);
-    const yrs = _yearsWithTeam(h.name);
     const faMkt = _faMktDepth(h.position);
-    return `<div class="frn-resign-row">
-      <div class="frn-resign-info">
-        <span style="font-weight:700;color:var(--white)">${h.name}</span>
-        <span style="color:var(--gray);font-size:.7rem">${h.position} · ${ovr} OVR ${trendHtml} · Age ${live?.age ?? "?"}</span>
-        ${statLine ? `<span style="color:var(--gray);font-size:.6rem;font-style:italic">${statLine}</span>` : ""}
-        ${_contractContextBar(h.position, marketVal, cap)}
-        <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.15rem">
-          <span style="font-size:.58rem;color:var(--gray)">${depth} other ${h.position}s ≥75 OVR</span>
-          ${yrs >= 1 ? `<span style="font-size:.58rem;color:var(--gray)"> · ${yrs}-yr veteran</span>` : ""}
-          ${faMkt > 0 ? `<span style="font-size:.58rem;color:var(--gray)"> · ${faMkt} FA${h.position}s available</span>` : ""}
+    const yrsWith = _yearsWithTeam(h.name);
+    const isProne = typeof _isInjuryProne === "function" && _isInjuryProne(live);
+
+    // ── Recommendation chip ────────────────────────────────────────
+    const rec = _holdoutRecommendation(h, depth, faMkt, curve, isProne, trend);
+    const recChip = `<div class="frn-resign-rec" style="border-color:${rec.color};color:${rec.color}">
+      <span class="action">${rec.action}</span>
+      <span class="reason">${rec.reason}</span>
+    </div>`;
+
+    // ── Risk badges ────────────────────────────────────────────────
+    const risks = _resignRiskBadges(live, { overall: ovr }, curve, trend);
+    const riskHtml = risks.map(b =>
+      `<span class="frn-resign-risk" style="color:${b.color};border-color:${b.color}55">${b.label}</span>`
+    ).join("");
+
+    // ── Demand line + accept odds ──────────────────────────────────
+    const odds = _holdoutAcceptOdds(offer, offerYears, h.demandedAAV, h.demandedYears);
+    const oddsColor = odds >= 0.85 ? "var(--green-lt)" : odds >= 0.5 ? "#e8a000" : "#ff8a8a";
+    const demandHtml = `<div class="frn-resign-demand">
+      <span class="lbl">Wants</span>
+      <span class="num">$${h.demandedAAV.toFixed(1)}M × ${h.demandedYears}yr</span>
+      <span class="lbl" style="margin-left:.5rem">Currently</span>
+      <span class="num" style="color:var(--gray)">$${h.currentAAV.toFixed(1)}M</span>
+      <span class="lbl" style="margin-left:.5rem">Accept odds</span>
+      <span class="num" style="color:${oddsColor}">${Math.round(odds * 100)}%</span>
+    </div>`;
+
+    const tradeVal = _holdoutTradeValue(h, live);
+
+    // ── Meta line ──────────────────────────────────────────────────
+    const metaBits = [];
+    metaBits.push(`${depth} other ${h.position} ≥75 OVR`);
+    if (faMkt > 0) metaBits.push(`${faMkt} FA${h.position}s avail`);
+    if (yrsWith >= 1) metaBits.push(`${yrsWith}-yr veteran`);
+    metaBits.push(`${h.currentRemaining}yr left on current deal`);
+    const metaHtml = `<div class="frn-resign-meta">${metaBits.join(" · ")}</div>`;
+
+    return `<div class="frn-resign-row tier-${_holdoutTier(h)}">
+      ${recChip}
+      <div class="frn-resign-row-inner">
+        <div class="frn-resign-info">
+          <span style="font-weight:700;color:var(--white);font-size:.95rem">${h.name}</span>
+          <span style="color:var(--gray);font-size:.7rem">${h.position} · ${ovr} OVR ${trendHtml} · Age ${age}</span>
+          ${_statLine(h.name) ? `<span style="color:var(--gray);font-size:.6rem;font-style:italic">${_statLine(h.name)}</span>` : ""}
+          ${riskHtml ? `<div class="frn-resign-risks">${riskHtml}</div>` : ""}
+          ${_contractContextBar(h.position, h.marketAAV, cap)}
+          ${demandHtml}
+          ${metaHtml}
+        </div>
+        <div class="frn-resign-offer">
+          <span style="color:${offer > h.marketAAV * 1.1 ? 'var(--red)' : offer < h.marketAAV * 0.9 ? 'var(--green-lt)' : 'var(--gold)'};font-weight:700">$${offer.toFixed(1)}M/yr ${vsMarketCell(offer, h.marketAAV)}</span>
+          <div style="display:flex;align-items:center;gap:.25rem;justify-content:flex-end;margin-top:.15rem">
+            <button class="frn-resign-yrbtn"
+              ${offerYears <= _HOLDOUT_MIN_YEARS ? "disabled" : ""}
+              onclick="frnHoldoutAdjustYears('${escName}', -1)">−</button>
+            <span style="color:var(--gray);font-size:.7rem;min-width:2.5rem;text-align:center">${offerYears} yr</span>
+            <button class="frn-resign-yrbtn"
+              ${offerYears >= _HOLDOUT_MAX_YEARS ? "disabled" : ""}
+              onclick="frnHoldoutAdjustYears('${escName}', 1)">+</button>
+          </div>
+          <span style="color:var(--gray);font-size:.6rem;text-align:right">total $${(offer * offerYears).toFixed(1)}M</span>
+          ${deadTotal < 0.5
+            ? `<span style="color:var(--gray);font-size:.6rem">No dead cap</span>`
+            : `<span style="color:#ff9090;font-size:.6rem;text-align:right" title="Prorated signing bonus — counts as dead cap if you release this player.">☠ Dead $${bonusProration.toFixed(1)}M×${offerYears}yr = $${deadTotal.toFixed(1)}M</span>`}
+          <div style="display:flex;gap:.2rem;justify-content:flex-end;margin-top:.25rem;align-items:center;flex-wrap:wrap">
+            <span style="color:var(--gray);font-size:.58rem">Structure:</span>
+            ${["BALANCED","BACKLOADED","FRONTLOADED"].map(s => {
+              const desc = s==="BALANCED"?"flat salaries":s==="BACKLOADED"?"cheap now, costly later":"costly now, cheap later";
+              return `<button class="btn ${struct===s?"btn-gold":"btn-outline"}" onclick="frnHoldoutSetStructure('${escName}','${s}')" style="font-size:.55rem;padding:.1rem .3rem" title="${desc}">${s[0]+s.slice(1).toLowerCase()}</button>`;
+            }).join("")}
+          </div>
+        </div>
+        <div class="frn-resign-btns">
+          <button class="btn frn-resign-btn accept-btn" onclick="frnHoldoutPreview('${escName}')">Review &amp; Extend</button>
+          ${odds < 0.85 ? `<button class="btn frn-resign-btn accept-btn" style="border-color:var(--gold-lt);color:var(--gold-lt)" onclick="frnHoldoutCounter('${escName}')" title="Drop offer to 95% of demand">↻ Counter</button>` : ""}
+          <button class="btn frn-resign-btn" style="border-color:var(--gold);color:var(--gold)" onclick="frnHoldoutTrade('${escName}')" title="Flip him for assets">🔀 Trade<span style="font-size:.5rem;display:block;color:var(--gold-lt)">${tradeVal}</span></button>
+          <button class="btn frn-resign-btn decline-btn" onclick="frnHoldoutIgnore('${escName}')" title="Player becomes a flight risk — likely walks at expiry">✗ Ignore<span style="font-size:.5rem;display:block;color:#ff9090">flight risk</span></button>
         </div>
       </div>
-      <div class="frn-resign-offer">
-        <span style="color:${demandColor};font-weight:700">$${h.demandedAAV.toFixed(1)}M/yr × ${h.demandedYears}yr</span>
-        <span style="color:var(--gray);font-size:.6rem">Currently $${h.currentAAV.toFixed(1)}M · +$${raise.toFixed(1)}M raise</span>
-        <span style="color:var(--gray);font-size:.6rem">Total $${(h.demandedAAV * h.demandedYears).toFixed(1)}M · ${demandVsMarket > 1 ? `<span style="color:var(--red)">+$${demandVsMarket.toFixed(1)}M above mkt</span>` : demandVsMarket < -1 ? `<span style="color:var(--green-lt)">$${Math.abs(demandVsMarket).toFixed(1)}M below mkt</span>` : `<span style="color:var(--gray)">≈ market</span>`}</span>
-        ${curveHtml}
-      </div>
-      <div class="frn-resign-btns">
-        <button class="btn frn-resign-btn accept-btn" onclick="frnHoldoutExtend('${escName}')">✓ Extend</button>
-        <button class="btn frn-resign-btn" onclick="frnHoldoutTrade('${escName}')" style="border-color:var(--gold);color:var(--gold)">🔀 Trade</button>
-        <button class="btn frn-resign-btn decline-btn" onclick="frnHoldoutIgnore('${escName}')">✗ Ignore</button>
-      </div>
     </div>`;
-  }).join("");
+  };
+
+  // Group by tier so foundation stars sit at top
+  const byTier = { foundation: [], starter: [], depth: [] };
+  for (const h of list) byTier[_holdoutTier(h)].push(h);
+
+  const sectionFor = (title, rows, eyebrow) => {
+    if (!rows.length) return "";
+    return `<section class="frn-resign-section">
+      <div class="frn-resign-section-head">
+        <span class="title">${title}</span>
+        <span class="eyebrow">${eyebrow} · ${rows.length} player${rows.length===1?"":"s"}</span>
+      </div>
+      <div class="frn-resign-list">${rows.map(rowFor).join("")}</div>
+    </section>`;
+  };
+
+  const sections = [
+    sectionFor("⭐ Foundation Demands", byTier.foundation, "90+ OVR · franchise cornerstones"),
+    sectionFor("🛡 Key Starter Demands", byTier.starter,   "85–89 OVR"),
+    sectionFor("📋 Role Player Demands", byTier.depth,     "82–84 OVR"),
+  ].join("");
+
+  // Hero stats
+  const extended = list.filter(h => h.resolved === "extended").length;
+  const traded   = list.filter(h => h.resolved === "trade-block").length;
+  const ignored  = list.filter(h => h.resolved === "ignored").length;
+  const pending  = list.filter(h => !h.resolved).length;
+  const decided  = extended + traded + ignored;
+  const proj = _holdoutCapProjection(4);
+  const projHtml = `<div class="frn-resign-cap-timeline">
+    ${proj.map((v, i) => {
+      const pct = Math.min(100, (v / Math.max(1, cap)) * 100);
+      const color = v > cap ? "var(--red)" : v > cap * 0.90 ? "#e8a000" : "var(--green-lt)";
+      return `<div class="frn-resign-cap-year">
+        <div class="lbl">Y${i+1}</div>
+        <div class="bar"><div class="fill" style="width:${pct}%;background:${color}"></div></div>
+        <div class="num" style="color:${color}">$${v.toFixed(0)}M</div>
+      </div>`;
+    }).join("")}
+  </div>`;
+
+  const heroSub = pending
+    ? `${pending} demand${pending===1?"":"s"} need${pending===1?"s":""} a decision`
+    : `All demands resolved`;
+
   return `
-    <div class="frn-sec-title" style="margin-top:1rem">🗣 CONTRACT DEMANDS (${list.length})</div>
-    <div style="color:var(--gray);font-size:.68rem;margin-bottom:.4rem">Underpaid stars demanding extensions — same buttons, same style as re-signings.</div>
-    <div class="frn-resign-list">${rows}</div>`;
+    <div class="frn-holdouts-block">
+      <div class="frn-resign-hero" style="margin-top:1.2rem">
+        <div class="frn-resign-hero-eyebrow">CONTRACT DEMANDS</div>
+        <h1 class="frn-resign-hero-title" style="font-size:1.4rem">🗣 ${list.length} STAR${list.length===1?"":"S"} DEMANDING EXTENSION${list.length===1?"":"S"}</h1>
+        <div class="frn-resign-hero-sub">${heroSub}</div>
+        <div class="frn-resign-hero-progress">
+          <span class="chip green">✓ ${extended} extended</span>
+          ${traded?`<span class="chip gold">🔀 ${traded} traded</span>`:""}
+          ${ignored?`<span class="chip red">✗ ${ignored} ignored</span>`:""}
+          <span class="chip neutral">${pending} pending</span>
+        </div>
+      </div>
+
+      <div class="frn-resign-cap-wrap">
+        <div class="frn-resign-cap-title">📊 PROJECTED CAP — NEXT 4 SEASONS</div>
+        ${projHtml}
+        <div class="frn-resign-cap-note">Includes extended demands (replaces their current contract).</div>
+      </div>
+
+      ${sections}
+
+      ${decided > 0 ? `
+      <div style="text-align:center;margin-top:.6rem">
+        <button class="btn btn-outline" onclick="frnOpenHoldoutRecap()" style="font-size:.7rem">📋 Review Demand Decisions</button>
+      </div>` : ""}
+    </div>`;
 }
 
 // ── New season ────────────────────────────────────────────────────────────────
