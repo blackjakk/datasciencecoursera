@@ -3867,6 +3867,144 @@
     margin-bottom: .7rem;
   }
   @media (max-width: 800px) { .frn-trade-layout { grid-template-columns: 1fr; } }
+
+  /* Partner picker grid */
+  .frn-tp-header {
+    display: flex; align-items: flex-end; gap: 1rem;
+    padding: .55rem .75rem; background: var(--bg2); border: 1px solid var(--border);
+    margin-bottom: .6rem; flex-wrap: wrap;
+  }
+  .frn-tp-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: .5rem;
+  }
+  .frn-tp-card {
+    background: var(--bg2); color: var(--blwhite);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent, var(--gold));
+    padding: .5rem .65rem; cursor: pointer;
+    display: flex; flex-direction: column; gap: .25rem;
+    font-family: inherit; text-align: left;
+    transition: all .12s ease;
+  }
+  .frn-tp-card:hover {
+    background: var(--bg3); border-color: var(--gold);
+    transform: translateY(-1px);
+    box-shadow: 0 3px 10px rgba(0,0,0,.25);
+  }
+  .frn-tp-card-head {
+    display: flex; align-items: baseline; justify-content: space-between; gap: .4rem;
+  }
+  .frn-tp-team {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: .9rem; letter-spacing: 1.2px; color: var(--blwhite);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .frn-tp-rec {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    font-size: .65rem; color: var(--gray); flex-shrink: 0;
+  }
+  .frn-tp-cap {
+    font-size: .58rem; display: flex; justify-content: space-between; align-items: baseline;
+  }
+  .frn-tp-units { display: flex; flex-direction: column; gap: .1rem; }
+  .frn-tp-unit-row { display: flex; align-items: center; gap: .35rem; font-size: .58rem; }
+  .frn-tp-unit-lbl {
+    color: var(--blgray); font-weight: 700; letter-spacing: .5px;
+    min-width: 2.6rem;
+  }
+  .frn-tp-unit {
+    padding: .04rem .25rem; border: 1px solid currentColor; border-radius: 2px;
+    background: rgba(0,0,0,.2); font-size: .56rem; font-weight: 700;
+  }
+  .frn-tp-foot {
+    display: flex; align-items: center; gap: .4rem; margin-top: .15rem;
+    padding-top: .15rem; border-top: 1px solid var(--border);
+  }
+  .frn-tp-match {
+    font-size: .54rem; color: var(--gold); font-weight: 800;
+  }
+  .frn-tp-match.dim { color: var(--blgray); font-weight: 600; font-style: italic; }
+  .frn-tp-willing {
+    font-size: .54rem; font-weight: 800; letter-spacing: .5px;
+    padding: .06rem .35rem; border: 1px solid; border-radius: 2px;
+    margin-left: auto; background: rgba(0,0,0,.25);
+  }
+
+  /* Balance bar */
+  .frn-trade-balance {
+    background: var(--bg2); border: 1px solid var(--border);
+    padding: .5rem .65rem; margin: .35rem 0 .55rem;
+  }
+  .frn-trade-balance-head {
+    display: flex; align-items: center; gap: .55rem;
+    margin-bottom: .35rem;
+  }
+  .frn-trade-balance-title {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: .68rem; letter-spacing: 1.5px; color: var(--gold);
+  }
+  .frn-trade-balance-verdict {
+    font-size: .58rem; font-weight: 800; letter-spacing: .5px;
+    padding: .08rem .42rem; border: 1px solid; border-radius: 2px;
+    background: rgba(0,0,0,.25);
+  }
+  .frn-trade-balance-bar {
+    display: flex; height: 38px; gap: 2px;
+  }
+  .frn-trade-balance-send, .frn-trade-balance-recv {
+    display: flex; flex-direction: column; justify-content: center;
+    padding: .15rem .55rem; min-width: 0;
+    overflow: hidden;
+  }
+  .frn-trade-balance-send {
+    background: linear-gradient(90deg, rgba(212,175,55,.18), rgba(212,175,55,.06));
+    border-left: 3px solid var(--gold);
+    align-items: flex-start;
+  }
+  .frn-trade-balance-recv {
+    background: linear-gradient(270deg, rgba(122,200,232,.18), rgba(122,200,232,.06));
+    border-right: 3px solid #7ac8e8;
+    align-items: flex-end; text-align: right;
+  }
+  .frn-trade-balance-num {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    font-size: .72rem; font-weight: 900;
+  }
+  .frn-trade-balance-need {
+    font-size: .52rem; color: var(--green-lt); font-weight: 700;
+  }
+  .frn-trade-balance-lbl {
+    font-size: .48rem; letter-spacing: .7px; color: var(--blgray);
+  }
+  .frn-trade-balance-ratio {
+    margin-top: .35rem; font-size: .62rem; color: var(--gray);
+  }
+
+  /* Multi-year cap mini-table */
+  .frn-trade-multiyr {
+    background: var(--bg2); border: 1px solid var(--border);
+    padding: .4rem .55rem; margin-bottom: .55rem;
+  }
+  .frn-trade-multiyr-title {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: .62rem; letter-spacing: 1.3px; color: var(--gold);
+    margin-bottom: .2rem;
+  }
+  .frn-trade-multiyr-tbl {
+    width: 100%; border-collapse: collapse;
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+  }
+  .frn-trade-multiyr-tbl th, .frn-trade-multiyr-tbl td {
+    padding: .12rem .25rem; font-size: .62rem;
+  }
+  .frn-trade-multiyr-tbl th {
+    color: var(--blgray); font-weight: 700; letter-spacing: .4px;
+    border-bottom: 1px solid var(--border);
+  }
+  .frn-trade-multiyr-foot {
+    font-size: .52rem; color: var(--blgray); margin-top: .25rem;
+  }
   .frn-trade-list { max-height: 480px; overflow-y: auto; display: flex; flex-direction: column; gap: .15rem; }
   .frn-trade-player {
     display: grid; grid-template-columns: 2rem 1fr auto auto auto auto;

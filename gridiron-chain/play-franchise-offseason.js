@@ -5337,6 +5337,105 @@ function _aiTradeNeedBonus(teamId, players) {
   return bonus;
 }
 
+// Per-team positional needs profile — weakest + strongest unit groups,
+// derived from buildRatings(). Used by the partner-picker grid to
+// surface "they need this / they have depth here" at a glance.
+const _TRADE_UNITS = [
+  { key: "qb",  label: "QB" }, { key: "rb",  label: "RB" },
+  { key: "wr",  label: "WR" }, { key: "ol",  label: "OL" },
+  { key: "dl",  label: "DL" }, { key: "lb",  label: "LB" },
+  { key: "cb",  label: "CB" }, { key: "saf", label: "S"  },
+];
+function _teamNeedsProfile(teamId) {
+  const r = (typeof buildRatings === "function")
+    ? buildRatings(franchise.rosters[teamId] || []) : null;
+  if (!r) return { needs: [], strengths: [] };
+  const ranked = _TRADE_UNITS.map(u => ({ ...u, val: Math.round(r[u.key] || 50) }))
+    .sort((a, b) => a.val - b.val);
+  return {
+    needs: ranked.slice(0, 2),       // two weakest
+    strengths: ranked.slice(-2).reverse(),  // two strongest
+  };
+}
+
+// 0..100 partner-willingness score: how likely they'd be open to deal
+// with YOU specifically. High when their weakest positions match the
+// strongest positions on your roster (you have something they need).
+function _partnerWillingness(myId, partnerId) {
+  const myStrong = new Set(_teamNeedsProfile(myId).strengths.map(s => s.key));
+  const theirNeeds = _teamNeedsProfile(partnerId).needs;
+  let score = 35; // base
+  for (const n of theirNeeds) {
+    if (myStrong.has(n.key)) score += 25;
+    // Even partial match — both teams thin at same unit means less willing
+  }
+  // Deadline urgency: bumps up as we approach the deadline
+  const weeksLeft = Math.max(0, TRADE_DEADLINE_WEEK - franchise.week);
+  if (weeksLeft <= 1) score += 10;
+  else if (weeksLeft <= 2) score += 5;
+  // Cap pressure — over-cap or near-cap teams more flexible
+  const cap = effectiveSalaryCap(partnerId);
+  const used = capUsedByTeam(partnerId);
+  if (used > cap * 0.95) score += 10;
+  return Math.max(5, Math.min(95, Math.round(score)));
+}
+
+// Count how many AI teams have a meaningful positional need for a
+// specific blocked player. Used to surface "👀 N sniffing" badges.
+function _aiInterestCount(player) {
+  const myId = franchise.chosenTeamId;
+  let n = 0;
+  for (const t of TEAMS) {
+    if (t.id === myId) continue;
+    if (_aiTradeNeedBonus(t.id, [player]) >= 2) n++;
+  }
+  return n;
+}
+
+// On a borderline rejection (0.85 <= ratio < 0.97), assemble the
+// cheapest user assets that would close the gap and ship the result
+// back as a counter-offer card in the inbox. Returns the counter
+// description (added items) or null if no clean fix exists.
+function _aiBuildCounter(myId, otherId, originalSendNames, originalRecvNames, originalSendPicks, originalRecvPicks, sendValue, recvValue, theirNeedForSend, tp) {
+  const myRoster = franchise.rosters[myId] || [];
+  const usedPickKeys = new Set(originalSendPicks);
+  const myPicksAvail = (franchise.picks || [])
+    .filter(p => p.currentOwnerId === myId && !usedPickKeys.has(_tradePickKey(p)))
+    .sort((a, b) => _pickValue(a) - _pickValue(b)); // smallest first
+  const targetValue = recvValue * 0.97 - theirNeedForSend;
+  const extraPicks = [];
+  let runningValue = sendValue;
+  for (const pick of myPicksAvail) {
+    if (runningValue >= targetValue) break;
+    extraPicks.push(pick);
+    runningValue += _pickValue(pick);
+    if (extraPicks.length >= 3) break; // don't ask for more than 3 extra picks
+  }
+  if (runningValue < targetValue || extraPicks.length === 0) return null;
+  // Build the offer card. From the user's perspective the counter
+  // looks like: "they give you [original recv]; they want [original
+  // send + extras]". Same shape as _generateAIOffersForBlockedPlayer.
+  if (!franchise.tradeOffers) franchise.tradeOffers = [];
+  const offer = {
+    id: `counter-${otherId}-${Date.now()}-${Math.random().toString(36).slice(2,5)}`,
+    fromTeamId: otherId,
+    theyGive: [...originalRecvNames],
+    theyWant: [...originalSendNames],
+    pickIdsGive:   [...originalRecvPicks],
+    pickIdsWant:   [...originalSendPicks, ...extraPicks.map(_tradePickKey)],
+    pickIds:       [...originalRecvPicks], // legacy single-list field expected by offer renderer
+    absorb:        tp.theirAbsorb || 0,
+    week: franchise.week,
+    status: "pending",
+    isCounter: true,
+  };
+  franchise.tradeOffers.push(offer);
+  return {
+    offerId: offer.id,
+    extraPicks: extraPicks.map(p => `${p.year} R${p.round}`),
+  };
+}
+
 function frnOpenTrade(targetTeamId, tab) {
   if (franchise.week > TRADE_DEADLINE_WEEK && franchise.phase === "regular") {
     alert("Trade deadline has passed.");
@@ -6132,7 +6231,25 @@ function frnSubmitTrade() {
         };
       }
     }
-    tp.result = { accepted: false, message: `Rejected. ${reason}.`, aiScore, gapLabel, suggestion };
+    // Borderline rejection: build a counter-offer card from the
+    // cheapest user assets that would close the gap and drop it into
+    // the OFFERS inbox so the negotiation continues without the user
+    // having to retype the deal.
+    let counterRef = null;
+    if (aiScore >= 0.85) {
+      counterRef = _aiBuildCounter(myId, otherId,
+        tp.youSend.slice(), tp.youReceive.slice(),
+        (tp.picksSend || []).slice(), (tp.picksReceive || []).slice(),
+        sendValue, recvValue, theirNeedForSend, tp);
+    }
+    tp.result = {
+      accepted: false,
+      message: counterRef
+        ? `Rejected — but ${getTeam(otherId)?.name} countered. See OFFERS.`
+        : `Rejected. ${reason}.`,
+      aiScore, gapLabel, suggestion,
+      counter: counterRef,
+    };
   }
   saveFranchise();
   renderFrnTrade();
@@ -6204,6 +6321,10 @@ function _renderTradeProposeTab(tp, sortBy, myRoster, cap, myCapUsed) {
   const posFilter = tp.posFilter || "ALL";
   const partnerId = tp.targetTeamId;
   const partnerTeam = partnerId ? getTeam(partnerId) : null;
+
+  // No partner locked yet → show the partner-picker grid as the front
+  // door instead of the buried "click any player" pattern.
+  if (!partnerId) return _renderTradePartnerPicker(myId, cap, myCapUsed);
 
   // Position tab bar
   const positions = ["ALL","QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"];
@@ -6308,6 +6429,33 @@ function _renderTradeProposeTab(tp, sortBy, myRoster, cap, myCapUsed) {
   }, 0));
   const projCap = myCapUsed - sendCap + recvCap + (sendDeadCap - theirAbsorb_p) + recvKickers + yourAbsorb_p;
 
+  // ── Live trade-balance: same math the AI uses on submit, surfaced
+  // so the user sees the deal getting closer (or further) as they
+  // toggle items. Mirrors the cap bar visually below the summary.
+  const sendPlayersLive = tp.youSend.map(n => myRoster.find(p => p.name === n)).filter(Boolean);
+  const recvPlayersLive = tp.youReceive.map(n => theirRoster.find(p => p.name === n)).filter(Boolean);
+  const sendPicksLive = (tp.picksSend || []).map(k => _tradePickFromKey(k, myId)).filter(Boolean);
+  const recvPicksLive = (tp.picksReceive || []).map(k => _tradePickFromKey(k, partnerId)).filter(Boolean);
+  const playerSendV = sendPlayersLive.reduce((s, p) => s + _playerTradeValue(p), 0);
+  const playerRecvV = recvPlayersLive.reduce((s, p) => s + _playerTradeValue(p), 0);
+  const pickSendV = sendPicksLive.reduce((s, p) => s + _pickValue(p), 0);
+  const pickRecvV = recvPicksLive.reduce((s, p) => s + _pickValue(p), 0);
+  const sendV = playerSendV + pickSendV + (tp.yourAbsorb || 0);
+  const recvV = playerRecvV + pickRecvV + (tp.theirAbsorb || 0);
+  const needBonus = _aiTradeNeedBonus(partnerId, sendPlayersLive);
+  const balanceRatio = recvV > 0 ? (sendV + needBonus) / recvV : 0;
+  const balanceVerdict = (sendV + recvV) < 0.5 ? "empty"
+    : balanceRatio >= 0.97 ? "accept"
+    : balanceRatio >= 0.85 ? "close"
+    : balanceRatio >= 0.60 ? "thin"
+    : "lopsided";
+  const balanceBarHtml = _renderTradeBalanceBar({
+    sendV, recvV, needBonus, ratio: balanceRatio, verdict: balanceVerdict,
+  });
+  const multiYearCapHtml = _renderMultiYearCapImpact(
+    myId, partnerId, sendPlayersLive, recvPlayersLive, tp.yourAbsorb || 0, tp.theirAbsorb || 0
+  );
+
   // Manual partner-override dropdown
   const teamOptionsHtml = `<option value="">— choose / clear —</option>` +
     TEAMS.filter(t => t.id !== myId).map(t =>
@@ -6333,6 +6481,8 @@ function _renderTradeProposeTab(tp, sortBy, myRoster, cap, myCapUsed) {
           : "";
       })()}
     </div>
+    ${balanceBarHtml}
+    ${multiYearCapHtml}
     <div class="frn-pos-tabs">${posTabs}</div>
     <div class="frn-trade-layout" style="margin-top:.5rem">
       <div class="frn-fa-pool-col">
@@ -6386,6 +6536,165 @@ function _tradeIsEmpty(tp) {
   const sendSide = tp.youSend.length + tp.picksSend.length;
   const recvSide = tp.youReceive.length + tp.picksReceive.length;
   return sendSide === 0 || recvSide === 0;
+}
+
+// Partner-picker grid — shown as the entry view when no partner is
+// locked. Each card is one team with record, cap room, top 2 needs +
+// top 2 strengths + a willingness pill. Click locks the partner.
+function _renderTradePartnerPicker(myId, myCap, myCapUsed) {
+  const myStrong = new Set(_teamNeedsProfile(myId).strengths.map(s => s.key));
+  const cards = TEAMS.filter(t => t.id !== myId).map(t => {
+    const stand = franchise.standings?.[t.id] || { w: 0, l: 0, t: 0 };
+    const cap = effectiveSalaryCap(t.id);
+    const used = capUsedByTeam(t.id);
+    const room = Math.max(0, cap - used);
+    const overCap = used > cap;
+    const profile = _teamNeedsProfile(t.id);
+    const willingness = _partnerWillingness(myId, t.id);
+    const matched = profile.needs.filter(n => myStrong.has(n.key)).length;
+    return { t, stand, room, overCap, profile, willingness, matched };
+  }).sort((a, b) => b.willingness - a.willingness);
+
+  const verdictCol = (w) => w >= 70 ? "var(--green-lt)" : w >= 50 ? "var(--gold-lt)" : w >= 30 ? "#e8a000" : "#c08080";
+  const verdictLbl = (w) => w >= 70 ? "EAGER" : w >= 50 ? "OPEN" : w >= 30 ? "COOL" : "ICY";
+  const unitCell = (u, col) => `<span class="frn-tp-unit" style="color:${col}">${u.label} <b>${u.val}</b></span>`;
+
+  const cardsHtml = cards.map(c => `
+    <button class="frn-tp-card" onclick="frnOpenTrade(${c.t.id},'propose')" style="--accent:${c.t.primary||'var(--gold)'}">
+      <div class="frn-tp-card-head">
+        <span class="frn-tp-team">${c.t.city} ${c.t.name}</span>
+        <span class="frn-tp-rec">${c.stand.w}-${c.stand.l}${c.stand.t?`-${c.stand.t}`:""}</span>
+      </div>
+      <div class="frn-tp-cap">
+        <span style="color:var(--gray)">Cap room</span>
+        <b style="color:${c.overCap?"var(--red)":c.room < 5 ? "#e8a000" : "var(--green-lt)"}">${c.overCap?"OVER":`$${c.room.toFixed(1)}M`}</b>
+      </div>
+      <div class="frn-tp-units">
+        <div class="frn-tp-unit-row"><span class="frn-tp-unit-lbl">NEEDS</span>${c.profile.needs.map(u => unitCell(u, "#c08080")).join("")}</div>
+        <div class="frn-tp-unit-row"><span class="frn-tp-unit-lbl">DEPTH</span>${c.profile.strengths.map(u => unitCell(u, "var(--green-lt)")).join("")}</div>
+      </div>
+      <div class="frn-tp-foot">
+        ${c.matched ? `<span class="frn-tp-match" title="${c.matched} of their weak units overlap with your strengths">★ ${c.matched} fit</span>` : `<span class="frn-tp-match dim">no obvious fit</span>`}
+        <span class="frn-tp-willing" style="color:${verdictCol(c.willingness)};border-color:${verdictCol(c.willingness)}55">${verdictLbl(c.willingness)} · ${c.willingness}%</span>
+      </div>
+    </button>`).join("");
+
+  const overrideHtml = TEAMS.filter(t => t.id !== myId).map(t =>
+    `<option value="${t.id}">${t.city} ${t.name}</option>`
+  ).join("");
+
+  return `
+    <div class="frn-tp-header">
+      <div>
+        <div style="font-size:.95rem;font-weight:900;color:var(--gold);margin-bottom:.2rem">PICK A TRADE PARTNER</div>
+        <div style="font-size:.66rem;color:var(--gray)">Teams sorted by deal-fit with you (their needs ↔ your strengths · cap pressure · deadline urgency).</div>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
+        <span style="color:var(--gray);font-size:.62rem">Your cap: <b style="color:var(--gold)">$${myCapUsed.toFixed(1)}M</b> / $${myCap.toFixed(0)}M</span>
+        <span style="color:var(--gray);font-size:.62rem">or skip to:</span>
+        <select onchange="frnOpenTrade(this.value||null,'propose')" style="background:var(--bg3);color:var(--white);border:1px solid var(--border);padding:.2rem .35rem;font-family:inherit;font-size:.7rem">
+          <option value="">— jump to team —</option>${overrideHtml}
+        </select>
+      </div>
+    </div>
+    <div class="frn-tp-grid">${cardsHtml}</div>`;
+}
+
+// Visual balance bar that mirrors the cap bar — send value vs receive
+// value plus the partner's positional-need bonus, all in the same
+// units the AI evaluator uses on submit. Updates every render.
+function _renderTradeBalanceBar(b) {
+  if (b.verdict === "empty") return "";
+  const verdictCol = b.verdict === "accept" ? "var(--green-lt)"
+    : b.verdict === "close"   ? "var(--gold-lt)"
+    : b.verdict === "thin"    ? "#e8a000" : "#c08080";
+  const verdictLbl = b.verdict === "accept" ? "✓ LIKELY ACCEPT"
+    : b.verdict === "close"   ? "△ CLOSE — small sweetener"
+    : b.verdict === "thin"    ? "✗ NOT ENOUGH"
+                              : "✗ TOO LOPSIDED";
+  // Bar layout: left chunk = your send total, right chunk = their recv
+  // Width proportional, both clamped so a near-zero side is still readable.
+  const total = Math.max(0.1, b.sendV + b.needBonus + b.recvV);
+  const sendPct = Math.max(4, Math.round(((b.sendV + b.needBonus) / total) * 100));
+  const recvPct = 100 - sendPct;
+  const ratioPct = Math.round(Math.min(2, b.ratio) * 100);
+  return `<div class="frn-trade-balance">
+    <div class="frn-trade-balance-head">
+      <span class="frn-trade-balance-title">DEAL VALUE</span>
+      <span class="frn-trade-balance-verdict" style="color:${verdictCol};border-color:${verdictCol}55">${verdictLbl}</span>
+      <span style="margin-left:auto;color:var(--gray);font-size:.62rem">accept threshold: 97%</span>
+    </div>
+    <div class="frn-trade-balance-bar">
+      <div class="frn-trade-balance-send" style="flex:${sendPct}">
+        <span class="frn-trade-balance-num">$${b.sendV.toFixed(1)}M</span>
+        ${b.needBonus >= 0.5 ? `<span class="frn-trade-balance-need" title="Partner's positional need for the players you're offering">+ $${b.needBonus.toFixed(1)}M need</span>` : ""}
+        <span class="frn-trade-balance-lbl">YOU SEND</span>
+      </div>
+      <div class="frn-trade-balance-recv" style="flex:${recvPct}">
+        <span class="frn-trade-balance-num">$${b.recvV.toFixed(1)}M</span>
+        <span class="frn-trade-balance-lbl">YOU RECEIVE</span>
+      </div>
+    </div>
+    <div class="frn-trade-balance-ratio">
+      Ratio: <b style="color:${verdictCol}">${ratioPct}%</b> · ${b.ratio >= 0.97
+        ? "they should say yes"
+        : b.ratio >= 0.85
+        ? `add a small pick or sweetener to clear the threshold`
+        : `you need to put more on your side`}
+    </div>
+  </div>`;
+}
+
+// Year-by-year net cap impact for both sides of the proposed deal.
+// Uses each contract's remaining years × AAV (offset by absorption /
+// dead-cap / kickers in Year 1).
+function _renderMultiYearCapImpact(myId, partnerId, sendPlayers, recvPlayers, yourAbsorb, theirAbsorb) {
+  if (!sendPlayers.length && !recvPlayers.length) return "";
+  const years = [1, 2, 3, 4];
+  const impact = (myFirst, theirFirst) => years.map(yr => {
+    // For YOUR side: -send AAVs (Y ≤ remaining) + recv AAVs (Y ≤ remaining)
+    let myNet = 0, theirNet = 0;
+    for (const p of sendPlayers) {
+      const rem = p.contract?.remaining || 0;
+      const aav = p.contract?.aav || 0;
+      if (yr <= rem) { myNet -= aav; theirNet += aav; }
+    }
+    for (const p of recvPlayers) {
+      const rem = p.contract?.remaining || 0;
+      const aav = p.contract?.aav || 0;
+      if (yr <= rem) { myNet += aav; theirNet -= aav; }
+    }
+    // Y1-only: dead cap on send, kicker on recv, absorption flows
+    if (yr === 1) {
+      for (const p of sendPlayers) {
+        const dead = (p.contract?.bonusProration || 0) * (p.contract?.remaining || 0);
+        const absorbed = Math.min(theirAbsorb, dead);
+        myNet   += (dead - absorbed); // I eat what they don't absorb
+        theirNet += absorbed;
+      }
+      for (const p of recvPlayers) {
+        const kicker = p.contract?.tradeKicker || 0;
+        myNet += kicker;
+      }
+      myNet   += yourAbsorb;
+      theirNet -= yourAbsorb;
+    }
+    return { yr, myNet, theirNet };
+  });
+  const myRows  = impact().map(r => `<td style="text-align:center;color:${r.myNet > 0 ? "#ff8a8a" : r.myNet < 0 ? "var(--green-lt)" : "var(--gray)"}">${r.myNet === 0 ? "—" : (r.myNet > 0 ? "+" : "") + "$" + r.myNet.toFixed(1) + "M"}</td>`).join("");
+  const theirRows = impact().map(r => `<td style="text-align:center;color:${r.theirNet > 0 ? "#ff8a8a" : r.theirNet < 0 ? "var(--green-lt)" : "var(--gray)"}">${r.theirNet === 0 ? "—" : (r.theirNet > 0 ? "+" : "") + "$" + r.theirNet.toFixed(1) + "M"}</td>`).join("");
+  const myTeam = getTeam(myId), partnerTeam = getTeam(partnerId);
+  return `<div class="frn-trade-multiyr">
+    <div class="frn-trade-multiyr-title">MULTI-YEAR CAP IMPACT</div>
+    <table class="frn-trade-multiyr-tbl">
+      <thead><tr><th style="text-align:left">Team</th>${years.map(y => `<th>Y${y}</th>`).join("")}</tr></thead>
+      <tbody>
+        <tr><td style="text-align:left;color:var(--gold-lt)">${myTeam?.name}</td>${myRows}</tr>
+        <tr><td style="text-align:left;color:var(--gray)">${partnerTeam?.name}</td>${theirRows}</tr>
+      </tbody>
+    </table>
+    <div class="frn-trade-multiyr-foot">+ = added cap hit · − = freed cap · Y1 includes dead cap, trade kickers, and absorption flows</div>
+  </div>`;
 }
 
 function _renderTradePicksSection(myId, partnerId, tp) {
@@ -6551,9 +6860,15 @@ function _renderTradeBlockTab(myRoster, sortBy) {
            💰 Asking: ${askPieces.length ? askPieces.join(" + ") : "<i>price unset</i>"}
          </div>`
       : "";
+    const interestN = p.onTradeBlock ? _aiInterestCount(p) : 0;
+    const interestTag = p.onTradeBlock
+      ? (interestN
+          ? `<div style="font-size:.6rem;color:var(--green-lt);margin-top:.12rem" title="${interestN} team${interestN===1?"":"s"} with a positional need for this player">👀 ${interestN} team${interestN===1?"":"s"} interested</div>`
+          : `<div style="font-size:.6rem;color:var(--gray);margin-top:.12rem;font-style:italic">No team currently has a positional need here</div>`)
+      : "";
     return `<tr class="${p.onTradeBlock?'frn-blocked':''}">
       <td style="color:var(--gold);font-size:.62rem">${p.position}</td>
-      <td style="font-weight:700">${p.name}${askSummary}</td>
+      <td style="font-weight:700">${p.name}${askSummary}${interestTag}</td>
       <td>${gradeBadge(p)}</td>
       <td style="color:var(--gray)">${p.age||"?"}</td>
       <td style="color:var(--gold)">$${(p.contract?.aav||0).toFixed(1)}M</td>
