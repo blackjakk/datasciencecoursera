@@ -10889,10 +10889,9 @@ function _rollClassThemes() {
 // roster needs (QB:3 RB:4 WR:6 OL:8 etc.) multiplied by the per-year
 // theme. The returned array is what each pick samples from uniformly.
 function _buildClassPositionPool(themes) {
-  // Base weights track roster needs (QB:3 RB:4 WR:6 OL:9 etc.) so the class
-  // produces ~proportional volume per position. Bumped CB/S/OL to match the
-  // expanded ROSTER_SLOTS.
-  const baseUnits = { QB:3, RB:4, WR:6, TE:3, OL:9, DL:5, LB:4, CB:5, S:3, K:1, P:1 };
+  // Base weights track roster needs + Brady-cadence tuning. QB bumped to
+  // 4 so the late-round QB pool has ~30% more attempts at HoF emergence.
+  const baseUnits = { QB:4, RB:4, WR:6, TE:3, OL:9, DL:5, LB:4, CB:5, S:3, K:1, P:1 };
   const pool = [];
   for (const pos of Object.keys(baseUnits)) {
     const count = Math.max(1, Math.round(baseUnits[pos] * (themes[pos] || 1)));

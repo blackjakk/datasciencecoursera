@@ -1122,22 +1122,23 @@ function _rollHiddenGem(player) {
   // Inverted rate curve: UDFAs / late-rounders are the most likely hidden
   // gems (pure flyers, no scouting consensus to "hide" against). Early
   // rounds are heavily scouted so there's less room for surprise.
-  const rates = { 0: 0.090, 7: 0.060, 6: 0.050, 5: 0.040, 4: 0.025, 3: 0.012 };
+  // Rates bumped ~30% on late-rounders to tighten the Brady-emergence
+  // cadence to ~1 per 75 years.
+  const rates = { 0: 0.120, 7: 0.080, 6: 0.070, 5: 0.050, 4: 0.025, 3: 0.012 };
   const rate = rates[player.draftRound] ?? 0;
   if (!rate || Math.random() >= rate) return;
-  // Ceiling: heavily skewed low with a long tail. Most gems are solid
-  // starters (78-89); some become Pro Bowlers (90-95); a rare extreme
-  // tail produces all-time-great prospects (96-99). 3% of gems land in
-  // the extreme tail — enough that a Brady-tier emergence is possible
-  // over a multi-decade sim without being common.
+  // Ceiling distribution: most gems are solid starters (78-89), some are
+  // Pro Bowlers (90-95), a fatter tail (8%, was 3%) lands in the extreme
+  // 96-99 HoF range. Wider tail keeps "Brady emergence" cadence to roughly
+  // 1 per 75 years across late-round QBs.
   const r = Math.random();
   let ceiling;
-  if (r < 0.85)      ceiling = 78 + Math.floor(Math.random() * 12); // 78-89 common
-  else if (r < 0.97) ceiling = 90 + Math.floor(Math.random() * 6);  // 90-95 rare
-  else               ceiling = 96 + Math.floor(Math.random() * 4);  // 96-99 extreme
+  if (r < 0.78)      ceiling = 78 + Math.floor(Math.random() * 12); // 78-89 common
+  else if (r < 0.92) ceiling = 90 + Math.floor(Math.random() * 6);  // 90-95 mid
+  else               ceiling = 96 + Math.floor(Math.random() * 4);  // 96-99 extreme (8%)
   player.hiddenGem = {
     ceiling,
-    growthRate: 4 + Math.floor(Math.random() * 5),  // 4-8 OVR per active season
+    growthRate: 4 + Math.floor(Math.random() * 5),
   };
 }
 // Fabricates a believable multi-season career for each player based on their

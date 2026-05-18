@@ -6875,7 +6875,7 @@ function _rerollPotentialForBreakouts() {
 // each position's outlier careers (QB/K/P → biggest extension; RB →
 // barely any, since physical attrition is brutal at the position).
 const _ELITE_PLATEAU_BUMP = {
-  QB: 4, K: 3, P: 3, OL: 3,
+  QB: 5, K: 3, P: 3, OL: 3,
   WR: 1, TE: 2, DL: 2, LB: 2, CB: 2, S: 2,
   RB: 2,
 };
@@ -6945,11 +6945,12 @@ function _processSeasonEndRetirements() {
                   : adjAge === 31 ? 0.04
                   : 0;
       // Accolade-based longevity — multi-time All-Pros / Pro Bowlers hang
-      // on. Each career All-Pro shaves 5% off retirement (max -25%).
-      // Models real "veteran with a HoF resume keeps playing."
+      // on. Each career All-Pro shaves 5% off retirement (max -35%).
+      // Models real "veteran with a HoF resume keeps playing" — Brady at
+      // 43, Brees at 41, Manning at 39, Marino at 38.
       const allProCount = (p.allPros || 0) + Math.floor((p.proBowls || 0) / 3);
       if (allProCount > 0 && retProb > 0) {
-        const shave = Math.min(0.25, allProCount * 0.05);
+        const shave = Math.min(0.35, allProCount * 0.05);
         retProb = Math.max(0, retProb - shave);
       }
       if (retProb > 0 && Math.random() < retProb) {
