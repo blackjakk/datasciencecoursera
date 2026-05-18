@@ -2311,6 +2311,30 @@
     margin-top: .15rem;
   }
   .frn-snap-actions { display: flex; justify-content: center; }
+  .frn-snap-cascade {
+    display: inline-block; margin-top: .15rem;
+    font-size: .48rem; letter-spacing: .4px; color: var(--blgray);
+    padding: .04rem .3rem; border: 1px solid var(--border); border-radius: 2px;
+    background: rgba(255,255,255,.03);
+  }
+  .frn-snap-injtag {
+    font-size: .48rem; letter-spacing: .5px; color: var(--blgray); font-weight: 700;
+    margin-top: .15rem;
+  }
+  .frn-snap-iron-strip {
+    display: flex; flex-wrap: wrap; align-items: center; gap: .35rem;
+    margin-bottom: .35rem; padding: .35rem .5rem;
+    background: linear-gradient(90deg, rgba(255,179,71,.08), rgba(255,179,71,.01));
+    border: 1px solid rgba(255,179,71,.25);
+  }
+  .frn-snap-iron-title {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: .68rem; letter-spacing: 1.4px; color: #ffb347; font-weight: 900;
+  }
+  .frn-snap-iron-tag {
+    font-size: .56rem; font-weight: 700; padding: .08rem .35rem;
+    border: 1px solid; border-radius: 2px; background: rgba(0,0,0,.25);
+  }
 
   .frn-dc-page-header {
     display: flex; align-items: center; justify-content: space-between;

@@ -2945,6 +2945,23 @@ function renderFrnSnapShares() {
   const staminaCol = (s) => s >= 80 ? "var(--green-lt)" : s >= 65 ? "var(--gold-lt)" : "#ff6b6b";
   const staminaWarn = (pct, stam) => (pct > 80 && stam < 55) || (pct > 65 && stam < 65);
 
+  // Rotation backup = best-OVR roster player at this position who isn't
+  // already a starter in any slot of the position group. This is what
+  // the engine actually subs in per snap (it can't pick someone already
+  // on the field). For non-rotating positions we fall back to the
+  // depth-chart cascade backup, which represents the injury sub.
+  const _rotationBackup = (pos, starterPidsInGroup) => {
+    return roster
+      .filter(p => p.position === pos && !starterPidsInGroup.has(p.pid))
+      .sort((a, b) => (b.overall || 0) - (a.overall || 0))[0] || null;
+  };
+
+  // Project each player's total snaps/game across every slot they
+  // appear in (starter or rotation backup). Used to surface when one
+  // guy is effectively playing 95%+ of snaps from multiple roles.
+  const projectedSnaps = {};
+  const addSnaps = (pid, n) => { if (pid) projectedSnaps[pid] = (projectedSnaps[pid] || 0) + n; };
+
   let totalConflicts = 0;
   const manualCount = Object.values(ss).filter(s => s?.manual).length;
 
@@ -2970,41 +2987,52 @@ function renderFrnSnapShares() {
     }).join("")}
   </div>`;
 
-  const renderSlotRow = (slotKey, slotDef) => {
+  const renderSlotRow = (slotKey, slotDef, groupStarterPids) => {
     const slot    = dc[slotKey] || {};
     const starter = slot.starter ? byPid[slot.starter] : null;
-    const backup  = slot.backup  ? byPid[slot.backup]  : null;
-    const share   = ss[slotKey] || _computeOptimalPct(starter, backup, slotDef.snapFloor, slotDef.snapCeil);
+    const cascadeBackup = slot.backup ? byPid[slot.backup] : null;
+    const rotates = SNAP_ENGINE_SLOTS.has(slotKey);
+    // Engine-rotating slots show the real per-snap sub (next-best player
+    // at the position not already starting in any group slot). For
+    // non-rotating slots, fall back to the depth-chart cascade (injury sub).
+    const backup = rotates ? _rotationBackup(slotDef.pos, groupStarterPids) : cascadeBackup;
+    const share   = ss[slotKey] || _computeOptimalPct(starter, cascadeBackup, slotDef.snapFloor, slotDef.snapCeil);
     const pct     = share.starterPct ?? 75;
     const floor   = slotDef.snapFloor ?? 35;
     const ceil    = slotDef.snapCeil  ?? 98;
     const stam    = starter?._stamina ?? 75;
     const isManual  = !!share.manual;
     const isConflict = starter && staminaWarn(pct, stam);
-    const advisory   = !SNAP_ENGINE_SLOTS.has(slotKey);
     const sSnaps  = Math.round(SNAPS_PER_GAME * pct / 100);
     const bSnaps  = SNAPS_PER_GAME - sSnaps;
-    const playerCell = (p, snaps, faded) => {
+    // Tally projected snaps for the player(s) actually filling this slot.
+    addSnaps(starter?.pid, sSnaps);
+    if (rotates) addSnaps(backup?.pid, bSnaps);
+    const cascadeNote = (rotates && cascadeBackup && cascadeBackup !== backup)
+      ? `<span class="frn-snap-cascade" title="Cascade backup (injury sub): ${cascadeBackup.name} — slides up from another slot, can't take per-snap reps">⤴ INJ: ${cascadeBackup.name.split(" ").slice(-1)[0]}</span>`
+      : "";
+    const playerCell = (p, snaps, faded, kind) => {
       if (!p) return `<div class="frn-snap-player empty"><span class="frn-snap-empty">— open —</span></div>`;
       const escName = (p.name||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'");
       const escPid  = (p.pid||"").replace(/'/g,"\\'");
       const pStam = p._stamina ?? 75;
-      return `<div class="frn-snap-player${faded?" faded":""}">
+      return `<div class="frn-snap-player${faded?" faded":""}" data-pid="${p.pid||""}" data-kind="${kind}">
         <span class="frn-snap-name" onclick="frnOpenPlayerCard('${escName}','${escPid}')">${p.name}</span>
         <span class="frn-snap-meta">${p.position} · ${p.overall||"—"} OVR · age ${p.age||"?"}</span>
         <div class="frn-snap-stam-row">
           <span class="frn-snap-stam" title="Stamina ${pStam}" style="color:${staminaCol(pStam)};border-color:${staminaCol(pStam)}55">STAM ${pStam}</span>
           <span class="frn-snap-snaps">≈ ${snaps} snaps/G</span>
         </div>
+        ${kind==="backup" && !rotates ? `<span class="frn-snap-injtag" title="Cascade — slides up only on starter injury, not per-snap rotation">↑ INJ SUB</span>` : ""}
       </div>`;
     };
     return `<div class="frn-snap-row${isConflict?" conflict":""}">
       <div class="frn-snap-slot">
         <div class="frn-snap-slot-key">${slotKey}</div>
-        ${advisory ? `<div class="frn-snap-advisory" title="Engine doesn't rotate this position per-snap yet — preference is stored but not simulated">ADV</div>` : ""}
+        ${!rotates ? `<div class="frn-snap-advisory" title="Engine doesn't rotate this position per-snap yet — preference is stored but not simulated">ADV</div>` : ""}
         ${isManual ? `<div class="frn-snap-manual" title="You've manually set this — it won't re-optimize on depth-chart changes">📌</div>` : ""}
       </div>
-      ${playerCell(starter, sSnaps, false)}
+      ${playerCell(starter, sSnaps, false, "starter")}
       <div class="frn-snap-slider-col">
         <div class="frn-snap-pct">${pct}%</div>
         <input type="range" class="frn-snap-slider"
@@ -3013,8 +3041,9 @@ function renderFrnSnapShares() {
                onchange="frnSnapSet('${slotKey}', this.value)">
         <div class="frn-snap-range">${floor} — ${ceil}</div>
         ${isConflict ? `<div class="frn-snap-warn" title="High snap share + low stamina = high injury / late-game drop-off risk">⚠ STAMINA</div>` : ""}
+        ${cascadeNote}
       </div>
-      ${playerCell(backup, bSnaps, true)}
+      ${playerCell(backup, bSnaps, true, "backup")}
       <div class="frn-snap-actions">
         <button class="frn-dc-ctrl-btn" onclick="frnSnapResetSlot('${slotKey}')" title="Reset to auto-recommended value">↺</button>
       </div>
@@ -3025,7 +3054,8 @@ function renderFrnSnapShares() {
   const groupSections = activeGroups.map(group => {
     const slotDefs = [...DEPTH_CHART_SLOTS.offense, ...DEPTH_CHART_SLOTS.defense, ...DEPTH_CHART_SLOTS.specialTeams]
       .filter(s => group.slots.includes(s.key));
-    const rows = slotDefs.map(sd => renderSlotRow(sd.key, sd)).join("");
+    const groupStarterPids = new Set(group.slots.map(k => dc[k]?.starter).filter(Boolean));
+    const rows = slotDefs.map(sd => renderSlotRow(sd.key, sd, groupStarterPids)).join("");
     return `<div class="frn-snap-group">
       <div class="frn-snap-group-hdr">
         <span class="frn-snap-group-pos">${group.pos}</span>
@@ -3034,6 +3064,26 @@ function renderFrnSnapShares() {
       ${rows}
     </div>`;
   }).join("");
+
+  // Iron-man load: any player whose total projected snaps in this unit
+  // (starter slot + rotation backup slot) is approaching or exceeding
+  // game-long usage. Surfaces same-name players doing double duty.
+  const ironRows = [];
+  for (const [pid, snaps] of Object.entries(projectedSnaps)) {
+    if (snaps >= SNAPS_PER_GAME * 0.92) {
+      const p = byPid[pid];
+      if (p) ironRows.push({ p, snaps });
+    }
+  }
+  ironRows.sort((a, b) => b.snaps - a.snaps);
+  const ironStrip = ironRows.length ? `<div class="frn-snap-iron-strip">
+    <span class="frn-snap-iron-title">⚙ IRON-MAN LOAD</span>
+    ${ironRows.map(({ p, snaps }) => {
+      const pStam = p._stamina ?? 75;
+      const col = snaps >= SNAPS_PER_GAME ? "#ff6b6b" : "var(--gold-lt)";
+      return `<span class="frn-snap-iron-tag" style="border-color:${col}55;color:${col}">${p.name} · ${snaps}/${SNAPS_PER_GAME} snaps · STAM ${pStam}</span>`;
+    }).join("")}
+  </div>` : "";
 
   $("frnHomeContent").innerHTML = `
     <div class="frn-dc-page-header">
@@ -3050,7 +3100,8 @@ function renderFrnSnapShares() {
       </div>
     </div>
     ${tabsHtml}
-    <div class="frn-dc-hint">drag slider to set starter % · ⚠ = high snaps + low stamina · ADV = stored preference (engine doesn't rotate this position yet) · 📌 = manually set (won't auto-rebalance)</div>
+    <div class="frn-dc-hint">backup shown = who actually rotates in per snap · ⤴ INJ = different player slides up only on injury · ⚠ = high snaps + low stamina · ADV = preference only · 📌 = manual</div>
+    ${ironStrip}
     <div class="frn-snap-table">${groupSections}</div>`;
 }
 
