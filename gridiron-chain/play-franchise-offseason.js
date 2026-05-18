@@ -1282,6 +1282,17 @@ function renderPotwVoting(week) {
   };
 
   const isRevote = Object.keys(existingVotes).length > 0;
+  const picksSummary = `
+    <div class="potw-picks-summary">
+      <span class="potw-picks-summary-title">YOUR PICKS</span>
+      ${GROUPS.map(g => {
+        const name = _potwPendingVotes[g.key];
+        return `<span class="potw-picks-summary-item">
+          <span class="lbl">${g.icon} ${g.label.replace(" PLAYER","").replace("OFFENSIVE LINEMAN","OL").replace("SPECIAL TEAMS","ST")}</span>
+          ${name ? `<b style="color:var(--blgold)">${name}</b>` : `<span class="none">— not picked —</span>`}
+        </span>`;
+      }).join("")}
+    </div>`;
   $("frnHomeContent").innerHTML = `
     <div class="bspnlive-root" style="margin:-1rem -1.5rem 0 -1.5rem;padding-bottom:2rem">
       <header class="bspnlive-header">
@@ -1298,7 +1309,10 @@ function renderPotwVoting(week) {
                      : "Pick one winner per category — your votes build the POTY race all season"}
         </span>
       </div>
-      <div style="padding:.8rem 1.4rem">${GROUPS.map(renderGroup).join("")}</div>
+      <div style="padding:.8rem 1.4rem">
+        ${picksSummary}
+        ${GROUPS.map(renderGroup).join("")}
+      </div>
       <div style="padding:.3rem 1.4rem 1rem;display:flex;gap:.8rem;align-items:center">
         <button class="frn-cap-btn" onclick="_potwSubmitVotes(${week})"
                 style="padding:.55rem 1.6rem;font-size:.78rem;letter-spacing:1px">

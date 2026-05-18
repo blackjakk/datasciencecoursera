@@ -3133,11 +3133,39 @@
   }
   .potw-vote-card:hover { border-color: var(--blgold); background: rgba(245,197,66,.05); }
   .potw-vote-card.selected {
-    border-color: var(--blgold); background: rgba(245,197,66,.12);
-    box-shadow: 0 0 0 1px var(--blgold);
+    border-color: var(--blgold);
+    background: linear-gradient(135deg, rgba(245,197,66,.28), rgba(245,197,66,.16));
+    box-shadow: 0 0 0 3px var(--blgold), 0 6px 18px rgba(245,197,66,.35);
+    transform: translateY(-2px);
+  }
+  .potw-vote-card.selected::before {
+    content: "✓"; position: absolute; top: -10px; left: -10px;
+    width: 26px; height: 26px; border-radius: 50%;
+    background: var(--blgold); color: #000;
+    font-weight: 900; font-size: 1rem;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,.5);
+    z-index: 2;
   }
   .potw-vote-card.selected .potw-vote-card-name { color: var(--blgold); }
-  .potw-vote-card.selected .potw-vote-card-badge { color: var(--blgold); font-weight:900; }
+  .potw-vote-card.selected .potw-vote-card-badge {
+    color: #000; background: var(--blgold); font-weight: 900;
+    padding: .15rem .4rem; border-radius: 3px; display: inline-block;
+  }
+  .potw-picks-summary {
+    background: var(--blbg2); border: 1px solid var(--blborder);
+    border-left: 4px solid var(--blgold);
+    padding: .55rem .8rem; margin-bottom: .8rem;
+    display: flex; flex-wrap: wrap; gap: .55rem 1.2rem; align-items: center;
+    font-size: .7rem;
+  }
+  .potw-picks-summary-title {
+    font-family: 'Bebas Neue','Anton',sans-serif;
+    font-size: .8rem; letter-spacing: 1.5px; color: var(--blgold);
+  }
+  .potw-picks-summary-item { color: var(--blwhite); }
+  .potw-picks-summary-item .lbl { color: var(--blgray); font-size: .62rem; letter-spacing: .8px; margin-right: .3rem; }
+  .potw-picks-summary-item .none { color: var(--blgray); font-style: italic; }
   .potw-vote-card-rank {
     position: absolute; top:.35rem; right:.45rem;
     font-size:.62rem; color:var(--blgray); letter-spacing:1px;
