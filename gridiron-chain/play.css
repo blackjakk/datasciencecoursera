@@ -4759,6 +4759,127 @@
   }
   @media (max-width: 900px) { .frn-dashboard-grid { grid-template-columns: 1fr; } }
 
+  /* ── App shell (regular-season tabs) ────────────────────────────── */
+  #frnAppShell {
+    position: sticky; top: 0; z-index: 30;
+    background: var(--bg2); border-bottom: 1px solid var(--border);
+    margin-bottom: .65rem;
+  }
+  .frn-shell-bar {
+    display: flex; align-items: stretch; gap: .8rem;
+    padding: .3rem .6rem;
+  }
+  .frn-shell-team {
+    display: flex; flex-direction: column; justify-content: center;
+    padding-right: .8rem; border-right: 3px solid var(--team, var(--gold));
+    flex-shrink: 0;
+  }
+  .frn-shell-team-name {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: .92rem; letter-spacing: 1.4px; color: var(--blwhite);
+  }
+  .frn-shell-team-meta {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    font-size: .58rem; color: var(--gray); letter-spacing: .3px;
+  }
+  .frn-shell-tabs {
+    display: flex; gap: .15rem; flex: 1; flex-wrap: wrap;
+  }
+  .frn-shell-tab {
+    display: flex; align-items: center; gap: .35rem;
+    padding: .35rem .7rem; background: transparent; color: var(--blgray);
+    border: 0; border-bottom: 3px solid transparent;
+    cursor: pointer; transition: all .12s ease;
+    font-family: inherit; font-size: .68rem;
+  }
+  .frn-shell-tab:hover { color: var(--blwhite); background: rgba(255,255,255,.03); }
+  .frn-shell-tab.active {
+    color: var(--gold); border-bottom-color: var(--gold);
+    background: rgba(212,175,55,.06);
+  }
+  .frn-shell-tab-icon { font-size: .85rem; }
+  .frn-shell-tab-label {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: .82rem; letter-spacing: 1.2px; font-weight: 700;
+  }
+  .frn-shell-badge {
+    display: inline-block; min-width: 1.1rem; padding: 0 .3rem;
+    margin-left: .15rem;
+    font-size: .55rem; font-weight: 900; color: #000;
+    background: var(--gold-lt); border-radius: 8px; text-align: center;
+  }
+
+  /* Generic sub-nav used inside tabs that aggregate multiple pages */
+  .frn-subnav {
+    display: flex; gap: .2rem; flex-wrap: wrap;
+    padding: .35rem .55rem; background: var(--bg3);
+    border-bottom: 1px solid var(--border); margin-bottom: .55rem;
+  }
+  .frn-subnav-btn {
+    padding: .25rem .65rem; font-size: .65rem; letter-spacing: .4px;
+    background: transparent; color: var(--gray); border: 1px solid transparent;
+    cursor: pointer; font-family: inherit;
+  }
+  .frn-subnav-btn:hover { color: var(--blwhite); }
+  .frn-subnav-btn.active {
+    color: var(--gold); border-color: var(--gold); background: rgba(212,175,55,.06);
+    font-weight: 700;
+  }
+
+  /* Tab landing tiles (Tools / future) */
+  .frn-tab-landing { padding: .8rem .2rem; }
+  .frn-tab-landing-title {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1.2rem; letter-spacing: 2px; color: var(--gold);
+    margin-bottom: .8rem;
+  }
+  .frn-tab-landing-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: .6rem;
+  }
+  .frn-tab-tile {
+    background: var(--bg2); color: var(--blwhite);
+    border: 1px solid var(--border); border-left: 4px solid var(--gold);
+    padding: .8rem 1rem; cursor: pointer; font-family: inherit;
+    text-align: left; display: flex; flex-direction: column; gap: .2rem;
+    transition: all .12s ease;
+  }
+  .frn-tab-tile:hover {
+    background: var(--bg3); border-color: var(--gold);
+    transform: translateY(-1px);
+  }
+  .frn-tab-tile-icon { font-size: 1.3rem; }
+  .frn-tab-tile-label {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: .95rem; letter-spacing: 1.5px; color: var(--gold);
+    font-weight: 900;
+  }
+  .frn-tab-tile-sub { font-size: .65rem; color: var(--gray); }
+
+  /* Slim identity strip on the Overview tab (banner replacement) */
+  .frn-overview-identity {
+    display: grid; grid-template-columns: 1fr auto auto;
+    gap: 1rem; align-items: center;
+    padding: .55rem .85rem; margin-bottom: .65rem;
+    background: var(--bg2); border: 1px solid var(--border);
+    border-left: 4px solid var(--accent, var(--gold));
+  }
+  .frn-overview-id-name {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1.4rem; letter-spacing: 1.8px; color: var(--blwhite);
+  }
+  .frn-overview-id-meta { font-size: .62rem; color: var(--gray); }
+  .frn-overview-cap-line {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    font-size: .7rem; font-weight: 700;
+  }
+  .frn-overview-record {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1.8rem; letter-spacing: 1.5px; color: var(--gold);
+    line-height: 1; text-align: right;
+  }
+  .frn-overview-rec-sub { font-size: .5rem; letter-spacing: .8px; color: var(--blgray); text-align: right; }
+
   /* Top nav — 4 primary buttons + overflow ────────────────────────── */
   .frn-quick-nav {
     display: flex; flex-wrap: wrap; gap: .35rem; align-items: center;

@@ -108,13 +108,24 @@ function showFranchiseDashboard() {
 
   $("franchiseHome").style.display = "block";
   const { phase } = franchise;
+  // App shell shows only during the regular season — playoffs / offseason /
+  // free agency / draft each have their own self-contained UIs.
+  const shellEl = $("frnAppShell");
+  if (shellEl) {
+    if (phase === "regular") {
+      shellEl.style.display = "block";
+      if (typeof _frnRenderAppShell === "function") _frnRenderAppShell();
+    } else {
+      shellEl.style.display = "none";
+    }
+  }
   try {
     if      (phase === "preseason")            renderFrnPreseason();
     else if (phase === "free_agency")          renderFrnFA();
     else if (phase === "free_agency_results")  renderFrnFAResults();
     else if (phase === "fa_cuts")              renderFrnFACuts();
     else if (phase === "draft")                renderFrnDraft();
-    else if (phase === "regular")              renderFrnRegular();
+    else if (phase === "regular")              _frnRenderActiveTab();
     else if (phase === "playoffs_pending")     startFrnPlayoffs();
     else if (phase === "playoffs")         renderFrnPlayoffs();
     else if (phase === "awards")           showFrnAwards();

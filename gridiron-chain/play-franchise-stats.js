@@ -4470,6 +4470,129 @@ function _frnTogglePregame() {
   renderFrnRegular();
 }
 
+// ─── App shell + tab routing ────────────────────────────────────────────
+// The dashboard is a tabbed app shell during the regular season. Tabs
+// route to focused sub-views; the shell itself is just identity +
+// tab strip. Each tab is a small router that calls the appropriate
+// canonical render. Switching tabs persists in _frnActiveTab.
+let _frnActiveTab = "overview";
+const _FRN_TABS = [
+  { id: "overview",    icon: "⌂",  label: "Overview" },
+  { id: "roster",      icon: "👥", label: "Roster" },
+  { id: "frontoffice", icon: "📑", label: "Front Office" },
+  { id: "league",      icon: "🏟", label: "League" },
+  { id: "tools",       icon: "🛠", label: "Tools" },
+];
+
+function frnSetTab(tabId) {
+  if (!_FRN_TABS.some(t => t.id === tabId)) return;
+  _frnActiveTab = tabId;
+  _frnRenderAppShell();
+  _frnRenderActiveTab();
+}
+
+function _frnRenderAppShell() {
+  const el = $("frnAppShell");
+  if (!el) return;
+  const myTeam = getTeam(franchise.chosenTeamId);
+  const stand = franchise.standings?.[franchise.chosenTeamId] || { w: 0, l: 0, t: 0 };
+  const rec = `${stand.w}-${stand.l}${stand.t?`-${stand.t}`:""}`;
+  // Per-tab badges
+  const pendingTrades = (franchise.tradeOffers||[]).filter(o => o.status === "pending").length;
+  const pendingJP     = (franchise.jointPracticeOffers||[]).filter(o => o.status === "pending" && o.toTeamId === franchise.chosenTeamId).length;
+  const tabBadge = (id) => {
+    if (id === "frontoffice" && pendingTrades) return `<span class="frn-shell-badge">${pendingTrades}</span>`;
+    if (id === "tools" && pendingJP) return `<span class="frn-shell-badge">${pendingJP}</span>`;
+    return "";
+  };
+  el.innerHTML = `
+    <div class="frn-shell-bar">
+      <div class="frn-shell-team" style="--team:${myTeam?.primary || "var(--gold)"}">
+        <span class="frn-shell-team-name">${myTeam?.city || ""} ${myTeam?.name || "Team"}</span>
+        <span class="frn-shell-team-meta">S${franchise.season} · W${Math.min(franchise.week, FRANCHISE_WEEKS)} · ${rec}</span>
+      </div>
+      <nav class="frn-shell-tabs">
+        ${_FRN_TABS.map(t => `<button class="frn-shell-tab${t.id===_frnActiveTab?" active":""}" onclick="frnSetTab('${t.id}')">
+          <span class="frn-shell-tab-icon">${t.icon}</span>
+          <span class="frn-shell-tab-label">${t.label}</span>
+          ${tabBadge(t.id)}
+        </button>`).join("")}
+      </nav>
+    </div>`;
+}
+
+function _frnRenderActiveTab() {
+  switch (_frnActiveTab) {
+    case "overview":    return renderFrnRegular();
+    case "roster":      return renderFrnDepthChart();
+    case "frontoffice": return frnOpenTrade();
+    case "league":      return renderFrnLeagueHome();
+    case "tools":       return _frnRenderTabTools();
+    default:            return renderFrnRegular();
+  }
+}
+
+// League tab — sub-nav across the league context (standings, stat
+// leaders, wire archive, legacy, alumni). Each sub-tab calls its
+// existing canonical render and we prepend the sub-nav strip so the
+// shell + sub-nav stay visible while the underlying page swaps in.
+let _frnLeagueSubTab = "standings";
+const _FRN_LEAGUE_TABS = [
+  { id: "standings", label: "Standings",   fn: () => typeof renderFrnStandings    === "function" && renderFrnStandings() },
+  { id: "stats",     label: "Stat Leaders",fn: () => typeof renderFrnLeaders      === "function" && renderFrnLeaders() },
+  { id: "wire",      label: "News Wire",   fn: () => typeof renderFrnNewsArchive  === "function" && renderFrnNewsArchive() },
+  { id: "legacy",    label: "Legacy",      fn: () => typeof renderFrnLegacy       === "function" && renderFrnLegacy() },
+  { id: "alumni",    label: "Alumni",      fn: () => typeof renderFrnAlumni       === "function" && renderFrnAlumni() },
+];
+function frnSetLeagueSubTab(id) {
+  if (!_FRN_LEAGUE_TABS.some(t => t.id === id)) return;
+  _frnLeagueSubTab = id;
+  renderFrnLeagueHome();
+}
+function renderFrnLeagueHome() {
+  const active = _FRN_LEAGUE_TABS.find(t => t.id === _frnLeagueSubTab) || _FRN_LEAGUE_TABS[0];
+  active.fn();
+  // Prepend a sub-nav strip so the user can move between league views
+  // without leaving the tab. The underlying renders set innerHTML
+  // wholesale, so we attach our sub-nav after the fact.
+  const el = $("frnHomeContent");
+  if (!el) return;
+  const sub = document.createElement("div");
+  sub.className = "frn-subnav";
+  sub.innerHTML = _FRN_LEAGUE_TABS.map(t =>
+    `<button class="frn-subnav-btn${t.id===active.id?" active":""}" onclick="frnSetLeagueSubTab('${t.id}')">${t.label}</button>`
+  ).join("");
+  el.insertBefore(sub, el.firstChild);
+}
+
+// Tools tab landing — links to existing utility pages (analytics, joint
+// practice, future FAs). Keeps related "front-office adjacent" tools
+// in one spot.
+function _frnRenderTabTools() {
+  const pendingJP = (franchise.jointPracticeOffers||[]).filter(o => o.status === "pending" && o.toTeamId === franchise.chosenTeamId).length;
+  $("frnHomeContent").innerHTML = `
+    <div class="frn-tab-landing">
+      <div class="frn-tab-landing-title">🛠 TOOLS</div>
+      <div class="frn-tab-landing-grid">
+        <button class="frn-tab-tile" onclick="renderFrnAnalytics('mysheet')">
+          <span class="frn-tab-tile-icon">📊</span>
+          <span class="frn-tab-tile-label">Analytics</span>
+          <span class="frn-tab-tile-sub">cap sheet · dead cap · trends</span>
+        </button>
+        <button class="frn-tab-tile" onclick="renderFrnScrimmages()">
+          <span class="frn-tab-tile-icon">🏟</span>
+          <span class="frn-tab-tile-label">Joint Practice${pendingJP?` · <span style="color:#ffc850">${pendingJP} pending</span>`:""}</span>
+          <span class="frn-tab-tile-sub">scout an opponent in shared reps</span>
+        </button>
+        <button class="frn-tab-tile" onclick="renderFrnProjectedFAs()">
+          <span class="frn-tab-tile-icon">📅</span>
+          <span class="frn-tab-tile-label">Future FAs</span>
+          <span class="frn-tab-tile-sub">expiring contracts league-wide</span>
+        </button>
+      </div>
+    </div>`;
+}
+
 function renderFrnRegular() {
   const { chosenTeamId, season, week, schedule, standings, seasonHighlights } = franchise;
   const myTeam  = getTeam(chosenTeamId);
@@ -4903,9 +5026,14 @@ function renderFrnRegular() {
       })()}
     </div>`;
 
-  // ─── Sidebar: standings + leaders + highlights + POTW ────────────────
-  const standHtml = sorted.slice(0, 14).map((s, i) => {
-    const isMine   = s.id === chosenTeamId;
+  // ─── Sidebar: compact league snapshot + highlights + POTW ───────────
+  // Full Standings + Leaders moved to the League tab. Sidebar shows a
+  // glanceable snapshot — top 5 + your row if outside top 5 — with a
+  // deep link to the League tab for the full picture.
+  const top5 = sorted.slice(0, 5);
+  const myIdx = sorted.findIndex(s => s.id === chosenTeamId);
+  const showMyRow = myIdx >= 5;
+  const standRowHtml = (s, i, isMine) => {
     const playoff  = i < PLAYOFF_TEAMS;
     const gp       = s.w + s.l + s.t;
     const pct      = gp === 0 ? ".000" : (s.w / gp).toFixed(3).replace(/^0/, "");
@@ -4915,16 +5043,17 @@ function renderFrnRegular() {
       <span style="width:3rem;text-align:right">${s.w}-${s.l}${s.t?`-${s.t}`:""}</span>
       <span style="width:2.8rem;text-align:right;color:var(--gray);font-size:.62rem">${pct}</span>
     </div>`;
-  }).join("");
+  };
+  const standHtml = top5.map((s, i) => standRowHtml(s, i, s.id === chosenTeamId)).join("")
+    + (showMyRow ? `<div style="text-align:center;color:var(--blgray);font-size:.55rem;letter-spacing:.5px;padding:.1rem 0">···</div>${standRowHtml(sorted[myIdx], myIdx, true)}` : "");
 
-  // ─── Sidebar: standings + leaders + highlights + POTW ────────────────
   const leaders = frnTeamLeaders(chosenTeamId);
-  const leadersHtml = leaders.length ? leaders.map(l => `
+  const leadersHtml = leaders.slice(0, 3).map(l => `
     <div class="frn-leader-row">
       <span class="frn-leader-cat">${l.cat}</span>
       <span class="frn-leader-name">${_playerLinkSmart(l.name)}</span>
       <span class="frn-leader-stat">${l.stat}</span>
-    </div>`).join("") : `<div style="color:var(--gray);font-size:.72rem;padding:.5rem 0">Play games to see leaders.</div>`;
+    </div>`).join("") || `<div style="color:var(--gray);font-size:.72rem;padding:.5rem 0">Play games to see leaders.</div>`;
 
   const hlHtml = _buildHighlightsSidebar(chosenTeamId, seasonHighlights);
 
@@ -4957,14 +5086,11 @@ function renderFrnRegular() {
   const sidebarHtml = `
     <div style="display:flex;flex-direction:column;gap:1rem">
       <div class="frn-card-box">
-        <div class="frn-card-title">STANDINGS <span class="frn-card-title-sub">top ${PLAYOFF_TEAMS} → playoffs</span></div>
+        <div class="frn-card-title">LEAGUE SNAPSHOT <span class="frn-card-title-sub">top ${PLAYOFF_TEAMS} → playoffs</span></div>
         ${standHtml}
-        <button class="frn-cap-btn" onclick="renderFrnStandings()" style="margin-top:.5rem;font-size:.6rem">Full Standings →</button>
-      </div>
-      <div class="frn-card-box">
-        <div class="frn-card-title">${myTeam.name.toUpperCase()} LEADERS</div>
+        <div class="frn-card-title" style="margin-top:.7rem">TEAM LEADERS</div>
         ${leadersHtml}
-        <button class="frn-cap-btn" onclick="renderFrnLeaders()" style="margin-top:.5rem;font-size:.6rem">Full Leaders →</button>
+        <button class="frn-cap-btn" onclick="frnSetTab('league')" style="margin-top:.5rem;font-size:.6rem">Full League →</button>
       </div>
       <div class="frn-card-box">
         <div class="frn-card-title">HIGHLIGHTS</div>
@@ -4978,9 +5104,26 @@ function renderFrnRegular() {
 
   // ─── Final composition ────────────────────────────────────────────────
   const postGameHtml = _buildPostGameHeadline(chosenTeamId);
+  // bannerHtml + quickNavHtml now live in the app shell; on Overview
+  // we keep a compact identity badge with cap so the rich detail (form
+  // strip, OFF/DEF, playoff seed) remains glanceable without scrolling.
+  const overviewIdentityHtml = `
+    <div class="frn-overview-identity" style="--accent:${myTeam.primary||'var(--gold)'}">
+      <div class="frn-overview-id-left">
+        <div class="frn-overview-id-name">${myTeam.city.toUpperCase()} ${myTeam.name.toUpperCase()}</div>
+        <div class="frn-overview-id-meta">PF ${myStand.pf} / PA ${myStand.pa} · OFF ${myRtg.off} · DEF ${myRtg.def}${playedGames.length?` · <span style="letter-spacing:.1rem">${formStrip}</span>`:""}</div>
+      </div>
+      <div class="frn-overview-id-cap">
+        <div class="frn-overview-cap-line" style="color:${capColor}">CAP $${capUsed.toFixed(1)}M / $${cap.toFixed(0)}M <span style="color:var(--gray);font-weight:400">· ${capPct}%</span>${refundLine}</div>
+      </div>
+      <div class="frn-overview-id-right">
+        <div class="frn-overview-record">${recStr}</div>
+        <div class="frn-overview-rec-sub">RECORD</div>
+        <div style="margin-top:.2rem">${playoffStr}</div>
+      </div>
+    </div>`;
   $("frnHomeContent").innerHTML = `
-    ${bannerHtml}
-    ${quickNavHtml}
+    ${overviewIdentityHtml}
     ${postGameHtml}
     <div class="frn-dashboard-grid">
       ${leftColHtml}
