@@ -3759,8 +3759,9 @@ function _savePlayoffMatchupStats(roundIdx, homeId, awayId, r) {
 }
 
 // Stamp postseason scouting flags on live players who recorded stats
-// in this playoff game. Run from _savePlayoffMatchupStats so it covers
-// both interactive and sim paths uniformly.
+// in this playoff game. Records BOTH the "any role" depth and a
+// separate "major role" depth (gated by _wasMajorRole). The band
+// check uses major when available, minor (one band worse) otherwise.
 function _stampPlayoffScouting(roundIdx, homeId, awayId, stats) {
   if (!stats || !franchise) return;
   const myId    = franchise.chosenTeamId;
@@ -3775,28 +3776,39 @@ function _stampPlayoffScouting(roundIdx, homeId, awayId, stats) {
     for (const playerName of Object.keys(players)) {
       const live = _findPlayer(playerName);
       if (!live) continue;
-      // Postseason depth — track the deepest round the player reached
-      // this season. Resets each new season via the season check.
+      const p = players[playerName];
+      const isMajor = _wasMajorRole(p);
+
+      // Any-role depth — track the deepest round the player reached
       const sameSeason = live._postseasonDepthSeason === season;
       const prevDepth = sameSeason ? (live._postseasonDepth ?? -1) : -1;
-      if (roundIdx > prevDepth) {
-        live._postseasonDepth = roundIdx;
-        live._postseasonDepthSeason = season;
-      } else if (!sameSeason) {
+      if (roundIdx > prevDepth || !sameSeason) {
         live._postseasonDepth = roundIdx;
         live._postseasonDepthSeason = season;
       }
+
+      // Major-role depth — deepest round where they had a major role
+      if (isMajor) {
+        const sameMajorSeason = live._postseasonMajorRoundSeason === season;
+        const prevMajor = sameMajorSeason ? (live._postseasonMajorRound ?? -1) : -1;
+        if (roundIdx > prevMajor || !sameMajorSeason) {
+          live._postseasonMajorRound = roundIdx;
+          live._postseasonMajorRoundSeason = season;
+        }
+      }
+
       // Faced-in-playoffs — only when the user's team was the opponent
       if (isUserGame && sideName === oppSide) {
         live._facedInPlayoffsSeason = season;
+        if (isMajor) live._facedInPlayoffsMajor = season;
       }
     }
   }
 }
 
 // Stamp regular-season "faced your team" scouting on opposing players
-// who recorded a stat. Run from markGamePlayed so it covers both sim
-// and interactive paths uniformly.
+// who recorded a stat. Major role gets the standard ±5 band; minor
+// role bumps to ±6.
 function _stampRegSeasonScouting(homeId, awayId, stats) {
   if (!stats || !franchise) return;
   const myId = franchise.chosenTeamId;
@@ -3805,8 +3817,11 @@ function _stampRegSeasonScouting(homeId, awayId, stats) {
   const season = franchise.season;
   const players = stats[oppSide]?.players || {};
   for (const playerName of Object.keys(players)) {
+    const p = players[playerName];
     const live = _findPlayer(playerName);
-    if (live) live._regSeasonFacedSeason = season;
+    if (!live) continue;
+    live._regSeasonFacedSeason = season;
+    if (_wasMajorRole(p)) live._regSeasonFacedMajor = season;
   }
 }
 

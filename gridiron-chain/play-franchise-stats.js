@@ -1493,6 +1493,40 @@ function _jpRunPractice(offer) {
       gainedWeek: franchise.week,
       intensity: offer.resolvedIntensity, // "joint" or "live" — band check reads this
     };
+    // Coverage asymmetry: Standard JP stamps only the depth-chart
+    // starters; Live Pads stamps the entire roster (full-contact
+    // bench reps too). Per-player flag also lets the band check pick
+    // up the intensity without scanning team metadata.
+    const oppRoster = franchise.rosters[oppId] || [];
+    const isLive = offer.resolvedIntensity === "live";
+    let targets;
+    if (isLive) {
+      targets = oppRoster;
+    } else {
+      // Pull starter pids from the depth chart; if missing for any
+      // reason, fall back to top-of-roster by OVR per position.
+      const dc = franchise.depthChart?.[oppId];
+      if (dc) {
+        const starterPids = new Set();
+        for (const slot of Object.values(dc)) {
+          if (slot?.starter) starterPids.add(slot.starter);
+        }
+        targets = oppRoster.filter(p => starterPids.has(p.pid));
+      } else {
+        const byPos = {};
+        for (const p of oppRoster) (byPos[p.position] ||= []).push(p);
+        const starters = [];
+        for (const list of Object.values(byPos)) {
+          list.sort((a, b) => (b.overall || 0) - (a.overall || 0));
+          starters.push(...list.slice(0, 1));
+        }
+        targets = starters;
+      }
+    }
+    for (const p of targets) {
+      p._jpScoutedSeason = franchise.season;
+      p._jpScoutedIntensity = offer.resolvedIntensity;
+    }
   }
   if (!franchise.scrimmagesDone) franchise.scrimmagesDone = [];
   const report = {

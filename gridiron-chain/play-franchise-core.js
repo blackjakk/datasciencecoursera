@@ -789,25 +789,34 @@ function _scoutSourceLabel(p) {
 // Has the user scouted this player's team this season (via scrimmage)?
 // Returns the noise band for this player's scout grade. Lower = sharper.
 //   0 = exact OVR (owned)
-//   1 = faced in any playoff game (this season or last)
-//   2 = APB / reached SB / draft-scouted prospect
-//   3 = reached Divisional
-//   4 = Wild Card tape (one playoff game of tape)
-//   5 = regular-season opponent / unscouted prospect
-//   6 = Live Pads JP (full contact, controlled environment)
-//   7 = standard Joint Practice (no pads, walk-through speed)
-//   8 = walk-through (no grade reveal by design) / unscouted
+//   1 = faced in playoffs as major role
+//   2 = APB / reached SB (major) / draft scout / faced in playoffs (minor)
+//   3 = reached Divisional (major) / reached SB (minor)
+//   4 = Wild Card (major) / reached Divisional (minor)
+//   5 = reg-season opponent (major) / Wild Card (minor) / unscouted prospect
+//   6 = Live Pads JP / reg-season opponent (minor)
+//   7 = Standard JP
+//   8 = walk-through (no grade reveal) / unscouted
 //
-// Practice-vs-game philosophy: a real regular-season game ALWAYS beats
-// any practice — controlled environment, players self-protect from
-// injury, scripted scenarios, no crowd / no stakes. Even Live Pads
-// (band 6) lands below reg-season tape (band 5).
+// Two principles in play:
 //
-// Stacking: practice + game-tape reveals different things (live
-// presence + performance under stakes). When the user has both for the
-// same player, band drops by 1 (Live Pads) or 1 (Standard JP) — Live
-// Pads gives the larger stacking bonus because the in-person fidelity
-// pays off more when paired with game film. Floored at 1.
+// (a) Practice-vs-game: a real regular-season game ALWAYS beats any
+//     practice — controlled environment, players self-protect, scripted
+//     scenarios. Even Live Pads (±6) lands below reg-season opp (±5).
+//
+// (b) Coverage asymmetry — practice scouts evenly across the team but
+//     games only scout the players who got reps. Standard JP scouts
+//     only the depth-chart starters; Live Pads scouts the whole
+//     53-man (full-contact bench reps too). Walk-through stamps no-
+//     one (revealsGrades:false by design).
+//
+// (c) Snap-weighting — when a player only appeared in a game as a
+//     minor role (low snaps / low touches / minimal stat line), they
+//     get bumped one band worse than a major-role flag at the same
+//     tier. "Major" is defined per-position in _wasMajorRole.
+//
+// Stacking: practice + game-tape stacks (different evidence categories),
+// -2 for Live Pads + game, -1 for Standard JP + game. Floored at 1.
 function _playerNoiseBand(p) {
   if (!p) return 8;
   const fr = franchise;
@@ -825,49 +834,80 @@ function _playerNoiseBand(p) {
     }
   }
 
-  // Collect every applicable evidence source so we can find the best
-  // band and decide whether stacking applies.
+  // Window helper — "set this season or last" (one-year carry).
+  const within = (s) => s != null && (season - s) <= 1;
+
+  // Collect every applicable evidence source.
   const bands = [];
   let hasGameTape = false;
   let practiceBand = null; // 6 for live, 7 for standard, null otherwise
 
-  if (p._facedInPlayoffsSeason != null && (season - p._facedInPlayoffsSeason) <= 1) {
+  // Faced in playoffs (user game)
+  if (within(p._facedInPlayoffsMajor)) {
     bands.push(1); hasGameTape = true;
+  } else if (within(p._facedInPlayoffsSeason)) {
+    bands.push(2); hasGameTape = true; // minor role — one band worse
   }
-  if (p.isProspect && (fr.draftScouts || []).includes(p.name)) {
-    bands.push(2);
-  }
-  if (p._apbScoutedSeason != null && (season - p._apbScoutedSeason) <= 1) {
-    bands.push(2); hasGameTape = true;
-  }
-  if (p._postseasonDepthSeason != null && (season - p._postseasonDepthSeason) <= 1) {
-    const d = p._postseasonDepth ?? 0;
+
+  // Draft scout
+  if (p.isProspect && (fr.draftScouts || []).includes(p.name)) bands.push(2);
+
+  // APB participation — curated rosters, treat as major
+  if (within(p._apbScoutedSeason)) { bands.push(2); hasGameTape = true; }
+
+  // Postseason depth — major role (reached round X as a major contributor)
+  if (within(p._postseasonMajorRoundSeason)) {
+    const d = p._postseasonMajorRound ?? -1;
     if (d >= 2) bands.push(2);
     else if (d === 1) bands.push(3);
-    else bands.push(4);
-    hasGameTape = true;
+    else if (d === 0) bands.push(4);
+    if (d >= 0) hasGameTape = true;
   }
-  if (p._regSeasonFacedSeason != null && (season - p._regSeasonFacedSeason) <= 1) {
+  // Postseason depth — any role (one band worse than major)
+  if (within(p._postseasonDepthSeason)) {
+    const d = p._postseasonDepth ?? -1;
+    if (d >= 2) bands.push(3);
+    else if (d === 1) bands.push(4);
+    else if (d === 0) bands.push(5);
+    if (d >= 0) hasGameTape = true;
+  }
+
+  // Regular-season opponent — major vs minor variant
+  if (within(p._regSeasonFacedMajor)) {
     bands.push(5); hasGameTape = true;
+  } else if (within(p._regSeasonFacedSeason)) {
+    bands.push(6); hasGameTape = true; // minor role — one band worse
   }
-  // Joint practice (skip walk-through — it doesn't set scoutingIntel)
-  for (const [tid, roster] of Object.entries(fr.rosters || {})) {
-    if (!roster.includes(p)) continue;
-    if (Number(tid) === myId) continue;
-    const intel = fr.scoutingIntel?.[tid];
-    if (intel && intel.season === season) {
-      practiceBand = intel.intensity === "live" ? 6 : 7;
-      bands.push(practiceBand);
+
+  // Joint practice — per-player flag (set in _jpRunPractice). Standard
+  // JP stamps only starters; Live Pads stamps full roster. Window: this
+  // season only (one practice snapshot doesn't carry forward).
+  if (p._jpScoutedSeason === season) {
+    practiceBand = p._jpScoutedIntensity === "live" ? 6 : 7;
+    bands.push(practiceBand);
+  } else {
+    // Legacy fallback — pre-stamping saves only have team-level
+    // scoutingIntel. Apply uniformly (team-wide) so we don't stealth-
+    // nerf those saves.
+    for (const [tid, roster] of Object.entries(fr.rosters || {})) {
+      if (!roster.includes(p)) continue;
+      if (Number(tid) === myId) break;
+      const intel = fr.scoutingIntel?.[tid];
+      if (intel && intel.season === season) {
+        practiceBand = intel.intensity === "live" ? 6 : 7;
+        bands.push(practiceBand);
+      }
+      break;
     }
-    break;
   }
+
   // Unscouted prospect baseline (combine grade only)
   if (p.isProspect && !bands.length) bands.push(5);
 
   if (!bands.length) return 8;
 
-  // Best individual band wins. If user has BOTH practice and game tape,
-  // stack: -2 for Live Pads, -1 for Standard JP. Floor at 1.
+  // Best individual band wins. Practice + game tape stacks: -2 for
+  // Live Pads, -1 for Standard JP. Floored at 1.
   let best = Math.min(...bands);
   if (practiceBand != null && hasGameTape) {
     const stackBonus = practiceBand === 6 ? 2 : 1;
@@ -879,6 +919,27 @@ function _playerNoiseBand(p) {
 function _isPlayerScouted(p) {
   // Backward-compat: returns true for any sharpened read (band ≤ 5).
   return _playerNoiseBand(p) <= 5;
+}
+
+// Did this player have a meaningful in-game role? Used to gate game-
+// based scouting flags so a 3rd-string backup who took 4 snaps in a
+// blowout doesn't get the same scout sharpening as the starting QB.
+// Stats blob shape comes from _stripGameStatsForStorage (per-player
+// per-game lines). Position-aware thresholds — what counts as "major"
+// differs across positions.
+function _wasMajorRole(p) {
+  if (!p) return false;
+  const pos = p.pos;
+  if (pos === "QB") return (p.pass_att || 0) >= 12;
+  if (pos === "RB") return (p.rush_att || 0) >= 6 || (p.rec || 0) >= 3;
+  if (pos === "WR" || pos === "TE") return (p.rec_tgt || 0) >= 3 || (p.rec || 0) >= 2;
+  if (pos === "OL") return ((p.pancakes || 0) + (p.sacks_allowed || 0)) >= 3 || (p.snaps || 0) >= 20;
+  if (pos === "DL" || pos === "LB" || pos === "CB" || pos === "S") {
+    return (p.tkl || 0) >= 3 || (p.sk || 0) > 0 || (p.int_made || 0) > 0
+      || (p.pd || 0) >= 2 || (p.ff || 0) > 0;
+  }
+  if (pos === "K" || pos === "P") return true; // specialists always full role
+  return false;
 }
 
 // ── Workout system ────────────────────────────────────────────────────────────
