@@ -3263,6 +3263,13 @@ function showFrnAwards() {
   const existingIdx = franchise.history.findIndex(h => h.season === franchise.season);
   const existing = existingIdx >= 0 ? franchise.history[existingIdx] : null;
   const isStale = existing && (existing.opoy === undefined || existing.allPros === undefined);
+  // One-time migration: existing saves where _stampSeasonAccolades ran
+  // before _rollSeasonStatsToCareer have a placeholder row
+  // ({ teamId: null, teamName: "—" }) for the current season with
+  // accolades but no stats. Roll the season's stats now — the merge
+  // path inside _rollSeasonStatsToCareer overwrites the placeholder
+  // with real data, preserving the accolades on the same row.
+  _rollSeasonStatsToCareer();
   if (champId && (!existing || isStale)) {
     // Tick coach records + tenure first (only on first entry — never on stale-refresh)
     if (!existing) {
@@ -3334,6 +3341,9 @@ function showFrnAwards() {
     }
 
     // Stamp accolades onto live players' careerHistory so trophy counters update.
+    // (_rollSeasonStatsToCareer already ran at the top of showFrnAwards — it
+    // populates / merges the current-season row so accolades attach to real
+    // stats, not a teamId-null placeholder.)
     _stampSeasonAccolades({
       leagueMVP, superBowlMVP: sbMVP, opoy, dpoy, roy, comeback, breakout, allPros,
     });
@@ -9074,9 +9084,10 @@ function _draftFinalize() {
 }
 
 // Roll this season's per-game-aggregated stats into each player's
-// career totals + season-by-season log. Called once at end-of-season,
-// before seasonStats is wiped.
+// career totals + season-by-season log. Idempotent — safe to call
+// multiple times within a season; second call is a no-op.
 function _rollSeasonStatsToCareer() {
+  if (franchise._statsRolledForSeason === franchise.season) return;
   const ss = franchise.seasonStats || {};
   for (const [tIdStr, players] of Object.entries(ss)) {
     const teamId = Number(tIdStr);
@@ -9099,16 +9110,32 @@ function _rollSeasonStatsToCareer() {
           player.careerStats[k] = (player.careerStats[k] || 0) + v;
         }
       }
-      // Snapshot this season as a row
-      const yearRow = { season: franchise.season, teamId, teamName, overall: player.overall,
-                        ovr: player.overall, age: player.age };
-      for (const [k, v] of Object.entries(st)) {
-        if (typeof v === "number" || k === "pos") yearRow[k] = v;
+      // Snapshot this season as a row. If a placeholder row already
+      // exists for this season (e.g. _stampSeasonAccolades pre-empted
+      // us in an older code path or a re-render), merge the real stats
+      // into it instead of pushing a duplicate. Otherwise push fresh.
+      const existing = player.careerHistory.find(h => h.season === franchise.season);
+      if (existing) {
+        existing.teamId = teamId;
+        existing.teamName = teamName;
+        existing.overall = player.overall;
+        existing.ovr = player.overall;
+        existing.age = player.age;
+        for (const [k, v] of Object.entries(st)) {
+          if (typeof v === "number" || k === "pos") existing[k] = v;
+        }
+      } else {
+        const yearRow = { season: franchise.season, teamId, teamName, overall: player.overall,
+                          ovr: player.overall, age: player.age };
+        for (const [k, v] of Object.entries(st)) {
+          if (typeof v === "number" || k === "pos") yearRow[k] = v;
+        }
+        player.careerHistory.push(yearRow);
+        if (player.careerHistory.length > 20) player.careerHistory = player.careerHistory.slice(-20);
       }
-      player.careerHistory.push(yearRow);
-      if (player.careerHistory.length > 20) player.careerHistory = player.careerHistory.slice(-20);
     }
   }
+  franchise._statsRolledForSeason = franchise.season;
 }
 
 // ── Abandon franchise ─────────────────────────────────────────────────────────
