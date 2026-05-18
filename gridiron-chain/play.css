@@ -2993,6 +2993,240 @@
     flex: 1; justify-content: space-around;
   }
   /* Connector lines between rounds — pure CSS borders pointing right. */
+  /* ── New playoff layout: bracket tree + current game hub + others ─────── */
+  .frn-bracket-tree {
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    gap: 1rem; padding: .5rem .25rem;
+    background: var(--blbg2); border: 1px solid var(--blborder);
+    border-radius: 4px; position: relative;
+  }
+  @media (max-width: 900px) { .frn-bracket-tree { grid-template-columns: 1fr; gap: .5rem; } }
+  .frn-bt-col {
+    display: flex; flex-direction: column;
+    justify-content: space-around;
+    min-height: 320px; gap: .5rem;
+  }
+  .frn-bt-col-head {
+    display: flex; align-items: baseline; gap: .35rem;
+    padding: .25rem .4rem .35rem;
+    border-bottom: 1px dashed var(--blborder);
+    margin-bottom: .15rem;
+  }
+  .frn-bt-col-head .num {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    color: var(--blgray); font-size: .85rem; line-height: 1;
+  }
+  .frn-bt-col-head .lbl {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    color: var(--blwhite); font-size: .82rem; letter-spacing: 1.5px; font-weight: 700;
+  }
+  .frn-bt-col-head .now {
+    margin-left: auto; background: var(--blgold); color: #000;
+    font-size: .5rem; font-weight: 900; letter-spacing: 1px;
+    padding: .08rem .35rem; border-radius: 2px;
+    animation: frn-bt-pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes frn-bt-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(212,175,55,.5); }
+    50%      { box-shadow: 0 0 0 4px rgba(212,175,55,0); }
+  }
+  .frn-bt-col.current { background: rgba(212,175,55,.04); border-radius: 3px; }
+  .frn-bt-col-cards {
+    display: flex; flex-direction: column;
+    justify-content: space-around; flex: 1; gap: .5rem;
+  }
+  .frn-bt-pair {
+    display: flex; flex-direction: column; gap: .25rem;
+    position: relative;
+  }
+  /* Connector lines from each pair into the next column's parent card */
+  .frn-bt-col:not(:last-child) .frn-bt-pair::after {
+    content: ""; position: absolute;
+    right: -.7rem; top: 50%; width: .7rem; height: 0;
+    border-top: 1px dashed var(--blborder);
+  }
+  .frn-bt-card {
+    background: var(--blbg3); border: 1px solid var(--blborder);
+    border-radius: 3px; padding: .35rem .45rem;
+    display: flex; flex-direction: column; gap: .12rem;
+    transition: all .15s ease;
+  }
+  .frn-bt-card.played { background: var(--blbg2); }
+  .frn-bt-card.current { border-color: var(--blgold); box-shadow: 0 0 0 1px var(--blgold) inset; }
+  .frn-bt-card.user-path { border-color: var(--blgold); background: rgba(212,175,55,.06); }
+  .frn-bt-card.user-path.played { background: rgba(212,175,55,.10); }
+  .frn-bt-card.champion {
+    background: linear-gradient(135deg, rgba(212,175,55,.20), rgba(212,175,55,.05));
+    border-color: var(--blgold); box-shadow: 0 0 0 1px var(--blgold), 0 0 12px rgba(212,175,55,.3);
+  }
+  .frn-bt-card[role="button"] { cursor: pointer; }
+  .frn-bt-card[role="button"]:hover { transform: translateY(-1px); border-color: var(--blgold); }
+  .frn-bt-tag {
+    font-size: .48rem; color: var(--blgray); letter-spacing: .5px;
+    font-weight: 700; margin-bottom: .15rem; text-transform: uppercase;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .frn-bt-team {
+    display: grid; grid-template-columns: 1.3rem 1fr 1.6rem;
+    align-items: baseline; gap: .35rem;
+    font-size: .68rem; padding: .08rem 0;
+    border-left: 2px solid var(--team-color, transparent);
+    padding-left: .3rem;
+  }
+  .frn-bt-team.empty { opacity: .35; }
+  .frn-bt-team .seed { color: var(--blgray); font-size: .56rem; font-weight: 700; text-align: center; }
+  .frn-bt-team .name { color: var(--team-color, var(--blwhite)); font-weight: 800; }
+  .frn-bt-team .score {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    text-align: right; color: var(--blwhite); font-weight: 700;
+  }
+  .frn-bt-team.win .name { color: var(--blgold); }
+  .frn-bt-team.win .score { color: var(--blgold); font-weight: 800; }
+  .frn-bt-team.loss { opacity: .5; }
+  .frn-bt-team.loss .score { text-decoration: line-through; }
+  .frn-bt-team.mine .name { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 2px; }
+  .frn-bt-proj { font-size: .54rem; color: var(--blgray); font-style: italic; padding-left: .35rem; }
+
+  /* ── Current Game Hub ──────────────────────────────────────────────── */
+  .frn-playoff-hub {
+    background: var(--blbg2); border: 1px solid var(--blborder);
+    border-radius: 4px; padding: 1rem 1.2rem;
+    display: flex; flex-direction: column; align-items: center; gap: .35rem;
+    text-align: center;
+  }
+  .frn-playoff-hub.featured  { border-color: var(--blgold); border-left-width: 4px; }
+  .frn-playoff-hub.advance   { background: linear-gradient(135deg, rgba(212,175,55,.10), var(--blbg2)); border-color: var(--blgold); }
+  .frn-playoff-hub.spectate  { border-style: dashed; }
+  .frn-playoff-hub-eyebrow {
+    font-size: .58rem; letter-spacing: 2.5px; color: var(--blgold);
+    font-weight: 700;
+  }
+  .frn-playoff-hub-title {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1.4rem; letter-spacing: 1.5px; color: var(--blwhite);
+  }
+  .frn-playoff-hub-sub { font-size: .68rem; color: var(--blgray); }
+  .frn-playoff-hub-tag {
+    font-size: .6rem; color: var(--blgray); letter-spacing: .5px;
+    padding: .2rem .5rem; background: rgba(0,0,0,.3); border-radius: 2px;
+  }
+  .frn-playoff-feat-matchup {
+    display: grid; grid-template-columns: 1fr auto 1fr; gap: 1rem;
+    align-items: center; width: 100%; max-width: 580px;
+    padding: .5rem 0;
+  }
+  .frn-playoff-feat-side {
+    display: flex; flex-direction: column; align-items: center; gap: .15rem;
+    padding: .5rem; border: 1px solid var(--blborder); border-radius: 3px;
+    border-top: 3px solid var(--team-color, var(--blgold));
+    background: var(--blbg3);
+  }
+  .frn-playoff-feat-side.mine { box-shadow: 0 0 0 2px var(--blgold); }
+  .frn-playoff-feat-seed {
+    font-size: .58rem; color: var(--blgray); letter-spacing: 1px; font-weight: 800;
+  }
+  .frn-playoff-feat-ascii { font-size: .9rem; color: var(--team-color, var(--blgold)); }
+  .frn-playoff-feat-name {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: .78rem; letter-spacing: .8px; color: var(--blwhite);
+    line-height: 1.15;
+  }
+  .frn-playoff-feat-rec {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    font-size: .68rem; color: var(--blgray);
+  }
+  .frn-playoff-feat-vs {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1.3rem; color: var(--blgold); letter-spacing: 1.5px;
+  }
+  .frn-playoff-feat-vs .atstad {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    font-size: .5rem; color: var(--blgray); letter-spacing: .8px; margin-top: .15rem;
+  }
+  .frn-playoff-feat-actions { display: flex; gap: .55rem; padding-top: .25rem; }
+  .frn-playoff-hub-cta {
+    background: var(--blgold); color: #000; border: 0;
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1rem; letter-spacing: 1.3px; font-weight: 900;
+    padding: .55rem 1.4rem; cursor: pointer; border-radius: 3px;
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .frn-playoff-hub-cta:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(212,175,55,.35); }
+  .frn-playoff-hub-cta.secondary {
+    background: transparent; color: var(--blgold);
+    border: 1px solid var(--blgold);
+  }
+  .frn-playoff-hub-cta:disabled {
+    opacity: .35; cursor: not-allowed;
+  }
+  .frn-playoff-hub.advance .frn-playoff-hub-cta {
+    font-size: 1.4rem; padding: .85rem 2rem; letter-spacing: 2px;
+    box-shadow: 0 4px 14px rgba(212,175,55,.25);
+  }
+  .frn-playoff-pregame-toggle {
+    background: transparent; border: 1px dashed var(--blborder);
+    color: var(--blgray); padding: .35rem .8rem; cursor: pointer;
+    font-family: inherit; font-size: .65rem; letter-spacing: .3px;
+    margin-top: .5rem; transition: all .12s ease;
+  }
+  .frn-playoff-pregame-toggle:hover { color: var(--blgold); border-color: var(--blgold); }
+  .frn-playoff-pregame-toggle.collapsed { width: 100%; max-width: 580px; }
+  .frn-playoff-pregame-wrap { width: 100%; margin-top: .55rem; }
+
+  /* ── Other current-round matchups (compact strip) ───────────────────── */
+  .frn-pl-otherwrap {
+    background: var(--blbg2); border: 1px solid var(--blborder);
+    border-radius: 4px; padding: .65rem .85rem;
+  }
+  .frn-pl-otherlbl {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: .75rem; letter-spacing: 1.2px; color: var(--blgold);
+    margin-bottom: .45rem;
+  }
+  .frn-pl-othergrid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: .45rem;
+  }
+  .frn-pl-otherchip {
+    background: var(--blbg3); border: 1px solid var(--blborder);
+    border-radius: 3px; padding: .35rem .45rem;
+    display: flex; flex-direction: column; gap: .15rem;
+  }
+  .frn-pl-otherchip.played { opacity: .85; }
+  .frn-pl-otherchip-team {
+    display: grid; grid-template-columns: 1.3rem 1fr auto;
+    gap: .35rem; align-items: baseline;
+    border-left: 2px solid var(--team-color, transparent);
+    padding-left: .3rem; font-size: .68rem;
+  }
+  .frn-pl-otherchip-team .seed { color: var(--blgray); font-size: .55rem; font-weight: 700; }
+  .frn-pl-otherchip-team .abbr { color: var(--team-color); font-weight: 800; }
+  .frn-pl-otherchip-team .score {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    color: var(--blwhite); font-weight: 700;
+  }
+  .frn-pl-otherchip-team.win .abbr { color: var(--blgold); }
+  .frn-pl-otherchip-team.win .score { color: var(--blgold); }
+  .frn-pl-otherchip-team.loss { opacity: .55; }
+  .frn-pl-otherchip-team.loss .score { text-decoration: line-through; }
+  .frn-pl-otherchip-sim, .frn-pl-otherchip-box {
+    background: transparent; border: 1px solid var(--blborder);
+    color: var(--blgray); font-family: inherit; font-size: .55rem;
+    padding: .12rem .4rem; cursor: pointer; margin-top: .2rem;
+    align-self: flex-end; letter-spacing: .4px;
+  }
+  .frn-pl-otherchip-sim:hover, .frn-pl-otherchip-box:hover {
+    color: var(--blgold); border-color: var(--blgold);
+  }
+
+  /* ── Bottom grid: your-run rail + other matchups ───────────────────── */
+  .frn-pl-bottom-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; align-items: start;
+  }
+  @media (max-width: 900px) { .frn-pl-bottom-grid { grid-template-columns: 1fr; } }
+  .frn-pl-bottom-side, .frn-pl-bottom-main { min-width: 0; }
+  .frn-pl-bottom-grid > :only-child { grid-column: 1 / -1; }
+
   .bspnlive-bracket-col:not(:last-child) .bspnlive-bracket-card::after {
     content: ""; position: absolute; right: -1.4rem; top: 50%;
     width: 1.4rem; height: 2px; background: var(--blborder);

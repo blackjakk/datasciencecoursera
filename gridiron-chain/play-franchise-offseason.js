@@ -2213,6 +2213,282 @@ function _playoffMatchupTag(m, seeds) {
   return `⚔ #${Math.min(hSeed, aSeed)} vs #${Math.max(hSeed, aSeed)} — toss-up`;
 }
 
+// ── Bracket tree (full visual tournament tree) ──────────────────────────────
+// Renders the entire 8-team bracket as a 3-column tree. Each column is one
+// round; pairs of feeder matchups visually align with their parent slot in
+// the next column. Played games show scores, future slots show "TBD" or
+// "Winner of X / Y". User's path glows gold across the tree.
+function _renderBracketTree() {
+  const pb = franchise.playoffBracket;
+  if (!pb) return "";
+  const { seeds, rounds, roundIdx, champion } = pb;
+  const myId = franchise.chosenTeamId;
+  const seedOf = id => seeds.find(s => s.teamId === id)?.seed;
+
+  const isUserPath = (m) => {
+    if (!m) return false;
+    if (m.homeId === myId || m.awayId === myId) return true;
+    if (m.winnerId === myId) return true;
+    return false;
+  };
+
+  // Single-team row inside a bracket-tree card
+  const teamRow = (teamId, score, isWinner, isLoser) => {
+    if (teamId == null) {
+      return `<div class="frn-bt-team empty">
+        <span class="seed"></span>
+        <span class="name">—</span>
+        <span class="score"></span>
+      </div>`;
+    }
+    const t = getTeam(teamId);
+    const seed = seedOf(teamId);
+    const isMine = teamId === myId;
+    return `<div class="frn-bt-team ${isWinner?"win":""} ${isLoser?"loss":""} ${isMine?"mine":""}" style="--team-color:${t.primary}">
+      <span class="seed">${seed||"?"}</span>
+      <span class="name">${t.abbr || t.name.slice(0,3).toUpperCase()}</span>
+      <span class="score">${score != null ? score : ""}</span>
+    </div>`;
+  };
+
+  // Look up which teams could fill a future slot by walking the feeder
+  // matchups in the previous round.
+  const projectedTeamsForFuture = (ri, mi) => {
+    if (ri === 0) return [null, null];
+    const feederA = rounds[ri-1]?.[mi * 2];
+    const feederB = rounds[ri-1]?.[mi * 2 + 1];
+    const idA = feederA?.winnerId
+      ?? (feederA?.homeId && feederA?.awayId ? null : null);
+    const idB = feederB?.winnerId
+      ?? (feederB?.homeId && feederB?.awayId ? null : null);
+    return [idA, idB];
+  };
+
+  const matchupCardLite = (m, ri, mi) => {
+    const played = m && m.winnerId != null;
+    const isCurrent = ri === roundIdx && !played;
+    const onUserPath = m && isUserPath(m);
+    const tag = (ri === roundIdx && m && m.homeId && m.awayId && !played)
+      ? `<div class="frn-bt-tag">${_playoffMatchupTag(m, seeds).replace(/^(.. )/,"")}</div>`
+      : "";
+    // Build the two team rows. For unplayed future slots, project from feeders.
+    let homeId = m?.homeId, awayId = m?.awayId;
+    let homeScore = m?.homeScore, awayScore = m?.awayScore;
+    let projectedLine = "";
+    if (!played && (!homeId || !awayId)) {
+      // Future round — project from feeders
+      const [pHome, pAway] = projectedTeamsForFuture(ri, mi);
+      homeId = pHome; awayId = pAway;
+      // If either side has multiple candidates, show "TBD"
+      const feederA = rounds[ri-1]?.[mi * 2];
+      const feederB = rounds[ri-1]?.[mi * 2 + 1];
+      if (!homeId && feederA?.homeId && feederA?.awayId) {
+        const hA = getTeam(feederA.homeId), aA = getTeam(feederA.awayId);
+        projectedLine += `<div class="frn-bt-proj">Winner: ${hA?.abbr||"?"} / ${aA?.abbr||"?"}</div>`;
+      }
+      if (!awayId && feederB?.homeId && feederB?.awayId) {
+        const hB = getTeam(feederB.homeId), aB = getTeam(feederB.awayId);
+        projectedLine += `<div class="frn-bt-proj">Winner: ${hB?.abbr||"?"} / ${aB?.abbr||"?"}</div>`;
+      }
+    }
+    const hWin = played && m.winnerId === homeId;
+    const aWin = played && m.winnerId === awayId;
+    const classes = [
+      "frn-bt-card",
+      played ? "played" : "",
+      isCurrent ? "current" : "",
+      onUserPath ? "user-path" : "",
+      champion && played && m.winnerId === champion && ri === rounds.length - 1 ? "champion" : "",
+    ].filter(Boolean).join(" ");
+    const clickable = played
+      ? `onclick="frnOpenPlayoffBox(${ri}, ${mi})" role="button" tabindex="0"`
+      : "";
+    return `<div class="${classes}" ${clickable}>
+      ${tag}
+      ${teamRow(homeId, homeScore, hWin, played && !hWin)}
+      ${teamRow(awayId, awayScore, aWin, played && !aWin)}
+      ${projectedLine}
+    </div>`;
+  };
+
+  const roundLabels = ["WILD CARD", "DIVISIONAL", "CHAMPIONSHIP"];
+  // Render each round column. Pairs of feeders share a "pair-wrap" so we
+  // can visually group them (pseudo-element connectors line them up to
+  // the next column's parent slot).
+  const renderColumn = (ri) => {
+    const round = rounds[ri] || [];
+    const cards = [];
+    // Pair them up: matchups 2k and 2k+1 feed into matchup k of next round.
+    for (let mi = 0; mi < round.length; mi += 2) {
+      const pair = round.slice(mi, mi + 2);
+      cards.push(`<div class="frn-bt-pair">
+        ${pair.map((m, j) => matchupCardLite(m, ri, mi + j)).join("")}
+      </div>`);
+    }
+    const isCurrentRound = ri === roundIdx && !champion;
+    return `<div class="frn-bt-col ${isCurrentRound?"current":""}">
+      <div class="frn-bt-col-head">
+        <span class="num">${ri+1}</span>
+        <span class="lbl">${roundLabels[ri] || `ROUND ${ri+1}`}</span>
+        ${isCurrentRound ? `<span class="now">NOW</span>` : ""}
+      </div>
+      <div class="frn-bt-col-cards">${cards.join("")}</div>
+    </div>`;
+  };
+
+  return `<div class="frn-bracket-tree">
+    ${rounds.map((_, ri) => renderColumn(ri)).join("")}
+  </div>`;
+}
+
+// Module state — pregame breakdown is collapsed by default in the new
+// playoff layout so the bracket stays the visual centerpiece.
+let _frnPlayoffPregameExpanded = false;
+function _frnTogglePlayoffPregame() {
+  _frnPlayoffPregameExpanded = !_frnPlayoffPregameExpanded;
+  renderFrnPlayoffs();
+}
+
+// ── Current game hub ─────────────────────────────────────────────────────────
+// The "what you're doing this round" workspace. Three modes:
+//   1. User's matchup unplayed → featured card + collapsible pregame
+//   2. User played but round not done → progress + sim-remaining CTA
+//   3. Round complete → big advance/crown ceremony block
+function _renderCurrentGameHub(currentRound) {
+  const pb = franchise.playoffBracket;
+  if (!pb || pb.champion) return "";
+  const myId = franchise.chosenTeamId;
+  const roundNames = ["WILD CARD", "DIVISIONAL", "CHAMPIONSHIP"];
+  const roundIdx = pb.roundIdx;
+  const userStatus = _userPlayoffStatus();
+
+  const userMatchup = currentRound?.find(m =>
+    m.homeId === myId || m.awayId === myId);
+  const allRoundDone = currentRound && currentRound.every(m => m.winnerId != null);
+  const pending = currentRound ? currentRound.filter(m => !m.winnerId && m.homeId && m.awayId) : [];
+
+  // ── Mode 3: Round complete → advance ceremony ────────────────────────
+  if (allRoundDone) {
+    const isFinalRound = roundIdx >= pb.rounds.length - 1;
+    const nextLabel = isFinalRound ? "Crown Champion" : `Advance to ${roundNames[roundIdx + 1] || "Next Round"}`;
+    const subText = isFinalRound
+      ? "The trophy is one click away."
+      : "All games are final — the next round is set.";
+    return `<div class="frn-playoff-hub advance">
+      <div class="frn-playoff-hub-eyebrow">${roundNames[roundIdx]} COMPLETE</div>
+      <div class="frn-playoff-hub-title">${nextLabel}</div>
+      <div class="frn-playoff-hub-sub">${subText}</div>
+      <button class="frn-playoff-hub-cta" onclick="frnConfirmAdvancePlayoffRound()">
+        ${isFinalRound ? "🌟 CROWN CHAMPION" : "▶ ADVANCE ROUND"}
+      </button>
+    </div>`;
+  }
+
+  // ── Mode 2: User eliminated OR not in playoffs but round pending ──
+  if (!userMatchup) {
+    const playedCount = currentRound.filter(m => m.winnerId != null).length;
+    const totalInRound = currentRound.length;
+    const eliminated = userStatus.eliminatedRound != null;
+    const elimText = eliminated
+      ? `Your run ended in ${roundNames[userStatus.eliminatedRound] || "an earlier round"}.`
+      : `Watching from the couch this postseason.`;
+    return `<div class="frn-playoff-hub spectate">
+      <div class="frn-playoff-hub-eyebrow">${roundNames[roundIdx]} — IN PROGRESS</div>
+      <div class="frn-playoff-hub-title">${playedCount} of ${totalInRound} games played</div>
+      <div class="frn-playoff-hub-sub">${elimText}</div>
+      <button class="frn-playoff-hub-cta" onclick="frnSimPlayoffRound()" ${pending.length===0?'disabled':''}>
+        ⏩ SIM ${pending.length} REMAINING
+      </button>
+    </div>`;
+  }
+
+  // ── Mode 1: User has unplayed matchup → featured + pregame ───────────
+  const m = userMatchup;
+  const mi = currentRound.indexOf(m);
+  const home = getTeam(m.homeId), away = getTeam(m.awayId);
+  const homeSeed = pb.seeds.find(s => s.teamId === m.homeId)?.seed;
+  const awaySeed = pb.seeds.find(s => s.teamId === m.awayId)?.seed;
+  const isHome = m.homeId === myId;
+  const oppId = isHome ? m.awayId : m.homeId;
+  const opp = getTeam(oppId);
+  const tag = _playoffMatchupTag(m, pb.seeds);
+  const homeStand = franchise.standings?.[m.homeId] || { w:0, l:0 };
+  const awayStand = franchise.standings?.[m.awayId] || { w:0, l:0 };
+
+  const sideHtml = (team, seed, stand, isMine) => `
+    <div class="frn-playoff-feat-side ${isMine?"mine":""}" style="--team-color:${team.primary}">
+      <div class="frn-playoff-feat-seed">#${seed||"?"}</div>
+      <div class="frn-playoff-feat-ascii">${typeof teamAscii==="function"?teamAscii(team):"🏈"}</div>
+      <div class="frn-playoff-feat-name">${team.city}<br><b>${team.name.toUpperCase()}</b></div>
+      <div class="frn-playoff-feat-rec">${stand.w}-${stand.l}${stand.t?`-${stand.t}`:""}</div>
+    </div>`;
+
+  // Collapsed pregame preview = single button. Expanded = call existing fn.
+  const pregameHtml = _frnPlayoffPregameExpanded
+    ? `<div class="frn-playoff-pregame-wrap">
+        ${_renderPregamePreview(m, pb.seeds)}
+        <button class="frn-playoff-pregame-toggle" onclick="_frnTogglePlayoffPregame()">▴ Hide pregame breakdown</button>
+      </div>`
+    : `<button class="frn-playoff-pregame-toggle collapsed" onclick="_frnTogglePlayoffPregame()">
+        ▾ Show pregame breakdown <span style="color:var(--blgray);font-weight:400">· head-to-head · recent form · team film</span>
+      </button>`;
+
+  return `<div class="frn-playoff-hub featured">
+    <div class="frn-playoff-hub-eyebrow">${roundNames[roundIdx]} · YOUR MATCHUP</div>
+    ${tag ? `<div class="frn-playoff-hub-tag">${tag}</div>` : ""}
+    <div class="frn-playoff-feat-matchup">
+      ${sideHtml(home, homeSeed, homeStand, isHome)}
+      <div class="frn-playoff-feat-vs">${isHome ? "vs" : "@"}<div class="atstad">AT ${home.city.toUpperCase()}</div></div>
+      ${sideHtml(away, awaySeed, awayStand, !isHome)}
+    </div>
+    <div class="frn-playoff-feat-actions">
+      <button class="frn-playoff-hub-cta primary" onclick="frnPlayGame(${m.homeId},${m.awayId},true)">▶ PLAY GAME</button>
+      <button class="frn-playoff-hub-cta secondary" onclick="frnSimPlayoffGame(${m.homeId},${m.awayId})">⏩ SIM</button>
+    </div>
+    ${pregameHtml}
+  </div>`;
+}
+
+// ── Other current-round matchups — compact horizontal strip ──────────────────
+function _renderOtherMatchups(currentRound) {
+  const pb = franchise.playoffBracket;
+  if (!pb || pb.champion) return "";
+  const myId = franchise.chosenTeamId;
+  const roundIdx = pb.roundIdx;
+  const others = currentRound.filter(m =>
+    m.homeId !== myId && m.awayId !== myId);
+  if (!others.length) return "";
+  const mkChip = (m) => {
+    const mi = currentRound.indexOf(m);
+    const home = getTeam(m.homeId), away = getTeam(m.awayId);
+    const hSeed = pb.seeds.find(s => s.teamId === m.homeId)?.seed || "?";
+    const aSeed = pb.seeds.find(s => s.teamId === m.awayId)?.seed || "?";
+    const played = m.winnerId != null;
+    const hWin = played && m.winnerId === m.homeId;
+    const aWin = played && m.winnerId === m.awayId;
+    const actions = !played
+      ? `<button class="frn-pl-otherchip-sim" onclick="frnSimPlayoffGame(${m.homeId},${m.awayId})">⏩ Sim</button>`
+      : `<button class="frn-pl-otherchip-box" onclick="frnOpenPlayoffBox(${roundIdx},${mi})">📋 Box</button>`;
+    return `<div class="frn-pl-otherchip ${played?"played":""}">
+      <div class="frn-pl-otherchip-team ${hWin?"win":""} ${played&&!hWin?"loss":""}" style="--team-color:${home.primary}">
+        <span class="seed">${hSeed}</span>
+        <span class="abbr">${home.abbr || home.name.slice(0,3).toUpperCase()}</span>
+        <span class="score">${m.homeScore != null ? m.homeScore : "—"}</span>
+      </div>
+      <div class="frn-pl-otherchip-team ${aWin?"win":""} ${played&&!aWin?"loss":""}" style="--team-color:${away.primary}">
+        <span class="seed">${aSeed}</span>
+        <span class="abbr">${away.abbr || away.name.slice(0,3).toUpperCase()}</span>
+        <span class="score">${m.awayScore != null ? m.awayScore : "—"}</span>
+      </div>
+      ${actions}
+    </div>`;
+  };
+  return `<div class="frn-pl-otherwrap">
+    <div class="frn-pl-otherlbl">OTHER ${["WILD CARD","DIVISIONAL","CHAMPIONSHIP"][roundIdx] || ""} MATCHUPS</div>
+    <div class="frn-pl-othergrid">${others.map(mkChip).join("")}</div>
+  </div>`;
+}
+
 // Did the user's team get eliminated, and if so in which round?
 function _userPlayoffStatus() {
   const myId = franchise.chosenTeamId;
@@ -2236,52 +2512,9 @@ function _userPlayoffStatus() {
 function renderFrnPlayoffs() {
   const { playoffBracket, chosenTeamId } = franchise;
   if (!playoffBracket) { startFrnPlayoffs(); return; }
-  const { seeds, rounds, roundIdx, champion } = playoffBracket;
-  const roundNames = ["WILD CARD", "DIVISIONAL", "CHAMPIONSHIP"];
-  const seedOf = id => seeds.find(s => s.teamId === id);
+  const { rounds, roundIdx, champion } = playoffBracket;
   const userStatus = _userPlayoffStatus();
-
-  const matchupCard = (m, ri, mi, opts = {}) => {
-    const featured = opts.featured;
-    if (!m.homeId || !m.awayId) {
-      return `<div class="bspnlive-bracket-card tbd${featured?" featured":""}">
-        <div style="color:var(--blgray);text-align:center;padding:.7rem;font-size:.72rem;letter-spacing:1px">TBD</div>
-      </div>`;
-    }
-    const home = getTeam(m.homeId), away = getTeam(m.awayId);
-    const homeSeed = seedOf(m.homeId), awaySeed = seedOf(m.awayId);
-    const isUser  = m.homeId === chosenTeamId || m.awayId === chosenTeamId;
-    const played  = m.winnerId != null;
-    const hw      = played && m.winnerId === m.homeId;
-    const aw      = played && m.winnerId === m.awayId;
-    const isCurrentRound = ri === roundIdx;
-    const showBtn = !played && isCurrentRound;
-    const tag = !played ? _playoffMatchupTag(m, seeds) : "";
-    const teamRow = (team, seed, isWinner, isLoser, score) => `
-      <div class="bspnlive-bracket-team ${isWinner?"win":""} ${isLoser?"loss":""}" style="--team-color:${team.primary}">
-        <span class="seed">${seed?.seed||"?"}</span>
-        <span class="abbr" style="color:${team.primary}">${team.abbr || team.name.slice(0,3).toUpperCase()}</span>
-        <span class="name">${team.city} ${team.name}</span>
-        ${played
-          ? `<span class="score ${isWinner?"win":"loss"}">${score}</span>`
-          : `<span class="score" style="color:var(--blgray)">—</span>`}
-      </div>`;
-    const actions = showBtn ? `
-      <div class="bspnlive-bracket-actions">
-        ${isUser ? `<button class="bspnlive-bracket-btn play" onclick="frnPlayGame(${m.homeId},${m.awayId},true)">▶ PLAY GAME</button>` : ""}
-        <button class="bspnlive-bracket-btn sim" onclick="frnSimPlayoffGame(${m.homeId},${m.awayId})">⏩ SIM</button>
-      </div>` : (played ? `
-      <div class="bspnlive-bracket-actions">
-        <button class="bspnlive-bracket-btn box" onclick="frnOpenPlayoffBox(${ri}, ${mi})">📋 BOX SCORE</button>
-      </div>` : `<div style="font-size:.6rem;color:var(--blgray);letter-spacing:.5px;padding:.15rem .25rem">Awaiting earlier round…</div>`);
-    return `<div class="bspnlive-bracket-card ${isUser?"user":""} ${played?"played":""} ${featured?"featured":""}">
-      ${featured ? `<div class="bspnlive-bracket-featured-tag">⭐ YOUR MATCHUP</div>` : ""}
-      ${tag ? `<div class="bspnlive-bracket-tag">${tag}</div>` : ""}
-      ${teamRow(home, homeSeed, hw, played && !hw, m.homeScore ?? "")}
-      ${teamRow(away, awaySeed, aw, played && !aw, m.awayScore ?? "")}
-      ${actions}
-    </div>`;
-  };
+  const currentRound = !champion && roundIdx < rounds.length ? rounds[roundIdx] : null;
 
   // ── Champion banner (if decided) ────────────────────────────────────────
   const championBanner = champion ? (() => {
@@ -2298,93 +2531,20 @@ function renderFrnPlayoffs() {
     </section>`;
   })() : "";
 
-  // ── Past rounds collapsed strip ─────────────────────────────────────────
-  const pastRoundsStrip = (() => {
-    if (roundIdx === 0 && !champion) return "";
-    const finishedRounds = champion ? rounds : rounds.slice(0, roundIdx);
-    if (!finishedRounds.length) return "";
-    return `<div class="bspnlive-bracket-past">
-      <div class="bspnlive-bracket-past-label">PRIOR ROUNDS</div>
-      <div class="bspnlive-bracket-past-grid">
-        ${finishedRounds.map((rd, ri) => `
-          <div class="bspnlive-bracket-past-col">
-            <div class="bspnlive-bracket-past-col-head">${roundNames[ri] || `Round ${ri+1}`}</div>
-            ${rd.map((m, mi) => {
-              if (!m.homeId || !m.awayId || m.winnerId == null) return "";
-              const winT = getTeam(m.winnerId);
-              const losT = getTeam(m.homeId === m.winnerId ? m.awayId : m.homeId);
-              const wScore = m.winnerId === m.homeId ? m.homeScore : m.awayScore;
-              const lScore = m.winnerId === m.homeId ? m.awayScore : m.homeScore;
-              return `<button class="bspnlive-bracket-past-row" onclick="frnOpenPlayoffBox(${ri}, ${mi})">
-                <span style="color:${winT?.primary};font-weight:700">${winT?.abbr || winT?.name?.slice(0,3).toUpperCase()}</span>
-                <span style="color:var(--blwhite)">${wScore}</span>
-                <span style="color:var(--blgray)">—</span>
-                <span style="color:var(--blgray);text-decoration:line-through">${lScore}</span>
-                <span style="color:var(--blgray)">${losT?.abbr || losT?.name?.slice(0,3).toUpperCase()}</span>
-              </button>`;
-            }).join("")}
-          </div>
-        `).join("")}
-      </div>
-    </div>`;
-  })();
+  // ── Header sub-bar (lean — main actions live in the hub now) ───────────
+  const headerSubBar = `<div style="padding:.55rem 1.4rem;border-bottom:1px solid var(--blborder);display:flex;gap:.55rem;flex-wrap:wrap;align-items:center">
+    <button class="bspn-back" onclick="showFranchiseDashboard()">‹ Return to Main Screen</button>
+    ${champion ? `<button class="bspn-back" onclick="showFrnAwards()" style="border-color:var(--blgold);color:var(--blgold)">🌟 Awards</button>` : ""}
+    <span style="color:var(--blgray);font-size:.7rem;letter-spacing:.5px;margin-left:.4rem">
+      ${champion ? "Postseason complete — review awards" : `Round ${roundIdx+1} of ${rounds.length}`}
+    </span>
+  </div>`;
 
-  // ── Current round body ──────────────────────────────────────────────────
-  const currentRound = !champion && roundIdx < rounds.length ? rounds[roundIdx] : null;
-  let currentRoundHtml = "";
-  if (currentRound) {
-    const userMatchup = currentRound.find(m =>
-      m.homeId === chosenTeamId || m.awayId === chosenTeamId);
-    const otherMatchups = currentRound.filter(m => m !== userMatchup);
-    const userIdx = userMatchup ? currentRound.indexOf(userMatchup) : -1;
-    const totalInRound = currentRound.length;
-    const playedCount = currentRound.filter(m => m.winnerId != null).length;
-    currentRoundHtml = `
-      <div class="bspnlive-bracket-current">
-        <div class="bspnlive-bracket-current-head">
-          <div class="bspnlive-bracket-current-title">${roundNames[roundIdx] || `ROUND ${roundIdx+1}`}</div>
-          <div class="bspnlive-bracket-current-progress">${playedCount}/${totalInRound} GAMES PLAYED</div>
-        </div>
-        ${userMatchup ? `
-          <div class="bspnlive-bracket-current-section">
-            ${userMatchup.winnerId == null ? _renderPregamePreview(userMatchup, seeds) : ""}
-            ${matchupCard(userMatchup, roundIdx, userIdx, { featured: true })}
-          </div>` : userStatus.eliminatedRound != null ? `
-          <div class="bspnlive-bracket-eliminated">
-            🚫 ELIMINATED — Your run ended in ${roundNames[userStatus.eliminatedRound] || "an earlier round"}.
-            ${(() => {
-              const elim = userStatus.eliminationMatch;
-              if (!elim) return "";
-              const us = elim.homeId === chosenTeamId ? elim.homeScore : elim.awayScore;
-              const them = elim.homeId === chosenTeamId ? elim.awayScore : elim.homeScore;
-              const oppId = elim.homeId === chosenTeamId ? elim.awayId : elim.homeId;
-              return ` Lost ${us}-${them} to ${getTeam(oppId)?.name}.`;
-            })()}
-          </div>` : ""}
-        <div class="bspnlive-bracket-current-section">
-          <div class="bspnlive-bracket-others-label">OTHER ${roundNames[roundIdx] || ""} MATCHUPS</div>
-          <div class="bspnlive-bracket-others-grid">
-            ${otherMatchups.map(m => matchupCard(m, roundIdx, currentRound.indexOf(m))).join("")}
-          </div>
-        </div>
-      </div>`;
-  }
-
-  // ── Header actions ──────────────────────────────────────────────────────
-  const roundPending = !!playoffBracket.roundPending;
-  const pending = currentRound ? currentRound.filter(m => !m.winnerId && m.homeId && m.awayId) : [];
-  const allRoundDone = currentRound && currentRound.every(m => m.winnerId != null);
-  const userPending = currentRound?.find(m =>
-    (m.homeId === chosenTeamId || m.awayId === chosenTeamId) && m.winnerId == null);
-  const advanceLabel = roundIdx >= rounds.length - 1
-    ? "🌟 Crown Champion"
-    : `➡ Advance to ${roundNames[roundIdx + 1] || "Next Round"}`;
-  const headerActions = champion
-    ? `<button class="bspn-back" onclick="showFrnAwards()" style="border-color:var(--blgold);color:var(--blgold)">🌟 Awards</button>`
-    : allRoundDone
-      ? `<button class="frn-cap-btn" onclick="frnConfirmAdvancePlayoffRound()" style="padding:.3rem 1rem;font-size:.75rem;letter-spacing:.8px">${advanceLabel}</button>`
-      : `<button class="bspn-back" onclick="frnSimPlayoffRound()" ${!pending.length ? "disabled style=\"opacity:.4;cursor:not-allowed\"" : ""}>⏩ Sim ${pending.length} remaining</button>
-         ${userPending ? `<span class="bspnlive-bracket-blocker">Play YOUR matchup first ⬇</span>` : ""}`;
+  // ── Your-run side rail (only when relevant) ────────────────────────────
+  const yourRunRail =
+    (userStatus.champion || userStatus.eliminatedRound != null) ? _renderYourRunRecap()
+    : (userStatus.inBracket && userStatus.eliminatedRound == null && !userStatus.champion) ? _renderRoadToChampionship()
+    : "";
 
   $("frnHomeContent").innerHTML = `
     <div class="bspnlive-root" style="margin:-1rem -1.5rem 0 -1.5rem;padding-bottom:1.2rem">
@@ -2395,19 +2555,18 @@ function renderFrnPlayoffs() {
         </div>
         <nav class="bspnlive-nav" style="flex-wrap:wrap;gap:.7rem .9rem">${_bspnNavHtml("PLAYOFFS")}</nav>
       </header>
-      <div style="padding:.55rem 1.4rem;border-bottom:1px solid var(--blborder);display:flex;gap:.55rem;flex-wrap:wrap;align-items:center">
-        <button class="bspn-back" onclick="showFranchiseDashboard()">‹ Return to Main Screen</button>
-        ${headerActions}
-        <span style="color:var(--blgray);font-size:.7rem;letter-spacing:.5px;margin-left:.4rem">
-          ${champion ? "Postseason complete — review awards" : `Round ${roundIdx+1} of ${rounds.length}`}
-        </span>
-      </div>
+      ${headerSubBar}
       ${championBanner}
-      <div style="padding:1rem 1.4rem">
-        ${(userStatus.champion || userStatus.eliminatedRound != null) ? _renderYourRunRecap() : ""}
-        ${(userStatus.inBracket && userStatus.eliminatedRound == null && !userStatus.champion) ? _renderRoadToChampionship() : ""}
-        ${pastRoundsStrip}
-        ${currentRoundHtml}
+      <div style="padding:1rem 1.4rem;display:flex;flex-direction:column;gap:1rem">
+        <!-- TOP: the bracket tree is the visual centerpiece -->
+        ${_renderBracketTree()}
+        <!-- MIDDLE: current game hub (featured matchup / advance ceremony / sim CTA) -->
+        ${_renderCurrentGameHub(currentRound)}
+        <!-- BOTTOM: your run + other matchups -->
+        <div class="frn-pl-bottom-grid">
+          ${yourRunRail ? `<div class="frn-pl-bottom-side">${yourRunRail}</div>` : ""}
+          ${currentRound ? `<div class="frn-pl-bottom-main">${_renderOtherMatchups(currentRound)}</div>` : ""}
+        </div>
       </div>
     </div>`;
 }
