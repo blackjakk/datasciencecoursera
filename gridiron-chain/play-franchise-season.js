@@ -44,9 +44,20 @@ function showFranchiseDashboard() {
   // systemYears < careerHistory length was acquired (FA / trade) and should
   // have prior-team seasons — if their whole history collapsed to a single
   // team, re-stamp them with the FA-seeded distribution.
-  if (!franchise._careerHistoryFaRepaired) {
-    try { _repairSignedFaCareerHistories(); } catch (e) { console.warn("[fa career repair]", e); }
-    franchise._careerHistoryFaRepaired = true;
+  // v2 flag: prior v1 repair had an off-by-one that overlaid the most-recent
+  // row with the user's team even for systemYears=0 FAs. Run again to fix.
+  if (!franchise._careerHistoryFaRepaired_v2) {
+    // Clear the per-player "already assigned" flag so the v2 repair gets a
+    // fresh pass at signed FAs the broken v1 pass already touched.
+    for (const roster of Object.values(franchise.rosters || {})) {
+      for (const p of roster) {
+        if (p._careerTeamsAssigned && (p.systemYears != null) && p.systemYears < (p.careerHistory?.length || 0)) {
+          delete p._careerTeamsAssigned;
+        }
+      }
+    }
+    try { _repairSignedFaCareerHistories(); } catch (e) { console.warn("[fa career repair v2]", e); }
+    franchise._careerHistoryFaRepaired_v2 = true;
   }
   if (!franchise.seasonHighlights) franchise.seasonHighlights = [];
   if (!franchise.history)          franchise.history = [];
@@ -1541,14 +1552,18 @@ function _repairSignedFaCareerHistories() {
       // Only collapse-bug pattern: every row shows the current team.
       if (ids.size === 1 && ids.has(teamId)) {
         _assignFACareerTeams(p);
-        // After the FA stamp, ensure the most recent `sysYrs + 1` rows
-        // show the current team (since they've been here that long).
-        const showHere = Math.min(hist.length, (sysYrs || 0) + 1);
-        const team = getTeam(teamId);
-        const teamName = team ? `${team.city} ${team.name}` : "?";
-        for (let i = hist.length - showHere; i < hist.length; i++) {
-          hist[i].teamId = teamId;
-          hist[i].teamName = teamName;
+        // Overlay the most recent `systemYears` rows with the current
+        // team — those are seasons actually played for us. systemYears=0
+        // (just signed, no season played yet) overlays nothing, so the
+        // last careerHistory row stays as the FA's previous team.
+        const showHere = Math.min(hist.length, sysYrs || 0);
+        if (showHere > 0) {
+          const team = getTeam(teamId);
+          const teamName = team ? `${team.city} ${team.name}` : "?";
+          for (let i = hist.length - showHere; i < hist.length; i++) {
+            hist[i].teamId = teamId;
+            hist[i].teamName = teamName;
+          }
         }
         repaired++;
       }
