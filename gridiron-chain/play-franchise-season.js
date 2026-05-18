@@ -1768,53 +1768,99 @@ function _rollGameInjuries(teamId) {
 // wire entries.
 const _YIPS_TRIGGER_CHANCE = 0.05;
 // Yips headline templates — inspired by real-NFL kicker/punter moments:
-// Cody Parkey's double doink, Scott Norwood "wide right", Cundiff's
-// 32-yarder, Roberto Aguayo's spiral, Vanderjagt's playoff shank,
-// Younghoe Koo's redemption arc.
+// Cody Parkey's double doink · Norwood's "wide right" · Cundiff's
+// 32-yarder · Aguayo's spiral · Vanderjagt's playoff shank · Younghoe
+// Koo's redemption · Mason Crosby's 5-miss game · Lawrence Tynes' OT
+// walkoffs · Justin Tucker's 66-yarder · Pat McAfee's personality
+// punter cult. Each is tagged with eligible position ("any"/"K"/"P")
+// so punters get punter-specific mishaps and kickers get kicker-specific.
 const _YIPS_ONSET_HEADLINES = [
-  "💀 {name} ({team}) shanks a 32-yarder wide left in practice — coaches alarmed",
-  "🏈 {name} suddenly can't keep it inside the uprights. ST coordinator 'looking into it.'",
-  "🪞 {name} 'stares at the ball too long now,' notes the holder. Holder visibly concerned.",
-  "📺 {name}'s warmup misses go viral. Team PR: 'He hasn't checked Twitter.' He has.",
-  "🥵 {name} can't kick warm. Or hot. Or after warm-up. Coach baffled.",
-  "📞 {name}'s mom calls the local sports radio: 'He's a good boy! He'll figure it out!'",
-  "🤯 {name} sprays a 25-yarder 15 yards wide right. Reporters thought it was a joke. It wasn't.",
-  "🎬 {name}'s last four in practice: two wide left, a doink, then somehow another doink.",
-  "📐 {name} now consults a protractor before each kick. Holder visibly tense.",
-  "🌧 {name}'s confidence officially declared 'an active weather event' by the locker room.",
-  "⛪ {name} seen praying in the tunnel pre-game. He hasn't done that before. New ritual.",
-  "📚 {name} brings a sports psychology book onto the sideline. Coaches keep their distance.",
+  { pos:"any", tpl:"💀 {name} ({team}) shanks a 32-yarder wide left in practice — coaches alarmed" },
+  { pos:"any", tpl:"🏈 {name} suddenly can't keep it inside the uprights. ST coordinator 'looking into it.'" },
+  { pos:"any", tpl:"🪞 {name} 'stares at the ball too long now,' notes the holder. Holder visibly concerned." },
+  { pos:"any", tpl:"📺 {name}'s warmup misses go viral. Team PR: 'He hasn't checked Twitter.' He has." },
+  { pos:"any", tpl:"🥵 {name} can't kick warm. Or hot. Or after warm-up. Coach baffled." },
+  { pos:"any", tpl:"📞 {name}'s mom calls the local sports radio: 'He's a good boy! He'll figure it out!'" },
+  { pos:"any", tpl:"🤯 {name} sprays a 25-yarder 15 yards wide right. Reporters thought it was a joke. It wasn't." },
+  { pos:"any", tpl:"🎬 {name}'s last four in practice: two wide left, a doink, then somehow another doink." },
+  { pos:"any", tpl:"📐 {name} now consults a protractor before each kick. Holder visibly tense." },
+  { pos:"any", tpl:"🌧 {name}'s confidence officially declared 'an active weather event' by the locker room." },
+  { pos:"any", tpl:"⛪ {name} seen praying in the tunnel pre-game. He hasn't done that before. New ritual." },
+  { pos:"any", tpl:"📚 {name} brings a sports psychology book onto the sideline. Coaches keep their distance." },
+  { pos:"any", tpl:"🛌 {name} 'hasn't slept this week,' confirms wife. {name} did not deny." },
+  { pos:"any", tpl:"🪲 {name} claims he can 'feel a spell' on him. Coach laughs uncomfortably." },
+  { pos:"any", tpl:"👻 {name} seeing 'haunted laces.' Equipment manager tries new ball. Same result." },
+  { pos:"any", tpl:"📰 BREAKING: {name} pulled aside by GM for a 'long talk.' Door closed for 47 minutes." },
+  { pos:"any", tpl:"🧊 {name} now icing both legs. He kicks with one. Just to be safe." },
+  { pos:"any", tpl:"🐕 {name}'s dog refuses to fetch his practice kicks. Even the dog knows." },
+  { pos:"any", tpl:"🔬 {name}'s mechanics under microscope — ST coordinator now diagramming on a whiteboard at 11 PM." },
+  { pos:"any", tpl:"📸 {name}'s {dist}-yard miss is the cover of the morning paper. Front page. Above the fold." },
+  { pos:"P",   tpl:"🥾 {name} punts 14 yards in walk-throughs. ST coordinator's smile is forced." },
+  { pos:"P",   tpl:"🌬 {name}'s coffin-corner attempts now coming out as flutter balls. Holder concerned. There's no holder." },
 ];
 const _YIPS_MISS_HEADLINES = [
-  "💀 DOUBLE DOINK: {name} ({team}) hits the upright, then the crossbar, then nothing. Game over.",
-  "🥶 WIDE LEFT from {dist} — {name}'s name now trending. Not the way he hoped.",
-  "🌪 {name} blames the wind. Game is indoor. Reporters note this. {name} maintains.",
-  "🪦 {name} shanks the game-winner. Coach hugs him. It feels less like a hug, more like grief counseling.",
-  "📺 {name} pushes a 22-yard chip shot WIDE RIGHT. Twitter declares a national emergency.",
-  "🏃 {name} kicks. Ball goes 4 yards. Long snapper begins jogging. Wrong direction.",
-  "🎬 {name}'s {dist}-yard miss is the #3 trending topic. Locker room avoids his side.",
-  "🤡 {name} hits the upright, recovers his own miss, kicks it AGAIN. Whistle blows. Penalty: bewilderment.",
-  "🏆 {name} misses the game-winner. Opposing fans serenade him with applause. He bows. Unclear if joke.",
-  "🎤 {name} post-game: 'I knew the moment I struck it that... well, I don't know what I knew, honestly.'",
-  "📸 ESPN cuts to {name}'s mom in the stands. She's covering her eyes. We all are.",
-  "🌬 {name}'s {dist}-yard try sails 3 feet forward, then 35 feet sideways. Crowd uncertain how to react.",
-  "🎭 {name} bows to the crowd after another shank. Reporters: 'Is he... is he okay?'",
-  "🧪 {name} 'experimenting with eyes closed,' confirms holder. Holder reportedly updating résumé.",
-  "🥨 {name} hooks it left, then over-corrects right on the do-over. Both attempts wide. Geometry weeping.",
+  { pos:"K",   tpl:"💀 DOUBLE DOINK: {name} ({team}) hits the upright, then the crossbar, then nothing. Game over." },
+  { pos:"K",   tpl:"🥶 WIDE LEFT from {dist} — {name}'s name now trending. Not the way he hoped." },
+  { pos:"any", tpl:"🌪 {name} blames the wind. Game is indoor. Reporters note this. {name} maintains." },
+  { pos:"K",   tpl:"🪦 {name} shanks the game-winner. Coach hugs him. It feels less like a hug, more like grief counseling." },
+  { pos:"K",   tpl:"📺 {name} pushes a 22-yard chip shot WIDE RIGHT. Twitter declares a national emergency." },
+  { pos:"K",   tpl:"🏃 {name} kicks. Ball goes 4 yards. Long snapper begins jogging. Wrong direction." },
+  { pos:"any", tpl:"🎬 {name}'s {dist}-yard miss is the #3 trending topic. Locker room avoids his side." },
+  { pos:"K",   tpl:"🤡 {name} hits the upright, recovers his own miss, kicks it AGAIN. Whistle blows. Penalty: bewilderment." },
+  { pos:"K",   tpl:"🏆 {name} misses the game-winner. Opposing fans serenade him with applause. He bows. Unclear if joke." },
+  { pos:"any", tpl:"🎤 {name} post-game: 'I knew the moment I struck it that… well, I don't know what I knew, honestly.'" },
+  { pos:"any", tpl:"📸 ESPN cuts to {name}'s mom in the stands. She's covering her eyes. We all are." },
+  { pos:"any", tpl:"🌬 {name}'s {dist}-yard try sails 3 feet forward, then 35 feet sideways. Crowd uncertain how to react." },
+  { pos:"any", tpl:"🎭 {name} bows to the crowd after another shank. Reporters: 'Is he… is he okay?'" },
+  { pos:"K",   tpl:"🧪 {name} 'experimenting with eyes closed,' confirms holder. Holder reportedly updating résumé." },
+  { pos:"K",   tpl:"🥨 {name} hooks it left, then over-corrects right on the do-over. Both attempts wide. Geometry weeping." },
+  { pos:"K",   tpl:"📉 {name} misses FIVE field goals in one game. Coach declines comment. ESPN doesn't decline." },
+  { pos:"K",   tpl:"🚀 {name} kicks 75 yards. Wrong direction. Crowd at midfield ducks." },
+  { pos:"any", tpl:"🤐 {name}'s post-game presser cut short after 30 seconds. He looked at the floor the whole time." },
+  { pos:"any", tpl:"🧙 {name} now consulting 'a spiritual advisor.' GM declines to confirm or deny." },
+  { pos:"K",   tpl:"📰 BREAKING: {name} misses extra point. The XP. Coach quietly puts head in hands." },
+  { pos:"K",   tpl:"🎢 {name} doinks one, drains the next from 53, then misses a 19-yarder. Football refuses to make sense." },
+  { pos:"K",   tpl:"🛑 {name}'s {dist}-yarder lands 12 feet short. Holder reportedly checked the ball for air pressure." },
+  { pos:"any", tpl:"📞 Coach pulled {name} aside after the miss. {name} 'nodded a lot,' say sources. Nothing else." },
+  { pos:"K",   tpl:"🎯 {name} aims left. Ball goes right. He aims right. Ball goes farther right. {name} confused." },
+  { pos:"K",   tpl:"🤔 {name} kicks at the uprights and somehow misses both. Stadium engineer 'looking into it.'" },
+  { pos:"P",   tpl:"🥾 {name} ({team}) punts 8 yards on 4th-and-22. Coach 'speechless.'" },
+  { pos:"P",   tpl:"🪂 {name}'s punt sails 14 yards BACKWARD. Defenders begin laughing. Then run." },
+  { pos:"P",   tpl:"💨 {name} catches snap, runs forward 2 yards, falls. Officially a 'designed' punt." },
+  { pos:"P",   tpl:"🎪 {name} attempts fake-punt pass. Lands at his own feet. Crowd assumes it was a joke." },
+  { pos:"P",   tpl:"🥎 {name}'s coffin-corner punt hits the goalpost. {team} record book confused." },
+  { pos:"P",   tpl:"🦶 {name} ({team}) punts off the side of his foot. Ball goes out of bounds at his own 31. He punted from the 34." },
 ];
 const _YIPS_RECOVERY_HEADLINES = [
-  "✨ {name} ({team}) drills 6 straight in practice. Coaches 'cautiously optimistic.'",
-  "🧘 {name}'s yoga retreat paying off — drains 55-yarder cleanly. Locker room weeps quietly.",
-  "🍀 {name} now wearing lucky socks (3 layers, inside out). Whatever works.",
-  "🏆 {name} nails the game-winner. Locker room throws him in the ice tub. He emerges grinning.",
-  "👨‍⚕️ {name} cleared by team psychologist — 'he just needed to talk it out.' He talked for 90 minutes.",
-  "🎯 {name} tells reporters: 'I just had to remember who I am.' Reporters note that's all anyone wants.",
-  "📚 {name} read 'The Inner Game of Tennis.' Says it's about kicking. Coach doesn't correct him.",
-  "🐈 {name} adopts a cat. Cat is named Doink. {name} now 7-for-7. Coincidence?",
-  "🎤 {name}'s redemption arc featured on local TV. Pre-game speech may have been rehearsed.",
+  { pos:"any", tpl:"✨ {name} ({team}) drills 6 straight in practice. Coaches 'cautiously optimistic.'" },
+  { pos:"any", tpl:"🧘 {name}'s yoga retreat paying off — nails a 55-yarder cleanly. Locker room weeps quietly." },
+  { pos:"any", tpl:"🍀 {name} now wearing lucky socks (3 layers, inside out). Whatever works." },
+  { pos:"K",   tpl:"🏆 {name} nails the game-winner. Locker room throws him in the ice tub. He emerges grinning." },
+  { pos:"any", tpl:"👨‍⚕️ {name} cleared by team psychologist — 'he just needed to talk it out.' He talked for 90 minutes." },
+  { pos:"any", tpl:"🎯 {name} tells reporters: 'I just had to remember who I am.' Reporters note that's all anyone wants." },
+  { pos:"any", tpl:"📚 {name} read 'The Inner Game of Tennis.' Says it's about kicking. Coach doesn't correct him." },
+  { pos:"any", tpl:"🐈 {name} adopts a cat. Cat is named Doink. {name} now 7-for-7. Coincidence?" },
+  { pos:"any", tpl:"🎤 {name}'s redemption arc featured on local TV. Pre-game speech may have been rehearsed." },
+  { pos:"any", tpl:"🪙 {name} declared 'a totally new kicker' by HC. Holder mouths 'thank god' on camera." },
+  { pos:"K",   tpl:"📺 {name} nails a 56-yarder. Color commentary: 30 seconds of stunned silence." },
+  { pos:"any", tpl:"🛐 {name} discovers Pilates. ST coordinator follows suit. Both back to normal now." },
+  { pos:"any", tpl:"🎬 {name}'s 'comeback game' goes viral. He's holding back tears in the post-game presser." },
+  { pos:"any", tpl:"🌅 {name} 'found his swing again,' he tells the team chaplain. Chaplain confirms." },
+  { pos:"any", tpl:"🪄 {name} brought back his college routine — chew gum, three deep breaths, kick. Money the rest of the way." },
+  { pos:"P",   tpl:"🦅 {name} punts 62 yards with hangtime to spare. Coverage team can't believe it. Crowd can't either." },
+  { pos:"P",   tpl:"📐 {name} pins the opponent inside the 5 — twice in a row. Coach hugs him. Punter hug." },
+];
+const _YIPS_LINGERING_HEADLINES = [
+  { pos:"any", tpl:"📉 {name} ({team}) never quite shakes the yips — accuracy stays diminished" },
+  { pos:"any", tpl:"⚠ {name} 'isn't the same kicker' — ST coordinator quietly evaluating UDFAs" },
+  { pos:"any", tpl:"🪦 {name} 'plays through it' but a fundamental confidence has been lost" },
+  { pos:"any", tpl:"📞 {name}'s agent reportedly fielding calls — 'a fresh start might help'" },
+  { pos:"any", tpl:"📰 {name} 'still on the roster, for now,' says GM. The 'for now' is doing a lot of work." },
 ];
 function _pickYipsHeadline(p, list, dist) {
-  const tpl = list[Math.floor(Math.random() * list.length)];
+  const pos = p.position;
+  const eligible = list.filter(h => h.pos === "any" || h.pos === pos);
+  const tpl = (eligible[Math.floor(Math.random() * eligible.length)] || list[0]).tpl;
   const team = (() => {
     for (const [tid, roster] of Object.entries(franchise.rosters || {})) {
       if (roster.some(rp => rp === p || rp.name === p.name)) return getTeam(Number(tid))?.name || "?";
@@ -1878,8 +1924,7 @@ function _tickYipsForWeek() {
           if (restorePct === 1.0) {
             _pushNews({ type: "injury", label: _pickYipsHeadline(p, _YIPS_RECOVERY_HEADLINES) });
           } else if (restorePct === 0) {
-            _pushNews({ type: "injury",
-              label: `📉 ${p.name} never fully shakes the yips — accuracy stays diminished` });
+            _pushNews({ type: "injury", label: _pickYipsHeadline(p, _YIPS_LINGERING_HEADLINES) });
           } else {
             _pushNews({ type: "injury",
               label: `⚠ ${p.name} works back from yips but isn't quite the same — partial recovery` });
