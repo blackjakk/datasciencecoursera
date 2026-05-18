@@ -5666,9 +5666,244 @@
   .frn-fa-cut-name { font-weight: 700; }
   .frn-fa-cut-cost { color: var(--gold-lt); font-size: .65rem; font-weight: 700; }
 
-  /* Re-signings screen */
+  /* Re-signings screen — hero header */
+  .frn-resign-hero {
+    background: linear-gradient(135deg, rgba(212,175,55,.1) 0%, var(--bg2) 65%);
+    border: 1px solid var(--gold-lt); border-radius: 4px;
+    padding: 1rem 1.2rem; margin-bottom: 1rem; text-align: center;
+  }
+  .frn-resign-hero-eyebrow {
+    font-size: .58rem; letter-spacing: 3px; color: var(--gold);
+    font-weight: 800; margin-bottom: .3rem;
+  }
+  .frn-resign-hero-title {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1.8rem; letter-spacing: 2px; color: var(--white);
+    margin: 0 0 .35rem;
+  }
+  .frn-resign-hero-sub { font-size: .72rem; color: var(--gray); }
+  .frn-resign-hero-cap { margin-top: .35rem; font-size: .8rem; color: var(--gray); }
+  .frn-resign-hero-progress {
+    display: flex; gap: .35rem; justify-content: center;
+    margin-top: .55rem; flex-wrap: wrap;
+  }
+  .frn-resign-hero-progress .chip {
+    font-size: .58rem; letter-spacing: .8px; font-weight: 800;
+    padding: .15rem .5rem; border-radius: 2px; border: 1px solid;
+  }
+  .frn-resign-hero-progress .chip.green { color: var(--green-lt); border-color: var(--green-lt); background: rgba(0,180,0,.08); }
+  .frn-resign-hero-progress .chip.gold  { color: var(--gold);     border-color: var(--gold);     background: rgba(212,175,55,.08); }
+  .frn-resign-hero-progress .chip.red   { color: #ff8a8a;         border-color: #ff8a8a;         background: rgba(220,80,80,.08); }
+  .frn-resign-hero-progress .chip.neutral { color: var(--gray);   border-color: var(--gray); }
+
+  /* Multi-year cap timeline */
+  .frn-resign-cap-wrap {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 3px; padding: .7rem .9rem; margin-bottom: 1rem;
+  }
+  .frn-resign-cap-title {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: .9rem; letter-spacing: 1.3px; color: var(--gold);
+    margin-bottom: .5rem;
+  }
+  .frn-resign-cap-timeline {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: .55rem;
+  }
+  @media (max-width: 600px) { .frn-resign-cap-timeline { grid-template-columns: 1fr 1fr; } }
+  .frn-resign-cap-year {
+    display: flex; flex-direction: column; gap: .15rem;
+    background: var(--bg3); padding: .35rem .5rem; border-radius: 3px;
+    border: 1px solid var(--border);
+  }
+  .frn-resign-cap-year .lbl {
+    font-size: .55rem; letter-spacing: 1px; color: var(--gray); font-weight: 800;
+  }
+  .frn-resign-cap-year .bar {
+    height: 4px; background: rgba(255,255,255,.1); border-radius: 2px; overflow: hidden;
+  }
+  .frn-resign-cap-year .bar .fill { height: 100%; transition: width .2s; }
+  .frn-resign-cap-year .num {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    font-size: .75rem; font-weight: 700;
+  }
+  .frn-resign-cap-note { font-size: .58rem; color: var(--gray); margin-top: .45rem; font-style: italic; }
+
+  /* Bulk actions row */
+  .frn-resign-bulk {
+    display: flex; gap: .4rem; align-items: center; flex-wrap: wrap;
+    margin-bottom: .7rem;
+  }
+  .frn-resign-bulk .lbl {
+    font-size: .55rem; letter-spacing: 1.2px; color: var(--gray); font-weight: 700;
+  }
+  .frn-resign-bulk-btn {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--gray); font-family: inherit; font-size: .6rem;
+    padding: .25rem .6rem; cursor: pointer; border-radius: 2px;
+    letter-spacing: .3px;
+  }
+  .frn-resign-bulk-btn:hover { color: var(--white); border-color: var(--white); }
+
+  /* Tier section */
+  .frn-resign-section { margin-bottom: 1rem; }
+  .frn-resign-section-head {
+    display: flex; align-items: baseline; gap: .55rem; margin-bottom: .35rem;
+  }
+  .frn-resign-section-head .title {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1rem; letter-spacing: 1.3px; color: var(--gold);
+  }
+  .frn-resign-section-head .eyebrow {
+    font-size: .55rem; letter-spacing: 1px; color: var(--gray); font-weight: 700;
+  }
+
+  /* Recommendation chip — colored bar at the top of each row */
+  .frn-resign-rec {
+    display: flex; align-items: center; gap: .55rem;
+    padding: .3rem .6rem;
+    background: rgba(0,0,0,.2);
+    border-top-left-radius: 3px; border-top-right-radius: 3px;
+    border-bottom: 1px solid;
+    font-size: .65rem;
+  }
+  .frn-resign-rec .action {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: .82rem; letter-spacing: 1.3px; font-weight: 800;
+  }
+  .frn-resign-rec .reason { color: var(--gray); font-size: .62rem; }
+
+  /* Risk badges */
+  .frn-resign-risks { display: flex; flex-wrap: wrap; gap: .25rem; margin: .25rem 0; }
+  .frn-resign-risk {
+    font-size: .5rem; letter-spacing: .8px; font-weight: 800;
+    padding: .08rem .4rem; border-radius: 2px;
+    border: 1px solid; background: rgba(0,0,0,.18);
+  }
+
+  /* Player demand line */
+  .frn-resign-demand {
+    display: flex; gap: .4rem; align-items: baseline; flex-wrap: wrap;
+    padding: .25rem .4rem; margin-top: .25rem;
+    background: rgba(0,0,0,.15); border-radius: 2px;
+    font-size: .62rem;
+  }
+  .frn-resign-demand .lbl { color: var(--gray); letter-spacing: .5px; font-weight: 700; font-size: .55rem; }
+  .frn-resign-demand .num {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    color: var(--white); font-weight: 700;
+  }
+  .frn-resign-meta {
+    font-size: .56rem; color: var(--gray); margin-top: .15rem;
+  }
+
+  /* Collapsed completed-decision row */
+  .frn-resign-collapsed {
+    display: grid; grid-template-columns: 1fr auto 1fr auto;
+    gap: .55rem; align-items: baseline;
+    padding: .4rem .65rem; margin-bottom: .25rem;
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 2px; cursor: pointer; font-size: .68rem;
+    opacity: .82; transition: opacity .12s ease;
+  }
+  .frn-resign-collapsed:hover { opacity: 1; border-color: var(--gold-lt); }
+  .frn-resign-collapsed .name { color: var(--white); font-weight: 700; }
+  .frn-resign-collapsed .meta { color: var(--gray); font-size: .58rem; }
+  .frn-resign-collapsed .decision { font-family: "IBM Plex Mono","JetBrains Mono",monospace; font-size: .62rem; }
+  .frn-resign-collapsed .reopen {
+    color: var(--gray); font-size: .55rem; letter-spacing: .5px; font-weight: 700;
+  }
+  .frn-resign-collapsed.accepted { border-left: 3px solid var(--green-lt); }
+  .frn-resign-collapsed.tagged   { border-left: 3px solid var(--gold); }
+  .frn-resign-collapsed.declined { border-left: 3px solid #ff8a8a; }
+
+  /* Recap modal */
+  .frn-resign-recap-overlay {
+    position: fixed; inset: 0; z-index: 9990;
+    background: rgba(0,0,0,.75);
+    display: flex; align-items: center; justify-content: center;
+    padding: 1rem;
+  }
+  .frn-resign-recap-card {
+    position: relative;
+    background: var(--bg2); border: 1px solid var(--gold);
+    border-radius: 4px; padding: 1.4rem 1.4rem 1.1rem;
+    max-width: 720px; width: 100%; max-height: 90vh; overflow-y: auto;
+    box-shadow: 0 0 36px rgba(212,175,55,.3);
+  }
+  .frn-resign-recap-close {
+    position: absolute; top: .55rem; right: .65rem;
+    background: transparent; border: 0; color: var(--gray);
+    font-size: 1.5rem; cursor: pointer; padding: .1rem .5rem;
+  }
+  .frn-resign-recap-close:hover { color: var(--white); }
+  .frn-resign-recap-eyebrow {
+    font-size: .58rem; letter-spacing: 3px; color: var(--gold);
+    font-weight: 800; text-align: center;
+  }
+  .frn-resign-recap-title {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1.9rem; letter-spacing: 2px; color: var(--white);
+    text-align: center; margin: .15rem 0 1rem;
+  }
+  .frn-resign-recap-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: .55rem;
+    margin-bottom: .9rem;
+  }
+  @media (max-width: 540px) { .frn-resign-recap-grid { grid-template-columns: 1fr; } }
+  .frn-resign-recap-stat {
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 3px; padding: .55rem .7rem;
+    display: flex; flex-direction: column; gap: .12rem;
+  }
+  .frn-resign-recap-stat .lbl {
+    font-size: .54rem; letter-spacing: 1.2px; color: var(--gray); font-weight: 700;
+  }
+  .frn-resign-recap-stat .val {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1.6rem; letter-spacing: 1.2px; line-height: 1.05;
+  }
+  .frn-resign-recap-stat .sub {
+    font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    font-size: .58rem; color: var(--gray);
+  }
+  .frn-resign-recap-section {
+    margin-bottom: .85rem;
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 3px; padding: .6rem .75rem;
+  }
+  .frn-resign-recap-section-title {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: .85rem; letter-spacing: 1.3px; color: var(--gold);
+    margin-bottom: .35rem;
+  }
+  .frn-resign-recap-row {
+    display: flex; gap: .5rem; align-items: baseline;
+    padding: .25rem 0; font-size: .68rem;
+    border-bottom: 1px solid rgba(255,255,255,.04);
+  }
+  .frn-resign-recap-row:last-child { border-bottom: 0; }
+  .frn-resign-recap-note { font-size: .58rem; color: var(--gray); margin-top: .4rem; font-style: italic; }
+  .frn-resign-recap-cta {
+    display: flex; justify-content: center; gap: .5rem; margin-top: 1rem;
+  }
+
+  /* Full re-sign row (pending) — accommodate the new top recommendation bar */
   .frn-resign-list { display: flex; flex-direction: column; gap: .5rem; }
   .frn-resign-row {
+    display: flex; flex-direction: column;
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 3px; overflow: hidden;
+    transition: border-color .12s ease;
+  }
+  .frn-resign-row:hover { border-color: var(--gold-lt); }
+  .frn-resign-row.tier-foundation { border-left: 4px solid var(--gold); }
+  .frn-resign-row.tier-starter    { border-left: 4px solid var(--green-lt); }
+  .frn-resign-row.tier-depth      { border-left: 4px solid var(--gray); }
+  .frn-resign-row-inner {
+    display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;
+    padding: .55rem .75rem;
+  }
+  .frn-resign-row-legacy {
     display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;
     padding: .55rem .75rem; background: var(--bg2); border: 1px solid var(--border);
     transition: all .15s;

@@ -4767,6 +4767,139 @@ function _guaranteedYearsForLength(years) {
   if (years <= 4) return 2;
   return 3;
 }
+
+// ── Re-signings UX helpers ─────────────────────────────────────────────────
+// Tier players into Foundation / Starters / Depth so the page can show
+// big-stage decisions distinct from depth-piece churn.
+function _resignTier(r) {
+  const ovr = r.overall || 0;
+  if (ovr >= 85) return "foundation";
+  if (ovr >= 75) return "starter";
+  return "depth";
+}
+
+// What the player wants — rough demand line scaled by ambition.
+function _resignPlayerDemand(player, r, baseMarket) {
+  const ovr = player?.overall ?? r?.overall ?? 70;
+  const age = player?.age ?? r?.age ?? 27;
+  let factor = 1.0, wantYears = 3;
+  if (ovr >= 88)      { factor = 1.18; wantYears = 5; }
+  else if (ovr >= 84) { factor = 1.12; wantYears = 4; }
+  else if (ovr >= 78) { factor = 1.05; wantYears = 4; }
+  else if (ovr >= 72) { factor = 1.00; wantYears = 3; }
+  else                { factor = 0.92; wantYears = 2; }
+  if (age >= 33)      { factor *= 0.93; wantYears = Math.max(1, wantYears - 1); }
+  else if (age >= 30) { factor *= 0.97; }
+  else if (age <= 24) { factor *= 1.04; }
+  return {
+    aav: Math.round(baseMarket * factor * 10) / 10,
+    years: wantYears,
+  };
+}
+
+// Likelihood (0..1) the player accepts your offer vs their demand.
+function _resignAcceptOdds(offerAAV, offerYears, demand) {
+  if (!demand) return 1;
+  const aavGap   = (offerAAV - demand.aav) / Math.max(0.5, demand.aav);
+  const yearGap  = offerYears - demand.years;
+  let odds = 1 + Math.min(0, aavGap) * 2.0 + Math.min(0, yearGap) * 0.10;
+  return Math.max(0, Math.min(1, odds));
+}
+
+// System recommendation per player.
+function _resignRecommendation(r, depth, faMkt, ageWarn, isInjuryProne, trend) {
+  const tier = _resignTier(r);
+  if (tier === "foundation") {
+    if (ageWarn?.level === "danger" || (trend != null && trend <= -3)) {
+      return { action: "EVALUATE", color: "#e8a000",
+        reason: "Franchise talent, but age / decline risk on a long deal" };
+    }
+    return { action: "RE-SIGN", color: "var(--green-lt)",
+      reason: "Foundation player — irreplaceable" };
+  }
+  if (tier === "starter") {
+    if (ageWarn?.level === "danger") {
+      return { action: "LET WALK", color: "#ff8a8a",
+        reason: `Age cliff at expiry · ${depth} other ${r.pos} ≥75 available` };
+    }
+    if (depth >= 2 && faMkt >= 4) {
+      return { action: "EVALUATE", color: "#e8a000",
+        reason: `${depth} starter-grade ${r.pos} on roster · ${faMkt} on FA market` };
+    }
+    if (isInjuryProne) {
+      return { action: "EVALUATE", color: "#e8a000",
+        reason: "Injury history makes a long deal risky" };
+    }
+    return { action: "RE-SIGN", color: "var(--green-lt)",
+      reason: depth === 0 ? "Position need — keep them" : "Solid starter, hard to replace at market" };
+  }
+  if (depth >= 1 || faMkt >= 3) {
+    return { action: "LET WALK", color: "#ff8a8a",
+      reason: `Depth piece · ${depth} other ${r.pos} ≥75 OVR, ${faMkt} on FA market` };
+  }
+  return { action: "EVALUATE", color: "#e8a000",
+    reason: "Thin at position — consider a cheap 1-2yr deal" };
+}
+
+// Risk badges — visible chips so red flags pop.
+function _resignRiskBadges(player, r, ageWarn, trend) {
+  const out = [];
+  if (typeof _isInjuryProne === "function" && _isInjuryProne(player)) {
+    out.push({ label: "🩹 INJURY-PRONE", color: "#ff8a8a" });
+  }
+  if (ageWarn?.level === "danger") {
+    out.push({ label: `⏳ AGE ${ageWarn.endAge} AT EXPIRY`, color: "#ff8a8a" });
+  } else if (ageWarn?.level === "caution") {
+    out.push({ label: `⏳ AGE ${ageWarn.endAge} AT EXPIRY`, color: "#e8a000" });
+  }
+  if (trend != null && trend <= -3) {
+    out.push({ label: `📉 DECLINING (${trend})`, color: "#e8a000" });
+  } else if (trend != null && trend >= 4) {
+    out.push({ label: `📈 RISING (+${trend})`, color: "var(--green-lt)" });
+  }
+  return out;
+}
+
+// Compensatory-pick estimate for letting a player walk.
+function _resignCompPick(r) {
+  const ovr = r.overall || 0;
+  if (ovr >= 85) return { round: 3, label: "3rd-rd comp pick projected" };
+  if (ovr >= 80) return { round: 4, label: "4th-rd comp pick projected" };
+  if (ovr >= 75) return { round: 5, label: "5th-rd comp pick projected" };
+  if (ovr >= 70) return { round: 7, label: "7th-rd comp pick projected" };
+  return null;
+}
+
+// Multi-year cap projection — sums existing kept contracts + accepted
+// re-signings out to N years from now. Used by the team-wide cap
+// timeline at the top of the page.
+function _resignCapProjection(years = 4) {
+  const myId = franchise.chosenTeamId;
+  const myRoster = franchise.rosters[myId] || [];
+  const out = new Array(years).fill(0);
+  for (const p of myRoster) {
+    if (!p.contract || p.contract.remaining <= 0) continue;
+    const proration = p.contract.bonusProration || 0;
+    const bases = p.contract.baseSalaries || [];
+    const curIdx = (p.contract.years || 1) - (p.contract.remaining || 1);
+    for (let i = 0; i < years && (curIdx + i) < bases.length; i++) {
+      out[i] += (bases[curIdx + i] || 0) + proration;
+    }
+  }
+  for (const r of (franchise._resignPending || [])) {
+    if (r.decision !== "accept" && r.decision !== "tag") continue;
+    const aav = r.decision === "tag" ? r.tagAAV : r.offer;
+    const yrs = r.decision === "tag" ? 1 : r.offerYears;
+    const { bonusProration } = _signingBonusCalc(aav, yrs, r.overall || 70);
+    const struct = r.structure || "BALANCED";
+    const bases = _baseSalarySchedule(aav, yrs, struct, bonusProration);
+    for (let i = 0; i < years && i < bases.length; i++) {
+      out[i] += bases[i] + bonusProration;
+    }
+  }
+  return out.map(v => Math.round(v * 10) / 10);
+}
+
 function renderFrnResignings() {
   const { chosenTeamId } = franchise;
   const cap = effectiveSalaryCap(chosenTeamId);
@@ -4801,24 +4934,44 @@ function renderFrnResignings() {
 function _renderResignUI(cap, capCommitted) {
   const { chosenTeamId, _resignPending } = franchise;
   const myTeam = getTeam(chosenTeamId);
-  let runningCap = capCommitted;
   const _statLine = name => {
     const agg = _playerSeasonStatsAgg(name);
     return agg ? mvpStatLine(agg) : "";
   };
 
-  const rows = _resignPending.map((r, idx) => {
-    const newCap = runningCap + (r.decision === "accept" ? r.offer : 0);
-    const capAfter = cap - newCap;
+  // Multi-year cap projection across this + accepted re-signings
+  const proj = _resignCapProjection(4);
+
+  // Render one player row (full / collapsed / preview)
+  const rowFor = (r, idx) => {
     const isAccept  = r.decision === "accept";
     const isDecline = r.decision === "decline";
-    const isLocked  = isAccept || isDecline || r.decision === "tag";
+    const isTagged  = r.decision === "tag";
+    const isLocked  = isAccept || isDecline || isTagged;
     const struct = r.structure || "BALANCED";
     const { bonusProration } = _signingBonusCalc(r.offer, r.offerYears, r.overall || 70);
     const deadTotal = bonusProration * r.offerYears;
 
+    // ── Completed decisions render as a one-line collapsed strip so
+    //    pending decisions stay the focus ────────────────────────────
+    if (isLocked) {
+      const decisionLabel = isAccept
+        ? `<span style="color:var(--green-lt);font-weight:700">✓ SIGNED</span> · $${r.offer.toFixed(1)}M × ${r.offerYears}yr`
+        : isTagged
+        ? `<span style="color:var(--gold);font-weight:700">🏷 TAGGED</span> · 1yr / $${r.tagAAV?.toFixed(1)}M guaranteed`
+        : `<span style="color:#ff8a8a;font-weight:700">✗ WALK</span> · enters free agency`;
+      return `
+        <div class="frn-resign-collapsed ${isAccept?"accepted":isTagged?"tagged":"declined"}"
+             onclick="frnResignReopen(${idx})" title="Click to reopen">
+          <span class="name">${r.name}</span>
+          <span class="meta">${r.pos} · ${r.overall} OVR · Age ${r.age}</span>
+          <span class="decision">${decisionLabel}</span>
+          <span class="reopen">↻ Reopen</span>
+        </div>`;
+    }
+
     // ── Signing preview panel (year-by-year breakdown before committing) ──
-    if (_resignPreview === idx && !isLocked) {
+    if (_resignPreview === idx) {
       const bases = _baseSalarySchedule(r.offer, r.offerYears, struct, bonusProration);
       const yearPills = bases.map((base, i) => {
         const hit = Math.round((base + bonusProration) * 10) / 10;
@@ -4852,89 +5005,179 @@ function _renderResignUI(cap, capCommitted) {
       : trend < 0 ? `<span style="color:var(--red);font-size:.6rem">↓ ${trend} OVR</span>`
       : `<span style="color:var(--gray);font-size:.6rem">→ flat</span>`;
     const curve = _ageCurveWarning(r.age, r.offerYears);
-    const curveHtml = curve.label ? `<span style="color:${curve.level==="danger"?"var(--red)":"#e8a000"};font-size:.58rem">${curve.label}</span>` : "";
     const depth = _posDepth(r.pos, r.name);
-    const depthHtml = `<span style="font-size:.58rem;color:var(--gray)">${depth} other ${r.pos} ≥75 OVR</span>`;
     const yrs = _yearsWithTeam(r.name);
-    const yrsHtml = yrs >= 1 ? `<span style="font-size:.58rem;color:var(--gray)">${yrs}-yr veteran</span>` : "";
     const faMkt = _faMktDepth(r.pos);
-    const faMktHtml = faMkt > 0 ? `<span style="font-size:.58rem;color:var(--gray)">${faMkt} FA${r.pos}s available</span>` : "";
     const flightRisk = livePlayer?.unhappy;
-    const flightHtml = flightRisk ? `<span style="font-size:.58rem;color:var(--red)">⚠ flight risk — likely leaves</span>` : "";
+    const isProne = typeof _isInjuryProne === "function" && _isInjuryProne(livePlayer);
+
+    // ── System recommendation chip ─────────────────────────────────
+    const rec = _resignRecommendation(r, depth, faMkt, curve, isProne, trend);
+    const recChip = `<div class="frn-resign-rec" style="border-color:${rec.color};color:${rec.color}">
+      <span class="action">${rec.action}</span>
+      <span class="reason">${rec.reason}</span>
+    </div>`;
+
+    // ── Risk badges (loud chips) ───────────────────────────────────
+    const risks = _resignRiskBadges(livePlayer, r, curve, trend);
+    const riskHtml = risks.map(b =>
+      `<span class="frn-resign-risk" style="color:${b.color};border-color:${b.color}55">${b.label}</span>`
+    ).join("");
+
+    // ── Player demand vs your offer ────────────────────────────────
+    const demand = _resignPlayerDemand(livePlayer, r, r.baseMarket);
+    const odds = _resignAcceptOdds(r.offer, r.offerYears, demand);
+    const oddsColor = odds >= 0.85 ? "var(--green-lt)" : odds >= 0.5 ? "#e8a000" : "#ff8a8a";
+    const demandHtml = `<div class="frn-resign-demand">
+      <span class="lbl">Wants</span>
+      <span class="num">$${demand.aav.toFixed(1)}M × ${demand.years}yr</span>
+      <span class="lbl" style="margin-left:.5rem">Accept odds</span>
+      <span class="num" style="color:${oddsColor}">${Math.round(odds * 100)}%</span>
+    </div>`;
+
+    // ── Comp pick preview on Let Walk ──────────────────────────────
+    const compPick = _resignCompPick(r);
+
+    // ── Background meta (depth / FA / years with team) — compact ──
+    const metaBits = [];
+    metaBits.push(`${depth} other ${r.pos} ≥75 OVR`);
+    if (faMkt > 0) metaBits.push(`${faMkt} FA${r.pos}s avail`);
+    if (yrs >= 1) metaBits.push(`${yrs}-yr veteran`);
+    if (flightRisk) metaBits.push(`<span style="color:#ff8a8a">⚠ flight risk</span>`);
+    const metaHtml = `<div class="frn-resign-meta">${metaBits.join(" · ")}</div>`;
 
     return `
-      <div class="frn-resign-row ${isAccept?"accepted":isDecline?"declined":""}">
-        <div class="frn-resign-info">
-          <span style="font-weight:700;color:var(--white)">${r.name}</span>
-          <span style="color:var(--gray);font-size:.7rem">${r.pos} · ${r.overall} OVR ${trendHtml} · Age ${r.age}</span>
-          ${_statLine(r.name) ? `<span style="color:var(--gray);font-size:.6rem;font-style:italic">${_statLine(r.name)}</span>` : ""}
-          ${_contractContextBar(r.pos, r.baseMarket, cap)}
-          <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.15rem">${depthHtml}${yrsHtml ? " · "+yrsHtml : ""}${faMktHtml ? " · "+faMktHtml : ""}${flightHtml}</div>
-        </div>
-        <div class="frn-resign-offer">
-          <span style="color:${r.offer > r.baseMarket * 1.1 ? 'var(--red)' : r.offer < r.baseMarket * 0.9 ? 'var(--green-lt)' : 'var(--gold)'};font-weight:700">$${r.offer.toFixed(1)}M/yr ${vsMarketCell(r.offer, r.baseMarket)}</span>
-          <div style="display:flex;align-items:center;gap:.25rem;justify-content:flex-end;margin-top:.15rem">
-            <button class="frn-resign-yrbtn"
-              ${r.offerYears <= _RESIGN_MIN_YEARS || isLocked ? "disabled" : ""}
-              onclick="frnResignAdjustYears(${idx}, -1)">−</button>
-            <span style="color:var(--gray);font-size:.7rem;min-width:2.5rem;text-align:center">${r.offerYears} yr</span>
-            <button class="frn-resign-yrbtn"
-              ${r.offerYears >= _RESIGN_MAX_YEARS || isLocked ? "disabled" : ""}
-              onclick="frnResignAdjustYears(${idx}, 1)">+</button>
+      <div class="frn-resign-row tier-${_resignTier(r)}">
+        ${recChip}
+        <div class="frn-resign-row-inner">
+          <div class="frn-resign-info">
+            <span style="font-weight:700;color:var(--white);font-size:.95rem">${r.name}</span>
+            <span style="color:var(--gray);font-size:.7rem">${r.pos} · ${r.overall} OVR ${trendHtml} · Age ${r.age}</span>
+            ${_statLine(r.name) ? `<span style="color:var(--gray);font-size:.6rem;font-style:italic">${_statLine(r.name)}</span>` : ""}
+            ${riskHtml ? `<div class="frn-resign-risks">${riskHtml}</div>` : ""}
+            ${_contractContextBar(r.pos, r.baseMarket, cap)}
+            ${demandHtml}
+            ${metaHtml}
           </div>
-          <span style="color:var(--gray);font-size:.6rem;text-align:right">total $${(r.offer * r.offerYears).toFixed(1)}M</span>
-          ${curveHtml}
-          ${deadTotal < 0.5 ? `<span style="color:var(--gray);font-size:.6rem">No dead cap</span>`
-            : `<span style="color:#ff9090;font-size:.6rem;text-align:right" title="Prorated signing bonus — counts as dead cap if you release this player.">☠ Dead $${bonusProration.toFixed(1)}M×${r.offerYears}yr = $${deadTotal.toFixed(1)}M</span>`}
-          ${isLocked ? "" : `<div style="display:flex;gap:.2rem;justify-content:flex-end;margin-top:.25rem;align-items:center;flex-wrap:wrap">
-            <span style="color:var(--gray);font-size:.58rem">Structure:</span>
-            ${["BALANCED","BACKLOADED","FRONTLOADED"].map(s => {
-              const desc = s==="BALANCED"?"flat salaries":s==="BACKLOADED"?"cheap now, costly later":"costly now, cheap later";
-              return `<button class="btn ${struct===s?"btn-gold":"btn-outline"}" onclick="frnResignSetStructure(${idx},'${s}')" style="font-size:.55rem;padding:.1rem .3rem" title="${desc}">${s[0]+s.slice(1).toLowerCase()}</button>`;
-            }).join("")}
-          </div>`}
-        </div>
-        <div class="frn-resign-btns">
-          ${r.decision === "tag"
-            ? `<button class="btn frn-resign-btn accepted" title="Franchise tagged: 1yr fully guaranteed">🏷 Tagged $${r.tagAAV?.toFixed(1)}M</button>`
-            : isAccept
-              ? `<button class="btn frn-resign-btn accepted">✓ Accepted</button>`
-              : isDecline
-                ? `<button class="btn frn-resign-btn declined">✗ Declined</button>`
-                : `<button class="btn frn-resign-btn accept-btn" onclick="_resignPreview=${idx};_renderResignUIRefresh()">Review & Sign</button>
-                   ${_franchiseTagAvailable() ? `<button class="btn frn-resign-btn accept-btn" style="border-color:var(--gold);color:var(--gold)"
-                     onclick="frnResignTag(${idx})" title="Franchise tag: 1yr fully guaranteed at top-5 position avg ($${_franchiseTagAAV({position: r.pos, name: r.name}, cap).toFixed(1)}M)">🏷 Tag</button>` : ""}
-                   <button class="btn frn-resign-btn decline-btn" onclick="frnResignDecide(${idx},'decline')">Let Walk</button>`}
+          <div class="frn-resign-offer">
+            <span style="color:${r.offer > r.baseMarket * 1.1 ? 'var(--red)' : r.offer < r.baseMarket * 0.9 ? 'var(--green-lt)' : 'var(--gold)'};font-weight:700">$${r.offer.toFixed(1)}M/yr ${vsMarketCell(r.offer, r.baseMarket)}</span>
+            <div style="display:flex;align-items:center;gap:.25rem;justify-content:flex-end;margin-top:.15rem">
+              <button class="frn-resign-yrbtn"
+                ${r.offerYears <= _RESIGN_MIN_YEARS ? "disabled" : ""}
+                onclick="frnResignAdjustYears(${idx}, -1)">−</button>
+              <span style="color:var(--gray);font-size:.7rem;min-width:2.5rem;text-align:center">${r.offerYears} yr</span>
+              <button class="frn-resign-yrbtn"
+                ${r.offerYears >= _RESIGN_MAX_YEARS ? "disabled" : ""}
+                onclick="frnResignAdjustYears(${idx}, 1)">+</button>
+            </div>
+            <span style="color:var(--gray);font-size:.6rem;text-align:right">total $${(r.offer * r.offerYears).toFixed(1)}M</span>
+            ${deadTotal < 0.5 ? `<span style="color:var(--gray);font-size:.6rem">No dead cap</span>`
+              : `<span style="color:#ff9090;font-size:.6rem;text-align:right" title="Prorated signing bonus — counts as dead cap if you release this player.">☠ Dead $${bonusProration.toFixed(1)}M×${r.offerYears}yr = $${deadTotal.toFixed(1)}M</span>`}
+            <div style="display:flex;gap:.2rem;justify-content:flex-end;margin-top:.25rem;align-items:center;flex-wrap:wrap">
+              <span style="color:var(--gray);font-size:.58rem">Structure:</span>
+              ${["BALANCED","BACKLOADED","FRONTLOADED"].map(s => {
+                const desc = s==="BALANCED"?"flat salaries":s==="BACKLOADED"?"cheap now, costly later":"costly now, cheap later";
+                return `<button class="btn ${struct===s?"btn-gold":"btn-outline"}" onclick="frnResignSetStructure(${idx},'${s}')" style="font-size:.55rem;padding:.1rem .3rem" title="${desc}">${s[0]+s.slice(1).toLowerCase()}</button>`;
+              }).join("")}
+            </div>
+          </div>
+          <div class="frn-resign-btns">
+            <button class="btn frn-resign-btn accept-btn" onclick="_resignPreview=${idx};_renderResignUIRefresh()">Review &amp; Sign</button>
+            ${odds < 0.85 ? `<button class="btn frn-resign-btn accept-btn" style="border-color:var(--gold-lt);color:var(--gold-lt)" onclick="frnResignCounter(${idx})" title="Match their demand at 95% to close the gap">↻ Counter</button>` : ""}
+            ${_franchiseTagAvailable() ? `<button class="btn frn-resign-btn accept-btn" style="border-color:var(--gold);color:var(--gold)"
+              onclick="frnResignTag(${idx})" title="Franchise tag: 1yr fully guaranteed at top-5 position avg ($${_franchiseTagAAV({position: r.pos, name: r.name}, cap).toFixed(1)}M)">🏷 Tag</button>` : ""}
+            <button class="btn frn-resign-btn decline-btn" onclick="frnResignDecide(${idx},'decline')" title="${compPick?compPick.label:''}">Let Walk${compPick?`<span style="font-size:.5rem;display:block;color:var(--gold-lt)">${compPick.label}</span>`:""}</button>
+          </div>
         </div>
       </div>`;
-  }).join("");
+  };
+
+  // Group by tier for sectioned display
+  const byTier = { foundation: [], starter: [], depth: [] };
+  _resignPending.forEach((r, idx) => {
+    byTier[_resignTier(r)].push({ r, idx });
+  });
+
+  const sectionFor = (title, list, eyebrow) => {
+    if (!list.length) return "";
+    return `<section class="frn-resign-section">
+      <div class="frn-resign-section-head">
+        <span class="title">${title}</span>
+        <span class="eyebrow">${eyebrow} · ${list.length} player${list.length===1?"":"s"}</span>
+      </div>
+      <div class="frn-resign-list">${list.map(({ r, idx }) => rowFor(r, idx)).join("")}</div>
+    </section>`;
+  };
+
+  const sectionsHtml = [
+    sectionFor("⭐ Foundation",     byTier.foundation, "85+ OVR — franchise cornerstones"),
+    sectionFor("🛡 Starters",       byTier.starter,    "75–84 OVR"),
+    sectionFor("📋 Depth & Role",   byTier.depth,      "<75 OVR"),
+  ].join("");
 
   const acceptedCost = _resignPending
     .filter(r => r.decision === "accept").reduce((s, r) => s + r.offer, 0);
   const finalCap = capCommitted + acceptedCost;
   const pending  = _resignPending.filter(r => r.decision === null).length;
 
+  // Multi-year cap timeline (this year + 3) — visualizes commitment
+  // load including accepted re-signings.
+  const projHtml = `<div class="frn-resign-cap-timeline">
+    ${proj.map((v, i) => {
+      const pct = Math.min(100, (v / Math.max(1, cap)) * 100);
+      const color = v > cap ? "var(--red)" : v > cap * 0.90 ? "#e8a000" : "var(--green-lt)";
+      return `<div class="frn-resign-cap-year">
+        <div class="lbl">Y${i+1}</div>
+        <div class="bar"><div class="fill" style="width:${pct}%;background:${color}"></div></div>
+        <div class="num" style="color:${color}">$${v.toFixed(0)}M</div>
+      </div>`;
+    }).join("")}
+  </div>`;
+
+  // Decided summary chips
+  const acceptedCount = _resignPending.filter(r => r.decision === "accept").length;
+  const tagged = _resignPending.filter(r => r.decision === "tag").length;
+  const declined = _resignPending.filter(r => r.decision === "decline").length;
+
   $("frnHomeContent").innerHTML = `
-    <div style="text-align:center;margin-bottom:1rem">
-      <div style="font-size:1.15rem;font-weight:900;color:var(--gold)">Contract Re-Signings</div>
-      <div style="color:var(--gray);font-size:.78rem">${myTeam.city} ${myTeam.name} · Season ${franchise.season} Offseason</div>
-      <div style="margin-top:.4rem;font-size:.78rem">
-        Cap room: <b style="color:${cap-finalCap<0?"var(--red)":"var(--green-lt)"}">$${(cap-finalCap).toFixed(1)}M</b>
-        remaining after decisions · Cap: <b style="color:var(--gold)">$${cap.toFixed(0)}M</b>
+    <div class="frn-resign-hero">
+      <div class="frn-resign-hero-eyebrow">SEASON ${franchise.season} OFFSEASON</div>
+      <h1 class="frn-resign-hero-title">CONTRACT RE-SIGNINGS</h1>
+      <div class="frn-resign-hero-sub">${myTeam.city} ${myTeam.name} · ${_resignPending.length} expiring contract${_resignPending.length===1?"":"s"}</div>
+      <div class="frn-resign-hero-cap">
+        Cap room after decisions: <b style="color:${cap-finalCap<0?"var(--red)":"var(--green-lt)"}">$${(cap-finalCap).toFixed(1)}M</b>
+        of $${cap.toFixed(0)}M
+      </div>
+      <div class="frn-resign-hero-progress">
+        <span class="chip green">✓ ${acceptedCount} signed</span>
+        ${tagged?`<span class="chip gold">🏷 ${tagged} tagged</span>`:""}
+        <span class="chip red">✗ ${declined} declined</span>
+        <span class="chip neutral">${pending} pending</span>
       </div>
     </div>
-    <div style="font-size:.68rem;color:var(--gray);margin-bottom:.5rem">
-      ${_resignPending.length} players with expiring contracts —
-      accepted players re-sign at market rate; declined players enter free agency (lost for now).
+
+    <div class="frn-resign-cap-wrap">
+      <div class="frn-resign-cap-title">📊 PROJECTED CAP — NEXT 4 SEASONS</div>
+      ${projHtml}
+      <div class="frn-resign-cap-note">Includes existing kept contracts + accepted re-signings.</div>
     </div>
-    <div class="frn-resign-list">${rows}</div>
-    <div class="frn-actions" style="justify-content:center;margin-top:1rem;flex-wrap:wrap;gap:.5rem">
-      ${pending > 0
-        ? `<div style="color:var(--gray);font-size:.72rem">${pending} decision${pending>1?"s":""} remaining</div>`
-        : `<button class="btn btn-gold" onclick="frnConfirmResignings()">✓ Confirm & Continue Offseason</button>`}
+
+    <div class="frn-resign-bulk">
+      <span class="lbl">Bulk:</span>
+      ${_resignPending.some(r => r.decision === null && (r.offer || 0) <= 1.5)
+        ? `<button class="frn-resign-bulk-btn" onclick="frnResignBulkSignUnder(1.5)">✓ Sign all ≤ $1.5M</button>` : ""}
       ${_resignPending.some(r => r.decision === null && (r.overall || 0) < 75)
-        ? `<button class="btn btn-outline" style="font-size:.7rem;color:var(--gray)"
-            onclick="frnResignBulkDecline(75)">✗ Let Walk All &lt;75 OVR</button>` : ""}
+        ? `<button class="frn-resign-bulk-btn" onclick="frnResignBulkDecline(75)">✗ Walk all &lt;75 OVR</button>` : ""}
+      ${_resignPending.some(r => r.decision === null && (r.offer || 0) > 5)
+        ? `<button class="frn-resign-bulk-btn" onclick="frnResignBulkDeclineOver(5)">✗ Walk all &gt; $5M</button>` : ""}
+    </div>
+
+    ${sectionsHtml}
+
+    <div class="frn-actions" style="justify-content:center;margin-top:1.2rem;flex-wrap:wrap;gap:.5rem">
+      ${pending > 0
+        ? `<div style="color:var(--gray);font-size:.78rem">${pending} decision${pending>1?"s":""} remaining</div>`
+        : `<button class="btn btn-gold" onclick="frnOpenResignRecap()">✓ Review &amp; Continue →</button>`}
     </div>`;
 }
 
@@ -4946,11 +5189,180 @@ function _renderResignUIRefresh() {
   _renderResignUI(cap, committed);
 }
 
+// Click a collapsed completed row → reopen it for editing.
+function frnResignReopen(idx) {
+  const row = franchise._resignPending?.[idx];
+  if (!row) return;
+  if (row.decision === "tag") {
+    // Tag uses up the team's franchise tag — return it on reopen.
+    franchise.franchiseTagUsed = null;
+    row.tagAAV = null;
+  }
+  row.decision = null;
+  saveFranchise();
+  _renderResignUIRefresh();
+}
+
+// End-of-flow recap modal — shown when user clicks "Review & Continue".
+// Summarizes signings, declines, tags, projected cap, and comp picks.
+function frnOpenResignRecap() {
+  const myId = franchise.chosenTeamId;
+  const pending = franchise._resignPending || [];
+  const accepted = pending.filter(r => r.decision === "accept");
+  const tagged   = pending.filter(r => r.decision === "tag");
+  const declined = pending.filter(r => r.decision === "decline");
+  const cap = effectiveSalaryCap(myId);
+  const proj = _resignCapProjection(4);
+  const compPicks = declined.map(r => _resignCompPick(r)).filter(Boolean);
+  const totalSignedCost = accepted.reduce((s, r) => s + r.offer, 0)
+                        + tagged.reduce((s, r) => s + (r.tagAAV || 0), 0);
+
+  const projHtml = proj.map((v, i) => {
+    const pct = Math.min(100, (v / Math.max(1, cap)) * 100);
+    const color = v > cap ? "var(--red)" : v > cap * 0.90 ? "#e8a000" : "var(--green-lt)";
+    return `<div class="frn-resign-cap-year">
+      <div class="lbl">Y${i+1}</div>
+      <div class="bar"><div class="fill" style="width:${pct}%;background:${color}"></div></div>
+      <div class="num" style="color:${color}">$${v.toFixed(0)}M</div>
+    </div>`;
+  }).join("");
+
+  const compHtml = compPicks.length ? `
+    <section class="frn-resign-recap-section">
+      <div class="frn-resign-recap-section-title">🎁 PROJECTED COMP PICKS</div>
+      <div style="font-size:.65rem;color:var(--blgray);margin-bottom:.35rem">Letting these players walk could yield compensatory picks next year:</div>
+      ${compPicks.map((c, i) => `<div class="frn-resign-recap-row">
+        <span style="color:var(--blwhite)">${declined[i].name}</span>
+        <span style="color:var(--blgray)">${declined[i].pos}</span>
+        <span style="color:var(--gold);font-weight:700;margin-left:auto">${c.label}</span>
+      </div>`).join("")}
+    </section>` : "";
+
+  const existing = document.getElementById("frn-resign-recap-modal");
+  if (existing) existing.remove();
+  const el = document.createElement("div");
+  el.id = "frn-resign-recap-modal";
+  el.className = "frn-resign-recap-overlay";
+  el.innerHTML = `
+    <div class="frn-resign-recap-card">
+      <button class="frn-resign-recap-close" onclick="frnCloseResignRecap()">×</button>
+      <div class="frn-resign-recap-eyebrow">REVIEW BEFORE CONTINUING</div>
+      <h2 class="frn-resign-recap-title">RE-SIGNING SUMMARY</h2>
+
+      <div class="frn-resign-recap-grid">
+        <div class="frn-resign-recap-stat">
+          <span class="lbl">SIGNED</span>
+          <span class="val" style="color:var(--green-lt)">${accepted.length}</span>
+          <span class="sub">$${accepted.reduce((s,r)=>s+r.offer,0).toFixed(1)}M / yr</span>
+        </div>
+        <div class="frn-resign-recap-stat">
+          <span class="lbl">TAGGED</span>
+          <span class="val" style="color:${tagged.length?"var(--blgold)":"var(--blgray)"}">${tagged.length}</span>
+          <span class="sub">${tagged.length?`$${tagged.reduce((s,r)=>s+(r.tagAAV||0),0).toFixed(1)}M / yr`:"—"}</span>
+        </div>
+        <div class="frn-resign-recap-stat">
+          <span class="lbl">DECLINED</span>
+          <span class="val" style="color:${declined.length?"#ff8a8a":"var(--blgray)"}">${declined.length}</span>
+          <span class="sub">to free agency</span>
+        </div>
+      </div>
+
+      <section class="frn-resign-recap-section">
+        <div class="frn-resign-recap-section-title">📊 PROJECTED CAP — NEXT 4 SEASONS</div>
+        <div class="frn-resign-cap-timeline">${projHtml}</div>
+        <div class="frn-resign-recap-note">Includes existing kept contracts + re-signings. Cap line: <b style="color:var(--blgold)">$${cap.toFixed(0)}M</b></div>
+      </section>
+
+      ${accepted.length ? `
+      <section class="frn-resign-recap-section">
+        <div class="frn-resign-recap-section-title">✓ YOU SIGNED</div>
+        ${accepted.map(r => `<div class="frn-resign-recap-row">
+          <span style="color:var(--blwhite);font-weight:700">${r.name}</span>
+          <span style="color:var(--blgray)">${r.pos} · ${r.overall} OVR</span>
+          <span style="color:var(--blgold);margin-left:auto">$${r.offer.toFixed(1)}M × ${r.offerYears}yr</span>
+        </div>`).join("")}
+      </section>` : ""}
+
+      ${tagged.length ? `
+      <section class="frn-resign-recap-section">
+        <div class="frn-resign-recap-section-title">🏷 FRANCHISE-TAGGED</div>
+        ${tagged.map(r => `<div class="frn-resign-recap-row">
+          <span style="color:var(--blwhite);font-weight:700">${r.name}</span>
+          <span style="color:var(--blgray)">${r.pos} · ${r.overall} OVR</span>
+          <span style="color:var(--blgold);margin-left:auto">1yr / $${r.tagAAV?.toFixed(1)}M</span>
+        </div>`).join("")}
+      </section>` : ""}
+
+      ${declined.length ? `
+      <section class="frn-resign-recap-section">
+        <div class="frn-resign-recap-section-title">✗ ENTERING FREE AGENCY</div>
+        ${declined.map(r => `<div class="frn-resign-recap-row">
+          <span style="color:var(--blwhite)">${r.name}</span>
+          <span style="color:var(--blgray)">${r.pos} · ${r.overall} OVR</span>
+          <span style="color:var(--blgray);margin-left:auto">market ~$${r.baseMarket.toFixed(1)}M</span>
+        </div>`).join("")}
+      </section>` : ""}
+
+      ${compHtml}
+
+      <div class="frn-resign-recap-cta">
+        <button class="btn btn-outline" onclick="frnCloseResignRecap()">← Back to edit</button>
+        <button class="btn btn-gold-big" onclick="frnCloseResignRecap();frnConfirmResignings()">✓ CONFIRM &amp; CONTINUE</button>
+      </div>
+    </div>`;
+  el.addEventListener("click", e => { if (e.target === el) frnCloseResignRecap(); });
+  document.body.appendChild(el);
+}
+function frnCloseResignRecap() {
+  const el = document.getElementById("frn-resign-recap-modal");
+  if (el) el.remove();
+}
+
 function frnResignBulkDecline(ovrThreshold) {
   if (!franchise._resignPending) return;
   for (const r of franchise._resignPending) {
     if (r.decision === null && (r.overall || 0) < ovrThreshold) r.decision = "decline";
   }
+  _renderResignUIRefresh();
+}
+
+// Bulk-accept anything at or below the given AAV. Used for "cheap
+// retention" — re-sign every depth piece under $1M with a click.
+function frnResignBulkSignUnder(aavCap) {
+  if (!franchise._resignPending) return;
+  for (const r of franchise._resignPending) {
+    if (r.decision !== null) continue;
+    if ((r.offer || 0) <= aavCap) r.decision = "accept";
+  }
+  _renderResignUIRefresh();
+}
+
+// Bulk-decline anything that would cost more than X. Used for "free
+// the cap" — let any pending player walk if their offer exceeds the
+// threshold so you can sprint to FA with room.
+function frnResignBulkDeclineOver(aavCap) {
+  if (!franchise._resignPending) return;
+  for (const r of franchise._resignPending) {
+    if (r.decision !== null) continue;
+    if ((r.offer || 0) > aavCap) r.decision = "decline";
+  }
+  _renderResignUIRefresh();
+}
+
+// Counter-offer flow — when the player's demand exceeds your offer,
+// "Let Walk" gets an alternate "Counter offer" path. Adjusts offer by
+// matching their demand at 95% so the deal is plausible.
+function frnResignCounter(idx) {
+  const row = franchise._resignPending?.[idx];
+  if (!row || row.decision) return;
+  const livePlayer = (franchise.rosters[franchise.chosenTeamId] || []).find(p => p.name === row.name);
+  if (!livePlayer) return;
+  const demand = _resignPlayerDemand(livePlayer, row, row.baseMarket);
+  const newAav = Math.round(demand.aav * 0.95 * 10) / 10;
+  const newYears = Math.max(_RESIGN_MIN_YEARS, Math.min(_RESIGN_MAX_YEARS, demand.years));
+  row.offer = newAav;
+  row.offerYears = newYears;
+  saveFranchise();
   _renderResignUIRefresh();
 }
 
