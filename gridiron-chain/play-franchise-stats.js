@@ -4238,21 +4238,137 @@ function _buildHighlightsSidebar(teamId, seasonHighlights) {
     ${moreBtn}`;
 }
 
+// ── Highlights all-page state ──────────────────────────────────────────────
+// Persists across renders so filter pills / scope toggle / reel index
+// don't reset when the page re-paints (e.g. after replay close).
+let _frnHighlightFilter = "all";   // all / off / def / game / clutch / playoffs
+let _frnHighlightScope  = "team";  // team / league
+let _frnReelIdx         = null;    // null off | integer index when reel-playing
+function frnSetHighlightFilter(f) { _frnHighlightFilter = f; renderFrnHighlightsAll(); }
+function frnSetHighlightScope(s)  { _frnHighlightScope  = s; renderFrnHighlightsAll(); }
+function frnStartHighlightReel(idx) { _frnReelIdx = idx || 0; renderFrnHighlightsAll(); }
+function frnReelStep(delta) {
+  _frnReelIdx = (_frnReelIdx || 0) + delta;
+  renderFrnHighlightsAll();
+}
+function frnReelExit() {
+  _frnReelIdx = null;
+  // Tear down the modal + reel bar before the next render.
+  const m = document.getElementById("frn-replay-modal");
+  if (m) m.remove();
+  const b = document.getElementById("frn-hl-reel-bar");
+  if (b) b.remove();
+  renderFrnHighlightsAll();
+}
+
 function renderFrnHighlightsAll() {
   const { chosenTeamId, season } = franchise;
   const myTeam = getTeam(chosenTeamId);
   const allHL = franchise.seasonHighlights || [];
-  // Keep master indices so replay modal can look them up
-  const myHLIdx = allHL
-    .map((h, i) => ({ h, i }))
-    .filter(({ h }) => h.homeId === chosenTeamId || h.awayId === chosenTeamId);
 
+  // Scope: my team only, or every game in the league
+  const inScope = ({ h }) => _frnHighlightScope === "league"
+    ? true
+    : (h.homeId === chosenTeamId || h.awayId === chosenTeamId);
+  const allInScope = allHL.map((h, i) => ({ h, i })).filter(inScope);
+
+  // Apply filter
+  const matchesFilter = ({ h }) => {
+    switch (_frnHighlightFilter) {
+      case "off":      return h.type === "off";
+      case "def":      return h.type === "def";
+      case "game":     return h.type === "game";
+      case "clutch":   return !!h.isClutch;
+      case "playoffs": return !!h.isPlayoff;
+      default:         return true;
+    }
+  };
+  const filtered = allInScope.filter(matchesFilter);
+
+  // ── Reel mode ───────────────────────────────────────────────────────
+  // Sequential playback of filtered highlights in weight order. Wraps
+  // the existing replay shell with prev/next/exit.
+  if (_frnReelIdx != null) {
+    // Sort filtered by weight DESC so the reel leads with the loudest moments
+    const reel = filtered.slice().sort((a, b) => b.h.weight - a.h.weight);
+    if (!reel.length) { _frnReelIdx = null; }
+    else {
+      const idx = Math.max(0, Math.min(reel.length - 1, _frnReelIdx));
+      _frnReelIdx = idx;
+      const { h, i } = reel[idx];
+      // Render the existing replay modal for this highlight, then layer
+      // the reel control bar on top. Both are cleared / replaced each step.
+      const oldBar = document.getElementById("frn-hl-reel-bar");
+      if (oldBar) oldBar.remove();
+      renderHighlightReplay(i);
+      const reelBar = document.createElement("div");
+      reelBar.id = "frn-hl-reel-bar";
+      reelBar.className = "frn-hl-reel-bar";
+      const prevDisabled = idx === 0 ? "disabled" : "";
+      const nextDisabled = idx >= reel.length - 1 ? "disabled" : "";
+      reelBar.innerHTML = `
+        <button class="frn-hl-reel-btn" onclick="frnReelStep(-1)" ${prevDisabled}>◀ Prev</button>
+        <span class="frn-hl-reel-progress">REEL ${idx + 1} / ${reel.length}</span>
+        <button class="frn-hl-reel-btn primary" onclick="frnReelStep(1)" ${nextDisabled}>Next ▶</button>
+        <button class="frn-hl-reel-btn exit" onclick="frnReelExit()">✕ Exit reel</button>`;
+      document.body.appendChild(reelBar);
+      // Hook ESC to exit reel cleanly
+      const escHandler = (e) => {
+        if (e.key === "Escape") { document.removeEventListener("keydown", escHandler); frnReelExit(); }
+      };
+      document.addEventListener("keydown", escHandler);
+      return;
+    }
+  }
+
+  // ── Moment of season — heaviest highlight across all-in-scope ───────
+  const moment = allInScope.slice().sort((a, b) => b.h.weight - a.h.weight)[0];
+  const momentHtml = moment ? (() => {
+    const { h, i } = moment;
+    const home = getTeam(h.homeId), away = getTeam(h.awayId);
+    const ctxLine = h.finalHome != null
+      ? `${home?.abbr || home?.name?.slice(0,3).toUpperCase()} ${h.finalHome}-${h.finalAway} ${away?.abbr || away?.name?.slice(0,3).toUpperCase()} · ${h.week}${h.isPlayoff?" · PLAYOFF":""}`
+      : `${h.week}${h.isPlayoff?" · PLAYOFF":""}`;
+    return `<div class="frn-hl-moment">
+      <div class="frn-hl-moment-eyebrow">🌟 MOMENT OF THE SEASON</div>
+      <div class="frn-hl-moment-label">${h.label}</div>
+      <div class="frn-hl-moment-ctx">${ctxLine}</div>
+      <div class="frn-hl-moment-actions">
+        <button class="frn-hl-moment-btn primary" onclick="renderHighlightReplay(${i})">▶ Watch the play</button>
+        <button class="frn-hl-moment-btn" onclick="frnStartHighlightReel(0)">🎬 Play full reel (${filtered.length})</button>
+      </div>
+    </div>`;
+  })() : "";
+
+  // ── Filter pills + scope toggle ─────────────────────────────────────
+  const filters = [
+    { k: "all",      label: "All",       count: allInScope.length },
+    { k: "off",      label: "Offense",   count: allInScope.filter(({h}) => h.type === "off").length },
+    { k: "def",      label: "Defense",   count: allInScope.filter(({h}) => h.type === "def").length },
+    { k: "game",     label: "Capsules",  count: allInScope.filter(({h}) => h.type === "game").length },
+    { k: "clutch",   label: "Clutch",    count: allInScope.filter(({h}) => h.isClutch).length },
+    { k: "playoffs", label: "Playoffs",  count: allInScope.filter(({h}) => h.isPlayoff).length },
+  ];
+  const pillsHtml = filters.map(f => `
+    <button class="frn-hl-pill${_frnHighlightFilter===f.k?" active":""}"
+            onclick="frnSetHighlightFilter('${f.k}')"
+            ${f.count===0?"disabled":""}>
+      ${f.label}<span class="frn-hl-pill-count">${f.count}</span>
+    </button>`).join("");
+
+  const scopeHtml = `
+    <div class="frn-hl-scope">
+      <button class="${_frnHighlightScope==='team'?"active":""}" onclick="frnSetHighlightScope('team')">MY TEAM</button>
+      <button class="${_frnHighlightScope==='league'?"active":""}" onclick="frnSetHighlightScope('league')">LEAGUE</button>
+    </div>`;
+
+  // ── Group filtered by game ──────────────────────────────────────────
   const weekOrd = h => {
     if (h.isPlayoff) return 100 + (parseInt(h.week?.match(/\d+/)?.[0]) || 0);
     return parseInt(h.week?.match(/\d+/)?.[0]) || 0;
   };
   const games = {};
-  for (const { h, i } of myHLIdx) {
+  for (const { h, i } of filtered) {
     const k = `${h.homeId}|${h.awayId}|${h.week}`;
     if (!games[k]) games[k] = { ord: weekOrd(h), week: h.week, isPlayoff: h.isPlayoff, homeId: h.homeId, awayId: h.awayId, items: [] };
     games[k].items.push({ h, i });
@@ -4265,9 +4381,17 @@ function renderFrnHighlightsAll() {
     return                        { badge: h.isClutch ? "CLUTCH"      : "OFF",  color: "#f5c542" };
   };
   const hlCtx = (h) => {
+    // League scope: show both teams' abbrs + final
+    if (_frnHighlightScope === "league") {
+      const home = getTeam(h.homeId), away = getTeam(h.awayId);
+      const ha = home?.abbr || home?.name?.slice(0,3).toUpperCase() || "HOM";
+      const aa = away?.abbr || away?.name?.slice(0,3).toUpperCase() || "AWY";
+      if (h.finalHome == null) return `${ha} vs ${aa}`;
+      return `${ha} ${h.finalHome}-${h.finalAway} ${aa}`;
+    }
     const oppId = h.homeId === chosenTeamId ? h.awayId : h.homeId;
     const opp   = getTeam(oppId);
-    const abbr  = opp?.abbreviation || opp?.name?.slice(0, 3).toUpperCase() || "OPP";
+    const abbr  = opp?.abbr || opp?.name?.slice(0, 3).toUpperCase() || "OPP";
     if (h.finalHome == null) return `vs. ${abbr}`;
     const myPts  = h.homeId === chosenTeamId ? h.finalHome : h.finalAway;
     const oppPts = h.homeId === chosenTeamId ? h.finalAway  : h.finalHome;
@@ -4298,6 +4422,51 @@ function renderFrnHighlightsAll() {
       </section>`;
   }).join("");
 
+  // ── Player honor roll (only meaningful at team scope) ───────────────
+  // Aggregate highlight weight per player name extracted from the label.
+  // Simple heuristic: tokens like "VINICIUS ADEBAYO TD" → first 2-3
+  // capitalized words at the start.
+  let honorRollHtml = "";
+  if (_frnHighlightScope === "team") {
+    const byPlayer = {};
+    const playerRe = /^([A-Z][A-Za-z'\-\.]+(?:\s+[A-Z][A-Za-z'\-\.]+){1,2})/;
+    for (const { h } of allInScope) {
+      if (h.type === "game") continue;            // capsules don't have a single player
+      const match = (h.label || "").match(playerRe);
+      if (!match) continue;
+      const name = match[1].trim();
+      // Skip when the "player" is actually the team name (capsule words like
+      // "DEFENSE" / "OFFENSE" / etc would catch through here on edge cases).
+      if (/^(YOUR|HOME|AWAY|TEAM|OFFENSE|DEFENSE|FINAL|SHUTOUT|SHOOTOUT|REVENGE|UPSET|COMEBACK|CLUTCH|DOMINANT|PICK)/i.test(name)) continue;
+      const t = (h.homeId === chosenTeamId) ? h.homeId : h.awayId;
+      if (!byPlayer[name]) byPlayer[name] = { name, weight: 0, count: 0, teamId: t };
+      byPlayer[name].weight += h.weight;
+      byPlayer[name].count += 1;
+    }
+    const ranked = Object.values(byPlayer)
+      .sort((a, b) => b.weight - a.weight)
+      .slice(0, 6);
+    if (ranked.length) {
+      honorRollHtml = `
+        <section class="bspn-panel" style="margin-bottom:.75rem">
+          <div class="bspn-panel-title">⭐ HIGHLIGHT HONOR ROLL</div>
+          <div style="font-size:.58rem;color:var(--blgray);margin-bottom:.4rem">Players ranked by total highlight impact this season.</div>
+          <div class="frn-hl-honor">
+            ${ranked.map((r, i) => {
+              const t = getTeam(r.teamId);
+              return `<div class="frn-hl-honor-row">
+                <span class="rank">${i+1}</span>
+                <span class="name">${_playerLinkSmart(r.name)}</span>
+                <span class="team" style="color:${t?.primary||"var(--blgray)"}">${t?.abbr || t?.name?.slice(0,3).toUpperCase() || ""}</span>
+                <span class="count">${r.count} moment${r.count===1?"":"s"}</span>
+                <span class="weight">★ ${r.weight.toFixed(0)}</span>
+              </div>`;
+            }).join("")}
+          </div>
+        </section>`;
+    }
+  }
+
   $("frnHomeContent").innerHTML = `
     <div class="bspnlive-root" style="margin:-1rem -1.5rem 0;padding-bottom:1rem">
       <header class="bspnlive-header">
@@ -4307,12 +4476,18 @@ function renderFrnHighlightsAll() {
         </div>
         <nav class="bspnlive-nav">${_bspnNavHtml("")}</nav>
       </header>
-      <div style="padding:.55rem 1.4rem;border-bottom:1px solid var(--blborder)">
+      <div style="padding:.55rem 1.4rem;border-bottom:1px solid var(--blborder);display:flex;align-items:center;gap:.6rem">
         <button class="bspn-back" onclick="showFranchiseDashboard()">‹ Back to Dashboard</button>
+        ${scopeHtml}
       </div>
       <div style="padding:1rem 1.4rem">
-        <div style="color:var(--blgold);font-size:.7rem;letter-spacing:1.5px;margin-bottom:.75rem">${myTeam?.name?.toUpperCase()} · ${myHL.length} MOMENTS ACROSS ${sortedGames.length} GAMES</div>
-        ${blocksHtml || `<div style="color:var(--blgray);padding:1rem">No highlights yet — play some games!</div>`}
+        <div style="color:var(--blgold);font-size:.7rem;letter-spacing:1.5px;margin-bottom:.4rem">
+          ${_frnHighlightScope === "league" ? `LEAGUE · ${allInScope.length} MOMENTS` : `${myTeam?.name?.toUpperCase()} · ${allInScope.length} MOMENTS ACROSS ${sortedGames.length || Object.keys(games).length} GAMES`}
+        </div>
+        ${momentHtml}
+        <div class="frn-hl-pills">${pillsHtml}</div>
+        ${honorRollHtml}
+        ${blocksHtml || `<div style="color:var(--blgray);padding:1rem">No highlights match this filter.</div>`}
       </div>
     </div>`;
 }
@@ -5740,6 +5915,42 @@ function captureGameHighlights(homeId, awayId, plays, isPlayoff, weekLabel) {
     const winName = fh > fa ? homeName : awayName;
     const margin2 = Math.abs(fh - fa);
     const loserPts = Math.min(fh, fa);
+    const combined = fh + fa;
+    // Comeback detection — scan every play with a score for the max
+    // deficit the eventual winner faced. 14+ down → comeback.
+    let maxDeficit = 0;
+    for (const p of plays) {
+      if (p.homeScore == null || p.awayScore == null) continue;
+      const winnerSide = winId === homeId ? "home" : "away";
+      const winnerScore = winnerSide === "home" ? p.homeScore : p.awayScore;
+      const loserScore  = winnerSide === "home" ? p.awayScore : p.homeScore;
+      const def = loserScore - winnerScore;
+      if (def > maxDeficit) maxDeficit = def;
+    }
+    // Upset detection (playoffs) — lower seed beats higher seed.
+    let upsetGap = 0;
+    if (isPlayoff && franchise.playoffBracket?.seeds) {
+      const seeds = franchise.playoffBracket.seeds;
+      const winSeed = seeds.find(s => s.teamId === winId)?.seed;
+      const losId = winId === homeId ? awayId : homeId;
+      const losSeed = seeds.find(s => s.teamId === losId)?.seed;
+      if (winSeed && losSeed && winSeed > losSeed) upsetGap = winSeed - losSeed;
+    }
+    // Revenge detection (playoffs) — same matchup played in reg season,
+    // winner lost that meeting. Only count one rematch flip per game.
+    let revengeMeeting = null;
+    if (isPlayoff && franchise.schedule) {
+      const regMeetings = franchise.schedule.filter(g =>
+        g.played && !g.isPlayoff && (
+          (g.homeId === homeId && g.awayId === awayId) ||
+          (g.homeId === awayId && g.awayId === homeId)
+        ));
+      const flippedLoss = regMeetings.find(g => {
+        const winThenId = g.homeScore > g.awayScore ? g.homeId : g.awayId;
+        return winThenId !== winId;
+      });
+      if (flippedLoss) revengeMeeting = flippedLoss;
+    }
     const capsule = { homeId, awayId, isPlayoff: !!isPlayoff, week: weekLabel, finalHome: fh, finalAway: fa, winId };
     // Clip for capsules: last 2 plays of the game → synthetic final card
     const capCtx = recentBuf.slice(-2).map(cp => trimPlay(cp, false));
@@ -5748,9 +5959,21 @@ function captureGameHighlights(homeId, awayId, plays, isPlayoff, weekLabel) {
     if (isOT) {
       const lbl = `OT THRILLER — ${winName} wins ${Math.max(fh,fa)}-${loserPts}`;
       hl.push({ weight: 18, label: lbl, desc: `Overtime game`, ...capsule, type: "game", isClutch: true, clip: mkCap(lbl) });
+    } else if (maxDeficit >= 17) {
+      const lbl = `COMEBACK — ${winName} overcomes ${maxDeficit}-point deficit`;
+      hl.push({ weight: 17, label: lbl, desc: `Comeback win`, ...capsule, type: "game", isClutch: true, clip: mkCap(lbl) });
+    } else if (maxDeficit >= 14) {
+      const lbl = `Comeback W — ${winName} rallies from ${maxDeficit} down`;
+      hl.push({ weight: 13, label: lbl, desc: `Comeback win`, ...capsule, type: "game", isClutch: true, clip: mkCap(lbl) });
     } else if (loserPts === 0) {
       const lbl = `SHUTOUT — ${winName} blanks opponent`;
       hl.push({ weight: 16, label: lbl, desc: `${winName} shutout`, ...capsule, type: "def", isClutch: false, clip: mkCap(lbl) });
+    } else if (combined >= 75) {
+      const lbl = `SHOOTOUT — ${fh}-${fa}, ${combined} combined points`;
+      hl.push({ weight: 12, label: lbl, desc: `Shootout`, ...capsule, type: "game", isClutch: false, clip: mkCap(lbl) });
+    } else if (combined <= 24 && Math.max(fh, fa) >= 6) {
+      const lbl = `Defensive battle — ${fh}-${fa}, ${combined} combined`;
+      hl.push({ weight: 10, label: lbl, desc: `Defensive battle`, ...capsule, type: "def", isClutch: false, clip: mkCap(lbl) });
     } else if (loserPts <= 7 && margin2 >= 14) {
       const lbl = `Dominant W — ${winName} ${Math.max(fh,fa)}-${loserPts}`;
       hl.push({ weight: 9, label: lbl, desc: `Dominant victory`, ...capsule, type: "game", isClutch: false, clip: mkCap(lbl) });
@@ -5758,14 +5981,24 @@ function captureGameHighlights(homeId, awayId, plays, isPlayoff, weekLabel) {
       const lbl = `One-score game — ${winName} wins by ${margin2}`;
       hl.push({ weight: 11, label: lbl, desc: `Nail-biter`, ...capsule, type: "game", isClutch: true, clip: mkCap(lbl) });
     }
+    // Playoffs-only extras — additive to the result capsule above.
+    if (upsetGap >= 2) {
+      const lbl = `UPSET — ${winName} (lower seed) stuns the field by ${upsetGap} seed${upsetGap===1?"":"s"}`;
+      hl.push({ weight: 14, label: lbl, desc: `Playoff upset`, ...capsule, type: "game", isClutch: false, clip: mkCap(lbl) });
+    }
+    if (revengeMeeting) {
+      const lbl = `REVENGE — ${winName} flips the reg-season loss in the playoffs`;
+      hl.push({ weight: 12, label: lbl, desc: `Rematch win`, ...capsule, type: "game", isClutch: false, clip: mkCap(lbl) });
+    }
     // Back-fill final score onto play-level highlights from this game
     for (const h of hl) {
       if (h.finalHome == null) { h.finalHome = fh; h.finalAway = fa; h.winId = winId; }
     }
   }
 
-  // Top 5 per game so we don't bury the season
-  const top = hl.sort((a, b) => b.weight - a.weight).slice(0, 5);
+  // Top 6 per game so capsule + plays both fit; keeps the season tape
+  // dense without burying any single matchup.
+  const top = hl.sort((a, b) => b.weight - a.weight).slice(0, 6);
   franchise.seasonHighlights.push(...top);
 }
 
