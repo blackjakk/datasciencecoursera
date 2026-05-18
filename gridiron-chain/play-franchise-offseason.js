@@ -4676,11 +4676,40 @@ function _franchiseTagAvailable() {
 
 // ── Mid-season holdouts ──────────────────────────────────────────────────────
 // Stars in the last year of their deal can demand a new contract DURING
-// the season. If user doesn't extend or move them within 4 weeks, they
-// hold out for a game (injury-style 1-week sit) and the demand expires.
+// the season. Walk-year leverage — they want their next deal NOW. Demands
+// are tag-floored (a star would force the franchise tag if you wait, so
+// their demand sits at least at tag-AAV). User has 4 weeks to extend, trade,
+// counter, defer, or explicitly refuse. Auto-resolution after deadline =
+// 1-game sit-out and demand expires.
+const _MID_HOLDOUT_MIN_YEARS = 2;
+const _MID_HOLDOUT_MAX_YEARS = 6;
+const _MID_HOLDOUT_MAX_DEFERS = 2;
+
+// Comp-pick estimate if a walk-year demand goes unresolved and the player
+// signs elsewhere next FA period.
+function _holdoutDemandCompPick(d) {
+  const ovr = d.overall || 0;
+  if (ovr >= 88) return "3rd-rd comp pick";
+  if (ovr >= 83) return "4th-rd comp pick";
+  if (ovr >= 78) return "5th-rd comp pick";
+  return null;
+}
+
+// Average AAV of top-3 free agents at this position (a quick "expected
+// market price" preview for the walk path). Falls back to market value
+// if the FA pool isn't seeded yet.
+function _holdoutDemandFAMarket(position, fallbackAAV) {
+  const pool = (franchise.freeAgents || []).filter(p => p.position === position);
+  if (!pool.length) return fallbackAAV;
+  const top = pool.sort((a, b) => (b.demandedAAV || 0) - (a.demandedAAV || 0)).slice(0, 3);
+  const avg = top.reduce((s, p) => s + (p.demandedAAV || 0), 0) / top.length;
+  return Math.round(avg * 10) / 10;
+}
+
 function _checkHoldoutDemands() {
   const myId = franchise.chosenTeamId;
   const roster = franchise.rosters[myId] || [];
+  const cap = franchise.salaryCap || SALARY_CAP_BASE;
   franchise.holdoutDemands = franchise.holdoutDemands || [];
   // New demand rolls — only for stars in their contract year, age ≤30
   for (const p of roster) {
@@ -4690,20 +4719,41 @@ function _checkHoldoutDemands() {
     if (p.injury?.weeksRemaining > 0) continue;
     if (franchise.holdoutDemands.some(d => d.name === p.name)) continue;
     if (Math.random() >= 0.04) continue;
+    const market = computeMarketValue(p, cap);
+    const tagFloor = _franchiseTagAAV({ position: p.position, name: p.name }, cap);
+    // Tag-floored demand: walk-year stars know you could tag them next year
+    // for tag-AAV, so they demand at least 95% of that as their floor.
+    const demand = Math.round(Math.max(market, tagFloor * 0.95) * 10) / 10;
+    const wantYears = (p.overall || 0) >= 88 ? 5 : 4;
     franchise.holdoutDemands.push({
       name: p.name, position: p.position,
+      overall: p.overall || 70,
+      age: p.age || 27,
+      currentAAV: p.contract.aav || 0,
+      currentRemaining: p.contract.remaining,
+      marketValue: market,           // back-compat
+      marketAAV: market,
+      tagFloorAAV: tagFloor,
+      demandedAAV: demand,
+      demandedYears: wantYears,
+      offer: demand,
+      offerYears: wantYears,
+      structure: _defaultStructure(p.age || 27, p.overall || 70),
       week: franchise.week, deadlineWeek: franchise.week + 4,
-      marketValue: computeMarketValue(p, franchise.salaryCap),
+      defers: 0,
+      resolved: null,
     });
     _pushNews({ type: "holdout_demand",
-      label: `📣 ${p.position} ${p.name} wants a new deal before his contract expires — extend by Week ${franchise.week + 4}` });
+      label: `📣 ${p.position} ${p.name} wants $${demand.toFixed(1)}M/yr × ${wantYears}yr before his contract expires — extend by Week ${franchise.week + 4}` });
   }
   // Resolve expired demands → 1-game sit-out
   for (const d of franchise.holdoutDemands.slice()) {
+    if (d.resolved) continue; // already handled via the modal
     if (d.deadlineWeek <= franchise.week) {
       const p = roster.find(r => r.name === d.name);
       if (p && !p.injury) {
         p.injury = { label: "holdout", weeksRemaining: 1 };
+        p.unhappy = true;
         _pushNews({ type: "holdout",
           label: `🚫 ${p.position} ${p.name} is holding out — not playing this week` });
       }
@@ -4711,30 +4761,392 @@ function _checkHoldoutDemands() {
     }
   }
 }
-// Mid-season extension — replaces the player's contract with a fresh
-// one. Cancels any active holdout demand.
+
+// Back-fill helper for legacy holdoutDemands (just had name/position/week/
+// deadlineWeek/marketValue). Restores the player's contract state so the
+// modal can render its full row UI.
+function _migrateHoldoutDemandShape(list) {
+  if (!list || !list.length) return;
+  const myId = franchise.chosenTeamId;
+  const roster = franchise.rosters[myId] || [];
+  const cap = franchise.salaryCap || SALARY_CAP_BASE;
+  for (const d of list) {
+    if (!d) continue;
+    const live = roster.find(p => p.name === d.name);
+    if (d.marketAAV == null)        d.marketAAV = d.marketValue ?? (live ? computeMarketValue(live, cap) : 1);
+    if (d.tagFloorAAV == null)      d.tagFloorAAV = _franchiseTagAAV({ position: d.position, name: d.name }, cap);
+    if (d.demandedAAV == null)      d.demandedAAV = Math.round(Math.max(d.marketAAV, d.tagFloorAAV * 0.95) * 10) / 10;
+    if (d.demandedYears == null)    d.demandedYears = (live?.overall || 0) >= 88 ? 5 : 4;
+    if (d.offer == null)            d.offer = d.demandedAAV;
+    if (d.offerYears == null)       d.offerYears = d.demandedYears;
+    if (d.structure == null)        d.structure = _defaultStructure(live?.age || 27, live?.overall || 70);
+    if (d.overall == null)          d.overall = live?.overall ?? 85;
+    if (d.age == null)              d.age = live?.age ?? 27;
+    if (d.currentAAV == null)       d.currentAAV = live?.contract?.aav ?? 0;
+    if (d.currentRemaining == null) d.currentRemaining = live?.contract?.remaining ?? 1;
+    if (d.defers == null)           d.defers = 0;
+    if (d.resolved === undefined)   d.resolved = null;
+  }
+}
+
+// Pending = active demands that still need a decision.
+function _pendingHoldoutDemands() {
+  const week = franchise.week || 1;
+  return (franchise.holdoutDemands || []).filter(d => d.deadlineWeek >= week && !d.resolved);
+}
+
+// ── Mid-season actions ─────────────────────────────────────────────────────
+let _holdoutMidPreview = null;
+
+function frnHoldoutMidExtend(name) {
+  const list = franchise.holdoutDemands || [];
+  _migrateHoldoutDemandShape(list);
+  const d = list.find(x => x.name === name);
+  if (!d) return;
+  const myId = franchise.chosenTeamId;
+  const player = (franchise.rosters[myId] || []).find(p => p.name === name);
+  if (!player) return;
+  const aav    = d.offer ?? d.demandedAAV;
+  const years  = d.offerYears ?? d.demandedYears;
+  const struct = d.structure || "BALANCED";
+  const ovr    = player.overall || d.overall || 70;
+  const { signingBonus, bonusProration, tradeKicker } = _signingBonusCalc(aav, years, ovr);
+  const baseSalaries = _baseSalarySchedule(aav, years, struct, bonusProration);
+  const odds = _holdoutAcceptOdds(aav, years, d.demandedAAV, d.demandedYears);
+  if (odds < 0.5) player.unhappy = true;
+  else delete player.unhappy;
+  player.contract = {
+    years, remaining: years, aav, structure: struct,
+    baseSalaries, signingBonus, bonusProration, tradeKicker,
+    guaranteedYears: _guaranteedYearsForLength(years),
+    guaranteedAAV: aav, incentives: [], signedAav: aav,
+  };
+  _pushNews({ type: "extension",
+    label: `🤝 Extended ${player.position} ${name} mid-season — ${years}yr / $${aav.toFixed(1)}M/yr` });
+  franchise.holdoutDemands = list.filter(x => x.name !== name);
+  _holdoutMidPreview = null;
+  saveFranchise();
+  frnRefreshHoldoutCenter();
+}
+
+function frnHoldoutMidCounter(name) {
+  const list = franchise.holdoutDemands || [];
+  _migrateHoldoutDemandShape(list);
+  const d = list.find(x => x.name === name);
+  if (!d) return;
+  d.offer = Math.round(d.demandedAAV * 0.95 * 10) / 10;
+  d.offerYears = Math.max(_MID_HOLDOUT_MIN_YEARS, Math.min(_MID_HOLDOUT_MAX_YEARS, d.demandedYears));
+  saveFranchise();
+  frnRefreshHoldoutCenter();
+}
+
+function frnHoldoutMidAdjustYears(name, delta) {
+  const list = franchise.holdoutDemands || [];
+  _migrateHoldoutDemandShape(list);
+  const d = list.find(x => x.name === name);
+  if (!d) return;
+  const newYears = Math.max(_MID_HOLDOUT_MIN_YEARS, Math.min(_MID_HOLDOUT_MAX_YEARS, (d.offerYears || d.demandedYears) + delta));
+  if (newYears === d.offerYears) return;
+  d.offerYears = newYears;
+  saveFranchise();
+  frnRefreshHoldoutCenter();
+}
+
+function frnHoldoutMidSetStructure(name, struct) {
+  const list = franchise.holdoutDemands || [];
+  _migrateHoldoutDemandShape(list);
+  const d = list.find(x => x.name === name);
+  if (!d) return;
+  d.structure = struct;
+  saveFranchise();
+  frnRefreshHoldoutCenter();
+}
+
+function frnHoldoutMidPreview(name) {
+  _holdoutMidPreview = name;
+  frnRefreshHoldoutCenter();
+}
+function frnHoldoutMidPreviewClose() {
+  _holdoutMidPreview = null;
+  frnRefreshHoldoutCenter();
+}
+
+function frnHoldoutMidTrade(name) {
+  const list = franchise.holdoutDemands || [];
+  const d = list.find(x => x.name === name);
+  if (!d) return;
+  // Marking resolved="trade-block" lets the inbox/ribbon drop the demand
+  // from the active count. Player stays on the roster until the user
+  // closes a real trade — the trade screen takes over from here.
+  d.resolved = "trade-block";
+  franchise._tradeProp = {
+    targetTeamId: TEAMS.find(t => t.id !== franchise.chosenTeamId).id,
+    youSend: [name],
+    youReceive: [],
+    result: null,
+  };
+  saveFranchise();
+  frnCloseHoldoutCenter();
+  renderFrnTrade();
+}
+
+function frnHoldoutMidDefer(name) {
+  const list = franchise.holdoutDemands || [];
+  _migrateHoldoutDemandShape(list);
+  const d = list.find(x => x.name === name);
+  if (!d) return;
+  if ((d.defers || 0) >= _MID_HOLDOUT_MAX_DEFERS) {
+    alert(`${name} won't accept another delay. He wants a deal or he sits.`);
+    return;
+  }
+  d.defers = (d.defers || 0) + 1;
+  d.deadlineWeek += 2;
+  // Each defer raises the demand 3% — patience costs.
+  d.demandedAAV = Math.round(d.demandedAAV * 1.03 * 10) / 10;
+  d.offer = Math.max(d.offer || 0, d.demandedAAV);
+  _pushNews({ type: "holdout_demand",
+    label: `⏳ ${d.position} ${d.name} agreed to defer his demand — new deadline Week ${d.deadlineWeek}, asking $${d.demandedAAV.toFixed(1)}M/yr now` });
+  saveFranchise();
+  frnRefreshHoldoutCenter();
+}
+
+function frnHoldoutMidRefuse(name) {
+  const list = franchise.holdoutDemands || [];
+  const d = list.find(x => x.name === name);
+  if (!d) return;
+  const myId = franchise.chosenTeamId;
+  const player = (franchise.rosters[myId] || []).find(p => p.name === name);
+  if (player) {
+    if (!player.injury) player.injury = { label: "holdout", weeksRemaining: 1 };
+    player.unhappy = true;
+  }
+  _pushNews({ type: "holdout",
+    label: `🚫 ${d.position} ${d.name} held out — not playing this week. Refused the team's stance.` });
+  franchise.holdoutDemands = list.filter(x => x.name !== name);
+  _holdoutMidPreview = null;
+  saveFranchise();
+  frnRefreshHoldoutCenter();
+}
+
+// ── Mid-season Holdout Center modal ────────────────────────────────────────
+// One row per active demand (same UX as the offseason demands page,
+// trimmed to mid-season actions: Extend / Counter / Trade / Defer /
+// Refuse). Opens from the dashboard ribbon or the inbox CTA.
+function _renderHoldoutCenterRow(d) {
+  const myId = franchise.chosenTeamId;
+  const myRoster = franchise.rosters[myId] || [];
+  const live = myRoster.find(p => p.name === d.name);
+  const escName = (d.name||"").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  const cap = effectiveSalaryCap(myId);
+  const ovr = live?.overall ?? d.overall ?? 70;
+  const age = live?.age ?? d.age ?? "?";
+  const struct = d.structure || "BALANCED";
+  const offer = d.offer ?? d.demandedAAV;
+  const offerYears = d.offerYears ?? d.demandedYears;
+  const { bonusProration } = _signingBonusCalc(offer, offerYears, ovr);
+  const deadTotal = bonusProration * offerYears;
+
+  // ── Year-by-year preview before signing ──────────────────────────
+  if (_holdoutMidPreview === d.name) {
+    const bases = _baseSalarySchedule(offer, offerYears, struct, bonusProration);
+    const yearPills = bases.map((base, i) => {
+      const hit = Math.round((base + bonusProration) * 10) / 10;
+      return `<div style="display:flex;justify-content:space-between;padding:.18rem .4rem;border-radius:4px;background:var(--bg3);font-size:.67rem;gap:.8rem">
+        <span style="color:var(--gray)">Yr ${i+1}</span>
+        <span>$${base.toFixed(1)}M base</span>
+        <span style="color:var(--gray)">+$${bonusProration.toFixed(1)}M bonus</span>
+        <span style="color:var(--gold);font-weight:700">= $${hit.toFixed(1)}M</span>
+      </div>`;
+    }).join("");
+    return `<div class="frn-resign-row" style="border-color:var(--gold);background:rgba(200,169,0,.07)">
+      <div class="frn-resign-info">
+        <span style="font-weight:700;color:var(--gold)">${d.name}</span>
+        <span style="color:var(--gray);font-size:.7rem">${d.position} · ${ovr} OVR · Age ${age}</span>
+        <span style="font-size:.6rem;color:var(--gray);margin-top:.1rem">${struct} · $${offer.toFixed(1)}M/yr · ${offerYears}yr</span>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:.2rem;margin:0 .6rem">${yearPills}</div>
+      <div class="frn-resign-btns" style="flex-direction:column;gap:.3rem">
+        ${deadTotal >= 0.5 ? `<span style="color:#ff9090;font-size:.6rem;text-align:center">☠ Dead $${bonusProration.toFixed(1)}M×${offerYears}yr</span>` : ""}
+        <button class="btn btn-gold" onclick="frnHoldoutMidExtend('${escName}')" style="white-space:nowrap">✓ Sign Extension</button>
+        <button class="btn btn-outline" onclick="frnHoldoutMidPreviewClose()" style="font-size:.65rem">← Back</button>
+      </div>
+    </div>`;
+  }
+
+  const trend = _ovrTrend(live);
+  const trendHtml = trend == null ? "" : trend > 0
+    ? `<span style="color:var(--green-lt);font-size:.6rem">↑ +${trend} OVR</span>`
+    : trend < 0 ? `<span style="color:var(--red);font-size:.6rem">↓ ${trend} OVR</span>`
+    : `<span style="color:var(--gray);font-size:.6rem">→ flat</span>`;
+  const curve = _ageCurveWarning(age === "?" ? null : age, offerYears);
+  const isProne = typeof _isInjuryProne === "function" && _isInjuryProne(live);
+
+  // Risk badges
+  const risks = _resignRiskBadges(live, { overall: ovr }, curve, trend);
+  const riskHtml = risks.map(b =>
+    `<span class="frn-resign-risk" style="color:${b.color};border-color:${b.color}55">${b.label}</span>`
+  ).join("");
+
+  // Demand + accept odds
+  const odds = _holdoutAcceptOdds(offer, offerYears, d.demandedAAV, d.demandedYears);
+  const oddsColor = odds >= 0.85 ? "var(--green-lt)" : odds >= 0.5 ? "#e8a000" : "#ff8a8a";
+  const demandHtml = `<div class="frn-resign-demand">
+    <span class="lbl">Wants</span>
+    <span class="num">$${d.demandedAAV.toFixed(1)}M × ${d.demandedYears}yr</span>
+    <span class="lbl" style="margin-left:.5rem">Tag floor</span>
+    <span class="num" style="color:var(--gray)">$${d.tagFloorAAV.toFixed(1)}M</span>
+    <span class="lbl" style="margin-left:.5rem">Accept odds</span>
+    <span class="num" style="color:${oddsColor}">${Math.round(odds * 100)}%</span>
+  </div>`;
+
+  // FA preview line — what happens if you let him walk
+  const compPick = _holdoutDemandCompPick(d);
+  const faMarket = _holdoutDemandFAMarket(d.position, d.marketAAV);
+  const faMktDepth = _faMktDepth(d.position);
+  const faPreviewHtml = `<div class="frn-resign-meta" style="border-top:1px dashed var(--border);padding-top:.25rem;margin-top:.25rem">
+    <span style="color:var(--gray)">If he walks:</span>
+    ${compPick ? `<span style="color:var(--gold)">🎁 ${compPick}</span>` : ""}
+    <span style="color:var(--gray)">· FA market ~$${faMarket.toFixed(1)}M/yr</span>
+    ${faMktDepth ? `<span style="color:var(--gray)">· ${faMktDepth} comp FAs avail</span>` : ""}
+  </div>`;
+
+  // Deadline countdown
+  const wksLeft = Math.max(0, d.deadlineWeek - franchise.week);
+  const deadlineColor = wksLeft <= 1 ? "var(--red)" : wksLeft <= 2 ? "#e8a000" : "var(--gray)";
+  const deadlineHtml = `<div style="font-size:.6rem;color:${deadlineColor};margin-top:.15rem">
+    ⏰ ${wksLeft === 0 ? "Deadline this week" : `${wksLeft} week${wksLeft===1?"":"s"} until deadline`}${d.defers ? ` · deferred ${d.defers}×` : ""}
+  </div>`;
+
+  const tradeVal = _holdoutTradeValue(d, live);
+  const tier = _holdoutTier(d);
+
+  return `<div class="frn-resign-row tier-${tier}">
+    <div class="frn-resign-row-inner">
+      <div class="frn-resign-info">
+        <span style="font-weight:700;color:var(--white);font-size:.95rem">${d.name}</span>
+        <span style="color:var(--gray);font-size:.7rem">${d.position} · ${ovr} OVR ${trendHtml} · Age ${age}</span>
+        <span style="color:var(--gray);font-size:.6rem">Walk year · ${d.currentRemaining}yr left · current $${d.currentAAV.toFixed(1)}M/yr</span>
+        ${riskHtml ? `<div class="frn-resign-risks">${riskHtml}</div>` : ""}
+        ${demandHtml}
+        ${faPreviewHtml}
+        ${deadlineHtml}
+      </div>
+      <div class="frn-resign-offer">
+        <span style="color:${offer > d.marketAAV * 1.1 ? 'var(--red)' : offer < d.marketAAV * 0.9 ? 'var(--green-lt)' : 'var(--gold)'};font-weight:700">$${offer.toFixed(1)}M/yr ${vsMarketCell(offer, d.marketAAV)}</span>
+        <div style="display:flex;align-items:center;gap:.25rem;justify-content:flex-end;margin-top:.15rem">
+          <button class="frn-resign-yrbtn"
+            ${offerYears <= _MID_HOLDOUT_MIN_YEARS ? "disabled" : ""}
+            onclick="frnHoldoutMidAdjustYears('${escName}', -1)">−</button>
+          <span style="color:var(--gray);font-size:.7rem;min-width:2.5rem;text-align:center">${offerYears} yr</span>
+          <button class="frn-resign-yrbtn"
+            ${offerYears >= _MID_HOLDOUT_MAX_YEARS ? "disabled" : ""}
+            onclick="frnHoldoutMidAdjustYears('${escName}', 1)">+</button>
+        </div>
+        <span style="color:var(--gray);font-size:.6rem;text-align:right">total $${(offer * offerYears).toFixed(1)}M</span>
+        ${deadTotal < 0.5
+          ? `<span style="color:var(--gray);font-size:.6rem">No dead cap</span>`
+          : `<span style="color:#ff9090;font-size:.6rem;text-align:right">☠ Dead $${bonusProration.toFixed(1)}M×${offerYears}yr = $${deadTotal.toFixed(1)}M</span>`}
+        <div style="display:flex;gap:.2rem;justify-content:flex-end;margin-top:.25rem;align-items:center;flex-wrap:wrap">
+          <span style="color:var(--gray);font-size:.58rem">Structure:</span>
+          ${["BALANCED","BACKLOADED","FRONTLOADED"].map(s => {
+            const desc = s==="BALANCED"?"flat salaries":s==="BACKLOADED"?"cheap now, costly later":"costly now, cheap later";
+            return `<button class="btn ${struct===s?"btn-gold":"btn-outline"}" onclick="frnHoldoutMidSetStructure('${escName}','${s}')" style="font-size:.55rem;padding:.1rem .3rem" title="${desc}">${s[0]+s.slice(1).toLowerCase()}</button>`;
+          }).join("")}
+        </div>
+      </div>
+      <div class="frn-resign-btns">
+        <button class="btn frn-resign-btn accept-btn" onclick="frnHoldoutMidPreview('${escName}')">Review &amp; Extend</button>
+        ${odds < 0.85 ? `<button class="btn frn-resign-btn accept-btn" style="border-color:var(--gold-lt);color:var(--gold-lt)" onclick="frnHoldoutMidCounter('${escName}')" title="Drop offer to 95% of demand">↻ Counter</button>` : ""}
+        <button class="btn frn-resign-btn" style="border-color:var(--gold);color:var(--gold)" onclick="frnHoldoutMidTrade('${escName}')" title="Open trade screen with him pre-selected">🔀 Trade<span style="font-size:.5rem;display:block;color:var(--gold-lt)">${tradeVal}</span></button>
+        ${(d.defers || 0) < _MID_HOLDOUT_MAX_DEFERS
+          ? `<button class="btn frn-resign-btn" style="border-color:var(--blgray);color:var(--blgray)" onclick="frnHoldoutMidDefer('${escName}')" title="Push deadline +2 wks. Demand rises 3% each defer. Max ${_MID_HOLDOUT_MAX_DEFERS}×.">⏳ Defer<span style="font-size:.5rem;display:block;color:var(--blgray)">+2 wks · +3% AAV</span></button>`
+          : `<button class="btn frn-resign-btn" disabled title="Already deferred max times" style="opacity:.4">⏳ Defer<span style="font-size:.5rem;display:block">max reached</span></button>`}
+        <button class="btn frn-resign-btn decline-btn" onclick="frnHoldoutMidRefuse('${escName}')" title="Player sits this week and walks at expiry">✗ Refuse<span style="font-size:.5rem;display:block;color:#ff9090">sits 1 game</span></button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function frnOpenHoldoutCenter() {
+  _migrateHoldoutDemandShape(franchise.holdoutDemands || []);
+  const existing = document.getElementById("frn-holdout-center-modal");
+  if (existing) existing.remove();
+  const el = document.createElement("div");
+  el.id = "frn-holdout-center-modal";
+  el.className = "frn-resign-recap-overlay";
+  el.innerHTML = _holdoutCenterInnerHtml();
+  el.addEventListener("click", e => { if (e.target === el) frnCloseHoldoutCenter(); });
+  document.body.appendChild(el);
+}
+
+function frnCloseHoldoutCenter() {
+  const el = document.getElementById("frn-holdout-center-modal");
+  if (el) el.remove();
+  _holdoutMidPreview = null;
+}
+
+// Re-render the modal in place after an action — keeps the user on the
+// same screen instead of forcing a dashboard refresh that closes the modal.
+function frnRefreshHoldoutCenter() {
+  const el = document.getElementById("frn-holdout-center-modal");
+  if (!el) return;
+  el.innerHTML = _holdoutCenterInnerHtml();
+}
+
+function _holdoutCenterInnerHtml() {
+  const pending = _pendingHoldoutDemands();
+  if (!pending.length) {
+    return `<div class="frn-resign-recap-card">
+      <button class="frn-resign-recap-close" onclick="frnCloseHoldoutCenter()">×</button>
+      <div class="frn-resign-recap-eyebrow">WEEK ${franchise.week} · HOLDOUT CENTER</div>
+      <h2 class="frn-resign-recap-title">NO ACTIVE DEMANDS</h2>
+      <p style="color:var(--blgray);text-align:center;margin:1rem 0">All walk-year extension demands have been resolved.</p>
+      <div class="frn-resign-recap-cta"><button class="btn btn-gold-big" onclick="frnCloseHoldoutCenter()">✓ Close</button></div>
+    </div>`;
+  }
+  const rows = pending.map(_renderHoldoutCenterRow).join("");
+  return `<div class="frn-resign-recap-card" style="max-width:1100px">
+    <button class="frn-resign-recap-close" onclick="frnCloseHoldoutCenter()">×</button>
+    <div class="frn-resign-recap-eyebrow">WEEK ${franchise.week} · HOLDOUT CENTER</div>
+    <h2 class="frn-resign-recap-title">🗣 ${pending.length} ACTIVE DEMAND${pending.length===1?"":"S"}</h2>
+    <p style="color:var(--blgray);text-align:center;margin:.4rem 0 .8rem;font-size:.72rem">Walk-year stars demanding an extension. Tag-floored asks. Refuse → 1-game sit-out + flight risk. Defer → +2 weeks, +3% AAV (max 2×).</p>
+    <div class="frn-resign-list" style="margin-top:.6rem">${rows}</div>
+    <div class="frn-resign-recap-cta">
+      <button class="btn btn-outline" onclick="frnCloseHoldoutCenter()">← Close</button>
+    </div>
+  </div>`;
+}
+
+// ── Back-compat shim ───────────────────────────────────────────────────────
+// The inbox "Extend" CTA used to call frnExtendPlayer with a prompt() flow.
+// Route it through the new Holdout Center modal instead. Old saves whose
+// demands lack the enriched fields get migrated in _migrateHoldoutDemandShape.
 function frnExtendPlayer(name) {
+  // If the player has an active demand, open the center modal.
+  const list = franchise.holdoutDemands || [];
+  if (list.some(d => d.name === name && !d.resolved)) {
+    frnOpenHoldoutCenter();
+    return;
+  }
+  // No active demand — fall back to a simple inline extension prompt.
   const myId = franchise.chosenTeamId;
   const roster = franchise.rosters[myId] || [];
   const p = roster.find(r => r.name === name);
   if (!p) return;
   const cap = franchise.salaryCap || SALARY_CAP_BASE;
   const baseMarket = computeMarketValue(p, cap);
-  // Open inline modal-style picker — user picks 2-6 years.
   const years = parseInt(prompt(
     `Extend ${name}? Pick length (2-6 years):`, "4"
   ), 10);
   if (!years || years < 2 || years > 6) return;
   const aav = _resignAavForYears(baseMarket, years);
-  const newTotal = aav * years;
-  if (!confirm(`Sign ${name} to ${years}yr / $${aav.toFixed(1)}M/yr ($${newTotal.toFixed(1)}M total)?`)) return;
+  if (!confirm(`Sign ${name} to ${years}yr / $${aav.toFixed(1)}M/yr ($${(aav*years).toFixed(1)}M total)?`)) return;
   const guaranteedYears = _guaranteedYearsForLength(years);
   p.contract = {
     years, remaining: years, aav,
     guaranteedYears, guaranteedAAV: aav,
     signedAav: aav,
   };
-  franchise.holdoutDemands = (franchise.holdoutDemands || []).filter(d => d.name !== name);
   _pushNews({ type: "extension",
     label: `🤝 Extended ${p.position} ${name} — ${years}yr / $${aav.toFixed(1)}M/yr` });
   saveFranchise();

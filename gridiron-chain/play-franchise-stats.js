@@ -5065,6 +5065,19 @@ function _frnRenderAppShell() {
     if (id === "tools" && pendingJP) return `<span class="frn-shell-badge">${pendingJP}</span>`;
     return "";
   };
+  // Active holdout demands → persistent ribbon below the tab nav so the
+  // user notices them no matter which tab they're on.
+  const pendingDemands = (typeof _pendingHoldoutDemands === "function") ? _pendingHoldoutDemands() : [];
+  let ribbonHtml = "";
+  if (pendingDemands.length) {
+    const urgent = pendingDemands.filter(d => (d.deadlineWeek - franchise.week) <= 1).length;
+    const cls = urgent ? "frn-shell-ribbon urgent" : "frn-shell-ribbon";
+    ribbonHtml = `<div class="${cls}" onclick="frnOpenHoldoutCenter()" title="Click to resolve">
+      <span class="ribbon-icon">🗣</span>
+      <span class="ribbon-text"><b>${pendingDemands.length}</b> walk-year star${pendingDemands.length===1?"":"s"} demanding extension${pendingDemands.length===1?"":"s"}${urgent?` · <span style="color:var(--red);font-weight:700">${urgent} URGENT</span>`:""}</span>
+      <span class="ribbon-cta">Resolve →</span>
+    </div>`;
+  }
   el.innerHTML = `
     <div class="frn-shell-bar">
       <div class="frn-shell-team" style="--team:${myTeam?.primary || "var(--gold)"}">
@@ -5078,7 +5091,8 @@ function _frnRenderAppShell() {
           ${tabBadge(t.id)}
         </button>`).join("")}
       </nav>
-    </div>`;
+    </div>
+    ${ribbonHtml}`;
 }
 
 function _frnRenderActiveTab() {
@@ -5572,11 +5586,12 @@ function renderFrnRegular() {
   const pushItem = (arr, opts) => arr.push(opts);
   // ---- DECISIONS (urgent / async-response items) ----
   demands.forEach(d => {
-    const esc = d.name.replace(/'/g, "\\'");
+    const ask = (d.demandedAAV ?? d.marketValue ?? 0);
+    const yrs = d.demandedYears || 4;
     pushItem(decisions, {
       icon:"📣", urgency:"high", label:`${d.position} ${d.name} demands extension`,
-      sub:`~$${d.marketValue.toFixed(1)}M · Wk ${d.deadlineWeek} deadline`,
-      cta:"Extend", action:`frnExtendPlayer('${esc}')`,
+      sub:`$${ask.toFixed(1)}M × ${yrs}yr asked · Wk ${d.deadlineWeek} deadline`,
+      cta:"Resolve →", action:`frnOpenHoldoutCenter()`,
     });
   });
   if (outbidCount) pushItem(decisions, {

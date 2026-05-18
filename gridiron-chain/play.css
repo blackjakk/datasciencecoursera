@@ -6374,6 +6374,37 @@
     background: var(--gold-lt); border-radius: 8px; text-align: center;
   }
 
+  /* Persistent demand ribbon — sits under the tab bar across all tabs */
+  .frn-shell-ribbon {
+    display: flex; align-items: center; gap: .6rem;
+    padding: .4rem .8rem;
+    background: linear-gradient(90deg, rgba(212,175,55,.16), rgba(212,175,55,.06));
+    border-bottom: 1px solid rgba(212,175,55,.45);
+    color: var(--blwhite);
+    cursor: pointer; transition: background .15s;
+    font-size: .72rem; letter-spacing: .3px;
+  }
+  .frn-shell-ribbon:hover { background: linear-gradient(90deg, rgba(212,175,55,.26), rgba(212,175,55,.12)); }
+  .frn-shell-ribbon .ribbon-icon { font-size: 1rem; }
+  .frn-shell-ribbon .ribbon-text { flex: 1; }
+  .frn-shell-ribbon .ribbon-text b { color: var(--gold); }
+  .frn-shell-ribbon .ribbon-cta {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    color: var(--gold); font-weight: 700; letter-spacing: 1px;
+    border: 1px solid var(--gold); padding: .15rem .55rem; border-radius: 3px;
+    background: rgba(0,0,0,.25);
+  }
+  .frn-shell-ribbon.urgent {
+    background: linear-gradient(90deg, rgba(220,80,80,.22), rgba(220,80,80,.08));
+    border-bottom-color: rgba(220,80,80,.55);
+    animation: frnRibbonPulse 1.8s ease-in-out infinite;
+  }
+  .frn-shell-ribbon.urgent .ribbon-cta { color: #ffb0b0; border-color: #ffb0b0; }
+  @keyframes frnRibbonPulse {
+    0%,100% { box-shadow: inset 0 -2px 0 rgba(255,140,140,0); }
+    50%     { box-shadow: inset 0 -2px 0 rgba(255,140,140,.5); }
+  }
+
   /* Generic sub-nav used inside tabs that aggregate multiple pages */
   .frn-subnav {
     display: flex; gap: .2rem; flex-wrap: wrap;
