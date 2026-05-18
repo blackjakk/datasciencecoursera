@@ -22,11 +22,64 @@ const _RECORD_CATS = [
   { key:"pancakes", label:"PANCAKE BLOCKS",  scope:["OL","LT","LG","C","RG","RT"] },
 ];
 
+// Baseline league records. Starting the record book empty meant any
+// non-zero stat became the record, then every above-average game after
+// "broke" it — 50 rushing yards setting the bar, then 83 toppling it.
+// Seeded as "LEAGUE HISTORICAL" holders so the broken-by display still
+// shows a prior holder.
+const _RECORD_BASELINES_SINGLE_GAME = {
+  pass_yds: 425, pass_td: 6, pass_comp: 36,
+  rush_yds: 195, rush_td: 4,
+  rec_yds: 215, rec_td: 4, rec: 13,
+  sk: 4, int_made: 3, tkl: 17,
+  fg_made: 6, fg_long: 57,
+  pancakes: 5,
+};
+const _RECORD_BASELINES_SINGLE_SEASON = {
+  pass_yds: 4500, pass_td: 38, pass_comp: 400,
+  rush_yds: 1700, rush_td: 16,
+  rec_yds: 1500, rec_td: 13, rec: 100,
+  sk: 18, int_made: 8, tkl: 140,
+  fg_made: 35,
+  pancakes: 50,
+};
+
 function _ensureRecordBook() {
   if (!franchise.records) franchise.records = {};
   if (!franchise.records.singleGame)   franchise.records.singleGame = {};
   if (!franchise.records.singleSeason) franchise.records.singleSeason = {};
   if (!franchise.records.brokenLog)    franchise.records.brokenLog = [];
+  // Seed any missing baseline; lift any active record below baseline so
+  // existing saves don't keep getting "broken" by routine games. Holder
+  // stamped as a league historical so the UI still has a name to show.
+  const seed = (bucket, baselines) => {
+    for (const [k, v] of Object.entries(baselines)) {
+      const cur = bucket[k];
+      if (!cur || (cur.value || 0) < v) {
+        bucket[k] = {
+          value: v,
+          playerName: "League historical",
+          pos: null, teamId: null, oppId: null,
+          season: null, week: null, isPlayoff: false,
+          _baseline: true,
+        };
+      }
+    }
+  };
+  seed(franchise.records.singleGame,   _RECORD_BASELINES_SINGLE_GAME);
+  seed(franchise.records.singleSeason, _RECORD_BASELINES_SINGLE_SEASON);
+  // One-time prune: drop brokenLog entries whose "new" value is below
+  // the league baseline — those came from the pre-seed era when any
+  // non-zero stat became a record.
+  if (!franchise.records._baselinesPruned) {
+    const minVal = (key, recordType) =>
+      (recordType === "single-game" ? _RECORD_BASELINES_SINGLE_GAME : _RECORD_BASELINES_SINGLE_SEASON)[key] || 0;
+    franchise.records.brokenLog = franchise.records.brokenLog.filter(b => {
+      const threshold = minVal(b.category, b.recordType);
+      return (b["new"]?.value || 0) >= threshold;
+    });
+    franchise.records._baselinesPruned = true;
+  }
 }
 
 // Hooked into frnSimOnce after stats merge. Updates single-game records;
