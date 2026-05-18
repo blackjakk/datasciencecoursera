@@ -12,6 +12,17 @@ function showFranchiseDashboard() {
   // games whose markGamePlayed silently failed before a later Sim Week
   // re-merged them. Rebuild seasonStats from per-game schedule blobs.
   if (!franchise._mergedGameKeys) _repairSeasonStatsFromSchedule();
+  // Heal FA negotiations that should have already signed but got stuck
+  // by the pre-fix signFn ReferenceError or the float-precision miss
+  // on the knockout threshold. Idempotent: only signs negotiations
+  // whose standing bids actually clear the threshold.
+  if (franchise.faNegotiations) {
+    for (const name of Object.keys(franchise.faNegotiations)) {
+      if (franchise.faNegotiations[name]?.state === "negotiating") {
+        try { _faTryKnockout(name); } catch (e) { console.warn("[fa heal]", name, e); }
+      }
+    }
+  }
   if (!franchise.seasonHighlights) franchise.seasonHighlights = [];
   if (!franchise.history)          franchise.history = [];
   if (!franchise.rosters)          franchise.rosters = {};
