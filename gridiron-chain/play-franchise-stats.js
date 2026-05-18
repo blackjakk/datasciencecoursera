@@ -4458,6 +4458,17 @@ function _frnCheckItem(key) {
   franchise._weeklyChecklist[season][week][key] = true;
   saveFranchise();
 }
+function _frnToggleMoreNav() {
+  const el = document.getElementById("frn-more-nav");
+  if (el) el.classList.toggle("open");
+}
+// Module-level UI toggle for the pregame-breakdown expander on the
+// next-game card. Persists across re-renders within the same session.
+let _frnPregameExpanded = false;
+function _frnTogglePregame() {
+  _frnPregameExpanded = !_frnPregameExpanded;
+  renderFrnRegular();
+}
 
 function renderFrnRegular() {
   const { chosenTeamId, season, week, schedule, standings, seasonHighlights } = franchise;
@@ -4566,70 +4577,123 @@ function renderFrnRegular() {
       </div>
     </div>`;
 
-  // ─── Quick nav (secondary actions, out of the way) ────────────────────
+  // ─── Top nav: 4 primary + overflow ────────────────────────────────────
+  const chatUnread = (franchise.chat||[]).filter(m => m.season === season && m.week === week && m.teamId !== chosenTeamId).length;
+  const pendingTrades = (franchise.tradeOffers||[]).filter(o => o.status === "pending").length;
+  const pendingJP = (franchise.jointPracticeOffers||[]).filter(o => o.status === "pending" && o.toTeamId === chosenTeamId).length;
+  const tradeBadge = (pendingTrades || pendingJP) ? `<span class="frn-nav-badge">${pendingTrades + pendingJP}</span>` : "";
+  const chatBadge  = chatUnread ? `<span class="frn-nav-badge">${chatUnread}</span>` : "";
+  const psBadge    = psAlerts ? `<span class="frn-nav-badge alert">${psAlerts}</span>` : "";
   const quickNavHtml = `
     <div class="frn-quick-nav">
-      <button class="frn-cap-btn" onclick="renderFrnAnalytics('mysheet')">📊 Analytics</button>
-      ${week <= TRADE_DEADLINE_WEEK ? `<button class="frn-cap-btn" onclick="frnOpenTrade()">🔀 Trade</button>` : ""}
-      <button class="frn-cap-btn" onclick="renderFrnChat()">💬 Chat${(()=>{ const u=(franchise.chat||[]).filter(m=>m.season===season&&m.week===week&&m.teamId!==chosenTeamId).length; return u?` (${u})`:""; })()}</button>
-      <button class="frn-cap-btn" onclick="renderFrnNewsArchive()">📰 Wire</button>
-      <button class="frn-cap-btn" onclick="renderFrnLegacy()">🏆 Legacy</button>
-      <button class="frn-cap-btn" onclick="renderFrnAlumni()">🎓 Alumni</button>
-      <button class="frn-cap-btn" onclick="renderFrnProjectedFAs()">📅 Future FAs</button>
-      <button class="frn-cap-btn ${psAlerts?"frn-cap-btn-alert":""}" onclick="renderFrnPracticeSquad()">🏈 Practice Squad${psAlerts?` ⚠${psAlerts}`:""}</button>
-      <button class="frn-cap-btn" onclick="renderFrnCoachingStaff()">🎩 Coaches</button>
-      <button class="frn-cap-btn" onclick="renderFrnStandings()">📊 Standings</button>
-      <button class="frn-cap-btn" onclick="renderFrnLeaders()">📈 Leaders</button>
-    </div>`;
-
-  // ─── Alert strip (urgent items only, above the grid) ─────────────────
-  const alerts = [];
-  const faNews = franchise._faLastNews;
-  if (faNews && faNews.week === week - 1 && (faNews.signed.length + faNews.lost.length)) {
-    alerts.push({ msg: `<b style="color:var(--gold)">📰 FA Wire W${faNews.week}:</b> ` +
-      faNews.signed.map(s=>`<span style="color:var(--green-lt)">✓ ${s.name} $${s.aav.toFixed(1)}M</span>`).join(" ") + " " +
-      faNews.lost.map(l=>`<span style="color:#c08080">✗ Lost ${l.name}</span>`).join(" ") });
-  }
-  demands.forEach(d => {
-    const esc = d.name.replace(/'/g,"\\'");
-    alerts.push({ urgent: true, msg: `<b style="color:#ffc850">📣 ${d.position} ${_playerLinkSmart(d.name)}</b> demands extension ~$${d.marketValue.toFixed(1)}M — Wk ${d.deadlineWeek} deadline <button class="frn-cap-btn" onclick="frnExtendPlayer('${esc}')" style="margin-left:.3rem">📝 Extend</button>` });
-  });
-  if (outbidCount) alerts.push({ urgent: true, msg: `<span style="color:var(--red)">⚡ Outbid on ${outbidCount} FA target${outbidCount>1?"s":""}!</span> <button class="frn-cap-btn" onclick="renderFrnFANegotiations()" style="color:var(--red);border-color:var(--red);margin-left:.3rem">View Bids</button>` });
-  const wireItems = (franchise.news||[]).filter(n=>n.season===season).slice(-4).reverse();
-  if (wireItems.length) alerts.push({ msg: `<span style="color:var(--gold);font-weight:700;font-size:.62rem;letter-spacing:.4px">WIRE</span> ${wireItems.map(n=>`<span style="color:var(--gray);font-size:.68rem">W${n.week}: ${n.label}</span>`).join(" · ")} <a href="javascript:void(0)" onclick="renderFrnNewsArchive()" style="color:var(--gold);font-size:.62rem;margin-left:auto;text-decoration:none">Archive →</a>` });
-  const alertStripHtml = alerts.length ? `
-    <div class="frn-alert-strip">
-      ${alerts.map(a=>`<div class="frn-alert-item${a.urgent?" urgent":""}">${a.msg}</div>`).join("")}
-    </div>` : "";
-
-  // ─── Weekly checklist ────────────────────────────────────────────────
-  const cl = franchise._weeklyChecklist?.[season]?.[week] || {};
-  const mkItem = (key, icon, label, sub, action, urgent=false) => {
-    const done = !!cl[key];
-    return `<div class="frn-checklist-item${done?" done":""}${urgent&&!done?" urgent":""}"
-      onclick="_frnCheckItem('${key}');${action}">
-      <span class="frn-check-icon">${done?"✓":"○"}</span>
-      <div class="frn-check-body">
-        <div class="frn-check-label">${icon} ${label}</div>
-        ${sub?`<div class="frn-check-sub">${sub}</div>`:""}
+      <button class="frn-cap-btn primary" onclick="renderFrnAnalytics('mysheet')">📊 Analytics</button>
+      ${week <= TRADE_DEADLINE_WEEK ? `<button class="frn-cap-btn primary" onclick="frnOpenTrade()">🔀 Trade${tradeBadge}</button>` : ""}
+      <button class="frn-cap-btn primary" onclick="renderFrnChat()">💬 Chat${chatBadge}</button>
+      <div class="frn-more-nav-wrap">
+        <button class="frn-cap-btn primary" onclick="_frnToggleMoreNav()">🛠 More ▾</button>
+        <div class="frn-more-nav" id="frn-more-nav">
+          <button class="frn-cap-btn" onclick="renderFrnNewsArchive()">📰 Wire</button>
+          <button class="frn-cap-btn" onclick="renderFrnStandings()">📊 Standings</button>
+          <button class="frn-cap-btn" onclick="renderFrnLeaders()">📈 Leaders</button>
+          <button class="frn-cap-btn ${psAlerts?"frn-cap-btn-alert":""}" onclick="renderFrnPracticeSquad()">🏈 Practice Squad${psBadge}</button>
+          <button class="frn-cap-btn" onclick="renderFrnCoachingStaff()">🎩 Coaches</button>
+          <button class="frn-cap-btn" onclick="renderFrnProjectedFAs()">📅 Future FAs</button>
+          <button class="frn-cap-btn" onclick="renderFrnLegacy()">🏆 Legacy</button>
+          <button class="frn-cap-btn" onclick="renderFrnAlumni()">🎓 Alumni</button>
+        </div>
       </div>
-      <span class="frn-check-arrow">›</span>
     </div>`;
-  };
+
+  // ─── Unified inbox: decisions that want a response + this-week tasks ──
+  // Replaces the old alert-strip + checklist split. Two sections in one
+  // panel: DECISIONS at the top (anything needing your attention right
+  // now, sorted by urgency), TASKS below (standard prep, can be checked
+  // off). Once decisions resolve, they drop out; once tasks are done
+  // they collapse to a single completed line.
+  const cl = franchise._weeklyChecklist?.[season]?.[week] || {};
+  const decisions = [];
+  const tasks = [];
+  const pushItem = (arr, opts) => arr.push(opts);
+  // ---- DECISIONS (urgent / async-response items) ----
+  demands.forEach(d => {
+    const esc = d.name.replace(/'/g, "\\'");
+    pushItem(decisions, {
+      icon:"📣", urgency:"high", label:`${d.position} ${d.name} demands extension`,
+      sub:`~$${d.marketValue.toFixed(1)}M · Wk ${d.deadlineWeek} deadline`,
+      cta:"Extend", action:`frnExtendPlayer('${esc}')`,
+    });
+  });
+  if (outbidCount) pushItem(decisions, {
+    icon:"⚡", urgency:"high", label:`Outbid on ${outbidCount} FA target${outbidCount>1?"s":""}`,
+    sub:"Raise your bid or fold before the round closes",
+    cta:"View Bids", action:"renderFrnFANegotiations()",
+  });
+  if (pendingJP) pushItem(decisions, {
+    icon:"🏟", urgency:"med", label:`${pendingJP} joint practice request${pendingJP>1?"s":""}`,
+    sub:"Another owner is waiting on your intensity pick",
+    cta:"Respond", action:"renderFrnScrimmages()",
+  });
+  if (pendingTrades) pushItem(decisions, {
+    icon:"🔀", urgency:"med", label:`${pendingTrades} trade offer${pendingTrades>1?"s":""} in your inbox`,
+    sub:"Accept, counter, or reject",
+    cta:"Open", action:"frnOpenTrade(null,'offers')",
+  });
+  if (psAlerts) pushItem(decisions, {
+    icon:"🚨", urgency:"med", label:`${psAlerts} PS poach alert${psAlerts>1?"s":""}`,
+    sub:"Promote your guys or lose them to a rival",
+    cta:"Open PS", action:"renderFrnPracticeSquad()",
+  });
+  if (unvotedWeek != null) pushItem(decisions, {
+    icon:"🗳", urgency:"low", label:`Player-of-the-Week vote ready`,
+    sub:`Week ${unvotedWeek} candidates — feeds into POTY race`,
+    cta:"Vote", action:`renderPotwVoting(${unvotedWeek})`,
+  });
+  // Sort decisions: high → med → low
+  const urgencyRank = { high:0, med:1, low:2 };
+  decisions.sort((a,b) => (urgencyRank[a.urgency]||9) - (urgencyRank[b.urgency]||9));
+  // ---- TASKS (standard weekly prep, checkable) ----
   const oppId0   = nextGame ? (nextGame.homeId === chosenTeamId ? nextGame.awayId : nextGame.homeId) : null;
   const oppName0 = oppId0 ? (getTeam(oppId0)?.name || "opponent") : "Bye week";
-  const checklistItems = [
-    mkItem("scout",    "🔍","Scout Opponent",    nextGame ? `vs ${oppName0}` : "Bye week",                           `renderFrnPreseason('scout')`),
-    mkItem("depth",    "📋","Depth Chart",        "Set your starters",                                                 `renderFrnDepthChart()`),
-    mkItem("snaps",    "⚡","Snap Percentages",   snapConflicts ? `⚠ ${snapConflicts} stamina conflict${snapConflicts>1?"s":""}` : "Optimize rotations", `renderFrnSnapShares()`, snapConflicts > 0),
-    mkItem("practice", "🏟","Joint Practice",     "Scout an opponent in shared reps",                                  `renderFrnScrimmages()`),
-    mkItem("injuries", "🩹","Injury Report",      injured.length ? `${injured.length} player${injured.length>1?"s":""} out` : "All clear", `renderFrnInjuryReport()`, injured.length > 0),
-    mkItem("fa","🆓","FA Negotiations", activeNegs.length ? `${activeNegs.length} active${outbidCount?` · ${outbidCount} outbid!`:""}` : "Browse free agents", `renderFrnFANegotiations()`, outbidCount>0),
-    ...(demands.length ? [mkItem("extensions","📝","Extension Demands",`${demands.length} pending`,`renderFrnAnalytics('extensions')`,true)] : []),
-    ...(week <= TRADE_DEADLINE_WEEK ? [mkItem("trade","🔀","Trade Window",`Open until Wk ${TRADE_DEADLINE_WEEK}`,`frnOpenTrade()`)] : []),
-    ...(unvotedWeek!=null ? [mkItem("potw","🗳","POTW Vote",`Week ${unvotedWeek} candidates ready`,`renderPotwVoting(${unvotedWeek})`)] : []),
-  ];
-  const doneCount = checklistItems.filter(s => s.includes('class="frn-checklist-item done')).length;
+  const mkTask = (key, icon, label, sub, action, alert = false) => ({
+    key, icon, label, sub, action, alert, done: !!cl[key],
+  });
+  tasks.push(mkTask("scout",    "🔍","Scout Opponent",    nextGame ? `vs ${oppName0}` : "Bye week",                           `renderFrnPreseason('scout')`));
+  tasks.push(mkTask("depth",    "📋","Depth Chart",        "Set your starters",                                                 `renderFrnDepthChart()`));
+  tasks.push(mkTask("snaps",    "⚡","Snap Percentages",   snapConflicts ? `⚠ ${snapConflicts} stamina conflict${snapConflicts>1?"s":""}` : "Optimize rotations", `renderFrnSnapShares()`, snapConflicts > 0));
+  tasks.push(mkTask("practice", "🏟","Joint Practice",     "Scout an opponent in shared reps",                                  `renderFrnScrimmages()`));
+  if (injured.length) tasks.push(mkTask("injuries", "🩹","Injury Report", `${injured.length} player${injured.length>1?"s":""} out`, `renderFrnInjuryReport()`, true));
+  tasks.push(mkTask("fa","🆓","FA Activity", activeNegs.length ? `${activeNegs.length} active negotiation${activeNegs.length>1?"s":""}` : "Browse free agents", `renderFrnFANegotiations()`));
+  if (week <= TRADE_DEADLINE_WEEK) tasks.push(mkTask("trade","🔀","Trade Window", `Open until Wk ${TRADE_DEADLINE_WEEK}`, `frnOpenTrade()`));
+  const doneCount = tasks.filter(t => t.done).length;
+  const totalTasks = tasks.length;
+
+  // ---- Render inbox ----
+  const decisionRow = (d) => `<div class="frn-inbox-decision urg-${d.urgency}" onclick="${d.action}">
+    <span class="frn-inbox-icon">${d.icon}</span>
+    <div class="frn-inbox-body">
+      <div class="frn-inbox-label">${d.label}</div>
+      ${d.sub ? `<div class="frn-inbox-sub">${d.sub}</div>` : ""}
+    </div>
+    <span class="frn-inbox-cta">${d.cta} ›</span>
+  </div>`;
+  const taskRow = (t) => `<div class="frn-checklist-item${t.done?" done":""}${t.alert&&!t.done?" urgent":""}"
+    onclick="_frnCheckItem('${t.key}');${t.action}">
+    <span class="frn-check-icon">${t.done?"✓":"○"}</span>
+    <div class="frn-check-body">
+      <div class="frn-check-label">${t.icon} ${t.label}</div>
+      ${t.sub?`<div class="frn-check-sub">${t.sub}</div>`:""}
+    </div>
+    <span class="frn-check-arrow">›</span>
+  </div>`;
+
+  // ---- FA Wire summary as a quieter info row in the inbox panel ----
+  const faNews = franchise._faLastNews;
+  const faWireInfo = (faNews && faNews.week === week - 1 && (faNews.signed.length + faNews.lost.length))
+    ? `<div class="frn-inbox-info">
+        <b style="color:var(--gold)">📰 FA Wire W${faNews.week}</b>
+        ${faNews.signed.map(s=>`<span style="color:var(--green-lt)">✓ ${s.name} $${s.aav.toFixed(1)}M</span>`).join(" ")}
+        ${faNews.lost.map(l=>`<span style="color:#c08080">✗ Lost ${l.name}</span>`).join(" ")}
+      </div>` : "";
 
   // ─── Unit bars ────────────────────────────────────────────────────────
   const ratings = buildRatings(myRoster);
@@ -4648,12 +4712,33 @@ function renderFrnRegular() {
     </div>`;
   }).join("");
 
-  // ─── Left column: checklist + unit bars ──────────────────────────────
+  // ─── Wire ticker (compact, at the bottom of inbox) ────────────────────
+  const wireItems = (franchise.news||[]).filter(n => n.season === season).slice(-3).reverse();
+  const wireRow = wireItems.length ? `<div class="frn-inbox-wire">
+    <span class="frn-inbox-wire-tag">📰 WIRE</span>
+    ${wireItems.map(n => `<span class="frn-inbox-wire-item">W${n.week}: ${n.label}</span>`).join("")}
+    <a class="frn-inbox-wire-more" onclick="renderFrnNewsArchive()">Archive →</a>
+  </div>` : "";
+
+  // ─── Left column: inbox + unit bars ──────────────────────────────────
   const leftColHtml = `
     <div>
       <div class="frn-card-box" style="padding:0">
-        <div class="frn-card-title" style="padding:.5rem .7rem">WEEK ${week} TASKS <span class="frn-card-title-sub">${doneCount}/${checklistItems.length} done</span></div>
-        <div class="frn-checklist">${checklistItems.join("")}</div>
+        <div class="frn-inbox-tabs">
+          <span class="frn-inbox-tab-label">WEEK ${week} INBOX</span>
+          ${decisions.length ? `<span class="frn-inbox-count urg-${decisions[0].urgency}">${decisions.length} need response</span>` : `<span class="frn-inbox-count clean">all clear</span>`}
+          <span class="frn-inbox-tasks-pct">${doneCount}/${totalTasks} tasks</span>
+        </div>
+        ${decisions.length ? `<div class="frn-inbox-section">
+          <div class="frn-inbox-section-title">DECISIONS</div>
+          ${decisions.map(decisionRow).join("")}
+        </div>` : ""}
+        <div class="frn-inbox-section">
+          <div class="frn-inbox-section-title">PREP TASKS</div>
+          <div class="frn-checklist">${tasks.map(taskRow).join("")}</div>
+        </div>
+        ${faWireInfo}
+        ${wireRow}
       </div>
       <div class="frn-card-box" style="margin-top:1rem">
         <div class="frn-card-title">UNIT RATINGS</div>
@@ -4685,6 +4770,13 @@ function renderFrnRegular() {
         </div>
       </div>`;
 
+    const expanded = _frnPregameExpanded;
+    const breakdownHtml = expanded
+      ? `<div class="frn-pregame-breakdown">
+          ${_buildMatchupStatsStrip(chosenTeamId, oppId, myStand, oppStand, myRtg, oppRtg)}
+          ${_buildSchemeMatchupCard(chosenTeamId, oppId)}
+          ${_buildOpponentIntelBlock(oppId, isHome, week, nextGame)}
+        </div>` : "";
     nextCardHtml = `
       <div class="frn-next-card">
         <div class="frn-next-header">
@@ -4710,9 +4802,10 @@ function renderFrnRegular() {
             ? teamCard(opp, oppStand, oppRtg, false)
             : teamCard(myTeam, myStand, myRtg, true)}
         </div>
-        ${_buildMatchupStatsStrip(chosenTeamId, oppId, myStand, oppStand, myRtg, oppRtg)}
-        ${_buildSchemeMatchupCard(chosenTeamId, oppId)}
-        ${_buildOpponentIntelBlock(oppId, isHome, week, nextGame)}
+        <button class="frn-pregame-toggle" onclick="_frnTogglePregame()">
+          ${expanded ? "▴ Hide pregame breakdown" : "▾ Pregame breakdown (matchup stats · schemes · opponent intel)"}
+        </button>
+        ${breakdownHtml}
       </div>`;
   } else if (seasonDone) {
     nextCardHtml = `
@@ -4734,11 +4827,47 @@ function renderFrnRegular() {
       </div>`;
   }
 
+  // ─── Compact schedule strip: last 4 results + next 4 opponents ───────
+  const stripPast = myGames.filter(g => g.played).slice(-4);
+  const stripUpcoming = myGames.filter(g => !g.played).slice(0, 4);
+  const stripChip = (g, kind) => {
+    const isHome = g.homeId === chosenTeamId;
+    const oppId = isHome ? g.awayId : g.homeId;
+    const opp = getTeam(oppId);
+    if (kind === "past") {
+      const my = isHome ? g.homeScore : g.awayScore;
+      const them = isHome ? g.awayScore : g.homeScore;
+      const w = my > them, t = my === them;
+      const col = w ? "var(--green-lt)" : t ? "var(--gray)" : "#c08080";
+      return `<button class="frn-sched-chip past" style="border-color:${col};color:${col}"
+        onclick="renderFrnPastGame(${g.week},${g.homeId},${g.awayId})"
+        title="W${g.week} ${isHome?'vs':'@'} ${opp?.name} — ${my}-${them}">
+        <span class="frn-sched-chip-wk">W${g.week}</span>
+        <span class="frn-sched-chip-res">${w?"W":t?"T":"L"} ${my}–${them}</span>
+        <span class="frn-sched-chip-opp">${isHome?"vs":"@"} ${(opp?.name||"?").slice(0,5)}</span>
+      </button>`;
+    }
+    const oppRec = standings[oppId];
+    const isNext = g === nextGame;
+    return `<div class="frn-sched-chip upcoming${isNext?" next":""}" title="W${g.week} ${isHome?'vs':'@'} ${opp?.name}${oppRec?` (${oppRec.w}-${oppRec.l})`:""}">
+      <span class="frn-sched-chip-wk">W${g.week}${isNext?" · NEXT":""}</span>
+      <span class="frn-sched-chip-opp">${isHome?"vs":"@"} ${(opp?.name||"?").slice(0,5)}</span>
+      <span class="frn-sched-chip-rec">${oppRec?`${oppRec.w}-${oppRec.l}`:""}</span>
+    </div>`;
+  };
+  const scheduleStripHtml = (stripPast.length + stripUpcoming.length) ? `
+    <div class="frn-sched-strip">
+      <div class="frn-sched-strip-group">${stripPast.map(g => stripChip(g, "past")).join("")}</div>
+      ${stripPast.length && stripUpcoming.length ? `<div class="frn-sched-strip-divider">|</div>` : ""}
+      <div class="frn-sched-strip-group">${stripUpcoming.map(g => stripChip(g, "next")).join("")}</div>
+    </div>` : "";
+
   // ─── Center column: next game + schedule ─────────────────────────────
   const centerHtml = `
     ${nextCardHtml}
+    ${scheduleStripHtml}
     <div class="frn-card-box" style="margin-top:1rem">
-      <div class="frn-card-title">MY SCHEDULE <span class="frn-card-title-sub">${FRANCHISE_WEEKS} games</span></div>
+      <div class="frn-card-title">FULL SCHEDULE <span class="frn-card-title-sub">${FRANCHISE_WEEKS} games</span></div>
       ${(()=>{
   const schHtml = myGames.map(g => {
     const isHome = g.homeId === chosenTeamId;
@@ -4852,7 +4981,6 @@ function renderFrnRegular() {
   $("frnHomeContent").innerHTML = `
     ${bannerHtml}
     ${quickNavHtml}
-    ${alertStripHtml}
     ${postGameHtml}
     <div class="frn-dashboard-grid">
       ${leftColHtml}
