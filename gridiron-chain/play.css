@@ -2265,6 +2265,118 @@
   }
 
   /* League wire archive */
+  /* ── Wire — front-page leads ───────────────────────────────────────── */
+  .frn-wire-leads-wrap {
+    background: linear-gradient(135deg, rgba(212,175,55,.08) 0%, var(--blbg2) 60%);
+    border: 1px solid var(--blgold); border-radius: 4px;
+    padding: .9rem 1rem;
+  }
+  .frn-wire-leads-eyebrow {
+    font-size: .58rem; letter-spacing: 3px; color: var(--blgold);
+    font-weight: 800; margin-bottom: .7rem;
+  }
+  .frn-wire-leads-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    grid-template-rows: auto auto;
+    gap: .55rem;
+  }
+  @media (max-width: 900px) { .frn-wire-leads-grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 600px) { .frn-wire-leads-grid { grid-template-columns: 1fr; } }
+  .frn-wire-lead {
+    display: grid; grid-template-columns: 2.4rem 1fr; gap: .55rem;
+    background: var(--blbg3); border: 1px solid var(--blborder);
+    border-left: 3px solid var(--blgold);
+    border-radius: 3px; padding: .55rem .7rem;
+    align-items: center;
+  }
+  .frn-wire-lead.hero {
+    grid-column: 1 / -1;
+    background: linear-gradient(135deg, var(--blbg2), var(--blbg3));
+    border-left-width: 5px;
+    padding: .85rem 1rem;
+  }
+  .frn-wire-lead-icon {
+    font-size: 1.6rem; text-align: center; line-height: 1;
+  }
+  .frn-wire-lead.hero .frn-wire-lead-icon { font-size: 2.3rem; }
+  .frn-wire-lead-meta {
+    font-size: .55rem; letter-spacing: 1.2px; color: var(--blgray);
+    font-weight: 700; margin-bottom: .15rem;
+  }
+  .frn-wire-lead-headline {
+    color: var(--blwhite); font-size: .82rem; font-weight: 700; line-height: 1.3;
+  }
+  .frn-wire-lead.hero .frn-wire-lead-headline {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: 1.4rem; letter-spacing: .8px; font-weight: 700;
+  }
+
+  /* ── Wire — storyline accordion ────────────────────────────────────── */
+  .frn-wire-storylines {
+    background: var(--blbg2); border: 1px solid var(--blborder);
+    border-radius: 4px; padding: .65rem .8rem;
+  }
+  .frn-wire-storylines-head {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    font-size: .9rem; letter-spacing: 1.5px; color: var(--blgold);
+    margin-bottom: .5rem;
+  }
+  .frn-wire-storylines-head .sub {
+    font-family: inherit; font-size: .55rem; letter-spacing: 1px;
+    color: var(--blgray); font-weight: 400; margin-left: .4rem;
+  }
+  .frn-wire-storyline { margin-bottom: .35rem; }
+  .frn-wire-storyline-head {
+    width: 100%;
+    display: grid; grid-template-columns: 1rem 1fr auto;
+    gap: .5rem; align-items: center;
+    background: var(--blbg3); border: 1px solid var(--blborder);
+    border-radius: 3px;
+    color: var(--blwhite); font-family: inherit; font-size: .75rem;
+    padding: .35rem .55rem; cursor: pointer;
+    transition: all .12s ease;
+  }
+  .frn-wire-storyline-head:hover { border-color: var(--blgold); }
+  .frn-wire-storyline.open .frn-wire-storyline-head {
+    border-color: var(--blgold); background: rgba(212,175,55,.08);
+  }
+  .frn-wire-storyline-head .caret {
+    color: var(--blgold); font-size: .8rem; line-height: 1; text-align: center;
+  }
+  .frn-wire-storyline-head .title { text-align: left; }
+  .frn-wire-storyline-head .count {
+    color: var(--blgray); font-family: "IBM Plex Mono","JetBrains Mono",monospace;
+    font-size: .58rem; background: rgba(0,0,0,.25);
+    padding: .05rem .35rem; border-radius: 2px;
+  }
+  .frn-wire-storyline-list {
+    list-style: none; margin: .25rem 0 0; padding: .35rem .65rem .35rem 1.6rem;
+    border-left: 2px solid rgba(212,175,55,.25);
+    margin-left: .6rem;
+  }
+  .frn-wire-storyline-list .frn-wire-item .frn-wire-when {
+    margin-left: auto; color: var(--blgray); font-size: .55rem; letter-spacing: .5px;
+  }
+  .frn-wire-storyline-list .frn-wire-item {
+    display: flex; align-items: center; gap: .4rem;
+    padding: .2rem 0;
+    border-bottom: 1px solid rgba(255,255,255,.03);
+  }
+
+  /* ── Wire — inline decorations (team color chip + player link) ───── */
+  .frn-wire-team {
+    font-weight: 700;
+    color: var(--team-color, var(--blgold));
+  }
+  .frn-wire-player {
+    color: var(--blwhite); font-weight: 600;
+    border-bottom: 1px dotted var(--blgray);
+    cursor: pointer;
+    text-underline-offset: 2px;
+  }
+  .frn-wire-player:hover { color: var(--blgold); border-bottom-color: var(--blgold); }
+
   .frn-wire-scroll {
     max-height: 70vh; overflow-y: auto;
     background: var(--bg2); border: 1px solid var(--border);

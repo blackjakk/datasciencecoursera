@@ -1,62 +1,346 @@
-// ── League Wire archive: scrollable, grouped by week, season-filterable ───────
+// ── League Wire archive (reimagined) ─────────────────────────────────────────
+// Front-page lead stories + topic filter pills + MY TEAM/LEAGUE scope toggle
+// + storyline auto-grouping + cross-season view. State persists across
+// re-renders so closing a deep link / replay doesn't reset your spot.
+let _frnWireTopic    = "all";
+let _frnWireScope    = "league"; // "team" | "league"
+let _frnWireExpanded = new Set();
+function frnSetWireTopic(t) { _frnWireTopic = t; renderFrnNewsArchive(); }
+function frnSetWireScope(s) { _frnWireScope = s; renderFrnNewsArchive(); }
+function frnToggleStoryline(key) {
+  if (_frnWireExpanded.has(key)) _frnWireExpanded.delete(key);
+  else _frnWireExpanded.add(key);
+  renderFrnNewsArchive();
+}
+
+// Comprehensive icon for every news type pushed via _pushNews.
+function _wireIcon(t) {
+  const map = {
+    // Trades / roster
+    trade:"🔀", extension:"📝", restructure:"♻", tag:"🏷",
+    // FA
+    fa_sign:"🆓", fa_unsigned:"❌", fa_war:"⚔",
+    fa_activity:"📋", fa_demand_drop:"📉",
+    holdout:"😤", holdout_demand:"💰",
+    workout:"💪", scout_reveal:"👀",
+    // Coaches
+    coach_hire:"🎩", coach_depart:"🚪",
+    coach_bond:"🤝", coach_decline:"📉",
+    coach_grow:"📈", hot_seat:"🔥",
+    // Players
+    injury:"🩹", age_cliff:"⏳", decline:"📉",
+    breakout:"⭐",
+    // Practice squad
+    ps_flash:"✨", ps_gem:"💎", ps_lost:"💔",
+    ps_poach:"🪤", ps_promote:"⬆", ps_scout:"🔍",
+    // League
+    hof:"🏛", draft:"📋",
+    blowout:"🔥", upset:"⚡", scrimmage:"🏟",
+  };
+  return map[t] || "📰";
+}
+
+// Topic groupings for the filter pills.
+const _WIRE_TOPICS = [
+  { key:"all",       label:"All" },
+  { key:"trades",    label:"Trades",    types:["trade"] },
+  { key:"fa",        label:"FA",        types:["fa_sign","fa_unsigned","fa_war","fa_activity","fa_demand_drop","holdout","holdout_demand","workout","scout_reveal","extension","restructure","tag"] },
+  { key:"coaches",   label:"Coaches",   types:["coach_hire","coach_depart","coach_bond","coach_decline","coach_grow","hot_seat"] },
+  { key:"injuries",  label:"Injuries",  types:["injury","age_cliff","decline"] },
+  { key:"awards",    label:"Awards",    types:["breakout","blowout","upset"] },
+  { key:"hof",       label:"HOF",       types:["hof"] },
+  { key:"draft",     label:"Draft",     types:["draft","ps_gem","ps_flash","ps_lost","ps_poach","ps_promote","ps_scout"] },
+];
+function _wireTopicOf(type) {
+  for (const t of _WIRE_TOPICS) {
+    if (t.types && t.types.includes(type)) return t.key;
+  }
+  return "misc";
+}
+
+// Lead-story weighting. Higher = goes to the front-page hero band.
+// Boosted when the user's team is involved (detected via label text).
+function _wireWeight(item, myTeamNames) {
+  const baseByType = {
+    hof: 14, trade: 9, fa_war: 8, draft: 7, breakout: 7, upset: 7,
+    fa_sign: 5, holdout: 6, coach_depart: 7, coach_hire: 7,
+    ps_gem: 5, blowout: 4, injury: 4, hot_seat: 6,
+    extension: 3, restructure: 2, tag: 4, fa_unsigned: 2,
+    fa_activity: 1, fa_demand_drop: 1, ps_flash: 2, ps_lost: 4,
+    ps_poach: 4, ps_promote: 3, ps_scout: 1, workout: 2,
+    coach_bond: 2, coach_decline: 4, coach_grow: 2, age_cliff: 3,
+    decline: 3, scrimmage: 1, scout_reveal: 2,
+  };
+  let w = baseByType[item.type] || 1;
+  // Big-dollar FA signings (>$8M AAV detection from label)
+  if (item.type === "fa_sign" && /\$\d{2,}\.\d+M/.test(item.label || "")) w += 2;
+  // Boost if user's team is mentioned in the label
+  if (myTeamNames) {
+    for (const n of myTeamNames) {
+      if (item.label && item.label.includes(n)) { w += 3; break; }
+    }
+  }
+  return w;
+}
+
+// Better week labels. Numeric weeks 1..FRANCHISE_WEEKS stay; postseason
+// gets named rounds; week 0 / non-numeric handled by phase context.
+function _wireWeekLabel(item, sel) {
+  const w = item.week;
+  if (w == null) return "OFFSEASON";
+  if (w >= 1 && w <= FRANCHISE_WEEKS) return `WEEK ${w}`;
+  // Past the reg-season window — assume playoffs
+  const idx = w - FRANCHISE_WEEKS - 1;
+  const ROUNDS = ["WILD CARD","DIVISIONAL","CHAMPIONSHIP"];
+  if (idx >= 0 && idx < ROUNDS.length) return ROUNDS[idx];
+  if (w === 0) return "OFFSEASON";
+  return `WEEK ${w}`;
+}
+
+// Decorate a label: team names get a color chip, known player names get
+// a clickable link. Both are best-effort — escape carefully and don't
+// touch already-decorated content.
+function _decorateWireLabel(rawLabel, teamSet, playerSet) {
+  if (!rawLabel) return "";
+  let out = rawLabel;
+  // Team chip — longest match first to avoid prefix collisions ("New" vs "New York")
+  const teamNames = [...teamSet.keys()].sort((a, b) => b.length - a.length);
+  for (const name of teamNames) {
+    const team = teamSet.get(name);
+    // Match the team name only when it's bounded by non-word chars or string
+    // start/end. Skip if already inside our chip span.
+    const re = new RegExp(`(^|[^A-Za-z>])(${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})(?=[^A-Za-z<]|$)`, "g");
+    out = out.replace(re, (m, pre, hit) => `${pre}<span class="frn-wire-team" style="color:${team.primary}">${hit}</span>`);
+  }
+  // Player link — same boundary trick. Iterate longest-first.
+  const players = [...playerSet].sort((a, b) => b.length - a.length);
+  for (const name of players) {
+    if (name.length < 5) continue; // skip very short / ambiguous strings
+    const esc = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const reN = new RegExp(`(^|[^A-Za-z>])(${esc})(?=[^A-Za-z<]|$)`);
+    if (!reN.test(out)) continue;
+    const escClick = name.replace(/'/g, "\\'");
+    out = out.replace(reN, (m, pre, hit) =>
+      `${pre}<span class="frn-wire-player" onclick="frnOpenPlayerCard('${escClick}')">${hit}</span>`);
+  }
+  return out;
+}
+
+// Detect storylines in a list of items. Returns [{ key, title, items[] }].
+// Rules:
+//  - 3+ trades in same week → "Trade Deadline · WEEK N"
+//  - 5+ fa_sign in same week → "FA Frenzy · WEEK N"
+//  - 3+ items mentioning the same player name across the season → player thread
+//  - 3+ coach_hire/depart in the same week → "Coaching Carousel · WEEK N"
+function _wireStorylines(items, playerSet) {
+  const lines = [];
+  // Week-based clusters
+  const byWeekType = {};
+  for (const it of items) {
+    const k = `${it.week}|${_wireTopicOf(it.type)}`;
+    (byWeekType[k] ||= []).push(it);
+  }
+  for (const [k, list] of Object.entries(byWeekType)) {
+    const [wk, topic] = k.split("|");
+    if (topic === "trades" && list.length >= 3) {
+      lines.push({ key:`trade-${wk}`, title:`🔀 Trade Activity · ${_wireWeekLabel({week:+wk||null})}`, items:list });
+    }
+    if (topic === "fa" && list.filter(x => x.type==="fa_sign").length >= 5) {
+      lines.push({ key:`fa-${wk}`, title:`🆓 FA Frenzy · ${_wireWeekLabel({week:+wk||null})}`, items:list.filter(x=>x.type==="fa_sign") });
+    }
+    if (topic === "coaches" && list.length >= 3) {
+      lines.push({ key:`coach-${wk}`, title:`🎩 Coaching Carousel · ${_wireWeekLabel({week:+wk||null})}`, items:list });
+    }
+  }
+  // Per-player thread — count appearances by name substring match.
+  const playerHits = {};
+  for (const name of playerSet) {
+    if (name.length < 5) continue;
+    const hits = items.filter(x => x.label && x.label.includes(name));
+    if (hits.length >= 3) playerHits[name] = hits;
+  }
+  for (const [name, hits] of Object.entries(playerHits)) {
+    lines.push({ key:`p-${name}`, title:`📰 ${name} — ${hits.length} mentions this season`, items:hits });
+  }
+  // Sort: highest-impact first (longest list wins, ties broken by week recency)
+  lines.sort((a, b) => b.items.length - a.items.length);
+  return lines;
+}
+
 function renderFrnNewsArchive(season) {
+  const myId = franchise?.chosenTeamId;
+  const myTeam = myId != null ? getTeam(myId) : null;
   const allSeasons = Array.from(new Set((franchise.news || [])
     .map(n => n.season))).sort((a, b) => b - a);
   if (!allSeasons.length) allSeasons.push(franchise.season);
-  const sel = season != null ? Number(season) : allSeasons[0];
-  const items = (franchise.news || [])
-    .filter(n => n.season === sel)
-    .slice().sort((a, b) => b.week - a.week || 0);
-  // Group by week (descending)
-  const byWeek = {};
-  for (const n of items) (byWeek[n.week] ??= []).push(n);
-  const weeks = Object.keys(byWeek).map(Number).sort((a, b) => b - a);
-  const typeIcon = t => ({
-    trade:"🔀", fa_sign:"🆓", fa_unsigned:"🆓",
-    injury:"🩹", hof:"🏆", draft:"📋",
-    blowout:"🔥", upset:"⚡", scrimmage:"🏟",
-  })[t] || "•";
-  const seasonBtns = allSeasons.map(s =>
-    `<button class="frn-ana-tab ${s===sel?"active":""}" onclick="renderFrnNewsArchive(${s})">SEASON ${s}</button>`
-  ).join("");
-  const weekBlocks = weeks.length ? weeks.map(w => `
-    <div class="frn-wire-week">
-      <div class="frn-wire-week-head">WEEK ${w}</div>
+  // Season selector accepts "all" for cross-season view (Tier 3)
+  const sel = season != null ? (season === "all" ? "all" : Number(season)) : allSeasons[0];
+
+  // Build lookup sets
+  const teamSet = new Map();
+  for (const t of TEAMS) {
+    teamSet.set(t.name, t);
+    if (t.city && t.city !== t.name) teamSet.set(`${t.city} ${t.name}`, t);
+  }
+  const playerSet = new Set();
+  for (const roster of Object.values(franchise.rosters || {})) {
+    for (const p of roster) if (p?.name) playerSet.add(p.name);
+  }
+  for (const h of (franchise.hallOfFame || [])) if (h?.name) playerSet.add(h.name);
+  // My-team name patterns for "involvement" detection (label text-based)
+  const myTeamNames = myTeam ? [myTeam.name, `${myTeam.city} ${myTeam.name}`] : [];
+
+  // Filter source by season selection
+  const seasonFiltered = (franchise.news || [])
+    .filter(n => sel === "all" || n.season === sel);
+
+  // Filter by scope (MY TEAM / LEAGUE)
+  const isMyItem = (n) => myTeamNames.some(name => (n.label || "").includes(name));
+  const scopeFiltered = _frnWireScope === "team"
+    ? seasonFiltered.filter(isMyItem)
+    : seasonFiltered;
+
+  // Filter by topic
+  const topicFiltered = _frnWireTopic === "all"
+    ? scopeFiltered
+    : scopeFiltered.filter(n => _wireTopicOf(n.type) === _frnWireTopic);
+
+  // Sort newest first (season desc, then week desc)
+  const sorted = topicFiltered.slice().sort((a, b) =>
+    (b.season - a.season) || ((b.week || 0) - (a.week || 0)));
+
+  // ── Front page leads (always from scopeFiltered — not affected by topic
+  //    filter, so the front page still represents the whole season) ───
+  const leadPool = scopeFiltered
+    .map(it => ({ it, w: _wireWeight(it, myTeamNames) }))
+    .sort((a, b) => b.w - a.w);
+  const leads = leadPool.slice(0, 5).map(x => x.it);
+
+  // ── Storylines (from the scope-filtered, not topic-filtered, source) ─
+  const storylines = _wireStorylines(scopeFiltered, playerSet);
+
+  // ── Build HTML ──────────────────────────────────────────────────────
+
+  // Season selector (adds "ALL" option)
+  const seasonNav = [
+    ...allSeasons.map(s => `<button class="bspnlive-nav-item ${s===sel?"active":""}"
+        style="background:transparent;border:0;font-family:inherit;cursor:pointer;padding:0;${s===sel?"color:var(--blwhite)":""}"
+        onclick="renderFrnNewsArchive(${s})">[S${s}]</button>`),
+    `<button class="bspnlive-nav-item ${sel==='all'?"active":""}"
+      style="background:transparent;border:0;font-family:inherit;cursor:pointer;padding:0;${sel==='all'?"color:var(--blwhite)":""}"
+      onclick="renderFrnNewsArchive('all')">[ALL SEASONS]</button>`,
+  ].join(" ");
+
+  // Topic pills
+  const topicPills = _WIRE_TOPICS.concat([{ key:"misc", label:"Misc" }]).map(t => {
+    const count = t.key === "all" ? scopeFiltered.length
+      : scopeFiltered.filter(n => _wireTopicOf(n.type) === t.key).length;
+    return `<button class="frn-hl-pill${_frnWireTopic===t.key?" active":""}"
+              onclick="frnSetWireTopic('${t.key}')"
+              ${count===0 && t.key!=='all'?'disabled':''}>
+      ${t.label}<span class="frn-hl-pill-count">${count}</span>
+    </button>`;
+  }).join("");
+
+  // Scope toggle
+  const scopeHtml = `
+    <div class="frn-hl-scope">
+      <button class="${_frnWireScope==='team'?"active":""}"  onclick="frnSetWireScope('team')">MY TEAM</button>
+      <button class="${_frnWireScope==='league'?"active":""}" onclick="frnSetWireScope('league')">LEAGUE</button>
+    </div>`;
+
+  // Front-page leads — only show when not filtered down by a non-all topic
+  const leadsHtml = (leads.length && _frnWireTopic === "all") ? `
+    <div class="frn-wire-leads-wrap">
+      <div class="frn-wire-leads-eyebrow">📰 FRONT PAGE${_frnWireScope==='team'?" — YOUR TEAM":""}</div>
+      <div class="frn-wire-leads-grid">
+        ${leads.map((it, i) => {
+          const decorated = _decorateWireLabel(it.label || "", teamSet, playerSet);
+          const isHero = i === 0;
+          return `<article class="frn-wire-lead${isHero?" hero":""}">
+            <div class="frn-wire-lead-icon">${_wireIcon(it.type)}</div>
+            <div class="frn-wire-lead-body">
+              <div class="frn-wire-lead-meta">S${it.season} · ${_wireWeekLabel(it)}</div>
+              <div class="frn-wire-lead-headline">${decorated}</div>
+            </div>
+          </article>`;
+        }).join("")}
+      </div>
+    </div>` : "";
+
+  // Storylines section
+  const storylinesHtml = (storylines.length && _frnWireTopic === "all") ? `
+    <div class="frn-wire-storylines">
+      <div class="frn-wire-storylines-head">🧵 STORYLINES <span class="sub">recurring threads this season</span></div>
+      ${storylines.map(s => {
+        const isOpen = _frnWireExpanded.has(s.key);
+        const escKey = s.key.replace(/'/g, "\\'");
+        return `<div class="frn-wire-storyline${isOpen?" open":""}">
+          <button class="frn-wire-storyline-head" onclick="frnToggleStoryline('${escKey}')">
+            <span class="caret">${isOpen?"▾":"▸"}</span>
+            <span class="title">${s.title}</span>
+            <span class="count">${s.items.length}</span>
+          </button>
+          ${isOpen ? `<ul class="frn-wire-storyline-list">${s.items.slice().sort((a,b)=>(b.week||0)-(a.week||0)).map(it => `
+            <li class="frn-wire-item">
+              <span class="frn-wire-icon">${_wireIcon(it.type)}</span>
+              <span class="frn-wire-label">${_decorateWireLabel(it.label||"",teamSet,playerSet)}</span>
+              <span class="frn-wire-when">${_wireWeekLabel(it)}</span>
+            </li>`).join("")}</ul>` : ""}
+        </div>`;
+      }).join("")}
+    </div>` : "";
+
+  // Chronological feed — group by (season, week)
+  const grouped = {};
+  for (const n of sorted) {
+    const k = `${n.season}|${n.week}`;
+    (grouped[k] ||= []).push(n);
+  }
+  const groupKeys = Object.keys(grouped).sort((a, b) => {
+    const [as, aw] = a.split("|").map(Number);
+    const [bs, bw] = b.split("|").map(Number);
+    return (bs - as) || ((bw || 0) - (aw || 0));
+  });
+  const weekBlocks = groupKeys.length ? groupKeys.map(k => {
+    const [s, w] = k.split("|").map(Number);
+    const items = grouped[k];
+    const wkLabel = _wireWeekLabel({ week: w });
+    return `<div class="frn-wire-week">
+      <div class="frn-wire-week-head">${sel==='all'?`SEASON ${s} · `:""}${wkLabel}</div>
       <ul class="frn-wire-list">
-        ${byWeek[w].map(n => `
+        ${items.map(n => `
           <li class="frn-wire-item frn-wire-type-${n.type||""}">
-            <span class="frn-wire-icon">${typeIcon(n.type)}</span>
-            <span class="frn-wire-label">${n.label || ""}</span>
+            <span class="frn-wire-icon">${_wireIcon(n.type)}</span>
+            <span class="frn-wire-label">${_decorateWireLabel(n.label||"", teamSet, playerSet)}</span>
           </li>`).join("")}
       </ul>
-    </div>`).join("")
-    : `<div style="color:var(--gray);padding:1rem;text-align:center;font-style:italic">No wire entries for Season ${sel} yet.</div>`;
-  // BSPN broadcast chrome — matches the other "watch the league"
-  // pages (standings, leaders, legacy). Season picker becomes a
-  // nav-style tab row; week blocks render inside a single panel.
-  const seasonNav = allSeasons.map(s =>
-    `<button class="bspnlive-nav-item ${s===sel?"active":""}"
-      style="background:transparent;border:0;font-family:inherit;cursor:pointer;padding:0;${s===sel?"color:var(--blwhite)":""}"
-      onclick="renderFrnNewsArchive(${s})">[SEASON ${s}]</button>`
-  ).join(" ");
+    </div>`;
+  }).join("")
+    : `<div style="color:var(--blgray);padding:1rem;text-align:center;font-style:italic">No entries match this view.</div>`;
 
   $("frnHomeContent").innerHTML = `
     <div class="bspnlive-root" style="margin:-1rem -1.5rem 0 -1.5rem;padding-bottom:1rem">
       <header class="bspnlive-header">
         <div>
           <div class="bspnlive-logo">BSPN</div>
-          <div class="bspnlive-logo-sub">LEAGUE WIRE ARCHIVE</div>
+          <div class="bspnlive-logo-sub">LEAGUE WIRE${sel==='all'?" — ALL SEASONS":""}</div>
         </div>
         <nav class="bspnlive-nav" style="flex-wrap:wrap;gap:.7rem .9rem">${_bspnNavHtml("WIRE")}</nav>
       </header>
       <div style="padding:.55rem 1.4rem;border-bottom:1px solid var(--blborder);display:flex;gap:.55rem;flex-wrap:wrap;align-items:center">
         <button class="bspn-back" onclick="showFranchiseDashboard()">‹ Return to Main Screen</button>
         ${seasonNav}
+        ${scopeHtml}
       </div>
       <div style="padding:.5rem 1.4rem;border-bottom:1px solid var(--blborder);color:var(--blgray);font-size:.7rem;letter-spacing:.5px">
-        Season ${sel} · ${items.length} entr${items.length===1?"y":"ies"}
+        ${sel==='all' ? `${(franchise.news||[]).length} entries across ${allSeasons.length} season${allSeasons.length===1?"":"s"}` : `Season ${sel} · ${seasonFiltered.length} entr${seasonFiltered.length===1?"y":"ies"}`}
+        · Showing ${sorted.length} in <b>${(_WIRE_TOPICS.find(x=>x.key===_frnWireTopic)?.label||"Misc")}</b>
       </div>
-      <div style="padding:1rem 1.4rem">
+      <div style="padding:1rem 1.4rem;display:flex;flex-direction:column;gap:1rem">
+        ${leadsHtml}
+        <div class="frn-hl-pills" style="margin-bottom:0">${topicPills}</div>
+        ${storylinesHtml}
         <section class="bspn-panel" style="padding:.7rem 1rem">
           <div class="bspn-panel-title" style="color:var(--blgold);font-size:.75rem;letter-spacing:2px">CHRONOLOGICAL FEED</div>
           <div class="frn-wire-scroll">${weekBlocks}</div>
