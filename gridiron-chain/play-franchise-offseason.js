@@ -13145,7 +13145,9 @@ function renderFrnDraft() {
   const targets = new Set(d.targets || []);
   _migrateDraftScouts();
   const scoutsList = franchise.draftScouts || [];
-  const slotsUsed  = _draftScoutSlotsUsed();
+  const slotsSpentRound = _draftScoutsSpentThisRound();
+  const slotsLeftRound = _draftScoutsLeftThisRound();
+  const slotsUsedTotal  = _draftScoutSlotsUsed();
 
   // Collect and clear target-gone alerts
   const gone = (d._targetGone || []).splice(0);
@@ -13176,7 +13178,6 @@ function renderFrnDraft() {
 
   // ── Prospect board ───────────────────────────────────────────────────────
   _migrateDraftScouts();
-  const slotsUsedCats = _draftScoutSlotsUsed();
   const renderProspectCard = (p, displayRank) => {
     const esc = (p.name||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'");
     const needLvl = _draftNeedLevel(myId, p.position);
@@ -13186,7 +13187,7 @@ function renderFrnDraft() {
     const scoutedCats   = _draftScoutCategories(p.name);
     const isScouted     = scoutedCats.length > 0;
     const scoutRevealed = isScouted && _isDraftScoutRevealed(p.name);
-    const slotsLeft     = DRAFT_SCOUT_SLOTS - slotsUsedCats;
+    const slotsLeft     = slotsLeftRound;
     const potTag = potentialTag(p, { known: false, scoutRevealed });
     const comp = _draftNFLComp(p);
     const arch = _archetypeLabel(p) || "—";
@@ -13197,17 +13198,22 @@ function renderFrnDraft() {
     const genR = p._generatedRound;
     const projRoundLabel = genR === 0 ? "~UDFA" : genR ? `~R${genR}` : "";
 
-    // 4-category scout cluster
+    // 4-category scout cluster. Assignments are committed once made
+    // (no undo) — title text makes the trade-off clear before click.
     const catButtons = DRAFT_SCOUT_CATEGORIES.map(c => {
       const meta = DRAFT_SCOUT_CAT_META[c];
       const has = scoutedCats.includes(c);
       const canAdd = !has && slotsLeft > 0;
-      const disabled = !has && !canAdd;
+      const lockedTitle = `✓ ${meta.label} scout assigned (locked)`;
+      const tip = has ? lockedTitle
+                : canAdd ? `${meta.label} scout · ${meta.desc} · ${slotsLeft-1} left this round · NO UNDO`
+                : `No scouts left this round (${DRAFT_SCOUTS_PER_ROUND}/round)`;
+      const clickable = canAdd; // committed scouts and budget-empty buttons are inert
       return `<button class="frn-dp-cat-btn${has?" active":""}" data-cat="${c}"
-        onclick="frnDraftScoutCategory('${esc}','${c}')"
-        title="${has?`Remove ${meta.label} scout`:disabled?"Scout slots full":`${meta.label} scout · ${meta.desc} · ${slotsLeft-1} slots left`}"
-        ${disabled ? 'disabled style="opacity:.3;cursor:not-allowed"' : ''}
-        style="${has?`color:${meta.color};border-color:${meta.color}aa;background:${meta.color}15`:""}">${meta.icon}</button>`;
+        ${clickable ? `onclick="frnDraftScoutCategory('${esc}','${c}')"` : 'disabled'}
+        title="${tip}"
+        style="${has?`color:${meta.color};border-color:${meta.color}aa;background:${meta.color}15`
+                  :!canAdd?"opacity:.3;cursor:not-allowed":""}">${meta.icon}</button>`;
     }).join("");
 
     // Per-category intel reveals — only show what's been scouted
@@ -13381,8 +13387,9 @@ function renderFrnDraft() {
         <div class="frn-draft-info-card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.35rem">
             <div class="frn-card-title">TEAM NEEDS</div>
-            <div style="font-size:.6rem;color:${slotsUsed>=DRAFT_SCOUT_SLOTS?"var(--red)":"var(--green-lt)"}">
-              🔍 ${slotsUsed}/${DRAFT_SCOUT_SLOTS} scouts
+            <div style="font-size:.6rem;color:${slotsLeftRound===0?"var(--red)":"var(--green-lt)"}"
+                 title="${DRAFT_SCOUTS_PER_ROUND} scouts per round · refills each round · no undo">
+              🔍 ${slotsLeftRound}/${DRAFT_SCOUTS_PER_ROUND} this rd · ${slotsUsedTotal} total
             </div>
           </div>
           ${needsHtml}
@@ -13413,7 +13420,7 @@ function frnDraftToggleTarget(name) {
   renderFrnDraft();
 }
 
-const DRAFT_SCOUT_SLOTS = 8;
+const DRAFT_SCOUTS_PER_ROUND = 5;
 const DRAFT_SCOUT_CATEGORIES = ["medical", "film", "interview", "workout"];
 const DRAFT_SCOUT_CAT_META = {
   medical:   { icon: "🏥", label: "Medical",   color: "#ff9090",
@@ -13447,6 +13454,35 @@ function _draftScoutSlotsUsed() {
     else if (r) n += 1; // legacy single-scout entry
   }
   return n;
+}
+
+// Which round we're currently on — drives the scout budget. Falls back
+// to round 1 when the draft hasn't picked a slot yet.
+function _draftCurrentRound() {
+  const d = franchise.draft;
+  if (!d?.pickOrder?.length) return 1;
+  const idx = Math.min(d.currentIdx || 0, d.pickOrder.length - 1);
+  return d.pickOrder[idx]?.round || 1;
+}
+
+// Count scouts assigned in the current round only. Each reveal entry
+// stamps the round it was created in (createdInRound) per category, so
+// we sum across players.
+function _draftScoutsSpentThisRound() {
+  const currentRound = _draftCurrentRound();
+  let n = 0;
+  const reveals = franchise.draftScoutReveals || {};
+  for (const rev of Object.values(reveals)) {
+    if (!rev?.categoryRounds) continue;
+    for (const cat of (rev.categories || [])) {
+      if (rev.categoryRounds[cat] === currentRound) n++;
+    }
+  }
+  return n;
+}
+
+function _draftScoutsLeftThisRound() {
+  return Math.max(0, DRAFT_SCOUTS_PER_ROUND - _draftScoutsSpentThisRound());
 }
 
 function _draftScoutHasCategory(name, cat) {
@@ -13542,24 +13578,22 @@ function frnDraftScoutCategory(name, cat) {
   franchise.draftScoutReveals = franchise.draftScoutReveals || {};
   let rev = franchise.draftScoutReveals[name];
   if (!rev) {
-    rev = { categories: [], knockNotes: {}, revealed: false };
+    rev = { categories: [], knockNotes: {}, revealed: false, categoryRounds: {} };
     franchise.draftScoutReveals[name] = rev;
   } else if (!rev.categories) {
-    rev.categories = []; rev.knockNotes = rev.knockNotes || {};
+    rev.categories = []; rev.knockNotes = rev.knockNotes || {}; rev.categoryRounds = rev.categoryRounds || {};
+  } else if (!rev.categoryRounds) {
+    rev.categoryRounds = {};
   }
   const has = rev.categories.includes(cat);
   if (has) {
-    rev.categories = rev.categories.filter(c => c !== cat);
-    delete rev.knockNotes[cat];
-    if (cat === "film") rev.revealed = false;
-    if (!rev.categories.length) {
-      delete franchise.draftScoutReveals[name];
-      const idx = franchise.draftScouts.indexOf(name);
-      if (idx !== -1) franchise.draftScouts.splice(idx, 1);
-    }
+    // No undo — scout assignments are committed once made. The "click"
+    // is the deliberate spend. (Tooltip in UI should make this clear.)
+    return;
   } else {
-    if (_draftScoutSlotsUsed() >= DRAFT_SCOUT_SLOTS) return;
+    if (_draftScoutsLeftThisRound() <= 0) return;
     rev.categories.push(cat);
+    rev.categoryRounds[cat] = _draftCurrentRound();
     if (!franchise.draftScouts.includes(name)) franchise.draftScouts.push(name);
     const prospect   = franchise.draft.class.find(q => q.name === name);
     const knockType  = prospect?.collegeProfile?.knockType || null;
