@@ -8199,6 +8199,37 @@ function runFrnOffseason() {
         }
       }
 
+      // Per-player change record for the offseason gains sheet. Captured
+      // for every team's roster (so we can later mine other-team trends),
+      // but the user's view filters to their own. Reasons are inferred
+      // from the post-update state rather than tracked through every dev
+      // pathway — keeps the dev logic unchanged.
+      const ageNow = p.age || 0;
+      const ageBefore = ageNow - 1;
+      const reasons = [];
+      if (delta >= 5)                                  reasons.push("big_breakout");
+      else if (delta >= 3 && ageNow <= 27)             reasons.push("breakout");
+      else if (delta >= 1 && ageNow >= 30)             reasons.push("vet_surge");
+      else if (delta >= 1)                             reasons.push("steady_gain");
+      if (delta <= -3)                                 reasons.push("decline");
+      else if (delta <= -1 && ageNow >= (p.declineAge ?? 99)) reasons.push("aging");
+      if (justHitCliff)                                reasons.push("cliff_hit");
+      if (p._elitePlateauBumped && p.age >= 28)        reasons.push("elite_plateau");
+      if (p._potentialRerolled)                        reasons.push("ceiling_raised");
+      if (p._rehabRestore != null || p._rehabSeasons)  reasons.push("rehab");
+      if (p._tradedAtSeason === franchise.season - 1)  reasons.push("trade_fit");
+      if (p.coachable && delta >= 2)                   reasons.push("coachable");
+      if (p.personality === "captain" && ageNow >= 28) reasons.push("captain");
+      if (p.injury)                                    reasons.push("injured");
+      changes.push({
+        tId, name: p.name, pid: p.pid, pos: p.position,
+        ageBefore, ageNow, preOvr, postOvr: p.overall, delta,
+        reasons,
+        potential: p.potential,
+        declineAge: p.declineAge, peakAge: p.peakAge,
+        type: "dev",
+      });
+
       keep.push(p);
     }
 
@@ -8291,6 +8322,129 @@ function runFrnOffseason() {
   return changes;
 }
 
+// Build the per-player offseason gains sheet — every player on the
+// user's roster with their OVR before/after, age progression, and
+// inferred reason chips. Grouped by trajectory (gainers / steady /
+// decliners / cliffs) and sorted by delta within group.
+const _OFF_REASON_META = {
+  big_breakout:   { icon:"🚀", label:"Big Breakout",      color:"#86e0a3" },
+  breakout:       { icon:"📈", label:"Breakout",          color:"#86e0a3" },
+  vet_surge:      { icon:"🌅", label:"Vet Surge",         color:"#86e0a3" },
+  steady_gain:    { icon:"↗",  label:"Steady Gain",       color:"#a8d8b6" },
+  decline:        { icon:"📉", label:"Decline",           color:"#ff9b9b" },
+  aging:          { icon:"⏳", label:"Aging",             color:"#e0b078" },
+  cliff_hit:      { icon:"⏳", label:"Hit the Cliff",     color:"#ff9b9b" },
+  elite_plateau:  { icon:"⚓", label:"Elite Plateau",     color:"#f5c542" },
+  ceiling_raised: { icon:"💎", label:"Ceiling Raised",    color:"#86c8ff" },
+  rehab:          { icon:"🏥", label:"Rehab Outcome",     color:"#e0b078" },
+  trade_fit:      { icon:"🔁", label:"Trade-Fit Boost",   color:"#86c8ff" },
+  coachable:      { icon:"📋", label:"Coachable",         color:"#86c8ff" },
+  captain:        { icon:"👑", label:"Captain",           color:"#f5c542" },
+  injured:        { icon:"🩹", label:"Injured",           color:"#e0b078" },
+};
+function _renderOffReasonChips(reasons) {
+  if (!reasons || !reasons.length) return "";
+  return reasons.map(r => {
+    const m = _OFF_REASON_META[r];
+    if (!m) return "";
+    return `<span style="display:inline-block;font-size:.55rem;padding:.08rem .35rem;border-radius:2px;background:rgba(255,255,255,.06);color:${m.color};border:1px solid ${m.color}40;margin-right:.25rem;letter-spacing:.3px">${m.icon} ${m.label}</span>`;
+  }).join("");
+}
+function _buildOffseasonGainsSheet() {
+  const myId = franchise.chosenTeamId;
+  const myChg = (franchise._offChanges || []).filter(c => c.tId === myId && c.type === "dev");
+  if (!myChg.length) return "";
+  // Sort within group: deltas descending
+  myChg.sort((a, b) => b.delta - a.delta);
+  const gainers   = myChg.filter(c => c.delta > 0);
+  const steady    = myChg.filter(c => c.delta === 0);
+  const decliners = myChg.filter(c => c.delta < 0);
+  const cliffs    = myChg.filter(c => c.reasons?.includes("cliff_hit"));
+  const ceilings  = myChg.filter(c => c.reasons?.includes("ceiling_raised"));
+  const rehabs    = myChg.filter(c => c.reasons?.includes("rehab"));
+  const netDelta  = myChg.reduce((s, c) => s + c.delta, 0);
+  const biggestUp = myChg[0];
+  const biggestDn = myChg[myChg.length - 1];
+
+  // Summary header card
+  const _stat = (n, label, color) => `
+    <div style="text-align:center;padding:.45rem .6rem;background:rgba(255,255,255,.04);border-radius:3px;min-width:88px">
+      <div style="font-family:'Bebas Neue','Anton',sans-serif;font-size:1.5rem;color:${color};line-height:1">${n}</div>
+      <div style="font-size:.55rem;color:var(--gray);letter-spacing:1px;text-transform:uppercase">${label}</div>
+    </div>`;
+  const _signed = n => (n > 0 ? `+${n}` : `${n}`);
+
+  const summaryHtml = `
+    <div style="display:flex;gap:.45rem;flex-wrap:wrap;margin-bottom:.6rem">
+      ${_stat(_signed(netDelta), "Net OVR", netDelta > 0 ? "#86e0a3" : netDelta < 0 ? "#ff9b9b" : "var(--white)")}
+      ${_stat(gainers.length,   "Gained",     "#86e0a3")}
+      ${_stat(steady.length,    "Steady",     "var(--gray)")}
+      ${_stat(decliners.length, "Declined",   "#ff9b9b")}
+      ${_stat(cliffs.length,    "Hit Cliff",  "#e0b078")}
+      ${_stat(ceilings.length,  "Ceiling Up", "#86c8ff")}
+      ${_stat(rehabs.length,    "Rehab",      "#e0b078")}
+    </div>
+    ${(biggestUp && biggestUp.delta > 0) || (biggestDn && biggestDn.delta < 0) ? `
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.6rem;font-size:.7rem">
+        ${(biggestUp && biggestUp.delta > 0) ? `
+          <div style="flex:1;min-width:200px;padding:.4rem .55rem;background:rgba(134,224,163,.08);border-left:3px solid #86e0a3;border-radius:2px">
+            <div style="font-size:.55rem;color:#86e0a3;letter-spacing:1.2px">🚀 BIGGEST GAINER</div>
+            <div style="margin-top:.15rem;font-weight:700">${playerLinkByName ? _playerLinkSmart(biggestUp.name) : biggestUp.name}
+              <span style="color:var(--gray);font-size:.65rem">${biggestUp.pos}</span>
+              · ${biggestUp.preOvr} → <b style="color:#86e0a3">${biggestUp.postOvr}</b>
+              <span style="color:#86e0a3">(+${biggestUp.delta})</span>
+            </div>
+          </div>` : ""}
+        ${(biggestDn && biggestDn.delta < 0) ? `
+          <div style="flex:1;min-width:200px;padding:.4rem .55rem;background:rgba(255,155,155,.08);border-left:3px solid #ff9b9b;border-radius:2px">
+            <div style="font-size:.55rem;color:#ff9b9b;letter-spacing:1.2px">📉 BIGGEST DROP</div>
+            <div style="margin-top:.15rem;font-weight:700">${_playerLinkSmart(biggestDn.name)}
+              <span style="color:var(--gray);font-size:.65rem">${biggestDn.pos}</span>
+              · ${biggestDn.preOvr} → <b style="color:#ff9b9b">${biggestDn.postOvr}</b>
+              <span style="color:#ff9b9b">(${biggestDn.delta})</span>
+            </div>
+          </div>` : ""}
+      </div>` : ""}`;
+
+  // Per-player table row
+  const _row = (c) => {
+    const dColor = c.delta > 0 ? "#86e0a3" : c.delta < 0 ? "#ff9b9b" : "var(--gray)";
+    const dStr   = c.delta > 0 ? `+${c.delta}` : `${c.delta}`;
+    return `<tr style="border-top:1px solid rgba(255,255,255,.04)">
+      <td style="padding:.3rem .5rem;font-weight:700">${_playerLinkSmart(c.name)}</td>
+      <td style="padding:.3rem .5rem;color:var(--gray);font-size:.7rem">${c.pos}</td>
+      <td style="padding:.3rem .5rem;color:var(--gray);font-size:.7rem;font-family:'Bebas Neue','Anton',sans-serif;letter-spacing:.5px">${c.ageBefore} → ${c.ageNow}</td>
+      <td style="padding:.3rem .5rem;font-family:'Bebas Neue','Anton',sans-serif;letter-spacing:.5px">${c.preOvr} → <span style="color:${dColor}">${c.postOvr}</span></td>
+      <td style="padding:.3rem .5rem;color:${dColor};font-weight:900;font-family:'Bebas Neue','Anton',sans-serif;font-size:1.1rem">${dStr}</td>
+      <td style="padding:.3rem .5rem;font-size:.6rem">${_renderOffReasonChips(c.reasons)}</td>
+    </tr>`;
+  };
+
+  const _section = (title, rows, accent) => rows.length ? `
+    <div style="margin-top:.6rem">
+      <div style="font-family:'Bebas Neue','Anton',sans-serif;font-size:.85rem;color:${accent};letter-spacing:1.5px;margin-bottom:.2rem">${title} (${rows.length})</div>
+      <table style="width:100%;border-collapse:collapse;font-size:.72rem">
+        <thead><tr style="color:var(--gray);font-size:.6rem;letter-spacing:1px">
+          <th style="text-align:left;padding:.2rem .5rem">PLAYER</th>
+          <th style="text-align:left;padding:.2rem .5rem">POS</th>
+          <th style="text-align:left;padding:.2rem .5rem">AGE</th>
+          <th style="text-align:left;padding:.2rem .5rem">OVR</th>
+          <th style="text-align:left;padding:.2rem .5rem">Δ</th>
+          <th style="text-align:left;padding:.2rem .5rem">NOTES</th>
+        </tr></thead>
+        <tbody>${rows.map(_row).join("")}</tbody>
+      </table>
+    </div>` : "";
+
+  return `<div style="margin-top:.8rem;padding:.7rem .8rem;background:rgba(255,255,255,.02);border:1px solid var(--blborder);border-radius:4px">
+    <div class="frn-sec-title" style="margin-bottom:.5rem">📊 OFFSEASON GAINS SHEET</div>
+    ${summaryHtml}
+    ${_section("GAINERS",   gainers,   "#86e0a3")}
+    ${_section("HOLDING",   steady,    "var(--gray)")}
+    ${_section("DECLINERS", decliners, "#ff9b9b")}
+  </div>`;
+}
+
 function renderFrnOffseason() {
   const { season, chosenTeamId, _offChanges, salaryCap } = franchise;
   const myTeam   = getTeam(chosenTeamId);
@@ -8309,7 +8463,10 @@ function renderFrnOffseason() {
     chgHtml += `<div style="color:#90ff90;font-weight:700;margin-top:.4rem">Rookies Signed (${rookies.length})</div>`;
     chgHtml += rookies.map(c => `<div class="frn-off-change rookie">+ ${c.name} (${c.pos})</div>`).join("");
   }
-  if (!chgHtml) chgHtml = `<div style="color:var(--gray)">No major roster changes this offseason.</div>`;
+  // Gains sheet is the meaty piece — falls through to the legacy
+  // retires/rookies block when there are no dev rows yet.
+  const gainsHtml = _buildOffseasonGainsSheet();
+  if (!chgHtml && !gainsHtml) chgHtml = `<div style="color:var(--gray)">No major roster changes this offseason.</div>`;
 
   $("frnHomeContent").innerHTML = `
     <div style="text-align:center;margin-bottom:.75rem">
@@ -8324,6 +8481,7 @@ function renderFrnOffseason() {
     </div>
     <div class="frn-sec-title">${myTeam.name} Roster Changes</div>
     <div class="frn-off-list">${chgHtml}</div>
+    ${gainsHtml}
     ${_renderHoldoutsBlock()}
     ${(() => {
       const list     = franchise._holdouts || [];
