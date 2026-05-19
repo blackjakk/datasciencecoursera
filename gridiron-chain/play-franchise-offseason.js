@@ -7015,16 +7015,41 @@ function _buildExtensionPitch(ctx, live, cap) {
   }
 
   // ── Verdict synthesis — 1-line takeaway driven by the same data ──
+  // Price gap is the dominant signal: an elite young player asking 30%
+  // above market is a different decision than the same player asking
+  // 10% below. Premium asks override "lock him in"; bargains override
+  // "risky vet." Mid-range asks fall through to the production tiers.
   const overallTier = live.overall >= 88 ? "elite" : live.overall >= 82 ? "starter+" : "starter";
   const youngEnough = (live.age || 27) <= 28;
   const inPrime = peakAge != null && live.age >= peakAge - 1 && live.age <= (declineAge ?? 99);
-  const verdict = (overallTier === "elite" && youngEnough)
-      ? { text: "Lock this in — elite production, prime window still open", color: "var(--green-lt)" }
-    : (inPrime && availPct >= 80)
-      ? { text: "Pay him — peak production, availability proven", color: "var(--gold)" }
-    : (live.age >= (declineAge ?? 99))
-      ? { text: "Risky — production may not match dollars over deal length", color: "#ff8a8a" }
-    : { text: "Solid contributor — extend at fair value, avoid premium years", color: "var(--gold-lt)" };
+  const pastDecline = live.age >= (declineAge ?? 99);
+  const priceGap = marketAAV > 0 ? demandedAAV / marketAAV : 1;
+  const premiumPct = Math.round((priceGap - 1) * 100);
+
+  let verdict;
+  if (priceGap >= 1.20) {
+    verdict = pastDecline
+      ? { text: `Past decline + asking ${premiumPct}% over market — let him walk`, color: "#ff8a8a" }
+      : (overallTier === "elite" && youngEnough)
+        ? { text: `Elite, but asking ${premiumPct}% over market — counter hard`, color: "#e8a000" }
+        : { text: `Asking ${premiumPct}% over market — counter or walk`, color: "#ff8a8a" };
+  } else if (priceGap >= 1.10) {
+    verdict = (overallTier === "elite" && youngEnough)
+      ? { text: `Pay the ${premiumPct}% premium — elite, prime, no replacement`, color: "var(--gold)" }
+      : (inPrime && availPct >= 85)
+        ? { text: `Modest premium (${premiumPct}%) for proven production — defensible`, color: "var(--gold-lt)" }
+        : { text: `Asking ${premiumPct}% over market — counter to fair value`, color: "#e8a000" };
+  } else if (priceGap <= 0.85 && live.overall >= 78) {
+    verdict = { text: `Below-market ask (-${Math.round((1-priceGap)*100)}%) — sign before he reconsiders`, color: "var(--green-lt)" };
+  } else if (overallTier === "elite" && youngEnough) {
+    verdict = { text: "Lock this in — elite production, prime window still open", color: "var(--green-lt)" };
+  } else if (inPrime && availPct >= 80) {
+    verdict = { text: "Pay him — peak production, availability proven", color: "var(--gold)" };
+  } else if (pastDecline) {
+    verdict = { text: "Risky — production may not match dollars over deal length", color: "#ff8a8a" };
+  } else {
+    verdict = { text: "Solid contributor — extend at fair value, avoid premium years", color: "var(--gold-lt)" };
+  }
 
   const row = (lbl, val, color) =>
     val ? `<span style="color:var(--gray)">${lbl}</span><span style="color:${color || 'var(--blwhite)'}">${val}</span>` : "";
