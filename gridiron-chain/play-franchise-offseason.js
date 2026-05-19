@@ -7889,6 +7889,8 @@ function runFrnOffseason() {
         p.age = (p.overall >= 85 ? 27 : p.overall >= 75 ? 24 : 22) + Math.floor(Math.random() * 6);
       }
       const preOvr = p.overall;
+      const preStats = Array.isArray(p.stats) ? p.stats.slice() : null;
+      const prePotential = p.potential;
       // Age has already been bumped in _processSeasonEndRetirements;
       // last-season's age is p.age - 1.
       const preDeclineHit = ((p.age - 1) >= (p.declineAge ?? Infinity));
@@ -8221,12 +8223,33 @@ function runFrnOffseason() {
       if (p.coachable && delta >= 2)                   reasons.push("coachable");
       if (p.personality === "captain" && ageNow >= 28) reasons.push("captain");
       if (p.injury)                                    reasons.push("injured");
+      // Per-stat deltas — captured for the top 2 movers so the gains
+      // sheet can show "what changed" (THR +2, AGI -1) without the
+      // whole 10-stat array.
+      const STAT_LABELS = ["SPD","STR","AGI","AWR","THR","CAT","BLK","PRS","COV","TCK","KPW"];
+      let topStatDeltas = [];
+      if (preStats && Array.isArray(p.stats)) {
+        const all = [];
+        for (let i = 0; i < Math.min(preStats.length, p.stats.length, STAT_LABELS.length); i++) {
+          const d = p.stats[i] - preStats[i];
+          if (d !== 0) all.push({ key: STAT_LABELS[i], delta: d });
+        }
+        all.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+        topStatDeltas = all.slice(0, 3);
+      }
+      const potentialBumped = (prePotential != null && (p.potential || 0) > prePotential)
+        ? { from: prePotential, to: p.potential } : null;
+      if (potentialBumped && !reasons.includes("ceiling_raised")) reasons.push("ceiling_raised");
       changes.push({
         tId, name: p.name, pid: p.pid, pos: p.position,
         ageBefore, ageNow, preOvr, postOvr: p.overall, delta,
         reasons,
         potential: p.potential,
+        potentialBumped,
         declineAge: p.declineAge, peakAge: p.peakAge,
+        contractYearsLeft: p.contract?.remaining ?? null,
+        statDeltas: topStatDeltas,
+        archetype: p.archetype,
         type: "dev",
       });
 
@@ -8350,21 +8373,49 @@ function _renderOffReasonChips(reasons) {
     return `<span style="display:inline-block;font-size:.55rem;padding:.08rem .35rem;border-radius:2px;background:rgba(255,255,255,.06);color:${m.color};border:1px solid ${m.color}40;margin-right:.25rem;letter-spacing:.3px">${m.icon} ${m.label}</span>`;
   }).join("");
 }
+// Module-level filter state — survives re-renders triggered by the chip
+// clicks below.
+let _frnGainsFilterPos = "ALL";
+function frnGainsFilterSet(pos) {
+  _frnGainsFilterPos = pos || "ALL";
+  renderFrnOffseason();
+}
+
 function _buildOffseasonGainsSheet() {
   const myId = franchise.chosenTeamId;
-  const myChg = (franchise._offChanges || []).filter(c => c.tId === myId && c.type === "dev");
-  if (!myChg.length) return "";
+  const allMyChg = (franchise._offChanges || []).filter(c => c.tId === myId && c.type === "dev");
+  if (!allMyChg.length) return "";
+  // Position filter state — chips at the top let the user narrow down.
+  const POS_GROUPS = [
+    ["ALL","ALL"], ["OFF","QB,RB,WR,TE,OL"], ["DEF","DL,LB,CB,S"], ["ST","K,P"],
+    ["QB","QB"], ["RB","RB"], ["WR","WR"], ["TE","TE"], ["OL","OL,LT,LG,C,RG,RT"],
+    ["DL","DL"], ["LB","LB"], ["CB","CB"], ["S","S"], ["K/P","K,P"],
+  ];
+  const activeFilter = POS_GROUPS.find(g => g[0] === _frnGainsFilterPos) || POS_GROUPS[0];
+  const filterSet = new Set(activeFilter[1].split(","));
+  const myChg = (activeFilter[0] === "ALL") ? allMyChg : allMyChg.filter(c => filterSet.has(c.pos));
+
   // Sort within group: deltas descending
   myChg.sort((a, b) => b.delta - a.delta);
   const gainers   = myChg.filter(c => c.delta > 0);
   const steady    = myChg.filter(c => c.delta === 0);
   const decliners = myChg.filter(c => c.delta < 0);
-  const cliffs    = myChg.filter(c => c.reasons?.includes("cliff_hit"));
-  const ceilings  = myChg.filter(c => c.reasons?.includes("ceiling_raised"));
-  const rehabs    = myChg.filter(c => c.reasons?.includes("rehab"));
-  const netDelta  = myChg.reduce((s, c) => s + c.delta, 0);
-  const biggestUp = myChg[0];
-  const biggestDn = myChg[myChg.length - 1];
+  // Summary counts (always from the unfiltered set so the cards are stable)
+  const cliffs    = allMyChg.filter(c => c.reasons?.includes("cliff_hit"));
+  const ceilings  = allMyChg.filter(c => c.reasons?.includes("ceiling_raised"));
+  const rehabs    = allMyChg.filter(c => c.reasons?.includes("rehab"));
+  const netDelta  = allMyChg.reduce((s, c) => s + c.delta, 0);
+  const sortedAll = allMyChg.slice().sort((a, b) => b.delta - a.delta);
+  const biggestUp = sortedAll[0];
+  const biggestDn = sortedAll[sortedAll.length - 1];
+
+  // Filter chips
+  const chipsHtml = `<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.5rem">
+    ${POS_GROUPS.map(g => {
+      const isActive = g[0] === activeFilter[0];
+      return `<button onclick="frnGainsFilterSet('${g[0]}')" style="font-size:.6rem;letter-spacing:.5px;padding:.18rem .5rem;border-radius:2px;border:1px solid ${isActive?"var(--gold)":"var(--blborder)"};background:${isActive?"rgba(245,197,66,.12)":"transparent"};color:${isActive?"var(--gold)":"var(--gray)"};cursor:pointer;font-family:inherit">${g[0]}</button>`;
+    }).join("")}
+  </div>`;
 
   // Summary header card
   const _stat = (n, label, color) => `
@@ -8374,12 +8425,35 @@ function _buildOffseasonGainsSheet() {
     </div>`;
   const _signed = n => (n > 0 ? `+${n}` : `${n}`);
 
+  // Hidden-gem reveal HERO block — the single highest-value offseason
+  // event. Surfaced separately because a ceiling jump means the player
+  // can keep growing past where they used to cap. Worth its own panel.
+  const ceilingReveals = allMyChg.filter(c => c.potentialBumped);
+  const heroBlock = ceilingReveals.length ? `
+    <div style="margin-bottom:.6rem;padding:.55rem .7rem;background:linear-gradient(90deg,rgba(134,200,255,.12),rgba(134,200,255,.02));border-left:3px solid #86c8ff;border-radius:3px">
+      <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.3rem">
+        <span style="font-size:1.15rem">💎</span>
+        <span style="font-family:'Bebas Neue','Anton',sans-serif;letter-spacing:1.5px;color:#86c8ff;font-size:.85rem">HIDDEN GEM REVEAL${ceilingReveals.length===1?"":"S"}</span>
+        <span style="color:var(--gray);font-size:.6rem;margin-left:auto">ceiling raised — they can keep growing past their old cap</span>
+      </div>
+      ${ceilingReveals.map(c => `
+        <div style="display:flex;align-items:center;gap:.5rem;padding:.25rem 0;font-size:.72rem">
+          <span style="font-weight:700">${_playerLinkSmart(c.name)}</span>
+          <span style="color:var(--gray);font-size:.65rem">${c.pos} · age ${c.ageNow}</span>
+          <span style="color:var(--gray);font-size:.65rem;margin-left:auto">ceiling
+            <b style="color:var(--gray)">${c.potentialBumped.from}</b>
+            → <b style="color:#86c8ff;font-size:.8rem">${c.potentialBumped.to}</b>
+            (+${c.potentialBumped.to - c.potentialBumped.from})
+          </span>
+        </div>`).join("")}
+    </div>` : "";
+
   const summaryHtml = `
     <div style="display:flex;gap:.45rem;flex-wrap:wrap;margin-bottom:.6rem">
       ${_stat(_signed(netDelta), "Net OVR", netDelta > 0 ? "#86e0a3" : netDelta < 0 ? "#ff9b9b" : "var(--white)")}
-      ${_stat(gainers.length,   "Gained",     "#86e0a3")}
-      ${_stat(steady.length,    "Steady",     "var(--gray)")}
-      ${_stat(decliners.length, "Declined",   "#ff9b9b")}
+      ${_stat(allMyChg.filter(c => c.delta > 0).length, "Gained",  "#86e0a3")}
+      ${_stat(allMyChg.filter(c => c.delta === 0).length, "Steady", "var(--gray)")}
+      ${_stat(allMyChg.filter(c => c.delta < 0).length, "Declined", "#ff9b9b")}
       ${_stat(cliffs.length,    "Hit Cliff",  "#e0b078")}
       ${_stat(ceilings.length,  "Ceiling Up", "#86c8ff")}
       ${_stat(rehabs.length,    "Rehab",      "#e0b078")}
@@ -8389,7 +8463,7 @@ function _buildOffseasonGainsSheet() {
         ${(biggestUp && biggestUp.delta > 0) ? `
           <div style="flex:1;min-width:200px;padding:.4rem .55rem;background:rgba(134,224,163,.08);border-left:3px solid #86e0a3;border-radius:2px">
             <div style="font-size:.55rem;color:#86e0a3;letter-spacing:1.2px">🚀 BIGGEST GAINER</div>
-            <div style="margin-top:.15rem;font-weight:700">${playerLinkByName ? _playerLinkSmart(biggestUp.name) : biggestUp.name}
+            <div style="margin-top:.15rem;font-weight:700">${_playerLinkSmart(biggestUp.name)}
               <span style="color:var(--gray);font-size:.65rem">${biggestUp.pos}</span>
               · ${biggestUp.preOvr} → <b style="color:#86e0a3">${biggestUp.postOvr}</b>
               <span style="color:#86e0a3">(+${biggestUp.delta})</span>
@@ -8406,6 +8480,53 @@ function _buildOffseasonGainsSheet() {
           </div>` : ""}
       </div>` : ""}`;
 
+  // Stat-delta inline chips — top movers (THR +2, AGI -1)
+  const _statChips = (sd) => {
+    if (!sd || !sd.length) return "";
+    return sd.map(s => {
+      const color = s.delta > 0 ? "#86e0a3" : "#ff9b9b";
+      const sign  = s.delta > 0 ? "+" : "";
+      return `<span style="font-size:.55rem;color:${color};margin-right:.3rem;letter-spacing:.3px">${s.key} ${sign}${s.delta}</span>`;
+    }).join("");
+  };
+
+  // Ceiling bar — OVR / potential. Compact text + sliver.
+  const _ceilingCell = (c) => {
+    const ceil = c.potential || 0;
+    const cur  = c.postOvr || 0;
+    if (!ceil || ceil <= cur) {
+      return `<span style="color:var(--gray);font-size:.6rem">capped</span>`;
+    }
+    const room = ceil - cur;
+    const roomColor = room >= 5 ? "#86c8ff" : room >= 2 ? "#a8d8b6" : "var(--gray)";
+    return `<span style="color:var(--gray);font-size:.62rem">${cur}/<b style="color:${roomColor}">${ceil}</b></span>`;
+  };
+
+  // Contract status — years left + expiring flag
+  const _contractCell = (c) => {
+    if (c.contractYearsLeft == null) return `<span style="color:var(--gray);font-size:.58rem">—</span>`;
+    const yrs = c.contractYearsLeft;
+    if (yrs <= 0)  return `<span style="color:#ff9b9b;font-size:.58rem;font-weight:700">EXPIRED</span>`;
+    if (yrs === 1) return `<span style="color:#e0b078;font-size:.58rem;font-weight:700">1yr · EXPIRING</span>`;
+    return `<span style="color:var(--gray);font-size:.58rem">${yrs}yr</span>`;
+  };
+
+  // Re-sign emergency: gained OVR + contract expiring next offseason
+  const resignEmergencies = allMyChg.filter(c =>
+    c.delta >= 1 && c.contractYearsLeft != null && c.contractYearsLeft <= 1
+  ).sort((a, b) => b.delta - a.delta).slice(0, 5);
+  const resignBlock = resignEmergencies.length ? `
+    <div style="margin-bottom:.6rem;padding:.45rem .65rem;background:rgba(224,176,120,.08);border-left:3px solid #e0b078;border-radius:3px">
+      <div style="font-size:.55rem;color:#e0b078;letter-spacing:1.5px;margin-bottom:.2rem">⚠ RE-SIGN PRIORITY (gained value + expiring)</div>
+      ${resignEmergencies.map(c => `
+        <div style="display:flex;align-items:center;gap:.5rem;padding:.15rem 0;font-size:.7rem">
+          <span style="font-weight:700">${_playerLinkSmart(c.name)}</span>
+          <span style="color:var(--gray);font-size:.62rem">${c.pos} · age ${c.ageNow}</span>
+          <span style="color:#86e0a3;font-size:.65rem">${c.preOvr} → ${c.postOvr} (+${c.delta})</span>
+          <span style="color:#e0b078;font-size:.62rem;margin-left:auto;font-weight:700">${c.contractYearsLeft === 0 ? "EXPIRED" : c.contractYearsLeft + "yr left"}</span>
+        </div>`).join("")}
+    </div>` : "";
+
   // Per-player table row
   const _row = (c) => {
     const dColor = c.delta > 0 ? "#86e0a3" : c.delta < 0 ? "#ff9b9b" : "var(--gray)";
@@ -8414,31 +8535,38 @@ function _buildOffseasonGainsSheet() {
       <td style="padding:.3rem .5rem;font-weight:700">${_playerLinkSmart(c.name)}</td>
       <td style="padding:.3rem .5rem;color:var(--gray);font-size:.7rem">${c.pos}</td>
       <td style="padding:.3rem .5rem;color:var(--gray);font-size:.7rem;font-family:'Bebas Neue','Anton',sans-serif;letter-spacing:.5px">${c.ageBefore} → ${c.ageNow}</td>
-      <td style="padding:.3rem .5rem;font-family:'Bebas Neue','Anton',sans-serif;letter-spacing:.5px">${c.preOvr} → <span style="color:${dColor}">${c.postOvr}</span></td>
+      <td style="padding:.3rem .5rem;font-family:'Bebas Neue','Anton',sans-serif;letter-spacing:.5px;white-space:nowrap">${c.preOvr} → <span style="color:${dColor}">${c.postOvr}</span></td>
       <td style="padding:.3rem .5rem;color:${dColor};font-weight:900;font-family:'Bebas Neue','Anton',sans-serif;font-size:1.1rem">${dStr}</td>
-      <td style="padding:.3rem .5rem;font-size:.6rem">${_renderOffReasonChips(c.reasons)}</td>
+      <td style="padding:.3rem .5rem;white-space:nowrap">${_ceilingCell(c)}</td>
+      <td style="padding:.3rem .5rem;white-space:nowrap">${_contractCell(c)}</td>
+      <td style="padding:.3rem .5rem;font-size:.6rem">${_statChips(c.statDeltas)}${_renderOffReasonChips(c.reasons)}</td>
     </tr>`;
   };
 
   const _section = (title, rows, accent) => rows.length ? `
     <div style="margin-top:.6rem">
       <div style="font-family:'Bebas Neue','Anton',sans-serif;font-size:.85rem;color:${accent};letter-spacing:1.5px;margin-bottom:.2rem">${title} (${rows.length})</div>
-      <table style="width:100%;border-collapse:collapse;font-size:.72rem">
-        <thead><tr style="color:var(--gray);font-size:.6rem;letter-spacing:1px">
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.72rem">
+        <thead><tr style="color:var(--gray);font-size:.55rem;letter-spacing:1px">
           <th style="text-align:left;padding:.2rem .5rem">PLAYER</th>
           <th style="text-align:left;padding:.2rem .5rem">POS</th>
           <th style="text-align:left;padding:.2rem .5rem">AGE</th>
           <th style="text-align:left;padding:.2rem .5rem">OVR</th>
           <th style="text-align:left;padding:.2rem .5rem">Δ</th>
-          <th style="text-align:left;padding:.2rem .5rem">NOTES</th>
+          <th style="text-align:left;padding:.2rem .5rem">CEILING</th>
+          <th style="text-align:left;padding:.2rem .5rem">CONTRACT</th>
+          <th style="text-align:left;padding:.2rem .5rem">DETAILS</th>
         </tr></thead>
         <tbody>${rows.map(_row).join("")}</tbody>
-      </table>
+      </table></div>
     </div>` : "";
 
   return `<div style="margin-top:.8rem;padding:.7rem .8rem;background:rgba(255,255,255,.02);border:1px solid var(--blborder);border-radius:4px">
     <div class="frn-sec-title" style="margin-bottom:.5rem">📊 OFFSEASON GAINS SHEET</div>
+    ${chipsHtml}
     ${summaryHtml}
+    ${heroBlock}
+    ${resignBlock}
     ${_section("GAINERS",   gainers,   "#86e0a3")}
     ${_section("HOLDING",   steady,    "var(--gray)")}
     ${_section("DECLINERS", decliners, "#ff9b9b")}
