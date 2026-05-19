@@ -5807,7 +5807,7 @@ let _frnFOSubTab = "trade";
 const _FRN_FO_TABS = [
   { id: "trade",    label: "Trade",       fn: () => typeof frnOpenTrade            === "function" && frnOpenTrade() },
   { id: "fa",       label: "Free Agents", fn: () => typeof renderFrnFANegotiations === "function" && renderFrnFANegotiations() },
-  { id: "scouting", label: "Scouting",    fn: () => typeof renderFrnScoutingBoard  === "function" && renderFrnScoutingBoard() },
+  { id: "scouting", label: "🎓 College Scout", fn: () => typeof renderFrnScoutingBoard === "function" && renderFrnScoutingBoard() },
   { id: "coaches",  label: "Coaches",     fn: () => typeof renderFrnCoachingStaff  === "function" && renderFrnCoachingStaff() },
   { id: "cap",      label: "Cap Sheet",   fn: () => typeof renderFrnAnalytics      === "function" && renderFrnAnalytics("mysheet") },
 ];

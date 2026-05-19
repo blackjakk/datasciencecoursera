@@ -13536,10 +13536,14 @@ function _renderCompareCard(prospects, reveals) {
     const arch = (typeof _archetypeLabel === "function") ? _archetypeLabel(p) : "";
     const rev  = reveals[p.name];
     const cats = (rev?.categories || []).length;
+    const grade = (typeof scoutGrade === "function" && typeof gradeLabel === "function")
+      ? gradeLabel(scoutGrade(p)) : "—";
+    const projFromGrade = g => g >= 82 ? 1 : g >= 76 ? 2 : g >= 71 ? 3 : g >= 67 ? 4 : g >= 63 ? 5 : g >= 58 ? 6 : 7;
+    const projRound = projFromGrade((typeof scoutGrade === "function") ? scoutGrade(p) : (p.overall || 60));
     return `<div class="frn-cmp-col-hdr">
       <div class="frn-cmp-name" onclick="frnOpenPlayerCard('${_esc(p.name)}')">${_esc(p.name)}</div>
-      <div class="frn-cmp-sub">${_esc(p.position)} · ${p.collegeYear}${p.declaredEarly?" · DECLARED":""} · OVR ${p.overall || "—"}</div>
-      <div class="frn-cmp-sub">${arch ? _esc(arch)+" · " : ""}Proj R${_projectedDraftRound(p)} · ${cats}/4 scouted</div>
+      <div class="frn-cmp-sub">${_esc(p.position)} · ${p.collegeYear}${p.declaredEarly?" · DECLARED":""} · Grade ${grade}</div>
+      <div class="frn-cmp-sub">${arch ? _esc(arch)+" · " : ""}Proj R${projRound} · ${cats}/4 scouted</div>
       <button class="frn-cmp-remove" onclick="frnScoutBoardToggleCompare('${_esc(p.name)}')" title="Remove from compare">✕</button>
     </div>`;
   }).join("");
@@ -13694,15 +13698,23 @@ const _SCOUT_BOARD_STATE = {
   showMock:   false,      // mock draft top-32 panel visible?
 };
 
-// Map current OVR → coarse tier label for the tier filter + class strength
-// summary. Thresholds chosen to roughly match the round-tier expectations
-// (elite≈R1, good≈R2-3, average≈R4-5, poor≈R6-7/UDFA).
+// Map SCOUTED grade (fuzzed OVR estimate) → coarse tier label for the
+// tier filter + class strength summary. Uses scoutGrade(p) which respects
+// the player's noise band (sharper for well-scouted prospects, fuzzier
+// for unknowns) — the user should NEVER see raw p.overall directly.
 function _scoutTierFromOvr(p) {
-  const ovr = p.overall || 0;
-  if (ovr >= 78) return "elite";
-  if (ovr >= 68) return "good";
-  if (ovr >= 58) return "average";
+  const g = (typeof scoutGrade === "function") ? scoutGrade(p) : (p.overall || 60);
+  if (g >= 78) return "elite";
+  if (g >= 68) return "good";
+  if (g >= 58) return "average";
   return "poor";
+}
+
+// How sharp is the scouting grade for a prospect, expressed as a noise
+// band (lower = more accurate). Used for the "B+ · ±5" display on each row.
+function _scoutBandFor(p) {
+  if (typeof _playerNoiseBand !== "function") return null;
+  try { return _playerNoiseBand(p); } catch { return null; }
 }
 
 // ── Pinned prospects ────────────────────────────────────────────────────────
@@ -13810,18 +13822,11 @@ function frnScoutBoardToggleMock() {
 // feature for the page — turns the scouting list into a live mock.
 function _renderMockDraft(eligible, pinSet, reveals, eligibleByPos) {
   if (!eligible.length) return "";
-  // Stable jitter from name hash — keeps the mock order consistent
-  // within a session but varies across saves.
-  const _hash = (name) => {
-    let h = 0;
-    for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
-    return Math.abs(h);
-  };
-  // Mock OVR = real OVR + ±3.3 noise. The 30 divisor matches the
-  // scale of real-life consensus draft-board noise (Pro Football
-  // Focus's ±3 OVR variability vs ESPN).
-  const _mockOvr = p => (p.overall || 60) + ((_hash(p.name) % 200) - 100) / 30;
-  const ranked = eligible.slice().sort((a, b) => _mockOvr(b) - _mockOvr(a));
+  // Use scoutGrade as the consensus ordering — already includes the
+  // per-player noise band so the mock reflects the user's PERCEIVED
+  // ranking rather than the (hidden) true OVR.
+  const _mockGrade = p => (typeof scoutGrade === "function") ? scoutGrade(p) : (p.overall || 60);
+  const ranked = eligible.slice().sort((a, b) => _mockGrade(b) - _mockGrade(a));
   const top32 = ranked.slice(0, 32);
 
   // Position scarcity → RISER tag. If a position has ≤ 3 elite-tier
@@ -13848,12 +13853,13 @@ function _renderMockDraft(eligible, pinSet, reveals, eligibleByPos) {
       tag = `<span class="frn-mock-tag faller" title="Average-tier player projected R1 — could fall on draft day">▼ FALLER</span>`;
     }
     const archLabel = (typeof _archetypeLabel === "function") ? _archetypeLabel(p) : "";
+    const mockGrade = (typeof gradeLabel === "function") ? gradeLabel(_mockGrade(p)) : "—";
     return `<div class="frn-mock-row${pinned?" pinned":""}">
       <span class="frn-mock-pick">${pick}</span>
       <span class="frn-mock-pos">${_esc(p.position)}</span>
       <span class="frn-mock-name" onclick="frnOpenPlayerCard('${_esc(p.name)}')">${pinned?"★ ":""}${_esc(p.name)}</span>
       <span class="frn-mock-year">${p.collegeYear}${p.declaredEarly?"·D":""}</span>
-      <span class="frn-mock-ovr">${p.overall||"—"}</span>
+      <span class="frn-mock-ovr" title="Scouted grade — sharpens with scouting">${mockGrade}</span>
       <span class="frn-mock-arch">${archLabel ? _esc(archLabel) : ""}</span>
       <span class="frn-mock-scouted" title="${scoutCats}/4 categories scouted">${scoutCats > 0 ? "🔎".repeat(scoutCats) : "—"}</span>
       <span class="frn-mock-tags">${tag}</span>
@@ -13916,6 +13922,10 @@ function renderFrnScoutingBoard() {
 
   // ── Precompute per-(collegeYear, position) rankings so every row can
   // show "WR #3 in JR class" without re-sorting on every render.
+  // Rankings use scoutGrade — the user's PERCEIVED ranking, not the
+  // true OVR ranking — so a prospect with high noise band can appear
+  // out of true OVR order. That's authentic to real scouting.
+  const _gradeFor = (typeof scoutGrade === "function") ? p => scoutGrade(p) : p => p.overall || 60;
   const _groupKey = p => `${p.collegeYear}-${p.position}`;
   const _groups = {};
   for (const p of players) {
@@ -13925,7 +13935,7 @@ function renderFrnScoutingBoard() {
   }
   const _rankings = {};
   for (const k of Object.keys(_groups)) {
-    _groups[k].sort((a, b) => (b.overall || 0) - (a.overall || 0));
+    _groups[k].sort((a, b) => _gradeFor(b) - _gradeFor(a));
     const m = new Map();
     for (let i = 0; i < _groups[k].length; i++) m.set(_groups[k][i].name, i + 1);
     _rankings[k] = m;
@@ -13953,23 +13963,25 @@ function renderFrnScoutingBoard() {
   if (st.tierFilter && st.tierFilter !== "ALL") {
     list = list.filter(p => _scoutTierFromOvr(p) === st.tierFilter.toLowerCase());
   }
-  // Sort
+  // Sort — all OVR-based sorts use scouted grade (the user's perception)
+  // instead of raw OVR (which the user shouldn't see).
   const _scoutedCount = name => reveals[name]?.categories?.length || 0;
-  if (st.sort === "ovr") list.sort((a, b) => (b.overall || 0) - (a.overall || 0));
-  else if (st.sort === "proj") list.sort((a, b) => _projectedDraftRound(a) - _projectedDraftRound(b) || (b.overall || 0) - (a.overall || 0));
+  if (st.sort === "ovr") list.sort((a, b) => _gradeFor(b) - _gradeFor(a));
+  else if (st.sort === "proj") {
+    // Projected round from scouted grade, not raw OVR
+    const projFromGrade = g => g >= 82 ? 1 : g >= 76 ? 2 : g >= 71 ? 3 : g >= 67 ? 4 : g >= 63 ? 5 : g >= 58 ? 6 : 7;
+    list.sort((a, b) => projFromGrade(_gradeFor(a)) - projFromGrade(_gradeFor(b)) || _gradeFor(b) - _gradeFor(a));
+  }
   else if (st.sort === "year") list.sort((a, b) => {
     const ord = { FR: 0, SO: 1, JR: 2, SR: 3 };
-    return (ord[a.collegeYear] ?? 9) - (ord[b.collegeYear] ?? 9) || (b.overall || 0) - (a.overall || 0);
+    return (ord[a.collegeYear] ?? 9) - (ord[b.collegeYear] ?? 9) || _gradeFor(b) - _gradeFor(a);
   });
-  else if (st.sort === "pos")  list.sort((a, b) => (a.position||"").localeCompare(b.position||"") || (b.overall||0) - (a.overall||0));
+  else if (st.sort === "pos")  list.sort((a, b) => (a.position||"").localeCompare(b.position||"") || _gradeFor(b) - _gradeFor(a));
   else if (st.sort === "scouted") {
-    list.sort((a, b) => _scoutedCount(b.name) - _scoutedCount(a.name) || (b.overall || 0) - (a.overall || 0));
+    list.sort((a, b) => _scoutedCount(b.name) - _scoutedCount(a.name) || _gradeFor(b) - _gradeFor(a));
   }
   else if (st.sort === "unscouted") {
-    // Unscouted first (ascending scout count), then by OVR descending —
-    // pushes already-scouted prospects to the bottom so the user can find
-    // next candidates without scrolling past green checkmarks.
-    list.sort((a, b) => _scoutedCount(a.name) - _scoutedCount(b.name) || (b.overall || 0) - (a.overall || 0));
+    list.sort((a, b) => _scoutedCount(a.name) - _scoutedCount(b.name) || _gradeFor(b) - _gradeFor(a));
   }
 
   // Counts per year (for the year-filter chips)
@@ -14026,8 +14038,28 @@ function renderFrnScoutingBoard() {
   const cardForProspect = (p) => {
     const rev = reveals[p.name];
     const scoutedCats = rev?.categories || [];
-    const ovrShown = (typeof p.overall === "number") ? p.overall : "—";
-    const round = _projectedDraftRound(p);
+    // Show a scouted GRADE (B+, A-, etc.) — not raw OVR. The user should
+    // never see the underlying number, only what their scouts have
+    // estimated. Grade sharpens with scouting via the noise band system.
+    const fuzzedScore = (typeof scoutGrade === "function") ? scoutGrade(p) : (p.overall || 60);
+    const gradeLetter = (typeof gradeLabel === "function") ? gradeLabel(fuzzedScore) : String(fuzzedScore);
+    const noiseBand = _scoutBandFor(p);
+    const gradeShown = noiseBand != null && noiseBand > 0
+      ? `${gradeLetter} · ±${noiseBand}`
+      : `${gradeLetter} · scouted`;
+    // Projected round uses scouted grade too, not raw OVR. _projectedDraftRound
+    // reads p.overall directly so we call a fuzzed version for display only.
+    const round = (function() {
+      // For declared/SR prospects we want their grade-band projection.
+      // Recompute with scouted grade as input.
+      if (fuzzedScore >= 82) return 1;
+      if (fuzzedScore >= 76) return 2;
+      if (fuzzedScore >= 71) return 3;
+      if (fuzzedScore >= 67) return 4;
+      if (fuzzedScore >= 63) return 5;
+      if (fuzzedScore >= 58) return 6;
+      return 7;
+    })();
     const archLabel = (typeof _archetypeLabel === "function") ? _archetypeLabel(p) : "";
     const yearTag = p.collegeYear || "?";
     const declared = p.collegeYear === "JR" && p.declaredEarly;
@@ -14092,7 +14124,7 @@ function renderFrnScoutingBoard() {
           <span class="frn-scout-row-pos">${_esc(p.position)}</span>
           <span class="frn-scout-row-pname" onclick="frnOpenPlayerCard('${_esc(p.name)}')">${_esc(p.name)}</span>
           ${yearBadge}
-          <span class="frn-scout-ovr">OVR ${ovrShown}</span>
+          <span class="frn-scout-ovr" title="Scouted grade — sharpens as you spend credits. ±N is the current estimate noise.">${gradeShown}</span>
           ${projBadge}
           ${rankBadge}
           ${archLabel ? `<span class="frn-scout-arch">${_esc(archLabel)}</span>` : ""}
@@ -14115,8 +14147,8 @@ function renderFrnScoutingBoard() {
     <div class="frn-scout-page">
       <div class="frn-scout-header">
         <div class="frn-scout-title">
-          <span style="font-size:1.05rem;font-weight:900;color:var(--gold)">🔍 SCOUTING BOARD</span>
-          <span class="frn-scout-subtitle">${players.length} college players in the pipeline</span>
+          <span style="font-size:1.05rem;font-weight:900;color:var(--gold)">🎓 COLLEGE SCOUTING</span>
+          <span class="frn-scout-subtitle">${players.length} prospects · FR through SR · grades sharpen with scouting</span>
         </div>
         <div style="display:flex;gap:.5rem;align-items:center">
           <button class="frn-scout-mock-toggle${st.showMock?" active":""}" onclick="frnScoutBoardToggleMock()" title="Toggle mock first round projection based on current scouting + consensus noise">📋 ${st.showMock?"Hide":"Show"} Mock Draft</button>
@@ -14157,7 +14189,7 @@ function renderFrnScoutingBoard() {
         return _renderCompareCard(cmpProspects, reveals);
       })()}
       <div class="frn-scout-hint">
-        Click a category button to spend 1 credit and unlock that intel. Knock-resolution notes appear under matching categories. Reveals carry into the draft automatically.
+        Grades (B+ · ±5) are your scouts' estimate, not the player's true rating — the ±N is your uncertainty. Click ⚡ or a category button to spend 1 credit and sharpen the grade. Knock-resolution notes appear under matching categories. Reveals carry into the draft.
       </div>
       ${bank === 0 ? `<div class="frn-scout-empty-banner">
         ⏳ <strong>0 credits left this week.</strong> Refills +${_SEASON_SCOUTS_PER_WEEK} next week (cap ${_SEASON_SCOUT_BANK_CAP}). Faded ⏳ category buttons mean "out of credits" — green ✓ means "already scouted."
