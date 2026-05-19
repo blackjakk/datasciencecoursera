@@ -13376,8 +13376,16 @@ function renderFrnDraft() {
             <div style="font-size:1.15rem;font-weight:900;color:var(--gold-lt)">YOU ARE ON THE CLOCK</div>
             <div style="color:var(--gray);font-size:.73rem">${myTeam?.city} ${myTeam?.name}</div>
           </div>
-          <button class="btn btn-outline" style="font-size:.6rem;padding:.22rem .55rem;white-space:nowrap"
-            onclick="frnSimRound()">⏭ Sim Rest of R${round}</button>
+          <div style="display:flex;flex-direction:column;gap:.2rem;align-items:flex-end">
+            <button class="btn btn-gold" style="font-size:.6rem;padding:.22rem .55rem;white-space:nowrap"
+              onclick="frnAutoPickThisSlot()"
+              title="Pick for me — uses AI scoring, prefers your targets">🤖 Auto-Pick</button>
+            <button class="btn btn-outline" style="font-size:.55rem;padding:.18rem .5rem;white-space:nowrap"
+              onclick="frnSimRound()">⏭ Sim Rest of R${round}</button>
+            <button class="btn btn-outline" style="font-size:.55rem;padding:.18rem .5rem;white-space:nowrap;color:#e8a000;border-color:#e8a000"
+              onclick="frnAutoDraftRemaining()"
+              title="Skip to UDFA — autopick every remaining slot">⏩ Auto-Draft Rest</button>
+          </div>
         </div>
         <div class="frn-draft-filters">${filterHtml}</div>
         ${scoutedLaneHtml}
@@ -13639,6 +13647,47 @@ function frnSimRound() {
   renderFrnDraft();
 }
 
+// Autopick the current user slot only. Reuses the AI scoring engine
+// but applies a strong preference for any prospect the user has
+// targeted. Useful when the user trusts their target list and wants
+// to move on without browsing the full board.
+function frnAutoPickThisSlot() {
+  const d = franchise.draft;
+  if (!d) return;
+  const myId = franchise.chosenTeamId;
+  const slot = d.pickOrder[d.currentIdx];
+  if (!slot || slot.teamId !== myId) return;
+  const targetSet = new Set(d.targets || []);
+  _aiAutoPick(slot, { targetSet });
+  d.currentIdx++;
+  _flushSaveFranchise();
+  renderFrnDraft();
+}
+
+// Autopick all remaining picks — both AI and user — until the draft
+// ends. User's slots respect their target list via _aiAutoPick opts.
+// Same one-confirm pattern as Sim Rest of Round but for the whole draft.
+function frnAutoDraftRemaining() {
+  const d = franchise.draft;
+  if (!d) return;
+  if (!confirm("Auto-draft all remaining picks? Your remaining picks will use AI scoring with a strong preference for your targets. This can't be undone.")) return;
+  const myId = franchise.chosenTeamId;
+  const targetSet = new Set(d.targets || []);
+  let count = 0;
+  while (d.currentIdx < d.pickOrder.length && count < 500) {
+    const slot = d.pickOrder[d.currentIdx];
+    if (slot.teamId === myId) {
+      _aiAutoPick(slot, { targetSet });
+    } else {
+      _aiAutoPick(slot);
+    }
+    d.currentIdx++;
+    count++;
+  }
+  _flushSaveFranchise();
+  renderFrnDraft();
+}
+
 // ── Post-draft grade screen ───────────────────────────────────────────────────
 function _renderPostDraftGrade(myPicks) {
   const myTeam = getTeam(franchise.chosenTeamId);
@@ -13722,12 +13771,16 @@ function _draftSchemeBonus(teamId, pos) {
   if (id === "OPTION"           && (pos === "QB" || pos === "RB")) return 3;
   return 0;
 }
-function _aiAutoPick(slot) {
+function _aiAutoPick(slot, opts) {
   const taken = new Set(franchise.draft.picks.map(p => p.prospectName));
   const available = franchise.draft.class.filter(p => !taken.has(p.name));
   if (!available.length) return;
   // Score by overall + position need (weaker starter = bonus) +
-  // positional value premium + scheme fit + tiny random.
+  // positional value premium + scheme fit + tiny random. When `opts`
+  // includes a Set of targetNames (user autopick), apply a strong
+  // target bonus so user-targeted prospects are picked first when
+  // available — but the underlying score still ranks within targets.
+  const targetSet = opts?.targetSet || null;
   const roster = franchise.rosters[slot.teamId] || [];
   const startersByPos = {};
   for (const pos of Object.keys(ROSTER_SLOTS)) {
@@ -13744,7 +13797,11 @@ function _aiAutoPick(slot) {
     // gem-potential players stay available for the user to snipe. The
     // additional per-pick random*4 is a separate "war room mood" noise.
     const aiSeenOvr = (p.overall || 60) + (p._aiScoutBias || 0);
-    return { p, score: aiSeenOvr + needBonus * 0.20 + posPrem + scheme + Math.random() * 4 };
+    let score = aiSeenOvr + needBonus * 0.20 + posPrem + scheme + Math.random() * 4;
+    // User autopick: strongly prefer targeted prospects so the "auto"
+    // button respects the targets the user set up.
+    if (targetSet?.has(p.name)) score += 50;
+    return { p, score };
   }).sort((a,b) => b.score - a.score);
   const pick = scored[0].p;
   pick.draftRound = slot.round;
