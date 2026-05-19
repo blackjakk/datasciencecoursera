@@ -12832,6 +12832,15 @@ function _buildDraftClass(rookieYear, themesArg, positionsArg) {
       p.isProspect = true;
       p._generatedRound = round;
       p.draftRound = round;
+      // AI scouting bias — represents the "consensus draft narrative"
+      // around a prospect. Each prospect gets a static ±N OVR bias used
+      // by every AI team's pick scorer so the AI doesn't have perfect
+      // info. Tighter for early-round (well-scouted), wider for late.
+      // Combined with the per-pick random*4 in _aiAutoPick, this
+      // produces realistic ordering shuffles (top-5 prospects can swap,
+      // some R1 talents slip to R2, some R5 sleepers slip to R7).
+      const noiseScale = round === 1 ? 2 : round <= 3 ? 3 : 4;
+      p._aiScoutBias = +((Math.random() - 0.5) * 2 * noiseScale).toFixed(1);
       p.potential = _rollPotential(p);
       p.collegeProfile = _buildCollegeProfile(p, round);
       p.careerHistory = []; p.careerStats = {}; p.career = []; p.careerTotals = {};
@@ -12856,6 +12865,9 @@ function _buildDraftClass(rookieYear, themesArg, positionsArg) {
     p.isProspect = true;
     p._generatedRound = 0;
     p.draftRound = 0;
+    // UDFA-tier: widest scouting bias since these are flyers with no
+    // real consensus rank. Lets some legitimate gems slip to scramble.
+    p._aiScoutBias = +((Math.random() - 0.5) * 10).toFixed(1);
     p.potential = _rollPotential(p);
     p.collegeProfile = _buildCollegeProfile(p, 7); // late-round-style knock notes
     p.careerHistory = []; p.careerStats = {}; p.career = []; p.careerTotals = {};
@@ -13692,7 +13704,13 @@ function _aiAutoPick(slot) {
     const needBonus = Math.max(0, 75 - (startersByPos[p.position] || 50));
     const posPrem  = _DRAFT_POS_PREMIUM[p.position] ?? 0;
     const scheme   = _draftSchemeBonus(slot.teamId, p.position);
-    return { p, score: (p.overall || 60) + needBonus * 0.20 + posPrem + scheme + Math.random() * 4 };
+    // AI evaluates the prospect via the consensus scouting bias stamped
+    // at class generation, not the true overall. This is what makes the
+    // draft order shuffle: some prospects fall, some rise, some hidden-
+    // gem-potential players stay available for the user to snipe. The
+    // additional per-pick random*4 is a separate "war room mood" noise.
+    const aiSeenOvr = (p.overall || 60) + (p._aiScoutBias || 0);
+    return { p, score: aiSeenOvr + needBonus * 0.20 + posPrem + scheme + Math.random() * 4 };
   }).sort((a,b) => b.score - a.score);
   const pick = scored[0].p;
   pick.draftRound = slot.round;
