@@ -4992,9 +4992,44 @@ function _franchiseTagAvailable() {
 // their demand sits at least at tag-AAV). User has 4 weeks to extend, trade,
 // counter, defer, or explicitly refuse. Auto-resolution after deadline =
 // 1-game sit-out and demand expires.
-const _MID_HOLDOUT_MIN_YEARS = 2;
+const _MID_HOLDOUT_MIN_YEARS = 1; // 1yr "prove-it" counters are realistic in NFL
 const _MID_HOLDOUT_MAX_YEARS = 6;
 const _MID_HOLDOUT_MAX_DEFERS = 2;
+
+// Position+age+talent aware max contract length. Returns the realistic
+// ceiling for a player given his profile. K/P cap at 4yr (short careers,
+// cheap, replaceable). RB caps at 5yr (decline curve). Standard ceiling
+// is 6yr for stars (Burrow 5, Allen 6, Aaron Donald 6, Trent Williams 6).
+// Mahomes exception: elite young QBs (under 25, 90+ OVR) unlock up to
+// 10yr — modeled on Mahomes' 10yr/$450M extension in 2020.
+// Also age-capped: deals end by age 39 (41 for QB/K, who play longer).
+function _maxContractYears(player) {
+  if (!player) return 6;
+  const pos = player.position || "";
+  const age = player.age || 27;
+  const ovr = player.overall || 0;
+
+  // Mahomes exception
+  if (pos === "QB" && age <= 25 && ovr >= 90) {
+    return _ageCappedYears(age, 41, 10);
+  }
+
+  // Position ceilings
+  let posCap;
+  if (pos === "K" || pos === "P") posCap = 4;
+  else if (pos === "RB")          posCap = 5;
+  else                            posCap = 6;
+
+  // Age cap: deal can't extend past age 39 for skill / OL / DL / LB / DB,
+  // age 41 for QB / K / P (positions with proven longevity).
+  const ageCeiling = (pos === "QB" || pos === "K" || pos === "P") ? 41 : 39;
+  return _ageCappedYears(age, ageCeiling, posCap);
+}
+
+function _ageCappedYears(currentAge, ageCeiling, posCap) {
+  const yearsToCeiling = Math.max(1, ageCeiling - currentAge);
+  return Math.min(posCap, yearsToCeiling);
+}
 
 // Comp-pick estimate if a walk-year demand goes unresolved and the player
 // signs elsewhere next FA period.
@@ -5040,7 +5075,8 @@ function _checkHoldoutDemands() {
     const cycle = (p.contract._demandCycles || 0) + 1;
     const escalatedAAV = _demandedAavFor(p, market, p.contract, { window: "weekly", isWalkYear: true, cycle });
     const demand = Math.round(Math.max(escalatedAAV, tagFloor * 0.95) * 10) / 10;
-    const wantYears = (p.overall || 0) >= 88 ? 5 : 4;
+    const posMax = _maxContractYears(p);
+    const wantYears = Math.min(posMax, (p.overall || 0) >= 88 ? 5 : 4);
     franchise.holdoutDemands.push({
       name: p.name, position: p.position,
       overall: p.overall || 70,
@@ -5156,8 +5192,10 @@ function frnHoldoutMidCounter(name) {
   const d = list.find(x => x.name === name);
   if (!d) return;
   if (Math.abs((d.offer || 0) - d.demandedAAV) < 0.05) {
+    const live = (franchise.rosters[franchise.chosenTeamId] || []).find(p => p.name === name);
+    const posMax = _maxContractYears(live || { position: d.position, age: d.age, overall: d.overall });
     d.offer = Math.round(d.demandedAAV * 0.95 * 10) / 10;
-    d.offerYears = Math.max(_MID_HOLDOUT_MIN_YEARS, Math.min(_MID_HOLDOUT_MAX_YEARS, d.demandedYears));
+    d.offerYears = Math.max(_MID_HOLDOUT_MIN_YEARS, Math.min(posMax, d.demandedYears));
   }
   _holdoutMidCounterFor = name;
   saveFranchise();
@@ -5204,7 +5242,9 @@ function frnHoldoutMidAdjustYears(name, delta) {
   _migrateHoldoutDemandShape(list);
   const d = list.find(x => x.name === name);
   if (!d) return;
-  const newYears = Math.max(_MID_HOLDOUT_MIN_YEARS, Math.min(_MID_HOLDOUT_MAX_YEARS, (d.offerYears || d.demandedYears) + delta));
+  const live = (franchise.rosters[franchise.chosenTeamId] || []).find(p => p.name === name);
+  const posMax = _maxContractYears(live || { position: d.position, age: d.age, overall: d.overall });
+  const newYears = Math.max(_MID_HOLDOUT_MIN_YEARS, Math.min(posMax, (d.offerYears || d.demandedYears) + delta));
   if (newYears === d.offerYears) return;
   d.offerYears = newYears;
   saveFranchise();
@@ -5428,13 +5468,14 @@ function _renderHoldoutCenterRow(d) {
     offer, offerYears, overall: ovr, structure: struct, decision: null,
   }, 4);
   const hoverAttr = `data-resign-hits='${JSON.stringify(hoverHits)}' data-resign-cap='${cap}' onmouseenter="_resignHoverIn(this)" onmouseleave="_resignHoverOut()"`;
+  const midPosMax = _maxContractYears(live || { position: d.position, age: d.age, overall: d.overall });
   // Counter composer (full-width edit panel below the row, when open)
   const counterHtml = _holdoutMidCounterFor === d.name ? _renderCounterComposer({
     offer, offerYears,
     demandedAAV: d.demandedAAV, demandedYears: d.demandedYears,
     marketAAV: d.demandedAAV,
     top5Aav: (typeof _positionTopAvgAAV === "function") ? _positionTopAvgAAV(d.position, cap, 5) : 0,
-    minYears: _MID_HOLDOUT_MIN_YEARS, maxYears: _MID_HOLDOUT_MAX_YEARS,
+    minYears: _MID_HOLDOUT_MIN_YEARS, maxYears: midPosMax,
     onAavDelta: dt => `frnHoldoutMidAdjustOffer('${escName}', ${dt})`,
     onYrDelta:  dt => `frnHoldoutMidAdjustYears('${escName}', ${dt})`,
     onChip:     k => `frnHoldoutMidCounterChip('${escName}', '${k}')`,
@@ -5459,9 +5500,9 @@ function _renderHoldoutCenterRow(d) {
           <button class="frn-resign-yrbtn"
             ${offerYears <= _MID_HOLDOUT_MIN_YEARS ? "disabled" : ""}
             onclick="frnHoldoutMidAdjustYears('${escName}', -1)">−</button>
-          <span style="color:var(--gray);font-size:.7rem;min-width:2.5rem;text-align:center">${offerYears} yr</span>
+          <span style="color:var(--gray);font-size:.7rem;min-width:2.5rem;text-align:center" title="Position+age cap: max ${midPosMax}yr">${offerYears} yr</span>
           <button class="frn-resign-yrbtn"
-            ${offerYears >= _MID_HOLDOUT_MAX_YEARS ? "disabled" : ""}
+            ${offerYears >= midPosMax ? "disabled" : ""}
             onclick="frnHoldoutMidAdjustYears('${escName}', 1)">+</button>
         </div>
         <span style="color:var(--gray);font-size:.6rem;text-align:right">total $${(offer * offerYears).toFixed(1)}M</span>
@@ -6176,13 +6217,15 @@ function _renderResignUI(cap, capCommitted) {
       demandedAAV: demand.aav, demandedYears: demand.years,
     };
 
+    // Position+age+talent aware max contract length
+    const resignPosMax = _maxContractYears(livePlayer || { position: r.pos, age: r.age, overall: r.overall });
     // ── Counter composer (full-width edit panel below the row) ───────
     const counterHtml = _resignCounterFor === idx ? _renderCounterComposer({
       offer: r.offer, offerYears: r.offerYears,
       demandedAAV: demand.aav, demandedYears: demand.years,
       marketAAV: r.baseMarket,
       top5Aav: (typeof _positionTopAvgAAV === "function") ? _positionTopAvgAAV(r.pos, cap, 5) : 0,
-      minYears: _RESIGN_MIN_YEARS, maxYears: _RESIGN_MAX_YEARS,
+      minYears: _RESIGN_MIN_YEARS, maxYears: resignPosMax,
       onAavDelta: d => `frnResignAdjustOffer(${idx}, ${d})`,
       onYrDelta:  d => `frnResignAdjustYears(${idx}, ${d})`,
       onChip:     k => `frnResignCounterChip(${idx}, '${k}')`,
@@ -6210,9 +6253,9 @@ function _renderResignUI(cap, capCommitted) {
               <button class="frn-resign-yrbtn"
                 ${r.offerYears <= _RESIGN_MIN_YEARS ? "disabled" : ""}
                 onclick="frnResignAdjustYears(${idx}, -1)">−</button>
-              <span style="color:var(--gray);font-size:.7rem;min-width:2.5rem;text-align:center">${r.offerYears} yr</span>
+              <span style="color:var(--gray);font-size:.7rem;min-width:2.5rem;text-align:center" title="Position+age cap: max ${resignPosMax}yr">${r.offerYears} yr</span>
               <button class="frn-resign-yrbtn"
-                ${r.offerYears >= _RESIGN_MAX_YEARS ? "disabled" : ""}
+                ${r.offerYears >= resignPosMax ? "disabled" : ""}
                 onclick="frnResignAdjustYears(${idx}, 1)">+</button>
             </div>
             <span style="color:var(--gray);font-size:.6rem;text-align:right">total $${(r.offer * r.offerYears).toFixed(1)}M</span>
@@ -6515,7 +6558,8 @@ function frnResignCounter(idx) {
   // Seed only when offer matches demand exactly (i.e. first open).
   if (Math.abs((row.offer || 0) - demand.aav) < 0.05) {
     row.offer = Math.round(demand.aav * 0.95 * 10) / 10;
-    row.offerYears = Math.max(_RESIGN_MIN_YEARS, Math.min(_RESIGN_MAX_YEARS, demand.years));
+    const posMax = _maxContractYears(livePlayer);
+    row.offerYears = Math.max(_RESIGN_MIN_YEARS, Math.min(posMax, demand.years));
   }
   _resignCounterFor = idx;
   saveFranchise();
@@ -6595,7 +6639,9 @@ function frnResignDecide(idx, decision) {
 function frnResignAdjustYears(idx, delta) {
   const row = franchise._resignPending?.[idx];
   if (!row || row.decision) return;
-  const newYears = Math.max(_RESIGN_MIN_YEARS, Math.min(_RESIGN_MAX_YEARS, row.offerYears + delta));
+  const livePlayer = (franchise.rosters[franchise.chosenTeamId] || []).find(p => p.name === row.name);
+  const posMax = _maxContractYears(livePlayer || { position: row.pos, age: row.age, overall: row.overall });
+  const newYears = Math.max(_RESIGN_MIN_YEARS, Math.min(posMax, row.offerYears + delta));
   if (newYears === row.offerYears) return;
   row.offerYears = newYears;
   row.offer = _resignAavForYears(row.baseMarket, newYears);
@@ -7593,7 +7639,8 @@ function _detectHoldouts() {
     if (Math.random() >= prob) continue;
     const cycle = (p.contract._demandCycles || 0) + 1;
     const demandAAV = _demandedAavFor(p, market, p.contract, { window: "offseason", isWalkYear: false, cycle });
-    const demandYrs = Math.max(p.contract.remaining + 2, 4);
+    const posMax = _maxContractYears(p);
+    const demandYrs = Math.min(posMax, Math.max(p.contract.remaining + 2, 4));
     holdouts.push({
       name: p.name, position: p.position,
       overall: p.overall || 70,
@@ -7768,8 +7815,10 @@ function frnHoldoutCounter(name) {
   const h = (franchise._holdouts || []).find(x => x.name === name);
   if (!h || h.resolved) return;
   if (Math.abs((h.offer || 0) - h.demandedAAV) < 0.05) {
+    const live = (franchise.rosters[franchise.chosenTeamId] || []).find(p => p.name === name);
+    const posMax = _maxContractYears(live || { position: h.position, age: h.age, overall: h.overall });
     h.offer = Math.round(h.demandedAAV * 0.95 * 10) / 10;
-    h.offerYears = Math.max(_HOLDOUT_MIN_YEARS, Math.min(_HOLDOUT_MAX_YEARS, h.demandedYears));
+    h.offerYears = Math.max(_HOLDOUT_MIN_YEARS, Math.min(posMax, h.demandedYears));
   }
   _holdoutCounterFor = name;
   saveFranchise();
@@ -7809,7 +7858,9 @@ function frnHoldoutCounterChip(name, chipKey) {
 function frnHoldoutAdjustYears(name, delta) {
   const h = (franchise._holdouts || []).find(x => x.name === name);
   if (!h || h.resolved) return;
-  const newYears = Math.max(_HOLDOUT_MIN_YEARS, Math.min(_HOLDOUT_MAX_YEARS, (h.offerYears || h.demandedYears) + delta));
+  const live = (franchise.rosters[franchise.chosenTeamId] || []).find(p => p.name === name);
+  const posMax = _maxContractYears(live || { position: h.position, age: h.age, overall: h.overall });
+  const newYears = Math.max(_HOLDOUT_MIN_YEARS, Math.min(posMax, (h.offerYears || h.demandedYears) + delta));
   if (newYears === h.offerYears) return;
   h.offerYears = newYears;
   saveFranchise();
@@ -9854,13 +9905,14 @@ function _renderHoldoutsBlock() {
     }, 4);
     const hoverAttr = `data-resign-hits='${JSON.stringify(hoverHits)}' data-resign-cap='${cap}' onmouseenter="_resignHoverIn(this)" onmouseleave="_resignHoverOut()"`;
     const pitchHtml = _buildExtensionPitch(h, live, cap);
+    const holdoutPosMax = _maxContractYears(live || { position: h.position, age: h.age, overall: h.overall });
     // Counter composer (full-width edit panel below the row, when open)
     const counterHtml = _holdoutCounterFor === h.name ? _renderCounterComposer({
       offer, offerYears,
       demandedAAV: h.demandedAAV, demandedYears: h.demandedYears,
       marketAAV: h.marketAAV,
       top5Aav: (typeof _positionTopAvgAAV === "function") ? _positionTopAvgAAV(h.position, cap, 5) : 0,
-      minYears: _HOLDOUT_MIN_YEARS, maxYears: _HOLDOUT_MAX_YEARS,
+      minYears: _HOLDOUT_MIN_YEARS, maxYears: holdoutPosMax,
       onAavDelta: dt => `frnHoldoutAdjustOffer('${escName}', ${dt})`,
       onYrDelta:  dt => `frnHoldoutAdjustYears('${escName}', ${dt})`,
       onChip:     k => `frnHoldoutCounterChip('${escName}', '${k}')`,
@@ -9886,9 +9938,9 @@ function _renderHoldoutsBlock() {
             <button class="frn-resign-yrbtn"
               ${offerYears <= _HOLDOUT_MIN_YEARS ? "disabled" : ""}
               onclick="frnHoldoutAdjustYears('${escName}', -1)">−</button>
-            <span style="color:var(--gray);font-size:.7rem;min-width:2.5rem;text-align:center">${offerYears} yr</span>
+            <span style="color:var(--gray);font-size:.7rem;min-width:2.5rem;text-align:center" title="Position+age cap: max ${holdoutPosMax}yr">${offerYears} yr</span>
             <button class="frn-resign-yrbtn"
-              ${offerYears >= _HOLDOUT_MAX_YEARS ? "disabled" : ""}
+              ${offerYears >= holdoutPosMax ? "disabled" : ""}
               onclick="frnHoldoutAdjustYears('${escName}', 1)">+</button>
           </div>
           <span style="color:var(--gray);font-size:.6rem;text-align:right">total $${(offer * offerYears).toFixed(1)}M</span>
