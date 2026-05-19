@@ -3855,8 +3855,9 @@ function renderFrnFA(selectedKey) {
             id="faOfferAav" onchange="frnFASetOffer('${escSelName}','aav',this.value)" oninput="frnFACapLiveUpdate(parseFloat(this.value)||0)">
         </label>
         <label><span class="frn-meta-label">YEARS</span>
-          <input type="number" min="1" max="7" step="1" value="${offer.years}"
-            id="faOfferYears" onchange="frnFASetOffer('${escSelName}','years',this.value)">
+          <input type="number" min="1" max="${_maxContractYears(selected)}" step="1" value="${offer.years}"
+            id="faOfferYears" onchange="frnFASetOffer('${escSelName}','years',this.value)"
+            title="Position+age cap: max ${_maxContractYears(selected)}yr">
         </label>
         <div class="frn-fa-offer-actions">
           <button class="btn btn-gold" onclick="frnFASubmitOffer('${escSelName}')">${existing?"✓ Update Offer":"+ Submit Offer"}</button>
@@ -4075,7 +4076,11 @@ function _ensureFAOffer(faKey) {
 function frnFASetOffer(faName, field, value) {
   const offer = _ensureFAOffer(faName); if (!offer) return;
   if (field === "aav")       offer.aav       = Math.max(0.5, parseFloat(value) || 0);
-  if (field === "years")     offer.years     = Math.max(1, Math.min(7, parseInt(value, 10) || 1));
+  if (field === "years") {
+    const fa = (franchise.freeAgents || []).find(p => p.name === faName);
+    const posMax = fa ? _maxContractYears(fa) : 6;
+    offer.years = Math.max(1, Math.min(posMax, parseInt(value, 10) || 1));
+  }
   if (field === "structure") offer.structure = value;
   saveFranchise();
   renderFrnFA(faName);
@@ -4241,7 +4246,8 @@ function _faAIBidAmount(teamId, fa, currentHighAav) {
   const skewTop = goNuclear || isWarParticipant;
   const t = skewTop ? 0.6 + Math.random() * 0.4 : Math.random();
   const aav = Math.round((floor + t * (ceil - floor)) * 10) / 10;
-  const years = Math.max(2, Math.min(fa.demandedYears, 5));
+  const posMax = _maxContractYears(fa);
+  const years = Math.max(2, Math.min(fa.demandedYears, 5, posMax));
   return { aav, years };
 }
 

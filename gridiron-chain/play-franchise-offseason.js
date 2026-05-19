@@ -6592,11 +6592,12 @@ function frnResignCounterChip(idx, chipKey) {
   const cap = effectiveSalaryCap(franchise.chosenTeamId);
   const demand = _resignPlayerDemand(livePlayer, row, row.baseMarket);
   const top5Aav = (typeof _positionTopAvgAAV === "function") ? _positionTopAvgAAV(row.pos, cap, 5) : 0;
+  const posMax = _maxContractYears(livePlayer);
   const result = _counterChipApply(chipKey, {
     offer: row.offer || 0, offerYears: row.offerYears || demand.years,
     demandedAAV: demand.aav, demandedYears: demand.years,
     marketAAV: row.baseMarket, top5Aav,
-    minYears: _RESIGN_MIN_YEARS, maxYears: _RESIGN_MAX_YEARS,
+    minYears: _RESIGN_MIN_YEARS, maxYears: posMax,
   });
   row.offer = result.offer;
   row.offerYears = result.years;
@@ -7339,46 +7340,46 @@ function _buildExtensionPitch(ctx, live, cap) {
   }
 
   // ── Cost to keep — forward-projected demand if user waits ────────
-  // For mid-contract players (remaining ≥ 2), shows what the same
-  // extension would cost in 1 season vs. waiting to walk year. Helps
-  // answer: "is it worth signing now or holding off?" The escalator
-  // mirrors _demandedAavFor and assumes ~7% cap growth per season.
+  // For mid-contract players (remaining ≥ 2), shows what the SAME
+  // length extension would cost in 1 season vs. waiting to walk year.
+  // Years held constant across rows so the dollar deltas are
+  // apples-to-apples — the wait costs you premium, not fewer years.
+  // The escalator mirrors _demandedAavFor and assumes ~7% cap growth.
   let costTimelineHtml = "";
   const cNow = live.contract;
   const remNow = cNow?.remaining || 0;
-  if (cNow && remNow >= 2 && marketAAV > 0) {
+  if (cNow && remNow >= 2 && marketAAV > 0 && demandedYears >= 1) {
     const currentCycles = cNow._demandCycles || 0;
     const CAP_GROWTH = 1.07;
+    const yrs = demandedYears; // identical across rows
     const signNow = {
       label: "Sign now",
-      aav: demandedAAV, years: demandedYears,
-      total: demandedAAV * demandedYears,
+      aav: demandedAAV, years: yrs,
+      total: demandedAAV * yrs,
       note: currentCycles > 0 ? `demand cycle ${currentCycles + 1}` : "current ask",
       color: "var(--green-lt)",
     };
-    // +1 season: assume user ignores this cycle, next year demand
-    // escalates and market grows.
+    // +1 season: user ignores this cycle, next year demand escalates
+    // by the next-cycle multiplier and market grows by 7%.
     const cyc2 = currentCycles + 2;
-    const mult2 = cyc2 === 2 ? 1.12 : cyc2 === 3 ? 1.18 : 1.18;
+    const mult2 = cyc2 === 2 ? 1.12 : 1.18;
     const market2 = marketAAV * CAP_GROWTH;
     const aav2 = Math.round(market2 * mult2 * 10) / 10;
-    const yrs2 = Math.max(2, demandedYears - 1);
     const wait1 = {
       label: "Wait 1 season",
-      aav: aav2, years: yrs2,
-      total: aav2 * yrs2,
+      aav: aav2, years: yrs,
+      total: aav2 * yrs,
       note: `next cycle (×${mult2.toFixed(2)}) on +7% market`,
       color: "#e8a000",
     };
-    // Walk year: leverage premium kicks in.
+    // Walk year: leverage premium kicks in plus N years of cap growth.
     const yrsUntilWalk = remNow - 1;
     const marketWalk = marketAAV * Math.pow(CAP_GROWTH, yrsUntilWalk);
     const aavWalk = Math.round(marketWalk * 1.20 * 10) / 10;
-    const yrsWalk = Math.max(3, demandedYears - yrsUntilWalk);
     const walkRow = (yrsUntilWalk >= 1) ? {
       label: "Wait to walk yr",
-      aav: aavWalk, years: yrsWalk,
-      total: aavWalk * yrsWalk,
+      aav: aavWalk, years: yrs,
+      total: aavWalk * yrs,
       note: `walk-year leverage (×1.20) in ${yrsUntilWalk}yr`,
       color: "#ff8a8a",
     } : null;
