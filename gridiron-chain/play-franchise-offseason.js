@@ -13695,18 +13695,22 @@ function renderFrnScoutingBoard() {
   else if (st.yearFilter !== "ALL")      list = list.filter(p => p.collegeYear === st.yearFilter);
   if (st.posFilter  !== "ALL")           list = list.filter(p => p.position === st.posFilter);
   // Sort
+  const _scoutedCount = name => reveals[name]?.categories?.length || 0;
   if (st.sort === "ovr") list.sort((a, b) => (b.overall || 0) - (a.overall || 0));
+  else if (st.sort === "proj") list.sort((a, b) => _projectedDraftRound(a) - _projectedDraftRound(b) || (b.overall || 0) - (a.overall || 0));
   else if (st.sort === "year") list.sort((a, b) => {
     const ord = { FR: 0, SO: 1, JR: 2, SR: 3 };
     return (ord[a.collegeYear] ?? 9) - (ord[b.collegeYear] ?? 9) || (b.overall || 0) - (a.overall || 0);
   });
   else if (st.sort === "pos")  list.sort((a, b) => (a.position||"").localeCompare(b.position||"") || (b.overall||0) - (a.overall||0));
   else if (st.sort === "scouted") {
-    list.sort((a, b) => {
-      const aN = reveals[a.name]?.categories?.length || 0;
-      const bN = reveals[b.name]?.categories?.length || 0;
-      return bN - aN || (b.overall || 0) - (a.overall || 0);
-    });
+    list.sort((a, b) => _scoutedCount(b.name) - _scoutedCount(a.name) || (b.overall || 0) - (a.overall || 0));
+  }
+  else if (st.sort === "unscouted") {
+    // Unscouted first (ascending scout count), then by OVR descending —
+    // pushes already-scouted prospects to the bottom so the user can find
+    // next candidates without scrolling past green checkmarks.
+    list.sort((a, b) => _scoutedCount(a.name) - _scoutedCount(b.name) || (b.overall || 0) - (a.overall || 0));
   }
 
   // Counts per year (for the year-filter chips)
@@ -13717,15 +13721,21 @@ function renderFrnScoutingBoard() {
   const yearChips = ["SR","JR","SO","FR","ALL","PINNED"].map(y => {
     const active = st.yearFilter === y;
     let lbl;
+    let extraCls = "";
     if (y === "PINNED") {
       lbl = `★ PINNED (${pinSet.size})`;
+      extraCls = " pinned";
+      if (pinSet.size === 0 && !active) extraCls += " empty";
     } else {
       const declaredJRs = y === "JR" ? players.filter(p => p.collegeYear === "JR" && p.declaredEarly).length : 0;
       lbl = y === "JR" && declaredJRs > 0
         ? `${y} (${yearCounts[y]}, ${declaredJRs} declared)`
         : `${y} (${yearCounts[y]})`;
     }
-    return `<button class="frn-scout-chip${active?" active":""}${y==="PINNED"?" pinned":""}" onclick="frnScoutBoardSetYear('${y}')">${lbl}</button>`;
+    const tip = y === "PINNED" && pinSet.size === 0
+      ? "title=\"No pinned prospects yet — click ☆ on any row to add to your watch list\""
+      : "";
+    return `<button class="frn-scout-chip${active?" active":""}${extraCls}" onclick="frnScoutBoardSetYear('${y}')" ${tip}>${lbl}</button>`;
   }).join("");
 
   const positions = ["ALL","QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"];
@@ -13735,10 +13745,12 @@ function renderFrnScoutingBoard() {
   }).join("");
 
   const sortChips = [
-    { id: "ovr",     label: "OVR ↓" },
-    { id: "year",    label: "Class" },
-    { id: "pos",     label: "Position" },
-    { id: "scouted", label: "Scouted" },
+    { id: "ovr",       label: "OVR ↓" },
+    { id: "proj",      label: "Proj Round ↑" },
+    { id: "year",      label: "Class" },
+    { id: "pos",       label: "Position" },
+    { id: "scouted",   label: "Scouted ↓" },
+    { id: "unscouted", label: "Unscouted first" },
   ].map(s => {
     const active = st.sort === s.id;
     return `<button class="frn-scout-chip${active?" active":""}" onclick="frnScoutBoardSetSort('${s.id}')">${s.label}</button>`;
@@ -13755,7 +13767,7 @@ function renderFrnScoutingBoard() {
     const yearTag = p.collegeYear || "?";
     const declared = p.collegeYear === "JR" && p.declaredEarly;
     const yearBadge = `<span class="frn-scout-year-badge ${declared ? "declared" : "y-"+yearTag.toLowerCase()}">${yearTag}${declared ? " · DECLARED" : ""}</span>`;
-    const projBadge = `<span class="frn-scout-proj">Proj R${round}</span>`;
+    const projBadge = `<span class="frn-scout-proj" title="Projected draft round based on current OVR (updates as the player develops)">Proj R${round}</span>`;
 
     // Per-category buttons. Three distinct states:
     //   - scouted: green ✓ (already used this category on this prospect)
@@ -13786,7 +13798,8 @@ function renderFrnScoutingBoard() {
       : "";
 
     const knockType = p.collegeProfile?.knockType;
-    const knock = knockType ? `<span class="frn-scout-knock">⚠ ${_esc(knockType.replace(/_/g," "))}</span>` : "";
+    const knockLabel = knockType ? knockType.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()) : "";
+    const knock = knockType ? `<span class="frn-scout-knock" title="Scout for the matching category to resolve this concern">⚠ ${_esc(knockLabel)}</span>` : "";
 
     const pinned = pinSet.has(p.name);
     const pinBtn = `<button class="frn-scout-pin${pinned?" active":""}" onclick="frnTogglePinProspect('${_esc(p.name)}')" title="${pinned?"Unpin from watch list":"Add to watch list — pinned prospects auto-target at the draft"}">${pinned?"★":"☆"}</button>`;
