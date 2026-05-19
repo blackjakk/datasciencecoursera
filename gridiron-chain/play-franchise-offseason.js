@@ -10168,10 +10168,6 @@ function _renderHoldoutsBlock() {
 function frnNewSeason() {
   // Before wiping season stats, roll them into each player's career
   _rollSeasonStatsToCareer();
-  // Age the college pipeline: graduated SRs leave, FR→SO, SO→JR, JR→SR,
-  // new freshmen enter. Runs BEFORE the season counter bumps so the new
-  // freshmen carry the correct draftSeason offset.
-  if (typeof _advanceCollegePipeline === "function") _advanceCollegePipeline();
   // Reset in-season scouting state: fresh credits bank, blank reveals
   // for the new draft cycle. Reveals from the just-completed season
   // were already merged into draftScoutReveals at frnGoToDraft, so
@@ -10179,6 +10175,12 @@ function frnNewSeason() {
   if (typeof _initSeasonScout === "function") _initSeasonScout(true);
   franchise.season       += 1;
   franchise.week          = 1;
+  // Age the college pipeline AFTER the season counter bumps so aged
+  // players and new freshmen compute their draftSeason against the
+  // NEW season number — keeps each prospect's draftSeason invariant
+  // through aging (FR seeded at S1 with draftSeason=5 stays
+  // draftSeason=5 through SO/JR/SR transitions).
+  if (typeof _advanceCollegePipeline === "function") _advanceCollegePipeline();
   franchise.phase         = "free_agency";
   franchise.schedule      = generateFranchiseSchedule();
   franchise.standings     = initStandings();
@@ -13445,9 +13447,16 @@ function _advanceCollegePipeline() {
     !nflNames.has(p.name)
   );
   for (const p of players) {
+    const wasJR = p.collegeYear === "JR";
     if      (p.collegeYear === "FR") p.collegeYear = "SO";
     else if (p.collegeYear === "SO") p.collegeYear = "JR";
     else if (p.collegeYear === "JR") p.collegeYear = "SR";
+    // A JR who didn't declare ages to SR via normal eligibility — clear
+    // the (always-false) declaredEarly flag so later draft logic doesn't
+    // misclassify them. (A declared JR who survives to this point is one
+    // who declared but went undrafted AND wasn't claimed in UDFA, which
+    // is a true edge case.)
+    if (wasJR) delete p.declaredEarly;
     p.age = _COLLEGE_AGE_BY_YEAR[p.collegeYear];
     p.draftSeason = (franchise.season || 1) + _COLLEGE_SEASONS_TO_DRAFT[p.collegeYear];
     p.draftYear   = (new Date().getFullYear()) + p.draftSeason;
@@ -13610,16 +13619,29 @@ function _isProspectPinned(name) {
 // Prospects no longer in the class (e.g., a JR you pinned who didn't
 // declare, an FR who hasn't graduated yet) STAY pinned — they're still
 // on your watch list for future years.
+//
+// ALSO prunes pins whose subject has left the pipeline entirely (drafted,
+// claimed as UDFA, or otherwise gone) so franchise.pinnedProspects doesn't
+// grow monotonically over many seasons.
 function _migratePinsToDraftTargets() {
   if (!franchise.draft?.class) return;
   if (!Array.isArray(franchise.pinnedProspects)) return;
   const classNames = new Set(franchise.draft.class.map(p => p.name));
+  const pipelineNames = new Set((franchise.collegePlayers || []).map(p => p.name));
   franchise.draft.targets = franchise.draft.targets || [];
+  const surviving = [];
   for (const name of franchise.pinnedProspects) {
-    if (classNames.has(name) && !franchise.draft.targets.includes(name)) {
+    const inClass    = classNames.has(name);
+    const inPipeline = pipelineNames.has(name);
+    if (inClass && !franchise.draft.targets.includes(name)) {
       franchise.draft.targets.push(name);
     }
+    // Keep pins for prospects still alive in the pipeline OR this year's
+    // class (the class member persists through the draft event; we only
+    // drop the pin when it's truly stale).
+    if (inClass || inPipeline) surviving.push(name);
   }
+  franchise.pinnedProspects = surviving;
 }
 function frnScoutBoardSetYear(year) {
   _SCOUT_BOARD_STATE.yearFilter = year;
@@ -13745,7 +13767,7 @@ function renderFrnScoutingBoard() {
       <button class="frn-scout-row-pin-col">${pinBtn}</button>
       <div class="frn-scout-row-main">
         <div class="frn-scout-row-name">
-          <span class="frn-scout-row-pos">${p.position}</span>
+          <span class="frn-scout-row-pos">${_esc(p.position)}</span>
           <span class="frn-scout-row-pname" onclick="frnOpenPlayerCard('${_esc(p.name)}')">${_esc(p.name)}</span>
           ${yearBadge}
           <span class="frn-scout-ovr">OVR ${ovrShown}</span>
@@ -13840,8 +13862,13 @@ function _buildDraftClassFromPipeline(rookieYear, themesArg, positionsArg) {
   // 3. Augment with auto-generated late-round filler if pipeline didn't
   //    fill all 224 drafted slots (likely — pipeline is ~60 SRs + a few
   //    declared JRs). Fillers are generated with the existing tier logic.
+  //    `allTaken` MUST include underclassmen still in the pipeline — a
+  //    filler colliding with an FR/SO/JR name would conflate their
+  //    name-keyed scout reveals and pin entries, and break the name-based
+  //    NFL filter in _advanceCollegePipeline next offseason.
   const allTaken = new Set();
   for (const r of Object.values(franchise.rosters)) r.forEach(p => allTaken.add(p.name));
+  for (const p of (franchise.collegePlayers || [])) allTaken.add(p.name);
   cls.forEach(p => allTaken.add(p.name));
 
   const draftedSoFar = cls.filter(p => p._generatedRound > 0).length;
