@@ -1453,8 +1453,14 @@ const DEPTH_CHART_SLOTS = {
     { key:"FS",  pos:"S",  flex:["SS"] },
   ],
   specialTeams: [
-    { key:"K", pos:"K", snapFloor:98, flex:[] },
-    { key:"P", pos:"P", snapFloor:98, flex:[] },
+    { key:"K",   pos:"K", snapFloor:98, flex:[] },
+    { key:"P",   pos:"P", snapFloor:98, flex:[] },
+    // Return specialists — any speed-skill player (WR/RB/CB/S) can fill.
+    // pos:"RET" is a virtual position; the picker offers all eligible
+    // players. snapFloor:6 because returners only see the field on
+    // change-of-possession plays.
+    { key:"KR1", pos:"RET", snapFloor:6, flex:["KR2","PR1"], retEligible:["WR","RB","CB","S"] },
+    { key:"PR1", pos:"RET", snapFloor:6, flex:["PR2","KR1"], retEligible:["WR","RB","CB","S"] },
   ],
 };
 
@@ -1607,6 +1613,34 @@ function _rollDC() {
   return base;
 }
 
+// Special Teams Coordinator — smaller scope than OC/DC. Affects K/P
+// yips risk, return effectiveness, blocked-kick / fake-play chance.
+// Trait pool kept simple: Mr. Reliable (yips risk down), Trickster
+// (more fakes), Coverage Coach (better coverage), Returns Guru
+// (better KR/PR).
+const STC_TRAITS = [
+  { key:"Mr. Reliable",   desc:"K/P yips risk halved" },
+  { key:"Trickster",      desc:"Fake punts / fake FG attempts more common" },
+  { key:"Coverage Coach", desc:"Coverage units stiffen — fewer return TDs allowed" },
+  { key:"Returns Guru",   desc:"Return unit produces bigger plays" },
+  { key:"Solid Vet",      desc:"Balanced across all ST domains" },
+];
+function _rollSTC() {
+  const rating = 45 + Math.floor(Math.random() * 45);
+  const aav = +(0.5 + (rating - 45) * 0.03 + Math.random() * 0.5).toFixed(1);
+  const years = 2 + Math.floor(Math.random() * 3);
+  const sb = +(aav * years * 0.15 * (0.6 + Math.random() * 0.8)).toFixed(1);
+  const base = {
+    name: `${pickFirstName()} ${pickLastName()}`,
+    rating,
+    trait: STC_TRAITS[Math.floor(Math.random() * STC_TRAITS.length)].key,
+    age: 35 + Math.floor(Math.random() * 25),
+    yearsWithTeam: 0,
+  };
+  _coachApplyContract(base, aav, years, sb, "dc"); // dc-tier proration
+  return base;
+}
+
 function _posCoachTierFromRating(r) {
   return r >= 80 ? "Elite" : r >= 65 ? "Good" : "Journeyman";
 }
@@ -1675,8 +1709,12 @@ function _initCoachingStaff() {
         hc: _rollCoach(),
         oc: _rollOC(),
         dc: _rollDC(),
+        stc: _rollSTC(),
         positionStaff: groups.map(g => _rollPositionCoach(g)),
       };
+    } else if (!franchise.coaches[t.id].stc) {
+      // Backfill STC on existing staff that predates this feature
+      franchise.coaches[t.id].stc = _rollSTC();
     }
   }
 }
@@ -1725,6 +1763,8 @@ function _backfillCoachingStaff() {
     else _migrateContract(staff.oc, "oc");
     if (!staff.dc) staff.dc = _rollDC();
     else _migrateContract(staff.dc, "dc");
+    if (!staff.stc) staff.stc = _rollSTC();
+    else _migrateContract(staff.stc, "dc");
     if (!staff.positionStaff) {
       const groups = [...POSITION_COACH_GROUPS].sort(() => Math.random() - 0.5).slice(0, 2);
       staff.positionStaff = groups.map(g => _rollPositionCoach(g));

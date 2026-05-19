@@ -1875,6 +1875,8 @@ function _runWeekEndResolution() {
   // Weekly auto-storylines: surprise teams, free fall, dumpster fire,
   // dark horse playoff push — once per condition per team per season.
   if (typeof _emitWeeklyStorylines === "function") _emitWeeklyStorylines();
+  // Random ST events — blocked kicks, fakes, onside recoveries
+  if (typeof _emitWeeklySTEvents === "function") _emitWeeklySTEvents();
   // League chat: AI teams react to last week's news
   _generateAITrashTalk();
 }
@@ -4721,7 +4723,84 @@ const _CAREER_MILESTONES = [
   { stat: "def_int",  thresh: 50,    label: "hits 50 career interceptions" },
   { stat: "fg_made",  thresh: 300,   label: "drills his 300th career FG" },
   { stat: "fg_made",  thresh: 500,   label: "joins the 500 career FG club" },
+  { stat: "kr_yds",   thresh: 1000,  label: "tops 1,000 career kickoff-return yards" },
+  { stat: "kr_yds",   thresh: 3000,  label: "joins the 3,000 career KR-yards club" },
+  { stat: "pr_yds",   thresh: 1000,  label: "tops 1,000 career punt-return yards" },
+  { stat: "pr_yds",   thresh: 2000,  label: "joins the 2,000 career punt-return yards club" },
+  { stat: "kr_td",    thresh: 5,     label: "scores his 5th career kickoff-return TD" },
+  { stat: "pr_td",    thresh: 5,     label: "scores his 5th career punt-return TD — Devin Hester territory" },
 ];
+
+// Return-ability composite for skill players. Used for depth-chart KR/PR
+// slot recommendations. Weighted toward speed + agility + vision.
+function _returnAbility(p) {
+  const s = p?.stats || [];
+  const spd = s[0] ?? 50, agi = s[2] ?? 50, awr = s[3] ?? 50;
+  return Math.round(spd * 0.45 + agi * 0.35 + awr * 0.20);
+}
+
+// Random ST events that surface as wire flavor — blocked kicks, fake
+// punts, onside kick recoveries. Rates are modest so a season produces
+// 5-15 events league-wide. STC traits modulate the rates.
+function _emitWeeklySTEvents() {
+  const week = franchise.week || 1;
+  if (week < 1 || week > FRANCHISE_WEEKS) return;
+  const myId = franchise.chosenTeamId;
+  const games = (franchise.schedule || []).filter(g => g.week === week && g.played);
+  for (const g of games) {
+    const homeTeam = getTeam(g.homeId);
+    const awayTeam = getTeam(g.awayId);
+    const homeSTC = franchise.coaches?.[g.homeId]?.stc;
+    const awaySTC = franchise.coaches?.[g.awayId]?.stc;
+    // Blocked punt — slightly higher when one of the teams has a
+    // Coverage Coach STC. Sub-2% base.
+    const blockMul = (homeSTC?.trait === "Coverage Coach" || awaySTC?.trait === "Coverage Coach") ? 1.6 : 1.0;
+    if (Math.random() < 0.015 * blockMul) {
+      const blockerIsHome = Math.random() < 0.5;
+      const blocker = blockerIsHome ? homeTeam : awayTeam;
+      const victim  = blockerIsHome ? awayTeam : homeTeam;
+      const involvesMe = blocker?.id === myId || victim?.id === myId;
+      if (involvesMe || Math.random() < 0.4) {
+        _pushNews({ type: "storyline",
+          label: `🛑 BLOCKED PUNT: ${blocker?.name || "?"} block ${victim?.name || "?"}'s punt and ${Math.random() < 0.4 ? "score" : "set up a short field"}` });
+      }
+    }
+    // Blocked FG — even rarer
+    if (Math.random() < 0.008 * blockMul) {
+      const blockerIsHome = Math.random() < 0.5;
+      const blocker = blockerIsHome ? homeTeam : awayTeam;
+      const victim  = blockerIsHome ? awayTeam : homeTeam;
+      const involvesMe = blocker?.id === myId || victim?.id === myId;
+      if (involvesMe || Math.random() < 0.4) {
+        _pushNews({ type: "storyline",
+          label: `🛑 BLOCKED FG: ${blocker?.name || "?"} reject ${victim?.name || "?"}'s field-goal try` });
+      }
+    }
+    // Fake punt — Trickster STC roughly doubles the rate. Always reads
+    // as comedic in the news regardless of outcome.
+    const trickMul = (homeSTC?.trait === "Trickster" || awaySTC?.trait === "Trickster") ? 2.0 : 1.0;
+    if (Math.random() < 0.005 * trickMul) {
+      const trickIsHome = (homeSTC?.trait === "Trickster") ||
+        (!awaySTC?.trait === "Trickster" && Math.random() < 0.5);
+      const tricker = trickIsHome ? homeTeam : awayTeam;
+      const success = Math.random() < 0.55;
+      _pushNews({ type: "storyline",
+        label: success
+          ? `🎩 FAKE PUNT: ${tricker?.name || "?"} pull off the trick — first down`
+          : `💀 FAKE PUNT FAIL: ${tricker?.name || "?"} get cute on 4th-and-long — turnover on downs` });
+    }
+    // Onside kick recovery — only when one team trailed late
+    const margin = Math.abs((g.homeScore || 0) - (g.awayScore || 0));
+    if (margin >= 7 && margin <= 14 && Math.random() < 0.012) {
+      const trailedTeam = (g.homeScore || 0) < (g.awayScore || 0) ? homeTeam : awayTeam;
+      const recovered = Math.random() < 0.22;
+      _pushNews({ type: "storyline",
+        label: recovered
+          ? `🎯 ONSIDE RECOVERY: ${trailedTeam?.name || "?"} recover their own onside kick to keep hope alive`
+          : `❌ ONSIDE FAIL: ${trailedTeam?.name || "?"} can't recover the onside kick — game over` });
+    }
+  }
+}
 function _checkCareerMilestones() {
   if (franchise._milestonesCheckedSeason === franchise.season) return;
   franchise._milestonesCheckedSeason = franchise.season;

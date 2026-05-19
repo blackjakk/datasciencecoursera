@@ -1875,7 +1875,19 @@ function _pickYipsHeadline(p, list, dist) {
 function _maybeTriggerYips(p) {
   if (p.position !== "K" && p.position !== "P") return false;
   if (p._yips) return false;
-  if (Math.random() >= _YIPS_TRIGGER_CHANCE) return false;
+  // STC effect: Mr. Reliable trait halves yips chance; otherwise the
+  // STC's rating reduces yips up to 30% for a 90-rated STC.
+  let chance = _YIPS_TRIGGER_CHANCE;
+  for (const [tid, roster] of Object.entries(franchise.rosters || {})) {
+    if (!roster.includes(p)) continue;
+    const stc = franchise.coaches?.[tid]?.stc;
+    if (stc) {
+      if (stc.trait === "Mr. Reliable") chance *= 0.50;
+      chance *= Math.max(0.70, 1 - ((stc.rating || 60) - 45) / 150);
+    }
+    break;
+  }
+  if (Math.random() >= chance) return false;
   const sev = Math.random();
   const weeks = sev < 0.3 ? 3 + Math.floor(Math.random() * 3)
               : sev < 0.7 ? 6 + Math.floor(Math.random() * 4)

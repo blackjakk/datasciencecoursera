@@ -7616,6 +7616,7 @@ function renderFrnCoachingStaff() {
   const hc     = staff.hc;
   const oc     = staff.oc;
   const dc     = staff.dc;
+  const stc    = staff.stc;
   const posStaff = staff.positionStaff || [];
   const market = franchise._coachMarket || [];
   const BUDGET_CAP = 15; // $15M coaching budget cap (display only)
@@ -8048,6 +8049,7 @@ function renderFrnCoachingStaff() {
     <div class="frn-sec-title" style="margin-top:.8rem">Coordinators</div>
     ${coordCard("OC", oc, "oc")}
     ${coordCard("DC", dc, "dc")}
+    ${stc ? coordCard("STC", stc, "stc") : ""}
     <div class="frn-sec-title" style="margin-top:.8rem">Staff Chemistry</div>
     ${chemHtml}
     <div class="frn-sec-title" style="margin-top:.8rem">Scheme Outlook</div>
