@@ -4106,21 +4106,21 @@ function showFrnAwards() {
     // Emit award wire entries for the user's eye-line
     if (oloy && typeof _pushNews === "function") {
       const t = getTeam(oloy.teamId);
-      _pushNews({ type: "scout_reveal",
+      _pushNews({ type: "award_special",
         label: `🏆 OL OF THE YEAR: ${oloy.name} (${t?.name || "?"}) — pancake king` });
     }
     if (stpoty && typeof _pushNews === "function") {
       const t = getTeam(stpoty.teamId);
-      _pushNews({ type: "scout_reveal",
+      _pushNews({ type: "award_special",
         label: `🏆 ST POTY: ${stpoty.name} (${stpoty.pos}, ${t?.name || "?"})` });
     }
     if (assistantCOY && typeof _pushNews === "function") {
       const t = getTeam(assistantCOY.teamId);
-      _pushNews({ type: "scout_reveal",
+      _pushNews({ type: "award_special",
         label: `🏆 ASSISTANT COY: ${assistantCOY.name} (${assistantCOY.type}, ${t?.name || "?"})` });
     }
     if (gameOfYear && typeof _pushNews === "function") {
-      _pushNews({ type: "scout_reveal",
+      _pushNews({ type: "award_special",
         label: `🎬 GAME OF THE YEAR: Wk${gameOfYear.week} — ${gameOfYear.label}` });
     }
 
@@ -4650,7 +4650,7 @@ function _emitWeeklyStorylines() {
   const fire = (storyKey, label) => {
     if (seen[storyKey]) return;
     seen[storyKey] = true;
-    _pushNews({ type: "scout_reveal", label });
+    _pushNews({ type: "storyline", label });
   };
   const standings = franchise.standings || {};
   for (const t of TEAMS) {
@@ -4734,7 +4734,7 @@ function _checkCareerMilestones() {
         const v = cs[m.stat] || 0;
         if (v >= m.thresh && !seen[m.stat + ":" + m.thresh]) {
           seen[m.stat + ":" + m.thresh] = true;
-          _pushNews({ type: "scout_reveal",
+          _pushNews({ type: "milestone",
             label: `🏛 ${p.position} ${p.name} (${team?.name || "?"}) ${m.label}` });
         }
       }
@@ -7689,6 +7689,8 @@ function _unlockSeasonKnowledge() {
     const tag = potentialTag(p, { known: true });
     if (tag.includes("HIGH CEILING") || tag.includes("Bust risk")) {
       _pushNews({ type: "scout_reveal",
+        // scout_reveal stays — this is the original "we now know X's
+        // ceiling" sentinel that the topic taxonomy still groups under FA.
         label: `🔍 After a full season in your system, the read on ${p.name} is clear: ${tag}` });
     }
   }
@@ -7838,7 +7840,7 @@ function runFrnOffseason() {
       }
       // Trade-boost news — only emit if applied AND player is on user's team
       if (tradeBoost > 1.0 && tId === franchise.chosenTeamId) {
-        _pushNews({ type: "scout_reveal",
+        _pushNews({ type: "dev_surge",
           label: `🔄 ${p.position} ${p.name} — fresh-start dev boost after trade` });
       }
 
@@ -7869,7 +7871,7 @@ function runFrnOffseason() {
           }
           delete p._rehabRestore; delete p._rehabSeasons;
           if (tId === franchise.chosenTeamId) {
-            _pushNews({ type:"scout_reveal",
+            _pushNews({ type:"rehab",
               label: `✅ ${p.position} ${p.name} — fully recovered, back to peak form` });
           }
         }
@@ -7898,7 +7900,7 @@ function runFrnOffseason() {
             p.stats[k2] = Math.min(99, p.stats[k2] + Math.floor(surge * 0.4));
           }
           if (tId === franchise.chosenTeamId) {
-            _pushNews({ type: "scout_reveal",
+            _pushNews({ type: "dev_surge",
               label: `📈 ${p.position} ${p.name} — ${isElite ? "elite form sustained" : "late-career resurgence"} (+${surge} OVR)` });
           }
         }

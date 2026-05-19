@@ -5,8 +5,10 @@
 let _frnWireTopic    = "all";
 let _frnWireScope    = "league"; // "team" | "league"
 let _frnWireExpanded = new Set();
+let _frnWireHideMinor = false;   // when true, hides dev_surge + rehab for non-user teams
 function frnSetWireTopic(t) { _frnWireTopic = t; renderFrnNewsArchive(); }
 function frnSetWireScope(s) { _frnWireScope = s; renderFrnNewsArchive(); }
+function frnToggleWireMinor() { _frnWireHideMinor = !_frnWireHideMinor; renderFrnNewsArchive(); }
 function frnToggleStoryline(key) {
   if (_frnWireExpanded.has(key)) _frnWireExpanded.delete(key);
   else _frnWireExpanded.add(key);
@@ -36,20 +38,26 @@ function _wireIcon(t) {
     // League
     hof:"🏛", draft:"📋",
     blowout:"🔥", upset:"⚡", scrimmage:"🏟",
+    // New (post-overhaul) types
+    milestone:"🏛", award_special:"🏆", storyline:"📊",
+    rehab:"✅", dev_surge:"📈",
   };
   return map[t] || "📰";
 }
 
 // Topic groupings for the filter pills.
 const _WIRE_TOPICS = [
-  { key:"all",       label:"All" },
-  { key:"trades",    label:"Trades",    types:["trade"] },
-  { key:"fa",        label:"FA",        types:["fa_sign","fa_unsigned","fa_war","fa_activity","fa_demand_drop","holdout","holdout_demand","workout","scout_reveal","extension","restructure","tag"] },
-  { key:"coaches",   label:"Coaches",   types:["coach_hire","coach_depart","coach_bond","coach_decline","coach_grow","hot_seat"] },
-  { key:"injuries",  label:"Injuries",  types:["injury","age_cliff","decline"] },
-  { key:"awards",    label:"Awards",    types:["breakout","blowout","upset"] },
-  { key:"hof",       label:"HOF",       types:["hof"] },
-  { key:"draft",     label:"Draft",     types:["draft","ps_gem","ps_flash","ps_lost","ps_poach","ps_promote","ps_scout"] },
+  { key:"all",        label:"All" },
+  { key:"trades",     label:"Trades",     types:["trade"] },
+  { key:"fa",         label:"FA",         types:["fa_sign","fa_unsigned","fa_war","fa_activity","fa_demand_drop","holdout","holdout_demand","workout","scout_reveal","extension","restructure","tag"] },
+  { key:"coaches",    label:"Coaches",    types:["coach_hire","coach_depart","coach_bond","coach_decline","coach_grow","hot_seat"] },
+  { key:"injuries",   label:"Injuries",   types:["injury","age_cliff","decline","rehab"] },
+  { key:"awards",     label:"Awards",     types:["breakout","blowout","upset","award_special"] },
+  { key:"milestones", label:"Milestones", types:["milestone"] },
+  { key:"storylines", label:"Storylines", types:["storyline"] },
+  { key:"dev",        label:"Dev",        types:["dev_surge"] },
+  { key:"hof",        label:"HOF",        types:["hof"] },
+  { key:"draft",      label:"Draft",      types:["draft","ps_gem","ps_flash","ps_lost","ps_poach","ps_promote","ps_scout"] },
 ];
 function _wireTopicOf(type) {
   for (const t of _WIRE_TOPICS) {
@@ -60,16 +68,19 @@ function _wireTopicOf(type) {
 
 // Lead-story weighting. Higher = goes to the front-page hero band.
 // Boosted when the user's team is involved (detected via label text).
+// Freshness decay layered on top — older entries lose lead priority.
 function _wireWeight(item, myTeamNames) {
   const baseByType = {
-    hof: 14, trade: 9, fa_war: 8, draft: 7, breakout: 7, upset: 7,
-    fa_sign: 5, holdout: 6, coach_depart: 7, coach_hire: 7,
-    ps_gem: 5, blowout: 4, injury: 4, hot_seat: 6,
-    extension: 3, restructure: 2, tag: 4, fa_unsigned: 2,
-    fa_activity: 1, fa_demand_drop: 1, ps_flash: 2, ps_lost: 4,
-    ps_poach: 4, ps_promote: 3, ps_scout: 1, workout: 2,
-    coach_bond: 2, coach_decline: 4, coach_grow: 2, age_cliff: 3,
-    decline: 3, scrimmage: 1, scout_reveal: 2,
+    hof: 14, milestone: 11, trade: 9, fa_war: 8, award_special: 8,
+    draft: 7, breakout: 7, upset: 7, coach_depart: 7, coach_hire: 7,
+    storyline: 6, holdout: 6, hot_seat: 6,
+    fa_sign: 5, ps_gem: 5,
+    blowout: 4, injury: 4, tag: 4, coach_decline: 4, ps_lost: 4,
+    ps_poach: 4, rehab: 4,
+    extension: 3, dev_surge: 3, age_cliff: 3, decline: 3, ps_promote: 3,
+    restructure: 2, fa_unsigned: 2, ps_flash: 2, workout: 2,
+    coach_bond: 2, coach_grow: 2, scout_reveal: 2,
+    fa_activity: 1, fa_demand_drop: 1, ps_scout: 1, scrimmage: 1,
   };
   let w = baseByType[item.type] || 1;
   // Big-dollar FA signings (>$8M AAV detection from label)
@@ -79,6 +90,18 @@ function _wireWeight(item, myTeamNames) {
     for (const n of myTeamNames) {
       if (item.label && item.label.includes(n)) { w += 3; break; }
     }
+  }
+  // Freshness decay: stories from previous weeks lose lead priority.
+  // 5% off per week-of-age, floored at 30% of base weight. Computed
+  // against current season/week; cross-season items are heavily
+  // decayed unless they're high-tier (HoF, milestone).
+  const curSeason = franchise?.season || 1;
+  const curWeek   = franchise?.week || 1;
+  if (item.season != null) {
+    const seasonGap = curSeason - item.season;
+    const weekGap   = seasonGap * 25 + Math.max(0, curWeek - (item.week || 0));
+    const decay = Math.max(0.30, 1 - weekGap * 0.05);
+    w *= decay;
   }
   return w;
 }
@@ -162,6 +185,36 @@ function _wireStorylines(items, playerSet) {
   for (const [name, hits] of Object.entries(playerHits)) {
     lines.push({ key:`p-${name}`, title:`📰 ${name} — ${hits.length} mentions this season`, items:hits });
   }
+  // Milestone cluster — 3+ career milestones in the same week
+  for (const [k, list] of Object.entries(byWeekType)) {
+    const [wk, topic] = k.split("|");
+    if (topic === "milestones" && list.length >= 3) {
+      lines.push({ key:`mile-${wk}`, title:`🏛 Milestone Week · ${_wireWeekLabel({week:+wk||null})}`, items:list });
+    }
+  }
+  // Dynasty thread — same team won SB in 2+ consecutive seasons.
+  if (franchise.history?.length >= 2) {
+    const recent = franchise.history.slice(-6); // last 6 seasons
+    const teamCounts = {};
+    for (const h of recent) {
+      if (h.champion != null) teamCounts[h.champion] = (teamCounts[h.champion] || 0) + 1;
+    }
+    for (const [tidStr, cnt] of Object.entries(teamCounts)) {
+      if (cnt >= 2) {
+        const tid = Number(tidStr);
+        const tm = getTeam(tid);
+        const champItems = items.filter(x => x.label && tm && (x.label.includes(tm.name) || x.label.includes(tm.city)));
+        if (champItems.length >= 2) {
+          lines.push({ key:`dyn-${tidStr}`, title:`👑 DYNASTY WATCH — ${tm?.city || ""} ${tm?.name || ""} (${cnt} SBs in 6 yrs)`, items: champItems.slice(0, 6) });
+        }
+      }
+    }
+  }
+  // Position-room thread — 3+ injury/breakout entries at the same team's
+  // same position. Detected by parsing the label for "POS NAME (Team..."
+  // patterns. Soft heuristic — only fires when very visible.
+  // (Skipped for simplicity — would require label parsing; lower
+  // marginal value than the above.)
   // Sort: highest-impact first (longest list wins, ties broken by week recency)
   lines.sort((a, b) => b.items.length - a.items.length);
   return lines;
@@ -196,9 +249,19 @@ function renderFrnNewsArchive(season) {
 
   // Filter by scope (MY TEAM / LEAGUE)
   const isMyItem = (n) => myTeamNames.some(name => (n.label || "").includes(name));
-  const scopeFiltered = _frnWireScope === "team"
-    ? seasonFiltered.filter(isMyItem)
-    : seasonFiltered;
+  const _MINOR_TYPES = new Set(["dev_surge","rehab","scout_reveal","fa_activity","fa_demand_drop","workout"]);
+  const scopeFiltered = (() => {
+    let base = _frnWireScope === "team"
+      ? seasonFiltered.filter(isMyItem)
+      : seasonFiltered;
+    // Hide-minor filter: drop low-impact entries that don't mention the
+    // user's team. Lets the user de-clutter the global firehose without
+    // losing major events (milestones / awards / trades / etc.).
+    if (_frnWireHideMinor) {
+      base = base.filter(n => !_MINOR_TYPES.has(n.type) || isMyItem(n));
+    }
+    return base;
+  })();
 
   // Filter by topic
   const topicFiltered = _frnWireTopic === "all"
@@ -215,6 +278,22 @@ function renderFrnNewsArchive(season) {
     .map(it => ({ it, w: _wireWeight(it, myTeamNames) }))
     .sort((a, b) => b.w - a.w);
   const leads = leadPool.slice(0, 5).map(x => x.it);
+
+  // ── This Week hero — top entry from the current season+week ──────────
+  // Replaces silence with a "what's the headline RIGHT NOW" beat. Drops
+  // out when viewing past seasons or when current week has no entries.
+  const curSeason = franchise?.season || 1;
+  const curWeek   = franchise?.week   || 0;
+  const isCurrentSeasonView = sel === "all" || sel === curSeason;
+  const thisWeekTop = isCurrentSeasonView ? (() => {
+    const recent = scopeFiltered.filter(n =>
+      n.season === curSeason && (n.week || 0) >= Math.max(0, curWeek - 1)
+    );
+    if (!recent.length) return null;
+    const ranked = recent.map(it => ({ it, w: _wireWeight(it, myTeamNames) }))
+      .sort((a, b) => b.w - a.w);
+    return ranked[0]?.it;
+  })() : null;
 
   // ── Storylines (from the scope-filtered, not topic-filtered, source) ─
   const storylines = _wireStorylines(scopeFiltered, playerSet);
@@ -242,12 +321,23 @@ function renderFrnNewsArchive(season) {
     </button>`;
   }).join("");
 
-  // Scope toggle
+  // Scope toggle + hide-minor checkbox
   const scopeHtml = `
     <div class="frn-hl-scope">
       <button class="${_frnWireScope==='team'?"active":""}"  onclick="frnSetWireScope('team')">MY TEAM</button>
       <button class="${_frnWireScope==='league'?"active":""}" onclick="frnSetWireScope('league')">LEAGUE</button>
+      <button class="${_frnWireHideMinor?"active":""}" onclick="frnToggleWireMinor()" title="Hide low-impact dev / rehab / scout-reveal events for non-user teams" style="margin-left:.5rem">${_frnWireHideMinor?"✓":"○"} Hide minor</button>
     </div>`;
+
+  // This-Week hero — single dominant entry from the current week
+  const thisWeekHtml = (thisWeekTop && _frnWireTopic === "all") ? `
+    <div class="frn-wire-thisweek">
+      <div class="frn-wire-thisweek-eyebrow">📡 THIS WEEK · ${_wireWeekLabel(thisWeekTop)}</div>
+      <div class="frn-wire-thisweek-body">
+        <div class="frn-wire-thisweek-icon">${_wireIcon(thisWeekTop.type)}</div>
+        <div class="frn-wire-thisweek-headline">${_decorateWireLabel(thisWeekTop.label || "", teamSet, playerSet)}</div>
+      </div>
+    </div>` : "";
 
   // Front-page leads — only show when not filtered down by a non-all topic
   const leadsHtml = (leads.length && _frnWireTopic === "all") ? `
@@ -338,6 +428,7 @@ function renderFrnNewsArchive(season) {
         · Showing ${sorted.length} in <b>${(_WIRE_TOPICS.find(x=>x.key===_frnWireTopic)?.label||"Misc")}</b>
       </div>
       <div style="padding:1rem 1.4rem;display:flex;flex-direction:column;gap:1rem">
+        ${thisWeekHtml}
         ${leadsHtml}
         <div class="frn-hl-pills" style="margin-bottom:0">${topicPills}</div>
         ${storylinesHtml}
@@ -6950,11 +7041,11 @@ function _rerollPotentialForBreakouts() {
         }
         player.overall = jumpedTo;
         if (typeof _pushNews === "function") {
-          _pushNews({ type: "scout_reveal",
+          _pushNews({ type: "dev_surge",
             label: `🚀 ${player.position} ${player.name} — breakout year unlocks his ceiling (OVR ${curOvr}→${jumpedTo})` });
         }
       } else if (typeof _pushNews === "function") {
-        _pushNews({ type: "scout_reveal",
+        _pushNews({ type: "dev_surge",
           label: `📈 ${player.position} ${player.name} — stock rises after breakout (potential ceiling ↑${bump})` });
       }
     }
@@ -6988,7 +7079,7 @@ function _maybeApplyElitePlateauBump(p) {
   p._elitePlateauBumped = true;
   if (p === (franchise.rosters?.[franchise.chosenTeamId] || []).find(rp => rp === p)) {
     if (typeof _pushNews === "function") {
-      _pushNews({ type: "scout_reveal",
+      _pushNews({ type: "dev_surge",
         label: `⚓ ${p.position} ${p.name} — elite form locks in (extended prime through age ${p.declineAge})` });
     }
   }

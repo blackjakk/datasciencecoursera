@@ -1902,9 +1902,16 @@ function _tickYipsForWeek() {
       const isMine = Number(tid) === franchise.chosenTeamId;
       p._yips.weeksRemaining -= 1;
       // 20% chance per week of a hilarious in-public miss while yips persist.
+      // Dedup: same kicker can't generate two MISS headlines within 4 weeks,
+      // even if the random roll fires repeatedly — keeps the wire from
+      // turning into a 7-entry Cody Parkey marathon.
       if (isMine && Math.random() < 0.20) {
-        if (typeof _pushNews === "function") {
-          _pushNews({ type: "injury", label: _pickYipsHeadline(p, _YIPS_MISS_HEADLINES) });
+        const lastMissWeek = p._yipsLastMissWeek ?? -10;
+        if ((franchise.week || 1) - lastMissWeek >= 4) {
+          if (typeof _pushNews === "function") {
+            _pushNews({ type: "injury", label: _pickYipsHeadline(p, _YIPS_MISS_HEADLINES) });
+          }
+          p._yipsLastMissWeek = franchise.week || 1;
         }
       }
       if (p._yips.weeksRemaining <= 0) {

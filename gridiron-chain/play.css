@@ -2266,6 +2266,27 @@
 
   /* League wire archive */
   /* ── Wire — front-page leads ───────────────────────────────────────── */
+  /* This-Week hero — distinct from the leads grid, highlights one entry
+     from the current week as the dominant story */
+  .frn-wire-thisweek {
+    border: 1px solid var(--blgold); border-left: 3px solid var(--blgold);
+    background: linear-gradient(90deg, rgba(212,175,55,.12), rgba(212,175,55,.02));
+    padding: .8rem 1rem; border-radius: 4px;
+  }
+  .frn-wire-thisweek-eyebrow {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    color: var(--blgold); letter-spacing: 2.5px; font-size: .68rem;
+    margin-bottom: .4rem;
+  }
+  .frn-wire-thisweek-body {
+    display: flex; gap: .8rem; align-items: center;
+  }
+  .frn-wire-thisweek-icon { font-size: 1.6rem; flex-shrink: 0; }
+  .frn-wire-thisweek-headline {
+    flex: 1; font-size: .98rem; line-height: 1.35; font-weight: 700;
+    color: var(--blwhite);
+  }
+
   .frn-wire-leads-wrap {
     background: linear-gradient(135deg, rgba(212,175,55,.08) 0%, var(--blbg2) 60%);
     border: 1px solid var(--blgold); border-radius: 4px;
