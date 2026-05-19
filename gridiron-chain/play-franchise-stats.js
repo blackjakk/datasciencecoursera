@@ -881,15 +881,70 @@ function _findPlayer(nameOrPid, pid) {
   // Try pid first so same-name players on different teams never collide.
   const byPid = _findPlayerByPid(pid);
   if (byPid) return byPid;
+  // Active roster — by name first, then by nickname (covers records /
+  // wire entries that were stamped under a player's legal name before
+  // a (now-fixed) rewrite pointed p.name at their nickname).
   for (const roster of Object.values(franchise?.rosters || {})) {
     const p = roster.find(rp => rp.name === nameOrPid);
     if (p) return p;
   }
-  // Also search free agents and practice squads
+  for (const roster of Object.values(franchise?.rosters || {})) {
+    const p = roster.find(rp => rp.nickname === nameOrPid);
+    if (p) return p;
+  }
+  // Free agents + practice squads
   for (const pool of [franchise?.freeAgents, ...Object.values(franchise?.practiceSquads || {})]) {
     if (!pool) continue;
-    const p = pool.find(rp => (pid && rp.pid === pid) || rp.name === nameOrPid);
+    const p = pool.find(rp => (pid && rp.pid === pid) || rp.name === nameOrPid || rp.nickname === nameOrPid);
     if (p) return p;
+  }
+  return null;
+}
+
+// Resolve a name to a HOF or alumni-snapshot synthesis. Returns null if
+// the name doesn't match a retired/historical record. The synth carries
+// enough fields to render a minimal retired-player modal without
+// crashing live-player-shaped render helpers.
+function _findRetiredPlayer(name) {
+  if (!name || !franchise) return null;
+  const hof = (franchise.hallOfFame || []).find(h => h.name === name);
+  if (hof) {
+    return {
+      name: hof.name, position: hof.pos, age: hof.age,
+      overall: hof.peakOvr || 70,
+      stats: [70,70,70,70,70,70,70,70,70,70,70],
+      careerStats: hof.careerStats || {},
+      careerHistory: hof.careerHistory || [],
+      careerEarnings: hof.careerEarnings || 0,
+      mvps: hof.accolades?.mvps || 0,
+      opoys: 0, dpoys: 0, roys: hof.accolades?.roys || 0,
+      proBowls: hof.accolades?.proBowls || 0,
+      allPros: hof.accolades?.allPros || 0,
+      sbRings: hof.accolades?.sbRings || 0,
+      _retiredAt: hof.season,
+      _retiredHOF: true,
+      _retiredTeamName: hof.teamName,
+    };
+  }
+  // Scan recent roster snapshots — last seen wins.
+  const snaps = franchise.rosterSnapshots || [];
+  for (let i = snaps.length - 1; i >= 0; i--) {
+    const byTeam = snaps[i].byTeam || {};
+    for (const [tid, rows] of Object.entries(byTeam)) {
+      const r = (rows || []).find(x => x.name === name);
+      if (r) {
+        const team = getTeam(Number(tid));
+        return {
+          name: r.name, position: r.pos, age: r.age,
+          overall: r.overall || 70,
+          stats: [70,70,70,70,70,70,70,70,70,70,70],
+          careerStats: {}, careerHistory: [],
+          proBowls: 0, allPros: 0, sbRings: 0, mvps: 0, opoys: 0, dpoys: 0, roys: 0,
+          _retiredAt: snaps[i].season,
+          _retiredTeamName: team ? `${team.city} ${team.name}` : "",
+        };
+      }
+    }
   }
   return null;
 }
@@ -1085,9 +1140,89 @@ function frnHoverTipHide() {
 // Player click opens a modal overlay anchored at the dashboard — no
 // page-swap, no phase mutation. Closing returns you to whatever
 // screen you were already on.
+// Minimal modal for retired / historical players (HOF inductees and
+// alumni who no longer appear on any active roster). Surfaces the
+// data we DO have — accolades, career stats, last team — without
+// trying to render contract/season-stats/game-log panels that
+// require live-player state.
+function _frnOpenRetiredPlayerModal(p) {
+  frnHoverTipHide();
+  frnClosePlayerModal();
+  const tier = (typeof playerLegendTier === "function") ? playerLegendTier(p) : null;
+  const cs = p.careerStats || {};
+  let highlights = "";
+  const pos = p.position;
+  if (pos === "QB") highlights = `${cs.pass_yds||0} yds · ${cs.pass_td||0} TD · ${cs.pass_int||0} INT`;
+  else if (pos === "RB") highlights = `${cs.rush_yds||0} rush yds · ${cs.rush_td||0} TD`;
+  else if (pos === "WR" || pos === "TE") highlights = `${cs.rec||0} rec · ${cs.rec_yds||0} yds · ${cs.rec_td||0} TD`;
+  else if (pos === "DL" || pos === "LB") highlights = `${cs.tkl||0} tkl · ${cs.sk||0} sk`;
+  else if (pos === "CB" || pos === "S") highlights = `${cs.int_made||0} INT · ${cs.pd||0} PD · ${cs.tkl||0} tkl`;
+  else if (pos === "K") highlights = `${cs.fg_made||0} FG · ${cs.xp_made||0} XP`;
+  else if (["OL","LT","LG","C","RG","RT"].includes(pos)) highlights = `${cs.pancakes||0} pancakes · ${cs.sacks_allowed||0} SA`;
+  const accChips = [
+    (p.mvps    || 0) > 0 ? `${p.mvps}× MVP` : "",
+    (p.sbRings || 0) > 0 ? `${p.sbRings}× 💍` : "",
+    (p.allPros || 0) > 0 ? `${p.allPros}× All-Pro` : "",
+    (p.proBowls|| 0) > 0 ? `${p.proBowls}× Pro Bowl` : "",
+    (p.roys    || 0) > 0 ? `ROY` : "",
+  ].filter(Boolean).join(" · ");
+  const overlay = document.createElement("div");
+  overlay.className = "frn-pcard-overlay";
+  overlay.id = "frn-pcard-overlay";
+  const tag = p._retiredHOF
+    ? `<span style="color:var(--gold);font-size:.6rem;letter-spacing:1px;font-weight:800;border:1px solid var(--gold);padding:.1rem .4rem;margin-left:.5rem">🏛 HALL OF FAME</span>`
+    : `<span style="color:var(--gray);font-size:.6rem;letter-spacing:1px;font-weight:600;border:1px solid var(--gray);padding:.1rem .4rem;margin-left:.5rem">RETIRED</span>`;
+  const heroName = tier
+    ? `<div class="frn-pname-hero frn-pname-hero-t-${tier.tier}" title="${tier.label}">
+        <span class="frn-pname-hero-glyph" aria-hidden="true">${tier.icon}</span>
+        <span class="frn-pname-hero-name">${p.name}</span>
+        <span class="frn-pname-hero-tag">${tier.label}</span>
+       </div>`
+    : `<div style="font-size:1.15rem;font-weight:900">${p.name}</div>`;
+  overlay.innerHTML = `
+    <div class="frn-pcard-overlay-inner">
+      <button class="frn-pcard-close" onclick="frnClosePlayerModal()" title="Close">×</button>
+      <div class="frn-player-card" style="padding:.8rem 1rem">
+        <div class="frn-player-card-head" style="display:flex;gap:.9rem;align-items:flex-start;padding-right:2.5rem">
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;flex-wrap:wrap">${heroName}${tag}</div>
+            <div style="color:var(--gray);font-size:.72rem;margin-top:.2rem">${p.position} · Last team: ${p._retiredTeamName || "—"}${p._retiredAt?` · Retired S${p._retiredAt}`:""}</div>
+            ${accChips ? `<div style="color:var(--gold);font-size:.66rem;margin-top:.35rem">${accChips}</div>` : ""}
+            ${highlights ? `<div style="color:var(--gold-lt);font-size:.66rem;margin-top:.1rem">${highlights}</div>` : ""}
+          </div>
+        </div>
+        ${(p.careerHistory || []).length ? (() => {
+          const hist = p.careerHistory.slice().reverse();
+          const cols = (typeof _careerColsFor === "function") ? _careerColsFor(p.position) : [];
+          const usedCols = cols.filter(c => hist.some(r => (r[c.key] || 0) > 0));
+          if (!usedCols.length) return "";
+          return `<div style="margin-top:.6rem">
+            <div class="frn-card-title" style="margin-bottom:.3rem">📊 CAREER · ${p.careerHistory.length} seasons</div>
+            <div style="overflow-x:auto"><table class="frn-pre-roster-table">
+              <thead><tr><th>S</th><th>AGE</th>${usedCols.map(c => `<th>${c.label}</th>`).join("")}</tr></thead>
+              <tbody>${hist.map(r => `<tr>
+                <td style="color:var(--gray);font-size:.62rem">S${r.season ?? "?"}</td>
+                <td style="color:var(--gray);font-size:.62rem">${r.age ?? "?"}</td>
+                ${usedCols.map(c => `<td>${r[c.key] || 0}</td>`).join("")}
+              </tr>`).join("")}</tbody>
+            </table></div>
+          </div>`;
+        })() : ""}
+      </div>
+    </div>`;
+  overlay.addEventListener("click", e => { if (e.target === overlay) frnClosePlayerModal(); });
+  document.body.appendChild(overlay);
+}
+
 function frnOpenPlayerCard(name, pid) {
-  const p = _findPlayer(name, pid);
-  if (!p) return;
+  let p = _findPlayer(name, pid);
+  if (!p) {
+    // Fall through to retired/historical lookup — HOF entries + alumni
+    // roster snapshots — so records-broken / history links don't dead-end.
+    const retired = _findRetiredPlayer(name);
+    if (retired) return _frnOpenRetiredPlayerModal(retired);
+    return;
+  }
   frnHoverTipHide();
   frnClosePlayerModal();
   const team = _findPlayerTeam(p);
