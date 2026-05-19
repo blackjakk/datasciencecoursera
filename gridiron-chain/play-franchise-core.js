@@ -218,11 +218,23 @@ function rookieContract(player, cap) {
   const ovr = player.overall || 70;
   const { signingBonus, bonusProration, tradeKicker } = _signingBonusCalc(aav, years, ovr);
   const baseSalaries = _baseSalarySchedule(aav, years, "BALANCED", bonusProration);
+  // Stamp the same engine-required fields every other contract path
+  // stamps: startSeason (cooldown anchor), signedOvr (outperformance
+  // baseline — critical for rookies who develop e.g. 70 → 84 OVR over
+  // their rookie deal), signedAav (money's worth math), _demandCycles
+  // (escalator counter). Without signedOvr stamped at signing, the
+  // _backfillDemandFields helper would default it to current OVR at
+  // first read — so a developed rookie would appear to have +0
+  // outperformance and the engine would never fire mid-rookie demands.
   return {
     years, remaining: years, aav, structure: "BALANCED",
     baseSalaries, signingBonus, bonusProration, tradeKicker,
     guaranteedYears: _guaranteedYearsForLength(years),
     guaranteedAAV: aav,
+    signedAav: aav,
+    signedOvr: ovr,
+    startSeason: (typeof franchise !== "undefined" && franchise?.season ? franchise.season : 1) + 1,
+    _demandCycles: 0,
     incentives: [],
   };
 }

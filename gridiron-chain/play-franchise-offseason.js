@@ -13764,6 +13764,10 @@ function _signUdfaTo(roster, prospect, rookieYear) {
   prospect.roys = 0; prospect.records = [];
   _rollHiddenGem(prospect);
   prospect.contract = rookieContract(prospect, franchise.salaryCap || SALARY_CAP_BASE);
+  // Defensive: prospects are generated fresh per draft and shouldn't
+  // carry grudge flags, but cleaning ensures any future code path that
+  // re-uses player objects doesn't leak state into the new rookie.
+  _clearGrudgeFlags(prospect);
   delete prospect.isProspect;
   roster.push(prospect);
 }
