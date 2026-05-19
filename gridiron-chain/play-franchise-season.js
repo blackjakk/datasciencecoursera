@@ -3103,6 +3103,26 @@ function _buildPlayerDetailPanel(p) {
       </div>
     </div>
     ${archBlock ? `<div style="margin:.6rem 0">${archBlock}</div>` : ""}
+    ${(() => {
+      // Locker-room fallout banner — surfaces consequences of an ignored
+      // extension demand so the user remembers the cost. Only shown for
+      // owned players (we know our own roster's state).
+      if (!owned) return "";
+      const ignSeason = p._ignoredDemandSeason;
+      const devFreezeUntil = p._devFreezeUntilSeason;
+      const tradeReq = p.tradeRequested;
+      const flightRisk = p.flightRisk;
+      if (ignSeason == null && !tradeReq && !flightRisk && devFreezeUntil == null) return "";
+      const parts = [];
+      if (ignSeason != null) parts.push(`ignored extension demand · S${ignSeason}`);
+      if (p._ignoreOvrPenalty) parts.push(`-${p._ignoreOvrPenalty} OVR penalty`);
+      if (devFreezeUntil != null && (franchise.season ?? 0) <= devFreezeUntil) parts.push(`dev frozen through S${devFreezeUntil}`);
+      if (tradeReq) parts.push(`formally requested trade`);
+      if (flightRisk) parts.push(`flight risk at expiry · +25% demand premium`);
+      return `<div style="margin:.55rem 0;padding:.4rem .55rem;background:rgba(255,90,90,.08);border-left:3px solid #ff5a5a;border-radius:2px;font-size:.65rem;color:#ffb0b0">
+        💢 <b style="letter-spacing:.5px">LOCKER ROOM</b> · ${parts.join(" · ")}
+      </div>`;
+    })()}
     <div class="frn-pcard-split" style="margin-top:.5rem">
       ${combinePanel}
       ${rightPanel}
@@ -4204,6 +4224,7 @@ function _faResolveAfterWeek(week, isSeasonEnd) {
         // from clobbering this AAV back down to computed market value.
         signedAav: highAav,
         startSeason: (franchise.season || 1) + 1, // FA signings start next season
+        signedOvr: n.fa.overall || 70,
       };
       n.state = "signed";
       n.signedToTeamId = highId;
@@ -4392,6 +4413,7 @@ function _faTryKnockout(negKey) {
     incentives: _generateIncentives(n.fa, high.aav),
     signedAav: high.aav,
     startSeason: (franchise.season || 1) + 1,
+    signedOvr: n.fa.overall || 70,
   };
   n.state = "signed";
   n.signedToTeamId = high.teamId;

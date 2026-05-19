@@ -5148,6 +5148,7 @@ function frnHoldoutMidExtend(name) {
     guaranteedYears: _guaranteedYearsForLength(years),
     guaranteedAAV: aav, incentives: [], signedAav: aav,
     startSeason: franchise.season || 1, // contract is active starting this season
+    signedOvr: ovr,
   };
   _pushNews({ type: "extension",
     label: `🤝 Extended ${player.position} ${name} mid-season — ${years}yr / $${aav.toFixed(1)}M/yr` });
@@ -5277,10 +5278,15 @@ function _renderHoldoutCenterRow(d) {
   // ── Year-by-year preview before signing ──────────────────────────
   if (_holdoutMidPreview === d.name) {
     const bases = _baseSalarySchedule(offer, offerYears, struct, bonusProration);
+    // Mid-season holdout: contract is active starting THIS season, so
+    // Yr 1 = player's current age, Yr 2 = age+1, etc.
+    const ageAtSign = live?.age ?? d.age ?? 27;
     const yearPills = bases.map((base, i) => {
       const hit = Math.round((base + bonusProration) * 10) / 10;
+      const ageYr = ageAtSign + i;
+      const ageColor = ageYr >= 34 ? "#ff8a8a" : ageYr >= 31 ? "#e8a000" : "var(--gray)";
       return `<div style="display:flex;justify-content:space-between;padding:.18rem .4rem;border-radius:4px;background:var(--bg3);font-size:.67rem;gap:.8rem">
-        <span style="color:var(--gray)">Yr ${i+1}</span>
+        <span style="color:var(--gray)">Yr ${i+1} <span style="color:${ageColor};font-size:.58rem">(age ${ageYr})</span></span>
         <span>$${base.toFixed(1)}M base</span>
         <span style="color:var(--gray)">+$${bonusProration.toFixed(1)}M bonus</span>
         <span style="color:var(--gold);font-weight:700">= $${hit.toFixed(1)}M</span>
@@ -5397,6 +5403,7 @@ function _renderHoldoutCenterRow(d) {
         <span style="color:var(--gray);font-size:.6rem">Walk year · ${d.currentRemaining}yr left · current $${d.currentAAV.toFixed(1)}M/yr</span>
         ${riskHtml ? `<div class="frn-resign-risks">${riskHtml}</div>` : ""}
         ${demandHtml}
+        ${_buildExtensionPitch(d, live, cap)}
         ${faPreviewHtml}
         ${deadlineHtml}
       </div>
@@ -5826,10 +5833,15 @@ function _renderResignUI(cap, capCommitted) {
     // ── Signing preview panel (year-by-year breakdown before committing) ──
     if (_resignPreview === idx) {
       const bases = _baseSalarySchedule(r.offer, r.offerYears, struct, bonusProration);
+      // Offseason re-sign: contract starts NEXT season; the offseason
+      // age-bump will push them to age+1 by Yr 1.
+      const ageAtSign = (r.age || 27) + 1;
       const yearPills = bases.map((base, i) => {
         const hit = Math.round((base + bonusProration) * 10) / 10;
+        const ageYr = ageAtSign + i;
+        const ageColor = ageYr >= 34 ? "#ff8a8a" : ageYr >= 31 ? "#e8a000" : "var(--gray)";
         return `<div style="display:flex;justify-content:space-between;padding:.18rem .4rem;border-radius:4px;background:var(--bg3);font-size:.67rem;gap:.8rem">
-          <span style="color:var(--gray)">Yr ${i+1}</span>
+          <span style="color:var(--gray)">Yr ${i+1} <span style="color:${ageColor};font-size:.58rem">(age ${ageYr})</span></span>
           <span>$${base.toFixed(1)}M base</span>
           <span style="color:var(--gray)">+$${bonusProration.toFixed(1)}M bonus</span>
           <span style="color:var(--gold);font-weight:700">= $${hit.toFixed(1)}M</span>
@@ -5938,6 +5950,10 @@ function _renderResignUI(cap, capCommitted) {
     // cap-projection bars can react when the user hovers the row.
     const hoverHits = _resignPendingHitsByYear(r, 4);
     const hoverAttr = `data-resign-hits='${JSON.stringify(hoverHits)}' data-resign-cap='${cap}' onmouseenter="_resignHoverIn(this)" onmouseleave="_resignHoverOut()"`;
+    const resignCtx = {
+      position: r.pos, marketAAV: r.baseMarket,
+      demandedAAV: demand.aav, demandedYears: demand.years,
+    };
     return `
       <div class="frn-resign-row tier-${_resignTier(r)}" ${hoverAttr}>
         ${recChip}
@@ -5950,6 +5966,7 @@ function _renderResignUI(cap, capCommitted) {
             ${riskHtml ? `<div class="frn-resign-risks">${riskHtml}</div>` : ""}
             ${_contractContextBar(r.pos, r.baseMarket, cap)}
             ${demandHtml}
+            ${_buildExtensionPitch(resignCtx, livePlayer, cap)}
             ${metaHtml}
           </div>
           <div class="frn-resign-offer">
@@ -6331,6 +6348,7 @@ function frnConfirmResignings() {
         guaranteedYears: 1, guaranteedAAV: r.tagAAV,
         signedAav: r.tagAAV,
         startSeason: (franchise.season || 1) + 1, // contract starts NEXT season
+        signedOvr: player.overall || 70, // OVR at signing — drives "money's worth" math
       };
       franchise.franchiseTagHistory = franchise.franchiseTagHistory || {};
       franchise.franchiseTagHistory[r.name] = (franchise.franchiseTagHistory[r.name] || 0) + 1;
@@ -6350,6 +6368,7 @@ function frnConfirmResignings() {
         signedAav: r.offer,
         incentives: _generateIncentives(player, r.offer),
         startSeason: (franchise.season || 1) + 1, // contract starts NEXT season
+        signedOvr: player.overall || 70,
       };
     } else {
       // Declined: remove from roster (enters FA — currently just lost).
@@ -6857,11 +6876,16 @@ const _HOLDOUT_MIN_YEARS = 1;
 const _HOLDOUT_MAX_YEARS = 6;
 
 // Data-driven extension pitch — surfaces concrete production + context
-// so the user has hard evidence to decide. Used on the offseason
-// demanding-extensions screen (renderable below the demand row).
-function _buildExtensionPitch(h, live, cap) {
-  if (!live) return "";
-  const pos = h.position;
+// so the user has hard evidence to decide. Used on all three contract
+// screens (offseason re-sign, mid-season holdout, offseason demand).
+// `ctx` accepts a normalized shape: { position, marketAAV, demandedAAV,
+// demandedYears } pulled from whichever row type is calling.
+function _buildExtensionPitch(ctx, live, cap) {
+  if (!live || !ctx) return "";
+  const pos = ctx.position || ctx.pos || live.position;
+  const marketAAV   = ctx.marketAAV ?? ctx.baseMarket ?? computeMarketValue(live, cap);
+  const demandedAAV = ctx.demandedAAV ?? ctx.offer ?? marketAAV;
+  const demandedYears = ctx.demandedYears ?? ctx.offerYears ?? 0;
   const careerStats = live.careerStats || {};
   const careerHistory = live.careerHistory || [];
   const myId = franchise.chosenTeamId;
@@ -6954,8 +6978,34 @@ function _buildExtensionPitch(h, live, cap) {
   }
 
   // ── Replacement cost (FA market at position) ────────────────────
-  const replaceCost = h.marketAAV * 0.85;
+  const replaceCost = marketAAV * 0.85;
   const replaceStr = `FA market ~$${replaceCost.toFixed(1)}M/yr · ${(allPos.filter(p => (p.overall || 0) >= 80).length)} other ≥80 OVR ${pos}s in league`;
+
+  // ── Comparable contracts at position ─────────────────────────────
+  const top5Aav = (typeof _positionTopAvgAAV === "function") ? _positionTopAvgAAV(pos, cap, 5) : 0;
+  const leagueMax = (typeof _positionLeagueMax === "function") ? _positionLeagueMax(pos) : 0;
+  const compareToTop5 = demandedAAV >= top5Aav * 1.05 ? `above top-5 avg`
+                      : demandedAAV >= top5Aav * 0.95 ? `near top-5 avg`
+                      : `below top-5 avg`;
+  const compareColor = demandedAAV >= top5Aav * 1.05 ? "#ff8a8a"
+                     : demandedAAV >= top5Aav * 0.95 ? "var(--gold)"
+                     : "var(--green-lt)";
+  const compStr = top5Aav > 0
+    ? `Top-5 ${pos} AAV $${top5Aav.toFixed(1)}M · LG max $${leagueMax.toFixed(1)}M · <span style="color:${compareColor}">demand ${compareToTop5}</span>`
+    : "";
+
+  // ── Money's worth (did the current contract pay off?) ────────────
+  // For walk-year / new deal context — only when there's a prior deal
+  // with a signedOvr stamp to compare against.
+  let moneysWorthStr = "", moneysWorthColor = "var(--blwhite)";
+  const c = live.contract;
+  if (c?.signedOvr != null && c.signedAav != null) {
+    const ovrDelta = (live.overall || 0) - c.signedOvr;
+    const sign = ovrDelta >= 0 ? "+" : "";
+    const verdict = ovrDelta >= 3 ? "delivered" : ovrDelta >= 0 ? "held the line" : ovrDelta >= -3 ? "regressed mildly" : "fell off the deal";
+    moneysWorthColor = ovrDelta >= 3 ? "var(--green-lt)" : ovrDelta >= 0 ? "var(--gold)" : "#ff8a8a";
+    moneysWorthStr = `Signed at $${c.signedAav.toFixed(1)}M / ${c.signedOvr} OVR → now ${live.overall} OVR (${sign}${ovrDelta}) — ${verdict}`;
+  }
 
   // ── Verdict synthesis — 1-line takeaway driven by the same data ──
   const overallTier = live.overall >= 88 ? "elite" : live.overall >= 82 ? "starter+" : "starter";
@@ -6982,7 +7032,9 @@ function _buildExtensionPitch(h, live, cap) {
       ${row("League",    rankStr)}
       ${row("Availability", `${availPct}% (${totalGP}/${maxGP || "—"} GP)`, availColor)}
       ${row("Window",    windowStr, windowColor)}
+      ${moneysWorthStr ? row("Last deal", moneysWorthStr, moneysWorthColor) : ""}
       ${row("Market",    replaceStr)}
+      ${compStr ? row("Comp $",  compStr) : ""}
     </div>
     <div style="margin-top:.3rem;padding:.3rem .45rem;background:rgba(255,255,255,.04);border-left:2px solid ${verdict.color};border-radius:2px;font-size:.65rem;color:${verdict.color}">
       <b style="letter-spacing:.5px">VERDICT</b> · ${verdict.text}
@@ -7166,6 +7218,7 @@ function frnHoldoutExtend(name) {
     guaranteedYears: _guaranteedYearsForLength(years),
     guaranteedAAV: aav, incentives: [], signedAav: aav,
     startSeason: (franchise.season || 1) + 1, // offseason extension — starts next season
+    signedOvr: ovr,
   };
   h.resolved = "extended";
   _holdoutPreview = null;
@@ -9101,10 +9154,15 @@ function _renderHoldoutsBlock() {
     // ── Year-by-year preview before signing ────────────────────────
     if (_holdoutPreview === h.name) {
       const bases = _baseSalarySchedule(offer, offerYears, struct, bonusProration);
+      // Offseason demand extension: extends from current contract,
+      // first NEW year is next season → age + 1.
+      const ageAtSign = (live?.age ?? h.age ?? 27) + 1;
       const yearPills = bases.map((base, i) => {
         const hit = Math.round((base + bonusProration) * 10) / 10;
+        const ageYr = ageAtSign + i;
+        const ageColor = ageYr >= 34 ? "#ff8a8a" : ageYr >= 31 ? "#e8a000" : "var(--gray)";
         return `<div style="display:flex;justify-content:space-between;padding:.18rem .4rem;border-radius:4px;background:var(--bg3);font-size:.67rem;gap:.8rem">
-          <span style="color:var(--gray)">Yr ${i+1}</span>
+          <span style="color:var(--gray)">Yr ${i+1} <span style="color:${ageColor};font-size:.58rem">(age ${ageYr})</span></span>
           <span>$${base.toFixed(1)}M base</span>
           <span style="color:var(--gray)">+$${bonusProration.toFixed(1)}M bonus</span>
           <span style="color:var(--gold);font-weight:700">= $${hit.toFixed(1)}M</span>
