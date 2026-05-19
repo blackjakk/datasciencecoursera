@@ -1579,9 +1579,20 @@ function _buildCareerCard(p) {
     ${cols.map(c => `<td style="color:var(--gold-lt)">${stats[c.key]||0}</td>`).join("")}
     ${hasAcc ? "<td></td>" : ""}
   </tr>`;
+  // Trim hint — when careerStats sums to more than the visible rows
+  // (older history rows were trimmed for storage), surface a small
+  // note so the totals don't read as "doesn't add up". Computed by
+  // comparing visible rows' GP sum to stats.gp.
+  const visibleGP = history.reduce((s, r) => s + (r.gp || 0), 0);
+  const trimGapGP = Math.max(0, (stats.gp || 0) - visibleGP);
+  // Estimate "earlier seasons not shown" from a typical 14-game season
+  const estEarlierSeasons = Math.round(trimGapGP / 14);
+  const trimNote = trimGapGP > 0
+    ? `<div style="font-size:.55rem;color:var(--gray);font-style:italic;text-align:right;margin-top:.15rem">+ ~${estEarlierSeasons} earlier season${estEarlierSeasons===1?"":"s"} trimmed — totals reflect full career</div>`
+    : "";
   return `<div class="frn-career-card">
     <div style="display:flex;align-items:center;gap:.55rem;margin-bottom:.3rem">
-      <div class="frn-card-title" style="margin:0">📊 CAREER · ${history.length} season${history.length>1?"s":""}</div>
+      <div class="frn-card-title" style="margin:0">📊 CAREER · ${history.length} season${history.length>1?"s":""}${trimGapGP > 0 ? ` <span style="color:var(--gray);font-weight:400;font-size:.62rem">(of ~${history.length + estEarlierSeasons} played)</span>` : ""}</div>
       ${trajLabel ? `<span style="font-size:.58rem;color:var(--blgray)">${trajLabel}</span>` : ""}
     </div>
     <div style="overflow-x:auto">
@@ -1589,6 +1600,7 @@ function _buildCareerCard(p) {
         <tbody>${rowsHtml}${totalsRow}</tbody>
       </table>
     </div>
+    ${trimNote}
     <div class="frn-player-meta">
       <div><span class="frn-meta-label">DRAFT</span> ${draftStr(p)}</div>
       <div><span class="frn-meta-label">CAREER $</span> ${careerEarningsStr(p)}</div>
@@ -2605,14 +2617,30 @@ function _buildSeasonStatsBlock(p) {
   let fantasyHtml = "";
   if (["QB","RB","WR","TE","K"].includes(pos)) {
     // Sum per-game FPTS by scanning every played game for this player.
+    // Match by p.name first; fall back to p.nickname for legacy saves
+    // where per-game stats were keyed under the player's pre-rename
+    // legal name and p.name is now the nickname (or vice versa).
     const perGame = [];
+    const candidateKeys = [p.name, p.nickname].filter(Boolean);
     for (const g of (franchise.schedule || [])) {
       if (!g.played || !g.stats) continue;
-      const line = g.stats.home?.players?.[p.name] || g.stats.away?.players?.[p.name];
+      let line = null;
+      for (const key of candidateKeys) {
+        line = g.stats.home?.players?.[key] || g.stats.away?.players?.[key];
+        if (line) break;
+      }
       if (line) perGame.push({ week: g.week, fpts: _fantasyPPR(line, pos) });
     }
-    const totalFpts = perGame.reduce((s, x) => s + x.fpts, 0);
-    const fptsPg = perGame.length ? (totalFpts / perGame.length).toFixed(1) : "0.0";
+    let totalFpts = perGame.reduce((s, x) => s + x.fpts, 0);
+    // Fallback: if per-game lookup found nothing but seasonStats has
+    // the player, compute FPTS from the aggregated seasonStats so the
+    // line never shows 0.0 when the player clearly produced.
+    if (perGame.length === 0 && stat && (stat.gp || 0) > 0) {
+      const seasonFpts = _fantasyPPR(stat, pos);
+      if (seasonFpts > 0) totalFpts = seasonFpts;
+    }
+    const gpForAvg = perGame.length || (stat?.gp || 0);
+    const fptsPg = gpForAvg > 0 ? (totalFpts / gpForAvg).toFixed(1) : "0.0";
     const best = perGame.length ? perGame.reduce((a, b) => b.fpts > a.fpts ? b : a) : null;
     const worst = perGame.length ? perGame.reduce((a, b) => b.fpts < a.fpts ? b : a) : null;
     const rank = _fantasyPositionRank(p.name, pos);
@@ -3064,15 +3092,43 @@ function _buildPlayerDetailPanel(p) {
       <div style="flex:1;min-width:0">
         ${(() => {
           const tier = (typeof playerLegendTier === "function") ? playerLegendTier(p) : null;
-          const displayName = (p.goesByNicknameOnly && p.nickname) ? p.nickname : p.name;
+          const isNickOnly = p.goesByNicknameOnly && p.nickname;
+          const displayName = isNickOnly ? p.nickname : p.name;
+          // Legal name subtitle for single-name stars (Pelé / Madonna).
+          // Builds from firstName/lastName when stored; falls back to
+          // p.name if it differs from the nickname (legacy saves where
+          // p.name was the legal name before the rewrite).
+          let legalName = null;
+          if (isNickOnly) {
+            if (p.firstName && p.lastName) {
+              legalName = p.middleName
+                ? `${p.firstName} ${p.middleName} ${p.lastName}`
+                : `${p.firstName} ${p.lastName}`;
+            } else if (p.name && p.name !== p.nickname) {
+              legalName = p.name;
+            }
+          }
+          const legalSub = legalName
+            ? `<div style="font-size:.6rem;color:var(--gray);letter-spacing:.5px;margin-top:.1rem;font-style:italic">né ${legalName}</div>`
+            : "";
+          // Lazy backfill: stamp nicknameOrigin for any player who has a
+          // nickname but predates the origin stamp. Stable per player via
+          // name hash, so legacy saves get consistent lore across reloads.
+          if (p.nickname && !p.nicknameOrigin && typeof _pickNicknameOrigin === "function") {
+            const lore = _pickNicknameOrigin(p);
+            if (lore) p.nicknameOrigin = lore;
+          }
+          const originSub = p.nickname && p.nicknameOrigin
+            ? `<div style="font-size:.62rem;color:var(--gold-lt);letter-spacing:.3px;margin-top:.25rem;font-style:italic;line-height:1.3;max-width:42ch">“${p.nicknameOrigin}”</div>`
+            : "";
           if (!tier) {
-            return `<div style="font-size:1.15rem;font-weight:900">${displayName}</div>`;
+            return `<div style="font-size:1.15rem;font-weight:900">${displayName}</div>${legalSub}${originSub}`;
           }
           return `<div class="frn-pname-hero frn-pname-hero-t-${tier.tier}" title="${tier.label}">
             <span class="frn-pname-hero-glyph" aria-hidden="true">${tier.icon}</span>
             <span class="frn-pname-hero-name">${displayName}</span>
             <span class="frn-pname-hero-tag">${tier.label}</span>
-          </div>`;
+          </div>${legalSub}${originSub}`;
         })()}
         ${_buildAccoladesBanner(p)}
         <div style="color:var(--gray);font-size:.72rem;margin-top:.2rem">

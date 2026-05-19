@@ -324,6 +324,142 @@ const NICK_FREAK     = ["The Freak","The Specimen","The Cyborg","The Android","T
 // MEGA / ICONIC — for the rare single-name Madonna/Pelé tier
 const NICK_ICONIC    = ["Megatron","Beast","Prime","Truck","Mossburger","Skyscraper","Air","Boss","Crash","Volt","Apex","Cobra","T-Rex","Optimus","Vader","Bane","Kingsnake","Smaug","Mach 5"];
 
+// Nickname origin stories — one is picked deterministically (seeded by
+// player's legal name hash) per nickname so the lore is stable. Themed
+// by pool: speed pool gets speed stories, power pool gets power, etc.
+const NICKNAME_ORIGINS = {
+  HEAVY: [
+    "Pancaked a Pro Bowl linebacker on his first pro snap — the film-room name stuck",
+    "Tossed a 320-lb tackle five yards downfield in his rookie debut",
+    "Showed up to camp benching 405 — teammates said only one name fit",
+    "Buried a corner so hard on a crack-back block the sideline started chanting",
+    "Eight tackles for loss in his rookie season opener — the locker room had a name by Monday",
+  ],
+  FAST: [
+    "Posted a 4.28 forty at the combine — the name caught on by Week 2",
+    "Outran a Pro Bowl corner by fifteen yards on a screen — the broadcasters needed something to call him",
+    "Ran down a 4.4 receiver from behind on a punt return TD",
+    "Teammates clocked him on the speed gun at OTAs — the name was inevitable",
+    "Took a screen pass 90 yards in his preseason debut — Twitter got there before the team did",
+  ],
+  SURGEON: [
+    "Read a Cover-2 disguise live and audibled into a touchdown — the coordinator coined it",
+    "Studied 14 hours of film before training camp opened — his QB started using the name",
+    "Diagnosed three blitzes cleanly on the same drive — the booth couldn't stop saying it",
+    "Drew up the protection adjustment that won the season opener",
+    "Locker-room legend says he memorized the entire opposing playbook in two days",
+  ],
+  TRICKSTER: [
+    "Spun out of three defenders on a screen pass in his rookie preseason",
+    "Reversed-fielded a touchdown twice on the same drive",
+    "Made a defender whiff so badly the guy fell down before contact",
+    "His highlight reel needed a slow-mo replay for one move alone",
+    "Faked the throw, kept the ball, ran 60 yards — the call from the sideline stuck",
+  ],
+  CLOSER: [
+    "Sacked the QB on 3rd-and-21 to end the game — the name went on the locker-room wall",
+    "Made the strip-sack on the final play of an OT win",
+    "Finished three straight drives with a sack — the unit gave him the name",
+    "Recovered the game-winning fumble in three consecutive games",
+    "Walked off the field after a fourth-down stuff and the chyron just said the name",
+  ],
+  HANDS_NEW: [
+    "Caught 14 passes without a drop in his first four games",
+    "Snagged a Hail Mary one-handed on opening day — the booth called the name on air",
+    "Equipment manager started writing it on his gloves after a 0-drop month",
+    "Caught a deflection off his own facemask in OT and walked it in",
+    "Reception streak got so long teammates couldn't remember his given name",
+  ],
+  LOCK: [
+    "Held the #1 WR to twelve yards in his rookie debut",
+    "Posted a 0.0 passer-rating-against game — the next morning the name was everywhere",
+    "Shut out an All-Pro WR for 60 minutes — Twitter named him by Tuesday",
+    "QBs stopped throwing his way midway through Week 5",
+    "Three consecutive games with zero catches allowed in coverage",
+  ],
+  HAWK: [
+    "Picked off the QB twice in his first start",
+    "Read the QB's eyes on three separate INTs in one game",
+    "Snagged a tipped pass off his own cleat in overtime",
+    "His pre-snap recognition went viral — Coach said 'that's not coaching, that's instinct'",
+    "Stole a route from the receiver's hands and walked it back",
+  ],
+  HUNTER_NEW: [
+    "Ran down a 4.4 RB from across the field — the film analyst coined the name",
+    "Chased the QB forty yards on a scramble and finished the sack",
+    "Sprinted full-field on a turnover return — the locker room had a name by Monday",
+    "GPS data showed his pursuit speed in the 99th percentile leaguewide",
+    "His sideline angle in week 2 was so perfect the special teams coach studied it for a year",
+  ],
+  MISTER: [
+    "Started every game from his rookie year — never missed a snap",
+    "Stayed late after every practice — vets gave him the name his second year",
+    "Showed up to camp three days early every season",
+    "Played the final eight games of his rookie year on a torn meniscus",
+    "Locker room voted him captain four years running — the title became the name",
+  ],
+  WEATHER: [
+    "Threw four touchdowns in a snow game on Christmas — the broadcast booth gave it to him",
+    "Played his best game in a hurricane — the highlight reel went viral that night",
+    "Outperformed every other arm in the league during a torrential Week 12",
+    "Punter dropped a snap in a blizzard — he tracked it and threw a 40-yard TD",
+    "His final drive in a thunderstorm gave him the name on Monday morning",
+  ],
+  ANIMAL: [
+    "Coach said his pursuit angles 'looked like a hunting animal' during film",
+    "Outran the secondary on three straight plays — the team name was inevitable",
+    "Locker room nicknamed him this after a viral celebration",
+    "His college coach started using the name and it followed him to the pros",
+    "Combine interview: 'I move like one of these.' Three weeks later it was on the jersey",
+  ],
+  FREAK: [
+    "6'5\", 240lb wide receiver with a 4.38 forty — the combine earned the name",
+    "Posted a 42\" vertical and a 6.59 cone — the analytics dept coined it",
+    "His combine workout went viral — 'They don't make humans like this'",
+    "Pro day was canceled because he 'broke the testing equipment' (he didn't, but the rumor stuck)",
+    "Strength coach said 'I've never seen these numbers' — the team announced the name in the press release",
+  ],
+  ICONIC: [
+    "The single-word name became a brand by the end of his rookie year",
+    "His rookie highlight reel was so dominant the league office stopped showing it",
+    "Madden cover. Sponsorships before the draft. Just 'The Name' — that's how it works",
+    "First player in league history to land a signature shoe deal before his second NFL game",
+    "Three different broadcasters used the nickname unprompted in the same game — by Tuesday it was everywhere",
+  ],
+};
+
+// Map a nickname string back to its pool key — used for backfilling
+// nickname origin stories on legacy saves where the nickname was
+// assigned before the origin field existed.
+function _nicknamePoolKey(nick) {
+  if (!nick) return null;
+  const pools = {
+    HEAVY: NICK_HEAVY, FAST: NICK_FAST, SURGEON: NICK_SURGEON,
+    TRICKSTER: NICK_TRICKSTER, CLOSER: NICK_CLOSER,
+    HANDS_NEW: NICK_HANDS_NEW, LOCK: NICK_LOCK,
+    HAWK: NICK_HAWK, HUNTER_NEW: NICK_HUNTER_NEW,
+    MISTER: NICK_MISTER, WEATHER: NICK_WEATHER,
+    ANIMAL: NICK_ANIMAL, FREAK: NICK_FREAK, ICONIC: NICK_ICONIC,
+  };
+  for (const [key, pool] of Object.entries(pools)) {
+    if (pool.includes(nick)) return key;
+  }
+  return null;
+}
+
+// Deterministic origin pick — seeded by player name hash so the same
+// player always gets the same story across reloads.
+function _pickNicknameOrigin(player) {
+  if (!player?.nickname) return null;
+  const poolKey = _nicknamePoolKey(player.nickname);
+  if (!poolKey || !NICKNAME_ORIGINS[poolKey]) return null;
+  const origins = NICKNAME_ORIGINS[poolKey];
+  let h = 0;
+  const seed = `${player.name || ""}|${player.nickname}`;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
+  return origins[Math.abs(h) % origins.length];
+}
+
 // Pull a nickname from a pool, filtering out any in `taken`. Returns null
 // only if the pool is fully exhausted (callers fall through to other pools).
 function pickFromPool(pool, taken) {
@@ -485,6 +621,7 @@ function assignLeagueNicknames(rosters) {
       if (!nick) continue;
       p.nickname = nick;
       taken.add(nick);
+      p.nicknameOrigin = _pickNicknameOrigin(p);
       // ~3% GOES-BY-NICKNAME-ONLY (Megatron / Pelé / Madonna tier),
       // pulled from a restricted iconic pool so the single name carries
       // the right weight. Flag only — never overwrite p.name (would
@@ -496,6 +633,7 @@ function assignLeagueNicknames(rosters) {
           taken.add(iconic);
           takenIconic.add(iconic);
           p.goesByNicknameOnly = true;
+          p.nicknameOrigin = _pickNicknameOrigin(p);
         }
       }
     }
