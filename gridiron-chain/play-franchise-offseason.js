@@ -5365,7 +5365,13 @@ function _renderHoldoutCenterRow(d) {
     ? `<div class="frn-resign-portrait">${_playerPortrait(live, 56)}</div>`
     : "";
   const nameDisplay = live ? playerLink(live) : d.name;
-  return `<div class="frn-resign-row tier-${tier}">
+  // Hover-preview hits — the demand-screen cap projection bars react
+  // to show this deal's per-year impact when the row is hovered.
+  const hoverHits = _resignPendingHitsByYear({
+    offer, offerYears, overall: ovr, structure: struct, decision: null,
+  }, 4);
+  const hoverAttr = `data-resign-hits='${JSON.stringify(hoverHits)}' data-resign-cap='${cap}' onmouseenter="_resignHoverIn(this)" onmouseleave="_resignHoverOut()"`;
+  return `<div class="frn-resign-row tier-${tier}" ${hoverAttr}>
     <div class="frn-resign-row-inner">
       ${portraitHtml}
       <div class="frn-resign-info">
@@ -5632,6 +5638,71 @@ function _resignCompPick(r) {
 // Multi-year cap projection — sums existing kept contracts + accepted
 // re-signings out to N years from now. Used by the team-wide cap
 // timeline at the top of the page.
+// Hover-preview: when the user mouses over a pending re-sign row, the
+// 4-year cap projection bars animate to show how much THIS deal would
+// add per year. Reads data-resign-hits (JSON) + data-resign-cap from
+// the row, then writes preview widths into .fill-preview overlays on
+// every .frn-resign-cap-year element (works for both the offseason
+// re-sign screen and the mid-season holdout center).
+function _resignHoverIn(rowEl) {
+  if (!rowEl) return;
+  let hits;
+  try { hits = JSON.parse(rowEl.getAttribute("data-resign-hits") || "[]"); }
+  catch { return; }
+  if (!Array.isArray(hits) || !hits.length) return;
+  const cap = parseFloat(rowEl.getAttribute("data-resign-cap") || "1") || 1;
+  const years = document.querySelectorAll(".frn-resign-cap-year");
+  years.forEach(yEl => {
+    const idx = parseInt(yEl.getAttribute("data-cap-year") || "-1", 10);
+    if (idx < 0 || idx >= hits.length) return;
+    const hit = hits[idx] || 0;
+    const used = parseFloat(yEl.getAttribute("data-cap-used") || "0") || 0;
+    const fill = yEl.querySelector(".fill");
+    const preview = yEl.querySelector(".fill-preview");
+    const numPreview = yEl.querySelector(".num-preview");
+    if (preview && fill) {
+      const fillPct = Math.min(100, (used / cap) * 100);
+      const previewPct = Math.max(0, Math.min(100 - fillPct, (hit / cap) * 100));
+      preview.style.width = previewPct + "%";
+      preview.style.left = fillPct + "%";
+      // Highlight overflow if total would exceed cap
+      const totalPct = fillPct + previewPct;
+      preview.classList.toggle("over-cap", (used + hit) > cap);
+    }
+    if (numPreview) {
+      numPreview.textContent = hit > 0 ? ` +$${hit.toFixed(1)}M` : "";
+      numPreview.style.display = hit > 0 ? "inline" : "none";
+    }
+  });
+}
+function _resignHoverOut() {
+  document.querySelectorAll(".frn-resign-cap-year .fill-preview").forEach(el => {
+    el.style.width = "0%";
+    el.classList.remove("over-cap");
+  });
+  document.querySelectorAll(".frn-resign-cap-year .num-preview").forEach(el => {
+    el.textContent = "";
+    el.style.display = "none";
+  });
+}
+
+// Per-year cap hit a pending re-sign offer would add, if accepted.
+// Used by the hover-preview that highlights bar movement when the user
+// mouses over a player row.
+function _resignPendingHitsByYear(r, years = 4) {
+  const aav = r.decision === "tag" ? (r.tagAAV || r.offer) : r.offer;
+  const yrs = r.decision === "tag" ? 1 : r.offerYears;
+  if (!aav || !yrs) return new Array(years).fill(0);
+  const { bonusProration } = _signingBonusCalc(aav, yrs, r.overall || 70);
+  const struct = r.structure || "BALANCED";
+  const bases = _baseSalarySchedule(aav, yrs, struct, bonusProration);
+  const out = new Array(years).fill(0);
+  for (let i = 0; i < years && i < bases.length; i++) {
+    out[i] = +((bases[i] || 0) + bonusProration).toFixed(1);
+  }
+  return out;
+}
+
 function _resignCapProjection(years = 4) {
   const myId = franchise.chosenTeamId;
   const myRoster = franchise.rosters[myId] || [];
@@ -5840,8 +5911,12 @@ function _renderResignUI(cap, capCommitted) {
     if (flightRisk) metaBits.push(`<span style="color:#ff8a8a">⚠ flight risk</span>`);
     const metaHtml = `<div class="frn-resign-meta">${metaBits.join(" · ")}</div>`;
 
+    // Hover-preview hits — what THIS deal adds to each cap year, so the
+    // cap-projection bars can react when the user hovers the row.
+    const hoverHits = _resignPendingHitsByYear(r, 4);
+    const hoverAttr = `data-resign-hits='${JSON.stringify(hoverHits)}' data-resign-cap='${cap}' onmouseenter="_resignHoverIn(this)" onmouseleave="_resignHoverOut()"`;
     return `
-      <div class="frn-resign-row tier-${_resignTier(r)}">
+      <div class="frn-resign-row tier-${_resignTier(r)}" ${hoverAttr}>
         ${recChip}
         <div class="frn-resign-row-inner">
           ${portraitHtml}
@@ -5921,10 +5996,13 @@ function _renderResignUI(cap, capCommitted) {
     ${proj.map((v, i) => {
       const pct = Math.min(100, (v / Math.max(1, cap)) * 100);
       const color = v > cap ? "var(--red)" : v > cap * 0.90 ? "#e8a000" : "var(--green-lt)";
-      return `<div class="frn-resign-cap-year">
+      return `<div class="frn-resign-cap-year" data-cap-year="${i}" data-cap-used="${v}">
         <div class="lbl">Y${i+1}</div>
-        <div class="bar"><div class="fill" style="width:${pct}%;background:${color}"></div></div>
-        <div class="num" style="color:${color}">$${v.toFixed(0)}M</div>
+        <div class="bar">
+          <div class="fill" style="width:${pct}%;background:${color}"></div>
+          <div class="fill-preview" style="left:${pct}%"></div>
+        </div>
+        <div class="num" style="color:${color}">$${v.toFixed(0)}M<span class="num-preview"></span></div>
       </div>`;
     }).join("")}
   </div>`;
@@ -6015,10 +6093,13 @@ function frnOpenResignRecap() {
   const projHtml = proj.map((v, i) => {
     const pct = Math.min(100, (v / Math.max(1, cap)) * 100);
     const color = v > cap ? "var(--red)" : v > cap * 0.90 ? "#e8a000" : "var(--green-lt)";
-    return `<div class="frn-resign-cap-year">
+    return `<div class="frn-resign-cap-year" data-cap-year="${i}" data-cap-used="${v}">
       <div class="lbl">Y${i+1}</div>
-      <div class="bar"><div class="fill" style="width:${pct}%;background:${color}"></div></div>
-      <div class="num" style="color:${color}">$${v.toFixed(0)}M</div>
+      <div class="bar">
+        <div class="fill" style="width:${pct}%;background:${color}"></div>
+        <div class="fill-preview" style="left:${pct}%"></div>
+      </div>
+      <div class="num" style="color:${color}">$${v.toFixed(0)}M<span class="num-preview"></span></div>
     </div>`;
   }).join("");
 
@@ -7004,10 +7085,13 @@ function frnOpenHoldoutRecap() {
   const projHtml = proj.map((v, i) => {
     const pct = Math.min(100, (v / Math.max(1, cap)) * 100);
     const color = v > cap ? "var(--red)" : v > cap * 0.90 ? "#e8a000" : "var(--green-lt)";
-    return `<div class="frn-resign-cap-year">
+    return `<div class="frn-resign-cap-year" data-cap-year="${i}" data-cap-used="${v}">
       <div class="lbl">Y${i+1}</div>
-      <div class="bar"><div class="fill" style="width:${pct}%;background:${color}"></div></div>
-      <div class="num" style="color:${color}">$${v.toFixed(0)}M</div>
+      <div class="bar">
+        <div class="fill" style="width:${pct}%;background:${color}"></div>
+        <div class="fill-preview" style="left:${pct}%"></div>
+      </div>
+      <div class="num" style="color:${color}">$${v.toFixed(0)}M<span class="num-preview"></span></div>
     </div>`;
   }).join("");
 
@@ -8940,10 +9024,13 @@ function _renderHoldoutsBlock() {
     ${proj.map((v, i) => {
       const pct = Math.min(100, (v / Math.max(1, cap)) * 100);
       const color = v > cap ? "var(--red)" : v > cap * 0.90 ? "#e8a000" : "var(--green-lt)";
-      return `<div class="frn-resign-cap-year">
+      return `<div class="frn-resign-cap-year" data-cap-year="${i}" data-cap-used="${v}">
         <div class="lbl">Y${i+1}</div>
-        <div class="bar"><div class="fill" style="width:${pct}%;background:${color}"></div></div>
-        <div class="num" style="color:${color}">$${v.toFixed(0)}M</div>
+        <div class="bar">
+          <div class="fill" style="width:${pct}%;background:${color}"></div>
+          <div class="fill-preview" style="left:${pct}%"></div>
+        </div>
+        <div class="num" style="color:${color}">$${v.toFixed(0)}M<span class="num-preview"></span></div>
       </div>`;
     }).join("")}
   </div>`;
