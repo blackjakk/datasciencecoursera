@@ -13237,6 +13237,119 @@ function _classThemeChips(themes) {
 const _CLASS_DRAFTED_SIZE = 224;   // 7 rounds × 32 picks
 const _CLASS_UDFA_SIZE    = 56;    // ~24% UDFA-tier prospects below the drafted slice
 
+// ── Multi-year college pipeline ──────────────────────────────────────────────
+// Prospects exist as freshmen → sophomore → junior → senior, ageing one year
+// each franchise season. The "draft class" each year = graduating SRs + any
+// JRs who declare early. Scouting works on the whole pipeline so users can
+// "follow" a prospect over multiple seasons before they're draft-eligible.
+const _COLLEGE_YEARS = ["FR", "SO", "JR", "SR"];
+const _COLLEGE_AGE_BY_YEAR = { FR: 18, SO: 19, JR: 20, SR: 21 };
+// Seasons until each class is draft-eligible (FR = 4 seasons away)
+const _COLLEGE_SEASONS_TO_DRAFT = { FR: 4, SO: 3, JR: 2, SR: 1 };
+const _COLLEGE_CLASS_SIZE = 60;  // ~60 players per year × 4 = ~240 total
+
+// Position distribution for college pipeline. Weights → relative frequency
+// of each position in a new freshman class. Tuned to NCAA-ish ratios so
+// the draft-eligible pool fills realistically (lots of WR/OL/DL, few K/P).
+const _COLLEGE_POS_WEIGHTS = {
+  QB: 1, RB: 3, WR: 6, TE: 2, OL: 7, DL: 6, LB: 4, CB: 5, S: 3, K: 0.2, P: 0.2,
+};
+function _pickCollegePosition() {
+  const positions = Object.keys(_COLLEGE_POS_WEIGHTS);
+  const total = positions.reduce((s, p) => s + _COLLEGE_POS_WEIGHTS[p], 0);
+  let r = Math.random() * total;
+  for (const pos of positions) {
+    r -= _COLLEGE_POS_WEIGHTS[pos];
+    if (r <= 0) return pos;
+  }
+  return positions[positions.length - 1];
+}
+
+// Tier distribution per college year — older classes have more developed
+// players (more elite/good, fewer poor). Freshmen are mostly raw potential.
+function _rollCollegeTier(year) {
+  const r = Math.random();
+  if (year === "FR") {
+    if (r < 0.03) return "good";
+    if (r < 0.22) return "average";
+    return "poor";
+  }
+  if (year === "SO") {
+    if (r < 0.10) return "good";
+    if (r < 0.40) return "average";
+    return "poor";
+  }
+  if (year === "JR") {
+    if (r < 0.18) return "elite";
+    if (r < 0.45) return "good";
+    if (r < 0.75) return "average";
+    return "poor";
+  }
+  // SR
+  if (r < 0.25) return "elite";
+  if (r < 0.55) return "good";
+  if (r < 0.80) return "average";
+  return "poor";
+}
+
+// Project a draft round (1-7) based on current OVR. Used for collegeProfile
+// knock-type selection (later rounds = different knock pools) and as the
+// declaration-probability input for JRs.
+function _projectedDraftRound(p) {
+  const ovr = p.overall || 60;
+  if (ovr >= 82) return 1;
+  if (ovr >= 76) return 2;
+  if (ovr >= 71) return 3;
+  if (ovr >= 67) return 4;
+  if (ovr >= 63) return 5;
+  if (ovr >= 58) return 6;
+  return 7;
+}
+
+function _generateCollegePlayer(collegeYear, blockNames) {
+  const pos = _pickCollegePosition();
+  const tier = _rollCollegeTier(collegeYear);
+  const p = blockNames ? genUniquePlayer(pos, tier, blockNames) : genPlayer(pos, tier);
+  if (blockNames) blockNames.add(p.name);
+
+  p.collegeYear = collegeYear;
+  p.age = _COLLEGE_AGE_BY_YEAR[collegeYear];
+  p.isProspect = true;
+  p._collegeJoinedSeason = (franchise?.season || 1);
+  p.draftSeason = (franchise?.season || 1) + _COLLEGE_SEASONS_TO_DRAFT[collegeYear];
+  p.draftYear = (new Date().getFullYear()) + p.draftSeason;
+  p.potential = _rollPotential(p);
+  const projRound = _projectedDraftRound(p);
+  p.collegeProfile = _buildCollegeProfile(p, projRound);
+  // No NFL career history yet
+  p.careerHistory = []; p.careerStats = {}; p.career = []; p.careerTotals = {};
+  p.proBowls = 0; p.allPros = 0; p.sbRings = 0;
+  p.mvps = 0; p.opoys = 0; p.dpoys = 0; p.roys = 0; p.records = [];
+  return p;
+}
+
+function _seedCollegePipeline() {
+  if (franchise.collegePlayers) return;
+  const allTaken = new Set();
+  for (const r of Object.values(franchise.rosters || {})) {
+    r.forEach(p => allTaken.add(p.name));
+  }
+  const players = [];
+  for (const year of _COLLEGE_YEARS) {
+    for (let i = 0; i < _COLLEGE_CLASS_SIZE; i++) {
+      players.push(_generateCollegePlayer(year, allTaken));
+    }
+  }
+  franchise.collegePlayers = players;
+}
+
+// Backfill — runs on load for legacy saves (which have no pipeline yet).
+function _backfillCollegePipeline() {
+  if (!franchise) return;
+  if (franchise.collegePlayers) return;
+  _seedCollegePipeline();
+}
+
 function _buildDraftClass(rookieYear, themesArg, positionsArg) {
   const allTaken = new Set();
   for (const r of Object.values(franchise.rosters)) r.forEach(p => allTaken.add(p.name));

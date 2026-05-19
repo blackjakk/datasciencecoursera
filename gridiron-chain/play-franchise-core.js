@@ -3003,7 +3003,7 @@ function loadFranchise() {
     if (raw) {
       franchise = JSON.parse(raw);
       if (franchise && franchise.pendingFranchiseGame) franchise.pendingFranchiseGame = null;
-      _backfillPlayerPids(); _backfillTEC(); _backfillCoachingStaff(); _backfillCoachable(); _backfillPhysicalPeak(); _backfillStamina(); _backfillDepthChart();
+      _backfillPlayerPids(); _backfillTEC(); _backfillCoachingStaff(); _backfillCoachable(); _backfillPhysicalPeak(); _backfillStamina(); _backfillDepthChart(); if(typeof _backfillCollegePipeline==="function")_backfillCollegePipeline();
       // Race the IDB read — if IDB has a newer save (lastSaved timestamp via
       // _saveLastFlush on franchise), use it. Otherwise keep the sync result.
       _idbGet(slotId).then(idbFranchise => {
@@ -3013,7 +3013,7 @@ function loadFranchise() {
         if (idbTime > lsTime) {
           franchise = idbFranchise;
           if (franchise.pendingFranchiseGame) franchise.pendingFranchiseGame = null;
-          _backfillPlayerPids(); _backfillTEC(); _backfillCoachingStaff(); _backfillCoachable(); _backfillPhysicalPeak(); _backfillStamina(); _backfillDepthChart();
+          _backfillPlayerPids(); _backfillTEC(); _backfillCoachingStaff(); _backfillCoachable(); _backfillPhysicalPeak(); _backfillStamina(); _backfillDepthChart(); if(typeof _backfillCollegePipeline==="function")_backfillCollegePipeline();
           if (typeof showFranchiseDashboard === "function") showFranchiseDashboard();
         }
       }).catch(() => {});
@@ -3024,7 +3024,7 @@ function loadFranchise() {
         if (!idbFranchise) return;
         franchise = idbFranchise;
         if (franchise.pendingFranchiseGame) franchise.pendingFranchiseGame = null;
-        _backfillPlayerPids(); _backfillTEC(); _backfillCoachingStaff(); _backfillCoachable(); _backfillPhysicalPeak(); _backfillStamina(); _backfillDepthChart();
+        _backfillPlayerPids(); _backfillTEC(); _backfillCoachingStaff(); _backfillCoachable(); _backfillPhysicalPeak(); _backfillStamina(); _backfillDepthChart(); if(typeof _backfillCollegePipeline==="function")_backfillCollegePipeline();
         if (typeof showFranchiseDashboard === "function") showFranchiseDashboard();
       }).catch(() => {});
     }
@@ -3534,6 +3534,7 @@ function startFranchise(teamId) {
   _initFranchisePicks();
   _initCoachingStaff();
   _seedPracticeSquads();
+  if (typeof _seedCollegePipeline === "function") _seedCollegePipeline();
   saveFranchise();
   showFranchiseDashboard();
 }
