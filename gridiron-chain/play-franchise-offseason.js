@@ -13902,16 +13902,23 @@ function frnDraftScout(name) {
 
 // Sim all remaining CPU picks in the current round, including the user's
 // current pick. Pauses at the start of the next round (or end of draft).
+// User's pick within the round respects their target list — consistent
+// with Auto-Pick / Auto-Draft Rest.
 function frnSimRound() {
   const d = franchise.draft;
   if (!d) return;
   const myId = franchise.chosenTeamId;
   const curRound = d.pickOrder[d.currentIdx]?.round;
   if (!curRound) return;
+  const targetSet = new Set(d.targets || []);
   while (d.currentIdx < d.pickOrder.length) {
     const slot = d.pickOrder[d.currentIdx];
     if (slot.round !== curRound) break;
-    _aiAutoPick(slot);
+    if (slot.teamId === myId) {
+      _aiAutoPick(slot, { targetSet });
+    } else {
+      _aiAutoPick(slot);
+    }
     d.currentIdx++;
   }
   _flushSaveFranchise();
@@ -14080,7 +14087,12 @@ function _aiAutoPick(slot, opts) {
   }).sort((a,b) => b.score - a.score);
   const pick = scored[0].p;
   pick.draftRound = slot.round;
-  pick.draftPick  = ((franchise.draft.currentIdx) % 32) + 1;
+  // Use slot.pickInRound (the real position within the round, accounting
+  // for comp picks past the standard 32) — falling back to currentIdx
+  // mod 32 for safety. Without this, comp picks at R3.33-36 were stamped
+  // as draftPick 1-4 (early R3) and getting inflated rookie AAV via the
+  // rookieContract decay curve. Affects all comp picks every offseason.
+  pick.draftPick = slot.pickInRound || ((franchise.draft.currentIdx % 32) + 1);
   _rollHiddenGem(pick);
   pick.contract = rookieContract(pick, franchise.salaryCap || SALARY_CAP_BASE);
   pick.careerEarnings = 0;
@@ -14091,8 +14103,11 @@ function _aiAutoPick(slot, opts) {
     teamId: slot.teamId, prospectName: pick.name, pos: pick.position,
     pickInRound: slot.pickInRound, isComp: !!slot.isComp,
   });
-  // Alert user if one of their targets was just stolen.
-  if (franchise.draft.targets?.includes(pick.name)) {
+  // Alert user only if an AI team took one of their targets. User auto-
+  // picking their own target shouldn't fire a "TARGET GONE" alert —
+  // they got their guy, that's a win not a loss.
+  const isAiPick = slot.teamId !== franchise.chosenTeamId;
+  if (isAiPick && franchise.draft.targets?.includes(pick.name)) {
     franchise.draft._targetGone = franchise.draft._targetGone || [];
     franchise.draft._targetGone.push({ name: pick.name, teamId: slot.teamId, round: slot.round, pick: pick.draftPick });
   }
@@ -14105,8 +14120,10 @@ function frnDraftPick(name) {
   const prospect = d.class.find(p => p.name === name);
   if (!prospect) return;
   // Draft info first — rookieContract() reads draftRound + draftPick.
+  // Use slot.pickInRound so comp picks (past the standard 32 in their
+  // round) get correct late-round AAV via rookieContract decay.
   prospect.draftRound = slot.round;
-  prospect.draftPick  = ((d.currentIdx) % 32) + 1;
+  prospect.draftPick  = slot.pickInRound || ((d.currentIdx % 32) + 1);
   _rollHiddenGem(prospect);
   prospect.contract = rookieContract(prospect, franchise.salaryCap || SALARY_CAP_BASE);
   prospect.careerEarnings = 0;
