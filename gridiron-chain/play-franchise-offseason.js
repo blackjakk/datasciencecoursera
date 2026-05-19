@@ -13518,6 +13518,38 @@ function _refreshSeasonScoutCredits() {
   );
 }
 
+// "Smart scout" — pick the most useful next category for a prospect
+// and spend a credit on it. Priority:
+//   1. The category that resolves the prospect's KNOCK (if not yet
+//      scouted) — answers the biggest open question about them.
+//   2. FILM (50% potential reveal) — most generally useful.
+//   3. The next available category in declaration order.
+// Returns the category that got scouted, or null if no credit / all
+// 4 already done.
+function frnSmartScout(name) {
+  if ((franchise.seasonScoutBank || 0) <= 0) return null;
+  const prospect = (franchise.collegePlayers || []).find(p => p.name === name);
+  if (!prospect) return null;
+  const reveals = franchise.seasonScoutReveals || {};
+  const done = new Set((reveals[name]?.categories) || []);
+  const available = DRAFT_SCOUT_CATEGORIES.filter(c => !done.has(c));
+  if (!available.length) return null;
+  // Priority 1: knock-resolving category
+  const knockType = prospect.collegeProfile?.knockType;
+  const knockCat  = knockType ? _DRAFT_KNOCK_CATEGORY[knockType] : null;
+  if (knockCat && available.includes(knockCat)) {
+    if (frnSeasonScoutCategory(name, knockCat)) return knockCat;
+  }
+  // Priority 2: film (potential reveal)
+  if (available.includes("film")) {
+    if (frnSeasonScoutCategory(name, "film")) return "film";
+  }
+  // Priority 3: declaration order
+  const next = available[0];
+  if (frnSeasonScoutCategory(name, next)) return next;
+  return null;
+}
+
 // Spend one credit to scout a college prospect in a category. Mirrors
 // frnDraftScoutCategory but works across the regular season instead of
 // the draft itself. Targets any player in franchise.collegePlayers
@@ -13895,6 +13927,15 @@ function renderFrnScoutingBoard() {
 
     const pinned = pinSet.has(p.name);
     const pinBtn = `<button class="frn-scout-pin${pinned?" active":""}" onclick="frnTogglePinProspect('${_esc(p.name)}')" title="${pinned?"Unpin from watch list":"Add to watch list — pinned prospects auto-target at the draft"}">${pinned?"★":"☆"}</button>`;
+
+    // Smart scout — picks the most useful next category (knock-resolving
+    // first, then film, then next available). Disabled if no credits or
+    // all 4 already scouted.
+    const allDone = scoutedCats.length >= DRAFT_SCOUT_CATEGORIES.length;
+    const smartDisabled = bank === 0 || allDone;
+    const smartBtn = `<button class="frn-scout-smart${smartDisabled?" disabled":""}"
+        ${smartDisabled ? "disabled" : `onclick="frnSmartScout('${_esc(p.name)}')"`}
+        title="${allDone ? "All 4 categories already scouted" : (bank === 0 ? "No credits this week" : "Smart scout — spend 1 credit on the most useful unscouted category")}">⚡</button>`;
     return `<div class="frn-scout-row${pinned?" pinned":""}">
       <div class="frn-scout-row-pin-col">${pinBtn}</div>
       <div class="frn-scout-row-main">
@@ -13910,7 +13951,10 @@ function renderFrnScoutingBoard() {
         </div>
         ${notes ? `<div class="frn-scout-notes">${notes}</div>` : ""}
       </div>
-      <div class="frn-scout-cats">${catBtns}</div>
+      <div class="frn-scout-actions">
+        ${smartBtn}
+        <div class="frn-scout-cats">${catBtns}</div>
+      </div>
     </div>`;
   };
 
