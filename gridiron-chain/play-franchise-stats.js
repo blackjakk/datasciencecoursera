@@ -3323,8 +3323,9 @@ function renderFrnDepthChart() {
     // "this assignment makes sense scheme-wise" without hiding the data.
     const archLabel = _archetypeLabel(p);
     const archFits  = archLabel && _slotFitsArchetype(p, slotKey);
+    const _esc = s => String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
     const archBadge = archLabel
-      ? `<span class="frn-dc-badge arch${archFits?" fit":""}" title="${archFits?"Archetype fits "+slotKey:"Archetype is "+archLabel}">${archFits?"✓ ":""}${archLabel}</span>`
+      ? `<span class="frn-dc-badge arch${archFits?" fit":""}" title="${_esc(archFits?"Archetype fits "+slotKey:"Archetype is "+archLabel)}">${archFits?"✓ ":""}${_esc(archLabel)}</span>`
       : "";
 
     // Cascade badge: if this player is also a starter in another slot, show it.
@@ -3510,8 +3511,9 @@ function renderFrnDepthChart() {
         const escPid  = (starter.pid||"").replace(/'/g,"\\'");
         const archLabel = _archetypeLabel(starter);
         const archFits  = archLabel && _slotFitsArchetype(starter, slotKey);
+        const _escArch = s => String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
         const archHtml = archLabel
-          ? `<div class="frn-dc-pkg-cell-arch${archFits?" fit":""}" title="${archFits?"Scheme fit ✓":"Archetype"}">${archFits?"✓ ":""}${archLabel}</div>`
+          ? `<div class="frn-dc-pkg-cell-arch${archFits?" fit":""}" title="${archFits?"Scheme fit ✓":"Archetype"}">${archFits?"✓ ":""}${_escArch(archLabel)}</div>`
           : "";
         return `<div class="frn-dc-pkg-cell${isPkgOnly?" pkg-only":""}${archFits?" arch-fit":""}">
           <div class="frn-dc-pkg-cell-slot">${slotKey}${pkgIcon}</div>

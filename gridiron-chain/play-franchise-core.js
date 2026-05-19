@@ -2386,6 +2386,12 @@ const _SLOT_FIT_WEIGHTS = {
 // SPEED DL at edge slots, MAULER OL at interior guard slots).
 // The game's archetype system already exists — this just wires it
 // into the depth chart's auto-fit logic.
+//
+// IMPORTANT: every slot referenced by PERSONNEL_PACKAGES MUST have an
+// entry here (even an empty array). The PACKAGES tab computes "scheme
+// fit %" by dividing archetype matches by filled slots; a missing
+// entry silently lowers the package's fit % since `fit.includes(...)`
+// returns false. If you add a new slot to a package, add it here.
 const SLOT_ARCHETYPE_FIT = {
   // QB — no strong preference; all archetypes can start
   // RB
@@ -2479,31 +2485,28 @@ function _computeAutoDepthChart(teamId) {
     ...DEPTH_CHART_SLOTS.specialTeams,
   ];
 
-  // Two-pass starter assignment (unified):
-  //   Pass 1 — every non-RET slot. Picks the unused player with the
-  //            highest `_slotFitScore` (OVR + slot-stat spec + archetype
-  //            match bonus). This makes archetype fit a soft constraint
-  //            for ALL slots, not just OL/DL.
-  //   Pass 2 — RET slots (KR1/PR1). Drawn from speed-skill positions
-  //            (WR/RB/CB/S), with their own usedAsReturner set so a
-  //            returner can ALSO be a starter elsewhere (most NFL
-  //            returners are WR3/4 or backup RB/CB doubling up).
+  // Three-pass starter assignment:
+  //   Pass 1 — SPECIALTY slots only (≤ 2 archetype fits, narrow role).
+  //            For each, ONLY consider players whose archetype matches.
+  //            Without this, a high-OVR SLOT_CB would be greedily grabbed
+  //            by the CB1 slot (processed first) instead of NB where
+  //            they belong. Specialty slots include NB (only SLOT_CB),
+  //            WR3 (SLOT/ROUTE), C (TECHNICIAN/ANCHOR), interior DL,
+  //            etc. — slots whose role is narrow enough that a generic
+  //            archetype shouldn't fill them when a specialist exists.
+  //   Pass 2 — Remaining non-RET slots in declaration order.
+  //            Picks by `_slotFitScore` (OVR + stat spec + archetype bonus).
+  //   Pass 3 — RET slots (KR1/PR1). Drawn from speed-skill positions
+  //            with their own usedAsReturner set so returners can ALSO
+  //            be starters elsewhere.
+  const SPECIALTY_FIT_MAX = 2;
   const retSlots = allSlots.filter(sd => sd.pos === "RET");
   const positionSlots = allSlots.filter(sd => sd.pos !== "RET");
 
-  for (const slotDef of positionSlots) {
-    const pool = (byPos[slotDef.pos] || []).filter(p => !used.has(p.pid));
-    if (!pool.length) {
-      dc[slotDef.key] = {
-        starter: null, backup: null,
-        flex:      slotDef.flex,
-        snapFloor: slotDef.snapFloor ?? 35,
-        snapCeil:  slotDef.snapCeil  ?? 98,
-      };
-      continue;
-    }
-    pool.sort((a, b) => _slotFitScore(b, slotDef.key) - _slotFitScore(a, slotDef.key));
-    const starter = pool[0];
+  const _assignStarter = (slotDef, candidates) => {
+    if (!candidates.length) return false;
+    candidates.sort((a, b) => _slotFitScore(b, slotDef.key) - _slotFitScore(a, slotDef.key));
+    const starter = candidates[0];
     used.add(starter.pid);
     dc[slotDef.key] = {
       starter:   starter.pid,
@@ -2512,6 +2515,31 @@ function _computeAutoDepthChart(teamId) {
       snapFloor: slotDef.snapFloor ?? 35,
       snapCeil:  slotDef.snapCeil  ?? 98,
     };
+    return true;
+  };
+
+  // Pass 1 — specialty slots, archetype-matched candidates only
+  for (const slotDef of positionSlots) {
+    const fit = SLOT_ARCHETYPE_FIT[slotDef.key];
+    if (!fit || fit.length > SPECIALTY_FIT_MAX) continue;
+    const candidates = (byPos[slotDef.pos] || []).filter(p =>
+      !used.has(p.pid) && fit.includes(p.archetype)
+    );
+    _assignStarter(slotDef, candidates);
+  }
+
+  // Pass 2 — every remaining slot, full pool
+  for (const slotDef of positionSlots) {
+    if (dc[slotDef.key]) continue;
+    const pool = (byPos[slotDef.pos] || []).filter(p => !used.has(p.pid));
+    if (!_assignStarter(slotDef, pool)) {
+      dc[slotDef.key] = {
+        starter: null, backup: null,
+        flex:      slotDef.flex,
+        snapFloor: slotDef.snapFloor ?? 35,
+        snapCeil:  slotDef.snapCeil  ?? 98,
+      };
+    }
   }
 
   // Returner pass — KR1/PR1. Eligible positions per slot. Sort by
@@ -2687,11 +2715,11 @@ function _backfillDepthChart() {
         starter = pool[0] || null;
       } else {
         const pool = roster.filter(p => p.position === sd.pos && !used.has(p.pid));
-        if (_SLOT_FIT_WEIGHTS[sd.key]) {
-          pool.sort((a, b) => _slotFitScore(b, sd.key) - _slotFitScore(a, sd.key));
-        } else {
-          pool.sort((a, b) => (b.overall||60) - (a.overall||60));
-        }
+        // _slotFitScore handles the no-weights case (returns ovr + archBonus),
+        // so we can use it uniformly here. A SLOT_CB filling a freshly-added
+        // NB slot via backfill now gets the same archetype bonus that a fresh
+        // auto-set would give it.
+        pool.sort((a, b) => _slotFitScore(b, sd.key) - _slotFitScore(a, sd.key));
         starter = pool[0] || null;
         if (starter) used.add(starter.pid);
       }
