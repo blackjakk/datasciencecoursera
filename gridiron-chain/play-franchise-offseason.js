@@ -13278,7 +13278,14 @@ const _COLLEGE_YEARS = ["FR", "SO", "JR", "SR"];
 const _COLLEGE_AGE_BY_YEAR = { FR: 18, SO: 19, JR: 20, SR: 21 };
 // Seasons until each class is draft-eligible (FR = 4 seasons away)
 const _COLLEGE_SEASONS_TO_DRAFT = { FR: 4, SO: 3, JR: 2, SR: 1 };
-const _COLLEGE_CLASS_SIZE = 60;  // ~60 players per year × 4 = ~240 total
+const _COLLEGE_CLASS_SIZE = 120; // ~120 players per year × 4 = ~480 total
+// Sized so the draft has named scoutable prospects through R5/R6 — pipeline
+// produces ~120 SRs + ~48 declared JRs each draft = ~168 named draftable,
+// covering R1-R5 (160 picks) entirely with named prospects and feeding R6-R7
+// with the remainder. Save bloat: ~500 KB, comparable to one extra team
+// roster snapshot. Real NFL scouting coverage extends ~250-300 prospects
+// deep, so 168 is a realistic mid-point that avoids fully anonymous
+// late rounds without ballooning the save.
 
 // Position distribution for college pipeline. Weights → relative frequency
 // of each position in a new freshman class. Tuned to NCAA-ish ratios so
