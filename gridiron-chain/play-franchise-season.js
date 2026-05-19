@@ -4203,6 +4203,7 @@ function _faResolveAfterWeek(week, isSeasonEnd) {
         // signedAav prevents assignContracts' legacy-save retrofit pass
         // from clobbering this AAV back down to computed market value.
         signedAav: highAav,
+        startSeason: (franchise.season || 1) + 1, // FA signings start next season
       };
       n.state = "signed";
       n.signedToTeamId = highId;
@@ -4390,6 +4391,7 @@ function _faTryKnockout(negKey) {
     guaranteedAAV: high.aav,
     incentives: _generateIncentives(n.fa, high.aav),
     signedAav: high.aav,
+    startSeason: (franchise.season || 1) + 1,
   };
   n.state = "signed";
   n.signedToTeamId = high.teamId;

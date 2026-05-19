@@ -5029,6 +5029,14 @@ function _checkHoldoutDemands() {
     if ((p.age || 0) > 30) continue;
     if (p.injury?.weeksRemaining > 0) continue;
     if (franchise.holdoutDemands.some(d => d.name === p.name)) continue;
+    // Cooldown: a player must have completed AT LEAST ONE FULL SEASON
+    // under the current contract before they can demand an extension.
+    // Without this, franchise tags (1yr) + 1-year re-signings produced
+    // immediate "I just signed him, why is he demanding?" complaints.
+    // startSeason is stamped at every contract creation; legacy contracts
+    // without it default to "always eligible" (treat as long-standing deal).
+    const startSeason = p.contract.startSeason;
+    if (startSeason != null && franchise.season <= startSeason) continue;
     if (Math.random() >= 0.04) continue;
     const market = computeMarketValue(p, cap);
     const tagFloor = _franchiseTagAAV({ position: p.position, name: p.name }, cap);
@@ -5131,6 +5139,7 @@ function frnHoldoutMidExtend(name) {
     baseSalaries, signingBonus, bonusProration, tradeKicker,
     guaranteedYears: _guaranteedYearsForLength(years),
     guaranteedAAV: aav, incentives: [], signedAav: aav,
+    startSeason: franchise.season || 1, // contract is active starting this season
   };
   _pushNews({ type: "extension",
     label: `🤝 Extended ${player.position} ${name} mid-season — ${years}yr / $${aav.toFixed(1)}M/yr` });
@@ -6307,6 +6316,7 @@ function frnConfirmResignings() {
         signingBonus: _tagBonus.signingBonus, bonusProration: _tagBonus.bonusProration,
         guaranteedYears: 1, guaranteedAAV: r.tagAAV,
         signedAav: r.tagAAV,
+        startSeason: (franchise.season || 1) + 1, // contract starts NEXT season
       };
       franchise.franchiseTagHistory = franchise.franchiseTagHistory || {};
       franchise.franchiseTagHistory[r.name] = (franchise.franchiseTagHistory[r.name] || 0) + 1;
@@ -6325,6 +6335,7 @@ function frnConfirmResignings() {
         guaranteedAAV: r.offer,
         signedAav: r.offer,
         incentives: _generateIncentives(player, r.offer),
+        startSeason: (franchise.season || 1) + 1, // contract starts NEXT season
       };
     } else {
       // Declined: remove from roster (enters FA — currently just lost).
@@ -6984,6 +6995,7 @@ function frnHoldoutExtend(name) {
     baseSalaries, signingBonus, bonusProration, tradeKicker,
     guaranteedYears: _guaranteedYearsForLength(years),
     guaranteedAAV: aav, incentives: [], signedAav: aav,
+    startSeason: (franchise.season || 1) + 1, // offseason extension — starts next season
   };
   h.resolved = "extended";
   _holdoutPreview = null;
