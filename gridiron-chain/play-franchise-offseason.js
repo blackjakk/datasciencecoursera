@@ -10334,7 +10334,10 @@ function _aiTeamPlayerStance(teamId, p) {
   const roster = franchise.rosters[teamId] || [];
   const sameByOvr = roster.filter(rp => rp.position === p.position)
     .sort((a, b) => (b.overall || 0) - (a.overall || 0));
-  const rank = sameByOvr.indexOf(p) + 1;  // 1 = top-of-position
+  // Rank by NAME — indexOf compares by object identity which breaks
+  // across serialized saves or array re-hydration (e.g., the player
+  // passed in is a different object reference than what's on roster).
+  const rank = sameByOvr.findIndex(rp => rp.name === p.name) + 1;  // 1 = top-of-position
 
   // FRANCHISE FACE — top of position + young / mid-career + on contract
   // at a premium position. These guys are not for sale at any price.
@@ -10346,8 +10349,12 @@ function _aiTeamPlayerStance(teamId, p) {
     return "untouchable";
   }
   // RECENT HIGH PICK — last two drafts, first round, still developing.
-  if (p.draftRound === 1 && p.draftYear &&
-      (franchise.season + new Date().getFullYear() - 1 - p.draftYear) <= 2 &&
+  // Use draftSeason (sim-time) not draftYear (wall-clock year) to avoid
+  // drift across long save files. Falls back to draftYear-based heuristic
+  // only if draftSeason isn't stamped (legacy save).
+  const draftSeason = p.draftSeason ?? (p.draftYear ? (p.draftYear - (new Date().getFullYear() - franchise.season)) : null);
+  if (p.draftRound === 1 && draftSeason != null &&
+      (franchise.season - draftSeason) <= 2 &&
       age <= 25) {
     return "untouchable";
   }
@@ -10611,7 +10618,8 @@ function frnOpenTrade(targetTeamId, tab) {
 function frnSetTradeSort(by) {
   if (!franchise._tradeProp) return;
   franchise._tradeProp.sortBy = by;
-  saveFranchise();
+  // Sort is nav-only state; persist via the next semantic save. Skipping
+  // saveFranchise() here avoids storage churn on every chip click.
   renderFrnTrade();
 }
 
@@ -11205,7 +11213,7 @@ function frnSetTradePosFilter(pos) {
   const tp = franchise._tradeProp;
   if (!tp) return;
   tp.posFilter = pos; // "ALL" or position string
-  saveFranchise();
+  // Filter is nav-only state — persist via the next semantic save.
   renderFrnTrade();
 }
 
@@ -12319,13 +12327,18 @@ function _renderTradeOffersTab() {
       </div>`);
     }
 
+    // Precompute totals BEFORE the columns reference them — moving these
+    // declarations down hit a Temporal Dead Zone ReferenceError on giveCol
+    // when any pending offer rendered (totalKicker used at line 12325
+    // before its const declaration).
+    const totalDeadCap = theyWant.reduce((s, p) => s + (p.contract?.bonusProration||0) * (p.contract?.remaining||0), 0);
+    const totalKicker  = theyGive.reduce((s, p) => s + (p.contract?.tradeKicker||0), 0);
+
     const giveCol = `<div class="frn-offer-side">
       <div class="frn-offer-side-label" style="color:var(--green-lt)">THEY GIVE</div>
       ${giveItems.length ? giveItems.join("") : `<div style="color:var(--gray);font-style:italic;font-size:.65rem">No longer available</div>`}
       ${totalKicker >= 0.05 ? `<div style="color:#e8a000;font-size:.62rem;margin-top:.3rem;padding-top:.25rem;border-top:1px solid rgba(232,160,0,.2)">⚡ Kicker cap hit you absorb: <b>$${totalKicker.toFixed(1)}M</b></div>` : ""}
     </div>`;
-    const totalDeadCap = theyWant.reduce((s, p) => s + (p.contract?.bonusProration||0) * (p.contract?.remaining||0), 0);
-    const totalKicker  = theyGive.reduce((s, p) => s + (p.contract?.tradeKicker||0), 0);
     const wantCol = `<div class="frn-offer-side">
       <div class="frn-offer-side-label" style="color:var(--gold-lt)">THEY WANT</div>
       ${theyWant.length ? theyWant.map(p => {
