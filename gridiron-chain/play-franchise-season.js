@@ -78,6 +78,15 @@ function showFranchiseDashboard() {
     try { _repairCareerHistoryAndEarnings_v3(); } catch (e) { console.warn("[career repair v3]", e); }
     franchise._careerHistoryRepaired_v3 = true;
   }
+  // v4: restore prior-career rows for veterans whose calendar-year mock
+  // history was stripped by the over-aggressive original v3 migration.
+  // Detects players where careerStats reflects significantly more games
+  // played than the visible careerHistory rows account for, then
+  // synthesizes prior-team rows that sum to the missing stats.
+  if (!franchise._careerHistoryRestored_v4) {
+    try { _restorePriorCareerHistories_v4(); } catch (e) { console.warn("[career repair v4]", e); }
+    franchise._careerHistoryRestored_v4 = true;
+  }
   if (!franchise.seasonHighlights) franchise.seasonHighlights = [];
   if (!franchise.history)          franchise.history = [];
   if (!franchise.rosters)          franchise.rosters = {};
@@ -1563,9 +1572,11 @@ function _buildCareerCard(p) {
     const ovrTd = showOvr
       ? `<td style="color:${isCareerBest?"var(--gold)":"var(--blgray)"};font-weight:${isCareerBest?700:400}">${rowOvr || "—"}</td>`
       : "";
-    return `<tr>
+    const reconStyle = row._reconstructed ? "opacity:.65;font-style:italic" : "";
+    const teamTxt = row._reconstructed ? `${row.teamName || "Prior teams"} <span style="color:var(--gray);font-size:.55rem">~estimated</span>` : (row.teamName || "");
+    return `<tr style="${reconStyle}">
       <td style="color:var(--gray);font-size:.63rem">${row.age ?? "?"}</td>
-      <td style="font-size:.62rem;color:var(--gray)">${row.teamName}</td>
+      <td style="font-size:.62rem;color:var(--gray)">${teamTxt}</td>
       ${ovrTd}
       <td>${row.gp || 0}</td>
       ${cols.map(c => `<td>${row[c.key] || 0}</td>`).join("")}
@@ -2197,6 +2208,13 @@ function _repairLongStats() {
 // bugs (overwritten age/ovr, phantom calendar-year rows) and backfill
 // careerEarnings for players who served years but never had earnings
 // ticked. Runs once per save (gated by _careerHistoryRepaired_v3).
+// NOTE: the original v3 stripped ALL calendar-year rows on the theory
+// they were phantoms. That was overreach — FA-pool veterans
+// legitimately have calendar-year mock history from generateCareer.
+// v3 now only dedupes BY season-value (keep most-complete row per
+// unique season key) without discriminating calendar vs integer.
+// _restorePriorCareerHistories_v4 handles the recovery for saves
+// that were over-stripped by the original v3.
 function _repairCareerHistoryAndEarnings_v3() {
   if (!franchise?.rosters) return;
   const seasonNum = franchise.season || 1;
@@ -2206,16 +2224,14 @@ function _repairCareerHistoryAndEarnings_v3() {
       if (!p?.careerHistory) continue;
       const hist = p.careerHistory;
       if (!hist.length) continue;
-      // 1) Strip phantom mock rows: calendar-year `season` fields
-      //    (≥ 2000) that don't match franchise-season integers (≤ 100).
-      //    These come from the old generateCareer backfill running over
-      //    real history. Keep only integer-season rows.
-      const filtered = hist.filter(r => {
-        const s = r?.season;
-        if (s == null) return false;
-        return typeof s === "number" && s < 100;
-      });
-      // 2) Dedupe by season — keep the row with most GP per season.
+      // 1) Keep every row with a valid season identifier (either
+      //    integer franchise-season OR calendar-year mock-history).
+      //    Drop only rows with no season at all.
+      const filtered = hist.filter(r => r && r.season != null);
+      // 2) Dedupe by season — keep the row with most GP per unique
+      //    season key. Calendar-year rows and integer-season rows
+      //    can coexist (they represent different periods of the
+      //    player's career — pre-acquisition vs played-for-us).
       const bySeason = new Map();
       for (const row of filtered) {
         const cur = bySeason.get(row.season);
@@ -2260,6 +2276,65 @@ function _repairCareerHistoryAndEarnings_v3() {
     }
   }
   if (repaired > 0) console.log(`[career repair v3] cleaned ${repaired} player histories`);
+}
+
+// v4: restore prior-career rows on saves where the over-aggressive v3
+// stripped legitimate calendar-year mock-history rows from FA-pool vets.
+// Detect via: careerStats.gp >> sum of visible row GPs. Synthesizes
+// reconstructed rows that sum to the missing stats so the career card
+// reads as a coherent narrative instead of "2 seasons, 12,497 yds."
+function _restorePriorCareerHistories_v4() {
+  if (!franchise?.rosters) return;
+  const LONG_KEYS = new Set(["pass_long","rush_long","rec_long","fg_long","int_long","punt_long","kr_long","pr_long"]);
+  let restored = 0;
+  for (const roster of Object.values(franchise.rosters)) {
+    for (const p of roster) {
+      if (!p?.careerHistory || !p?.careerStats) continue;
+      const hist = p.careerHistory;
+      const stats = p.careerStats;
+      const visibleGP = hist.reduce((s, r) => s + (r.gp || 0), 0);
+      const totalGP = stats.gp || 0;
+      const missingGP = totalGP - visibleGP;
+      // Only repair when the gap is meaningful (≥ 10 games unaccounted for).
+      if (missingGP < 10) continue;
+      // Estimate missing seasons from GP gap (~14 reg-season games).
+      const wpsConst = (typeof FRANCHISE_WEEKS === "number" ? FRANCHISE_WEEKS : 14);
+      const missingCount = Math.max(1, Math.min(15, Math.round(missingGP / wpsConst)));
+      // Compute per-row distribution: each new row gets stats/missingCount.
+      const newRows = [];
+      const oldestVisibleSeason = hist.length ? Math.min(...hist.map(r => r.season || Infinity)) : (franchise.season || 1);
+      const playerCurrAge = p.age || 27;
+      for (let i = 0; i < missingCount; i++) {
+        const seasonsAgo = missingCount - i;
+        const row = {
+          season: oldestVisibleSeason - seasonsAgo,
+          age: Math.max(22, playerCurrAge - seasonsAgo - hist.length),
+          ovr: null,
+          teamId: null,
+          teamName: "Prior teams",
+          pos: p.position,
+          _reconstructed: true,
+        };
+        // Distribute summed stats evenly across reconstructed rows.
+        for (const k of Object.keys(stats)) {
+          if (typeof stats[k] !== "number") continue;
+          if (LONG_KEYS.has(k)) continue; // long stats are season maxes, not totals
+          const visibleSum = hist.reduce((s, r) => s + (r[k] || 0), 0);
+          const missing = (stats[k] || 0) - visibleSum;
+          if (missing > 0) row[k] = Math.round(missing / missingCount);
+        }
+        // Long fields: stamp the career max so single-game records survive
+        for (const k of LONG_KEYS) {
+          if (stats[k]) row[k] = stats[k];
+        }
+        newRows.push(row);
+      }
+      // Prepend reconstructed rows so they appear before the user-team rows
+      p.careerHistory = [...newRows, ...hist];
+      restored++;
+    }
+  }
+  if (restored > 0) console.log(`[career repair v4] reconstructed prior history for ${restored} player(s)`);
 }
 
 // One-time repair: signed FAs whose careerHistory was collapsed to a
