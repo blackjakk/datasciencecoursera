@@ -12680,8 +12680,10 @@ function frnGoToDraft() {
   // Merge any in-season scouting intel into the (now-initialized) draft
   // reveal storage so the existing draft UI surfaces what you learned
   // during the season. MUST run AFTER draftScoutReveals = {} or it gets
-  // wiped. Also stamps _scoutedInSeason on prospects so the board can
-  // visually distinguish "scouted-in-season" from "scouted-during-draft".
+  // wiped. (Also: _draftScoutCategories already merges both stores at
+  // read time as of S8, but this copy keeps the draft event's per-round
+  // budget logic — which writes to draftScoutReveals — coherent with
+  // what was already learned in season.)
   if (typeof _mergeSeasonScoutToDraft === "function") _mergeSeasonScoutToDraft();
   // Auto-target any pinned prospects who made this year's class.
   if (typeof _migratePinsToDraftTargets === "function") _migratePinsToDraftTargets();
@@ -13932,10 +13934,13 @@ function renderFrnScoutingBoard() {
   const _bandCache  = new Map();
   for (const p of players) {
     _gradeCache.set(p.name, (typeof scoutGrade === "function") ? scoutGrade(p) : (p.overall || 60));
-    _bandCache.set(p.name, (typeof _playerNoiseBand === "function") ? _playerNoiseBand(p) : 5);
+    // Fallback band 8 matches the FA-fog baseline if _playerNoiseBand
+    // isn't loaded — consistent with the new dynamic-band model where
+    // 8 is the "no info" baseline, not the legacy 5.
+    _bandCache.set(p.name, (typeof _playerNoiseBand === "function") ? _playerNoiseBand(p) : 8);
   }
   const _gradeFor = p => _gradeCache.get(p.name) ?? (p.overall || 60);
-  const _bandFor  = p => _bandCache.get(p.name) ?? 5;
+  const _bandFor  = p => _bandCache.get(p.name) ?? 8;
 
   // ── Precompute per-(collegeYear, position) rankings so every row can
   // show "WR #3 in JR class" without re-sorting on every render.
@@ -13984,9 +13989,10 @@ function renderFrnScoutingBoard() {
   const _scoutedCount = name => reveals[name]?.categories?.length || 0;
   if (st.sort === "ovr") list.sort((a, b) => _gradeFor(b) - _gradeFor(a));
   else if (st.sort === "proj") {
-    // Projected round from scouted grade, not raw OVR
-    const projFromGrade = g => g >= 82 ? 1 : g >= 76 ? 2 : g >= 71 ? 3 : g >= 67 ? 4 : g >= 63 ? 5 : g >= 58 ? 6 : 7;
-    list.sort((a, b) => projFromGrade(_gradeFor(a)) - projFromGrade(_gradeFor(b)) || _gradeFor(b) - _gradeFor(a));
+    // Projected round from scouted grade, not raw OVR. Uses the shared
+    // _projectedRoundFromGrade helper so a change to round thresholds
+    // hits all callers (row badge, sort, compare panel) consistently.
+    list.sort((a, b) => _projectedRoundFromGrade(_gradeFor(a)) - _projectedRoundFromGrade(_gradeFor(b)) || _gradeFor(b) - _gradeFor(a));
   }
   else if (st.sort === "year") list.sort((a, b) => {
     const ord = { FR: 0, SO: 1, JR: 2, SR: 3 };
@@ -14274,6 +14280,11 @@ function _buildDraftClassFromPipeline(rookieYear, themesArg, positionsArg) {
     const p = genUniquePlayer(pos, tier, allTaken);
     allTaken.add(p.name);
     p.age = 22;
+    // Stamp collegeYear so the noise band system gives them an SR-tier
+    // baseband (±8 at draft week) rather than the legacy ±5 fallback.
+    // Without this, late-round filler would appear SHARPER than the
+    // underclassmen in the pipeline — an obvious inversion.
+    p.collegeYear = "SR";
     p.draftYear = rookieYear;
     p.draftSeason = (franchise?.season || 1);
     p.isProspect = true;
@@ -14296,6 +14307,9 @@ function _buildDraftClassFromPipeline(rookieYear, themesArg, positionsArg) {
     const p = genUniquePlayer(pos, "poor", allTaken);
     allTaken.add(p.name);
     p.age = 22;
+    // Same fog as SR-tier draft-week — UDFA filler shouldn't read sharper
+    // than the underclassmen in the pipeline.
+    p.collegeYear = "SR";
     p.draftYear = rookieYear;
     p.draftSeason = (franchise?.season || 1);
     p.isProspect = true;

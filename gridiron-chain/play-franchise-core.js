@@ -845,13 +845,15 @@ function _scoutSourceLabel(p) {
 //   FR  ±20 — barely anyone outside your scouts knows them
 //   SO  ±16 — a year of film, role/body not set
 //   JR  ±12 (undeclared) / ±9 (declared, on every scout's board)
-//   SR  ±15 week 1 → ±8 by week 18 (combine + senior film + interviews)
-// Match real-life "the FA baseline is ±8" — an unscouted senior at the
-// draft converges to the same fog as an unknown free agent.
+//   SR  ±15 week 1 → ±8 by the final week (combine + senior film)
+// "Match real-life: the FA baseline is ±8" — an unscouted senior at
+// the draft converges to the same fog as an unknown free agent.
+// FRANCHISE_WEEKS is 14 in this game (compressed schedule), so the
+// SR ramp from ±15 → ±8 happens over 13 in-season weeks.
 function _collegeProspectBaseBand(p) {
   if (!p?.collegeYear) return 5;  // legacy prospect without class year
   const week = (typeof franchise !== "undefined" && franchise?.week) ? franchise.week : 1;
-  const totalWeeks = (typeof FRANCHISE_WEEKS === "number") ? FRANCHISE_WEEKS : 18;
+  const totalWeeks = (typeof FRANCHISE_WEEKS === "number") ? FRANCHISE_WEEKS : 14;
   const srProgress = Math.max(0, Math.min(1, (week - 1) / Math.max(1, totalWeeks - 1)));
   switch (p.collegeYear) {
     case "SR": return Math.round(15 - srProgress * 7);  // 15 → 8
