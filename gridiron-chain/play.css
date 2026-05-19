@@ -3230,9 +3230,26 @@
     background: rgba(76,175,130,.08);
     border-color: #4caf82; color: #4caf82;
   }
+  .frn-scout-cat.no-creds {
+    opacity: .45; cursor: not-allowed;
+    background: rgba(220,160,40,.06);
+    border-color: rgba(220,160,40,.25);
+  }
   .frn-scout-cat.disabled {
     opacity: .35; cursor: not-allowed;
   }
+  .frn-scout-cat-mark.wait {
+    color: #e8a000;
+  }
+  .frn-scout-empty-banner {
+    background: linear-gradient(to right, rgba(220,160,40,.12), rgba(220,160,40,.04));
+    border: 1px solid rgba(220,160,40,.4);
+    border-left: 3px solid #e8a000;
+    color: var(--text); font-size: .65rem;
+    padding: .55rem .8rem; border-radius: 3px;
+    margin-bottom: .55rem;
+  }
+  .frn-scout-empty-banner strong { color: #e8a000; }
   .frn-scout-cat-icon { font-size: .85rem; line-height: 1; }
   .frn-scout-cat-label {
     font-size: .48rem; font-weight: 700; letter-spacing: .5px;

@@ -13554,8 +13554,11 @@ function frnSeasonScoutCategory(name, cat) {
 
   franchise.seasonScoutBank--;
   saveFranchise();
-  // Rerender if the scouting board is open (batch 6 hook)
-  if (typeof renderFrnScoutingBoard === "function" && franchise._uiScreen === "scouting") {
+  // Rerender ONLY if the scouting board is the visible screen — checks the
+  // DOM directly so navigation never leaves a stale flag.
+  if (typeof renderFrnScoutingBoard === "function" &&
+      typeof document !== "undefined" &&
+      document.querySelector(".frn-scout-page")) {
     renderFrnScoutingBoard();
   }
   return true;
@@ -13621,7 +13624,9 @@ function frnTogglePinProspect(name) {
   if (idx >= 0) franchise.pinnedProspects.splice(idx, 1);
   else franchise.pinnedProspects.push(name);
   saveFranchise();
-  if (franchise._uiScreen === "scouting" && typeof renderFrnScoutingBoard === "function") {
+  if (typeof renderFrnScoutingBoard === "function" &&
+      typeof document !== "undefined" &&
+      document.querySelector(".frn-scout-page")) {
     renderFrnScoutingBoard();
   }
 }
@@ -13677,7 +13682,9 @@ function renderFrnScoutingBoard() {
   const players = franchise.collegePlayers || [];
   const reveals = franchise.seasonScoutReveals || {};
   const bank    = franchise.seasonScoutBank || 0;
-  franchise._uiScreen = "scouting"; // for in-action re-render hook
+  // (Removed the franchise._uiScreen = "scouting" flag — was never cleared
+  // on navigation. The in-action re-render hook now checks if .frn-scout-page
+  // is actually mounted in the DOM, which is leakage-proof.)
 
   // Filter
   _backfillPinnedProspects();
@@ -13750,21 +13757,26 @@ function renderFrnScoutingBoard() {
     const yearBadge = `<span class="frn-scout-year-badge ${declared ? "declared" : "y-"+yearTag.toLowerCase()}">${yearTag}${declared ? " · DECLARED" : ""}</span>`;
     const projBadge = `<span class="frn-scout-proj">Proj R${round}</span>`;
 
-    // Per-category buttons
+    // Per-category buttons. Three distinct states:
+    //   - scouted: green ✓ (already used this category on this prospect)
+    //   - available: clickable, hover-highlights to category color
+    //   - no-creds: faded with ⏳ overlay (DIFFERENT from scouted — user
+    //              just needs to wait for next week's credit refresh)
     const catBtns = DRAFT_SCOUT_CATEGORIES.map(cat => {
       const meta = DRAFT_SCOUT_CAT_META[cat];
       const has  = scoutedCats.includes(cat);
       const canSpend = !has && bank > 0;
-      const cls = has ? "scouted" : (canSpend ? "available" : "disabled");
+      const cls = has ? "scouted" : (canSpend ? "available" : "no-creds");
       const note = rev?.knockNotes?.[cat];
       const tip  = has
         ? `${meta.label} scouted${note ? " — " + note : ""}`
-        : (canSpend ? meta.desc : "No credits left this week (or already scouted)");
+        : (canSpend ? meta.desc : `${meta.label} — out of credits (refills next week)`);
       const onclick = canSpend ? `onclick="frnSeasonScoutCategory('${_esc(p.name)}','${cat}')"` : "disabled";
       return `<button class="frn-scout-cat ${cls}" ${onclick} title="${_esc(tip)}" style="--cat-color:${meta.color}">
         <span class="frn-scout-cat-icon">${meta.icon}</span>
         <span class="frn-scout-cat-label">${meta.label}</span>
         ${has ? `<span class="frn-scout-cat-mark">✓</span>` : ""}
+        ${(!has && !canSpend) ? `<span class="frn-scout-cat-mark wait">⏳</span>` : ""}
       </button>`;
     }).join("");
 
@@ -13779,7 +13791,7 @@ function renderFrnScoutingBoard() {
     const pinned = pinSet.has(p.name);
     const pinBtn = `<button class="frn-scout-pin${pinned?" active":""}" onclick="frnTogglePinProspect('${_esc(p.name)}')" title="${pinned?"Unpin from watch list":"Add to watch list — pinned prospects auto-target at the draft"}">${pinned?"★":"☆"}</button>`;
     return `<div class="frn-scout-row${pinned?" pinned":""}">
-      <button class="frn-scout-row-pin-col">${pinBtn}</button>
+      <div class="frn-scout-row-pin-col">${pinBtn}</div>
       <div class="frn-scout-row-main">
         <div class="frn-scout-row-name">
           <span class="frn-scout-row-pos">${_esc(p.position)}</span>
@@ -13830,6 +13842,9 @@ function renderFrnScoutingBoard() {
       <div class="frn-scout-hint">
         Click a category button to spend 1 credit and unlock that intel. Knock-resolution notes appear under matching categories. Reveals carry into the draft automatically.
       </div>
+      ${bank === 0 ? `<div class="frn-scout-empty-banner">
+        ⏳ <strong>0 credits left this week.</strong> Refills +${_SEASON_SCOUTS_PER_WEEK} next week (cap ${_SEASON_SCOUT_BANK_CAP}). Faded ⏳ category buttons mean "out of credits" — green ✓ means "already scouted."
+      </div>` : ""}
       <div class="frn-scout-list">
         ${rowsHtml}
       </div>
