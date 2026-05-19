@@ -12681,6 +12681,8 @@ function frnGoToDraft() {
   // wiped. Also stamps _scoutedInSeason on prospects so the board can
   // visually distinguish "scouted-in-season" from "scouted-during-draft".
   if (typeof _mergeSeasonScoutToDraft === "function") _mergeSeasonScoutToDraft();
+  // Auto-target any pinned prospects who made this year's class.
+  if (typeof _migratePinsToDraftTargets === "function") _migratePinsToDraftTargets();
   franchise.phase = "draft";
   franchise._faLossesPending = {};
   franchise._faSignsPending  = {};
@@ -13571,10 +13573,54 @@ function _mergeSeasonScoutToDraft() {
 // scout-category buttons, and visible reveals collected so far. Accessible
 // from Front Office → Scouting during the regular season.
 const _SCOUT_BOARD_STATE = {
-  yearFilter: "SR",       // "FR" | "SO" | "JR" | "SR" | "ALL"
-  posFilter:  "ALL",      // position or "ALL"
+  yearFilter: "SR",       // "FR" | "SO" | "JR" | "SR" | "ALL" | "PINNED"
+  posFilter:  "ALL",
   sort:       "ovr",      // "ovr" | "year" | "pos" | "scouted"
 };
+
+// ── Pinned prospects ────────────────────────────────────────────────────────
+// User-driven watch list. Pinning a college player marks them as "follow this
+// one." Pins persist across seasons (a JR you pinned shows up pinned when
+// they age to SR or declare early). At draft time, every pinned prospect that
+// made the draft class auto-becomes a draft target — the user doesn't have
+// to re-mark anyone they've been watching all year.
+function _initPinnedProspects() {
+  if (!Array.isArray(franchise.pinnedProspects)) franchise.pinnedProspects = [];
+}
+function _backfillPinnedProspects() {
+  if (!franchise) return;
+  if (!Array.isArray(franchise.pinnedProspects)) franchise.pinnedProspects = [];
+}
+function frnTogglePinProspect(name) {
+  _initPinnedProspects();
+  const idx = franchise.pinnedProspects.indexOf(name);
+  if (idx >= 0) franchise.pinnedProspects.splice(idx, 1);
+  else franchise.pinnedProspects.push(name);
+  saveFranchise();
+  if (franchise._uiScreen === "scouting" && typeof renderFrnScoutingBoard === "function") {
+    renderFrnScoutingBoard();
+  }
+}
+function _isProspectPinned(name) {
+  return Array.isArray(franchise.pinnedProspects) && franchise.pinnedProspects.includes(name);
+}
+
+// Called at frnGoToDraft after the draft class is built. Any pinned
+// prospect who's in this year's draft class becomes an auto-target.
+// Prospects no longer in the class (e.g., a JR you pinned who didn't
+// declare, an FR who hasn't graduated yet) STAY pinned — they're still
+// on your watch list for future years.
+function _migratePinsToDraftTargets() {
+  if (!franchise.draft?.class) return;
+  if (!Array.isArray(franchise.pinnedProspects)) return;
+  const classNames = new Set(franchise.draft.class.map(p => p.name));
+  franchise.draft.targets = franchise.draft.targets || [];
+  for (const name of franchise.pinnedProspects) {
+    if (classNames.has(name) && !franchise.draft.targets.includes(name)) {
+      franchise.draft.targets.push(name);
+    }
+  }
+}
 function frnScoutBoardSetYear(year) {
   _SCOUT_BOARD_STATE.yearFilter = year;
   renderFrnScoutingBoard();
@@ -13597,10 +13643,13 @@ function renderFrnScoutingBoard() {
   franchise._uiScreen = "scouting"; // for in-action re-render hook
 
   // Filter
+  _backfillPinnedProspects();
+  const pinSet = new Set(franchise.pinnedProspects || []);
   const st = _SCOUT_BOARD_STATE;
   let list = players.slice();
-  if (st.yearFilter !== "ALL") list = list.filter(p => p.collegeYear === st.yearFilter);
-  if (st.posFilter  !== "ALL") list = list.filter(p => p.position === st.posFilter);
+  if (st.yearFilter === "PINNED")        list = list.filter(p => pinSet.has(p.name));
+  else if (st.yearFilter !== "ALL")      list = list.filter(p => p.collegeYear === st.yearFilter);
+  if (st.posFilter  !== "ALL")           list = list.filter(p => p.position === st.posFilter);
   // Sort
   if (st.sort === "ovr") list.sort((a, b) => (b.overall || 0) - (a.overall || 0));
   else if (st.sort === "year") list.sort((a, b) => {
@@ -13621,13 +13670,18 @@ function renderFrnScoutingBoard() {
   for (const p of players) { if (yearCounts[p.collegeYear] !== undefined) yearCounts[p.collegeYear]++; }
 
   // Chips
-  const yearChips = ["SR","JR","SO","FR","ALL"].map(y => {
+  const yearChips = ["SR","JR","SO","FR","ALL","PINNED"].map(y => {
     const active = st.yearFilter === y;
-    const declaredJRs = y === "JR" ? players.filter(p => p.collegeYear === "JR" && p.declaredEarly).length : 0;
-    const lbl = y === "JR" && declaredJRs > 0
-      ? `${y} (${yearCounts[y]}, ${declaredJRs} declared)`
-      : `${y} (${yearCounts[y]})`;
-    return `<button class="frn-scout-chip${active?" active":""}" onclick="frnScoutBoardSetYear('${y}')">${lbl}</button>`;
+    let lbl;
+    if (y === "PINNED") {
+      lbl = `★ PINNED (${pinSet.size})`;
+    } else {
+      const declaredJRs = y === "JR" ? players.filter(p => p.collegeYear === "JR" && p.declaredEarly).length : 0;
+      lbl = y === "JR" && declaredJRs > 0
+        ? `${y} (${yearCounts[y]}, ${declaredJRs} declared)`
+        : `${y} (${yearCounts[y]})`;
+    }
+    return `<button class="frn-scout-chip${active?" active":""}${y==="PINNED"?" pinned":""}" onclick="frnScoutBoardSetYear('${y}')">${lbl}</button>`;
   }).join("");
 
   const positions = ["ALL","QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"];
@@ -13685,7 +13739,10 @@ function renderFrnScoutingBoard() {
     const knockType = p.collegeProfile?.knockType;
     const knock = knockType ? `<span class="frn-scout-knock">⚠ ${_esc(knockType.replace(/_/g," "))}</span>` : "";
 
-    return `<div class="frn-scout-row">
+    const pinned = pinSet.has(p.name);
+    const pinBtn = `<button class="frn-scout-pin${pinned?" active":""}" onclick="frnTogglePinProspect('${_esc(p.name)}')" title="${pinned?"Unpin from watch list":"Add to watch list — pinned prospects auto-target at the draft"}">${pinned?"★":"☆"}</button>`;
+    return `<div class="frn-scout-row${pinned?" pinned":""}">
+      <button class="frn-scout-row-pin-col">${pinBtn}</button>
       <div class="frn-scout-row-main">
         <div class="frn-scout-row-name">
           <span class="frn-scout-row-pos">${p.position}</span>
