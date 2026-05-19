@@ -68,6 +68,16 @@ function showFranchiseDashboard() {
     try { _repairSignedFaCareerHistories(); } catch (e) { console.warn("[fa career repair v2]", e); }
     franchise._careerHistoryFaRepaired_v2 = true;
   }
+  // One-time repair for career rows corrupted by the pre-fix
+  // _rollSeasonStatsToCareer merge (overwrote age/ovr with current values,
+  // collapsing multi-season cards to a single age) and the dashboard
+  // generateCareer backfill creating phantom calendar-year rows alongside
+  // real franchise-season rows. Also backfills careerEarnings for players
+  // who served years but never had it ticked.
+  if (!franchise._careerHistoryRepaired_v3) {
+    try { _repairCareerHistoryAndEarnings_v3(); } catch (e) { console.warn("[career repair v3]", e); }
+    franchise._careerHistoryRepaired_v3 = true;
+  }
   if (!franchise.seasonHighlights) franchise.seasonHighlights = [];
   if (!franchise.history)          franchise.history = [];
   if (!franchise.rosters)          franchise.rosters = {};
@@ -111,14 +121,24 @@ function showFranchiseDashboard() {
   if (!franchise.scoutedPS) franchise.scoutedPS = {};
   if (!franchise.psPoachAlerts) franchise.psPoachAlerts = [];
   if (franchise.autoSpendScouts == null) franchise.autoSpendScouts = true;
-  // Backfill career history for veterans loaded from older saves where
-  // generateCareer hadn't run with the careerHistory shape yet.
+  // Backfill mock career history for veterans loaded from very old saves
+  // where generateCareer hadn't run with the careerHistory shape yet. The
+  // guard skips:
+  //   - rookies (age ≤ 22)
+  //   - anyone who already has any careerHistory rows
+  //   - anyone who has accumulated careerStats from real play
+  //     (regenerating mocks would silently overwrite real history)
+  //   - anyone we've already backfilled (per-player one-shot flag)
   for (const [tid, roster] of Object.entries(franchise.rosters || {})) {
     for (const p of roster) {
+      if (p._careerGeneratedBackfill) continue;
       const age = p.age || 22;
-      if (age > 22 && (!p.careerHistory || !p.careerHistory.length)) {
+      const hasHist = p.careerHistory && p.careerHistory.length > 0;
+      const hasRealStats = p.careerStats && Object.keys(p.careerStats).length > 0;
+      if (age > 22 && !hasHist && !hasRealStats) {
         generateCareer(p);
       }
+      p._careerGeneratedBackfill = true;
     }
   }
   assignCareerTeams(franchise.rosters || {});
@@ -2161,6 +2181,75 @@ function _repairLongStats() {
   }
 }
 
+// One-time repair v3: clean up careerHistory corruption from earlier
+// bugs (overwritten age/ovr, phantom calendar-year rows) and backfill
+// careerEarnings for players who served years but never had earnings
+// ticked. Runs once per save (gated by _careerHistoryRepaired_v3).
+function _repairCareerHistoryAndEarnings_v3() {
+  if (!franchise?.rosters) return;
+  const seasonNum = franchise.season || 1;
+  let repaired = 0;
+  for (const [tidStr, roster] of Object.entries(franchise.rosters)) {
+    for (const p of roster) {
+      if (!p?.careerHistory) continue;
+      const hist = p.careerHistory;
+      if (!hist.length) continue;
+      // 1) Strip phantom mock rows: calendar-year `season` fields
+      //    (≥ 2000) that don't match franchise-season integers (≤ 100).
+      //    These come from the old generateCareer backfill running over
+      //    real history. Keep only integer-season rows.
+      const filtered = hist.filter(r => {
+        const s = r?.season;
+        if (s == null) return false;
+        return typeof s === "number" && s < 100;
+      });
+      // 2) Dedupe by season — keep the row with most GP per season.
+      const bySeason = new Map();
+      for (const row of filtered) {
+        const cur = bySeason.get(row.season);
+        if (!cur || (row.gp || 0) > (cur.gp || 0)) bySeason.set(row.season, row);
+      }
+      const deduped = [...bySeason.values()].sort((a, b) => (a.season || 0) - (b.season || 0));
+      // 3) Detect age corruption: every row showing the same age across
+      //    multiple seasons is the signature of the merge-overwrites bug.
+      //    Recompute ages from the player's current age, decremented by
+      //    seasons-since.
+      if (deduped.length > 1) {
+        const ages = deduped.map(r => r.age).filter(a => a != null);
+        const allSame = ages.length === deduped.length && ages.every(a => a === ages[0]);
+        if (allSame && p.age != null) {
+          for (const row of deduped) {
+            const seasonsAgo = (seasonNum - row.season);
+            // The most recent rolled row (matching franchise.season) gets
+            // the player's age at that season's end. Older rows step back.
+            const ageAtSeason = (p.age - 1) - Math.max(0, seasonsAgo); // -1 because age was bumped post-season
+            row.age = Math.max(18, ageAtSeason);
+          }
+          repaired++;
+        }
+      }
+      if (deduped.length !== hist.length) {
+        p.careerHistory = deduped;
+        if (deduped.length !== hist.length) repaired++;
+      } else {
+        p.careerHistory = deduped;
+      }
+      // 4) Backfill careerEarnings if zero/missing but the player has
+      //    careerHistory rows. Estimate as: number of real seasons ×
+      //    current contract AAV × 0.65 (conservative — pay scales over
+      //    a career; this is a one-shot estimate, not gospel).
+      const yearsServed = p.careerHistory.length;
+      if (yearsServed > 0 && (!p.careerEarnings || p.careerEarnings === 0)) {
+        const aav = p.contract?.aav || 0;
+        if (aav > 0) {
+          p.careerEarnings = Math.round(yearsServed * aav * 0.65 * 10) / 10;
+        }
+      }
+    }
+  }
+  if (repaired > 0) console.log(`[career repair v3] cleaned ${repaired} player histories`);
+}
+
 // One-time repair: signed FAs whose careerHistory was collapsed to a
 // single team (the user's) by the now-fixed assignCareerTeams clobber.
 // Detect via systemYears < careerHistory.length (player joined after
@@ -2368,14 +2457,36 @@ function _fantasyPPR(line, pos) {
 // who have logged any stats this season.
 function _fantasyPositionRank(playerName, pos) {
   const seasonStats = franchise?.seasonStats || {};
-  const bucket = [];
-  for (const [tid, players] of Object.entries(seasonStats)) {
+  // Position-specific qualifying thresholds — only count meaningful
+  // contributors so "of N" reflects starters/co-starters, not every
+  // backup who threw a kneel-down or every WR4 who caught one pass.
+  const qualifies = (line) => {
+    const gp = +line.gp || 0;
+    if (pos === "QB") return (line.pass_att || 0) >= 100 || gp >= 8;
+    if (pos === "RB") return (line.rush_att || 0) >= 80  || gp >= 8;
+    if (pos === "WR" || pos === "TE") return (line.rec_tgt || 0) >= 30 || gp >= 8;
+    if (pos === "K")  return (line.fg_att || 0) >= 10 || gp >= 8;
+    return gp >= 6;
+  };
+  // Dedup by name (a traded player appears in both team buckets) by
+  // aggregating their stats across all buckets before qualifying.
+  const agg = new Map();
+  for (const players of Object.values(seasonStats)) {
     for (const [name, line] of Object.entries(players || {})) {
-      if (line && line.pos === pos) {
-        bucket.push({ name, fpts: _fantasyPPR(line, pos) });
+      if (!line || line.pos !== pos) continue;
+      const cur = agg.get(name) || { name, pos, gp: 0 };
+      const MAX = new Set(["pass_long","rush_long","rec_long","fg_long"]);
+      for (const [k, v] of Object.entries(line)) {
+        if (typeof v !== "number") continue;
+        if (MAX.has(k)) cur[k] = Math.max(cur[k] || 0, v);
+        else            cur[k] = (cur[k] || 0) + v;
       }
+      agg.set(name, cur);
     }
   }
+  const bucket = [...agg.values()]
+    .filter(qualifies)
+    .map(line => ({ name: line.name, fpts: _fantasyPPR(line, pos) }));
   if (!bucket.length) return null;
   bucket.sort((a, b) => b.fpts - a.fpts);
   const idx = bucket.findIndex(b => b.name === playerName);
@@ -2559,8 +2670,11 @@ function _buildGameLogBlock(p) {
   for (const ts of Object.values(franchise.seasonStats || {})) {
     if (ts && ts[p.name]) { seasonGP = +(ts[p.name].gp || 0); break; }
   }
-  const missingNote = (seasonGP > 0 && games.length < seasonGP)
-    ? `<div style="font-size:.6rem;color:var(--gray);font-style:italic;margin-bottom:.3rem">Showing ${games.length} of ${seasonGP} games — earlier stats compressed for storage</div>`
+  const missing = Math.max(0, seasonGP - games.length);
+  const missingNote = missing > 0
+    ? (missing === 1
+        ? `<div style="font-size:.58rem;color:var(--gray);font-style:italic;margin-bottom:.3rem">1 game not shown (line-level stats unavailable — season totals reflect it).</div>`
+        : `<div style="font-size:.58rem;color:var(--gray);font-style:italic;margin-bottom:.3rem">${games.length} of ${seasonGP} games shown — older per-play data trimmed for storage.</div>`)
     : "";
   // If the player suited up for multiple teams this season (mid-season
   // trade), surface a "TM" column so the lineage is visible.

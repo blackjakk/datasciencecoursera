@@ -12456,6 +12456,8 @@ function renderFrnUDFAScramble() {
 function _rollSeasonStatsToCareer() {
   if (franchise._statsRolledForSeason === franchise.season) return;
   const ss = franchise.seasonStats || {};
+  const seasonNum = franchise.season;
+  const touchedPlayers = new Set();
   for (const [tIdStr, players] of Object.entries(ss)) {
     const teamId = Number(tIdStr);
     const team = getTeam(teamId);
@@ -12464,6 +12466,7 @@ function _rollSeasonStatsToCareer() {
     for (const [name, st] of Object.entries(players)) {
       const player = roster.find(p => p.name === name);
       if (!player) continue;
+      touchedPlayers.add(player);
       if (!player.careerStats)   player.careerStats   = {};
       if (!player.careerHistory) player.careerHistory = [];
       // Accumulate every numeric stat field. "Long" stats are maxima
@@ -12489,22 +12492,29 @@ function _rollSeasonStatsToCareer() {
           player._careerTouches = (player._careerTouches || 0) + touches;
         }
       }
-      // Snapshot this season as a row. If a placeholder row already
-      // exists for this season (e.g. _stampSeasonAccolades pre-empted
-      // us in an older code path or a re-render), merge the real stats
-      // into it instead of pushing a duplicate. Otherwise push fresh.
-      const existing = player.careerHistory.find(h => h.season === franchise.season);
+      // Snapshot this season as a row. If a row already exists for this
+      // season (placeholder from _stampSeasonAccolades, or re-entry into
+      // showFrnAwards via stale-refresh), merge real stats into it. Do
+      // NOT overwrite age/ovr — those are the player's values at this
+      // season's end and must be frozen once stamped (or the row gets
+      // rewritten with the current age every time the function re-runs).
+      const existing = player.careerHistory.find(h => h.season === seasonNum);
       if (existing) {
         existing.teamId = teamId;
         existing.teamName = teamName;
-        existing.overall = player.overall;
-        existing.ovr = player.overall;
-        existing.age = player.age;
+        // Only stamp age/ovr if they were missing or come from a
+        // placeholder (teamId:null). Real rolled rows keep their original
+        // snapshot from when the season was first finalized.
+        if (existing.age == null || existing.teamId == null) existing.age = player.age;
+        if (existing.ovr == null || existing.overall == null) {
+          existing.overall = player.overall;
+          existing.ovr = player.overall;
+        }
         for (const [k, v] of Object.entries(st)) {
           if (typeof v === "number" || k === "pos") existing[k] = v;
         }
       } else {
-        const yearRow = { season: franchise.season, teamId, teamName, overall: player.overall,
+        const yearRow = { season: seasonNum, teamId, teamName, overall: player.overall,
                           ovr: player.overall, age: player.age };
         for (const [k, v] of Object.entries(st)) {
           if (typeof v === "number" || k === "pos") yearRow[k] = v;
@@ -12514,10 +12524,62 @@ function _rollSeasonStatsToCareer() {
       }
     }
   }
-  franchise._statsRolledForSeason = franchise.season;
+  // Tick career earnings: every player on a contract this season earned
+  // their cap hit (base salary + bonus proration). Cumulative dollars
+  // are surfaced on the career card. Idempotent per-season via the same
+  // _statsRolledForSeason guard that protects the rest of this function.
+  for (const [tIdStr, roster] of Object.entries(franchise.rosters || {})) {
+    for (const p of roster) {
+      if (!p?.contract) continue;
+      const hit = typeof currentYearCapHit === "function" ? currentYearCapHit(p) : (p.contract.aav || 0);
+      if (hit > 0) {
+        p.careerEarnings = Math.round(((p.careerEarnings || 0) + hit) * 10) / 10;
+      }
+    }
+  }
+  // Defensive dedup: collapse any duplicate-season rows (one-shot saves
+  // from older paths that pushed multiple rows for a single season).
+  // Keep the most-complete row (largest GP), drop the rest.
+  for (const roster of Object.values(franchise.rosters || {})) {
+    for (const p of roster) {
+      if (!p?.careerHistory?.length) continue;
+      _dedupCareerHistory(p);
+    }
+  }
+  franchise._statsRolledForSeason = seasonNum;
   // Career milestone check — runs once per season after totals are
   // finalized. Emits wire entries for crossings.
   try { _checkCareerMilestones(); } catch (e) {}
+}
+
+// Collapse multiple careerHistory rows that share a season number to
+// the single most-complete row (largest GP). Defensive against legacy
+// double-push paths.
+function _dedupCareerHistory(player) {
+  const hist = player.careerHistory;
+  if (!hist || hist.length < 2) return;
+  const bySeason = new Map();
+  for (const row of hist) {
+    const key = row.season;
+    if (key == null) continue;
+    const cur = bySeason.get(key);
+    if (!cur || (row.gp || 0) > (cur.gp || 0)) bySeason.set(key, row);
+  }
+  const seen = new Set();
+  const cleaned = [];
+  for (const row of hist) {
+    const key = row.season;
+    if (key == null) { cleaned.push(row); continue; }
+    if (seen.has(key)) continue;
+    const winner = bySeason.get(key);
+    if (winner) {
+      cleaned.push(winner);
+      seen.add(key);
+    }
+  }
+  if (cleaned.length !== hist.length) {
+    player.careerHistory = cleaned;
+  }
 }
 
 // ── Abandon franchise ─────────────────────────────────────────────────────────
