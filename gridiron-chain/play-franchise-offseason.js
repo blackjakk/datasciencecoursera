@@ -10625,6 +10625,17 @@ function frnSetTradeSort(by) {
   renderFrnTrade();
 }
 
+// Pure tab navigation — switch the active tab WITHOUT touching the
+// in-progress proposal. The audit caught that the tab bar was wiring
+// to frnOpenTrade(null, tab), which routed through the partner-switch
+// branch and nuked youSend/youReceive/picks. Now tab clicks call
+// this dedicated function which only touches `tab`.
+function frnSetTradeTab(tab) {
+  if (!franchise._tradeProp) return frnOpenTrade(null, tab);
+  franchise._tradeProp.tab = tab;
+  renderFrnTrade();
+}
+
 // ── Trade Block (mark for trade) ─────────────────────────────────────────────
 function frnToggleBlock(name) {
   const myRoster = franchise.rosters[franchise.chosenTeamId];
@@ -11239,21 +11250,29 @@ function frnToggleTradeNeedsOnly() {
 }
 
 // "→ Propose" from SHOP MARKET — opens the Propose Trade tab with the
-// shopped player pre-added to youReceive and the partner locked. If the
-// user was already proposing a deal with a different partner, the
-// previous draft is cleared (avoids weird hybrid states).
+// shopped player pre-added to youReceive and the partner locked.
+//
+// If the user was already proposing with a different partner and has
+// non-trivial work in progress, ask before destroying it. Matches the
+// confirm() pattern in frnAddReceiveFromBrowse.
+//
+// Same partner → just replace youReceive (and clear stale result).
 function frnShopProposeForPlayer(teamId, name) {
   const tp = franchise._tradeProp;
   if (!tp) return;
-  if (tp.targetTeamId !== teamId) {
-    // Switching partners — clear prior draft
+  const switchingPartner = tp.targetTeamId != null && tp.targetTeamId !== teamId;
+  const hasWork = (tp.youSend?.length || tp.picksSend?.length || tp.picksReceive?.length || tp.youReceive?.length);
+  if (switchingPartner && hasWork) {
+    if (!confirm("You have an in-progress proposal with another team. Switching partners will clear it. Continue?")) return;
     tp.youSend = [];
     tp.picksSend = [];
     tp.picksReceive = [];
     tp.theirAbsorb = 0;
     tp.yourAbsorb = 0;
-    tp.result = null;
   }
+  // Always clear the stale eval result — even on same-partner switches
+  // the verdict no longer reflects the new package.
+  tp.result = null;
   tp.targetTeamId = teamId;
   tp.youReceive = [name];
   tp.tab = "propose";
@@ -11515,7 +11534,7 @@ function renderFrnTrade() {
     { id:"block",   label:`🏷️ YOUR BLOCK${blockedCount?` · ${blockedCount}`:""}` },
     { id:"offers",  label:`📬 OFFERS${pendingOffers.length?` · ${pendingOffers.length}`:""}` },
   ].map(t => `<button class="frn-ana-tab ${t.id===tab?"active":""}"
-    onclick="frnOpenTrade(null,'${t.id}')">${t.label}</button>`).join("");
+    onclick="frnSetTradeTab('${t.id}')">${t.label}</button>`).join("");
 
   // Sort controls — MARKET tab gets an extra "Trade Value" sort.
   const sortChoices = (tab === "market")
@@ -12290,22 +12309,26 @@ function _formatPickEquivalence(value) {
   return "Premium haul";
 }
 
-// What would this team realistically ask for player p? Combines:
+// What would this team realistically ask for player p?
+// Takes optional precomputed stance + mode + value to avoid recomputing
+// in the SHOP MARKET render loop (200+ rows × 3 heavy lookups each).
+//
+// Combines:
 //   1. Intrinsic trade value (_playerTradeValue)
-//   2. Stance ratio from _aiAcceptanceRatio (shopping = 0.85, normal = 0.97)
+//   2. Stance ratio (shopping = 0.85, normal = 0.97, untouchable = reject)
 //   3. Mode tilt — rebuild teams over-value picks (discount in pick
 //      terms), win-now teams want established vets (premium in picks).
 // Returns the pick-equivalent string, or "⛔ Won't trade" if untouchable.
-function _estimateAskingPrice(teamId, p) {
-  const v = _playerTradeValue(p);
-  const ratio = _aiAcceptanceRatio(teamId, [p]);
-  if (typeof ratio === "object" && ratio.reject) return "⛔ Won't trade";
-  let ask = v * (typeof ratio === "number" ? ratio : 0.97);
-  // Mode-aware tilt — applied to the DISPLAYED pick estimate only. The
-  // actual acceptance evaluation uses _modeAcceptanceModifier with full
-  // deal context, but for the market browse we approximate the user's
-  // intuition: "rebuild team will take picks cheaper, win-now wants vets."
-  const mode = (typeof _aiTeamMode === "function") ? _aiTeamMode(teamId) : "balanced";
+function _estimateAskingPrice(teamId, p, opts) {
+  const stance = opts?.stance ?? _aiTeamPlayerStance(teamId, p);
+  if (stance === "untouchable") return "⛔ Won't trade";
+  const v = opts?.value ?? _playerTradeValue(p);
+  // Stance-only ratio (no untouchables since we returned above): 0.85
+  // for shopping, 0.97 default. This shortcuts _aiAcceptanceRatio which
+  // would re-derive stance.
+  const ratio = stance === "shopping" ? 0.85 : 0.97;
+  let ask = v * ratio;
+  const mode = opts?.mode ?? ((typeof _aiTeamMode === "function") ? _aiTeamMode(teamId) : "balanced");
   if      (mode === "rebuild") ask *= 0.92;  // 8% cheaper in picks
   else if (mode === "win_now") ask *= 1.08;  // 8% pricier in picks
   return _formatPickEquivalence(ask);
@@ -12329,7 +12352,20 @@ function _renderTradeShopMarketTab(myId, sortBy, tp, cap) {
   const needsProfile = (typeof _teamNeedsProfile === "function") ? _teamNeedsProfile(myId) : null;
   const myNeedPositions = needsProfile ? (needsProfile.needs || []).map(n => (n && n.label) ? n.label : n) : [];
 
-  // Build the candidate pool
+  // Cache team modes once per render — _aiTeamMode walks standings, cap,
+  // and the sorted top-22 roster, so calling it per row would be wasteful.
+  const teamModeCache = new Map();
+  const modeFor = (tid) => {
+    if (!teamModeCache.has(tid)) {
+      teamModeCache.set(tid, (typeof _aiTeamMode === "function") ? _aiTeamMode(tid) : "balanced");
+    }
+    return teamModeCache.get(tid);
+  };
+
+  // Build the candidate pool. Each candidate is FULLY annotated up
+  // front (stance, value, grade, mode, askPrice) so the sort comparator
+  // and render loop become field lookups instead of triggering 200×3
+  // heavy recomputes.
   const candidates = [];
   for (const t of TEAMS) {
     if (t.id === myId) continue;
@@ -12339,17 +12375,22 @@ function _renderTradeShopMarketTab(myId, sortBy, tp, cap) {
       const stance = _aiTeamPlayerStance(t.id, p);
       if (willingnessFilter === "shopping"  && stance !== "shopping") continue;
       if (willingnessFilter === "available" && stance === "untouchable") continue;
-      candidates.push({ p, teamId: t.id, team: t, stance });
+      const mode = modeFor(t.id);
+      const grade = (typeof scoutGrade === "function") ? scoutGrade(p) : (p.overall || 60);
+      const value = _playerTradeValue(p);
+      const askPrice = _estimateAskingPrice(t.id, p, { stance, value, mode });
+      candidates.push({ p, teamId: t.id, team: t, stance, mode, grade, value, askPrice });
     }
   }
 
-  // Sort
+  // Sort — all comparators read precomputed fields, O(n log n) comparisons
+  // with O(1) work per comparison.
   candidates.sort((a, b) => {
-    if (sort === "grade") return scoutGrade(b.p) - scoutGrade(a.p);
-    if (sort === "value") return _playerTradeValue(b.p) - _playerTradeValue(a.p);
+    if (sort === "grade") return b.grade - a.grade;
+    if (sort === "value") return b.value - a.value;
     if (sort === "age")   return (a.p.age||0) - (b.p.age||0);
     if (sort === "aav")   return (b.p.contract?.aav||0) - (a.p.contract?.aav||0);
-    if (sort === "pos")   return (a.p.position||"").localeCompare(b.p.position||"") || scoutGrade(b.p) - scoutGrade(a.p);
+    if (sort === "pos")   return (a.p.position||"").localeCompare(b.p.position||"") || (b.grade - a.grade);
     return 0;
   });
 
@@ -12371,10 +12412,10 @@ function _renderTradeShopMarketTab(myId, sortBy, tp, cap) {
   const needsDisabled = myNeedPositions.length === 0;
   const needsTitle = needsDisabled
     ? "No clear positional needs detected for your team"
-    : `Show only positions your team needs: ${myNeedPositions.join(", ")}`;
+    : `Show only your two weakest unit groups: ${myNeedPositions.join(", ")} (TE/K/P not graded in needs profile)`;
   const needsChip = `<button class="frn-pos-tab ${needsOnly?"active":""}"
     onclick="frnToggleTradeNeedsOnly()" title="${needsTitle}" ${needsDisabled?"disabled":""}>
-    🎯 Fits my needs${myNeedPositions.length?` (${myNeedPositions.length})`:""}
+    🎯 Top ${myNeedPositions.length||2} needs${myNeedPositions.length?` (${myNeedPositions.join("·")})`:""}
   </button>`;
 
   // Truncate to 200 rows for render perf; user can refine filters to
@@ -12390,20 +12431,8 @@ function _renderTradeShopMarketTab(myId, sortBy, tp, cap) {
     return `<span class="frn-trade-stance av" title="${teamName} would consider a fair offer">○ AVAILABLE</span>`;
   };
 
-  // Precompute team modes once — _aiTeamMode reads standings + cap +
-  // age cohort for the team, so we cache to avoid recomputing per row.
-  const teamModeCache = new Map();
-  const modeFor = (tid) => {
-    if (!teamModeCache.has(tid)) {
-      teamModeCache.set(tid, (typeof _aiTeamMode === "function") ? _aiTeamMode(tid) : "balanced");
-    }
-    return teamModeCache.get(tid);
-  };
-
-  const rows = shownList.map(({p, teamId, team, stance}) => {
+  const rows = shownList.map(({p, teamId, team, stance, mode, askPrice}) => {
     const escName = (p.name||"").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-    const askPrice = _estimateAskingPrice(teamId, p);
-    const mode = modeFor(teamId);
     const modeMeta = (typeof _AI_MODE_META === "object" && _AI_MODE_META[mode]) || { icon: "⚖", label: "BAL", col: "var(--gray)" };
     const modeBadge = `<span class="frn-trade-mode" style="color:${modeMeta.col}" title="${modeMeta.label} team — ${mode==='rebuild'?'discounts for picks':mode==='win_now'?'wants established vets':'mixed appetite'}">${modeMeta.icon}</span>`;
     const kicker = p.contract?.tradeKicker || 0;
