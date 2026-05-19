@@ -290,29 +290,39 @@ function pickLastName() {
 // era. Pools are NFL-flavored archetypes: animals, vehicles, weather,
 // action-movie villains, "Mr. X" — not biblical mythology. Routing
 // uses the player's dominant stat to pick a thematically-fitting pool.
+// All entries are unique across pools (dedup pass) and the "The X"
+// vs "X" pairs are deliberately separated so no two players read as
+// "the same guy with/without an article."
 
 // POWER ARM / TRUCK / WALL — earth-shaking, immovable
-const NICK_HEAVY     = ["The Cannon","The Howitzer","The Hammer","The Sledge","The Anvil","The Tank","The Bulldozer","The Wrecking Ball","Big Country","The Mountain","The Rhino","The Bull","Earthquake","The Slab"];
+const NICK_HEAVY     = ["The Cannon","The Howitzer","The Hammer","The Sledge","The Anvil","The Tank","The Bulldozer","The Wrecking Ball","Big Country","The Mountain","The Rhino","The Bull","Earthquake","The Slab","The Battering Ram","The Fortress","The Crusher","Bonecrusher","The Mauler"];
 // SPEED — animals + projectiles + weather
-const NICK_FAST      = ["The Cheetah","The Burner","Lightning","The Bullet","The Comet","Quicksilver","The Streak","Flash","The Roadrunner","Mach","Greased Lightning","The Phantom"];
+const NICK_FAST      = ["The Cheetah","The Burner","Lightning","The Bullet","The Comet","Quicksilver","The Streak","Flash","The Roadrunner","Mach","Greased Lightning","The Phantom","Afterburner","The Jet","Turbo","Warp Speed","The Blur"];
 // CEREBRAL / SURGICAL — QBs, route artists, ball-hawks
-const NICK_SURGEON   = ["The Surgeon","The Sniper","The Architect","The Maestro","The Conductor","The Professor","The Tactician","Captain Cool","Iceman","The Brain","The Chess Piece","The Mechanic"];
+const NICK_SURGEON   = ["The Surgeon","The Sniper","The Architect","The Maestro","The Conductor","The Professor","The Tactician","Captain Cool","Iceman","The Brain","The Chess Piece","The Mechanic","The Watchmaker","The Cartographer","The Strategist","The Quartermaster","The Bishop","The Calculator"];
 // SHOWMAN / TRICKSTER — mobile QBs, elusive RBs/WRs
-const NICK_TRICKSTER = ["Houdini","The Magician","The Showman","The Wizard","The Joker","The Snake","The Eel","Spider","Twinkletoes","Skitters","The Ghost","Sleight"];
+const NICK_TRICKSTER = ["Houdini","The Magician","The Showman","The Wizard","The Joker","The Snake","The Eel","Spider","Twinkletoes","Skitters","The Ghost","Sleight","The Illusionist","Slippery","Spinmaster","The Escape Artist","Greasy","The Riddler"];
 // CLOSER / ASSASSIN — clutch + finishers
-const NICK_CLOSER    = ["The Closer","The Finisher","The Sandman","Lights Out","The Reaper","The Predator","Nightmare","The Specter","Mr. November","The Hitman","The Punisher","The Executioner"];
-// HANDS / LOCKDOWN — receivers + tight coverage
-const NICK_HANDS_NEW = ["Sticky","Sticky Fingers","Velcro","The Vacuum","The Magnet","Captain Catch","The Mitt","The Glove","Touchdown","The Magnet"];
+const NICK_CLOSER    = ["The Closer","The Finisher","The Sandman","Lights Out","The Reaper","The Predator","Nightmare","The Specter","The Hitman","The Punisher","The Executioner","The Assassin","The Wraith","Game Over","The Undertaker","Doomsday","The Silencer"];
+// HANDS / SURE-CATCH — receivers and pickup machines
+const NICK_HANDS_NEW = ["Sticky","Sticky Fingers","Velcro","The Vacuum","The Magnet","Captain Catch","The Mitt","The Glove","Touchdown","Gravity","Vise Grip","Suction Cup","The Adhesive","Mr. Mitts","The Net"];
 // LOCK / VAULT / SHADOW — shutdown cover guys
-const NICK_LOCK      = ["The Lock","The Vault","The Cage","The Cell","Padlock","The Shadow","The Eraser","The Bouncer","The Wall","The Curtain"];
+const NICK_LOCK      = ["The Lock","The Vault","The Cage","The Cell","Padlock","The Shadow","The Eraser","The Bouncer","The Wall","The Curtain","The Iron Curtain","No Fly Zone","Blackout","Quarantine","The Dungeon","The Trapdoor"];
 // THIEF / HAWK — INT-getters, ball production
-const NICK_HAWK      = ["The Hawk","Hawkeye","The Thief","The Pickpocket","The Bandit","The Robber","Honey Badger","The Heat"];
+const NICK_HAWK      = ["The Hawk","Hawkeye","The Thief","The Pickpocket","The Bandit","The Robber","Honey Badger","The Heat","Eagle Eye","The Owl","The Falcon","Larceny","The Highway Patrol","Five-Finger Discount"];
 // HUNTER / HEAT-SEEKER — pursuit pass rush + missile-style LBs
-const NICK_HUNTER_NEW= ["The Hunter","Heat-Seeker","The Missile","Bullet","Cruiser","The Strike","The Heat"];
-// MR. X / PERSONALITY — captains, cerebral leaders, lifelong vets
-const NICK_MISTER    = ["Mr. Reliable","Mr. Clutch","Mr. November","Mr. October","The Captain","The General","The Mayor","Prime","The Kid","The Mailman"];
+const NICK_HUNTER_NEW= ["The Hunter","Heat-Seeker","The Missile","Cruiser","The Strike","The Tracker","The Lurker","The Stalker","The Pursuit","The Sting","Bloodhound","Patriot Missile","The Drone"];
+// MR. X / PERSONALITY / VETERAN — captains, cerebral leaders, elder statesmen
+const NICK_MISTER    = ["Mr. Reliable","Mr. Clutch","Mr. November","Mr. October","Mr. Sunday","Mr. 4th Quarter","Mr. Steady","Mr. Big Stage","Mr. Everything","The Captain","The General","The Mayor","The Kid","The Mailman","The Statesman","Pops","The Old Man","Greybeard","The Ironhorse","Old Reliable"];
+// WEATHER / ELEMENTAL — cannon arms, deep threats, force-of-nature pursuit
+const NICK_WEATHER   = ["The Storm","Hurricane","Cyclone","Tsunami","Avalanche","Thunder","Blizzard","Tempest","Tornado","The Squall","Whiteout","Heatwave","Riptide"];
+// ANIMAL KINGDOM — beasts beyond cheetah. Pulls hard for speed/elusive/pursuit
+const NICK_ANIMAL    = ["Wolf","Mamba","Falcon","Panther","Bear","Cougar","Mongoose","Stallion","Octopus","Buffalo","Tiger","Shark","The Eagle","The Coyote","The Lynx","Grizzly","The Jackal","The Viper"];
+// FREAK / SPECIMEN — physical outliers (Calvin Johnson tier). Priority
+// boost when player has multiple physical stats ≥95.
+const NICK_FREAK     = ["The Freak","The Specimen","The Cyborg","The Android","The Anomaly","The Outlier","The Unicorn","The Mutant","The Alien","Built Different","The Prototype","The Marvel","The Phenomenon"];
 // MEGA / ICONIC — for the rare single-name Madonna/Pelé tier
-const NICK_ICONIC    = ["Megatron","Beast","Prime","Truck","Mossburger","Skyscraper","The Freak","Air","Boss","Crash","Volt","Apex","Reaper","Specter","Phantom"];
+const NICK_ICONIC    = ["Megatron","Beast","Prime","Truck","Mossburger","Skyscraper","Air","Boss","Crash","Volt","Apex","Cobra","T-Rex","Optimus","Vader","Bane","Kingsnake","Smaug","Mach 5"];
 
 // Pull a nickname from a pool, filtering out any in `taken`. Returns null
 // only if the pool is fully exhausted (callers fall through to other pools).
@@ -347,25 +357,31 @@ function pickCareerNickname(player, taken = null) {
     const delta = (statMap[k] - m[k]);
     if (delta > dominantDelta) { dominantDelta = delta; dominant = k; }
   }
+  // FREAK priority injection: true physical outliers (Calvin Johnson
+  // tier) — OVR ≥ 90 AND at least two physical stats ≥ 93 — get the
+  // FREAK pool as their FIRST choice, regardless of position archetype.
+  // These are "you don't get to be this big AND this fast" players.
+  const physicalStats = [spd, str, agi, thr, cat].filter(s => s >= 93).length;
+  const isFreak = (player.overall || 0) >= 90 && physicalStats >= 2;
   // Pool routing by (position × dominant stat). Each route returns a
   // priority list — try the first, fall through if exhausted.
   let pools = [];
   if (pos === "QB") {
-    if (dominant === "thr")      pools = [NICK_HEAVY, NICK_CLOSER, NICK_MISTER];
+    if (dominant === "thr")      pools = [NICK_HEAVY, NICK_WEATHER, NICK_CLOSER, NICK_MISTER];
     else if (dominant === "awr") pools = [NICK_SURGEON, NICK_MISTER, NICK_CLOSER];
     else if (dominant === "spd" || dominant === "agi")
-                                  pools = [NICK_TRICKSTER, NICK_SURGEON];
+                                  pools = [NICK_TRICKSTER, NICK_SURGEON, NICK_ANIMAL];
     else                          pools = [NICK_SURGEON, NICK_MISTER];
   } else if (pos === "RB") {
-    if (dominant === "str")      pools = [NICK_HEAVY, NICK_CLOSER];
-    else if (dominant === "spd") pools = [NICK_FAST, NICK_HEAVY];
-    else if (dominant === "agi") pools = [NICK_TRICKSTER, NICK_FAST];
+    if (dominant === "str")      pools = [NICK_HEAVY, NICK_CLOSER, NICK_WEATHER];
+    else if (dominant === "spd") pools = [NICK_FAST, NICK_ANIMAL, NICK_HEAVY];
+    else if (dominant === "agi") pools = [NICK_TRICKSTER, NICK_ANIMAL, NICK_FAST];
     else if (dominant === "cat") pools = [NICK_HANDS_NEW, NICK_SURGEON];
     else                          pools = [NICK_MISTER, NICK_HEAVY];
   } else if (pos === "WR") {
-    if (dominant === "spd")      pools = [NICK_FAST, NICK_TRICKSTER];
+    if (dominant === "spd")      pools = [NICK_FAST, NICK_ANIMAL, NICK_WEATHER, NICK_TRICKSTER];
     else if (dominant === "cat") pools = [NICK_HANDS_NEW, NICK_SURGEON];
-    else if (dominant === "agi") pools = [NICK_TRICKSTER, NICK_FAST];
+    else if (dominant === "agi") pools = [NICK_TRICKSTER, NICK_ANIMAL, NICK_FAST];
     else if (dominant === "awr") pools = [NICK_SURGEON, NICK_MISTER];
     else                          pools = [NICK_SURGEON, NICK_HANDS_NEW];
   } else if (pos === "TE") {
@@ -374,33 +390,37 @@ function pickCareerNickname(player, taken = null) {
     else                          pools = [NICK_MISTER, NICK_HEAVY];
   } else if (pos === "OL") {
     if (dominant === "str" || dominant === "blk")
-                                  pools = [NICK_HEAVY, NICK_LOCK];
+                                  pools = [NICK_HEAVY, NICK_LOCK, NICK_WEATHER];
     else if (dominant === "awr") pools = [NICK_MISTER, NICK_SURGEON];
     else                          pools = [NICK_HEAVY, NICK_MISTER];
   } else if (pos === "DL") {
-    if (dominant === "prs")      pools = [NICK_CLOSER, NICK_HUNTER_NEW];
-    else if (dominant === "str") pools = [NICK_HEAVY, NICK_CLOSER];
-    else if (dominant === "spd") pools = [NICK_FAST, NICK_HUNTER_NEW];
+    if (dominant === "prs")      pools = [NICK_CLOSER, NICK_HUNTER_NEW, NICK_ANIMAL];
+    else if (dominant === "str") pools = [NICK_HEAVY, NICK_CLOSER, NICK_WEATHER];
+    else if (dominant === "spd") pools = [NICK_FAST, NICK_HUNTER_NEW, NICK_ANIMAL];
     else                          pools = [NICK_CLOSER, NICK_HEAVY];
   } else if (pos === "LB") {
-    if (dominant === "tck")      pools = [NICK_HEAVY, NICK_CLOSER];
+    if (dominant === "tck")      pools = [NICK_HEAVY, NICK_CLOSER, NICK_WEATHER];
     else if (dominant === "cov") pools = [NICK_LOCK, NICK_SURGEON];
     else if (dominant === "prs") pools = [NICK_CLOSER, NICK_HUNTER_NEW];
-    else if (dominant === "spd") pools = [NICK_HUNTER_NEW, NICK_FAST];
+    else if (dominant === "spd") pools = [NICK_HUNTER_NEW, NICK_FAST, NICK_ANIMAL];
     else                          pools = [NICK_MISTER, NICK_SURGEON];
   } else if (pos === "CB") {
     if (dominant === "cov")      pools = [NICK_LOCK, NICK_SURGEON];
-    else if (dominant === "spd") pools = [NICK_FAST, NICK_TRICKSTER];
+    else if (dominant === "spd") pools = [NICK_FAST, NICK_ANIMAL, NICK_TRICKSTER];
     else if (dominant === "awr") pools = [NICK_HAWK, NICK_SURGEON];
     else                          pools = [NICK_LOCK, NICK_HAWK];
   } else if (pos === "S") {
-    if (dominant === "tck")      pools = [NICK_CLOSER, NICK_HEAVY];
+    if (dominant === "tck")      pools = [NICK_CLOSER, NICK_HEAVY, NICK_WEATHER];
     else if (dominant === "cov") pools = [NICK_LOCK, NICK_HAWK];
     else if (dominant === "awr") pools = [NICK_MISTER, NICK_HAWK];
     else                          pools = [NICK_HAWK, NICK_LOCK];
   } else {
     pools = [NICK_MISTER];
   }
+  // Inject FREAK at the front for physical outliers — Mahomes/Mahomes/
+  // Tyreek/Megatron type. Position-archetype pools still fall through
+  // if FREAK is exhausted.
+  if (isFreak) pools = [NICK_FREAK, ...pools];
   // Try each pool in order; final fallback adds a Roman-numeral suffix.
   for (const pool of pools) {
     const pick = pickFromPool(pool, taken);
