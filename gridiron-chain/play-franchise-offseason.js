@@ -10165,6 +10165,10 @@ function _renderHoldoutsBlock() {
 function frnNewSeason() {
   // Before wiping season stats, roll them into each player's career
   _rollSeasonStatsToCareer();
+  // Age the college pipeline: graduated SRs leave, FR→SO, SO→JR, JR→SR,
+  // new freshmen enter. Runs BEFORE the season counter bumps so the new
+  // freshmen carry the correct draftSeason offset.
+  if (typeof _advanceCollegePipeline === "function") _advanceCollegePipeline();
   franchise.season       += 1;
   franchise.week          = 1;
   franchise.phase         = "free_agency";
@@ -12638,8 +12642,18 @@ function frnGoToDraft() {
   // can stamp them onto franchise.draft for the UI chips.
   const themes = _rollClassThemes();
   const positions = _buildClassPositionPool(themes);
+  // Decide JR early-declarations BEFORE building the class — declared JRs
+  // join the graduating SRs in the eligible pool.
+  if (typeof _declareEarlyJuniors === "function") _declareEarlyJuniors();
+  // Pipeline-driven class — graduated SRs + declared JRs become the named
+  // prospects; auto-generated filler tops up to the existing 280-prospect
+  // total. Legacy saves that somehow lack a pipeline fall back to the
+  // old generator via _buildDraftClassFromPipeline's internal seed call.
+  const classBuilder = (typeof _buildDraftClassFromPipeline === "function")
+    ? _buildDraftClassFromPipeline
+    : _buildDraftClass;
   franchise.draft = {
-    class: _buildDraftClass(rookieYear, themes, positions),
+    class: classBuilder(rookieYear, themes, positions),
     pickOrder: _buildDraftPickOrder(),
     picks: [],
     currentIdx: 0,
@@ -13348,6 +13362,190 @@ function _backfillCollegePipeline() {
   if (!franchise) return;
   if (franchise.collegePlayers) return;
   _seedCollegePipeline();
+}
+
+// Junior declarations — for each JR, roll a probability of declaring early
+// based on their projected draft round. R1 talents almost always declare;
+// R7 talents almost never do. Declared JRs become draft-eligible this year.
+function _declareEarlyJuniors() {
+  if (!franchise.collegePlayers) return [];
+  const declareProbByRound = {
+    1: 0.85, 2: 0.55, 3: 0.25, 4: 0.10, 5: 0.05, 6: 0.03, 7: 0.02,
+  };
+  const declared = [];
+  for (const p of franchise.collegePlayers) {
+    if (p.collegeYear !== "JR") continue;
+    if (p.declaredEarly) continue;
+    const round = _projectedDraftRound(p);
+    const prob = declareProbByRound[round] ?? 0.05;
+    if (Math.random() < prob) {
+      p.declaredEarly = true;
+      declared.push(p);
+    }
+  }
+  return declared;
+}
+
+// Tiny per-season stat development. High-potential players grow; low-pot
+// can stagnate or regress slightly. Applied during aging at frnNewSeason.
+function _developCollegePlayer(p) {
+  const pot = p.potential || 60;
+  let bump;
+  if      (pot >= 80) bump = 2 + Math.floor(Math.random() * 3); // +2..+4
+  else if (pot >= 65) bump = 1 + Math.floor(Math.random() * 3); // +1..+3
+  else                bump = -1 + Math.floor(Math.random() * 4); // -1..+2
+  if (bump === 0) return;
+  // Boost the player's top 3 stats — primary calling-card stats develop
+  // first, mirroring real CFB player growth.
+  const stats = p.stats;
+  if (!stats || !stats.length) return;
+  const sorted = stats.map((v, i) => ({ v, i })).sort((a, b) => b.v - a.v).slice(0, 3);
+  for (const { i } of sorted) {
+    stats[i] = Math.min(99, Math.max(35, stats[i] + bump));
+  }
+  p.overall = calcOverall(p.position, p.stats);
+}
+
+// Age all remaining college players one year forward; drop anyone now in
+// the NFL (drafted previous offseason) or who graduated as SR; add a new
+// freshman class. Called once per franchise season in frnNewSeason.
+function _advanceCollegePipeline() {
+  if (!franchise.collegePlayers) {
+    _seedCollegePipeline();
+    return;
+  }
+  const nflPids  = new Set();
+  const nflNames = new Set();
+  for (const r of Object.values(franchise.rosters || {})) {
+    for (const p of r) {
+      if (p.pid) nflPids.add(p.pid);
+      if (p.name) nflNames.add(p.name);
+    }
+  }
+  // Keep only non-SR pipeline players not on any NFL roster.
+  let players = franchise.collegePlayers.filter(p =>
+    p.collegeYear !== "SR" &&
+    !(p.pid && nflPids.has(p.pid)) &&
+    !nflNames.has(p.name)
+  );
+  for (const p of players) {
+    if      (p.collegeYear === "FR") p.collegeYear = "SO";
+    else if (p.collegeYear === "SO") p.collegeYear = "JR";
+    else if (p.collegeYear === "JR") p.collegeYear = "SR";
+    p.age = _COLLEGE_AGE_BY_YEAR[p.collegeYear];
+    p.draftSeason = (franchise.season || 1) + _COLLEGE_SEASONS_TO_DRAFT[p.collegeYear];
+    p.draftYear   = (new Date().getFullYear()) + p.draftSeason;
+    _developCollegePlayer(p);
+  }
+  // Generate new freshman class
+  const allTaken = new Set();
+  players.forEach(p => allTaken.add(p.name));
+  for (const r of Object.values(franchise.rosters || {})) {
+    r.forEach(p => allTaken.add(p.name));
+  }
+  for (let i = 0; i < _COLLEGE_CLASS_SIZE; i++) {
+    players.push(_generateCollegePlayer("FR", allTaken));
+  }
+  franchise.collegePlayers = players;
+}
+
+// Build the draft class from the college pipeline. Pulls graduated SRs +
+// declared JRs (sorted by OVR), stamps draft fields (round, AI bias),
+// and augments with auto-generated late-round + UDFA filler so the
+// class still reaches the existing target size (224 drafted + 56 UDFA).
+function _buildDraftClassFromPipeline(rookieYear, themesArg, positionsArg) {
+  if (!franchise.collegePlayers) _seedCollegePipeline();
+  const themes    = themesArg    || _rollClassThemes();
+  const positions = positionsArg || _buildClassPositionPool(themes);
+
+  // 1. Pull eligible players from pipeline, sort by OVR
+  const eligible = franchise.collegePlayers
+    .filter(p => p.collegeYear === "SR" || (p.collegeYear === "JR" && p.declaredEarly))
+    .slice() // copy so sort doesn't mutate pipeline order
+    .sort((a, b) => (b.overall || 60) - (a.overall || 60));
+
+  // 2. Stamp draft fields on each. Round derives from sort position
+  //    (top 32 → R1, next 32 → R2, etc.). Beyond _CLASS_DRAFTED_SIZE
+  //    falls into the UDFA slice (_generatedRound: 0).
+  for (let i = 0; i < eligible.length; i++) {
+    const p = eligible[i];
+    if (i < _CLASS_DRAFTED_SIZE) {
+      const round = Math.min(7, Math.floor(i / 32) + 1);
+      p._generatedRound = round;
+      p.draftRound = round;
+      const noiseScale = round === 1 ? 2 : round <= 3 ? 3 : 4;
+      p._aiScoutBias = +((Math.random() - 0.5) * 2 * noiseScale).toFixed(1);
+    } else {
+      p._generatedRound = 0;
+      p.draftRound = 0;
+      p._aiScoutBias = +((Math.random() - 0.5) * 10).toFixed(1);
+    }
+    p.draftYear   = rookieYear;
+    p.draftSeason = (franchise?.season || 1);
+  }
+
+  const cls = eligible.slice();
+
+  // 3. Augment with auto-generated late-round filler if pipeline didn't
+  //    fill all 224 drafted slots (likely — pipeline is ~60 SRs + a few
+  //    declared JRs). Fillers are generated with the existing tier logic.
+  const allTaken = new Set();
+  for (const r of Object.values(franchise.rosters)) r.forEach(p => allTaken.add(p.name));
+  cls.forEach(p => allTaken.add(p.name));
+
+  const draftedSoFar = cls.filter(p => p._generatedRound > 0).length;
+  for (let i = draftedSoFar; i < _CLASS_DRAFTED_SIZE; i++) {
+    const round = Math.min(7, Math.floor(i / 32) + 1);
+    let pos = positions[Math.floor(Math.random() * positions.length)];
+    if ((pos === "K" || pos === "P") && round <= 4) {
+      pos = positions[Math.floor(Math.random() * positions.length)];
+      if ((pos === "K" || pos === "P") && round <= 4) {
+        pos = ["WR","DL","OL","CB"][Math.floor(Math.random() * 4)];
+      }
+    }
+    // Filler is always poor-tier (these are the late-round depth picks
+    // that the pipeline didn't cover with named, scoutable prospects).
+    const tier = "poor";
+    const p = genUniquePlayer(pos, tier, allTaken);
+    allTaken.add(p.name);
+    p.age = 22;
+    p.draftYear = rookieYear;
+    p.draftSeason = (franchise?.season || 1);
+    p.isProspect = true;
+    p._generatedRound = round;
+    p.draftRound = round;
+    p._aiScoutBias = +((Math.random() - 0.5) * 2 * 4).toFixed(1);
+    p.potential = _rollPotential(p);
+    p.collegeProfile = _buildCollegeProfile(p, round);
+    p.careerHistory = []; p.careerStats = {}; p.career = []; p.careerTotals = {};
+    p.proBowls = 0; p.allPros = 0; p.sbRings = 0;
+    p.mvps = 0; p.opoys = 0; p.dpoys = 0; p.roys = 0; p.records = [];
+    cls.push(p);
+  }
+
+  // 4. UDFA tier — top up to _CLASS_UDFA_SIZE if pipeline overflow didn't
+  //    provide enough.
+  const udfaSoFar = cls.filter(p => p._generatedRound === 0).length;
+  for (let i = udfaSoFar; i < _CLASS_UDFA_SIZE; i++) {
+    const pos = positions[Math.floor(Math.random() * positions.length)];
+    const p = genUniquePlayer(pos, "poor", allTaken);
+    allTaken.add(p.name);
+    p.age = 22;
+    p.draftYear = rookieYear;
+    p.draftSeason = (franchise?.season || 1);
+    p.isProspect = true;
+    p._generatedRound = 0;
+    p.draftRound = 0;
+    p._aiScoutBias = +((Math.random() - 0.5) * 10).toFixed(1);
+    p.potential = _rollPotential(p);
+    p.collegeProfile = _buildCollegeProfile(p, 7);
+    p.careerHistory = []; p.careerStats = {}; p.career = []; p.careerTotals = {};
+    p.proBowls = 0; p.allPros = 0; p.sbRings = 0;
+    p.mvps = 0; p.opoys = 0; p.dpoys = 0; p.roys = 0; p.records = [];
+    cls.push(p);
+  }
+
+  return cls;
 }
 
 function _buildDraftClass(rookieYear, themesArg, positionsArg) {
