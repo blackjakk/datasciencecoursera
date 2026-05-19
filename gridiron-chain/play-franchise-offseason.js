@@ -13286,6 +13286,15 @@ function _posPillHtml(pos) {
 
 function renderFrnDraft() {
   const d = franchise.draft;
+  // Defensive null guard. _draftFinalize sets franchise.draft = null,
+  // so if anything (dev tools, stale UI, edge-case navigation) routes
+  // back here after the draft is gone, route the user to the dashboard
+  // instead of crashing on d.currentIdx access below. Also fixes the
+  // chained crash from renderFrnDraftPreshow's fallback path.
+  if (!d) {
+    if (typeof showFranchiseDashboard === "function") showFranchiseDashboard();
+    return;
+  }
   const myId = franchise.chosenTeamId;
   const myTeam = getTeam(myId);
 
@@ -13295,11 +13304,11 @@ function renderFrnDraft() {
   // true for those so we don't bounce mid-draft sessions back to the
   // pre-show. New drafts started after this commit go through the
   // pre-show first via frnGoToDraft.
-  if (d && d.preshowDone === false) {
+  if (d.preshowDone === false) {
     renderFrnDraftPreshow();
     return;
   }
-  if (d && d.preshowDone === undefined) {
+  if (d.preshowDone === undefined) {
     d.preshowDone = true; // legacy safeguard
   }
 
