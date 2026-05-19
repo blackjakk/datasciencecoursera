@@ -13602,8 +13602,20 @@ function _mergeSeasonScoutToDraft() {
 const _SCOUT_BOARD_STATE = {
   yearFilter: "SR",       // "FR" | "SO" | "JR" | "SR" | "ALL" | "PINNED"
   posFilter:  "ALL",
-  sort:       "ovr",      // "ovr" | "year" | "pos" | "scouted"
+  tierFilter: "ALL",      // "ALL" | "ELITE" | "GOOD" | "AVERAGE" | "POOR"
+  sort:       "ovr",      // "ovr" | "proj" | "year" | "pos" | "scouted" | "unscouted"
 };
+
+// Map current OVR → coarse tier label for the tier filter + class strength
+// summary. Thresholds chosen to roughly match the round-tier expectations
+// (elite≈R1, good≈R2-3, average≈R4-5, poor≈R6-7/UDFA).
+function _scoutTierFromOvr(p) {
+  const ovr = p.overall || 0;
+  if (ovr >= 78) return "elite";
+  if (ovr >= 68) return "good";
+  if (ovr >= 58) return "average";
+  return "poor";
+}
 
 // ── Pinned prospects ────────────────────────────────────────────────────────
 // User-driven watch list. Pinning a college player marks them as "follow this
@@ -13675,6 +13687,44 @@ function frnScoutBoardSetSort(s) {
   _SCOUT_BOARD_STATE.sort = s;
   renderFrnScoutingBoard();
 }
+function frnScoutBoardSetTier(tier) {
+  _SCOUT_BOARD_STATE.tierFilter = tier;
+  renderFrnScoutingBoard();
+}
+
+// Class strength strip — one card per skill position showing how many
+// draft-eligible (SR + declared JR) prospects exist there and a coarse
+// strength tier (DEEP / STRONG / SOLID / AVG / THIN). Helps the user see
+// "this year's WR class is deep, QB is weak" at a glance — biggest
+// information gap vs FOF/OOTP-tier scouting boards. Each card is
+// clickable to filter the list to that position.
+function _renderClassStrengthSummary(eligibleByPos) {
+  const positions = ["QB","RB","WR","TE","OL","DL","LB","CB","S"];
+  const cards = positions.map(pos => {
+    const list = eligibleByPos[pos] || [];
+    const elite = list.filter(p => _scoutTierFromOvr(p) === "elite").length;
+    const good  = list.filter(p => _scoutTierFromOvr(p) === "good").length;
+    let label, color;
+    if      (list.length === 0)              { label = "—";      color = "#555";    }
+    else if (elite >= 5)                     { label = "DEEP";   color = "#ffd700"; }
+    else if (elite >= 3)                     { label = "STRONG"; color = "#4caf82"; }
+    else if (elite >= 1 || good >= 5)        { label = "SOLID";  color = "#7ac8e8"; }
+    else if (good >= 2)                      { label = "AVG";    color = "#e8a000"; }
+    else                                     { label = "THIN";   color = "#ff6b6b"; }
+    const eliteTag = elite > 0 ? `<span class="frn-scout-strength-elite">${elite}E</span>` : "";
+    return `<button class="frn-scout-strength-card${list.length===0?" empty":""}"
+        onclick="frnScoutBoardSetPos('${pos}')"
+        title="${list.length} draft-eligible ${pos}s — ${elite} elite, ${good} good. Click to filter.">
+      <div class="frn-scout-strength-pos">${pos}</div>
+      <div class="frn-scout-strength-count">${list.length}${eliteTag}</div>
+      <div class="frn-scout-strength-tier" style="color:${color}">${label}</div>
+    </button>`;
+  }).join("");
+  return `<div class="frn-scout-strength-strip">
+    <div class="frn-scout-strength-lbl" title="Eligible = SR + declared JR for this year's draft">DRAFT CLASS</div>
+    ${cards}
+  </div>`;
+}
 
 function renderFrnScoutingBoard() {
   _backfillSeasonScout();
@@ -13686,6 +13736,34 @@ function renderFrnScoutingBoard() {
   // on navigation. The in-action re-render hook now checks if .frn-scout-page
   // is actually mounted in the DOM, which is leakage-proof.)
 
+  // ── Precompute per-(collegeYear, position) rankings so every row can
+  // show "WR #3 in JR class" without re-sorting on every render.
+  const _groupKey = p => `${p.collegeYear}-${p.position}`;
+  const _groups = {};
+  for (const p of players) {
+    const k = _groupKey(p);
+    if (!_groups[k]) _groups[k] = [];
+    _groups[k].push(p);
+  }
+  const _rankings = {};
+  for (const k of Object.keys(_groups)) {
+    _groups[k].sort((a, b) => (b.overall || 0) - (a.overall || 0));
+    const m = new Map();
+    for (let i = 0; i < _groups[k].length; i++) m.set(_groups[k][i].name, i + 1);
+    _rankings[k] = m;
+  }
+
+  // ── Class strength summary: by-position tier counts for the upcoming
+  // draft class (SRs + declared JRs). Helps the user see "this year's
+  // WR class is deep, QB is weak" at a glance — biggest gap vs FOF/OOTP.
+  const draftEligible = players.filter(p =>
+    p.collegeYear === "SR" || (p.collegeYear === "JR" && p.declaredEarly)
+  );
+  const eligibleByPos = {};
+  for (const p of draftEligible) {
+    if (!eligibleByPos[p.position]) eligibleByPos[p.position] = [];
+    eligibleByPos[p.position].push(p);
+  }
   // Filter
   _backfillPinnedProspects();
   const pinSet = new Set(franchise.pinnedProspects || []);
@@ -13694,6 +13772,9 @@ function renderFrnScoutingBoard() {
   if (st.yearFilter === "PINNED")        list = list.filter(p => pinSet.has(p.name));
   else if (st.yearFilter !== "ALL")      list = list.filter(p => p.collegeYear === st.yearFilter);
   if (st.posFilter  !== "ALL")           list = list.filter(p => p.position === st.posFilter);
+  if (st.tierFilter && st.tierFilter !== "ALL") {
+    list = list.filter(p => _scoutTierFromOvr(p) === st.tierFilter.toLowerCase());
+  }
   // Sort
   const _scoutedCount = name => reveals[name]?.categories?.length || 0;
   if (st.sort === "ovr") list.sort((a, b) => (b.overall || 0) - (a.overall || 0));
@@ -13744,6 +13825,12 @@ function renderFrnScoutingBoard() {
     return `<button class="frn-scout-chip${active?" active":""}" onclick="frnScoutBoardSetPos('${pos}')">${pos}</button>`;
   }).join("");
 
+  const tiers = ["ALL","ELITE","GOOD","AVERAGE","POOR"];
+  const tierChips = tiers.map(t => {
+    const active = (st.tierFilter || "ALL") === t;
+    return `<button class="frn-scout-chip frn-scout-tier-${t.toLowerCase()}${active?" active":""}" onclick="frnScoutBoardSetTier('${t}')">${t}</button>`;
+  }).join("");
+
   const sortChips = [
     { id: "ovr",       label: "OVR ↓" },
     { id: "proj",      label: "Proj Round ↑" },
@@ -13768,6 +13855,11 @@ function renderFrnScoutingBoard() {
     const declared = p.collegeYear === "JR" && p.declaredEarly;
     const yearBadge = `<span class="frn-scout-year-badge ${declared ? "declared" : "y-"+yearTag.toLowerCase()}">${yearTag}${declared ? " · DECLARED" : ""}</span>`;
     const projBadge = `<span class="frn-scout-proj" title="Projected draft round based on current OVR (updates as the player develops)">Proj R${round}</span>`;
+    // Position rank within (collegeYear, position) cohort — "WR #3 in SR class"
+    const rank = _rankings[_groupKey(p)]?.get(p.name);
+    const rankBadge = rank
+      ? `<span class="frn-scout-rank" title="Rank within the ${yearTag} ${p.position} class by current OVR">${_esc(p.position)} #${rank}</span>`
+      : "";
 
     // Per-category buttons. Three distinct states:
     //   - scouted: green ✓ (already used this category on this prospect)
@@ -13812,6 +13904,7 @@ function renderFrnScoutingBoard() {
           ${yearBadge}
           <span class="frn-scout-ovr">OVR ${ovrShown}</span>
           ${projBadge}
+          ${rankBadge}
           ${archLabel ? `<span class="frn-scout-arch">${_esc(archLabel)}</span>` : ""}
           ${knock}
         </div>
@@ -13848,10 +13941,15 @@ function renderFrnScoutingBoard() {
           <div class="frn-scout-chips">${posChips}</div>
         </div>
         <div class="frn-scout-filter-row">
+          <span class="frn-scout-filter-lbl">TIER</span>
+          <div class="frn-scout-chips">${tierChips}</div>
+        </div>
+        <div class="frn-scout-filter-row">
           <span class="frn-scout-filter-lbl">SORT</span>
           <div class="frn-scout-chips">${sortChips}</div>
         </div>
       </div>
+      ${_renderClassStrengthSummary(eligibleByPos)}
       <div class="frn-scout-hint">
         Click a category button to spend 1 credit and unlock that intel. Knock-resolution notes appear under matching categories. Reveals carry into the draft automatically.
       </div>

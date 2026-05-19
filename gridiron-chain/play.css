@@ -3258,6 +3258,56 @@
     margin-bottom: .55rem;
   }
   .frn-scout-empty-banner strong { color: #e8a000; }
+
+  /* Class strength strip — one card per skill position summarizing the
+     draftable pool's tier breakdown */
+  .frn-scout-strength-strip {
+    display: flex; align-items: stretch; gap: .35rem; flex-wrap: wrap;
+    padding: .55rem .7rem; background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 3px; margin-bottom: .55rem;
+  }
+  .frn-scout-strength-lbl {
+    color: var(--gold); font-size: .55rem; font-weight: 800;
+    letter-spacing: 1.5px; align-self: center;
+    padding-right: .5rem; border-right: 1px solid var(--border);
+    margin-right: .25rem;
+  }
+  .frn-scout-strength-card {
+    background: var(--bg); border: 1px solid var(--border);
+    color: var(--text); cursor: pointer; font-family: inherit;
+    padding: .25rem .45rem; border-radius: 3px;
+    display: flex; flex-direction: column; align-items: center; gap: .1rem;
+    min-width: 50px; transition: border-color .12s, background .12s;
+  }
+  .frn-scout-strength-card:hover { border-color: var(--gold); }
+  .frn-scout-strength-card.empty { opacity: .45; cursor: not-allowed; }
+  .frn-scout-strength-pos {
+    font-size: .58rem; font-weight: 800; color: var(--gold);
+    letter-spacing: 1px;
+  }
+  .frn-scout-strength-count {
+    font-size: .85rem; font-weight: 900; color: var(--text);
+    display: flex; align-items: baseline; gap: .15rem;
+  }
+  .frn-scout-strength-elite {
+    color: #ffd700; font-size: .5rem; font-weight: 700;
+  }
+  .frn-scout-strength-tier {
+    font-size: .48rem; font-weight: 800; letter-spacing: 1px;
+  }
+
+  /* Position rank badge on each prospect row */
+  .frn-scout-rank {
+    color: var(--blgray); font-size: .54rem; font-weight: 700;
+    letter-spacing: .5px; padding: 0 .25rem;
+    border-left: 1px solid var(--border);
+  }
+
+  /* Tier filter chip subtle hints */
+  .frn-scout-tier-elite.active { background: #ffd700; color: #000; border-color: #ffd700; }
+  .frn-scout-tier-good.active { background: #4caf82; color: #000; border-color: #4caf82; }
+  .frn-scout-tier-average.active { background: #e8a000; color: #000; border-color: #e8a000; }
+  .frn-scout-tier-poor.active { background: #888; color: #000; border-color: #888; }
   .frn-scout-cat-icon { font-size: .85rem; line-height: 1; }
   .frn-scout-cat-label {
     font-size: .48rem; font-weight: 700; letter-spacing: .5px;
