@@ -2108,7 +2108,10 @@ function _psPoachPass() {
       if (idx !== -1) {
         const player = ps.splice(idx, 1)[0];
         player.contract = { years: 2, remaining: 2, aav: 1.0,
-          guaranteedYears: 1, guaranteedAAV: 1.0, signedAav: 1.0 };
+          guaranteedYears: 1, guaranteedAAV: 1.0, signedAav: 1.0,
+          startSeason: (franchise.season || 1),
+          signedOvr: player.overall || 65 };
+        if (typeof _clearGrudgeFlags === "function") _clearGrudgeFlags(player);
         (franchise.rosters[a.suitorTeamId] || []).push(player);
         _pushNews({ type:"ps_lost",
           label: `❌ Lost ${player.position} ${player.name} — signed by ${getTeam(a.suitorTeamId)?.name} off your PS` });
@@ -2128,6 +2131,8 @@ function _psPromote(teamId, player, opts = {}) {
     years: 2, remaining: 2, aav: 1.0,
     guaranteedYears: 1, guaranteedAAV: 1.0,
     signedAav: 1.0,
+    startSeason: (franchise.season || 1),
+    signedOvr: player.overall || 65,
   };
   delete player._psFlashLog; delete player._psStashedSeason;
   (franchise.rosters[teamId] || []).push(player);

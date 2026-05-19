@@ -5621,18 +5621,27 @@ function frnExtendPlayer(name) {
   if (!p) return;
   const cap = franchise.salaryCap || SALARY_CAP_BASE;
   const baseMarket = computeMarketValue(p, cap);
+  const posMax = _maxContractYears(p);
   const years = parseInt(prompt(
-    `Extend ${name}? Pick length (2-6 years):`, "4"
+    `Extend ${name}? Pick length (2-${posMax} years):`, String(Math.min(4, posMax))
   ), 10);
-  if (!years || years < 2 || years > 6) return;
+  if (!years || years < 2 || years > posMax) return;
   const aav = _resignAavForYears(baseMarket, years);
   if (!confirm(`Sign ${name} to ${years}yr / $${aav.toFixed(1)}M/yr ($${(aav*years).toFixed(1)}M total)?`)) return;
-  const guaranteedYears = _guaranteedYearsForLength(years);
+  const ovr = p.overall || 70;
+  const struct = _defaultStructure(p.age || 27, ovr);
+  const { signingBonus, bonusProration, tradeKicker } = _signingBonusCalc(aav, years, ovr);
+  const baseSalaries = _baseSalarySchedule(aav, years, struct, bonusProration);
   p.contract = {
-    years, remaining: years, aav,
-    guaranteedYears, guaranteedAAV: aav,
+    years, remaining: years, aav, structure: struct,
+    baseSalaries, signingBonus, bonusProration, tradeKicker,
+    guaranteedYears: _guaranteedYearsForLength(years),
+    guaranteedAAV: aav, incentives: _generateIncentives(p, aav),
     signedAav: aav,
+    startSeason: (franchise.season || 1) + 1,
+    signedOvr: ovr,
   };
+  _clearGrudgeFlags(p);
   _pushNews({ type: "extension",
     label: `🤝 Extended ${p.position} ${name} — ${years}yr / $${aav.toFixed(1)}M/yr` });
   saveFranchise();
@@ -11050,10 +11059,14 @@ function frnAcceptOffer(offerId) {
   }
   // NFL dead cap + trade kicker (must run before player objects are moved)
   _applyTradeMechanics(sending, receiving, myId, off.fromTeamId, off.absorb || 0, 0);
-  // Execute player swaps
+  // Execute player swaps. Trade is a fresh start — clear grudge flags
+  // both ways so old-team friction doesn't follow the player. Also clear
+  // tradeRequested on sent players (their wish was granted).
   for (const p of sending) {
     p.onTradeBlock = false;
     delete p.blockAsk;
+    delete p.tradeRequested;
+    _clearGrudgeFlags(p);
     p.systemYears = 0; // new system — familiarity resets
     p._tradedAtSeason = franchise.season; // fresh-start dev bonus
     const i = myRoster.indexOf(p); if (i !== -1) myRoster.splice(i, 1);
@@ -11061,6 +11074,8 @@ function frnAcceptOffer(offerId) {
   }
   for (const p of receiving) {
     p.onTradeBlock = false;
+    delete p.tradeRequested;
+    _clearGrudgeFlags(p);
     p.systemYears = 0; // new system — familiarity resets
     p._tradedAtSeason = franchise.season;
     const i = theirRoster.indexOf(p); if (i !== -1) theirRoster.splice(i, 1);
