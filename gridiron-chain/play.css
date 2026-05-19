@@ -6105,6 +6105,13 @@
     display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;
     padding: .55rem .75rem;
   }
+  .frn-resign-portrait {
+    flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    border-radius: 4px; overflow: hidden; align-self: flex-start;
+  }
+  .frn-resign-portrait .frn-portrait {
+    display: block; border-radius: 4px;
+  }
   .frn-resign-row-legacy {
     display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;
     padding: .55rem .75rem; background: var(--bg2); border: 1px solid var(--border);

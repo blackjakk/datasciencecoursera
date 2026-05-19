@@ -5301,13 +5301,43 @@ function _renderHoldoutCenterRow(d) {
   // Demand + accept odds
   const odds = _holdoutAcceptOdds(offer, offerYears, d.demandedAAV, d.demandedYears);
   const oddsColor = odds >= 0.85 ? "var(--green-lt)" : odds >= 0.5 ? "#e8a000" : "#ff8a8a";
-  const demandHtml = `<div class="frn-resign-demand">
-    <span class="lbl">Wants</span>
-    <span class="num">$${d.demandedAAV.toFixed(1)}M × ${d.demandedYears}yr</span>
-    <span class="lbl" style="margin-left:.5rem">Tag floor</span>
-    <span class="num" style="color:var(--gray)">$${d.tagFloorAAV.toFixed(1)}M</span>
-    <span class="lbl" style="margin-left:.5rem">Accept odds</span>
-    <span class="num" style="color:${oddsColor}">${Math.round(odds * 100)}%</span>
+  // Premium math vs current expiring deal
+  const curAav = d.currentAAV || 0;
+  const curYrs = d.currentRemaining || 0;
+  const aavRaise = curAav > 0 ? d.demandedAAV - curAav : 0;
+  const raisePct = curAav > 0 ? Math.round((aavRaise / curAav) * 100) : 0;
+  const raiseColor = aavRaise >= curAav * 0.5 ? "#ff8a8a"
+                   : aavRaise >= curAav * 0.25 ? "#e8a000"
+                   : aavRaise > 0 ? "var(--gold)" : "var(--green-lt)";
+  const raiseStr = curAav > 0
+    ? `<span style="color:${raiseColor};font-size:.62rem;font-weight:700">${aavRaise >= 0 ? "+" : ""}$${aavRaise.toFixed(1)}M/yr (${raisePct >= 0 ? "+" : ""}${raisePct}%)</span>`
+    : "";
+  const offerDelta = offer - d.demandedAAV;
+  const offerDeltaStr = offerDelta < 0
+    ? `<span style="color:#86e0a3;font-size:.6rem">saves $${(-offerDelta).toFixed(1)}M/yr</span>`
+    : offerDelta > 0
+    ? `<span style="color:#ff8a8a;font-size:.6rem">over by $${offerDelta.toFixed(1)}M/yr</span>`
+    : `<span style="color:var(--gray);font-size:.6rem">matches demand</span>`;
+  const demandHtml = `<div class="frn-resign-demand" style="display:flex;flex-direction:column;gap:.15rem">
+    ${curAav > 0 ? `
+      <div style="display:flex;gap:.5rem;align-items:baseline;font-size:.65rem">
+        <span class="lbl" style="min-width:60px;color:var(--gray)">Current</span>
+        <span class="num" style="color:var(--gray)">$${curAav.toFixed(1)}M × ${curYrs}yr left</span>
+      </div>` : ""}
+    <div style="display:flex;gap:.5rem;align-items:baseline;font-size:.7rem">
+      <span class="lbl" style="min-width:60px;color:var(--gold)">Wants</span>
+      <span class="num" style="font-weight:700">$${d.demandedAAV.toFixed(1)}M × ${d.demandedYears}yr</span>
+      ${raiseStr}
+    </div>
+    <div style="display:flex;gap:.5rem;align-items:baseline;font-size:.62rem">
+      <span class="lbl" style="min-width:60px;color:var(--gray)">Tag floor</span>
+      <span class="num" style="color:var(--gray)">$${d.tagFloorAAV.toFixed(1)}M</span>
+    </div>
+    <div style="display:flex;gap:.5rem;align-items:baseline;font-size:.66rem">
+      <span class="lbl" style="min-width:60px;color:var(--gray)">Accept odds</span>
+      <span class="num" style="color:${oddsColor};font-weight:700">${Math.round(odds * 100)}%</span>
+      ${offerDeltaStr}
+    </div>
   </div>`;
 
   // FA preview line — what happens if you let him walk
@@ -5331,10 +5361,15 @@ function _renderHoldoutCenterRow(d) {
   const tradeVal = _holdoutTradeValue(d, live);
   const tier = _holdoutTier(d);
 
+  const portraitHtml = live
+    ? `<div class="frn-resign-portrait">${_playerPortrait(live, 56)}</div>`
+    : "";
+  const nameDisplay = live ? playerLink(live) : d.name;
   return `<div class="frn-resign-row tier-${tier}">
     <div class="frn-resign-row-inner">
+      ${portraitHtml}
       <div class="frn-resign-info">
-        <span style="font-weight:700;color:var(--white);font-size:.95rem">${d.name}</span>
+        <span style="font-weight:700;color:var(--white);font-size:.95rem">${nameDisplay}</span>
         <span style="color:var(--gray);font-size:.7rem">${d.position} · ${ovr} OVR ${trendHtml} · Age ${age}</span>
         <span style="color:var(--gray);font-size:.6rem">Walk year · ${d.currentRemaining}yr left · current $${d.currentAAV.toFixed(1)}M/yr</span>
         ${riskHtml ? `<div class="frn-resign-risks">${riskHtml}</div>` : ""}
@@ -5723,6 +5758,14 @@ function _renderResignUI(cap, capCommitted) {
     }
 
     const livePlayer = (franchise.rosters[chosenTeamId] || []).find(p => p.name === r.name);
+    const portraitHtml = livePlayer
+      ? `<div class="frn-resign-portrait">${_playerPortrait(livePlayer, 56)}</div>`
+      : "";
+    // Clickable name → opens the full player card modal
+    const nameDisplay = livePlayer ? playerLink(livePlayer) : r.name;
+    // Current contract (the expiring deal) vs new demand — shows premium/raise
+    const curAav  = livePlayer?.contract?.aav || 0;
+    const curYrs  = livePlayer?.contract?.years || 0;
     const trend = _ovrTrend(livePlayer);
     const trendHtml = trend == null ? "" : trend > 0
       ? `<span style="color:var(--green-lt);font-size:.6rem">↑ +${trend} OVR</span>`
@@ -5752,11 +5795,38 @@ function _renderResignUI(cap, capCommitted) {
     const demand = _resignPlayerDemand(livePlayer, r, r.baseMarket);
     const odds = _resignAcceptOdds(r.offer, r.offerYears, demand);
     const oddsColor = odds >= 0.85 ? "var(--green-lt)" : odds >= 0.5 ? "#e8a000" : "#ff8a8a";
-    const demandHtml = `<div class="frn-resign-demand">
-      <span class="lbl">Wants</span>
-      <span class="num">$${demand.aav.toFixed(1)}M × ${demand.years}yr</span>
-      <span class="lbl" style="margin-left:.5rem">Accept odds</span>
-      <span class="num" style="color:${oddsColor}">${Math.round(odds * 100)}%</span>
+    // Premium math: how much MORE per year they're asking vs their old deal
+    const aavRaise = curAav > 0 ? demand.aav - curAav : 0;
+    const raisePct = curAav > 0 ? Math.round((aavRaise / curAav) * 100) : 0;
+    const raiseColor = aavRaise >= curAav * 0.5 ? "#ff8a8a"
+                     : aavRaise >= curAav * 0.25 ? "#e8a000"
+                     : aavRaise > 0 ? "var(--gold)" : "var(--green-lt)";
+    const raiseStr = curAav > 0
+      ? `<span style="color:${raiseColor};font-size:.62rem;font-weight:700">${aavRaise >= 0 ? "+" : ""}$${aavRaise.toFixed(1)}M/yr (${raisePct >= 0 ? "+" : ""}${raisePct}%)</span>`
+      : "";
+    // Offer vs demand delta
+    const offerDelta = r.offer - demand.aav;
+    const offerDeltaStr = offerDelta < 0
+      ? `<span style="color:#86e0a3;font-size:.6rem">saves $${(-offerDelta).toFixed(1)}M/yr</span>`
+      : offerDelta > 0
+      ? `<span style="color:#ff8a8a;font-size:.6rem">over by $${offerDelta.toFixed(1)}M/yr</span>`
+      : `<span style="color:var(--gray);font-size:.6rem">matches demand</span>`;
+    const demandHtml = `<div class="frn-resign-demand" style="display:flex;flex-direction:column;gap:.15rem">
+      ${curAav > 0 ? `
+        <div style="display:flex;gap:.5rem;align-items:baseline;font-size:.65rem">
+          <span class="lbl" style="min-width:60px;color:var(--gray)">Expiring</span>
+          <span class="num" style="color:var(--gray)">$${curAav.toFixed(1)}M × ${curYrs}yr</span>
+        </div>` : ""}
+      <div style="display:flex;gap:.5rem;align-items:baseline;font-size:.7rem">
+        <span class="lbl" style="min-width:60px;color:var(--gold)">Wants</span>
+        <span class="num" style="font-weight:700">$${demand.aav.toFixed(1)}M × ${demand.years}yr</span>
+        ${raiseStr}
+      </div>
+      <div style="display:flex;gap:.5rem;align-items:baseline;font-size:.66rem">
+        <span class="lbl" style="min-width:60px;color:var(--gray)">Accept odds</span>
+        <span class="num" style="color:${oddsColor};font-weight:700">${Math.round(odds * 100)}%</span>
+        ${offerDeltaStr}
+      </div>
     </div>`;
 
     // ── Comp pick preview on Let Walk ──────────────────────────────
@@ -5774,8 +5844,9 @@ function _renderResignUI(cap, capCommitted) {
       <div class="frn-resign-row tier-${_resignTier(r)}">
         ${recChip}
         <div class="frn-resign-row-inner">
+          ${portraitHtml}
           <div class="frn-resign-info">
-            <span style="font-weight:700;color:var(--white);font-size:.95rem">${r.name}</span>
+            <span style="font-weight:700;color:var(--white);font-size:.95rem">${nameDisplay}</span>
             <span style="color:var(--gray);font-size:.7rem">${r.pos} · ${r.overall} OVR ${trendHtml} · Age ${r.age}</span>
             ${_statLine(r.name) ? `<span style="color:var(--gray);font-size:.6rem;font-style:italic">${_statLine(r.name)}</span>` : ""}
             ${riskHtml ? `<div class="frn-resign-risks">${riskHtml}</div>` : ""}
