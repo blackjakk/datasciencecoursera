@@ -6574,6 +6574,7 @@ function _mvpFatigueMul(livePlayer) {
 }
 
 function computeLeagueMVP() {
+  _reconcileOrphanSeasonStats();
   let best = null;
   for (const [teamId, players] of Object.entries(franchise.seasonStats || {})) {
     const stand = franchise.standings[+teamId];
@@ -6582,7 +6583,10 @@ function computeLeagueMVP() {
     const teamMul = 0.55 + winPct * 0.85; // 0.55x → 1.40x
     const roster = franchise.rosters?.[+teamId] || [];
     for (const p of Object.values(players)) {
-      const livePlayer = roster.find(rp => rp.name === p.name);
+      // Match by name, fall back to nickname so fatigue mul stays correct
+      // for players whose stats were keyed under their old legal name.
+      const livePlayer = roster.find(rp => rp.name === p.name)
+        || roster.find(rp => rp.nickname && rp.nickname === p.name);
       const s = mvpScore(p) * teamMul * _mvpFatigueMul(livePlayer);
       if (!best || s > best.score) best = { ...p, teamId: +teamId, score: s };
     }
@@ -6600,6 +6604,55 @@ function computeSuperBowlMVP() {
   const ranked = players.map(p => ({ ...p, score: mvpScore(p) }))
                         .sort((a, b) => b.score - a.score);
   return { ...ranked[0], teamId: g.winnerId };
+}
+
+// Merge orphan seasonStats entries — left over from the pre-fix
+// nickname-rename bug that split a single player's stats across two
+// name keys mid-season. For each team, find entries whose key doesn't
+// match any current roster name and try to attribute them to the right
+// live player (same team, same position, ideally currently nicknamed
+// or has a partial entry under their real name). Sum-merges stat
+// fields, max-merges "long" fields, then deletes the orphan.
+function _reconcileOrphanSeasonStats() {
+  if (!franchise?.seasonStats || !franchise?.rosters) return;
+  const MAX_STATS = new Set(["pass_long","rush_long","rec_long","fg_long","int_long","punt_long","kr_long","pr_long"]);
+  let merged = 0;
+  for (const [tidStr, players] of Object.entries(franchise.seasonStats)) {
+    const tid = Number(tidStr);
+    const roster = franchise.rosters[tid] || [];
+    const rosterByName = new Map(roster.map(p => [p.name, p]));
+    const rosterByNick = new Map(roster.filter(p => p.nickname).map(p => [p.nickname, p]));
+    for (const orphanName of Object.keys(players)) {
+      if (rosterByName.has(orphanName)) continue; // matches a live player
+      const orphan = players[orphanName];
+      if (!orphan) continue;
+      // Best-effort match: same team, same position, single candidate.
+      let target = rosterByNick.get(orphanName);
+      if (!target) {
+        const samePos = roster.filter(p => p.position === orphan.pos);
+        if (samePos.length === 1) {
+          target = samePos[0];
+        } else {
+          // Prefer a position match that ALSO already has a partial
+          // entry in seasonStats (likely the renamed player whose
+          // current-name half is here too).
+          const split = samePos.find(p => players[p.name]);
+          if (split) target = split;
+        }
+      }
+      if (!target) continue;
+      const dest = players[target.name] || (players[target.name] = { name: target.name, pos: target.position, gp: 0 });
+      for (const [k, v] of Object.entries(orphan)) {
+        if (k === "name" || k === "pos") continue;
+        if (typeof v !== "number") continue;
+        if (MAX_STATS.has(k)) dest[k] = Math.max(dest[k] || 0, v);
+        else                  dest[k] = (dest[k] || 0) + v;
+      }
+      delete players[orphanName];
+      merged++;
+    }
+  }
+  if (merged > 0) console.log(`[orphan reconcile] merged ${merged} split-name stat entries`);
 }
 
 // ── Comprehensive Awards Engine ──────────────────────────────────────────────
@@ -6726,6 +6779,12 @@ function _allProRowSnapshot(r) {
 }
 
 function _selectAllPros() {
+  // Defensive: merge orphan seasonStats entries (from old nickname-
+  // rename bug — same player, two keys) into the live player's current
+  // entry before awards run. Without this, a player whose stats were
+  // split across "Legal Name" + "Nickname" keys mid-season fails the
+  // ts[p.name] lookup below and drops to zero on the All-Pro board.
+  _reconcileOrphanSeasonStats();
   const result = {};
   for (const conf of ["AFC", "NFC"]) {
     const teamIds = new Set(TEAMS.filter(t => t.conference === conf).map(t => t.id));
@@ -6736,7 +6795,9 @@ function _selectAllPros() {
       const team = getTeam(tid);
       const ts = franchise.seasonStats?.[tid] || {};
       for (const p of roster) {
-        const s = ts[p.name];
+        // Try current name, then nickname (covers renamed-player saves
+        // even before reconciliation has merged them).
+        const s = ts[p.name] || (p.nickname ? ts[p.nickname] : null);
         all.push({ live: p, name: p.name, pos: p.position, teamId: tid, team, stats: s || null });
       }
     }
@@ -6890,13 +6951,17 @@ function _computeDPOY() {
 
 // Rookie of the Year — best stat score among first-year players.
 function _computeROY() {
+  _reconcileOrphanSeasonStats();
   const baseYear = new Date().getFullYear() + (franchise.season || 1) - 1;
   let best = null;
   for (const [tidStr, players] of Object.entries(franchise.seasonStats || {})) {
     const tid = Number(tidStr);
     const roster = franchise.rosters[tid] || [];
     for (const p of Object.values(players)) {
-      const live = roster.find(r => r.name === p.name);
+      // Match by name first, fall back to nickname for old saves where
+      // the player was renamed mid-season.
+      const live = roster.find(r => r.name === p.name)
+        || roster.find(r => r.nickname && r.nickname === p.name);
       if (!live) continue;
       // Treat anyone with a draftYear in the current league-year (or no
       // career history) as a rookie. The age check filters edge cases.
