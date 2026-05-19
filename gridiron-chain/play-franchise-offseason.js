@@ -1998,6 +1998,52 @@ function _computeAndStorePOTW(week) {
     ol:           candidates.ol[0]           || null,
     specialTeams: candidates.specialTeams[0] || null,
   };
+  // CPU "writers" cast their weekly POTW votes for each category.
+  // Stat-weighted random across the top 3 — usually picks the top
+  // scorer, sometimes #2 or #3 when scores are close. Builds POTY
+  // races that don't always echo the raw stat leader. User can
+  // override anytime via the voting page (their submit replaces
+  // these picks entirely).
+  _cpuVoteWeeklyPOTW(week);
+}
+
+function _cpuVoteWeeklyPOTW(week) {
+  const seasonKey = franchise.season;
+  if (!franchise.potwVotes) franchise.potwVotes = {};
+  if (!franchise.potwVotes[seasonKey]) franchise.potwVotes[seasonKey] = {};
+  // Don't overwrite votes that already exist for this week (e.g. user
+  // had already voted, or we re-ran the compute).
+  if (franchise.potwVotes[seasonKey][week]) return;
+  const cands = franchise.potwCandidates?.[seasonKey]?.[week];
+  if (!cands) return;
+  const vote = {};
+  for (const group of ["offense","defense","ol","specialTeams"]) {
+    const list = (cands[group] || []).slice(0, 3);
+    if (!list.length) continue;
+    // Stat-weighted random — closer to consensus when one player
+    // dominates the slate, more dispersed when scores are tight.
+    // Floor at 0.1 so a near-zero score still has token weight.
+    const scores = list.map(c => Math.max(0.1, c.score || 0));
+    const total = scores.reduce((s, v) => s + v, 0);
+    const r = Math.random();
+    let acc = 0;
+    for (let i = 0; i < scores.length; i++) {
+      acc += scores[i] / total;
+      if (r <= acc) { vote[group] = list[i].name; break; }
+    }
+    if (!vote[group]) vote[group] = list[0].name; // fallback
+  }
+  franchise.potwVotes[seasonKey][week] = vote;
+  // Reflect the voted picks on the POTW display so the dashboard's
+  // weekly winners match the recorded votes (not just auto-stat top).
+  if (!franchise.potw[seasonKey]) franchise.potw[seasonKey] = {};
+  if (!franchise.potw[seasonKey][week]) franchise.potw[seasonKey][week] = {};
+  for (const group of ["offense","defense","ol","specialTeams"]) {
+    const votedName = vote[group];
+    if (!votedName) continue;
+    const found = (cands[group] || []).find(c => c.name === votedName);
+    if (found) franchise.potw[seasonKey][week][group] = found;
+  }
 }
 
 // Tally user votes across the season to find the Player of the Year per group.
