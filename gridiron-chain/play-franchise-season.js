@@ -3249,7 +3249,7 @@ function _buildPlayerDetailPanel(p) {
       if (p._ignoreOvrPenalty) parts.push(`-${p._ignoreOvrPenalty} OVR penalty`);
       if (devFreezeUntil != null && (franchise.season ?? 0) <= devFreezeUntil) parts.push(`dev frozen through S${devFreezeUntil}`);
       if (tradeReq) parts.push(`formally requested trade`);
-      if (flightRisk) parts.push(`flight risk at expiry · +25% demand premium`);
+      if (flightRisk) parts.push(`flight risk at expiry · escalator on next demand`);
       return `<div style="margin:.55rem 0;padding:.4rem .55rem;background:rgba(255,90,90,.08);border-left:3px solid #ff5a5a;border-radius:2px;font-size:.65rem;color:#ffb0b0">
         💢 <b style="letter-spacing:.5px">LOCKER ROOM</b> · ${parts.join(" · ")}
       </div>`;
@@ -4363,6 +4363,7 @@ function _faResolveAfterWeek(week, isSeasonEnd) {
         startSeason: (franchise.season || 1) + 1, // FA signings start next season
         signedOvr: n.fa.overall || 70,
       };
+      _clearGrudgeFlags(n.fa);
       n.state = "signed";
       n.signedToTeamId = highId;
       n.history.push({ teamId: highId,
@@ -4552,6 +4553,7 @@ function _faTryKnockout(negKey) {
     startSeason: (franchise.season || 1) + 1,
     signedOvr: n.fa.overall || 70,
   };
+  _clearGrudgeFlags(n.fa);
   n.state = "signed";
   n.signedToTeamId = high.teamId;
   n.history.push({ teamId: high.teamId,

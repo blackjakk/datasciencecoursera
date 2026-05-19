@@ -5199,6 +5199,7 @@ function frnHoldoutMidExtend(name) {
     startSeason: franchise.season || 1, // contract is active starting this season
     signedOvr: ovr,
   };
+  _clearGrudgeFlags(player);
   _pushNews({ type: "extension",
     label: `🤝 Extended ${player.position} ${name} mid-season — ${years}yr / $${aav.toFixed(1)}M/yr` });
   franchise.holdoutDemands = list.filter(x => x.name !== name);
@@ -6701,6 +6702,7 @@ function frnConfirmResignings() {
       };
       franchise.franchiseTagHistory = franchise.franchiseTagHistory || {};
       franchise.franchiseTagHistory[r.name] = (franchise.franchiseTagHistory[r.name] || 0) + 1;
+      _clearGrudgeFlags(player);
       _pushNews({ type: "tag",
         label: `🏷 Franchise-tagged ${r.pos} ${r.name} — 1yr / $${r.tagAAV.toFixed(1)}M fully guaranteed` });
     } else if (r.decision === "accept") {
@@ -6719,6 +6721,7 @@ function frnConfirmResignings() {
         startSeason: (franchise.season || 1) + 1, // contract starts NEXT season
         signedOvr: player.overall || 70,
       };
+      _clearGrudgeFlags(player);
     } else {
       // Declined: remove from roster (enters FA — currently just lost).
       // Log as a qualifying loss for next-draft comp picks.
@@ -7397,14 +7400,17 @@ function _buildExtensionPitch(ctx, live, cap) {
       color: "#e8a000",
     };
     // Walk year: leverage premium kicks in plus N years of cap growth.
+    // Leverage is OVR-tier aware — mirrors _walkYearLeverage so the
+    // projection matches what the engine would actually demand.
     const yrsUntilWalk = remNow - 1;
     const marketWalk = marketAAV * Math.pow(CAP_GROWTH, yrsUntilWalk);
-    const aavWalk = Math.round(marketWalk * 1.20 * 10) / 10;
+    const walkLev = _walkYearLeverage(live.overall || 0);
+    const aavWalk = Math.round(marketWalk * walkLev * 10) / 10;
     const walkRow = (yrsUntilWalk >= 1) ? {
       label: "Wait to walk yr",
       aav: aavWalk, years: yrs,
       total: aavWalk * yrs,
-      note: `walk-year leverage (×1.20) in ${yrsUntilWalk}yr`,
+      note: `walk-year leverage (×${walkLev.toFixed(2)}) in ${yrsUntilWalk}yr`,
       color: "#ff8a8a",
     } : null;
 
@@ -7616,16 +7622,36 @@ function _demandRollProbability(score, ctx) {
   return 0.15;
 }
 
+// Walk-year leverage multiplier by talent. Extracted so the cost-to-keep
+// timeline and any future projection code use the same source of truth
+// as the live demand engine.
+function _walkYearLeverage(ovr) {
+  if (ovr >= 85) return 1.20;
+  if (ovr >= 78) return 1.10;
+  if (ovr >= 72) return 1.00;
+  return 0.92;
+}
+
+// Clear grudge flags when a player signs a new deal. Without this,
+// _ignoredDemandSeason and flightRisk persist across contracts, so a
+// player ignored 5 years ago and signed twice since would still trigger
+// the priorIgnored escalator on every future demand. Signing a new
+// deal is supposed to wash the slate. unhappy is intentionally left
+// alone — it's re-set per-extension based on the new deal's accept
+// odds (extending below 50% odds keeps player unhappy with the deal).
+function _clearGrudgeFlags(player) {
+  if (!player) return;
+  delete player._ignoredDemandSeason;
+  delete player.flightRisk;
+}
+
 // Demanded AAV with cycle escalator. Each ignored cycle bumps the next
 // demand's multiplier on top of market. Walk-year leverage scales by
 // talent — elite stars hold all the cards in FA, depth pieces don't.
 //   Mid-contract cycle 1               · 1.05× market
 //   Mid-contract cycle 2               · 1.12× market
 //   Mid-contract cycle 3+              · 1.18× market
-//   Walk-year, 85+ OVR                 · 1.20× market
-//   Walk-year, 78-84 OVR               · 1.10× market
-//   Walk-year, 72-77 OVR               · 1.00× market
-//   Walk-year, <72 OVR                 · 0.92× market
+//   Walk-year, by OVR (see _walkYearLeverage)
 //   Walk-year after ignored            · 1.17× the above leverage
 //                                        (capped at 1.40× so elite
 //                                        ignored = 1.40× as before)
@@ -7642,11 +7668,7 @@ function _demandedAavFor(live, market, contract, ctx) {
 
   let mult;
   if (isWalk) {
-    let baseLeverage;
-    if (ovr >= 85)      baseLeverage = 1.20;
-    else if (ovr >= 78) baseLeverage = 1.10;
-    else if (ovr >= 72) baseLeverage = 1.00;
-    else                baseLeverage = 0.92;
+    const baseLeverage = _walkYearLeverage(ovr);
     mult = priorIgnored ? Math.min(1.40, baseLeverage * 1.17) : baseLeverage;
   } else if (cycle <= 1) {
     mult = 1.05;
@@ -7845,6 +7867,7 @@ function frnHoldoutExtend(name) {
     startSeason: (franchise.season || 1) + 1, // offseason extension — starts next season
     signedOvr: ovr,
   };
+  _clearGrudgeFlags(player);
   h.resolved = "extended";
   _holdoutPreview = null;
   _pushNews({ type: "extension",
