@@ -5665,6 +5665,30 @@ function _resignCompPick(r) {
   return { round, label: `${labels[round]} comp pick projected` };
 }
 
+// Standard rookie-slot AAV by round (4-yr contract, NFL CBA-ish slots).
+// Used to compare "keep him for $X" vs "let him walk for a comp pick"
+// in dollar terms instead of trade-chart points.
+const _ROOKIE_SLOT_AAV = { 1: 5.0, 2: 2.5, 3: 1.5, 4: 1.1, 5: 1.0, 6: 0.9, 7: 0.85 };
+const _ROOKIE_SLOT_YEARS = 4;
+function _compPickRookieAAV(round) {
+  return _ROOKIE_SLOT_AAV[round] || 0.85;
+}
+
+// Side-by-side path comparison for a re-sign row: keep him at offer vs.
+// let him walk and take the projected comp pick. Returns null if no
+// comp pick projects (sub-market AAVs don't qualify for compensation).
+function _resignSurplusVsComp(r, compPick) {
+  if (!compPick) return null;
+  const offer = r.offer || 0;
+  const years = r.offerYears || 0;
+  if (offer <= 0 || years <= 0) return null;
+  const dealTotal = offer * years;
+  const rookieAav = _compPickRookieAAV(compPick.round);
+  const rookieTotal = rookieAav * _ROOKIE_SLOT_YEARS;
+  const premium = dealTotal - rookieTotal;
+  return { dealTotal, rookieAav, rookieTotal, premium, round: compPick.round };
+}
+
 // Multi-year cap projection — sums existing kept contracts + accepted
 // re-signings out to N years from now. Used by the team-wide cap
 // timeline at the top of the page.
@@ -5937,6 +5961,22 @@ function _renderResignUI(cap, capCommitted) {
 
     // ── Comp pick preview on Let Walk ──────────────────────────────
     const compPick = _resignCompPick(r);
+    // ── Path comparison: keep vs walk-for-comp ─────────────────────
+    // Compare total commitment of the current offer against the rookie-
+    // contract approximation of the projected comp pick. Surfaces the
+    // dollar premium the user pays to keep him over replacing him.
+    const surplus = _resignSurplusVsComp(r, compPick);
+    const surplusHtml = surplus ? (() => {
+      const premiumColor = surplus.premium >= surplus.rookieTotal * 4 ? "#ff8a8a"
+                         : surplus.premium >= surplus.rookieTotal * 2 ? "#e8a000"
+                         : "var(--gold-lt)";
+      const roundLabel = { 3:"3rd", 4:"4th", 5:"5th", 6:"6th", 7:"7th" }[surplus.round] || `R${surplus.round}`;
+      return `<div style="font-size:.6rem;color:var(--gray);margin-top:.18rem;line-height:1.4">
+        💰 <b style="color:var(--gold-lt)">Keep</b> $${surplus.dealTotal.toFixed(1)}M (${r.offerYears}yr) &nbsp;vs&nbsp;
+        <b style="color:var(--gold-lt)">Walk</b> ~$${surplus.rookieTotal.toFixed(1)}M (${roundLabel}-rd rookie est.)
+        · <span style="color:${premiumColor};font-weight:700">+$${surplus.premium.toFixed(1)}M premium to keep</span>
+      </div>`;
+    })() : "";
 
     // ── Background meta (depth / FA / years with team) — compact ──
     const metaBits = [];
@@ -5967,6 +6007,7 @@ function _renderResignUI(cap, capCommitted) {
             ${_contractContextBar(r.pos, r.baseMarket, cap)}
             ${demandHtml}
             ${_buildExtensionPitch(resignCtx, livePlayer, cap)}
+            ${surplusHtml}
             ${metaHtml}
           </div>
           <div class="frn-resign-offer">
