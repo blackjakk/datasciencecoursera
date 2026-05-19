@@ -1326,26 +1326,150 @@ const HOF_THRESHOLDS = {
   P:  p => false,
 };
 
-function _maybeEnshrineHOF(player, team) {
-  const check = HOF_THRESHOLDS[player.position];
-  if (!check || !check(player)) return;
-  if (!franchise.hallOfFame) franchise.hallOfFame = [];
-  // Snapshot enough data to display the entry forever
-  const _hofStatKeys = ["pass_yds","pass_td","rush_yds","rec_yds","sk","int_made","pancakes"];
-  franchise.hallOfFame.push({
+// Position multipliers normalize HOF scoring across positions whose
+// raw stats wildly differ (OL pancakes ≠ QB pass_yds). Tuned so a
+// representative star at each position lands in the same ~70 score
+// band when they belong in Canton.
+function _hofPositionMul(pos) {
+  return { QB:1.0, RB:0.95, WR:0.92, TE:0.95, OL:1.20, LT:1.20, LG:1.20, C:1.20, RG:1.20, RT:1.20,
+           DL:1.0, LB:1.0, CB:1.05, S:1.05, K:1.30, P:1.45 }[pos] || 1.0;
+}
+
+// Composite HOF score: peak ability + accolades + counting stats +
+// longevity, scaled by position multiplier. Returns integer.
+function _computeHOFScore(p) {
+  const stats = p.careerStats || {};
+  const histPeak = Math.max(...(p.careerHistory||[]).map(h => h.ovr ?? h.overall ?? 0), 0);
+  const peak = Math.max(histPeak, p.overall || 0);
+  let s = Math.max(0, peak - 70) * 1.5;
+  s += (p.mvps    || 0) * 12;
+  s += (p.opoys   || 0) * 5;
+  s += (p.dpoys   || 0) * 5;
+  s += (p.allPros || 0) * 4;
+  s += (p.proBowls|| 0) * 1.2;
+  s += (p.sbRings || 0) * 3;
+  s += (p.roys    || 0) * 2;
+  s += Math.max(0, (p.careerHistory?.length || 0) - 6) * 0.8;
+  const pos = p.position;
+  if (pos === "QB") s += (stats.pass_yds||0)/3500 + (stats.pass_td||0)/15;
+  else if (pos === "RB") s += (stats.rush_yds||0)/1000*1.2 + (stats.rush_td||0)/8 + (stats.rec_yds||0)/2500;
+  else if (pos === "WR" || pos === "TE") s += (stats.rec_yds||0)/1000*1.2 + (stats.rec_td||0)/8;
+  else if (pos === "DL" || pos === "LB") s += (stats.sk||0)/5 + (stats.tkl||0)/120;
+  else if (pos === "CB" || pos === "S")  s += (stats.int_made||0)/2 + (stats.pd||0)/15;
+  else if (pos === "K") s += (stats.fg_made||0)/18;
+  else if (["OL","LT","LG","C","RG","RT"].includes(pos)) s += (stats.pancakes||0)/22;
+  s *= _hofPositionMul(pos);
+  return Math.round(s);
+}
+
+// Slim-snapshot a retired player into the HOF candidate pool. A
+// retiree must clear the candidate floor to appear on any ballot;
+// most journeymen never even get nominated.
+const _HOF_STAT_KEYS = ["pass_yds","pass_td","pass_int","rush_yds","rush_att","rush_td","rec","rec_yds","rec_td","sk","tkl","int_made","pd","fg_made","fg_long","xp_made","pancakes","sacks_allowed","kr_yds","pr_yds","kr_td","pr_td"];
+const _HOF_CANDIDATE_MIN = 25;
+function _addHOFCandidate(player, team) {
+  const score = _computeHOFScore(player);
+  if (score < _HOF_CANDIDATE_MIN) return false;
+  if (!franchise._hofEligible) franchise._hofEligible = [];
+  const cleanStats = {};
+  for (const k of _HOF_STAT_KEYS) if (player.careerStats?.[k]) cleanStats[k] = player.careerStats[k];
+  const peak = Math.max(
+    ...(player.careerHistory||[]).map(h => h.ovr ?? h.overall ?? 0),
+    player.overall || 0
+  );
+  franchise._hofEligible.push({
     name: player.name, pos: player.position,
-    age: player.age, season: franchise.season,
+    age: player.age, retiredSeason: franchise.season,
+    firstEligible: franchise.season + 1,
+    yearsOnBallot: 0,
     teamName: team ? `${team.city} ${team.name}` : "?",
-    careerStats: { ...(player.careerStats || {}) },
+    teamId: team?.id,
+    teamPrimary: team?.primary || "#888",
+    teamAbbr: team ? (typeof _bspnLiveAbbr === "function" ? _bspnLiveAbbr(team) : (team.abbr || team.name.slice(0,3).toUpperCase())) : "—",
+    careerStats: cleanStats,
     careerEarnings: player.careerEarnings || 0,
     careerYears: (player.careerHistory || []).length,
+    peakOvr: peak,
+    accolades: {
+      mvps: player.mvps || 0, opoys: player.opoys || 0, dpoys: player.dpoys || 0,
+      roys: player.roys || 0, allPros: player.allPros || 0,
+      proBowls: player.proBowls || 0, sbRings: player.sbRings || 0,
+    },
     careerHistory: (player.careerHistory || []).map(r => {
-      const slim = { season: r.season, pos: r.pos };
-      for (const k of _hofStatKeys) if (r[k]) slim[k] = r[k];
+      const slim = { season: r.season, pos: r.pos, ovr: r.ovr, teamName: r.teamName, age: r.age };
+      for (const k of _HOF_STAT_KEYS) if (r[k]) slim[k] = r[k];
+      if (r.accolades?.length) slim.accolades = r.accolades.slice();
       return slim;
     }),
+    baseScore: score,
   });
-  _pushNews({ type: "hof", season: franchise.season, label: `🏆 ${player.name} (${player.position}) enshrined in the Hall of Fame after ${player.careerHistory?.length || 0} seasons` });
+  return true;
+}
+
+// Annual HOF Selection Committee vote. Inducts the top candidates from
+// the eligible pool above an induction threshold, max 6 per class.
+// Drops candidates after 10 years on ballot (Veterans Committee fallback
+// would go here in a future enhancement).
+const _HOF_INDUCT_THRESHOLD = 55;
+const _HOF_MAX_CLASS = 6;
+const _HOF_MAX_BALLOT_YEARS = 10;
+function _runHOFVoting() {
+  if (!franchise._hofEligible) franchise._hofEligible = [];
+  if (!franchise.hallOfFame) franchise.hallOfFame = [];
+  const currentSeason = franchise.season;
+  const ballot = franchise._hofEligible
+    .filter(c => currentSeason >= (c.firstEligible || (c.retiredSeason + 1)));
+  for (const c of ballot) c.yearsOnBallot = (c.yearsOnBallot || 0) + 1;
+  const scored = ballot.map(c => ({
+    cand: c,
+    score: (c.baseScore || 0) - Math.max(0, (c.yearsOnBallot - 1)) * 2,
+  })).sort((a, b) => b.score - a.score);
+  const winners = scored
+    .filter(s => s.score >= _HOF_INDUCT_THRESHOLD)
+    .slice(0, _HOF_MAX_CLASS);
+  const inductees = [];
+  for (const { cand, score } of winners) {
+    const firstBallot = cand.yearsOnBallot === 1;
+    const votePct = Math.min(99, Math.max(60,
+      Math.round(60 + (score - _HOF_INDUCT_THRESHOLD) * 1.5)));
+    const inductee = {
+      name: cand.name, pos: cand.pos,
+      age: cand.age, season: currentSeason,
+      teamName: cand.teamName, teamPrimary: cand.teamPrimary || "#888",
+      teamAbbr: cand.teamAbbr || "—",
+      careerStats: cand.careerStats,
+      careerEarnings: cand.careerEarnings,
+      careerYears: cand.careerYears,
+      careerHistory: cand.careerHistory,
+      firstBallot, votePct,
+      yearsOnBallot: cand.yearsOnBallot,
+      classSeason: currentSeason,
+      retiredSeason: cand.retiredSeason,
+      peakOvr: cand.peakOvr,
+      accolades: cand.accolades,
+      line: typeof mvpStatLine === "function" ? mvpStatLine(cand.careerStats || {}) : "",
+    };
+    franchise.hallOfFame.push(inductee);
+    inductees.push(inductee);
+    _pushNews({ type:"hof",
+      label: `🏛 HALL OF FAME · ${cand.name} (${cand.pos}) enshrined${firstBallot?" — FIRST BALLOT":""} · ${votePct}%` });
+  }
+  if (inductees.length) {
+    _pushNews({ type:"hof",
+      label: `🏛 HOF CLASS OF S${currentSeason}: ${inductees.length} inductee${inductees.length===1?"":"s"} — ${inductees.map(i => i.name).join(", ")}` });
+  }
+  const winnerNames = new Set(winners.map(w => w.cand.name));
+  franchise._hofEligible = franchise._hofEligible
+    .filter(c => !winnerNames.has(c.name))
+    .filter(c => (c.yearsOnBallot || 0) < _HOF_MAX_BALLOT_YEARS);
+  return inductees;
+}
+
+// Legacy shim — preserved for any saves/callers still wired to the old
+// direct-enshrinement path. New code routes retirees through
+// _addHOFCandidate + _runHOFVoting instead.
+function _maybeEnshrineHOF(player, team) {
+  _addHOFCandidate(player, team);
 }
 
 // Build a career-stats card for any player — shown when you click into

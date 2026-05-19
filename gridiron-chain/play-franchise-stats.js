@@ -1982,6 +1982,48 @@ function _bspnNavHtml(activeId) {
 }
 
 // ── BSPN STANDINGS PAGE ─────────────────────────────────────────────────────
+// Compute a team's playoff status (clinched div / clinched playoff /
+// in hunt / eliminated) by comparing wins-possible against the seed-5
+// (first-out) team in their conference. Pure W-L math — tiebreakers
+// applied only at the divisional level.
+function _playoffClinchStatus(teamId, sorted) {
+  const target = sorted.find(s => s.id === teamId);
+  if (!target) return null;
+  const gp = (target.w || 0) + (target.l || 0) + (target.t || 0);
+  const gamesLeft = Math.max(0, FRANCHISE_WEEKS - gp);
+  if (gamesLeft >= FRANCHISE_WEEKS) return null; // season hasn't started
+  const conf = target.team.conference;
+  const confTeams = sorted.filter(s => s.team.conference === conf);
+  const seedCount = PLAYOFF_TEAMS / 2;
+  const bubble     = confTeams[seedCount - 1];
+  const firstOut   = confTeams[seedCount];
+  if (!bubble) return null;
+  const _maxWins = s => (s.w || 0) + Math.max(0, FRANCHISE_WEEKS - ((s.w||0)+(s.l||0)+(s.t||0)));
+  const _minWins = s => (s.w || 0);
+  const targetMin = _minWins(target);
+  const targetMax = _maxWins(target);
+  // Division clinch — leader's min wins beat #2 in division max wins
+  const divTeams = confTeams.filter(s => s.team.division === target.team.division);
+  const divLeader = divTeams[0];
+  const divSecond = divTeams[1];
+  if (divLeader && target.id === divLeader.id && divSecond && targetMin > _maxWins(divSecond)) {
+    return { tag: "CLINCHED DIV", color: "var(--blgold)" };
+  }
+  // Playoff clinch
+  if (firstOut && targetMin > _maxWins(firstOut)) {
+    return { tag: "CLINCHED", color: "var(--blgreen)" };
+  }
+  // Eliminated
+  if (bubble && target.id !== bubble.id && targetMax < _minWins(bubble)) {
+    return { tag: "ELIMINATED", color: "#ff7676" };
+  }
+  // In the hunt (late-season + within striking distance)
+  if (gamesLeft <= 5 && gamesLeft > 0 && targetMax >= _minWins(bubble)) {
+    return { tag: "IN HUNT", color: "#e8a000" };
+  }
+  return null;
+}
+
 // Broadcast-styled league standings — uses the BSPN scoped CSS already
 // loaded for the box-score page. Grouped by conference + division with
 // the user's team highlighted. Tiebreakers from standingsSorted (which
@@ -2014,12 +2056,17 @@ function renderFrnStandings() {
       const pd = detailed.pointDiff || 0;
       const pdColor = pd > 0 ? "var(--blgreen)" : pd < 0 ? "#ff7676" : "var(--blgray)";
       const isMine = t.id === myId;
+      const clinch = _playoffClinchStatus(t.id, sorted);
+      const clinchPill = clinch
+        ? `<span style="color:${clinch.color};font-size:.5rem;letter-spacing:.6px;border:1px solid ${clinch.color};padding:.05rem .3rem;margin-left:.4rem;border-radius:2px">${clinch.tag}</span>`
+        : "";
       return `<tr ${isMine ? `style="background:rgba(245,197,66,0.08)"` : ""}>
         <td style="color:var(--blgold);font-weight:900;width:1.5rem">${i + 1}</td>
         <td>
           <span class="bspnlive-num" style="color:${t.primary};font-weight:700">${t.abbr || t.name.slice(0,3).toUpperCase()}</span>
           <span style="color:${isMine ? "var(--blgold)" : "var(--blwhite)"};font-weight:${isMine?900:600};margin-left:.45rem;font-family:'Bebas Neue','Anton',sans-serif;letter-spacing:1px;font-size:.95rem">${t.city} ${t.name}</span>
           ${isMine ? `<span style="color:var(--blgold);font-size:.55rem;letter-spacing:.5px;margin-left:.4rem">YOU</span>` : ""}
+          ${clinchPill}
         </td>
         <td class="bspnlive-num" style="text-align:right;font-weight:700">${recStr}</td>
         <td class="bspnlive-num" style="text-align:right;color:var(--blgray)">${divRec}</td>
@@ -2058,11 +2105,16 @@ function renderFrnStandings() {
       const seedTag = inPlayoffs
         ? `<span style="color:var(--blgold);font-weight:900;font-size:.85rem;font-family:'Bebas Neue',sans-serif">#${i+1}</span>`
         : `<span style="color:var(--blgray);font-weight:600">${i+1}</span>`;
+      const clinch = _playoffClinchStatus(s.id, sorted);
+      const clinchPill = clinch
+        ? `<span style="color:${clinch.color};font-size:.5rem;letter-spacing:.6px;border:1px solid ${clinch.color};padding:.05rem .3rem;margin-left:.4rem;border-radius:2px">${clinch.tag}</span>`
+        : "";
       return `<tr ${isMine ? `style="background:rgba(245,197,66,0.08)"` : ""}>
         <td style="width:2.2rem;text-align:center">${seedTag}</td>
         <td>
           <span class="bspnlive-num" style="color:${s.team.primary};font-weight:700">${s.team.abbr || s.team.name.slice(0,3).toUpperCase()}</span>
           <span style="margin-left:.4rem;color:${isMine?"var(--blgold)":"var(--blwhite)"};font-family:'Bebas Neue','Anton',sans-serif;letter-spacing:1px">${s.team.name}</span>
+          ${clinchPill}
         </td>
         <td class="bspnlive-num" style="text-align:right;font-weight:700">${recStr}</td>
       </tr>`;
@@ -2179,6 +2231,14 @@ function renderFrnLeaders(tab) {
       extra: r => `${r.pd||0} PD · ${r.tkl||0} TKL` },
     { id: "fg",        label: "FIELD GOALS",    key: "fg_made",   scope: "K",
       extra: r => `${r.fg_att||0} ATT · LNG ${r.fg_long||0}` },
+    { id: "fgPct",     label: "FG ACCURACY",    key: "_fgPct",    scope: "K",
+      derive: r => (r.fg_att||0) >= 10 ? Math.round(((r.fg_made||0)/r.fg_att)*1000)/10 : 0,
+      extra: r => `${r.fg_made||0}/${r.fg_att||0}${(r.fg_att||0)>=10?"":" (need 10+ att)"}`,
+      formatVal: v => v ? `${v.toFixed(1)}%` : "—" },
+    { id: "krYds",     label: "KICK RETURN YARDS", key: "kr_yds", scope: ["WR","RB","CB","S"],
+      extra: r => `${r.kr_td||0} TD` },
+    { id: "prYds",     label: "PUNT RETURN YARDS", key: "pr_yds", scope: ["WR","RB","CB","S"],
+      extra: r => `${r.pr_td||0} TD` },
     { id: "pancakes",  label: "PANCAKE BLOCKS", key: "pancakes",  scope: ["OL","LT","LG","C","RG","RT"],
       extra: r => `${r.sacks_allowed||0} SA` },
     { id: "sacksAllowed", label: "SACKS ALLOWED (OL)", key: "sacks_allowed", scope: ["OL","LT","LG","C","RG","RT"],
@@ -2187,10 +2247,11 @@ function renderFrnLeaders(tab) {
   const activeTab = tab && cats.find(c => c.id === tab) ? tab : cats[0].id;
   const cat = cats.find(c => c.id === activeTab) || cats[0];
   const scopeMatches = pos => Array.isArray(cat.scope) ? cat.scope.includes(pos) : cat.scope === pos;
-  const filtered = all.filter(r => scopeMatches(r.pos) && (r[cat.key] || 0) > 0);
+  const _catValue = r => cat.derive ? cat.derive(r) : (r[cat.key] || 0);
+  const filtered = all.filter(r => scopeMatches(r.pos) && _catValue(r) > 0);
   filtered.sort((a, b) => cat.sortAsc
-    ? (a[cat.key] || 0) - (b[cat.key] || 0)
-    : (b[cat.key] || 0) - (a[cat.key] || 0));
+    ? _catValue(a) - _catValue(b)
+    : _catValue(b) - _catValue(a));
   const top10 = filtered.slice(0, 10);
 
   const tabBar = cats.map(c =>
@@ -2208,7 +2269,7 @@ function renderFrnLeaders(tab) {
         <span style="color:${r._team.primary};font-weight:700;margin-left:.45rem;font-size:.7rem">${r._team.abbr || r._team.name.slice(0,3).toUpperCase()}</span>
         <span style="color:var(--blgray);font-size:.6rem;margin-left:.4rem">${r.pos}</span>
       </td>
-      <td style="text-align:right;font-family:'Anton','Teko','Impact',sans-serif;font-size:1.5rem;line-height:1;font-weight:900;color:var(--blwhite)">${r[cat.key] || 0}</td>
+      <td style="text-align:right;font-family:'Anton','Teko','Impact',sans-serif;font-size:1.5rem;line-height:1;font-weight:900;color:var(--blwhite)">${cat.formatVal ? cat.formatVal(_catValue(r)) : _catValue(r)}</td>
       <td style="text-align:right;color:var(--blgray);font-size:.65rem;letter-spacing:.4px;padding-left:.7rem">${cat.extra(r)}</td>
     </tr>`;
   }).join("") : `<tr><td colspan="4" style="color:var(--blgray);font-style:italic;text-align:center;padding:1.5rem">No qualifying players yet — sim more games.</td></tr>`;
@@ -2315,12 +2376,12 @@ function _legacyChampions() {
 }
 
 function _legacyHOF() {
-  const list = (franchise.hallOfFame || []).slice().reverse();
-  if (!list.length) return `<div style="color:var(--gray);font-size:.78rem;padding:1rem;text-align:center;font-style:italic">The Hall of Fame opens with the first elite retirement.</div>`;
-  return list.map(h => {
+  const list = (franchise.hallOfFame || []).slice();
+  const eligible = (franchise._hofEligible || []).slice();
+  if (!list.length && !eligible.length) return `<div style="color:var(--gray);font-size:.78rem;padding:1rem;text-align:center;font-style:italic">The Hall of Fame opens with the first elite retirement.</div>`;
+  const _renderInductee = (h) => {
     const cs = h.careerStats || {};
     const yrs = h.careerYears ?? h.careerHistory?.length ?? 0;
-    // Position-aware stat highlights
     let highlights = "";
     if (h.pos === "QB") highlights = `${cs.pass_yds||0} yds · ${cs.pass_td||0} TD · ${cs.pass_int||0} INT`;
     else if (h.pos === "RB") highlights = `${cs.rush_yds||0} rush yds · ${cs.rush_td||0} TD`;
@@ -2329,17 +2390,73 @@ function _legacyHOF() {
     else if (h.pos === "CB" || h.pos === "S") highlights = `${cs.int_made||0} INT · ${cs.pd||0} PD · ${cs.tkl||0} tkl`;
     else if (h.pos === "K") highlights = `${cs.fg_made||0} FG (long ${cs.fg_long||0}) · ${cs.xp_made||0} XP`;
     else if (["OL","LT","LG","C","RG","RT"].includes(h.pos)) highlights = `${cs.pancakes||0} pancakes · ${cs.sacks_allowed||0} sacks allowed`;
+    const a = h.accolades || {};
+    const accChips = [
+      (a.mvps    || 0) > 0 ? `${a.mvps}× MVP` : "",
+      (a.sbRings || 0) > 0 ? `${a.sbRings}× 💍` : "",
+      (a.allPros || 0) > 0 ? `${a.allPros}× All-Pro` : "",
+      (a.proBowls|| 0) > 0 ? `${a.proBowls}× PB`    : "",
+    ].filter(Boolean).join(" · ");
+    const fbBadge = h.firstBallot
+      ? `<span style="color:var(--gold);font-weight:900;font-size:.52rem;letter-spacing:1px;background:rgba(200,169,0,.15);padding:.08rem .35rem;border:1px solid var(--gold);margin-left:.4rem">FIRST BALLOT</span>`
+      : (h.yearsOnBallot && h.yearsOnBallot > 1)
+        ? `<span style="color:var(--gray);font-size:.55rem;margin-left:.4rem">Yr ${h.yearsOnBallot}</span>`
+        : "";
+    const voteBadge = h.votePct
+      ? `<span style="color:var(--gray);font-size:.58rem;margin-left:.4rem">${h.votePct}%</span>`
+      : "";
     return `<div class="frn-hof-row">
       <div style="font-size:1.6rem;color:var(--gold)">🏛</div>
       <div style="flex:1">
         <div style="font-weight:900;font-size:.95rem">${h.name}
-          <span style="color:var(--gray);font-size:.62rem;font-weight:400">(${h.pos})</span>
+          <span style="color:var(--gray);font-size:.62rem;font-weight:400">(${h.pos})</span>${fbBadge}${voteBadge}
         </div>
-        <div style="color:var(--gray);font-size:.66rem">${h.teamName} · ${yrs} season${yrs===1?"":"s"} · enshrined S${h.season} · ${(h.careerEarnings||0).toFixed(1)}M career</div>
+        <div style="color:var(--gray);font-size:.66rem">${h.teamName} · ${yrs} season${yrs===1?"":"s"} · enshrined S${h.classSeason || h.season} · $${(h.careerEarnings||0).toFixed(1)}M career</div>
+        ${accChips ? `<div style="color:var(--gold);font-size:.62rem;margin-top:.1rem">${accChips}</div>` : ""}
         <div style="color:var(--gold-lt);font-size:.66rem;margin-top:.1rem">${highlights}</div>
       </div>
     </div>`;
+  };
+  // Group by class season (newest first); legacy entries with no
+  // classSeason cluster under their enshrinement season.
+  const byClass = {};
+  for (const h of list) {
+    const k = h.classSeason ?? h.season ?? 0;
+    (byClass[k] ||= []).push(h);
+  }
+  const classKeys = Object.keys(byClass).map(Number).sort((a,b) => b - a);
+  const classBlocks = classKeys.map(season => {
+    const klass = byClass[season];
+    return `<div style="margin-bottom:1rem">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:.4rem;padding-bottom:.3rem;border-bottom:1px solid var(--blborder)">
+        <div style="font-family:'Bebas Neue','Anton',sans-serif;color:var(--gold);font-size:1.2rem;letter-spacing:2px">CLASS OF S${season}</div>
+        <div style="color:var(--gray);font-size:.6rem;letter-spacing:.5px">${klass.length} inductee${klass.length===1?"":"s"}</div>
+      </div>
+      ${klass.map(_renderInductee).join("")}
+    </div>`;
   }).join("");
+  // Active ballot — candidates eligible but not yet inducted
+  const ballotBlock = eligible.length ? (() => {
+    const visible = eligible
+      .filter(c => franchise.season >= (c.firstEligible || (c.retiredSeason + 1)))
+      .map(c => ({ c, voteScore: (c.baseScore || 0) - Math.max(0, ((c.yearsOnBallot || 0) - 0)) * 2 }))
+      .sort((a, b) => b.voteScore - a.voteScore)
+      .slice(0, 12);
+    if (!visible.length) return "";
+    return `<div style="margin-top:1.2rem;padding-top:.6rem;border-top:1px dashed var(--blborder)">
+      <div style="font-family:'Bebas Neue','Anton',sans-serif;color:var(--gray);font-size:1rem;letter-spacing:2px;margin-bottom:.4rem">ON THE BALLOT (top 12)</div>
+      <div style="font-size:.6rem;color:var(--gray);margin-bottom:.4rem">Threshold to induct: ${_HOF_INDUCT_THRESHOLD}. Max class size: ${_HOF_MAX_CLASS}/yr. Candidates drop after ${_HOF_MAX_BALLOT_YEARS} years on ballot.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.3rem">
+        ${visible.map(({ c, voteScore }) => `
+          <div style="padding:.35rem .5rem;background:rgba(255,255,255,.03);border-left:2px solid ${voteScore >= _HOF_INDUCT_THRESHOLD ? "var(--gold)" : "var(--gray)"};font-size:.62rem">
+            <span style="font-weight:700;color:var(--blwhite)">${c.name}</span>
+            <span style="color:var(--gray)"> (${c.pos}) · score ${Math.round(voteScore)} · yr ${c.yearsOnBallot || 0}</span>
+          </div>
+        `).join("")}
+      </div>
+    </div>`;
+  })() : "";
+  return `${classBlocks || `<div style="color:var(--gray);font-size:.78rem;padding:.4rem;font-style:italic">No class enshrined yet — first vote runs after the first retirement wave.</div>`}${ballotBlock}`;
 }
 
 function _allKnownPlayers() {
@@ -7144,16 +7261,20 @@ function _processSeasonEndRetirements() {
         retProb = Math.max(0, retProb - shave);
       }
       if (retProb > 0 && Math.random() < retProb) {
-        const preHofCount = (franchise.hallOfFame || []).length;
-        _maybeEnshrineHOF(p, t);
-        const wasInducted = (franchise.hallOfFame || []).length > preHofCount;
+        // HOF is now a ballot-based class (see _runHOFVoting). Retirees
+        // who clear the candidate floor enter the eligible pool; the
+        // actual induction happens 1+ seasons later on the awards page.
+        _addHOFCandidate(p, t);
+        const hofScore = typeof _computeHOFScore === "function" ? _computeHOFScore(p) : 0;
         const entry = {
           name: p.name, pos: p.position, age: p.age,
           teamId: tId, teamName: `${t.city} ${t.name}`,
           teamAbbr: _bspnLiveAbbr(t), teamPrimary: t.primary,
           careerYears: p.careerHistory?.length || 0,
           careerEarnings: Math.round((p.careerEarnings || 0) * 10) / 10,
-          isHof: wasInducted,
+          isHof: false, // class is announced separately via voting
+          hofCandidate: hofScore >= 25,
+          hofScore,
           line: mvpStatLine(p.careerStats || {}),
         };
         retirees.push(entry);
@@ -7205,13 +7326,13 @@ function _processSeasonEndRetirements() {
             });
           }
         }
-        if (wasInducted) hofClass.push(entry);
         continue;
       }
       keep.push(p);
     }
     franchise.rosters[tId] = keep;
   }
+  // hofClass populated by _runHOFVoting after this returns (1-yr ballot wait)
   return { retirees, hofClass };
 }
 

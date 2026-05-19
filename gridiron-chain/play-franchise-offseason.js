@@ -1858,6 +1858,17 @@ function _runWeekEndResolution() {
     _processBlockAsks();
     _generateAIvsAITrades();
   }
+  // One-shot deadline-closed wire summary after the last trade-active
+  // week. Counts league-wide trade entries posted this season for the
+  // soundbite ("Trade Deadline Closed: 6 league moves this window").
+  if (w === TRADE_DEADLINE_WEEK && franchise._tradeDeadlineSummarized !== franchise.season) {
+    franchise._tradeDeadlineSummarized = franchise.season;
+    const tradeNews = (franchise.news || [])
+      .filter(n => n.type === "trade" && n.season === franchise.season);
+    const n = tradeNews.length;
+    _pushNews({ type:"trade",
+      label: `🔒 TRADE DEADLINE CLOSED · ${n} league move${n===1?"":"s"} this window${n===0?" (a quiet year)":""}` });
+  }
   // Practice squad: weekly flash roll + poach pass. Auto-spend any
   // remaining scout visits if the user has that toggle on.
   if (franchise.autoSpendScouts !== false) _psAutoSpendVisits();
@@ -4025,9 +4036,16 @@ function showFrnAwards() {
     // Process retirements FIRST so all subsequent computations use the
     // post-retirement state. Skip on stale-refresh — retirees already
     // captured in original entry (and may already be off the roster).
-    const { retirees, hofClass } = existing
-      ? { retirees: existing.retirees || [], hofClass: existing.hofClass || [] }
-      : _processSeasonEndRetirements();
+    let retirees, hofClass;
+    if (existing) {
+      retirees = existing.retirees || [];
+      hofClass = existing.hofClass || [];
+    } else {
+      ({ retirees } = _processSeasonEndRetirements());
+      // HOF voting runs annually — inductees are from prior years'
+      // retiree pool (1-year ballot wait), not this season's class.
+      hofClass = (typeof _runHOFVoting === "function") ? _runHOFVoting() : [];
+    }
 
     const leagueMVP    = computeLeagueMVP();
     const sbMVP        = computeSuperBowlMVP();
@@ -6350,23 +6368,37 @@ function renderFrnAwards() {
       </div>` : ""}
     </div>` : "";
 
-  const hofRows = (latest.hofClass || []).map(r => `
-    <div class="bspnlive-hof-row" style="border-left-color:${r.teamPrimary}">
+  const hofRows = (latest.hofClass || []).map(r => {
+    const fbTag = r.firstBallot
+      ? `<span style="color:var(--blgold);font-weight:900;font-size:.55rem;letter-spacing:1px;background:rgba(245,197,66,.15);padding:.08rem .35rem;border:1px solid var(--blgold);margin-left:.4rem">FIRST BALLOT</span>`
+      : (r.yearsOnBallot && r.yearsOnBallot > 1)
+        ? `<span style="color:var(--blgray);font-size:.55rem;letter-spacing:.5px;margin-left:.4rem">Yr ${r.yearsOnBallot} on ballot</span>`
+        : "";
+    const voteTag = r.votePct
+      ? `<span style="color:var(--blgray);font-size:.6rem;margin-left:.4rem">${r.votePct}% of vote</span>`
+      : "";
+    return `
+    <div class="bspnlive-hof-row" style="border-left-color:${r.teamPrimary || "#888"}">
       <div class="bspnlive-hof-trophy">🏛</div>
       <div class="bspnlive-hof-body">
-        <div class="bspnlive-hof-name">${link(r)} <span style="color:var(--blgray);font-size:.65rem">(${r.pos})</span></div>
-        <div class="bspnlive-hof-meta">${r.teamName} · ${r.careerYears} season${r.careerYears===1?"":"s"} · Age ${r.age}${r.careerEarnings ? ` · $${r.careerEarnings}M career` : ""}</div>
+        <div class="bspnlive-hof-name">${link(r)} <span style="color:var(--blgray);font-size:.65rem">(${r.pos})</span>${fbTag}${voteTag}</div>
+        <div class="bspnlive-hof-meta">${r.teamName} · ${r.careerYears} season${r.careerYears===1?"":"s"} · Retired age ${r.age}${r.careerEarnings ? ` · $${r.careerEarnings}M career` : ""}</div>
         ${r.line ? `<div class="bspnlive-hof-line">${r.line}</div>` : ""}
       </div>
-    </div>`).join("");
+    </div>`;
+  }).join("");
   const otherRetirees = (latest.retirees || []).filter(r => !r.isHof);
   const retireeRows = otherRetirees.map(r => `
     <div class="bspnlive-retiree-row" style="border-left-color:${r.teamPrimary}">
       <div class="bspnlive-retiree-name">${link(r)} <span style="color:var(--blgray);font-size:.65rem">(${r.pos})</span></div>
       <div class="bspnlive-retiree-meta">${r.teamAbbr} · Age ${r.age} · ${r.careerYears}yr</div>
     </div>`).join("");
+  const hofClassHeader = latest.hofClass?.length
+    ? `<div class="bspnlive-allpro-title" style="margin-bottom:.4rem;color:var(--blgold)">HALL OF FAME · CLASS OF S${franchise.season}</div>`
+    : "";
   const retirementSection = (latest.hofClass?.length || otherRetirees.length) ? `
-    <div class="bspnlive-section-title">🏛 RETIREMENTS &amp; HALL OF FAME</div>
+    <div class="bspnlive-section-title">🏛 HALL OF FAME &amp; RETIREMENTS</div>
+    ${hofClassHeader}
     ${hofRows ? `<div class="bspnlive-hof-grid">${hofRows}</div>` : ""}
     ${retireeRows ? `<div style="margin-top:.6rem"><div class="bspnlive-allpro-title" style="margin-bottom:.4rem">CALLING IT A CAREER</div><div class="bspnlive-retiree-grid">${retireeRows}</div></div>` : ""}
   ` : "";
@@ -9302,8 +9334,15 @@ function _seedAITradeBlocks() {
 // alive and surfaces in the user's wire ticker.
 function _generateAIvsAITrades() {
   if (franchise.week > TRADE_DEADLINE_WEEK) return;
-  // 35% chance of generating ONE AI-AI trade this week.
-  if (Math.random() > 0.35) return;
+  // Base 35% per week, scaled up as the deadline approaches. The end-of-
+  // week resolution gates trades to weeksToDeadline ≥ 1, so weeksLeft=1
+  // is the final flurry window — push hardest there. Contenders shop for
+  // help, sellers dump expiring vets.
+  const weeksLeft = TRADE_DEADLINE_WEEK - franchise.week;
+  const baseChance = weeksLeft <= 1 ? 0.80
+                  : weeksLeft === 2 ? 0.55
+                  : 0.35;
+  if (Math.random() > baseChance) return;
   const myId = franchise.chosenTeamId;
   const aiTeams = TEAMS.filter(t => t.id !== myId);
   if (aiTeams.length < 2) return;
