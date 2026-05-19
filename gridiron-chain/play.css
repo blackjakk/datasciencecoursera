@@ -5992,8 +5992,13 @@
   }
   .frn-trade-market-row:last-child { border-bottom: 0; }
   .frn-trade-market-row:hover { background: rgba(255,255,255,.03); }
-  .frn-trade-market-row.untouchable { opacity: .55; }
-  .frn-trade-market-row.untouchable .frn-trade-name { color: var(--blgray); }
+  .frn-trade-market-row.untouchable { opacity: .42; }
+  .frn-trade-market-row.untouchable .frn-trade-name { color: var(--blgray); font-weight: 500; }
+  .frn-trade-market-row.untouchable:hover { opacity: .6; }
+  .frn-trade-mode {
+    display: inline-block; font-size: .75rem; line-height: 1;
+    margin-right: .15rem; vertical-align: middle;
+  }
   .frn-trade-pos {
     color: var(--gold); font-weight: 800; letter-spacing: .8px;
     font-size: .58rem; text-align: center;

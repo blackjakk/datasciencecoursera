@@ -12290,15 +12290,24 @@ function _formatPickEquivalence(value) {
   return "Premium haul";
 }
 
-// What would this team realistically ask for player p? Combines the
-// player's intrinsic trade value with the AI's acceptance ratio (which
-// embeds stance + mode). Returns either a pick-equivalent string or
-// "⛔ Won't trade" if the player is untouchable.
+// What would this team realistically ask for player p? Combines:
+//   1. Intrinsic trade value (_playerTradeValue)
+//   2. Stance ratio from _aiAcceptanceRatio (shopping = 0.85, normal = 0.97)
+//   3. Mode tilt — rebuild teams over-value picks (discount in pick
+//      terms), win-now teams want established vets (premium in picks).
+// Returns the pick-equivalent string, or "⛔ Won't trade" if untouchable.
 function _estimateAskingPrice(teamId, p) {
   const v = _playerTradeValue(p);
   const ratio = _aiAcceptanceRatio(teamId, [p]);
   if (typeof ratio === "object" && ratio.reject) return "⛔ Won't trade";
-  const ask = v * (typeof ratio === "number" ? ratio : 0.97);
+  let ask = v * (typeof ratio === "number" ? ratio : 0.97);
+  // Mode-aware tilt — applied to the DISPLAYED pick estimate only. The
+  // actual acceptance evaluation uses _modeAcceptanceModifier with full
+  // deal context, but for the market browse we approximate the user's
+  // intuition: "rebuild team will take picks cheaper, win-now wants vets."
+  const mode = (typeof _aiTeamMode === "function") ? _aiTeamMode(teamId) : "balanced";
+  if      (mode === "rebuild") ask *= 0.92;  // 8% cheaper in picks
+  else if (mode === "win_now") ask *= 1.08;  // 8% pricier in picks
   return _formatPickEquivalence(ask);
 }
 
@@ -12381,9 +12390,22 @@ function _renderTradeShopMarketTab(myId, sortBy, tp, cap) {
     return `<span class="frn-trade-stance av" title="${teamName} would consider a fair offer">○ AVAILABLE</span>`;
   };
 
+  // Precompute team modes once — _aiTeamMode reads standings + cap +
+  // age cohort for the team, so we cache to avoid recomputing per row.
+  const teamModeCache = new Map();
+  const modeFor = (tid) => {
+    if (!teamModeCache.has(tid)) {
+      teamModeCache.set(tid, (typeof _aiTeamMode === "function") ? _aiTeamMode(tid) : "balanced");
+    }
+    return teamModeCache.get(tid);
+  };
+
   const rows = shownList.map(({p, teamId, team, stance}) => {
     const escName = (p.name||"").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
     const askPrice = _estimateAskingPrice(teamId, p);
+    const mode = modeFor(teamId);
+    const modeMeta = (typeof _AI_MODE_META === "object" && _AI_MODE_META[mode]) || { icon: "⚖", label: "BAL", col: "var(--gray)" };
+    const modeBadge = `<span class="frn-trade-mode" style="color:${modeMeta.col}" title="${modeMeta.label} team — ${mode==='rebuild'?'discounts for picks':mode==='win_now'?'wants established vets':'mixed appetite'}">${modeMeta.icon}</span>`;
     const kicker = p.contract?.tradeKicker || 0;
     const kickerTag = kicker >= 0.05
       ? `<span class="frn-trade-kicker-mini" title="Trade kicker — one-time cap hit if acquired">⚡ $${kicker.toFixed(1)}M</span>` : "";
@@ -12397,13 +12419,13 @@ function _renderTradeShopMarketTab(myId, sortBy, tp, cap) {
     return `<div class="frn-trade-market-row${isUntouchable?" untouchable":""}">
       <span class="frn-trade-pos">${p.position}</span>
       <span class="frn-trade-name" onclick="frnOpenPlayerCard('${escName}')" title="View ${p.name}'s player card">${p.name}</span>
-      <span class="frn-trade-team">${team.name}</span>
+      <span class="frn-trade-team">${modeBadge} ${team.name}</span>
       <span class="frn-trade-stance-col">${stancePill(stance, team.name)}</span>
       <span>${gradeBadge(p)}</span>
       <span class="frn-trade-age">${p.age||"?"}</span>
       <span class="frn-trade-aav">$${(p.contract?.aav||0).toFixed(0)}M${(p.contract?.remaining||0) ? ` · ${p.contract.remaining}y` : ""}</span>
       <span class="frn-trade-extras">${kickerTag}${deadTag}</span>
-      <span class="frn-trade-ask" title="Rough estimate of pick(s) the team would expect — actual asks vary with mode and recent activity">${askPrice}</span>
+      <span class="frn-trade-ask" title="Pick-equivalent estimate of acquisition cost. Embeds stance (shopping = discount) + team mode (rebuild teams 8% cheaper in pick terms, win-now 8% pricier).">${askPrice}</span>
       ${proposeBtn}
     </div>`;
   }).join("");
@@ -12417,7 +12439,7 @@ function _renderTradeShopMarketTab(myId, sortBy, tp, cap) {
   return `<div class="frn-trade-market">
     <div class="frn-trade-market-intro">
       <strong>🛒 Shop the league.</strong> Every other team's roster, filtered to who's acquirable.
-      Stance pills tell you what a team would actually entertain. Asking prices are rough pick equivalents — actual deals depend on the package you assemble in Propose Trade.
+      <b>Stance</b> = how willing a team is to deal. <b>Team mode</b> (🏆 win-now · 🔨 rebuild · ⚖ balanced) tilts what they'll accept — rebuild teams take picks cheaper, win-now wants established vets. <b>Asking Price</b> is a pick-equivalent estimate; actual deals depend on the package you assemble in Propose Trade.
     </div>
     <div class="frn-trade-market-filters">
       <div class="frn-trade-filter-row">
