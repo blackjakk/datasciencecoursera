@@ -3851,6 +3851,10 @@ function renderFrnFA(selectedKey) {
     const score = (offer.aav / selected.demandedAAV) * Math.min(offer.years / selected.demandedYears, 1);
     const likelihood = score >= 1.05 ? "Very likely" : score >= 1.00 ? "Likely" : score >= 0.90 ? "Toss-up" : score >= 0.80 ? "Unlikely" : "Will reject";
     const lkColor = score >= 1.00 ? "var(--green-lt)" : score >= 0.90 ? "#e8a000" : "var(--red)";
+    // Continuous accept-odds percentage for the bar visualization.
+    // Score 0.5 → 0%, 1.0 → 80%, 1.2+ → 100%. Smooth fill instead of
+    // discrete labels so the user can see odds nudge as they tune AAV.
+    const acceptPct = Math.round(Math.max(0, Math.min(100, (score - 0.5) * 160)));
 
     // Player intel
     const potTag  = potentialTag(selected, { known: _isKnownPlayer(selected) });
@@ -3976,14 +3980,16 @@ function renderFrnFA(selectedKey) {
       })()}
 
       <!-- ④ Offer Builder -->
-      <div class="frn-fa-offer-form">
+      <div class="frn-fa-offer-form"
+           data-demanded-aav="${selected.demandedAAV}"
+           data-demanded-years="${selected.demandedYears}">
         <label><span class="frn-meta-label">AAV ($M/yr)</span>
           <input type="number" min="0.5" max="60" step="0.5" value="${offer.aav.toFixed(1)}"
             id="faOfferAav" onchange="frnFASetOffer('${escSelName}','aav',this.value)" oninput="frnFACapLiveUpdate(parseFloat(this.value)||0)">
         </label>
         <label><span class="frn-meta-label">YEARS</span>
           <input type="number" min="1" max="${_maxContractYears(selected)}" step="1" value="${offer.years}"
-            id="faOfferYears" onchange="frnFASetOffer('${escSelName}','years',this.value)"
+            id="faOfferYears" onchange="frnFASetOffer('${escSelName}','years',this.value)" oninput="frnFACapLiveUpdate(parseFloat(document.getElementById('faOfferAav').value)||0)"
             title="Position+age cap: max ${_maxContractYears(selected)}yr">
         </label>
         <div class="frn-fa-offer-actions">
@@ -4001,13 +4007,96 @@ function renderFrnFA(selectedKey) {
       </div>
 
       <!-- ⑤ Acceptance + Cap Impact -->
-      <div style="display:flex;align-items:center;gap:.6rem;padding:.42rem .55rem;background:var(--bg3);border-radius:4px;margin-top:.42rem;flex-wrap:wrap;border:1px solid var(--border)">
-        <div style="font-size:.72rem">Acceptance: <b style="color:${lkColor};font-size:.85rem">${likelihood}</b></div>
-        <div style="font-size:.64rem;color:var(--gray);margin-left:auto">
-          Cap hit: <b style="color:${room<0?"var(--red)":"var(--green-lt)"}">$${myProjAfterCuts.toFixed(1)}M</b>
-          <span style="color:var(--gray)"> (${room<0?`<b style="color:var(--red)">${Math.abs(room).toFixed(1)}M over cap</b>`:`$${room.toFixed(1)}M room`})</span>
+      <div id="fa-accept-row" style="padding:.42rem .55rem;background:var(--bg3);border-radius:4px;margin-top:.42rem;border:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.3rem">
+          <span style="font-size:.55rem;letter-spacing:1px;color:var(--gold);font-weight:700">ACCEPT ODDS</span>
+          <b id="fa-accept-label" style="color:${lkColor};font-size:.78rem;margin-left:auto">${likelihood}</b>
+          <b id="fa-accept-pct" style="color:${lkColor};font-size:.95rem;min-width:2.6rem;text-align:right">${acceptPct}%</b>
+        </div>
+        <div style="background:rgba(0,0,0,.3);height:6px;border-radius:3px;overflow:hidden;margin-bottom:.35rem">
+          <div id="fa-accept-bar" style="height:100%;width:${acceptPct}%;background:${lkColor};transition:width .15s,background .15s"></div>
+        </div>
+        <div style="font-size:.6rem;color:var(--gray);display:flex;gap:.5rem;flex-wrap:wrap;align-items:baseline">
+          <span>Your offer vs demand: <b style="color:${score>=1?"var(--green-lt)":"var(--gold-lt)"}">${(score*100).toFixed(0)}%</b></span>
+          <span style="margin-left:auto">Cap hit: <b style="color:${room<0?"var(--red)":"var(--green-lt)"}">$${myProjAfterCuts.toFixed(1)}M</b>
+            <span> (${room<0?`<b style="color:var(--red)">${Math.abs(room).toFixed(1)}M over</b>`:`$${room.toFixed(1)}M room`})</span></span>
         </div>
       </div>
+
+      <!-- ⑤b Bidding forecast -->
+      ${(()=>{
+        // Predicted final signing AAV range based on number of interested
+        // AI teams. More suitors → price pushed toward knockout multiplier
+        // via the existing _faAIBidAmount escalation. Helps user gauge
+        // whether their offer will hold or get outbid.
+        const dAAV = selected.demandedAAV;
+        let lowMult, highMult, label, color;
+        if (suitors === 0)     { lowMult=0.95; highMult=1.00; label="Quiet market";       color="var(--green-lt)"; }
+        else if (suitors === 1) { lowMult=1.00; highMult=1.10; label="One competitor";    color="var(--gold-lt)"; }
+        else if (suitors === 2) { lowMult=1.05; highMult=1.20; label="Light competition"; color="var(--gold)"; }
+        else if (suitors <= 4)  { lowMult=1.10; highMult=1.30; label="Heated";            color="#e8a000"; }
+        else                    { lowMult=1.20; highMult=1.40; label="KNOCKOUT TERRITORY"; color="var(--red)"; }
+        const lowAAV  = (dAAV * lowMult).toFixed(1);
+        const highAAV = (dAAV * highMult).toFixed(1);
+        const yourMult = offer.aav / dAAV;
+        const stance = yourMult >= highMult * 0.98 ? `<span style="color:var(--green-lt);font-weight:700">YOU'RE ABOVE THE RANGE</span>`
+                     : yourMult >= lowMult * 0.98 ? `<span style="color:var(--gold);font-weight:700">YOU'RE IN THE RANGE</span>`
+                     : `<span style="color:var(--red);font-weight:700">YOU'LL GET OUTBID</span>`;
+        return `<div style="padding:.42rem .55rem;background:var(--bg3);border-radius:4px;margin-top:.42rem;border:1px solid var(--border)">
+          <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.2rem">
+            <span style="font-size:.55rem;letter-spacing:1px;color:var(--gold);font-weight:700">📈 BIDDING FORECAST</span>
+            <span style="color:${color};font-size:.65rem;font-weight:700;margin-left:auto">${label}</span>
+          </div>
+          <div style="font-size:.65rem;color:var(--blwhite);margin-bottom:.18rem">
+            Expected final: <b style="color:${color}">$${lowAAV}M–$${highAAV}M / yr</b>
+            <span style="color:var(--gray);font-size:.55rem">· ${suitors} competing team${suitors!==1?"s":""}</span>
+          </div>
+          <div style="font-size:.6rem">${stance}</div>
+        </div>`;
+      })()}
+
+      <!-- ⑤c Position depth-chart preview -->
+      ${(()=>{
+        const pos = selected.position;
+        const same = myRoster.filter(p => p.position === pos)
+          .map(p => ({ name: p.name, ovr: p.overall || 60, isYou: false, age: p.age || 27 }))
+          .sort((a, b) => b.ovr - a.ovr);
+        // Use scout grade as proxy for the FA's "perceived" ovr — the
+        // raw ovr isn't visible to the user, so position rank inserts
+        // based on what the user can actually compare against.
+        const faOvr = scoutGrade(selected);
+        const newGuy = { name: selected.name, ovr: faOvr, isYou: true, age: selected.age || 27 };
+        // Insert at the right depth slot
+        const slotted = same.slice();
+        const insertIdx = slotted.findIndex(p => p.ovr < faOvr);
+        if (insertIdx === -1) slotted.push(newGuy);
+        else slotted.splice(insertIdx, 0, newGuy);
+        const displayCount = Math.min(5, slotted.length);
+        const rolesByIdx = { 0: "STARTER", 1: "BACKUP", 2: "DEPTH" };
+        const rows = slotted.slice(0, displayCount).map((p, i) => {
+          const role = rolesByIdx[i] || `#${i+1}`;
+          const isOwned = !p.isYou;
+          const wasIdx = isOwned ? same.findIndex(s => s.name === p.name) : null;
+          const moved = isOwned && wasIdx !== null && wasIdx !== i;
+          const moveTag = moved
+            ? `<span style="font-size:.55rem;color:#e8a000;margin-left:.3rem">← from ${rolesByIdx[wasIdx] || `#${wasIdx+1}`}</span>`
+            : "";
+          return `<div style="display:grid;grid-template-columns:4rem 1fr 2.5rem 1.4rem;gap:.4rem;padding:.2rem .35rem;background:${p.isYou?"rgba(0,180,0,.10)":i % 2 === 0 ? "rgba(255,255,255,.025)":"transparent"};font-size:.62rem;align-items:baseline;border-left:${p.isYou?"3px solid var(--green-lt)":"3px solid transparent"};margin-bottom:.1rem">
+            <span style="color:${p.isYou?"var(--green-lt)":"var(--gray)"};font-weight:700;font-size:.55rem">${role}</span>
+            <span style="color:${p.isYou?"var(--green-lt)":"var(--white)"};font-weight:${p.isYou?700:400}">${p.isYou?"+ ":""}${p.name}${moveTag}</span>
+            <span style="color:var(--gold-lt);text-align:right;font-weight:700">${p.isYou?"~"+faOvr:p.ovr}</span>
+            <span style="color:var(--gray);font-size:.55rem;text-align:right">${p.age}yr</span>
+          </div>`;
+        }).join("");
+        const overflow = slotted.length > displayCount ? `<div style="font-size:.55rem;color:var(--gray);text-align:center;font-style:italic;padding-top:.15rem">+${slotted.length - displayCount} more at ${pos}</div>` : "";
+        return `<div style="padding:.42rem .55rem;background:var(--bg3);border-radius:4px;margin-top:.42rem;border:1px solid var(--border)">
+          <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.25rem">
+            <span style="font-size:.55rem;letter-spacing:1px;color:var(--gold);font-weight:700">📋 DEPTH CHART · ${pos} IF SIGNED</span>
+          </div>
+          ${rows}
+          ${overflow}
+        </div>`;
+      })()}
 
       <!-- ⑥ Contract Preview -->
       ${_buildFAOfferContractPreview(selected, offer)}
@@ -4217,6 +4306,27 @@ function frnFASetOffer(faName, field, value) {
 }
 
 function frnFACapLiveUpdate(newAavForSelected) {
+  // Update accept-odds bar live (reads demanded AAV/years off the form)
+  const form = document.querySelector(".frn-fa-offer-form");
+  if (form) {
+    const demandAAV   = parseFloat(form.getAttribute("data-demanded-aav") || "0");
+    const demandYears = parseFloat(form.getAttribute("data-demanded-years") || "0");
+    const yearsInput  = document.getElementById("faOfferYears");
+    const offerYears  = parseFloat(yearsInput?.value || "0") || demandYears;
+    if (demandAAV > 0 && demandYears > 0) {
+      const score = (newAavForSelected / demandAAV) * Math.min(offerYears / demandYears, 1);
+      const acceptPct = Math.round(Math.max(0, Math.min(100, (score - 0.5) * 160)));
+      const likelihood = score >= 1.05 ? "Very likely" : score >= 1.00 ? "Likely" : score >= 0.90 ? "Toss-up" : score >= 0.80 ? "Unlikely" : "Will reject";
+      const lkColor = score >= 1.00 ? "var(--green-lt)" : score >= 0.90 ? "#e8a000" : "var(--red)";
+      const barEl = document.getElementById("fa-accept-bar");
+      const lblEl = document.getElementById("fa-accept-label");
+      const pctEl = document.getElementById("fa-accept-pct");
+      if (barEl) { barEl.style.width = acceptPct + "%"; barEl.style.background = lkColor; }
+      if (lblEl) { lblEl.textContent = likelihood; lblEl.style.color = lkColor; }
+      if (pctEl) { pctEl.textContent = acceptPct + "%"; pctEl.style.color = lkColor; }
+    }
+  }
+
   const bar = document.getElementById("frn-fa-summary-bar");
   if (!bar || !franchise) return;
   const myId = franchise.chosenTeamId;
