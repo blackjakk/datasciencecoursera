@@ -13303,7 +13303,14 @@ function renderFrnDraft() {
     d.preshowDone = true; // legacy safeguard
   }
 
-  // Auto-advance AI picks until it's user's turn or draft is over
+  // Auto-advance AI picks until it's user's turn or draft is over.
+  // Cap is a safety net against malformed pickOrder. Max real picks are
+  // 224 standard + up to 32 comp = 256, so 300 is well above the worst
+  // case but still catches any pathological infinite loop. The previous
+  // cap of 250 could trigger in the rare scenario where a user has
+  // traded all their picks and the auto-advance had to process every
+  // slot in the draft — falling through to render an AI's slot under
+  // the "YOU ARE ON THE CLOCK" header.
   let aiAdvanced = 0;
   while (d.currentIdx < d.pickOrder.length) {
     const slot = d.pickOrder[d.currentIdx];
@@ -13311,7 +13318,7 @@ function renderFrnDraft() {
     _aiAutoPick(slot);
     d.currentIdx++;
     aiAdvanced++;
-    if (aiAdvanced > 250) break;
+    if (aiAdvanced > 300) break;
   }
 
   if (d.currentIdx >= d.pickOrder.length) {
