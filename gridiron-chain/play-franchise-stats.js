@@ -1781,9 +1781,12 @@ function _jpRunPractice(offer) {
       // reason, fall back to top-of-roster by OVR per position.
       const dc = franchise.depthChart?.[oppId];
       if (dc) {
+        // Exclude package-only extras and returners so opponent scouting
+        // reflects the 22 starters, not deep-roster goal-line/dime/return
+        // contributors.
         const starterPids = new Set();
-        for (const slot of Object.values(dc)) {
-          if (slot?.starter) starterPids.add(slot.starter);
+        for (const [slotKey, slot] of Object.entries(dc)) {
+          if (slot?.starter && _isFullTimeStarterSlot(slotKey)) starterPids.add(slot.starter);
         }
         targets = oppRoster.filter(p => starterPids.has(p.pid));
       } else {
@@ -3168,19 +3171,36 @@ function frnDepthSetSnapShare(slotKey) {
   const myId = franchise.chosenTeamId;
   if (!franchise.snapShares?.[myId]) return;
   const sd = franchise.snapShares[myId][slotKey] || {};
+  // Guard against editing snap share for an empty slot — meaningless.
+  const dc = franchise.depthChart?.[myId];
+  if (!dc?.[slotKey]?.starter) {
+    alert(`No starter assigned to ${slotKey} yet. Set a starter first.`);
+    return;
+  }
   const cur = sd.starterPct ?? 70;
+  const floor = sd.snapFloor ?? dc[slotKey].snapFloor ?? 35;
+  const ceil  = sd.snapCeil  ?? dc[slotKey].snapCeil  ?? 98;
   const input = prompt(
-    `Set STARTER snap share for ${slotKey} (0-100%).\n` +
-    `Backup will play the remaining ${100}-N%.\n\n` +
+    `Set STARTER snap share for ${slotKey} (${floor}-${ceil}%).\n` +
+    `Backup will play the remaining %.\n\n` +
     `Current: ${cur}%${sd.manual ? " (manual)" : " (auto)"}.\n` +
     `Type a number, or cancel to keep current.`,
     String(cur)
   );
   if (input === null) return;
-  const newPct = Math.round(Number(input));
-  if (!Number.isFinite(newPct) || newPct < 0 || newPct > 100) {
-    alert("Snap share must be a number 0-100.");
+  const trimmed = String(input).trim();
+  if (trimmed === "") return;  // empty string = cancel (don't write 0%)
+  const parsed = Math.round(Number(trimmed));
+  if (!Number.isFinite(parsed)) {
+    alert("Snap share must be a number.");
     return;
+  }
+  // Clamp into the slot's physical range — RB1 floor is ~35% (can't bench
+  // your starter to 5%), QB ceil is ~98% (someone has to come in on garbage
+  // time). Without clamping, sim could read a 5% QB starterPct.
+  const newPct = Math.max(floor, Math.min(ceil, parsed));
+  if (newPct !== parsed) {
+    if (!confirm(`Value clamped to slot range (${floor}-${ceil}%): ${parsed}% → ${newPct}%. Continue?`)) return;
   }
   franchise.snapShares[myId][slotKey] = {
     ...sd,
@@ -3317,7 +3337,9 @@ function renderFrnDepthChart() {
     const cascadeTitle = isStarter
       ? _buildInjuryCascadeText(slotKey, dc, byPid)
       : "";
-    const titleAttr = cascadeTitle ? ` title="${cascadeTitle.replace(/"/g, "&quot;")}"` : "";
+    const titleAttr = cascadeTitle
+      ? ` title="${cascadeTitle.replace(/&/g, "&amp;").replace(/"/g, "&quot;")}"`
+      : "";
     return `<div class="frn-dc-player ${isStarter?"s1":isCascade?"sc":"s2"}${isInjured?" injured":""}${misplaced?" misplaced":""}"${titleAttr}>
       <span class="frn-dc-rank ${rankClass}">${rankLabel}</span>
       ${gradeBadge(p)}
@@ -3446,7 +3468,9 @@ function renderFrnDepthChart() {
       </button>`;
     }).join("");
 
-    const active = pkgMetrics.find(m => m.pkg.key === _dcActivePkg) || pkgMetrics[1];
+    const active = pkgMetrics.find(m => m.pkg.key === _dcActivePkg)
+                || pkgMetrics.find(m => m.pkg.key === "NICKEL")
+                || pkgMetrics[0];
     const dlSlots = active.lineup.filter(l => l.slotKey.startsWith("DL"));
     const lbSlots = active.lineup.filter(l => l.slotKey.startsWith("LB"));
     const cbSlots = active.lineup.filter(l => l.slotKey.startsWith("CB") || l.slotKey === "NB" || l.slotKey === "NB2");
@@ -3529,6 +3553,9 @@ function renderFrnDepthChart() {
   }
 
   // ── Unit strength strip ───────────────────────────────────────────────────
+  // Strength strip — uses BASE starters only (excludes package-only extras
+  // like DL5/DL6/NB2 since those only see the field in specific packages
+  // and an empty DL5 shouldn't drag down the "DL" tier rating).
   const unitGroups = [
     { label:"QB", slots:["QB"] },
     { label:"RB", slots:["RB1","RB2"] },

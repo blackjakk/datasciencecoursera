@@ -3515,10 +3515,12 @@ function _faMultiYearCapProjection(years = 4, source = "auto") {
 function _faSuggestedCuts(teamId, alreadyCut, n = 5) {
   const roster = franchise.rosters[teamId] || [];
   const cutSet = new Set(alreadyCut || []);
-  // Starters by depth chart — they get extra protection (negative score)
+  // Starters by depth chart — they get extra protection (negative score).
+  // Filters out package-only and returner slots so 6th DBs and gunners
+  // don't get cut-protected like the actual front 22.
   const dcStarters = new Set();
-  for (const slot of Object.values(franchise.depthChart?.[teamId] || {})) {
-    if (slot?.starter) dcStarters.add(slot.starter);
+  for (const [slotKey, slot] of Object.entries(franchise.depthChart?.[teamId] || {})) {
+    if (slot?.starter && _isFullTimeStarterSlot(slotKey)) dcStarters.add(slot.starter);
   }
   // Premium positions where you almost never cut a starter. Uses the
   // game's actual position labels (QB, RB, WR, TE, OL, DL, LB, CB, S,
@@ -4256,7 +4258,9 @@ function renderFrnFA(selectedKey) {
   const _selCutOffer = selected ? (_faOffers[selFaKey] || _faOffers[selected.name]) : null;
   const cutSet = _selCutOffer ? new Set(_selCutOffer.cutNames || []) : new Set();
   const dcStarters = new Set(
-    Object.values(franchise.depthChart?.[chosenTeamId] || {}).map(s => s.starter).filter(Boolean)
+    Object.entries(franchise.depthChart?.[chosenTeamId] || {})
+      .filter(([k, s]) => s?.starter && _isFullTimeStarterSlot(k))
+      .map(([, s]) => s.starter)
   );
 
   const _cutQueued = myRoster.filter(p => cutSet.has(p.name));
@@ -5354,7 +5358,11 @@ function renderFrnFANegotiations(selectedName) {
   </div>`;
 
   // ── Right column: cut list tied to this negotiation ───────────────────────
-  const dcStarters = new Set(Object.values(franchise.depthChart?.[myId]||{}).map(s=>s.starter).filter(Boolean));
+  const dcStarters = new Set(
+    Object.entries(franchise.depthChart?.[myId]||{})
+      .filter(([k, s]) => s?.starter && _isFullTimeStarterSlot(k))
+      .map(([, s]) => s.starter)
+  );
   const _cutQueued = myRoster.filter(p => cutNamesSet.has(p.name));
   const _cutSafe   = myRoster.filter(p => {
     if (cutNamesSet.has(p.name)) return false;

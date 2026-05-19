@@ -1504,6 +1504,23 @@ const DEPTH_CHART_SLOTS = {
   ],
 };
 
+// Slots that represent "full-time" starters — used by code that asks
+// "is this player a starter?" for cut decisions, FA priority sort, opponent
+// scouting, etc. Package-only extras (DL5/DL6/NB2, ⛺) and returner slots
+// (KR1/PR1) are roster depth, NOT the 22 on the field every Sunday —
+// counting them inflates the starter count and distorts those decisions.
+const _NON_STARTER_SLOTS = new Set();
+for (const sd of [
+  ...DEPTH_CHART_SLOTS.offense,
+  ...DEPTH_CHART_SLOTS.defense,
+  ...DEPTH_CHART_SLOTS.specialTeams,
+]) {
+  if (sd.pkgOnly || sd.pos === "RET") _NON_STARTER_SLOTS.add(sd.key);
+}
+function _isFullTimeStarterSlot(slotKey) {
+  return !_NON_STARTER_SLOTS.has(slotKey);
+}
+
 // Keep legacy constant so old saves that reference COACH_TRAITS don't break.
 const COACH_TRAITS = [
   { key:"Player Developer",     desc:"Young player growth +35%" },
@@ -2376,7 +2393,7 @@ function _slotFitScore(player, slotKey) {
   let weighted = 0;
   let totalW = 0;
   for (const [idx, w] of Object.entries(spec.weights)) {
-    weighted += (stats[Number(idx)] || 50) * w;
+    weighted += (stats[Number(idx)] ?? 50) * w;
     totalW += w;
   }
   const fit = totalW > 0 ? weighted / totalW : 50;
@@ -2448,15 +2465,21 @@ function _computeAutoDepthChart(teamId) {
   // `used` set since returners ALSO play their normal position; they
   // just see the field on change-of-possession plays.
   const usedAsReturner = new Set();
+  const _isHealthyForReturning = p =>
+    !(p.injury?.weeksRemaining > 0) && !p.onIR;
   for (const slotDef of retSlots) {
     const eligibleFor = slotDef.retEligible || ["WR", "RB", "CB", "S"];
     const pool = roster
-      .filter(p => eligibleFor.includes(p.position) && !usedAsReturner.has(p.pid))
+      .filter(p =>
+        eligibleFor.includes(p.position) &&
+        !usedAsReturner.has(p.pid) &&
+        _isHealthyForReturning(p)
+      )
       .sort((a, b) => {
-        const aSpd = (a.stats || [])[0] || 50;
-        const aAgi = (a.stats || [])[2] || 50;
-        const bSpd = (b.stats || [])[0] || 50;
-        const bAgi = (b.stats || [])[2] || 50;
+        const aSpd = (a.stats || [])[0] ?? 50;
+        const aAgi = (a.stats || [])[2] ?? 50;
+        const bSpd = (b.stats || [])[0] ?? 50;
+        const bAgi = (b.stats || [])[2] ?? 50;
         return (bSpd + bAgi) - (aSpd + aAgi);
       });
     const starter = pool[0] || null;
@@ -2494,8 +2517,9 @@ function _computeAutoDepthChart(teamId) {
       const pool = roster
         .filter(p => eligibleFor.includes(p.position)
                   && p.pid !== dc[slotDef.key]?.starter
-                  && !usedAsReturner.has(p.pid))
-        .sort((a, b) => ((b.stats?.[0]||50) + (b.stats?.[2]||50)) - ((a.stats?.[0]||50) + (a.stats?.[2]||50)));
+                  && !usedAsReturner.has(p.pid)
+                  && _isHealthyForReturning(p))
+        .sort((a, b) => ((b.stats?.[0]??50) + (b.stats?.[2]??50)) - ((a.stats?.[0]??50) + (a.stats?.[2]??50)));
       if (pool[0]) { backupPid = pool[0].pid; usedAsReturner.add(pool[0].pid); }
     } else if (cascadePos.has(slotDef.pos) && slotIdx < posSlots.length - 1) {
       backupPid = dc[posSlots[slotIdx + 1].key]?.starter ?? null;
@@ -2562,11 +2586,71 @@ function _backfillStamina() {
   (franchise.freeAgents || []).forEach(stamp);
 }
 
-// Backfill depth chart + snap shares for any team that doesn't have one yet.
+// Backfill depth chart + snap shares for any team that doesn't have one yet,
+// AND patch in any slot keys added in newer versions (RB2, DL5, DL6, NB2,
+// KR1, PR1, etc.). Without the slot-level patch, legacy saves keep their
+// old slot set and the new UI shows "— empty —" forever.
+//
+// Conflict-aware: respects existing starter assignments. A player already
+// in use elsewhere won't be picked for a new slot. Returner slots (pos:
+// "RET") are exempt from the conflict set since returners double up with
+// their normal position.
 function _backfillDepthChart() {
   if (!franchise) return;
+  const allSlots = [
+    ...DEPTH_CHART_SLOTS.offense,
+    ...DEPTH_CHART_SLOTS.defense,
+    ...DEPTH_CHART_SLOTS.specialTeams,
+  ];
   for (const teamId of Object.keys(franchise.rosters || {})) {
-    if (!franchise.depthChart?.[teamId]) _initDepthChart(Number(teamId));
+    const tid = Number(teamId);
+    if (!franchise.depthChart?.[tid]) {
+      _initDepthChart(tid);
+      continue;
+    }
+    const existing = franchise.depthChart[tid];
+    const missing = allSlots.filter(sd => !existing[sd.key]);
+    if (missing.length === 0) continue;
+
+    const used = new Set();
+    for (const slot of Object.values(existing)) {
+      if (slot?.starter) used.add(slot.starter);
+    }
+    const roster = franchise.rosters[tid] || [];
+    if (!franchise.snapShares) franchise.snapShares = {};
+    if (!franchise.snapShares[tid]) franchise.snapShares[tid] = {};
+
+    for (const sd of missing) {
+      let starter = null;
+      if (sd.pos === "RET") {
+        const eligible = sd.retEligible || ["WR","RB","CB","S"];
+        const pool = roster
+          .filter(p => eligible.includes(p.position))
+          .sort((a, b) =>
+            ((b.stats?.[0]??50) + (b.stats?.[2]??50)) -
+            ((a.stats?.[0]??50) + (a.stats?.[2]??50))
+          );
+        starter = pool[0] || null;
+      } else {
+        const pool = roster.filter(p => p.position === sd.pos && !used.has(p.pid));
+        if (_SLOT_FIT_WEIGHTS[sd.key]) {
+          pool.sort((a, b) => _slotFitScore(b, sd.key) - _slotFitScore(a, sd.key));
+        } else {
+          pool.sort((a, b) => (b.overall||60) - (a.overall||60));
+        }
+        starter = pool[0] || null;
+        if (starter) used.add(starter.pid);
+      }
+      existing[sd.key] = {
+        starter: starter?.pid ?? null,
+        backup: null,
+        flex: sd.flex,
+        snapFloor: sd.snapFloor ?? 35,
+        snapCeil:  sd.snapCeil  ?? 98,
+      };
+      franchise.snapShares[tid][sd.key] = _computeOptimalPct(starter, null, sd.snapFloor, sd.snapCeil);
+    }
+    _optimizeSnapShares(tid);
   }
 }
 
