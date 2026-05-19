@@ -6850,6 +6850,140 @@ function startFrnOffseason() {
 const _HOLDOUT_MIN_YEARS = 1;
 const _HOLDOUT_MAX_YEARS = 6;
 
+// Data-driven extension pitch — surfaces concrete production + context
+// so the user has hard evidence to decide. Used on the offseason
+// demanding-extensions screen (renderable below the demand row).
+function _buildExtensionPitch(h, live, cap) {
+  if (!live) return "";
+  const pos = h.position;
+  const careerStats = live.careerStats || {};
+  const careerHistory = live.careerHistory || [];
+  const myId = franchise.chosenTeamId;
+
+  // ── This season's production (from per-team seasonStats) ──────
+  let seasonProd = "";
+  for (const teamStats of Object.values(franchise.seasonStats || {})) {
+    const ss = teamStats?.[live.name];
+    if (!ss) continue;
+    if (pos === "QB")           seasonProd = `${ss.pass_yds||0} YDS · ${ss.pass_td||0} TD · ${ss.pass_int||0} INT · ${ss.gp||0} GP`;
+    else if (pos === "RB")      seasonProd = `${ss.rush_yds||0} YDS · ${ss.rush_td||0} TD · ${ss.rec||0} REC for ${ss.rec_yds||0} YDS`;
+    else if (pos === "WR" || pos === "TE")
+                                seasonProd = `${ss.rec||0} REC · ${ss.rec_yds||0} YDS · ${ss.rec_td||0} TD`;
+    else if (pos === "DL")      seasonProd = `${ss.sk||0} SK · ${ss.tkl||0} TKL · ${ss.ff||0} FF · ${ss.pd||0} PD`;
+    else if (pos === "LB")      seasonProd = `${ss.tkl||0} TKL · ${ss.sk||0} SK · ${ss.int_made||0} INT · ${ss.ff||0} FF`;
+    else if (pos === "CB" || pos === "S")
+                                seasonProd = `${ss.int_made||0} INT · ${ss.pd||0} PD · ${ss.tkl||0} TKL`;
+    else if (["OL","LT","LG","C","RG","RT"].includes(pos))
+                                seasonProd = `${ss.pancakes||0} pancakes · ${ss.sacks_allowed||0} sacks allowed`;
+    else if (pos === "K")       seasonProd = `${ss.fg_made||0}/${ss.fg_att||0} FG · LNG ${ss.fg_long||0}`;
+    break;
+  }
+
+  // ── Career totals ────────────────────────────────────────────────
+  let careerProd = "";
+  if (pos === "QB")           careerProd = `${careerStats.pass_yds||0} YDS · ${careerStats.pass_td||0} TD`;
+  else if (pos === "RB")      careerProd = `${careerStats.rush_yds||0} YDS · ${careerStats.rush_td||0} TD`;
+  else if (pos === "WR" || pos === "TE")
+                              careerProd = `${careerStats.rec_yds||0} YDS · ${careerStats.rec_td||0} TD`;
+  else if (pos === "DL" || pos === "LB")
+                              careerProd = `${careerStats.sk||0} SK · ${careerStats.tkl||0} TKL`;
+  else if (pos === "CB" || pos === "S")
+                              careerProd = `${careerStats.int_made||0} INT · ${careerStats.tkl||0} TKL`;
+  else if (["OL","LT","LG","C","RG","RT"].includes(pos))
+                              careerProd = `${careerStats.pancakes||0} pancakes lifetime`;
+  else if (pos === "K")       careerProd = `${careerStats.fg_made||0} career FGs`;
+  if (careerHistory.length) careerProd += ` over ${careerHistory.length} seasons`;
+
+  // ── Accolades ────────────────────────────────────────────────────
+  const accolades = [];
+  if ((live.mvps    || 0) > 0) accolades.push(`${live.mvps}× MVP`);
+  if ((live.sbRings || 0) > 0) accolades.push(`${live.sbRings}× SB`);
+  if ((live.allPros || 0) > 0) accolades.push(`${live.allPros}× AP`);
+  if ((live.proBowls|| 0) > 0) accolades.push(`${live.proBowls}× PB`);
+  if ((live.opoys   || 0) > 0) accolades.push(`${live.opoys}× OPOY`);
+  if ((live.dpoys   || 0) > 0) accolades.push(`${live.dpoys}× DPOY`);
+  if ((live.roys    || 0) > 0) accolades.push(`ROY`);
+
+  // ── Trajectory: last 3 OVRs ──────────────────────────────────────
+  const last3 = careerHistory.slice(-3)
+    .map(r => r.ovr ?? r.overall ?? 0)
+    .filter(v => v > 0);
+  if (last3.length && (live.overall || 0) > 0
+      && last3[last3.length-1] !== live.overall) {
+    last3.push(live.overall);
+  }
+  const trajStr = last3.length >= 2
+    ? last3.join(" → ") + (last3[last3.length-1] > last3[0] ? " ↑" : last3[last3.length-1] < last3[0] ? " ↓" : " →")
+    : "";
+
+  // ── Position league rank by OVR ──────────────────────────────────
+  const allPos = [];
+  for (const roster of Object.values(franchise.rosters || {})) {
+    for (const p of roster) if (p.position === pos) allPos.push(p);
+  }
+  allPos.sort((a, b) => (b.overall || 0) - (a.overall || 0));
+  const rankIdx = allPos.findIndex(p => p.name === live.name || p === live);
+  const rankStr = rankIdx >= 0 ? `#${rankIdx + 1} of ${allPos.length} ${pos}s leaguewide` : "";
+
+  // ── Availability % ───────────────────────────────────────────────
+  const totalGP = (careerStats.gp || 0)
+    || careerHistory.reduce((s, r) => s + (r.gp || 0), 0);
+  const maxGP = careerHistory.length * (typeof FRANCHISE_WEEKS === "number" ? FRANCHISE_WEEKS : 14);
+  const availPct = maxGP > 0 ? Math.round(totalGP / maxGP * 100) : 0;
+  const availColor = availPct >= 90 ? "var(--green-lt)" : availPct >= 75 ? "var(--gold)" : "#ff8a8a";
+
+  // ── Window until decline ─────────────────────────────────────────
+  const declineAge = live.declineAge ?? null;
+  const peakAge    = live.peakAge ?? null;
+  let windowStr = "", windowColor = "var(--blwhite)";
+  if (declineAge != null) {
+    const yrsToDecline = declineAge - (live.age || 27);
+    if (yrsToDecline > 0) {
+      windowStr = `${yrsToDecline} yr${yrsToDecline===1?"":"s"} before age ${declineAge} decline${peakAge && live.age < peakAge ? ` · still ${peakAge - live.age}yr from peak` : ""}`;
+      windowColor = yrsToDecline >= 4 ? "var(--green-lt)" : yrsToDecline >= 2 ? "var(--gold)" : "#ff8a8a";
+    } else {
+      windowStr = `Past decline age (${declineAge}) — regression possible`;
+      windowColor = "#ff8a8a";
+    }
+  }
+
+  // ── Replacement cost (FA market at position) ────────────────────
+  const replaceCost = h.marketAAV * 0.85;
+  const replaceStr = `FA market ~$${replaceCost.toFixed(1)}M/yr · ${(allPos.filter(p => (p.overall || 0) >= 80).length)} other ≥80 OVR ${pos}s in league`;
+
+  // ── Verdict synthesis — 1-line takeaway driven by the same data ──
+  const overallTier = live.overall >= 88 ? "elite" : live.overall >= 82 ? "starter+" : "starter";
+  const youngEnough = (live.age || 27) <= 28;
+  const inPrime = peakAge != null && live.age >= peakAge - 1 && live.age <= (declineAge ?? 99);
+  const verdict = (overallTier === "elite" && youngEnough)
+      ? { text: "Lock this in — elite production, prime window still open", color: "var(--green-lt)" }
+    : (inPrime && availPct >= 80)
+      ? { text: "Pay him — peak production, availability proven", color: "var(--gold)" }
+    : (live.age >= (declineAge ?? 99))
+      ? { text: "Risky — production may not match dollars over deal length", color: "#ff8a8a" }
+    : { text: "Solid contributor — extend at fair value, avoid premium years", color: "var(--gold-lt)" };
+
+  const row = (lbl, val, color) =>
+    val ? `<span style="color:var(--gray)">${lbl}</span><span style="color:${color || 'var(--blwhite)'}">${val}</span>` : "";
+
+  return `<div class="frn-pitch" style="border-top:1px dashed var(--border);margin-top:.35rem;padding-top:.35rem">
+    <div style="font-size:.55rem;color:var(--gold);letter-spacing:1.5px;margin-bottom:.3rem">📊 THE CASE</div>
+    <div style="display:grid;grid-template-columns:max-content 1fr;gap:.18rem .55rem;font-size:.62rem;line-height:1.35">
+      ${row("This year", seasonProd)}
+      ${row("Career",    careerProd)}
+      ${accolades.length ? row("Honors", accolades.join(" · "), "var(--gold)") : ""}
+      ${row("Trajectory", trajStr)}
+      ${row("League",    rankStr)}
+      ${row("Availability", `${availPct}% (${totalGP}/${maxGP || "—"} GP)`, availColor)}
+      ${row("Window",    windowStr, windowColor)}
+      ${row("Market",    replaceStr)}
+    </div>
+    <div style="margin-top:.3rem;padding:.3rem .45rem;background:rgba(255,255,255,.04);border-left:2px solid ${verdict.color};border-radius:2px;font-size:.65rem;color:${verdict.color}">
+      <b style="letter-spacing:.5px">VERDICT</b> · ${verdict.text}
+    </div>
+  </div>`;
+}
+
 function _detectHoldouts() {
   const cap = franchise.salaryCap || SALARY_CAP_BASE;
   const myRoster = franchise.rosters[franchise.chosenTeamId] || [];
@@ -8980,11 +9114,29 @@ function _renderHoldoutsBlock() {
       : offerDelta > 0
       ? `<span style="color:#ff8a8a;font-size:.6rem">over by $${offerDelta.toFixed(1)}M/yr</span>`
       : `<span style="color:var(--gray);font-size:.6rem">matches demand</span>`;
+    // Underpaid math — the WHY behind this demand. _detectHoldouts only
+    // surfaces players whose current AAV is < 75% of market, so every
+    // row here is meaningfully underpaid. Show the dollar gap + % to
+    // make the negotiation context obvious.
+    const marketAav = h.marketAAV || h.demandedAAV;
+    const underpayGap = curAav > 0 ? marketAav - curAav : 0;
+    const underpayPct = curAav > 0 ? Math.round((underpayGap / marketAav) * 100) : 0;
+    const underpayColor = underpayPct >= 50 ? "#ff8a8a"
+                       : underpayPct >= 30 ? "#e8a000"
+                       : "var(--gold-lt)";
+    const underpayStr = (curAav > 0 && underpayGap > 0)
+      ? `<span style="color:${underpayColor};font-size:.6rem;font-weight:700">⚠ underpaid $${underpayGap.toFixed(1)}M/yr (${underpayPct}% below market)</span>`
+      : "";
     const demandHtml = `<div class="frn-resign-demand" style="display:flex;flex-direction:column;gap:.15rem">
       ${curAav > 0 ? `
         <div style="display:flex;gap:.5rem;align-items:baseline;font-size:.65rem">
           <span class="lbl" style="min-width:60px;color:var(--gray)">Current</span>
           <span class="num" style="color:var(--gray)">$${curAav.toFixed(1)}M × ${curRem}yr left</span>
+          ${underpayStr}
+        </div>
+        <div style="display:flex;gap:.5rem;align-items:baseline;font-size:.62rem">
+          <span class="lbl" style="min-width:60px;color:var(--gray)">Market</span>
+          <span class="num" style="color:var(--gold-lt);font-weight:700">$${marketAav.toFixed(1)}M/yr</span>
         </div>` : ""}
       <div style="display:flex;gap:.5rem;align-items:baseline;font-size:.7rem">
         <span class="lbl" style="min-width:60px;color:var(--gold)">Wants</span>
@@ -9016,6 +9168,7 @@ function _renderHoldoutsBlock() {
       offer, offerYears, overall: ovr, structure: struct, decision: null,
     }, 4);
     const hoverAttr = `data-resign-hits='${JSON.stringify(hoverHits)}' data-resign-cap='${cap}' onmouseenter="_resignHoverIn(this)" onmouseleave="_resignHoverOut()"`;
+    const pitchHtml = _buildExtensionPitch(h, live, cap);
     return `<div class="frn-resign-row tier-${_holdoutTier(h)}" ${hoverAttr}>
       ${recChip}
       <div class="frn-resign-row-inner">
@@ -9027,6 +9180,7 @@ function _renderHoldoutsBlock() {
           ${riskHtml ? `<div class="frn-resign-risks">${riskHtml}</div>` : ""}
           ${_contractContextBar(h.position, h.marketAAV, cap)}
           ${demandHtml}
+          ${pitchHtml}
           ${metaHtml}
         </div>
         <div class="frn-resign-offer">
