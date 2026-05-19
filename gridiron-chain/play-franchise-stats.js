@@ -3013,9 +3013,9 @@ const DEPTH_POS_GROUPS = [
   { pos:"WR",  label:"WIDE RECEIVER",  slots:["WR1","WR2","WR3","WR4"], unit:"OFF" },
   { pos:"TE",  label:"TIGHT END",      slots:["TE1","TE2"],             unit:"OFF" },
   { pos:"OL",  label:"OFFENSIVE LINE", slots:["LT","LG","C","RG","RT"], unit:"OFF" },
-  { pos:"DL",  label:"DEFENSIVE LINE", slots:["DL1","DL2","DL3","DL4"], unit:"DEF" },
-  { pos:"LB",  label:"LINEBACKER",     slots:["LB1","LB2","LB3"],       unit:"DEF" },
-  { pos:"CB",  label:"CORNERBACK",     slots:["CB1","CB2","NB"],        unit:"DEF" },
+  { pos:"DL",  label:"DEFENSIVE LINE", slots:["DL1","DL2","DL3","DL4","DL5","DL6"], unit:"DEF" },
+  { pos:"LB",  label:"LINEBACKER",     slots:["LB1","LB2","LB3"],                   unit:"DEF" },
+  { pos:"CB",  label:"CORNERBACK",     slots:["CB1","CB2","NB","NB2"],              unit:"DEF" },
   { pos:"S",   label:"SAFETY",         slots:["SS","FS"],               unit:"DEF" },
   { pos:"K",   label:"KICKER",         slots:["K"],                     unit:"ST"  },
   { pos:"P",   label:"PUNTER",         slots:["P"],                     unit:"ST"  },
@@ -3026,12 +3026,53 @@ const DEPTH_UNIT_LABELS = {
   OFF: { name:"OFFENSE",        icon:"⚡", color:"var(--gold)" },
   DEF: { name:"DEFENSE",        icon:"🛡", color:"#7ac8e8" },
   ST:  { name:"SPECIAL TEAMS",  icon:"🦵", color:"#c08fff" },
+  PKG: { name:"PACKAGES",       icon:"⛺", color:"#ff9a4d" },
 };
+
+// Defensive personnel packages. Each lists the 11 slots on the field.
+// Most slots are SHARED with the regular depth chart (same DL1 across all
+// packages), but a few are package-only (NB2 dime back, DL5/DL6 goal-line).
+// In real NFL, the "base" defense varies by team scheme — here we treat
+// Nickel as the de facto modern base (5 DBs, ~70% of NFL snaps).
+const PERSONNEL_PACKAGES = [
+  {
+    key: "BASE_43",
+    name: "Base 4-3",
+    desc: "4 DL · 3 LB · 2 CB · 2 S — vs. heavy run looks, early downs",
+    slots: ["DL1","DL2","DL3","DL4","LB1","LB2","LB3","CB1","CB2","SS","FS"],
+  },
+  {
+    key: "NICKEL",
+    name: "Nickel",
+    desc: "4 DL · 2 LB · 5 DB — modern base, slot CB on the field",
+    slots: ["DL1","DL2","DL3","DL4","LB1","LB2","CB1","CB2","NB","SS","FS"],
+  },
+  {
+    key: "DIME",
+    name: "Dime",
+    desc: "4 DL · 1 LB · 6 DB — obvious passing downs, heavy coverage",
+    slots: ["DL1","DL2","DL3","DL4","LB1","CB1","CB2","NB","NB2","SS","FS"],
+  },
+  {
+    key: "GOAL_LINE",
+    name: "Goal-line",
+    desc: "6 DL · 2 LB · 3 DB — short yardage, must-stop run",
+    slots: ["DL1","DL2","DL3","DL4","DL5","DL6","LB1","LB2","CB1","SS","FS"],
+  },
+];
+
+let _dcActivePkg = "NICKEL";
+function frnDepthSetPkg(pkgKey) {
+  if (!PERSONNEL_PACKAGES.find(p => p.key === pkgKey)) return;
+  _dcActivePkg = pkgKey;
+  renderFrnDepthChart();
+}
 
 function _depthSlotLabel(slotKey, idx) {
   const named = {
     LT:"★ LT", LG:"★ LG", C:"★ C", RG:"★ RG", RT:"★ RT",
-    SS:"★ SS", FS:"★ FS", NB:"NICKEL",
+    SS:"★ SS", FS:"★ FS", NB:"NICKEL", NB2:"DIME ⛺",
+    DL5:"GL-LINE ⛺", DL6:"GL-LINE ⛺",
     K:"★ KICKER", P:"★ PUNTER",
     KR1:"★ KICK RETURN", PR1:"★ PUNT RETURN",
     RB1:"★ RB", RB2:"#2 RB",
@@ -3380,6 +3421,79 @@ function renderFrnDepthChart() {
   const activeGroups = unitMetrics[_dcActiveUnit].groups;
   const groupSections = activeGroups.map(renderGroup).join("");
 
+  // ── Packages view (alternate render path for the PKG tab) ────────────────
+  // Shared with the rest of the depth chart — all slots are sourced from the
+  // same `dc` object. Package-specific extras (DL5/DL6/NB2) are also editable
+  // in the regular DEF tab; here we visualize how the 11-man lineup looks
+  // per personnel package + give each formation a strength rating.
+  const renderPackagesView = () => {
+    const pkgMetrics = PERSONNEL_PACKAGES.map(pkg => {
+      const lineup = pkg.slots.map(slotKey => {
+        const slot = dc[slotKey];
+        const starter = slot?.starter ? byPid[slot.starter] : null;
+        return { slotKey, starter };
+      });
+      const ovrs = lineup.map(l => l.starter?.overall || 0).filter(o => o > 0);
+      const avgOvr = ovrs.length ? Math.round(ovrs.reduce((s, o) => s + o, 0) / ovrs.length) : 0;
+      return { pkg, lineup, avgOvr, strength: _strength(avgOvr) };
+    });
+
+    const cards = pkgMetrics.map(({ pkg, avgOvr, strength }) => {
+      const active = pkg.key === _dcActivePkg;
+      return `<button class="frn-dc-pkg-card${active ? " active" : ""}" onclick="frnDepthSetPkg('${pkg.key}')">
+        <div class="frn-dc-pkg-card-name">${pkg.name}</div>
+        <div class="frn-dc-pkg-card-ovr" style="color:${strength.col}">${avgOvr || "—"} · ${strength.label}</div>
+      </button>`;
+    }).join("");
+
+    const active = pkgMetrics.find(m => m.pkg.key === _dcActivePkg) || pkgMetrics[1];
+    const dlSlots = active.lineup.filter(l => l.slotKey.startsWith("DL"));
+    const lbSlots = active.lineup.filter(l => l.slotKey.startsWith("LB"));
+    const cbSlots = active.lineup.filter(l => l.slotKey.startsWith("CB") || l.slotKey === "NB" || l.slotKey === "NB2");
+    const sSlots  = active.lineup.filter(l => l.slotKey === "SS" || l.slotKey === "FS");
+
+    const renderPkgRow = (label, slots) => {
+      if (!slots.length) return "";
+      const cells = slots.map(({ slotKey, starter }) => {
+        const isPkgOnly = ["DL5","DL6","NB2"].includes(slotKey);
+        const pkgIcon = isPkgOnly ? ` <span class="frn-dc-pkg-cell-icon" title="Package-only slot — edit in DEFENSE tab">⛺</span>` : "";
+        if (!starter) {
+          return `<div class="frn-dc-pkg-cell empty">
+            <div class="frn-dc-pkg-cell-slot">${slotKey}${pkgIcon}</div>
+            <div class="frn-dc-pkg-cell-name">— empty —</div>
+          </div>`;
+        }
+        const escName = (starter.name||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'");
+        const escPid  = (starter.pid||"").replace(/'/g,"\\'");
+        return `<div class="frn-dc-pkg-cell${isPkgOnly?" pkg-only":""}">
+          <div class="frn-dc-pkg-cell-slot">${slotKey}${pkgIcon}</div>
+          <div class="frn-dc-pkg-cell-name" onclick="frnOpenPlayerCard('${escName}','${escPid}')">${starter.name}</div>
+          <div class="frn-dc-pkg-cell-ovr">OVR ${starter.overall}</div>
+        </div>`;
+      }).join("");
+      return `<div class="frn-dc-pkg-row">
+        <div class="frn-dc-pkg-row-lbl">${label}</div>
+        <div class="frn-dc-pkg-row-cells">${cells}</div>
+      </div>`;
+    };
+
+    return `<div class="frn-dc-pkg-view">
+      <div class="frn-dc-pkg-cards">${cards}</div>
+      <div class="frn-dc-pkg-header">
+        <span class="frn-dc-pkg-header-name">${active.pkg.name}</span>
+        <span class="frn-dc-pkg-header-desc">${active.pkg.desc}</span>
+        <span class="frn-dc-pkg-header-ovr" style="color:${active.strength.col};border-color:${active.strength.col}44">AVG OVR ${active.avgOvr || "—"} · ${active.strength.label}</span>
+      </div>
+      <div class="frn-dc-pkg-lineup">
+        ${renderPkgRow("FRONT", dlSlots)}
+        ${renderPkgRow("LB", lbSlots)}
+        ${renderPkgRow("CB/NB", cbSlots)}
+        ${renderPkgRow("S", sSlots)}
+      </div>
+      <div class="frn-dc-pkg-hint">⛺ = package-only slot. DL5/DL6 (goal-line) and NB2 (dime) are managed in the DEFENSE tab like normal depth — edit which player fills them there.</div>
+    </div>`;
+  };
+
   // ── Unassigned panel (filtered to the active unit's positions) ────────────
   const activePositions = new Set(activeGroups.map(g => g.pos));
   const unassigned = roster
@@ -3469,12 +3583,16 @@ function renderFrnDepthChart() {
     </div>
     ${strengthStrip}
     ${tabsHtml}
-    <div class="frn-dc-hint">↑↓ reorder slots · ⇅ swap #1↔#2 · ▲ promote backup · click snap bar to set split (blue = manual) · hover starter for injury cascade · ⚠ = auto-by-OVR mismatch</div>
-    <div class="frn-dc-table">
-      ${colHeader}
-      ${groupSections}
-      ${unassignedHtml}
-    </div>`;
+    ${_dcActiveUnit === "PKG"
+      ? `<div class="frn-dc-hint">View how your defense lines up in each personnel package. Strength rating = average OVR of the 11 starters in that formation.</div>
+         ${renderPackagesView()}`
+      : `<div class="frn-dc-hint">↑↓ reorder slots · ⇅ swap #1↔#2 · ▲ promote backup · click snap bar to set split (blue = manual) · hover starter for injury cascade · ⚠ = auto-by-OVR mismatch</div>
+         <div class="frn-dc-table">
+           ${colHeader}
+           ${groupSections}
+           ${unassignedHtml}
+         </div>`
+    }`;
 }
 
 // Compute a team's W-L-T record AS OF a given week (before that week's game).

@@ -1478,12 +1478,17 @@ const DEPTH_CHART_SLOTS = {
     { key:"DL2", pos:"DL", flex:["DL1","DL3"] },
     { key:"DL3", pos:"DL", flex:["DL2","DL4"] },
     { key:"DL4", pos:"DL", flex:["DL3"] },
+    // Goal-line extra DL (5th and 6th rusher on heavy/short-yardage)
+    { key:"DL5", pos:"DL", snapFloor:8, flex:["DL6"], pkgOnly:true },
+    { key:"DL6", pos:"DL", snapFloor:5, flex:["DL5"], pkgOnly:true },
     { key:"LB1", pos:"LB", flex:["LB2"] },
     { key:"LB2", pos:"LB", flex:["LB1","LB3"] },
     { key:"LB3", pos:"LB", flex:["LB2"] },
     { key:"CB1", pos:"CB", flex:["CB2","NB"] },
     { key:"CB2", pos:"CB", flex:["CB1","NB"] },
     { key:"NB",  pos:"CB", flex:["CB2"] },
+    // Dime corner — 6th DB on heavy-coverage downs
+    { key:"NB2", pos:"CB", snapFloor:10, flex:["NB"], pkgOnly:true },
     { key:"SS",  pos:"S",  flex:["FS"] },
     { key:"FS",  pos:"S",  flex:["SS"] },
   ],
@@ -2351,6 +2356,11 @@ const _SLOT_FIT_WEIGHTS = {
   DL2: { weights: { 1:.40, 9:.30, 6:.10, 7:.20 }, label: "Interior DT" },
   DL3: { weights: { 1:.40, 9:.30, 6:.10, 7:.20 }, label: "Interior DT" },
   DL4: { weights: { 7:.40, 0:.30, 2:.15, 1:.15 }, label: "Edge rusher" },
+  // Goal-line extras — interior run-stop heavy
+  DL5: { weights: { 1:.50, 9:.30, 6:.20 },        label: "GL nose tackle" },
+  DL6: { weights: { 1:.50, 9:.30, 6:.20 },        label: "GL run-stuffer" },
+  // Dime corner — slot coverage specialist
+  NB2: { weights: { 8:.45, 2:.30, 0:.25 },        label: "Dime slot CB" },
 };
 
 // Slot fit score for a player — combines their OVR (baseline) with the

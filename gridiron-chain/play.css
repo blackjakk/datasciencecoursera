@@ -3000,6 +3000,86 @@
     font-weight: 700; white-space: pre;
   }
 
+  /* Personnel packages view (PKG tab in depth chart) */
+  .frn-dc-pkg-view {
+    background: var(--bg2); border: 1px solid var(--border);
+    padding: .7rem; border-radius: 4px;
+  }
+  .frn-dc-pkg-cards {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: .5rem;
+    margin-bottom: .8rem;
+  }
+  .frn-dc-pkg-card {
+    background: var(--bg3); border: 1px solid var(--border);
+    color: var(--blgray); padding: .4rem .6rem; border-radius: 3px;
+    cursor: pointer; font-family: inherit; text-align: left;
+    display: flex; flex-direction: column; gap: .2rem;
+    transition: border-color .15s, background .15s;
+  }
+  .frn-dc-pkg-card:hover { background: var(--bg); border-color: #ff9a4d; }
+  .frn-dc-pkg-card.active {
+    background: linear-gradient(to bottom, rgba(255,154,77,.15), rgba(255,154,77,.03));
+    border-color: #ff9a4d; color: var(--text);
+  }
+  .frn-dc-pkg-card-name { font-size: .72rem; font-weight: 800; color: #ff9a4d; }
+  .frn-dc-pkg-card.active .frn-dc-pkg-card-name { color: #ffb878; }
+  .frn-dc-pkg-card-ovr { font-size: .6rem; font-weight: 700; letter-spacing: 1px; }
+
+  .frn-dc-pkg-header {
+    display: flex; align-items: center; gap: .8rem; flex-wrap: wrap;
+    padding: .55rem .7rem; background: var(--bg3); border: 1px solid var(--border);
+    border-left: 3px solid #ff9a4d; border-radius: 3px;
+    margin-bottom: .6rem;
+  }
+  .frn-dc-pkg-header-name { font-size: .9rem; font-weight: 900; color: #ff9a4d; }
+  .frn-dc-pkg-header-desc { font-size: .62rem; color: var(--blgray); flex: 1; }
+  .frn-dc-pkg-header-ovr {
+    font-size: .65rem; font-weight: 800; letter-spacing: 1px;
+    padding: .15rem .4rem; border: 1px solid var(--border); border-radius: 3px;
+  }
+
+  .frn-dc-pkg-lineup { display: flex; flex-direction: column; gap: .35rem; }
+  .frn-dc-pkg-row {
+    display: grid; grid-template-columns: 70px 1fr; gap: .5rem;
+    align-items: stretch;
+  }
+  .frn-dc-pkg-row-lbl {
+    font-size: .58rem; font-weight: 800; color: var(--blgray);
+    letter-spacing: 2px; align-self: center;
+    padding: .25rem .4rem; background: var(--bg3); border-left: 2px solid #ff9a4d;
+  }
+  .frn-dc-pkg-row-cells {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: .3rem;
+  }
+  .frn-dc-pkg-cell {
+    background: var(--bg3); border: 1px solid var(--border);
+    padding: .3rem .45rem; border-radius: 3px;
+    display: flex; flex-direction: column; gap: .12rem;
+  }
+  .frn-dc-pkg-cell.pkg-only {
+    border-left: 3px solid #ff9a4d; background: rgba(255,154,77,.05);
+  }
+  .frn-dc-pkg-cell.empty { opacity: .55; }
+  .frn-dc-pkg-cell-slot {
+    font-size: .54rem; font-weight: 800; color: var(--blgray);
+    letter-spacing: 1px;
+  }
+  .frn-dc-pkg-cell-icon { font-size: .58rem; }
+  .frn-dc-pkg-cell-name {
+    font-size: .68rem; font-weight: 700; color: var(--text);
+    cursor: pointer;
+  }
+  .frn-dc-pkg-cell-name:hover { color: var(--gold); text-decoration: underline; }
+  .frn-dc-pkg-cell-ovr {
+    font-size: .55rem; color: var(--gold-lt); font-weight: 700;
+  }
+  .frn-dc-pkg-hint {
+    margin-top: .6rem; padding: .4rem .6rem; font-size: .58rem;
+    color: var(--blgray); background: rgba(255,154,77,.06);
+    border-left: 2px solid #ff9a4d; border-radius: 0 3px 3px 0;
+  }
+
   /* Past-game (ESPN-style) viewer */
   .frn-pg-banner {
     display: grid; grid-template-columns: 1fr auto 1fr; gap: .8rem;
