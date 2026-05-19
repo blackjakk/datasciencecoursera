@@ -12712,9 +12712,201 @@ function _topHypedPerPosition(cls) {
 
 function frnBeginDraftActual() {
   if (!franchise.draft) return;
-  franchise.draft.preshowDone = true;
+  const d = franchise.draft;
+  d.preshowDone = true;
+  // If the user's first pick isn't R1.1, animate through the AI picks
+  // before it so the draft feels live instead of teleporting. Skipped
+  // when user has the very first pick (no AI picks to animate).
+  const myId = franchise.chosenTeamId;
+  const firstUserSlot = d.pickOrder.findIndex(s => s.teamId === myId);
+  if (firstUserSlot > 0 || firstUserSlot === -1) {
+    d._animSinceIdx = 0;
+  }
   saveFranchise();
   renderFrnDraft();
+}
+
+// ── Draft Floor (between-picks animation) ────────────────────────────
+// After a user pick (manual or autopick), animate the AI picks until
+// the user's next slot — gives the draft a live feel instead of a
+// teleport. Skipped when user explicitly chose to fast-forward (Sim
+// Rest of Round / Auto-Draft Rest). State persists via _animSinceIdx
+// so a mid-animation refresh resumes; the setTimeout handle is module-
+// level (re-scheduled by renderFrnDraft when it sees the flag).
+let _draftAnimTimer = null;
+const DRAFT_ANIM_TICK_MS = 200;
+
+function _scheduleAnimTick() {
+  if (_draftAnimTimer != null) return; // already scheduled
+  _draftAnimTimer = setTimeout(() => {
+    _draftAnimTimer = null;
+    _animTick();
+  }, DRAFT_ANIM_TICK_MS);
+}
+
+function _animTick() {
+  const d = franchise?.draft;
+  if (!d || d._animSinceIdx === undefined) return;
+  // Already past user's slot or end? Animation done.
+  if (d.currentIdx >= d.pickOrder.length
+      || d.pickOrder[d.currentIdx].teamId === franchise.chosenTeamId) {
+    delete d._animSinceIdx;
+    _flushSaveFranchise();
+    renderFrnDraft();
+    return;
+  }
+  // Process one AI pick + save (each tick is atomic so refresh resumes).
+  _aiAutoPick(d.pickOrder[d.currentIdx]);
+  d.currentIdx++;
+  saveFranchise();
+  // Re-render the floor with the new pick in the ticker.
+  _renderDraftFloor();
+  // Schedule next tick if more AI picks remain.
+  if (d.currentIdx < d.pickOrder.length
+      && d.pickOrder[d.currentIdx].teamId !== franchise.chosenTeamId) {
+    _scheduleAnimTick();
+  } else {
+    // We hit user slot / end — wrap up
+    delete d._animSinceIdx;
+    _flushSaveFranchise();
+    setTimeout(renderFrnDraft, DRAFT_ANIM_TICK_MS); // brief beat before board
+  }
+}
+
+function _renderDraftFloor() {
+  const d = franchise.draft;
+  if (!d) return;
+  const myId = franchise.chosenTeamId;
+  const myTeam = getTeam(myId);
+
+  // Picks made since the animation started, newest first.
+  const sinceIdx = d._animSinceIdx ?? d.currentIdx;
+  const floorPicks = d.picks.slice(sinceIdx).reverse();
+  const targets = new Set(d.targets || []);
+
+  // How many picks until user is back on the clock.
+  let remaining = 0;
+  let nextUserSlot = null;
+  for (let i = d.currentIdx; i < d.pickOrder.length; i++) {
+    if (d.pickOrder[i].teamId === myId) { nextUserSlot = d.pickOrder[i]; break; }
+    remaining++;
+  }
+  const onClockSlot = d.pickOrder[d.currentIdx];
+  const onClockTeam = onClockSlot ? getTeam(onClockSlot.teamId) : null;
+  const onClockLabel = onClockSlot
+    ? `R${onClockSlot.round}.${onClockSlot.pickInRound}${onClockSlot.isComp ? "c" : ""}`
+    : "—";
+
+  // Position run detection — last 6 picks at the same position.
+  let posRun = null;
+  if (d.picks.length >= 6) {
+    const last6 = d.picks.slice(-6);
+    const counts = {};
+    last6.forEach(p => counts[p.pos] = (counts[p.pos] || 0) + 1);
+    for (const [pos, cnt] of Object.entries(counts)) {
+      if (cnt >= 3) { posRun = { pos, cnt }; break; }
+    }
+  }
+
+  const pickRows = floorPicks.slice(0, 12).map((pk, i) => {
+    const team = getTeam(pk.teamId);
+    const isTarget = targets.has(pk.prospectName);
+    const isMostRecent = i === 0;
+    const teamLabel = team ? `${team.city} ${team.name}` : "?";
+    return `<div class="frn-floor-pick ${isMostRecent ? "frn-floor-pick--new" : ""}" style="display:grid;grid-template-columns:2.8rem 9rem 1fr 2.4rem;gap:.55rem;padding:.4rem .65rem;font-size:.7rem;align-items:baseline;background:${isMostRecent ? "rgba(200,169,0,.10)" : "transparent"};border-left:${isTarget ? "3px solid #ff8a8a" : isMostRecent ? "3px solid var(--gold)" : "3px solid transparent"};margin-bottom:.18rem">
+      <span style="color:var(--gray);font-weight:700">R${pk.round}.${pk.pickInRound}${pk.isComp?"c":""}</span>
+      <span style="color:var(--blwhite);font-weight:700;font-size:.65rem">${teamLabel}</span>
+      <span style="color:var(--white)">${pk.prospectName}${isTarget?` <span style="color:#ff8a8a;font-size:.55rem;letter-spacing:.5px">· YOUR TARGET</span>`:""}</span>
+      <span style="color:var(--gold-lt);font-weight:700;font-size:.62rem">${pk.pos}</span>
+    </div>`;
+  }).join("");
+
+  const moreCount = Math.max(0, floorPicks.length - 12);
+  const moreLine = moreCount > 0
+    ? `<div style="font-size:.6rem;color:var(--gray);text-align:center;padding:.25rem;font-style:italic">+${moreCount} earlier picks…</div>`
+    : "";
+
+  $("frnHomeContent").innerHTML = `
+    <div style="max-width:840px;margin:0 auto;padding:1rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">
+        <div>
+          <div style="font-size:.6rem;color:var(--gold);letter-spacing:2px;font-weight:700">📋 DRAFT FLOOR</div>
+          <div style="font-size:1.15rem;font-weight:900;color:var(--gold-lt)">
+            ${remaining > 0
+              ? `${remaining} pick${remaining===1?"":"s"} until you're on the clock`
+              : (nextUserSlot ? `You're up next` : `UDFA scramble next`)}
+          </div>
+          <div style="color:var(--gray);font-size:.7rem">
+            ${nextUserSlot
+              ? `Your next pick: R${nextUserSlot.round}.${nextUserSlot.pickInRound}${nextUserSlot.isComp?"c":""} · ${myTeam?.city} ${myTeam?.name}`
+              : `${myTeam?.city} ${myTeam?.name}`}
+          </div>
+        </div>
+        <button class="btn btn-gold" style="font-size:.7rem;padding:.4rem .9rem;white-space:nowrap"
+          onclick="frnSkipDraftFloor()">⏩ Skip to my pick</button>
+      </div>
+      ${onClockTeam ? `
+      <div style="background:var(--bg2);border:1px solid var(--border);padding:.55rem .7rem;margin-bottom:.6rem;border-radius:3px;display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:.55rem;color:var(--gold);letter-spacing:1.5px;font-weight:700">NOW ON THE CLOCK</div>
+          <div style="color:var(--white);font-weight:700;font-size:.85rem">${onClockTeam.city} ${onClockTeam.name}</div>
+          <div style="color:var(--gray);font-size:.6rem">${onClockLabel}</div>
+        </div>
+        <div style="color:var(--gold-lt);font-size:1.4rem;letter-spacing:2px;animation:floor-pulse 1s infinite">⏳</div>
+      </div>` : ""}
+      ${posRun ? `<div style="background:rgba(232,160,0,.10);border-left:3px solid #e8a000;padding:.35rem .55rem;margin-bottom:.5rem;font-size:.66rem;color:#e8a000;font-weight:700">🔥 ${posRun.pos} run — ${posRun.cnt} in last 6 picks</div>` : ""}
+      <div style="background:var(--bg2);border:1px solid var(--border);padding:.45rem .55rem;border-radius:3px">
+        <div style="font-size:.55rem;color:var(--gold);letter-spacing:1.5px;font-weight:700;margin-bottom:.3rem">RECENT PICKS · ${floorPicks.length} since you</div>
+        ${pickRows || `<div style="color:var(--gray);font-size:.65rem;font-style:italic;padding:.5rem;text-align:center">Waiting for first pick…</div>`}
+        ${moreLine}
+      </div>
+    </div>
+    <style>
+      @keyframes floor-pulse { 0%,100% { opacity:.3 } 50% { opacity:1 } }
+      .frn-floor-pick--new { animation: floor-pick-in .3s ease-out }
+      @keyframes floor-pick-in {
+        0% { opacity:0; transform: translateY(-6px) }
+        100% { opacity:1; transform: translateY(0) }
+      }
+    </style>`;
+}
+
+function frnSkipDraftFloor() {
+  if (_draftAnimTimer != null) {
+    clearTimeout(_draftAnimTimer);
+    _draftAnimTimer = null;
+  }
+  const d = franchise?.draft;
+  if (!d) return;
+  const myId = franchise.chosenTeamId;
+  // Fast-forward to user's next slot or end of draft.
+  while (d.currentIdx < d.pickOrder.length
+         && d.pickOrder[d.currentIdx].teamId !== myId) {
+    _aiAutoPick(d.pickOrder[d.currentIdx]);
+    d.currentIdx++;
+  }
+  delete d._animSinceIdx;
+  _flushSaveFranchise();
+  renderFrnDraft();
+}
+
+// Kick off animation after a user action that advances the draft.
+// Called from frnDraftPick, frnAutoPickThisSlot, frnBeginDraftActual.
+// If there are no AI picks before user's next slot, animation is a
+// no-op — just renders the board.
+function _startDraftFloorAnim() {
+  const d = franchise?.draft;
+  if (!d) return;
+  if (d.currentIdx >= d.pickOrder.length
+      || d.pickOrder[d.currentIdx].teamId === franchise.chosenTeamId) {
+    // No AI picks to animate — go straight to next slot
+    renderFrnDraft();
+    return;
+  }
+  d._animSinceIdx = d.currentIdx;
+  saveFranchise();
+  _renderDraftFloor();
+  _scheduleAnimTick();
 }
 
 function renderFrnDraftPreshow() {
@@ -13312,22 +13504,22 @@ function renderFrnDraft() {
     d.preshowDone = true; // legacy safeguard
   }
 
-  // Auto-advance AI picks until it's user's turn or draft is over.
-  // Cap is a safety net against malformed pickOrder. Max real picks are
-  // 224 standard + up to 32 comp = 256, so 300 is well above the worst
-  // case but still catches any pathological infinite loop. The previous
-  // cap of 250 could trigger in the rare scenario where a user has
-  // traded all their picks and the auto-advance had to process every
-  // slot in the draft — falling through to render an AI's slot under
-  // the "YOU ARE ON THE CLOCK" header.
-  let aiAdvanced = 0;
-  while (d.currentIdx < d.pickOrder.length) {
-    const slot = d.pickOrder[d.currentIdx];
-    if (slot.teamId === myId) break;
-    _aiAutoPick(slot);
-    d.currentIdx++;
-    aiAdvanced++;
-    if (aiAdvanced > 300) break;
+  // Draft Floor animation in progress — show picks unfolding live
+  // between user picks instead of teleporting. _animSinceIdx is
+  // stamped by frnDraftPick / frnAutoPickThisSlot / frnBeginDraftActual.
+  // If we're still mid-animation (more AI picks before user's slot),
+  // render the floor and schedule the next tick. The animation drives
+  // all AI advancement now — there's no more sync auto-advance loop.
+  if (d._animSinceIdx !== undefined
+      && d.currentIdx < d.pickOrder.length
+      && d.pickOrder[d.currentIdx].teamId !== myId) {
+    _renderDraftFloor();
+    _scheduleAnimTick();
+    return;
+  }
+  // Animation flag set but already at user slot or end — clean it up.
+  if (d._animSinceIdx !== undefined) {
+    delete d._animSinceIdx;
   }
 
   if (d.currentIdx >= d.pickOrder.length) {
@@ -13349,7 +13541,6 @@ function renderFrnDraft() {
     _renderPostDraftGrade(myPicksFinal);
     return;
   }
-  if (aiAdvanced > 0) _flushSaveFranchise();
 
   const currentSlot = d.pickOrder[d.currentIdx];
   const round = currentSlot.round;
@@ -13916,10 +14107,12 @@ function frnDraftScout(name) {
   frnDraftScoutCategory(name, "film");
 }
 
-// Sim all remaining CPU picks in the current round, including the user's
-// current pick. Pauses at the start of the next round (or end of draft).
-// User's pick within the round respects their target list — consistent
-// with Auto-Pick / Auto-Draft Rest.
+// Sim all remaining CPU picks in the current round, including the
+// user's current pick. Then continue advancing through AI picks
+// until the user's next slot (or end of draft) so the user lands
+// directly on a pick they need to make. User explicitly chose to
+// skip — no animation. User's pick within the round respects their
+// target list, consistent with Auto-Pick / Auto-Draft Rest.
 function frnSimRound() {
   const d = franchise.draft;
   if (!d) return;
@@ -13927,6 +14120,7 @@ function frnSimRound() {
   const curRound = d.pickOrder[d.currentIdx]?.round;
   if (!curRound) return;
   const targetSet = new Set(d.targets || []);
+  // Stage 1: finish current round
   while (d.currentIdx < d.pickOrder.length) {
     const slot = d.pickOrder[d.currentIdx];
     if (slot.round !== curRound) break;
@@ -13935,6 +14129,15 @@ function frnSimRound() {
     } else {
       _aiAutoPick(slot);
     }
+    d.currentIdx++;
+  }
+  // Stage 2: advance through next-round AI picks until user's next slot.
+  // Without this, user could land on an AI slot under "ON THE CLOCK"
+  // because the old sync auto-advance loop in renderFrnDraft is gone
+  // (replaced by the animation system).
+  while (d.currentIdx < d.pickOrder.length
+         && d.pickOrder[d.currentIdx].teamId !== myId) {
+    _aiAutoPick(d.pickOrder[d.currentIdx]);
     d.currentIdx++;
   }
   _flushSaveFranchise();
@@ -13955,7 +14158,7 @@ function frnAutoPickThisSlot() {
   _aiAutoPick(slot, { targetSet });
   d.currentIdx++;
   _flushSaveFranchise();
-  renderFrnDraft();
+  _startDraftFloorAnim();
 }
 
 // Autopick all remaining picks — both AI and user — until the draft
@@ -14167,7 +14370,7 @@ function frnDraftPick(name) {
   saveFranchise();
   const pickLabel = `R${slot.round}.${slot.pickInRound}${slot.isComp ? "c" : ""}`;
   _pushNews({ type:"draft", label: `📋 You drafted ${prospect.name} (${prospect.position}) — ${pickLabel}` });
-  renderFrnDraft();
+  _startDraftFloorAnim();
 }
 
 // Finalize a UDFA-tier prospect into a signed player on a team. Mirrors
