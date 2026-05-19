@@ -5163,8 +5163,46 @@ function frnHoldoutMidCounter(name) {
   _migrateHoldoutDemandShape(list);
   const d = list.find(x => x.name === name);
   if (!d) return;
-  d.offer = Math.round(d.demandedAAV * 0.95 * 10) / 10;
-  d.offerYears = Math.max(_MID_HOLDOUT_MIN_YEARS, Math.min(_MID_HOLDOUT_MAX_YEARS, d.demandedYears));
+  if (Math.abs((d.offer || 0) - d.demandedAAV) < 0.05) {
+    d.offer = Math.round(d.demandedAAV * 0.95 * 10) / 10;
+    d.offerYears = Math.max(_MID_HOLDOUT_MIN_YEARS, Math.min(_MID_HOLDOUT_MAX_YEARS, d.demandedYears));
+  }
+  _holdoutMidCounterFor = name;
+  saveFranchise();
+  frnRefreshHoldoutCenter();
+}
+
+function frnHoldoutMidCounterClose() {
+  _holdoutMidCounterFor = null;
+  frnRefreshHoldoutCenter();
+}
+
+function frnHoldoutMidAdjustOffer(name, delta) {
+  const list = franchise.holdoutDemands || [];
+  _migrateHoldoutDemandShape(list);
+  const d = list.find(x => x.name === name);
+  if (!d) return;
+  d.offer = _counterClampAav((d.offer || 0) + delta, d.demandedAAV);
+  saveFranchise();
+  frnRefreshHoldoutCenter();
+}
+
+function frnHoldoutMidCounterChip(name, chipKey) {
+  const list = franchise.holdoutDemands || [];
+  _migrateHoldoutDemandShape(list);
+  const d = list.find(x => x.name === name);
+  if (!d) return;
+  const cap = effectiveSalaryCap(franchise.chosenTeamId);
+  const marketAAV = d.demandedAAV; // walk-year demand already at market
+  const top5Aav = (typeof _positionTopAvgAAV === "function") ? _positionTopAvgAAV(d.position, cap, 5) : 0;
+  const result = _counterChipApply(chipKey, {
+    offer: d.offer || 0, offerYears: d.offerYears || d.demandedYears,
+    demandedAAV: d.demandedAAV, demandedYears: d.demandedYears,
+    marketAAV, top5Aav,
+    minYears: _MID_HOLDOUT_MIN_YEARS, maxYears: _MID_HOLDOUT_MAX_YEARS,
+  });
+  d.offer = result.offer;
+  d.offerYears = result.years;
   saveFranchise();
   frnRefreshHoldoutCenter();
 }
@@ -5394,6 +5432,18 @@ function _renderHoldoutCenterRow(d) {
     offer, offerYears, overall: ovr, structure: struct, decision: null,
   }, 4);
   const hoverAttr = `data-resign-hits='${JSON.stringify(hoverHits)}' data-resign-cap='${cap}' onmouseenter="_resignHoverIn(this)" onmouseleave="_resignHoverOut()"`;
+  // Counter composer (full-width edit panel below the row, when open)
+  const counterHtml = _holdoutMidCounterFor === d.name ? _renderCounterComposer({
+    offer, offerYears,
+    demandedAAV: d.demandedAAV, demandedYears: d.demandedYears,
+    marketAAV: d.demandedAAV,
+    top5Aav: (typeof _positionTopAvgAAV === "function") ? _positionTopAvgAAV(d.position, cap, 5) : 0,
+    minYears: _MID_HOLDOUT_MIN_YEARS, maxYears: _MID_HOLDOUT_MAX_YEARS,
+    onAavDelta: dt => `frnHoldoutMidAdjustOffer('${escName}', ${dt})`,
+    onYrDelta:  dt => `frnHoldoutMidAdjustYears('${escName}', ${dt})`,
+    onChip:     k => `frnHoldoutMidCounterChip('${escName}', '${k}')`,
+    onClose: `frnHoldoutMidCounterClose()`,
+  }) : "";
   return `<div class="frn-resign-row tier-${tier}" ${hoverAttr}>
     <div class="frn-resign-row-inner">
       ${portraitHtml}
@@ -5432,7 +5482,7 @@ function _renderHoldoutCenterRow(d) {
       </div>
       <div class="frn-resign-btns">
         <button class="btn frn-resign-btn accept-btn" onclick="frnHoldoutMidPreview('${escName}')">Review &amp; Extend</button>
-        ${odds < 0.85 ? `<button class="btn frn-resign-btn accept-btn" style="border-color:var(--gold-lt);color:var(--gold-lt)" onclick="frnHoldoutMidCounter('${escName}')" title="Drop offer to 95% of demand">↻ Counter</button>` : ""}
+        ${odds < 0.85 ? `<button class="btn frn-resign-btn accept-btn ${_holdoutMidCounterFor === d.name ? 'active' : ''}" style="border-color:var(--gold-lt);color:var(--gold-lt)" onclick="${_holdoutMidCounterFor === d.name ? 'frnHoldoutMidCounterClose()' : `frnHoldoutMidCounter('${escName}')`}" title="Open the counter composer — tune AAV / years / snap to a preset">${_holdoutMidCounterFor === d.name ? '↻ Close' : '↻ Counter'}</button>` : ""}
         <button class="btn frn-resign-btn" style="border-color:var(--gold);color:var(--gold)" onclick="frnHoldoutMidTrade('${escName}')" title="Open trade screen with him pre-selected">🔀 Trade<span style="font-size:.5rem;display:block;color:var(--gold-lt)">${tradeVal}</span></button>
         ${(d.defers || 0) < _MID_HOLDOUT_MAX_DEFERS
           ? `<button class="btn frn-resign-btn" style="border-color:var(--blgray);color:var(--blgray)" onclick="frnHoldoutMidDefer('${escName}')" title="Push deadline +2 wks. Demand rises 3% each defer. Max ${_MID_HOLDOUT_MAX_DEFERS}×.">⏳ Defer<span style="font-size:.5rem;display:block;color:var(--blgray)">+2 wks · +3% AAV</span></button>`
@@ -5440,6 +5490,7 @@ function _renderHoldoutCenterRow(d) {
         <button class="btn frn-resign-btn decline-btn" onclick="frnHoldoutMidRefuse('${escName}')" title="Player sits this week and walks at expiry">✗ Refuse<span style="font-size:.5rem;display:block;color:#ff9090">sits 1 game</span></button>
       </div>
     </div>
+    ${counterHtml}
   </div>`;
 }
 
@@ -5687,6 +5738,140 @@ function _resignSurplusVsComp(r, compPick) {
   const rookieTotal = rookieAav * _ROOKIE_SLOT_YEARS;
   const premium = dealTotal - rookieTotal;
   return { dealTotal, rookieAav, rookieTotal, premium, round: compPick.round };
+}
+
+// ── Counter-offer composer ───────────────────────────────────────────
+// Each of the three contract screens (offseason re-sign, offseason
+// holdout demand, mid-season holdout center) keeps its own "counter
+// open for" id. When set, the row renders an extra composer panel
+// with AAV $ adjusters, year ± buttons, and quick-snap chips. The
+// existing year buttons in the offer column and structure pills keep
+// working — the composer just adds AAV flexibility (which had no UI
+// before) and shortcut chips for common counter shapes.
+let _resignCounterFor = null;     // re-sign idx
+let _holdoutCounterFor = null;    // offseason demand player name
+let _holdoutMidCounterFor = null; // mid-season demand player name
+
+// Shared composer HTML. Caller supplies onclick strings for each
+// control so this stays system-agnostic. Returns "" when not active.
+function _renderCounterComposer(opts) {
+  const {
+    offer, offerYears, demandedAAV, demandedYears,
+    marketAAV, top5Aav,
+    minYears, maxYears,
+    onAavDelta,     // fn(delta: number) => onclick string
+    onChip,         // fn(chipKey: string) => onclick string
+    onYrDelta,      // fn(delta: number) => onclick string
+    onClose,        // onclick string
+  } = opts;
+
+  const odds = _holdoutAcceptOdds(offer, offerYears, demandedAAV, demandedYears);
+  const oddsPct = Math.round(odds * 100);
+  const oddsColor = odds >= 0.85 ? "var(--green-lt)" : odds >= 0.5 ? "#e8a000" : "#ff8a8a";
+  const vsMarket = marketAAV > 0 ? offer / marketAAV : 1;
+  const vsMarketStr = marketAAV > 0
+    ? (vsMarket >= 1.05 ? `${Math.round((vsMarket-1)*100)}% over market`
+      : vsMarket >= 0.95 ? `at market`
+      : `${Math.round((1-vsMarket)*100)}% under market`)
+    : "";
+  const vsMarketColor = vsMarket >= 1.10 ? "#ff8a8a" : vsMarket >= 0.95 ? "var(--gold)" : "var(--green-lt)";
+
+  // AAV step buttons
+  const aavBtn = (delta, label) =>
+    `<button class="frn-counter-aav-btn" onclick="${onAavDelta(delta)}">${label}</button>`;
+
+  // Quick chip definitions — each sets BOTH offer + years.
+  const chips = [
+    { key: "snap95", label: "95% × match yrs", title: "Drop AAV to 95% of demand, match their years" },
+    { key: "matchAavCutYr", label: `Match $ · ${Math.max(minYears, demandedYears-1)}yr`, title: `Match their AAV, cut years to ${Math.max(minYears, demandedYears-1)}` },
+    { key: "matchYrsCutAav", label: `Match yrs · -15% $`, title: "Drop AAV 15%, match their years" },
+    { key: "top5Avg", label: `Top-5 avg`, title: top5Aav > 0 ? `Snap to position top-5 avg $${top5Aav.toFixed(1)}M/yr` : `(no top-5 data)` },
+    { key: "lowball", label: `Lowball`, title: `Open at 85% of market — invites rejection` },
+  ];
+
+  return `<div class="frn-counter-composer">
+    <div class="frn-counter-row">
+      <span class="frn-counter-eyebrow">COUNTER OFFER</span>
+      <span class="frn-counter-vs-demand">vs demand $${demandedAAV.toFixed(1)}M × ${demandedYears}yr</span>
+    </div>
+    <div class="frn-counter-row" style="gap:.5rem;align-items:center;flex-wrap:wrap">
+      <span class="frn-counter-lbl">AAV</span>
+      ${aavBtn(-0.5, "−$0.5")}
+      ${aavBtn(-0.1, "−$0.1")}
+      <span class="frn-counter-aav-val">$${offer.toFixed(1)}M/yr</span>
+      ${aavBtn(0.1, "+$0.1")}
+      ${aavBtn(0.5, "+$0.5")}
+      <span class="frn-counter-vs-market" style="color:${vsMarketColor}">${vsMarketStr}</span>
+    </div>
+    <div class="frn-counter-row" style="gap:.5rem;align-items:center">
+      <span class="frn-counter-lbl">Years</span>
+      <button class="frn-resign-yrbtn" ${offerYears <= minYears ? "disabled" : ""} onclick="${onYrDelta(-1)}">−</button>
+      <span style="color:var(--gold);font-weight:700;min-width:2.5rem;text-align:center">${offerYears} yr</span>
+      <button class="frn-resign-yrbtn" ${offerYears >= maxYears ? "disabled" : ""} onclick="${onYrDelta(1)}">+</button>
+      <span class="frn-counter-total">total $${(offer * offerYears).toFixed(1)}M</span>
+    </div>
+    <div class="frn-counter-row" style="flex-wrap:wrap;gap:.25rem">
+      <span class="frn-counter-lbl">Quick</span>
+      ${chips.map(c => `<button class="frn-counter-chip" onclick="${onChip(c.key)}" title="${c.title}">${c.label}</button>`).join("")}
+    </div>
+    <div class="frn-counter-row" style="align-items:center;gap:.75rem">
+      <div class="frn-counter-odds">
+        <span class="frn-counter-lbl">Accept odds</span>
+        <span style="color:${oddsColor};font-weight:700;font-size:.8rem">${oddsPct}%</span>
+        <div class="frn-counter-odds-bar"><div style="width:${oddsPct}%;background:${oddsColor}"></div></div>
+      </div>
+      <button class="btn btn-gold" style="font-size:.65rem;padding:.25rem .7rem;margin-left:auto" onclick="${onClose}">✓ Done</button>
+    </div>
+  </div>`;
+}
+
+// Apply a quick-snap chip to an offer/years pair. Returns mutated
+// { offer, years } — caller commits to the underlying row/demand
+// record + saves. Keeping the logic here so the three systems share
+// one source of truth for what each chip name means.
+function _counterChipApply(chipKey, ctx) {
+  const { offer, offerYears, demandedAAV, demandedYears, marketAAV, top5Aav, minYears, maxYears } = ctx;
+  switch (chipKey) {
+    case "snap95":
+      return {
+        offer: Math.round(demandedAAV * 0.95 * 10) / 10,
+        years: Math.max(minYears, Math.min(maxYears, demandedYears)),
+      };
+    case "matchAavCutYr":
+      return {
+        offer: Math.round(demandedAAV * 10) / 10,
+        years: Math.max(minYears, Math.min(maxYears, demandedYears - 1)),
+      };
+    case "matchYrsCutAav":
+      return {
+        offer: Math.round(demandedAAV * 0.85 * 10) / 10,
+        years: Math.max(minYears, Math.min(maxYears, demandedYears)),
+      };
+    case "top5Avg":
+      if (top5Aav > 0) {
+        return {
+          offer: Math.round(top5Aav * 10) / 10,
+          years: Math.max(minYears, Math.min(maxYears, demandedYears)),
+        };
+      }
+      return { offer, years: offerYears };
+    case "lowball":
+      return {
+        offer: Math.round(marketAAV * 0.85 * 10) / 10,
+        years: Math.max(minYears, Math.min(maxYears, demandedYears - 1)),
+      };
+    default:
+      return { offer, years: offerYears };
+  }
+}
+
+// Clamp an AAV after a delta — floor at 0.5M so the slider can't go
+// negative, ceiling at demand × 1.10 so the user can't accidentally
+// offer well above their ask (which would never happen at the table).
+function _counterClampAav(aav, demandedAAV) {
+  const lo = 0.5;
+  const hi = Math.max(demandedAAV * 1.10, demandedAAV + 1);
+  return Math.max(lo, Math.min(hi, Math.round(aav * 10) / 10));
 }
 
 // Multi-year cap projection — sums existing kept contracts + accepted
@@ -5994,6 +6179,19 @@ function _renderResignUI(cap, capCommitted) {
       position: r.pos, marketAAV: r.baseMarket,
       demandedAAV: demand.aav, demandedYears: demand.years,
     };
+
+    // ── Counter composer (full-width edit panel below the row) ───────
+    const counterHtml = _resignCounterFor === idx ? _renderCounterComposer({
+      offer: r.offer, offerYears: r.offerYears,
+      demandedAAV: demand.aav, demandedYears: demand.years,
+      marketAAV: r.baseMarket,
+      top5Aav: (typeof _positionTopAvgAAV === "function") ? _positionTopAvgAAV(r.pos, cap, 5) : 0,
+      minYears: _RESIGN_MIN_YEARS, maxYears: _RESIGN_MAX_YEARS,
+      onAavDelta: d => `frnResignAdjustOffer(${idx}, ${d})`,
+      onYrDelta:  d => `frnResignAdjustYears(${idx}, ${d})`,
+      onChip:     k => `frnResignCounterChip(${idx}, '${k}')`,
+      onClose: `frnResignCounterClose()`,
+    }) : "";
     return `
       <div class="frn-resign-row tier-${_resignTier(r)}" ${hoverAttr}>
         ${recChip}
@@ -6034,12 +6232,13 @@ function _renderResignUI(cap, capCommitted) {
           </div>
           <div class="frn-resign-btns">
             <button class="btn frn-resign-btn accept-btn" onclick="_resignPreview=${idx};_renderResignUIRefresh()">Review &amp; Sign</button>
-            ${odds < 0.85 ? `<button class="btn frn-resign-btn accept-btn" style="border-color:var(--gold-lt);color:var(--gold-lt)" onclick="frnResignCounter(${idx})" title="Match their demand at 95% to close the gap">↻ Counter</button>` : ""}
+            ${odds < 0.85 ? `<button class="btn frn-resign-btn accept-btn ${_resignCounterFor === idx ? 'active' : ''}" style="border-color:var(--gold-lt);color:var(--gold-lt)" onclick="${_resignCounterFor === idx ? 'frnResignCounterClose()' : `frnResignCounter(${idx})`}" title="Open the counter composer — tune AAV / years / snap to a preset">${_resignCounterFor === idx ? '↻ Close' : '↻ Counter'}</button>` : ""}
             ${_franchiseTagAvailable() ? `<button class="btn frn-resign-btn accept-btn" style="border-color:var(--gold);color:var(--gold)"
               onclick="frnResignTag(${idx})" title="Franchise tag: 1yr fully guaranteed at top-5 position avg ($${_franchiseTagAAV({position: r.pos, name: r.name}, cap).toFixed(1)}M)">🏷 Tag</button>` : ""}
             <button class="btn frn-resign-btn decline-btn" onclick="frnResignDecide(${idx},'decline')" title="${compPick?compPick.label:''}">Let Walk${compPick?`<span style="font-size:.5rem;display:block;color:var(--gold-lt)">${compPick.label}</span>`:""}</button>
           </div>
         </div>
+        ${counterHtml}
       </div>`;
   };
 
@@ -6307,18 +6506,60 @@ function frnResignBulkDeclineOver(aavCap) {
 }
 
 // Counter-offer flow — when the player's demand exceeds your offer,
-// "Let Walk" gets an alternate "Counter offer" path. Adjusts offer by
-// matching their demand at 95% so the deal is plausible.
+// "Let Walk" gets an alternate "Counter offer" path. Opens the counter
+// composer so the user can adjust AAV / years / snap to a preset chip.
+// Seeds the offer at 95% of demand if it's still snapped to demand,
+// otherwise preserves the user's prior adjustments.
 function frnResignCounter(idx) {
   const row = franchise._resignPending?.[idx];
   if (!row || row.decision) return;
   const livePlayer = (franchise.rosters[franchise.chosenTeamId] || []).find(p => p.name === row.name);
   if (!livePlayer) return;
   const demand = _resignPlayerDemand(livePlayer, row, row.baseMarket);
-  const newAav = Math.round(demand.aav * 0.95 * 10) / 10;
-  const newYears = Math.max(_RESIGN_MIN_YEARS, Math.min(_RESIGN_MAX_YEARS, demand.years));
-  row.offer = newAav;
-  row.offerYears = newYears;
+  // Seed only when offer matches demand exactly (i.e. first open).
+  if (Math.abs((row.offer || 0) - demand.aav) < 0.05) {
+    row.offer = Math.round(demand.aav * 0.95 * 10) / 10;
+    row.offerYears = Math.max(_RESIGN_MIN_YEARS, Math.min(_RESIGN_MAX_YEARS, demand.years));
+  }
+  _resignCounterFor = idx;
+  saveFranchise();
+  _renderResignUIRefresh();
+}
+
+function frnResignCounterClose() {
+  _resignCounterFor = null;
+  _renderResignUIRefresh();
+}
+
+// AAV delta button — bumps row.offer by ±0.1/±0.5.
+function frnResignAdjustOffer(idx, delta) {
+  const row = franchise._resignPending?.[idx];
+  if (!row || row.decision) return;
+  const livePlayer = (franchise.rosters[franchise.chosenTeamId] || []).find(p => p.name === row.name);
+  if (!livePlayer) return;
+  const demand = _resignPlayerDemand(livePlayer, row, row.baseMarket);
+  row.offer = _counterClampAav((row.offer || 0) + delta, demand.aav);
+  saveFranchise();
+  _renderResignUIRefresh();
+}
+
+// Quick-snap chip — applies one of the preset counter shapes.
+function frnResignCounterChip(idx, chipKey) {
+  const row = franchise._resignPending?.[idx];
+  if (!row || row.decision) return;
+  const livePlayer = (franchise.rosters[franchise.chosenTeamId] || []).find(p => p.name === row.name);
+  if (!livePlayer) return;
+  const cap = effectiveSalaryCap(franchise.chosenTeamId);
+  const demand = _resignPlayerDemand(livePlayer, row, row.baseMarket);
+  const top5Aav = (typeof _positionTopAvgAAV === "function") ? _positionTopAvgAAV(row.pos, cap, 5) : 0;
+  const result = _counterChipApply(chipKey, {
+    offer: row.offer || 0, offerYears: row.offerYears || demand.years,
+    demandedAAV: demand.aav, demandedYears: demand.years,
+    marketAAV: row.baseMarket, top5Aav,
+    minYears: _RESIGN_MIN_YEARS, maxYears: _RESIGN_MAX_YEARS,
+  });
+  row.offer = result.offer;
+  row.offerYears = result.years;
   saveFranchise();
   _renderResignUIRefresh();
 }
@@ -7314,13 +7555,47 @@ function frnHoldoutExtend(name) {
   renderFrnOffseason();
 }
 
-// Drop offer to 95% of demand — gives the user a one-click "below market"
-// path that they can then refine with the year / structure pickers.
+// Counter flow for offseason mid-contract demands. Opens the counter
+// composer; seeds offer at 95% of demand on first open so the user has
+// a plausible starting point that they can then refine.
 function frnHoldoutCounter(name) {
   const h = (franchise._holdouts || []).find(x => x.name === name);
   if (!h || h.resolved) return;
-  h.offer = Math.round(h.demandedAAV * 0.95 * 10) / 10;
-  h.offerYears = Math.max(_HOLDOUT_MIN_YEARS, Math.min(_HOLDOUT_MAX_YEARS, h.demandedYears));
+  if (Math.abs((h.offer || 0) - h.demandedAAV) < 0.05) {
+    h.offer = Math.round(h.demandedAAV * 0.95 * 10) / 10;
+    h.offerYears = Math.max(_HOLDOUT_MIN_YEARS, Math.min(_HOLDOUT_MAX_YEARS, h.demandedYears));
+  }
+  _holdoutCounterFor = name;
+  saveFranchise();
+  renderFrnOffseason();
+}
+
+function frnHoldoutCounterClose() {
+  _holdoutCounterFor = null;
+  renderFrnOffseason();
+}
+
+function frnHoldoutAdjustOffer(name, delta) {
+  const h = (franchise._holdouts || []).find(x => x.name === name);
+  if (!h || h.resolved) return;
+  h.offer = _counterClampAav((h.offer || 0) + delta, h.demandedAAV);
+  saveFranchise();
+  renderFrnOffseason();
+}
+
+function frnHoldoutCounterChip(name, chipKey) {
+  const h = (franchise._holdouts || []).find(x => x.name === name);
+  if (!h || h.resolved) return;
+  const cap = effectiveSalaryCap(franchise.chosenTeamId);
+  const top5Aav = (typeof _positionTopAvgAAV === "function") ? _positionTopAvgAAV(h.position, cap, 5) : 0;
+  const result = _counterChipApply(chipKey, {
+    offer: h.offer || 0, offerYears: h.offerYears || h.demandedYears,
+    demandedAAV: h.demandedAAV, demandedYears: h.demandedYears,
+    marketAAV: h.marketAAV, top5Aav,
+    minYears: _HOLDOUT_MIN_YEARS, maxYears: _HOLDOUT_MAX_YEARS,
+  });
+  h.offer = result.offer;
+  h.offerYears = result.years;
   saveFranchise();
   renderFrnOffseason();
 }
@@ -9367,6 +9642,18 @@ function _renderHoldoutsBlock() {
     }, 4);
     const hoverAttr = `data-resign-hits='${JSON.stringify(hoverHits)}' data-resign-cap='${cap}' onmouseenter="_resignHoverIn(this)" onmouseleave="_resignHoverOut()"`;
     const pitchHtml = _buildExtensionPitch(h, live, cap);
+    // Counter composer (full-width edit panel below the row, when open)
+    const counterHtml = _holdoutCounterFor === h.name ? _renderCounterComposer({
+      offer, offerYears,
+      demandedAAV: h.demandedAAV, demandedYears: h.demandedYears,
+      marketAAV: h.marketAAV,
+      top5Aav: (typeof _positionTopAvgAAV === "function") ? _positionTopAvgAAV(h.position, cap, 5) : 0,
+      minYears: _HOLDOUT_MIN_YEARS, maxYears: _HOLDOUT_MAX_YEARS,
+      onAavDelta: dt => `frnHoldoutAdjustOffer('${escName}', ${dt})`,
+      onYrDelta:  dt => `frnHoldoutAdjustYears('${escName}', ${dt})`,
+      onChip:     k => `frnHoldoutCounterChip('${escName}', '${k}')`,
+      onClose: `frnHoldoutCounterClose()`,
+    }) : "";
     return `<div class="frn-resign-row tier-${_holdoutTier(h)}" ${hoverAttr}>
       ${recChip}
       <div class="frn-resign-row-inner">
@@ -9406,11 +9693,12 @@ function _renderHoldoutsBlock() {
         </div>
         <div class="frn-resign-btns">
           <button class="btn frn-resign-btn accept-btn" onclick="frnHoldoutPreview('${escName}')">Review &amp; Extend</button>
-          ${odds < 0.85 ? `<button class="btn frn-resign-btn accept-btn" style="border-color:var(--gold-lt);color:var(--gold-lt)" onclick="frnHoldoutCounter('${escName}')" title="Drop offer to 95% of demand">↻ Counter</button>` : ""}
+          ${odds < 0.85 ? `<button class="btn frn-resign-btn accept-btn ${_holdoutCounterFor === h.name ? 'active' : ''}" style="border-color:var(--gold-lt);color:var(--gold-lt)" onclick="${_holdoutCounterFor === h.name ? 'frnHoldoutCounterClose()' : `frnHoldoutCounter('${escName}')`}" title="Open the counter composer — tune AAV / years / snap to a preset">${_holdoutCounterFor === h.name ? '↻ Close' : '↻ Counter'}</button>` : ""}
           <button class="btn frn-resign-btn" style="border-color:var(--gold);color:var(--gold)" onclick="frnHoldoutTrade('${escName}')" title="Flip him for assets">🔀 Trade<span style="font-size:.5rem;display:block;color:var(--gold-lt)">${tradeVal}</span></button>
           <button class="btn frn-resign-btn decline-btn" onclick="frnHoldoutIgnore('${escName}')" title="Locker-room fallout: -2 OVR immediately · dev frozen next offseason · 40% chance of formal trade request · low re-sign odds at expiry">✗ Ignore<span style="font-size:.5rem;display:block;color:#ff9090">-2 OVR · dev freeze · flight</span></button>
         </div>
       </div>
+      ${counterHtml}
     </div>`;
   };
 

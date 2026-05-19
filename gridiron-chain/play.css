@@ -6176,6 +6176,54 @@
   .frn-resign-yrbtn:hover:not(:disabled) { background: var(--gold); color: #000; }
   .frn-resign-yrbtn:disabled { opacity: .35; cursor: not-allowed; }
 
+  .frn-resign-btn.active {
+    background: rgba(200, 169, 0, 0.18);
+    box-shadow: inset 0 0 0 1px var(--gold-lt);
+  }
+  .frn-counter-composer {
+    border-top: 1px dashed var(--border);
+    background: rgba(200, 169, 0, 0.04);
+    padding: .4rem .6rem .5rem;
+    display: flex; flex-direction: column; gap: .35rem;
+  }
+  .frn-counter-row { display: flex; align-items: baseline; gap: .4rem; }
+  .frn-counter-eyebrow {
+    font-size: .55rem; color: var(--gold); letter-spacing: 1.5px; font-weight: 700;
+  }
+  .frn-counter-vs-demand { font-size: .6rem; color: var(--gray); margin-left: auto; }
+  .frn-counter-lbl {
+    font-size: .58rem; color: var(--gray); letter-spacing: .5px;
+    min-width: 56px; text-transform: uppercase;
+  }
+  .frn-counter-aav-btn {
+    background: transparent; border: 1px solid var(--border); color: var(--gold);
+    font-family: inherit; font-size: .62rem; font-weight: 700;
+    padding: .15rem .35rem; cursor: pointer; line-height: 1;
+  }
+  .frn-counter-aav-btn:hover { background: var(--gold); color: #000; }
+  .frn-counter-aav-val {
+    color: var(--gold); font-weight: 700; font-size: .82rem;
+    min-width: 4.5rem; text-align: center;
+  }
+  .frn-counter-vs-market { font-size: .58rem; margin-left: .35rem; }
+  .frn-counter-total { font-size: .58rem; color: var(--gray); margin-left: .35rem; }
+  .frn-counter-chip {
+    background: transparent; border: 1px solid var(--border); color: var(--gold-lt);
+    font-family: inherit; font-size: .58rem; font-weight: 600;
+    padding: .2rem .45rem; cursor: pointer; line-height: 1;
+    border-radius: 2px;
+  }
+  .frn-counter-chip:hover { background: var(--gold-lt); color: #000; border-color: var(--gold-lt); }
+  .frn-counter-odds {
+    display: flex; align-items: center; gap: .4rem;
+    flex: 1;
+  }
+  .frn-counter-odds-bar {
+    flex: 1; height: 4px; background: rgba(255,255,255,.06);
+    border-radius: 2px; overflow: hidden; max-width: 180px;
+  }
+  .frn-counter-odds-bar > div { height: 100%; transition: width .2s; }
+
   /* Cinema move callout */
   .cinema-callout {
     position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
