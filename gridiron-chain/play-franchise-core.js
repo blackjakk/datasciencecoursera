@@ -144,6 +144,7 @@ function _defaultStructure(age, ovr) {
 function generateContract(player, cap, structureOverride) {
   const ovr = player.overall || 70;
   const age = player.age || 25;
+  const startSeason = (typeof franchise !== "undefined" && franchise?.season ? franchise.season : 1) + 1;
 
   // Fix 1: Minimum salary for low-OVR players — 1yr, no signing bonus, zero dead cap.
   // These are the easy "camp cut" candidates that give GMs roster flexibility.
@@ -153,6 +154,7 @@ function generateContract(player, cap, structureOverride) {
       years: 1, remaining: 1, aav: minAav, structure: "BALANCED",
       baseSalaries: [minAav], signingBonus: 0, bonusProration: 0,
       guaranteedYears: 0, guaranteedAAV: minAav, incentives: [], signedAav: minAav,
+      signedOvr: ovr, startSeason, _demandCycles: 0,
     };
   }
 
@@ -169,7 +171,13 @@ function generateContract(player, cap, structureOverride) {
   else if (ovr >= 76) { minYr = 2; maxYr = 3; } // solid backups: 2-3yr max
   else                { minYr = 1; maxYr = 2; } // fringe starters: 1-2yr only
   maxYr = Math.min(maxYr, Math.max(1, 38 - age));
-  const years = Math.max(1, Math.min(10, minYr + Math.floor(Math.random() * (maxYr - minYr + 1))));
+  // Respect position+age realistic ceiling so AI signings match what the
+  // user can offer. _maxContractYears unlocks 10yr for Mahomes-tier young
+  // QBs, caps K/P at 4, RB at 5, and ages everyone out by 39/41.
+  if (typeof _maxContractYears === "function") {
+    maxYr = Math.min(maxYr, _maxContractYears(player));
+  }
+  const years = Math.max(1, Math.min(10, minYr + Math.floor(Math.random() * (Math.max(minYr, maxYr) - minYr + 1))));
   const structure = structureOverride || _defaultStructure(age, ovr);
   const { signingBonus, bonusProration, tradeKicker } = _signingBonusCalc(aav, years, ovr);
   const baseSalaries = _baseSalarySchedule(aav, years, structure, bonusProration);
@@ -178,6 +186,7 @@ function generateContract(player, cap, structureOverride) {
     baseSalaries, signingBonus, bonusProration, tradeKicker,
     guaranteedYears: _guaranteedYearsForLength(years),
     guaranteedAAV: aav, incentives: [], signedAav: aav,
+    signedOvr: ovr, startSeason, _demandCycles: 0,
   };
 }
 
