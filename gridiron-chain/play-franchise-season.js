@@ -3507,6 +3507,63 @@ function _faMultiYearCapProjection(years = 4, source = "auto") {
   }));
 }
 
+// Top cut candidates ranked by net savings (aav − dead cap when
+// released). Excludes already-queued cuts. Used by the SUGGESTED CUTS
+// widget on the FA pool screen to give the user a quick path to
+// finding cap room without scrolling the full roster.
+function _faSuggestedCuts(teamId, alreadyCut, n = 5) {
+  const roster = franchise.rosters[teamId] || [];
+  const cutSet = new Set(alreadyCut || []);
+  const candidates = [];
+  for (const p of roster) {
+    if (!p.contract || cutSet.has(p.name)) continue;
+    const aav = p.contract.aav || 0;
+    if (aav < 1.0) continue; // sub-$1M deals aren't meaningful cap moves
+    const { perYear: dPY, years: dYrs } = deadCapOnRelease(p);
+    const deadTotal = dPY * dYrs;
+    const netSavings = aav - dPY; // first-year savings (most relevant)
+    if (netSavings < 0.5) continue;
+    const declineRisk = (p.age || 27) >= 31 || (p.overall || 70) < 72;
+    candidates.push({
+      player: p,
+      aav,
+      deadPY: dPY,
+      deadYrs: dYrs,
+      deadTotal,
+      netSavings,
+      declineRisk,
+    });
+  }
+  candidates.sort((a, b) => b.netSavings - a.netSavings);
+  return candidates.slice(0, n);
+}
+
+// Compact comparison card for a pinned FA. Renders alongside the main
+// detail panel when the user pins someone to compare.
+function _faCompareCardHtml(fa, chosenTeamId) {
+  if (!fa) return "";
+  const sg = scoutGrade(fa);
+  const suitors = TEAMS.filter(t => t.id !== chosenTeamId && _faAIInterest(t.id, fa) >= 0.1).length;
+  const escKey = (fa.pid || fa.name).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  return `<div style="padding:.45rem .55rem;background:var(--bg2);border:1px dashed var(--gold);border-radius:4px;margin-bottom:.55rem">
+    <div style="display:flex;align-items:baseline;gap:.4rem;margin-bottom:.2rem">
+      <span style="font-size:.55rem;letter-spacing:1.5px;color:var(--gold);font-weight:700">📌 PINNED FOR COMPARE</span>
+      <button class="btn btn-outline" style="font-size:.55rem;padding:.1rem .35rem;margin-left:auto" onclick="frnFAUnpinCompare()">✕ Unpin</button>
+    </div>
+    <div style="display:flex;align-items:baseline;gap:.4rem;flex-wrap:wrap;cursor:pointer" onclick="renderFrnFA('${escKey}')" title="Click to swap to this FA (current will be pinned)">
+      <span style="font-size:.58rem;color:var(--gold);font-weight:700">${fa.position}</span>
+      <span style="font-weight:700;color:var(--blwhite);font-size:.78rem">${fa.name}</span>
+      ${gradeBadge(fa)}
+      <span style="color:var(--gray);font-size:.6rem">Age ${fa.age}</span>
+      <span style="color:var(--gold-lt);font-size:.65rem;margin-left:auto;font-weight:700">$${fa.demandedAAV.toFixed(1)}M × ${fa.demandedYears}yr</span>
+    </div>
+    <div style="font-size:.58rem;color:var(--gray);margin-top:.18rem">
+      ${suitors > 0 ? `📈 ${suitors} suitor${suitors!==1?"s":""}` : "Quiet market"}
+      · scout grade ${gradeLabel(sg)}
+    </div>
+  </div>`;
+}
+
 // Shared HTML builder for the 4-year cap timeline used on every FA
 // screen. Returns the block including the title, bars, and footnote.
 // titleSuffix lets the caller tailor the heading (ROSTER + OFFERS,
@@ -3926,7 +3983,18 @@ function renderFrnFA(selectedKey) {
       </div>`;
     }
 
+    // Compare pin — shows a compact card for a second FA so the user
+    // can visually compare two players. Click the card to swap which
+    // one's in the main detail panel (the previous selected becomes
+    // pinned). Unpin clears it.
+    const pinnedKey = franchise._faComparePin;
+    const pinnedFA = pinnedKey && pinnedKey !== selFaKey && pinnedKey !== selected.name
+      ? (freeAgents.find(p => p.pid === pinnedKey || p.name === pinnedKey))
+      : null;
+    const compareCardHtml = pinnedFA ? _faCompareCardHtml(pinnedFA, chosenTeamId) : "";
+
     detailHtml = `<div class="frn-fa-detail">
+      ${compareCardHtml}
 
       <!-- ① Identity -->
       <div class="frn-fa-detail-head" style="margin-bottom:.4rem">
@@ -3939,6 +4007,9 @@ function renderFrnFA(selectedKey) {
             ${gradeBadge(selected)}
             ${!wr ? `<button onclick="frnFAInviteWorkout('${escSelName}')" ${slotsLeft<=0?"disabled":""}
               style="background:rgba(245,197,66,.1);border:1px solid var(--gold);color:var(--gold-lt);font-size:.6rem;padding:.14rem .4rem;border-radius:3px;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;${slotsLeft<=0?"opacity:.4;cursor:not-allowed;":""}">🏋 WORKOUT${slotsLeft<=0?" (0 left)":` (${slotsLeft} left)`}</button>` : ""}
+            ${(franchise._faComparePin === selFaKey || franchise._faComparePin === selected.name)
+              ? `<button onclick="frnFAUnpinCompare()" style="background:rgba(245,197,66,.2);border:1px solid var(--gold);color:var(--gold);font-size:.6rem;padding:.14rem .4rem;border-radius:3px;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0">📌 PINNED</button>`
+              : `<button onclick="frnFAPinCompare('${escSelName}')" style="background:transparent;border:1px solid var(--border);color:var(--gray);font-size:.6rem;padding:.14rem .4rem;border-radius:3px;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0" title="Pin this FA to compare side-by-side with another">📌 Pin to compare</button>`}
             <span style="font-size:.6rem;color:var(--blgray);margin-left:auto">${ageStage} · age ${selected.age}</span>
           </div>
           <div style="color:var(--gray);font-size:.64rem">${_archetypeLabel(selected)||"—"} · ${draftStr(selected)} · ${careerEarningsStr(selected)}</div>
@@ -4005,6 +4076,29 @@ function renderFrnFA(selectedKey) {
           return `<button class="btn ${cur===s?"btn-gold":"btn-outline"}" onclick="frnFASetOffer('${escSelName}','structure','${s}')" style="font-size:.61rem;padding:.18rem .45rem" title="${desc}">${s[0]+s.slice(1).toLowerCase()}</button>`;
         }).join("")}
       </div>
+
+      <!-- ④b Contract Advisor -->
+      ${(() => {
+        const goals = [{id:"flex",label:"Flexibility"},{id:"capnow",label:"Cap Now"},{id:"lockup",label:"Long Term"},{id:"lowrisk",label:"Low Risk"}];
+        const curGoal = (franchise._faPoolAdvisorGoals||{})[selFaKey] || "flex";
+        const suggs = _contractAdvisor(selected, curGoal, cap);
+        const goalBtns = goals.map(g => {
+          const isActive = curGoal === g.id;
+          return `<button class="btn ${isActive?"btn-gold":"btn-outline"}" onclick="frnFASetPoolAdvisorGoal('${escSelName}','${g.id}')" style="font-size:.55rem;padding:.13rem .35rem">${g.label}</button>`;
+        }).join("");
+        const suggHtml = (suggs || []).slice(0, 2).map(s => `<div style="background:var(--bg3);border-radius:4px;padding:.32rem .45rem;margin-top:.22rem;display:flex;justify-content:space-between;align-items:flex-start;gap:.4rem">
+          <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:.62rem;color:var(--gold)">${s.label}</div>
+            <div style="color:var(--gray);font-size:.55rem;margin-top:.06rem">${s.note}</div></div>
+          <button class="btn btn-outline" onclick="frnFAApplyPoolAdvisor('${escSelName}',${s.years},${s.aav},'${s.structure}')" style="font-size:.55rem;padding:.14rem .35rem;white-space:nowrap;flex-shrink:0">Use $${s.aav.toFixed(1)}M × ${s.years}yr</button>
+        </div>`).join("");
+        return `<div style="margin-top:.42rem;padding:.4rem .5rem;background:rgba(200,169,0,.06);border:1px solid rgba(200,169,0,.2);border-radius:4px">
+          <div style="display:flex;align-items:center;gap:.35rem;flex-wrap:wrap;margin-bottom:.22rem">
+            <span style="font-size:.55rem;color:var(--gold);letter-spacing:1px;font-weight:700">💡 CONTRACT ADVISOR</span>
+            <span style="margin-left:auto;display:flex;gap:.18rem;flex-wrap:wrap">${goalBtns}</span>
+          </div>
+          ${suggHtml}
+        </div>`;
+      })()}
 
       <!-- ⑤ Acceptance + Cap Impact -->
       <div id="fa-accept-row" style="padding:.42rem .55rem;background:var(--bg3);border-radius:4px;margin-top:.42rem;border:1px solid var(--border)">
@@ -4243,6 +4337,33 @@ function renderFrnFA(selectedKey) {
         ${detailHtml || `<div style="color:var(--gray);font-size:.78rem;padding:1rem;text-align:center;font-style:italic">Select a free agent on the left to make an offer.</div>`}
       </div>
       <div class="frn-fa-roster-col">
+        ${(() => {
+          // Cut suggestions — top candidates by net first-year savings
+          // (aav − dead cap). Helps user find cap space quickly without
+          // scrolling the full roster. Each suggestion has a one-click
+          // queue button that drops the player into the cut list.
+          const sel = selected ? selected.name : null;
+          const sugg = _faSuggestedCuts(chosenTeamId, _cutQueued.map(p => p.name), 4);
+          if (!sugg.length || !sel) return "";
+          const rows = sugg.map(s => {
+            const escName = (s.player.name||"").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+            const dead = s.deadTotal >= 0.5
+              ? `<span style="color:#ff9090;font-size:.5rem">☠$${s.deadTotal.toFixed(1)}M</span>`
+              : `<span style="color:var(--green-lt);font-size:.5rem">clean</span>`;
+            const decline = s.declineRisk ? `<span style="font-size:.5rem;color:#e8a000">⚠</span>` : "";
+            return `<div style="display:grid;grid-template-columns:1.5rem 1fr 2.3rem 1.3rem;gap:.3rem;padding:.22rem .3rem;background:rgba(255,255,255,.02);font-size:.6rem;align-items:baseline;margin-bottom:.12rem;border-radius:3px">
+              <span style="color:var(--blgray);font-weight:700;font-size:.55rem">${s.player.position}</span>
+              <span style="color:var(--blwhite);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.player.name} ${decline}</span>
+              <span style="color:var(--green-lt);font-weight:700;text-align:right;font-size:.6rem">+$${s.netSavings.toFixed(1)}M</span>
+              <button onclick="frnFAToggleCut('${sel.replace(/'/g,"\\'")}','${escName}',true)" style="background:rgba(255,70,70,.18);border:1px solid #ff6b6b;color:#ffaaaa;font-size:.52rem;padding:.1rem .25rem;border-radius:3px;cursor:pointer;font-family:inherit;font-weight:700">CUT</button>
+              <span style="grid-column:2/4;color:var(--gray);font-size:.5rem;padding-left:0">${dead} · ${s.player.age}yr · OVR ${s.player.overall}</span>
+            </div>`;
+          }).join("");
+          return `<div style="padding:.4rem .5rem;background:rgba(255,107,107,.06);border:1px solid rgba(255,107,107,.18);border-radius:4px;margin-bottom:.5rem">
+            <div style="font-size:.55rem;letter-spacing:1px;color:#ff9090;font-weight:700;margin-bottom:.22rem">💸 SUGGESTED CUTS · by net savings</div>
+            ${rows}
+          </div>`;
+        })()}
         <div class="frn-card-title">CUT LIST</div>
         ${_faNeedsSnippet(chosenTeamId, selected?.position ?? null)}
         <div class="frn-fa-roster-list">${rosterHtml}</div>
@@ -4359,6 +4480,39 @@ function frnFAToggleCut(faName, cutName, checked) {
   else offer.cutNames = offer.cutNames.filter(n => n !== cutName);
   saveFranchise();
   renderFrnFA(faName);
+}
+
+function frnFAPinCompare(faKey) {
+  if (!franchise) return;
+  franchise._faComparePin = faKey;
+  saveFranchise();
+  renderFrnFA();
+}
+function frnFAUnpinCompare() {
+  if (!franchise) return;
+  franchise._faComparePin = null;
+  saveFranchise();
+  renderFrnFA();
+}
+function frnFAApplyPoolAdvisor(faKey, years, aav, structure) {
+  if (!franchise._faOffers) franchise._faOffers = {};
+  if (!franchise._faOffers[faKey]) {
+    const fa = (franchise.freeAgents || []).find(p => p.pid === faKey || p.name === faKey);
+    if (!fa) return;
+    franchise._faOffers[faKey] = { aav, years, structure, cutNames: [] };
+  } else {
+    franchise._faOffers[faKey].aav = aav;
+    franchise._faOffers[faKey].years = years;
+    franchise._faOffers[faKey].structure = structure;
+  }
+  saveFranchise();
+  renderFrnFA(faKey);
+}
+function frnFASetPoolAdvisorGoal(faKey, goal) {
+  franchise._faPoolAdvisorGoals = franchise._faPoolAdvisorGoals || {};
+  franchise._faPoolAdvisorGoals[faKey] = goal;
+  saveFranchise();
+  renderFrnFA(faKey);
 }
 
 function frnFASubmitOffer(faName) {
