@@ -838,6 +838,39 @@ function _scoutSourceLabel(p) {
 //
 // Stacking: practice + game-tape stacks (different evidence categories),
 // -2 for Live Pads + game, -1 for Standard JP + game. Floored at 1.
+// Dynamic base noise band for a college prospect based on class year +
+// (for seniors) how far into the season we are. Earlier classes are
+// fuzzier — you have less film, no combine, body/role unfinished.
+// Seniors sharpen as the season progresses toward the draft.
+//   FR  ±20 — barely anyone outside your scouts knows them
+//   SO  ±16 — a year of film, role/body not set
+//   JR  ±12 (undeclared) / ±9 (declared, on every scout's board)
+//   SR  ±15 week 1 → ±8 by week 18 (combine + senior film + interviews)
+// Match real-life "the FA baseline is ±8" — an unscouted senior at the
+// draft converges to the same fog as an unknown free agent.
+function _collegeProspectBaseBand(p) {
+  if (!p?.collegeYear) return 5;  // legacy prospect without class year
+  const week = (typeof franchise !== "undefined" && franchise?.week) ? franchise.week : 1;
+  const totalWeeks = (typeof FRANCHISE_WEEKS === "number") ? FRANCHISE_WEEKS : 18;
+  const srProgress = Math.max(0, Math.min(1, (week - 1) / Math.max(1, totalWeeks - 1)));
+  switch (p.collegeYear) {
+    case "SR": return Math.round(15 - srProgress * 7);  // 15 → 8
+    case "JR": return p.declaredEarly ? 9 : 12;
+    case "SO": return 16;
+    case "FR": return 20;
+    default:   return 8;
+  }
+}
+
+// Per-category sharpening for college prospect scouting. Upperclassmen
+// (JR/SR) gain MORE intel per category — combine measurables, senior
+// film, and pro-day workouts cut deeper than what film can tell you
+// about a freshman with one year of college tape.
+function _collegeProspectSharpening(p, catCount) {
+  const isUpper = p?.collegeYear === "JR" || p?.collegeYear === "SR";
+  return catCount * (isUpper ? 2 : 1);
+}
+
 function _playerNoiseBand(p) {
   if (!p) return 8;
   const fr = franchise;
@@ -870,14 +903,15 @@ function _playerNoiseBand(p) {
     bands.push(2); hasGameTape = true; // minor role — one band worse
   }
 
-  // Draft scout — band scales with how many categories you've scouted:
-  //   0 cats (default unscouted prospect, falls through) → 5 (combine info)
-  //   1 cat = 4 · 2 cats = 3 · 3 cats = 2 · 4 cats = 1 (full intel)
+  // College prospect — band starts wide (FR especially) and tightens with
+  // class year + (for seniors) season progress + scouting categories.
+  // Replaces the old hardcoded "±5 unscouted baseline." See
+  // _collegeProspectBaseBand for the curve.
   if (p.isProspect) {
     const cats = _draftScoutCategories(p.name);
-    if (cats.length >= 1) {
-      bands.push(Math.max(1, 5 - cats.length));
-    }
+    const baseBand = _collegeProspectBaseBand(p);
+    const sharpening = _collegeProspectSharpening(p, cats.length);
+    bands.push(Math.max(1, baseBand - sharpening));
   }
   // Owned-player carryover: a prospect you drafted after scouting them
   // keeps their sharpened read for their first season on your roster.
@@ -934,8 +968,10 @@ function _playerNoiseBand(p) {
     }
   }
 
-  // Unscouted prospect baseline (combine grade only)
-  if (p.isProspect && !bands.length) bands.push(5);
+  // (Removed the legacy "unscouted prospect baseline (combine grade only)
+  // → bands.push(5)" — the isProspect block above now always pushes a
+  // dynamic baseband via _collegeProspectBaseBand, so this fallback is
+  // unreachable for prospects.)
 
   if (!bands.length) return 8;
 
@@ -960,10 +996,25 @@ function _isPlayerScouted(p) {
 // single generic "film" scout.
 function _draftScoutCategories(name) {
   if (!franchise) return [];
-  const rev = franchise.draftScoutReveals?.[name];
-  if (rev?.categories && Array.isArray(rev.categories)) return rev.categories;
-  if ((franchise.draftScouts || []).includes(name)) return ["film"]; // legacy
-  return [];
+  // Merge from BOTH stores — season scouting writes to seasonScoutReveals
+  // during weeks 1-18; draft scouting writes to draftScoutReveals during
+  // the draft event; frnGoToDraft copies season → draft so the draft
+  // board sees both. During the regular season, the noise band system
+  // needs to see season reveals too — without this merge, the user
+  // could spend a season's worth of credits and the displayed grade
+  // would never sharpen.
+  const merged = new Set();
+  const draftRev = franchise.draftScoutReveals?.[name];
+  if (draftRev?.categories && Array.isArray(draftRev.categories)) {
+    for (const c of draftRev.categories) merged.add(c);
+  } else if ((franchise.draftScouts || []).includes(name)) {
+    merged.add("film"); // legacy single-scout entry
+  }
+  const seasonRev = franchise.seasonScoutReveals?.[name];
+  if (seasonRev?.categories && Array.isArray(seasonRev.categories)) {
+    for (const c of seasonRev.categories) merged.add(c);
+  }
+  return [...merged];
 }
 
 // Position-value offsets for the consensus board only. Real NFL drafts
