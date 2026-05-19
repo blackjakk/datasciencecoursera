@@ -3791,13 +3791,18 @@ function renderFrnFA(selectedKey) {
       ? TEAMS.filter(t => t.id !== chosenTeamId && _faAIInterest(t.id, p) >= 0.1).length : 0;
     const suitorBit = rowSuitors >= 3
       ? `<span style="font-size:.52rem;color:${rowSuitors>=6?"var(--red)":"#e8a000"};flex-shrink:0">${rowSuitors} teams</span>` : "";
-    // Hover preview on the cap timeline below — only for FAs that
-    // don't yet have an offer (offered FAs are already in the bars,
-    // so hover would double-count). Hits use demanded AAV/years.
-    const hoverOffer = offered ? null : { aav: p.demandedAAV, years: p.demandedYears };
-    const hoverHits = hoverOffer ? _faPendingHitsByYear(p, hoverOffer, 4) : [];
-    const hoverAttr = hoverHits.length
-      ? `data-resign-hits='${JSON.stringify(hoverHits)}' data-resign-cap='${cap}' onmouseenter="_resignHoverIn(this)" onmouseleave="_resignHoverOut()"`
+    // Hover preview on the cap timeline below:
+    //   · OFFERED FAs already contribute to the bars → use highlight
+    //     mode to show which slice of each year's fill is theirs.
+    //   · UNOFFERED FAs aren't in the bars → use add mode to preview
+    //     what signing them at demanded terms would add.
+    const hoverOffer = offered
+      ? { aav: myOffer.aav, years: myOffer.years, structure: myOffer.structure }
+      : { aav: p.demandedAAV, years: p.demandedYears };
+    const hoverHits = _faPendingHitsByYear(p, hoverOffer, 4);
+    const hoverMode = offered ? "highlight" : "add";
+    const hoverAttr = hoverHits.some(h => h > 0)
+      ? `data-resign-hits='${JSON.stringify(hoverHits)}' data-resign-cap='${cap}' data-resign-mode='${hoverMode}' onmouseenter="_resignHoverIn(this)" onmouseleave="_resignHoverOut()"`
       : "";
     return `<div class="frn-fa-row ${isSel?"selected":""} ${offered?"offered":""}"
       style="border-left:3px solid ${borderCol};padding-left:.45rem;cursor:pointer;display:block"
@@ -4819,15 +4824,22 @@ function renderFrnFANegotiations(selectedName) {
       : outbid ? `<span style="font-size:.6rem;line-height:1">🔥</span>`
       : youLead ? `<span style="font-size:.6rem;line-height:1">👀</span>`
       : `<span style="display:inline-block;width:.7rem"></span>`;
-    // Hover preview on cap timeline — for AI-only negotiations (no
-    // yourBid yet), preview what jumping in at the current high bid
-    // would cost. yourBid negotiations are already in the bars.
-    const hoverOffer = (!n.yourBid && high)
-      ? { aav: high.aav, years: high.years || n.fa.demandedYears }
-      : null;
+    // Hover preview on cap timeline:
+    //   · yourBid negotiations: highlight mode shows which slice of
+    //     each year's fill is theirs in the "if you win all bids" view.
+    //   · AI-only negotiations (no yourBid yet): add mode shows what
+    //     jumping in at the current high bid would cost.
+    let hoverOffer = null, hoverMode = "add";
+    if (n.yourBid) {
+      hoverOffer = { aav: n.yourBid.aav, years: n.yourBid.years, structure: n.yourBid.structure };
+      hoverMode = "highlight";
+    } else if (high) {
+      hoverOffer = { aav: high.aav, years: high.years || n.fa.demandedYears };
+      hoverMode = "add";
+    }
     const hoverHits = hoverOffer ? _faPendingHitsByYear(n.fa, hoverOffer, 4) : [];
-    const hoverAttr = hoverHits.length
-      ? `data-resign-hits='${JSON.stringify(hoverHits)}' data-resign-cap='${cap}' onmouseenter="_resignHoverIn(this)" onmouseleave="_resignHoverOut()"`
+    const hoverAttr = hoverHits.some(h => h > 0)
+      ? `data-resign-hits='${JSON.stringify(hoverHits)}' data-resign-cap='${cap}' data-resign-mode='${hoverMode}' onmouseenter="_resignHoverIn(this)" onmouseleave="_resignHoverOut()"`
       : "";
     return `<div class="frn-fa-row ${isSel?"selected":""} ${n.yourBid?"offered":""}"
       style="border-left:3px solid ${borderCol};padding-left:.45rem;cursor:pointer;display:block"

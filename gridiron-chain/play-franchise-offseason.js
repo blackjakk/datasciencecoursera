@@ -5961,6 +5961,12 @@ function _resignHoverIn(rowEl) {
   catch { return; }
   if (!Array.isArray(hits) || !hits.length) return;
   const cap = parseFloat(rowEl.getAttribute("data-resign-cap") || "1") || 1;
+  // mode = "add" (default): preview overlays to the right of the fill
+  //   to show what this signing WOULD add (gold stripes).
+  // mode = "highlight": preview overlays the segment of the existing
+  //   fill that's already this player's contract (blue stripes) —
+  //   answers "which slice of the bar is theirs?"
+  const mode = rowEl.getAttribute("data-resign-mode") || "add";
   const years = document.querySelectorAll(".frn-resign-cap-year");
   years.forEach(yEl => {
     const idx = parseInt(yEl.getAttribute("data-cap-year") || "-1", 10);
@@ -5971,17 +5977,36 @@ function _resignHoverIn(rowEl) {
     const preview = yEl.querySelector(".fill-preview");
     const numPreview = yEl.querySelector(".num-preview");
     if (preview && fill) {
-      const fillPct = Math.min(100, (used / cap) * 100);
-      const previewPct = Math.max(0, Math.min(100 - fillPct, (hit / cap) * 100));
-      preview.style.width = previewPct + "%";
-      preview.style.left = fillPct + "%";
-      // Highlight overflow if total would exceed cap
-      const totalPct = fillPct + previewPct;
-      preview.classList.toggle("over-cap", (used + hit) > cap);
+      if (mode === "highlight") {
+        // Show the slice within the existing fill that's theirs.
+        // Segment runs from (used - hit) to used (clamped to [0, cap]).
+        const startPct = Math.max(0, Math.min(100, (Math.max(0, used - hit) / cap) * 100));
+        const endPct   = Math.max(0, Math.min(100, (used / cap) * 100));
+        preview.style.left = startPct + "%";
+        preview.style.width = Math.max(0, endPct - startPct) + "%";
+        preview.classList.add("highlight-mode");
+        preview.classList.remove("over-cap");
+      } else {
+        // Add preview: append to the right of the fill.
+        const fillPct = Math.min(100, (used / cap) * 100);
+        const previewPct = Math.max(0, Math.min(100 - fillPct, (hit / cap) * 100));
+        preview.style.width = previewPct + "%";
+        preview.style.left = fillPct + "%";
+        preview.classList.toggle("over-cap", (used + hit) > cap);
+        preview.classList.remove("highlight-mode");
+      }
     }
     if (numPreview) {
-      numPreview.textContent = hit > 0 ? ` +$${hit.toFixed(1)}M` : "";
-      numPreview.style.display = hit > 0 ? "inline" : "none";
+      if (hit > 0) {
+        numPreview.textContent = mode === "highlight"
+          ? ` ($${hit.toFixed(1)}M theirs)`
+          : ` +$${hit.toFixed(1)}M`;
+        numPreview.style.display = "inline";
+        numPreview.style.color = mode === "highlight" ? "rgba(80,180,255,1)" : "";
+      } else {
+        numPreview.textContent = "";
+        numPreview.style.display = "none";
+      }
     }
   });
 }
@@ -5989,10 +6014,12 @@ function _resignHoverOut() {
   document.querySelectorAll(".frn-resign-cap-year .fill-preview").forEach(el => {
     el.style.width = "0%";
     el.classList.remove("over-cap");
+    el.classList.remove("highlight-mode");
   });
   document.querySelectorAll(".frn-resign-cap-year .num-preview").forEach(el => {
     el.textContent = "";
     el.style.display = "none";
+    el.style.color = "";
   });
 }
 
@@ -6244,8 +6271,12 @@ function _renderResignUI(cap, capCommitted) {
 
     // Hover-preview hits — what THIS deal adds to each cap year, so the
     // cap-projection bars can react when the user hovers the row.
+    // Accepted/tagged players are already in the projection → use
+    // highlight mode so hover shows their slice within the existing fill
+    // (blue stripes) instead of double-counting as additive (gold).
     const hoverHits = _resignPendingHitsByYear(r, 4);
-    const hoverAttr = `data-resign-hits='${JSON.stringify(hoverHits)}' data-resign-cap='${cap}' onmouseenter="_resignHoverIn(this)" onmouseleave="_resignHoverOut()"`;
+    const hoverMode = (r.decision === "accept" || r.decision === "tag") ? "highlight" : "add";
+    const hoverAttr = `data-resign-hits='${JSON.stringify(hoverHits)}' data-resign-cap='${cap}' data-resign-mode='${hoverMode}' onmouseenter="_resignHoverIn(this)" onmouseleave="_resignHoverOut()"`;
     const resignCtx = {
       position: r.pos, marketAAV: r.baseMarket,
       demandedAAV: demand.aav, demandedYears: demand.years,
