@@ -14008,12 +14008,18 @@ function _renderPostDraftGrade(myPicks) {
     const tag = pk.delta>=6 ? `<span style="color:var(--green-lt);font-size:.56rem;font-weight:700">★ VALUE</span>`
               : pk.delta<=-6? `<span style="color:#ff9090;font-size:.56rem;font-weight:700">▼ REACH</span>` : "";
     const sg = pk.sg;
-    const fakeP = {name:pk.prospectName||"",overall:sg,stats:[]};
+    // Build the grade badge from the same sg we used for the delta
+    // calculation. The old code synthesized a fakeP without position,
+    // which made _playerNoiseBand not recognize it as owned and re-
+    // applied scouting noise — so the displayed letter could differ
+    // from the letter implied by sg. This direct construction skips
+    // the round-trip entirely.
+    const badge = `<span class="tt-ovr tier-${gradeClass(sg)}" title="Scout grade at draft · ${sg}">${gradeLabel(sg)}</span>`;
     return `<div class="frn-draft-pick-review">
       <span class="frn-draft-ticker-pick-no">R${pk.round}.${pk.pickInRound ?? (((pk.pick-1)%32)+1)}${pk.isComp ? "c" : ""}</span>
       <span style="font-weight:700">${pk.prospectName}</span>
       <span style="color:var(--gold);font-size:.6rem">${pk.pos}</span>
-      <span>${tag||gradeBadge(fakeP)}</span>
+      <span>${tag||badge}</span>
     </div>`;
   }).join("");
   $("frnHomeContent").innerHTML = `
