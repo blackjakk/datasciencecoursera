@@ -5000,18 +5000,22 @@ const _MID_HOLDOUT_MAX_DEFERS = 2;
 // ceiling for a player given his profile. K/P cap at 4yr (short careers,
 // cheap, replaceable). RB caps at 5yr (decline curve). Standard ceiling
 // is 6yr for stars (Burrow 5, Allen 6, Aaron Donald 6, Trent Williams 6).
-// Mahomes exception: elite young QBs (under 25, 90+ OVR) unlock up to
-// 10yr — modeled on Mahomes' 10yr/$450M extension in 2020.
-// Also age-capped: deals end by age 39 (41 for QB/K, who play longer).
+// Elite-young-QB exception: Mahomes signed 10yr/$450M at age 25 in 2020,
+// the unicorn modern megadeal. Scales DOWN smoothly by age + OVR so
+// older or less-elite QBs don't all unlock 10yr just for being good.
+// Age-capped: deals end by age 39 (41 for QB/K, who play longer).
 function _maxContractYears(player) {
   if (!player) return 6;
   const pos = player.position || "";
   const age = player.age || 27;
   const ovr = player.overall || 0;
 
-  // Mahomes exception
-  if (pos === "QB" && age <= 25 && ovr >= 90) {
-    return _ageCappedYears(age, 41, 10);
+  // Elite-young-QB unlock — see _qbEliteCap for the scale.
+  if (pos === "QB" && ovr >= 90) {
+    const eliteCap = _qbEliteCap(age, ovr);
+    if (eliteCap > 6) {
+      return _ageCappedYears(age, 41, eliteCap);
+    }
   }
 
   // Position ceilings
@@ -5024,6 +5028,23 @@ function _maxContractYears(player) {
   // age 41 for QB / K / P (positions with proven longevity).
   const ageCeiling = (pos === "QB" || pos === "K" || pos === "P") ? 41 : 39;
   return _ageCappedYears(age, ageCeiling, posCap);
+}
+
+// Elite-young-QB length cap, scaled by age + OVR. Returns 6 (standard)
+// when the player doesn't qualify, otherwise 7-10 based on profile.
+//   Age 22-24 + 92+ OVR: 10yr (the Mahomes 2020 deal pattern)
+//   Age 22-24 + 90-91:    8yr
+//   Age 25:              -1yr from age 24's ceiling
+//   Age 26:              -2yr
+//   Age 27:              -3yr (= 7yr if 92+, else 6)
+//   Age 28+:              6yr (back to standard)
+// So a 28yr 95-OVR QB still tops out at 6yr; a 23yr 90-OVR QB unlocks
+// 8yr; a 24yr 93-OVR QB unlocks the full 10yr.
+function _qbEliteCap(age, ovr) {
+  if (ovr < 90) return 6;
+  const ovrCap = ovr >= 92 ? 10 : 8;
+  const ageScale = Math.max(6, 10 - Math.max(0, age - 24));
+  return Math.min(ovrCap, ageScale);
 }
 
 function _ageCappedYears(currentAge, ageCeiling, posCap) {
@@ -5654,29 +5675,32 @@ function _resignTier(r) {
   return "depth";
 }
 
-// What the player wants — rough demand line scaled by ambition.
+// What the player wants. AAV routes through the unified _demandedAavFor
+// engine in walk-year context so OVR-tier leverage, age modifier, prior-
+// ignored multiplier, and underpay floor are all single-sourced with
+// mid-contract demands. Years come from the legacy OVR/age ladder, then
+// clamped by _maxContractYears so a 33-year-old RB can't ask for 6yr.
 function _resignPlayerDemand(player, r, baseMarket) {
   const ovr = player?.overall ?? r?.overall ?? 70;
   const age = player?.age ?? r?.age ?? 27;
-  let factor = 1.0, wantYears = 3;
-  if (ovr >= 88)      { factor = 1.18; wantYears = 5; }
-  else if (ovr >= 84) { factor = 1.12; wantYears = 4; }
-  else if (ovr >= 78) { factor = 1.05; wantYears = 4; }
-  else if (ovr >= 72) { factor = 1.00; wantYears = 3; }
-  else                { factor = 0.92; wantYears = 2; }
-  if (age >= 33)      { factor *= 0.93; wantYears = Math.max(1, wantYears - 1); }
-  else if (age >= 30) { factor *= 0.97; }
-  else if (age <= 24) { factor *= 1.04; }
-  // Ignored-extension penalty — player held a grudge, comes back with
-  // a 25% premium demand at expiry. Reflects "you didn't pay me when
-  // I asked — now I'm making you pay extra."
-  if (player?.flightRisk || player?._ignoredDemandSeason != null) {
-    factor *= 1.25;
-  }
-  return {
-    aav: Math.round(baseMarket * factor * 10) / 10,
-    years: wantYears,
-  };
+  // Years ladder — what length of deal the player asks for.
+  let wantYears = 3;
+  if (ovr >= 88)      wantYears = 5;
+  else if (ovr >= 84) wantYears = 4;
+  else if (ovr >= 78) wantYears = 4;
+  else if (ovr >= 72) wantYears = 3;
+  else                wantYears = 2;
+  if (age >= 33) wantYears = Math.max(1, wantYears - 1);
+
+  // AAV via unified engine — walk-year context. Pass a synthetic
+  // contract for the rare case where player.contract is missing.
+  const contract = player?.contract || { remaining: 1, _demandCycles: 0, aav: r?.currentAAV || 0 };
+  const aav = _demandedAavFor(player, baseMarket, contract, { isWalkYear: true });
+
+  // Years clamped to position+age realistic ceiling.
+  const posMax = _maxContractYears(player || { position: r?.pos, age, overall: ovr });
+  wantYears = Math.max(1, Math.min(posMax, wantYears));
+  return { aav, years: wantYears };
 }
 
 // Likelihood (0..1) the player accepts your offer vs their demand.
@@ -7593,22 +7617,37 @@ function _demandRollProbability(score, ctx) {
 }
 
 // Demanded AAV with cycle escalator. Each ignored cycle bumps the next
-// demand's multiplier on top of market. Walk-year carries its own
-// leverage premium.
-//   New (cycle 1)              · 1.05× market
-//   Repeat (cycle 2)           · 1.12× market
-//   Repeat+ (cycle 3+)         · 1.18× market
-//   Walk-year                  · 1.20× market
-//   Walk-year after ignored    · 1.40× market
-// Severe underpay (<50% market) floors at 1.15× regardless of cycle.
+// demand's multiplier on top of market. Walk-year leverage scales by
+// talent — elite stars hold all the cards in FA, depth pieces don't.
+//   Mid-contract cycle 1               · 1.05× market
+//   Mid-contract cycle 2               · 1.12× market
+//   Mid-contract cycle 3+              · 1.18× market
+//   Walk-year, 85+ OVR                 · 1.20× market
+//   Walk-year, 78-84 OVR               · 1.10× market
+//   Walk-year, 72-77 OVR               · 1.00× market
+//   Walk-year, <72 OVR                 · 0.92× market
+//   Walk-year after ignored            · 1.17× the above leverage
+//                                        (capped at 1.40× so elite
+//                                        ignored = 1.40× as before)
+//   Severe underpay (<50% market)      · floors at 1.15×
+//   Age modifier                       · 33+ ×0.93, 30-32 ×0.97, ≤24 ×1.04
 function _demandedAavFor(live, market, contract, ctx) {
   const cycle = ctx.cycle ?? ((contract._demandCycles || 0) + 1);
   const isWalk = ctx.isWalkYear ?? (contract.remaining === 1);
-  const priorIgnored = (contract._demandCycles || 0) >= 1;
+  const priorIgnored = (contract._demandCycles || 0) >= 1
+    || !!live?._ignoredDemandSeason
+    || !!live?.flightRisk;
+  const ovr = live?.overall || 0;
+  const age = live?.age || 27;
 
   let mult;
   if (isWalk) {
-    mult = priorIgnored ? 1.40 : 1.20;
+    let baseLeverage;
+    if (ovr >= 85)      baseLeverage = 1.20;
+    else if (ovr >= 78) baseLeverage = 1.10;
+    else if (ovr >= 72) baseLeverage = 1.00;
+    else                baseLeverage = 0.92;
+    mult = priorIgnored ? Math.min(1.40, baseLeverage * 1.17) : baseLeverage;
   } else if (cycle <= 1) {
     mult = 1.05;
   } else if (cycle === 2) {
@@ -7622,6 +7661,11 @@ function _demandedAavFor(live, market, contract, ctx) {
   const aav = contract.aav || 0;
   const underpayRatio = market > 0 ? aav / market : 1;
   if (underpayRatio < 0.50) mult = Math.max(mult, 1.15);
+
+  // Age modifier — older players ask less (declining production +
+  // less leverage), young players ask more (long career ahead).
+  const ageMod = age >= 33 ? 0.93 : age >= 30 ? 0.97 : age <= 24 ? 1.04 : 1.00;
+  mult *= ageMod;
 
   return Math.round(market * mult * 10) / 10;
 }
