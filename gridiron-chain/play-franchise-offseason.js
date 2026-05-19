@@ -13518,6 +13518,60 @@ function _refreshSeasonScoutCredits() {
   );
 }
 
+// ── Stat labels — the index → human-readable mapping used by the
+// compare panel. Order matches the player.stats array.
+const _SCOUT_STAT_LABELS = [
+  "SPD", "STR", "AGI", "AWR", "THR", "CAT",
+  "BLK", "PRS", "COV", "TCK", "KPW", "TEC",
+];
+
+// Render the compare panel — fixed at the top of the prospect list
+// when 1-2 prospects are queued. Shows stat-by-stat side-by-side with
+// a color-coded delta (green = better, red = worse) so the user can
+// see which prospect wins each attribute at a glance.
+function _renderCompareCard(prospects, reveals) {
+  if (!prospects.length) return "";
+  const _esc = s => String(s ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/'/g, "&#39;");
+  const headerCells = prospects.map((p, i) => {
+    const arch = (typeof _archetypeLabel === "function") ? _archetypeLabel(p) : "";
+    const rev  = reveals[p.name];
+    const cats = (rev?.categories || []).length;
+    return `<div class="frn-cmp-col-hdr">
+      <div class="frn-cmp-name" onclick="frnOpenPlayerCard('${_esc(p.name)}')">${_esc(p.name)}</div>
+      <div class="frn-cmp-sub">${_esc(p.position)} · ${p.collegeYear}${p.declaredEarly?" · DECLARED":""} · OVR ${p.overall || "—"}</div>
+      <div class="frn-cmp-sub">${arch ? _esc(arch)+" · " : ""}Proj R${_projectedDraftRound(p)} · ${cats}/4 scouted</div>
+      <button class="frn-cmp-remove" onclick="frnScoutBoardToggleCompare('${_esc(p.name)}')" title="Remove from compare">✕</button>
+    </div>`;
+  }).join("");
+  // Stat rows
+  const statRows = _SCOUT_STAT_LABELS.map((label, idx) => {
+    const vals = prospects.map(p => (p.stats?.[idx] ?? null));
+    const max = Math.max(...vals.filter(v => v != null));
+    const cells = vals.map(v => {
+      if (v == null) return `<div class="frn-cmp-stat-cell empty">—</div>`;
+      const winning = vals.length === 2 && v === max && vals[0] !== vals[1];
+      return `<div class="frn-cmp-stat-cell${winning?" win":""}">${v}</div>`;
+    }).join("");
+    return `<div class="frn-cmp-stat-row">
+      <div class="frn-cmp-stat-label">${label}</div>
+      ${cells}
+    </div>`;
+  }).join("");
+  const colTpl = `grid-template-columns: 60px ${prospects.map(()=>"1fr").join(" ")};`;
+  return `<div class="frn-cmp-card">
+    <div class="frn-cmp-hdr">
+      <span class="frn-cmp-title">⇄ COMPARE</span>
+      <span class="frn-cmp-tip">${prospects.length === 1 ? "Click ⇄ on a second prospect for side-by-side" : "Bigger value wins each stat"}</span>
+      <button class="frn-cmp-clear" onclick="frnScoutBoardClearCompare()" title="Clear compare">Clear</button>
+    </div>
+    <div class="frn-cmp-body" style="${colTpl}">
+      <div class="frn-cmp-col-hdr empty"></div>
+      ${headerCells}
+      ${statRows}
+    </div>
+  </div>`;
+}
+
 // "Smart scout" — pick the most useful next category for a prospect
 // and spend a credit on it. Priority:
 //   1. The category that resolves the prospect's KNOCK (if not yet
@@ -13636,6 +13690,7 @@ const _SCOUT_BOARD_STATE = {
   posFilter:  "ALL",
   tierFilter: "ALL",      // "ALL" | "ELITE" | "GOOD" | "AVERAGE" | "POOR"
   sort:       "ovr",      // "ovr" | "proj" | "year" | "pos" | "scouted" | "unscouted"
+  compare:    [],         // array of prospect names (max 2) for side-by-side compare
 };
 
 // Map current OVR → coarse tier label for the tier filter + class strength
@@ -13721,6 +13776,24 @@ function frnScoutBoardSetSort(s) {
 }
 function frnScoutBoardSetTier(tier) {
   _SCOUT_BOARD_STATE.tierFilter = tier;
+  renderFrnScoutingBoard();
+}
+// Toggle a prospect in/out of the compare slot. Max 2 names — third
+// click on a different prospect replaces the oldest. Clicking an
+// already-compared name removes them.
+function frnScoutBoardToggleCompare(name) {
+  const arr = _SCOUT_BOARD_STATE.compare || [];
+  const idx = arr.indexOf(name);
+  if (idx >= 0) arr.splice(idx, 1);
+  else {
+    if (arr.length >= 2) arr.shift();
+    arr.push(name);
+  }
+  _SCOUT_BOARD_STATE.compare = arr;
+  renderFrnScoutingBoard();
+}
+function frnScoutBoardClearCompare() {
+  _SCOUT_BOARD_STATE.compare = [];
   renderFrnScoutingBoard();
 }
 
@@ -13927,6 +14000,9 @@ function renderFrnScoutingBoard() {
 
     const pinned = pinSet.has(p.name);
     const pinBtn = `<button class="frn-scout-pin${pinned?" active":""}" onclick="frnTogglePinProspect('${_esc(p.name)}')" title="${pinned?"Unpin from watch list":"Add to watch list — pinned prospects auto-target at the draft"}">${pinned?"★":"☆"}</button>`;
+    const compareList = _SCOUT_BOARD_STATE.compare || [];
+    const inCompare = compareList.includes(p.name);
+    const cmpBtn = `<button class="frn-scout-cmp${inCompare?" active":""}" onclick="frnScoutBoardToggleCompare('${_esc(p.name)}')" title="${inCompare?"Remove from compare":"Add to compare (max 2 — third add replaces the oldest)"}">⇄</button>`;
 
     // Smart scout — picks the most useful next category (knock-resolving
     // first, then film, then next available). Disabled if no credits or
@@ -13936,8 +14012,8 @@ function renderFrnScoutingBoard() {
     const smartBtn = `<button class="frn-scout-smart${smartDisabled?" disabled":""}"
         ${smartDisabled ? "disabled" : `onclick="frnSmartScout('${_esc(p.name)}')"`}
         title="${allDone ? "All 4 categories already scouted" : (bank === 0 ? "No credits this week" : "Smart scout — spend 1 credit on the most useful unscouted category")}">⚡</button>`;
-    return `<div class="frn-scout-row${pinned?" pinned":""}">
-      <div class="frn-scout-row-pin-col">${pinBtn}</div>
+    return `<div class="frn-scout-row${pinned?" pinned":""}${inCompare?" compared":""}">
+      <div class="frn-scout-row-pin-col">${pinBtn}${cmpBtn}</div>
       <div class="frn-scout-row-main">
         <div class="frn-scout-row-name">
           <span class="frn-scout-row-pos">${_esc(p.position)}</span>
@@ -13994,6 +14070,15 @@ function renderFrnScoutingBoard() {
         </div>
       </div>
       ${_renderClassStrengthSummary(eligibleByPos)}
+      ${(() => {
+        const cmpNames = _SCOUT_BOARD_STATE.compare || [];
+        const cmpProspects = cmpNames.map(n => players.find(p => p.name === n)).filter(Boolean);
+        // Garbage-collect stale compare entries (prospect aged out / drafted)
+        if (cmpProspects.length < cmpNames.length) {
+          _SCOUT_BOARD_STATE.compare = cmpProspects.map(p => p.name);
+        }
+        return _renderCompareCard(cmpProspects, reveals);
+      })()}
       <div class="frn-scout-hint">
         Click a category button to spend 1 credit and unlock that intel. Knock-resolution notes appear under matching categories. Reveals carry into the draft automatically.
       </div>

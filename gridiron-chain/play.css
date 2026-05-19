@@ -3152,7 +3152,7 @@
 
   .frn-scout-list { display: flex; flex-direction: column; gap: .3rem; }
   .frn-scout-row {
-    display: grid; grid-template-columns: 28px 1fr auto; gap: .45rem;
+    display: grid; grid-template-columns: 44px 1fr auto; gap: .45rem;
     padding: .45rem .55rem; background: var(--bg3); border-radius: 3px;
     border: 1px solid var(--border); align-items: center;
   }
@@ -3160,17 +3160,92 @@
     border-left: 3px solid var(--gold);
     background: linear-gradient(to right, rgba(212,175,55,.06), var(--bg3) 30%);
   }
-  .frn-scout-row-pin-col {
-    background: transparent; border: 0; padding: 0;
-    display: flex; align-items: center; justify-content: center;
+  .frn-scout-row.compared {
+    background: linear-gradient(to right, rgba(124,200,232,.10), var(--bg3) 30%);
+    border-color: #7ac8e8;
   }
-  .frn-scout-pin {
+  .frn-scout-row.pinned.compared {
+    background: linear-gradient(to right, rgba(212,175,55,.08), rgba(124,200,232,.06) 50%, var(--bg3));
+  }
+  .frn-scout-row-pin-col {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: .1rem;
+  }
+  .frn-scout-pin, .frn-scout-cmp {
     background: transparent; border: 0; cursor: pointer;
-    color: var(--blgray); font-size: 1.1rem; line-height: 1;
+    color: var(--blgray); line-height: 1;
     padding: 0 .15rem; transition: color .12s, transform .1s;
   }
-  .frn-scout-pin:hover { color: var(--gold); transform: scale(1.15); }
+  .frn-scout-pin { font-size: 1.1rem; }
+  .frn-scout-cmp { font-size: .85rem; }
+  .frn-scout-pin:hover, .frn-scout-cmp:hover {
+    color: var(--gold); transform: scale(1.15);
+  }
   .frn-scout-pin.active { color: var(--gold); }
+  .frn-scout-cmp.active { color: #7ac8e8; }
+  .frn-scout-cmp:hover { color: #7ac8e8; }
+
+  /* Compare panel — side-by-side stat board for 1-2 prospects */
+  .frn-cmp-card {
+    background: var(--bg3); border: 1px solid #7ac8e8;
+    border-radius: 3px; margin-bottom: .55rem; overflow: hidden;
+  }
+  .frn-cmp-hdr {
+    display: flex; align-items: center; gap: .5rem;
+    padding: .35rem .6rem; background: rgba(124,200,232,.1);
+    border-bottom: 1px solid var(--border);
+  }
+  .frn-cmp-title {
+    color: #7ac8e8; font-size: .65rem; font-weight: 800;
+    letter-spacing: 1.5px;
+  }
+  .frn-cmp-tip { color: var(--blgray); font-size: .58rem; flex: 1; }
+  .frn-cmp-clear {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--blgray); cursor: pointer; padding: .15rem .45rem;
+    border-radius: 2px; font-family: inherit; font-size: .55rem;
+    letter-spacing: .5px;
+  }
+  .frn-cmp-clear:hover { color: var(--gold); border-color: var(--gold); }
+  .frn-cmp-body {
+    display: grid; gap: 0; padding: .4rem .6rem;
+  }
+  .frn-cmp-col-hdr {
+    padding: .35rem .5rem; border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+  .frn-cmp-col-hdr.empty { border: 0; }
+  .frn-cmp-name {
+    color: var(--text); font-weight: 800; font-size: .72rem;
+    cursor: pointer;
+  }
+  .frn-cmp-name:hover { color: var(--gold); text-decoration: underline; }
+  .frn-cmp-sub { color: var(--blgray); font-size: .56rem; margin-top: .1rem; }
+  .frn-cmp-remove {
+    position: absolute; top: .2rem; right: .2rem;
+    background: transparent; border: 0; color: var(--blgray);
+    cursor: pointer; font-size: .7rem; padding: .15rem .3rem;
+    border-radius: 2px;
+  }
+  .frn-cmp-remove:hover { color: #ff6b6b; background: rgba(255,107,107,.1); }
+  .frn-cmp-stat-row {
+    display: contents;
+  }
+  .frn-cmp-stat-label {
+    padding: .3rem .5rem; color: var(--blgray); font-size: .56rem;
+    font-weight: 800; letter-spacing: 1px; border-top: 1px solid var(--border);
+    align-self: center;
+  }
+  .frn-cmp-stat-cell {
+    padding: .3rem .5rem; color: var(--text); font-size: .72rem;
+    font-weight: 700; text-align: center;
+    border-top: 1px solid var(--border);
+  }
+  .frn-cmp-stat-cell.win {
+    color: #4caf82; background: rgba(76,175,130,.08);
+    font-weight: 900;
+  }
+  .frn-cmp-stat-cell.empty { opacity: .35; }
   .frn-scout-chip.pinned { border-color: var(--gold); color: var(--gold); }
   .frn-scout-chip.pinned.active { background: var(--gold); color: var(--bg); }
   .frn-scout-chip.pinned.empty { opacity: .55; }
