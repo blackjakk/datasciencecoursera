@@ -5925,6 +5925,13 @@
     position: relative;
   }
   .frn-resign-cap-year .bar .fill { height: 100%; transition: width .2s; }
+  /* Signed-extension overlay — appears alongside the baseline fill so
+     the user sees exactly what their decisions added to each year. */
+  .frn-resign-cap-year .bar .fill-signed {
+    position: absolute; top: 0; height: 100%;
+    transition: width .25s ease-out, left .25s ease-out;
+    box-shadow: 0 0 4px rgba(245, 197, 66, .35) inset;
+  }
   /* Hover preview overlay — animates in when the user hovers a player
      row. Repeating-stripe to read clearly as "what this deal would add"
      vs the solid current commitment. */

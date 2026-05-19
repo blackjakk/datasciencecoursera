@@ -7168,7 +7168,11 @@ function _holdoutRecommendation(h, depth, faMkt, ageWarn, isInjuryProne, trend) 
 
 // Multi-year cap projection — mirrors _resignCapProjection but extended
 // demands REPLACE the player's existing contract (vs adding a new one).
-function _holdoutCapProjection(years = 4) {
+// Cap projection with a breakdown so the UI can render the
+// session's signed extensions as a distinct segment on top of the
+// existing-contract baseline. Returns { total, baseline, signed } —
+// total = baseline + signed for each year.
+function _holdoutCapProjectionDetail(years = 4) {
   const myId = franchise.chosenTeamId;
   const myRoster = franchise.rosters[myId] || [];
   const holdouts = franchise._holdouts || [];
@@ -7176,15 +7180,16 @@ function _holdoutCapProjection(years = 4) {
   for (const h of holdouts) {
     if (h.resolved === "extended") extendedByName.set(h.name, h);
   }
-  const out = new Array(years).fill(0);
+  const baseline = new Array(years).fill(0);
+  const signed   = new Array(years).fill(0);
   for (const p of myRoster) {
     if (!p.contract || p.contract.remaining <= 0) continue;
-    if (extendedByName.has(p.name)) continue; // replaced by the extension below
+    if (extendedByName.has(p.name)) continue; // accounted for in the signed bucket below
     const proration = p.contract.bonusProration || 0;
     const bases = p.contract.baseSalaries || [];
     const curIdx = (p.contract.years || 1) - (p.contract.remaining || 1);
     for (let i = 0; i < years && (curIdx + i) < bases.length; i++) {
-      out[i] += (bases[curIdx + i] || 0) + proration;
+      baseline[i] += (bases[curIdx + i] || 0) + proration;
     }
   }
   for (const h of extendedByName.values()) {
@@ -7195,10 +7200,18 @@ function _holdoutCapProjection(years = 4) {
     const struct = h.structure || "BALANCED";
     const bases = _baseSalarySchedule(aav, yrs, struct, bonusProration);
     for (let i = 0; i < years && i < bases.length; i++) {
-      out[i] += bases[i] + bonusProration;
+      signed[i] += bases[i] + bonusProration;
     }
   }
-  return out.map(v => Math.round(v * 10) / 10);
+  return {
+    baseline: baseline.map(v => Math.round(v * 10) / 10),
+    signed:   signed.map(v => Math.round(v * 10) / 10),
+    total:    baseline.map((b, i) => Math.round((b + signed[i]) * 10) / 10),
+  };
+}
+
+function _holdoutCapProjection(years = 4) {
+  return _holdoutCapProjectionDetail(years).total;
 }
 
 // Preview index — which row is currently in "review year-by-year" mode.
@@ -9362,21 +9375,36 @@ function _renderHoldoutsBlock() {
   const ignored  = list.filter(h => h.resolved === "ignored").length;
   const pending  = list.filter(h => !h.resolved).length;
   const decided  = extended + traded + ignored;
-  const proj = _holdoutCapProjection(4);
+  const projDetail = _holdoutCapProjectionDetail(4);
+  const proj = projDetail.total;
   const projHtml = `<div class="frn-resign-cap-timeline">
     ${proj.map((v, i) => {
-      const pct = Math.min(100, (v / Math.max(1, cap)) * 100);
+      const baselineV = projDetail.baseline[i];
+      const signedV = projDetail.signed[i];
+      const totalPct  = Math.min(100, (v / Math.max(1, cap)) * 100);
+      const basePct   = Math.min(totalPct, (baselineV / Math.max(1, cap)) * 100);
+      const signedPct = Math.max(0, totalPct - basePct);
       const color = v > cap ? "var(--red)" : v > cap * 0.90 ? "#e8a000" : "var(--green-lt)";
-      return `<div class="frn-resign-cap-year" data-cap-year="${i}" data-cap-used="${v}">
+      const signedColor = "#f5c542"; // gold — pops on top of the baseline color
+      const signedTag = signedV > 0
+        ? `<span style="color:${signedColor};font-size:.55rem;font-weight:700;margin-left:.3rem">+$${signedV.toFixed(1)}M ext</span>`
+        : "";
+      return `<div class="frn-resign-cap-year" data-cap-year="${i}" data-cap-used="${v}" title="Baseline $${baselineV.toFixed(1)}M + Extensions $${signedV.toFixed(1)}M = $${v.toFixed(1)}M">
         <div class="lbl">Y${i+1}</div>
         <div class="bar">
-          <div class="fill" style="width:${pct}%;background:${color}"></div>
-          <div class="fill-preview" style="left:${pct}%"></div>
+          <div class="fill" style="width:${basePct}%;background:${color}"></div>
+          <div class="fill-signed" style="left:${basePct}%;width:${signedPct}%;background:${signedColor}"></div>
+          <div class="fill-preview" style="left:${totalPct}%"></div>
         </div>
-        <div class="num" style="color:${color}">$${v.toFixed(0)}M<span class="num-preview"></span></div>
+        <div class="num" style="color:${color}">$${v.toFixed(0)}M${signedTag}<span class="num-preview"></span></div>
       </div>`;
     }).join("")}
   </div>`;
+
+  const totalSignedAcrossYears = projDetail.signed.reduce((s, v) => s + v, 0);
+  const signedSummaryHtml = totalSignedAcrossYears > 0
+    ? `<div style="font-size:.62rem;color:var(--gold-lt);margin-top:.25rem;text-align:right">📈 Your extensions added <b>$${projDetail.signed[0].toFixed(1)}M</b> Y1 / <b>$${projDetail.signed[1].toFixed(1)}M</b> Y2 / <b>$${projDetail.signed[2].toFixed(1)}M</b> Y3 / <b>$${projDetail.signed[3].toFixed(1)}M</b> Y4</div>`
+    : "";
 
   const heroSub = pending
     ? `${pending} demand${pending===1?"":"s"} need${pending===1?"s":""} a decision`
@@ -9399,7 +9427,8 @@ function _renderHoldoutsBlock() {
       <div class="frn-resign-cap-wrap">
         <div class="frn-resign-cap-title">📊 PROJECTED CAP — NEXT 4 SEASONS</div>
         ${projHtml}
-        <div class="frn-resign-cap-note">Includes extended demands (replaces their current contract).</div>
+        ${signedSummaryHtml}
+        <div class="frn-resign-cap-note">Gold segments + amounts = extensions you signed this offseason (replaces their old contract).</div>
       </div>
 
       ${sections}
