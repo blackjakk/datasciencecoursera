@@ -13422,6 +13422,14 @@ function _developCollegePlayer(p) {
     stats[i] = Math.min(99, Math.max(35, stats[i] + bump));
   }
   p.overall = calcOverall(p.position, p.stats);
+  // Keep potential ahead of current OVR. _rollPotential was called at
+  // FR generation with no draftRound set (defaulted to R7 mean=60), so
+  // a developing prospect's potential would otherwise stay frozen
+  // below their grown OVR. Without this, an 80-OVR SR drafted in R1
+  // could show "ceiling 65" — Brady-archetype inverted.
+  if ((p.potential || 0) < p.overall + 2) {
+    p.potential = Math.min(99, p.overall + 1 + Math.floor(Math.random() * 4));
+  }
 }
 
 // Age all remaining college players one year forward; drop anyone now in
