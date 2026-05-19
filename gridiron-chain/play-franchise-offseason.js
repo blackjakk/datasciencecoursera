@@ -6956,11 +6956,18 @@ function _buildExtensionPitch(ctx, live, cap) {
   const rankStr = rankIdx >= 0 ? `#${rankIdx + 1} of ${allPos.length} ${pos}s leaguewide` : "";
 
   // ── Availability % ───────────────────────────────────────────────
-  const totalGP = (careerStats.gp || 0)
-    || careerHistory.reduce((s, r) => s + (r.gp || 0), 0);
-  const maxGP = careerHistory.length * (typeof FRANCHISE_WEEKS === "number" ? FRANCHISE_WEEKS : 14);
-  const availPct = maxGP > 0 ? Math.round(totalGP / maxGP * 100) : 0;
+  // Sum from careerHistory rows directly — careerStats.gp can include
+  // phantom-counted games on saves predating the dedup migration. Cap
+  // at 100% as a safety net so corrupted data never shows ">100%".
+  const seasonsCompleted = careerHistory.length;
+  const histGP = careerHistory.reduce((s, r) => s + (r.gp || 0), 0);
+  const wpsConst = (typeof FRANCHISE_WEEKS === "number" ? FRANCHISE_WEEKS : 14);
+  const maxGP = seasonsCompleted * wpsConst;
+  const availPct = maxGP > 0 ? Math.min(100, Math.round(histGP / maxGP * 100)) : 0;
   const availColor = availPct >= 90 ? "var(--green-lt)" : availPct >= 75 ? "var(--gold)" : "#ff8a8a";
+  const availStr = seasonsCompleted > 0
+    ? `${availPct}% (${histGP}/${maxGP} GP across ${seasonsCompleted} season${seasonsCompleted===1?"":"s"})`
+    : `rookie season in progress`;
 
   // ── Window until decline ─────────────────────────────────────────
   const declineAge = live.declineAge ?? null;
@@ -7030,7 +7037,7 @@ function _buildExtensionPitch(ctx, live, cap) {
       ${accolades.length ? row("Honors", accolades.join(" · "), "var(--gold)") : ""}
       ${row("Trajectory", trajStr)}
       ${row("League",    rankStr)}
-      ${row("Availability", `${availPct}% (${totalGP}/${maxGP || "—"} GP)`, availColor)}
+      ${row("Availability", availStr, availColor)}
       ${row("Window",    windowStr, windowColor)}
       ${moneysWorthStr ? row("Last deal", moneysWorthStr, moneysWorthColor) : ""}
       ${row("Market",    replaceStr)}
