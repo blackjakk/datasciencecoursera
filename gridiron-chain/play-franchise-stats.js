@@ -3317,6 +3317,16 @@ function renderFrnDepthChart() {
     const potBadge   = potTag
       ? `<span class="frn-dc-badge pot">${potTag}</span>` : "";
 
+    // Archetype badge — shows the player's role (e.g., "Slot CB", "Deep
+    // Threat") with a ✓ if it naturally fits this slot. The fit check
+    // mirrors the auto-set's archetype bonus, so the badge tells the user
+    // "this assignment makes sense scheme-wise" without hiding the data.
+    const archLabel = _archetypeLabel(p);
+    const archFits  = archLabel && _slotFitsArchetype(p, slotKey);
+    const archBadge = archLabel
+      ? `<span class="frn-dc-badge arch${archFits?" fit":""}" title="${archFits?"Archetype fits "+slotKey:"Archetype is "+archLabel}">${archFits?"✓ ":""}${archLabel}</span>`
+      : "";
+
     // Cascade badge: if this player is also a starter in another slot, show it.
     // e.g. WR1 backup row shows "(WR2)" because that player is the WR2 starter.
     const allSlots    = pidSlotMap[p.pid] || [];
@@ -3345,7 +3355,7 @@ function renderFrnDepthChart() {
       ${gradeBadge(p)}
       <span class="frn-dc-name" onclick="frnOpenPlayerCard('${escName}','${escPid}')">${p.name}</span>
       <span class="frn-dc-meta">${p.age} · $${aav}M · ${yrs}yr</span>
-      ${cascadeBadge}${injBadge}${expBadge}${blkBadge}${potBadge}${misBadge}
+      ${archBadge}${cascadeBadge}${injBadge}${expBadge}${blkBadge}${potBadge}${misBadge}
       ${promoteBtn}
     </div>`;
   };
@@ -3457,14 +3467,23 @@ function renderFrnDepthChart() {
       });
       const ovrs = lineup.map(l => l.starter?.overall || 0).filter(o => o > 0);
       const avgOvr = ovrs.length ? Math.round(ovrs.reduce((s, o) => s + o, 0) / ovrs.length) : 0;
-      return { pkg, lineup, avgOvr, strength: _strength(avgOvr) };
+      // Scheme fit % — how many of the 11 starters have an archetype that
+      // naturally fits their depth chart slot (e.g., SLOT_CB at the NB slot).
+      // A high fit % means your roster is built for this formation.
+      const filledLineup = lineup.filter(l => l.starter);
+      const archFitCount = filledLineup.filter(l => _slotFitsArchetype(l.starter, l.slotKey)).length;
+      const archFitPct = filledLineup.length ? Math.round(100 * archFitCount / filledLineup.length) : 0;
+      return { pkg, lineup, avgOvr, archFitPct, strength: _strength(avgOvr) };
     });
 
-    const cards = pkgMetrics.map(({ pkg, avgOvr, strength }) => {
+    const _fitColor = pct => pct >= 70 ? "#4caf82" : pct >= 45 ? "#e8a000" : "#ff6b6b";
+    const cards = pkgMetrics.map(({ pkg, avgOvr, archFitPct, strength }) => {
       const active = pkg.key === _dcActivePkg;
+      const fitCol = _fitColor(archFitPct);
       return `<button class="frn-dc-pkg-card${active ? " active" : ""}" onclick="frnDepthSetPkg('${pkg.key}')">
         <div class="frn-dc-pkg-card-name">${pkg.name}</div>
         <div class="frn-dc-pkg-card-ovr" style="color:${strength.col}">${avgOvr || "—"} · ${strength.label}</div>
+        <div class="frn-dc-pkg-card-fit" style="color:${fitCol}" title="Players whose archetype naturally fits their slot in this package">SCHEME FIT ${archFitPct}%</div>
       </button>`;
     }).join("");
 
@@ -3489,10 +3508,16 @@ function renderFrnDepthChart() {
         }
         const escName = (starter.name||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'");
         const escPid  = (starter.pid||"").replace(/'/g,"\\'");
-        return `<div class="frn-dc-pkg-cell${isPkgOnly?" pkg-only":""}">
+        const archLabel = _archetypeLabel(starter);
+        const archFits  = archLabel && _slotFitsArchetype(starter, slotKey);
+        const archHtml = archLabel
+          ? `<div class="frn-dc-pkg-cell-arch${archFits?" fit":""}" title="${archFits?"Scheme fit ✓":"Archetype"}">${archFits?"✓ ":""}${archLabel}</div>`
+          : "";
+        return `<div class="frn-dc-pkg-cell${isPkgOnly?" pkg-only":""}${archFits?" arch-fit":""}">
           <div class="frn-dc-pkg-cell-slot">${slotKey}${pkgIcon}</div>
           <div class="frn-dc-pkg-cell-name" onclick="frnOpenPlayerCard('${escName}','${escPid}')">${starter.name}</div>
           <div class="frn-dc-pkg-cell-ovr">OVR ${starter.overall}</div>
+          ${archHtml}
         </div>`;
       }).join("");
       return `<div class="frn-dc-pkg-row">
@@ -3611,9 +3636,9 @@ function renderFrnDepthChart() {
     ${strengthStrip}
     ${tabsHtml}
     ${_dcActiveUnit === "PKG"
-      ? `<div class="frn-dc-hint">View how your defense lines up in each personnel package. Strength rating = average OVR of the 11 starters in that formation.</div>
+      ? `<div class="frn-dc-hint">View how your defense lines up per personnel package. AVG OVR = strength of the 11 on the field. SCHEME FIT % = how many of those 11 have an archetype that naturally fits the slot (e.g., SLOT_CB at the NB).</div>
          ${renderPackagesView()}`
-      : `<div class="frn-dc-hint">↑↓ reorder slots · ⇅ swap #1↔#2 · ▲ promote backup · click snap bar to set split (blue = manual) · hover starter for injury cascade · ⚠ = auto-by-OVR mismatch</div>
+      : `<div class="frn-dc-hint">↑↓ reorder slots · ⇅ swap #1↔#2 · ▲ promote backup · click snap bar to set split (blue = manual) · hover starter for injury cascade · ✓ green badge = archetype fits the slot · ⚠ = auto-by-OVR mismatch</div>
          <div class="frn-dc-table">
            ${colHeader}
            ${groupSections}

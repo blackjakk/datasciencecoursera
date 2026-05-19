@@ -2380,15 +2380,76 @@ const _SLOT_FIT_WEIGHTS = {
   NB2: { weights: { 8:.45, 2:.30, 0:.25 },        label: "Dime slot CB" },
 };
 
-// Slot fit score for a player — combines their OVR (baseline) with the
-// slot-specific stat weighting (specialization). Returns a number where
-// higher = better fit. OVR contributes 60% so a great player isn't
-// passed over for a slot-specialist with bad OVR; specialization is the
-// other 40%.
+// Archetypes that naturally fit each depth chart slot.
+// Used to bias the auto-depth-chart toward players whose archetype
+// matches the slot's intended role (e.g., SLOT_CB at the NB slot,
+// SPEED DL at edge slots, MAULER OL at interior guard slots).
+// The game's archetype system already exists — this just wires it
+// into the depth chart's auto-fit logic.
+const SLOT_ARCHETYPE_FIT = {
+  // QB — no strong preference; all archetypes can start
+  // RB
+  RB1: ["WORKHORSE","ELUSIVE","POWER"],
+  RB2: ["RECEIVING","SPEED","ELUSIVE"],
+  // WR — outside vs slot distinction
+  WR1: ["DEEP_THREAT","ROUTE_RUNNER","RED_ZONE"],
+  WR2: ["POSSESSION","ROUTE_RUNNER","RED_ZONE"],
+  WR3: ["SLOT","ROUTE_RUNNER"],
+  WR4: ["DEEP_THREAT","POSSESSION","SLOT","ROUTE_RUNNER","RED_ZONE"],
+  // TE
+  TE1: ["RECEIVING","HYBRID"],
+  TE2: ["BLOCKING","HYBRID"],
+  // OL
+  LT:  ["ATHLETIC","TECHNICIAN"],
+  LG:  ["ANCHOR","MAULER","PLUG"],
+  C:   ["TECHNICIAN","ANCHOR"],
+  RG:  ["ANCHOR","MAULER","PLUG"],
+  RT:  ["MAULER","TECHNICIAN","ATHLETIC"],
+  // DL — edges (DL1/4) want pass-rush archetypes, interior (DL2/3) want power
+  DL1: ["SPEED","PENETRATOR","TWEENER"],
+  DL2: ["POWER","TECHNICIAN"],
+  DL3: ["POWER","TECHNICIAN"],
+  DL4: ["SPEED","PENETRATOR","TWEENER"],
+  DL5: ["POWER","TECHNICIAN"],  // GL run-stuffers
+  DL6: ["POWER","TECHNICIAN"],
+  // LB
+  LB1: ["SIGNAL","THUMPER","HYBRID"],
+  LB2: ["COVER","HYBRID","SIGNAL"],
+  LB3: ["BLITZER","THUMPER","HYBRID"],
+  // CB — boundary vs slot/nickel
+  CB1: ["SHUTDOWN","BALL_HAWK"],
+  CB2: ["SHUTDOWN","PHYSICAL","ZONE"],
+  NB:  ["SLOT_CB"],
+  NB2: ["SLOT_CB","ZONE"],
+  // S — strong vs free
+  SS:  ["BOX","HYBRID"],
+  FS:  ["BALL_HAWK","CENTER_FIELD","HYBRID"],
+};
+
+// Returns true if the player's archetype is a "natural fit" for the slot.
+// Used by UI badges and the auto-fit score boost.
+function _slotFitsArchetype(player, slotKey) {
+  if (!player?.archetype) return false;
+  const fit = SLOT_ARCHETYPE_FIT[slotKey];
+  return !!(fit && fit.includes(player.archetype));
+}
+
+// Slot fit score for a player — combines OVR (baseline), slot-specific
+// stat weighting (specialization), and archetype match (scheme fit).
+//   OVR        : 55% weight — a great player should usually win
+//   stat spec  : 35% weight — slot-relevant stats break ties
+//   archetype  : +5 bonus   — natural archetype match (≈ 5 OVR worth)
+// So a 78-OVR archetype-matched player beats an 80-OVR mismatched one,
+// but a 70 doesn't beat an 80 just from archetype match.
 function _slotFitScore(player, slotKey) {
   const ovr = player.overall || 60;
   const spec = _SLOT_FIT_WEIGHTS[slotKey];
-  if (!spec) return ovr;
+  const archBonus = _slotFitsArchetype(player, slotKey) ? 5 : 0;
+
+  if (!spec) {
+    // No stat-spec for this slot — pure OVR + archetype bonus
+    return ovr + archBonus;
+  }
   const stats = player.stats || [];
   let weighted = 0;
   let totalW = 0;
@@ -2397,8 +2458,7 @@ function _slotFitScore(player, slotKey) {
     totalW += w;
   }
   const fit = totalW > 0 ? weighted / totalW : 50;
-  // Blend: 60% OVR baseline + 40% slot specialization (rescaled to OVR range)
-  return ovr * 0.6 + fit * 0.4;
+  return ovr * 0.55 + fit * 0.35 + archBonus;
 }
 
 function _computeAutoDepthChart(teamId) {
@@ -2419,40 +2479,34 @@ function _computeAutoDepthChart(teamId) {
     ...DEPTH_CHART_SLOTS.specialTeams,
   ];
 
-  // Three-pass starter assignment:
-  //   Pass 1 — slots WITH slot-fit weighting (LT/LG/C/RG/RT, DL1-4).
-  //            Pick the unused player with highest fit score per slot.
-  //   Pass 2 — everything else (QB, RB, WR, etc.). Pure OVR by position.
-  //   Pass 3 — RET slots (KR1/PR1). Drawn from speed-skill positions
+  // Two-pass starter assignment (unified):
+  //   Pass 1 — every non-RET slot. Picks the unused player with the
+  //            highest `_slotFitScore` (OVR + slot-stat spec + archetype
+  //            match bonus). This makes archetype fit a soft constraint
+  //            for ALL slots, not just OL/DL.
+  //   Pass 2 — RET slots (KR1/PR1). Drawn from speed-skill positions
   //            (WR/RB/CB/S), with their own usedAsReturner set so a
-  //            returner can ALSO be a starter elsewhere (most returners
-  //            in real NFL are WR3/4 or backup RB/CB doubling up).
+  //            returner can ALSO be a starter elsewhere (most NFL
+  //            returners are WR3/4 or backup RB/CB doubling up).
   const retSlots = allSlots.filter(sd => sd.pos === "RET");
-  const fitSlots = allSlots.filter(sd => sd.pos !== "RET" && _SLOT_FIT_WEIGHTS[sd.key]);
-  const otherSlots = allSlots.filter(sd => sd.pos !== "RET" && !_SLOT_FIT_WEIGHTS[sd.key]);
+  const positionSlots = allSlots.filter(sd => sd.pos !== "RET");
 
-  for (const slotDef of fitSlots) {
+  for (const slotDef of positionSlots) {
     const pool = (byPos[slotDef.pos] || []).filter(p => !used.has(p.pid));
-    if (!pool.length) { dc[slotDef.key] = { starter:null, backup:null, flex:slotDef.flex, snapFloor:slotDef.snapFloor??35, snapCeil:slotDef.snapCeil??98 }; continue; }
+    if (!pool.length) {
+      dc[slotDef.key] = {
+        starter: null, backup: null,
+        flex:      slotDef.flex,
+        snapFloor: slotDef.snapFloor ?? 35,
+        snapCeil:  slotDef.snapCeil  ?? 98,
+      };
+      continue;
+    }
     pool.sort((a, b) => _slotFitScore(b, slotDef.key) - _slotFitScore(a, slotDef.key));
     const starter = pool[0];
     used.add(starter.pid);
     dc[slotDef.key] = {
       starter:   starter.pid,
-      backup:    null,
-      flex:      slotDef.flex,
-      snapFloor: slotDef.snapFloor ?? 35,
-      snapCeil:  slotDef.snapCeil  ?? 98,
-    };
-  }
-
-  const next = pos => (byPos[pos] || []).find(p => !used.has(p.pid)) ?? null;
-  const take = p  => { if (p) used.add(p.pid); return p; };
-
-  for (const slotDef of otherSlots) {
-    const starter = take(next(slotDef.pos));
-    dc[slotDef.key] = {
-      starter:   starter?.pid ?? null,
       backup:    null,
       flex:      slotDef.flex,
       snapFloor: slotDef.snapFloor ?? 35,

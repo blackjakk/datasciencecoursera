@@ -2933,6 +2933,15 @@
   .frn-dc-badge.blk { color: #e8a000; }
   .frn-dc-badge.pot    { color: var(--blgray); font-size: .44rem; }
   .frn-dc-badge.cascade { color: #7ac8e8; border: 1px solid rgba(124,200,232,.4); border-radius: 2px; }
+  .frn-dc-badge.arch {
+    color: var(--blgray); border: 1px solid rgba(255,255,255,.18);
+    background: rgba(255,255,255,.04);
+    border-radius: 2px; font-style: italic;
+  }
+  .frn-dc-badge.arch.fit {
+    color: #4caf82; border-color: rgba(76,175,130,.45);
+    background: rgba(76,175,130,.10); font-style: normal; font-weight: 700;
+  }
 
   /* Snap bar (center column) */
   .frn-dc-snap-col {
@@ -3024,6 +3033,7 @@
   .frn-dc-pkg-card-name { font-size: .72rem; font-weight: 800; color: #ff9a4d; }
   .frn-dc-pkg-card.active .frn-dc-pkg-card-name { color: #ffb878; }
   .frn-dc-pkg-card-ovr { font-size: .6rem; font-weight: 700; letter-spacing: 1px; }
+  .frn-dc-pkg-card-fit { font-size: .54rem; font-weight: 700; letter-spacing: 1.5px; }
 
   .frn-dc-pkg-header {
     display: flex; align-items: center; gap: .8rem; flex-wrap: wrap;
@@ -3073,6 +3083,16 @@
   .frn-dc-pkg-cell-name:hover { color: var(--gold); text-decoration: underline; }
   .frn-dc-pkg-cell-ovr {
     font-size: .55rem; color: var(--gold-lt); font-weight: 700;
+  }
+  .frn-dc-pkg-cell-arch {
+    font-size: .52rem; color: var(--blgray); font-style: italic;
+    margin-top: .1rem; letter-spacing: .5px;
+  }
+  .frn-dc-pkg-cell-arch.fit {
+    color: #4caf82; font-style: normal; font-weight: 700;
+  }
+  .frn-dc-pkg-cell.arch-fit {
+    border-color: rgba(76,175,130,.35);
   }
   .frn-dc-pkg-hint {
     margin-top: .6rem; padding: .4rem .6rem; font-size: .58rem;
