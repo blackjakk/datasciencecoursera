@@ -13875,14 +13875,16 @@ function _buildDraftClassFromPipeline(rookieYear, themesArg, positionsArg) {
   const cls = eligible.slice();
 
   // 3. Augment with auto-generated late-round filler if pipeline didn't
-  //    fill all 224 drafted slots (likely — pipeline is ~60 SRs + a few
-  //    declared JRs). Fillers are generated with the existing tier logic.
+  //    fill all 224 drafted slots. With _COLLEGE_CLASS_SIZE=120 the
+  //    pipeline yields ~168 named draftable (~120 SRs + ~48 declared
+  //    JRs), so ~56 filler picks land in R6 + R7. R1-R5 are entirely
+  //    pipeline-named; R6 is a mix; R7 is all filler.
   //    `allTaken` MUST include underclassmen still in the pipeline — a
   //    filler colliding with an FR/SO/JR name would conflate their
   //    name-keyed scout reveals and pin entries, and break the name-based
   //    NFL filter in _advanceCollegePipeline next offseason.
   const allTaken = new Set();
-  for (const r of Object.values(franchise.rosters)) r.forEach(p => allTaken.add(p.name));
+  for (const r of Object.values(franchise.rosters || {})) r.forEach(p => allTaken.add(p.name));
   for (const p of (franchise.collegePlayers || [])) allTaken.add(p.name);
   cls.forEach(p => allTaken.add(p.name));
 
