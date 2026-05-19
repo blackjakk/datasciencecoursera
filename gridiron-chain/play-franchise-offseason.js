@@ -5572,6 +5572,12 @@ function _resignPlayerDemand(player, r, baseMarket) {
   if (age >= 33)      { factor *= 0.93; wantYears = Math.max(1, wantYears - 1); }
   else if (age >= 30) { factor *= 0.97; }
   else if (age <= 24) { factor *= 1.04; }
+  // Ignored-extension penalty — player held a grudge, comes back with
+  // a 25% premium demand at expiry. Reflects "you didn't pay me when
+  // I asked — now I'm making you pay extra."
+  if (player?.flightRisk || player?._ignoredDemandSeason != null) {
+    factor *= 1.25;
+  }
   return {
     aav: Math.round(baseMarket * factor * 10) / 10,
     years: wantYears,
@@ -7001,16 +7007,22 @@ function _detectHoldouts() {
     const grade = scoutGrade(p);
     if (grade < 82) continue;                 // only A-grades+
     if (!p.contract || p.contract.remaining < 2) continue; // walk-year not a holdout
-    // Cooldown: must have completed at least 2 full seasons under this
-    // contract before demanding an extension. Players who JUST signed
-    // a big deal — even if their market value rose due to a cap bump
-    // or another OVR jump — don't realistically come back the very next
-    // offseason asking for more. Real NFL: 2-3 yrs minimum.
+    // Cooldown: must have completed at least 3 full seasons under this
+    // contract before demanding an extension. Real NFL patterns: most
+    // top QBs play out their deals; Mahomes never demanded after his
+    // 10yr extension, Lamar Jackson waited 4 seasons, Russell Wilson
+    // 3-4. Year-2-of-contract demands almost never happen.
     const startSeason = p.contract.startSeason;
-    if (startSeason != null && franchise.season <= startSeason + 1) continue;
+    if (startSeason != null && franchise.season <= startSeason + 2) continue;
     const market = computeMarketValue(p, cap);
     const aav = p.contract.aav || 0;
-    if (aav >= market * 0.75) continue;       // only fires when SIGNIFICANTLY underpaid (was 0.85 — too loose)
+    // Three-stage gate: must be (a) significantly underpaid AND (b)
+    // an A-grade contributor AND (c) roll the demand probability.
+    // Without (c), every eligible player demands every offseason —
+    // historically unrealistic. ~30% chance per qualifier per year
+    // gives the "occasional star demand" cadence the game wants.
+    if (aav >= market * 0.70) continue;       // 30%+ below market (was 0.85, then 0.75)
+    if (Math.random() >= 0.35) continue;
     const demandAAV = Math.round(market * 10) / 10;
     const demandYrs = Math.max(p.contract.remaining + 2, 4);
     holdouts.push({
@@ -7220,9 +7232,42 @@ function frnHoldoutIgnore(name) {
   const h = (franchise._holdouts || []).find(x => x.name === name);
   if (!h) return;
   h.resolved = "ignored";
-  // Mark player as flight risk — they leave when contract ends (or sooner)
   const player = franchise.rosters[franchise.chosenTeamId].find(p => p.name === name);
-  if (player) player.unhappy = true;
+  if (player) {
+    // Real consequences for ignoring a star's extension demand:
+    //   1. Locker-room damage — flagged unhappy (existing behavior)
+    //   2. Year-of-sulking OVR penalty — drops 2 OVR next season,
+    //      reflecting half-effort camp + checked-out attitude
+    //   3. Dev freeze — no offseason growth while disgruntled
+    //   4. Auto-walk lock — flight_risk + flagged so re-sign odds
+    //      drop sharply at expiry (computeMarketValue × 1.4 demand)
+    //   5. Trade-demand probability — 40% he formally requests trade
+    //      mid-season, which lands as a wire entry the player can
+    //      act on (no auto-trade — user still in control).
+    player.unhappy = true;
+    player.flightRisk = true;
+    player._ignoredDemandSeason = franchise.season;
+    player._devFreezeUntilSeason = (franchise.season || 1) + 1;
+    // Apply OVR penalty immediately so the user sees the cost on
+    // next dashboard render. Floors at OVR 60.
+    const oldOvr = player.overall || 70;
+    player.overall = Math.max(60, oldOvr - 2);
+    player._ignoreOvrPenalty = 2;
+    if (typeof _pushNews === "function") {
+      _pushNews({ type: "holdout",
+        label: `🚫 ${player.position} ${name} extension request IGNORED — sources say he's checked out (-2 OVR · dev frozen · flight risk)` });
+    }
+    // Trade-demand roll — 40% chance the player formally requests a
+    // trade mid-next-season. Stamped now; the existing trade-block
+    // surfacing logic handles wire entries when triggered.
+    if (Math.random() < 0.40) {
+      player.tradeRequested = true;
+      if (typeof _pushNews === "function") {
+        _pushNews({ type: "holdout",
+          label: `📣 ${player.position} ${name} has formally requested a trade after his extension was ignored` });
+      }
+    }
+  }
   saveFranchise();
   renderFrnOffseason();
 }
@@ -8273,6 +8318,15 @@ function runFrnOffseason() {
       // real-world "high-floor player who maximizes the gift" — they
       // get more out of any coach.
       if (p.coachable) coachBoost *= 1.25;
+      // Dev freeze: ignored holdouts skip offseason growth entirely
+      // for the season after their demand was ignored. Models the
+      // "checked-out, didn't attend OTAs, missed camp" attitude. Flag
+      // is cleared after one offseason cycles past.
+      if (p._devFreezeUntilSeason != null && franchise.season <= p._devFreezeUntilSeason) {
+        coachBoost = 0;
+      } else if (p._devFreezeUntilSeason != null) {
+        delete p._devFreezeUntilSeason;
+      }
       // Personality modifiers
       if (p.personality === "quiet_pro")  coachBoost *= 0.88; // slower growth (also slower decline below)
       if (p.personality === "coachs_son") coachBoost *= 1.15; // extra technique absorption
@@ -9210,7 +9264,7 @@ function _renderHoldoutsBlock() {
           <button class="btn frn-resign-btn accept-btn" onclick="frnHoldoutPreview('${escName}')">Review &amp; Extend</button>
           ${odds < 0.85 ? `<button class="btn frn-resign-btn accept-btn" style="border-color:var(--gold-lt);color:var(--gold-lt)" onclick="frnHoldoutCounter('${escName}')" title="Drop offer to 95% of demand">↻ Counter</button>` : ""}
           <button class="btn frn-resign-btn" style="border-color:var(--gold);color:var(--gold)" onclick="frnHoldoutTrade('${escName}')" title="Flip him for assets">🔀 Trade<span style="font-size:.5rem;display:block;color:var(--gold-lt)">${tradeVal}</span></button>
-          <button class="btn frn-resign-btn decline-btn" onclick="frnHoldoutIgnore('${escName}')" title="Player becomes a flight risk — likely walks at expiry">✗ Ignore<span style="font-size:.5rem;display:block;color:#ff9090">flight risk</span></button>
+          <button class="btn frn-resign-btn decline-btn" onclick="frnHoldoutIgnore('${escName}')" title="Locker-room fallout: -2 OVR immediately · dev frozen next offseason · 40% chance of formal trade request · low re-sign odds at expiry">✗ Ignore<span style="font-size:.5rem;display:block;color:#ff9090">-2 OVR · dev freeze · flight</span></button>
         </div>
       </div>
     </div>`;
