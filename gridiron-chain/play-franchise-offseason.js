@@ -5022,6 +5022,16 @@ function _checkHoldoutDemands() {
   const roster = franchise.rosters[myId] || [];
   const cap = franchise.salaryCap || SALARY_CAP_BASE;
   franchise.holdoutDemands = franchise.holdoutDemands || [];
+  // Backfill startSeason on legacy contracts so the cooldown gate works
+  // for saves predating the stamp. Mid-season: remaining hasn't been
+  // decremented yet for THIS season — so years-remaining counts only
+  // PRIOR completed seasons under contract.
+  for (const p of roster) {
+    if (p?.contract && p.contract.startSeason == null) {
+      const elapsed = Math.max(0, (p.contract.years || 1) - (p.contract.remaining || 1));
+      p.contract.startSeason = (franchise.season || 1) - elapsed;
+    }
+  }
   // New demand rolls — only for stars in their contract year, age ≤30
   for (const p of roster) {
     if (!p.contract || p.contract.remaining !== 1) continue;
@@ -5033,8 +5043,6 @@ function _checkHoldoutDemands() {
     // under the current contract before they can demand an extension.
     // Without this, franchise tags (1yr) + 1-year re-signings produced
     // immediate "I just signed him, why is he demanding?" complaints.
-    // startSeason is stamped at every contract creation; legacy contracts
-    // without it default to "always eligible" (treat as long-standing deal).
     const startSeason = p.contract.startSeason;
     if (startSeason != null && franchise.season <= startSeason) continue;
     if (Math.random() >= 0.04) continue;
@@ -6845,14 +6853,30 @@ const _HOLDOUT_MAX_YEARS = 6;
 function _detectHoldouts() {
   const cap = franchise.salaryCap || SALARY_CAP_BASE;
   const myRoster = franchise.rosters[franchise.chosenTeamId] || [];
+  // Backfill startSeason on legacy contracts. _detectHoldouts runs
+  // AFTER the offseason decrement, so years-remaining reflects how many
+  // seasons have been completed under the contract.
+  for (const p of myRoster) {
+    if (p?.contract && p.contract.startSeason == null) {
+      const elapsed = Math.max(0, (p.contract.years || 1) - (p.contract.remaining || 1));
+      p.contract.startSeason = (franchise.season || 1) - elapsed;
+    }
+  }
   const holdouts = [];
   for (const p of myRoster) {
     const grade = scoutGrade(p);
     if (grade < 82) continue;                 // only A-grades+
     if (!p.contract || p.contract.remaining < 2) continue; // walk-year not a holdout
+    // Cooldown: must have completed at least 2 full seasons under this
+    // contract before demanding an extension. Players who JUST signed
+    // a big deal — even if their market value rose due to a cap bump
+    // or another OVR jump — don't realistically come back the very next
+    // offseason asking for more. Real NFL: 2-3 yrs minimum.
+    const startSeason = p.contract.startSeason;
+    if (startSeason != null && franchise.season <= startSeason + 1) continue;
     const market = computeMarketValue(p, cap);
     const aav = p.contract.aav || 0;
-    if (aav >= market * 0.85) continue;       // fairly paid
+    if (aav >= market * 0.75) continue;       // only fires when SIGNIFICANTLY underpaid (was 0.85 — too loose)
     const demandAAV = Math.round(market * 10) / 10;
     const demandYrs = Math.max(p.contract.remaining + 2, 4);
     holdouts.push({
@@ -8937,16 +8961,41 @@ function _renderHoldoutsBlock() {
       `<span class="frn-resign-risk" style="color:${b.color};border-color:${b.color}55">${b.label}</span>`
     ).join("");
 
-    // ── Demand line + accept odds ──────────────────────────────────
+    // ── Demand line + accept odds (with raise/premium math) ────────
     const odds = _holdoutAcceptOdds(offer, offerYears, h.demandedAAV, h.demandedYears);
     const oddsColor = odds >= 0.85 ? "var(--green-lt)" : odds >= 0.5 ? "#e8a000" : "#ff8a8a";
-    const demandHtml = `<div class="frn-resign-demand">
-      <span class="lbl">Wants</span>
-      <span class="num">$${h.demandedAAV.toFixed(1)}M × ${h.demandedYears}yr</span>
-      <span class="lbl" style="margin-left:.5rem">Currently</span>
-      <span class="num" style="color:var(--gray)">$${h.currentAAV.toFixed(1)}M</span>
-      <span class="lbl" style="margin-left:.5rem">Accept odds</span>
-      <span class="num" style="color:${oddsColor}">${Math.round(odds * 100)}%</span>
+    const curAav  = h.currentAAV || 0;
+    const curRem  = h.currentRemaining || 0;
+    const aavRaise = curAav > 0 ? h.demandedAAV - curAav : 0;
+    const raisePct = curAav > 0 ? Math.round((aavRaise / curAav) * 100) : 0;
+    const raiseColor = aavRaise >= curAav * 0.5 ? "#ff8a8a"
+                     : aavRaise >= curAav * 0.25 ? "#e8a000"
+                     : aavRaise > 0 ? "var(--gold)" : "var(--green-lt)";
+    const raiseStr = curAav > 0
+      ? `<span style="color:${raiseColor};font-size:.62rem;font-weight:700">${aavRaise >= 0 ? "+" : ""}$${aavRaise.toFixed(1)}M/yr (${raisePct >= 0 ? "+" : ""}${raisePct}%)</span>`
+      : "";
+    const offerDelta = offer - h.demandedAAV;
+    const offerDeltaStr = offerDelta < 0
+      ? `<span style="color:#86e0a3;font-size:.6rem">saves $${(-offerDelta).toFixed(1)}M/yr</span>`
+      : offerDelta > 0
+      ? `<span style="color:#ff8a8a;font-size:.6rem">over by $${offerDelta.toFixed(1)}M/yr</span>`
+      : `<span style="color:var(--gray);font-size:.6rem">matches demand</span>`;
+    const demandHtml = `<div class="frn-resign-demand" style="display:flex;flex-direction:column;gap:.15rem">
+      ${curAav > 0 ? `
+        <div style="display:flex;gap:.5rem;align-items:baseline;font-size:.65rem">
+          <span class="lbl" style="min-width:60px;color:var(--gray)">Current</span>
+          <span class="num" style="color:var(--gray)">$${curAav.toFixed(1)}M × ${curRem}yr left</span>
+        </div>` : ""}
+      <div style="display:flex;gap:.5rem;align-items:baseline;font-size:.7rem">
+        <span class="lbl" style="min-width:60px;color:var(--gold)">Wants</span>
+        <span class="num" style="font-weight:700">$${h.demandedAAV.toFixed(1)}M × ${h.demandedYears}yr</span>
+        ${raiseStr}
+      </div>
+      <div style="display:flex;gap:.5rem;align-items:baseline;font-size:.66rem">
+        <span class="lbl" style="min-width:60px;color:var(--gray)">Accept odds</span>
+        <span class="num" style="color:${oddsColor};font-weight:700">${Math.round(odds * 100)}%</span>
+        ${offerDeltaStr}
+      </div>
     </div>`;
 
     const tradeVal = _holdoutTradeValue(h, live);
@@ -8959,11 +9008,20 @@ function _renderHoldoutsBlock() {
     metaBits.push(`${h.currentRemaining}yr left on current deal`);
     const metaHtml = `<div class="frn-resign-meta">${metaBits.join(" · ")}</div>`;
 
-    return `<div class="frn-resign-row tier-${_holdoutTier(h)}">
+    const portraitHtml = live
+      ? `<div class="frn-resign-portrait">${_playerPortrait(live, 56)}</div>`
+      : "";
+    const nameDisplay = live ? playerLink(live) : h.name;
+    const hoverHits = _resignPendingHitsByYear({
+      offer, offerYears, overall: ovr, structure: struct, decision: null,
+    }, 4);
+    const hoverAttr = `data-resign-hits='${JSON.stringify(hoverHits)}' data-resign-cap='${cap}' onmouseenter="_resignHoverIn(this)" onmouseleave="_resignHoverOut()"`;
+    return `<div class="frn-resign-row tier-${_holdoutTier(h)}" ${hoverAttr}>
       ${recChip}
       <div class="frn-resign-row-inner">
+        ${portraitHtml}
         <div class="frn-resign-info">
-          <span style="font-weight:700;color:var(--white);font-size:.95rem">${h.name}</span>
+          <span style="font-weight:700;color:var(--white);font-size:.95rem">${nameDisplay}</span>
           <span style="color:var(--gray);font-size:.7rem">${h.position} · ${ovr} OVR ${trendHtml} · Age ${age}</span>
           ${_statLine(h.name) ? `<span style="color:var(--gray);font-size:.6rem;font-style:italic">${_statLine(h.name)}</span>` : ""}
           ${riskHtml ? `<div class="frn-resign-risks">${riskHtml}</div>` : ""}
