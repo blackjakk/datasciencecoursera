@@ -12618,6 +12618,7 @@ function frnGoToDraft() {
     classThemes: { multipliers: themes, chips: _classThemeChips(themes) },
     udfaPhase: false,       // becomes true after the last draft pick
     udfaUserClaims: [],     // user's UDFA scramble picks
+    preshowDone: false,     // pre-draft show flow flag
   };
   franchise.draftScouts = [];
   franchise.draftScoutReveals = {};
@@ -12625,7 +12626,216 @@ function frnGoToDraft() {
   franchise._faLossesPending = {};
   franchise._faSignsPending  = {};
   saveFranchise();
+  renderFrnDraftPreshow();
+}
+
+// ── Pre-draft show ───────────────────────────────────────────────────────────
+// The "combine week" pageantry screen — fires before the actual draft
+// board so the user gets a sense of the class shape before they start
+// picking. Sections: class strengths, mock first round, combine
+// standouts, hyped prospects. One-time per draft (flagged via
+// d.preshowDone). User clicks "Begin Draft" to advance to the board.
+
+// Non-mutating R1 mock — runs the AI scoring engine across the first
+// 32 slots without consuming randomness or mutating state. Uses the
+// same scoring as _aiAutoPick minus the random*4 component (mock is
+// consensus projection, deterministic). Returns [{slot, prospect}, ...]
+function _mockFirstRound() {
+  const d = franchise.draft;
+  if (!d?.pickOrder) return [];
+  const r1Slots = d.pickOrder.filter(s => s.round === 1);
+  const taken = new Set();
+  const mock = [];
+  for (const slot of r1Slots) {
+    const available = d.class.filter(p =>
+      !taken.has(p.name) && p._generatedRound !== 0
+    );
+    if (!available.length) break;
+    const roster = franchise.rosters[slot.teamId] || [];
+    const startersByPos = {};
+    for (const pos of Object.keys(ROSTER_SLOTS)) {
+      const arr = roster.filter(p => p.position === pos).sort((a,b)=>b.overall-a.overall);
+      startersByPos[pos] = arr[0]?.overall || 50;
+    }
+    const scored = available.map(p => {
+      const needBonus = Math.max(0, 75 - (startersByPos[p.position] || 50));
+      const posPrem = _DRAFT_POS_PREMIUM[p.position] ?? 0;
+      const scheme = _draftSchemeBonus(slot.teamId, p.position);
+      const aiSeenOvr = (p.overall || 60) + (p._aiScoutBias || 0);
+      return { p, score: aiSeenOvr + needBonus * 0.20 + posPrem + scheme };
+    }).sort((a,b) => b.score - a.score);
+    const pick = scored[0]?.p;
+    if (!pick) break;
+    taken.add(pick.name);
+    mock.push({ slot, prospect: pick });
+  }
+  return mock;
+}
+
+// Top-N per measurable across the drafted-tier class. Returns the
+// raw arrays so the renderer can pick a layout. UDFA-tier prospects
+// are excluded — keeps the spotlight on the heavily-scouted class.
+function _combineStandouts(cls, n = 5) {
+  const drafted = (cls || []).filter(p => p._generatedRound !== 0);
+  const slowToFast = arr => arr.slice().sort((a, b) =>
+    parseFloat(combineMeasurables(a).fortyTime) - parseFloat(combineMeasurables(b).fortyTime));
+  const highToLow = (arr, key) => arr.slice().sort((a, b) =>
+    combineMeasurables(b)[key] - combineMeasurables(a)[key]);
+  const lowToHigh = (arr, key) => arr.slice().sort((a, b) =>
+    parseFloat(combineMeasurables(a)[key]) - parseFloat(combineMeasurables(b)[key]));
+  return {
+    fortyTime:  slowToFast(drafted).slice(0, n),
+    benchReps:  highToLow(drafted, "benchReps").slice(0, n),
+    coneTime:   lowToHigh(drafted, "coneTime").slice(0, n),
+    verticalIn: highToLow(drafted, "verticalIn").slice(0, n),
+  };
+}
+
+// Top 1 hyped prospect per position group. Picks the highest-rated by
+// consensus (overall + scout bias) so the user sees the class's headline
+// names per position. Falls back to true overall if bias is absent.
+function _topHypedPerPosition(cls) {
+  const byPos = {};
+  for (const p of (cls || []).filter(x => x._generatedRound !== 0)) {
+    if (!byPos[p.position]) byPos[p.position] = [];
+    byPos[p.position].push(p);
+  }
+  const result = {};
+  for (const [pos, list] of Object.entries(byPos)) {
+    list.sort((a, b) =>
+      ((b.overall || 0) + (b._aiScoutBias || 0)) -
+      ((a.overall || 0) + (a._aiScoutBias || 0)));
+    result[pos] = list[0];
+  }
+  return result;
+}
+
+function frnBeginDraftActual() {
+  if (!franchise.draft) return;
+  franchise.draft.preshowDone = true;
+  saveFranchise();
   renderFrnDraft();
+}
+
+function renderFrnDraftPreshow() {
+  const d = franchise.draft;
+  if (!d) { renderFrnDraft(); return; }
+  const seasonNum = (franchise.season || 0) + 1;
+  const myTeam = getTeam(franchise.chosenTeamId);
+
+  const themeChips = (d.classThemes?.chips || []).map(c =>
+    `<span style="display:inline-block;padding:.3rem .65rem;border-radius:3px;background:rgba(255,255,255,.05);border:1px solid var(--border);color:${c.color};font-size:.7rem;font-weight:700;letter-spacing:.5px;margin-right:.4rem">${c.text}</span>`
+  ).join("");
+
+  // Mock first round
+  const mock = _mockFirstRound();
+  const mockHtml = mock.map((entry, i) => {
+    const team = getTeam(entry.slot.teamId);
+    const isMine = entry.slot.teamId === franchise.chosenTeamId;
+    const sg = scoutGrade(entry.prospect);
+    const grade = gradeLabel(sg);
+    const sgColor = sg >= 82 ? "var(--green-lt)" : sg >= 70 ? "var(--gold)" : sg >= 60 ? "var(--gold-lt)" : "var(--gray)";
+    return `<div style="display:grid;grid-template-columns:2.2rem 7rem 1fr 2.4rem 2.3rem;gap:.5rem;padding:.3rem .55rem;background:${isMine ? "rgba(200,169,0,.10)" : i % 2 === 0 ? "rgba(255,255,255,.02)" : "transparent"};font-size:.66rem;align-items:baseline;border-left:${isMine ? "3px solid var(--gold)" : "3px solid transparent"}">
+      <span style="color:var(--gray);font-weight:700">${i+1}.</span>
+      <span style="color:${isMine ? "var(--gold)" : "var(--blwhite)"};font-weight:${isMine ? "900" : "700"};font-size:.62rem">${team?.city || "?"} ${team?.name || ""}</span>
+      <span style="color:var(--white)">${entry.prospect.name}</span>
+      <span style="color:var(--gold-lt);font-weight:700;font-size:.6rem">${entry.prospect.position}</span>
+      <span style="color:${sgColor};font-weight:700;font-size:.62rem">${grade}</span>
+    </div>`;
+  }).join("");
+
+  // Combine standouts
+  const combine = _combineStandouts(d.class, 5);
+  const combineRow = (label, icon, items, fmt, units) => {
+    const lines = items.map((p, i) => {
+      const m = combineMeasurables(p);
+      const val = fmt(m);
+      return `<div style="display:grid;grid-template-columns:1rem 1fr 2.2rem 2.5rem;gap:.3rem;padding:.18rem .25rem;font-size:.62rem;align-items:baseline">
+        <span style="color:${i===0?"var(--gold)":"var(--gray)"};font-weight:700">${i+1}</span>
+        <span style="color:var(--white)">${p.name}</span>
+        <span style="color:var(--gold-lt);font-size:.58rem;font-weight:700">${p.position}</span>
+        <span style="color:${i===0?"var(--gold)":"var(--gray)"};font-weight:700;text-align:right">${val}${units}</span>
+      </div>`;
+    }).join("");
+    return `<div style="background:var(--bg2);border:1px solid var(--border);padding:.45rem .55rem;border-radius:3px">
+      <div style="font-size:.55rem;color:var(--gold);letter-spacing:1px;font-weight:700;margin-bottom:.2rem">${icon} ${label}</div>
+      ${lines}
+    </div>`;
+  };
+  const combineHtml = `<div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:.55rem">
+    ${combineRow("40-YARD",   "💨", combine.fortyTime,  m => m.fortyTime, "")}
+    ${combineRow("BENCH",     "🏋", combine.benchReps,  m => m.benchReps, "")}
+    ${combineRow("3-CONE",    "↩️", combine.coneTime,   m => m.coneTime, "")}
+    ${combineRow("VERTICAL",  "🦘", combine.verticalIn, m => m.verticalIn, "\"")}
+  </div>`;
+
+  // Hyped prospects per position — story flavor from college profile
+  const hyped = _topHypedPerPosition(d.class);
+  const HYPE_ORDER = ["QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"];
+  const hypeRows = HYPE_ORDER.map(pos => {
+    const p = hyped[pos];
+    if (!p) return "";
+    const sg = scoutGrade(p);
+    const grade = gradeLabel(sg);
+    const sgColor = sg >= 82 ? "var(--green-lt)" : sg >= 70 ? "var(--gold)" : "var(--gold-lt)";
+    const comp = _draftNFLComp(p) || "";
+    const arch = _archetypeLabel(p) || "";
+    const story = p.collegeProfile?.line || "";
+    const knock = p.collegeProfile?.knock || "";
+    const meta = [arch, comp].filter(Boolean).join(" · ");
+    return `<div style="display:grid;grid-template-columns:1.8rem 1fr 2.4rem;gap:.45rem;padding:.4rem .55rem;background:rgba(255,255,255,.025);border-left:2px solid ${sgColor};font-size:.65rem;align-items:start;margin-bottom:.3rem">
+      <span style="color:${sgColor};font-weight:900;font-size:.7rem">${pos}</span>
+      <div>
+        <div style="display:flex;gap:.4rem;align-items:baseline">
+          <span style="color:var(--white);font-weight:700">${p.name}</span>
+          <span style="color:var(--gray);font-size:.55rem">Age ${p.age}</span>
+          ${meta?`<span style="color:var(--gold-lt);font-size:.55rem">${meta}</span>`:""}
+        </div>
+        ${story?`<div style="color:var(--gray);font-size:.55rem;margin-top:.1rem">${story}</div>`:""}
+        ${knock?`<div style="color:#e8a000;font-size:.55rem;margin-top:.08rem">⚠ ${knock}</div>`:""}
+      </div>
+      <span style="color:${sgColor};font-weight:700;text-align:right">${grade}</span>
+    </div>`;
+  }).filter(Boolean).join("");
+
+  $("frnHomeContent").innerHTML = `
+    <div style="max-width:1200px;margin:0 auto">
+      <div style="text-align:center;padding:1rem 0 .5rem">
+        <div style="font-size:.7rem;color:var(--gold);letter-spacing:3px;font-weight:700">COMBINE WEEK · PRE-DRAFT REPORT</div>
+        <div style="font-size:1.8rem;font-weight:900;color:var(--gold-lt);letter-spacing:1px;margin:.2rem 0">DRAFT CLASS OF SEASON ${seasonNum}</div>
+        <div style="color:var(--blgray);font-size:.75rem">${myTeam?.city} ${myTeam?.name} · scouting consensus + combine results</div>
+      </div>
+
+      ${themeChips ? `<div style="text-align:center;margin-bottom:1rem">${themeChips}</div>` : ""}
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
+        <div>
+          <div style="font-size:.6rem;color:var(--gold);letter-spacing:1.5px;font-weight:700;margin-bottom:.4rem">📋 PROJECTED FIRST ROUND</div>
+          <div style="background:var(--bg2);border:1px solid var(--border);border-radius:3px;max-height:520px;overflow-y:auto">
+            ${mockHtml || `<div style="padding:1rem;color:var(--gray);text-align:center;font-style:italic">No projections available</div>`}
+          </div>
+          <div style="font-size:.55rem;color:var(--gray);margin-top:.25rem;font-style:italic">
+            Mock based on consensus scout grade × team need × position value. Actual draft has war-room variance — expect surprises.
+          </div>
+        </div>
+
+        <div>
+          <div style="font-size:.6rem;color:var(--gold);letter-spacing:1.5px;font-weight:700;margin-bottom:.4rem">🔥 HEADLINER PER POSITION</div>
+          <div style="max-height:520px;overflow-y:auto">
+            ${hypeRows}
+          </div>
+        </div>
+      </div>
+
+      <div style="font-size:.6rem;color:var(--gold);letter-spacing:1.5px;font-weight:700;margin-bottom:.4rem">🏟 COMBINE STANDOUTS</div>
+      ${combineHtml}
+
+      <div style="text-align:center;margin:1.4rem 0 .8rem">
+        <button class="btn btn-gold" style="font-size:.85rem;padding:.6rem 2rem;letter-spacing:.6px;font-weight:900"
+          onclick="frnBeginDraftActual()">📋 BEGIN DRAFT →</button>
+        <div style="font-size:.58rem;color:var(--gray);margin-top:.35rem">${d.pickOrder?.length || 224} picks · ${(franchise.season||0)+1} season class</div>
+      </div>
+    </div>`;
 }
 
 // ── Compensatory picks ──────────────────────────────────────────────────────
@@ -13078,6 +13288,20 @@ function renderFrnDraft() {
   const d = franchise.draft;
   const myId = franchise.chosenTeamId;
   const myTeam = getTeam(myId);
+
+  // Pre-draft show — combine + mock + headliners. Once-only per draft.
+  // Existing saves that already had a draft in progress before this
+  // feature shipped land here with preshowDone undefined; default to
+  // true for those so we don't bounce mid-draft sessions back to the
+  // pre-show. New drafts started after this commit go through the
+  // pre-show first via frnGoToDraft.
+  if (d && d.preshowDone === false) {
+    renderFrnDraftPreshow();
+    return;
+  }
+  if (d && d.preshowDone === undefined) {
+    d.preshowDone = true; // legacy safeguard
+  }
 
   // Auto-advance AI picks until it's user's turn or draft is over
   let aiAdvanced = 0;
