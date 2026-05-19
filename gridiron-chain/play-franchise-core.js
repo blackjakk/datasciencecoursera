@@ -1459,7 +1459,8 @@ const POSITION_COACH_GROUPS = ["QB","OL","Skill","DL","LB/DB"];
 const DEPTH_CHART_SLOTS = {
   offense: [
     { key:"QB",  pos:"QB", snapFloor:95, flex:[] },
-    { key:"RB1", pos:"RB", flex:[] },
+    { key:"RB1", pos:"RB", flex:["RB2"] },
+    { key:"RB2", pos:"RB", flex:[] },
     { key:"WR1", pos:"WR", flex:["WR2","WR3"] },
     { key:"WR2", pos:"WR", flex:["WR3","WR4"] },
     { key:"WR3", pos:"WR", flex:["WR4"] },
@@ -2331,6 +2332,48 @@ function _computeOptimalPct(starter, backup, snapFloor, snapCeil) {
 // Pure compute: returns { dc, ss } for the given team's auto-by-OVR chart
 // without mutating franchise state. Used by both _initDepthChart (apply)
 // and the depth chart UI's "would-change" preview / misplaced highlight.
+// Slot-specific stat weighting for auto-depth-chart assignment.
+// Without this, all OL players just sort by OVR and the highest-OVR
+// OL always lands at LT (even if his stat profile screams "Center").
+// Same problem at DL — interior vs edge are different skill sets.
+// The stat array index order is:
+//   [0]spd  [1]str  [2]agi  [3]awr  [4]thr  [5]cat
+//   [6]blk  [7]prs  [8]cov  [9]tck  [10]kpw
+const _SLOT_FIT_WEIGHTS = {
+  // OL slots — each gets a different stat mix
+  LT:  { weights: { 2:.30, 6:.30, 7:.30, 1:.10 }, label: "Pass-protector" },
+  LG:  { weights: { 6:.45, 1:.40, 3:.15 },        label: "Interior power" },
+  C:   { weights: { 3:.30, 6:.40, 1:.20, 2:.10 }, label: "Snap + IQ" },
+  RG:  { weights: { 6:.45, 1:.40, 3:.15 },        label: "Interior power" },
+  RT:  { weights: { 6:.35, 1:.30, 7:.25, 2:.10 }, label: "Balanced T/G" },
+  // DL slots — DL1/DL4 are edge (pass-rush), DL2/DL3 are interior (run-stop)
+  DL1: { weights: { 7:.40, 0:.30, 2:.15, 1:.15 }, label: "Edge rusher" },
+  DL2: { weights: { 1:.40, 9:.30, 6:.10, 7:.20 }, label: "Interior DT" },
+  DL3: { weights: { 1:.40, 9:.30, 6:.10, 7:.20 }, label: "Interior DT" },
+  DL4: { weights: { 7:.40, 0:.30, 2:.15, 1:.15 }, label: "Edge rusher" },
+};
+
+// Slot fit score for a player — combines their OVR (baseline) with the
+// slot-specific stat weighting (specialization). Returns a number where
+// higher = better fit. OVR contributes 60% so a great player isn't
+// passed over for a slot-specialist with bad OVR; specialization is the
+// other 40%.
+function _slotFitScore(player, slotKey) {
+  const ovr = player.overall || 60;
+  const spec = _SLOT_FIT_WEIGHTS[slotKey];
+  if (!spec) return ovr;
+  const stats = player.stats || [];
+  let weighted = 0;
+  let totalW = 0;
+  for (const [idx, w] of Object.entries(spec.weights)) {
+    weighted += (stats[Number(idx)] || 50) * w;
+    totalW += w;
+  }
+  const fit = totalW > 0 ? weighted / totalW : 50;
+  // Blend: 60% OVR baseline + 40% slot specialization (rescaled to OVR range)
+  return ovr * 0.6 + fit * 0.4;
+}
+
 function _computeAutoDepthChart(teamId) {
   const roster = franchise.rosters[teamId] || [];
   const byPos = {};
@@ -2341,9 +2384,6 @@ function _computeAutoDepthChart(teamId) {
   for (const grp of Object.values(byPos)) grp.sort((a,b) => (b.overall||60) - (a.overall||60));
 
   const used = new Set();
-  const next = pos => (byPos[pos] || []).find(p => !used.has(p.pid)) ?? null;
-  const take = p  => { if (p) used.add(p.pid); return p; };
-
   const dc = {};
   const ss = {};
   const allSlots = [
@@ -2352,7 +2392,37 @@ function _computeAutoDepthChart(teamId) {
     ...DEPTH_CHART_SLOTS.specialTeams,
   ];
 
-  for (const slotDef of allSlots) {
+  // Three-pass starter assignment:
+  //   Pass 1 — slots WITH slot-fit weighting (LT/LG/C/RG/RT, DL1-4).
+  //            Pick the unused player with highest fit score per slot.
+  //   Pass 2 — everything else (QB, RB, WR, etc.). Pure OVR by position.
+  //   Pass 3 — RET slots (KR1/PR1). Drawn from speed-skill positions
+  //            (WR/RB/CB/S), with their own usedAsReturner set so a
+  //            returner can ALSO be a starter elsewhere (most returners
+  //            in real NFL are WR3/4 or backup RB/CB doubling up).
+  const retSlots = allSlots.filter(sd => sd.pos === "RET");
+  const fitSlots = allSlots.filter(sd => sd.pos !== "RET" && _SLOT_FIT_WEIGHTS[sd.key]);
+  const otherSlots = allSlots.filter(sd => sd.pos !== "RET" && !_SLOT_FIT_WEIGHTS[sd.key]);
+
+  for (const slotDef of fitSlots) {
+    const pool = (byPos[slotDef.pos] || []).filter(p => !used.has(p.pid));
+    if (!pool.length) { dc[slotDef.key] = { starter:null, backup:null, flex:slotDef.flex, snapFloor:slotDef.snapFloor??35, snapCeil:slotDef.snapCeil??98 }; continue; }
+    pool.sort((a, b) => _slotFitScore(b, slotDef.key) - _slotFitScore(a, slotDef.key));
+    const starter = pool[0];
+    used.add(starter.pid);
+    dc[slotDef.key] = {
+      starter:   starter.pid,
+      backup:    null,
+      flex:      slotDef.flex,
+      snapFloor: slotDef.snapFloor ?? 35,
+      snapCeil:  slotDef.snapCeil  ?? 98,
+    };
+  }
+
+  const next = pos => (byPos[pos] || []).find(p => !used.has(p.pid)) ?? null;
+  const take = p  => { if (p) used.add(p.pid); return p; };
+
+  for (const slotDef of otherSlots) {
     const starter = take(next(slotDef.pos));
     dc[slotDef.key] = {
       starter:   starter?.pid ?? null,
@@ -2361,6 +2431,33 @@ function _computeAutoDepthChart(teamId) {
       snapFloor: slotDef.snapFloor ?? 35,
       snapCeil:  slotDef.snapCeil  ?? 98,
     };
+  }
+
+  // Returner pass — KR1/PR1. Eligible positions per slot. Sort by
+  // speed+agility (the returner traits). Doesn't share the global
+  // `used` set since returners ALSO play their normal position; they
+  // just see the field on change-of-possession plays.
+  const usedAsReturner = new Set();
+  for (const slotDef of retSlots) {
+    const eligibleFor = slotDef.retEligible || ["WR", "RB", "CB", "S"];
+    const pool = roster
+      .filter(p => eligibleFor.includes(p.position) && !usedAsReturner.has(p.pid))
+      .sort((a, b) => {
+        const aSpd = (a.stats || [])[0] || 50;
+        const aAgi = (a.stats || [])[2] || 50;
+        const bSpd = (b.stats || [])[0] || 50;
+        const bAgi = (b.stats || [])[2] || 50;
+        return (bSpd + bAgi) - (aSpd + aAgi);
+      });
+    const starter = pool[0] || null;
+    dc[slotDef.key] = {
+      starter:   starter?.pid ?? null,
+      backup:    null,
+      flex:      slotDef.flex,
+      snapFloor: slotDef.snapFloor ?? 6,
+      snapCeil:  slotDef.snapCeil  ?? 98,
+    };
+    if (starter) usedAsReturner.add(starter.pid);
   }
 
   const slotsByPos = {};
@@ -2380,7 +2477,17 @@ function _computeAutoDepthChart(teamId) {
     const slotIdx  = posSlots.findIndex(s => s.key === slotDef.key);
     let backupPid  = null;
 
-    if (cascadePos.has(slotDef.pos) && slotIdx < posSlots.length - 1) {
+    if (slotDef.pos === "RET") {
+      // Returner backups come from the same speed-skill pool, excluding
+      // anyone already assigned as a returner.
+      const eligibleFor = slotDef.retEligible || ["WR", "RB", "CB", "S"];
+      const pool = roster
+        .filter(p => eligibleFor.includes(p.position)
+                  && p.pid !== dc[slotDef.key]?.starter
+                  && !usedAsReturner.has(p.pid))
+        .sort((a, b) => ((b.stats?.[0]||50) + (b.stats?.[2]||50)) - ((a.stats?.[0]||50) + (a.stats?.[2]||50)));
+      if (pool[0]) { backupPid = pool[0].pid; usedAsReturner.add(pool[0].pid); }
+    } else if (cascadePos.has(slotDef.pos) && slotIdx < posSlots.length - 1) {
       backupPid = dc[posSlots[slotIdx + 1].key]?.starter ?? null;
     } else {
       const groupStarterPids = new Set(posSlots.map(s => dc[s.key]?.starter).filter(Boolean));

@@ -3008,17 +3008,18 @@ function renderFrnAlumni(yearsBackArg) {
 // Maps each position group to its ordered slot keys in franchise.depthChart.
 // Order within slots[] defines depth order (index 0 = starter / most snaps).
 const DEPTH_POS_GROUPS = [
-  { pos:"QB", label:"QUARTERBACK",    slots:["QB"],                    unit:"OFF" },
-  { pos:"RB", label:"RUNNING BACK",   slots:["RB1"],                   unit:"OFF" },
-  { pos:"WR", label:"WIDE RECEIVER",  slots:["WR1","WR2","WR3","WR4"], unit:"OFF" },
-  { pos:"TE", label:"TIGHT END",      slots:["TE1","TE2"],             unit:"OFF" },
-  { pos:"OL", label:"OFFENSIVE LINE", slots:["LT","LG","C","RG","RT"], unit:"OFF" },
-  { pos:"DL", label:"DEFENSIVE LINE", slots:["DL1","DL2","DL3","DL4"], unit:"DEF" },
-  { pos:"LB", label:"LINEBACKER",     slots:["LB1","LB2","LB3"],       unit:"DEF" },
-  { pos:"CB", label:"CORNERBACK",     slots:["CB1","CB2","NB"],        unit:"DEF" },
-  { pos:"S",  label:"SAFETY",         slots:["SS","FS"],               unit:"DEF" },
-  { pos:"K",  label:"KICKER",         slots:["K"],                     unit:"ST"  },
-  { pos:"P",  label:"PUNTER",         slots:["P"],                     unit:"ST"  },
+  { pos:"QB",  label:"QUARTERBACK",    slots:["QB"],                    unit:"OFF" },
+  { pos:"RB",  label:"RUNNING BACK",   slots:["RB1","RB2"],             unit:"OFF" },
+  { pos:"WR",  label:"WIDE RECEIVER",  slots:["WR1","WR2","WR3","WR4"], unit:"OFF" },
+  { pos:"TE",  label:"TIGHT END",      slots:["TE1","TE2"],             unit:"OFF" },
+  { pos:"OL",  label:"OFFENSIVE LINE", slots:["LT","LG","C","RG","RT"], unit:"OFF" },
+  { pos:"DL",  label:"DEFENSIVE LINE", slots:["DL1","DL2","DL3","DL4"], unit:"DEF" },
+  { pos:"LB",  label:"LINEBACKER",     slots:["LB1","LB2","LB3"],       unit:"DEF" },
+  { pos:"CB",  label:"CORNERBACK",     slots:["CB1","CB2","NB"],        unit:"DEF" },
+  { pos:"S",   label:"SAFETY",         slots:["SS","FS"],               unit:"DEF" },
+  { pos:"K",   label:"KICKER",         slots:["K"],                     unit:"ST"  },
+  { pos:"P",   label:"PUNTER",         slots:["P"],                     unit:"ST"  },
+  { pos:"RET", label:"RETURNERS",      slots:["KR1","PR1"],             unit:"ST"  },
 ];
 
 const DEPTH_UNIT_LABELS = {
@@ -3028,10 +3029,54 @@ const DEPTH_UNIT_LABELS = {
 };
 
 function _depthSlotLabel(slotKey, idx) {
-  const named = { LT:"★ LT", LG:"★ LG", C:"★ C", RG:"★ RG", RT:"★ RT",
-                  SS:"★ SS", FS:"★ FS", NB:"NICKEL", K:"★ KICKER", P:"★ PUNTER" };
+  const named = {
+    LT:"★ LT", LG:"★ LG", C:"★ C", RG:"★ RG", RT:"★ RT",
+    SS:"★ SS", FS:"★ FS", NB:"NICKEL",
+    K:"★ KICKER", P:"★ PUNTER",
+    KR1:"★ KICK RETURN", PR1:"★ PUNT RETURN",
+    RB1:"★ RB", RB2:"#2 RB",
+  };
   if (named[slotKey]) return named[slotKey];
   return idx === 0 ? "★ STARTER" : `#${idx + 1}`;
+}
+
+// Build the "if this starter is injured" cascade chain as plain text
+// (uses \n for the browser's native tooltip line breaks). Walks the
+// depth chart starting from slotKey: backup steps up, if backup is a
+// starter elsewhere then that slot needs filling too, repeat. Stops
+// when no further fill is needed or there's no replacement.
+function _buildInjuryCascadeText(slotKey, dc, byPid) {
+  const chain = [];
+  let curKey = slotKey;
+  const visited = new Set();
+  while (curKey && !visited.has(curKey)) {
+    visited.add(curKey);
+    const slot = dc[curKey];
+    if (!slot?.starter) break;
+    const backupPid = slot.backup;
+    const backup = backupPid ? byPid[backupPid] : null;
+    if (!backup) {
+      chain.push(`${curKey}: ⚠ NO BACKUP — slot empty`);
+      break;
+    }
+    // Check if backup is a starter elsewhere (cascade)
+    let cascadeFrom = null;
+    for (const [otherKey, otherSlot] of Object.entries(dc)) {
+      if (otherKey !== curKey && otherSlot.starter === backupPid) {
+        cascadeFrom = otherKey;
+        break;
+      }
+    }
+    if (cascadeFrom) {
+      chain.push(`${curKey}: ${backup.name} (OVR ${backup.overall}) moves up from ${cascadeFrom}`);
+      curKey = cascadeFrom;
+    } else {
+      chain.push(`${curKey}: ${backup.name} (OVR ${backup.overall}) starts`);
+      break;
+    }
+  }
+  if (!chain.length) return "";
+  return `If injured — cascade chain:\n${chain.join("\n")}`;
 }
 
 // Swap starters at slots[idx] and slots[idx+1] within a position group,
@@ -3185,7 +3230,14 @@ function renderFrnDepthChart() {
     const rankLabel = isStarter ? "★1" : (isCascade ? "⤴" : "▸2");
     const rankClass = isStarter ? "r1"  : (isCascade ? "rc" : "r2");
 
-    return `<div class="frn-dc-player ${isStarter?"s1":isCascade?"sc":"s2"}${isInjured?" injured":""}${misplaced?" misplaced":""}">
+    // Injury cascade tooltip — only on starters. Shows the chain of
+    // replacements if this player gets hurt (helps user spot fragile
+    // positions where a single injury would cascade badly).
+    const cascadeTitle = isStarter
+      ? _buildInjuryCascadeText(slotKey, dc, byPid)
+      : "";
+    const titleAttr = cascadeTitle ? ` title="${cascadeTitle.replace(/"/g, "&quot;")}"` : "";
+    return `<div class="frn-dc-player ${isStarter?"s1":isCascade?"sc":"s2"}${isInjured?" injured":""}${misplaced?" misplaced":""}"${titleAttr}>
       <span class="frn-dc-rank ${rankClass}">${rankLabel}</span>
       ${gradeBadge(p)}
       <span class="frn-dc-name" onclick="frnOpenPlayerCard('${escName}','${escPid}')">${p.name}</span>
@@ -3316,7 +3368,7 @@ function renderFrnDepthChart() {
   // ── Unit strength strip ───────────────────────────────────────────────────
   const unitGroups = [
     { label:"QB", slots:["QB"] },
-    { label:"RB", slots:["RB1"] },
+    { label:"RB", slots:["RB1","RB2"] },
     { label:"WR", slots:["WR1","WR2","WR3","WR4"] },
     { label:"TE", slots:["TE1","TE2"] },
     { label:"OL", slots:["LT","LG","C","RG","RT"] },
