@@ -3507,34 +3507,74 @@ function _faMultiYearCapProjection(years = 4, source = "auto") {
   }));
 }
 
-// Top cut candidates ranked by net savings (aav − dead cap when
-// released). Excludes already-queued cuts. Used by the SUGGESTED CUTS
-// widget on the FA pool screen to give the user a quick path to
-// finding cap room without scrolling the full roster.
+// Top cut candidates — ranked by a SCORE that combines net savings
+// with "should we cut this guy" signals (age, decline, role), NOT
+// pure savings (which would always surface the highest-paid player —
+// usually your star QB). Hard excludes prevent ever suggesting a
+// cornerstone player; soft signals re-rank within the candidate pool.
 function _faSuggestedCuts(teamId, alreadyCut, n = 5) {
   const roster = franchise.rosters[teamId] || [];
   const cutSet = new Set(alreadyCut || []);
+  // Starters by depth chart — they get extra protection (negative score)
+  const dcStarters = new Set();
+  for (const slot of Object.values(franchise.depthChart?.[teamId] || {})) {
+    if (slot?.starter) dcStarters.add(slot.starter);
+  }
+  // Premium positions where you almost never cut a starter
+  const PREMIUM = new Set(["QB", "OT", "LT", "RT", "EDGE", "DL", "CB"]);
+
   const candidates = [];
   for (const p of roster) {
     if (!p.contract || cutSet.has(p.name)) continue;
     const aav = p.contract.aav || 0;
-    if (aav < 1.0) continue; // sub-$1M deals aren't meaningful cap moves
+    if (aav < 1.5) continue; // sub-$1.5M deals don't move the needle
+    const ovr = p.overall || 70;
+    const age = p.age || 27;
+    const isStarter = dcStarters.has(p.name);
+
+    // ── HARD EXCLUDES — never suggest cutting cornerstone talent ──
+    if (ovr >= 82) continue;                         // good starter or better
+    if (age <= 25 && ovr >= 75) continue;            // young developing player
+    if (p.position === "QB" && isStarter && ovr >= 70) continue; // starting QB unless awful
+    if (p.position === "QB" && ovr >= 78) continue;  // any QB at 78+ is a real asset
+    if (isStarter && PREMIUM.has(p.position) && ovr >= 76) continue; // premium starter
+
     const { perYear: dPY, years: dYrs } = deadCapOnRelease(p);
     const deadTotal = dPY * dYrs;
-    const netSavings = aav - dPY; // first-year savings (most relevant)
-    if (netSavings < 0.5) continue;
-    const declineRisk = (p.age || 27) >= 31 || (p.overall || 70) < 72;
+    const netSavings = aav - dPY; // first-year cap savings (what FA cares about)
+    if (netSavings < 1.0) continue;
+
+    // ── Rank score — favors cuts that make football sense ──
+    // The savings amount is the base; the bonuses pile on for cuts
+    // the user "should" make (aging vets, fell-off-deal players,
+    // expensive backups). Penalties for high-value or premium-role
+    // players bring their score back down even if savings are big.
+    const signedOvr = p.contract?.signedOvr || ovr;
+    const declineDelta = Math.max(0, signedOvr - ovr);
+    const ageScore   = age >= 34 ? 6 : age >= 32 ? 4 : age >= 30 ? 2 : 0;
+    const declineScore = declineDelta * 0.8;
+    const depthScore = !isStarter && aav >= 3 ? 2 : 0; // expensive backup
+    const ovrPenalty = ovr >= 79 ? -3 : ovr >= 76 ? -1 : 0;
+    const positionPenalty = p.position === "QB" ? -8
+                          : PREMIUM.has(p.position) && isStarter ? -3 : 0;
+    const score = netSavings + ageScore + declineScore + depthScore + ovrPenalty + positionPenalty;
+    if (score < 1.5) continue; // don't suggest weak cases
+
+    // Human-readable reason for the suggestion (shown in the widget)
+    const reason = age >= 32 ? "aging vet"
+                 : declineDelta >= 5 ? "fell off the deal"
+                 : !isStarter && aav >= 4 ? "expensive backup"
+                 : ovr < 72 ? "depth piece on starter money"
+                 : "trim cap space";
+
     candidates.push({
       player: p,
-      aav,
-      deadPY: dPY,
-      deadYrs: dYrs,
-      deadTotal,
-      netSavings,
-      declineRisk,
+      aav, deadPY: dPY, deadYrs: dYrs, deadTotal,
+      netSavings, score, reason,
+      declineRisk: age >= 32 || declineDelta >= 4,
     });
   }
-  candidates.sort((a, b) => b.netSavings - a.netSavings);
+  candidates.sort((a, b) => b.score - a.score);
   return candidates.slice(0, n);
 }
 
@@ -4350,13 +4390,12 @@ function renderFrnFA(selectedKey) {
             const dead = s.deadTotal >= 0.5
               ? `<span style="color:#ff9090;font-size:.5rem">☠$${s.deadTotal.toFixed(1)}M</span>`
               : `<span style="color:var(--green-lt);font-size:.5rem">clean</span>`;
-            const decline = s.declineRisk ? `<span style="font-size:.5rem;color:#e8a000">⚠</span>` : "";
             return `<div style="display:grid;grid-template-columns:1.5rem 1fr 2.3rem 1.3rem;gap:.3rem;padding:.22rem .3rem;background:rgba(255,255,255,.02);font-size:.6rem;align-items:baseline;margin-bottom:.12rem;border-radius:3px">
               <span style="color:var(--blgray);font-weight:700;font-size:.55rem">${s.player.position}</span>
-              <span style="color:var(--blwhite);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.player.name} ${decline}</span>
+              <span style="color:var(--blwhite);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.player.name}</span>
               <span style="color:var(--green-lt);font-weight:700;text-align:right;font-size:.6rem">+$${s.netSavings.toFixed(1)}M</span>
               <button onclick="frnFAToggleCut('${sel.replace(/'/g,"\\'")}','${escName}',true)" style="background:rgba(255,70,70,.18);border:1px solid #ff6b6b;color:#ffaaaa;font-size:.52rem;padding:.1rem .25rem;border-radius:3px;cursor:pointer;font-family:inherit;font-weight:700">CUT</button>
-              <span style="grid-column:2/4;color:var(--gray);font-size:.5rem;padding-left:0">${dead} · ${s.player.age}yr · OVR ${s.player.overall}</span>
+              <span style="grid-column:2/4;color:var(--gray);font-size:.5rem;padding-left:0">${dead} · ${s.player.age}yr · OVR ${s.player.overall} · <i style="color:#e8a000">${s.reason}</i></span>
             </div>`;
           }).join("");
           return `<div style="padding:.4rem .5rem;background:rgba(255,107,107,.06);border:1px solid rgba(255,107,107,.18);border-radius:4px;margin-bottom:.5rem">
