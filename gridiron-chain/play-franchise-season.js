@@ -3072,9 +3072,21 @@ function _buildPlayerDetailPanel(p) {
         ${potTag ? `<div style="margin-top:.2rem;font-size:.62rem;color:var(--gold-lt);font-weight:700">${potTag}</div>` : ""}
       </div>
       <div style="text-align:right;flex-shrink:0">
-        <div style="color:var(--gray);font-size:.55rem;letter-spacing:.5px">GRADE</div>
-        <div style="font-size:1.6rem;font-weight:900;color:var(--gold);line-height:1"
-          title="Scout grade — observers' estimate, not exact ability">${gL}</div>
+        ${(() => {
+          if (owned) {
+            // Owned players show the exact OVR — staff knows their guys.
+            // Letter grade follows underneath as a quick tier read.
+            const ovr = p.overall || 0;
+            const ovrColor = ovr >= 90 ? "#f5c542" : ovr >= 85 ? "#e8a000" : ovr >= 78 ? "#c8c8c8" : ovr >= 70 ? "#9b9b9b" : "#7a7a7a";
+            return `<div style="color:var(--gray);font-size:.55rem;letter-spacing:.5px">OVR</div>
+              <div style="font-size:1.9rem;font-weight:900;color:${ovrColor};line-height:1;font-family:'Bebas Neue','Anton',sans-serif"
+                title="Real OVR — your staff knows your roster precisely">${ovr}</div>
+              <div style="color:var(--gray);font-size:.6rem;margin-top:.1rem">${gL}</div>`;
+          }
+          return `<div style="color:var(--gray);font-size:.55rem;letter-spacing:.5px">GRADE</div>
+            <div style="font-size:1.6rem;font-weight:900;color:var(--gold);line-height:1"
+              title="Scout grade — observers' estimate, not exact ability">${gL}</div>`;
+        })()}
         <div style="color:var(--gold);font-size:.85rem;font-weight:700;margin-top:.4rem">$${aav.toFixed(1)}M/yr</div>
         <div style="color:var(--gray);font-size:.62rem">${yrs}yr left</div>
       </div>
