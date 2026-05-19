@@ -285,24 +285,34 @@ function pickLastName() {
   return a;
 }
 
-// ── Earned nicknames — only league-wide top 10 in their position get one,
-// and the nickname is chosen based on WHAT THEY'RE KNOWN FOR (their dominant
-// stat). Truck-stick RBs get Samson/Goliath; speed RBs get Asahel/Gabriel;
-// shutdown CBs get Argus/Seraph; sack-demon DLs get Baal/Belial; etc.
-// Greatly expanded nickname categories — cross-cultural mythology so we have
-// enough unique nicknames to cover 80+ league-top players without duplicates.
-const NICK_POWER   = ["Samson","Goliath","Behemoth","Og","Nimrod","Hercules","Atlas","Maximus","Titan","Colossus","Spartan","Antaeus","Talos","Bjorn","Surt","Ymir","Beowulf","Cuchulainn","Grendel"];
-const NICK_SWIFT   = ["Asahel","Gabriel","Camael","Mercury","Hermes","Apollo","Eolus","Zephyr","Boreas","Quetzal","Sleipnir","Garuda"];
-const NICK_TRICK   = ["Jacob","Esau","Reynard","Loki","Coyote","Anansi","Kitsune","Tezcat","Hermes","Puck","Mab"];
-const NICK_SAGE    = ["Methuselah","Solomon","Daniel","Isaiah","Job","Ezekiel","Nestor","Plato","Socrates","Cicero","Confucius","Lao","Vyasa","Imhotep"];
-const NICK_DEMON   = ["Baal","Belial","Asmodeus","Leviathan","Moloch","Abaddon","Azazel","Lilith","Beelzebub","Mammon","Shaitan","Astaroth","Bael","Mephistopheles","Pazuzu","Set","Apep","Surtur","Fenrir","Jormungandr","Hel","Cthulhu","Dagon","Tiamat","Vritra","Rakshasa","Kali"];
-const NICK_HEAVENLY= ["Gabriel","Michael","Raphael","Uriel","Metatron","Sandalphon","Camael","Zadkiel","Israfil","Cassiel","Jophiel","Chamuel","Ariel","Ramiel","Selaphiel"];
-const NICK_WATCH   = ["Argus","Seraph","Cherub","Watcher","Heimdall","Sentinel","Hawkeye","Vidar","Lynx","Mim","Ekek","Janus"];
-const NICK_KING    = ["David","Solomon","Saul","Cyrus","Augustus","Caesar","Aurelius","Hadrian","Charlemagne","Tamerlane","Arthur","Pharaoh","Kang","Mansa"];
-const NICK_WARRIOR = ["Joshua","Caleb","Gideon","Achilles","Hector","Ajax","Leonidas","Perseus","Theseus","Hannibal","Spartacus","Roland","El Cid","Bushido","Musashi","Saladin","Shaka"];
-const NICK_HUNTER  = ["Nimrod","Orion","Skadi","Diana","Artemis","Mara","Tlaloc"];
-const NICK_HANDS   = ["Methuselah","Solomon","Boaz","Job","Ezekiel","Daniel","Plato"];
-const NICK_DOMINATOR=["Hercules","Maximus","Titan","Colossus","Talos","Megalos","Goliath","Cyclops"];
+// ── Earned nicknames — limited to true stars (OVR ≥ 85 AND
+// MVP/All-Pro/2×PB resume). Roughly 15-30 nicknamed players in any
+// era. Pools are NFL-flavored archetypes: animals, vehicles, weather,
+// action-movie villains, "Mr. X" — not biblical mythology. Routing
+// uses the player's dominant stat to pick a thematically-fitting pool.
+
+// POWER ARM / TRUCK / WALL — earth-shaking, immovable
+const NICK_HEAVY     = ["The Cannon","The Howitzer","The Hammer","The Sledge","The Anvil","The Tank","The Bulldozer","The Wrecking Ball","Big Country","The Mountain","The Rhino","The Bull","Earthquake","The Slab"];
+// SPEED — animals + projectiles + weather
+const NICK_FAST      = ["The Cheetah","The Burner","Lightning","The Bullet","The Comet","Quicksilver","The Streak","Flash","The Roadrunner","Mach","Greased Lightning","The Phantom"];
+// CEREBRAL / SURGICAL — QBs, route artists, ball-hawks
+const NICK_SURGEON   = ["The Surgeon","The Sniper","The Architect","The Maestro","The Conductor","The Professor","The Tactician","Captain Cool","Iceman","The Brain","The Chess Piece","The Mechanic"];
+// SHOWMAN / TRICKSTER — mobile QBs, elusive RBs/WRs
+const NICK_TRICKSTER = ["Houdini","The Magician","The Showman","The Wizard","The Joker","The Snake","The Eel","Spider","Twinkletoes","Skitters","The Ghost","Sleight"];
+// CLOSER / ASSASSIN — clutch + finishers
+const NICK_CLOSER    = ["The Closer","The Finisher","The Sandman","Lights Out","The Reaper","The Predator","Nightmare","The Specter","Mr. November","The Hitman","The Punisher","The Executioner"];
+// HANDS / LOCKDOWN — receivers + tight coverage
+const NICK_HANDS_NEW = ["Sticky","Sticky Fingers","Velcro","The Vacuum","The Magnet","Captain Catch","The Mitt","The Glove","Touchdown","The Magnet"];
+// LOCK / VAULT / SHADOW — shutdown cover guys
+const NICK_LOCK      = ["The Lock","The Vault","The Cage","The Cell","Padlock","The Shadow","The Eraser","The Bouncer","The Wall","The Curtain"];
+// THIEF / HAWK — INT-getters, ball production
+const NICK_HAWK      = ["The Hawk","Hawkeye","The Thief","The Pickpocket","The Bandit","The Robber","Honey Badger","The Heat"];
+// HUNTER / HEAT-SEEKER — pursuit pass rush + missile-style LBs
+const NICK_HUNTER_NEW= ["The Hunter","Heat-Seeker","The Missile","Bullet","Cruiser","The Strike","The Heat"];
+// MR. X / PERSONALITY — captains, cerebral leaders, lifelong vets
+const NICK_MISTER    = ["Mr. Reliable","Mr. Clutch","Mr. November","Mr. October","The Captain","The General","The Mayor","Prime","The Kid","The Mailman"];
+// MEGA / ICONIC — for the rare single-name Madonna/Pelé tier
+const NICK_ICONIC    = ["Megatron","Beast","Prime","Truck","Mossburger","Skyscraper","The Freak","Air","Boss","Crash","Volt","Apex","Reaper","Specter","Phantom"];
 
 // Pull a nickname from a pool, filtering out any in `taken`. Returns null
 // only if the pool is fully exhausted (callers fall through to other pools).
@@ -337,75 +347,81 @@ function pickCareerNickname(player, taken = null) {
     const delta = (statMap[k] - m[k]);
     if (delta > dominantDelta) { dominantDelta = delta; dominant = k; }
   }
-  // Build a list of pools in priority order for this (pos, dominant) combo.
-  // We try the first; if exhausted, fall through to the next, etc.
+  // Pool routing by (position × dominant stat). Each route returns a
+  // priority list — try the first, fall through if exhausted.
   let pools = [];
-  if (pos === "RB") {
-    if (dominant === "str")      pools = [NICK_POWER, NICK_DOMINATOR, NICK_WARRIOR];
-    else if (dominant === "spd") pools = [NICK_SWIFT, NICK_HEAVENLY, NICK_WARRIOR];
-    else if (dominant === "agi") pools = [NICK_TRICK, NICK_HUNTER, NICK_WARRIOR];
-    else if (dominant === "cat") pools = [NICK_HANDS, NICK_SAGE];
-    else                          pools = [NICK_WARRIOR, NICK_KING];
+  if (pos === "QB") {
+    if (dominant === "thr")      pools = [NICK_HEAVY, NICK_CLOSER, NICK_MISTER];
+    else if (dominant === "awr") pools = [NICK_SURGEON, NICK_MISTER, NICK_CLOSER];
+    else if (dominant === "spd" || dominant === "agi")
+                                  pools = [NICK_TRICKSTER, NICK_SURGEON];
+    else                          pools = [NICK_SURGEON, NICK_MISTER];
+  } else if (pos === "RB") {
+    if (dominant === "str")      pools = [NICK_HEAVY, NICK_CLOSER];
+    else if (dominant === "spd") pools = [NICK_FAST, NICK_HEAVY];
+    else if (dominant === "agi") pools = [NICK_TRICKSTER, NICK_FAST];
+    else if (dominant === "cat") pools = [NICK_HANDS_NEW, NICK_SURGEON];
+    else                          pools = [NICK_MISTER, NICK_HEAVY];
   } else if (pos === "WR") {
-    if (dominant === "spd")      pools = [NICK_SWIFT, NICK_HEAVENLY];
-    else if (dominant === "cat") pools = [NICK_HANDS, NICK_SAGE];
-    else if (dominant === "agi") pools = [NICK_TRICK, NICK_SAGE];
-    else if (dominant === "awr") pools = [NICK_SAGE, NICK_HEAVENLY];
-    else                          pools = [NICK_HEAVENLY, NICK_SWIFT];
-  } else if (pos === "QB") {
-    if (dominant === "thr")      pools = [NICK_DOMINATOR, NICK_POWER, NICK_KING];
-    else if (dominant === "awr") pools = [NICK_SAGE, NICK_KING];
-    else if (dominant === "spd") pools = [NICK_WARRIOR, NICK_KING];
-    else if (dominant === "agi") pools = [NICK_WARRIOR, NICK_TRICK];
-    else                          pools = [NICK_KING, NICK_SAGE];
-  } else if (pos === "DL") {
-    if (dominant === "prs")      pools = [NICK_DEMON];
-    else if (dominant === "str") pools = [NICK_POWER, NICK_DEMON, NICK_DOMINATOR];
-    else if (dominant === "spd") pools = [NICK_DEMON, NICK_SWIFT];
-    else                          pools = [NICK_DEMON, NICK_POWER];
-  } else if (pos === "LB") {
-    if (dominant === "tck")      pools = [NICK_POWER, NICK_DOMINATOR, NICK_DEMON];
-    else if (dominant === "cov") pools = [NICK_HEAVENLY, NICK_WATCH];
-    else if (dominant === "prs") pools = [NICK_DEMON];
-    else if (dominant === "spd") pools = [NICK_SWIFT, NICK_HEAVENLY];
-    else                          pools = [NICK_WARRIOR, NICK_HEAVENLY];
-  } else if (pos === "CB") {
-    if (dominant === "cov")      pools = [NICK_WATCH, NICK_HEAVENLY];
-    else if (dominant === "spd") pools = [NICK_SWIFT, NICK_HEAVENLY];
-    else if (dominant === "agi") pools = [NICK_TRICK, NICK_WATCH];
-    else if (dominant === "awr") pools = [NICK_SAGE, NICK_WATCH];
-    else                          pools = [NICK_WATCH, NICK_HEAVENLY];
-  } else if (pos === "S") {
-    if (dominant === "tck")      pools = [NICK_POWER, NICK_DEMON];
-    else if (dominant === "cov") pools = [NICK_WATCH, NICK_HEAVENLY];
-    else if (dominant === "awr") pools = [NICK_SAGE, NICK_WATCH];
-    else                          pools = [NICK_WATCH, NICK_HEAVENLY];
+    if (dominant === "spd")      pools = [NICK_FAST, NICK_TRICKSTER];
+    else if (dominant === "cat") pools = [NICK_HANDS_NEW, NICK_SURGEON];
+    else if (dominant === "agi") pools = [NICK_TRICKSTER, NICK_FAST];
+    else if (dominant === "awr") pools = [NICK_SURGEON, NICK_MISTER];
+    else                          pools = [NICK_SURGEON, NICK_HANDS_NEW];
   } else if (pos === "TE") {
-    if (dominant === "blk")      pools = [NICK_POWER, NICK_DOMINATOR];
-    else if (dominant === "cat") pools = [NICK_HANDS, NICK_SAGE];
-    else                          pools = [NICK_WARRIOR, NICK_POWER];
+    if (dominant === "blk")      pools = [NICK_HEAVY, NICK_LOCK];
+    else if (dominant === "cat") pools = [NICK_HANDS_NEW, NICK_SURGEON];
+    else                          pools = [NICK_MISTER, NICK_HEAVY];
+  } else if (pos === "OL") {
+    if (dominant === "str" || dominant === "blk")
+                                  pools = [NICK_HEAVY, NICK_LOCK];
+    else if (dominant === "awr") pools = [NICK_MISTER, NICK_SURGEON];
+    else                          pools = [NICK_HEAVY, NICK_MISTER];
+  } else if (pos === "DL") {
+    if (dominant === "prs")      pools = [NICK_CLOSER, NICK_HUNTER_NEW];
+    else if (dominant === "str") pools = [NICK_HEAVY, NICK_CLOSER];
+    else if (dominant === "spd") pools = [NICK_FAST, NICK_HUNTER_NEW];
+    else                          pools = [NICK_CLOSER, NICK_HEAVY];
+  } else if (pos === "LB") {
+    if (dominant === "tck")      pools = [NICK_HEAVY, NICK_CLOSER];
+    else if (dominant === "cov") pools = [NICK_LOCK, NICK_SURGEON];
+    else if (dominant === "prs") pools = [NICK_CLOSER, NICK_HUNTER_NEW];
+    else if (dominant === "spd") pools = [NICK_HUNTER_NEW, NICK_FAST];
+    else                          pools = [NICK_MISTER, NICK_SURGEON];
+  } else if (pos === "CB") {
+    if (dominant === "cov")      pools = [NICK_LOCK, NICK_SURGEON];
+    else if (dominant === "spd") pools = [NICK_FAST, NICK_TRICKSTER];
+    else if (dominant === "awr") pools = [NICK_HAWK, NICK_SURGEON];
+    else                          pools = [NICK_LOCK, NICK_HAWK];
+  } else if (pos === "S") {
+    if (dominant === "tck")      pools = [NICK_CLOSER, NICK_HEAVY];
+    else if (dominant === "cov") pools = [NICK_LOCK, NICK_HAWK];
+    else if (dominant === "awr") pools = [NICK_MISTER, NICK_HAWK];
+    else                          pools = [NICK_HAWK, NICK_LOCK];
   } else {
-    pools = [NICK_WARRIOR];
+    pools = [NICK_MISTER];
   }
-  // Try each pool in order; last-ditch fallback is a number suffix on a random
-  // power name so we always return something unique.
+  // Try each pool in order; final fallback adds a Roman-numeral suffix.
   for (const pool of pools) {
     const pick = pickFromPool(pool, taken);
     if (pick) return pick;
   }
-  // Truly exhausted (shouldn't happen given pool sizes) — suffix fallback
+  // Truly exhausted — suffix fallback
   for (let n = 2; n < 99; n++) {
-    const base = NICK_POWER[Math.floor(Math.random() * NICK_POWER.length)];
+    const base = NICK_HEAVY[Math.floor(Math.random() * NICK_HEAVY.length)];
     const suffixed = `${base} ${n === 2 ? "II" : n === 3 ? "III" : "IV"}`;
     if (!taken || !taken.has(suffixed)) return suffixed;
   }
   return null;
 }
 
-// Assign career nicknames to the league's top 10 per position by overall.
-// Position-specific top-N: top 10 QBs, RBs, WRs (separate), TEs, etc. Once
-// assigned, a nickname persists on the player object — it doesn't get
-// overwritten if the player drops out of the top 10 next time.
+// Assign career nicknames to true league stars. Qualification gate:
+// OVR ≥ 85 AND (≥2 Pro Bowls OR ≥1 All-Pro OR ≥1 MVP). ~70% of
+// qualifiers acquire one — some elite players never get a nickname
+// (Russell Wilson never really had one). Top 5 per position is the
+// hard cap so the league doesn't accumulate 30 nicknamed QBs over a
+// decade. Result: ~15-30 nicknamed players in any era. Once given,
+// nicknames persist forever (no churn).
 function assignLeagueNicknames(rosters) {
   const allPlayers = [];
   for (const teamId of Object.keys(rosters)) {
@@ -423,28 +439,44 @@ function assignLeagueNicknames(rosters) {
       seen.set(p.nickname, p);
     }
   }
-  // Global "taken" set — no two players will share a nickname league-wide
   const taken = new Set(seen.keys());
-  const positions = ["QB","RB","WR","TE","DL","LB","CB","S"];
+  // Iconic single-name nicknames (Megatron/Pelé tier) — uses a separate
+  // restricted pool so they read as a generational icon, not just a
+  // longer nickname.
+  const takenIconic = new Set(
+    [...seen.values()].filter(p => p.goesByNicknameOnly).map(p => p.nickname)
+  );
+
+  const _qualifies = (p) =>
+    (p.overall || 0) >= 85 &&
+    ((p.mvps || 0) >= 1 || (p.allPros || 0) >= 1 || (p.proBowls || 0) >= 2);
+
+  const positions = ["QB","RB","WR","TE","OL","DL","LB","CB","S"];
   for (const pos of positions) {
-    const top10 = allPlayers
-      .filter(p => p.position === pos)
+    const eligible = allPlayers
+      .filter(p => p.position === pos && _qualifies(p))
       .sort((a, b) => (b.overall || 0) - (a.overall || 0))
-      .slice(0, 10);
-    for (const p of top10) {
+      .slice(0, 5);
+    for (const p of eligible) {
       if (p.nickname) continue;
+      // ~70% acquisition — some stars stay nameless
+      if (Math.random() >= 0.70) continue;
       const nick = pickCareerNickname(p, taken);
       if (!nick) continue;
       p.nickname = nick;
       taken.add(nick);
-      // GOES BY NICKNAME ONLY (~13%) — Madonna / Pelé / Ronaldinho style.
-      // Flag only — DO NOT rewrite p.name. Doing so would break every
-      // name-keyed lookup in the league (wire links, seasonStats,
-      // careerHistory cross-references, _findPlayer). The display layer
-      // checks this flag and renders just the nickname; the legal name
-      // stays intact for everything else.
-      if (Math.random() < 0.13) {
-        p.goesByNicknameOnly = true;
+      // ~3% GOES-BY-NICKNAME-ONLY (Megatron / Pelé / Madonna tier),
+      // pulled from a restricted iconic pool so the single name carries
+      // the right weight. Flag only — never overwrite p.name (would
+      // break every name-keyed lookup in the league).
+      if (Math.random() < 0.03 && (p.proBowls || 0) >= 3) {
+        const iconic = pickFromPool(NICK_ICONIC, takenIconic);
+        if (iconic) {
+          p.nickname = iconic;
+          taken.add(iconic);
+          takenIconic.add(iconic);
+          p.goesByNicknameOnly = true;
+        }
       }
     }
   }
