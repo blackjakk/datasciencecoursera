@@ -5022,35 +5022,24 @@ function _checkHoldoutDemands() {
   const roster = franchise.rosters[myId] || [];
   const cap = franchise.salaryCap || SALARY_CAP_BASE;
   franchise.holdoutDemands = franchise.holdoutDemands || [];
-  // Backfill startSeason on legacy contracts so the cooldown gate works
-  // for saves predating the stamp. Mid-season: remaining hasn't been
-  // decremented yet for THIS season — so years-remaining counts only
-  // PRIOR completed seasons under contract.
-  for (const p of roster) {
-    if (p?.contract && p.contract.startSeason == null) {
-      const elapsed = Math.max(0, (p.contract.years || 1) - (p.contract.remaining || 1));
-      p.contract.startSeason = (franchise.season || 1) - elapsed;
-    }
-  }
-  // New demand rolls — only for stars in their contract year, age ≤30
+  _backfillDemandFields(roster);
+  // New demand rolls — walk-year stars, gated by the unified pressure
+  // engine so the trigger logic matches the offseason detector.
   for (const p of roster) {
     if (!p.contract || p.contract.remaining !== 1) continue;
-    if ((p.overall || 0) < 85) continue;
-    if ((p.age || 0) > 30) continue;
-    if (p.injury?.weeksRemaining > 0) continue;
+    if ((p.age || 0) > 30) continue; // age gate for mid-season urgency only
     if (franchise.holdoutDemands.some(d => d.name === p.name)) continue;
-    // Cooldown: a player must have completed AT LEAST ONE FULL SEASON
-    // under the current contract before they can demand an extension.
-    // Without this, franchise tags (1yr) + 1-year re-signings produced
-    // immediate "I just signed him, why is he demanding?" complaints.
-    const startSeason = p.contract.startSeason;
-    if (startSeason != null && franchise.season <= startSeason) continue;
-    if (Math.random() >= 0.04) continue;
     const market = computeMarketValue(p, cap);
+    const ps = _demandPressureScore(p, market, { window: "weekly", isWalkYear: true });
+    if (!ps.eligible) continue;
+    const prob = _demandRollProbability(ps.score, { window: "weekly" });
+    if (Math.random() >= prob) continue;
     const tagFloor = _franchiseTagAAV({ position: p.position, name: p.name }, cap);
-    // Tag-floored demand: walk-year stars know you could tag them next year
-    // for tag-AAV, so they demand at least 95% of that as their floor.
-    const demand = Math.round(Math.max(market, tagFloor * 0.95) * 10) / 10;
+    // Tag-floored demand: walk-year stars know you could tag them next
+    // year for tag-AAV, so they ask at least 95% of that as the floor.
+    const cycle = (p.contract._demandCycles || 0) + 1;
+    const escalatedAAV = _demandedAavFor(p, market, p.contract, { window: "weekly", isWalkYear: true, cycle });
+    const demand = Math.round(Math.max(escalatedAAV, tagFloor * 0.95) * 10) / 10;
     const wantYears = (p.overall || 0) >= 88 ? 5 : 4;
     franchise.holdoutDemands.push({
       name: p.name, position: p.position,
@@ -5069,6 +5058,9 @@ function _checkHoldoutDemands() {
       week: franchise.week, deadlineWeek: franchise.week + 4,
       defers: 0,
       resolved: null,
+      pressureScore: ps.score,
+      pressureBreakdown: ps.breakdown,
+      demandCycle: cycle,
     });
     _pushNews({ type: "holdout_demand",
       label: `📣 ${p.position} ${p.name} wants $${demand.toFixed(1)}M/yr × ${wantYears}yr before his contract expires — extend by Week ${franchise.week + 4}` });
@@ -5286,6 +5278,10 @@ function frnHoldoutMidRefuse(name) {
   if (player) {
     if (!player.injury) player.injury = { label: "holdout", weeksRemaining: 1 };
     player.unhappy = true;
+    // Bump demand-cycle counter so future cycles ask for more.
+    if (player.contract) {
+      player.contract._demandCycles = (player.contract._demandCycles || 0) + 1;
+    }
   }
   _pushNews({ type: "holdout",
     label: `🚫 ${d.position} ${d.name} held out — not playing this week. Refused the team's stance.` });
@@ -7296,6 +7292,69 @@ function _buildExtensionPitch(ctx, live, cap) {
     moneysWorthStr = `Signed at $${c.signedAav.toFixed(1)}M / ${c.signedOvr} OVR → now ${live.overall} OVR (${sign}${ovrDelta}) — ${verdict}`;
   }
 
+  // ── Cost to keep — forward-projected demand if user waits ────────
+  // For mid-contract players (remaining ≥ 2), shows what the same
+  // extension would cost in 1 season vs. waiting to walk year. Helps
+  // answer: "is it worth signing now or holding off?" The escalator
+  // mirrors _demandedAavFor and assumes ~7% cap growth per season.
+  let costTimelineHtml = "";
+  const cNow = live.contract;
+  const remNow = cNow?.remaining || 0;
+  if (cNow && remNow >= 2 && marketAAV > 0) {
+    const currentCycles = cNow._demandCycles || 0;
+    const CAP_GROWTH = 1.07;
+    const signNow = {
+      label: "Sign now",
+      aav: demandedAAV, years: demandedYears,
+      total: demandedAAV * demandedYears,
+      note: currentCycles > 0 ? `demand cycle ${currentCycles + 1}` : "current ask",
+      color: "var(--green-lt)",
+    };
+    // +1 season: assume user ignores this cycle, next year demand
+    // escalates and market grows.
+    const cyc2 = currentCycles + 2;
+    const mult2 = cyc2 === 2 ? 1.12 : cyc2 === 3 ? 1.18 : 1.18;
+    const market2 = marketAAV * CAP_GROWTH;
+    const aav2 = Math.round(market2 * mult2 * 10) / 10;
+    const yrs2 = Math.max(2, demandedYears - 1);
+    const wait1 = {
+      label: "Wait 1 season",
+      aav: aav2, years: yrs2,
+      total: aav2 * yrs2,
+      note: `next cycle (×${mult2.toFixed(2)}) on +7% market`,
+      color: "#e8a000",
+    };
+    // Walk year: leverage premium kicks in.
+    const yrsUntilWalk = remNow - 1;
+    const marketWalk = marketAAV * Math.pow(CAP_GROWTH, yrsUntilWalk);
+    const aavWalk = Math.round(marketWalk * 1.20 * 10) / 10;
+    const yrsWalk = Math.max(3, demandedYears - yrsUntilWalk);
+    const walkRow = (yrsUntilWalk >= 1) ? {
+      label: "Wait to walk yr",
+      aav: aavWalk, years: yrsWalk,
+      total: aavWalk * yrsWalk,
+      note: `walk-year leverage (×1.20) in ${yrsUntilWalk}yr`,
+      color: "#ff8a8a",
+    } : null;
+
+    const rows = [signNow, wait1, walkRow].filter(Boolean);
+    const baseTotal = signNow.total;
+    const rowsHtml = rows.map(r => {
+      const premium = r.total - baseTotal;
+      const premiumStr = r === signNow ? "" :
+        ` <span style="color:${r.color}">+$${premium.toFixed(1)}M</span>`;
+      return `<div style="display:flex;gap:.5rem;font-size:.6rem;line-height:1.4">
+        <span style="color:var(--gray);min-width:90px">${r.label}</span>
+        <span style="color:var(--blwhite);min-width:120px">${r.years}yr · $${r.aav.toFixed(1)}M/yr = $${r.total.toFixed(1)}M${premiumStr}</span>
+        <span style="color:var(--gray);font-size:.55rem;font-style:italic">${r.note}</span>
+      </div>`;
+    }).join("");
+    costTimelineHtml = `<div style="border-top:1px dashed var(--border);margin-top:.35rem;padding-top:.3rem">
+      <div style="font-size:.55rem;color:var(--gold);letter-spacing:1.5px;margin-bottom:.2rem">💸 COST TO KEEP</div>
+      ${rowsHtml}
+    </div>`;
+  }
+
   // ── Verdict synthesis — 1-line takeaway driven by the same data ──
   // Price gap is the dominant signal: an elite young player asking 30%
   // above market is a different decision than the same player asking
@@ -7350,60 +7409,207 @@ function _buildExtensionPitch(ctx, live, cap) {
       ${row("Market",    replaceStr)}
       ${compStr ? row("Comp $",  compStr) : ""}
     </div>
+    ${costTimelineHtml}
     <div style="margin-top:.3rem;padding:.3rem .45rem;background:rgba(255,255,255,.04);border-left:2px solid ${verdict.color};border-radius:2px;font-size:.65rem;color:${verdict.color}">
       <b style="letter-spacing:.5px">VERDICT</b> · ${verdict.text}
     </div>
   </div>`;
 }
 
+// ── Unified demand engine ──────────────────────────────────────────
+// Both the mid-season walk-year detector (_checkHoldoutDemands) and the
+// offseason mid-contract detector (_detectHoldouts) share these three
+// functions so the trigger rules, AAV math, and ignore-escalator are
+// single-sourced. The split surfaces (different deadlines, different
+// resolution actions) remain context-appropriate, but the underlying
+// "should this player demand, and how much should he ask" lives here.
+
+// Backfill the contract fields the demand engine reads. signedOvr
+// defaults to current overall on legacy contracts so market drift alone
+// doesn't trigger a false outperformance flag. guaranteedYears defaults
+// from contract length so legacy saves get the same protection windows
+// new contracts already record.
+function _backfillDemandFields(roster) {
+  const seasonNow = franchise.season || 1;
+  for (const p of roster) {
+    if (!p?.contract) continue;
+    const c = p.contract;
+    if (c.startSeason == null) {
+      const elapsed = Math.max(0, (c.years || 1) - (c.remaining || 1));
+      c.startSeason = seasonNow - elapsed;
+    }
+    if (c.signedOvr == null) {
+      c.signedOvr = p.overall || 70;
+    }
+    if (c.guaranteedYears == null) {
+      const baseGuaranteed = _guaranteedYearsForLength(c.years || 1);
+      const yearsElapsed = Math.max(0, (c.years || 1) - (c.remaining || 1));
+      c.guaranteedYears = Math.max(0, baseGuaranteed - yearsElapsed);
+    }
+    if (c._demandCycles == null) c._demandCycles = 0;
+  }
+}
+
+// Score 0-100 of how much pressure this player has to demand a new
+// deal. Hard gates return { eligible: false, reason } and short-circuit.
+// Otherwise the score accumulates from underpay, outperformance, walk-
+// year leverage, and time served. The caller rolls probability against
+// the score; this function does not consume randomness.
+function _demandPressureScore(live, market, ctx) {
+  const c = live.contract;
+  if (!c) return { eligible: false, score: 0, reason: "no-contract" };
+  const isWalk = ctx.isWalkYear ?? (c.remaining === 1);
+
+  // 1. Guaranteed years protect both sides — player got his money up
+  //    front via signing bonus, can't credibly demand more until the
+  //    guarantees expire. Walk year bypasses since guarantees should
+  //    be zero anyway at remaining=1.
+  if (!isWalk && (c.guaranteedYears || 0) > 0) {
+    return { eligible: false, score: 0, reason: "guaranteed-years" };
+  }
+
+  // 2. Talent floor. Depth pieces don't demand.
+  const ovr = live.overall || 0;
+  const floor = isWalk ? 85 : 80;
+  if (ovr < floor) {
+    return { eligible: false, score: 0, reason: "below-ovr-floor" };
+  }
+
+  // 3. Outperformance gate (mid-contract only). Market drift alone
+  //    shouldn't trigger demands; the player must have materially
+  //    outplayed the deal he signed (≥4 OVR gain).
+  const signedOvr = c.signedOvr ?? ovr;
+  const outperformance = ovr - signedOvr;
+  if (!isWalk && outperformance < 4) {
+    return { eligible: false, score: 0, reason: "no-outperformance" };
+  }
+
+  // 4. Can't demand the same season he signed.
+  const seasonNow = franchise.season || 1;
+  if (c.startSeason != null && seasonNow <= c.startSeason) {
+    return { eligible: false, score: 0, reason: "just-signed" };
+  }
+
+  // 5. Recently injured players don't demand mid-season.
+  if (ctx.window === "weekly" && live.injury?.weeksRemaining > 0) {
+    return { eligible: false, score: 0, reason: "injured" };
+  }
+
+  // ── Pressure scoring ─────────────────────────────────────────────
+  let score = 0;
+  const aav = c.aav || 0;
+  const underpayRatio = market > 0 ? aav / market : 1;
+
+  // Underpay severity (0-40)
+  if (underpayRatio < 0.50)      score += 40;
+  else if (underpayRatio < 0.65) score += 28;
+  else if (underpayRatio < 0.80) score += 15;
+  else if (underpayRatio < 0.90) score += 6;
+
+  // Outperformance (0-30)
+  if (outperformance >= 8)      score += 30;
+  else if (outperformance >= 6) score += 20;
+  else if (outperformance >= 4) score += 12;
+
+  // Walk-year leverage (0-30) — player about to be FA holds the cards
+  if (isWalk) score += 30;
+
+  // Time served / loyalty pressure (0-10)
+  const seasonsServed = seasonNow - (c.startSeason || seasonNow);
+  score += Math.min(10, seasonsServed * 2);
+
+  // Prior-ignore escalator on score — if a demand was ignored last
+  // year, the player walks in louder this year.
+  score += Math.min(15, (c._demandCycles || 0) * 8);
+
+  return {
+    eligible: score >= 40,
+    score,
+    breakdown: { underpayRatio, outperformance, seasonsServed, isWalk, cycles: c._demandCycles || 0 },
+  };
+}
+
+// Probability the player actually rolls a demand this cycle, given the
+// pressure score and window. Tuned so weekly rolls are rare (few %)
+// even at max pressure, while offseason rolls are decisive.
+function _demandRollProbability(score, ctx) {
+  if (score < 40) return 0;
+  if (ctx.window === "weekly") {
+    if (score >= 80) return 0.08;
+    if (score >= 60) return 0.05;
+    return 0.03;
+  }
+  // offseason
+  if (score >= 80) return 0.50;
+  if (score >= 60) return 0.32;
+  return 0.15;
+}
+
+// Demanded AAV with cycle escalator. Each ignored cycle bumps the next
+// demand's multiplier on top of market. Walk-year carries its own
+// leverage premium.
+//   New (cycle 1)              · 1.05× market
+//   Repeat (cycle 2)           · 1.12× market
+//   Repeat+ (cycle 3+)         · 1.18× market
+//   Walk-year                  · 1.20× market
+//   Walk-year after ignored    · 1.40× market
+// Severe underpay (<50% market) floors at 1.15× regardless of cycle.
+function _demandedAavFor(live, market, contract, ctx) {
+  const cycle = ctx.cycle ?? ((contract._demandCycles || 0) + 1);
+  const isWalk = ctx.isWalkYear ?? (contract.remaining === 1);
+  const priorIgnored = (contract._demandCycles || 0) >= 1;
+
+  let mult;
+  if (isWalk) {
+    mult = priorIgnored ? 1.40 : 1.20;
+  } else if (cycle <= 1) {
+    mult = 1.05;
+  } else if (cycle === 2) {
+    mult = 1.12;
+  } else {
+    mult = 1.18;
+  }
+
+  // Severe underpay floor — if aav is <50% market, the player asks for
+  // at least 1.15× regardless of where the cycle puts him.
+  const aav = contract.aav || 0;
+  const underpayRatio = market > 0 ? aav / market : 1;
+  if (underpayRatio < 0.50) mult = Math.max(mult, 1.15);
+
+  return Math.round(market * mult * 10) / 10;
+}
+
 function _detectHoldouts() {
   const cap = franchise.salaryCap || SALARY_CAP_BASE;
   const myRoster = franchise.rosters[franchise.chosenTeamId] || [];
-  // Backfill startSeason on legacy contracts. _detectHoldouts runs
-  // AFTER the offseason decrement, so years-remaining reflects how many
-  // seasons have been completed under the contract.
-  for (const p of myRoster) {
-    if (p?.contract && p.contract.startSeason == null) {
-      const elapsed = Math.max(0, (p.contract.years || 1) - (p.contract.remaining || 1));
-      p.contract.startSeason = (franchise.season || 1) - elapsed;
-    }
-  }
+  _backfillDemandFields(myRoster);
   const holdouts = [];
   for (const p of myRoster) {
-    const grade = scoutGrade(p);
-    if (grade < 82) continue;                 // only A-grades+
     if (!p.contract || p.contract.remaining < 2) continue; // walk-year not a holdout
-    // Cooldown: must have completed at least 3 full seasons under this
-    // contract before demanding an extension. Real NFL patterns: most
-    // top QBs play out their deals; Mahomes never demanded after his
-    // 10yr extension, Lamar Jackson waited 4 seasons, Russell Wilson
-    // 3-4. Year-2-of-contract demands almost never happen.
-    const startSeason = p.contract.startSeason;
-    if (startSeason != null && franchise.season <= startSeason + 2) continue;
     const market = computeMarketValue(p, cap);
-    const aav = p.contract.aav || 0;
-    // Three-stage gate: must be (a) significantly underpaid AND (b)
-    // an A-grade contributor AND (c) roll the demand probability.
-    // Without (c), every eligible player demands every offseason —
-    // historically unrealistic. ~30% chance per qualifier per year
-    // gives the "occasional star demand" cadence the game wants.
-    if (aav >= market * 0.70) continue;       // 30%+ below market (was 0.85, then 0.75)
-    if (Math.random() >= 0.35) continue;
-    const demandAAV = Math.round(market * 10) / 10;
+    const ps = _demandPressureScore(p, market, { window: "offseason", isWalkYear: false });
+    if (!ps.eligible) continue;
+    const prob = _demandRollProbability(ps.score, { window: "offseason" });
+    if (Math.random() >= prob) continue;
+    const cycle = (p.contract._demandCycles || 0) + 1;
+    const demandAAV = _demandedAavFor(p, market, p.contract, { window: "offseason", isWalkYear: false, cycle });
     const demandYrs = Math.max(p.contract.remaining + 2, 4);
     holdouts.push({
       name: p.name, position: p.position,
       overall: p.overall || 70,
       age: p.age || 27,
-      currentAAV: aav,
+      currentAAV: p.contract.aav || 0,
       currentRemaining: p.contract.remaining,
-      marketAAV: demandAAV,
+      marketAAV: market,
       demandedAAV: demandAAV,
       demandedYears: demandYrs,
       offer: demandAAV,           // start matching their demand (100% accept)
       offerYears: demandYrs,
       structure: _defaultStructure(p.age || 27, p.overall || 70),
       resolved: null,
+      pressureScore: ps.score,
+      pressureBreakdown: ps.breakdown,
+      demandCycle: cycle,
     });
   }
   franchise._holdouts = holdouts;
@@ -7658,10 +7864,16 @@ function frnHoldoutIgnore(name) {
     //   5. Trade-demand probability — 40% he formally requests trade
     //      mid-season, which lands as a wire entry the player can
     //      act on (no auto-trade — user still in control).
+    //   6. Demand-escalator bump — next demand cycle asks for more.
+    //      The unified engine reads contract._demandCycles to apply
+    //      the multiplier (1.05× → 1.12× → 1.18×, walk-year → 1.40×).
     player.unhappy = true;
     player.flightRisk = true;
     player._ignoredDemandSeason = franchise.season;
     player._devFreezeUntilSeason = (franchise.season || 1) + 1;
+    if (player.contract) {
+      player.contract._demandCycles = (player.contract._demandCycles || 0) + 1;
+    }
     // Apply OVR penalty immediately so the user sees the cost on
     // next dashboard render. Floors at OVR 60.
     const oldOvr = player.overall || 70;
