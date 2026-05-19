@@ -3520,8 +3520,10 @@ function _faSuggestedCuts(teamId, alreadyCut, n = 5) {
   for (const slot of Object.values(franchise.depthChart?.[teamId] || {})) {
     if (slot?.starter) dcStarters.add(slot.starter);
   }
-  // Premium positions where you almost never cut a starter
-  const PREMIUM = new Set(["QB", "OT", "LT", "RT", "EDGE", "DL", "CB"]);
+  // Premium positions where you almost never cut a starter. Uses the
+  // game's actual position labels (QB, RB, WR, TE, OL, DL, LB, CB, S,
+  // K, P) — earlier version had OT/LT/RT/EDGE which don't exist here.
+  const PREMIUM = new Set(["QB", "OL", "DL", "CB", "WR"]);
 
   const candidates = [];
   for (const p of roster) {
@@ -3537,6 +3539,7 @@ function _faSuggestedCuts(teamId, alreadyCut, n = 5) {
     if (age <= 25 && ovr >= 75) continue;            // young developing player
     if (p.position === "QB" && isStarter && ovr >= 70) continue; // starting QB unless awful
     if (p.position === "QB" && ovr >= 78) continue;  // any QB at 78+ is a real asset
+    if (p.position === "OL" && isStarter && ovr >= 74) continue; // OL starters protect QB — gated lower
     if (isStarter && PREMIUM.has(p.position) && ovr >= 76) continue; // premium starter
 
     const { perYear: dPY, years: dYrs } = deadCapOnRelease(p);
@@ -3579,18 +3582,21 @@ function _faSuggestedCuts(teamId, alreadyCut, n = 5) {
 }
 
 // Compact comparison card for a pinned FA. Renders alongside the main
-// detail panel when the user pins someone to compare.
-function _faCompareCardHtml(fa, chosenTeamId) {
+// detail panel when the user pins someone to compare. Clicking the
+// card SWAPS pinned ↔ selected so the user can toggle which is in
+// the main view (current becomes pinned, pinned becomes selected).
+function _faCompareCardHtml(fa, chosenTeamId, currentSelKey) {
   if (!fa) return "";
   const sg = scoutGrade(fa);
   const suitors = TEAMS.filter(t => t.id !== chosenTeamId && _faAIInterest(t.id, fa) >= 0.1).length;
   const escKey = (fa.pid || fa.name).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  const escSel = (currentSelKey || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
   return `<div style="padding:.45rem .55rem;background:var(--bg2);border:1px dashed var(--gold);border-radius:4px;margin-bottom:.55rem">
     <div style="display:flex;align-items:baseline;gap:.4rem;margin-bottom:.2rem">
       <span style="font-size:.55rem;letter-spacing:1.5px;color:var(--gold);font-weight:700">📌 PINNED FOR COMPARE</span>
       <button class="btn btn-outline" style="font-size:.55rem;padding:.1rem .35rem;margin-left:auto" onclick="frnFAUnpinCompare()">✕ Unpin</button>
     </div>
-    <div style="display:flex;align-items:baseline;gap:.4rem;flex-wrap:wrap;cursor:pointer" onclick="renderFrnFA('${escKey}')" title="Click to swap to this FA (current will be pinned)">
+    <div style="display:flex;align-items:baseline;gap:.4rem;flex-wrap:wrap;cursor:pointer" onclick="frnFASwapCompare('${escKey}','${escSel}')" title="Swap — this FA becomes selected, current selection moves to pin">
       <span style="font-size:.58rem;color:var(--gold);font-weight:700">${fa.position}</span>
       <span style="font-weight:700;color:var(--blwhite);font-size:.78rem">${fa.name}</span>
       ${gradeBadge(fa)}
@@ -3945,7 +3951,11 @@ function renderFrnFA(selectedKey) {
     const myProjAfterCuts = myCapUsed + offer.aav -
       myRoster.filter(p => cutSet.has(p.name)).reduce((s,p) => s + (p.contract?.aav||0), 0);
     const room = cap - myProjAfterCuts;
-    const score = (offer.aav / selected.demandedAAV) * Math.min(offer.years / selected.demandedYears, 1);
+    // Guarded against zero demanded — fall back to score = 1 (neutral)
+    // so the UI shows "Likely · 80%" instead of NaN/Infinity.
+    const dAavSafe = Math.max(0.1, selected.demandedAAV || 0);
+    const dYrsSafe = Math.max(1,   selected.demandedYears || 1);
+    const score = (offer.aav / dAavSafe) * Math.min(offer.years / dYrsSafe, 1);
     const likelihood = score >= 1.05 ? "Very likely" : score >= 1.00 ? "Likely" : score >= 0.90 ? "Toss-up" : score >= 0.80 ? "Unlikely" : "Will reject";
     const lkColor = score >= 1.00 ? "var(--green-lt)" : score >= 0.90 ? "#e8a000" : "var(--red)";
     // Continuous accept-odds percentage for the bar visualization.
@@ -4031,7 +4041,7 @@ function renderFrnFA(selectedKey) {
     const pinnedFA = pinnedKey && pinnedKey !== selFaKey && pinnedKey !== selected.name
       ? (freeAgents.find(p => p.pid === pinnedKey || p.name === pinnedKey))
       : null;
-    const compareCardHtml = pinnedFA ? _faCompareCardHtml(pinnedFA, chosenTeamId) : "";
+    const compareCardHtml = pinnedFA ? _faCompareCardHtml(pinnedFA, chosenTeamId, selFaKey) : "";
 
     detailHtml = `<div class="frn-fa-detail">
       ${compareCardHtml}
@@ -4163,7 +4173,7 @@ function renderFrnFA(selectedKey) {
         // AI teams. More suitors → price pushed toward knockout multiplier
         // via the existing _faAIBidAmount escalation. Helps user gauge
         // whether their offer will hold or get outbid.
-        const dAAV = selected.demandedAAV;
+        const dAAV = Math.max(0.1, selected.demandedAAV || 0);
         let lowMult, highMult, label, color;
         if (suitors === 0)     { lowMult=0.95; highMult=1.00; label="Quiet market";       color="var(--green-lt)"; }
         else if (suitors === 1) { lowMult=1.00; highMult=1.10; label="One competitor";    color="var(--gold-lt)"; }
@@ -4474,8 +4484,9 @@ function frnFACapLiveUpdate(newAavForSelected) {
     const yearsInput  = document.getElementById("faOfferYears");
     const offerYears  = parseFloat(yearsInput?.value || "0") || demandYears;
     if (demandAAV > 0 && demandYears > 0) {
-      const score = (newAavForSelected / demandAAV) * Math.min(offerYears / demandYears, 1);
-      const acceptPct = Math.round(Math.max(0, Math.min(100, (score - 0.5) * 160)));
+      const safeDemandAAV = Math.max(0.1, demandAAV);
+      const score = (newAavForSelected / safeDemandAAV) * Math.min(offerYears / demandYears, 1);
+      const acceptPct = Math.round(Math.max(0, Math.min(100, ((isFinite(score) ? score : 1) - 0.5) * 160)));
       const likelihood = score >= 1.05 ? "Very likely" : score >= 1.00 ? "Likely" : score >= 0.90 ? "Toss-up" : score >= 0.80 ? "Unlikely" : "Will reject";
       const lkColor = score >= 1.00 ? "var(--green-lt)" : score >= 0.90 ? "#e8a000" : "var(--red)";
       const barEl = document.getElementById("fa-accept-bar");
@@ -4532,6 +4543,15 @@ function frnFAUnpinCompare() {
   franchise._faComparePin = null;
   saveFranchise();
   renderFrnFA();
+}
+// Swap pinned with selected — clicking the pinned card promotes the
+// pinned FA to selected AND demotes the previously-selected FA into
+// the pin slot. Lets the user toggle which is in the main view.
+function frnFASwapCompare(newSelKey, newPinKey) {
+  if (!franchise) return;
+  franchise._faComparePin = newPinKey;
+  saveFranchise();
+  renderFrnFA(newSelKey);
 }
 function frnFAApplyPoolAdvisor(faKey, years, aav, structure) {
   if (!franchise._faOffers) franchise._faOffers = {};
