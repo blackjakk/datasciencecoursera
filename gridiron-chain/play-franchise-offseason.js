@@ -1895,6 +1895,9 @@ function _runWeekEndResolution() {
 // Bump the week counter, handle cap grace + season-end transitions.
 function _bumpWeek() {
   franchise.week += 1;
+  // Refresh in-season scouting credits — 3 per week, capped at 10 in the
+  // bank so the user can stockpile briefly but not hoard the whole season.
+  if (typeof _refreshSeasonScoutCredits === "function") _refreshSeasonScoutCredits();
   if (franchise.capGraceDeadline != null && franchise.week >= franchise.capGraceDeadline) {
     const cap  = franchise.salaryCap || SALARY_CAP_BASE;
     const used = capUsedByTeam(franchise.chosenTeamId);
@@ -10169,6 +10172,11 @@ function frnNewSeason() {
   // new freshmen enter. Runs BEFORE the season counter bumps so the new
   // freshmen carry the correct draftSeason offset.
   if (typeof _advanceCollegePipeline === "function") _advanceCollegePipeline();
+  // Reset in-season scouting state: fresh credits bank, blank reveals
+  // for the new draft cycle. Reveals from the just-completed season
+  // were already merged into draftScoutReveals at frnGoToDraft, so
+  // wiping seasonScoutReveals here just starts the next cycle clean.
+  if (typeof _initSeasonScout === "function") _initSeasonScout(true);
   franchise.season       += 1;
   franchise.week          = 1;
   franchise.phase         = "free_agency";
@@ -12667,6 +12675,12 @@ function frnGoToDraft() {
   };
   franchise.draftScouts = [];
   franchise.draftScoutReveals = {};
+  // Merge any in-season scouting intel into the (now-initialized) draft
+  // reveal storage so the existing draft UI surfaces what you learned
+  // during the season. MUST run AFTER draftScoutReveals = {} or it gets
+  // wiped. Also stamps _scoutedInSeason on prospects so the board can
+  // visually distinguish "scouted-in-season" from "scouted-during-draft".
+  if (typeof _mergeSeasonScoutToDraft === "function") _mergeSeasonScoutToDraft();
   franchise.phase = "draft";
   franchise._faLossesPending = {};
   franchise._faSignsPending  = {};
@@ -13447,6 +13461,108 @@ function _advanceCollegePipeline() {
     players.push(_generateCollegePlayer("FR", allTaken));
   }
   franchise.collegePlayers = players;
+}
+
+// ── In-season scouting ──────────────────────────────────────────────────────
+// During the regular season, the user has a small bank of scout credits
+// refreshed each week. Each credit unlocks one (player, category) scouting
+// reveal — same intel as the draft system, but spread across the year so
+// the user can build a board well before draft day. Reveals persist into
+// the draft via _mergeSeasonScoutToDraft.
+const _SEASON_SCOUTS_PER_WEEK = 3;
+const _SEASON_SCOUT_BANK_CAP  = 10;
+
+function _initSeasonScout(reset) {
+  if (reset || franchise.seasonScoutBank == null) {
+    franchise.seasonScoutBank = _SEASON_SCOUTS_PER_WEEK;
+  }
+  if (reset || !franchise.seasonScoutReveals) {
+    franchise.seasonScoutReveals = {};
+  }
+}
+function _backfillSeasonScout() {
+  if (!franchise) return;
+  if (franchise.seasonScoutBank == null) franchise.seasonScoutBank = _SEASON_SCOUTS_PER_WEEK;
+  if (!franchise.seasonScoutReveals)     franchise.seasonScoutReveals = {};
+}
+function _refreshSeasonScoutCredits() {
+  franchise.seasonScoutBank = Math.min(
+    _SEASON_SCOUT_BANK_CAP,
+    (franchise.seasonScoutBank || 0) + _SEASON_SCOUTS_PER_WEEK
+  );
+}
+
+// Spend one credit to scout a college prospect in a category. Mirrors
+// frnDraftScoutCategory but works across the regular season instead of
+// the draft itself. Targets any player in franchise.collegePlayers
+// (FR/SO/JR/SR — early-scouting underclassmen is the whole point).
+function frnSeasonScoutCategory(name, cat) {
+  if (!franchise.collegePlayers) return false;
+  if (!DRAFT_SCOUT_CATEGORIES.includes(cat)) return false;
+  _backfillSeasonScout();
+  if ((franchise.seasonScoutBank || 0) <= 0) return false;
+
+  let rev = franchise.seasonScoutReveals[name];
+  if (!rev) {
+    rev = { categories: [], knockNotes: {}, revealed: false, categoryWeeks: {} };
+    franchise.seasonScoutReveals[name] = rev;
+  } else if (!rev.categoryWeeks) {
+    rev.categoryWeeks = {};
+  }
+  if (rev.categories.includes(cat)) return false;
+
+  rev.categories.push(cat);
+  rev.categoryWeeks[cat] = franchise.week || 1;
+
+  const prospect = franchise.collegePlayers.find(p => p.name === name);
+  const knockType = prospect?.collegeProfile?.knockType || null;
+  const knockCat  = knockType ? _DRAFT_KNOCK_CATEGORY[knockType] : null;
+  if (knockType && knockCat === cat) {
+    const r       = _projectedDraftRound(prospect) || 5;
+    const expPot  = { 1:88, 2:81, 3:75, 4:70, 5:66, 6:63, 7:60 }[r] ?? 65;
+    const isHiUp  = (prospect?.potential || 65) >= expPot + 4;
+    rev.knockNotes[cat] = _buildScoutKnockNote(knockType, isHiUp);
+  }
+  // Film category triggers a 50% potential reveal — same rule as draft.
+  if (cat === "film") rev.revealed = rev.revealed || (Math.random() < 0.50);
+
+  franchise.seasonScoutBank--;
+  saveFranchise();
+  // Rerender if the scouting board is open (batch 6 hook)
+  if (typeof renderFrnScoutingBoard === "function" && franchise._uiScreen === "scouting") {
+    renderFrnScoutingBoard();
+  }
+  return true;
+}
+
+// Merge in-season reveals into the draft's reveal storage so the existing
+// draft UI surfaces them. Called at frnGoToDraft. Preserves any draft-time
+// reveals already on the prospect (in case of re-entry into the function).
+function _mergeSeasonScoutToDraft() {
+  if (!franchise.seasonScoutReveals) return;
+  franchise.draftScoutReveals = franchise.draftScoutReveals || {};
+  for (const [name, rev] of Object.entries(franchise.seasonScoutReveals)) {
+    if (!franchise.draftScoutReveals[name]) {
+      franchise.draftScoutReveals[name] = {
+        categories: [...(rev.categories || [])],
+        knockNotes: { ...(rev.knockNotes || {}) },
+        revealed:   !!rev.revealed,
+        categoryRounds: {},      // season reveals don't have rounds
+        categoryWeeks:  { ...(rev.categoryWeeks || {}) },
+      };
+    } else {
+      const exist = franchise.draftScoutReveals[name];
+      exist.categories = Array.from(new Set([...(exist.categories || []), ...(rev.categories || [])]));
+      exist.knockNotes = { ...(rev.knockNotes || {}), ...(exist.knockNotes || {}) };
+      exist.revealed   = !!exist.revealed || !!rev.revealed;
+      exist.categoryWeeks = { ...(rev.categoryWeeks || {}), ...(exist.categoryWeeks || {}) };
+    }
+    // Stamp the prospect so the draft UI can show "scouted in season"
+    if (franchise.draft?.class) {
+      const p = franchise.draft.class.find(q => q.name === name);
+      if (p) p._scoutedInSeason = true;
+    }
+  }
 }
 
 // Build the draft class from the college pipeline. Pulls graduated SRs +
