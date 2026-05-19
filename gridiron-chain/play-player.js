@@ -438,14 +438,13 @@ function assignLeagueNicknames(rosters) {
       p.nickname = nick;
       taken.add(nick);
       // GOES BY NICKNAME ONLY (~13%) — Madonna / Pelé / Ronaldinho style.
-      // Player's display name becomes just the nickname, and their legal name
-      // components are wiped (no firstName/middleName/lastName).
+      // Flag only — DO NOT rewrite p.name. Doing so would break every
+      // name-keyed lookup in the league (wire links, seasonStats,
+      // careerHistory cross-references, _findPlayer). The display layer
+      // checks this flag and renders just the nickname; the legal name
+      // stays intact for everything else.
       if (Math.random() < 0.13) {
         p.goesByNicknameOnly = true;
-        p.name = nick;
-        p.firstName = nick;
-        p.middleName = null;
-        p.lastName = null;
       }
     }
   }

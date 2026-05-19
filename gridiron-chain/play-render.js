@@ -1754,14 +1754,19 @@ function buildPlayerTooltip(p) {
     : "";
   // Display name — fold the nickname in subtly if the player has one. If the
   // player's display name is the initials version ("T.J. Watt"), show the
-  // full legal name underneath.
-  const nameDisplay = p.nickname
-    ? `${escapeHtml(p.name.split(" ")[0])} <span class="tt-nick">"${escapeHtml(p.nickname)}"</span> ${escapeHtml(p.name.split(" ").slice(1).join(" "))}`
-    : escapeHtml(p.name);
+  // full legal name underneath. Madonna/Pelé tier players (goesByNicknameOnly)
+  // display only their nickname here; the legal name appears below.
+  const nameDisplay = p.goesByNicknameOnly && p.nickname
+    ? `<span class="tt-nick">${escapeHtml(p.nickname)}</span>`
+    : p.nickname
+      ? `${escapeHtml(p.name.split(" ")[0])} <span class="tt-nick">"${escapeHtml(p.nickname)}"</span> ${escapeHtml(p.name.split(" ").slice(1).join(" "))}`
+      : escapeHtml(p.name);
   // Legal name line — only shown when the display name differs (initials,
-  // or "goes by middle"). e.g. "Trent Jordan Watt" under "T.J. Watt".
+  // "goes by middle", or Madonna/Pelé nickname-only style).
   let legalName = null;
-  if (p.firstName && p.lastName) {
+  if (p.goesByNicknameOnly && p.name) {
+    legalName = p.name;
+  } else if (p.firstName && p.lastName) {
     const fullLegal = p.middleName
       ? `${p.firstName} ${p.middleName} ${p.lastName}`
       : `${p.firstName} ${p.lastName}`;
