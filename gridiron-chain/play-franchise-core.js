@@ -2575,6 +2575,52 @@ function _flushSaveFranchise() {
 }
 let _saveLastError = null;
 let _saveLastSize = 0;
+
+// Diagnostic: prints a save-size breakdown by section to the console.
+// Call from the browser devtools: `frnSaveDiagnostics()`. Useful for
+// confirming that long franchise runs aren't bloating storage and that
+// the auto-trim threshold (4MB) is nowhere close.
+function frnSaveDiagnostics() {
+  if (!franchise) { console.log("[diag] no franchise loaded"); return; }
+  const sizeOf = (val) => {
+    try { return new Blob([JSON.stringify(val)]).size; } catch { return 0; }
+  };
+  const fmt = (b) => b > 1_000_000 ? `${(b/1_000_000).toFixed(2)} MB`
+                  : b > 1_000     ? `${(b/1_000).toFixed(1)} KB`
+                  : `${b} B`;
+  const total = sizeOf(franchise);
+  const sections = [
+    ["rosters",            franchise.rosters],
+    ["history",            franchise.history],
+    ["hallOfFame",         franchise.hallOfFame],
+    ["_hofEligible",       franchise._hofEligible],
+    ["news",               franchise.news],
+    ["schedule",           franchise.schedule],
+    ["coaches",            franchise.coaches],
+    ["practiceSquads",     franchise.practiceSquads],
+    ["freeAgents",         franchise.freeAgents],
+    ["_retiredPlayerPool", franchise._retiredPlayerPool],
+    ["_posCoachPool",      franchise._posCoachPool],
+    ["_coachMarket",       franchise._coachMarket],
+    ["_coachFA",           franchise._coachFA],
+    ["seasonStats",        franchise.seasonStats],
+    ["seasonHighlights",   franchise.seasonHighlights],
+    ["picks",              franchise.picks],
+    ["draftClass",         franchise.draftClass],
+  ].map(([k, v]) => ({ key: k, bytes: sizeOf(v), pct: 0 }));
+  for (const s of sections) s.pct = total ? Math.round(s.bytes / total * 1000) / 10 : 0;
+  sections.sort((a, b) => b.bytes - a.bytes);
+  console.log(`%c[save diagnostics] Season ${franchise.season} · Week ${franchise.week} · Total: ${fmt(total)}${total > 4_000_000 ? " (NEAR TRIM THRESHOLD)" : ""}`,
+    "color:#f5c542;font-weight:700;font-size:.9rem");
+  console.table(sections.filter(s => s.bytes > 0).map(s => ({
+    section: s.key, size: fmt(s.bytes), pct: `${s.pct}%`,
+  })));
+  if (franchise.hallOfFame?.length || franchise._hofEligible?.length) {
+    console.log(`[HOF] inducted: ${franchise.hallOfFame?.length || 0} · on ballot: ${franchise._hofEligible?.length || 0}`);
+  }
+  return { totalBytes: total, sections };
+}
+
 // Drop the heaviest non-essential payloads when localStorage is full. Stats and
 // scoring timelines for prior weeks aren't needed for save resume — only the
 // current week's games and aggregated seasonStats matter for continuity.
