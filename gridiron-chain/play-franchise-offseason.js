@@ -13565,6 +13565,184 @@ function _mergeSeasonScoutToDraft() {
   }
 }
 
+// ── In-season Scouting Board UI ─────────────────────────────────────────────
+// The user-facing screen for year-round college scouting. Lists pipeline
+// prospects with filterable year/position chips, sortable columns, inline
+// scout-category buttons, and visible reveals collected so far. Accessible
+// from Front Office → Scouting during the regular season.
+const _SCOUT_BOARD_STATE = {
+  yearFilter: "SR",       // "FR" | "SO" | "JR" | "SR" | "ALL"
+  posFilter:  "ALL",      // position or "ALL"
+  sort:       "ovr",      // "ovr" | "year" | "pos" | "scouted"
+};
+function frnScoutBoardSetYear(year) {
+  _SCOUT_BOARD_STATE.yearFilter = year;
+  renderFrnScoutingBoard();
+}
+function frnScoutBoardSetPos(pos) {
+  _SCOUT_BOARD_STATE.posFilter = pos;
+  renderFrnScoutingBoard();
+}
+function frnScoutBoardSetSort(s) {
+  _SCOUT_BOARD_STATE.sort = s;
+  renderFrnScoutingBoard();
+}
+
+function renderFrnScoutingBoard() {
+  _backfillSeasonScout();
+  if (!franchise.collegePlayers) _seedCollegePipeline();
+  const players = franchise.collegePlayers || [];
+  const reveals = franchise.seasonScoutReveals || {};
+  const bank    = franchise.seasonScoutBank || 0;
+  franchise._uiScreen = "scouting"; // for in-action re-render hook
+
+  // Filter
+  const st = _SCOUT_BOARD_STATE;
+  let list = players.slice();
+  if (st.yearFilter !== "ALL") list = list.filter(p => p.collegeYear === st.yearFilter);
+  if (st.posFilter  !== "ALL") list = list.filter(p => p.position === st.posFilter);
+  // Sort
+  if (st.sort === "ovr") list.sort((a, b) => (b.overall || 0) - (a.overall || 0));
+  else if (st.sort === "year") list.sort((a, b) => {
+    const ord = { FR: 0, SO: 1, JR: 2, SR: 3 };
+    return (ord[a.collegeYear] ?? 9) - (ord[b.collegeYear] ?? 9) || (b.overall || 0) - (a.overall || 0);
+  });
+  else if (st.sort === "pos")  list.sort((a, b) => (a.position||"").localeCompare(b.position||"") || (b.overall||0) - (a.overall||0));
+  else if (st.sort === "scouted") {
+    list.sort((a, b) => {
+      const aN = reveals[a.name]?.categories?.length || 0;
+      const bN = reveals[b.name]?.categories?.length || 0;
+      return bN - aN || (b.overall || 0) - (a.overall || 0);
+    });
+  }
+
+  // Counts per year (for the year-filter chips)
+  const yearCounts = { FR:0, SO:0, JR:0, SR:0, ALL: players.length };
+  for (const p of players) { if (yearCounts[p.collegeYear] !== undefined) yearCounts[p.collegeYear]++; }
+
+  // Chips
+  const yearChips = ["SR","JR","SO","FR","ALL"].map(y => {
+    const active = st.yearFilter === y;
+    const declaredJRs = y === "JR" ? players.filter(p => p.collegeYear === "JR" && p.declaredEarly).length : 0;
+    const lbl = y === "JR" && declaredJRs > 0
+      ? `${y} (${yearCounts[y]}, ${declaredJRs} declared)`
+      : `${y} (${yearCounts[y]})`;
+    return `<button class="frn-scout-chip${active?" active":""}" onclick="frnScoutBoardSetYear('${y}')">${lbl}</button>`;
+  }).join("");
+
+  const positions = ["ALL","QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"];
+  const posChips = positions.map(pos => {
+    const active = st.posFilter === pos;
+    return `<button class="frn-scout-chip${active?" active":""}" onclick="frnScoutBoardSetPos('${pos}')">${pos}</button>`;
+  }).join("");
+
+  const sortChips = [
+    { id: "ovr",     label: "OVR ↓" },
+    { id: "year",    label: "Class" },
+    { id: "pos",     label: "Position" },
+    { id: "scouted", label: "Scouted" },
+  ].map(s => {
+    const active = st.sort === s.id;
+    return `<button class="frn-scout-chip${active?" active":""}" onclick="frnScoutBoardSetSort('${s.id}')">${s.label}</button>`;
+  }).join("");
+
+  // Rows
+  const _esc = s => String(s ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/'/g, "&#39;");
+  const cardForProspect = (p) => {
+    const rev = reveals[p.name];
+    const scoutedCats = rev?.categories || [];
+    const ovrShown = (typeof p.overall === "number") ? p.overall : "—";
+    const round = _projectedDraftRound(p);
+    const archLabel = (typeof _archetypeLabel === "function") ? _archetypeLabel(p) : "";
+    const yearTag = p.collegeYear || "?";
+    const declared = p.collegeYear === "JR" && p.declaredEarly;
+    const yearBadge = `<span class="frn-scout-year-badge ${declared ? "declared" : "y-"+yearTag.toLowerCase()}">${yearTag}${declared ? " · DECLARED" : ""}</span>`;
+    const projBadge = `<span class="frn-scout-proj">Proj R${round}</span>`;
+
+    // Per-category buttons
+    const catBtns = DRAFT_SCOUT_CATEGORIES.map(cat => {
+      const meta = DRAFT_SCOUT_CAT_META[cat];
+      const has  = scoutedCats.includes(cat);
+      const canSpend = !has && bank > 0;
+      const cls = has ? "scouted" : (canSpend ? "available" : "disabled");
+      const note = rev?.knockNotes?.[cat];
+      const tip  = has
+        ? `${meta.label} scouted${note ? " — " + note : ""}`
+        : (canSpend ? meta.desc : "No credits left this week (or already scouted)");
+      const onclick = canSpend ? `onclick="frnSeasonScoutCategory('${_esc(p.name)}','${cat}')"` : "disabled";
+      return `<button class="frn-scout-cat ${cls}" ${onclick} title="${_esc(tip)}" style="--cat-color:${meta.color}">
+        <span class="frn-scout-cat-icon">${meta.icon}</span>
+        <span class="frn-scout-cat-label">${meta.label}</span>
+        ${has ? `<span class="frn-scout-cat-mark">✓</span>` : ""}
+      </button>`;
+    }).join("");
+
+    // Knock notes (resolved)
+    const notes = (rev?.knockNotes && Object.keys(rev.knockNotes).length)
+      ? Object.entries(rev.knockNotes).map(([cat, note]) => `<span class="frn-scout-note">${DRAFT_SCOUT_CAT_META[cat]?.icon || "•"} ${_esc(note)}</span>`).join("")
+      : "";
+
+    const knockType = p.collegeProfile?.knockType;
+    const knock = knockType ? `<span class="frn-scout-knock">⚠ ${_esc(knockType.replace(/_/g," "))}</span>` : "";
+
+    return `<div class="frn-scout-row">
+      <div class="frn-scout-row-main">
+        <div class="frn-scout-row-name">
+          <span class="frn-scout-row-pos">${p.position}</span>
+          <span class="frn-scout-row-pname" onclick="frnOpenPlayerCard('${_esc(p.name)}')">${_esc(p.name)}</span>
+          ${yearBadge}
+          <span class="frn-scout-ovr">OVR ${ovrShown}</span>
+          ${projBadge}
+          ${archLabel ? `<span class="frn-scout-arch">${_esc(archLabel)}</span>` : ""}
+          ${knock}
+        </div>
+        ${notes ? `<div class="frn-scout-notes">${notes}</div>` : ""}
+      </div>
+      <div class="frn-scout-cats">${catBtns}</div>
+    </div>`;
+  };
+
+  const rowsHtml = list.length
+    ? list.map(cardForProspect).join("")
+    : `<div style="padding:1rem;color:var(--gray);text-align:center">No prospects match current filters.</div>`;
+
+  $("frnHomeContent").innerHTML = `
+    <div class="frn-scout-page">
+      <div class="frn-scout-header">
+        <div class="frn-scout-title">
+          <span style="font-size:1.05rem;font-weight:900;color:var(--gold)">🔍 SCOUTING BOARD</span>
+          <span class="frn-scout-subtitle">${players.length} college players in the pipeline</span>
+        </div>
+        <div class="frn-scout-bank" title="Scout credits refresh by ${_SEASON_SCOUTS_PER_WEEK} each week, capped at ${_SEASON_SCOUT_BANK_CAP}">
+          <span class="frn-scout-bank-num">${bank}</span>
+          <span class="frn-scout-bank-cap">/${_SEASON_SCOUT_BANK_CAP}</span>
+          <span class="frn-scout-bank-lbl">credits</span>
+        </div>
+      </div>
+      <div class="frn-scout-filters">
+        <div class="frn-scout-filter-row">
+          <span class="frn-scout-filter-lbl">CLASS</span>
+          <div class="frn-scout-chips">${yearChips}</div>
+        </div>
+        <div class="frn-scout-filter-row">
+          <span class="frn-scout-filter-lbl">POS</span>
+          <div class="frn-scout-chips">${posChips}</div>
+        </div>
+        <div class="frn-scout-filter-row">
+          <span class="frn-scout-filter-lbl">SORT</span>
+          <div class="frn-scout-chips">${sortChips}</div>
+        </div>
+      </div>
+      <div class="frn-scout-hint">
+        Click a category button to spend 1 credit and unlock that intel. Knock-resolution notes appear under matching categories. Reveals carry into the draft automatically.
+      </div>
+      <div class="frn-scout-list">
+        ${rowsHtml}
+      </div>
+    </div>
+  `;
+}
+
 // Build the draft class from the college pipeline. Pulls graduated SRs +
 // declared JRs (sorted by OVR), stamps draft fields (round, AI bias),
 // and augments with auto-generated late-round + UDFA filler so the

@@ -5801,14 +5801,15 @@ function renderFrnRosterHome() {
 }
 
 // ── Front Office tab aggregator ───────────────────────────────────────
-// Sub-nav across the GM-decision pages: trade, free agency, coaching
-// staff, and the cap sheet (via Analytics). Same prepend pattern.
+// Sub-nav across the GM-decision pages: trade, free agency, scouting,
+// coaching staff, and the cap sheet (via Analytics). Same prepend pattern.
 let _frnFOSubTab = "trade";
 const _FRN_FO_TABS = [
-  { id: "trade",   label: "Trade",       fn: () => typeof frnOpenTrade            === "function" && frnOpenTrade() },
-  { id: "fa",      label: "Free Agents", fn: () => typeof renderFrnFANegotiations === "function" && renderFrnFANegotiations() },
-  { id: "coaches", label: "Coaches",     fn: () => typeof renderFrnCoachingStaff  === "function" && renderFrnCoachingStaff() },
-  { id: "cap",     label: "Cap Sheet",   fn: () => typeof renderFrnAnalytics      === "function" && renderFrnAnalytics("mysheet") },
+  { id: "trade",    label: "Trade",       fn: () => typeof frnOpenTrade            === "function" && frnOpenTrade() },
+  { id: "fa",       label: "Free Agents", fn: () => typeof renderFrnFANegotiations === "function" && renderFrnFANegotiations() },
+  { id: "scouting", label: "Scouting",    fn: () => typeof renderFrnScoutingBoard  === "function" && renderFrnScoutingBoard() },
+  { id: "coaches",  label: "Coaches",     fn: () => typeof renderFrnCoachingStaff  === "function" && renderFrnCoachingStaff() },
+  { id: "cap",      label: "Cap Sheet",   fn: () => typeof renderFrnAnalytics      === "function" && renderFrnAnalytics("mysheet") },
 ];
 function frnSetFOSubTab(id) {
   if (!_FRN_FO_TABS.some(t => t.id === id)) return;
