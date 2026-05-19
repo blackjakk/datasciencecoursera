@@ -13149,6 +13149,35 @@ function renderFrnDraft() {
   const slotsLeftRound = _draftScoutsLeftThisRound();
   const slotsUsedTotal  = _draftScoutSlotsUsed();
 
+  // ── Position percentile map ──────────────────────────────────────
+  // For each prospect still on the board, compute their rank within
+  // their position (sorted by scout grade, descending). Drives the
+  // POS #N color chip in the prospect card so the user can see at a
+  // glance whether they're looking at the #1 WR or the #14 WR. Uses
+  // scoutGrade (what the user can see) not raw overall.
+  const posRankMap = new Map();
+  const posCountMap = new Map();
+  {
+    const byPos = {};
+    for (const p of draftablePool) {
+      if (!byPos[p.position]) byPos[p.position] = [];
+      byPos[p.position].push(p);
+    }
+    for (const [pos, list] of Object.entries(byPos)) {
+      list.sort((a, b) => scoutGrade(b) - scoutGrade(a));
+      posCountMap.set(pos, list.length);
+      for (let i = 0; i < list.length; i++) posRankMap.set(list[i].name, i + 1);
+    }
+  }
+  const _posRankColor = (rank, total) => {
+    if (!rank || !total) return "var(--gray)";
+    const pct = (rank - 1) / total;
+    if (pct <= 0.15) return "var(--green-lt)";
+    if (pct <= 0.35) return "var(--gold)";
+    if (pct <= 0.65) return "var(--gold-lt)";
+    return "var(--gray)";
+  };
+
   // Collect and clear target-gone alerts
   const gone = (d._targetGone || []).splice(0);
 
@@ -13247,12 +13276,19 @@ function renderFrnDraft() {
       ? `<div style="font-size:.58rem;color:#e8a000;margin-top:.06rem">⚠ ${p.collegeProfile.knock}${knockCat?`<span style="color:var(--gray);font-weight:400"> · ${DRAFT_SCOUT_CAT_META[knockCat].icon} ${DRAFT_SCOUT_CAT_META[knockCat].label} can resolve</span>`:""}</div>`
       : "";
 
+    const _posRank = posRankMap.get(p.name);
+    const _posTotal = posCountMap.get(p.position) || 0;
+    const _posRankChip = _posRank
+      ? `<span style="font-size:.55rem;color:${_posRankColor(_posRank, _posTotal)};font-weight:700;letter-spacing:.3px"
+              title="Position rank: ${p.position} #${_posRank} of ${_posTotal} remaining by scout grade">${p.position} #${_posRank}</span>`
+      : "";
     return `<div class="frn-draft-prospect${isTargeted?" targeted":""}${isScouted?" scouted":""}">
       <div class="frn-dp-rank">${displayRank}</div>
       <div class="frn-dp-body">
         <div class="frn-dp-top">
           <span class="frn-dp-name">${p.name}</span>
           ${_posPillHtml(p.position)}
+          ${_posRankChip}
           ${needBadge}
           ${gradeBadge(p)}
           ${projRoundLabel ? `<span style="font-size:.55rem;color:var(--gold-lt);letter-spacing:.3px;font-weight:700">${projRoundLabel}</span>` : ""}
@@ -13329,12 +13365,21 @@ function renderFrnDraft() {
       <span style="color:var(--gray);font-size:.58rem;font-style:italic">none left</span>
     </div>`;
     const sg = scoutGrade(best);
+    // Color the grade by absolute scout-grade tier so the user sees at a
+    // glance whether the best at need is elite (green), solid (gold),
+    // average (gold-lt), or thin (gray). Also count how many qualifying
+    // prospects remain so they know the depth situation.
+    const sgColor = sg >= 82 ? "var(--green-lt)"
+                 : sg >= 70 ? "var(--gold)"
+                 : sg >= 60 ? "var(--gold-lt)"
+                 :            "var(--gray)";
+    const posTotal = posCountMap.get(pos) || 0;
     const lvl = needLevels[pos];
     const lvlColor = lvl === 2 ? "#ff9090" : "var(--gold)";
-    return `<div class="frn-draft-best-row" onclick="frnDraftSetFilter('${pos}')" title="Filter to ${pos}">
+    return `<div class="frn-draft-best-row" onclick="frnDraftSetFilter('${pos}')" title="Filter to ${pos} · ${posTotal} ${pos}s left">
       <span style="font-weight:700;font-size:.64rem;min-width:2rem;color:${lvlColor}">${pos}</span>
       <span style="font-size:.62rem;color:var(--white);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${best.name}</span>
-      <span style="color:var(--gray);font-size:.55rem">${sg}</span>
+      <span style="color:${sgColor};font-size:.58rem;font-weight:700" title="Scout grade · ${posTotal} ${pos}s remaining">${gradeLabel(sg)}<span style="color:var(--gray);font-weight:400;margin-left:.18rem">·${posTotal}</span></span>
     </div>`;
   }).join("");
   const bestAtNeedHtml = bestAtNeedRows ? `<div class="frn-draft-info-card">
