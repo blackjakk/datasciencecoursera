@@ -796,11 +796,46 @@ function renderFrnChat() {
 // behavior via document-level event delegation. Doesn't bloat each
 // render site with handlers.
 
+// Composite legacy tier for a player — drives visual treatment across
+// every name surface. Tier ladder (any-of):
+//   LEGEND: 2+ MVPs OR 4+ rings OR 8+ All-Pros — Brady tier
+//   ICON:   1+ MVP OR 3+ rings OR 5+ All-Pros OR 8+ Pro Bowls
+//   ELITE:  1+ ring OR 2+ All-Pros OR 5+ Pro Bowls
+//   PRO:    1+ Pro Bowl OR 1+ All-Pro
+// Returns null for un-decorated standard players.
+function playerLegendTier(p) {
+  if (!p) return null;
+  const mvps = p.mvps     || 0;
+  const aps  = p.allPros  || 0;
+  const sbs  = p.sbRings  || 0;
+  const pbs  = p.proBowls || 0;
+  if (mvps >= 2 || sbs >= 4 || aps >= 8) {
+    return { tier:"legend", icon:"👑", label:"LEGEND" };
+  }
+  if (mvps >= 1 || sbs >= 3 || aps >= 5 || pbs >= 8) {
+    return { tier:"icon", icon:"🏛", label:"ICON" };
+  }
+  if (sbs >= 1 || aps >= 2 || pbs >= 5) {
+    return { tier:"elite", icon:"⭐", label:"ELITE" };
+  }
+  if (pbs >= 1 || aps >= 1) {
+    return { tier:"pro", icon:"✦", label:"PRO" };
+  }
+  return null;
+}
+
 function playerLink(p) {
   if (!p) return "";
   const escName = String(p.name || "").replace(/"/g, "&quot;");
   const pidAttr = p.pid ? ` data-player-pid="${p.pid}"` : "";
-  return `<span class="frn-pname" data-player-name="${escName}"${pidAttr}>${p.name}</span>`;
+  const tier = playerLegendTier(p);
+  const tierCls = tier ? ` frn-pname-t-${tier.tier}` : "";
+  const tierTitle = tier ? ` title="${tier.label}"` : "";
+  const iconHtml = tier ? `<span class="frn-pname-glyph" aria-hidden="true">${tier.icon}</span>` : "";
+  // Madonna/Pelé tier — display ONLY the nickname (p.name stays intact
+  // for lookups). Falls through to legal name when no nickname.
+  const display = (p.goesByNicknameOnly && p.nickname) ? p.nickname : p.name;
+  return `<span class="frn-pname${tierCls}" data-player-name="${escName}"${pidAttr}${tierTitle}>${iconHtml}${display}</span>`;
 }
 function playerLinkByName(name) {
   if (!name) return "";
@@ -812,7 +847,20 @@ function playerLinkByName(name) {
 function _playerLinkSmart(name) {
   if (!name) return "";
   const live = _findPlayer(name);
-  return live ? playerLink(live) : playerLinkByName(name);
+  if (live) return playerLink(live);
+  // Try HOF / alumni pools so retired legends still get their tier badge
+  const hof = (franchise?.hallOfFame || []).find(h => h.name === name);
+  if (hof) {
+    const synth = {
+      name: hof.name, pid: hof.pid,
+      mvps: hof.accolades?.mvps || 0,
+      allPros: hof.accolades?.allPros || 0,
+      proBowls: hof.accolades?.proBowls || 0,
+      sbRings: hof.accolades?.sbRings || 0,
+    };
+    return playerLink(synth);
+  }
+  return playerLinkByName(name);
 }
 function teamLink(team, full) {
   if (!team) return "";

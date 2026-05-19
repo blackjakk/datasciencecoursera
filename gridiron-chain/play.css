@@ -2483,6 +2483,39 @@
   .frn-pname:hover, .frn-tname:hover {
     color: var(--gold-lt); border-bottom-color: var(--gold-lt);
   }
+  /* Legacy tier system — visual treatment based on a player's accolades.
+     Applied via playerLink → see playerLegendTier(). Tier modifier
+     classes are scoped with frn-pname-t-* to avoid colliding with the
+     icon glyph span class. */
+  .frn-pname-glyph {
+    display: inline-block; margin-right: .2rem; font-size: .82em;
+    vertical-align: baseline; line-height: 1; opacity: .92;
+  }
+  .frn-pname.frn-pname-t-legend  { color: #ffd84a; font-weight: 700; text-shadow: 0 0 6px rgba(255, 216, 74, .35); }
+  .frn-pname.frn-pname-t-legend:hover { color: #fff1a0; border-bottom-color: #ffd84a; }
+  .frn-pname.frn-pname-t-icon    { color: #e8a000; font-weight: 600; }
+  .frn-pname.frn-pname-t-icon:hover { color: #ffd87a; border-bottom-color: #e8a000; }
+  .frn-pname.frn-pname-t-elite   { color: #d4d4d4; font-weight: 600; }
+  .frn-pname.frn-pname-t-elite:hover { color: #fff; border-bottom-color: #d4d4d4; }
+  .frn-pname.frn-pname-t-pro     { color: #c0c8d0; }
+  .frn-pname.frn-pname-t-pro:hover { color: #e0e8f0; border-bottom-color: #c0c8d0; }
+
+  /* Hero treatment — used on the big player-card name */
+  .frn-pname-hero {
+    display: inline-flex; align-items: center; gap: .45rem;
+    font-size: 1.15rem; font-weight: 900;
+  }
+  .frn-pname-hero-glyph { font-size: 1.4rem; line-height: 1; }
+  .frn-pname-hero-name { letter-spacing: .5px; }
+  .frn-pname-hero-tag {
+    font-size: .55rem; font-weight: 800; letter-spacing: 1.5px;
+    padding: .1rem .4rem; border-radius: 3px; line-height: 1;
+    border: 1px solid currentColor; opacity: .85; margin-left: .15rem;
+  }
+  .frn-pname-hero.frn-pname-hero-t-legend { color: #ffd84a; text-shadow: 0 0 10px rgba(255, 216, 74, .4); }
+  .frn-pname-hero.frn-pname-hero-t-icon   { color: #e8a000; }
+  .frn-pname-hero.frn-pname-hero-t-elite  { color: #e0e0e0; }
+  .frn-pname-hero.frn-pname-hero-t-pro    { color: #c0c8d0; }
 
   /* Player hover tip */
   .frn-player-tip {

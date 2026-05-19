@@ -3062,7 +3062,18 @@ function _buildPlayerDetailPanel(p) {
     <div class="frn-player-card-head" style="display:flex;gap:.9rem;align-items:flex-start;padding-right:2.5rem">
       ${_playerPortrait(p, 110)}
       <div style="flex:1;min-width:0">
-        <div style="font-size:1.15rem;font-weight:900">${p.name}</div>
+        ${(() => {
+          const tier = (typeof playerLegendTier === "function") ? playerLegendTier(p) : null;
+          const displayName = (p.goesByNicknameOnly && p.nickname) ? p.nickname : p.name;
+          if (!tier) {
+            return `<div style="font-size:1.15rem;font-weight:900">${displayName}</div>`;
+          }
+          return `<div class="frn-pname-hero frn-pname-hero-t-${tier.tier}" title="${tier.label}">
+            <span class="frn-pname-hero-glyph" aria-hidden="true">${tier.icon}</span>
+            <span class="frn-pname-hero-name">${displayName}</span>
+            <span class="frn-pname-hero-tag">${tier.label}</span>
+          </div>`;
+        })()}
         ${_buildAccoladesBanner(p)}
         <div style="color:var(--gray);font-size:.72rem;margin-top:.2rem">
           #${jerseyForPlayer(p) || "—"} · ${p.position} · Age ${p.age || "?"}${p.height?` · ${formatHeight(p.height)}, ${p.weight||"?"} lbs`:""}
