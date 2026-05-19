@@ -12826,8 +12826,26 @@ function _renderDraftFloor() {
     ? `<div style="font-size:.6rem;color:var(--gray);text-align:center;padding:.25rem;font-style:italic">+${moreCount} earlier picks…</div>`
     : "";
 
+  // "You just drafted X" confirmation banner — pick at sinceIdx-1 is
+  // the entry made immediately before the animation started. For
+  // frnDraftPick / frnAutoPickThisSlot that's the user's pick; for
+  // frnBeginDraftActual (sinceIdx=0) there's no prior pick so we skip.
+  const lastIdx = sinceIdx - 1;
+  const lastUserPick = lastIdx >= 0 && d.picks[lastIdx] && d.picks[lastIdx].teamId === myId
+    ? d.picks[lastIdx]
+    : null;
+  const justDraftedHtml = lastUserPick
+    ? `<div style="background:rgba(0,180,0,.10);border-left:3px solid var(--green-lt);padding:.45rem .65rem;margin-bottom:.6rem;border-radius:3px;display:flex;gap:.55rem;align-items:baseline">
+         <span style="color:var(--green-lt);font-weight:900;font-size:.62rem;letter-spacing:1.5px">✓ YOU DRAFTED</span>
+         <span style="color:var(--white);font-weight:700">${lastUserPick.prospectName}</span>
+         <span style="color:var(--gold-lt);font-weight:700;font-size:.62rem">${lastUserPick.pos}</span>
+         <span style="color:var(--gray);font-size:.6rem;margin-left:auto">R${lastUserPick.round}.${lastUserPick.pickInRound}${lastUserPick.isComp?"c":""}</span>
+       </div>`
+    : "";
+
   $("frnHomeContent").innerHTML = `
     <div style="max-width:840px;margin:0 auto;padding:1rem">
+      ${justDraftedHtml}
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">
         <div>
           <div style="font-size:.6rem;color:var(--gold);letter-spacing:2px;font-weight:700">📋 DRAFT FLOOR</div>
@@ -13517,9 +13535,14 @@ function renderFrnDraft() {
     _scheduleAnimTick();
     return;
   }
-  // Animation flag set but already at user slot or end — clean it up.
+  // Animation flag set but already at user slot or end — clean it up
+  // and persist the cleanup so a refresh doesn't restore the stale
+  // flag. Without the save, the saved state would keep the flag
+  // forever (or until some other action saved) and every render would
+  // re-run this cleanup branch.
   if (d._animSinceIdx !== undefined) {
     delete d._animSinceIdx;
+    _flushSaveFranchise();
   }
 
   if (d.currentIdx >= d.pickOrder.length) {
