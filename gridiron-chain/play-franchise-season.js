@@ -3439,6 +3439,119 @@ function _assignFACareerTeams(p) {
   p._careerTeamsAssigned = true;
 }
 
+// ── FA cap projection ──────────────────────────────────────────────────
+// Multi-year cap usage projection for the chosen team, accounting for:
+//   · kept roster contracts (with their natural year-by-year decay)
+//   · pending FA signings (assume they sign at offered/bid terms)
+//   · cuts queued (kept player swapped for dead cap perYear × remaining)
+// Cap line per year inflates ~7% per season to match the offseason
+// model. Source defaults to "auto" — uses faNegotiations yourBids if
+// any active, else _faOffers. Pass "offers" or "negotiations" to force.
+function _faMultiYearCapProjection(years = 4, source = "auto") {
+  const myId = franchise.chosenTeamId;
+  const myRoster = franchise.rosters[myId] || [];
+  const baseCap = effectiveSalaryCap(myId);
+  // Collect pending signings + cuts from the requested source.
+  const cutNames = new Set();
+  const signings = []; // { fa, offer }
+  const hasNegs = Object.values(franchise.faNegotiations || {})
+    .some(n => n.state === "negotiating" && n.yourBid);
+  const useNegs = source === "negotiations" || (source === "auto" && hasNegs);
+  if (useNegs) {
+    for (const [, n] of Object.entries(franchise.faNegotiations || {})) {
+      if (n.state !== "negotiating" || !n.yourBid?.aav || !n.yourBid?.years) continue;
+      (n.yourBid.cutNames || []).forEach(c => cutNames.add(c));
+      signings.push({ fa: n.fa, offer: n.yourBid });
+    }
+  } else {
+    for (const [key, o] of Object.entries(franchise._faOffers || {})) {
+      const fa = (franchise.freeAgents || []).find(p => p.pid === key || p.name === key);
+      if (!fa || !o?.aav || !o?.years) continue;
+      (o.cutNames || []).forEach(c => cutNames.add(c));
+      signings.push({ fa, offer: o });
+    }
+  }
+  const usage = new Array(years).fill(0);
+  // Kept roster contracts (or dead cap for cut players)
+  for (const p of myRoster) {
+    const c = p.contract;
+    if (!c || c.remaining <= 0) continue;
+    if (cutNames.has(p.name)) {
+      const { perYear, years: dYrs } = deadCapOnRelease(p);
+      for (let i = 0; i < Math.min(years, dYrs); i++) {
+        usage[i] += perYear;
+      }
+      continue;
+    }
+    const proration = c.bonusProration || 0;
+    const bases = c.baseSalaries || [];
+    const curIdx = (c.years || 1) - (c.remaining || 1);
+    for (let i = 0; i < years && (curIdx + i) < bases.length; i++) {
+      usage[i] += (bases[curIdx + i] || 0) + proration;
+    }
+  }
+  // Pending signings — assume all are signed at offered terms
+  for (const { fa, offer } of signings) {
+    const ovr = scoutGrade(fa);
+    const bonus = _signingBonusCalc(offer.aav, offer.years, ovr);
+    const struct = offer.structure || _defaultStructure(fa.age || 27, ovr);
+    const bases = _baseSalarySchedule(offer.aav, offer.years, struct, bonus.bonusProration);
+    for (let i = 0; i < years && i < bases.length; i++) {
+      usage[i] += (bases[i] || 0) + bonus.bonusProration;
+    }
+  }
+  return usage.map((v, i) => ({
+    year: i,
+    usage: Math.round(v * 10) / 10,
+    cap: Math.round(baseCap * Math.pow(1.07, i) * 10) / 10,
+  }));
+}
+
+// Shared HTML builder for the 4-year cap timeline used on every FA
+// screen. Returns the block including the title, bars, and footnote.
+// titleSuffix lets the caller tailor the heading (ROSTER + OFFERS,
+// ROSTER + ACTIVE BIDS, etc.). hoverNote shows below if there's
+// interactivity to advertise.
+function _faCapTimelineHtml(proj, titleSuffix, hoverNote) {
+  const yearsHtml = proj.map(p => {
+    const pct = Math.min(100, (p.usage / Math.max(1, p.cap)) * 100);
+    const color = p.usage > p.cap ? "var(--red)" : p.usage > p.cap * 0.90 ? "#e8a000" : "var(--green-lt)";
+    return `<div class="frn-resign-cap-year" data-cap-year="${p.year}" data-cap-used="${p.usage}">
+      <div class="lbl">Y${p.year+1}</div>
+      <div class="bar">
+        <div class="fill" style="width:${pct}%;background:${color}"></div>
+        <div class="fill-preview" style="left:${pct}%"></div>
+      </div>
+      <div class="num" style="color:${color}">$${p.usage.toFixed(0)}M<span class="num-preview"></span></div>
+    </div>`;
+  }).join("");
+  return `<div style="background:var(--bg2);border:1px solid var(--border);padding:.45rem .6rem;margin-bottom:.55rem;border-radius:3px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">
+      <span style="font-size:.55rem;color:var(--gold);letter-spacing:1.5px;font-weight:700">📊 CAP TIMELINE · ${titleSuffix}</span>
+      ${hoverNote ? `<span style="font-size:.55rem;color:var(--gray);font-style:italic">${hoverNote}</span>` : ""}
+    </div>
+    <div class="frn-resign-cap-timeline">${yearsHtml}</div>
+    <div style="font-size:.55rem;color:var(--gray);margin-top:.2rem;font-style:italic">Cap inflates ~7%/yr · ceiling per year shown</div>
+  </div>`;
+}
+
+// Per-year cap hit for a single FA offer. Used to populate the
+// data-resign-hits attribute on hover-able rows so the existing
+// _resignHoverIn/_resignHoverOut handlers can render the preview
+// overlay on the cap bars.
+function _faPendingHitsByYear(fa, offer, years = 4) {
+  if (!fa || !offer || !offer.aav || !offer.years) return new Array(years).fill(0);
+  const ovr = scoutGrade(fa);
+  const { bonusProration } = _signingBonusCalc(offer.aav, offer.years, ovr);
+  const struct = offer.structure || _defaultStructure(fa.age || 27, ovr);
+  const bases = _baseSalarySchedule(offer.aav, offer.years, struct, bonusProration);
+  const out = new Array(years).fill(0);
+  for (let i = 0; i < years && i < bases.length; i++) {
+    out[i] = +((bases[i] || 0) + bonusProration).toFixed(1);
+  }
+  return out;
+}
+
 function _generateFAPool() {
   const taken = new Set();
   for (const r of Object.values(franchise.rosters)) r.forEach(p => taken.add(p.name));
@@ -3678,8 +3791,17 @@ function renderFrnFA(selectedKey) {
       ? TEAMS.filter(t => t.id !== chosenTeamId && _faAIInterest(t.id, p) >= 0.1).length : 0;
     const suitorBit = rowSuitors >= 3
       ? `<span style="font-size:.52rem;color:${rowSuitors>=6?"var(--red)":"#e8a000"};flex-shrink:0">${rowSuitors} teams</span>` : "";
+    // Hover preview on the cap timeline below — only for FAs that
+    // don't yet have an offer (offered FAs are already in the bars,
+    // so hover would double-count). Hits use demanded AAV/years.
+    const hoverOffer = offered ? null : { aav: p.demandedAAV, years: p.demandedYears };
+    const hoverHits = hoverOffer ? _faPendingHitsByYear(p, hoverOffer, 4) : [];
+    const hoverAttr = hoverHits.length
+      ? `data-resign-hits='${JSON.stringify(hoverHits)}' data-resign-cap='${cap}' onmouseenter="_resignHoverIn(this)" onmouseleave="_resignHoverOut()"`
+      : "";
     return `<div class="frn-fa-row ${isSel?"selected":""} ${offered?"offered":""}"
       style="border-left:3px solid ${borderCol};padding-left:.45rem;cursor:pointer;display:block"
+      ${hoverAttr}
       onclick="renderFrnFA('${escKey}')">
       <div style="display:flex;align-items:center;gap:.3rem">
         ${heatBadge ? heatBadge : `<span style="display:inline-block;width:.7rem"></span>`}
@@ -4014,6 +4136,9 @@ function renderFrnFA(selectedKey) {
         ${overCap ? `(${(projectedCap-cap).toFixed(1)}M OVER)` : `(${(cap-projectedCap).toFixed(1)}M room)`}
       </span>
     </div>
+    ${_faCapTimelineHtml(_faMultiYearCapProjection(4, "offers"),
+      "ROSTER + OFFERS − CUTS",
+      "Hover an unoffered FA to preview impact")}
     <div class="frn-fa-layout">
       <div class="frn-fa-pool-col">
         <div class="frn-card-title">FREE AGENT POOL (${filtered.length}${filtered.length !== freeAgents.length ? ` / ${freeAgents.length}` : ""})</div>
@@ -4694,8 +4819,19 @@ function renderFrnFANegotiations(selectedName) {
       : outbid ? `<span style="font-size:.6rem;line-height:1">🔥</span>`
       : youLead ? `<span style="font-size:.6rem;line-height:1">👀</span>`
       : `<span style="display:inline-block;width:.7rem"></span>`;
+    // Hover preview on cap timeline — for AI-only negotiations (no
+    // yourBid yet), preview what jumping in at the current high bid
+    // would cost. yourBid negotiations are already in the bars.
+    const hoverOffer = (!n.yourBid && high)
+      ? { aav: high.aav, years: high.years || n.fa.demandedYears }
+      : null;
+    const hoverHits = hoverOffer ? _faPendingHitsByYear(n.fa, hoverOffer, 4) : [];
+    const hoverAttr = hoverHits.length
+      ? `data-resign-hits='${JSON.stringify(hoverHits)}' data-resign-cap='${cap}' onmouseenter="_resignHoverIn(this)" onmouseleave="_resignHoverOut()"`
+      : "";
     return `<div class="frn-fa-row ${isSel?"selected":""} ${n.yourBid?"offered":""}"
       style="border-left:3px solid ${borderCol};padding-left:.45rem;cursor:pointer;display:block"
+      ${hoverAttr}
       onclick="renderFrnFANegotiations('${escName}')">
       <div style="display:flex;align-items:center;gap:.3rem">
         ${heatBadge}
@@ -4993,6 +5129,9 @@ function renderFrnFANegotiations(selectedName) {
         ${overCap?`(${(proj-cap).toFixed(1)}M OVER)`:`(${(cap-proj).toFixed(1)}M room)`}
       </span>
     </div>
+    ${_faCapTimelineHtml(_faMultiYearCapProjection(4, "negotiations"),
+      "ROSTER + ACTIVE BIDS − CUTS",
+      "Assumes you win every active bid")}
     <div class="frn-fa-layout">
       <div class="frn-fa-pool-col">
         <div class="frn-card-title">ACTIVE NEGOTIATIONS (${active.length})</div>
@@ -5144,6 +5283,8 @@ function renderFrnFAResults() {
     </div>
     ${signedHtml || `<div style="color:var(--gray);text-align:center;font-size:.78rem">No new players signed.</div>`}
     ${lostHtml}
+    ${_faCapTimelineHtml(_faMultiYearCapProjection(4, "offers"),
+      "POST-FA ROSTER", "")}
     <div class="frn-card-box" style="margin-top:.6rem">
       <div class="frn-card-title">CAP STATUS</div>
       <div style="font-size:.85rem;padding:.4rem 0">
@@ -5210,6 +5351,8 @@ function renderFrnFACuts() {
         </span>
       </div>
     </div>
+    ${_faCapTimelineHtml(_faMultiYearCapProjection(4, "offers"),
+      "CURRENT ROSTER", "")}
     <table class="frn-pre-roster-table">
       <thead><tr><th>Pos</th><th>Player</th><th>Grade</th><th>Age</th><th>AAV</th><th></th></tr></thead>
       <tbody>${rows}</tbody>
