@@ -2939,11 +2939,24 @@
     display: flex; flex-direction: column; align-items: center; gap: .08rem;
     padding: .25rem .25rem; border-left: 1px solid rgba(255,255,255,.06);
     border-right: 1px solid rgba(255,255,255,.06); align-self: stretch;
-    justify-content: center;
+    justify-content: center; cursor: pointer; position: relative;
+    transition: background .12s;
   }
+  .frn-dc-snap-col:hover { background: rgba(255,255,255,.04); }
+  .frn-dc-snap-col.manual {
+    background: linear-gradient(to bottom, rgba(124,200,232,.10), rgba(124,200,232,.02));
+  }
+  .frn-dc-snap-col.manual:hover { background: rgba(124,200,232,.16); }
+  .frn-dc-snap-lock {
+    position: absolute; top: .12rem; right: .12rem;
+    font-size: .55rem; line-height: 1; opacity: .9;
+    cursor: pointer; padding: 0 .08rem; border-radius: 2px;
+  }
+  .frn-dc-snap-lock:hover { background: rgba(255,255,255,.12); }
   .frn-dc-snap-pct { font-size: .44rem; font-weight: 700; line-height: 1; }
   .frn-dc-snap-pct.s { color: var(--gold-lt); }
   .frn-dc-snap-pct.b { color: var(--blgray); }
+  .frn-dc-snap-col.manual .frn-dc-snap-pct.s { color: #7ac8e8; }
   .frn-dc-snap-bar {
     width: 6px; height: 2.2rem; background: rgba(255,255,255,.08);
     border-radius: 3px; overflow: hidden; position: relative;
@@ -2952,6 +2965,9 @@
     position: absolute; bottom: 0; width: 100%;
     background: linear-gradient(to top, var(--gold), rgba(212,175,55,.4));
     border-radius: 3px;
+  }
+  .frn-dc-snap-col.manual .frn-dc-snap-fill {
+    background: linear-gradient(to top, #7ac8e8, rgba(124,200,232,.4));
   }
 
   /* Controls */

@@ -2508,9 +2508,16 @@ function _computeAutoDepthChart(teamId) {
 function _initDepthChart(teamId) {
   if (!franchise.depthChart) franchise.depthChart = {};
   if (!franchise.snapShares) franchise.snapShares = {};
+  // Preserve manual snap share overrides across auto-rebuilds. The user
+  // intent ("I want 50/50 RB committee") should outlive a roster shuffle.
+  const manualOverrides = {};
+  const existing = franchise.snapShares[teamId] || {};
+  for (const [key, val] of Object.entries(existing)) {
+    if (val?.manual) manualOverrides[key] = { ...val };
+  }
   const { dc, ss } = _computeAutoDepthChart(teamId);
   franchise.depthChart[teamId] = dc;
-  franchise.snapShares[teamId] = ss;
+  franchise.snapShares[teamId] = { ...ss, ...manualOverrides };
 }
 
 // Re-run the optimizer for all non-manual slots on a team.

@@ -3120,6 +3120,46 @@ function frnDepthAutoSetOVR() {
   renderFrnDepthChart();
 }
 
+// Set a manual snap share for a slot (locks it from the auto-optimizer).
+// User can say "I want my RB committee 50/50" — that intent persists
+// across roster changes, injuries, and "auto-set by OVR".
+function frnDepthSetSnapShare(slotKey) {
+  const myId = franchise.chosenTeamId;
+  if (!franchise.snapShares?.[myId]) return;
+  const sd = franchise.snapShares[myId][slotKey] || {};
+  const cur = sd.starterPct ?? 70;
+  const input = prompt(
+    `Set STARTER snap share for ${slotKey} (0-100%).\n` +
+    `Backup will play the remaining ${100}-N%.\n\n` +
+    `Current: ${cur}%${sd.manual ? " (manual)" : " (auto)"}.\n` +
+    `Type a number, or cancel to keep current.`,
+    String(cur)
+  );
+  if (input === null) return;
+  const newPct = Math.round(Number(input));
+  if (!Number.isFinite(newPct) || newPct < 0 || newPct > 100) {
+    alert("Snap share must be a number 0-100.");
+    return;
+  }
+  franchise.snapShares[myId][slotKey] = {
+    ...sd,
+    starterPct: newPct,
+    manual: true,
+  };
+  saveFranchise();
+  renderFrnDepthChart();
+}
+
+// Clear manual lock — restore to optimizer-computed value.
+function frnDepthResetSnapShare(slotKey) {
+  const myId = franchise.chosenTeamId;
+  if (!franchise.snapShares?.[myId]?.[slotKey]) return;
+  delete franchise.snapShares[myId][slotKey].manual;
+  _optimizeSnapShares(myId);
+  saveFranchise();
+  renderFrnDepthChart();
+}
+
 
 let _dcActiveUnit = "OFF"; // persists across re-renders (swap, promote, auto-set)
 function frnDepthSetTab(unit) {
@@ -3251,8 +3291,17 @@ function renderFrnDepthChart() {
   const snapBar = (slotKey) => {
     const sd  = ss[slotKey];
     const pct = sd?.starterPct ?? 70;
-    const bPct = Math.max(5, Math.round((100 - pct) * 0.55));
-    return `<div class="frn-dc-snap-col">
+    const isManual = !!sd?.manual;
+    // For manual overrides, backup gets the full remainder (1:1 split).
+    // For auto, the 0.55 multiplier accounts for cascade to 3rd-string.
+    const bPct = isManual
+      ? Math.max(0, 100 - pct)
+      : Math.max(5, Math.round((100 - pct) * 0.55));
+    const lockIcon = isManual
+      ? `<span class="frn-dc-snap-lock" title="Manual override (locked) — click 🔒 to reset to auto" onclick="event.stopPropagation();frnDepthResetSnapShare('${slotKey}')">🔒</span>`
+      : "";
+    return `<div class="frn-dc-snap-col${isManual?" manual":""}" onclick="frnDepthSetSnapShare('${slotKey}')" title="Click to set snap share (current: ${pct}% starter)">
+      ${lockIcon}
       <span class="frn-dc-snap-pct s">${pct}%</span>
       <div class="frn-dc-snap-bar">
         <div class="frn-dc-snap-fill" style="height:${pct}%"></div>
@@ -3420,7 +3469,7 @@ function renderFrnDepthChart() {
     </div>
     ${strengthStrip}
     ${tabsHtml}
-    <div class="frn-dc-hint">↑↓ reorder slots · ⇅ swap #1↔#2 · ▲ on backup to promote · ⚠ on a cell = AUTO-by-OVR would put someone else there</div>
+    <div class="frn-dc-hint">↑↓ reorder slots · ⇅ swap #1↔#2 · ▲ promote backup · click snap bar to set split (blue = manual) · hover starter for injury cascade · ⚠ = auto-by-OVR mismatch</div>
     <div class="frn-dc-table">
       ${colHeader}
       ${groupSections}
