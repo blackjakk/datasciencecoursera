@@ -13691,6 +13691,7 @@ const _SCOUT_BOARD_STATE = {
   tierFilter: "ALL",      // "ALL" | "ELITE" | "GOOD" | "AVERAGE" | "POOR"
   sort:       "ovr",      // "ovr" | "proj" | "year" | "pos" | "scouted" | "unscouted"
   compare:    [],         // array of prospect names (max 2) for side-by-side compare
+  showMock:   false,      // mock draft top-32 panel visible?
 };
 
 // Map current OVR → coarse tier label for the tier filter + class strength
@@ -13795,6 +13796,78 @@ function frnScoutBoardToggleCompare(name) {
 function frnScoutBoardClearCompare() {
   _SCOUT_BOARD_STATE.compare = [];
   renderFrnScoutingBoard();
+}
+function frnScoutBoardToggleMock() {
+  _SCOUT_BOARD_STATE.showMock = !_SCOUT_BOARD_STATE.showMock;
+  renderFrnScoutingBoard();
+}
+
+// Mock draft top-32 panel — eligible players ranked by a "consensus
+// OVR" that blends current OVR with a stable per-prospect noise
+// (deterministic from name hash so the order is repeatable across
+// renders). Highlights pinned prospects, shows scout coverage, tags
+// position-rare elite prospects as RISER. The biggest "leap forward"
+// feature for the page — turns the scouting list into a live mock.
+function _renderMockDraft(eligible, pinSet, reveals, eligibleByPos) {
+  if (!eligible.length) return "";
+  // Stable jitter from name hash — keeps the mock order consistent
+  // within a session but varies across saves.
+  const _hash = (name) => {
+    let h = 0;
+    for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
+    return Math.abs(h);
+  };
+  // Mock OVR = real OVR + ±3.3 noise. The 30 divisor matches the
+  // scale of real-life consensus draft-board noise (Pro Football
+  // Focus's ±3 OVR variability vs ESPN).
+  const _mockOvr = p => (p.overall || 60) + ((_hash(p.name) % 200) - 100) / 30;
+  const ranked = eligible.slice().sort((a, b) => _mockOvr(b) - _mockOvr(a));
+  const top32 = ranked.slice(0, 32);
+
+  // Position scarcity → RISER tag. If a position has ≤ 3 elite-tier
+  // eligible players, the top elite at that position gets a RISER tag.
+  const scarcePositions = new Set();
+  for (const [pos, list] of Object.entries(eligibleByPos)) {
+    const eliteCount = list.filter(p => _scoutTierFromOvr(p) === "elite").length;
+    if (eliteCount > 0 && eliteCount <= 3) scarcePositions.add(pos);
+  }
+  // Track first elite per scarce position — only that one gets RISER
+  const scarceTagged = new Set();
+
+  const _esc = s => String(s ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/'/g, "&#39;");
+
+  const rows = top32.map((p, i) => {
+    const pick = i + 1;
+    const pinned = pinSet.has(p.name);
+    const scoutCats = reveals[p.name]?.categories?.length || 0;
+    let tag = "";
+    if (scarcePositions.has(p.position) && _scoutTierFromOvr(p) === "elite" && !scarceTagged.has(p.position)) {
+      tag = `<span class="frn-mock-tag riser" title="Elite ${p.position} in a thin class — likely to rise on draft day">▲ RISER</span>`;
+      scarceTagged.add(p.position);
+    } else if (_scoutTierFromOvr(p) === "average" && i < 16) {
+      tag = `<span class="frn-mock-tag faller" title="Average-tier player projected R1 — could fall on draft day">▼ FALLER</span>`;
+    }
+    const archLabel = (typeof _archetypeLabel === "function") ? _archetypeLabel(p) : "";
+    return `<div class="frn-mock-row${pinned?" pinned":""}">
+      <span class="frn-mock-pick">${pick}</span>
+      <span class="frn-mock-pos">${_esc(p.position)}</span>
+      <span class="frn-mock-name" onclick="frnOpenPlayerCard('${_esc(p.name)}')">${pinned?"★ ":""}${_esc(p.name)}</span>
+      <span class="frn-mock-year">${p.collegeYear}${p.declaredEarly?"·D":""}</span>
+      <span class="frn-mock-ovr">${p.overall||"—"}</span>
+      <span class="frn-mock-arch">${archLabel ? _esc(archLabel) : ""}</span>
+      <span class="frn-mock-scouted" title="${scoutCats}/4 categories scouted">${scoutCats > 0 ? "🔎".repeat(scoutCats) : "—"}</span>
+      <span class="frn-mock-tags">${tag}</span>
+    </div>`;
+  }).join("");
+
+  return `<div class="frn-mock-card">
+    <div class="frn-mock-hdr">
+      <span class="frn-mock-title">📋 MOCK FIRST ROUND</span>
+      <span class="frn-mock-sub">Eligible players ranked by consensus OVR (your OVR + noise). Pinned prospects ★ highlighted. RISER/FALLER based on position scarcity.</span>
+      <button class="frn-mock-close" onclick="frnScoutBoardToggleMock()" title="Hide mock draft">✕</button>
+    </div>
+    <div class="frn-mock-list">${rows}</div>
+  </div>`;
 }
 
 // Class strength strip — one card per skill position showing how many
@@ -14045,10 +14118,13 @@ function renderFrnScoutingBoard() {
           <span style="font-size:1.05rem;font-weight:900;color:var(--gold)">🔍 SCOUTING BOARD</span>
           <span class="frn-scout-subtitle">${players.length} college players in the pipeline</span>
         </div>
-        <div class="frn-scout-bank" title="Scout credits refresh by ${_SEASON_SCOUTS_PER_WEEK} each week, capped at ${_SEASON_SCOUT_BANK_CAP}">
-          <span class="frn-scout-bank-num">${bank}</span>
-          <span class="frn-scout-bank-cap">/${_SEASON_SCOUT_BANK_CAP}</span>
-          <span class="frn-scout-bank-lbl">credits</span>
+        <div style="display:flex;gap:.5rem;align-items:center">
+          <button class="frn-scout-mock-toggle${st.showMock?" active":""}" onclick="frnScoutBoardToggleMock()" title="Toggle mock first round projection based on current scouting + consensus noise">📋 ${st.showMock?"Hide":"Show"} Mock Draft</button>
+          <div class="frn-scout-bank" title="Scout credits refresh by ${_SEASON_SCOUTS_PER_WEEK} each week, capped at ${_SEASON_SCOUT_BANK_CAP}">
+            <span class="frn-scout-bank-num">${bank}</span>
+            <span class="frn-scout-bank-cap">/${_SEASON_SCOUT_BANK_CAP}</span>
+            <span class="frn-scout-bank-lbl">credits</span>
+          </div>
         </div>
       </div>
       <div class="frn-scout-filters">
@@ -14070,6 +14146,7 @@ function renderFrnScoutingBoard() {
         </div>
       </div>
       ${_renderClassStrengthSummary(eligibleByPos)}
+      ${st.showMock ? _renderMockDraft(draftEligible, pinSet, reveals, eligibleByPos) : ""}
       ${(() => {
         const cmpNames = _SCOUT_BOARD_STATE.compare || [];
         const cmpProspects = cmpNames.map(n => players.find(p => p.name === n)).filter(Boolean);
