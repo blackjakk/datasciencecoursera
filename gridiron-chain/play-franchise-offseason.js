@@ -10594,9 +10594,11 @@ function frnOpenTrade(targetTeamId, tab) {
     franchise._tradeProp = {
       targetTeamId: wantsBrowse ? null : Number(targetTeamId),
       ...fresh(),
-      tab: tab || "propose",
+      tab: tab || "market",
       sortBy: "grade",
       posFilter: "ALL",
+      willingnessFilter: "available",
+      needsOnly: false,
     };
   } else if (!wantsBrowse) {
     franchise._tradeProp.targetTeamId = Number(targetTeamId);
@@ -11217,6 +11219,48 @@ function frnSetTradePosFilter(pos) {
   renderFrnTrade();
 }
 
+// Set the willingness filter on SHOP MARKET. "available" hides
+// untouchables (default), "shopping" shows only sellers, "all" shows
+// everyone for full league snapshot.
+function frnSetTradeWillingness(id) {
+  const tp = franchise._tradeProp;
+  if (!tp) return;
+  tp.willingnessFilter = id;
+  renderFrnTrade();
+}
+
+// Toggle "Fits my needs" filter — uses _teamNeedsProfile to filter
+// shopped players to positions your team is weak at.
+function frnToggleTradeNeedsOnly() {
+  const tp = franchise._tradeProp;
+  if (!tp) return;
+  tp.needsOnly = !tp.needsOnly;
+  renderFrnTrade();
+}
+
+// "→ Propose" from SHOP MARKET — opens the Propose Trade tab with the
+// shopped player pre-added to youReceive and the partner locked. If the
+// user was already proposing a deal with a different partner, the
+// previous draft is cleared (avoids weird hybrid states).
+function frnShopProposeForPlayer(teamId, name) {
+  const tp = franchise._tradeProp;
+  if (!tp) return;
+  if (tp.targetTeamId !== teamId) {
+    // Switching partners — clear prior draft
+    tp.youSend = [];
+    tp.picksSend = [];
+    tp.picksReceive = [];
+    tp.theirAbsorb = 0;
+    tp.yourAbsorb = 0;
+    tp.result = null;
+  }
+  tp.targetTeamId = teamId;
+  tp.youReceive = [name];
+  tp.tab = "propose";
+  saveFranchise();
+  renderFrnTrade();
+}
+
 function frnClearTradePartner() {
   const tp = franchise._tradeProp;
   if (!tp) return;
@@ -11446,7 +11490,11 @@ function _sortRoster(roster, sortBy) {
 function renderFrnTrade() {
   const tp = franchise._tradeProp;
   if (!tp) { showFranchiseDashboard(); return; }
-  const tab = tp.tab || "propose";
+  // Default landing is now the SHOP MARKET — the league-wide player
+  // browse. The audit found that "PROPOSE TRADE → partner picker grid"
+  // was a buried experience for users who want to ask "what good
+  // players could I trade for?" before committing to a team.
+  const tab = tp.tab || "market";
   const sortBy = tp.sortBy || "grade";
   const myId = franchise.chosenTeamId;
   const myRoster = franchise.rosters[myId] || [];
@@ -11457,30 +11505,34 @@ function renderFrnTrade() {
   const pendingOffers = (franchise.tradeOffers || []).filter(o => o.status === "pending");
   const blockedCount = myRoster.filter(p => p.onTradeBlock).length;
 
-  // Tab bar
+  // Tab bar — MARKET is the default shopper view. PROPOSE TRADE is now
+  // the "active negotiation" surface (used after picking a target from
+  // market). The old "LEAGUE BLOCK" tab was removed — AI teams never
+  // populated the blockAsk store so it was always empty.
   const tabHtml = [
-    { id:"propose", label:"PROPOSE TRADE" },
-    { id:"block",   label:`TRADE BLOCK${blockedCount?` · ${blockedCount}`:""}` },
-    { id:"market",  label:"LEAGUE BLOCK" },
-    { id:"offers",  label:`OFFERS${pendingOffers.length?` · ${pendingOffers.length}`:""}` },
+    { id:"market",  label:"🛒 SHOP MARKET" },
+    { id:"propose", label:"📝 PROPOSE TRADE" },
+    { id:"block",   label:`🏷️ YOUR BLOCK${blockedCount?` · ${blockedCount}`:""}` },
+    { id:"offers",  label:`📬 OFFERS${pendingOffers.length?` · ${pendingOffers.length}`:""}` },
   ].map(t => `<button class="frn-ana-tab ${t.id===tab?"active":""}"
     onclick="frnOpenTrade(null,'${t.id}')">${t.label}</button>`).join("");
 
-  // Sort controls
+  // Sort controls — MARKET tab gets an extra "Trade Value" sort.
+  const sortChoices = (tab === "market")
+    ? [["grade","Grade ↓"],["value","Trade Value ↓"],["aav","AAV ↓"],["age","Age ↑"],["pos","Position"]]
+    : [["grade","Grade ↓"],["age","Age ↑"],["aav","AAV ↓"],["pos","Position"]];
   const sortHtml = `
     <div class="frn-fa-summary">
       <span>Sort by:</span>
-      ${["grade","age","aav","pos"].map(by => `
-        <button class="frn-sort-btn ${sortBy===by?"active":""}" onclick="frnSetTradeSort('${by}')">
-          ${by==="grade"?"Grade ↓":by==="age"?"Age ↑":by==="aav"?"AAV ↓":"Position"}
-        </button>`).join("")}
+      ${sortChoices.map(([by, lbl]) => `
+        <button class="frn-sort-btn ${sortBy===by?"active":""}" onclick="frnSetTradeSort('${by}')">${lbl}</button>`).join("")}
       <span style="margin-left:auto">Cap: <b style="color:var(--gold)">$${myCapUsed.toFixed(1)}M</b> / $${cap.toFixed(0)}M</span>
     </div>`;
 
   let bodyHtml = "";
-  if (tab === "propose") bodyHtml = _renderTradeProposeTab(tp, sortBy, myRoster, cap, myCapUsed);
+  if (tab === "market") bodyHtml = _renderTradeShopMarketTab(myId, sortBy, tp, cap);
+  else if (tab === "propose") bodyHtml = _renderTradeProposeTab(tp, sortBy, myRoster, cap, myCapUsed);
   else if (tab === "block") bodyHtml = _renderTradeBlockTab(myRoster, sortBy);
-  else if (tab === "market") bodyHtml = _renderTradeMarketTab(myId, sortBy);
   else if (tab === "offers") bodyHtml = _renderTradeOffersTab();
 
   $("frnHomeContent").innerHTML = `
@@ -12218,63 +12270,183 @@ function _renderBlockAskForm(playerName) {
     </div>`;
 }
 
-function _renderTradeMarketTab(myId, sortBy) {
-  // League-wide list of blocked players (excluding yours)
-  const all = [];
+// Format a trade-points value into a human-readable pick equivalent.
+// PICK_VALUE_BY_ROUND: R1=32, R2=16, R3=9, R4=5, R5=3, R6=2, R7=1.5.
+// Thresholds set at the midpoint between adjacent pick values so users
+// see "R2 pick" for 20-pt asks (closer to 16 than 32) and "R1 pick" for
+// 40-pt asks. Above an R1, we break into compound packages.
+function _formatPickEquivalence(value) {
+  if (value <= 1.75) return "Late R7";
+  if (value <= 2.5)  return "R6 pick";
+  if (value <= 4)    return "R5 pick";
+  if (value <= 7)    return "R4 pick";
+  if (value <= 12.5) return "R3 pick";
+  if (value <= 24)   return "R2 pick";
+  if (value <= 48)   return "R1 pick";
+  if (value <= 64)   return "R1 + R3";
+  if (value <= 84)   return "R1 + R2";
+  if (value <= 120)  return "Two R1s";
+  if (value <= 180)  return "Two R1s + more";
+  return "Premium haul";
+}
+
+// What would this team realistically ask for player p? Combines the
+// player's intrinsic trade value with the AI's acceptance ratio (which
+// embeds stance + mode). Returns either a pick-equivalent string or
+// "⛔ Won't trade" if the player is untouchable.
+function _estimateAskingPrice(teamId, p) {
+  const v = _playerTradeValue(p);
+  const ratio = _aiAcceptanceRatio(teamId, [p]);
+  if (typeof ratio === "object" && ratio.reject) return "⛔ Won't trade";
+  const ask = v * (typeof ratio === "number" ? ratio : 0.97);
+  return _formatPickEquivalence(ask);
+}
+
+// New SHOP MARKET — league-wide player browse, the default landing for
+// "let's see what good players I can trade for." Replaces the old
+// "LEAGUE BLOCK" tab which was always empty (no codepath populated AI
+// teams' blockAsk store).
+function _renderTradeShopMarketTab(myId, sortBy, tp, cap) {
+  const myRoster = franchise.rosters[myId] || [];
+  const posFilter = tp.posFilter || "ALL";
+  const willingnessFilter = tp.willingnessFilter || "available";
+  const needsOnly = !!tp.needsOnly;
+  const sort = sortBy || "grade";
+
+  // My team's positional needs — used by the "Fits my needs" filter.
+  // _teamNeedsProfile returns [{key:"qb", label:"QB", val:55}, ...] for
+  // the weakest unit groups. Player positions use the uppercase form
+  // (p.position === "QB"), so map to label not key.
+  const needsProfile = (typeof _teamNeedsProfile === "function") ? _teamNeedsProfile(myId) : null;
+  const myNeedPositions = needsProfile ? (needsProfile.needs || []).map(n => (n && n.label) ? n.label : n) : [];
+
+  // Build the candidate pool
+  const candidates = [];
   for (const t of TEAMS) {
     if (t.id === myId) continue;
-    for (const p of (franchise.rosters[t.id]||[])) {
-      if (p.onTradeBlock) all.push({ p, t });
+    for (const p of (franchise.rosters[t.id] || [])) {
+      if (posFilter !== "ALL" && p.position !== posFilter) continue;
+      if (needsOnly && myNeedPositions.length && !myNeedPositions.includes(p.position)) continue;
+      const stance = _aiTeamPlayerStance(t.id, p);
+      if (willingnessFilter === "shopping"  && stance !== "shopping") continue;
+      if (willingnessFilter === "available" && stance === "untouchable") continue;
+      candidates.push({ p, teamId: t.id, team: t, stance });
     }
   }
+
   // Sort
-  const sorter = (a,b) => {
-    if (sortBy === "grade") return scoutGrade(b.p) - scoutGrade(a.p);
-    if (sortBy === "age")   return (a.p.age||0) - (b.p.age||0);
-    if (sortBy === "aav")   return (b.p.contract?.aav||0) - (a.p.contract?.aav||0);
-    if (sortBy === "pos")   return (a.p.position||"").localeCompare(b.p.position||"");
+  candidates.sort((a, b) => {
+    if (sort === "grade") return scoutGrade(b.p) - scoutGrade(a.p);
+    if (sort === "value") return _playerTradeValue(b.p) - _playerTradeValue(a.p);
+    if (sort === "age")   return (a.p.age||0) - (b.p.age||0);
+    if (sort === "aav")   return (b.p.contract?.aav||0) - (a.p.contract?.aav||0);
+    if (sort === "pos")   return (a.p.position||"").localeCompare(b.p.position||"") || scoutGrade(b.p) - scoutGrade(a.p);
     return 0;
+  });
+
+  // Filter chip rows
+  const positions = ["ALL","QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"];
+  const posTabs = positions.map(pos =>
+    `<button class="frn-pos-tab ${posFilter===pos?"active":""}" onclick="frnSetTradePosFilter('${pos}')">${pos}</button>`
+  ).join("");
+
+  const willOpts = [
+    { id: "available", label: "Hide ⛔ OFF-LIMITS", title: "Hide players the team won't trade — focuses you on the acquirable pool" },
+    { id: "shopping",  label: "💸 Shopping only",   title: "Show only players whose team is open to dealing at a discount" },
+    { id: "all",       label: "Show all",           title: "Include OFF-LIMITS players (you can see them, but can't acquire)" },
+  ];
+  const willChips = willOpts.map(o =>
+    `<button class="frn-pos-tab ${willingnessFilter===o.id?"active":""}" onclick="frnSetTradeWillingness('${o.id}')" title="${o.title}">${o.label}</button>`
+  ).join("");
+
+  const needsDisabled = myNeedPositions.length === 0;
+  const needsTitle = needsDisabled
+    ? "No clear positional needs detected for your team"
+    : `Show only positions your team needs: ${myNeedPositions.join(", ")}`;
+  const needsChip = `<button class="frn-pos-tab ${needsOnly?"active":""}"
+    onclick="frnToggleTradeNeedsOnly()" title="${needsTitle}" ${needsDisabled?"disabled":""}>
+    🎯 Fits my needs${myNeedPositions.length?` (${myNeedPositions.length})`:""}
+  </button>`;
+
+  // Truncate to 200 rows for render perf; user can refine filters to
+  // narrow the result set. (vs the old hardcoded 80 cap with no escape
+  // route. 200 covers virtually every reasonable filter.)
+  const RENDER_LIMIT = 200;
+  const truncated = candidates.length > RENDER_LIMIT;
+  const shownList = candidates.slice(0, RENDER_LIMIT);
+
+  const stancePill = (stance, teamName) => {
+    if (stance === "untouchable") return `<span class="frn-trade-stance ut" title="${teamName} won't move this player — franchise face / recent high pick">⛔ OFF-LIMITS</span>`;
+    if (stance === "shopping")    return `<span class="frn-trade-stance sh" title="${teamName} is open to dealing this player at a favorable price">💸 SHOPPING</span>`;
+    return `<span class="frn-trade-stance av" title="${teamName} would consider a fair offer">○ AVAILABLE</span>`;
   };
-  all.sort(sorter);
 
-  if (!all.length) return `<div style="color:var(--gray);font-size:.78rem;padding:1rem;text-align:center;font-style:italic">No players currently on the league trade block.</div>`;
-
-  const rows = all.map(({p, t}) => {
-    const ask = p.blockAsk;
-    const askPieces = [];
-    if (ask?.askedPicks) {
-      for (const [r, n] of Object.entries(ask.askedPicks)) {
-        if (n > 0) askPieces.push(`${n}× R${r}`);
-      }
-    }
-    if (ask?.refund && ask.refund.amount > 0) {
-      const sign = (ask.refund.direction||"theyPay") === "theyPay" ? "+" : "−";
-      askPieces.push(`${sign}$${ask.refund.amount.toFixed(1)}M×${ask.refund.years}yr`);
-    }
-    if (ask?.minPlayerGrade) askPieces.push(`${ask.minPlayerGrade}+ player`);
-    const askLabel = askPieces.length
-      ? `<span style="color:var(--gold-lt);font-size:.62rem">${askPieces.join(" + ")}</span>`
-      : `<span style="color:var(--gray);font-size:.62rem;font-style:italic">no price set</span>`;
-    return `<tr>
-      <td style="color:var(--gold);font-size:.62rem">${p.position}</td>
-      <td style="font-weight:700">${p.name}</td>
-      <td>${gradeBadge(p)}</td>
-      <td style="color:var(--gray)">${p.age||"?"}</td>
-      <td style="color:var(--gray);font-size:.66rem">${t.city} ${t.name}</td>
-      <td>${askLabel}</td>
-      <td><button class="btn btn-gold" style="font-size:.6rem;padding:.2rem .55rem"
-        onclick="frnOpenTrade(${t.id},'propose')">→ Propose</button></td>
-    </tr>`;
+  const rows = shownList.map(({p, teamId, team, stance}) => {
+    const escName = (p.name||"").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    const askPrice = _estimateAskingPrice(teamId, p);
+    const kicker = p.contract?.tradeKicker || 0;
+    const kickerTag = kicker >= 0.05
+      ? `<span class="frn-trade-kicker-mini" title="Trade kicker — one-time cap hit if acquired">⚡ $${kicker.toFixed(1)}M</span>` : "";
+    const dead = (p.contract?.bonusProration || 0) * (p.contract?.remaining || 0);
+    const deadTag = dead >= 0.05
+      ? `<span class="frn-trade-dead-mini" title="Dead cap from his current team's bonus proration — IF you acquired him this would NOT transfer to you (only acquired bonus does)">☠ $${dead.toFixed(1)}M</span>` : "";
+    const isUntouchable = stance === "untouchable";
+    const proposeBtn = isUntouchable
+      ? `<button class="btn btn-outline frn-trade-propose-btn" disabled title="This team won't move this player">⛔ N/A</button>`
+      : `<button class="btn btn-gold frn-trade-propose-btn" onclick="frnShopProposeForPlayer(${teamId},'${escName}')" title="Open the Propose Trade tab with this player pre-selected">→ Propose</button>`;
+    return `<div class="frn-trade-market-row${isUntouchable?" untouchable":""}">
+      <span class="frn-trade-pos">${p.position}</span>
+      <span class="frn-trade-name" onclick="frnOpenPlayerCard('${escName}')" title="View ${p.name}'s player card">${p.name}</span>
+      <span class="frn-trade-team">${team.name}</span>
+      <span class="frn-trade-stance-col">${stancePill(stance, team.name)}</span>
+      <span>${gradeBadge(p)}</span>
+      <span class="frn-trade-age">${p.age||"?"}</span>
+      <span class="frn-trade-aav">$${(p.contract?.aav||0).toFixed(0)}M${(p.contract?.remaining||0) ? ` · ${p.contract.remaining}y` : ""}</span>
+      <span class="frn-trade-extras">${kickerTag}${deadTag}</span>
+      <span class="frn-trade-ask" title="Rough estimate of pick(s) the team would expect — actual asks vary with mode and recent activity">${askPrice}</span>
+      ${proposeBtn}
+    </div>`;
   }).join("");
 
-  return `
-    <div style="color:var(--gray);font-size:.72rem;margin-bottom:.5rem">
-      ${all.length} player${all.length>1?"s":""} on the block league-wide. Click <b>Propose</b> to open a trade with their team.
+  const emptyState = !candidates.length
+    ? `<div style="color:var(--gray);font-style:italic;padding:1.5rem;text-align:center">
+        No players match your filters. Try toggling off "Fits my needs" or widening the willingness filter.
+      </div>`
+    : "";
+
+  return `<div class="frn-trade-market">
+    <div class="frn-trade-market-intro">
+      <strong>🛒 Shop the league.</strong> Every other team's roster, filtered to who's acquirable.
+      Stance pills tell you what a team would actually entertain. Asking prices are rough pick equivalents — actual deals depend on the package you assemble in Propose Trade.
     </div>
-    <table class="frn-pre-roster-table">
-      <thead><tr><th>Pos</th><th>Player</th><th>Grade</th><th>Age</th><th>Team</th><th>Asking</th><th></th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
+    <div class="frn-trade-market-filters">
+      <div class="frn-trade-filter-row">
+        <span class="frn-trade-filter-lbl">POS</span>
+        <div class="frn-pos-tabs">${posTabs}</div>
+      </div>
+      <div class="frn-trade-filter-row">
+        <span class="frn-trade-filter-lbl">SHOW</span>
+        <div class="frn-pos-tabs">${willChips}${needsChip}</div>
+      </div>
+    </div>
+    <div class="frn-trade-market-counter">
+      Showing <b style="color:var(--gold)">${shownList.length}</b> of <b>${candidates.length}</b> acquirable players
+      ${truncated ? `<span style="color:var(--gold-lt);margin-left:.5rem">— refine filters to narrow further</span>` : ""}
+    </div>
+    <div class="frn-trade-market-header">
+      <span>Pos</span>
+      <span>Player</span>
+      <span>Team</span>
+      <span>Stance</span>
+      <span>Grade</span>
+      <span>Age</span>
+      <span>Cap · Yrs</span>
+      <span>Flags</span>
+      <span>Asking Price</span>
+      <span></span>
+    </div>
+    <div class="frn-trade-market-list">${rows}${emptyState}</div>
+  </div>`;
 }
 
 function _renderTradeOffersTab() {
