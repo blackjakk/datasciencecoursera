@@ -11261,7 +11261,9 @@ function frnShopProposeForPlayer(teamId, name) {
   const tp = franchise._tradeProp;
   if (!tp) return;
   const switchingPartner = tp.targetTeamId != null && tp.targetTeamId !== teamId;
-  const hasWork = (tp.youSend?.length || tp.picksSend?.length || tp.picksReceive?.length || tp.youReceive?.length);
+  // youReceive is being REPLACED anyway, so a prior "I clicked Propose on
+  // another team's player" doesn't count as work to protect.
+  const hasWork = (tp.youSend?.length || tp.picksSend?.length || tp.picksReceive?.length);
   if (switchingPartner && hasWork) {
     if (!confirm("You have an in-progress proposal with another team. Switching partners will clear it. Continue?")) return;
     tp.youSend = [];
@@ -12454,7 +12456,7 @@ function _renderTradeShopMarketTab(myId, sortBy, tp, cap) {
       <span class="frn-trade-age">${p.age||"?"}</span>
       <span class="frn-trade-aav">$${(p.contract?.aav||0).toFixed(0)}M${(p.contract?.remaining||0) ? ` · ${p.contract.remaining}y` : ""}</span>
       <span class="frn-trade-extras">${kickerTag}${deadTag}</span>
-      <span class="frn-trade-ask" title="Pick-equivalent estimate of acquisition cost. Embeds stance (shopping = discount) + team mode (rebuild teams 8% cheaper in pick terms, win-now 8% pricier).">${askPrice}</span>
+      <span class="frn-trade-ask" title="Pick-equivalent estimate of acquisition cost. Embeds stance (shopping = discount) + team mode (rebuild teams ~8% cheaper in pick terms, win-now ~8% pricier). Actual deals depend on the full package you assemble.">${askPrice}</span>
       ${proposeBtn}
     </div>`;
   }).join("");
