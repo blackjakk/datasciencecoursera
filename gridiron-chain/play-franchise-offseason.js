@@ -13369,21 +13369,23 @@ function renderFrnDraft() {
   const targets = new Set(d.targets || []);
   _migrateDraftScouts();
   const scoutsList = franchise.draftScouts || [];
-  const slotsSpentRound = _draftScoutsSpentThisRound();
   const slotsLeftRound = _draftScoutsLeftThisRound();
   const slotsUsedTotal  = _draftScoutSlotsUsed();
 
   // ── Position percentile map ──────────────────────────────────────
-  // For each prospect still on the board, compute their rank within
-  // their position (sorted by scout grade, descending). Drives the
-  // POS #N color chip in the prospect card so the user can see at a
-  // glance whether they're looking at the #1 WR or the #14 WR. Uses
-  // scoutGrade (what the user can see) not raw overall.
+  // For each prospect still on the board (drafted-tier + UDFA-tier),
+  // compute their rank within their position sorted by scout grade.
+  // Drives the POS #N color chip on the prospect card so the user
+  // can see at a glance whether they're looking at the #1 WR or the
+  // #14 WR. Uses scoutGrade (what the user can see), not raw OVR.
+  // UDFA-tier prospects are included so a hidden-gem UDFA with a
+  // surprisingly high scout grade can earn a mid-tier rank chip,
+  // surfacing the "this UDFA is actually solid" signal.
   const posRankMap = new Map();
   const posCountMap = new Map();
   {
     const byPos = {};
-    for (const p of draftablePool) {
+    for (const p of [...draftablePool, ...udfaPool]) {
       if (!byPos[p.position]) byPos[p.position] = [];
       byPos[p.position].push(p);
     }
@@ -13665,8 +13667,8 @@ function renderFrnDraft() {
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.35rem">
             <div class="frn-card-title">TEAM NEEDS</div>
             <div style="font-size:.6rem;color:${slotsLeftRound===0?"var(--red)":"var(--green-lt)"}"
-                 title="${DRAFT_SCOUTS_PER_ROUND} scouts per round · refills each round · no undo">
-              🔍 ${slotsLeftRound}/${DRAFT_SCOUTS_PER_ROUND} this rd · ${slotsUsedTotal} total
+                 title="${DRAFT_SCOUTS_PER_ROUND} scouts per round · refills each round · no undo · ${slotsUsedTotal} used overall">
+              🔍 ${slotsLeftRound} left this rd · ${slotsUsedTotal} used
             </div>
           </div>
           ${needsHtml}
@@ -14067,9 +14069,13 @@ function _aiAutoPick(slot, opts) {
     // additional per-pick random*4 is a separate "war room mood" noise.
     const aiSeenOvr = (p.overall || 60) + (p._aiScoutBias || 0);
     let score = aiSeenOvr + needBonus * 0.20 + posPrem + scheme + Math.random() * 4;
-    // User autopick: strongly prefer targeted prospects so the "auto"
-    // button respects the targets the user set up.
-    if (targetSet?.has(p.name)) score += 50;
+    // User autopick: prefer targeted prospects, but not enough to force
+    // a clear reach. +25 wins ties + close calls (prospects within ~20
+    // points of each other) but a R7-tier target (~62 OVR) won't beat
+    // an R1 prospect (~92 OVR) at the user's R1 slot. Within targets,
+    // the AI score still ranks so the user gets their highest-value
+    // target when multiple are available.
+    if (targetSet?.has(p.name)) score += 25;
     return { p, score };
   }).sort((a,b) => b.score - a.score);
   const pick = scored[0].p;
