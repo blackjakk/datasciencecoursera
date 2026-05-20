@@ -907,6 +907,14 @@ function _findPlayer(nameOrPid, pid) {
     const p = pool.find(rp => (pid && rp.pid === pid) || rp.name === nameOrPid || rp.nickname === nameOrPid);
     if (p) return p;
   }
+  // Draft class — covers prospects clicked from the pre-show, mock round,
+  // or live draft board. Without this, frnOpenPlayerCard would silently
+  // bail on every prospect.
+  const dClass = franchise?.draft?.class;
+  if (dClass) {
+    const p = dClass.find(rp => (pid && rp.pid === pid) || rp.name === nameOrPid || rp.nickname === nameOrPid);
+    if (p) return p;
+  }
   return null;
 }
 

@@ -6113,7 +6113,7 @@
   .frn-draft-filter-btn:hover { border-color: var(--gold-lt); color: var(--white); }
   .frn-draft-filter-btn.active { background: rgba(200,169,0,0.85); color: #111; border-color: var(--gold); }
   /* Prospect cards */
-  .frn-draft-board { display: flex; flex-direction: column; gap: .22rem; max-height: 500px; overflow-y: auto; }
+  .frn-draft-board { display: flex; flex-direction: column; gap: .22rem; }
   .frn-draft-prospect {
     display: grid; grid-template-columns: 2rem 1fr auto;
     gap: .45rem; align-items: center;
@@ -6125,7 +6125,8 @@
   .frn-dp-rank { color: var(--gold); font-size: .6rem; font-weight: 700; text-align: right; align-self: flex-start; padding-top: .15rem; }
   .frn-dp-body { display: flex; flex-direction: column; gap: .1rem; }
   .frn-dp-top  { display: flex; align-items: center; gap: .28rem; flex-wrap: wrap; }
-  .frn-dp-name { font-weight: 700; font-size: .76rem; }
+  .frn-dp-name { font-weight: 700; font-size: .76rem; cursor: pointer; }
+  .frn-dp-name:hover { color: var(--gold-lt); text-decoration: underline; }
   .frn-dp-bottom { display: flex; align-items: center; gap: .35rem; }
   .frn-dp-meta    { font-size: .59rem; color: var(--gray); }
   .frn-dp-combine { font-size: .59rem; color: var(--gold-lt); font-family: monospace; }
@@ -6168,6 +6169,14 @@
   }
   .frn-draft-filter-btn.udfa.active {
     background: rgba(212,175,55,.12);
+  }
+  /* WATCHED filter-tab variant — blue to mirror the watch eye */
+  .frn-draft-filter-btn.watched {
+    color: #cce7ff; border-color: #2a4d6a;
+  }
+  .frn-draft-filter-btn.watched:hover { border-color: #6cc6ff; color: #cce7ff; }
+  .frn-draft-filter-btn.watched.active {
+    background: rgba(108,198,255,.18); color: #cce7ff; border-color: #6cc6ff;
   }
   /* Filter tab with no prospects left — visually dimmed but still clickable */
   .frn-draft-filter-btn.empty {
@@ -6252,6 +6261,72 @@
   }
   .frn-draft-target-btn:hover { border-color: var(--gold); color: var(--gold-lt); }
   .frn-draft-target-btn.active { border-color: var(--gold); color: var(--gold); background: rgba(200,169,0,0.1); }
+  /* Watchlist toggle on each prospect row — eye icon mirrors the player card */
+  .frn-draft-watch-btn {
+    background: none; border: 1px solid var(--border);
+    color: var(--gray); font-size: .72rem; cursor: pointer;
+    padding: .12rem .32rem; line-height: 1; transition: all .1s; font-family: inherit;
+  }
+  .frn-draft-watch-btn:hover { border-color: #6cc6ff; color: #cce7ff; }
+  .frn-draft-watch-btn.active { border-color: #6cc6ff; color: #cce7ff; background: rgba(108,198,255,0.10); }
+  /* Watched prospects lane — pinned above the consensus board */
+  .frn-draft-watched-lane {
+    margin-bottom: .45rem;
+    padding: .35rem .45rem .5rem;
+    background: rgba(108,198,255,.06);
+    border-left: 2px solid #6cc6ff;
+    border-radius: 2px;
+  }
+  .frn-draft-watched-header {
+    font-family: "Bebas Neue","Anton",sans-serif;
+    color: #cce7ff; letter-spacing: 1.4px; font-size: .68rem;
+    margin-bottom: .35rem; padding-left: .2rem;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .frn-draft-watched-header .clear-link {
+    color: var(--gray); font-size: .56rem; letter-spacing: .4px;
+    font-family: inherit; cursor: pointer; background: none; border: none;
+    text-decoration: underline; padding: 0;
+  }
+  .frn-draft-watched-header .clear-link:hover { color: #ff9090; }
+  /* Search box above filter tabs */
+  .frn-draft-search-wrap {
+    position: relative; display: flex; align-items: center;
+    margin-bottom: .35rem;
+  }
+  .frn-draft-search {
+    flex: 1; background: var(--bg3); border: 1px solid var(--border);
+    color: var(--white); font-family: inherit; font-size: .68rem;
+    padding: .3rem .5rem .3rem 1.6rem; outline: none; letter-spacing: .3px;
+  }
+  .frn-draft-search:focus { border-color: var(--gold); }
+  .frn-draft-search-icon {
+    position: absolute; left: .5rem; color: var(--gray);
+    font-size: .65rem; pointer-events: none;
+  }
+  .frn-draft-search-clear {
+    position: absolute; right: .4rem; background: none; border: none;
+    color: var(--gray); cursor: pointer; font-family: inherit;
+    font-size: .8rem; padding: 0 .25rem; line-height: 1;
+  }
+  .frn-draft-search-clear:hover { color: var(--gold-lt); }
+  /* Undo banner — sits on the Draft Floor after a user pick */
+  .frn-draft-undo-banner {
+    display: flex; align-items: center; gap: .5rem;
+    background: rgba(200,140,0,.10); border-left: 3px solid #e8a000;
+    padding: .35rem .55rem; border-radius: 3px; margin-bottom: .55rem;
+    animation: frn-undo-fade .25s ease-out;
+  }
+  .frn-draft-undo-banner .undo-text {
+    color: #e8a000; font-size: .65rem; font-weight: 700; letter-spacing: .3px;
+  }
+  .frn-draft-undo-banner .undo-btn {
+    margin-left: auto; background: #e8a000; color: #111;
+    border: none; padding: .25rem .6rem; font-size: .62rem; font-weight: 800;
+    cursor: pointer; font-family: inherit; letter-spacing: .5px;
+  }
+  .frn-draft-undo-banner .undo-btn:hover { background: var(--gold-lt); }
+  @keyframes frn-undo-fade { from { opacity: 0; transform: translateY(-4px) } to { opacity: 1; transform: translateY(0) } }
   /* Info panel */
   .frn-draft-info-panel { display: flex; flex-direction: column; gap: .45rem; }
   .frn-draft-info-card  { background: var(--bg2); border: 1px solid var(--border); padding: .5rem .6rem; }

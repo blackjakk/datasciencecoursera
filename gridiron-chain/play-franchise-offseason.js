@@ -15709,8 +15709,20 @@ function _renderDraftFloor() {
        </div>`
     : "";
 
+  // 5-second undo banner — visible only when a snapshot exists and is
+  // still within window. Pops user's pick + any AI picks that followed.
+  const snap = d._lastPickSnapshot;
+  const canUndo = snap && snap.until > Date.now();
+  const undoBannerHtml = canUndo
+    ? `<div class="frn-draft-undo-banner">
+         <span class="undo-text">↶ Made a mistake? Undo within 5s.</span>
+         <button class="undo-btn" onclick="frnDraftUndoPick()">UNDO PICK</button>
+       </div>`
+    : "";
+
   $("frnHomeContent").innerHTML = `
     <div style="max-width:840px;margin:0 auto;padding:1rem">
+      ${undoBannerHtml}
       ${justDraftedHtml}
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">
         <div>
@@ -17740,6 +17752,8 @@ function renderFrnDraft() {
   const isCurrentComp = !!currentSlot.isComp;
   const dayLabel = round <= 2 ? "DAY 1 · PRIMETIME" : round === 3 ? "DAY 2" : "DAY 3";
   const filter = d.boardFilter || "ALL";
+  const searchTerm = ((d.boardSearch || "") + "").trim().toLowerCase();
+  const matchesSearch = (p) => !searchTerm || (p.name||"").toLowerCase().includes(searchTerm);
 
   // Build available pool — sort by stable consensus score so scouting a
   // player doesn't shuffle them off the visible board. UDFA-tier
@@ -17750,8 +17764,12 @@ function renderFrnDraft() {
     .sort((a,b) => _draftBoardScore(b) - _draftBoardScore(a));
   const udfaPool = d.class.filter(p => !taken.has(p.name) && p._generatedRound === 0)
     .sort((a,b) => _draftBoardScore(b) - _draftBoardScore(a));
-  const allAvail = filter === "UDFA" ? udfaPool : draftablePool;
+  // Watchlist (cross-screen, from pre-show ☆ taps) — surfaces here so
+  // the user's pre-draft homework follows them onto the live board.
+  const watchedSet = new Set(franchise.watchedPlayers || []);
+  const watchedAvail = (p) => !taken.has(p.name) && watchedSet.has(p.name);
   const filtered = filter === "UDFA" ? udfaPool
+    : filter === "WATCHED" ? d.class.filter(watchedAvail).sort((a,b) => _draftBoardScore(b) - _draftBoardScore(a))
     : filter === "K/P" ? draftablePool.filter(p => p.position==="K"||p.position==="P")
     : filter === "ALL" ? draftablePool
     : draftablePool.filter(p => p.position === filter);
@@ -17760,11 +17778,33 @@ function renderFrnDraft() {
   // they're always visible regardless of consensus rank.
   const scoutedSet = new Set(franchise.draftScouts || []);
   // Sort scouted by consensus too so they're stable.
-  const scoutedLane = (filter === "ALL" || filter === "UDFA")
-    ? d.class.filter(p => !taken.has(p.name) && scoutedSet.has(p.name))
+  const scoutedLane = (filter === "ALL" || filter === "UDFA" || filter === "WATCHED")
+    ? d.class.filter(p => !taken.has(p.name) && scoutedSet.has(p.name) && matchesSearch(p))
         .sort((a, b) => _draftBoardScore(b) - _draftBoardScore(a))
-    : filtered.filter(p => scoutedSet.has(p.name));
-  const board = filtered.filter(p => !scoutedSet.has(p.name)).slice(0, 45);
+    : filtered.filter(p => scoutedSet.has(p.name) && matchesSearch(p));
+  // Watched lane — pinned below scouted, above the consensus board. A
+  // watched-AND-scouted prospect appears only in the scouted lane to
+  // avoid duplicates. Hidden under the WATCHED filter (the main board
+  // IS the watchlist there) and under position filters (lane would be
+  // off-topic). Active under ALL and UDFA.
+  const showWatchedLane = (filter === "ALL" || filter === "UDFA");
+  const watchedLane = showWatchedLane
+    ? d.class.filter(p => watchedAvail(p) && !scoutedSet.has(p.name) && matchesSearch(p))
+        .sort((a, b) => _draftBoardScore(b) - _draftBoardScore(a))
+    : [];
+  // Apply search to the main board, exclude prospects already in
+  // scouted/watched lanes to avoid duplication. Watched prospects are
+  // only excluded when the lane is visible — otherwise the WATCHED tab
+  // and position-filter views would render empty.
+  const boardFiltered = filtered.filter(p =>
+    !scoutedSet.has(p.name)
+    && (!showWatchedLane || !watchedSet.has(p.name))
+    && matchesSearch(p)
+  );
+  // Keep the 45-slice when unfiltered (so long boards don't kill scroll
+  // perf), but lift the cap when the user is actively searching or in
+  // WATCHED mode — they're hunting a specific guy or curating a list.
+  const board = (searchTerm || filter === "WATCHED") ? boardFiltered : boardFiltered.slice(0, 45);
   const targets = new Set(d.targets || []);
   _migrateDraftScouts();
   const scoutsList = franchise.draftScouts || [];
@@ -17810,17 +17850,37 @@ function renderFrnDraft() {
   const posRun = _draftPositionRun(d.picks);
 
   // ── Filter tabs ──────────────────────────────────────────────────────────
-  const TABS = ["ALL","QB","RB","WR","TE","OL","DL","LB","CB","S","K/P","UDFA"];
+  const watchedCount = d.class.filter(watchedAvail).length;
+  const TABS = ["ALL","WATCHED","QB","RB","WR","TE","OL","DL","LB","CB","S","K/P","UDFA"];
   const filterHtml = TABS.map(f => {
     const cnt = f==="ALL"  ? draftablePool.length
+      : f==="WATCHED"      ? watchedCount
       : f==="UDFA"         ? udfaPool.length
       : f==="K/P"          ? draftablePool.filter(p=>p.position==="K"||p.position==="P").length
       :                      draftablePool.filter(p=>p.position===f).length;
-    let cls = f === "UDFA" ? "frn-draft-filter-btn udfa" : "frn-draft-filter-btn";
+    let cls = f === "UDFA" ? "frn-draft-filter-btn udfa"
+            : f === "WATCHED" ? "frn-draft-filter-btn watched"
+            : "frn-draft-filter-btn";
     if (cnt === 0) cls += " empty";
     if (f === filter) cls += " active";
-    return `<button class="${cls}" onclick="frnDraftSetFilter('${f}')">${f} <span style="opacity:.55;font-size:.52rem">${cnt}</span></button>`;
+    const label = f === "WATCHED" ? "👁 WATCHED" : f;
+    return `<button class="${cls}" onclick="frnDraftSetFilter('${f}')">${label} <span style="opacity:.55;font-size:.52rem">${cnt}</span></button>`;
   }).join("");
+
+  // ── Search box ───────────────────────────────────────────────────────────
+  // Sits above the filter tabs so the user can quickly find a specific
+  // prospect by name without clicking through positions.
+  const searchVal = (d.boardSearch || "").replace(/"/g, "&quot;");
+  const searchHtml = `<div class="frn-draft-search-wrap">
+    <span class="frn-draft-search-icon">🔎</span>
+    <input id="frnDraftSearchInput" class="frn-draft-search" type="text"
+      placeholder="Search prospects by name… (Esc to clear)"
+      value="${searchVal}"
+      oninput="frnDraftSetSearch(this.value)"
+      onkeydown="if(event.key==='Escape'){this.value='';frnDraftSetSearch('')}"
+      autocomplete="off" />
+    ${searchTerm ? `<button class="frn-draft-search-clear" onclick="frnDraftClearSearch()" title="Clear search">✕</button>` : ""}
+  </div>`;
 
   // ── Class strengths chips (per-year theme display) ───────────────────────
   const chips = d.classThemes?.chips || [];
@@ -17907,17 +17967,21 @@ function renderFrnDraft() {
       ? `<span style="font-size:.55rem;color:${_posRankColor(_posRank, _posTotal)};font-weight:700;letter-spacing:.3px"
               title="Position rank: ${p.position} #${_posRank} of ${_posTotal} remaining by scout grade">${p.position} #${_posRank}</span>`
       : "";
+    const isWatched = watchedSet.has(p.name);
+    const watchedBadge = isWatched && !isScouted
+      ? `<span style="font-size:.52rem;color:#cce7ff;font-weight:700;letter-spacing:.3px">👁 WATCHED</span>` : "";
     return `<div class="frn-draft-prospect${isTargeted?" targeted":""}${isScouted?" scouted":""}">
       <div class="frn-dp-rank">${displayRank}</div>
       <div class="frn-dp-body">
         <div class="frn-dp-top">
-          <span class="frn-dp-name">${p.name}</span>
+          <span class="frn-dp-name" onclick="frnOpenPlayerCard('${esc}')" title="Open ${p.name}'s scouting card">${p.name}</span>
           ${_posPillHtml(p.position)}
           ${_posRankChip}
           ${needBadge}
           ${gradeBadge(p)}
           ${projRoundLabel ? `<span style="font-size:.55rem;color:var(--gold-lt);letter-spacing:.3px;font-weight:700">${projRoundLabel}</span>` : ""}
           ${isScouted ? `<span style="font-size:.52rem;color:var(--green-lt);font-weight:700;letter-spacing:.3px">SCOUTED ${scoutedCats.length}/4</span>` : ""}
+          ${watchedBadge}
           ${potTag?`<span style="font-size:.56rem;color:var(--gold-lt)">${potTag}</span>`:""}
           <span style="color:var(--gray);font-size:.56rem">Age ${p.age}</span>
         </div>
@@ -17930,21 +17994,41 @@ function renderFrnDraft() {
         ${intelHtml}
       </div>
       <div class="frn-dp-actions">
-        <button class="frn-draft-target-btn${isTargeted?" active":""}" onclick="frnDraftToggleTarget('${esc}')" title="${isTargeted?"Remove target":"Mark as target"}">★</button>
+        <button class="frn-draft-target-btn${isTargeted?" active":""}" onclick="frnDraftToggleTarget('${esc}')" title="${isTargeted?"Remove from this draft's targets":"Mark as target for this draft only"}">★</button>
+        <button class="frn-draft-watch-btn${isWatched?" active":""}" onclick="frnDraftWatchToggle('${esc}')" title="${isWatched?"Remove from your watchlist (cross-screen)":"Add to your watchlist — same list as pre-show / trade / FA"}">👁</button>
         <div class="frn-dp-cat-cluster">${catButtons}</div>
         <button class="btn btn-gold" style="padding:.2rem .5rem;font-size:.6rem" onclick="frnDraftPick('${esc}')">DRAFT</button>
       </div>
     </div>`;
   };
+  const emptyMsg = searchTerm
+    ? `No prospects matching "${searchTerm}"`
+    : filter === "WATCHED"
+      ? `Watchlist is empty. Tap 👁 on any prospect to add them — they'll appear here and on every other screen that uses the watchlist.`
+      : `No ${filter!=="ALL"?filter:""} prospects available`;
   const boardHtml = board.length
     ? board.map((p, i) => renderProspectCard(p, `#${i+1}`)).join("")
-    : `<div style="color:var(--gray);font-size:.7rem;padding:.5rem">No ${filter!=="ALL"?filter:""} prospects available</div>`;
+    : `<div style="color:var(--gray);font-size:.7rem;padding:.7rem .5rem;font-style:italic">${emptyMsg}</div>`;
 
   // ── Scouted lane (your prospects, always visible) ────────────────────────
   const scoutedLaneHtml = scoutedLane.length
     ? `<div class="frn-draft-scouted-lane">
         <div class="frn-draft-scouted-header">🔍 YOUR SCOUTED PROSPECTS · ${scoutedLane.length}</div>
         ${scoutedLane.map(p => renderProspectCard(p, "🔍")).join("")}
+      </div>`
+    : "";
+
+  // ── Watched lane — pinned above the consensus board ──────────────────────
+  // Single source of truth: franchise.watchedPlayers (same list as pre-show
+  // ☆, trade market 👁, FA filter). Watched-AND-scouted prospects appear
+  // only in the scouted lane (already filtered out above).
+  const watchedLaneHtml = watchedLane.length
+    ? `<div class="frn-draft-watched-lane">
+        <div class="frn-draft-watched-header">
+          <span>👁 YOUR WATCHLIST · ${watchedLane.length}${watchedLane.length < (franchise.watchedPlayers||[]).length ? ` <span style="color:var(--gray);font-weight:400">(${(franchise.watchedPlayers||[]).length} total)</span>` : ""}</span>
+          <button class="clear-link" onclick="frnDraftClearWatchlist()" title="Clear your entire watchlist (affects every screen)">Clear all</button>
+        </div>
+        ${watchedLane.map(p => renderProspectCard(p, "👁")).join("")}
       </div>`
     : "";
 
@@ -18028,6 +18112,16 @@ function renderFrnDraft() {
     return `<div class="frn-draft-target-gone">📌 TARGET GONE — ${t.name} taken by ${team?.name||"?"} at ${t.round}.${t.pick}</div>`;
   }).join("");
 
+  // ── Undo banner (back-to-back picks: floor anim skipped, banner lives on board) ──
+  const snap = d._lastPickSnapshot;
+  const canUndo = snap && snap.until > Date.now();
+  const undoBannerHtml = canUndo
+    ? `<div class="frn-draft-undo-banner">
+         <span class="undo-text">↶ Made a mistake? Undo within 5s.</span>
+         <button class="undo-btn" onclick="frnDraftUndoPick()">UNDO PICK</button>
+       </div>`
+    : "";
+
   // ── Render ───────────────────────────────────────────────────────────────
   $("frnHomeContent").innerHTML = `
     <div style="display:flex;align-items:center;gap:.55rem;margin-bottom:.55rem;flex-wrap:wrap">
@@ -18036,6 +18130,7 @@ function renderFrnDraft() {
       <span style="color:var(--gray);font-size:.7rem">Pick ${d.currentIdx+1} of ${d.pickOrder.length}</span>
     </div>
     ${chipsHtml}
+    ${undoBannerHtml}
     ${posRun?`<div class="frn-draft-run-alert">🔥 ${posRun.pos} RUN — ${posRun.cnt} taken in last 6 picks · value elsewhere</div>`:""}
     ${alertsHtml}
     <div style="display:grid;grid-template-columns:1fr 270px;gap:.65rem;align-items:start">
@@ -18057,8 +18152,10 @@ function renderFrnDraft() {
               title="Skip to UDFA — autopick every remaining slot">⏩ Auto-Draft Rest</button>
           </div>
         </div>
+        ${searchHtml}
         <div class="frn-draft-filters">${filterHtml}</div>
         ${scoutedLaneHtml}
+        ${watchedLaneHtml}
         <div class="frn-draft-board">${boardHtml}</div>
       </div>
       <div class="frn-draft-info-panel">
@@ -18087,6 +18184,47 @@ function renderFrnDraft() {
 
 function frnDraftSetFilter(pos) {
   if (franchise.draft) { franchise.draft.boardFilter = pos; renderFrnDraft(); }
+}
+
+// Name search filter. Substring match, case-insensitive. Stored on
+// franchise.draft so it persists across renders within the draft.
+function frnDraftSetSearch(val) {
+  if (!franchise.draft) return;
+  franchise.draft.boardSearch = val || "";
+  // Lightweight re-render: update only the parts that the search filter
+  // affects. Avoids losing focus on the input as the user types.
+  const input = document.getElementById("frnDraftSearchInput");
+  const focusedBefore = document.activeElement === input;
+  const cursorPos = focusedBefore ? input.selectionStart : null;
+  renderFrnDraft();
+  if (focusedBefore) {
+    const next = document.getElementById("frnDraftSearchInput");
+    if (next) {
+      next.focus();
+      if (cursorPos != null) try { next.setSelectionRange(cursorPos, cursorPos); } catch (e) {}
+    }
+  }
+}
+
+function frnDraftClearSearch() {
+  if (!franchise.draft) return;
+  franchise.draft.boardSearch = "";
+  renderFrnDraft();
+}
+
+// Wrap frnToggleWatchPlayer so the draft view re-renders (the watched
+// lane + button states need to reflect the change). frnToggleWatchPlayer
+// itself only refreshes the player card overlay + trade market.
+function frnDraftWatchToggle(name) {
+  if (typeof frnToggleWatchPlayer === "function") frnToggleWatchPlayer(name);
+  renderFrnDraft();
+}
+
+function frnDraftClearWatchlist() {
+  if (!confirm("Clear your entire watchlist? This affects every screen that uses it (draft, trade market, FA).")) return;
+  franchise.watchedPlayers = [];
+  saveFranchise();
+  renderFrnDraft();
 }
 
 function frnDraftToggleTarget(name) {
@@ -18311,9 +18449,14 @@ function frnSimRound() {
   const myId = franchise.chosenTeamId;
   const curRound = d.pickOrder[d.currentIdx]?.round;
   if (!curRound) return;
+  if (!confirm(`Sim the rest of round ${curRound}? Your pick this round will be auto-selected from your targets. This can't be undone.`)) return;
   const targetSet = new Set(d.targets || []);
+  // Count guards: match frnAutoDraftRemaining's safety. If `available`
+  // ever empties before slots resolve (corrupt save, sparse class),
+  // these prevent a hung tab.
+  let count1 = 0, count2 = 0;
   // Stage 1: finish current round
-  while (d.currentIdx < d.pickOrder.length) {
+  while (d.currentIdx < d.pickOrder.length && count1++ < 500) {
     const slot = d.pickOrder[d.currentIdx];
     if (slot.round !== curRound) break;
     if (slot.teamId === myId) {
@@ -18328,7 +18471,8 @@ function frnSimRound() {
   // because the old sync auto-advance loop in renderFrnDraft is gone
   // (replaced by the animation system).
   while (d.currentIdx < d.pickOrder.length
-         && d.pickOrder[d.currentIdx].teamId !== myId) {
+         && d.pickOrder[d.currentIdx].teamId !== myId
+         && count2++ < 500) {
     _aiAutoPick(d.pickOrder[d.currentIdx]);
     d.currentIdx++;
   }
@@ -18468,7 +18612,11 @@ function _draftSchemeBonus(teamId, pos) {
 }
 function _aiAutoPick(slot, opts) {
   const taken = new Set(franchise.draft.picks.map(p => p.prospectName));
-  const available = franchise.draft.class.filter(p => !taken.has(p.name));
+  // Exclude UDFA-tier prospects (_generatedRound === 0). They live in the
+  // UDFA scramble pool — drafting one wastes both a pick slot and UDFA
+  // inventory. The ±10 _aiScoutBias noise could otherwise let a hot UDFA
+  // outscore a real R7 prospect in the AI's perception.
+  const available = franchise.draft.class.filter(p => !taken.has(p.name) && p._generatedRound !== 0);
   if (!available.length) return;
   // Score by overall + position need (weaker starter = bonus) +
   // positional value premium + scheme fit + tiny random. When `opts`
@@ -18492,7 +18640,10 @@ function _aiAutoPick(slot, opts) {
     // gem-potential players stay available for the user to snipe. The
     // additional per-pick random*4 is a separate "war room mood" noise.
     const aiSeenOvr = (p.overall || 60) + (p._aiScoutBias || 0);
-    let score = aiSeenOvr + needBonus * 0.20 + posPrem + scheme + Math.random() * 4;
+    // needBonus weight 0.45 (was 0.20) — a team with a 50-OVR starter at
+    // position X gets +11 toward that position, enough to overcome QB's
+    // 8-point positional premium and let need-driven reaches happen.
+    let score = aiSeenOvr + needBonus * 0.45 + posPrem + scheme + Math.random() * 4;
     // User autopick: prefer targeted prospects, but not enough to force
     // a clear reach. +25 wins ties + close calls (prospects within ~20
     // points of each other) but a R7-tier target (~62 OVR) won't beat
@@ -18536,6 +18687,15 @@ function frnDraftPick(name) {
   if (slot.teamId !== franchise.chosenTeamId) return;
   const prospect = d.class.find(p => p.name === name);
   if (!prospect) return;
+  // Snapshot for the 5-second undo banner. Deep-copy the prospect's
+  // pre-pick state so we can restore it if the user clicks UNDO. We
+  // also stash currentIdx so undo can pop any AI picks that ran
+  // during the floor animation between user's pick and their click.
+  d._lastPickSnapshot = {
+    prospect: JSON.parse(JSON.stringify(prospect)),
+    pickIdx: d.currentIdx,
+    until: Date.now() + 5000,
+  };
   // Draft info first — rookieContract() reads draftRound + draftPick.
   // Use slot.pickInRound so comp picks (past the standard 32 in their
   // round) get correct late-round AAV via rookieContract decay.
@@ -18563,6 +18723,48 @@ function frnDraftPick(name) {
   const pickLabel = `R${slot.round}.${slot.pickInRound}${slot.isComp ? "c" : ""}`;
   _pushNews({ type:"draft", label: `📋 You drafted ${prospect.name} (${prospect.position}) — ${pickLabel}` });
   _startDraftFloorAnim();
+}
+
+// Undo the most recent user pick within the 5-second window. Pops the
+// user's pick *and* any AI picks that ran during the floor animation
+// since then, restoring state exactly to where the user was on the
+// clock. Cleared automatically after 5s; consecutive picks overwrite.
+function frnDraftUndoPick() {
+  const d = franchise?.draft;
+  if (!d || !d._lastPickSnapshot) return;
+  const snap = d._lastPickSnapshot;
+  if (snap.until < Date.now()) { delete d._lastPickSnapshot; renderFrnDraft(); return; }
+  // Cancel any in-flight floor animation so undo lands cleanly.
+  if (_draftAnimTimer != null) { clearTimeout(_draftAnimTimer); _draftAnimTimer = null; }
+  // Pop every pick from snap.pickIdx onward (user pick + any AI picks
+  // that landed during the floor animation). Each popped pick: remove
+  // the rookie from their team's roster and restore prospect state.
+  while (d.picks.length > snap.pickIdx) {
+    const pk = d.picks.pop();
+    const roster = franchise.rosters[pk.teamId] || [];
+    const ridx = roster.findIndex(p => p.name === pk.prospectName);
+    if (ridx >= 0) {
+      const rookie = roster.splice(ridx, 1)[0];
+      // Restore prospect-shape fields so it can be re-drafted cleanly.
+      rookie.isProspect = true;
+      delete rookie.contract;
+      delete rookie.draftRound;
+      delete rookie.draftPick;
+      delete rookie.careerEarnings;
+      delete rookie._scoutedAtDraftSeason;
+      delete rookie._scoutedAtDraftCats;
+    }
+  }
+  d.currentIdx = snap.pickIdx;
+  // Restore the user's prospect to its exact pre-pick state — covers
+  // any mutations (hidden gem roll, etc.) the original pick made.
+  const cIdx = d.class.findIndex(p => p.name === snap.prospect.name);
+  if (cIdx >= 0) d.class[cIdx] = snap.prospect;
+  delete d._lastPickSnapshot;
+  delete d._animSinceIdx;
+  delete d._targetGone;
+  saveFranchise();
+  renderFrnDraft();
 }
 
 // Finalize a UDFA-tier prospect into a signed player on a team. Mirrors
