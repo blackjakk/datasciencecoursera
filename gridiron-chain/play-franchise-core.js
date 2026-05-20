@@ -1290,6 +1290,13 @@ function draftStr(p) {
   // completed seasons → still in his rookie year.
   const yrs = _yearsInLeague(p);
   const yrTag = yrs === 0 ? "Rookie" : `Yr ${yrs}`;
+  // Slip badge — for UDFA-signed rookies who had a draftable consensus
+  // grade pre-draft. Surfaces the Brady-via-UDFA narrative: "this guy
+  // had a R3 grade but no team picked him." `_slipGrade` is preserved
+  // at sign time before draftRound gets clobbered to 0.
+  if (p.draftRound === 0 && p._slipGrade > 0) {
+    return `${yrTag} · UDFA · ↓ ~R${p._slipGrade} SLIP`;
+  }
   if (p.draftRound === 0) return `${yrTag} · UDFA`;
   return `${yrTag} · R${p.draftRound} #${p.draftPick}`;
 }
@@ -1367,20 +1374,22 @@ function assignDraftInfo(rosters, currentYear) {
 // scouting / "tier reveal" gameplay loop, cheating their way to
 // perfect roster decisions. The tier abstraction in the UI is the
 // gameplay loop; on-chain exposure would defeat it.
-function _rollPotential(p, hintRound) {
+function _rollPotential(p, hintRound, hintBoost = 0) {
   const age = p.age || 22;
   const ovr = p.overall || 70;
   // Vets (25+): potential = current + 0-3 bump (peak players)
   if (age >= 25) return Math.min(99, ovr + Math.floor(Math.random() * 4));
   // Young (22-24): draft pedigree drives mean. `hintRound` lets callers
   // who don't yet have draftRound set (e.g., college FR generation)
-  // route potential to the right round-bucket. Without this, an FR
-  // prospect rolled at "elite" tier would default to R7 mean (60) and
-  // stagnate through dev — the elite tier roll was wasted.
+  // route potential to the right round-bucket. `hintBoost` adds
+  // year-aware headroom — an FR-elite has 4 years to develop so they
+  // get a higher potential mean than a SR-elite who arrives already
+  // mostly-developed. Without the boost, FR superstars hit ceiling
+  // by SO and stop growing (Trevor Lawrence ends college flat at 88).
   const r = p.draftRound || hintRound || 7;
   const meanByRound = { 1: 88, 2: 81, 3: 75, 4: 70, 5: 66, 6: 63, 7: 60, 0: 58 };
   const stdByRound  = { 1: 5,  2: 6,  3: 7,  4: 7,  5: 7,  6: 7,  7: 7,  0: 8 };
-  const mean = meanByRound[r] ?? 65;
+  const mean = (meanByRound[r] ?? 65) + hintBoost;
   const std = stdByRound[r] ?? 7;
   // Box-Muller-ish noise
   let u = Math.random() || 1e-9, v = Math.random();

@@ -16575,11 +16575,9 @@ function renderFrnDraftPreshow() {
     </div>`;
 
   // Class size + meta for the hero sub-strip. Path A: continuous pool,
-  // no hard tier divide. "Graded" = R1-R7 (1-7), "Camp body" = grade 0.
-  // The total pool is `d.class.length`; ~94 will fall to the scramble
-  // (drives the "~94 fall to scramble" estimate below).
-  const totalGraded = (d.class || []).filter(p => p._generatedRound >= 1).length;
-  const totalCampBody = (d.class || []).filter(p => p._generatedRound === 0).length;
+  // no hard tier divide. Pool size = d.class.length; willFall = pool
+  // minus drafted slots (typically ~126 under 350-pool / 224-slot
+  // configuration).
   const totalPool = (d.class || []).length;
   const draftedSlots = d.pickOrder?.length || 224;
   const willFall = Math.max(0, totalPool - draftedSlots);
@@ -16906,7 +16904,10 @@ const _CONSENSUS_GRADE_THRESHOLDS = [
 // position is scarce.
 const _POSITION_GRADE_ADJUST = { QB: -3 };
 function _consensusGradeRound(consensusOvr, position) {
-  const adj = (position && _POSITION_GRADE_ADJUST[position]) || 0;
+  // `??` not `||` so a future `0` entry in _POSITION_GRADE_ADJUST
+  // (e.g., explicit "no adjust" for K/P) wouldn't silently fall
+  // through to the default branch.
+  const adj = (position && _POSITION_GRADE_ADJUST[position]) ?? 0;
   for (const t of _CONSENSUS_GRADE_THRESHOLDS) {
     if (consensusOvr >= (t.minOvr + adj)) return t.round;
   }
@@ -17076,16 +17077,26 @@ function _generateCollegePlayer(collegeYear, blockNames) {
   p._collegeJoinedSeason = (franchise?.season || 1);
   p.draftSeason = (franchise?.season || 1) + _COLLEGE_SEASONS_TO_DRAFT[collegeYear];
   p.draftYear = (new Date().getFullYear()) + p.draftSeason;
-  // Tier-driven potential hint — without this, FR prospects (which have
-  // no draftRound set) defaulted to R7 mean (60) regardless of tier, so
-  // an FR-elite QB would have ~85 stats but only ~60 potential and
-  // stagnate through dev. Maps tier → typical projected round so the
-  // potential distribution matches the stat distribution.
+  // Tier-driven potential hint. Maps tier → typical projected round so
+  // the potential distribution matches the stat distribution.
   const _hintRound = tier === "elite" ? 1
                   : tier === "good"  ? 3
                   : tier === "average" ? 5
                                        : 7;
-  p.potential = _rollPotential(p, _hintRound);
+  // Year-aware potential boost — an FR-elite has 4 years to grow into
+  // their ceiling, so their potential ceiling is higher than a SR-elite
+  // who's already mostly developed. Captures the "Trevor Lawrence
+  // arrives as 5-star recruit, ends college as #1 overall pick" arc:
+  // FR potential is intentionally above ceiling estimate to give
+  // headroom for breakout + steady growth across 3 dev cycles.
+  const _yearBoostByTier = {
+    FR: { elite: 4, good: 4, average: 3, poor: 0 },
+    SO: { elite: 3, good: 3, average: 2, poor: 0 },
+    JR: { elite: 1, good: 2, average: 1, poor: 0 },
+    SR: { elite: 0, good: 0, average: 0, poor: 0 },
+  };
+  const _hintBoost = _yearBoostByTier[collegeYear]?.[tier] ?? 0;
+  p.potential = _rollPotential(p, _hintRound, _hintBoost);
   const projRound = _projectedDraftRound(p);
   p.collegeProfile = _buildCollegeProfile(p, projRound);
   // F2 — multi-year college career snapshot. Underclass years (FR/SO/JR)
@@ -17143,14 +17154,41 @@ function _declareEarlyJuniors() {
   return declared;
 }
 
-// Tiny per-season stat development. High-potential players grow; low-pot
-// can stagnate or regress slightly. Applied during aging at frnNewSeason.
+// Per-season stat development with breakout-year mechanism. Each
+// prospect is deterministically assigned a "breakout year" (SO/JR/SR)
+// at first dev call — when they reach that year, they get a bonus
+// growth surge on top of normal steady growth. Captures the narrative
+// of real college breakout seasons (Trevor Lawrence/Burrow/Mahomes
+// arc) instead of steady linear growth.
 function _developCollegePlayer(p) {
   const pot = p.potential || 60;
+  // Assign breakout year deterministically — once per prospect.
+  // Same name → same breakout year across pipeline rebuilds. Skip
+  // for low-pot prospects (no breakout magnitude → wasted state).
+  if (p._breakoutYear == null && pot >= 65) {
+    const h = _nameHash(p.name + "|breakout", 31);
+    p._breakoutYear = ["SO", "JR", "SR"][h % 3];
+  }
+  // Steady growth — elite tier bumped slightly to match real-NFL
+  // dev deltas (pot ≥ 85 now +3-5 vs old +2-4 ceiling at any pot).
   let bump;
-  if      (pot >= 80) bump = 2 + Math.floor(Math.random() * 3); // +2..+4
+  if      (pot >= 85) bump = 3 + Math.floor(Math.random() * 3); // +3..+5 (elite, new tier)
+  else if (pot >= 80) bump = 2 + Math.floor(Math.random() * 3); // +2..+4
   else if (pot >= 65) bump = 1 + Math.floor(Math.random() * 3); // +1..+3
   else                bump = -1 + Math.floor(Math.random() * 4); // -1..+2
+  // Breakout bonus — fires once when collegeYear matches the assigned
+  // breakout year. Magnitude scales with potential: elite breakouts
+  // are dramatic (Mahomes/Burrow tier), average breakouts modest.
+  let breakoutBump = 0;
+  if (p._breakoutYear && p.collegeYear === p._breakoutYear && !p._breakoutFired) {
+    if      (pot >= 85) breakoutBump = 12 + Math.floor(Math.random() * 5); // +12-16
+    else if (pot >= 80) breakoutBump = 8 + Math.floor(Math.random() * 3);  // +8-10
+    else if (pot >= 70) breakoutBump = 5 + Math.floor(Math.random() * 3);  // +5-7
+    else if (pot >= 65) breakoutBump = 3 + Math.floor(Math.random() * 3);  // +3-5
+    p._breakoutFired = true;
+    p._breakoutMagnitude = breakoutBump;
+  }
+  bump += breakoutBump;
   if (bump === 0) return;
   // Boost the player's top 3 stats — primary calling-card stats develop
   // first, mirroring real CFB player growth.
