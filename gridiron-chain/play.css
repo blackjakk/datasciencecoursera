@@ -6152,6 +6152,47 @@
     border-radius: 2px;
   }
   .frn-dp-intel-row { font-size: .58rem; color: var(--blwhite); line-height: 1.35; }
+  /* Draft notes — strengths / concerns / fit. Collapsed by default,
+     expanded for scouted/watched prospects. Click summary to toggle. */
+  .frn-dp-notes-summary {
+    display: flex; align-items: center; gap: .4rem;
+    margin-top: .25rem; padding: .18rem .35rem;
+    background: rgba(255,255,255,.025); border-left: 2px solid var(--border);
+    border-radius: 2px; cursor: pointer; transition: background .1s;
+    font-size: .58rem;
+  }
+  .frn-dp-notes-summary:hover { background: rgba(255,255,255,.05); border-left-color: var(--gold-lt); }
+  .frn-dp-notes-summary.expanded { border-left-color: var(--gold); background: rgba(200,169,0,.04); }
+  .frn-dp-notes-expanded {
+    margin-top: .25rem; padding: .25rem .45rem .35rem;
+    background: rgba(255,255,255,.02);
+    border-left: 2px solid var(--gold-lt); border-radius: 2px;
+  }
+  .frn-dp-notes-expanded .frn-dp-notes-summary {
+    margin: 0 0 .3rem; padding: 0 0 .2rem;
+    background: none; border-left: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .frn-dp-notes-section { margin-top: .3rem; }
+  .frn-dp-notes-section:first-of-type { margin-top: .1rem; }
+  .frn-dp-notes-h {
+    font-size: .54rem; color: var(--gold); letter-spacing: .8px;
+    font-weight: 700; margin-bottom: .15rem;
+  }
+  .frn-dp-notes-row {
+    display: flex; gap: .35rem; align-items: flex-start;
+    font-size: .6rem; color: var(--blwhite); line-height: 1.35;
+    padding: .08rem 0;
+  }
+  .frn-dp-notes-reveal {
+    font-size: .56rem; color: var(--green-lt); margin-top: .1rem;
+    padding-left: .55rem; border-left: 1px solid rgba(134,224,163,.3);
+  }
+  .frn-dp-notes-locked {
+    font-size: .54rem; color: var(--gray); font-style: italic;
+    margin-top: .1rem; padding-left: .55rem;
+  }
+  .frn-dp-notes-locked b { color: var(--gold-lt); font-style: normal; font-weight: 700; }
 
   /* Class-strength chips on the draft hero ("🔥 Deep at QB/WR ...") */
   .frn-draft-class-chips {

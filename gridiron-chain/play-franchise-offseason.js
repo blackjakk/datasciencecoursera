@@ -15285,6 +15285,315 @@ function _buildCollegeProfile(p, round) {
   return { line, knock, knockType };
 }
 
+// ── Draft notes — strengths/concerns/fit, layered with scout reveals ─────────
+// Generated lazily from stats + archetype + collegeProfile data already on
+// the prospect. Cached at p.draftNotes so the rolls are stable across
+// renders. No save-format change — regenerates if missing.
+//
+// Tier scale for concerns: "minor" (yellow dot), "major" (orange dot),
+// "red-flag" (red dot). The primary concern reuses the existing knockType
+// scout category so the existing 4-category scout reveal system unlocks
+// the deeper line for free. Secondary concerns are derived from stat lows
+// and don't gate behind scouting (they're visible from film/box-score).
+function _buildDraftNotes(p) {
+  if (!p || p.draftNotes) return p?.draftNotes;
+  const pos = p.position;
+  const s = p.stats || [];
+  const [spd=50, str=50, agi=50, awr=50, thr=50, cat=50, blk=50, prs=50, cov=50, tck=50, kpw=50] = s;
+  const h1 = _nameHash(p.name, 11);
+  const h2 = _nameHash(p.name, 23);
+  const ovr = p.overall || 65;
+  const isHiUp = (p.potential || ovr) - ovr >= 10;
+  // Position → which stats are headline strengths (in priority order)
+  const POS_STRENGTH_STATS = {
+    QB: [["thr", thr, "Plus arm — drives the ball with velocity"],
+         ["awr", awr, "Pocket awareness, processes reads quickly"],
+         ["agi", agi, "Mobile — extends plays outside the pocket"]],
+    RB: [["spd", spd, "Home-run speed — breakaway threat any down"],
+         ["agi", agi, "Lateral agility, makes the first defender miss"],
+         ["str", str, "Runs through contact, finishes downhill"],
+         ["cat", cat, "Receiving threat out of the backfield"]],
+    WR: [["spd", spd, "Vertical separation — true field-stretcher"],
+         ["cat", cat, "Hands are reliable — wins contested catches"],
+         ["agi", agi, "Sharp route-runner, creates separation late"]],
+    TE: [["cat", cat, "Natural receiver — moves the chains"],
+         ["blk", blk, "Willing blocker — sustains at the point of attack"],
+         ["spd", spd, "Athletic mismatch in the seam"]],
+    OL: [["str", str, "Anchor — won't get walked back by power"],
+         ["blk", blk, "Technique-savvy, hand placement is pro-ready"],
+         ["agi", agi, "Light feet for the position, climbs to the 2nd level"]],
+    DL: [["prs", prs, "Pass rush juice — wins one-on-ones"],
+         ["str", str, "Holds the point, stacks blockers vs the run"],
+         ["agi", agi, "First-step quickness off the snap"]],
+    LB: [["tck", tck, "Sure tackler — meets ball-carriers in the hole"],
+         ["cov", cov, "Three-down value — coverage skills translate"],
+         ["prs", prs, "Blitz threat — closes on the QB"]],
+    CB: [["cov", cov, "Sticky in coverage — mirrors routes naturally"],
+         ["spd", spd, "Recovery speed — stays in phase deep"],
+         ["agi", agi, "Smooth hips, fluid transition out of breaks"]],
+    S:  [["cov", cov, "Range — covers ground in centerfield looks"],
+         ["tck", tck, "Reliable in run support, wraps up"],
+         ["awr", awr, "Diagnoses concepts pre-snap, baits routes"]],
+    K:  [["kpw", kpw, "Leg strength — comfortable from 50+"]],
+    P:  [["kpw", kpw, "Booming hang time — flips the field"]],
+  };
+  const strengths = [];
+  const candidates = POS_STRENGTH_STATS[pos] || [];
+  for (const [, val, text] of candidates) {
+    if (val >= 80) strengths.push({ text, tier: "elite" });
+    else if (val >= 72) strengths.push({ text, tier: "solid" });
+    if (strengths.length >= 3) break;
+  }
+  if (isHiUp && strengths.length < 3) {
+    strengths.push({ text: "Trending up — coaches see another gear", tier: "solid" });
+  }
+  if (!strengths.length) {
+    // "developmental" tier renders with neutral dot so it doesn't read
+    // like a concern (which uses minor/major/red-flag colors).
+    strengths.push({ text: "Day-three flier — bet on traits over production", tier: "developmental" });
+  }
+
+  // Concerns: primary from existing knockType, secondaries from stat lows + frame
+  const concerns = [];
+  const knockType = p.collegeProfile?.knockType;
+  if (knockType) {
+    const headline = p.collegeProfile.knock || "Scouting concern";
+    const cat = _DRAFT_KNOCK_CATEGORY[knockType] || null;
+    // Tier the primary knock: medical / character → red-flag; system /
+    // small school / scheme → major; technique / consistency → minor
+    const tier = ["injury","medical","durability","weight_concern"].includes(knockType) ? "red-flag"
+               : ["one_year_wonder","scheme_fit","small_school","system_player","short_arms","production_drop"].includes(knockType) ? "major"
+               : "minor";
+    concerns.push({ text: headline, tier, category: cat, isPrimary: true, knockType });
+  }
+  // Secondary concerns derived from stat lows. Position-aware so we
+  // don't flag (say) low blocking for a CB.
+  const POS_WEAKNESS_STATS = {
+    QB: [["awr", awr, "Reads slow — eyes lock onto first option", "minor"],
+         ["agi", agi, "Statue in the pocket — can't escape pressure", "minor"]],
+    RB: [["blk", blk, "Pass protection a liability — third-down sub", "minor"],
+         ["str", str, "Won't break tackles between the tackles", "minor"]],
+    WR: [["str", str, "Press-coverage bullies him off his routes", "minor"],
+         ["cat", cat, "Concentration drops on contested catches", "major"]],
+    TE: [["blk", blk, "In-line blocking grade is bottom of class", "minor"],
+         ["spd", spd, "Lacks juice to threaten the seam", "minor"]],
+    OL: [["agi", agi, "Heavy feet in space — limits zone fit", "minor"],
+         ["awr", awr, "Late on stunt recognition — gets crossed up", "minor"]],
+    DL: [["str", str, "Gets washed out vs double teams", "minor"],
+         ["awr", awr, "Reads run/pass slow — bites on play action", "minor"]],
+    LB: [["cov", cov, "Coverage limitations — base-down only", "minor"],
+         ["spd", spd, "Range concerns — caught in chase mode", "minor"]],
+    CB: [["str", str, "Physical receivers win at the line", "minor"],
+         ["agi", agi, "Tight hips — vulnerable on double moves", "major"]],
+    S:  [["spd", spd, "Closing speed limits range in zone", "minor"],
+         ["tck", tck, "Inconsistent in run fits — overruns angles", "minor"]],
+    K:  [["awr", awr, "Operation time slow under pressure", "minor"]],
+    P:  [["awr", awr, "Operation time slow under pressure", "minor"]],
+  };
+  const weaknessCandidates = POS_WEAKNESS_STATS[pos] || [];
+  for (const [, val, text, defaultTier] of weaknessCandidates) {
+    if (val <= 50 && concerns.length < 3) {
+      const tier = val <= 42 ? "major" : defaultTier;
+      // Skip duplicating the primary knock's surface area
+      if (!concerns.some(c => c.text.toLowerCase() === text.toLowerCase())) {
+        concerns.push({ text, tier, derived: "stat" });
+      }
+    }
+  }
+  // Age cliff — older prospect (24+) = production window concern
+  if (p.age >= 24 && concerns.length < 3) {
+    concerns.push({ text: `Older prospect at ${p.age} — shorter production window`, tier: "minor", derived: "age" });
+  }
+  // Hidden gem inverse: if overall is high but bias was negative, scouts
+  // questioned tape — but only show this AFTER any scout reveals
+  // (already public-facing isn't right). We surface it as derived.
+  if ((p._aiScoutBias || 0) <= -6 && ovr >= 78 && concerns.length < 3) {
+    concerns.push({ text: "Tape-vs-traits gap — scouts split on projection", tier: "minor", derived: "scout-split" });
+  }
+
+  // Fit: data-driven from stats. Primary fit = most-likely best scheme
+  // for this player's trait profile. Alt = caveat or alternative,
+  // gated behind interview scout in render. No template-pool randomness
+  // — the fit reflects what the player's stats actually project.
+  const fit = [];
+  const fitData = _pickFitFromStats(pos, { spd, str, agi, awr, thr, cat, blk, prs, cov, tck, kpw });
+  fit.push({ text: fitData.primary });
+  if (fitData.alt) fit.push({ text: fitData.alt, gated: "interview" });
+
+  p.draftNotes = { strengths, concerns, fit };
+  return p.draftNotes;
+}
+
+// Stat-driven scheme fit. Picks the primary scheme that amplifies the
+// player's strengths + an alt note that's gated behind interview scout.
+// Thresholds tuned so the call shifts with the stats: a CB with low str
+// gets "slot-only", a CB with high str + spd gets "press-man".
+function _pickFitFromStats(pos, s) {
+  const { spd, str, agi, awr, thr, cat, blk, prs, cov, tck, kpw } = s;
+  if (pos === "QB") {
+    if (thr >= 78 && agi >= 72) return { primary: "Mobile pro-style — extends plays and pushes the ball downfield", alt: "Air-raid translation viable with the arm and athleticism" };
+    if (thr >= 78) return { primary: "Pro-style — drives the ball but needs protection up front", alt: "Best in a play-action-heavy scheme" };
+    if (agi >= 75) return { primary: "RPO / option scheme — mobility-first profile", alt: "Will need a scheme that protects on third down" };
+    if (awr >= 75) return { primary: "Quick-game pro-style — wins with reads, not arm", alt: "West Coast scheme would maximize him" };
+    return { primary: "Game-manager profile — needs scheme to win pre-snap", alt: "Best with an established receiving room" };
+  }
+  if (pos === "RB") {
+    if (agi >= 78 && spd >= 78) return { primary: "Zone scheme — patient, one-cut runner with breakaway speed", alt: "Outside-zone amplifies the agility" };
+    if (str >= 75) return { primary: "Gap/power back — wears down defenses late", alt: "Inside-zone fits his contact balance" };
+    if (cat >= 70) return { primary: "3rd-down back early — receiving role available Day 1", alt: "Pass-pro reps will decide the early-down role" };
+    return { primary: "Rotational depth back early", alt: "Special teams contributor while developing" };
+  }
+  if (pos === "WR") {
+    if (spd >= 80) return { primary: "X / outside — true field-stretcher on go balls", alt: "Air-raid vertical concepts maximize the speed" };
+    if (agi >= 75 && cat >= 70) return { primary: "Z receiver — best moving across the formation", alt: "Slot-out West-Coast routes fit the skillset" };
+    if (str < 55) return { primary: "Slot-only translation — needs traffic to separate", alt: "Press coverage will be a problem outside" };
+    return { primary: "Possession receiver — moves the chains", alt: "Best in a high-volume short-area passing game" };
+  }
+  if (pos === "TE") {
+    if (cat >= 72 && blk < 60) return { primary: "Move-TE — split out as a big slot", alt: "Limited inline value early — needs hybrid usage" };
+    if (blk >= 72 && cat < 60) return { primary: "Inline Y — blocking-first, secondary in the passing game", alt: "Heavy-formation scheme amplifies the role" };
+    if (cat >= 70 && blk >= 70) return { primary: "F-back / H-back — versatile chess piece", alt: "12-personnel offense maximizes the versatility" };
+    return { primary: "Special-teams TE — depth role early", alt: "Development project at the position" };
+  }
+  if (pos === "OL") {
+    if (agi >= str + 8) return { primary: "Zone-blocking scheme — mobility amplifies the fit", alt: "Best in an outside-zone offense" };
+    if (str >= agi + 8) return { primary: "Gap/power scheme — anchor and finish", alt: "Down-blocking concepts amplify the strength" };
+    if (str >= 75 && agi >= 70) return { primary: "Scheme-agnostic — fits any blocking concept", alt: "Versatile across the interior" };
+    return { primary: "Swing tackle / interior depth — positional flexibility", alt: "Best in a coaching-rich room while developing" };
+  }
+  if (pos === "DL") {
+    if (prs >= str + 8) return { primary: "Sub-package interior rusher — penetrate gaps", alt: "3-4 outside / 4-3 under tackle fit" };
+    if (str >= prs + 8) return { primary: "1-tech / nose tackle — anchor vs the run", alt: "Two-gap scheme amplifies the role" };
+    if (prs >= 75 && str >= 70) return { primary: "5-tech / base end — sets edges, collapses pockets", alt: "Scheme-versatile lineman" };
+    return { primary: "Rotational lineman — depth role early", alt: "Best in a deep DL room while developing" };
+  }
+  if (pos === "LB") {
+    if (cov >= 70 && spd >= 70) return { primary: "WILL in a one-gap scheme — three-down value", alt: "Sub-package matchup linebacker fit" };
+    if (cov < 50) return { primary: "SAM / strong-side only — base-down profile", alt: "Comes off the field in nickel" };
+    if (tck >= 78 && str >= 70) return { primary: "MIKE in a two-gap front — diagnose and shed", alt: "Run-down enforcer profile" };
+    return { primary: "Special-teams ace — depth LB profile", alt: "Limited scheme fit — base-down role" };
+  }
+  if (pos === "CB") {
+    if (str >= 60 && spd >= 75) return { primary: "Press-man scheme — physicality at the line", alt: "Bump-and-run amplifies his tools" };
+    if (str < 55 && agi >= 72) return { primary: "Slot-only translation — best matched on shifty 2s", alt: "Limited outside fit — gets boxed at the line" };
+    if (agi >= str + 8 && cov >= 70) return { primary: "Off-zone scheme — eyes-on-QB instincts", alt: "Cover-3 / quarters amplifies the awareness" };
+    return { primary: "Sub-package CB — situational role early", alt: "Matchup-dependent fit" };
+  }
+  if (pos === "S") {
+    if (spd >= 75 && cov >= 70) return { primary: "Single-high free safety — range covers the field", alt: "Quarters / cover-3 amplifies the range" };
+    if (tck >= cov + 8) return { primary: "Box safety / dime backer — short-area enforcer", alt: "Heavy-box scheme amplifies the run-fit value" };
+    if (cov >= 75) return { primary: "Matchup safety — covers TEs in man", alt: "Sub-package coverage chess piece" };
+    return { primary: "Rotational safety — depth role early", alt: "Special teams contributor while developing" };
+  }
+  if (pos === "K") {
+    if (kpw >= 75) return { primary: "Plus leg — comfortable from 50+", alt: "Strong-leg scheme amplifies field position" };
+    return { primary: "Inside-40 accuracy profile", alt: "Average range — needs short-field philosophy" };
+  }
+  if (pos === "P") {
+    if (kpw >= 75) return { primary: "Booming leg — flips the field", alt: "Hang-time consistency to refine" };
+    return { primary: "Directional punter — pin opponents deep", alt: "Average leg — angle game over distance" };
+  }
+  return { primary: "Versatile fit — scheme-agnostic", alt: null };
+}
+
+// Render the notes block for a prospect. Default state is collapsed
+// (one summary line with severity dots). Expanded shows full sections.
+// Strengths are always visible. Concerns reveal their deeper line when
+// the matching scout category has been paid. Fit's secondary line is
+// gated behind interview scout.
+function _renderDraftNotes(p, opts = {}) {
+  const notes = _buildDraftNotes(p);
+  if (!notes) return "";
+  const scoutedCats = opts.scoutedCats || [];
+  const knockReveals = opts.knockReveals || {};
+  const expanded = !!opts.expanded;
+  const esc = (p.name || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+
+  const TIER_DOT = { "minor": "🟡", "major": "🟠", "red-flag": "🔴", "elite": "💎", "solid": "✓", "developmental": "·" };
+  const concernCounts = { minor: 0, major: 0, "red-flag": 0 };
+  for (const c of notes.concerns) concernCounts[c.tier] = (concernCounts[c.tier] || 0) + 1;
+
+  if (!expanded) {
+    // Collapsed: chip row with strength count + severity dots + expand affordance
+    const dots = ["red-flag","major","minor"].flatMap(t =>
+      Array(concernCounts[t] || 0).fill(TIER_DOT[t])
+    ).join("");
+    const strengthChip = notes.strengths.length
+      ? `<span style="color:var(--green-lt);font-weight:700">💪×${notes.strengths.length}</span>` : "";
+    const concernChip = dots
+      ? `<span title="${concernCounts["red-flag"]||0} red flag · ${concernCounts.major||0} major · ${concernCounts.minor||0} minor">${dots}</span>`
+      : `<span style="color:var(--gray);font-size:.55rem">no concerns flagged</span>`;
+    return `<div class="frn-dp-notes-summary" onclick="frnDraftToggleNotes('${esc}')" title="Click to expand draft notes">
+      <span style="color:var(--gold);letter-spacing:.5px;font-weight:700;font-size:.54rem">📝 NOTES</span>
+      ${strengthChip}
+      ${concernChip}
+      <span style="color:var(--gray);font-size:.55rem;margin-left:auto">▾ expand</span>
+    </div>`;
+  }
+
+  // Expanded sections
+  const strengthsHtml = notes.strengths.length ? `
+    <div class="frn-dp-notes-section">
+      <div class="frn-dp-notes-h">💪 STRENGTHS</div>
+      ${notes.strengths.map(s => `<div class="frn-dp-notes-row">
+        <span style="color:var(--green-lt);font-size:.6rem">${TIER_DOT[s.tier]||"·"}</span>
+        <span>${s.text}</span>
+      </div>`).join("")}
+    </div>` : "";
+
+  const concernsHtml = notes.concerns.length ? `
+    <div class="frn-dp-notes-section">
+      <div class="frn-dp-notes-h">🚨 CONCERNS</div>
+      ${notes.concerns.map(c => {
+        const dot = TIER_DOT[c.tier] || "·";
+        const hasReveal = c.isPrimary && c.category && scoutedCats.includes(c.category) && knockReveals[c.category];
+        const lockedReveal = c.isPrimary && c.category && !scoutedCats.includes(c.category)
+          ? `<div class="frn-dp-notes-locked">🔒 Scout <b>${c.category}</b> to dig deeper</div>` : "";
+        const revealHtml = hasReveal
+          ? `<div class="frn-dp-notes-reveal">↳ ${knockReveals[c.category]}</div>` : "";
+        return `<div class="frn-dp-notes-row">
+          <span style="font-size:.6rem">${dot}</span>
+          <div style="flex:1">
+            <div>${c.text}</div>
+            ${revealHtml}
+            ${lockedReveal}
+          </div>
+        </div>`;
+      }).join("")}
+    </div>` : "";
+
+  const fitVisible = notes.fit.filter(f => !f.gated || scoutedCats.includes(f.gated));
+  const fitLocked = notes.fit.some(f => f.gated && !scoutedCats.includes(f.gated));
+  const fitHtml = fitVisible.length ? `
+    <div class="frn-dp-notes-section">
+      <div class="frn-dp-notes-h">🎯 SCHEME FIT</div>
+      ${fitVisible.map(f => `<div class="frn-dp-notes-row">
+        <span style="font-size:.6rem;color:var(--gold-lt)">·</span>
+        <span>${f.text}</span>
+      </div>`).join("")}
+      ${fitLocked ? `<div class="frn-dp-notes-locked">🔒 Scout <b>interview</b> for full scheme breakdown</div>` : ""}
+    </div>` : "";
+
+  return `<div class="frn-dp-notes-expanded">
+    <div class="frn-dp-notes-summary expanded" onclick="frnDraftToggleNotes('${esc}')" title="Click to collapse">
+      <span style="color:var(--gold);letter-spacing:.5px;font-weight:700;font-size:.54rem">📝 NOTES</span>
+      <span style="color:var(--gray);font-size:.55rem;margin-left:auto">▴ collapse</span>
+    </div>
+    ${strengthsHtml}
+    ${concernsHtml}
+    ${fitHtml}
+  </div>`;
+}
+
+// Toggle notes expansion for a prospect. State lives on the draft
+// (cleared when draft finalizes via _draftFinalize → null).
+function frnDraftToggleNotes(name) {
+  if (!franchise?.draft) return;
+  franchise.draft._notesExpanded = franchise.draft._notesExpanded || {};
+  franchise.draft._notesExpanded[name] = !franchise.draft._notesExpanded[name];
+  renderFrnDraft();
+}
+
 function frnGoToDraft() {
   const rookieYear = (new Date().getFullYear()) + (franchise.season || 1);
   _injectCompPicks(rookieYear);
@@ -17906,7 +18215,6 @@ function renderFrnDraft() {
     const comp = _draftNFLComp(p);
     const arch = _archetypeLabel(p) || "—";
     const meta = comp ? `${arch} · ${comp}` : arch;
-    const knockCat = p.collegeProfile?.knockType ? _DRAFT_KNOCK_CATEGORY[p.collegeProfile.knockType] : null;
     // Projected-round badge — derived from where this prospect was
     // generated. UDFA-tier (round 0) labels as "~UDFA".
     const genR = p._generatedRound;
@@ -17957,9 +18265,17 @@ function renderFrnDraft() {
       ? `<div class="frn-dp-intel">${intelBits.map(b => `<div class="frn-dp-intel-row">${b}</div>`).join("")}</div>`
       : "";
 
-    const knockHint = p.collegeProfile?.knock
-      ? `<div style="font-size:.58rem;color:#e8a000;margin-top:.06rem">⚠ ${p.collegeProfile.knock}${knockCat?`<span style="color:var(--gray);font-weight:400"> · ${DRAFT_SCOUT_CAT_META[knockCat].icon} ${DRAFT_SCOUT_CAT_META[knockCat].label} can resolve</span>`:""}</div>`
-      : "";
+    // Draft notes — strengths / concerns / fit. Auto-expanded for
+    // watched or scouted prospects; user can toggle per prospect.
+    const _isWatchedNotes = watchedSet.has(p.name);
+    const _defaultExpanded = _isWatchedNotes || isScouted;
+    const _userToggled = !!(d._notesExpanded?.[p.name]);
+    const _notesExpanded = _defaultExpanded ? !_userToggled : _userToggled;
+    const notesHtml = _renderDraftNotes(p, {
+      scoutedCats,
+      knockReveals: rev?.knockNotes || {},
+      expanded: _notesExpanded,
+    });
 
     const _posRank = posRankMap.get(p.name);
     const _posTotal = posCountMap.get(p.position) || 0;
@@ -17990,7 +18306,7 @@ function renderFrnDraft() {
           <span class="frn-dp-combine"> · ${_draftCombineStr(p)}</span>
         </div>
         ${p.collegeProfile?.line ? `<div style="font-size:.58rem;color:var(--gray);margin-top:.1rem">${p.collegeProfile.line}</div>` : ""}
-        ${knockHint}
+        ${notesHtml}
         ${intelHtml}
       </div>
       <div class="frn-dp-actions">
