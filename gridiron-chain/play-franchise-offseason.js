@@ -16974,7 +16974,34 @@ function _applyConsensusGrade(p, rookieYear) {
   // +14 bias). Without this, the OVR jump from the surge often gets
   // hidden because consensus stays where it was — vaults land in R2-R3
   // instead of R1. The bias bump pushes consensus into R1 territory.
-  p._aiScoutBias = +(baseBias + wildcardBias + ultraBias).toFixed(1);
+  // D2: scouts-buy-in / scouts-pan amplification. Probability scales
+  // with hidden ceiling. High-ceiling prospects sometimes get a
+  // positive consensus bump (scouts noticed during college). Low-
+  // ceiling prospects sometimes get a negative bump (scouts unimpressed).
+  // Hidden from user — emerges as a higher- or lower-than-expected
+  // consensus grade. Does NOT enable arc-spotting because user can't
+  // see ceiling. Targets the R1 supply gap + R7 thickening.
+  const ceiling = p.potential || 70;
+  let scoutBuyIn = 0;
+  const buyInRoll = _seededRand(biasKey + "|buyin");
+  const buyInMag = _seededRand(biasKey + "|buyinMag");
+  if (ceiling >= 88) {
+    // Blue chip — 55% chance scouts buy in big
+    if (buyInRoll < 0.55) scoutBuyIn = 3 + Math.floor(buyInMag * 6); // +3-8
+  } else if (ceiling >= 80) {
+    // R1-R2 cusp — 35% chance of modest buy-in
+    if (buyInRoll < 0.35) scoutBuyIn = 2 + Math.floor(buyInMag * 4); // +2-5
+  } else if (ceiling >= 65) {
+    // Mid-tier — small ± wobble, mostly neutral
+    if (buyInRoll < 0.10) scoutBuyIn = Math.floor(buyInMag * 4) - 2; // ±2
+  } else if (ceiling >= 55) {
+    // Low ceiling — 30% chance scouts not impressed
+    if (buyInRoll < 0.30) scoutBuyIn = -(2 + Math.floor(buyInMag * 4)); // -2 to -5
+  } else {
+    // Camp body — 50% chance scouts pan
+    if (buyInRoll < 0.50) scoutBuyIn = -(3 + Math.floor(buyInMag * 6)); // -3 to -8
+  }
+  p._aiScoutBias = +(baseBias + wildcardBias + ultraBias + scoutBuyIn).toFixed(1);
   // Consensus grade — what the world sees. The draft AI ranks by this,
   // user-visible grade badge shows this, scout reveals can shift it.
   p._generatedRound = _consensusGradeRound(trueOvr + p._aiScoutBias, p.position);
