@@ -17181,10 +17181,22 @@ function _developCollegePlayer(p) {
   if (p._breakoutYear == null && pot >= 60) {
     const h = _nameHash(p.name + "|breakout", 31);
     p._breakoutYear = ["SO", "JR", "SR"][h % 3];
+    // Severity probability INVERTS with potential. Elite-pot prospects
+    // are already great — their development is steady excellence
+    // (Trevor Lawrence arc). Mid-tier prospects (pot 70-79) are where
+    // the dramatic vault stories live — Burrow at LSU, Mahomes at Tech,
+    // Antonio Brown at Central Michigan, Aaron Donald at Pitt, all were
+    // mid-tier recruits who EXPLODED. Below-avg prospects rarely vault.
     const sevRoll = _nameHash(p.name + "|severity", 41) % 100;
-    p._breakoutSeverity = sevRoll < 15 ? "huge"
-                        : sevRoll < 50 ? "big"
-                                       : "medium";
+    let hugePct, bigPct;
+    if      (pot >= 85) { hugePct = 3;  bigPct = 22; } // elite — steady
+    else if (pot >= 80) { hugePct = 7;  bigPct = 30; }
+    else if (pot >= 70) { hugePct = 22; bigPct = 38; } // MID-TIER WOW ZONE
+    else if (pot >= 65) { hugePct = 17; bigPct = 33; } // late bloomers
+    else                { hugePct = 8;  bigPct = 22; } // rare pop
+    p._breakoutSeverity = sevRoll < hugePct ? "huge"
+                        : sevRoll < (hugePct + bigPct) ? "big"
+                                                       : "medium";
   }
   // Steady growth — elite tier bumped slightly to match real-NFL
   // dev deltas (pot ≥ 85 now +3-5 vs old +2-4 ceiling at any pot).
@@ -17214,6 +17226,20 @@ function _developCollegePlayer(p) {
     if (potBucket) {
       const [lo, hi] = magByTier[sev][potBucket];
       breakoutBump = lo + Math.floor(Math.random() * (hi - lo + 1));
+    }
+    // Huge breakouts unlock the prospect's ceiling — their potential
+    // gets rerolled significantly higher, opening up the elite-tier
+    // dev curve in subsequent seasons. This is what enables the true
+    // mid-tier-to-elite vault: a pot 75 prospect with huge SO breakout
+    // now has pot ~85-90, hits the +3-5/yr elite dev tier for JR/SR,
+    // and ends college as a legit R1. Without this, mid-tier huge
+    // breakouts gave only ~+5 OVR — not enough for the Burrow arc.
+    if (sev === "huge") {
+      const potBump = 5 + Math.floor(Math.random() * 8); // +5 to +12
+      p.potential = Math.min(99, (p.potential || 60) + potBump);
+    } else if (sev === "big") {
+      const potBump = 2 + Math.floor(Math.random() * 4); // +2 to +5
+      p.potential = Math.min(99, (p.potential || 60) + potBump);
     }
     p._breakoutFired = true;
     p._breakoutMagnitude = breakoutBump;
