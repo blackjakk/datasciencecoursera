@@ -1831,6 +1831,39 @@
     padding: 0; z-index: 2;
   }
   .frn-pcard-close:hover { color: var(--gold); }
+
+  /* Player card action bar — Compare / Watch / Trade-for buttons */
+  .frn-pcard-action-bar {
+    position: absolute; top: .3rem; right: 2.6rem; z-index: 3;
+  }
+  .frn-pcard-actions {
+    display: flex; gap: .35rem; flex-wrap: wrap; justify-content: flex-end;
+  }
+  .frn-pcard-yrbtn {
+    background: var(--bg2); border: 1px solid var(--border);
+    color: var(--text); cursor: pointer; font-family: inherit;
+    font-size: .58rem; font-weight: 700; padding: .25rem .5rem;
+    border-radius: 3px; letter-spacing: .3px;
+    transition: background .12s, border-color .12s, color .12s;
+    white-space: nowrap;
+  }
+  .frn-pcard-yrbtn:hover {
+    border-color: var(--gold); color: var(--gold);
+  }
+  .frn-pcard-yrbtn:disabled { cursor: not-allowed; }
+  .frn-pcard-yrbtn:disabled:hover { border-color: var(--border); color: var(--text); }
+  .frn-pcard-yrbtn.active {
+    background: var(--gold); border-color: var(--gold); color: var(--bg);
+  }
+  .frn-pcard-yrbtn.active:hover {
+    background: var(--gold-lt); border-color: var(--gold-lt); color: var(--bg);
+  }
+
+  /* 👁 watch icon prefix in SHOP MARKET rows */
+  .frn-trade-watch-icon {
+    color: var(--gold); font-size: .9em; margin-right: .15rem;
+  }
+
   .frn-pcard-overlay-inner .frn-player-card {
     position: static; border: none; padding: 1rem 1.1rem;
   }

@@ -12374,6 +12374,8 @@ function _renderTradeShopMarketTab(myId, sortBy, tp, cap) {
     for (const p of (franchise.rosters[t.id] || [])) {
       if (posFilter !== "ALL" && p.position !== posFilter) continue;
       if (needsOnly && myNeedPositions.length && !myNeedPositions.includes(p.position)) continue;
+      const watched = watchedSet.has(p.name);
+      if (willingnessFilter === "watched" && !watched) continue;
       const stance = _aiTeamPlayerStance(t.id, p);
       if (willingnessFilter === "shopping"  && stance !== "shopping") continue;
       if (willingnessFilter === "available" && stance === "untouchable") continue;
@@ -12381,7 +12383,7 @@ function _renderTradeShopMarketTab(myId, sortBy, tp, cap) {
       const grade = (typeof scoutGrade === "function") ? scoutGrade(p) : (p.overall || 60);
       const value = _playerTradeValue(p);
       const askPrice = _estimateAskingPrice(t.id, p, { stance, value, mode });
-      candidates.push({ p, teamId: t.id, team: t, stance, mode, grade, value, askPrice });
+      candidates.push({ p, teamId: t.id, team: t, stance, mode, grade, value, askPrice, watched });
     }
   }
 
@@ -12402,9 +12404,12 @@ function _renderTradeShopMarketTab(myId, sortBy, tp, cap) {
     `<button class="frn-pos-tab ${posFilter===pos?"active":""}" onclick="frnSetTradePosFilter('${pos}')">${pos}</button>`
   ).join("");
 
+  const watchedSet = new Set(franchise.watchedPlayers || []);
+  const watchCount = watchedSet.size;
   const willOpts = [
     { id: "available", label: "Hide ⛔ OFF-LIMITS", title: "Hide players the team won't trade — focuses you on the acquirable pool" },
     { id: "shopping",  label: "💸 Shopping only",   title: "Show only players whose team is open to dealing at a discount" },
+    { id: "watched",   label: `👁 Watchlist${watchCount?` (${watchCount})`:""}`, title: watchCount ? "Show only players on your personal watchlist" : "No players on your watchlist yet — open any player's card and click 👁 Watch" },
     { id: "all",       label: "Show all",           title: "Include OFF-LIMITS players (you can see them, but can't acquire)" },
   ];
   const willChips = willOpts.map(o =>
@@ -12433,9 +12438,10 @@ function _renderTradeShopMarketTab(myId, sortBy, tp, cap) {
     return `<span class="frn-trade-stance av" title="${teamName} would consider a fair offer">○ AVAILABLE</span>`;
   };
 
-  const rows = shownList.map(({p, teamId, team, stance, mode, askPrice}) => {
+  const rows = shownList.map(({p, teamId, team, stance, mode, askPrice, watched}) => {
     const escName = (p.name||"").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
     const modeMeta = (typeof _AI_MODE_META === "object" && _AI_MODE_META[mode]) || { icon: "⚖", label: "BAL", col: "var(--gray)" };
+    const watchIcon = watched ? `<span class="frn-trade-watch-icon" title="On your watchlist">👁</span> ` : "";
     const modeBadge = `<span class="frn-trade-mode" style="color:${modeMeta.col}" title="${modeMeta.label} team — ${mode==='rebuild'?'discounts for picks':mode==='win_now'?'wants established vets':'mixed appetite'}">${modeMeta.icon}</span>`;
     const kicker = p.contract?.tradeKicker || 0;
     const kickerTag = kicker >= 0.05
@@ -12449,7 +12455,7 @@ function _renderTradeShopMarketTab(myId, sortBy, tp, cap) {
       : `<button class="btn btn-gold frn-trade-propose-btn" onclick="frnShopProposeForPlayer(${teamId},'${escName}')" title="Open the Propose Trade tab with this player pre-selected">→ Propose</button>`;
     return `<div class="frn-trade-market-row${isUntouchable?" untouchable":""}">
       <span class="frn-trade-pos">${p.position}</span>
-      <span class="frn-trade-name" onclick="frnOpenPlayerCard('${escName}')" title="View ${p.name}'s player card">${p.name}</span>
+      <span class="frn-trade-name" onclick="frnOpenPlayerCard('${escName}')" title="View ${p.name}'s player card">${watchIcon}${p.name}</span>
       <span class="frn-trade-team">${modeBadge} ${team.name}</span>
       <span class="frn-trade-stance-col">${stancePill(stance, team.name)}</span>
       <span>${gradeBadge(p)}</span>

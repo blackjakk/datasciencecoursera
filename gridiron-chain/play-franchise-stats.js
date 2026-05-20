@@ -1214,6 +1214,47 @@ function _frnOpenRetiredPlayerModal(p) {
   document.body.appendChild(overlay);
 }
 
+// ── Watchlist ────────────────────────────────────────────────────────
+// User-curated list of player NAMES they want to follow. Works on any
+// player (own roster, other teams, free agents). Separate from the
+// college pin system (franchise.pinnedProspects) which auto-targets
+// prospects at the draft — watchlist is just a "follow" flag.
+function frnIsPlayerWatched(name) {
+  if (!franchise || !name) return false;
+  return (franchise.watchedPlayers || []).includes(name);
+}
+
+function frnToggleWatchPlayer(name) {
+  if (!franchise || !name) return;
+  franchise.watchedPlayers ||= [];
+  const idx = franchise.watchedPlayers.indexOf(name);
+  if (idx >= 0) franchise.watchedPlayers.splice(idx, 1);
+  else franchise.watchedPlayers.push(name);
+  saveFranchise();
+  // Refresh: if the player card is open, re-render to update the button
+  // label. If a SHOP MARKET filter is on, refresh that too.
+  const ov = document.getElementById("frn-pcard-overlay");
+  if (ov) {
+    const pid = ov.getAttribute("data-pid") || "";
+    frnClosePlayerModal();
+    frnOpenPlayerCard(name, pid);
+  }
+  if (document.querySelector(".frn-trade-market") && typeof renderFrnTrade === "function") {
+    renderFrnTrade();
+  }
+}
+
+// "🔀 Trade for" CTA on the player card — closes the modal, jumps to
+// SHOP MARKET → PROPOSE TRADE with this player pre-loaded as youReceive.
+// Reuses frnShopProposeForPlayer which handles the confirm() prompt
+// when the user has an in-progress deal with another partner.
+function frnTradeForFromCard(teamId, name) {
+  frnClosePlayerModal();
+  if (typeof frnShopProposeForPlayer === "function") {
+    frnShopProposeForPlayer(teamId, name);
+  }
+}
+
 function frnOpenPlayerCard(name, pid) {
   let p = _findPlayer(name, pid);
   if (!p) {
@@ -1229,6 +1270,7 @@ function frnOpenPlayerCard(name, pid) {
   const overlay = document.createElement("div");
   overlay.className = "frn-pcard-overlay";
   overlay.id = "frn-pcard-overlay";
+  overlay.setAttribute("data-pid", p.pid || "");
   const teamLine = team
     ? `<div class="frn-pcard-team-link">
          ${team.city} ${team.name} ·
@@ -1242,10 +1284,36 @@ function frnOpenPlayerCard(name, pid) {
   // pre-populated with this player on the left and a position-filtered
   // picker on the right. No hidden multi-step state.
   const escapedPid = (p.pid || "").replace(/'/g, "\\'");
-  const compareTag = `<button class="frn-pcard-yrbtn" style="margin-right:.4rem" onclick="frnSelectForCompare('${name.replace(/'/g, "\\'")}','${escapedPid}')">⚖ Compare</button>`;
+  const escName = name.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  const compareTag = `<button class="frn-pcard-yrbtn" onclick="frnSelectForCompare('${escName}','${escapedPid}')">⚖ Compare</button>`;
+
+  // Watch toggle — works for any non-retired player on any team or as
+  // a free agent. Stored in franchise.watchedPlayers (a name list).
+  const watched = typeof frnIsPlayerWatched === "function" && frnIsPlayerWatched(name);
+  const watchTag = `<button class="frn-pcard-yrbtn${watched?" active":""}" onclick="frnToggleWatchPlayer('${escName}')" title="${watched?"Remove from your watchlist":"Add to your watchlist — appears on SHOP MARKET filter + flagged with 👁"}">${watched?"👁 Watching":"👁 Watch"}</button>`;
+
+  // Trade-for — only meaningful for NFL players on ANOTHER team. Free
+  // agents have no team; draft prospects aren't tradeable (they go
+  // through the draft). For untouchable targets, show ⛔ N/A disabled
+  // (matches SHOP MARKET behavior) so users see WHY it's not available.
+  let tradeBtn = "";
+  const myId = (typeof franchise === "object" && franchise) ? franchise.chosenTeamId : null;
+  const isOnOtherTeam = team && team.id !== myId;
+  const isProspect = p?.isProspect || !!p?.collegeYear;
+  if (isOnOtherTeam && !isProspect) {
+    let untouchable = false;
+    if (typeof _aiTeamPlayerStance === "function") {
+      try { untouchable = _aiTeamPlayerStance(team.id, p) === "untouchable"; } catch {}
+    }
+    tradeBtn = untouchable
+      ? `<button class="frn-pcard-yrbtn" disabled title="${team.city} ${team.name} won't move this player — franchise face / recent high pick" style="opacity:.5;cursor:not-allowed">⛔ Won't trade</button>`
+      : `<button class="frn-pcard-yrbtn" onclick="frnTradeForFromCard(${team.id},'${escName}')" title="Open SHOP MARKET → Propose with ${name} pre-selected as the player you want">🔀 Trade for</button>`;
+  }
+  const actionRow = `<div class="frn-pcard-actions">${compareTag}${watchTag}${tradeBtn}</div>`;
+
   overlay.innerHTML = `
     <div class="frn-pcard-overlay-inner">
-      <div style="position:absolute;top:.3rem;right:2.2rem;z-index:3">${compareTag}</div>
+      <div class="frn-pcard-action-bar">${actionRow}</div>
       <button class="frn-pcard-close" onclick="frnClosePlayerModal()" title="Close">×</button>
       ${_buildPlayerDetailPanel(p)}
       ${teamLine}
