@@ -16919,86 +16919,163 @@ function _consensusGradeRound(consensusOvr, position) {
   return 0; // below R7 grade — camp body / UDFA tier
 }
 
-// Stamp _aiScoutBias + _generatedRound on a prospect based on true OVR
-// and a deterministic seed. Wildcard mechanism (5% of prospects) adds
-// a ±10 swing on top of base noise — enables Tom Brady (high OVR,
-// huge negative consensus miss) and Tony Mandarich (low OVR, huge
-// positive miss) cases. Without this, R1-grade noise is ±2 and Brady
-// cases are mathematically impossible.
+// ═══════════════════════════════════════════════════════════════════════
+// HiddenOracle — accessor layer for prospect destiny / consensus state
+// ═══════════════════════════════════════════════════════════════════════
+//
+// SECURITY MODEL
+// --------------
+// Some prospect attributes are SECRET in the design: hidden ceiling
+// (p.potential), growth rate (p._growthRate), per-year roll outcomes
+// (intensity, regression), and AI scout bias (p._aiScoutBias). Today
+// these live on the client object — fine for an off-chain prototype,
+// but exposed to anyone reading the JS console OR replicating the
+// _seededRand hash from publicly-known prospect names.
+//
+// GOLD-STANDARD TARGET (MegaETH on-chain port)
+// --------------------------------------------
+// Eventually: commit H(ceiling || growthRate || rollSeed || nonce) on-
+// chain at prospect generation. Every accessor below becomes a server
+// or ZK call that returns a derived public quantity (tier letter, hint
+// label, grade) along with a proof that the answer is consistent with
+// the committed value. Raw secrets NEVER leave the secret-side.
+//
+// MIGRATION PATH
+// --------------
+//   Phase 0 (TODAY): accessors are thin wrappers — they read directly
+//                    from client state and call _seededRand. No behavior
+//                    change vs. pre-oracle code.
+//   Phase 1: HiddenOracle.read.* and .roll.* become async REST calls
+//            to a trusted server that holds the secret state. Client
+//            UI is purely a renderer over oracle responses.
+//   Phase 2: server publishes commitments on-chain at gen time; reveals
+//            via ZK proofs at read time. Trustlessness gained.
+//   Phase 3 (gold standard): client-side ZK verifier confirms oracle
+//            responses match on-chain commitments. No trust required.
+//
+// RULES FOR NEW CODE
+// ------------------
+//   - Do NOT add new direct reads of p.potential, p._growthRate, or
+//     p._aiScoutBias. Use HiddenOracle.read.* — these are the seams
+//     that become server/ZK calls in the port.
+//   - Do NOT add new _seededRand calls keyed on secrets. Add a new
+//     HiddenOracle.roll.* method — these are the seams that become VRF
+//     calls in the port.
+//
+// ═══════════════════════════════════════════════════════════════════════
+const HiddenOracle = {
+  // Canonical list of secret-side fields. _clearCollegeFlags strips
+  // these on draft signing. Anything added here needs a roll path too.
+  secretFields: ["potential", "_growthRate", "_aiScoutBias"],
+
+  read: {
+    // Raw ceiling. PORT: server-only; client never sees the number.
+    ceiling: (p) => p.potential || 0,
+    // Growth rate. PORT: server-only.
+    growthRate: (p) => p._growthRate,
+    // AI scout bias. PORT: server-only; client only receives post-bias
+    // consensus grade label.
+    scoutBias: (p) => p._aiScoutBias || 0,
+    // Public-derived ceiling tier (S/A/B/C/D). PORT: server proves the
+    // bucket matches the on-chain commitment; client receives the
+    // letter only.
+    ceilingTier: (p) => _ceilingTier(p.potential || p.overall, p.draftRound),
+  },
+
+  roll: {
+    // Roll the hidden ceiling for a prospect. PORT: VRF call; output
+    // committed on-chain at gen time.
+    ceiling: (p) => {
+      const ceilKey = `ceil|${p.name}`;
+      const ceilRoll = _seededRand(ceilKey);
+      let ceiling;
+      if      (ceilRoll < 0.16) ceiling = 88 + Math.floor(_seededRand(ceilKey, 1) * 12);
+      else if (ceilRoll < 0.40) ceiling = 80 + Math.floor(_seededRand(ceilKey, 1) * 8);
+      else if (ceilRoll < 0.55) ceiling = 70 + Math.floor(_seededRand(ceilKey, 1) * 10);
+      else if (ceilRoll < 0.72) ceiling = 62 + Math.floor(_seededRand(ceilKey, 1) * 8);
+      else if (ceilRoll < 0.85) ceiling = 53 + Math.floor(_seededRand(ceilKey, 1) * 9);
+      else                       ceiling = 38 + Math.floor(_seededRand(ceilKey, 1) * 16);
+      const startOvr = p.overall || 60;
+      if (ceiling < startOvr + 2) {
+        ceiling = Math.min(99, startOvr + 2 + Math.floor(_seededRand(ceilKey, 2) * 6));
+      }
+      return ceiling;
+    },
+    // Roll growth rate, correlated with ceiling.
+    growthRate: (p, ceiling) => {
+      const growKey = `grow|${p.name}`;
+      const growRoll = _seededRand(growKey);
+      if (ceiling >= 80) return growRoll < 0.30 ? 0.90 : growRoll < 0.85 ? 0.65 : 0.35;
+      if (ceiling >= 65) return growRoll < 0.20 ? 0.90 : growRoll < 0.75 ? 0.65 : 0.35;
+      return growRoll < 0.08 ? 0.90 : growRoll < 0.45 ? 0.65 : 0.35;
+    },
+    // Roll per-year intensity (burst/moderate/routine).
+    intensity: (p, year) => {
+      const r = _seededRand(`intensity|${p.name}|${year}`);
+      if (r < 0.20) return 4.0;
+      if (r < 0.50) return 1.8;
+      return 1.0;
+    },
+    // Roll regression check. Returns negative magnitude if regression
+    // fires this year, null otherwise. Rate-scaled probability,
+    // ceiling-scaled magnitude.
+    regression: (p, year, ceiling, growthRate) => {
+      const rgKey = `regress|${p.name}|${year}`;
+      const rgChance = growthRate >= 0.90 ? 0.02 : growthRate >= 0.65 ? 0.10 : 0.18;
+      if (_seededRand(rgKey) >= rgChance) return null;
+      const magRoll = _seededRand(rgKey + "|mag");
+      if (ceiling >= 80) return -(1 + magRoll * 2);
+      if (ceiling >= 65) return -(2 + magRoll * 3);
+      return -(3 + magRoll * 5);
+    },
+    // Roll AI scout bias (base polar noise + wildcard + ultra + D2
+    // ceiling-tied buy-in). Returns the full bias value.
+    scoutBias: (p, rookieYear, ceiling) => {
+      const biasKey = `bias|${rookieYear}|${p.name}`;
+      const trueOvr = p.overall || 60;
+      const trueOvrGrade = _consensusGradeRound(trueOvr, p.position);
+      const baseNoiseScale = trueOvrGrade === 0 ? 5
+                           : trueOvrGrade === 1 ? 2
+                           : trueOvrGrade <= 3  ? 3
+                                                : 4;
+      const polarRoll = _seededRand(biasKey + "|polar");
+      let baseBias;
+      if (polarRoll < 0.30) {
+        baseBias = -baseNoiseScale * (0.55 + _seededRand(biasKey + "|neg") * 0.45);
+      } else if (polarRoll < 0.60) {
+        baseBias = baseNoiseScale * (0.55 + _seededRand(biasKey + "|pos") * 0.45);
+      } else {
+        baseBias = (_seededRand(biasKey + "|mid") - 0.5) * baseNoiseScale * 0.55;
+      }
+      const wildcardKey = biasKey + "|wildcard";
+      const wcRoll = _seededRand(wildcardKey);
+      const wildcardBias = wcRoll < 0.05 ? (_seededRand(wildcardKey, 1) - 0.5) * 20 : 0;
+      const ultraBias = _seededRand(wildcardKey, 2) < 0.01 ? (_seededRand(wildcardKey, 3) - 0.5) * 30 : 0;
+      const buyInRoll = _seededRand(biasKey + "|buyin");
+      const buyInMag = _seededRand(biasKey + "|buyinMag");
+      let scoutBuyIn = 0;
+      if (ceiling >= 88) {
+        if (buyInRoll < 0.55) scoutBuyIn = 3 + Math.floor(buyInMag * 6);
+      } else if (ceiling >= 80) {
+        if (buyInRoll < 0.35) scoutBuyIn = 2 + Math.floor(buyInMag * 4);
+      } else if (ceiling >= 65) {
+        if (buyInRoll < 0.10) scoutBuyIn = Math.floor(buyInMag * 4) - 2;
+      } else if (ceiling >= 55) {
+        if (buyInRoll < 0.30) scoutBuyIn = -(2 + Math.floor(buyInMag * 4));
+      } else {
+        if (buyInRoll < 0.50) scoutBuyIn = -(3 + Math.floor(buyInMag * 6));
+      }
+      return +(baseBias + wildcardBias + ultraBias + scoutBuyIn).toFixed(1);
+    },
+  },
+};
+
 function _applyConsensusGrade(p, rookieYear) {
-  const biasKey = `bias|${rookieYear}|${p.name}`;
-  const trueOvr = p.overall || 60;
-  const trueOvrGrade = _consensusGradeRound(trueOvr, p.position);
-  // Base noise: tight on well-scouted top prospects, wide on flyers
-  const baseNoiseScale = trueOvrGrade === 0 ? 5
-                       : trueOvrGrade === 1 ? 2
-                       : trueOvrGrade <= 3  ? 3
-                                            : 4;
-  // Polarized base bias: 60% of prospects land at extremes of the
-  // noise band (consensus has strong opinion — either over- or under-
-  // valued), 40% in the middle. This produces more decisive grading
-  // — fewer R3.5 "could go either way" calls, more R2 OR R4 splits.
-  // Matches NFL scouting which is bimodal (teams strongly like or
-  // strongly don't, rarely neutral on a prospect).
-  // Distinct salts per branch so magnitude variance doesn't collapse —
-  // audit caught that all three branches drew from the same magRoll.
-  const polarRoll = _seededRand(biasKey + "|polar");
-  let baseBias;
-  if (polarRoll < 0.30) {
-    // Strong negative — consensus undervaluing
-    baseBias = -baseNoiseScale * (0.55 + _seededRand(biasKey + "|neg") * 0.45);
-  } else if (polarRoll < 0.60) {
-    // Strong positive — consensus overvaluing
-    baseBias = baseNoiseScale * (0.55 + _seededRand(biasKey + "|pos") * 0.45);
-  } else {
-    // Middle (40%) — modest disagreement
-    baseBias = (_seededRand(biasKey + "|mid") - 0.5) * baseNoiseScale * 0.55;
-  }
-  // Wildcard: layered miss mechanic for the rare Brady/Mandarich case.
-  // 5% of prospects get a "consensus missed" roll (±10 swing).
-  // 1% get an "ultra-miss" stacked on top (additional ±15 swing) —
-  // this is the extreme tier that produces Tom Brady (R1 talent
-  // graded R6) and Tony Mandarich (R7 talent reached at R1) cases.
-  // Real-NFL frequency: ~2-3 wildcard slips per draft, ~1 ultra
-  // per 2-3 drafts.
-  const wildcardKey = biasKey + "|wildcard";
-  const wcRoll = _seededRand(wildcardKey);
-  const wildcardBias = wcRoll < 0.05
-    ? (_seededRand(wildcardKey, 1) - 0.5) * 20
-    : 0;
-  const ultraBias = _seededRand(wildcardKey, 2) < 0.01
-    ? (_seededRand(wildcardKey, 3) - 0.5) * 30
-    : 0;
-  // D2: scouts-buy-in / scouts-pan amplification. Probability scales
-  // with hidden ceiling. High-ceiling prospects sometimes get a
-  // positive consensus bump (scouts noticed during college). Low-
-  // ceiling prospects sometimes get a negative bump (scouts unimpressed).
-  // Hidden from user — emerges as a higher- or lower-than-expected
-  // consensus grade. Does NOT enable arc-spotting because user can't
-  // see ceiling. Targets the R1 supply gap + R7 thickening.
-  const ceiling = p.potential || 70;
-  let scoutBuyIn = 0;
-  const buyInRoll = _seededRand(biasKey + "|buyin");
-  const buyInMag = _seededRand(biasKey + "|buyinMag");
-  if (ceiling >= 88) {
-    // Blue chip — 55% chance scouts buy in big
-    if (buyInRoll < 0.55) scoutBuyIn = 3 + Math.floor(buyInMag * 6); // +3-8
-  } else if (ceiling >= 80) {
-    // R1-R2 cusp — 35% chance of modest buy-in
-    if (buyInRoll < 0.35) scoutBuyIn = 2 + Math.floor(buyInMag * 4); // +2-5
-  } else if (ceiling >= 65) {
-    // Mid-tier — small ± wobble, mostly neutral
-    if (buyInRoll < 0.10) scoutBuyIn = Math.floor(buyInMag * 4) - 2; // ±2
-  } else if (ceiling >= 55) {
-    // Low ceiling — 30% chance scouts not impressed
-    if (buyInRoll < 0.30) scoutBuyIn = -(2 + Math.floor(buyInMag * 4)); // -2 to -5
-  } else {
-    // Camp body — 50% chance scouts pan
-    if (buyInRoll < 0.50) scoutBuyIn = -(3 + Math.floor(buyInMag * 6)); // -3 to -8
-  }
-  p._aiScoutBias = +(baseBias + wildcardBias + ultraBias + scoutBuyIn).toFixed(1);
+  const ceiling = HiddenOracle.read.ceiling(p) || 70;
+  p._aiScoutBias = HiddenOracle.roll.scoutBias(p, rookieYear, ceiling);
   // Consensus grade — what the world sees. The draft AI ranks by this,
   // user-visible grade badge shows this, scout reveals can shift it.
+  const trueOvr = p.overall || 60;
   p._generatedRound = _consensusGradeRound(trueOvr + p._aiScoutBias, p.position);
 }
 
@@ -17217,57 +17294,27 @@ function _declareEarlyJuniors() {
 //  25% slow (~10%) — Brady arc emerges here when ceiling is high
 function _rollHiddenDestiny(p) {
   if (p._growthRate != null) return; // already rolled
-  const ceilKey = `ceil|${p.name}`;
-  const growKey = `grow|${p.name}`;
-  // Legacy save migration — if a prospect already has p.potential (from
-  // the pre-refactor _rollPotential system), preserve it. Without this,
-  // loading a save would overwrite every prospect's ceiling on first
-  // dev call, disrupting existing destinies. New prospects (post-refactor)
-  // have null potential and get rolled fresh.
-  let ceiling;
-  if (p.potential != null) {
-    ceiling = p.potential;
-  } else {
-    const ceilRoll = _seededRand(ceilKey);
-    if      (ceilRoll < 0.16) ceiling = 88 + Math.floor(_seededRand(ceilKey, 1) * 12); // 16% blue chip (88-99)
-    else if (ceilRoll < 0.40) ceiling = 80 + Math.floor(_seededRand(ceilKey, 1) * 8);  // 24% R1-R2 cusp (80-87)
-    else if (ceilRoll < 0.55) ceiling = 70 + Math.floor(_seededRand(ceilKey, 1) * 10); // 15% R3-R5 (70-79)
-    else if (ceilRoll < 0.72) ceiling = 62 + Math.floor(_seededRand(ceilKey, 1) * 8);  // 17% R6 (62-69)
-    else if (ceilRoll < 0.85) ceiling = 53 + Math.floor(_seededRand(ceilKey, 1) * 9);  // 13% R7 (53-61)
-    else                       ceiling = 38 + Math.floor(_seededRand(ceilKey, 1) * 16); // 15% camp (38-53)
-    const startOvr = p.overall || 60;
-    if (ceiling < startOvr + 2) {
-      ceiling = Math.min(99, startOvr + 2 + Math.floor(_seededRand(ceilKey, 2) * 6));
-    }
-    p.potential = ceiling;
-  }
-  // Growth rate — correlated with ceiling. High-ceiling prospects more
-  // likely to be coached up; low-ceiling stay put. This thickens R7
-  // grade supply by keeping low-ceiling prospects from accidentally
-  // growing into R6/R5 territory. The correlation is realistic (real
-  // coaches invest in upside) and doesn't enable arc-spotting because
-  // the user can't see ceiling — they only see stat trends.
-  const growRoll = _seededRand(growKey);
-  if (ceiling >= 80) {
-    p._growthRate = growRoll < 0.30 ? 0.90 : growRoll < 0.85 ? 0.65 : 0.35;
-  } else if (ceiling >= 65) {
-    p._growthRate = growRoll < 0.20 ? 0.90 : growRoll < 0.75 ? 0.65 : 0.35;
-  } else {
-    // Low ceiling — coaches invest less, growth typically slow
-    p._growthRate = growRoll < 0.08 ? 0.90 : growRoll < 0.45 ? 0.65 : 0.35;
-  }
+  // Legacy save migration — preserve p.potential from pre-refactor saves
+  // (rolled by _rollPotential). New prospects have null potential and
+  // get a fresh roll from the oracle.
+  let ceiling = p.potential != null ? p.potential : HiddenOracle.roll.ceiling(p);
+  p.potential = ceiling;
+  p._growthRate = HiddenOracle.roll.growthRate(p, ceiling);
 }
 
 // Strip college-only state from a prospect after they sign with an
-// NFL team. Cleans up legacy flags from the old breakout/SR-fork
-// system AND the new three-knob system's _growthRate. Save migration
-// for old prospects who still have the legacy flags works because
-// these deletes are no-ops on missing fields.
+// NFL team. Clears the current secret-side fields (via HiddenOracle's
+// canonical list) plus dead legacy flags from the old breakout/SR-fork
+// system. Note: p.potential is preserved — it's the NFL ceiling too,
+// used by Y2 surge and aging. _aiScoutBias is preserved as the
+// historical "what the scouts said" — used by some draft retrospectives.
 function _clearCollegeFlags(p) {
   if (!p) return;
-  // New three-knob system
+  // College-only secret fields. Currently just _growthRate (ceiling and
+  // scout bias persist into the NFL career for other systems).
   delete p._growthRate;
-  // Legacy breakout/SR-fork system (pre-refactor, kept for save compat)
+  // Legacy breakout/SR-fork system (pre-refactor; kept for save compat —
+  // no live code reads these, so deletes are belt-and-suspenders).
   delete p._breakoutYear;
   delete p._breakoutSeverity;
   delete p._breakoutFired;
@@ -17298,31 +17345,16 @@ function _clearCollegeFlags(p) {
 function _developCollegePlayer(p) {
   if (p._growthRate == null) _rollHiddenDestiny(p);
   if (!p.stats || !p.stats.length) return;
-  const ceiling = p.potential || 70;
+  const ceiling = HiddenOracle.read.ceiling(p) || 70;
   const current = p.overall || 60;
   const gap = ceiling - current;
-  const rate = p._growthRate;
-  // Regression check fires first. Probability scales with growth rate
-  // (high-rate prospects rarely regress, slow growers often do).
-  // Magnitude scales with ceiling — blue-chip setbacks are minor while
-  // low-ceiling prospects bust out catastrophically. Fires even when
-  // gap=0 so prospects at ceiling can still fall back. Seeded by year.
-  const rgKey = `regress|${p.name}|${p.collegeYear}`;
-  const rgChance = rate >= 0.90 ? 0.02 : rate >= 0.65 ? 0.10 : 0.18;
-  const regressRoll = _seededRand(rgKey);
-  let grew;
-  if (regressRoll < rgChance) {
-    const magRoll = _seededRand(rgKey + "|mag");
-    if      (ceiling >= 80) grew = -(1 + magRoll * 2);  // -1 to -3
-    else if (ceiling >= 65) grew = -(2 + magRoll * 3);  // -2 to -5
-    else                    grew = -(3 + magRoll * 5);  // -3 to -8
-  } else {
+  const rate = HiddenOracle.read.growthRate(p);
+  // Regression fires first. Rate-scales probability, ceiling-scales
+  // magnitude. Returns null = no regression (fall through to intensity).
+  let grew = HiddenOracle.roll.regression(p, p.collegeYear, ceiling, rate);
+  if (grew == null) {
     if (gap <= 0) return;
-    const intensityKey = `intensity|${p.name}|${p.collegeYear}`;
-    const intensityRoll = _seededRand(intensityKey);
-    const intensity = intensityRoll < 0.20 ? 4.0
-                    : intensityRoll < 0.50 ? 1.8
-                    :                        1.0;
+    const intensity = HiddenOracle.roll.intensity(p, p.collegeYear);
     grew = Math.min(gap * 1.5, gap * rate * intensity);
   }
   if (Math.abs(grew) < 0.5) return;
