@@ -9675,11 +9675,60 @@ function _devChartPosShow(evt, pos) {
   const cy = rect.top;
   el.style.left = `${cx}px`;
   el.style.top  = `${cy}px`;
+  // Reset the border in case a previous tier hover set a thicker
+  // tier-color left edge — Chart A always uses the default
+  // gold-dim 1px border.
+  el.style.borderLeft = `1px solid #a98a2e`;
+  el.style.borderColor = "#a98a2e";
   el.style.opacity = "1";
 }
 function _devChartPosHide() {
   const el = document.getElementById("frn-dev-pos-tooltip");
   if (el) el.style.opacity = "0";
+}
+
+// Tier-distribution chart hover — same floating element as the
+// position chart (single tooltip across the whole report). Different
+// content + tier-color border-left so it visually anchors to the
+// hovered segment.
+const _CHART_TIER_META = {
+  S: { color: "#f5c542", label: "elite ceiling" },
+  A: { color: "#5ed4d4", label: "high ceiling" },
+  B: { color: "#a8d8b6", label: "solid floor" },
+  C: { color: "#e0b078", label: "limited upside" },
+  D: { color: "#ff9b9b", label: "bust risk" },
+};
+function _devChartTierShow(evt, tier) {
+  const players = (typeof window !== "undefined" && window._devChartTierData && window._devChartTierData[tier]) || [];
+  if (!players.length) return;
+  const meta = _CHART_TIER_META[tier] || { color: "#7a8b85", label: "" };
+  const rows = players.map(p => {
+    const dColor = p.delta > 0 ? "#86e0a3" : p.delta < 0 ? "#ff9b9b" : "#7a8b85";
+    const dArr = p.delta > 0 ? `▲ +${p.delta}` : p.delta < 0 ? `▼ ${p.delta}` : "━";
+    return `<div style="display:grid;grid-template-columns:1fr 2.4rem 2.8rem;gap:.4rem;align-items:baseline;padding:.1rem 0;font-size:10.5px">
+      <span style="color:#cce8d6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}<span style="color:#5d6b66;font-size:9px;margin-left:.3rem">${p.pos} · ${p.age || ""}</span></span>
+      <span style="color:#cce8d6;font-family:'Bebas Neue',sans-serif;font-size:13px;text-align:right;letter-spacing:.5px">${p.postOvr}</span>
+      <span style="color:${dColor};font-weight:700;text-align:right;font-size:10px">${dArr}</span>
+    </div>`;
+  }).join("");
+  const el = _devChartPosTipEl();
+  el.innerHTML = `
+    <div style="display:flex;align-items:baseline;justify-content:space-between;padding-bottom:.3rem;margin-bottom:.3rem;border-bottom:1px solid #2a3a32">
+      <span style="font-family:'Bebas Neue',sans-serif;font-size:15px;color:${meta.color};letter-spacing:1.5px">${tier} TIER</span>
+      <span style="color:#5d6b66;font-size:9.5px">${players.length} player${players.length===1?"":"s"} · <span style="color:${meta.color};font-style:italic">${meta.label}</span></span>
+    </div>
+    ${rows}`;
+  // Tier-color border-left so the tooltip visually anchors to the
+  // hovered segment. Reset border-color too (default is gold-dim,
+  // used by Chart A's tooltip — Chart B overrides per-tier).
+  el.style.borderLeft = `3px solid ${meta.color}`;
+  el.style.borderColor = `#a98a2e ${meta.color} #a98a2e #a98a2e`;
+  const rect = evt.currentTarget.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top;
+  el.style.left = `${cx}px`;
+  el.style.top  = `${cy}px`;
+  el.style.opacity = "1";
 }
 
 function _chartPosDeltas(data) {
@@ -9730,7 +9779,9 @@ function _chartTierDist(data) {
   </svg>`;
   const innerW = W - padL - padR;
   const total = live.reduce((s, d) => s + d.n, 0);
-  // Stacked headline bar (top of panel, 24px tall).
+  // Stacked headline bar (top of panel, 24px tall). Each segment has
+  // a transparent overlay rect for the hover tooltip — fires on the
+  // whole segment, not just the grade letter.
   let xCur = padL;
   const barY = padT, barH = 24;
   const barSegs = live.map(d => {
@@ -9738,7 +9789,8 @@ function _chartTierDist(data) {
     const cx = xCur + w / 2;
     const seg = `
       <rect x="${xCur}" y="${barY}" width="${w}" height="${barH}" fill="${d.color}" opacity="0.88"/>
-      <text x="${cx}" y="${barY + 16}" text-anchor="middle" fill="#0a1410" font-size="11" font-weight="900">${d.grade}</text>`;
+      <text x="${cx}" y="${barY + 16}" text-anchor="middle" fill="#0a1410" font-size="11" font-weight="900">${d.grade}</text>
+      <rect x="${xCur}" y="${barY}" width="${w}" height="${barH}" fill="transparent" style="cursor:pointer" onmouseenter="_devChartTierShow(event, '${d.grade}')" onmouseleave="_devChartPosHide()"/>`;
     xCur += w;
     return seg;
   }).join("");
@@ -9756,11 +9808,18 @@ function _chartTierDist(data) {
       .slice(0, 4)
       .map(p => p.n > 1 ? `${p.pos}×${p.n}` : p.pos)
       .join(" · ") || (t.n === 0 ? "—" : "—");
+    // Per-row hover overlay — only firing when the tier has players
+    // (n>0). Empty tiers stay non-interactive so the cursor doesn't
+    // pointer-hint over nothing.
+    const hoverable = t.n > 0
+      ? `<rect x="0" y="${y - rowH/2}" width="${W}" height="${rowH}" fill="transparent" style="cursor:pointer" onmouseenter="_devChartTierShow(event, '${g}')" onmouseleave="_devChartPosHide()"/>`
+      : "";
     return `
       <rect x="${padL}" y="${y - 5.5}" width="11" height="11" fill="${t.color}" opacity="${t.n ? 0.88 : 0.22}"/>
       <text x="${padL + 5.5}" y="${y + 3.5}" text-anchor="middle" fill="#0a1410" font-size="8" font-weight="900">${g}</text>
       <text x="${padL + 18}" y="${y + 3}" fill="${t.n ? '#cce8d6' : '#5d6b66'}" font-size="9" font-weight="700">${t.n}</text>
-      <text x="${padL + 32}" y="${y + 3}" fill="${t.n ? '#9bbfa8' : '#5d6b66'}" font-size="8.5" font-style="${t.n ? 'normal' : 'italic'}">${positionsLabel}</text>`;
+      <text x="${padL + 32}" y="${y + 3}" fill="${t.n ? '#9bbfa8' : '#5d6b66'}" font-size="8.5" font-style="${t.n ? 'normal' : 'italic'}">${positionsLabel}</text>
+      ${hoverable}`;
   }).join("");
   return `<svg viewBox="0 0 ${W} ${H}" style="${_CHART_STYLE}">
     <text x="${padL}" y="14" fill="${_CHART_TITLE}" font-size="10" font-weight="700" letter-spacing="1">CEILING TIER DISTRIBUTION</text>
@@ -10080,11 +10139,22 @@ function _buildOffseasonGainsSheet() {
   const tierCounts = { S:0, A:0, B:0, C:0, D:0 };
   const tierColors = { S:"#f5c542", A:"#5ed4d4", B:"#a8d8b6", C:"#e0b078", D:"#ff9b9b" };
   const tierPositions = { S:{}, A:{}, B:{}, C:{}, D:{} };
+  // Per-tier player breakdown — drives the hover tooltip on Chart B.
+  // Sort by postOvr desc so the headliners surface first ("who are
+  // my best S-tier players?").
+  const tierBreakdown = { S:[], A:[], B:[], C:[], D:[] };
   for (const c of allMyChg) {
     const t = _ceilingTier(c.potential || c.postOvr, c.draftRound);
     tierCounts[t.grade]++;
     tierPositions[t.grade][c.pos] = (tierPositions[t.grade][c.pos] || 0) + 1;
+    tierBreakdown[t.grade].push({
+      name: c.name, pid: c.pid, pos: c.pos,
+      postOvr: c.postOvr || 0, delta: c.delta || 0,
+      age: c.ageNow,
+    });
   }
+  for (const k in tierBreakdown) tierBreakdown[k].sort((a, b) => b.postOvr - a.postOvr);
+  if (typeof window !== "undefined") window._devChartTierData = tierBreakdown;
   const tierDistData = ["S","A","B","C","D"].map(g => ({
     grade: g,
     n: tierCounts[g],
