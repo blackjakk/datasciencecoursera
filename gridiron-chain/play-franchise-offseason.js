@@ -17184,21 +17184,56 @@ function _declareEarlyJuniors() {
   return declared;
 }
 
-// SR-year fork — returns a bump (positive, negative, or zero) that
-// represents either a late-bloomer surge or a stock-dropping SR
-// season. Pushes mid-tier prospects toward the tails, redistributing
-// the over-supplied R4/R5 belly toward R3/R6 and beyond. Stamps a
-// flag so it only fires once per prospect.
+// SR-year fork — late-bloomer surge OR stock-dropping season. Magnitudes
+// scale with potential bucket so MID-TIER prospects (pot 60-79) get
+// the biggest swings — they're the "biggest jump possible" zone where
+// Burrow / Donald / Mahomes vault stories live. Elite-pot prospects
+// already there, scrub-pot don't have ceiling room.
 function _applySRFork(p) {
   if (!p || p._srForkApplied) return 0;
   p._srForkApplied = true;
+  const pot = p.potential || 60;
   const forkRoll = (_nameHash(p.name + "|srfork", 73) % 100);
-  if (forkRoll < 30) {
+  // Surge probability + magnitude by pot bucket. R4/R5 grade prospects
+  // (pot 60-79) get 45-50% surge with the BIGGEST magnitudes — that's
+  // where the "stock-maker" vault stories live. Elite-pot prospects
+  // rarely vault (already there); scrub-pot rarely have ceiling.
+  // Lower frequency, bigger magnitude — fewer vaults but each is
+  // dramatic (R5→R1 not R5→R2). Net: ~3-5 R1 vaults per draft from
+  // mid-tier (was producing too many R2 outflows).
+  // Higher surge rate + bigger magnitudes — closes R1 gap by sending
+  // more mid-tier prospects all the way to OVR 85+. Target NFL ~28 R1
+  // grades / draft. With ~140 mid-tier prospects per class × 40%
+  // surge × ~50% landing in R1 = ~28 R1 vaults from this lane.
+  let surgePct, dropPct;
+  if      (pot >= 85) { surgePct = 18; dropPct = 30; }
+  else if (pot >= 80) { surgePct = 25; dropPct = 28; }
+  else if (pot >= 70) { surgePct = 40; dropPct = 25; } // Burrow zone
+  else if (pot >= 60) { surgePct = 42; dropPct = 28; } // Donald zone
+  else if (pot >= 50) { surgePct = 25; dropPct = 38; }
+  else                { surgePct = 12; dropPct = 38; }
+  // Magnitudes large enough to vault mid-tier (OVR 65) into R1 (≥85)
+  // — that's +20 OVR delta = ~+25 stat-bump on top-3. Pot ≥ 60 gets
+  // the biggest swing (the Donald/Burrow mega-vault).
+  const surgeMag = pot >= 85 ? [6, 10]
+                 : pot >= 80 ? [16, 22]
+                 : pot >= 70 ? [26, 34]   // R3/R4→R1 vault
+                 : pot >= 60 ? [30, 40]   // R5→R1 MEGA vault
+                 : pot >= 50 ? [18, 26]
+                 :              [10, 14];
+  // Drop magnitudes similar by tier
+  const dropMag = pot >= 85 ? [10, 14]    // elite drop is severe (lost season)
+                : pot >= 70 ? [10, 14]
+                : pot >= 60 ? [8, 12]
+                :              [6, 10];
+  if (forkRoll < surgePct) {
     p._srStockMaker = true;
-    return 10 + Math.floor(Math.random() * 7); // +10-16
-  } else if (forkRoll < 60) {
+    const [lo, hi] = surgeMag;
+    return lo + Math.floor(Math.random() * (hi - lo + 1));
+  } else if (forkRoll < surgePct + dropPct) {
     p._srStockBreaker = true;
-    return -(10 + Math.floor(Math.random() * 7)); // -10 to -16
+    const [lo, hi] = dropMag;
+    return -(lo + Math.floor(Math.random() * (hi - lo + 1)));
   }
   return 0;
 }
