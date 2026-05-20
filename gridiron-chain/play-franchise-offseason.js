@@ -17172,29 +17172,49 @@ function _declareEarlyJuniors() {
 // arc) instead of steady linear growth.
 function _developCollegePlayer(p) {
   const pot = p.potential || 60;
-  // Assign breakout year deterministically — once per prospect.
-  // Same name → same breakout year across pipeline rebuilds. Skip
-  // for low-pot prospects (no breakout magnitude → wasted state).
-  if (p._breakoutYear == null && pot >= 65) {
+  // Assign breakout year + severity deterministically — once per prospect.
+  // Severity tiers (50% medium, 35% big, 15% huge) create real-NFL
+  // breakout distribution — most prospects had solid seasons, some
+  // climbed (R5 → R2), rare ones vaulted (Burrow / Mahomes / Pitts).
+  // Threshold pot >= 60 so below-avg prospects can also pop occasionally
+  // (the "undrafted UDFA who became a star" path).
+  if (p._breakoutYear == null && pot >= 60) {
     const h = _nameHash(p.name + "|breakout", 31);
     p._breakoutYear = ["SO", "JR", "SR"][h % 3];
+    const sevRoll = _nameHash(p.name + "|severity", 41) % 100;
+    p._breakoutSeverity = sevRoll < 15 ? "huge"
+                        : sevRoll < 50 ? "big"
+                                       : "medium";
   }
   // Steady growth — elite tier bumped slightly to match real-NFL
   // dev deltas (pot ≥ 85 now +3-5 vs old +2-4 ceiling at any pot).
   let bump;
-  if      (pot >= 85) bump = 3 + Math.floor(Math.random() * 3); // +3..+5 (elite, new tier)
+  if      (pot >= 85) bump = 3 + Math.floor(Math.random() * 3); // +3..+5 (elite)
   else if (pot >= 80) bump = 2 + Math.floor(Math.random() * 3); // +2..+4
   else if (pot >= 65) bump = 1 + Math.floor(Math.random() * 3); // +1..+3
   else                bump = -1 + Math.floor(Math.random() * 4); // -1..+2
   // Breakout bonus — fires once when collegeYear matches the assigned
-  // breakout year. Magnitude scales with potential: elite breakouts
-  // are dramatic (Mahomes/Burrow tier), average breakouts modest.
+  // breakout year. Magnitude scales by potential bucket × severity
+  // tier. Huge breakouts at any potential can cause major OVR jumps
+  // (Burrow's transfer year, Pitts's JR season).
   let breakoutBump = 0;
   if (p._breakoutYear && p.collegeYear === p._breakoutYear && !p._breakoutFired) {
-    if      (pot >= 85) breakoutBump = 12 + Math.floor(Math.random() * 5); // +12-16
-    else if (pot >= 80) breakoutBump = 8 + Math.floor(Math.random() * 3);  // +8-10
-    else if (pot >= 70) breakoutBump = 5 + Math.floor(Math.random() * 3);  // +5-7
-    else if (pot >= 65) breakoutBump = 3 + Math.floor(Math.random() * 3);  // +3-5
+    const sev = p._breakoutSeverity || "medium";
+    // [lo, hi] inclusive range for each (severity, pot-bucket) combo
+    const magByTier = {
+      huge:   { 85: [18,25], 80: [15,22], 70: [14,18], 65: [11,15], 60: [9,12] },
+      big:    { 85: [12,16], 80: [10,14], 70: [8,12],  65: [6,9],   60: [4,6]  },
+      medium: { 85: [6,10],  80: [5,8],   70: [4,7],   65: [3,5],   60: [2,3]  },
+    };
+    const potBucket = pot >= 85 ? 85
+                    : pot >= 80 ? 80
+                    : pot >= 70 ? 70
+                    : pot >= 65 ? 65
+                    : pot >= 60 ? 60 : null;
+    if (potBucket) {
+      const [lo, hi] = magByTier[sev][potBucket];
+      breakoutBump = lo + Math.floor(Math.random() * (hi - lo + 1));
+    }
     p._breakoutFired = true;
     p._breakoutMagnitude = breakoutBump;
   }
