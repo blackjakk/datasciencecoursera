@@ -1514,16 +1514,45 @@ function _buildCareerCard(p) {
   if (history.length === 0) {
     const collLine  = p.collegeProfile?.line  || "";
     const collKnock = p.collegeProfile?.knock || "";
-    const collBlock = collLine ? `
-      <div style="margin:.35rem 0 .1rem;padding:.35rem .5rem;background:rgba(255,255,255,.04);border-left:2px solid var(--gray);border-radius:2px">
-        <div style="font-size:.57rem;color:var(--gray);letter-spacing:.4px;margin-bottom:.18rem">COLLEGE</div>
-        <div style="font-size:.65rem;color:var(--blgray)">${collLine}</div>
-        ${collKnock ? `<div style="font-size:.62rem;color:#e8a000;margin-top:.15rem">⚠ ${collKnock}</div>` : ""}
+    const school    = p.collegeProfile?.school || "";
+    const level     = p.collegeProfile?.level || "";
+    // F2 multi-year college career — pre-game school history. Shows
+    // each underclass year as a row; SR year is the collLine itself.
+    const career    = p.collegeCareer?.history || [];
+    const currentYrLabel = p.collegeYear || "SR";
+    const careerRows = career.map(c => `
+      <tr>
+        <td style="color:var(--gold);font-weight:700;padding:.12rem .3rem .12rem 0;font-size:.6rem">${c.year}</td>
+        <td style="color:var(--gray);padding:.12rem .3rem;font-size:.6rem">${c.season}</td>
+        <td style="color:var(--blgray);padding:.12rem .3rem;font-size:.6rem">${c.role}</td>
+        <td style="color:var(--gray);padding:.12rem .3rem;font-size:.6rem">${c.games}G</td>
+        <td style="color:var(--blgray);padding:.12rem 0;font-size:.6rem">${c.stats || "—"}</td>
+      </tr>`).join("");
+    // Senior-year row (the current/peak season the prospect is being
+    // drafted off of). Uses the existing collegeProfile.line which now
+    // includes the school name + level prefix.
+    const seniorStats = collLine.replace(`${school}${level ? ` (${level})` : ""} · `, "");
+    const seniorRow = collLine ? `
+      <tr style="background:rgba(200,169,0,.05)">
+        <td style="color:var(--gold);font-weight:700;padding:.12rem .3rem .12rem 0;font-size:.6rem">${currentYrLabel}</td>
+        <td style="color:var(--gray);padding:.12rem .3rem;font-size:.6rem">—</td>
+        <td style="color:var(--gold-lt);padding:.12rem .3rem;font-size:.6rem;font-weight:700">Draft year</td>
+        <td style="color:var(--gray);padding:.12rem .3rem;font-size:.6rem">—</td>
+        <td style="color:var(--white);padding:.12rem 0;font-size:.6rem;font-weight:700">${seniorStats}</td>
+      </tr>` : "";
+    const collBlock = (collLine || career.length) ? `
+      <div style="margin:.35rem 0 .1rem;padding:.4rem .55rem;background:rgba(255,255,255,.04);border-left:2px solid var(--gray);border-radius:2px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.25rem">
+          <div style="font-size:.57rem;color:var(--gray);letter-spacing:.4px">COLLEGE${school ? ` · ${school.toUpperCase()}` : ""}</div>
+          ${level ? `<div style="font-size:.54rem;color:#e8a000;letter-spacing:.4px;font-weight:700">${level}</div>` : ""}
+        </div>
+        ${(career.length || collLine) ? `<table style="width:100%;border-collapse:collapse;font-family:'IBM Plex Mono','JetBrains Mono',monospace">${careerRows}${seniorRow}</table>` : ""}
+        ${collKnock ? `<div style="font-size:.6rem;color:#e8a000;margin-top:.3rem">⚠ ${collKnock}</div>` : ""}
       </div>` : "";
     return `<div class="frn-career-card">
       <div class="frn-card-title">📊 CAREER</div>
       <div style="color:var(--gray);font-size:.72rem;padding:.4rem 0">
-        Rookie season — no career stats yet.
+        ${p.isProspect ? "Prospect — pre-draft" : "Rookie season — no career stats yet."}
       </div>
       ${collBlock}
       <div class="frn-player-meta">

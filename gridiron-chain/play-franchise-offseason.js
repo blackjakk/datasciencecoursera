@@ -15178,6 +15178,128 @@ function _getScoutKnockNote(name) {
   return franchise.draftScoutReveals?.[name]?.knockNote || null;
 }
 
+// Fictional NCAA-style schools for college-career attribution. Avoids
+// trademark risk by using generic place + school suffix combinations.
+// Split into "big school" (Power-5 vibe) and "small school" (FCS / DII
+// / DIII vibe) pools so prospects with the "small_school" knock get a
+// school name that actually matches the knock. Stable per prospect via
+// name hash — same prospect always gets the same school across rebuilds.
+const _BIG_SCHOOLS = [
+  "Eastern State","Western Tech","Northern Valley","Southern Plains",
+  "Central University","Pacific Coast","Atlantic Shore","Gulf State",
+  "Mountain View","Lakeshore","Heartland","Capital City",
+  "Riverside","Iron Range","Steel City","Coastal Carolina",
+  "Prairie State","Plains Tech","Liberty State","Granite State",
+  "Bluegrass","Tidewater","Piedmont","Sun Belt","Big Sky",
+];
+const _SMALL_SCHOOLS = [
+  "Hillcrest","Pinegrove","Cedar Valley","Birchwood",
+  "Founder's College","Trinity","Saint Stephen's","Mercer Hill",
+  "Brookdale","Westfield","Northbrook","Highland",
+  "Maritime","Lakewood","Bayview","Riverbend","Mountainside",
+  "Sequoia","Redwood","Cypress","Magnolia","Sycamore",
+  "Smoky Valley","Sandhills","Driftwood","Wheatfield","Marshlands",
+];
+
+// Generate a multi-year college career snapshot for a prospect.
+// Senior year is in collegeProfile.line; this builds prior seasons.
+// All stats are deterministic from (name, year) so rebuilds are stable.
+// Position-aware: QB stats scale with thr/awr, RB with spd/agi, etc.
+//
+// rookieYear: the real-clock year the prospect is being drafted in.
+// SR year was rookieYear - 1, JR was -2, SO was -3, FR was -4.
+function _buildCollegeCareer(p, projRound, rookieYear) {
+  const pos = p.position;
+  const collegeYear = p.collegeYear || "SR";
+  const yearsBefore = collegeYear === "SR" ? ["FR", "SO", "JR"]
+                   : collegeYear === "JR" ? ["FR", "SO"]
+                   : collegeYear === "SO" ? ["FR"]
+                   : [];
+  if (!yearsBefore.length) return { school: null, history: [] };
+
+  // Reuse the school already stamped on collegeProfile (set when
+  // _buildCollegeProfile ran just before this — same pool, same
+  // small-school routing). All career years are at the same school.
+  const school = p.collegeProfile?.school || _BIG_SCHOOLS[_nameHash(p.name, 31) % _BIG_SCHOOLS.length];
+  const level = p.collegeProfile?.level || null;
+
+  // Year-over-year production scale. FR is typically a backup or
+  // rotational player; SR is full peak. Senior production ≈ 100% (the
+  // collegeProfile.line). This is the scale APPLIED to senior production.
+  const scaleByYear = { FR: 0.22, SO: 0.55, JR: 0.85 };
+  // Games played also scales — FRs play less.
+  const gamesByYear = { FR: 6, SO: 10, JR: 13 };
+  // Role descriptor — short narrative tag
+  const roleByYear = { FR: "Backup", SO: "Part-time starter", JR: "Full starter" };
+  // For low-tier prospects (R6/R7/UDFA), the trajectory is flatter
+  // (most rolled-over years are rotational). For high-tier (R1/R2),
+  // they likely started earlier and had bigger jumps.
+  const tier = projRound <= 2 ? "elite" : projRound <= 4 ? "solid" : "modest";
+
+  const s = p.stats || [];
+  const [spd=50, str=50, agi=50, awr=50, thr=50, cat=50, blk=50, prs=50, cov=50, tck=50] = s;
+
+  const history = [];
+  // SR year was rookieYear - 1 (just-concluded season). Earlier
+  // years offset back from there. Fallback to current real year
+  // when rookieYear isn't passed (legacy callers / test rigs).
+  const fallback = (rookieYear ?? (new Date().getFullYear()));
+  const srYear = fallback - 1;
+  const yrOffsetFromSR = { FR: -3, SO: -2, JR: -1, SR: 0 };
+  const currentOffset = yrOffsetFromSR[collegeYear] ?? 0;
+  for (const yr of yearsBefore) {
+    const scale = scaleByYear[yr];
+    const games = gamesByYear[yr];
+    const seasonNum = srYear + (yrOffsetFromSR[yr] - currentOffset);
+    const h = _nameHash(p.name + "|" + yr, 13);
+    const noise = (h % 7) - 3;
+    let stats = "";
+    if (pos === "QB") {
+      const yds = Math.round((thr + awr) * 18 * scale + noise * 50);
+      const td  = Math.max(0, Math.round((thr / 8) * scale + noise / 2));
+      const cmp = Math.round(_clamp(55 + (awr - 50) * 0.2, 50, 70) + (noise / 3));
+      stats = `${yds.toLocaleString()} YDS · ${td} TD · ${cmp}% comp`;
+    } else if (pos === "RB") {
+      const yds = Math.round((spd + agi) * 14 * scale + noise * 40);
+      const td  = Math.max(0, Math.round((spd / 9) * scale));
+      const ypc = (yds / Math.max(20, (spd + agi) * scale * 1.4)).toFixed(1);
+      stats = `${yds} YDS · ${td} TD · ${ypc} YPC`;
+    } else if (pos === "WR" || pos === "TE") {
+      const rec = Math.round((cat + spd) * 0.7 * scale + noise);
+      const yds = Math.round((cat + spd) * 11 * scale + noise * 30);
+      const td  = Math.max(0, Math.round((cat / 10) * scale));
+      stats = `${rec} REC · ${yds} YDS · ${td} TD`;
+    } else if (pos === "OL") {
+      const gs = Math.round(games * scale * 1.1);
+      stats = `${gs} GS`;
+    } else if (pos === "DL") {
+      const sk  = ((prs + str) * 0.06 * scale + noise * 0.1).toFixed(1);
+      const tkl = Math.round((str + tck) * 0.4 * scale + noise);
+      stats = `${sk} SK · ${tkl} TKL`;
+    } else if (pos === "LB") {
+      const tkl = Math.round((tck + spd) * 0.7 * scale + noise * 2);
+      const sk  = ((prs * 0.04 + tck * 0.02) * scale).toFixed(1);
+      stats = `${tkl} TKL · ${sk} SK`;
+    } else if (pos === "CB") {
+      const pds = Math.max(0, Math.round((cov + spd) * 0.10 * scale + noise / 2));
+      const ints = Math.max(0, Math.round(cov * 0.05 * scale));
+      stats = `${pds} PD · ${ints} INT`;
+    } else if (pos === "S") {
+      const tkl = Math.round((tck + cov) * 0.55 * scale + noise);
+      const ints = Math.max(0, Math.round(cov * 0.05 * scale));
+      stats = `${tkl} TKL · ${ints} INT`;
+    } else if (pos === "K" || pos === "P") {
+      stats = `${Math.max(1, Math.round(games * scale))} GP`;
+    }
+    history.push({
+      year: yr, season: seasonNum, role: roleByYear[yr],
+      games: Math.max(1, Math.round(games * (tier === "elite" ? 1.0 : tier === "solid" ? 0.92 : 0.78))),
+      stats,
+    });
+  }
+  return { school, level, history };
+}
+
 function _buildCollegeProfile(p, round) {
   const pos = p.position;
   const s = p.stats || [];
@@ -15293,7 +15415,19 @@ function _buildCollegeProfile(p, round) {
     line = `${gross} gross · ${net} net · ${i20} inside-20`;
   }
 
-  return { line, knock, knockType };
+  // School name — pulled from the small-school pool when the knock is
+  // "small_school", from the big-school pool otherwise. Stable per
+  // prospect via name hash.
+  const isSmallSchool = knockType === "small_school";
+  const schoolPool = isSmallSchool ? _SMALL_SCHOOLS : _BIG_SCHOOLS;
+  const schoolIdx = _nameHash(p.name, 31) % schoolPool.length;
+  const school = schoolPool[schoolIdx];
+  const level = isSmallSchool ? "FCS" : null;
+  // Small-school production is typically inflated by weaker competition
+  // — append a note so the line reads as "from a small school" even when
+  // the user only sees the stat row.
+  const lineWithSchool = `${school}${level ? ` (${level})` : ""} · ${line}`;
+  return { line: lineWithSchool, knock, knockType, school, level };
 }
 
 // ── Draft notes — strengths/concerns/fit, layered with scout reveals ─────────
@@ -16837,6 +16971,10 @@ function _generateCollegePlayer(collegeYear, blockNames) {
   p.potential = _rollPotential(p);
   const projRound = _projectedDraftRound(p);
   p.collegeProfile = _buildCollegeProfile(p, projRound);
+  // F2 — multi-year college career snapshot. Underclass years (FR/SO/JR)
+  // get scaled-down stat lines + role descriptors. SR-year line is the
+  // existing collegeProfile.line. School name is stable per prospect.
+  p.collegeCareer = _buildCollegeCareer(p, projRound);
   // No NFL career history yet
   p.careerHistory = []; p.careerStats = {}; p.career = []; p.careerTotals = {};
   p.proBowls = 0; p.allPros = 0; p.sbRings = 0;
@@ -17708,11 +17846,20 @@ function _buildDraftClassFromPipeline(rookieYear, themesArg, positionsArg) {
   //    Mandarich (low-OVR + huge positive bias) cases. Scout bias is
   //    seeded by (year, name) for rebuild stability.
   for (let i = 0; i < eligible.length; i++) {
-    _applyConsensusGrade(eligible[i], rookieYear);
-    eligible[i].draftRound = null;
-    eligible[i].draftYear = rookieYear;
-    eligible[i].draftSeason = (franchise?.season || 1);
-    eligible[i].isProspect = true;
+    const p = eligible[i];
+    _applyConsensusGrade(p, rookieYear);
+    p.draftRound = null;
+    p.draftYear = rookieYear;
+    p.draftSeason = (franchise?.season || 1);
+    p.isProspect = true;
+    // Rebuild collegeProfile + collegeCareer with the prospect's CURRENT
+    // (developed) stats. Pipeline players' profiles were built at FR
+    // generation — over 4 years of dev, stats shifted, so the senior
+    // line was stale. Rebuild from the prospect's current consensus
+    // grade.
+    const profRound = p._generatedRound === 0 ? 7 : p._generatedRound;
+    p.collegeProfile = _buildCollegeProfile(p, profRound);
+    p.collegeCareer = _buildCollegeCareer(p, profRound, rookieYear);
   }
 
   const cls = eligible.slice();
@@ -17770,6 +17917,9 @@ function _buildDraftClassFromPipeline(rookieYear, themesArg, positionsArg) {
     // camp-body prospects get rougher knocks.
     const profRound = p._generatedRound === 0 ? 7 : p._generatedRound;
     p.collegeProfile = _buildCollegeProfile(p, profRound);
+    // F2 — multi-year college career snapshot (filler is stamped SR-year
+    // above so this gives 3 prior seasons FR/SO/JR).
+    p.collegeCareer = _buildCollegeCareer(p, profRound, rookieYear);
     p.careerHistory = []; p.careerStats = {}; p.career = []; p.careerTotals = {};
     p.proBowls = 0; p.allPros = 0; p.sbRings = 0;
     p.mvps = 0; p.opoys = 0; p.dpoys = 0; p.roys = 0; p.records = [];
