@@ -18142,8 +18142,10 @@ function renderFrnDraft() {
   if (d.currentIdx >= d.pickOrder.length) {
     // After the last pick: hand off to the UDFA Scramble screen (new
     // saves) or fall back to immediate finalize (legacy saves with no
-    // UDFA pool prepared).
-    if (d.udfaPhase !== true && d.class.some(p => p._generatedRound === 0 && !d.picks.some(pk => pk.prospectName === p.name))) {
+    // UDFA pool prepared). Path A: pool is "any undrafted prospect"
+    // (was "_generatedRound === 0") — Brady-types who slipped past
+    // pick 256 now appear in scramble with their original grade badge.
+    if (d.udfaPhase !== true && d.class.some(p => !d.picks.some(pk => pk.prospectName === p.name))) {
       d.udfaPhase = true;
       saveFranchise();
       renderFrnUDFAScramble();
@@ -19361,8 +19363,12 @@ function _draftFinalize() {
   const drafted = new Set((d?.picks || []).map(pk => pk.prospectName));
   const userClaimed = new Set(d?.udfaUserClaims || []);
   const claimedByAi = new Set(d?.udfaAiClaims?.map(c => c.name) || []);
+  // Path A: remaining pool is "anyone undrafted + unclaimed" — includes
+  // any graded prospect who slipped past pick 256, not just camp-body
+  // (_generatedRound === 0). This is what feeds the auto-fill of
+  // remaining roster gaps after the UDFA scramble.
   const remainingPool = (d?.class || []).filter(p =>
-    p._generatedRound === 0 && !drafted.has(p.name) && !userClaimed.has(p.name) && !claimedByAi.has(p.name)
+    !drafted.has(p.name) && !userClaimed.has(p.name) && !claimedByAi.has(p.name)
   );
   for (const t of TEAMS) {
     const roster = franchise.rosters[t.id];
@@ -19450,8 +19456,11 @@ function _runUdfaAiClaims() {
   const myId = franchise.chosenTeamId;
   const claimedSet = new Set(d.udfaUserClaims || []);
   // Working pool — sorted by board score, mutable
+  // Path A: AI claims from the full undrafted pool, not just camp-body
+  // grade. Top slipped prospects (Brady-types) become priority targets.
+  const drafted = new Set((d.picks || []).map(pk => pk.prospectName));
   const pool = d.class.filter(p =>
-    p._generatedRound === 0 && !claimedSet.has(p.name)
+    !drafted.has(p.name) && !claimedSet.has(p.name)
   ).sort((a, b) => _draftBoardScore(b) - _draftBoardScore(a));
   const aiClaims = [];
   for (const t of TEAMS) {
@@ -19527,9 +19536,11 @@ function renderFrnUDFAScramble() {
   const watchedSet = new Set(franchise.watchedPlayers || []);
   const scoutedSet = new Set(franchise.draftScouts || []);
 
-  // Available pool — not drafted, not user-claimed, UDFA tier only
+  // Path A pool: anyone undrafted + unclaimed. No more _generatedRound
+  // filter — Brady-types and other slipped graded prospects appear here
+  // alongside camp-body grade. Pool is naturally graded by what slipped.
   const pool = d.class
-    .filter(p => p._generatedRound === 0 && !drafted.has(p.name) && !claims.has(p.name))
+    .filter(p => !drafted.has(p.name) && !claims.has(p.name))
     .sort((a, b) => _draftBoardScore(b) - _draftBoardScore(a));
   const filtered = filter === "K/P" ? pool.filter(p => p.position==="K"||p.position==="P")
     : filter === "WATCHED" ? pool.filter(p => watchedSet.has(p.name))
@@ -19624,6 +19635,13 @@ function renderFrnUDFAScramble() {
       ? `<span style="font-size:.52rem;color:#cce7ff;font-weight:700;letter-spacing:.3px">👁 WATCHED</span>` : "";
     const scoutedBadge = isScouted
       ? `<span style="font-size:.52rem;color:var(--green-lt);font-weight:700;letter-spacing:.3px">🔍 SCOUTED</span>` : "";
+    // Slipped-grade badge — a R3-grade prospect who fell to UDFA shows
+    // "↓R3 grade" so the user can see the value. Camp-body grade (0)
+    // is the only tier that's "expected" here; anything else is a slip.
+    const genR = p._generatedRound;
+    const slippedBadge = (genR && genR >= 1 && genR <= 7)
+      ? `<span style="font-size:.52rem;color:#ffb14c;font-weight:700;letter-spacing:.3px" title="Pre-draft grade was ~R${genR} — slipped past the draft">↓ ~R${genR} SLIP</span>`
+      : "";
     return `<div class="frn-draft-prospect${isScouted?" scouted":""}">
       <div class="frn-dp-rank">${displayRank}</div>
       <div class="frn-dp-body">
@@ -19632,6 +19650,7 @@ function renderFrnUDFAScramble() {
           ${_posPillHtml(p.position)}
           ${needBadge}
           ${gradeBadge(p)}
+          ${slippedBadge}
           ${scoutedBadge}
           ${watchedBadge}
           <span style="color:var(--gray);font-size:.56rem">Age ${p.age}</span>
