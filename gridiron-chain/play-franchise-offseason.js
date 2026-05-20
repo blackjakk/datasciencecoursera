@@ -10156,6 +10156,101 @@ function _campNotes() {
   return notes.slice(0, 8);
 }
 
+// CHAMPIONSHIP WINDOW — synthesizes roster age + OVR + star count
+// into a strategy verdict. Helps the GM frame every other decision
+// (is it time to push chips in, or restart?). Returns:
+//   { verdict, color, guidance, windowYrs, avgOvr, avgAge, starsInPrime }
+function _championshipWindow(roster) {
+  if (!roster || !roster.length) return null;
+  const avgOvr = roster.reduce((s, p) => s + (p.overall || 0), 0) / roster.length;
+  const avgAge = roster.reduce((s, p) => s + (p.age || 0), 0) / roster.length;
+  // Stars in prime: high-OVR players still within their peak window
+  const starsInPrime = roster.filter(p =>
+    (p.overall || 0) >= 80
+    && (p.age || 0) >= 25
+    && (p.age || 0) <= ((p.peakAge || 27) + 1)
+  ).length;
+  let verdict, color, guidance, windowYrs;
+  if (avgAge < 25.5 && avgOvr < 75) {
+    verdict = "REBUILD";
+    color = "#ff9b9b";
+    guidance = "Develop draft picks · stockpile assets · trade vets for futures";
+    windowYrs = 0;
+  } else if (avgAge < 26.5 && avgOvr < 78) {
+    verdict = "DEVELOPING";
+    color = "#e0b078";
+    guidance = "Build through draft · selective FA · window opens in 1-2 years";
+    windowYrs = 0;
+  } else if (avgAge <= 28 && avgOvr >= 78 && starsInPrime >= 3) {
+    verdict = "CONTENDER";
+    color = "#86e0a3";
+    guidance = "Push chips in · target win-now FA · trade picks for vets";
+    windowYrs = Math.max(1, Math.round(30 - avgAge));
+  } else if (avgAge > 28 && avgOvr >= 76) {
+    verdict = "WINDOW CLOSING";
+    color = "#e0b078";
+    guidance = "Last shot · spend cap aggressively · extend stars before decline";
+    windowYrs = Math.max(1, Math.round(31 - avgAge));
+  } else if (avgAge > 28 && avgOvr < 76) {
+    verdict = "RETOOL";
+    color = "#ff9b9b";
+    guidance = "Trade vets for picks · open cap room · 2-3 year reset";
+    windowYrs = 0;
+  } else {
+    verdict = "TRANSITION";
+    color = "#cce8d6";
+    guidance = "Mixed signals — develop young talent + selective vet FA";
+    windowYrs = 0;
+  }
+  return { verdict, color, guidance, windowYrs, avgOvr, avgAge, starsInPrime };
+}
+
+// AGING CLIFF RADAR — players past peakAge but not yet at the
+// statistical cliff (peakAge + 3). High OVR (≥75) so a regression
+// matters to the depth chart. Sorted by how soon they hit the cliff.
+function _agingCliffWatch(roster, changes) {
+  const chgByPid = {};
+  for (const c of (changes || [])) chgByPid[c.pid] = c;
+  return (roster || [])
+    .filter(p => {
+      const peakAge = p.peakAge || 27;
+      const age = p.age || 0;
+      const ovr = p.overall || 0;
+      return age > peakAge && age <= peakAge + 3 && ovr >= 75;
+    })
+    .map(p => {
+      const peakAge = p.peakAge || 27;
+      const age = p.age || 0;
+      const yrsPastPeak = age - peakAge;
+      const cliffIn = Math.max(0, peakAge + 3 - age);
+      const chg = chgByPid[p.pid];
+      return { player: p, yrsPastPeak, cliffIn, delta: chg?.delta || 0 };
+    })
+    .sort((a, b) => a.cliffIn - b.cliffIn);
+}
+
+// SELL-HIGH CANDIDATES — players at peak OVR right before the
+// expected decline. Excludes rookie-deal players (their trade value
+// reflects the cheap contract more than the player's intrinsic
+// value). 80+ OVR floor so the return is meaningful.
+function _sellHighCandidates(roster) {
+  return (roster || [])
+    .filter(p => {
+      const peakAge = p.peakAge || 27;
+      const age = p.age || 0;
+      const ovr = p.overall || 0;
+      const yearsServed = (p.systemYears != null)
+        ? p.systemYears
+        : ((p.contract?.years || 0) - (p.contract?.remaining || 0));
+      const isRookieDeal = (p.draftRound > 0) && yearsServed < 4;
+      return ovr >= 80
+        && age >= peakAge - 1
+        && age <= peakAge + 1
+        && !isRookieDeal;
+    })
+    .sort((a, b) => (b.overall || 0) - (a.overall || 0));
+}
+
 // VALUE LEDGER — shared helper used by both the dev report's compact
 // "Value Spotlight" sidebar block AND the Cap Sheet's full Value
 // Ledger tab. Defines "key starter" by position counts so bench /
@@ -10594,6 +10689,67 @@ function _buildOffseasonGainsSheet() {
     </div>`;
   })();
 
+  // ── AGING CLIFF RADAR — players approaching the dropoff ──────
+  // Starters who are 1-3 years past peak and 75+ OVR — i.e., still
+  // good now but the data says they're likely to fall hard soon.
+  // Sorted by how close to the cliff (peakAge + 3).
+  const cliffWatchBlock = (() => {
+    const roster = franchise?.rosters?.[myId] || [];
+    const watch = _agingCliffWatch(roster, allMyChg).slice(0, 5);
+    if (!watch.length) return "";
+    const _row = (w) => {
+      const p = w.player;
+      const urg = w.cliffIn === 0 ? "#ff9b9b" : w.cliffIn === 1 ? "#e0b078" : "#cce8d6";
+      const urgLabel = w.cliffIn === 0 ? "AT CLIFF" : w.cliffIn === 1 ? `${w.cliffIn} yr` : `${w.cliffIn} yrs`;
+      return `<div style="display:grid;grid-template-columns:1.8rem 1fr 2.4rem 2.6rem;gap:.3rem;align-items:baseline;padding:.12rem 0;font-size:.65rem">
+        <span style="color:var(--gold);font-size:.6rem;font-weight:700">${p.position}</span>
+        <span style="color:var(--white);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_playerLinkSmart(p.name)}</span>
+        <span style="color:var(--gray);font-size:.6rem;text-align:right">age ${p.age}</span>
+        <span style="color:${urg};font-weight:700;text-align:right;font-size:.58rem;letter-spacing:.3px">${urgLabel}</span>
+      </div>`;
+    };
+    return `
+    <div style="margin-bottom:.6rem;padding:.5rem .65rem;background:rgba(255,155,155,.05);border:1px solid var(--blborder);border-radius:3px">
+      <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.35rem">
+        <span style="font-size:.55rem;color:#e0b078;letter-spacing:1.5px;font-weight:700">⏳ AGING CLIFF RADAR</span>
+        <span style="color:var(--gray);font-size:.55rem;margin-left:auto">next 3 yrs</span>
+      </div>
+      ${watch.map(_row).join("")}
+    </div>`;
+  })();
+
+  // ── SELL-HIGH CANDIDATES — peak-value trade chips ─────────────
+  // Players at the very top of their career arc — 80+ OVR, within
+  // ±1 of peakAge, NOT on rookie deal (so trade return reflects
+  // actual player value, not cheap contract). The "should I trade
+  // this guy before he declines?" list.
+  const sellHighBlock = (() => {
+    const roster = franchise?.rosters?.[myId] || [];
+    const candidates = _sellHighCandidates(roster).slice(0, 5);
+    if (!candidates.length) return "";
+    const _row = (p) => {
+      const ageStage = (p.age || 0) > (p.peakAge || 27)
+        ? `<span style="color:#e0b078">post-peak</span>`
+        : (p.age || 0) === (p.peakAge || 27)
+        ? `<span style="color:#86c8ff">at peak</span>`
+        : `<span style="color:#86e0a3">last yr of prime</span>`;
+      return `<div style="display:grid;grid-template-columns:1.8rem 1fr 2.4rem 5rem;gap:.3rem;align-items:baseline;padding:.12rem 0;font-size:.65rem">
+        <span style="color:var(--gold);font-size:.6rem;font-weight:700">${p.position}</span>
+        <span style="color:var(--white);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_playerLinkSmart(p.name)}</span>
+        <span style="color:var(--white);font-family:'Bebas Neue','Anton',sans-serif;text-align:right;letter-spacing:.5px">${p.overall}</span>
+        <span style="font-size:.58rem;text-align:right">${ageStage}</span>
+      </div>`;
+    };
+    return `
+    <div style="margin-bottom:.6rem;padding:.5rem .65rem;background:rgba(94,212,212,.05);border:1px solid var(--blborder);border-radius:3px">
+      <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.35rem">
+        <span style="font-size:.55rem;color:#5ed4d4;letter-spacing:1.5px;font-weight:700">📈 SELL-HIGH CANDIDATES</span>
+        <span style="color:var(--gray);font-size:.55rem;margin-left:auto">peak value · trade chips</span>
+      </div>
+      ${candidates.map(_row).join("")}
+    </div>`;
+  })();
+
   // ── INTERNAL CAMP NOTES — narrative texture ──────────────────
   // Procedural quotes attributed to position coaches / trainers,
   // derived from this offseason's dev reasons + the live injury
@@ -10750,6 +10906,35 @@ function _buildOffseasonGainsSheet() {
           </span>
         </div>`;
       }).join("")}
+    </div>` : "";
+
+  // ── CAMP REPORT + CHAMPIONSHIP WINDOW — paired synthesis blocks ─
+  // Camp Card answers "how did this offseason go?" Championship
+  // Window answers "where are we in our journey?" Both are headline
+  // synthesis — pair them side-by-side at the top.
+  const champWindow = (() => {
+    const roster = franchise?.rosters?.[myId] || [];
+    return _championshipWindow(roster);
+  })();
+  const champWindowHtml = champWindow ? `
+    <div style="padding:.7rem .85rem;background:linear-gradient(180deg, rgba(134,200,255,.05), rgba(255,255,255,.015));border:1px solid var(--blborder);border-radius:4px">
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:1.1rem;align-items:center">
+        <div style="text-align:center;padding:0 .5rem;border-right:1px solid var(--blborder);min-width:80px">
+          <div style="font-family:'Bebas Neue','Anton',sans-serif;font-size:1.6rem;color:${champWindow.color};letter-spacing:1px;line-height:1">${champWindow.verdict}</div>
+          ${champWindow.windowYrs > 0 ? `<div style="font-size:.55rem;color:var(--gray);letter-spacing:.8px;margin-top:.15rem">~${champWindow.windowYrs} yr window</div>` : ""}
+          <div style="font-size:.5rem;color:#5d6b66;margin-top:.1rem">🏆 CHAMPIONSHIP</div>
+        </div>
+        <div style="min-width:0">
+          <div style="display:flex;gap:.6rem;flex-wrap:wrap;font-size:.65rem;color:var(--gray);margin-bottom:.4rem">
+            <span><b style="color:var(--white);font-family:'Bebas Neue','Anton',sans-serif;font-size:.85rem">${champWindow.avgOvr.toFixed(1)}</b> avg OVR</span>
+            <span><b style="color:var(--white);font-family:'Bebas Neue','Anton',sans-serif;font-size:.85rem">${champWindow.avgAge.toFixed(1)}</b> avg age</span>
+            <span><b style="color:${champWindow.color};font-family:'Bebas Neue','Anton',sans-serif;font-size:.85rem">${champWindow.starsInPrime}</b> stars in prime</span>
+          </div>
+          <div style="font-size:.65rem;color:#cce8d6;font-style:italic;line-height:1.4;padding:.25rem .4rem;background:rgba(255,255,255,.025);border-left:2px solid ${champWindow.color};border-radius:1px">
+            ${champWindow.guidance}
+          </div>
+        </div>
+      </div>
     </div>` : "";
 
   // ── CAMP REPORT CARD — synthesized grade + per-position ──────
@@ -11051,7 +11236,10 @@ function _buildOffseasonGainsSheet() {
   return `<div style="margin-top:.8rem;padding:.7rem .8rem;background:rgba(255,255,255,.02);border:1px solid var(--blborder);border-radius:4px">
     <div class="frn-sec-title" style="margin-bottom:.5rem">📊 PLAYER DEVELOPMENT REPORT</div>
     ${chipsHtml}
-    ${campCardHtml}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.6rem" class="frn-dev-synth-row">
+      <div>${campCardHtml}</div>
+      <div>${champWindowHtml}</div>
+    </div>
     ${summaryHtml}
     ${chartsBlock}
     <div class="frn-dev-report-grid" style="display:grid;grid-template-columns:2fr 1fr;gap:.7rem;margin-top:.4rem">
@@ -11068,6 +11256,8 @@ function _buildOffseasonGainsSheet() {
         ${valueSpotlightBlock}
         ${resignBlock}
         ${depthBlock}
+        ${cliffWatchBlock}
+        ${sellHighBlock}
         ${campNotesBlock}
         ${heroBlock}
       </div>

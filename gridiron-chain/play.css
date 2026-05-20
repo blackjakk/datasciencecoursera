@@ -8243,7 +8243,8 @@
      the per-block margin-bottom that was set for the old
      single-column stack. */
   @media (max-width: 960px) {
-    .frn-dev-report-grid {
+    .frn-dev-report-grid,
+    .frn-dev-synth-row {
       grid-template-columns: 1fr !important;
     }
   }
