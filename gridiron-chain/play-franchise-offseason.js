@@ -17184,6 +17184,38 @@ function _declareEarlyJuniors() {
   return declared;
 }
 
+// SR-year fork — returns a bump (positive, negative, or zero) that
+// represents either a late-bloomer surge or a stock-dropping SR
+// season. Pushes mid-tier prospects toward the tails, redistributing
+// the over-supplied R4/R5 belly toward R3/R6 and beyond. Stamps a
+// flag so it only fires once per prospect.
+function _applySRFork(p) {
+  if (!p || p._srForkApplied) return 0;
+  p._srForkApplied = true;
+  const forkRoll = (_nameHash(p.name + "|srfork", 73) % 100);
+  if (forkRoll < 30) {
+    p._srStockMaker = true;
+    return 10 + Math.floor(Math.random() * 7); // +10-16
+  } else if (forkRoll < 60) {
+    p._srStockBreaker = true;
+    return -(10 + Math.floor(Math.random() * 7)); // -10 to -16
+  }
+  return 0;
+}
+
+// Apply a fork bump directly to a prospect's stats (when bump is not
+// going through the dev-cycle apply step). Used by filler prospects
+// that don't pass through _developCollegePlayer.
+function _applySRForkDirect(p) {
+  const bump = _applySRFork(p);
+  if (bump === 0 || !p.stats || !p.stats.length) return;
+  const sorted = p.stats.map((v, i) => ({ v, i })).sort((a, b) => b.v - a.v).slice(0, 3);
+  for (const { i } of sorted) {
+    p.stats[i] = Math.min(99, Math.max(20, p.stats[i] + bump));
+  }
+  p.overall = calcOverall(p.position, p.stats);
+}
+
 // Strip college-only state from a prospect after they sign with an
 // NFL team. Without this, every rookie carries 8 dead fields forever
 // (breakout/secondary/tertiary flags + magnitudes). Doesn't affect
@@ -17356,6 +17388,18 @@ function _developCollegePlayer(p) {
     }
   }
   bump += breakoutBump + secondaryBump + tertiaryBump;
+
+  // SR-YEAR FORK — when a prospect transitions to SR (their last
+  // dev cycle), 25% chance of a late-bloomer surge OR a stock drop.
+  // Models the "stock making" SR year reality (Burrow's transfer
+  // season → R1; alternatively, an SR who suffers injury or has a
+  // down year and drops). Pushes the over-supplied R4/R5 middle
+  // toward the tails. 50% stay (most prospects have normal SR years).
+  if (p.collegeYear === "SR" && !p._srForkApplied) {
+    const forkBump = _applySRFork(p);
+    bump += forkBump;
+  }
+
   if (bump === 0) return;
   // Boost the player's top 3 stats — primary calling-card stats develop
   // first, mirroring real CFB player growth.
@@ -18244,6 +18288,9 @@ function _buildDraftClassFromPipeline(rookieYear, themesArg, positionsArg) {
     p.draftYear = rookieYear;
     p.draftSeason = (franchise?.season || 1);
     p.isProspect = true;
+    // SR-year fork — apply before consensus so the stock-making /
+    // stock-breaking effect is reflected in the displayed grade.
+    _applySRForkDirect(p);
     _applyConsensusGrade(p, rookieYear);
     p.draftRound = null;
     // College profile uses the prospect's consensus grade for round-
