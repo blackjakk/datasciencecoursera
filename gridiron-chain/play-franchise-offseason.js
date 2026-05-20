@@ -9587,8 +9587,14 @@ function frnGainsFilterReasonSet(reason) {
 // player also had +5 room.
 // ── CHART HELPERS (Player Development Report) ──────────────────────
 //
-// Inline SVG, no chart-library dep. All sized for the report's
-// horizontal column. Color palette matches the rest of the report.
+// Inline SVG, no chart-library dep. All three charts share a common
+// 360×240 viewBox so they render at matched heights in a 3-column
+// grid. Title color is unified gold-dim (chrome only); data carries
+// its own color.
+const _CHART_W = 360;
+const _CHART_H = 240;
+const _CHART_TITLE = "#a98a2e";  // gold-dim chrome
+const _CHART_STYLE = `width:100%;height:auto;max-width:560px;background:rgba(255,255,255,.02);border-radius:4px;font-family:'IBM Plex Mono',monospace`;
 
 // Ensure a roster avg-OVR snapshot exists for the season just
 // completed. Idempotent: only pushes if no entry yet for the current
@@ -9612,26 +9618,30 @@ function _ensureRosterAvgOvrSnapshot() {
 // Positive deltas extend right (green), negative left (red). One
 // row per position with data; gracefully handles empty data.
 function _chartPosDeltas(data) {
-  if (!data.length) return "";
-  const W = 360, H = 24 + data.length * 18 + 28, padL = 40, padR = 32, padT = 24, padB = 12;
+  const W = _CHART_W, H = _CHART_H, padL = 36, padR = 28, padT = 26, padB = 14;
+  if (!data.length) return `<svg viewBox="0 0 ${W} ${H}" style="${_CHART_STYLE}">
+    <text x="${padL}" y="14" fill="${_CHART_TITLE}" font-size="10" font-weight="700" letter-spacing="1">NET OVR Δ BY POSITION</text>
+    <text x="${W/2}" y="${H/2}" text-anchor="middle" fill="#5d6b66" font-size="10" font-style="italic">no data yet</text>
+  </svg>`;
   const innerW = W - padL - padR, innerH = H - padT - padB;
   const maxAbs = Math.max(...data.map(d => Math.abs(d.delta)), 4);
   const rowH = innerH / data.length;
   const zeroX = padL + innerW / 2;
   const barW = innerW / 2;
-  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;background:rgba(255,255,255,.02);border-radius:4px;font-family:'IBM Plex Mono',monospace">
-    <text x="${padL}" y="14" fill="var(--gold)" font-size="10" font-weight="700" letter-spacing="1">NET OVR Δ BY POSITION</text>
-    <line x1="${zeroX}" y1="${padT}" x2="${zeroX}" y2="${H-padB}" stroke="rgba(255,255,255,.15)" stroke-dasharray="2,2"/>
+  return `<svg viewBox="0 0 ${W} ${H}" style="${_CHART_STYLE}">
+    <text x="${padL}" y="14" fill="${_CHART_TITLE}" font-size="10" font-weight="700" letter-spacing="1">NET OVR Δ BY POSITION</text>
+    <line x1="${zeroX}" y1="${padT - 4}" x2="${zeroX}" y2="${H - padB}" stroke="rgba(255,255,255,.18)" stroke-dasharray="2,2"/>
     ${data.map((d, i) => {
       const cy = padT + rowH * (i + 0.5);
-      const barLen = (Math.abs(d.delta) / maxAbs) * barW * 0.9;
+      const barLen = (Math.abs(d.delta) / maxAbs) * barW * 0.92;
       const isPos = d.delta > 0;
       const color = d.delta > 0 ? "#86e0a3" : d.delta < 0 ? "#ff9b9b" : "rgba(255,255,255,.15)";
       const x = isPos ? zeroX : (zeroX - barLen);
+      const barH = Math.min(rowH * 0.7, 14);
       return `
-        <text x="${padL - 4}" y="${cy + 3}" text-anchor="end" fill="#7a8b85" font-size="8">${d.pos}</text>
-        <rect x="${x}" y="${cy - rowH * 0.32}" width="${barLen}" height="${rowH * 0.64}" fill="${color}" opacity="0.85"/>
-        <text x="${isPos ? x + barLen + 3 : x - 3}" y="${cy + 3}" text-anchor="${isPos ? 'start' : 'end'}" fill="${color}" font-size="9" font-weight="700">${d.delta > 0 ? '+' : ''}${d.delta}</text>`;
+        <text x="${padL - 4}" y="${cy + 3}" text-anchor="end" fill="#9bbfa8" font-size="9" font-weight="600">${d.pos}</text>
+        <rect x="${x}" y="${cy - barH/2}" width="${barLen}" height="${barH}" fill="${color}" opacity="0.85"/>
+        <text x="${isPos ? x + barLen + 3 : x - 3}" y="${cy + 3}" text-anchor="${isPos ? 'start' : 'end'}" fill="${color}" font-size="9.5" font-weight="700">${d.delta > 0 ? '+' : ''}${d.delta}</text>`;
     }).join("")}
   </svg>`;
 }
@@ -9641,24 +9651,51 @@ function _chartPosDeltas(data) {
 // count below. Skips zero-count tiers so the bar doesn't have
 // invisible segments for grades nobody has.
 function _chartTierDist(data) {
+  const W = _CHART_W, H = _CHART_H, padL = 14, padR = 14, padT = 26, padB = 12;
   const live = data.filter(d => d.n > 0);
-  if (!live.length) return "";
-  const W = 360, H = 78, padL = 16, padR = 16, padT = 22, padB = 24;
+  if (!live.length) return `<svg viewBox="0 0 ${W} ${H}" style="${_CHART_STYLE}">
+    <text x="${padL}" y="14" fill="${_CHART_TITLE}" font-size="10" font-weight="700" letter-spacing="1">CEILING TIER DISTRIBUTION</text>
+    <text x="${W/2}" y="${H/2}" text-anchor="middle" fill="#5d6b66" font-size="10" font-style="italic">no data yet</text>
+  </svg>`;
   const innerW = W - padL - padR;
   const total = live.reduce((s, d) => s + d.n, 0);
+  // Stacked headline bar (top of panel, 24px tall).
   let xCur = padL;
-  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;background:rgba(255,255,255,.02);border-radius:4px;font-family:'IBM Plex Mono',monospace">
-    <text x="${padL}" y="14" fill="#5ed4d4" font-size="10" font-weight="700" letter-spacing="1">CEILING TIER DISTRIBUTION (${total} players)</text>
-    ${live.map(d => {
-      const w = (d.n / total) * innerW;
-      const cx = xCur + w / 2;
-      const seg = `
-        <rect x="${xCur}" y="${padT}" width="${w}" height="22" fill="${d.color}" opacity="0.85"/>
-        <text x="${cx}" y="${padT + 15}" text-anchor="middle" fill="#0a1410" font-size="11" font-weight="900">${d.grade}</text>
-        <text x="${cx}" y="${padT + 36}" text-anchor="middle" fill="${d.color}" font-size="9" font-weight="700">${d.n}</text>`;
-      xCur += w;
-      return seg;
-    }).join("")}
+  const barY = padT, barH = 24;
+  const barSegs = live.map(d => {
+    const w = (d.n / total) * innerW;
+    const cx = xCur + w / 2;
+    const seg = `
+      <rect x="${xCur}" y="${barY}" width="${w}" height="${barH}" fill="${d.color}" opacity="0.88"/>
+      <text x="${cx}" y="${barY + 16}" text-anchor="middle" fill="#0a1410" font-size="11" font-weight="900">${d.grade}</text>`;
+    xCur += w;
+    return seg;
+  }).join("");
+  // Per-tier breakdown rows below the bar. Show all 5 tiers (even at 0)
+  // so row layout is consistent across rosters. Each row: color chip +
+  // tier letter + count + top positions in that tier.
+  const allTiers = ["S","A","B","C","D"];
+  const tierByGrade = Object.fromEntries(data.map(d => [d.grade, d]));
+  const rowsStartY = barY + barH + 12;
+  const rowH = (H - rowsStartY - padB) / allTiers.length;
+  const breakdownRows = allTiers.map((g, i) => {
+    const t = tierByGrade[g] || { n: 0, positions: [], color: "#5d6b66" };
+    const y = rowsStartY + rowH * (i + 0.5);
+    const positionsLabel = (t.positions || [])
+      .slice(0, 4)
+      .map(p => p.n > 1 ? `${p.pos}×${p.n}` : p.pos)
+      .join(" · ") || (t.n === 0 ? "—" : "—");
+    return `
+      <rect x="${padL}" y="${y - 5.5}" width="11" height="11" fill="${t.color}" opacity="${t.n ? 0.88 : 0.22}"/>
+      <text x="${padL + 5.5}" y="${y + 3.5}" text-anchor="middle" fill="#0a1410" font-size="8" font-weight="900">${g}</text>
+      <text x="${padL + 18}" y="${y + 3}" fill="${t.n ? '#cce8d6' : '#5d6b66'}" font-size="9" font-weight="700">${t.n}</text>
+      <text x="${padL + 32}" y="${y + 3}" fill="${t.n ? '#9bbfa8' : '#5d6b66'}" font-size="8.5" font-style="${t.n ? 'normal' : 'italic'}">${positionsLabel}</text>`;
+  }).join("");
+  return `<svg viewBox="0 0 ${W} ${H}" style="${_CHART_STYLE}">
+    <text x="${padL}" y="14" fill="${_CHART_TITLE}" font-size="10" font-weight="700" letter-spacing="1">CEILING TIER DISTRIBUTION</text>
+    <text x="${W - padR}" y="14" text-anchor="end" fill="#5d6b66" font-size="9">${total} players</text>
+    ${barSegs}
+    ${breakdownRows}
   </svg>`;
 }
 
@@ -9666,10 +9703,15 @@ function _chartTierDist(data) {
 // Needs at least 2 points to be meaningful. Returns a "need more
 // seasons" placeholder otherwise so the chart slot doesn't go empty.
 function _chartOvrLine(data) {
+  const W = _CHART_W, H = _CHART_H;
   if (data.length < 2) {
-    return `<div style="background:rgba(255,255,255,.02);border-radius:4px;padding:1.5rem;text-align:center;color:var(--gray);font-size:.7rem;font-style:italic">📈 Roster trajectory will appear after 2+ seasons</div>`;
+    return `<svg viewBox="0 0 ${W} ${H}" style="${_CHART_STYLE}">
+      <text x="14" y="14" fill="${_CHART_TITLE}" font-size="10" font-weight="700" letter-spacing="1">ROSTER AVG OVR</text>
+      <text x="${W/2}" y="${H/2 - 6}" text-anchor="middle" fill="#9bbfa8" font-size="14">📈</text>
+      <text x="${W/2}" y="${H/2 + 14}" text-anchor="middle" fill="#5d6b66" font-size="9" font-style="italic">trajectory appears after 2+ seasons</text>
+    </svg>`;
   }
-  const W = 360, H = 200, padL = 40, padR = 24, padT = 24, padB = 32;
+  const padL = 36, padR = 22, padT = 28, padB = 28;
   const innerW = W - padL - padR, innerH = H - padT - padB;
   const ovrs = data.map(d => d.avgOvr);
   const minOvr = Math.floor(Math.min(...ovrs) - 1);
@@ -9681,23 +9723,23 @@ function _chartOvrLine(data) {
   const areaPath = `${path} L ${x(data.length - 1).toFixed(1)} ${(padT + innerH).toFixed(1)} L ${x(0).toFixed(1)} ${(padT + innerH).toFixed(1)} Z`;
   const totalDelta = data[data.length - 1].avgOvr - data[0].avgOvr;
   const totalDeltaStr = totalDelta > 0 ? `+${totalDelta.toFixed(1)}` : totalDelta.toFixed(1);
-  const totalDeltaColor = totalDelta > 0 ? "#86e0a3" : totalDelta < 0 ? "#ff9b9b" : "var(--gray)";
-  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;background:rgba(255,255,255,.02);border-radius:4px;font-family:'IBM Plex Mono',monospace">
+  const totalDeltaColor = totalDelta > 0 ? "#86e0a3" : totalDelta < 0 ? "#ff9b9b" : "#7a8b85";
+  return `<svg viewBox="0 0 ${W} ${H}" style="${_CHART_STYLE}">
     <defs><linearGradient id="ovrFillGr" x1="0" x2="0" y1="0" y2="1">
       <stop offset="0%" stop-color="#86c8ff" stop-opacity="0.4"/>
       <stop offset="100%" stop-color="#86c8ff" stop-opacity="0"/>
     </linearGradient></defs>
-    <text x="${padL}" y="14" fill="#86c8ff" font-size="10" font-weight="700" letter-spacing="1">ROSTER AVG OVR — LAST ${data.length} SEASONS</text>
+    <text x="${padL}" y="14" fill="${_CHART_TITLE}" font-size="10" font-weight="700" letter-spacing="1">ROSTER AVG OVR · LAST ${data.length} SEASONS</text>
     ${[minOvr, Math.round((minOvr + maxOvr) / 2), maxOvr].map(v => `
       <line x1="${padL}" y1="${y(v)}" x2="${W - padR}" y2="${y(v)}" stroke="rgba(255,255,255,.06)" stroke-dasharray="2,3"/>
-      <text x="${padL - 4}" y="${y(v) + 3}" text-anchor="end" fill="#7a8b85" font-size="8">${v}</text>`).join("")}
+      <text x="${padL - 4}" y="${y(v) + 3}" text-anchor="end" fill="#5d6b66" font-size="8">${v}</text>`).join("")}
     <path d="${areaPath}" fill="url(#ovrFillGr)"/>
     <path d="${path}" stroke="#86c8ff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
     ${data.map((d, i) => `
       <circle cx="${x(i)}" cy="${y(d.avgOvr)}" r="3" fill="#86c8ff" stroke="#0a1410" stroke-width="1.5"/>
-      <text x="${x(i)}" y="${H - 16}" text-anchor="middle" fill="#7a8b85" font-size="8">'${String(d.season).slice(-2)}</text>
-      <text x="${x(i)}" y="${y(d.avgOvr) - 8}" text-anchor="middle" fill="#86c8ff" font-size="8" font-weight="700">${d.avgOvr.toFixed(1)}</text>`).join("")}
-    <text x="${W - padR}" y="${H - 4}" text-anchor="end" fill="${totalDeltaColor}" font-size="8" font-weight="700">${totalDeltaStr} OVR over ${data.length-1} yr${data.length>2?'s':''}</text>
+      <text x="${x(i)}" y="${H - 14}" text-anchor="middle" fill="#5d6b66" font-size="8">'${String(d.season).slice(-2)}</text>
+      <text x="${x(i)}" y="${y(d.avgOvr) - 8}" text-anchor="middle" fill="#86c8ff" font-size="8.5" font-weight="700">${d.avgOvr.toFixed(1)}</text>`).join("")}
+    <text x="${W - padR}" y="${H - 4}" text-anchor="end" fill="${totalDeltaColor}" font-size="9" font-weight="700">${totalDeltaStr} OVR · ${data.length-1} yr${data.length>2?'s':''}</text>
   </svg>`;
 }
 
@@ -9800,21 +9842,32 @@ function _buildOffseasonGainsSheet() {
   const posDeltaData = POS_ORDER
     .filter(p => posDeltaMap[p] !== undefined)
     .map(p => ({ pos: p, delta: posDeltaMap[p] }));
-  // B: ceiling tier distribution
+  // B: ceiling tier distribution + per-tier position breakdown
   const tierCounts = { S:0, A:0, B:0, C:0, D:0 };
   const tierColors = { S:"#f5c542", A:"#5ed4d4", B:"#a8d8b6", C:"#e0b078", D:"#ff9b9b" };
+  const tierPositions = { S:{}, A:{}, B:{}, C:{}, D:{} };
   for (const c of allMyChg) {
     const t = _ceilingTier(c.potential || c.postOvr, c.draftRound);
     tierCounts[t.grade]++;
+    tierPositions[t.grade][c.pos] = (tierPositions[t.grade][c.pos] || 0) + 1;
   }
-  const tierDistData = ["S","A","B","C","D"].map(g => ({ grade: g, n: tierCounts[g], color: tierColors[g] }));
+  const tierDistData = ["S","A","B","C","D"].map(g => ({
+    grade: g,
+    n: tierCounts[g],
+    color: tierColors[g],
+    positions: Object.entries(tierPositions[g])
+      .map(([pos, n]) => ({ pos, n }))
+      .sort((a, b) => b.n - a.n),
+  }));
   // C: roster avg OVR history
   const ovrHistory = franchise?._rosterAvgOvrHistory || [];
+  // Strict 3-column grid (chart B no longer spans full width). On
+  // narrower viewports auto-fit wraps to 2 cols then 1.
   const chartsBlock = `
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:.5rem;margin-bottom:.6rem">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:.55rem;margin-bottom:.6rem;align-items:start">
       <div>${_chartPosDeltas(posDeltaData)}</div>
+      <div>${_chartTierDist(tierDistData)}</div>
       <div>${_chartOvrLine(ovrHistory)}</div>
-      <div style="grid-column:1/-1">${_chartTierDist(tierDistData)}</div>
     </div>`;
 
   // TOP OVERALLS — directly answers "who are my best players now?"
