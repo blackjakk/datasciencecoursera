@@ -18199,16 +18199,18 @@ function _buildDraftClassFromPipeline(rookieYear, themesArg, positionsArg) {
         }
       }
     }
-    // Filler tier distribution — complements the pipeline. Pipeline
-    // produces mostly OVR 50-75; filler adds the top (R1-R2 blue chips
-    // beyond what college dev curves produce) and the bottom (camp
-    // bodies, OVR 40-55). Tuned so the full class targets NFL-like
-    // distribution: ~25 R1 grades, ~30 R2, fat middle, ~50 camp body.
+    // Filler tier distribution — Path A refactor injects "scrub" tier
+    // for genuine camp bodies (OVR 30-48). Pipeline produces mostly
+    // OVR 60-75 (the belly); filler adds the missing tails — true
+    // R1-R2 blue chips at the top AND undraftable scrubs at the bottom.
+    // Without scrub, the OVR distribution had only 55% of NFL camp-body
+    // count. Tuned so total class targets NFL-shaped distribution.
     const tierRoll = _seededRand(posKey, 4);
-    let tier = tierRoll < 0.50 ? "poor"          // 50% — camp bodies
-            : tierRoll < 0.82 ? "average"        // 32% — late-round depth
-            : tierRoll < 0.96 ? "good"           // 14% — R3-R5 surprise
-                              : "elite";          //  4% — R1-R2 blue chip
+    let tier = tierRoll < 0.28 ? "scrub"         // 28% — true camp bodies (NEW)
+            : tierRoll < 0.55 ? "poor"           // 27% — late-round depth
+            : tierRoll < 0.78 ? "average"        // 23% — mid-round
+            : tierRoll < 0.94 ? "good"           // 16% — R3-R5 surprise
+                              : "elite";         //  6% — R1-R2 blue chip
     // Demote "elite" → "good" if this position has already hit the
     // per-position elite cap. Prevents themes from concentrating
     // 30+ R1-grade prospects at a single position.

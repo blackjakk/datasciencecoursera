@@ -647,7 +647,20 @@ const randf = (a, b) => Math.random() * (b - a) + a;
 const randName = () => `${pickFirstName()} ${pickLastName()}`;
 
 function statsFor(pos, tier) {
-  const r = { elite:{lo:78,hi:99}, good:{lo:63,hi:80}, average:{lo:48,hi:67}, poor:{lo:35,hi:54} }[tier];
+  // Path A refactor: added "scrub" tier — truly low-OVR prospects for
+  // CAMP-grade injection in draft class filler. Without this, the
+  // bell-curve OVR distribution in genPlayer leaves the bottom tail
+  // (OVR <55) starved. "scrub" prospects have OVR ~30-48 — real
+  // undraftable camp bodies, "long shot" UDFA invitees. Used only by
+  // draft class filler so existing systems (NFL rosters, FA pool) are
+  // unaffected.
+  const r = {
+    elite:   { lo:78, hi:99 },
+    good:    { lo:63, hi:80 },
+    average: { lo:48, hi:67 },
+    poor:    { lo:35, hi:54 },
+    scrub:   { lo:25, hi:42 },
+  }[tier];
   const b = () => rand(r.lo, r.hi);
   // Lesser stats — secondary attributes below the primary range.
   // Floor kept at r.lo so secondary stats never go absurdly low, but
@@ -673,9 +686,9 @@ function statsFor(pos, tier) {
   // guys can be "the guy with the strong arm" or "the speedster off the bench."
   // Signature stat: every player has a calling card, but the ceiling
   // scales with tier so poor-tier UDFAs don't land near starter range.
-  const sigCount = (tier === "poor" || tier === "average") ? 2 : 1;
-  const sigMin = tier === "elite" ? 82 : tier === "good" ? 74 : tier === "average" ? 66 : 58;
-  const sigMax = tier === "elite" ? 95 : tier === "good" ? 84 : tier === "average" ? 76 : 68;
+  const sigCount = (tier === "poor" || tier === "average" || tier === "scrub") ? 2 : 1;
+  const sigMin = tier === "elite" ? 82 : tier === "good" ? 74 : tier === "average" ? 66 : tier === "poor" ? 58 : 45;
+  const sigMax = tier === "elite" ? 95 : tier === "good" ? 84 : tier === "average" ? 76 : tier === "poor" ? 68 : 55;
   for (let i = 0; i < sigCount; i++) {
     const idx = rand(0, stats.length - 1);
     const sigVal = rand(sigMin, sigMax);
