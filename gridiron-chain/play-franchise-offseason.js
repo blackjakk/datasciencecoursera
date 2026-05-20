@@ -5925,8 +5925,8 @@ function frnExtensionSign() {
     ? offer >= market * 0.88
     : offer > 0;
   if (!accepted) {
-    // Decline — flash the offer panel, give the user a chance to
-    // raise. Doesn't close the modal.
+    // Decline — flash the offer panel + show a warn toast so the
+    // user understands WHY the modal didn't close (offer too low).
     const card = document.querySelector("#frn-extension-modal .frn-resign-recap-card");
     if (card) {
       card.style.animation = "none";
@@ -5934,6 +5934,7 @@ function frnExtensionSign() {
       void card.offsetWidth;
       card.style.animation = "frn-extension-shake 0.4s";
     }
+    _frnFlashToast(`⚠ ${name} declined — offer too low. Raise the AAV to at least 88% of market.`, "warn");
     return;
   }
   // startSeason MUST be the current season — voluntary extensions
@@ -5957,8 +5958,43 @@ function frnExtensionSign() {
   _pushNews({ type: "extension",
     label: `🤝 Extended ${p.position} ${name} — ${years}yr / $${offer.toFixed(1)}M/yr` });
   saveFranchise();
+  // Confirmation toast — without this, the modal just disappears
+  // and the user has no signal the deal went through. Brief
+  // top-of-screen toast that auto-dismisses.
+  _frnFlashToast(`✅ Extended ${p.position} ${name} — ${years}yr / $${offer.toFixed(1)}M/yr`, "success");
   frnCloseExtensionModal();
   showFranchiseDashboard();
+}
+
+// Toast — single transient element near the top of the viewport.
+// Auto-dismisses after 3.5s. Lazy DOM (no element until first call).
+function _frnFlashToast(message, kind) {
+  const palette = {
+    success: { bg: "rgba(134,224,163,.95)", border: "#86e0a3", color: "#0a1410" },
+    warn:    { bg: "rgba(224,176,120,.95)", border: "#e0b078", color: "#0a1410" },
+    error:   { bg: "rgba(255,107,107,.95)", border: "#ff6b6b", color: "#fff" },
+  };
+  const p = palette[kind] || palette.success;
+  let el = document.getElementById("frn-flash-toast");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "frn-flash-toast";
+    el.style.cssText = `position:fixed;top:80px;left:50%;transform:translateX(-50%) translateY(-10px);z-index:10000;padding:.7rem 1.2rem;border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:.85rem;font-weight:700;letter-spacing:.5px;box-shadow:0 8px 24px rgba(0,0,0,0.4);opacity:0;transition:opacity 0.2s ease-out, transform 0.2s ease-out;pointer-events:none;max-width:520px;text-align:center`;
+    document.body.appendChild(el);
+  }
+  el.style.background = p.bg;
+  el.style.border = `1px solid ${p.border}`;
+  el.style.color = p.color;
+  el.textContent = message;
+  // Force reflow before opacity transition
+  void el.offsetWidth;
+  el.style.opacity = "1";
+  el.style.transform = "translateX(-50%) translateY(0)";
+  clearTimeout(el._dismissTimer);
+  el._dismissTimer = setTimeout(() => {
+    el.style.opacity = "0";
+    el.style.transform = "translateX(-50%) translateY(-10px)";
+  }, 3500);
 }
 
 function _extensionModalInnerHtml() {
@@ -6001,15 +6037,27 @@ function _extensionModalInnerHtml() {
   }).join("");
   // ── TEAM CAP IMPACT — per-year team total with this deal applied ──
   // Computes baseline (team minus this player's CURRENT contract,
-  // since the new deal replaces it) + the new deal's cap hit per
-  // year. Cap projected at +5%/yr (same conservative assumption as
-  // the Cap Horizon tab). Surfaces over-cap warnings inline.
+  // since the new deal replaces it) + dead-cap refunds still owed
+  // + practice-squad cost + the new deal's cap hit per year. Aligns
+  // with capUsedByTeam semantics so the modal doesn't disagree with
+  // the Cap Sheet on teams carrying meaningful dead money. Cap
+  // projected at +5%/yr (same conservative assumption as Cap Horizon).
   const baselineRoster = (franchise.rosters?.[myId] || []).filter(o => o.contract && o.pid !== p.pid);
+  const refundsInfo = (typeof refundsForTeam === "function") ? refundsForTeam(myId) : { outgoing: [] };
+  const psCost = (typeof psCostForTeam === "function") ? psCostForTeam(myId) : 0;
+  // Dead cap remaining at year `yr` — refunds with yearsRemaining > yr
+  // still hit the cap. Per-refund proportional decay.
+  const _deadCapAtYr = (yr) => (refundsInfo.outgoing || []).reduce(
+    (s, r) => s + ((r.yearsRemaining > yr) ? (r.amount || 0) : 0), 0);
   const teamImpactRows = (typeof projectPlayerCapHit === "function") ? bases.map((base, i) => {
     let baseline = 0;
     for (const other of baselineRoster) {
       baseline += projectPlayerCapHit(other, i);
     }
+    // Practice squad cost only applies to current season (yr=0).
+    // Refunds (dead money) decay each year as their yearsRemaining ticks.
+    baseline += _deadCapAtYr(i);
+    if (i === 0) baseline += psCost;
     const dealHit = (base || 0) + bonusProration;
     const total = baseline + dealHit;
     const projCap = cap * Math.pow(1.05, i);
@@ -10684,7 +10732,10 @@ function _championshipExtras(teamId) {
     });
   }
   teamAvgs.sort((a, b) => b.avg - a.avg);
-  const myRank = teamAvgs.findIndex(t => t.tid === teamId) + 1;
+  // Defensive: if my team's roster is empty, findIndex returns -1
+  // → myRank becomes 0 and the UI would show "#0/N". Treat as "—".
+  const rankIdx = teamAvgs.findIndex(t => t.tid === teamId);
+  const myRank = rankIdx >= 0 ? rankIdx + 1 : 0;
   // Holdout pressure — walk-year stars with active demands
   const holdouts = (franchise.holdoutDemands || []).filter(d => !d.resolved).length;
   // Young pipeline — players ≤24 with B-tier or better ceiling
@@ -11005,15 +11056,33 @@ function _buildOffseasonGainsSheet() {
   // window, team status, position needs vs league) stay on the
   // unfiltered data — they're whole-team context, not player drill.
   const filterIsActive = (_frnGainsFilterPos !== "ALL") || (_frnGainsFilterReason !== "ALL");
+  const reasonActive = _frnGainsFilterReason !== "ALL";
   const filterPids = filterIsActive ? new Set(myChg.map(c => c.pid)) : null;
   // Helper to filter live-roster arrays by the active chip set.
-  // Returns the input unchanged when no filter is active.
-  const _applyChipFilter = (arr) => filterIsActive
-    ? arr.filter(p => filterPids.has(p.pid))
-    : arr;
+  // When ONLY the position chip is active (no reason), filter
+  // live-roster blocks by p.position directly — this lets players
+  // acquired AFTER the dev cycle (post-cycle trades / FA / draft)
+  // still show through. They have no dev record so the pid-set
+  // would otherwise exclude them.
+  // When the reason chip is active, fall back to the pid set since
+  // "matches reason X" only makes sense for players with dev records.
+  const _applyChipFilter = (arr) => {
+    if (!filterIsActive) return arr;
+    if (!reasonActive) return arr.filter(p => filterSet.has(p.position));
+    return arr.filter(p => filterPids.has(p.pid));
+  };
 
   // Sort within group: deltas descending
   myChg.sort((a, b) => b.delta - a.delta);
+
+  // Empty filter state — when chips are active but produced no
+  // matches, the whole upper report would silently empty. Surface
+  // a notice so the user knows the filter is the cause.
+  const emptyFilterNotice = (filterIsActive && myChg.length === 0)
+    ? `<div style="margin:.4rem 0;padding:.4rem .6rem;background:rgba(224,176,120,.08);border:1px solid #e0b078;border-radius:3px;font-size:.65rem;color:#e0b078;display:flex;align-items:center;gap:.5rem">
+        <span>⚠ No players match these filters.</span>
+        <button onclick="frnGainsFilterSet('ALL');frnGainsFilterReasonSet('ALL');" style="background:transparent;border:1px solid #e0b078;color:#e0b078;padding:.15rem .5rem;font-size:.55rem;cursor:pointer;font-family:inherit;border-radius:2px">CLEAR ALL</button>
+      </div>` : "";
   const gainers   = myChg.filter(c => c.delta > 0);
   const steady    = myChg.filter(c => c.delta === 0);
   const decliners = myChg.filter(c => c.delta < 0);
@@ -11213,6 +11282,31 @@ function _buildOffseasonGainsSheet() {
       .sort((a, b) => (b.overall || 0) - (a.overall || 0))
       .slice(0, 5);
     if (!stars.length) return "";
+    // Key season stat per position — uses last season's row from
+    // franchise.seasonStats. Falls back to empty if no stats yet
+    // (preseason day-one).
+    const seasonStats = franchise.seasonStats?.[myId] || {};
+    const _keyStat = (p) => {
+      const s = seasonStats[p.name];
+      if (!s) return "";
+      switch (p.position) {
+        case "QB": return s.pass_yds ? `<b style="color:var(--white)">${s.pass_yds}</b> pass yds · <b style="color:var(--white)">${s.pass_td || 0}</b> TD${s.int ? ` · ${s.int} INT` : ""}` : "";
+        case "RB": return (s.rush_yds || s.rec_yds) ? `<b style="color:var(--white)">${s.rush_yds || 0}</b> rush · ${s.rec_yds || 0} rec · <b style="color:var(--white)">${(s.rush_td || 0) + (s.rec_td || 0)}</b> TD` : "";
+        case "WR":
+        case "TE": return s.rec_yds ? `<b style="color:var(--white)">${s.rec || 0}</b>/<b style="color:var(--white)">${s.rec_yds}</b> · <b style="color:var(--white)">${s.rec_td || 0}</b> TD` : "";
+        case "OL": return s.sacks_allowed != null ? `${s.sacks_allowed} sacks allowed · ${s.snaps || 0} snaps` : "";
+        case "DL":
+        case "DT":
+        case "DE": return s.sk != null ? `<b style="color:var(--white)">${(+s.sk).toFixed(1)}</b> sk · ${s.tkl || 0} tkl${s.qb_hits ? ` · ${s.qb_hits} QB hits` : ""}` : "";
+        case "LB": return s.tkl != null ? `<b style="color:var(--white)">${s.tkl}</b> tkl · ${(+(s.sk || 0)).toFixed(1)} sk${s.int ? ` · ${s.int} INT` : ""}` : "";
+        case "CB":
+        case "S":  return (s.int != null || s.pdef != null) ? `<b style="color:var(--white)">${s.int || 0}</b> INT · <b style="color:var(--white)">${s.pdef || 0}</b> PD · ${s.tkl || 0} tkl` : "";
+        case "K":  return s.fg_att ? `<b style="color:var(--white)">${s.fg_made || 0}/${s.fg_att}</b> FG · ${s.xp_made || 0}/${s.xp_att || 0} XP` : "";
+        case "P":  return s.punts ? `${s.punts} punts · ${(s.punt_avg || 0).toFixed(1)} avg` : "";
+      }
+      return "";
+    };
+    const cap = effectiveSalaryCap(myId);
     const rows = stars.map(p => {
       const c = chgByPid[p.pid];
       const ovr = p.overall || 0;
@@ -11220,7 +11314,6 @@ function _buildOffseasonGainsSheet() {
       const tier = _ceilingTier(p.potential || ovr, p.draftRound);
       // Trajectory icon — combines this-offseason delta with age-curve hint
       const peakAge = p.peakAge || 27;
-      const isPast = (p.age || 0) > peakAge;
       const trajArrow = delta > 1 ? "▲" : delta < -1 ? "▼" : "━";
       const trajColor = delta > 1 ? "#86e0a3" : delta < -1 ? "#ff9b9b" : "#7a8b85";
       // Status flags (chip badges)
@@ -11241,19 +11334,35 @@ function _buildOffseasonGainsSheet() {
                      : (p.age || 0) >= 23            ? `<span style="color:#5ed4d4">ascending</span>`
                      :                                  `<span style="color:#a8d8b6">young</span>`;
       const deltaStr = delta > 0 ? `+${delta}` : delta < 0 ? `${delta}` : "—";
+      // vs market badge — green if under, amber if over, gray if even
+      const aav = p.contract?.aav || 0;
+      const market = (typeof computeMarketValue === "function") ? computeMarketValue(p, cap) : 0;
+      const vsMktHtml = (aav > 0 && market > 0) ? (() => {
+        const pct = Math.round((aav / market) * 100);
+        const col = pct < 90 ? "#86e0a3" : pct < 105 ? "#cce8d6" : pct < 120 ? "#e0b078" : "#ff8a8a";
+        const lbl = pct < 90 ? "bargain" : pct < 105 ? "fair" : pct < 120 ? "premium" : "OVERPAY";
+        return `<span style="font-size:.55rem;color:${col};letter-spacing:.5px" title="$${aav.toFixed(1)}M actual vs $${market.toFixed(1)}M market"><b>${pct}%</b> mkt · ${lbl}</span>`;
+      })() : "";
+      const keyStat = _keyStat(p);
+      const safeName = (p.name || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+      const portrait = (typeof _playerPortrait === "function") ? _playerPortrait(p, 38) : "";
       return `
-        <div style="display:grid;grid-template-columns:1.6rem 1fr auto auto;gap:.5rem;align-items:center;padding:.35rem .5rem;background:rgba(255,255,255,.025);border-radius:2px;border-left:3px solid ${tier.color}">
+        <div style="display:grid;grid-template-columns:1.4rem 38px 1fr auto auto auto;gap:.5rem;align-items:center;padding:.4rem .5rem;background:rgba(255,255,255,.025);border-radius:2px;border-left:3px solid ${tier.color}">
           <div style="font-family:'Bebas Neue','Anton',sans-serif;font-size:1.2rem;color:${tier.color};text-align:center;font-weight:900">${tier.grade}</div>
+          <div style="width:38px;height:38px;overflow:hidden;border-radius:3px;background:var(--bg3)">${portrait}</div>
           <div style="min-width:0">
             <div style="display:flex;align-items:baseline;gap:.4rem;flex-wrap:wrap">
-              <span style="font-weight:700;font-size:.78rem">${_playerLinkSmart(p.name)}</span>
+              <span style="font-weight:700;font-size:.8rem">${_playerLinkSmart(p.name)}</span>
               <span style="color:var(--gray);font-size:.62rem">${p.position} · age ${p.age}</span>
               <span style="font-size:.62rem">${ageStage}</span>
               ${flags.join(" ")}
             </div>
-            <div style="color:var(--gray);font-size:.58rem;margin-top:.1rem">
-              ${p.archetype ? `${p.archetype} · ` : ""}${p.contract?.remaining != null ? `${p.contract.remaining}yr left · ` : ""}${p.contract?.aav != null ? `$${p.contract.aav.toFixed(1)}M/yr` : ""}
+            <div style="color:var(--gray);font-size:.6rem;margin-top:.12rem;display:flex;flex-wrap:wrap;gap:.5rem;align-items:baseline">
+              ${p.archetype ? `<span>${p.archetype}</span>` : ""}
+              ${p.contract?.aav != null ? `<span>$${p.contract.aav.toFixed(1)}M/yr · ${p.contract.remaining}yr</span>` : ""}
+              ${vsMktHtml}
             </div>
+            ${keyStat ? `<div style="color:var(--gray);font-size:.6rem;margin-top:.12rem;font-style:italic">📊 ${keyStat}</div>` : ""}
           </div>
           <div style="text-align:right">
             <div style="font-family:'Bebas Neue','Anton',sans-serif;font-size:1.35rem;color:var(--white);line-height:1">${ovr}</div>
@@ -11262,6 +11371,9 @@ function _buildOffseasonGainsSheet() {
           <div style="text-align:right;min-width:2.5rem">
             <div style="font-family:'Bebas Neue','Anton',sans-serif;font-size:1.2rem;color:${trajColor};line-height:1">${trajArrow}${deltaStr !== "—" ? ` ${deltaStr}` : ""}</div>
             <div style="font-size:.56rem;color:var(--gray);letter-spacing:.5px">YoY</div>
+          </div>
+          <div style="text-align:right">
+            <button onclick="frnExtendPlayer('${safeName}')" style="font-size:.55rem;letter-spacing:.5px;padding:.2rem .55rem;border-radius:2px;border:1px solid var(--blborder);background:transparent;color:var(--gold);cursor:pointer;font-family:inherit" title="Open contract extension">📝 EXTEND</button>
           </div>
         </div>`;
     }).join("");
@@ -11603,7 +11715,7 @@ function _buildOffseasonGainsSheet() {
         <span title="Cap room available after current contracts">💰 <b style="color:${capColor};font-family:'Bebas Neue','Anton',sans-serif;font-size:.78rem">$${champExtras.capFree.toFixed(0)}M</b> cap free</span>
         <span title="R1+R2 picks owned for next 2 drafts">🎯 <b style="color:${pickColor};font-family:'Bebas Neue','Anton',sans-serif;font-size:.78rem">${champExtras.earlyPicks}</b> R1/R2 picks</span>
         <span title="% of cap in your top-5 paid contracts (top-heavy = risk)">⚡ <b style="color:${concColor};font-family:'Bebas Neue','Anton',sans-serif;font-size:.78rem">${champExtras.top5Pct.toFixed(0)}%</b> top-5</span>
-        <span title="League rank by avg OVR">🏟 <b style="color:${rankColor};font-family:'Bebas Neue','Anton',sans-serif;font-size:.78rem">#${champExtras.myRank}/${champExtras.totalTeams}</b> league</span>
+        <span title="League rank by avg OVR">🏟 <b style="color:${rankColor};font-family:'Bebas Neue','Anton',sans-serif;font-size:.78rem">${champExtras.myRank > 0 ? `#${champExtras.myRank}/${champExtras.totalTeams}` : "—"}</b> league</span>
         <span title="Players ≤24 with B-tier or better ceiling">🌱 <b style="color:${pipeColor};font-family:'Bebas Neue','Anton',sans-serif;font-size:.78rem">${champExtras.pipeline}</b> young upside</span>
         ${holdoutChip}
       </div>`;
@@ -11884,16 +11996,21 @@ function _buildOffseasonGainsSheet() {
       <td style="padding:.3rem .5rem;color:var(--gray);font-size:.7rem;font-family:'Bebas Neue','Anton',sans-serif;letter-spacing:.5px">${c.ageBefore} → ${c.ageNow}</td>
       <td style="padding:.3rem .5rem;font-family:'Bebas Neue','Anton',sans-serif;letter-spacing:.5px;white-space:nowrap">${c.preOvr} → <span style="color:${dColor}">${c.postOvr}</span></td>
       <td style="padding:.3rem .5rem;color:${dColor};font-weight:900;font-family:'Bebas Neue','Anton',sans-serif;font-size:1.1rem">${dStr}</td>
+      <td style="padding:.3rem .5rem"><button onclick="frnExtendPlayer('${safeName}')" style="font-size:.55rem;letter-spacing:.5px;padding:.15rem .45rem;border-radius:2px;border:1px solid var(--blborder);background:transparent;color:var(--gold);cursor:pointer;font-family:inherit" title="Open contract extension talks">📝 EXTEND</button></td>
+      <td style="padding:.3rem .5rem;font-size:.6rem">${_statChips(c.statDeltas)}${_renderOffReasonChips(c.reasons)}</td>
       <td style="padding:.3rem .5rem;white-space:nowrap">${_ceilingCell(c)}</td>
       <td style="padding:.3rem .5rem;white-space:nowrap">${_contractCell(c)}</td>
-      <td style="padding:.3rem .5rem;font-size:.6rem">${_statChips(c.statDeltas)}${_renderOffReasonChips(c.reasons)}</td>
-      <td style="padding:.3rem .5rem;text-align:right"><button onclick="frnExtendPlayer('${safeName}')" style="font-size:.55rem;letter-spacing:.5px;padding:.15rem .45rem;border-radius:2px;border:1px solid var(--blborder);background:transparent;color:var(--gold);cursor:pointer;font-family:inherit" title="Open contract extension talks">📝 EXTEND</button></td>
     </tr>`;
   };
 
   // Section renderer. `collapsed` wraps the table in <details> so it
   // ships closed by default — used for HOLDING (steady players are
   // noise that buries the gainers on rosters with 30+ unchanged rows).
+  // Column order optimized for read flow + actionable: name → pos →
+  // age → OVR → Δ → EXTEND (action button sits next to the metrics
+  // that drive the decision: age + OVR + delta + details) → details
+  // chips → ceiling tier → contract years. Reference columns
+  // (ceiling, contract) come last since they're less decision-driving.
   const _tableInner = (rows) => `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.72rem">
     <thead><tr style="color:var(--gray);font-size:.55rem;letter-spacing:1px">
       <th style="text-align:left;padding:.2rem .5rem">PLAYER</th>
@@ -11901,10 +12018,10 @@ function _buildOffseasonGainsSheet() {
       <th style="text-align:left;padding:.2rem .5rem">AGE</th>
       <th style="text-align:left;padding:.2rem .5rem">OVR</th>
       <th style="text-align:left;padding:.2rem .5rem">Δ</th>
+      <th style="text-align:left;padding:.2rem .5rem"></th>
+      <th style="text-align:left;padding:.2rem .5rem">DETAILS</th>
       <th style="text-align:left;padding:.2rem .5rem">CEILING</th>
       <th style="text-align:left;padding:.2rem .5rem">CONTRACT</th>
-      <th style="text-align:left;padding:.2rem .5rem">DETAILS</th>
-      <th style="text-align:right;padding:.2rem .5rem"></th>
     </tr></thead>
     <tbody>${rows.map(_row).join("")}</tbody>
   </table></div>`;
@@ -11943,13 +12060,17 @@ function _buildOffseasonGainsSheet() {
   // candy at the top, then info-density below.
   return `<div style="margin-top:.8rem;padding:.7rem .8rem;background:rgba(255,255,255,.02);border:1px solid var(--blborder);border-radius:4px">
     <div class="frn-sec-title" style="margin-bottom:.5rem">📊 PLAYER DEVELOPMENT REPORT</div>
-    ${chipsHtml}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.6rem" class="frn-dev-synth-row">
       <div>${campCardHtml}</div>
       <div>${champWindowHtml}</div>
     </div>
     ${summaryHtml}
     ${chartsBlock}
+    <div style="margin-top:.6rem;padding:.4rem .5rem;background:rgba(255,255,255,.02);border:1px solid var(--blborder);border-radius:3px">
+      <div style="font-size:.5rem;color:#a98a2e;letter-spacing:1.2px;font-weight:700;margin-bottom:.25rem">🔍 FILTER PLAYER DRILL-DOWN</div>
+      ${chipsHtml}
+    </div>
+    ${emptyFilterNotice}
     <div class="frn-dev-report-grid" style="display:grid;grid-template-columns:2fr 1fr;gap:.7rem;margin-top:.4rem">
       <div class="frn-dev-main" style="min-width:0">
         ${starWatchBlock}
