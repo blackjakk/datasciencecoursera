@@ -5953,6 +5953,12 @@ function frnExtensionSign() {
     signedAav: offer,
     startSeason: franchise.season || 1,
     signedOvr: ovr,
+    // Flag for dev-report row indicators — turns the EXTEND button
+    // into a "✅ Nyr · $X.XM/yr" chip so the user sees the offer
+    // was signed without needing to scroll up to the news feed.
+    // Auto-clears when offseason advances to regular season (the
+    // dev report is gated on phase === "offseason").
+    _signedThisCycle: true,
   };
   if (typeof _clearGrudgeFlags === "function") _clearGrudgeFlags(p);
   _pushNews({ type: "extension",
@@ -6043,12 +6049,19 @@ function _extensionModalInnerHtml() {
   // the Cap Sheet on teams carrying meaningful dead money. Cap
   // projected at +5%/yr (same conservative assumption as Cap Horizon).
   const baselineRoster = (franchise.rosters?.[myId] || []).filter(o => o.contract && o.pid !== p.pid);
-  const refundsInfo = (typeof refundsForTeam === "function") ? refundsForTeam(myId) : { outgoing: [] };
+  const refundsInfo = (typeof refundsForTeam === "function") ? refundsForTeam(myId) : { outgoing: [], incoming: [] };
   const psCost = (typeof psCostForTeam === "function") ? psCostForTeam(myId) : 0;
-  // Dead cap remaining at year `yr` — refunds with yearsRemaining > yr
-  // still hit the cap. Per-refund proportional decay.
-  const _deadCapAtYr = (yr) => (refundsInfo.outgoing || []).reduce(
-    (s, r) => s + ((r.yearsRemaining > yr) ? (r.amount || 0) : 0), 0);
+  // Dead cap at year `yr` — outgoing refunds (dead $ I owe) ADD to
+  // cap usage, incoming refunds (dead $ another team owes me) SUBTRACT.
+  // Both decay as yearsRemaining ticks. Mirrors capUsedByTeam in
+  // core.js so the modal's numbers agree with the Cap Sheet.
+  const _deadCapAtYr = (yr) => {
+    const out = (refundsInfo.outgoing || []).reduce(
+      (s, r) => s + ((r.yearsRemaining > yr) ? (r.amount || 0) : 0), 0);
+    const inc = (refundsInfo.incoming || []).reduce(
+      (s, r) => s + ((r.yearsRemaining > yr) ? (r.amount || 0) : 0), 0);
+    return out - inc;
+  };
   const teamImpactRows = (typeof projectPlayerCapHit === "function") ? bases.map((base, i) => {
     let baseline = 0;
     for (const other of baselineRoster) {
@@ -11019,6 +11032,26 @@ function _buildOffseasonGainsSheet() {
   const myId = franchise.chosenTeamId;
   const allMyChg = (franchise._offChanges || []).filter(c => c.tId === myId && c.type === "dev");
   if (!allMyChg.length) return "";
+  // Shared lookup — pid → live player. Used by the EXTEND-button
+  // renderer below + by several blocks. Built once per render so
+  // each row doesn't re-scan the roster.
+  const _liveByPid = {};
+  for (const lp of (franchise.rosters?.[myId] || [])) _liveByPid[lp.pid] = lp;
+  // Shared EXTEND-cell renderer. If the player's contract has the
+  // _signedThisCycle flag set (by frnExtensionSign), morph the
+  // gold "📝 EXTEND" button into a green "✅ Nyr · $X.XM/yr" chip
+  // showing the actual signed terms. Click still re-opens the
+  // modal in case the user wants to revise.
+  const _extendCellHtml = (name, pid) => {
+    const safeName = (name || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    const live = pid ? _liveByPid[pid] : null;
+    if (live?.contract?._signedThisCycle) {
+      const yrs = live.contract.years || live.contract.remaining || 0;
+      const aav = live.contract.aav || 0;
+      return `<button onclick="frnExtendPlayer('${safeName}')" style="font-size:.5rem;letter-spacing:.4px;padding:.18rem .45rem;border-radius:2px;border:1px solid #86e0a3;background:rgba(134,224,163,.12);color:#86e0a3;cursor:pointer;font-family:inherit;font-weight:700" title="Signed via dev report — click to revise">✅ ${yrs}yr · $${aav.toFixed(1)}M/yr</button>`;
+    }
+    return `<button onclick="frnExtendPlayer('${safeName}')" style="font-size:.55rem;letter-spacing:.5px;padding:.15rem .45rem;border-radius:2px;border:1px solid var(--blborder);background:transparent;color:var(--gold);cursor:pointer;font-family:inherit" title="Open contract extension">📝 EXTEND</button>`;
+  };
   // Position filter state — chips at the top let the user narrow down.
   const POS_GROUPS = [
     ["ALL","ALL"], ["OFF","QB,RB,WR,TE,OL"], ["DEF","DL,LB,CB,S"], ["ST","K,P"],
@@ -11286,23 +11319,27 @@ function _buildOffseasonGainsSheet() {
     // franchise.seasonStats. Falls back to empty if no stats yet
     // (preseason day-one).
     const seasonStats = franchise.seasonStats?.[myId] || {};
+    // Key stats — uses the actual seasonStats keys written by the
+    // engine (play-engine.js _emptyLine at ~408). Audit caught keys
+    // that didn't match (s.int instead of pass_int / int_made,
+    // s.pdef instead of pd, s.qb_hits never written, etc.).
     const _keyStat = (p) => {
       const s = seasonStats[p.name];
       if (!s) return "";
       switch (p.position) {
-        case "QB": return s.pass_yds ? `<b style="color:var(--white)">${s.pass_yds}</b> pass yds · <b style="color:var(--white)">${s.pass_td || 0}</b> TD${s.int ? ` · ${s.int} INT` : ""}` : "";
+        case "QB": return s.pass_yds ? `<b style="color:var(--white)">${s.pass_yds}</b> pass yds · <b style="color:var(--white)">${s.pass_td || 0}</b> TD${s.pass_int ? ` · ${s.pass_int} INT` : ""}` : "";
         case "RB": return (s.rush_yds || s.rec_yds) ? `<b style="color:var(--white)">${s.rush_yds || 0}</b> rush · ${s.rec_yds || 0} rec · <b style="color:var(--white)">${(s.rush_td || 0) + (s.rec_td || 0)}</b> TD` : "";
         case "WR":
         case "TE": return s.rec_yds ? `<b style="color:var(--white)">${s.rec || 0}</b>/<b style="color:var(--white)">${s.rec_yds}</b> · <b style="color:var(--white)">${s.rec_td || 0}</b> TD` : "";
         case "OL": return s.sacks_allowed != null ? `${s.sacks_allowed} sacks allowed · ${s.snaps || 0} snaps` : "";
         case "DL":
         case "DT":
-        case "DE": return s.sk != null ? `<b style="color:var(--white)">${(+s.sk).toFixed(1)}</b> sk · ${s.tkl || 0} tkl${s.qb_hits ? ` · ${s.qb_hits} QB hits` : ""}` : "";
-        case "LB": return s.tkl != null ? `<b style="color:var(--white)">${s.tkl}</b> tkl · ${(+(s.sk || 0)).toFixed(1)} sk${s.int ? ` · ${s.int} INT` : ""}` : "";
+        case "DE": return s.sk != null ? `<b style="color:var(--white)">${(+s.sk).toFixed(1)}</b> sk · ${s.tkl || 0} tkl${s.int_made ? ` · ${s.int_made} INT` : ""}` : "";
+        case "LB": return s.tkl != null ? `<b style="color:var(--white)">${s.tkl}</b> tkl · ${(+(s.sk || 0)).toFixed(1)} sk${s.int_made ? ` · ${s.int_made} INT` : ""}` : "";
         case "CB":
-        case "S":  return (s.int != null || s.pdef != null) ? `<b style="color:var(--white)">${s.int || 0}</b> INT · <b style="color:var(--white)">${s.pdef || 0}</b> PD · ${s.tkl || 0} tkl` : "";
+        case "S":  return (s.int_made != null || s.pd != null) ? `<b style="color:var(--white)">${s.int_made || 0}</b> INT · <b style="color:var(--white)">${s.pd || 0}</b> PD · ${s.tkl || 0} tkl` : "";
         case "K":  return s.fg_att ? `<b style="color:var(--white)">${s.fg_made || 0}/${s.fg_att}</b> FG · ${s.xp_made || 0}/${s.xp_att || 0} XP` : "";
-        case "P":  return s.punts ? `${s.punts} punts · ${(s.punt_avg || 0).toFixed(1)} avg` : "";
+        case "P":  return s.snaps ? `${s.snaps} snaps` : "";
       }
       return "";
     };
@@ -11347,12 +11384,13 @@ function _buildOffseasonGainsSheet() {
       const safeName = (p.name || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
       const portrait = (typeof _playerPortrait === "function") ? _playerPortrait(p, 38) : "";
       return `
-        <div style="display:grid;grid-template-columns:1.4rem 38px 1fr auto auto auto;gap:.5rem;align-items:center;padding:.4rem .5rem;background:rgba(255,255,255,.025);border-radius:2px;border-left:3px solid ${tier.color}">
+        <div style="display:grid;grid-template-columns:1.4rem 38px 1fr auto auto;gap:.5rem;align-items:center;padding:.4rem .5rem;background:rgba(255,255,255,.025);border-radius:2px;border-left:3px solid ${tier.color}">
           <div style="font-family:'Bebas Neue','Anton',sans-serif;font-size:1.2rem;color:${tier.color};text-align:center;font-weight:900">${tier.grade}</div>
-          <div style="width:38px;height:38px;overflow:hidden;border-radius:3px;background:var(--bg3)">${portrait}</div>
+          <div style="width:38px;height:43px;overflow:hidden;border-radius:3px;background:var(--bg3);display:flex;align-items:center;justify-content:center">${portrait}</div>
           <div style="min-width:0">
             <div style="display:flex;align-items:baseline;gap:.4rem;flex-wrap:wrap">
               <span style="font-weight:700;font-size:.8rem">${_playerLinkSmart(p.name)}</span>
+              ${_extendCellHtml(p.name, p.pid)}
               <span style="color:var(--gray);font-size:.62rem">${p.position} · age ${p.age}</span>
               <span style="font-size:.62rem">${ageStage}</span>
               ${flags.join(" ")}
@@ -11371,9 +11409,6 @@ function _buildOffseasonGainsSheet() {
           <div style="text-align:right;min-width:2.5rem">
             <div style="font-family:'Bebas Neue','Anton',sans-serif;font-size:1.2rem;color:${trajColor};line-height:1">${trajArrow}${deltaStr !== "—" ? ` ${deltaStr}` : ""}</div>
             <div style="font-size:.56rem;color:var(--gray);letter-spacing:.5px">YoY</div>
-          </div>
-          <div style="text-align:right">
-            <button onclick="frnExtendPlayer('${safeName}')" style="font-size:.55rem;letter-spacing:.5px;padding:.2rem .55rem;border-radius:2px;border:1px solid var(--blborder);background:transparent;color:var(--gold);cursor:pointer;font-family:inherit" title="Open contract extension">📝 EXTEND</button>
           </div>
         </div>`;
     }).join("");
@@ -11588,14 +11623,13 @@ function _buildOffseasonGainsSheet() {
     const dColor = c.delta > 0 ? "#86e0a3" : c.delta < 0 ? "#ff9b9b" : "var(--gray)";
     return `<tr style="border-top:1px solid rgba(255,255,255,.04)">
       <td style="padding:.18rem .5rem;color:var(--gray);font-size:.55rem;width:1.5rem">${i+1}</td>
-      <td style="padding:.18rem .5rem;font-weight:700">${_playerLinkSmart(c.name)}</td>
+      <td style="padding:.18rem .5rem;font-weight:700;white-space:nowrap">${_playerLinkSmart(c.name)} ${_extendCellHtml(c.name, c.pid)}</td>
       <td style="padding:.18rem .5rem;color:var(--gray);font-size:.65rem">${c.pos}</td>
       <td style="padding:.18rem .5rem;color:var(--gray);font-size:.65rem">${c.ageNow}</td>
       <td style="padding:.18rem .5rem;font-family:'Bebas Neue','Anton',sans-serif;font-size:1rem;color:var(--white)">${c.postOvr}</td>
       <td style="padding:.18rem .5rem;color:${dColor};font-size:.65rem">${dStr}</td>
       <td style="padding:.18rem .5rem;font-size:.6rem"><b style="color:${tier.color}">${tier.grade}</b></td>
       <td style="padding:.18rem .5rem">${contractFlag}</td>
-      <td style="padding:.18rem .5rem;text-align:right"><button onclick="frnExtendPlayer('${(c.name||"").replace(/\\/g, "\\\\").replace(/'/g, "\\'")}')" style="font-size:.55rem;letter-spacing:.5px;padding:.15rem .45rem;border-radius:2px;border:1px solid var(--blborder);background:transparent;color:var(--gold);cursor:pointer;font-family:inherit">📝 EXTEND</button></td>
     </tr>`;
   };
   const topOverallsBlock = topOveralls.length ? `
@@ -11611,7 +11645,6 @@ function _buildOffseasonGainsSheet() {
           <th style="text-align:left;padding:.15rem .5rem">Δ</th>
           <th style="text-align:left;padding:.15rem .5rem">CEIL</th>
           <th style="text-align:left;padding:.15rem .5rem">CONT</th>
-          <th style="text-align:right;padding:.15rem .5rem"></th>
         </tr></thead>
         <tbody>${topOveralls.map(_topOvrRow).join("")}</tbody>
       </table></div>
@@ -11991,12 +12024,11 @@ function _buildOffseasonGainsSheet() {
     // generated names if any future name-generator adds backslashes.
     const safeName = (c.name || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
     return `<tr style="border-top:1px solid rgba(255,255,255,.04)">
-      <td style="padding:.3rem .5rem;font-weight:700">${_playerLinkSmart(c.name)}</td>
+      <td style="padding:.3rem .5rem;font-weight:700;white-space:nowrap">${_playerLinkSmart(c.name)} ${_extendCellHtml(c.name, c.pid)}</td>
       <td style="padding:.3rem .5rem;color:var(--gray);font-size:.7rem">${c.pos}</td>
       <td style="padding:.3rem .5rem;color:var(--gray);font-size:.7rem;font-family:'Bebas Neue','Anton',sans-serif;letter-spacing:.5px">${c.ageBefore} → ${c.ageNow}</td>
       <td style="padding:.3rem .5rem;font-family:'Bebas Neue','Anton',sans-serif;letter-spacing:.5px;white-space:nowrap">${c.preOvr} → <span style="color:${dColor}">${c.postOvr}</span></td>
       <td style="padding:.3rem .5rem;color:${dColor};font-weight:900;font-family:'Bebas Neue','Anton',sans-serif;font-size:1.1rem">${dStr}</td>
-      <td style="padding:.3rem .5rem"><button onclick="frnExtendPlayer('${safeName}')" style="font-size:.55rem;letter-spacing:.5px;padding:.15rem .45rem;border-radius:2px;border:1px solid var(--blborder);background:transparent;color:var(--gold);cursor:pointer;font-family:inherit" title="Open contract extension talks">📝 EXTEND</button></td>
       <td style="padding:.3rem .5rem;font-size:.6rem">${_statChips(c.statDeltas)}${_renderOffReasonChips(c.reasons)}</td>
       <td style="padding:.3rem .5rem;white-space:nowrap">${_ceilingCell(c)}</td>
       <td style="padding:.3rem .5rem;white-space:nowrap">${_contractCell(c)}</td>
@@ -12006,11 +12038,8 @@ function _buildOffseasonGainsSheet() {
   // Section renderer. `collapsed` wraps the table in <details> so it
   // ships closed by default — used for HOLDING (steady players are
   // noise that buries the gainers on rosters with 30+ unchanged rows).
-  // Column order optimized for read flow + actionable: name → pos →
-  // age → OVR → Δ → EXTEND (action button sits next to the metrics
-  // that drive the decision: age + OVR + delta + details) → details
-  // chips → ceiling tier → contract years. Reference columns
-  // (ceiling, contract) come last since they're less decision-driving.
+  // EXTEND button now inline next to player name so the action is
+  // anchored to the entity being acted upon (user's request).
   const _tableInner = (rows) => `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.72rem">
     <thead><tr style="color:var(--gray);font-size:.55rem;letter-spacing:1px">
       <th style="text-align:left;padding:.2rem .5rem">PLAYER</th>
@@ -12018,7 +12047,6 @@ function _buildOffseasonGainsSheet() {
       <th style="text-align:left;padding:.2rem .5rem">AGE</th>
       <th style="text-align:left;padding:.2rem .5rem">OVR</th>
       <th style="text-align:left;padding:.2rem .5rem">Δ</th>
-      <th style="text-align:left;padding:.2rem .5rem"></th>
       <th style="text-align:left;padding:.2rem .5rem">DETAILS</th>
       <th style="text-align:left;padding:.2rem .5rem">CEILING</th>
       <th style="text-align:left;padding:.2rem .5rem">CONTRACT</th>
