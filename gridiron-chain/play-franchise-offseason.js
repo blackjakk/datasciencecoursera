@@ -15983,15 +15983,30 @@ function _renderDraftFloor() {
     }
   }
 
+  // Watchlist crossover — cross-screen 👁 list. A watched-but-not-targeted
+  // prospect getting sniped is the exact moment the user invested in
+  // watching them; needs a visual signal distinct from the red target stripe.
+  const watchedSet = new Set(franchise.watchedPlayers || []);
   const pickRows = floorPicks.slice(0, 12).map((pk, i) => {
     const team = getTeam(pk.teamId);
     const isTarget = targets.has(pk.prospectName);
+    const isWatched = watchedSet.has(pk.prospectName);
     const isMostRecent = i === 0;
     const teamLabel = team ? `${team.city} ${team.name}` : "?";
-    return `<div class="frn-floor-pick ${isMostRecent ? "frn-floor-pick--new" : ""}" style="display:grid;grid-template-columns:2.8rem 9rem 1fr 2.4rem;gap:.55rem;padding:.4rem .65rem;font-size:.7rem;align-items:baseline;background:${isMostRecent ? "rgba(200,169,0,.10)" : "transparent"};border-left:${isTarget ? "3px solid #ff8a8a" : isMostRecent ? "3px solid var(--gold)" : "3px solid transparent"};margin-bottom:.18rem">
+    // Border priority: target (red) > watched (blue) > recent (gold) > transparent
+    const borderColor = isTarget ? "#ff8a8a"
+                      : isWatched ? "#6cc6ff"
+                      : isMostRecent ? "var(--gold)" : "transparent";
+    const esc = (pk.prospectName||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'");
+    const tag = isTarget
+      ? ` <span style="color:#ff8a8a;font-size:.55rem;letter-spacing:.5px">· YOUR TARGET</span>`
+      : isWatched
+      ? ` <span style="color:#cce7ff;font-size:.55rem;letter-spacing:.5px">· 👁 WATCHED</span>`
+      : "";
+    return `<div class="frn-floor-pick ${isMostRecent ? "frn-floor-pick--new" : ""}" style="display:grid;grid-template-columns:2.8rem 9rem 1fr 2.4rem;gap:.55rem;padding:.4rem .65rem;font-size:.7rem;align-items:baseline;background:${isMostRecent ? "rgba(200,169,0,.10)" : "transparent"};border-left:3px solid ${borderColor};margin-bottom:.18rem">
       <span style="color:var(--gray);font-weight:700">R${pk.round}.${pk.pickInRound}${pk.isComp?"c":""}</span>
       <span style="color:var(--blwhite);font-weight:700;font-size:.65rem">${teamLabel}</span>
-      <span style="color:var(--white)">${pk.prospectName}${isTarget?` <span style="color:#ff8a8a;font-size:.55rem;letter-spacing:.5px">· YOUR TARGET</span>`:""}</span>
+      <span style="color:var(--white);cursor:pointer" onclick="frnOpenPlayerCard('${esc}')" title="Open ${pk.prospectName}'s card">${pk.prospectName}${tag}</span>
       <span style="color:var(--gold-lt);font-weight:700;font-size:.62rem">${pk.pos}</span>
     </div>`;
   }).join("");
@@ -16043,8 +16058,8 @@ function _renderDraftFloor() {
           </div>
           <div style="color:var(--gray);font-size:.7rem">
             ${nextUserSlot
-              ? `Your next pick: R${nextUserSlot.round}.${nextUserSlot.pickInRound}${nextUserSlot.isComp?"c":""} · ${myTeam?.city} ${myTeam?.name}`
-              : `${myTeam?.city} ${myTeam?.name}`}
+              ? `Your next pick: R${nextUserSlot.round}.${nextUserSlot.pickInRound}${nextUserSlot.isComp?"c":""} · ${myTeam ? `${myTeam.city} ${myTeam.name}` : "Your team"}`
+              : (myTeam ? `${myTeam.city} ${myTeam.name}` : "Your team")}
           </div>
         </div>
         <button class="btn btn-gold" style="font-size:.7rem;padding:.4rem .9rem;white-space:nowrap"
@@ -17892,7 +17907,16 @@ function _buildDraftPickOrder() {
     for (const origTeam of sorted) {
       const pick = (franchise.picks || []).find(p =>
         p.year === draftYear && p.round === r && p.originalTeamId === origTeam.id && !p.isComp);
-      const ownerId = pick?.currentOwnerId ?? origTeam.id;
+      // If the pick row is missing entirely (corrupt save, manual edit),
+      // skip the slot rather than silently re-granting it to the
+      // original owner via the `?? origTeam.id` fallback. _ensurePicksForYear
+      // above should normally populate, so a missing row is a real anomaly
+      // worth surfacing.
+      if (!pick) {
+        console.warn(`[draft] missing pick row R${r}.${inRound+1} for team ${origTeam.id} — skipping slot`);
+        continue;
+      }
+      const ownerId = pick.currentOwnerId ?? origTeam.id;
       inRound += 1;
       order.push({
         round: r, teamId: ownerId, originalTeamId: origTeam.id,
@@ -17914,6 +17938,18 @@ function _buildDraftPickOrder() {
           compFor: cp.compFor,
         });
       }
+    }
+  }
+  // Sanity check — order must be non-empty and every slot must reference
+  // a known team. Surfaces corruption (manual save edits, partial
+  // _ensurePicksForYear, missing comp pick rows) at build time rather
+  // than crashing mid-draft.
+  if (!order.length) {
+    console.error("[draft] _buildDraftPickOrder produced an empty order — franchise.picks may be malformed for year", draftYear);
+  }
+  for (const slot of order) {
+    if (!slot.teamId || !getTeam(slot.teamId)) {
+      console.warn(`[draft] pickOrder slot R${slot.round}.${slot.pickInRound} references unknown teamId="${slot.teamId}"`);
     }
   }
   return order;
@@ -18154,6 +18190,7 @@ function renderFrnDraft() {
 
   // Collect and clear target-gone alerts
   const gone = (d._targetGone || []).splice(0);
+  const watchedGone = (d._watchedGone || []).splice(0);
 
   // Position run
   const posRun = _draftPositionRun(d.picks);
@@ -18426,6 +18463,9 @@ function renderFrnDraft() {
   const alertsHtml = gone.map(t=>{
     const team = getTeam(t.teamId);
     return `<div class="frn-draft-target-gone">📌 TARGET GONE — ${t.name} taken by ${team?.name||"?"} at ${t.round}.${t.pick}</div>`;
+  }).join("") + watchedGone.map(t=>{
+    const team = getTeam(t.teamId);
+    return `<div class="frn-draft-watched-gone">👁 WATCHED GONE — ${t.name} taken by ${team?.name||"?"} at ${t.round}.${t.pick}</div>`;
   }).join("");
 
   // ── Undo banner (back-to-back picks: floor anim skipped, banner lives on board) ──
@@ -18840,14 +18880,66 @@ function frnAutoDraftRemaining() {
 // ── Post-draft grade screen ───────────────────────────────────────────────────
 function _renderPostDraftGrade(myPicks) {
   const myTeam = getTeam(franchise.chosenTeamId);
+  const teamLabel = myTeam ? `${myTeam.city} ${myTeam.name}` : "Your team";
+  const roster = franchise.rosters[franchise.chosenTeamId] || [];
+  // Pull UDFA claims so they appear in the recap. They're not in
+  // d.picks (UDFA scramble bypasses the pick array entirely) — find
+  // them on the roster as rookies with draftRound=0 and matching season.
+  const udfaClaims = roster.filter(p =>
+    p.draftRound === 0 &&
+    p.draftSeason === (franchise.season || 0) + 1 &&
+    !myPicks.some(pk => pk.prospectName === p.name));
+
+  // No-picks branch — user traded every pick. UDFAs aren't graded
+  // (they get plain scout grade just by existing), so the letter would
+  // be misleading. Show a clear "traded out" panel and list UDFAs
+  // separately if there are any.
+  if (!myPicks.length) {
+    const udfaHtmlSolo = udfaClaims.length
+      ? `<div style="margin-top:.65rem;background:var(--bg2);border:1px solid var(--border);padding:.5rem .65rem">
+           <div class="frn-card-title" style="margin-bottom:.25rem">YOUR UDFA CLAIMS (${udfaClaims.length})</div>
+           ${udfaClaims.map(p => {
+             const e = (p.name||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'");
+             return `<div class="frn-draft-pick-review">
+               <span class="frn-draft-ticker-pick-no">UDFA</span>
+               <span style="font-weight:700;cursor:pointer" onclick="frnOpenPlayerCard('${e}')">${p.name}</span>
+               <span style="color:var(--gold);font-size:.6rem">${p.position}</span>
+               <span class="tt-ovr tier-${gradeClass(scoutGrade(p))}">${gradeLabel(scoutGrade(p))}</span>
+             </div>`;
+           }).join("")}
+         </div>` : "";
+    $("frnHomeContent").innerHTML = `
+      <div style="max-width:560px;margin:0 auto">
+        <div class="frn-draft-grade-card">
+          <div style="font-size:.58rem;letter-spacing:1px;color:var(--gray);margin-bottom:.3rem">DRAFT CLASS · ${teamLabel}</div>
+          <div style="font-size:2.6rem;color:var(--gold);font-weight:900;letter-spacing:2px;margin:.2rem 0">—</div>
+          <div style="color:var(--gold-lt);font-size:.84rem;margin-bottom:.4rem">You traded out of this draft</div>
+          <div style="color:var(--gray);font-size:.72rem;font-style:italic;max-width:360px;margin:0 auto .8rem">No selections to grade. Future-pick capital was the strategy.</div>
+        </div>
+        ${udfaHtmlSolo}
+        <div style="margin-top:.75rem;text-align:center">
+          <button class="btn btn-gold-big" onclick="frnConfirmDraftContinueToSeason()">▶ BEGIN NEW SEASON</button>
+        </div>
+      </div>`;
+    return;
+  }
+
   const roundExp = {1:80,2:72,3:65,4:58,5:54,6:50,7:47};
   const scored = myPicks.map(pk => {
-    const prospect = (franchise.rosters[franchise.chosenTeamId]||[]).find(p=>p.name===pk.prospectName) || {};
-    const sg = scoutGrade({...prospect, overall: prospect.overall||60, name:pk.prospectName});
-    const exp = roundExp[pk.round]||58;
-    return {...pk, sg, delta: sg - exp};
+    const prospect = roster.find(p => p.name === pk.prospectName);
+    if (!prospect) {
+      // Roster lookup miss is a real bug, not a soft-fail. Log it and
+      // mark the row so the user sees the anomaly instead of silently
+      // grading a 60-OVR phantom as C-ish.
+      console.warn(`[post-draft] no roster entry for picked prospect "${pk.prospectName}" (${pk.pos}, R${pk.round})`);
+      return { ...pk, sg: null, delta: 0, missing: true };
+    }
+    const sg = scoutGrade(prospect);
+    const exp = roundExp[pk.round] || 58;
+    return { ...pk, sg, delta: sg - exp, prospect };
   });
-  const avg = scored.length ? scored.reduce((s,p)=>s+p.sg,0)/scored.length : 60;
+  const valid = scored.filter(p => !p.missing);
+  const avg = valid.length ? valid.reduce((s, p) => s + p.sg, 0) / valid.length : 60;
   const [letter, col] = avg>=82?["A+","#ffe066"]:avg>=77?["A","#ffe066"]:avg>=72?["A-","#ffcc44"]
     :avg>=68?["B+","#aaffaa"]:avg>=63?["B","#aaffaa"]:avg>=58?["B-","#aaffaa"]
     :avg>=53?["C+","#aaaaff"]:avg>=48?["C","#aaaaff"]:avg>=43?["D","#ffaaaa"]:["F","#ff7070"];
@@ -18863,49 +18955,103 @@ function _renderPostDraftGrade(myPicks) {
     "D": ["Poor draft — value misses and few needs addressed.","Front office left a lot of talent on the board. Concerning."],
     "F": ["A historically bad class — reaches at every level.","This front office has some serious explaining to do."],
   };
-  const qList = quotes[letter]||quotes["C"];
-  const quote = qList[Math.floor(Math.random()*qList.length)];
-  const sortedByDelta = scored.slice().sort((a,b)=>b.delta-a.delta);
+  const qList = quotes[letter] || quotes["C"];
+  // Cache the quote index so re-renders don't reshuffle. Picks the same
+  // line for the life of this grade screen — feels written, not random.
+  if (franchise.draft && franchise.draft._gradeQuoteIdx == null) {
+    franchise.draft._gradeQuoteIdx = Math.floor(Math.random() * qList.length);
+  }
+  const quote = qList[(franchise.draft?._gradeQuoteIdx ?? 0) % qList.length];
+
+  const sortedByDelta = valid.slice().sort((a,b) => b.delta - a.delta);
   const bestVal  = sortedByDelta[0];
-  const bigReach = sortedByDelta[sortedByDelta.length-1];
-  const picksHtml = scored.sort((a,b)=>a.pick-b.pick).map(pk=>{
-    const tag = pk.delta>=6 ? `<span style="color:var(--green-lt);font-size:.56rem;font-weight:700">★ VALUE</span>`
-              : pk.delta<=-6? `<span style="color:#ff9090;font-size:.56rem;font-weight:700">▼ REACH</span>` : "";
-    const sg = pk.sg;
-    // Build the grade badge from the same sg we used for the delta
-    // calculation. The old code synthesized a fakeP without position,
-    // which made _playerNoiseBand not recognize it as owned and re-
-    // applied scouting noise — so the displayed letter could differ
-    // from the letter implied by sg. This direct construction skips
-    // the round-trip entirely.
+  const bigReach = sortedByDelta[sortedByDelta.length - 1];
+
+  // Watchlist context — how many drafted prospects were on the user's
+  // pre-draft watchlist. Surfaces the "homework paid off" signal.
+  const watched = new Set(franchise.watchedPlayers || []);
+  const watchedHits = scored.filter(p => watched.has(p.prospectName)).length;
+  const watchedTotal = watched.size;
+
+  // Helper: build a compact one-line note from the new draft-notes data.
+  // Shows the headline concern (if any) or the headline strength.
+  const noteLine = (prospect) => {
+    if (!prospect) return "";
+    const n = (typeof _buildDraftNotes === "function") ? _buildDraftNotes(prospect) : null;
+    if (!n) return "";
+    const top = n.concerns.find(c => c.tier === "red-flag")
+             || n.concerns.find(c => c.tier === "major")
+             || n.concerns[0];
+    if (top) {
+      const dot = top.tier === "red-flag" ? "🔴" : top.tier === "major" ? "🟠" : "🟡";
+      return `<div style="font-size:.55rem;color:var(--gray);margin-top:.08rem">${dot} ${top.text}</div>`;
+    }
+    const str = n.strengths[0];
+    if (str) return `<div style="font-size:.55rem;color:var(--green-lt);margin-top:.08rem">💪 ${str.text}</div>`;
+    return "";
+  };
+
+  const renderPickRow = (pk, isUdfa) => {
+    const esc = (pk.prospectName || "").replace(/\\/g,"\\\\").replace(/'/g,"\\'");
+    const labelLeft = isUdfa ? "UDFA" : `R${pk.round}.${pk.pickInRound ?? (((pk.pick-1)%32)+1)}${pk.isComp?"c":""}`;
+    if (pk.missing) {
+      return `<div class="frn-draft-pick-review" style="opacity:.55">
+        <span class="frn-draft-ticker-pick-no">${labelLeft}</span>
+        <span style="font-weight:700">${pk.prospectName}</span>
+        <span style="color:var(--gray);font-size:.6rem">${pk.pos}</span>
+        <span style="color:#ff9090;font-size:.55rem;font-weight:700" title="Roster entry not found — pick row may be stale">?? MISSING</span>
+      </div>`;
+    }
+    const tag = (!isUdfa && pk.delta >= 6) ? `<span style="color:var(--green-lt);font-size:.56rem;font-weight:700">★ VALUE</span>`
+              : (!isUdfa && pk.delta <= -6) ? `<span style="color:#ff9090;font-size:.56rem;font-weight:700">▼ REACH</span>`
+              : "";
+    const sg = pk.sg ?? 60;
     const badge = `<span class="tt-ovr tier-${gradeClass(sg)}" title="Scout grade at draft · ${sg}">${gradeLabel(sg)}</span>`;
+    const compForLine = pk.compFor?.playerName
+      ? `<span style="color:var(--gray);font-size:.54rem;font-weight:400" title="Compensatory pick for ${pk.compFor.playerName}"> · comp for ${pk.compFor.playerName}</span>` : "";
+    const watchTag = watched.has(pk.prospectName)
+      ? `<span style="color:#cce7ff;font-size:.52rem;font-weight:700;letter-spacing:.3px" title="Was on your pre-draft watchlist">👁</span>` : "";
     return `<div class="frn-draft-pick-review">
-      <span class="frn-draft-ticker-pick-no">R${pk.round}.${pk.pickInRound ?? (((pk.pick-1)%32)+1)}${pk.isComp ? "c" : ""}</span>
-      <span style="font-weight:700">${pk.prospectName}</span>
-      <span style="color:var(--gold);font-size:.6rem">${pk.pos}</span>
+      <span class="frn-draft-ticker-pick-no">${labelLeft}${compForLine}</span>
+      <div style="display:flex;flex-direction:column;flex:1;min-width:0">
+        <div style="display:flex;gap:.4rem;align-items:baseline">
+          ${watchTag}
+          <span style="font-weight:700;cursor:pointer" onclick="frnOpenPlayerCard('${esc}')" title="Open ${pk.prospectName}'s card">${pk.prospectName}</span>
+          <span style="color:var(--gold);font-size:.6rem">${pk.pos}</span>
+        </div>
+        ${noteLine(pk.prospect)}
+      </div>
       <span>${tag||badge}</span>
     </div>`;
-  }).join("");
+  };
+
+  const picksHtml = scored.sort((a,b) => a.pick - b.pick).map(pk => renderPickRow(pk, false)).join("");
+  const udfaHtml = udfaClaims.length
+    ? `<div style="margin-top:.55rem;background:var(--bg2);border:1px solid var(--border);padding:.5rem .65rem">
+         <div class="frn-card-title" style="margin-bottom:.25rem">YOUR UDFA CLAIMS (${udfaClaims.length})</div>
+         ${udfaClaims.map(p => renderPickRow({ prospectName: p.name, pos: p.position, prospect: p, sg: scoutGrade(p), delta: 0, pick: 999, round: 0 }, true)).join("")}
+       </div>` : "";
+
   $("frnHomeContent").innerHTML = `
-    <div style="max-width:540px;margin:0 auto">
+    <div style="max-width:600px;margin:0 auto">
       <div class="frn-draft-grade-card">
-        <div style="font-size:.58rem;letter-spacing:1px;color:var(--gray);margin-bottom:.3rem">DRAFT CLASS · ${myTeam?.city} ${myTeam?.name}</div>
+        <div style="font-size:.58rem;letter-spacing:1px;color:var(--gray);margin-bottom:.3rem">DRAFT CLASS · ${teamLabel}</div>
         <div class="frn-draft-grade-letter" style="color:${col}">${letter}</div>
         <div style="color:var(--gray);font-size:.76rem;font-style:italic;max-width:360px;margin:0 auto .8rem">"${quote}"</div>
         ${bestVal?.delta>=4?`<div style="font-size:.63rem;color:var(--green-lt);margin-bottom:.15rem">★ Best value: ${bestVal.prospectName} (R${bestVal.round})</div>`:""}
         ${bigReach?.delta<=-4?`<div style="font-size:.63rem;color:#ff9090;margin-bottom:.5rem">▼ Biggest reach: ${bigReach.prospectName} (R${bigReach.round})</div>`:""}
+        ${watchedTotal>0?`<div style="font-size:.62rem;color:#cce7ff;margin-top:.2rem">👁 ${watchedHits} of ${watchedTotal} watched prospects drafted</div>`:""}
       </div>
       <div style="margin-top:.65rem;background:var(--bg2);border:1px solid var(--border);padding:.5rem .65rem">
         <div class="frn-card-title" style="margin-bottom:.25rem">YOUR CLASS (${myPicks.length} picks)</div>
         ${picksHtml||`<div style="color:var(--gray);font-size:.7rem;font-style:italic">No picks made</div>`}
       </div>
+      ${udfaHtml}
       <div style="margin-top:.75rem;text-align:center">
         <button class="btn btn-gold-big" onclick="frnConfirmDraftContinueToSeason()">▶ BEGIN NEW SEASON</button>
       </div>
     </div>`;
 }
-
-function frnDraftContinueToSeason() { frnNewSeason(); }
 
 // Position value premium — how much each position is worth above its
 // raw OVR in AI draft scoring. Reflects NFL "premier position" reality
@@ -18927,6 +19073,10 @@ function _draftSchemeBonus(teamId, pos) {
   return 0;
 }
 function _aiAutoPick(slot, opts) {
+  if (!slot || !slot.teamId) {
+    console.error("[draft] _aiAutoPick called with invalid slot — pickOrder corruption", slot);
+    return;
+  }
   const taken = new Set(franchise.draft.picks.map(p => p.prospectName));
   // Exclude UDFA-tier prospects (_generatedRound === 0). They live in the
   // UDFA scramble pool — drafting one wastes both a pick slot and UDFA
@@ -18986,6 +19136,7 @@ function _aiAutoPick(slot, opts) {
     pick: franchise.draft.currentIdx + 1, round: slot.round,
     teamId: slot.teamId, prospectName: pick.name, pos: pick.position,
     pickInRound: slot.pickInRound, isComp: !!slot.isComp,
+    compFor: slot.compFor,
   });
   // Alert user only if an AI team took one of their targets. User auto-
   // picking their own target shouldn't fire a "TARGET GONE" alert —
@@ -18995,11 +19146,23 @@ function _aiAutoPick(slot, opts) {
     franchise.draft._targetGone = franchise.draft._targetGone || [];
     franchise.draft._targetGone.push({ name: pick.name, teamId: slot.teamId, round: slot.round, pick: pick.draftPick });
   }
+  // Same idea for the cross-screen watchlist. Skipped when the prospect
+  // was also a target (target alert already fired — no double signal).
+  if (isAiPick
+      && !franchise.draft.targets?.includes(pick.name)
+      && (franchise.watchedPlayers || []).includes(pick.name)) {
+    franchise.draft._watchedGone = franchise.draft._watchedGone || [];
+    franchise.draft._watchedGone.push({ name: pick.name, teamId: slot.teamId, round: slot.round, pick: pick.draftPick });
+  }
 }
 
 function frnDraftPick(name) {
   const d = franchise.draft;
   const slot = d.pickOrder[d.currentIdx];
+  if (!slot || !slot.teamId) {
+    console.error("[draft] frnDraftPick fired with invalid slot at currentIdx", d.currentIdx);
+    return;
+  }
   if (slot.teamId !== franchise.chosenTeamId) return;
   const prospect = d.class.find(p => p.name === name);
   if (!prospect) return;
@@ -19033,6 +19196,7 @@ function frnDraftPick(name) {
     pick: d.currentIdx + 1, round: slot.round,
     teamId: slot.teamId, prospectName: prospect.name, pos: prospect.position,
     pickInRound: slot.pickInRound, isComp: !!slot.isComp,
+    compFor: slot.compFor,
   });
   d.currentIdx++;
   saveFranchise();
@@ -19177,6 +19341,22 @@ function frnDraftUnclaimUDFA(name) {
   saveFranchise();
   renderFrnUDFAScramble();
 }
+function frnDraftSetUdfaSearch(val) {
+  if (!franchise.draft) return;
+  franchise.draft.udfaSearch = val || "";
+  const input = document.getElementById("frnUdfaSearchInput");
+  const focused = document.activeElement === input;
+  const pos = focused ? input.selectionStart : null;
+  renderFrnUDFAScramble();
+  if (focused) {
+    const next = document.getElementById("frnUdfaSearchInput");
+    if (next) {
+      next.focus();
+      if (pos != null) try { next.setSelectionRange(pos, pos); } catch (e) {}
+    }
+  }
+}
+
 function frnDraftSetUdfaFilter(pos) {
   if (!franchise.draft) return;
   franchise.draft.udfaFilter = pos;
@@ -19221,6 +19401,15 @@ function _runUdfaAiClaims() {
 function frnDraftFinishScramble() {
   const d = franchise.draft;
   if (!d) return;
+  // Destructive boundary — once this runs, AI claims execute and
+  // _signUdfaTo mutates prospect objects irreversibly. The UDFA phase
+  // ends with no undo path, so confirm before committing. Mirrors the
+  // pattern around frnConfirmGoToDraft and frnAutoDraftRemaining.
+  const claimCount = (d.udfaUserClaims || []).length;
+  const msg = claimCount
+    ? `Sign ${claimCount} UDFA${claimCount===1?"":"s"} and finish the draft? AI teams will claim the rest. This can't be undone.`
+    : "Finish the draft without signing any UDFAs? AI teams will claim the rest. This can't be undone.";
+  if (!confirm(msg)) return;
   const myId = franchise.chosenTeamId;
   const myRoster = franchise.rosters[myId];
   const rookieYear = (new Date().getFullYear()) + (franchise.season || 1);
@@ -19250,61 +19439,122 @@ function frnDraftFinishScramble() {
 function renderFrnUDFAScramble() {
   const d = franchise.draft;
   const myId = franchise.chosenTeamId;
-  const myTeam = getTeam(myId);
   const myRoster = franchise.rosters[myId] || [];
   const claims = new Set(d.udfaUserClaims || []);
   const drafted = new Set(d.picks.map(pk => pk.prospectName));
   const filter = d.udfaFilter || "ALL";
+  const searchTerm = ((d.udfaSearch || "") + "").trim().toLowerCase();
+  const matchesSearch = (p) => !searchTerm || (p.name||"").toLowerCase().includes(searchTerm);
+  const watchedSet = new Set(franchise.watchedPlayers || []);
+  const scoutedSet = new Set(franchise.draftScouts || []);
 
   // Available pool — not drafted, not user-claimed, UDFA tier only
   const pool = d.class
     .filter(p => p._generatedRound === 0 && !drafted.has(p.name) && !claims.has(p.name))
     .sort((a, b) => _draftBoardScore(b) - _draftBoardScore(a));
   const filtered = filter === "K/P" ? pool.filter(p => p.position==="K"||p.position==="P")
+    : filter === "WATCHED" ? pool.filter(p => watchedSet.has(p.name))
     : filter === "ALL" ? pool : pool.filter(p => p.position === filter);
 
-  // Position deficits on the user's roster (informational sidebar)
+  // Position deficits on the user's roster — decrement by the user's
+  // pending claims so the chip reflects "what's still missing after
+  // I sign these UDFAs" instead of stale roster numbers.
   const deficits = [];
+  const claimedPositions = (d.udfaUserClaims || [])
+    .map(n => d.class.find(p => p.name === n)?.position)
+    .filter(Boolean);
   for (const [pos, needed] of Object.entries(ROSTER_SLOTS)) {
-    const have = myRoster.filter(p => p.position === pos).length;
+    const have = myRoster.filter(p => p.position === pos).length
+               + claimedPositions.filter(p => p === pos).length;
     if (have < needed) deficits.push({ pos, deficit: needed - have });
   }
   deficits.sort((a, b) => b.deficit - a.deficit);
 
+  // Watched / scouted lanes — pinned above the main pool. Scouted gets
+  // priority (paid budget) so scouted-AND-watched goes in scouted lane.
+  // Hidden under position filters to keep them focused.
+  const showLanes = (filter === "ALL" || filter === "WATCHED");
+  const scoutedLane = showLanes
+    ? pool.filter(p => scoutedSet.has(p.name) && matchesSearch(p))
+    : [];
+  const watchedLane = (filter === "ALL")
+    ? pool.filter(p => watchedSet.has(p.name) && !scoutedSet.has(p.name) && matchesSearch(p))
+    : [];
+
+  // Main pool excludes lane prospects under ALL filter to avoid dupes.
+  const mainFiltered = filtered.filter(p =>
+    matchesSearch(p)
+    && (filter !== "ALL" || (!scoutedSet.has(p.name) && !watchedSet.has(p.name)))
+  );
+  const HARD_CAP = 60;
+  const mainPool = (searchTerm || filter === "WATCHED") ? mainFiltered : mainFiltered.slice(0, HARD_CAP);
+  const truncated = !(searchTerm || filter === "WATCHED") && mainFiltered.length > HARD_CAP;
+
   const claimedRows = (d.udfaUserClaims || []).map(name => {
     const p = d.class.find(q => q.name === name);
     if (!p) return "";
+    const esc = (p.name||"").replace(/'/g,"\\'");
     return `<div class="frn-udfa-claim-row">
-      <span style="font-weight:700">${p.name}</span>
+      <span style="font-weight:700;cursor:pointer" onclick="frnOpenPlayerCard('${esc}')" title="Open ${p.name}'s card">${p.name}</span>
       ${_posPillHtml(p.position)}
       ${gradeBadge(p)}
-      <button class="btn btn-outline" onclick="frnDraftUnclaimUDFA('${(p.name||'').replace(/'/g,"\\'")}')">× Remove</button>
+      <button class="btn btn-outline" onclick="frnDraftUnclaimUDFA('${esc}')">× Remove</button>
     </div>`;
   }).join("");
 
-  const TABS = ["ALL","QB","RB","WR","TE","OL","DL","LB","CB","S","K/P"];
+  const watchedCount = pool.filter(p => watchedSet.has(p.name)).length;
+  const TABS = ["ALL","WATCHED","QB","RB","WR","TE","OL","DL","LB","CB","S","K/P"];
   const filterHtml = TABS.map(f => {
     const cnt = f==="ALL" ? pool.length
+      : f==="WATCHED" ? watchedCount
       : f==="K/P" ? pool.filter(p=>p.position==="K"||p.position==="P").length
       : pool.filter(p=>p.position===f).length;
-    return `<button class="frn-draft-filter-btn${filter===f?" active":""}" onclick="frnDraftSetUdfaFilter('${f}')">${f} <span style="opacity:.55;font-size:.52rem">${cnt}</span></button>`;
+    let cls = f === "WATCHED" ? "frn-draft-filter-btn watched" : "frn-draft-filter-btn";
+    if (cnt === 0) cls += " empty";
+    if (filter === f) cls += " active";
+    const label = f === "WATCHED" ? "👁 WATCHED" : f;
+    return `<button class="${cls}" onclick="frnDraftSetUdfaFilter('${f}')">${label} <span style="opacity:.55;font-size:.52rem">${cnt}</span></button>`;
   }).join("");
 
-  const poolHtml = filtered.slice(0, 40).map((p, i) => {
+  // Compact note line — top concern or top strength from draft-notes
+  const compactNote = (p) => {
+    const n = (typeof _buildDraftNotes === "function") ? _buildDraftNotes(p) : null;
+    if (!n) return "";
+    const top = n.concerns.find(c => c.tier === "red-flag")
+             || n.concerns.find(c => c.tier === "major")
+             || n.concerns[0];
+    if (top) {
+      const dot = top.tier === "red-flag" ? "🔴" : top.tier === "major" ? "🟠" : "🟡";
+      return `<div style="font-size:.55rem;color:var(--gray);margin-top:.08rem">${dot} ${top.text}</div>`;
+    }
+    const str = n.strengths[0];
+    if (str) return `<div style="font-size:.55rem;color:var(--green-lt);margin-top:.08rem">💪 ${str.text}</div>`;
+    return "";
+  };
+
+  const renderUdfaCard = (p, displayRank) => {
     const esc = (p.name||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'");
     const needLvl = _draftNeedLevel(myId, p.position);
     const needBadge = needLvl===2 ? `<span class="frn-draft-need-crit">❗NEED</span>`
                     : needLvl===1 ? `<span class="frn-draft-need-need">⚠ NEED</span>` : "";
     const arch = _archetypeLabel(p) || "—";
     const canClaim = claims.size < UDFA_USER_CLAIM_CAP;
-    return `<div class="frn-draft-prospect">
-      <div class="frn-dp-rank">#${i+1}</div>
+    const isWatched = watchedSet.has(p.name);
+    const isScouted = scoutedSet.has(p.name);
+    const watchedBadge = isWatched && !isScouted
+      ? `<span style="font-size:.52rem;color:#cce7ff;font-weight:700;letter-spacing:.3px">👁 WATCHED</span>` : "";
+    const scoutedBadge = isScouted
+      ? `<span style="font-size:.52rem;color:var(--green-lt);font-weight:700;letter-spacing:.3px">🔍 SCOUTED</span>` : "";
+    return `<div class="frn-draft-prospect${isScouted?" scouted":""}">
+      <div class="frn-dp-rank">${displayRank}</div>
       <div class="frn-dp-body">
         <div class="frn-dp-top">
-          <span class="frn-dp-name">${p.name}</span>
+          <span class="frn-dp-name" onclick="frnOpenPlayerCard('${esc}')" title="Open ${p.name}'s card">${p.name}</span>
           ${_posPillHtml(p.position)}
           ${needBadge}
           ${gradeBadge(p)}
+          ${scoutedBadge}
+          ${watchedBadge}
           <span style="color:var(--gray);font-size:.56rem">Age ${p.age}</span>
         </div>
         <div class="frn-dp-bottom">
@@ -19312,12 +19562,49 @@ function renderFrnUDFAScramble() {
           <span class="frn-dp-combine"> · ${_draftCombineStr(p)}</span>
         </div>
         ${p.collegeProfile?.line ? `<div style="font-size:.58rem;color:var(--gray);margin-top:.1rem">${p.collegeProfile.line}</div>` : ""}
+        ${compactNote(p)}
       </div>
       <div class="frn-dp-actions">
+        <button class="frn-draft-watch-btn${isWatched?" active":""}" onclick="frnDraftWatchToggle('${esc}')" title="${isWatched?"Remove from your watchlist":"Add to your watchlist"}">👁</button>
         <button class="btn btn-gold" ${canClaim?"":"disabled style=\"opacity:.35;cursor:not-allowed\""} onclick="frnDraftClaimUDFA('${esc}')">+ SIGN</button>
       </div>
     </div>`;
-  }).join("") || `<div style="color:var(--gray);font-style:italic;text-align:center;padding:1rem">No UDFAs in this filter.</div>`;
+  };
+
+  const emptyMsg = searchTerm
+    ? `No UDFAs matching "${searchTerm}"`
+    : filter === "WATCHED"
+      ? `None of your watched prospects fell to UDFA — they either got drafted or weren't in this class's tail.`
+      : `No UDFAs in this filter.`;
+  const poolHtml = mainPool.length
+    ? mainPool.map((p, i) => renderUdfaCard(p, `#${i+1}`)).join("")
+      + (truncated ? `<div style="color:var(--gray);font-size:.6rem;text-align:center;padding:.4rem;font-style:italic">+${mainFiltered.length - HARD_CAP} more — use search to find a specific name</div>` : "")
+    : `<div style="color:var(--gray);font-style:italic;text-align:center;padding:1rem">${emptyMsg}</div>`;
+
+  const scoutedLaneHtml = scoutedLane.length
+    ? `<div class="frn-draft-scouted-lane">
+        <div class="frn-draft-scouted-header">🔍 YOUR SCOUTED PROSPECTS WHO FELL · ${scoutedLane.length}</div>
+        ${scoutedLane.map(p => renderUdfaCard(p, "🔍")).join("")}
+      </div>` : "";
+  const watchedLaneHtml = watchedLane.length
+    ? `<div class="frn-draft-watched-lane">
+        <div class="frn-draft-watched-header">
+          <span>👁 YOUR WATCHLIST WHO FELL · ${watchedLane.length}</span>
+        </div>
+        ${watchedLane.map(p => renderUdfaCard(p, "👁")).join("")}
+      </div>` : "";
+
+  const searchVal = (d.udfaSearch || "").replace(/"/g, "&quot;");
+  const searchHtml = `<div class="frn-draft-search-wrap">
+    <span class="frn-draft-search-icon">🔎</span>
+    <input id="frnUdfaSearchInput" class="frn-draft-search" type="text"
+      placeholder="Search UDFAs by name…"
+      value="${searchVal}"
+      oninput="frnDraftSetUdfaSearch(this.value)"
+      onkeydown="if(event.key==='Escape'){this.value='';frnDraftSetUdfaSearch('')}"
+      autocomplete="off" />
+    ${searchTerm ? `<button class="frn-draft-search-clear" onclick="frnDraftSetUdfaSearch('')" title="Clear search">✕</button>` : ""}
+  </div>`;
 
   $("frnHomeContent").innerHTML = `
     <div class="frn-udfa-hero">
@@ -19333,15 +19620,16 @@ function renderFrnUDFAScramble() {
     </div>` : ""}
 
     ${deficits.length ? `<div class="frn-udfa-deficit">
-      <span style="color:var(--gold);font-weight:700;font-size:.7rem">Roster gaps:</span>
+      <span style="color:var(--gold);font-weight:700;font-size:.7rem">Roster gaps after signing:</span>
       ${deficits.map(n => `<span style="font-size:.65rem;color:#ff9090;margin-left:.5rem">${n.pos} (-${n.deficit})</span>`).join("")}
     </div>` : ""}
 
-    <div style="display:grid;grid-template-columns:1fr;gap:.5rem;margin-top:.5rem">
-      <div>
-        <div class="frn-draft-filters">${filterHtml}</div>
-        <div class="frn-draft-board">${poolHtml}</div>
-      </div>
+    <div style="margin-top:.5rem">
+      ${searchHtml}
+      <div class="frn-draft-filters">${filterHtml}</div>
+      ${scoutedLaneHtml}
+      ${watchedLaneHtml}
+      <div class="frn-draft-board">${poolHtml}</div>
     </div>
 
     <div class="frn-off-footer" style="margin-top:1.2rem">

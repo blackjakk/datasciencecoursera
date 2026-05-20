@@ -6102,6 +6102,11 @@
     color: #ff9090; padding: .28rem .7rem; font-size: .66rem;
     font-weight: 700; margin-bottom: .35rem;
   }
+  .frn-draft-watched-gone {
+    background: rgba(108,198,255,0.10); border: 1px solid #6cc6ff;
+    color: #cce7ff; padding: .28rem .7rem; font-size: .66rem;
+    font-weight: 700; margin-bottom: .35rem;
+  }
   /* Filter tabs */
   .frn-draft-filters { display: flex; gap: .25rem; flex-wrap: wrap; margin-bottom: .45rem; }
   .frn-draft-filter-btn {
