@@ -16940,18 +16940,19 @@ function _applyConsensusGrade(p, rookieYear) {
   // — fewer R3.5 "could go either way" calls, more R2 OR R4 splits.
   // Matches NFL scouting which is bimodal (teams strongly like or
   // strongly don't, rarely neutral on a prospect).
+  // Distinct salts per branch so magnitude variance doesn't collapse —
+  // audit caught that all three branches drew from the same magRoll.
   const polarRoll = _seededRand(biasKey + "|polar");
-  const magRoll = _seededRand(biasKey);
   let baseBias;
   if (polarRoll < 0.30) {
     // Strong negative — consensus undervaluing
-    baseBias = -baseNoiseScale * (0.55 + magRoll * 0.45);
+    baseBias = -baseNoiseScale * (0.55 + _seededRand(biasKey + "|neg") * 0.45);
   } else if (polarRoll < 0.60) {
     // Strong positive — consensus overvaluing
-    baseBias = baseNoiseScale * (0.55 + magRoll * 0.45);
+    baseBias = baseNoiseScale * (0.55 + _seededRand(biasKey + "|pos") * 0.45);
   } else {
     // Middle (40%) — modest disagreement
-    baseBias = (magRoll - 0.5) * baseNoiseScale * 0.55;
+    baseBias = (_seededRand(biasKey + "|mid") - 0.5) * baseNoiseScale * 0.55;
   }
   // Wildcard: layered miss mechanic for the rare Brady/Mandarich case.
   // 5% of prospects get a "consensus missed" roll (±10 swing).
@@ -16973,11 +16974,12 @@ function _applyConsensusGrade(p, rookieYear) {
   // +14 bias). Without this, the OVR jump from the surge often gets
   // hidden because consensus stays where it was — vaults land in R2-R3
   // instead of R1. The bias bump pushes consensus into R1 territory.
+  // SR bias amplifier — seeded for replay determinism (audit fix).
   let srBias = 0;
   if (p._srStockMaker) {
-    srBias = 4 + Math.floor(Math.random() * 4); // +4 to +7
+    srBias = 4 + Math.floor(_seededRand(biasKey + "|sr") * 4); // +4 to +7
   } else if (p._srStockBreaker) {
-    srBias = -(3 + Math.floor(Math.random() * 4)); // -3 to -6
+    srBias = -(3 + Math.floor(_seededRand(biasKey + "|sr") * 4)); // -3 to -6
   }
   p._aiScoutBias = +(baseBias + wildcardBias + ultraBias + srBias).toFixed(1);
   // Consensus grade — what the world sees. The draft AI ranks by this,
@@ -17204,52 +17206,45 @@ function _applySRFork(p) {
   if (!p || p._srForkApplied) return 0;
   p._srForkApplied = true;
   const pot = p.potential || 60;
-  const forkRoll = (_nameHash(p.name + "|srfork", 73) % 100);
-  // Surge probability + magnitude by pot bucket. R4/R5 grade prospects
-  // (pot 60-79) get 45-50% surge with the BIGGEST magnitudes — that's
-  // where the "stock-maker" vault stories live. Elite-pot prospects
-  // rarely vault (already there); scrub-pot rarely have ceiling.
-  // Lower frequency, bigger magnitude — fewer vaults but each is
-  // dramatic (R5→R1 not R5→R2). Net: ~3-5 R1 vaults per draft from
-  // mid-tier (was producing too many R2 outflows).
-  // Higher surge rate + bigger magnitudes — closes R1 gap by sending
-  // more mid-tier prospects all the way to OVR 85+. Target NFL ~28 R1
-  // grades / draft. With ~140 mid-tier prospects per class × 40%
-  // surge × ~50% landing in R1 = ~28 R1 vaults from this lane.
-  // Boosted surge probability for pot 70-84 — those are R2/R3/R4
-  // grade prospects who can vault to R1 with the consensus catchup.
-  // Pulls additional R1 supply from the over-supplied middle tiers.
+  const forkKey = `${p.name}|srfork`;
+  const forkRoll = (_nameHash(forkKey, 73) % 100);
+  // SR-year fork: stock-maker vs stock-breaker season. Probability
+  // peaks at pot 70-84 (R2/R3/R4 grade prospects who can vault to
+  // R1 via consensus catchup). Elite-pot prospects rarely vault
+  // (already there); scrub-pot rarely have ceiling. Magnitudes
+  // calibrated so mid-tier surges land squarely in R1 (OVR 85-92).
+  // Tuned-down surges + bumped drops so the late rounds (R5/R6/R7/CAMP)
+  // fill back out. The vault mechanism was over-pulling mid-tier
+  // prospects up, leaving the bottom tiers thin.
   let surgePct, dropPct;
-  if      (pot >= 85) { surgePct = 15; dropPct = 30; }
-  else if (pot >= 80) { surgePct = 32; dropPct = 26; } // R2 → R1 path
-  else if (pot >= 70) { surgePct = 38; dropPct = 25; } // R3/R4 → R1 path
-  else if (pot >= 60) { surgePct = 35; dropPct = 30; } // Donald zone
-  else if (pot >= 50) { surgePct = 22; dropPct = 38; }
-  else                { surgePct = 12; dropPct = 38; }
-  // Magnitudes calibrated so mid-tier surges land squarely in R1
-  // (OVR 85-92) — not overshooting elite. Combined with the bias
-  // bump in _applyConsensusGrade, total OVR shift is enough to
-  // grade as R1. R1 supply target: ~12-15 vaults / draft on top of
-  // ~10 natural elites = ~25 R1 grades.
+  if      (pot >= 85) { surgePct = 15; dropPct = 32; }
+  else if (pot >= 80) { surgePct = 24; dropPct = 30; } // R2 → R1 (was 32%)
+  else if (pot >= 70) { surgePct = 28; dropPct = 32; } // R3/R4 → R1 (was 38%)
+  else if (pot >= 60) { surgePct = 28; dropPct = 35; } // Donald zone (was 35%)
+  else if (pot >= 50) { surgePct = 18; dropPct = 42; }
+  else                { surgePct = 10; dropPct = 42; }
   const surgeMag = pot >= 85 ? [4, 8]
                  : pot >= 80 ? [12, 18]
                  : pot >= 70 ? [20, 26]   // R3/R4→R1 vault
                  : pot >= 60 ? [22, 28]   // R5→R1 vault
                  : pot >= 50 ? [14, 20]
                  :              [8, 12];
-  // Drop magnitudes similar by tier
-  const dropMag = pot >= 85 ? [10, 14]    // elite drop is severe (lost season)
+  const dropMag = pot >= 85 ? [10, 14]    // elite drop = lost season
                 : pot >= 70 ? [10, 14]
                 : pot >= 60 ? [8, 12]
                 :              [6, 10];
+  // Magnitudes seeded via _seededRand for replay determinism — without
+  // this, a class rebuild produces same stock-maker/breaker flags but
+  // different bump sizes. Audit caught this inconsistency with other
+  // seeded mechanisms in _applyConsensusGrade.
   if (forkRoll < surgePct) {
     p._srStockMaker = true;
     const [lo, hi] = surgeMag;
-    return lo + Math.floor(Math.random() * (hi - lo + 1));
+    return lo + Math.floor(_seededRand(forkKey, 11) * (hi - lo + 1));
   } else if (forkRoll < surgePct + dropPct) {
     p._srStockBreaker = true;
     const [lo, hi] = dropMag;
-    return -(lo + Math.floor(Math.random() * (hi - lo + 1)));
+    return -(lo + Math.floor(_seededRand(forkKey, 13) * (hi - lo + 1)));
   }
   return 0;
 }
@@ -17262,17 +17257,19 @@ function _applySRForkDirect(p) {
   if (bump === 0 || !p.stats || !p.stats.length) return;
   const sorted = p.stats.map((v, i) => ({ v, i })).sort((a, b) => b.v - a.v).slice(0, 3);
   for (const { i } of sorted) {
-    p.stats[i] = Math.min(99, Math.max(20, p.stats[i] + bump));
+    // Floor 35 to match the pipeline path in _developCollegePlayer.
+    // Audit caught a 20-vs-35 asymmetry between pipeline + filler.
+    p.stats[i] = Math.min(99, Math.max(35, p.stats[i] + bump));
   }
   p.overall = calcOverall(p.position, p.stats);
 }
 
 // Strip college-only state from a prospect after they sign with an
-// NFL team. Without this, every rookie carries 8 dead fields forever
-// (breakout/secondary/tertiary flags + magnitudes). Doesn't affect
-// behavior since _developCollegePlayer only runs on collegePlayers,
-// but bloats saves and confuses debuggers seeing "breakout fired"
-// on a retired vet.
+// NFL team. Without this, every rookie carries 11 dead fields forever
+// (breakout/secondary/tertiary flags + magnitudes + SR fork flags).
+// Doesn't affect behavior since _developCollegePlayer only runs on
+// collegePlayers, but bloats saves and confuses debuggers seeing
+// "stockMaker" on a retired vet.
 function _clearCollegeFlags(p) {
   if (!p) return;
   delete p._breakoutYear;
