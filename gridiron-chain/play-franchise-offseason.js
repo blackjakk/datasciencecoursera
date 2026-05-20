@@ -9417,6 +9417,7 @@ function runFrnOffseason() {
         contractYearsLeft: p.contract?.remaining ?? null,
         statDeltas: topStatDeltas,
         archetype: p.archetype,
+        draftRound: p.draftRound,
         type: "dev",
       });
 
@@ -9603,16 +9604,22 @@ function _buildOffseasonGainsSheet() {
         <span style="font-family:'Bebas Neue','Anton',sans-serif;letter-spacing:1.5px;color:#86c8ff;font-size:.85rem">HIDDEN GEM REVEAL${ceilingReveals.length===1?"":"S"}</span>
         <span style="color:var(--gray);font-size:.6rem;margin-left:auto">ceiling raised — they can keep growing past their old cap</span>
       </div>
-      ${ceilingReveals.map(c => `
+      ${ceilingReveals.map(c => {
+        const tFrom = _ceilingTier(c.potentialBumped.from, c.draftRound);
+        const tTo   = _ceilingTier(c.potentialBumped.to,   c.draftRound);
+        const tierShifted = tFrom.grade !== tTo.grade;
+        return `
         <div style="display:flex;align-items:center;gap:.5rem;padding:.25rem 0;font-size:.72rem">
           <span style="font-weight:700">${_playerLinkSmart(c.name)}</span>
           <span style="color:var(--gray);font-size:.65rem">${c.pos} · age ${c.ageNow}</span>
-          <span style="color:var(--gray);font-size:.65rem;margin-left:auto">ceiling
+          <span style="color:var(--gray);font-size:.65rem;margin-left:auto">
+            ${tierShifted ? `<b style="color:${tFrom.color}">${tFrom.grade}</b> → <b style="color:${tTo.color};font-size:.85rem">${tTo.grade}</b> · ` : ""}ceiling
             <b style="color:var(--gray)">${c.potentialBumped.from}</b>
             → <b style="color:#86c8ff;font-size:.8rem">${c.potentialBumped.to}</b>
             (+${c.potentialBumped.to - c.potentialBumped.from})
           </span>
-        </div>`).join("")}
+        </div>`;
+      }).join("")}
     </div>` : "";
 
   const summaryHtml = `
@@ -9657,16 +9664,53 @@ function _buildOffseasonGainsSheet() {
     }).join("");
   };
 
-  // Ceiling bar — OVR / potential. Compact text + sliver.
+  // Ceiling tier — grade (S/A/B/C/D) + growth room. Replaces the raw
+  // `78/85` numbers because exposing exact ceiling defeats the
+  // Hidden Gem Reveal mechanic + makes re-sign decisions trivial
+  // (sell at ceiling, never extend below). Known players (coached
+  // 1+ season) get tight bands; unfamiliar players get fuzzy ranges
+  // whose width scales by draft round. Exact ceiling still available
+  // on hover via title= for power users.
+  //
+  // Tier is delta from position-expected ceiling at draft round
+  // (same expected curve as potentialTag in play-franchise-core.js).
+  const _ceilingTier = (potential, round) => {
+    const expected = { 1:88, 2:81, 3:75, 4:70, 5:66, 6:63, 7:60, 0:58 }[round ?? 4] ?? 65;
+    const delta = (potential || 0) - expected;
+    if (delta >= 8)  return { grade: "S",  color: "#f5c542" };
+    if (delta >= 4)  return { grade: "A",  color: "#86c8ff" };
+    if (delta >= 0)  return { grade: "B",  color: "#a8d8b6" };
+    if (delta >= -4) return { grade: "C",  color: "#e0b078" };
+    return                    { grade: "D",  color: "#ff9b9b" };
+  };
   const _ceilingCell = (c) => {
     const ceil = c.potential || 0;
     const cur  = c.postOvr || 0;
-    if (!ceil || ceil <= cur) {
-      return `<span style="color:var(--gray);font-size:.6rem">capped</span>`;
+    if (!ceil) return `<span style="color:var(--gray);font-size:.6rem">—</span>`;
+    // At ceiling — no growth left. Show grade only (still useful for
+    // contract context: "B+ at ceiling" means he's a solid starter).
+    if (ceil <= cur) {
+      const t = _ceilingTier(ceil, c.draftRound);
+      return `<span title="ceiling ${ceil}" style="color:var(--gray);font-size:.6rem">⚓ at ceiling · <b style="color:${t.color}">${t.grade}</b></span>`;
     }
     const room = ceil - cur;
-    const roomColor = room >= 5 ? "#86c8ff" : room >= 2 ? "#a8d8b6" : "var(--gray)";
-    return `<span style="color:var(--gray);font-size:.62rem">${cur}/<b style="color:${roomColor}">${ceil}</b></span>`;
+    const isKnown = _isKnownPlayer({ pid: c.pid });
+    if (isKnown) {
+      // Known ceiling — show exact tier + room. Exact ceiling number
+      // tucked in title hover for grognards.
+      const t = _ceilingTier(ceil, c.draftRound);
+      const roomColor = room >= 5 ? "#86c8ff" : room >= 2 ? "#a8d8b6" : "var(--gray)";
+      return `<span title="ceiling ${ceil}" style="color:var(--gray);font-size:.62rem">📋 <b style="color:${t.color}">${t.grade}</b> · <span style="color:${roomColor}">+${room} room</span></span>`;
+    }
+    // Unknown ceiling (rookie just drafted, free agent just signed,
+    // no coaching history) — show a fuzzy band. Width scales by
+    // draft round: R1 is well-scouted, R7+ is a coin flip. Matches
+    // the noiseWidth pattern in potentialTag.
+    const r = c.draftRound ?? 4;
+    const noise = r === 1 ? 3 : r <= 3 ? 5 : 8;
+    const loRoom = Math.max(1, room - noise);
+    const hiRoom = room + noise;
+    return `<span style="color:var(--gray);font-size:.6rem">~+${loRoom}–${hiRoom} room?</span>`;
   };
 
   // Contract status — years left + expiring flag
