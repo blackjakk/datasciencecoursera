@@ -4389,11 +4389,26 @@ function renderFrnAnalytics(defaultTab) {
           <div style="font-family:'Bebas Neue','Anton',sans-serif;font-size:1.5rem;color:${totalColor};line-height:1">${totalPct.toFixed(0)}%</div>
           <div style="font-size:.62rem;color:var(--gray);margin-top:.1rem">$${totalActual.toFixed(0)}M actual · $${totalMarket.toFixed(0)}M market${rookieCount > 0 ? ` · ${rookieCount} on rookie deals` : ""}</div>
         </div>
-        <div style="padding:.55rem .65rem;background:rgba(134,224,163,.06);border-left:3px solid #86e0a3;border-radius:2px">
-          <div style="font-size:.55rem;color:#86e0a3;letter-spacing:1px;margin-bottom:.15rem">🟢 BIGGEST BARGAIN${bargainIsRookie ? `<span style="color:var(--gold);font-weight:400;margin-left:.3rem">· rookie scale</span>` : ""}</div>
-          <div style="font-weight:700;font-size:.75rem">${_playerLinkSmart(bargain.player.name)}</div>
-          <div style="font-size:.62rem;color:var(--gray);margin-top:.1rem">${bargain.player.position} · ${bargain.pct.toFixed(0)}% of market · saves $${(-bargain.delta).toFixed(1)}M</div>
-        </div>
+        ${(() => {
+          // Sign-correct headline: if the cheapest deal is still
+          // above market (all-overpay roster), reframe as
+          // "LEAST OVERPAID" so the "saves $" line doesn't go
+          // negative and contradict itself.
+          const isActualBargain = bargain.delta < 0;
+          const headline = isActualBargain
+            ? `🟢 BIGGEST BARGAIN${bargainIsRookie ? `<span style="color:var(--gold);font-weight:400;margin-left:.3rem">· rookie scale</span>` : ""}`
+            : `🟡 LEAST OVERPAID <span style="color:var(--gray);font-weight:400;margin-left:.3rem">· no true bargains</span>`;
+          const cost = isActualBargain
+            ? `saves $${(-bargain.delta).toFixed(1)}M`
+            : `costs $${bargain.delta.toFixed(1)}M`;
+          const accent = isActualBargain ? "#86e0a3" : "#e0b078";
+          const bg = isActualBargain ? "rgba(134,224,163,.06)" : "rgba(224,176,120,.06)";
+          return `<div style="padding:.55rem .65rem;background:${bg};border-left:3px solid ${accent};border-radius:2px">
+            <div style="font-size:.55rem;color:${accent};letter-spacing:1px;margin-bottom:.15rem">${headline}</div>
+            <div style="font-weight:700;font-size:.75rem">${_playerLinkSmart(bargain.player.name)}</div>
+            <div style="font-size:.62rem;color:var(--gray);margin-top:.1rem">${bargain.player.position} · ${bargain.pct.toFixed(0)}% of market · ${cost}</div>
+          </div>`;
+        })()}
         <div style="padding:.55rem .65rem;background:rgba(255,155,155,.06);border-left:3px solid #ff9b9b;border-radius:2px">
           <div style="font-size:.55rem;color:#ff9b9b;letter-spacing:1px;margin-bottom:.15rem">🔴 BIGGEST OVERPAY</div>
           <div style="font-weight:700;font-size:.75rem">${_playerLinkSmart(overpay.player.name)}</div>
@@ -10158,7 +10173,7 @@ function _chartOvrLine(data, projected) {
 // Chart D — roster avg AGE over last N seasons. Mirror of Chart C
 // (OVR line) but for the age curve. Color: amber (#e0b078) since
 // rising age is a warning signal, falling/holding age is youth.
-function _chartAgeLine(data) {
+function _chartAgeLine(data, projected) {
   const W = _CHART_W, H = _CHART_H;
   // Filter to entries that have avgAge (older snapshots may not).
   const live = (data || []).filter(d => d.avgAge != null);
@@ -10171,34 +10186,49 @@ function _chartAgeLine(data) {
   }
   const padL = 36, padR = 22, padT = 28, padB = 28;
   const innerW = W - padL - padR, innerH = H - padT - padB;
-  const ages = live.map(d => d.avgAge);
-  const minAge = Math.floor(Math.min(...ages) - 0.5);
-  const maxAge = Math.ceil(Math.max(...ages) + 0.5);
+  // Mirror of Chart C's forward-projection treatment. _projectedPeakYear
+  // now returns { year, ovr, age } per trajectory entry — Chart D
+  // reads .age, Chart C reads .ovr. Same trajectory source, two views.
+  const projFuture = (projected && projected.length > 1)
+    ? projected.slice(1).filter(p => p.age != null)
+    : [];
+  const totalPoints = live.length + projFuture.length;
+  const allAges = live.map(d => d.avgAge).concat(projFuture.map(p => p.age));
+  const minAge = Math.floor(Math.min(...allAges) - 0.5);
+  const maxAge = Math.ceil(Math.max(...allAges) + 0.5);
   const span = Math.max(1, maxAge - minAge);
-  const x = i => padL + (i / (live.length - 1)) * innerW;
+  const x = i => padL + (i / (totalPoints - 1)) * innerW;
   const y = v => padT + innerH - ((v - minAge) / span) * innerH;
-  const path = live.map((d, i) => `${i === 0 ? 'M' : 'L'} ${x(i).toFixed(1)} ${y(d.avgAge).toFixed(1)}`).join(" ");
-  const areaPath = `${path} L ${x(live.length - 1).toFixed(1)} ${(padT + innerH).toFixed(1)} L ${x(0).toFixed(1)} ${(padT + innerH).toFixed(1)} Z`;
+  const histPath = live.map((d, i) => `${i === 0 ? 'M' : 'L'} ${x(i).toFixed(1)} ${y(d.avgAge).toFixed(1)}`).join(" ");
+  const areaPath = `${histPath} L ${x(live.length - 1).toFixed(1)} ${(padT + innerH).toFixed(1)} L ${x(0).toFixed(1)} ${(padT + innerH).toFixed(1)} Z`;
+  const projPath = projFuture.length
+    ? `M ${x(live.length - 1).toFixed(1)} ${y(live[live.length - 1].avgAge).toFixed(1)} ` +
+      projFuture.map((p, i) => `L ${x(live.length + i).toFixed(1)} ${y(p.age).toFixed(1)}`).join(" ")
+    : "";
   const totalDelta = live[live.length - 1].avgAge - live[0].avgAge;
-  // Aging up is yellow/amber (concern), aging down is green (youth movement)
   const totalDeltaStr = totalDelta > 0 ? `+${totalDelta.toFixed(1)}` : totalDelta.toFixed(1);
+  // Aging up is yellow/amber (concern), aging down is green (youth movement)
   const totalDeltaColor = totalDelta > 0.5 ? "#e0b078" : totalDelta < -0.5 ? "#86e0a3" : "#7a8b85";
   return `<svg viewBox="0 0 ${W} ${H}" style="${_CHART_STYLE}">
     <defs><linearGradient id="ageFillGr" x1="0" x2="0" y1="0" y2="1">
       <stop offset="0%" stop-color="#e0b078" stop-opacity="0.35"/>
       <stop offset="100%" stop-color="#e0b078" stop-opacity="0"/>
     </linearGradient></defs>
-    <text x="${padL}" y="14" fill="${_CHART_TITLE}" font-size="10" font-weight="700" letter-spacing="1">ROSTER AVG AGE · LAST ${live.length} SEASONS</text>
+    <text x="${padL}" y="14" fill="${_CHART_TITLE}" font-size="10" font-weight="700" letter-spacing="1">ROSTER AVG AGE · LAST ${live.length}${projFuture.length ? ` + PROJECTED ${projFuture.length}` : ""} SEASONS</text>
     ${[minAge, Math.round((minAge + maxAge) / 2 * 10) / 10, maxAge].map(v => `
       <line x1="${padL}" y1="${y(v)}" x2="${W - padR}" y2="${y(v)}" stroke="rgba(255,255,255,.06)" stroke-dasharray="2,3"/>
       <text x="${padL - 4}" y="${y(v) + 3}" text-anchor="end" fill="#5d6b66" font-size="8">${v}</text>`).join("")}
     <path d="${areaPath}" fill="url(#ageFillGr)"/>
-    <path d="${path}" stroke="#e0b078" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    ${projPath ? `<path d="${projPath}" stroke="#e0b078" stroke-width="1.5" stroke-dasharray="3,3" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/>` : ""}
+    <path d="${histPath}" stroke="#e0b078" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
     ${live.map((d, i) => `
       <circle cx="${x(i)}" cy="${y(d.avgAge)}" r="3" fill="#e0b078" stroke="#0a1410" stroke-width="1.5"/>
       <text x="${x(i)}" y="${H - 14}" text-anchor="middle" fill="#5d6b66" font-size="8">'${String(d.season).slice(-2)}</text>
       <text x="${x(i)}" y="${y(d.avgAge) - 8}" text-anchor="middle" fill="#e0b078" font-size="8.5" font-weight="700">${d.avgAge.toFixed(1)}</text>
       <circle cx="${x(i)}" cy="${y(d.avgAge)}" r="10" fill="transparent" style="cursor:pointer" onmouseenter="_devChartHistoryShow(event, 'age', ${d.season})" onmouseleave="_devChartPosHide()"/>`).join("")}
+    ${projFuture.map((p, i) => `
+      <circle cx="${x(live.length + i)}" cy="${y(p.age)}" r="2.5" fill="#0a1410" stroke="#e0b078" stroke-width="1.5" stroke-dasharray="2,1.5" opacity="0.85"/>
+      <text x="${x(live.length + i)}" y="${H - 14}" text-anchor="middle" fill="#5d6b66" font-size="8" font-style="italic">'${String(p.year).slice(-2)}</text>`).join("")}
     <text x="${W - padR}" y="${H - 4}" text-anchor="end" fill="${totalDeltaColor}" font-size="9" font-weight="700">${totalDeltaStr} yr · ${live.length-1} season${live.length>2?'s':''}</text>
   </svg>`;
 }
@@ -10395,7 +10425,8 @@ function _capHorizonFor(teamId, years = 4) {
 // honest.
 function _projectedPeakYear(roster, currentSeason, forecastYears = 5) {
   if (!roster || !roster.length) return null;
-  const avgOf = (rs) => rs.length ? rs.reduce((s, p) => s + (p.overall || 0), 0) / rs.length : 0;
+  const avgOvr = (rs) => rs.length ? rs.reduce((s, p) => s + (p.overall || 0), 0) / rs.length : 0;
+  const avgAge = (rs) => rs.length ? rs.reduce((s, p) => s + (p.age || 0), 0) / rs.length : 0;
   // Clone so we don't mutate the live roster
   const aged = roster.map(p => ({
     age: p.age || 23,
@@ -10406,14 +10437,19 @@ function _projectedPeakYear(roster, currentSeason, forecastYears = 5) {
     position: p.position,
   }));
   let peakYear = currentSeason;
-  let peakOvr = avgOf(aged);
-  const trajectory = [{ year: currentSeason, ovr: peakOvr }];
+  let peakOvr = avgOvr(aged);
+  // trajectory[i] = { year, ovr, age } — drives BOTH Chart C (OVR
+  // forward line) and Chart D (age forward line). Both lines move
+  // through the same year axis so the visuals stay coherent.
+  const trajectory = [{ year: currentSeason, ovr: peakOvr, age: avgAge(aged) }];
   for (let yr = 1; yr <= forecastYears; yr++) {
     for (const p of aged) {
       p.age += 1;
       if (p.age < p.peakAge) {
         const gap = p.potential - p.overall;
-        if (gap > 0) p.overall += Math.round(gap * 0.3);
+        // Math.max(1, ...) so a 1-OVR gap closes over time instead of
+        // stalling — Math.round(0.3) was 0, leaving the player stuck.
+        if (gap > 0) p.overall += Math.max(1, Math.round(gap * 0.3));
       } else if (p.age >= p.declineAge) {
         // OL/DL decline a bit slower than skill positions
         const decline = (p.position === "OL" || p.position === "DL") ? 1.5 : 2;
@@ -10421,8 +10457,9 @@ function _projectedPeakYear(roster, currentSeason, forecastYears = 5) {
       }
       // Between peakAge and declineAge: hold steady
     }
-    const yearOvr = avgOf(aged);
-    trajectory.push({ year: currentSeason + yr, ovr: yearOvr });
+    const yearOvr = avgOvr(aged);
+    const yearAge = avgAge(aged);
+    trajectory.push({ year: currentSeason + yr, ovr: yearOvr, age: yearAge });
     if (yearOvr > peakOvr) {
       peakOvr = yearOvr;
       peakYear = currentSeason + yr;
@@ -10794,7 +10831,7 @@ function _buildOffseasonGainsSheet() {
       <div>${_chartPosDeltas(posDeltaData)}</div>
       <div>${_chartTierDist(tierDistData)}</div>
       <div>${_chartOvrLine(ovrHistory, peakProj?.trajectory)}</div>
-      <div>${_chartAgeLine(ovrHistory)}</div>
+      <div>${_chartAgeLine(ovrHistory, peakProj?.trajectory)}</div>
     </div>`;
 
   // ── TEAM STATUS strip — "how my team looking?" ───────────────
