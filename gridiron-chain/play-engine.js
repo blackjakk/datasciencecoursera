@@ -1045,6 +1045,60 @@ class GameSimulator {
     if (inTwoMin) passProb = Math.min(0.96, passProb + 0.25);   // hurry-up = pass-heavy
     const playType = Math.random() < passProb ? "pass" : "run";
 
+    // ── PENALTY ROLL ──
+    // ~6.3% combined chance per play (NFL averages ~12 accepted penalties
+    // per game / ~130 plays = ~9%, slightly undershooting to leave room
+    // for play-style variance). Penalties consume ~8s of clock for the
+    // flag and either replay the down (most) or trigger an automatic
+    // first (defensive holding, PI, roughing). yardLine + ytg are
+    // adjusted INSIDE this block; _drive sees isPenalty and skips its
+    // normal down/yardLine progression.
+    {
+      const penR = Math.random();
+      let pen = null;
+      if      (penR < 0.012) pen = { type: "False Start",            on: "off", yds: 5,  autoFirst: false };
+      else if (penR < 0.020) pen = { type: "Offsides",               on: "def", yds: 5,  autoFirst: false };
+      else if (penR < 0.027) pen = { type: "Delay of Game",          on: "off", yds: 5,  autoFirst: false };
+      else if (penR < 0.040) pen = { type: "Holding (Offense)",      on: "off", yds: 10, autoFirst: false };
+      else if (penR < 0.044) pen = { type: "Holding (Defense)",      on: "def", yds: 5,  autoFirst: true };
+      // Pass-only penalties (roughing the passer, PI). DPI = spot foul,
+      // averaged at 15 yards (real-world range 5-50+, mode ~12).
+      else if (playType === "pass") {
+        if      (penR < 0.052) pen = { type: "Roughing the Passer",  on: "def", yds: 15, autoFirst: true };
+        else if (penR < 0.060) pen = { type: "Pass Interference (D)", on: "def", yds: 15, autoFirst: true };
+        else if (penR < 0.063) pen = { type: "Pass Interference (O)", on: "off", yds: 10, autoFirst: false };
+      }
+      if (pen) {
+        const flaggedKey = pen.on === "off" ? this.poss : (this.poss === "home" ? "away" : "home");
+        const flaggedStats = this.stats[flaggedKey];
+        flaggedStats.team.penalties   = (flaggedStats.team.penalties   || 0) + 1;
+        flaggedStats.team.penaltyYds  = (flaggedStats.team.penaltyYds  || 0) + pen.yds;
+        // Yardage direction relative to OFFENSE: offensive penalty moves
+        // the ball backward (away from opponent EZ); defensive penalty
+        // moves forward.
+        const dir = pen.on === "off" ? -1 : +1;
+        const newYL = clamp(this.yardLine + dir * pen.yds, 1, 99);
+        this.yardLine = newYL;
+        if (pen.autoFirst) {
+          this.down = 1;
+          this.ytg = 10;
+        } else {
+          // Replay down — adjust ytg by penalty yards
+          this.ytg = clamp(this.ytg + (pen.on === "off" ? pen.yds : -pen.yds), 1, 99);
+        }
+        const dt = 8;
+        this.time = Math.max(0, this.time - dt);
+        this._pushVisual({
+          kind: "penalty",
+          desc: `🚩 ${pen.type} on ${this[flaggedKey].name} — ${pen.yds} yds${pen.autoFirst ? ", automatic first down" : ""}`,
+          yds: pen.yds,
+          onTeam: flaggedKey,
+          penType: pen.type,
+        });
+        return { yards: 0, incomplete: false, isPenalty: true };
+      }
+    }
+
     // ── VICTORY FORMATION / KNEEL-DOWN ──
     // Winning team in Q4 kneels to run out the clock when the math
     // works. Each kneel burns ~40s of play clock + ~5s for the snap.
@@ -2169,6 +2223,9 @@ class GameSimulator {
       // After the play (and after the warning if any), the team that's
       // behind may call timeout to preserve time.
       this._maybeCallTimeout(r);
+      // Penalty handled inside _play — yardLine/down/ytg already set;
+      // _drive should not run its normal yards/down/first-down logic.
+      if (r.isPenalty) continue;
       if (r.endDrive) {
         if (r.isReturnTD) {
           // Punt returned for a TD by the receiving team
