@@ -17197,22 +17197,24 @@ function _developCollegePlayer(p) {
   // climbed (R5 → R2), rare ones vaulted (Burrow / Mahomes / Pitts).
   // Threshold pot >= 60 so below-avg prospects can also pop occasionally
   // (the "undrafted UDFA who became a star" path).
-  if (p._breakoutYear == null && pot >= 60) {
+  if (p._breakoutYear == null && pot >= 50) {
     const h = _nameHash(p.name + "|breakout", 31);
     p._breakoutYear = ["SO", "JR", "SR"][h % 3];
-    // Severity probability INVERTS with potential. Elite-pot prospects
-    // are already great — their development is steady excellence
-    // (Trevor Lawrence arc). Mid-tier prospects (pot 70-79) are where
-    // the dramatic vault stories live — Burrow at LSU, Mahomes at Tech,
-    // Antonio Brown at Central Michigan, Aaron Donald at Pitt, all were
-    // mid-tier recruits who EXPLODED. Below-avg prospects rarely vault.
+    // Severity probability peaks at the "underrated 3-star" zone
+    // (pot 60-69) where real-NFL darkhorse vaults happen — Aaron
+    // Donald (3-star at Pitt), Antonio Brown (6th-round WR), Khalil
+    // Mack (small-school LB). Elite-pot prospects are already known
+    // quantities (steady excellence). Very low-pot prospects rarely
+    // pop (Vinatieri / Romo tier). Mid-low is the wow zone.
     const sevRoll = _nameHash(p.name + "|severity", 41) % 100;
     let hugePct, bigPct;
     if      (pot >= 85) { hugePct = 3;  bigPct = 22; } // elite — steady
-    else if (pot >= 80) { hugePct = 7;  bigPct = 30; }
-    else if (pot >= 70) { hugePct = 22; bigPct = 38; } // MID-TIER WOW ZONE
-    else if (pot >= 65) { hugePct = 17; bigPct = 33; } // late bloomers
-    else                { hugePct = 8;  bigPct = 22; } // rare pop
+    else if (pot >= 80) { hugePct = 7;  bigPct = 30; } // very good
+    else if (pot >= 70) { hugePct = 22; bigPct = 38; } // mid-tier vault
+    else if (pot >= 65) { hugePct = 28; bigPct = 35; } // PEAK — Donald zone
+    else if (pot >= 60) { hugePct = 22; bigPct = 30; } // darkhorse
+    else if (pot >= 50) { hugePct = 12; bigPct = 22; } // deep darkhorse (Romo)
+    else                { hugePct = 5;  bigPct = 15; } // rare pop (Vinatieri)
     p._breakoutSeverity = sevRoll < hugePct ? "huge"
                         : sevRoll < (hugePct + bigPct) ? "big"
                                                        : "medium";
@@ -17231,21 +17233,24 @@ function _developCollegePlayer(p) {
   let breakoutBump = 0;
   if (p._breakoutYear && p.collegeYear === p._breakoutYear && !p._breakoutFired) {
     const sev = p._breakoutSeverity || "medium";
-    // [lo, hi] inclusive range for each (severity, pot-bucket) combo
+    // [lo, hi] inclusive range for each (severity, pot-bucket) combo.
+    // Low-pot huge magnitudes are sizeable so darkhorse vaults actually
+    // produce a meaningful jump (a 2-star recruit's giga-spike needs to
+    // be transformative — Aaron Donald-tier).
     const magByTier = {
-      huge:   { 85: [18,25], 80: [15,22], 70: [14,18], 65: [11,15], 60: [9,12] },
-      big:    { 85: [12,16], 80: [10,14], 70: [8,12],  65: [6,9],   60: [4,6]  },
-      medium: { 85: [6,10],  80: [5,8],   70: [4,7],   65: [3,5],   60: [2,3]  },
+      huge:   { 85: [18,25], 80: [15,22], 70: [14,18], 65: [11,15], 60: [10,14], 50: [10,14], 0: [8,12] },
+      big:    { 85: [12,16], 80: [10,14], 70: [8,12],  65: [6,9],   60: [5,8],   50: [5,8],   0: [4,6] },
+      medium: { 85: [6,10],  80: [5,8],   70: [4,7],   65: [3,5],   60: [2,4],   50: [2,4],   0: [2,3] },
     };
     const potBucket = pot >= 85 ? 85
                     : pot >= 80 ? 80
                     : pot >= 70 ? 70
                     : pot >= 65 ? 65
-                    : pot >= 60 ? 60 : null;
-    if (potBucket) {
-      const [lo, hi] = magByTier[sev][potBucket];
-      breakoutBump = lo + Math.floor(Math.random() * (hi - lo + 1));
-    }
+                    : pot >= 60 ? 60
+                    : pot >= 50 ? 50
+                    :              0;
+    const [lo, hi] = magByTier[sev][potBucket];
+    breakoutBump = lo + Math.floor(Math.random() * (hi - lo + 1));
     // Huge breakouts unlock the prospect's ceiling — their potential
     // gets rerolled significantly higher, opening up the elite-tier
     // dev curve in subsequent seasons. This is what enables the true
@@ -17254,7 +17259,15 @@ function _developCollegePlayer(p) {
     // and ends college as a legit R1. Without this, mid-tier huge
     // breakouts gave only ~+5 OVR — not enough for the Burrow arc.
     if (sev === "huge") {
-      const potBump = 5 + Math.floor(Math.random() * 8); // +5 to +12
+      // Low-pot huge breakouts are TRANSFORMATIVE — a 2-star recruit's
+      // giga-spike vaults them into mid-tier dev territory. Without
+      // this aggressive pot bump, low-pot huge breakouts produce a
+      // one-time stat spike but no path forward.
+      let potBump;
+      if      (pot >= 70) potBump = 5  + Math.floor(Math.random() * 8);  // +5-12 (standard)
+      else if (pot >= 60) potBump = 10 + Math.floor(Math.random() * 9);  // +10-18 (Donald)
+      else if (pot >= 50) potBump = 15 + Math.floor(Math.random() * 8);  // +15-22 (Romo)
+      else                potBump = 18 + Math.floor(Math.random() * 8);  // +18-25 (Vinatieri)
       p.potential = Math.min(99, (p.potential || 60) + potBump);
     } else if (sev === "big") {
       const potBump = 2 + Math.floor(Math.random() * 4); // +2 to +5
@@ -17271,25 +17284,33 @@ function _developCollegePlayer(p) {
   if (p._breakoutFired && !p._secondaryFired) {
     const secKey = `secondary|${p.name}|${p.collegeYear}`;
     const secRoll = (_nameHash(secKey, 53) % 1000) / 1000;
-    const secChance = pot >= 90 ? 0.30
+    // Secondary chance is higher for low-pot prospects who already had
+    // a primary breakout — they're the "sustained climbers" arc (Aaron
+    // Donald, Khalil Mack). Elite-pot prospects are slightly less likely
+    // to need another surge (they're already there).
+    const secChance = pot >= 90 ? 0.25
                     : pot >= 80 ? 0.20
-                    : pot >= 70 ? 0.12
-                    : pot >= 60 ? 0.05
+                    : pot >= 70 ? 0.18
+                    : pot >= 60 ? 0.15
+                    : pot >= 50 ? 0.12
                     :              0;
     if (secRoll < secChance) {
-      const magMed = { 90: [7,11], 85: [6,10], 80: [5,8], 70: [4,7], 65: [3,5], 60: [2,3] };
+      const magMed = { 90: [7,11], 85: [6,10], 80: [5,8], 70: [4,7], 65: [3,5], 60: [3,5], 50: [3,5], 0: [2,3] };
       const potBucket = pot >= 90 ? 90
                       : pot >= 85 ? 85
                       : pot >= 80 ? 80
                       : pot >= 70 ? 70
                       : pot >= 65 ? 65
-                      : pot >= 60 ? 60 : null;
-      if (potBucket) {
-        const [lo, hi] = magMed[potBucket];
-        secondaryBump = lo + Math.floor(Math.random() * (hi - lo + 1));
-        // Small pot bump on secondary (extends growth window)
-        p.potential = Math.min(99, (p.potential || 60) + 1 + Math.floor(Math.random() * 3));
-      }
+                      : pot >= 60 ? 60
+                      : pot >= 50 ? 50
+                      :              0;
+      const [lo, hi] = magMed[potBucket];
+      secondaryBump = lo + Math.floor(Math.random() * (hi - lo + 1));
+      // Small pot bump on secondary (extends growth window).
+      // Bigger for low-pot — sustained darkhorse climbers (Donald).
+      const secPotBump = pot < 65 ? 3 + Math.floor(Math.random() * 5)  // +3-7
+                                  : 1 + Math.floor(Math.random() * 3); // +1-3
+      p.potential = Math.min(99, (p.potential || 60) + secPotBump);
       p._secondaryFired = true;
       p._secondaryMagnitude = secondaryBump;
     }
