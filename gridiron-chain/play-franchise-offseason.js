@@ -19166,6 +19166,16 @@ function frnDraftPick(name) {
   if (slot.teamId !== franchise.chosenTeamId) return;
   const prospect = d.class.find(p => p.name === name);
   if (!prospect) return;
+  // UDFA-tier prospect drafted from the live board — burns a draft pick
+  // AND removes them from the UDFA scramble pool (where they could be
+  // signed for free). Surface the trade-off before committing. The user
+  // gets some upside (4-yr deal vs 3, 12% gem rate vs 8%), but it's a
+  // slight expected-value loss in the average case — worth a confirm.
+  if (prospect._generatedRound === 0) {
+    const pickLbl = `R${slot.round}.${slot.pickInRound}${slot.isComp ? "c" : ""}`;
+    const msg = `${prospect.name} is a UDFA-tier prospect.\n\nYou can sign them for free in the UDFA Scramble after the draft.\n\nDraft them anyway with your ${pickLbl} pick? You'll get a 4-yr contract (vs 3-yr UDFA) and a 12% hidden-gem rate, but you lose them from the scramble pool.`;
+    if (!confirm(msg)) return;
+  }
   // Snapshot for the 5-second undo banner. Deep-copy the prospect's
   // pre-pick state so we can restore it if the user clicks UNDO. We
   // also stash currentIdx so undo can pop any AI picks that ran
