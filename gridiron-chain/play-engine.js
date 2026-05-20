@@ -2312,8 +2312,16 @@ class GameSimulator {
           this.poss = this.poss === "home" ? "away" : "home";
           this.yardLine = clamp(100 - (this.yardLine + r.punt), 1, 99);
         } else {
+          // Missed/blocked FG: opponent gets the ball at the SPOT OF THE
+          // KICK (LOS + 7). NFL rule also prevents the kicking team's
+          // miss from pinning the opponent inside their own 20 — even a
+          // short missed FG gives the opponent the ball at the 20 minimum
+          // (per the 2014+ rule). Previously this mirrored the LOS, which
+          // gave the opponent ~7 free yards of field position vs the rule.
           this.poss = this.poss === "home" ? "away" : "home";
-          this.yardLine = clamp(100 - this.yardLine, 10, 90);
+          const kickSpot = this.yardLine + 7;
+          const mirror = 100 - kickSpot;
+          this.yardLine = Math.max(20, clamp(mirror, 1, 99));
         }
         this.down = 1; this.ytg = 10; break;
       }
