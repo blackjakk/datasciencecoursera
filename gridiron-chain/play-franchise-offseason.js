@@ -4349,9 +4349,16 @@ function renderFrnAnalytics(defaultTab) {
     const totalMarket = rows.reduce((s, r) => s + r.market, 0);
     const totalPct = totalMarket > 0 ? (totalActual / totalMarket) * 100 : 100;
     const totalColor = totalPct < 95 ? "#86e0a3" : totalPct < 105 ? "#cce8d6" : "#e0b078";
-    // Headline callouts — biggest bargain + biggest overpay
+    // Headline callouts — biggest bargain + biggest overpay.
+    // For BIGGEST BARGAIN, prefer non-rookie deals so the headline
+    // celebrates GM negotiation skill rather than the rookie scale.
+    // Fall back to a rookie-deal bargain only when no veteran deal
+    // qualifies — and badge it as "rookie scale" in the sub-line so
+    // the source of the value is honest.
     const byDelta = rows.slice().sort((a, b) => a.delta - b.delta);
-    const bargain = byDelta[0];
+    const vetBargains = byDelta.filter(r => !r.isRookieDeal && r.delta < -0.5);
+    const bargain = vetBargains[0] || byDelta[0];
+    const bargainIsRookie = bargain.isRookieDeal;
     const overpay = byDelta[byDelta.length - 1];
     const rookieCount = rows.filter(r => r.isRookieDeal).length;
     // Table rows
@@ -4383,7 +4390,7 @@ function renderFrnAnalytics(defaultTab) {
           <div style="font-size:.62rem;color:var(--gray);margin-top:.1rem">$${totalActual.toFixed(0)}M actual · $${totalMarket.toFixed(0)}M market${rookieCount > 0 ? ` · ${rookieCount} on rookie deals` : ""}</div>
         </div>
         <div style="padding:.55rem .65rem;background:rgba(134,224,163,.06);border-left:3px solid #86e0a3;border-radius:2px">
-          <div style="font-size:.55rem;color:#86e0a3;letter-spacing:1px;margin-bottom:.15rem">🟢 BIGGEST BARGAIN</div>
+          <div style="font-size:.55rem;color:#86e0a3;letter-spacing:1px;margin-bottom:.15rem">🟢 BIGGEST BARGAIN${bargainIsRookie ? `<span style="color:var(--gold);font-weight:400;margin-left:.3rem">· rookie scale</span>` : ""}</div>
           <div style="font-weight:700;font-size:.75rem">${_playerLinkSmart(bargain.player.name)}</div>
           <div style="font-size:.62rem;color:var(--gray);margin-top:.1rem">${bargain.player.position} · ${bargain.pct.toFixed(0)}% of market · saves $${(-bargain.delta).toFixed(1)}M</div>
         </div>
@@ -10478,7 +10485,13 @@ function _buildValueLedger(roster, cap) {
     const actual = p.contract?.aav || 0;
     const market = (typeof computeMarketValue === "function")
       ? computeMarketValue(p, cap) : 1;
-    const pct = market > 0 ? (actual / market) * 100 : 100;
+    // Pct guard: when market is ≤0 (extreme low OVR + bad position),
+    // any non-zero actual AAV is effectively an overpay. Use 999 as
+    // the "very overpaid" sentinel so verdict bands map to OVERPAID
+    // and the UI doesn't show the contradictory "100% fair · +$5M
+    // overpay" pairing the audit flagged.
+    const pct = market > 0 ? (actual / market) * 100
+              : actual > 0 ? 999 : 100;
     const delta = actual - market;
     // Rookie deal heuristic — drafted player still in his first 4
     // years (rookie scale runs 4 yrs in real NFL). systemYears
