@@ -16215,7 +16215,7 @@ function _renderDraftFloor() {
           <div style="font-size:1.15rem;font-weight:900;color:var(--gold-lt)">
             ${remaining > 0
               ? `${remaining} pick${remaining===1?"":"s"} until you're on the clock`
-              : (nextUserSlot ? `You're up next` : `UDFA scramble next`)}
+              : (nextUserSlot ? `You're up next` : `UDFA signings next`)}
           </div>
           <div style="color:var(--gray);font-size:.7rem">
             ${nextUserSlot
@@ -16600,7 +16600,7 @@ function renderFrnDraftPreshow() {
           <span><b style="color:var(--white)">${totalPool}</b> prospects</span>
           <span style="color:var(--blborder)">·</span>
           <span><b style="color:var(--white)">${draftedSlots}</b> picks</span>
-          ${willFall ? `<span style="color:var(--blborder)">·</span><span title="Estimated number of graded prospects who'll fall to the UDFA scramble (~${draftedSlots} drafted)"><b style="color:var(--white)">~${willFall}</b> to scramble</span>` : ""}
+          ${willFall ? `<span style="color:var(--blborder)">·</span><span title="Estimated number of graded prospects who'll fall to UDFA signings (~${draftedSlots} drafted)"><b style="color:var(--white)">~${willFall}</b> undrafted</span>` : ""}
         </div>
         ${themeChips ? `<div style="margin-top:.7rem">${themeChips}</div>` : ""}
         <div style="margin-top:.7rem;font-size:.58rem;color:var(--gray);letter-spacing:.3px">
@@ -19745,7 +19745,7 @@ function frnDraftPick(name) {
   // the option — but the default click no longer silently overpays.
   if (prospect._generatedRound === 0) {
     const pickLbl = `R${slot.round}.${slot.pickInRound}${slot.isComp ? "c" : ""}`;
-    const msg = `${prospect.name} grades below R7 (camp-body / UDFA tier).\n\nMost prospects at this grade fall to the UDFA Scramble where you can sign them for free.\n\nDraft them with your ${pickLbl} pick anyway? You'd lock in a 4-yr contract instead of 3-yr UDFA terms.`;
+    const msg = `${prospect.name} grades below R7 (camp-body / UDFA tier).\n\nMost prospects at this grade fall to UDFA signings where you can pick them up free.\n\nDraft them with your ${pickLbl} pick anyway? You'd lock in a 4-yr contract instead of 3-yr UDFA terms.`;
     if (!confirm(msg)) return;
   }
   // Snapshot for the 5-second undo banner. Deep-copy the prospect's
@@ -19958,6 +19958,51 @@ function frnDraftSetUdfaFilter(pos) {
   renderFrnUDFAScramble();
 }
 
+// Auto-fill remaining unsigned slots with best available at the user's
+// top deficit positions. Won't override existing manual claims — just
+// fills the gap up to UDFA_USER_CLAIM_CAP.
+function frnDraftAutoSignUdfa() {
+  const d = franchise.draft;
+  if (!d?.udfaPhase) return;
+  const myId = franchise.chosenTeamId;
+  const myRoster = franchise.rosters[myId] || [];
+  d.udfaUserClaims = d.udfaUserClaims || [];
+  const slotsLeft = UDFA_USER_CLAIM_CAP - d.udfaUserClaims.length;
+  if (slotsLeft <= 0) return;
+  const claimedPositions = d.udfaUserClaims
+    .map(n => d.class.find(p => p.name === n)?.position)
+    .filter(Boolean);
+  // Recompute deficits including pending claims so we fill the gaps
+  // that ACTUALLY remain after the user's manual picks.
+  const deficits = [];
+  for (const [pos, needed] of Object.entries(ROSTER_SLOTS)) {
+    const have = myRoster.filter(p => p.position === pos).length
+               + claimedPositions.filter(p => p === pos).length;
+    if (have < needed) deficits.push({ pos, gap: needed - have });
+  }
+  deficits.sort((a, b) => b.gap - a.gap);
+  const drafted = new Set((d.picks || []).map(pk => pk.prospectName));
+  const claimsSet = new Set(d.udfaUserClaims);
+  const pool = d.class
+    .filter(p => !drafted.has(p.name) && !claimsSet.has(p.name))
+    .sort((a, b) => _draftBoardScore(b) - _draftBoardScore(a));
+  const recs = [];
+  // Pass 1: best available at each deficit position (deepest gap first)
+  for (const { pos } of deficits) {
+    if (recs.length >= slotsLeft) break;
+    const pick = pool.find(p => p.position === pos && !recs.includes(p));
+    if (pick) recs.push(pick);
+  }
+  // Pass 2: fill any leftover slots with best available overall
+  for (const p of pool) {
+    if (recs.length >= slotsLeft) break;
+    if (!recs.includes(p)) recs.push(p);
+  }
+  for (const r of recs) d.udfaUserClaims.push(r.name);
+  saveFranchise();
+  renderFrnUDFAScramble();
+}
+
 // AI teams scan the remaining pool and grab top-OVR UDFAs at positions
 // where they have the biggest gap vs ROSTER_SLOTS.
 function _runUdfaAiClaims() {
@@ -19983,8 +20028,10 @@ function _runUdfaAiClaims() {
       if (have < needed) needs.push({ pos, gap: needed - have });
     }
     needs.sort((a, b) => b.gap - a.gap);
-    // Claim 1-2 UDFAs at the top need positions
-    const claimsThisTeam = 1 + (Math.random() < 0.40 ? 1 : 0);
+    // Claim 1-2 UDFAs at the top need positions. Seeded by team+season
+    // so reloading mid-flow can't reshuffle AI claim counts.
+    const seasonKey = franchise.season || 1;
+    const claimsThisTeam = 1 + (_seededRand(`udfaCnt|${t.id}|${seasonKey}`) < 0.40 ? 1 : 0);
     for (let i = 0; i < claimsThisTeam && i < needs.length; i++) {
       const need = needs[i];
       const idx = pool.findIndex(p => p.position === need.pos);
@@ -20148,9 +20195,19 @@ function renderFrnUDFAScramble() {
     // Slipped-grade badge — a R3-grade prospect who fell to UDFA shows
     // "↓R3 grade" so the user can see the value. Camp-body grade (0)
     // is the only tier that's "expected" here; anything else is a slip.
+    // Tooltip names the most likely slip reason (top concern) so the
+    // user understands WHY scouts passed.
     const genR = p._generatedRound;
+    let slipReason = "";
+    if (genR && genR >= 1 && genR <= 7) {
+      const n = (typeof _buildDraftNotes === "function") ? _buildDraftNotes(p) : null;
+      const topConcern = n?.concerns?.find(c => c.tier === "red-flag")
+                      || n?.concerns?.find(c => c.tier === "major")
+                      || n?.concerns?.[0];
+      slipReason = topConcern?.text ? ` — ${topConcern.text}` : "";
+    }
     const slippedBadge = (genR && genR >= 1 && genR <= 7)
-      ? `<span style="font-size:.52rem;color:#ffb14c;font-weight:700;letter-spacing:.3px" title="Pre-draft grade was ~R${genR} — slipped past the draft">↓ ~R${genR} SLIP</span>`
+      ? `<span style="font-size:.52rem;color:#ffb14c;font-weight:700;letter-spacing:.3px" title="Pre-draft grade was ~R${genR} — slipped past the draft${slipReason}">↓ ~R${genR} SLIP</span>`
       : "";
     return `<div class="frn-draft-prospect${isScouted?" scouted":""}">
       <div class="frn-dp-rank">${displayRank}</div>
@@ -20214,12 +20271,17 @@ function renderFrnUDFAScramble() {
     ${searchTerm ? `<button class="frn-draft-search-clear" onclick="frnDraftSetUdfaSearch('')" title="Clear search">✕</button>` : ""}
   </div>`;
 
+  const canAutoSign = claims.size < UDFA_USER_CLAIM_CAP;
+  const autoBtn = canAutoSign
+    ? `<button class="btn btn-gold" style="margin-left:.5rem;font-size:.62rem;letter-spacing:.4px" onclick="frnDraftAutoSignUdfa()" title="Auto-fill remaining slots with best available at your top deficit positions">✨ AUTO-SIGN BEST FITS</button>`
+    : "";
+
   $("frnHomeContent").innerHTML = `
     <div class="frn-udfa-hero">
       <div class="frn-udfa-eyebrow">SEASON ${franchise.season + 1} · DRAFT COMPLETE</div>
-      <h1 class="frn-udfa-title">🏷 UDFA SCRAMBLE</h1>
-      <div class="frn-udfa-sub">Sign up to ${UDFA_USER_CLAIM_CAP} priority undrafted free agents before they're claimed by other teams.</div>
-      <div class="frn-udfa-progress">${claims.size}/${UDFA_USER_CLAIM_CAP} signed</div>
+      <h1 class="frn-udfa-title">🏷 UDFA SIGNINGS</h1>
+      <div class="frn-udfa-sub">Sign up to ${UDFA_USER_CLAIM_CAP} priority undrafted free agents before AI teams claim the rest.</div>
+      <div class="frn-udfa-progress" title="League rules cap each team's priority UDFA window at ${UDFA_USER_CLAIM_CAP} signings. AI teams claim 1-2 each; remaining roster gaps auto-fill from the leftover pool.">${claims.size}/${UDFA_USER_CLAIM_CAP} signed${autoBtn}</div>
     </div>
 
     ${claimedRows ? `<div class="frn-udfa-claimed-wrap">
