@@ -8234,3 +8234,23 @@
     border-radius: 2px; font-family: inherit; font-size: 8.5px; color: var(--blwhite);
     margin: 0 .15rem;
   }
+
+  /* ── DEV REPORT 2/3 + 1/3 GRID ────────────────────────────────
+     Main + sidebar layout. Collapses to single column on <960px
+     viewports so the sidebar drops below the main feed. Sidebar
+     blocks have their own internal padding/borders — the flex
+     gap handles the vertical spacing between them, so we override
+     the per-block margin-bottom that was set for the old
+     single-column stack. */
+  @media (max-width: 960px) {
+    .frn-dev-report-grid {
+      grid-template-columns: 1fr !important;
+    }
+  }
+  .frn-dev-side > div {
+    margin-bottom: 0 !important;
+  }
+  .frn-dev-main > div {
+    /* Keep modest bottom-margin on tables/blocks in main column;
+       sections have their own existing margins. */
+  }

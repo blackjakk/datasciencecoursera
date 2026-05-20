@@ -10558,22 +10558,47 @@ function _buildOffseasonGainsSheet() {
     </div>`;
   };
 
+  // Layout (per UI/UX flow analysis):
+  //   FULL-WIDTH HEADER:
+  //     · chips (position + reason filters)
+  //     · summary stat cards
+  //     · 4-chart row
+  //   2/3 + 1/3 GRID:
+  //     · MAIN COLUMN: STAR WATCH → TOP 5 GAINERS → TOP OF ROSTER →
+  //       GAINERS / HOLDING / DECLINERS tables. Player-level info,
+  //       benefits from the wider column.
+  //     · SIDEBAR: TEAM STATUS → RE-SIGN PRIORITY → DEPTH AT RISK →
+  //       CAMP NOTES → Hidden Gem Reveal. "Running commentary" — each
+  //       block is naturally narrow and reads better in a column.
+  //   On <960px the grid collapses to single column (sidebar drops
+  //   below main, all blocks full-width again).
+  //
+  // Flow change: charts moved from below STAR WATCH to right after
+  // summary cards. Visual rhythm: filters → headline numbers →
+  // glance at trend charts → drill into players. Charts as eye
+  // candy at the top, then info-density below.
   return `<div style="margin-top:.8rem;padding:.7rem .8rem;background:rgba(255,255,255,.02);border:1px solid var(--blborder);border-radius:4px">
     <div class="frn-sec-title" style="margin-bottom:.5rem">📊 PLAYER DEVELOPMENT REPORT</div>
     ${chipsHtml}
     ${summaryHtml}
-    ${teamStatusBlock}
-    ${starWatchBlock}
-    ${campNotesBlock}
     ${chartsBlock}
-    ${top5Movers}
-    ${topOverallsBlock}
-    ${heroBlock}
-    ${resignBlock}
-    ${depthBlock}
-    ${_section("GAINERS",   gainers,   "#86e0a3")}
-    ${_section("HOLDING",   steady,    "var(--gray)", { collapsed: true })}
-    ${_section("DECLINERS", decliners, "#ff9b9b")}
+    <div class="frn-dev-report-grid" style="display:grid;grid-template-columns:2fr 1fr;gap:.7rem;margin-top:.4rem">
+      <div class="frn-dev-main" style="min-width:0">
+        ${starWatchBlock}
+        ${top5Movers}
+        ${topOverallsBlock}
+        ${_section("GAINERS",   gainers,   "#86e0a3")}
+        ${_section("HOLDING",   steady,    "var(--gray)", { collapsed: true })}
+        ${_section("DECLINERS", decliners, "#ff9b9b")}
+      </div>
+      <div class="frn-dev-side" style="min-width:0;display:flex;flex-direction:column;gap:.6rem">
+        ${teamStatusBlock}
+        ${resignBlock}
+        ${depthBlock}
+        ${campNotesBlock}
+        ${heroBlock}
+      </div>
+    </div>
   </div>`;
 }
 
