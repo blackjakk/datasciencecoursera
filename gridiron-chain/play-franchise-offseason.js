@@ -16969,11 +16969,6 @@ function _applyConsensusGrade(p, rookieYear) {
   const ultraBias = _seededRand(wildcardKey, 2) < 0.01
     ? (_seededRand(wildcardKey, 3) - 0.5) * 30
     : 0;
-  // SR-year stock-maker / stock-breaker amplification. When a prospect
-  // had a vault SR season, scout consensus catches up POSITIVELY (+8 to
-  // +14 bias). Without this, the OVR jump from the surge often gets
-  // hidden because consensus stays where it was — vaults land in R2-R3
-  // instead of R1. The bias bump pushes consensus into R1 territory.
   // D2: scouts-buy-in / scouts-pan amplification. Probability scales
   // with hidden ceiling. High-ceiling prospects sometimes get a
   // positive consensus bump (scouts noticed during college). Low-
@@ -17224,24 +17219,28 @@ function _rollHiddenDestiny(p) {
   if (p._growthRate != null) return; // already rolled
   const ceilKey = `ceil|${p.name}`;
   const growKey = `grow|${p.name}`;
-  const ceilRoll = _seededRand(ceilKey);
-  // Bimodal ceiling — long left tail of camp bodies, small blue-chip
-  // spike. Bell-curve in middle is fine since visible OVR/stats are
-  // bell-shaped too.
+  // Legacy save migration — if a prospect already has p.potential (from
+  // the pre-refactor _rollPotential system), preserve it. Without this,
+  // loading a save would overwrite every prospect's ceiling on first
+  // dev call, disrupting existing destinies. New prospects (post-refactor)
+  // have null potential and get rolled fresh.
   let ceiling;
-  if      (ceilRoll < 0.16) ceiling = 88 + Math.floor(_seededRand(ceilKey, 1) * 12); // 16% blue chip (88-99)
-  else if (ceilRoll < 0.40) ceiling = 80 + Math.floor(_seededRand(ceilKey, 1) * 8);  // 24% R1-R2 cusp (80-87)
-  else if (ceilRoll < 0.55) ceiling = 70 + Math.floor(_seededRand(ceilKey, 1) * 10); // 15% R3-R5 (70-79)
-  else if (ceilRoll < 0.72) ceiling = 62 + Math.floor(_seededRand(ceilKey, 1) * 8);  // 17% R6 (62-69)
-  else if (ceilRoll < 0.85) ceiling = 53 + Math.floor(_seededRand(ceilKey, 1) * 9);  // 13% R7 (53-61)
-  else                       ceiling = 38 + Math.floor(_seededRand(ceilKey, 1) * 16); // 15% camp (38-53)
-  // Ceiling must be at least starting OVR + 2 — otherwise prospect
-  // has nowhere to grow.
-  const startOvr = p.overall || 60;
-  if (ceiling < startOvr + 2) {
-    ceiling = Math.min(99, startOvr + 2 + Math.floor(_seededRand(ceilKey, 2) * 6));
+  if (p.potential != null) {
+    ceiling = p.potential;
+  } else {
+    const ceilRoll = _seededRand(ceilKey);
+    if      (ceilRoll < 0.16) ceiling = 88 + Math.floor(_seededRand(ceilKey, 1) * 12); // 16% blue chip (88-99)
+    else if (ceilRoll < 0.40) ceiling = 80 + Math.floor(_seededRand(ceilKey, 1) * 8);  // 24% R1-R2 cusp (80-87)
+    else if (ceilRoll < 0.55) ceiling = 70 + Math.floor(_seededRand(ceilKey, 1) * 10); // 15% R3-R5 (70-79)
+    else if (ceilRoll < 0.72) ceiling = 62 + Math.floor(_seededRand(ceilKey, 1) * 8);  // 17% R6 (62-69)
+    else if (ceilRoll < 0.85) ceiling = 53 + Math.floor(_seededRand(ceilKey, 1) * 9);  // 13% R7 (53-61)
+    else                       ceiling = 38 + Math.floor(_seededRand(ceilKey, 1) * 16); // 15% camp (38-53)
+    const startOvr = p.overall || 60;
+    if (ceiling < startOvr + 2) {
+      ceiling = Math.min(99, startOvr + 2 + Math.floor(_seededRand(ceilKey, 2) * 6));
+    }
+    p.potential = ceiling;
   }
-  p.potential = ceiling; // canonical field name (was rolled by _rollPotential)
   // Growth rate — correlated with ceiling. High-ceiling prospects more
   // likely to be coached up; low-ceiling stay put. This thickens R7
   // grade supply by keeping low-ceiling prospects from accidentally
