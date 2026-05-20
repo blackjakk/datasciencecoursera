@@ -648,11 +648,72 @@ class GameSimulator {
         this.yardLine = 50;            // receiving team starts at the 50
       }
     } else {
-      // Standard kickoff — touchback to the 25
+      // Standard kickoff. Modern NFL touchback rate is ~70-75% (the
+      // 2024 dynamic kickoff rules cut touchbacks but most still go
+      // to the EZ). Of returned kicks: average return ~22 yards,
+      // with a long-tail chance of a big return or kickoff-return TD
+      // (~0.3% of kickoffs become TDs in modern NFL).
       this.poss = receivingKey;
-      this.yardLine = 25;
+      const ret = this._resolveKickoffReturn(scoringTeamKey, receivingKey);
+      this.yardLine = ret.endYL;
+      if (ret.isTD) {
+        // Kickoff returned for a TD — score it, then the kicking team
+        // kicks AGAIN (per NFL rule).
+        this._score(6, "Kickoff Return Touchdown!");
+        const k = this.offR.starters.k, kStats = this.offStats.players[k];
+        if (Math.random() < 0.92) {
+          if (kStats) kStats.xp_att++;
+          if (Math.random() < 0.94) { this._score(1, "Extra Point"); if (kStats) kStats.xp_made++; }
+        }
+        this._kickoffAfterScore(this.poss);
+        return;
+      }
     }
     this.down = 1; this.ytg = 10;
+  }
+
+  // Resolve a kickoff return when NOT a touchback. Returns the end
+  // yardline + whether it went all the way for a TD.
+  //   Touchback rate    ~ 70% → endYL 25
+  //   Returned median   ~ 22 yards from the goal line (so endYL ~22)
+  //   Returned long-tail ~ 0.3% of kickoffs are returned for a TD
+  // The receiving team's KR (or RB1 / WR1 fallback) gets the return.
+  _resolveKickoffReturn(kickerKey, receiverKey) {
+    if (Math.random() < 0.72) return { endYL: 25, isTD: false };
+    // Returned — pick a returner. The roster's KR-tagged player would
+    // be ideal but most rosters don't tag one, so we use RB1 / WR1.
+    const receiverR = receiverKey === "home" ? this.homeR : this.awayR;
+    const receiverStats = this.stats[receiverKey];
+    const returnerName = receiverR.starters?.kr
+                       || receiverR.starters?.rb
+                       || receiverR.starters?.wr1
+                       || "Returner";
+    // Base 22 yards + noise. ~5% chance of a 40+ yard return; ~0.3%
+    // chance the return goes the distance (75+ yards to a TD).
+    let ret = 18 + Math.floor(Math.random() * 12);  // 18-29
+    if (Math.random() < 0.10) ret += Math.floor(Math.random() * 20); // 5% chance to add 0-19 more
+    if (Math.random() < 0.003) {
+      // Touchdown return — push a kickoff-return visual flagged isReturnTD.
+      // Doesn't credit an individual stat (no kr_td field defined); the
+      // score itself + the visual capture the moment.
+      this._pushVisual({
+        kind: "kickoff",
+        desc: `${returnerName} returns the kickoff ALL THE WAY — TOUCHDOWN!`,
+        startYard: 35, endYard: 100,
+        kicker: kickerKey, returner: returnerName,
+        isReturnTD: true,
+      });
+      return { endYL: 100, isTD: true };
+    }
+    const endYL = Math.min(50, ret);
+    this._pushVisual({
+      kind: "kickoff",
+      desc: `${returnerName} returns the kick to the ${endYL <= 50 ? "own " + endYL : "opp " + (100 - endYL)}`,
+      startYard: 35, endYard: endYL,
+      kicker: kickerKey, returner: returnerName,
+      retYds: ret,
+    });
+    return { endYL, isTD: false };
   }
   // Attempt an extra point (or rarely a 2-pt) for the DEFENSIVE team after
   // they score on a pick-six / fumble-six / blocked-FG TD / missed-FG TD.
