@@ -5882,7 +5882,11 @@ function frnRefreshExtensionModal() {
 function frnExtensionAdjustYears(delta) {
   if (!_extModalState) return;
   const s = _extModalState;
-  s.years = Math.max(1, Math.min(s.posMax, s.years + delta));
+  // Min 2 yrs — matches legacy frnExtendPlayer behavior. 1-yr deals
+  // break the signing-bonus proration math (guaranteedYears could
+  // resolve to 0 for length 1, which downstream cap accounting
+  // doesn't handle cleanly).
+  s.years = Math.max(2, Math.min(s.posMax, s.years + delta));
   // Auto-adjust offer to length-appropriate market rate so the
   // year picker feels meaningful (longer deal → small commitment
   // discount; shorter → small premium).
@@ -5910,10 +5914,16 @@ function frnExtensionSign() {
   const ovr = p.overall || 70;
   const { signingBonus, bonusProration, tradeKicker } = _signingBonusCalc(offer, years, ovr);
   const baseSalaries = _baseSalarySchedule(offer, years, structure, bonusProration);
-  // Player-acceptance check: accept odds are very high for non-
-  // holdout extensions (player isn't pressing). Threshold = 88% of
-  // market — under that they decline.
-  const accepted = offer >= _extModalState.market * 0.88;
+  // Player-acceptance check — voluntary extensions are simpler than
+  // holdout/re-sign odds because the player isn't pressing. Fixed
+  // 88% of market is the floor: above it they sign, below they
+  // shake the modal. NaN/null market is treated as accepting any
+  // non-zero offer (low-OVR / edge-position case where market
+  // computes to 0 or undefined).
+  const market = _extModalState.market;
+  const accepted = Number.isFinite(market) && market > 0
+    ? offer >= market * 0.88
+    : offer > 0;
   if (!accepted) {
     // Decline — flash the offer panel, give the user a chance to
     // raise. Doesn't close the modal.
@@ -5926,6 +5936,13 @@ function frnExtensionSign() {
     }
     return;
   }
+  // startSeason MUST be the current season — voluntary extensions
+  // can fire mid-season (the dev report's EXTEND button is
+  // accessible whenever the franchise is in "regular" phase) and
+  // _isContractActive gates on `seasonNow <= c.startSeason`, so
+  // a season+1 start would leave the player on no active contract
+  // for the rest of THIS year. Mirrors frnHoldoutMidExtend which
+  // also uses current season for its mid-season extensions.
   p.contract = {
     years, remaining: years, aav: offer, structure,
     baseSalaries, signingBonus, bonusProration, tradeKicker,
@@ -5933,7 +5950,7 @@ function frnExtensionSign() {
     guaranteedAAV: offer,
     incentives: (typeof _generateIncentives === "function") ? _generateIncentives(p, offer) : [],
     signedAav: offer,
-    startSeason: (franchise.season || 1) + 1,
+    startSeason: franchise.season || 1,
     signedOvr: ovr,
   };
   if (typeof _clearGrudgeFlags === "function") _clearGrudgeFlags(p);
@@ -5954,7 +5971,6 @@ function _extensionModalInnerHtml() {
   if (!p) return `<div class="frn-resign-recap-card"><button class="frn-resign-recap-close" onclick="frnCloseExtensionModal()">×</button><p>Player not found.</p></div>`;
   const ovr = p.overall || 70;
   const age = p.age || 27;
-  const escName = s.name.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
   const cur = p.contract || {};
   const curAav = cur.aav || 0;
   const curRemaining = cur.remaining || 0;
@@ -5987,22 +6003,26 @@ function _extensionModalInnerHtml() {
   const pctMkt = s.market > 0 ? (s.offer / s.market) * 100 : 100;
   const pctColor = pctMkt < 90 ? "#86e0a3" : pctMkt < 100 ? "#a8d8b6" : pctMkt < 110 ? "var(--gold)" : "#ff8a8a";
   const pctLabel = pctMkt < 85 ? "MAY DECLINE" : pctMkt < 95 ? "good deal" : pctMkt < 105 ? "fair" : pctMkt < 115 ? "generous" : "OVERPAY";
-  // Current deal context if any
-  const raiseStr = curAav > 0
-    ? `vs current $${curAav.toFixed(1)}M × ${curRemaining}yr left`
-    : "first-time deal";
   // Structure buttons
   const structOpts = ["FRONT-LOADED", "BALANCED", "BACK-LOADED"];
   const structBtns = structOpts.map(o =>
     `<button onclick="frnExtensionSetStructure('${o}')" style="background:${o===s.structure?"var(--gold)":"transparent"};color:${o===s.structure?"#000":"var(--gray)"};border:1px solid var(--blborder);padding:.2rem .5rem;font-size:.55rem;letter-spacing:.5px;cursor:pointer;border-radius:2px;font-family:inherit">${o.replace("-"," ")}</button>`
   ).join("");
+  // Replacement context — the new deal SUPERSEDES the old one
+  // starting this season (no "tack on" semantics; same convention
+  // as frnHoldoutMidExtend). Be honest about it so the user knows
+  // remaining years on the old deal go away.
+  const replacingHtml = curAav > 0
+    ? `<span style="color:#e0b078;font-size:.65rem">replaces $${curAav.toFixed(1)}M × ${curRemaining}yr left</span>`
+    : `<span style="color:var(--gray);font-size:.65rem">no existing deal</span>`;
   return `<div class="frn-resign-recap-card" style="max-width:780px">
     <button class="frn-resign-recap-close" onclick="frnCloseExtensionModal()">×</button>
-    <div class="frn-resign-recap-eyebrow">VOLUNTARY EXTENSION · WEEK ${franchise.week || 0}</div>
+    <div class="frn-resign-recap-eyebrow">NEW CONTRACT · WEEK ${franchise.week || 0}</div>
     <h2 class="frn-resign-recap-title" style="font-size:1.4rem;letter-spacing:1px">📝 EXTEND ${s.name.toUpperCase()}</h2>
-    <div style="text-align:center;color:var(--blgray);font-size:.72rem;margin:.3rem 0 .8rem">
-      ${p.position} · ${ovr} OVR · Age ${age} · ${raiseStr}
+    <div style="text-align:center;color:var(--blgray);font-size:.72rem;margin:.3rem 0 .4rem">
+      ${p.position} · ${ovr} OVR · Age ${age}
     </div>
+    <div style="text-align:center;margin-bottom:.7rem">${replacingHtml}</div>
     ${pitchHtml ? `<div style="margin-bottom:.7rem">${pitchHtml}</div>` : ""}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:.8rem">
       <div style="padding:.7rem .8rem;background:var(--bg2);border:1px solid var(--blborder);border-radius:3px">
