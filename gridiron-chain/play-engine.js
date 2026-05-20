@@ -688,14 +688,18 @@ class GameSimulator {
                        || receiverR.starters?.rb
                        || receiverR.starters?.wr1
                        || "Returner";
-    // Base 22 yards + noise. ~5% chance of a 40+ yard return; ~0.3%
+    // Base ~22 yards + noise. ~10% chance of a 40+ yard return; ~0.3%
     // chance the return goes the distance (75+ yards to a TD).
-    let ret = 18 + Math.floor(Math.random() * 12);  // 18-29
-    if (Math.random() < 0.10) ret += Math.floor(Math.random() * 20); // 5% chance to add 0-19 more
+    let ret = 18 + Math.floor(Math.random() * 12);   // 18-29 (mean ~23.5)
+    if (Math.random() < 0.10) ret += Math.floor(Math.random() * 20); // 10% chance to add 0-19 more
+    // Credit KR stats — kr_yds + kr_td fields are referenced in HoF +
+    // accolade tracking (play-franchise-season.js HoF, offseason
+    // accolade thresholds), so we must update them or career returner
+    // leaders go silently unrecorded.
+    const rStats = receiverStats?.players?.[returnerName];
+    if (rStats) rStats.kr_yds = (rStats.kr_yds || 0) + ret;
     if (Math.random() < 0.003) {
       // Touchdown return — push a kickoff-return visual flagged isReturnTD.
-      // Doesn't credit an individual stat (no kr_td field defined); the
-      // score itself + the visual capture the moment.
       this._pushVisual({
         kind: "kickoff",
         desc: `${returnerName} returns the kickoff ALL THE WAY — TOUCHDOWN!`,
@@ -703,12 +707,13 @@ class GameSimulator {
         kicker: kickerKey, returner: returnerName,
         isReturnTD: true,
       });
+      if (rStats) rStats.kr_td = (rStats.kr_td || 0) + 1;
       return { endYL: 100, isTD: true };
     }
     const endYL = Math.min(50, ret);
     this._pushVisual({
       kind: "kickoff",
-      desc: `${returnerName} returns the kick to the ${endYL <= 50 ? "own " + endYL : "opp " + (100 - endYL)}`,
+      desc: `${returnerName} returns the kick to the own ${endYL}`,
       startYard: 35, endYard: endYL,
       kicker: kickerKey, returner: returnerName,
       retYds: ret,
@@ -1098,8 +1103,6 @@ class GameSimulator {
       }
       // (falls through to a regular play below when action === "go")
     }
-    off.team.plays++;
-    if (isThird) off.team.thirdAtt++;
     const isLong = this.ytg >= 8, isShort = this.ytg <= 2;
     const pb = this.offPlaybook;
     let passProb = isLong ? pb.passProb.long : isShort ? pb.passProb.short : pb.passProb.mid;
@@ -1160,6 +1163,13 @@ class GameSimulator {
       }
     }
 
+    // Count the play AFTER the penalty roll — a flagged pre-snap penalty
+    // is officially "no play" in NFL stats (doesn't count as a play or
+    // a 3rd-down attempt). Replays of 3rd-down with multiple flags also
+    // should only count one attempt when the down eventually completes.
+    off.team.plays++;
+    if (isThird) off.team.thirdAtt++;
+
     // ── VICTORY FORMATION / KNEEL-DOWN ──
     // Winning team in Q4 kneels to run out the clock when the math
     // works. Each kneel burns ~40s of play clock + ~5s for the snap.
@@ -1180,15 +1190,23 @@ class GameSimulator {
         const qbStats = off.players[QB];
         if (qbStats) qbStats.rush_att++;
         off.team.rush_att++;
-        const dt = Math.min(this.time, 40);
-        this.time -= dt;
+        // Time math: the snap-to-snap dt was already deducted at the top
+        // of _play. Adjust so the kneel burns exactly ~40s NET (real
+        // play clock + the kneel itself), not 40s on top of the regular
+        // 12-55s dt. Previous version double-burned clock.
+        const intendedKneelTime = 40;
+        this.time = Math.max(0, this.time + dt - intendedKneelTime);
+        // Safety guard — a kneel at own 1 would trigger the safety
+        // detection in _drive (yards: -1 → proposedYL <= 0). Clamp the
+        // loss so the ball never crosses the goal line.
+        const yardLoss = Math.min(1, startYard - 1);  // 0 if at the 1, else 1
         this._pushVisual({
           kind: "kneel",
           desc: `${QB} takes a knee — victory formation`,
-          startYard, endYard: Math.max(1, startYard - 1),
+          startYard, endYard: Math.max(1, startYard - yardLoss),
           passer: QB,
         });
-        return { yards: -1 };
+        return { yards: -yardLoss };
       }
     }
 
@@ -2381,6 +2399,17 @@ class GameSimulator {
           desc: `SAFETY — 2 points for ${this[defKey].name}`,
           scoringTeam: defKey,
         });
+        // Also push a kind:"score" entry so the quarter-by-quarter
+        // scoreboard aggregator (play-broadcast.js sums `kind==="score"
+        // && p.pts`) picks up the 2 points. Without this the scoreboard
+        // would be 2 points short whenever a safety occurred.
+        this._pushVisual({
+          kind: "score",
+          desc: `${this[defKey].city} ${this[defKey].name} — Safety (+2)`,
+          scoreType: "Safety",
+          poss: defKey,
+          pts: 2,
+        });
         pushDriveSummary("SAFETY", { endYL: 0 });
         this.drives.push({ team: start, result: "SAFETY", homeScore: this.score.home, awayScore: this.score.away });
         // Free kick from the offense's 20. Possession flips to the
@@ -2565,12 +2594,18 @@ class GameSimulator {
       });
       // First possession
       if (this.time > 0) this._drive();
-      // Second possession — guaranteed. If a score happened on drive 1,
-      // _drive's TD/FG branch already triggered _kickoffAfterScore so
-      // this.poss is already flipped to the other team. If drive 1 ended
-      // in a punt/turnover-on-downs/turnover, this.poss already flipped.
-      // Either way, the team that didn't have the ball first now does.
-      if (this.time > 0) this._drive();
+      // Per modern NFL rule, a SAFETY on the first OT drive ends the
+      // game immediately — the defense scored, no second possession.
+      // (TDs and FGs DON'T end OT under the 2025 rule; both teams
+      // always get a possession unless this safety case fires.)
+      const lastDrive = this.drives[this.drives.length - 1];
+      const otSafetyEnded = lastDrive && lastDrive.result === "SAFETY";
+      // Second possession — guaranteed unless OT-safety just ended things.
+      // If a score happened on drive 1, _drive's TD/FG branch already
+      // triggered _kickoffAfterScore so this.poss is already flipped.
+      // If drive 1 ended in a punt/turnover-on-downs/turnover,
+      // this.poss already flipped.
+      if (!otSafetyEnded && this.time > 0) this._drive();
       // Sudden death — any score by either team wins. Safety cap at 8
       // drives to prevent pathological infinite loops if drives somehow
       // burn no clock.
