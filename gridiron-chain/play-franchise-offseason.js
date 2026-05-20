@@ -16888,13 +16888,17 @@ const _CLASS_TOTAL_SIZE = 350;
 // to target an NFL-like spread: ~25 R1, ~30 R2, ~40 R3, ~50 R4, ~60
 // R5, ~50 R6, ~50 R7, ~95 camp body across a 350-prospect pool.
 const _CONSENSUS_GRADE_THRESHOLDS = [
+  // Tightened middle, widened edges — produces more R2 and more R7
+  // grades by shifting bucket boundaries down 2 OVR. Without this,
+  // the bell-curve OVR distribution clusters in R4/R5/R6 (134-149%
+  // of NFL expectation) while R2/R7 are starved.
   { round: 1, minOvr: 85 },
-  { round: 2, minOvr: 80 },
-  { round: 3, minOvr: 75 },
-  { round: 4, minOvr: 70 },
-  { round: 5, minOvr: 65 },
-  { round: 6, minOvr: 60 },
-  { round: 7, minOvr: 55 },
+  { round: 2, minOvr: 78 },
+  { round: 3, minOvr: 73 },
+  { round: 4, minOvr: 68 },
+  { round: 5, minOvr: 63 },
+  { round: 6, minOvr: 58 },
+  { round: 7, minOvr: 52 },
 ];
 // Position-aware threshold adjustments. QB is rare in the college pool
 // (~6% pre-bump) and the dev curve caps elite-FR QBs at OVR ~88-92 by
@@ -16993,44 +16997,50 @@ function _pickCollegePosition() {
 // players (more elite/good, fewer poor). Freshmen are mostly raw potential.
 function _rollCollegeTier(year, pos) {
   const r = Math.random();
-  // Position-aware FR rolls — QB / OL / DL get an elite tier roll at
-  // FR (none for others) to address QB scarcity in the pipeline. Real
-  // NFL has top-tier QB prospects identified early; this lets the sim
-  // produce 2-4 R1-grade QBs per class instead of 0.4.
+  // Position-aware FR rolls — premium positions get higher elite rates
+  // (QB > OL/DL > others). All positions can now produce elite FRs
+  // (was QB/OL/DL only), so 5-star recruits at any position are
+  // possible — Jameson Williams WR / Sauce Gardner CB type arcs.
+  // Boosted across the board to lift advanced-pipeline R1 grade count
+  // from ~5/draft to ~15/draft (closer to NFL ~28/draft).
   const QB_POS = pos === "QB";
   const BIG_PREMIUM = pos === "OL" || pos === "DL";
   if (year === "FR") {
     if (QB_POS) {
-      if (r < 0.06) return "elite";
-      if (r < 0.24) return "good";
-      if (r < 0.54) return "average";
+      if (r < 0.08) return "elite";
+      if (r < 0.28) return "good";
+      if (r < 0.58) return "average";
       return "poor";
     }
     if (BIG_PREMIUM) {
-      if (r < 0.04) return "elite";
-      if (r < 0.18) return "good";
-      if (r < 0.52) return "average";
+      if (r < 0.06) return "elite";
+      if (r < 0.22) return "good";
+      if (r < 0.55) return "average";
       return "poor";
     }
-    if (r < 0.03) return "good";
-    if (r < 0.22) return "average";
+    // All other positions — new 2% elite tier + boosted good/average
+    if (r < 0.02) return "elite";
+    if (r < 0.10) return "good";
+    if (r < 0.35) return "average";
     return "poor";
   }
   if (year === "SO") {
     if (QB_POS) {
-      if (r < 0.08) return "elite";
-      if (r < 0.30) return "good";
-      if (r < 0.55) return "average";
+      if (r < 0.10) return "elite";
+      if (r < 0.32) return "good";
+      if (r < 0.57) return "average";
       return "poor";
     }
     if (BIG_PREMIUM) {
-      if (r < 0.06) return "elite";
-      if (r < 0.25) return "good";
-      if (r < 0.55) return "average";
+      if (r < 0.08) return "elite";
+      if (r < 0.28) return "good";
+      if (r < 0.58) return "average";
       return "poor";
     }
-    if (r < 0.10) return "good";
-    if (r < 0.40) return "average";
+    // Other positions — new 3% elite at SO
+    if (r < 0.03) return "elite";
+    if (r < 0.15) return "good";
+    if (r < 0.45) return "average";
     return "poor";
   }
   if (year === "JR") {
