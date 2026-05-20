@@ -5953,12 +5953,6 @@ function frnExtensionSign() {
     signedAav: offer,
     startSeason: franchise.season || 1,
     signedOvr: ovr,
-    // Flag for dev-report row indicators — turns the EXTEND button
-    // into a "✅ Nyr · $X.XM/yr" chip so the user sees the offer
-    // was signed without needing to scroll up to the news feed.
-    // Auto-clears when offseason advances to regular season (the
-    // dev report is gated on phase === "offseason").
-    _signedThisCycle: true,
   };
   if (typeof _clearGrudgeFlags === "function") _clearGrudgeFlags(p);
   _pushNews({ type: "extension",
@@ -6110,7 +6104,15 @@ function _extensionModalInnerHtml() {
   // starting this season (no "tack on" semantics; same convention
   // as frnHoldoutMidExtend). Be honest about it so the user knows
   // remaining years on the old deal go away.
-  const replacingHtml = curAav > 0
+  //
+  // Special case: if the current contract was JUST signed this
+  // cycle (via voluntary extension etc.), don't show "replaces $X
+  // × Yyr left" — it'd be misleadingly pointing at the deal the
+  // user just signed. Instead show "revising offer just signed".
+  const signedThisCycle = cur && cur.startSeason === (franchise.season || 1);
+  const replacingHtml = signedThisCycle
+    ? `<span style="color:#86e0a3;font-size:.65rem">revising offer just signed: ${cur.years || cur.remaining}yr · $${(cur.aav || 0).toFixed(1)}M/yr</span>`
+    : curAav > 0
     ? `<span style="color:#e0b078;font-size:.65rem">replaces $${curAav.toFixed(1)}M × ${curRemaining}yr left</span>`
     : `<span style="color:var(--gray);font-size:.65rem">no existing deal</span>`;
   return `<div class="frn-resign-recap-card" style="max-width:780px">
@@ -11037,18 +11039,26 @@ function _buildOffseasonGainsSheet() {
   // each row doesn't re-scan the roster.
   const _liveByPid = {};
   for (const lp of (franchise.rosters?.[myId] || [])) _liveByPid[lp.pid] = lp;
-  // Shared EXTEND-cell renderer. If the player's contract has the
-  // _signedThisCycle flag set (by frnExtensionSign), morph the
-  // gold "📝 EXTEND" button into a green "✅ Nyr · $X.XM/yr" chip
-  // showing the actual signed terms. Click still re-opens the
-  // modal in case the user wants to revise.
+  // Shared EXTEND-cell renderer. Morphs the gold "📝 EXTEND" button
+  // into a green "✅ Nyr · $X.XM/yr" chip when the player's contract
+  // was signed THIS season (via voluntary extension, holdout-center
+  // extension, or re-sign — any path that writes a fresh contract
+  // with startSeason = current season).
+  //
+  // Using startSeason rather than a _signedThisCycle flag auto-
+  // cleans up next year (startSeason no longer matches franchise.season)
+  // — no separate flag-cleanup code needed. Same chip fires for ANY
+  // contract path that lands a new deal this cycle, which is what
+  // the user actually wants ("show me who I've signed").
+  const _curSeason = franchise.season || 1;
   const _extendCellHtml = (name, pid) => {
     const safeName = (name || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
     const live = pid ? _liveByPid[pid] : null;
-    if (live?.contract?._signedThisCycle) {
-      const yrs = live.contract.years || live.contract.remaining || 0;
-      const aav = live.contract.aav || 0;
-      return `<button onclick="frnExtendPlayer('${safeName}')" style="font-size:.5rem;letter-spacing:.4px;padding:.18rem .45rem;border-radius:2px;border:1px solid #86e0a3;background:rgba(134,224,163,.12);color:#86e0a3;cursor:pointer;font-family:inherit;font-weight:700" title="Signed via dev report — click to revise">✅ ${yrs}yr · $${aav.toFixed(1)}M/yr</button>`;
+    const c = live?.contract;
+    if (c && c.startSeason === _curSeason) {
+      const yrs = c.years || c.remaining || 0;
+      const aav = c.aav || 0;
+      return `<button onclick="frnExtendPlayer('${safeName}')" style="font-size:.5rem;letter-spacing:.4px;padding:.18rem .45rem;border-radius:2px;border:1px solid #86e0a3;background:rgba(134,224,163,.12);color:#86e0a3;cursor:pointer;font-family:inherit;font-weight:700" title="Signed this offseason — click to revise">✅ ${yrs}yr · $${aav.toFixed(1)}M/yr</button>`;
     }
     return `<button onclick="frnExtendPlayer('${safeName}')" style="font-size:.55rem;letter-spacing:.5px;padding:.15rem .45rem;border-radius:2px;border:1px solid var(--blborder);background:transparent;color:var(--gold);cursor:pointer;font-family:inherit" title="Open contract extension">📝 EXTEND</button>`;
   };
@@ -11337,7 +11347,7 @@ function _buildOffseasonGainsSheet() {
         case "DE": return s.sk != null ? `<b style="color:var(--white)">${(+s.sk).toFixed(1)}</b> sk · ${s.tkl || 0} tkl${s.int_made ? ` · ${s.int_made} INT` : ""}` : "";
         case "LB": return s.tkl != null ? `<b style="color:var(--white)">${s.tkl}</b> tkl · ${(+(s.sk || 0)).toFixed(1)} sk${s.int_made ? ` · ${s.int_made} INT` : ""}` : "";
         case "CB":
-        case "S":  return (s.int_made != null || s.pd != null) ? `<b style="color:var(--white)">${s.int_made || 0}</b> INT · <b style="color:var(--white)">${s.pd || 0}</b> PD · ${s.tkl || 0} tkl` : "";
+        case "S":  return (s.int_made || s.pd || s.tkl) ? `<b style="color:var(--white)">${s.int_made || 0}</b> INT · <b style="color:var(--white)">${s.pd || 0}</b> PD · ${s.tkl || 0} tkl` : "";
         case "K":  return s.fg_att ? `<b style="color:var(--white)">${s.fg_made || 0}/${s.fg_att}</b> FG · ${s.xp_made || 0}/${s.xp_att || 0} XP` : "";
         case "P":  return s.snaps ? `${s.snaps} snaps` : "";
       }
@@ -11381,7 +11391,6 @@ function _buildOffseasonGainsSheet() {
         return `<span style="font-size:.55rem;color:${col};letter-spacing:.5px" title="$${aav.toFixed(1)}M actual vs $${market.toFixed(1)}M market"><b>${pct}%</b> mkt · ${lbl}</span>`;
       })() : "";
       const keyStat = _keyStat(p);
-      const safeName = (p.name || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
       const portrait = (typeof _playerPortrait === "function") ? _playerPortrait(p, 38) : "";
       return `
         <div style="display:grid;grid-template-columns:1.4rem 38px 1fr auto auto;gap:.5rem;align-items:center;padding:.4rem .5rem;background:rgba(255,255,255,.025);border-radius:2px;border-left:3px solid ${tier.color}">
@@ -12018,11 +12027,6 @@ function _buildOffseasonGainsSheet() {
   const _row = (c) => {
     const dColor = c.delta > 0 ? "#86e0a3" : c.delta < 0 ? "#ff9b9b" : "var(--gray)";
     const dStr   = c.delta > 0 ? `+${c.delta}` : `${c.delta}`;
-    // Two-step escape — backslash FIRST, then single-quote. Matches
-    // the pattern used elsewhere in this file (line 5367, 10280,
-    // 12040). Single-step escape would mangle "O\\'Brien"-style
-    // generated names if any future name-generator adds backslashes.
-    const safeName = (c.name || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
     return `<tr style="border-top:1px solid rgba(255,255,255,.04)">
       <td style="padding:.3rem .5rem;font-weight:700;white-space:nowrap">${_playerLinkSmart(c.name)} ${_extendCellHtml(c.name, c.pid)}</td>
       <td style="padding:.3rem .5rem;color:var(--gray);font-size:.7rem">${c.pos}</td>
