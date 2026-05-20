@@ -15367,14 +15367,56 @@ function _mockFirstRound() {
       const posPrem = _DRAFT_POS_PREMIUM[p.position] ?? 0;
       const scheme = _draftSchemeBonus(slot.teamId, p.position);
       const aiSeenOvr = (p.overall || 60) + (p._aiScoutBias || 0);
-      return { p, score: aiSeenOvr + needBonus * 0.20 + posPrem + scheme };
+      return {
+        p, score: aiSeenOvr + needBonus * 0.20 + posPrem + scheme,
+        // Capture the score components so the UI can explain WHY
+        // this prospect was projected here.
+        components: { aiSeenOvr, needBonus, posPrem, scheme },
+      };
     }).sort((a,b) => b.score - a.score);
-    const pick = scored[0]?.p;
-    if (!pick) break;
-    taken.add(pick.name);
-    mock.push({ slot, prospect: pick });
+    const pickEntry = scored[0];
+    if (!pickEntry?.p) break;
+    taken.add(pickEntry.p.name);
+    mock.push({ slot, prospect: pickEntry.p, components: pickEntry.components });
   }
   return mock;
+}
+
+// Build a "WHY this pick" reason list for a mock entry. Returns
+// 2-4 short tag strings the UI can render as chips. Surfaces the
+// dominant scoring signals (need / position value / scheme fit /
+// top-of-class grade / elite combine).
+function _mockPickReasons(entry, classProspects) {
+  const reasons = [];
+  const p = entry.prospect;
+  const c = entry.components || {};
+  // Scout grade signal
+  const sg = (typeof scoutGrade === "function") ? scoutGrade(p) : (p.overall || 70);
+  if (sg >= 82) reasons.push({ icon: "🎯", text: "elite scout grade", color: "#86e0a3" });
+  else if (sg >= 75) reasons.push({ icon: "🎯", text: "high scout grade", color: "#a8d8b6" });
+  // Position rank in class
+  const samePos = classProspects.filter(x => x.position === p.position && x._generatedRound !== 0);
+  const sorted = samePos.slice().sort((a, b) => {
+    const sa = (typeof scoutGrade === "function") ? scoutGrade(a) : (a.overall || 70);
+    const sb = (typeof scoutGrade === "function") ? scoutGrade(b) : (b.overall || 70);
+    return sb - sa;
+  });
+  const posIdx = sorted.findIndex(x => x.name === p.name);
+  if (posIdx === 0) reasons.push({ icon: "🥇", text: `#1 ${p.position} in class`, color: "#f5c542" });
+  else if (posIdx >= 0 && posIdx < 3) reasons.push({ icon: "🏅", text: `#${posIdx+1} ${p.position} in class`, color: "var(--gold-lt)" });
+  // Team need
+  if (c.needBonus >= 15) reasons.push({ icon: "🎯", text: `filling ${p.position} hole`, color: "#ff9b9b" });
+  else if (c.needBonus >= 8) reasons.push({ icon: "📍", text: `team need at ${p.position}`, color: "var(--gold-lt)" });
+  // Position premium (QB / EDGE / OT typically)
+  if (c.posPrem >= 6) reasons.push({ icon: "💎", text: "premium position", color: "#86c8ff" });
+  // Scheme fit bonus
+  if (c.scheme >= 4) reasons.push({ icon: "🔧", text: "scheme fit", color: "#5ed4d4" });
+  // Elite combine numbers
+  if (typeof _combineCompositeScore === "function") {
+    const cs = _combineCompositeScore(p);
+    if (cs >= 1.8) reasons.push({ icon: "💨", text: "elite combine", color: "#86e0a3" });
+  }
+  return reasons.slice(0, 4);
 }
 
 // Top-N per measurable across the drafted-tier class. Returns the
@@ -15455,16 +15497,31 @@ function _surprisingCombine(cls, n = 5) {
   return { warriors, disappointments };
 }
 
-// Watchlist for the combine pre-show. Lightweight bookmark — no
-// scout-slot cost (unlike franchise.draftScouts). Persisted on the
-// franchise object so it survives renders.
+// Combine pre-show watchlist toggle — unified with the existing
+// franchise.watchedPlayers (player-level watchlist used by trade /
+// FA filters via frnToggleWatchPlayer). Same list, same star — the
+// combine bookmark is the same "follow this player" mechanism.
+// Migration: if any draftWatchlist data exists from earlier rev,
+// merge it in and drop the field on next save.
 function frnCombineWatchToggle(name) {
   if (!franchise) return;
-  franchise.draftWatchlist = franchise.draftWatchlist || [];
-  const i = franchise.draftWatchlist.indexOf(name);
-  if (i >= 0) franchise.draftWatchlist.splice(i, 1);
-  else franchise.draftWatchlist.push(name);
-  saveFranchise();
+  // One-time migration from the earlier draftWatchlist field
+  if (franchise.draftWatchlist?.length) {
+    franchise.watchedPlayers = franchise.watchedPlayers || [];
+    const wp = new Set(franchise.watchedPlayers);
+    for (const n of franchise.draftWatchlist) wp.add(n);
+    franchise.watchedPlayers = [...wp];
+    delete franchise.draftWatchlist;
+  }
+  if (typeof frnToggleWatchPlayer === "function") {
+    frnToggleWatchPlayer(name);
+  } else {
+    franchise.watchedPlayers = franchise.watchedPlayers || [];
+    const i = franchise.watchedPlayers.indexOf(name);
+    if (i >= 0) franchise.watchedPlayers.splice(i, 1);
+    else franchise.watchedPlayers.push(name);
+    saveFranchise();
+  }
   renderFrnDraftPreshow();
 }
 
@@ -15722,7 +15779,9 @@ function renderFrnDraftPreshow() {
     `<span style="display:inline-block;padding:.3rem .65rem;border-radius:3px;background:rgba(255,255,255,.05);border:1px solid var(--border);color:${c.color};font-size:.7rem;font-weight:700;letter-spacing:.5px;margin-right:.4rem">${c.text}</span>`
   ).join("");
 
-  // Mock first round
+  // Mock first round — with WHY reasoning per pick. Reasons explain
+  // what drove this prospect to this slot (need / position rank /
+  // premium / scheme fit / elite combine).
   const mock = _mockFirstRound();
   const mockHtml = mock.map((entry, i) => {
     const team = getTeam(entry.slot.teamId);
@@ -15730,19 +15789,29 @@ function renderFrnDraftPreshow() {
     const sg = scoutGrade(entry.prospect);
     const grade = gradeLabel(sg);
     const sgColor = sg >= 82 ? "var(--green-lt)" : sg >= 70 ? "var(--gold)" : sg >= 60 ? "var(--gold-lt)" : "var(--gray)";
+    const reasons = (typeof _mockPickReasons === "function") ? _mockPickReasons(entry, d.class) : [];
+    const reasonChips = reasons.length
+      ? `<div style="grid-column:3 / -1;display:flex;flex-wrap:wrap;gap:.2rem;margin-top:.18rem">${reasons.map(r => `<span style="display:inline-flex;align-items:baseline;gap:.18rem;padding:.06rem .3rem;border-radius:1px;background:rgba(255,255,255,.04);color:${r.color};font-size:.5rem;letter-spacing:.3px"><span style="font-size:.55rem">${r.icon}</span>${r.text}</span>`).join("")}</div>`
+      : "";
     return `<div style="display:grid;grid-template-columns:2.2rem 7rem 1fr 2.4rem 2.3rem;gap:.5rem;padding:.3rem .55rem;background:${isMine ? "rgba(200,169,0,.10)" : i % 2 === 0 ? "rgba(255,255,255,.02)" : "transparent"};font-size:.66rem;align-items:baseline;border-left:${isMine ? "3px solid var(--gold)" : "3px solid transparent"}">
       <span style="color:var(--gray);font-weight:700">${i+1}.</span>
       <span style="color:${isMine ? "var(--gold)" : "var(--blwhite)"};font-weight:${isMine ? "900" : "700"};font-size:.62rem">${team?.city || "?"} ${team?.name || ""}</span>
       <span style="color:var(--white)">${entry.prospect.name}</span>
       <span style="color:var(--gold-lt);font-weight:700;font-size:.6rem">${entry.prospect.position}</span>
       <span style="color:${sgColor};font-weight:700;font-size:.62rem">${grade}</span>
+      ${reasonChips}
     </div>`;
   }).join("");
 
   // Combine — position filter chips + standouts cards. Watchlist
   // adds a star toggle on every name (clicking adds/removes from
   // the user's bookmark list for this draft class).
-  const watchSet = new Set(franchise.draftWatchlist || []);
+  // Watchlist source is franchise.watchedPlayers — the unified
+  // "follow this player" list used by trade/FA filters and now by
+  // combine bookmarks. Legacy draftWatchlist entries (from the
+  // earlier rev) merge in transparently.
+  const legacy = franchise.draftWatchlist || [];
+  const watchSet = new Set([...(franchise.watchedPlayers || []), ...legacy]);
   const safeName = n => (n || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
   const _nameWithStar = (p) => {
     const watched = watchSet.has(p.name);
@@ -15785,7 +15854,9 @@ function renderFrnDraftPreshow() {
   // ── MY WATCHLIST — players the user has starred during combine
   // research. Shows their full combine line + scout grade so the
   // user can compare their bookmarks side-by-side before the draft.
-  const watchPlayers = (franchise.draftWatchlist || [])
+  // Resolve watched names to prospects in the current draft class.
+  // Pulls from the unified watchSet (watchedPlayers + legacy merge).
+  const watchPlayers = [...watchSet]
     .map(n => d.class.find(p => p.name === n))
     .filter(Boolean);
   const watchlistHtml = watchPlayers.length ? `
