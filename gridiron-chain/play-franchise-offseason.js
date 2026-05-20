@@ -16974,14 +16974,7 @@ function _applyConsensusGrade(p, rookieYear) {
   // +14 bias). Without this, the OVR jump from the surge often gets
   // hidden because consensus stays where it was — vaults land in R2-R3
   // instead of R1. The bias bump pushes consensus into R1 territory.
-  // SR bias amplifier — seeded for replay determinism (audit fix).
-  let srBias = 0;
-  if (p._srStockMaker) {
-    srBias = 4 + Math.floor(_seededRand(biasKey + "|sr") * 4); // +4 to +7
-  } else if (p._srStockBreaker) {
-    srBias = -(3 + Math.floor(_seededRand(biasKey + "|sr") * 4)); // -3 to -6
-  }
-  p._aiScoutBias = +(baseBias + wildcardBias + ultraBias + srBias).toFixed(1);
+  p._aiScoutBias = +(baseBias + wildcardBias + ultraBias).toFixed(1);
   // Consensus grade — what the world sees. The draft AI ranks by this,
   // user-visible grade badge shows this, scout reveals can shift it.
   p._generatedRound = _consensusGradeRound(trueOvr + p._aiScoutBias, p.position);
@@ -17120,26 +17113,12 @@ function _generateCollegePlayer(collegeYear, blockNames) {
   p._collegeJoinedSeason = (franchise?.season || 1);
   p.draftSeason = (franchise?.season || 1) + _COLLEGE_SEASONS_TO_DRAFT[collegeYear];
   p.draftYear = (new Date().getFullYear()) + p.draftSeason;
-  // Tier-driven potential hint. Maps tier → typical projected round so
-  // the potential distribution matches the stat distribution.
-  const _hintRound = tier === "elite" ? 1
-                  : tier === "good"  ? 3
-                  : tier === "average" ? 5
-                                       : 7;
-  // Year-aware potential boost — an FR-elite has 4 years to grow into
-  // their ceiling, so their potential ceiling is higher than a SR-elite
-  // who's already mostly developed. Captures the "Trevor Lawrence
-  // arrives as 5-star recruit, ends college as #1 overall pick" arc:
-  // FR potential is intentionally above ceiling estimate to give
-  // headroom for breakout + steady growth across 3 dev cycles.
-  const _yearBoostByTier = {
-    FR: { elite: 4, good: 4, average: 3, poor: 0 },
-    SO: { elite: 3, good: 3, average: 2, poor: 0 },
-    JR: { elite: 1, good: 2, average: 1, poor: 0 },
-    SR: { elite: 0, good: 0, average: 0, poor: 0 },
-  };
-  const _hintBoost = _yearBoostByTier[collegeYear]?.[tier] ?? 0;
-  p.potential = _rollPotential(p, _hintRound, _hintBoost);
+  // Path A refactor: hidden destiny (ceiling + growth rate) drives all
+  // college development. Independent of starting tier — a 2-star FR
+  // could have hidden ceiling 95 (Donald arc), and a 5-star could have
+  // ceiling 75 (bust arc). Decouples visible FR signal from career
+  // outcome so vets can't engineer arc-spotting.
+  _rollHiddenDestiny(p);
   const projRound = _projectedDraftRound(p);
   p.collegeProfile = _buildCollegeProfile(p, projRound);
   // F2 — multi-year college career snapshot. Underclass years (FR/SO/JR)
@@ -17197,81 +17176,61 @@ function _declareEarlyJuniors() {
   return declared;
 }
 
-// SR-year fork — late-bloomer surge OR stock-dropping season. Magnitudes
-// scale with potential bucket so MID-TIER prospects (pot 60-79) get
-// the biggest swings — they're the "biggest jump possible" zone where
-// Burrow / Donald / Mahomes vault stories live. Elite-pot prospects
-// already there, scrub-pot don't have ceiling room.
-function _applySRFork(p) {
-  if (!p || p._srForkApplied) return 0;
-  p._srForkApplied = true;
-  const pot = p.potential || 60;
-  const forkKey = `${p.name}|srfork`;
-  const forkRoll = (_nameHash(forkKey, 73) % 100);
-  // SR-year fork: stock-maker vs stock-breaker season. Probability
-  // peaks at pot 70-84 (R2/R3/R4 grade prospects who can vault to
-  // R1 via consensus catchup). Elite-pot prospects rarely vault
-  // (already there); scrub-pot rarely have ceiling. Magnitudes
-  // calibrated so mid-tier surges land squarely in R1 (OVR 85-92).
-  // Tuned-down surges + bumped drops so the late rounds (R5/R6/R7/CAMP)
-  // fill back out. The vault mechanism was over-pulling mid-tier
-  // prospects up, leaving the bottom tiers thin.
-  let surgePct, dropPct;
-  if      (pot >= 85) { surgePct = 15; dropPct = 32; }
-  else if (pot >= 80) { surgePct = 24; dropPct = 30; } // R2 → R1 (was 32%)
-  else if (pot >= 70) { surgePct = 28; dropPct = 32; } // R3/R4 → R1 (was 38%)
-  else if (pot >= 60) { surgePct = 28; dropPct = 35; } // Donald zone (was 35%)
-  else if (pot >= 50) { surgePct = 18; dropPct = 42; }
-  else                { surgePct = 10; dropPct = 42; }
-  const surgeMag = pot >= 85 ? [4, 8]
-                 : pot >= 80 ? [12, 18]
-                 : pot >= 70 ? [20, 26]   // R3/R4→R1 vault
-                 : pot >= 60 ? [22, 28]   // R5→R1 vault
-                 : pot >= 50 ? [14, 20]
-                 :              [8, 12];
-  const dropMag = pot >= 85 ? [10, 14]    // elite drop = lost season
-                : pot >= 70 ? [10, 14]
-                : pot >= 60 ? [8, 12]
-                :              [6, 10];
-  // Magnitudes seeded via _seededRand for replay determinism — without
-  // this, a class rebuild produces same stock-maker/breaker flags but
-  // different bump sizes. Audit caught this inconsistency with other
-  // seeded mechanisms in _applyConsensusGrade.
-  if (forkRoll < surgePct) {
-    p._srStockMaker = true;
-    const [lo, hi] = surgeMag;
-    return lo + Math.floor(_seededRand(forkKey, 11) * (hi - lo + 1));
-  } else if (forkRoll < surgePct + dropPct) {
-    p._srStockBreaker = true;
-    const [lo, hi] = dropMag;
-    return -(lo + Math.floor(_seededRand(forkKey, 13) * (hi - lo + 1)));
+// Stamp the two hidden "destiny" knobs on a prospect: ceiling (true
+// potential) and growth rate (how fast they reach it). Probabilistically
+// independent of starting OVR so the same-looking FR can have wildly
+// different futures. Vets can't engineer arc-spotting because the rolls
+// are hidden from UI and uncorrelated with visible signals (stats, school,
+// combine).
+//
+// Ceiling distribution (matches NFL prospect ceiling reality):
+//   5% true blue-chip (88-99) — HOF tier
+//  20% solid starter (78-87) — R1-R3 ceiling
+//  40% rotational (65-77) — R4-R6 ceiling
+//  35% camp body (50-64) — undraftable ceiling
+//
+// Growth rate distribution (how aggressively they close gap to ceiling):
+//  15% fast (closes ~50% of gap per year)
+//  60% medium (~30%)
+//  25% slow (~10%) — Brady arc emerges here when ceiling is high
+function _rollHiddenDestiny(p) {
+  if (p._growthRate != null) return; // already rolled
+  const ceilKey = `ceil|${p.name}`;
+  const growKey = `grow|${p.name}`;
+  const ceilRoll = _seededRand(ceilKey);
+  // Bimodal ceiling — long left tail of camp bodies, small blue-chip
+  // spike. Bell-curve in middle is fine since visible OVR/stats are
+  // bell-shaped too.
+  let ceiling;
+  if      (ceilRoll < 0.10) ceiling = 90 + Math.floor(_seededRand(ceilKey, 1) * 10); // 10% blue chip (90-99)
+  else if (ceilRoll < 0.30) ceiling = 82 + Math.floor(_seededRand(ceilKey, 1) * 8);  // 20% R1-R2 cusp (82-89)
+  else if (ceilRoll < 0.55) ceiling = 72 + Math.floor(_seededRand(ceilKey, 1) * 10); // 25% R3-R5 (72-81)
+  else if (ceilRoll < 0.78) ceiling = 60 + Math.floor(_seededRand(ceilKey, 1) * 12); // 23% R6-R7 (60-71)
+  else                       ceiling = 40 + Math.floor(_seededRand(ceilKey, 1) * 20); // 22% camp (40-59)
+  // Ceiling must be at least starting OVR + 2 — otherwise prospect
+  // has nowhere to grow.
+  const startOvr = p.overall || 60;
+  if (ceiling < startOvr + 2) {
+    ceiling = Math.min(99, startOvr + 2 + Math.floor(_seededRand(ceilKey, 2) * 6));
   }
-  return 0;
-}
-
-// Apply a fork bump directly to a prospect's stats (when bump is not
-// going through the dev-cycle apply step). Used by filler prospects
-// that don't pass through _developCollegePlayer.
-function _applySRForkDirect(p) {
-  const bump = _applySRFork(p);
-  if (bump === 0 || !p.stats || !p.stats.length) return;
-  const sorted = p.stats.map((v, i) => ({ v, i })).sort((a, b) => b.v - a.v).slice(0, 3);
-  for (const { i } of sorted) {
-    // Floor 35 to match the pipeline path in _developCollegePlayer.
-    // Audit caught a 20-vs-35 asymmetry between pipeline + filler.
-    p.stats[i] = Math.min(99, Math.max(35, p.stats[i] + bump));
-  }
-  p.overall = calcOverall(p.position, p.stats);
+  p.potential = ceiling; // canonical field name (was rolled by _rollPotential)
+  // Growth rate
+  const growRoll = _seededRand(growKey);
+  p._growthRate = growRoll < 0.20 ? 0.80   // fast (20%) — reaches ceiling fast
+                : growRoll < 0.80 ? 0.55   // medium (60%) — solid dev
+                :                    0.25; // slow (20%) — Brady zone
 }
 
 // Strip college-only state from a prospect after they sign with an
-// NFL team. Without this, every rookie carries 11 dead fields forever
-// (breakout/secondary/tertiary flags + magnitudes + SR fork flags).
-// Doesn't affect behavior since _developCollegePlayer only runs on
-// collegePlayers, but bloats saves and confuses debuggers seeing
-// "stockMaker" on a retired vet.
+// NFL team. Cleans up legacy flags from the old breakout/SR-fork
+// system AND the new three-knob system's _growthRate. Save migration
+// for old prospects who still have the legacy flags works because
+// these deletes are no-ops on missing fields.
 function _clearCollegeFlags(p) {
   if (!p) return;
+  // New three-knob system
+  delete p._growthRate;
+  // Legacy breakout/SR-fork system (pre-refactor, kept for save compat)
   delete p._breakoutYear;
   delete p._breakoutSeverity;
   delete p._breakoutFired;
@@ -17280,196 +17239,61 @@ function _clearCollegeFlags(p) {
   delete p._secondaryMagnitude;
   delete p._tertiaryFired;
   delete p._tertiaryMagnitude;
-  // SR fork flags — added in 04cc10b. Audit caught missing cleanup.
   delete p._srForkApplied;
   delete p._srStockMaker;
   delete p._srStockBreaker;
 }
 
-// Per-season stat development with breakout-year mechanism. Each
-// prospect is deterministically assigned a "breakout year" (SO/JR/SR)
-// at first dev call — when they reach that year, they get a bonus
-// growth surge on top of normal steady growth. Captures the narrative
-// of real college breakout seasons (Trevor Lawrence/Burrow/Mahomes
-// arc) instead of steady linear growth.
+// Per-season development — single mechanism: gap-closing growth with
+// stochastic year intensity. The hidden ceiling (p.potential) and
+// growth rate (p._growthRate) are rolled at FR generation. Each year,
+// the prospect closes some fraction of (ceiling - currentOVR) based on
+// growth rate + a per-year intensity roll. Three intensity tiers
+// (muted/standard/burst) produce the natural year-over-year variance
+// that makes one season "the breakout" — without flagging it.
+//
+// Arc behaviors emerge from the matrix of (ceiling, growth rate):
+//   high ceil + fast grow + accurate scouts  → Burrow-style R1
+//   high ceil + slow grow                     → Brady-style slip
+//   high ceil + medium grow + accurate scouts → Trevor Lawrence steady
+//   low ceil + fast grow                      → peaks early, plateaus
+//   etc.
 function _developCollegePlayer(p) {
-  const pot = p.potential || 60;
-  // Assign breakout year + severity deterministically — once per prospect.
-  // Severity tiers (50% medium, 35% big, 15% huge) create real-NFL
-  // breakout distribution — most prospects had solid seasons, some
-  // climbed (R5 → R2), rare ones vaulted (Burrow / Mahomes / Pitts).
-  // Threshold pot >= 60 so below-avg prospects can also pop occasionally
-  // (the "undrafted UDFA who became a star" path).
-  if (p._breakoutYear == null && pot >= 50) {
-    const h = _nameHash(p.name + "|breakout", 31);
-    p._breakoutYear = ["SO", "JR", "SR"][h % 3];
-    // Severity probability peaks at the "underrated 3-star" zone
-    // (pot 60-69) where real-NFL darkhorse vaults happen — Aaron
-    // Donald (3-star at Pitt), Antonio Brown (6th-round WR), Khalil
-    // Mack (small-school LB). Elite-pot prospects are already known
-    // quantities (steady excellence). Very low-pot prospects rarely
-    // pop (Vinatieri / Romo tier). Mid-low is the wow zone.
-    const sevRoll = _nameHash(p.name + "|severity", 41) % 100;
-    let hugePct, bigPct;
-    if      (pot >= 85) { hugePct = 3;  bigPct = 22; } // elite — steady
-    else if (pot >= 80) { hugePct = 7;  bigPct = 30; } // very good
-    else if (pot >= 70) { hugePct = 22; bigPct = 38; } // mid-tier vault
-    else if (pot >= 65) { hugePct = 28; bigPct = 35; } // PEAK — Donald zone
-    else if (pot >= 60) { hugePct = 22; bigPct = 30; } // darkhorse
-    else if (pot >= 50) { hugePct = 12; bigPct = 22; } // deep darkhorse (Romo)
-    else                { hugePct = 5;  bigPct = 15; } // rare pop (Vinatieri)
-    p._breakoutSeverity = sevRoll < hugePct ? "huge"
-                        : sevRoll < (hugePct + bigPct) ? "big"
-                                                       : "medium";
-  }
-  // Steady growth — elite tier bumped slightly to match real-NFL
-  // dev deltas (pot ≥ 85 now +3-5 vs old +2-4 ceiling at any pot).
-  let bump;
-  if      (pot >= 85) bump = 3 + Math.floor(Math.random() * 3); // +3..+5 (elite)
-  else if (pot >= 80) bump = 2 + Math.floor(Math.random() * 3); // +2..+4
-  else if (pot >= 65) bump = 1 + Math.floor(Math.random() * 3); // +1..+3
-  else                bump = -1 + Math.floor(Math.random() * 4); // -1..+2
-  // Breakout bonus — fires once when collegeYear matches the assigned
-  // breakout year. Magnitude scales by potential bucket × severity
-  // tier. Huge breakouts at any potential can cause major OVR jumps
-  // (Burrow's transfer year, Pitts's JR season).
-  let breakoutBump = 0;
-  if (p._breakoutYear && p.collegeYear === p._breakoutYear && !p._breakoutFired) {
-    const sev = p._breakoutSeverity || "medium";
-    // [lo, hi] inclusive range for each (severity, pot-bucket) combo.
-    // Low-pot huge magnitudes are sizeable so darkhorse vaults actually
-    // produce a meaningful jump (a 2-star recruit's giga-spike needs to
-    // be transformative — Aaron Donald-tier).
-    const magByTier = {
-      huge:   { 85: [18,25], 80: [15,22], 70: [14,18], 65: [11,15], 60: [10,14], 50: [10,14], 0: [8,12] },
-      big:    { 85: [12,16], 80: [10,14], 70: [8,12],  65: [6,9],   60: [5,8],   50: [5,8],   0: [4,6] },
-      medium: { 85: [6,10],  80: [5,8],   70: [4,7],   65: [3,5],   60: [2,4],   50: [2,4],   0: [2,3] },
-    };
-    const potBucket = pot >= 85 ? 85
-                    : pot >= 80 ? 80
-                    : pot >= 70 ? 70
-                    : pot >= 65 ? 65
-                    : pot >= 60 ? 60
-                    : pot >= 50 ? 50
-                    :              0;
-    const [lo, hi] = magByTier[sev][potBucket];
-    breakoutBump = lo + Math.floor(Math.random() * (hi - lo + 1));
-    // Huge breakouts unlock the prospect's ceiling — their potential
-    // gets rerolled significantly higher, opening up the elite-tier
-    // dev curve in subsequent seasons. This is what enables the true
-    // mid-tier-to-elite vault: a pot 75 prospect with huge SO breakout
-    // now has pot ~85-90, hits the +3-5/yr elite dev tier for JR/SR,
-    // and ends college as a legit R1. Without this, mid-tier huge
-    // breakouts gave only ~+5 OVR — not enough for the Burrow arc.
-    if (sev === "huge") {
-      // Low-pot huge breakouts are TRANSFORMATIVE — a 2-star recruit's
-      // giga-spike vaults them into mid-tier dev territory. Without
-      // this aggressive pot bump, low-pot huge breakouts produce a
-      // one-time stat spike but no path forward.
-      let potBump;
-      if      (pot >= 70) potBump = 5  + Math.floor(Math.random() * 8);  // +5-12 (standard)
-      else if (pot >= 60) potBump = 10 + Math.floor(Math.random() * 9);  // +10-18 (Donald)
-      else if (pot >= 50) potBump = 15 + Math.floor(Math.random() * 8);  // +15-22 (Romo)
-      else                potBump = 18 + Math.floor(Math.random() * 8);  // +18-25 (Vinatieri)
-      p.potential = Math.min(99, (p.potential || 60) + potBump);
-    } else if (sev === "big") {
-      const potBump = 2 + Math.floor(Math.random() * 4); // +2 to +5
-      p.potential = Math.min(99, (p.potential || 60) + potBump);
-    }
-    p._breakoutFired = true;
-    p._breakoutMagnitude = breakoutBump;
-  }
-  // SECONDARY breakout — after the primary fires, climbing prospects
-  // can have additional breakout seasons (Mahomes SO + JR, Khalil Mack
-  // SO/JR/SR each up). Per-year roll with probability scaling by
-  // current potential. Smaller magnitude than primary (medium tier).
-  let secondaryBump = 0;
-  if (p._breakoutFired && !p._secondaryFired) {
-    const secKey = `secondary|${p.name}|${p.collegeYear}`;
-    const secRoll = (_nameHash(secKey, 53) % 1000) / 1000;
-    // Secondary chance is higher for low-pot prospects who already had
-    // a primary breakout — they're the "sustained climbers" arc (Aaron
-    // Donald, Khalil Mack). Elite-pot prospects are slightly less likely
-    // to need another surge (they're already there).
-    const secChance = pot >= 90 ? 0.25
-                    : pot >= 80 ? 0.20
-                    : pot >= 70 ? 0.18
-                    : pot >= 60 ? 0.15
-                    : pot >= 50 ? 0.12
-                    :              0;
-    if (secRoll < secChance) {
-      const magMed = { 90: [7,11], 85: [6,10], 80: [5,8], 70: [4,7], 65: [3,5], 60: [3,5], 50: [3,5], 0: [2,3] };
-      const potBucket = pot >= 90 ? 90
-                      : pot >= 85 ? 85
-                      : pot >= 80 ? 80
-                      : pot >= 70 ? 70
-                      : pot >= 65 ? 65
-                      : pot >= 60 ? 60
-                      : pot >= 50 ? 50
-                      :              0;
-      const [lo, hi] = magMed[potBucket];
-      secondaryBump = lo + Math.floor(Math.random() * (hi - lo + 1));
-      // Small pot bump on secondary (extends growth window).
-      // Bigger for low-pot — sustained darkhorse climbers (Donald).
-      const secPotBump = pot < 65 ? 3 + Math.floor(Math.random() * 5)  // +3-7
-                                  : 1 + Math.floor(Math.random() * 3); // +1-3
-      p.potential = Math.min(99, (p.potential || 60) + secPotBump);
-      p._secondaryFired = true;
-      p._secondaryMagnitude = secondaryBump;
-    }
-  }
-  // TERTIARY breakout — rare third surge for prospects who keep
-  // climbing. After secondary fires, smaller magnitude than secondary.
-  // Captures the "every year was better than the last" sustained
-  // climber (Khalil Mack-type arc).
-  let tertiaryBump = 0;
-  if (p._secondaryFired && !p._tertiaryFired) {
-    const tertKey = `tertiary|${p.name}|${p.collegeYear}`;
-    const tertRoll = (_nameHash(tertKey, 67) % 1000) / 1000;
-    const tertChance = pot >= 90 ? 0.15
-                     : pot >= 80 ? 0.08
-                     : pot >= 70 ? 0.04
-                     :              0;
-    if (tertRoll < tertChance) {
-      const potBucket = pot >= 85 ? 85 : pot >= 80 ? 80 : pot >= 70 ? 70 : 65;
-      const magTert = { 85: [4,7], 80: [3,5], 70: [2,4], 65: [1,3] };
-      const [lo, hi] = magTert[potBucket];
-      tertiaryBump = lo + Math.floor(Math.random() * (hi - lo + 1));
-      p._tertiaryFired = true;
-      p._tertiaryMagnitude = tertiaryBump;
-    }
-  }
-  bump += breakoutBump + secondaryBump + tertiaryBump;
-
-  // SR-YEAR FORK — when a prospect transitions to SR (their last
-  // dev cycle), 25% chance of a late-bloomer surge OR a stock drop.
-  // Models the "stock making" SR year reality (Burrow's transfer
-  // season → R1; alternatively, an SR who suffers injury or has a
-  // down year and drops). Pushes the over-supplied R4/R5 middle
-  // toward the tails. 50% stay (most prospects have normal SR years).
-  if (p.collegeYear === "SR" && !p._srForkApplied) {
-    const forkBump = _applySRFork(p);
-    bump += forkBump;
-  }
-
-  if (bump === 0) return;
-  // Boost the player's top 3 stats — primary calling-card stats develop
-  // first, mirroring real CFB player growth.
-  const stats = p.stats;
-  if (!stats || !stats.length) return;
-  const sorted = stats.map((v, i) => ({ v, i })).sort((a, b) => b.v - a.v).slice(0, 3);
-  for (const { i } of sorted) {
-    stats[i] = Math.min(99, Math.max(35, stats[i] + bump));
+  // Lazy-roll hidden destiny (ceiling + growth rate). For prospects
+  // generated by the older system, this fills in missing _growthRate.
+  if (p._growthRate == null) _rollHiddenDestiny(p);
+  if (!p.stats || !p.stats.length) return;
+  const ceiling = p.potential || 70;
+  const current = p.overall || 60;
+  const gap = ceiling - current;
+  if (gap <= 0) return; // already at ceiling
+  const rate = p._growthRate;
+  // Year-to-year intensity — most years are routine, some are huge.
+  // 10% burst (the "breakout year" — emerges naturally, not flagged).
+  // 25% standard. 65% muted (incremental). Seeded by year so the same
+  // prospect always pops in the same season across rebuilds.
+  const intensityKey = `intensity|${p.name}|${p.collegeYear}`;
+  const intensityRoll = _seededRand(intensityKey);
+  const intensity = intensityRoll < 0.15 ? 3.5   // burst (15%)
+                  : intensityRoll < 0.45 ? 1.5   // standard (30%)
+                  :                        0.8;  // muted (55%)
+  const grew = Math.max(0, gap * rate * intensity);
+  if (grew < 0.5) return;
+  // Distribute growth across stats so OVR actually moves. Top-3 stats
+  // get the full bump; next 4 get half; rest get a quarter. Without
+  // this, big bumps cap the top-3 at 99 while lesser stats stay low,
+  // anchoring OVR via calcOverall's weighted formula.
+  const fullBump = Math.max(1, Math.round(grew * 1.0));
+  const halfBump = Math.max(1, Math.round(grew * 0.5));
+  const quartBump = Math.max(0, Math.round(grew * 0.25));
+  const sorted = p.stats.map((v, i) => ({ v, i })).sort((a, b) => b.v - a.v);
+  for (let k = 0; k < sorted.length; k++) {
+    const i = sorted[k].i;
+    const b = k < 3 ? fullBump : k < 7 ? halfBump : quartBump;
+    if (b === 0) continue;
+    p.stats[i] = Math.min(99, Math.max(35, p.stats[i] + b));
   }
   p.overall = calcOverall(p.position, p.stats);
-  // Keep potential ahead of current OVR. _rollPotential was called at
-  // FR generation with no draftRound set (defaulted to R7 mean=60), so
-  // a developing prospect's potential would otherwise stay frozen
-  // below their grown OVR. Without this, an 80-OVR SR drafted in R1
-  // could show "ceiling 65" — Brady-archetype inverted.
-  if ((p.potential || 0) < p.overall + 2) {
-    p.potential = Math.min(99, p.overall + 1 + Math.floor(Math.random() * 4));
-  }
 }
 
 // Age all remaining college players one year forward; drop anyone now in
@@ -18340,20 +18164,19 @@ function _buildDraftClassFromPipeline(rookieYear, themesArg, positionsArg) {
     p.draftYear = rookieYear;
     p.draftSeason = (franchise?.season || 1);
     p.isProspect = true;
-    // SR-year fork — apply before consensus so the stock-making /
-    // stock-breaking effect is reflected in the displayed grade.
-    _applySRForkDirect(p);
+    // Stamp hidden destiny (ceiling + growth rate) so filler prospects
+    // also have the new three-knob system. They don't pass through
+    // _developCollegePlayer dev cycles, but the destiny is still on
+    // the prospect for any post-draft NFL development calculations
+    // that consult p.potential.
+    _rollHiddenDestiny(p);
     _applyConsensusGrade(p, rookieYear);
     p.draftRound = null;
     // College profile uses the prospect's consensus grade for round-
     // appropriate knock selection. R1-grade prospects get sharp lines;
     // camp-body prospects get rougher knocks.
     const profRound = p._generatedRound === 0 ? 7 : p._generatedRound;
-    // Potential hint = consensus grade — same round-bucket as the
-    // displayed grade. Without this, all filler defaulted to R7 mean
-    // potential (60), so even "elite" filler (R1-grade consensus) was
-    // capped low and couldn't develop into a long-term star.
-    p.potential = _rollPotential(p, profRound);
+    // Path A: hidden ceiling already stamped via _rollHiddenDestiny above.
     p.collegeProfile = _buildCollegeProfile(p, profRound);
     // F2 — multi-year college career snapshot (filler is stamped SR-year
     // above so this gives 3 prior seasons FR/SO/JR).
