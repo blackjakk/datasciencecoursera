@@ -9756,15 +9756,20 @@ function _buildOffseasonGainsSheet() {
         const tFrom = _ceilingTier(c.potentialBumped.from, c.draftRound);
         const tTo   = _ceilingTier(c.potentialBumped.to,   c.draftRound);
         const tierShifted = tFrom.grade !== tTo.grade;
+        // Qualitative magnitude — never expose the from/to numbers
+        // (would defeat the "ceiling is private" rule). Bump magnitudes:
+        //   1-3 → "modestly raised"  4-7 → "raised significantly"
+        //   8+  → "dramatically raised"
+        const bump = c.potentialBumped.to - c.potentialBumped.from;
+        const magnitude = bump >= 8 ? "dramatically raised"
+                        : bump >= 4 ? "raised significantly"
+                        : "raised modestly";
         return `
         <div style="display:flex;align-items:center;gap:.5rem;padding:.25rem 0;font-size:.72rem">
           <span style="font-weight:700">${_playerLinkSmart(c.name)}</span>
           <span style="color:var(--gray);font-size:.65rem">${c.pos} · age ${c.ageNow}</span>
           <span style="color:var(--gray);font-size:.65rem;margin-left:auto">
-            ${tierShifted ? `<b style="color:${tFrom.color}">${tFrom.grade}</b> → <b style="color:${tTo.color};font-size:.85rem">${tTo.grade}</b> · ` : ""}ceiling
-            <b style="color:var(--gray)">${c.potentialBumped.from}</b>
-            → <b style="color:#86c8ff;font-size:.8rem">${c.potentialBumped.to}</b>
-            (+${c.potentialBumped.to - c.potentialBumped.from})
+            ${tierShifted ? `tier <b style="color:${tFrom.color}">${tFrom.grade}</b> → <b style="color:${tTo.color};font-size:.85rem">${tTo.grade}</b> · ` : ""}<span style="color:#86c8ff;font-style:italic">ceiling ${magnitude}</span>
           </span>
         </div>`;
       }).join("")}
@@ -9819,8 +9824,10 @@ function _buildOffseasonGainsSheet() {
     // At ceiling — no growth left. Show grade only (still useful for
     // contract context: "B+ at ceiling" means he's a solid starter).
     if (ceil <= cur) {
+      // At ceiling — no number leak (title=hover removed); the tier
+      // letter is the only ceiling signal.
       const t = _ceilingTier(ceil, c.draftRound);
-      return `<span title="ceiling ${ceil}" style="color:var(--gray);font-size:.6rem">⚓ at ceiling · <b style="color:${t.color}">${t.grade}</b></span>`;
+      return `<span style="color:var(--gray);font-size:.6rem">⚓ at ceiling · <b style="color:${t.color}">${t.grade}</b></span>`;
     }
     const room = ceil - cur;
     // Three knowledge states:
@@ -9837,26 +9844,36 @@ function _buildOffseasonGainsSheet() {
     const isNewlyKnown = newlyKnownPids.includes(c.pid);
     const isFullyKnown = _isKnownPlayer({ pid: c.pid }) && !isNewlyKnown;
     if (isFullyKnown) {
+      // Fully-known ceiling — tier letter + QUALITATIVE growth-room
+      // indicator. "+N room" was numerically precise (postOvr + N
+      // trivially recovers the exact ceiling); replaced with a band
+      // word so the gameplay loop survives. Bands:
+      //   room ≥ 7 → "lots of room"
+      //   room 3-6 → "solid room"
+      //   room 1-2 → "a little room"
+      // No title= hover (was leaking exact ceiling).
       const t = _ceilingTier(ceil, c.draftRound);
-      const roomColor = room >= 5 ? "#86c8ff" : room >= 2 ? "#a8d8b6" : "var(--gray)";
-      return `<span title="ceiling ${ceil}" style="color:var(--gray);font-size:.62rem">📋 <b style="color:${t.color}">${t.grade}</b> · <span style="color:${roomColor}">+${room} room</span></span>`;
+      const roomLabel = room >= 7 ? "lots of room"
+                      : room >= 3 ? "solid room"
+                      : "a little room";
+      const roomColor = room >= 7 ? "#86c8ff" : room >= 3 ? "#a8d8b6" : "var(--gray)";
+      return `<span style="color:var(--gray);font-size:.62rem">📋 <b style="color:${t.color}">${t.grade}</b> · <span style="color:${roomColor}">${roomLabel}</span></span>`;
     }
-    // Newly known OR unknown — fuzzy band. Width scales by draft round
-    // (R1 is well-scouted, R7+ is a coin flip) + tightens slightly for
-    // newly-known vs fully-unknown. Matches the noiseWidth pattern in
-    // potentialTag.
-    const r = c.draftRound ?? 4;
-    const baseNoise = r === 1 ? 3 : r <= 3 ? 5 : 8;
-    const noise = isNewlyKnown ? Math.max(2, baseNoise - 2) : baseNoise;
-    const loRoom = Math.max(1, room - noise);
-    const hiRoom = room + noise;
-    // Newly-known gets a distinct NEW badge so the "first year on
-    // your roster, still calibrating" state pops at a glance —
-    // earlier rev used just 🔍 which was easy to miss at .6rem.
+    // Newly known OR unknown — qualitative band only, no numeric
+    // ~+N-M (which leaked the ceiling: postOvr + midpoint = ceiling
+    // approximately). The tier letter shows up too but with a "?"
+    // suffix to convey the lower confidence. Noise width is implied
+    // by the qualifier wording — "uncertain" for unknown players,
+    // "rough read" for newly-known.
+    const t = _ceilingTier(ceil, c.draftRound);
+    const roomLabel = room >= 7 ? "lots of room"
+                    : room >= 3 ? "solid room"
+                    : "a little room";
+    const confidence = isNewlyKnown ? "rough read" : "uncertain";
     const newBadge = isNewlyKnown
       ? `<span style="display:inline-block;font-size:.5rem;padding:.05rem .25rem;border-radius:2px;background:rgba(134,200,255,.15);color:#86c8ff;border:1px solid #86c8ff60;margin-right:.25rem;letter-spacing:.5px;font-weight:700">🔍 NEW</span>`
       : "";
-    return `<span style="color:var(--gray);font-size:.6rem">${newBadge}~+${loRoom}–${hiRoom} room?</span>`;
+    return `<span style="color:var(--gray);font-size:.6rem">${newBadge}<b style="color:${t.color}">${t.grade}?</b> · <span style="color:var(--gray);font-style:italic">${roomLabel} (${confidence})</span></span>`;
   };
 
   // Contract status — years left + expiring flag

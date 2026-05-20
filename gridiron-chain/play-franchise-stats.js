@@ -609,8 +609,15 @@ function _renderPSLeagueTab(myId, visitsLeft) {
       // Without scouting: only show position, age, draft, noisy grade.
       // With scouting: also show flash count + potential ceiling.
       const flashes = scoutedByMe ? (p._psFlashLog || []).filter(f => f.season === franchise.season).length : null;
+      // Practice-squad scouted player potential — show tier letter,
+      // never the raw OVR band. Numeric band (~75-81) trivially
+      // leaked the ceiling within ±3 OVR; replaced with the same
+      // S/A/B/C/D system used in the development report.
       const potentialCell = scoutedByMe
-        ? `<td style="color:var(--gold);font-size:.62rem">~${Math.max(60, (p.potential||p.overall) - 3)}-${Math.min(99, (p.potential||p.overall) + 3)}</td>`
+        ? (() => {
+            const t = _ceilingTier(p.potential || p.overall, p.draftRound);
+            return `<td style="font-size:.62rem"><b style="color:${t.color}">${t.grade}</b> <span style="color:var(--gray);font-size:.55rem">tier</span></td>`;
+          })()
         : `<td style="color:var(--gray);font-size:.62rem">—</td>`;
       const flashCell = scoutedByMe
         ? `<td style="color:var(--gold-lt);font-size:.62rem">${flashes} flash${flashes===1?"":"es"}</td>`
@@ -654,14 +661,16 @@ function _renderPSScoutedTab(myId) {
   const rows = myScouted.map(({ p, teamId, info }) => {
     const team = getTeam(teamId);
     const flashes = (p._psFlashLog || []).filter(f => f.season === franchise.season);
-    const ovrLow = Math.max(60, (p.potential || p.overall) - 3);
-    const ovrHigh = Math.min(99, (p.potential || p.overall) + 3);
+    // Tier-only ceiling display (was ~${low}-${high} which leaked the
+    // ceiling within ±3 OVR). Privacy rule: ceiling number is never
+    // exposed in any UI surface.
+    const tier = _ceilingTier(p.potential || p.overall, p.draftRound);
     return `<tr>
       <td style="color:var(--gold);font-size:.62rem">${p.position}</td>
       <td style="font-weight:700">${p.name}</td>
       <td style="color:var(--gray);font-size:.62rem">${team?.name||"?"}</td>
       <td>${gradeBadge(p)}</td>
-      <td style="color:var(--gold);font-size:.62rem">~${ovrLow}-${ovrHigh}</td>
+      <td style="font-size:.62rem"><b style="color:${tier.color}">${tier.grade}</b> <span style="color:var(--gray);font-size:.55rem">tier</span></td>
       <td style="color:var(--gold-lt);font-size:.62rem">${flashes.length}</td>
       <td style="color:var(--gray);font-size:.6rem">W${info.week}</td>
     </tr>`;
@@ -7762,12 +7771,20 @@ function _rerollPotentialForBreakouts() {
         }
         player.overall = jumpedTo;
         if (typeof _pushNews === "function") {
+          // Privacy: don't leak the new OVR (since users can compare
+          // pre/post to compute the ceiling). The breakout itself is
+          // the news; the actual number is internal.
           _pushNews({ type: "dev_surge",
-            label: `🚀 ${player.position} ${player.name} — breakout year unlocks his ceiling (OVR ${curOvr}→${jumpedTo})` });
+            label: `🚀 ${player.position} ${player.name} — breakout year, ceiling unlocked` });
         }
       } else if (typeof _pushNews === "function") {
+        // Privacy: bump magnitude (↑N) trivially reveals how much the
+        // ceiling moved; replaced with a qualitative phrase.
+        const magnitude = bump >= 8 ? "dramatically"
+                        : bump >= 4 ? "significantly"
+                        : "modestly";
         _pushNews({ type: "dev_surge",
-          label: `📈 ${player.position} ${player.name} — stock rises after breakout (potential ceiling ↑${bump})` });
+          label: `📈 ${player.position} ${player.name} — stock rises ${magnitude} after breakout` });
       }
     }
   }

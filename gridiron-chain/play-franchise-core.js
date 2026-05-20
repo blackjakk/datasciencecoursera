@@ -1329,6 +1329,26 @@ function assignDraftInfo(rosters, currentYear) {
 // above current; rookies and young players get a noisy roll keyed off
 // their draft slot. Some 1st-rounders bust (potential < current OVR
 // even), some late picks/UDFAs have huge ceilings.
+// ⚠ PRIVACY-CRITICAL FIELD — DO NOT EXPOSE THE EXACT NUMBER IN UI.
+//
+// `p.potential` is the player's ceiling (their max achievable OVR).
+// All UI surfaces (gains sheet, scouting panel, player cards, news
+// labels, etc.) must redact this to either a tier letter (S/A/B/C/D
+// via _ceilingTier) or a qualitative magnitude ("significantly",
+// "modestly", "at ceiling"). NEVER render the raw number, the
+// to-from numbers on a ceiling bump, or a derived "+N room" that
+// trivially reveals the ceiling (postOvr + N = potential).
+//
+// ⛓ MEGAETH IMPLEMENTATION NOTE
+// When this game is ported to the MegaETH on-chain contract, the
+// `potential` field MUST be either:
+//   (a) kept off-chain entirely (server-authoritative), or
+//   (b) stored on-chain only as a commitment / encrypted blob that
+//       the client cannot decrypt
+// Otherwise clients can read the chain directly and skip the entire
+// scouting / "tier reveal" gameplay loop, cheating their way to
+// perfect roster decisions. The tier abstraction in the UI is the
+// gameplay loop; on-chain exposure would defeat it.
 function _rollPotential(p) {
   const age = p.age || 22;
   const ovr = p.overall || 70;
