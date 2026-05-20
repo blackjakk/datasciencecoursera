@@ -9633,6 +9633,55 @@ function _ensureRosterAvgOvrSnapshot() {
 // Chart A — per-position net OVR Δ horizontal bar (zero-centered).
 // Positive deltas extend right (green), negative left (red). One
 // row per position with data; gracefully handles empty data.
+// Tooltip for Chart A's per-position bars. Single floating element
+// reused across hovers. Created on first call (lazy) so it doesn't
+// pollute the DOM until needed. Positioned near the cursor on each
+// mouseenter; fades in via opacity transition.
+function _devChartPosTipEl() {
+  let el = document.getElementById("frn-dev-pos-tooltip");
+  if (el) return el;
+  el = document.createElement("div");
+  el.id = "frn-dev-pos-tooltip";
+  el.style.cssText = `position:fixed;z-index:9999;background:#0a1410;border:1px solid #a98a2e;border-radius:3px;padding:.5rem .65rem;box-shadow:0 4px 18px rgba(0,0,0,0.55);font-family:'IBM Plex Mono',monospace;font-size:11px;opacity:0;transition:opacity 0.14s ease-out;pointer-events:none;min-width:220px;max-width:320px;color:#cce8d6;left:0;top:0;transform:translate(-50%,-100%) translateY(-8px)`;
+  document.body.appendChild(el);
+  return el;
+}
+function _devChartPosShow(evt, pos) {
+  const players = (typeof window !== "undefined" && window._devChartPosData && window._devChartPosData[pos]) || [];
+  if (!players.length) return;
+  const net = players.reduce((s, p) => s + p.delta, 0);
+  const netStr = net > 0 ? `+${net}` : `${net}`;
+  const netColor = net > 0 ? "#86e0a3" : net < 0 ? "#ff9b9b" : "#7a8b85";
+  const rows = players.map(p => {
+    const dColor = p.delta > 0 ? "#86e0a3" : p.delta < 0 ? "#ff9b9b" : "#7a8b85";
+    const dStr   = p.delta > 0 ? `+${p.delta}` : p.delta < 0 ? `${p.delta}` : "—";
+    return `<div style="display:grid;grid-template-columns:1fr 2rem 3rem;gap:.4rem;align-items:baseline;padding:.1rem 0;font-size:10.5px">
+      <span style="color:#cce8d6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}<span style="color:#5d6b66;font-size:9px;margin-left:.3rem">${p.age || ""}</span></span>
+      <span style="color:${dColor};font-weight:700;text-align:right">${dStr}</span>
+      <span style="color:#7a8b85;font-size:9.5px;text-align:right;font-family:'Bebas Neue',sans-serif;letter-spacing:.5px">${p.preOvr}→${p.postOvr}</span>
+    </div>`;
+  }).join("");
+  const el = _devChartPosTipEl();
+  el.innerHTML = `
+    <div style="display:flex;align-items:baseline;justify-content:space-between;padding-bottom:.3rem;margin-bottom:.3rem;border-bottom:1px solid #2a3a32">
+      <span style="font-family:'Bebas Neue',sans-serif;font-size:14px;color:#f5c542;letter-spacing:1.2px">${pos}</span>
+      <span style="color:#5d6b66;font-size:9.5px">${players.length} player${players.length===1?"":"s"} · NET <b style="color:${netColor}">${netStr}</b></span>
+    </div>
+    ${rows}`;
+  // Position above the hovered bar. Use the SVG bar's bounding rect
+  // (clientX/Y from the event isn't aligned with the row).
+  const rect = evt.currentTarget.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top;
+  el.style.left = `${cx}px`;
+  el.style.top  = `${cy}px`;
+  el.style.opacity = "1";
+}
+function _devChartPosHide() {
+  const el = document.getElementById("frn-dev-pos-tooltip");
+  if (el) el.style.opacity = "0";
+}
+
 function _chartPosDeltas(data) {
   const W = _CHART_W, H = _CHART_H, padL = 36, padR = 28, padT = 26, padB = 14;
   if (!data.length) return `<svg viewBox="0 0 ${W} ${H}" style="${_CHART_STYLE}">
@@ -9654,10 +9703,16 @@ function _chartPosDeltas(data) {
       const color = d.delta > 0 ? "#86e0a3" : d.delta < 0 ? "#ff9b9b" : "rgba(255,255,255,.15)";
       const x = isPos ? zeroX : (zeroX - barLen);
       const barH = Math.min(rowH * 0.7, 14);
+      // Full-row transparent overlay rect for the hover tooltip.
+      // Sized to span the entire chart row (left label + bar area
+      // + delta number) so the tooltip fires anywhere on the row,
+      // not just on the colored bar. Cursor pointer hints
+      // interactivity.
       return `
         <text x="${padL - 4}" y="${cy + 3}" text-anchor="end" fill="#9bbfa8" font-size="9" font-weight="600">${d.pos}</text>
         <rect x="${x}" y="${cy - barH/2}" width="${barLen}" height="${barH}" fill="${color}" opacity="0.85"/>
-        <text x="${isPos ? x + barLen + 3 : x - 3}" y="${cy + 3}" text-anchor="${isPos ? 'start' : 'end'}" fill="${color}" font-size="9.5" font-weight="700">${d.delta > 0 ? '+' : ''}${d.delta}</text>`;
+        <text x="${isPos ? x + barLen + 3 : x - 3}" y="${cy + 3}" text-anchor="${isPos ? 'start' : 'end'}" fill="${color}" font-size="9.5" font-weight="700">${d.delta > 0 ? '+' : ''}${d.delta}</text>
+        <rect x="0" y="${cy - rowH/2}" width="${W}" height="${rowH}" fill="transparent" style="cursor:pointer" onmouseenter="_devChartPosShow(event, '${d.pos}')" onmouseleave="_devChartPosHide()"></rect>`;
     }).join("")}
   </svg>`;
 }
@@ -10000,10 +10055,27 @@ function _buildOffseasonGainsSheet() {
   for (const c of allMyChg) {
     posDeltaMap[c.pos] = (posDeltaMap[c.pos] || 0) + (c.delta || 0);
   }
+  // Per-position player breakdown — drives the hover tooltip on the
+  // chart's bars. Sorted by delta desc within each position so the
+  // biggest movers surface first.
+  const posBreakdown = {};
+  for (const c of allMyChg) {
+    if (!posBreakdown[c.pos]) posBreakdown[c.pos] = [];
+    posBreakdown[c.pos].push({
+      name: c.name, pid: c.pid,
+      delta: c.delta || 0,
+      preOvr: c.preOvr, postOvr: c.postOvr,
+      age: c.ageNow,
+    });
+  }
+  for (const k in posBreakdown) posBreakdown[k].sort((a, b) => b.delta - a.delta);
+  // Stash on window so the SVG hover handlers can read it without
+  // serializing massive JSON blobs into the onmouseenter attribute.
+  if (typeof window !== "undefined") window._devChartPosData = posBreakdown;
   const POS_ORDER = ["QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"];
   const posDeltaData = POS_ORDER
     .filter(p => posDeltaMap[p] !== undefined)
-    .map(p => ({ pos: p, delta: posDeltaMap[p] }));
+    .map(p => ({ pos: p, delta: posDeltaMap[p], players: posBreakdown[p] || [] }));
   // B: ceiling tier distribution + per-tier position breakdown
   const tierCounts = { S:0, A:0, B:0, C:0, D:0 };
   const tierColors = { S:"#f5c542", A:"#5ed4d4", B:"#a8d8b6", C:"#e0b078", D:"#ff9b9b" };
