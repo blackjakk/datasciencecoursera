@@ -15407,8 +15407,10 @@ function _mockPickReasons(entry, classProspects) {
   // Team need
   if (c.needBonus >= 15) reasons.push({ icon: "🎯", text: `filling ${p.position} hole`, color: "#ff9b9b" });
   else if (c.needBonus >= 8) reasons.push({ icon: "📍", text: `team need at ${p.position}`, color: "var(--gold-lt)" });
-  // Position premium (QB / EDGE / OT typically)
-  if (c.posPrem >= 6) reasons.push({ icon: "💎", text: "premium position", color: "#86c8ff" });
+  // Position premium — lowered threshold from 6 to 4 so the chip
+  // fires for OL/DL/CB (premium in NFL reality) not just QB.
+  // _DRAFT_POS_PREMIUM table tops out at QB:8, OL:5, DL:4, CB:4.
+  if (c.posPrem >= 4) reasons.push({ icon: "💎", text: "premium position", color: "#86c8ff" });
   // Scheme fit bonus
   if (c.scheme >= 4) reasons.push({ icon: "🔧", text: "scheme fit", color: "#5ed4d4" });
   // Elite combine numbers
@@ -15442,9 +15444,15 @@ function _combineStandouts(cls, n = 5, posFilter) {
 }
 
 // Composite combine score — position-weighted z-score across the 4
-// measurables. Used to detect "surprising results": workout warriors
-// (elite combine + low scout grade) and workout disappointments
-// (high scout grade + weak combine).
+// measurables. Used to detect "surprising results" + drives the
+// per-prospect combine letter grade.
+//
+// Baselines reflect typical DRAFTED-CLASS averages (not league-wide
+// average ratings). Drafted prospects skew faster/stronger than the
+// generic player pool, so calibrating to league means produced an
+// inflated composite that fired the "elite combine" chip on most
+// R1 picks. New baselines:
+//   forty 4.70 / bench 20 / cone 7.00 / vert 36
 function _combineCompositeScore(p) {
   const m = combineMeasurables(p);
   // Position-aware weights — skill positions reward speed/agility;
@@ -15453,12 +15461,25 @@ function _combineCompositeScore(p) {
   if (["RB","WR","CB","S","TE"].includes(p.position)) w = { f: 1.4, b: 0.4, c: 1.0, v: 0.9 };
   if (["OL","DL"].includes(p.position))               w = { f: 0.6, b: 1.4, c: 0.5, v: 0.6 };
   if (p.position === "LB")                            w = { f: 1.1, b: 0.9, c: 0.9, v: 0.7 };
-  // z-scores around league-typical means
-  const fZ = (5.0 - parseFloat(m.fortyTime)) / 0.3;   // lower 40 = better
-  const bZ = (m.benchReps - 18) / 8;
-  const cZ = (7.5 - parseFloat(m.coneTime)) / 0.4;    // lower cone = better
-  const vZ = (m.verticalIn - 32) / 6;
+  // z-scores around drafted-class typical means
+  const fZ = (4.70 - parseFloat(m.fortyTime)) / 0.25;  // lower 40 = better
+  const bZ = (m.benchReps - 20) / 7;
+  const cZ = (7.00 - parseFloat(m.coneTime)) / 0.30;   // lower cone = better
+  const vZ = (m.verticalIn - 36) / 5;
   return fZ * w.f + bZ * w.b + cZ * w.c + vZ * w.v;
+}
+
+// Letter grade from composite score — same band shape as the
+// ceiling tier (S/A/B/C/D + plus tiers) so the visual language
+// stays consistent across the dev report and combine screen.
+function _combineLetterGrade(score) {
+  if (score >= 2.0)  return { grade: "A+", color: "#f5c542", label: "elite" };
+  if (score >= 1.2)  return { grade: "A",  color: "#86e0a3", label: "excellent" };
+  if (score >= 0.5)  return { grade: "B+", color: "#a8d8b6", label: "good" };
+  if (score >= -0.2) return { grade: "B",  color: "#cce8d6", label: "solid" };
+  if (score >= -0.8) return { grade: "C+", color: "#e0b078", label: "average" };
+  if (score >= -1.5) return { grade: "C",  color: "#e0b078", label: "below avg" };
+  return                     { grade: "D",  color: "#ff9b9b", label: "weak" };
 }
 
 // Returns { warriors, disappointments } — top-N "surprising"
@@ -15859,40 +15880,111 @@ function renderFrnDraftPreshow() {
   const watchPlayers = [...watchSet]
     .map(n => d.class.find(p => p.name === n))
     .filter(Boolean);
+  // Pre-compute class context for per-stat ranks. Class size + sorted
+  // arrays once, then each watched player's row just looks up indexes.
+  const draftedClass = d.class.filter(x => x._generatedRound !== 0);
+  const totalClass = draftedClass.length;
+  // Sort by each metric — lower-is-better for 40 and cone.
+  const sortBy = (key, ascending) => draftedClass.slice().sort((a, b) => {
+    const va = parseFloat(combineMeasurables(a)[key]);
+    const vb = parseFloat(combineMeasurables(b)[key]);
+    return ascending ? va - vb : vb - va;
+  });
+  const fortyOrder = sortBy("fortyTime", true);
+  const benchOrder = sortBy("benchReps", false);
+  const coneOrder  = sortBy("coneTime", true);
+  const vertOrder  = sortBy("verticalIn", false);
+  const _rankIn = (sortedArr, p) => sortedArr.findIndex(x => x.name === p.name) + 1;
+  // Per-position sub-orders, lazy-computed per position
+  const _posOrders = new Map();
+  const _posOrderFor = (pos) => {
+    if (_posOrders.has(pos)) return _posOrders.get(pos);
+    const posClass = draftedClass.filter(x => x.position === pos);
+    const orders = {
+      forty: posClass.slice().sort((a, b) => parseFloat(combineMeasurables(a).fortyTime) - parseFloat(combineMeasurables(b).fortyTime)),
+      bench: posClass.slice().sort((a, b) => combineMeasurables(b).benchReps - combineMeasurables(a).benchReps),
+      cone:  posClass.slice().sort((a, b) => parseFloat(combineMeasurables(a).coneTime) - parseFloat(combineMeasurables(b).coneTime)),
+      vert:  posClass.slice().sort((a, b) => combineMeasurables(b).verticalIn - combineMeasurables(a).verticalIn),
+      total: posClass.length,
+    };
+    _posOrders.set(pos, orders);
+    return orders;
+  };
+  // Slick watchlist — per-player card showing portrait · combine
+  // letter grade · scout grade · all 4 measurables with hover-tip
+  // ranks (position + overall) · archetype · NFL comp · knock.
   const watchlistHtml = watchPlayers.length ? `
     <div style="background:var(--bg2);border:1px solid var(--gold);border-radius:3px;padding:.55rem .7rem">
-      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:.4rem">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:.5rem">
         <span style="font-size:.6rem;color:var(--gold);letter-spacing:1.2px;font-weight:700">⭐ MY WATCHLIST</span>
-        <span style="color:var(--gray);font-size:.55rem">${watchPlayers.length} prospect${watchPlayers.length===1?"":"s"} · click a star to remove</span>
+        <span style="color:var(--gray);font-size:.55rem">${watchPlayers.length} prospect${watchPlayers.length===1?"":"s"} · hover a measurable for ranks · click ★ to remove</span>
       </div>
-      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.62rem">
-        <thead><tr style="color:var(--gray);font-size:.5rem;letter-spacing:.8px">
-          <th style="text-align:left;padding:.18rem .35rem">PLAYER</th>
-          <th style="text-align:left;padding:.18rem .35rem">POS</th>
-          <th style="text-align:left;padding:.18rem .35rem">GRADE</th>
-          <th style="text-align:right;padding:.18rem .35rem">40</th>
-          <th style="text-align:right;padding:.18rem .35rem">BENCH</th>
-          <th style="text-align:right;padding:.18rem .35rem">3-CONE</th>
-          <th style="text-align:right;padding:.18rem .35rem">VERT</th>
-        </tr></thead>
-        <tbody>
-          ${watchPlayers.map(p => {
-            const m = combineMeasurables(p);
-            const sg = (typeof scoutGrade === "function") ? scoutGrade(p) : (p.overall || 70);
-            const grade = (typeof gradeLabel === "function") ? gradeLabel(sg) : sg.toFixed(0);
-            const gColor = sg >= 82 ? "var(--green-lt)" : sg >= 70 ? "var(--gold)" : sg >= 60 ? "var(--gold-lt)" : "var(--gray)";
-            return `<tr style="border-top:1px solid rgba(255,255,255,.04)">
-              <td style="padding:.22rem .35rem">${_nameWithStar(p)}</td>
-              <td style="padding:.22rem .35rem;color:var(--gold-lt);font-weight:700">${p.position}</td>
-              <td style="padding:.22rem .35rem;color:${gColor};font-weight:700">${grade}</td>
-              <td style="padding:.22rem .35rem;text-align:right;font-family:'Bebas Neue','Anton',sans-serif">${m.fortyTime}</td>
-              <td style="padding:.22rem .35rem;text-align:right;font-family:'Bebas Neue','Anton',sans-serif">${m.benchReps}</td>
-              <td style="padding:.22rem .35rem;text-align:right;font-family:'Bebas Neue','Anton',sans-serif">${m.coneTime}</td>
-              <td style="padding:.22rem .35rem;text-align:right;font-family:'Bebas Neue','Anton',sans-serif">${m.verticalIn}"</td>
-            </tr>`;
-          }).join("")}
-        </tbody>
-      </table></div>
+      <div style="display:flex;flex-direction:column;gap:.5rem">
+        ${watchPlayers.map(p => {
+          const m = combineMeasurables(p);
+          const sg = (typeof scoutGrade === "function") ? scoutGrade(p) : (p.overall || 70);
+          const sgLabel = (typeof gradeLabel === "function") ? gradeLabel(sg) : sg.toFixed(0);
+          const sgColor = sg >= 82 ? "#86e0a3" : sg >= 75 ? "#a8d8b6" : sg >= 68 ? "var(--gold-lt)" : sg >= 60 ? "#e0b078" : "#ff9b9b";
+          const composite = _combineCompositeScore(p);
+          const cg = _combineLetterGrade(composite);
+          const portrait = (typeof _playerPortrait === "function") ? _playerPortrait(p, 42) : "";
+          const archetype = (typeof _archetypeLabel === "function") ? _archetypeLabel(p) : (p.archetype || "");
+          const comp = (typeof _draftNFLComp === "function") ? _draftNFLComp(p) : "";
+          const knock = p.collegeProfile?.knock || "";
+          const projRound = p._generatedRound ? `R${p._generatedRound}` : "—";
+          // Per-stat ranks
+          const posOrder = _posOrderFor(p.position);
+          const _cell = (val, units, posRank, overallRank, isElite) => {
+            const titleText = `${posRank ? `#${posRank} ${p.position} in class · ` : ""}#${overallRank} of ${totalClass} overall`;
+            const valColor = isElite ? "#86e0a3" : "var(--white)";
+            return `<div title="${titleText}" style="text-align:center;padding:.25rem;background:rgba(255,255,255,.025);border-radius:2px;cursor:help">
+              <div style="font-family:'Bebas Neue','Anton',sans-serif;font-size:1rem;color:${valColor};letter-spacing:.3px;line-height:1">${val}${units}</div>
+              <div style="font-size:.5rem;color:var(--gray);margin-top:.05rem">#${posRank}${p.position} · #${overallRank}</div>
+            </div>`;
+          };
+          const fRank   = _rankIn(fortyOrder, p);
+          const bRank   = _rankIn(benchOrder, p);
+          const cRank   = _rankIn(coneOrder, p);
+          const vRank   = _rankIn(vertOrder, p);
+          const fPosRk  = _rankIn(posOrder.forty, p);
+          const bPosRk  = _rankIn(posOrder.bench, p);
+          const cPosRk  = _rankIn(posOrder.cone, p);
+          const vPosRk  = _rankIn(posOrder.vert, p);
+          return `
+            <div style="display:grid;grid-template-columns:42px 1fr auto;gap:.65rem;align-items:center;padding:.5rem .55rem;background:rgba(255,255,255,.025);border-radius:3px;border-left:3px solid ${cg.color}">
+              <div style="width:42px;height:48px;overflow:hidden;border-radius:3px;background:var(--bg3);display:flex;align-items:center;justify-content:center">${portrait}</div>
+              <div style="min-width:0">
+                <div style="display:flex;align-items:baseline;gap:.4rem;flex-wrap:wrap">
+                  ${_nameWithStar(p)}
+                  <span style="color:var(--gold-lt);font-size:.6rem;font-weight:700">${p.position}</span>
+                  <span style="color:var(--gray);font-size:.58rem">${p.age || "?"} yo · proj ${projRound}</span>
+                  ${archetype ? `<span style="color:#5ed4d4;font-size:.58rem">${archetype}</span>` : ""}
+                  ${comp ? `<span style="color:#86c8ff;font-size:.58rem;font-style:italic">comp: ${comp}</span>` : ""}
+                </div>
+                ${knock ? `<div style="color:#e0b078;font-size:.55rem;margin-top:.15rem">⚠ ${knock}</div>` : ""}
+                <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:.35rem;margin-top:.4rem">
+                  ${_cell(m.fortyTime,  "",   fPosRk, fRank, fRank <= 5)}
+                  ${_cell(m.benchReps,  "",   bPosRk, bRank, bRank <= 5)}
+                  ${_cell(m.coneTime,   "",   cPosRk, cRank, cRank <= 5)}
+                  ${_cell(m.verticalIn, "\"", vPosRk, vRank, vRank <= 5)}
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:.35rem;margin-top:.1rem;font-size:.45rem;color:#5d6b66;letter-spacing:.5px;text-align:center">
+                  <span>40-YARD</span><span>BENCH</span><span>3-CONE</span><span>VERTICAL</span>
+                </div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:.35rem;align-items:center;min-width:5rem">
+                <div title="Composite combine grade · score ${composite.toFixed(2)} (${cg.label})" style="text-align:center;padding:.3rem .55rem;background:rgba(255,255,255,.03);border:1px solid ${cg.color}55;border-radius:2px;cursor:help">
+                  <div style="font-family:'Bebas Neue','Anton',sans-serif;font-size:1.3rem;color:${cg.color};line-height:1">${cg.grade}</div>
+                  <div style="font-size:.45rem;color:var(--gray);letter-spacing:.5px;margin-top:.1rem">COMBINE</div>
+                </div>
+                <div title="Scout grade ${sg.toFixed(0)}/100" style="text-align:center;padding:.3rem .55rem;background:rgba(255,255,255,.03);border:1px solid ${sgColor}55;border-radius:2px;cursor:help">
+                  <div style="font-family:'Bebas Neue','Anton',sans-serif;font-size:1.3rem;color:${sgColor};line-height:1">${sgLabel}</div>
+                  <div style="font-size:.45rem;color:var(--gray);letter-spacing:.5px;margin-top:.1rem">SCOUT</div>
+                </div>
+              </div>
+            </div>`;
+        }).join("")}
+      </div>
     </div>` : "";
 
   // ── SURPRISING RESULTS — workout warriors + workout disappointments
