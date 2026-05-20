@@ -1367,13 +1367,17 @@ function assignDraftInfo(rosters, currentYear) {
 // scouting / "tier reveal" gameplay loop, cheating their way to
 // perfect roster decisions. The tier abstraction in the UI is the
 // gameplay loop; on-chain exposure would defeat it.
-function _rollPotential(p) {
+function _rollPotential(p, hintRound) {
   const age = p.age || 22;
   const ovr = p.overall || 70;
   // Vets (25+): potential = current + 0-3 bump (peak players)
   if (age >= 25) return Math.min(99, ovr + Math.floor(Math.random() * 4));
-  // Young (22-24): draft pedigree drives mean
-  const r = p.draftRound || 7;
+  // Young (22-24): draft pedigree drives mean. `hintRound` lets callers
+  // who don't yet have draftRound set (e.g., college FR generation)
+  // route potential to the right round-bucket. Without this, an FR
+  // prospect rolled at "elite" tier would default to R7 mean (60) and
+  // stagnate through dev — the elite tier roll was wasted.
+  const r = p.draftRound || hintRound || 7;
   const meanByRound = { 1: 88, 2: 81, 3: 75, 4: 70, 5: 66, 6: 63, 7: 60, 0: 58 };
   const stdByRound  = { 1: 5,  2: 6,  3: 7,  4: 7,  5: 7,  6: 7,  7: 7,  0: 8 };
   const mean = meanByRound[r] ?? 65;

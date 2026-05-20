@@ -16898,9 +16898,17 @@ const _CONSENSUS_GRADE_THRESHOLDS = [
   { round: 6, minOvr: 60 },
   { round: 7, minOvr: 55 },
 ];
-function _consensusGradeRound(consensusOvr) {
+// Position-aware threshold adjustments. QB is rare in the college pool
+// (~6% pre-bump) and the dev curve caps elite-FR QBs at OVR ~88-92 by
+// SR. To match NFL R1 QB volume (2-3/draft), QB R1 threshold is lowered
+// 3 points (≥82 vs 85 for other positions). Real NFL routinely takes
+// QBs with R1 grades below ≥85 — teams reach for QB because the
+// position is scarce.
+const _POSITION_GRADE_ADJUST = { QB: -3 };
+function _consensusGradeRound(consensusOvr, position) {
+  const adj = (position && _POSITION_GRADE_ADJUST[position]) || 0;
   for (const t of _CONSENSUS_GRADE_THRESHOLDS) {
-    if (consensusOvr >= t.minOvr) return t.round;
+    if (consensusOvr >= (t.minOvr + adj)) return t.round;
   }
   return 0; // below R7 grade — camp body / UDFA tier
 }
@@ -16914,7 +16922,7 @@ function _consensusGradeRound(consensusOvr) {
 function _applyConsensusGrade(p, rookieYear) {
   const biasKey = `bias|${rookieYear}|${p.name}`;
   const trueOvr = p.overall || 60;
-  const trueOvrGrade = _consensusGradeRound(trueOvr);
+  const trueOvrGrade = _consensusGradeRound(trueOvr, p.position);
   // Base noise: tight on well-scouted top prospects, wide on flyers
   const baseNoiseScale = trueOvrGrade === 0 ? 5
                        : trueOvrGrade === 1 ? 2
@@ -16939,7 +16947,7 @@ function _applyConsensusGrade(p, rookieYear) {
   p._aiScoutBias = +(baseBias + wildcardBias + ultraBias).toFixed(1);
   // Consensus grade — what the world sees. The draft AI ranks by this,
   // user-visible grade badge shows this, scout reveals can shift it.
-  p._generatedRound = _consensusGradeRound(trueOvr + p._aiScoutBias);
+  p._generatedRound = _consensusGradeRound(trueOvr + p._aiScoutBias, p.position);
 }
 
 // ── Multi-year college pipeline ──────────────────────────────────────────────
@@ -17068,7 +17076,16 @@ function _generateCollegePlayer(collegeYear, blockNames) {
   p._collegeJoinedSeason = (franchise?.season || 1);
   p.draftSeason = (franchise?.season || 1) + _COLLEGE_SEASONS_TO_DRAFT[collegeYear];
   p.draftYear = (new Date().getFullYear()) + p.draftSeason;
-  p.potential = _rollPotential(p);
+  // Tier-driven potential hint — without this, FR prospects (which have
+  // no draftRound set) defaulted to R7 mean (60) regardless of tier, so
+  // an FR-elite QB would have ~85 stats but only ~60 potential and
+  // stagnate through dev. Maps tier → typical projected round so the
+  // potential distribution matches the stat distribution.
+  const _hintRound = tier === "elite" ? 1
+                  : tier === "good"  ? 3
+                  : tier === "average" ? 5
+                                       : 7;
+  p.potential = _rollPotential(p, _hintRound);
   const projRound = _projectedDraftRound(p);
   p.collegeProfile = _buildCollegeProfile(p, projRound);
   // F2 — multi-year college career snapshot. Underclass years (FR/SO/JR)
@@ -18024,11 +18041,15 @@ function _buildDraftClassFromPipeline(rookieYear, themesArg, positionsArg) {
     p.isProspect = true;
     _applyConsensusGrade(p, rookieYear);
     p.draftRound = null;
-    p.potential = _rollPotential(p);
     // College profile uses the prospect's consensus grade for round-
     // appropriate knock selection. R1-grade prospects get sharp lines;
     // camp-body prospects get rougher knocks.
     const profRound = p._generatedRound === 0 ? 7 : p._generatedRound;
+    // Potential hint = consensus grade — same round-bucket as the
+    // displayed grade. Without this, all filler defaulted to R7 mean
+    // potential (60), so even "elite" filler (R1-grade consensus) was
+    // capped low and couldn't develop into a long-term star.
+    p.potential = _rollPotential(p, profRound);
     p.collegeProfile = _buildCollegeProfile(p, profRound);
     // F2 — multi-year college career snapshot (filler is stamped SR-year
     // above so this gives 3 prior seasons FR/SO/JR).
