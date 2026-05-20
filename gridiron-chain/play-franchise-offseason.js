@@ -9731,6 +9731,66 @@ function _devChartTierShow(evt, tier) {
   el.style.opacity = "1";
 }
 
+// Time-series hover (Charts C and D). One helper handles both — kind
+// is "ovr" or "age". Tooltip shows: season label, big value, delta
+// vs prior season, delta vs current season. Border tints to the
+// chart's line color (blue for OVR, amber for age).
+function _devChartHistoryShow(evt, kind, season) {
+  // Lookup by season (not array index) — Chart D filters to entries
+  // with avgAge set, so its row indexes diverge from the global
+  // history array on partially-migrated saves. Season number is the
+  // stable key.
+  const data = (typeof window !== "undefined" && window._devChartHistoryData) || [];
+  const idx = data.findIndex(d => d.season === season);
+  if (idx < 0) return;
+  const cur = data[idx];
+  if (!cur) return;
+  const isOvr = kind === "ovr";
+  const valKey = isOvr ? "avgOvr" : "avgAge";
+  const label = isOvr ? "AVG OVR" : "AVG AGE";
+  const unit = isOvr ? "" : "yr";
+  const color = isOvr ? "#86c8ff" : "#e0b078";
+  const val = cur[valKey];
+  if (val == null) return;
+  const prev = idx > 0 ? data[idx - 1] : null;
+  const latest = data[data.length - 1];
+  const dVsPrev = prev && prev[valKey] != null ? val - prev[valKey] : null;
+  const dVsCur  = (idx === data.length - 1) ? null
+                : latest[valKey] != null ? val - latest[valKey] : null;
+  // Delta formatter — for AGE, rising is amber (concern); for OVR,
+  // rising is green (good). Same arrow rules either way.
+  const _fmtDelta = (d) => {
+    if (d == null) return `<span style="color:#5d6b66">—</span>`;
+    const sign = d > 0 ? "+" : "";
+    const arrow = d > 0 ? "▲" : d < 0 ? "▼" : "━";
+    const goodColor = "#86e0a3", badColor = "#ff9b9b", neutral = "#7a8b85";
+    const col = d === 0 ? neutral
+              : !isOvr ? (d > 0 ? "#e0b078" : goodColor)
+                       : (d > 0 ? goodColor : badColor);
+    return `<span style="color:${col};font-weight:700">${arrow} ${sign}${d.toFixed(1)}</span>`;
+  };
+  const el = _devChartPosTipEl();
+  el.innerHTML = `
+    <div style="display:flex;align-items:baseline;justify-content:space-between;padding-bottom:.3rem;margin-bottom:.25rem;border-bottom:1px solid #2a3a32">
+      <span style="font-family:'Bebas Neue',sans-serif;font-size:14px;color:${color};letter-spacing:1.3px">SEASON ${cur.season}</span>
+      <span style="color:#5d6b66;font-size:9.5px">${label}</span>
+    </div>
+    <div style="display:flex;justify-content:center;align-items:baseline;gap:.3rem;padding:.2rem 0 .4rem">
+      <span style="font-family:'Bebas Neue',sans-serif;font-size:26px;color:${color};letter-spacing:1px;line-height:1">${val.toFixed(1)}</span>
+      ${unit ? `<span style="color:#5d6b66;font-size:10px">${unit}</span>` : ""}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;padding-top:.25rem;border-top:1px solid #2a3a32;font-size:10px">
+      <div><span style="color:#5d6b66">vs prior</span> ${_fmtDelta(dVsPrev)}</div>
+      <div style="text-align:right"><span style="color:#5d6b66">vs current</span> ${_fmtDelta(dVsCur)}</div>
+    </div>`;
+  el.style.borderLeft = `3px solid ${color}`;
+  el.style.borderColor = `#a98a2e ${color} #a98a2e #a98a2e`;
+  const rect = evt.currentTarget.getBoundingClientRect();
+  el.style.left = `${rect.left + rect.width / 2}px`;
+  el.style.top  = `${rect.top}px`;
+  el.style.opacity = "1";
+}
+
 function _chartPosDeltas(data) {
   const W = _CHART_W, H = _CHART_H, padL = 36, padR = 28, padT = 26, padB = 14;
   if (!data.length) return `<svg viewBox="0 0 ${W} ${H}" style="${_CHART_STYLE}">
@@ -9868,7 +9928,8 @@ function _chartOvrLine(data) {
     ${data.map((d, i) => `
       <circle cx="${x(i)}" cy="${y(d.avgOvr)}" r="3" fill="#86c8ff" stroke="#0a1410" stroke-width="1.5"/>
       <text x="${x(i)}" y="${H - 14}" text-anchor="middle" fill="#5d6b66" font-size="8">'${String(d.season).slice(-2)}</text>
-      <text x="${x(i)}" y="${y(d.avgOvr) - 8}" text-anchor="middle" fill="#86c8ff" font-size="8.5" font-weight="700">${d.avgOvr.toFixed(1)}</text>`).join("")}
+      <text x="${x(i)}" y="${y(d.avgOvr) - 8}" text-anchor="middle" fill="#86c8ff" font-size="8.5" font-weight="700">${d.avgOvr.toFixed(1)}</text>
+      <circle cx="${x(i)}" cy="${y(d.avgOvr)}" r="10" fill="transparent" style="cursor:pointer" onmouseenter="_devChartHistoryShow(event, 'ovr', ${d.season})" onmouseleave="_devChartPosHide()"/>`).join("")}
     <text x="${W - padR}" y="${H - 4}" text-anchor="end" fill="${totalDeltaColor}" font-size="9" font-weight="700">${totalDeltaStr} OVR · ${data.length-1} yr${data.length>2?'s':''}</text>
   </svg>`;
 }
@@ -9915,7 +9976,8 @@ function _chartAgeLine(data) {
     ${live.map((d, i) => `
       <circle cx="${x(i)}" cy="${y(d.avgAge)}" r="3" fill="#e0b078" stroke="#0a1410" stroke-width="1.5"/>
       <text x="${x(i)}" y="${H - 14}" text-anchor="middle" fill="#5d6b66" font-size="8">'${String(d.season).slice(-2)}</text>
-      <text x="${x(i)}" y="${y(d.avgAge) - 8}" text-anchor="middle" fill="#e0b078" font-size="8.5" font-weight="700">${d.avgAge.toFixed(1)}</text>`).join("")}
+      <text x="${x(i)}" y="${y(d.avgAge) - 8}" text-anchor="middle" fill="#e0b078" font-size="8.5" font-weight="700">${d.avgAge.toFixed(1)}</text>
+      <circle cx="${x(i)}" cy="${y(d.avgAge)}" r="10" fill="transparent" style="cursor:pointer" onmouseenter="_devChartHistoryShow(event, 'age', ${d.season})" onmouseleave="_devChartPosHide()"/>`).join("")}
     <text x="${W - padR}" y="${H - 4}" text-anchor="end" fill="${totalDeltaColor}" font-size="9" font-weight="700">${totalDeltaStr} yr · ${live.length-1} season${live.length>2?'s':''}</text>
   </svg>`;
 }
@@ -10167,6 +10229,9 @@ function _buildOffseasonGainsSheet() {
   // underlying snapshot array — _ensureRosterAvgOvrSnapshot now
   // records both fields per season.
   const ovrHistory = franchise?._rosterAvgOvrHistory || [];
+  // Stash for time-series hover tooltips. Same array drives Chart C
+  // (OVR per season) and Chart D (age per season).
+  if (typeof window !== "undefined") window._devChartHistoryData = ovrHistory;
   // 4-chart auto-fit grid: 4 across on wide, 2x2 on medium, single
   // column on narrow. min 280 lets all 4 fit at ~1180+ wide.
   const chartsBlock = `
