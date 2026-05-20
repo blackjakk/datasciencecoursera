@@ -9809,15 +9809,58 @@ function _buildOffseasonGainsSheet() {
   const resignEmergencies = allMyChg.filter(c =>
     c.delta >= 1 && c.contractYearsLeft != null && c.contractYearsLeft <= 1
   ).sort((a, b) => b.delta - a.delta).slice(0, 5);
+  // Re-sign cost projection — leverages the existing computeMarketValue
+  // from play-franchise-core.js. "Now" anchors the user's extension
+  // decision; "next year" projects the cost AFTER another season of
+  // growth (assumes 30% of remaining room is realized — conservative
+  // estimate, real progression is age-dependent but this is a "what
+  // could it cost" hint, not a forecast).
+  const cap = franchise?.salaryCap || 240;
+  const _projectExtensionCost = (c) => {
+    if (typeof computeMarketValue !== "function") return null;
+    const player = { overall: c.postOvr, age: c.ageNow, position: c.pos };
+    const aavNow = computeMarketValue(player, cap);
+    const room = Math.max(0, (c.potential || c.postOvr) - c.postOvr);
+    const projOvr = c.postOvr + Math.floor(room * 0.3);
+    const aavLater = computeMarketValue({ ...player, overall: projOvr, age: c.ageNow + 1 }, cap);
+    return { aavNow, aavLater, delta: aavLater - aavNow };
+  };
   const resignBlock = resignEmergencies.length ? `
     <div style="margin-bottom:.6rem;padding:.45rem .65rem;background:rgba(224,176,120,.08);border-left:3px solid #e0b078;border-radius:3px">
       <div style="font-size:.55rem;color:#e0b078;letter-spacing:1.5px;margin-bottom:.2rem">⚠ RE-SIGN PRIORITY (gained value + expiring)</div>
-      ${resignEmergencies.map(c => `
-        <div style="display:flex;align-items:center;gap:.5rem;padding:.15rem 0;font-size:.7rem">
+      ${resignEmergencies.map(c => {
+        const cost = _projectExtensionCost(c);
+        const costHtml = cost ? `<span style="color:var(--gray);font-size:.6rem;margin-right:.4rem">
+          extend now <b style="color:#86c8ff">$${cost.aavNow.toFixed(1)}M/yr</b>${cost.delta >= 0.2 ? ` · wait → <b style="color:#e0b078">$${cost.aavLater.toFixed(1)}M</b> (+$${cost.delta.toFixed(1)}M)` : ""}
+        </span>` : "";
+        return `
+        <div style="display:flex;align-items:center;gap:.5rem;padding:.15rem 0;font-size:.7rem;flex-wrap:wrap">
           <span style="font-weight:700">${_playerLinkSmart(c.name)}</span>
           <span style="color:var(--gray);font-size:.62rem">${c.pos} · age ${c.ageNow}</span>
           <span style="color:#86e0a3;font-size:.65rem">${c.preOvr} → ${c.postOvr} (+${c.delta})</span>
+          ${costHtml}
           <span style="color:#e0b078;font-size:.62rem;margin-left:auto;font-weight:700">${c.contractYearsLeft === 0 ? "EXPIRED" : c.contractYearsLeft + "yr left"}</span>
+        </div>`;
+      }).join("")}
+    </div>` : "";
+
+  // DEPTH AT RISK — surface decliners who are still starter-grade
+  // (postOvr ≥ 72) and dropped meaningfully (delta ≤ -3). These are
+  // the regressions that materially affect the depth chart — a backup
+  // RB falling 4 OVR doesn't matter; a starting CB falling 4 does.
+  // Threshold 72 because that's roughly the floor for a competent
+  // NFL starter; lower OVRs are already bench/special-teams.
+  const depthRisks = allMyChg.filter(c => c.delta <= -3 && c.postOvr >= 72)
+    .sort((a, b) => a.delta - b.delta).slice(0, 6);
+  const depthBlock = depthRisks.length ? `
+    <div style="margin-bottom:.6rem;padding:.45rem .65rem;background:rgba(255,155,155,.08);border-left:3px solid #ff9b9b;border-radius:3px">
+      <div style="font-size:.55rem;color:#ff9b9b;letter-spacing:1.5px;margin-bottom:.2rem">⚠ DEPTH AT RISK (starter-grade regressions)</div>
+      ${depthRisks.map(c => `
+        <div style="display:flex;align-items:center;gap:.5rem;padding:.15rem 0;font-size:.7rem">
+          <span style="font-weight:700">${_playerLinkSmart(c.name)}</span>
+          <span style="color:var(--gray);font-size:.62rem">${c.pos} · age ${c.ageNow}</span>
+          <span style="color:#ff9b9b;font-size:.65rem">${c.preOvr} → ${c.postOvr} (${c.delta})</span>
+          <span style="color:var(--gray);font-size:.6rem;margin-left:auto">${(c.reasons || []).includes("cliff_hit") ? "⏳ hit the cliff" : (c.reasons || []).includes("aging") ? "⏳ aging" : "regression"}</span>
         </div>`).join("")}
     </div>` : "";
 
@@ -9873,6 +9916,7 @@ function _buildOffseasonGainsSheet() {
     ${summaryHtml}
     ${heroBlock}
     ${resignBlock}
+    ${depthBlock}
     ${_section("GAINERS",   gainers,   "#86e0a3")}
     ${_section("HOLDING",   steady,    "var(--gray)", { collapsed: true })}
     ${_section("DECLINERS", decliners, "#ff9b9b")}
