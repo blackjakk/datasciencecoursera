@@ -17244,7 +17244,59 @@ function _developCollegePlayer(p) {
     p._breakoutFired = true;
     p._breakoutMagnitude = breakoutBump;
   }
-  bump += breakoutBump;
+  // SECONDARY breakout — after the primary fires, climbing prospects
+  // can have additional breakout seasons (Mahomes SO + JR, Khalil Mack
+  // SO/JR/SR each up). Per-year roll with probability scaling by
+  // current potential. Smaller magnitude than primary (medium tier).
+  let secondaryBump = 0;
+  if (p._breakoutFired && !p._secondaryFired) {
+    const secKey = `secondary|${p.name}|${p.collegeYear}`;
+    const secRoll = (_nameHash(secKey, 53) % 1000) / 1000;
+    const secChance = pot >= 90 ? 0.30
+                    : pot >= 80 ? 0.20
+                    : pot >= 70 ? 0.12
+                    : pot >= 60 ? 0.05
+                    :              0;
+    if (secRoll < secChance) {
+      const magMed = { 90: [7,11], 85: [6,10], 80: [5,8], 70: [4,7], 65: [3,5], 60: [2,3] };
+      const potBucket = pot >= 90 ? 90
+                      : pot >= 85 ? 85
+                      : pot >= 80 ? 80
+                      : pot >= 70 ? 70
+                      : pot >= 65 ? 65
+                      : pot >= 60 ? 60 : null;
+      if (potBucket) {
+        const [lo, hi] = magMed[potBucket];
+        secondaryBump = lo + Math.floor(Math.random() * (hi - lo + 1));
+        // Small pot bump on secondary (extends growth window)
+        p.potential = Math.min(99, (p.potential || 60) + 1 + Math.floor(Math.random() * 3));
+      }
+      p._secondaryFired = true;
+      p._secondaryMagnitude = secondaryBump;
+    }
+  }
+  // TERTIARY breakout — rare third surge for prospects who keep
+  // climbing. After secondary fires, smaller magnitude than secondary.
+  // Captures the "every year was better than the last" sustained
+  // climber (Khalil Mack-type arc).
+  let tertiaryBump = 0;
+  if (p._secondaryFired && !p._tertiaryFired) {
+    const tertKey = `tertiary|${p.name}|${p.collegeYear}`;
+    const tertRoll = (_nameHash(tertKey, 67) % 1000) / 1000;
+    const tertChance = pot >= 90 ? 0.15
+                     : pot >= 80 ? 0.08
+                     : pot >= 70 ? 0.04
+                     :              0;
+    if (tertRoll < tertChance) {
+      const potBucket = pot >= 85 ? 85 : pot >= 80 ? 80 : pot >= 70 ? 70 : 65;
+      const magTert = { 85: [4,7], 80: [3,5], 70: [2,4], 65: [1,3] };
+      const [lo, hi] = magTert[potBucket];
+      tertiaryBump = lo + Math.floor(Math.random() * (hi - lo + 1));
+      p._tertiaryFired = true;
+      p._tertiaryMagnitude = tertiaryBump;
+    }
+  }
+  bump += breakoutBump + secondaryBump + tertiaryBump;
   if (bump === 0) return;
   // Boost the player's top 3 stats — primary calling-card stats develop
   // first, mirroring real CFB player growth.
