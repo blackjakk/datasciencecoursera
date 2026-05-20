@@ -694,6 +694,33 @@ function statsFor(pos, tier) {
     const sigVal = rand(sigMin, sigMax);
     if (stats[idx] < sigVal) stats[idx] = sigVal;
   }
+  // POLARIZATION (50% of prospects): push 2 stats toward top of tier
+  // range, push 2 stats toward bottom. Creates within-tier OVR variance
+  // — some prospects end at top of tier (peaky), some at bottom (flat).
+  // Net effect: bell-curve OVR distribution becomes more bimodal because
+  // each tier produces a wider OVR spread.
+  if (Math.random() < 0.50) {
+    const range = r.hi - r.lo;
+    const peakLo = r.lo + Math.round(range * 0.7);   // top 30% of tier range
+    const valleyHi = r.lo + Math.round(range * 0.3); // bottom 30%
+    const used = new Set();
+    // 2 peaks
+    for (let i = 0; i < 2; i++) {
+      let idx;
+      let attempts = 0;
+      do { idx = rand(0, stats.length - 1); attempts++; } while (used.has(idx) && attempts < 10);
+      used.add(idx);
+      stats[idx] = Math.max(stats[idx], rand(peakLo, r.hi));
+    }
+    // 2 valleys (different from peaks)
+    for (let i = 0; i < 2; i++) {
+      let idx;
+      let attempts = 0;
+      do { idx = rand(0, stats.length - 1); attempts++; } while (used.has(idx) && attempts < 10);
+      used.add(idx);
+      stats[idx] = Math.min(stats[idx], rand(r.lo, valleyHi));
+    }
+  }
   return stats;
 }
 

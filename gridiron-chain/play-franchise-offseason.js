@@ -16934,7 +16934,25 @@ function _applyConsensusGrade(p, rookieYear) {
                        : trueOvrGrade === 1 ? 2
                        : trueOvrGrade <= 3  ? 3
                                             : 4;
-  const baseBias = (_seededRand(biasKey) - 0.5) * 2 * baseNoiseScale;
+  // Polarized base bias: 60% of prospects land at extremes of the
+  // noise band (consensus has strong opinion — either over- or under-
+  // valued), 40% in the middle. This produces more decisive grading
+  // — fewer R3.5 "could go either way" calls, more R2 OR R4 splits.
+  // Matches NFL scouting which is bimodal (teams strongly like or
+  // strongly don't, rarely neutral on a prospect).
+  const polarRoll = _seededRand(biasKey + "|polar");
+  const magRoll = _seededRand(biasKey);
+  let baseBias;
+  if (polarRoll < 0.30) {
+    // Strong negative — consensus undervaluing
+    baseBias = -baseNoiseScale * (0.55 + magRoll * 0.45);
+  } else if (polarRoll < 0.60) {
+    // Strong positive — consensus overvaluing
+    baseBias = baseNoiseScale * (0.55 + magRoll * 0.45);
+  } else {
+    // Middle (40%) — modest disagreement
+    baseBias = (magRoll - 0.5) * baseNoiseScale * 0.55;
+  }
   // Wildcard: layered miss mechanic for the rare Brady/Mandarich case.
   // 5% of prospects get a "consensus missed" roll (±10 swing).
   // 1% get an "ultra-miss" stacked on top (additional ±15 swing) —
