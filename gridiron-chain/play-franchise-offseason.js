@@ -9549,6 +9549,25 @@ function frnGainsFilterSet(pos) {
   renderFrnOffseason();
 }
 
+// Ceiling tier — grade (S/A/B/C/D) + growth room. Replaces raw ceiling
+// numbers in the gains sheet because exposing exact ceiling defeats
+// the Hidden Gem Reveal mechanic + makes re-sign decisions trivial
+// (sell at ceiling, never extend below). Tier is delta from
+// position-expected ceiling at draft round (same expected curve as
+// potentialTag in play-franchise-core.js). Module-scoped (not nested
+// inside _buildOffseasonGainsSheet) so the hero-block builder can call
+// it BEFORE the cell renderer is defined inside the build function —
+// otherwise hits a TDZ "can't access before initialization" error.
+function _ceilingTier(potential, round) {
+  const expected = { 1:88, 2:81, 3:75, 4:70, 5:66, 6:63, 7:60, 0:58 }[round ?? 4] ?? 65;
+  const delta = (potential || 0) - expected;
+  if (delta >= 8)  return { grade: "S",  color: "#f5c542" };
+  if (delta >= 4)  return { grade: "A",  color: "#86c8ff" };
+  if (delta >= 0)  return { grade: "B",  color: "#a8d8b6" };
+  if (delta >= -4) return { grade: "C",  color: "#e0b078" };
+  return                  { grade: "D",  color: "#ff9b9b" };
+}
+
 function _buildOffseasonGainsSheet() {
   const myId = franchise.chosenTeamId;
   const allMyChg = (franchise._offChanges || []).filter(c => c.tId === myId && c.type === "dev");
@@ -9664,25 +9683,6 @@ function _buildOffseasonGainsSheet() {
     }).join("");
   };
 
-  // Ceiling tier — grade (S/A/B/C/D) + growth room. Replaces the raw
-  // `78/85` numbers because exposing exact ceiling defeats the
-  // Hidden Gem Reveal mechanic + makes re-sign decisions trivial
-  // (sell at ceiling, never extend below). Known players (coached
-  // 1+ season) get tight bands; unfamiliar players get fuzzy ranges
-  // whose width scales by draft round. Exact ceiling still available
-  // on hover via title= for power users.
-  //
-  // Tier is delta from position-expected ceiling at draft round
-  // (same expected curve as potentialTag in play-franchise-core.js).
-  const _ceilingTier = (potential, round) => {
-    const expected = { 1:88, 2:81, 3:75, 4:70, 5:66, 6:63, 7:60, 0:58 }[round ?? 4] ?? 65;
-    const delta = (potential || 0) - expected;
-    if (delta >= 8)  return { grade: "S",  color: "#f5c542" };
-    if (delta >= 4)  return { grade: "A",  color: "#86c8ff" };
-    if (delta >= 0)  return { grade: "B",  color: "#a8d8b6" };
-    if (delta >= -4) return { grade: "C",  color: "#e0b078" };
-    return                    { grade: "D",  color: "#ff9b9b" };
-  };
   const _ceilingCell = (c) => {
     const ceil = c.potential || 0;
     const cur  = c.postOvr || 0;
