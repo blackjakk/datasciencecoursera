@@ -8999,6 +8999,14 @@ function _unlockSeasonKnowledge() {
 
   franchise.knownPotentialPids = [...knownSet];
 
+  // Track which pids were JUST unlocked this offseason — used by the
+  // gains sheet to render a fuzzy ceiling band for first-cycle arrivals
+  // (their tier is "newly known" — discovered this year, band tightens
+  // next year). Without this, every player on the user's roster has
+  // already been added to knownSet by the time the gains sheet renders,
+  // making the fuzzy-band design unreachable.
+  franchise._newlyKnownPids = newlyKnown.map(p => p.pid);
+
   // Surface news items only for notable outcomes (HIGH CEILING / Bust risk)
   for (const p of newlyKnown) {
     const tag = potentialTag(p, { known: true });
@@ -9558,14 +9566,24 @@ function frnGainsFilterSet(pos) {
 // inside _buildOffseasonGainsSheet) so the hero-block builder can call
 // it BEFORE the cell renderer is defined inside the build function —
 // otherwise hits a TDZ "can't access before initialization" error.
+//
+// Threshold note: potentialTag uses 4 bands + neutral middle (no tag
+// for delta -3..+3). _ceilingTier uses 5 always-on bands so every
+// gains-sheet row gets a grade — the gains sheet is a graded report,
+// not a flag emitter. The "B" tier here maps to potentialTag's
+// "no tag" zone; intentional divergence, not drift.
+//
+// A tier uses cyan (#5ed4d4) instead of the room-color blue (#86c8ff)
+// to prevent the doubled-blue blur the audit flagged when a tier-A
+// player also had +5 room.
 function _ceilingTier(potential, round) {
   const expected = { 1:88, 2:81, 3:75, 4:70, 5:66, 6:63, 7:60, 0:58 }[round ?? 4] ?? 65;
   const delta = (potential || 0) - expected;
-  if (delta >= 8)  return { grade: "S",  color: "#f5c542" };
-  if (delta >= 4)  return { grade: "A",  color: "#86c8ff" };
-  if (delta >= 0)  return { grade: "B",  color: "#a8d8b6" };
-  if (delta >= -4) return { grade: "C",  color: "#e0b078" };
-  return                  { grade: "D",  color: "#ff9b9b" };
+  if (delta >= 8)  return { grade: "S",  color: "#f5c542" };  // gold
+  if (delta >= 4)  return { grade: "A",  color: "#5ed4d4" };  // cyan
+  if (delta >= 0)  return { grade: "B",  color: "#a8d8b6" };  // green
+  if (delta >= -4) return { grade: "C",  color: "#e0b078" };  // amber
+  return                  { grade: "D",  color: "#ff9b9b" };  // red
 }
 
 function _buildOffseasonGainsSheet() {
@@ -9694,23 +9712,35 @@ function _buildOffseasonGainsSheet() {
       return `<span title="ceiling ${ceil}" style="color:var(--gray);font-size:.6rem">⚓ at ceiling · <b style="color:${t.color}">${t.grade}</b></span>`;
     }
     const room = ceil - cur;
-    const isKnown = _isKnownPlayer({ pid: c.pid });
-    if (isKnown) {
-      // Known ceiling — show exact tier + room. Exact ceiling number
-      // tucked in title hover for grognards.
+    // Three knowledge states:
+    //   FULLY KNOWN (2+ seasons): tight tier display, exact ceiling on hover.
+    //   NEWLY KNOWN (1 season — just unlocked this offseason): fuzzy band
+    //     stays — the audit found that without this gate, every player
+    //     was "known" the first time they hit the gains sheet, making
+    //     the fuzzy-band design unreachable. _newlyKnownPids is set by
+    //     _unlockSeasonKnowledge() to flag first-cycle arrivals.
+    //   UNKNOWN (never coached): fuzzy band, wider noise. Edge case in
+    //     the gains sheet (would require a player with a dev record
+    //     who's never been on the user's roster), kept for safety.
+    const newlyKnownPids = franchise?._newlyKnownPids || [];
+    const isNewlyKnown = newlyKnownPids.includes(c.pid);
+    const isFullyKnown = _isKnownPlayer({ pid: c.pid }) && !isNewlyKnown;
+    if (isFullyKnown) {
       const t = _ceilingTier(ceil, c.draftRound);
       const roomColor = room >= 5 ? "#86c8ff" : room >= 2 ? "#a8d8b6" : "var(--gray)";
       return `<span title="ceiling ${ceil}" style="color:var(--gray);font-size:.62rem">📋 <b style="color:${t.color}">${t.grade}</b> · <span style="color:${roomColor}">+${room} room</span></span>`;
     }
-    // Unknown ceiling (rookie just drafted, free agent just signed,
-    // no coaching history) — show a fuzzy band. Width scales by
-    // draft round: R1 is well-scouted, R7+ is a coin flip. Matches
-    // the noiseWidth pattern in potentialTag.
+    // Newly known OR unknown — fuzzy band. Width scales by draft round
+    // (R1 is well-scouted, R7+ is a coin flip) + tightens slightly for
+    // newly-known vs fully-unknown. Matches the noiseWidth pattern in
+    // potentialTag.
     const r = c.draftRound ?? 4;
-    const noise = r === 1 ? 3 : r <= 3 ? 5 : 8;
+    const baseNoise = r === 1 ? 3 : r <= 3 ? 5 : 8;
+    const noise = isNewlyKnown ? Math.max(2, baseNoise - 2) : baseNoise;
     const loRoom = Math.max(1, room - noise);
     const hiRoom = room + noise;
-    return `<span style="color:var(--gray);font-size:.6rem">~+${loRoom}–${hiRoom} room?</span>`;
+    const prefix = isNewlyKnown ? "🔍 " : "";
+    return `<span style="color:var(--gray);font-size:.6rem">${prefix}~+${loRoom}–${hiRoom} room?</span>`;
   };
 
   // Contract status — years left + expiring flag
