@@ -695,11 +695,17 @@ class GameSimulator {
     // Credit KR stats — kr_yds + kr_td fields are referenced in HoF +
     // accolade tracking (play-franchise-season.js HoF, offseason
     // accolade thresholds), so we must update them or career returner
-    // leaders go silently unrecorded.
+    // leaders go silently unrecorded. TD branch overrides with full
+    // return distance (kick at 35 → 100 yards from kick spot).
     const rStats = receiverStats?.players?.[returnerName];
-    if (rStats) rStats.kr_yds = (rStats.kr_yds || 0) + ret;
     if (Math.random() < 0.003) {
-      // Touchdown return — push a kickoff-return visual flagged isReturnTD.
+      // Touchdown return — credit FULL return distance, not the partial
+      // 18-49 yd `ret` (which represents only the routine-return
+      // distribution). 100 - 35 = 65 yds from the kick spot.
+      if (rStats) {
+        rStats.kr_yds = (rStats.kr_yds || 0) + 65;
+        rStats.kr_td  = (rStats.kr_td  || 0) + 1;
+      }
       this._pushVisual({
         kind: "kickoff",
         desc: `${returnerName} returns the kickoff ALL THE WAY — TOUCHDOWN!`,
@@ -707,9 +713,9 @@ class GameSimulator {
         kicker: kickerKey, returner: returnerName,
         isReturnTD: true,
       });
-      if (rStats) rStats.kr_td = (rStats.kr_td || 0) + 1;
       return { endYL: 100, isTD: true };
     }
+    if (rStats) rStats.kr_yds = (rStats.kr_yds || 0) + ret;
     const endYL = Math.min(50, ret);
     this._pushVisual({
       kind: "kickoff",
@@ -734,14 +740,18 @@ class GameSimulator {
       if (Math.random() < 0.94) {
         this.score[scoringSide] += 1;
         if (kStats) kStats.xp_made++;
-        this._pushVisual({ kind: "score", desc: `${scoringTeam.city} ${scoringTeam.name} — Extra Point (+1)` });
+        // poss + pts required so the broadcast quarter-scoreboard
+        // aggregator (sums kind:"score" with poss+pts) picks up the
+        // point. Without these, defensive-TD XP scores were silently
+        // dropped from the quarter totals.
+        this._pushVisual({ kind: "score", desc: `${scoringTeam.city} ${scoringTeam.name} — Extra Point (+1)`, poss: scoringSide, pts: 1, scoreType: "Extra Point" });
       } else {
         this._pushVisual({ kind: "fg_miss", desc: `${scoringTeam.city} ${scoringTeam.name} — Extra Point MISSED` });
       }
     } else {
       if (Math.random() < 0.48) {
         this.score[scoringSide] += 2;
-        this._pushVisual({ kind: "score", desc: `${scoringTeam.city} ${scoringTeam.name} — 2-Point Conversion (+2)` });
+        this._pushVisual({ kind: "score", desc: `${scoringTeam.city} ${scoringTeam.name} — 2-Point Conversion (+2)`, poss: scoringSide, pts: 2, scoreType: "2-Point Conversion" });
       } else {
         this._pushVisual({ kind: "incomplete", desc: `${scoringTeam.city} ${scoringTeam.name} — 2-Point Conversion NO GOOD` });
       }
