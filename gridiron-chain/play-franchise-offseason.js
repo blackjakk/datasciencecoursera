@@ -17202,11 +17202,12 @@ function _rollHiddenDestiny(p) {
   // spike. Bell-curve in middle is fine since visible OVR/stats are
   // bell-shaped too.
   let ceiling;
-  if      (ceilRoll < 0.10) ceiling = 90 + Math.floor(_seededRand(ceilKey, 1) * 10); // 10% blue chip (90-99)
-  else if (ceilRoll < 0.30) ceiling = 82 + Math.floor(_seededRand(ceilKey, 1) * 8);  // 20% R1-R2 cusp (82-89)
-  else if (ceilRoll < 0.55) ceiling = 72 + Math.floor(_seededRand(ceilKey, 1) * 10); // 25% R3-R5 (72-81)
-  else if (ceilRoll < 0.78) ceiling = 60 + Math.floor(_seededRand(ceilKey, 1) * 12); // 23% R6-R7 (60-71)
-  else                       ceiling = 40 + Math.floor(_seededRand(ceilKey, 1) * 20); // 22% camp (40-59)
+  if      (ceilRoll < 0.13) ceiling = 88 + Math.floor(_seededRand(ceilKey, 1) * 12); // 13% blue chip (88-99)
+  else if (ceilRoll < 0.32) ceiling = 80 + Math.floor(_seededRand(ceilKey, 1) * 8);  // 19% R1-R2 cusp (80-87)
+  else if (ceilRoll < 0.55) ceiling = 70 + Math.floor(_seededRand(ceilKey, 1) * 10); // 23% R3-R5 (70-79)
+  else if (ceilRoll < 0.72) ceiling = 62 + Math.floor(_seededRand(ceilKey, 1) * 8);  // 17% R6 (62-69)
+  else if (ceilRoll < 0.85) ceiling = 53 + Math.floor(_seededRand(ceilKey, 1) * 9);  // 13% R7 (53-61)
+  else                       ceiling = 38 + Math.floor(_seededRand(ceilKey, 1) * 16); // 15% camp (38-53)
   // Ceiling must be at least starting OVR + 2 — otherwise prospect
   // has nowhere to grow.
   const startOvr = p.overall || 60;
@@ -17214,11 +17215,21 @@ function _rollHiddenDestiny(p) {
     ceiling = Math.min(99, startOvr + 2 + Math.floor(_seededRand(ceilKey, 2) * 6));
   }
   p.potential = ceiling; // canonical field name (was rolled by _rollPotential)
-  // Growth rate
+  // Growth rate — correlated with ceiling. High-ceiling prospects more
+  // likely to be coached up; low-ceiling stay put. This thickens R7
+  // grade supply by keeping low-ceiling prospects from accidentally
+  // growing into R6/R5 territory. The correlation is realistic (real
+  // coaches invest in upside) and doesn't enable arc-spotting because
+  // the user can't see ceiling — they only see stat trends.
   const growRoll = _seededRand(growKey);
-  p._growthRate = growRoll < 0.20 ? 0.80   // fast (20%) — reaches ceiling fast
-                : growRoll < 0.80 ? 0.55   // medium (60%) — solid dev
-                :                    0.25; // slow (20%) — Brady zone
+  if (ceiling >= 80) {
+    p._growthRate = growRoll < 0.30 ? 0.90 : growRoll < 0.85 ? 0.65 : 0.35;
+  } else if (ceiling >= 65) {
+    p._growthRate = growRoll < 0.20 ? 0.90 : growRoll < 0.75 ? 0.65 : 0.35;
+  } else {
+    // Low ceiling — coaches invest less, growth typically slow
+    p._growthRate = growRoll < 0.08 ? 0.90 : growRoll < 0.45 ? 0.65 : 0.35;
+  }
 }
 
 // Strip college-only state from a prospect after they sign with an
@@ -17274,10 +17285,19 @@ function _developCollegePlayer(p) {
   // prospect always pops in the same season across rebuilds.
   const intensityKey = `intensity|${p.name}|${p.collegeYear}`;
   const intensityRoll = _seededRand(intensityKey);
-  const intensity = intensityRoll < 0.15 ? 3.5   // burst (15%)
-                  : intensityRoll < 0.45 ? 1.5   // standard (30%)
-                  :                        0.8;  // muted (55%)
-  const grew = Math.max(0, gap * rate * intensity);
+  const intensity = intensityRoll < 0.20 ? 4.0   // burst (20%)
+                  : intensityRoll < 0.50 ? 1.8   // standard (30%)
+                  :                        1.0;  // muted (50%)
+  // Cap growth at the remaining gap so prospects don't overshoot their
+  // hidden ceiling. Without this, fast/burst growth on low-ceiling
+  // prospects pushes them well past their potential, inflating R6/R5
+  // grades and starving R7. The cap is soft (gap × 1.1) to allow a
+  // little stat noise without aggressively clipping.
+  // Soft cap at 1.5× gap so prospects don't massively overshoot their
+  // ceiling, but allows some momentum / stat-spillover. Low-ceiling
+  // prospects stay closer to their ceiling band; high-ceiling prospects
+  // still reach R1 via fast growth + burst intensity.
+  const grew = Math.min(gap * 1.5, Math.max(0, gap * rate * intensity));
   if (grew < 0.5) return;
   // Distribute growth across stats so OVR actually moves. Top-3 stats
   // get the full bump; next 4 get half; rest get a quarter. Without
