@@ -12364,6 +12364,13 @@ function _renderTradeShopMarketTab(myId, sortBy, tp, cap) {
     return teamModeCache.get(tid);
   };
 
+  // Watchlist lookup — needs to be available DURING the candidate loop
+  // since the loop reads watchedSet.has(p.name). Was previously declared
+  // 30 lines later (next to the willingness chips), which caused a TDZ
+  // ReferenceError on every SHOP MARKET render with ≥1 candidate.
+  const watchedSet = new Set(franchise.watchedPlayers || []);
+  const watchCount = watchedSet.size;
+
   // Build the candidate pool. Each candidate is FULLY annotated up
   // front (stance, value, grade, mode, askPrice) so the sort comparator
   // and render loop become field lookups instead of triggering 200×3
@@ -12404,8 +12411,6 @@ function _renderTradeShopMarketTab(myId, sortBy, tp, cap) {
     `<button class="frn-pos-tab ${posFilter===pos?"active":""}" onclick="frnSetTradePosFilter('${pos}')">${pos}</button>`
   ).join("");
 
-  const watchedSet = new Set(franchise.watchedPlayers || []);
-  const watchCount = watchedSet.size;
   const willOpts = [
     { id: "available", label: "Hide ⛔ OFF-LIMITS", title: "Hide players the team won't trade — focuses you on the acquirable pool" },
     { id: "shopping",  label: "💸 Shopping only",   title: "Show only players whose team is open to dealing at a discount" },
@@ -12468,9 +12473,13 @@ function _renderTradeShopMarketTab(myId, sortBy, tp, cap) {
   }).join("");
 
   const emptyState = !candidates.length
-    ? `<div style="color:var(--gray);font-style:italic;padding:1.5rem;text-align:center">
-        No players match your filters. Try toggling off "Fits my needs" or widening the willingness filter.
-      </div>`
+    ? (willingnessFilter === "watched"
+        ? `<div style="color:var(--gray);font-style:italic;padding:1.5rem;text-align:center">
+            Your watchlist is empty. Open any player's card and click <b>👁 Watch</b> to start following them.
+          </div>`
+        : `<div style="color:var(--gray);font-style:italic;padding:1.5rem;text-align:center">
+            No players match your filters. Try toggling off "Top ${myNeedPositions.length||2} needs" or widening the willingness filter.
+          </div>`)
     : "";
 
   return `<div class="frn-trade-market">

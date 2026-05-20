@@ -1248,8 +1248,15 @@ function frnToggleWatchPlayer(name) {
 // SHOP MARKET → PROPOSE TRADE with this player pre-loaded as youReceive.
 // Reuses frnShopProposeForPlayer which handles the confirm() prompt
 // when the user has an in-progress deal with another partner.
+//
+// Lazy-init: frnShopProposeForPlayer bails on missing _tradeProp. If
+// the user hasn't opened the Trade screen yet this session, kick
+// frnOpenTrade first to initialize the prop, then run the propose flow.
 function frnTradeForFromCard(teamId, name) {
   frnClosePlayerModal();
+  if (typeof frnOpenTrade === "function" && !franchise._tradeProp) {
+    frnOpenTrade(teamId, "propose");
+  }
   if (typeof frnShopProposeForPlayer === "function") {
     frnShopProposeForPlayer(teamId, name);
   }
@@ -1285,6 +1292,12 @@ function frnOpenPlayerCard(name, pid) {
   // picker on the right. No hidden multi-step state.
   const escapedPid = (p.pid || "").replace(/'/g, "\\'");
   const escName = name.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  // HTML-attribute-safe variant for `title=""` and innerHTML interpolation.
+  // Names with HTML special chars (&, <, ", >) would break the attribute
+  // otherwise. Player generator doesn't produce these today, but defense
+  // in depth is cheap.
+  const escAttr = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const nameAttr = escAttr(name);
   const compareTag = `<button class="frn-pcard-yrbtn" onclick="frnSelectForCompare('${escName}','${escapedPid}')">⚖ Compare</button>`;
 
   // Watch toggle — works for any non-retired player on any team or as
@@ -1305,9 +1318,10 @@ function frnOpenPlayerCard(name, pid) {
     if (typeof _aiTeamPlayerStance === "function") {
       try { untouchable = _aiTeamPlayerStance(team.id, p) === "untouchable"; } catch {}
     }
+    const teamAttr = escAttr(`${team.city} ${team.name}`);
     tradeBtn = untouchable
-      ? `<button class="frn-pcard-yrbtn" disabled title="${team.city} ${team.name} won't move this player — franchise face / recent high pick" style="opacity:.5;cursor:not-allowed">⛔ Won't trade</button>`
-      : `<button class="frn-pcard-yrbtn" onclick="frnTradeForFromCard(${team.id},'${escName}')" title="Open SHOP MARKET → Propose with ${name} pre-selected as the player you want">🔀 Trade for</button>`;
+      ? `<button class="frn-pcard-yrbtn" disabled title="${teamAttr} won't move this player — franchise face / recent high pick" style="opacity:.5">⛔ Won't trade</button>`
+      : `<button class="frn-pcard-yrbtn" onclick="frnTradeForFromCard(${team.id},'${escName}')" title="Open SHOP MARKET → Propose with ${nameAttr} pre-selected as the player you want">🔀 Trade for</button>`;
   }
   const actionRow = `<div class="frn-pcard-actions">${compareTag}${watchTag}${tradeBtn}</div>`;
 
