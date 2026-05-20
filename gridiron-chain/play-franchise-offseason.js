@@ -15380,8 +15380,11 @@ function _mockFirstRound() {
 // Top-N per measurable across the drafted-tier class. Returns the
 // raw arrays so the renderer can pick a layout. UDFA-tier prospects
 // are excluded — keeps the spotlight on the heavily-scouted class.
-function _combineStandouts(cls, n = 5) {
-  const drafted = (cls || []).filter(p => p._generatedRound !== 0);
+function _combineStandouts(cls, n = 5, posFilter) {
+  let drafted = (cls || []).filter(p => p._generatedRound !== 0);
+  if (posFilter && posFilter !== "ALL") {
+    drafted = drafted.filter(p => p.position === posFilter);
+  }
   const slowToFast = arr => arr.slice().sort((a, b) =>
     parseFloat(combineMeasurables(a).fortyTime) - parseFloat(combineMeasurables(b).fortyTime));
   const highToLow = (arr, key) => arr.slice().sort((a, b) =>
@@ -15394,6 +15397,83 @@ function _combineStandouts(cls, n = 5) {
     coneTime:   lowToHigh(drafted, "coneTime").slice(0, n),
     verticalIn: highToLow(drafted, "verticalIn").slice(0, n),
   };
+}
+
+// Composite combine score — position-weighted z-score across the 4
+// measurables. Used to detect "surprising results": workout warriors
+// (elite combine + low scout grade) and workout disappointments
+// (high scout grade + weak combine).
+function _combineCompositeScore(p) {
+  const m = combineMeasurables(p);
+  // Position-aware weights — skill positions reward speed/agility;
+  // OL/DL reward strength; QBs are middle ground.
+  let w = { f: 1.0, b: 0.7, c: 0.8, v: 0.7 };
+  if (["RB","WR","CB","S","TE"].includes(p.position)) w = { f: 1.4, b: 0.4, c: 1.0, v: 0.9 };
+  if (["OL","DL"].includes(p.position))               w = { f: 0.6, b: 1.4, c: 0.5, v: 0.6 };
+  if (p.position === "LB")                            w = { f: 1.1, b: 0.9, c: 0.9, v: 0.7 };
+  // z-scores around league-typical means
+  const fZ = (5.0 - parseFloat(m.fortyTime)) / 0.3;   // lower 40 = better
+  const bZ = (m.benchReps - 18) / 8;
+  const cZ = (7.5 - parseFloat(m.coneTime)) / 0.4;    // lower cone = better
+  const vZ = (m.verticalIn - 32) / 6;
+  return fZ * w.f + bZ * w.b + cZ * w.c + vZ * w.v;
+}
+
+// Returns { warriors, disappointments } — top-N "surprising"
+// combine results. Warriors = elite numbers but middling scout
+// grade (sleepers). Disappointments = high scout grade but weak
+// combine. Both n=5 by default.
+function _surprisingCombine(cls, n = 5) {
+  const drafted = (cls || []).filter(p => p._generatedRound !== 0);
+  if (!drafted.length) return { warriors: [], disappointments: [] };
+  // Compute composite + scout grade for each
+  const entries = drafted.map(p => {
+    const score = _combineCompositeScore(p);
+    const sg = (typeof scoutGrade === "function") ? scoutGrade(p) : (p.overall || 70);
+    return { p, score, sg };
+  });
+  // Workout warriors: high combine score + low scout grade
+  // (delta = combine percentile - scout percentile, in a simple form
+  // we use score - normalized_sg). Higher delta = more surprising.
+  const meanScore = entries.reduce((s, e) => s + e.score, 0) / entries.length;
+  const meanGrade = entries.reduce((s, e) => s + e.sg, 0) / entries.length;
+  const scoreSpread = Math.max(0.5, Math.sqrt(entries.reduce((s, e) => s + (e.score - meanScore) ** 2, 0) / entries.length));
+  const gradeSpread = Math.max(2, Math.sqrt(entries.reduce((s, e) => s + (e.sg - meanGrade) ** 2, 0) / entries.length));
+  // Surprise = how many SDs above mean for combine MINUS how many SDs above mean for scout grade
+  const ranked = entries.map(e => ({
+    ...e,
+    delta: ((e.score - meanScore) / scoreSpread) - ((e.sg - meanGrade) / gradeSpread),
+  }));
+  const warriors = ranked.slice()
+    .filter(e => e.sg < 72)              // not already elite-graded
+    .sort((a, b) => b.delta - a.delta)
+    .slice(0, n);
+  const disappointments = ranked.slice()
+    .filter(e => e.sg >= 70)             // had to be at least decently graded to "disappoint"
+    .sort((a, b) => a.delta - b.delta)
+    .slice(0, n);
+  return { warriors, disappointments };
+}
+
+// Watchlist for the combine pre-show. Lightweight bookmark — no
+// scout-slot cost (unlike franchise.draftScouts). Persisted on the
+// franchise object so it survives renders.
+function frnCombineWatchToggle(name) {
+  if (!franchise) return;
+  franchise.draftWatchlist = franchise.draftWatchlist || [];
+  const i = franchise.draftWatchlist.indexOf(name);
+  if (i >= 0) franchise.draftWatchlist.splice(i, 1);
+  else franchise.draftWatchlist.push(name);
+  saveFranchise();
+  renderFrnDraftPreshow();
+}
+
+// Position filter for the combine standouts grid. Module-scope so
+// it survives renders on this screen.
+let _combineFilterPos = "ALL";
+function frnCombineFilterPos(pos) {
+  _combineFilterPos = pos || "ALL";
+  renderFrnDraftPreshow();
 }
 
 // Top 1 hyped prospect per position group. Picks the highest-rated by
@@ -15659,21 +15739,39 @@ function renderFrnDraftPreshow() {
     </div>`;
   }).join("");
 
-  // Combine standouts
-  const combine = _combineStandouts(d.class, 5);
+  // Combine — position filter chips + standouts cards. Watchlist
+  // adds a star toggle on every name (clicking adds/removes from
+  // the user's bookmark list for this draft class).
+  const watchSet = new Set(franchise.draftWatchlist || []);
+  const safeName = n => (n || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  const _nameWithStar = (p) => {
+    const watched = watchSet.has(p.name);
+    return `<span style="color:var(--white);cursor:pointer;display:inline-flex;align-items:baseline;gap:.25rem" onclick="frnCombineWatchToggle('${safeName(p.name)}')" title="${watched ? "Remove from watchlist" : "Add to watchlist"}">
+      <span style="color:${watched ? "var(--gold)" : "var(--gray)"};font-size:.6rem">${watched ? "★" : "☆"}</span>${p.name}
+    </span>`;
+  };
+  // Position filter chips
+  const COMBINE_POS = ["ALL","QB","RB","WR","TE","OL","DL","LB","CB","S"];
+  const posChipsHtml = `<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.5rem">
+    ${COMBINE_POS.map(pos => {
+      const active = pos === _combineFilterPos;
+      return `<button onclick="frnCombineFilterPos('${pos}')" style="font-size:.6rem;letter-spacing:.5px;padding:.18rem .55rem;border-radius:2px;border:1px solid ${active?"var(--gold)":"var(--border)"};background:${active?"rgba(245,197,66,.12)":"transparent"};color:${active?"var(--gold)":"var(--gray)"};cursor:pointer;font-family:inherit">${pos}</button>`;
+    }).join("")}
+  </div>`;
+  const combine = _combineStandouts(d.class, 5, _combineFilterPos);
   const combineRow = (label, icon, items, fmt, units) => {
-    const lines = items.map((p, i) => {
+    const lines = items.length ? items.map((p, i) => {
       const m = combineMeasurables(p);
       const val = fmt(m);
       return `<div style="display:grid;grid-template-columns:1rem 1fr 2.2rem 2.5rem;gap:.3rem;padding:.18rem .25rem;font-size:.62rem;align-items:baseline">
         <span style="color:${i===0?"var(--gold)":"var(--gray)"};font-weight:700">${i+1}</span>
-        <span style="color:var(--white)">${p.name}</span>
+        ${_nameWithStar(p)}
         <span style="color:var(--gold-lt);font-size:.58rem;font-weight:700">${p.position}</span>
         <span style="color:${i===0?"var(--gold)":"var(--gray)"};font-weight:700;text-align:right">${val}${units}</span>
       </div>`;
-    }).join("");
+    }).join("") : `<div style="color:var(--gray);font-style:italic;font-size:.6rem;padding:.5rem .25rem;text-align:center">no prospects</div>`;
     return `<div style="background:var(--bg2);border:1px solid var(--border);padding:.45rem .55rem;border-radius:3px">
-      <div style="font-size:.55rem;color:var(--gold);letter-spacing:1px;font-weight:700;margin-bottom:.2rem">${icon} ${label}</div>
+      <div style="font-size:.55rem;color:var(--gold);letter-spacing:1px;font-weight:700;margin-bottom:.2rem">${icon} ${label}${_combineFilterPos !== "ALL" ? ` · ${_combineFilterPos}` : ""}</div>
       ${lines}
     </div>`;
   };
@@ -15683,6 +15781,79 @@ function renderFrnDraftPreshow() {
     ${combineRow("3-CONE",    "↩️", combine.coneTime,   m => m.coneTime, "")}
     ${combineRow("VERTICAL",  "🦘", combine.verticalIn, m => m.verticalIn, "\"")}
   </div>`;
+
+  // ── MY WATCHLIST — players the user has starred during combine
+  // research. Shows their full combine line + scout grade so the
+  // user can compare their bookmarks side-by-side before the draft.
+  const watchPlayers = (franchise.draftWatchlist || [])
+    .map(n => d.class.find(p => p.name === n))
+    .filter(Boolean);
+  const watchlistHtml = watchPlayers.length ? `
+    <div style="background:var(--bg2);border:1px solid var(--gold);border-radius:3px;padding:.55rem .7rem">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:.4rem">
+        <span style="font-size:.6rem;color:var(--gold);letter-spacing:1.2px;font-weight:700">⭐ MY WATCHLIST</span>
+        <span style="color:var(--gray);font-size:.55rem">${watchPlayers.length} prospect${watchPlayers.length===1?"":"s"} · click a star to remove</span>
+      </div>
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.62rem">
+        <thead><tr style="color:var(--gray);font-size:.5rem;letter-spacing:.8px">
+          <th style="text-align:left;padding:.18rem .35rem">PLAYER</th>
+          <th style="text-align:left;padding:.18rem .35rem">POS</th>
+          <th style="text-align:left;padding:.18rem .35rem">GRADE</th>
+          <th style="text-align:right;padding:.18rem .35rem">40</th>
+          <th style="text-align:right;padding:.18rem .35rem">BENCH</th>
+          <th style="text-align:right;padding:.18rem .35rem">3-CONE</th>
+          <th style="text-align:right;padding:.18rem .35rem">VERT</th>
+        </tr></thead>
+        <tbody>
+          ${watchPlayers.map(p => {
+            const m = combineMeasurables(p);
+            const sg = (typeof scoutGrade === "function") ? scoutGrade(p) : (p.overall || 70);
+            const grade = (typeof gradeLabel === "function") ? gradeLabel(sg) : sg.toFixed(0);
+            const gColor = sg >= 82 ? "var(--green-lt)" : sg >= 70 ? "var(--gold)" : sg >= 60 ? "var(--gold-lt)" : "var(--gray)";
+            return `<tr style="border-top:1px solid rgba(255,255,255,.04)">
+              <td style="padding:.22rem .35rem">${_nameWithStar(p)}</td>
+              <td style="padding:.22rem .35rem;color:var(--gold-lt);font-weight:700">${p.position}</td>
+              <td style="padding:.22rem .35rem;color:${gColor};font-weight:700">${grade}</td>
+              <td style="padding:.22rem .35rem;text-align:right;font-family:'Bebas Neue','Anton',sans-serif">${m.fortyTime}</td>
+              <td style="padding:.22rem .35rem;text-align:right;font-family:'Bebas Neue','Anton',sans-serif">${m.benchReps}</td>
+              <td style="padding:.22rem .35rem;text-align:right;font-family:'Bebas Neue','Anton',sans-serif">${m.coneTime}</td>
+              <td style="padding:.22rem .35rem;text-align:right;font-family:'Bebas Neue','Anton',sans-serif">${m.verticalIn}"</td>
+            </tr>`;
+          }).join("")}
+        </tbody>
+      </table></div>
+    </div>` : "";
+
+  // ── SURPRISING RESULTS — workout warriors + workout disappointments
+  // Sleeper alerts (low scout grade, elite combine) and red flags
+  // (high scout grade, weak combine) that the user might want to
+  // re-evaluate before draft day.
+  const surprises = _surprisingCombine(d.class, 5);
+  const _surpriseRow = (e, kind) => {
+    const m = combineMeasurables(e.p);
+    const sg = e.sg;
+    const grade = (typeof gradeLabel === "function") ? gradeLabel(sg) : sg.toFixed(0);
+    const color = kind === "warrior" ? "#86e0a3" : "#ff9b9b";
+    return `<div style="display:grid;grid-template-columns:1fr 2rem 2.2rem 5.6rem;gap:.35rem;padding:.22rem .35rem;font-size:.6rem;align-items:baseline;border-top:1px solid rgba(255,255,255,.04)">
+      ${_nameWithStar(e.p)}
+      <span style="color:var(--gold-lt);font-weight:700">${e.p.position}</span>
+      <span style="color:${color};font-weight:700">${grade}</span>
+      <span style="color:var(--gray);text-align:right;font-family:'Bebas Neue','Anton',sans-serif">${m.fortyTime} · ${m.benchReps}r · ${m.verticalIn}"</span>
+    </div>`;
+  };
+  const surprisesHtml = (surprises.warriors.length || surprises.disappointments.length) ? `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem">
+      <div style="background:rgba(134,224,163,.06);border:1px solid #86e0a3;border-radius:3px;padding:.5rem .65rem">
+        <div style="font-size:.6rem;color:#86e0a3;letter-spacing:1.2px;font-weight:700;margin-bottom:.25rem">🚀 WORKOUT WARRIORS</div>
+        <div style="color:var(--gray);font-size:.5rem;margin-bottom:.3rem;font-style:italic">elite combine · low-to-mid scout grade · potential sleepers</div>
+        ${surprises.warriors.length ? surprises.warriors.map(e => _surpriseRow(e, "warrior")).join("") : `<div style="color:var(--gray);font-size:.6rem;font-style:italic;padding:.3rem">no big sleepers this class</div>`}
+      </div>
+      <div style="background:rgba(255,155,155,.06);border:1px solid #ff9b9b;border-radius:3px;padding:.5rem .65rem">
+        <div style="font-size:.6rem;color:#ff9b9b;letter-spacing:1.2px;font-weight:700;margin-bottom:.25rem">⚠ WORKOUT DISAPPOINTMENTS</div>
+        <div style="color:var(--gray);font-size:.5rem;margin-bottom:.3rem;font-style:italic">high scout grade · weak combine · re-evaluate before draft</div>
+        ${surprises.disappointments.length ? surprises.disappointments.map(e => _surpriseRow(e, "disappointment")).join("") : `<div style="color:var(--gray);font-size:.6rem;font-style:italic;padding:.3rem">no notable red flags</div>`}
+      </div>
+    </div>` : "";
 
   // Hyped prospects per position — story flavor from college profile
   const hyped = _topHypedPerPosition(d.class);
@@ -15742,8 +15913,20 @@ function renderFrnDraftPreshow() {
         </div>
       </div>
 
-      <div style="font-size:.6rem;color:var(--gold);letter-spacing:1.5px;font-weight:700;margin-bottom:.4rem">🏟 COMBINE STANDOUTS</div>
+      <div style="display:flex;align-items:baseline;gap:.6rem;margin-bottom:.4rem">
+        <span style="font-size:.6rem;color:var(--gold);letter-spacing:1.5px;font-weight:700">🏟 COMBINE STANDOUTS</span>
+        <span style="color:var(--gray);font-size:.55rem;font-style:italic">click a star ☆ to add to your watchlist</span>
+      </div>
+      ${posChipsHtml}
       ${combineHtml}
+
+      ${watchlistHtml ? `<div style="margin-top:1rem">${watchlistHtml}</div>` : ""}
+
+      ${surprisesHtml ? `
+        <div style="margin-top:1rem">
+          <div style="font-size:.6rem;color:var(--gold);letter-spacing:1.5px;font-weight:700;margin-bottom:.4rem">🔍 SURPRISING RESULTS</div>
+          ${surprisesHtml}
+        </div>` : ""}
 
       <div style="text-align:center;margin:1.4rem 0 .8rem">
         <button class="btn btn-gold" style="font-size:.85rem;padding:.6rem 2rem;letter-spacing:.6px;font-weight:900"
