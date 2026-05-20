@@ -9556,6 +9556,15 @@ function frnGainsFilterSet(pos) {
   _frnGainsFilterPos = pos || "ALL";
   renderFrnOffseason();
 }
+// Reason filter — orthogonal to position. "ALL" shows everyone;
+// otherwise we keep only rows whose reasons[] includes the filter.
+// Common drill-downs: breakouts, cliffs, ceiling reveals, rehabs,
+// re-sign targets (computed differently — see filter handling below).
+let _frnGainsFilterReason = "ALL";
+function frnGainsFilterReasonSet(reason) {
+  _frnGainsFilterReason = reason || "ALL";
+  renderFrnOffseason();
+}
 
 // Ceiling tier — grade (S/A/B/C/D) + growth room. Replaces raw ceiling
 // numbers in the gains sheet because exposing exact ceiling defeats
@@ -9598,7 +9607,29 @@ function _buildOffseasonGainsSheet() {
   ];
   const activeFilter = POS_GROUPS.find(g => g[0] === _frnGainsFilterPos) || POS_GROUPS[0];
   const filterSet = new Set(activeFilter[1].split(","));
-  const myChg = (activeFilter[0] === "ALL") ? allMyChg : allMyChg.filter(c => filterSet.has(c.pos));
+  let myChg = (activeFilter[0] === "ALL") ? allMyChg : allMyChg.filter(c => filterSet.has(c.pos));
+  // Reason filter — applied AFTER position. "Re-sign Targets" is a
+  // computed pseudo-reason: gained value (delta ≥ 1) + contract
+  // expires this offseason or next. Same predicate the resign block
+  // uses, so the chip drills into that exact list.
+  const REASON_GROUPS = [
+    { key:"ALL",        label:"All reasons" },
+    { key:"breakout",   label:"📈 Breakouts" },
+    { key:"big_breakout", label:"🚀 Big Breakouts" },
+    { key:"cliff_hit",  label:"⏳ Cliffs" },
+    { key:"ceiling_raised", label:"💎 Ceiling Raised" },
+    { key:"rehab",      label:"🏥 Rehab" },
+    { key:"vet_surge",  label:"🌅 Vet Surge" },
+    { key:"decline",    label:"📉 Declines" },
+    { key:"RESIGN",     label:"⚠ Re-sign Targets" },
+  ];
+  if (_frnGainsFilterReason !== "ALL") {
+    if (_frnGainsFilterReason === "RESIGN") {
+      myChg = myChg.filter(c => c.delta >= 1 && c.contractYearsLeft != null && c.contractYearsLeft <= 1);
+    } else {
+      myChg = myChg.filter(c => (c.reasons || []).includes(_frnGainsFilterReason));
+    }
+  }
 
   // Sort within group: deltas descending
   myChg.sort((a, b) => b.delta - a.delta);
@@ -9614,13 +9645,30 @@ function _buildOffseasonGainsSheet() {
   const biggestUp = sortedAll[0];
   const biggestDn = sortedAll[sortedAll.length - 1];
 
-  // Filter chips
-  const chipsHtml = `<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.5rem">
+  // Position filter chips (top row) — narrow by position group.
+  const posChipsHtml = `<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.35rem">
     ${POS_GROUPS.map(g => {
       const isActive = g[0] === activeFilter[0];
       return `<button onclick="frnGainsFilterSet('${g[0]}')" style="font-size:.6rem;letter-spacing:.5px;padding:.18rem .5rem;border-radius:2px;border:1px solid ${isActive?"var(--gold)":"var(--blborder)"};background:${isActive?"rgba(245,197,66,.12)":"transparent"};color:${isActive?"var(--gold)":"var(--gray)"};cursor:pointer;font-family:inherit">${g[0]}</button>`;
     }).join("")}
   </div>`;
+  // Reason filter chips (second row) — narrow by development story.
+  // Only shown when there's at least one player matching at least one
+  // non-ALL reason; otherwise it's chip noise on a quiet roster.
+  const reasonCounts = {};
+  for (const c of allMyChg) for (const r of (c.reasons || [])) reasonCounts[r] = (reasonCounts[r] || 0) + 1;
+  const resignCount = allMyChg.filter(c => c.delta >= 1 && c.contractYearsLeft != null && c.contractYearsLeft <= 1).length;
+  const visibleReasons = REASON_GROUPS.filter(rg =>
+    rg.key === "ALL" || (rg.key === "RESIGN" ? resignCount > 0 : (reasonCounts[rg.key] || 0) > 0)
+  );
+  const reasonChipsHtml = visibleReasons.length > 1 ? `<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.5rem">
+    ${visibleReasons.map(rg => {
+      const isActive = rg.key === _frnGainsFilterReason;
+      const count = rg.key === "ALL" ? "" : ` ${rg.key === "RESIGN" ? resignCount : reasonCounts[rg.key]}`;
+      return `<button onclick="frnGainsFilterReasonSet('${rg.key}')" style="font-size:.55rem;letter-spacing:.3px;padding:.18rem .45rem;border-radius:2px;border:1px solid ${isActive?"#86c8ff":"var(--blborder)"};background:${isActive?"rgba(134,200,255,.10)":"transparent"};color:${isActive?"#86c8ff":"var(--gray)"};cursor:pointer;font-family:inherit">${rg.label}${count}</button>`;
+    }).join("")}
+  </div>` : "";
+  const chipsHtml = posChipsHtml + reasonChipsHtml;
 
   // Summary header card
   const _stat = (n, label, color) => `
@@ -9739,8 +9787,13 @@ function _buildOffseasonGainsSheet() {
     const noise = isNewlyKnown ? Math.max(2, baseNoise - 2) : baseNoise;
     const loRoom = Math.max(1, room - noise);
     const hiRoom = room + noise;
-    const prefix = isNewlyKnown ? "🔍 " : "";
-    return `<span style="color:var(--gray);font-size:.6rem">${prefix}~+${loRoom}–${hiRoom} room?</span>`;
+    // Newly-known gets a distinct NEW badge so the "first year on
+    // your roster, still calibrating" state pops at a glance —
+    // earlier rev used just 🔍 which was easy to miss at .6rem.
+    const newBadge = isNewlyKnown
+      ? `<span style="display:inline-block;font-size:.5rem;padding:.05rem .25rem;border-radius:2px;background:rgba(134,200,255,.15);color:#86c8ff;border:1px solid #86c8ff60;margin-right:.25rem;letter-spacing:.5px;font-weight:700">🔍 NEW</span>`
+      : "";
+    return `<span style="color:var(--gray);font-size:.6rem">${newBadge}~+${loRoom}–${hiRoom} room?</span>`;
   };
 
   // Contract status — years left + expiring flag
@@ -9784,32 +9837,44 @@ function _buildOffseasonGainsSheet() {
     </tr>`;
   };
 
-  const _section = (title, rows, accent) => rows.length ? `
-    <div style="margin-top:.6rem">
+  // Section renderer. `collapsed` wraps the table in <details> so it
+  // ships closed by default — used for HOLDING (steady players are
+  // noise that buries the gainers on rosters with 30+ unchanged rows).
+  const _tableInner = (rows) => `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.72rem">
+    <thead><tr style="color:var(--gray);font-size:.55rem;letter-spacing:1px">
+      <th style="text-align:left;padding:.2rem .5rem">PLAYER</th>
+      <th style="text-align:left;padding:.2rem .5rem">POS</th>
+      <th style="text-align:left;padding:.2rem .5rem">AGE</th>
+      <th style="text-align:left;padding:.2rem .5rem">OVR</th>
+      <th style="text-align:left;padding:.2rem .5rem">Δ</th>
+      <th style="text-align:left;padding:.2rem .5rem">CEILING</th>
+      <th style="text-align:left;padding:.2rem .5rem">CONTRACT</th>
+      <th style="text-align:left;padding:.2rem .5rem">DETAILS</th>
+    </tr></thead>
+    <tbody>${rows.map(_row).join("")}</tbody>
+  </table></div>`;
+  const _section = (title, rows, accent, opts = {}) => {
+    if (!rows.length) return "";
+    if (opts.collapsed) {
+      return `<details style="margin-top:.6rem">
+        <summary style="cursor:pointer;font-family:'Bebas Neue','Anton',sans-serif;font-size:.85rem;color:${accent};letter-spacing:1.5px;margin-bottom:.2rem;list-style:none">${title} (${rows.length}) <span style="font-size:.6rem;color:var(--gray);letter-spacing:.5px">— click to expand</span></summary>
+        ${_tableInner(rows)}
+      </details>`;
+    }
+    return `<div style="margin-top:.6rem">
       <div style="font-family:'Bebas Neue','Anton',sans-serif;font-size:.85rem;color:${accent};letter-spacing:1.5px;margin-bottom:.2rem">${title} (${rows.length})</div>
-      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.72rem">
-        <thead><tr style="color:var(--gray);font-size:.55rem;letter-spacing:1px">
-          <th style="text-align:left;padding:.2rem .5rem">PLAYER</th>
-          <th style="text-align:left;padding:.2rem .5rem">POS</th>
-          <th style="text-align:left;padding:.2rem .5rem">AGE</th>
-          <th style="text-align:left;padding:.2rem .5rem">OVR</th>
-          <th style="text-align:left;padding:.2rem .5rem">Δ</th>
-          <th style="text-align:left;padding:.2rem .5rem">CEILING</th>
-          <th style="text-align:left;padding:.2rem .5rem">CONTRACT</th>
-          <th style="text-align:left;padding:.2rem .5rem">DETAILS</th>
-        </tr></thead>
-        <tbody>${rows.map(_row).join("")}</tbody>
-      </table></div>
-    </div>` : "";
+      ${_tableInner(rows)}
+    </div>`;
+  };
 
   return `<div style="margin-top:.8rem;padding:.7rem .8rem;background:rgba(255,255,255,.02);border:1px solid var(--blborder);border-radius:4px">
-    <div class="frn-sec-title" style="margin-bottom:.5rem">📊 OFFSEASON GAINS SHEET</div>
+    <div class="frn-sec-title" style="margin-bottom:.5rem">📊 PLAYER DEVELOPMENT REPORT</div>
     ${chipsHtml}
     ${summaryHtml}
     ${heroBlock}
     ${resignBlock}
     ${_section("GAINERS",   gainers,   "#86e0a3")}
-    ${_section("HOLDING",   steady,    "var(--gray)")}
+    ${_section("HOLDING",   steady,    "var(--gray)", { collapsed: true })}
     ${_section("DECLINERS", decliners, "#ff9b9b")}
   </div>`;
 }
