@@ -15756,15 +15756,22 @@ function frnGoToDraft() {
   const classBuilder = (typeof _buildDraftClassFromPipeline === "function")
     ? _buildDraftClassFromPipeline
     : _buildDraftClass;
+  const builtClass = classBuilder(rookieYear, themes, positions);
+  // C-D: derive theme chips from the ACTUAL class composition, not
+  // the rolled multipliers. Under Path A, this is meaningful — a chip
+  // "DEEP AT QB" now requires actual R1-grade QB count, "WEAK CLASS"
+  // requires actual R1 grade count below the threshold. Multipliers
+  // stay around for position-pool weighting (drove what we just built).
+  const computedChips = _computeClassThemeChips(builtClass);
   franchise.draft = {
-    class: classBuilder(rookieYear, themes, positions),
+    class: builtClass,
     pickOrder: _buildDraftPickOrder(),
     picks: [],
     currentIdx: 0,
     targets: [],
     boardFilter: "ALL",
     _targetGone: [],
-    classThemes: { multipliers: themes, chips: _classThemeChips(themes) },
+    classThemes: { multipliers: themes, chips: computedChips },
     udfaPhase: false,       // becomes true after the last draft pick
     udfaUserClaims: [],     // user's UDFA scramble picks
     preshowDone: false,     // pre-draft show flow flag
@@ -16803,6 +16810,59 @@ function _classThemeChips(themes) {
   if (deep.length) chips.push({ text: `🔥 Deep at ${deep.join("/")}`, color: "var(--green-lt)" });
   if (thin.length) chips.push({ text: `⚠ Thin at ${thin.join("/")}`,  color: "#e8a000" });
   if (!chips.length) chips.push({ text: "— Balanced class", color: "var(--gray)" });
+  return chips;
+}
+
+// C-D: theme chips derived from ACTUAL class composition (not the
+// pre-class roll). Under Path A's threshold-based grading,
+// `_generatedRound` reflects the consensus grade, so counts of
+// R1-grade prospects per position are honest signals. A "DEEP AT QB"
+// chip now means there really are ≥5 R1-grade QBs in the pool; a
+// "WEAK CLASS" chip means R1 grades total < 22.
+function _computeClassThemeChips(cls) {
+  const chips = [];
+  // Total R1 + R2 grades by position
+  const eliteByPos = {};
+  let totalR1 = 0, totalR1R2 = 0;
+  for (const p of cls || []) {
+    if (p._generatedRound === 1) {
+      totalR1++;
+      totalR1R2++;
+      eliteByPos[p.position] = (eliteByPos[p.position] || 0) + 1;
+    } else if (p._generatedRound === 2) {
+      totalR1R2++;
+      // Count R2 too for "depth" signal, but at half weight
+      eliteByPos[p.position] = (eliteByPos[p.position] || 0) + 0.5;
+    }
+  }
+
+  // Overall class quality — leads the chip strip
+  if (totalR1 >= 36) chips.push({ text: `⭐ STACKED CLASS · ${totalR1} R1 GRADES`, color: "var(--green-lt)" });
+  else if (totalR1 <= 18) chips.push({ text: `⚠ WEAK CLASS · ONLY ${totalR1} R1 GRADES`, color: "#ff9b9b" });
+  else chips.push({ text: `${totalR1} R1 GRADES`, color: "var(--gold-lt)" });
+
+  // Position depth — "DEEP AT [POS]" when ≥4 R1-equivalent grades.
+  // "THIN AT [POS]" when 0-1. Premium positions only — RB/S/TE rarely
+  // get "DEEP" called even with multiple R1 grades because the value
+  // bar is lower at those positions.
+  const PREMIUM = ["QB","WR","OL","DL","CB","LB"];
+  const deepPos = [];
+  const thinPos = [];
+  for (const pos of PREMIUM) {
+    const cnt = eliteByPos[pos] || 0;
+    if (cnt >= 4) deepPos.push({ pos, cnt: Math.round(cnt) });
+    else if (cnt <= 0.5) thinPos.push(pos);
+  }
+  // Sort deep by count desc; show top 2
+  deepPos.sort((a, b) => b.cnt - a.cnt);
+  for (const { pos, cnt } of deepPos.slice(0, 2)) {
+    chips.push({ text: `🔥 DEEP AT ${pos}`, color: "#86e0a3" });
+  }
+  // Thin: show first 2
+  for (const pos of thinPos.slice(0, 2)) {
+    chips.push({ text: `🚫 THIN AT ${pos}`, color: "#ff9b9b" });
+  }
+
   return chips;
 }
 
@@ -17878,6 +17938,12 @@ function _buildDraftClassFromPipeline(rookieYear, themesArg, positionsArg) {
   cls.forEach(p => allTaken.add(p.name));
 
   const totalNeeded = _CLASS_TOTAL_SIZE - cls.length;
+  // Build a counter map so the "elite" tier doesn't all clump at the
+  // theme-weighted position. Caps R1-grade filler at ~3 per position
+  // (mirrors NFL reality — even a "deep at QB" year has ~5-6 R1 QBs,
+  // not 30+).
+  const eliteFillerByPos = {};
+  const ELITE_FILLER_CAP_PER_POS = 3;
   for (let i = 0; i < totalNeeded; i++) {
     const posKey = `fpos|${rookieYear}|${i}`;
     let pos = positions[Math.floor(_seededRand(posKey) * positions.length)];
@@ -17896,10 +17962,17 @@ function _buildDraftClassFromPipeline(rookieYear, themesArg, positionsArg) {
     // bodies, OVR 40-55). Tuned so the full class targets NFL-like
     // distribution: ~25 R1 grades, ~30 R2, fat middle, ~50 camp body.
     const tierRoll = _seededRand(posKey, 4);
-    const tier = tierRoll < 0.50 ? "poor"        // 50% — camp bodies
-              : tierRoll < 0.82 ? "average"      // 32% — late-round depth
-              : tierRoll < 0.96 ? "good"         // 14% — R3-R5 surprise
-                                : "elite";       //  4% — R1-R2 blue chip
+    let tier = tierRoll < 0.50 ? "poor"          // 50% — camp bodies
+            : tierRoll < 0.82 ? "average"        // 32% — late-round depth
+            : tierRoll < 0.96 ? "good"           // 14% — R3-R5 surprise
+                              : "elite";          //  4% — R1-R2 blue chip
+    // Demote "elite" → "good" if this position has already hit the
+    // per-position elite cap. Prevents themes from concentrating
+    // 30+ R1-grade prospects at a single position.
+    if (tier === "elite" && (eliteFillerByPos[pos] || 0) >= ELITE_FILLER_CAP_PER_POS) {
+      tier = "good";
+    }
+    if (tier === "elite") eliteFillerByPos[pos] = (eliteFillerByPos[pos] || 0) + 1;
     const p = genUniquePlayer(pos, tier, allTaken);
     allTaken.add(p.name);
     p.age = 22;
