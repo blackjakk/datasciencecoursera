@@ -1330,13 +1330,11 @@ function _rollHiddenGem(player) {
   // Path A dampening: rates cut ~3× from earlier values. Old rates
   // produced ~7-8 gems per draft; NFL has 1-3. New rates target ~2-3
   // gems per draft with ~1 elite-ceiling emergence per draft.
+  // No position multiplier on rate — Brady wasn't "more likely to be
+  // a gem than other R6 picks." His remarkable trait was that the gem
+  // ceiling was HOF-tier. That's modeled in the ceiling skew below.
   const rates = { 0: 0.045, 7: 0.028, 6: 0.022, 5: 0.015, 4: 0.008, 3: 0.004 };
-  // QB positional multiplier: QBs are the headline late-round story
-  // (Tom Brady, Tony Romo, Kurt Warner all QBs). Bump QB gem rate 1.5×
-  // to counterbalance the position rarity and ensure the Brady-tier QB
-  // narrative happens often enough to be exciting (~1 per 10-15 years).
-  const baseRate = rates[player.draftRound] ?? 0;
-  const rate = player.position === "QB" ? baseRate * 1.5 : baseRate;
+  const rate = rates[player.draftRound] ?? 0;
   // Deterministic seed: a prospect's gem destiny is fixed at class
   // generation, just revealed when drafted. Same player gets the same
   // roll regardless of which team picks them and regardless of how
@@ -1351,14 +1349,28 @@ function _rollHiddenGem(player) {
     : Math.random;
   if (!rate || rng() >= rate) return;
   // Ceiling distribution: most gems are solid starters (78-89), some are
-  // Pro Bowlers (90-95), a fatter tail (8%, was 3%) lands in the extreme
-  // 96-99 HoF range. Wider tail keeps "Brady emergence" cadence to roughly
-  // 1 per 75 years across late-round QBs.
+  // Pro Bowlers (90-95), a tail lands in the extreme HOF range (96-99).
+  //
+  // QB-specific skew: when a QB gem fires, the ceiling distribution is
+  // dramatically more top-heavy. Real NFL Brady-tier QBs (Brady, Wilson,
+  // Romo, Dak) weren't more frequent than other late-round emergences
+  // — they had transformative ceilings when they emerged. Same gem
+  // RATE as other positions; the QB "wow moment" comes from ceiling.
+  //
+  // QB:    40% 78-89  /  35% 90-95  /  25% 96-99 (HOF tier)
+  // Other: 78% 78-89  /  14% 90-95  /  8%  96-99
   const r = rng();
+  const isQB = player.position === "QB";
   let ceiling;
-  if (r < 0.78)      ceiling = 78 + Math.floor(rng() * 12); // 78-89 common
-  else if (r < 0.92) ceiling = 90 + Math.floor(rng() * 6);  // 90-95 mid
-  else               ceiling = 96 + Math.floor(rng() * 4);  // 96-99 extreme (8%)
+  if (isQB) {
+    if (r < 0.40)      ceiling = 78 + Math.floor(rng() * 12); // 78-89
+    else if (r < 0.75) ceiling = 90 + Math.floor(rng() * 6);  // 90-95
+    else               ceiling = 96 + Math.floor(rng() * 4);  // 96-99 (25%)
+  } else {
+    if (r < 0.78)      ceiling = 78 + Math.floor(rng() * 12); // 78-89 common
+    else if (r < 0.92) ceiling = 90 + Math.floor(rng() * 6);  // 90-95 mid
+    else               ceiling = 96 + Math.floor(rng() * 4);  // 96-99 extreme (8%)
+  }
   player.hiddenGem = {
     ceiling,
     growthRate: 4 + Math.floor(rng() * 5),
