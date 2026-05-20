@@ -4407,6 +4407,116 @@ function renderFrnAnalytics(defaultTab) {
       </table></div>`;
   }
 
+  // ── Cap Horizon — multi-year forecast ────────────────────────────
+  function capHorizon() {
+    const projections = _capHorizonFor(chosenTeamId, 4);
+    if (!projections.length) {
+      return `<div style="color:var(--gray);font-style:italic;padding:1.5rem;text-align:center">No contract data yet — sign players to see your cap horizon.</div>`;
+    }
+    const cards = projections.map((p, i) => {
+      const color = p.pct < 80 ? "#86e0a3" : p.pct < 95 ? "#cce8d6" : p.pct < 105 ? "#e0b078" : "#ff9b9b";
+      const label = i === 0 ? "THIS SEASON" : i === 1 ? "NEXT SEASON" : `+${i} YEARS`;
+      const freeColor = p.free > 20 ? "#86e0a3" : p.free > 0 ? "#cce8d6" : "#ff9b9b";
+      return `<div style="padding:.7rem .9rem;background:rgba(255,255,255,.025);border:1px solid var(--blborder);border-radius:3px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.25rem">
+          <span style="font-size:.55rem;color:var(--gray);letter-spacing:1.2px;font-weight:700">${label}</span>
+          <span style="font-size:.55rem;color:#5d6b66">${p.year}</span>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:.5rem;margin-bottom:.4rem">
+          <span style="font-family:'Bebas Neue','Anton',sans-serif;font-size:1.7rem;color:${color};line-height:1;letter-spacing:.5px">$${p.committed.toFixed(0)}M</span>
+          <span style="color:var(--gray);font-size:.7rem">/ $${p.projCap.toFixed(0)}M cap</span>
+        </div>
+        <div style="height:7px;background:var(--bg3);border-radius:1px;overflow:hidden;margin-bottom:.4rem">
+          <div style="height:100%;width:${Math.min(100, p.pct)}%;background:${color}"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:.65rem;margin-bottom:${p.topExpiring.length?".4rem":"0"}">
+          <span style="color:var(--gray)">${p.count} player${p.count===1?"":"s"} on books</span>
+          <span style="color:${freeColor};font-weight:700">$${p.free.toFixed(0)}M free</span>
+        </div>
+        ${p.topExpiring.length ? `
+          <div style="padding-top:.35rem;border-top:1px solid var(--blborder)">
+            <div style="font-size:.5rem;color:#e0b078;letter-spacing:1px;margin-bottom:.18rem">⏳ EXPIRES THIS YEAR</div>
+            ${p.topExpiring.map(e => `<div style="display:flex;justify-content:space-between;font-size:.6rem;padding:.05rem 0">
+              <span style="color:var(--white)">${e.position} ${e.name}</span>
+              <span style="color:var(--gray)">$${e.hit.toFixed(1)}M</span>
+            </div>`).join("")}
+          </div>` : ""}
+      </div>`;
+    }).join("");
+    return `
+      <div style="font-size:.6rem;color:var(--gray);margin-bottom:.5rem;font-style:italic">
+        Multi-year forecast. Cap projected at +5%/yr (conservative — real NFL cap has grown 7-12%/yr).
+        "Free" assumes you re-sign nobody. Expiring contracts show top 3 by cap hit per year so you can plan re-signs.
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:.5rem">
+        ${cards}
+      </div>`;
+  }
+
+  // ── Position Needs — vs league averages ──────────────────────────
+  function positionNeeds() {
+    const needs = _positionNeedsFor(chosenTeamId);
+    if (!needs.length) {
+      return `<div style="color:var(--gray);font-style:italic;padding:1.5rem;text-align:center">League comparison unavailable yet — needs more team data.</div>`;
+    }
+    // Bar chart row
+    const maxAbsDelta = Math.max(...needs.map(n => Math.abs(n.delta)), 5);
+    const rows = needs.map(n => {
+      const isPos = n.delta > 0;
+      const color = n.delta > 4 ? "#86e0a3" : n.delta > 1 ? "#a8d8b6"
+                  : n.delta > -1 ? "#cce8d6" : n.delta > -4 ? "#e0b078" : "#ff9b9b";
+      const verdict = n.delta > 4 ? "ELITE" : n.delta > 1 ? "above avg"
+                    : n.delta > -1 ? "league avg" : n.delta > -4 ? "below avg" : "NEED";
+      const barPct = Math.min(100, (Math.abs(n.delta) / maxAbsDelta) * 100);
+      const barStyle = isPos
+        ? `margin-left:50%;width:${barPct/2}%;background:${color}`
+        : `margin-left:${50 - barPct/2}%;width:${barPct/2}%;background:${color}`;
+      return `<tr>
+        <td style="color:var(--gold);font-weight:700">${n.pos}</td>
+        <td style="font-family:'Bebas Neue','Anton',sans-serif">${n.myAvg.toFixed(1)}</td>
+        <td style="color:var(--gray);font-family:'Bebas Neue','Anton',sans-serif">${n.leagueAvg.toFixed(1)}</td>
+        <td style="color:${color};font-weight:700">${n.delta > 0 ? "+" : ""}${n.delta.toFixed(1)}</td>
+        <td style="padding:0 .5rem">
+          <div style="height:10px;background:var(--bg3);border-radius:1px;position:relative;overflow:hidden">
+            <div style="position:absolute;top:0;height:100%;left:50%;width:1px;background:rgba(255,255,255,.2)"></div>
+            <div style="position:absolute;top:0;height:100%;${barStyle}"></div>
+          </div>
+        </td>
+        <td style="color:var(--gray);font-size:.7rem">#${n.rank} / ${n.total}</td>
+        <td style="color:${color};font-size:.6rem;letter-spacing:.5px;font-weight:700">${verdict}</td>
+      </tr>`;
+    }).join("");
+    // Top needs callout
+    const weakest = needs.slice(0, 3).filter(n => n.delta < -1);
+    const strongest = needs.slice().reverse().slice(0, 3).filter(n => n.delta > 1);
+    return `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.7rem">
+        <div style="padding:.55rem .65rem;background:rgba(255,155,155,.06);border-left:3px solid #ff9b9b;border-radius:2px">
+          <div style="font-size:.55rem;color:#ff9b9b;letter-spacing:1px;margin-bottom:.2rem">🎯 BIGGEST NEEDS</div>
+          ${weakest.length ? weakest.map(n => `<div style="display:flex;justify-content:space-between;font-size:.7rem;padding:.05rem 0">
+            <span style="color:var(--white)"><b style="color:var(--gold)">${n.pos}</b> — #${n.rank} in league</span>
+            <span style="color:#ff9b9b;font-weight:700">${n.delta.toFixed(1)} below avg</span>
+          </div>`).join("") : `<div style="color:var(--gray);font-size:.7rem;font-style:italic">No glaring weaknesses — well-rounded roster.</div>`}
+        </div>
+        <div style="padding:.55rem .65rem;background:rgba(134,224,163,.06);border-left:3px solid #86e0a3;border-radius:2px">
+          <div style="font-size:.55rem;color:#86e0a3;letter-spacing:1px;margin-bottom:.2rem">💪 STRONGEST UNITS</div>
+          ${strongest.length ? strongest.map(n => `<div style="display:flex;justify-content:space-between;font-size:.7rem;padding:.05rem 0">
+            <span style="color:var(--white)"><b style="color:var(--gold)">${n.pos}</b> — #${n.rank} in league</span>
+            <span style="color:#86e0a3;font-weight:700">+${n.delta.toFixed(1)} above avg</span>
+          </div>`).join("") : `<div style="color:var(--gray);font-size:.7rem;font-style:italic">No elite units — balanced across positions.</div>`}
+        </div>
+      </div>
+      <div style="font-size:.6rem;color:var(--gray);margin-bottom:.4rem;font-style:italic">
+        Compares your starting-unit avg OVR at each position to the league average. Use to identify FA / draft / trade priorities. Sorted weakest → strongest.
+      </div>
+      <div style="overflow-x:auto"><table class="frn-ana-table">
+        <thead><tr>
+          <th>POS</th><th>MINE</th><th>LEAGUE</th><th>Δ</th><th style="width:30%">VS LEAGUE</th><th>RANK</th><th>VERDICT</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>`;
+  }
+
   function capHealthDashboard() {
     const roster = (rosters[chosenTeamId] || []).filter(p => p.contract);
     const used1  = roster.reduce((s,p) => s + currentYearCapHit(p), 0);
@@ -4641,6 +4751,8 @@ function renderFrnAnalytics(defaultTab) {
   const tabs = [
     { id:"mysheet",   label:"MY CAP SHEET" },
     { id:"value",     label:"💰 VALUE LEDGER" },
+    { id:"horizon",   label:"📅 CAP HORIZON" },
+    { id:"needs",     label:"🎯 POSITION NEEDS" },
     { id:"caphealth", label:"CAP HEALTH" },
     { id:"cuts",      label:"CUT LIST" },
     { id:"timeline",  label:"TIMELINE" },
@@ -4757,6 +4869,8 @@ function renderFrnAnalytics(defaultTab) {
   let bodyHtml;
   if      (tab === "mysheet")   bodyHtml = myCapSheet();
   else if (tab === "value")     bodyHtml = valueLedger();
+  else if (tab === "horizon")   bodyHtml = capHorizon();
+  else if (tab === "needs")     bodyHtml = positionNeeds();
   else if (tab === "caphealth") bodyHtml = capHealthDashboard();
   else if (tab === "cuts")      bodyHtml = cutCandidatesList();
   else if (tab === "timeline")  bodyHtml = contractTimeline();
@@ -10156,6 +10270,88 @@ function _campNotes() {
   return notes.slice(0, 8);
 }
 
+// POSITION NEEDS — league-wide comparison. For each position group,
+// compute my team's top-N avg OVR vs the league average across all
+// teams. Identifies "where am I weak compared to my opponents?"
+//
+// Returns array sorted weakest-to-strongest by delta:
+//   [{ pos, myAvg, leagueAvg, delta, rank, total }, ...]
+function _positionNeedsFor(teamId) {
+  if (!franchise?.rosters) return [];
+  const STARTER_COUNTS = { QB:1, RB:1, WR:2, TE:1, OL:5, DL:4, LB:3, CB:2, S:2, K:1, P:1 };
+  const result = [];
+  for (const [pos, n] of Object.entries(STARTER_COUNTS)) {
+    // Build per-team avg at this position for ranking
+    const perTeam = [];
+    for (const tid in franchise.rosters) {
+      const r = franchise.rosters[tid] || [];
+      const atPos = r.filter(p => p.position === pos)
+        .sort((a, b) => (b.overall || 0) - (a.overall || 0))
+        .slice(0, n);
+      if (atPos.length) {
+        perTeam.push({
+          teamId: tid,
+          avg: atPos.reduce((s, p) => s + (p.overall || 0), 0) / atPos.length,
+        });
+      }
+    }
+    if (!perTeam.length) continue;
+    const leagueAvg = perTeam.reduce((s, t) => s + t.avg, 0) / perTeam.length;
+    const sorted = perTeam.slice().sort((a, b) => b.avg - a.avg);
+    const myEntry = perTeam.find(t => t.teamId === teamId);
+    if (!myEntry) continue;
+    const rank = sorted.findIndex(t => t.teamId === teamId) + 1;
+    result.push({
+      pos, myAvg: myEntry.avg, leagueAvg,
+      delta: myEntry.avg - leagueAvg,
+      rank, total: sorted.length,
+    });
+  }
+  return result.sort((a, b) => a.delta - b.delta);
+}
+
+// CAP HORIZON — multi-year cap-commitment forecast. Uses the
+// existing projectPlayerCapHit helper to roll forward each contract,
+// applying ~5%/yr cap growth (real NFL cap has grown 7-12%/yr but
+// 5% is a conservative working assumption).
+//
+// Returns array of { year, committed, count, projCap, free, pct,
+//                    topExpiring } for current season + N years ahead.
+function _capHorizonFor(teamId, years = 4) {
+  if (typeof projectPlayerCapHit !== "function") return [];
+  const roster = (franchise?.rosters?.[teamId] || []).filter(p => p.contract);
+  const cap = franchise?.salaryCap || 240;
+  const projections = [];
+  for (let yr = 0; yr < years; yr++) {
+    let committed = 0, count = 0;
+    const ages = [];
+    for (const p of roster) {
+      const hit = projectPlayerCapHit(p, yr);
+      if (hit > 0) {
+        committed += hit;
+        count++;
+        ages.push({ p, hit, yrsLeft: (p.contract?.remaining || 0) - yr });
+      }
+    }
+    const projCap = cap * Math.pow(1.05, yr);
+    // Players whose deals expire AT END of this year (yrsLeft == 1)
+    // — they'll be the ones to re-sign or let walk before next year.
+    const topExpiring = ages
+      .filter(a => a.yrsLeft === 1)
+      .sort((a, b) => b.hit - a.hit)
+      .slice(0, 3)
+      .map(a => ({ name: a.p.name, position: a.p.position, hit: a.hit }));
+    projections.push({
+      year: (franchise?.season || 1) + yr,
+      committed, count, projCap,
+      free: projCap - committed,
+      pct: projCap > 0 ? (committed / projCap) * 100 : 0,
+      topExpiring,
+    });
+  }
+  return projections;
+}
+
 // CHAMPIONSHIP WINDOW — synthesizes roster age + OVR + star count
 // into a strategy verdict. Helps the GM frame every other decision
 // (is it time to push chips in, or restart?). Returns:
@@ -10750,6 +10946,33 @@ function _buildOffseasonGainsSheet() {
     </div>`;
   })();
 
+  // ── POSITION NEEDS (compact) — vs league averages ────────────
+  // Full breakdown in Cap Sheet → 🎯 POSITION NEEDS. Sidebar shows
+  // top 3 weakest only — the actionable "fix this" list.
+  const posNeedsBlock = (() => {
+    const needs = _positionNeedsFor(myId);
+    if (!needs.length) return "";
+    const weakest = needs.slice(0, 3).filter(n => n.delta < -1);
+    if (!weakest.length) return "";
+    const _row = (n) => {
+      const color = n.delta > -2 ? "#e0b078" : n.delta > -5 ? "#ff9b9b" : "#ff6b6b";
+      return `<div style="display:grid;grid-template-columns:1.8rem 1fr 2rem 3.6rem;gap:.3rem;align-items:baseline;padding:.12rem 0;font-size:.65rem">
+        <span style="color:var(--gold);font-size:.6rem;font-weight:700">${n.pos}</span>
+        <span style="color:var(--white);font-family:'Bebas Neue','Anton',sans-serif;letter-spacing:.3px">${n.myAvg.toFixed(1)}</span>
+        <span style="color:var(--gray);text-align:right;font-size:.6rem">#${n.rank}</span>
+        <span style="color:${color};font-weight:700;text-align:right;font-size:.6rem">${n.delta.toFixed(1)} below</span>
+      </div>`;
+    };
+    return `
+    <div style="margin-bottom:.6rem;padding:.5rem .65rem;background:rgba(255,155,155,.05);border:1px solid var(--blborder);border-radius:3px">
+      <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.35rem">
+        <span style="font-size:.55rem;color:#ff9b9b;letter-spacing:1.5px;font-weight:700">🎯 POSITION NEEDS</span>
+        <span style="color:var(--gray);font-size:.55rem;margin-left:auto;cursor:pointer" onclick="renderFrnAnalytics('needs')">full breakdown →</span>
+      </div>
+      ${weakest.map(_row).join("")}
+    </div>`;
+  })();
+
   // ── INTERNAL CAMP NOTES — narrative texture ──────────────────
   // Procedural quotes attributed to position coaches / trainers,
   // derived from this offseason's dev reasons + the live injury
@@ -11253,6 +11476,7 @@ function _buildOffseasonGainsSheet() {
       </div>
       <div class="frn-dev-side" style="min-width:0;display:flex;flex-direction:column;gap:.6rem">
         ${teamStatusBlock}
+        ${posNeedsBlock}
         ${valueSpotlightBlock}
         ${resignBlock}
         ${depthBlock}
