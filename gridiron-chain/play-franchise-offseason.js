@@ -5822,44 +5822,222 @@ function _holdoutCenterInnerHtml() {
 // Route it through the new Holdout Center modal instead. Old saves whose
 // demands lack the enriched fields get migrated in _migrateHoldoutDemandShape.
 function frnExtendPlayer(name) {
-  // If the player has an active demand, open the center modal.
+  // If the player has an active holdout demand, the rich holdout
+  // center modal is the right home — it already handles all the
+  // pressure / accept-odds / refuse / defer flows.
   const list = franchise.holdoutDemands || [];
   if (list.some(d => d.name === name && !d.resolved)) {
     frnOpenHoldoutCenter();
     return;
   }
-  // No active demand — fall back to a simple inline extension prompt.
+  // No active demand — open the voluntary extension modal.
+  frnOpenExtensionModal(name);
+}
+
+// Voluntary extension modal — used when extending a player who
+// isn't holding out (e.g., from the dev report's per-row EXTEND
+// button). Replaces the legacy prompt() + confirm() flow. Mirrors
+// the visual language of the holdout center modal (frn-resign-recap
+// chrome) so the contract experience feels consistent across the
+// app.
+//
+// State is module-scoped (single modal at a time):
+//   _extModalState = { name, years, offer, structure, posMax, market }
+let _extModalState = null;
+
+function frnOpenExtensionModal(name) {
   const myId = franchise.chosenTeamId;
   const roster = franchise.rosters[myId] || [];
   const p = roster.find(r => r.name === name);
   if (!p) return;
-  const cap = franchise.salaryCap || SALARY_CAP_BASE;
-  const baseMarket = computeMarketValue(p, cap);
+  const cap = effectiveSalaryCap(myId);
+  const market = computeMarketValue(p, cap);
   const posMax = _maxContractYears(p);
-  const years = parseInt(prompt(
-    `Extend ${name}? Pick length (2-${posMax} years):`, String(Math.min(4, posMax))
-  ), 10);
-  if (!years || years < 2 || years > posMax) return;
-  const aav = _resignAavForYears(baseMarket, years);
-  if (!confirm(`Sign ${name} to ${years}yr / $${aav.toFixed(1)}M/yr ($${(aav*years).toFixed(1)}M total)?`)) return;
+  const defaultYears = Math.min(4, posMax);
+  _extModalState = {
+    name, posMax, market,
+    years: defaultYears,
+    offer: _resignAavForYears(market, defaultYears),
+    structure: _defaultStructure(p.age || 27, p.overall || 70),
+  };
+  const existing = document.getElementById("frn-extension-modal");
+  if (existing) existing.remove();
+  const el = document.createElement("div");
+  el.id = "frn-extension-modal";
+  el.className = "frn-resign-recap-overlay";
+  el.innerHTML = _extensionModalInnerHtml();
+  el.addEventListener("click", e => { if (e.target === el) frnCloseExtensionModal(); });
+  document.body.appendChild(el);
+}
+function frnCloseExtensionModal() {
+  const el = document.getElementById("frn-extension-modal");
+  if (el) el.remove();
+  _extModalState = null;
+}
+function frnRefreshExtensionModal() {
+  const el = document.getElementById("frn-extension-modal");
+  if (!el) return;
+  el.innerHTML = _extensionModalInnerHtml();
+}
+function frnExtensionAdjustYears(delta) {
+  if (!_extModalState) return;
+  const s = _extModalState;
+  s.years = Math.max(1, Math.min(s.posMax, s.years + delta));
+  // Auto-adjust offer to length-appropriate market rate so the
+  // year picker feels meaningful (longer deal → small commitment
+  // discount; shorter → small premium).
+  s.offer = _resignAavForYears(s.market, s.years);
+  frnRefreshExtensionModal();
+}
+function frnExtensionAdjustOffer(delta) {
+  if (!_extModalState) return;
+  const s = _extModalState;
+  s.offer = Math.max(0.5, Math.round((s.offer + delta) * 10) / 10);
+  frnRefreshExtensionModal();
+}
+function frnExtensionSetStructure(struct) {
+  if (!_extModalState) return;
+  _extModalState.structure = struct;
+  frnRefreshExtensionModal();
+}
+function frnExtensionSign() {
+  if (!_extModalState) return;
+  const { name, years, offer, structure } = _extModalState;
+  const myId = franchise.chosenTeamId;
+  const roster = franchise.rosters[myId] || [];
+  const p = roster.find(r => r.name === name);
+  if (!p) { frnCloseExtensionModal(); return; }
   const ovr = p.overall || 70;
-  const struct = _defaultStructure(p.age || 27, ovr);
-  const { signingBonus, bonusProration, tradeKicker } = _signingBonusCalc(aav, years, ovr);
-  const baseSalaries = _baseSalarySchedule(aav, years, struct, bonusProration);
+  const { signingBonus, bonusProration, tradeKicker } = _signingBonusCalc(offer, years, ovr);
+  const baseSalaries = _baseSalarySchedule(offer, years, structure, bonusProration);
+  // Player-acceptance check: accept odds are very high for non-
+  // holdout extensions (player isn't pressing). Threshold = 88% of
+  // market — under that they decline.
+  const accepted = offer >= _extModalState.market * 0.88;
+  if (!accepted) {
+    // Decline — flash the offer panel, give the user a chance to
+    // raise. Doesn't close the modal.
+    const card = document.querySelector("#frn-extension-modal .frn-resign-recap-card");
+    if (card) {
+      card.style.animation = "none";
+      // force reflow
+      void card.offsetWidth;
+      card.style.animation = "frn-extension-shake 0.4s";
+    }
+    return;
+  }
   p.contract = {
-    years, remaining: years, aav, structure: struct,
+    years, remaining: years, aav: offer, structure,
     baseSalaries, signingBonus, bonusProration, tradeKicker,
     guaranteedYears: _guaranteedYearsForLength(years),
-    guaranteedAAV: aav, incentives: _generateIncentives(p, aav),
-    signedAav: aav,
+    guaranteedAAV: offer,
+    incentives: (typeof _generateIncentives === "function") ? _generateIncentives(p, offer) : [],
+    signedAav: offer,
     startSeason: (franchise.season || 1) + 1,
     signedOvr: ovr,
   };
-  _clearGrudgeFlags(p);
+  if (typeof _clearGrudgeFlags === "function") _clearGrudgeFlags(p);
   _pushNews({ type: "extension",
-    label: `🤝 Extended ${p.position} ${name} — ${years}yr / $${aav.toFixed(1)}M/yr` });
+    label: `🤝 Extended ${p.position} ${name} — ${years}yr / $${offer.toFixed(1)}M/yr` });
   saveFranchise();
+  frnCloseExtensionModal();
   showFranchiseDashboard();
+}
+
+function _extensionModalInnerHtml() {
+  const s = _extModalState;
+  if (!s) return "";
+  const myId = franchise.chosenTeamId;
+  const cap = effectiveSalaryCap(myId);
+  const roster = franchise.rosters[myId] || [];
+  const p = roster.find(r => r.name === s.name);
+  if (!p) return `<div class="frn-resign-recap-card"><button class="frn-resign-recap-close" onclick="frnCloseExtensionModal()">×</button><p>Player not found.</p></div>`;
+  const ovr = p.overall || 70;
+  const age = p.age || 27;
+  const escName = s.name.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  const cur = p.contract || {};
+  const curAav = cur.aav || 0;
+  const curRemaining = cur.remaining || 0;
+  // Build a synthetic ctx that _buildExtensionPitch can consume —
+  // the same data structure the holdout center passes in.
+  const ctx = {
+    name: s.name, position: p.position, age, overall: ovr,
+    marketAAV: s.market, demandedAAV: s.offer, demandedYears: s.years,
+    currentAAV: curAav, currentRemaining: curRemaining,
+  };
+  const pitchHtml = (typeof _buildExtensionPitch === "function")
+    ? _buildExtensionPitch(ctx, p, cap) : "";
+  // Year-by-year cap pills (the same visual the holdout center
+  // shows on Preview).
+  const { bonusProration } = _signingBonusCalc(s.offer, s.years, ovr);
+  const bases = _baseSalarySchedule(s.offer, s.years, s.structure, bonusProration);
+  const totalDead = bonusProration * s.years;
+  const yearPills = bases.map((base, i) => {
+    const hit = Math.round((base + bonusProration) * 10) / 10;
+    const ageYr = age + i + 1;
+    const ageColor = ageYr >= 34 ? "#ff8a8a" : ageYr >= 31 ? "#e8a000" : "var(--gray)";
+    return `<div style="display:flex;justify-content:space-between;padding:.22rem .55rem;border-radius:4px;background:var(--bg3);font-size:.68rem;gap:.8rem;border:1px solid var(--blborder)">
+      <span style="color:var(--gray)">Yr ${i+1} <span style="color:${ageColor};font-size:.58rem">(age ${ageYr})</span></span>
+      <span>$${base.toFixed(1)}M base</span>
+      <span style="color:var(--gray)">+$${bonusProration.toFixed(1)}M bonus</span>
+      <span style="color:var(--gold);font-weight:700">= $${hit.toFixed(1)}M</span>
+    </div>`;
+  }).join("");
+  // Offer vs market read
+  const pctMkt = s.market > 0 ? (s.offer / s.market) * 100 : 100;
+  const pctColor = pctMkt < 90 ? "#86e0a3" : pctMkt < 100 ? "#a8d8b6" : pctMkt < 110 ? "var(--gold)" : "#ff8a8a";
+  const pctLabel = pctMkt < 85 ? "MAY DECLINE" : pctMkt < 95 ? "good deal" : pctMkt < 105 ? "fair" : pctMkt < 115 ? "generous" : "OVERPAY";
+  // Current deal context if any
+  const raiseStr = curAav > 0
+    ? `vs current $${curAav.toFixed(1)}M × ${curRemaining}yr left`
+    : "first-time deal";
+  // Structure buttons
+  const structOpts = ["FRONT-LOADED", "BALANCED", "BACK-LOADED"];
+  const structBtns = structOpts.map(o =>
+    `<button onclick="frnExtensionSetStructure('${o}')" style="background:${o===s.structure?"var(--gold)":"transparent"};color:${o===s.structure?"#000":"var(--gray)"};border:1px solid var(--blborder);padding:.2rem .5rem;font-size:.55rem;letter-spacing:.5px;cursor:pointer;border-radius:2px;font-family:inherit">${o.replace("-"," ")}</button>`
+  ).join("");
+  return `<div class="frn-resign-recap-card" style="max-width:780px">
+    <button class="frn-resign-recap-close" onclick="frnCloseExtensionModal()">×</button>
+    <div class="frn-resign-recap-eyebrow">VOLUNTARY EXTENSION · WEEK ${franchise.week || 0}</div>
+    <h2 class="frn-resign-recap-title" style="font-size:1.4rem;letter-spacing:1px">📝 EXTEND ${s.name.toUpperCase()}</h2>
+    <div style="text-align:center;color:var(--blgray);font-size:.72rem;margin:.3rem 0 .8rem">
+      ${p.position} · ${ovr} OVR · Age ${age} · ${raiseStr}
+    </div>
+    ${pitchHtml ? `<div style="margin-bottom:.7rem">${pitchHtml}</div>` : ""}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:.8rem">
+      <div style="padding:.7rem .8rem;background:var(--bg2);border:1px solid var(--blborder);border-radius:3px">
+        <div style="font-size:.55rem;color:var(--gray);letter-spacing:1.2px;margin-bottom:.4rem;font-weight:700">CONTRACT LENGTH</div>
+        <div style="display:flex;align-items:center;gap:.5rem;justify-content:center">
+          <button onclick="frnExtensionAdjustYears(-1)" ${s.years<=1?"disabled":""} style="background:transparent;border:1px solid var(--blborder);color:var(--gray);width:1.6rem;height:1.6rem;cursor:pointer;font-family:inherit;border-radius:2px">−</button>
+          <span style="font-family:'Bebas Neue','Anton',sans-serif;font-size:2rem;color:var(--gold);letter-spacing:1px;min-width:3rem;text-align:center">${s.years}yr</span>
+          <button onclick="frnExtensionAdjustYears(1)" ${s.years>=s.posMax?"disabled":""} style="background:transparent;border:1px solid var(--blborder);color:var(--gray);width:1.6rem;height:1.6rem;cursor:pointer;font-family:inherit;border-radius:2px">+</button>
+        </div>
+        <div style="text-align:center;font-size:.55rem;color:var(--gray);margin-top:.3rem">max ${s.posMax}yr for ${p.position} at age ${age}</div>
+      </div>
+      <div style="padding:.7rem .8rem;background:var(--bg2);border:1px solid var(--blborder);border-radius:3px">
+        <div style="font-size:.55rem;color:var(--gray);letter-spacing:1.2px;margin-bottom:.4rem;font-weight:700">OFFER AAV</div>
+        <div style="display:flex;align-items:center;gap:.5rem;justify-content:center">
+          <button onclick="frnExtensionAdjustOffer(-0.5)" style="background:transparent;border:1px solid var(--blborder);color:var(--gray);width:1.6rem;height:1.6rem;cursor:pointer;font-family:inherit;border-radius:2px">−</button>
+          <span style="font-family:'Bebas Neue','Anton',sans-serif;font-size:2rem;color:${pctColor};letter-spacing:1px;min-width:5rem;text-align:center">$${s.offer.toFixed(1)}M</span>
+          <button onclick="frnExtensionAdjustOffer(0.5)" style="background:transparent;border:1px solid var(--blborder);color:var(--gray);width:1.6rem;height:1.6rem;cursor:pointer;font-family:inherit;border-radius:2px">+</button>
+        </div>
+        <div style="text-align:center;font-size:.55rem;color:${pctColor};margin-top:.3rem;letter-spacing:.5px;font-weight:700">${pctMkt.toFixed(0)}% of market · ${pctLabel}</div>
+        <div style="text-align:center;font-size:.5rem;color:var(--gray);margin-top:.1rem">market $${s.market.toFixed(1)}M · total $${(s.offer * s.years).toFixed(1)}M</div>
+      </div>
+    </div>
+    <div style="margin-bottom:.7rem">
+      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem">
+        <span style="font-size:.55rem;color:var(--gray);letter-spacing:1.2px;font-weight:700">STRUCTURE</span>
+        <div style="display:flex;gap:.25rem">${structBtns}</div>
+        ${totalDead >= 0.5 ? `<span style="color:#ff8a8a;font-size:.55rem;margin-left:auto">☠ Dead cap if cut: $${totalDead.toFixed(1)}M</span>` : ""}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:.18rem">${yearPills}</div>
+    </div>
+    <div class="frn-resign-recap-cta" style="display:flex;gap:.4rem;justify-content:flex-end">
+      <button class="btn btn-outline" onclick="frnCloseExtensionModal()" style="font-size:.7rem">← Cancel</button>
+      <button class="btn btn-gold-big" onclick="frnExtensionSign()" style="font-size:.8rem;letter-spacing:1px">✓ SIGN EXTENSION</button>
+    </div>
+  </div>`;
 }
 
 // ── Re-signings screen ─────────────────────────────────────────────────────────

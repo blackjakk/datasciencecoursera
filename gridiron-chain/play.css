@@ -8248,6 +8248,16 @@
       grid-template-columns: 1fr !important;
     }
   }
+  /* Voluntary extension modal — shake animation for declined offers
+     (offer < 88% of market). Visual nudge that the player won't
+     accept without raising. */
+  @keyframes frn-extension-shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-6px); }
+    40% { transform: translateX(6px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(4px); }
+  }
   .frn-dev-side > div {
     margin-bottom: 0 !important;
   }
