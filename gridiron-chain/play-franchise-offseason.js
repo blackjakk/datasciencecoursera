@@ -10081,6 +10081,50 @@ function _campNotes() {
   return notes.slice(0, 8);
 }
 
+// CAMP SCORE — synthesizes a roster's offseason development cycle
+// into a letter grade. Per-player contribution = delta OVR + bonuses
+// for high-leverage events (ceiling reveal, breakout, rehab) and
+// penalties for cliff hits. Averaged per player to normalize across
+// roster sizes.
+//
+// Grade thresholds:
+//   A+ avg >=  1.5  · A  >=  1.0  · B+ >=  0.5  · B  >=  0.2
+//   C+ avg >= -0.1  · C  >= -0.3  · D  >= -0.6  · F  <  -0.6
+function _campScoreFor(changes) {
+  if (!changes.length) {
+    return { score:0, count:0, grade:"—", color:"#5d6b66",
+             breakouts:0, cliffs:0, reveals:0, rehabs:0, deltaSum:0 };
+  }
+  let score = 0, deltaSum = 0;
+  let breakouts = 0, cliffs = 0, reveals = 0, rehabs = 0;
+  for (const c of changes) {
+    const delta = c.delta || 0;
+    deltaSum += delta;
+    let s = delta;
+    const r = c.reasons || [];
+    if (c.potentialBumped)       { s += 5; reveals++; }
+    if (r.includes("big_breakout")) { s += 3; breakouts++; }
+    else if (r.includes("breakout")) { s += 1; breakouts++; }
+    if (r.includes("cliff_hit"))    { s -= 3; cliffs++; }
+    if (r.includes("rehab"))        { s += 2; rehabs++; }
+    score += s;
+  }
+  const avg = score / changes.length;
+  const { grade, color } = _campGradeFor(avg);
+  return { score, count: changes.length, grade, color,
+           breakouts, cliffs, reveals, rehabs, deltaSum };
+}
+function _campGradeFor(avg) {
+  if (avg >=  1.5) return { grade:"A+", color:"#f5c542" };  // gold
+  if (avg >=  1.0) return { grade:"A",  color:"#86e0a3" };
+  if (avg >=  0.5) return { grade:"B+", color:"#a8d8b6" };
+  if (avg >=  0.2) return { grade:"B",  color:"#a8d8b6" };
+  if (avg >= -0.1) return { grade:"C+", color:"#cce8d6" };
+  if (avg >= -0.3) return { grade:"C",  color:"#e0b078" };
+  if (avg >= -0.6) return { grade:"D",  color:"#ff9b9b" };
+  return                  { grade:"F",  color:"#ff6b6b" };
+}
+
 function _ceilingTier(potential, round) {
   const expected = { 1:88, 2:81, 3:75, 4:70, 5:66, 6:63, 7:60, 0:58 }[round ?? 4] ?? 65;
   const delta = (potential || 0) - expected;
@@ -10540,6 +10584,58 @@ function _buildOffseasonGainsSheet() {
       }).join("")}
     </div>` : "";
 
+  // ── CAMP REPORT CARD — synthesized grade + per-position ──────
+  // Headline answer to "how did camp go?" Big letter grade for the
+  // whole offseason + per-position grade chips. Sits ABOVE the
+  // count-based summary cards so the user sees the verdict before
+  // the supporting numbers.
+  const campCardHtml = (() => {
+    if (!allMyChg.length) return "";
+    const overall = _campScoreFor(allMyChg);
+    const POS_ORDER_CAMP = ["QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"];
+    const byPos = POS_ORDER_CAMP.map(pos => {
+      const atPos = allMyChg.filter(c => c.pos === pos);
+      return { pos, ...(_campScoreFor(atPos)) };
+    }).filter(p => p.count > 0);
+    const dSum = overall.deltaSum;
+    const dStr = dSum > 0 ? `+${dSum}` : `${dSum}`;
+    const dCol = dSum > 0 ? "#86e0a3" : dSum < 0 ? "#ff9b9b" : "#7a8b85";
+    const eventChips = [
+      overall.breakouts ? `<span style="color:#86e0a3">▲ ${overall.breakouts} breakout${overall.breakouts===1?"":"s"}</span>` : "",
+      overall.reveals   ? `<span style="color:#86c8ff">💎 ${overall.reveals} ceiling reveal${overall.reveals===1?"":"s"}</span>` : "",
+      overall.rehabs    ? `<span style="color:#a8d8b6">🏥 ${overall.rehabs} rehab${overall.rehabs===1?"":"s"}</span>` : "",
+      overall.cliffs    ? `<span style="color:#e0b078">⏳ ${overall.cliffs} cliff hit${overall.cliffs===1?"":"s"}</span>` : "",
+    ].filter(Boolean).join(`<span style="color:#5d6b66"> · </span>`);
+    return `
+    <div style="margin-bottom:.6rem;padding:.7rem .85rem;background:linear-gradient(180deg, rgba(245,197,66,.05), rgba(255,255,255,.015));border:1px solid var(--blborder);border-radius:4px">
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:1.1rem;align-items:center">
+        <div style="text-align:center;padding:0 .5rem;border-right:1px solid var(--blborder)">
+          <div style="font-family:'Bebas Neue','Anton',sans-serif;font-size:3.4rem;color:${overall.color};letter-spacing:1px;line-height:.95">${overall.grade}</div>
+          <div style="font-size:.55rem;color:var(--gray);letter-spacing:1.5px;margin-top:.1rem">CAMP REPORT</div>
+          <div style="font-size:.5rem;color:#5d6b66;margin-top:.05rem">${overall.count} players</div>
+        </div>
+        <div style="min-width:0">
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:baseline;margin-bottom:.5rem;font-size:.7rem">
+            <span style="font-family:'Bebas Neue','Anton',sans-serif;font-size:1.3rem;color:${dCol};letter-spacing:.5px;line-height:1">${dStr} OVR</span>
+            <span style="color:#5d6b66;font-size:.55rem;letter-spacing:1px">NET ${dSum > 0 ? "GAIN" : dSum < 0 ? "LOSS" : "FLAT"}</span>
+            ${eventChips ? `<span style="color:#5d6b66"> · </span>${eventChips}` : ""}
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(58px,1fr));gap:.3rem">
+            ${byPos.map(p => {
+              const ds = p.deltaSum > 0 ? `+${p.deltaSum}` : p.deltaSum < 0 ? `${p.deltaSum}` : "—";
+              const dc = p.deltaSum > 0 ? "#86e0a3" : p.deltaSum < 0 ? "#ff9b9b" : "#5d6b66";
+              return `<div style="text-align:center;padding:.2rem .3rem;background:rgba(255,255,255,.025);border-bottom:2px solid ${p.color};border-radius:1px">
+                <div style="font-size:.55rem;color:var(--gray);letter-spacing:.5px;font-weight:700">${p.pos}</div>
+                <div style="font-family:'Bebas Neue','Anton',sans-serif;font-size:1.2rem;color:${p.color};letter-spacing:.3px;line-height:1.15">${p.grade}</div>
+                <div style="font-size:.5rem;color:${dc};margin-top:.05rem">${ds}</div>
+              </div>`;
+            }).join("")}
+          </div>
+        </div>
+      </div>
+    </div>`;
+  })();
+
   const summaryHtml = `
     <div style="display:flex;gap:.45rem;flex-wrap:wrap;margin-bottom:.6rem">
       ${_stat(_signed(netDelta), "Net OVR", netDelta > 0 ? "#86e0a3" : netDelta < 0 ? "#ff9b9b" : "var(--white)")}
@@ -10787,6 +10883,7 @@ function _buildOffseasonGainsSheet() {
   return `<div style="margin-top:.8rem;padding:.7rem .8rem;background:rgba(255,255,255,.02);border:1px solid var(--blborder);border-radius:4px">
     <div class="frn-sec-title" style="margin-bottom:.5rem">📊 PLAYER DEVELOPMENT REPORT</div>
     ${chipsHtml}
+    ${campCardHtml}
     ${summaryHtml}
     ${chartsBlock}
     <div class="frn-dev-report-grid" style="display:grid;grid-template-columns:2fr 1fr;gap:.7rem;margin-top:.4rem">
