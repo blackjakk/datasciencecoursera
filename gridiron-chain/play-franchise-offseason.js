@@ -16574,9 +16574,15 @@ function renderFrnDraftPreshow() {
       ${meta ? `<span style="color:var(--gray);font-size:.58rem;font-style:italic;margin-left:auto">${meta}</span>` : ""}
     </div>`;
 
-  // Class size + meta for the hero sub-strip
-  const totalProspects = (d.class || []).filter(p => p._generatedRound !== 0).length;
-  const totalUdfa     = (d.class || []).filter(p => p._generatedRound === 0).length;
+  // Class size + meta for the hero sub-strip. Path A: continuous pool,
+  // no hard tier divide. "Graded" = R1-R7 (1-7), "Camp body" = grade 0.
+  // The total pool is `d.class.length`; ~94 will fall to the scramble
+  // (drives the "~94 fall to scramble" estimate below).
+  const totalGraded = (d.class || []).filter(p => p._generatedRound >= 1).length;
+  const totalCampBody = (d.class || []).filter(p => p._generatedRound === 0).length;
+  const totalPool = (d.class || []).length;
+  const draftedSlots = d.pickOrder?.length || 224;
+  const willFall = Math.max(0, totalPool - draftedSlots);
   const teamMark = myTeam ? `
     <span style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:3px;background:${myTeam.primary || "var(--gold)"};color:#fff;font-family:'Bebas Neue','Anton',sans-serif;font-size:14px;letter-spacing:.5px;font-weight:900">${(myTeam.abbrev || myTeam.name?.slice(0,3) || "???").toUpperCase().slice(0,3)}</span>` : "";
 
@@ -16593,10 +16599,10 @@ function renderFrnDraftPreshow() {
           ${teamMark}
           <span style="color:var(--white);font-weight:700;letter-spacing:.5px">${(myTeam?.city || "").toUpperCase()} ${(myTeam?.name || "").toUpperCase()}</span>
           <span style="color:var(--blborder)">·</span>
-          <span><b style="color:var(--white)">${totalProspects}</b> prospects</span>
+          <span><b style="color:var(--white)">${totalPool}</b> prospects</span>
           <span style="color:var(--blborder)">·</span>
-          <span><b style="color:var(--white)">${d.pickOrder?.length || 224}</b> picks</span>
-          ${totalUdfa ? `<span style="color:var(--blborder)">·</span><span><b style="color:var(--white)">${totalUdfa}</b> UDFA</span>` : ""}
+          <span><b style="color:var(--white)">${draftedSlots}</b> picks</span>
+          ${willFall ? `<span style="color:var(--blborder)">·</span><span title="Estimated number of graded prospects who'll fall to the UDFA scramble (~${draftedSlots} drafted)"><b style="color:var(--white)">~${willFall}</b> to scramble</span>` : ""}
         </div>
         ${themeChips ? `<div style="margin-top:.7rem">${themeChips}</div>` : ""}
         <div style="margin-top:.7rem;font-size:.58rem;color:var(--gray);letter-spacing:.3px">
@@ -18502,7 +18508,13 @@ function renderFrnDraft() {
             : "frn-draft-filter-btn";
     if (cnt === 0) cls += " empty";
     if (f === filter) cls += " active";
-    const label = f === "WATCHED" ? "👁 WATCHED" : f;
+    // Path A: rename the UDFA filter tab to "CAMP" since under continuous-
+    // pool semantics, this tab shows below-R7 grade ("camp body") prospects
+    // specifically, not the post-draft scramble pool. The actual scramble
+    // is "anyone who didn't get drafted" — wider than what this tab shows.
+    const label = f === "WATCHED" ? "👁 WATCHED"
+                : f === "UDFA"    ? "CAMP"
+                                  : f;
     return `<button class="${cls}" onclick="frnDraftSetFilter('${f}')">${label} <span style="opacity:.55;font-size:.52rem">${cnt}</span></button>`;
   }).join("");
 
@@ -19067,7 +19079,10 @@ function frnDraftScoutCategory(name, cat) {
     // dismiss/confirm note. Otherwise the category-specific intel
     // (medical risk dial / scheme fit / etc.) carries the value.
     if (knockType && knockCat === cat) {
-      const r       = prospect?._generatedRound || 5;
+      // Falsy bug: `|| 5` treated 0 (camp body grade) as 5. Camp bodies
+      // got R5-level expected potential (66) instead of their actual
+      // expected potential (58). Switched to ?? so 0 routes correctly.
+      const r       = prospect?._generatedRound ?? 5;
       const expPot  = { 1:88,2:81,3:75,4:70,5:66,6:63,7:60,0:58 }[r] ?? 65;
       const isHiUp  = (prospect?.potential || 65) >= expPot + 4;
       rev.knockNotes[cat] = _buildScoutKnockNote(knockType, isHiUp);
@@ -19556,6 +19571,13 @@ function frnDraftUndoPick() {
 // indistinguishable from a freshly-generated UDFA.
 function _signUdfaTo(roster, prospect, rookieYear) {
   prospect.age = prospect.age || 22;
+  // Preserve the pre-draft consensus grade so the "↓ ~R3 SLIP" / Brady-
+  // via-UDFA narrative survives the season. Without this, draftRound
+  // gets clobbered to 0 below and the player looks like a generic UDFA
+  // signing for the rest of their career.
+  if (prospect._generatedRound && prospect._generatedRound > 0) {
+    prospect._slipGrade = prospect._generatedRound;
+  }
   prospect.draftRound = 0;
   prospect.draftPick = null;
   prospect.draftYear = rookieYear;

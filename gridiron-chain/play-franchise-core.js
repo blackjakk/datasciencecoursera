@@ -1394,7 +1394,12 @@ function _rollPotential(p) {
 //               pedigree bias skews R1 optimistic and late rounds pessimistic.
 function potentialTag(p, { known = false, scoutRevealed = false } = {}) {
   if (p.potential == null) return "";
-  const r = p.draftRound ?? 4;
+  // Pre-draft prospects (Path A) have draftRound=null; fall back to
+  // _generatedRound (their consensus grade) so the ceiling chip
+  // judges them against the right round expectation. Final fallback
+  // is R4 (mid-class). Without this, every camp-body prospect was
+  // judged vs R4 expected potential and read as "↗ Late bloomer".
+  const r = p.draftRound ?? p._generatedRound ?? 4;
   const expected = { 1:88, 2:81, 3:75, 4:70, 5:66, 6:63, 7:60, 0:58 }[r] ?? 65;
   // Vets past their peak don't have a "ceiling" to talk about — the
   // potential is realized (or not) and growth narrative is over. Show
