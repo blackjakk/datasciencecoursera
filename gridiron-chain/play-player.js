@@ -1327,10 +1327,16 @@ function _rollHiddenGem(player) {
   // Inverted rate curve: UDFAs / late-rounders are the most likely hidden
   // gems (pure flyers, no scouting consensus to "hide" against). Early
   // rounds are heavily scouted so there's less room for surprise.
-  // Rates bumped ~30% on late-rounders to tighten the Brady-emergence
-  // cadence to ~1 per 75 years.
-  const rates = { 0: 0.120, 7: 0.080, 6: 0.070, 5: 0.050, 4: 0.025, 3: 0.012 };
-  const rate = rates[player.draftRound] ?? 0;
+  // Path A dampening: rates cut ~3× from earlier values. Old rates
+  // produced ~7-8 gems per draft; NFL has 1-3. New rates target ~2-3
+  // gems per draft with ~1 elite-ceiling emergence per draft.
+  const rates = { 0: 0.045, 7: 0.028, 6: 0.022, 5: 0.015, 4: 0.008, 3: 0.004 };
+  // QB positional multiplier: QBs are the headline late-round story
+  // (Tom Brady, Tony Romo, Kurt Warner all QBs). Bump QB gem rate 1.5×
+  // to counterbalance the position rarity and ensure the Brady-tier QB
+  // narrative happens often enough to be exciting (~1 per 10-15 years).
+  const baseRate = rates[player.draftRound] ?? 0;
+  const rate = player.position === "QB" ? baseRate * 1.5 : baseRate;
   // Deterministic seed: a prospect's gem destiny is fixed at class
   // generation, just revealed when drafted. Same player gets the same
   // roll regardless of which team picks them and regardless of how

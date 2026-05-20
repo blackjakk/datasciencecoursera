@@ -16963,7 +16963,11 @@ const _COLLEGE_CLASS_SIZE = 150; // ~150 players per year × 4 = ~600 total
 // of each position in a new freshman class. Tuned to NCAA-ish ratios so
 // the draft-eligible pool fills realistically (lots of WR/OL/DL, few K/P).
 const _COLLEGE_POS_WEIGHTS = {
-  QB: 1, RB: 3, WR: 6, TE: 2, OL: 7, DL: 6, LB: 4, CB: 5, S: 3, K: 0.2, P: 0.2,
+  // QB bumped 1 → 2.5 so the pool produces enough QBs to populate
+  // 2-4 R1-grade prospects per draft, matching NFL reality (~2-3
+  // R1 QBs typically). Old weight produced only 0.4 R1 QBs/draft
+  // even with elite-tier FR boosts.
+  QB: 2.5, RB: 3, WR: 6, TE: 2, OL: 7, DL: 6, LB: 4, CB: 5, S: 3, K: 0.2, P: 0.2,
 };
 function _pickCollegePosition() {
   const positions = Object.keys(_COLLEGE_POS_WEIGHTS);
@@ -16978,14 +16982,44 @@ function _pickCollegePosition() {
 
 // Tier distribution per college year — older classes have more developed
 // players (more elite/good, fewer poor). Freshmen are mostly raw potential.
-function _rollCollegeTier(year) {
+function _rollCollegeTier(year, pos) {
   const r = Math.random();
+  // Position-aware FR rolls — QB / OL / DL get an elite tier roll at
+  // FR (none for others) to address QB scarcity in the pipeline. Real
+  // NFL has top-tier QB prospects identified early; this lets the sim
+  // produce 2-4 R1-grade QBs per class instead of 0.4.
+  const QB_POS = pos === "QB";
+  const BIG_PREMIUM = pos === "OL" || pos === "DL";
   if (year === "FR") {
+    if (QB_POS) {
+      if (r < 0.06) return "elite";
+      if (r < 0.24) return "good";
+      if (r < 0.54) return "average";
+      return "poor";
+    }
+    if (BIG_PREMIUM) {
+      if (r < 0.04) return "elite";
+      if (r < 0.18) return "good";
+      if (r < 0.52) return "average";
+      return "poor";
+    }
     if (r < 0.03) return "good";
     if (r < 0.22) return "average";
     return "poor";
   }
   if (year === "SO") {
+    if (QB_POS) {
+      if (r < 0.08) return "elite";
+      if (r < 0.30) return "good";
+      if (r < 0.55) return "average";
+      return "poor";
+    }
+    if (BIG_PREMIUM) {
+      if (r < 0.06) return "elite";
+      if (r < 0.25) return "good";
+      if (r < 0.55) return "average";
+      return "poor";
+    }
     if (r < 0.10) return "good";
     if (r < 0.40) return "average";
     return "poor";
@@ -17024,7 +17058,7 @@ function _projectedDraftRound(p) {
 
 function _generateCollegePlayer(collegeYear, blockNames) {
   const pos = _pickCollegePosition();
-  const tier = _rollCollegeTier(collegeYear);
+  const tier = _rollCollegeTier(collegeYear, pos);
   const p = blockNames ? genUniquePlayer(pos, tier, blockNames) : genPlayer(pos, tier);
   if (blockNames) blockNames.add(p.name);
 
