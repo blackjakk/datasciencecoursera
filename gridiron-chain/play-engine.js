@@ -2207,6 +2207,36 @@ class GameSimulator {
         this.down = 1; this.ytg = 10; break;
       }
       const yards = r.yards || 0;
+      // SAFETY — ball carrier tackled in his own end zone. Detect BEFORE
+      // the clamp (which would hide the negative yardLine and treat it
+      // as a 0-yard line play). Sacks losing more yards than the offense
+      // had to give, runs into own end zone after a deep-EZ snap, etc.
+      // Awards 2 pts to the defense and triggers a free kick from the
+      // OFFENSE's 20-yard line (simplified to a standard kickoff visual
+      // landing at the receiving team's 25).
+      const proposedYL = this.yardLine + yards;
+      if (!r.incomplete && yards < 0 && proposedYL <= 0) {
+        const defKey = this.poss === "home" ? "away" : "home";
+        this.score[defKey] += 2;
+        this._pushVisual({
+          kind: "safety",
+          desc: `SAFETY — 2 points for ${this[defKey].name}`,
+          scoringTeam: defKey,
+        });
+        pushDriveSummary("SAFETY", { endYL: 0 });
+        this.drives.push({ team: start, result: "SAFETY", homeScore: this.score.home, awayScore: this.score.away });
+        // Free kick from the offense's 20. Possession flips to the
+        // scoring team (the defense that just got the safety).
+        this.poss = defKey;
+        this.yardLine = 25;
+        this.down = 1; this.ytg = 10;
+        this._pushVisual({
+          kind: "kickoff",
+          desc: `Free kick after safety — ${this[defKey].name} receives at the 25`,
+          startYard: 20, endYard: 25,
+        });
+        return;
+      }
       if (!r.incomplete) this.yardLine = clamp(this.yardLine + yards, 0, 100);
       const wasThird = (this.down === 3);
       if (this.yardLine >= 100) {
@@ -2285,6 +2315,17 @@ class GameSimulator {
         return;
       }
     }
+    // Quarter-break continuity: if the while-loop exited because time hit
+    // 0 mid-drive AT THE END OF Q1 OR Q3 (not halftime, not end-of-game),
+    // the drive CONTINUES into the next quarter at the same down/distance.
+    // Skip the drive summary push so the same drive doesn't get logged
+    // twice. simulate() will bump the quarter, reset time to 900, and
+    // call _drive() again with the preserved state.
+    const isInterQuarterBreak = (this.time <= 0)
+      && (this.quarter === 1 || this.quarter === 3)
+      && plays > 0;
+    if (isInterQuarterBreak) return;
+
     // Determine drive result from the most recent play's kind. By this
     // point all the special early-return cases (TD, turnover, etc.) have
     // already pushed their own summary. This catch-all covers FG good/miss/
@@ -2302,16 +2343,42 @@ class GameSimulator {
     this.drives.push({ team: start, result: "FG/Punt/TO", homeScore: this.score.home, awayScore: this.score.away });
   }
   simulate() {
-    this._pushVisual({ kind: "kickoff", desc: `${this.away.city} ${this.away.name} kicks off`, startYard: 35, endYard: 25 });
+    // Opening kickoff — track who receives so we can give the OTHER team
+    // the ball at halftime (NFL rule). The team currently in this.poss
+    // (set randomly in the constructor) is the receiver; the kicker is
+    // the other side. Previously the visual hardcoded "away kicks off"
+    // even when home actually had been randomly assigned the kick role.
+    this.openingKickReceiver = this.poss;
+    const openingKicker = this.poss === "home" ? "away" : "home";
+    this._pushVisual({
+      kind: "kickoff",
+      desc: `${this[openingKicker].city} ${this[openingKicker].name} kicks off to ${this[this.openingKickReceiver].name}`,
+      startYard: 35, endYard: 25,
+    });
     while (this.quarter <= 4) {
       if (this.time <= 0) {
         if (this.quarter === 2) {
-          // Reset timeouts for the second half
+          // Halftime — possession goes to the team that did NOT receive
+          // the opening kickoff. Previously this just flipped whoever
+          // was last on offense, which could be wrong depending on how
+          // Q2 ended.
           this.timeouts = { home: 3, away: 3 };
           this.plays.push({ kind: "halftime", desc: "═══ HALFTIME ═══", quarter: 2, time: 0, homeScore: this.score.home, awayScore: this.score.away });
-          this.poss = this.poss === "home" ? "away" : "home";
+          const halfKicker = this.openingKickReceiver;
+          const halfReceiver = this.openingKickReceiver === "home" ? "away" : "home";
+          this.poss = halfReceiver;
           this.yardLine = 25; this.down = 1; this.ytg = 10;
+          this._pushVisual({
+            kind: "kickoff",
+            desc: `${this[halfKicker].city} ${this[halfKicker].name} kicks off to start the second half`,
+            startYard: 35, endYard: 25,
+          });
         }
+        // Q1↔Q2 and Q3↔Q4: drive state (poss, yardLine, down, ytg) is
+        // preserved on `this` — the next _drive() call continues the
+        // in-progress drive at the same down/distance. _drive's tail
+        // detects "time ran out mid-drive between quarters" and skips
+        // the END-OF-HALF summary so the drive remains one logical unit.
         this.quarter++;
         if (this.quarter <= 4) {
           this.plays.push({ kind: "quarter", desc: `─── Start of Q${this.quarter} ───`, quarter: this.quarter, time: 900, homeScore: this.score.home, awayScore: this.score.away });
@@ -2322,14 +2389,41 @@ class GameSimulator {
       this._drive();
     }
     if (this.score.home === this.score.away) {
+      // Modern NFL regular-season overtime (2025 rule): both teams ALWAYS
+      // get at least one possession, regardless of what happens on the
+      // first drive (TD/FG/safety/punt). After both possessions, sudden
+      // death applies. If still tied when the 10-minute clock expires,
+      // the game ends in a tie (no more coin-flip-FG fallback).
       this.plays.push({ kind: "ot", desc: "═══ OVERTIME ═══", quarter: 5, time: 600, homeScore: this.score.home, awayScore: this.score.away });
       this.quarter = 5; this.time = 600;
       this.poss = Math.random() < 0.5 ? "home" : "away";
-      let n = 0;
-      while (this.score.home === this.score.away && n < 8) { this._drive(); n++; }
-      if (this.score.home === this.score.away) {
-        if (Math.random() < 0.5) this.score.home += 3; else this.score.away += 3;
+      this.yardLine = 25; this.down = 1; this.ytg = 10;
+      const otReceiver = this.poss;
+      const otKicker = this.poss === "home" ? "away" : "home";
+      this._pushVisual({
+        kind: "kickoff",
+        desc: `${this[otKicker].city} ${this[otKicker].name} kicks off to open overtime`,
+        startYard: 35, endYard: 25,
+      });
+      // First possession
+      if (this.time > 0) this._drive();
+      // Second possession — guaranteed. If a score happened on drive 1,
+      // _drive's TD/FG branch already triggered _kickoffAfterScore so
+      // this.poss is already flipped to the other team. If drive 1 ended
+      // in a punt/turnover-on-downs/turnover, this.poss already flipped.
+      // Either way, the team that didn't have the ball first now does.
+      if (this.time > 0) this._drive();
+      // Sudden death — any score by either team wins. Safety cap at 8
+      // drives to prevent pathological infinite loops if drives somehow
+      // burn no clock.
+      let sd = 0;
+      while (this.score.home === this.score.away && this.time > 0 && sd < 8) {
+        this._drive();
+        sd++;
       }
+      // If tied at end of OT, regular-season game ends in a tie. No
+      // random FG fallback (previously line 2330-2332 would coin-flip
+      // award 3 points to one team, which is not a rule).
     }
     // Build a player lookup map for hover tooltips
     const lookup = new Map();
