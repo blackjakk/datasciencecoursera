@@ -745,29 +745,54 @@ function frnReleasePlayerCancel() {
 // talent. The grade is deliberately fuzzed against the underlying overall
 // so the user can't reverse-engineer the simulator's numbers — it's an
 // observer's estimate, not the truth.
+// Earned "perception boost" from career accolades. Counters the
+// pedigree tilt for late-round breakouts (Brady-style: R6 → -2) and
+// the age cliff (-3/-6 for 32+/34+) so a decorated elderly vet still
+// grades elite. Capped at +8 so it can fully offset worst-case
+// pedigree+age stack (R6 at age 34+ = -8). Without this, an R6
+// age-38 99-OVR star caps at grade A (91) and could never reach A+.
+function _accoladeGradeOffset(p) {
+  if (!p) return 0;
+  const pb   = p.proBowls || 0;
+  const ap   = p.allPros  || 0;
+  const sb   = p.sbRings  || 0;
+  const mvp  = p.mvps     || 0;
+  const opoy = p.opoys    || 0;
+  const dpoy = p.dpoys    || 0;
+  const offset = pb * 0.5 + ap * 1.0 + sb * 1.0 + mvp * 3.0 + (opoy + dpoy) * 1.5;
+  return Math.min(8, offset);
+}
+
 function scoutGrade(p) {
-  let score = p.overall || 60;
   const band = _playerNoiseBand(p);
-  // Stable per-player noise from hash of the name. Band 0 = owned →
-  // skip noise entirely (exact OVR). Otherwise scale the noise band
-  // to ±band, sourced via `(hash mod (2N+1)) - N`.
+  // BAND 0 — owned by user. You watch this player every day, you don't
+  // get fooled by their draft pedigree or their age. Show the exact OVR.
+  // (Previously the pedigree + age tilts applied here too, which capped
+  // a Brady-style R6 age-38 99-OVR own-roster player at grade A. Now
+  // they get the A+ they earned.)
+  if (band === 0) return Math.max(20, Math.min(99, Math.round(p.overall || 60)));
+  // Stable per-player noise from hash of the name. Scaled to ±band,
+  // sourced via `(hash mod (2N+1)) - N`.
+  let score = p.overall || 60;
   let h = 0;
   const name = p.name || "";
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
-  if (band > 0) {
-    const noise = (Math.abs(h) % (band * 2 + 1)) - band;
-    score += noise;
-  }
-  // Draft pedigree tilt — recency bias in real scouting
+  const noise = (Math.abs(h) % (band * 2 + 1)) - band;
+  score += noise;
+  // Draft pedigree tilt — recency bias in real scouting.
   const r = p.draftRound;
   if (r === 1)      score += 3;
   else if (r === 2) score += 1;
   else if (r >= 5)  score -= 2;
   else if (r === 0) score -= 4;
-  // Age cliff penalty in perceived grade
+  // Age cliff penalty in perceived grade.
   const age = p.age || 25;
   if (age >= 34)      score -= 6;
   else if (age >= 32) score -= 3;
+  // Accolade offset — earned reputation overrides pedigree/age bias.
+  // Brady-style: 5 SBs (5) + 15 Pro Bowls (7.5) + 3 MVPs (9) = 21.5
+  // capped at 8 → fully offsets R6+age34 = -8 → grade reflects true OVR.
+  score += _accoladeGradeOffset(p);
   return Math.max(20, Math.min(99, Math.round(score)));
 }
 
