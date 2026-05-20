@@ -17229,9 +17229,9 @@ function _rollHiddenDestiny(p) {
   // spike. Bell-curve in middle is fine since visible OVR/stats are
   // bell-shaped too.
   let ceiling;
-  if      (ceilRoll < 0.13) ceiling = 88 + Math.floor(_seededRand(ceilKey, 1) * 12); // 13% blue chip (88-99)
-  else if (ceilRoll < 0.32) ceiling = 80 + Math.floor(_seededRand(ceilKey, 1) * 8);  // 19% R1-R2 cusp (80-87)
-  else if (ceilRoll < 0.55) ceiling = 70 + Math.floor(_seededRand(ceilKey, 1) * 10); // 23% R3-R5 (70-79)
+  if      (ceilRoll < 0.16) ceiling = 88 + Math.floor(_seededRand(ceilKey, 1) * 12); // 16% blue chip (88-99)
+  else if (ceilRoll < 0.40) ceiling = 80 + Math.floor(_seededRand(ceilKey, 1) * 8);  // 24% R1-R2 cusp (80-87)
+  else if (ceilRoll < 0.55) ceiling = 70 + Math.floor(_seededRand(ceilKey, 1) * 10); // 15% R3-R5 (70-79)
   else if (ceilRoll < 0.72) ceiling = 62 + Math.floor(_seededRand(ceilKey, 1) * 8);  // 17% R6 (62-69)
   else if (ceilRoll < 0.85) ceiling = 53 + Math.floor(_seededRand(ceilKey, 1) * 9);  // 13% R7 (53-61)
   else                       ceiling = 38 + Math.floor(_seededRand(ceilKey, 1) * 16); // 15% camp (38-53)
