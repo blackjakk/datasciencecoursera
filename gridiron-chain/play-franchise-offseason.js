@@ -15916,81 +15916,88 @@ function renderFrnDraftPreshow() {
     _posOrders.set(pos, orders);
     return orders;
   };
-  // Slick watchlist — per-player card showing portrait · combine
-  // letter grade · scout grade · all 4 measurables with hover-tip
-  // ranks (position + overall) · archetype · NFL comp · knock.
+  // Compact watchlist — single dense row per prospect. Earlier
+  // multi-row card was visually heavy (~120px per player); 5 in a
+  // row ate ~600px. This row layout is ~28-32px tall; the same 5
+  // prospects fit in ~160px total. Hover any cell for full ranks.
+  // Header row labels the columns so the rows themselves can drop
+  // their sub-labels.
+  //
+  // Column layout (12-col grid):
+  //   [star]    portrait    name+pos+age    proj    combine    scout
+  //   1fr min:  28px        ~1fr  ~5rem     2rem    2.4rem    2.4rem
+  //   then 4 metric cells (4 × ~3.5rem each)
   const watchlistHtml = watchPlayers.length ? `
-    <div style="background:var(--bg2);border:1px solid var(--gold);border-radius:3px;padding:.55rem .7rem">
-      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:.5rem">
-        <span style="font-size:.6rem;color:var(--gold);letter-spacing:1.2px;font-weight:700">⭐ MY WATCHLIST</span>
-        <span style="color:var(--gray);font-size:.55rem">${watchPlayers.length} prospect${watchPlayers.length===1?"":"s"} · hover a measurable for ranks · click ★ to remove</span>
+    <div style="background:var(--bg2);border:1px solid var(--gold);border-radius:3px;padding:.45rem .55rem">
+      <!-- Column header row -->
+      <div style="display:grid;grid-template-columns:28px 1fr 2.2rem 2.2rem 3.4rem 3.4rem 3.4rem 3.4rem;gap:.4rem;align-items:center;padding:.15rem .25rem .3rem;font-size:.5rem;color:var(--gray);letter-spacing:.8px;font-weight:700;border-bottom:1px solid var(--blborder)">
+        <span></span>
+        <span>PLAYER · POS · AGE</span>
+        <span style="text-align:center">CMB</span>
+        <span style="text-align:center">SCT</span>
+        <span style="text-align:center">40</span>
+        <span style="text-align:center">BENCH</span>
+        <span style="text-align:center">3-CONE</span>
+        <span style="text-align:center">VERT</span>
       </div>
-      <div style="display:flex;flex-direction:column;gap:.5rem">
-        ${watchPlayers.map(p => {
-          const m = combineMeasurables(p);
-          const sg = (typeof scoutGrade === "function") ? scoutGrade(p) : (p.overall || 70);
-          const sgLabel = (typeof gradeLabel === "function") ? gradeLabel(sg) : sg.toFixed(0);
-          const sgColor = sg >= 82 ? "#86e0a3" : sg >= 75 ? "#a8d8b6" : sg >= 68 ? "var(--gold-lt)" : sg >= 60 ? "#e0b078" : "#ff9b9b";
-          const composite = _combineCompositeScore(p);
-          const cg = _combineLetterGrade(composite);
-          const portrait = (typeof _playerPortrait === "function") ? _playerPortrait(p, 42) : "";
-          const archetype = (typeof _archetypeLabel === "function") ? _archetypeLabel(p) : (p.archetype || "");
-          const comp = (typeof _draftNFLComp === "function") ? _draftNFLComp(p) : "";
-          const knock = p.collegeProfile?.knock || "";
-          const projRound = p._generatedRound ? `R${p._generatedRound}` : "—";
-          // Per-stat ranks
-          const posOrder = _posOrderFor(p.position);
-          const _cell = (val, units, posRank, overallRank, isElite) => {
-            const titleText = `${posRank ? `#${posRank} ${p.position} in class · ` : ""}#${overallRank} of ${totalClass} overall`;
-            const valColor = isElite ? "#86e0a3" : "var(--white)";
-            return `<div title="${titleText}" style="text-align:center;padding:.25rem;background:rgba(255,255,255,.025);border-radius:2px;cursor:help">
-              <div style="font-family:'Bebas Neue','Anton',sans-serif;font-size:1rem;color:${valColor};letter-spacing:.3px;line-height:1">${val}${units}</div>
-              <div style="font-size:.5rem;color:var(--gray);margin-top:.05rem">#${posRank}${p.position} · #${overallRank}</div>
-            </div>`;
-          };
-          const fRank   = _rankIn(fortyOrder, p);
-          const bRank   = _rankIn(benchOrder, p);
-          const cRank   = _rankIn(coneOrder, p);
-          const vRank   = _rankIn(vertOrder, p);
-          const fPosRk  = _rankIn(posOrder.forty, p);
-          const bPosRk  = _rankIn(posOrder.bench, p);
-          const cPosRk  = _rankIn(posOrder.cone, p);
-          const vPosRk  = _rankIn(posOrder.vert, p);
-          return `
-            <div style="display:grid;grid-template-columns:42px 1fr auto;gap:.65rem;align-items:center;padding:.5rem .55rem;background:rgba(255,255,255,.025);border-radius:3px;border-left:3px solid ${cg.color}">
-              <div style="width:42px;height:48px;overflow:hidden;border-radius:3px;background:var(--bg3);display:flex;align-items:center;justify-content:center">${portrait}</div>
-              <div style="min-width:0">
-                <div style="display:flex;align-items:baseline;gap:.4rem;flex-wrap:wrap">
-                  ${_nameWithStar(p)}
-                  <span style="color:var(--gold-lt);font-size:.6rem;font-weight:700">${p.position}</span>
-                  <span style="color:var(--gray);font-size:.58rem">${p.age || "?"} yo · proj ${projRound}</span>
-                  ${archetype ? `<span style="color:#5ed4d4;font-size:.58rem">${archetype}</span>` : ""}
-                  ${comp ? `<span style="color:#86c8ff;font-size:.58rem;font-style:italic">comp: ${comp}</span>` : ""}
-                </div>
-                ${knock ? `<div style="color:#e0b078;font-size:.55rem;margin-top:.15rem">⚠ ${knock}</div>` : ""}
-                <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:.35rem;margin-top:.4rem">
-                  ${_cell(m.fortyTime,  "",   fPosRk, fRank, fRank <= 5)}
-                  ${_cell(m.benchReps,  "",   bPosRk, bRank, bRank <= 5)}
-                  ${_cell(m.coneTime,   "",   cPosRk, cRank, cRank <= 5)}
-                  ${_cell(m.verticalIn, "\"", vPosRk, vRank, vRank <= 5)}
-                </div>
-                <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:.35rem;margin-top:.1rem;font-size:.45rem;color:#5d6b66;letter-spacing:.5px;text-align:center">
-                  <span>40-YARD</span><span>BENCH</span><span>3-CONE</span><span>VERTICAL</span>
-                </div>
+      ${watchPlayers.map(p => {
+        const m = combineMeasurables(p);
+        const sg = (typeof scoutGrade === "function") ? scoutGrade(p) : (p.overall || 70);
+        const sgLabel = (typeof gradeLabel === "function") ? gradeLabel(sg) : sg.toFixed(0);
+        const sgColor = sg >= 82 ? "#86e0a3" : sg >= 75 ? "#a8d8b6" : sg >= 68 ? "var(--gold-lt)" : sg >= 60 ? "#e0b078" : "#ff9b9b";
+        const composite = _combineCompositeScore(p);
+        const cg = _combineLetterGrade(composite);
+        const portrait = (typeof _playerPortrait === "function") ? _playerPortrait(p, 28) : "";
+        const archetype = (typeof _archetypeLabel === "function") ? _archetypeLabel(p) : (p.archetype || "");
+        const comp = (typeof _draftNFLComp === "function") ? _draftNFLComp(p) : "";
+        const knock = p.collegeProfile?.knock || "";
+        const projRound = p._generatedRound ? `R${p._generatedRound}` : "—";
+        const posOrder = _posOrderFor(p.position);
+        const fRank   = _rankIn(fortyOrder, p);
+        const bRank   = _rankIn(benchOrder, p);
+        const cRank   = _rankIn(coneOrder, p);
+        const vRank   = _rankIn(vertOrder, p);
+        const fPosRk  = _rankIn(posOrder.forty, p);
+        const bPosRk  = _rankIn(posOrder.bench, p);
+        const cPosRk  = _rankIn(posOrder.cone, p);
+        const vPosRk  = _rankIn(posOrder.vert, p);
+        const _cell = (val, units, posRank, overallRank) => {
+          const isElite = posRank <= 3;
+          const titleText = `#${posRank} ${p.position} in class · #${overallRank} of ${totalClass} overall`;
+          return `<div title="${titleText}" style="text-align:center;cursor:help;line-height:1.1">
+            <span style="font-family:'Bebas Neue','Anton',sans-serif;font-size:.92rem;color:${isElite ? "#86e0a3" : "var(--white)"};letter-spacing:.3px">${val}${units}</span>
+            <span style="display:block;font-size:.48rem;color:var(--gray);margin-top:.05rem">#${posRank}${p.position} · #${overallRank}</span>
+          </div>`;
+        };
+        // Sub-line content (archetype + comp + knock) — only render
+        // if any of them have content so empty subs don't add height.
+        const subBits = [
+          archetype ? `<span style="color:#5ed4d4">${archetype}</span>` : "",
+          comp ? `<span style="color:#86c8ff;font-style:italic">comp: ${comp}</span>` : "",
+          knock ? `<span style="color:#e0b078">⚠ ${knock}</span>` : "",
+        ].filter(Boolean);
+        const subLine = subBits.length
+          ? `<div style="font-size:.5rem;color:var(--gray);margin-top:.08rem;display:flex;gap:.5rem;flex-wrap:wrap">${subBits.join("")}</div>`
+          : "";
+        return `
+          <div style="display:grid;grid-template-columns:28px 1fr 2.2rem 2.2rem 3.4rem 3.4rem 3.4rem 3.4rem;gap:.4rem;align-items:center;padding:.32rem .25rem;border-bottom:1px solid rgba(255,255,255,.03);border-left:3px solid ${cg.color}">
+            <div style="width:28px;height:32px;overflow:hidden;border-radius:2px;background:var(--bg3);display:flex;align-items:center;justify-content:center">${portrait}</div>
+            <div style="min-width:0">
+              <div style="display:flex;align-items:baseline;gap:.35rem;flex-wrap:wrap;line-height:1.1">
+                ${_nameWithStar(p)}
+                <span style="color:var(--gold-lt);font-size:.55rem;font-weight:700">${p.position}</span>
+                <span style="color:var(--gray);font-size:.5rem">${p.age || "?"}yo · proj ${projRound}</span>
               </div>
-              <div style="display:flex;flex-direction:column;gap:.35rem;align-items:center;min-width:5rem">
-                <div title="Composite combine grade · score ${composite.toFixed(2)} (${cg.label})" style="text-align:center;padding:.3rem .55rem;background:rgba(255,255,255,.03);border:1px solid ${cg.color}55;border-radius:2px;cursor:help">
-                  <div style="font-family:'Bebas Neue','Anton',sans-serif;font-size:1.3rem;color:${cg.color};line-height:1">${cg.grade}</div>
-                  <div style="font-size:.45rem;color:var(--gray);letter-spacing:.5px;margin-top:.1rem">COMBINE</div>
-                </div>
-                <div title="Scout grade ${sg.toFixed(0)}/100" style="text-align:center;padding:.3rem .55rem;background:rgba(255,255,255,.03);border:1px solid ${sgColor}55;border-radius:2px;cursor:help">
-                  <div style="font-family:'Bebas Neue','Anton',sans-serif;font-size:1.3rem;color:${sgColor};line-height:1">${sgLabel}</div>
-                  <div style="font-size:.45rem;color:var(--gray);letter-spacing:.5px;margin-top:.1rem">SCOUT</div>
-                </div>
-              </div>
-            </div>`;
-        }).join("")}
-      </div>
+              ${subLine}
+            </div>
+            <div title="Composite combine grade · ${cg.label}" style="text-align:center;font-family:'Bebas Neue','Anton',sans-serif;font-size:1rem;color:${cg.color};font-weight:900;cursor:help;line-height:1">${cg.grade}</div>
+            <div title="Scout grade ${sg.toFixed(0)}/100" style="text-align:center;font-family:'Bebas Neue','Anton',sans-serif;font-size:1rem;color:${sgColor};font-weight:900;cursor:help;line-height:1">${sgLabel}</div>
+            ${_cell(m.fortyTime,  "",   fPosRk, fRank)}
+            ${_cell(m.benchReps,  "",   bPosRk, bRank)}
+            ${_cell(m.coneTime,   "",   cPosRk, cRank)}
+            ${_cell(m.verticalIn, "\"", vPosRk, vRank)}
+          </div>`;
+      }).join("")}
     </div>` : "";
 
   // ── SURPRISING RESULTS — workout warriors + workout disappointments
