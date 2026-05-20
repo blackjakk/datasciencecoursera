@@ -10908,6 +10908,18 @@ function _buildOffseasonGainsSheet() {
       myChg = myChg.filter(c => (c.reasons || []).includes(_frnGainsFilterReason));
     }
   }
+  // Filter scope: when either chip is active, narrow player-level
+  // blocks to the matching set. Team-level aggregates (summary
+  // cards, camp card per-position grades, charts, championship
+  // window, team status, position needs vs league) stay on the
+  // unfiltered data — they're whole-team context, not player drill.
+  const filterIsActive = (_frnGainsFilterPos !== "ALL") || (_frnGainsFilterReason !== "ALL");
+  const filterPids = filterIsActive ? new Set(myChg.map(c => c.pid)) : null;
+  // Helper to filter live-roster arrays by the active chip set.
+  // Returns the input unchanged when no filter is active.
+  const _applyChipFilter = (arr) => filterIsActive
+    ? arr.filter(p => filterPids.has(p.pid))
+    : arr;
 
   // Sort within group: deltas descending
   myChg.sort((a, b) => b.delta - a.delta);
@@ -11105,7 +11117,7 @@ function _buildOffseasonGainsSheet() {
     for (const p of roster) playerByPid[p.pid] = p;
     const chgByPid = {};
     for (const c of allMyChg) chgByPid[c.pid] = c;
-    const stars = roster.slice()
+    const stars = _applyChipFilter(roster.slice())
       .filter(p => (p.overall || 0) >= 75)
       .sort((a, b) => (b.overall || 0) - (a.overall || 0))
       .slice(0, 5);
@@ -11219,7 +11231,10 @@ function _buildOffseasonGainsSheet() {
   // Sorted by how close to the cliff (peakAge + 3).
   const cliffWatchBlock = (() => {
     const roster = franchise?.rosters?.[myId] || [];
-    const watch = _agingCliffWatch(roster, allMyChg).slice(0, 5);
+    const rawWatch = _agingCliffWatch(roster, allMyChg);
+    const watch = (filterIsActive
+      ? rawWatch.filter(w => filterPids.has(w.player.pid))
+      : rawWatch).slice(0, 5);
     if (!watch.length) return "";
     const _row = (w) => {
       const p = w.player;
@@ -11249,7 +11264,7 @@ function _buildOffseasonGainsSheet() {
   // this guy before he declines?" list.
   const sellHighBlock = (() => {
     const roster = franchise?.rosters?.[myId] || [];
-    const candidates = _sellHighCandidates(roster).slice(0, 5);
+    const candidates = _applyChipFilter(_sellHighCandidates(roster)).slice(0, 5);
     if (!candidates.length) return "";
     const _row = (p) => {
       const ageStage = (p.age || 0) > (p.peakAge || 27)
@@ -11339,7 +11354,7 @@ function _buildOffseasonGainsSheet() {
   const liveRoster = franchise?.rosters?.[myId] || [];
   const chgByPid = {};
   for (const c of allMyChg) chgByPid[c.pid] = c;
-  const topOveralls = liveRoster.slice()
+  const topOveralls = _applyChipFilter(liveRoster.slice())
     .filter(p => (p.overall || 0) > 0)
     .sort((a, b) => (b.overall || 0) - (a.overall || 0))
     .slice(0, 10)
@@ -11403,7 +11418,8 @@ function _buildOffseasonGainsSheet() {
   // "BIGGEST GAINER" hero card (kept the legacy biggestUp/biggestDn
   // cards too — they're prominent visual anchors; this strip adds
   // the leaderboard answer to "who got better, in order?").
-  const top5Gainers = allMyChg.filter(c => c.delta > 0)
+  // Player-level — respects active chips
+  const top5Gainers = myChg.filter(c => c.delta > 0)
     .sort((a, b) => b.delta - a.delta).slice(0, 5);
   const top5Movers = top5Gainers.length ? `
     <div style="margin-bottom:.55rem;padding:.4rem .55rem;background:rgba(134,224,163,.06);border-left:3px solid #86e0a3;border-radius:3px">
@@ -11428,7 +11444,7 @@ function _buildOffseasonGainsSheet() {
   // Hidden-gem reveal HERO block — the single highest-value offseason
   // event. Surfaced separately because a ceiling jump means the player
   // can keep growing past where they used to cap. Worth its own panel.
-  const ceilingReveals = allMyChg.filter(c => c.potentialBumped);
+  const ceilingReveals = myChg.filter(c => c.potentialBumped);
   const heroBlock = ceilingReveals.length ? `
     <div style="margin-bottom:.6rem;padding:.55rem .7rem;background:linear-gradient(90deg,rgba(134,200,255,.12),rgba(134,200,255,.02));border-left:3px solid #86c8ff;border-radius:3px">
       <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.3rem">
@@ -11666,7 +11682,7 @@ function _buildOffseasonGainsSheet() {
   };
 
   // Re-sign emergency: gained OVR + contract expiring next offseason
-  const resignEmergencies = allMyChg.filter(c =>
+  const resignEmergencies = myChg.filter(c =>
     c.delta >= 1 && c.contractYearsLeft != null && c.contractYearsLeft <= 1
   ).sort((a, b) => b.delta - a.delta).slice(0, 5);
   // Re-sign cost projection — leverages the existing computeMarketValue
@@ -11710,7 +11726,7 @@ function _buildOffseasonGainsSheet() {
   // RB falling 4 OVR doesn't matter; a starting CB falling 4 does.
   // Threshold 72 because that's roughly the floor for a competent
   // NFL starter; lower OVRs are already bench/special-teams.
-  const depthRisks = allMyChg.filter(c => c.delta <= -3 && c.postOvr >= 72)
+  const depthRisks = myChg.filter(c => c.delta <= -3 && c.postOvr >= 72)
     .sort((a, b) => a.delta - b.delta).slice(0, 6);
   const depthBlock = depthRisks.length ? `
     <div style="margin-bottom:.6rem;padding:.45rem .65rem;background:rgba(255,155,155,.08);border-left:3px solid #ff9b9b;border-radius:3px">
