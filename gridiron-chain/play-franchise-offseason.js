@@ -15418,7 +15418,10 @@ function _mockPickReasons(entry, classProspects) {
     const cs = _combineCompositeScore(p);
     if (cs >= 1.8) reasons.push({ icon: "💨", text: "elite combine", color: "#86e0a3" });
   }
-  return reasons.slice(0, 4);
+  // Cap at 3 — UX audit found 4-chip rows × 32 picks felt like a
+  // wall of micro-text. With 3 the highest-signal reasons (already
+  // pushed earliest) survive and the row stays scannable.
+  return reasons.slice(0, 3);
 }
 
 // Top-N per measurable across the drafted-tier class. Returns the
@@ -15871,7 +15874,10 @@ function renderFrnDraftPreshow() {
       ${lines}
     </div>`;
   };
-  const combineHtml = `<div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:.55rem">
+  // 4-up on wide; auto-fit minmax cascades to 2x2 around 960px and
+  // 1-col below ~440px. 200px min avoids squishing the Bebas Neue
+  // values on tablet widths.
+  const combineHtml = `<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:.55rem">
     ${combineRow("40-YARD",   "💨", combine.fortyTime,  m => m.fortyTime, "")}
     ${combineRow("BENCH",     "🏋", combine.benchReps,  m => m.benchReps, "")}
     ${combineRow("3-CONE",    "↩️", combine.coneTime,   m => m.coneTime, "")}
@@ -16080,8 +16086,10 @@ function renderFrnDraftPreshow() {
   $("frnHomeContent").innerHTML = `
     <div style="max-width:1240px;margin:0 auto;padding-bottom:1.5rem">
 
-      <!-- HERO — big eyebrow + title + identity strip + theme chips -->
-      <div style="text-align:center;padding:1.2rem 0 1rem;background:radial-gradient(ellipse at center top, rgba(245,197,66,.07), transparent 65%);margin-bottom:.5rem">
+      <!-- HERO — big eyebrow + title + identity strip + theme chips
+           + tip strip ("☆ to bookmark") + skip-to-draft link -->
+      <div style="text-align:center;padding:1.2rem 0 1rem;background:radial-gradient(ellipse at center top, rgba(245,197,66,.07), transparent 65%);margin-bottom:.5rem;position:relative">
+        <a href="javascript:void(0)" onclick="frnBeginDraftActual()" style="position:absolute;top:.6rem;right:.8rem;color:var(--gold);text-decoration:none;font-size:.6rem;letter-spacing:1px;font-weight:700;border:1px solid var(--blborder);padding:.25rem .55rem;border-radius:2px;cursor:pointer" title="Skip the pre-show and start drafting now">SKIP TO DRAFT →</a>
         <div style="font-size:.65rem;color:var(--gold-dim, #a98a2e);letter-spacing:4px;font-weight:700">🏟  COMBINE WEEK · PRE-DRAFT REPORT  🏟</div>
         <div style="font-family:'Bebas Neue','Anton',sans-serif;font-size:2.4rem;font-weight:900;color:var(--gold-lt);letter-spacing:2px;margin:.3rem 0 .1rem;line-height:1">DRAFT CLASS · SEASON ${seasonNum}</div>
         <div style="display:inline-flex;align-items:center;gap:.7rem;color:var(--blgray);font-size:.7rem;margin-top:.45rem">
@@ -16094,7 +16102,21 @@ function renderFrnDraftPreshow() {
           ${totalUdfa ? `<span style="color:var(--blborder)">·</span><span><b style="color:var(--white)">${totalUdfa}</b> UDFA</span>` : ""}
         </div>
         ${themeChips ? `<div style="margin-top:.7rem">${themeChips}</div>` : ""}
+        <div style="margin-top:.7rem;font-size:.58rem;color:var(--gray);letter-spacing:.3px">
+          ⭐ <b style="color:var(--gold-lt)">Tip:</b> click any ☆ next to a player's name to bookmark them — they'll appear in your watchlist with full combine ranks
+        </div>
       </div>
+
+      <!-- WATCHLIST first when populated — return visitors see their
+           own work at the top instead of scrolling past the mock. -->
+      ${watchlistHtml ? `
+        ${_sectionHeader("⭐", "MY WATCHLIST", `${watchPlayers.length} prospect${watchPlayers.length===1?"":"s"} bookmarked · hover any measurable for class rank · click ★ to remove`)}
+        ${watchlistHtml}` : `
+        ${_sectionHeader("⭐", "MY WATCHLIST", "empty — bookmark prospects below to build your list")}
+        <div style="background:rgba(255,255,255,.02);border:1px dashed var(--blborder);border-radius:3px;padding:.8rem 1rem;text-align:center;color:var(--gray);font-size:.65rem;font-style:italic">
+          Click any ☆ next to a player's name (combine standouts, surprising results, headliners) to add them to your watchlist.
+          They'll show here with full combine line + class rank tooltips.
+        </div>`}
 
       <!-- TWO-COL: mock R1 + headliners -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
@@ -16116,15 +16138,12 @@ function renderFrnDraftPreshow() {
         </div>
       </div>
 
-      <!-- COMBINE STANDOUTS — position filter + 4 cards -->
+      <!-- COMBINE STANDOUTS — position filter + 4 cards
+           Responsive: 4-up on wide ≥960px, 2x2 on medium 600-960px,
+           1-col on narrow. -->
       ${_sectionHeader("🏟", "COMBINE STANDOUTS", "click ☆ next to any name to add to your watchlist")}
       ${posChipsHtml}
       ${combineHtml}
-
-      <!-- WATCHLIST — slick per-player cards -->
-      ${watchlistHtml ? `
-        ${_sectionHeader("⭐", "MY WATCHLIST", `${watchPlayers.length} prospect${watchPlayers.length===1?"":"s"} bookmarked · hover any measurable for class rank`)}
-        ${watchlistHtml}` : ""}
 
       <!-- SURPRISES — warriors + disappointments -->
       ${surprisesHtml ? `
