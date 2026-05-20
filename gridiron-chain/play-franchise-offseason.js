@@ -10359,6 +10359,53 @@ function _capHorizonFor(teamId, years = 4) {
   return projections;
 }
 
+// PROJECTED PEAK YEAR — rolls each player forward N years applying
+// a simple age curve (grow toward potential before peakAge, hold
+// between peakAge and declineAge, decline after). Returns the
+// future year when the avg-OVR projection is highest.
+//
+// Assumes the CURRENT roster stays intact (no FA / trades / draft
+// modeled). Realistic enough as a "how good can this group get"
+// estimate — labelled accordingly in the UI so the assumption is
+// honest.
+function _projectedPeakYear(roster, currentSeason, forecastYears = 5) {
+  if (!roster || !roster.length) return null;
+  const avgOf = (rs) => rs.length ? rs.reduce((s, p) => s + (p.overall || 0), 0) / rs.length : 0;
+  // Clone so we don't mutate the live roster
+  const aged = roster.map(p => ({
+    age: p.age || 23,
+    overall: p.overall || 70,
+    potential: p.potential || (p.overall || 70),
+    peakAge: p.peakAge || 27,
+    declineAge: p.declineAge || ((p.peakAge || 27) + 3),
+    position: p.position,
+  }));
+  let peakYear = currentSeason;
+  let peakOvr = avgOf(aged);
+  const trajectory = [{ year: currentSeason, ovr: peakOvr }];
+  for (let yr = 1; yr <= forecastYears; yr++) {
+    for (const p of aged) {
+      p.age += 1;
+      if (p.age < p.peakAge) {
+        const gap = p.potential - p.overall;
+        if (gap > 0) p.overall += Math.round(gap * 0.3);
+      } else if (p.age >= p.declineAge) {
+        // OL/DL decline a bit slower than skill positions
+        const decline = (p.position === "OL" || p.position === "DL") ? 1.5 : 2;
+        p.overall = Math.max(60, p.overall - decline);
+      }
+      // Between peakAge and declineAge: hold steady
+    }
+    const yearOvr = avgOf(aged);
+    trajectory.push({ year: currentSeason + yr, ovr: yearOvr });
+    if (yearOvr > peakOvr) {
+      peakOvr = yearOvr;
+      peakYear = currentSeason + yr;
+    }
+  }
+  return { year: peakYear, ovr: peakOvr, yearsAway: peakYear - currentSeason, trajectory };
+}
+
 // CHAMPIONSHIP WINDOW — synthesizes roster age + OVR + star count
 // into a strategy verdict. Helps the GM frame every other decision
 // (is it time to push chips in, or restart?). Returns:
@@ -11152,6 +11199,23 @@ function _buildOffseasonGainsSheet() {
     const roster = franchise?.rosters?.[myId] || [];
     return _championshipWindow(roster);
   })();
+  // Projected peak year — paired with Championship Window. Tells the
+  // GM "when does this group hit its ceiling, assuming current
+  // roster stays intact?" Caveat surfaced in UI.
+  const peakProj = (() => {
+    const roster = franchise?.rosters?.[myId] || [];
+    return _projectedPeakYear(roster, franchise?.season || 1, 5);
+  })();
+  const peakHtml = peakProj ? (() => {
+    const label = peakProj.yearsAway === 0
+      ? `<span style="color:#86e0a3">peaking now</span>`
+      : peakProj.yearsAway === 1
+      ? `<span style="color:#86c8ff">peak in 1 yr</span>`
+      : peakProj.yearsAway <= 3
+      ? `<span style="color:#86c8ff">peak in ${peakProj.yearsAway} yrs</span>`
+      : `<span style="color:#e0b078">peak ${peakProj.yearsAway}+ yrs out</span>`;
+    return `<span title="Assumes current roster stays intact (no FA/draft/trades modeled). Estimated by aging each player forward and tracking when aggregate avg OVR peaks." style="cursor:help">📈 ${label} <span style="color:#5d6b66;font-size:.6rem">(SEASON ${peakProj.year} · ${peakProj.ovr.toFixed(1)} OVR)</span></span>`;
+  })() : "";
   const champWindowHtml = champWindow ? `
     <div style="padding:.7rem .85rem;background:linear-gradient(180deg, rgba(134,200,255,.05), rgba(255,255,255,.015));border:1px solid var(--blborder);border-radius:4px">
       <div style="display:grid;grid-template-columns:auto 1fr;gap:1.1rem;align-items:center">
@@ -11166,6 +11230,7 @@ function _buildOffseasonGainsSheet() {
             <span><b style="color:var(--white);font-family:'Bebas Neue','Anton',sans-serif;font-size:.85rem">${champWindow.avgAge.toFixed(1)}</b> avg age</span>
             <span><b style="color:${champWindow.color};font-family:'Bebas Neue','Anton',sans-serif;font-size:.85rem">${champWindow.starsInPrime}</b> stars in prime</span>
           </div>
+          ${peakHtml ? `<div style="font-size:.65rem;padding:.18rem 0;margin-bottom:.3rem;border-top:1px dashed var(--blborder);padding-top:.3rem">${peakHtml}</div>` : ""}
           <div style="font-size:.65rem;color:#cce8d6;font-style:italic;line-height:1.4;padding:.25rem .4rem;background:rgba(255,255,255,.025);border-left:2px solid ${champWindow.color};border-radius:1px">
             ${champWindow.guidance}
           </div>
