@@ -178,12 +178,16 @@ function showFranchiseDashboard() {
   // free agency / draft each have their own self-contained UIs. Also
   // hidden during the season recap (full-screen takeover).
   const shellEl = $("frnAppShell");
+  const footEl  = $("frnAppFooter");
   if (shellEl) {
     if (phase === "regular" && !showRecap) {
       shellEl.style.display = "block";
       if (typeof _frnRenderAppShell === "function") _frnRenderAppShell();
     } else {
       shellEl.style.display = "none";
+      // Hide the Bloomberg footer too in non-regular phases (it's
+      // rendered as a sibling div, so its visibility tracks the shell).
+      if (footEl) footEl.style.display = "none";
     }
   }
   try {

@@ -8101,3 +8101,136 @@
 
   .frn-cap-btn-alert { color: var(--red) !important; border-color: var(--red) !important; }
   .frn-dash-banner { margin-bottom: .5rem !important; }
+
+  /* ── BLOOMBERG-STYLE FRANCHISE SHELL ────────────────────────────
+     Multi-row persistent header (ticker + function strip + identity)
+     and a sticky footer status bar. Sits above the existing tab
+     bodies — the per-tab renderers keep their internals; this layer
+     wraps everything with a denser, data-forward chrome.
+  */
+  /* Ticker — league-wide news scrolls horizontally */
+  .frn-bb-ticker {
+    background: var(--bg2); border-bottom: 1px solid var(--gold-dim, #a98a2e);
+    display: flex; align-items: stretch; height: 24px;
+    font-size: 10.5px; overflow: hidden;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .frn-bb-ticker-label {
+    background: var(--gold); color: #0a0a0a;
+    padding: 0 .7rem; font-weight: 900; font-size: 10px;
+    letter-spacing: 1.5px; display: flex; align-items: center;
+    flex-shrink: 0;
+  }
+  .frn-bb-ticker-track {
+    flex: 1; overflow: hidden; padding: 0 .8rem;
+    display: flex; align-items: center;
+    white-space: nowrap; color: var(--blwhite); position: relative;
+  }
+  .frn-bb-ticker-scroll {
+    display: inline-block; padding-left: 100%;
+    animation: bbTickerScroll 120s linear infinite;
+    will-change: transform;
+  }
+  .frn-bb-ticker-scroll:hover { animation-play-state: paused; }
+  @keyframes bbTickerScroll {
+    0%   { transform: translateX(0); }
+    100% { transform: translateX(-100%); }
+  }
+  .frn-bb-ticker-scroll span { margin-right: 1.8rem; }
+  .frn-bb-ticker-time { color: var(--gold-dim, #a98a2e); margin-right: .35rem; font-size: 9.5px; }
+  .frn-bb-ticker-up   { color: var(--green-lt); }
+  .frn-bb-ticker-dn   { color: var(--red); }
+
+  /* Function strip — F1-F6 tab nav */
+  .frn-bb-fnstrip {
+    background: #040806; border-bottom: 1px solid var(--border);
+    display: flex; align-items: stretch; height: 30px;
+  }
+  .frn-bb-fnkey {
+    background: transparent; border: none; color: var(--gray);
+    font-family: 'IBM Plex Mono', monospace; padding: 0 .85rem;
+    display: flex; align-items: center; gap: .35rem;
+    border-right: 1px solid var(--border); cursor: pointer;
+    font-size: 10.5px; letter-spacing: .5px; text-transform: uppercase;
+    transition: background .08s, color .08s;
+  }
+  .frn-bb-fnkey-num { color: var(--gold-dim, #a98a2e); font-size: 8.5px; font-weight: 700; }
+  .frn-bb-fnkey.active {
+    background: rgba(245,197,66,.10); color: var(--gold);
+    border-bottom: 2px solid var(--gold);
+  }
+  .frn-bb-fnkey:hover {
+    background: rgba(255,255,255,.04); color: var(--blwhite);
+  }
+  .frn-bb-fnkey-badge {
+    background: var(--red); color: #fff; font-size: 8px; font-weight: 900;
+    padding: 1px 5px; border-radius: 8px; line-height: 1; margin-left: .15rem;
+  }
+  .frn-bb-fnkey-spacer { flex: 1; }
+  .frn-bb-fnkey-cmd {
+    color: var(--gold-dim, #a98a2e); font-size: 9.5px; padding: 0 .7rem;
+    display: flex; align-items: center; gap: .5rem;
+  }
+  .frn-bb-fnkey-cmd kbd {
+    background: var(--bg3); border: 1px solid var(--border); padding: 1px 4px;
+    border-radius: 2px; font-family: 'IBM Plex Mono', monospace; font-size: 9px;
+    color: var(--blwhite);
+  }
+
+  /* Identity row — team mark + key stats inline */
+  .frn-bb-id {
+    background: linear-gradient(90deg, rgba(245,197,66,.06), transparent 30%);
+    border-bottom: 1px solid var(--border);
+    padding: .45rem .8rem; display: flex; align-items: center;
+    gap: 1.1rem; flex-wrap: wrap;
+  }
+  .frn-bb-id-team { display: flex; align-items: center; gap: .55rem; flex-shrink: 0; }
+  .frn-bb-id-mark {
+    width: 32px; height: 32px; border-radius: 3px;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-family: 'Bebas Neue', sans-serif; font-size: 17px;
+    letter-spacing: 1px; flex-shrink: 0;
+  }
+  .frn-bb-id-name {
+    font-family: 'Bebas Neue', sans-serif; font-size: 20px;
+    letter-spacing: 1.3px; color: var(--white); line-height: 1;
+  }
+  .frn-bb-id-sub { font-size: 9.5px; color: var(--gray); letter-spacing: .5px; }
+  .frn-bb-id-divider { width: 1px; height: 30px; background: var(--border); }
+  .frn-bb-id-stat { display: flex; flex-direction: column; gap: .08rem; min-width: 0; }
+  .frn-bb-id-stat-label { font-size: 8.5px; color: var(--gray); letter-spacing: 1px; text-transform: uppercase; }
+  .frn-bb-id-stat-val { font-size: 13.5px; font-weight: 700; color: var(--white);
+    font-family: 'Bebas Neue', sans-serif; letter-spacing: .5px; line-height: 1; }
+  .frn-bb-id-stat-val.gold { color: var(--gold); }
+  .frn-bb-id-stat-val.green { color: var(--green-lt); }
+  .frn-bb-id-stat-val.red { color: var(--red); }
+  .frn-bb-id-alert {
+    margin-left: auto; background: rgba(255,107,107,.10);
+    border: 1px solid var(--red); border-radius: 2px;
+    padding: .25rem .55rem; display: flex; align-items: center; gap: .4rem;
+    font-size: 10.5px; color: var(--red); cursor: pointer;
+  }
+  .frn-bb-id-alert .frn-bb-alert-badge {
+    background: var(--red); color: #fff; font-size: 9px; font-weight: 900;
+    border-radius: 8px; padding: 1px 6px;
+  }
+
+  /* Footer status bar — persistent app bottom */
+  .frn-bb-footer {
+    background: #040806; border-top: 1px solid var(--border);
+    padding: .3rem .85rem; display: flex; align-items: center;
+    gap: 1.1rem; font-size: 9.5px; color: var(--gray);
+    letter-spacing: .3px; font-family: 'IBM Plex Mono', monospace;
+    position: sticky; bottom: 0; z-index: 10;
+  }
+  .frn-bb-footer-item { display: flex; align-items: center; gap: .35rem; }
+  .frn-bb-footer-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green-lt); box-shadow: 0 0 4px var(--green-lt); }
+  .frn-bb-footer-dot.warn { background: #e8a000; box-shadow: 0 0 4px #e8a000; }
+  .frn-bb-footer-dot.err  { background: var(--red);  box-shadow: 0 0 4px var(--red); }
+  .frn-bb-footer-spacer { flex: 1; }
+  .frn-bb-footer-cmd { color: var(--gold-dim, #a98a2e); }
+  .frn-bb-footer-cmd kbd {
+    background: var(--bg3); border: 1px solid var(--border); padding: 1px 4px;
+    border-radius: 2px; font-family: inherit; font-size: 8.5px; color: var(--blwhite);
+    margin: 0 .15rem;
+  }

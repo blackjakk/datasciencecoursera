@@ -34,10 +34,16 @@
     <button class="mode-tab" id="modeTestingBtn">🧪 Testing Tools</button>
   </div>
 
-  <!-- Franchise home (default visible) — rendered inline, no modal -->
+  <!-- Franchise home (default visible) — rendered inline, no modal.
+       Bloomberg-style multi-row shell: frnAppShell renders the ticker
+       + function strip + identity row. frnAppFooter renders the
+       persistent status bar at the bottom. frnHomeContent holds the
+       per-tab body. All shell pieces are populated by
+       _frnRenderAppShell() in play-franchise-stats.js. -->
   <div id="franchiseHome">
     <div id="frnAppShell" style="display:none"></div>
     <div id="frnHomeContent"></div>
+    <div id="frnAppFooter" style="display:none"></div>
   </div>
 
   <!-- Testing Tools panel — wraps the legacy team-selector and sim/debug buttons -->

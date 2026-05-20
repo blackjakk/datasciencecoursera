@@ -5810,18 +5810,17 @@ function _frnRenderAppShell() {
   const el = $("frnAppShell");
   if (!el) return;
   const myTeam = getTeam(franchise.chosenTeamId);
-  const stand = franchise.standings?.[franchise.chosenTeamId] || { w: 0, l: 0, t: 0 };
+  const stand = franchise.standings?.[franchise.chosenTeamId] || { w: 0, l: 0, t: 0, pf: 0, pa: 0 };
   const rec = `${stand.w}-${stand.l}${stand.t?`-${stand.t}`:""}`;
   // Per-tab badges
   const pendingTrades = (franchise.tradeOffers||[]).filter(o => o.status === "pending").length;
   const pendingJP     = (franchise.jointPracticeOffers||[]).filter(o => o.status === "pending" && o.toTeamId === franchise.chosenTeamId).length;
   const tabBadge = (id) => {
-    if (id === "frontoffice" && pendingTrades) return `<span class="frn-shell-badge">${pendingTrades}</span>`;
-    if (id === "tools" && pendingJP) return `<span class="frn-shell-badge">${pendingJP}</span>`;
-    return "";
+    const count = (id === "frontoffice") ? pendingTrades
+                : (id === "tools")       ? pendingJP : 0;
+    return count ? `<span class="frn-bb-fnkey-badge">${count}</span>` : "";
   };
-  // Active holdout demands → persistent ribbon below the tab nav so the
-  // user notices them no matter which tab they're on.
+  // Active holdout demands → persistent ribbon (legacy) preserved.
   const pendingDemands = (typeof _pendingHoldoutDemands === "function") ? _pendingHoldoutDemands() : [];
   let ribbonHtml = "";
   if (pendingDemands.length) {
@@ -5833,21 +5832,159 @@ function _frnRenderAppShell() {
       <span class="ribbon-cta">Resolve →</span>
     </div>`;
   }
-  el.innerHTML = `
-    <div class="frn-shell-bar">
-      <div class="frn-shell-team" style="--team:${myTeam?.primary || "var(--gold)"}">
-        <span class="frn-shell-team-name">${myTeam?.city || ""} ${myTeam?.name || "Team"}</span>
-        <span class="frn-shell-team-meta">S${franchise.season} · W${Math.min(franchise.week, FRANCHISE_WEEKS)} · ${rec}</span>
+
+  // ── Ticker content — pulls from franchise.news + the schedule's
+  // played games this week (cross-league scoreboard ribbon). Falls
+  // back to a "WIRE QUIET" stub when nothing's loaded yet.
+  const tickerHtml = _frnBuildTicker();
+
+  // ── Function strip — F1-F6 numbered tabs with badges.
+  // _FRN_TABS keys map to F1..F5; F6 is reserved (room for future).
+  const fnstripHtml = `
+    <div class="frn-bb-fnstrip">
+      ${_FRN_TABS.map((t, i) => `<button class="frn-bb-fnkey${t.id===_frnActiveTab?" active":""}" onclick="frnSetTab('${t.id}')">
+        <span class="frn-bb-fnkey-num">F${i+1}</span>
+        <span>${t.label.toUpperCase()}</span>
+        ${tabBadge(t.id)}
+      </button>`).join("")}
+      <div class="frn-bb-fnkey-spacer"></div>
+      <div class="frn-bb-fnkey-cmd">
+        <span>S${franchise.season || 1}</span>
+        <span>W${Math.min(franchise.week || 1, FRANCHISE_WEEKS)}</span>
+        <span><kbd>?</kbd> HELP</span>
       </div>
-      <nav class="frn-shell-tabs">
-        ${_FRN_TABS.map(t => `<button class="frn-shell-tab${t.id===_frnActiveTab?" active":""}" onclick="frnSetTab('${t.id}')">
-          <span class="frn-shell-tab-icon">${t.icon}</span>
-          <span class="frn-shell-tab-label">${t.label}</span>
-          ${tabBadge(t.id)}
-        </button>`).join("")}
-      </nav>
-    </div>
-    ${ribbonHtml}`;
+    </div>`;
+
+  // ── Identity row — team mark + key stats inline. Mark color uses
+  // myTeam.primary as background with team abbrev / first letters.
+  const abbrev = (myTeam?.abbrev || myTeam?.name?.slice(0,3) || "???").toUpperCase().slice(0, 3);
+  const off = (typeof frnTeamRating === "function" && myTeam) ? frnTeamRating(franchise.chosenTeamId) : { off: "—", def: "—" };
+  const cap = (typeof effectiveSalaryCap === "function") ? effectiveSalaryCap(franchise.chosenTeamId) : (franchise.salaryCap || 200);
+  const capUsed = (typeof capUsedByTeam === "function") ? capUsedByTeam(franchise.chosenTeamId) : 0;
+  const capColor = (capUsed / cap >= 0.95) ? "red" : (capUsed / cap >= 0.85) ? "gold" : "green";
+  // Form strip — last 5 results.
+  const myGames = (franchise.schedule || [])
+    .filter(g => g.played && (g.homeId === franchise.chosenTeamId || g.awayId === franchise.chosenTeamId))
+    .sort((a, b) => a.week - b.week);
+  const formStrip = myGames.slice(-5).map(g => {
+    const isHome = g.homeId === franchise.chosenTeamId;
+    const my = isHome ? g.homeScore : g.awayScore;
+    const their = isHome ? g.awayScore : g.homeScore;
+    const r = my > their ? "W" : my < their ? "L" : "T";
+    const col = r === "W" ? "var(--green-lt)" : r === "L" ? "var(--red)" : "var(--gray)";
+    return `<span style="color:${col}">${r}</span>`;
+  }).join("·");
+  // Seed.
+  const sorted = (typeof standingsSorted === "function") ? standingsSorted() : [];
+  const myPos  = sorted.findIndex(s => s.id === franchise.chosenTeamId) + 1;
+  const inPO = myPos > 0 && myPos <= (typeof PLAYOFF_TEAMS !== "undefined" ? PLAYOFF_TEAMS : 14);
+  const seedHtml = inPO
+    ? `<span class="frn-bb-id-stat-val green">#${myPos} IN</span>`
+    : `<span class="frn-bb-id-stat-val">#${myPos}</span>`;
+  // Decisions count — pendingTrades + pendingJP + holdouts.
+  const decisionCount = pendingTrades + pendingJP + pendingDemands.length;
+  const alertHtml = decisionCount
+    ? `<div class="frn-bb-id-alert" onclick="frnSetTab('overview')" title="Decisions waiting">
+        <span>⚠</span><span class="frn-bb-alert-badge">${decisionCount}</span><span>PENDING</span>
+       </div>` : "";
+
+  const idHtml = `
+    <div class="frn-bb-id">
+      <div class="frn-bb-id-team">
+        <div class="frn-bb-id-mark" style="background:${myTeam?.primary || "var(--gold)"}">${abbrev}</div>
+        <div>
+          <div class="frn-bb-id-name">${(myTeam?.city || "").toUpperCase()} ${(myTeam?.name || "TEAM").toUpperCase()}</div>
+          <div class="frn-bb-id-sub">${myTeam?.conference || ""} ${myTeam?.division || ""} · S${franchise.season || 1} W${Math.min(franchise.week || 1, FRANCHISE_WEEKS)} of ${FRANCHISE_WEEKS}</div>
+        </div>
+      </div>
+      <div class="frn-bb-id-divider"></div>
+      <div class="frn-bb-id-stat"><div class="frn-bb-id-stat-label">RECORD</div><div class="frn-bb-id-stat-val">${rec}</div></div>
+      <div class="frn-bb-id-stat"><div class="frn-bb-id-stat-label">SEED</div>${seedHtml}</div>
+      <div class="frn-bb-id-stat"><div class="frn-bb-id-stat-label">CAP</div><div class="frn-bb-id-stat-val ${capColor}">$${capUsed.toFixed(0)}M / $${cap.toFixed(0)}M</div></div>
+      <div class="frn-bb-id-stat"><div class="frn-bb-id-stat-label">OFF · DEF</div><div class="frn-bb-id-stat-val">${off.off} · ${off.def}</div></div>
+      ${formStrip ? `<div class="frn-bb-id-stat"><div class="frn-bb-id-stat-label">FORM</div><div class="frn-bb-id-stat-val" style="letter-spacing:2px">${formStrip}</div></div>` : ""}
+      ${alertHtml}
+    </div>`;
+
+  el.innerHTML = tickerHtml + fnstripHtml + idHtml + ribbonHtml;
+
+  // ── Footer status bar — persistent bottom strip. Rendered to its
+  // own container so it sits below the active tab body regardless of
+  // body height (sticky CSS pins it on tall scrolling tabs).
+  const footEl = $("frnAppFooter");
+  if (footEl) {
+    footEl.style.display = "block";
+    const saveMsg = (typeof _saveLastError !== "undefined" && _saveLastError)
+      ? (_saveLastError.startsWith("idb-only") ? `ℹ IDB only` : `⚠ ${_saveLastError}`)
+      : `💾 Saved ${(typeof _saveLastSize !== "undefined" && _saveLastSize) ? `· ${(_saveLastSize/1024/1024).toFixed(2)}MB` : ""}`;
+    const saveCls = (typeof _saveLastError !== "undefined" && _saveLastError)
+      ? (_saveLastError.startsWith("idb-only") ? "warn" : "err") : "";
+    const unread  = (franchise.news || []).filter(n => n.season === franchise.season && n.week >= (franchise.week || 0) - 1).length;
+    footEl.innerHTML = `
+      <div class="frn-bb-footer">
+        <div class="frn-bb-footer-item"><span class="frn-bb-footer-dot ${saveCls}"></span><span>${saveCls === "err" ? "ERROR" : "LIVE"}</span></div>
+        <div class="frn-bb-footer-item">⏰ S${franchise.season || 1} · W${Math.min(franchise.week || 1, FRANCHISE_WEEKS)}/${FRANCHISE_WEEKS}</div>
+        <div class="frn-bb-footer-item">${saveMsg}</div>
+        ${unread ? `<div class="frn-bb-footer-item" style="color:var(--gold)">🔔 ${unread} recent</div>` : ""}
+        <div class="frn-bb-footer-spacer"></div>
+        <div class="frn-bb-footer-cmd">
+          <button onclick="frnExportSave()" style="background:transparent;border:1px solid var(--border);color:var(--gray);padding:1px 6px;font-family:inherit;font-size:8.5px;cursor:pointer;margin-right:.3rem">⬇ EXPORT</button>
+          <button onclick="frnImportSave()" style="background:transparent;border:1px solid var(--border);color:var(--gray);padding:1px 6px;font-family:inherit;font-size:8.5px;cursor:pointer;margin-right:.5rem">⬆ IMPORT</button>
+          <kbd>F1</kbd>-<kbd>F5</kbd> NAV · <kbd>?</kbd> HELP
+        </div>
+      </div>`;
+  }
+}
+
+// Build the ticker content. Surfaces the last ~12 news items as
+// scrolling marquee text. Each item: time stamp + colored label.
+// Mixes player news, league moves, and game scores from
+// franchise.news (last 4 weeks) plus this week's around-the-league
+// schedule scoreboard. Falls back to "WIRE QUIET" if nothing yet.
+function _frnBuildTicker() {
+  const items = [];
+  const season = franchise?.season || 1;
+  const week = franchise?.week || 1;
+  // News items — last 30 wire entries, newest first
+  const news = (franchise?.news || []).slice(-30).reverse();
+  for (const n of news) {
+    if (!n.label) continue;
+    // Strip HTML from label for ticker safety
+    const text = String(n.label).replace(/<[^>]+>/g, "").replace(/&[a-z]+;/g, " ").trim();
+    if (!text) continue;
+    const wkAgo = (season - (n.season || season)) * FRANCHISE_WEEKS + (week - (n.week || week));
+    const stamp = wkAgo === 0 ? "TODAY" : wkAgo === 1 ? "1w" : `${wkAgo}w`;
+    items.push(`<span><span class="frn-bb-ticker-time">${stamp}</span> ${text}</span>`);
+    if (items.length >= 15) break;
+  }
+  // Around-the-league this week — show 5-6 other games
+  const otherGames = (franchise?.schedule || [])
+    .filter(g => g.week === week && g.homeId !== franchise?.chosenTeamId && g.awayId !== franchise?.chosenTeamId)
+    .slice(0, 6);
+  for (const g of otherGames) {
+    const h = getTeam(g.homeId), a = getTeam(g.awayId);
+    if (!h || !a) continue;
+    if (g.played) {
+      const hW = g.homeScore > g.awayScore;
+      const aStr = hW ? `${a.name} ${g.awayScore}` : `<span class="frn-bb-ticker-up">${a.name} ${g.awayScore}</span>`;
+      const hStr = hW ? `<span class="frn-bb-ticker-up">${h.name} ${g.homeScore}</span>` : `${h.name} ${g.homeScore}`;
+      items.push(`<span><span class="frn-bb-ticker-time">FINAL</span> ${aStr} @ ${hStr}</span>`);
+    } else {
+      items.push(`<span><span class="frn-bb-ticker-time">W${week}</span> ${a.name} @ ${h.name}</span>`);
+    }
+  }
+  // Triple the items so the marquee feels continuous (browser pauses
+  // at end of content before looping otherwise).
+  const trackItems = items.length
+    ? items.join("") + items.join("") + items.join("")
+    : `<span><span class="frn-bb-ticker-time">—</span> WIRE QUIET · advance the week to see news</span>`;
+  return `
+    <div class="frn-bb-ticker">
+      <div class="frn-bb-ticker-label">▶ WIRE</div>
+      <div class="frn-bb-ticker-track">
+        <div class="frn-bb-ticker-scroll">${trackItems}</div>
+      </div>
+    </div>`;
 }
 
 function _frnRenderActiveTab() {
