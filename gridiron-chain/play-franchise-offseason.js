@@ -17216,11 +17216,14 @@ function _applySRFork(p) {
   // more mid-tier prospects all the way to OVR 85+. Target NFL ~28 R1
   // grades / draft. With ~140 mid-tier prospects per class × 40%
   // surge × ~50% landing in R1 = ~28 R1 vaults from this lane.
+  // Boosted surge probability for pot 70-84 — those are R2/R3/R4
+  // grade prospects who can vault to R1 with the consensus catchup.
+  // Pulls additional R1 supply from the over-supplied middle tiers.
   let surgePct, dropPct;
   if      (pot >= 85) { surgePct = 15; dropPct = 30; }
-  else if (pot >= 80) { surgePct = 22; dropPct = 28; }
-  else if (pot >= 70) { surgePct = 28; dropPct = 28; } // Burrow zone
-  else if (pot >= 60) { surgePct = 30; dropPct = 32; } // Donald zone
+  else if (pot >= 80) { surgePct = 32; dropPct = 26; } // R2 → R1 path
+  else if (pot >= 70) { surgePct = 38; dropPct = 25; } // R3/R4 → R1 path
+  else if (pot >= 60) { surgePct = 35; dropPct = 30; } // Donald zone
   else if (pot >= 50) { surgePct = 22; dropPct = 38; }
   else                { surgePct = 12; dropPct = 38; }
   // Magnitudes calibrated so mid-tier surges land squarely in R1
@@ -17280,6 +17283,10 @@ function _clearCollegeFlags(p) {
   delete p._secondaryMagnitude;
   delete p._tertiaryFired;
   delete p._tertiaryMagnitude;
+  // SR fork flags — added in 04cc10b. Audit caught missing cleanup.
+  delete p._srForkApplied;
+  delete p._srStockMaker;
+  delete p._srStockBreaker;
 }
 
 // Per-season stat development with breakout-year mechanism. Each
