@@ -16968,7 +16968,18 @@ function _applyConsensusGrade(p, rookieYear) {
   const ultraBias = _seededRand(wildcardKey, 2) < 0.01
     ? (_seededRand(wildcardKey, 3) - 0.5) * 30
     : 0;
-  p._aiScoutBias = +(baseBias + wildcardBias + ultraBias).toFixed(1);
+  // SR-year stock-maker / stock-breaker amplification. When a prospect
+  // had a vault SR season, scout consensus catches up POSITIVELY (+8 to
+  // +14 bias). Without this, the OVR jump from the surge often gets
+  // hidden because consensus stays where it was — vaults land in R2-R3
+  // instead of R1. The bias bump pushes consensus into R1 territory.
+  let srBias = 0;
+  if (p._srStockMaker) {
+    srBias = 4 + Math.floor(Math.random() * 4); // +4 to +7
+  } else if (p._srStockBreaker) {
+    srBias = -(3 + Math.floor(Math.random() * 4)); // -3 to -6
+  }
+  p._aiScoutBias = +(baseBias + wildcardBias + ultraBias + srBias).toFixed(1);
   // Consensus grade — what the world sees. The draft AI ranks by this,
   // user-visible grade badge shows this, scout reveals can shift it.
   p._generatedRound = _consensusGradeRound(trueOvr + p._aiScoutBias, p.position);
@@ -17206,21 +17217,23 @@ function _applySRFork(p) {
   // grades / draft. With ~140 mid-tier prospects per class × 40%
   // surge × ~50% landing in R1 = ~28 R1 vaults from this lane.
   let surgePct, dropPct;
-  if      (pot >= 85) { surgePct = 18; dropPct = 30; }
-  else if (pot >= 80) { surgePct = 25; dropPct = 28; }
-  else if (pot >= 70) { surgePct = 40; dropPct = 25; } // Burrow zone
-  else if (pot >= 60) { surgePct = 42; dropPct = 28; } // Donald zone
-  else if (pot >= 50) { surgePct = 25; dropPct = 38; }
+  if      (pot >= 85) { surgePct = 15; dropPct = 30; }
+  else if (pot >= 80) { surgePct = 22; dropPct = 28; }
+  else if (pot >= 70) { surgePct = 28; dropPct = 28; } // Burrow zone
+  else if (pot >= 60) { surgePct = 30; dropPct = 32; } // Donald zone
+  else if (pot >= 50) { surgePct = 22; dropPct = 38; }
   else                { surgePct = 12; dropPct = 38; }
-  // Magnitudes large enough to vault mid-tier (OVR 65) into R1 (≥85)
-  // — that's +20 OVR delta = ~+25 stat-bump on top-3. Pot ≥ 60 gets
-  // the biggest swing (the Donald/Burrow mega-vault).
-  const surgeMag = pot >= 85 ? [6, 10]
-                 : pot >= 80 ? [16, 22]
-                 : pot >= 70 ? [26, 34]   // R3/R4→R1 vault
-                 : pot >= 60 ? [30, 40]   // R5→R1 MEGA vault
-                 : pot >= 50 ? [18, 26]
-                 :              [10, 14];
+  // Magnitudes calibrated so mid-tier surges land squarely in R1
+  // (OVR 85-92) — not overshooting elite. Combined with the bias
+  // bump in _applyConsensusGrade, total OVR shift is enough to
+  // grade as R1. R1 supply target: ~12-15 vaults / draft on top of
+  // ~10 natural elites = ~25 R1 grades.
+  const surgeMag = pot >= 85 ? [4, 8]
+                 : pot >= 80 ? [12, 18]
+                 : pot >= 70 ? [20, 26]   // R3/R4→R1 vault
+                 : pot >= 60 ? [22, 28]   // R5→R1 vault
+                 : pot >= 50 ? [14, 20]
+                 :              [8, 12];
   // Drop magnitudes similar by tier
   const dropMag = pot >= 85 ? [10, 14]    // elite drop is severe (lost season)
                 : pot >= 70 ? [10, 14]
