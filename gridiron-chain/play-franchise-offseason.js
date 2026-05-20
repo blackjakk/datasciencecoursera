@@ -16964,8 +16964,13 @@ function _consensusGradeRound(consensusOvr, position) {
 //
 // ═══════════════════════════════════════════════════════════════════════
 const HiddenOracle = {
-  // Canonical list of secret-side fields. _clearCollegeFlags strips
-  // these on draft signing. Anything added here needs a roll path too.
+  // Canonical list of secret-side fields on a prospect/player. In the
+  // MegaETH port these all live secret-side (server) and never reach
+  // the client. Cleanup behavior at NFL-signing time differs by field:
+  //   - _growthRate: COLLEGE-ONLY, stripped by _clearCollegeFlags
+  //   - potential:   PERSISTS, used by NFL aging/dev (Y2 surge writes here)
+  //   - _aiScoutBias: PERSISTS, used by draft retrospectives + concerns
+  // Anything added here needs a roll path (HiddenOracle.roll.*) too.
   secretFields: ["potential", "_growthRate", "_aiScoutBias"],
 
   read: {
