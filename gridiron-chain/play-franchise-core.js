@@ -780,7 +780,10 @@ function scoutGrade(p) {
   const noise = (Math.abs(h) % (band * 2 + 1)) - band;
   score += noise;
   // Draft pedigree tilt — recency bias in real scouting.
-  const r = p.draftRound;
+  // Path A: pre-draft prospects have draftRound=null; fall back to
+  // _generatedRound (their consensus grade) so scout grade tilt still
+  // reflects the projected tier.
+  const r = p.draftRound ?? p._generatedRound;
   if (r === 1)      score += 3;
   else if (r === 2) score += 1;
   else if (r >= 5)  score -= 2;
@@ -1070,7 +1073,10 @@ function _draftBoardScore(p) {
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
   const noise = (Math.abs(h) % 7) - 3;
   score += noise;
-  const r = p.draftRound;
+  // Path A: pre-draft prospects have draftRound=null; fall back to
+  // _generatedRound (their consensus grade) so scout grade tilt still
+  // reflects the projected tier.
+  const r = p.draftRound ?? p._generatedRound;
   if (r === 1)      score += 3;
   else if (r === 2) score += 1;
   else if (r >= 5)  score -= 2;
@@ -1156,7 +1162,10 @@ function _computeSharpGrade(p) {
   const name = p.name || "";
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
   score += ((Math.abs(h) % 3) - 1);
-  const r = p.draftRound;
+  // Path A: pre-draft prospects have draftRound=null; fall back to
+  // _generatedRound (their consensus grade) so scout grade tilt still
+  // reflects the projected tier.
+  const r = p.draftRound ?? p._generatedRound;
   if (r === 1)      score += 3;
   else if (r === 2) score += 1;
   else if (r >= 5)  score -= 2;
@@ -1266,6 +1275,15 @@ function _yearsInLeague(p) {
 }
 function draftStr(p) {
   if (!p?.draftRound && !p?.draftYear) return "—";
+  // Pre-draft prospects (Path A) have draftRound=null until selected;
+  // _generatedRound carries their consensus grade for display. Show
+  // "Prospect · ~R3" instead of an empty round number.
+  if (p.isProspect) {
+    const g = p._generatedRound;
+    return g === 0 ? "Prospect · ~UDFA"
+         : g       ? `Prospect · ~R${g}`
+                   : "Prospect";
+  }
   // _yearsInLeague returns seasons COMPLETED. "Yr N" here is read as
   // "N years of experience" — matches the career history table (a
   // player with 1 finished season has 1 row labeled "Yr 1"). 0

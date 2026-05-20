@@ -16674,6 +16674,73 @@ function _classThemeChips(themes) {
 
 const _CLASS_DRAFTED_SIZE = 224;   // 7 rounds × 32 picks
 const _CLASS_UDFA_SIZE    = 56;    // ~24% UDFA-tier prospects below the drafted slice
+// Path A: one continuous prospect pool. Replaces the hard
+// drafted/UDFA divide. The draft selects ~256 picks via AI scoring
+// from this pool; remaining ~94 fall to the UDFA scramble — naturally
+// graded by what slipped, not pre-tiered. Tony Romo / Kurt Warner
+// "graded prospect went undrafted" cases become possible.
+const _CLASS_TOTAL_SIZE = 350;
+// Threshold-based grade labels — what the world sees ("this guy looks
+// like a R2 talent"). Decoupled from the draft slot the user ends up
+// using. A R6-graded prospect can be reached at R3 or fall to UDFA.
+// Tied to consensus OVR (true OVR + _aiScoutBias) — so a high-OVR
+// prospect with bad consensus reads at the bias-adjusted grade.
+// Calibrated against the actual OVR distribution coming out of
+// genPlayer (poor-tier still produces OVR ~55-62 after calcOverall),
+// to target an NFL-like spread: ~25 R1, ~30 R2, ~40 R3, ~50 R4, ~60
+// R5, ~50 R6, ~50 R7, ~95 camp body across a 350-prospect pool.
+const _CONSENSUS_GRADE_THRESHOLDS = [
+  { round: 1, minOvr: 85 },
+  { round: 2, minOvr: 80 },
+  { round: 3, minOvr: 75 },
+  { round: 4, minOvr: 70 },
+  { round: 5, minOvr: 65 },
+  { round: 6, minOvr: 60 },
+  { round: 7, minOvr: 55 },
+];
+function _consensusGradeRound(consensusOvr) {
+  for (const t of _CONSENSUS_GRADE_THRESHOLDS) {
+    if (consensusOvr >= t.minOvr) return t.round;
+  }
+  return 0; // below R7 grade — camp body / UDFA tier
+}
+
+// Stamp _aiScoutBias + _generatedRound on a prospect based on true OVR
+// and a deterministic seed. Wildcard mechanism (5% of prospects) adds
+// a ±10 swing on top of base noise — enables Tom Brady (high OVR,
+// huge negative consensus miss) and Tony Mandarich (low OVR, huge
+// positive miss) cases. Without this, R1-grade noise is ±2 and Brady
+// cases are mathematically impossible.
+function _applyConsensusGrade(p, rookieYear) {
+  const biasKey = `bias|${rookieYear}|${p.name}`;
+  const trueOvr = p.overall || 60;
+  const trueOvrGrade = _consensusGradeRound(trueOvr);
+  // Base noise: tight on well-scouted top prospects, wide on flyers
+  const baseNoiseScale = trueOvrGrade === 0 ? 5
+                       : trueOvrGrade === 1 ? 2
+                       : trueOvrGrade <= 3  ? 3
+                                            : 4;
+  const baseBias = (_seededRand(biasKey) - 0.5) * 2 * baseNoiseScale;
+  // Wildcard: layered miss mechanic for the rare Brady/Mandarich case.
+  // 5% of prospects get a "consensus missed" roll (±10 swing).
+  // 1% get an "ultra-miss" stacked on top (additional ±15 swing) —
+  // this is the extreme tier that produces Tom Brady (R1 talent
+  // graded R6) and Tony Mandarich (R7 talent reached at R1) cases.
+  // Real-NFL frequency: ~2-3 wildcard slips per draft, ~1 ultra
+  // per 2-3 drafts.
+  const wildcardKey = biasKey + "|wildcard";
+  const wcRoll = _seededRand(wildcardKey);
+  const wildcardBias = wcRoll < 0.05
+    ? (_seededRand(wildcardKey, 1) - 0.5) * 20
+    : 0;
+  const ultraBias = _seededRand(wildcardKey, 2) < 0.01
+    ? (_seededRand(wildcardKey, 3) - 0.5) * 30
+    : 0;
+  p._aiScoutBias = +(baseBias + wildcardBias + ultraBias).toFixed(1);
+  // Consensus grade — what the world sees. The draft AI ranks by this,
+  // user-visible grade badge shows this, scout reveals can shift it.
+  p._generatedRound = _consensusGradeRound(trueOvr + p._aiScoutBias);
+}
 
 // ── Multi-year college pipeline ──────────────────────────────────────────────
 // Prospects exist as freshmen → sophomore → junior → senior, ageing one year
@@ -16684,14 +16751,13 @@ const _COLLEGE_YEARS = ["FR", "SO", "JR", "SR"];
 const _COLLEGE_AGE_BY_YEAR = { FR: 18, SO: 19, JR: 20, SR: 21 };
 // Seasons until each class is draft-eligible (FR = 4 seasons away)
 const _COLLEGE_SEASONS_TO_DRAFT = { FR: 4, SO: 3, JR: 2, SR: 1 };
-const _COLLEGE_CLASS_SIZE = 120; // ~120 players per year × 4 = ~480 total
-// Sized so the draft has named scoutable prospects through R5/R6 — pipeline
-// produces ~120 SRs + ~48 declared JRs each draft = ~168 named draftable,
-// covering R1-R5 (160 picks) entirely with named prospects and feeding R6-R7
-// with the remainder. Save bloat: ~500 KB, comparable to one extra team
-// roster snapshot. Real NFL scouting coverage extends ~250-300 prospects
-// deep, so 168 is a realistic mid-point that avoids fully anonymous
-// late rounds without ballooning the save.
+const _COLLEGE_CLASS_SIZE = 150; // ~150 players per year × 4 = ~600 total
+// Bumped 120 → 150 to amplify Path A's "scouted prospect falls to UDFA"
+// emotional payoff. Pipeline now yields ~150 SRs + ~60 declared JRs =
+// ~210 named draftable. With _CLASS_TOTAL_SIZE = 350, filler is ~140
+// — most prospects the user encounters in either draft or UDFA scramble
+// are scoutable pipeline players they've watched develop, not anonymous
+// draft-day appearances. Save cost: ~625 KB (vs ~500 KB at size 120).
 
 // Position distribution for college pipeline. Weights → relative frequency
 // of each position in a new freshman class. Tuned to NCAA-ish ratios so
@@ -17617,10 +17683,13 @@ function renderFrnScoutingBoard() {
   `;
 }
 
-// Build the draft class from the college pipeline. Pulls graduated SRs +
-// declared JRs (sorted by OVR), stamps draft fields (round, AI bias),
-// and augments with auto-generated late-round + UDFA filler so the
-// class still reaches the existing target size (224 drafted + 56 UDFA).
+// Build the draft class from the college pipeline. Path A: one
+// continuous pool of ~350 prospects. Pipeline gives ~210 named (SRs +
+// declared JRs); ~140 filler spans varied tiers (not all "poor"). Each
+// prospect's _generatedRound is THRESHOLD-BASED on consensus OVR
+// (true OVR + _aiScoutBias) — what the world sees, not a slot
+// reservation. The draft proceeds to pick 256; remaining ~94 fall to
+// the UDFA scramble — naturally graded by what slipped.
 function _buildDraftClassFromPipeline(rookieYear, themesArg, positionsArg) {
   if (!franchise.collegePlayers) _seedCollegePipeline();
   const themes    = themesArg    || _rollClassThemes();
@@ -17632,104 +17701,75 @@ function _buildDraftClassFromPipeline(rookieYear, themesArg, positionsArg) {
     .slice() // copy so sort doesn't mutate pipeline order
     .sort((a, b) => (b.overall || 60) - (a.overall || 60));
 
-  // 2. Stamp draft fields on each. Round derives from sort position
-  //    (top 32 → R1, next 32 → R2, etc.). Beyond _CLASS_DRAFTED_SIZE
-  //    falls into the UDFA slice (_generatedRound: 0).
-  //    Scout bias is seeded by (year, name) so the class is bit-stable
-  //    across rebuilds — pre-show mock and live AI see the same bias.
+  // 2. Stamp draft fields on each. Noise scale derives from TRUE OVR
+  //    grade (not consensus) — high-OVR prospects get tight scout
+  //    consensus, camp-bodies get wide swings. Wildcard mechanism
+  //    enables Tom Brady (high-OVR + huge negative bias) and Tony
+  //    Mandarich (low-OVR + huge positive bias) cases. Scout bias is
+  //    seeded by (year, name) for rebuild stability.
   for (let i = 0; i < eligible.length; i++) {
-    const p = eligible[i];
-    const biasKey = `bias|${rookieYear}|${p.name}`;
-    if (i < _CLASS_DRAFTED_SIZE) {
-      const round = Math.min(7, Math.floor(i / 32) + 1);
-      p._generatedRound = round;
-      p.draftRound = round;
-      const noiseScale = round === 1 ? 2 : round <= 3 ? 3 : 4;
-      p._aiScoutBias = +((_seededRand(biasKey) - 0.5) * 2 * noiseScale).toFixed(1);
-    } else {
-      p._generatedRound = 0;
-      p.draftRound = 0;
-      p._aiScoutBias = +((_seededRand(biasKey) - 0.5) * 10).toFixed(1);
-    }
-    p.draftYear   = rookieYear;
-    p.draftSeason = (franchise?.season || 1);
+    _applyConsensusGrade(eligible[i], rookieYear);
+    eligible[i].draftRound = null;
+    eligible[i].draftYear = rookieYear;
+    eligible[i].draftSeason = (franchise?.season || 1);
+    eligible[i].isProspect = true;
   }
 
   const cls = eligible.slice();
 
-  // 3. Augment with auto-generated late-round filler if pipeline didn't
-  //    fill all 224 drafted slots. With _COLLEGE_CLASS_SIZE=120 the
-  //    pipeline yields ~168 named draftable (~120 SRs + ~48 declared
-  //    JRs), so ~56 filler picks land in R6 + R7. R1-R5 are entirely
-  //    pipeline-named; R6 is a mix; R7 is all filler.
-  //    `allTaken` MUST include underclassmen still in the pipeline — a
-  //    filler colliding with an FR/SO/JR name would conflate their
-  //    name-keyed scout reveals and pin entries, and break the name-based
-  //    NFL filter in _advanceCollegePipeline next offseason.
+  // 3. Augment with filler to reach _CLASS_TOTAL_SIZE. Filler tier
+  //    distribution mirrors the consensus-grade distribution — not all
+  //    "poor". Spread: 60% poor (camp bodies / late-round flier), 30%
+  //    average (R5-R7 depth), 10% good (occasional R3-R4 surprise to
+  //    keep mid-rounds from being entirely pipeline-driven).
+  //    `allTaken` MUST include underclassmen — a filler colliding with
+  //    an FR/SO/JR name would conflate scout reveals and break the
+  //    name-based NFL filter in _advanceCollegePipeline next offseason.
   const allTaken = new Set();
   for (const r of Object.values(franchise.rosters || {})) r.forEach(p => allTaken.add(p.name));
   for (const p of (franchise.collegePlayers || [])) allTaken.add(p.name);
   cls.forEach(p => allTaken.add(p.name));
 
-  const draftedSoFar = cls.filter(p => p._generatedRound > 0).length;
-  for (let i = draftedSoFar; i < _CLASS_DRAFTED_SIZE; i++) {
-    const round = Math.min(7, Math.floor(i / 32) + 1);
-    // Seed by (year, filler index) so position picks are stable across
-    // class rebuilds. Same rookieYear → same filler positions in the
-    // same slots.
+  const totalNeeded = _CLASS_TOTAL_SIZE - cls.length;
+  for (let i = 0; i < totalNeeded; i++) {
     const posKey = `fpos|${rookieYear}|${i}`;
     let pos = positions[Math.floor(_seededRand(posKey) * positions.length)];
-    if ((pos === "K" || pos === "P") && round <= 4) {
-      pos = positions[Math.floor(_seededRand(posKey, 1) * positions.length)];
-      if ((pos === "K" || pos === "P") && round <= 4) {
-        pos = ["WR","DL","OL","CB"][Math.floor(_seededRand(posKey, 2) * 4)];
+    // K/P only via re-roll mechanic — too many specialists looks weird.
+    if (pos === "K" || pos === "P") {
+      if (_seededRand(posKey, 1) > 0.30) {
+        pos = positions[Math.floor(_seededRand(posKey, 2) * positions.length)];
+        if (pos === "K" || pos === "P") {
+          pos = ["WR","DL","OL","CB"][Math.floor(_seededRand(posKey, 3) * 4)];
+        }
       }
     }
-    // Filler is always poor-tier (these are the late-round depth picks
-    // that the pipeline didn't cover with named, scoutable prospects).
-    const tier = "poor";
+    // Filler tier distribution — complements the pipeline. Pipeline
+    // produces mostly OVR 50-75; filler adds the top (R1-R2 blue chips
+    // beyond what college dev curves produce) and the bottom (camp
+    // bodies, OVR 40-55). Tuned so the full class targets NFL-like
+    // distribution: ~25 R1 grades, ~30 R2, fat middle, ~50 camp body.
+    const tierRoll = _seededRand(posKey, 4);
+    const tier = tierRoll < 0.50 ? "poor"        // 50% — camp bodies
+              : tierRoll < 0.82 ? "average"      // 32% — late-round depth
+              : tierRoll < 0.96 ? "good"         // 14% — R3-R5 surprise
+                                : "elite";       //  4% — R1-R2 blue chip
     const p = genUniquePlayer(pos, tier, allTaken);
     allTaken.add(p.name);
     p.age = 22;
     // Stamp collegeYear so the noise band system gives them an SR-tier
     // baseband (±8 at draft week) rather than the legacy ±5 fallback.
-    // Without this, late-round filler would appear SHARPER than the
-    // underclassmen in the pipeline — an obvious inversion.
     p.collegeYear = "SR";
     p.draftYear = rookieYear;
     p.draftSeason = (franchise?.season || 1);
     p.isProspect = true;
-    p._generatedRound = round;
-    p.draftRound = round;
-    p._aiScoutBias = +((_seededRand(`bias|${rookieYear}|${p.name}`) - 0.5) * 2 * 4).toFixed(1);
+    _applyConsensusGrade(p, rookieYear);
+    p.draftRound = null;
     p.potential = _rollPotential(p);
-    p.collegeProfile = _buildCollegeProfile(p, round);
-    p.careerHistory = []; p.careerStats = {}; p.career = []; p.careerTotals = {};
-    p.proBowls = 0; p.allPros = 0; p.sbRings = 0;
-    p.mvps = 0; p.opoys = 0; p.dpoys = 0; p.roys = 0; p.records = [];
-    cls.push(p);
-  }
-
-  // 4. UDFA tier — top up to _CLASS_UDFA_SIZE if pipeline overflow didn't
-  //    provide enough.
-  const udfaSoFar = cls.filter(p => p._generatedRound === 0).length;
-  for (let i = udfaSoFar; i < _CLASS_UDFA_SIZE; i++) {
-    const posKey = `udfapos|${rookieYear}|${i}`;
-    const pos = positions[Math.floor(_seededRand(posKey) * positions.length)];
-    const p = genUniquePlayer(pos, "poor", allTaken);
-    allTaken.add(p.name);
-    p.age = 22;
-    // Same fog as SR-tier draft-week — UDFA filler shouldn't read sharper
-    // than the underclassmen in the pipeline.
-    p.collegeYear = "SR";
-    p.draftYear = rookieYear;
-    p.draftSeason = (franchise?.season || 1);
-    p.isProspect = true;
-    p._generatedRound = 0;
-    p.draftRound = 0;
-    p._aiScoutBias = +((_seededRand(`bias|${rookieYear}|${p.name}`) - 0.5) * 10).toFixed(1);
-    p.potential = _rollPotential(p);
-    p.collegeProfile = _buildCollegeProfile(p, 7);
+    // College profile uses the prospect's consensus grade for round-
+    // appropriate knock selection. R1-grade prospects get sharp lines;
+    // camp-body prospects get rougher knocks.
+    const profRound = p._generatedRound === 0 ? 7 : p._generatedRound;
+    p.collegeProfile = _buildCollegeProfile(p, profRound);
     p.careerHistory = []; p.careerStats = {}; p.career = []; p.careerTotals = {};
     p.proBowls = 0; p.allPros = 0; p.sbRings = 0;
     p.mvps = 0; p.opoys = 0; p.dpoys = 0; p.roys = 0; p.records = [];
@@ -19106,11 +19146,12 @@ function _aiAutoPick(slot, opts) {
     return;
   }
   const taken = new Set(franchise.draft.picks.map(p => p.prospectName));
-  // Exclude UDFA-tier prospects (_generatedRound === 0). They live in the
-  // UDFA scramble pool — drafting one wastes both a pick slot and UDFA
-  // inventory. The ±10 _aiScoutBias noise could otherwise let a hot UDFA
-  // outscore a real R7 prospect in the AI's perception.
-  const available = franchise.draft.class.filter(p => !taken.has(p.name) && p._generatedRound !== 0);
+  // Path A: one continuous pool — AI considers all prospects, including
+  // camp-body grade. Their low aiSeenOvr naturally pushes them out of
+  // contention in most cases, but a high-true-OVR prospect with a bad
+  // consensus bias (e.g., Tom Brady) can occasionally get reached for.
+  // This is the realism win — AI scoring decides, not a hard filter.
+  const available = franchise.draft.class.filter(p => !taken.has(p.name));
   if (!available.length) return;
   // Score by overall + position need (weaker starter = bonus) +
   // positional value premium + scheme fit + tiny random. When `opts`
@@ -19194,14 +19235,14 @@ function frnDraftPick(name) {
   if (slot.teamId !== franchise.chosenTeamId) return;
   const prospect = d.class.find(p => p.name === name);
   if (!prospect) return;
-  // UDFA-tier prospect drafted from the live board — burns a draft pick
-  // AND removes them from the UDFA scramble pool (where they could be
-  // signed for free). Surface the trade-off before committing. The user
-  // gets some upside (4-yr deal vs 3, 12% gem rate vs 8%), but it's a
-  // slight expected-value loss in the average case — worth a confirm.
+  // Below-R7-grade prospect drafted from the live board — most prospects
+  // at this grade fall to the UDFA Scramble and can be signed free.
+  // Surface the trade-off before committing. There's still legitimate
+  // upside (4-yr contract vs 3-yr UDFA, locks them in), so user keeps
+  // the option — but the default click no longer silently overpays.
   if (prospect._generatedRound === 0) {
     const pickLbl = `R${slot.round}.${slot.pickInRound}${slot.isComp ? "c" : ""}`;
-    const msg = `${prospect.name} is a UDFA-tier prospect.\n\nYou can sign them for free in the UDFA Scramble after the draft.\n\nDraft them anyway with your ${pickLbl} pick? You'll get a 4-yr contract (vs 3-yr UDFA) and a 12% hidden-gem rate, but you lose them from the scramble pool.`;
+    const msg = `${prospect.name} grades below R7 (camp-body / UDFA tier).\n\nMost prospects at this grade fall to the UDFA Scramble where you can sign them for free.\n\nDraft them with your ${pickLbl} pick anyway? You'd lock in a 4-yr contract instead of 3-yr UDFA terms.`;
     if (!confirm(msg)) return;
   }
   // Snapshot for the 5-second undo banner. Deep-copy the prospect's
