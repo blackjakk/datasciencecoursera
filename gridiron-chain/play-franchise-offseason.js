@@ -9818,12 +9818,38 @@ function _buildOffseasonGainsSheet() {
     </div>`;
 
   // TOP OVERALLS — directly answers "who are my best players now?"
-  // Built from postOvr (current season-end overall). Top 10 with age,
-  // pos, current contract status. Highlights rows whose contract
-  // expires soon so the user sees their stars-at-risk at a glance.
-  const topOveralls = allMyChg.slice()
-    .sort((a, b) => (b.postOvr || 0) - (a.postOvr || 0))
-    .slice(0, 10);
+  // Built from the LIVE ROSTER (not allMyChg dev records). Dev
+  // records exclude players acquired after the dev cycle (mid-FA
+  // signings, post-cycle trades, just-drafted rookies) and can
+  // include players already released/retired this offseason. The
+  // live roster is the source of truth for "who's on my team right
+  // now." We enrich each entry with delta info from the matching
+  // dev record if one exists; otherwise delta is blank.
+  const liveRoster = franchise?.rosters?.[myId] || [];
+  const chgByPid = {};
+  for (const c of allMyChg) chgByPid[c.pid] = c;
+  const topOveralls = liveRoster.slice()
+    .filter(p => (p.overall || 0) > 0)
+    .sort((a, b) => (b.overall || 0) - (a.overall || 0))
+    .slice(0, 10)
+    .map(p => {
+      const chg = chgByPid[p.pid];
+      // Normalize into a row record matching what the table renderer
+      // expects. If we have a dev record for this player, use its
+      // delta + preOvr; else show this offseason as a no-change row.
+      return {
+        pid: p.pid,
+        name: p.name,
+        pos: p.position,
+        ageNow: p.age,
+        postOvr: p.overall || 0,
+        preOvr: chg?.preOvr ?? p.overall,
+        delta: chg?.delta ?? 0,
+        potential: p.potential,
+        draftRound: p.draftRound,
+        contractYearsLeft: p.contract?.remaining ?? null,
+      };
+    });
   const _topOvrRow = (c, i) => {
     const tier = _ceilingTier(c.potential || c.postOvr, c.draftRound);
     const contractFlag = c.contractYearsLeft === 0 ? `<span style="color:#ff9b9b;font-size:.55rem;font-weight:700">EXPIRED</span>`
@@ -9840,7 +9866,7 @@ function _buildOffseasonGainsSheet() {
       <td style="padding:.18rem .5rem;color:${dColor};font-size:.65rem">${dStr}</td>
       <td style="padding:.18rem .5rem;font-size:.6rem"><b style="color:${tier.color}">${tier.grade}</b></td>
       <td style="padding:.18rem .5rem">${contractFlag}</td>
-      <td style="padding:.18rem .5rem;text-align:right"><button onclick="frnExtendPlayer('${c.name.replace(/'/g, "\\'")}')" style="font-size:.55rem;letter-spacing:.5px;padding:.15rem .45rem;border-radius:2px;border:1px solid var(--blborder);background:transparent;color:var(--gold);cursor:pointer;font-family:inherit">📝 EXTEND</button></td>
+      <td style="padding:.18rem .5rem;text-align:right"><button onclick="frnExtendPlayer('${(c.name||"").replace(/\\/g, "\\\\").replace(/'/g, "\\'")}')" style="font-size:.55rem;letter-spacing:.5px;padding:.15rem .45rem;border-radius:2px;border:1px solid var(--blborder);background:transparent;color:var(--gold);cursor:pointer;font-family:inherit">📝 EXTEND</button></td>
     </tr>`;
   };
   const topOverallsBlock = topOveralls.length ? `
@@ -10098,7 +10124,11 @@ function _buildOffseasonGainsSheet() {
   const _row = (c) => {
     const dColor = c.delta > 0 ? "#86e0a3" : c.delta < 0 ? "#ff9b9b" : "var(--gray)";
     const dStr   = c.delta > 0 ? `+${c.delta}` : `${c.delta}`;
-    const safeName = c.name.replace(/'/g, "\\'");
+    // Two-step escape — backslash FIRST, then single-quote. Matches
+    // the pattern used elsewhere in this file (line 5367, 10280,
+    // 12040). Single-step escape would mangle "O\\'Brien"-style
+    // generated names if any future name-generator adds backslashes.
+    const safeName = (c.name || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
     return `<tr style="border-top:1px solid rgba(255,255,255,.04)">
       <td style="padding:.3rem .5rem;font-weight:700">${_playerLinkSmart(c.name)}</td>
       <td style="padding:.3rem .5rem;color:var(--gray);font-size:.7rem">${c.pos}</td>
