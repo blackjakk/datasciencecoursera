@@ -1331,19 +1331,31 @@ function _rollHiddenGem(player) {
   // cadence to ~1 per 75 years.
   const rates = { 0: 0.120, 7: 0.080, 6: 0.070, 5: 0.050, 4: 0.025, 3: 0.012 };
   const rate = rates[player.draftRound] ?? 0;
-  if (!rate || Math.random() >= rate) return;
+  // Deterministic seed: a prospect's gem destiny is fixed at class
+  // generation, just revealed when drafted. Same player gets the same
+  // roll regardless of which team picks them and regardless of how
+  // many times the class is rebuilt (crash-before-save, MegaETH replay).
+  // Falls back to Math.random for legacy / non-class players that lack
+  // the name+year identifier (e.g., the assignDraftInfo backfill).
+  const seed = (player.name && player.draftYear)
+    ? `${player.name}|${player.draftYear}|gem`
+    : null;
+  const rng = seed
+    ? (() => { let n = 0; return () => _seededRand(seed, n++); })()
+    : Math.random;
+  if (!rate || rng() >= rate) return;
   // Ceiling distribution: most gems are solid starters (78-89), some are
   // Pro Bowlers (90-95), a fatter tail (8%, was 3%) lands in the extreme
   // 96-99 HoF range. Wider tail keeps "Brady emergence" cadence to roughly
   // 1 per 75 years across late-round QBs.
-  const r = Math.random();
+  const r = rng();
   let ceiling;
-  if (r < 0.78)      ceiling = 78 + Math.floor(Math.random() * 12); // 78-89 common
-  else if (r < 0.92) ceiling = 90 + Math.floor(Math.random() * 6);  // 90-95 mid
-  else               ceiling = 96 + Math.floor(Math.random() * 4);  // 96-99 extreme (8%)
+  if (r < 0.78)      ceiling = 78 + Math.floor(rng() * 12); // 78-89 common
+  else if (r < 0.92) ceiling = 90 + Math.floor(rng() * 6);  // 90-95 mid
+  else               ceiling = 96 + Math.floor(rng() * 4);  // 96-99 extreme (8%)
   player.hiddenGem = {
     ceiling,
-    growthRate: 4 + Math.floor(Math.random() * 5),
+    growthRate: 4 + Math.floor(rng() * 5),
   };
 }
 // Fabricates a believable multi-season career for each player based on their

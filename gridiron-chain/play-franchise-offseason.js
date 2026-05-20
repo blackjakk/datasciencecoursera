@@ -15016,6 +15016,17 @@ function _nameHash(name, seed) {
   for (let i = 0; i < (name || "").length; i++) h = (h * 53 + name.charCodeAt(i)) | 0;
   return Math.abs(h);
 }
+// Deterministic [0, 1) value from a key string. Used by class generation
+// to keep scout-bias / hidden-gem / filler-position rolls stable across
+// rebuilds — if the class is regenerated (crash-before-save, navigate
+// away and back, MegaETH replay), the same prospect gets the same
+// values. Replaces Math.random() at sites where stability matters.
+function _seededRand(key, salt = 0) {
+  // Two passes with different salts → better avalanche on short keys
+  const a = _nameHash(key, salt + 0x9E3779B9);
+  const b = _nameHash(key, salt + 0x7F4A7C15);
+  return ((a ^ (b << 13 | b >>> 19)) >>> 0) / 4294967296;
+}
 function _clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
 function _lerpR(a, b, t) { return Math.round(a + (b - a) * _clamp(t, 0, 1)); }
 
@@ -15676,8 +15687,17 @@ function _mockFirstRound() {
       const posPrem = _DRAFT_POS_PREMIUM[p.position] ?? 0;
       const scheme = _draftSchemeBonus(slot.teamId, p.position);
       const aiSeenOvr = (p.overall || 60) + (p._aiScoutBias || 0);
+      // Deterministic per-pick "war room mood" noise — replaces the
+      // live AI's Math.random()*4 with a name-hashed equivalent so the
+      // mock has the same variance shape but is stable across renders.
+      // Without this, the mock systematically diverged from live AI
+      // because live had ±4 of swing per pick that the mock ignored.
+      const noise = ((_nameHash(p.name + "|" + slot.pickInRound, 9) / 8) - 0.5) * 4;
+      // needBonus weight 0.45 matches _aiAutoPick (was 0.20 — a 2.25×
+      // difference meant the mock under-projected need-driven reaches
+      // by ~6 OVR for QB-less teams).
       return {
-        p, score: aiSeenOvr + needBonus * 0.20 + posPrem + scheme,
+        p, score: aiSeenOvr + needBonus * 0.45 + posPrem + scheme + noise,
         // Capture the score components so the UI can explain WHY
         // this prospect was projected here.
         components: { aiSeenOvr, needBonus, posPrem, scheme },
@@ -17615,18 +17635,21 @@ function _buildDraftClassFromPipeline(rookieYear, themesArg, positionsArg) {
   // 2. Stamp draft fields on each. Round derives from sort position
   //    (top 32 → R1, next 32 → R2, etc.). Beyond _CLASS_DRAFTED_SIZE
   //    falls into the UDFA slice (_generatedRound: 0).
+  //    Scout bias is seeded by (year, name) so the class is bit-stable
+  //    across rebuilds — pre-show mock and live AI see the same bias.
   for (let i = 0; i < eligible.length; i++) {
     const p = eligible[i];
+    const biasKey = `bias|${rookieYear}|${p.name}`;
     if (i < _CLASS_DRAFTED_SIZE) {
       const round = Math.min(7, Math.floor(i / 32) + 1);
       p._generatedRound = round;
       p.draftRound = round;
       const noiseScale = round === 1 ? 2 : round <= 3 ? 3 : 4;
-      p._aiScoutBias = +((Math.random() - 0.5) * 2 * noiseScale).toFixed(1);
+      p._aiScoutBias = +((_seededRand(biasKey) - 0.5) * 2 * noiseScale).toFixed(1);
     } else {
       p._generatedRound = 0;
       p.draftRound = 0;
-      p._aiScoutBias = +((Math.random() - 0.5) * 10).toFixed(1);
+      p._aiScoutBias = +((_seededRand(biasKey) - 0.5) * 10).toFixed(1);
     }
     p.draftYear   = rookieYear;
     p.draftSeason = (franchise?.season || 1);
@@ -17651,11 +17674,15 @@ function _buildDraftClassFromPipeline(rookieYear, themesArg, positionsArg) {
   const draftedSoFar = cls.filter(p => p._generatedRound > 0).length;
   for (let i = draftedSoFar; i < _CLASS_DRAFTED_SIZE; i++) {
     const round = Math.min(7, Math.floor(i / 32) + 1);
-    let pos = positions[Math.floor(Math.random() * positions.length)];
+    // Seed by (year, filler index) so position picks are stable across
+    // class rebuilds. Same rookieYear → same filler positions in the
+    // same slots.
+    const posKey = `fpos|${rookieYear}|${i}`;
+    let pos = positions[Math.floor(_seededRand(posKey) * positions.length)];
     if ((pos === "K" || pos === "P") && round <= 4) {
-      pos = positions[Math.floor(Math.random() * positions.length)];
+      pos = positions[Math.floor(_seededRand(posKey, 1) * positions.length)];
       if ((pos === "K" || pos === "P") && round <= 4) {
-        pos = ["WR","DL","OL","CB"][Math.floor(Math.random() * 4)];
+        pos = ["WR","DL","OL","CB"][Math.floor(_seededRand(posKey, 2) * 4)];
       }
     }
     // Filler is always poor-tier (these are the late-round depth picks
@@ -17674,7 +17701,7 @@ function _buildDraftClassFromPipeline(rookieYear, themesArg, positionsArg) {
     p.isProspect = true;
     p._generatedRound = round;
     p.draftRound = round;
-    p._aiScoutBias = +((Math.random() - 0.5) * 2 * 4).toFixed(1);
+    p._aiScoutBias = +((_seededRand(`bias|${rookieYear}|${p.name}`) - 0.5) * 2 * 4).toFixed(1);
     p.potential = _rollPotential(p);
     p.collegeProfile = _buildCollegeProfile(p, round);
     p.careerHistory = []; p.careerStats = {}; p.career = []; p.careerTotals = {};
@@ -17687,7 +17714,8 @@ function _buildDraftClassFromPipeline(rookieYear, themesArg, positionsArg) {
   //    provide enough.
   const udfaSoFar = cls.filter(p => p._generatedRound === 0).length;
   for (let i = udfaSoFar; i < _CLASS_UDFA_SIZE; i++) {
-    const pos = positions[Math.floor(Math.random() * positions.length)];
+    const posKey = `udfapos|${rookieYear}|${i}`;
+    const pos = positions[Math.floor(_seededRand(posKey) * positions.length)];
     const p = genUniquePlayer(pos, "poor", allTaken);
     allTaken.add(p.name);
     p.age = 22;
@@ -17699,7 +17727,7 @@ function _buildDraftClassFromPipeline(rookieYear, themesArg, positionsArg) {
     p.isProspect = true;
     p._generatedRound = 0;
     p.draftRound = 0;
-    p._aiScoutBias = +((Math.random() - 0.5) * 10).toFixed(1);
+    p._aiScoutBias = +((_seededRand(`bias|${rookieYear}|${p.name}`) - 0.5) * 10).toFixed(1);
     p.potential = _rollPotential(p);
     p.collegeProfile = _buildCollegeProfile(p, 7);
     p.careerHistory = []; p.careerStats = {}; p.career = []; p.careerTotals = {};
