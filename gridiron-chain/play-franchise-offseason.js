@@ -15853,15 +15853,21 @@ function renderFrnDraftPreshow() {
     const lines = items.length ? items.map((p, i) => {
       const m = combineMeasurables(p);
       const val = fmt(m);
-      return `<div style="display:grid;grid-template-columns:1rem 1fr 2.2rem 2.5rem;gap:.3rem;padding:.18rem .25rem;font-size:.62rem;align-items:baseline">
-        <span style="color:${i===0?"var(--gold)":"var(--gray)"};font-weight:700">${i+1}</span>
+      const isTop = i === 0;
+      const rankIcon = isTop ? "🏆" : `${i+1}`;
+      return `<div style="display:grid;grid-template-columns:1.1rem 1fr 2.2rem 2.6rem;gap:.3rem;padding:.22rem .25rem;font-size:.65rem;align-items:baseline;${isTop ? "background:linear-gradient(90deg, rgba(245,197,66,.08), transparent 70%);border-radius:2px" : ""}">
+        <span style="color:${isTop?"var(--gold)":"var(--gray)"};font-weight:700;text-align:center">${rankIcon}</span>
         ${_nameWithStar(p)}
-        <span style="color:var(--gold-lt);font-size:.58rem;font-weight:700">${p.position}</span>
-        <span style="color:${i===0?"var(--gold)":"var(--gray)"};font-weight:700;text-align:right">${val}${units}</span>
+        <span style="color:var(--gold-lt);font-size:.55rem;font-weight:700">${p.position}</span>
+        <span style="color:${isTop?"var(--gold)":"var(--white)"};font-weight:${isTop?"900":"700"};text-align:right;font-family:'Bebas Neue','Anton',sans-serif;letter-spacing:.3px">${val}${units}</span>
       </div>`;
-    }).join("") : `<div style="color:var(--gray);font-style:italic;font-size:.6rem;padding:.5rem .25rem;text-align:center">no prospects</div>`;
-    return `<div style="background:var(--bg2);border:1px solid var(--border);padding:.45rem .55rem;border-radius:3px">
-      <div style="font-size:.55rem;color:var(--gold);letter-spacing:1px;font-weight:700;margin-bottom:.2rem">${icon} ${label}${_combineFilterPos !== "ALL" ? ` · ${_combineFilterPos}` : ""}</div>
+    }).join("") : `<div style="color:var(--gray);font-style:italic;font-size:.6rem;padding:1rem .25rem;text-align:center">no prospects at ${_combineFilterPos}</div>`;
+    return `<div style="background:var(--bg2);border:1px solid var(--border);padding:.55rem .6rem;border-radius:3px;display:flex;flex-direction:column">
+      <div style="display:flex;align-items:baseline;gap:.4rem;padding-bottom:.35rem;margin-bottom:.3rem;border-bottom:1px solid var(--blborder)">
+        <span style="font-size:1.1rem;line-height:1">${icon}</span>
+        <span style="font-size:.6rem;color:var(--gold);letter-spacing:1.2px;font-weight:700">${label}</span>
+        ${_combineFilterPos !== "ALL" ? `<span style="color:var(--gold-lt);font-size:.5rem;font-weight:700;margin-left:auto">${_combineFilterPos}</span>` : ""}
+      </div>
       ${lines}
     </div>`;
   };
@@ -16047,54 +16053,84 @@ function renderFrnDraftPreshow() {
     </div>`;
   }).filter(Boolean).join("");
 
+  // Shared section header pattern — single line, gold-dim chrome,
+  // icon + title + optional meta text on right + thin gradient
+  // underline. Used across every block on this page so the visual
+  // language stays consistent.
+  const _sectionHeader = (icon, title, meta) => `
+    <div style="display:flex;align-items:baseline;gap:.55rem;margin:.8rem 0 .45rem;padding-bottom:.3rem;border-bottom:1px solid var(--blborder);background:linear-gradient(90deg, rgba(245,197,66,.05) 0%, transparent 30%)">
+      <span style="font-size:.85rem">${icon}</span>
+      <span style="font-size:.7rem;color:var(--gold);letter-spacing:1.8px;font-weight:700">${title}</span>
+      ${meta ? `<span style="color:var(--gray);font-size:.58rem;font-style:italic;margin-left:auto">${meta}</span>` : ""}
+    </div>`;
+
+  // Class size + meta for the hero sub-strip
+  const totalProspects = (d.class || []).filter(p => p._generatedRound !== 0).length;
+  const totalUdfa     = (d.class || []).filter(p => p._generatedRound === 0).length;
+  const teamMark = myTeam ? `
+    <span style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:3px;background:${myTeam.primary || "var(--gold)"};color:#fff;font-family:'Bebas Neue','Anton',sans-serif;font-size:14px;letter-spacing:.5px;font-weight:900">${(myTeam.abbrev || myTeam.name?.slice(0,3) || "???").toUpperCase().slice(0,3)}</span>` : "";
+
   $("frnHomeContent").innerHTML = `
-    <div style="max-width:1200px;margin:0 auto">
-      <div style="text-align:center;padding:1rem 0 .5rem">
-        <div style="font-size:.7rem;color:var(--gold);letter-spacing:3px;font-weight:700">COMBINE WEEK · PRE-DRAFT REPORT</div>
-        <div style="font-size:1.8rem;font-weight:900;color:var(--gold-lt);letter-spacing:1px;margin:.2rem 0">DRAFT CLASS OF SEASON ${seasonNum}</div>
-        <div style="color:var(--blgray);font-size:.75rem">${myTeam?.city} ${myTeam?.name} · scouting consensus + combine results</div>
+    <div style="max-width:1240px;margin:0 auto;padding-bottom:1.5rem">
+
+      <!-- HERO — big eyebrow + title + identity strip + theme chips -->
+      <div style="text-align:center;padding:1.2rem 0 1rem;background:radial-gradient(ellipse at center top, rgba(245,197,66,.07), transparent 65%);margin-bottom:.5rem">
+        <div style="font-size:.65rem;color:var(--gold-dim, #a98a2e);letter-spacing:4px;font-weight:700">🏟  COMBINE WEEK · PRE-DRAFT REPORT  🏟</div>
+        <div style="font-family:'Bebas Neue','Anton',sans-serif;font-size:2.4rem;font-weight:900;color:var(--gold-lt);letter-spacing:2px;margin:.3rem 0 .1rem;line-height:1">DRAFT CLASS · SEASON ${seasonNum}</div>
+        <div style="display:inline-flex;align-items:center;gap:.7rem;color:var(--blgray);font-size:.7rem;margin-top:.45rem">
+          ${teamMark}
+          <span style="color:var(--white);font-weight:700;letter-spacing:.5px">${(myTeam?.city || "").toUpperCase()} ${(myTeam?.name || "").toUpperCase()}</span>
+          <span style="color:var(--blborder)">·</span>
+          <span><b style="color:var(--white)">${totalProspects}</b> prospects</span>
+          <span style="color:var(--blborder)">·</span>
+          <span><b style="color:var(--white)">${d.pickOrder?.length || 224}</b> picks</span>
+          ${totalUdfa ? `<span style="color:var(--blborder)">·</span><span><b style="color:var(--white)">${totalUdfa}</b> UDFA</span>` : ""}
+        </div>
+        ${themeChips ? `<div style="margin-top:.7rem">${themeChips}</div>` : ""}
       </div>
 
-      ${themeChips ? `<div style="text-align:center;margin-bottom:1rem">${themeChips}</div>` : ""}
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
+      <!-- TWO-COL: mock R1 + headliners -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
         <div>
-          <div style="font-size:.6rem;color:var(--gold);letter-spacing:1.5px;font-weight:700;margin-bottom:.4rem">📋 PROJECTED FIRST ROUND</div>
-          <div style="background:var(--bg2);border:1px solid var(--border);border-radius:3px;max-height:520px;overflow-y:auto">
-            ${mockHtml || `<div style="padding:1rem;color:var(--gray);text-align:center;font-style:italic">No projections available</div>`}
+          ${_sectionHeader("📋", "PROJECTED FIRST ROUND", "consensus × team need × position value")}
+          <div style="background:var(--bg2);border:1px solid var(--border);border-radius:3px;max-height:540px;overflow-y:auto">
+            ${mockHtml || `<div style="padding:1.5rem;color:var(--gray);text-align:center;font-style:italic">No projections available</div>`}
           </div>
-          <div style="font-size:.55rem;color:var(--gray);margin-top:.25rem;font-style:italic">
-            Mock based on consensus scout grade × team need × position value. Actual draft has war-room variance — expect surprises.
+          <div style="font-size:.55rem;color:var(--gray);margin-top:.3rem;font-style:italic;text-align:center">
+            Actual draft has war-room variance — expect surprises.
           </div>
         </div>
 
         <div>
-          <div style="font-size:.6rem;color:var(--gold);letter-spacing:1.5px;font-weight:700;margin-bottom:.4rem">🔥 HEADLINER PER POSITION</div>
-          <div style="max-height:520px;overflow-y:auto">
+          ${_sectionHeader("🔥", "HEADLINER PER POSITION", "top hyped prospect at each spot")}
+          <div style="max-height:540px;overflow-y:auto">
             ${hypeRows}
           </div>
         </div>
       </div>
 
-      <div style="display:flex;align-items:baseline;gap:.6rem;margin-bottom:.4rem">
-        <span style="font-size:.6rem;color:var(--gold);letter-spacing:1.5px;font-weight:700">🏟 COMBINE STANDOUTS</span>
-        <span style="color:var(--gray);font-size:.55rem;font-style:italic">click a star ☆ to add to your watchlist</span>
-      </div>
+      <!-- COMBINE STANDOUTS — position filter + 4 cards -->
+      ${_sectionHeader("🏟", "COMBINE STANDOUTS", "click ☆ next to any name to add to your watchlist")}
       ${posChipsHtml}
       ${combineHtml}
 
-      ${watchlistHtml ? `<div style="margin-top:1rem">${watchlistHtml}</div>` : ""}
+      <!-- WATCHLIST — slick per-player cards -->
+      ${watchlistHtml ? `
+        ${_sectionHeader("⭐", "MY WATCHLIST", `${watchPlayers.length} prospect${watchPlayers.length===1?"":"s"} bookmarked · hover any measurable for class rank`)}
+        ${watchlistHtml}` : ""}
 
+      <!-- SURPRISES — warriors + disappointments -->
       ${surprisesHtml ? `
-        <div style="margin-top:1rem">
-          <div style="font-size:.6rem;color:var(--gold);letter-spacing:1.5px;font-weight:700;margin-bottom:.4rem">🔍 SURPRISING RESULTS</div>
-          ${surprisesHtml}
-        </div>` : ""}
+        ${_sectionHeader("🔍", "SURPRISING RESULTS", "combine numbers vs scout grade")}
+        ${surprisesHtml}` : ""}
 
-      <div style="text-align:center;margin:1.4rem 0 .8rem">
-        <button class="btn btn-gold" style="font-size:.85rem;padding:.6rem 2rem;letter-spacing:.6px;font-weight:900"
+      <!-- CTA — bigger, more inviting, with meta caption -->
+      <div style="text-align:center;margin:2rem 0 .8rem;padding:1.2rem 1rem;background:linear-gradient(180deg, rgba(245,197,66,.04), transparent);border-top:1px solid var(--blborder)">
+        <button class="btn btn-gold" style="font-size:1rem;padding:.85rem 2.4rem;letter-spacing:1.2px;font-weight:900;border-radius:3px"
           onclick="frnBeginDraftActual()">📋 BEGIN DRAFT →</button>
-        <div style="font-size:.58rem;color:var(--gray);margin-top:.35rem">${d.pickOrder?.length || 224} picks · ${(franchise.season||0)+1} season class</div>
+        <div style="font-size:.6rem;color:var(--gray);margin-top:.5rem;letter-spacing:.5px">
+          ${d.pickOrder?.length || 224} picks · ${(franchise.season||0)+1} season class · ready when you are
+        </div>
       </div>
     </div>`;
 }
