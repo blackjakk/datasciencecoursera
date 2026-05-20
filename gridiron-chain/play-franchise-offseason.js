@@ -9585,6 +9585,122 @@ function frnGainsFilterReasonSet(reason) {
 // A tier uses cyan (#5ed4d4) instead of the room-color blue (#86c8ff)
 // to prevent the doubled-blue blur the audit flagged when a tier-A
 // player also had +5 room.
+// ── CHART HELPERS (Player Development Report) ──────────────────────
+//
+// Inline SVG, no chart-library dep. All sized for the report's
+// horizontal column. Color palette matches the rest of the report.
+
+// Ensure a roster avg-OVR snapshot exists for the season just
+// completed. Idempotent: only pushes if no entry yet for the current
+// season. Caps history at 10 seasons. Used by chartOvrLine — without
+// this, chart C has no historical data on day-one of a new save.
+function _ensureRosterAvgOvrSnapshot() {
+  if (!franchise) return;
+  franchise._rosterAvgOvrHistory = franchise._rosterAvgOvrHistory || [];
+  const season = franchise.season || 1;
+  const last = franchise._rosterAvgOvrHistory[franchise._rosterAvgOvrHistory.length - 1];
+  if (last && last.season === season) return;
+  const myId = franchise.chosenTeamId;
+  const roster = franchise.rosters[myId] || [];
+  if (!roster.length) return;
+  const avgOvr = roster.reduce((s, p) => s + (p.overall || 0), 0) / roster.length;
+  franchise._rosterAvgOvrHistory.push({ season, avgOvr: Math.round(avgOvr * 10) / 10 });
+  if (franchise._rosterAvgOvrHistory.length > 10) franchise._rosterAvgOvrHistory.shift();
+}
+
+// Chart A — per-position net OVR Δ horizontal bar (zero-centered).
+// Positive deltas extend right (green), negative left (red). One
+// row per position with data; gracefully handles empty data.
+function _chartPosDeltas(data) {
+  if (!data.length) return "";
+  const W = 360, H = 24 + data.length * 18 + 28, padL = 40, padR = 32, padT = 24, padB = 12;
+  const innerW = W - padL - padR, innerH = H - padT - padB;
+  const maxAbs = Math.max(...data.map(d => Math.abs(d.delta)), 4);
+  const rowH = innerH / data.length;
+  const zeroX = padL + innerW / 2;
+  const barW = innerW / 2;
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;background:rgba(255,255,255,.02);border-radius:4px;font-family:'IBM Plex Mono',monospace">
+    <text x="${padL}" y="14" fill="var(--gold)" font-size="10" font-weight="700" letter-spacing="1">NET OVR Δ BY POSITION</text>
+    <line x1="${zeroX}" y1="${padT}" x2="${zeroX}" y2="${H-padB}" stroke="rgba(255,255,255,.15)" stroke-dasharray="2,2"/>
+    ${data.map((d, i) => {
+      const cy = padT + rowH * (i + 0.5);
+      const barLen = (Math.abs(d.delta) / maxAbs) * barW * 0.9;
+      const isPos = d.delta > 0;
+      const color = d.delta > 0 ? "#86e0a3" : d.delta < 0 ? "#ff9b9b" : "rgba(255,255,255,.15)";
+      const x = isPos ? zeroX : (zeroX - barLen);
+      return `
+        <text x="${padL - 4}" y="${cy + 3}" text-anchor="end" fill="#7a8b85" font-size="8">${d.pos}</text>
+        <rect x="${x}" y="${cy - rowH * 0.32}" width="${barLen}" height="${rowH * 0.64}" fill="${color}" opacity="0.85"/>
+        <text x="${isPos ? x + barLen + 3 : x - 3}" y="${cy + 3}" text-anchor="${isPos ? 'start' : 'end'}" fill="${color}" font-size="9" font-weight="700">${d.delta > 0 ? '+' : ''}${d.delta}</text>`;
+    }).join("")}
+  </svg>`;
+}
+
+// Chart B — ceiling tier distribution stacked horizontal bar.
+// Segment width proportional to player count. Grade letter inside,
+// count below. Skips zero-count tiers so the bar doesn't have
+// invisible segments for grades nobody has.
+function _chartTierDist(data) {
+  const live = data.filter(d => d.n > 0);
+  if (!live.length) return "";
+  const W = 360, H = 78, padL = 16, padR = 16, padT = 22, padB = 24;
+  const innerW = W - padL - padR;
+  const total = live.reduce((s, d) => s + d.n, 0);
+  let xCur = padL;
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;background:rgba(255,255,255,.02);border-radius:4px;font-family:'IBM Plex Mono',monospace">
+    <text x="${padL}" y="14" fill="#5ed4d4" font-size="10" font-weight="700" letter-spacing="1">CEILING TIER DISTRIBUTION (${total} players)</text>
+    ${live.map(d => {
+      const w = (d.n / total) * innerW;
+      const cx = xCur + w / 2;
+      const seg = `
+        <rect x="${xCur}" y="${padT}" width="${w}" height="22" fill="${d.color}" opacity="0.85"/>
+        <text x="${cx}" y="${padT + 15}" text-anchor="middle" fill="#0a1410" font-size="11" font-weight="900">${d.grade}</text>
+        <text x="${cx}" y="${padT + 36}" text-anchor="middle" fill="${d.color}" font-size="9" font-weight="700">${d.n}</text>`;
+      xCur += w;
+      return seg;
+    }).join("")}
+  </svg>`;
+}
+
+// Chart C — roster avg OVR over last N seasons (line + area fill).
+// Needs at least 2 points to be meaningful. Returns a "need more
+// seasons" placeholder otherwise so the chart slot doesn't go empty.
+function _chartOvrLine(data) {
+  if (data.length < 2) {
+    return `<div style="background:rgba(255,255,255,.02);border-radius:4px;padding:1.5rem;text-align:center;color:var(--gray);font-size:.7rem;font-style:italic">📈 Roster trajectory will appear after 2+ seasons</div>`;
+  }
+  const W = 360, H = 200, padL = 40, padR = 24, padT = 24, padB = 32;
+  const innerW = W - padL - padR, innerH = H - padT - padB;
+  const ovrs = data.map(d => d.avgOvr);
+  const minOvr = Math.floor(Math.min(...ovrs) - 1);
+  const maxOvr = Math.ceil(Math.max(...ovrs) + 1);
+  const span = Math.max(1, maxOvr - minOvr);
+  const x = i => padL + (i / (data.length - 1)) * innerW;
+  const y = v => padT + innerH - ((v - minOvr) / span) * innerH;
+  const path = data.map((d, i) => `${i === 0 ? 'M' : 'L'} ${x(i).toFixed(1)} ${y(d.avgOvr).toFixed(1)}`).join(" ");
+  const areaPath = `${path} L ${x(data.length - 1).toFixed(1)} ${(padT + innerH).toFixed(1)} L ${x(0).toFixed(1)} ${(padT + innerH).toFixed(1)} Z`;
+  const totalDelta = data[data.length - 1].avgOvr - data[0].avgOvr;
+  const totalDeltaStr = totalDelta > 0 ? `+${totalDelta.toFixed(1)}` : totalDelta.toFixed(1);
+  const totalDeltaColor = totalDelta > 0 ? "#86e0a3" : totalDelta < 0 ? "#ff9b9b" : "var(--gray)";
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;background:rgba(255,255,255,.02);border-radius:4px;font-family:'IBM Plex Mono',monospace">
+    <defs><linearGradient id="ovrFillGr" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#86c8ff" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#86c8ff" stop-opacity="0"/>
+    </linearGradient></defs>
+    <text x="${padL}" y="14" fill="#86c8ff" font-size="10" font-weight="700" letter-spacing="1">ROSTER AVG OVR — LAST ${data.length} SEASONS</text>
+    ${[minOvr, Math.round((minOvr + maxOvr) / 2), maxOvr].map(v => `
+      <line x1="${padL}" y1="${y(v)}" x2="${W - padR}" y2="${y(v)}" stroke="rgba(255,255,255,.06)" stroke-dasharray="2,3"/>
+      <text x="${padL - 4}" y="${y(v) + 3}" text-anchor="end" fill="#7a8b85" font-size="8">${v}</text>`).join("")}
+    <path d="${areaPath}" fill="url(#ovrFillGr)"/>
+    <path d="${path}" stroke="#86c8ff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    ${data.map((d, i) => `
+      <circle cx="${x(i)}" cy="${y(d.avgOvr)}" r="3" fill="#86c8ff" stroke="#0a1410" stroke-width="1.5"/>
+      <text x="${x(i)}" y="${H - 16}" text-anchor="middle" fill="#7a8b85" font-size="8">'${String(d.season).slice(-2)}</text>
+      <text x="${x(i)}" y="${y(d.avgOvr) - 8}" text-anchor="middle" fill="#86c8ff" font-size="8" font-weight="700">${d.avgOvr.toFixed(1)}</text>`).join("")}
+    <text x="${W - padR}" y="${H - 4}" text-anchor="end" fill="${totalDeltaColor}" font-size="8" font-weight="700">${totalDeltaStr} OVR over ${data.length-1} yr${data.length>2?'s':''}</text>
+  </svg>`;
+}
+
 function _ceilingTier(potential, round) {
   const expected = { 1:88, 2:81, 3:75, 4:70, 5:66, 6:63, 7:60, 0:58 }[round ?? 4] ?? 65;
   const delta = (potential || 0) - expected;
@@ -9669,6 +9785,37 @@ function _buildOffseasonGainsSheet() {
     }).join("")}
   </div>` : "";
   const chipsHtml = posChipsHtml + reasonChipsHtml;
+
+  // ── CHARTS BLOCK ──────────────────────────────────────────────────
+  // Three SVG charts arranged in a responsive grid. All use the
+  // current dev cycle data (allMyChg) plus the historical roster
+  // avg-OVR snapshot pushed by _ensureRosterAvgOvrSnapshot().
+  _ensureRosterAvgOvrSnapshot();
+  // A: net Δ by position
+  const posDeltaMap = {};
+  for (const c of allMyChg) {
+    posDeltaMap[c.pos] = (posDeltaMap[c.pos] || 0) + (c.delta || 0);
+  }
+  const POS_ORDER = ["QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"];
+  const posDeltaData = POS_ORDER
+    .filter(p => posDeltaMap[p] !== undefined)
+    .map(p => ({ pos: p, delta: posDeltaMap[p] }));
+  // B: ceiling tier distribution
+  const tierCounts = { S:0, A:0, B:0, C:0, D:0 };
+  const tierColors = { S:"#f5c542", A:"#5ed4d4", B:"#a8d8b6", C:"#e0b078", D:"#ff9b9b" };
+  for (const c of allMyChg) {
+    const t = _ceilingTier(c.potential || c.postOvr, c.draftRound);
+    tierCounts[t.grade]++;
+  }
+  const tierDistData = ["S","A","B","C","D"].map(g => ({ grade: g, n: tierCounts[g], color: tierColors[g] }));
+  // C: roster avg OVR history
+  const ovrHistory = franchise?._rosterAvgOvrHistory || [];
+  const chartsBlock = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:.5rem;margin-bottom:.6rem">
+      <div>${_chartPosDeltas(posDeltaData)}</div>
+      <div>${_chartOvrLine(ovrHistory)}</div>
+      <div style="grid-column:1/-1">${_chartTierDist(tierDistData)}</div>
+    </div>`;
 
   // TOP OVERALLS — directly answers "who are my best players now?"
   // Built from postOvr (current season-end overall). Top 10 with age,
@@ -10000,6 +10147,7 @@ function _buildOffseasonGainsSheet() {
     <div class="frn-sec-title" style="margin-bottom:.5rem">📊 PLAYER DEVELOPMENT REPORT</div>
     ${chipsHtml}
     ${summaryHtml}
+    ${chartsBlock}
     ${top5Movers}
     ${topOverallsBlock}
     ${heroBlock}
