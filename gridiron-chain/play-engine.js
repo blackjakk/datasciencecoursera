@@ -1045,6 +1045,38 @@ class GameSimulator {
     if (inTwoMin) passProb = Math.min(0.96, passProb + 0.25);   // hurry-up = pass-heavy
     const playType = Math.random() < passProb ? "pass" : "run";
 
+    // ── VICTORY FORMATION / KNEEL-DOWN ──
+    // Winning team in Q4 kneels to run out the clock when the math
+    // works. Each kneel burns ~40s of play clock + ~5s for the snap.
+    // Opponent timeouts cost ~30s each (forces a quicker snap). The
+    // offense has (5 - this.down) downs remaining; if time_left fits
+    // within those kneels minus opponent timeout burn, victory.
+    {
+      const oppKey = this.poss === "home" ? "away" : "home";
+      const lead = this.score[this.poss] - this.score[oppKey];
+      const oppTimeouts = this.timeouts[oppKey] || 0;
+      const remainingDowns = 5 - this.down;  // 1st = 4 downs available, 4th = 1
+      const kneelMargin = remainingDowns * 40 - oppTimeouts * 30;
+      const canKneelOut = lead > 0
+        && this.quarter === 4
+        && this.time <= kneelMargin
+        && this.time > 0;
+      if (canKneelOut) {
+        const qbStats = off.players[QB];
+        if (qbStats) qbStats.rush_att++;
+        off.team.rush_att++;
+        const dt = Math.min(this.time, 40);
+        this.time -= dt;
+        this._pushVisual({
+          kind: "kneel",
+          desc: `${QB} takes a knee — victory formation`,
+          startYard, endYard: Math.max(1, startYard - 1),
+          passer: QB,
+        });
+        return { yards: -1 };
+      }
+    }
+
     // ── QB SPIKE ──
     // Burn a down to stop the clock when it makes sense. Conditions:
     //   • <30s left in Q2/Q4, but >3s (don't spike with the gun about to fire)
