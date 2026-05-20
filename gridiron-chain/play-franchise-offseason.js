@@ -4334,6 +4334,79 @@ function renderFrnAnalytics(defaultTab) {
   }
 
   // ── Cap Health Dashboard ────────────────────────────────────────────────
+  // ── Value Ledger — per-starter actual AAV vs market ──────────────────
+  // Definitive home for the salary-efficiency analysis. Dev report's
+  // sidebar shows a compact 3+3 spotlight; this is the full table.
+  function valueLedger() {
+    const myId = chosenTeamId;
+    const roster = rosters[myId] || [];
+    const rows = _buildValueLedger(roster, cap);
+    if (!rows.length) {
+      return `<div style="color:var(--gray);font-style:italic;padding:1.5rem;text-align:center">No key starters with contracts yet — fill out your roster first.</div>`;
+    }
+    // Aggregate totals
+    const totalActual = rows.reduce((s, r) => s + r.actual, 0);
+    const totalMarket = rows.reduce((s, r) => s + r.market, 0);
+    const totalPct = totalMarket > 0 ? (totalActual / totalMarket) * 100 : 100;
+    const totalColor = totalPct < 95 ? "#86e0a3" : totalPct < 105 ? "#cce8d6" : "#e0b078";
+    // Headline callouts — biggest bargain + biggest overpay
+    const byDelta = rows.slice().sort((a, b) => a.delta - b.delta);
+    const bargain = byDelta[0];
+    const overpay = byDelta[byDelta.length - 1];
+    const rookieCount = rows.filter(r => r.isRookieDeal).length;
+    // Table rows
+    const tableRows = rows.map(r => {
+      const p = r.player;
+      const rookieBadge = r.isRookieDeal
+        ? `<span style="font-size:.55rem;color:var(--gold);background:rgba(245,197,66,.12);padding:.05rem .3rem;border-radius:1px;margin-left:.3rem">ROOK</span>`
+        : "";
+      const posLabel = r._posDepth > 1 ? `${p.position}${r._depthSlot}` : p.position;
+      const deltaSign = r.delta < 0 ? "−" : "+";
+      const deltaColor = r.delta < -0.5 ? "#86e0a3" : r.delta > 0.5 ? "#ff9b9b" : "#cce8d6";
+      return `<tr>
+        <td style="color:var(--gold);font-size:.62rem;font-weight:700">${posLabel}</td>
+        <td style="font-weight:700">${_playerLinkSmart(p.name)}${rookieBadge}</td>
+        <td style="color:var(--gray);font-size:.7rem">${p.age || "?"}</td>
+        <td style="font-family:'Bebas Neue','Anton',sans-serif;letter-spacing:.5px">${p.overall}</td>
+        <td style="font-family:'Bebas Neue','Anton',sans-serif;letter-spacing:.5px">$${r.actual.toFixed(1)}M</td>
+        <td style="color:var(--gray);font-family:'Bebas Neue','Anton',sans-serif;letter-spacing:.5px">$${r.market.toFixed(1)}M</td>
+        <td style="color:${r.color};font-weight:700;font-family:'Bebas Neue','Anton',sans-serif">${r.pct.toFixed(0)}%</td>
+        <td style="color:${deltaColor};font-weight:700">${deltaSign}$${Math.abs(r.delta).toFixed(1)}M</td>
+        <td style="color:${r.color};font-size:.6rem;letter-spacing:.5px;font-weight:700">${r.verdict}</td>
+      </tr>`;
+    }).join("");
+    return `
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem;margin-bottom:.7rem">
+        <div style="padding:.55rem .65rem;background:rgba(255,255,255,.025);border-left:3px solid #5d6b66;border-radius:2px">
+          <div style="font-size:.55rem;color:var(--gray);letter-spacing:1px;margin-bottom:.15rem">TOTAL VS MARKET</div>
+          <div style="font-family:'Bebas Neue','Anton',sans-serif;font-size:1.5rem;color:${totalColor};line-height:1">${totalPct.toFixed(0)}%</div>
+          <div style="font-size:.62rem;color:var(--gray);margin-top:.1rem">$${totalActual.toFixed(0)}M actual · $${totalMarket.toFixed(0)}M market${rookieCount > 0 ? ` · ${rookieCount} on rookie deals` : ""}</div>
+        </div>
+        <div style="padding:.55rem .65rem;background:rgba(134,224,163,.06);border-left:3px solid #86e0a3;border-radius:2px">
+          <div style="font-size:.55rem;color:#86e0a3;letter-spacing:1px;margin-bottom:.15rem">🟢 BIGGEST BARGAIN</div>
+          <div style="font-weight:700;font-size:.75rem">${_playerLinkSmart(bargain.player.name)}</div>
+          <div style="font-size:.62rem;color:var(--gray);margin-top:.1rem">${bargain.player.position} · ${bargain.pct.toFixed(0)}% of market · saves $${(-bargain.delta).toFixed(1)}M</div>
+        </div>
+        <div style="padding:.55rem .65rem;background:rgba(255,155,155,.06);border-left:3px solid #ff9b9b;border-radius:2px">
+          <div style="font-size:.55rem;color:#ff9b9b;letter-spacing:1px;margin-bottom:.15rem">🔴 BIGGEST OVERPAY</div>
+          <div style="font-weight:700;font-size:.75rem">${_playerLinkSmart(overpay.player.name)}</div>
+          <div style="font-size:.62rem;color:var(--gray);margin-top:.1rem">${overpay.player.position} · ${overpay.pct.toFixed(0)}% of market · costs $${overpay.delta.toFixed(1)}M extra</div>
+        </div>
+      </div>
+      <div style="font-size:.6rem;color:var(--gray);margin-bottom:.4rem;font-style:italic">
+        Key starters = top of depth at each position group (~23 players: 10 OFF + 11 DEF + 2 ST).
+        Market AAV adjusts for position, age, and OVR via the same model used in contract pitches.
+        "ROOK" = on a rookie deal (slot-set, not negotiated) so cheap by structure, not by GM skill.
+      </div>
+      <div style="overflow-x:auto"><table class="frn-ana-table">
+        <thead><tr>
+          <th>POS</th><th>PLAYER</th><th>AGE</th><th>OVR</th>
+          <th>ACTUAL</th><th>MARKET</th><th>% MKT</th><th>VS MKT</th><th>VERDICT</th>
+        </tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table></div>`;
+  }
+
   function capHealthDashboard() {
     const roster = (rosters[chosenTeamId] || []).filter(p => p.contract);
     const used1  = roster.reduce((s,p) => s + currentYearCapHit(p), 0);
@@ -4567,6 +4640,7 @@ function renderFrnAnalytics(defaultTab) {
 
   const tabs = [
     { id:"mysheet",   label:"MY CAP SHEET" },
+    { id:"value",     label:"💰 VALUE LEDGER" },
     { id:"caphealth", label:"CAP HEALTH" },
     { id:"cuts",      label:"CUT LIST" },
     { id:"timeline",  label:"TIMELINE" },
@@ -4682,6 +4756,7 @@ function renderFrnAnalytics(defaultTab) {
 
   let bodyHtml;
   if      (tab === "mysheet")   bodyHtml = myCapSheet();
+  else if (tab === "value")     bodyHtml = valueLedger();
   else if (tab === "caphealth") bodyHtml = capHealthDashboard();
   else if (tab === "cuts")      bodyHtml = cutCandidatesList();
   else if (tab === "timeline")  bodyHtml = contractTimeline();
@@ -10081,6 +10156,58 @@ function _campNotes() {
   return notes.slice(0, 8);
 }
 
+// VALUE LEDGER — shared helper used by both the dev report's compact
+// "Value Spotlight" sidebar block AND the Cap Sheet's full Value
+// Ledger tab. Defines "key starter" by position counts so bench /
+// ST gunners don't dilute the analysis.
+//
+// Returns one row per key starter:
+//   { player, actual, market, pct, delta, color, verdict, isRookieDeal }
+//
+// pct = actual AAV as % of market AAV (computeMarketValue from
+// core.js, which adjusts for position/age/OVR). delta = actual -
+// market (positive = overpaying, negative = bargain).
+const _VALUE_STARTER_COUNTS = {
+  QB:1, RB:1, WR:2, TE:1, OL:5,    // 10 offense
+  DL:4, LB:3, CB:2, S:2,           // 11 defense
+  K:1, P:1,                        // 2 ST
+};
+function _buildValueLedger(roster, cap) {
+  const starters = [];
+  for (const [pos, n] of Object.entries(_VALUE_STARTER_COUNTS)) {
+    const atPos = (roster || [])
+      .filter(p => p.position === pos && p.contract)
+      .sort((a, b) => (b.overall || 0) - (a.overall || 0))
+      .slice(0, n);
+    for (let i = 0; i < atPos.length; i++) {
+      starters.push({ ...atPos[i], _depthSlot: i + 1, _posDepth: n });
+    }
+  }
+  return starters.map(p => {
+    const actual = p.contract?.aav || 0;
+    const market = (typeof computeMarketValue === "function")
+      ? computeMarketValue(p, cap) : 1;
+    const pct = market > 0 ? (actual / market) * 100 : 100;
+    const delta = actual - market;
+    // Rookie deal heuristic — drafted player still in his first 4
+    // years (rookie scale runs 4 yrs in real NFL). systemYears
+    // tracks time on user's team; for traded rookies it's their
+    // career-NFL-years if tracked, else fall back to contract.years
+    // - remaining (years served).
+    const yearsServed = (p.systemYears != null)
+      ? p.systemYears
+      : ((p.contract?.years || 0) - (p.contract?.remaining || 0));
+    const isRookieDeal = (p.draftRound > 0) && yearsServed < 4;
+    let color, verdict;
+    if      (pct <  80) { color = "#86e0a3"; verdict = "BARGAIN"; }
+    else if (pct <  95) { color = "#a8d8b6"; verdict = "discount"; }
+    else if (pct < 105) { color = "#cce8d6"; verdict = "fair"; }
+    else if (pct < 120) { color = "#e0b078"; verdict = "premium"; }
+    else                { color = "#ff9b9b"; verdict = "OVERPAID"; }
+    return { player: p, actual, market, pct, delta, color, verdict, isRookieDeal };
+  });
+}
+
 // CAMP SCORE — synthesizes a roster's offseason development cycle
 // into a letter grade. Per-player contribution = delta OVR + bonuses
 // for high-leverage events (ceiling reveal, breakout, rehab) and
@@ -10423,6 +10550,47 @@ function _buildOffseasonGainsSheet() {
         <span style="color:var(--gray);font-size:.6rem">— top of your roster, where they stand</span>
       </div>
       <div style="display:flex;flex-direction:column;gap:.3rem">${rows}</div>
+    </div>`;
+  })();
+
+  // ── VALUE SPOTLIGHT — compact "biggest bargains + overpays" ──
+  // Full Value Ledger lives in Cap Sheet (Front Office tab).
+  // Sidebar shows top 3 of each as a teaser + link to the full view.
+  const valueSpotlightBlock = (() => {
+    const roster = franchise?.rosters?.[myId] || [];
+    const capVal = franchise?.salaryCap || 240;
+    const ledger = _buildValueLedger(roster, capVal);
+    if (!ledger.length) return "";
+    const byDelta = ledger.slice().sort((a, b) => a.delta - b.delta);
+    const bargains = byDelta.slice(0, 3).filter(r => r.delta < -0.5);
+    const overpays = byDelta.slice(-3).reverse().filter(r => r.delta > 0.5);
+    if (!bargains.length && !overpays.length) return "";
+    const _row = (r) => {
+      const p = r.player;
+      const rookieMark = r.isRookieDeal ? `<span style="color:var(--gold);font-size:.5rem;margin-left:.2rem">R</span>` : "";
+      const deltaSign = r.delta < 0 ? "−" : "+";
+      const dCol = r.delta < 0 ? "#86e0a3" : "#ff9b9b";
+      return `<div style="display:grid;grid-template-columns:1.8rem 1fr 2.4rem 2.4rem;gap:.3rem;align-items:baseline;padding:.12rem 0;font-size:.65rem">
+        <span style="color:var(--gold);font-size:.6rem;font-weight:700">${p.position}</span>
+        <span style="color:var(--white);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_playerLinkSmart(p.name)}${rookieMark}</span>
+        <span style="color:${r.color};font-weight:700;text-align:right">${r.pct.toFixed(0)}%</span>
+        <span style="color:${dCol};text-align:right;font-size:.6rem">${deltaSign}$${Math.abs(r.delta).toFixed(1)}M</span>
+      </div>`;
+    };
+    return `
+    <div style="margin-bottom:.6rem;padding:.5rem .65rem;background:rgba(255,255,255,.025);border:1px solid var(--blborder);border-radius:3px">
+      <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.35rem">
+        <span style="font-size:.55rem;color:#a98a2e;letter-spacing:1.5px;font-weight:700">💰 VALUE SPOTLIGHT</span>
+        <span style="color:var(--gray);font-size:.55rem;margin-left:auto;cursor:pointer" onclick="renderFrnAnalytics('value')">full ledger →</span>
+      </div>
+      ${bargains.length ? `
+        <div style="font-size:.5rem;color:#86e0a3;letter-spacing:1px;margin-bottom:.15rem;font-weight:700">🟢 BIGGEST BARGAINS</div>
+        ${bargains.map(_row).join("")}
+      ` : ""}
+      ${overpays.length ? `
+        <div style="font-size:.5rem;color:#ff9b9b;letter-spacing:1px;margin:.4rem 0 .15rem;font-weight:700">🔴 BIGGEST OVERPAYS</div>
+        ${overpays.map(_row).join("")}
+      ` : ""}
     </div>`;
   })();
 
@@ -10897,6 +11065,7 @@ function _buildOffseasonGainsSheet() {
       </div>
       <div class="frn-dev-side" style="min-width:0;display:flex;flex-direction:column;gap:.6rem">
         ${teamStatusBlock}
+        ${valueSpotlightBlock}
         ${resignBlock}
         ${depthBlock}
         ${campNotesBlock}
