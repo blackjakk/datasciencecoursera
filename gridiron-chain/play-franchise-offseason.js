@@ -9605,12 +9605,28 @@ function _ensureRosterAvgOvrSnapshot() {
   franchise._rosterAvgOvrHistory = franchise._rosterAvgOvrHistory || [];
   const season = franchise.season || 1;
   const last = franchise._rosterAvgOvrHistory[franchise._rosterAvgOvrHistory.length - 1];
-  if (last && last.season === season) return;
+  if (last && last.season === season) {
+    // Backfill avgAge on older entries that only have avgOvr (per
+    // the v1 of this helper). Idempotent once the field exists.
+    if (last.avgAge == null) {
+      const myId = franchise.chosenTeamId;
+      const roster = franchise.rosters[myId] || [];
+      if (roster.length) {
+        last.avgAge = Math.round((roster.reduce((s, p) => s + (p.age || 0), 0) / roster.length) * 10) / 10;
+      }
+    }
+    return;
+  }
   const myId = franchise.chosenTeamId;
   const roster = franchise.rosters[myId] || [];
   if (!roster.length) return;
   const avgOvr = roster.reduce((s, p) => s + (p.overall || 0), 0) / roster.length;
-  franchise._rosterAvgOvrHistory.push({ season, avgOvr: Math.round(avgOvr * 10) / 10 });
+  const avgAge = roster.reduce((s, p) => s + (p.age || 0), 0) / roster.length;
+  franchise._rosterAvgOvrHistory.push({
+    season,
+    avgOvr: Math.round(avgOvr * 10) / 10,
+    avgAge: Math.round(avgAge * 10) / 10,
+  });
   if (franchise._rosterAvgOvrHistory.length > 10) franchise._rosterAvgOvrHistory.shift();
 }
 
@@ -9743,6 +9759,152 @@ function _chartOvrLine(data) {
   </svg>`;
 }
 
+// Chart D — roster avg AGE over last N seasons. Mirror of Chart C
+// (OVR line) but for the age curve. Color: amber (#e0b078) since
+// rising age is a warning signal, falling/holding age is youth.
+function _chartAgeLine(data) {
+  const W = _CHART_W, H = _CHART_H;
+  // Filter to entries that have avgAge (older snapshots may not).
+  const live = (data || []).filter(d => d.avgAge != null);
+  if (live.length < 2) {
+    return `<svg viewBox="0 0 ${W} ${H}" style="${_CHART_STYLE}">
+      <text x="14" y="14" fill="${_CHART_TITLE}" font-size="10" font-weight="700" letter-spacing="1">ROSTER AVG AGE</text>
+      <text x="${W/2}" y="${H/2 - 6}" text-anchor="middle" fill="#9bbfa8" font-size="14">📅</text>
+      <text x="${W/2}" y="${H/2 + 14}" text-anchor="middle" fill="#5d6b66" font-size="9" font-style="italic">${live.length === 1 ? "need one more season" : "trajectory appears after 2+ seasons"}</text>
+    </svg>`;
+  }
+  const padL = 36, padR = 22, padT = 28, padB = 28;
+  const innerW = W - padL - padR, innerH = H - padT - padB;
+  const ages = live.map(d => d.avgAge);
+  const minAge = Math.floor(Math.min(...ages) - 0.5);
+  const maxAge = Math.ceil(Math.max(...ages) + 0.5);
+  const span = Math.max(1, maxAge - minAge);
+  const x = i => padL + (i / (live.length - 1)) * innerW;
+  const y = v => padT + innerH - ((v - minAge) / span) * innerH;
+  const path = live.map((d, i) => `${i === 0 ? 'M' : 'L'} ${x(i).toFixed(1)} ${y(d.avgAge).toFixed(1)}`).join(" ");
+  const areaPath = `${path} L ${x(live.length - 1).toFixed(1)} ${(padT + innerH).toFixed(1)} L ${x(0).toFixed(1)} ${(padT + innerH).toFixed(1)} Z`;
+  const totalDelta = live[live.length - 1].avgAge - live[0].avgAge;
+  // Aging up is yellow/amber (concern), aging down is green (youth movement)
+  const totalDeltaStr = totalDelta > 0 ? `+${totalDelta.toFixed(1)}` : totalDelta.toFixed(1);
+  const totalDeltaColor = totalDelta > 0.5 ? "#e0b078" : totalDelta < -0.5 ? "#86e0a3" : "#7a8b85";
+  return `<svg viewBox="0 0 ${W} ${H}" style="${_CHART_STYLE}">
+    <defs><linearGradient id="ageFillGr" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#e0b078" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#e0b078" stop-opacity="0"/>
+    </linearGradient></defs>
+    <text x="${padL}" y="14" fill="${_CHART_TITLE}" font-size="10" font-weight="700" letter-spacing="1">ROSTER AVG AGE · LAST ${live.length} SEASONS</text>
+    ${[minAge, Math.round((minAge + maxAge) / 2 * 10) / 10, maxAge].map(v => `
+      <line x1="${padL}" y1="${y(v)}" x2="${W - padR}" y2="${y(v)}" stroke="rgba(255,255,255,.06)" stroke-dasharray="2,3"/>
+      <text x="${padL - 4}" y="${y(v) + 3}" text-anchor="end" fill="#5d6b66" font-size="8">${v}</text>`).join("")}
+    <path d="${areaPath}" fill="url(#ageFillGr)"/>
+    <path d="${path}" stroke="#e0b078" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    ${live.map((d, i) => `
+      <circle cx="${x(i)}" cy="${y(d.avgAge)}" r="3" fill="#e0b078" stroke="#0a1410" stroke-width="1.5"/>
+      <text x="${x(i)}" y="${H - 14}" text-anchor="middle" fill="#5d6b66" font-size="8">'${String(d.season).slice(-2)}</text>
+      <text x="${x(i)}" y="${y(d.avgAge) - 8}" text-anchor="middle" fill="#e0b078" font-size="8.5" font-weight="700">${d.avgAge.toFixed(1)}</text>`).join("")}
+    <text x="${W - padR}" y="${H - 4}" text-anchor="end" fill="${totalDeltaColor}" font-size="9" font-weight="700">${totalDeltaStr} yr · ${live.length-1} season${live.length>2?'s':''}</text>
+  </svg>`;
+}
+
+// Internal camp notes — narrative texture from the team's coaching
+// staff and trainers. Procedural: pulls a quote pool by reason and
+// situation. Adds the "inside the building" voice that the dev
+// report's raw numbers miss. 6-8 notes max so it stays scannable.
+//
+// Sources (rotated for variety):
+//   📈 Position-coach quotes on breakouts
+//   ⏳ Veteran cliff concerns
+//   💎 Hidden-gem-reveal excitement
+//   🩹 Injury/recovery notes from trainers
+//   🌅 Vet-surge "wisdom" angle
+//   📋 Coachable players, work-ethic praise
+const _CAMP_QUOTES = {
+  breakout: [
+    "Reading the game a beat quicker. Pre-snap is way ahead of last year.",
+    "Looked dialed in at minicamp — finishing every rep. Coaches noticed.",
+    "Different player than last camp. Confidence is showing.",
+    "Worked his tail off in the offseason. It's paying off.",
+    "Saw the light go on in OTAs. He gets it now.",
+    "Earned that bump. Best player in his room from day one.",
+  ],
+  cliff_hit: [
+    "Showing his age. Younger guys are getting past him.",
+    "Reaction time isn't what it was — will move him to a less demanding role.",
+    "Still smart, still strong, but the speed is leaving him.",
+    "Hard conversations coming about his role going forward.",
+    "Body's telling him something. We're listening.",
+  ],
+  ceiling_raised: [
+    "OC seeing something new. Could be a different player by week 6.",
+    "Late bloomer — finally clicked. Don't sleep on him.",
+    "What he showed in OTAs was a different ceiling than we thought.",
+    "Quiet kid, gets after it. Staff is excited.",
+    "Position coach all-in. Says he hasn't seen the best yet.",
+  ],
+  vet_surge: [
+    "Locker room's leader. Stat sheet's catching up to the influence.",
+    "Drops his anchor early in camp. The young guys follow.",
+    "Doesn't need reps to stay sharp. Plays a chess game now.",
+  ],
+  rehab: [
+    "Back to full strength after offseason work. Cleared for week 1.",
+    "Recovery ahead of schedule. Said he's never felt better.",
+    "Trainer's confident. Looks like his old self in conditioning.",
+  ],
+  coachable: [
+    "First in the building, last out. Setting the tone.",
+    "Asks the right questions. He'll be a coach someday.",
+    "Position coach's favorite kind of student.",
+  ],
+};
+function _campNotes() {
+  const myId = franchise?.chosenTeamId;
+  const allChg = (franchise?._offChanges || []).filter(c => c.tId === myId && c.type === "dev");
+  const roster = franchise?.rosters?.[myId] || [];
+  if (!allChg.length && !roster.length) return "";
+  const notes = [];
+  const seen = new Set();
+  // Deterministic-ish picker — index off pid hash so quotes don't
+  // change every render.
+  const _pid2idx = (pid, len) => {
+    let h = 0;
+    for (let i = 0; i < (pid || "").length; i++) h = (h * 31 + pid.charCodeAt(i)) | 0;
+    return Math.abs(h) % len;
+  };
+  const _pick = (pool, pid) => pool[_pid2idx(pid, pool.length)];
+  const _add = (icon, header, text, pid) => {
+    if (seen.has(pid)) return;
+    seen.add(pid);
+    notes.push({ icon, header, text });
+  };
+  // Breakouts (top 3 by delta)
+  allChg.filter(c => (c.reasons || []).some(r => r === "breakout" || r === "big_breakout"))
+    .sort((a, b) => b.delta - a.delta).slice(0, 3)
+    .forEach(c => _add("📈", `${c.pos} Coach on ${c.name}`, _pick(_CAMP_QUOTES.breakout, c.pid), c.pid));
+  // Ceiling reveals (top 2)
+  allChg.filter(c => c.potentialBumped).slice(0, 2)
+    .forEach(c => _add("💎", `Hidden Gem · ${c.name}`, _pick(_CAMP_QUOTES.ceiling_raised, c.pid), c.pid));
+  // Vet surges (1)
+  allChg.filter(c => (c.reasons || []).includes("vet_surge")).slice(0, 1)
+    .forEach(c => _add("🌅", `Vet Watch · ${c.name}`, _pick(_CAMP_QUOTES.vet_surge, c.pid), c.pid));
+  // Cliffs (top 2 worst)
+  allChg.filter(c => (c.reasons || []).includes("cliff_hit"))
+    .sort((a, b) => a.delta - b.delta).slice(0, 2)
+    .forEach(c => _add("⏳", `Concern · ${c.name}`, _pick(_CAMP_QUOTES.cliff_hit, c.pid), c.pid));
+  // Rehab outcomes (1-2)
+  allChg.filter(c => (c.reasons || []).includes("rehab")).slice(0, 2)
+    .forEach(c => _add("🏥", `Rehab Watch · ${c.name}`, _pick(_CAMP_QUOTES.rehab, c.pid), c.pid));
+  // Coachable players if no other notes for them
+  allChg.filter(c => (c.reasons || []).includes("coachable") && !seen.has(c.pid)).slice(0, 1)
+    .forEach(c => _add("📋", `Work-Ethic Note · ${c.name}`, _pick(_CAMP_QUOTES.coachable, c.pid), c.pid));
+  // Live injuries from roster (not all in dev records)
+  roster.filter(p => p.injury && p.injury.weeksRemaining > 0).slice(0, 2)
+    .forEach(p => _add("🩹", `Injury Watch · ${p.name}`,
+      `Will miss ${p.injury.weeksRemaining} week${p.injury.weeksRemaining > 1 ? "s" : ""} with ${p.injury.label || "injury"}. Depth behind him needs to step up.`,
+      p.pid));
+  return notes.slice(0, 8);
+}
+
 function _ceilingTier(potential, round) {
   const expected = { 1:88, 2:81, 3:75, 4:70, 5:66, 6:63, 7:60, 0:58 }[round ?? 4] ?? 65;
   const delta = (potential || 0) - expected;
@@ -9859,16 +10021,186 @@ function _buildOffseasonGainsSheet() {
       .map(([pos, n]) => ({ pos, n }))
       .sort((a, b) => b.n - a.n),
   }));
-  // C: roster avg OVR history
+  // C: roster avg OVR history. D: roster avg AGE history. Same
+  // underlying snapshot array — _ensureRosterAvgOvrSnapshot now
+  // records both fields per season.
   const ovrHistory = franchise?._rosterAvgOvrHistory || [];
-  // Strict 3-column grid (chart B no longer spans full width). On
-  // narrower viewports auto-fit wraps to 2 cols then 1.
+  // 4-chart auto-fit grid: 4 across on wide, 2x2 on medium, single
+  // column on narrow. min 280 lets all 4 fit at ~1180+ wide.
   const chartsBlock = `
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:.55rem;margin-bottom:.6rem;align-items:start">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:.55rem;margin-bottom:.6rem;align-items:start">
       <div>${_chartPosDeltas(posDeltaData)}</div>
       <div>${_chartTierDist(tierDistData)}</div>
       <div>${_chartOvrLine(ovrHistory)}</div>
+      <div>${_chartAgeLine(ovrHistory)}</div>
     </div>`;
+
+  // ── TEAM STATUS strip — "how my team looking?" ───────────────
+  // Headline unit OVRs + team-shape stats. Pulls from live roster
+  // for OFF/DEF/ST so it reflects the post-dev current state, not
+  // just the dev-cycle subset.
+  const teamStatusBlock = (() => {
+    const roster = franchise?.rosters?.[myId] || [];
+    if (!roster.length) return "";
+    // Compute OFF/DEF/ST unit OVR — top N at each position group
+    const _avgTopN = (positions, n) => {
+      const filtered = roster
+        .filter(p => positions.includes(p.position))
+        .sort((a, b) => (b.overall || 0) - (a.overall || 0))
+        .slice(0, n);
+      if (!filtered.length) return 0;
+      return filtered.reduce((s, p) => s + (p.overall || 0), 0) / filtered.length;
+    };
+    const offOvr = _avgTopN(["QB","RB","WR","TE","OL"], 11);  // 11 starters
+    const defOvr = _avgTopN(["DL","LB","CB","S"], 11);
+    const stOvr  = _avgTopN(["K","P"], 2);
+    const avgAge = roster.reduce((s, p) => s + (p.age || 0), 0) / roster.length;
+    const young  = roster.filter(p => (p.age || 0) <= 24).length;
+    const vet    = roster.filter(p => (p.age || 0) >= 30).length;
+    const injured = roster.filter(p => p.injury && p.injury.weeksRemaining > 0).length;
+    // Unit color/grade
+    const _unitColor = (ovr) => ovr >= 82 ? "#86e0a3" : ovr >= 76 ? "#a8d8b6" : ovr >= 70 ? "#e0b078" : "#ff9b9b";
+    const _unitGrade = (ovr) => ovr >= 88 ? "S" : ovr >= 82 ? "A" : ovr >= 76 ? "B" : ovr >= 70 ? "C" : "D";
+    const _unitBar = (label, ovr) => {
+      const color = _unitColor(ovr);
+      const grade = _unitGrade(ovr);
+      const pct = Math.min(100, Math.max(0, (ovr - 55) / 45 * 100));
+      return `
+        <div style="flex:1;min-width:140px">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:.15rem">
+            <span style="font-size:.55rem;color:var(--gray);letter-spacing:1px;font-weight:700">${label}</span>
+            <span style="font-family:'Bebas Neue','Anton',sans-serif;font-size:1.25rem;color:${color};letter-spacing:.5px">${ovr.toFixed(1)}</span>
+            <span style="font-size:.7rem;font-weight:900;color:${color};margin-left:.3rem">${grade}</span>
+          </div>
+          <div style="height:5px;background:rgba(255,255,255,.06);border-radius:1px;overflow:hidden">
+            <div style="height:100%;width:${pct}%;background:${color}"></div>
+          </div>
+        </div>`;
+    };
+    return `
+    <div style="margin-bottom:.6rem;padding:.55rem .7rem;background:rgba(255,255,255,.02);border:1px solid var(--blborder);border-radius:3px">
+      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.45rem">
+        <span style="font-size:.55rem;color:#a98a2e;letter-spacing:1.5px;font-weight:700">📊 TEAM STATUS</span>
+        <span style="color:var(--gray);font-size:.6rem">— how the roster's looking right now</span>
+      </div>
+      <div style="display:flex;gap:.7rem;flex-wrap:wrap;align-items:stretch">
+        ${_unitBar("OFFENSE", offOvr)}
+        ${_unitBar("DEFENSE", defOvr)}
+        ${_unitBar("SPECIAL", stOvr)}
+        <div style="flex:1;min-width:140px;display:flex;flex-direction:column;justify-content:center;gap:.18rem">
+          <div style="display:flex;justify-content:space-between;font-size:.6rem"><span style="color:var(--gray)">Avg age</span><span style="color:var(--white);font-weight:700">${avgAge.toFixed(1)}</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:.6rem"><span style="color:var(--gray)">Youth ≤24</span><span style="color:${young>=12?"#86e0a3":"var(--gray)"};font-weight:700">${young}</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:.6rem"><span style="color:var(--gray)">Vets ≥30</span><span style="color:${vet>=8?"#e0b078":"var(--gray)"};font-weight:700">${vet}</span></div>
+          ${injured ? `<div style="display:flex;justify-content:space-between;font-size:.6rem"><span style="color:var(--gray)">Injured</span><span style="color:var(--red);font-weight:700">${injured}</span></div>` : ""}
+        </div>
+      </div>
+    </div>`;
+  })();
+
+  // ── STAR WATCH — "how my stars looking?" ─────────────────────
+  // Top 5 by OVR with rich status: tier, trajectory, age curve,
+  // health, contract, ceiling reveal flag. Lookup live-roster
+  // record for fields that aren't in the dev change record.
+  const starWatchBlock = (() => {
+    const roster = franchise?.rosters?.[myId] || [];
+    if (!roster.length) return "";
+    const playerByPid = {};
+    for (const p of roster) playerByPid[p.pid] = p;
+    const chgByPid = {};
+    for (const c of allMyChg) chgByPid[c.pid] = c;
+    const stars = roster.slice()
+      .filter(p => (p.overall || 0) >= 75)
+      .sort((a, b) => (b.overall || 0) - (a.overall || 0))
+      .slice(0, 5);
+    if (!stars.length) return "";
+    const rows = stars.map(p => {
+      const c = chgByPid[p.pid];
+      const ovr = p.overall || 0;
+      const delta = c?.delta || 0;
+      const tier = _ceilingTier(p.potential || ovr, p.draftRound);
+      // Trajectory icon — combines this-offseason delta with age-curve hint
+      const peakAge = p.peakAge || 27;
+      const isPast = (p.age || 0) > peakAge;
+      const trajArrow = delta > 1 ? "▲" : delta < -1 ? "▼" : "━";
+      const trajColor = delta > 1 ? "#86e0a3" : delta < -1 ? "#ff9b9b" : "#7a8b85";
+      // Status flags (chip badges)
+      const flags = [];
+      if (p.injury && p.injury.weeksRemaining > 0) {
+        flags.push(`<span style="font-size:.55rem;color:var(--red);padding:.05rem .3rem;border:1px solid var(--red);border-radius:1px">🩹 ${p.injury.label || "INJ"} ${p.injury.weeksRemaining}w</span>`);
+      }
+      if (p.contract?.remaining != null && p.contract.remaining <= 1) {
+        flags.push(`<span style="font-size:.55rem;color:#e0b078;padding:.05rem .3rem;border:1px solid #e0b078;border-radius:1px">⏳ EXPIRING</span>`);
+      }
+      if (c?.potentialBumped) {
+        flags.push(`<span style="font-size:.55rem;color:#86c8ff;padding:.05rem .3rem;border:1px solid #86c8ff;border-radius:1px">💎 CEILING ↑</span>`);
+      }
+      // Age stage
+      const ageStage = (p.age || 0) >= peakAge + 3 ? `<span style="color:#ff9b9b">declining</span>`
+                     : (p.age || 0) > peakAge        ? `<span style="color:#e0b078">post-peak</span>`
+                     : (p.age || 0) >= 25            ? `<span style="color:#86e0a3">in prime</span>`
+                     : (p.age || 0) >= 23            ? `<span style="color:#5ed4d4">ascending</span>`
+                     :                                  `<span style="color:#a8d8b6">young</span>`;
+      const deltaStr = delta > 0 ? `+${delta}` : delta < 0 ? `${delta}` : "—";
+      return `
+        <div style="display:grid;grid-template-columns:1.6rem 1fr auto auto;gap:.5rem;align-items:center;padding:.35rem .5rem;background:rgba(255,255,255,.025);border-radius:2px;border-left:3px solid ${tier.color}">
+          <div style="font-family:'Bebas Neue','Anton',sans-serif;font-size:1.2rem;color:${tier.color};text-align:center;font-weight:900">${tier.grade}</div>
+          <div style="min-width:0">
+            <div style="display:flex;align-items:baseline;gap:.4rem;flex-wrap:wrap">
+              <span style="font-weight:700;font-size:.78rem">${_playerLinkSmart(p.name)}</span>
+              <span style="color:var(--gray);font-size:.62rem">${p.position} · age ${p.age}</span>
+              <span style="font-size:.62rem">${ageStage}</span>
+              ${flags.join(" ")}
+            </div>
+            <div style="color:var(--gray);font-size:.58rem;margin-top:.1rem">
+              ${p.archetype ? `${p.archetype} · ` : ""}${p.contract?.remaining != null ? `${p.contract.remaining}yr left · ` : ""}${p.contract?.aav != null ? `$${p.contract.aav.toFixed(1)}M/yr` : ""}
+            </div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-family:'Bebas Neue','Anton',sans-serif;font-size:1.35rem;color:var(--white);line-height:1">${ovr}</div>
+            <div style="font-size:.56rem;color:var(--gray);letter-spacing:.5px">OVR</div>
+          </div>
+          <div style="text-align:right;min-width:2.5rem">
+            <div style="font-family:'Bebas Neue','Anton',sans-serif;font-size:1.2rem;color:${trajColor};line-height:1">${trajArrow}${deltaStr !== "—" ? ` ${deltaStr}` : ""}</div>
+            <div style="font-size:.56rem;color:var(--gray);letter-spacing:.5px">YoY</div>
+          </div>
+        </div>`;
+    }).join("");
+    return `
+    <div style="margin-bottom:.6rem;padding:.55rem .7rem;background:linear-gradient(180deg,rgba(245,197,66,.04),transparent);border:1px solid var(--blborder);border-radius:3px">
+      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem">
+        <span style="font-size:.55rem;color:#a98a2e;letter-spacing:1.5px;font-weight:700">⭐ STAR WATCH</span>
+        <span style="color:var(--gray);font-size:.6rem">— top of your roster, where they stand</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:.3rem">${rows}</div>
+    </div>`;
+  })();
+
+  // ── INTERNAL CAMP NOTES — narrative texture ──────────────────
+  // Procedural quotes attributed to position coaches / trainers,
+  // derived from this offseason's dev reasons + the live injury
+  // list. Adds the "inside the building" voice that raw OVR deltas
+  // can't carry. 6-8 notes max so it stays scannable.
+  const campNotesBlock = (() => {
+    const notes = _campNotes();
+    if (!notes.length) return "";
+    return `
+    <div style="margin-bottom:.6rem;padding:.55rem .7rem;background:rgba(255,255,255,.025);border:1px solid var(--blborder);border-radius:3px">
+      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem">
+        <span style="font-size:.55rem;color:#a98a2e;letter-spacing:1.5px;font-weight:700">📝 INTERNAL CAMP NOTES</span>
+        <span style="color:var(--gray);font-size:.6rem;font-style:italic">— from the building, off the record</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:.4rem">
+        ${notes.map(n => `
+          <div style="padding:.35rem .5rem;border-left:2px solid #2a3a32;background:rgba(255,255,255,.015)">
+            <div style="display:flex;align-items:center;gap:.35rem;margin-bottom:.15rem">
+              <span style="font-size:.7rem">${n.icon}</span>
+              <span style="font-size:.6rem;color:#a98a2e;letter-spacing:.5px;font-weight:700">${n.header}</span>
+            </div>
+            <div style="color:var(--white);font-size:.68rem;font-style:italic;line-height:1.4">"${n.text}"</div>
+          </div>`).join("")}
+      </div>
+    </div>`;
+  })();
 
   // TOP OVERALLS — directly answers "who are my best players now?"
   // Built from the LIVE ROSTER (not allMyChg dev records). Dev
@@ -10230,6 +10562,9 @@ function _buildOffseasonGainsSheet() {
     <div class="frn-sec-title" style="margin-bottom:.5rem">📊 PLAYER DEVELOPMENT REPORT</div>
     ${chipsHtml}
     ${summaryHtml}
+    ${teamStatusBlock}
+    ${starWatchBlock}
+    ${campNotesBlock}
     ${chartsBlock}
     ${top5Movers}
     ${topOverallsBlock}
