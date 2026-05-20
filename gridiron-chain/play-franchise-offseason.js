@@ -16888,17 +16888,18 @@ const _CLASS_TOTAL_SIZE = 350;
 // to target an NFL-like spread: ~25 R1, ~30 R2, ~40 R3, ~50 R4, ~60
 // R5, ~50 R6, ~50 R7, ~95 camp body across a 350-prospect pool.
 const _CONSENSUS_GRADE_THRESHOLDS = [
-  // Tightened middle, widened edges — produces more R2 and more R7
-  // grades by shifting bucket boundaries down 2 OVR. Without this,
-  // the bell-curve OVR distribution clusters in R4/R5/R6 (134-149%
-  // of NFL expectation) while R2/R7 are starved.
+  // Tightened middle, widened edges. R7 boundary lowered 52 → 50
+  // so it catches prospects who'd otherwise fall to CAMP (OVR 48-51).
+  // Real-NFL R7 grades extend further down than the strict ≥52
+  // would suggest — a "draftable but late" call includes prospects
+  // in the OVR 48-55 range.
   { round: 1, minOvr: 85 },
   { round: 2, minOvr: 78 },
   { round: 3, minOvr: 73 },
   { round: 4, minOvr: 68 },
   { round: 5, minOvr: 63 },
   { round: 6, minOvr: 58 },
-  { round: 7, minOvr: 52 },
+  { round: 7, minOvr: 50 },
 ];
 // Position-aware threshold adjustments. QB is rare in the college pool
 // (~6% pre-bump) and the dev curve caps elite-FR QBs at OVR ~88-92 by
@@ -18200,14 +18201,12 @@ function _buildDraftClassFromPipeline(rookieYear, themesArg, positionsArg) {
       }
     }
     // Filler tier distribution — Path A refactor injects "scrub" tier
-    // for genuine camp bodies (OVR 30-48). Pipeline produces mostly
-    // OVR 60-75 (the belly); filler adds the missing tails — true
-    // R1-R2 blue chips at the top AND undraftable scrubs at the bottom.
-    // Without scrub, the OVR distribution had only 55% of NFL camp-body
-    // count. Tuned so total class targets NFL-shaped distribution.
+    // for genuine camp bodies. 28% scrub produces ~40 sub-OVR-50
+    // prospects per class, filling CAMP grade to ~86% of NFL. R7
+    // shortage addressed via threshold widening (see grade table).
     const tierRoll = _seededRand(posKey, 4);
-    let tier = tierRoll < 0.28 ? "scrub"         // 28% — true camp bodies (NEW)
-            : tierRoll < 0.55 ? "poor"           // 27% — late-round depth
+    let tier = tierRoll < 0.28 ? "scrub"         // 28% — true camp bodies
+            : tierRoll < 0.55 ? "poor"           // 27% — R6/R7 depth
             : tierRoll < 0.78 ? "average"        // 23% — mid-round
             : tierRoll < 0.94 ? "good"           // 16% — R3-R5 surprise
                               : "elite";         //  6% — R1-R2 blue chip
