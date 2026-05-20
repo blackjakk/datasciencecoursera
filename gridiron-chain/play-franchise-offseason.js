@@ -17060,13 +17060,14 @@ function _rollCollegeTier(year, pos) {
 // scouting board (using fuzzed grade), college profile generation
 // (using current OVR), and declaration probability rolls.
 function _projectedRoundFromGrade(g) {
-  if (g >= 82) return 1;
-  if (g >= 76) return 2;
-  if (g >= 71) return 3;
-  if (g >= 67) return 4;
-  if (g >= 63) return 5;
-  if (g >= 58) return 6;
-  return 7;
+  // Delegated to _consensusGradeRound so the threshold table is the
+  // single source of truth. Previously these diverged — when we
+  // tightened _CONSENSUS_GRADE_THRESHOLDS, this stayed at old values,
+  // creating mismatches between display badge and declaration prob.
+  // Pass null for position — projected round is unadjusted (treats
+  // all positions equally; only the consensus check is positional).
+  const r = _consensusGradeRound(g, null);
+  return r === 0 ? 7 : r;
 }
 // Convenience — round from a player's RAW OVR. Used for internal
 // generation (knock-type selection, declaration probability) where the
@@ -17162,6 +17163,24 @@ function _declareEarlyJuniors() {
     }
   }
   return declared;
+}
+
+// Strip college-only state from a prospect after they sign with an
+// NFL team. Without this, every rookie carries 8 dead fields forever
+// (breakout/secondary/tertiary flags + magnitudes). Doesn't affect
+// behavior since _developCollegePlayer only runs on collegePlayers,
+// but bloats saves and confuses debuggers seeing "breakout fired"
+// on a retired vet.
+function _clearCollegeFlags(p) {
+  if (!p) return;
+  delete p._breakoutYear;
+  delete p._breakoutSeverity;
+  delete p._breakoutFired;
+  delete p._breakoutMagnitude;
+  delete p._secondaryFired;
+  delete p._secondaryMagnitude;
+  delete p._tertiaryFired;
+  delete p._tertiaryMagnitude;
 }
 
 // Per-season stat development with breakout-year mechanism. Each
@@ -19641,6 +19660,7 @@ function _aiAutoPick(slot, opts) {
   pick.contract = rookieContract(pick, franchise.salaryCap || SALARY_CAP_BASE);
   pick.careerEarnings = 0;
   delete pick.isProspect;
+  _clearCollegeFlags(pick);
   franchise.rosters[slot.teamId].push(pick);
   franchise.draft.picks.push({
     pick: franchise.draft.currentIdx + 1, round: slot.round,
@@ -19704,6 +19724,7 @@ function frnDraftPick(name) {
   prospect.contract = rookieContract(prospect, franchise.salaryCap || SALARY_CAP_BASE);
   prospect.careerEarnings = 0;
   delete prospect.isProspect;
+  _clearCollegeFlags(prospect);
   // Carryover — pre-draft scouting persists into the rookie's first season
   // on your roster (one-year window via _playerNoiseBand's `within` helper).
   const scoutedCats = _draftScoutCategories(prospect.name);
@@ -19796,6 +19817,7 @@ function _signUdfaTo(roster, prospect, rookieYear) {
   // re-uses player objects doesn't leak state into the new rookie.
   _clearGrudgeFlags(prospect);
   delete prospect.isProspect;
+  _clearCollegeFlags(prospect);
   roster.push(prospect);
 }
 
