@@ -10088,7 +10088,7 @@ function _chartTierDist(data) {
 // Chart C — roster avg OVR over last N seasons (line + area fill).
 // Needs at least 2 points to be meaningful. Returns a "need more
 // seasons" placeholder otherwise so the chart slot doesn't go empty.
-function _chartOvrLine(data) {
+function _chartOvrLine(data, projected) {
   const W = _CHART_W, H = _CHART_H;
   if (data.length < 2) {
     return `<svg viewBox="0 0 ${W} ${H}" style="${_CHART_STYLE}">
@@ -10099,14 +10099,32 @@ function _chartOvrLine(data) {
   }
   const padL = 36, padR = 22, padT = 28, padB = 28;
   const innerW = W - padL - padR, innerH = H - padT - padB;
-  const ovrs = data.map(d => d.avgOvr);
-  const minOvr = Math.floor(Math.min(...ovrs) - 1);
-  const maxOvr = Math.ceil(Math.max(...ovrs) + 1);
+  // Projected trajectory: first entry overlaps with data's last
+  // entry (current season). Skip the overlap so we don't double the
+  // anchor point. Future-only segment is what we'll draw dashed.
+  const projFuture = (projected && projected.length > 1) ? projected.slice(1) : [];
+  // Total X-axis points span = history + future
+  const totalPoints = data.length + projFuture.length;
+  // Y-axis range — include BOTH the historical and projected OVRs
+  const allOvrs = data.map(d => d.avgOvr).concat(projFuture.map(p => p.ovr));
+  const minOvr = Math.floor(Math.min(...allOvrs) - 1);
+  const maxOvr = Math.ceil(Math.max(...allOvrs) + 1);
   const span = Math.max(1, maxOvr - minOvr);
-  const x = i => padL + (i / (data.length - 1)) * innerW;
+  const x = i => padL + (i / (totalPoints - 1)) * innerW;
   const y = v => padT + innerH - ((v - minOvr) / span) * innerH;
-  const path = data.map((d, i) => `${i === 0 ? 'M' : 'L'} ${x(i).toFixed(1)} ${y(d.avgOvr).toFixed(1)}`).join(" ");
-  const areaPath = `${path} L ${x(data.length - 1).toFixed(1)} ${(padT + innerH).toFixed(1)} L ${x(0).toFixed(1)} ${(padT + innerH).toFixed(1)} Z`;
+  // Historical path (solid)
+  const histPath = data.map((d, i) => `${i === 0 ? 'M' : 'L'} ${x(i).toFixed(1)} ${y(d.avgOvr).toFixed(1)}`).join(" ");
+  const areaPath = `${histPath} L ${x(data.length - 1).toFixed(1)} ${(padT + innerH).toFixed(1)} L ${x(0).toFixed(1)} ${(padT + innerH).toFixed(1)} Z`;
+  // Projected path (dashed) — starts from the last historical point,
+  // continues through future trajectory.
+  const projPath = projFuture.length
+    ? `M ${x(data.length - 1).toFixed(1)} ${y(data[data.length - 1].avgOvr).toFixed(1)} ` +
+      projFuture.map((p, i) => `L ${x(data.length + i).toFixed(1)} ${y(p.ovr).toFixed(1)}`).join(" ")
+    : "";
+  // Find the projected peak (highest OVR across both arrays)
+  const peakAll = [...data.map(d => ({ ovr: d.avgOvr, season: d.season, idx: data.indexOf(d) })),
+                   ...projFuture.map((p, i) => ({ ovr: p.ovr, season: p.year, idx: data.length + i, isFuture: true }))]
+                  .sort((a, b) => b.ovr - a.ovr)[0];
   const totalDelta = data[data.length - 1].avgOvr - data[0].avgOvr;
   const totalDeltaStr = totalDelta > 0 ? `+${totalDelta.toFixed(1)}` : totalDelta.toFixed(1);
   const totalDeltaColor = totalDelta > 0 ? "#86e0a3" : totalDelta < 0 ? "#ff9b9b" : "#7a8b85";
@@ -10115,17 +10133,24 @@ function _chartOvrLine(data) {
       <stop offset="0%" stop-color="#86c8ff" stop-opacity="0.4"/>
       <stop offset="100%" stop-color="#86c8ff" stop-opacity="0"/>
     </linearGradient></defs>
-    <text x="${padL}" y="14" fill="${_CHART_TITLE}" font-size="10" font-weight="700" letter-spacing="1">ROSTER AVG OVR · LAST ${data.length} SEASONS</text>
+    <text x="${padL}" y="14" fill="${_CHART_TITLE}" font-size="10" font-weight="700" letter-spacing="1">ROSTER AVG OVR · LAST ${data.length}${projFuture.length ? ` + PROJECTED ${projFuture.length}` : ""} SEASONS</text>
     ${[minOvr, Math.round((minOvr + maxOvr) / 2), maxOvr].map(v => `
       <line x1="${padL}" y1="${y(v)}" x2="${W - padR}" y2="${y(v)}" stroke="rgba(255,255,255,.06)" stroke-dasharray="2,3"/>
       <text x="${padL - 4}" y="${y(v) + 3}" text-anchor="end" fill="#5d6b66" font-size="8">${v}</text>`).join("")}
     <path d="${areaPath}" fill="url(#ovrFillGr)"/>
-    <path d="${path}" stroke="#86c8ff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    ${projPath ? `<path d="${projPath}" stroke="#86c8ff" stroke-width="1.5" stroke-dasharray="3,3" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/>` : ""}
+    <path d="${histPath}" stroke="#86c8ff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
     ${data.map((d, i) => `
       <circle cx="${x(i)}" cy="${y(d.avgOvr)}" r="3" fill="#86c8ff" stroke="#0a1410" stroke-width="1.5"/>
       <text x="${x(i)}" y="${H - 14}" text-anchor="middle" fill="#5d6b66" font-size="8">'${String(d.season).slice(-2)}</text>
       <text x="${x(i)}" y="${y(d.avgOvr) - 8}" text-anchor="middle" fill="#86c8ff" font-size="8.5" font-weight="700">${d.avgOvr.toFixed(1)}</text>
       <circle cx="${x(i)}" cy="${y(d.avgOvr)}" r="10" fill="transparent" style="cursor:pointer" onmouseenter="_devChartHistoryShow(event, 'ovr', ${d.season})" onmouseleave="_devChartPosHide()"/>`).join("")}
+    ${projFuture.map((p, i) => `
+      <circle cx="${x(data.length + i)}" cy="${y(p.ovr)}" r="2.5" fill="#0a1410" stroke="#86c8ff" stroke-width="1.5" stroke-dasharray="2,1.5" opacity="0.85"/>
+      <text x="${x(data.length + i)}" y="${H - 14}" text-anchor="middle" fill="#5d6b66" font-size="8" font-style="italic">'${String(p.year).slice(-2)}</text>`).join("")}
+    ${peakAll && peakAll.isFuture ? `
+      <text x="${x(peakAll.idx)}" y="${y(peakAll.ovr) - 8}" text-anchor="middle" fill="#f5c542" font-size="8.5" font-weight="700">${peakAll.ovr.toFixed(1)}</text>
+      <text x="${x(peakAll.idx)}" y="${y(peakAll.ovr) - 18}" text-anchor="middle" fill="#f5c542" font-size="7" letter-spacing=".5px" font-weight="700">⭐ PEAK</text>` : ""}
     <text x="${W - padR}" y="${H - 4}" text-anchor="end" fill="${totalDeltaColor}" font-size="9" font-weight="700">${totalDeltaStr} OVR · ${data.length-1} yr${data.length>2?'s':''}</text>
   </svg>`;
 }
@@ -10751,6 +10776,14 @@ function _buildOffseasonGainsSheet() {
   // underlying snapshot array — _ensureRosterAvgOvrSnapshot now
   // records both fields per season.
   const ovrHistory = franchise?._rosterAvgOvrHistory || [];
+  // Projected peak — computed here (early) so Chart C can render
+  // the dashed forward line. Same data object also drives the
+  // Championship Window block below.
+  const peakProj = _projectedPeakYear(
+    franchise?.rosters?.[myId] || [],
+    franchise?.season || 1,
+    5
+  );
   // Stash for time-series hover tooltips. Same array drives Chart C
   // (OVR per season) and Chart D (age per season).
   if (typeof window !== "undefined") window._devChartHistoryData = ovrHistory;
@@ -10760,7 +10793,7 @@ function _buildOffseasonGainsSheet() {
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:.55rem;margin-bottom:.6rem;align-items:start">
       <div>${_chartPosDeltas(posDeltaData)}</div>
       <div>${_chartTierDist(tierDistData)}</div>
-      <div>${_chartOvrLine(ovrHistory)}</div>
+      <div>${_chartOvrLine(ovrHistory, peakProj?.trajectory)}</div>
       <div>${_chartAgeLine(ovrHistory)}</div>
     </div>`;
 
@@ -11199,13 +11232,10 @@ function _buildOffseasonGainsSheet() {
     const roster = franchise?.rosters?.[myId] || [];
     return _championshipWindow(roster);
   })();
-  // Projected peak year — paired with Championship Window. Tells the
-  // GM "when does this group hit its ceiling, assuming current
-  // roster stays intact?" Caveat surfaced in UI.
-  const peakProj = (() => {
-    const roster = franchise?.rosters?.[myId] || [];
-    return _projectedPeakYear(roster, franchise?.season || 1, 5);
-  })();
+  // Projected peak year — already computed earlier (above the charts
+  // block, since Chart C also uses peakProj.trajectory for the
+  // dashed forward line). Reuse here for the Championship Window
+  // display line.
   const peakHtml = peakProj ? (() => {
     const label = peakProj.yearsAway === 0
       ? `<span style="color:#86e0a3">peaking now</span>`
