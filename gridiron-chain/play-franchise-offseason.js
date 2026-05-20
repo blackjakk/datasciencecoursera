@@ -9670,6 +9670,69 @@ function _buildOffseasonGainsSheet() {
   </div>` : "";
   const chipsHtml = posChipsHtml + reasonChipsHtml;
 
+  // TOP OVERALLS — directly answers "who are my best players now?"
+  // Built from postOvr (current season-end overall). Top 10 with age,
+  // pos, current contract status. Highlights rows whose contract
+  // expires soon so the user sees their stars-at-risk at a glance.
+  const topOveralls = allMyChg.slice()
+    .sort((a, b) => (b.postOvr || 0) - (a.postOvr || 0))
+    .slice(0, 10);
+  const _topOvrRow = (c, i) => {
+    const tier = _ceilingTier(c.potential || c.postOvr, c.draftRound);
+    const contractFlag = c.contractYearsLeft === 0 ? `<span style="color:#ff9b9b;font-size:.55rem;font-weight:700">EXPIRED</span>`
+                      : c.contractYearsLeft === 1 ? `<span style="color:#e0b078;font-size:.55rem;font-weight:700">1yr</span>`
+                      : c.contractYearsLeft != null ? `<span style="color:var(--gray);font-size:.55rem">${c.contractYearsLeft}yr</span>` : "";
+    const dStr = c.delta > 0 ? `+${c.delta}` : c.delta < 0 ? `${c.delta}` : "—";
+    const dColor = c.delta > 0 ? "#86e0a3" : c.delta < 0 ? "#ff9b9b" : "var(--gray)";
+    return `<tr style="border-top:1px solid rgba(255,255,255,.04)">
+      <td style="padding:.18rem .5rem;color:var(--gray);font-size:.55rem;width:1.5rem">${i+1}</td>
+      <td style="padding:.18rem .5rem;font-weight:700">${_playerLinkSmart(c.name)}</td>
+      <td style="padding:.18rem .5rem;color:var(--gray);font-size:.65rem">${c.pos}</td>
+      <td style="padding:.18rem .5rem;color:var(--gray);font-size:.65rem">${c.ageNow}</td>
+      <td style="padding:.18rem .5rem;font-family:'Bebas Neue','Anton',sans-serif;font-size:1rem;color:var(--white)">${c.postOvr}</td>
+      <td style="padding:.18rem .5rem;color:${dColor};font-size:.65rem">${dStr}</td>
+      <td style="padding:.18rem .5rem;font-size:.6rem"><b style="color:${tier.color}">${tier.grade}</b></td>
+      <td style="padding:.18rem .5rem">${contractFlag}</td>
+      <td style="padding:.18rem .5rem;text-align:right"><button onclick="frnExtendPlayer('${c.name.replace(/'/g, "\\'")}')" style="font-size:.55rem;letter-spacing:.5px;padding:.15rem .45rem;border-radius:2px;border:1px solid var(--blborder);background:transparent;color:var(--gold);cursor:pointer;font-family:inherit">📝 EXTEND</button></td>
+    </tr>`;
+  };
+  const topOverallsBlock = topOveralls.length ? `
+    <div style="margin-bottom:.6rem;padding:.45rem .65rem;background:rgba(245,197,66,.05);border-left:3px solid var(--gold);border-radius:3px">
+      <div style="font-size:.55rem;color:var(--gold);letter-spacing:1.5px;margin-bottom:.25rem">⭐ TOP OF ROSTER — HIGHEST OVERALLS</div>
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.7rem">
+        <thead><tr style="color:var(--gray);font-size:.5rem;letter-spacing:.8px">
+          <th style="text-align:left;padding:.15rem .5rem">#</th>
+          <th style="text-align:left;padding:.15rem .5rem">PLAYER</th>
+          <th style="text-align:left;padding:.15rem .5rem">POS</th>
+          <th style="text-align:left;padding:.15rem .5rem">AGE</th>
+          <th style="text-align:left;padding:.15rem .5rem">OVR</th>
+          <th style="text-align:left;padding:.15rem .5rem">Δ</th>
+          <th style="text-align:left;padding:.15rem .5rem">CEIL</th>
+          <th style="text-align:left;padding:.15rem .5rem">CONT</th>
+          <th style="text-align:right;padding:.15rem .5rem"></th>
+        </tr></thead>
+        <tbody>${topOveralls.map(_topOvrRow).join("")}</tbody>
+      </table></div>
+    </div>` : "";
+
+  // TOP MOVERS — top 5 gainers strip. Replaces the previous single
+  // "BIGGEST GAINER" hero card (kept the legacy biggestUp/biggestDn
+  // cards too — they're prominent visual anchors; this strip adds
+  // the leaderboard answer to "who got better, in order?").
+  const top5Gainers = allMyChg.filter(c => c.delta > 0)
+    .sort((a, b) => b.delta - a.delta).slice(0, 5);
+  const top5Movers = top5Gainers.length ? `
+    <div style="margin-bottom:.55rem;padding:.4rem .55rem;background:rgba(134,224,163,.06);border-left:3px solid #86e0a3;border-radius:3px">
+      <div style="font-size:.55rem;color:#86e0a3;letter-spacing:1.5px;margin-bottom:.2rem">🚀 TOP 5 GAINERS</div>
+      ${top5Gainers.map((c, i) => `
+        <div style="display:flex;align-items:center;gap:.4rem;padding:.12rem 0;font-size:.65rem">
+          <span style="color:var(--gray);width:.9rem">${i+1}.</span>
+          <span style="font-weight:700">${_playerLinkSmart(c.name)}</span>
+          <span style="color:var(--gray);font-size:.6rem">${c.pos} · age ${c.ageNow}</span>
+          <span style="color:#86e0a3;font-size:.62rem">${c.preOvr} → ${c.postOvr} (+${c.delta})</span>
+        </div>`).join("")}
+    </div>` : "";
+
   // Summary header card
   const _stat = (n, label, color) => `
     <div style="text-align:center;padding:.45rem .6rem;background:rgba(255,255,255,.04);border-radius:3px;min-width:88px">
@@ -9864,10 +9927,14 @@ function _buildOffseasonGainsSheet() {
         </div>`).join("")}
     </div>` : "";
 
-  // Per-player table row
+  // Per-player table row. Final cell is an EXTEND button that opens
+  // the existing frnExtendPlayer flow for ANY player — the user can
+  // initiate a contract talk for anyone in the report, not just the
+  // re-sign emergencies the priority block highlights.
   const _row = (c) => {
     const dColor = c.delta > 0 ? "#86e0a3" : c.delta < 0 ? "#ff9b9b" : "var(--gray)";
     const dStr   = c.delta > 0 ? `+${c.delta}` : `${c.delta}`;
+    const safeName = c.name.replace(/'/g, "\\'");
     return `<tr style="border-top:1px solid rgba(255,255,255,.04)">
       <td style="padding:.3rem .5rem;font-weight:700">${_playerLinkSmart(c.name)}</td>
       <td style="padding:.3rem .5rem;color:var(--gray);font-size:.7rem">${c.pos}</td>
@@ -9877,6 +9944,7 @@ function _buildOffseasonGainsSheet() {
       <td style="padding:.3rem .5rem;white-space:nowrap">${_ceilingCell(c)}</td>
       <td style="padding:.3rem .5rem;white-space:nowrap">${_contractCell(c)}</td>
       <td style="padding:.3rem .5rem;font-size:.6rem">${_statChips(c.statDeltas)}${_renderOffReasonChips(c.reasons)}</td>
+      <td style="padding:.3rem .5rem;text-align:right"><button onclick="frnExtendPlayer('${safeName}')" style="font-size:.55rem;letter-spacing:.5px;padding:.15rem .45rem;border-radius:2px;border:1px solid var(--blborder);background:transparent;color:var(--gold);cursor:pointer;font-family:inherit" title="Open contract extension talks">📝 EXTEND</button></td>
     </tr>`;
   };
 
@@ -9893,6 +9961,7 @@ function _buildOffseasonGainsSheet() {
       <th style="text-align:left;padding:.2rem .5rem">CEILING</th>
       <th style="text-align:left;padding:.2rem .5rem">CONTRACT</th>
       <th style="text-align:left;padding:.2rem .5rem">DETAILS</th>
+      <th style="text-align:right;padding:.2rem .5rem"></th>
     </tr></thead>
     <tbody>${rows.map(_row).join("")}</tbody>
   </table></div>`;
@@ -9914,6 +9983,8 @@ function _buildOffseasonGainsSheet() {
     <div class="frn-sec-title" style="margin-bottom:.5rem">📊 PLAYER DEVELOPMENT REPORT</div>
     ${chipsHtml}
     ${summaryHtml}
+    ${top5Movers}
+    ${topOverallsBlock}
     ${heroBlock}
     ${resignBlock}
     ${depthBlock}
