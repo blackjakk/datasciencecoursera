@@ -10612,6 +10612,59 @@ function _capHorizonFor(teamId, years = 4) {
   return projections;
 }
 
+// CHAMPIONSHIP EXTRAS — secondary stats for the Championship Window
+// block. Picks the most actionable GM context (cap room, pick
+// capital, star concentration, league rank). Helps the user answer
+// "can I act on the verdict, and where do I stand?"
+function _championshipExtras(teamId) {
+  if (!franchise) return null;
+  const cap = (typeof effectiveSalaryCap === "function") ? effectiveSalaryCap(teamId) : 240;
+  const capUsed = (typeof capUsedByTeam === "function") ? capUsedByTeam(teamId) : 0;
+  const capFree = cap - capUsed;
+  // Pick capital — early-round picks (R1+R2) owned for next 2 drafts
+  const curSeason = franchise.season || 1;
+  const myPicks = (franchise.picks || []).filter(p => p.currentOwnerId === teamId);
+  const earlyPicks = myPicks.filter(p =>
+    (p.round === 1 || p.round === 2) &&
+    p.year >= curSeason && p.year <= curSeason + 1
+  ).length;
+  // Star concentration — % of cap in the top 5 AAV contracts
+  const roster = (franchise.rosters?.[teamId] || []).filter(p => p.contract?.aav);
+  const top5 = roster.slice()
+    .sort((a, b) => (b.contract.aav || 0) - (a.contract.aav || 0))
+    .slice(0, 5);
+  const top5Cap = top5.reduce((s, p) => s + (p.contract.aav || 0), 0);
+  const top5Pct = cap > 0 ? (top5Cap / cap) * 100 : 0;
+  // League rank by avg OVR
+  const teamAvgs = [];
+  for (const tid in franchise.rosters) {
+    const r = franchise.rosters[tid] || [];
+    if (!r.length) continue;
+    teamAvgs.push({
+      tid,
+      avg: r.reduce((s, p) => s + (p.overall || 0), 0) / r.length,
+    });
+  }
+  teamAvgs.sort((a, b) => b.avg - a.avg);
+  const myRank = teamAvgs.findIndex(t => t.tid === teamId) + 1;
+  // Holdout pressure — walk-year stars with active demands
+  const holdouts = (franchise.holdoutDemands || []).filter(d => !d.resolved).length;
+  // Young pipeline — players ≤24 with B-tier or better ceiling
+  const pipeline = (franchise.rosters?.[teamId] || []).filter(p => {
+    if ((p.age || 99) > 24) return false;
+    const tier = (typeof _ceilingTier === "function")
+      ? _ceilingTier(p.potential || p.overall || 0, p.draftRound).grade
+      : "B";
+    return tier === "S" || tier === "A" || tier === "B";
+  }).length;
+  return {
+    capFree, capPct: cap > 0 ? (capUsed / cap) * 100 : 100,
+    earlyPicks, top5Pct,
+    myRank, totalTeams: teamAvgs.length,
+    holdouts, pipeline,
+  };
+}
+
 // PROJECTED PEAK YEAR — rolls each player forward N years applying
 // a simple age curve (grow toward potential before peakAge, hold
 // between peakAge and declineAge, decline after). Returns the
@@ -11483,6 +11536,40 @@ function _buildOffseasonGainsSheet() {
     const roster = franchise?.rosters?.[myId] || [];
     return _championshipWindow(roster);
   })();
+  // Championship extras — secondary GM-action context: cap room,
+  // pick capital, star concentration, league rank, holdouts,
+  // pipeline. Surfaces the "can I act on this" alongside the
+  // "where am I" stats already shown.
+  const champExtras = _championshipExtras(myId);
+  const champExtrasHtml = champExtras ? (() => {
+    const capColor = champExtras.capFree > 20 ? "#86e0a3"
+                   : champExtras.capFree > 5  ? "var(--gold)"
+                   : "#ff9b9b";
+    const pickColor = champExtras.earlyPicks >= 3 ? "#86e0a3"
+                    : champExtras.earlyPicks >= 2 ? "var(--gold)"
+                    : "#7a8b85";
+    const concColor = champExtras.top5Pct < 35 ? "#86e0a3"
+                    : champExtras.top5Pct < 50 ? "var(--gold)"
+                    : "#ff9b9b";
+    const rankColor = champExtras.myRank <= 10 ? "#86e0a3"
+                    : champExtras.myRank <= 20 ? "var(--gold)"
+                    : "#ff9b9b";
+    const pipeColor = champExtras.pipeline >= 8 ? "#86e0a3"
+                    : champExtras.pipeline >= 4 ? "var(--gold)"
+                    : "#7a8b85";
+    const holdoutChip = champExtras.holdouts > 0
+      ? `<span title="Active extension demands"><span style="color:#ff9b9b">🗣 <b>${champExtras.holdouts}</b> holdout${champExtras.holdouts>1?"s":""}</span></span>`
+      : "";
+    return `
+      <div style="display:flex;gap:.55rem;flex-wrap:wrap;font-size:.6rem;color:var(--gray);padding:.3rem .4rem;background:rgba(255,255,255,.02);border-radius:2px;border:1px solid var(--blborder)">
+        <span title="Cap room available after current contracts">💰 <b style="color:${capColor};font-family:'Bebas Neue','Anton',sans-serif;font-size:.78rem">$${champExtras.capFree.toFixed(0)}M</b> cap free</span>
+        <span title="R1+R2 picks owned for next 2 drafts">🎯 <b style="color:${pickColor};font-family:'Bebas Neue','Anton',sans-serif;font-size:.78rem">${champExtras.earlyPicks}</b> R1/R2 picks</span>
+        <span title="% of cap in your top-5 paid contracts (top-heavy = risk)">⚡ <b style="color:${concColor};font-family:'Bebas Neue','Anton',sans-serif;font-size:.78rem">${champExtras.top5Pct.toFixed(0)}%</b> top-5</span>
+        <span title="League rank by avg OVR">🏟 <b style="color:${rankColor};font-family:'Bebas Neue','Anton',sans-serif;font-size:.78rem">#${champExtras.myRank}/${champExtras.totalTeams}</b> league</span>
+        <span title="Players ≤24 with B-tier or better ceiling">🌱 <b style="color:${pipeColor};font-family:'Bebas Neue','Anton',sans-serif;font-size:.78rem">${champExtras.pipeline}</b> young upside</span>
+        ${holdoutChip}
+      </div>`;
+  })() : "";
   // Projected peak year — already computed earlier (above the charts
   // block, since Chart C also uses peakProj.trajectory for the
   // dashed forward line). Reuse here for the Championship Window
@@ -11511,6 +11598,7 @@ function _buildOffseasonGainsSheet() {
             <span><b style="color:var(--white);font-family:'Bebas Neue','Anton',sans-serif;font-size:.85rem">${champWindow.avgAge.toFixed(1)}</b> avg age</span>
             <span><b style="color:${champWindow.color};font-family:'Bebas Neue','Anton',sans-serif;font-size:.85rem">${champWindow.starsInPrime}</b> stars in prime</span>
           </div>
+          ${champExtrasHtml ? `<div style="margin-bottom:.35rem">${champExtrasHtml}</div>` : ""}
           ${peakHtml ? `<div style="font-size:.65rem;padding:.18rem 0;margin-bottom:.3rem;border-top:1px dashed var(--blborder);padding-top:.3rem">${peakHtml}</div>` : ""}
           <div style="font-size:.65rem;color:#cce8d6;font-style:italic;line-height:1.4;padding:.25rem .4rem;background:rgba(255,255,255,.025);border-left:2px solid ${champWindow.color};border-radius:1px">
             ${champWindow.guidance}
