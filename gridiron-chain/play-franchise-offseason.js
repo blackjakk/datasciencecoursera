@@ -5999,6 +5999,43 @@ function _extensionModalInnerHtml() {
       <span style="color:var(--gold);font-weight:700">= $${hit.toFixed(1)}M</span>
     </div>`;
   }).join("");
+  // ── TEAM CAP IMPACT — per-year team total with this deal applied ──
+  // Computes baseline (team minus this player's CURRENT contract,
+  // since the new deal replaces it) + the new deal's cap hit per
+  // year. Cap projected at +5%/yr (same conservative assumption as
+  // the Cap Horizon tab). Surfaces over-cap warnings inline.
+  const baselineRoster = (franchise.rosters?.[myId] || []).filter(o => o.contract && o.pid !== p.pid);
+  const teamImpactRows = (typeof projectPlayerCapHit === "function") ? bases.map((base, i) => {
+    let baseline = 0;
+    for (const other of baselineRoster) {
+      baseline += projectPlayerCapHit(other, i);
+    }
+    const dealHit = (base || 0) + bonusProration;
+    const total = baseline + dealHit;
+    const projCap = cap * Math.pow(1.05, i);
+    const free = projCap - total;
+    const pct = projCap > 0 ? (total / projCap) * 100 : 100;
+    const pctClamp = Math.min(100, pct);
+    const barColor = pct < 85 ? "#86e0a3" : pct < 95 ? "#cce8d6" : pct < 100 ? "#e0b078" : "#ff8a8a";
+    const freeColor = free < 0 ? "#ff8a8a" : free > 20 ? "#86e0a3" : free > 5 ? "#cce8d6" : "#e0b078";
+    return `<div style="display:grid;grid-template-columns:2.5rem 1fr 6.5rem 5rem;gap:.4rem;align-items:center;padding:.18rem 0;font-size:.62rem">
+      <span style="color:var(--gray);font-weight:700">Yr ${i+1}</span>
+      <div style="position:relative;height:10px;background:var(--bg3);border-radius:1px;overflow:hidden;border:1px solid var(--blborder)">
+        <div style="position:absolute;top:0;left:0;height:100%;width:${pctClamp}%;background:${barColor};transition:width .12s"></div>
+        ${pct > 100 ? `<div style="position:absolute;top:0;left:100%;height:100%;width:6px;background:#ff8a8a;animation:frn-extension-shake 0.6s infinite"></div>` : ""}
+      </div>
+      <span style="color:var(--white);text-align:right;font-family:'Bebas Neue','Anton',sans-serif;letter-spacing:.3px">$${total.toFixed(0)}M / $${projCap.toFixed(0)}M</span>
+      <span style="color:${freeColor};text-align:right;font-weight:700;font-family:'Bebas Neue','Anton',sans-serif">${free < 0 ? "⚠ −$" + (-free).toFixed(1) : "$" + free.toFixed(1)}M</span>
+    </div>`;
+  }).join("") : "";
+  const teamImpactHtml = teamImpactRows ? `
+    <div style="margin-top:.55rem;padding:.4rem .55rem;background:rgba(255,255,255,.025);border:1px solid var(--blborder);border-radius:3px">
+      <div style="display:flex;align-items:baseline;gap:.5rem;margin-bottom:.25rem">
+        <span style="font-size:.55rem;color:#a98a2e;letter-spacing:1.2px;font-weight:700">📊 TEAM CAP IMPACT</span>
+        <span style="color:var(--gray);font-size:.5rem">with this deal applied · cap projected +5%/yr</span>
+      </div>
+      ${teamImpactRows}
+    </div>` : "";
   // Offer vs market read
   const pctMkt = s.market > 0 ? (s.offer / s.market) * 100 : 100;
   const pctColor = pctMkt < 90 ? "#86e0a3" : pctMkt < 100 ? "#a8d8b6" : pctMkt < 110 ? "var(--gold)" : "#ff8a8a";
@@ -6052,6 +6089,7 @@ function _extensionModalInnerHtml() {
         ${totalDead >= 0.5 ? `<span style="color:#ff8a8a;font-size:.55rem;margin-left:auto">☠ Dead cap if cut: $${totalDead.toFixed(1)}M</span>` : ""}
       </div>
       <div style="display:flex;flex-direction:column;gap:.18rem">${yearPills}</div>
+      ${teamImpactHtml}
     </div>
     <div class="frn-resign-recap-cta" style="display:flex;gap:.4rem;justify-content:flex-end">
       <button class="btn btn-outline" onclick="frnCloseExtensionModal()" style="font-size:.7rem">← Cancel</button>
