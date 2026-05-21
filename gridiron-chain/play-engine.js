@@ -1795,13 +1795,16 @@ class GameSimulator {
       // POCKET: slightly more accurate
       // FIELD_GENERAL: fewer INTs, slightly more accurate
       // DUAL_THREAT: bonus scramble rate (added on top of playbook)
+      // archPressureMul: per-snap multiplier on pressure-driven scrambles.
+      // POCKET QBs take the sack instead of bailing; DUAL_THREAT bails early.
       let qbCompMod = 0, qbIntMod = 0, qbAirMod = 0, qbScrambleBonus = 0, qbBigPlayBonus = 0;
+      let archPressureMul = 0.03;
       switch (qbArch) {
-        case "POCKET":        qbCompMod = +0.025; qbIntMod = -0.005; qbAirMod = -0.3; break;
-        case "GUNSLINGER":    qbCompMod = -0.040; qbIntMod = +0.020; qbAirMod = +1.5; qbBigPlayBonus = 0.10; break;
-        case "GAME_MANAGER":  qbCompMod = +0.040; qbIntMod = -0.012; qbAirMod = -1.4; break;
-        case "FIELD_GENERAL": qbCompMod = +0.020; qbIntMod = -0.015; break;
-        case "DUAL_THREAT":   qbScrambleBonus = 0.04; break;
+        case "POCKET":        qbCompMod = +0.025; qbIntMod = -0.005; qbAirMod = -0.3; qbScrambleBonus = -0.03; archPressureMul = 0.01; break;
+        case "GUNSLINGER":    qbCompMod = -0.040; qbIntMod = +0.020; qbAirMod = +1.5; qbBigPlayBonus = 0.10; qbScrambleBonus = -0.02; archPressureMul = 0.02; break;
+        case "GAME_MANAGER":  qbCompMod = +0.040; qbIntMod = -0.012; qbAirMod = -1.4; archPressureMul = 0.04; break;
+        case "FIELD_GENERAL": qbCompMod = +0.020; qbIntMod = -0.015; archPressureMul = 0.04; break;
+        case "DUAL_THREAT":   qbScrambleBonus = 0.04; archPressureMul = 0.10; break;
       }
       // PLAY-ACTION — fakes the handoff to freeze LBs/safeties. Effectiveness
       // scales with the offense's run-game threat (defense has to respect it)
@@ -1825,11 +1828,9 @@ class GameSimulator {
         paAirMod  += 4.0;
         paSackMul *= 1.35;
       }
-      // QB SCRAMBLE — pass plays where the QB takes off. Probability scales
-      // with pressure: a clean pocket QB hits the dropback, a pressured one
-      // tucks and runs. NFL Lamar averages ~7/g (high-pressure dropbacks);
-      // pocket QBs ~0.5/g (rarely flee).
-      const pressureScrBonus = Math.max(0, pressure) * 0.03;   // up to +5.7pp at peak pressure
+      // QB SCRAMBLE — pre-throw bail. Pressure response is archetype-gated
+      // (Brady takes the sack at archPressureMul 0.01; Lamar bails at 0.10).
+      const pressureScrBonus = Math.max(0, pressure) * archPressureMul;
       const scramblePct = (pb.qbScramblePct || 0) + qbScrambleBonus + pressureScrBonus;
       if (scramblePct > 0 && Math.random() < scramblePct) {
         // Mobile QB scramble — modest gain when coverage is locked
