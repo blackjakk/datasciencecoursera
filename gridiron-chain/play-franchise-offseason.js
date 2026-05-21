@@ -12575,6 +12575,7 @@ function frnNewSeason() {
   franchise.pendingFranchiseGame = null;
   franchise._offChanges   = null;
   franchise.seasonStats   = {};
+  franchise.seasonPlayoffStats = {};
   franchise._mergedGameKeys = {};
   franchise.seasonHighlights = [];
   franchise.superBowlGame = null;
@@ -20604,6 +20605,37 @@ function _rollSeasonStatsToCareer() {
         }
         player.careerHistory.push(yearRow);
         if (player.careerHistory.length > 20) player.careerHistory = player.careerHistory.slice(-20);
+      }
+    }
+  }
+  // Parallel pass over playoff-only stats. Rolls into p.careerPlayoffStats
+  // (cumulative) and attaches a `playoff` sub-object to the matching season
+  // row in careerHistory so the career card can render a "CAREER PLAYOFFS"
+  // totals strip without double-counting against regular-season careerStats.
+  const psStore = franchise.seasonPlayoffStats || {};
+  const MAX_STATS = new Set(["pass_long","rush_long","rec_long","fg_long","int_long","punt_long","kr_long","pr_long"]);
+  for (const [tIdStr, players] of Object.entries(psStore)) {
+    const teamId = Number(tIdStr);
+    const roster = franchise.rosters[teamId] || [];
+    for (const [name, st] of Object.entries(players)) {
+      const player = roster.find(p => p.name === name);
+      if (!player) continue;
+      if (!player.careerPlayoffStats) player.careerPlayoffStats = {};
+      for (const [k, v] of Object.entries(st)) {
+        if (typeof v !== "number") continue;
+        if (MAX_STATS.has(k)) {
+          player.careerPlayoffStats[k] = Math.max(player.careerPlayoffStats[k] || 0, v);
+        } else {
+          player.careerPlayoffStats[k] = (player.careerPlayoffStats[k] || 0) + v;
+        }
+      }
+      // Stash this season's playoff line on the existing season row.
+      const row = (player.careerHistory || []).find(h => h.season === seasonNum);
+      if (row) {
+        row.playoff = row.playoff || { gp: 0 };
+        for (const [k, v] of Object.entries(st)) {
+          if (typeof v === "number" || k === "pos") row.playoff[k] = v;
+        }
       }
     }
   }

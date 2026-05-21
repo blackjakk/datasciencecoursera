@@ -1647,6 +1647,17 @@ function _buildCareerCard(p) {
     ${cols.map(c => `<td style="color:var(--gold-lt)">${stats[c.key]||0}</td>`).join("")}
     ${hasAcc ? "<td></td>" : ""}
   </tr>`;
+  // PLAYOFFS sub-row — only shown if the player has any playoff games on
+  // record. careerPlayoffStats is the cumulative store rolled in
+  // _rollSeasonStatsToCareer from franchise.seasonPlayoffStats.
+  const poStats = p.careerPlayoffStats || {};
+  const poGP = +(poStats.gp || 0);
+  const playoffRow = poGP > 0 ? `<tr style="font-weight:700;color:#ffc850">
+    <td colspan="${totalsColspan}" title="Playoff games only — not double-counted in CAREER above">🏆 PLAYOFFS</td>
+    <td>${poGP}</td>
+    ${cols.map(c => `<td>${poStats[c.key]||0}</td>`).join("")}
+    ${hasAcc ? "<td></td>" : ""}
+  </tr>` : "";
   // Trim hint — when careerStats sums to more than the visible rows
   // (older history rows were trimmed for storage), surface a small
   // note so the totals don't read as "doesn't add up". Computed by
@@ -1665,7 +1676,7 @@ function _buildCareerCard(p) {
     </div>
     <div style="overflow-x:auto">
       <table class="frn-pre-roster-table"><thead>${headerHtml}</thead>
-        <tbody>${rowsHtml}${totalsRow}</tbody>
+        <tbody>${rowsHtml}${totalsRow}${playoffRow}</tbody>
       </table>
     </div>
     ${trimNote}
@@ -2671,15 +2682,87 @@ function _passerRating(comp, att, yds, td, int_) {
   return Math.round(((a + b + c + d) / 6) * 100 * 10) / 10;
 }
 
-function _buildSeasonStatsBlock(p) {
-  if (!franchise?.seasonStats) return "";
-  // Search every team in case the player was traded mid-season.
-  let stat = null, teamId = null;
-  for (const [tid, ts] of Object.entries(franchise.seasonStats || {})) {
-    if (ts && ts[p.name]) { stat = ts[p.name]; teamId = Number(tid); break; }
+// Sum per-game stat lines for one player across a list of played games
+// (regular-season schedule entries or playoff bracket matches). Returns
+// the aggregate stat blob (gp, summed counting stats, max for long stats)
+// + an ordered list of per-game FPTS for the best/worst-week display.
+function _aggregateLines(p, games) {
+  const MAX = new Set(["pass_long","rush_long","rec_long","fg_long","int_long","punt_long","kr_long","pr_long"]);
+  const agg = { name: p.name, pos: p.position, gp: 0 };
+  const candidateKeys = [p.name, p.nickname].filter(Boolean);
+  const perGame = [];
+  for (const g of games) {
+    if (!g?.stats) continue;
+    let line = null;
+    for (const key of candidateKeys) {
+      line = g.stats.home?.players?.[key] || g.stats.away?.players?.[key];
+      if (line) break;
+    }
+    if (!line) continue;
+    agg.gp++;
+    for (const [k, v] of Object.entries(line)) {
+      if (typeof v !== "number") continue;
+      if (MAX.has(k)) agg[k] = Math.max(agg[k] || 0, v);
+      else            agg[k] = (agg[k] || 0) + v;
+    }
+    perGame.push({ week: g.week, label: g._label || `W${g.week}`, fpts: _fantasyPPR(line, p.position) });
   }
+  return { agg, perGame };
+}
+
+function _buildSeasonStatsBlock(p) {
+  if (!franchise) return "";
+  // Regular season — every played game on the schedule
+  const regGames = (franchise.schedule || []).filter(g => g.played && g.stats);
+  // Playoffs — every played match in the current bracket, week-tagged so
+  // the fantasy block's best/worst-week labels carry round names.
+  const playoffGames = [];
+  const pb = franchise.playoffBracket;
+  if (pb && Array.isArray(pb.rounds)) {
+    const roundsLen = pb.rounds.length;
+    const labelFor = (idx) => {
+      if (roundsLen === 3) return ["WC","SF","SB"][idx] || `PR${idx+1}`;
+      if (roundsLen === 4) return ["WC","DIV","CC","SB"][idx] || `PR${idx+1}`;
+      return `PR${idx+1}`;
+    };
+    pb.rounds.forEach((rd, rIdx) => {
+      if (!Array.isArray(rd)) return;
+      for (const m of rd) {
+        if (!m?.stats || m.homeScore == null || m.awayScore == null) continue;
+        playoffGames.push({ stats: m.stats, week: FRANCHISE_WEEKS + rIdx + 1, _label: labelFor(rIdx) });
+      }
+    });
+  }
+  const reg = _aggregateLines(p, regGames);
+  const po  = _aggregateLines(p, playoffGames);
+  // Render regular-season panel first, then playoffs panel if any. Falls
+  // back to franchise.seasonStats if per-game lines are missing (e.g.
+  // legacy saves) so the panel still appears.
+  let regBlock = "";
+  if (reg.agg.gp > 0) {
+    regBlock = _buildStatScopeBlock(p, reg.agg, `📈 REGULAR SEASON · ${reg.agg.gp} GP`, reg.perGame);
+  } else {
+    // Legacy fallback — pre-split seasonStats blob (regular + playoff lumped).
+    for (const ts of Object.values(franchise.seasonStats || {})) {
+      if (ts && ts[p.name]) { reg.agg = ts[p.name]; break; }
+    }
+    if (reg.agg && reg.agg.gp) {
+      regBlock = _buildStatScopeBlock(p, reg.agg, `📈 SEASON TOTALS · ${reg.agg.gp} GP`, []);
+    }
+  }
+  const poBlock = po.agg.gp > 0
+    ? _buildStatScopeBlock(p, po.agg, `🏆 PLAYOFFS · ${po.agg.gp} GP`, po.perGame)
+    : "";
+  return regBlock + poBlock;
+}
+
+// Renders one stat panel (position-specific stat lines + fantasy block for
+// skill positions). Pulled out so the same renderer serves regular season
+// and playoffs. Pass `title` (e.g. "REGULAR SEASON · 15 GP") and `perGame`
+// (already filtered to the scope) so the fantasy "BEST WK"/"WORST WK"
+// labels point at the right slice.
+function _buildStatScopeBlock(p, stat, title, perGame) {
   if (!stat || !stat.gp) return "";
-  // Position-specific stat lines (totals + derived averages)
   const pos = p.position;
   const fmtTuples = [];
   const num = k => +(stat[k] || 0);
@@ -2767,37 +2850,24 @@ function _buildSeasonStatsBlock(p) {
   }
   if (!fmtTuples.length) return "";
 
-  // Fantasy stats — appended after position-specific stats. Computed
-  // from per-game lines so best/worst game is accurate.
+  // Fantasy stats — appended after position-specific stats. Uses the
+  // scope-filtered perGame list (regular OR playoff) so best/worst week
+  // reflects only that scope.
   let fantasyHtml = "";
   if (["QB","RB","WR","TE","K"].includes(pos)) {
-    // Sum per-game FPTS by scanning every played game for this player.
-    // Match by p.name first; fall back to p.nickname for legacy saves
-    // where per-game stats were keyed under the player's pre-rename
-    // legal name and p.name is now the nickname (or vice versa).
-    const perGame = [];
-    const candidateKeys = [p.name, p.nickname].filter(Boolean);
-    for (const g of (franchise.schedule || [])) {
-      if (!g.played || !g.stats) continue;
-      let line = null;
-      for (const key of candidateKeys) {
-        line = g.stats.home?.players?.[key] || g.stats.away?.players?.[key];
-        if (line) break;
-      }
-      if (line) perGame.push({ week: g.week, fpts: _fantasyPPR(line, pos) });
+    const games = perGame || [];
+    let totalFpts = games.reduce((s, x) => s + x.fpts, 0);
+    // Fallback: if no per-game lines were supplied but the aggregate has
+    // production, compute FPTS off the aggregate so the line never reads
+    // 0.0 when the player clearly produced.
+    if (games.length === 0 && stat && (stat.gp || 0) > 0) {
+      const aggFpts = _fantasyPPR(stat, pos);
+      if (aggFpts > 0) totalFpts = aggFpts;
     }
-    let totalFpts = perGame.reduce((s, x) => s + x.fpts, 0);
-    // Fallback: if per-game lookup found nothing but seasonStats has
-    // the player, compute FPTS from the aggregated seasonStats so the
-    // line never shows 0.0 when the player clearly produced.
-    if (perGame.length === 0 && stat && (stat.gp || 0) > 0) {
-      const seasonFpts = _fantasyPPR(stat, pos);
-      if (seasonFpts > 0) totalFpts = seasonFpts;
-    }
-    const gpForAvg = perGame.length || (stat?.gp || 0);
+    const gpForAvg = games.length || (stat?.gp || 0);
     const fptsPg = gpForAvg > 0 ? (totalFpts / gpForAvg).toFixed(1) : "0.0";
-    const best = perGame.length ? perGame.reduce((a, b) => b.fpts > a.fpts ? b : a) : null;
-    const worst = perGame.length ? perGame.reduce((a, b) => b.fpts < a.fpts ? b : a) : null;
+    const best = games.length ? games.reduce((a, b) => b.fpts > a.fpts ? b : a) : null;
+    const worst = games.length ? games.reduce((a, b) => b.fpts < a.fpts ? b : a) : null;
     const rank = _fantasyPositionRank(p.name, pos);
     // Opportunities = touches (carries + targets) — top fantasy stat
     const touches = num("rush_att") + num("rec_tgt");
@@ -2805,10 +2875,16 @@ function _buildSeasonStatsBlock(p) {
       ["FPTS (PPR)", totalFpts.toFixed(1)],
       ["FPTS / GAME", fptsPg],
     ];
-    if (rank) fantasyTuples.push([`POS RANK`, `#${rank.rank} of ${rank.total}`]);
+    // POS RANK only meaningful for full-season totals; skip on the
+    // playoffs panel (the ranker pulls from franchise.seasonStats which
+    // is the merged blob — comparing playoff-only FPTS to season FPTS
+    // would be misleading).
+    if (rank && /REGULAR SEASON|SEASON TOTALS/.test(title)) {
+      fantasyTuples.push([`POS RANK`, `#${rank.rank} of ${rank.total}`]);
+    }
     if (touches > 0) fantasyTuples.push(["TOUCHES", touches]);
-    if (best) fantasyTuples.push(["BEST WK", `W${best.week} (${best.fpts.toFixed(1)})`]);
-    if (worst && best && worst.week !== best.week) fantasyTuples.push(["WORST WK", `W${worst.week} (${worst.fpts.toFixed(1)})`]);
+    if (best) fantasyTuples.push(["BEST GM", `${best.label} (${best.fpts.toFixed(1)})`]);
+    if (worst && best && worst.label !== best.label) fantasyTuples.push(["WORST GM", `${worst.label} (${worst.fpts.toFixed(1)})`]);
     const fantasyCells = fantasyTuples.map(([k, v]) =>
       `<div class="k">${k}</div><div class="v">${v}</div>`
     ).join("");
@@ -2822,7 +2898,7 @@ function _buildSeasonStatsBlock(p) {
     `<div class="k">${k}</div><div class="v">${v}</div>`
   ).join("");
   return `<div class="frn-pcard-section">
-    <div class="frn-card-title">📈 SEASON TOTALS · ${stat.gp || 0} GP</div>
+    <div class="frn-card-title">${title}</div>
     <div class="frn-pcard-seasonstats">${cells}</div>
     ${fantasyHtml}
   </div>`;

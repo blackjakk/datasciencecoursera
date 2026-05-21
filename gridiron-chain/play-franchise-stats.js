@@ -7662,6 +7662,7 @@ function _gameMergeKey(homeId, awayId, isPlayoff) {
 function mergeSeasonStats(homeId, awayId, gameStats, gameKey) {
   if (!gameStats) return;
   if (!franchise.seasonStats) franchise.seasonStats = {};
+  if (!franchise.seasonPlayoffStats) franchise.seasonPlayoffStats = {};
   if (!franchise._mergedGameKeys) franchise._mergedGameKeys = {};
   if (gameKey) {
     if (franchise._mergedGameKeys[gameKey]) {
@@ -7670,14 +7671,18 @@ function mergeSeasonStats(homeId, awayId, gameStats, gameKey) {
     }
     franchise._mergedGameKeys[gameKey] = true;
   }
+  // Playoff games get tagged with PR# in the key (_gameMergeKey). We
+  // merge into the all-games store (back-compat with leaders/ranks) AND
+  // into a playoff-only store so career totals can split regular vs PO.
+  const isPlayoff = !!(gameKey && /-PR\d+-/.test(gameKey));
   // "Long" stats are per-play maxima, not counting stats. Take the max
   // across games instead of summing — otherwise a player's season-long
   // reception ends up being the sum of every longest catch they had.
   const MAX_STATS = new Set(["pass_long","rush_long","rec_long","fg_long","int_long","punt_long","kr_long","pr_long"]);
-  const merge = (teamId, side) => {
+  const mergeInto = (store, teamId, side) => {
     if (!side || !side.players) return;
-    if (!franchise.seasonStats[teamId]) franchise.seasonStats[teamId] = {};
-    const ts = franchise.seasonStats[teamId];
+    if (!store[teamId]) store[teamId] = {};
+    const ts = store[teamId];
     for (const [name, p] of Object.entries(side.players)) {
       if (!ts[name]) ts[name] = { name, pos: p.pos, gp: 0 };
       ts[name].gp = (ts[name].gp || 0) + 1;
@@ -7692,8 +7697,12 @@ function mergeSeasonStats(homeId, awayId, gameStats, gameKey) {
       }
     }
   };
-  merge(homeId, gameStats.home);
-  merge(awayId, gameStats.away);
+  mergeInto(franchise.seasonStats, homeId, gameStats.home);
+  mergeInto(franchise.seasonStats, awayId, gameStats.away);
+  if (isPlayoff) {
+    mergeInto(franchise.seasonPlayoffStats, homeId, gameStats.home);
+    mergeInto(franchise.seasonPlayoffStats, awayId, gameStats.away);
+  }
 }
 
 // Rebuild franchise.seasonStats from the per-game stat blobs stored on the
