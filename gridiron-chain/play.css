@@ -7377,14 +7377,14 @@
      the remaining width for league snapshot / POTW / schedule. */
   .frn-dashboard-grid {
     display: grid;
-    grid-template-columns: 260px minmax(0, 500px) minmax(300px, 1fr);
+    grid-template-columns: 340px minmax(0, 1fr) minmax(300px, 360px);
     gap: 1rem;
     align-items: start;
-    max-width: 1280px;
+    max-width: 1440px;
   }
-  @media (max-width: 1040px) {
+  @media (max-width: 1180px) {
     .frn-dashboard-grid {
-      grid-template-columns: 240px minmax(0, 1fr);
+      grid-template-columns: 300px minmax(0, 1fr);
     }
     /* Right sidebar drops below the two main columns on medium screens */
     .frn-dashboard-grid > :nth-child(3) { grid-column: 1 / -1; }
@@ -8297,6 +8297,155 @@
   }
   @media (max-width: 720px) {
     .frn-pulse-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  /* ── MATCHUP X-RAY ──
+     Position-front delta vs next opponent. Five rows, each shows YOU /
+     bar with center-out fill in your color or opp's / OPP. The bar
+     visualizes who has the edge — left half = opp advantage, right
+     half = your advantage. */
+  .frn-xray-header {
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    font-size: .55rem; font-weight: 800; letter-spacing: .8px;
+    color: var(--gray); text-transform: uppercase;
+    padding: .25rem 0 .35rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .frn-xray-rows { display: flex; flex-direction: column; gap: .35rem; padding-top: .35rem; }
+  .frn-xray-row {
+    display: grid;
+    grid-template-columns: 4.5rem 4.5rem minmax(0, 1fr) 4.5rem;
+    align-items: center; gap: .4rem;
+  }
+  .frn-xray-lbl {
+    font-size: .58rem; font-weight: 800; letter-spacing: .5px;
+    color: var(--gold); text-transform: uppercase;
+  }
+  .frn-xray-side { display: flex; flex-direction: column; align-items: center; gap: .05rem; }
+  .frn-xray-side:nth-of-type(2n) { text-align: right; }
+  .frn-xray-val {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 1rem; font-weight: 900; line-height: 1;
+    color: var(--blwhite);
+  }
+  .frn-xray-sub {
+    font-size: .52rem; color: var(--gray);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+  }
+  .frn-xray-bar-wrap {
+    display: flex; flex-direction: column; align-items: center; gap: .15rem;
+    width: 100%;
+  }
+  .frn-xray-bar-track {
+    position: relative; width: 100%; height: 8px;
+    background: rgba(255,255,255,.05);
+    border: 1px solid var(--border); border-radius: 3px;
+    overflow: hidden;
+  }
+  .frn-xray-bar-mid {
+    position: absolute; left: 50%; top: 0; bottom: 0; width: 1px;
+    background: rgba(255,255,255,.25);
+  }
+  .frn-xray-bar-fill {
+    position: absolute; top: 0; bottom: 0;
+    transition: width .25s ease, left .25s ease, right .25s ease;
+  }
+  .frn-xray-delta {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .62rem; font-weight: 900; letter-spacing: .3px;
+  }
+
+  /* ── HOT BOARD ──
+     Compact list of your top season performers. Click → player card. */
+  .frn-hot-rows { display: flex; flex-direction: column; gap: .25rem; margin-top: .35rem; }
+  .frn-hot-row {
+    display: grid;
+    grid-template-columns: 1.2rem 1.8rem minmax(0, 1fr) 2.2rem minmax(0, 1.2fr);
+    align-items: center; gap: .45rem;
+    padding: .35rem .5rem;
+    background: rgba(255,255,255,.025);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background .12s, border-color .12s;
+  }
+  .frn-hot-row:hover {
+    background: rgba(200,169,0,.08); border-color: rgba(200,169,0,.5);
+  }
+  .frn-hot-rank {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .62rem; font-weight: 800; color: var(--gold-lt);
+    text-align: center;
+  }
+  .frn-hot-pos {
+    font-size: .58rem; font-weight: 800;
+    color: var(--gold); text-align: center; letter-spacing: .3px;
+  }
+  .frn-hot-name {
+    font-size: .72rem; font-weight: 700; color: var(--blwhite);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .frn-hot-ovr {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .72rem; font-weight: 900;
+    color: var(--gold-lt); text-align: right;
+  }
+  .frn-hot-stats {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .58rem; color: var(--gray);
+    text-align: right; letter-spacing: .2px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  /* ── GAUNTLET ──
+     Next-4-games heatmap. Each card is a stacked summary of opponent
+     name, record, combined rating, and a difficulty tag. */
+  .frn-gauntlet {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: .5rem; margin-top: .35rem;
+  }
+  .frn-gauntlet-card {
+    background: rgba(255,255,255,.025);
+    border: 1px solid var(--toughCol, var(--border));
+    border-radius: 4px;
+    padding: .5rem .55rem;
+    display: flex; flex-direction: column; gap: .15rem;
+    text-align: center;
+    box-shadow: 0 1px 0 var(--border), 0 0 0 1px rgba(0,0,0,.2) inset;
+  }
+  .frn-gauntlet-wk {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .55rem; font-weight: 800; letter-spacing: .6px;
+    color: var(--gold);
+  }
+  .frn-gauntlet-opp {
+    font-size: .72rem; font-weight: 800;
+    color: var(--blwhite);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .frn-gauntlet-rec {
+    font-size: .55rem; color: var(--gray);
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .frn-gauntlet-rating { margin-top: .2rem; }
+  .frn-gauntlet-rval {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 1.1rem; font-weight: 900; line-height: 1;
+    letter-spacing: .3px;
+  }
+  .frn-gauntlet-rsub {
+    display: block; font-size: .5rem; color: var(--gray);
+    margin-top: .1rem; letter-spacing: .3px;
+  }
+  .frn-gauntlet-tag {
+    margin-top: .25rem;
+    padding: .12rem .35rem;
+    font-size: .52rem; font-weight: 900; letter-spacing: .8px;
+    border: 1px solid; border-radius: 3px;
+    align-self: center;
+  }
+  @media (max-width: 720px) {
+    .frn-gauntlet { grid-template-columns: repeat(2, 1fr); }
   }
 
   /* ── BLOOMBERG-STYLE FRANCHISE SHELL ────────────────────────────

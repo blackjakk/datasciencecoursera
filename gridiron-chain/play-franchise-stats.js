@@ -6885,9 +6885,166 @@ function renderFrnRegular() {
       })()}
     </div>`;
 
+  // ─── GM-grade middle-column cards ─────────────────────────────────────
+  // High-density metrics a real GM scans every week. Sits below the next-
+  // game card and the schedule strip. Three blocks: position x-ray vs
+  // next opponent, season hot-board on your team, and a 4-game gauntlet
+  // heatmap for upcoming opponents.
+
+  // 1) MATCHUP X-RAY — your unit vs next opponent's unit, 5 fronts.
+  // Each row shows your rating, opp rating, delta (gap-colored bar).
+  // Only renders when we have a next opponent on the schedule.
+  let matchupXrayHtml = "";
+  if (nextGame) {
+    const oppIdX  = nextGame.homeId === chosenTeamId ? nextGame.awayId : nextGame.homeId;
+    const oppRosterX = franchise.rosters[oppIdX] || [];
+    const oppRtgsX = buildRatings(oppRosterX);
+    const myRtgsX  = ratings; // already computed earlier
+    const fronts = [
+      { lbl: "PASS OFF",  me: myRtgsX.qb || (myRtgsX.wr + 60)/2, them: ((oppRtgsX.cb||60)+(oppRtgsX.saf||60))/2, meSub: `${myRtgsX.qb||"-"} QB · ${myRtgsX.wr||"-"} WR`, themSub: `${oppRtgsX.cb||"-"} CB · ${oppRtgsX.saf||"-"} S` },
+      { lbl: "PASS DEF",  me: ((myRtgsX.cb||60)+(myRtgsX.saf||60))/2, them: oppRtgsX.qb || (oppRtgsX.wr + 60)/2, meSub: `${myRtgsX.cb||"-"} CB · ${myRtgsX.saf||"-"} S`, themSub: `${oppRtgsX.qb||"-"} QB · ${oppRtgsX.wr||"-"} WR` },
+      { lbl: "RUN OFF",   me: ((myRtgsX.rb||60)+(myRtgsX.ol||60))/2,  them: ((oppRtgsX.dl||60)+(oppRtgsX.lb||60))/2, meSub: `${myRtgsX.rb||"-"} RB · ${myRtgsX.ol||"-"} OL`, themSub: `${oppRtgsX.dl||"-"} DL · ${oppRtgsX.lb||"-"} LB` },
+      { lbl: "RUN DEF",   me: ((myRtgsX.dl||60)+(myRtgsX.lb||60))/2,  them: ((oppRtgsX.rb||60)+(oppRtgsX.ol||60))/2, meSub: `${myRtgsX.dl||"-"} DL · ${myRtgsX.lb||"-"} LB`, themSub: `${oppRtgsX.rb||"-"} RB · ${oppRtgsX.ol||"-"} OL` },
+      { lbl: "TRENCHES",  me: ((myRtgsX.ol||60)+(myRtgsX.dl||60))/2,  them: ((oppRtgsX.ol||60)+(oppRtgsX.dl||60))/2, meSub: `${myRtgsX.ol||"-"} OL · ${myRtgsX.dl||"-"} DL`, themSub: `${oppRtgsX.ol||"-"} OL · ${oppRtgsX.dl||"-"} DL` },
+    ];
+    const oppX = getTeam(oppIdX);
+    const xRows = fronts.map(f => {
+      const me = Math.round(f.me), them = Math.round(f.them);
+      const delta = me - them;
+      const advCol = delta >= 4 ? "#86e0a3" : delta <= -4 ? "#ff8a8a" : "#ffc850";
+      const dStr = delta > 0 ? `+${delta}` : `${delta}`;
+      // Bar shows the delta; center is "even". 50% baseline shifts left
+      // (opp advantage) or right (your advantage).
+      const mag = Math.max(0, Math.min(20, Math.abs(delta)));
+      const fillPct = 50 + (delta >= 0 ? mag : -mag) * 2.5; // ±50%
+      return `<div class="frn-xray-row">
+        <div class="frn-xray-lbl">${f.lbl}</div>
+        <div class="frn-xray-side">
+          <div class="frn-xray-val">${me}</div>
+          <div class="frn-xray-sub">${f.meSub}</div>
+        </div>
+        <div class="frn-xray-bar-wrap">
+          <div class="frn-xray-bar-track">
+            <div class="frn-xray-bar-mid"></div>
+            ${delta >= 0
+              ? `<div class="frn-xray-bar-fill me" style="left:50%;width:${Math.max(2,(fillPct-50))}%;background:${advCol}"></div>`
+              : `<div class="frn-xray-bar-fill them" style="right:50%;width:${Math.max(2,(50-fillPct))}%;background:${advCol}"></div>`}
+          </div>
+          <div class="frn-xray-delta" style="color:${advCol}">${dStr}</div>
+        </div>
+        <div class="frn-xray-side">
+          <div class="frn-xray-val">${them}</div>
+          <div class="frn-xray-sub">${f.themSub}</div>
+        </div>
+      </div>`;
+    }).join("");
+    matchupXrayHtml = `
+      <div class="frn-card-box">
+        <div class="frn-card-title">MATCHUP X-RAY <span class="frn-card-title-sub">vs ${oppX?.name || "opp"}</span></div>
+        <div class="frn-xray-header">
+          <span style="text-align:left">YOU</span>
+          <span style="text-align:center;color:var(--gray);font-size:.55rem">EDGE</span>
+          <span style="text-align:right">${(oppX?.name||"OPP").toUpperCase()}</span>
+        </div>
+        <div class="frn-xray-rows">${xRows}</div>
+      </div>`;
+  }
+
+  // 2) HOT BOARD — top 4 performers on your roster this season. Ranked
+  //    by a position-aware composite (pass yds for QB, scrimmage yds for
+  //    skill, sacks/tackles for D). Surfaces "who's carrying us" so a
+  //    GM can spot extensions / trade chips / load management.
+  const sStats = franchise.seasonStats?.[chosenTeamId] || {};
+  const scoredPlayers = [];
+  for (const p of myRoster) {
+    const st = sStats[p.name];
+    if (!st) continue;
+    let score = 0, line = "";
+    if (p.position === "QB") {
+      score = (st.pass_yds || 0) + (st.pass_td || 0) * 25 + (st.rush_yds || 0) * 0.5 - (st.int || 0) * 30;
+      line = `${st.pass_yds || 0} yd · ${st.pass_td || 0} TD${st.int?` · ${st.int} INT`:""}`;
+    } else if (p.position === "RB") {
+      const yds = (st.rush_yds || 0) + (st.rec_yds || 0);
+      score = yds + (st.rush_td || 0) * 50 + (st.rec_td || 0) * 50;
+      line = `${st.rush_yds||0} ru · ${st.rec_yds||0} rec · ${(st.rush_td||0)+(st.rec_td||0)} TD`;
+    } else if (p.position === "WR" || p.position === "TE") {
+      score = (st.rec_yds || 0) + (st.rec_td || 0) * 50 + (st.rec || 0) * 2;
+      line = `${st.rec || 0}/${st.rec_yds || 0}/${st.rec_td || 0}`;
+    } else if (["DL","LB"].includes(p.position)) {
+      score = (st.sk || 0) * 30 + (st.tkl || 0) * 2 + (st.tfl || 0) * 5;
+      line = `${st.sk||0} sk · ${st.tkl||0} tkl${st.tfl?` · ${st.tfl} TFL`:""}`;
+    } else if (["CB","S"].includes(p.position)) {
+      score = (st.int_made || 0) * 50 + (st.pd || 0) * 8 + (st.tkl || 0) * 2;
+      line = `${st.int_made||0} INT · ${st.pd||0} PD · ${st.tkl||0} tkl`;
+    } else if (p.position === "K") {
+      score = (st.fg_made || 0) * 10 - (st.fg_miss || 0) * 8;
+      line = `${st.fg_made||0}/${(st.fg_made||0)+(st.fg_miss||0)} FG`;
+    }
+    if (score > 0) scoredPlayers.push({ p, score, line });
+  }
+  scoredPlayers.sort((a, b) => b.score - a.score);
+  const hotTop = scoredPlayers.slice(0, 4);
+  const hotBoardHtml = hotTop.length ? `
+    <div class="frn-card-box">
+      <div class="frn-card-title">HOT BOARD <span class="frn-card-title-sub">your top performers · S${season}</span></div>
+      <div class="frn-hot-rows">
+        ${hotTop.map((h, i) => {
+          const esc = (h.p.name||"").replace(/'/g,"\\'");
+          const ovr = h.p.overall || 60;
+          return `<div class="frn-hot-row" onclick="frnOpenPlayerCard('${esc}')">
+            <span class="frn-hot-rank">${i+1}</span>
+            <span class="frn-hot-pos">${h.p.position}</span>
+            <span class="frn-hot-name">${h.p.name}</span>
+            <span class="frn-hot-ovr">${ovr}</span>
+            <span class="frn-hot-stats">${h.line}</span>
+          </div>`;
+        }).join("")}
+      </div>
+    </div>` : "";
+
+  // 3) GAUNTLET — next 4 opponents heatmap colored by combined off+def
+  //    rating. Surfaces "your next 4 weeks of pain" at a glance.
+  const upcoming4 = stripUpcoming.slice(0, 4);
+  const gauntletHtml = upcoming4.length ? `
+    <div class="frn-card-box">
+      <div class="frn-card-title">GAUNTLET <span class="frn-card-title-sub">next ${upcoming4.length} ${upcoming4.length===1?"game":"games"}</span></div>
+      <div class="frn-gauntlet">
+        ${upcoming4.map(g => {
+          const isHome = g.homeId === chosenTeamId;
+          const oppId = isHome ? g.awayId : g.homeId;
+          const opp = getTeam(oppId);
+          const rtg = frnTeamRating(oppId);
+          const combined = Math.round(((rtg.off||60)+(rtg.def||60))/2);
+          const oppRec = standings[oppId] || {w:0,l:0};
+          const tough = combined >= 78 ? "elite"
+                      : combined >= 72 ? "tough"
+                      : combined >= 65 ? "even"
+                      :                  "soft";
+          const toughCol = tough==="elite" ? "#ff8a8a"
+                         : tough==="tough" ? "#ffc850"
+                         : tough==="even"  ? "rgba(255,255,255,.55)"
+                         :                   "#86e0a3";
+          const isRival = _areRivals(g.homeId, g.awayId);
+          return `<div class="frn-gauntlet-card" style="--toughCol:${toughCol}">
+            <div class="frn-gauntlet-wk">W${g.week}${isRival?" 🔥":""}</div>
+            <div class="frn-gauntlet-opp">${isHome?"vs":"@"} ${opp?.name||"?"}</div>
+            <div class="frn-gauntlet-rec">${oppRec.w}-${oppRec.l}</div>
+            <div class="frn-gauntlet-rating">
+              <span class="frn-gauntlet-rval" style="color:${toughCol}">${combined}</span>
+              <span class="frn-gauntlet-rsub">OFF ${rtg.off||"—"} · DEF ${rtg.def||"—"}</span>
+            </div>
+            <div class="frn-gauntlet-tag" style="background:${toughCol}22;color:${toughCol};border-color:${toughCol}55">${tough.toUpperCase()}</div>
+          </div>`;
+        }).join("")}
+      </div>
+    </div>` : "";
+
   const centerHtml = `
     ${nextCardHtml}
-    ${scheduleStripHtml}`;
+    ${scheduleStripHtml}
+    ${matchupXrayHtml}
+    ${gauntletHtml}
+    ${hotBoardHtml}`;
 
   // ─── Sidebar: compact league snapshot + highlights + POTW ───────────
   // Full Standings + Leaders moved to the League tab. Sidebar shows a
