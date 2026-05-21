@@ -134,7 +134,7 @@ function pickPersonnel(playbook, situation) {
 const PLAYBOOKS = {
   BALANCED: {
     id: "BALANCED", name: "Balanced", badge: "BAL",
-    passProb: { long: 0.72, mid: 0.58, short: 0.42 },
+    passProb: { long: 0.67, mid: 0.53, short: 0.37 },
     targetMix: { wr1: 0.40, wr2: 0.30, te: 0.22, rb: 0.08 },
     personnelMix: { TRIPS: 0.40, BASE: 0.25, HEAVY: 0.12, SPREAD: 0.13, I_FORM: 0.05, EMPTY: 0.05 },
     tierBias: {},
@@ -146,7 +146,7 @@ const PLAYBOOKS = {
     id: "AIR_RAID", name: "Air Raid", badge: "AIR",
     // Pass volume trimmed — was throwing 87% of plays so even mediocre
     // WRs racked up 130+ yds vs elite secondaries on volume alone.
-    passProb: { long: 0.82, mid: 0.66, short: 0.50 },
+    passProb: { long: 0.77, mid: 0.61, short: 0.45 },
     // rb 0.10 → 0.16 — NFL pass-catching backs in spread schemes (CMC,
     // Ekeler) see ~17-22% target share. Carved from wr1+wr2 so the deep
     // game still gets fed.
@@ -175,7 +175,7 @@ const PLAYBOOKS = {
   // Dual-threat QB scheme: QB scrambles when pressured
   DUAL_THREAT: {
     id: "DUAL_THREAT", name: "Dual Threat", badge: "DT",
-    passProb: { long: 0.75, mid: 0.52, short: 0.30 },
+    passProb: { long: 0.70, mid: 0.47, short: 0.25 },
     targetMix: { wr1: 0.34, wr2: 0.26, te: 0.22, rb: 0.18 },
     personnelMix: { TRIPS: 0.35, SPREAD: 0.20, BASE: 0.20, HEAVY: 0.15, I_FORM: 0.08, EMPTY: 0.02 },
     tierBias: { QB: "elite", WR: "good", RB: "good" },
@@ -187,7 +187,7 @@ const PLAYBOOKS = {
   // Read-Option / RPO: mobile QB carries — option-style with explosive QB
   OPTION: {
     id: "OPTION", name: "Read Option", badge: "OPT",
-    passProb: { long: 0.65, mid: 0.45, short: 0.30 },
+    passProb: { long: 0.60, mid: 0.40, short: 0.25 },
     targetMix: { wr1: 0.30, wr2: 0.22, te: 0.28, rb: 0.20 },
     personnelMix: { I_FORM: 0.32, HEAVY: 0.28, BASE: 0.22, TRIPS: 0.18 },
     tierBias: { QB: "elite", RB: "good" },

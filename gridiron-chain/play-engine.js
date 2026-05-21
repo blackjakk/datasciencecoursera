@@ -1372,7 +1372,9 @@ class GameSimulator {
         const kpwBonus = Math.max(0, kpw - 75) * 0.001;
         // Ice the kicker — small accuracy hit when defense burned a TO before the snap.
         const iceMod = isIced ? -0.04 : 0;
-        const fgPct = clamp(0.96 - (dist - 20) * 0.020 + (this.offR.k - 60) / 250
+        // NFL FG% by distance: ~99% at 20yd, ~90% at 35yd, ~80% at 45yd, ~70%
+        // at 55yd. Slope -1pp / yd; previous -2pp was too steep (sim hit 52%).
+        const fgPct = clamp(0.99 - (dist - 20) * 0.010 + (this.offR.k - 60) / 250
                           + archAccMod + archRangeMod + kpwBonus + iceMod - wxPenalty, 0.15, 0.99);
         const kStats = off.players[K]; if (kStats) { kStats.fg_att++; }
         off.team.fourthAtt++;
@@ -2204,6 +2206,26 @@ class GameSimulator {
         // Charge the sack to the OL who lost the rep
         if (reps.ol?.name && off.players[reps.ol.name])
           off.players[reps.ol.name].sacks_allowed = (off.players[reps.ol.name].sacks_allowed || 0) + 1;
+        // Strip-sack — NFL ~10% of sacks force a fumble. Low-AWR QBs (poor
+        // ball security) are more vulnerable; high-AWR feel the rush and
+        // tuck the ball.
+        const stripChance = clamp(0.10 - (qbAwr - 70) / 400, 0.04, 0.18);
+        let isStripSack = false;
+        if (Math.random() < stripChance) {
+          isStripSack = true;
+          off.team.fumbles = (off.team.fumbles || 0) + 1;
+          if (qbStats) qbStats.fumbles = (qbStats.fumbles || 0) + 1;
+          // ~55% of strip-sacks are recovered by the defense
+          if (Math.random() < 0.55) {
+            off.team.fumbles_lost = (off.team.fumbles_lost || 0) + 1;
+            off.team.turnovers = (off.team.turnovers || 0) + 1;
+            def.team.takeaways = (def.team.takeaways || 0) + 1;
+            const frBy = sackedBy || this._creditDefStat("fr", { DL: 0.50, LB: 0.30, S: 0.10, CB: 0.10 });
+            if (frBy && def.players[frBy]) def.players[frBy].fr = (def.players[frBy].fr || 0) + 1;
+          }
+          // Credit forced fumble to the sacker
+          if (sackedBy && def.players[sackedBy]) def.players[sackedBy].ff = (def.players[sackedBy].ff || 0) + 1;
+        }
         // Pick a move from the DL's archetype toolkit
         const moves = DL_ARCHETYPES[reps.dlType]?.moves || ["SACK"];
         const move = moves[Math.floor(Math.random() * moves.length)];
@@ -2406,7 +2428,8 @@ class GameSimulator {
       // concepts), DBs play tighter coverage but quarterback completion
       // rates actually rise inside the 20. NFL RZ comp% is ~4pp higher than
       // overall. Goal-to-go bumps another ~2pp.
-      const rzCompBonus = this._inGoalToGo ? 0.06 : (this._inRedZone ? 0.04 : 0);
+      // Trimmed from +0.06/+0.04: red-zone TD rate was 75% vs NFL 56%.
+      const rzCompBonus = this._inGoalToGo ? 0.02 : (this._inRedZone ? 0.01 : 0);
       // Fatigue effect — tired QB throws less accurately, tired secondary
       // gives up more catches. Net effect = (qbFatigue - secFatigue) * mod.
       // At max QB fatigue with fresh secondary, comp drops ~4pp.
@@ -2678,7 +2701,9 @@ class GameSimulator {
     const wxFumMod = wxFum.label === "RAIN" ? 0.006
                    : wxFum.label === "SNOW" ? 0.010
                    : 0;
-    const fumblePct = clamp((0.011 + gripMod + Math.max(0, pressure) * 0.013 + wxFumMod) * optionMul * archFumbleMul, 0.004, 0.085);
+    // NFL: ~2% per touch (TOTAL fumbles, lost + recovered). Previous 1.1%
+    // hit only ~50% of NFL pace.
+    const fumblePct = clamp((0.020 + gripMod + Math.max(0, pressure) * 0.013 + wxFumMod) * optionMul * archFumbleMul, 0.008, 0.10);
     if (Math.random() < fumblePct) {
       // Scrum-based recovery — the ball bounces in a pile of converging players.
       // Defense has a slight edge in open field (1-3 dive attempts each muff the ball
@@ -2946,7 +2971,8 @@ class GameSimulator {
     // Red-zone power bonus — short-yardage power runs convert in real NFL
     // at ~65% on 1st-and-goal. Bonus trimmed (+0.8/+0.4 → +0.6/+0.3) to
     // keep rush TDs in the slightly-over-NFL zone instead of 1.19× pace.
-    const rzRunBonus = this._inGoalToGo ? 0.6 : (this._inRedZone ? 0.3 : 0);
+    // Trimmed from +0.6/+0.3: red-zone TD rate was 75% vs NFL 56%.
+    const rzRunBonus = this._inGoalToGo ? 0.3 : (this._inRedZone ? 0.1 : 0);
     let yards = clamp(normal((rushMean + rbBoost + fbBoost + runVarMean + adv * 1.4 + runTrenchYds + fbStuffReduction - lbTackle * 0.5 - boxSafetyStuff - thumperStuff - lbGapRead + rbGapVision + carrierBoost + reverseBonus + ocRunArchBonus + dcRunStopperMalus + fatigueRunYds + rzRunBonus) * defPbRun.runMul, rushSd * rbSdMul * runVarSd * reverseSdMul), -8, 75);
     // Yards after contact — heavy power backs lean forward and drag tacklers.
     // Applied to every positive carry, before the break-tackle event rolls.
