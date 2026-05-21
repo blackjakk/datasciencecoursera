@@ -507,13 +507,31 @@ class GameSimulator {
     };
   }
   // Pick a defender (weighted by position) and credit a stat field
-  _creditDefStat(field, weights) {
+  // Credit a tackle to the primary tackler AND, ~60% of the time, an
+  // assist to a different defender. NFL records solo + assists in the
+  // `tkl` stat (~1.5-1.6 tackle credits per defensive play across all
+  // defenders, since most tackles have a secondary defender). Without
+  // this we undershot NFL pace by ~25%.
+  _creditTackle(weights) {
+    const primary = this._creditDefStat("tkl", weights);
+    if (primary && Math.random() < 0.60) {
+      // Assist roll: credit a different defender at the same weights.
+      // Skip the primary so we don't double-bump the same player.
+      this._creditDefStat("tkl", weights, primary);
+    }
+    return primary;
+  }
+  _creditDefStat(field, weights, excludeName) {
     const def = this.defStats;
     if (!def) return;
     const defStarters = this.defR.starters;
     // weights = { LB: 0.4, S: 0.3, DL: 0.15, CB: 0.15 }
     const pool = [];
-    const addCandidate = (name, w) => { if (name) pool.push({ name, w }); };
+    const addCandidate = (name, w) => {
+      if (!name) return;
+      if (excludeName && name === excludeName) return;
+      pool.push({ name, w });
+    };
     if (weights.LB) {
       addCandidate(defStarters.lb1, weights.LB);
       addCandidate(defStarters.lb2, weights.LB);
@@ -815,6 +833,9 @@ class GameSimulator {
       rStats.kr_yds = (rStats.kr_yds || 0) + ret;
       if (ret > (rStats.kr_long || 0)) rStats.kr_long = ret;
     }
+    // Coverage tackle — credit a kicking-team defender on the return.
+    // ST coverage units mostly draw from CB / S depth, so weight there.
+    this._creditTackle({ S: 0.30, CB: 0.30, LB: 0.30, DL: 0.10 });
     const endYL = Math.min(50, ret);
     this._pushVisual({
       kind: "kickoff",
@@ -1273,6 +1294,22 @@ class GameSimulator {
         prStats.pr_yds = (prStats.pr_yds || 0) + returnYards;
         if (returnYards > (prStats.pr_long || 0)) prStats.pr_long = returnYards;
         if (isReturnTD) prStats.pr_td = (prStats.pr_td || 0) + 1;
+        // Coverage tackle for the kicking team (= the current offensive
+        // side `this.poss` since the punt is on their possession). Skip
+        // if the returner walks in untouched for a TD.
+        if (!isReturnTD) {
+          const kickStarters = (this.poss === "home" ? this.homeR : this.awayR).starters;
+          const candidates = [
+            kickStarters.cb1, kickStarters.cb2,
+            kickStarters.fs, kickStarters.ss,
+            kickStarters.lb3, kickStarters.lb2,
+          ].filter(Boolean);
+          if (candidates.length) {
+            const tackler = candidates[Math.floor(Math.random() * candidates.length)];
+            const ts = this.stats[this.poss].players[tackler];
+            if (ts) ts.tkl = (ts.tkl || 0) + 1;
+          }
+        }
       }
       this._pushVisual({
         kind: "punt",
@@ -1655,7 +1692,7 @@ class GameSimulator {
             off.team.pass_att++; off.team.pass_comp++; off.team.passYds += yards; off.team.totalYds += yards;
             this._lastBallCarrier = rcvr; this._lastBallType = "pass";
             const isTorTD = clamp(startYard + yards, 0, 100) >= 100;
-            const tacklerName = (yards > 0 && !isTorTD) ? this._creditDefStat("tkl", { LB: 0.35, S: 0.30, CB: 0.25, DL: 0.10 }) : null;
+            const tacklerName = (yards > 0 && !isTorTD) ? this._creditTackle( { LB: 0.35, S: 0.30, CB: 0.25, DL: 0.10 }) : null;
             const torEndTag = isTorTD ? " — TOUCHDOWN!" : tacklerName ? `, tackled by ${tacklerName}` : "";
             this._pushVisual({
               kind: "complete", desc: `${this.offR.starters.qb} throws on the run to ${rcvr} for ${yards} yds${torEndTag}`,
@@ -1702,7 +1739,7 @@ class GameSimulator {
           this._lastBallCarrier = QB; this._lastBallType = "rush";
           const isEvadeTD = clamp(startYard + yards, 0, 100) >= 100;
           const tacklerName = (yards > -2 && !isEvadeTD)
-            ? this._creditDefStat("tkl", { LB: 0.30, S: 0.30, CB: 0.25, DL: 0.15 })
+            ? this._creditTackle( { LB: 0.30, S: 0.30, CB: 0.25, DL: 0.15 })
             : null;
           const endTag = isEvadeTD
             ? " — TOUCHDOWN!"
@@ -1771,7 +1808,7 @@ class GameSimulator {
           off.team.pass_att++; off.team.pass_comp++; off.team.passYds += yards; off.team.totalYds += yards;
           this._lastBallCarrier = rcvr; this._lastBallType = "pass";
           const isScreenTD = clamp(startYard + yards, 0, 100) >= 100;
-          const tacklerName = (yards > 0 && !isScreenTD) ? this._creditDefStat("tkl", { LB: 0.30, S: 0.25, CB: 0.25, DL: 0.20 }) : null;
+          const tacklerName = (yards > 0 && !isScreenTD) ? this._creditTackle( { LB: 0.30, S: 0.25, CB: 0.25, DL: 0.20 }) : null;
           const screenEndTag = isScreenTD ? " — TOUCHDOWN!" : tacklerName ? `, tackled by ${tacklerName}` : "";
           this._pushVisual({
             kind: "complete", desc: `Screen to ${rcvr} for ${yards} yds${screenEndTag}`,
@@ -2061,7 +2098,7 @@ class GameSimulator {
         this._lastBallCarrier = rcvr; this._lastBallType = "pass";
         // Tackle credit on the catch — DBs / LBs make most tackles in the open field
         const isTD = clamp(startYard + yards, 0, 100) >= 100;
-        const tacklerName = (yards > 0 && !isTD) ? this._creditDefStat("tkl", { LB: 0.35, S: 0.30, CB: 0.25, DL: 0.10 }) : null;
+        const tacklerName = (yards > 0 && !isTD) ? this._creditTackle( { LB: 0.35, S: 0.30, CB: 0.25, DL: 0.10 }) : null;
         const flavorTag = wrJuke ? " (CATCH AND JUKE!)"
                         : isLeapingCatch ? " (HIGH POINTED!)" : "";
         const endTag = isTD ? " — TOUCHDOWN!"
@@ -2485,9 +2522,9 @@ class GameSimulator {
     // safeties get more credit on big breakaways. No tackler on a TD run.
     const tacklerName = isRushTD ? null
       : (yards > 0
-        ? (yards >= 10 ? this._creditDefStat("tkl", { S: 0.40, CB: 0.20, LB: 0.30, DL: 0.10 })
-                       : this._creditDefStat("tkl", { LB: 0.45, DL: 0.30, S: 0.15, CB: 0.10 }))
-        : this._creditDefStat("tkl", { DL: 0.50, LB: 0.35, S: 0.10, CB: 0.05 }));
+        ? (yards >= 10 ? this._creditTackle( { S: 0.40, CB: 0.20, LB: 0.30, DL: 0.10 })
+                       : this._creditTackle( { LB: 0.45, DL: 0.30, S: 0.15, CB: 0.10 }))
+        : this._creditTackle( { DL: 0.50, LB: 0.35, S: 0.10, CB: 0.05 }));
     const rushEndTag = isRushTD ? " — TOUCHDOWN!"
                      : tacklerName ? `, tackled by ${tacklerName}` : "";
     const desc = isSpeedOption
