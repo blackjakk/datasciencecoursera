@@ -3263,6 +3263,16 @@ function frnDepthAutoSetOVR() {
   renderFrnDepthChart();
 }
 
+// Fire depth-chart auto-set from the home dashboard without navigating
+// away. Re-renders the dashboard so the badge count updates inline.
+function _frnDepthAutoFromHome() {
+  const myId = franchise.chosenTeamId;
+  if (franchise.depthChart) delete franchise.depthChart[myId];
+  _initDepthChart(myId);
+  saveFranchise();
+  if (typeof renderFrnRegular === "function") renderFrnRegular();
+}
+
 // Set a manual snap share for a slot (locks it from the auto-optimizer).
 // User can say "I want my RB committee 50/50" — that intent persists
 // across roster changes, injuries, and "auto-set by OVR".
@@ -5953,13 +5963,22 @@ function _frnBuildTicker() {
   const items = [];
   const season = franchise?.season || 1;
   const week = franchise?.week || 1;
-  // News items — last 30 wire entries, newest first
+  // News items — last 30 wire entries, newest first. Cap noisy
+  // categories (KNOCKOUT FA wars repeat heavily during the FA window):
+  // at most 3 KO labels per ticker pass, prefer the freshest. Other
+  // labels pass through untouched.
   const news = (franchise?.news || []).slice(-30).reverse();
+  let koCount = 0;
+  const KO_MAX = 3;
   for (const n of news) {
     if (!n.label) continue;
-    // Strip HTML from label for ticker safety
     const text = String(n.label).replace(/<[^>]+>/g, "").replace(/&[a-z]+;/g, " ").trim();
     if (!text) continue;
+    const isKO = /KNOCKOUT/i.test(text);
+    if (isKO) {
+      if (koCount >= KO_MAX) continue;
+      koCount++;
+    }
     const wkAgo = (season - (n.season || season)) * FRANCHISE_WEEKS + (week - (n.week || week));
     const stamp = wkAgo === 0 ? "TODAY" : wkAgo === 1 ? "1w" : `${wkAgo}w`;
     items.push(`<span><span class="frn-bb-ticker-time">${stamp}</span> ${text}</span>`);
@@ -6526,15 +6545,37 @@ function renderFrnRegular() {
   // ---- TASKS (standard weekly prep, checkable) ----
   const oppId0   = nextGame ? (nextGame.homeId === chosenTeamId ? nextGame.awayId : nextGame.homeId) : null;
   const oppName0 = oppId0 ? (getTeam(oppId0)?.name || "opponent") : "Bye week";
-  const mkTask = (key, icon, label, sub, action, alert = false) => ({
-    key, icon, label, sub, action, alert, done: !!cl[key],
+  const mkTask = (key, icon, label, sub, action, alert = false, badge = 0, extra = "") => ({
+    key, icon, label, sub, action, alert, done: !!cl[key], badge, extra,
   });
+  // Depth chart auto-set status — surfaced as an inline "AUTO" toggle on
+  // the depth-chart task row so the user can fire it without navigating.
+  // Mirrors the count the depth-chart page shows: dry-run the auto chart
+  // and count slots where the current pick differs.
+  let dcAutoChanges = 0;
+  try {
+    if (typeof _computeAutoDepthChart === "function" && dcLocal && Object.keys(dcLocal).length) {
+      const autoChart = _computeAutoDepthChart(chosenTeamId)?.dc || {};
+      for (const slotKey of Object.keys(autoChart)) {
+        const a = autoChart[slotKey], c = dcLocal[slotKey];
+        if (!a || !c) continue;
+        if (a.starter !== c.starter || a.backup !== c.backup) dcAutoChanges++;
+      }
+    }
+  } catch (e) {}
+  const dcAutoBtnCls = dcAutoChanges > 0 ? "hot" : "optimal";
+  const dcAutoBtnLabel = dcAutoChanges > 0 ? `⟳ AUTO · ${dcAutoChanges}` : `⟳ AUTO · ✓`;
+  const dcAutoBtnTitle = dcAutoChanges > 0
+    ? `${dcAutoChanges} slot${dcAutoChanges>1?"s":""} would change. Click to auto-set by OVR without leaving this page.`
+    : `Depth chart is already optimal by OVR — click to re-confirm.`;
+  const dcAutoExtra = `<button class="frn-task-auto-btn ${dcAutoBtnCls}" onclick="event.stopPropagation();_frnDepthAutoFromHome()" title="${dcAutoBtnTitle}">${dcAutoBtnLabel}</button>`;
+
   tasks.push(mkTask("scout",    "🔍","Scout Opponent",    nextGame ? `vs ${oppName0}` : "Bye week",                           `renderFrnPreseason('scout')`));
-  tasks.push(mkTask("depth",    "📋","Depth Chart",        "Set your starters",                                                 `renderFrnDepthChart()`));
-  tasks.push(mkTask("snaps",    "⚡","Snap Percentages",   snapConflicts ? `⚠ ${snapConflicts} stamina conflict${snapConflicts>1?"s":""}` : "Optimize rotations", `renderFrnSnapShares()`, snapConflicts > 0));
+  tasks.push(mkTask("depth",    "📋","Depth Chart",        "Set your starters",                                                 `renderFrnDepthChart()`, dcAutoChanges > 0, dcAutoChanges, dcAutoExtra));
+  tasks.push(mkTask("snaps",    "⚡","Snap Percentages",   snapConflicts ? `⚠ ${snapConflicts} stamina conflict${snapConflicts>1?"s":""}` : "Optimize rotations", `renderFrnSnapShares()`, snapConflicts > 0, snapConflicts));
   tasks.push(mkTask("practice", "🏟","Joint Practice",     "Scout an opponent in shared reps",                                  `renderFrnScrimmages()`));
-  if (injured.length) tasks.push(mkTask("injuries", "🩹","Injury Report", `${injured.length} player${injured.length>1?"s":""} out`, `renderFrnInjuryReport()`, true));
-  tasks.push(mkTask("fa","🆓","FA Activity", activeNegs.length ? `${activeNegs.length} active negotiation${activeNegs.length>1?"s":""}` : "Browse free agents", `renderFrnFANegotiations()`));
+  if (injured.length) tasks.push(mkTask("injuries", "🩹","Injury Report", `${injured.length} player${injured.length>1?"s":""} out`, `renderFrnInjuryReport()`, true, injured.length));
+  tasks.push(mkTask("fa","🆓","FA Activity", activeNegs.length ? `${activeNegs.length} active negotiation${activeNegs.length>1?"s":""}` : "Browse free agents", `renderFrnFANegotiations()`, false, activeNegs.length));
   if (week <= TRADE_DEADLINE_WEEK) tasks.push(mkTask("trade","🔀","Trade Window", `Open until Wk ${TRADE_DEADLINE_WEEK}`, `frnOpenTrade()`));
   const doneCount = tasks.filter(t => t.done).length;
   const totalTasks = tasks.length;
@@ -6552,9 +6593,10 @@ function renderFrnRegular() {
     onclick="_frnCheckItem('${t.key}');${t.action}">
     <span class="frn-check-icon">${t.done?"✓":"○"}</span>
     <div class="frn-check-body">
-      <div class="frn-check-label">${t.icon} ${t.label}</div>
+      <div class="frn-check-label">${t.icon} ${t.label}${(t.badge && !t.done) ? `<span class="frn-task-badge">${t.badge}</span>` : ""}</div>
       ${t.sub?`<div class="frn-check-sub">${t.sub}</div>`:""}
     </div>
+    ${t.extra || ""}
     <span class="frn-check-arrow">›</span>
   </div>`;
 
@@ -6592,7 +6634,75 @@ function renderFrnRegular() {
     <a class="frn-inbox-wire-more" onclick="renderFrnNewsArchive()">Archive →</a>
   </div>` : "";
 
-  // ─── Left column: inbox + unit bars ──────────────────────────────────
+  // ─── GM Pulse — glanceable indicators a GM scans every week ──────────
+  // Cap stress (head/tail color), trade deadline countdown, bye-week
+  // proximity, and the team's biggest in-season OVR mover. Each chip
+  // shows a one-line headline + a color cue so the eye picks up risk
+  // patterns immediately.
+  const capRemaining = cap - capUsed;
+  const capChipCol = capPct >= 95 ? "#ff8a8a" : capPct >= 85 ? "#ffc850" : "#86e0a3";
+  const capChipNote = capPct >= 95 ? "tight" : capPct >= 85 ? "watch" : "healthy";
+  const tradeDelta = TRADE_DEADLINE_WEEK - week;
+  const tradeChipCol = tradeDelta < 0 ? "var(--gray)"
+                     : tradeDelta <= 1 ? "#ff8a8a"
+                     : tradeDelta <= 3 ? "#ffc850"
+                     :                   "#86e0a3";
+  const tradeChipLabel = tradeDelta < 0 ? "Closed"
+                        : tradeDelta === 0 ? "TODAY"
+                        : `${tradeDelta} wk${tradeDelta===1?"":"s"}`;
+  const byeGame = myGames.find(g => g.bye && g.week >= week)
+                || (myGames.length < FRANCHISE_WEEKS ? { week: myGames[0]?.bye ?? null } : null);
+  // Schedule has 1 implicit bye — find the week number that's in the
+  // 1..FRANCHISE_WEEKS range but missing from myGames.
+  const myWeekSet = new Set(myGames.map(g => g.week));
+  let byeWeek = null;
+  for (let w = 1; w <= FRANCHISE_WEEKS; w++) {
+    if (!myWeekSet.has(w)) { byeWeek = w; break; }
+  }
+  const byeDelta = byeWeek != null ? byeWeek - week : null;
+  const byeChipCol = byeDelta == null ? "var(--gray)"
+                   : byeDelta < 0 ? "var(--gray)"
+                   : byeDelta === 0 ? "#86e0a3"
+                   : byeDelta <= 2 ? "#ffc850"
+                                   : "rgba(255,255,255,.55)";
+  const byeChipLabel = byeWeek == null ? "—"
+                     : byeDelta === 0 ? "THIS WK"
+                     : byeDelta < 0 ? "Used"
+                     : `W${byeWeek}`;
+  // Starter health: count starters in the depth chart who are NOT
+  // currently injured. Pulled from the user's dcLocal + injury status
+  // on the matched roster entry. % of starters healthy is a single
+  // number a GM would scan first thing.
+  let starterTotal = 0, starterHealthy = 0;
+  for (const slot of Object.values(dcLocal)) {
+    if (!slot?.starter) continue;
+    starterTotal++;
+    const p = byPidDash[slot.starter];
+    if (p && !(p.injury && p.injury.weeksRemaining > 0)) starterHealthy++;
+  }
+  const healthPct = starterTotal ? Math.round((starterHealthy / starterTotal) * 100) : 100;
+  const healthChipCol = healthPct >= 95 ? "#86e0a3" : healthPct >= 88 ? "#ffc850" : "#ff8a8a";
+  const healthChipLabel = `${healthPct}%`;
+  const healthChipSub = starterTotal
+    ? `${starterHealthy}/${starterTotal} starters` : "no chart";
+  const pulseChipHtml = (label, value, sub, col) => `
+    <div class="frn-pulse-chip">
+      <div class="frn-pulse-chip-label">${label}</div>
+      <div class="frn-pulse-chip-value" style="color:${col}">${value}</div>
+      <div class="frn-pulse-chip-sub">${sub}</div>
+    </div>`;
+  const pulseHtml = `
+    <div class="frn-card-box frn-pulse-card">
+      <div class="frn-card-title">GM PULSE <span class="frn-card-title-sub">at-a-glance</span></div>
+      <div class="frn-pulse-grid">
+        ${pulseChipHtml("CAP", `$${capRemaining.toFixed(1)}M`, capChipNote, capChipCol)}
+        ${pulseChipHtml("TRADE WIN", tradeChipLabel, tradeDelta < 0 ? "deadline passed" : `until W${TRADE_DEADLINE_WEEK}`, tradeChipCol)}
+        ${pulseChipHtml("BYE", byeChipLabel, byeDelta == null ? "—" : byeDelta < 0 ? "" : byeDelta === 0 ? "rest week" : `${byeDelta}w out`, byeChipCol)}
+        ${pulseChipHtml("HEALTH", healthChipLabel, healthChipSub, healthChipCol)}
+      </div>
+    </div>`;
+
+  // ─── Left column: inbox + unit bars + pulse ──────────────────────────
   const leftColHtml = `
     <div>
       <div class="frn-card-box" style="padding:0">
@@ -6612,6 +6722,7 @@ function renderFrnRegular() {
         ${faWireInfo}
         ${wireRow}
       </div>
+      ${pulseHtml}
       <div class="frn-card-box" style="margin-top:1rem">
         <div class="frn-card-title">UNIT RATINGS</div>
         ${unitRows}

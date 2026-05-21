@@ -8058,13 +8058,54 @@
     position: relative;
   }
   .frn-nav-badge {
-    display: inline-block; min-width: 1.1rem;
-    margin-left: .3rem; padding: 0 .3rem;
-    font-size: .55rem; font-weight: 900;
-    color: #000; background: var(--gold-lt);
-    border-radius: 8px; text-align: center;
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 1.05rem; height: 1.05rem;
+    margin-left: .35rem; padding: 0 .32rem;
+    font-size: .58rem; font-weight: 900; line-height: 1;
+    color: #fff; background: #ff3b30;
+    border-radius: 999px; text-align: center;
+    box-shadow: 0 0 0 2px rgba(255,59,48,.18), 0 1px 3px rgba(0,0,0,.45);
+    letter-spacing: 0;
+    animation: badgePulse 2.4s ease-in-out infinite;
   }
-  .frn-nav-badge.alert { background: #ff8a8a; color: #000; }
+  .frn-nav-badge.alert { background: #ff3b30; color: #fff; }
+  @keyframes badgePulse {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 0 2px rgba(255,59,48,.18), 0 1px 3px rgba(0,0,0,.45); }
+    50%      { transform: scale(1.06); box-shadow: 0 0 0 4px rgba(255,59,48,.08), 0 1px 3px rgba(0,0,0,.45); }
+  }
+  /* iOS-style task badge — used on prep tasks that have something
+     actionable. Same visual language as the nav badge so the user's eye
+     pattern-matches them as "things to do". */
+  .frn-task-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 1.05rem; height: 1.05rem; padding: 0 .32rem;
+    font-size: .58rem; font-weight: 900; line-height: 1;
+    color: #fff; background: #ff3b30; border-radius: 999px;
+    box-shadow: 0 0 0 2px rgba(255,59,48,.18), 0 1px 3px rgba(0,0,0,.45);
+    animation: badgePulse 2.4s ease-in-out infinite;
+    margin-left: .35rem;
+  }
+  /* AUTO toggle button — quick-action attached to the depth chart task
+     row. Doesn't navigate; it fires the auto-set in place. */
+  .frn-task-auto-btn {
+    margin-left: auto; margin-right: .4rem;
+    font-size: .56rem; font-weight: 800; letter-spacing: .4px;
+    padding: .18rem .5rem; border-radius: 3px;
+    background: rgba(200,169,0,.12); color: var(--gold);
+    border: 1px solid rgba(200,169,0,.4); cursor: pointer;
+    text-transform: uppercase;
+  }
+  .frn-task-auto-btn:hover {
+    background: rgba(200,169,0,.22); border-color: var(--gold);
+  }
+  .frn-task-auto-btn.hot {
+    background: rgba(255,140,40,.16); color: #ffb670;
+    border-color: rgba(255,140,40,.55);
+  }
+  .frn-task-auto-btn.optimal {
+    background: rgba(100,200,140,.10); color: #86e0a3;
+    border-color: rgba(100,200,140,.4);
+  }
   .frn-more-nav-wrap { position: relative; }
   .frn-more-nav {
     display: none; position: absolute; top: calc(100% + .25rem); right: 0;
@@ -8223,6 +8264,41 @@
   .frn-cap-btn-alert { color: var(--red) !important; border-color: var(--red) !important; }
   .frn-dash-banner { margin-bottom: .5rem !important; }
 
+  /* GM Pulse — at-a-glance indicator grid below the inbox. 4 chips on
+     one row, each with a label / big-value / sub. Mirrors the
+     "Bloomberg dashboard" pattern of the shell header — dense, scannable,
+     color-coded by risk level. */
+  .frn-pulse-card { margin-top: 1rem; }
+  .frn-pulse-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: .5rem; margin-top: .35rem;
+  }
+  .frn-pulse-chip {
+    background: rgba(255,255,255,.025);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: .45rem .55rem;
+    display: flex; flex-direction: column; gap: .12rem;
+    min-width: 0;
+  }
+  .frn-pulse-chip-label {
+    font-size: .55rem; font-weight: 800; letter-spacing: .8px;
+    color: var(--gray); text-transform: uppercase;
+  }
+  .frn-pulse-chip-value {
+    font-size: 1.05rem; font-weight: 900; line-height: 1.05;
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: .3px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .frn-pulse-chip-sub {
+    font-size: .58rem; color: var(--gray); letter-spacing: .3px;
+    text-transform: uppercase;
+  }
+  @media (max-width: 720px) {
+    .frn-pulse-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
   /* ── BLOOMBERG-STYLE FRANCHISE SHELL ────────────────────────────
      Multi-row persistent header (ticker + function strip + identity)
      and a sticky footer status bar. Sits above the existing tab
@@ -8249,7 +8325,7 @@
   }
   .frn-bb-ticker-scroll {
     display: inline-block; padding-left: 100%;
-    animation: bbTickerScroll 120s linear infinite;
+    animation: bbTickerScroll 280s linear infinite;
     will-change: transform;
   }
   .frn-bb-ticker-scroll:hover { animation-play-state: paused; }
