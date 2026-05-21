@@ -1320,10 +1320,12 @@ class GameSimulator {
     // buried (~20% win rate) like a 100% rush team does.
     const passLeanRatio = tendencyRush < 0.35 ? Math.min(1, (0.35 - tendencyRush) / 0.20) : 0;
     this._boxStackRunMod = personnelRunMod + tendencyRunPenalty;
-    this._boxStackAirMod = personnelAirMod + tendencyAirBonus;
-    this._boxStackCompMod = -0.06 * passLeanRatio;   // up to -6pp comp%
-    this._boxStackIntMod  =  0.005 * passLeanRatio;  // up to +50bp INT
-    this._boxStackSackMul =  1 + 0.20 * passLeanRatio; // up to 1.20x sack rate
+    // When pass-heavy, defense drops out of light boxes — extra airYds penalty
+    // on top of the existing tendencyAirBonus.
+    this._boxStackAirMod = personnelAirMod + tendencyAirBonus - 2.2 * passLeanRatio;
+    this._boxStackCompMod = -0.10 * passLeanRatio;   // up to -10pp comp%
+    this._boxStackIntMod  =  0.010 * passLeanRatio;  // up to +1pp INT
+    this._boxStackSackMul =  1 + 0.35 * passLeanRatio; // up to 1.35x sack rate
     // RZ team-stat: count the trip when offense first crosses into the 20.
     // Use this._lastRzPossession to dedupe re-entries on a single drive.
     if (isRedZone && this._lastRzDrive !== this.drives.length) {
