@@ -514,7 +514,7 @@ class GameSimulator {
   // this we undershot NFL pace by ~25%.
   _creditTackle(weights) {
     const primary = this._creditDefStat("tkl", weights);
-    if (primary && Math.random() < 0.60) {
+    if (primary && Math.random() < 0.72) {
       // Assist roll: credit a different defender at the same weights.
       // Skip the primary so we don't double-bump the same player.
       this._creditDefStat("tkl", weights, primary);
@@ -1335,6 +1335,11 @@ class GameSimulator {
     // dialed up pass or run accordingly. Stamped on the sim by frnSimOnce.
     const wgp = this.poss === "home" ? this.homeWgp : this.awayWgp;
     if (wgp?.passProbDelta) passProb = clamp(passProb + wgp.passProbDelta, 0.10, 0.95);
+    // Goal-to-go bias toward the run — NFL calls ~60% rush inside the 10.
+    // Engine still rolled close to 50/50 (default mid passProb), so we shed
+    // ~12pp of pass to bring rush TDs back near NFL pace.
+    if (this._inGoalToGo) passProb = Math.max(0.20, passProb - 0.12);
+    else if (this._inRedZone) passProb = Math.max(0.25, passProb - 0.06);
     const playType = Math.random() < passProb ? "pass" : "run";
 
     // ── PENALTY ROLL ──
@@ -1665,7 +1670,7 @@ class GameSimulator {
       // turnover doesn't make sacks 50% more frequent.
       const momSackMul = 1 + ((this._momentum?.[this.poss === "home" ? "away" : "home"] || 0)
                             - (this._momentum?.[this.poss] || 0)) * 0.012;
-      const sackPct = clamp((0.07 + pressure * 0.08 - adv * 0.02 + archSackBonus) * sackPb * qbAwrSackMul * defPbCurrent.sackMul * mlbAggMul * fatigueSackMul * momSackMul, 0.015, 0.17);
+      const sackPct = clamp((0.09 + pressure * 0.10 - adv * 0.02 + archSackBonus) * sackPb * qbAwrSackMul * defPbCurrent.sackMul * mlbAggMul * fatigueSackMul * momSackMul, 0.018, 0.19);
       if (Math.random() < sackPct) {
         // THROW ON THE RUN — mobile QBs with high AGI sometimes escape pressure
         // and throw on the move instead of taking the sack. Lower comp / air
@@ -1958,7 +1963,7 @@ class GameSimulator {
       // momentum point, max ±5pp); hot defense plays tighter coverage.
       const momCompMod = ((this._momentum?.[this.poss] || 0)
                        -  (this._momentum?.[this.poss === "home" ? "away" : "home"] || 0)) * 0.0025;
-      const compPct = clamp((0.62 + adv * 0.12 + qbCompFromOvr - pressure * 0.11 - shutdownPenalty + possessionBonus + qbCompMod + paCompMod + catCompMod + awrCompMod + cbCoverMod + mismatchBonus + coverLbMod + signalLbMod + physicalJamMod + wxCompMod + archCompMod + rzCompBonus + fatigueCompMod + momCompMod) * compPbMul * defPbCurrent.passMul * dcCoverSchemeMul, 0.12, 0.84);
+      const compPct = clamp((0.65 + adv * 0.13 + qbCompFromOvr - pressure * 0.10 - shutdownPenalty + possessionBonus + qbCompMod + paCompMod + catCompMod + awrCompMod + cbCoverMod + mismatchBonus + coverLbMod + signalLbMod + physicalJamMod + wxCompMod + archCompMod + rzCompBonus + fatigueCompMod + momCompMod) * compPbMul * defPbCurrent.passMul * dcCoverSchemeMul, 0.15, 0.88);
       if (Math.random() < compPct) {
         // Air yards drop when pressure shortens the QB's reads (check-downs / dump-offs)
         // Weaker QBs also throw shorter — they can't push the ball downfield reliably.
@@ -2002,7 +2007,7 @@ class GameSimulator {
         const qbAggAirMod = (this._aggTilt(this._qbAggression()) - 1) * 3.0; // agg=80→+0.9yds, agg=20→-0.9yds
         // OC Air Attack: +1.0 to air yards mean
         const ocAirAttackMod = _ocTrait === "Air Attack" ? 1.0 : 0;
-        const airMean = (pb.airYdsMean ?? 7.5) - pressure * 2.8 + qbAirMod + qbAirFromOvr + paAirMod + qbPocketAirBonus + centerFieldCap + wxAirMod + defDeepBonus + archAirMod + qbAggAirMod + ocAirAttackMod;
+        const airMean = (pb.airYdsMean ?? 7.5) + 2.6 - pressure * 2.2 + qbAirMod + qbAirFromOvr + paAirMod + qbPocketAirBonus + centerFieldCap + wxAirMod + defDeepBonus + archAirMod + qbAggAirMod + ocAirAttackMod;
         const airSd   = (pb.airYdsSd   ?? 6) * (qbArch === "GUNSLINGER" ? 1.25 : 1.0);
         const airYds  = clamp(normal(airMean + adv * 2, airSd), -2, 55);
         // YAC distribution — short catches / screens get more YAC potential.
@@ -2268,7 +2273,11 @@ class GameSimulator {
         return { yards: netYds };
       }
     }
-    const rushMean = pb.rushYdsMean ?? 4.3;
+    // +1.6 baseline lift — landing rush yards slightly above NFL pace
+    // (user asked for "slightly over NFL, not below"). Engine's run-stuff
+    // modifiers overcompensate at the tail. Raises base to 5.9; realized
+    // mean lands near 4.7, ~9% above NFL 4.3.
+    const rushMean = (pb.rushYdsMean ?? 4.3) + 1.6;
     const rushSd   = pb.rushYdsSd   ?? 5.5;
     // ── TWO-BACK FORMATION DECISION ────────────────────────────────────
     // Only when there's a viable second back on the roster. Probability
@@ -2454,7 +2463,12 @@ class GameSimulator {
     const _olFatRun = this._avgFatigue(this.poss === "home" ? this.homeOL : this.awayOL);
     const _dlFatRun = this._avgFatigue(this.poss === "home" ? this.awayDL : this.homeDL);
     const fatigueRunYds = -((_carrierFat + _olFatRun) / 2 - _dlFatRun) / 100 * 2.5;
-    let yards = clamp(normal((rushMean + rbBoost + fbBoost + runVarMean + adv * 1.4 + runTrenchYds + fbStuffReduction - lbTackle * 0.5 - boxSafetyStuff - thumperStuff - lbGapRead + rbGapVision + carrierBoost + reverseBonus + ocRunArchBonus + dcRunStopperMalus + fatigueRunYds) * defPbRun.runMul, rushSd * rbSdMul * runVarSd * reverseSdMul), -8, 75);
+    // Red-zone power bonus — short-yardage power runs convert in real NFL
+    // at ~65% on 1st-and-goal because the OL fires off downhill. Without
+    // this the rush-TD rate cratered to 0.56× NFL. +0.8 yds in goal-to-go,
+    // +0.4 in the rest of the red zone.
+    const rzRunBonus = this._inGoalToGo ? 0.8 : (this._inRedZone ? 0.4 : 0);
+    let yards = clamp(normal((rushMean + rbBoost + fbBoost + runVarMean + adv * 1.4 + runTrenchYds + fbStuffReduction - lbTackle * 0.5 - boxSafetyStuff - thumperStuff - lbGapRead + rbGapVision + carrierBoost + reverseBonus + ocRunArchBonus + dcRunStopperMalus + fatigueRunYds + rzRunBonus) * defPbRun.runMul, rushSd * rbSdMul * runVarSd * reverseSdMul), -8, 75);
     // Cap at distance to end zone so a 1-yd goal-line carry doesn't get reported as a 17-yd TD
     if (yards > 0) yards = Math.min(yards, 100 - startYard);
     // Broken tackles — carrier physicality vs defender tackle rating.
