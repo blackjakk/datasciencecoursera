@@ -9886,10 +9886,64 @@ function renderFrnCoachingStaff() {
 // GM / scout / trainer / strength coach for the user's team. Each role
 // has rating + trait + tenure + applied effect summary. Page is
 // reachable from the coaching staff page header.
+// ── FRONT OFFICE CANDIDATE MARKET ─────────────────────────────────────
+// User can browse + hire alternative staff. Refreshed once per offseason
+// (or once per session if missing). Candidates persist on franchise so
+// they survive navigation; one "hired" event consumes the pool for that
+// role until the next refresh.
+function _refreshFrontOfficeMarket() {
+  if (typeof _rollFrontOfficer !== "function") return;
+  if (!franchise._foMarket) franchise._foMarket = { season: 0, candidates: {} };
+  if (franchise._foMarket.season === franchise.season && franchise._foMarket.candidates) return;
+  franchise._foMarket = {
+    season: franchise.season,
+    candidates: {
+      gm:       Array.from({ length: 4 }, () => _rollFrontOfficer("gm")),
+      scout:    Array.from({ length: 4 }, () => _rollFrontOfficer("scout")),
+      trainer:  Array.from({ length: 4 }, () => _rollFrontOfficer("trainer")),
+      strength: Array.from({ length: 4 }, () => _rollFrontOfficer("strength")),
+    },
+  };
+}
+function frnFOFire(role) {
+  const myId = franchise.chosenTeamId;
+  const fo = franchise.frontOffice?.[myId];
+  if (!fo?.[role]) return;
+  const p = fo[role];
+  // Buyout: remaining contract years × salary (narrative cost, no cap hit).
+  const buyout = (p.salary || 0) * Math.max(1, p.contractYears || 1);
+  if (!confirm(`Fire ${p.name} (${role.toUpperCase()})? Buyout ≈ $${buyout.toFixed(1)}M. You can hire a replacement from the candidate market.`)) return;
+  fo[role] = null;
+  if (typeof _pushNews === "function") {
+    _pushNews({ type: "coach_depart", label: `🗞 ${p.name} (${role.toUpperCase()}) released by ${getTeam(myId)?.name} — $${buyout.toFixed(1)}M buyout` });
+  }
+  saveFranchise();
+  renderFrnFrontOffice();
+}
+function frnFOHire(role, candidateIdx) {
+  const myId = franchise.chosenTeamId;
+  const market = franchise._foMarket?.candidates?.[role];
+  if (!market || !market[candidateIdx]) return;
+  const cand = market[candidateIdx];
+  if (!franchise.frontOffice) franchise.frontOffice = {};
+  if (!franchise.frontOffice[myId]) franchise.frontOffice[myId] = {};
+  // Confirm the hire so a misclick can't burn the pick.
+  if (!confirm(`Sign ${cand.name} as your ${role.toUpperCase()}? ${cand.contractYears}yr · $${(cand.salary||0).toFixed(1)}M`)) return;
+  franchise.frontOffice[myId][role] = cand;
+  // Remove from market so user can't double-pick.
+  market.splice(candidateIdx, 1);
+  if (typeof _pushNews === "function") {
+    _pushNews({ type: "coach_hire", label: `🗞 ${getTeam(myId)?.name} hire ${cand.name} as ${role.toUpperCase()} (${cand.rating} OVR · ${cand.trait})` });
+  }
+  saveFranchise();
+  renderFrnFrontOffice();
+}
 function renderFrnFrontOffice() {
   const myId   = franchise.chosenTeamId;
   const myTeam = getTeam(myId);
   const fo = franchise.frontOffice?.[myId] || {};
+  _refreshFrontOfficeMarket();
+  const market = franchise._foMarket?.candidates || {};
   const ratingColor = r => r >= 80 ? "var(--green-lt)" : r >= 65 ? "var(--gold)" : "var(--red)";
   const ratingBadge = (r) => r != null
     ? `<span style="font-size:.7rem;font-weight:700;padding:.1rem .4rem;border-radius:3px;background:${ratingColor(r)};color:#000">${r}</span>`
@@ -9921,7 +9975,8 @@ function renderFrnFrontOffice() {
   const ROLE_ICONS  = { gm: "📋", scout: "🔍", trainer: "🏥", strength: "💪" };
   const roleCard = (role) => {
     const p = fo[role];
-    if (!p) return `<div class="frn-pg-card" style="flex:1"><div class="frn-pg-card-title">${ROLE_ICONS[role]} ${ROLE_LABELS[role]}</div><div style="color:var(--gray);font-style:italic;padding:.5rem">Position vacant — auto-fill next offseason</div></div>`;
+    if (!p) return `<div class="frn-pg-card" style="flex:1"><div class="frn-pg-card-title">${ROLE_ICONS[role]} ${ROLE_LABELS[role]}</div><div style="color:var(--gray);font-style:italic;padding:.5rem">Position vacant — hire from market below</div></div>`;
+    const buyout = (p.salary || 0) * Math.max(1, p.contractYears || 1);
     return `<div class="frn-pg-card" style="flex:1">
       <div class="frn-pg-card-title">${ROLE_ICONS[role]} ${ROLE_LABELS[role]}</div>
       <div style="padding:.45rem 0">
@@ -9933,6 +9988,27 @@ function renderFrnFrontOffice() {
         <div style="margin-top:.55rem;padding:.3rem .45rem;background:rgba(0,0,0,.25);border-left:2px solid var(--gold);border-radius:2px;font-size:.62rem;color:var(--blwhite)">
           <b style="color:var(--gold);letter-spacing:.5px;font-size:.55rem">EFFECT</b><br/>${effectFor(role, p)}
         </div>
+        <button class="btn btn-outline" onclick="frnFOFire('${role}')" style="margin-top:.55rem;color:#c08080;border-color:#c08080;font-size:.6rem;padding:.18rem .5rem" title="Buyout: $${buyout.toFixed(1)}M">✗ Fire ($${buyout.toFixed(1)}M buyout)</button>
+      </div>
+    </div>`;
+  };
+  // Market section — 4 candidates per role with hire buttons. Persisted
+  // per season; refreshed automatically when the season advances.
+  const marketRow = (role) => {
+    const cands = market[role] || [];
+    if (!cands.length) return "";
+    return `<div style="margin-top:.85rem">
+      <div style="font-size:.7rem;color:var(--gold);letter-spacing:.8px;font-weight:700;margin-bottom:.35rem">${ROLE_ICONS[role]} ${ROLE_LABELS[role]} — CANDIDATE MARKET</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:.4rem">
+        ${cands.map((c, i) => `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:3px;padding:.4rem .55rem">
+          <div style="display:flex;align-items:baseline;gap:.4rem">
+            <span style="font-weight:800;font-size:.78rem">${c.name}</span>
+            ${ratingBadge(c.rating)}
+          </div>
+          <div style="color:var(--gold);font-size:.62rem;margin-top:.15rem">${c.trait}</div>
+          <div style="color:var(--gray);font-size:.55rem;margin-top:.3rem">Age ${c.age} · ${c.contractYears}yr · $${(c.salary||0).toFixed(1)}M/yr</div>
+          <button class="btn btn-outline accept-btn" onclick="frnFOHire('${role}', ${i})" style="margin-top:.4rem;font-size:.58rem;padding:.16rem .5rem;border-color:var(--gold);color:var(--gold);width:100%">${fo[role] ? "↺ Sign (replaces current)" : "✓ Hire"}</button>
+        </div>`).join("")}
       </div>
     </div>`;
   };
@@ -9952,6 +10028,17 @@ function renderFrnFrontOffice() {
       <div class="frn-pg-row" style="flex-wrap:wrap;gap:.6rem;margin-top:.6rem">
         ${roleCard("trainer")}
         ${roleCard("strength")}
+      </div>
+      <div style="margin-top:1.2rem;padding-top:.7rem;border-top:1px dashed var(--border)">
+        <div style="font-size:.78rem;color:var(--gold);letter-spacing:.5px;font-weight:800;margin-bottom:.3rem">🗂 CANDIDATE MARKET</div>
+        <div style="color:var(--gray);font-size:.62rem;margin-bottom:.5rem;line-height:1.35">
+          Available hires this offseason. Sign a candidate to replace your current staff at that role.
+          Market refreshes once per season — agents come and go.
+        </div>
+        ${marketRow("gm")}
+        ${marketRow("scout")}
+        ${marketRow("trainer")}
+        ${marketRow("strength")}
       </div>
     </div>`;
 }
