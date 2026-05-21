@@ -9152,6 +9152,139 @@
   @media (max-width: 720px) {
     .frn-pulse-grid { grid-template-columns: repeat(2, 1fr); }
   }
+  /* Pulse chip — clickable variant + 5-up grid for the new scouting
+     chip. The grid was originally 4 columns; bumping to 5 makes the
+     chips narrower but still legible. */
+  .frn-pulse-grid {
+    grid-template-columns: repeat(5, 1fr);
+  }
+  @media (max-width: 1180px) {
+    .frn-pulse-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+  .frn-pulse-chip.clickable {
+    cursor: pointer;
+    transition: background .12s, border-color .12s, transform .08s;
+  }
+  .frn-pulse-chip.clickable:hover {
+    background: rgba(94,212,212,.06);
+    border-color: rgba(94,212,212,.45);
+    transform: translateY(-1px);
+  }
+  /* Scout gauge — row of dots, one per credit, filled when bank≥index */
+  .frn-scout-gauge {
+    display: flex; gap: 2px; margin-top: .25rem;
+    flex-wrap: wrap;
+  }
+  .frn-scout-dot {
+    width: 6px; height: 6px;
+    background: rgba(255,255,255,.08);
+    border-radius: 1px;
+    flex-shrink: 0;
+  }
+  .frn-scout-dot.active {
+    background: #5ed4d4;
+    box-shadow: 0 0 4px rgba(94,212,212,.6);
+  }
+
+  /* MY GUYS — richer player cards replacing the old Hot Board rows.
+     Each card has an avatar circle (initials, position-colored), name +
+     meta line, season stats, per-game averages, and a "fantasy points
+     per game" badge on the right. Click → player card. */
+  .frn-myguys-card { padding: 0; }
+  .frn-myguys-card .frn-card-title { padding: .6rem .75rem 0; }
+  .frn-myguys-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: .35rem;
+    padding: .55rem .55rem .65rem;
+  }
+  @media (min-width: 720px) {
+    .frn-myguys-grid { grid-template-columns: 1fr 1fr; }
+  }
+  @media (min-width: 1280px) {
+    .frn-myguys-grid { grid-template-columns: 1fr 1fr 1fr; }
+  }
+  .frn-myguy-card {
+    display: grid;
+    grid-template-columns: 1.3rem 2.5rem 1fr 3.2rem;
+    align-items: center; gap: .5rem;
+    padding: .5rem .65rem;
+    background: rgba(255,255,255,.025);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background .12s, border-color .12s, transform .08s;
+    min-width: 0;
+  }
+  .frn-myguy-card:hover {
+    background: rgba(200,169,0,.08);
+    border-color: rgba(200,169,0,.45);
+    transform: translateY(-1px);
+  }
+  .frn-myguy-rank {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .55rem; font-weight: 800;
+    color: var(--gray); letter-spacing: .3px;
+    text-align: center;
+  }
+  .frn-myguy-avatar {
+    width: 2.2rem; height: 2.2rem;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .68rem; font-weight: 900;
+    color: rgba(0,0,0,.85);
+    letter-spacing: .5px;
+    flex-shrink: 0;
+    box-shadow: 0 1px 3px rgba(0,0,0,.4);
+  }
+  .frn-myguy-body { min-width: 0; }
+  .frn-myguy-name {
+    font-size: .74rem; font-weight: 800;
+    color: var(--blwhite);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .frn-myguy-meta {
+    display: flex; align-items: center; gap: .35rem;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .55rem; color: var(--gray);
+    margin-top: .1rem;
+  }
+  .frn-myguy-pos { font-weight: 900; letter-spacing: .3px; }
+  .frn-myguy-ovr { font-weight: 800; }
+  .frn-myguy-gp { letter-spacing: .2px; }
+  .frn-myguy-fire {
+    font-size: .65rem; line-height: 1;
+    filter: drop-shadow(0 0 4px rgba(255,140,40,.7));
+  }
+  .frn-myguy-stats {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .6rem; color: var(--blwhite);
+    margin-top: .2rem; letter-spacing: .15px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .frn-myguy-pergame {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .55rem; color: var(--gray);
+    margin-top: .1rem; letter-spacing: .2px;
+  }
+  .frn-myguy-ff {
+    display: flex; flex-direction: column; align-items: center;
+    padding: .35rem .25rem;
+    background: rgba(200,169,0,.08);
+    border: 1px solid rgba(200,169,0,.3);
+    border-radius: 3px;
+    line-height: 1;
+  }
+  .frn-myguy-ff-val {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .95rem; font-weight: 900;
+    color: var(--gold);
+  }
+  .frn-myguy-ff-lbl {
+    font-size: .5rem; font-weight: 700; letter-spacing: .8px;
+    color: var(--gray); margin-top: .15rem;
+  }
 
   /* ── MATCHUP X-RAY ──
      Position-front delta vs next opponent. Five rows, each shows YOU /

@@ -6806,12 +6806,34 @@ function renderFrnRegular() {
   const healthChipLabel = `${healthPct}%`;
   const healthChipSub = starterTotal
     ? `${starterHealthy}/${starterTotal} starters` : "no chart";
-  const pulseChipHtml = (label, value, sub, col) => `
+
+  // Scouting credits — visual gauge of the user's scouting bank. Bank
+  // caps at 10; refreshes +3/week. Surfaces "how much intel-purchasing
+  // power do I have right now" at a glance.
+  const scoutBank = franchise.seasonScoutBank ?? 0;
+  const SCOUT_CAP = (typeof _SEASON_SCOUT_BANK_CAP !== "undefined") ? _SEASON_SCOUT_BANK_CAP : 10;
+  const SCOUT_REFRESH = (typeof _SEASON_SCOUTS_PER_WEEK !== "undefined") ? _SEASON_SCOUTS_PER_WEEK : 3;
+  const scoutPct = SCOUT_CAP > 0 ? Math.round((scoutBank / SCOUT_CAP) * 100) : 0;
+  const scoutChipCol = scoutBank >= 6 ? "#5ed4d4" : scoutBank >= 3 ? "#ffc850" : "#ff8a8a";
+  const revealCount = Object.keys(franchise.seasonScoutReveals || {}).length;
+  const pulseChipHtml = (label, value, sub, col, extra = "") => `
     <div class="frn-pulse-chip">
       <div class="frn-pulse-chip-label">${label}</div>
       <div class="frn-pulse-chip-value" style="color:${col}">${value}</div>
       <div class="frn-pulse-chip-sub">${sub}</div>
+      ${extra}
     </div>`;
+  // Scouting chip — value+gauge composite. The gauge shows the bank/cap
+  // ratio so the user can see "how full" their scouting budget is. Tick
+  // dots represent each credit. Clickable → opens preseason scout.
+  const scoutGaugeDots = Array.from({ length: SCOUT_CAP }, (_, i) =>
+    `<span class="frn-scout-dot${i < scoutBank ? ' active' : ''}"></span>`
+  ).join("");
+  const scoutExtra = `
+    <div class="frn-scout-gauge" title="${scoutBank} of ${SCOUT_CAP} credits · +${SCOUT_REFRESH}/wk · ${revealCount} prospects revealed this season">
+      ${scoutGaugeDots}
+    </div>`;
+  const scoutChipClick = `onclick="renderFrnPreseason && renderFrnPreseason('scout')"`;
   const pulseHtml = `
     <div class="frn-card-box frn-pulse-card">
       <div class="frn-card-title">GM PULSE <span class="frn-card-title-sub">at-a-glance</span></div>
@@ -6820,6 +6842,12 @@ function renderFrnRegular() {
         ${pulseChipHtml("TRADE WIN", tradeChipLabel, tradeDelta < 0 ? "deadline passed" : `until W${TRADE_DEADLINE_WEEK}`, tradeChipCol)}
         ${pulseChipHtml("BYE", byeChipLabel, byeDelta == null ? "—" : byeDelta < 0 ? "" : byeDelta === 0 ? "rest week" : `${byeDelta}w out`, byeChipCol)}
         ${pulseChipHtml("HEALTH", healthChipLabel, healthChipSub, healthChipCol)}
+        <div class="frn-pulse-chip clickable" ${scoutChipClick} title="Click to open college scouting">
+          <div class="frn-pulse-chip-label">🔭 SCOUTING</div>
+          <div class="frn-pulse-chip-value" style="color:${scoutChipCol}">${scoutBank}<span style="font-size:.65rem;color:var(--gray);font-weight:500"> / ${SCOUT_CAP}</span></div>
+          <div class="frn-pulse-chip-sub">+${SCOUT_REFRESH}/wk · ${revealCount} revealed</div>
+          ${scoutExtra}
+        </div>
       </div>
     </div>`;
 
@@ -7166,53 +7194,113 @@ function renderFrnRegular() {
       </div>`;
   }
 
-  // 2) HOT BOARD — top 4 performers on your roster this season. Ranked
-  //    by a position-aware composite (pass yds for QB, scrimmage yds for
-  //    skill, sacks/tackles for D). Surfaces "who's carrying us" so a
-  //    GM can spot extensions / trade chips / load management.
+  // 2) MY GUYS — top performers card with a fantasy-style score, per-game
+  //    averages, position-colored avatar, and hot-streak callout. Ranked
+  //    by a position-aware composite + PPR-flavored fantasy score for
+  //    skill positions. Click → player card.
   const sStats = franchise.seasonStats?.[chosenTeamId] || {};
+  // Position-color palette (matches the cap-treemap so colors are
+  // consistent across the whole dashboard).
+  const _myPosColor = (pos) => ({
+    QB:"#f5c542", RB:"#ef8a4d", WR:"#e85c98", TE:"#ba68c8",
+    OL:"#5fb1d4", DL:"#ff6b6b", LB:"#ffb14c", CB:"#86e0a3", S:"#4dc7a8",
+    K:"#888", P:"#888",
+  }[pos] || "#999");
+  // PPR-flavored fantasy score for skill positions, IDP-flavored for defense.
+  const _ffScore = (p, st) => {
+    if (p.position === "QB")
+      return 0.04*(st.pass_yds||0) + 4*(st.pass_td||0) - 2*(st.int||0)
+           + 0.1*(st.rush_yds||0) + 6*(st.rush_td||0);
+    if (p.position === "RB")
+      return 0.1*((st.rush_yds||0) + (st.rec_yds||0)) + 6*((st.rush_td||0) + (st.rec_td||0))
+           + 1*(st.rec||0);
+    if (p.position === "WR" || p.position === "TE")
+      return 0.1*(st.rec_yds||0) + 6*(st.rec_td||0) + 1*(st.rec||0);
+    if (["DL","LB"].includes(p.position))
+      return 1*(st.tkl||0) + 2*(st.sk||0) + 6*(st.int_made||0) + 2*(st.tfl||0);
+    if (["CB","S"].includes(p.position))
+      return 1*(st.tkl||0) + 6*(st.int_made||0) + 0.5*(st.pd||0);
+    if (p.position === "K")
+      return 3*(st.fg_made||0) - 1*(st.fg_miss||0);
+    return 0;
+  };
   const scoredPlayers = [];
   for (const p of myRoster) {
     const st = sStats[p.name];
     if (!st) continue;
-    let score = 0, line = "";
+    const gp = Math.max(1, st.gp || 1);
+    let score = 0, line = "", perGame = "";
     if (p.position === "QB") {
       score = (st.pass_yds || 0) + (st.pass_td || 0) * 25 + (st.rush_yds || 0) * 0.5 - (st.int || 0) * 30;
       line = `${st.pass_yds || 0} yd · ${st.pass_td || 0} TD${st.int?` · ${st.int} INT`:""}`;
+      perGame = `${(st.pass_yds/gp).toFixed(0)} y/g · ${(st.pass_td/gp).toFixed(1)} TD/g`;
     } else if (p.position === "RB") {
       const yds = (st.rush_yds || 0) + (st.rec_yds || 0);
       score = yds + (st.rush_td || 0) * 50 + (st.rec_td || 0) * 50;
       line = `${st.rush_yds||0} ru · ${st.rec_yds||0} rec · ${(st.rush_td||0)+(st.rec_td||0)} TD`;
+      perGame = `${(yds/gp).toFixed(0)} y/g · ${(((st.rush_td||0)+(st.rec_td||0))/gp).toFixed(1)} TD/g`;
     } else if (p.position === "WR" || p.position === "TE") {
       score = (st.rec_yds || 0) + (st.rec_td || 0) * 50 + (st.rec || 0) * 2;
       line = `${st.rec || 0}/${st.rec_yds || 0}/${st.rec_td || 0}`;
+      perGame = `${(st.rec_yds/gp).toFixed(0)} y/g · ${(st.rec/gp).toFixed(1)} rec/g`;
     } else if (["DL","LB"].includes(p.position)) {
       score = (st.sk || 0) * 30 + (st.tkl || 0) * 2 + (st.tfl || 0) * 5;
       line = `${st.sk||0} sk · ${st.tkl||0} tkl${st.tfl?` · ${st.tfl} TFL`:""}`;
+      perGame = `${(st.tkl/gp).toFixed(1)} tkl/g · ${(st.sk/gp).toFixed(2)} sk/g`;
     } else if (["CB","S"].includes(p.position)) {
       score = (st.int_made || 0) * 50 + (st.pd || 0) * 8 + (st.tkl || 0) * 2;
       line = `${st.int_made||0} INT · ${st.pd||0} PD · ${st.tkl||0} tkl`;
+      perGame = `${(st.tkl/gp).toFixed(1)} tkl/g · ${(st.pd/gp).toFixed(1)} PD/g`;
     } else if (p.position === "K") {
       score = (st.fg_made || 0) * 10 - (st.fg_miss || 0) * 8;
-      line = `${st.fg_made||0}/${(st.fg_made||0)+(st.fg_miss||0)} FG`;
+      const att = (st.fg_made||0) + (st.fg_miss||0);
+      line = `${st.fg_made||0}/${att} FG`;
+      perGame = att > 0 ? `${(((st.fg_made||0)/att)*100).toFixed(0)}% acc` : "no att";
     }
-    if (score > 0) scoredPlayers.push({ p, score, line });
+    if (score > 0) {
+      const ff = _ffScore(p, st);
+      scoredPlayers.push({ p, st, score, line, perGame, gp, ff });
+    }
   }
   scoredPlayers.sort((a, b) => b.score - a.score);
-  const hotTop = scoredPlayers.slice(0, 4);
+  const hotTop = scoredPlayers.slice(0, 6);
+  // Initials for the avatar — first letter of first + last name parts.
+  const _initials = (name) => {
+    const parts = (name || "").split(/\s+/).filter(Boolean);
+    return ((parts[0]?.[0] || "?") + (parts[parts.length - 1]?.[0] || "")).toUpperCase();
+  };
   const hotBoardHtml = hotTop.length ? `
-    <div class="frn-card-box">
-      <div class="frn-card-title">HOT BOARD <span class="frn-card-title-sub">your top performers · S${season}</span></div>
-      <div class="frn-hot-rows">
+    <div class="frn-card-box frn-myguys-card">
+      <div class="frn-card-title">🏈 MY GUYS <span class="frn-card-title-sub">top performers · S${season} · click any card</span></div>
+      <div class="frn-myguys-grid">
         ${hotTop.map((h, i) => {
-          const esc = (h.p.name||"").replace(/'/g,"\\'");
+          const esc = (h.p.name||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'");
           const ovr = h.p.overall || 60;
-          return `<div class="frn-hot-row" onclick="frnOpenPlayerCard('${esc}')">
-            <span class="frn-hot-rank">${i+1}</span>
-            <span class="frn-hot-pos">${h.p.position}</span>
-            <span class="frn-hot-name">${h.p.name}</span>
-            <span class="frn-hot-ovr">${ovr}</span>
-            <span class="frn-hot-stats">${h.line}</span>
+          const ovrCol = ovr >= 88 ? "#f5c542" : ovr >= 80 ? "#86e0a3" : ovr >= 70 ? "var(--gold-lt)" : "var(--gray)";
+          const posCol = _myPosColor(h.p.position);
+          const ffPerGame = h.gp > 0 ? (h.ff / h.gp).toFixed(1) : h.ff.toFixed(1);
+          // Hot-streak detector: fantasy score per game vs 1.5x league avg
+          // (rough heuristic — could refine later)
+          const FF_HOT = { QB: 22, RB: 14, WR: 11, TE: 8, DL: 8, LB: 9, CB: 6, S: 6, K: 7 }[h.p.position] || 6;
+          const isHot = (h.ff / h.gp) >= FF_HOT;
+          return `<div class="frn-myguy-card" onclick="frnOpenPlayerCard('${esc}')">
+            <div class="frn-myguy-rank">#${i+1}</div>
+            <div class="frn-myguy-avatar" style="background:${posCol}">${_initials(h.p.name)}</div>
+            <div class="frn-myguy-body">
+              <div class="frn-myguy-name">${h.p.name}</div>
+              <div class="frn-myguy-meta">
+                <span class="frn-myguy-pos" style="color:${posCol}">${h.p.position}</span>
+                <span class="frn-myguy-ovr" style="color:${ovrCol}">${ovr}</span>
+                <span class="frn-myguy-gp">${h.gp} GP</span>
+                ${isHot ? `<span class="frn-myguy-fire" title="On a hot streak — fantasy ppg above position threshold">🔥</span>` : ""}
+              </div>
+              <div class="frn-myguy-stats">${h.line}</div>
+              <div class="frn-myguy-pergame">${h.perGame}</div>
+            </div>
+            <div class="frn-myguy-ff">
+              <div class="frn-myguy-ff-val">${ffPerGame}</div>
+              <div class="frn-myguy-ff-lbl">FFP/G</div>
+            </div>
           </div>`;
         }).join("")}
       </div>
