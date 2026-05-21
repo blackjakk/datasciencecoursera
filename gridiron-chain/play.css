@@ -2191,6 +2191,24 @@
     font-weight: 700; letter-spacing: .4px; cursor: pointer;
   }
   .frn-cuts-clear-all:hover { color: var(--red); border-color: var(--red); }
+  /* Bulk-action button — only renders when a filter is active. Color
+     matches the cut/restruct/asset action it'll fire (red for cut,
+     cyan for restructure, gold for asset-block). */
+  .frn-cuts-bulk-btn {
+    background: rgba(255,138,138,.08);
+    color: #ff8a8a;
+    border: 1px solid rgba(255,138,138,.45);
+    border-radius: 3px;
+    padding: .3rem .7rem;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .58rem; font-weight: 800; letter-spacing: .5px;
+    cursor: pointer;
+    transition: all .12s;
+  }
+  .frn-cuts-bulk-btn:hover {
+    background: rgba(255,138,138,.18);
+    border-color: #ff8a8a;
+  }
   .frn-cuts-filter-meta {
     margin-left: auto;
     font-size: .55rem; color: var(--gray);

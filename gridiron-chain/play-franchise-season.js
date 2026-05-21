@@ -5694,10 +5694,36 @@ function frnFAStartWithGrace() {
   frnFAFinish();
 }
 
+// ── Custom dialog wrapper ─────────────────────────────────────────────
+// Native confirm()/alert() are used codebase-wide. Swapping them all at
+// once is a separate pass. These wrappers fall through to native today
+// but give us a single seam to swap to a styled modal later — replacing
+// the call sites in OUR new code lets us upgrade once without breaking
+// the rest of the game's confirm flow.
+function _frnConfirm(msg) {
+  // For now: native. Future: replace with a styled modal that returns
+  // a Promise<boolean>. Callers using await will work either way.
+  return window.confirm(msg);
+}
+function _frnAlert(msg) {
+  return window.alert(msg);
+}
+
 // Decision helpers — one shared utility computes the cut economics for
 // each player so the UI, sorter, and auto-cut algorithm all see the
-// same numbers.
+// same numbers. The public _faCutEconomics is a memo wrapper around
+// _faCutEconomicsImpl; cache is reset at the top of renderFrnFACuts so
+// each render starts fresh but all the filter/sort/render passes share.
+let _faCutEconCache = null;
+function _faCutEconReset() { _faCutEconCache = new Map(); }
 function _faCutEconomics(player) {
+  if (!_faCutEconCache) _faCutEconCache = new Map();
+  if (_faCutEconCache.has(player)) return _faCutEconCache.get(player);
+  const e = _faCutEconomicsImpl(player);
+  _faCutEconCache.set(player, e);
+  return e;
+}
+function _faCutEconomicsImpl(player) {
   const hit  = (typeof currentYearCapHit === "function") ? currentYearCapHit(player) : (player.contract?.aav || 0);
   const dead = (typeof deadCapOnRelease === "function") ? deadCapOnRelease(player) : { perYear: 0, years: 0 };
   // When cut, all remaining proration accelerates to current year. The
@@ -5746,7 +5772,7 @@ function frnFARestructureFromCuts(name, pos) {
   if (!p?.contract) return;
   const prev = _faRestructurePreview(p);
   if (!prev.eligible) {
-    alert(`Can't restructure ${name}: ${prev.reason}.`);
+    _frnAlert(`Can't restructure ${name}: ${prev.reason}.`);
     return;
   }
   const msg = `Restructure ${name}?\n\n`
@@ -5754,7 +5780,7 @@ function frnFARestructureFromCuts(name, pos) {
             + `Frees $${prev.freed.toFixed(1)}M of cap now.\n`
             + `Adds $${prev.newProration.toFixed(1)}M/yr in dead money if cut later.\n\n`
             + `Limited to once per player per offseason.`;
-  if (!confirm(msg)) return;
+  if (!_frnConfirm(msg)) return;
   const c = p.contract;
   const yearIndex = Math.max(0, (c.years || 1) - (c.remaining || 1));
   if (c.baseSalaries) c.baseSalaries[yearIndex] = 0;
@@ -6063,7 +6089,7 @@ function frnFAAutoCutSuggest() {
   const used = capUsedByTeam(myId);
   const need = used - cap;
   if (need <= 0) {
-    alert("You're already cap-legal — no cuts needed.");
+    _frnAlert("You're already cap-legal — no cuts needed.");
     return;
   }
   franchise._pendingCuts = franchise._pendingCuts || [];
@@ -6105,16 +6131,16 @@ function frnFAAutoCutSuggest() {
     freed += c.econ.netRelief;
   }
   if (!recs.length) {
-    alert("No safe auto-cuts available. Every candidate would either drop a position below the roster floor or hit a protected player (captain/multi-AllPro). Try manually, or consider restructuring contracts instead.");
+    _frnAlert("No safe auto-cuts available. Every candidate would either drop a position below the roster floor or hit a protected player (captain/multi-AllPro). Try manually, or consider restructuring contracts instead.");
     return;
   }
   const fallbackNote = fellBack
     ? "\n\n⚠ Every cuttable contract has heavy dead money — these picks LOSE money on the cap but free roster space. Consider restructures first."
     : "";
   if (freed < need) {
-    if (!confirm(`Auto-cut suggests ${recs.length} cuts freeing $${freed.toFixed(1)}M, but you still need to free $${(need - freed).toFixed(1)}M more. Stage these and pick more manually?${fallbackNote}`)) return;
+    if (!_frnConfirm(`Auto-cut suggests ${recs.length} cuts freeing $${freed.toFixed(1)}M, but you still need to free $${(need - freed).toFixed(1)}M more. Stage these and pick more manually?${fallbackNote}`)) return;
   } else {
-    if (!confirm(`Auto-cut will stage ${recs.length} cuts freeing $${freed.toFixed(1)}M (need $${need.toFixed(1)}M). Stage them now? You'll still need to confirm before they go through.${fallbackNote}`)) return;
+    if (!_frnConfirm(`Auto-cut will stage ${recs.length} cuts freeing $${freed.toFixed(1)}M (need $${need.toFixed(1)}M). Stage them now? You'll still need to confirm before they go through.${fallbackNote}`)) return;
   }
   for (const r of recs) franchise._pendingCuts.push(r.p.name);
   saveFranchise();
@@ -6148,6 +6174,72 @@ function frnFACutsClearFilters() {
   franchise._faCutsPosFilter = null;
   renderFrnFACuts();
 }
+
+// Bulk-action on the currently-filtered subset. Action picks itself
+// based on the active filter mode so the button always does the
+// useful thing for what the user is looking at.
+function frnFACutsBulkApply() {
+  const myId = franchise.chosenTeamId;
+  const cap = effectiveSalaryCap(myId);
+  const myRoster = franchise.rosters[myId] || [];
+  const filterMode = franchise._faCutsFilter;
+  const posFilter  = franchise._faCutsPosFilter;
+  const pending = new Set(franchise._pendingCuts || []);
+  // Build the same filtered set the table is showing.
+  const filtered = myRoster.filter(p => {
+    if (posFilter && p.position !== posFilter) return false;
+    if (filterMode === "assets")      return _tradeValueTag(p, cap) === "asset";
+    if (filterMode === "blockers")    return _tradeValueTag(p, cap) === "blocker";
+    if (filterMode === "cuttable")    return _faCutEconomics(p).netRelief > 1;
+    if (filterMode === "costly")      return _faCutEconomics(p).netRelief < -0.5;
+    if (filterMode === "restructure") return _faRestructurePreview(p).eligible;
+    return true;
+  }).filter(p => !pending.has(p.name));
+  if (!filtered.length) {
+    _frnAlert("Nothing to bulk-apply: filtered set is empty.");
+    return;
+  }
+  // Pick the right action per filter mode.
+  if (filterMode === "restructure") {
+    const total = filtered.reduce((s, p) => s + (_faRestructurePreview(p).freed || 0), 0);
+    if (!_frnConfirm(`Restructure ${filtered.length} player${filtered.length===1?"":"s"}? Frees ~$${total.toFixed(1)}M total now, adds dead-money risk if any are cut later.`)) return;
+    let did = 0;
+    for (const p of filtered) {
+      const prev = _faRestructurePreview(p);
+      if (!prev.eligible) continue;
+      const c = p.contract;
+      const yearIndex = Math.max(0, (c.years || 1) - (c.remaining || 1));
+      if (c.baseSalaries) c.baseSalaries[yearIndex] = 0;
+      c.bonusProration     = Math.round(((c.bonusProration || 0) + prev.newProration) * 10) / 10;
+      c.signingBonus       = Math.round(((c.signingBonus   || 0) + prev.currentBase) * 10) / 10;
+      c.restructuredSeason = franchise.season;
+      did++;
+    }
+    if (typeof _pushNews === "function") {
+      _pushNews({ type: "restructure", label: `🔀 Bulk restructure: ${did} players, freed ~$${total.toFixed(1)}M` });
+    }
+    saveFranchise();
+    renderFrnFACuts();
+    return;
+  }
+  if (filterMode === "assets") {
+    if (!_frnConfirm(`Move ${filtered.length} asset${filtered.length===1?"":"s"} to your trade block? They'll be listed publicly when the next week tick happens.`)) return;
+    for (const p of filtered) p.onTradeBlock = true;
+    saveFranchise();
+    renderFrnFACuts();
+    return;
+  }
+  // Default: stage all as pending cuts. Covers cuttable / blockers /
+  // costly / position-only / all filters.
+  const totalRelief = filtered.reduce((s, p) => s + _faCutEconomics(p).netRelief, 0);
+  if (!_frnConfirm(`Stage ${filtered.length} player${filtered.length===1?"":"s"} for cut? Net cap relief: ${totalRelief>=0?'+':'−'}$${Math.abs(totalRelief).toFixed(1)}M. Cuts are still pending until you confirm.`)) return;
+  franchise._pendingCuts = franchise._pendingCuts || [];
+  for (const p of filtered) {
+    if (!franchise._pendingCuts.includes(p.name)) franchise._pendingCuts.push(p.name);
+  }
+  saveFranchise();
+  renderFrnFACuts();
+}
 function frnFACutsTogglePending(name) {
   franchise._pendingCuts = franchise._pendingCuts || [];
   const idx = franchise._pendingCuts.indexOf(name);
@@ -6166,14 +6258,14 @@ function frnFACutsConfirm() {
   const roster = franchise.rosters[myId] || [];
   const pending = (franchise._pendingCuts || []).slice();
   if (!pending.length) {
-    alert("No pending cuts to confirm.");
+    _frnAlert("No pending cuts to confirm.");
     return;
   }
   const totalFreed = pending.reduce((s, n) => {
     const p = roster.find(q => q.name === n);
     return s + (p ? _faCutEconomics(p).netRelief : 0);
   }, 0);
-  if (!confirm(`Release ${pending.length} player${pending.length===1?"":"s"} now? Frees ~$${totalFreed.toFixed(1)}M in cap. This is final.`)) return;
+  if (!_frnConfirm(`Release ${pending.length} player${pending.length===1?"":"s"} now? Frees ~$${totalFreed.toFixed(1)}M in cap. This is final.`)) return;
   for (const name of pending) {
     const idx = roster.findIndex(p => p.name === name);
     if (idx !== -1) roster.splice(idx, 1);
@@ -6184,6 +6276,10 @@ function frnFACutsConfirm() {
 }
 
 function renderFrnFACuts() {
+  // Reset the cut-economics memo cache so this render starts fresh.
+  // Per-player econ is then computed at most once across all the
+  // filter/sort/render passes that need it.
+  _faCutEconReset();
   const myId = franchise.chosenTeamId;
   const cap = effectiveSalaryCap(myId);
   const myRoster = franchise.rosters[myId] || [];
@@ -6499,6 +6595,19 @@ function renderFrnFACuts() {
         title="Restructure-eligible — sorted by biggest cap freed when active">♻ Restructures <span class="cnt">${filterCounts.restructure}</span></button>
       ${posFilter ? `<span class="frn-cuts-active-filter">${posFilter} only · <a onclick="frnFACutsSetPosFilter(null)">clear</a></span>` : ""}
       ${(filterMode || posFilter) ? `<button class="frn-cuts-clear-all" onclick="frnFACutsClearFilters()">✕ Reset filters</button>` : ""}
+      ${(() => {
+        // Bulk-action button — only shown when a filter is active AND the
+        // filtered set has actionable items. Label morphs by filter mode.
+        if (!filterMode && !posFilter) return "";
+        if (filteredRoster.length === 0) return "";
+        const visibleNotPending = filteredRoster.filter(p => !pending.has(p.name)).length;
+        if (visibleNotPending === 0) return "";
+        let label;
+        if (filterMode === "restructure")    label = `♻ Restructure all ${visibleNotPending}`;
+        else if (filterMode === "assets")    label = `🔀 Block all ${visibleNotPending} for trade`;
+        else                                  label = `✗ Stage all ${visibleNotPending} for cut`;
+        return `<button class="frn-cuts-bulk-btn" onclick="frnFACutsBulkApply()">${label}</button>`;
+      })()}
       <span class="frn-cuts-filter-meta">${filteredRoster.length} of ${myRoster.length} shown</span>
     </div>`;
 
