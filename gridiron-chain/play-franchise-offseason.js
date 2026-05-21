@@ -16041,6 +16041,57 @@ function frnDraftToggleNotes(name) {
   renderFrnDraft();
 }
 
+// ── NFL COMBINE EVENT ────────────────────────────────────────────────────────
+// Pre-draft testing. Runs at frnGoToDraft entry against the upcoming class.
+// For each prospect, computes combineGrade(p) and adjusts _aiScoutBias —
+// the noise term the AI draft uses for board reads. Combine warriors (great
+// measurables + overlooked OVR) become "risers"; poor combine performers
+// with hyped OVR become "fallers". Stamps _combineResult onto each prospect
+// so the draft board UI can surface the riser/faller tags.
+function _runCombineEvent(draftClass) {
+  if (!Array.isArray(draftClass)) return;
+  const risers = [], fallers = [];
+  for (const p of draftClass) {
+    if (!p?.position) continue;
+    const cg = (typeof combineGrade === "function") ? combineGrade(p) : null;
+    if (!cg) continue;
+    const overall = cg.overall;
+    // GRADE_PTS to numeric, 0-4. Use this as the directional signal:
+    // elite combine (3.5+) pushes scout bias toward "this guy's better
+    // than the film shows" (= less negative or more positive).
+    const PTS = { "A+":4, "A":3, "B":2, "C":1, "D":0 };
+    const compositePts = PTS[overall] ?? 2;
+    // Bias adjustment range: -3 (D combine) to +4 (A+ combine).
+    const biasAdjust = (compositePts - 2) * 1.25;
+    const prevBias = p._aiScoutBias || 0;
+    // Combine moves the bias halfway toward (prevBias + biasAdjust), so
+    // a great combine can flip a "concerns" pre-draft narrative into a
+    // genuine riser. Clamp final bias to ±10 to keep board sane.
+    p._aiScoutBias = +(((prevBias + biasAdjust) * 0.5 + biasAdjust * 0.5).toFixed(1));
+    p._aiScoutBias = clamp(p._aiScoutBias, -10, 10);
+    // Stamp combine outcome onto the prospect for the draft UI.
+    p._combineResult = {
+      overall,
+      grades: cg.grades,
+      // RISER: A+/A combine AND was under-valued by film (negative
+      // pre-combine bias). FALLER: D combine AND was hyped (positive
+      // pre-combine bias).
+      isRiser:  (overall === "A+" || overall === "A") && prevBias <= -2,
+      isFaller: overall === "D" && prevBias >= 2,
+    };
+    if (p._combineResult.isRiser)  risers.push(p);
+    if (p._combineResult.isFaller) fallers.push(p);
+  }
+  // News blurbs — surface the biggest combine stories.
+  for (const p of risers.slice(0, 5)) {
+    _pushNews({ type: "draft",
+      label: `📈 COMBINE RISER · ${p.name} (${p.position}, ${p.collegeProfile?.school || "—"}) — overall ${p._combineResult.overall}, scouts revisiting their boards` });
+  }
+  for (const p of fallers.slice(0, 3)) {
+    _pushNews({ type: "draft",
+      label: `📉 COMBINE FALLER · ${p.name} (${p.position}, ${p.collegeProfile?.school || "—"}) — overall ${p._combineResult.overall}, hyped film didn't translate to drills` });
+  }
+}
 function frnGoToDraft() {
   const rookieYear = (new Date().getFullYear()) + (franchise.season || 1);
   _injectCompPicks(rookieYear);
@@ -16059,6 +16110,10 @@ function frnGoToDraft() {
     ? _buildDraftClassFromPipeline
     : _buildDraftClass;
   const builtClass = classBuilder(rookieYear, themes, positions);
+  // NFL Combine event — adjusts scout bias for each prospect based on
+  // their position-relative combine grade. Creates "risers" (overlooked
+  // film + elite drills) and "fallers" (hyped film + bad drills).
+  _runCombineEvent(builtClass);
   // C-D: derive theme chips from the ACTUAL class composition, not
   // the rolled multipliers. Under Path A, this is meaningful — a chip
   // "DEEP AT QB" now requires actual R1-grade QB count, "WEAK CLASS"

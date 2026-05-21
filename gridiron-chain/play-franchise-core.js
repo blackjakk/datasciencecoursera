@@ -1308,13 +1308,138 @@ function careerEarningsStr(p) {
 // Convert hidden internal stats into combine-style measurables that the
 // user can see without exposing the raw 0-99 rating. These are stable
 // per player (function of p.stats) and read like real combine results.
+// ── NFL COMBINE MEASURABLES ─────────────────────────────────────────────────
+// Real-NFL pre-draft physical testing: 40-yd, bench, vertical, broad, 3-cone,
+// 20-yd shuttle, plus height/weight measurements. Each test pulls from a
+// different subset of stats — and is more or less relevant by position.
+// QBs don't bench at the combine, OL skip the 3-cone, K/P skip drills entirely.
+// Use combineGrade(p) for position-relative letter grades.
 function combineMeasurables(p) {
-  const [spd=50, str=50, agi=50, /*awr*/, /*thr*/, /*cat*/, /*blk*/, /*prs*/, /*cov*/, /*tck*/, kpw=50] = p.stats || [];
-  const fortyTime  = (5.15 - (spd - 40) * 0.0135).toFixed(2);
-  const benchReps  = Math.max(2, Math.round(6 + (str - 40) * 0.42));
-  const coneTime   = (8.10 - (agi - 40) * 0.026).toFixed(2);
-  const verticalIn = Math.max(20, Math.round(26 + (spd + agi - 80) * 0.16));
-  return { fortyTime, benchReps, coneTime, verticalIn, kpw };
+  const [spd=50, str=50, agi=50, /*awr*/, /*thr*/, /*cat*/, blk=50, /*prs*/, /*cov*/, /*tck*/, kpw=50] = p.stats || [];
+  const pos = p.position;
+  // Bench reps: BLK contributes ~25% (OL/DL functional strength); skill
+  // positions read pure raw strength.
+  const strScore = ["OL","DL","TE","LB"].includes(pos) ? str * 0.75 + blk * 0.25 : str;
+  return {
+    fortyTime:  +(5.15 - (spd - 40) * 0.0135).toFixed(2),
+    benchReps:  Math.max(2, Math.round(6 + (strScore - 40) * 0.42)),
+    coneTime:   +(8.10 - (agi - 40) * 0.026).toFixed(2),
+    shuttleTime:+(5.10 - (agi * 0.7 + spd * 0.3 - 40) * 0.020).toFixed(2),
+    verticalIn: Math.max(20, Math.round(26 + (spd + agi - 80) * 0.16)),
+    broadJumpIn:Math.max(85, Math.round(95 + (spd + agi - 80) * 0.42)),
+    heightIn:   _combineHeight(p),
+    weightLbs:  _combineWeight(p),
+    handSizeIn: pos === "QB" ? +(8.5 + Math.random() * 2.5).toFixed(2) : null,
+    armLengthIn:["QB","OL","DL","CB","S"].includes(pos) ? +(31 + Math.random() * 5).toFixed(2) : null,
+    kpw,
+  };
+}
+// Height — position-aware. Real NFL position means: WR/CB 5'11"-6'0", QB
+// 6'2"-6'4", TE/DL 6'3"-6'5", OL 6'4"-6'6", S 6'0", LB 6'2", RB 5'10"-6'0",
+// K/P 6'0"-6'2".
+function _combineHeight(p) {
+  const pos = p.position;
+  const meanIn = { QB:75, RB:71, WR:73, TE:77, OL:77, DL:75, LB:74, CB:71, S:72, K:73, P:73 }[pos] ?? 73;
+  return meanIn + Math.floor((Math.random() - 0.5) * 5);
+}
+// Weight — NFL position averages, with stat noise. STR adds mass for trench
+// positions; LEAN body type subtracts ~10 lbs.
+function _combineWeight(p) {
+  const pos = p.position;
+  const [, str=50] = p.stats || [];
+  const meanLbs = { QB:220, RB:215, WR:200, TE:250, OL:315, DL:280, LB:240, CB:195, S:205, K:200, P:215 }[pos] ?? 220;
+  const strBump = ["OL","DL","TE","LB"].includes(pos) ? (str - 60) * 0.6 : (str - 60) * 0.25;
+  const bodyMod = p.bodyType === "LEAN" ? -8 : p.bodyType === "TALL_HEAVY" ? +8 : p.bodyType === "BROAD" ? +4 : 0;
+  return Math.round(meanLbs + strBump + bodyMod + (Math.random() - 0.5) * 8);
+}
+// Per-position test relevance — used by combine event and UI to show only
+// drills that matter for the player's position. QBs don't bench at the
+// combine; OL/DL skip the 3-cone; K/P don't drill at all.
+const COMBINE_TESTS_BY_POS = {
+  QB:  { fortyTime:1, benchReps:0, coneTime:0, shuttleTime:0, verticalIn:1, broadJumpIn:1, handSizeIn:1, armLengthIn:1 },
+  RB:  { fortyTime:1, benchReps:1, coneTime:1, shuttleTime:1, verticalIn:1, broadJumpIn:1 },
+  WR:  { fortyTime:1, benchReps:1, coneTime:1, shuttleTime:1, verticalIn:1, broadJumpIn:1 },
+  TE:  { fortyTime:1, benchReps:1, coneTime:1, shuttleTime:0, verticalIn:1, broadJumpIn:1, armLengthIn:1 },
+  OL:  { fortyTime:1, benchReps:1, coneTime:0, shuttleTime:0, verticalIn:1, broadJumpIn:1, armLengthIn:1 },
+  DL:  { fortyTime:1, benchReps:1, coneTime:1, shuttleTime:0, verticalIn:1, broadJumpIn:1, armLengthIn:1 },
+  LB:  { fortyTime:1, benchReps:1, coneTime:1, shuttleTime:1, verticalIn:1, broadJumpIn:1 },
+  CB:  { fortyTime:1, benchReps:1, coneTime:1, shuttleTime:1, verticalIn:1, broadJumpIn:1, armLengthIn:1 },
+  S:   { fortyTime:1, benchReps:1, coneTime:1, shuttleTime:1, verticalIn:1, broadJumpIn:1, armLengthIn:1 },
+  K:   { fortyTime:0, benchReps:0, coneTime:0, shuttleTime:0, verticalIn:0, broadJumpIn:0 },
+  P:   { fortyTime:0, benchReps:0, coneTime:0, shuttleTime:0, verticalIn:0, broadJumpIn:0 },
+};
+// Per-position test thresholds (NFL elite / good / avg / below-avg). Each
+// test stores [elite, good, avg, below] cutoffs. Lower = better for time
+// tests (40/cone/shuttle); higher = better for explosion tests (vert/broad/bench).
+const COMBINE_THRESHOLDS = {
+  QB:  { fortyTime:[4.55,4.75,4.90,5.10],  verticalIn:[34,30,27,24], broadJumpIn:[115,108,102,95] },
+  RB:  { fortyTime:[4.40,4.50,4.60,4.75],  benchReps:[24,20,16,12],  coneTime:[6.85,7.05,7.20,7.40], shuttleTime:[4.10,4.25,4.40,4.55], verticalIn:[40,36,32,28], broadJumpIn:[125,120,115,108] },
+  WR:  { fortyTime:[4.35,4.45,4.55,4.70],  benchReps:[20,16,12,8],   coneTime:[6.75,6.95,7.15,7.35], shuttleTime:[4.05,4.20,4.35,4.50], verticalIn:[40,36,32,28], broadJumpIn:[128,122,116,108] },
+  TE:  { fortyTime:[4.60,4.75,4.90,5.05],  benchReps:[22,18,14,10],  coneTime:[7.00,7.20,7.40,7.60], verticalIn:[36,32,28,24], broadJumpIn:[122,116,110,103] },
+  OL:  { fortyTime:[4.95,5.15,5.30,5.50],  benchReps:[30,25,21,16],  verticalIn:[32,28,24,20], broadJumpIn:[110,105,100,93] },
+  DL:  { fortyTime:[4.65,4.85,5.05,5.25],  benchReps:[28,23,19,15],  coneTime:[7.05,7.30,7.55,7.80], verticalIn:[36,32,28,24], broadJumpIn:[120,114,108,100] },
+  LB:  { fortyTime:[4.50,4.65,4.80,4.95],  benchReps:[24,20,16,12],  coneTime:[6.90,7.10,7.30,7.50], shuttleTime:[4.10,4.25,4.40,4.55], verticalIn:[38,34,30,26], broadJumpIn:[124,118,112,105] },
+  CB:  { fortyTime:[4.35,4.45,4.55,4.70],  benchReps:[16,13,10,7],   coneTime:[6.75,6.95,7.15,7.35], shuttleTime:[4.05,4.20,4.35,4.50], verticalIn:[40,36,32,28], broadJumpIn:[128,122,116,108] },
+  S:   { fortyTime:[4.40,4.50,4.60,4.75],  benchReps:[18,15,12,9],   coneTime:[6.85,7.05,7.25,7.45], shuttleTime:[4.10,4.25,4.40,4.55], verticalIn:[38,34,30,26], broadJumpIn:[125,119,113,106] },
+};
+// Returns letter grade ("A+","A","B+","B","C","D") for a single test value
+// given position-specific thresholds. For time tests (lower is better),
+// invert the comparison.
+function _combineGradeForTest(pos, test, value) {
+  const t = COMBINE_THRESHOLDS[pos]?.[test];
+  if (!t || value == null) return null;
+  const lowerIsBetter = ["fortyTime","coneTime","shuttleTime"].includes(test);
+  const [a, b, c, d] = t;
+  if (lowerIsBetter) {
+    if (value <= a) return "A+";
+    if (value <= b) return "A";
+    if (value <= c) return "B";
+    if (value <= d) return "C";
+    return "D";
+  }
+  if (value >= a) return "A+";
+  if (value >= b) return "A";
+  if (value >= c) return "B";
+  if (value >= d) return "C";
+  return "D";
+}
+// Per-position combine grade summary. Returns object with letter grade
+// for each relevant test + a composite "overall combine grade" (A+ to D)
+// weighted by position priorities (CBs care about 40 most; OL bench most).
+function combineGrade(p) {
+  if (!p?.position) return null;
+  const cmb = combineMeasurables(p);
+  const tests = COMBINE_TESTS_BY_POS[p.position] || {};
+  const grades = {};
+  // Each position's "priority weights" — how much each test counts toward
+  // the composite. Reflects real-NFL scouting bias (CBs live by their 40;
+  // OL live by the bench; QB athleticism is secondary to throw mechanics).
+  const PRIO = {
+    QB:  { fortyTime:0.30, verticalIn:0.20, broadJumpIn:0.20, handSizeIn:0.15, armLengthIn:0.15 },
+    RB:  { fortyTime:0.30, broadJumpIn:0.20, coneTime:0.15, verticalIn:0.15, benchReps:0.10, shuttleTime:0.10 },
+    WR:  { fortyTime:0.35, verticalIn:0.20, broadJumpIn:0.15, coneTime:0.15, shuttleTime:0.10, benchReps:0.05 },
+    TE:  { fortyTime:0.20, benchReps:0.20, broadJumpIn:0.20, verticalIn:0.20, coneTime:0.15, armLengthIn:0.05 },
+    OL:  { benchReps:0.40, broadJumpIn:0.25, fortyTime:0.15, verticalIn:0.10, armLengthIn:0.10 },
+    DL:  { fortyTime:0.25, benchReps:0.25, broadJumpIn:0.20, verticalIn:0.15, coneTime:0.10, armLengthIn:0.05 },
+    LB:  { fortyTime:0.25, coneTime:0.20, verticalIn:0.15, broadJumpIn:0.15, benchReps:0.15, shuttleTime:0.10 },
+    CB:  { fortyTime:0.40, verticalIn:0.20, coneTime:0.15, shuttleTime:0.15, broadJumpIn:0.10 },
+    S:   { fortyTime:0.30, verticalIn:0.20, broadJumpIn:0.15, coneTime:0.15, shuttleTime:0.10, benchReps:0.10 },
+  };
+  const weights = PRIO[p.position] || {};
+  const GRADE_PTS = { "A+":4, "A":3, "B":2, "C":1, "D":0 };
+  let weightedSum = 0, totalWeight = 0;
+  for (const [test, included] of Object.entries(tests)) {
+    if (!included) continue;
+    const grade = _combineGradeForTest(p.position, test, cmb[test]);
+    if (!grade) continue;
+    grades[test] = grade;
+    const w = weights[test] || 0;
+    weightedSum += (GRADE_PTS[grade] || 0) * w;
+    totalWeight += w;
+  }
+  const compositePts = totalWeight ? weightedSum / totalWeight : 2;
+  const overall = compositePts >= 3.5 ? "A+" : compositePts >= 2.8 ? "A" : compositePts >= 1.8 ? "B" : compositePts >= 0.8 ? "C" : "D";
+  return { grades, overall, measurables: cmb };
 }
 
 // Assign draft pedigree + career earnings to any roster player missing them.

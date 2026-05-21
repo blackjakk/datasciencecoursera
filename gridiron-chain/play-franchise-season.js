@@ -1027,18 +1027,27 @@ function _buildScoutPlayerPanel(p, scouted) {
   const hasDeadCap = deadYrs > 0 && deadPY > 0;
   const contractDetail = `$${aav.toFixed(1)}M/yr · ${yrs}yr left · ${hasDeadCap?`☠ $${deadPY.toFixed(1)}M dead if cut`:"clean — no dead cap"}`;
 
-  // Combine
+  // Combine — position-aware. K/P show kick-specific. Other positions
+  // show only the drills they actually run at the NFL combine.
   const combineHtml = isKicker
     ? `<div style="display:flex;gap:1.2rem;flex-wrap:wrap;font-size:.65rem">
          <div><span class="frn-meta-label">LEG</span> ${Math.round(70+(cmb.kpw-50)*0.45)} yds</div>
-         <div><span class="frn-meta-label">40-YD</span> ${cmb.fortyTime}s</div>
+         <div><span class="frn-meta-label">HT/WT</span> ${Math.floor(cmb.heightIn/12)}'${cmb.heightIn%12}" / ${cmb.weightLbs}lb</div>
        </div>`
-    : `<div style="display:grid;grid-template-columns:1fr 1fr;gap:.25rem .8rem;font-size:.65rem">
-         <div><span class="frn-meta-label">40-YD</span> ${cmb.fortyTime}s</div>
-         <div><span class="frn-meta-label">BENCH</span> ${cmb.benchReps} reps</div>
-         <div><span class="frn-meta-label">3-CONE</span> ${cmb.coneTime}s</div>
-         <div><span class="frn-meta-label">VERT</span> ${cmb.verticalIn}"</div>
-       </div>`;
+    : (() => {
+        const tests = (typeof COMBINE_TESTS_BY_POS === "object" ? COMBINE_TESTS_BY_POS[p.position] : null) || {};
+        const cells = [];
+        cells.push(`<div><span class="frn-meta-label">HT/WT</span> ${Math.floor(cmb.heightIn/12)}'${cmb.heightIn%12}" / ${cmb.weightLbs}lb</div>`);
+        if (tests.fortyTime)   cells.push(`<div><span class="frn-meta-label">40-YD</span> ${cmb.fortyTime}s</div>`);
+        if (tests.benchReps)   cells.push(`<div><span class="frn-meta-label">BENCH</span> ${cmb.benchReps} reps</div>`);
+        if (tests.verticalIn)  cells.push(`<div><span class="frn-meta-label">VERT</span> ${cmb.verticalIn}"</div>`);
+        if (tests.broadJumpIn) cells.push(`<div><span class="frn-meta-label">BROAD</span> ${cmb.broadJumpIn}"</div>`);
+        if (tests.coneTime)    cells.push(`<div><span class="frn-meta-label">3-CONE</span> ${cmb.coneTime}s</div>`);
+        if (tests.shuttleTime) cells.push(`<div><span class="frn-meta-label">SHUTTLE</span> ${cmb.shuttleTime}s</div>`);
+        if (tests.handSizeIn && cmb.handSizeIn) cells.push(`<div><span class="frn-meta-label">HAND</span> ${cmb.handSizeIn}"</div>`);
+        if (tests.armLengthIn && cmb.armLengthIn) cells.push(`<div><span class="frn-meta-label">ARM</span> ${cmb.armLengthIn}"</div>`);
+        return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:.25rem .8rem;font-size:.65rem">${cells.join("")}</div>`;
+      })();
 
   // Current season stats (if in-season)
   const seasonBlock = _buildSeasonStatsBlock(p);
@@ -3401,23 +3410,39 @@ function _buildPlayerDetailPanel(p) {
   const flav = p.flavor?.desc || "";
   const owned = _isOwnedPlayer(p);
 
-  // Combine measurables — always visible. Owned roster also gets raw
-  // ratings panel beside it.
+  // Combine measurables — position-aware (QBs skip bench, OL skip 3-cone,
+  // K/P see kick-specific block instead). Each cell renders the test
+  // value followed by a position-relative letter grade chip (A+/A/B/C/D).
   const isKicker = p.position === "K" || p.position === "P";
+  const cg = (typeof combineGrade === "function") ? combineGrade(p) : null;
+  const gradeColor = (g) => g === "A+" ? "var(--green-lt)" : g === "A" ? "var(--green-lt)"
+                    : g === "B" ? "var(--gold)" : g === "C" ? "#e8a000" : "#c08080";
+  const gradeChip = (g) => g ? `<span style="font-size:.55rem;font-weight:800;padding:.05rem .25rem;border-radius:2px;background:rgba(0,0,0,.3);color:${gradeColor(g)};margin-left:.25rem">${g}</span>` : "";
+  const ftIn = `${Math.floor(cmb.heightIn/12)}'${cmb.heightIn%12}"`;
   const combineHtml = isKicker
     ? `<div class="frn-combine-grid">
+         <div><span class="frn-meta-label">HT/WT</span> ${ftIn} / ${cmb.weightLbs}lb</div>
          <div><span class="frn-meta-label">LEG</span> ${Math.round(70 + (cmb.kpw - 50) * 0.45)} yds</div>
-         <div><span class="frn-meta-label">40-YD</span> ${cmb.fortyTime}s</div>
        </div>`
-    : `<div class="frn-combine-grid">
-         <div><span class="frn-meta-label">40-YD</span> ${cmb.fortyTime}s</div>
-         <div><span class="frn-meta-label">BENCH</span> ${cmb.benchReps} reps</div>
-         <div><span class="frn-meta-label">CONE</span> ${cmb.coneTime}s</div>
-         <div><span class="frn-meta-label">VERT</span> ${cmb.verticalIn}"</div>
-       </div>`;
+    : (() => {
+        const tests = (typeof COMBINE_TESTS_BY_POS === "object" ? COMBINE_TESTS_BY_POS[p.position] : null) || {};
+        const cells = [];
+        cells.push(`<div><span class="frn-meta-label">HT/WT</span> ${ftIn} / ${cmb.weightLbs}lb</div>`);
+        if (tests.fortyTime)   cells.push(`<div><span class="frn-meta-label">40-YD</span> ${cmb.fortyTime}s${gradeChip(cg?.grades?.fortyTime)}</div>`);
+        if (tests.benchReps)   cells.push(`<div><span class="frn-meta-label">BENCH</span> ${cmb.benchReps}${gradeChip(cg?.grades?.benchReps)}</div>`);
+        if (tests.verticalIn)  cells.push(`<div><span class="frn-meta-label">VERT</span> ${cmb.verticalIn}"${gradeChip(cg?.grades?.verticalIn)}</div>`);
+        if (tests.broadJumpIn) cells.push(`<div><span class="frn-meta-label">BROAD</span> ${cmb.broadJumpIn}"${gradeChip(cg?.grades?.broadJumpIn)}</div>`);
+        if (tests.coneTime)    cells.push(`<div><span class="frn-meta-label">CONE</span> ${cmb.coneTime}s${gradeChip(cg?.grades?.coneTime)}</div>`);
+        if (tests.shuttleTime) cells.push(`<div><span class="frn-meta-label">SHUTTLE</span> ${cmb.shuttleTime}s${gradeChip(cg?.grades?.shuttleTime)}</div>`);
+        if (tests.handSizeIn && cmb.handSizeIn) cells.push(`<div><span class="frn-meta-label">HAND</span> ${cmb.handSizeIn}"</div>`);
+        if (tests.armLengthIn && cmb.armLengthIn) cells.push(`<div><span class="frn-meta-label">ARM</span> ${cmb.armLengthIn}"</div>`);
+        return `<div class="frn-combine-grid">${cells.join("")}</div>`;
+      })();
 
+  const overallGrade = cg?.overall;
+  const overallChip = overallGrade ? `<span style="font-size:.6rem;font-weight:800;padding:.1rem .4rem;border-radius:2px;background:rgba(0,0,0,.4);color:${gradeColor(overallGrade)};margin-left:.4rem">${overallGrade}</span>` : "";
   const combinePanel = `<div class="frn-pcard-section">
-    <div class="frn-card-title">COMBINE</div>
+    <div class="frn-card-title">COMBINE${overallChip}</div>
     ${combineHtml}
   </div>`;
 
