@@ -8260,6 +8260,115 @@
     margin: 0 auto;
     padding: 0 .8rem;
   }
+  /* Outer shell — only matters on really wide displays where the
+     centered dashboard leaves big empty gutters. Becomes a flex row
+     so the side rails (offense left, defense right) slot into those
+     gutters. Below 2000px the rails are display:none and the shell
+     just lets the page center as before. */
+  .frn-dashboard-shell {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 0;
+  }
+  .frn-dashboard-shell .frn-dashboard-page { flex: 1 1 1600px; max-width: 1600px; }
+  .frn-dashboard-rail {
+    display: none;
+    flex-direction: column;
+    gap: .65rem;
+    padding: .8rem .6rem;
+    flex-shrink: 0;
+  }
+  @media (min-width: 2000px) {
+    .frn-dashboard-rail { display: flex; width: 230px; }
+    .frn-dashboard-shell .frn-myguys-card { display: none; }
+  }
+  @media (min-width: 2400px) {
+    .frn-dashboard-rail { width: 260px; }
+  }
+  .frn-rail-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .56rem; font-weight: 900; letter-spacing: 1.5px;
+    color: var(--gold); text-transform: uppercase;
+    padding: .3rem .25rem .15rem;
+    border-bottom: 1px solid var(--gold-dim, #a98a2e);
+    margin-bottom: .35rem;
+  }
+  .frn-rail-card {
+    background: rgba(255,255,255,.025);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: .55rem .55rem .6rem;
+    cursor: pointer;
+    position: relative;
+    transition: background .12s, border-color .12s, transform .08s;
+  }
+  .frn-rail-card:hover {
+    background: rgba(200,169,0,.08);
+    border-color: rgba(200,169,0,.45);
+    transform: translateY(-1px);
+  }
+  .frn-rail-card-top {
+    display: grid;
+    grid-template-columns: 3.4rem 1fr;
+    gap: .45rem;
+    align-items: center;
+    margin-bottom: .35rem;
+  }
+  .frn-rail-portrait {
+    width: 3rem; height: 3.4rem;
+    border-radius: 4px; overflow: hidden;
+    border: 2px solid var(--gray);
+    background: rgba(0,0,0,.35);
+  }
+  .frn-rail-portrait > .frn-portrait,
+  .frn-rail-portrait > img {
+    width: 100% !important; height: 100% !important;
+    object-fit: cover; display: block;
+  }
+  .frn-rail-card-id { min-width: 0; }
+  .frn-rail-card-name {
+    font-size: .72rem; font-weight: 800;
+    color: var(--blwhite);
+    line-height: 1.15;
+    overflow-wrap: break-word;
+  }
+  .frn-rail-card-meta {
+    display: flex; gap: .35rem; align-items: center;
+    flex-wrap: wrap;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .56rem; margin-top: .15rem;
+  }
+  .frn-rail-stats {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .6rem; color: var(--blwhite);
+    letter-spacing: .15px;
+    margin-top: .15rem;
+    overflow-wrap: break-word;
+  }
+  .frn-rail-pergame {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .54rem; color: var(--gray);
+    letter-spacing: .2px;
+    margin-top: .05rem;
+    overflow-wrap: break-word;
+  }
+  .frn-rail-ff {
+    display: flex; align-items: baseline; gap: .25rem;
+    margin-top: .35rem; padding: .25rem .4rem;
+    background: rgba(200,169,0,.1);
+    border: 1px solid rgba(200,169,0,.35);
+    border-radius: 3px;
+  }
+  .frn-rail-ff-val {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .9rem; font-weight: 900;
+    color: var(--gold);
+  }
+  .frn-rail-ff-lbl {
+    font-size: .5rem; font-weight: 700; letter-spacing: .8px;
+    color: var(--gray);
+  }
   .frn-dashboard-grid {
     display: grid;
     grid-template-columns: 340px minmax(0, 1fr) minmax(300px, 360px);

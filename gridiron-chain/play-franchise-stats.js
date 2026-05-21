@@ -7270,6 +7270,13 @@ function renderFrnRegular() {
   }
   scoredPlayers.sort((a, b) => b.score - a.score);
   const hotTop = scoredPlayers.slice(0, 6);
+  // Offensive + defensive rails — used to fill the side gutters on
+  // wide displays where the centered dashboard leaves dead space.
+  // Each rail shows the top 6 by score in that position group.
+  const OFF_POS = new Set(["QB","RB","WR","TE","OL","LT","LG","C","RG","RT"]);
+  const DEF_POS = new Set(["DL","LB","CB","S","K","P"]);
+  const offRailTop = scoredPlayers.filter(s => OFF_POS.has(s.p.position)).slice(0, 6);
+  const defRailTop = scoredPlayers.filter(s => DEF_POS.has(s.p.position)).slice(0, 6);
   const _hasPortrait = (typeof _playerPortrait === "function");
   const hotBoardHtml = hotTop.length ? `
     <div class="frn-card-box frn-myguys-card">
@@ -7313,6 +7320,48 @@ function renderFrnRegular() {
         }).join("")}
       </div>
     </div>` : "";
+
+  // Build vertical rail cards (offense left, defense right) for wide
+  // displays. Each rail card is a compact playmaker card — portrait,
+  // name, key stat, FFP/G — that fills the empty gutter outside the
+  // centered dashboard. Same data as PLAYMAKERS just split + condensed.
+  const _railCardHtml = (h, i) => {
+    const esc = (h.p.name||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'");
+    const pid = (h.p.pid||"").replace(/'/g,"\\'");
+    const ovr = h.p.overall || 60;
+    const posCol = _myPosColor(h.p.position);
+    const ffPerGame = h.gp > 0 ? (h.ff / h.gp).toFixed(1) : h.ff.toFixed(1);
+    const FF_HOT = { QB: 22, RB: 14, WR: 11, TE: 8, DL: 8, LB: 9, CB: 6, S: 6, K: 7 }[h.p.position] || 6;
+    const isHot = (h.ff / h.gp) >= FF_HOT;
+    const portrait = _hasPortrait ? _playerPortrait(h.p, 64) : "";
+    return `<div class="frn-rail-card" onclick="frnOpenPlayerCard('${esc}','${pid}')">
+      <div class="frn-rail-card-top">
+        <div class="frn-rail-portrait" style="border-color:${posCol}">${portrait}</div>
+        <div class="frn-rail-card-id">
+          <div class="frn-rail-card-name">${h.p.name}</div>
+          <div class="frn-rail-card-meta">
+            <span style="color:${posCol};font-weight:900">${h.p.position}</span>
+            <span style="color:var(--gold-lt);font-weight:800">${ovr}</span>
+            <span style="color:var(--gray)">${h.gp}gp</span>
+            ${isHot ? `<span class="frn-myguy-fire" title="On a hot streak">🔥</span>` : ""}
+          </div>
+        </div>
+      </div>
+      <div class="frn-rail-stats">${h.line}</div>
+      <div class="frn-rail-pergame">${h.perGame}</div>
+      <div class="frn-rail-ff">
+        <span class="frn-rail-ff-val">${ffPerGame}</span>
+        <span class="frn-rail-ff-lbl">FFP/G</span>
+      </div>
+    </div>`;
+  };
+  const _railHtml = (top, sideLabel) => top.length ? `
+    <div class="frn-dashboard-rail">
+      <div class="frn-rail-title">🏈 ${sideLabel}</div>
+      ${top.map((h, i) => _railCardHtml(h, i)).join("")}
+    </div>` : "";
+  const offRailHtml = _railHtml(offRailTop, "OFFENSE");
+  const defRailHtml = _railHtml(defRailTop, "DEFENSE");
 
   // 3) SCHEDULE + GAUNTLET (combined) — past results as compact chips on
   //    top, upcoming as rich gauntlet cards below. One card eliminates
@@ -7498,17 +7547,22 @@ function renderFrnRegular() {
     </div>`;
   // Wrapper container centers all top-level dashboard content on wide
   // displays (4K monitors were showing everything pinned to the left
-  // because the grid had max-width but no auto margins).
+  // because the grid had max-width but no auto margins). The shell
+  // grid lets side rails (off rail left, def rail right) fill the
+  // gutter on really wide displays — they auto-hide below 2000px so
+  // the existing centered layout works untouched at normal widths.
   $("frnHomeContent").innerHTML = `
-    <div class="frn-dashboard-page">
-      ${overviewIdentityHtml}
-      ${postGameHtml}
-      <div class="frn-dashboard-grid">
-        ${leftColHtml}
-        <div>${centerHtml}</div>
-        ${sidebarHtml}
-      </div>
-      <div class="frn-footer-row">
+    <div class="frn-dashboard-shell">
+      ${offRailHtml}
+      <div class="frn-dashboard-page">
+        ${overviewIdentityHtml}
+        ${postGameHtml}
+        <div class="frn-dashboard-grid">
+          ${leftColHtml}
+          <div>${centerHtml}</div>
+          ${sidebarHtml}
+        </div>
+        <div class="frn-footer-row">
         <div class="frn-footer-info">${(() => {
           if (_saveLastError?.startsWith("idb-only")) return `<span style="color:#e8a000">ℹ Save in IndexedDB only (localStorage full). Data is safe.</span>`;
           if (_saveLastError) return `<span style="color:#ff7070">⚠ Save error: ${_saveLastError}</span>`;
@@ -7518,7 +7572,9 @@ function renderFrnRegular() {
         <button class="btn btn-outline" onclick="frnExportSave()" style="font-size:.62rem;color:var(--gray)" title="Download backup .json">⬇ Export</button>
         <button class="btn btn-outline" onclick="frnImportSave()" style="font-size:.62rem;color:var(--gray)" title="Restore from .json">⬆ Import</button>
         <button class="btn btn-outline frn-abandon-btn" onclick="frnAbandon()">× Abandon</button>
+        </div>
       </div>
+      ${defRailHtml}
     </div>`;
 }
 
