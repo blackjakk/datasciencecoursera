@@ -7585,9 +7585,12 @@ function renderFrnRegular() {
 // the league MVP race.
 function mvpScore(p) {
   let s = 0;
-  // Offense
+  // Offense — pass_yds weighted to match rec_yds parity (0.10/yard).
+  // Pre-fix this was 0.05 which made WRs win MVP 60% of seasons
+  // because their per-yard weight was double the QB's. Real NFL MVP
+  // voting is ~85% QB; this brings the formula back in line.
   s += (p.pass_td       || 0) * 6
-     + (p.pass_yds      || 0) * 0.05
+     + (p.pass_yds      || 0) * 0.10
      + (p.pass_comp     || 0) * 0.30
      - (p.pass_int      || 0) * 4
      - (p.sk_taken      || 0) * 0.5;
@@ -8854,7 +8857,7 @@ function _stampSeasonAccolades(awards) {
       p.opoys    = all.filter(a => a === "OPOY").length;
       p.dpoys    = all.filter(a => a === "DPOY").length;
       p.roys     = all.filter(a => a === "ROY").length;
-      p.sbRings  = all.filter(a => a === "Super Bowl" || a === "Super Bowl MVP").length;
+      p.sbRings  = all.filter(a => a === "Super Bowl").length;
     }
   }
 }

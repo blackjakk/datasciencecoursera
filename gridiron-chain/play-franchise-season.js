@@ -1443,7 +1443,12 @@ function _addHOFCandidate(player, team) {
 // the eligible pool above an induction threshold, max 6 per class.
 // Drops candidates after 10 years on ballot (Veterans Committee fallback
 // would go here in a future enhancement).
-const _HOF_INDUCT_THRESHOLD = 55;
+// HoF selection — bumped induct threshold 55 → 65 to make first-ballot
+// induction actually meaningful. At 55, the 500-season sim landed
+// 84% of inductees as first-ballot (real NFL is ~50%). At 65, only
+// genuinely elite resumes clear on first attempt; lesser candidates
+// sit on the ballot and lose 2 points/year past year 1 of eligibility.
+const _HOF_INDUCT_THRESHOLD = 65;
 const _HOF_MAX_CLASS = 6;
 const _HOF_MAX_BALLOT_YEARS = 10;
 function _runHOFVoting() {
