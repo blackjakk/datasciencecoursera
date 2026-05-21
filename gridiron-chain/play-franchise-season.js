@@ -1014,7 +1014,12 @@ function _buildScoutPlayerPanel(p, scouted) {
     : injHist.length
     ? `<span style="font-size:.57rem;color:#e8a000">${injHist.length}× prior injury</span>` : "";
   const curInjHtml = p.injury
-    ? `<div style="margin:.38rem 0;padding:.28rem .42rem;background:rgba(220,50,50,.1);border:1px solid rgba(220,50,50,.35);border-radius:3px;font-size:.64rem;color:var(--red)">🩹 ${p.injury.label} — ${p.injury.weeksRemaining} wk${p.injury.weeksRemaining===1?"":"s"} out</div>`
+    ? (() => {
+        const onset = _currentInjuryOnset(p);
+        const icon = p.injury._careerEnding ? "💔" : p.injury._catastrophic ? "🚑" : "🩹";
+        const onsetTxt = onset?.week ? ` · onset W${onset.week}` : "";
+        return `<div style="margin:.38rem 0;padding:.28rem .42rem;background:rgba(220,50,50,.1);border:1px solid rgba(220,50,50,.35);border-radius:3px;font-size:.64rem;color:var(--red)">${icon} ${p.injury.label}${onsetTxt} — ${p.injury.weeksRemaining} wk${p.injury.weeksRemaining===1?"":"s"} out</div>`;
+      })()
     : "";
 
   // Contract + dead cap intel
@@ -1894,6 +1899,20 @@ function _injuryRecurrenceMul(p) {
 }
 function _isInjuryProne(p) {
   return (p.injuryHistory || []).length >= 3;
+}
+// Locate the injuryHistory entry that produced the player's CURRENT injury so
+// the UI can surface "happened W15" instead of just "16 wks out". Matches by
+// label + same season, taking the latest week as the onset.
+function _currentInjuryOnset(p) {
+  if (!p?.injury || !franchise) return null;
+  const hist = p.injuryHistory || [];
+  let best = null;
+  for (const h of hist) {
+    if (h.season !== franchise.season) continue;
+    if (h.label !== p.injury.label) continue;
+    if (!best || (h.week || 0) > (best.week || 0)) best = h;
+  }
+  return best;
 }
 function _rollGameInjuries(teamId) {
   const roster = franchise.rosters[teamId] || [];
@@ -2820,6 +2839,16 @@ function _buildGameLogBlock(p) {
   if (!games.length) return "";
   // Show newest game first
   games.sort((a, b) => b.g.week - a.g.week);
+  // Map of week → injury label for this season so the row where the player
+  // got hurt visibly carries that context. Without this the player looks
+  // like they "played with a torn ACL" because the badge sits below the log
+  // with no tie-back to a specific game.
+  const injuryByWeek = {};
+  for (const h of (p.injuryHistory || [])) {
+    if (h.season !== franchise.season) continue;
+    if (h.week == null) continue;
+    injuryByWeek[h.week] = h;
+  }
   // Detect if older games were trimmed: look up season GP from seasonStats
   let seasonGP = 0;
   for (const ts of Object.values(franchise.seasonStats || {})) {
@@ -2860,7 +2889,7 @@ function _buildGameLogBlock(p) {
       const cmp = +line.pass_comp || 0, att = +line.pass_att || 0;
       const fpts = _fantasyPPR(line, pos);
       return `<tr>
-        <td>W${g.week}</td>
+        <td>W${g.week}${injuryByWeek[g.week] ? ` <span style="color:#ff7070" title="${injuryByWeek[g.week].label} suffered in this game${injuryByWeek[g.week].catastrophic?" (season-ending)":""} — stats above are pre-injury">${injuryByWeek[g.week].catastrophic?"🚑":"🩹"}</span>` : ""}</td>
         ${tmCell(teamId)}
         <td>${myHome ? "vs" : "@"} <span style="color:${opp?.primary}">${(opp?.name||"").slice(0,4)}</span></td>
         <td style="color:${resColor};font-weight:700">${res} ${myScore}-${themScore}</td>
@@ -2893,7 +2922,7 @@ function _buildGameLogBlock(p) {
       const bt = line.broken_tackles || 0;
       const fpts = _fantasyPPR(line, pos);
       return `<tr>
-        <td>W${g.week}</td>
+        <td>W${g.week}${injuryByWeek[g.week] ? ` <span style="color:#ff7070" title="${injuryByWeek[g.week].label} suffered in this game${injuryByWeek[g.week].catastrophic?" (season-ending)":""} — stats above are pre-injury">${injuryByWeek[g.week].catastrophic?"🚑":"🩹"}</span>` : ""}</td>
         ${tmCell(teamId)}
         <td>${myHome ? "vs" : "@"} <span style="color:${opp?.primary}">${(opp?.name||"").slice(0,4)}</span></td>
         <td style="color:${resColor};font-weight:700">${res} ${myScore}-${themScore}</td>
@@ -2919,7 +2948,7 @@ function _buildGameLogBlock(p) {
       const rec = +line.rec || 0, yds = +line.rec_yds || 0;
       const fpts = _fantasyPPR(line, pos);
       return `<tr>
-        <td>W${g.week}</td>
+        <td>W${g.week}${injuryByWeek[g.week] ? ` <span style="color:#ff7070" title="${injuryByWeek[g.week].label} suffered in this game${injuryByWeek[g.week].catastrophic?" (season-ending)":""} — stats above are pre-injury">${injuryByWeek[g.week].catastrophic?"🚑":"🩹"}</span>` : ""}</td>
         ${tmCell(teamId)}
         <td>${myHome ? "vs" : "@"} <span style="color:${opp?.primary}">${(opp?.name||"").slice(0,4)}</span></td>
         <td style="color:${resColor};font-weight:700">${res} ${myScore}-${themScore}</td>
@@ -2944,7 +2973,7 @@ function _buildGameLogBlock(p) {
       const fpts = _fantasyPPR(line, pos);
       const miss = line.missed_tkl || 0;
       return `<tr>
-        <td>W${g.week}</td>
+        <td>W${g.week}${injuryByWeek[g.week] ? ` <span style="color:#ff7070" title="${injuryByWeek[g.week].label} suffered in this game${injuryByWeek[g.week].catastrophic?" (season-ending)":""} — stats above are pre-injury">${injuryByWeek[g.week].catastrophic?"🚑":"🩹"}</span>` : ""}</td>
         ${tmCell(teamId)}
         <td>${myHome ? "vs" : "@"} <span style="color:${opp?.primary}">${(opp?.name||"").slice(0,4)}</span></td>
         <td style="color:${resColor};font-weight:700">${res} ${myScore}-${themScore}</td>
@@ -2968,7 +2997,7 @@ function _buildGameLogBlock(p) {
       const resColor = res === "W" ? "var(--green-lt)" : res === "L" ? "#c08080" : "var(--gray)";
       const fpts = _fantasyPPR(line, pos);
       return `<tr>
-        <td>W${g.week}</td>
+        <td>W${g.week}${injuryByWeek[g.week] ? ` <span style="color:#ff7070" title="${injuryByWeek[g.week].label} suffered in this game${injuryByWeek[g.week].catastrophic?" (season-ending)":""} — stats above are pre-injury">${injuryByWeek[g.week].catastrophic?"🚑":"🩹"}</span>` : ""}</td>
         ${tmCell(teamId)}
         <td>${myHome ? "vs" : "@"} <span style="color:${opp?.primary}">${(opp?.name||"").slice(0,4)}</span></td>
         <td style="color:${resColor};font-weight:700">${res} ${myScore}-${themScore}</td>
@@ -2988,7 +3017,7 @@ function _buildGameLogBlock(p) {
       const res = myScore > themScore ? "W" : myScore < themScore ? "L" : "T";
       const resColor = res === "W" ? "var(--green-lt)" : res === "L" ? "#c08080" : "var(--gray)";
       return `<tr>
-        <td>W${g.week}</td>
+        <td>W${g.week}${injuryByWeek[g.week] ? ` <span style="color:#ff7070" title="${injuryByWeek[g.week].label} suffered in this game${injuryByWeek[g.week].catastrophic?" (season-ending)":""} — stats above are pre-injury">${injuryByWeek[g.week].catastrophic?"🚑":"🩹"}</span>` : ""}</td>
         ${tmCell(teamId)}
         <td>${myHome ? "vs" : "@"} <span style="color:${opp?.primary}">${(opp?.name||"").slice(0,4)}</span></td>
         <td style="color:${resColor};font-weight:700">${res} ${myScore}-${themScore}</td>
@@ -3314,7 +3343,15 @@ function _buildPlayerDetailPanel(p) {
     ${recentFormStrip ? `<div style="margin-top:.6rem">${recentFormStrip}</div>` : ""}
     ${streaksBlock}
     ${gameLogBlock ? `<div style="margin-top:.6rem">${gameLogBlock}</div>` : ""}
-    ${p.injury ? `<div class="frn-player-injury" style="margin-top:.55rem">🩹 ${p.injury.label} — ${p.injury.weeksRemaining} wk${p.injury.weeksRemaining===1?"":"s"} out</div>` : ""}
+    ${p.injury ? (() => {
+      const onset = _currentInjuryOnset(p);
+      const cat = !!p.injury._catastrophic;
+      const icon = p.injury._careerEnding ? "💔" : cat ? "🚑" : "🩹";
+      const sev = p.injury._careerEnding ? " — CAREER-ENDING"
+                : cat ? " — SEASON-ENDING" : "";
+      const onsetTxt = onset?.week ? ` · onset W${onset.week}` : "";
+      return `<div class="frn-player-injury" style="margin-top:.55rem" title="Engine auto-subs the next healthy player at this position. Stats from the game where the injury occurred are kept (NFL-realistic).">${icon} ${p.injury.label}${onsetTxt} — ${p.injury.weeksRemaining} wk${p.injury.weeksRemaining===1?"":"s"} out${sev}</div>`;
+    })() : ""}
     ${_isInjuryProne(p) ? `<div style="margin-top:.45rem;font-size:.6rem;color:#ff9090;letter-spacing:.5px;font-weight:700" title="Injured 3+ times — elevated recurrence risk">⚠ INJURY-PRONE · ${(p.injuryHistory||[]).length} prior injuries</div>` : ""}
     ${p.coachable ? `<div style="margin-top:.45rem;font-size:.6rem;color:#7ec8e3;letter-spacing:.5px;font-weight:700" title="Absorbs coaching exceptionally well — amplified TEC growth with a Film Mastermind DC">📋 COACHABLE</div>` : ""}
     ${flav ? `<div class="frn-player-flavor" style="margin-top:.55rem">${flav}</div>` : ""}
