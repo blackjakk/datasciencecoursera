@@ -1982,8 +1982,17 @@ function _rollGameInjuries(teamId) {
     };
     if (careerEnding) p._retiringFromInjury = true;
     p.injuryHistory = p.injuryHistory || [];
+    // Tag with the effective game-week. `franchise.week` doesn't advance
+    // during playoff rounds, so without this every playoff injury would
+    // stamp the same week and the game-log icon wouldn't line up with
+    // the right round.
+    let effectiveWeek = franchise.week;
+    const pbRound = franchise.playoffBracket?.roundIdx;
+    if (franchise.phase === "playoffs" && pbRound != null && typeof FRANCHISE_WEEKS === "number") {
+      effectiveWeek = FRANCHISE_WEEKS + pbRound + 1;
+    }
     p.injuryHistory.push({
-      label: t.label, week: franchise.week, season: franchise.season,
+      label: t.label, week: effectiveWeek, season: franchise.season,
       weeks: wks, catastrophic: isCatastrophic,
     });
     if (p.injuryHistory.length > 20) p.injuryHistory = p.injuryHistory.slice(-20);
@@ -2834,7 +2843,41 @@ function _buildGameLogBlock(p) {
     if (homePlayers[p.name]) { line = homePlayers[p.name]; teamId = g.homeId; oppId = g.awayId; }
     else if (awayPlayers[p.name]) { line = awayPlayers[p.name]; teamId = g.awayId; oppId = g.homeId; }
     if (!line) continue;
-    games.push({ g, line, teamId, oppId });
+    games.push({ g, line, teamId, oppId, isPlayoff: false });
+  }
+  // Append playoff games from the current bracket. The bracket stores
+  // matches in franchise.playoffBracket.rounds[roundIdx][matchIdx]; played
+  // matches have stats. We synthesize a `week` so the same sort works
+  // (FRANCHISE_WEEKS + roundIdx + 1) and attach a roundLabel for display.
+  const pb = franchise.playoffBracket;
+  if (pb && Array.isArray(pb.rounds)) {
+    const roundsLen = pb.rounds.length;
+    // 3-round brackets get NFL-style names; otherwise fall back to PR1/PR2...
+    const labelFor = (idx) => {
+      if (roundsLen === 3) return ["WC","SF","SB"][idx] || `PR${idx+1}`;
+      if (roundsLen === 4) return ["WC","DIV","CC","SB"][idx] || `PR${idx+1}`;
+      return `PR${idx+1}`;
+    };
+    pb.rounds.forEach((rd, rIdx) => {
+      if (!Array.isArray(rd)) return;
+      for (const m of rd) {
+        if (!m?.stats || m.homeScore == null || m.awayScore == null) continue;
+        const homePlayers = m.stats.home?.players || {};
+        const awayPlayers = m.stats.away?.players || {};
+        let line = null, teamId = null, oppId = null;
+        if (homePlayers[p.name]) { line = homePlayers[p.name]; teamId = m.homeId; oppId = m.awayId; }
+        else if (awayPlayers[p.name]) { line = awayPlayers[p.name]; teamId = m.awayId; oppId = m.homeId; }
+        if (!line) continue;
+        const synthWk = FRANCHISE_WEEKS + rIdx + 1;
+        // Synthesize a schedule-shaped object so the row builders can read
+        // the same fields they use for regular-season games.
+        const g = {
+          week: synthWk, homeId: m.homeId, awayId: m.awayId,
+          homeScore: m.homeScore, awayScore: m.awayScore,
+        };
+        games.push({ g, line, teamId, oppId, isPlayoff: true, roundLabel: labelFor(rIdx) });
+      }
+    });
   }
   if (!games.length) return "";
   // Show newest game first
@@ -2879,7 +2922,7 @@ function _buildGameLogBlock(p) {
                ...(hasSk ? ["SK"] : []),
                ...(hasQBRush ? ["CAR","RYD","RTD"] : []),
                "FPTS"];
-    rowCells = games.map(({ g, line, teamId, oppId }) => {
+    rowCells = games.map(({ g, line, teamId, oppId, isPlayoff, roundLabel }) => {
       const opp = getTeam(oppId), my = getTeam(teamId);
       const myHome = teamId === g.homeId;
       const myScore = myHome ? g.homeScore : g.awayScore;
@@ -2889,7 +2932,7 @@ function _buildGameLogBlock(p) {
       const cmp = +line.pass_comp || 0, att = +line.pass_att || 0;
       const fpts = _fantasyPPR(line, pos);
       return `<tr>
-        <td>W${g.week}${injuryByWeek[g.week] ? ` <span style="color:#ff7070" title="${injuryByWeek[g.week].label} suffered in this game${injuryByWeek[g.week].catastrophic?" (season-ending)":""} — stats above are pre-injury">${injuryByWeek[g.week].catastrophic?"🚑":"🩹"}</span>` : ""}</td>
+        <td${isPlayoff?' style="color:var(--gold);font-weight:800"':""}>${isPlayoff?(roundLabel||"PO"):`W${g.week}`}${injuryByWeek[g.week] ? ` <span style="color:#ff7070" title="${injuryByWeek[g.week].label} suffered in this game${injuryByWeek[g.week].catastrophic?" (season-ending)":""} — stats above are pre-injury">${injuryByWeek[g.week].catastrophic?"🚑":"🩹"}</span>` : ""}</td>
         ${tmCell(teamId)}
         <td>${myHome ? "vs" : "@"} <span style="color:${opp?.primary}">${(opp?.name||"").slice(0,4)}</span></td>
         <td style="color:${resColor};font-weight:700">${res} ${myScore}-${themScore}</td>
@@ -2911,7 +2954,7 @@ function _buildGameLogBlock(p) {
                ...(hasBT?["BT"]:[]),
                ...(hasRec?["REC","REC YDS","REC TD"]:[]),
                "FPTS"];
-    rowCells = games.map(({ g, line, teamId, oppId }) => {
+    rowCells = games.map(({ g, line, teamId, oppId, isPlayoff, roundLabel }) => {
       const opp = getTeam(oppId);
       const myHome = teamId === g.homeId;
       const myScore = myHome ? g.homeScore : g.awayScore;
@@ -2922,7 +2965,7 @@ function _buildGameLogBlock(p) {
       const bt = line.broken_tackles || 0;
       const fpts = _fantasyPPR(line, pos);
       return `<tr>
-        <td>W${g.week}${injuryByWeek[g.week] ? ` <span style="color:#ff7070" title="${injuryByWeek[g.week].label} suffered in this game${injuryByWeek[g.week].catastrophic?" (season-ending)":""} — stats above are pre-injury">${injuryByWeek[g.week].catastrophic?"🚑":"🩹"}</span>` : ""}</td>
+        <td${isPlayoff?' style="color:var(--gold);font-weight:800"':""}>${isPlayoff?(roundLabel||"PO"):`W${g.week}`}${injuryByWeek[g.week] ? ` <span style="color:#ff7070" title="${injuryByWeek[g.week].label} suffered in this game${injuryByWeek[g.week].catastrophic?" (season-ending)":""} — stats above are pre-injury">${injuryByWeek[g.week].catastrophic?"🚑":"🩹"}</span>` : ""}</td>
         ${tmCell(teamId)}
         <td>${myHome ? "vs" : "@"} <span style="color:${opp?.primary}">${(opp?.name||"").slice(0,4)}</span></td>
         <td style="color:${resColor};font-weight:700">${res} ${myScore}-${themScore}</td>
@@ -2938,7 +2981,7 @@ function _buildGameLogBlock(p) {
     });
   } else if (pos === "WR" || pos === "TE") {
     headers = ["WK", ...(showTM ? ["TM"] : []), "OPP","RES","REC","TGT","YDS","YPR","TD","LONG","FPTS"];
-    rowCells = games.map(({ g, line, teamId, oppId }) => {
+    rowCells = games.map(({ g, line, teamId, oppId, isPlayoff, roundLabel }) => {
       const opp = getTeam(oppId);
       const myHome = teamId === g.homeId;
       const myScore = myHome ? g.homeScore : g.awayScore;
@@ -2948,7 +2991,7 @@ function _buildGameLogBlock(p) {
       const rec = +line.rec || 0, yds = +line.rec_yds || 0;
       const fpts = _fantasyPPR(line, pos);
       return `<tr>
-        <td>W${g.week}${injuryByWeek[g.week] ? ` <span style="color:#ff7070" title="${injuryByWeek[g.week].label} suffered in this game${injuryByWeek[g.week].catastrophic?" (season-ending)":""} — stats above are pre-injury">${injuryByWeek[g.week].catastrophic?"🚑":"🩹"}</span>` : ""}</td>
+        <td${isPlayoff?' style="color:var(--gold);font-weight:800"':""}>${isPlayoff?(roundLabel||"PO"):`W${g.week}`}${injuryByWeek[g.week] ? ` <span style="color:#ff7070" title="${injuryByWeek[g.week].label} suffered in this game${injuryByWeek[g.week].catastrophic?" (season-ending)":""} — stats above are pre-injury">${injuryByWeek[g.week].catastrophic?"🚑":"🩹"}</span>` : ""}</td>
         ${tmCell(teamId)}
         <td>${myHome ? "vs" : "@"} <span style="color:${opp?.primary}">${(opp?.name||"").slice(0,4)}</span></td>
         <td style="color:${resColor};font-weight:700">${res} ${myScore}-${themScore}</td>
@@ -2963,7 +3006,7 @@ function _buildGameLogBlock(p) {
     });
   } else if (pos === "DL" || pos === "LB" || pos === "CB" || pos === "S") {
     headers = ["WK", ...(showTM ? ["TM"] : []), "OPP","RES","TKL","MISS","SK","INT","PD","FF","FPTS"];
-    rowCells = games.map(({ g, line, teamId, oppId }) => {
+    rowCells = games.map(({ g, line, teamId, oppId, isPlayoff, roundLabel }) => {
       const opp = getTeam(oppId);
       const myHome = teamId === g.homeId;
       const myScore = myHome ? g.homeScore : g.awayScore;
@@ -2973,7 +3016,7 @@ function _buildGameLogBlock(p) {
       const fpts = _fantasyPPR(line, pos);
       const miss = line.missed_tkl || 0;
       return `<tr>
-        <td>W${g.week}${injuryByWeek[g.week] ? ` <span style="color:#ff7070" title="${injuryByWeek[g.week].label} suffered in this game${injuryByWeek[g.week].catastrophic?" (season-ending)":""} — stats above are pre-injury">${injuryByWeek[g.week].catastrophic?"🚑":"🩹"}</span>` : ""}</td>
+        <td${isPlayoff?' style="color:var(--gold);font-weight:800"':""}>${isPlayoff?(roundLabel||"PO"):`W${g.week}`}${injuryByWeek[g.week] ? ` <span style="color:#ff7070" title="${injuryByWeek[g.week].label} suffered in this game${injuryByWeek[g.week].catastrophic?" (season-ending)":""} — stats above are pre-injury">${injuryByWeek[g.week].catastrophic?"🚑":"🩹"}</span>` : ""}</td>
         ${tmCell(teamId)}
         <td>${myHome ? "vs" : "@"} <span style="color:${opp?.primary}">${(opp?.name||"").slice(0,4)}</span></td>
         <td style="color:${resColor};font-weight:700">${res} ${myScore}-${themScore}</td>
@@ -2988,7 +3031,7 @@ function _buildGameLogBlock(p) {
     });
   } else if (pos === "K") {
     headers = ["WK", ...(showTM ? ["TM"] : []), "OPP","RES","FG","LONG","XP","FPTS"];
-    rowCells = games.map(({ g, line, teamId, oppId }) => {
+    rowCells = games.map(({ g, line, teamId, oppId, isPlayoff, roundLabel }) => {
       const opp = getTeam(oppId);
       const myHome = teamId === g.homeId;
       const myScore = myHome ? g.homeScore : g.awayScore;
@@ -2997,7 +3040,7 @@ function _buildGameLogBlock(p) {
       const resColor = res === "W" ? "var(--green-lt)" : res === "L" ? "#c08080" : "var(--gray)";
       const fpts = _fantasyPPR(line, pos);
       return `<tr>
-        <td>W${g.week}${injuryByWeek[g.week] ? ` <span style="color:#ff7070" title="${injuryByWeek[g.week].label} suffered in this game${injuryByWeek[g.week].catastrophic?" (season-ending)":""} — stats above are pre-injury">${injuryByWeek[g.week].catastrophic?"🚑":"🩹"}</span>` : ""}</td>
+        <td${isPlayoff?' style="color:var(--gold);font-weight:800"':""}>${isPlayoff?(roundLabel||"PO"):`W${g.week}`}${injuryByWeek[g.week] ? ` <span style="color:#ff7070" title="${injuryByWeek[g.week].label} suffered in this game${injuryByWeek[g.week].catastrophic?" (season-ending)":""} — stats above are pre-injury">${injuryByWeek[g.week].catastrophic?"🚑":"🩹"}</span>` : ""}</td>
         ${tmCell(teamId)}
         <td>${myHome ? "vs" : "@"} <span style="color:${opp?.primary}">${(opp?.name||"").slice(0,4)}</span></td>
         <td style="color:${resColor};font-weight:700">${res} ${myScore}-${themScore}</td>
@@ -3009,7 +3052,7 @@ function _buildGameLogBlock(p) {
     });
   } else if (pos === "OL") {
     headers = ["WK", ...(showTM ? ["TM"] : []), "OPP","RES","PNK","SA","PEN"];
-    rowCells = games.map(({ g, line, teamId, oppId }) => {
+    rowCells = games.map(({ g, line, teamId, oppId, isPlayoff, roundLabel }) => {
       const opp = getTeam(oppId);
       const myHome = teamId === g.homeId;
       const myScore = myHome ? g.homeScore : g.awayScore;
@@ -3017,7 +3060,7 @@ function _buildGameLogBlock(p) {
       const res = myScore > themScore ? "W" : myScore < themScore ? "L" : "T";
       const resColor = res === "W" ? "var(--green-lt)" : res === "L" ? "#c08080" : "var(--gray)";
       return `<tr>
-        <td>W${g.week}${injuryByWeek[g.week] ? ` <span style="color:#ff7070" title="${injuryByWeek[g.week].label} suffered in this game${injuryByWeek[g.week].catastrophic?" (season-ending)":""} — stats above are pre-injury">${injuryByWeek[g.week].catastrophic?"🚑":"🩹"}</span>` : ""}</td>
+        <td${isPlayoff?' style="color:var(--gold);font-weight:800"':""}>${isPlayoff?(roundLabel||"PO"):`W${g.week}`}${injuryByWeek[g.week] ? ` <span style="color:#ff7070" title="${injuryByWeek[g.week].label} suffered in this game${injuryByWeek[g.week].catastrophic?" (season-ending)":""} — stats above are pre-injury">${injuryByWeek[g.week].catastrophic?"🚑":"🩹"}</span>` : ""}</td>
         ${tmCell(teamId)}
         <td>${myHome ? "vs" : "@"} <span style="color:${opp?.primary}">${(opp?.name||"").slice(0,4)}</span></td>
         <td style="color:${resColor};font-weight:700">${res} ${myScore}-${themScore}</td>

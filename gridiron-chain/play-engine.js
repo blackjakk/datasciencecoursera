@@ -101,8 +101,12 @@ class GameSimulator {
       this.homeR.offense += 1.5;
       this.homeR.defense += 1.5;
     }
-    // Extract archetypes for the starting unit
-    const archetypesByPos = (roster, pos, n) => roster.filter(p => p.position === pos)
+    // Extract archetypes for the starting unit. Injured players (weeksRemaining > 0)
+    // are excluded — same rule as buildRatings — so an injured top-5 OL doesn't
+    // get a ghost 0-line in the box score and an injured top-2 WR doesn't keep
+    // donating its archetype bonus to the offense from the sidelines.
+    const archetypesByPos = (roster, pos, n) => roster
+      .filter(p => p.position === pos && !(p.injury && p.injury.weeksRemaining > 0))
       .sort((a, b) => b.overall - a.overall)
       .slice(0, n)
       .map(p => ({ name: p.name, archetype: p.archetype, overall: p.overall, stats: p.stats }));
