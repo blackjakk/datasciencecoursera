@@ -1764,6 +1764,14 @@
       rgba(255,255,255,.18) 4px 6px
     );
   }
+  .frn-cuts-tm-tile.dimmed {
+    filter: grayscale(.85) brightness(.4) saturate(.4);
+    opacity: .55;
+  }
+  .frn-cuts-tm-tile.dimmed:hover {
+    filter: grayscale(.4) brightness(.75);
+    opacity: .85;
+  }
   .frn-cuts-tm-name {
     font-family: 'IBM Plex Mono', monospace;
     font-size: .58rem; font-weight: 800;
@@ -1792,7 +1800,7 @@
   .frn-cuts-tm-mode {
     background: transparent; color: var(--gray);
     border: 1px solid var(--border); border-radius: 3px;
-    padding: .22rem .5rem; font-size: .56rem;
+    padding: .32rem .65rem; font-size: .66rem;
     font-weight: 700; letter-spacing: .3px; cursor: pointer;
     transition: all .12s;
   }
@@ -1819,6 +1827,22 @@
   .frn-cuts-overflow-chip, .frn-cuts-room-chip {
     /* Shared with the old bar shell; redefined here for the treemap
        head row context where they sit at end of the title row. */
+  }
+  /* Mobile breakpoint — narrower canvas needs taller aspect ratio so
+     tiles don't squish, plus stack controls vertically. */
+  @media (max-width: 720px) {
+    .frn-cuts-treemap-canvas {
+      aspect-ratio: 1 / 1 !important;
+    }
+    .frn-cuts-tm-legend {
+      margin-left: 0;
+      width: 100%;
+      padding-top: .35rem;
+      border-top: 1px solid var(--border);
+    }
+    .frn-cuts-treemap-head {
+      flex-direction: column; align-items: flex-start;
+    }
   }
   .frn-cuts-hero-actions {
     display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;

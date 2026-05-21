@@ -6290,7 +6290,9 @@ function renderFrnFACuts() {
         // Clicking a cube opens that player's card. Hover surfaces a
         // tooltip with name + hit + verdict.
         const colorMode = franchise._faCutsColorMode || "position";
-        const tmW = 720, tmH = 200;
+        // Taller canvas (720×300) so mid-tier contracts carry their
+        // secondary "$X.XM · POS" label without falling below threshold.
+        const tmW = 720, tmH = 300;
         // Sort by cap hit descending so big contracts dominate the
         // canvas and squarify produces clean tiles.
         const rosterByHit = myRoster.slice()
@@ -6305,6 +6307,20 @@ function renderFrnFACuts() {
         // overflow chip, and add a "cap-coverage" badge that says
         // e.g. "89% / cap covered" within the treemap.
         const capCoverage = Math.min(100, (cap / Math.max(used, 0.0001)) * 100);
+        // Filter-state set — tiles outside the active filter dim out so
+        // the treemap matches the table the user is focused on below.
+        const activePosFilter = franchise._faCutsPosFilter;
+        const activeStatusFilter = franchise._faCutsFilter;
+        const tileMatchesFilter = (p) => {
+          if (activePosFilter && p.position !== activePosFilter) return false;
+          if (activeStatusFilter === "assets")      return _tradeValueTag(p, cap) === "asset";
+          if (activeStatusFilter === "blockers")    return _tradeValueTag(p, cap) === "blocker";
+          if (activeStatusFilter === "cuttable")    return _faCutEconomics(p).netRelief > 1;
+          if (activeStatusFilter === "costly")      return _faCutEconomics(p).netRelief < -0.5;
+          if (activeStatusFilter === "restructure") return _faRestructurePreview(p).eligible;
+          return true;
+        };
+        const anyFilter = !!(activePosFilter || activeStatusFilter);
         const tilesHtml = tiles.map((t, idx) => {
           const p = t.item.payload;
           const econ = _faCutEconomics(p);
@@ -6314,12 +6330,13 @@ function renderFrnFACuts() {
                             _faRestructurePreview(p), _tradeValueTag(p, cap));
           const col = _faTreemapColor(p, colorMode, econ, verdict);
           const isPending = pending.has(p.name);
+          const dimmed = anyFilter && !tileMatchesFilter(p);
           // Cap-overflow: tiles with cumulative-hit beyond cap get a
           // diagonal warn-stripe. We tag the OVER-tier tiles by a
           // simple rule — players whose hit is in the overflow $.
           // For correctness, mark tiles whose RANK pushes cumsum > cap.
           // (Computed once in a side pass.)
-          return { t, p, econ, verdict, col, isPending };
+          return { t, p, econ, verdict, col, isPending, dimmed };
         });
         // Compute over-cap tiles by cumulative spend
         let cum = 0;
@@ -6330,16 +6347,18 @@ function renderFrnFACuts() {
         }
         const cleanN = (n) => (n||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'");
         const renderedTiles = tilesHtml.map(row => {
-          const { t, p, econ, col, isPending, isOver, verdict } = row;
+          const { t, p, econ, col, isPending, isOver, dimmed, verdict } = row;
           const wPct = (t.w / tmW) * 100;
           const hPct = (t.h / tmH) * 100;
           const xPct = (t.x / tmW) * 100;
           const yPct = (t.y / tmH) * 100;
-          // Only show name when tile is large enough
+          // Only show name/hit when tile is large enough. With the
+          // taller 300px canvas the thresholds are looser than before.
           const tileArea = t.w * t.h;
-          const showName = tileArea > 1800;
-          const showHit  = tileArea > 3500;
-          return `<div class="frn-cuts-tm-tile${isPending?' pending':''}${isOver?' over':''}"
+          const showName = tileArea > 1500;
+          const showHit  = tileArea > 3000;
+          const cls = `frn-cuts-tm-tile${isPending?' pending':''}${isOver?' over':''}${dimmed?' dimmed':''}`;
+          return `<div class="${cls}"
             style="left:${xPct.toFixed(2)}%;top:${yPct.toFixed(2)}%;width:${wPct.toFixed(2)}%;height:${hPct.toFixed(2)}%;background:${col.fill}"
             onclick="frnOpenPlayerCard('${cleanN(p.name)}')"
             title="${p.name} (${p.position}) · $${econ.hit.toFixed(1)}M hit · ${verdict.verdict==='pending'?'PENDING CUT':(verdict.label||'')}"
