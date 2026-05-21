@@ -1695,6 +1695,131 @@
     border-radius: 2px;
     border: 1px dashed rgba(134,224,163,.4);
   }
+
+  /* ── CAP BLOCK TREEMAP ──
+     Each player is a colored rectangle, area ∝ current-year cap hit,
+     squarified to fill the canvas. Color by position / verdict / ceiling
+     / age / age×potential. Click → player card. Hover → tooltip. Tiles
+     in the over-cap zone get a diagonal warn-stripe overlay. */
+  .frn-cuts-treemap-wrap { margin-bottom: 1.1rem; }
+  .frn-cuts-treemap-head {
+    display: flex; align-items: baseline; gap: .8rem;
+    flex-wrap: wrap;
+    margin-bottom: .45rem;
+  }
+  .frn-cuts-tm-title {
+    font-size: .62rem; font-weight: 900;
+    color: var(--gold); letter-spacing: 1px; text-transform: uppercase;
+  }
+  .frn-cuts-tm-sub {
+    font-size: .58rem; color: var(--gray);
+    letter-spacing: .3px; flex: 1;
+  }
+  .frn-cuts-treemap-canvas {
+    position: relative;
+    width: 100%;
+    background: rgba(0,0,0,.4);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .frn-cuts-treemap-canvas.over {
+    border-color: rgba(255,138,138,.45);
+    box-shadow: 0 0 0 1px rgba(255,138,138,.12) inset;
+  }
+  .frn-cuts-treemap-canvas.legal {
+    border-color: rgba(134,224,163,.35);
+  }
+  .frn-cuts-tm-tile {
+    position: absolute;
+    color: rgba(0,0,0,.85);
+    padding: 4px 6px;
+    box-sizing: border-box;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform .08s, filter .08s, box-shadow .12s;
+    outline: 1px solid rgba(0,0,0,.4);
+    outline-offset: -1px;
+    display: flex; flex-direction: column; justify-content: space-between;
+    line-height: 1.1;
+  }
+  .frn-cuts-tm-tile:hover {
+    z-index: 5;
+    filter: brightness(1.18);
+    transform: scale(1.03);
+    box-shadow: 0 0 0 2px rgba(255,255,255,.55), 0 6px 14px rgba(0,0,0,.6);
+  }
+  .frn-cuts-tm-tile.over {
+    background-image: repeating-linear-gradient(
+      45deg,
+      rgba(0,0,0,.0) 0 6px,
+      rgba(255,138,138,.4) 6px 8px
+    );
+  }
+  .frn-cuts-tm-tile.pending {
+    filter: grayscale(.7) brightness(.65);
+    background-image: repeating-linear-gradient(
+      135deg,
+      rgba(0,0,0,.0) 0 4px,
+      rgba(255,255,255,.18) 4px 6px
+    );
+  }
+  .frn-cuts-tm-name {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .58rem; font-weight: 800;
+    color: rgba(0,0,0,.92);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    letter-spacing: .1px;
+  }
+  .frn-cuts-tm-hit {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .54rem; font-weight: 700;
+    color: rgba(0,0,0,.7);
+    letter-spacing: .2px;
+    align-self: flex-end;
+  }
+  .frn-cuts-tm-controls {
+    display: flex; align-items: center; gap: .35rem;
+    flex-wrap: wrap;
+    margin-top: .45rem;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .frn-cuts-tm-controls-label {
+    font-size: .55rem; font-weight: 800; letter-spacing: .8px;
+    color: var(--gray); text-transform: uppercase;
+    margin-right: .15rem;
+  }
+  .frn-cuts-tm-mode {
+    background: transparent; color: var(--gray);
+    border: 1px solid var(--border); border-radius: 3px;
+    padding: .22rem .5rem; font-size: .56rem;
+    font-weight: 700; letter-spacing: .3px; cursor: pointer;
+    transition: all .12s;
+  }
+  .frn-cuts-tm-mode:hover { color: var(--gold-lt); border-color: var(--gold-lt); }
+  .frn-cuts-tm-mode.active {
+    background: rgba(200,169,0,.15);
+    color: var(--gold);
+    border-color: var(--gold);
+  }
+  .frn-cuts-tm-legend {
+    display: inline-flex; align-items: center; gap: .55rem;
+    flex-wrap: wrap;
+    margin-left: auto;
+  }
+  .frn-cuts-tm-legend-item {
+    display: inline-flex; align-items: center; gap: .25rem;
+    font-size: .55rem; color: var(--gray);
+    letter-spacing: .2px;
+  }
+  .frn-cuts-tm-legend-item .dot {
+    width: .55rem; height: .55rem; border-radius: 2px;
+    display: inline-block;
+  }
+  .frn-cuts-overflow-chip, .frn-cuts-room-chip {
+    /* Shared with the old bar shell; redefined here for the treemap
+       head row context where they sit at end of the title row. */
+  }
   .frn-cuts-hero-actions {
     display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;
   }

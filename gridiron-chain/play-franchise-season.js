@@ -5883,6 +5883,147 @@ function _faCutVerdict(player, econ, positionDepth, restructure, tradeTag) {
            reason: "the juice isn't worth the squeeze" };
 }
 
+// ── Squarified treemap layout ─────────────────────────────────────────
+// Bruls/Huijsmans/van Wijk 2000 — squarified algorithm. Lays out a list
+// of {value, ...payload} items as rectangles in a canvas (w × h) such
+// that each rectangle's area = value (scaled) and aspect ratios stay
+// close to square. Returns [{x, y, w, h, item}].
+//
+// Lean inline impl — avoids pulling D3. Used by the cap-treemap to
+// turn the roster's cap-hit list into a 2D block visualization.
+function _faSquarify(items, w, h) {
+  if (!items.length || w <= 0 || h <= 0) return [];
+  const totalValue = items.reduce((s, i) => s + (i.value || 0), 0);
+  if (totalValue <= 0) return [];
+  const totalArea = w * h;
+  const scale = totalArea / totalValue;
+
+  const result = [];
+  // Worst aspect ratio of a row (greater = worse). Used as the
+  // squarify heuristic to know when to close a row.
+  const worst = (row, side) => {
+    if (!row.length) return Infinity;
+    let mx = -Infinity, mn = Infinity, sum = 0;
+    for (const r of row) { if (r > mx) mx = r; if (r < mn) mn = r; sum += r; }
+    if (sum === 0 || mn === 0) return Infinity;
+    return Math.max((side * side * mx) / (sum * sum), (sum * sum) / (side * side * mn));
+  };
+  // Place a closed row along the shorter side of the available rect.
+  // wideShorter=true means width<=height: row stretches across the
+  // top, items fan out horizontally, row consumes vertical space.
+  // wideShorter=false: row stretches down the left, items fan out
+  // vertically, row consumes horizontal space.
+  // Returns rowSize — the perpendicular extent consumed.
+  const placeRow = (rowValues, rowItems, x, y, side, wideShorter) => {
+    const rowSum = rowValues.reduce((s, v) => s + v, 0);
+    if (rowSum === 0 || side === 0) return 0;
+    const rowSize = rowSum / side; // perpendicular extent
+    let cur = wideShorter ? x : y;
+    for (let i = 0; i < rowValues.length; i++) {
+      const itemAlong = rowValues[i] / rowSize; // dimension along the shorter side
+      if (wideShorter) {
+        // Pack across width: each item gets (cur..cur+itemAlong, y..y+rowSize)
+        result.push({ x: cur, y, w: itemAlong, h: rowSize, item: rowItems[i] });
+      } else {
+        // Pack down height: each item gets (x..x+rowSize, cur..cur+itemAlong)
+        result.push({ x, y: cur, w: rowSize, h: itemAlong, item: rowItems[i] });
+      }
+      cur += itemAlong;
+    }
+    return rowSize;
+  };
+
+  const recurse = (remainingItems, x, y, ww, hh) => {
+    if (!remainingItems.length || ww <= 0 || hh <= 0) return;
+    const values = remainingItems.map(i => (i.value || 0) * scale);
+    const wideShorter = ww <= hh;
+    const side = wideShorter ? ww : hh;
+    const row = [];
+    const rowItems = [];
+    let i = 0;
+    while (i < remainingItems.length) {
+      const candidate = [...row, values[i]];
+      if (row.length === 0 || worst(candidate, side) <= worst(row, side)) {
+        row.push(values[i]);
+        rowItems.push(remainingItems[i]);
+        i++;
+      } else {
+        break;
+      }
+    }
+    if (!row.length) return;
+    const consumed = placeRow(row, rowItems, x, y, side, wideShorter);
+    if (i < remainingItems.length) {
+      if (wideShorter) recurse(remainingItems.slice(i), x, y + consumed, ww, hh - consumed);
+      else             recurse(remainingItems.slice(i), x + consumed, y, ww - consumed, hh);
+    }
+  };
+  recurse(items, 0, 0, w, h);
+  return result;
+}
+
+// Position color palette — keeps the treemap visually mapped to where
+// money's going on the field. Skill positions warm, line positions
+// cool, specialists muted.
+const _FA_POS_COLORS = {
+  QB:"#f5c542", RB:"#ef8a4d", WR:"#e85c98", TE:"#ba68c8",
+  OL:"#5fb1d4", LT:"#5fb1d4", LG:"#5fb1d4", C:"#5fb1d4", RG:"#5fb1d4", RT:"#5fb1d4",
+  DL:"#ff6b6b", LB:"#ffb14c", CB:"#86e0a3", S:"#4dc7a8",
+  K:"#888", P:"#888",
+};
+function _faPosColor(pos) { return _FA_POS_COLORS[pos] || "#999"; }
+
+// Treemap color modes — what the cube color encodes. User picks via
+// chip toggle below the treemap. Each mode returns { fill, label }
+// for the per-cube fill color + a short legend label.
+function _faTreemapColor(player, mode, econ, verdict) {
+  if (mode === "verdict") {
+    const v = verdict?.verdict || "judgment";
+    if (v === "easy")     return { fill: "#5e9c70" };
+    if (v === "keep")     return { fill: "#b14b4b" };
+    if (v === "costs")    return { fill: "#ef5350" };
+    if (v === "pending")  return { fill: "#6b6b6b" };
+    return { fill: "#c79f3a" }; // judgment / default
+  }
+  if (mode === "ceiling") {
+    const tier = (typeof HiddenOracle === "object" && HiddenOracle?.read?.ceilingTier)
+      ? HiddenOracle.read.ceilingTier(player).grade
+      : "B";
+    if (tier === "S") return { fill: "#f5c542" };  // gold
+    if (tier === "A") return { fill: "#5ed4d4" };  // cyan
+    if (tier === "B") return { fill: "#86e0a3" };  // green
+    if (tier === "C") return { fill: "#c08070" };  // amber
+    if (tier === "D") return { fill: "#7a5050" };  // dim red
+    return { fill: "#666" };
+  }
+  if (mode === "age") {
+    const age = player.age || 25;
+    if (age <= 23) return { fill: "#5ed4d4" };  // very young
+    if (age <= 26) return { fill: "#86e0a3" };  // young
+    if (age <= 29) return { fill: "#f5c542" };  // prime
+    if (age <= 32) return { fill: "#ef8a4d" };  // aging
+    return { fill: "#b14b4b" };                  // 33+
+  }
+  if (mode === "agePot") {
+    // 2D combined: young+high-ceiling = bright green keeper;
+    // old+low-ceiling = deep red cut candidate. Heat-map style.
+    const age = player.age || 25;
+    const tier = (typeof HiddenOracle === "object" && HiddenOracle?.read?.ceilingTier)
+      ? HiddenOracle.read.ceilingTier(player).grade
+      : "B";
+    const tierScore = { S: 4, A: 3, B: 2, C: 1, D: 0 }[tier] ?? 1;
+    const youngScore = age <= 23 ? 4 : age <= 26 ? 3 : age <= 29 ? 2 : age <= 32 ? 1 : 0;
+    const heat = tierScore + youngScore; // 0..8
+    if (heat >= 7) return { fill: "#3aa84a" };  // future cornerstone
+    if (heat >= 5) return { fill: "#86e0a3" };  // keeper
+    if (heat >= 3) return { fill: "#c79f3a" };  // judgment
+    if (heat >= 1) return { fill: "#c87050" };  // fading
+    return { fill: "#7a3030" };                  // cut candidate
+  }
+  // default: position
+  return { fill: _faPosColor(player.position) };
+}
+
 // Risk badges for each roster row — surfaced as small chips so a GM
 // scanning the cut list knows what they're trading away.
 function _faRiskBadges(player) {
@@ -5984,6 +6125,11 @@ function frnFAAutoCutSuggest() {
 // preference survives toggles + re-renders.
 function frnFACutsSort(key) {
   franchise._faCutsSort = key;
+  renderFrnFACuts();
+}
+// Treemap color mode: "position" / "verdict" / "ceiling" / "age" / "agePot"
+function frnFACutsSetColorMode(mode) {
+  franchise._faCutsColorMode = mode;
   renderFrnFACuts();
 }
 // Filter mode: "assets" / "blockers" / "cuttable" / "costly" / null.
@@ -6136,20 +6282,122 @@ function renderFrnFACuts() {
           <div class="frn-cuts-cap-cap">/ $${cap.toFixed(0)}M cap</div>
         </div>
       </div>
-      <div class="frn-cuts-bar-v2">
-        <div class="frn-cuts-bar-shell ${overCap?'over':'legal'}">
-          <div class="frn-cuts-bar-canvas">
-            <div class="frn-cuts-bar-fill" style="width:${usedPct}%;background:${overCap?'#ff8a8a':'#86e0a3'}"></div>
-            ${pendingFreed > 0 ? `<div class="frn-cuts-bar-postcut-v2" style="width:${postCutPct}%"></div>` : ""}
+      ${(() => {
+        // ── CAP TREEMAP ──
+        // Each player is a rectangle with area ∝ current-year cap hit.
+        // Squarified layout fills the canvas; cap-line marker shows
+        // where the legal-cap boundary falls along the cumulative spend.
+        // Clicking a cube opens that player's card. Hover surfaces a
+        // tooltip with name + hit + verdict.
+        const colorMode = franchise._faCutsColorMode || "position";
+        const tmW = 720, tmH = 200;
+        // Sort by cap hit descending so big contracts dominate the
+        // canvas and squarify produces clean tiles.
+        const rosterByHit = myRoster.slice()
+          .map(p => ({ p, hit: _faCutEconomics(p).hit }))
+          .filter(o => o.hit > 0)
+          .sort((a, b) => b.hit - a.hit);
+        const treemapItems = rosterByHit.map(o => ({ value: o.hit, payload: o.p }));
+        const tiles = _faSquarify(treemapItems, tmW, tmH);
+        // The cap line — vertical position where cumulative hit crosses cap.
+        // Since squarify packs along shorter side, "cumulative" is tricky;
+        // we instead surface the overall over-cap state via the bar tint +
+        // overflow chip, and add a "cap-coverage" badge that says
+        // e.g. "89% / cap covered" within the treemap.
+        const capCoverage = Math.min(100, (cap / Math.max(used, 0.0001)) * 100);
+        const tilesHtml = tiles.map((t, idx) => {
+          const p = t.item.payload;
+          const econ = _faCutEconomics(p);
+          const verdict = pending.has(p.name)
+            ? { verdict: "pending" }
+            : _faCutVerdict(p, econ, depth[p.position],
+                            _faRestructurePreview(p), _tradeValueTag(p, cap));
+          const col = _faTreemapColor(p, colorMode, econ, verdict);
+          const isPending = pending.has(p.name);
+          // Cap-overflow: tiles with cumulative-hit beyond cap get a
+          // diagonal warn-stripe. We tag the OVER-tier tiles by a
+          // simple rule — players whose hit is in the overflow $.
+          // For correctness, mark tiles whose RANK pushes cumsum > cap.
+          // (Computed once in a side pass.)
+          return { t, p, econ, verdict, col, isPending };
+        });
+        // Compute over-cap tiles by cumulative spend
+        let cum = 0;
+        for (const row of tilesHtml) {
+          cum += row.econ.hit;
+          row.isOver = cum > cap;
+          row.cum = cum;
+        }
+        const cleanN = (n) => (n||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'");
+        const renderedTiles = tilesHtml.map(row => {
+          const { t, p, econ, col, isPending, isOver, verdict } = row;
+          const wPct = (t.w / tmW) * 100;
+          const hPct = (t.h / tmH) * 100;
+          const xPct = (t.x / tmW) * 100;
+          const yPct = (t.y / tmH) * 100;
+          // Only show name when tile is large enough
+          const tileArea = t.w * t.h;
+          const showName = tileArea > 1800;
+          const showHit  = tileArea > 3500;
+          return `<div class="frn-cuts-tm-tile${isPending?' pending':''}${isOver?' over':''}"
+            style="left:${xPct.toFixed(2)}%;top:${yPct.toFixed(2)}%;width:${wPct.toFixed(2)}%;height:${hPct.toFixed(2)}%;background:${col.fill}"
+            onclick="frnOpenPlayerCard('${cleanN(p.name)}')"
+            title="${p.name} (${p.position}) · $${econ.hit.toFixed(1)}M hit · ${verdict.verdict==='pending'?'PENDING CUT':(verdict.label||'')}"
+            >
+            ${showName ? `<div class="frn-cuts-tm-name">${p.name}</div>` : ""}
+            ${showHit  ? `<div class="frn-cuts-tm-hit">$${econ.hit.toFixed(1)}M · ${p.position}</div>` : ""}
+          </div>`;
+        }).join("");
+        const overTilesCount = tilesHtml.filter(r => r.isOver).length;
+        const colorModes = [
+          { key: "position", lbl: "Position" },
+          { key: "verdict",  lbl: "Verdict" },
+          { key: "ceiling",  lbl: "Ceiling" },
+          { key: "age",      lbl: "Age" },
+          { key: "agePot",   lbl: "Age × Potential" },
+        ];
+        const modeChips = colorModes.map(m =>
+          `<button class="frn-cuts-tm-mode${colorMode===m.key?' active':''}" onclick="frnFACutsSetColorMode('${m.key}')">${m.lbl}</button>`
+        ).join("");
+        // Legend keys per mode
+        const legendByMode = {
+          position: [
+            ["QB","#f5c542"],["RB","#ef8a4d"],["WR","#e85c98"],["TE","#ba68c8"],
+            ["OL","#5fb1d4"],["DL","#ff6b6b"],["LB","#ffb14c"],["DB","#86e0a3"],
+            ["K/P","#888"],
+          ],
+          verdict: [
+            ["EASY CUT","#5e9c70"],["JUDGMENT","#c79f3a"],["KEEP","#b14b4b"],["COSTS $","#ef5350"],["PENDING","#6b6b6b"],
+          ],
+          ceiling: [
+            ["S","#f5c542"],["A","#5ed4d4"],["B","#86e0a3"],["C","#c08070"],["D","#7a5050"],
+          ],
+          age: [
+            ["≤23","#5ed4d4"],["24–26","#86e0a3"],["27–29","#f5c542"],["30–32","#ef8a4d"],["33+","#b14b4b"],
+          ],
+          agePot: [
+            ["Cornerstone","#3aa84a"],["Keeper","#86e0a3"],["Judgment","#c79f3a"],["Fading","#c87050"],["Cut bait","#7a3030"],
+          ],
+        };
+        const legend = (legendByMode[colorMode] || []).map(([k,c]) =>
+          `<span class="frn-cuts-tm-legend-item"><span class="dot" style="background:${c}"></span>${k}</span>`
+        ).join("");
+        return `<div class="frn-cuts-treemap-wrap">
+          <div class="frn-cuts-treemap-head">
+            <span class="frn-cuts-tm-title">CAP BLOCK · ${myRoster.length} contracts</span>
+            <span class="frn-cuts-tm-sub">${overCap ? `${overTilesCount} tile${overTilesCount===1?'':'s'} in the over-cap zone — click any to inspect` : `${capCoverage.toFixed(0)}% of cap used`}</span>
+            ${overCap ? `<span class="frn-cuts-overflow-chip" title="You're $${overAmt.toFixed(1)}M past the cap">+$${overAmt.toFixed(1)}M OVER</span>` : `<span class="frn-cuts-room-chip" title="Cap room">$${room.toFixed(1)}M ROOM</span>`}
           </div>
-          ${overCap ? `<div class="frn-cuts-overflow-chip" title="You're $${overAmt.toFixed(1)}M past the cap — must trim before Week 1">+$${overAmt.toFixed(1)}M<span class="frn-cuts-overflow-sub">OVER</span></div>` : `<div class="frn-cuts-room-chip" title="Cap room available">+$${room.toFixed(1)}M<span class="frn-cuts-overflow-sub">ROOM</span></div>`}
-        </div>
-        <div class="frn-cuts-bar-axis-v2">
-          <span class="frn-cuts-axis-tick">$0</span>
-          ${pendingFreed > 0 ? `<span class="frn-cuts-axis-postcut" title="Where you'll land after pending cuts">post-cut $${postCutUsed.toFixed(1)}M${postCutOverAmt>0?` (+$${postCutOverAmt.toFixed(1)}M)`:` ($${(cap-postCutUsed).toFixed(1)}M room)`}</span>` : ""}
-          <span class="frn-cuts-axis-tick frn-cuts-axis-cap-r">CAP · $${cap.toFixed(0)}M</span>
-        </div>
-      </div>
+          <div class="frn-cuts-treemap-canvas ${overCap?'over':'legal'}" style="aspect-ratio:${tmW}/${tmH}">
+            ${renderedTiles}
+          </div>
+          <div class="frn-cuts-tm-controls">
+            <span class="frn-cuts-tm-controls-label">Color by:</span>
+            ${modeChips}
+            <span class="frn-cuts-tm-legend">${legend}</span>
+          </div>
+        </div>`;
+      })()}
       <div class="frn-cuts-hero-actions">
         ${overCap ? `<button class="frn-cuts-auto-btn" onclick="frnFAAutoCutSuggest()">✨ AUTO-CUT TO LEGAL</button>` : ""}
         <div class="frn-cuts-sort-wrap">
