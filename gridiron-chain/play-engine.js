@@ -5,6 +5,52 @@ function normal(mean, sd) {
 }
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
+// ── EFFECTIVE SPEED — weight + agility adjusted ──────────────────────────────
+// SPD alone doesn't capture football reality. Two players with the same
+// max-speed grade close ground at different rates depending on:
+//   1. WEIGHT — 270-lb DL accelerates slower than 195-lb WR even with same
+//      top-end. Per F=ma: more mass = less acceleration for same musculature.
+//      Drag at sustained speed also rises with mass.
+//   2. AGILITY — short bursts (5-15 yds) reward AGI / first-step explosion,
+//      not just terminal velocity.
+//
+// `effectiveSpeed(p, yards)` blends SPD + AGI weighted by burst distance:
+//   yards ≤ 5:    burst dominates; AGI 50% of the score, weight penalty maxed
+//   yards 5-20:   blended
+//   yards ≥ 20:   SPD dominates (already encodes the 40-yd time which is
+//                 weight-aware via position-SPD mapping)
+//
+// Weight penalty: each 30 lbs over 200 = ~1 SPD point lost on burst.
+// A 270-lb DL with SPD 90 in a 5-yd pursuit ≈ effective 80; same player
+// at 40-yd ≈ effective 88 (small steady-state penalty only).
+function effectiveSpeed(p, yards = 30) {
+  if (!p) return 50;
+  const spd = p.stats?.[0] || 50;
+  const agi = p.stats?.[2] || 50;
+  // Weight pulled from combineMeasurables if available, else fallback by
+  // position averages so engine works even on legacy player objects.
+  const w = (typeof combineMeasurables === "function")
+    ? combineMeasurables(p).weightLbs
+    : (POSITION_WEIGHT_FALLBACK[p.position] || 220);
+  // Burst mix: 1.0 at 0 yds, 0 at 20+ yds. Lighter players win bursts.
+  const burstMix = clamp((20 - yards) / 20, 0, 1);
+  if (burstMix <= 0) {
+    // Sustained foot race — SPD dominates, small steady-state weight drag.
+    const sustainedDrag = Math.max(0, (w - 200) / 60);
+    return spd - sustainedDrag;
+  }
+  // Burst speed: SPD + AGI blend, minus heavier weight penalty for accel.
+  const burstWeightPenalty = Math.max(0, (w - 200) / 30);
+  const burstScore = spd * 0.5 + agi * 0.5 - burstWeightPenalty;
+  const sustainedDrag = Math.max(0, (w - 200) / 60);
+  const sustainedScore = spd - sustainedDrag;
+  return sustainedScore * (1 - burstMix) + burstScore * burstMix;
+}
+// Fallback weight by position when combineMeasurables isn't available.
+const POSITION_WEIGHT_FALLBACK = {
+  QB:220, RB:215, WR:200, TE:250, OL:315, DL:280, LB:240, CB:195, S:205, K:200, P:215,
+};
+
 function buildRatings(roster) {
   // Injured players (`weeksRemaining > 0`) are unavailable — exclude
   // them from depth-chart ratings so missing your QB1 actually hurts.
@@ -1910,7 +1956,9 @@ class GameSimulator {
         const cbName2 = this.defR.starters[wrSlotKey];
         const cbPlayer2 = cbName2 ? this._playerByName?.get?.(cbName2) : null;
         const cbCov2 = cbPlayer2?.stats?.[8] ?? 65;
-        const wrSpd  = rcvrPlayer?.stats?.[0] ?? 70;
+        // Effective speed accounts for weight + AGI burst — a heavier WR
+        // with the same SPD doesn't shake coverage as easily.
+        const wrSpd  = effectiveSpeed(rcvrPlayer, 15);
         const speedAdv = wrSpd - cbCov2;   // positive when WR has the step
         if (speedAdv > 6) {
           mismatchBonus = qbPocketBonus * 0.45 * Math.min(1, (speedAdv - 6) / 14);
@@ -2486,8 +2534,10 @@ class GameSimulator {
     if (!isQBRun && yards > 0) {
       const cp = this._playerByName.get(carrier);
       const cstr = cp?.stats?.[1] ?? 70;
-      const cspd = cp?.stats?.[0] ?? 70;
       const cagi = cp?.stats?.[2] ?? 70;
+      // Effective speed at burst distance (10yd) — accounts for weight +
+      // AGI so a heavier RB with same SPD doesn't burst the same.
+      const cspd = effectiveSpeed(cp, 10);
       let breakStat;
       if (rbArch === "POWER")        breakStat = cstr;
       else if (rbArch === "ELUSIVE") breakStat = (cagi * 0.7 + cstr * 0.3);
