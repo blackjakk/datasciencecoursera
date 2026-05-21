@@ -1306,8 +1306,8 @@ class GameSimulator {
     const PERS_AIR = { I_FORM:  2.0, HEAVY:  1.4, BASE: 0, TRIPS: 0, SPREAD: -0.6, EMPTY: -1.0 };
     // SPREAD/EMPTY = defense in DIME/QUARTER playing press + lighter front,
     // tighter coverage on quick reads but more vulnerable inside.
-    const PERS_COMP = { I_FORM: 0.020, HEAVY: 0.015, BASE: 0, TRIPS: 0, SPREAD: -0.040, EMPTY: -0.060 };
-    const PERS_SACK_MUL = { I_FORM: 0.85, HEAVY: 0.90, BASE: 1.0, TRIPS: 1.0, SPREAD: 1.20, EMPTY: 1.35 };
+    const PERS_COMP = { I_FORM: 0.020, HEAVY: 0.015, BASE: 0, TRIPS: 0, SPREAD: -0.025, EMPTY: -0.040 };
+    const PERS_SACK_MUL = { I_FORM: 0.85, HEAVY: 0.90, BASE: 1.0, TRIPS: 1.0, SPREAD: 1.12, EMPTY: 1.20 };
     const PERS_INT_MOD  = { I_FORM: -0.001, HEAVY: 0, BASE: 0, TRIPS: 0, SPREAD: 0.005, EMPTY: 0.008 };
     // Down & distance — situational tilts on top of personnel.
     const isThirdLong  = this.down === 3 && this.ytg >= 7;
@@ -1892,8 +1892,8 @@ class GameSimulator {
       let qbCompMod = 0, qbIntMod = 0, qbAirMod = 0, qbScrambleBonus = 0, qbBigPlayBonus = 0;
       let archPressureMul = 0.03;
       switch (qbArch) {
-        case "POCKET":        qbCompMod = +0.025; qbIntMod = -0.005; qbAirMod = -0.3; qbScrambleBonus = -0.03; archPressureMul = 0.01; break;
-        case "GUNSLINGER":    qbCompMod = -0.040; qbIntMod = +0.020; qbAirMod = +1.5; qbBigPlayBonus = 0.10; qbScrambleBonus = -0.02; archPressureMul = 0.02; break;
+        case "POCKET":        qbCompMod = +0.025; qbIntMod = -0.012; qbAirMod = -0.3; qbScrambleBonus = -0.03; archPressureMul = 0.01; break;
+        case "GUNSLINGER":    qbCompMod = -0.040; qbIntMod = +0.028; qbAirMod = +1.5; qbBigPlayBonus = 0.10; qbScrambleBonus = -0.02; archPressureMul = 0.02; break;
         case "GAME_MANAGER":  qbCompMod = +0.040; qbIntMod = -0.012; qbAirMod = -1.4; archPressureMul = 0.04; break;
         case "FIELD_GENERAL": qbCompMod = +0.020; qbIntMod = -0.015; archPressureMul = 0.04; break;
         case "DUAL_THREAT":   qbScrambleBonus = 0.04; archPressureMul = 0.10; break;
@@ -1993,7 +1993,7 @@ class GameSimulator {
       const dcBallHawkMul  = _dcTrait  === "Ball Hawk"    ? 1.025 : 1.0;
       const hcGameMgrIntMul= _hcSpec   === "Game Manager" ? 0.88  : 1.0;
       const boxStackIntMod = this._boxStackIntMod || 0;
-      const intPct = clamp((0.009 - adv * 0.008 + defIntMod + pressure * 0.006 + ballHawkBonus + qbIntMod + qbIntFromOvr + qbAggIntMod + boxStackIntMod) * dcBallHawkMul * hcGameMgrIntMul, 0.002, 0.024);
+      const intPct = clamp((0.009 - adv * 0.008 + defIntMod + pressure * 0.006 + ballHawkBonus + qbIntMod + qbIntFromOvr + qbAggIntMod + boxStackIntMod) * dcBallHawkMul * hcGameMgrIntMul, 0.002, 0.030);
       if (Math.random() < intPct) {
         const targetDepth = clamp(normal(11, 7), 2, 35);
         if (qbStats) { qbStats.pass_att++; qbStats.pass_int++; }
