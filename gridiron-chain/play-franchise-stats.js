@@ -7177,8 +7177,8 @@ function renderFrnRegular() {
           <div class="frn-xray-bar-track">
             <div class="frn-xray-bar-mid"></div>
             ${delta >= 0
-              ? `<div class="frn-xray-bar-fill me" style="left:50%;width:${Math.max(2,(fillPct-50))}%;background:${advCol}"></div>`
-              : `<div class="frn-xray-bar-fill them" style="right:50%;width:${Math.max(2,(50-fillPct))}%;background:${advCol}"></div>`}
+              ? `<div class="frn-xray-bar-fill me" style="right:50%;width:${Math.max(2,(fillPct-50))}%;background:${advCol}"></div>`
+              : `<div class="frn-xray-bar-fill them" style="left:50%;width:${Math.max(2,(50-fillPct))}%;background:${advCol}"></div>`}
           </div>
           <div class="frn-xray-delta" style="color:${advCol}">${dStr}</div>
         </div>
