@@ -2560,10 +2560,11 @@ class GameSimulator {
     let yards = clamp(normal((rushMean + rbBoost + fbBoost + runVarMean + adv * 1.4 + runTrenchYds + fbStuffReduction - lbTackle * 0.5 - boxSafetyStuff - thumperStuff - lbGapRead + rbGapVision + carrierBoost + reverseBonus + ocRunArchBonus + dcRunStopperMalus + fatigueRunYds + rzRunBonus) * defPbRun.runMul, rushSd * rbSdMul * runVarSd * reverseSdMul), -8, 75);
     // Cap at distance to end zone so a 1-yd goal-line carry doesn't get reported as a 17-yd TD
     if (yards > 0) yards = Math.min(yards, 100 - startYard);
-    // Broken tackles — carrier physicality vs defender tackle rating.
-    // POWER backs break with STR, ELUSIVE with AGI, SPEED with raw SPD.
-    // We compare against the AVG TCK of the LB room (primary tacklers on most runs).
-    // Capped at ONE broken tackle per carry to keep RBs from being OP.
+    // Broken tackles — carrier physicality vs sampled tackler.
+    // POWER backs break with STR + density (mass), ELUSIVE with AGI vs slow
+    // defenders, SPEED with raw burst. Tackler is sampled by yardage tier
+    // (LB/DL at LOS, S/CB in space) and 1–3 may converge (gang at LOS,
+    // isolation in space). A multi-defender break credits each beaten.
     let brokenTackles = 0;
     let bonusYards = 0;
     let tacklerForMiss = null;
