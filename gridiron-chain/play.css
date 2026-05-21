@@ -1903,6 +1903,19 @@
     color: var(--gold);
     border-color: var(--gold);
   }
+  /* Restructure chip — cyan to match the action-cluster button so the
+     same color always means "preserve player, save cap". */
+  .frn-cuts-filter-chip.restruct {
+    color: rgba(94,212,212,.85);
+    border-color: rgba(94,212,212,.4);
+  }
+  .frn-cuts-filter-chip.restruct:hover {
+    color: #5ed4d4; border-color: rgba(94,212,212,.7);
+  }
+  .frn-cuts-filter-chip.restruct.active {
+    background: rgba(94,212,212,.15);
+    color: #5ed4d4; border-color: #5ed4d4;
+  }
   .frn-cuts-filter-chip .cnt {
     font-family: 'IBM Plex Mono', monospace;
     font-size: .55rem; padding: .05rem .3rem;

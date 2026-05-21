@@ -6076,12 +6076,13 @@ function renderFrnFACuts() {
   const sortedRoster = myRoster.slice().sort((a, b) => {
     const ea = _faCutEconomics(a);
     const eb = _faCutEconomics(b);
-    if (sortKey === "relief") return eb.netRelief - ea.netRelief;
-    if (sortKey === "aav")    return (b.contract?.aav||0) - (a.contract?.aav||0);
-    if (sortKey === "dead")   return eb.totalDeadOnCut - ea.totalDeadOnCut;
-    if (sortKey === "ovr")    return (a.overall||0) - (b.overall||0);
-    if (sortKey === "age")    return (b.age||0) - (a.age||0);
-    if (sortKey === "pos")    return (a.position||"").localeCompare(b.position||"");
+    if (sortKey === "relief")  return eb.netRelief - ea.netRelief;
+    if (sortKey === "aav")     return (b.contract?.aav||0) - (a.contract?.aav||0);
+    if (sortKey === "dead")    return eb.totalDeadOnCut - ea.totalDeadOnCut;
+    if (sortKey === "ovr")     return (a.overall||0) - (b.overall||0);
+    if (sortKey === "age")     return (b.age||0) - (a.age||0);
+    if (sortKey === "pos")     return (a.position||"").localeCompare(b.position||"");
+    if (sortKey === "restruct") return (_faRestructurePreview(b).freed || 0) - (_faRestructurePreview(a).freed || 0);
     return 0;
   });
 
@@ -6094,13 +6095,23 @@ function renderFrnFACuts() {
     blockers: sortedRoster.filter(p => _tradeValueTag(p, cap) === "blocker").length,
     cuttable: sortedRoster.filter(p => _faCutEconomics(p).netRelief > 1).length,
     costly:   sortedRoster.filter(p => _faCutEconomics(p).netRelief < -0.5).length,
+    restructure: sortedRoster.filter(p => _faRestructurePreview(p).eligible).length,
   };
-  const filteredRoster = sortedRoster.filter(p => {
+  // When the restructure filter is active, override sort to highlight
+  // the biggest cap-relief opportunities. User-chosen sort still works
+  // via the Sort chips above the table.
+  let workingRoster = sortedRoster;
+  if (filterMode === "restructure" && franchise._faCutsSort == null) {
+    workingRoster = sortedRoster.slice().sort((a, b) =>
+      (_faRestructurePreview(b).freed || 0) - (_faRestructurePreview(a).freed || 0));
+  }
+  const filteredRoster = workingRoster.filter(p => {
     if (posFilter && p.position !== posFilter) return false;
-    if (filterMode === "assets")   return _tradeValueTag(p, cap) === "asset";
-    if (filterMode === "blockers") return _tradeValueTag(p, cap) === "blocker";
-    if (filterMode === "cuttable") return _faCutEconomics(p).netRelief > 1;
-    if (filterMode === "costly")   return _faCutEconomics(p).netRelief < -0.5;
+    if (filterMode === "assets")      return _tradeValueTag(p, cap) === "asset";
+    if (filterMode === "blockers")    return _tradeValueTag(p, cap) === "blocker";
+    if (filterMode === "cuttable")    return _faCutEconomics(p).netRelief > 1;
+    if (filterMode === "costly")      return _faCutEconomics(p).netRelief < -0.5;
+    if (filterMode === "restructure") return _faRestructurePreview(p).eligible;
     return true;
   });
 
@@ -6145,8 +6156,8 @@ function renderFrnFACuts() {
         ${overCap ? `<button class="frn-cuts-auto-btn" onclick="frnFAAutoCutSuggest()">✨ AUTO-CUT TO LEGAL</button>` : ""}
         <div class="frn-cuts-sort-wrap">
           <span class="frn-cuts-sort-label">Sort:</span>
-          ${["relief","aav","dead","ovr","age","pos"].map(k => {
-            const lbl = { relief:"Cap Relief", aav:"AAV", dead:"Dead $", ovr:"Worst OVR", age:"Oldest", pos:"Position" }[k];
+          ${["relief","aav","dead","restruct","ovr","age","pos"].map(k => {
+            const lbl = { relief:"Cap Relief", aav:"AAV", dead:"Dead $", restruct:"♻ Restruct $", ovr:"Worst OVR", age:"Oldest", pos:"Position" }[k];
             return `<button class="frn-cuts-sort-chip${sortKey===k?" active":""}" onclick="frnFACutsSort('${k}')">${lbl}</button>`;
           }).join("")}
         </div>
@@ -6219,6 +6230,8 @@ function renderFrnFACuts() {
         title="Cut saves ≥ $1M of net cap">✓ Cuttable <span class="cnt">${filterCounts.cuttable}</span></button>
       <button class="frn-cuts-filter-chip${filterMode==="costly"?" active":""}" onclick="frnFACutsSetFilter('costly')"
         title="Cut would LOSE money on the cap — restructure first">⚠ Costly <span class="cnt">${filterCounts.costly}</span></button>
+      <button class="frn-cuts-filter-chip restruct${filterMode==="restructure"?" active":""}" onclick="frnFACutsSetFilter('restructure')"
+        title="Restructure-eligible — sorted by biggest cap freed when active">♻ Restructures <span class="cnt">${filterCounts.restructure}</span></button>
       ${posFilter ? `<span class="frn-cuts-active-filter">${posFilter} only · <a onclick="frnFACutsSetPosFilter(null)">clear</a></span>` : ""}
       ${(filterMode || posFilter) ? `<button class="frn-cuts-clear-all" onclick="frnFACutsClearFilters()">✕ Reset filters</button>` : ""}
       <span class="frn-cuts-filter-meta">${filteredRoster.length} of ${myRoster.length} shown</span>
