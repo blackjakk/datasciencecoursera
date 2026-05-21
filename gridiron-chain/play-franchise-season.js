@@ -1364,8 +1364,15 @@ const HOF_THRESHOLDS = {
 // representative star at each position lands in the same ~70 score
 // band when they belong in Canton.
 function _hofPositionMul(pos) {
-  return { QB:1.0, RB:0.95, WR:0.92, TE:0.95, OL:1.20, LT:1.20, LG:1.20, C:1.20, RG:1.20, RT:1.20,
-           DL:1.0, LB:1.0, CB:1.05, S:1.05, K:1.30, P:1.45 }[pos] || 1.0;
+  // Rebalanced from the 500-season audit. CB/S dominated HoF at 25.7%
+  // (real NFL ~4%); LB was at 1.4% (real NFL ~8%); QB/OL/RB all
+  // crowded out. Dropped DB multiplier to 0.85 (was 1.05) and bumped
+  // LB to 1.15 (was 1.0). OL bumped to 1.30 (was 1.20) to recover
+  // the 17% share real NFL has. K/P stay high because they live and
+  // die on counting stats with no accolades to lean on.
+  return { QB:1.05, RB:1.05, WR:0.95, TE:1.0,
+           OL:1.30, LT:1.30, LG:1.30, C:1.30, RG:1.30, RT:1.30,
+           DL:1.0, LB:1.15, CB:0.85, S:0.85, K:1.30, P:1.45 }[pos] || 1.0;
 }
 
 // Composite HOF score: peak ability + accolades + counting stats +
@@ -1384,13 +1391,20 @@ function _computeHOFScore(p) {
   s += (p.roys    || 0) * 2;
   s += Math.max(0, (p.careerHistory?.length || 0) - 6) * 0.8;
   const pos = p.position;
-  if (pos === "QB") s += (stats.pass_yds||0)/3500 + (stats.pass_td||0)/15;
-  else if (pos === "RB") s += (stats.rush_yds||0)/1000*1.2 + (stats.rush_td||0)/8 + (stats.rec_yds||0)/2500;
-  else if (pos === "WR" || pos === "TE") s += (stats.rec_yds||0)/1000*1.2 + (stats.rec_td||0)/8;
-  else if (pos === "DL" || pos === "LB") s += (stats.sk||0)/5 + (stats.tkl||0)/120;
-  else if (pos === "CB" || pos === "S")  s += (stats.int_made||0)/2 + (stats.pd||0)/15;
+  // Counting-stat bonus rebalanced per 500-season audit. DB INTs / PDs
+  // were inflating CB scores ~4× over the rest of the field; LB
+  // counting stats were too slow to accumulate. Numbers are now
+  // calibrated against the actual sim stat-rates (which run ~1.7-2.7×
+  // NFL norms) so a top career at each position trends to similar
+  // counting-stat contribution.
+  if (pos === "QB") s += (stats.pass_yds||0)/2500 + (stats.pass_td||0)/12;
+  else if (pos === "RB") s += (stats.rush_yds||0)/800*1.2 + (stats.rush_td||0)/6 + (stats.rec_yds||0)/2000;
+  else if (pos === "WR" || pos === "TE") s += (stats.rec_yds||0)/1200*1.2 + (stats.rec_td||0)/8;
+  else if (pos === "DL") s += (stats.sk||0)/4 + (stats.tkl||0)/100;
+  else if (pos === "LB") s += (stats.sk||0)/3 + (stats.tkl||0)/60 + (stats.int_made||0)/4;
+  else if (pos === "CB" || pos === "S")  s += (stats.int_made||0)/6 + (stats.pd||0)/40 + (stats.tkl||0)/200;
   else if (pos === "K") s += (stats.fg_made||0)/18;
-  else if (["OL","LT","LG","C","RG","RT"].includes(pos)) s += (stats.pancakes||0)/22;
+  else if (["OL","LT","LG","C","RG","RT"].includes(pos)) s += (stats.pancakes||0)/18;
   s *= _hofPositionMul(pos);
   return Math.round(s);
 }
