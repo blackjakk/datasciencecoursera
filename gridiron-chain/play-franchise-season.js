@@ -1964,7 +1964,11 @@ function _rollGameInjuries(teamId) {
     // shaves an extra 5pp for everyone (already baked into base rating).
     let foMul = trainerMul;
     if (trainer?.trait === "Veteran Carer" && (p.age || 0) >= 31) foMul *= 0.85;
-    const rate = (INJURY_RATE[p.position] || 0.01) * rateMul * recMul * ironmanMul * archMul * foMul;
+    // Hidden durability — Iron Man (95) lowers chance ~35%; Injury Prone (40)
+    // bumps it ~30%. Server-only field in MegaETH port.
+    const durability = p._durability ?? 65;
+    const durabilityMul = 1.4 - durability / 100;
+    const rate = (INJURY_RATE[p.position] || 0.01) * rateMul * recMul * ironmanMul * archMul * foMul * durabilityMul;
     if (Math.random() >= rate) continue;
     let t = _pickInjuryType(p.position);
     let isCatastrophic = false;

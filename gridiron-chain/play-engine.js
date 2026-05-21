@@ -2472,7 +2472,13 @@ class GameSimulator {
       // momentum point, max ±5pp); hot defense plays tighter coverage.
       const momCompMod = ((this._momentum?.[this.poss] || 0)
                        -  (this._momentum?.[this.poss === "home" ? "away" : "home"] || 0)) * 0.0025;
-      const compPct = clamp((0.65 + adv * 0.13 + qbCompFromOvr - pressure * 0.10 - shutdownPenalty + possessionBonus + qbCompMod + paCompMod + catCompMod + awrCompMod + cbCoverMod + mismatchBonus + coverLbMod + signalLbMod + physicalJamMod + wxCompMod + archCompMod + rzCompBonus + fatigueCompMod + momCompMod) * compPbMul * defPbCurrent.passMul * dcCoverSchemeMul, 0.15, 0.88);
+      // QB drive — late-game clutch bonus. Q4 close-game throws by high-drive
+      // QBs are noticeably more accurate (Brady-style "raises his level").
+      // Low-drive QBs sag.
+      const isQBClutch = this.quarter >= 4 && this.time < 300 && Math.abs(this.score.home - this.score.away) <= 8;
+      const qbDrive = qbPlayer?._drive ?? 60;
+      const driveCompMod = isQBClutch ? (qbDrive - 60) / 600 : 0; // ±~6pp at drive 99 vs 20
+      const compPct = clamp((0.65 + adv * 0.13 + qbCompFromOvr - pressure * 0.10 - shutdownPenalty + possessionBonus + qbCompMod + paCompMod + catCompMod + awrCompMod + cbCoverMod + mismatchBonus + coverLbMod + signalLbMod + physicalJamMod + wxCompMod + archCompMod + rzCompBonus + fatigueCompMod + momCompMod + driveCompMod) * compPbMul * defPbCurrent.passMul * dcCoverSchemeMul, 0.15, 0.88);
       if (Math.random() < compPct) {
         // Air yards drop when pressure shortens the QB's reads (check-downs / dump-offs)
         // Weaker QBs also throw shorter — they can't push the ball downfield reliably.

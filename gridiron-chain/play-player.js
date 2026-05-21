@@ -1426,6 +1426,18 @@ function genPlayer(pos, tier) {
       player.collegeNickname = true;
     }
   }
+  // Hidden mental + injury traits. Loosely correlated with potential (high
+  // potential ≠ high drive — that's what creates busts vs overachievers).
+  // Server-side in MegaETH port; client only sees scout-tag derivations.
+  if (player._drive == null) {
+    const driveRoll = Math.random();
+    // Mean ~60, sd ~18, clamped 20-99.
+    player._drive = Math.max(20, Math.min(99, Math.round(60 + (driveRoll * 2 - 1) * 35 + (Math.random() - 0.5) * 10)));
+  }
+  if (player._durability == null) {
+    const durRoll = Math.random();
+    player._durability = Math.max(25, Math.min(99, Math.round(65 + (durRoll * 2 - 1) * 30)));
+  }
   // Mock the player's career (year-by-year stats + accolades) at gen time
   generateCareer(player);
   return player;

@@ -9879,9 +9879,12 @@ function runFrnOffseason() {
 
       if (p.hiddenGem && p.age <= 28) {
         p.potential = Math.max(p.potential, p.hiddenGem.ceiling);
+        // Hidden drive multiplier — High Motor (95) develops ~17% faster;
+        // Inconsistent (40) ~13% slower.
+        const driveMul = 0.85 + ((p._drive ?? 60) - 50) / 300;
         const growth = Math.max(0, Math.min(
           p.hiddenGem.ceiling - p.overall,
-          Math.round(p.hiddenGem.growthRate * coachBoost * tradeBoost)
+          Math.round(p.hiddenGem.growthRate * coachBoost * tradeBoost * driveMul)
         ));
         if (growth > 0) {
           p.overall = Math.min(p.hiddenGem.ceiling, p.overall + growth);
@@ -17495,7 +17498,7 @@ const HiddenOracle = {
   //   - potential:   PERSISTS, used by NFL aging/dev (Y2 surge writes here)
   //   - _aiScoutBias: PERSISTS, used by draft retrospectives + concerns
   // Anything added here needs a roll path (HiddenOracle.roll.*) too.
-  secretFields: ["potential", "_growthRate", "_aiScoutBias"],
+  secretFields: ["potential", "_growthRate", "_aiScoutBias", "_drive", "_durability"],
 
   read: {
     // Raw ceiling. PORT: server-only; client never sees the number.
@@ -17509,6 +17512,28 @@ const HiddenOracle = {
     // bucket matches the on-chain commitment; client receives the
     // letter only.
     ceilingTier: (p) => _ceilingTier(p.potential || p.overall, p.draftRound),
+    // Raw drive (0-99). PORT: server-only. Engine reads this to apply
+    // clutch / dev / break-tackle 2nd-effort bonuses.
+    drive: (p) => p._drive || 60,
+    // Raw durability (0-99). PORT: server-only. Engine reads this to
+    // adjust per-play injury chance.
+    durability: (p) => p._durability || 65,
+    // Public scout tag for drive — never reveals the number.
+    driveTag: (p) => {
+      const d = p._drive || 60;
+      if (d >= 85) return { label: "High Motor",    color: "var(--green)" };
+      if (d >= 70) return { label: "Steady",        color: "var(--gray)" };
+      if (d >= 50) return { label: "Coachable",     color: "var(--gray)" };
+      return                { label: "Inconsistent", color: "var(--red)" };
+    },
+    // Public scout tag for durability.
+    durabilityTag: (p) => {
+      const d = p._durability || 65;
+      if (d >= 85) return { label: "Iron Man",      color: "var(--green)" };
+      if (d >= 65) return { label: "Durable",       color: "var(--gray)" };
+      if (d >= 50) return { label: "Average",       color: "var(--gray)" };
+      return                { label: "Injury Prone", color: "var(--red)" };
+    },
   },
 
   roll: {
