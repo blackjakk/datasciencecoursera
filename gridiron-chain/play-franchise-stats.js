@@ -3416,8 +3416,13 @@ function renderFrnDepthChart() {
     const isExpiring = (p.contract?.remaining || 0) <= 1;
     const aav        = (p.contract?.aav||0).toFixed(1);
     const yrs        = p.contract?.remaining || 0;
+    // Injury badge — bumped to a clear "OUT Nw" label when a starter
+    // is hurt so the user can see the engine will auto-sub. Catastrophic
+    // injuries (torn ACL, etc.) get a flag emoji to make it obvious.
+    const isCat = isInjured && !!p.injury?._catastrophic;
+    const injLabel = isInjured ? (p.injury.label || "injury") : "";
     const injBadge   = isInjured
-      ? `<span class="frn-dc-badge red">🩹${p.injury.weeksRemaining}w</span>` : "";
+      ? `<span class="frn-dc-badge red" title="${injLabel} — engine auto-subs the next healthy player at this position">${isCat ? "🚑" : "🚫"} OUT ${p.injury.weeksRemaining}w</span>` : "";
     const expBadge   = isExpiring
       ? `<span class="frn-dc-badge exp">EXP</span>` : "";
     const blkBadge   = p.onTradeBlock
