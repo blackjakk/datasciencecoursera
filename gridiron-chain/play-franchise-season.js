@@ -1933,6 +1933,12 @@ function _rollGameInjuries(teamId) {
                     || (franchise.coaches?.[teamId]?.hc?.trait === "Hard-Ass" ? "Disciplinarian" : null);
   const rateMul = cultureTrait === "Disciplinarian" ? 0.80
                 : cultureTrait === "Players' Coach" ? 1.05 : 1.0;
+  // Front-office trainer reduces injury rate. Elite trainer (99) shaves
+  // up to 22% off the base; trait bias adds an extra 5pp shave to the
+  // matching specialty (veterans / soft-tissue / catastrophic). Computed
+  // once per team per game.
+  const trainer = franchise.frontOffice?.[teamId]?.trainer;
+  const trainerMul = typeof _foInjuryMul === "function" ? _foInjuryMul(teamId) : 1.0;
   for (const p of roster) {
     if (p.injury && p.injury.weeksRemaining > 0) continue;
     const recMul = _injuryRecurrenceMul(p);
@@ -1945,7 +1951,11 @@ function _rollGameInjuries(teamId) {
     if (p.position === "CB" && p.archetype === "SLOT_CB")    archMul = 0.85;
     if (p.position === "RB" && p.archetype === "RECEIVING")  archMul = 0.85;
     if (p.position === "TE" && p.archetype === "BLOCKING")   archMul = 0.90; // OL-like
-    const rate = (INJURY_RATE[p.position] || 0.01) * rateMul * recMul * ironmanMul * archMul;
+    // Trainer trait specialization: Veteran Carer protects 31+; Conditioning
+    // shaves an extra 5pp for everyone (already baked into base rating).
+    let foMul = trainerMul;
+    if (trainer?.trait === "Veteran Carer" && (p.age || 0) >= 31) foMul *= 0.85;
+    const rate = (INJURY_RATE[p.position] || 0.01) * rateMul * recMul * ironmanMul * archMul * foMul;
     if (Math.random() >= rate) continue;
     let t = _pickInjuryType(p.position);
     let isCatastrophic = false;
@@ -1973,7 +1983,9 @@ function _rollGameInjuries(teamId) {
     // Catastrophic upgrade — small chance the rolled injury escalates to
     // a season-altering version. Of those, a rare careerEndingChance
     // forces immediate retirement at season's end.
-    if (!isCatastrophic && Math.random() < _CATASTROPHIC_UPGRADE_CHANCE) {
+    // Sports Sci trainer reduces catastrophic-upgrade chance by 35%.
+    const catMul = trainer?.trait === "Sports Sci" ? 0.65 : 1.0;
+    if (!isCatastrophic && Math.random() < _CATASTROPHIC_UPGRADE_CHANCE * catMul) {
       const variant = _CATASTROPHIC_VARIANTS[t.label];
       if (variant) {
         t = { ...t, ...variant };

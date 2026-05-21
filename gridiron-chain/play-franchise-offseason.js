@@ -9777,6 +9777,11 @@ function runFrnOffseason() {
       // real-world "high-floor player who maximizes the gift" — they
       // get more out of any coach.
       if (p.coachable) coachBoost *= 1.25;
+      // Front-office strength coach: +0.1 to +0.6 growth mul by rating,
+      // trait-biased to the matching player profile (mass/speed/late/general).
+      if (typeof _foDevBoost === "function") {
+        coachBoost *= (1 + _foDevBoost(tId, p));
+      }
       // Dev freeze: ignored holdouts skip offseason growth entirely
       // for the season after their demand was ignored. Models the
       // "checked-out, didn't attend OTAs, missed camp" attitude. Flag
@@ -12708,6 +12713,10 @@ function _renderHoldoutsBlock() {
 function frnNewSeason() {
   // Before wiping season stats, roll them into each player's career
   _rollSeasonStatsToCareer();
+  // Tick front-office tenure + handle contract expiries / retirements.
+  // Idempotent — backfills missing roles on legacy saves.
+  if (typeof _initFrontOffice === "function") _initFrontOffice();
+  if (typeof _tickFrontOfficeTenure === "function") _tickFrontOfficeTenure();
   // Reset in-season scouting state: fresh credits bank, blank reveals
   // for the new draft cycle. Reveals from the just-completed season
   // were already merged into draftScoutReveals at frnGoToDraft, so

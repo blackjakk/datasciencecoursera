@@ -1910,6 +1910,118 @@ function _initCoachingStaff() {
   }
 }
 
+// ── FRONT OFFICE STAFF ───────────────────────────────────────────────────────
+// Four roles per team, each with rating + trait + tenure. Effects layer
+// onto roster-wide systems: scout reduces draft bias, trainer reduces
+// injury rate, strength coach boosts dev, GM tilts trade evaluation.
+const FRONT_OFFICE_TRAITS = {
+  gm: [
+    { key: "Trade Hawk",     label: "Trade Hawk",     desc: "Aggressive on trades; finds undervalued players" },
+    { key: "Cap Wizard",     label: "Cap Wizard",     desc: "Stretches dollars; cheaper extensions" },
+    { key: "Builder",        label: "Builder",        desc: "Prefers homegrown talent; draft-focused" },
+    { key: "Win-Now",        label: "Win-Now",        desc: "FA-aggressive; pushes for veterans" },
+  ],
+  scout: [
+    { key: "Eye for Talent", label: "Eye for Talent", desc: "Spots gems in late rounds — reveals hidden potential" },
+    { key: "Combine Maven",  label: "Combine Maven",  desc: "Decodes measurables; better tier accuracy" },
+    { key: "Tape Grinder",   label: "Tape Grinder",   desc: "Film-based scouting; reveals more attributes" },
+    { key: "Network Guy",    label: "Network Guy",    desc: "Pre-draft signal — early in-season visits get extra intel" },
+  ],
+  trainer: [
+    { key: "Conditioning",   label: "Conditioning",   desc: "Lower injury rate per game" },
+    { key: "Recovery Spec",  label: "Recovery Spec",  desc: "Faster return from soft-tissue injuries" },
+    { key: "Sports Sci",     label: "Sports Sci",     desc: "Lowers catastrophic-injury upgrade chance" },
+    { key: "Veteran Carer",  label: "Veteran Carer",  desc: "Players age 31+ stay healthier" },
+  ],
+  strength: [
+    { key: "Mass Builder",   label: "Mass Builder",   desc: "OL/DL gain STR faster" },
+    { key: "Speed Lab",      label: "Speed Lab",      desc: "Skill positions gain SPD/AGI faster" },
+    { key: "Late Bloomer",   label: "Late Bloomer",   desc: "Players 25-29 keep developing" },
+    { key: "Iron Will",      label: "Iron Will",      desc: "Stamina + AWR growth boost league-wide" },
+  ],
+};
+function _rollFrontOfficer(role) {
+  const rating = 50 + Math.floor(Math.random() * 45);
+  const aav = +(0.4 + (rating - 50) * 0.02 + Math.random() * 0.3).toFixed(1);
+  const years = 2 + Math.floor(Math.random() * 3);
+  const traits = FRONT_OFFICE_TRAITS[role] || [];
+  return {
+    name: `${pickFirstName()} ${pickLastName()}`,
+    role,
+    rating,
+    trait: traits[Math.floor(Math.random() * traits.length)]?.key || null,
+    age: 38 + Math.floor(Math.random() * 25),
+    yearsWithTeam: 0,
+    contractYears: years,
+    salary: aav,
+  };
+}
+function _initFrontOffice() {
+  if (!franchise.frontOffice) franchise.frontOffice = {};
+  for (const t of TEAMS) {
+    if (!franchise.frontOffice[t.id]) {
+      franchise.frontOffice[t.id] = {
+        gm:       _rollFrontOfficer("gm"),
+        scout:    _rollFrontOfficer("scout"),
+        trainer:  _rollFrontOfficer("trainer"),
+        strength: _rollFrontOfficer("strength"),
+      };
+    }
+  }
+}
+// Tenure tick at season start — also handles contract expiry → replacement.
+function _tickFrontOfficeTenure() {
+  if (!franchise.frontOffice) return;
+  for (const t of TEAMS) {
+    const fo = franchise.frontOffice[t.id];
+    if (!fo) continue;
+    for (const role of ["gm", "scout", "trainer", "strength"]) {
+      const p = fo[role];
+      if (!p) { fo[role] = _rollFrontOfficer(role); continue; }
+      p.yearsWithTeam = (p.yearsWithTeam || 0) + 1;
+      p.age = (p.age || 45) + 1;
+      p.contractYears = (p.contractYears || 1) - 1;
+      // Contract expired — coin-flip on extension, otherwise hire fresh.
+      if (p.contractYears <= 0) {
+        const keepProb = clamp(0.35 + (p.rating - 60) / 100, 0.20, 0.85);
+        if (Math.random() < keepProb) {
+          p.contractYears = 2 + Math.floor(Math.random() * 3);
+        } else {
+          fo[role] = _rollFrontOfficer(role);
+        }
+      }
+      // Retirement at age 70 — replaced by a fresh hire.
+      if (p.age >= 70) fo[role] = _rollFrontOfficer(role);
+    }
+  }
+}
+// Effect helpers — applied at use sites.
+function _foInjuryMul(teamId) {
+  const trainer = franchise.frontOffice?.[teamId]?.trainer;
+  if (!trainer) return 1.0;
+  // Linear mapping: rating 50 → 1.0, rating 99 → 0.78 (-22%).
+  const ratingMul = 1 - (Math.max(50, trainer.rating || 50) - 50) / 220;
+  return Math.max(0.65, ratingMul);
+}
+function _foScoutBiasMul(teamId) {
+  const scout = franchise.frontOffice?.[teamId]?.scout;
+  if (!scout) return 1.0;
+  // Elite scout (99) halves the random bias on prospects (= more accurate
+  // tier reads). Low-rated scout (50) leaves bias as-is.
+  return Math.max(0.45, 1 - (Math.max(50, scout.rating || 50) - 50) / 100);
+}
+function _foDevBoost(teamId, p) {
+  const sc = franchise.frontOffice?.[teamId]?.strength;
+  if (!sc) return 0;
+  // +0.1 OVR per yr at rating 50, +0.6 at rating 99. Trait bias picks
+  // who benefits the most.
+  const base = (Math.max(50, sc.rating || 50) - 50) / 100;
+  if (sc.trait === "Mass Builder"  && ["OL", "DL"].includes(p?.position))   return base * 0.7;
+  if (sc.trait === "Speed Lab"     && ["WR", "RB", "CB", "S"].includes(p?.position)) return base * 0.7;
+  if (sc.trait === "Late Bloomer"  && (p?.age || 25) >= 25 && (p?.age || 0) <= 29) return base * 0.6;
+  return base * 0.4;
+}
+
 // Migration: add missing oc/dc/positionStaff to existing saves.
 // Also maps old single-trait HC to the new cultureTrait / specialtyTrait fields.
 function _backfillCoachingStaff() {
@@ -3680,6 +3792,7 @@ function startFranchise(teamId) {
   franchiseDraft = null;
   _initFranchisePicks();
   _initCoachingStaff();
+  _initFrontOffice();
   _seedPracticeSquads();
   if (typeof _seedCollegePipeline === "function") _seedCollegePipeline();
   saveFranchise();

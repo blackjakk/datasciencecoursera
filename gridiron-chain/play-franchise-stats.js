@@ -9873,11 +9873,86 @@ function renderFrnCoachingStaff() {
       <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.5rem">
         <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="font-size:.7rem;padding:.2rem .6rem">← Back</button>
         <div style="font-size:1rem;font-weight:700;color:var(--gold)">${myTeam?.city} ${myTeam?.name} — Coaching</div>
+        <button class="btn btn-outline" onclick="renderFrnFrontOffice()" style="font-size:.7rem;padding:.2rem .6rem;margin-left:auto" title="GM / Scout / Trainer / Strength Coach">🏢 Front Office →</button>
       </div>
       ${hireBanner}
       ${subNavHtml}
       ${contractEditorHtml}
       ${activeBody}
+    </div>`;
+}
+
+// ── FRONT OFFICE STAFF PAGE ──────────────────────────────────────────
+// GM / scout / trainer / strength coach for the user's team. Each role
+// has rating + trait + tenure + applied effect summary. Page is
+// reachable from the coaching staff page header.
+function renderFrnFrontOffice() {
+  const myId   = franchise.chosenTeamId;
+  const myTeam = getTeam(myId);
+  const fo = franchise.frontOffice?.[myId] || {};
+  const ratingColor = r => r >= 80 ? "var(--green-lt)" : r >= 65 ? "var(--gold)" : "var(--red)";
+  const ratingBadge = (r) => r != null
+    ? `<span style="font-size:.7rem;font-weight:700;padding:.1rem .4rem;border-radius:3px;background:${ratingColor(r)};color:#000">${r}</span>`
+    : "";
+  const effectFor = (role, p) => {
+    if (!p) return "—";
+    if (role === "trainer") {
+      const cut = Math.round((1 - (typeof _foInjuryMul === "function" ? _foInjuryMul(myId) : 1)) * 100);
+      const extras = [];
+      if (p.trait === "Veteran Carer") extras.push("vets 31+ get extra -15%");
+      if (p.trait === "Sports Sci") extras.push("-35% catastrophic upgrade");
+      if (p.trait === "Recovery Spec") extras.push("faster return from soft-tissue (cosmetic for now)");
+      return `Injury rate ${cut > 0 ? `−${cut}%` : "unchanged"}${extras.length ? " · " + extras.join(" · ") : ""}`;
+    }
+    if (role === "strength") {
+      const mul = (Math.max(50, p.rating || 50) - 50) / 100;
+      return `Dev rate +${(mul * 100).toFixed(0)}%${p.trait ? " (biased: " + p.trait + ")" : ""}`;
+    }
+    if (role === "scout") {
+      const reduce = Math.round((1 - (typeof _foScoutBiasMul === "function" ? _foScoutBiasMul(myId) : 1)) * 100);
+      return `Draft-board bias ${reduce > 0 ? `−${reduce}%` : "unchanged"}${p.trait ? " · " + p.trait : ""}`;
+    }
+    if (role === "gm") {
+      return `Trade evaluation tilt${p.trait ? " — " + p.trait : ""}`;
+    }
+    return "";
+  };
+  const ROLE_LABELS = { gm: "GENERAL MANAGER", scout: "HEAD SCOUT", trainer: "HEAD TRAINER", strength: "STRENGTH COACH" };
+  const ROLE_ICONS  = { gm: "📋", scout: "🔍", trainer: "🏥", strength: "💪" };
+  const roleCard = (role) => {
+    const p = fo[role];
+    if (!p) return `<div class="frn-pg-card" style="flex:1"><div class="frn-pg-card-title">${ROLE_ICONS[role]} ${ROLE_LABELS[role]}</div><div style="color:var(--gray);font-style:italic;padding:.5rem">Position vacant — auto-fill next offseason</div></div>`;
+    return `<div class="frn-pg-card" style="flex:1">
+      <div class="frn-pg-card-title">${ROLE_ICONS[role]} ${ROLE_LABELS[role]}</div>
+      <div style="padding:.45rem 0">
+        <div style="font-size:.95rem;font-weight:900">${p.name} ${ratingBadge(p.rating)}</div>
+        <div style="color:var(--gold);font-size:.75rem;margin-top:.15rem">${p.trait || "—"}</div>
+        <div style="color:var(--gray);font-size:.62rem;margin-top:.4rem">
+          Age ${p.age} · ${p.yearsWithTeam}yr with team · ${p.contractYears}yr left · $${(p.salary||0).toFixed(1)}M
+        </div>
+        <div style="margin-top:.55rem;padding:.3rem .45rem;background:rgba(0,0,0,.25);border-left:2px solid var(--gold);border-radius:2px;font-size:.62rem;color:var(--blwhite)">
+          <b style="color:var(--gold);letter-spacing:.5px;font-size:.55rem">EFFECT</b><br/>${effectFor(role, p)}
+        </div>
+      </div>
+    </div>`;
+  };
+  $("frnHomeContent").innerHTML = `
+    <div style="max-width:840px;margin:0 auto;padding:.5rem 0">
+      <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.5rem">
+        <button class="btn btn-outline" onclick="showFranchiseDashboard()" style="font-size:.7rem;padding:.2rem .6rem">← Back</button>
+        <div style="font-size:1rem;font-weight:700;color:var(--gold)">${myTeam?.city} ${myTeam?.name} — Front Office</div>
+      </div>
+      <div style="color:var(--gray);font-size:.7rem;margin-bottom:.7rem;line-height:1.4">
+        The building behind the team. Each role applies a roster-wide effect: <b style="color:var(--gold)">trainer</b> cuts injury rate, <b style="color:var(--gold)">strength coach</b> boosts development, <b style="color:var(--gold)">scout</b> tightens draft reads, <b style="color:var(--gold)">GM</b> drives trade evaluation.
+      </div>
+      <div class="frn-pg-row" style="flex-wrap:wrap;gap:.6rem">
+        ${roleCard("gm")}
+        ${roleCard("scout")}
+      </div>
+      <div class="frn-pg-row" style="flex-wrap:wrap;gap:.6rem;margin-top:.6rem">
+        ${roleCard("trainer")}
+        ${roleCard("strength")}
+      </div>
     </div>`;
 }
 
