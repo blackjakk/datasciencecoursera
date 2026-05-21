@@ -126,7 +126,10 @@ const PLAYBOOKS = {
     // Pass volume trimmed — was throwing 87% of plays so even mediocre
     // WRs racked up 130+ yds vs elite secondaries on volume alone.
     passProb: { long: 0.82, mid: 0.66, short: 0.50 },
-    targetMix: { wr1: 0.42, wr2: 0.32, te: 0.16, rb: 0.10 },
+    // rb 0.10 → 0.16 — NFL pass-catching backs in spread schemes (CMC,
+    // Ekeler) see ~17-22% target share. Carved from wr1+wr2 so the deep
+    // game still gets fed.
+    targetMix: { wr1: 0.38, wr2: 0.30, te: 0.16, rb: 0.16 },
     personnelMix: { TRIPS: 0.40, SPREAD: 0.30, EMPTY: 0.12, BASE: 0.10, HEAVY: 0.05, I_FORM: 0.03 },
     tierBias: { QB: "elite", WR: "elite" },
     // Elite QB + WRs hit at high comp% with normal air-yard depth; pay the
