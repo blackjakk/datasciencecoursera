@@ -2623,25 +2623,51 @@ class GameSimulator {
       // smaller is normal run-vs-run-defender contact and not "trucked".
       // Effect scales with mass delta × carrier momentum × support split.
       let runOverBonus = 0;
-      if (tackler && cspd > 65) {
+      let tWeight = 215, tAgi = 60;
+      if (tackler) {
         try {
           const tcmb = combineMeasurables(tackler);
-          const tWeight = tcmb.weightLbs || 215;
-          const massDelta = cWeight - tWeight;
-          if (massDelta > 30) {
-            const momentumMul = Math.min(1, (cspd - 65) / 25);
-            runOverBonus = (massDelta - 30) * 0.012 * momentumMul * supportSplit;
+          tWeight = tcmb.weightLbs || 215;
+          tAgi = tackler.stats[2] || 60;
+          if (cspd > 65) {
+            const massDelta = cWeight - tWeight;
+            if (massDelta > 30) {
+              const momentumMul = Math.min(1, (cspd - 65) / 25);
+              runOverBonus = (massDelta - 30) * 0.012 * momentumMul * supportSplit;
+            }
           }
         } catch (_e) {}
       }
+      // Juke-out: symmetric to runOver. A small elusive back vs a heavy/slow
+      // defender wins on lateral agility — the defender can't plant and turn.
+      // Heavy defender's AGI is penalized by mass (200 lb baseline, −1 per
+      // 8 lb over), so a 290 lb DL with 60 AGI plays like 49 AGI in space.
+      // Only triggers when runOver didn't — you can't truck and juke the
+      // same defender on the same play.
+      let jukeOutBonus = 0;
+      if (tackler && runOverBonus === 0 && cagi >= 75) {
+        const tEffAgi = tAgi - Math.max(0, (tWeight - 200) / 8);
+        const jukeDelta = cagi - tEffAgi;
+        if (jukeDelta > 10) {
+          const archMul = rbArch === "ELUSIVE" ? 1.0
+                       : rbArch === "POWER"   ? 0.2
+                       : 0.5;
+          // Plant-foot — at full freight you can't cut. Need ~70-80 burst
+          // to set up a real juke move; above that, you're just running.
+          const stillnessMul = cspd < 80 ? 1.0 : 0.6;
+          jukeOutBonus = (jukeDelta - 10) * 0.012 * archMul * stillnessMul * supportSplit;
+        }
+      }
       const baseBreak = rbArch === "POWER" ? 0.04 : 0.02;
-      const breakChance = clamp((breakStat - effectiveTck) / 280 + baseBreak + runOverBonus, 0.005, 0.45);
+      const breakChance = clamp((breakStat - effectiveTck) / 280 + baseBreak + runOverBonus + jukeOutBonus, 0.005, 0.45);
       if (Math.random() < breakChance) {
         // Breaking a 2- or 3-man wrap counts as multiple broken tackles —
-        // PFF would credit each defender beaten. Bonus yards are smaller
-        // when you wrestle out of a gang vs trucking a lone DB at full speed.
+        // PFF would credit each defender beaten. Bonus yards are big when
+        // you truck a lone DB OR juke a defender into space; smaller when
+        // you wrestle out of a gang tackle.
         brokenTackles = nTacklers;
-        bonusYards = (nTacklers === 1 && runOverBonus > 0.12) ? rand(6, 14) : rand(3, 8);
+        const explosive = nTacklers === 1 && (runOverBonus > 0.12 || jukeOutBonus > 0.12);
+        bonusYards = explosive ? rand(6, 14) : rand(3, 8);
         yards = Math.min(yards + bonusYards, 100 - startYard);
       }
     }
