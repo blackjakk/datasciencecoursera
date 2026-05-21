@@ -3905,12 +3905,28 @@ function _bspnBuildComparisonStats(stats) {
   const aT = stats.away?.totals || {};
   const hT = stats.home?.totals || {};
   const fmtTOP = v => `${Math.floor((v||0)/60)}:${String((v||0)%60).padStart(2,"0")}`;
+  const fmtRZ = (att, td) => att ? `${td||0}/${att} (${Math.round((td||0)/att*100)}%)` : "0/0";
   const row = (key, label, a, h, fmt) => ({
     key, label,
     awayValue: fmt ? fmt(a) : (a||0),
     homeValue: fmt ? fmt(h) : (h||0),
     awayBarValue: a||0, homeBarValue: h||0,
   });
+  // Sum punt totals from the punter row on each side (engine doesn't yet
+  // aggregate team-level ST totals, so we derive from the punter's own
+  // line). Returns { att, yds, long, in20 } for each side.
+  const puntAgg = (side) => {
+    const players = stats?.[side]?.players || {};
+    let att = 0, yds = 0, long = 0, in20 = 0;
+    for (const p of Object.values(players)) {
+      if (!p?.punt_att) continue;
+      att += p.punt_att; yds += p.punt_yds || 0;
+      long = Math.max(long, p.punt_long || 0);
+      in20 += p.punts_in_20 || 0;
+    }
+    return { att, yds, long, in20, avg: att ? yds/att : 0 };
+  };
+  const aP = puntAgg("away"), hP = puntAgg("home");
   // Field names match the simulator's stats[side].team shape: totalYds,
   // passYds, rushYds, timeOfPoss (seconds), penalties (count), penaltyYds.
   return [
@@ -3920,6 +3936,18 @@ function _bspnBuildComparisonStats(stats) {
     row("rushing_yards", "RUSHING YARDS",     aT.rushYds,     hT.rushYds),
     row("turnovers",     "TURNOVERS",         aT.turnovers,   hT.turnovers),
     row("sacks",         "SACKS",             aT.sacks,       hT.sacks),
+    // RZ efficiency renders "TD/ATT (PCT)" directly since fmt() is per-side
+    // and we need both att + td together. Bar values use TD% so visual
+    // weight tracks efficiency, not volume.
+    {
+      key: "rz_eff", label: "RED ZONE",
+      awayValue: fmtRZ(aT.rz_att, aT.rz_td),
+      homeValue: fmtRZ(hT.rz_att, hT.rz_td),
+      awayBarValue: aT.rz_att ? (aT.rz_td || 0) / aT.rz_att * 100 : 0,
+      homeBarValue: hT.rz_att ? (hT.rz_td || 0) / hT.rz_att * 100 : 0,
+    },
+    row("punt_avg",      "PUNT AVG",          aP.avg,         hP.avg,
+        v => v ? v.toFixed(1) : "—"),
     row("penalties",     "PENALTIES (YDS)",   aT.penaltyYds,  hT.penaltyYds),
     row("top",           "TIME OF POSSESSION", aT.timeOfPoss, hT.timeOfPoss, fmtTOP),
   ];

@@ -2843,10 +2843,48 @@ function _buildStatScopeBlock(p, stat, title, perGame) {
     fmtTuples.push(["FG %", num("fg_att") ? `${(num("fg_made")/num("fg_att")*100).toFixed(1)}%` : "—"]);
     fmtTuples.push(["LONG", num("fg_long")]);
     fmtTuples.push(["XP", `${num("xp_made")}/${num("xp_att")}`]);
+  } else if (pos === "P") {
+    // Punter — built on the special-teams stat fields rolled in by
+    // mergeSeasonStats. Net avg is approximate (total minus return yds
+    // would be cleaner but those aren't summed here yet).
+    const punts = num("punt_att"), pYds = num("punt_yds");
+    fmtTuples.push(["PUNTS", punts]);
+    fmtTuples.push(["PUNT YDS", pYds]);
+    fmtTuples.push(["AVG", punts ? (pYds / punts).toFixed(1) : "—"]);
+    fmtTuples.push(["LONG", num("punt_long")]);
+    if (num("punts_in_20")) fmtTuples.push(["IN-20", num("punts_in_20")]);
+    if (num("touchbacks")) fmtTuples.push(["TB", num("touchbacks")]);
+    if (num("blk_kick")) fmtTuples.push(["BLOCKED", num("blk_kick")]);
   } else if (pos === "OL") {
     fmtTuples.push(["PANCAKES", num("pancakes")]);
     fmtTuples.push(["SACKS ALLOWED", num("sacks_allowed")]);
     if (num("penalties")) fmtTuples.push(["PENALTIES", num("penalties")]);
+  }
+  // Snap counts — appended to every skill / defensive position. Uses the
+  // raw cumulative `snaps` field from the per-game merge.
+  if (["QB","RB","WR","TE","DL","LB","CB","S"].includes(pos) && num("snaps")) {
+    fmtTuples.push(["SNAPS", num("snaps")]);
+    fmtTuples.push(["SNAPS/GAME", per(num("snaps"))]);
+  }
+  // Return contributions — surface if the player ever returned anything
+  // this season, regardless of position (CBs/Ss often return kicks).
+  if (num("kr_att") || num("pr_att") || num("kr_td") || num("pr_td")) {
+    if (num("kr_att")) {
+      const kr = num("kr_att"), kyd = num("kr_yds");
+      fmtTuples.push(["KR", kr]);
+      fmtTuples.push(["KR YDS", kyd]);
+      fmtTuples.push(["KR AVG", kr ? (kyd / kr).toFixed(1) : "—"]);
+      if (num("kr_long")) fmtTuples.push(["KR LONG", num("kr_long")]);
+      if (num("kr_td")) fmtTuples.push(["KR TD", num("kr_td")]);
+    }
+    if (num("pr_att")) {
+      const pr = num("pr_att"), pyd = num("pr_yds");
+      fmtTuples.push(["PR", pr]);
+      fmtTuples.push(["PR YDS", pyd]);
+      fmtTuples.push(["PR AVG", pr ? (pyd / pr).toFixed(1) : "—"]);
+      if (num("pr_long")) fmtTuples.push(["PR LONG", num("pr_long")]);
+      if (num("pr_td")) fmtTuples.push(["PR TD", num("pr_td")]);
+    }
   }
   if (!fmtTuples.length) return "";
 
@@ -2946,10 +2984,12 @@ function _buildGameLogBlock(p) {
         if (!line) continue;
         const synthWk = FRANCHISE_WEEKS + rIdx + 1;
         // Synthesize a schedule-shaped object so the row builders can read
-        // the same fields they use for regular-season games.
+        // the same fields they use for regular-season games. Includes stats
+        // so the snap-percentage column can look up team-level totals.
         const g = {
           week: synthWk, homeId: m.homeId, awayId: m.awayId,
           homeScore: m.homeScore, awayScore: m.awayScore,
+          stats: m.stats,
         };
         games.push({ g, line, teamId, oppId, isPlayoff: true, roundLabel: labelFor(rIdx) });
       }
@@ -2983,6 +3023,19 @@ function _buildGameLogBlock(p) {
   // trade), surface a "TM" column so the lineage is visible.
   const distinctTeams = new Set(games.map(x => x.teamId));
   const showTM = distinctTeams.size > 1;
+  // Snap %: per game, compare the player's snaps to their team's snaps.
+  // Skip the column if no game logged any snap data (legacy saves before
+  // the per-snap counter was wired) — keeps the table tidy on old data.
+  const hasSnaps = games.some(({ line }) => (line.snaps || 0) > 0);
+  const snapHeader = hasSnaps ? `<th>SNAP%</th>` : "";
+  const snapCell = ({ line, g, teamId }) => {
+    if (!hasSnaps) return "";
+    const side = teamId === g.homeId ? "home" : "away";
+    const teamSnaps = g.stats?.[side]?.team?.snaps || 0;
+    const pct = teamSnaps ? (line.snaps || 0) / teamSnaps * 100 : 0;
+    const color = pct >= 85 ? "var(--gold)" : pct >= 60 ? "var(--white)" : "var(--gray)";
+    return `<td style="color:${color}">${pct ? pct.toFixed(0) + "%" : "—"}</td>`;
+  };
   const tmCell = (teamId) => {
     if (!showTM) return "";
     const t = getTeam(teamId);
@@ -2997,8 +3050,10 @@ function _buildGameLogBlock(p) {
     headers = ["WK", ...(showTM ? ["TM"] : []), "OPP","RES","CMP/ATT","YDS","TD","INT","LONG","RTG",
                ...(hasSk ? ["SK"] : []),
                ...(hasQBRush ? ["CAR","RYD","RTD"] : []),
+               ...(hasSnaps ? ["SNAP%"] : []),
                "FPTS"];
-    rowCells = games.map(({ g, line, teamId, oppId, isPlayoff, roundLabel }) => {
+    rowCells = games.map((row) => {
+      const { g, line, teamId, oppId, isPlayoff, roundLabel } = row;
       const opp = getTeam(oppId), my = getTeam(teamId);
       const myHome = teamId === g.homeId;
       const myScore = myHome ? g.homeScore : g.awayScore;
@@ -3020,6 +3075,7 @@ function _buildGameLogBlock(p) {
         <td>${_passerRating(cmp, att, line.pass_yds||0, line.pass_td||0, line.pass_int||0)}</td>
         ${hasSk ? `<td>${line.sacks_taken||0}</td>` : ""}
         ${hasQBRush ? `<td>${line.rush_att||0}</td><td>${line.rush_yds||0}</td><td>${line.rush_td||0}</td>` : ""}
+        ${snapCell(row)}
         <td style="color:var(--gold);font-weight:700">${fpts.toFixed(1)}</td>
       </tr>`;
     });
@@ -3029,8 +3085,10 @@ function _buildGameLogBlock(p) {
     headers = ["WK", ...(showTM ? ["TM"] : []), "OPP","RES","CAR","YDS","YPC","TD","LONG",
                ...(hasBT?["BT"]:[]),
                ...(hasRec?["REC","REC YDS","REC TD"]:[]),
+               ...(hasSnaps ? ["SNAP%"] : []),
                "FPTS"];
-    rowCells = games.map(({ g, line, teamId, oppId, isPlayoff, roundLabel }) => {
+    rowCells = games.map((row) => {
+      const { g, line, teamId, oppId, isPlayoff, roundLabel } = row;
       const opp = getTeam(oppId);
       const myHome = teamId === g.homeId;
       const myScore = myHome ? g.homeScore : g.awayScore;
@@ -3052,12 +3110,16 @@ function _buildGameLogBlock(p) {
         <td>${line.rush_long||0}</td>
         ${hasBT ? `<td style="color:${bt>0?"var(--green-lt)":"var(--gray)"}">${bt}</td>` : ""}
         ${hasRec ? `<td>${line.rec||0}</td><td>${line.rec_yds||0}</td><td style="color:${(line.rec_td||0)>0?"var(--green-lt)":""}">${line.rec_td||0}</td>` : ""}
+        ${snapCell(row)}
         <td style="color:var(--gold);font-weight:700">${fpts.toFixed(1)}</td>
       </tr>`;
     });
   } else if (pos === "WR" || pos === "TE") {
-    headers = ["WK", ...(showTM ? ["TM"] : []), "OPP","RES","REC","TGT","YDS","YPR","TD","LONG","FPTS"];
-    rowCells = games.map(({ g, line, teamId, oppId, isPlayoff, roundLabel }) => {
+    headers = ["WK", ...(showTM ? ["TM"] : []), "OPP","RES","REC","TGT","YDS","YPR","TD","LONG",
+               ...(hasSnaps ? ["SNAP%"] : []),
+               "FPTS"];
+    rowCells = games.map((row) => {
+      const { g, line, teamId, oppId, isPlayoff, roundLabel } = row;
       const opp = getTeam(oppId);
       const myHome = teamId === g.homeId;
       const myScore = myHome ? g.homeScore : g.awayScore;
@@ -3077,12 +3139,16 @@ function _buildGameLogBlock(p) {
         <td>${rec ? (yds/rec).toFixed(1) : "—"}</td>
         <td>${line.rec_td||0}</td>
         <td>${line.rec_long||0}</td>
+        ${snapCell(row)}
         <td style="color:var(--gold);font-weight:700">${fpts.toFixed(1)}</td>
       </tr>`;
     });
   } else if (pos === "DL" || pos === "LB" || pos === "CB" || pos === "S") {
-    headers = ["WK", ...(showTM ? ["TM"] : []), "OPP","RES","TKL","MISS","SK","INT","PD","FF","FPTS"];
-    rowCells = games.map(({ g, line, teamId, oppId, isPlayoff, roundLabel }) => {
+    headers = ["WK", ...(showTM ? ["TM"] : []), "OPP","RES","TKL","MISS","SK","INT","PD","FF",
+               ...(hasSnaps ? ["SNAP%"] : []),
+               "FPTS"];
+    rowCells = games.map((row) => {
+      const { g, line, teamId, oppId, isPlayoff, roundLabel } = row;
       const opp = getTeam(oppId);
       const myHome = teamId === g.homeId;
       const myScore = myHome ? g.homeScore : g.awayScore;
@@ -3102,6 +3168,7 @@ function _buildGameLogBlock(p) {
         <td>${line.int_made||0}</td>
         <td>${line.pd||0}</td>
         <td>${line.ff||0}</td>
+        ${snapCell(row)}
         <td style="color:var(--gold);font-weight:700">${fpts.toFixed(1)}</td>
       </tr>`;
     });

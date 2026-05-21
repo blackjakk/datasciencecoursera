@@ -760,12 +760,18 @@ function frnOpenApbBox(roundIdx, matchIdx) {
     </div>`;
   }).join("") : `<div style="color:var(--blgray);font-style:italic;font-size:.65rem;padding:.3rem 0">No scoring data captured for this matchup.</div>`;
 
-  // Team totals comparison
+  // Team totals comparison — RZ% surfaces as a derived eff metric so
+  // a team that goes 3/3 in the red zone tops a team that went 2/6.
+  const hRzPct = stats.home?.totals?.rz_att
+    ? Math.round((stats.home.totals.rz_td || 0) / stats.home.totals.rz_att * 100) : 0;
+  const aRzPct = stats.away?.totals?.rz_att
+    ? Math.round((stats.away.totals.rz_td || 0) / stats.away.totals.rz_att * 100) : 0;
   const cmpRows = [
     ["Total yards",   stats.home?.totals?.totalYds || 0, stats.away?.totals?.totalYds || 0],
     ["Passing",       stats.home?.totals?.passYds  || 0, stats.away?.totals?.passYds  || 0],
     ["Rushing",       stats.home?.totals?.rushYds  || 0, stats.away?.totals?.rushYds  || 0],
     ["First downs",   stats.home?.totals?.firstDowns || 0, stats.away?.totals?.firstDowns || 0],
+    ["Red zone %",    hRzPct, aRzPct],
     ["Turnovers",     stats.home?.totals?.turnovers || 0, stats.away?.totals?.turnovers || 0, true],
     ["Sacks",         stats.home?.totals?.sacks    || 0, stats.away?.totals?.sacks    || 0],
   ].filter(r => (r[1] || 0) + (r[2] || 0) > 0);
