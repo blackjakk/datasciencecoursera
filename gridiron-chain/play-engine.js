@@ -1295,6 +1295,28 @@ class GameSimulator {
     this._inGoalToGo = isGoalToGo;
     this._currentPersonnel = pickPersonnel(offPb, { isLongYardage, isGoalLine: isNearGL, isRedZone, isGoalToGo, down: this.down, ytg: this.ytg });
     this._currentDefPackage = packageForPersonnel(this._currentPersonnel);
+    // Box stack — heavy personnel forces a run-stuffing front; spread spreads
+    // the defense thin. Personnel drives the base shift; tendency over the
+    // last ~10 plays amplifies it when the offense is predictable.
+    const personnelRunMod = ({
+      I_FORM: -1.5, HEAVY: -1.0, BASE: 0, TRIPS: 0, SPREAD: 0.8, EMPTY: 1.2,
+    })[this._currentPersonnel] || 0;
+    const personnelAirMod = ({
+      I_FORM:  1.8, HEAVY:  1.2, BASE: 0, TRIPS: 0, SPREAD: -0.3, EMPTY: -0.5,
+    })[this._currentPersonnel] || 0;
+    // Tendency tracker — last 10 offensive plays per team. Defense over-adjusts
+    // when one play type dominates: stack vs run-heavy, drop vs pass-heavy.
+    if (!this._recentPlays) this._recentPlays = { home: [], away: [] };
+    const recentArr = this._recentPlays[this.poss];
+    const tendencyRush = recentArr.length >= 6
+      ? recentArr.filter(t => t === "run").length / recentArr.length
+      : 0.5;
+    const tendencyRunPenalty = tendencyRush > 0.65 ? -1.2 * Math.min(1, (tendencyRush - 0.65) / 0.20) : 0;
+    const tendencyAirBonus   = tendencyRush > 0.65 ?  1.5 * Math.min(1, (tendencyRush - 0.65) / 0.20)
+                             : tendencyRush < 0.35 ? -0.8 * Math.min(1, (0.35 - tendencyRush) / 0.20)
+                             : 0;
+    this._boxStackRunMod = personnelRunMod + tendencyRunPenalty;
+    this._boxStackAirMod = personnelAirMod + tendencyAirBonus;
     // RZ team-stat: count the trip when offense first crosses into the 20.
     // Use this._lastRzPossession to dedupe re-entries on a single drive.
     if (isRedZone && this._lastRzDrive !== this.drives.length) {
@@ -1680,6 +1702,12 @@ class GameSimulator {
     if (this._inGoalToGo) passProb = Math.max(0.20, passProb - 0.12);
     else if (this._inRedZone) passProb = Math.max(0.25, passProb - 0.06);
     const playType = Math.random() < passProb ? "pass" : "run";
+    // Track for box-stack tendency on the NEXT play.
+    if (this._recentPlays) {
+      const arr = this._recentPlays[this.poss];
+      arr.push(playType);
+      if (arr.length > 10) arr.shift();
+    }
 
     // ── PENALTY ROLL ──
     // ~6.3% combined chance per play (NFL averages ~12 accepted penalties
@@ -2056,7 +2084,7 @@ class GameSimulator {
       // turnover doesn't make sacks 50% more frequent.
       const momSackMul = 1 + ((this._momentum?.[this.poss === "home" ? "away" : "home"] || 0)
                             - (this._momentum?.[this.poss] || 0)) * 0.012;
-      const sackPct = clamp((0.10 + pressure * 0.10 - adv * 0.02 + archSackBonus) * sackPb * qbAwrSackMul * defPbCurrent.sackMul * mlbAggMul * fatigueSackMul * momSackMul, 0.02, 0.20);
+      const sackPct = clamp((0.09 + pressure * 0.09 - adv * 0.02 + archSackBonus) * sackPb * qbAwrSackMul * defPbCurrent.sackMul * mlbAggMul * fatigueSackMul * momSackMul, 0.02, 0.18);
       if (Math.random() < sackPct) {
         // THROW ON THE RUN — mobile QBs with high AGI sometimes escape pressure
         // and throw on the move instead of taking the sack. Lower comp / air
@@ -2501,7 +2529,8 @@ class GameSimulator {
         const qbAggAirMod = (this._aggTilt(this._qbAggression()) - 1) * 3.0; // agg=80→+0.9yds, agg=20→-0.9yds
         // OC Air Attack: +1.0 to air yards mean
         const ocAirAttackMod = _ocTrait === "Air Attack" ? 1.0 : 0;
-        const airMean = (pb.airYdsMean ?? 7.5) + 2.8 - pressure * 2.0 + qbAirMod + qbAirFromOvr + paAirMod + qbPocketAirBonus + centerFieldCap + wxAirMod + defDeepBonus + archAirMod + posAirMod + qbAggAirMod + ocAirAttackMod;
+        const boxStackAirMod = this._boxStackAirMod || 0;
+        const airMean = (pb.airYdsMean ?? 7.5) + 2.8 - pressure * 2.0 + qbAirMod + qbAirFromOvr + paAirMod + qbPocketAirBonus + centerFieldCap + wxAirMod + defDeepBonus + archAirMod + posAirMod + qbAggAirMod + ocAirAttackMod + boxStackAirMod;
         const airSd   = (pb.airYdsSd   ?? 6) * (qbArch === "GUNSLINGER" ? 1.25 : 1.0);
         const airYds  = clamp(normal(airMean + adv * 2, airSd), -2, 55);
         // YAC distribution — short catches / screens get more YAC potential.
@@ -2974,9 +3003,9 @@ class GameSimulator {
     // Red-zone power bonus — short-yardage power runs convert in real NFL
     // at ~65% on 1st-and-goal. Bonus trimmed (+0.8/+0.4 → +0.6/+0.3) to
     // keep rush TDs in the slightly-over-NFL zone instead of 1.19× pace.
-    // Trimmed from +0.6/+0.3: red-zone TD rate was 75% vs NFL 56%.
-    const rzRunBonus = this._inGoalToGo ? 0.3 : (this._inRedZone ? 0.1 : 0);
-    let yards = clamp(normal((rushMean + rbBoost + fbBoost + runVarMean + adv * 1.4 + runTrenchYds + fbStuffReduction - lbTackle * 0.5 - boxSafetyStuff - thumperStuff - lbGapRead + rbGapVision + carrierBoost + reverseBonus + ocRunArchBonus + dcRunStopperMalus + fatigueRunYds + rzRunBonus) * defPbRun.runMul, rushSd * rbSdMul * runVarSd * reverseSdMul), -8, 75);
+    const rzRunBonus = this._inGoalToGo ? 0.2 : (this._inRedZone ? 0.05 : 0);
+    const boxStackRunMod = this._boxStackRunMod || 0;
+    let yards = clamp(normal((rushMean + rbBoost + fbBoost + runVarMean + adv * 1.4 + runTrenchYds + fbStuffReduction - lbTackle * 0.5 - boxSafetyStuff - thumperStuff - lbGapRead + rbGapVision + carrierBoost + reverseBonus + ocRunArchBonus + dcRunStopperMalus + fatigueRunYds + rzRunBonus + boxStackRunMod) * defPbRun.runMul, rushSd * rbSdMul * runVarSd * reverseSdMul), -8, 75);
     // Yards after contact — heavy power backs lean forward and drag tacklers.
     // Applied to every positive carry, before the break-tackle event rolls.
     if (!isQBRun && yards > 0) {
