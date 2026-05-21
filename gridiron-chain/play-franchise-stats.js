@@ -6093,6 +6093,7 @@ function renderFrnFrontOfficeHome() {
 let _frnLeagueSubTab = "standings";
 const _FRN_LEAGUE_TABS = [
   { id: "standings", label: "Standings",   fn: () => typeof renderFrnStandings    === "function" && renderFrnStandings() },
+  { id: "capmap",    label: "Cap Map",     fn: () => typeof renderFrnLeagueCapMap === "function" && renderFrnLeagueCapMap() },
   { id: "stats",     label: "Stat Leaders",fn: () => typeof renderFrnLeaders      === "function" && renderFrnLeaders() },
   { id: "wire",      label: "News Wire",   fn: () => typeof renderFrnNewsArchive  === "function" && renderFrnNewsArchive() },
   { id: "legacy",    label: "Legacy",      fn: () => typeof renderFrnLegacy       === "function" && renderFrnLegacy() },
@@ -6103,6 +6104,129 @@ function frnSetLeagueSubTab(id) {
   _frnLeagueSubTab = id;
   renderFrnLeagueHome();
 }
+// League-wide Cap Map — treemap of all 32 teams, area = cap used, color
+// = cap health. Click a tile → opens that team's stats page (existing
+// team-link route). Color modes: Cap Used (default), Roster Strength
+// (avg OVR), Division.
+let _lcmColorMode = "capused";
+function frnLCMSetColorMode(mode) {
+  _lcmColorMode = mode;
+  renderFrnLeagueCapMap();
+}
+function renderFrnLeagueCapMap() {
+  if (typeof _faSquarify !== "function") {
+    $("frnHomeContent").innerHTML = `<div style="padding:1rem;color:var(--gray)">Cap-map helpers not loaded.</div>`;
+    return;
+  }
+  const cap = (typeof effectiveSalaryCap === "function") ? effectiveSalaryCap(franchise.chosenTeamId) : (franchise.salaryCap || SALARY_CAP_BASE);
+  const teams = TEAMS.map(t => {
+    const used = (typeof capUsedByTeam === "function") ? capUsedByTeam(t.id) : 0;
+    const roster = franchise.rosters[t.id] || [];
+    const avgOvr = roster.length ? Math.round(roster.reduce((s,p)=>s+(p.overall||0),0)/roster.length) : 0;
+    return { t, used, avgOvr, roster };
+  }).sort((a,b) => b.used - a.used);
+  const totalUsed = teams.reduce((s,x) => s + x.used, 0);
+  const overTeams  = teams.filter(x => x.used > cap).length;
+  const tightTeams = teams.filter(x => x.used > cap*0.95 && x.used <= cap).length;
+
+  const tmW = 720, tmH = 360;
+  const items = teams.map(x => ({ value: Math.max(0.5, x.used), payload: x }));
+  const tiles = _faSquarify(items, tmW, tmH);
+
+  const colorFor = (x) => {
+    if (_lcmColorMode === "ovr") {
+      const o = x.avgOvr;
+      if (o >= 82) return "#3aa84a";
+      if (o >= 78) return "#86e0a3";
+      if (o >= 74) return "#f5c542";
+      if (o >= 70) return "#ef8a4d";
+      return "#b14b4b";
+    }
+    if (_lcmColorMode === "division") {
+      const div = (x.t.division || "?").toString();
+      // Simple hash to pick a hue
+      let h = 0; for (let i = 0; i < div.length; i++) h = (h * 31 + div.charCodeAt(i)) | 0;
+      const hue = Math.abs(h) % 360;
+      return `hsl(${hue},45%,55%)`;
+    }
+    // Cap used (default): red over, amber tight, gold healthy, green room
+    const pct = (x.used / cap) * 100;
+    if (pct > 100) return "#ff8a8a";
+    if (pct > 95)  return "#ef8a4d";
+    if (pct > 85)  return "#f5c542";
+    if (pct > 70)  return "#86e0a3";
+    return "#3aa84a";
+  };
+
+  const cleanN = (s) => (s||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'");
+  const renderedTiles = tiles.map(t => {
+    const x = t.item.payload;
+    const fill = colorFor(x);
+    const wPct = (t.w / tmW) * 100;
+    const hPct = (t.h / tmH) * 100;
+    const xPct = (t.x / tmW) * 100;
+    const yPct = (t.y / tmH) * 100;
+    const tileArea = t.w * t.h;
+    const isMe = x.t.id === franchise.chosenTeamId;
+    const pct = ((x.used / cap) * 100).toFixed(0);
+    const overlabel = x.used > cap ? ` (+$${(x.used-cap).toFixed(1)}M)` : "";
+    const showName = tileArea > 1200;
+    const showSub  = tileArea > 2400;
+    return `<div class="frn-lcm-tile${isMe?' me':''}"
+      style="left:${xPct.toFixed(2)}%;top:${yPct.toFixed(2)}%;width:${wPct.toFixed(2)}%;height:${hPct.toFixed(2)}%;background:${fill}"
+      onclick="frnLCMClick(${x.t.id})"
+      title="${x.t.city} ${x.t.name} · $${x.used.toFixed(1)}M / $${cap.toFixed(0)}M (${pct}%${overlabel}) · ${x.avgOvr} avg OVR · ${x.roster.length} rostered">
+      ${showName ? `<div class="frn-lcm-name">${x.t.name.toUpperCase()}</div>` : ""}
+      ${showSub  ? `<div class="frn-lcm-sub">$${x.used.toFixed(0)}M · ${pct}%</div>` : ""}
+    </div>`;
+  }).join("");
+
+  const modes = [
+    { key: "capused",  lbl: "Cap Used %" },
+    { key: "ovr",      lbl: "Roster Strength" },
+    { key: "division", lbl: "Division" },
+  ];
+  const modeChips = modes.map(m =>
+    `<button class="frn-cuts-tm-mode${_lcmColorMode===m.key?' active':''}" onclick="frnLCMSetColorMode('${m.key}')">${m.lbl}</button>`
+  ).join("");
+  const legendByMode = {
+    capused: [["Over (>100%)","#ff8a8a"],["Tight (>95%)","#ef8a4d"],["Healthy (>85%)","#f5c542"],["Room (>70%)","#86e0a3"],["Loose (<70%)","#3aa84a"]],
+    ovr: [["Elite ≥82","#3aa84a"],["Strong ≥78","#86e0a3"],["Mid ≥74","#f5c542"],["Weak ≥70","#ef8a4d"],["Bad <70","#b14b4b"]],
+    division: [["Color = division","#888"]],
+  };
+  const legend = (legendByMode[_lcmColorMode] || []).map(([k,c]) =>
+    `<span class="frn-cuts-tm-legend-item"><span class="dot" style="background:${c}"></span>${k}</span>`
+  ).join("");
+
+  $("frnHomeContent").innerHTML = `
+    <div class="frn-cuts-treemap-wrap" style="max-width:1100px;margin:0 auto">
+      <div class="frn-cuts-treemap-head">
+        <span class="frn-cuts-tm-title">🌐 LEAGUE CAP MAP · 32 teams</span>
+        <span class="frn-cuts-tm-sub">${overTeams} over · ${tightTeams} tight · click any team to inspect</span>
+      </div>
+      <div class="frn-cuts-treemap-canvas legal" style="aspect-ratio:${tmW}/${tmH}">
+        ${renderedTiles}
+      </div>
+      <div class="frn-cuts-tm-controls">
+        <span class="frn-cuts-tm-controls-label">Color by:</span>
+        ${modeChips}
+        <span class="frn-cuts-tm-legend">${legend}</span>
+      </div>
+      <div style="margin-top:.9rem;color:var(--gray);font-size:.65rem;text-align:center">
+        Tile area is each team's current cap spend. ${totalUsed.toFixed(0)}M total league-wide ·
+        cap: $${cap.toFixed(0)}M/team · ${overTeams ? `<span style="color:#ff8a8a;font-weight:700">${overTeams} team${overTeams===1?"":"s"} need to cut</span>` : "all teams cap-legal"}
+      </div>
+    </div>`;
+}
+function frnLCMClick(teamId) {
+  // Click → opens that team's stats page via existing route
+  if (typeof renderFrnTeamView === "function") renderFrnTeamView(teamId);
+  else if (typeof teamLink === "function") {
+    const t = getTeam(teamId);
+    if (t) window.location.hash = `#team-${t.id}`;
+  }
+}
+
 function renderFrnLeagueHome() {
   const el = $("frnHomeContent");
   if (el) el.innerHTML = ""; // clear first so an early-returning sub-render can't stack sub-navs

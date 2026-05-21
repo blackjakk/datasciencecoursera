@@ -14505,6 +14505,109 @@ function frnRecoupDeadCapMode() {
   frnAutoFillAbsorption();
 }
 
+// Trade-value treemap mode (color toggle). Same pattern as the cap
+// treemap on the cuts screen. Stored on franchise so re-renders keep it.
+function frnTVBSetColorMode(mode) {
+  franchise._tvbColorMode = mode;
+  renderFrnTrade();
+}
+// Build the Trade Value Board treemap — every roster player sized by
+// _playerTradeValue, colored by user-selected mode.
+function _renderTradeValueBoard(myRoster) {
+  if (typeof _faSquarify !== "function" || typeof _playerTradeValue !== "function") return "";
+  const valued = myRoster
+    .map(p => ({ p, value: _playerTradeValue(p) }))
+    .filter(o => o.value > 0.5)
+    .sort((a, b) => b.value - a.value);
+  if (!valued.length) {
+    return `<div class="frn-tvb-empty">No tradeable roster yet — sign some players first.</div>`;
+  }
+  const colorMode = franchise._tvbColorMode || "position";
+  const tmW = 720, tmH = 280;
+  const tiles = _faSquarify(valued.map(o => ({ value: o.value, payload: o.p })), tmW, tmH);
+  const cleanN = (n) => (n||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'");
+
+  // Color helpers reused from cuts screen where available. For the
+  // trade context, add "contract years left" as a useful axis.
+  const colorFor = (p) => {
+    if (colorMode === "contract") {
+      const yrs = p.contract?.remaining ?? p.contract?.years ?? 1;
+      if (yrs >= 4) return "#3aa84a";   // long control — premium
+      if (yrs === 3) return "#86e0a3";  // 3yr
+      if (yrs === 2) return "#f5c542";  // 2yr
+      if (yrs === 1) return "#ef8a4d";  // expiring
+      return "#b14b4b";
+    }
+    if (typeof _faTreemapColor === "function") {
+      return _faTreemapColor(p, colorMode, null, null).fill;
+    }
+    return "#888";
+  };
+
+  const renderedTiles = tiles.map(t => {
+    const p = t.item.payload;
+    const value = t.item.value;
+    const fill = colorFor(p);
+    const yrs = p.contract?.remaining ?? p.contract?.years ?? 1;
+    const aav = (p.contract?.aav || 0).toFixed(1);
+    const wPct = (t.w / tmW) * 100;
+    const hPct = (t.h / tmH) * 100;
+    const xPct = (t.x / tmW) * 100;
+    const yPct = (t.y / tmH) * 100;
+    const tileArea = t.w * t.h;
+    const showName = tileArea > 1500;
+    const showSub  = tileArea > 3000;
+    return `<div class="frn-tvb-tile"
+      style="left:${xPct.toFixed(2)}%;top:${yPct.toFixed(2)}%;width:${wPct.toFixed(2)}%;height:${hPct.toFixed(2)}%;background:${fill}"
+      onclick="frnOpenPlayerCard('${cleanN(p.name)}')"
+      title="${p.name} (${p.position}) · ${p.overall||"?"} OVR · age ${p.age||"?"} · $${aav}M × ${yrs}yr · TV ${value.toFixed(1)}">
+      ${showName ? `<div class="frn-tvb-name">${p.name}</div>` : ""}
+      ${showSub  ? `<div class="frn-tvb-sub">${p.position} · ${p.overall||"?"} · $${aav}M</div>` : ""}
+    </div>`;
+  }).join("");
+
+  const modes = [
+    { key: "position", lbl: "Position" },
+    { key: "age",      lbl: "Age" },
+    { key: "ceiling",  lbl: "Ceiling" },
+    { key: "agePot",   lbl: "Age × Potential" },
+    { key: "contract", lbl: "Yrs of Control" },
+  ];
+  const modeChips = modes.map(m =>
+    `<button class="frn-cuts-tm-mode${colorMode===m.key?' active':''}" onclick="frnTVBSetColorMode('${m.key}')">${m.lbl}</button>`
+  ).join("");
+  const legendByMode = {
+    position: [["QB","#f5c542"],["RB","#ef8a4d"],["WR","#e85c98"],["TE","#ba68c8"],["OL","#5fb1d4"],["DL","#ff6b6b"],["LB","#ffb14c"],["DB","#86e0a3"],["K/P","#888"]],
+    age: [["≤23","#5ed4d4"],["24–26","#86e0a3"],["27–29","#f5c542"],["30–32","#ef8a4d"],["33+","#b14b4b"]],
+    ceiling: [["S","#f5c542"],["A","#5ed4d4"],["B","#86e0a3"],["C","#c08070"],["D","#7a5050"]],
+    agePot: [["Cornerstone","#3aa84a"],["Keeper","#86e0a3"],["Judgment","#c79f3a"],["Fading","#c87050"],["Cut bait","#7a3030"]],
+    contract: [["4+ yrs","#3aa84a"],["3 yrs","#86e0a3"],["2 yrs","#f5c542"],["1 yr","#ef8a4d"]],
+  };
+  const legend = (legendByMode[colorMode] || []).map(([k,c]) =>
+    `<span class="frn-cuts-tm-legend-item"><span class="dot" style="background:${c}"></span>${k}</span>`
+  ).join("");
+
+  const topValue = valued[0];
+  const top5Sum  = valued.slice(0, 5).reduce((s, o) => s + o.value, 0);
+  const totalVal = valued.reduce((s, o) => s + o.value, 0);
+  const top5Pct  = totalVal > 0 ? Math.round((top5Sum / totalVal) * 100) : 0;
+  return `<div class="frn-cuts-treemap-wrap frn-tvb-wrap">
+    <div class="frn-cuts-treemap-head">
+      <span class="frn-cuts-tm-title">💎 TRADE VALUE BOARD · ${valued.length} assets</span>
+      <span class="frn-cuts-tm-sub">Top 5 = ${top5Pct}% of total value · click any tile to inspect</span>
+      ${topValue ? `<span class="frn-cuts-room-chip" title="Most valuable trade chip">★ ${topValue.p.position} ${topValue.p.name.split(" ").slice(-1)[0]}</span>` : ""}
+    </div>
+    <div class="frn-cuts-treemap-canvas legal" style="aspect-ratio:${tmW}/${tmH}">
+      ${renderedTiles}
+    </div>
+    <div class="frn-cuts-tm-controls">
+      <span class="frn-cuts-tm-controls-label">Color by:</span>
+      ${modeChips}
+      <span class="frn-cuts-tm-legend">${legend}</span>
+    </div>
+  </div>`;
+}
+
 function _renderTradeBlockTab(myRoster, sortBy) {
   const tp = franchise._tradeProp || {};
   // If editing an ask, swap the tab body for the ask form
@@ -14571,7 +14674,8 @@ function _renderTradeBlockTab(myRoster, sortBy) {
 
   return `
     ${deadCapBanner}
-    <div style="color:var(--gray);font-size:.72rem;margin-bottom:.5rem">
+    ${_renderTradeValueBoard(myRoster)}
+    <div style="color:var(--gray);font-size:.72rem;margin:.8rem 0 .5rem">
       Listings go public when the week ends. Set an asking price to send a direct proposal — the target team can accept on the spot or counter, with counters arriving the following week.
     </div>
     <table class="frn-pre-roster-table">

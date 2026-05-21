@@ -1844,6 +1844,90 @@
       flex-direction: column; align-items: flex-start;
     }
   }
+  /* Trade Value Board — same treemap chrome but with trade-flavored
+     tile styling (no over-cap stripe pattern; lighter hover). */
+  .frn-tvb-wrap { margin-bottom: 1rem; }
+  .frn-tvb-tile {
+    position: absolute;
+    color: rgba(0,0,0,.85);
+    padding: 4px 6px;
+    box-sizing: border-box;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform .08s, filter .08s, box-shadow .12s;
+    outline: 1px solid rgba(0,0,0,.4);
+    outline-offset: -1px;
+    display: flex; flex-direction: column; justify-content: space-between;
+    line-height: 1.1;
+  }
+  .frn-tvb-tile:hover {
+    z-index: 5;
+    filter: brightness(1.18);
+    transform: scale(1.03);
+    box-shadow: 0 0 0 2px rgba(255,255,255,.55), 0 6px 14px rgba(0,0,0,.6);
+  }
+  .frn-tvb-name {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .58rem; font-weight: 800;
+    color: rgba(0,0,0,.92);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    letter-spacing: .1px;
+  }
+  .frn-tvb-sub {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .54rem; font-weight: 700;
+    color: rgba(0,0,0,.7);
+    letter-spacing: .2px;
+    align-self: flex-end;
+  }
+  .frn-tvb-empty {
+    color: var(--gray); font-style: italic;
+    padding: 1.5rem; text-align: center;
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 4px;
+  }
+
+  /* League Cap Map tiles — same chrome as cuts/tvb treemaps; the "me"
+     class outlines the user's team with a bright halo so they can spot
+     themselves in the league grid. */
+  .frn-lcm-tile {
+    position: absolute;
+    color: rgba(0,0,0,.85);
+    padding: 4px 6px;
+    box-sizing: border-box;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform .08s, filter .08s, box-shadow .12s;
+    outline: 1px solid rgba(0,0,0,.4);
+    outline-offset: -1px;
+    display: flex; flex-direction: column; justify-content: space-between;
+    line-height: 1.1;
+  }
+  .frn-lcm-tile:hover {
+    z-index: 5;
+    filter: brightness(1.18);
+    transform: scale(1.03);
+    box-shadow: 0 0 0 2px rgba(255,255,255,.55), 0 6px 14px rgba(0,0,0,.6);
+  }
+  .frn-lcm-tile.me {
+    outline: 2px solid var(--gold);
+    outline-offset: -2px;
+    box-shadow: 0 0 12px rgba(200,169,0,.45);
+    z-index: 2;
+  }
+  .frn-lcm-name {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .62rem; font-weight: 800;
+    color: rgba(0,0,0,.92);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    letter-spacing: .2px;
+  }
+  .frn-lcm-sub {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .55rem; font-weight: 700;
+    color: rgba(0,0,0,.7); letter-spacing: .2px;
+    align-self: flex-end;
+  }
   .frn-cuts-hero-actions {
     display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;
   }
