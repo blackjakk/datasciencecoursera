@@ -9254,6 +9254,11 @@ function _coordMayTakePosCoach(staff, slot) {
 
 // End-of-season coaching changes for AI teams.
 function _runCoachingCarousel() {
+  // Idempotency guard — both the interactive offseason flow (via
+  // frnProceedToRosterChanges) and the auto-sim path (via frnNewSeason)
+  // call this. Skip if already ran for this season.
+  if (franchise._carouselRanForSeason === franchise.season) return;
+  franchise._carouselRanForSeason = franchise.season;
   // Evaluate performance first — ratings change before fire decisions are made,
   // so a coordinator who tanked their unit has a lower rating going into the
   // firing threshold check.
@@ -9406,9 +9411,13 @@ function _runCoachingCarousel() {
         _pushNews({ type:"coach_hire", label: `🏟 ${t.name} hire OC ${staff.oc.name}` });
         staff._chemistry = null;
       } else {
-        // Hire from market — new HC installs their own preferred staff
+        // Hire from market — new HC installs their own preferred staff.
+        // Post a fire news entry FIRST so the user sees the departure
+        // before the replacement signing — matches real NFL beat order.
         const candidates = market.filter(c => c.type === "hc");
         if (candidates.length) {
+          _pushNews({ type: "coach_depart",
+            label: `🔥 ${t.name} fire HC ${hc.name} after ${hc.yearsWithTeam||0}yr · record ${s.w}-${s.l}${s.t?`-${s.t}`:""}` });
           _coachFAAdd(hc, "hc");
           const budgetRoom = 20 - (coachingBudgetUsed(tId) - (hc?.salary || 0));
           const affordable = candidates.filter(c => c.salary <= budgetRoom);
@@ -9645,9 +9654,13 @@ function _runCoachingCarousel() {
   // event without having to count individual coach_hire / coach_depart
   // entries. Posted only when 3+ HC changes happened (real Black Monday).
   _pushNews = _origPushNews;
-  if (_blackMonday.fires.length >= 3) {
+  // Use hires count as the trigger — an HC hire implies a fire happened
+  // (OC promotion still counts as a vacancy filled). Captures the full
+  // chain whether or not each fire posts its own news entry.
+  const chainEvents = Math.max(_blackMonday.fires.length, _blackMonday.hires.length);
+  if (chainEvents >= 3) {
     _pushNews({ type: "coach_depart",
-      label: `🗞 BLACK MONDAY · ${_blackMonday.fires.length} head coaches fired league-wide — interview cascade incoming` });
+      label: `🗞 BLACK MONDAY · ${chainEvents} head coach changes league-wide — interview cascade complete` });
     // After-cascade recap: how many of the top HC candidates (rating ≥ 75)
     // got hired vs left in the market for the user (or next offseason).
     const topGoneCount = (franchise._coachMarket || []).filter(c => c.type === "hc" && (c.rating||0) >= 75).length;
@@ -12765,6 +12778,12 @@ function frnNewSeason() {
   // Idempotent — backfills missing roles on legacy saves.
   if (typeof _initFrontOffice === "function") _initFrontOffice();
   if (typeof _tickFrontOfficeTenure === "function") _tickFrontOfficeTenure();
+  // Coaching carousel — fires/hires AI HCs based on last season's record
+  // BEFORE the season-counter / standings reset wipes the data. Triggers
+  // Black Monday cascade + news entries. The carousel has its own
+  // idempotency guard so double-call between this path + the interactive
+  // offseason re-sign flow is harmless.
+  if (typeof _runCoachingCarousel === "function") _runCoachingCarousel();
   // Reset in-season scouting state: fresh credits bank, blank reveals
   // for the new draft cycle. Reveals from the just-completed season
   // were already merged into draftScoutReveals at frnGoToDraft, so
