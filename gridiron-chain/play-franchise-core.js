@@ -1380,7 +1380,11 @@ function _combineWeight(p) {
     SLENDER:    -10,
     LEAN:       -12,
   };
-  const bodyMod = BODY_WEIGHT_MOD[p.bodyType] ?? 0;
+  // K/P always get "LEAN" body type from pickBodyType (for visual
+  // rendering — tall thin athletes), but NFL kickers aren't actually
+  // 12 lbs underweight. Use NORMAL body mod for K/P specifically.
+  const bodyTypeForWeight = ["K", "P"].includes(pos) ? "NORMAL" : p.bodyType;
+  const bodyMod = BODY_WEIGHT_MOD[bodyTypeForWeight] ?? 0;
   return Math.round(meanLbs + strBump + bodyMod + (Math.random() - 0.5) * 30);
 }
 // Per-position test relevance — used by combine event and UI to show only

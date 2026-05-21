@@ -674,6 +674,12 @@ const POSITION_SPD_MAP = {
   CB: { offset: 70, scale: 0.46 },
   RB: { offset: 65, scale: 0.50 },
   S:  { offset: 60, scale: 0.55 },
+  // Kickers/punters — NFL athletes-at-position run 5.0-5.3s 40. Without
+  // a cap, an "elite" tier K with raw SPD 89 would map to 4.49s (faster
+  // than CBs). Compressed scale + low offset keeps K/P in the 5.0-5.4s
+  // range regardless of base stat roll.
+  K:  { offset: 30, scale: 0.30 },
+  P:  { offset: 32, scale: 0.32 },
 };
 // Non-SPD position caps — STR/BLK/CAT/COV upper/lower bounds per NFL norms.
 // These affect bench, hands-on tests, and coverage ratings. OL can't have

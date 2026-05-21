@@ -16216,8 +16216,9 @@ function _runCombineEvent(draftClass) {
     topFastest: fastest40.slice(0, 5).map(x => ({ name: x.p.name, pos: x.p.position, school: x.p.collegeProfile?.school, value: x.value })),
     topStrongest: strongest.slice(0, 5).map(x => ({ name: x.p.name, pos: x.p.position, school: x.p.collegeProfile?.school, value: x.value })),
   });
-  // Cap history at last 20 classes — keeps localStorage tidy.
-  if (franchise.combineHistory.length > 20) franchise.combineHistory = franchise.combineHistory.slice(-20);
+  // Cap history at last 50 classes — gives multi-decade retrospective
+  // for long sims while staying small (~50 × ~500 bytes = 25KB).
+  if (franchise.combineHistory.length > 50) franchise.combineHistory = franchise.combineHistory.slice(-50);
 }
 function frnGoToDraft() {
   const rookieYear = (new Date().getFullYear()) + (franchise.season || 1);
