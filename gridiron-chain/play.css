@@ -1601,35 +1601,40 @@
     font-size: .65rem; color: var(--gray);
     letter-spacing: .5px; margin-top: .15rem;
   }
-  /* Cap progress bar v2 — clean two-zone layout. The canvas spans
-     $0 → maxScale; zones tint the background by good/over; fill bar
-     sits on top showing actual usage. Cap line is a vertical marker
-     anchored to the cap position so it stays visually aligned to
-     whatever the canvas's max is. */
+  /* Cap progress bar v2 — anchored 0 → cap (no overflow scale).
+     The bar's right edge IS the cap. Over-cap is surfaced as a red
+     overflow chip outside the bar; under-cap as a green room chip.
+     Avoids the prior "bar ends at $312M" confusion. */
   .frn-cuts-bar-v2 { margin-bottom: 1rem; }
+  .frn-cuts-bar-shell {
+    display: flex; align-items: stretch; gap: .6rem;
+  }
   .frn-cuts-bar-canvas {
-    position: relative; height: 16px;
-    background: rgba(255,255,255,.03);
+    position: relative; flex: 1; height: 18px;
+    background: rgba(255,255,255,.04);
     border: 1px solid var(--border);
     border-radius: 4px; overflow: hidden;
   }
-  .frn-cuts-bar-zone {
-    position: absolute; top: 0; bottom: 0;
-    z-index: 0;
+  .frn-cuts-bar-shell.legal .frn-cuts-bar-canvas {
+    border-color: rgba(134,224,163,.4);
+    background:
+      linear-gradient(180deg, rgba(134,224,163,.05), rgba(134,224,163,.09));
   }
-  .frn-cuts-bar-zone.good {
-    left: 0;
-    background: linear-gradient(180deg, rgba(134,224,163,.04), rgba(134,224,163,.08));
+  .frn-cuts-bar-shell.over .frn-cuts-bar-canvas {
+    border-color: #ff8a8a;
+    background:
+      linear-gradient(180deg, rgba(255,138,138,.08), rgba(255,138,138,.14));
+    animation: cutsBarPulse 2.4s ease-in-out infinite;
   }
-  .frn-cuts-bar-zone.over {
-    background: linear-gradient(180deg, rgba(255,138,138,.08), rgba(255,138,138,.14));
-    border-left: 1px dashed rgba(255,138,138,.35);
+  @keyframes cutsBarPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255,138,138,.0); }
+    50%      { box-shadow: 0 0 0 3px rgba(255,138,138,.18); }
   }
   .frn-cuts-bar-fill {
     position: absolute; top: 0; bottom: 0; left: 0;
     transition: width .3s ease, background .2s;
     z-index: 1;
-    box-shadow: 0 0 10px rgba(0,0,0,.4) inset;
+    box-shadow: 0 0 10px rgba(0,0,0,.35) inset;
   }
   .frn-cuts-bar-postcut-v2 {
     position: absolute; top: 0; bottom: 0; left: 0;
@@ -1637,47 +1642,58 @@
     z-index: 2;
     background: repeating-linear-gradient(
       45deg,
-      rgba(134,224,163,.55) 0 6px,
-      rgba(134,224,163,.25) 6px 12px
+      rgba(134,224,163,.6) 0 6px,
+      rgba(134,224,163,.2) 6px 12px
     );
     border-right: 2px solid #86e0a3;
   }
-  .frn-cuts-bar-cap-line {
-    position: absolute; top: -3px; bottom: -3px;
-    width: 2px; background: var(--gold); z-index: 4;
-    box-shadow: 0 0 8px rgba(200,169,0,.7);
+  /* Over-cap and room chips — sit OUTSIDE the bar so the bar's right
+     edge stays semantically meaningful (= the cap). */
+  .frn-cuts-overflow-chip,
+  .frn-cuts-room-chip {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center;
+    padding: .15rem .55rem;
+    font-family: 'IBM Plex Mono', monospace;
+    border: 1px solid; border-radius: 3px;
+    font-size: .78rem; font-weight: 900; letter-spacing: .3px;
+    min-width: 5.5rem;
+    line-height: 1;
   }
-  .frn-cuts-bar-axis {
-    position: relative; height: 1.4rem; margin-top: .35rem;
+  .frn-cuts-overflow-chip {
+    background: rgba(255,138,138,.1);
+    border-color: #ff8a8a; color: #ff8a8a;
+  }
+  .frn-cuts-room-chip {
+    background: rgba(134,224,163,.08);
+    border-color: rgba(134,224,163,.6); color: #86e0a3;
+  }
+  .frn-cuts-overflow-sub {
+    font-size: .5rem; letter-spacing: 1px;
+    opacity: .75; font-weight: 700; margin-top: .15rem;
+  }
+  /* Axis row — just two ticks (0 / cap) since the bar IS 0→cap.
+     Optional post-cut readout sits inline when staging is active. */
+  .frn-cuts-bar-axis-v2 {
+    display: flex; justify-content: space-between; align-items: baseline;
     font-family: 'IBM Plex Mono', monospace;
     font-size: .58rem; color: var(--gray);
+    margin-top: .4rem;
+    padding-right: 6.5rem; /* leave room for the overflow/room chip */
   }
-  .frn-cuts-axis-anchor {
-    position: absolute; top: 0; transform: translateX(-50%);
-    letter-spacing: .3px; white-space: nowrap;
+  .frn-cuts-axis-tick {
+    letter-spacing: .3px;
   }
-  .frn-cuts-axis-anchor:first-of-type { transform: translateX(0); }
-  .frn-cuts-axis-anchor:last-of-type { transform: translateX(-100%); }
-  .frn-cuts-axis-cap {
-    position: absolute; top: 0; transform: translateX(-50%);
-    color: var(--gold); font-weight: 800; letter-spacing: .5px;
-    white-space: nowrap;
+  .frn-cuts-axis-cap-r {
+    color: var(--gold); font-weight: 800;
   }
-  .frn-cuts-axis-cap::before {
-    content: "▲";
-    display: block;
-    text-align: center;
-    margin-top: -.55rem;
-    font-size: .55rem;
-    color: var(--gold);
-  }
-  .frn-cuts-axis-current {
-    position: absolute; bottom: -.1rem; transform: translateX(-50%);
-    font-weight: 900; letter-spacing: .4px; white-space: nowrap;
-    font-size: .62rem;
-    padding: .05rem .35rem;
-    background: rgba(0,0,0,.5);
+  .frn-cuts-axis-postcut {
+    color: #86e0a3; font-weight: 700;
+    letter-spacing: .3px;
+    background: rgba(134,224,163,.08);
+    padding: .1rem .45rem;
     border-radius: 2px;
+    border: 1px dashed rgba(134,224,163,.4);
   }
   .frn-cuts-hero-actions {
     display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;

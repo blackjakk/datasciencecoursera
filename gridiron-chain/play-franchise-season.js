@@ -6058,15 +6058,14 @@ function renderFrnFACuts() {
   const remainingNeed = Math.max(0, needToFree - pendingFreed);
   const willBeLegal = pendingFreed >= needToFree;
 
-  // Cap progress bar — clean flex layout, no scaleX hacks.
-  // The bar canvas spans $0 to maxScale (cap + 25% headroom OR enough
-  // to fit the actual usage). Cap line is the gold marker at capPct.
-  // Two zones (good / over) tint the background; fill extends from $0.
-  const maxScale  = Math.max(cap * 1.25, used * 1.08, postCutUsed * 1.08, cap + 5);
-  const capPct    = (cap / maxScale) * 100;
-  const usedPct   = Math.min(100, (used / maxScale) * 100);
-  const postCutPct = Math.min(100, Math.max(0, (postCutUsed / maxScale) * 100));
-  const barColor = postCutOver > 0 ? "#ff8a8a" : "#86e0a3";
+  // Cap progress bar — anchored $0 → cap. Bar maxes out at 100% (the
+  // cap line IS the right edge). Over-cap is surfaced as a red chip
+  // outside the bar AND a pulse-tint on the fill, not by extending the
+  // canvas (which was confusing — "why does the bar end at $312M?").
+  const usedPct      = Math.min(100, (used / cap) * 100);
+  const postCutPct   = Math.min(100, Math.max(0, (postCutUsed / cap) * 100));
+  const overAmt      = Math.max(0, used - cap);
+  const postCutOverAmt = Math.max(0, postCutUsed - cap);
 
   // Position depth after pending cuts
   const depth = _faPositionDepth(myRoster, pending);
@@ -6138,18 +6137,17 @@ function renderFrnFACuts() {
         </div>
       </div>
       <div class="frn-cuts-bar-v2">
-        <div class="frn-cuts-bar-canvas">
-          <div class="frn-cuts-bar-zone good" style="width:${capPct}%"></div>
-          <div class="frn-cuts-bar-zone over" style="left:${capPct}%;width:${100-capPct}%"></div>
-          <div class="frn-cuts-bar-fill" style="width:${usedPct}%;background:${overCap?'#ff8a8a':'#86e0a3'}"></div>
-          ${pendingFreed > 0 ? `<div class="frn-cuts-bar-postcut-v2" style="width:${postCutPct}%"></div>` : ""}
-          <div class="frn-cuts-bar-cap-line" style="left:${capPct}%"></div>
+        <div class="frn-cuts-bar-shell ${overCap?'over':'legal'}">
+          <div class="frn-cuts-bar-canvas">
+            <div class="frn-cuts-bar-fill" style="width:${usedPct}%;background:${overCap?'#ff8a8a':'#86e0a3'}"></div>
+            ${pendingFreed > 0 ? `<div class="frn-cuts-bar-postcut-v2" style="width:${postCutPct}%"></div>` : ""}
+          </div>
+          ${overCap ? `<div class="frn-cuts-overflow-chip" title="You're $${overAmt.toFixed(1)}M past the cap — must trim before Week 1">+$${overAmt.toFixed(1)}M<span class="frn-cuts-overflow-sub">OVER</span></div>` : `<div class="frn-cuts-room-chip" title="Cap room available">+$${room.toFixed(1)}M<span class="frn-cuts-overflow-sub">ROOM</span></div>`}
         </div>
-        <div class="frn-cuts-bar-axis">
-          <span class="frn-cuts-axis-anchor" style="left:0%">$0</span>
-          <span class="frn-cuts-axis-cap" style="left:${capPct}%">CAP · $${cap.toFixed(0)}M</span>
-          <span class="frn-cuts-axis-anchor" style="left:100%">$${maxScale.toFixed(0)}M</span>
-          ${overCap ? `<span class="frn-cuts-axis-current" style="left:${usedPct}%;color:#ff8a8a">+$${(used-cap).toFixed(1)}M OVER</span>` : `<span class="frn-cuts-axis-current" style="left:${usedPct}%;color:#86e0a3">$${room.toFixed(1)}M ROOM</span>`}
+        <div class="frn-cuts-bar-axis-v2">
+          <span class="frn-cuts-axis-tick">$0</span>
+          ${pendingFreed > 0 ? `<span class="frn-cuts-axis-postcut" title="Where you'll land after pending cuts">post-cut $${postCutUsed.toFixed(1)}M${postCutOverAmt>0?` (+$${postCutOverAmt.toFixed(1)}M)`:` ($${(cap-postCutUsed).toFixed(1)}M room)`}</span>` : ""}
+          <span class="frn-cuts-axis-tick frn-cuts-axis-cap-r">CAP · $${cap.toFixed(0)}M</span>
         </div>
       </div>
       <div class="frn-cuts-hero-actions">
