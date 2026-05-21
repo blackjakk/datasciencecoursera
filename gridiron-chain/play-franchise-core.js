@@ -3355,10 +3355,13 @@ function _trimFranchiseForStorage() {
     }
   });
 
-  // Trim news/highlights/chat
-  if (franchise.news?.length > 30)            franchise.news            = franchise.news.slice(-30);
-  if (franchise.seasonHighlights?.length > 30) franchise.seasonHighlights = franchise.seasonHighlights.slice(-30);
-  if (franchise.chat?.length > 20)            franchise.chat            = franchise.chat.slice(-20);
+  // Trim news/highlights/chat — bumped from 30 → 150 so multi-season
+  // playthroughs keep enough news to scroll back through a full season
+  // of context. The hard cap in _pushNews is 500; this storage-pressure
+  // trim is the safety net, not the default.
+  if (franchise.news?.length > 150)           franchise.news            = franchise.news.slice(-150);
+  if (franchise.seasonHighlights?.length > 60) franchise.seasonHighlights = franchise.seasonHighlights.slice(-60);
+  if (franchise.chat?.length > 40)            franchise.chat            = franchise.chat.slice(-40);
 
   // Per-player trimming: CPU rosters carry veterans with many seasons of
   // per-season stats — cap aggressively since only the user's own team needs

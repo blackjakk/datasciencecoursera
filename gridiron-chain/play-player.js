@@ -657,16 +657,23 @@ const randName = () => `${pickFirstName()} ${pickLastName()}`;
 //   S:      55-99    (median ~76 → 4.72s; NFL S 4.55)
 // Applied AFTER the base stat generation + flavor pass. Other stat caps
 // (STR/BLK/CAT/COV mins/maxes per position) baked into POSITION_PHYSICAL_CAPS.
+// Calibrated to land median 40-yd at NFL position averages after the
+// post-flavor cap pass:
+//   OL 5.20  DL 4.85  TE 4.70  QB 4.85  LB 4.65
+//   RB 4.50  WR 4.50  CB 4.45  S 4.55
+// Higher offset = faster floor; lower scale = compressed spread.
+// Skill positions get higher floors so even average-tier players land
+// in the realistic NFL range (a "good"-tier WR shouldn't run a 4.85).
 const POSITION_SPD_MAP = {
   OL: { offset: 30, scale: 0.45 },
   DL: { offset: 38, scale: 0.70 },
-  TE: { offset: 42, scale: 0.78 },
+  TE: { offset: 44, scale: 0.74 },
   QB: { offset: 42, scale: 0.78 },
-  LB: { offset: 50, scale: 0.65 },
-  WR: { offset: 62, scale: 0.55 },
-  CB: { offset: 62, scale: 0.55 },
-  RB: { offset: 60, scale: 0.55 },
-  S:  { offset: 55, scale: 0.60 },
+  LB: { offset: 52, scale: 0.62 },
+  WR: { offset: 68, scale: 0.48 },
+  CB: { offset: 70, scale: 0.46 },
+  RB: { offset: 65, scale: 0.50 },
+  S:  { offset: 60, scale: 0.55 },
 };
 // Non-SPD position caps — STR/BLK/CAT/COV upper/lower bounds per NFL norms.
 // These affect bench, hands-on tests, and coverage ratings. OL can't have

@@ -16833,10 +16833,23 @@ function renderFrnDraftPreshow() {
     }).join("")}
   </div>`;
   const combine = _combineStandouts(d.class, 5, _combineFilterPos);
+  // Per-render combineGrade cache — the preshow rendered ~125 grade
+  // chips (5 drills × 5 leaders × 5 tests each). Without caching the
+  // grade calc reran 125+ times. With this Map, each prospect's grade
+  // is computed once and reused for every chip.
+  const _cgCache = new Map();
+  const _cgFor = (p) => {
+    if (!p?.pid && !p?.name) return null;
+    const key = p.pid || p.name;
+    if (_cgCache.has(key)) return _cgCache.get(key);
+    const cg = (typeof combineGrade === "function") ? combineGrade(p) : null;
+    _cgCache.set(key, cg);
+    return cg;
+  };
   // Helper — pulls position-specific letter grade for a single test
   // from combineGrade(). Returns a colored chip span or empty string.
   const _testGradeChip = (p, testKey) => {
-    const cg = (typeof combineGrade === "function") ? combineGrade(p) : null;
+    const cg = _cgFor(p);
     const g = cg?.grades?.[testKey];
     if (!g) return "";
     const col = g === "A+" ? "var(--green-lt)" : g === "A" ? "var(--green-lt)"
