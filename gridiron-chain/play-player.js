@@ -640,7 +640,7 @@ function assignLeagueNicknames(rosters) {
   }
 }
 
-const ROSTER_SLOTS = { QB:3, RB:4, WR:6, TE:3, OL:9, DL:6, LB:5, CB:6, S:4, K:1, P:1 };
+const ROSTER_SLOTS = { QB:3, RB:4, WR:6, TE:3, OL:9, DL:7, LB:6, CB:6, S:5, K:1, P:1 };
 
 const rand = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
 const randf = (a, b) => Math.random() * (b - a) + a;

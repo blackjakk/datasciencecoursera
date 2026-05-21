@@ -2121,6 +2121,12 @@ function psCostForTeam(teamId) {
 // AI teams plausible PS depth without changing the active roster.
 function _seedPracticeSquads() {
   if (!franchise.practiceSquads) franchise.practiceSquads = {};
+  // Position floors — never poach a player off the active roster if doing
+  // so would drop the team below this count. Audit found teams ending up
+  // with 0 kickers when the starter K had OVR<72, so the floor is 1 for
+  // every single-roster-slot specialty position. Skill/depth positions
+  // get a floor matching their spec minus 2 (one starter + one backup).
+  const FLOORS = { QB: 2, K: 1, P: 1, TE: 2, RB: 2, WR: 4, OL: 7, DL: 5, LB: 4, CB: 4, S: 3 };
   for (const t of TEAMS) {
     if (franchise.practiceSquads[t.id]?.length) continue;
     const roster = (franchise.rosters[t.id] || []).slice();
@@ -2130,11 +2136,18 @@ function _seedPracticeSquads() {
       .filter(p => _psEligible(p) && (p.overall || 0) < 72)
       .sort((a, b) => (a.overall || 0) - (b.overall || 0));
     const ps = [];
-    for (let i = 0; i < PS_SLOTS && i < candidates.length; i++) {
+    // Live count of active-roster players per position. Decrements as
+    // candidates are poached so a position can't be drained below floor.
+    const counts = {};
+    for (const p of roster) counts[p.position] = (counts[p.position] || 0) + 1;
+    for (let i = 0; i < candidates.length && ps.length < PS_SLOTS; i++) {
       const p = candidates[i];
+      const floor = FLOORS[p.position] ?? 0;
+      if ((counts[p.position] || 0) <= floor) continue;  // would drop below floor — skip
       // Move them off the active roster onto PS.
       const idx = roster.indexOf(p);
       if (idx !== -1) roster.splice(idx, 1);
+      counts[p.position] = (counts[p.position] || 0) - 1;
       // Stamp PS metadata for the flash log + cap math.
       p._psFlashLog = [];
       p._psStashedSeason = franchise.season || 1;
