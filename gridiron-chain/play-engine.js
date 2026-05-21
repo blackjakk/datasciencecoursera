@@ -1322,10 +1322,10 @@ class GameSimulator {
     this._boxStackRunMod = personnelRunMod + tendencyRunPenalty;
     // When pass-heavy, defense drops out of light boxes — extra airYds penalty
     // on top of the existing tendencyAirBonus.
-    this._boxStackAirMod = personnelAirMod + tendencyAirBonus - 2.2 * passLeanRatio;
-    this._boxStackCompMod = -0.10 * passLeanRatio;   // up to -10pp comp%
-    this._boxStackIntMod  =  0.010 * passLeanRatio;  // up to +1pp INT
-    this._boxStackSackMul =  1 + 0.35 * passLeanRatio; // up to 1.35x sack rate
+    this._boxStackAirMod = personnelAirMod + tendencyAirBonus - 3.5 * passLeanRatio;
+    this._boxStackCompMod = -0.15 * passLeanRatio;   // up to -15pp comp%
+    this._boxStackIntMod  =  0.015 * passLeanRatio;  // up to +1.5pp INT
+    this._boxStackSackMul =  1 + 0.50 * passLeanRatio; // up to 1.50x sack rate
     // RZ team-stat: count the trip when offense first crosses into the 20.
     // Use this._lastRzPossession to dedupe re-entries on a single drive.
     if (isRedZone && this._lastRzDrive !== this.drives.length) {
