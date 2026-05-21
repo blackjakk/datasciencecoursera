@@ -100,6 +100,27 @@ function pickPersonnel(playbook, situation) {
     const r = Math.random();
     return r < 0.45 ? "SPREAD" : r < 0.65 ? "EMPTY" : "TRIPS";
   }
+  // Red zone (inside the 20) tilts toward heavier sets — shorter routes,
+  // power running, extra blocker. Goal-to-go (inside the 10) tilts more
+  // strongly. AIR_RAID stays in 11/SPREAD for fade routes; SMASHMOUTH /
+  // GROUND_AND_POUND lean fully heavy.
+  if (sit.isRedZone) {
+    const mix = playbook.personnelMix || {};
+    const heavyTilt = sit.isGoalToGo ? 0.30 : 0.18;
+    const reweighted = {};
+    for (const [k, p] of Object.entries(mix)) {
+      if (k === "HEAVY" || k === "I_FORM") reweighted[k] = p * (1 + heavyTilt * 3);
+      else if (k === "SPREAD" || k === "EMPTY") reweighted[k] = p * (1 - heavyTilt);
+      else reweighted[k] = p;
+    }
+    const sum = Object.values(reweighted).reduce((a, b) => a + b, 0) || 1;
+    let roll = Math.random() * sum;
+    for (const [key, prob] of Object.entries(reweighted)) {
+      if (roll < prob) return key;
+      roll -= prob;
+    }
+    return "BASE";
+  }
   const mix = playbook.personnelMix || { TRIPS: 0.45, BASE: 0.20, SPREAD: 0.15, HEAVY: 0.12, I_FORM: 0.05, EMPTY: 0.03 };
   let roll = Math.random();
   for (const [key, prob] of Object.entries(mix)) {

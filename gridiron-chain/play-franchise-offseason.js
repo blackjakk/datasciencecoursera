@@ -1496,6 +1496,40 @@ function _buildSnapMap(teamId) {
 }
 
 // ── Sim helpers ──────────────────────────────────────────────────────────────
+// Weekly game plan — head coach reads the opponent and adjusts. Returns a
+// pass/run tilt + small rating bump if the matchup is exploitable. Coach
+// rating gates how aggressive the tilt is (a 50-OVR HC barely adjusts; a
+// 95-OVR HC fully exploits weak fronts / soft secondaries).
+function _computeWeeklyGameplan(myId, oppId) {
+  if (!franchise) return { passProbDelta: 0, ovrBump: 0, reason: "" };
+  const myHc = franchise.coaches?.[myId]?.hc?.rating || 60;
+  const myOc = franchise.coaches?.[myId]?.oc?.rating || 60;
+  // Coach competence — average of HC + OC, gated 0..1. <60 = no tilt;
+  // 95+ = full tilt. Below-average coaches can't ID weaknesses.
+  const coachQ = clamp((Math.max(myHc, myOc) - 60) / 35, 0, 1);
+  if (coachQ <= 0) return { passProbDelta: 0, ovrBump: 0, reason: "" };
+  // Read opponent's defense — tilt offense AWAY from their strength.
+  const oppDc = franchise.coaches?.[oppId]?.dc?.trait || "";
+  let delta = 0;
+  let reason = "";
+  if (oppDc === "Ball Hawk" || oppDc === "Cover Scheme") {
+    // Strong secondary → run more
+    delta = -0.06 * coachQ;
+    reason = "vs cover-heavy D — run more";
+  } else if (oppDc === "Run Stopper") {
+    // Strong front → pass more
+    delta = +0.06 * coachQ;
+    reason = "vs run-stopper D — pass more";
+  } else if (oppDc === "Pressure Package") {
+    // Blitz-heavy → quick game (slight pass bump, more short)
+    delta = +0.03 * coachQ;
+    reason = "vs blitz — quick game";
+  }
+  // Bump my offense by +1 OVR when both my OC and opp DC are mismatched
+  // (e.g., I'm a passing OC and they have a weak secondary). Cap at +1.
+  const ovrBump = (coachQ >= 0.8 && Math.abs(delta) >= 0.05) ? 1 : 0;
+  return { passProbDelta: delta, ovrBump, reason };
+}
 // `frnSimOnce` returns the simulation result; callers use it to capture
 // season stats + highlights as a side effect. The full game object is
 // available on the returned `.full` for callers that need playoff details.
@@ -1578,6 +1612,15 @@ function frnSimOnce(homeId, awayId, isPlayoff = false) {
   const awaySchemeMod = Math.round(_schemeMatchup(awayOffScheme, homeDefScheme) * 0.5);
   sim.homeR.offense += homeSchemeMod;
   sim.awayR.offense += awaySchemeMod;
+  // Weekly game plan — head coach tilts pass/run based on the opponent's
+  // weak side. Coach OVR determines how well they identify and exploit it.
+  // Returns a passProb delta (-0.10 to +0.10) plus a small rating tweak.
+  const homeWgp = _computeWeeklyGameplan(homeId, awayId);
+  const awayWgp = _computeWeeklyGameplan(awayId, homeId);
+  sim.homeWgp = homeWgp;
+  sim.awayWgp = awayWgp;
+  if (homeWgp?.ovrBump) sim.homeR.offense += homeWgp.ovrBump;
+  if (awayWgp?.ovrBump) sim.awayR.offense += awayWgp.ovrBump;
   const r = sim.simulate();
   // Stamp gameday context onto the result so callers can persist it
   r.weather = sim.weather;

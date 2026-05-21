@@ -255,6 +255,76 @@ class GameSimulator {
       home: { ...this.homeR.starters },
       away: { ...this.awayR.starters },
     };
+    // Per-game fatigue accumulator. Keyed by player name, value 0-100.
+    // Each snap bumps the players on the field by a position-cost amount;
+    // critical engine math (comp %, sack %, broken tackles, rush yds) reads
+    // these to degrade performance late in games — and the rotation logic
+    // uses high fatigue as a sub trigger so workhorse RBs cede snaps to RB2.
+    this._fatigue = {};
+    // In-game momentum. Range -10..+10 per team. Swung by scores, turnovers,
+    // 3-and-outs, explosive plays, 4th-down stops. Decays slowly between
+    // drives. Engine reads it for small comp%/sack% tilts and play-call
+    // aggression — modest individually, compounding across a hot streak.
+    this._momentum = { home: 0, away: 0 };
+  }
+  // Swing the momentum needle. `team` = "home" | "away". Positive amount
+  // adds to that team's momentum and (optionally) decays the opponent. The
+  // result clamps to ±10. Source string is for the play-by-play feed.
+  _swingMomentum(team, amount, source) {
+    if (team !== "home" && team !== "away") return;
+    const other = team === "home" ? "away" : "home";
+    this._momentum[team]  = clamp((this._momentum[team]  || 0) + amount, -10, 10);
+    this._momentum[other] = clamp((this._momentum[other] || 0) - amount * 0.5, -10, 10);
+    // Surface big swings as a play-by-play visual so the ticker shows them.
+    if (Math.abs(amount) >= 3 && source) {
+      this._pushVisual?.({ kind: "momentum", team, amount, source,
+        homeScore: this.score?.home, awayScore: this.score?.away });
+    }
+  }
+  // Drive-end decay — momentum naturally regresses toward zero each drive
+  // so a single big play doesn't define the whole game. Called after every
+  // possession change.
+  _decayMomentum() {
+    this._momentum.home *= 0.85;
+    this._momentum.away *= 0.85;
+  }
+  // Position-cost per snap. RBs absorb the most contact; OL/DL grind on
+  // every play; QB / specialists are lower. Calibrated so a 65-snap game
+  // for a workhorse RB ends near 60-70 fatigue (15-20% effective OVR cut).
+  static _FATIGUE_COST = {
+    QB:  0.7, RB:  1.5, WR:  1.1, TE:  1.2,
+    OL:  1.3, LT:  1.3, LG:  1.3, C:   1.3, RG:  1.3, RT:  1.3,
+    DL:  1.3, DE:  1.3, DT:  1.3, LDE: 1.3, RDE: 1.3, LDT: 1.3, RDT: 1.3,
+    LB:  1.2, CB:  1.1, S:   1.0, FS:  1.0, SS:  1.0,
+    K:   0.2, P:   0.2,
+  };
+  _bumpFatigue(name, costMul = 1.0) {
+    if (!name) return;
+    const p = this._playerByName.get(name);
+    const pos = p?.position || p?.subPos || "WR";
+    const baseCost = (this.constructor._FATIGUE_COST[pos] || 1.0);
+    // Stamina rating (stats[12]) softens the cost: 90 stamina → 0.75×,
+    // 60 stamina → 1.2×. Iron-man flag + RECEIVING-arch RB get a small
+    // additional discount. Untrained 60-OVR scrub gases out fast.
+    const stamina = p?.stats?.[12] ?? 70;
+    const staminaMul = clamp(1 - (stamina - 70) / 80, 0.6, 1.4);
+    const archMul = (p?.ironman ? 0.8 : 1.0)
+                  * (p?.archetype === "RECEIVING" ? 0.88 : 1.0);
+    const cost = baseCost * costMul * staminaMul * archMul;
+    this._fatigue[name] = Math.min(100, (this._fatigue[name] || 0) + cost);
+  }
+  _fatigueLevel(name) {
+    return this._fatigue[name] || 0;
+  }
+  // Effective rating multiplier — at fatigue 60, ratings are 88%; at 100,
+  // ratings are 80%. Caller can scale a numeric OVR / sub-stat by this.
+  _fatigueMul(name) {
+    return 1 - (this._fatigueLevel(name) / 100) * 0.20;
+  }
+  // Average fatigue across a player-array (used for OL/DL group fatigue).
+  _avgFatigue(arr) {
+    if (!arr?.length) return 0;
+    return arr.reduce((s, p) => s + this._fatigueLevel(p?.name), 0) / arr.length;
   }
   // True if the team with the ball is in 2-minute drill mode:
   // < 2:00 left in Q2 or Q4, and either trailing or tied (and 4th-quarter).
@@ -358,6 +428,13 @@ class GameSimulator {
       if (t >= 20)      p = Math.max(p, 0.40);
       else if (t >= 15) p = Math.max(p, 0.25);
       else if (t >= 10) p = Math.max(p, 0.12);
+      // Fatigue-driven blow: starter rests automatically at high fatigue.
+      // At 70+ fatigue, sub chance bumps to at least 35%; at 90+, 60%.
+      // Mimics NFL "give him a series" decisions for a gassed RB1.
+      const fat = this._fatigueLevel(cur);
+      if (fat >= 90)      p = Math.max(p, 0.60);
+      else if (fat >= 75) p = Math.max(p, 0.40);
+      else if (fat >= 60) p = Math.max(p, 0.22);
       if (p <= 0 || Math.random() > p) return;
       const exclude = Object.values(this.offR.starters);
       const backup = this._pickBackup(side, position, exclude);
@@ -390,6 +467,7 @@ class GameSimulator {
     add(starters.wr2, "WR");
     add(starters.te, "TE");
     add(starters.k,  "K");
+    add(starters.p,  "P");
     // Defensive starters get rows too
     add(starters.de1, "DE"); add(starters.de2, "DE");
     add(starters.dt1, "DT"); add(starters.dt2, "DT");
@@ -402,6 +480,7 @@ class GameSimulator {
         pass_att: 0, pass_comp: 0, rush_att: 0,
         sacks: 0, sacks_allowed: 0, turnovers: 0, takeaways: 0,
         firstDowns: 0, thirdAtt: 0, thirdConv: 0, fourthAtt: 0, fourthConv: 0,
+        rz_att: 0, rz_td: 0,
         timeOfPoss: 0, penalties: 0, penaltyYds: 0,
       },
       players,
@@ -420,6 +499,11 @@ class GameSimulator {
       pd: 0, ff: 0, fr: 0, def_td: 0, missed_tkl: 0,
       // OL-specific
       pancakes: 0, sacks_allowed: 0,
+      // Special teams
+      punt_att: 0, punt_yds: 0, punt_long: 0, punts_in_20: 0, touchbacks: 0,
+      pr_att: 0, pr_yds: 0, pr_long: 0, pr_td: 0,
+      kr_att: 0, kr_yds: 0, kr_long: 0, kr_td: 0,
+      blk_kick: 0,
     };
   }
   // Pick a defender (weighted by position) and credit a stat field
@@ -558,6 +642,11 @@ class GameSimulator {
   }
   _score(pts, type) {
     this.score[this.poss] += pts;
+    // Momentum swing — TDs swing harder than FGs. Defensive scores
+    // (pick-six, fumble-six) are routed through `_defScoreXP` which
+    // handles its own swing. Two-point conversions ride along with the TD.
+    const swing = pts >= 6 ? 3 : pts >= 3 ? 1.5 : 1;
+    this._swingMomentum(this.poss, swing, `${type} (+${pts})`);
     // Capture scorer for box-score display
     const scorer = (pts === 6 || pts === 2) ? (this._lastBallCarrier || null) : null;
     const passer = (pts === 6 && this._lastBallType === "pass") ? (this.offR.starters.qb || null) : null;
@@ -707,8 +796,10 @@ class GameSimulator {
       // 18-49 yd `ret` (which represents only the routine-return
       // distribution). 100 - 35 = 65 yds from the kick spot.
       if (rStats) {
+        rStats.kr_att = (rStats.kr_att || 0) + 1;
         rStats.kr_yds = (rStats.kr_yds || 0) + 65;
         rStats.kr_td  = (rStats.kr_td  || 0) + 1;
+        if (65 > (rStats.kr_long || 0)) rStats.kr_long = 65;
       }
       this._pushVisual({
         kind: "kickoff",
@@ -719,7 +810,11 @@ class GameSimulator {
       });
       return { endYL: 100, isTD: true };
     }
-    if (rStats) rStats.kr_yds = (rStats.kr_yds || 0) + ret;
+    if (rStats) {
+      rStats.kr_att = (rStats.kr_att || 0) + 1;
+      rStats.kr_yds = (rStats.kr_yds || 0) + ret;
+      if (ret > (rStats.kr_long || 0)) rStats.kr_long = ret;
+    }
     const endYL = Math.min(50, ret);
     this._pushVisual({
       kind: "kickoff",
@@ -778,8 +873,21 @@ class GameSimulator {
         if (!name) continue;
         const pl = this.stats[side].players[name];
         if (pl) pl.snaps = (pl.snaps || 0) + 1;
+        // Accumulate per-snap fatigue. RB takes the biggest hit per snap.
+        this._bumpFatigue(name);
       }
       this.stats[side].team.snaps = (this.stats[side].team.snaps || 0) + 1;
+      // OL/DL grind on every snap regardless of pass/run — bump both lines.
+      const olSide = side === "home" ? this.homeOL : this.awayOL;
+      const dlSide = side === "home" ? this.awayDL : this.homeDL; // defense
+      for (const p of olSide || []) this._bumpFatigue(p?.name);
+      for (const p of dlSide || []) this._bumpFatigue(p?.name);
+      // Defensive back-7 also takes contact every snap (LBs flow to ball,
+      // DBs run with receivers). Bump them too so late-game coverage degrades.
+      const defStarters = (side === "home" ? this.awayR : this.homeR).starters;
+      for (const role of ["lb1", "lb2", "lb3", "cb1", "cb2", "fs", "ss"]) {
+        this._bumpFatigue(defStarters?.[role]);
+      }
     }
     // ── COACHING TRAIT LOOKUPS ────────────────────────────────────────────────
     // Determine offensive/defensive team IDs for franchise.coaches lookups.
@@ -845,8 +953,22 @@ class GameSimulator {
     const offPb = getPlaybook(this.possTeam);
     const isLongYardage = (isThird || isFourth) && this.ytg >= 8;
     const isNearGL      = (100 - this.yardLine) <= 5;
-    this._currentPersonnel = pickPersonnel(offPb, { isLongYardage, isGoalLine: isNearGL, down: this.down, ytg: this.ytg });
+    // RED ZONE — 20-yd line in. NFL RZ stats: shorter throws (higher comp%),
+    // higher TD-per-attempt for completed passes, heavier personnel inside
+    // the 10. Tracked so play handlers can apply RZ-specific tilts and the
+    // team box can report rz_att / rz_td / rz_eff.
+    const isRedZone = this.yardLine >= 80;
+    const isGoalToGo = this.yardLine >= 90;
+    this._inRedZone = isRedZone;
+    this._inGoalToGo = isGoalToGo;
+    this._currentPersonnel = pickPersonnel(offPb, { isLongYardage, isGoalLine: isNearGL, isRedZone, isGoalToGo, down: this.down, ytg: this.ytg });
     this._currentDefPackage = packageForPersonnel(this._currentPersonnel);
+    // RZ team-stat: count the trip when offense first crosses into the 20.
+    // Use this._lastRzPossession to dedupe re-entries on a single drive.
+    if (isRedZone && this._lastRzDrive !== this.drives.length) {
+      this._lastRzDrive = this.drives.length;
+      this.stats[this.poss].team.rz_att = (this.stats[this.poss].team.rz_att || 0) + 1;
+    }
 
     if (this.down === 4) {
       const toEZ = 100 - this.yardLine;
@@ -1077,6 +1199,37 @@ class GameSimulator {
         else if (pArch === "HANG_TIME")   { puntMean += 1; puntSd = 5;  bigReturnSuppress = 0.55; fairCatchBonus = 0.08; }
         // AWR over 75 trims SD (more consistent placement)
         if (pAwr > 75) puntSd = Math.max(3, puntSd - (pAwr - 75) * 0.04);
+        // BLOCKED PUNT — ~1% baseline, +0.5pp on bad punter (KPW<55), -0.3pp
+        // on elite (KPW>85). Defense recovers at the kick spot.
+        const blockChance = clamp(0.010 + (60 - pKpw) * 0.0005, 0.005, 0.025);
+        if (Math.random() < blockChance) {
+          const punterStats = this.stats[this.poss].players[P];
+          if (punterStats) punterStats.punt_att = (punterStats.punt_att || 0) + 1;
+          // Credit block to a defender. Use defensive starter slot.
+          const blocker = this._creditDefStat("blk_kick", { DL: 0.55, LB: 0.30, S: 0.10, CB: 0.05 });
+          // 25% chance the block is returned for a TD (it was caught in the
+          // air and ran back); otherwise defense takes over at the kick spot.
+          const isBlockTD = Math.random() < 0.25;
+          const _defSideBlk = this.poss === "home" ? "away" : "home";
+          this._swingMomentum(_defSideBlk, isBlockTD ? 4 : 3, "BLOCKED PUNT");
+          this._pushVisual({
+            kind: "punt",
+            desc: isBlockTD
+              ? `BLOCKED PUNT returned for a TD by ${blocker || "the defense"}!`
+              : `BLOCKED PUNT — recovered by ${blocker || "the defense"} at the spot!`,
+            startYard, puntYards: 0, landYard: startYard, returnYards: 0,
+            isTouchback: false, isFairCatch: false, isReturnTD: isBlockTD,
+            endYard: isBlockTD ? 0 : startYard,
+            kicker: P, punterArch: pArch,
+            isBlocked: true, blocker,
+          });
+          // Score the block-TD immediately + kickoff afterward.
+          if (isBlockTD) {
+            this._defScoreXP();
+            return { endDrive: true, isReturnTD: true };
+          }
+          return { endDrive: true, punt: 0 };
+        }
         const punt = clamp(normal(puntMean, puntSd), 24, 72);
       const landYard = clamp(startYard + punt, 0, 100);
       // Touchback / fair catch / return resolution — biased by archetype.
@@ -1101,6 +1254,26 @@ class GameSimulator {
       const effectivePunt = finalLand - startYard;
       // If they brought it all the way back: TD for the receiving team
       const isReturnTD = !isTouchback && finalLand <= 0;
+      // Credit punter stats (and team)
+      const punterStats = this.stats[this.poss].players[P];
+      if (punterStats) {
+        punterStats.punt_att = (punterStats.punt_att || 0) + 1;
+        punterStats.punt_yds = (punterStats.punt_yds || 0) + punt;
+        if (punt > (punterStats.punt_long || 0)) punterStats.punt_long = punt;
+        if (isTouchback) punterStats.touchbacks = (punterStats.touchbacks || 0) + 1;
+        if (!isTouchback && landYard >= 80) punterStats.punts_in_20 = (punterStats.punts_in_20 || 0) + 1;
+      }
+      // Credit returner stats (return team's PR1, fall back to wr2)
+      const _retSide = this.poss === "home" ? "away" : "home";
+      const _retStarters = (_retSide === "home" ? this.homeR : this.awayR).starters;
+      const PR = _retStarters.pr1 || _retStarters.wr2 || _retStarters.wr1;
+      const prStats = PR ? this.stats[_retSide].players[PR] : null;
+      if (!isTouchback && !isFairCatch && prStats) {
+        prStats.pr_att = (prStats.pr_att || 0) + 1;
+        prStats.pr_yds = (prStats.pr_yds || 0) + returnYards;
+        if (returnYards > (prStats.pr_long || 0)) prStats.pr_long = returnYards;
+        if (isReturnTD) prStats.pr_td = (prStats.pr_td || 0) + 1;
+      }
       this._pushVisual({
         kind: "punt",
         desc: isTouchback ? `${this.possTeam.name} punts ${punt} yds — touchback`
@@ -1121,6 +1294,10 @@ class GameSimulator {
     const pb = this.offPlaybook;
     let passProb = isLong ? pb.passProb.long : isShort ? pb.passProb.short : pb.passProb.mid;
     if (inTwoMin) passProb = Math.min(0.96, passProb + 0.25);   // hurry-up = pass-heavy
+    // Weekly game plan tilt — head coach has scouted the opponent and
+    // dialed up pass or run accordingly. Stamped on the sim by frnSimOnce.
+    const wgp = this.poss === "home" ? this.homeWgp : this.awayWgp;
+    if (wgp?.passProbDelta) passProb = clamp(passProb + wgp.passProbDelta, 0.10, 0.95);
     const playType = Math.random() < passProb ? "pass" : "run";
 
     // ── PENALTY ROLL ──
@@ -1413,6 +1590,11 @@ class GameSimulator {
           isPlayAction, isFleaFlicker,
         });
         if (isPickSix) this._defScoreXP();
+        // Momentum: defense takes ball (+3); pick-six = catastrophic for
+        // offense (+4 defense, -3 offense routed by swing). Touchback is
+        // smaller swing (defense gets ball but at the 20).
+        const defSide = this.poss === "home" ? "away" : "home";
+        this._swingMomentum(defSide, isPickSix ? 4 : isTouchback ? 2 : 3, "INT");
         return { turnover: true, retYds: finalRetYds, isPickSix, isTouchback, intSpotYL };
       }
       // Sacks: heavily driven by the OL-vs-DL trench matchup (pressure).
@@ -1437,7 +1619,16 @@ class GameSimulator {
       // Sack rate: NFL league avg ~7%/dropback, elite pass rush vs bad OL
       // tops out ~13-14%. Base/pressure tuned to hit ~5-7%/dropback after
       // multipliers stack (sackPb playbook + AWR + def scheme + MLB agg).
-      const sackPct = clamp((0.07 + pressure * 0.08 - adv * 0.02 + archSackBonus) * sackPb * qbAwrSackMul * defPbCurrent.sackMul * mlbAggMul, 0.015, 0.17);
+      // Fatigue: tired OL gives up sacks more; tired DL chases less. Average
+      // OL fatigue vs DL fatigue swings ±~30% on the sack rate at extremes.
+      const _olFat = this._avgFatigue(this.poss === "home" ? this.homeOL : this.awayOL);
+      const _dlFat = this._avgFatigue(this.poss === "home" ? this.awayDL : this.homeDL);
+      const fatigueSackMul = 1 + (_olFat - _dlFat) / 100 * 0.30;
+      // Hot defense generates more pressure — but capped tight so a single
+      // turnover doesn't make sacks 50% more frequent.
+      const momSackMul = 1 + ((this._momentum?.[this.poss === "home" ? "away" : "home"] || 0)
+                            - (this._momentum?.[this.poss] || 0)) * 0.012;
+      const sackPct = clamp((0.07 + pressure * 0.08 - adv * 0.02 + archSackBonus) * sackPb * qbAwrSackMul * defPbCurrent.sackMul * mlbAggMul * fatigueSackMul * momSackMul, 0.015, 0.17);
       if (Math.random() < sackPct) {
         // THROW ON THE RUN — mobile QBs with high AGI sometimes escape pressure
         // and throw on the move instead of taking the sack. Lower comp / air
@@ -1714,7 +1905,23 @@ class GameSimulator {
       // Defensive-scheme tilt: nickel / dime tighten pass coverage, 46 blitz leaves windows open.
       // DC Cover Scheme: -3% completion rate for the offense
       const dcCoverSchemeMul = _dcTrait === "Cover Scheme" ? 0.97 : 1.0;
-      const compPct = clamp((0.62 + adv * 0.12 + qbCompFromOvr - pressure * 0.11 - shutdownPenalty + possessionBonus + qbCompMod + paCompMod + catCompMod + awrCompMod + cbCoverMod + mismatchBonus + coverLbMod + signalLbMod + physicalJamMod + wxCompMod + archCompMod) * compPbMul * defPbCurrent.passMul * dcCoverSchemeMul, 0.12, 0.84);
+      // Red-zone completion bump — throws are shorter (fade, slant, hi-low
+      // concepts), DBs play tighter coverage but quarterback completion
+      // rates actually rise inside the 20. NFL RZ comp% is ~4pp higher than
+      // overall. Goal-to-go bumps another ~2pp.
+      const rzCompBonus = this._inGoalToGo ? 0.06 : (this._inRedZone ? 0.04 : 0);
+      // Fatigue effect — tired QB throws less accurately, tired secondary
+      // gives up more catches. Net effect = (qbFatigue - secFatigue) * mod.
+      // At max QB fatigue with fresh secondary, comp drops ~4pp.
+      const _qbFat = this._fatigueLevel(this.offR.starters.qb);
+      const _secFat = (this._fatigueLevel(this.defR.starters.cb1)
+                    + this._fatigueLevel(this.defR.starters.cb2)) / 2;
+      const fatigueCompMod = -(_qbFat - _secFat) / 100 * 0.04;
+      // Momentum tilt — hot offense throws with confidence (+0.5pp per
+      // momentum point, max ±5pp); hot defense plays tighter coverage.
+      const momCompMod = ((this._momentum?.[this.poss] || 0)
+                       -  (this._momentum?.[this.poss === "home" ? "away" : "home"] || 0)) * 0.0025;
+      const compPct = clamp((0.62 + adv * 0.12 + qbCompFromOvr - pressure * 0.11 - shutdownPenalty + possessionBonus + qbCompMod + paCompMod + catCompMod + awrCompMod + cbCoverMod + mismatchBonus + coverLbMod + signalLbMod + physicalJamMod + wxCompMod + archCompMod + rzCompBonus + fatigueCompMod + momCompMod) * compPbMul * defPbCurrent.passMul * dcCoverSchemeMul, 0.12, 0.84);
       if (Math.random() < compPct) {
         // Air yards drop when pressure shortens the QB's reads (check-downs / dump-offs)
         // Weaker QBs also throw shorter — they can't push the ball downfield reliably.
@@ -1999,6 +2206,8 @@ class GameSimulator {
           rusher: RB, defender: frBy, forcedBy: ffBy, recoveredBy: "def", muffs,
           fumbleSpotYL,
         });
+        const _defSideFum = this.poss === "home" ? "away" : "home";
+        this._swingMomentum(_defSideFum, 3, "FUMBLE");
         return { turnover: true, fumbleSpotYL };
       } else {
         // Offense recovers — ball stays with them. Credit the yards UP to
@@ -2201,7 +2410,14 @@ class GameSimulator {
     // OC Run Architect: +0.3 to variant mean; DC Run Stopper: -0.4 to run mean
     const ocRunArchBonus    = _ocTrait === "Run Architect" ? 0.3  : 0;
     const dcRunStopperMalus = _dcTrait === "Run Stopper"  ? -0.4 : 0;
-    let yards = clamp(normal((rushMean + rbBoost + fbBoost + runVarMean + adv * 1.4 + runTrenchYds + fbStuffReduction - lbTackle * 0.5 - boxSafetyStuff - thumperStuff - lbGapRead + rbGapVision + carrierBoost + reverseBonus + ocRunArchBonus + dcRunStopperMalus) * defPbRun.runMul, rushSd * rbSdMul * runVarSd * reverseSdMul), -8, 75);
+    // Fatigue malus — tired RB loses burst (∼-1.5 yds at fatigue 75); tired
+    // OL opens smaller holes. Net effect = avg(rb,ol) fatigue minus def-front
+    // fatigue, so a fresh defense vs a gassed o-line really stalls a run.
+    const _carrierFat = isQBRun ? this._fatigueLevel(QB) : this._fatigueLevel(carrier);
+    const _olFatRun = this._avgFatigue(this.poss === "home" ? this.homeOL : this.awayOL);
+    const _dlFatRun = this._avgFatigue(this.poss === "home" ? this.awayDL : this.homeDL);
+    const fatigueRunYds = -((_carrierFat + _olFatRun) / 2 - _dlFatRun) / 100 * 2.5;
+    let yards = clamp(normal((rushMean + rbBoost + fbBoost + runVarMean + adv * 1.4 + runTrenchYds + fbStuffReduction - lbTackle * 0.5 - boxSafetyStuff - thumperStuff - lbGapRead + rbGapVision + carrierBoost + reverseBonus + ocRunArchBonus + dcRunStopperMalus + fatigueRunYds) * defPbRun.runMul, rushSd * rbSdMul * runVarSd * reverseSdMul), -8, 75);
     // Cap at distance to end zone so a 1-yd goal-line carry doesn't get reported as a 17-yd TD
     if (yards > 0) yards = Math.min(yards, 100 - startYard);
     // Broken tackles — carrier physicality vs defender tackle rating.
@@ -2337,6 +2553,10 @@ class GameSimulator {
       // Penalty handled inside _play — yardLine/down/ytg already set;
       // _drive should not run its normal yards/down/first-down logic.
       if (r.isPenalty) continue;
+      // Explosive play — offense bumps momentum on a 20+ yd gain.
+      if (!r.turnover && !r.endDrive && (r.yards || 0) >= 20) {
+        this._swingMomentum(this.poss, 1, "EXPLOSIVE PLAY");
+      }
       if (r.endDrive) {
         if (r.isReturnTD) {
           // Punt returned for a TD by the receiving team
@@ -2359,6 +2579,13 @@ class GameSimulator {
           break;
         }
         if (r.punt !== undefined) {
+          // 3-and-out (or shorter) gives the defense a momentum bump.
+          // Explosive defensive series. Counts plays in this drive.
+          if (plays <= 3) {
+            const _defSide3O = this.poss === "home" ? "away" : "home";
+            this._swingMomentum(_defSide3O, 1, "3 & OUT");
+          }
+          this._decayMomentum();
           this.poss = this.poss === "home" ? "away" : "home";
           this.yardLine = clamp(100 - (this.yardLine + r.punt), 1, 99);
         } else {
@@ -2461,6 +2688,10 @@ class GameSimulator {
       if (this.yardLine >= 100) {
         // Credit TD to last ball carrier
         const off = this.stats[this.poss];
+        // Red-zone TD bookkeeping — only count once per RZ trip (this drive).
+        if (this._lastRzDrive === this.drives.length) {
+          off.team.rz_td = (off.team.rz_td || 0) + 1;
+        }
         if (this._lastBallCarrier && off.players[this._lastBallCarrier]) {
           if (this._lastBallType === "pass") {
             off.players[this._lastBallCarrier].rec_td++;
@@ -2528,6 +2759,10 @@ class GameSimulator {
         this._pushVisual({ kind: "to_downs", desc: `Turnover on downs!`, startYard: this.yardLine, endYard: this.yardLine });
         pushDriveSummary("TURNOVER ON DOWNS");
         this.drives.push({ team: start, result: "TURNOVER_ON_DOWNS", homeScore: this.score.home, awayScore: this.score.away });
+        // Momentum: 4th-down stop is a massive defensive event.
+        const _defSideStop = this.poss === "home" ? "away" : "home";
+        this._swingMomentum(_defSideStop, 3, "4TH DOWN STOP");
+        this._decayMomentum();
         this.poss = this.poss === "home" ? "away" : "home";
         this.yardLine = clamp(100 - this.yardLine, 1, 99);
         this.down = 1; this.ytg = 10;
