@@ -1295,37 +1295,32 @@ class GameSimulator {
     this._inGoalToGo = isGoalToGo;
     this._currentPersonnel = pickPersonnel(offPb, { isLongYardage, isGoalLine: isNearGL, isRedZone, isGoalToGo, down: this.down, ytg: this.ytg });
     this._currentDefPackage = packageForPersonnel(this._currentPersonnel);
-    // Box stack — heavy personnel forces a run-stuffing front; spread spreads
-    // the defense thin. Personnel drives the base shift; tendency over the
-    // last ~10 plays amplifies it when the offense is predictable.
-    const personnelRunMod = ({
-      I_FORM: -1.5, HEAVY: -1.0, BASE: 0, TRIPS: 0, SPREAD: 0.8, EMPTY: 1.2,
-    })[this._currentPersonnel] || 0;
-    const personnelAirMod = ({
-      I_FORM:  1.8, HEAVY:  1.2, BASE: 0, TRIPS: 0, SPREAD: -0.3, EMPTY: -0.5,
-    })[this._currentPersonnel] || 0;
-    // Tendency tracker — last 10 offensive plays per team. Defense over-adjusts
-    // when one play type dominates: stack vs run-heavy, drop vs pass-heavy.
-    if (!this._recentPlays) this._recentPlays = { home: [], away: [] };
-    const recentArr = this._recentPlays[this.poss];
-    const tendencyRush = recentArr.length >= 6
-      ? recentArr.filter(t => t === "run").length / recentArr.length
-      : 0.5;
-    const tendencyRunPenalty = tendencyRush > 0.65 ? -1.2 * Math.min(1, (tendencyRush - 0.65) / 0.20) : 0;
-    const tendencyAirBonus   = tendencyRush > 0.65 ?  1.5 * Math.min(1, (tendencyRush - 0.65) / 0.20)
-                             : tendencyRush < 0.35 ? -0.8 * Math.min(1, (0.35 - tendencyRush) / 0.20)
-                             : 0;
-    // Pass-heavy tendency tightens coverage, bumps pressure. Symmetric to
-    // run-heavy box-stack penalty. Magnitudes tuned so a 100% pass team gets
-    // buried (~20% win rate) like a 100% rush team does.
-    const passLeanRatio = tendencyRush < 0.35 ? Math.min(1, (0.35 - tendencyRush) / 0.20) : 0;
-    this._boxStackRunMod = personnelRunMod + tendencyRunPenalty;
-    // When pass-heavy, defense drops out of light boxes — extra airYds penalty
-    // on top of the existing tendencyAirBonus.
-    this._boxStackAirMod = personnelAirMod + tendencyAirBonus - 3.5 * passLeanRatio;
-    this._boxStackCompMod = -0.15 * passLeanRatio;   // up to -15pp comp%
-    this._boxStackIntMod  =  0.015 * passLeanRatio;  // up to +1.5pp INT
-    this._boxStackSackMul =  1 + 0.50 * passLeanRatio; // up to 1.50x sack rate
+    // Defensive box / coverage response — driven by what offense lines up in
+    // (personnel) AND the situation (down/distance). Defense reads the
+    // presnap; no need for tendency history. Predictable offenses face the
+    // same defensive look every snap and get stuffed accordingly.
+    const personnel = this._currentPersonnel || "BASE";
+    // Personnel base mods: HEAVY/I_FORM stack the box (more LBs in tight),
+    // SPREAD/EMPTY thin out (DIME/QUARTER, more DBs in coverage).
+    const PERS_RUN = { I_FORM: -1.8, HEAVY: -1.2, BASE: 0, TRIPS: 0, SPREAD: 1.0, EMPTY: 1.5 };
+    const PERS_AIR = { I_FORM:  2.0, HEAVY:  1.4, BASE: 0, TRIPS: 0, SPREAD: -0.6, EMPTY: -1.0 };
+    // SPREAD/EMPTY = defense in DIME/QUARTER playing press + lighter front,
+    // tighter coverage on quick reads but more vulnerable inside.
+    const PERS_COMP = { I_FORM: 0.020, HEAVY: 0.015, BASE: 0, TRIPS: 0, SPREAD: -0.040, EMPTY: -0.060 };
+    const PERS_SACK_MUL = { I_FORM: 0.85, HEAVY: 0.90, BASE: 1.0, TRIPS: 1.0, SPREAD: 1.20, EMPTY: 1.35 };
+    const PERS_INT_MOD  = { I_FORM: -0.001, HEAVY: 0, BASE: 0, TRIPS: 0, SPREAD: 0.005, EMPTY: 0.008 };
+    // Down & distance — situational tilts on top of personnel.
+    const isThirdLong  = this.down === 3 && this.ytg >= 7;
+    const isThirdShort = this.down === 3 && this.ytg <= 2;
+    const situRunMod  = isThirdShort ? -0.5 : isThirdLong ?  0.5 : 0;
+    const situAirMod  = isThirdLong  ? -0.5 : isThirdShort ?  0.3 : 0;
+    const situCompMod = isThirdLong  ? -0.025 : isThirdShort ?  0.010 : 0;
+    const situSackMul = isThirdLong  ? 1.15 : 1.0;
+    this._boxStackRunMod  = (PERS_RUN[personnel]  || 0) + situRunMod;
+    this._boxStackAirMod  = (PERS_AIR[personnel]  || 0) + situAirMod;
+    this._boxStackCompMod = (PERS_COMP[personnel] || 0) + situCompMod;
+    this._boxStackIntMod  = (PERS_INT_MOD[personnel] || 0);
+    this._boxStackSackMul = (PERS_SACK_MUL[personnel] || 1) * situSackMul;
     // RZ team-stat: count the trip when offense first crosses into the 20.
     // Use this._lastRzPossession to dedupe re-entries on a single drive.
     if (isRedZone && this._lastRzDrive !== this.drives.length) {
@@ -1711,12 +1706,6 @@ class GameSimulator {
     if (this._inGoalToGo) passProb = Math.max(0.20, passProb - 0.12);
     else if (this._inRedZone) passProb = Math.max(0.25, passProb - 0.06);
     const playType = Math.random() < passProb ? "pass" : "run";
-    // Track for box-stack tendency on the NEXT play.
-    if (this._recentPlays) {
-      const arr = this._recentPlays[this.poss];
-      arr.push(playType);
-      if (arr.length > 10) arr.shift();
-    }
 
     // ── PENALTY ROLL ──
     // ~6.3% combined chance per play (NFL averages ~12 accepted penalties
