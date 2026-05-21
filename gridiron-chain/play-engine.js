@@ -1262,10 +1262,13 @@ class GameSimulator {
     // Two-minute drill: offense down by ≤16, < 2:00 left in half/game.
     // Reduces play clock (no-huddle) and bumps pass rate.
     const inTwoMin = this._isTwoMinDrill();
-    const dtMean = inTwoMin ? 13 : 33;
-    const dtSd   = inTwoMin ? 4  : 9;
-    const dtMin  = inTwoMin ? 6  : 12;
-    const dtMax  = inTwoMin ? 24 : 55;
+    // NFL avg per-play clock burn ~27s (includes mix of clock-stopping
+    // incomplete passes / OOB / penalties). Previous 33s yielded ~50 plays/g
+    // vs NFL ~63. dtMean / sd / bounds scaled down proportionally.
+    const dtMean = inTwoMin ? 13 : 27;
+    const dtSd   = inTwoMin ? 4  : 8;
+    const dtMin  = inTwoMin ? 6  : 10;
+    const dtMax  = inTwoMin ? 24 : 48;
     const dt = clamp(normal(dtMean, dtSd), dtMin, dtMax);
     this.time -= dt;
     if (this.time < 0) this.time = 0;
