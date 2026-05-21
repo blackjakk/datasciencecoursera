@@ -1984,11 +1984,9 @@ class GameSimulator {
       const qbAggIntMod = (this._aggTilt(this._qbAggression()) - 1) * 0.008;
       const dcBallHawkMul  = _dcTrait  === "Ball Hawk"    ? 1.025 : 1.0;
       const hcGameMgrIntMul= _hcSpec   === "Game Manager" ? 0.88  : 1.0;
-      // INT rate: NFL league avg ~2.4%/attempt, worst-case stacks ~3.5%.
-      // Prior tune (base 0.014, cap 0.035) landed at 1.22× NFL — past the
-      // "slightly over" comfort zone. Base 0.014 → 0.012, cap 0.035 →
-      // 0.030 to bring the average down to ~1.08× NFL.
-      const intPct = clamp((0.012 - adv * 0.008 + defIntMod + pressure * 0.006 + ballHawkBonus + qbIntMod + qbIntFromOvr + qbAggIntMod) * dcBallHawkMul * hcGameMgrIntMul, 0.002, 0.030);
+      // INT rate: base 0.012 -> 0.009 (cap 0.030 -> 0.024) to bring INT/g
+      // from ~1.07 down to NFL ~0.6. Fumble rate compensates for the rebalance.
+      const intPct = clamp((0.009 - adv * 0.008 + defIntMod + pressure * 0.006 + ballHawkBonus + qbIntMod + qbIntFromOvr + qbAggIntMod) * dcBallHawkMul * hcGameMgrIntMul, 0.002, 0.024);
       if (Math.random() < intPct) {
         const targetDepth = clamp(normal(11, 7), 2, 35);
         if (qbStats) { qbStats.pass_att++; qbStats.pass_int++; }
@@ -2459,8 +2457,7 @@ class GameSimulator {
       // concepts), DBs play tighter coverage but quarterback completion
       // rates actually rise inside the 20. NFL RZ comp% is ~4pp higher than
       // overall. Goal-to-go bumps another ~2pp.
-      // Trimmed from +0.06/+0.04: red-zone TD rate was 75% vs NFL 56%.
-      const rzCompBonus = this._inGoalToGo ? 0.02 : (this._inRedZone ? 0.01 : 0);
+      const rzCompBonus = this._inGoalToGo ? 0.01 : 0;
       // Fatigue effect — tired QB throws less accurately, tired secondary
       // gives up more catches. Net effect = (qbFatigue - secFatigue) * mod.
       // At max QB fatigue with fresh secondary, comp drops ~4pp.
@@ -2739,9 +2736,8 @@ class GameSimulator {
     const wxFumMod = wxFum.label === "RAIN" ? 0.006
                    : wxFum.label === "SNOW" ? 0.010
                    : 0;
-    // NFL: ~2% per touch (TOTAL fumbles, lost + recovered). Previous 1.1%
-    // hit only ~50% of NFL pace.
-    const fumblePct = clamp((0.020 + gripMod + Math.max(0, pressure) * 0.013 + wxFumMod) * optionMul * archFumbleMul, 0.008, 0.10);
+    // 2.0% -> 2.4% to bring fumbles/g from 1.06 up to NFL 1.3.
+    const fumblePct = clamp((0.024 + gripMod + Math.max(0, pressure) * 0.013 + wxFumMod) * optionMul * archFumbleMul, 0.008, 0.10);
     if (Math.random() < fumblePct) {
       // Scrum-based recovery — the ball bounces in a pile of converging players.
       // Defense has a slight edge in open field (1-3 dive attempts each muff the ball
@@ -3009,7 +3005,7 @@ class GameSimulator {
     // Red-zone power bonus — short-yardage power runs convert in real NFL
     // at ~65% on 1st-and-goal. Bonus trimmed (+0.8/+0.4 → +0.6/+0.3) to
     // keep rush TDs in the slightly-over-NFL zone instead of 1.19× pace.
-    const rzRunBonus = this._inGoalToGo ? 0.2 : (this._inRedZone ? 0.05 : 0);
+    const rzRunBonus = this._inGoalToGo ? 0.1 : 0;
     const boxStackRunMod = this._boxStackRunMod || 0;
     let yards = clamp(normal((rushMean + rbBoost + fbBoost + runVarMean + adv * 1.4 + runTrenchYds + fbStuffReduction - lbTackle * 0.5 - boxSafetyStuff - thumperStuff - lbGapRead + rbGapVision + carrierBoost + reverseBonus + ocRunArchBonus + dcRunStopperMalus + fatigueRunYds + rzRunBonus + boxStackRunMod) * defPbRun.runMul, rushSd * rbSdMul * runVarSd * reverseSdMul), -8, 75);
     // Yards after contact — heavy power backs lean forward and drag tacklers.
