@@ -1315,8 +1315,15 @@ class GameSimulator {
     const tendencyAirBonus   = tendencyRush > 0.65 ?  1.5 * Math.min(1, (tendencyRush - 0.65) / 0.20)
                              : tendencyRush < 0.35 ? -0.8 * Math.min(1, (0.35 - tendencyRush) / 0.20)
                              : 0;
+    // Pass-heavy tendency tightens coverage, bumps pressure. Symmetric to
+    // run-heavy box-stack penalty. Magnitudes tuned so a 100% pass team gets
+    // buried (~20% win rate) like a 100% rush team does.
+    const passLeanRatio = tendencyRush < 0.35 ? Math.min(1, (0.35 - tendencyRush) / 0.20) : 0;
     this._boxStackRunMod = personnelRunMod + tendencyRunPenalty;
     this._boxStackAirMod = personnelAirMod + tendencyAirBonus;
+    this._boxStackCompMod = -0.06 * passLeanRatio;   // up to -6pp comp%
+    this._boxStackIntMod  =  0.005 * passLeanRatio;  // up to +50bp INT
+    this._boxStackSackMul =  1 + 0.20 * passLeanRatio; // up to 1.20x sack rate
     // RZ team-stat: count the trip when offense first crosses into the 20.
     // Use this._lastRzPossession to dedupe re-entries on a single drive.
     if (isRedZone && this._lastRzDrive !== this.drives.length) {
@@ -1984,9 +1991,8 @@ class GameSimulator {
       const qbAggIntMod = (this._aggTilt(this._qbAggression()) - 1) * 0.008;
       const dcBallHawkMul  = _dcTrait  === "Ball Hawk"    ? 1.025 : 1.0;
       const hcGameMgrIntMul= _hcSpec   === "Game Manager" ? 0.88  : 1.0;
-      // INT rate: base 0.012 -> 0.009 (cap 0.030 -> 0.024) to bring INT/g
-      // from ~1.07 down to NFL ~0.6. Fumble rate compensates for the rebalance.
-      const intPct = clamp((0.009 - adv * 0.008 + defIntMod + pressure * 0.006 + ballHawkBonus + qbIntMod + qbIntFromOvr + qbAggIntMod) * dcBallHawkMul * hcGameMgrIntMul, 0.002, 0.024);
+      const boxStackIntMod = this._boxStackIntMod || 0;
+      const intPct = clamp((0.009 - adv * 0.008 + defIntMod + pressure * 0.006 + ballHawkBonus + qbIntMod + qbIntFromOvr + qbAggIntMod + boxStackIntMod) * dcBallHawkMul * hcGameMgrIntMul, 0.002, 0.024);
       if (Math.random() < intPct) {
         const targetDepth = clamp(normal(11, 7), 2, 35);
         if (qbStats) { qbStats.pass_att++; qbStats.pass_int++; }
@@ -2082,7 +2088,8 @@ class GameSimulator {
       // turnover doesn't make sacks 50% more frequent.
       const momSackMul = 1 + ((this._momentum?.[this.poss === "home" ? "away" : "home"] || 0)
                             - (this._momentum?.[this.poss] || 0)) * 0.012;
-      const sackPct = clamp((0.09 + pressure * 0.09 - adv * 0.02 + archSackBonus) * sackPb * qbAwrSackMul * defPbCurrent.sackMul * mlbAggMul * fatigueSackMul * momSackMul, 0.02, 0.18);
+      const boxStackSackMul = this._boxStackSackMul || 1;
+      const sackPct = clamp((0.09 + pressure * 0.09 - adv * 0.02 + archSackBonus) * sackPb * qbAwrSackMul * defPbCurrent.sackMul * mlbAggMul * fatigueSackMul * momSackMul * boxStackSackMul, 0.02, 0.18);
       if (Math.random() < sackPct) {
         // THROW ON THE RUN — mobile QBs with high AGI sometimes escape pressure
         // and throw on the move instead of taking the sack. Lower comp / air
@@ -2475,7 +2482,8 @@ class GameSimulator {
       const isQBClutch = this.quarter >= 4 && this.time < 300 && Math.abs(this.score.home - this.score.away) <= 8;
       const qbDrive = qbPlayer?._drive ?? 60;
       const driveCompMod = isQBClutch ? (qbDrive - 60) / 600 : 0; // ±~6pp at drive 99 vs 20
-      const compPct = clamp((0.65 + adv * 0.13 + qbCompFromOvr - pressure * 0.10 - shutdownPenalty + possessionBonus + qbCompMod + paCompMod + catCompMod + awrCompMod + cbCoverMod + mismatchBonus + coverLbMod + signalLbMod + physicalJamMod + wxCompMod + archCompMod + rzCompBonus + fatigueCompMod + momCompMod + driveCompMod) * compPbMul * defPbCurrent.passMul * dcCoverSchemeMul, 0.15, 0.88);
+      const boxStackCompMod = this._boxStackCompMod || 0;
+      const compPct = clamp((0.65 + adv * 0.13 + qbCompFromOvr - pressure * 0.10 - shutdownPenalty + possessionBonus + qbCompMod + paCompMod + catCompMod + awrCompMod + cbCoverMod + mismatchBonus + coverLbMod + signalLbMod + physicalJamMod + wxCompMod + archCompMod + rzCompBonus + fatigueCompMod + momCompMod + driveCompMod + boxStackCompMod) * compPbMul * defPbCurrent.passMul * dcCoverSchemeMul, 0.15, 0.88);
       if (Math.random() < compPct) {
         // Air yards drop when pressure shortens the QB's reads (check-downs / dump-offs)
         // Weaker QBs also throw shorter — they can't push the ball downfield reliably.
