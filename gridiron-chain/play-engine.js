@@ -2585,7 +2585,17 @@ class GameSimulator {
       else if (rbArch === "ELUSIVE") breakStat = (cagi * 0.7 + cstr * 0.3) + densityBonus * 0.3;
       else if (rbArch === "SPEED")   breakStat = (cspd * 0.7 + cstr * 0.3) + densityBonus * 0.4;
       else                            breakStat = (cstr + cagi) / 2 + densityBonus;
-      // Sample the likely tackler by contact zone implied by yardage.
+      // How many defenders converge — gang tackle at the LOS, isolation in
+      // space. A 240 lb back can truck a lone CB but a 3-man wrap doesn't
+      // care how massive you are.
+      let nTacklers;
+      {
+        const r = Math.random();
+        if (yards <= 2)      nTacklers = r < 0.25 ? 1 : r < 0.75 ? 2 : 3;  // LOS scrum
+        else if (yards <= 7) nTacklers = r < 0.55 ? 1 : r < 0.92 ? 2 : 3;  // 2nd level
+        else                  nTacklers = r < 0.85 ? 1 : 2;                 // open field
+      }
+      // Sample the PRIMARY tackler by contact zone implied by yardage.
       // Short = LB/DL at the line; mid = LB/S at the 2nd level; long = S/CB
       // in space. This is what makes the 180 lb CB vs freight train real.
       let tacklerPos;
@@ -2603,10 +2613,15 @@ class GameSimulator {
       }
       tacklerForMiss = tackler;
       const tckRating = tackler ? (tackler.stats[9] || 60) : (this.defR.lb || 70);
+      // Each additional support defender adds to effective tackle strength
+      // AND splits the mass-differential advantage (you can run over one
+      // 180 lb DB; running over a 2-man wrap is a different problem).
+      const effectiveTck = tckRating + (nTacklers - 1) * 8;
+      const supportSplit = 1 / nTacklers;
       // Freight-train physics: a 240 lb RB at full momentum running at a
       // 180 lb DB mostly just runs him over. Threshold +30 lb — anything
       // smaller is normal run-vs-run-defender contact and not "trucked".
-      // Effect scales with both mass delta AND carrier momentum (cspd).
+      // Effect scales with mass delta × carrier momentum × support split.
       let runOverBonus = 0;
       if (tackler && cspd > 65) {
         try {
@@ -2614,19 +2629,19 @@ class GameSimulator {
           const tWeight = tcmb.weightLbs || 215;
           const massDelta = cWeight - tWeight;
           if (massDelta > 30) {
-            // momentum: cspd 65 → 0, cspd 90+ → 1.0
             const momentumMul = Math.min(1, (cspd - 65) / 25);
-            // 60 lb edge at full burst → +0.36 break chance.
-            runOverBonus = (massDelta - 30) * 0.012 * momentumMul;
+            runOverBonus = (massDelta - 30) * 0.012 * momentumMul * supportSplit;
           }
         } catch (_e) {}
       }
       const baseBreak = rbArch === "POWER" ? 0.04 : 0.02;
-      const breakChance = clamp((breakStat - tckRating) / 280 + baseBreak + runOverBonus, 0.005, 0.45);
+      const breakChance = clamp((breakStat - effectiveTck) / 280 + baseBreak + runOverBonus, 0.005, 0.45);
       if (Math.random() < breakChance) {
-        brokenTackles = 1;
-        // Trucking a DB at full speed → bigger gain than slipping an LB.
-        bonusYards = runOverBonus > 0.12 ? rand(6, 14) : rand(3, 8);
+        // Breaking a 2- or 3-man wrap counts as multiple broken tackles —
+        // PFF would credit each defender beaten. Bonus yards are smaller
+        // when you wrestle out of a gang vs trucking a lone DB at full speed.
+        brokenTackles = nTacklers;
+        bonusYards = (nTacklers === 1 && runOverBonus > 0.12) ? rand(6, 14) : rand(3, 8);
         yards = Math.min(yards + bonusYards, 100 - startYard);
       }
     }
@@ -2637,7 +2652,8 @@ class GameSimulator {
       if (yards > carrierStats.rush_long) carrierStats.rush_long = yards;
       if (brokenTackles) {
         carrierStats.broken_tackles = (carrierStats.broken_tackles || 0) + brokenTackles;
-        // Credit the specific defender we sampled (the one who actually whiffed).
+        // Credit primary defender directly; remaining gang members via the
+        // weighted pool (excluding the primary so we don't double-credit).
         const defPlayers = this.defStats?.players || {};
         if (tacklerForMiss?.name && defPlayers[tacklerForMiss.name]) {
           defPlayers[tacklerForMiss.name].missed_tkl = (defPlayers[tacklerForMiss.name].missed_tkl || 0) + 1;
@@ -2645,6 +2661,12 @@ class GameSimulator {
           this._creditDefStat("missed_tkl", yards >= 10
             ? { S: 0.40, CB: 0.20, LB: 0.30, DL: 0.10 }
             : { LB: 0.45, DL: 0.30, S: 0.15, CB: 0.10 });
+        }
+        for (let i = 1; i < brokenTackles; i++) {
+          this._creditDefStat("missed_tkl", yards >= 10
+            ? { S: 0.40, CB: 0.20, LB: 0.30, DL: 0.10 }
+            : { LB: 0.45, DL: 0.30, S: 0.15, CB: 0.10 },
+            tacklerForMiss?.name);
         }
       }
     }
