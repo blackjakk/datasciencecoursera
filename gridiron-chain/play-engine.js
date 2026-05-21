@@ -1238,7 +1238,10 @@ class GameSimulator {
               });
               return { yards: isComp ? fakeYards : 0, incomplete: !isComp };
             } else {
-              const fakeMean = 4 + (pSpd - 65) * 0.07 + (pAgi - 65) * 0.05;
+              // Punter run on a fake — burst distance (≤15yd), use
+              // effectiveSpeed so a heavy punter doesn't burst like a CB.
+              const eSpd = effectiveSpeed(pPlayer, 10);
+              const fakeMean = 4 + (eSpd - 65) * 0.07 + (pAgi - 65) * 0.05;
               const fakeYards = clamp(Math.round(normal(fakeMean, 4)), -3, 35);
               const success = fakeYards >= this.ytg;
               this._pushVisual({
@@ -1578,7 +1581,12 @@ class GameSimulator {
         // Scramble yardage softened — elite LBs/safeties don't let QBs walk for 8 yds every time.
         // Subtracts a small amount based on linebacker tackling rating.
         const lbTk = (this.defR.lb - 65) / 25;   // 0 at avg LB, +1.2 at elite
-        let yards = clamp(normal(4 + adv * 1.5 + Math.max(0, pressure) * 0.6 - lbTk, 6.5), -4, 50);
+        // QB scramble distance scales with effective speed — a 235lb QB
+        // doesn't outrun pursuit the same as a 210lb dual-threat. AGI
+        // matters too (open-field jukes). 12-yd burst window.
+        const qbPlayer = this._playerByName.get(QB);
+        const qbBurst = (effectiveSpeed(qbPlayer, 12) - 70) * 0.05;
+        let yards = clamp(normal(4 + adv * 1.5 + Math.max(0, pressure) * 0.6 - lbTk + qbBurst, 6.5), -4, 50);
         if (yards > 0) yards = Math.min(yards, 100 - startYard);
         if (qbStats) {
           qbStats.rush_att = (qbStats.rush_att || 0) + 1;
@@ -2032,9 +2040,19 @@ class GameSimulator {
         const qbAirFromOvr = (this.offR.qb - 75) / 24;
         const qbPocketAirBonus = Math.max(0, qbPocketBonus) * 3.5;   // up to +1.75 yds at AWR 95
         // CENTER_FIELD safety caps deep passing — pulls the air mean down
-        // when a rangy single-high safety is on the field.
-        const centerFieldS = (defArch.S || []).filter(s => s?.archetype === "CENTER_FIELD").length;
-        const centerFieldCap = -centerFieldS * 1.2;
+        // when a rangy single-high safety is on the field. Range scales
+        // with the safety's actual effective speed (a "rangy" safety
+        // with elite SPD + light body covers more ground than a
+        // slow safety with the archetype but bad measurables).
+        const centerFieldSafeties = (defArch.S || []).filter(s => s?.archetype === "CENTER_FIELD");
+        let centerFieldCap = 0;
+        for (const s of centerFieldSafeties) {
+          const safPlayer = this._playerByName?.get?.(s?.name);
+          // 35yd sustained chase — SPD dominates. Light + fast S covers
+          // ~1.5 yds; heavy slow S covers ~0.7 yds.
+          const eSpd = safPlayer ? effectiveSpeed(safPlayer, 35) : 75;
+          centerFieldCap -= 0.6 + (eSpd - 75) * 0.04;
+        }
         // Weather: wind crushes deep balls into the headwind, rain/snow
         // make all throws slightly shorter (slippery ball).
         const teamPassDir = this.poss === "home" ? 1 : -1;

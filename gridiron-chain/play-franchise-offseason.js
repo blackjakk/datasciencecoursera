@@ -16050,39 +16050,73 @@ function frnDraftToggleNotes(name) {
 // so the draft board UI can surface the riser/faller tags.
 function _runCombineEvent(draftClass) {
   if (!Array.isArray(draftClass)) return;
-  const risers = [], fallers = [];
+  const risers = [], fallers = [], superathletes = [];
+  // Class-level leaderboards — captured during the walk so we can surface
+  // "fastest 40 in class" + count "sub-4.40 40s" / "27+ rep benches" etc.
+  const fastest40 = []; const strongest = []; const highest = []; const longest = [];
+  let sub440Count = 0, bench25Count = 0;
   for (const p of draftClass) {
     if (!p?.position) continue;
     const cg = (typeof combineGrade === "function") ? combineGrade(p) : null;
     if (!cg) continue;
+    const cmb = cg.measurables;
     const overall = cg.overall;
-    // GRADE_PTS to numeric, 0-4. Use this as the directional signal:
-    // elite combine (3.5+) pushes scout bias toward "this guy's better
-    // than the film shows" (= less negative or more positive).
     const PTS = { "A+":4, "A":3, "B":2, "C":1, "D":0 };
     const compositePts = PTS[overall] ?? 2;
-    // Bias adjustment range: -3 (D combine) to +4 (A+ combine).
     const biasAdjust = (compositePts - 2) * 1.25;
     const prevBias = p._aiScoutBias || 0;
-    // Combine moves the bias halfway toward (prevBias + biasAdjust), so
-    // a great combine can flip a "concerns" pre-draft narrative into a
-    // genuine riser. Clamp final bias to ±10 to keep board sane.
     p._aiScoutBias = +(((prevBias + biasAdjust) * 0.5 + biasAdjust * 0.5).toFixed(1));
     p._aiScoutBias = clamp(p._aiScoutBias, -10, 10);
-    // Stamp combine outcome onto the prospect for the draft UI.
     p._combineResult = {
       overall,
       grades: cg.grades,
-      // RISER: A+/A combine AND was under-valued by film (negative
-      // pre-combine bias). FALLER: D combine AND was hyped (positive
-      // pre-combine bias).
-      isRiser:  (overall === "A+" || overall === "A") && prevBias <= -2,
-      isFaller: overall === "D" && prevBias >= 2,
+      isRiser:        (overall === "A+" || overall === "A") && prevBias <= -2,
+      isFaller:       overall === "D" && prevBias >= 2,
+      isSuperathlete: overall === "A+",
     };
-    if (p._combineResult.isRiser)  risers.push(p);
-    if (p._combineResult.isFaller) fallers.push(p);
+    if (p._combineResult.isRiser)        risers.push(p);
+    if (p._combineResult.isFaller)       fallers.push(p);
+    if (p._combineResult.isSuperathlete) superathletes.push(p);
+    // Leaderboard captures — fastest skill, strongest trench, etc.
+    if (cmb.fortyTime && ["RB","WR","CB","S","LB"].includes(p.position)) {
+      fastest40.push({ p, value: cmb.fortyTime });
+      if (cmb.fortyTime < 4.40) sub440Count++;
+    }
+    if (cmb.benchReps && ["OL","DL","TE","LB"].includes(p.position)) {
+      strongest.push({ p, value: cmb.benchReps });
+      if (cmb.benchReps >= 25) bench25Count++;
+    }
+    if (cmb.verticalIn) highest.push({ p, value: cmb.verticalIn });
+    if (cmb.broadJumpIn) longest.push({ p, value: cmb.broadJumpIn });
   }
-  // News blurbs — surface the biggest combine stories.
+  // Sort leaderboards (40-yd lower=better, rest higher=better)
+  fastest40.sort((a, b) => a.value - b.value);
+  strongest.sort((a, b) => b.value - a.value);
+  highest.sort((a, b) => b.value - a.value);
+  longest.sort((a, b) => b.value - a.value);
+  // ── CLASS HEADLINE — single summary news entry kicking off the combine ──
+  const headlineParts = [];
+  if (sub440Count >= 3)   headlineParts.push(`${sub440Count} sub-4.40 40s`);
+  if (bench25Count >= 5)  headlineParts.push(`${bench25Count} 25+ rep benches`);
+  if (superathletes.length >= 3) headlineParts.push(`${superathletes.length} A+ overall grades`);
+  const headline = headlineParts.length
+    ? `🏟 NFL COMBINE OPENS — ${draftClass.length}-man class · ${headlineParts.join(", ")}`
+    : `🏟 NFL COMBINE OPENS — ${draftClass.length}-man class · few standout drills, scouts looking at film`;
+  _pushNews({ type: "draft", label: headline });
+  // ── DRILL CHAMPIONS — top performer in each marquee category ──
+  if (fastest40[0]) {
+    _pushNews({ type: "draft",
+      label: `⚡ FASTEST 40 · ${fastest40[0].p.name} (${fastest40[0].p.position}, ${fastest40[0].p.collegeProfile?.school || "—"}) — ${fastest40[0].value.toFixed(2)}s` });
+  }
+  if (strongest[0]) {
+    _pushNews({ type: "draft",
+      label: `🏋 BENCH KING · ${strongest[0].p.name} (${strongest[0].p.position}, ${strongest[0].p.collegeProfile?.school || "—"}) — ${strongest[0].value} reps` });
+  }
+  if (highest[0] && highest[0].value >= 40) {
+    _pushNews({ type: "draft",
+      label: `🦘 ELITE VERTICAL · ${highest[0].p.name} (${highest[0].p.position}, ${highest[0].p.collegeProfile?.school || "—"}) — ${highest[0].value}" leap` });
+  }
+  // ── COMBINE NARRATIVE — risers + fallers + superathletes ──
   for (const p of risers.slice(0, 5)) {
     _pushNews({ type: "draft",
       label: `📈 COMBINE RISER · ${p.name} (${p.position}, ${p.collegeProfile?.school || "—"}) — overall ${p._combineResult.overall}, scouts revisiting their boards` });
@@ -16091,6 +16125,20 @@ function _runCombineEvent(draftClass) {
     _pushNews({ type: "draft",
       label: `📉 COMBINE FALLER · ${p.name} (${p.position}, ${p.collegeProfile?.school || "—"}) — overall ${p._combineResult.overall}, hyped film didn't translate to drills` });
   }
+  // ── PERSIST CLASS RECAP — for the news archive + a combine-history view ──
+  franchise.combineHistory = franchise.combineHistory || [];
+  franchise.combineHistory.push({
+    season: franchise.season,
+    classSize: draftClass.length,
+    sub440Count, bench25Count,
+    superathletes: superathletes.length,
+    risers: risers.length,
+    fallers: fallers.length,
+    topFastest: fastest40.slice(0, 5).map(x => ({ name: x.p.name, pos: x.p.position, school: x.p.collegeProfile?.school, value: x.value })),
+    topStrongest: strongest.slice(0, 5).map(x => ({ name: x.p.name, pos: x.p.position, school: x.p.collegeProfile?.school, value: x.value })),
+  });
+  // Cap history at last 20 classes — keeps localStorage tidy.
+  if (franchise.combineHistory.length > 20) franchise.combineHistory = franchise.combineHistory.slice(-20);
 }
 function frnGoToDraft() {
   const rookieYear = (new Date().getFullYear()) + (franchise.season || 1);
@@ -16706,17 +16754,37 @@ function renderFrnDraftPreshow() {
     }).join("")}
   </div>`;
   const combine = _combineStandouts(d.class, 5, _combineFilterPos);
-  const combineRow = (label, icon, items, fmt, units) => {
+  // Helper — pulls position-specific letter grade for a single test
+  // from combineGrade(). Returns a colored chip span or empty string.
+  const _testGradeChip = (p, testKey) => {
+    const cg = (typeof combineGrade === "function") ? combineGrade(p) : null;
+    const g = cg?.grades?.[testKey];
+    if (!g) return "";
+    const col = g === "A+" ? "var(--green-lt)" : g === "A" ? "var(--green-lt)"
+              : g === "B" ? "var(--gold)" : g === "C" ? "#e8a000" : "#c08080";
+    return `<span style="font-size:.5rem;font-weight:800;padding:.02rem .22rem;border-radius:2px;background:rgba(0,0,0,.35);color:${col};margin-left:.2rem">${g}</span>`;
+  };
+  // Riser/faller badge — pulled from the combine event's _combineResult.
+  // Shows next to the name so the user sees stock movement at a glance.
+  const _riserBadge = (p) => {
+    const r = p._combineResult;
+    if (!r) return "";
+    if (r.isSuperathlete) return `<span style="font-size:.5rem;font-weight:800;color:var(--gold);margin-left:.2rem" title="A+ overall combine grade">★</span>`;
+    if (r.isRiser)  return `<span style="font-size:.5rem;font-weight:800;color:#86e0a3;margin-left:.2rem" title="COMBINE RISER">📈</span>`;
+    if (r.isFaller) return `<span style="font-size:.5rem;font-weight:800;color:#ff8a8a;margin-left:.2rem" title="COMBINE FALLER">📉</span>`;
+    return "";
+  };
+  const combineRow = (label, icon, items, fmt, units, testKey) => {
     const lines = items.length ? items.map((p, i) => {
       const m = combineMeasurables(p);
       const val = fmt(m);
       const isTop = i === 0;
       const rankIcon = isTop ? "🏆" : `${i+1}`;
-      return `<div style="display:grid;grid-template-columns:1.1rem 1fr 2.2rem 2.6rem;gap:.3rem;padding:.22rem .25rem;font-size:.65rem;align-items:baseline;${isTop ? "background:linear-gradient(90deg, rgba(245,197,66,.08), transparent 70%);border-radius:2px" : ""}">
+      return `<div style="display:grid;grid-template-columns:1.1rem 1fr 2.2rem 3.2rem;gap:.3rem;padding:.22rem .25rem;font-size:.65rem;align-items:baseline;${isTop ? "background:linear-gradient(90deg, rgba(245,197,66,.08), transparent 70%);border-radius:2px" : ""}">
         <span style="color:${isTop?"var(--gold)":"var(--gray)"};font-weight:700;text-align:center">${rankIcon}</span>
-        ${_nameWithStar(p)}
+        <span>${_nameWithStar(p)}${_riserBadge(p)}</span>
         <span style="color:var(--gold-lt);font-size:.55rem;font-weight:700">${p.position}</span>
-        <span style="color:${isTop?"var(--gold)":"var(--white)"};font-weight:${isTop?"900":"700"};text-align:right;font-family:'Bebas Neue','Anton',sans-serif;letter-spacing:.3px">${val}${units}</span>
+        <span style="color:${isTop?"var(--gold)":"var(--white)"};font-weight:${isTop?"900":"700"};text-align:right;font-family:'Bebas Neue','Anton',sans-serif;letter-spacing:.3px">${val}${units}${testKey ? _testGradeChip(p, testKey) : ""}</span>
       </div>`;
     }).join("") : `<div style="color:var(--gray);font-style:italic;font-size:.6rem;padding:1rem .25rem;text-align:center">no prospects at ${_combineFilterPos}</div>`;
     return `<div style="background:var(--bg2);border:1px solid var(--border);padding:.55rem .6rem;border-radius:3px;display:flex;flex-direction:column">
@@ -16728,14 +16796,20 @@ function renderFrnDraftPreshow() {
       ${lines}
     </div>`;
   };
-  // 4-up on wide; auto-fit minmax cascades to 2x2 around 960px and
-  // 1-col below ~440px. 200px min avoids squishing the Bebas Neue
-  // values on tablet widths.
+  // 5-up grid (40, Bench, 3-Cone, Vert, Broad) — auto-fits to 2x3 / 1col
+  // on narrower viewports. Broad jump is the second-most-cited NFL combine
+  // explosion metric after vertical; we have the data, so surface it.
+  const broadList = d.class
+    .filter(p => _combineFilterPos === "ALL" || p.position === _combineFilterPos)
+    .slice()
+    .sort((a, b) => combineMeasurables(b).broadJumpIn - combineMeasurables(a).broadJumpIn)
+    .slice(0, 5);
   const combineHtml = `<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:.55rem">
-    ${combineRow("40-YARD",   "💨", combine.fortyTime,  m => m.fortyTime, "")}
-    ${combineRow("BENCH",     "🏋", combine.benchReps,  m => m.benchReps, "")}
-    ${combineRow("3-CONE",    "↩️", combine.coneTime,   m => m.coneTime, "")}
-    ${combineRow("VERTICAL",  "🦘", combine.verticalIn, m => m.verticalIn, "\"")}
+    ${combineRow("40-YARD",   "💨", combine.fortyTime,  m => m.fortyTime, "", "fortyTime")}
+    ${combineRow("BENCH",     "🏋", combine.benchReps,  m => m.benchReps, "", "benchReps")}
+    ${combineRow("3-CONE",    "↩️", combine.coneTime,   m => m.coneTime, "", "coneTime")}
+    ${combineRow("VERTICAL",  "🦘", combine.verticalIn, m => m.verticalIn, "\"", "verticalIn")}
+    ${combineRow("BROAD",     "📏", broadList,          m => m.broadJumpIn, "\"", "broadJumpIn")}
   </div>`;
 
   // ── MY WATCHLIST — players the user has starred during combine
