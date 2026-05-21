@@ -1435,10 +1435,9 @@ class GameSimulator {
       // pressure even when the OL matchup doesn't favor it.
       const mlbAggMul = this._aggTilt(this._mlbAggression()); // BLITZER MLB →  up to 1.30
       // Sack rate: NFL league avg ~7%/dropback, elite pass rush vs bad OL
-      // tops out ~13-14%. Pressure-multiplier was 0.10/level (4× too steep)
-      // and cap 0.40 → matchups stacked to ~40% per dropback, producing
-      // 4.6× NFL sack volume across the 500-season sim.
-      const sackPct = clamp((0.04 + pressure * 0.05 - adv * 0.02 + archSackBonus) * sackPb * qbAwrSackMul * defPbCurrent.sackMul * mlbAggMul, 0.010, 0.18);
+      // tops out ~13-14%. Base/pressure tuned to hit ~5-7%/dropback after
+      // multipliers stack (sackPb playbook + AWR + def scheme + MLB agg).
+      const sackPct = clamp((0.07 + pressure * 0.08 - adv * 0.02 + archSackBonus) * sackPb * qbAwrSackMul * defPbCurrent.sackMul * mlbAggMul, 0.015, 0.17);
       if (Math.random() < sackPct) {
         // THROW ON THE RUN — mobile QBs with high AGI sometimes escape pressure
         // and throw on the move instead of taking the sack. Lower comp / air
@@ -1715,7 +1714,7 @@ class GameSimulator {
       // Defensive-scheme tilt: nickel / dime tighten pass coverage, 46 blitz leaves windows open.
       // DC Cover Scheme: -3% completion rate for the offense
       const dcCoverSchemeMul = _dcTrait === "Cover Scheme" ? 0.97 : 1.0;
-      const compPct = clamp((0.60 + adv * 0.08 + qbCompFromOvr - pressure * 0.12 - shutdownPenalty + possessionBonus + qbCompMod + paCompMod + catCompMod + awrCompMod + cbCoverMod + mismatchBonus + coverLbMod + signalLbMod + physicalJamMod + wxCompMod + archCompMod) * compPbMul * defPbCurrent.passMul * dcCoverSchemeMul, 0.12, 0.78);
+      const compPct = clamp((0.62 + adv * 0.12 + qbCompFromOvr - pressure * 0.11 - shutdownPenalty + possessionBonus + qbCompMod + paCompMod + catCompMod + awrCompMod + cbCoverMod + mismatchBonus + coverLbMod + signalLbMod + physicalJamMod + wxCompMod + archCompMod) * compPbMul * defPbCurrent.passMul * dcCoverSchemeMul, 0.12, 0.84);
       if (Math.random() < compPct) {
         // Air yards drop when pressure shortens the QB's reads (check-downs / dump-offs)
         // Weaker QBs also throw shorter — they can't push the ball downfield reliably.
@@ -1763,16 +1762,14 @@ class GameSimulator {
         const airSd   = (pb.airYdsSd   ?? 6) * (qbArch === "GUNSLINGER" ? 1.25 : 1.0);
         const airYds  = clamp(normal(airMean + adv * 2, airSd), -2, 55);
         // YAC distribution — short catches / screens get more YAC potential.
-        // NFL avg YAC ~5.5 yds; explosive tier compressed (was 8% chance of
-        // rand(5,18)+airYds*0.6 — pushed total yds-per-completion past NFL
-        // elite even on routine completions).
+        // Tuned to land NFL-average ~5.5 yds YAC per completion.
         let yac = 0;
         if (airYds >= 1) {
           const r = Math.random();
-          if (r < 0.40) yac = 0;
-          else if (r < 0.75) yac = rand(1, Math.max(2, Math.floor(airYds * 0.3)) + 1);
-          else if (r < 0.95) yac = rand(2, Math.max(3, Math.floor(airYds * 0.5)) + 2);
-          else                yac = rand(3, 10) + Math.floor(airYds * 0.3); // big YAC run (rare)
+          if (r < 0.28) yac = 0;
+          else if (r < 0.65) yac = rand(1, Math.max(3, Math.floor(airYds * 0.5)) + 2);
+          else if (r < 0.90) yac = rand(3, Math.max(6, Math.floor(airYds * 0.9)) + 3);
+          else                yac = rand(5, 16) + Math.floor(airYds * 0.5); // big YAC run
         }
         // YAC archetype tilt: SLOT and POSSESSION are YAC monsters on
         // short routes; RED_ZONE is a low-YAC big body (catches and gets
