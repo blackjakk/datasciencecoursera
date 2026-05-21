@@ -1926,6 +1926,44 @@
   .frn-cuts-row-btn.cut:hover { background: rgba(255,138,138,.1); border-color: #ff8a8a; }
   .frn-cuts-row-btn.undo { color: #86e0a3; border-color: rgba(134,224,163,.5); }
   .frn-cuts-row-btn.undo:hover { background: rgba(134,224,163,.1); }
+  /* Restructure button — cyan to distinguish from cut (red) and trade
+     (gold). Shows the freed-cap amount inline so the user can scan
+     "how much could I save without losing him?" at a glance. */
+  .frn-cuts-row-btn.restruct {
+    color: #5ed4d4; border-color: rgba(94,212,212,.45);
+  }
+  .frn-cuts-row-btn.restruct:hover {
+    background: rgba(94,212,212,.12);
+    border-color: #5ed4d4;
+  }
+  .frn-cuts-row-btn.trade {
+    color: var(--gold-lt); border-color: rgba(200,169,0,.45);
+  }
+  .frn-cuts-row-btn.trade:hover {
+    background: rgba(200,169,0,.12);
+    border-color: var(--gold);
+  }
+  .frn-cuts-action-cluster {
+    display: flex; gap: .25rem; justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+  /* Trade-value inline chip — appended to the recommendation cell so
+     the verdict + chip read together as "what's the right move". */
+  .frn-cuts-trade-chip {
+    display: inline-block;
+    margin-left: .45rem;
+    padding: .08rem .35rem;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .52rem; font-weight: 800; letter-spacing: .5px;
+    border: 1px solid; border-radius: 2px;
+    background: rgba(0,0,0,.3); text-transform: uppercase;
+  }
+  .frn-cuts-trade-chip.asset {
+    color: #5ed4d4; border-color: rgba(94,212,212,.5);
+  }
+  .frn-cuts-trade-chip.blocker {
+    color: #ffc850; border-color: rgba(255,200,80,.5);
+  }
 
   /* — FOOTER — */
   .frn-cuts-footer {

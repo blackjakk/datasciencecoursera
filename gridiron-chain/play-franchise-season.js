@@ -5716,6 +5716,67 @@ function _faCutEconomics(player) {
   return { hit, totalDeadOnCut, netRelief, yearsLeft, perYearDead: dead.perYear || 0 };
 }
 
+// Restructure preview for a single player. Mirrors frnRestructure's
+// math without committing — caller renders the freed amount inline as
+// a button label. Eligibility rules match the existing logic:
+//   - ≥ 2 years remaining on the deal
+//   - ≥ $2M of current-year base salary to convert
+//   - not already restructured this offseason
+function _faRestructurePreview(player) {
+  const c = player?.contract;
+  if (!c) return { eligible: false, reason: "no contract" };
+  const remaining = c.remaining || 0;
+  if (remaining < 2) return { eligible: false, reason: "<2 yrs left" };
+  if (c.restructuredSeason === franchise.season) return { eligible: false, reason: "already restructured" };
+  const yearIndex = Math.max(0, (c.years || 1) - remaining);
+  const currentBase = c.baseSalaries?.[yearIndex] ?? (c.aav - (c.bonusProration || 0));
+  if (currentBase < 2.0) return { eligible: false, reason: "base too low" };
+  const newProration = Math.round(currentBase / remaining * 10) / 10;
+  const freed = Math.round((currentBase - newProration) * 10) / 10;
+  return { eligible: true, freed, newProration, currentBase, remaining };
+}
+
+// Execute a restructure inline from the cuts screen. Mirrors the
+// commit half of the analytics-screen flow but re-renders the cuts
+// screen so the user stays in the cut-decision context.
+function frnFARestructureFromCuts(name, pos) {
+  const myId = franchise.chosenTeamId;
+  const roster = franchise?.rosters?.[myId];
+  const p = roster?.find(q => q.name === name && q.position === pos);
+  if (!p?.contract) return;
+  const prev = _faRestructurePreview(p);
+  if (!prev.eligible) {
+    alert(`Can't restructure ${name}: ${prev.reason}.`);
+    return;
+  }
+  const msg = `Restructure ${name}?\n\n`
+            + `Convert $${prev.currentBase.toFixed(1)}M of current-year base salary into a $${prev.newProration.toFixed(1)}M/yr signing bonus across ${prev.remaining} years.\n\n`
+            + `Frees $${prev.freed.toFixed(1)}M of cap now.\n`
+            + `Adds $${prev.newProration.toFixed(1)}M/yr in dead money if cut later.\n\n`
+            + `Limited to once per player per offseason.`;
+  if (!confirm(msg)) return;
+  const c = p.contract;
+  const yearIndex = Math.max(0, (c.years || 1) - (c.remaining || 1));
+  if (c.baseSalaries) c.baseSalaries[yearIndex] = 0;
+  c.bonusProration     = Math.round(((c.bonusProration || 0) + prev.newProration) * 10) / 10;
+  c.signingBonus       = Math.round(((c.signingBonus   || 0) + prev.currentBase) * 10) / 10;
+  c.restructuredSeason = franchise.season;
+  saveFranchise();
+  if (typeof _pushNews === "function") {
+    _pushNews({ type: "restructure",
+      label: `🔀 Restructured ${p.position} ${name} — freed $${prev.freed.toFixed(1)}M, added $${prev.newProration.toFixed(1)}M/yr dead` });
+  }
+  renderFrnFACuts();
+}
+
+// Open the trade hub with a hint that this player is on the block.
+// frnOpenTrade itself doesn't take a player param, but we can drop a
+// breadcrumb on franchise so the trade renderer can preselect.
+function frnFATradeFromCuts(name, pos) {
+  franchise._tradeBlockHint = { name, pos };
+  if (typeof frnOpenTrade === "function") frnOpenTrade();
+}
+
 // Decision recommendation for a single player. Synthesizes the
 // "should I cut this guy" decision tree into a single verdict:
 //   - EASY CUT   = overpaid + low ceiling/age + position safe
@@ -5724,7 +5785,7 @@ function _faCutEconomics(player) {
 //   - COSTS $    = cutting loses money on the cap
 // Returns { verdict, label, color, reason } so the Notes column can
 // render a one-line synthesis.
-function _faCutVerdict(player, econ, positionDepth) {
+function _faCutVerdict(player, econ, positionDepth, restructure, tradeTag) {
   const ovr = player.overall || 60;
   const age = player.age || 25;
   const tier = (typeof HiddenOracle === "object" && HiddenOracle?.read?.ceilingTier)
@@ -5733,12 +5794,30 @@ function _faCutVerdict(player, econ, positionDepth) {
   const protect = player.captain || player.personality === "captain"
                 || (player.allPros || 0) >= 2 || (player.proBowls || 0) >= 3;
 
-  // Cutting costs money outright — always KEEP unless emergency
+  // Cutting costs money outright — surface the alternative if there
+  // is one (restructure is the natural fix for proration-heavy deals).
   if (econ.netRelief < -0.5) {
+    if (restructure?.eligible) {
+      return { verdict: "costs",
+               label: `Restructure first · save $${restructure.freed.toFixed(1)}M`,
+               color: "#5ed4d4",
+               reason: `cut loses $${Math.abs(econ.netRelief).toFixed(1)}M — convert base to bonus instead` };
+    }
     return { verdict: "costs",
              label: `Cut costs $${Math.abs(econ.netRelief).toFixed(1)}M`,
              color: "#ff8a8a",
              reason: "dead money exceeds salary relief" };
+  }
+
+  // Trade-asset chip — when a player is undervalued vs market, trading
+  // them is often better than cutting (you get assets back, not just
+  // cap). Only surfaces when there's meaningful trade value AND the
+  // player isn't a clear easy-cut.
+  if (tradeTag === "asset" && econ.netRelief < 10 && ovr >= 75) {
+    return { verdict: "judgment",
+             label: `Trade > cut · positive value`,
+             color: "#5ed4d4",
+             reason: "under-market — recoups picks/players, not just cap" };
   }
 
   // Position floor — would dropping this player breach it?
@@ -6095,14 +6174,26 @@ function renderFrnFACuts() {
                  : (p.overall||0) >= 62 ? "var(--gray)"
                  : "#ff8a8a";
     const positionDepth = depth[p.position];
+    // Alternatives — restructure preview + trade-value tag. Both feed
+    // into the verdict so the recommendation prefers a less-destructive
+    // path when one exists.
+    const restructure = _faRestructurePreview(p);
+    const tradeTag = (typeof _tradeValueTag === "function") ? _tradeValueTag(p, cap) : null;
     const verdict = isPending
       ? { verdict: "pending", label: "PENDING CUT", color: "#ff8a8a", reason: "queued for release" }
-      : _faCutVerdict(p, econ, positionDepth);
+      : _faCutVerdict(p, econ, positionDepth, restructure, tradeTag);
     // Ceiling tier — hidden potential bucket (S/A/B/C/D). Sourced via
     // HiddenOracle so the security model holds (no raw ceiling number
     // ever surfaces). Falls back to "?" if oracle isn't available.
     const tier = _hasOracle ? HiddenOracle.read.ceilingTier(p) : { grade: "?", color: "var(--gray)" };
     const tierBadge = `<span class="frn-cuts-tier tier-${tier.grade}" style="color:${tier.color};border-color:${tier.color}55" title="Hidden ceiling tier · S best, D worst — your scouts can be wrong">${tier.grade}</span>`;
+    // Inline trade-value chip — surfaces "ASSET" (positive value vs
+    // contract) or "BLOCKER" (negative value, anchor on cap).
+    const tradeChip = tradeTag === "asset"
+      ? `<span class="frn-cuts-trade-chip asset" title="Player is under-market — trade returns assets, not just cap relief">💰 ASSET</span>`
+      : tradeTag === "blocker"
+      ? `<span class="frn-cuts-trade-chip blocker" title="Bad contract — trade partners will demand picks to take this on">⚓ BLOCKER</span>`
+      : "";
 
     return `<tr class="${isPending?"pending":""} verdict-${verdict.verdict}">
       <td class="frn-cuts-td-pos">${p.position}</td>
@@ -6121,11 +6212,16 @@ function renderFrnFACuts() {
       <td class="frn-cuts-td-note">
         <span style="color:${verdict.color};font-weight:700">${verdict.label}</span>
         ${verdict.reason ? `<span class="frn-cuts-verdict-reason"> · ${verdict.reason}</span>` : ""}
+        ${tradeChip}
       </td>
       <td class="frn-cuts-td-action">
-        <button class="frn-cuts-row-btn ${isPending?"undo":"cut"}" onclick="frnFACutsTogglePending('${cleanName(p.name)}')">
-          ${isPending ? "← undo" : "✗ stage cut"}
-        </button>
+        <div class="frn-cuts-action-cluster">
+          ${(!isPending && restructure.eligible) ? `<button class="frn-cuts-row-btn restruct" onclick="frnFARestructureFromCuts('${cleanName(p.name)}','${p.position}')" title="Convert $${restructure.currentBase.toFixed(1)}M base → $${restructure.newProration.toFixed(1)}M/yr bonus. Frees cap now, adds dead-money risk later.">♻ +$${restructure.freed.toFixed(1)}M</button>` : ""}
+          ${(!isPending && tradeTag) ? `<button class="frn-cuts-row-btn trade" onclick="frnFATradeFromCuts('${cleanName(p.name)}','${p.position}')" title="Open the trade hub with ${p.name} on the block">🔀 trade</button>` : ""}
+          <button class="frn-cuts-row-btn ${isPending?"undo":"cut"}" onclick="frnFACutsTogglePending('${cleanName(p.name)}')">
+            ${isPending ? "← undo" : "✗ cut"}
+          </button>
+        </div>
       </td>
     </tr>`;
   }).join("");
