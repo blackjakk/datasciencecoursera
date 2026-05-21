@@ -1631,6 +1631,10 @@ function frnSimOnce(homeId, awayId, isPlayoff = false) {
   // Stamp gameday context onto the result so callers can persist it
   r.weather = sim.weather;
   r.isRivalry = isRivalry;
+  // Persist the weekly gameplan reasoning so the post-game recap and
+  // matchup card can replay "what each HC was trying to do."
+  r.homeWgp = homeWgp;
+  r.awayWgp = awayWgp;
   mergeSeasonStats(homeId, awayId, r.stats, _gameMergeKey(homeId, awayId, isPlayoff));
   _updateSingleGameRecords(homeId, awayId, r.stats, franchise.week, isPlayoff);
   captureGameHighlights(homeId, awayId, r.plays, isPlayoff,
@@ -1704,8 +1708,12 @@ function markGamePlayed(homeId, awayId, homeScore, awayScore, gameStats, plays, 
     g.homeScore = homeScore; g.awayScore = awayScore; g.played = true;
     if (gameStats) g.stats = _stripGameStatsForStorage(gameStats);
     if (plays)     g.scoring = _extractScoringTimeline(plays, homeScore, awayScore);
+    if (plays)     g.momentumLog = _extractMomentumLog(plays);
     if (ctx?.weather)     g.weather = { label: ctx.weather.label, windStrength: ctx.weather.windStrength };
     if (ctx?.isRivalry)   g.isRivalry = true;
+    if (ctx?.homeWgp || ctx?.awayWgp) g.gameplan = {
+      home: ctx.homeWgp || null, away: ctx.awayWgp || null,
+    };
   }
   recordFranchiseResult(homeId, awayId, homeScore, awayScore);
   // Reg-season "faced your team" scouting bump on opposing players
@@ -1717,6 +1725,21 @@ function markGamePlayed(homeId, awayId, homeScore, awayScore, gameStats, plays, 
 //   { qtr, clock, poss, pts, desc, homeScore, awayScore }
 // Used by the past-game viewer to render quarter-by-quarter scoring
 // and the win-probability chart.
+// Pull out the kind:"momentum" entries from the play stream as a compact
+// timeline. Used by the post-game recap to surface "biggest swings" and
+// by future drive-chart overlays. Keeps just the data the UI needs.
+function _extractMomentumLog(plays) {
+  if (!Array.isArray(plays)) return null;
+  const out = [];
+  for (const p of plays) {
+    if (p.kind !== "momentum") continue;
+    out.push({
+      team: p.team, amount: p.amount, source: p.source || "",
+      homeScore: p.homeScore || 0, awayScore: p.awayScore || 0,
+    });
+  }
+  return out.length ? out : null;
+}
 function _extractScoringTimeline(plays, finalHome, finalAway) {
   if (!Array.isArray(plays)) return [];
   const out = [];
@@ -2264,6 +2287,7 @@ function frnSimWeek() {
     g.homeScore = r.homeScore; g.awayScore = r.awayScore; g.played = true;
     g.stats = _stripGameStatsForStorage(r.full?.stats);
     g.scoring = _extractScoringTimeline(r.full?.plays, r.homeScore, r.awayScore);
+      g.momentumLog = _extractMomentumLog(r.full?.plays);
     if (r.full?.weather) g.weather = { label: r.full.weather.label, windStrength: r.full.weather.windStrength };
     if (r.full?.isRivalry) g.isRivalry = true;
     recordFranchiseResult(g.homeId, g.awayId, r.homeScore, r.awayScore);
@@ -2293,8 +2317,12 @@ function frnSimToWeek(targetWeek) {
       g.homeScore = r.homeScore; g.awayScore = r.awayScore; g.played = true;
       g.stats = _stripGameStatsForStorage(r.full?.stats);
       g.scoring = _extractScoringTimeline(r.full?.plays, r.homeScore, r.awayScore);
+      g.momentumLog = _extractMomentumLog(r.full?.plays);
       if (r.full?.weather) g.weather = { label: r.full.weather.label, windStrength: r.full.weather.windStrength };
       if (r.full?.isRivalry) g.isRivalry = true;
+      if (r.full?.homeWgp || r.full?.awayWgp) g.gameplan = {
+        home: r.full.homeWgp || null, away: r.full.awayWgp || null,
+      };
       recordFranchiseResult(g.homeId, g.awayId, r.homeScore, r.awayScore);
     }
     _computeAndStorePOTW(w);
@@ -2318,8 +2346,12 @@ function frnSimToEndOfSeason() {
       g.homeScore = r.homeScore; g.awayScore = r.awayScore; g.played = true;
       g.stats = _stripGameStatsForStorage(r.full?.stats);
       g.scoring = _extractScoringTimeline(r.full?.plays, r.homeScore, r.awayScore);
+      g.momentumLog = _extractMomentumLog(r.full?.plays);
       if (r.full?.weather) g.weather = { label: r.full.weather.label, windStrength: r.full.weather.windStrength };
       if (r.full?.isRivalry) g.isRivalry = true;
+      if (r.full?.homeWgp || r.full?.awayWgp) g.gameplan = {
+        home: r.full.homeWgp || null, away: r.full.awayWgp || null,
+      };
       recordFranchiseResult(g.homeId, g.awayId, r.homeScore, r.awayScore);
     }
     _computeAndStorePOTW(w);
@@ -2347,7 +2379,11 @@ function frnSimToEndOfSeason() {
         m.winnerId  = r.homeScore >= r.awayScore ? m.homeId : m.awayId;
         m.stats = _stripGameStatsForStorage(r.full?.stats);
         m.scoring = _extractScoringTimeline(r.full?.plays, r.homeScore, r.awayScore);
+        m.momentumLog = _extractMomentumLog(r.full?.plays);
         m.weather = r.full?.weather ? { label: r.full.weather.label, windStrength: r.full.weather.windStrength } : null;
+        if (r.full?.homeWgp || r.full?.awayWgp) m.gameplan = {
+          home: r.full.homeWgp || null, away: r.full.awayWgp || null,
+        };
         if (isChampRound) {
           franchise.superBowlGame = {
             homeId: m.homeId, awayId: m.awayId,
@@ -2455,8 +2491,12 @@ function frnSimSeason() {
       g.homeScore = r.homeScore; g.awayScore = r.awayScore; g.played = true;
       g.stats = _stripGameStatsForStorage(r.full?.stats);
       g.scoring = _extractScoringTimeline(r.full?.plays, r.homeScore, r.awayScore);
+      g.momentumLog = _extractMomentumLog(r.full?.plays);
       if (r.full?.weather) g.weather = { label: r.full.weather.label, windStrength: r.full.weather.windStrength };
       if (r.full?.isRivalry) g.isRivalry = true;
+      if (r.full?.homeWgp || r.full?.awayWgp) g.gameplan = {
+        home: r.full.homeWgp || null, away: r.full.awayWgp || null,
+      };
       recordFranchiseResult(g.homeId, g.awayId, r.homeScore, r.awayScore);
     }
     _computeAndStorePOTW(w);
@@ -3541,6 +3581,66 @@ function _renderPlayoffGameRecap() {
       </div>
     </div>` : "";
 
+  // ── Momentum swings (engine-flagged events that shifted the game) ───
+  // Pulled from m.momentumLog (populated by _extractMomentumLog at sim
+  // time). Shows the team, source, and direction. Sorted by absolute
+  // magnitude so the biggest swings surface first.
+  const momentumHtml = (() => {
+    const log = (m.momentumLog || []).slice().sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount)).slice(0, 5);
+    if (!log.length) return "";
+    return `
+    <div class="frn-prg-card">
+      <div class="frn-prg-card-title">MOMENTUM SWINGS</div>
+      <div class="frn-prg-scoring">
+        ${log.map(ev => {
+          const tId = teamIdForPoss(ev.team);
+          const t = tId ? getTeam(tId) : null;
+          const isMine = tId === myId;
+          const tAbbr = t ? (t.abbr || t.name.slice(0,3).toUpperCase()) : "—";
+          const arrow = ev.amount > 0 ? "↑" : "↓";
+          const col = ev.amount > 0 ? "#86e0a3" : "#ff8a8a";
+          return `<div class="frn-prg-scoring-row">
+            <span class="q" style="color:${col};font-weight:800">${arrow}${Math.abs(ev.amount).toFixed(0)}</span>
+            <span class="team" style="color:${t?.primary || 'var(--blwhite)'};font-weight:${isMine?700:400}">${tAbbr}</span>
+            <span class="desc">${ev.source || "swing"}</span>
+            <span class="score">${ev.homeScore}-${ev.awayScore}</span>
+          </div>`;
+        }).join("")}
+      </div>
+    </div>`;
+  })();
+
+  // ── Game plan (what each coach was trying to do this week) ───────────
+  // Pulled from m.gameplan (populated by frnSimOnce → markGamePlayed).
+  // Only renders when at least one coach identified an opponent edge.
+  const gameplanHtml = (() => {
+    const gp = m.gameplan;
+    if (!gp || (!gp.home?.reason && !gp.away?.reason)) return "";
+    const side = (label, plan, tid) => {
+      if (!plan?.reason) return "";
+      const t = getTeam(tid);
+      const tAbbr = t ? (t.abbr || t.name.slice(0,3).toUpperCase()) : label;
+      const tilt = plan.passProbDelta > 0 ? "+pass"
+                 : plan.passProbDelta < 0 ? "+run" : "balanced";
+      const tiltCol = plan.passProbDelta > 0 ? "#7ec8e3"
+                    : plan.passProbDelta < 0 ? "#e8a000" : "var(--gray)";
+      return `<div class="frn-prg-scoring-row">
+        <span class="q" style="color:${tiltCol};font-weight:800">${tilt}</span>
+        <span class="team" style="color:${t?.primary || 'var(--blwhite)'};font-weight:${tid===myId?700:400}">${tAbbr}</span>
+        <span class="desc">${plan.reason}${plan.ovrBump ? ` <span style="color:var(--gold)">(+${plan.ovrBump})</span>` : ""}</span>
+        <span class="score"></span>
+      </div>`;
+    };
+    return `
+    <div class="frn-prg-card">
+      <div class="frn-prg-card-title">GAME PLAN</div>
+      <div class="frn-prg-scoring">
+        ${side("HOME", gp.home, m.homeId)}
+        ${side("AWAY", gp.away, m.awayId)}
+      </div>
+    </div>`;
+  })();
+
   // ── Around the playoffs (other matchups this round) ─────────────────
   const otherRoundResults = (pb.rounds[ref.roundIdx] || [])
     .filter((mm, i) => i !== ref.matchupIdx && mm.winnerId != null);
@@ -3615,6 +3715,8 @@ function _renderPlayoffGameRecap() {
     </div>
 
     ${scoringHtml}
+    ${momentumHtml}
+    ${gameplanHtml}
     ${aroundHtml}
 
     <div class="frn-prg-cta-row">
@@ -3767,6 +3869,7 @@ function frnSimPlayoffRound() {
       m.winnerId  = r.homeScore >= r.awayScore ? m.homeId : m.awayId;
       m.stats   = _stripGameStatsForStorage(r.full?.stats);
       m.scoring = _extractScoringTimeline(r.full?.plays, r.homeScore, r.awayScore);
+        m.momentumLog = _extractMomentumLog(r.full?.plays);
       m.weather = r.full?.weather
         ? { label: r.full.weather.label, windStrength: r.full.weather.windStrength }
         : null;
@@ -3863,6 +3966,7 @@ function _savePlayoffMatchupStats(roundIdx, homeId, awayId, r) {
   if (!m) return;
   m.stats   = _stripGameStatsForStorage(r.full?.stats);
   m.scoring = _extractScoringTimeline(r.full?.plays, r.homeScore, r.awayScore);
+        m.momentumLog = _extractMomentumLog(r.full?.plays);
   m.weather = r.full?.weather
     ? { label: r.full.weather.label, windStrength: r.full.weather.windStrength }
     : null;

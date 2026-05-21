@@ -7221,6 +7221,36 @@ function renderFrnRegular() {
         </div>
       </div>`;
     }).join("");
+    // GAME PLAN — computed live based on opponent's DC. Reads the same
+    // formula `frnSimOnce` will use at kickoff, so the user sees the same
+    // tilt their HC is about to commit to. Reveals coach competence:
+    // sub-60-OVR coaches don't ID weaknesses, so the row stays muted.
+    let gameplanHtml = "";
+    if (typeof _computeWeeklyGameplan === "function") {
+      const myPlan = _computeWeeklyGameplan(chosenTeamId, oppIdX);
+      const oppPlan = _computeWeeklyGameplan(oppIdX, chosenTeamId);
+      const planRow = (label, plan) => {
+        if (!plan || (!plan.reason && !plan.passProbDelta)) {
+          return `<div class="frn-xray-gp-side">
+            <div class="frn-xray-gp-lbl">${label}</div>
+            <div class="frn-xray-gp-txt" style="color:var(--gray)">— no scouted edge —</div>
+          </div>`;
+        }
+        const tilt = plan.passProbDelta > 0 ? "+pass" : plan.passProbDelta < 0 ? "+run" : "balanced";
+        const tiltCol = plan.passProbDelta > 0 ? "#7ec8e3" : plan.passProbDelta < 0 ? "#e8a000" : "var(--gray)";
+        const bumpTag = plan.ovrBump > 0 ? ` · <span style="color:var(--gold);font-weight:700">+${plan.ovrBump} OVR</span>` : "";
+        return `<div class="frn-xray-gp-side">
+          <div class="frn-xray-gp-lbl">${label}</div>
+          <div class="frn-xray-gp-txt"><span style="color:${tiltCol};font-weight:700">${tilt}</span> · ${plan.reason}${bumpTag}</div>
+        </div>`;
+      };
+      gameplanHtml = `
+        <div class="frn-xray-gameplan">
+          <div class="frn-xray-gp-title">GAME PLAN <span style="color:var(--gray);font-size:.5rem;font-weight:400">(coach OVR gates how aggressive)</span></div>
+          ${planRow("YOU", myPlan)}
+          ${planRow((oppX?.name||"OPP").toUpperCase(), oppPlan)}
+        </div>`;
+    }
     matchupXrayHtml = `
       <div class="frn-card-box">
         <div class="frn-card-title">MATCHUP X-RAY <span class="frn-card-title-sub">vs ${oppX?.name || "opp"}</span></div>
@@ -7230,6 +7260,7 @@ function renderFrnRegular() {
           <span style="text-align:right">${(oppX?.name||"OPP").toUpperCase()}</span>
         </div>
         <div class="frn-xray-rows">${xRows}</div>
+        ${gameplanHtml}
       </div>`;
   }
 
@@ -7563,6 +7594,46 @@ function renderFrnRegular() {
 
   // ─── Final composition ────────────────────────────────────────────────
   const postGameHtml = _buildPostGameHeadline(chosenTeamId);
+  // Team identity tags — derived from cumulative game stats. Surface a
+  // strong/weak side of the team (red-zone efficiency, punting unit, return
+  // game) so the user reads team character at a glance. Tags only emit at
+  // statistically meaningful thresholds (need 3+ games of sample).
+  const identityTags = (() => {
+    const tags = [];
+    let rzAtt = 0, rzTd = 0, puntAtt = 0, puntYds = 0, retTd = 0;
+    let gamesPlayed = 0;
+    for (const g of (franchise.schedule || [])) {
+      if (!g.played || !g.stats) continue;
+      if (g.homeId !== chosenTeamId && g.awayId !== chosenTeamId) continue;
+      gamesPlayed++;
+      const side = g.homeId === chosenTeamId ? "home" : "away";
+      const t = g.stats[side]?.totals || {};
+      rzAtt += t.rz_att || 0;
+      rzTd  += t.rz_td  || 0;
+      const players = g.stats[side]?.players || {};
+      for (const p of Object.values(players)) {
+        puntAtt += p.punt_att || 0;
+        puntYds += p.punt_yds || 0;
+        retTd   += (p.kr_td || 0) + (p.pr_td || 0);
+      }
+    }
+    if (gamesPlayed < 3) return tags;
+    if (rzAtt >= 6) {
+      const pct = rzTd / rzAtt;
+      if (pct >= 0.60) tags.push({ label: `RZ KILLERS · ${Math.round(pct*100)}%`, color: "#86e0a3", title: `Red zone TD on ${rzTd} of ${rzAtt} trips` });
+      else if (pct <= 0.35) tags.push({ label: `RZ STALLS · ${Math.round(pct*100)}%`, color: "#ff8a8a", title: `Red zone TD on only ${rzTd} of ${rzAtt} trips` });
+    }
+    if (puntAtt >= 6) {
+      const avg = puntYds / puntAtt;
+      if (avg >= 46.5) tags.push({ label: `PUNT FORTRESS · ${avg.toFixed(1)} avg`, color: "#7ec8e3", title: `${puntAtt} punts, ${avg.toFixed(1)} gross avg` });
+    }
+    if (retTd >= 2) tags.push({ label: `RETURN THREAT · ${retTd} TD`, color: "var(--gold)", title: `${retTd} return TDs this season` });
+    return tags;
+  })();
+  const identityTagsHtml = identityTags.length ? `
+    <div class="frn-overview-tags">
+      ${identityTags.map(t => `<span class="frn-overview-tag" style="color:${t.color};border-color:${t.color}" title="${t.title}">${t.label}</span>`).join("")}
+    </div>` : "";
   // Slim Overview strip — DROPS the team name, cap, and record (already
   // visible in the app shell banner above) and keeps only the unique
   // glanceable info: PF/PA, OFF/DEF, form strip, and playoff seed.
@@ -7577,7 +7648,8 @@ function renderFrnRegular() {
         ${playedGames.length?` · <span style="letter-spacing:.1rem">${formStrip}</span>`:""}
       </span>
       <span class="frn-overview-strip-seed">${playoffStr}</span>
-    </div>`;
+    </div>
+    ${identityTagsHtml}`;
   // Wrapper container centers all top-level dashboard content on wide
   // displays (4K monitors were showing everything pinned to the left
   // because the grid had max-width but no auto margins). The shell

@@ -9274,6 +9274,24 @@
   }
   .frn-overview-strip-meta { letter-spacing: .2px; }
   .frn-overview-strip-seed { font-size: .62rem; }
+  /* Team identity tags — derived from cumulative game stats (RZ%, punt
+     average, return TDs). Rendered as compact bordered chips below the
+     overview strip. Only emit at meaningful thresholds so the row stays
+     quiet for an average team. */
+  .frn-overview-tags {
+    display: flex; gap: .35rem; flex-wrap: wrap;
+    margin: -.3rem 0 .55rem; padding: 0 .8rem;
+  }
+  .frn-overview-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .54rem; font-weight: 800; letter-spacing: .8px;
+    padding: .14rem .42rem;
+    border: 1px solid currentColor;
+    border-radius: 2px;
+    text-transform: uppercase;
+    background: rgba(0,0,0,.25);
+    cursor: help;
+  }
 
   /* GM Pulse — at-a-glance indicator grid below the inbox. 4 chips on
      one row, each with a label / big-value / sub. Mirrors the
@@ -9510,6 +9528,32 @@
     border-bottom: 1px solid var(--border);
   }
   .frn-xray-rows { display: flex; flex-direction: column; gap: .35rem; padding-top: .35rem; }
+  /* Gameplan reveal block under the X-RAY rows */
+  .frn-xray-gameplan {
+    margin-top: .55rem;
+    padding-top: .5rem;
+    border-top: 1px dashed var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: .35rem;
+  }
+  .frn-xray-gp-title {
+    font-size: .55rem; font-weight: 800; letter-spacing: .8px;
+    color: var(--gold); text-transform: uppercase;
+  }
+  .frn-xray-gp-side {
+    display: grid;
+    grid-template-columns: 4.5rem minmax(0, 1fr);
+    align-items: baseline; gap: .55rem;
+  }
+  .frn-xray-gp-lbl {
+    font-size: .55rem; font-weight: 800; letter-spacing: .5px;
+    color: var(--gray); text-transform: uppercase;
+  }
+  .frn-xray-gp-txt {
+    font-size: .6rem; color: var(--blgray);
+    line-height: 1.25;
+  }
   .frn-xray-row {
     display: grid;
     grid-template-columns: 4.5rem 4.5rem minmax(0, 1fr) 4.5rem;
