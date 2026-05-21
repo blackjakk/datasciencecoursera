@@ -7490,24 +7490,29 @@ function renderFrnRegular() {
       </span>
       <span class="frn-overview-strip-seed">${playoffStr}</span>
     </div>`;
+  // Wrapper container centers all top-level dashboard content on wide
+  // displays (4K monitors were showing everything pinned to the left
+  // because the grid had max-width but no auto margins).
   $("frnHomeContent").innerHTML = `
-    ${overviewIdentityHtml}
-    ${postGameHtml}
-    <div class="frn-dashboard-grid">
-      ${leftColHtml}
-      <div>${centerHtml}</div>
-      ${sidebarHtml}
-    </div>
-    <div class="frn-footer-row">
-      <div class="frn-footer-info">${(() => {
-        if (_saveLastError?.startsWith("idb-only")) return `<span style="color:#e8a000">ℹ Save in IndexedDB only (localStorage full). Data is safe.</span>`;
-        if (_saveLastError) return `<span style="color:#ff7070">⚠ Save error: ${_saveLastError}</span>`;
-        const mb = (_saveLastSize / 1024 / 1024).toFixed(2);
-        return `Auto-saved · ${mb}MB · Reload to keep playing`;
-      })()}</div>
-      <button class="btn btn-outline" onclick="frnExportSave()" style="font-size:.62rem;color:var(--gray)" title="Download backup .json">⬇ Export</button>
-      <button class="btn btn-outline" onclick="frnImportSave()" style="font-size:.62rem;color:var(--gray)" title="Restore from .json">⬆ Import</button>
-      <button class="btn btn-outline frn-abandon-btn" onclick="frnAbandon()">× Abandon</button>
+    <div class="frn-dashboard-page">
+      ${overviewIdentityHtml}
+      ${postGameHtml}
+      <div class="frn-dashboard-grid">
+        ${leftColHtml}
+        <div>${centerHtml}</div>
+        ${sidebarHtml}
+      </div>
+      <div class="frn-footer-row">
+        <div class="frn-footer-info">${(() => {
+          if (_saveLastError?.startsWith("idb-only")) return `<span style="color:#e8a000">ℹ Save in IndexedDB only (localStorage full). Data is safe.</span>`;
+          if (_saveLastError) return `<span style="color:#ff7070">⚠ Save error: ${_saveLastError}</span>`;
+          const mb = (_saveLastSize / 1024 / 1024).toFixed(2);
+          return `Auto-saved · ${mb}MB · Reload to keep playing`;
+        })()}</div>
+        <button class="btn btn-outline" onclick="frnExportSave()" style="font-size:.62rem;color:var(--gray)" title="Download backup .json">⬇ Export</button>
+        <button class="btn btn-outline" onclick="frnImportSave()" style="font-size:.62rem;color:var(--gray)" title="Restore from .json">⬆ Import</button>
+        <button class="btn btn-outline frn-abandon-btn" onclick="frnAbandon()">× Abandon</button>
+      </div>
     </div>`;
 }
 

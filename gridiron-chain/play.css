@@ -8253,12 +8253,18 @@
      weight. Left grows for the inbox; center stays focused on the Next
      Up card (full schedule moved into the right sidebar); right takes
      the remaining width for league snapshot / POTW / schedule. */
+  /* Page-level wrapper centers all dashboard content on wide displays
+     (4K monitors otherwise pinned everything to the left edge). */
+  .frn-dashboard-page {
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 0 .8rem;
+  }
   .frn-dashboard-grid {
     display: grid;
     grid-template-columns: 340px minmax(0, 1fr) minmax(300px, 360px);
     gap: 1rem;
     align-items: start;
-    max-width: 1440px;
   }
   @media (max-width: 1180px) {
     .frn-dashboard-grid {
@@ -9243,24 +9249,22 @@
     gap: .35rem;
     padding: .55rem .55rem .65rem;
   }
+  /* Cap PLAYMAKERS at 2-up — 3-up made cards too narrow inside the
+     ~700-740px center column on desktop/4K, causing name + stat-line
+     wraps. 2-up gives ~360px per card which fits everything cleanly. */
   @media (min-width: 720px) {
     .frn-myguys-grid { grid-template-columns: 1fr 1fr; }
   }
-  @media (min-width: 1280px) {
-    .frn-myguys-grid { grid-template-columns: 1fr 1fr 1fr; }
-  }
-  /* Playmaker card — restructured so the body column gets enough room
-     for full names + stats. Previously: 4 columns (rank, portrait, body,
-     ff-badge) all flex-tight, so names like "Olek Pearson" truncated and
-     stat lines wrapped mid-token. Now: rank moves to a small absolute
-     pill in the corner, portrait + body are the two main columns, and
-     the FF badge slots below the body. Names + stats no longer nowrap. */
+  /* Playmaker card — 3-column grid: portrait | body | FF badge. Rank
+     pill is absolute-positioned in the corner so it doesn't consume a
+     grid column. Body is a flex column (name, meta, stats, per-game
+     stacked). FF badge sits beside the body, vertically centered. */
   .frn-myguy-card {
     position: relative;
     display: grid;
-    grid-template-columns: 2.6rem 1fr;
-    align-items: start; gap: .5rem;
-    padding: .55rem .65rem .55rem .65rem;
+    grid-template-columns: 2.6rem minmax(0, 1fr) auto;
+    align-items: center; gap: .55rem;
+    padding: .55rem .65rem;
     background: rgba(255,255,255,.025);
     border: 1px solid var(--border);
     border-radius: 4px;
@@ -9305,25 +9309,20 @@
   }
   .frn-myguy-body {
     min-width: 0;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: auto auto auto auto;
-    gap: .1rem .5rem;
-    align-items: start;
+    display: flex; flex-direction: column;
+    gap: .1rem;
   }
   .frn-myguy-name {
-    font-size: .76rem; font-weight: 800;
+    font-size: .78rem; font-weight: 800;
     color: var(--blwhite);
     line-height: 1.2;
-    word-break: break-word;
-    grid-column: 1 / 2;
+    overflow-wrap: break-word;
   }
   .frn-myguy-meta {
     display: flex; align-items: center; gap: .35rem;
     flex-wrap: wrap;
     font-family: 'IBM Plex Mono', monospace;
     font-size: .55rem; color: var(--gray);
-    grid-column: 1 / 2;
   }
   .frn-myguy-pos { font-weight: 900; letter-spacing: .3px; }
   .frn-myguy-ovr { font-weight: 800; }
@@ -9334,31 +9333,27 @@
   }
   .frn-myguy-stats {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: .6rem; color: var(--blwhite);
+    font-size: .62rem; color: var(--blwhite);
     letter-spacing: .15px;
-    grid-column: 1 / 2;
-    word-break: break-word;
+    overflow-wrap: break-word;
   }
   .frn-myguy-pergame {
     font-family: 'IBM Plex Mono', monospace;
     font-size: .55rem; color: var(--gray);
     letter-spacing: .2px;
-    grid-column: 1 / 2;
-    word-break: break-word;
+    overflow-wrap: break-word;
   }
-  /* FFP/G badge — now stacks against the body in the right column,
-     vertically centered across all 4 rows so it sits beside the stats. */
+  /* FFP/G badge — fixed column in the outer 3-col grid. Vertically
+     centered against the body, compact width, gold border. */
   .frn-myguy-ff {
-    grid-column: 2 / 3;
-    grid-row: 1 / span 4;
-    align-self: center;
     display: flex; flex-direction: column; align-items: center;
     padding: .4rem .35rem;
     background: rgba(200,169,0,.08);
     border: 1px solid rgba(200,169,0,.3);
     border-radius: 3px;
     line-height: 1;
-    min-width: 2.6rem;
+    min-width: 2.8rem;
+    flex-shrink: 0;
   }
   .frn-myguy-ff-val {
     font-family: 'IBM Plex Mono', monospace;
