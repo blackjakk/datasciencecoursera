@@ -2113,14 +2113,45 @@ class GameSimulator {
           });
           return { yards };
         }
-        const loss = rand(3, 11);
+        // Sack depth — bidirectional. Brady-tier (slow + aware) takes ~4-5 yd
+        // sacks; Lamar-tier (mobile) ~1-2; immobile + unaware QBs deeper.
+        // GUNSLINGER holds the ball (deeper); PA / flea flicker = deeper drop.
+        const qbSpd = qbPlayer?.stats?.[0] ?? 70;
+        const mobilityCut = (qbSpd - 70) / 8;        // SPD 90 -> -2.5, SPD 50 -> +2.5
+        const awrCut      = (qbAwr - 70) / 10;       // AWR 90 -> -2,   AWR 50 -> +2
+        const sackArchMod = qbArch === "POCKET"      ? -0.5
+                         : qbArch === "DUAL_THREAT"  ? -1.5
+                         : qbArch === "GUNSLINGER"   ?  2.0
+                         : 0;
+        const sackPlayMod = isFleaFlicker ? 3 : isPlayAction ? 1 : 0;
+        const loss = Math.round(clamp(normal(6 + sackArchMod + sackPlayMod - mobilityCut - awrCut, 3), 1, 22));
         if (qbStats) { qbStats.sacks_taken++; qbStats.sack_yds += loss; }
         off.team.sacks_allowed++; def.team.sacks++;
-        // Credit the sack to the DL who won the rep (also count as tackle)
-        if (reps.dl?.name && def.players[reps.dl.name]) {
+        // NFL: ~30% of sacks come from LBs (mostly edge-rushing blitzers).
+        // Roll for an LB sack when blitzers are on the field; otherwise credit
+        // the DL who won the rep.
+        const lbPool = (this.defArch.LB || []).filter(l => l?.name);
+        const blitzerCount = lbPool.filter(l => l.archetype === "BLITZER").length;
+        const lbSackChance = lbPool.length ? Math.min(0.40, 0.18 + blitzerCount * 0.08) : 0;
+        let sackedBy = null, sackedByMove = null;
+        if (lbPool.length && Math.random() < lbSackChance) {
+          const weights = lbPool.map(l => l.archetype === "BLITZER" ? 3 : 1);
+          const total = weights.reduce((s, w) => s + w, 0);
+          let r = Math.random() * total;
+          let chosen = lbPool[lbPool.length - 1];
+          for (let i = 0; i < lbPool.length; i++) { r -= weights[i]; if (r <= 0) { chosen = lbPool[i]; break; } }
+          if (def.players[chosen.name]) {
+            def.players[chosen.name].sk = (def.players[chosen.name].sk || 0) + 1;
+            def.players[chosen.name].sk_yds = (def.players[chosen.name].sk_yds || 0) + loss;
+            def.players[chosen.name].tkl = (def.players[chosen.name].tkl || 0) + 1;
+            sackedBy = chosen.name;
+            sackedByMove = "BLITZ";
+          }
+        } else if (reps.dl?.name && def.players[reps.dl.name]) {
           def.players[reps.dl.name].sk = (def.players[reps.dl.name].sk || 0) + 1;
           def.players[reps.dl.name].sk_yds = (def.players[reps.dl.name].sk_yds || 0) + loss;
           def.players[reps.dl.name].tkl = (def.players[reps.dl.name].tkl || 0) + 1;
+          sackedBy = reps.dl.name;
         }
         // Charge the sack to the OL who lost the rep
         if (reps.ol?.name && off.players[reps.ol.name])
