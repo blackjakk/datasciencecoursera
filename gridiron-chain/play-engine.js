@@ -2348,7 +2348,7 @@ class GameSimulator {
         // elites — too high. /24 keeps the elite advantage but
         // compresses to ~+1.0yd at 99 OVR.
         const qbAirFromOvr = (this.offR.qb - 75) / 24;
-        const qbPocketAirBonus = Math.max(0, qbPocketBonus) * 3.5;   // up to +1.75 yds at AWR 95
+        const qbPocketAirBonus = Math.max(0, qbPocketBonus) * 2.0;
         // CENTER_FIELD safety caps deep passing — pulls the air mean down
         // when a rangy single-high safety is on the field. Range scales
         // with the safety's actual effective speed (a "rangy" safety
@@ -2382,16 +2382,18 @@ class GameSimulator {
         // routes.
         const archAirMod = rcvrArch === "DEEP_THREAT"  ?  3.0
                          : rcvrArch === "POSSESSION"   ? -1.5
-                         : rcvrArch === "SLOT"         ? -2.0
+                         : rcvrArch === "SLOT"         ? -3.0
                          : rcvrArch === "RED_ZONE"     ? -1.2
-                         : rcvrArch === "ROUTE_RUNNER" ?  0.5
+                         : rcvrArch === "ROUTE_RUNNER" ? -0.5
                          : rcvrArch === "BLOCKING"     ? -3.5  // blocking TE: short outlets only
                          : 0;
+        // RBs catch short outlets; without this they inherit the WR air-yards mean.
+        const posAirMod = rcvrPlayer?.position === "RB" ? -3.0 : 0;
         // Aggressive QBs call more deep shots — tilts target depth up/down.
         const qbAggAirMod = (this._aggTilt(this._qbAggression()) - 1) * 3.0; // agg=80→+0.9yds, agg=20→-0.9yds
         // OC Air Attack: +1.0 to air yards mean
         const ocAirAttackMod = _ocTrait === "Air Attack" ? 1.0 : 0;
-        const airMean = (pb.airYdsMean ?? 7.5) + 2.8 - pressure * 2.0 + qbAirMod + qbAirFromOvr + paAirMod + qbPocketAirBonus + centerFieldCap + wxAirMod + defDeepBonus + archAirMod + qbAggAirMod + ocAirAttackMod;
+        const airMean = (pb.airYdsMean ?? 7.5) + 2.8 - pressure * 2.0 + qbAirMod + qbAirFromOvr + paAirMod + qbPocketAirBonus + centerFieldCap + wxAirMod + defDeepBonus + archAirMod + posAirMod + qbAggAirMod + ocAirAttackMod;
         const airSd   = (pb.airYdsSd   ?? 6) * (qbArch === "GUNSLINGER" ? 1.25 : 1.0);
         const airYds  = clamp(normal(airMean + adv * 2, airSd), -2, 55);
         // YAC distribution — short catches / screens get more YAC potential.
