@@ -514,7 +514,7 @@ class GameSimulator {
   // this we undershot NFL pace by ~25%.
   _creditTackle(weights) {
     const primary = this._creditDefStat("tkl", weights);
-    if (primary && Math.random() < 0.72) {
+    if (primary && Math.random() < 0.80) {
       // Assist roll: credit a different defender at the same weights.
       // Skip the primary so we don't double-bump the same player.
       this._creditDefStat("tkl", weights, primary);
@@ -1670,7 +1670,7 @@ class GameSimulator {
       // turnover doesn't make sacks 50% more frequent.
       const momSackMul = 1 + ((this._momentum?.[this.poss === "home" ? "away" : "home"] || 0)
                             - (this._momentum?.[this.poss] || 0)) * 0.012;
-      const sackPct = clamp((0.09 + pressure * 0.10 - adv * 0.02 + archSackBonus) * sackPb * qbAwrSackMul * defPbCurrent.sackMul * mlbAggMul * fatigueSackMul * momSackMul, 0.018, 0.19);
+      const sackPct = clamp((0.10 + pressure * 0.10 - adv * 0.02 + archSackBonus) * sackPb * qbAwrSackMul * defPbCurrent.sackMul * mlbAggMul * fatigueSackMul * momSackMul, 0.02, 0.20);
       if (Math.random() < sackPct) {
         // THROW ON THE RUN — mobile QBs with high AGI sometimes escape pressure
         // and throw on the move instead of taking the sack. Lower comp / air
@@ -1691,6 +1691,10 @@ class GameSimulator {
             const yac = airYds >= 5 ? rand(0, Math.max(1, Math.floor(airYds * 0.4))) : 0;
             const yards = Math.min(Math.max(1, targetDepth + yac), 100 - startYard);
             const rcvr = pickReceiver(pb, this.offR.starters, this._currentPersonnel);
+            // Backups (wr3/wr4/te2/rb2) aren't pre-registered in
+            // _buildTeamStats — ensure their stat line exists or rec_yds
+            // gets dropped while pass_yds still credits the QB.
+            this._ensurePlayerStat(this.poss, rcvr, this._playerByName?.get?.(rcvr)?.position || "WR");
             const rcvrStats = off.players[rcvr];
             if (qbStats) { qbStats.pass_att++; qbStats.pass_comp++; qbStats.pass_yds += yards; if (yards > qbStats.pass_long) qbStats.pass_long = yards; }
             if (rcvrStats) { rcvrStats.rec_tgt++; rcvrStats.rec++; rcvrStats.rec_yds += yards; if (yards > rcvrStats.rec_long) rcvrStats.rec_long = yards; }
@@ -1800,6 +1804,7 @@ class GameSimulator {
       const isScreenCall = !(isThird && this.ytg >= 9) && Math.random() < 0.085;
       if (isScreenCall) {
         const rcvr = this.offR.starters.rb;
+        this._ensurePlayerStat(this.poss, rcvr, "RB");
         const rcvrStats = off.players[rcvr];
         if (Math.random() < 0.84) {
           // Completed screen
@@ -1839,6 +1844,8 @@ class GameSimulator {
       // (Previously the receiver was picked AFTER the comp roll, so a 39-CAT WR had
       // the same comp% as a 95-CAT one — that's no longer true.)
       const rcvr = pickReceiver(pb, this.offR.starters, this._currentPersonnel);
+      // Backups (wr3/wr4/te2/rb) aren't pre-registered — ensure here.
+      this._ensurePlayerStat(this.poss, rcvr, this._playerByName?.get?.(rcvr)?.position || "WR");
       const rcvrStats = off.players[rcvr];
       const rcvrPlayer = this._playerByName?.get?.(rcvr) || null;
       const rcvrCat = rcvrPlayer?.stats?.[5] ?? 70;
@@ -2007,7 +2014,7 @@ class GameSimulator {
         const qbAggAirMod = (this._aggTilt(this._qbAggression()) - 1) * 3.0; // agg=80→+0.9yds, agg=20→-0.9yds
         // OC Air Attack: +1.0 to air yards mean
         const ocAirAttackMod = _ocTrait === "Air Attack" ? 1.0 : 0;
-        const airMean = (pb.airYdsMean ?? 7.5) + 2.6 - pressure * 2.2 + qbAirMod + qbAirFromOvr + paAirMod + qbPocketAirBonus + centerFieldCap + wxAirMod + defDeepBonus + archAirMod + qbAggAirMod + ocAirAttackMod;
+        const airMean = (pb.airYdsMean ?? 7.5) + 2.8 - pressure * 2.0 + qbAirMod + qbAirFromOvr + paAirMod + qbPocketAirBonus + centerFieldCap + wxAirMod + defDeepBonus + archAirMod + qbAggAirMod + ocAirAttackMod;
         const airSd   = (pb.airYdsSd   ?? 6) * (qbArch === "GUNSLINGER" ? 1.25 : 1.0);
         const airYds  = clamp(normal(airMean + adv * 2, airSd), -2, 55);
         // YAC distribution — short catches / screens get more YAC potential.
