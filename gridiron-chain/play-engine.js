@@ -1858,7 +1858,10 @@ class GameSimulator {
       const qbAgi = qbPlayer?.stats?.[2] ?? 65;
       const qbThr = qbPlayer?.stats?.[4] ?? 75;
       // Coverage-aware target mix — QB attacks weak CBs, avoids elite ones.
-      // CB1 typically covers WR1, CB2 covers WR2, SLOT_CB covers slot/WR3.
+      // QB archetype scales how much they care: GUNSLINGER force-feeds
+      // their #1 regardless (Favre, Rodgers, Mahomes — pays in INTs);
+      // FIELD_GENERAL reads matchups better than average; DUAL_THREAT
+      // partial avoidance (playmaker mode); POCKET / GAME_MANAGER default.
       const cbArr = this.defArch.CB || [];
       const cb1Arch = cbArr[0]?.archetype, cb2Arch = cbArr[1]?.archetype;
       const slotCbArch = cbArr.find(c => c?.archetype === "SLOT_CB")?.archetype;
@@ -1866,10 +1869,17 @@ class GameSimulator {
                           : a === "PHYSICAL"  ? 0.78
                           : a === "BALL_HAWK" ? 0.88
                           : 1.00;
+      const qbAvoidMul = qbArch === "GUNSLINGER"   ? 0.20
+                       : qbArch === "FIELD_GENERAL" ? 1.30
+                       : qbArch === "DUAL_THREAT"   ? 0.70
+                       : 1.00;
+      // Blend each avoidance factor toward 1.0 by qbAvoidMul: a low mul
+      // collapses the avoid toward 1.0 (no avoidance); a high mul amplifies.
+      const blendAvoid = a => 1 - (1 - a) * qbAvoidMul;
       const cbCoverageMix = {
-        wr1: avoidFor(cb1Arch),
-        wr2: avoidFor(cb2Arch),
-        wr3: avoidFor(slotCbArch),
+        wr1: blendAvoid(avoidFor(cb1Arch)),
+        wr2: blendAvoid(avoidFor(cb2Arch)),
+        wr3: blendAvoid(avoidFor(slotCbArch)),
       };
       // QB archetype effects on the dropback
       // GUNSLINGER: more INTs, deeper throws, less accurate
