@@ -1642,7 +1642,10 @@ class GameSimulator {
       }
       // QB OVR matters a lot for completion %: a 60-OVR scrub completes far less than a 90-OVR star
       // (swing of ~0.20 across 30 OVR points, centered around 75 OVR baseline)
-      const qbCompFromOvr = (this.offR.qb - 75) / 150;  // QB 60 → -0.10, QB 90 → +0.10
+      // OVR completion boost compressed: was (OVR-75)/150 giving a 99
+      // OVR a +16pp swing — too extreme. Real NFL elite vs average is
+      // ~5pp gap. Halved to (OVR-75)/300 → 99-OVR = +8pp swing.
+      const qbCompFromOvr = (this.offR.qb - 75) / 300;
       // ── COMPOSED-QB POCKET BONUS ──────────────────────────────────────
       // Smart, cool-headed QBs (high AWR) extend plays in the pocket — they
       // step up, slide, hold the ball longer, and wait for the deep route
@@ -1707,7 +1710,12 @@ class GameSimulator {
         // Weaker QBs also throw shorter — they can't push the ball downfield reliably.
         // Composed QBs (high AWR) push the ball further by extending the play
         // and waiting for the deep route to break open.
-        const qbAirFromOvr = (this.offR.qb - 75) / 12;  // QB 60 → -1.25 yds, QB 90 → +1.25 yds
+        // Air-yards boost from OVR halved: was /12 giving 99-OVR +2.0
+        // air-yards. Combined with the higher base airYdsMean (7.5)
+        // and YAC layer this produced ~13-15 yd avg completions for
+        // elites — too high. /24 keeps the elite advantage but
+        // compresses to ~+1.0yd at 99 OVR.
+        const qbAirFromOvr = (this.offR.qb - 75) / 24;
         const qbPocketAirBonus = Math.max(0, qbPocketBonus) * 3.5;   // up to +1.75 yds at AWR 95
         // CENTER_FIELD safety caps deep passing — pulls the air mean down
         // when a rangy single-high safety is on the field.
