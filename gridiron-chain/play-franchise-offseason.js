@@ -17588,10 +17588,93 @@ function _backfillSeasonScout() {
   if (!franchise.seasonScoutReveals)     franchise.seasonScoutReveals = {};
 }
 function _refreshSeasonScoutCredits() {
-  franchise.seasonScoutBank = Math.min(
-    _SEASON_SCOUT_BANK_CAP,
-    (franchise.seasonScoutBank || 0) + _SEASON_SCOUTS_PER_WEEK
-  );
+  const current = franchise.seasonScoutBank || 0;
+  const newTotal = current + _SEASON_SCOUTS_PER_WEEK;
+  if (newTotal <= _SEASON_SCOUT_BANK_CAP) {
+    franchise.seasonScoutBank = newTotal;
+    return;
+  }
+  // Bank would overflow — cap it and auto-spend the excess credits on
+  // priority prospects so they aren't lost.
+  franchise.seasonScoutBank = _SEASON_SCOUT_BANK_CAP;
+  const overflow = newTotal - _SEASON_SCOUT_BANK_CAP;
+  if (typeof _autoSpendScoutCredits === "function") _autoSpendScoutCredits(overflow);
+}
+
+// Auto-spend scout credits on priority prospects when the bank
+// overflows. Picks (prospect, category) pairs greedily by:
+//   1. Watched players (user has intent)
+//   2. Top draft-grade prospects (R1-R3)
+//   3. Already-partially-scouted prospects (finish what's started)
+// Category order: film > interview > medical > workout (film triggers
+// the 50% potential reveal so it's the highest-value first hit).
+// Doesn't touch seasonScoutBank — these credits are spent FROM THE
+// OVERFLOW, not from the stored bank. Drops a wire entry summarizing.
+function _autoSpendScoutCredits(count) {
+  if (!count || count <= 0) return;
+  if (!franchise.collegePlayers?.length) return;
+  _backfillSeasonScout();
+  const watched = new Set(franchise.watchedPlayers || []);
+  const reveals = franchise.seasonScoutReveals;
+  const CAT_ORDER = ["film", "interview", "medical", "workout"];
+
+  const candidates = franchise.collegePlayers.map(p => {
+    const rev = reveals[p.name];
+    const done = new Set(rev?.categories || []);
+    const available = CAT_ORDER.filter(c => !done.has(c));
+    if (!available.length) return null;
+    // Priority score: watchlist > top grade > in-progress.
+    let prio = 0;
+    if (watched.has(p.name)) prio += 50;
+    const r = p._generatedRound || 7;
+    if (r === 1) prio += 25;
+    else if (r === 2) prio += 18;
+    else if (r === 3) prio += 12;
+    else if (r === 4) prio += 6;
+    else if (r === 5) prio += 3;
+    if (rev?.categories?.length) prio += 8;
+    return { p, available, prio };
+  }).filter(Boolean).sort((a, b) => b.prio - a.prio);
+
+  const revealed = []; // {name, pos, cat}
+  for (const c of candidates) {
+    if (count <= 0) break;
+    while (c.available.length && count > 0) {
+      const cat = c.available.shift();
+      // Inline the reveal logic so we don't touch seasonScoutBank — the
+      // overflow credits are spent without ever entering the bank.
+      let rev = reveals[c.p.name];
+      if (!rev) {
+        rev = { categories: [], knockNotes: {}, revealed: false, categoryWeeks: {} };
+        reveals[c.p.name] = rev;
+      } else if (!rev.categoryWeeks) {
+        rev.categoryWeeks = {};
+      }
+      if (rev.categories.includes(cat)) { continue; }
+      rev.categories.push(cat);
+      rev.categoryWeeks[cat] = franchise.week || 1;
+      // Match the manual-spend's knock-note + film-reveal behavior
+      const knockType = c.p?.collegeProfile?.knockType || null;
+      const knockCat  = knockType
+        ? (typeof _DRAFT_KNOCK_CATEGORY !== "undefined" ? _DRAFT_KNOCK_CATEGORY[knockType] : null)
+        : null;
+      if (knockType && knockCat === cat && typeof _buildScoutKnockNote === "function") {
+        const expR = (typeof _projectedDraftRound === "function") ? (_projectedDraftRound(c.p) || 5) : 5;
+        const expPot  = { 1:88, 2:81, 3:75, 4:70, 5:66, 6:63, 7:60 }[expR] ?? 65;
+        const isHiUp  = (c.p?.potential || 65) >= expPot + 4;
+        rev.knockNotes[cat] = _buildScoutKnockNote(knockType, isHiUp);
+      }
+      if (cat === "film") rev.revealed = rev.revealed || (Math.random() < 0.50);
+      revealed.push({ name: c.p.name, pos: c.p.position, cat });
+      count--;
+    }
+  }
+  if (revealed.length && typeof _pushNews === "function") {
+    const uniqNames = [...new Set(revealed.map(r => r.name))];
+    const sampleName = uniqNames[0];
+    _pushNews({ type: "scout_reveal",
+      label: `🔭 Auto-scout: ${revealed.length} categor${revealed.length===1?"y":"ies"} revealed on ${uniqNames.length} prospect${uniqNames.length===1?"":"s"} (starting with ${sampleName}) — bank was full so the overflow went to work.` });
+  }
 }
 
 // ── Stat labels — the index → human-readable mapping used by the

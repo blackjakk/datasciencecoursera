@@ -6846,10 +6846,10 @@ function renderFrnRegular() {
         ${pulseChipHtml("TRADE WIN", tradeChipLabel, tradeDelta < 0 ? "deadline passed" : `until W${TRADE_DEADLINE_WEEK}`, tradeChipCol)}
         ${pulseChipHtml("BYE", byeChipLabel, byeDelta == null ? "—" : byeDelta < 0 ? "" : byeDelta === 0 ? "rest week" : `${byeDelta}w out`, byeChipCol)}
         ${pulseChipHtml("HEALTH", healthChipLabel, healthChipSub, healthChipCol)}
-        <div class="frn-pulse-chip clickable" ${scoutChipClick} title="Click to open college scouting. ${scoutBank >= SCOUT_CAP ? 'Bank is full — credits stop accumulating until you spend.' : ''}">
-          <div class="frn-pulse-chip-label">🔭 SCOUTING${scoutBank >= SCOUT_CAP ? `<span class="frn-pulse-chip-badge" title="Bank full — spend or lose">!</span>` : (scoutBank >= SCOUT_CAP - 2 ? `<span class="frn-pulse-chip-badge warn" title="Bank nearly full — spend soon">!</span>` : "")}</div>
+        <div class="frn-pulse-chip clickable" ${scoutChipClick} title="Click to open college scouting. ${scoutBank >= SCOUT_CAP ? 'Bank is full — overflow auto-spends on priority prospects (watchlist > top-grade > in-progress).' : 'Overflow auto-spends on priority prospects.'}">
+          <div class="frn-pulse-chip-label">🔭 SCOUTING${scoutBank >= SCOUT_CAP ? `<span class="frn-pulse-chip-badge" title="Bank full — overflow auto-spends">!</span>` : (scoutBank >= SCOUT_CAP - 2 ? `<span class="frn-pulse-chip-badge warn" title="Bank nearly full — overflow will auto-spend">!</span>` : "")}</div>
           <div class="frn-pulse-chip-value" style="color:${scoutChipCol}">${scoutBank}<span style="font-size:.65rem;color:var(--gray);font-weight:500"> / ${SCOUT_CAP}</span></div>
-          <div class="frn-pulse-chip-sub">+${SCOUT_REFRESH}/wk · ${revealCount} revealed</div>
+          <div class="frn-pulse-chip-sub">+${SCOUT_REFRESH}/wk · ${revealCount} revealed${scoutBank >= SCOUT_CAP ? " · auto-spending" : ""}</div>
           ${scoutExtra}
         </div>
       </div>
