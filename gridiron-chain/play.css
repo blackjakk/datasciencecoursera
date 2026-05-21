@@ -1190,18 +1190,42 @@
   .frn-card-title-sub { color: var(--gray); font-size: .6rem; font-weight: 400; }
 
   /* Leader rows */
+  /* Leader row — restructured to two-row layout so name + stats can't
+     squeeze each other. Category (PASS / RUSH / OFF / DEF) on the left
+     in a fixed column; name + stat stack vertically in the body. Avoids
+     the prior cutoff where a long dual-threat QB stat line ("19 car
+     134 yds 1 TD · 5/8 51 yds 1 TD") would push the team tag to a
+     second line inside the name span. */
   .frn-leader-row {
-    display: flex; align-items: center; gap: .4rem;
-    padding: .22rem 0; font-size: .75rem;
+    display: grid;
+    grid-template-columns: 2.6rem minmax(0, 1fr);
+    align-items: start; gap: .15rem .55rem;
+    padding: .3rem 0; font-size: .7rem;
     border-bottom: 1px solid rgba(46,61,46,0.5);
   }
   .frn-leader-row:last-child { border-bottom: none; }
   .frn-leader-cat {
-    width: 3.2rem; color: var(--gold); font-weight: 700;
-    font-size: .6rem; letter-spacing: .3px; flex-shrink: 0;
+    color: var(--gold); font-weight: 800;
+    font-size: .56rem; letter-spacing: .6px;
+    text-transform: uppercase; align-self: start; padding-top: .1rem;
+    text-align: right;
   }
-  .frn-leader-name { flex: 1; }
-  .frn-leader-stat { color: var(--gray); font-size: .68rem; }
+  .frn-leader-name {
+    color: var(--blwhite); font-weight: 700;
+    font-size: .72rem;
+    overflow: hidden;
+    /* Word-wrap rather than truncate — long names + team abbr should
+       wrap cleanly to a second line rather than ellipsize. */
+    word-break: break-word;
+  }
+  .frn-leader-stat {
+    color: var(--gray); font-size: .58rem;
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: .2px;
+    margin-top: .12rem;
+    grid-column: 2 / 3; /* in 2-row mode, stat lands under name */
+    word-break: break-word;
+  }
 
   /* Highlights — featured card */
   /* ── Season Highlights all-page additions ────────────────────────────── */
@@ -9225,11 +9249,18 @@
   @media (min-width: 1280px) {
     .frn-myguys-grid { grid-template-columns: 1fr 1fr 1fr; }
   }
+  /* Playmaker card — restructured so the body column gets enough room
+     for full names + stats. Previously: 4 columns (rank, portrait, body,
+     ff-badge) all flex-tight, so names like "Olek Pearson" truncated and
+     stat lines wrapped mid-token. Now: rank moves to a small absolute
+     pill in the corner, portrait + body are the two main columns, and
+     the FF badge slots below the body. Names + stats no longer nowrap. */
   .frn-myguy-card {
+    position: relative;
     display: grid;
-    grid-template-columns: 1.3rem 2.6rem 1fr 3.2rem;
-    align-items: center; gap: .5rem;
-    padding: .5rem .65rem;
+    grid-template-columns: 2.6rem 1fr;
+    align-items: start; gap: .5rem;
+    padding: .55rem .65rem .55rem .65rem;
     background: rgba(255,255,255,.025);
     border: 1px solid var(--border);
     border-radius: 4px;
@@ -9242,11 +9273,18 @@
     border-color: rgba(200,169,0,.45);
     transform: translateY(-1px);
   }
+  /* Rank pill — small absolute element in the top-left corner instead
+     of consuming a grid column. Frees up width for the body content. */
   .frn-myguy-rank {
+    position: absolute; top: -.4rem; left: -.4rem;
+    background: var(--gold); color: #0a0a0a;
     font-family: 'IBM Plex Mono', monospace;
-    font-size: .55rem; font-weight: 800;
-    color: var(--gray); letter-spacing: .3px;
-    text-align: center;
+    font-size: .52rem; font-weight: 900;
+    padding: .12rem .35rem;
+    border-radius: 3px;
+    letter-spacing: .3px;
+    z-index: 2;
+    box-shadow: 0 1px 3px rgba(0,0,0,.5);
   }
   /* Player portrait box — uses _playerPortrait() output. The img inside
      fills the box at object-fit:cover. Position-colored border ties
@@ -9265,17 +9303,27 @@
     width: 100% !important; height: 100% !important;
     object-fit: cover; display: block;
   }
-  .frn-myguy-body { min-width: 0; }
+  .frn-myguy-body {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto auto auto;
+    gap: .1rem .5rem;
+    align-items: start;
+  }
   .frn-myguy-name {
-    font-size: .74rem; font-weight: 800;
+    font-size: .76rem; font-weight: 800;
     color: var(--blwhite);
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    line-height: 1.2;
+    word-break: break-word;
+    grid-column: 1 / 2;
   }
   .frn-myguy-meta {
     display: flex; align-items: center; gap: .35rem;
+    flex-wrap: wrap;
     font-family: 'IBM Plex Mono', monospace;
     font-size: .55rem; color: var(--gray);
-    margin-top: .1rem;
+    grid-column: 1 / 2;
   }
   .frn-myguy-pos { font-weight: 900; letter-spacing: .3px; }
   .frn-myguy-ovr { font-weight: 800; }
@@ -9287,21 +9335,30 @@
   .frn-myguy-stats {
     font-family: 'IBM Plex Mono', monospace;
     font-size: .6rem; color: var(--blwhite);
-    margin-top: .2rem; letter-spacing: .15px;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    letter-spacing: .15px;
+    grid-column: 1 / 2;
+    word-break: break-word;
   }
   .frn-myguy-pergame {
     font-family: 'IBM Plex Mono', monospace;
     font-size: .55rem; color: var(--gray);
-    margin-top: .1rem; letter-spacing: .2px;
+    letter-spacing: .2px;
+    grid-column: 1 / 2;
+    word-break: break-word;
   }
+  /* FFP/G badge — now stacks against the body in the right column,
+     vertically centered across all 4 rows so it sits beside the stats. */
   .frn-myguy-ff {
+    grid-column: 2 / 3;
+    grid-row: 1 / span 4;
+    align-self: center;
     display: flex; flex-direction: column; align-items: center;
-    padding: .35rem .25rem;
+    padding: .4rem .35rem;
     background: rgba(200,169,0,.08);
     border: 1px solid rgba(200,169,0,.3);
     border-radius: 3px;
     line-height: 1;
+    min-width: 2.6rem;
   }
   .frn-myguy-ff-val {
     font-family: 'IBM Plex Mono', monospace;
