@@ -6729,7 +6729,12 @@ function renderFrnRegular() {
       </div>
     </div>`;
 
-  // ─── Next-game card ────────────────────────────────────────────────────
+  // ─── Hero zone — week's headline, win prob, dominant CTA ─────────────
+  // Tier-1 visual anchor: one big card the eye lands on first. Combines
+  // matchup identity + win probability + top decision teaser + the
+  // primary PLAY GAME action. Replaces the standard next-game card
+  // when there's an upcoming game this week. Other states (week-done,
+  // playoffs, week-pending review) keep their existing renderers.
   let nextCardHtml = "";
   const nextGameIsThisWeek = nextGame && nextGame.week === week;
   if (franchise.weekPending && !seasonDone) {
@@ -6741,17 +6746,92 @@ function renderFrnRegular() {
     const oppRtg = frnTeamRating(oppId);
     const oppStand = standings[oppId] || { w:0, l:0 };
 
-    const teamCard = (team, rec, rtg, isUser) => `
-      <div class="frn-next-team ${isUser ? "user" : ""}">
-        <div class="frn-next-team-ascii">${teamAscii(team)}</div>
-        <div class="frn-next-team-name">${team.name.toUpperCase()}</div>
-        <div class="frn-next-team-city">${team.city}</div>
-        <div class="frn-next-team-rec">${rec.w}-${rec.l}${rec.t ? `-${rec.t}` : ""}</div>
-        <div class="frn-next-team-ratings">
-          OFF <span class="v">${rtg.off}</span>
-          DEF <span class="v">${rtg.def}</span>
-        </div>
-      </div>`;
+    // Win probability — power-rating-driven with home-field bump and a
+    // QB-tier modifier. Clamped to 5-95% so even mismatches feel
+    // possible. Mirrors the same math we use for board confidence.
+    const myPwr  = (myRtg.off  || 60) + (myRtg.def  || 60);
+    const oppPwr = (oppRtg.off || 60) + (oppRtg.def || 60);
+    const qbAdj  = ((myRtg.qb || 60) - (oppRtg.qb || 60)) * 0.5;
+    const homeAdj = isHome ? 3 : -3;
+    const diff = (myPwr - oppPwr) + qbAdj + homeAdj;
+    const winPct = Math.max(5, Math.min(95, Math.round(50 + diff * 1.2)));
+    const wpCol = winPct >= 65 ? "var(--green-lt)"
+                : winPct >= 50 ? "var(--gold-lt)"
+                : winPct >= 35 ? "#ffc850"
+                :                "#ff8a8a";
+    const wpLabel = winPct >= 70 ? "HEAVY FAVORITE"
+                  : winPct >= 58 ? "FAVORED"
+                  : winPct >= 48 ? "COIN FLIP"
+                  : winPct >= 35 ? "UNDERDOG"
+                  :                "BIG UNDERDOG";
+
+    // Narrative pick — choose the most interesting context line from a
+    // priority ladder. Rival > division > playoff race > stat edge >
+    // streak > generic. Keeps the hero feeling alive without
+    // hand-authoring per-matchup text.
+    const isRival = (typeof _areRivals === "function") && _areRivals(chosenTeamId, oppId);
+    const myDiv = myTeam.division;
+    const oppDiv = opp.division;
+    const isDivision = myDiv && oppDiv && myDiv === oppDiv;
+    const gp = myStand.w + myStand.l + myStand.t;
+    const streak = (() => {
+      const last5 = playedGames.slice(-5);
+      let s = 0; let dir = null;
+      for (let i = last5.length - 1; i >= 0; i--) {
+        const g = last5[i];
+        const h = g.homeId === chosenTeamId;
+        const my = h ? g.homeScore : g.awayScore;
+        const tm = h ? g.awayScore : g.homeScore;
+        const r = my > tm ? "W" : my < tm ? "L" : "T";
+        if (dir == null) dir = r;
+        if (r !== dir) break;
+        s++;
+      }
+      return { count: s, dir };
+    })();
+    const weeksLeft = FRANCHISE_WEEKS - week;
+    let narrative = "";
+    if (isRival) {
+      narrative = `🔥 Rivalry game — these two never play it straight.`;
+    } else if (isDivision) {
+      const onPace = inPlayoffs ? "stay in the seed picture" : "claw back into the seed picture";
+      narrative = `Division tilt — win to ${onPace} in the ${myDiv}.`;
+    } else if (streak.count >= 3 && streak.dir === "W") {
+      narrative = `${streak.count}-game win streak on the line.`;
+    } else if (streak.count >= 3 && streak.dir === "L") {
+      narrative = `${streak.count}-game skid — get right or stay buried.`;
+    } else if (weeksLeft <= 2 && !inPlayoffs) {
+      narrative = `Win-or-go-home territory — every game from here is a playoff game.`;
+    } else if (Math.abs(diff) <= 4) {
+      narrative = `Power ratings are dead-even — turnovers decide it.`;
+    } else if (diff >= 12) {
+      narrative = `On paper this is yours to lose — protect the lead, don't get cute.`;
+    } else if (diff <= -12) {
+      narrative = `Underdog spot — they're better, but anyone can win one game.`;
+    } else {
+      narrative = `Standard week — execute clean, don't beat yourself.`;
+    }
+
+    // Top decision teaser — surface the single highest-urgency item
+    // from the inbox into the hero so the user sees "1 thing to handle"
+    // without scrolling. If no decisions, show a "clean slate" line.
+    const topDec = decisions[0];
+    const decisionStripHtml = topDec
+      ? `<div class="frn-hero-decision urg-${topDec.urgency}" onclick="${topDec.action}">
+          <span class="frn-hero-dec-icon">${topDec.icon}</span>
+          <div class="frn-hero-dec-body">
+            <div class="frn-hero-dec-label">${topDec.label}</div>
+            ${topDec.sub ? `<div class="frn-hero-dec-sub">${topDec.sub}</div>` : ""}
+          </div>
+          <span class="frn-hero-dec-cta">${topDec.cta} ›</span>
+          ${decisions.length > 1 ? `<span class="frn-hero-dec-count">+${decisions.length - 1} more</span>` : ""}
+        </div>`
+      : `<div class="frn-hero-decision clean">
+          <span class="frn-hero-dec-icon">✓</span>
+          <div class="frn-hero-dec-body">
+            <div class="frn-hero-dec-label">All clear — nothing needs your attention this week.</div>
+          </div>
+        </div>`;
 
     const expanded = _frnPregameExpanded;
     const breakdownHtml = expanded
@@ -6760,30 +6840,45 @@ function renderFrnRegular() {
           ${_buildSchemeMatchupCard(chosenTeamId, oppId)}
           ${_buildOpponentIntelBlock(oppId, isHome, week, nextGame)}
         </div>` : "";
+
     nextCardHtml = `
-      <div class="frn-next-card">
-        <div class="frn-next-header">
-          <span>WEEK ${nextGame.week} · ${isHome ? "HOME GAME" : "AWAY GAME"}</span>
-          <span class="frn-next-badge">NEXT UP</span>
+      <div class="frn-hero-card" style="--accent:${myTeam.primary||'var(--gold)'}">
+        <div class="frn-hero-eyebrow">
+          <span>WEEK ${nextGame.week} · ${isHome ? "HOME" : "AT"} ${(opp.city||"").toUpperCase()}</span>
+          <span class="frn-hero-eyebrow-rec">YOUR ${recStr}${myStand.t?"":""} · ${opp.name} ${oppStand.w}-${oppStand.l}${oppStand.t?"-"+oppStand.t:""}</span>
         </div>
-        <div class="frn-pregame-actions">
-          <button class="frn-pregame-cta" onclick="frnPlayGame(${nextGame.homeId},${nextGame.awayId},false)">
-            ▶ PLAY GAME <span class="frn-pregame-cta-sub">interactive · live simulation</span>
+        <div class="frn-hero-body">
+          <div class="frn-hero-wp">
+            <div class="frn-hero-wp-num" style="color:${wpCol}">${winPct}<span class="frn-hero-wp-pct">%</span></div>
+            <div class="frn-hero-wp-label" style="color:${wpCol}">${wpLabel}</div>
+            <div class="frn-hero-wp-sub">WIN PROBABILITY</div>
+          </div>
+          <div class="frn-hero-mid">
+            <div class="frn-hero-narrative">${narrative}</div>
+            <div class="frn-hero-matchup-row">
+              <div class="frn-hero-team you">
+                <div class="frn-hero-team-name">${myTeam.name.toUpperCase()}</div>
+                <div class="frn-hero-team-rtgs">OFF <b>${myRtg.off}</b> · DEF <b>${myRtg.def}</b> · QB <b>${myRtg.qb}</b></div>
+              </div>
+              <div class="frn-hero-vs">${isHome ? "vs" : "@"}</div>
+              <div class="frn-hero-team opp">
+                <div class="frn-hero-team-name">${opp.name.toUpperCase()}</div>
+                <div class="frn-hero-team-rtgs">OFF <b>${oppRtg.off}</b> · DEF <b>${oppRtg.def}</b> · QB <b>${oppRtg.qb}</b></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="frn-hero-cta-row">
+          <button class="frn-hero-play-btn" onclick="frnPlayGame(${nextGame.homeId},${nextGame.awayId},false)">
+            ▶ PLAY GAME
+            <span class="frn-hero-play-sub">interactive · live simulation</span>
           </button>
-          <div class="frn-pregame-sims">
+          <div class="frn-hero-sims">
             <button class="frn-sim-btn" onclick="frnSimGame(${nextGame.homeId},${nextGame.awayId})">⏩ Sim Game</button>
             ${_renderSimForwardPanel()}
           </div>
         </div>
-        <div class="frn-next-matchup">
-          ${isHome
-            ? teamCard(myTeam, myStand, myRtg, true)
-            : teamCard(opp, oppStand, oppRtg, false)}
-          <div class="frn-next-vs">VS</div>
-          ${isHome
-            ? teamCard(opp, oppStand, oppRtg, false)
-            : teamCard(myTeam, myStand, myRtg, true)}
-        </div>
+        ${decisionStripHtml}
         <button class="frn-pregame-toggle" onclick="_frnTogglePregame()">
           ${expanded ? "▴ Hide pregame breakdown" : "▾ Pregame breakdown (matchup stats · schemes · opponent intel)"}
         </button>
