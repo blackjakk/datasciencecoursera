@@ -1341,21 +1341,47 @@ function combineMeasurables(p) {
 }
 // Height — position-aware. Real NFL position means: WR/CB 5'11"-6'0", QB
 // 6'2"-6'4", TE/DL 6'3"-6'5", OL 6'4"-6'6", S 6'0", LB 6'2", RB 5'10"-6'0",
-// K/P 6'0"-6'2".
+// K/P 6'0"-6'2". Range ±3.5" so positions span their realistic NFL min-max
+// (e.g., 5'8" to 6'5" QBs both exist; engine should reflect that).
+// Math.round (NOT Math.floor) — floor biases the mean down by ~0.5".
 function _combineHeight(p) {
   const pos = p.position;
   const meanIn = { QB:75, RB:71, WR:73, TE:77, OL:77, DL:75, LB:74, CB:71, S:72, K:73, P:73 }[pos] ?? 73;
-  return meanIn + Math.floor((Math.random() - 0.5) * 5);
+  return meanIn + Math.round((Math.random() - 0.5) * 7);
 }
 // Weight — NFL position averages, with stat noise. STR adds mass for trench
-// positions; LEAN body type subtracts ~10 lbs.
+// positions; LEAN body type subtracts ~12 lbs. Random noise widened to ±15
+// (was ±4) so distribution matches the 50-65 lb NFL ranges (e.g., WR
+// 170-235, DL 240-330) rather than the tight 30-lb band we had before.
 function _combineWeight(p) {
   const pos = p.position;
   const [, str=50] = p.stats || [];
   const meanLbs = { QB:220, RB:215, WR:200, TE:250, OL:315, DL:280, LB:240, CB:195, S:205, K:200, P:215 }[pos] ?? 220;
-  const strBump = ["OL","DL","TE","LB"].includes(pos) ? (str - 60) * 0.6 : (str - 60) * 0.25;
-  const bodyMod = p.bodyType === "LEAN" ? -8 : p.bodyType === "TALL_HEAVY" ? +8 : p.bodyType === "BROAD" ? +4 : 0;
-  return Math.round(meanLbs + strBump + bodyMod + (Math.random() - 0.5) * 8);
+  // STR drives weight variance everywhere EXCEPT K/P — kicker STR is
+  // rarely a meaningful trained stat, so STR-driven weight here just
+  // produces too-light kickers. Trench: 0.85/lb-of-STR. Skill: 0.50/lb.
+  // K/P: no STR scaling (their weight comes from mean + body + noise).
+  const strBump = ["K","P"].includes(pos)               ? 0
+                : ["OL","DL","TE","LB"].includes(pos)    ? (str - 60) * 0.85
+                :                                          (str - 60) * 0.50;
+  // BodyType-specific mass adjustment. pickBodyType (play-render.js)
+  // returns: HUGE, BIG, TALL_HEAVY, HEAVY_SHORT, BROAD, COMPACT,
+  // LEAN, NORMAL, SLENDER, PLUS_SIZE. The map covers all of them so
+  // a "HUGE" lineman actually weighs more than a "BIG" one.
+  const BODY_WEIGHT_MOD = {
+    HUGE:        +25,  // Vince Wilfork tier — true big bodies
+    PLUS_SIZE:   +18,
+    HEAVY_SHORT: +12,  // Snacks Harrison — short + thick
+    TALL_HEAVY:  +10,
+    BIG:         +6,
+    BROAD:       +5,
+    NORMAL:       0,
+    COMPACT:     -4,
+    SLENDER:    -10,
+    LEAN:       -12,
+  };
+  const bodyMod = BODY_WEIGHT_MOD[p.bodyType] ?? 0;
+  return Math.round(meanLbs + strBump + bodyMod + (Math.random() - 0.5) * 30);
 }
 // Per-position test relevance — used by combine event and UI to show only
 // drills that matter for the player's position. QBs don't bench at the
