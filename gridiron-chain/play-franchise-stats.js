@@ -7356,7 +7356,10 @@ function renderFrnRegular() {
   // Full Standings + Leaders moved to the League tab. Sidebar shows a
   // glanceable snapshot — top 5 + your row if outside top 5 — with a
   // deep link to the League tab for the full picture.
-  const top5 = sorted.slice(0, 5);
+  // Sidebar slimmed — show only top 3 + your row (with 1 above/below
+  // for context if you're outside the top 3). Full standings live on
+  // the League tab; the sidebar is glanceable position context.
+  const top3 = sorted.slice(0, 3);
   const myIdx = sorted.findIndex(s => s.id === chosenTeamId);
   const showMyRow = myIdx >= 5;
   const standRowHtml = (s, i, isMine) => {
@@ -7370,8 +7373,17 @@ function renderFrnRegular() {
       <span style="width:2.8rem;text-align:right;color:var(--gray);font-size:.62rem">${pct}</span>
     </div>`;
   };
-  const standHtml = top5.map((s, i) => standRowHtml(s, i, s.id === chosenTeamId)).join("")
-    + (showMyRow ? `<div style="text-align:center;color:var(--blgray);font-size:.55rem;letter-spacing:.5px;padding:.1rem 0">···</div>${standRowHtml(sorted[myIdx], myIdx, true)}` : "");
+  const showMyContext = myIdx >= 3; // user is outside the top 3
+  let contextRows = "";
+  if (showMyContext) {
+    const ctxStart = Math.max(3, myIdx - 1);
+    const ctxEnd = Math.min(sorted.length, myIdx + 2);
+    contextRows = `<div style="text-align:center;color:var(--blgray);font-size:.55rem;letter-spacing:.5px;padding:.1rem 0">···</div>`
+      + sorted.slice(ctxStart, ctxEnd)
+          .map((s, i) => standRowHtml(s, ctxStart + i, s.id === chosenTeamId))
+          .join("");
+  }
+  const standHtml = top3.map((s, i) => standRowHtml(s, i, s.id === chosenTeamId)).join("") + contextRows;
 
   const leaders = frnTeamLeaders(chosenTeamId);
   const leadersHtml = leaders.slice(0, 3).map(l => `
@@ -7409,6 +7421,16 @@ function renderFrnRegular() {
   ` : unvotedWeek!=null ? `<button class="frn-cap-btn" onclick="renderPotwVoting(${unvotedWeek})" style="padding:.35rem .9rem;font-size:.7rem;background:var(--gold);color:#000;font-weight:900;border:0">🗳 VOTE — WEEK ${unvotedWeek} READY</button>`
     : `<div style="color:var(--gray);font-size:.72rem;padding:.3rem 0">Awarded each week.</div>`;
 
+  // Sidebar slimmed: dropped FULL SCHEDULE (center has schedule strip
+  // + gauntlet covering this), POTW collapsed to a compact slot inside
+  // the league snapshot card when there's something to surface,
+  // highlights kept as they show outcomes not just news. The
+  // "Full League →" deep link points at the league tab for everything
+  // dropped from here.
+  const potwIsActionable = latestPotw || unvotedWeek != null;
+  const potwSlot = potwIsActionable ? `
+    <div class="frn-card-title" style="margin-top:.7rem">PLAYER OF THE WEEK</div>
+    ${potwHtml}` : "";
   const sidebarHtml = `
     <div style="display:flex;flex-direction:column;gap:1rem">
       <div class="frn-card-box">
@@ -7416,13 +7438,9 @@ function renderFrnRegular() {
         ${standHtml}
         <div class="frn-card-title" style="margin-top:.7rem">TEAM LEADERS</div>
         ${leadersHtml}
+        ${potwSlot}
         <button class="frn-cap-btn" onclick="frnSetTab('league')" style="margin-top:.5rem;font-size:.6rem">Full League →</button>
       </div>
-      <div class="frn-card-box">
-        <div class="frn-card-title">PLAYER OF THE WEEK</div>
-        ${potwHtml}
-      </div>
-      ${fullScheduleHtml}
       <div class="frn-card-box">
         <div class="frn-card-title">HIGHLIGHTS</div>
         ${hlHtml}
