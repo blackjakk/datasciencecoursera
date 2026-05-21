@@ -1801,7 +1801,7 @@ class GameSimulator {
         case "GUNSLINGER":    qbCompMod = -0.040; qbIntMod = +0.020; qbAirMod = +1.5; qbBigPlayBonus = 0.10; break;
         case "GAME_MANAGER":  qbCompMod = +0.040; qbIntMod = -0.012; qbAirMod = -1.4; break;
         case "FIELD_GENERAL": qbCompMod = +0.020; qbIntMod = -0.015; break;
-        case "DUAL_THREAT":   qbScrambleBonus = 0.10; break;
+        case "DUAL_THREAT":   qbScrambleBonus = 0.04; break;
       }
       // PLAY-ACTION — fakes the handoff to freeze LBs/safeties. Effectiveness
       // scales with the offense's run-game threat (defense has to respect it)
@@ -1825,8 +1825,12 @@ class GameSimulator {
         paAirMod  += 4.0;
         paSackMul *= 1.35;
       }
-      // QB SCRAMBLE — dual-threat QB sometimes takes off instead of throwing
-      const scramblePct = (pb.qbScramblePct || 0) + qbScrambleBonus;
+      // QB SCRAMBLE — pass plays where the QB takes off. Probability scales
+      // with pressure: a clean pocket QB hits the dropback, a pressured one
+      // tucks and runs. NFL Lamar averages ~7/g (high-pressure dropbacks);
+      // pocket QBs ~0.5/g (rarely flee).
+      const pressureScrBonus = Math.max(0, pressure) * 0.03;   // up to +5.7pp at peak pressure
+      const scramblePct = (pb.qbScramblePct || 0) + qbScrambleBonus + pressureScrBonus;
       if (scramblePct > 0 && Math.random() < scramblePct) {
         // Mobile QB scramble — modest gain when coverage is locked
         // Scramble yardage softened — elite LBs/safeties don't let QBs walk for 8 yds every time.
@@ -2381,6 +2385,7 @@ class GameSimulator {
                          : rcvrArch === "SLOT"         ? -2.0
                          : rcvrArch === "RED_ZONE"     ? -1.2
                          : rcvrArch === "ROUTE_RUNNER" ?  0.5
+                         : rcvrArch === "BLOCKING"     ? -3.5  // blocking TE: short outlets only
                          : 0;
         // Aggressive QBs call more deep shots — tilts target depth up/down.
         const qbAggAirMod = (this._aggTilt(this._qbAggression()) - 1) * 3.0; // agg=80→+0.9yds, agg=20→-0.9yds
@@ -2408,6 +2413,7 @@ class GameSimulator {
                          : rcvrArch === "ROUTE_RUNNER" ? 1.10
                          : rcvrArch === "RED_ZONE"    ? 0.55
                          : rcvrArch === "DEEP_THREAT" ? 0.85
+                         : rcvrArch === "BLOCKING"    ? 0.70  // not a YAC threat
                          : 1.0;
         yac = Math.round(yac * yacArchMul);
         // YAC break-tackle — physics model. Receiver's archetype maps to
@@ -2665,9 +2671,9 @@ class GameSimulator {
     // (user asked for "slightly over NFL, not below"). Engine's run-stuff
     // modifiers overcompensate at the tail. Raises base to 5.9; realized
     // mean lands near 4.7, ~9% above NFL 4.3.
-    // rushMean trimmed by 0.3 to absorb the new leanForward population-avg
-    // shift (heavy/strong backs now get a small post-contact bonus).
-    const rushMean = (pb.rushYdsMean ?? 4.3) + 1.3;
+    // rushMean baseline trimmed to land NFL YPC ~4.4. leanForward bonus is
+    // applied separately on every positive carry for heavy/strong backs.
+    const rushMean = (pb.rushYdsMean ?? 4.3) - 0.2;
     const rushSd   = pb.rushYdsSd   ?? 5.5;
     // ── TWO-BACK FORMATION DECISION ────────────────────────────────────
     // Only when there's a viable second back on the roster. Probability
