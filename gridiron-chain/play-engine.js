@@ -671,6 +671,40 @@ class GameSimulator {
     if (p) p[field] = (p[field] || 0) + 1;
     return chosen.name;
   }
+  // Like _creditDefStat but weights CB / S share by archetype. BALL_HAWK gets
+  // more opportunities; SHUTDOWN / PHYSICAL get fewer (QBs threw away from
+  // them). Use for coverage stats like INTs / PDs.
+  _creditDBStat(field, baseWeights) {
+    const def = this.defStats;
+    if (!def) return null;
+    const cbArchW = a => a === "BALL_HAWK" ? 2.0
+                       : a === "ZONE"      ? 1.2
+                       : a === "PHYSICAL"  ? 0.78
+                       : a === "SHUTDOWN"  ? 0.45
+                       : a === "SLOT_CB"   ? 0.85
+                       : 1.0;
+    const sArchW  = a => a === "BALL_HAWK"    ? 1.8
+                       : a === "CENTER_FIELD" ? 1.2
+                       : a === "BOX"          ? 0.5
+                       : 1.0;
+    const candidates = [];
+    if (baseWeights.CB) for (const c of (this.defArch.CB || []))
+      if (c?.name) candidates.push({ name: c.name, w: baseWeights.CB * cbArchW(c.archetype) });
+    if (baseWeights.S)  for (const s of (this.defArch.S  || []))
+      if (s?.name) candidates.push({ name: s.name, w: baseWeights.S  * sArchW(s.archetype) });
+    if (baseWeights.LB) for (const l of (this.defArch.LB || []))
+      if (l?.name) candidates.push({ name: l.name, w: baseWeights.LB });
+    if (baseWeights.DL) for (const d of (this.defArch.DL || []))
+      if (d?.name) candidates.push({ name: d.name, w: baseWeights.DL });
+    if (!candidates.length) return null;
+    const total = candidates.reduce((s, c) => s + c.w, 0);
+    let r = Math.random() * total;
+    let chosen = candidates[candidates.length - 1];
+    for (const c of candidates) { r -= c.w; if (r <= 0) { chosen = c; break; } }
+    const p = def.players[chosen.name];
+    if (p) p[field] = (p[field] || 0) + 1;
+    return chosen.name;
+  }
   // Yards after contact — heavy + strong carriers lean into the wrap and
   // drag defenders forward an extra fraction of a yard. Distinct from the
   // outright break-tackle event: this fires on EVERY positive carry whether
@@ -1792,6 +1826,20 @@ class GameSimulator {
       const qbAwr = qbPlayer?.stats?.[3] ?? 70;
       const qbAgi = qbPlayer?.stats?.[2] ?? 65;
       const qbThr = qbPlayer?.stats?.[4] ?? 75;
+      // Coverage-aware target mix — QB attacks weak CBs, avoids elite ones.
+      // CB1 typically covers WR1, CB2 covers WR2, SLOT_CB covers slot/WR3.
+      const cbArr = this.defArch.CB || [];
+      const cb1Arch = cbArr[0]?.archetype, cb2Arch = cbArr[1]?.archetype;
+      const slotCbArch = cbArr.find(c => c?.archetype === "SLOT_CB")?.archetype;
+      const avoidFor = a => a === "SHUTDOWN"  ? 0.55
+                          : a === "PHYSICAL"  ? 0.78
+                          : a === "BALL_HAWK" ? 0.88
+                          : 1.00;
+      const cbCoverageMix = {
+        wr1: avoidFor(cb1Arch),
+        wr2: avoidFor(cb2Arch),
+        wr3: avoidFor(slotCbArch),
+      };
       // QB archetype effects on the dropback
       // GUNSLINGER: more INTs, deeper throws, less accurate
       // GAME_MANAGER: fewer INTs, shorter throws, more accurate
@@ -1914,7 +1962,7 @@ class GameSimulator {
         off.team.pass_att++; off.team.turnovers++;
         def.team.takeaways++;
         // Credit INT to a DB (CB or S)
-        const intBy = this._creditDefStat("int_made", { CB: 0.55, S: 0.35, LB: 0.10 });
+        const intBy = this._creditDBStat("int_made", { CB: 0.55, S: 0.35, LB: 0.10 });
         // Interception return yardage — bursty distribution. Most are
         // short (0-5), some medium (6-15), occasional house-call (16-50+).
         const retSeed = Math.random();
@@ -2022,7 +2070,7 @@ class GameSimulator {
             const airYds = clamp(normal(7 - pressure * 1.5, 5.5), 1, 35);
             const targetDepth = Math.max(1, Math.round(airYds));
             let yac = airYds >= 5 ? rand(0, Math.max(1, Math.floor(airYds * 0.4))) : 0;
-            const rcvr = pickReceiver(pb, this.offR.starters, this._currentPersonnel);
+            const rcvr = pickReceiver(pb, this.offR.starters, this._currentPersonnel, cbCoverageMix);
             // Backups (wr3/wr4/te2/rb2) aren't pre-registered in
             // _buildTeamStats — ensure their stat line exists or rec_yds
             // gets dropped while pass_yds still credits the QB.
@@ -2241,7 +2289,7 @@ class GameSimulator {
       // Pick the targeted receiver up front so their CAT/archetype affect the completion roll.
       // (Previously the receiver was picked AFTER the comp roll, so a 39-CAT WR had
       // the same comp% as a 95-CAT one — that's no longer true.)
-      const rcvr = pickReceiver(pb, this.offR.starters, this._currentPersonnel);
+      const rcvr = pickReceiver(pb, this.offR.starters, this._currentPersonnel, cbCoverageMix);
       // Backups (wr3/wr4/te2/rb) aren't pre-registered — ensure here.
       this._ensurePlayerStat(this.poss, rcvr, this._playerByName?.get?.(rcvr)?.position || "WR");
       const rcvrStats = off.players[rcvr];
@@ -2566,7 +2614,7 @@ class GameSimulator {
       } else {
         // 55% of non-drop incompletions are pass deflections (overthroughs,
         // throwways, bad releases account for the other ~45%)
-        pdName = Math.random() < 0.55 ? this._creditDefStat("pd", { CB: 0.55, S: 0.30, LB: 0.15 }) : null;
+        pdName = Math.random() < 0.55 ? this._creditDBStat("pd", { CB: 0.55, S: 0.30, LB: 0.15 }) : null;
       }
       // CATCH RADIUS / NEAR-MISS LEAP — for deep throws, the receiver leaps
       // and the ball flies past their fingertips. Cosmetic flag for the animation.

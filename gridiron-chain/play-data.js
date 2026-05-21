@@ -261,7 +261,7 @@ function getDefPlaybook(team) {
   return DEF_PLAYBOOKS[pool[(team.id * 7) % pool.length]] || DEF_PLAYBOOKS.BASE_43;
 }
 
-function pickReceiver(playbook, starters, personnel) {
+function pickReceiver(playbook, starters, personnel, coverageMix) {
   const p = PERSONNEL[personnel] || PERSONNEL.BASE;
   const base = playbook.targetMix;
   // Adjust mix to match what's actually on the field for this personnel.
@@ -292,6 +292,19 @@ function pickReceiver(playbook, starters, personnel) {
     mix.wr2 -= slice * 0.30;
     mix.wr3 -= slice * 0.30;
     mix.wr4 = slice;
+  }
+  // Coverage avoidance — QBs throw less at SHUTDOWN / PHYSICAL CBs and
+  // more at weaker matchups. coverageMix values multiply the base share
+  // (<1 = avoid, 1 = neutral, >1 = attack).
+  if (coverageMix) {
+    if (coverageMix.wr1 != null) mix.wr1 *= coverageMix.wr1;
+    if (coverageMix.wr2 != null) mix.wr2 *= coverageMix.wr2;
+    if (coverageMix.wr3 != null) mix.wr3 *= coverageMix.wr3;
+    if (coverageMix.te  != null) mix.te  *= coverageMix.te;
+    const total = mix.wr1 + mix.wr2 + mix.wr3 + mix.wr4 + mix.te + mix.rb;
+    if (total > 0) {
+      for (const k of ["wr1", "wr2", "wr3", "wr4", "te", "rb"]) mix[k] /= total;
+    }
   }
   let roll = Math.random();
   for (const key of ["wr1", "wr2", "wr3", "wr4", "te", "rb"]) {
