@@ -1571,10 +1571,10 @@ class GameSimulator {
       const dcBallHawkMul  = _dcTrait  === "Ball Hawk"    ? 1.025 : 1.0;
       const hcGameMgrIntMul= _hcSpec   === "Game Manager" ? 0.88  : 1.0;
       // INT rate: NFL league avg ~2.4%/attempt, worst-case stacks ~3.5%.
-      // Prior tune capped at 6% with 0.022 base — produced 4.6× NFL INTs
-      // across the 500-season sim. Base 0.022 → 0.014 (closer to league
-      // avg), pressure mul 0.012 → 0.006 (half-stack), cap 0.06 → 0.035.
-      const intPct = clamp((0.014 - adv * 0.008 + defIntMod + pressure * 0.006 + ballHawkBonus + qbIntMod + qbIntFromOvr + qbAggIntMod) * dcBallHawkMul * hcGameMgrIntMul, 0.002, 0.035);
+      // Prior tune (base 0.014, cap 0.035) landed at 1.22× NFL — past the
+      // "slightly over" comfort zone. Base 0.014 → 0.012, cap 0.035 →
+      // 0.030 to bring the average down to ~1.08× NFL.
+      const intPct = clamp((0.012 - adv * 0.008 + defIntMod + pressure * 0.006 + ballHawkBonus + qbIntMod + qbIntFromOvr + qbAggIntMod) * dcBallHawkMul * hcGameMgrIntMul, 0.002, 0.030);
       if (Math.random() < intPct) {
         const targetDepth = clamp(normal(11, 7), 2, 35);
         if (qbStats) { qbStats.pass_att++; qbStats.pass_int++; }
@@ -2471,10 +2471,9 @@ class GameSimulator {
     const _dlFatRun = this._avgFatigue(this.poss === "home" ? this.awayDL : this.homeDL);
     const fatigueRunYds = -((_carrierFat + _olFatRun) / 2 - _dlFatRun) / 100 * 2.5;
     // Red-zone power bonus — short-yardage power runs convert in real NFL
-    // at ~65% on 1st-and-goal because the OL fires off downhill. Without
-    // this the rush-TD rate cratered to 0.56× NFL. +0.8 yds in goal-to-go,
-    // +0.4 in the rest of the red zone.
-    const rzRunBonus = this._inGoalToGo ? 0.8 : (this._inRedZone ? 0.4 : 0);
+    // at ~65% on 1st-and-goal. Bonus trimmed (+0.8/+0.4 → +0.6/+0.3) to
+    // keep rush TDs in the slightly-over-NFL zone instead of 1.19× pace.
+    const rzRunBonus = this._inGoalToGo ? 0.6 : (this._inRedZone ? 0.3 : 0);
     let yards = clamp(normal((rushMean + rbBoost + fbBoost + runVarMean + adv * 1.4 + runTrenchYds + fbStuffReduction - lbTackle * 0.5 - boxSafetyStuff - thumperStuff - lbGapRead + rbGapVision + carrierBoost + reverseBonus + ocRunArchBonus + dcRunStopperMalus + fatigueRunYds + rzRunBonus) * defPbRun.runMul, rushSd * rbSdMul * runVarSd * reverseSdMul), -8, 75);
     // Cap at distance to end zone so a 1-yd goal-line carry doesn't get reported as a 17-yd TD
     if (yards > 0) yards = Math.min(yards, 100 - startYard);
