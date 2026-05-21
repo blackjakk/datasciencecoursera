@@ -6219,12 +6219,9 @@ function renderFrnLeagueCapMap() {
     </div>`;
 }
 function frnLCMClick(teamId) {
-  // Click → opens that team's stats page via existing route
-  if (typeof renderFrnTeamView === "function") renderFrnTeamView(teamId);
-  else if (typeof teamLink === "function") {
-    const t = getTeam(teamId);
-    if (t) window.location.hash = `#team-${t.id}`;
-  }
+  // Click → opens that team's roster modal via the existing route used
+  // by every other team-tile click site (player card team line, etc.)
+  if (typeof frnOpenTeamCard === "function") frnOpenTeamCard(teamId);
 }
 
 function renderFrnLeagueHome() {

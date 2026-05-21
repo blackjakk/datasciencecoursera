@@ -13000,6 +13000,19 @@ function frnOpenTrade(targetTeamId, tab) {
   tp.theirAbsorb ??= 0;
   tp.yourAbsorb  ??= 0;
   if (tab) franchise._tradeProp.tab = tab;
+  // Consume the trade-block breadcrumb set by frnFATradeFromCuts. If a
+  // player was suggested for trading from the cuts screen, land on the
+  // BLOCK tab with that player auto-staged + scrolled to.
+  if (franchise._tradeBlockHint && !tab) {
+    const hint = franchise._tradeBlockHint;
+    franchise._tradeProp.tab = "block";
+    franchise._tradeProp._scrollToHint = hint.name;
+    // Mark the player onTradeBlock so they show in the listed pool
+    const roster = franchise.rosters[franchise.chosenTeamId] || [];
+    const p = roster.find(q => q.name === hint.name && q.position === hint.pos);
+    if (p) p.onTradeBlock = true;
+    franchise._tradeBlockHint = null;
+  }
   saveFranchise();
   renderFrnTrade();
 }
