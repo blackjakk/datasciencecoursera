@@ -9269,7 +9269,33 @@ function _runCoachingCarousel() {
     (franchise.playoffBracket?.rounds?.[0] || []).flatMap(g => [g.homeId, g.awayId])
   );
 
-  for (const t of TEAMS) {
+  // ── BLACK MONDAY CASCADE ──────────────────────────────────────────────
+  // Process teams in WORST-RECORD-FIRST order so the worst team interviews
+  // (and lands) the top coach, the second-worst picks from what's left,
+  // and so on. Mimics real-NFL "interview cycle" where the worst teams
+  // typically move fastest on coach hires. Track Black Monday counts +
+  // top hires so we can post a recap news entry at the end.
+  const teamOrder = [...TEAMS].sort((a, b) => {
+    const sa = franchise.standings?.[a.id] || { w:0, l:0, t:0 };
+    const sb = franchise.standings?.[b.id] || { w:0, l:0, t:0 };
+    const pa = ((sa.w||0) + (sa.t||0)*0.5) / Math.max(1, (sa.w||0)+(sa.l||0)+(sa.t||0));
+    const pb = ((sb.w||0) + (sb.t||0)*0.5) / Math.max(1, (sb.w||0)+(sb.l||0)+(sb.t||0));
+    return pa - pb;  // worst first
+  });
+  const _blackMonday = {
+    fires: [], hires: [],
+    topHireRatingBeforeCascade: Math.max(0, ...(market || []).filter(c => c.type === "hc").map(c => c.rating || 0)),
+  };
+  const _origPushNews = _pushNews;
+  // Wrap _pushNews briefly to capture HC fire + hire events for the recap.
+  // This avoids touching every existing _pushNews call inside the carousel.
+  const _bmTap = (msg) => {
+    if (msg?.type === "coach_depart" && /head coach|HC /i.test(msg.label)) _blackMonday.fires.push(msg.label);
+    if (msg?.type === "coach_hire"   && /head coach|HC /i.test(msg.label)) _blackMonday.hires.push(msg.label);
+    return _origPushNews(msg);
+  };
+  _pushNews = _bmTap;
+  for (const t of teamOrder) {
     const tId = t.id;
     if (tId === franchise.chosenTeamId) continue; // user manages their own staff
     const staff = franchise.coaches?.[tId];
@@ -9613,6 +9639,28 @@ function _runCoachingCarousel() {
       }
       return true;
     });
+  }
+  // Restore the wrapped _pushNews and post the Black Monday recap. Single
+  // summary entry at the top of the news stack so the user sees the chain
+  // event without having to count individual coach_hire / coach_depart
+  // entries. Posted only when 3+ HC changes happened (real Black Monday).
+  _pushNews = _origPushNews;
+  if (_blackMonday.fires.length >= 3) {
+    _pushNews({ type: "coach_depart",
+      label: `🗞 BLACK MONDAY · ${_blackMonday.fires.length} head coaches fired league-wide — interview cascade incoming` });
+    // After-cascade recap: how many of the top HC candidates (rating ≥ 75)
+    // got hired vs left in the market for the user (or next offseason).
+    const topGoneCount = (franchise._coachMarket || []).filter(c => c.type === "hc" && (c.rating||0) >= 75).length;
+    const topRemaining = (franchise._coachMarket || [])
+      .filter(c => c.type === "hc" && (c.rating || 0) >= 75)
+      .sort((a, b) => (b.rating||0) - (a.rating||0));
+    if (topRemaining.length === 0 && _blackMonday.topHireRatingBeforeCascade >= 75) {
+      _pushNews({ type: "coach_hire",
+        label: `🗞 Top HC candidates all signed — leftover market for late movers` });
+    } else if (topRemaining[0]) {
+      _pushNews({ type: "coach_hire",
+        label: `🗞 Top HC still on the board: ${topRemaining[0].name} (${topRemaining[0].rating} OVR · ${topRemaining[0].trait || "—"})` });
+    }
   }
 }
 
