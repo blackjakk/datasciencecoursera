@@ -7264,17 +7264,14 @@ function renderFrnRegular() {
   }
   scoredPlayers.sort((a, b) => b.score - a.score);
   const hotTop = scoredPlayers.slice(0, 6);
-  // Initials for the avatar — first letter of first + last name parts.
-  const _initials = (name) => {
-    const parts = (name || "").split(/\s+/).filter(Boolean);
-    return ((parts[0]?.[0] || "?") + (parts[parts.length - 1]?.[0] || "")).toUpperCase();
-  };
+  const _hasPortrait = (typeof _playerPortrait === "function");
   const hotBoardHtml = hotTop.length ? `
     <div class="frn-card-box frn-myguys-card">
-      <div class="frn-card-title">🏈 MY GUYS <span class="frn-card-title-sub">top performers · S${season} · click any card</span></div>
+      <div class="frn-card-title">🏈 PLAYMAKERS <span class="frn-card-title-sub">top performers · S${season} · click any card</span></div>
       <div class="frn-myguys-grid">
         ${hotTop.map((h, i) => {
           const esc = (h.p.name||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'");
+          const pid = (h.p.pid||"").replace(/'/g,"\\'");
           const ovr = h.p.overall || 60;
           const ovrCol = ovr >= 88 ? "#f5c542" : ovr >= 80 ? "#86e0a3" : ovr >= 70 ? "var(--gold-lt)" : "var(--gray)";
           const posCol = _myPosColor(h.p.position);
@@ -7283,9 +7280,14 @@ function renderFrnRegular() {
           // (rough heuristic — could refine later)
           const FF_HOT = { QB: 22, RB: 14, WR: 11, TE: 8, DL: 8, LB: 9, CB: 6, S: 6, K: 7 }[h.p.position] || 6;
           const isHot = (h.ff / h.gp) >= FF_HOT;
-          return `<div class="frn-myguy-card" onclick="frnOpenPlayerCard('${esc}')">
+          // Use the existing _playerPortrait helper to surface real
+          // headshot art (falls back to flat-color block + generated
+          // mugshot if no portrait file exists). 36px keeps the card
+          // compact while making the player feel real.
+          const portrait = _hasPortrait ? _playerPortrait(h.p, 36) : "";
+          return `<div class="frn-myguy-card" onclick="frnOpenPlayerCard('${esc}','${pid}')">
             <div class="frn-myguy-rank">#${i+1}</div>
-            <div class="frn-myguy-avatar" style="background:${posCol}">${_initials(h.p.name)}</div>
+            <div class="frn-myguy-portrait" style="border-color:${posCol}">${portrait}</div>
             <div class="frn-myguy-body">
               <div class="frn-myguy-name">${h.p.name}</div>
               <div class="frn-myguy-meta">
@@ -7429,23 +7431,20 @@ function renderFrnRegular() {
 
   // ─── Final composition ────────────────────────────────────────────────
   const postGameHtml = _buildPostGameHeadline(chosenTeamId);
-  // bannerHtml + quickNavHtml now live in the app shell; on Overview
-  // we keep a compact identity badge with cap so the rich detail (form
-  // strip, OFF/DEF, playoff seed) remains glanceable without scrolling.
+  // Slim Overview strip — DROPS the team name, cap, and record (already
+  // visible in the app shell banner above) and keeps only the unique
+  // glanceable info: PF/PA, OFF/DEF, form strip, and playoff seed.
+  // Eliminates the prior triple-render of team-name + cap + record.
   const overviewIdentityHtml = `
-    <div class="frn-overview-identity" style="--accent:${myTeam.primary||'var(--gold)'}">
-      <div class="frn-overview-id-left">
-        <div class="frn-overview-id-name">${myTeam.city.toUpperCase()} ${myTeam.name.toUpperCase()}</div>
-        <div class="frn-overview-id-meta">PF ${myStand.pf} / PA ${myStand.pa} · OFF ${myRtg.off} · DEF ${myRtg.def}${playedGames.length?` · <span style="letter-spacing:.1rem">${formStrip}</span>`:""}</div>
-      </div>
-      <div class="frn-overview-id-cap">
-        <div class="frn-overview-cap-line" style="color:${capColor}">CAP $${capUsed.toFixed(1)}M / $${cap.toFixed(0)}M <span style="color:var(--gray);font-weight:400">· ${capPct}%</span>${refundLine}</div>
-      </div>
-      <div class="frn-overview-id-right">
-        <div class="frn-overview-record">${recStr}</div>
-        <div class="frn-overview-rec-sub">RECORD</div>
-        <div style="margin-top:.2rem">${playoffStr}</div>
-      </div>
+    <div class="frn-overview-strip" style="--accent:${myTeam.primary||'var(--gold)'}">
+      <span class="frn-overview-strip-meta">
+        <b style="color:var(--gold)">PF</b> ${myStand.pf}
+        · <b style="color:var(--gold)">PA</b> ${myStand.pa}
+        · <b style="color:var(--gold)">OFF</b> ${myRtg.off}
+        · <b style="color:var(--gold)">DEF</b> ${myRtg.def}
+        ${playedGames.length?` · <span style="letter-spacing:.1rem">${formStrip}</span>`:""}
+      </span>
+      <span class="frn-overview-strip-seed">${playoffStr}</span>
     </div>`;
   $("frnHomeContent").innerHTML = `
     ${overviewIdentityHtml}

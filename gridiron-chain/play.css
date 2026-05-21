@@ -9118,6 +9118,24 @@
   .frn-cap-btn-alert { color: var(--red) !important; border-color: var(--red) !important; }
   .frn-dash-banner { margin-bottom: .5rem !important; }
 
+  /* Slim overview strip — replaces the redundant identity row. Just
+     the unique glanceable info (PF/PA, OFF/DEF, form strip, playoff
+     seed). Team name, cap, and record already live in the app shell. */
+  .frn-overview-strip {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 1rem; flex-wrap: wrap;
+    padding: .35rem .8rem;
+    background: linear-gradient(90deg, rgba(255,255,255,.02), transparent);
+    border-left: 3px solid var(--accent, var(--gold));
+    border-radius: 3px;
+    margin-bottom: .6rem;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .68rem;
+    color: var(--blwhite);
+  }
+  .frn-overview-strip-meta { letter-spacing: .2px; }
+  .frn-overview-strip-seed { font-size: .62rem; }
+
   /* GM Pulse — at-a-glance indicator grid below the inbox. 4 chips on
      one row, each with a label / big-value / sub. Mirrors the
      "Bloomberg dashboard" pattern of the shell header — dense, scannable,
@@ -9131,23 +9149,26 @@
     background: rgba(255,255,255,.025);
     border: 1px solid var(--border);
     border-radius: 4px;
-    padding: .45rem .55rem;
-    display: flex; flex-direction: column; gap: .12rem;
+    padding: .4rem .45rem;
+    display: flex; flex-direction: column; gap: .1rem;
     min-width: 0;
+    overflow: hidden;
   }
   .frn-pulse-chip-label {
-    font-size: .55rem; font-weight: 800; letter-spacing: .8px;
+    font-size: .5rem; font-weight: 800; letter-spacing: .6px;
     color: var(--gray); text-transform: uppercase;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .frn-pulse-chip-value {
-    font-size: 1.05rem; font-weight: 900; line-height: 1.05;
+    font-size: .92rem; font-weight: 900; line-height: 1.05;
     font-family: 'IBM Plex Mono', monospace;
-    letter-spacing: .3px;
+    letter-spacing: 0;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .frn-pulse-chip-sub {
-    font-size: .58rem; color: var(--gray); letter-spacing: .3px;
+    font-size: .52rem; color: var(--gray); letter-spacing: .2px;
     text-transform: uppercase;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   @media (max-width: 720px) {
     .frn-pulse-grid { grid-template-columns: repeat(2, 1fr); }
@@ -9206,7 +9227,7 @@
   }
   .frn-myguy-card {
     display: grid;
-    grid-template-columns: 1.3rem 2.5rem 1fr 3.2rem;
+    grid-template-columns: 1.3rem 2.6rem 1fr 3.2rem;
     align-items: center; gap: .5rem;
     padding: .5rem .65rem;
     background: rgba(255,255,255,.025);
@@ -9227,16 +9248,22 @@
     color: var(--gray); letter-spacing: .3px;
     text-align: center;
   }
-  .frn-myguy-avatar {
-    width: 2.2rem; height: 2.2rem;
-    border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: .68rem; font-weight: 900;
-    color: rgba(0,0,0,.85);
-    letter-spacing: .5px;
+  /* Player portrait box — uses _playerPortrait() output. The img inside
+     fills the box at object-fit:cover. Position-colored border ties
+     the player to their position in the color language. */
+  .frn-myguy-portrait {
+    width: 2.4rem; height: 2.7rem;
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1.5px solid var(--gray);
     flex-shrink: 0;
-    box-shadow: 0 1px 3px rgba(0,0,0,.4);
+    background: rgba(0,0,0,.35);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .frn-myguy-portrait > .frn-portrait,
+  .frn-myguy-portrait > img {
+    width: 100% !important; height: 100% !important;
+    object-fit: cover; display: block;
   }
   .frn-myguy-body { min-width: 0; }
   .frn-myguy-name {
