@@ -3520,6 +3520,17 @@ function _buildPlayerDetailPanel(p) {
         <div style="color:var(--gray);font-size:.65rem;margin-top:.1rem">${draftStr(p)} · Career ${careerEarningsStr(p)}</div>
         ${p.faStory && !_isOwnedPlayer(p) ? `<div style="margin-top:.2rem;font-size:.62rem;color:var(--gold-lt);font-style:italic">"${p.faStory}"</div>` : ""}
         ${potTag ? `<div style="margin-top:.2rem;font-size:.62rem;color:var(--gold-lt);font-weight:700">${potTag}</div>` : ""}
+        ${(() => {
+          if (typeof HiddenOracle !== "object") return "";
+          const dt = HiddenOracle.read.driveTag?.(p);
+          const dr = HiddenOracle.read.durabilityTag?.(p);
+          const parts = [];
+          if (dt) parts.push(`<span style="color:${dt.color}">${dt.label}</span>`);
+          if (dr) parts.push(`<span style="color:${dr.color}">${dr.label}</span>`);
+          return parts.length
+            ? `<div style="margin-top:.18rem;font-size:.6rem;font-weight:600">${parts.join(" · ")}</div>`
+            : "";
+        })()}
       </div>
       <div style="text-align:right;flex-shrink:0">
         ${(() => {
