@@ -41,15 +41,25 @@ function effectiveSpeed(p, yards = 30) {
   }
   // Burst mix: 1.0 at 0 yds, 0 at 20+ yds. Lighter players win bursts.
   const burstMix = clamp((20 - yards) / 20, 0, 1);
+  // Weight effect — bidirectional now. Above 200 lbs, drag penalty rises
+  // linearly (each lb over = 1/30 SPD-points in burst, 1/60 sustained).
+  // BELOW 200 lbs, lighter players get a small ACCELERATION BONUS (F=ma
+  // — less mass to move = quicker accel). Bonus capped at +1.5 SPD so a
+  // theoretical 130-lb player doesn't get unlimited burst — you also need
+  // some muscle mass for force production. Sub-160 lbs hits the cap.
+  const _wDelta = w - 200;
+  const burstPenalty = _wDelta >= 0
+    ? _wDelta / 30                          // heavier — slower burst
+    : Math.max(-1.5, _wDelta / 40);         // lighter — quicker burst, capped
+  const sustainedDrag = _wDelta >= 0
+    ? _wDelta / 60                          // heavier — small steady-state drag
+    : Math.max(-0.5, _wDelta / 80);         // lighter — tiny sustained boost
   if (burstMix <= 0) {
-    // Sustained foot race — SPD dominates, small steady-state weight drag.
-    const sustainedDrag = Math.max(0, (w - 200) / 60);
+    // Sustained foot race — SPD dominates, weight drag/boost is small.
     return spd - sustainedDrag;
   }
-  // Burst speed: SPD + AGI blend, minus heavier weight penalty for accel.
-  const burstWeightPenalty = Math.max(0, (w - 200) / 30);
-  const burstScore = spd * 0.5 + agi * 0.5 - burstWeightPenalty;
-  const sustainedDrag = Math.max(0, (w - 200) / 60);
+  // Burst speed: SPD + AGI blend, with bidirectional weight effect.
+  const burstScore = spd * 0.5 + agi * 0.5 - burstPenalty;
   const sustainedScore = spd - sustainedDrag;
   return sustainedScore * (1 - burstMix) + burstScore * burstMix;
 }

@@ -16835,15 +16835,15 @@ function renderFrnDraftPreshow() {
   const combine = _combineStandouts(d.class, 5, _combineFilterPos);
   // Per-render combineGrade cache — the preshow rendered ~125 grade
   // chips (5 drills × 5 leaders × 5 tests each). Without caching the
-  // grade calc reran 125+ times. With this Map, each prospect's grade
-  // is computed once and reused for every chip.
+  // grade calc reran 125+ times. With this Map keyed by the player
+  // object itself (NOT name) the same prospect lookup hits the cache
+  // even if the class has two prospects with the same string name.
   const _cgCache = new Map();
   const _cgFor = (p) => {
-    if (!p?.pid && !p?.name) return null;
-    const key = p.pid || p.name;
-    if (_cgCache.has(key)) return _cgCache.get(key);
+    if (!p) return null;
+    if (_cgCache.has(p)) return _cgCache.get(p);
     const cg = (typeof combineGrade === "function") ? combineGrade(p) : null;
-    _cgCache.set(key, cg);
+    _cgCache.set(p, cg);
     return cg;
   };
   // Helper — pulls position-specific letter grade for a single test
