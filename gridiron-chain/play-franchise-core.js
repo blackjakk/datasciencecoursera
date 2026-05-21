@@ -1320,8 +1320,13 @@ function combineMeasurables(p) {
   // Bench reps: BLK contributes ~25% (OL/DL functional strength); skill
   // positions read pure raw strength.
   const strScore = ["OL","DL","TE","LB"].includes(pos) ? str * 0.75 + blk * 0.25 : str;
+  // 40-yd formula steepened: was 5.15 - (spd-40)*0.0135 which produced
+  // 4.35s for SPD 99 (NFL elite ~4.30 ✓) but only 5.15s for SPD 35 (NFL
+  // slow OL ~5.50). New: 5.55 - (spd-30)*0.018, so SPD 30 → 5.55s (real-NFL
+  // slowest), SPD 99 → 4.31s (Bo Jackson tier). Position SPD distribution
+  // (per pos caps in statsFor) drives the realistic per-pos spread.
   return {
-    fortyTime:  +(5.15 - (spd - 40) * 0.0135).toFixed(2),
+    fortyTime:  +(5.55 - (spd - 30) * 0.018).toFixed(2),
     benchReps:  Math.max(2, Math.round(6 + (strScore - 40) * 0.42)),
     coneTime:   +(8.10 - (agi - 40) * 0.026).toFixed(2),
     shuttleTime:+(5.10 - (agi * 0.7 + spd * 0.3 - 40) * 0.020).toFixed(2),

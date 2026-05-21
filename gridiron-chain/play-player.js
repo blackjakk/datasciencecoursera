@@ -646,6 +646,58 @@ const rand = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
 const randf = (a, b) => Math.random() * (b - a) + a;
 const randName = () => `${pickFirstName()} ${pickLastName()}`;
 
+// Per-position SPD mapping — real-NFL OL never run 4.40s, CBs are never
+// slow. Maps the generic 30-99 SPD roll into position-realistic ranges.
+//   OL:     30-61    (median ~45 → 5.28s 40-yd; NFL OL 5.20)
+//   DL:     38-86    (median ~62 → 4.97s; NFL DL 4.85)
+//   TE/QB:  42-96    (median ~70 → 4.83s; NFL TE 4.70)
+//   LB:     50-95    (median ~74 → 4.76s; NFL LB 4.65)
+//   RB:     60-99    (median ~80 → 4.65s; NFL RB 4.50)
+//   WR/CB:  62-99    (median ~82 → 4.61s; NFL WR/CB 4.45-4.50)
+//   S:      55-99    (median ~76 → 4.72s; NFL S 4.55)
+// Applied AFTER the base stat generation + flavor pass. Other stat caps
+// (STR/BLK/CAT/COV mins/maxes per position) baked into POSITION_PHYSICAL_CAPS.
+const POSITION_SPD_MAP = {
+  OL: { offset: 30, scale: 0.45 },
+  DL: { offset: 38, scale: 0.70 },
+  TE: { offset: 42, scale: 0.78 },
+  QB: { offset: 42, scale: 0.78 },
+  LB: { offset: 50, scale: 0.65 },
+  WR: { offset: 62, scale: 0.55 },
+  CB: { offset: 62, scale: 0.55 },
+  RB: { offset: 60, scale: 0.55 },
+  S:  { offset: 55, scale: 0.60 },
+};
+// Non-SPD position caps — STR/BLK/CAT/COV upper/lower bounds per NFL norms.
+// These affect bench, hands-on tests, and coverage ratings. OL can't have
+// elite COV; QBs don't have elite STR; CBs aren't bench-press monsters.
+const POSITION_PHYSICAL_CAPS = {
+  QB:  { 1:{max:80}, 6:{max:50}, 9:{max:55} },                  // STR/BLK/TCK caps
+  RB:  { 8:{max:65} },                                          // COV cap
+  WR:  { 1:{max:80}, 6:{max:55} },                              // STR/BLK caps
+  OL:  { 5:{max:55}, 8:{max:45} },                              // CAT/COV caps
+  DL:  { 5:{max:55}, 8:{max:55} },                              // CAT/COV caps
+  CB:  { 1:{max:78}, 6:{max:50} },                              // STR/BLK caps
+  S:   { 1:{max:88} },                                          // STR cap
+};
+function _applyPositionCaps(pos, stats) {
+  // 1. Map SPD into position-realistic range
+  const spdMap = POSITION_SPD_MAP[pos];
+  if (spdMap) {
+    stats[0] = Math.round(spdMap.offset + (stats[0] - 30) * spdMap.scale);
+    stats[0] = Math.max(25, Math.min(99, stats[0]));
+  }
+  // 2. Apply non-SPD min/max caps
+  const caps = POSITION_PHYSICAL_CAPS[pos];
+  if (caps) {
+    for (const [idxStr, c] of Object.entries(caps)) {
+      const idx = +idxStr;
+      if (c.max != null && stats[idx] > c.max) stats[idx] = c.max;
+      if (c.min != null && stats[idx] < c.min) stats[idx] = c.min;
+    }
+  }
+  return stats;
+}
 function statsFor(pos, tier) {
   // Path A refactor: added "scrub" tier — truly low-OVR prospects for
   // CAMP-grade injection in draft class filler. Without this, the
@@ -721,6 +773,11 @@ function statsFor(pos, tier) {
       stats[idx] = Math.min(stats[idx], rand(r.lo, valleyHi));
     }
   }
+  // Position-aware physical caps — clamps SPD/STR/COV/etc into realistic
+  // NFL ranges per position. OL can't run 4.40, CBs can't be slow, QBs
+  // don't bench at the combine. Applied AFTER all randomization (sig stat,
+  // polarization) so the caps win.
+  _applyPositionCaps(pos, stats);
   return stats;
 }
 
