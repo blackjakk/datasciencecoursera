@@ -9300,6 +9300,9 @@ function _runCoachingCarousel() {
     return _origPushNews(msg);
   };
   _pushNews = _bmTap;
+  // try/finally so a mid-carousel exception can't leave _pushNews
+  // permanently broken (would silently corrupt every future news entry).
+  try {
   for (const t of teamOrder) {
     const tId = t.id;
     if (tId === franchise.chosenTeamId) continue; // user manages their own staff
@@ -9653,7 +9656,10 @@ function _runCoachingCarousel() {
   // summary entry at the top of the news stack so the user sees the chain
   // event without having to count individual coach_hire / coach_depart
   // entries. Posted only when 3+ HC changes happened (real Black Monday).
-  _pushNews = _origPushNews;
+  } finally {
+    // Always restore _pushNews even if the loop body threw.
+    _pushNews = _origPushNews;
+  }
   // Use hires count as the trigger — an HC hire implies a fire happened
   // (OC promotion still counts as a vacancy filled). Captures the full
   // chain whether or not each fire posts its own news entry.
@@ -16117,6 +16123,12 @@ function frnDraftToggleNotes(name) {
 // so the draft board UI can surface the riser/faller tags.
 function _runCombineEvent(draftClass) {
   if (!Array.isArray(draftClass)) return;
+  // Idempotency guard — if the user navigates away from the draft and
+  // returns, _runCombineEvent could fire again on the same class and
+  // double-adjust _aiScoutBias. Tag each class with the season it ran
+  // for so subsequent calls no-op.
+  if (franchise.draft?._combineRanForSeason === franchise.season) return;
+  if (franchise.draft) franchise.draft._combineRanForSeason = franchise.season;
   const risers = [], fallers = [], superathletes = [];
   // Class-level leaderboards — captured during the walk so we can surface
   // "fastest 40 in class" + count "sub-4.40 40s" / "27+ rep benches" etc.

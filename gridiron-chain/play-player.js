@@ -1259,6 +1259,11 @@ function genPlayer(pos, tier) {
   let flavor = null;
   if ((tier === "poor" || tier === "average") && pos !== "K" && pos !== "P") {
     flavor = applyFlavor(stats, pos);
+    // RAW_ATHLETE flavor pushes SPD to 68-80 unconditionally, which
+    // violates the OL/DL/etc. position SPD ceilings applied in statsFor.
+    // Re-cap after the flavor pass so an "athletic OL" doesn't end up
+    // running a 4.40 40-yd.
+    _applyPositionCaps(pos, stats);
   }
   // Build the legal name: first + (optional middle) + last. The display name
   // (what shows up in play logs, tooltips, and on the field) might be the

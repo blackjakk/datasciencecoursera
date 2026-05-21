@@ -29,9 +29,16 @@ function effectiveSpeed(p, yards = 30) {
   const agi = p.stats?.[2] || 50;
   // Weight pulled from combineMeasurables if available, else fallback by
   // position averages so engine works even on legacy player objects.
-  const w = (typeof combineMeasurables === "function")
-    ? combineMeasurables(p).weightLbs
-    : (POSITION_WEIGHT_FALLBACK[p.position] || 220);
+  // try/catch — combineMeasurables can throw on malformed player objects
+  // (no stats array, etc.); the engine should never crash on a bad player.
+  let w;
+  try {
+    w = (typeof combineMeasurables === "function")
+      ? combineMeasurables(p).weightLbs
+      : (POSITION_WEIGHT_FALLBACK[p.position] || 220);
+  } catch (_e) {
+    w = POSITION_WEIGHT_FALLBACK[p?.position] || 220;
+  }
   // Burst mix: 1.0 at 0 yds, 0 at 20+ yds. Lighter players win bursts.
   const burstMix = clamp((20 - yards) / 20, 0, 1);
   if (burstMix <= 0) {
