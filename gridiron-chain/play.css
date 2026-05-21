@@ -1846,7 +1846,60 @@
     width: 2.5rem;
   }
   .frn-cuts-td-name { font-family: inherit; }
-  .frn-cuts-td-name > span:first-child { color: var(--blwhite); }
+  /* Clickable name affordance — make it obvious you can click. Hover
+     surfaces the underline + a subtle background to confirm
+     interactivity. Mobile gets the tap target via padding. */
+  .frn-cuts-name-link {
+    color: var(--blwhite); font-weight: 700;
+    cursor: pointer; padding: .1rem .25rem .1rem 0;
+    border-radius: 2px;
+    border-bottom: 1px dotted rgba(200,169,0,.45);
+    transition: color .12s, border-bottom-color .12s, background .12s;
+  }
+  .frn-cuts-name-link:hover {
+    color: var(--gold);
+    border-bottom-color: var(--gold);
+    background: rgba(200,169,0,.08);
+  }
+  .frn-cuts-name-link::after {
+    content: " ↗";
+    font-size: .55rem;
+    color: var(--gray);
+    opacity: .55;
+    margin-left: .1rem;
+    transition: color .12s, opacity .12s;
+  }
+  .frn-cuts-name-link:hover::after {
+    color: var(--gold);
+    opacity: 1;
+  }
+
+  /* Ceiling tier badge — S/A/B/C/D colored chip. Hides the actual
+     ceiling number (per security model) while surfacing the bucket
+     a GM needs to make the cut decision. */
+  .frn-cuts-td-ceil { text-align: center; width: 2.5rem; }
+  .frn-cuts-tier {
+    display: inline-block;
+    min-width: 1.4rem; padding: .1rem .35rem;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .68rem; font-weight: 900;
+    border: 1px solid; border-radius: 3px;
+    background: rgba(0,0,0,.3);
+    text-align: center; letter-spacing: .5px;
+  }
+
+  /* Verdict reason — secondary text after the bold verdict label */
+  .frn-cuts-verdict-reason {
+    color: var(--gray); font-size: .55rem;
+    font-style: italic; letter-spacing: .2px;
+  }
+
+  /* Row left-border tint by verdict tier for at-a-glance scanning */
+  .frn-cuts-table tr.verdict-easy   { border-left: 2px solid #86e0a3; }
+  .frn-cuts-table tr.verdict-judgment { border-left: 2px solid #ffc850; }
+  .frn-cuts-table tr.verdict-keep   { border-left: 2px solid rgba(255,138,138,.4); }
+  .frn-cuts-table tr.verdict-costs  { border-left: 2px solid #ff8a8a; }
+  .frn-cuts-table tr.verdict-pending { border-left: 2px solid #ff8a8a; }
   .frn-cuts-badges { margin-left: .35rem; display: inline-flex; gap: .3rem; flex-wrap: wrap; }
   .frn-cuts-badge {
     display: inline-block;

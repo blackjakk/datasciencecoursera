@@ -5716,6 +5716,94 @@ function _faCutEconomics(player) {
   return { hit, totalDeadOnCut, netRelief, yearsLeft, perYearDead: dead.perYear || 0 };
 }
 
+// Decision recommendation for a single player. Synthesizes the
+// "should I cut this guy" decision tree into a single verdict:
+//   - EASY CUT   = overpaid + low ceiling/age + position safe
+//   - JUDGMENT   = trade-offs exist (good player overpaid, etc.)
+//   - KEEP       = ceiling/youth/role outweighs cap pain
+//   - COSTS $    = cutting loses money on the cap
+// Returns { verdict, label, color, reason } so the Notes column can
+// render a one-line synthesis.
+function _faCutVerdict(player, econ, positionDepth) {
+  const ovr = player.overall || 60;
+  const age = player.age || 25;
+  const tier = (typeof HiddenOracle === "object" && HiddenOracle?.read?.ceilingTier)
+    ? HiddenOracle.read.ceilingTier(player).grade
+    : "B";
+  const protect = player.captain || player.personality === "captain"
+                || (player.allPros || 0) >= 2 || (player.proBowls || 0) >= 3;
+
+  // Cutting costs money outright — always KEEP unless emergency
+  if (econ.netRelief < -0.5) {
+    return { verdict: "costs",
+             label: `Cut costs $${Math.abs(econ.netRelief).toFixed(1)}M`,
+             color: "#ff8a8a",
+             reason: "dead money exceeds salary relief" };
+  }
+
+  // Position floor — would dropping this player breach it?
+  if (positionDepth && positionDepth.delta <= 0 && ovr >= 65) {
+    return { verdict: "keep",
+             label: `${player.position} at floor`,
+             color: "#ff8a8a",
+             reason: "position would be below roster minimum" };
+  }
+
+  // Protected players (captain/elite) — flag as judgment, never auto
+  if (protect && econ.netRelief < 8) {
+    return { verdict: "keep",
+             label: "Locker-room cost > cap relief",
+             color: "#ff8a8a",
+             reason: "captain or multi-AllPro — release tax steep" };
+  }
+
+  // Young high-ceiling — keep (years of upside)
+  if (age <= 25 && (tier === "S" || tier === "A")) {
+    return { verdict: "keep",
+             label: `${tier}-tier ceiling, age ${age}`,
+             color: "#ff8a8a",
+             reason: "upside not realized yet — sunk cost rebound" };
+  }
+
+  // Aged-out + low ceiling + meaningful relief — easy cut
+  if (age >= 30 && (tier === "C" || tier === "D") && econ.netRelief >= 3) {
+    return { verdict: "easy",
+             label: `Easy cut · $${econ.netRelief.toFixed(1)}M saved`,
+             color: "#86e0a3",
+             reason: "aging, capped ceiling, meaningful relief" };
+  }
+
+  // Big cap relief regardless of other factors
+  if (econ.netRelief >= 10) {
+    return { verdict: "easy",
+             label: `Big saver · $${econ.netRelief.toFixed(1)}M`,
+             color: "#86e0a3",
+             reason: "cap relief alone justifies it" };
+  }
+
+  // Solid saver but with caveats
+  if (econ.netRelief >= 4) {
+    return { verdict: "judgment",
+             label: `Judgment · $${econ.netRelief.toFixed(1)}M relief`,
+             color: "#ffc850",
+             reason: "depends on what you replace him with" };
+  }
+
+  // Marginal save
+  if (econ.netRelief >= 1) {
+    return { verdict: "judgment",
+             label: `Marginal · $${econ.netRelief.toFixed(1)}M`,
+             color: "#ffc850",
+             reason: "small relief, weigh against position depth" };
+  }
+
+  // Default — weak cut
+  return { verdict: "keep",
+           label: "Low cap relief",
+           color: "#ffc850",
+           reason: "the juice isn't worth the squeeze" };
+}
+
 // Risk badges for each roster row — surfaced as small chips so a GM
 // scanning the cut list knows what they're trading away.
 function _faRiskBadges(player) {
@@ -5762,23 +5850,25 @@ function frnFAAutoCutSuggest() {
   const pending = new Set(franchise._pendingCuts);
 
   // Build sorted candidate list, best-cut-first
-  const candidates = myRoster
+  // Two-tier filtering: prefer positive-relief candidates, but fall
+  // back to ANY candidate if none exist. A team that's heavily over
+  // cap with proration-heavy deals sometimes has no clean cut; the
+  // user still needs SOMETHING to consider.
+  const allCandidates = myRoster
     .filter(p => !pending.has(p.name))
     .map(p => {
       const econ = _faCutEconomics(p);
       const ovr = p.overall || 60;
-      // "Cuttability" score — higher is more cuttable
-      // - high net relief is good
-      // - high AAV/OVR (overpaid for the talent) is great
-      // - elite accolades & captains are protected
       const overpayRatio = (p.contract?.aav || 0) / Math.max(40, ovr);
       const protect = (p.captain || p.personality === "captain") ? 50
                     : (p.allPros || 0) >= 2 || (p.proBowls || 0) >= 3 ? 30
                     : 0;
       return { p, econ, score: econ.netRelief * 0.6 + overpayRatio * 4 - protect };
     })
-    .filter(c => c.econ.netRelief > 0.5) // skip players who'd cost us money on the cut
     .sort((a, b) => b.score - a.score);
+  const positiveOnly = allCandidates.filter(c => c.econ.netRelief > 0.5);
+  const fellBack = positiveOnly.length === 0;
+  const candidates = positiveOnly.length ? positiveOnly : allCandidates.filter(c => c.econ.netRelief > -3);
 
   // Greedy fill — add until target met or no candidates left
   let freed = 0;
@@ -5795,13 +5885,16 @@ function frnFAAutoCutSuggest() {
     freed += c.econ.netRelief;
   }
   if (!recs.length) {
-    alert("No safe auto-cuts available. Try manually — every cap-saving cut would either drop a position below the floor or hit a protected player (captain/elite).");
+    alert("No safe auto-cuts available. Every candidate would either drop a position below the roster floor or hit a protected player (captain/multi-AllPro). Try manually, or consider restructuring contracts instead.");
     return;
   }
+  const fallbackNote = fellBack
+    ? "\n\n⚠ Every cuttable contract has heavy dead money — these picks LOSE money on the cap but free roster space. Consider restructures first."
+    : "";
   if (freed < need) {
-    if (!confirm(`Auto-cut suggests ${recs.length} cuts freeing $${freed.toFixed(1)}M, but you still need to free $${(need - freed).toFixed(1)}M more. Stage these and pick more manually?`)) return;
+    if (!confirm(`Auto-cut suggests ${recs.length} cuts freeing $${freed.toFixed(1)}M, but you still need to free $${(need - freed).toFixed(1)}M more. Stage these and pick more manually?${fallbackNote}`)) return;
   } else {
-    if (!confirm(`Auto-cut will stage ${recs.length} cuts freeing $${freed.toFixed(1)}M (need $${need.toFixed(1)}M). Stage them now? You'll still need to confirm before they go through.`)) return;
+    if (!confirm(`Auto-cut will stage ${recs.length} cuts freeing $${freed.toFixed(1)}M (need $${need.toFixed(1)}M). Stage them now? You'll still need to confirm before they go through.${fallbackNote}`)) return;
   }
   for (const r of recs) franchise._pendingCuts.push(r.p.name);
   saveFranchise();
@@ -5988,6 +6081,7 @@ function renderFrnFACuts() {
     </div>`;
 
   // — ROSTER TABLE —
+  const _hasOracle = (typeof HiddenOracle === "object" && HiddenOracle?.read?.ceilingTier);
   const rowsHtml = sortedRoster.map(p => {
     const econ = _faCutEconomics(p);
     const badges = _faRiskBadges(p);
@@ -6001,27 +6095,33 @@ function renderFrnFACuts() {
                  : (p.overall||0) >= 62 ? "var(--gray)"
                  : "#ff8a8a";
     const positionDepth = depth[p.position];
-    // Notes column synthesizes the most useful single insight
-    let note = "";
-    if (isPending) note = `<span style="color:#ff8a8a;font-weight:700">PENDING CUT</span>`;
-    else if (econ.netRelief < 0) note = `<span style="color:#ff8a8a">Cut costs $${Math.abs(econ.netRelief).toFixed(1)}M — keep</span>`;
-    else if (positionDepth && positionDepth.delta <= 0) note = `<span style="color:#ffc850">${p.position} at floor</span>`;
-    else if (econ.netRelief > 8) note = `<span style="color:#86e0a3">Big saver — easy cut</span>`;
-    else if (econ.netRelief > 3) note = `<span style="color:var(--gold-lt)">Solid cap relief</span>`;
-    return `<tr class="${isPending?"pending":""}">
+    const verdict = isPending
+      ? { verdict: "pending", label: "PENDING CUT", color: "#ff8a8a", reason: "queued for release" }
+      : _faCutVerdict(p, econ, positionDepth);
+    // Ceiling tier — hidden potential bucket (S/A/B/C/D). Sourced via
+    // HiddenOracle so the security model holds (no raw ceiling number
+    // ever surfaces). Falls back to "?" if oracle isn't available.
+    const tier = _hasOracle ? HiddenOracle.read.ceilingTier(p) : { grade: "?", color: "var(--gray)" };
+    const tierBadge = `<span class="frn-cuts-tier tier-${tier.grade}" style="color:${tier.color};border-color:${tier.color}55" title="Hidden ceiling tier · S best, D worst — your scouts can be wrong">${tier.grade}</span>`;
+
+    return `<tr class="${isPending?"pending":""} verdict-${verdict.verdict}">
       <td class="frn-cuts-td-pos">${p.position}</td>
       <td class="frn-cuts-td-name">
-        <span style="font-weight:700;cursor:pointer" onclick="frnOpenPlayerCard('${cleanName(p.name)}')">${p.name}</span>
+        <span class="frn-cuts-name-link" onclick="frnOpenPlayerCard('${cleanName(p.name)}')" title="${p.name} — click for full card · ceiling, contract, career history">${p.name}</span>
         ${badges.length ? `<span class="frn-cuts-badges">${badges.map(b => `<span class="frn-cuts-badge" style="color:${b.col};border-color:${b.col}55">${b.tag}</span>`).join("")}</span>` : ""}
       </td>
       <td class="frn-cuts-td-ovr" style="color:${ovrCol}">${ovrStr}</td>
+      <td class="frn-cuts-td-ceil">${tierBadge}</td>
       <td class="frn-cuts-td-age">${ageStr}</td>
       <td class="frn-cuts-td-yrs">${yrs}yr</td>
       <td class="frn-cuts-td-aav">$${(p.contract?.aav||0).toFixed(1)}M</td>
       <td class="frn-cuts-td-hit">$${econ.hit.toFixed(1)}M</td>
-      <td class="frn-cuts-td-dead" style="color:${econ.totalDeadOnCut>0?'#ffc850':'var(--gray)'}">${econ.totalDeadOnCut>0?`−$${econ.totalDeadOnCut.toFixed(1)}M`:"$0"}</td>
+      <td class="frn-cuts-td-dead" style="color:${econ.totalDeadOnCut>0?'#ffc850':'var(--gray)'}">${econ.totalDeadOnCut>0?`−$${econ.totalDeadOnCut.toFixed(1)}M`:"—"}</td>
       <td class="frn-cuts-td-net" style="color:${reliefCol};font-weight:900">${econ.netRelief>=0?'+':'−'}$${Math.abs(econ.netRelief).toFixed(1)}M</td>
-      <td class="frn-cuts-td-note">${note}</td>
+      <td class="frn-cuts-td-note">
+        <span style="color:${verdict.color};font-weight:700">${verdict.label}</span>
+        ${verdict.reason ? `<span class="frn-cuts-verdict-reason"> · ${verdict.reason}</span>` : ""}
+      </td>
       <td class="frn-cuts-td-action">
         <button class="frn-cuts-row-btn ${isPending?"undo":"cut"}" onclick="frnFACutsTogglePending('${cleanName(p.name)}')">
           ${isPending ? "← undo" : "✗ stage cut"}
@@ -6035,9 +6135,11 @@ function renderFrnFACuts() {
       <table class="frn-cuts-table">
         <thead>
           <tr>
-            <th>Pos</th><th>Player</th><th>OVR</th><th>Age</th><th>Yrs</th>
+            <th>Pos</th><th>Player</th><th>OVR</th>
+            <th title="Hidden ceiling tier (S best → D worst). Your scouts may be wrong; click a player to dig deeper.">Ceil</th>
+            <th>Age</th><th>Yrs</th>
             <th>AAV</th><th>'25 Hit</th><th>Dead $</th><th>Net Relief</th>
-            <th>Notes</th><th></th>
+            <th>Recommendation</th><th></th>
           </tr>
         </thead>
         <tbody>${rowsHtml}</tbody>
