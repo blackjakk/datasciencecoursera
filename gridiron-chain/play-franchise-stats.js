@@ -6833,7 +6833,11 @@ function renderFrnRegular() {
     <div class="frn-scout-gauge" title="${scoutBank} of ${SCOUT_CAP} credits · +${SCOUT_REFRESH}/wk · ${revealCount} prospects revealed this season">
       ${scoutGaugeDots}
     </div>`;
-  const scoutChipClick = `onclick="renderFrnPreseason && renderFrnPreseason('scout')"`;
+  // Click → in-season scouting board (renderFrnScoutingBoard). Was
+  // wired to renderFrnPreseason('scout') by mistake which is the
+  // OFFSEASON-only draft prep page; mid-season this lands you on the
+  // college scouting board where credits are actually spent.
+  const scoutChipClick = `onclick="if (typeof renderFrnScoutingBoard === 'function') renderFrnScoutingBoard(); else if (typeof renderFrnPreseason === 'function') renderFrnPreseason('scout')"`;
   const pulseHtml = `
     <div class="frn-card-box frn-pulse-card">
       <div class="frn-card-title">GM PULSE <span class="frn-card-title-sub">at-a-glance</span></div>
@@ -6842,8 +6846,8 @@ function renderFrnRegular() {
         ${pulseChipHtml("TRADE WIN", tradeChipLabel, tradeDelta < 0 ? "deadline passed" : `until W${TRADE_DEADLINE_WEEK}`, tradeChipCol)}
         ${pulseChipHtml("BYE", byeChipLabel, byeDelta == null ? "—" : byeDelta < 0 ? "" : byeDelta === 0 ? "rest week" : `${byeDelta}w out`, byeChipCol)}
         ${pulseChipHtml("HEALTH", healthChipLabel, healthChipSub, healthChipCol)}
-        <div class="frn-pulse-chip clickable" ${scoutChipClick} title="Click to open college scouting">
-          <div class="frn-pulse-chip-label">🔭 SCOUTING</div>
+        <div class="frn-pulse-chip clickable" ${scoutChipClick} title="Click to open college scouting. ${scoutBank >= SCOUT_CAP ? 'Bank is full — credits stop accumulating until you spend.' : ''}">
+          <div class="frn-pulse-chip-label">🔭 SCOUTING${scoutBank >= SCOUT_CAP ? `<span class="frn-pulse-chip-badge" title="Bank full — spend or lose">!</span>` : (scoutBank >= SCOUT_CAP - 2 ? `<span class="frn-pulse-chip-badge warn" title="Bank nearly full — spend soon">!</span>` : "")}</div>
           <div class="frn-pulse-chip-value" style="color:${scoutChipCol}">${scoutBank}<span style="font-size:.65rem;color:var(--gray);font-weight:500"> / ${SCOUT_CAP}</span></div>
           <div class="frn-pulse-chip-sub">+${SCOUT_REFRESH}/wk · ${revealCount} revealed</div>
           ${scoutExtra}
@@ -7145,11 +7149,13 @@ function renderFrnRegular() {
     const oppRtgsX = buildRatings(oppRosterX);
     const myRtgsX  = ratings; // already computed earlier
     const fronts = [
-      { lbl: "PASS OFF",  me: myRtgsX.qb || (myRtgsX.wr + 60)/2, them: ((oppRtgsX.cb||60)+(oppRtgsX.saf||60))/2, meSub: `${myRtgsX.qb||"-"} QB · ${myRtgsX.wr||"-"} WR`, themSub: `${oppRtgsX.cb||"-"} CB · ${oppRtgsX.saf||"-"} S` },
-      { lbl: "PASS DEF",  me: ((myRtgsX.cb||60)+(myRtgsX.saf||60))/2, them: oppRtgsX.qb || (oppRtgsX.wr + 60)/2, meSub: `${myRtgsX.cb||"-"} CB · ${myRtgsX.saf||"-"} S`, themSub: `${oppRtgsX.qb||"-"} QB · ${oppRtgsX.wr||"-"} WR` },
-      { lbl: "RUN OFF",   me: ((myRtgsX.rb||60)+(myRtgsX.ol||60))/2,  them: ((oppRtgsX.dl||60)+(oppRtgsX.lb||60))/2, meSub: `${myRtgsX.rb||"-"} RB · ${myRtgsX.ol||"-"} OL`, themSub: `${oppRtgsX.dl||"-"} DL · ${oppRtgsX.lb||"-"} LB` },
-      { lbl: "RUN DEF",   me: ((myRtgsX.dl||60)+(myRtgsX.lb||60))/2,  them: ((oppRtgsX.rb||60)+(oppRtgsX.ol||60))/2, meSub: `${myRtgsX.dl||"-"} DL · ${myRtgsX.lb||"-"} LB`, themSub: `${oppRtgsX.rb||"-"} RB · ${oppRtgsX.ol||"-"} OL` },
-      { lbl: "TRENCHES",  me: ((myRtgsX.ol||60)+(myRtgsX.dl||60))/2,  them: ((oppRtgsX.ol||60)+(oppRtgsX.dl||60))/2, meSub: `${myRtgsX.ol||"-"} OL · ${myRtgsX.dl||"-"} DL`, themSub: `${oppRtgsX.ol||"-"} OL · ${oppRtgsX.dl||"-"} DL` },
+      // Round all sub-text ratings — buildRatings returns weighted-average
+      // floats which were rendering as "76.83333333..." in the sub lines.
+      { lbl: "PASS OFF",  me: myRtgsX.qb || (myRtgsX.wr + 60)/2, them: ((oppRtgsX.cb||60)+(oppRtgsX.saf||60))/2, meSub: `${myRtgsX.qb?Math.round(myRtgsX.qb):"-"} QB · ${myRtgsX.wr?Math.round(myRtgsX.wr):"-"} WR`, themSub: `${oppRtgsX.cb?Math.round(oppRtgsX.cb):"-"} CB · ${oppRtgsX.saf?Math.round(oppRtgsX.saf):"-"} S` },
+      { lbl: "PASS DEF",  me: ((myRtgsX.cb||60)+(myRtgsX.saf||60))/2, them: oppRtgsX.qb || (oppRtgsX.wr + 60)/2, meSub: `${myRtgsX.cb?Math.round(myRtgsX.cb):"-"} CB · ${myRtgsX.saf?Math.round(myRtgsX.saf):"-"} S`, themSub: `${oppRtgsX.qb?Math.round(oppRtgsX.qb):"-"} QB · ${oppRtgsX.wr?Math.round(oppRtgsX.wr):"-"} WR` },
+      { lbl: "RUN OFF",   me: ((myRtgsX.rb||60)+(myRtgsX.ol||60))/2,  them: ((oppRtgsX.dl||60)+(oppRtgsX.lb||60))/2, meSub: `${myRtgsX.rb?Math.round(myRtgsX.rb):"-"} RB · ${myRtgsX.ol?Math.round(myRtgsX.ol):"-"} OL`, themSub: `${oppRtgsX.dl?Math.round(oppRtgsX.dl):"-"} DL · ${oppRtgsX.lb?Math.round(oppRtgsX.lb):"-"} LB` },
+      { lbl: "RUN DEF",   me: ((myRtgsX.dl||60)+(myRtgsX.lb||60))/2,  them: ((oppRtgsX.rb||60)+(oppRtgsX.ol||60))/2, meSub: `${myRtgsX.dl?Math.round(myRtgsX.dl):"-"} DL · ${myRtgsX.lb?Math.round(myRtgsX.lb):"-"} LB`, themSub: `${oppRtgsX.rb?Math.round(oppRtgsX.rb):"-"} RB · ${oppRtgsX.ol?Math.round(oppRtgsX.ol):"-"} OL` },
+      { lbl: "TRENCHES",  me: ((myRtgsX.ol||60)+(myRtgsX.dl||60))/2,  them: ((oppRtgsX.ol||60)+(oppRtgsX.dl||60))/2, meSub: `${myRtgsX.ol?Math.round(myRtgsX.ol):"-"} OL · ${myRtgsX.dl?Math.round(myRtgsX.dl):"-"} DL`, themSub: `${oppRtgsX.ol?Math.round(oppRtgsX.ol):"-"} OL · ${oppRtgsX.dl?Math.round(oppRtgsX.dl):"-"} DL` },
     ];
     const oppX = getTeam(oppIdX);
     const xRows = fronts.map(f => {

@@ -9221,6 +9221,29 @@
     border-color: rgba(94,212,212,.45);
     transform: translateY(-1px);
   }
+  /* Pulse chip spend-now badge — iOS-style red dot in the label row,
+     fires when the scout bank is full (or near-full) so credits stop
+     accumulating. The warn variant (amber) appears when ≥8/10. */
+  .frn-pulse-chip-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: .85rem; height: .85rem;
+    margin-left: .25rem; padding: 0 .2rem;
+    font-size: .58rem; font-weight: 900; line-height: 1;
+    color: #fff; background: #ff3b30;
+    border-radius: 999px;
+    vertical-align: middle;
+    box-shadow: 0 0 0 2px rgba(255,59,48,.15);
+    animation: pulseChipPulse 2.4s ease-in-out infinite;
+  }
+  .frn-pulse-chip-badge.warn {
+    background: #ffc850; color: #0a0a0a;
+    box-shadow: 0 0 0 2px rgba(255,200,80,.15);
+  }
+  @keyframes pulseChipPulse {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.12); }
+  }
+
   /* Scout gauge — row of dots, one per credit, filled when bank≥index */
   .frn-scout-gauge {
     display: flex; gap: 2px; margin-top: .25rem;

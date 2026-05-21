@@ -13269,17 +13269,39 @@ function _buildBestOfferPackage(teamId, player, targetValue) {
   // 2. (Cash / transfer fee removed — absorption is computed internally)
   const cashUnits = 0;
 
-  // 3. Optional grade-min player
+  // 3. Optional grade-min player. Prefer offering a player at the SAME
+  //    position as the one the AI is acquiring (most natural swap),
+  //    then offering a player at a position the AI has roster-depth
+  //    excess at (i.e., they can spare), and ONLY then fall back to
+  //    the cheapest grade-matching player. Without this, blocking a
+  //    CB with "B+ player in return" would land you a random
+  //    overflow-OL — the cheapest B+ guy on the AI's roster.
   let extraPlayerName = null;
   let extraPlayerValue = 0;
   if (ask.minPlayerGrade) {
     const floor = _gradeLabelToFloor(ask.minPlayerGrade);
-    const candidates = (franchise.rosters[teamId] || [])
-      .filter(rp => scoutGrade(rp) >= floor && !rp.onTradeBlock)
-      .sort((a,b) => scoutGrade(a) - scoutGrade(b)); // cheapest match first
-    if (!candidates.length) return null;
-    extraPlayerName = candidates[0].name;
-    extraPlayerValue = _playerTradeValue(candidates[0]);
+    const askPos = player.position;
+    const aiRoster = (franchise.rosters[teamId] || [])
+      .filter(rp => scoutGrade(rp) >= floor && !rp.onTradeBlock);
+    if (!aiRoster.length) return null;
+    // Compute the AI's depth at each position so we can prefer to send
+    // a player at a position where they have extra bodies.
+    const ROSTER_FLOORS = (typeof ROSTER_SLOTS === "object" && ROSTER_SLOTS) || {};
+    const aiPosCounts = {};
+    for (const rp of (franchise.rosters[teamId] || [])) {
+      aiPosCounts[rp.position] = (aiPosCounts[rp.position] || 0) + 1;
+    }
+    const samePosCandidates = aiRoster.filter(rp => rp.position === askPos);
+    const depthSurplus = (p) => (aiPosCounts[p.position] || 0) - (ROSTER_FLOORS[p.position] || 0);
+    const surplusCandidates = aiRoster.filter(rp => depthSurplus(rp) >= 2);
+    // Priority ladder: same-position first (cheapest match within that
+    // group), then position-of-surplus, then anyone matching grade.
+    const pool = samePosCandidates.length ? samePosCandidates
+               : surplusCandidates.length ? surplusCandidates
+               : aiRoster;
+    pool.sort((a, b) => scoutGrade(a) - scoutGrade(b));
+    extraPlayerName = pool[0].name;
+    extraPlayerValue = _playerTradeValue(pool[0]);
   }
 
   let totalValue = pickValue + cashUnits + extraPlayerValue;
