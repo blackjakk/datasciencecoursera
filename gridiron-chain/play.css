@@ -9462,6 +9462,35 @@
     .frn-gauntlet { grid-template-columns: repeat(2, 1fr); }
   }
 
+  /* Combined SCHEDULE card — past results on top (compact chips),
+     upcoming gauntlet on bottom (rich cards). Single label per row so
+     the row identity reads even with no card chrome dividers. */
+  .frn-schedule-card { padding: .65rem .8rem .8rem; }
+  .frn-schedule-past-row,
+  .frn-schedule-future-row {
+    display: flex; align-items: center; gap: .55rem;
+    margin-top: .55rem;
+  }
+  .frn-schedule-row-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .52rem; font-weight: 900;
+    color: var(--gold); letter-spacing: 1.5px;
+    text-transform: uppercase;
+    min-width: 4.5rem;
+    flex-shrink: 0;
+  }
+  .frn-schedule-past-row .frn-sched-strip-group {
+    flex: 1; display: flex; gap: .35rem; flex-wrap: wrap;
+  }
+  .frn-schedule-future-row .frn-gauntlet {
+    flex: 1; margin-top: 0;
+  }
+  @media (max-width: 720px) {
+    .frn-schedule-past-row,
+    .frn-schedule-future-row { flex-direction: column; align-items: stretch; }
+    .frn-schedule-row-label { min-width: 0; }
+  }
+
   /* ── HERO ZONE ──
      Tier-1 visual anchor at the top of the dashboard. Combines win
      probability, matchup, narrative one-liner, dominant PLAY CTA, and

@@ -6852,6 +6852,7 @@ function renderFrnRegular() {
     </div>`;
 
   // ─── Left column: inbox + unit bars + pulse ──────────────────────────
+  // Left column — pulse moved to center; sidebar now Inbox + Unit Ratings.
   const leftColHtml = `
     <div>
       <div class="frn-card-box" style="padding:0">
@@ -6871,7 +6872,6 @@ function renderFrnRegular() {
         ${faWireInfo}
         ${wireRow}
       </div>
-      ${pulseHtml}
       <div class="frn-card-box" style="margin-top:1rem">
         <div class="frn-card-title">UNIT RATINGS</div>
         ${unitRows}
@@ -7308,46 +7308,72 @@ function renderFrnRegular() {
       </div>
     </div>` : "";
 
-  // 3) GAUNTLET — next 4 opponents heatmap colored by combined off+def
-  //    rating. Surfaces "your next 4 weeks of pain" at a glance.
+  // 3) SCHEDULE + GAUNTLET (combined) — past results as compact chips on
+  //    top, upcoming as rich gauntlet cards below. One card eliminates
+  //    the duplicate schedule-strip + separate-gauntlet pattern; the
+  //    visual size difference between past chips and future cards
+  //    makes "you are HERE" jump out.
   const upcoming4 = stripUpcoming.slice(0, 4);
-  const gauntletHtml = upcoming4.length ? `
-    <div class="frn-card-box">
-      <div class="frn-card-title">GAUNTLET <span class="frn-card-title-sub">next ${upcoming4.length} ${upcoming4.length===1?"game":"games"}</span></div>
-      <div class="frn-gauntlet">
-        ${upcoming4.map(g => {
-          const isHome = g.homeId === chosenTeamId;
-          const oppId = isHome ? g.awayId : g.homeId;
-          const opp = getTeam(oppId);
-          const rtg = frnTeamRating(oppId);
-          const combined = Math.round(((rtg.off||60)+(rtg.def||60))/2);
-          const oppRec = standings[oppId] || {w:0,l:0};
-          const tough = combined >= 78 ? "elite"
-                      : combined >= 72 ? "tough"
-                      : combined >= 65 ? "even"
-                      :                  "soft";
-          const toughCol = tough==="elite" ? "#ff8a8a"
-                         : tough==="tough" ? "#ffc850"
-                         : tough==="even"  ? "rgba(255,255,255,.55)"
-                         :                   "#86e0a3";
-          const isRival = _areRivals(g.homeId, g.awayId);
-          return `<div class="frn-gauntlet-card" style="--toughCol:${toughCol}">
-            <div class="frn-gauntlet-wk">W${g.week}${isRival?" 🔥":""}</div>
-            <div class="frn-gauntlet-opp">${isHome?"vs":"@"} ${opp?.name||"?"}</div>
-            <div class="frn-gauntlet-rec">${oppRec.w}-${oppRec.l}</div>
-            <div class="frn-gauntlet-rating">
-              <span class="frn-gauntlet-rval" style="color:${toughCol}">${combined}</span>
-              <span class="frn-gauntlet-rsub">OFF ${rtg.off||"—"} · DEF ${rtg.def||"—"}</span>
-            </div>
-            <div class="frn-gauntlet-tag" style="background:${toughCol}22;color:${toughCol};border-color:${toughCol}55">${tough.toUpperCase()}</div>
-          </div>`;
-        }).join("")}
+  const _gauntletCard = (g) => {
+    const isHome = g.homeId === chosenTeamId;
+    const oppId = isHome ? g.awayId : g.homeId;
+    const opp = getTeam(oppId);
+    const rtg = frnTeamRating(oppId);
+    const combined = Math.round(((rtg.off||60)+(rtg.def||60))/2);
+    const oppRec = standings[oppId] || {w:0,l:0};
+    const tough = combined >= 78 ? "elite"
+                : combined >= 72 ? "tough"
+                : combined >= 65 ? "even"
+                :                  "soft";
+    const toughCol = tough==="elite" ? "#ff8a8a"
+                   : tough==="tough" ? "#ffc850"
+                   : tough==="even"  ? "rgba(255,255,255,.55)"
+                   :                   "#86e0a3";
+    const isRival = _areRivals(g.homeId, g.awayId);
+    return `<div class="frn-gauntlet-card" style="--toughCol:${toughCol}">
+      <div class="frn-gauntlet-wk">W${g.week}${isRival?" 🔥":""}</div>
+      <div class="frn-gauntlet-opp">${isHome?"vs":"@"} ${opp?.name||"?"}</div>
+      <div class="frn-gauntlet-rec">${oppRec.w}-${oppRec.l}</div>
+      <div class="frn-gauntlet-rating">
+        <span class="frn-gauntlet-rval" style="color:${toughCol}">${combined}</span>
+        <span class="frn-gauntlet-rsub">OFF ${rtg.off||"—"} · DEF ${rtg.def||"—"}</span>
       </div>
+      <div class="frn-gauntlet-tag" style="background:${toughCol}22;color:${toughCol};border-color:${toughCol}55">${tough.toUpperCase()}</div>
+    </div>`;
+  };
+  const haveAnything = stripPast.length || upcoming4.length;
+  const gauntletHtml = haveAnything ? `
+    <div class="frn-card-box frn-schedule-card">
+      <div class="frn-card-title">
+        SCHEDULE
+        <span class="frn-card-title-sub">${stripPast.length} past · next ${upcoming4.length} gauntlet</span>
+      </div>
+      ${stripPast.length ? `
+        <div class="frn-schedule-past-row">
+          <span class="frn-schedule-row-label">RECENT</span>
+          <div class="frn-sched-strip-group">${stripPast.map(g => stripChip(g, "past")).join("")}</div>
+        </div>
+      ` : ""}
+      ${upcoming4.length ? `
+        <div class="frn-schedule-future-row">
+          <span class="frn-schedule-row-label">UPCOMING</span>
+          <div class="frn-gauntlet">${upcoming4.map(_gauntletCard).join("")}</div>
+        </div>
+      ` : ""}
     </div>` : "";
+  // scheduleStripHtml absorbed into gauntletHtml above; suppressed below
+  const __unusedScheduleStripHtml = scheduleStripHtml; // keep ref alive
+  void __unusedScheduleStripHtml;
 
+  // Center column layout — eye flow top-to-bottom:
+  //   HERO (win prob + play CTA + top decision)
+  //   GM PULSE (4 chips at-a-glance — moved from left for centrality)
+  //   MATCHUP X-RAY (next opponent fronts)
+  //   SCHEDULE (past results + gauntlet — combined)
+  //   PLAYMAKERS (top performers)
   const centerHtml = `
     ${nextCardHtml}
-    ${scheduleStripHtml}
+    ${pulseHtml}
     ${matchupXrayHtml}
     ${gauntletHtml}
     ${hotBoardHtml}`;
