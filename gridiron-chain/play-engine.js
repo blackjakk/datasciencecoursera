@@ -2573,11 +2573,29 @@ class GameSimulator {
       // Effective speed at burst distance (10yd) — accounts for weight +
       // AGI so a heavier RB with same SPD doesn't burst the same.
       const cspd = effectiveSpeed(cp, 10);
+      // Mass + low-COG bonus — Marshawn (5'11" 215lb) breaks more than
+      // Reggie Bush (6'0" 200lb) even at identical STR. weight/height is
+      // a "density" proxy for center of gravity. Higher density = lower
+      // COG = harder to wrap up. Reference 2.75 = average NFL skill body.
+      //   3.30 (Derrick Henry)  → +4.4 break-stat bonus
+      //   3.00 (Marshawn)        → +2.0
+      //   2.75 (avg WR/RB)       →  0
+      //   2.50 (lean WR/CB)      → -2.0
+      let densityBonus = 0;
+      try {
+        const cmb = combineMeasurables(cp);
+        const density = (cmb.weightLbs || 215) / (cmb.heightIn || 71);
+        densityBonus = (density - 2.75) * 8;
+      } catch (_e) { /* leave densityBonus 0 if measurables fail */ }
       let breakStat;
-      if (rbArch === "POWER")        breakStat = cstr;
-      else if (rbArch === "ELUSIVE") breakStat = (cagi * 0.7 + cstr * 0.3);
-      else if (rbArch === "SPEED")   breakStat = (cspd * 0.7 + cstr * 0.3);
-      else                            breakStat = (cstr + cagi) / 2;
+      // POWER backs lean on mass + density most (1.5× density weight).
+      // ELUSIVE wins with juke — density barely matters.
+      // SPEED uses burst, density helps a bit (Bo Jackson tier).
+      // Default mixes STR/AGI with full density.
+      if (rbArch === "POWER")        breakStat = cstr + densityBonus * 1.5;
+      else if (rbArch === "ELUSIVE") breakStat = (cagi * 0.7 + cstr * 0.3) + densityBonus * 0.3;
+      else if (rbArch === "SPEED")   breakStat = (cspd * 0.7 + cstr * 0.3) + densityBonus * 0.4;
+      else                            breakStat = (cstr + cagi) / 2 + densityBonus;
       const lbList = this.defArch.LB || [];
       const lbPlayers = lbList.map(l => this._playerByName.get(l?.name)).filter(Boolean);
       const avgTck = lbPlayers.length
