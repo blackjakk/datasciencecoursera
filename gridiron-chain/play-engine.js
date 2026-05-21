@@ -1733,6 +1733,9 @@ class GameSimulator {
         // detection in _drive (yards: -1 → proposedYL <= 0). Clamp the
         // loss so the ball never crosses the goal line.
         const yardLoss = Math.min(1, startYard - 1);  // 0 if at the 1, else 1
+        // NFL credits kneels as rushing — qbStats.rush_yds takes the loss.
+        if (qbStats) qbStats.rush_yds = (qbStats.rush_yds || 0) - yardLoss;
+        off.team.rushYds = (off.team.rushYds || 0) - yardLoss;
         this._pushVisual({
           kind: "kneel",
           desc: `${QB} takes a knee — victory formation`,
@@ -1833,16 +1836,15 @@ class GameSimulator {
       const pressureScrBonus = Math.max(0, pressure) * archPressureMul;
       const scramblePct = (pb.qbScramblePct || 0) + qbScrambleBonus + pressureScrBonus;
       if (scramblePct > 0 && Math.random() < scramblePct) {
-        // Mobile QB scramble — modest gain when coverage is locked
-        // Scramble yardage softened — elite LBs/safeties don't let QBs walk for 8 yds every time.
-        // Subtracts a small amount based on linebacker tackling rating.
-        const lbTk = (this.defR.lb - 65) / 25;   // 0 at avg LB, +1.2 at elite
-        // QB scramble distance scales with effective speed — a 235lb QB
-        // doesn't outrun pursuit the same as a 210lb dual-threat. AGI
-        // matters too (open-field jukes). 12-yd burst window.
+        const lbTk = (this.defR.lb - 65) / 25;
         const qbPlayer = this._playerByName.get(QB);
-        const qbBurst = (effectiveSpeed(qbPlayer, 12) - 70) * 0.05;
-        let yards = clamp(normal(4 + adv * 1.5 + Math.max(0, pressure) * 0.6 - lbTk + qbBurst, 6.5), -4, 50);
+        // Floor the burst penalty: when a slow QB *chooses* to scramble, it's
+        // because he sees a lane. Brady-tier shouldn't average -0.75 yds.
+        const qbBurst = Math.max(-0.3, (effectiveSpeed(qbPlayer, 12) - 70) * 0.05);
+        // Base 4.5: intentional-scramble bonus — the QB only takes off when
+        // he's already calculated +EV. Even immobile QBs net ~4 yds when
+        // they tuck and run.
+        let yards = clamp(normal(4.5 + adv * 1.5 + Math.max(0, pressure) * 0.6 - lbTk + qbBurst, 6.5), -4, 50);
         // Lean forward — Josh Allen / Cam Newton fall forward for an extra
         // half-yard on every scramble. Lamar (lean DUAL_THREAT) slides.
         if (yards > 0) {
