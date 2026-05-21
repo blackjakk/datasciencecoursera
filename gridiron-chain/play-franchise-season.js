@@ -5694,52 +5694,378 @@ function frnFAStartWithGrace() {
   frnFAFinish();
 }
 
+// Decision helpers — one shared utility computes the cut economics for
+// each player so the UI, sorter, and auto-cut algorithm all see the
+// same numbers.
+function _faCutEconomics(player) {
+  const hit  = (typeof currentYearCapHit === "function") ? currentYearCapHit(player) : (player.contract?.aav || 0);
+  const dead = (typeof deadCapOnRelease === "function") ? deadCapOnRelease(player) : { perYear: 0, years: 0 };
+  // When cut, all remaining proration accelerates to current year. The
+  // current-year hit's proration stays; the FUTURE years' worth become
+  // dead cap on top of the released base salary.
+  const totalDeadOnCut = (dead.perYear || 0) * Math.max(0, (dead.years || 0));
+  const yearsLeft = player.contract?.remaining || player.contract?.years || 1;
+  // Net cap relief = current hit - dead cap that lands on this year.
+  // For a 1-yr deal: yearsLeft=1, dead = 1×proration, hit = base+proration.
+  // Relief = base+proration - 1×proration = base. Correct.
+  // For a 4-yr deal with 3 left: dead = 3×proration, hit = base+proration.
+  // Relief = base+proration - 3×proration = base - 2×proration.
+  // This can go NEGATIVE when proration is heavy on a long deal — cap-cut
+  // would COST the team. We surface that explicitly.
+  const netRelief = hit - totalDeadOnCut;
+  return { hit, totalDeadOnCut, netRelief, yearsLeft, perYearDead: dead.perYear || 0 };
+}
+
+// Risk badges for each roster row — surfaced as small chips so a GM
+// scanning the cut list knows what they're trading away.
+function _faRiskBadges(player) {
+  const out = [];
+  if (player.captain || player.personality === "captain") out.push({ tag: "⭐ CAPT", col: "var(--gold)" });
+  if (player.locker_cancer || player.personality === "locker_cancer") out.push({ tag: "☢ CANCER", col: "#ff8a8a" });
+  if (player.injury && player.injury.weeksRemaining > 0) out.push({ tag: `🩹 ${player.injury.weeksRemaining}w`, col: "#ffc850" });
+  if ((player.allPros || 0) >= 2 || (player.proBowls || 0) >= 3) out.push({ tag: "🏆 ELITE", col: "var(--gold-lt)" });
+  if ((player.age || 0) >= (player.declineAge ?? 33)) out.push({ tag: "📉 DECLINE", col: "#ffc850" });
+  if (player.coachable) out.push({ tag: "🎯 COACH", col: "#86e0a3" });
+  if ((player._tradedAtSeason != null) && (franchise.season - player._tradedAtSeason <= 1)) out.push({ tag: "🔄 NEW", col: "#5ed4d4" });
+  return out;
+}
+
+// Position scarcity weight — used by auto-cut to avoid stripping a
+// position to the bone. Higher = harder to lose. ROSTER_SLOTS is the
+// floor; we don't auto-cut below floor.
+function _faPositionDepth(roster, pendingCutNames) {
+  const out = {};
+  const cuts = pendingCutNames instanceof Set ? pendingCutNames : new Set(pendingCutNames || []);
+  for (const [pos, need] of Object.entries(ROSTER_SLOTS || {})) {
+    const have = roster.filter(p => p.position === pos && !cuts.has(p.name)).length;
+    out[pos] = { have, need, delta: have - need };
+  }
+  return out;
+}
+
+// Greedy auto-cut: builds a recommended cut list that frees enough cap
+// to be legal while preserving position floors and elite-tier players.
+// Scoring: prefer players whose AAV/OVR ratio is high (overpaid) and
+// whose net relief is positive. Skip captains, elites, and players
+// whose cut would push a position below the ROSTER_SLOTS floor.
+function frnFAAutoCutSuggest() {
+  const myId = franchise.chosenTeamId;
+  const myRoster = (franchise.rosters[myId] || []).slice();
+  const cap = effectiveSalaryCap(myId);
+  const used = capUsedByTeam(myId);
+  const need = used - cap;
+  if (need <= 0) {
+    alert("You're already cap-legal — no cuts needed.");
+    return;
+  }
+  franchise._pendingCuts = franchise._pendingCuts || [];
+  const pending = new Set(franchise._pendingCuts);
+
+  // Build sorted candidate list, best-cut-first
+  const candidates = myRoster
+    .filter(p => !pending.has(p.name))
+    .map(p => {
+      const econ = _faCutEconomics(p);
+      const ovr = p.overall || 60;
+      // "Cuttability" score — higher is more cuttable
+      // - high net relief is good
+      // - high AAV/OVR (overpaid for the talent) is great
+      // - elite accolades & captains are protected
+      const overpayRatio = (p.contract?.aav || 0) / Math.max(40, ovr);
+      const protect = (p.captain || p.personality === "captain") ? 50
+                    : (p.allPros || 0) >= 2 || (p.proBowls || 0) >= 3 ? 30
+                    : 0;
+      return { p, econ, score: econ.netRelief * 0.6 + overpayRatio * 4 - protect };
+    })
+    .filter(c => c.econ.netRelief > 0.5) // skip players who'd cost us money on the cut
+    .sort((a, b) => b.score - a.score);
+
+  // Greedy fill — add until target met or no candidates left
+  let freed = 0;
+  const recs = [];
+  for (const c of candidates) {
+    if (freed >= need) break;
+    // Position floor check — don't drop below ROSTER_SLOTS
+    const wouldHave = myRoster.filter(q => q.position === c.p.position
+      && !pending.has(q.name)
+      && !recs.some(r => r.p.name === q.name)
+      && q.name !== c.p.name).length;
+    if (wouldHave < (ROSTER_SLOTS[c.p.position] || 0)) continue;
+    recs.push(c);
+    freed += c.econ.netRelief;
+  }
+  if (!recs.length) {
+    alert("No safe auto-cuts available. Try manually — every cap-saving cut would either drop a position below the floor or hit a protected player (captain/elite).");
+    return;
+  }
+  if (freed < need) {
+    if (!confirm(`Auto-cut suggests ${recs.length} cuts freeing $${freed.toFixed(1)}M, but you still need to free $${(need - freed).toFixed(1)}M more. Stage these and pick more manually?`)) return;
+  } else {
+    if (!confirm(`Auto-cut will stage ${recs.length} cuts freeing $${freed.toFixed(1)}M (need $${need.toFixed(1)}M). Stage them now? You'll still need to confirm before they go through.`)) return;
+  }
+  for (const r of recs) franchise._pendingCuts.push(r.p.name);
+  saveFranchise();
+  renderFrnFACuts();
+}
+
+// Sort key for the roster table — persisted on franchise so the user's
+// preference survives toggles + re-renders.
+function frnFACutsSort(key) {
+  franchise._faCutsSort = key;
+  renderFrnFACuts();
+}
+function frnFACutsTogglePending(name) {
+  franchise._pendingCuts = franchise._pendingCuts || [];
+  const idx = franchise._pendingCuts.indexOf(name);
+  if (idx === -1) franchise._pendingCuts.push(name);
+  else franchise._pendingCuts.splice(idx, 1);
+  saveFranchise();
+  renderFrnFACuts();
+}
+function frnFACutsClearPending() {
+  franchise._pendingCuts = [];
+  saveFranchise();
+  renderFrnFACuts();
+}
+function frnFACutsConfirm() {
+  const myId = franchise.chosenTeamId;
+  const roster = franchise.rosters[myId] || [];
+  const pending = (franchise._pendingCuts || []).slice();
+  if (!pending.length) {
+    alert("No pending cuts to confirm.");
+    return;
+  }
+  const totalFreed = pending.reduce((s, n) => {
+    const p = roster.find(q => q.name === n);
+    return s + (p ? _faCutEconomics(p).netRelief : 0);
+  }, 0);
+  if (!confirm(`Release ${pending.length} player${pending.length===1?"":"s"} now? Frees ~$${totalFreed.toFixed(1)}M in cap. This is final.`)) return;
+  for (const name of pending) {
+    const idx = roster.findIndex(p => p.name === name);
+    if (idx !== -1) roster.splice(idx, 1);
+  }
+  franchise._pendingCuts = [];
+  saveFranchise();
+  renderFrnFACuts();
+}
+
 function renderFrnFACuts() {
-  const cap = franchise.salaryCap || SALARY_CAP_BASE;
-  const myRoster = franchise.rosters[franchise.chosenTeamId] || [];
-  const used = capUsedByTeam(franchise.chosenTeamId);
+  const myId = franchise.chosenTeamId;
+  const cap = effectiveSalaryCap(myId);
+  const myRoster = franchise.rosters[myId] || [];
+  const used = capUsedByTeam(myId);
   const room = cap - used;
   const overCap = used > cap;
+  const pending = new Set(franchise._pendingCuts || []);
 
-  const rosterByCost = myRoster.slice().sort((a,b) => (b.contract?.aav||0) - (a.contract?.aav||0));
-  const rows = rosterByCost.map(p => {
-    const escName = (p.name||"").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-    return `<tr>
-      <td style="color:var(--gray)">${p.position}</td>
-      <td style="font-weight:700">${p.name}</td>
-      <td>${gradeBadge(p)}</td>
-      <td style="color:var(--gray)">${p.age||"?"}</td>
-      <td style="color:var(--gold)">$${(p.contract?.aav||0).toFixed(1)}M</td>
-      <td><button class="frn-pre-cut" onclick="frnFACutPlayer('${escName}','${p.position}')">✗ CUT</button></td>
+  // Pending-cuts impact
+  const pendingEconList = (franchise._pendingCuts || []).map(name => {
+    const p = myRoster.find(q => q.name === name);
+    return p ? { p, econ: _faCutEconomics(p) } : null;
+  }).filter(Boolean);
+  const pendingFreed = pendingEconList.reduce((s, e) => s + e.econ.netRelief, 0);
+  const postCutUsed = used - pendingFreed;
+  const postCutOver = Math.max(0, postCutUsed - cap);
+  const needToFree  = Math.max(0, used - cap);
+  const remainingNeed = Math.max(0, needToFree - pendingFreed);
+  const willBeLegal = pendingFreed >= needToFree;
+
+  // Cap progress bar — show current + post-cut overlay
+  const usedPct = Math.min(120, (used / cap) * 100);
+  const postCutPct = Math.min(120, Math.max(0, (postCutUsed / cap) * 100));
+  const barColor = postCutOver > 0 ? "#ff8a8a" : "#86e0a3";
+
+  // Position depth after pending cuts
+  const depth = _faPositionDepth(myRoster, pending);
+
+  // Sort key — default to highest net relief
+  const sortKey = franchise._faCutsSort || "relief";
+  const sortedRoster = myRoster.slice().sort((a, b) => {
+    const ea = _faCutEconomics(a);
+    const eb = _faCutEconomics(b);
+    if (sortKey === "relief") return eb.netRelief - ea.netRelief;
+    if (sortKey === "aav")    return (b.contract?.aav||0) - (a.contract?.aav||0);
+    if (sortKey === "dead")   return eb.totalDeadOnCut - ea.totalDeadOnCut;
+    if (sortKey === "ovr")    return (a.overall||0) - (b.overall||0);
+    if (sortKey === "age")    return (b.age||0) - (a.age||0);
+    if (sortKey === "pos")    return (a.position||"").localeCompare(b.position||"");
+    return 0;
+  });
+
+  const cleanName = (n) => (n||"").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+
+  // — HERO BLOCK —
+  const heroHtml = `
+    <div class="frn-cuts-hero ${overCap ? "over" : "legal"}">
+      <div class="frn-cuts-hero-row">
+        <div class="frn-cuts-hero-left">
+          <div class="frn-cuts-hero-eyebrow">FREE AGENCY · FINAL ROSTER CHECK</div>
+          <div class="frn-cuts-hero-title">${overCap ? "⚠ CUT TO BE CAP-LEGAL" : "✓ CAP-LEGAL"}</div>
+          <div class="frn-cuts-hero-sub">
+            ${overCap
+              ? `You need to free <b style="color:#ff8a8a">$${needToFree.toFixed(1)}M</b> before Week 1 kicks off.`
+              : `Roster is locked in at <b style="color:#86e0a3">$${room.toFixed(1)}M</b> under the cap. Hit START to lock the season.`}
+          </div>
+        </div>
+        <div class="frn-cuts-hero-right">
+          <div class="frn-cuts-cap-num" style="color:${overCap?'#ff8a8a':'#86e0a3'}">
+            $${used.toFixed(1)}<span class="frn-cuts-cap-num-sub">M</span>
+          </div>
+          <div class="frn-cuts-cap-cap">/ $${cap.toFixed(0)}M cap</div>
+        </div>
+      </div>
+      <div class="frn-cuts-bar-wrap">
+        <div class="frn-cuts-bar-track">
+          <div class="frn-cuts-bar-cap-mark"></div>
+          <div class="frn-cuts-bar-used" style="width:${usedPct}%;background:${overCap?'#ff8a8a':'#86e0a3'}"></div>
+          ${pendingFreed > 0 ? `<div class="frn-cuts-bar-postcut" style="width:${postCutPct}%;background:${barColor};opacity:.6"></div>` : ""}
+        </div>
+        <div class="frn-cuts-bar-meta">
+          <span>$0</span>
+          <span style="color:var(--gold);font-weight:800">${overCap?`+$${(used-cap).toFixed(1)}M OVER`:`$${room.toFixed(1)}M ROOM`}</span>
+          <span>$${cap.toFixed(0)}M</span>
+        </div>
+      </div>
+      <div class="frn-cuts-hero-actions">
+        ${overCap ? `<button class="frn-cuts-auto-btn" onclick="frnFAAutoCutSuggest()">✨ AUTO-CUT TO LEGAL</button>` : ""}
+        <div class="frn-cuts-sort-wrap">
+          <span class="frn-cuts-sort-label">Sort:</span>
+          ${["relief","aav","dead","ovr","age","pos"].map(k => {
+            const lbl = { relief:"Cap Relief", aav:"AAV", dead:"Dead $", ovr:"Worst OVR", age:"Oldest", pos:"Position" }[k];
+            return `<button class="frn-cuts-sort-chip${sortKey===k?" active":""}" onclick="frnFACutsSort('${k}')">${lbl}</button>`;
+          }).join("")}
+        </div>
+      </div>
+    </div>`;
+
+  // — PENDING CUTS PANEL —
+  const pendingPanelHtml = pendingEconList.length ? `
+    <div class="frn-cuts-pending">
+      <div class="frn-cuts-pending-header">
+        <span class="frn-cuts-pending-title">📋 PENDING CUTS · ${pendingEconList.length}</span>
+        <span class="frn-cuts-pending-freed" style="color:${willBeLegal?'#86e0a3':'#ffc850'}">
+          Frees <b>$${pendingFreed.toFixed(1)}M</b>${overCap?` of <b>$${needToFree.toFixed(1)}M</b> needed`:""}
+          ${overCap && willBeLegal ? `<span class="frn-cuts-legal-pill">✓ WILL BE LEGAL</span>` : ""}
+          ${overCap && !willBeLegal ? `<span class="frn-cuts-short-pill">$${remainingNeed.toFixed(1)}M short</span>` : ""}
+        </span>
+      </div>
+      <div class="frn-cuts-pending-rows">
+        ${pendingEconList.map(e => {
+          const p = e.p, econ = e.econ;
+          const dead = econ.totalDeadOnCut > 0 ? `<span style="color:#ffc850">−$${econ.totalDeadOnCut.toFixed(1)}M dead</span>` : `<span style="color:#86e0a3">$0 dead</span>`;
+          return `<div class="frn-cuts-pending-row">
+            <span class="frn-cuts-pos">${p.position}</span>
+            <span class="frn-cuts-name">${p.name}</span>
+            <span class="frn-cuts-ovr">${p.overall||"-"}</span>
+            <span class="frn-cuts-econ">$${econ.hit.toFixed(1)}M hit · ${dead} · <b style="color:#86e0a3">+$${econ.netRelief.toFixed(1)}M net</b></span>
+            <button class="frn-cuts-undo-btn" onclick="frnFACutsTogglePending('${cleanName(p.name)}')">✕ undo</button>
+          </div>`;
+        }).join("")}
+      </div>
+      <div class="frn-cuts-pending-cta">
+        <button class="frn-cuts-clear-btn" onclick="frnFACutsClearPending()">Reset</button>
+        <button class="frn-cuts-confirm-btn${willBeLegal||!overCap?" ready":""}" onclick="frnFACutsConfirm()">
+          ✓ CONFIRM CUTS
+        </button>
+      </div>
+    </div>` : "";
+
+  // — POSITION DEPTH BAR —
+  const depthHtml = `
+    <div class="frn-cuts-depth">
+      <div class="frn-cuts-depth-title">POSITION DEPTH <span class="frn-cuts-depth-sub">after pending cuts · floor = ROSTER_SLOTS minimum</span></div>
+      <div class="frn-cuts-depth-grid">
+        ${Object.entries(depth).map(([pos, d]) => {
+          const status = d.delta < 0 ? "below" : d.delta === 0 ? "floor" : d.delta <= 1 ? "thin" : "ok";
+          const icon = status === "below" ? "✗" : status === "floor" ? "⚠" : status === "thin" ? "·" : "✓";
+          return `<div class="frn-cuts-depth-chip ${status}">
+            <span class="frn-cuts-depth-icon">${icon}</span>
+            <span class="frn-cuts-depth-pos">${pos}</span>
+            <span class="frn-cuts-depth-val">${d.have}/${d.need}</span>
+          </div>`;
+        }).join("")}
+      </div>
+    </div>`;
+
+  // — ROSTER TABLE —
+  const rowsHtml = sortedRoster.map(p => {
+    const econ = _faCutEconomics(p);
+    const badges = _faRiskBadges(p);
+    const isPending = pending.has(p.name);
+    const reliefCol = econ.netRelief > 0 ? "#86e0a3" : econ.netRelief < -0.5 ? "#ff8a8a" : "var(--gray)";
+    const yrs = p.contract?.remaining ?? p.contract?.years ?? 1;
+    const ageStr = p.age != null ? `${p.age}` : "?";
+    const ovrStr = p.overall || "?";
+    const ovrCol = (p.overall||0) >= 82 ? "var(--green-lt)"
+                 : (p.overall||0) >= 72 ? "var(--gold-lt)"
+                 : (p.overall||0) >= 62 ? "var(--gray)"
+                 : "#ff8a8a";
+    const positionDepth = depth[p.position];
+    // Notes column synthesizes the most useful single insight
+    let note = "";
+    if (isPending) note = `<span style="color:#ff8a8a;font-weight:700">PENDING CUT</span>`;
+    else if (econ.netRelief < 0) note = `<span style="color:#ff8a8a">Cut costs $${Math.abs(econ.netRelief).toFixed(1)}M — keep</span>`;
+    else if (positionDepth && positionDepth.delta <= 0) note = `<span style="color:#ffc850">${p.position} at floor</span>`;
+    else if (econ.netRelief > 8) note = `<span style="color:#86e0a3">Big saver — easy cut</span>`;
+    else if (econ.netRelief > 3) note = `<span style="color:var(--gold-lt)">Solid cap relief</span>`;
+    return `<tr class="${isPending?"pending":""}">
+      <td class="frn-cuts-td-pos">${p.position}</td>
+      <td class="frn-cuts-td-name">
+        <span style="font-weight:700;cursor:pointer" onclick="frnOpenPlayerCard('${cleanName(p.name)}')">${p.name}</span>
+        ${badges.length ? `<span class="frn-cuts-badges">${badges.map(b => `<span class="frn-cuts-badge" style="color:${b.col};border-color:${b.col}55">${b.tag}</span>`).join("")}</span>` : ""}
+      </td>
+      <td class="frn-cuts-td-ovr" style="color:${ovrCol}">${ovrStr}</td>
+      <td class="frn-cuts-td-age">${ageStr}</td>
+      <td class="frn-cuts-td-yrs">${yrs}yr</td>
+      <td class="frn-cuts-td-aav">$${(p.contract?.aav||0).toFixed(1)}M</td>
+      <td class="frn-cuts-td-hit">$${econ.hit.toFixed(1)}M</td>
+      <td class="frn-cuts-td-dead" style="color:${econ.totalDeadOnCut>0?'#ffc850':'var(--gray)'}">${econ.totalDeadOnCut>0?`−$${econ.totalDeadOnCut.toFixed(1)}M`:"$0"}</td>
+      <td class="frn-cuts-td-net" style="color:${reliefCol};font-weight:900">${econ.netRelief>=0?'+':'−'}$${Math.abs(econ.netRelief).toFixed(1)}M</td>
+      <td class="frn-cuts-td-note">${note}</td>
+      <td class="frn-cuts-td-action">
+        <button class="frn-cuts-row-btn ${isPending?"undo":"cut"}" onclick="frnFACutsTogglePending('${cleanName(p.name)}')">
+          ${isPending ? "← undo" : "✗ stage cut"}
+        </button>
+      </td>
     </tr>`;
   }).join("");
 
-  $("frnHomeContent").innerHTML = `
-    <div style="text-align:center;margin-bottom:1rem">
-      <div style="font-size:1.15rem;font-weight:900;color:${overCap?"var(--red)":"var(--gold)"}">
-        ${overCap ? "⚠ CUT TO BE CAP-LEGAL" : "✓ CAP-LEGAL"}
-      </div>
-      <div style="color:var(--gray);font-size:.78rem;margin-top:.3rem">
-        Cap used: <b style="color:${overCap?"var(--red)":"var(--white)"}">$${used.toFixed(1)}M</b>
-        / <b style="color:var(--gold)">$${cap.toFixed(0)}M</b>
-        · <span style="color:${overCap?"var(--red)":"var(--green-lt)"}">
-          ${overCap ? `$${Math.abs(room).toFixed(1)}M over` : `$${room.toFixed(1)}M room`}
-        </span>
-      </div>
-    </div>
-    ${_faCapTimelineHtml(_faMultiYearCapProjection(4, "offers"),
-      "CURRENT ROSTER", "")}
-    <table class="frn-pre-roster-table">
-      <thead><tr><th>Pos</th><th>Player</th><th>Grade</th><th>Age</th><th>AAV</th><th></th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-    <div class="frn-actions" style="justify-content:center;margin-top:1rem">
-      <button class="btn btn-gold-big" onclick="frnConfirmFAFinish()" ${overCap?"disabled style=\"opacity:.5;cursor:not-allowed\"":""}>
+  const tableHtml = `
+    <div class="frn-cuts-table-wrap">
+      <table class="frn-cuts-table">
+        <thead>
+          <tr>
+            <th>Pos</th><th>Player</th><th>OVR</th><th>Age</th><th>Yrs</th>
+            <th>AAV</th><th>'25 Hit</th><th>Dead $</th><th>Net Relief</th>
+            <th>Notes</th><th></th>
+          </tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </div>`;
+
+  // — FINAL FOOTER —
+  const footerHtml = `
+    <div class="frn-cuts-footer">
+      <button class="btn btn-gold-big ${(!overCap || willBeLegal)?"":"disabled"}"
+        ${(overCap && !willBeLegal)?`disabled style="opacity:.45;cursor:not-allowed" title="Stage enough cuts to clear $${remainingNeed.toFixed(1)}M before starting Week 1."`:""}
+        onclick="${(!overCap || willBeLegal)?"frnConfirmFAFinish()":"return false"}">
         ▶ START WEEK 1
       </button>
+      ${overCap && !willBeLegal ? `<div class="frn-cuts-footer-warn">Stage at least $${remainingNeed.toFixed(1)}M more in cuts to start the season.</div>` : ""}
     </div>`;
+
+  $("frnHomeContent").innerHTML = `
+    ${heroHtml}
+    ${pendingPanelHtml}
+    ${depthHtml}
+    ${tableHtml}
+    ${footerHtml}`;
 }
 
+// Legacy direct-cut shim — staging is the new primary path, but this is
+// still referenced from FA flows that want to release immediately
+// (e.g., the FA negotiations "cut to make room" panel uses it directly).
 function frnFACutPlayer(name, pos) {
   if (!confirm(`Release ${name}? They free up their cap immediately.`)) return;
   const roster = franchise.rosters[franchise.chosenTeamId];
