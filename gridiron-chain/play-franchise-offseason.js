@@ -20717,6 +20717,12 @@ function _rollSeasonStatsToCareer() {
           player.careerStats[k] = (player.careerStats[k] || 0) + v;
         }
       }
+      // True seasons-played counter — careerHistory.length is the source
+      // of truth for "career length" displayed in cards / HoF entries, but
+      // _trimFranchiseForStorage caps CPU careerHistory at 10 to keep
+      // localStorage under 5MB. Without this, every CPU career legend
+      // shows up as a 10-11 year career even if they played 20.
+      player.seasonsPlayed = (player.seasonsPlayed || 0) + 1;
       // RB cumulative wear tracking — feed the retirement curve's wear bump.
       // Between-the-tackles carries are punishing; receiving touches are
       // far gentler (CMC vs Eddie George). Receiving-archetype backs get

@@ -1440,7 +1440,7 @@ function _addHOFCandidate(player, team) {
     teamAbbr: team ? (typeof _bspnLiveAbbr === "function" ? _bspnLiveAbbr(team) : (team.abbr || team.name.slice(0,3).toUpperCase())) : "—",
     careerStats: cleanStats,
     careerEarnings: player.careerEarnings || 0,
-    careerYears: (player.careerHistory || []).length,
+    careerYears: player.seasonsPlayed || (player.careerHistory || []).length,
     peakOvr: peak,
     accolades: {
       mvps: player.mvps || 0, opoys: player.opoys || 0, dpoys: player.dpoys || 0,
@@ -1671,7 +1671,7 @@ function _buildCareerCard(p) {
     : "";
   return `<div class="frn-career-card">
     <div style="display:flex;align-items:center;gap:.55rem;margin-bottom:.3rem">
-      <div class="frn-card-title" style="margin:0">📊 CAREER · ${history.length} season${history.length>1?"s":""}${trimGapGP > 0 ? ` <span style="color:var(--gray);font-weight:400;font-size:.62rem">(of ~${history.length + estEarlierSeasons} played)</span>` : ""}</div>
+      <div class="frn-card-title" style="margin:0">📊 CAREER · ${p.seasonsPlayed || history.length} season${(p.seasonsPlayed || history.length)>1?"s":""}${(p.seasonsPlayed && p.seasonsPlayed > history.length) ? ` <span style="color:var(--gray);font-weight:400;font-size:.62rem">(showing last ${history.length})</span>` : (trimGapGP > 0 ? ` <span style="color:var(--gray);font-weight:400;font-size:.62rem">(of ~${history.length + estEarlierSeasons} played)</span>` : "")}</div>
       ${trajLabel ? `<span style="font-size:.58rem;color:var(--blgray)">${trajLabel}</span>` : ""}
     </div>
     <div style="overflow-x:auto">

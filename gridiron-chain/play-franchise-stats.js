@@ -8835,7 +8835,7 @@ function _processSeasonEndRetirements() {
           name: p.name, pos: p.position, age: p.age,
           teamId: tId, teamName: `${t.city} ${t.name}`,
           teamAbbr: _bspnLiveAbbr(t), teamPrimary: t.primary,
-          careerYears: p.careerHistory?.length || 0,
+          careerYears: p.seasonsPlayed || (p.careerHistory?.length || 0),
           careerEarnings: Math.round((p.careerEarnings || 0) * 10) / 10,
           isHof: false, // class is announced separately via voting
           hofCandidate: hofScore >= 25,
@@ -8859,7 +8859,7 @@ function _processSeasonEndRetirements() {
               proBowls: p.proBowls || 0, allPros: p.allPros || 0, sbRings: p.sbRings || 0,
               formerTeamId: tId, formerTeamName: `${t.city} ${t.name}`,
               careerStatLine: mvpStatLine(p.careerStats || {}),
-              careerYears: p.careerHistory?.length || 0,
+              careerYears: p.seasonsPlayed || (p.careerHistory?.length || 0),
             });
             franchise._retiredPlayerPool = franchise._retiredPlayerPool
               .filter(rp => franchise.season - rp.retiredSeason <= 10);
@@ -8887,7 +8887,7 @@ function _processSeasonEndRetirements() {
               peakOvr: _pcPeak, proBowls: p.proBowls||0, allPros: p.allPros||0, sbRings: p.sbRings||0,
               isFormerPlayer: true, retiredSeason: franchise.season||1, retiredAge: p.age||30,
               careerStatLine: mvpStatLine(p.careerStats || {}),
-              careerYears: p.careerHistory?.length || 0,
+              careerYears: p.seasonsPlayed || (p.careerHistory?.length || 0),
             });
           }
         }
