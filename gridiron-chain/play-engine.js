@@ -2566,49 +2566,67 @@ class GameSimulator {
     // Capped at ONE broken tackle per carry to keep RBs from being OP.
     let brokenTackles = 0;
     let bonusYards = 0;
+    let tacklerForMiss = null;
     if (!isQBRun && yards > 0) {
       const cp = this._playerByName.get(carrier);
       const cstr = cp?.stats?.[1] ?? 70;
       const cagi = cp?.stats?.[2] ?? 70;
-      // Effective speed at burst distance (10yd) — accounts for weight +
-      // AGI so a heavier RB with same SPD doesn't burst the same.
       const cspd = effectiveSpeed(cp, 10);
-      // Mass + low-COG bonus — Marshawn (5'11" 215lb) breaks more than
-      // Reggie Bush (6'0" 200lb) even at identical STR. weight/height is
-      // a "density" proxy for center of gravity. Higher density = lower
-      // COG = harder to wrap up. Reference 2.75 = average NFL skill body.
-      //   3.30 (Derrick Henry)  → +4.4 break-stat bonus
-      //   3.00 (Marshawn)        → +2.0
-      //   2.75 (avg WR/RB)       →  0
-      //   2.50 (lean WR/CB)      → -2.0
       let densityBonus = 0;
+      let cWeight = 215;
       try {
         const cmb = combineMeasurables(cp);
-        const density = (cmb.weightLbs || 215) / (cmb.heightIn || 71);
+        cWeight = cmb.weightLbs || 215;
+        const density = cWeight / (cmb.heightIn || 71);
         densityBonus = (density - 2.75) * 8;
       } catch (_e) { /* leave densityBonus 0 if measurables fail */ }
       let breakStat;
-      // POWER backs lean on mass + density most (1.5× density weight).
-      // ELUSIVE wins with juke — density barely matters.
-      // SPEED uses burst, density helps a bit (Bo Jackson tier).
-      // Default mixes STR/AGI with full density.
       if (rbArch === "POWER")        breakStat = cstr + densityBonus * 1.5;
       else if (rbArch === "ELUSIVE") breakStat = (cagi * 0.7 + cstr * 0.3) + densityBonus * 0.3;
       else if (rbArch === "SPEED")   breakStat = (cspd * 0.7 + cstr * 0.3) + densityBonus * 0.4;
       else                            breakStat = (cstr + cagi) / 2 + densityBonus;
-      const lbList = this.defArch.LB || [];
-      const lbPlayers = lbList.map(l => this._playerByName.get(l?.name)).filter(Boolean);
-      const avgTck = lbPlayers.length
-        ? lbPlayers.reduce((s,p) => s + (p.stats[9] || 60), 0) / lbPlayers.length
-        : this.defR.lb;
-      // Break chance compressed: previously a 99 STR back vs 60 LB room
-      // hit a 26.7% break per carry — NFL elite is ~12-15%. Halved the
-      // stat-gap scaling AND tightened the upper clamp.
+      // Sample the likely tackler by contact zone implied by yardage.
+      // Short = LB/DL at the line; mid = LB/S at the 2nd level; long = S/CB
+      // in space. This is what makes the 180 lb CB vs freight train real.
+      let tacklerPos;
+      {
+        const r = Math.random();
+        if (yards <= 2)      tacklerPos = r < 0.55 ? "LB" : r < 0.85 ? "DL" : r < 0.92 ? "S" : "CB";
+        else if (yards <= 7) tacklerPos = r < 0.40 ? "LB" : r < 0.70 ? "S"  : r < 0.88 ? "CB" : "DL";
+        else                  tacklerPos = r < 0.50 ? "S"  : r < 0.85 ? "CB" : "LB";
+      }
+      const tcPool = (this.defArch[tacklerPos] || []).map(d => this._playerByName.get(d?.name)).filter(Boolean);
+      let tackler = tcPool.length ? tcPool[Math.floor(Math.random() * tcPool.length)] : null;
+      if (!tackler) {
+        const lbPool = (this.defArch.LB || []).map(l => this._playerByName.get(l?.name)).filter(Boolean);
+        tackler = lbPool[0] || null;
+      }
+      tacklerForMiss = tackler;
+      const tckRating = tackler ? (tackler.stats[9] || 60) : (this.defR.lb || 70);
+      // Freight-train physics: a 240 lb RB at full momentum running at a
+      // 180 lb DB mostly just runs him over. Threshold +30 lb — anything
+      // smaller is normal run-vs-run-defender contact and not "trucked".
+      // Effect scales with both mass delta AND carrier momentum (cspd).
+      let runOverBonus = 0;
+      if (tackler && cspd > 65) {
+        try {
+          const tcmb = combineMeasurables(tackler);
+          const tWeight = tcmb.weightLbs || 215;
+          const massDelta = cWeight - tWeight;
+          if (massDelta > 30) {
+            // momentum: cspd 65 → 0, cspd 90+ → 1.0
+            const momentumMul = Math.min(1, (cspd - 65) / 25);
+            // 60 lb edge at full burst → +0.36 break chance.
+            runOverBonus = (massDelta - 30) * 0.012 * momentumMul;
+          }
+        } catch (_e) {}
+      }
       const baseBreak = rbArch === "POWER" ? 0.04 : 0.02;
-      const breakChance = clamp((breakStat - avgTck) / 280 + baseBreak, 0.005, 0.16);
+      const breakChance = clamp((breakStat - tckRating) / 280 + baseBreak + runOverBonus, 0.005, 0.45);
       if (Math.random() < breakChance) {
         brokenTackles = 1;
-        bonusYards = rand(3, 8);
+        // Trucking a DB at full speed → bigger gain than slipping an LB.
+        bonusYards = runOverBonus > 0.12 ? rand(6, 14) : rand(3, 8);
         yards = Math.min(yards + bonusYards, 100 - startYard);
       }
     }
@@ -2619,10 +2637,15 @@ class GameSimulator {
       if (yards > carrierStats.rush_long) carrierStats.rush_long = yards;
       if (brokenTackles) {
         carrierStats.broken_tackles = (carrierStats.broken_tackles || 0) + brokenTackles;
-        // Credit a missed tackle to the defender who whiffed
-        this._creditDefStat("missed_tkl", yards >= 10
-          ? { S: 0.40, CB: 0.20, LB: 0.30, DL: 0.10 }
-          : { LB: 0.45, DL: 0.30, S: 0.15, CB: 0.10 });
+        // Credit the specific defender we sampled (the one who actually whiffed).
+        const defPlayers = this.defStats?.players || {};
+        if (tacklerForMiss?.name && defPlayers[tacklerForMiss.name]) {
+          defPlayers[tacklerForMiss.name].missed_tkl = (defPlayers[tacklerForMiss.name].missed_tkl || 0) + 1;
+        } else {
+          this._creditDefStat("missed_tkl", yards >= 10
+            ? { S: 0.40, CB: 0.20, LB: 0.30, DL: 0.10 }
+            : { LB: 0.45, DL: 0.30, S: 0.15, CB: 0.10 });
+        }
       }
     }
     off.team.rush_att++; off.team.rushYds += yards; off.team.totalYds += yards;
