@@ -68,6 +68,54 @@ const POSITION_WEIGHT_FALLBACK = {
   QB:220, RB:215, WR:200, TE:250, OL:315, DL:280, LB:240, CB:195, S:205, K:200, P:215,
 };
 
+// Break-tackle tackler-pool weights and gang-tackle distributions per contact
+// context. Yardage bucket "short" = at/near LOS, "mid" = 2nd level, "long" =
+// open field. Each row's values sum to 1.0 (probabilities).
+const _RUN_TACKLER_ZONES = {
+  short: { LB: 0.55, DL: 0.30, S:  0.07, CB: 0.08 },  // LOS scrum
+  mid:   { LB: 0.40, S:  0.30, CB: 0.18, DL: 0.12 },  // 2nd level
+  long:  { S:  0.50, CB: 0.35, LB: 0.15 },             // open field
+};
+const _RUN_GANG_DIST = {
+  short: [0.25, 0.50, 0.25],
+  mid:   [0.55, 0.37, 0.08],
+  long:  [0.85, 0.15],
+};
+const _YAC_TACKLER_ZONES = {
+  short: { S: 0.40, CB: 0.35, LB: 0.25 },              // catch + immediate wrap
+  mid:   { S: 0.40, CB: 0.30, LB: 0.30 },              // typical YAC
+  long:  { S: 0.50, CB: 0.35, LB: 0.15 },              // big YAC run
+};
+const _YAC_GANG_DIST = {
+  short: [0.45, 0.45, 0.10],
+  mid:   [0.65, 0.30, 0.05],
+  long:  [0.85, 0.15],
+};
+const _RETURN_TACKLER_ZONES = {
+  short: { CB: 0.35, S: 0.35, LB: 0.25, DL: 0.05 },    // closing gunner
+  mid:   { CB: 0.40, S: 0.40, LB: 0.15, DL: 0.05 },
+  long:  { CB: 0.45, S: 0.40, LB: 0.13, DL: 0.02 },    // last man in space
+};
+const _RETURN_GANG_DIST = {
+  short: [0.55, 0.40, 0.05],
+  mid:   [0.80, 0.20],
+  long:  [0.90, 0.10],
+};
+
+// Map any receiver / returner archetype to a break-tackle style. Returns
+// null for "use the default formula".
+function _archetypeBreakStyle(arch) {
+  if (!arch) return null;
+  // Power-style: big bodies that fight through wraps.
+  if (arch === "POWER" || arch === "RED_ZONE" || arch === "GLADIATOR") return "POWER";
+  // Elusive-style: short-area quickness, route-runner traits.
+  if (arch === "ELUSIVE" || arch === "SLOT" || arch === "ROUTE_RUNNER" || arch === "DUAL_THREAT") return "ELUSIVE";
+  // Speed-style: deep burst / breakaway threat.
+  if (arch === "SPEED" || arch === "DEEP_THREAT" || arch === "BURNER") return "SPEED";
+  // POSSESSION, etc — default formula (mixed STR/AGI).
+  return null;
+}
+
 function buildRatings(roster) {
   // Injured players (`weeksRemaining > 0`) are unavailable — exclude
   // them from depth-chart ratings so missing your QB1 actually hurts.
@@ -623,6 +671,126 @@ class GameSimulator {
     if (p) p[field] = (p[field] || 0) + 1;
     return chosen.name;
   }
+  // Resolve a break-tackle attempt for any open-field carry: RB rush, YAC,
+  // QB scramble, KR/PR. Samples 1-3 converging tacklers from a yardage-zone-
+  // weighted pool, applies freight-train (mass+momentum) and juke-out (AGI
+  // vs mass-penalized defender AGI) bonuses, rolls the break, and credits
+  // missed_tkl to every defender beaten. Returns { brokenTackles, bonusYards,
+  // tackler }. The caller applies bonusYards (with field cap) and credits
+  // broken_tackles to the carrier.
+  _resolveBreakTackle({
+    carrierName, yards, breakStyle,
+    tacklerArchByPos, tacklerStatsPlayers,
+    tacklerZones, gangDist,
+  }) {
+    if (yards <= 0 || !carrierName) return { brokenTackles: 0, bonusYards: 0, tackler: null };
+    const cp = this._playerByName.get(carrierName);
+    if (!cp) return { brokenTackles: 0, bonusYards: 0, tackler: null };
+
+    const cstr = cp.stats?.[1] ?? 70;
+    const cagi = cp.stats?.[2] ?? 70;
+    const cspd = effectiveSpeed(cp, 10);
+    let densityBonus = 0;
+    let cWeight = POSITION_WEIGHT_FALLBACK[cp.position] || 215;
+    try {
+      const cmb = combineMeasurables(cp);
+      cWeight = cmb.weightLbs || cWeight;
+      const density = cWeight / (cmb.heightIn || 71);
+      densityBonus = (density - 2.75) * 8;
+    } catch (_e) {}
+
+    let breakStat;
+    if (breakStyle === "POWER")        breakStat = cstr + densityBonus * 1.5;
+    else if (breakStyle === "ELUSIVE") breakStat = (cagi * 0.7 + cstr * 0.3) + densityBonus * 0.3;
+    else if (breakStyle === "SPEED")   breakStat = (cspd * 0.7 + cstr * 0.3) + densityBonus * 0.4;
+    else                                breakStat = (cstr + cagi) / 2 + densityBonus;
+
+    const zones = tacklerZones || _RUN_TACKLER_ZONES;
+    const gang  = gangDist     || _RUN_GANG_DIST;
+    const zoneKey = yards <= 2 ? "short" : yards <= 7 ? "mid" : "long";
+    const zone = zones[zoneKey];
+    const gangProbs = gang[zoneKey];
+
+    let nTacklers;
+    {
+      const r = Math.random();
+      if (gangProbs.length === 3) nTacklers = r < gangProbs[0] ? 1 : r < gangProbs[0] + gangProbs[1] ? 2 : 3;
+      else                         nTacklers = r < gangProbs[0] ? 1 : 2;
+    }
+
+    const positions = Object.keys(zone);
+    const totalW = positions.reduce((s, p) => s + zone[p], 0);
+    const sampleTackler = (excludeName) => {
+      let r = Math.random() * totalW;
+      let pos = positions[positions.length - 1];
+      for (const p of positions) { r -= zone[p]; if (r <= 0) { pos = p; break; } }
+      const pool = (tacklerArchByPos?.[pos] || [])
+        .map(d => this._playerByName.get(d?.name))
+        .filter(p => p && p.name !== excludeName);
+      return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+    };
+
+    let tackler = sampleTackler(null);
+    if (!tackler) {
+      const lbPool = (tacklerArchByPos?.LB || [])
+        .map(l => this._playerByName.get(l?.name)).filter(Boolean);
+      tackler = lbPool[0] || null;
+    }
+    const tckRating = tackler ? (tackler.stats[9] || 60) : 70;
+    const effectiveTck = tckRating + (nTacklers - 1) * 8;
+    const supportSplit = 1 / nTacklers;
+
+    let runOverBonus = 0;
+    let tWeight = 215, tAgi = 60;
+    if (tackler) {
+      try {
+        const tcmb = combineMeasurables(tackler);
+        tWeight = tcmb.weightLbs || tWeight;
+        tAgi = tackler.stats[2] || tAgi;
+        if (cspd > 65) {
+          const massDelta = cWeight - tWeight;
+          if (massDelta > 30) {
+            const momentumMul = Math.min(1, (cspd - 65) / 25);
+            runOverBonus = (massDelta - 30) * 0.012 * momentumMul * supportSplit;
+          }
+        }
+      } catch (_e) {}
+    }
+
+    let jukeOutBonus = 0;
+    if (tackler && runOverBonus === 0 && cagi >= 75) {
+      const tEffAgi = tAgi - Math.max(0, (tWeight - 200) / 8);
+      const jukeDelta = cagi - tEffAgi;
+      if (jukeDelta > 10) {
+        const archMul = breakStyle === "ELUSIVE" ? 1.0
+                     : breakStyle === "POWER"   ? 0.2
+                     : 0.5;
+        const stillnessMul = cspd < 80 ? 1.0 : 0.6;
+        jukeOutBonus = (jukeDelta - 10) * 0.012 * archMul * stillnessMul * supportSplit;
+      }
+    }
+
+    const baseBreak = breakStyle === "POWER" ? 0.04 : 0.02;
+    const breakChance = clamp((breakStat - effectiveTck) / 280 + baseBreak + runOverBonus + jukeOutBonus, 0.005, 0.45);
+    if (Math.random() >= breakChance) {
+      return { brokenTackles: 0, bonusYards: 0, tackler: tackler?.name || null };
+    }
+
+    const brokenTackles = nTacklers;
+    const explosive = nTacklers === 1 && (runOverBonus > 0.12 || jukeOutBonus > 0.12);
+    const bonusYards = explosive ? rand(6, 14) : rand(3, 8);
+
+    if (tacklerStatsPlayers && tackler?.name && tacklerStatsPlayers[tackler.name]) {
+      tacklerStatsPlayers[tackler.name].missed_tkl = (tacklerStatsPlayers[tackler.name].missed_tkl || 0) + 1;
+    }
+    for (let i = 1; i < brokenTackles; i++) {
+      const supporter = sampleTackler(tackler?.name);
+      if (supporter?.name && tacklerStatsPlayers && tacklerStatsPlayers[supporter.name]) {
+        tacklerStatsPlayers[supporter.name].missed_tkl = (tacklerStatsPlayers[supporter.name].missed_tkl || 0) + 1;
+      }
+    }
+    return { brokenTackles, bonusYards, tackler: tackler?.name || null };
+  }
   get offR()       { return this.poss === "home" ? this.homeR : this.awayR; }
   get defR()       { return this.poss === "home" ? this.awayR : this.homeR; }
   get offPlaybook(){ return this.poss === "home" ? this.homePlaybook : this.awayPlaybook; }
@@ -890,6 +1058,23 @@ class GameSimulator {
         isReturnTD: true,
       });
       return { endYL: 100, isTD: true };
+    }
+    // Returner break-tackle in the coverage lane — elite return men juke
+    // gunners and truck overmatched cover guys. Defender pool is the
+    // kicking team's coverage unit (this.defArch after poss flip).
+    const rp = this._playerByName.get(returnerName);
+    if (ret > 0 && rp) {
+      const br = this._resolveBreakTackle({
+        carrierName: returnerName, yards: ret,
+        breakStyle: _archetypeBreakStyle(rp.archetype),
+        tacklerArchByPos: this.defArch,
+        tacklerStatsPlayers: this.defStats?.players,
+        tacklerZones: _RETURN_TACKLER_ZONES, gangDist: _RETURN_GANG_DIST,
+      });
+      if (br.brokenTackles > 0) {
+        ret += br.bonusYards;
+        if (rStats) rStats.broken_tackles = (rStats.broken_tackles || 0) + br.brokenTackles;
+      }
     }
     if (rStats) {
       rStats.kr_att = (rStats.kr_att || 0) + 1;
@@ -1321,6 +1506,7 @@ class GameSimulator {
       const landYard = clamp(startYard + punt, 0, 100);
       // Touchback / fair catch / return resolution — biased by archetype.
       let returnYards = 0, isTouchback = false, isFairCatch = false;
+      let prBT = 0;
       if (landYard >= 100 || (touchbackRisk > 0 && Math.random() < touchbackRisk)) {
         isTouchback = true;
       } else {
@@ -1330,10 +1516,31 @@ class GameSimulator {
         else if (r < 0.85) returnYards = rand(4, 14);
         else if (r < 0.96) returnYards = rand(12, 28);
         else                returnYards = rand(30, 70);
-        // Hang-time punters suppress the longest returns — if a big return rolled
-        // and the archetype kills it, knock it down to a modest return.
+        // Hang-time punters suppress the longest returns.
         if (returnYards >= 20 && Math.random() < bigReturnSuppress) {
           returnYards = rand(4, 14);
+        }
+        // Returner break-tackle in the coverage lane — elite returners juke
+        // gunners and truck overmatched cover guys. Coverage = kicking team
+        // (this.poss / offArch). Skip on fair catches and short jugs (≤2).
+        if (!isFairCatch && returnYards > 2) {
+          const _retSideEarly = this.poss === "home" ? "away" : "home";
+          const _retStartersEarly = (_retSideEarly === "home" ? this.homeR : this.awayR).starters;
+          const prName = _retStartersEarly.pr1 || _retStartersEarly.wr2 || _retStartersEarly.wr1;
+          const pp = prName ? this._playerByName.get(prName) : null;
+          if (pp) {
+            const br = this._resolveBreakTackle({
+              carrierName: prName, yards: returnYards,
+              breakStyle: _archetypeBreakStyle(pp.archetype),
+              tacklerArchByPos: this.offArch,
+              tacklerStatsPlayers: this.offStats?.players,
+              tacklerZones: _RETURN_TACKLER_ZONES, gangDist: _RETURN_GANG_DIST,
+            });
+            if (br.brokenTackles > 0) {
+              returnYards += br.bonusYards;
+              prBT = br.brokenTackles;
+            }
+          }
         }
       }
       // Final spot after return (or fixed touchback at receiver's 20)
@@ -1360,6 +1567,7 @@ class GameSimulator {
         prStats.pr_yds = (prStats.pr_yds || 0) + returnYards;
         if (returnYards > (prStats.pr_long || 0)) prStats.pr_long = returnYards;
         if (isReturnTD) prStats.pr_td = (prStats.pr_td || 0) + 1;
+        if (prBT) prStats.broken_tackles = (prStats.broken_tackles || 0) + prBT;
         // Coverage tackle for the kicking team (= the current offensive
         // side `this.poss` since the punt is on their possession). Skip
         // if the returner walks in untouched for a TD.
@@ -1605,10 +1813,26 @@ class GameSimulator {
         const qbBurst = (effectiveSpeed(qbPlayer, 12) - 70) * 0.05;
         let yards = clamp(normal(4 + adv * 1.5 + Math.max(0, pressure) * 0.6 - lbTk + qbBurst, 6.5), -4, 50);
         if (yards > 0) yards = Math.min(yards, 100 - startYard);
+        // QB scramble break-tackle — Lamar / Cam-tier QBs juke or truck pursuers.
+        // DUAL_THREAT maps to ELUSIVE; other archetypes use the default formula.
+        let qbBT = 0;
+        if (yards > 0) {
+          const br = this._resolveBreakTackle({
+            carrierName: QB, yards,
+            breakStyle: _archetypeBreakStyle(qbArch),
+            tacklerArchByPos: this.defArch,
+            tacklerStatsPlayers: this.defStats?.players,
+          });
+          if (br.brokenTackles > 0) {
+            yards = Math.min(yards + br.bonusYards, 100 - startYard);
+            qbBT = br.brokenTackles;
+          }
+        }
         if (qbStats) {
           qbStats.rush_att = (qbStats.rush_att || 0) + 1;
           qbStats.rush_yds = (qbStats.rush_yds || 0) + yards;
           if (yards > (qbStats.rush_long || 0)) qbStats.rush_long = yards;
+          if (qbBT) qbStats.broken_tackles = (qbStats.broken_tackles || 0) + qbBT;
         }
         off.team.rush_att++; off.team.rushYds += yards; off.team.totalYds += yards;
         this._lastBallCarrier = QB; this._lastBallType = "rush";
@@ -1759,16 +1983,33 @@ class GameSimulator {
             // Completed on the run — shorter / less accurate throw
             const airYds = clamp(normal(7 - pressure * 1.5, 5.5), 1, 35);
             const targetDepth = Math.max(1, Math.round(airYds));
-            const yac = airYds >= 5 ? rand(0, Math.max(1, Math.floor(airYds * 0.4))) : 0;
-            const yards = Math.min(Math.max(1, targetDepth + yac), 100 - startYard);
+            let yac = airYds >= 5 ? rand(0, Math.max(1, Math.floor(airYds * 0.4))) : 0;
             const rcvr = pickReceiver(pb, this.offR.starters, this._currentPersonnel);
             // Backups (wr3/wr4/te2/rb2) aren't pre-registered in
             // _buildTeamStats — ensure their stat line exists or rec_yds
             // gets dropped while pass_yds still credits the QB.
             this._ensurePlayerStat(this.poss, rcvr, this._playerByName?.get?.(rcvr)?.position || "WR");
             const rcvrStats = off.players[rcvr];
+            // YAC break-tackle
+            let torBT = 0;
+            if (yac > 0) {
+              const rp = this._playerByName.get(rcvr);
+              const br = this._resolveBreakTackle({
+                carrierName: rcvr, yards: yac,
+                breakStyle: _archetypeBreakStyle(rp?.archetype),
+                tacklerArchByPos: this.defArch,
+                tacklerStatsPlayers: this.defStats?.players,
+                tacklerZones: _YAC_TACKLER_ZONES, gangDist: _YAC_GANG_DIST,
+              });
+              if (br.brokenTackles > 0) { yac += br.bonusYards; torBT = br.brokenTackles; }
+            }
+            const yards = Math.min(Math.max(1, targetDepth + yac), 100 - startYard);
             if (qbStats) { qbStats.pass_att++; qbStats.pass_comp++; qbStats.pass_yds += yards; if (yards > qbStats.pass_long) qbStats.pass_long = yards; }
-            if (rcvrStats) { rcvrStats.rec_tgt++; rcvrStats.rec++; rcvrStats.rec_yds += yards; if (yards > rcvrStats.rec_long) rcvrStats.rec_long = yards; }
+            if (rcvrStats) {
+              rcvrStats.rec_tgt++; rcvrStats.rec++; rcvrStats.rec_yds += yards;
+              if (yards > rcvrStats.rec_long) rcvrStats.rec_long = yards;
+              if (torBT) rcvrStats.broken_tackles = (rcvrStats.broken_tackles || 0) + torBT;
+            }
             off.team.pass_att++; off.team.pass_comp++; off.team.passYds += yards; off.team.totalYds += yards;
             this._lastBallCarrier = rcvr; this._lastBallType = "pass";
             const isTorTD = clamp(startYard + yards, 0, 100) >= 100;
@@ -1882,10 +2123,27 @@ class GameSimulator {
           const airYds = rand(-1, 1);
           const baseYac = rand(2, 7);
           const bigYac = Math.random() < 0.16 ? rand(8, 22) : 0;
-          const yac = baseYac + bigYac;
+          let yac = baseYac + bigYac;
+          // YAC break-tackle on screens — RB in space with blockers, high break opportunity
+          let screenBT = 0;
+          if (yac > 0) {
+            const rp = this._playerByName.get(rcvr);
+            const br = this._resolveBreakTackle({
+              carrierName: rcvr, yards: yac,
+              breakStyle: _archetypeBreakStyle(rp?.archetype),
+              tacklerArchByPos: this.defArch,
+              tacklerStatsPlayers: this.defStats?.players,
+              tacklerZones: _YAC_TACKLER_ZONES, gangDist: _YAC_GANG_DIST,
+            });
+            if (br.brokenTackles > 0) { yac += br.bonusYards; screenBT = br.brokenTackles; }
+          }
           const yards = Math.min(clamp(airYds + yac, -3, 95), 100 - startYard);
           if (qbStats) { qbStats.pass_att++; qbStats.pass_comp++; qbStats.pass_yds += yards; if (yards > qbStats.pass_long) qbStats.pass_long = yards; }
-          if (rcvrStats) { rcvrStats.rec_tgt++; rcvrStats.rec++; rcvrStats.rec_yds += yards; if (yards > rcvrStats.rec_long) rcvrStats.rec_long = yards; }
+          if (rcvrStats) {
+            rcvrStats.rec_tgt++; rcvrStats.rec++; rcvrStats.rec_yds += yards;
+            if (yards > rcvrStats.rec_long) rcvrStats.rec_long = yards;
+            if (screenBT) rcvrStats.broken_tackles = (rcvrStats.broken_tackles || 0) + screenBT;
+          }
           off.team.pass_att++; off.team.pass_comp++; off.team.passYds += yards; off.team.totalYds += yards;
           this._lastBallCarrier = rcvr; this._lastBallType = "pass";
           const isScreenTD = clamp(startYard + yards, 0, 100) >= 100;
@@ -2121,28 +2379,33 @@ class GameSimulator {
                          : rcvrArch === "DEEP_THREAT" ? 0.85
                          : 1.0;
         yac = Math.round(yac * yacArchMul);
-        // RARE WR JUKE — elite-handed, agile receivers occasionally catch and
-        // immediately put a move on the closest defender for a phat YAC chunk.
-        // Requires CAT >= 80 AND AGI >= 80; both at 90+ triggers more often.
+        // YAC break-tackle — physics model. Receiver's archetype maps to
+        // ELUSIVE (SLOT/ROUTE_RUNNER) / POWER (RED_ZONE/big TEs) / SPEED
+        // (DEEP_THREAT). Mass + AGI mismatches decide whether the first DB
+        // in coverage gets trucked, juked, or wraps cleanly. ZONE CBs are
+        // already in the tackler pool — disciplined coverage gets sampled
+        // normally and benefits from base TCK rating.
         let wrJuke = false;
+        let yacBrokenTackles = 0;
         const rcvrP = this._playerByName.get(rcvr);
-        if (rcvrP && airYds >= 3 && airYds <= 30) {
-          const rcat = rcvrP.stats?.[5] ?? 60;
-          const ragi = rcvrP.stats?.[2] ?? 60;
-          if (rcat >= 80 && ragi >= 80) {
-            const eliteFactor = Math.max(0, ((rcat + ragi) / 2 - 80) / 19);   // 0 at 80, 1 at 99
-            const archMul = rcvrP.archetype === "SLOT" ? 1.5
-                          : rcvrP.archetype === "ROUTE_RUNNER" ? 1.2
-                          : rcvrP.archetype === "POSSESSION" ? 0.6
-                          : 1.0;
-            // ZONE CB caps the post-catch chunk by ~50% — disciplined
-            // defenders break on the ball quickly + don't get juked.
-            const zoneMul = zoneCB ? 0.5 : 1.0;
-            const wrJukeChance = clamp(0.04 + eliteFactor * 0.10, 0, 0.18) * archMul * zoneMul;
-            if (Math.random() < wrJukeChance) {
-              wrJuke = true;
-              yac += rand(6, 16);   // post-catch chunk
-            }
+        if (rcvrP && yac > 0) {
+          const recBreakStyle = _archetypeBreakStyle(rcvrP.archetype) || _archetypeBreakStyle(rcvrArch);
+          // ZONE CB suppresses YAC explosiveness — break chance scaled by 0.6.
+          // We approximate this by halving bonus yards via a re-roll: if the
+          // break fires under zone, downgrade to a non-explosive bonus.
+          const br = this._resolveBreakTackle({
+            carrierName: rcvr, yards: yac,
+            breakStyle: recBreakStyle,
+            tacklerArchByPos: this.defArch,
+            tacklerStatsPlayers: this.defStats?.players,
+            tacklerZones: _YAC_TACKLER_ZONES,
+            gangDist: _YAC_GANG_DIST,
+          });
+          if (br.brokenTackles > 0) {
+            wrJuke = true;
+            const zoneMul = zoneCB ? 0.6 : 1.0;
+            yac += Math.round(br.bonusYards * zoneMul);
+            yacBrokenTackles = br.brokenTackles;
           }
         }
         const targetDepth = Math.max(1, Math.round(airYds));
@@ -2188,7 +2451,11 @@ class GameSimulator {
           catchRadius >= 75 || (catchRadius >= 60 && Math.random() < 0.5)
         );
         if (qbStats) { qbStats.pass_att++; qbStats.pass_comp++; qbStats.pass_yds += yards; if (yards > qbStats.pass_long) qbStats.pass_long = yards; }
-        if (rcvrStats) { rcvrStats.rec_tgt++; rcvrStats.rec++; rcvrStats.rec_yds += yards; if (yards > rcvrStats.rec_long) rcvrStats.rec_long = yards; }
+        if (rcvrStats) {
+          rcvrStats.rec_tgt++; rcvrStats.rec++; rcvrStats.rec_yds += yards;
+          if (yards > rcvrStats.rec_long) rcvrStats.rec_long = yards;
+          if (yacBrokenTackles) rcvrStats.broken_tackles = (rcvrStats.broken_tackles || 0) + yacBrokenTackles;
+        }
         off.team.pass_att++; off.team.pass_comp++; off.team.passYds += yards; off.team.totalYds += yards;
         this._lastBallCarrier = rcvr; this._lastBallType = "pass";
         // Tackle credit on the catch — DBs / LBs make most tackles in the open field
@@ -2560,142 +2827,26 @@ class GameSimulator {
     let yards = clamp(normal((rushMean + rbBoost + fbBoost + runVarMean + adv * 1.4 + runTrenchYds + fbStuffReduction - lbTackle * 0.5 - boxSafetyStuff - thumperStuff - lbGapRead + rbGapVision + carrierBoost + reverseBonus + ocRunArchBonus + dcRunStopperMalus + fatigueRunYds + rzRunBonus) * defPbRun.runMul, rushSd * rbSdMul * runVarSd * reverseSdMul), -8, 75);
     // Cap at distance to end zone so a 1-yd goal-line carry doesn't get reported as a 17-yd TD
     if (yards > 0) yards = Math.min(yards, 100 - startYard);
-    // Broken tackles — carrier physicality vs sampled tackler.
-    // POWER backs break with STR + density (mass), ELUSIVE with AGI vs slow
-    // defenders, SPEED with raw burst. Tackler is sampled by yardage tier
-    // (LB/DL at LOS, S/CB in space) and 1–3 may converge (gang at LOS,
-    // isolation in space). A multi-defender break credits each beaten.
-    let brokenTackles = 0;
-    let bonusYards = 0;
-    let tacklerForMiss = null;
+    // Broken tackles — physics-based break attempt. Skipped on QB rushes
+    // (QB scrambles handled by their own path) and on losses.
+    let brokenTackles = 0, bonusYards = 0;
     if (!isQBRun && yards > 0) {
-      const cp = this._playerByName.get(carrier);
-      const cstr = cp?.stats?.[1] ?? 70;
-      const cagi = cp?.stats?.[2] ?? 70;
-      const cspd = effectiveSpeed(cp, 10);
-      let densityBonus = 0;
-      let cWeight = 215;
-      try {
-        const cmb = combineMeasurables(cp);
-        cWeight = cmb.weightLbs || 215;
-        const density = cWeight / (cmb.heightIn || 71);
-        densityBonus = (density - 2.75) * 8;
-      } catch (_e) { /* leave densityBonus 0 if measurables fail */ }
-      let breakStat;
-      if (rbArch === "POWER")        breakStat = cstr + densityBonus * 1.5;
-      else if (rbArch === "ELUSIVE") breakStat = (cagi * 0.7 + cstr * 0.3) + densityBonus * 0.3;
-      else if (rbArch === "SPEED")   breakStat = (cspd * 0.7 + cstr * 0.3) + densityBonus * 0.4;
-      else                            breakStat = (cstr + cagi) / 2 + densityBonus;
-      // How many defenders converge — gang tackle at the LOS, isolation in
-      // space. A 240 lb back can truck a lone CB but a 3-man wrap doesn't
-      // care how massive you are.
-      let nTacklers;
-      {
-        const r = Math.random();
-        if (yards <= 2)      nTacklers = r < 0.25 ? 1 : r < 0.75 ? 2 : 3;  // LOS scrum
-        else if (yards <= 7) nTacklers = r < 0.55 ? 1 : r < 0.92 ? 2 : 3;  // 2nd level
-        else                  nTacklers = r < 0.85 ? 1 : 2;                 // open field
-      }
-      // Sample the PRIMARY tackler by contact zone implied by yardage.
-      // Short = LB/DL at the line; mid = LB/S at the 2nd level; long = S/CB
-      // in space. This is what makes the 180 lb CB vs freight train real.
-      let tacklerPos;
-      {
-        const r = Math.random();
-        if (yards <= 2)      tacklerPos = r < 0.55 ? "LB" : r < 0.85 ? "DL" : r < 0.92 ? "S" : "CB";
-        else if (yards <= 7) tacklerPos = r < 0.40 ? "LB" : r < 0.70 ? "S"  : r < 0.88 ? "CB" : "DL";
-        else                  tacklerPos = r < 0.50 ? "S"  : r < 0.85 ? "CB" : "LB";
-      }
-      const tcPool = (this.defArch[tacklerPos] || []).map(d => this._playerByName.get(d?.name)).filter(Boolean);
-      let tackler = tcPool.length ? tcPool[Math.floor(Math.random() * tcPool.length)] : null;
-      if (!tackler) {
-        const lbPool = (this.defArch.LB || []).map(l => this._playerByName.get(l?.name)).filter(Boolean);
-        tackler = lbPool[0] || null;
-      }
-      tacklerForMiss = tackler;
-      const tckRating = tackler ? (tackler.stats[9] || 60) : (this.defR.lb || 70);
-      // Each additional support defender adds to effective tackle strength
-      // AND splits the mass-differential advantage (you can run over one
-      // 180 lb DB; running over a 2-man wrap is a different problem).
-      const effectiveTck = tckRating + (nTacklers - 1) * 8;
-      const supportSplit = 1 / nTacklers;
-      // Freight-train physics: a 240 lb RB at full momentum running at a
-      // 180 lb DB mostly just runs him over. Threshold +30 lb — anything
-      // smaller is normal run-vs-run-defender contact and not "trucked".
-      // Effect scales with mass delta × carrier momentum × support split.
-      let runOverBonus = 0;
-      let tWeight = 215, tAgi = 60;
-      if (tackler) {
-        try {
-          const tcmb = combineMeasurables(tackler);
-          tWeight = tcmb.weightLbs || 215;
-          tAgi = tackler.stats[2] || 60;
-          if (cspd > 65) {
-            const massDelta = cWeight - tWeight;
-            if (massDelta > 30) {
-              const momentumMul = Math.min(1, (cspd - 65) / 25);
-              runOverBonus = (massDelta - 30) * 0.012 * momentumMul * supportSplit;
-            }
-          }
-        } catch (_e) {}
-      }
-      // Juke-out: symmetric to runOver. A small elusive back vs a heavy/slow
-      // defender wins on lateral agility — the defender can't plant and turn.
-      // Heavy defender's AGI is penalized by mass (200 lb baseline, −1 per
-      // 8 lb over), so a 290 lb DL with 60 AGI plays like 49 AGI in space.
-      // Only triggers when runOver didn't — you can't truck and juke the
-      // same defender on the same play.
-      let jukeOutBonus = 0;
-      if (tackler && runOverBonus === 0 && cagi >= 75) {
-        const tEffAgi = tAgi - Math.max(0, (tWeight - 200) / 8);
-        const jukeDelta = cagi - tEffAgi;
-        if (jukeDelta > 10) {
-          const archMul = rbArch === "ELUSIVE" ? 1.0
-                       : rbArch === "POWER"   ? 0.2
-                       : 0.5;
-          // Plant-foot — at full freight you can't cut. Need ~70-80 burst
-          // to set up a real juke move; above that, you're just running.
-          const stillnessMul = cspd < 80 ? 1.0 : 0.6;
-          jukeOutBonus = (jukeDelta - 10) * 0.012 * archMul * stillnessMul * supportSplit;
-        }
-      }
-      const baseBreak = rbArch === "POWER" ? 0.04 : 0.02;
-      const breakChance = clamp((breakStat - effectiveTck) / 280 + baseBreak + runOverBonus + jukeOutBonus, 0.005, 0.45);
-      if (Math.random() < breakChance) {
-        // Breaking a 2- or 3-man wrap counts as multiple broken tackles —
-        // PFF would credit each defender beaten. Bonus yards are big when
-        // you truck a lone DB OR juke a defender into space; smaller when
-        // you wrestle out of a gang tackle.
-        brokenTackles = nTacklers;
-        const explosive = nTacklers === 1 && (runOverBonus > 0.12 || jukeOutBonus > 0.12);
-        bonusYards = explosive ? rand(6, 14) : rand(3, 8);
-        yards = Math.min(yards + bonusYards, 100 - startYard);
-      }
+      const br = this._resolveBreakTackle({
+        carrierName: carrier, yards,
+        breakStyle: rbArch,
+        tacklerArchByPos: this.defArch,
+        tacklerStatsPlayers: this.defStats?.players,
+      });
+      brokenTackles = br.brokenTackles;
+      bonusYards = br.bonusYards;
+      if (bonusYards) yards = Math.min(yards + bonusYards, 100 - startYard);
     }
     const carrierStats = off.players[carrier];
     if (carrierStats) {
       carrierStats.rush_att++;
       carrierStats.rush_yds += yards;
       if (yards > carrierStats.rush_long) carrierStats.rush_long = yards;
-      if (brokenTackles) {
-        carrierStats.broken_tackles = (carrierStats.broken_tackles || 0) + brokenTackles;
-        // Credit primary defender directly; remaining gang members via the
-        // weighted pool (excluding the primary so we don't double-credit).
-        const defPlayers = this.defStats?.players || {};
-        if (tacklerForMiss?.name && defPlayers[tacklerForMiss.name]) {
-          defPlayers[tacklerForMiss.name].missed_tkl = (defPlayers[tacklerForMiss.name].missed_tkl || 0) + 1;
-        } else {
-          this._creditDefStat("missed_tkl", yards >= 10
-            ? { S: 0.40, CB: 0.20, LB: 0.30, DL: 0.10 }
-            : { LB: 0.45, DL: 0.30, S: 0.15, CB: 0.10 });
-        }
-        for (let i = 1; i < brokenTackles; i++) {
-          this._creditDefStat("missed_tkl", yards >= 10
-            ? { S: 0.40, CB: 0.20, LB: 0.30, DL: 0.10 }
-            : { LB: 0.45, DL: 0.30, S: 0.15, CB: 0.10 },
-            tacklerForMiss?.name);
-        }
-      }
+      if (brokenTackles) carrierStats.broken_tackles = (carrierStats.broken_tackles || 0) + brokenTackles;
     }
     off.team.rush_att++; off.team.rushYds += yards; off.team.totalYds += yards;
     // Award a pancake block to a random OL on quality runs (≥5 yards, not a QB scramble)
