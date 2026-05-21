@@ -671,6 +671,32 @@ class GameSimulator {
     if (p) p[field] = (p[field] || 0) + 1;
     return chosen.name;
   }
+  // Yards after contact — heavy + strong carriers lean into the wrap and
+  // drag defenders forward an extra fraction of a yard. Distinct from the
+  // outright break-tackle event: this fires on EVERY positive carry whether
+  // or not a tackle is broken. NFL yards-after-contact gap between Henry
+  // (~3.5 YAC/carry) and an avg scat back (~1.8) sits at ~1.5 yds; this
+  // formula returns ~0.0–1.2 for the heaviest power backs.
+  // Thresholds: cWeight > 220 AND cstr > 70 to activate. ELUSIVE archetypes
+  // get reduced bonus (they avoid contact, not lean into it).
+  _leanForwardYds(carrierName, breakStyle) {
+    const cp = this._playerByName.get(carrierName);
+    if (!cp) return 0;
+    const cstr = cp.stats?.[1] ?? 70;
+    let cWeight = POSITION_WEIGHT_FALLBACK[cp.position] || 215;
+    try {
+      const cmb = combineMeasurables(cp);
+      cWeight = cmb.weightLbs || cWeight;
+    } catch (_e) {}
+    if (cWeight <= 220 || cstr <= 70) return 0;
+    const massFactor = Math.min(1, (cWeight - 220) / 30);   // 0 at 220, 1 at 250+
+    const strFactor  = Math.min(1, (cstr - 70) / 25);        // 0 at 70, 1 at 95+
+    const archMul = breakStyle === "POWER"   ? 1.2
+                 : breakStyle === "ELUSIVE" ? 0.4
+                 : breakStyle === "SPEED"   ? 0.7
+                 : 1.0;
+    return Math.min(1.8, massFactor * strFactor * archMul * 1.5);
+  }
   // Resolve a break-tackle attempt for any open-field carry: RB rush, YAC,
   // QB scramble, KR/PR. Samples 1-3 converging tacklers from a yardage-zone-
   // weighted pool, applies freight-train (mass+momentum) and juke-out (AGI
@@ -1812,9 +1838,14 @@ class GameSimulator {
         const qbPlayer = this._playerByName.get(QB);
         const qbBurst = (effectiveSpeed(qbPlayer, 12) - 70) * 0.05;
         let yards = clamp(normal(4 + adv * 1.5 + Math.max(0, pressure) * 0.6 - lbTk + qbBurst, 6.5), -4, 50);
+        // Lean forward — Josh Allen / Cam Newton fall forward for an extra
+        // half-yard on every scramble. Lamar (lean DUAL_THREAT) slides.
+        if (yards > 0) {
+          const qbLean = this._leanForwardYds(QB, _archetypeBreakStyle(qbArch));
+          if (qbLean > 0) yards += qbLean;
+        }
         if (yards > 0) yards = Math.min(yards, 100 - startYard);
         // QB scramble break-tackle — Lamar / Cam-tier QBs juke or truck pursuers.
-        // DUAL_THREAT maps to ELUSIVE; other archetypes use the default formula.
         let qbBT = 0;
         if (yards > 0) {
           const br = this._resolveBreakTackle({
@@ -2634,7 +2665,9 @@ class GameSimulator {
     // (user asked for "slightly over NFL, not below"). Engine's run-stuff
     // modifiers overcompensate at the tail. Raises base to 5.9; realized
     // mean lands near 4.7, ~9% above NFL 4.3.
-    const rushMean = (pb.rushYdsMean ?? 4.3) + 1.6;
+    // rushMean trimmed by 0.3 to absorb the new leanForward population-avg
+    // shift (heavy/strong backs now get a small post-contact bonus).
+    const rushMean = (pb.rushYdsMean ?? 4.3) + 1.3;
     const rushSd   = pb.rushYdsSd   ?? 5.5;
     // ── TWO-BACK FORMATION DECISION ────────────────────────────────────
     // Only when there's a viable second back on the roster. Probability
@@ -2825,6 +2858,12 @@ class GameSimulator {
     // keep rush TDs in the slightly-over-NFL zone instead of 1.19× pace.
     const rzRunBonus = this._inGoalToGo ? 0.6 : (this._inRedZone ? 0.3 : 0);
     let yards = clamp(normal((rushMean + rbBoost + fbBoost + runVarMean + adv * 1.4 + runTrenchYds + fbStuffReduction - lbTackle * 0.5 - boxSafetyStuff - thumperStuff - lbGapRead + rbGapVision + carrierBoost + reverseBonus + ocRunArchBonus + dcRunStopperMalus + fatigueRunYds + rzRunBonus) * defPbRun.runMul, rushSd * rbSdMul * runVarSd * reverseSdMul), -8, 75);
+    // Yards after contact — heavy power backs lean forward and drag tacklers.
+    // Applied to every positive carry, before the break-tackle event rolls.
+    if (!isQBRun && yards > 0) {
+      const lean = this._leanForwardYds(carrier, rbArch);
+      if (lean > 0) yards += lean;
+    }
     // Cap at distance to end zone so a 1-yd goal-line carry doesn't get reported as a 17-yd TD
     if (yards > 0) yards = Math.min(yards, 100 - startYard);
     // Broken tackles — physics-based break attempt. Skipped on QB rushes
