@@ -1333,22 +1333,24 @@ class GameSimulator {
       // Pressured QBs throw more INTs (rushed/forced throws). QB archetype tilts this too.
       // Bad QBs (low OVR) make poor reads → significantly more INTs.
       const qbIntFromOvr = (75 - this.offR.qb) / 800;  // QB 60 → +0.019, QB 90 → -0.019
-      // Defensive backs matter more now — elite secondary actually disrupts passes.
-      // Specific covering CB contributes; safety help adds on top.
-      let defIntMod = (this.defR.cb - 65) / 700;        // CB 95 → +0.043; CB 50 → -0.021
+      // Defensive backs matter — but the modifiers HALVED below were
+      // previously stacking to a 20% per-attempt INT cap, yielding ~5%
+      // league INT rate (real NFL is ~2.5%). Median career INT-made
+      // for top-20 DBs was 1.3/g, way over NFL leader 0.82/g.
+      let defIntMod = (this.defR.cb - 65) / 1400;        // halved from /700
       const safIntNames = [this.defR.starters.fs, this.defR.starters.ss];
       const safIntPlayers = safIntNames.map(n => this._playerByName?.get?.(n)).filter(Boolean);
       if (safIntPlayers.length) {
         const avgSafCov = safIntPlayers.reduce((s,p) => s + (p.stats?.[8] || 65), 0) / safIntPlayers.length;
-        defIntMod += (avgSafCov - 65) / 1100;            // up to ~+0.027 from elite safety duo
+        defIntMod += (avgSafCov - 65) / 2200;            // halved from /1100
       }
-      // Aggressive QBs (high aggression score) accept more risk on deep shots →
-      // small additive INT uptick on top of the archetype's qbIntMod.
-      const qbAggIntMod = (this._aggTilt(this._qbAggression()) - 1) * 0.008; // agg=80→+0.0024, agg=20→-0.0024
-      // DC Ball Hawk: additional INT rate multiplier; Game Manager HC: reduces turnovers
+      const qbAggIntMod = (this._aggTilt(this._qbAggression()) - 1) * 0.008;
       const dcBallHawkMul  = _dcTrait  === "Ball Hawk"    ? 1.025 : 1.0;
       const hcGameMgrIntMul= _hcSpec   === "Game Manager" ? 0.88  : 1.0;
-      const intPct = clamp((0.022 - adv * 0.010 + defIntMod + pressure * 0.022 + ballHawkBonus + qbIntMod + qbIntFromOvr + qbAggIntMod) * dcBallHawkMul * hcGameMgrIntMul, 0.003, 0.20);
+      // Pressure-driven INT halved (was 0.022/lvl); upper clamp 0.20 → 0.06
+      // so even pile-on stacks (elite D + heavy pressure + bad QB)
+      // can't push past 6%, near NFL's worst-case per-attempt INT rate.
+      const intPct = clamp((0.022 - adv * 0.010 + defIntMod + pressure * 0.012 + ballHawkBonus + qbIntMod + qbIntFromOvr + qbAggIntMod) * dcBallHawkMul * hcGameMgrIntMul, 0.003, 0.06);
       if (Math.random() < intPct) {
         const targetDepth = clamp(normal(11, 7), 2, 35);
         if (qbStats) { qbStats.pass_att++; qbStats.pass_int++; }
@@ -2214,8 +2216,11 @@ class GameSimulator {
       const avgTck = lbPlayers.length
         ? lbPlayers.reduce((s,p) => s + (p.stats[9] || 60), 0) / lbPlayers.length
         : this.defR.lb;
-      const baseBreak = rbArch === "POWER" ? 0.05 : 0.03;
-      const breakChance = clamp((breakStat - avgTck) / 180 + baseBreak, 0.01, 0.28);
+      // Break chance compressed: previously a 99 STR back vs 60 LB room
+      // hit a 26.7% break per carry — NFL elite is ~12-15%. Halved the
+      // stat-gap scaling AND tightened the upper clamp.
+      const baseBreak = rbArch === "POWER" ? 0.04 : 0.02;
+      const breakChance = clamp((breakStat - avgTck) / 280 + baseBreak, 0.005, 0.16);
       if (Math.random() < breakChance) {
         brokenTackles = 1;
         bonusYards = rand(3, 8);
