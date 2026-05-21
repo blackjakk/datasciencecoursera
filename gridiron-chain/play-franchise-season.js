@@ -5986,6 +5986,22 @@ function frnFACutsSort(key) {
   franchise._faCutsSort = key;
   renderFrnFACuts();
 }
+// Filter mode: "assets" / "blockers" / "cuttable" / "costly" / null.
+// Clicking the same filter again clears it (toggle behavior).
+function frnFACutsSetFilter(key) {
+  franchise._faCutsFilter = (franchise._faCutsFilter === key) ? null : key;
+  renderFrnFACuts();
+}
+// Position filter from the depth-grid pill click. Same toggle pattern.
+function frnFACutsSetPosFilter(pos) {
+  franchise._faCutsPosFilter = (franchise._faCutsPosFilter === pos) ? null : pos;
+  renderFrnFACuts();
+}
+function frnFACutsClearFilters() {
+  franchise._faCutsFilter = null;
+  franchise._faCutsPosFilter = null;
+  renderFrnFACuts();
+}
 function frnFACutsTogglePending(name) {
   franchise._pendingCuts = franchise._pendingCuts || [];
   const idx = franchise._pendingCuts.indexOf(name);
@@ -6042,9 +6058,14 @@ function renderFrnFACuts() {
   const remainingNeed = Math.max(0, needToFree - pendingFreed);
   const willBeLegal = pendingFreed >= needToFree;
 
-  // Cap progress bar — show current + post-cut overlay
-  const usedPct = Math.min(120, (used / cap) * 100);
-  const postCutPct = Math.min(120, Math.max(0, (postCutUsed / cap) * 100));
+  // Cap progress bar — clean flex layout, no scaleX hacks.
+  // The bar canvas spans $0 to maxScale (cap + 25% headroom OR enough
+  // to fit the actual usage). Cap line is the gold marker at capPct.
+  // Two zones (good / over) tint the background; fill extends from $0.
+  const maxScale  = Math.max(cap * 1.25, used * 1.08, postCutUsed * 1.08, cap + 5);
+  const capPct    = (cap / maxScale) * 100;
+  const usedPct   = Math.min(100, (used / maxScale) * 100);
+  const postCutPct = Math.min(100, Math.max(0, (postCutUsed / maxScale) * 100));
   const barColor = postCutOver > 0 ? "#ff8a8a" : "#86e0a3";
 
   // Position depth after pending cuts
@@ -6062,6 +6083,25 @@ function renderFrnFACuts() {
     if (sortKey === "age")    return (b.age||0) - (a.age||0);
     if (sortKey === "pos")    return (a.position||"").localeCompare(b.position||"");
     return 0;
+  });
+
+  // Filters — applied AFTER sort so the user's sort preference holds.
+  const filterMode = franchise._faCutsFilter;     // "assets" / "blockers" / "cuttable" / "costly" / null
+  const posFilter  = franchise._faCutsPosFilter;  // position string or null
+  const filterCounts = {
+    all: sortedRoster.length,
+    assets:   sortedRoster.filter(p => _tradeValueTag(p, cap) === "asset").length,
+    blockers: sortedRoster.filter(p => _tradeValueTag(p, cap) === "blocker").length,
+    cuttable: sortedRoster.filter(p => _faCutEconomics(p).netRelief > 1).length,
+    costly:   sortedRoster.filter(p => _faCutEconomics(p).netRelief < -0.5).length,
+  };
+  const filteredRoster = sortedRoster.filter(p => {
+    if (posFilter && p.position !== posFilter) return false;
+    if (filterMode === "assets")   return _tradeValueTag(p, cap) === "asset";
+    if (filterMode === "blockers") return _tradeValueTag(p, cap) === "blocker";
+    if (filterMode === "cuttable") return _faCutEconomics(p).netRelief > 1;
+    if (filterMode === "costly")   return _faCutEconomics(p).netRelief < -0.5;
+    return true;
   });
 
   const cleanName = (n) => (n||"").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
@@ -6086,16 +6126,19 @@ function renderFrnFACuts() {
           <div class="frn-cuts-cap-cap">/ $${cap.toFixed(0)}M cap</div>
         </div>
       </div>
-      <div class="frn-cuts-bar-wrap">
-        <div class="frn-cuts-bar-track">
-          <div class="frn-cuts-bar-cap-mark"></div>
-          <div class="frn-cuts-bar-used" style="width:${usedPct}%;background:${overCap?'#ff8a8a':'#86e0a3'}"></div>
-          ${pendingFreed > 0 ? `<div class="frn-cuts-bar-postcut" style="width:${postCutPct}%;background:${barColor};opacity:.6"></div>` : ""}
+      <div class="frn-cuts-bar-v2">
+        <div class="frn-cuts-bar-canvas">
+          <div class="frn-cuts-bar-zone good" style="width:${capPct}%"></div>
+          <div class="frn-cuts-bar-zone over" style="left:${capPct}%;width:${100-capPct}%"></div>
+          <div class="frn-cuts-bar-fill" style="width:${usedPct}%;background:${overCap?'#ff8a8a':'#86e0a3'}"></div>
+          ${pendingFreed > 0 ? `<div class="frn-cuts-bar-postcut-v2" style="width:${postCutPct}%"></div>` : ""}
+          <div class="frn-cuts-bar-cap-line" style="left:${capPct}%"></div>
         </div>
-        <div class="frn-cuts-bar-meta">
-          <span>$0</span>
-          <span style="color:var(--gold);font-weight:800">${overCap?`+$${(used-cap).toFixed(1)}M OVER`:`$${room.toFixed(1)}M ROOM`}</span>
-          <span>$${cap.toFixed(0)}M</span>
+        <div class="frn-cuts-bar-axis">
+          <span class="frn-cuts-axis-anchor" style="left:0%">$0</span>
+          <span class="frn-cuts-axis-cap" style="left:${capPct}%">CAP · $${cap.toFixed(0)}M</span>
+          <span class="frn-cuts-axis-anchor" style="left:100%">$${maxScale.toFixed(0)}M</span>
+          ${overCap ? `<span class="frn-cuts-axis-current" style="left:${usedPct}%;color:#ff8a8a">+$${(used-cap).toFixed(1)}M OVER</span>` : `<span class="frn-cuts-axis-current" style="left:${usedPct}%;color:#86e0a3">$${room.toFixed(1)}M ROOM</span>`}
         </div>
       </div>
       <div class="frn-cuts-hero-actions">
@@ -6142,26 +6185,48 @@ function renderFrnFACuts() {
       </div>
     </div>` : "";
 
-  // — POSITION DEPTH BAR —
+  // — POSITION DEPTH BAR — chips are clickable filters.
   const depthHtml = `
     <div class="frn-cuts-depth">
-      <div class="frn-cuts-depth-title">POSITION DEPTH <span class="frn-cuts-depth-sub">after pending cuts · floor = ROSTER_SLOTS minimum</span></div>
+      <div class="frn-cuts-depth-title">POSITION DEPTH <span class="frn-cuts-depth-sub">click a position to filter the roster · floor = ROSTER_SLOTS minimum</span></div>
       <div class="frn-cuts-depth-grid">
         ${Object.entries(depth).map(([pos, d]) => {
           const status = d.delta < 0 ? "below" : d.delta === 0 ? "floor" : d.delta <= 1 ? "thin" : "ok";
           const icon = status === "below" ? "✗" : status === "floor" ? "⚠" : status === "thin" ? "·" : "✓";
-          return `<div class="frn-cuts-depth-chip ${status}">
+          const active = posFilter === pos;
+          return `<button type="button" class="frn-cuts-depth-chip ${status}${active?" active":""}"
+            onclick="frnFACutsSetPosFilter('${pos}')"
+            title="${active ? `Clear ${pos} filter` : `Show only ${pos} (${d.have}/${d.need} rostered)`}">
             <span class="frn-cuts-depth-icon">${icon}</span>
             <span class="frn-cuts-depth-pos">${pos}</span>
             <span class="frn-cuts-depth-val">${d.have}/${d.need}</span>
-          </div>`;
+          </button>`;
         }).join("")}
       </div>
     </div>`;
 
+  // — FILTER STRIP — sits above the table. Two rows of chips: trade-
+  // status filters + active filter clear indicator.
+  const filterStripHtml = `
+    <div class="frn-cuts-filter-strip">
+      <span class="frn-cuts-filter-label">Show:</span>
+      <button class="frn-cuts-filter-chip${!filterMode?" active":""}" onclick="frnFACutsSetFilter(null)">All <span class="cnt">${filterCounts.all}</span></button>
+      <button class="frn-cuts-filter-chip${filterMode==="assets"?" active":""}" onclick="frnFACutsSetFilter('assets')"
+        title="Under-market deals — better traded than cut">💰 Assets <span class="cnt">${filterCounts.assets}</span></button>
+      <button class="frn-cuts-filter-chip${filterMode==="blockers"?" active":""}" onclick="frnFACutsSetFilter('blockers')"
+        title="Overpaid contracts — anchor on cap, hard to move">⚓ Blockers <span class="cnt">${filterCounts.blockers}</span></button>
+      <button class="frn-cuts-filter-chip${filterMode==="cuttable"?" active":""}" onclick="frnFACutsSetFilter('cuttable')"
+        title="Cut saves ≥ $1M of net cap">✓ Cuttable <span class="cnt">${filterCounts.cuttable}</span></button>
+      <button class="frn-cuts-filter-chip${filterMode==="costly"?" active":""}" onclick="frnFACutsSetFilter('costly')"
+        title="Cut would LOSE money on the cap — restructure first">⚠ Costly <span class="cnt">${filterCounts.costly}</span></button>
+      ${posFilter ? `<span class="frn-cuts-active-filter">${posFilter} only · <a onclick="frnFACutsSetPosFilter(null)">clear</a></span>` : ""}
+      ${(filterMode || posFilter) ? `<button class="frn-cuts-clear-all" onclick="frnFACutsClearFilters()">✕ Reset filters</button>` : ""}
+      <span class="frn-cuts-filter-meta">${filteredRoster.length} of ${myRoster.length} shown</span>
+    </div>`;
+
   // — ROSTER TABLE —
   const _hasOracle = (typeof HiddenOracle === "object" && HiddenOracle?.read?.ceilingTier);
-  const rowsHtml = sortedRoster.map(p => {
+  const rowsHtml = filteredRoster.length ? filteredRoster.map(p => {
     const econ = _faCutEconomics(p);
     const badges = _faRiskBadges(p);
     const isPending = pending.has(p.name);
@@ -6224,7 +6289,7 @@ function renderFrnFACuts() {
         </div>
       </td>
     </tr>`;
-  }).join("");
+  }).join("") : `<tr><td colspan="12" style="text-align:center;padding:1.2rem;color:var(--gray);font-style:italic">No players match the current filters. ${(filterMode || posFilter) ? `<a onclick="frnFACutsClearFilters()" style="color:var(--gold-lt);cursor:pointer;text-decoration:underline">Clear filters →</a>` : ""}</td></tr>`;
 
   const tableHtml = `
     <div class="frn-cuts-table-wrap">
@@ -6257,6 +6322,7 @@ function renderFrnFACuts() {
     ${heroHtml}
     ${pendingPanelHtml}
     ${depthHtml}
+    ${filterStripHtml}
     ${tableHtml}
     ${footerHtml}`;
 }

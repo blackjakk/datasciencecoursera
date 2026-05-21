@@ -1601,39 +1601,83 @@
     font-size: .65rem; color: var(--gray);
     letter-spacing: .5px; margin-top: .15rem;
   }
-  .frn-cuts-bar-wrap { margin-bottom: .9rem; }
-  .frn-cuts-bar-track {
-    position: relative; height: 12px;
-    background: rgba(255,255,255,.05);
+  /* Cap progress bar v2 — clean two-zone layout. The canvas spans
+     $0 → maxScale; zones tint the background by good/over; fill bar
+     sits on top showing actual usage. Cap line is a vertical marker
+     anchored to the cap position so it stays visually aligned to
+     whatever the canvas's max is. */
+  .frn-cuts-bar-v2 { margin-bottom: 1rem; }
+  .frn-cuts-bar-canvas {
+    position: relative; height: 16px;
+    background: rgba(255,255,255,.03);
     border: 1px solid var(--border);
     border-radius: 4px; overflow: hidden;
   }
-  .frn-cuts-bar-cap-mark {
-    position: absolute; top: 0; bottom: 0; left: calc((240/cap-target) * 1%);
-    /* The marker stays at the 100% line of capacity. Since the bar
-       width represents 0..120%, the cap line is at 100/120 = 83.3% */
-    left: 83.33%;
-    width: 2px; background: var(--gold); z-index: 3;
-    box-shadow: 0 0 6px var(--gold);
+  .frn-cuts-bar-zone {
+    position: absolute; top: 0; bottom: 0;
+    z-index: 0;
   }
-  .frn-cuts-bar-used {
-    position: absolute; top: 0; bottom: 0; left: 0;
-    transition: width .25s ease;
-    /* Scale down so cap appears at 83% of total bar */
-    transform: scaleX(0.833); transform-origin: left;
+  .frn-cuts-bar-zone.good {
+    left: 0;
+    background: linear-gradient(180deg, rgba(134,224,163,.04), rgba(134,224,163,.08));
   }
-  .frn-cuts-bar-postcut {
+  .frn-cuts-bar-zone.over {
+    background: linear-gradient(180deg, rgba(255,138,138,.08), rgba(255,138,138,.14));
+    border-left: 1px dashed rgba(255,138,138,.35);
+  }
+  .frn-cuts-bar-fill {
     position: absolute; top: 0; bottom: 0; left: 0;
-    transition: width .25s ease;
-    transform: scaleX(0.833); transform-origin: left;
+    transition: width .3s ease, background .2s;
+    z-index: 1;
+    box-shadow: 0 0 10px rgba(0,0,0,.4) inset;
+  }
+  .frn-cuts-bar-postcut-v2 {
+    position: absolute; top: 0; bottom: 0; left: 0;
+    transition: width .3s ease;
     z-index: 2;
-    box-shadow: 0 0 8px rgba(134,224,163,.5);
+    background: repeating-linear-gradient(
+      45deg,
+      rgba(134,224,163,.55) 0 6px,
+      rgba(134,224,163,.25) 6px 12px
+    );
+    border-right: 2px solid #86e0a3;
   }
-  .frn-cuts-bar-meta {
-    display: flex; justify-content: space-between;
-    font-size: .58rem; color: var(--gray);
+  .frn-cuts-bar-cap-line {
+    position: absolute; top: -3px; bottom: -3px;
+    width: 2px; background: var(--gold); z-index: 4;
+    box-shadow: 0 0 8px rgba(200,169,0,.7);
+  }
+  .frn-cuts-bar-axis {
+    position: relative; height: 1.4rem; margin-top: .35rem;
     font-family: 'IBM Plex Mono', monospace;
-    margin-top: .3rem; letter-spacing: .3px;
+    font-size: .58rem; color: var(--gray);
+  }
+  .frn-cuts-axis-anchor {
+    position: absolute; top: 0; transform: translateX(-50%);
+    letter-spacing: .3px; white-space: nowrap;
+  }
+  .frn-cuts-axis-anchor:first-of-type { transform: translateX(0); }
+  .frn-cuts-axis-anchor:last-of-type { transform: translateX(-100%); }
+  .frn-cuts-axis-cap {
+    position: absolute; top: 0; transform: translateX(-50%);
+    color: var(--gold); font-weight: 800; letter-spacing: .5px;
+    white-space: nowrap;
+  }
+  .frn-cuts-axis-cap::before {
+    content: "▲";
+    display: block;
+    text-align: center;
+    margin-top: -.55rem;
+    font-size: .55rem;
+    color: var(--gold);
+  }
+  .frn-cuts-axis-current {
+    position: absolute; bottom: -.1rem; transform: translateX(-50%);
+    font-weight: 900; letter-spacing: .4px; white-space: nowrap;
+    font-size: .62rem;
+    padding: .05rem .35rem;
+    background: rgba(0,0,0,.5);
+    border-radius: 2px;
   }
   .frn-cuts-hero-actions {
     display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;
@@ -1791,7 +1835,20 @@
     border-radius: 3px;
     text-align: center;
     font-family: 'IBM Plex Mono', monospace;
+    cursor: pointer; user-select: none;
+    transition: transform .08s, background .12s, border-color .12s;
   }
+  .frn-cuts-depth-chip:hover {
+    background: rgba(200,169,0,.08);
+    border-color: rgba(200,169,0,.5);
+    transform: translateY(-1px);
+  }
+  .frn-cuts-depth-chip.active {
+    background: rgba(200,169,0,.18);
+    border-color: var(--gold);
+    box-shadow: 0 0 0 1px var(--gold) inset, 0 0 8px rgba(200,169,0,.3);
+  }
+  .frn-cuts-depth-chip.active .frn-cuts-depth-pos { color: var(--gold-lt); }
   .frn-cuts-depth-chip.below { border-color: #ff8a8a; background: rgba(255,138,138,.06); }
   .frn-cuts-depth-chip.floor { border-color: #ffc850; background: rgba(255,200,80,.06); }
   .frn-cuts-depth-chip.thin { border-color: rgba(200,169,0,.5); }
@@ -1811,6 +1868,77 @@
   }
   @media (max-width: 900px) {
     .frn-cuts-depth-grid { grid-template-columns: repeat(6, minmax(0,1fr)); }
+  }
+
+  /* — FILTER STRIP — sits between depth grid and roster table. Trade-
+     status chips + an active-filter indicator with clear-all. */
+  .frn-cuts-filter-strip {
+    display: flex; align-items: center; gap: .4rem;
+    flex-wrap: wrap;
+    padding: .55rem .75rem;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: 4px 4px 0 0;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .frn-cuts-filter-label {
+    font-size: .58rem; font-weight: 800; letter-spacing: .8px;
+    color: var(--gray); text-transform: uppercase;
+    margin-right: .2rem;
+  }
+  .frn-cuts-filter-chip {
+    background: transparent; color: var(--gray);
+    border: 1px solid var(--border); border-radius: 3px;
+    padding: .28rem .6rem; font-size: .6rem;
+    font-weight: 700; letter-spacing: .3px; cursor: pointer;
+    transition: all .12s;
+    display: inline-flex; align-items: center; gap: .35rem;
+  }
+  .frn-cuts-filter-chip:hover {
+    color: var(--gold-lt); border-color: rgba(200,169,0,.5);
+  }
+  .frn-cuts-filter-chip.active {
+    background: rgba(200,169,0,.15);
+    color: var(--gold);
+    border-color: var(--gold);
+  }
+  .frn-cuts-filter-chip .cnt {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .55rem; padding: .05rem .3rem;
+    background: rgba(0,0,0,.4); border-radius: 2px;
+    opacity: .7;
+  }
+  .frn-cuts-filter-chip.active .cnt { opacity: 1; background: rgba(0,0,0,.55); }
+  .frn-cuts-active-filter {
+    margin-left: .3rem;
+    padding: .2rem .5rem;
+    background: rgba(200,169,0,.15);
+    border: 1px solid rgba(200,169,0,.5);
+    border-radius: 3px;
+    font-size: .58rem;
+    color: var(--gold-lt); font-weight: 700; letter-spacing: .3px;
+  }
+  .frn-cuts-active-filter a {
+    color: var(--gold); cursor: pointer; text-decoration: underline;
+  }
+  .frn-cuts-clear-all {
+    background: transparent; color: var(--gray);
+    border: 1px solid var(--border); border-radius: 3px;
+    padding: .25rem .55rem; font-size: .55rem;
+    font-weight: 700; letter-spacing: .4px; cursor: pointer;
+  }
+  .frn-cuts-clear-all:hover { color: var(--red); border-color: var(--red); }
+  .frn-cuts-filter-meta {
+    margin-left: auto;
+    font-size: .55rem; color: var(--gray);
+    letter-spacing: .3px;
+  }
+  /* When the filter strip is present, hug the table to it */
+  .frn-cuts-filter-strip + .frn-cuts-table-wrap {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    border-top: none;
   }
 
   /* — ROSTER TABLE — */
