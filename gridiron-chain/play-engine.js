@@ -1267,10 +1267,10 @@ class GameSimulator {
     // clock continues but game clock paused until snap). Without this the
     // engine burned a flat 27 sec/play regardless of result.
     const clockStopped = !!this._lastClockStopped;
-    const dtMean = inTwoMin ? 13 : clockStopped ? 20 : 28;
-    const dtSd   = inTwoMin ? 4  : clockStopped ? 6  : 8;
-    const dtMin  = inTwoMin ? 6  : clockStopped ? 10 : 12;
-    const dtMax  = inTwoMin ? 24 : clockStopped ? 34 : 48;
+    const dtMean = inTwoMin ? 13 : clockStopped ? 12 : 28;
+    const dtSd   = inTwoMin ? 4  : clockStopped ? 4  : 8;
+    const dtMin  = inTwoMin ? 6  : clockStopped ? 5  : 12;
+    const dtMax  = inTwoMin ? 24 : clockStopped ? 22 : 48;
     const dt = clamp(normal(dtMean, dtSd), dtMin, dtMax);
     this.time -= dt;
     if (this.time < 0) this.time = 0;
