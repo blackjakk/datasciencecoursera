@@ -5116,6 +5116,48 @@ function _buildOpponentIntelBlock(oppId, isHome, week, nextGame) {
         </div>`).join("")}
     </div>` : "";
 
+  // ── TRAINER'S PRE-GAME LOAD RISK ─────────────────────────────────
+  // For my team only: surface healthy starters with elevated wear or
+  // stress so the user knows who's at risk BEFORE they play.
+  // Includes a tag for each: CRITICAL / HIGH / ELEVATED.
+  const loadRisks = myRosterSorted
+    .filter(p => !p.injury || !p.injury.weeksRemaining)
+    .map(p => ({
+      p,
+      wear: p._wear || 0,
+      stress: p._stress || 0,
+      maxLoad: Math.max(p._wear || 0, p._stress || 0),
+    }))
+    .filter(x => x.maxLoad >= 50)
+    .sort((a, b) => b.maxLoad - a.maxLoad)
+    .slice(0, 5);
+  const loadHtml = loadRisks.length ? `
+    <div class="frn-opp-intel-row">
+      <div class="frn-card-title" style="margin-bottom:.3rem">⚕ TRAINER'S LOAD REPORT</div>
+      ${loadRisks.map(({ p, wear, stress, maxLoad }) => {
+        const tag = maxLoad >= 85 ? `<span style="color:#e6373a;font-weight:800;font-size:.55rem;letter-spacing:.5px">CRITICAL</span>`
+                  : maxLoad >= 70 ? `<span style="color:#ed6a3a;font-weight:700;font-size:.55rem;letter-spacing:.5px">HIGH</span>`
+                  : `<span style="color:#f0a93a;font-weight:700;font-size:.55rem;letter-spacing:.5px">ELEVATED</span>`;
+        const recurrence = (p.injuryHistory || []).filter(h => h.season === franchise.season).length;
+        const recurrenceNote = recurrence ? ` · ${recurrence} prior injury${recurrence>1?'ies':''} this season` : "";
+        const ageNote = p.age >= 33 ? ` · age ${p.age}` : "";
+        const wearBar = `<span style="display:inline-block;background:rgba(255,255,255,.08);height:5px;width:35px;vertical-align:middle;border-radius:1px;position:relative;margin:0 .2rem">
+          <span style="position:absolute;left:0;top:0;height:5px;width:${Math.min(100,wear)}%;background:${wear>=85?'#e6373a':wear>=70?'#ed6a3a':wear>=50?'#f0a93a':'#3fdf83'};border-radius:1px"></span></span>`;
+        const stressBar = `<span style="display:inline-block;background:rgba(255,255,255,.08);height:5px;width:35px;vertical-align:middle;border-radius:1px;position:relative;margin:0 .2rem">
+          <span style="position:absolute;left:0;top:0;height:5px;width:${Math.min(100,stress)}%;background:${stress>=80?'#e6373a':stress>=60?'#ed6a3a':stress>=40?'#f0a93a':'#3fdf83'};border-radius:1px"></span></span>`;
+        return `<div style="font-size:.66rem;display:flex;gap:.4rem;align-items:center;padding:.15rem 0;color:rgba(255,255,255,.85)">
+          ${tag}
+          <span style="flex-shrink:0;color:var(--gray);min-width:32px;font-size:.6rem">${p.position}</span>
+          <span style="flex:1;min-width:0;font-weight:600">${playerLink(p)}</span>
+          <span style="color:var(--gray);font-size:.55rem;letter-spacing:.5px">W</span>${wearBar}<span style="color:rgba(255,255,255,.7);font-size:.6rem;min-width:24px;text-align:right">${wear.toFixed(0)}</span>
+          <span style="color:var(--gray);font-size:.55rem;letter-spacing:.5px;margin-left:.3rem">S</span>${stressBar}<span style="color:rgba(255,255,255,.7);font-size:.6rem;min-width:24px;text-align:right">${stress.toFixed(0)}</span>
+        </div>${recurrenceNote || ageNote ? `<div style="font-size:.55rem;color:var(--gray);padding:.05rem 0 .2rem 4rem;font-style:italic">${recurrenceNote}${ageNote}</div>` : ""}`;
+      }).join("")}
+      <div style="margin-top:.35rem;font-size:.55rem;color:var(--gray);letter-spacing:.3px;font-style:italic">
+        Wear = contact damage · Stress = non-contact load (sprints/cuts). Either ≥ 85 fires injury risk +60%.
+      </div>
+    </div>` : "";
+
   // Head-to-head this season
   const h2h = (franchise.schedule || []).filter(g => g.played &&
     ((g.homeId === oppId && g.awayId === myId) ||
@@ -5177,6 +5219,7 @@ function _buildOpponentIntelBlock(oppId, isHome, week, nextGame) {
       <div class="frn-matchup-starters">${starterRows}</div>
     </div>
     ${injuryHtml}
+    ${loadHtml}
     ${h2hHtml}
   </div>`;
 }
