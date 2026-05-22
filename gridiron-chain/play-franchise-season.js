@@ -2987,33 +2987,137 @@ function _vitalsLabel(wearVal) {
   if (wearVal < 85) return "Stressed";
   return                  "Critical";
 }
+// Position-shaped body parameters. Each position gets a unique frame
+// profile — OL/DL bulky, WR/CB lean, QB tall, RB compact muscular.
+// Then height/weight of the SPECIFIC player nudges from the position
+// baseline. This is what makes a 6'7"/325 lb OL look different from a
+// 5'10"/195 lb CB on the same body diagram.
+const _VITALS_BODY_PROFILES = {
+  // shoulderWidth: 0.7-1.3 multiplier on the half-body width
+  // chestWidth, hipWidth, thighWidth: same scale
+  // headRadius: usually 28 base
+  QB: { shoulderW: 1.02, chestW: 0.95, hipW: 0.92, thighW: 0.94, heightStretch: 1.04 },
+  RB: { shoulderW: 1.00, chestW: 1.00, hipW: 1.04, thighW: 1.12, heightStretch: 0.95 },
+  WR: { shoulderW: 0.92, chestW: 0.90, hipW: 0.88, thighW: 0.90, heightStretch: 1.02 },
+  TE: { shoulderW: 1.10, chestW: 1.05, hipW: 1.00, thighW: 1.02, heightStretch: 1.03 },
+  OL: { shoulderW: 1.30, chestW: 1.28, hipW: 1.20, thighW: 1.22, heightStretch: 1.05 },
+  DL: { shoulderW: 1.25, chestW: 1.20, hipW: 1.12, thighW: 1.18, heightStretch: 1.02 },
+  LB: { shoulderW: 1.10, chestW: 1.08, hipW: 1.04, thighW: 1.10, heightStretch: 1.00 },
+  CB: { shoulderW: 0.88, chestW: 0.88, hipW: 0.86, thighW: 0.92, heightStretch: 1.00 },
+  S:  { shoulderW: 1.00, chestW: 0.98, hipW: 0.96, thighW: 1.00, heightStretch: 1.00 },
+  K:  { shoulderW: 0.90, chestW: 0.92, hipW: 0.90, thighW: 0.95, heightStretch: 0.98 },
+  P:  { shoulderW: 0.92, chestW: 0.92, hipW: 0.90, thighW: 0.95, heightStretch: 1.00 },
+};
+function _vitalsBodyFrame(p) {
+  const profile = _VITALS_BODY_PROFILES[p.position] || _VITALS_BODY_PROFILES.WR;
+  // Player-specific nudges from height/weight. NFL average ~225 lbs.
+  const wDelta = ((p.weight || 225) - 225) / 100;  // -0.4 → +1.0
+  const widthBase = 1.0 + wDelta * 0.12;            // each 100lb up = +12% width
+  const hDelta = ((p.height || 73) - 73) / 10;     // 67-79 → -0.6 → 0.6
+  return {
+    shoulderW: profile.shoulderW * widthBase,
+    chestW:    profile.chestW    * widthBase,
+    hipW:      profile.hipW      * widthBase,
+    thighW:    profile.thighW    * widthBase * (1 + Math.max(0, wDelta * 0.05)),
+    yStretch:  profile.heightStretch * (1 + hDelta * 0.02),
+  };
+}
 // Render the SVG body silhouette with regions filled by wear color.
-// Athletic-build human, 240×500 viewBox. Symmetric construction: the
-// LEFT side path is authored, the RIGHT side is reflected across cx=120
-// to ensure pixel-perfect mirror symmetry. Regions are translucent
-// overlays on a softly-defined body so colors blend with anatomy.
+// Per-position athletic build: OL massive, WR lean, RB compact thighs.
+// Symmetric construction: LEFT-side path authored, RIGHT reflected
+// across cx=120. Region opacity scales with wear so healthy bodies
+// read as the base silhouette.
 function _buildVitalsBodyDiagram(p) {
   const bw = p._bodyWear || {};
   const get = (k) => bw[k] || 0;
   const stress = p._stress || 0;
   const wear = p._wear || 0;
-  // Mirror utility: any LEFT-side path can be reflected to the RIGHT
-  // by replacing x coords with 240-x.
-  const mirror = (pathStr) => pathStr.replace(/(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)/g,
-    (m, x, y) => `${(240 - parseFloat(x)).toFixed(1)} ${y}`);
+  const frame = _vitalsBodyFrame(p);
+  const cx = 120;  // body center x
+  // Scale a half-body width relative to baseline 36 (typical chest half).
+  // SW = shoulder half width, CW = chest half, HW = hip half, TW = thigh half.
+  const SW = 36 * frame.shoulderW;
+  const CW = 30 * frame.chestW;
+  const HW = 30 * frame.hipW;
+  const TW = 16 * frame.thighW;
+  const KW = 13 * frame.thighW;  // knee slightly narrower than thigh
+  const CALW = 12 * frame.thighW;
+  const ACHW = 7;
+  const ANKW = 11;
+  const HANDW = 9;
+  // Y coordinates — heightStretch shifts how tall the body is.
+  // Baseline anatomical y-positions (head 28-86, etc.) get stretched by yStretch.
+  const yS = frame.yStretch;
+  const Y = (base) => 28 + (base - 28) * yS;
+  // Reflect any x to right side
+  const mx = (x) => cx + (cx - x);
+  // Path helper: given left-side coords as numbers, build a closed
+  // 4-point quadrilateral (top-left, top-right, bottom-right, bottom-left)
+  // for a region. Used for chest/back/hip/thigh segments that are roughly trapezoidal.
+  const quad = (tl, tr, br, bl) =>
+    `M ${tl[0]} ${tl[1]} L ${tr[0]} ${tr[1]} L ${br[0]} ${br[1]} L ${bl[0]} ${bl[1]} Z`;
   const reg = (d, key, label) => {
     const v = get(key);
     const fill = _vitalsColor(v);
-    // Higher opacity for worn parts; faded for healthy so the silhouette
-    // reads cleanly when most of the body is healthy.
-    const opacity = v < 5 ? 0.42 : v < 30 ? 0.62 : 0.85;
+    const opacity = v < 5 ? 0.42 : v < 30 ? 0.60 : 0.86;
     return `<path d="${d}" fill="${fill}" fill-opacity="${opacity}"
       data-vitals-part="${key}">
       <title>${label}: ${v.toFixed(0)} · ${_vitalsLabel(v)}</title></path>`;
   };
-  // ── BASE FRAME + SILHOUETTE OUTLINE ───────────────────────────────
-  // The "ghost body" is a single closed path drawn very subtly so the
-  // colored regions sit on a coherent figure.
+  // ── HEAD + NECK ────────────────────────────────────────────────
+  const headR = 26;
+  const headCY = Y(54);
+  const neckTop = headCY + headR - 4;
+  const neckBot = Y(106);
+  const head = reg(
+    `M ${cx} ${headCY-headR} C ${cx-headR} ${headCY-headR} ${cx-headR-2} ${headCY-4} ${cx-headR-2} ${headCY+4} C ${cx-headR-2} ${headCY+headR-6} ${cx-headR+8} ${headCY+headR-2} ${cx} ${headCY+headR-2} C ${cx+headR-8} ${headCY+headR-2} ${cx+headR+2} ${headCY+headR-6} ${cx+headR+2} ${headCY+4} C ${cx+headR+2} ${headCY-4} ${cx+headR} ${headCY-headR} ${cx} ${headCY-headR} Z`,
+    "head", "Head"
+  );
+  const neck = reg(
+    quad([cx-10, neckTop], [cx+10, neckTop], [cx+11, neckBot], [cx-11, neckBot]),
+    "neck", "Neck"
+  );
+  // ── BASE SILHOUETTE — Full body outline, scales with position frame ─
+  const shoulderY = Y(110);
+  const armPitY = Y(140);
+  const chestTopY = Y(116);
+  const waistY = Y(180);
+  const hipTopY = Y(214);
+  const hipBotY = Y(258);
+  const thighBotY = Y(326);
+  const kneeBotY = Y(352);
+  const calfBotY = Y(420);
+  const ankleBotY = Y(460);
+  const footBotY = Y(478);
+  // Whole-body ghost shape — left side authored, right mirrored
+  const halfBody = `
+    M ${cx} ${headCY-headR-2}
+    L ${cx - 18} ${neckBot - 2}
+    L ${cx - SW} ${shoulderY}
+    L ${cx - SW - 2} ${armPitY}
+    L ${cx - SW + 4} ${Y(200)}
+    L ${cx - SW + 8} ${Y(232)}
+    L ${cx - SW - 4} ${Y(258)}
+    L ${cx - SW - 6} ${Y(285)}
+    L ${cx - SW - 2} ${Y(295)}
+    L ${cx - SW + 6} ${Y(280)}
+    L ${cx - SW + 12} ${Y(248)}
+    L ${cx - CW} ${chestTopY + 70}
+    L ${cx - HW} ${hipTopY}
+    L ${cx - HW + 2} ${hipBotY}
+    L ${cx - TW - 4} ${thighBotY}
+    L ${cx - KW - 2} ${kneeBotY}
+    L ${cx - CALW - 2} ${calfBotY}
+    L ${cx - ACHW - 5} ${ankleBotY}
+    L ${cx - ANKW - 4} ${footBotY}
+    L ${cx - 4} ${footBotY}
+    L ${cx - 4} ${ankleBotY}
+    L ${cx - 6} ${calfBotY - 6}
+    L ${cx - 8} ${kneeBotY - 8}
+    L ${cx - 10} ${thighBotY - 16}
+    L ${cx - 12} ${hipBotY - 4}
+    L ${cx - 14} ${hipTopY}
+  `;
   const baseFrame = `
     <defs>
       <linearGradient id="vit-bg" x1="0" y1="0" x2="0" y2="1">
@@ -3022,136 +3126,121 @@ function _buildVitalsBodyDiagram(p) {
       </linearGradient>
       <radialGradient id="vit-vignette" cx="50%" cy="40%" r="60%">
         <stop offset="0%" stop-color="rgba(255,255,255,0)"/>
-        <stop offset="100%" stop-color="rgba(0,0,0,.35)"/>
+        <stop offset="100%" stop-color="rgba(0,0,0,.32)"/>
       </radialGradient>
     </defs>
     <rect x="0" y="0" width="240" height="500" rx="10" fill="url(#vit-bg)"/>
     <rect x="0" y="0" width="240" height="500" rx="10" fill="url(#vit-vignette)"/>
-    <!-- whole-body ghost silhouette: head→shoulders→arms→torso→hips→legs -->
-    <path d="
-      M 120 28
-      C 102 28  88 42  88 60
-      C 88 74  94 82  102 86
-      L 100 100
-      C 86 102  74 108  66 118
-      C 60 130  56 146  54 162
-      L 50 196
-      C 44 214  42 232  44 248
-      C 46 256  50 260  56 258
-      L 64 252
-      L 68 232
-      L 74 210
-      L 80 192
-      L 84 176
-      L 88 168
-      L 96 178
-      L 102 200
-      L 106 232
-      L 108 256
-      L 110 280
-      L 110 312
-      L 108 348
-      L 104 384
-      L 100 420
-      L 98 454
-      L 102 470
-      L 116 470
-      L 118 446
-      L 120 416
-      L 122 446
-      L 124 470
-      L 138 470
-      L 142 454
-      L 140 420
-      L 136 384
-      L 132 348
-      L 130 312
-      L 130 280
-      L 132 256
-      L 134 232
-      L 138 200
-      L 144 178
-      L 152 168
-      L 156 176
-      L 160 192
-      L 166 210
-      L 172 232
-      L 176 252
-      L 184 258
-      C 190 260 194 256 196 248
-      C 198 232 196 214 190 196
-      L 186 162
-      C 184 146 180 130 174 118
-      C 166 108 154 102 140 100
-      L 138 86
-      C 146 82 152 74 152 60
-      C 152 42 138 28 120 28 Z"
-      fill="rgba(255,255,255,.05)"
-      stroke="rgba(255,255,255,.18)" stroke-width="1"
-      stroke-linejoin="round"/>`;
-  // ── HEAD + NECK (centered, single shape each) ───────────────────
-  const head = reg(
-    "M 120 30 C 104 30 92 42 92 58 C 92 74 104 84 120 84 C 136 84 148 74 148 58 C 148 42 136 30 120 30 Z",
-    "head", "Head"
+    <path d="${halfBody}" transform="" fill="rgba(255,255,255,.05)" stroke="rgba(255,255,255,.16)" stroke-width="1" stroke-linejoin="round"/>
+    <path d="${halfBody.replace(/-/g, '+').replace(/cx \+ /g, '__P__').replace(/cx \- /g, 'cx + ').replace(/__P__/g, 'cx - ')}"
+      transform="translate(${cx*2},0) scale(-1,1)" fill="rgba(255,255,255,.05)" stroke="rgba(255,255,255,.16)" stroke-width="1" stroke-linejoin="round"/>`;
+  // ── SHOULDERS (left + mirror) ──────────────────────────────────
+  const shoulderL_d = quad(
+    [cx-22, neckBot], [cx-SW, shoulderY], [cx-SW+4, armPitY], [cx-26, armPitY-6]
   );
-  const neck = reg(
-    "M 108 84 L 108 100 C 108 104 114 106 120 106 C 126 106 132 104 132 100 L 132 84 Z",
-    "neck", "Neck"
+  const shoulderR_d = quad(
+    [mx(cx-22), neckBot], [mx(cx-SW), shoulderY], [mx(cx-SW+4), armPitY], [mx(cx-26), armPitY-6]
   );
-  // ── SHOULDERS (LEFT authored, RIGHT mirrored) ───────────────────
-  const shoulderL_d = "M 100 100 C 84 103 70 110 64 122 L 62 140 L 92 140 L 100 116 Z";
   const shoulderL = reg(shoulderL_d, "shoulderL", "Left shoulder");
-  const shoulderR = reg(mirror(shoulderL_d), "shoulderR", "Right shoulder");
-  // ── CHEST + LOWER BACK (single rectangles centered) ─────────────
+  const shoulderR = reg(shoulderR_d, "shoulderR", "Right shoulder");
+  // ── CHEST + BACK ───────────────────────────────────────────────
   const chest = reg(
-    "M 92 116 L 148 116 L 152 172 L 88 172 Z",
-    "chest", "Chest / pec"
+    quad([cx-CW, chestTopY], [cx+CW, chestTopY], [cx+CW-2, waistY], [cx-CW+2, waistY]),
+    "chest", "Chest"
   );
   const back = reg(
-    "M 88 172 L 152 172 L 154 208 C 142 216 98 216 86 208 Z",
-    "back", "Lower back / abs"
+    `M ${cx-CW+2} ${waistY} L ${cx+CW-2} ${waistY} L ${cx+CW-6} ${hipTopY-4} C ${cx+CW/2} ${hipTopY+2} ${cx-CW/2} ${hipTopY+2} ${cx-CW+6} ${hipTopY-4} Z`,
+    "back", "Lower back / core"
   );
-  // ── HANDS (lower-forearm pads, side of body) ────────────────────
-  const handL_d = "M 50 200 C 42 212 40 230 42 246 C 48 252 60 252 64 246 C 64 226 60 212 56 200 Z";
-  const handL = reg(handL_d, "handL", "Left hand / wrist");
-  const handR = reg(mirror(handL_d), "handR", "Right hand / wrist");
-  // ── HIPS (left + right, centered groin between) ─────────────────
-  const hipL_d = "M 86 208 C 82 220 80 234 81 248 L 116 248 L 118 208 Z";
-  const hipL = reg(hipL_d, "hipL", "Left hip");
-  const hipR = reg(mirror(hipL_d), "hipR", "Right hip");
+  // ── HANDS / WRISTS ─────────────────────────────────────────────
+  const handL = reg(
+    `M ${cx-SW-6} ${Y(220)} C ${cx-SW-12} ${Y(238)} ${cx-SW-14} ${Y(258)} ${cx-SW-10} ${Y(272)} C ${cx-SW-2} ${Y(276)} ${cx-SW+4} ${Y(272)} ${cx-SW+6} ${Y(264)} C ${cx-SW+4} ${Y(244)} ${cx-SW+2} ${Y(228)} ${cx-SW-2} ${Y(220)} Z`,
+    "handL", "Left hand / wrist"
+  );
+  const handR = reg(
+    `M ${mx(cx-SW-6)} ${Y(220)} C ${mx(cx-SW-12)} ${Y(238)} ${mx(cx-SW-14)} ${Y(258)} ${mx(cx-SW-10)} ${Y(272)} C ${mx(cx-SW-2)} ${Y(276)} ${mx(cx-SW+4)} ${Y(272)} ${mx(cx-SW+6)} ${Y(264)} C ${mx(cx-SW+4)} ${Y(244)} ${mx(cx-SW+2)} ${Y(228)} ${mx(cx-SW-2)} ${Y(220)} Z`,
+    "handR", "Right hand / wrist"
+  );
+  // ── HIPS + GROIN ───────────────────────────────────────────────
+  const hipL = reg(
+    quad([cx-HW, hipTopY], [cx-4, hipTopY], [cx-6, hipBotY], [cx-HW+2, hipBotY]),
+    "hipL", "Left hip"
+  );
+  const hipR = reg(
+    quad([cx+4, hipTopY], [cx+HW, hipTopY], [cx+HW-2, hipBotY], [cx+6, hipBotY]),
+    "hipR", "Right hip"
+  );
   const groin = reg(
-    "M 112 244 L 128 244 L 127 262 L 113 262 Z",
+    quad([cx-5, hipTopY+8], [cx+5, hipTopY+8], [cx+5, hipBotY-4], [cx-5, hipBotY-4]),
     "groin", "Groin"
   );
-  // ── THIGHS / HAMSTRINGS ─────────────────────────────────────────
-  const hamL_d = "M 84 250 L 116 250 L 114 318 L 88 318 Z";
-  const hamstringL = reg(hamL_d, "hamstringL", "Left hamstring / thigh");
-  const hamstringR = reg(mirror(hamL_d), "hamstringR", "Right hamstring / thigh");
-  // ── KNEES ───────────────────────────────────────────────────────
-  const kneeL_d = "M 88 320 L 114 320 L 113 342 L 90 342 Z";
-  const kneeL = reg(kneeL_d, "kneeL", "Left knee");
-  const kneeR = reg(mirror(kneeL_d), "kneeR", "Right knee");
-  // ── CALVES ──────────────────────────────────────────────────────
-  const calfL_d = "M 90 344 L 113 344 L 110 410 L 94 410 Z";
-  const calfL = reg(calfL_d, "calfL", "Left calf");
-  const calfR = reg(mirror(calfL_d), "calfR", "Right calf");
-  // ── ACHILLES ────────────────────────────────────────────────────
-  const achL_d = "M 94 412 L 110 412 L 108 432 L 96 432 Z";
-  const achillesL = reg(achL_d, "achillesL", "Left achilles");
-  const achillesR = reg(mirror(achL_d), "achillesR", "Right achilles");
-  // ── ANKLES / FEET ───────────────────────────────────────────────
-  const ankL_d = "M 92 434 L 110 434 L 116 456 L 86 456 Z";
-  const ankleL = reg(ankL_d, "ankleL", "Left ankle / foot");
-  const ankleR = reg(mirror(ankL_d), "ankleR", "Right ankle / foot");
-  // ── ANATOMICAL DETAIL LINES (collarbone, sternum, abs) ──────────
+  // ── THIGHS / HAMSTRINGS ────────────────────────────────────────
+  const hamstringL = reg(
+    quad([cx-HW+2, hipBotY], [cx-6, hipBotY], [cx-KW-2, thighBotY], [cx-HW-4, thighBotY]),
+    "hamstringL", "Left hamstring / thigh"
+  );
+  const hamstringR = reg(
+    quad([cx+6, hipBotY], [cx+HW-2, hipBotY], [cx+HW+4, thighBotY], [cx+KW+2, thighBotY]),
+    "hamstringR", "Right hamstring / thigh"
+  );
+  // ── KNEES ──────────────────────────────────────────────────────
+  const kneeL = reg(
+    quad([cx-HW-4, thighBotY], [cx-KW-2, thighBotY], [cx-KW, kneeBotY], [cx-HW-2, kneeBotY]),
+    "kneeL", "Left knee"
+  );
+  const kneeR = reg(
+    quad([cx+KW+2, thighBotY], [cx+HW+4, thighBotY], [cx+HW+2, kneeBotY], [cx+KW, kneeBotY]),
+    "kneeR", "Right knee"
+  );
+  // ── CALVES ─────────────────────────────────────────────────────
+  const calfL = reg(
+    quad([cx-HW-2, kneeBotY], [cx-KW, kneeBotY], [cx-CALW, calfBotY], [cx-CALW-4, calfBotY]),
+    "calfL", "Left calf"
+  );
+  const calfR = reg(
+    quad([cx+KW, kneeBotY], [cx+HW+2, kneeBotY], [cx+CALW+4, calfBotY], [cx+CALW, calfBotY]),
+    "calfR", "Right calf"
+  );
+  // ── ACHILLES ───────────────────────────────────────────────────
+  const achillesL = reg(
+    quad([cx-CALW-4, calfBotY], [cx-CALW, calfBotY], [cx-CALW+1, ankleBotY], [cx-CALW-3, ankleBotY]),
+    "achillesL", "Left achilles"
+  );
+  const achillesR = reg(
+    quad([cx+CALW, calfBotY], [cx+CALW+4, calfBotY], [cx+CALW+3, ankleBotY], [cx+CALW-1, ankleBotY]),
+    "achillesR", "Right achilles"
+  );
+  // ── ANKLES / FEET ──────────────────────────────────────────────
+  const ankleL = reg(
+    quad([cx-CALW-3, ankleBotY], [cx-CALW+1, ankleBotY], [cx-4, footBotY], [cx-ANKW-6, footBotY]),
+    "ankleL", "Left ankle / foot"
+  );
+  const ankleR = reg(
+    quad([cx+CALW-1, ankleBotY], [cx+CALW+3, ankleBotY], [cx+ANKW+6, footBotY], [cx+4, footBotY]),
+    "ankleR", "Right ankle / foot"
+  );
+  // ── ANATOMICAL DETAIL LINES ────────────────────────────────────
+  // Subtle inner lines: collarbone, sternum, ab divide, inseam
   const detailLines = `
-    <line x1="98" y1="106" x2="142" y2="106" stroke="rgba(255,255,255,.10)" stroke-width="0.8"/>
-    <line x1="120" y1="116" x2="120" y2="170" stroke="rgba(255,255,255,.08)" stroke-width="0.6"/>
-    <line x1="120" y1="172" x2="120" y2="208" stroke="rgba(255,255,255,.08)" stroke-width="0.6"/>
-    <line x1="120" y1="250" x2="120" y2="316" stroke="rgba(255,255,255,.10)" stroke-width="0.6"/>`;
+    <line x1="${cx-CW+6}" y1="${neckBot+4}" x2="${cx+CW-6}" y2="${neckBot+4}" stroke="rgba(255,255,255,.10)" stroke-width="0.8"/>
+    <line x1="${cx}" y1="${chestTopY+4}" x2="${cx}" y2="${waistY-2}" stroke="rgba(255,255,255,.10)" stroke-width="0.6"/>
+    <line x1="${cx}" y1="${waistY+2}" x2="${cx}" y2="${hipTopY-2}" stroke="rgba(255,255,255,.10)" stroke-width="0.6"/>
+    <line x1="${cx}" y1="${hipBotY+4}" x2="${cx}" y2="${thighBotY-4}" stroke="rgba(255,255,255,.10)" stroke-width="0.6"/>`;
+  // Position chip top-left
+  const positionChip = `<g>
+    <rect x="8" y="8" rx="3" ry="3" width="40" height="16" fill="rgba(255,255,255,.10)" stroke="rgba(255,255,255,.15)" stroke-width=".5"/>
+    <text x="28" y="20" fill="rgba(255,255,255,.85)" font-size="9.5" font-family="-apple-system,Inter,monospace" text-anchor="middle" letter-spacing="1" font-weight="700">${p.position || "?"}</text>
+  </g>`;
+  // Height/weight display top-right
+  const hwText = (p.height && p.weight) ?
+    `${Math.floor(p.height/12)}'${p.height%12}" · ${p.weight} lb` :
+    "";
+  const hwChip = hwText ? `<text x="232" y="20" fill="rgba(255,255,255,.55)" font-size="9" font-family="-apple-system,Inter,monospace" text-anchor="end" letter-spacing="1">${hwText}</text>` : "";
   return `<svg viewBox="0 0 240 500" width="240" height="450" xmlns="http://www.w3.org/2000/svg"
     style="border-radius:10px;box-shadow:0 4px 12px rgba(0,0,0,.4), inset 0 0 0 1px rgba(255,255,255,.06)">
     ${baseFrame}
+    ${positionChip}
+    ${hwChip}
     ${head}${neck}
     ${shoulderL}${shoulderR}
     ${chest}${back}
@@ -3168,79 +3257,201 @@ function _buildVitalsBodyDiagram(p) {
     </text>
   </svg>`;
 }
-// Recent injury timeline — last 6 entries, with body-part chip.
+// Pretty part-name labels (used across all vitals sections)
+const _VITALS_PART_NAMES = {
+  head: "Head", neck: "Neck", chest: "Chest", back: "Lower back", groin: "Groin",
+  shoulderL: "Left shoulder", shoulderR: "Right shoulder",
+  hipL: "Left hip", hipR: "Right hip",
+  hamstringL: "Left hamstring", hamstringR: "Right hamstring",
+  kneeL: "Left knee", kneeR: "Right knee",
+  calfL: "Left calf", calfR: "Right calf",
+  achillesL: "Left achilles", achillesR: "Right achilles",
+  ankleL: "Left ankle", ankleR: "Right ankle",
+  handL: "Left hand", handR: "Right hand",
+};
+// CSS-section header for the clinical panel
+function _vSectionTitle(label, badge) {
+  const b = badge ? `<span style="color:var(--gray);font-weight:500">${badge}</span>` : "";
+  return `<div style="display:flex;justify-content:space-between;align-items:baseline;font-size:.6rem;letter-spacing:1.2px;color:var(--gray);margin:.55rem 0 .25rem;text-transform:uppercase;border-bottom:1px solid rgba(255,255,255,.08);padding-bottom:.15rem">
+    <span style="font-weight:700">${label}</span>${b}
+  </div>`;
+}
+// ACTIVE INJURY block — if currently hurt, render a full status card
+function _buildVitalsActiveInjury(p) {
+  if (!p.injury || !p.injury.weeksRemaining) {
+    return `<div style="display:flex;align-items:center;gap:.4rem;font-size:.66rem;color:#3fdf83;font-weight:600">
+      <span style="font-size:.8rem">●</span> ACTIVE — cleared to play
+    </div>`;
+  }
+  const inj = p.injury;
+  const sev = inj._careerEnding ? "CAREER-ENDING"
+            : inj._catastrophic ? "CATASTROPHIC"
+            : "QUESTIONABLE";
+  const sevColor = inj._careerEnding ? "#e6373a"
+                 : inj._catastrophic ? "#ed6a3a" : "#f0a93a";
+  const onset = (typeof _currentInjuryOnset === "function") ? _currentInjuryOnset(p) : null;
+  const causeText = inj._nonContact ? "non-contact" : inj._bigHit ? "big hit" : "contact";
+  const ovrTag = inj._ovrPenalty ? ` · −${inj._ovrPenalty} OVR on return` : "";
+  return `<div style="background:rgba(${inj._careerEnding ? '230,55,58' : inj._catastrophic ? '237,106,58' : '240,169,58'},.10);border-left:3px solid ${sevColor};padding:.5rem .65rem;border-radius:2px;margin-bottom:.3rem">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.2rem">
+      <span style="font-weight:800;color:${sevColor};letter-spacing:.5px;font-size:.7rem">${sev}</span>
+      <span style="font-size:.62rem;color:var(--gray)">${inj.weeksRemaining}w out${onset?.week?` · onset W${onset.week}`:""}</span>
+    </div>
+    <div style="font-size:.72rem;font-weight:600;margin-bottom:.15rem">${inj.label}</div>
+    <div style="font-size:.6rem;color:var(--gray)">${causeText}${ovrTag}</div>
+  </div>`;
+}
+// CONCERNS — top body-part risk areas. Show ≥20 wear; if all healthy
+// the diagram already tells that story so just say so.
+function _buildVitalsConcerns(p) {
+  const bw = p._bodyWear || {};
+  const entries = Object.entries(bw).filter(([, v]) => v >= 20)
+    .sort((a, b) => b[1] - a[1]).slice(0, 4);
+  if (!entries.length) {
+    return `<div style="color:#3fdf83;font-size:.66rem;font-weight:600;padding:.3rem 0">⊕ No active concerns</div>`;
+  }
+  return entries.map(([k, v]) => {
+    const color = _vitalsColor(v);
+    const lbl = _vitalsLabel(v);
+    // Injury risk multiplier (matches wearMul in _rollGameInjuries)
+    const riskTag = v >= 85 ? "+60% risk" : v >= 70 ? "+35% risk" : v >= 50 ? "+15% risk" : "monitor";
+    return `<div style="display:flex;align-items:center;gap:.4rem;font-size:.66rem;padding:.18rem 0;border-bottom:1px dashed rgba(255,255,255,.05)">
+      <span style="color:${color};font-weight:700;font-size:.85rem">●</span>
+      <span style="flex:1;font-weight:500">${_VITALS_PART_NAMES[k] || k}</span>
+      <span style="color:${color};font-weight:700;min-width:24px;text-align:right">${v.toFixed(0)}</span>
+      <span style="color:var(--gray);min-width:55px;text-align:right">${lbl}</span>
+      <span style="color:${color};font-size:.6rem;font-weight:600;min-width:60px;text-align:right">${riskTag}</span>
+    </div>`;
+  }).join("");
+}
+// INJURY HISTORY — last 6 entries with full detail
 function _buildVitalsInjuryTimeline(p) {
   const hist = (p.injuryHistory || []).slice(-6).reverse();
-  if (!hist.length) return `<div style="color:var(--gray);font-size:.66rem;font-style:italic">No injury history</div>`;
-  const _LABEL_TO_PART_NAME = {
-    "head": "Head", "neck": "Neck", "chest": "Chest", "back": "Lower back",
-    "groin": "Groin",
-    "shoulderL": "L shoulder", "shoulderR": "R shoulder",
-    "hipL": "L hip", "hipR": "R hip",
-    "hamstringL": "L hamstring", "hamstringR": "R hamstring",
-    "kneeL": "L knee", "kneeR": "R knee",
-    "calfL": "L calf", "calfR": "R calf",
-    "achillesL": "L achilles", "achillesR": "R achilles",
-    "ankleL": "L ankle", "ankleR": "R ankle",
-    "handL": "L hand", "handR": "R hand",
-  };
+  if (!hist.length) return `<div style="color:var(--gray);font-size:.66rem;font-style:italic;padding:.3rem 0">No injury history on file</div>`;
   const rows = hist.map(h => {
-    const part = h.bodyPart ? (_LABEL_TO_PART_NAME[h.bodyPart] || h.bodyPart) : null;
+    const part = h.bodyPart ? (_VITALS_PART_NAMES[h.bodyPart] || h.bodyPart) : "";
     const wks = h.weeks ?? h.duration ?? "?";
-    const sev = h.careerEnding ? `<span style="color:#e6373a;font-weight:700">CAREER-ENDING</span>`
-              : h.catastrophic  ? `<span style="color:#ed6a3a;font-weight:700">CATASTROPHIC</span>`
-              : "";
-    const cause = h.cause === "non_contact" ? "non-contact"
-                : h.cause === "sack" ? "sack"
-                : h.cause === "big_hit" ? "big hit"
+    const sevTag = h.careerEnding ? `<span style="color:#e6373a;font-weight:700;font-size:.55rem">CAREER-END</span>`
+                : h.catastrophic ? `<span style="color:#ed6a3a;font-weight:700;font-size:.55rem">CATA</span>`
                 : "";
-    return `<div style="display:flex;justify-content:space-between;gap:.4rem;font-size:.62rem;padding:.2rem 0;border-bottom:1px solid rgba(255,255,255,.07)">
-      <span style="color:var(--gray)">S${h.season} W${h.week}</span>
-      <span style="flex:1">${h.label}${part ? ` <span style="color:var(--gray)">· ${part}</span>` : ""}</span>
-      <span style="color:var(--gray);min-width:48px;text-align:right">${wks}w${cause ? ` · ${cause}` : ""}</span>
-      ${sev}
+    const causeChip = h.cause === "non_contact"
+      ? `<span style="background:rgba(80,140,200,.15);color:#90c4ec;padding:.05rem .3rem;border-radius:2px;font-size:.55rem;letter-spacing:.3px">N-C</span>`
+      : h.cause === "sack"
+      ? `<span style="background:rgba(230,140,80,.15);color:#f0a96b;padding:.05rem .3rem;border-radius:2px;font-size:.55rem;letter-spacing:.3px">SACK</span>`
+      : h.cause === "big_hit"
+      ? `<span style="background:rgba(230,80,80,.15);color:#ec9090;padding:.05rem .3rem;border-radius:2px;font-size:.55rem;letter-spacing:.3px">HIT</span>`
+      : `<span style="background:rgba(140,140,140,.10);color:#aaa;padding:.05rem .3rem;border-radius:2px;font-size:.55rem;letter-spacing:.3px">WK</span>`;
+    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:.4rem;font-size:.63rem;padding:.22rem 0;border-bottom:1px solid rgba(255,255,255,.05)">
+      <span style="color:var(--gray);min-width:50px">S${h.season} W${h.week}</span>
+      <span style="flex:1;font-weight:500">${h.label}${part ? `<span style="color:var(--gray);font-weight:400"> · ${part}</span>` : ""}</span>
+      ${causeChip}
+      <span style="color:var(--gray);min-width:24px;text-align:right">${wks}w</span>
+      ${sevTag}
     </div>`;
   }).join("");
   return rows;
 }
-// Top concerns — worst 3 body parts (above 20 wear) with explanations.
-function _buildVitalsConcerns(p) {
-  const bw = p._bodyWear || {};
-  const entries = Object.entries(bw).filter(([, v]) => v >= 20)
-    .sort((a, b) => b[1] - a[1]).slice(0, 3);
-  if (!entries.length) return `<div style="color:#3fdf83;font-size:.66rem;font-weight:600">⊕ No active concerns</div>`;
-  const PART_NAMES = {
-    head: "Head", neck: "Neck", chest: "Chest", back: "Lower back", groin: "Groin",
-    shoulderL: "Left shoulder", shoulderR: "Right shoulder",
-    hipL: "Left hip", hipR: "Right hip",
-    hamstringL: "Left hamstring", hamstringR: "Right hamstring",
-    kneeL: "Left knee", kneeR: "Right knee",
-    calfL: "Left calf", calfR: "Right calf",
-    achillesL: "Left achilles", achillesR: "Right achilles",
-    ankleL: "Left ankle", ankleR: "Right ankle",
-    handL: "Left hand", handR: "Right hand",
-  };
-  return entries.map(([k, v]) => {
-    const color = _vitalsColor(v);
-    return `<div style="display:flex;align-items:center;gap:.4rem;font-size:.66rem;padding:.15rem 0">
-      <span style="color:${color};font-weight:700">●</span>
-      <span style="flex:1">${PART_NAMES[k] || k}</span>
-      <span style="color:${color};font-weight:700">${v.toFixed(0)}</span>
-      <span style="color:var(--gray)">${_vitalsLabel(v)}</span>
-    </div>`;
-  }).join("");
+// RISK FACTORS — career-long stuff a trainer would flag
+function _buildVitalsRiskFactors(p) {
+  const items = [];
+  // Concussions
+  const lifetime = (p._concussionsLifetime || 0) + (p._concussionsThisSeason || 0);
+  if (lifetime > 0) {
+    const color = lifetime >= 6 ? "#e6373a" : lifetime >= 4 ? "#ed6a3a" : lifetime >= 2 ? "#f0a93a" : "rgba(255,255,255,.7)";
+    const note = lifetime >= 6 ? "CTE risk 30%/concussion"
+              : lifetime >= 4 ? "CTE risk 15%/concussion"
+              : lifetime >= 2 ? "watchlist" : "";
+    items.push({ color, label: "Concussions", value: `${lifetime}`, note });
+  }
+  // RB career touches
+  if (p.position === "RB") {
+    const t = p._careerTouches || 0;
+    if (t > 0) {
+      const color = t >= 3000 ? "#e6373a" : t >= 2500 ? "#ed6a3a" : t >= 2000 ? "#f0a93a" : "rgba(255,255,255,.7)";
+      const note = t >= 3000 ? "+3yr retire offset"
+                : t >= 2500 ? "+2yr retire offset"
+                : t >= 2000 ? "+1yr retire offset" : "below burnout threshold";
+      items.push({ color, label: "Career touches", value: `${t.toLocaleString()}`, note });
+    }
+  }
+  // Prior injuries
+  const priorCount = (p.injuryHistory || []).length;
+  if (priorCount > 0) {
+    const isProne = priorCount >= 3;
+    const color = isProne ? "#ed6a3a" : priorCount >= 2 ? "#f0a93a" : "rgba(255,255,255,.7)";
+    const note = isProne ? "INJURY-PRONE · +40% recurrence" : priorCount >= 2 ? "1 from injury-prone" : "";
+    items.push({ color, label: "Prior injuries", value: `${priorCount}`, note });
+  }
+  // Age cliff
+  const age = p.age || 25;
+  if (age >= 30) {
+    const color = age >= 35 ? "#ed6a3a" : age >= 33 ? "#f0a93a" : "rgba(255,255,255,.7)";
+    const note = age >= 35 ? "1.65× injury rate · slow recovery"
+              : age >= 33 ? "1.45× injury rate"
+              : age >= 32 ? "1.25× injury rate"
+              :             "1.10× injury rate";
+    items.push({ color, label: "Age curve", value: `${age}y`, note });
+  }
+  if (!items.length) return `<div style="color:var(--gray);font-size:.66rem;font-style:italic;padding:.3rem 0">No long-term risk markers</div>`;
+  return items.map(i => `<div style="display:flex;align-items:center;gap:.4rem;font-size:.65rem;padding:.18rem 0">
+    <span style="color:${i.color};font-weight:700;font-size:.85rem">●</span>
+    <span style="flex:1">${i.label}</span>
+    <span style="color:${i.color};font-weight:700">${i.value}</span>
+    <span style="color:var(--gray);min-width:140px;text-align:right;font-size:.6rem">${i.note}</span>
+  </div>`).join("");
+}
+// RECOVERY GUIDANCE — auto-recommendation based on current state
+function _buildVitalsGuidance(p) {
+  const recs = [];
+  const wear = p._wear || 0;
+  const stress = p._stress || 0;
+  if (p.injury && p.injury.weeksRemaining > 0) {
+    recs.push({ icon: "🚑", text: `IR / scratch this week — wear decays −25 instead of −2 if rested`, urgent: true });
+  } else {
+    if (wear >= 85) recs.push({ icon: "⚠", text: `Wear critical — sit this week or risk catastrophic; full backup snaps`, urgent: true });
+    else if (wear >= 70) recs.push({ icon: "▶", text: `Reduce snap share to 50% or scratch the next low-leverage game`, urgent: false });
+    if (stress >= 80) recs.push({ icon: "⚠", text: `Stress critical — limit max-speed reps; hamstring/calf risk elevated`, urgent: true });
+    else if (stress >= 60) recs.push({ icon: "▶", text: `Stress elevated — manage explosive-play count this week`, urgent: false });
+  }
+  const lifetime = (p._concussionsLifetime || 0) + (p._concussionsThisSeason || 0);
+  if (lifetime >= 4) recs.push({ icon: "🧠", text: `CTE watchlist — flag concussion symptoms aggressively`, urgent: lifetime >= 6 });
+  if (!recs.length) return `<div style="color:#3fdf83;font-size:.66rem;font-weight:500;padding:.3rem 0">⊕ Cleared for full participation</div>`;
+  return recs.map(r => `<div style="display:flex;align-items:flex-start;gap:.4rem;font-size:.64rem;padding:.2rem 0;color:${r.urgent ? '#f0a93a' : 'rgba(255,255,255,.75)'}">
+    <span style="font-size:.75rem">${r.icon}</span>
+    <span style="flex:1;line-height:1.35">${r.text}</span>
+  </div>`).join("");
 }
 function _buildVitalsBlock(p) {
+  const overallScore = Math.max(0, 100 - Math.max(p._wear || 0, p._stress || 0));
+  const overallColor = _vitalsColor(100 - overallScore);
   return `<div class="frn-pcard-section">
-    <div class="frn-card-title">VITALS</div>
-    <div style="display:flex;gap:.8rem;align-items:flex-start">
+    <div class="frn-card-title" style="display:flex;justify-content:space-between;align-items:baseline">
+      <span>VITALS</span>
+      <span style="color:var(--gray);font-size:.6rem;font-weight:500;letter-spacing:1px">TRAINER'S REPORT</span>
+    </div>
+    <div style="display:flex;gap:1rem;align-items:flex-start">
       <div style="flex-shrink:0">
         ${_buildVitalsBodyDiagram(p)}
       </div>
       <div style="flex:1;min-width:0">
-        <div style="font-size:.62rem;letter-spacing:1px;color:var(--gray);margin-bottom:.3rem">CONCERNS</div>
+        <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);padding:.5rem .6rem;border-radius:4px;margin-bottom:.3rem">
+          <div style="display:flex;justify-content:space-between;align-items:baseline">
+            <span style="font-size:.62rem;letter-spacing:1.2px;color:var(--gray)">OVERALL HEALTH</span>
+            <span style="color:${overallColor};font-size:1.1rem;font-weight:800">${overallScore.toFixed(0)}<span style="color:var(--gray);font-size:.7rem;font-weight:500">/100</span></span>
+          </div>
+          <div style="height:6px;border-radius:3px;background:rgba(0,0,0,.4);overflow:hidden;margin-top:.3rem">
+            <div style="height:100%;width:${overallScore}%;background:${overallColor};transition:width .3s"></div>
+          </div>
+        </div>
+        ${_vSectionTitle("Status")}
+        ${_buildVitalsActiveInjury(p)}
+        ${_vSectionTitle("Concerns", "body-part wear ≥ 20")}
         ${_buildVitalsConcerns(p)}
-        <div style="font-size:.62rem;letter-spacing:1px;color:var(--gray);margin:.7rem 0 .3rem">RECENT INJURIES</div>
+        ${_vSectionTitle("Recovery Guidance")}
+        ${_buildVitalsGuidance(p)}
+        ${_vSectionTitle("Risk Factors", "career")}
+        ${_buildVitalsRiskFactors(p)}
+        ${_vSectionTitle("Injury History", "last 6")}
         ${_buildVitalsInjuryTimeline(p)}
       </div>
     </div>
