@@ -1267,10 +1267,10 @@ class GameSimulator {
     // clock continues but game clock paused until snap). Without this the
     // engine burned a flat 27 sec/play regardless of result.
     const clockStopped = !!this._lastClockStopped;
-    const dtMean = inTwoMin ? 13 : clockStopped ? 16 : 28;
-    const dtSd   = inTwoMin ? 4  : clockStopped ? 5  : 8;
-    const dtMin  = inTwoMin ? 6  : clockStopped ? 8  : 10;
-    const dtMax  = inTwoMin ? 24 : clockStopped ? 28 : 48;
+    const dtMean = inTwoMin ? 13 : clockStopped ? 20 : 28;
+    const dtSd   = inTwoMin ? 4  : clockStopped ? 6  : 8;
+    const dtMin  = inTwoMin ? 6  : clockStopped ? 10 : 12;
+    const dtMax  = inTwoMin ? 24 : clockStopped ? 34 : 48;
     const dt = clamp(normal(dtMean, dtSd), dtMin, dtMax);
     this.time -= dt;
     if (this.time < 0) this.time = 0;
@@ -3168,10 +3168,11 @@ class GameSimulator {
       plays++;
       const r = this._play();
       // Clock-stop tracker — sets the dt regime for the NEXT snap.
-      // NFL: incompletions, OOB, scores, turnovers, and first downs all
-      // stop the game clock. The next snap goes in ~15 sec instead of ~28.
-      this._lastClockStopped = !!(r?.incomplete || r?.endDrive || r?.turnover
-        || (r?.yards != null && this.down === 1 && (r.yards || 0) >= 0));
+      // NFL: incomplete passes and turnovers stop the game clock. The next
+      // snap goes in ~20 sec instead of ~28. First-down stops are brief and
+      // don't materially compress the next play. Drive-end (TD/FG/punt) is
+      // already handled by drive-change time logic.
+      this._lastClockStopped = !!(r?.incomplete || r?.turnover);
       // 2-minute warning marker (Q2 + Q4) — push once per half right AFTER
       // the play that crossed 2:00, so it appears in the log before any
       // timeout that the trailing team might call on the same dead ball.
