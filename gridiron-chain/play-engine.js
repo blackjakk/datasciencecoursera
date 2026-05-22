@@ -102,6 +102,40 @@ const _RETURN_GANG_DIST = {
   long:  [0.90, 0.10],
 };
 
+// Position attribution for each penalty type — values are relative weights
+// (do not need to sum to 100). Sourced from NFL position-attribution data
+// (Harvard SAC penalty study, PFR OL penalty leaders, May 2026 research).
+//   OL committers dominate false start and offensive holding; CB committers
+//   dominate DPI / Def Holding / Illegal Contact; Edge rushers commit most
+//   roughing the passer; safeties + linebackers commit most unnecessary
+//   roughness / personal fouls. _pickPenaltyOffender consumes this map.
+const _PENALTY_POSITIONS = {
+  // Pre-snap
+  "False Start":              { OL: 88, WR: 6,  TE: 3,  RB: 3 },
+  "Defensive Offsides":       { DE: 60, DT: 35, LB: 5 },
+  "Neutral Zone Infraction":  { DT: 70, DE: 25, LB: 5 },
+  "Encroachment":             { DT: 55, DE: 35, LB: 10 },
+  "Delay of Game":            { QB: 100 },
+  "Illegal Formation":        { OL: 55, WR: 25, TE: 15, RB: 5 },
+  "Illegal Motion":           { WR: 50, TE: 25, RB: 20, OL: 5 },
+  // Post-snap (any play)
+  "Holding (Offense)":        { OL: 85, TE: 8,  RB: 5,  WR: 2 },
+  "Illegal Use of Hands (O)": { OL: 90, TE: 7,  RB: 3 },
+  "Holding (Defense)":        { CB: 65, S: 18, LB: 15, DE: 2 },
+  "Unnecessary Roughness":    { S: 35, LB: 30, CB: 20, DL: 15 },
+  "Face Mask":                { LB: 30, S: 25, DL: 25, CB: 20 },
+  "Horse Collar":             { LB: 35, S: 30, CB: 20, DL: 15 },
+  "Taunting":                 { CB: 25, S: 25, LB: 20, WR: 15, DL: 10, RB: 5 },
+  "Illegal Block in Back":    { WR: 40, RB: 30, TE: 20, OL: 10 },
+  // Pass-only
+  "Pass Interference (D)":    { CB: 72, S: 20, LB: 8 },
+  "Illegal Contact":          { CB: 70, S: 18, LB: 12 },
+  "Roughing the Passer":      { DE: 48, DT: 28, LB: 18, S: 4, CB: 2 },
+  "Pass Interference (O)":    { WR: 70, TE: 22, RB: 5, OL: 3 },
+  "Ineligible Downfield":     { OL: 95, TE: 5 },
+  "Intentional Grounding":    { QB: 100 },
+};
+
 // Map any receiver / returner archetype to a break-tackle style. Returns
 // null for "use the default formula".
 function _archetypeBreakStyle(arch) {
@@ -930,6 +964,82 @@ class GameSimulator {
   get possTeam() { return this.poss === "home" ? this.home : this.away; }
   get offStats() { return this.stats[this.poss]; }
   get defStats() { return this.stats[this.poss === "home" ? "away" : "home"]; }
+  // Pick the specific player who committed a penalty, based on a per-penalty
+  // position-weight map (NFL research May 2026). Within the chosen position,
+  // bias toward LOW AWR — undisciplined players draw more flags. Returns a
+  // player NAME or null if no candidates exist.
+  _pickPenaltyOffender(posWeights, side) {
+    if (!posWeights) return null;
+    const teamKey = side === "off" ? this.poss : (this.poss === "home" ? "away" : "home");
+    const teamR = teamKey === "home" ? this.homeR : this.awayR;
+    // Step 1: pick a position group by weight.
+    let total = 0;
+    for (const w of Object.values(posWeights)) total += w;
+    if (total <= 0) return null;
+    let r = Math.random() * total;
+    let pickedPos = null;
+    for (const [pos, w] of Object.entries(posWeights)) {
+      r -= w;
+      if (r <= 0) { pickedPos = pos; break; }
+    }
+    if (!pickedPos) pickedPos = Object.keys(posWeights)[0];
+    // Step 2: resolve candidate names for that position.
+    const s = teamR.starters || {};
+    const olList = teamKey === "home" ? this.homeOL : this.awayOL;
+    let candidates = [];
+    switch (pickedPos) {
+      case "QB": if (s.qb) candidates.push(s.qb); break;
+      case "RB":
+        if (s.rb)  candidates.push(s.rb);
+        if (s.rb2) candidates.push(s.rb2);
+        break;
+      case "WR":
+        for (const k of ["wr1", "wr2", "wr3", "wr4"]) if (s[k]) candidates.push(s[k]);
+        break;
+      case "TE":
+        if (s.te)  candidates.push(s.te);
+        if (s.te2) candidates.push(s.te2);
+        break;
+      case "OL":
+        candidates = (olList || []).map(p => p?.name).filter(Boolean);
+        break;
+      case "DL":
+        for (const k of ["de1", "de2", "dt1", "dt2"]) if (s[k]) candidates.push(s[k]);
+        break;
+      case "DT":
+        for (const k of ["dt1", "dt2"]) if (s[k]) candidates.push(s[k]);
+        break;
+      case "DE":
+        for (const k of ["de1", "de2"]) if (s[k]) candidates.push(s[k]);
+        break;
+      case "LB":
+        for (const k of ["lb1", "lb2", "lb3"]) if (s[k]) candidates.push(s[k]);
+        break;
+      case "CB":
+        for (const k of ["cb1", "cb2", "cb3", "cb4"]) if (s[k]) candidates.push(s[k]);
+        break;
+      case "S":
+        for (const k of ["fs", "ss"]) if (s[k]) candidates.push(s[k]);
+        break;
+    }
+    if (!candidates.length) return null;
+    // Dedupe (cb3/cb4 may fall back to cb2/cb1).
+    candidates = Array.from(new Set(candidates));
+    // Step 3: bias within position by INVERSE AWR — low AWR = more likely.
+    const players = candidates.map(name => this._playerByName.get(name)).filter(Boolean);
+    if (!players.length) return candidates[0];
+    const weights = players.map(p => {
+      const awr = p.stats?.[3] ?? 70;
+      return Math.max(0.2, 2 - (awr - 50) / 25);  // AWR 50→2.0, 70→1.2, 90→0.4
+    });
+    const sumW = weights.reduce((a, b) => a + b, 0);
+    let rr = Math.random() * sumW;
+    for (let i = 0; i < players.length; i++) {
+      rr -= weights[i];
+      if (rr <= 0) return players[i].name;
+    }
+    return players[players.length - 1].name;
+  }
   _pushVisual(data) {
     this.plays.push({
       ...data,
@@ -1865,6 +1975,16 @@ class GameSimulator {
         const flaggedStats = this.stats[flaggedKey];
         flaggedStats.team.penalties   = (flaggedStats.team.penalties   || 0) + 1;
         flaggedStats.team.penaltyYds  = (flaggedStats.team.penaltyYds  || 0) + pen.yds;
+        // Tag the specific player who committed the foul — biased by NFL
+        // position attribution and modulated by the player's AWR.
+        const offender = this._pickPenaltyOffender(_PENALTY_POSITIONS[pen.type], pen.on);
+        if (offender) {
+          const ps = flaggedStats.players[offender];
+          if (ps) {
+            ps.penalties    = (ps.penalties    || 0) + 1;
+            ps.penalty_yds  = (ps.penalty_yds  || 0) + pen.yds;
+          }
+        }
         // Yardage direction relative to OFFENSE: offensive penalty moves
         // the ball backward (away from opponent EZ); defensive penalty
         // moves forward.
@@ -1888,10 +2008,11 @@ class GameSimulator {
         this.time = Math.max(0, this.time - dt);
         this._pushVisual({
           kind: "penalty",
-          desc: `🚩 ${pen.type} on ${this[flaggedKey].name} — ${pen.yds} yds${pen.autoFirst ? ", automatic first down" : ""}${pen.lossDown ? ", loss of down" : ""}`,
+          desc: `🚩 ${pen.type}${offender ? ` on ${offender}` : ` on ${this[flaggedKey].name}`} — ${pen.yds} yds${pen.autoFirst ? ", automatic first down" : ""}${pen.lossDown ? ", loss of down" : ""}`,
           yds: pen.yds,
           onTeam: flaggedKey,
           penType: pen.type,
+          offender,
         });
         return { yards: 0, incomplete: false, isPenalty: true };
       }
