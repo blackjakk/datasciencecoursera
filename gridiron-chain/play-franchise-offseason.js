@@ -10070,6 +10070,28 @@ function runFrnOffseason() {
         const agiD = _dc(pp.agi.onset);
         if      (agiD > 0 && Math.random() < agiD)                              p.stats[2] = Math.max(36, p.stats[2] - 1);
         else if (age < pp.agi.peak && p.stats[2] < 58 && Math.random() < 0.07) p.stats[2] = Math.min(57, p.stats[2] + 1);
+        // CAT (5) — hands fade for older players. Drops climb for receivers,
+        // interception ability slips for DBs. Universal onset at age 30.
+        // Light decay (8-15% per yr past onset) since most positions barely
+        // use CAT in their OVR — only WR/TE/CB/S/LB are materially affected.
+        const catOnset = 30;
+        const catYrs = age - catOnset;
+        if (catYrs > 0) {
+          const catProb = catYrs === 1 ? 0.08 : catYrs === 2 ? 0.12 : 0.15;
+          if (Math.random() < catProb) p.stats[5] = Math.max(35, (p.stats[5] || 60) - 1);
+        }
+        // COV (8) — coverage ability for CB/S. NFL hallmark: "lost a step"
+        // shows up in 28-32yo corners (Talib, Lattimore mid-30s arc).
+        // Steeper than CAT because losing recovery speed kills coverage
+        // faster than losing hands kills catches.
+        if (p.position === "CB" || p.position === "S") {
+          const covOnset = 28;
+          const covYrs = age - covOnset;
+          if (covYrs > 0) {
+            const covProb = covYrs === 1 ? 0.12 : covYrs === 2 ? 0.18 : 0.22;
+            if (Math.random() < covProb) p.stats[8] = Math.max(40, (p.stats[8] || 60) - 1);
+          }
+        }
         // Recalculate overall to reflect physical changes
         p.overall = calcOverall(p.position, p.stats);
       }
