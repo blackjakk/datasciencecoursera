@@ -2060,11 +2060,21 @@ function _rollGameInjuries(teamId) {
     };
     if (careerEnding) {
       p._retiringFromInjury = true;
-      // League-level counter (per season) for audit visibility — retired
+      // League-level CE log (per season) for audit visibility — retired
       // players lose their injuryHistory when migrated to the retired pool.
+      // Stores per-event records (age, pos, label, cause) so audits can
+      // analyze the age/position distribution.
       if (!franchise._careerEndingLog) franchise._careerEndingLog = {};
       const sk = String(franchise.season);
-      franchise._careerEndingLog[sk] = (franchise._careerEndingLog[sk] || 0) + 1;
+      if (!franchise._careerEndingLog[sk]) franchise._careerEndingLog[sk] = [];
+      // Backward-compat: convert any pre-existing number values to array
+      if (typeof franchise._careerEndingLog[sk] === "number") {
+        franchise._careerEndingLog[sk] = [];
+      }
+      franchise._careerEndingLog[sk].push({
+        name: p.name, pos: p.position, age: p.age,
+        label: t.label, cause: "weekly", week: franchise.week,
+      });
     }
     p.injuryHistory = p.injuryHistory || [];
     // Tag with the effective game-week. `franchise.week` doesn't advance

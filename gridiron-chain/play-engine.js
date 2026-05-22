@@ -656,7 +656,14 @@ class GameSimulator {
       if (typeof franchise !== "undefined") {
         if (!franchise._careerEndingLog) franchise._careerEndingLog = {};
         const sk = String(franchise.season);
-        franchise._careerEndingLog[sk] = (franchise._careerEndingLog[sk] || 0) + 1;
+        if (!franchise._careerEndingLog[sk] || typeof franchise._careerEndingLog[sk] === "number") {
+          franchise._careerEndingLog[sk] = [];
+        }
+        franchise._careerEndingLog[sk].push({
+          name: player.name, pos: player.position, age: player.age,
+          label: t.label, cause: opts.eventType === "sack" ? "sack" : "big_hit",
+          tackler: tackler?.name || null,
+        });
       }
     }
     player.injuryHistory = player.injuryHistory || [];
