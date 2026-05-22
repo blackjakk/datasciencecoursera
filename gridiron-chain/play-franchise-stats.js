@@ -1279,6 +1279,31 @@ function frnTradeForFromCard(teamId, name) {
   }
 }
 
+// Open the trade center with one of MY players pre-selected on the "you
+// send" side. User picks a target team + receives whatever the trade
+// builder offers. Convenience entry from the player card.
+function frnShopMyPlayerFromCard(name) {
+  frnClosePlayerModal();
+  // Open trade center with no specific target — user picks via the
+  // existing partner selector. Seed the offer with this player.
+  if (typeof frnOpenTrade === "function") frnOpenTrade(null, "propose");
+  // Add the player to youSend on the prop, if the system supports it.
+  if (franchise._tradeProp && !franchise._tradeProp.youSend?.some(x => x.name === name)) {
+    franchise._tradeProp.youSend = franchise._tradeProp.youSend || [];
+    franchise._tradeProp.youSend.push({ name });
+    if (typeof renderFrnTrade === "function") renderFrnTrade();
+  }
+}
+
+// Toggle a player on/off the trade block from within the player card.
+// Same effect as the trade-center toggle — flips p.onTradeBlock and lets
+// the weekly AI inquiry roller pick them up.
+function frnToggleBlockFromCard(name) {
+  if (typeof frnToggleBlock === "function") frnToggleBlock(name);
+  // Re-open the player card so the button label flips ON BLOCK / off.
+  if (typeof frnOpenPlayerCard === "function") frnOpenPlayerCard(name);
+}
+
 function frnOpenPlayerCard(name, pid) {
   let p = _findPlayer(name, pid);
   if (!p) {
@@ -1322,13 +1347,16 @@ function frnOpenPlayerCard(name, pid) {
   const watched = typeof frnIsPlayerWatched === "function" && frnIsPlayerWatched(name);
   const watchTag = `<button class="frn-pcard-yrbtn${watched?" active":""}" onclick="frnToggleWatchPlayer('${escName}')" title="${watched?"Remove from your watchlist":"Add to your watchlist — appears on SHOP MARKET filter + flagged with 👁"}">${watched?"👁 Watching":"👁 Watch"}</button>`;
 
-  // Trade-for — only meaningful for NFL players on ANOTHER team. Free
-  // agents have no team; draft prospects aren't tradeable (they go
-  // through the draft). For untouchable targets, show ⛔ N/A disabled
-  // (matches SHOP MARKET behavior) so users see WHY it's not available.
+  // Trade buttons — context-aware by team ownership:
+  //   • OWN player → "Shop player" (open trade center to offer them)
+  //                + "Trade block" toggle (mark as available, AI offers roll in)
+  //   • OTHER team's player → "Trade for" (open trade center to acquire)
+  //   • Prospect / FA → no trade button
   let tradeBtn = "";
+  let blockBtn = "";
   const myId = (typeof franchise === "object" && franchise) ? franchise.chosenTeamId : null;
   const isOnOtherTeam = team && team.id !== myId;
+  const isMyPlayer = team && team.id === myId;
   const isProspect = p?.isProspect || !!p?.collegeYear;
   if (isOnOtherTeam && !isProspect) {
     let untouchable = false;
@@ -1339,8 +1367,14 @@ function frnOpenPlayerCard(name, pid) {
     tradeBtn = untouchable
       ? `<button class="frn-pcard-yrbtn" disabled title="${teamAttr} won't move this player — franchise face / recent high pick" style="opacity:.5">⛔ Won't trade</button>`
       : `<button class="frn-pcard-yrbtn" onclick="frnTradeForFromCard(${team.id},'${escName}')" title="Open SHOP MARKET → Propose with ${nameAttr} pre-selected as the player you want">🔀 Trade for</button>`;
+  } else if (isMyPlayer && !isProspect) {
+    // Own player — Shop opens trade center with this player pre-selected
+    // as the piece you're offering; Trade Block toggles the listing flag.
+    tradeBtn = `<button class="frn-pcard-yrbtn" onclick="frnShopMyPlayerFromCard('${escName}')" title="Open trade center → propose this player as part of your offer">🔀 Shop player</button>`;
+    const blocked = !!p.onTradeBlock;
+    blockBtn = `<button class="frn-pcard-yrbtn${blocked?" active":""}" onclick="frnToggleBlockFromCard('${escName}')" title="${blocked?"Listed on trade block — AI teams may make weekly inquiry offers. Click to remove.":"Mark this player as available — AI teams will roll inquiry offers each week."}">${blocked?"●ON BLOCK":"📋 Trade block"}</button>`;
   }
-  const actionRow = `<div class="frn-pcard-actions">${compareTag}${watchTag}${tradeBtn}</div>`;
+  const actionRow = `<div class="frn-pcard-actions">${compareTag}${watchTag}${tradeBtn}${blockBtn}</div>`;
 
   overlay.innerHTML = `
     <div class="frn-pcard-overlay-inner">
