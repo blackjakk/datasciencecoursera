@@ -3145,17 +3145,27 @@ function _buildVitalsBodyDiagram(p) {
       <path d="M ${cx - lm.shoulder.w*0.5} ${lm.shoulder.y + 6} Q ${cx - lm.shoulder.w*0.85} ${lm.shoulder.y + 18}, ${cx - lm.shoulder.w*0.7} ${lm.shoulder.y + 30}"/>
       <path d="M ${cx + lm.shoulder.w*0.5} ${lm.shoulder.y + 6} Q ${cx + lm.shoulder.w*0.85} ${lm.shoulder.y + 18}, ${cx + lm.shoulder.w*0.7} ${lm.shoulder.y + 30}"/>
     </g>`;
+  // Career injury counts per body part (lifetime — drives the scar
+  // markers on the diagram + tooltips).
+  const careerCounts = {};
+  for (const h of (p.injuryHistory || [])) {
+    if (h.bodyPart) careerCounts[h.bodyPart] = (careerCounts[h.bodyPart] || 0) + 1;
+  }
   // ── COLOR REGIONS — overlay paths INSIDE the body, clipped to it ──
   // Each region is a path roughly matching that body part's position.
   // Wrapped in <g clip-path="url(#bodyClip)"> so they never escape the
   // body silhouette. Region opacity scales with wear so healthy parts
-  // fade into the base color.
+  // fade into the base color. Career injury count appears in tooltip.
   const region = (key, label, d) => {
     const v = get(key);
     const fill = _vitalsColor(v);
     const op = v < 5 ? 0.18 : v < 30 ? 0.42 : v < 60 ? 0.66 : 0.85;
+    const careerN = careerCounts[key] || 0;
+    const titleStr = careerN
+      ? `${label}: ${v.toFixed(0)} · ${_vitalsLabel(v)} · ${careerN} career injur${careerN===1?"y":"ies"}`
+      : `${label}: ${v.toFixed(0)} · ${_vitalsLabel(v)}`;
     return `<path d="${d}" fill="${fill}" fill-opacity="${op}" data-vitals-part="${key}">
-      <title>${label}: ${v.toFixed(0)} · ${_vitalsLabel(v)}</title></path>`;
+      <title>${titleStr}</title></path>`;
   };
   const regions = `
     ${region("head", "Head", `M ${cx} ${lm.head.cy - lm.head.ry} a ${lm.head.rx} ${lm.head.ry} 0 1 1 0 ${lm.head.ry*2} a ${lm.head.rx} ${lm.head.ry} 0 1 1 0 -${lm.head.ry*2} Z`)}
@@ -3233,6 +3243,50 @@ function _buildVitalsBodyDiagram(p) {
       <path d="${armL}"/>
       <path d="${armL}" transform="${armRTransform}"/>
     </g>`;
+  // ── CAREER SCAR MARKERS ─────────────────────────────────────────
+  // Small numbered dots on body parts injured 2+ times in career.
+  // Tells the chronic-injury story visually — "this RB has hurt his
+  // L knee 3 times, R hamstring 2 times". Anchor points roughly match
+  // the body landmark coords.
+  const _SCAR_ANCHORS = {
+    head:        [cx, lm.head.cy - 4],
+    neck:        [cx, (lm.neck.top + lm.neck.bot)/2],
+    chest:       [cx, lm.chest.midY],
+    back:        [cx, lm.waist.y + 4],
+    groin:       [cx, lm.crotch.y - 4],
+    shoulderL:   [cx - lm.shoulder.w*0.6, lm.shoulder.y + 18],
+    shoulderR:   [cx + lm.shoulder.w*0.6, lm.shoulder.y + 18],
+    hipL:        [cx - lm.hip.w*0.55, lm.hip.yBot - 12],
+    hipR:        [cx + lm.hip.w*0.55, lm.hip.yBot - 12],
+    hamstringL:  [cx - lm.thigh.wTop*0.5, (lm.thigh.yTop + lm.thigh.yBot)/2],
+    hamstringR:  [cx + lm.thigh.wTop*0.5, (lm.thigh.yTop + lm.thigh.yBot)/2],
+    kneeL:       [cx - lm.knee.w*0.3, (lm.knee.yTop + lm.knee.yBot)/2],
+    kneeR:       [cx + lm.knee.w*0.3, (lm.knee.yTop + lm.knee.yBot)/2],
+    calfL:       [cx - lm.calf.wTop*0.5, lm.calf.yTop + 30],
+    calfR:       [cx + lm.calf.wTop*0.5, lm.calf.yTop + 30],
+    achillesL:   [cx - lm.ankle.w*0.5, (lm.calf.yBot + lm.ankle.yTop)/2],
+    achillesR:   [cx + lm.ankle.w*0.5, (lm.calf.yBot + lm.ankle.yTop)/2],
+    ankleL:      [cx - lm.ankle.w*0.4, lm.ankle.yBot + 4],
+    ankleR:      [cx + lm.ankle.w*0.4, lm.ankle.yBot + 4],
+    handL:       [cx - lm.shoulder.w - 2, lm.arm.handY],
+    handR:       [cx + lm.shoulder.w + 2, lm.arm.handY],
+  };
+  const scarMarkers = Object.entries(careerCounts)
+    .filter(([k, n]) => n >= 2 && _SCAR_ANCHORS[k])
+    .map(([k, n]) => {
+      const [x, y] = _SCAR_ANCHORS[k];
+      const fill = n >= 4 ? "#e6373a" : n >= 3 ? "#ed6a3a" : "#f0a93a";
+      return `<g>
+        <circle cx="${x}" cy="${y}" r="6" fill="${fill}" stroke="rgba(0,0,0,.6)" stroke-width="0.8"/>
+        <text x="${x}" y="${y + 2.5}" fill="#fff" font-size="8" font-weight="800" font-family="-apple-system,monospace" text-anchor="middle">${n}</text>
+      </g>`;
+    }).join("");
+  // Career-summary line (under footer)
+  const totalCareerInjuries = Object.values(careerCounts).reduce((s, n) => s + n, 0);
+  const mostInjured = Object.entries(careerCounts).sort((a, b) => b[1] - a[1])[0];
+  const careerSummary = totalCareerInjuries > 0
+    ? `<text x="120" y="496" fill="rgba(218,196,162,.5)" font-size="8" font-family="-apple-system,Inter,monospace" text-anchor="middle" letter-spacing="1">${totalCareerInjuries} career injur${totalCareerInjuries===1?"y":"ies"}${mostInjured ? ` · most-hit: ${_VITALS_PART_NAMES?.[mostInjured[0]] || mostInjured[0]} (${mostInjured[1]})` : ""}</text>`
+    : "";
   return `<svg viewBox="0 0 240 520" width="240" height="460" xmlns="http://www.w3.org/2000/svg"
     style="border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,.45), inset 0 0 0 1px rgba(218,196,162,.10)">
     ${bgDefs}
@@ -3242,7 +3296,9 @@ function _buildVitalsBodyDiagram(p) {
       ${regions}
     </g>
     ${innerLines}
-    <text x="120" y="506" fill="rgba(218,196,162,.65)" font-size="9.5" font-family="-apple-system,Inter,Georgia,serif" text-anchor="middle" letter-spacing="2" font-weight="600">
+    ${scarMarkers}
+    ${careerSummary}
+    <text x="120" y="510" fill="rgba(218,196,162,.65)" font-size="9.5" font-family="-apple-system,Inter,Georgia,serif" text-anchor="middle" letter-spacing="2" font-weight="600">
       WEAR ${wear.toFixed(0)}  ·  STRESS ${stress.toFixed(0)}
     </text>
   </svg>`;
