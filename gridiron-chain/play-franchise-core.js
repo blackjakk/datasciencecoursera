@@ -4,7 +4,7 @@
 // State persisted in localStorage so it survives page reloads.
 
 const FRANCHISE_KEY   = "gc_franchise_v1";
-const FRANCHISE_WEEKS = 14;
+const FRANCHISE_WEEKS = 17;
 const PLAYOFF_TEAMS   = 8;
 const SALARY_CAP_BASE = 200; // $M — grows ~5-9% each offseason
 
@@ -876,8 +876,9 @@ function _scoutSourceLabel(p) {
 //   SR  ±15 week 1 → ±8 by the final week (combine + senior film)
 // "Match real-life: the FA baseline is ±8" — an unscouted senior at
 // the draft converges to the same fog as an unknown free agent.
-// FRANCHISE_WEEKS is 14 in this game (compressed schedule), so the
-// SR ramp from ±15 → ±8 happens over 13 in-season weeks.
+// FRANCHISE_WEEKS is 17 in this game (NFL 17-game season, compressed —
+// no in-season bye), so the SR ramp from ±15 → ±8 happens over the
+// in-season weeks.
 function _collegeProspectBaseBand(p) {
   if (!p?.collegeYear) return 5;  // legacy prospect without class year
   const week = (typeof franchise !== "undefined" && franchise?.week) ? franchise.week : 1;
@@ -3535,10 +3536,14 @@ function frnRenameSlot(id) {
   renderFrnStartScreen();
 }
 
-// ── Schedule — Berger circle method (14 of 31 rounds for 32 teams) ───────────
+// ── Schedule — 17 games over 17 weeks via Berger round-robin ─────────────────
+// 32 teams × 17 games = 544 team-games / 2 = 272 games total, packed into
+// 17 weeks of 16 games each. Berger circle method gives each team 17 unique
+// opponents (out of 31 possible). No bye weeks — matches the NFL 17-game
+// total but compresses to 17 weeks instead of 18 (no in-season rest week).
 function generateFranchiseSchedule() {
   const arr = TEAMS.map(t => t.id);
-  const n   = arr.length; // 32
+  const n   = arr.length;   // 32
   const schedule = [];
   for (let week = 1; week <= FRANCHISE_WEEKS; week++) {
     for (let i = 0; i < n / 2; i++) {

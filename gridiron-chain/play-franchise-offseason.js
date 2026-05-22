@@ -12886,7 +12886,7 @@ function _teamPicksByYear(teamId) {
 // Player-for-player(s) trades. Trade deadline = Week 7. AI accepts if
 // you give them >= what they give you, weighted by team need at the
 // positions involved.
-const TRADE_DEADLINE_WEEK = 7;
+const TRADE_DEADLINE_WEEK = 9;
 
 function _playerTradeValue(p) {
   // 1. Non-linear OVR curve: top-end talent compresses, so the gap
