@@ -1357,13 +1357,16 @@ function _combineWeight(p) {
   const pos = p.position;
   const [, str=50] = p.stats || [];
   const meanLbs = { QB:220, RB:215, WR:200, TE:250, OL:315, DL:280, LB:240, CB:195, S:205, K:200, P:215 }[pos] ?? 220;
-  // STR drives weight variance everywhere EXCEPT K/P — kicker STR is
-  // rarely a meaningful trained stat, so STR-driven weight here just
-  // produces too-light kickers. Trench: 0.85/lb-of-STR. Skill: 0.50/lb.
-  // K/P: no STR scaling (their weight comes from mean + body + noise).
-  const strBump = ["K","P"].includes(pos)               ? 0
-                : ["OL","DL","TE","LB"].includes(pos)    ? (str - 60) * 0.85
-                :                                          (str - 60) * 0.50;
+  // STR drives weight variance with a logarithmic curve around a position-
+  // specific baseline. Diminishing returns at the tails: STR 75->80 adds
+  // more weight per point than STR 90->95. Trench positions baseline at
+  // 75 (= the new STR min), skill at 60. K/P: no STR scaling.
+  const trenchPos = ["OL","DL","TE","LB"].includes(pos);
+  const strBase = trenchPos ? 75 : 60;
+  const strDelta = str - strBase;
+  const trenchScale = trenchPos ? 3.0 : 1.8;
+  const strBump = ["K","P"].includes(pos) ? 0
+                : Math.sign(strDelta) * Math.log(1 + Math.abs(strDelta)) * trenchScale;
   // BodyType-specific mass adjustment. pickBodyType (play-render.js)
   // returns: HUGE, BIG, TALL_HEAVY, HEAVY_SHORT, BROAD, COMPACT,
   // LEAN, NORMAL, SLENDER, PLUS_SIZE. The map covers all of them so
