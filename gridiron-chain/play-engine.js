@@ -2688,6 +2688,71 @@ class GameSimulator {
         const isLeapingCatch = airYds >= 16 && (
           catchRadius >= 75 || (catchRadius >= 60 && Math.random() < 0.5)
         );
+        // POST-CATCH FUMBLE — receiver loses ball during YAC. Higher chance
+        // with low CAT (juggled catches), big YAC (defenders punching out),
+        // or contested grab. Real NFL: ~0.5% per reception.
+        const rcvrCatStat = rcvrPlayer?.stats?.[5] ?? 70;
+        // Tuned to land per-catch fumble rate near NFL 0.5%. Big YAC and low
+        // CAT amplify; elite receivers (CAT 90+) bring it under 0.3%.
+        const yacFumbleChance = yac > 0
+          ? clamp(0.003 + Math.max(0, (yac - 5) / 500) - Math.max(0, (rcvrCatStat - 75) / 1200), 0.001, 0.012)
+          : 0;
+        if (Math.random() < yacFumbleChance) {
+          // Catch happens at catchYL. Ball comes out somewhere in YAC.
+          const catchYL = clamp(startYard + Math.max(1, Math.round(airYds)), 1, 99);
+          const yacToFumble = Math.max(0, Math.floor(yac * (0.30 + Math.random() * 0.55)));
+          const fumbleAdvance = Math.max(0, Math.round(airYds)) + yacToFumble;
+          const fumbleYL = clamp(startYard + fumbleAdvance, 1, 99);
+          const recoveredBy = Math.random() < 0.55 ? "def" : "off";
+          const ffBy = this._creditDefStat("ff", { S: 0.35, CB: 0.30, LB: 0.30, DL: 0.05 });
+          const ylDesc = (y) => y <= 50 ? `own ${y}` : `opp ${100 - y}`;
+          if (recoveredBy === "def") {
+            // Turnover. Credit catch + yards-to-fumble.
+            if (qbStats) { qbStats.pass_att++; qbStats.pass_comp++; qbStats.pass_yds += fumbleAdvance; }
+            if (rcvrStats) {
+              rcvrStats.rec_tgt++; rcvrStats.rec++; rcvrStats.rec_yds += fumbleAdvance;
+              rcvrStats.fumbles = (rcvrStats.fumbles || 0) + 1;
+              rcvrStats.fumbles_lost = (rcvrStats.fumbles_lost || 0) + 1;
+            }
+            off.team.pass_att++; off.team.pass_comp++; off.team.passYds += fumbleAdvance; off.team.totalYds += fumbleAdvance;
+            off.team.fumbles = (off.team.fumbles || 0) + 1;
+            off.team.fumbles_lost = (off.team.fumbles_lost || 0) + 1;
+            off.team.turnovers = (off.team.turnovers || 0) + 1;
+            def.team.takeaways = (def.team.takeaways || 0) + 1;
+            const frBy = this._creditDefStat("fr", { S: 0.40, CB: 0.35, LB: 0.20, DL: 0.05 });
+            this._pushVisual({
+              kind: "fumble",
+              desc: `${rcvr} catches at the ${ylDesc(catchYL)}, FUMBLES at the ${ylDesc(fumbleYL)} — recovered by ${frBy || "defense"}${ffBy ? `, forced by ${ffBy}` : ""}!`,
+              startYard, endYard: fumbleYL,
+              catchYL, fumbleYL, receiver: rcvr, passer: this.offR.starters.qb,
+              defender: frBy, forcedBy: ffBy, recoveredBy: "def",
+            });
+            this._lastBallCarrier = rcvr; this._lastBallType = "pass";
+            const defSide = this.poss === "home" ? "away" : "home";
+            this._swingMomentum(defSide, 3, "FUMBLE");
+            return { turnover: true, fumbleSpotYL: fumbleYL };
+          } else {
+            // Offense recovers. Receiver gets yards UP TO fumble, then small loss on the dive.
+            const lossOnDive = rand(1, 4);
+            const netYds = Math.max(0, fumbleAdvance - lossOnDive);
+            if (qbStats) { qbStats.pass_att++; qbStats.pass_comp++; qbStats.pass_yds += netYds; }
+            if (rcvrStats) {
+              rcvrStats.rec_tgt++; rcvrStats.rec++; rcvrStats.rec_yds += netYds;
+              rcvrStats.fumbles = (rcvrStats.fumbles || 0) + 1;
+            }
+            off.team.pass_att++; off.team.pass_comp++; off.team.passYds += netYds; off.team.totalYds += netYds;
+            off.team.fumbles = (off.team.fumbles || 0) + 1;
+            this._pushVisual({
+              kind: "fumble",
+              desc: `${rcvr} fumbles after catch at the ${ylDesc(fumbleYL)} — offense recovers, net ${netYds} yds!`,
+              startYard, endYard: clamp(startYard + netYds, 0, 100),
+              catchYL, fumbleYL, receiver: rcvr, passer: this.offR.starters.qb,
+              forcedBy: ffBy, recoveredBy: "off",
+            });
+            this._lastBallCarrier = rcvr; this._lastBallType = "pass";
+            return { yards: netYds };
+          }
+        }
         if (qbStats) { qbStats.pass_att++; qbStats.pass_comp++; qbStats.pass_yds += yards; if (yards > qbStats.pass_long) qbStats.pass_long = yards; }
         if (rcvrStats) {
           rcvrStats.rec_tgt++; rcvrStats.rec++; rcvrStats.rec_yds += yards;
