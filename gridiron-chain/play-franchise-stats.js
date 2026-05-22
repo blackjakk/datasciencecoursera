@@ -7763,6 +7763,7 @@ function mergeSeasonStats(homeId, awayId, gameStats, gameKey) {
   if (!gameStats) return;
   if (!franchise.seasonStats) franchise.seasonStats = {};
   if (!franchise.seasonPlayoffStats) franchise.seasonPlayoffStats = {};
+  if (!franchise.seasonAllStats) franchise.seasonAllStats = {};
   if (!franchise._mergedGameKeys) franchise._mergedGameKeys = {};
   if (gameKey) {
     if (franchise._mergedGameKeys[gameKey]) {
@@ -7771,9 +7772,11 @@ function mergeSeasonStats(homeId, awayId, gameStats, gameKey) {
     }
     franchise._mergedGameKeys[gameKey] = true;
   }
-  // Playoff games get tagged with PR# in the key (_gameMergeKey). We
-  // merge into the all-games store (back-compat with leaders/ranks) AND
-  // into a playoff-only store so career totals can split regular vs PO.
+  // Three stores split by phase for NFL-comparable career stats:
+  //   seasonStats        — REGULAR SEASON only (NFL convention)
+  //   seasonPlayoffStats — PLAYOFFS only
+  //   seasonAllStats     — combined (regular + playoff)
+  // Playoff games get tagged with PR# in the key (_gameMergeKey).
   const isPlayoff = !!(gameKey && /-PR\d+-/.test(gameKey));
   // "Long" stats are per-play maxima, not counting stats. Take the max
   // across games instead of summing — otherwise a player's season-long
@@ -7797,11 +7800,16 @@ function mergeSeasonStats(homeId, awayId, gameStats, gameKey) {
       }
     }
   };
-  mergeInto(franchise.seasonStats, homeId, gameStats.home);
-  mergeInto(franchise.seasonStats, awayId, gameStats.away);
+  // Always merge into seasonAllStats (combined view).
+  mergeInto(franchise.seasonAllStats, homeId, gameStats.home);
+  mergeInto(franchise.seasonAllStats, awayId, gameStats.away);
+  // Split: regular → seasonStats, playoff → seasonPlayoffStats.
   if (isPlayoff) {
     mergeInto(franchise.seasonPlayoffStats, homeId, gameStats.home);
     mergeInto(franchise.seasonPlayoffStats, awayId, gameStats.away);
+  } else {
+    mergeInto(franchise.seasonStats, homeId, gameStats.home);
+    mergeInto(franchise.seasonStats, awayId, gameStats.away);
   }
 }
 
@@ -7812,6 +7820,8 @@ function mergeSeasonStats(homeId, awayId, gameStats, gameKey) {
 function _repairSeasonStatsFromSchedule() {
   if (!franchise) return;
   franchise.seasonStats = {};
+  franchise.seasonPlayoffStats = {};
+  franchise.seasonAllStats = {};
   franchise._mergedGameKeys = {};
   for (const g of franchise.schedule || []) {
     if (!g.played || !g.stats) continue;
