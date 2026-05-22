@@ -138,13 +138,11 @@ const PLAYBOOKS = {
     // NFL target shares (2020-2024): WR1 25-28%, WR2 18-22%, TE 18-22%,
     // RB 12-18%. Engine WR1 was 40% → top WR getting ~2x NFL season yards.
     // Lowered + redistributed to RB (NFL pass-catching backs get 12-18% TS).
-    // Top NFL WR1 season ~1700-1900; we landed at 1287 after the WR1
-    // cut, then 1194 with 34%. NFL ALPHA WR (Tyreek/Jefferson tier)
-    // gets ~28-32% of team TARGETS, but a much higher share of YARDS
-    // because they catch deep / break tackles. WR1 38% target share
-    // overstates real NFL but matches the YARDS distribution after
-    // catch-rate + air-yards math.
-    targetMix: { wr1: 0.38, wr2: 0.24, te: 0.22, rb: 0.16 },
+    // NFL alpha WR1 gets ~28-32% of team targets, WR2 ~22-26%, TE
+    // ~18-22%, RB ~14-18%. After multiple passes: WR1 34, WR2 28 lands
+    // both in NFL band (top WR1 ~1500-1800 yds, top WR2 ~700-1000).
+    // Previous 38/24 split made WR2 under NFL (511 vs target 700-1000).
+    targetMix: { wr1: 0.34, wr2: 0.28, te: 0.22, rb: 0.16 },
     // 2024 NFL personnel usage: 11/TRIPS dominates (~62%), 12/HEAVY ~18%,
     // BASE basically dead. Bumped TRIPS / cut BASE.
     personnelMix: { TRIPS: 0.60, HEAVY: 0.16, SPREAD: 0.10, BASE: 0.07, I_FORM: 0.04, EMPTY: 0.03 },

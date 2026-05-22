@@ -2202,16 +2202,31 @@ class GameSimulator {
       const hasRb = !personnel || personnel.rb > 0;
       const hasTe = !personnel || personnel.te > 0;
       // QB/WR1/WR2 always present. RB only if personnel has RB; TE only
-      // if personnel has TE.
+      // if personnel has TE; WR3 in 3+ WR personnel; WR4 in 4-WR personnel.
       const rolesOnField = ["qb", "wr1", "wr2"];
       if (hasRb) rolesOnField.push("rb");
       if (hasTe) rolesOnField.push("te");
+      if (personnel && personnel.wr >= 3) rolesOnField.push("wr3");
+      if (personnel && personnel.wr >= 4) rolesOnField.push("wr4");
+      // Dedupe — wr3/wr4 starters fall back to wr2/wr1 when roster is
+      // shallow (only 2 WRs available). Without this dedup, the same
+      // player would get double-bumped (2 snaps / 2 fatigue per play).
+      const seenNames = new Set();
       for (const role of rolesOnField) {
         const name = starters[role];
-        if (!name) continue;
+        if (!name || seenNames.has(name)) continue;
+        seenNames.add(name);
         const pl = this.stats[side].players[name];
         if (pl) pl.snaps = (pl.snaps || 0) + 1;
-        // Accumulate per-snap fatigue. RB takes the biggest hit per snap.
+        else {
+          // WR3/WR4 backups aren't pre-registered in _buildTeamStats —
+          // ensure the stat line exists so snap counts are recorded for
+          // the weekly wear-decay path (it reads snapsThisWeek by name).
+          const pos = (this._playerByName?.get?.(name)?.position) || "WR";
+          this._ensurePlayerStat(side, name, pos);
+          const pl2 = this.stats[side].players[name];
+          if (pl2) pl2.snaps = (pl2.snaps || 0) + 1;
+        }
         this._bumpFatigue(name);
       }
       this.stats[side].team.snaps = (this.stats[side].team.snaps || 0) + 1;
