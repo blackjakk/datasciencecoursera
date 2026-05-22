@@ -1060,10 +1060,21 @@ class GameSimulator {
     if (pen.on === "def") {
       // Offense decides — wants the better outcome.
       if (offScoreDelta > 0) return false;          // KEEP the TD/FG/score
-      if (defScoreDelta > 0) return true;           // negate any defensive score (safety, pick-6)
+      if (defScoreDelta > 0) return true;           // negate any defensive score
       if (isTO) return true;                        // negate the TO
-      if (pen.autoFirst) return true;               // auto-first nearly always preferred
+      // Did the play already cross the YTG marker (first down)?
+      const playGaveFirst = playYds >= (snap?.ytg ?? 10);
+      if (pen.autoFirst) {
+        // Auto-first is almost always preferred (fresh chains). One
+        // exception: the play already crossed YTG AND gained more
+        // yards than the penalty — then offense gets BOTH a 1st down
+        // and a bigger gain by declining (e.g., a 28-yd completion on
+        // 1st-and-10 stands over a 15-yd DPI auto-first reset).
+        if (playGaveFirst && playYds > pen.yds) return false;
+        return true;
+      }
       if (isInc) return true;                       // incomplete vs 5+ yds + replay
+      // No auto-first: take the larger yardage (penalty replay yds vs play yards).
       return pen.yds >= playYds;
     } else {
       // Defense decides — wants the worse-for-offense outcome. Accept
@@ -1086,7 +1097,7 @@ class GameSimulator {
   // accepted-after-play). Mutates stats + yardLine + down/ytg + time +
   // pushes the penalty visual. Expects pen._meta populated with
   // flaggedKey, offender, preDown/preYtg/preYardLine.
-  _applyPenaltyEffects(pen) {
+  _applyPenaltyEffects(pen, decisionContext) {
     const { flaggedKey, offender, preDown, preYtg, preYardLine } = pen._meta || {};
     const flaggedStats = this.stats[flaggedKey];
     if (flaggedStats?.team) {
@@ -1120,6 +1131,7 @@ class GameSimulator {
       penType: pen.type,
       offender,
       preDown, preYtg, preYardLine,
+      decisionContext,  // null for dead-ball, populated for accepted live-ball
     });
   }
   _pickPenaltyOffender(posWeights, side) {
@@ -1476,9 +1488,24 @@ class GameSimulator {
       const snap = this._penSnapshot;
       this._penSnapshot = null;
       const accept = this._shouldAcceptLivePenalty(pen, result, snap);
+      // Capture the play outcome that was on the table for the audit
+      // trace. Score deltas are computed against the snap so the audit
+      // can verify whether ignoring a TD/score made sense.
+      const offSide = snap?.poss || this.poss;
+      const defSide = offSide === "home" ? "away" : "home";
+      const decisionContext = {
+        playYds: result?.yards ?? 0,
+        playWasTO: !!result?.turnover,
+        playWasInc: !!result?.incomplete,
+        offScoreDelta: (this.score[offSide] || 0) - (snap?.score?.[offSide] || 0),
+        defScoreDelta: (this.score[defSide] || 0) - (snap?.score?.[defSide] || 0),
+        snapDown: snap?.down, snapYtg: snap?.ytg, snapYardLine: snap?.yardLine,
+        penYds: pen.yds, penAutoFirst: !!pen.autoFirst, penLossDown: !!pen.lossDown,
+        penOn: pen.on, penType: pen.type,
+      };
       if (accept) {
         this._restoreFromPenaltySnapshot(snap);
-        this._applyPenaltyEffects(pen);
+        this._applyPenaltyEffects(pen, decisionContext);
         return { yards: 0, incomplete: false, isPenalty: true };
       } else {
         // Declined — increment team-level declined counter for audit.
@@ -1499,6 +1526,7 @@ class GameSimulator {
           penType: pen.type,
           offender,
           onTeam: flaggedKey,
+          decisionContext,
         });
       }
     }
