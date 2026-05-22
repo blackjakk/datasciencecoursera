@@ -1611,11 +1611,78 @@ class GameSimulator {
         const punt = clamp(normal(puntMean, puntSd), 24, 72);
       const landYard = clamp(startYard + punt, 0, 100);
       // Touchback / fair catch / return resolution — biased by archetype.
-      let returnYards = 0, isTouchback = false, isFairCatch = false;
+      let returnYards = 0, isTouchback = false, isFairCatch = false, isMuff = false;
       let prBT = 0;
+      let muffRecoveredByKicking = false, muffSpotYL = null;
       if (landYard >= 100 || (touchbackRisk > 0 && Math.random() < touchbackRisk)) {
         isTouchback = true;
       } else {
+        // MUFF CHECK — returner fails to secure the punt. NFL ~1-2% per punt
+        // return. Rate scales with returner CAT (low CAT = bobbles), high
+        // punts (harder catch), and weather. Kicking team has ~40% recovery
+        // shot.
+        const _retSideMuff = this.poss === "home" ? "away" : "home";
+        const _retStMuff = (_retSideMuff === "home" ? this.homeR : this.awayR).starters;
+        const _muffPRName = _retStMuff.pr1 || _retStMuff.wr2 || _retStMuff.wr1;
+        const _muffPR = _muffPRName ? this._playerByName.get(_muffPRName) : null;
+        const _retCat = _muffPR?.stats?.[5] ?? 65;
+        const _wxLabel = (this.weather || {}).label;
+        const _muffWxMod = _wxLabel === "RAIN" ? 0.008 : _wxLabel === "SNOW" ? 0.012 : 0;
+        // NFL ~1-2% muff per non-touchback punt. Elite hands (CAT 80+)
+        // muff <0.5%; gloves-of-stone returners (CAT 60) muff ~3%.
+        const muffChance = clamp(0.014 + (75 - _retCat) / 500 + _muffWxMod, 0.003, 0.035);
+        if (Math.random() < muffChance) {
+          isMuff = true;
+          muffSpotYL = clamp(landYard, 1, 99);
+          // Returner credited with a muff (tracked separately from fumble).
+          const _retSt = this.stats[_retSideMuff];
+          if (_muffPRName && _retSt?.players?.[_muffPRName]) {
+            _retSt.players[_muffPRName].muffs = (_retSt.players[_muffPRName].muffs || 0) + 1;
+          }
+          // ~40% kicking team recovers (gunners closing fast).
+          muffRecoveredByKicking = Math.random() < 0.40;
+          if (muffRecoveredByKicking) {
+            // Coverage team recovers — kicking team gets the ball BACK at the
+            // muff spot. From engine state: this.poss = punting team; we
+            // double-flip via {turnover:true} so _drive's flip lands us back
+            // on punting team at muffSpotYL. Credit the punter's punt stats
+            // first (still a recorded punt).
+            const punterStats = this.stats[this.poss].players[P];
+            if (punterStats) {
+              punterStats.punt_att = (punterStats.punt_att || 0) + 1;
+              punterStats.punt_yds = (punterStats.punt_yds || 0) + punt;
+              if (punt > (punterStats.punt_long || 0)) punterStats.punt_long = punt;
+              if (landYard >= 80) punterStats.punts_in_20 = (punterStats.punts_in_20 || 0) + 1;
+            }
+            // Credit recovery to a gunner / cover guy.
+            const recBy = this._creditDefStat("fr", { CB: 0.40, S: 0.30, LB: 0.20, DL: 0.10 });
+            this.stats[this.poss].team.takeaways = (this.stats[this.poss].team.takeaways || 0) + 1;
+            this._pushVisual({
+              kind: "muff",
+              desc: `MUFFED PUNT by ${_muffPRName} at the ${muffSpotYL <= 50 ? `own ${muffSpotYL}` : `opp ${100 - muffSpotYL}`} — recovered by ${recBy || "kicking team"}! Kicking team keeps possession.`,
+              startYard, landYard, muffSpotYL,
+              returner: _muffPRName, recoverer: recBy,
+              recoveredByKicking: true,
+            });
+            // Pre-flip poss so _drive's turnover-flip lands us back on the
+            // punting team at the muff spot. (turnover normally hands ball to
+            // the team currently on defense; we want punting team to keep it.)
+            this.poss = this.poss === "home" ? "away" : "home";
+            return { turnover: true, fumbleSpotYL: muffSpotYL };
+          } else {
+            // Returner falls on it — no return, possession changes normally
+            // (punt result), no return yards. Drop through to regular punt
+            // flow with returnYards=0 and landYard = muffSpotYL.
+            this._pushVisual({
+              kind: "muff",
+              desc: `${_muffPRName} muffs the punt at the ${muffSpotYL <= 50 ? `own ${muffSpotYL}` : `opp ${100 - muffSpotYL}`} but falls on it — no return.`,
+              startYard, landYard, muffSpotYL,
+              returner: _muffPRName, recoveredByKicking: false,
+            });
+          }
+        }
+      }
+      if (!isMuff && !isTouchback) {
         const r = Math.random() - fairCatchBonus;  // shift the cutpoints up
         if (r < 0.18) { isFairCatch = true; }
         else if (r < 0.55) returnYards = rand(0, 6);
