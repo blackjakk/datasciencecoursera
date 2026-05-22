@@ -1312,12 +1312,14 @@ class GameSimulator {
     // Down & distance — situational tilts on top of personnel.
     const isThirdLong  = this.down === 3 && this.ytg >= 7;
     const isThirdShort = this.down === 3 && this.ytg <= 2;
-    // 3rd-down situ mods softened — prior -0.025 at 3rd & long made
-    // conversion 0.83x NFL. Drives stalled too early, pts/g lagged.
+    // 3rd-down situ mods. Most 3rd downs are medium (3-6 yds) so we apply
+    // a base +0.010 on ANY 3rd down to nudge conversion toward NFL 40%.
+    // Short/long buckets layer on top.
+    const isThirdDown = this.down === 3;
     const situRunMod  = isThirdShort ? -0.5 : isThirdLong ?  0.5 : 0;
     const situAirMod  = isThirdLong  ? -0.5 : isThirdShort ?  0.3 : 0;
-    const situCompMod = isThirdLong  ? -0.012 : isThirdShort ?  0.015 : 0;
-    const situSackMul = isThirdLong  ? 1.10 : 1.0;
+    const situCompMod = isThirdDown ? (isThirdLong ? -0.002 : isThirdShort ? 0.025 : 0.010) : 0;
+    const situSackMul = isThirdLong  ? 1.05 : 1.0;
     this._boxStackRunMod  = (PERS_RUN[personnel]  || 0) + situRunMod;
     this._boxStackAirMod  = (PERS_AIR[personnel]  || 0) + situAirMod;
     this._boxStackCompMod = (PERS_COMP[personnel] || 0) + situCompMod;
