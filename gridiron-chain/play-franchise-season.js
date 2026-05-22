@@ -2085,12 +2085,22 @@ function _rollNonContactInjuries(teamId) {
     // No hard floor — even fresh players occasionally pull something.
     // V11 audit showed non-contact at 16% vs NFL ~40% — raised ~1.5x
     // to land closer to NFL share.
-    const baseRate = stress >= 80 ? 0.033
-                   : stress >= 60 ? 0.022
-                   : stress >= 40 ? 0.014
-                   : stress >= 20 ? 0.008
-                   : stress >= 10 ? 0.005
-                   :                0.002;
+    let baseRate = stress >= 80 ? 0.033
+                 : stress >= 60 ? 0.022
+                 : stress >= 40 ? 0.014
+                 : stress >= 20 ? 0.008
+                 : stress >= 10 ? 0.005
+                 :                0.002;
+    // Early-season transition spike — NFL injury data (Mai et al. 2017,
+    // PFR injury reports) shows ACL + hamstring incidence is ~2-2.5x
+    // higher in Weeks 1-4 than mid-season. Bodies haven't built game-
+    // speed neuromuscular control yet — cuts get awkward.
+    const wk = franchise.week || 1;
+    const earlyMul = wk <= 2 ? 2.0
+                   : wk <= 4 ? 1.5
+                   : wk <= 6 ? 1.2
+                   :           1.0;
+    baseRate *= earlyMul;
     // Position vulnerability — speed/agility positions tear soft tissue more
     const pos = p.position || "?";
     const posMul = (pos === "WR" || pos === "CB" || pos === "S") ? 1.30
@@ -2112,6 +2122,15 @@ function _rollNonContactInjuries(teamId) {
     if (Math.random() >= rate) continue;
     let t = _pickNonContactInjuryType(p.position);
     if (!t) continue;
+    // Early-season bias: ACLs and hamstrings are the dominant early-season
+    // non-contact injury types (NFL data shows preseason→W1-4 ACL/hammy
+    // spike from unconditioned cuts). 35% chance to override to knee or
+    // hamstring in W1-4.
+    if (wk <= 4 && Math.random() < 0.35) {
+      const earlyType = Math.random() < 0.55 ? "hamstring" : "knee";
+      const found = INJURY_TYPES.find(x => x.label === earlyType);
+      if (found) t = found;
+    }
     // Non-contact catastrophic — torn achilles or chronic hamstring
     let isCatastrophic = false;
     let careerEnding = false;
