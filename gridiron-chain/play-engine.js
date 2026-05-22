@@ -629,19 +629,45 @@ class GameSimulator {
     if (typeof _pickInjuryType !== "function") return;  // graceful no-op in tests
     let t = _pickInjuryType(player.position);
     if (!t) return;
-    // Headhunter / power tacklers and sack hits skew concussion higher.
-    // Hitter-side injuries (tackler getting hurt on contact) are mostly
-    // concussions — that's literally the head-to-head collision pattern.
-    if (opts.concussionLean && typeof INJURY_TYPES !== "undefined") {
-      if (Math.random() < 0.60) {
-        const c = INJURY_TYPES.find(x => x.label === "concussion");
-        if (c) t = c;
-      }
-    } else if (tackler && (tackler.archetype === "HEADHUNTER" || opts.eventType === "sack") && force >= 1.7) {
-      if (Math.random() < 0.30 && typeof INJURY_TYPES !== "undefined") {
-        const c = INJURY_TYPES.find(x => x.label === "concussion");
-        if (c) t = c;
-      }
+    // ── PLAY-CONTEXT INJURY-TYPE BIASING ──────────────────────────────
+    // Real biomechanics: a deep pass over the middle → S/CB hit → concussion
+    // or shoulder. Goal-line stuff → pile → shoulder/knee/hand. Cut block
+    // on outside run → knee. Sack → shoulder/concussion. Force the picker
+    // toward likely body-part / mechanism combos.
+    const ctx = opts.playContext || {};
+    const pickType = (label) => {
+      if (typeof INJURY_TYPES === "undefined") return null;
+      return INJURY_TYPES.find(x => x.label === label) || null;
+    };
+    if (opts.concussionLean && Math.random() < 0.60) {
+      // Hitter-side reciprocal injury → mostly concussion
+      const c = pickType("concussion"); if (c) t = c;
+    } else if (opts.eventType === "sack" && force >= 1.5) {
+      // Sack → shoulder (60%) or concussion (35%)
+      const r = Math.random();
+      if (r < 0.35) { const c = pickType("concussion"); if (c) t = c; }
+      else if (r < 0.95) { const s = pickType("shoulder"); if (s) t = s; }
+    } else if (ctx.type === "pass" && ctx.depth === "deep" && force >= 1.5) {
+      // Deep pass + safety hit → concussion / shoulder (high-speed collision)
+      const r = Math.random();
+      if (r < 0.50) { const c = pickType("concussion"); if (c) t = c; }
+      else if (r < 0.80) { const s = pickType("shoulder"); if (s) t = s; }
+    } else if (ctx.type === "pass" && ctx.depth === "short" && ctx.location === "middle" && force >= 1.4) {
+      // Crossing routes + LB middle hit → concussion / ribs (no rib var → chest reads as back)
+      if (Math.random() < 0.45) { const c = pickType("concussion"); if (c) t = c; }
+    } else if (ctx.type === "run" && ctx.direction === "outside" && force >= 1.3) {
+      // Outside run + low tackle → knee/ankle (cut block territory)
+      const r = Math.random();
+      if (r < 0.45) { const k = pickType("knee"); if (k) t = k; }
+      else if (r < 0.75) { const a = pickType("ankle sprain"); if (a) t = a; }
+    } else if (ctx.isGoalLine || (ctx.type === "run" && ctx.yards < 0)) {
+      // Pile-up at LOS / GL → shoulder, hand, sometimes knee from awkward fall
+      const r = Math.random();
+      if (r < 0.35) { const s = pickType("shoulder"); if (s) t = s; }
+      else if (r < 0.55) { const h = pickType("hand/wrist"); if (h) t = h; }
+      else if (r < 0.75) { const k = pickType("knee"); if (k) t = k; }
+    } else if (tackler && tackler.archetype === "HEADHUNTER" && force >= 1.7) {
+      if (Math.random() < 0.45) { const c = pickType("concussion"); if (c) t = c; }
     }
     let isCatastrophic = false;
     let careerEnding = false;
@@ -929,15 +955,96 @@ class GameSimulator {
       blk_kick: 0,
     };
   }
+  // Resolve play-context to a position-weight table + assist rate.
+  // This is the first-principles layer: WHO tackles depends on what
+  // happened. A deep pass is overwhelmingly a safety; a goal-line stuff
+  // is a DL/LB pile (high assist); an outside run is OLB/CB/S, not DL.
+  //
+  // ctx = { type, depth, location, direction, yards, isGoalLine }
+  //   type:      "run" | "pass" | "screen" | "scramble" | "tor" | "special"
+  //   depth:     "short" | "mid" | "deep"     (for passes — air yards bucket)
+  //   location:  "middle" | "outside"          (for passes — route side)
+  //   direction: "inside" | "outside"          (for runs)
+  //   yards:     final yards gained
+  //   isGoalLine: tackle happened inside the 5
+  _tackleWeightsForContext(ctx) {
+    if (!ctx || typeof ctx !== "object") return { weights: { LB: 0.35, S: 0.30, CB: 0.25, DL: 0.10 }, assistRate: 0.30 };
+    const { type, depth, location, direction, yards = 0, isGoalLine } = ctx;
+    // Goal-line override — gang tackle, DL/LB pile, very high assist
+    if (isGoalLine) return { weights: { DL: 0.45, LB: 0.40, S: 0.12, CB: 0.03 }, assistRate: 0.65 };
+    if (type === "run") {
+      if (yards < 0) {
+        // Tackle for loss — DL/LB at the LOS, very high assist (pile)
+        return { weights: { DL: 0.50, LB: 0.35, S: 0.10, CB: 0.05 }, assistRate: 0.55 };
+      }
+      if (yards >= 10) {
+        // Breakaway — DBs catch from depth, low assist (open-field solo)
+        return { weights: { S: 0.45, CB: 0.30, LB: 0.20, DL: 0.05 }, assistRate: 0.12 };
+      }
+      if (direction === "outside") {
+        // Outside zone / sweep — OLB/CB/S converge, DL barely involved
+        return { weights: { LB: 0.30, S: 0.30, CB: 0.30, DL: 0.10 }, assistRate: 0.25 };
+      }
+      // Inside run, short positive — DL/MLB territory, moderate assist
+      return { weights: { DL: 0.30, LB: 0.45, S: 0.15, CB: 0.10 }, assistRate: 0.40 };
+    }
+    if (type === "pass") {
+      if (depth === "deep") {
+        // 20+ air yards — safeties + deep CBs almost exclusively
+        return { weights: { S: 0.55, CB: 0.35, LB: 0.10, DL: 0.0 }, assistRate: 0.10 };
+      }
+      if (depth === "mid") {
+        // 10-19 air yards — CBs and safeties, occasional LB
+        return { weights: { CB: 0.40, S: 0.30, LB: 0.25, DL: 0.05 }, assistRate: 0.18 };
+      }
+      // Short pass (<10 air yards) — split by middle vs outside
+      if (location === "outside") {
+        // Slants/outs/flats outside — CBs/safeties handle
+        return { weights: { CB: 0.45, S: 0.25, LB: 0.20, DL: 0.10 }, assistRate: 0.25 };
+      }
+      // Short middle / generic — LB-dominated
+      return { weights: { LB: 0.50, S: 0.20, CB: 0.20, DL: 0.10 }, assistRate: 0.30 };
+    }
+    if (type === "screen") {
+      // Screen pass — LB / DL pursuit, often-pile, moderate assist
+      return { weights: { LB: 0.35, DL: 0.20, S: 0.20, CB: 0.25 }, assistRate: 0.40 };
+    }
+    if (type === "scramble") {
+      // QB rushes from pocket — LB pursuit, S converge in open field
+      return { weights: { LB: 0.35, S: 0.30, DL: 0.20, CB: 0.15 }, assistRate: 0.25 };
+    }
+    if (type === "tor") {
+      // Throw on the run — receiver caught in space, DBs handle
+      return { weights: { CB: 0.40, S: 0.30, LB: 0.20, DL: 0.10 }, assistRate: 0.20 };
+    }
+    if (type === "special") {
+      // Special teams (kick/punt return) — coverage units tackle
+      return { weights: { S: 0.30, CB: 0.30, LB: 0.30, DL: 0.10 }, assistRate: 0.30 };
+    }
+    // Generic fallback (shouldn't hit much once all sites pass context)
+    return { weights: { LB: 0.35, S: 0.30, CB: 0.25, DL: 0.10 }, assistRate: 0.30 };
+  }
   // Pick a defender (weighted by position) and credit a stat field
-  // Credit a tackle to the primary tackler AND, ~30% of the time, an
-  // assist to a different defender. NFL records solo + assists in the
-  // `tkl` stat — top NFL tacklers land 150-195/season, team totals run
-  // 700-800. With assist at 0.50 we landed team totals ~1167; dropped
-  // to 0.30 paired with MLB-biased lb2 weighting in _creditDefStat.
-  _creditTackle(weights) {
+  // Credit a tackle to the primary tackler AND, an assist to a different
+  // defender. Both the weights AND the assist rate now come from play
+  // context — a deep pass is overwhelmingly a safety, a goal-line stuff
+  // is a high-assist gang tackle, etc. See _tackleWeightsForContext.
+  //
+  // Backwards-compat: callers can still pass a raw weights object
+  // ({ LB, S, CB, DL }) — recognized by the presence of those keys.
+  _creditTackle(contextOrWeights) {
+    let weights, assistRate;
+    if (contextOrWeights && (contextOrWeights.LB != null || contextOrWeights.S != null
+        || contextOrWeights.CB != null || contextOrWeights.DL != null)) {
+      weights = contextOrWeights;
+      assistRate = 0.30;
+    } else {
+      const t = this._tackleWeightsForContext(contextOrWeights);
+      weights = t.weights;
+      assistRate = t.assistRate;
+    }
     const primary = this._creditDefStat("tkl", weights);
-    if (primary && Math.random() < 0.30) {
+    if (primary && Math.random() < assistRate) {
       // Assist roll: credit a different defender at the same weights.
       // Skip the primary so we don't double-bump the same player.
       this._creditDefStat("tkl", weights, primary);
@@ -959,10 +1066,12 @@ class GameSimulator {
       // NFL LB tackle distribution skews MLB-heavy. Bobby Wagner / Roquan
       // Smith / Fred Warner types average ~150-180 tackles; WLB/SLB get
       // 100-130 and 75-95. Bias lb2 (MLB slot) higher; lb3 (SLB) lower.
-      // Without this, our LBs split 1:1:1 and there's no alpha tackler.
-      addCandidate(defStarters.lb1, weights.LB * 1.00);        // WLB
-      addCandidate(defStarters.lb2, weights.LB * 1.25);        // MLB — alpha
-      addCandidate(defStarters.lb3, weights.LB * 0.75);        // SLB
+      // 1.15x (was 1.25x) after play-context weighting introduced
+      // high-LB-share contexts (short-middle pass 50%, inside run 45%)
+      // — too much bias drove top tackler past NFL elite ceiling.
+      addCandidate(defStarters.lb1, weights.LB * 0.95);        // WLB
+      addCandidate(defStarters.lb2, weights.LB * 1.15);        // MLB — alpha
+      addCandidate(defStarters.lb3, weights.LB * 0.85);        // SLB
     }
     if (weights.S) {
       addCandidate(defStarters.fs, weights.S);
@@ -3061,8 +3170,9 @@ class GameSimulator {
             off.team.pass_att++; off.team.pass_comp++; off.team.passYds += yards; off.team.totalYds += yards;
             this._lastBallCarrier = rcvr; this._lastBallType = "pass";
             const isTorTD = clamp(startYard + yards, 0, 100) >= 100;
-            const tacklerName = (yards > 0 && !isTorTD) ? this._creditTackle( { LB: 0.35, S: 0.30, CB: 0.25, DL: 0.10 }) : null;
-            this._bumpHitWear(rcvr, 0.25, tacklerName, {});
+            const torCtx = { type: "tor" };
+            const tacklerName = (yards > 0 && !isTorTD) ? this._creditTackle(torCtx) : null;
+            this._bumpHitWear(rcvr, 0.25, tacklerName, { playContext: torCtx });
             const torEndTag = isTorTD ? " — TOUCHDOWN!" : tacklerName ? `, tackled by ${tacklerName}` : "";
             this._pushVisual({
               kind: "complete", desc: `${this.offR.starters.qb} throws on the run to ${rcvr} for ${yards} yds${torEndTag}`,
@@ -3109,7 +3219,7 @@ class GameSimulator {
           this._lastBallCarrier = QB; this._lastBallType = "rush";
           const isEvadeTD = clamp(startYard + yards, 0, 100) >= 100;
           const tacklerName = (yards > -2 && !isEvadeTD)
-            ? this._creditTackle( { LB: 0.30, S: 0.30, CB: 0.25, DL: 0.15 })
+            ? this._creditTackle({ type: "scramble", yards })
             : null;
           const endTag = isEvadeTD
             ? " — TOUCHDOWN!"
@@ -3251,8 +3361,9 @@ class GameSimulator {
           off.team.pass_att++; off.team.pass_comp++; off.team.passYds += yards; off.team.totalYds += yards;
           this._lastBallCarrier = rcvr; this._lastBallType = "pass";
           const isScreenTD = clamp(startYard + yards, 0, 100) >= 100;
-          const tacklerName = (yards > 0 && !isScreenTD) ? this._creditTackle( { LB: 0.30, S: 0.25, CB: 0.25, DL: 0.20 }) : null;
-          this._bumpHitWear(rcvr, 0.35, tacklerName, {});  // screens take more contact
+          const screenCtx = { type: "screen" };
+          const tacklerName = (yards > 0 && !isScreenTD) ? this._creditTackle(screenCtx) : null;
+          this._bumpHitWear(rcvr, 0.35, tacklerName, { playContext: screenCtx });  // screens take more contact
           const screenEndTag = isScreenTD ? " — TOUCHDOWN!" : tacklerName ? `, tackled by ${tacklerName}` : "";
           this._pushVisual({
             kind: "complete", desc: `Screen to ${rcvr} for ${yards} yds${screenEndTag}`,
@@ -3658,10 +3769,14 @@ class GameSimulator {
         }
         off.team.pass_att++; off.team.pass_comp++; off.team.passYds += yards; off.team.totalYds += yards;
         this._lastBallCarrier = rcvr; this._lastBallType = "pass";
-        // Tackle credit on the catch — DBs / LBs make most tackles in the open field
+        // Tackle credit on the catch — play-context driven. Air-yards
+        // bucket determines whether it's short/mid/deep; the picker
+        // weights shift heavily (deep pass → almost always a safety).
         const isTD = clamp(startYard + yards, 0, 100) >= 100;
-        const tacklerName = (yards > 0 && !isTD) ? this._creditTackle( { LB: 0.35, S: 0.30, CB: 0.25, DL: 0.10 }) : null;
-        this._bumpHitWear(rcvr, 0.25, tacklerName, {});
+        const depthBucket = airYds >= 20 ? "deep" : airYds >= 10 ? "mid" : "short";
+        const passCtx = { type: "pass", depth: depthBucket };
+        const tacklerName = (yards > 0 && !isTD) ? this._creditTackle(passCtx) : null;
+        this._bumpHitWear(rcvr, 0.25, tacklerName, { playContext: passCtx });
         const flavorTag = wrJuke ? " (CATCH AND JUKE!)"
                         : isLeapingCatch ? " (HIGH POINTED!)" : "";
         const endTag = isTD ? " — TOUCHDOWN!"
@@ -4085,16 +4200,27 @@ class GameSimulator {
                           runType === "stretch" ? "stretch" :
                           runType === "pitch"   ? "pitch"   : "";
     const isRushTD = clamp(startYard + yards, 0, 100) >= 100;
-    // Tackle credit on runs — LBs and DLs make most tackles at the LOS;
-    // safeties get more credit on big breakaways. No tackler on a TD run.
-    const tacklerName = isRushTD ? null
-      : (yards > 0
-        ? (yards >= 10 ? this._creditTackle( { S: 0.40, CB: 0.20, LB: 0.30, DL: 0.10 })
-                       : this._creditTackle( { LB: 0.45, DL: 0.30, S: 0.15, CB: 0.10 }))
-        : this._creditTackle( { DL: 0.50, LB: 0.35, S: 0.10, CB: 0.05 }));
+    // Tackle credit on runs — first-principles play-context model:
+    //   • breakaway (≥10 yd) → DBs catching from depth, low assist
+    //   • short-positive inside → DL/MLB territory, high assist (pile)
+    //   • outside zone / sweep → OLB/CB/S, less DL
+    //   • backfield stuff (≤0 yd) → DL/LB pile, very high assist
+    //   • goal-line short positive → DL/LB pile
+    // _creditTackle reads the context and picks weights + assist rate.
+    const isOutside = isSpeedOption || /* sweep cue */ false;  // could expand
+    const isGoalLine = this.yardLine >= 95 && yards < 4;
+    const tacklerName = isRushTD ? null : this._creditTackle({
+      type: "run",
+      direction: isOutside ? "outside" : "inside",
+      yards,
+      isGoalLine,
+    });
     // Force-scaled wear: tackler's STR/SPD/archetype × carrier vulnerability.
     // Negative-yard carries (drilled in the backfield) add extra hit force.
-    this._bumpHitWear(carrier, 0.5, tacklerName, { negativeYards: yards < 0 ? yards : 0 });
+    this._bumpHitWear(carrier, 0.5, tacklerName, {
+      negativeYards: yards < 0 ? yards : 0,
+      playContext: { type: "run", direction: isOutside ? "outside" : "inside", isGoalLine },
+    });
     const rushEndTag = isRushTD ? " — TOUCHDOWN!"
                      : tacklerName ? `, tackled by ${tacklerName}` : "";
     const desc = isSpeedOption
