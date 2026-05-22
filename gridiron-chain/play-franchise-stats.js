@@ -4328,8 +4328,93 @@ function _franchiseGameToBSPNData(g, week) {
     scoringSummary: _bspnBuildScoringSummary(g.scoring, awayT, homeT),
     leaderGroups: leaders.leaderGroups,
     topPerformers: leaders.topPerformers,
+    injuryRecap: _bspnBuildInjuryRecap(g, week, home, away),
     gameNotes: _bspnBuildGameNotes(g, week, awayT, homeT, home, away, homeWon, leaders),
   };
+}
+
+// Scan both rosters for injuries logged in THIS game (season+week match)
+// and return a rich recap. Pulls cause / mechanism / tackler / body part
+// so the trainer narrative is complete.
+function _bspnBuildInjuryRecap(g, week, homeTeam, awayTeam) {
+  const seasonNum = franchise.season;
+  const scan = (teamId, side) => {
+    const roster = franchise.rosters?.[teamId] || [];
+    const events = [];
+    for (const p of roster) {
+      for (const h of (p.injuryHistory || [])) {
+        if (h.season !== seasonNum) continue;
+        if (h.week !== Number(week)) continue;
+        events.push({
+          name: p.name, pos: p.position, side, teamAbbr: side === "home" ? _bspnLiveAbbr(homeTeam) : _bspnLiveAbbr(awayTeam),
+          label: h.label, cause: h.cause, mechanism: h.mechanism,
+          bodyPart: h.bodyPart, tackler: h.tackler,
+          weeks: h.weeks ?? h.duration,
+          catastrophic: !!h.catastrophic, careerEnding: !!h.careerEnding,
+        });
+      }
+    }
+    return events;
+  };
+  const all = [...scan(g.awayId, "away"), ...scan(g.homeId, "home")];
+  if (!all.length) return null;
+  // Sort: career-ending → catastrophic → standard
+  all.sort((a, b) => {
+    if (a.careerEnding !== b.careerEnding) return a.careerEnding ? -1 : 1;
+    if (a.catastrophic !== b.catastrophic) return a.catastrophic ? -1 : 1;
+    return (b.weeks || 0) - (a.weeks || 0);
+  });
+  return all;
+}
+
+function _bspnRenderInjuryRecap(events) {
+  if (!events?.length) return "";
+  const PART_NAMES = {
+    head: "Head", neck: "Neck", chest: "Chest", back: "Lower back", groin: "Groin",
+    shoulderL: "L shoulder", shoulderR: "R shoulder",
+    hipL: "L hip", hipR: "R hip",
+    hamstringL: "L hamstring", hamstringR: "R hamstring",
+    kneeL: "L knee", kneeR: "R knee",
+    calfL: "L calf", calfR: "R calf",
+    achillesL: "L achilles", achillesR: "R achilles",
+    ankleL: "L ankle", ankleR: "R ankle",
+    handL: "L hand", handR: "R hand",
+  };
+  const mechName = (m) => m === "head_on" ? "head-on"
+                       : m === "high"    ? "high hit"
+                       : m === "low"     ? "low / cut"
+                       : m === "side"    ? "side"
+                       : m === "behind"  ? "blindside" : m;
+  const causeChip = (c) => {
+    if (c === "non_contact") return `<span style="background:rgba(80,140,200,.18);color:#90c4ec;padding:.05rem .3rem;border-radius:2px;font-size:.55rem;letter-spacing:.4px;font-weight:700">N-C</span>`;
+    if (c === "sack")        return `<span style="background:rgba(230,140,80,.18);color:#f0a96b;padding:.05rem .3rem;border-radius:2px;font-size:.55rem;letter-spacing:.4px;font-weight:700">SACK</span>`;
+    if (c === "big_hit")     return `<span style="background:rgba(230,80,80,.18);color:#ec9090;padding:.05rem .3rem;border-radius:2px;font-size:.55rem;letter-spacing:.4px;font-weight:700">HIT</span>`;
+    return `<span style="background:rgba(140,140,140,.12);color:#aaa;padding:.05rem .3rem;border-radius:2px;font-size:.55rem;letter-spacing:.4px;font-weight:700">WK</span>`;
+  };
+  const rows = events.map(e => {
+    const icon = e.careerEnding ? "💔" : e.catastrophic ? "🚑" : "🩹";
+    const part = e.bodyPart ? `<span style="color:var(--gray)"> · ${PART_NAMES[e.bodyPart] || e.bodyPart}</span>` : "";
+    const mech = e.mechanism ? `<span style="color:rgba(255,255,255,.4);font-size:.58rem"> · ${mechName(e.mechanism)}</span>` : "";
+    const tackler = e.tackler ? `<div style="font-size:.58rem;color:var(--gray);margin-top:.1rem">by ${e.tackler}</div>` : "";
+    const sev = e.careerEnding ? `<span style="color:#e6373a;font-weight:800;font-size:.55rem">CAREER-END</span>`
+              : e.catastrophic ? `<span style="color:#ed6a3a;font-weight:800;font-size:.55rem">CATA</span>` : "";
+    return `<div style="padding:.35rem .5rem;border-bottom:1px solid rgba(255,255,255,.07);font-size:.68rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:.4rem">
+        <span style="font-weight:600">${icon} ${e.teamAbbr || "—"} · ${e.pos} ${_bspnEsc(e.name)}</span>
+        ${causeChip(e.cause)}
+      </div>
+      <div style="margin-top:.15rem;font-size:.62rem">
+        <span>${_bspnEsc(e.label)}${part}${mech}</span>
+        <span style="color:var(--gray);float:right">${e.weeks||"?"}w</span>
+      </div>
+      ${tackler}
+      ${sev ? `<div style="margin-top:.1rem">${sev}</div>` : ""}
+    </div>`;
+  }).join("");
+  return `<section class="bspn-panel">
+    <div class="bspn-panel-title">🩹 INJURY REPORT</div>
+    <div>${rows}</div>
+  </section>`;
 }
 
 // ── Renderers ──────────────────────────────────────────────────────────────
@@ -4609,7 +4694,7 @@ function _bspnRenderFooter() {
 function _bspnRenderPage(data) {
   if (!data) return "";
   const { summary, comparisonStats, awayBoxScoreGroups, homeBoxScoreGroups,
-    scoringSummary, leaderGroups, topPerformers, gameNotes } = data;
+    scoringSummary, leaderGroups, topPerformers, injuryRecap, gameNotes } = data;
   const teamsById = {
     [summary.awayTeam.id]: summary.awayTeam,
     [summary.homeTeam.id]: summary.homeTeam,
@@ -4633,6 +4718,7 @@ function _bspnRenderPage(data) {
           ${(leaderGroups || []).map(g => _bspnRenderLeadersGroup(g, teamsById)).join("")}
           ${topPerformers ? _bspnRenderLeadersGroup(topPerformers, teamsById) : ""}
           ${_bspnRenderScoring(scoringSummary, teamsById)}
+          ${_bspnRenderInjuryRecap(injuryRecap)}
           ${_bspnRenderNotes(gameNotes)}
         </aside>
       </div>
