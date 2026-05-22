@@ -661,6 +661,7 @@ class GameSimulator {
         }
         franchise._careerEndingLog[sk].push({
           name: player.name, pos: player.position, age: player.age,
+          ovr: player.overall || 0, allPros: player.allPros || 0, proBowls: player.proBowls || 0,
           label: t.label, cause: opts.eventType === "sack" ? "sack" : "big_hit",
           tackler: tackler?.name || null,
         });

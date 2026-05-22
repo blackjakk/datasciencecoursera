@@ -2073,6 +2073,7 @@ function _rollGameInjuries(teamId) {
       }
       franchise._careerEndingLog[sk].push({
         name: p.name, pos: p.position, age: p.age,
+        ovr: p.overall || 0, allPros: p.allPros || 0, proBowls: p.proBowls || 0,
         label: t.label, cause: "weekly", week: franchise.week,
       });
     }
