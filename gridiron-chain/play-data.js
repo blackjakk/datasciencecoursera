@@ -138,7 +138,13 @@ const PLAYBOOKS = {
     // NFL target shares (2020-2024): WR1 25-28%, WR2 18-22%, TE 18-22%,
     // RB 12-18%. Engine WR1 was 40% → top WR getting ~2x NFL season yards.
     // Lowered + redistributed to RB (NFL pass-catching backs get 12-18% TS).
-    targetMix: { wr1: 0.30, wr2: 0.24, te: 0.28, rb: 0.18 },
+    // Top NFL WR1 season ~1700-1900; we landed at 1287 after the WR1
+    // cut, then 1194 with 34%. NFL ALPHA WR (Tyreek/Jefferson tier)
+    // gets ~28-32% of team TARGETS, but a much higher share of YARDS
+    // because they catch deep / break tackles. WR1 38% target share
+    // overstates real NFL but matches the YARDS distribution after
+    // catch-rate + air-yards math.
+    targetMix: { wr1: 0.38, wr2: 0.24, te: 0.22, rb: 0.16 },
     // 2024 NFL personnel usage: 11/TRIPS dominates (~62%), 12/HEAVY ~18%,
     // BASE basically dead. Bumped TRIPS / cut BASE.
     personnelMix: { TRIPS: 0.60, HEAVY: 0.16, SPREAD: 0.10, BASE: 0.07, I_FORM: 0.04, EMPTY: 0.03 },
@@ -171,7 +177,7 @@ const PLAYBOOKS = {
   GROUND_AND_POUND: {
     id: "GROUND_AND_POUND", name: "Ground & Pound", badge: "G&P",
     passProb: { long: 0.55, mid: 0.34, short: 0.20 },
-    targetMix: { wr1: 0.28, wr2: 0.20, te: 0.34, rb: 0.18 },
+    targetMix: { wr1: 0.32, wr2: 0.20, te: 0.30, rb: 0.18 },
     // G&P is the only scheme that still uses BASE/I_FORM meaningfully
     // (run-first identity). Still bumps TRIPS over BASE for spread looks.
     personnelMix: { HEAVY: 0.30, I_FORM: 0.25, TRIPS: 0.25, BASE: 0.15, SPREAD: 0.05 },
@@ -188,7 +194,7 @@ const PLAYBOOKS = {
     passProb: { long: 0.70, mid: 0.47, short: 0.25 },
     // Dual-threat QB: WR1 still featured but RB share bumped (Lamar/CMC
     // duos see ~20% RB target share).
-    targetMix: { wr1: 0.30, wr2: 0.24, te: 0.24, rb: 0.22 },
+    targetMix: { wr1: 0.33, wr2: 0.24, te: 0.21, rb: 0.22 },
     personnelMix: { TRIPS: 0.55, SPREAD: 0.18, HEAVY: 0.14, BASE: 0.06, I_FORM: 0.05, EMPTY: 0.02 },
     tierBias: { QB: "elite", WR: "good", RB: "good" },
     airYdsMean: 7.5, airYdsSd: 6.5,
@@ -200,7 +206,7 @@ const PLAYBOOKS = {
   OPTION: {
     id: "OPTION", name: "Read Option", badge: "OPT",
     passProb: { long: 0.60, mid: 0.40, short: 0.25 },
-    targetMix: { wr1: 0.30, wr2: 0.22, te: 0.28, rb: 0.20 },
+    targetMix: { wr1: 0.32, wr2: 0.22, te: 0.26, rb: 0.20 },
     personnelMix: { TRIPS: 0.32, HEAVY: 0.25, I_FORM: 0.20, BASE: 0.15, SPREAD: 0.08 },
     tierBias: { QB: "elite", RB: "good" },
     airYdsMean: 7.5, airYdsSd: 6.5,
