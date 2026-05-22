@@ -279,6 +279,10 @@ class GameSimulator {
     this._playerByName = new Map();
     for (const p of hRoster) this._playerByName.set(p.name, p);
     for (const p of aRoster) this._playerByName.set(p.name, p);
+    // Reset per-game ejection / UR-count flags — these persist on the
+    // player object between games, so we must clear them at start.
+    for (const p of hRoster) { p._ejectedThisGame = false; p._urThisGame = 0; p._benchedRestOfGame = false; }
+    for (const p of aRoster) { p._ejectedThisGame = false; p._urThisGame = 0; p._benchedRestOfGame = false; }
     this.homePlaybook = getPlaybook(home); this.awayPlaybook = getPlaybook(away);
     this.homeDefPlaybook = getDefPlaybook(home); this.awayDefPlaybook = getDefPlaybook(away);
     this.homeR = buildRatings(hRoster); this.awayR = buildRatings(aRoster);
@@ -618,6 +622,103 @@ class GameSimulator {
           this._triggerBigHitInjury(tackler, force, { eventType: "hitter", concussionLean: true }, carrier);
         }
       }
+      // ── UR FLAG (Unnecessary Roughness) ───────────────────────────
+      // Helmet-to-helmet / hit-on-defenseless-receiver penalties. Real
+      // NFL: HEADHUNTER tackler + force ≥ 1.5 + defenseless receiver →
+      // flag almost every time. Ejection rare — only for egregious or
+      // repeat offenders. _maybeFlagURForHit handles both rolls.
+      if (tackler && force >= 1.4 && typeof this._maybeFlagURForHit === "function") {
+        this._maybeFlagURForHit(carrier, tackler, opts, force);
+      }
+    }
+  }
+  // Unnecessary Roughness penalty + (rarer) ejection. Fires on big hits
+  // where the tackler led with the helmet on a defenseless receiver or
+  // delivered a clear high hit. NFL convention:
+  //   • UR flag: 15 yds, automatic first down — fires often on high hits
+  //   • Ejection: rare (~10% of UR flags), higher for HEADHUNTER + 2nd
+  //     UR this game + force ≥ 1.7. Most NFL ejections are for fighting,
+  //     not tackles, so we keep this rate low.
+  _maybeFlagURForHit(carrier, tackler, opts, force) {
+    if (!tackler) return;
+    const arch = tackler.archetype || "";
+    const ctx = opts.playContext || {};
+    const mech = this._pickHitMechanism(tackler, opts);
+    // Defenseless context — deep ball / crossing route / receiver still in
+    // catching motion. These are the protected-player categories.
+    const isDefenseless = ctx.type === "pass" && (
+      ctx.depth === "deep" ||
+      (ctx.depth === "short" && ctx.location === "middle") ||
+      ctx.depth === "mid"
+    );
+    // Flag probability
+    let chance = 0;
+    if (mech === "high")                                chance = 0.55;
+    else if (mech === "head_on" && arch === "HEADHUNTER" && force >= 1.6) chance = 0.40;
+    else if (mech === "head_on" && isDefenseless && force >= 1.5) chance = 0.22;
+    else if (arch === "HEADHUNTER" && force >= 1.7)     chance = 0.15;
+    if (chance === 0) return;
+    if (isDefenseless) chance *= 1.35;
+    if (force >= 1.9) chance *= 1.15;
+    if (Math.random() >= chance) return;
+    // ── Apply UR penalty ──────────────────────────────────────────
+    const defKey = this.poss === "home" ? "away" : "home";
+    const meta = _PENALTY_RATES?.["Unnecessary Roughness"];
+    const pen = {
+      type: "Unnecessary Roughness",
+      yds: meta?.yds || 15,
+      autoFirst: !!(meta?.autoFirst),
+      on: "def",
+      _meta: {
+        flaggedKey: defKey,
+        offender: tackler.name,
+        preDown: this.down,
+        preYtg: this.ytg,
+        preYardLine: this.yardLine,
+      },
+    };
+    if (typeof this._applyPenaltyEffects === "function") {
+      this._applyPenaltyEffects(pen, { hitTrigger: true, mechanism: mech, force });
+    }
+    // Track per-game UR count for ejection escalation
+    tackler._urThisGame = (tackler._urThisGame || 0) + 1;
+    // ── Ejection roll ──────────────────────────────────────────────
+    // Rare in NFL (~1-3 per season). Real triggers:
+    //   • Egregious helmet-leading hit (mech "high" + force ≥ 1.7)
+    //   • Repeat UR in the same game (2nd or 3rd flag)
+    //   • HEADHUNTER on defenseless + high force
+    let ejectChance = 0;
+    if (mech === "high" && force >= 1.7)              ejectChance += 0.18;
+    if (arch === "HEADHUNTER" && isDefenseless && force >= 1.7) ejectChance += 0.10;
+    if (tackler._urThisGame >= 2)                     ejectChance += 0.35;  // second flag in game
+    if (tackler._urThisGame >= 3)                     ejectChance += 0.50;  // egregious pattern
+    if (ejectChance > 0 && Math.random() < ejectChance) {
+      tackler._ejectedThisGame = true;
+      tackler.ejections = (tackler.ejections || 0) + 1;
+      // Bench him — fake "injury" with weeksRemaining=0 so engine subs
+      // him out for this game. Real recovery is fine because there's no
+      // injury label, but the engine won't re-pick him.
+      tackler._benchedRestOfGame = true;
+      // Track for franchise news / discipline if available
+      if (typeof franchise !== "undefined") {
+        if (!franchise._ejectionLog) franchise._ejectionLog = {};
+        const sk = String(franchise.season);
+        if (!franchise._ejectionLog[sk]) franchise._ejectionLog[sk] = [];
+        franchise._ejectionLog[sk].push({
+          name: tackler.name, pos: tackler.position, arch,
+          week: franchise.week, mechanism: mech, force,
+          victim: carrier?.name || null,
+        });
+      }
+      // Push a visual so the live log shows the ejection
+      this._pushVisual({
+        kind: "ejection",
+        desc: `🚫 EJECTION — ${tackler.name} disqualified for the hit on ${carrier?.name || "the receiver"}`,
+        offender: tackler.name,
+        victim: carrier?.name || null,
+        mechanism: mech,
+        force,
+      });
     }
   }
   // Big-hit instant injury. Uses the franchise's injury catalogue (typed,
@@ -1171,6 +1272,9 @@ class GameSimulator {
     const addCandidate = (name, w) => {
       if (!name) return;
       if (excludeName && name === excludeName) return;
+      // Skip ejected players — they're out of the game
+      const ply = this._playerByName?.get?.(name);
+      if (ply && ply._ejectedThisGame) return;
       pool.push({ name, w });
     };
     if (weights.LB) {
