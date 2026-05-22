@@ -597,6 +597,30 @@ class GameSimulator {
       const tackleWear = wear * 0.25 * tStaminaMul * tIronMul;
       tackler._wear = Math.min(100, (tackler._wear || 0) + tackleWear);
     }
+    // ── BIG-HIT BROADCAST VISUAL ────────────────────────────────────
+    // Surface high-force hits in the play log so the user SEES what
+    // the biomechanics engine just did. Madden's play log is flat;
+    // ours narrates the hit angle + force + likely body-part impact.
+    if (tackler && force >= 1.45 && typeof this._pickHitMechanism === "function") {
+      const mech = this._pickHitMechanism(tackler, opts);
+      const mechLabel = mech === "head_on" ? "head-on collision"
+                      : mech === "high"    ? "high hit"
+                      : mech === "low"     ? "cut block"
+                      : mech === "side"    ? "side hit"
+                      : mech === "behind"  ? "blindside"
+                      :                       mech;
+      const archChip = tackler.archetype ? ` ${tackler.archetype.replace(/_/g," ")}` : "";
+      const intensity = force >= 1.9 ? "💥 MASSIVE" : force >= 1.7 ? "💢 HEAVY" : "💥";
+      this._pushVisual({
+        kind: "big_hit",
+        desc: `${intensity} HIT — ${tackler.name}${archChip} drills ${carrier.name} · ${mechLabel} · force ${force.toFixed(2)}`,
+        tackler: tackler.name,
+        carrier: carrier.name,
+        mechanism: mech,
+        force,
+        eventType: opts.eventType,
+      });
+    }
     // BIG-HIT INJURY ROLL. Threshold lowered to 1.1 (was 1.3) and chance
     // bumped 2x — first audit had only 11 big-hits in 10 seasons league-
     // wide. NFL has ~5-10 visible "cart-off" moments per season, so target

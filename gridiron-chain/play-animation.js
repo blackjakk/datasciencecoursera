@@ -5343,6 +5343,39 @@ function highlightPlayerNamesInPlay(p) {
 function playEntry(p) {
   const isMarker = ["halftime","ot","quarter","kickoff","two_min_warning","timeout","drive_summary"].includes(p.kind);
   if (isMarker) return `<div class="play-entry ${p.kind}">${escapeHtml(p.desc)}</div>`;
+  // ── BIOMECHANICS-AWARE ENTRIES (Wave 1 — Live Game Viewer) ────────
+  // Big hits, ejections, and UR-flag-driven penalties get an inline
+  // chip strip showing what the engine knows about the contact: hit
+  // mechanism, force, tackler archetype, body-part impact.
+  if (p.kind === "big_hit") {
+    const chips = [];
+    if (p.mechanism) {
+      const mechColor = p.mechanism === "high" ? "#e6373a"
+                     : p.mechanism === "head_on" ? "#ed6a3a"
+                     : p.mechanism === "low" ? "#f0a93a"
+                     : p.mechanism === "behind" ? "#d4dc5a"
+                     : "#90c4ec";
+      const mechLbl = p.mechanism === "head_on" ? "HEAD-ON"
+                    : p.mechanism === "high"    ? "HIGH"
+                    : p.mechanism === "low"     ? "LOW"
+                    : p.mechanism === "side"    ? "SIDE"
+                    : p.mechanism === "behind"  ? "BLINDSIDE"
+                    : p.mechanism.toUpperCase();
+      chips.push(`<span style="background:${mechColor};color:#000;font-size:.55rem;letter-spacing:.6px;font-weight:800;padding:.05rem .3rem;border-radius:2px;margin:0 .15rem">${mechLbl}</span>`);
+    }
+    if (p.force != null) {
+      const fColor = p.force >= 1.9 ? "#e6373a" : p.force >= 1.7 ? "#ed6a3a" : "#f0a93a";
+      chips.push(`<span style="color:${fColor};font-size:.6rem;font-weight:700;letter-spacing:.4px;margin:0 .15rem">⚡ ${p.force.toFixed(2)}</span>`);
+    }
+    if (p.eventType === "sack") chips.push(`<span style="color:#90c4ec;font-size:.55rem;letter-spacing:.6px;font-weight:700;padding:.05rem .3rem;border:1px solid #90c4ec;border-radius:2px;margin:0 .15rem">SACK</span>`);
+    return `<div class="play-entry big-hit" style="background:rgba(230,55,58,.08);border-left:3px solid #e6373a;padding:.35rem .55rem;margin:.2rem 0;border-radius:2px">
+      <span style="font-size:.7rem;font-weight:700">${highlightPlayerNamesInPlay(p)}</span>
+      <div style="margin-top:.2rem">${chips.join("")}</div>
+    </div>`;
+  }
+  if (p.kind === "ejection") {
+    return `<div class="play-entry ejection" style="background:rgba(230,55,58,.18);border:2px solid #e6373a;padding:.45rem .6rem;margin:.3rem 0;border-radius:4px;font-weight:800;color:#ec9090;letter-spacing:.5px">${highlightPlayerNamesInPlay(p)}</div>`;
+  }
   // Field-position phrase: own 30 / opp 35 / midfield. startYard is from
   // the offense's perspective (0 = own goal, 100 = opp goal).
   const fp = p.startYard;
