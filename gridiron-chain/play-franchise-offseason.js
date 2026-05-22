@@ -20675,7 +20675,12 @@ function _aiSignFreeAgents(opts = {}) {
   const signedIds = new Set();
   let totalSigned = 0;
   for (const fa of pool) {
-    // For each FA, find the team that needs them most.
+    const faEff = faRanking(fa);
+    // For each FA, find the team that needs them most. Three sign cases.
+    // Comparison uses EFFECTIVE OVR (current + youth-weighted upside) so
+    // a 22yo OVR-75 with potential 90 is rated higher than a 31yo OVR-78
+    // with potential 78. Teams chase upside the way NFL does — Mahomes
+    // signed at OVR 75 over Alex Smith at 88.
     const candidates = [];
     for (const t of TEAMS) {
       if (userId != null && t.id === userId) continue;
@@ -20684,22 +20689,31 @@ function _aiSignFreeAgents(opts = {}) {
       const posPlayers = roster.filter(p => p.position === fa.position);
       const floor = ROSTER_FLOORS[fa.position] || 0;
       const needsDepth = posPlayers.length < floor;
-      let isUpgrade = false;
-      if (!needsDepth && posPlayers.length > 0) {
-        const weakestAtPos = Math.min(...posPlayers.map(p => p.overall || 60));
-        isUpgrade = (fa.overall || 60) >= weakestAtPos + 2;
+      let starterUpgrade = false, depthUpgrade = false;
+      if (posPlayers.length > 0) {
+        const bestEff = Math.max(...posPlayers.map(p => faRanking(p)));
+        const weakestEff = Math.min(...posPlayers.map(p => faRanking(p)));
+        // Effective-OVR already encodes age preference. +2 threshold is
+        // meaningful when applied to effOvr (vs raw OVR which needed +3).
+        starterUpgrade = faEff >= bestEff + 2;
+        depthUpgrade   = !starterUpgrade && faEff >= weakestEff + 2;
       }
-      if (needsDepth || isUpgrade) {
+      if (needsDepth || starterUpgrade || depthUpgrade) {
         const topAtPos = posPlayers.length
           ? Math.max(...posPlayers.map(p => p.overall || 60))
           : 0;
-        candidates.push({ team: t, topAtPos, needsDepth });
+        candidates.push({ team: t, topAtPos, needsDepth, starterUpgrade });
       }
     }
     if (!candidates.length) continue;
-    // Team with the most need wins (depth hole > weakest starter).
+    // Priority ladder:
+    //   1. Teams with a depth hole (no body at the position)
+    //   2. Teams where the FA is a STARTER upgrade (most impact)
+    //   3. Among ties, the team with the weakest existing starter
     candidates.sort((a, b) =>
-      (b.needsDepth - a.needsDepth) || (a.topAtPos - b.topAtPos)
+      (b.needsDepth - a.needsDepth)
+      || (b.starterUpgrade - a.starterUpgrade)
+      || (a.topAtPos - b.topAtPos)
     );
     const team = candidates[0].team;
     // Sign — clear FA tags, push to roster.
