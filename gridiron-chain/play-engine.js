@@ -2167,7 +2167,22 @@ class GameSimulator {
     {
       const side = this.poss;
       const starters = this.offR.starters;
-      for (const role of ["qb", "rb", "wr1", "wr2", "te"]) {
+      // Personnel-aware snap counting — skill players not in the current
+      // personnel group aren't on the field, so they don't accumulate
+      // snaps / fatigue / wear. SPREAD has no TE, EMPTY has no RB, etc.
+      // This is the "smart share" routing: a TE plan at 60% smart-share
+      // naturally lands at 60% of TE-personnel snaps (not 60% of all).
+      const personnel = (typeof PERSONNEL !== "undefined")
+        ? (PERSONNEL[this._currentPersonnel] || PERSONNEL.BASE)
+        : null;
+      const hasRb = !personnel || personnel.rb > 0;
+      const hasTe = !personnel || personnel.te > 0;
+      // QB/WR1/WR2 always present. RB only if personnel has RB; TE only
+      // if personnel has TE.
+      const rolesOnField = ["qb", "wr1", "wr2"];
+      if (hasRb) rolesOnField.push("rb");
+      if (hasTe) rolesOnField.push("te");
+      for (const role of rolesOnField) {
         const name = starters[role];
         if (!name) continue;
         const pl = this.stats[side].players[name];
