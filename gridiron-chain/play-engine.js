@@ -1993,7 +1993,7 @@ class GameSimulator {
       const dcBallHawkMul  = _dcTrait  === "Ball Hawk"    ? 1.025 : 1.0;
       const hcGameMgrIntMul= _hcSpec   === "Game Manager" ? 0.88  : 1.0;
       const boxStackIntMod = this._boxStackIntMod || 0;
-      const intPct = clamp((0.007 - adv * 0.008 + defIntMod + pressure * 0.006 + ballHawkBonus + qbIntMod + qbIntFromOvr + qbAggIntMod + boxStackIntMod) * dcBallHawkMul * hcGameMgrIntMul, 0.002, 0.030);
+      const intPct = clamp((0.010 - adv * 0.008 + defIntMod + pressure * 0.006 + ballHawkBonus + qbIntMod + qbIntFromOvr + qbAggIntMod + boxStackIntMod) * dcBallHawkMul * hcGameMgrIntMul, 0.002, 0.030);
       if (Math.random() < intPct) {
         const targetDepth = clamp(normal(11, 7), 2, 35);
         // Sample the defender who'd be in position to pick. CAT-based drop
@@ -2115,7 +2115,7 @@ class GameSimulator {
       const momSackMul = 1 + ((this._momentum?.[this.poss === "home" ? "away" : "home"] || 0)
                             - (this._momentum?.[this.poss] || 0)) * 0.012;
       const boxStackSackMul = this._boxStackSackMul || 1;
-      const sackPct = clamp((0.09 + pressure * 0.09 - adv * 0.02 + archSackBonus) * sackPb * qbAwrSackMul * defPbCurrent.sackMul * mlbAggMul * fatigueSackMul * momSackMul * boxStackSackMul, 0.02, 0.18);
+      const sackPct = clamp((0.075 + pressure * 0.09 - adv * 0.02 + archSackBonus) * sackPb * qbAwrSackMul * defPbCurrent.sackMul * mlbAggMul * fatigueSackMul * momSackMul * boxStackSackMul, 0.02, 0.16);
       if (Math.random() < sackPct) {
         // THROW ON THE RUN — mobile QBs with high AGI sometimes escape pressure
         // and throw on the move instead of taking the sack. Lower comp / air
@@ -2775,8 +2775,9 @@ class GameSimulator {
     const wxFumMod = wxFum.label === "RAIN" ? 0.006
                    : wxFum.label === "SNOW" ? 0.010
                    : 0;
-    // 2.0% -> 2.4% to bring fumbles/g from 1.06 up to NFL 1.3.
-    const fumblePct = clamp((0.024 + gripMod + Math.max(0, pressure) * 0.013 + wxFumMod) * optionMul * archFumbleMul, 0.008, 0.10);
+    // Bumped 0.024 -> 0.030 to compensate for better OL/RB grip after the
+    // STR/AWR cap raises (gripMod went more negative — dropped fumbles).
+    const fumblePct = clamp((0.030 + gripMod + Math.max(0, pressure) * 0.013 + wxFumMod) * optionMul * archFumbleMul, 0.010, 0.10);
     if (Math.random() < fumblePct) {
       // Scrum-based recovery — the ball bounces in a pile of converging players.
       // Defense has a slight edge in open field (1-3 dive attempts each muff the ball
