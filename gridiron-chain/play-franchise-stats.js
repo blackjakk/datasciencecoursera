@@ -3289,24 +3289,57 @@ function frnDepthSetSnapShare(slotKey) {
   const cur = sd.starterPct ?? 70;
   const floor = sd.snapFloor ?? dc[slotKey].snapFloor ?? 35;
   const ceil  = sd.snapCeil  ?? dc[slotKey].snapCeil  ?? 98;
+  const curPlan = sd.contract;  // internal field kept for save-compat
+  const curPlanStr = curPlan ? `${curPlan.mode} ${curPlan.target}` : "";
   const input = prompt(
-    `Set STARTER snap share for ${slotKey} (${floor}-${ceil}%).\n` +
-    `Backup will play the remaining %.\n\n` +
-    `Current: ${cur}%${sd.manual ? " (manual)" : " (auto)"}.\n` +
-    `Type a number, or cancel to keep current.`,
-    String(cur)
+    `Set WORKLOAD PLAN for ${slotKey}.\n\n` +
+    `FORMATS:\n` +
+    `  • Number (${floor}-${ceil}):  snap share %\n` +
+    `  • c<n> or count <n>:           hard snap cap (e.g. "c45")\n` +
+    `  • t<n> or touches <n>:         target touches (e.g. "t18")\n` +
+    `  • clear:                       reset to auto\n\n` +
+    `Current: ${cur}% starter${curPlanStr ? ` · plan: ${curPlanStr}` : ""}` +
+    `${sd.manual ? " (manual)" : " (auto)"}.`,
+    curPlanStr || String(cur)
   );
   if (input === null) return;
-  const trimmed = String(input).trim();
-  if (trimmed === "") return;  // empty string = cancel (don't write 0%)
-  const parsed = Math.round(Number(trimmed));
-  if (!Number.isFinite(parsed)) {
-    alert("Snap share must be a number.");
+  const trimmed = String(input).trim().toLowerCase();
+  if (trimmed === "") return;
+  if (trimmed === "clear" || trimmed === "auto" || trimmed === "reset") {
+    delete franchise.snapShares[myId][slotKey].manual;
+    delete franchise.snapShares[myId][slotKey].contract;
+    delete franchise.snapShares[myId][slotKey].autoManaged;
+    delete franchise.snapShares[myId][slotKey].autoReason;
+    if (typeof _optimizeSnapShares === "function") _optimizeSnapShares(myId);
+    saveFranchise();
+    renderFrnDepthChart();
     return;
   }
-  // Clamp into the slot's physical range — RB1 floor is ~35% (can't bench
-  // your starter to 5%), QB ceil is ~98% (someone has to come in on garbage
-  // time). Without clamping, sim could read a 5% QB starterPct.
+  // Try smart-contract formats
+  const countMatch = trimmed.match(/^(?:c|count\s+)(\d+)$/);
+  const touchesMatch = trimmed.match(/^(?:t|touches\s+)(\d+)$/);
+  if (countMatch || touchesMatch) {
+    const m = countMatch ? "count" : "touches";
+    const tgt = parseInt((countMatch || touchesMatch)[1], 10);
+    if (!Number.isFinite(tgt) || tgt < 1) { alert("Target must be a positive number."); return; }
+    if (m === "count" && tgt > 80) { alert("Snap count max is 80 (one team has ~62 snaps/game)."); return; }
+    if (m === "touches" && tgt > 35) { alert("Touches max is 35 (huge workload for any player)."); return; }
+    franchise.snapShares[myId][slotKey] = {
+      ...sd,
+      starterPct: sd.starterPct ?? 80,  // keep a baseline for any share-mode fallback
+      manual: true,
+      contract: { mode: m, target: tgt, smart: true, flexibility: "balanced" },
+    };
+    saveFranchise();
+    renderFrnDepthChart();
+    return;
+  }
+  // Standard share % path
+  const parsed = Math.round(Number(trimmed));
+  if (!Number.isFinite(parsed)) {
+    alert(`Couldn't parse "${input}".\nAccepted: number, c<n>, t<n>, or "clear".`);
+    return;
+  }
   const newPct = Math.max(floor, Math.min(ceil, parsed));
   if (newPct !== parsed) {
     if (!confirm(`Value clamped to slot range (${floor}-${ceil}%): ${parsed}% → ${newPct}%. Continue?`)) return;
@@ -3315,7 +3348,32 @@ function frnDepthSetSnapShare(slotKey) {
     ...sd,
     starterPct: newPct,
     manual: true,
+    contract: { mode: "share", target: newPct / 100, smart: true, flexibility: "balanced" },
   };
+  saveFranchise();
+  renderFrnDepthChart();
+}
+
+// Set the team's auto-manage policy (ride / balanced / playoff_push).
+// "ride" disables auto-manage; "balanced" trims worn starters; "playoff
+// _push" aggressively rests late-season + playoffs.
+function frnSetAutoManagePolicy(policy) {
+  const myId = franchise.chosenTeamId;
+  if (!["ride", "balanced", "playoff_push"].includes(policy)) return;
+  if (!franchise.autoManagePolicy) franchise.autoManagePolicy = {};
+  const prev = franchise.autoManagePolicy[myId] || "balanced";
+  if (prev === policy) return;
+  franchise.autoManagePolicy[myId] = policy;
+  // When switching TO "ride", clear any auto-managed flags so the legacy
+  // optimizer kicks in fresh.
+  if (policy === "ride") {
+    const ss = franchise.snapShares?.[myId] || {};
+    for (const slot of Object.keys(ss)) {
+      delete ss[slot].autoManaged;
+      delete ss[slot].autoReason;
+    }
+    if (typeof _optimizeSnapShares === "function") _optimizeSnapShares(myId);
+  }
   saveFranchise();
   renderFrnDepthChart();
 }
@@ -3480,6 +3538,8 @@ function renderFrnDepthChart() {
     const sd  = ss[slotKey];
     const pct = sd?.starterPct ?? 70;
     const isManual = !!sd?.manual;
+    const plan = sd?.contract;  // workload plan (internal field name)
+    const autoReason = sd?.autoReason;
     // For manual overrides, backup gets the full remainder (1:1 split).
     // For auto, the 0.55 multiplier accounts for cascade to 3rd-string.
     const bPct = isManual
@@ -3488,8 +3548,27 @@ function renderFrnDepthChart() {
     const lockIcon = isManual
       ? `<span class="frn-dc-snap-lock" title="Manual override (locked) — click 🔒 to reset to auto" onclick="event.stopPropagation();frnDepthResetSnapShare('${slotKey}')">🔒</span>`
       : "";
-    return `<div class="frn-dc-snap-col${isManual?" manual":""}" onclick="frnDepthSetSnapShare('${slotKey}')" title="Click to set snap share (current: ${pct}% starter)">
+    // Workload plan badge — show mode for non-share plans
+    let planBadge = "";
+    if (plan && plan.mode === "count") {
+      planBadge = `<span class="frn-dc-plan-badge" style="position:absolute;top:2px;right:2px;background:#3a4d5f;color:#fff;font-size:.5rem;padding:.05rem .2rem;border-radius:2px;letter-spacing:.5px;font-weight:700" title="Snap count cap: ${plan.target} snaps">c${plan.target}</span>`;
+    } else if (plan && plan.mode === "touches") {
+      planBadge = `<span class="frn-dc-plan-badge" style="position:absolute;top:2px;right:2px;background:#5f3a4d;color:#fff;font-size:.5rem;padding:.05rem .2rem;border-radius:2px;letter-spacing:.5px;font-weight:700" title="Touch target: ${plan.target}">t${plan.target}</span>`;
+    }
+    // Auto-manage reason annotation
+    let autoBadge = "";
+    if (autoReason && autoReason !== "fresh") {
+      const isRest = autoReason.startsWith("REST");
+      const color = isRest ? "#e6373a" : "#f0a93a";
+      autoBadge = `<span style="position:absolute;bottom:18px;left:2px;color:${color};font-size:.48rem;letter-spacing:.4px;font-weight:700;text-transform:uppercase;line-height:1;pointer-events:none" title="Auto-manage: ${autoReason}">${isRest ? "REST" : "MGD"}</span>`;
+    }
+    const titleParts = [`${pct}% starter`];
+    if (plan) titleParts.push(`${plan.mode}: ${plan.target}`);
+    if (autoReason) titleParts.push(`auto: ${autoReason}`);
+    return `<div class="frn-dc-snap-col${isManual?" manual":""}" style="position:relative" onclick="frnDepthSetSnapShare('${slotKey}')" title="Click to set workload plan — ${titleParts.join(' · ')}">
       ${lockIcon}
+      ${planBadge}
+      ${autoBadge}
       <span class="frn-dc-snap-pct s">${pct}%</span>
       <div class="frn-dc-snap-bar">
         <div class="frn-dc-snap-fill" style="height:${pct}%"></div>
@@ -3745,6 +3824,19 @@ function renderFrnDepthChart() {
         <span class="frn-dc-ratings">OFF ${rtg.off} · DEF ${rtg.def} · ${roster.length} players</span>
       </div>
       <div style="display:flex;gap:.45rem;align-items:center">
+        ${(() => {
+          const policy = franchise.autoManagePolicy?.[myId] || "balanced";
+          const policyChip = (key, label, tip) => {
+            const isActive = policy === key;
+            return `<button class="btn btn-outline" style="padding:.35rem .6rem;font-size:.6rem;letter-spacing:.5px;${isActive?'background:var(--gold);color:#000;border-color:var(--gold);font-weight:700':''}" onclick="frnSetAutoManagePolicy('${key}')" title="${tip}">${label}</button>`;
+          };
+          return `<div style="display:flex;gap:.25rem;align-items:center;border-right:1px solid rgba(255,255,255,.15);padding-right:.5rem;margin-right:.2rem" title="Auto-manage: how aggressively to rest worn/stressed starters">
+            <span style="font-size:.55rem;color:var(--gray);letter-spacing:1px;font-weight:700">LOAD MGMT</span>
+            ${policyChip("ride",         "Ride",     "Ignore wear — full snap-share, no rest")}
+            ${policyChip("balanced",     "Balanced", "Trim wear≥70 by 15%; rest wear≥85; default")}
+            ${policyChip("playoff_push", "Playoff",  "From W14+: aggressive rest of wear≥60, save legs for January")}
+          </div>`;
+        })()}
         <button class="frn-dc-auto-btn${autoChangedSlots>0?" hot":""}" onclick="if(confirm('${autoBtnConfirm}'))frnDepthAutoSetOVR()">${autoBtnLabel}</button>
         <button class="btn btn-outline" onclick="showFranchiseDashboard()">← Back</button>
       </div>

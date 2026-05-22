@@ -1603,8 +1603,10 @@ function _autoManageRoster(teamId, opts = {}) {
   }
 }
 
-// Smart player contracts — Phase 5. Each slot can carry an extended
-// contract that overrides the legacy starterPct % rotation behavior.
+// Player WORKLOAD PLANS — Phase 5. Each slot can carry an extended
+// plan that overrides the legacy starterPct % rotation behavior.
+// (Internal field is `.contract` for save-compat; not a crypto smart
+// contract — it's a coaching directive.)
 // Three modes (data flows to engine via _buildSnapMap → snapMap.<role>):
 //   share:   "play X% of relevant snaps" (default — same as legacy)
 //   count:   "play X snaps if game flow allows" (engine subs at target)
