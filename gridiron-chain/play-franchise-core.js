@@ -387,8 +387,10 @@ function deadCapOnRelease(player) {
   const c = player.contract;
   if (!c) return { perYear: 0, years: 0 };
   const remaining = c.remaining || 0;
+  const voidYrs = c.voidYears || 0;
   if (c.bonusProration > 0) {
-    return { perYear: c.bonusProration, years: remaining };
+    // Void years accelerate with a release — total dead cap years = remaining + void.
+    return { perYear: c.bonusProration, years: remaining + voidYrs };
   }
   // Legacy fallback
   const gYrs = Math.min(remaining, c.guaranteedYears || 0);
@@ -648,9 +650,10 @@ function _processContractOptions() {
 // over remaining years. Frees cap space now; increases dead cap if cut later.
 // Limited to once per player per offseason (restructuredSeason guard).
 // Uses inline confirmation instead of browser confirm() dialog.
-function frnRestructure(teamId, name, pos) {
-  // Toggle off if clicking the same player again.
-  if (_restructurePending?.name === name && _restructurePending?.pos === pos) {
+function frnRestructure(teamId, name, pos, voidYearsAdd = 0) {
+  // Toggle off if clicking the same player again (only if no void-year change).
+  if (_restructurePending?.name === name && _restructurePending?.pos === pos
+      && (_restructurePending?.voidYearsAdd || 0) === voidYearsAdd) {
     _restructurePending = null;
     renderFrnAnalytics("mysheet");
     return;
@@ -666,15 +669,25 @@ function frnRestructure(teamId, name, pos) {
   const yearIndex = Math.max(0, (c.years || 1) - remaining);
   const currentBase = c.baseSalaries?.[yearIndex] ?? (c.aav - (c.bonusProration || 0));
   if (currentBase < 2.0) return;
-  const newProration = Math.round(currentBase / remaining * 10) / 10;
+  // NFL caps proration at 5 years total; void years extend the denominator
+  // but the combined (remaining + existing void + new void) can't exceed 5.
+  const existingVoid = c.voidYears || 0;
+  const maxNewVoid = Math.max(0, 5 - remaining - existingVoid);
+  const vAdd = Math.min(Math.max(0, voidYearsAdd | 0), maxNewVoid);
+  const prorationDenom = remaining + vAdd;
+  const newProration = Math.round(currentBase / prorationDenom * 10) / 10;
   const freed = Math.round((currentBase - newProration) * 10) / 10;
-  _restructurePending = { teamId, name, pos, currentBase, newProration, freed, remaining };
+  const voidDead = Math.round(newProration * (existingVoid + vAdd) * 10) / 10;
+  _restructurePending = {
+    teamId, name, pos, currentBase, newProration, freed, remaining,
+    voidYearsAdd: vAdd, maxNewVoid, existingVoid, voidDead,
+  };
   renderFrnAnalytics("mysheet");
 }
 
 function frnRestructureConfirm() {
   if (!_restructurePending) return;
-  const { teamId, name, pos, currentBase, newProration, freed } = _restructurePending;
+  const { teamId, name, pos, currentBase, newProration, freed, voidYearsAdd = 0 } = _restructurePending;
   const roster = franchise?.rosters?.[teamId];
   const p = roster?.find(q => q.name === name && q.position === pos);
   if (!p?.contract) { _restructurePending = null; return; }
@@ -684,11 +697,13 @@ function frnRestructureConfirm() {
   if (c.baseSalaries) c.baseSalaries[yearIndex] = 0;
   c.bonusProration     = Math.round(((c.bonusProration || 0) + newProration) * 10) / 10;
   c.signingBonus       = Math.round(((c.signingBonus   || 0) + currentBase) * 10) / 10;
+  if (voidYearsAdd > 0) c.voidYears = (c.voidYears || 0) + voidYearsAdd;
   c.restructuredSeason = franchise.season;
   _restructurePending  = null;
   saveFranchise();
+  const voidTag = voidYearsAdd > 0 ? ` (+${voidYearsAdd} void yr${voidYearsAdd > 1 ? "s" : ""})` : "";
   _pushNews({ type: "restructure",
-    label: `🔀 Restructured ${p.position} ${name} — freed $${freed.toFixed(1)}M, added $${newProration.toFixed(1)}M/yr dead` });
+    label: `🔀 Restructured ${p.position} ${name}${voidTag} — freed $${freed.toFixed(1)}M, added $${newProration.toFixed(1)}M/yr dead` });
   renderFrnAnalytics("mysheet");
 }
 

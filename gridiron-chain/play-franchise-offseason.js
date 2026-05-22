@@ -4809,15 +4809,19 @@ function renderFrnAnalytics(defaultTab) {
       const canRestructure = c.remaining >= 2
         && (c.baseSalaries?.[(c.years||1)-(c.remaining||1)] ?? (c.aav-(c.bonusProration||0))) >= 2.0
         && c.restructuredSeason !== franchise.season;
-      // Year-by-year schedule tooltip
+      // Year-by-year schedule tooltip + void-year chips (V1/V2/...)
       const curYrIdx = Math.max(0, (c.years||1) - (c.remaining||1));
+      const voidYrs  = c.voidYears || 0;
       const scheduleHtml = c.baseSalaries?.length
         ? `<div style="display:flex;flex-wrap:wrap;gap:.15rem .25rem;margin-top:.2rem">${
             c.baseSalaries.map((base, i) => {
               const isCur = i === curYrIdx;
               const hit = Math.round((base + (c.bonusProration || 0)) * 10) / 10;
               return `<span title="Yr${i+1}: $${base.toFixed(1)}M base + $${(c.bonusProration||0).toFixed(1)}M proration" style="font-size:.55rem;padding:.1rem .28rem;border-radius:3px;background:${isCur?"var(--gold)":"var(--bg3)"};color:${isCur?"#000":"var(--gray)"}">Yr${i+1} $${hit.toFixed(1)}M</span>`;
-            }).join("")
+            }).join("") + (voidYrs > 0 ? Array.from({length:voidYrs}).map((_,vi) => {
+              const accel = Math.round((c.bonusProration || 0) * voidYrs * 10) / 10;
+              return `<span title="Void year — phantom proration. If contract ends here, $${accel.toFixed(1)}M accelerates as dead cap." style="font-size:.55rem;padding:.1rem .28rem;border-radius:3px;background:rgba(190,80,80,.2);color:#ff9090;border:1px dashed rgba(255,144,144,.4)">V${vi+1} ☠</span>`;
+            }).join("") : "")
           }</div>`
         : "";
       const incentiveHtml = (c.incentives||[]).length
@@ -4829,15 +4833,26 @@ function renderFrnAnalytics(defaultTab) {
       const isPendingRestructure = _restructurePending?.name === p.name && _restructurePending?.pos === p.position;
       // Inline restructure confirmation row — no browser dialog
       if (isPendingRestructure) {
-        const { freed, newProration, currentBase, remaining } = _restructurePending;
+        const { freed, newProration, currentBase, remaining, voidYearsAdd = 0, maxNewVoid = 0, existingVoid = 0 } = _restructurePending;
+        const totalVoid = existingVoid + voidYearsAdd;
+        const totalDead = Math.round(newProration * (remaining + totalVoid) * 10) / 10;
+        const voidBtns = Array.from({ length: Math.min(3, maxNewVoid) + 1 }).map((_, n) => {
+          const sel = n === voidYearsAdd;
+          return `<button class="btn ${sel ? "btn-gold" : "btn-outline"}" onclick="frnRestructure(${chosenTeamId},'${escName}','${p.position}',${n})" style="font-size:.56rem;padding:.12rem .35rem;min-width:auto">+${n}v</button>`;
+        }).join("");
         return `<tr style="background:rgba(200,169,0,.1)">
           <td style="font-weight:700;color:var(--gold)">${p.name}</td>
           <td style="color:var(--gray)">${p.position}</td>
           <td colspan="6" style="font-size:.68rem;padding:.4rem .5rem">
             <div style="display:flex;flex-wrap:wrap;align-items:center;gap:.5rem">
-              <span>Convert <b style="color:var(--white)">$${currentBase.toFixed(1)}M</b> base → signing bonus</span>
+              <span>Convert <b style="color:var(--white)">$${currentBase.toFixed(1)}M</b> base → bonus, prorate over ${remaining + totalVoid}yr</span>
               <span style="color:var(--green-lt)">▼ Frees <b>$${freed.toFixed(1)}M</b> now</span>
-              <span style="color:#ff9090">▲ Dead $${newProration.toFixed(1)}M/yr × ${remaining}yr = $${(newProration*remaining).toFixed(1)}M</span>
+              <span style="color:#ff9090">▲ Dead $${newProration.toFixed(1)}M/yr × ${remaining + totalVoid}yr = $${totalDead.toFixed(1)}M</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:.4rem;margin-top:.3rem;font-size:.6rem;color:var(--gray)">
+              <span title="Void years are phantom contract years that extend bonus proration. When the deal naturally expires, all void-year bonus accelerates as dead cap.">VOID YEARS:</span>
+              ${voidBtns}
+              ${maxNewVoid === 0 ? `<span style="color:#888;font-size:.55rem">(capped at 5yr total proration)</span>` : ""}
             </div>
           </td>
           <td colspan="2" style="white-space:nowrap;padding:.4rem .5rem">
@@ -8296,12 +8311,28 @@ function startFrnOffseason() {
     }
   }
   franchise.allProBowlTournament = null;
-  // Roll contract years down for all players
-  for (const roster of Object.values(franchise.rosters)) {
+  // Roll contract years down for all players. When a contract with void
+  // years reaches its natural end (remaining hits 0), the void years'
+  // prorated bonus accelerates into next year's cap as a dead refund.
+  for (const [tidStr, roster] of Object.entries(franchise.rosters)) {
+    const teamId = Number(tidStr);
     for (const p of roster) {
       if (p.contract && p.contract.remaining > 0) {
         p.contract.remaining -= 1;
         if (p.contract.guaranteedYears > 0) p.contract.guaranteedYears -= 1;
+        if (p.contract.remaining === 0 && (p.contract.voidYears || 0) > 0) {
+          const vyrs = p.contract.voidYears;
+          const perYr = p.contract.bonusProration || 0;
+          if (perYr > 0) {
+            franchise.refunds = franchise.refunds || [];
+            franchise.refunds.push({
+              kind: "dead_cap", fromTeamId: teamId, toTeamId: null,
+              amount: perYr, yearsRemaining: vyrs,
+              label: `Void-year dead: ${p.name}`,
+            });
+          }
+          p.contract.voidYears = 0;
+        }
       }
     }
   }

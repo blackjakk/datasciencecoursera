@@ -3334,7 +3334,7 @@ class GameSimulator {
         // half-yard on every scramble. Lamar (lean DUAL_THREAT) slides.
         if (yards > 0) {
           const qbLean = this._leanForwardYds(QB, _archetypeBreakStyle(qbArch));
-          if (qbLean > 0) yards += qbLean;
+          if (qbLean > 0) yards = Math.round(yards + qbLean);
         }
         if (yards > 0) yards = Math.min(yards, 100 - startYard);
         // QB scramble break-tackle — Lamar / Cam-tier QBs juke or truck pursuers.
@@ -4560,7 +4560,7 @@ class GameSimulator {
     // Applied to every positive carry, before the break-tackle event rolls.
     if (!isQBRun && yards > 0) {
       const lean = this._leanForwardYds(carrier, rbArch);
-      if (lean > 0) yards += lean;
+      if (lean > 0) yards = Math.round(yards + lean);
     }
     // Cap at distance to end zone so a 1-yd goal-line carry doesn't get reported as a 17-yd TD
     if (yards > 0) yards = Math.min(yards, 100 - startYard);
