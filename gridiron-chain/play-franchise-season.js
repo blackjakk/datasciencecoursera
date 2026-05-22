@@ -1768,10 +1768,13 @@ const INJURY_TYPES = [
 // the regular-season length, so the player is functionally lost for the
 // season.
 const _CATASTROPHIC_VARIANTS = {
-  "knee":         { label:"torn ACL",                     min:12, max:24, ovrPenalty:6, careerEndingChance:0.05 },
-  "concussion":   { label:"chronic concussion syndrome",  min:8,  max:16, ovrPenalty:5, careerEndingChance:0.08 },
-  "shoulder":     { label:"labrum tear",                  min:12, max:20, ovrPenalty:5, careerEndingChance:0.03 },
-  "ankle sprain": { label:"Lisfranc fracture",            min:10, max:18, ovrPenalty:4, careerEndingChance:0.02 },
+  // Career-ending chances bumped after audit V4 showed 1.7 CE/season
+  // league-wide vs NFL ~5-10. Doubling these lands at ~8-10/season,
+  // matching headline NFL injury news cadence (Luck, Bo Jackson, etc.).
+  "knee":         { label:"torn ACL",                     min:12, max:24, ovrPenalty:6, careerEndingChance:0.10 },
+  "concussion":   { label:"chronic concussion syndrome",  min:8,  max:16, ovrPenalty:5, careerEndingChance:0.15 },
+  "shoulder":     { label:"labrum tear",                  min:12, max:20, ovrPenalty:5, careerEndingChance:0.06 },
+  "ankle sprain": { label:"Lisfranc fracture",            min:10, max:18, ovrPenalty:4, careerEndingChance:0.04 },
 };
 const _CATASTROPHIC_UPGRADE_CHANCE = 0.08;
 // Position-aware severity multiplier on the rehab OVR penalty. Speed-
