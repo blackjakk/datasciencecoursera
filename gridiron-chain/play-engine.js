@@ -1322,7 +1322,7 @@ class GameSimulator {
     const situRunMod  = isThirdShort ? -0.5 : isThirdLong ?  0.5 : 0;
     const situAirMod  = isThirdLong  ? -0.5 : isThirdShort ?  0.3 : 0;
     const situCompMod = (isThirdDown && !isRedZone)
-                        ? (isThirdLong ? -0.002 : isThirdShort ? 0.025 : 0.010)
+                        ? (isThirdLong ? 0.005 : isThirdShort ? 0.030 : 0.018)
                         : 0;
     const situSackMul = isThirdLong  ? 1.05 : 1.0;
     this._boxStackRunMod  = (PERS_RUN[personnel]  || 0) + situRunMod;
