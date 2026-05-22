@@ -3381,6 +3381,15 @@ function _buildVitalsRiskFactors(p) {
     const note = isProne ? "INJURY-PRONE · +40% recurrence" : priorCount >= 2 ? "1 from injury-prone" : "";
     items.push({ color, label: "Prior injuries", value: `${priorCount}`, note });
   }
+  // Career ejections — repeat-offender flag for hits
+  const ej = p.ejections || 0;
+  if (ej > 0) {
+    const color = ej >= 3 ? "#e6373a" : ej >= 2 ? "#ed6a3a" : "#f0a93a";
+    const note = ej >= 3 ? "REPEAT OFFENDER · suspension risk"
+              : ej >= 2 ? "watchlist"
+              :           "career ejections";
+    items.push({ color, label: "Ejections", value: `${ej}`, note });
+  }
   // Age cliff
   const age = p.age || 25;
   if (age >= 30) {
