@@ -2096,10 +2096,30 @@ function _rollNonContactInjuries(teamId) {
     // higher in Weeks 1-4 than mid-season. Bodies haven't built game-
     // speed neuromuscular control yet — cuts get awkward.
     const wk = franchise.week || 1;
-    const earlyMul = wk <= 2 ? 2.0
-                   : wk <= 4 ? 1.5
-                   : wk <= 6 ? 1.2
-                   :           1.0;
+    let earlyMul = wk <= 2 ? 2.0
+                 : wk <= 4 ? 1.5
+                 : wk <= 6 ? 1.2
+                 :           1.0;
+    // Player mitigation — veterans know how to prep their bodies, smart
+    // players see hits coming and brace, ironmen do extra prep work, and
+    // stars with All-Pro resumes treat conditioning as a job. Caps at
+    // -60% reduction (vet + smart + ironman + decorated player).
+    if (earlyMul > 1.0) {
+      const seasons = p.seasonsPlayed || 0;
+      const awr = p.stats?.[3] ?? 70;
+      const accolades = (p.allPros || 0) + Math.floor((p.proBowls || 0) / 2);
+      const condBonus =
+          Math.min(0.25, seasons * 0.03)            // each season -3%, cap -25%
+        + (awr >= 80 ? 0.07 : awr >= 70 ? 0.03 : 0) // smart prep
+        + (p.ironman ? 0.15 : 0)                    // ironman trait big bonus
+        + Math.min(0.15, accolades * 0.04);         // stars prep harder
+      earlyMul = 1.0 + (earlyMul - 1.0) * (1 - Math.min(0.60, condBonus));
+    }
+    // Trainer trait: Sports Sci shop reduces early-season spike (modern
+    // sports-science offseason programs really do help — Eagles, Bucs
+    // famously low early-season ACL rates).
+    const trainer = franchise.frontOffice?.[teamId]?.trainer;
+    if (trainer?.trait === "Sports Sci") earlyMul = 1.0 + (earlyMul - 1.0) * 0.70;
     baseRate *= earlyMul;
     // Position vulnerability — speed/agility positions tear soft tissue more
     const pos = p.position || "?";
