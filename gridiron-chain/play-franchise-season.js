@@ -1968,7 +1968,18 @@ function _rollGameInjuries(teamId) {
     // bumps it ~30%. Server-only field in MegaETH port.
     const durability = p._durability ?? 65;
     const durabilityMul = 1.4 - durability / 100;
-    const rate = (INJURY_RATE[p.position] || 0.01) * rateMul * recMul * ironmanMul * archMul * foMul * durabilityMul;
+    // Age-driven injury scaling — NFL data shows 35-year-olds miss ~2x
+    // the games of 25-year-olds. Bodies stop bouncing back; soft tissue
+    // tears more easily; cumulative wear compounds. Linear ramp from age
+    // 30, accelerating past 33. Veteran Carer trait already discounts
+    // 31+, so the elite-trainer team still gets some relief.
+    const age = p.age || 25;
+    const ageMul = age >= 36 ? 1.65
+                : age >= 34 ? 1.45
+                : age >= 32 ? 1.25
+                : age >= 30 ? 1.10
+                : 1.0;
+    const rate = (INJURY_RATE[p.position] || 0.01) * rateMul * recMul * ironmanMul * archMul * foMul * durabilityMul * ageMul;
     if (Math.random() >= rate) continue;
     let t = _pickInjuryType(p.position);
     let isCatastrophic = false;
@@ -2003,13 +2014,25 @@ function _rollGameInjuries(teamId) {
       if (variant) {
         t = { ...t, ...variant };
         isCatastrophic = true;
-        if (Math.random() < (variant.careerEndingChance || 0)) {
+        // Catastrophic late-career injuries usually end careers (Luck arc,
+        // Bo Jackson hip). Scale career-ending probability with age.
+        const ceAgeMul = age >= 35 ? 2.0
+                       : age >= 32 ? 1.5
+                       : age >= 30 ? 1.2
+                       : 1.0;
+        if (Math.random() < (variant.careerEndingChance || 0) * ceAgeMul) {
           careerEnding = true;
         }
       }
     }
+    // Age-driven recovery — older players heal slower (NFL soft-tissue
+    // recovery extends 3-6 weeks for 33+ players).
+    const recoveryAgeMul = age >= 35 ? 1.35
+                         : age >= 32 ? 1.20
+                         : age >= 30 ? 1.10
+                         : 1.0;
     const wks = careerEnding ? 99
-      : t.min + Math.floor(Math.random() * (t.max - t.min + 1));
+      : Math.ceil((t.min + Math.floor(Math.random() * (t.max - t.min + 1))) * recoveryAgeMul);
     p.injury = {
       label: t.label, weeksRemaining: wks,
       _ovrPenalty: t.ovrPenalty || 0,
