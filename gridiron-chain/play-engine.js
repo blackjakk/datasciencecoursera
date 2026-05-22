@@ -1703,32 +1703,104 @@ class GameSimulator {
       // Field-position modifies: chip-shot FGs (≤35 yd) bias toward FG;
       // longer FGs (40-55 yd) bias toward go. Backed-up own territory
       // pushes toward punt.
+      //
+      // Situational modifiers (computed once, applied to all branches):
+      //   q4Final (≤2:00 left in Q4): trailing → go-heavy, leading → punt
+      //   q4Late  (≤5:00 left in Q4): same dial but less extreme
+      //   q2End   (≤2:00 left in Q2): more aggressive across the board
+      //   Blowout-down (Q4 trailing by 14+): force aggression
+      //   Late-game-tied-or-trailing-by-3-in-FG-range: ALWAYS kick FG
+      //   Late-game-leading-comfortable-in-FG-range: ALWAYS kick FG
+      const defKey = this.poss === "home" ? "away" : "home";
+      const scoreDiff = this.score[this.poss] - this.score[defKey];   // <0 = trailing
+      const q4 = this.quarter === 4;
+      const q4Late  = q4 && this.time < 300;
+      const q4Final = q4 && this.time < 120;
+      const q2End   = this.quarter === 2 && this.time < 120;
+      const blowoutDown = q4 && scoreDiff <= -14;
+      let scoreMod = 1.0;
+      if (blowoutDown) {
+        // Down 2+ scores in Q4 — must press
+        scoreMod = 2.2;
+      } else if (q4Final) {
+        if (scoreDiff <= -1)      scoreMod = 3.0;  // trailing in final 2:00 → almost always go
+        else if (scoreDiff === 0) scoreMod = 1.3;  // tied — modest extra aggression
+        else                       scoreMod = 0.4;  // leading → bleed clock, punt
+      } else if (q4Late) {
+        if (scoreDiff <= -7)      scoreMod = 2.0;
+        else if (scoreDiff <= -3) scoreMod = 1.5;
+        else if (scoreDiff <= 0)  scoreMod = 1.1;
+        else if (scoreDiff <= 7)  scoreMod = 0.7;
+        else                       scoreMod = 0.4;
+      } else if (q2End) {
+        // End of Q2 — half ends after this drive. Push for points.
+        scoreMod = scoreDiff < 0 ? 1.4 : 1.2;
+      }
+      // Per-drive commitment: coach who already went for it this drive
+      // is more likely to do it again. Strategic + psychological
+      // commitment carries through the drive. First go bumps next-go
+      // rate ~1.35x; second go bumps it further (1.6x). Saturates fast.
+      const driveCommit = (this._drive4thGoCount || 0);
+      const commitMod = driveCommit === 0 ? 1.0
+                      : driveCommit === 1 ? 1.35
+                      :                     1.60;
       let action;
       if (isGoalLine) {
         // 4th-and-goal: NFL ~75% go on 1-3 yds, ~30% on 4+.
         const goalGo = this.ytg <= 3 ? 0.75 : 0.30;
-        action = Math.random() < clamp(goalGo * goTilt, 0.25, 0.95) ? "go" : "fg";
+        // Late-game trailing 3+: must take the TD (down by FG can't be
+        // recovered with FG; need 7). Late-game trailing 1-2: FG ties,
+        // so even goal-line might kick.
+        let goalScoreMod = scoreMod;
+        if (q4Late && scoreDiff <= -7) goalScoreMod = Math.max(goalScoreMod, 1.6);
+        action = Math.random() < clamp(goalGo * goTilt * goalScoreMod * commitMod, 0.25, 0.97) ? "go" : "fg";
       } else if (inFGRange) {
         // In FG range (≤57 yd kick). Closer kicks lean FG; longer kicks
         // lean go-for-it on short yardage.
         const closeKick = toEZ <= 20;
-        let goRate;
-        if (this.ytg <= 1)      goRate = closeKick ? 0.35 : 0.65;
-        else if (this.ytg <= 2) goRate = closeKick ? 0.18 : 0.35;
-        else if (this.ytg <= 4) goRate = closeKick ? 0.04 : 0.12;
-        else                    goRate = 0;
-        action = Math.random() < clamp(goRate * goTilt, 0, 0.85) ? "go" : "fg";
+        // LATE-GAME FG OVERRIDES: tied or trailing by 1-3 with FG that
+        // ties/wins → ALWAYS kick. Leading by 1-3 with FG that extends
+        // to 2-score → almost always kick.
+        const fgWouldTieOrWin = q4Late && scoreDiff <= 0 && scoreDiff >= -3;
+        const fgExtendsToTwoScore = q4Late && scoreDiff >= 1 && scoreDiff <= 4;
+        if (fgWouldTieOrWin || fgExtendsToTwoScore) {
+          action = "fg";
+        } else if (q4Late && scoreDiff <= -8 && this.ytg <= 7) {
+          // Trailing 8+ late: a FG is wasted (still down 5+). Go for it
+          // even on moderate yardage in FG range.
+          const desperateGo = this.ytg <= 4 ? 0.85 : 0.55;
+          action = Math.random() < desperateGo ? "go" : "fg";
+        } else {
+          let goRate;
+          if (this.ytg <= 1)      goRate = closeKick ? 0.35 : 0.65;
+          else if (this.ytg <= 2) goRate = closeKick ? 0.18 : 0.35;
+          else if (this.ytg <= 4) goRate = closeKick ? 0.04 : 0.12;
+          else                    goRate = 0;
+          action = Math.random() < clamp(goRate * goTilt * scoreMod * commitMod, 0, 0.92) ? "go" : "fg";
+        }
       } else {
         // Out of FG range. NFL is aggressive on short yardage in plus
         // territory; backed-up own territory still punts.
-        const inOwnDeep = this.yardLine <= 30;  // own 30 or worse → conservative
-        let goRate;
-        if (this.ytg <= 1)      goRate = inOwnDeep ? 0.40 : 0.75;
-        else if (this.ytg <= 2) goRate = inOwnDeep ? 0.18 : 0.50;
-        else if (this.ytg <= 4) goRate = (toEZ <= 55) ? 0.30 : (inOwnDeep ? 0.04 : 0.12);
-        else if (this.ytg <= 7) goRate = (toEZ <= 50) ? 0.10 : 0.03;
-        else                    goRate = 0;
-        action = Math.random() < clamp(goRate * goTilt, 0, 0.90) ? "go" : "punt";
+        const inOwnDeep = this.yardLine <= 30;
+        // Late-game leading: just punt regardless of yardage (run clock).
+        // Late-game trailing big: go for it on anything reachable.
+        if (q4Final && scoreDiff > 0) {
+          action = "punt";
+        } else if (q4Final && scoreDiff < 0 && this.ytg <= 15) {
+          action = "go";
+        } else if (blowoutDown && this.ytg <= 12) {
+          // Down 14+ in Q4 — go for it on anything manageable
+          const desperateGo = this.ytg <= 4 ? 0.92 : this.ytg <= 7 ? 0.70 : 0.45;
+          action = Math.random() < desperateGo ? "go" : "punt";
+        } else {
+          let goRate;
+          if (this.ytg <= 1)      goRate = inOwnDeep ? 0.40 : 0.75;
+          else if (this.ytg <= 2) goRate = inOwnDeep ? 0.18 : 0.50;
+          else if (this.ytg <= 4) goRate = (toEZ <= 55) ? 0.30 : (inOwnDeep ? 0.04 : 0.12);
+          else if (this.ytg <= 7) goRate = (toEZ <= 50) ? 0.10 : 0.03;
+          else                    goRate = 0;
+          action = Math.random() < clamp(goRate * goTilt * scoreMod * commitMod, 0, 0.95) ? "go" : "punt";
+        }
       }
       if (action === "fg") {
         const dist = toEZ + 17;
@@ -1864,10 +1936,13 @@ class GameSimulator {
         return { endDrive: true };
       }
       if (action === "go") {
-        // Going for it: bump the fourthAtt counter, then fall through to the
-        // normal play logic below (run or pass). Drive-flow code will
-        // convert a successful first down into ytg=10, otherwise turnover-on-downs.
+        // Going for it: bump the fourthAtt counter + per-drive commitment
+        // counter (drives subsequent 4th-down decisions in this drive),
+        // then fall through to the normal play logic below (run or pass).
+        // Drive-flow code converts a successful first down into ytg=10,
+        // otherwise turnover-on-downs.
         off.team.fourthAtt++;
+        this._drive4thGoCount = (this._drive4thGoCount || 0) + 1;
         // Mark this conversion attempt — _drive() will check `r.yards >= ytg`
         // and credit fourthConv on success.
         this._pushVisual({ kind: "fourth_go", desc: `${this.possTeam.name} GOES FOR IT — 4th & ${this.ytg}!`, startYard, endYard: startYard });
@@ -3757,6 +3832,11 @@ class GameSimulator {
   }
   _drive() {
     const start = this.poss; let plays = 0;
+    // Reset per-drive 4th-down commitment counter. NFL coaches who go
+    // for it on 4th down earlier in a drive show stronger willingness
+    // to do it again on the same drive — the strategic context (field
+    // position, game state, "we said we're playing for it") persists.
+    this._drive4thGoCount = 0;
     // Track drive metadata for the end-of-drive summary card.
     const driveStartYL   = this.yardLine;
     const driveStartTime = this.time;
