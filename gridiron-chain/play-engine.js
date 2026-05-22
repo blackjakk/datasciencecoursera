@@ -2298,7 +2298,12 @@ class GameSimulator {
     const _trailDiff= _defScore2 - _offScore;
     const _motivatorBoost = (_hcSpec === "Motivator" && this.quarter >= 4 && _trailDiff >= 1 && _trailDiff <= 7) ? 1 : 0;
 
-    const adv = (this.offR.offense + _motivatorBoost - this.defR.defense) / 100;
+    // Talent-gap → per-play advantage. Divisor controls parity: smaller
+    // = bigger team effect = best team always wins (was /100). Bumped
+    // to /125 because audit showed best team winning 15.4 games/season
+    // (NFL 13-14) — compressing the per-play talent effect lets the
+    // top team have bad days, more upsets, more parity.
+    const adv = (this.offR.offense + _motivatorBoost - this.defR.defense) / 125;
 
     // AWR in the trenches — affects engine behavior, not OVR.
     // DL snap timing: smart rushers read the center's weight shift and get a

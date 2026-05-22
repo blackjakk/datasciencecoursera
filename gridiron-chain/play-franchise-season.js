@@ -2082,15 +2082,17 @@ function _rollNonContactInjuries(teamId) {
   for (const p of roster) {
     if (p.injury && p.injury.weeksRemaining > 0) continue;
     const stress = p._stress || 0;
-    // No hard floor — even fresh players occasionally pull something.
-    // V11 audit showed non-contact at 16% vs NFL ~40% — raised ~1.5x
-    // to land closer to NFL share.
-    let baseRate = stress >= 80 ? 0.033
-                 : stress >= 60 ? 0.022
-                 : stress >= 40 ? 0.014
-                 : stress >= 20 ? 0.008
-                 : stress >= 10 ? 0.005
-                 :                0.002;
+    // Non-contact rate bands. NFL "non-contact IR injuries" run ~30-40%
+    // of total IR placements. Each audit pass lifts this:
+    //   V11: 16% (too low)
+    //   V12-V14: 23% (still under)
+    //   V15: ~32% target (lifted bands 1.4-1.5x)
+    let baseRate = stress >= 80 ? 0.048
+                 : stress >= 60 ? 0.032
+                 : stress >= 40 ? 0.020
+                 : stress >= 20 ? 0.012
+                 : stress >= 10 ? 0.008
+                 :                0.003;
     // Early-season transition spike — NFL injury data (Mai et al. 2017,
     // PFR injury reports) shows ACL + hamstring incidence is ~2-2.5x
     // higher in Weeks 1-4 than mid-season. Bodies haven't built game-
