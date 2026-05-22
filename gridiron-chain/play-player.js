@@ -686,17 +686,17 @@ const POSITION_SPD_MAP = {
 // elite COV; QBs don't have elite STR; CBs aren't bench-press monsters.
 const POSITION_PHYSICAL_CAPS = {
   // Index legend: 0=SPD 1=STR 2=AGI 3=AWR 4=THR 5=CAT 6=BLK 7=PRS 8=COV 9=TCK 10=KPW
-  QB:  { 1:{max:80, min:55}, 6:{max:50}, 9:{max:55} },
-  RB:  { 1:{min:60}, 8:{max:65} },
-  WR:  { 1:{min:50, max:80}, 6:{max:55} },
-  TE:  { 1:{min:70} },
-  OL:  { 1:{min:75}, 5:{max:55}, 6:{min:70}, 8:{max:45} },
-  DL:  { 1:{min:75}, 5:{max:55}, 7:{min:60}, 8:{max:55}, 9:{min:60} },
-  LB:  { 1:{min:70}, 9:{min:65} },
-  CB:  { 1:{max:78}, 6:{max:50} },
-  S:   { 1:{max:88, min:60} },
-  K:   { 1:{max:60}, 6:{max:30}, 9:{max:40} },
-  P:   { 1:{max:60}, 6:{max:30}, 9:{max:40} },
+  QB:  { 1:{max:80, min:55}, 3:{min:70}, 4:{min:72}, 6:{max:50}, 9:{max:55} },
+  RB:  { 1:{min:60}, 2:{min:70}, 3:{min:65}, 8:{max:65} },
+  WR:  { 1:{min:50, max:80}, 2:{min:75}, 5:{min:70}, 6:{max:55} },
+  TE:  { 1:{min:70}, 3:{min:70}, 6:{min:65} },
+  OL:  { 1:{min:75}, 3:{min:68}, 5:{max:55}, 6:{min:75}, 8:{max:45} },
+  DL:  { 1:{min:75}, 3:{min:68}, 5:{max:55}, 7:{min:65}, 8:{max:55}, 9:{min:65} },
+  LB:  { 1:{min:70}, 2:{min:70}, 3:{min:72}, 8:{min:60}, 9:{min:75} },
+  CB:  { 1:{max:78}, 2:{min:80}, 3:{min:70}, 6:{max:50}, 8:{min:75} },
+  S:   { 1:{max:88, min:60}, 2:{min:72}, 3:{min:75}, 8:{min:70}, 9:{min:72} },
+  K:   { 1:{max:60}, 6:{max:30}, 9:{max:40}, 10:{min:75} },
+  P:   { 1:{max:60}, 6:{max:30}, 9:{max:40}, 10:{min:72} },
 };
 function _applyPositionCaps(pos, stats) {
   // 1. Map SPD into position-realistic range
