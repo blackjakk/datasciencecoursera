@@ -8814,17 +8814,21 @@ function _processSeasonEndRetirements() {
         else if (t >= 2500) adjAge += 2;
         else if (t >= 2000) adjAge += 1;
       }
+      // NFL median retirement age ~30 (most retire 27-32, HoF tail to 38+).
+      // Curve shifted ~3 yrs earlier than the prior version (was median ~35
+      // → real-age 35-38, way over NFL). Position offsets (RB -3, QB +3
+      // etc.) handle the per-position spread.
       let retProb = p._forceRetire ? 1 :
-                  adjAge >= 40 ? 0.97
-                  : adjAge === 39 ? 0.90
-                  : adjAge === 38 ? 0.78
-                  : adjAge === 37 ? 0.62
-                  : adjAge === 36 ? 0.45
-                  : adjAge === 35 ? 0.30
-                  : adjAge === 34 ? 0.18
-                  : adjAge === 33 ? 0.10
-                  : adjAge === 32 ? 0.06
-                  : adjAge === 31 ? 0.04
+                  adjAge >= 37 ? 0.95
+                  : adjAge === 36 ? 0.80
+                  : adjAge === 35 ? 0.62
+                  : adjAge === 34 ? 0.45
+                  : adjAge === 33 ? 0.30
+                  : adjAge === 32 ? 0.20
+                  : adjAge === 31 ? 0.13
+                  : adjAge === 30 ? 0.08
+                  : adjAge === 29 ? 0.04
+                  : adjAge === 28 ? 0.02
                   : 0;
       // Accolade-based longevity — multi-time All-Pros / Pro Bowlers hang
       // on. Each career All-Pro shaves 5% off retirement (max -35%).
