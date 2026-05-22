@@ -1745,8 +1745,12 @@ function _careerColsFor(pos) {
 // ── Injuries ──────────────────────────────────────────────────────────────────
 // Per-game injury chance per player on a team, by position. Higher
 // numbers for trench positions where contact is constant.
-const INJURY_RATE = { QB:0.012, RB:0.022, WR:0.014, TE:0.016, OL:0.020,
-                     DL:0.020, LB:0.018, CB:0.014, S:0.012, K:0.002, P:0.002 };
+// Per-game per-player base injury rate. Audit landed at 9.9 injuries/
+// team/season vs NFL 12-15 (IR list). Bumped ~25% across contact
+// positions to hit NFL volume. Wear- and age-multipliers compound on
+// top, so these are the floor for healthy young players.
+const INJURY_RATE = { QB:0.014, RB:0.026, WR:0.017, TE:0.020, OL:0.024,
+                     DL:0.024, LB:0.022, CB:0.017, S:0.015, K:0.003, P:0.003 };
 // Each injury type carries a baseline OVR penalty applied AFTER recovery
 // to model the "rehabbing back to full speed" arc. Soft-tissue stuff
 // heals clean (penalty 0); structural injuries leave lingering damage.
@@ -2060,7 +2064,8 @@ function _rollGameInjuries(teamId) {
     }
     p.injuryHistory.push({
       label: t.label, week: effectiveWeek, season: franchise.season,
-      weeks: wks, catastrophic: isCatastrophic,
+      weeks: wks, duration: wks, catastrophic: isCatastrophic,
+      careerEnding, cause: "weekly",
     });
     if (p.injuryHistory.length > 20) p.injuryHistory = p.injuryHistory.slice(-20);
     const isMine = teamId === franchise.chosenTeamId;

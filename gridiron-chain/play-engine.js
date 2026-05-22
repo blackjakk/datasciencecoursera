@@ -489,15 +489,17 @@ class GameSimulator {
   // Per-snap WEAR cost — cumulative micro-damage that survives across games.
   // Different curve than fatigue: lower per-snap, decays slowly across the
   // week (not after each game). High wear elevates injury risk and dings
-  // late-game effective OVR. Calibrated so:
+  // late-game effective OVR. Audit-tuned so:
   //   - RB workhorse (62 snaps, 20 car) hits 90+ wear by mid-season
-  //   - OL/DL starters accrue ~55-65 wear by W17 (manageable, hits late)
+  //   - OL/DL/LB starters accrue ~50-65 wear by W17 (manageable, ramps late)
   //   - QB/WR stay mostly fresh unless heavily sacked / targeted
+  // DL/LB lowered (was 0.13/0.10) because tackler wear stacks on top
+  // and they were piling up to ~95+ by playoffs.
   static _WEAR_PER_SNAP = {
-    QB:  0.07, RB:  0.12, FB:  0.11, WR:  0.08, TE:  0.10,
-    OL:  0.12, LT:  0.12, LG:  0.12, C:   0.12, RG:  0.12, RT:  0.12,
-    DL:  0.13, DE:  0.13, DT:  0.13, LDE: 0.13, RDE: 0.13, LDT: 0.13, RDT: 0.13,
-    LB:  0.10, CB:  0.08, S:   0.08, FS:  0.08, SS:  0.08,
+    QB:  0.06, RB:  0.12, FB:  0.11, WR:  0.07, TE:  0.09,
+    OL:  0.10, LT:  0.10, LG:  0.10, C:   0.10, RG:  0.10, RT:  0.10,
+    DL:  0.10, DE:  0.10, DT:  0.10, LDE: 0.10, RDE: 0.10, LDT: 0.10, RDT: 0.10,
+    LB:  0.08, CB:  0.07, S:   0.07, FS:  0.07, SS:  0.07,
     K:   0.005, P: 0.005,
   };
   _bumpFatigue(name, costMul = 1.0) {
@@ -579,25 +581,26 @@ class GameSimulator {
                         * (carrier.archetype === "RECEIVING" ? 0.92 : 1.0);
     const wear = (baseAmount * force * vuln + extra) * staminaMul * carrierArchMul;
     carrier._wear = Math.min(100, (carrier._wear || 0) + wear);
-    // Tackler reciprocal wear (action ≡ reaction). 40% of the carrier's
+    // Tackler reciprocal wear (action ≡ reaction). 25% of the carrier's
     // wear, no vulnerability scaling (the hitter braced for it). High-STR
     // tacklers feel less proportionally because that's the whole point of
-    // being built for contact.
+    // being built for contact. Lower than first-pass 0.40 because DL/LB
+    // making 5-7 tackles/game compounded too aggressively across a season.
     if (tackler) {
       const tStamina = tackler.stats?.[12] ?? 70;
       const tStaminaMul = clamp(1 - (tStamina - 70) / 80, 0.6, 1.4);
       const tIronMul = tackler.ironman ? 0.8 : 1.0;
-      const tackleWear = wear * 0.4 * tStaminaMul * tIronMul;
+      const tackleWear = wear * 0.25 * tStaminaMul * tIronMul;
       tackler._wear = Math.min(100, (tackler._wear || 0) + tackleWear);
     }
-    // BIG-HIT INJURY ROLL. Only fires for genuinely big hits (force > 1.3)
-    // or sacks. Small per-hit chance so it adds up to ~1-3 freak injuries
-    // per team per season — additive to the weekly injury roll, not a
-    // replacement. Scaled by carrier vulnerability and (for sacks) depth.
-    if (force >= 1.3 || opts.eventType === "sack") {
-      let injChance = (force - 1.0) * 0.0015 * vuln;
-      if (opts.eventType === "sack") injChance += 0.0008 + Math.abs(opts.sackDepth || 0) * 0.00015;
-      if (opts.negativeYards) injChance += Math.abs(opts.negativeYards) * 0.0003;
+    // BIG-HIT INJURY ROLL. Threshold lowered to 1.1 (was 1.3) and chance
+    // bumped 2x — first audit had only 11 big-hits in 10 seasons league-
+    // wide. NFL has ~5-10 visible "cart-off" moments per season, so target
+    // ~50-100 league-wide additive injuries from impact-driven moments.
+    if (force >= 1.1 || opts.eventType === "sack") {
+      let injChance = (force - 0.9) * 0.0030 * vuln;
+      if (opts.eventType === "sack") injChance += 0.0012 + Math.abs(opts.sackDepth || 0) * 0.00020;
+      if (opts.negativeYards) injChance += Math.abs(opts.negativeYards) * 0.0005;
       if (Math.random() < injChance && typeof this._triggerBigHitInjury === "function") {
         this._triggerBigHitInjury(carrier, force, opts, tackler);
       }
@@ -657,7 +660,7 @@ class GameSimulator {
         label: t.label,
         catastrophic: isCatastrophic,
         careerEnding,
-        duration: wks,
+        weeks: wks, duration: wks,
         cause: opts.eventType === "sack" ? "sack" : "big_hit",
         tackler: tackler?.name || null,
       });
