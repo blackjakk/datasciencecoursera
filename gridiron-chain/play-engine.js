@@ -1122,7 +1122,9 @@ class GameSimulator {
     } else {
       this.ytg = clamp(this.ytg + (pen.on === "off" ? pen.yds : -pen.yds), 1, 99);
     }
-    this.time = Math.max(0, this.time - 8);
+    // NFL penalty clock burn: flag thrown, refs confer, announce, reset =
+    // ~10-12s (more than a play clock-stop because of ref discussion time).
+    this.time = Math.max(0, this.time - 10);
     this._pushVisual({
       kind: "penalty",
       desc: `🚩 ${pen.type}${offender ? ` on ${offender}` : ` on ${this[flaggedKey]?.name || flaggedKey}`} — ${pen.yds} yds${pen.autoFirst ? ", automatic first down" : ""}${pen.lossDown ? ", loss of down" : ""}`,
@@ -1614,10 +1616,14 @@ class GameSimulator {
     // clock continues but game clock paused until snap). Without this the
     // engine burned a flat 27 sec/play regardless of result.
     const clockStopped = !!this._lastClockStopped;
-    const dtMean = inTwoMin ? 13 : clockStopped ? 12 : 28;
-    const dtSd   = inTwoMin ? 4  : clockStopped ? 4  : 8;
-    const dtMin  = inTwoMin ? 6  : clockStopped ? 5  : 12;
-    const dtMax  = inTwoMin ? 24 : clockStopped ? 22 : 48;
+    // NFL per-snap clock burn (incl. dead ball before snap):
+    //   normal:  ~28-30s   (engine 29)
+    //   stopped: ~12-14s   (engine 13)  incomp / OOB / TO / spike
+    //   2-min:   ~10-12s   (engine 12)  no-huddle pace
+    const dtMean = inTwoMin ? 12 : clockStopped ? 13 : 29;
+    const dtSd   = inTwoMin ? 3  : clockStopped ? 4  : 8;
+    const dtMin  = inTwoMin ? 5  : clockStopped ? 6  : 13;
+    const dtMax  = inTwoMin ? 22 : clockStopped ? 22 : 48;
     const dt = clamp(normal(dtMean, dtSd), dtMin, dtMax);
     this.time -= dt;
     if (this.time < 0) this.time = 0;
