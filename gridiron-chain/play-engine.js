@@ -2335,13 +2335,14 @@ class GameSimulator {
     // engine burned a flat 27 sec/play regardless of result.
     const clockStopped = !!this._lastClockStopped;
     // NFL per-snap clock burn (incl. dead ball before snap):
-    //   normal:  ~28-30s   (engine 29)
-    //   stopped: ~12-14s   (engine 13)  incomp / OOB / TO / spike
+    //   normal:  ~32-34s   (engine 33; was 29 — ran hot at 70 plays/g
+    //                       vs NFL 62, bumped to land NFL pace)
+    //   stopped: ~13-15s   (engine 14)  incomp / OOB / TO / spike
     //   2-min:   ~10-12s   (engine 12)  no-huddle pace
-    const dtMean = inTwoMin ? 12 : clockStopped ? 13 : 29;
+    const dtMean = inTwoMin ? 12 : clockStopped ? 14 : 33;
     const dtSd   = inTwoMin ? 3  : clockStopped ? 4  : 8;
-    const dtMin  = inTwoMin ? 5  : clockStopped ? 6  : 13;
-    const dtMax  = inTwoMin ? 22 : clockStopped ? 22 : 48;
+    const dtMin  = inTwoMin ? 5  : clockStopped ? 6  : 16;
+    const dtMax  = inTwoMin ? 22 : clockStopped ? 24 : 52;
     const dt = clamp(normal(dtMean, dtSd), dtMin, dtMax);
     this.time -= dt;
     if (this.time < 0) this.time = 0;
@@ -2599,7 +2600,9 @@ class GameSimulator {
         const fgPct = clamp(0.99 - (dist - 20) * 0.010 + kSkill / 200
                           + archAccMod + archRangeMod + kpwBonus + iceMod - wxPenalty, 0.15, 0.99);
         const kStats = off.players[K]; if (kStats) { kStats.fg_att++; }
-        off.team.fourthAtt++;
+        // NOTE: do NOT bump fourthAtt — NFL "4th-down conversion %"
+        // measures GO-FOR-IT attempts only. FGs and punts use their
+        // own stat columns.
         // Block chance — slightly higher on long attempts
         const blockPct = clamp(0.025 + Math.max(0, dist - 40) * 0.0015, 0.025, 0.06);
         if (Math.random() < blockPct) {
@@ -2685,7 +2688,8 @@ class GameSimulator {
       } else {
         // Punt — distance, hang time, and return resolution are all driven by
         // the PUNTER (separate from the kicker). Archetype + KPW shape it.
-        off.team.fourthAtt++;
+        // NOTE: do NOT bump fourthAtt — punts are not 4th-down conversion
+        // attempts in NFL stat parlance.
         const P = this.offR.starters.p;
         const pPlayer = this._playerByName.get(P);
         const pArch = pPlayer?.archetype;
