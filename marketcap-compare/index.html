@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Market Cap Of — compare any asset to any asset</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Market Cap Of</h1>
+      <p class="tagline">
+        If <span class="hl-a">Asset A</span> had the market cap of
+        <span class="hl-b">Asset B</span>, what would it be worth?
+      </p>
+    </header>
+
+    <main>
+      <section class="pickers">
+        <div class="picker" data-side="a">
+          <label>Asset A <span class="muted">(the one that grows)</span></label>
+          <input
+            type="text"
+            class="search"
+            placeholder="Search crypto, stock, or private company…"
+            autocomplete="off"
+          />
+          <ul class="suggestions" hidden></ul>
+          <div class="selected" hidden></div>
+        </div>
+
+        <div class="vs">had the market cap of →</div>
+
+        <div class="picker" data-side="b">
+          <label>Asset B <span class="muted">(the target)</span></label>
+          <input
+            type="text"
+            class="search"
+            placeholder="Search crypto, stock, or private company…"
+            autocomplete="off"
+          />
+          <ul class="suggestions" hidden></ul>
+          <div class="selected" hidden></div>
+        </div>
+      </section>
+
+      <section class="result" hidden>
+        <div class="multiplier"></div>
+        <div class="price-line"></div>
+        <div class="details"></div>
+      </section>
+
+      <section class="examples">
+        <p class="muted">Try:</p>
+        <div class="chips"></div>
+      </section>
+
+      <section class="sources muted">
+        <h3>Data sources</h3>
+        <ul>
+          <li>
+            <strong>Crypto</strong> — live from
+            <a href="https://www.coingecko.com/en/api" target="_blank" rel="noopener">CoinGecko</a>
+            (covers most CEX/DEX coins and tokens by id or symbol).
+          </li>
+          <li>
+            <strong>Stocks</strong> — bundled snapshot of top global tickers.
+            Approximate; refresh
+            <code>data/stocks.json</code> to update. Live stock prices need a
+            backend proxy because no free stock API offers no-key,
+            CORS-enabled access from the browser.
+          </li>
+          <li>
+            <strong>Private companies</strong> — bundled snapshot of
+            most-recent publicly reported valuations (tender offers, funding
+            rounds, secondary markets). Edit <code>data/private.json</code>
+            to update.
+          </li>
+        </ul>
+      </section>
+    </main>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

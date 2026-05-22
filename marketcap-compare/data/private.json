@@ -1,0 +1,36 @@
+{
+  "_meta": {
+    "note": "Snapshot of private/pre-IPO company valuations from latest publicly reported tender offers, funding rounds, and secondary markets. Valuations are approximate and inherently lag the market. Update by editing this file.",
+    "snapshot_date": "2026-05"
+  },
+  "companies": [
+    { "ticker": "OPENAI", "name": "OpenAI", "market_cap": 500000000000, "source": "Oct 2025 secondary tender" },
+    { "ticker": "SPACEX", "name": "SpaceX", "market_cap": 400000000000, "source": "Late 2024 tender" },
+    { "ticker": "BYTEDANCE", "name": "ByteDance (TikTok)", "market_cap": 300000000000, "source": "2024 internal buyback" },
+    { "ticker": "ANTHROPIC", "name": "Anthropic", "market_cap": 183000000000, "source": "2025 funding round" },
+    { "ticker": "XAI", "name": "xAI", "market_cap": 200000000000, "source": "2025 funding round" },
+    { "ticker": "STRIPE", "name": "Stripe", "market_cap": 91500000000, "source": "2024 tender" },
+    { "ticker": "SHEIN", "name": "Shein", "market_cap": 66000000000, "source": "2023 funding" },
+    { "ticker": "DATABRICKS", "name": "Databricks", "market_cap": 62000000000, "source": "2024 funding" },
+    { "ticker": "REVOLUT", "name": "Revolut", "market_cap": 45000000000, "source": "2024 secondary" },
+    { "ticker": "FANATICS", "name": "Fanatics", "market_cap": 31000000000, "source": "2022 funding" },
+    { "ticker": "CANVA", "name": "Canva", "market_cap": 32000000000, "source": "2024 secondary" },
+    { "ticker": "EPICGAMES", "name": "Epic Games", "market_cap": 32000000000, "source": "2022 funding" },
+    { "ticker": "MIRO", "name": "Miro", "market_cap": 17500000000, "source": "2022 funding" },
+    { "ticker": "DISCORD", "name": "Discord", "market_cap": 15000000000, "source": "2021 funding" },
+    { "ticker": "KLARNA", "name": "Klarna", "market_cap": 14600000000, "source": "2024 secondary" },
+    { "ticker": "PLAID", "name": "Plaid", "market_cap": 13400000000, "source": "2021 funding" },
+    { "ticker": "RAMP", "name": "Ramp", "market_cap": 13000000000, "source": "2025 funding" },
+    { "ticker": "BREX", "name": "Brex", "market_cap": 12300000000, "source": "2022 funding" },
+    { "ticker": "NOTION", "name": "Notion", "market_cap": 10000000000, "source": "2021 funding" },
+    { "ticker": "VERCEL", "name": "Vercel", "market_cap": 3250000000, "source": "2024 funding" },
+    { "ticker": "REPLIT", "name": "Replit", "market_cap": 1160000000, "source": "2023 funding" },
+    { "ticker": "MERCURY", "name": "Mercury", "market_cap": 3500000000, "source": "2024 secondary" },
+    { "ticker": "PERPLEXITY", "name": "Perplexity", "market_cap": 18000000000, "source": "2025 funding" },
+    { "ticker": "MISTRAL", "name": "Mistral", "market_cap": 6500000000, "source": "2024 funding" },
+    { "ticker": "COHERE", "name": "Cohere", "market_cap": 5500000000, "source": "2024 funding" },
+    { "ticker": "FIGURE", "name": "Figure AI", "market_cap": 39500000000, "source": "2025 funding" },
+    { "ticker": "GROQ", "name": "Groq", "market_cap": 6900000000, "source": "2025 funding" },
+    { "ticker": "WAYMO", "name": "Waymo", "market_cap": 45000000000, "source": "2024 funding" }
+  ]
+}
