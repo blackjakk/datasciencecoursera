@@ -2988,184 +2988,170 @@ function _vitalsLabel(wearVal) {
   return                  "Critical";
 }
 // Render the SVG body silhouette with regions filled by wear color.
-// Stylized anatomical front view. 200×460 viewBox; the body fills the
-// frame with a quietly-shaded base layer underneath color regions.
+// Athletic-build human, 240×500 viewBox. Symmetric construction: the
+// LEFT side path is authored, the RIGHT side is reflected across cx=120
+// to ensure pixel-perfect mirror symmetry. Regions are translucent
+// overlays on a softly-defined body so colors blend with anatomy.
 function _buildVitalsBodyDiagram(p) {
   const bw = p._bodyWear || {};
   const get = (k) => bw[k] || 0;
   const stress = p._stress || 0;
   const wear = p._wear || 0;
+  // Mirror utility: any LEFT-side path can be reflected to the RIGHT
+  // by replacing x coords with 240-x.
+  const mirror = (pathStr) => pathStr.replace(/(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)/g,
+    (m, x, y) => `${(240 - parseFloat(x)).toFixed(1)} ${y}`);
   const reg = (d, key, label) => {
     const v = get(key);
     const fill = _vitalsColor(v);
-    return `<path d="${d}" fill="${fill}" data-vitals-part="${key}">
+    // Higher opacity for worn parts; faded for healthy so the silhouette
+    // reads cleanly when most of the body is healthy.
+    const opacity = v < 5 ? 0.42 : v < 30 ? 0.62 : 0.85;
+    return `<path d="${d}" fill="${fill}" fill-opacity="${opacity}"
+      data-vitals-part="${key}">
       <title>${label}: ${v.toFixed(0)} · ${_vitalsLabel(v)}</title></path>`;
   };
-  // Base silhouette — a single soft outline so the body reads as ONE
-  // figure under the colored regions. Subtle gradient + outline.
-  const baseSilhouette = `
+  // ── BASE FRAME + SILHOUETTE OUTLINE ───────────────────────────────
+  // The "ghost body" is a single closed path drawn very subtly so the
+  // colored regions sit on a coherent figure.
+  const baseFrame = `
     <defs>
       <linearGradient id="vit-bg" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%"  stop-color="#1a232f"/>
-        <stop offset="100%" stop-color="#0e151e"/>
+        <stop offset="0%"  stop-color="#171f2b"/>
+        <stop offset="100%" stop-color="#0a1019"/>
       </linearGradient>
-      <filter id="vit-glow"><feGaussianBlur stdDeviation="1.2"/></filter>
+      <radialGradient id="vit-vignette" cx="50%" cy="40%" r="60%">
+        <stop offset="0%" stop-color="rgba(255,255,255,0)"/>
+        <stop offset="100%" stop-color="rgba(0,0,0,.35)"/>
+      </radialGradient>
     </defs>
-    <rect x="0" y="0" width="200" height="460" rx="8" fill="url(#vit-bg)"/>
+    <rect x="0" y="0" width="240" height="500" rx="10" fill="url(#vit-bg)"/>
+    <rect x="0" y="0" width="240" height="500" rx="10" fill="url(#vit-vignette)"/>
+    <!-- whole-body ghost silhouette: head→shoulders→arms→torso→hips→legs -->
     <path d="
-      M100 24
-      C 88 24 78 32 78 47
-      C 78 56 82 62 87 66
-      L 80 76
-      C 70 78 60 82 55 92
-      L 52 130
-      C 48 140 47 152 46 162
-      L 40 188
-      C 38 200 36 215 35 232
-      C 35 240 36 246 40 252
-      L 44 260
-      L 50 260
-      L 52 240
-      L 56 220
-      L 60 198
-      L 64 180
-      L 68 168
-      L 72 162
-      L 78 174
-      L 82 196
-      L 84 230
-      L 84 268
-      L 86 295
-      L 88 326
-      L 90 360
-      L 92 390
-      L 95 420
-      L 100 430
-      L 105 420
-      L 108 390
-      L 110 360
-      L 112 326
-      L 114 295
-      L 116 268
-      L 116 230
-      L 118 196
-      L 122 174
-      L 128 162
-      L 132 168
-      L 136 180
-      L 140 198
-      L 144 220
-      L 148 240
-      L 150 260
-      L 156 260
-      L 160 252
-      C 164 246 165 240 165 232
-      C 164 215 162 200 160 188
-      L 154 162
-      C 153 152 152 140 148 130
-      L 145 92
-      C 140 82 130 78 120 76
-      L 113 66
-      C 118 62 122 56 122 47
-      C 122 32 112 24 100 24 Z"
-      fill="rgba(255,255,255,.04)" stroke="rgba(255,255,255,.18)" stroke-width="0.8"/>`;
-  // ── HEAD + NECK ─────────────────────────────────────────────────
+      M 120 28
+      C 102 28  88 42  88 60
+      C 88 74  94 82  102 86
+      L 100 100
+      C 86 102  74 108  66 118
+      C 60 130  56 146  54 162
+      L 50 196
+      C 44 214  42 232  44 248
+      C 46 256  50 260  56 258
+      L 64 252
+      L 68 232
+      L 74 210
+      L 80 192
+      L 84 176
+      L 88 168
+      L 96 178
+      L 102 200
+      L 106 232
+      L 108 256
+      L 110 280
+      L 110 312
+      L 108 348
+      L 104 384
+      L 100 420
+      L 98 454
+      L 102 470
+      L 116 470
+      L 118 446
+      L 120 416
+      L 122 446
+      L 124 470
+      L 138 470
+      L 142 454
+      L 140 420
+      L 136 384
+      L 132 348
+      L 130 312
+      L 130 280
+      L 132 256
+      L 134 232
+      L 138 200
+      L 144 178
+      L 152 168
+      L 156 176
+      L 160 192
+      L 166 210
+      L 172 232
+      L 176 252
+      L 184 258
+      C 190 260 194 256 196 248
+      C 198 232 196 214 190 196
+      L 186 162
+      C 184 146 180 130 174 118
+      C 166 108 154 102 140 100
+      L 138 86
+      C 146 82 152 74 152 60
+      C 152 42 138 28 120 28 Z"
+      fill="rgba(255,255,255,.05)"
+      stroke="rgba(255,255,255,.18)" stroke-width="1"
+      stroke-linejoin="round"/>`;
+  // ── HEAD + NECK (centered, single shape each) ───────────────────
   const head = reg(
-    "M100 26 C 89 26 80 33 80 46 C 80 58 89 64 100 64 C 111 64 120 58 120 46 C 120 33 111 26 100 26 Z",
+    "M 120 30 C 104 30 92 42 92 58 C 92 74 104 84 120 84 C 136 84 148 74 148 58 C 148 42 136 30 120 30 Z",
     "head", "Head"
   );
   const neck = reg(
-    "M90 64 L 90 78 C 90 81 95 82 100 82 C 105 82 110 81 110 78 L 110 64 Z",
+    "M 108 84 L 108 100 C 108 104 114 106 120 106 C 126 106 132 104 132 100 L 132 84 Z",
     "neck", "Neck"
   );
-  // ── SHOULDERS ───────────────────────────────────────────────────
-  const shoulderL = reg(
-    "M82 80 C 70 82 60 87 56 95 L 54 112 L 78 110 L 82 96 Z",
-    "shoulderL", "Left shoulder"
-  );
-  const shoulderR = reg(
-    "M118 80 C 130 82 140 87 144 95 L 146 112 L 122 110 L 118 96 Z",
-    "shoulderR", "Right shoulder"
-  );
-  // ── CHEST + BACK (back overlaid lower) ──────────────────────────
+  // ── SHOULDERS (LEFT authored, RIGHT mirrored) ───────────────────
+  const shoulderL_d = "M 100 100 C 84 103 70 110 64 122 L 62 140 L 92 140 L 100 116 Z";
+  const shoulderL = reg(shoulderL_d, "shoulderL", "Left shoulder");
+  const shoulderR = reg(mirror(shoulderL_d), "shoulderR", "Right shoulder");
+  // ── CHEST + LOWER BACK (single rectangles centered) ─────────────
   const chest = reg(
-    "M78 96 L 122 96 L 124 140 L 76 140 Z",
-    "chest", "Chest"
+    "M 92 116 L 148 116 L 152 172 L 88 172 Z",
+    "chest", "Chest / pec"
   );
   const back = reg(
-    "M78 140 L 122 140 L 124 168 C 116 174 84 174 76 168 Z",
-    "back", "Lower back"
+    "M 88 172 L 152 172 L 154 208 C 142 216 98 216 86 208 Z",
+    "back", "Lower back / abs"
   );
-  // ── HANDS (lower forearms / wrists) ─────────────────────────────
-  const handL = reg(
-    "M44 188 C 38 198 36 212 38 222 C 42 226 50 226 54 222 C 54 208 52 198 50 188 Z",
-    "handL", "Left hand / wrist"
-  );
-  const handR = reg(
-    "M156 188 C 162 198 164 212 162 222 C 158 226 150 226 146 222 C 146 208 148 198 150 188 Z",
-    "handR", "Right hand / wrist"
-  );
-  // ── HIPS + GROIN ────────────────────────────────────────────────
-  const hipL = reg(
-    "M76 168 C 72 178 70 190 71 202 L 96 202 L 98 168 Z",
-    "hipL", "Left hip"
-  );
-  const hipR = reg(
-    "M124 168 C 128 178 130 190 129 202 L 104 202 L 102 168 Z",
-    "hipR", "Right hip"
-  );
+  // ── HANDS (lower-forearm pads, side of body) ────────────────────
+  const handL_d = "M 50 200 C 42 212 40 230 42 246 C 48 252 60 252 64 246 C 64 226 60 212 56 200 Z";
+  const handL = reg(handL_d, "handL", "Left hand / wrist");
+  const handR = reg(mirror(handL_d), "handR", "Right hand / wrist");
+  // ── HIPS (left + right, centered groin between) ─────────────────
+  const hipL_d = "M 86 208 C 82 220 80 234 81 248 L 116 248 L 118 208 Z";
+  const hipL = reg(hipL_d, "hipL", "Left hip");
+  const hipR = reg(mirror(hipL_d), "hipR", "Right hip");
   const groin = reg(
-    "M93 198 L 107 198 L 106 215 L 94 215 Z",
+    "M 112 244 L 128 244 L 127 262 L 113 262 Z",
     "groin", "Groin"
   );
-  // ── THIGHS / HAMSTRINGS (front-view but labeled as hamstrings) ──
-  const hamstringL = reg(
-    "M73 204 L 96 204 L 94 260 L 76 260 Z",
-    "hamstringL", "Left hamstring / thigh"
-  );
-  const hamstringR = reg(
-    "M104 204 L 127 204 L 124 260 L 106 260 Z",
-    "hamstringR", "Right hamstring / thigh"
-  );
+  // ── THIGHS / HAMSTRINGS ─────────────────────────────────────────
+  const hamL_d = "M 84 250 L 116 250 L 114 318 L 88 318 Z";
+  const hamstringL = reg(hamL_d, "hamstringL", "Left hamstring / thigh");
+  const hamstringR = reg(mirror(hamL_d), "hamstringR", "Right hamstring / thigh");
   // ── KNEES ───────────────────────────────────────────────────────
-  const kneeL = reg(
-    "M76 262 L 94 262 L 93 282 L 77 282 Z",
-    "kneeL", "Left knee"
-  );
-  const kneeR = reg(
-    "M106 262 L 124 262 L 123 282 L 107 282 Z",
-    "kneeR", "Right knee"
-  );
-  // ── CALVES (front-view shin / calf area) ────────────────────────
-  const calfL = reg(
-    "M77 284 L 93 284 L 91 348 L 79 348 Z",
-    "calfL", "Left calf"
-  );
-  const calfR = reg(
-    "M107 284 L 123 284 L 121 348 L 109 348 Z",
-    "calfR", "Right calf"
-  );
+  const kneeL_d = "M 88 320 L 114 320 L 113 342 L 90 342 Z";
+  const kneeL = reg(kneeL_d, "kneeL", "Left knee");
+  const kneeR = reg(mirror(kneeL_d), "kneeR", "Right knee");
+  // ── CALVES ──────────────────────────────────────────────────────
+  const calfL_d = "M 90 344 L 113 344 L 110 410 L 94 410 Z";
+  const calfL = reg(calfL_d, "calfL", "Left calf");
+  const calfR = reg(mirror(calfL_d), "calfR", "Right calf");
   // ── ACHILLES ────────────────────────────────────────────────────
-  const achillesL = reg(
-    "M79 350 L 91 350 L 90 366 L 80 366 Z",
-    "achillesL", "Left achilles"
-  );
-  const achillesR = reg(
-    "M109 350 L 121 350 L 120 366 L 110 366 Z",
-    "achillesR", "Right achilles"
-  );
+  const achL_d = "M 94 412 L 110 412 L 108 432 L 96 432 Z";
+  const achillesL = reg(achL_d, "achillesL", "Left achilles");
+  const achillesR = reg(mirror(achL_d), "achillesR", "Right achilles");
   // ── ANKLES / FEET ───────────────────────────────────────────────
-  const ankleL = reg(
-    "M78 368 L 92 368 L 95 388 L 75 388 Z",
-    "ankleL", "Left ankle / foot"
-  );
-  const ankleR = reg(
-    "M108 368 L 122 368 L 125 388 L 105 388 Z",
-    "ankleR", "Right ankle / foot"
-  );
-  return `<svg viewBox="0 0 200 460" width="200" height="380" xmlns="http://www.w3.org/2000/svg"
-    style="border-radius:8px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.06)">
-    ${baseSilhouette}
+  const ankL_d = "M 92 434 L 110 434 L 116 456 L 86 456 Z";
+  const ankleL = reg(ankL_d, "ankleL", "Left ankle / foot");
+  const ankleR = reg(mirror(ankL_d), "ankleR", "Right ankle / foot");
+  // ── ANATOMICAL DETAIL LINES (collarbone, sternum, abs) ──────────
+  const detailLines = `
+    <line x1="98" y1="106" x2="142" y2="106" stroke="rgba(255,255,255,.10)" stroke-width="0.8"/>
+    <line x1="120" y1="116" x2="120" y2="170" stroke="rgba(255,255,255,.08)" stroke-width="0.6"/>
+    <line x1="120" y1="172" x2="120" y2="208" stroke="rgba(255,255,255,.08)" stroke-width="0.6"/>
+    <line x1="120" y1="250" x2="120" y2="316" stroke="rgba(255,255,255,.10)" stroke-width="0.6"/>`;
+  return `<svg viewBox="0 0 240 500" width="240" height="450" xmlns="http://www.w3.org/2000/svg"
+    style="border-radius:10px;box-shadow:0 4px 12px rgba(0,0,0,.4), inset 0 0 0 1px rgba(255,255,255,.06)">
+    ${baseFrame}
     ${head}${neck}
     ${shoulderL}${shoulderR}
     ${chest}${back}
@@ -3176,8 +3162,9 @@ function _buildVitalsBodyDiagram(p) {
     ${calfL}${calfR}
     ${achillesL}${achillesR}
     ${ankleL}${ankleR}
-    <text x="100" y="448" fill="rgba(255,255,255,.55)" font-size="9" font-family="-apple-system,monospace" text-anchor="middle" letter-spacing="1">
-      WEAR ${wear.toFixed(0)} · STRESS ${stress.toFixed(0)}
+    ${detailLines}
+    <text x="120" y="486" fill="rgba(255,255,255,.6)" font-size="9.5" font-family="-apple-system,Inter,monospace" text-anchor="middle" letter-spacing="2" font-weight="600">
+      WEAR ${wear.toFixed(0)}  ·  STRESS ${stress.toFixed(0)}
     </text>
   </svg>`;
 }
