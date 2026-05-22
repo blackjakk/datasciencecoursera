@@ -1023,8 +1023,16 @@ class GameSimulator {
   }
   // AI decides whether to burn a timeout. Returns the team that called it, or null.
   // Called between plays in _drive(). Only fires when the clock would keep running.
+  //
+  // HC personality on clock management — the timeout-call thresholds
+  // shift based on the HC's coaching style:
+  //   Riverboat Gambler  burns timeouts early (160s window, more
+  //                      aggressive defensive TOs to get the ball back)
+  //   Conservative       saves timeouts late (90s window, picky)
+  //   Game Manager       balanced and disciplined (135s, no wasted TOs)
+  //   Other              default (120s offense, 130s defense)
   _maybeCallTimeout(prevResult) {
-    if (this.time > 150 || this.time <= 5) return null;          // only late in halves
+    if (this.time > 180 || this.time <= 5) return null;          // only late in halves
     if (this.quarter !== 2 && this.quarter !== 4) return null;
     if (prevResult?.incomplete || prevResult?.turnover) return null;  // clock already stopped
     if (prevResult?.endDrive) return null;
@@ -1033,8 +1041,23 @@ class GameSimulator {
     const offScore = this.score[offTeam];
     const defScore = this.score[defTeam];
     const diff = offScore - defScore;
+    // HC clock-management style per team
+    const tidOf = (key) => key === "home" ? this.home.id : this.away.id;
+    const styleFor = (key) => {
+      if (typeof franchise === "undefined") return null;
+      return franchise.coaches?.[tidOf(key)]?.hc?.specialtyTrait;
+    };
+    const toWindowFor = (key) => {
+      const s = styleFor(key);
+      if (s === "Riverboat Gambler") return 160;
+      if (s === "Conservative")      return 90;
+      if (s === "Game Manager")      return 135;
+      return 120;
+    };
+    const offTOWindow = toWindowFor(offTeam);
+    const defTOWindow = Math.max(toWindowFor(defTeam), 100);  // defense always slightly earlier
     // Offense calls TO if behind and clock running out
-    if (this.timeouts[offTeam] > 0 && diff <= 0 && this.time < 120) {
+    if (this.timeouts[offTeam] > 0 && diff <= 0 && this.time < offTOWindow) {
       this.timeouts[offTeam]--;
       this.plays.push({
         kind: "timeout",
@@ -1046,7 +1069,7 @@ class GameSimulator {
       return offTeam;
     }
     // Defense calls TO if trailing big and worried opponent will run clock out
-    if (this.timeouts[defTeam] > 0 && diff >= 1 && diff <= 16 && this.time < 130) {
+    if (this.timeouts[defTeam] > 0 && diff >= 1 && diff <= 16 && this.time < defTOWindow) {
       this.timeouts[defTeam]--;
       this.plays.push({
         kind: "timeout",
@@ -4840,9 +4863,16 @@ class GameSimulator {
         }
         // Desperation: down by ≥9 late = go for 2 most of the time
         if (lateGame && diff <= -9) twoPtChance = Math.max(twoPtChance, 0.65);
-        // QB AGGRESSION tilts the 2-pt rate. Risk-taking QBs go for 2 more
-        // often even in non-chart situations.
-        twoPtChance = clamp(twoPtChance * this._aggTilt(this._qbAggression()), 0, 0.97);
+        // QB + HC AGGRESSION tilt the 2-pt rate. Risk-taking QBs go for
+        // 2 more often even in non-chart situations; Riverboat HCs even
+        // more so; Conservatives basically never except down 2 late.
+        const offTidXP = this.poss === "home" ? this.home.id : this.away.id;
+        const hcStyleXP = (typeof franchise !== "undefined") ? franchise.coaches?.[offTidXP]?.hc?.specialtyTrait : null;
+        const hcXpMul = hcStyleXP === "Riverboat Gambler" ? 1.50
+                      : hcStyleXP === "Conservative"      ? 0.50
+                      : hcStyleXP === "Game Manager"      ? 0.85
+                      :                                       1.00;
+        twoPtChance = clamp(twoPtChance * this._aggTilt(this._qbAggression()) * hcXpMul, 0, 0.97);
         if (Math.random() < twoPtChance) {
           // 2-point try
           if (Math.random() < 0.48) this._score(2, "2-Point Conversion");
