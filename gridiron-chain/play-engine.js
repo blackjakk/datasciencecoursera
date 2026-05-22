@@ -2938,17 +2938,18 @@ class GameSimulator {
     const fumblePct = clamp((0.030 + gripMod + Math.max(0, pressure) * 0.013 + wxFumMod) * optionMul * archFumbleMul, 0.010, 0.10);
     if (Math.random() < fumblePct) {
       // Scrum-based recovery — the ball bounces in a pile of converging players.
-      // Defense has a slight edge in open field (1-3 dive attempts each muff the ball
-      // until someone secures it). About 58% defense recovery overall.
-      const muffRolls = rand(2, 4);
+      // Defense has a slight edge in open field (2-4 dive attempts each kick the
+      // ball loose until someone secures it). About 58% defense recovery overall.
+      // (Not to be confused with NFL-style "muffs" — those are punt-return drops.)
+      const scrumDives = rand(2, 4);
       let recoveredBy = null;
-      let muffs = 0;
-      for (let i = 0; i < muffRolls; i++) {
+      let scrumMisses = 0;
+      for (let i = 0; i < scrumDives; i++) {
         if (Math.random() < 0.55) {        // 55% chance someone secures it this dive
           recoveredBy = Math.random() < 0.58 ? "def" : "off";
           break;
         }
-        muffs++;
+        scrumMisses++;
       }
       if (!recoveredBy) recoveredBy = Math.random() < 0.58 ? "def" : "off";
       const ffBy = this._creditDefStat("ff", { LB: 0.35, DL: 0.40, S: 0.20, CB: 0.05 });
@@ -2980,7 +2981,7 @@ class GameSimulator {
           kind: "fumble",
           desc: `FUMBLE! Recovered by ${this[this.poss === "home" ? "away" : "home"].name} defense — ${ffBy ? `forced by ${ffBy}` : `loose ball`}!${spotDesc}`,
           startYard, endYard: fumbleSpotYL,
-          rusher: RB, defender: frBy, forcedBy: ffBy, recoveredBy: "def", muffs,
+          rusher: RB, defender: frBy, forcedBy: ffBy, recoveredBy: "def", scrumMisses,
           fumbleSpotYL,
         });
         const _defSideFum = this.poss === "home" ? "away" : "home";
@@ -3002,7 +3003,7 @@ class GameSimulator {
           kind: "fumble",
           desc: `FUMBLE! ${this.possTeam.name} recovers their own — ${netYds >= 0 ? "" : "net "}${netYds}-yd ${netYds >= 0 ? "gain" : "loss"} on the dive`,
           startYard, endYard: finalYL,
-          rusher: RB, forcedBy: ffBy, recoveredBy: "off", muffs,
+          rusher: RB, forcedBy: ffBy, recoveredBy: "off", scrumMisses,
           yards: netYds,
         });
         return { yards: netYds };
