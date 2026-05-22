@@ -1993,7 +1993,7 @@ class GameSimulator {
       const dcBallHawkMul  = _dcTrait  === "Ball Hawk"    ? 1.025 : 1.0;
       const hcGameMgrIntMul= _hcSpec   === "Game Manager" ? 0.88  : 1.0;
       const boxStackIntMod = this._boxStackIntMod || 0;
-      const intPct = clamp((0.009 - adv * 0.008 + defIntMod + pressure * 0.006 + ballHawkBonus + qbIntMod + qbIntFromOvr + qbAggIntMod + boxStackIntMod) * dcBallHawkMul * hcGameMgrIntMul, 0.002, 0.030);
+      const intPct = clamp((0.007 - adv * 0.008 + defIntMod + pressure * 0.006 + ballHawkBonus + qbIntMod + qbIntFromOvr + qbAggIntMod + boxStackIntMod) * dcBallHawkMul * hcGameMgrIntMul, 0.002, 0.030);
       if (Math.random() < intPct) {
         const targetDepth = clamp(normal(11, 7), 2, 35);
         if (qbStats) { qbStats.pass_att++; qbStats.pass_int++; }
