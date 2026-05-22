@@ -3022,237 +3022,227 @@ function _vitalsBodyFrame(p) {
     yStretch:  profile.heightStretch * (1 + hDelta * 0.02),
   };
 }
-// Render the SVG body silhouette with regions filled by wear color.
-// Per-position athletic build: OL massive, WR lean, RB compact thighs.
-// Symmetric construction: LEFT-side path authored, RIGHT reflected
-// across cx=120. Region opacity scales with wear so healthy bodies
-// read as the base silhouette.
+// Vitruvian-inspired anatomical body diagram. Single smooth-curve
+// silhouette path defines the body shape; color regions overlay inside
+// via clipPath so they stay within anatomy. Internal muscle lines add
+// the "drawn" anatomical feel (collarbone, pec divide, abs, quads, etc.).
+// Position frame scales body proportions; line-art aesthetic throughout.
 function _buildVitalsBodyDiagram(p) {
   const bw = p._bodyWear || {};
   const get = (k) => bw[k] || 0;
   const stress = p._stress || 0;
   const wear = p._wear || 0;
   const frame = _vitalsBodyFrame(p);
-  const cx = 120;  // body center x
-  // Scale a half-body width relative to baseline 36 (typical chest half).
-  // SW = shoulder half width, CW = chest half, HW = hip half, TW = thigh half.
-  const SW = 36 * frame.shoulderW;
-  const CW = 30 * frame.chestW;
-  const HW = 30 * frame.hipW;
-  const TW = 16 * frame.thighW;
-  const KW = 13 * frame.thighW;  // knee slightly narrower than thigh
-  const CALW = 12 * frame.thighW;
-  const ACHW = 7;
-  const ANKW = 11;
-  const HANDW = 9;
-  // Y coordinates — heightStretch shifts how tall the body is.
-  // Baseline anatomical y-positions (head 28-86, etc.) get stretched by yStretch.
-  const yS = frame.yStretch;
-  const Y = (base) => 28 + (base - 28) * yS;
-  // Reflect any x to right side
-  const mx = (x) => cx + (cx - x);
-  // Path helper: given left-side coords as numbers, build a closed
-  // 4-point quadrilateral (top-left, top-right, bottom-right, bottom-left)
-  // for a region. Used for chest/back/hip/thigh segments that are roughly trapezoidal.
-  const quad = (tl, tr, br, bl) =>
-    `M ${tl[0]} ${tl[1]} L ${tr[0]} ${tr[1]} L ${br[0]} ${br[1]} L ${bl[0]} ${bl[1]} Z`;
-  const reg = (d, key, label) => {
+  // Scale: each frame multiplier nudges that body part's width
+  const sH = frame.shoulderW;
+  const sC = frame.chestW;
+  const sP = frame.hipW;
+  const sT = frame.thighW;
+  // Body landmarks (240x520 canvas, body centered at cx=120)
+  // These are the natural-proportion anchor points; widths scaled per frame.
+  const lm = {
+    cx: 120,
+    head: { cy: 56, rx: 20, ry: 26 },
+    neck: { top: 80, bot: 102, wTop: 13, wBot: 16 },
+    shoulder: { y: 116, w: 50 * sH },
+    chest: { yTop: 122, yBot: 196, wTop: 38 * sC, wBot: 30 * sC, midY: 158 },
+    waist: { y: 218, w: 26 * sC },
+    hip: { yTop: 232, yBot: 270, w: 38 * sP },
+    crotch: { y: 268, w: 4 },
+    thigh: { yTop: 268, yBot: 348, wTop: 24 * sT, wBot: 18 * sT, inset: 4 },
+    knee:  { yTop: 348, yBot: 372, w: 16 * sT },
+    calf:  { yTop: 372, yBot: 446, wTop: 19 * sT, wBot: 13 * sT },
+    ankle: { yTop: 446, yBot: 462, w: 11 },
+    foot:  { yTop: 462, yBot: 486, w: 17 },
+    arm: { shoulderY: 122, elbowY: 226, wristY: 308, handY: 336,
+           shoulderW: 14, upperArmW: 12 * sH, forearmW: 10 * sH, handW: 11 },
+  };
+  const cx = lm.cx;
+  // ── SILHOUETTE PATH: single smooth-curve body outline ─────────────
+  // Goes CLOCKWISE from top of head, down right side, across feet,
+  // back up left side. Uses cubic beziers for organic curves.
+  // Naming: each `C x1 y1, x2 y2, x y` is a curve with two control points.
+  const sil = `
+    M ${cx} ${lm.head.cy - lm.head.ry}
+    C ${cx + lm.head.rx*0.9} ${lm.head.cy - lm.head.ry}, ${cx + lm.head.rx} ${lm.head.cy - lm.head.ry*0.4}, ${cx + lm.head.rx} ${lm.head.cy}
+    C ${cx + lm.head.rx} ${lm.head.cy + lm.head.ry*0.7}, ${cx + lm.head.rx*0.7} ${lm.head.cy + lm.head.ry}, ${cx + lm.neck.wTop} ${lm.neck.top}
+    L ${cx + lm.neck.wBot} ${lm.neck.bot}
+    C ${cx + lm.shoulder.w*0.5} ${lm.neck.bot + 4}, ${cx + lm.shoulder.w*0.85} ${lm.shoulder.y - 6}, ${cx + lm.shoulder.w} ${lm.shoulder.y + 6}
+    C ${cx + lm.shoulder.w + 2} ${lm.shoulder.y + 18}, ${cx + lm.arm.upperArmW + lm.chest.wTop*0.6} ${lm.shoulder.y + 24}, ${cx + lm.chest.wTop} ${lm.chest.yTop + 4}
+    C ${cx + lm.chest.wTop + 2} ${lm.chest.midY}, ${cx + lm.chest.wBot + 2} ${lm.chest.yBot - 4}, ${cx + lm.chest.wBot} ${lm.chest.yBot}
+    C ${cx + lm.waist.w + 2} ${lm.waist.y - 4}, ${cx + lm.waist.w} ${lm.waist.y}, ${cx + lm.waist.w} ${lm.waist.y + 4}
+    C ${cx + lm.hip.w*0.85} ${lm.hip.yTop}, ${cx + lm.hip.w} ${lm.hip.yTop + 8}, ${cx + lm.hip.w - 2} ${lm.hip.yBot - 8}
+    C ${cx + lm.hip.w - 6} ${lm.hip.yBot}, ${cx + lm.thigh.wTop + 4} ${lm.thigh.yTop + 2}, ${cx + lm.thigh.wTop} ${lm.thigh.yTop + 8}
+    C ${cx + lm.thigh.wBot + 4} ${lm.thigh.yBot - 20}, ${cx + lm.thigh.wBot + 2} ${lm.thigh.yBot - 4}, ${cx + lm.knee.w + 2} ${lm.knee.yTop}
+    C ${cx + lm.knee.w} ${lm.knee.yTop + 6}, ${cx + lm.knee.w} ${lm.knee.yBot - 6}, ${cx + lm.knee.w} ${lm.knee.yBot}
+    C ${cx + lm.calf.wTop} ${lm.calf.yTop + 4}, ${cx + lm.calf.wTop + 2} ${lm.calf.yTop + 30}, ${cx + lm.calf.wTop} ${lm.calf.yTop + 40}
+    C ${cx + lm.calf.wBot + 1} ${lm.calf.yBot - 12}, ${cx + lm.calf.wBot} ${lm.calf.yBot - 4}, ${cx + lm.ankle.w + 3} ${lm.ankle.yTop}
+    C ${cx + lm.ankle.w + 1} ${lm.ankle.yTop + 8}, ${cx + lm.ankle.w} ${lm.ankle.yBot - 4}, ${cx + lm.ankle.w} ${lm.ankle.yBot}
+    C ${cx + lm.foot.w} ${lm.foot.yBot - 16}, ${cx + lm.foot.w + 1} ${lm.foot.yBot - 4}, ${cx + lm.foot.w + 1} ${lm.foot.yBot}
+    L ${cx + 1} ${lm.foot.yBot}
+    L ${cx + 1} ${lm.crotch.y}
+    L ${cx - 1} ${lm.crotch.y}
+    L ${cx - 1} ${lm.foot.yBot}
+    L ${cx - lm.foot.w - 1} ${lm.foot.yBot}
+    C ${cx - lm.foot.w - 1} ${lm.foot.yBot - 4}, ${cx - lm.foot.w} ${lm.foot.yBot - 16}, ${cx - lm.ankle.w} ${lm.ankle.yBot}
+    C ${cx - lm.ankle.w} ${lm.ankle.yBot - 4}, ${cx - lm.ankle.w - 1} ${lm.ankle.yTop + 8}, ${cx - lm.ankle.w - 3} ${lm.ankle.yTop}
+    C ${cx - lm.calf.wBot} ${lm.calf.yBot - 4}, ${cx - lm.calf.wBot - 1} ${lm.calf.yBot - 12}, ${cx - lm.calf.wTop} ${lm.calf.yTop + 40}
+    C ${cx - lm.calf.wTop - 2} ${lm.calf.yTop + 30}, ${cx - lm.calf.wTop} ${lm.calf.yTop + 4}, ${cx - lm.knee.w} ${lm.knee.yBot}
+    C ${cx - lm.knee.w} ${lm.knee.yBot - 6}, ${cx - lm.knee.w} ${lm.knee.yTop + 6}, ${cx - lm.knee.w - 2} ${lm.knee.yTop}
+    C ${cx - lm.thigh.wBot - 2} ${lm.thigh.yBot - 4}, ${cx - lm.thigh.wBot - 4} ${lm.thigh.yBot - 20}, ${cx - lm.thigh.wTop} ${lm.thigh.yTop + 8}
+    C ${cx - lm.thigh.wTop - 4} ${lm.thigh.yTop + 2}, ${cx - lm.hip.w + 6} ${lm.hip.yBot}, ${cx - lm.hip.w + 2} ${lm.hip.yBot - 8}
+    C ${cx - lm.hip.w} ${lm.hip.yTop + 8}, ${cx - lm.hip.w*0.85} ${lm.hip.yTop}, ${cx - lm.waist.w} ${lm.waist.y + 4}
+    C ${cx - lm.waist.w} ${lm.waist.y}, ${cx - lm.waist.w - 2} ${lm.waist.y - 4}, ${cx - lm.chest.wBot} ${lm.chest.yBot}
+    C ${cx - lm.chest.wBot - 2} ${lm.chest.yBot - 4}, ${cx - lm.chest.wTop - 2} ${lm.chest.midY}, ${cx - lm.chest.wTop} ${lm.chest.yTop + 4}
+    C ${cx - lm.arm.upperArmW - lm.chest.wTop*0.6} ${lm.shoulder.y + 24}, ${cx - lm.shoulder.w - 2} ${lm.shoulder.y + 18}, ${cx - lm.shoulder.w} ${lm.shoulder.y + 6}
+    C ${cx - lm.shoulder.w*0.85} ${lm.shoulder.y - 6}, ${cx - lm.shoulder.w*0.5} ${lm.neck.bot + 4}, ${cx - lm.neck.wBot} ${lm.neck.bot}
+    L ${cx - lm.neck.wTop} ${lm.neck.top}
+    C ${cx - lm.head.rx*0.7} ${lm.head.cy + lm.head.ry}, ${cx - lm.head.rx} ${lm.head.cy + lm.head.ry*0.7}, ${cx - lm.head.rx} ${lm.head.cy}
+    C ${cx - lm.head.rx} ${lm.head.cy - lm.head.ry*0.4}, ${cx - lm.head.rx*0.9} ${lm.head.cy - lm.head.ry}, ${cx} ${lm.head.cy - lm.head.ry}
+    Z`;
+  // Arm silhouettes (separate hanging shapes — outside the central torso path)
+  const armL = `
+    M ${cx - lm.shoulder.w} ${lm.shoulder.y + 6}
+    C ${cx - lm.shoulder.w - 2} ${lm.shoulder.y + 30}, ${cx - lm.shoulder.w - 4} ${lm.arm.elbowY - 10}, ${cx - lm.shoulder.w - 2} ${lm.arm.elbowY}
+    C ${cx - lm.shoulder.w - 6} ${lm.arm.elbowY + 18}, ${cx - lm.shoulder.w - 8} ${lm.arm.wristY - 20}, ${cx - lm.shoulder.w - 6} ${lm.arm.wristY}
+    C ${cx - lm.shoulder.w - 12} ${lm.arm.handY - 6}, ${cx - lm.shoulder.w - 10} ${lm.arm.handY + 6}, ${cx - lm.shoulder.w - 4} ${lm.arm.handY + 4}
+    C ${cx - lm.shoulder.w + lm.arm.handW - 4} ${lm.arm.handY + 4}, ${cx - lm.shoulder.w + lm.arm.handW - 2} ${lm.arm.handY - 6}, ${cx - lm.shoulder.w + lm.arm.forearmW - 2} ${lm.arm.wristY}
+    C ${cx - lm.shoulder.w + lm.arm.forearmW + 4} ${lm.arm.wristY - 20}, ${cx - lm.shoulder.w + lm.arm.upperArmW + 4} ${lm.arm.elbowY + 18}, ${cx - lm.shoulder.w + lm.arm.upperArmW} ${lm.arm.elbowY}
+    C ${cx - lm.shoulder.w + lm.arm.upperArmW + 2} ${lm.arm.elbowY - 10}, ${cx - lm.shoulder.w + lm.arm.upperArmW} ${lm.shoulder.y + 30}, ${cx - lm.shoulder.w + lm.arm.upperArmW} ${lm.shoulder.y + 14}
+    Z`;
+  // Mirror arm: substitute (cx - X) with (cx + X) by transforming
+  const armR = armL.replace(/\$\{cx - ([^\}]+)\}/g, (_, expr) => `\${cx + ${expr}}`);
+  // Actually since armL is already evaluated, just do string-replace on
+  // the result. Use the cx position numerically.
+  const armRTransform = `scale(-1,1) translate(${-2*cx}, 0)`;
+  // ── INNER ANATOMICAL DETAIL LINES ─────────────────────────────────
+  // Subtle line-art for muscle/bone divides — gives the "drawn" feel.
+  const innerLines = `
+    <g stroke="rgba(255,255,255,.16)" stroke-width="0.7" fill="none" stroke-linecap="round">
+      <!-- collarbone -->
+      <path d="M ${cx - lm.chest.wTop*0.85} ${lm.chest.yTop + 6} Q ${cx} ${lm.chest.yTop + 2}, ${cx + lm.chest.wTop*0.85} ${lm.chest.yTop + 6}"/>
+      <!-- sternum -->
+      <path d="M ${cx} ${lm.chest.yTop + 8} L ${cx} ${lm.chest.yBot - 4}"/>
+      <!-- pec divides (subtle) -->
+      <path d="M ${cx - lm.chest.wTop*0.6} ${lm.chest.midY - 10} Q ${cx - lm.chest.wTop*0.15} ${lm.chest.midY - 6}, ${cx - 4} ${lm.chest.midY}"/>
+      <path d="M ${cx + lm.chest.wTop*0.6} ${lm.chest.midY - 10} Q ${cx + lm.chest.wTop*0.15} ${lm.chest.midY - 6}, ${cx + 4} ${lm.chest.midY}"/>
+      <!-- abs divides (3 horizontal hints) -->
+      <path d="M ${cx - 12} ${lm.chest.yBot - 24} L ${cx + 12} ${lm.chest.yBot - 24}"/>
+      <path d="M ${cx - 14} ${lm.chest.yBot - 8} L ${cx + 14} ${lm.chest.yBot - 8}"/>
+      <path d="M ${cx - 14} ${lm.waist.y - 8} L ${cx + 14} ${lm.waist.y - 8}"/>
+      <!-- hip / groin V -->
+      <path d="M ${cx - lm.hip.w*0.6} ${lm.hip.yTop + 12} Q ${cx} ${lm.crotch.y - 4}, ${cx + lm.hip.w*0.6} ${lm.hip.yTop + 12}"/>
+      <!-- quad inseams -->
+      <path d="M ${cx - lm.thigh.wTop*0.4} ${lm.thigh.yTop + 8} L ${cx - lm.knee.w*0.5} ${lm.thigh.yBot - 10}"/>
+      <path d="M ${cx + lm.thigh.wTop*0.4} ${lm.thigh.yTop + 8} L ${cx + lm.knee.w*0.5} ${lm.thigh.yBot - 10}"/>
+      <!-- knee cap circles -->
+      <circle cx="${cx - lm.knee.w*0.3}" cy="${(lm.knee.yTop + lm.knee.yBot)/2}" r="4"/>
+      <circle cx="${cx + lm.knee.w*0.3}" cy="${(lm.knee.yTop + lm.knee.yBot)/2}" r="4"/>
+      <!-- calf muscle hint -->
+      <path d="M ${cx - lm.calf.wTop*0.6} ${lm.calf.yTop + 14} Q ${cx - lm.calf.wTop*0.85} ${lm.calf.yTop + 26}, ${cx - lm.calf.wTop*0.5} ${lm.calf.yTop + 38}"/>
+      <path d="M ${cx + lm.calf.wTop*0.6} ${lm.calf.yTop + 14} Q ${cx + lm.calf.wTop*0.85} ${lm.calf.yTop + 26}, ${cx + lm.calf.wTop*0.5} ${lm.calf.yTop + 38}"/>
+      <!-- shoulder deltoid divide -->
+      <path d="M ${cx - lm.shoulder.w*0.5} ${lm.shoulder.y + 6} Q ${cx - lm.shoulder.w*0.85} ${lm.shoulder.y + 18}, ${cx - lm.shoulder.w*0.7} ${lm.shoulder.y + 30}"/>
+      <path d="M ${cx + lm.shoulder.w*0.5} ${lm.shoulder.y + 6} Q ${cx + lm.shoulder.w*0.85} ${lm.shoulder.y + 18}, ${cx + lm.shoulder.w*0.7} ${lm.shoulder.y + 30}"/>
+    </g>`;
+  // ── COLOR REGIONS — overlay paths INSIDE the body, clipped to it ──
+  // Each region is a path roughly matching that body part's position.
+  // Wrapped in <g clip-path="url(#bodyClip)"> so they never escape the
+  // body silhouette. Region opacity scales with wear so healthy parts
+  // fade into the base color.
+  const region = (key, label, d) => {
     const v = get(key);
     const fill = _vitalsColor(v);
-    const opacity = v < 5 ? 0.42 : v < 30 ? 0.60 : 0.86;
-    return `<path d="${d}" fill="${fill}" fill-opacity="${opacity}"
-      data-vitals-part="${key}">
+    const op = v < 5 ? 0.18 : v < 30 ? 0.42 : v < 60 ? 0.66 : 0.85;
+    return `<path d="${d}" fill="${fill}" fill-opacity="${op}" data-vitals-part="${key}">
       <title>${label}: ${v.toFixed(0)} · ${_vitalsLabel(v)}</title></path>`;
   };
-  // ── HEAD + NECK ────────────────────────────────────────────────
-  const headR = 26;
-  const headCY = Y(54);
-  const neckTop = headCY + headR - 4;
-  const neckBot = Y(106);
-  const head = reg(
-    `M ${cx} ${headCY-headR} C ${cx-headR} ${headCY-headR} ${cx-headR-2} ${headCY-4} ${cx-headR-2} ${headCY+4} C ${cx-headR-2} ${headCY+headR-6} ${cx-headR+8} ${headCY+headR-2} ${cx} ${headCY+headR-2} C ${cx+headR-8} ${headCY+headR-2} ${cx+headR+2} ${headCY+headR-6} ${cx+headR+2} ${headCY+4} C ${cx+headR+2} ${headCY-4} ${cx+headR} ${headCY-headR} ${cx} ${headCY-headR} Z`,
-    "head", "Head"
-  );
-  const neck = reg(
-    quad([cx-10, neckTop], [cx+10, neckTop], [cx+11, neckBot], [cx-11, neckBot]),
-    "neck", "Neck"
-  );
-  // ── BASE SILHOUETTE — Full body outline, scales with position frame ─
-  const shoulderY = Y(110);
-  const armPitY = Y(140);
-  const chestTopY = Y(116);
-  const waistY = Y(180);
-  const hipTopY = Y(214);
-  const hipBotY = Y(258);
-  const thighBotY = Y(326);
-  const kneeBotY = Y(352);
-  const calfBotY = Y(420);
-  const ankleBotY = Y(460);
-  const footBotY = Y(478);
-  // Whole-body ghost shape — left side authored, right mirrored
-  const halfBody = `
-    M ${cx} ${headCY-headR-2}
-    L ${cx - 18} ${neckBot - 2}
-    L ${cx - SW} ${shoulderY}
-    L ${cx - SW - 2} ${armPitY}
-    L ${cx - SW + 4} ${Y(200)}
-    L ${cx - SW + 8} ${Y(232)}
-    L ${cx - SW - 4} ${Y(258)}
-    L ${cx - SW - 6} ${Y(285)}
-    L ${cx - SW - 2} ${Y(295)}
-    L ${cx - SW + 6} ${Y(280)}
-    L ${cx - SW + 12} ${Y(248)}
-    L ${cx - CW} ${chestTopY + 70}
-    L ${cx - HW} ${hipTopY}
-    L ${cx - HW + 2} ${hipBotY}
-    L ${cx - TW - 4} ${thighBotY}
-    L ${cx - KW - 2} ${kneeBotY}
-    L ${cx - CALW - 2} ${calfBotY}
-    L ${cx - ACHW - 5} ${ankleBotY}
-    L ${cx - ANKW - 4} ${footBotY}
-    L ${cx - 4} ${footBotY}
-    L ${cx - 4} ${ankleBotY}
-    L ${cx - 6} ${calfBotY - 6}
-    L ${cx - 8} ${kneeBotY - 8}
-    L ${cx - 10} ${thighBotY - 16}
-    L ${cx - 12} ${hipBotY - 4}
-    L ${cx - 14} ${hipTopY}
+  const regions = `
+    ${region("head", "Head", `M ${cx} ${lm.head.cy - lm.head.ry} a ${lm.head.rx} ${lm.head.ry} 0 1 1 0 ${lm.head.ry*2} a ${lm.head.rx} ${lm.head.ry} 0 1 1 0 -${lm.head.ry*2} Z`)}
+    ${region("neck", "Neck", `M ${cx - lm.neck.wTop} ${lm.neck.top} L ${cx + lm.neck.wTop} ${lm.neck.top} L ${cx + lm.neck.wBot} ${lm.neck.bot} L ${cx - lm.neck.wBot} ${lm.neck.bot} Z`)}
+    ${region("shoulderL", "Left shoulder",
+      `M ${cx - lm.neck.wBot} ${lm.neck.bot} L ${cx - lm.shoulder.w} ${lm.shoulder.y + 6} L ${cx - lm.shoulder.w + lm.arm.upperArmW} ${lm.shoulder.y + 24} L ${cx - lm.chest.wTop + 4} ${lm.chest.yTop + 8} Z`)}
+    ${region("shoulderR", "Right shoulder",
+      `M ${cx + lm.neck.wBot} ${lm.neck.bot} L ${cx + lm.shoulder.w} ${lm.shoulder.y + 6} L ${cx + lm.shoulder.w - lm.arm.upperArmW} ${lm.shoulder.y + 24} L ${cx + lm.chest.wTop - 4} ${lm.chest.yTop + 8} Z`)}
+    ${region("chest", "Chest / pec",
+      `M ${cx - lm.chest.wTop + 4} ${lm.chest.yTop + 8} L ${cx + lm.chest.wTop - 4} ${lm.chest.yTop + 8} L ${cx + lm.chest.wBot - 2} ${lm.chest.yBot - 18} L ${cx - lm.chest.wBot + 2} ${lm.chest.yBot - 18} Z`)}
+    ${region("back", "Lower back / core",
+      `M ${cx - lm.chest.wBot + 2} ${lm.chest.yBot - 18} L ${cx + lm.chest.wBot - 2} ${lm.chest.yBot - 18} L ${cx + lm.waist.w} ${lm.waist.y} L ${cx - lm.waist.w} ${lm.waist.y} Z`)}
+    ${region("handL", "Left hand / wrist",
+      `M ${cx - lm.shoulder.w - 10} ${lm.arm.wristY - 6} L ${cx - lm.shoulder.w + lm.arm.handW - 4} ${lm.arm.wristY - 6} L ${cx - lm.shoulder.w + lm.arm.handW - 2} ${lm.arm.handY + 6} L ${cx - lm.shoulder.w - 8} ${lm.arm.handY + 6} Z`)}
+    ${region("handR", "Right hand / wrist",
+      `M ${cx + lm.shoulder.w + 10} ${lm.arm.wristY - 6} L ${cx + lm.shoulder.w - lm.arm.handW + 4} ${lm.arm.wristY - 6} L ${cx + lm.shoulder.w - lm.arm.handW + 2} ${lm.arm.handY + 6} L ${cx + lm.shoulder.w + 8} ${lm.arm.handY + 6} Z`)}
+    ${region("hipL", "Left hip",
+      `M ${cx - lm.waist.w} ${lm.waist.y} L ${cx - lm.hip.w + 2} ${lm.hip.yTop + 6} L ${cx - 8} ${lm.hip.yBot - 4} L ${cx - 4} ${lm.waist.y + 4} Z`)}
+    ${region("hipR", "Right hip",
+      `M ${cx + lm.waist.w} ${lm.waist.y} L ${cx + lm.hip.w - 2} ${lm.hip.yTop + 6} L ${cx + 8} ${lm.hip.yBot - 4} L ${cx + 4} ${lm.waist.y + 4} Z`)}
+    ${region("groin", "Groin",
+      `M ${cx - 6} ${lm.hip.yTop + 4} L ${cx + 6} ${lm.hip.yTop + 4} L ${cx + 4} ${lm.crotch.y} L ${cx - 4} ${lm.crotch.y} Z`)}
+    ${region("hamstringL", "Left hamstring / thigh",
+      `M ${cx - lm.thigh.wTop} ${lm.thigh.yTop + 6} L ${cx - 4} ${lm.thigh.yTop + 6} L ${cx - lm.knee.w*0.6} ${lm.thigh.yBot - 6} L ${cx - lm.thigh.wBot - 2} ${lm.thigh.yBot - 6} Z`)}
+    ${region("hamstringR", "Right hamstring / thigh",
+      `M ${cx + lm.thigh.wTop} ${lm.thigh.yTop + 6} L ${cx + 4} ${lm.thigh.yTop + 6} L ${cx + lm.knee.w*0.6} ${lm.thigh.yBot - 6} L ${cx + lm.thigh.wBot + 2} ${lm.thigh.yBot - 6} Z`)}
+    ${region("kneeL", "Left knee",
+      `M ${cx - lm.thigh.wBot - 2} ${lm.knee.yTop} L ${cx - lm.knee.w*0.4} ${lm.knee.yTop} L ${cx - lm.knee.w*0.4} ${lm.knee.yBot} L ${cx - lm.knee.w - 2} ${lm.knee.yBot} Z`)}
+    ${region("kneeR", "Right knee",
+      `M ${cx + lm.thigh.wBot + 2} ${lm.knee.yTop} L ${cx + lm.knee.w*0.4} ${lm.knee.yTop} L ${cx + lm.knee.w*0.4} ${lm.knee.yBot} L ${cx + lm.knee.w + 2} ${lm.knee.yBot} Z`)}
+    ${region("calfL", "Left calf",
+      `M ${cx - lm.knee.w - 2} ${lm.calf.yTop} L ${cx - lm.knee.w*0.5} ${lm.calf.yTop} L ${cx - lm.calf.wBot*0.5} ${lm.calf.yBot - 4} L ${cx - lm.calf.wTop} ${lm.calf.yBot - 4} Z`)}
+    ${region("calfR", "Right calf",
+      `M ${cx + lm.knee.w + 2} ${lm.calf.yTop} L ${cx + lm.knee.w*0.5} ${lm.calf.yTop} L ${cx + lm.calf.wBot*0.5} ${lm.calf.yBot - 4} L ${cx + lm.calf.wTop} ${lm.calf.yBot - 4} Z`)}
+    ${region("achillesL", "Left achilles",
+      `M ${cx - lm.calf.wTop + 2} ${lm.calf.yBot - 4} L ${cx - lm.calf.wBot*0.5 - 1} ${lm.calf.yBot - 4} L ${cx - lm.ankle.w + 2} ${lm.ankle.yTop + 6} L ${cx - lm.ankle.w - 1} ${lm.ankle.yTop + 6} Z`)}
+    ${region("achillesR", "Right achilles",
+      `M ${cx + lm.calf.wTop - 2} ${lm.calf.yBot - 4} L ${cx + lm.calf.wBot*0.5 + 1} ${lm.calf.yBot - 4} L ${cx + lm.ankle.w - 2} ${lm.ankle.yTop + 6} L ${cx + lm.ankle.w + 1} ${lm.ankle.yTop + 6} Z`)}
+    ${region("ankleL", "Left ankle / foot",
+      `M ${cx - lm.ankle.w - 1} ${lm.ankle.yTop + 6} L ${cx - lm.ankle.w + 4} ${lm.ankle.yTop + 6} L ${cx - 4} ${lm.foot.yBot - 2} L ${cx - lm.foot.w} ${lm.foot.yBot - 2} Z`)}
+    ${region("ankleR", "Right ankle / foot",
+      `M ${cx + lm.ankle.w + 1} ${lm.ankle.yTop + 6} L ${cx + lm.ankle.w - 4} ${lm.ankle.yTop + 6} L ${cx + 4} ${lm.foot.yBot - 2} L ${cx + lm.foot.w} ${lm.foot.yBot - 2} Z`)}
   `;
-  const baseFrame = `
-    <defs>
-      <linearGradient id="vit-bg" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%"  stop-color="#171f2b"/>
-        <stop offset="100%" stop-color="#0a1019"/>
-      </linearGradient>
-      <radialGradient id="vit-vignette" cx="50%" cy="40%" r="60%">
-        <stop offset="0%" stop-color="rgba(255,255,255,0)"/>
-        <stop offset="100%" stop-color="rgba(0,0,0,.32)"/>
-      </radialGradient>
-    </defs>
-    <rect x="0" y="0" width="240" height="500" rx="10" fill="url(#vit-bg)"/>
-    <rect x="0" y="0" width="240" height="500" rx="10" fill="url(#vit-vignette)"/>
-    <path d="${halfBody}" transform="" fill="rgba(255,255,255,.05)" stroke="rgba(255,255,255,.16)" stroke-width="1" stroke-linejoin="round"/>
-    <path d="${halfBody.replace(/-/g, '+').replace(/cx \+ /g, '__P__').replace(/cx \- /g, 'cx + ').replace(/__P__/g, 'cx - ')}"
-      transform="translate(${cx*2},0) scale(-1,1)" fill="rgba(255,255,255,.05)" stroke="rgba(255,255,255,.16)" stroke-width="1" stroke-linejoin="round"/>`;
-  // ── SHOULDERS (left + mirror) ──────────────────────────────────
-  const shoulderL_d = quad(
-    [cx-22, neckBot], [cx-SW, shoulderY], [cx-SW+4, armPitY], [cx-26, armPitY-6]
-  );
-  const shoulderR_d = quad(
-    [mx(cx-22), neckBot], [mx(cx-SW), shoulderY], [mx(cx-SW+4), armPitY], [mx(cx-26), armPitY-6]
-  );
-  const shoulderL = reg(shoulderL_d, "shoulderL", "Left shoulder");
-  const shoulderR = reg(shoulderR_d, "shoulderR", "Right shoulder");
-  // ── CHEST + BACK ───────────────────────────────────────────────
-  const chest = reg(
-    quad([cx-CW, chestTopY], [cx+CW, chestTopY], [cx+CW-2, waistY], [cx-CW+2, waistY]),
-    "chest", "Chest"
-  );
-  const back = reg(
-    `M ${cx-CW+2} ${waistY} L ${cx+CW-2} ${waistY} L ${cx+CW-6} ${hipTopY-4} C ${cx+CW/2} ${hipTopY+2} ${cx-CW/2} ${hipTopY+2} ${cx-CW+6} ${hipTopY-4} Z`,
-    "back", "Lower back / core"
-  );
-  // ── HANDS / WRISTS ─────────────────────────────────────────────
-  const handL = reg(
-    `M ${cx-SW-6} ${Y(220)} C ${cx-SW-12} ${Y(238)} ${cx-SW-14} ${Y(258)} ${cx-SW-10} ${Y(272)} C ${cx-SW-2} ${Y(276)} ${cx-SW+4} ${Y(272)} ${cx-SW+6} ${Y(264)} C ${cx-SW+4} ${Y(244)} ${cx-SW+2} ${Y(228)} ${cx-SW-2} ${Y(220)} Z`,
-    "handL", "Left hand / wrist"
-  );
-  const handR = reg(
-    `M ${mx(cx-SW-6)} ${Y(220)} C ${mx(cx-SW-12)} ${Y(238)} ${mx(cx-SW-14)} ${Y(258)} ${mx(cx-SW-10)} ${Y(272)} C ${mx(cx-SW-2)} ${Y(276)} ${mx(cx-SW+4)} ${Y(272)} ${mx(cx-SW+6)} ${Y(264)} C ${mx(cx-SW+4)} ${Y(244)} ${mx(cx-SW+2)} ${Y(228)} ${mx(cx-SW-2)} ${Y(220)} Z`,
-    "handR", "Right hand / wrist"
-  );
-  // ── HIPS + GROIN ───────────────────────────────────────────────
-  const hipL = reg(
-    quad([cx-HW, hipTopY], [cx-4, hipTopY], [cx-6, hipBotY], [cx-HW+2, hipBotY]),
-    "hipL", "Left hip"
-  );
-  const hipR = reg(
-    quad([cx+4, hipTopY], [cx+HW, hipTopY], [cx+HW-2, hipBotY], [cx+6, hipBotY]),
-    "hipR", "Right hip"
-  );
-  const groin = reg(
-    quad([cx-5, hipTopY+8], [cx+5, hipTopY+8], [cx+5, hipBotY-4], [cx-5, hipBotY-4]),
-    "groin", "Groin"
-  );
-  // ── THIGHS / HAMSTRINGS ────────────────────────────────────────
-  const hamstringL = reg(
-    quad([cx-HW+2, hipBotY], [cx-6, hipBotY], [cx-KW-2, thighBotY], [cx-HW-4, thighBotY]),
-    "hamstringL", "Left hamstring / thigh"
-  );
-  const hamstringR = reg(
-    quad([cx+6, hipBotY], [cx+HW-2, hipBotY], [cx+HW+4, thighBotY], [cx+KW+2, thighBotY]),
-    "hamstringR", "Right hamstring / thigh"
-  );
-  // ── KNEES ──────────────────────────────────────────────────────
-  const kneeL = reg(
-    quad([cx-HW-4, thighBotY], [cx-KW-2, thighBotY], [cx-KW, kneeBotY], [cx-HW-2, kneeBotY]),
-    "kneeL", "Left knee"
-  );
-  const kneeR = reg(
-    quad([cx+KW+2, thighBotY], [cx+HW+4, thighBotY], [cx+HW+2, kneeBotY], [cx+KW, kneeBotY]),
-    "kneeR", "Right knee"
-  );
-  // ── CALVES ─────────────────────────────────────────────────────
-  const calfL = reg(
-    quad([cx-HW-2, kneeBotY], [cx-KW, kneeBotY], [cx-CALW, calfBotY], [cx-CALW-4, calfBotY]),
-    "calfL", "Left calf"
-  );
-  const calfR = reg(
-    quad([cx+KW, kneeBotY], [cx+HW+2, kneeBotY], [cx+CALW+4, calfBotY], [cx+CALW, calfBotY]),
-    "calfR", "Right calf"
-  );
-  // ── ACHILLES ───────────────────────────────────────────────────
-  const achillesL = reg(
-    quad([cx-CALW-4, calfBotY], [cx-CALW, calfBotY], [cx-CALW+1, ankleBotY], [cx-CALW-3, ankleBotY]),
-    "achillesL", "Left achilles"
-  );
-  const achillesR = reg(
-    quad([cx+CALW, calfBotY], [cx+CALW+4, calfBotY], [cx+CALW+3, ankleBotY], [cx+CALW-1, ankleBotY]),
-    "achillesR", "Right achilles"
-  );
-  // ── ANKLES / FEET ──────────────────────────────────────────────
-  const ankleL = reg(
-    quad([cx-CALW-3, ankleBotY], [cx-CALW+1, ankleBotY], [cx-4, footBotY], [cx-ANKW-6, footBotY]),
-    "ankleL", "Left ankle / foot"
-  );
-  const ankleR = reg(
-    quad([cx+CALW-1, ankleBotY], [cx+CALW+3, ankleBotY], [cx+ANKW+6, footBotY], [cx+4, footBotY]),
-    "ankleR", "Right ankle / foot"
-  );
-  // ── ANATOMICAL DETAIL LINES ────────────────────────────────────
-  // Subtle inner lines: collarbone, sternum, ab divide, inseam
-  const detailLines = `
-    <line x1="${cx-CW+6}" y1="${neckBot+4}" x2="${cx+CW-6}" y2="${neckBot+4}" stroke="rgba(255,255,255,.10)" stroke-width="0.8"/>
-    <line x1="${cx}" y1="${chestTopY+4}" x2="${cx}" y2="${waistY-2}" stroke="rgba(255,255,255,.10)" stroke-width="0.6"/>
-    <line x1="${cx}" y1="${waistY+2}" x2="${cx}" y2="${hipTopY-2}" stroke="rgba(255,255,255,.10)" stroke-width="0.6"/>
-    <line x1="${cx}" y1="${hipBotY+4}" x2="${cx}" y2="${thighBotY-4}" stroke="rgba(255,255,255,.10)" stroke-width="0.6"/>`;
-  // Position chip top-left
+  // Position + H/W chips
   const positionChip = `<g>
     <rect x="8" y="8" rx="3" ry="3" width="40" height="16" fill="rgba(255,255,255,.10)" stroke="rgba(255,255,255,.15)" stroke-width=".5"/>
     <text x="28" y="20" fill="rgba(255,255,255,.85)" font-size="9.5" font-family="-apple-system,Inter,monospace" text-anchor="middle" letter-spacing="1" font-weight="700">${p.position || "?"}</text>
   </g>`;
-  // Height/weight display top-right
   const hwText = (p.height && p.weight) ?
-    `${Math.floor(p.height/12)}'${p.height%12}" · ${p.weight} lb` :
-    "";
+    `${Math.floor(p.height/12)}'${p.height%12}" · ${p.weight} lb` : "";
   const hwChip = hwText ? `<text x="232" y="20" fill="rgba(255,255,255,.55)" font-size="9" font-family="-apple-system,Inter,monospace" text-anchor="end" letter-spacing="1">${hwText}</text>` : "";
-  return `<svg viewBox="0 0 240 500" width="240" height="450" xmlns="http://www.w3.org/2000/svg"
-    style="border-radius:10px;box-shadow:0 4px 12px rgba(0,0,0,.4), inset 0 0 0 1px rgba(255,255,255,.06)">
-    ${baseFrame}
-    ${positionChip}
-    ${hwChip}
-    ${head}${neck}
-    ${shoulderL}${shoulderR}
-    ${chest}${back}
-    ${handL}${handR}
-    ${hipL}${hipR}${groin}
-    ${hamstringL}${hamstringR}
-    ${kneeL}${kneeR}
-    ${calfL}${calfR}
-    ${achillesL}${achillesR}
-    ${ankleL}${ankleR}
-    ${detailLines}
-    <text x="120" y="486" fill="rgba(255,255,255,.6)" font-size="9.5" font-family="-apple-system,Inter,monospace" text-anchor="middle" letter-spacing="2" font-weight="600">
+  const bgDefs = `
+    <defs>
+      <linearGradient id="vit-bg" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%"  stop-color="#1a1410"/>
+        <stop offset="100%" stop-color="#0d0a08"/>
+      </linearGradient>
+      <radialGradient id="vit-vignette" cx="50%" cy="40%" r="60%">
+        <stop offset="0%" stop-color="rgba(255,235,200,.04)"/>
+        <stop offset="100%" stop-color="rgba(0,0,0,.45)"/>
+      </radialGradient>
+      <clipPath id="bodyClip-${p.pid||p.name?.replace(/\W/g,"")||"x"}">
+        <path d="${sil}"/>
+        <path d="${armL}"/>
+        <use href="#armR-${p.pid||p.name?.replace(/\W/g,"")||"x"}"/>
+      </clipPath>
+      <g id="armR-${p.pid||p.name?.replace(/\W/g,"")||"x"}"><path d="${armL}" transform="${armRTransform}"/></g>
+    </defs>
+    <rect x="0" y="0" width="240" height="520" rx="10" fill="url(#vit-bg)"/>
+    <rect x="0" y="0" width="240" height="520" rx="10" fill="url(#vit-vignette)"/>`;
+  // Body BASE — dark anatomical line drawing
+  const bodyBase = `
+    <g fill="rgba(218,196,162,.06)" stroke="rgba(218,196,162,.45)" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round">
+      <path d="${sil}"/>
+      <path d="${armL}"/>
+      <path d="${armL}" transform="${armRTransform}"/>
+    </g>`;
+  return `<svg viewBox="0 0 240 520" width="240" height="460" xmlns="http://www.w3.org/2000/svg"
+    style="border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,.45), inset 0 0 0 1px rgba(218,196,162,.10)">
+    ${bgDefs}
+    ${positionChip}${hwChip}
+    ${bodyBase}
+    <g>
+      ${regions}
+    </g>
+    ${innerLines}
+    <text x="120" y="506" fill="rgba(218,196,162,.65)" font-size="9.5" font-family="-apple-system,Inter,Georgia,serif" text-anchor="middle" letter-spacing="2" font-weight="600">
       WEAR ${wear.toFixed(0)}  ·  STRESS ${stress.toFixed(0)}
     </text>
   </svg>`;
