@@ -135,7 +135,10 @@ const PLAYBOOKS = {
   BALANCED: {
     id: "BALANCED", name: "Balanced", badge: "BAL",
     passProb: { long: 0.67, mid: 0.53, short: 0.37 },
-    targetMix: { wr1: 0.40, wr2: 0.30, te: 0.22, rb: 0.08 },
+    // NFL target shares (2020-2024): WR1 25-28%, WR2 18-22%, TE 18-22%,
+    // RB 12-18%. Engine WR1 was 40% → top WR getting ~2x NFL season yards.
+    // Lowered + redistributed to RB (NFL pass-catching backs get 12-18% TS).
+    targetMix: { wr1: 0.30, wr2: 0.24, te: 0.28, rb: 0.18 },
     personnelMix: { TRIPS: 0.40, BASE: 0.25, HEAVY: 0.12, SPREAD: 0.13, I_FORM: 0.05, EMPTY: 0.05 },
     tierBias: {},
     airYdsMean: 7.5, airYdsSd: 6,
@@ -150,7 +153,9 @@ const PLAYBOOKS = {
     // rb 0.10 → 0.16 — NFL pass-catching backs in spread schemes (CMC,
     // Ekeler) see ~17-22% target share. Carved from wr1+wr2 so the deep
     // game still gets fed.
-    targetMix: { wr1: 0.38, wr2: 0.30, te: 0.16, rb: 0.16 },
+    // NFL air-raid teams: WR1 still gets top share but ~30% not 38%.
+    // RB pass-catching share bumped to 20% (Ekeler/CMC-tier outliers hit 22%+).
+    targetMix: { wr1: 0.32, wr2: 0.26, te: 0.20, rb: 0.22 },
     personnelMix: { TRIPS: 0.40, SPREAD: 0.30, EMPTY: 0.12, BASE: 0.10, HEAVY: 0.05, I_FORM: 0.03 },
     tierBias: { QB: "elite", WR: "elite" },
     // Elite QB + WRs hit at high comp% with normal air-yard depth; pay the
@@ -176,7 +181,9 @@ const PLAYBOOKS = {
   DUAL_THREAT: {
     id: "DUAL_THREAT", name: "Dual Threat", badge: "DT",
     passProb: { long: 0.70, mid: 0.47, short: 0.25 },
-    targetMix: { wr1: 0.34, wr2: 0.26, te: 0.22, rb: 0.18 },
+    // Dual-threat QB: WR1 still featured but RB share bumped (Lamar/CMC
+    // duos see ~20% RB target share).
+    targetMix: { wr1: 0.30, wr2: 0.24, te: 0.24, rb: 0.22 },
     personnelMix: { TRIPS: 0.35, SPREAD: 0.20, BASE: 0.20, HEAVY: 0.15, I_FORM: 0.08, EMPTY: 0.02 },
     tierBias: { QB: "elite", WR: "good", RB: "good" },
     airYdsMean: 7.5, airYdsSd: 6.5,
