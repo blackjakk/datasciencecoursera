@@ -164,14 +164,115 @@ Mature mid-game polish phase. Most major systems exist; recent work has focused 
 
 ---
 
-## 7. Next steps (prioritized)
+## 7. ENGINE + PHYSICS LAYER (added in current session)
 
-1. **Verify v4 migration** on the user's actual save by asking them to load and confirm Jacob (the WR) now shows ~9 reconstructed prior seasons with `~estimated` tags.
-2. **Ship #6 — AI inquiries for unhappy stars**: when a player has `tradeRequested = true`, generate weekly inbound trade offers from AI teams. Hook into `_generateWeeklyAIOffers` or similar.
-3. **Ship #2 — Counter-offer flexibility**: add a custom AAV slider/input on the demand row (replace the single "↻ Counter" button). Probably also "match years, cut AAV" / "match AAV, cut years" auto-buttons.
-4. **Ship #9 — Price-aware verdict**: factor demand AAV vs market into the pitch's VERDICT line. Currently it only weighs OVR/age/availability.
-5. **Ship #7 — Comp pick value**: when "Let walk" is shown, compute surplus value of the comp pick relative to the deal cost.
-6. **Audit the mid-season vs offseason demand systems** (#8) — decide whether to unify or just better message the distinction to the user.
+This session built a comprehensive biomechanical model on top of the existing engine. All major NFL stat categories now land in NFL elite bands after the work.
+
+### Wear + stress (`play-engine.js` + `play-franchise-offseason.js`)
+
+- **`p._wear` (0-100)** — cumulative micro-damage that persists between games and decays during rest. Per-snap accumulation via `_FATIGUE_COST` / `_WEAR_PER_SNAP`; per-touch from `_bumpHitWear`.
+- **`p._stress` (0-100)** — parallel non-contact load (sprints, cuts, route depth). Drives the non-contact injury path.
+- **`p._bodyWear` (21 regions)** — per-region wear: head, neck, chest, back, groin, L/R shoulders/hips/hamstrings/knees/calves/achilles/ankles/hands. Initialized lazily via `_ensureBodyWear`. Updates on every injury via `_bumpBodyPart` with 70% recurrence-bias on the worse side.
+- **`_accumulateWeeklyStress(w)` + `_decayWeeklyStress(w)` + `_decayWeeklyWear(w)` + `_decayBodyPartWear(p)`** — all called from `_runWeekEndResolution`. Bye -35, IR -25, scratch -22, normal starter -4 (wear) / -2 (stress).
+- **Force-scaled hit wear** — `_bumpHitWear(carrier, base, tackler, opts)` computes `wear = base × tacklerForce × carrierVulnerability + extras`. Tackler gets 25% reciprocal wear (action-reaction).
+- **Age coupling** — 30+ recover slower; 33+ +25% stress per snap; injury rate +10/25/45/65% by age band.
+
+### Injury system (`play-franchise-season.js`)
+
+- **Contact path** (`_rollGameInjuries`) — weekly per-player roll, position-weighted, wear×age multipliers stacking on top.
+- **Non-contact path** (`_rollNonContactInjuries`) — separate per-game roll, stress-banded rate (0.002-0.033), pool: hamstring/calf/groin/achilles/knee/ankle.
+- **Bimodal ACL spike** — W1-4 conditioning multiplier (2.0x → 1.0x) with veteran/Ironman/Sports-Sci mitigation up to -60%. Late-season spike via stress accumulation.
+- **Concussion engine** — `_concussionsThisSeason` + `_concussionsLifetime` + `_lastConcussionWeek`. Second Impact recency multiplier (≤3 wks → 3.5x catastrophic chance), CTE arc (4+ lifetime → independent CE roll per concussion).
+- **Catastrophic variants** — torn ACL, chronic concussion syndrome, labrum tear, Lisfranc fracture, torn achilles, chronic hamstring. Each with their own CE chance + duration.
+- **Big-hit instant injury** — fires inside `_bumpHitWear` for force ≥ 1.1, additive to weekly roll. Uses `_triggerBigHitInjury` with force-scaled severity + body-part assignment.
+
+### Play context (`play-engine.js`)
+
+- **`_tackleWeightsForContext(ctx)`** — first-principles tackle attribution. Different position weights + assist rates per play type:
+  - Run inside / outside / breakaway / stuff
+  - Pass short-middle / short-outside / mid / deep
+  - Goal-line, screen, scramble, TOR
+  - Each ctx returns the appropriate `{weights, assistRate}` so a deep pass is overwhelmingly a safety tackle, etc.
+- All 6 main tackle call sites pass `ctx` (rush, main pass, TOR, screen, scramble, sack hit).
+- **MLB-biased LB picker** — `_creditDefStat` weights `lb2 (MLB) × 1.15`, `lb1 × 0.95`, `lb3 × 0.85` so an alpha tackler emerges (Bobby Wagner pattern).
+
+### Hit mechanism (`play-engine.js`)
+
+- **`_pickHitMechanism(tackler, opts)`** — returns `head_on / side / low / high / behind`. Weighted by tackler archetype (HEADHUNTER → head_on/high; DESPERATION → low cut blocks; BLITZER edge sack → behind blindside; WRAP_UP → square fundamental hit) and play context (sack → behind; deep pass → head_on/high; outside run → low; goal-line → head_on / no behind).
+- Mechanism stamped onto injuryHistory + CE log, shown in Vitals timeline ("low / cut", "blindside", "high hit").
+- `_triggerBigHitInjury` uses mechanism to bias injury type after the play-context bias (e.g., mech=high + force ≥1.3 → 80% override to concussion).
+
+### Discipline (`play-engine.js` + `play-franchise-offseason.js`)
+
+- **`_maybeFlagURForHit`** — fires UR flag after big-hit roll. Chance scales with mechanism (high → 55%) × HEADHUNTER × defenseless context (deep pass / crossing route ×1.35).
+- **Ejection roll** — rare (~1.6/season league-wide vs NFL ~1-3). High mech + force ≥1.7 → +18%, 2nd UR same game → +35%, 3rd → +50%. Ejected player gets `_ejectedThisGame=true` and is skipped by `_creditDefStat`. Career counter `p.ejections` persists.
+- **`_processWeeklyDiscipline(w)`** — runs in `_runWeekEndResolution`. Auto-suspension cascade: 2nd ejection same season → 1 game; 3rd career → 1 game; 4+ career → 2 games. Otherwise fine (news only). Uses `p.injury` with `label:"suspension"` so engine subs them out. `franchise._ejectionLog[season]` is array of records, `franchise.news` gets `type:"discipline"` entries.
+
+### Vitals UI (`play-franchise-season.js`)
+
+- **`_buildVitalsBlock(p)`** — drop-in section in the player modal:
+  - **`_buildVitalsBodyDiagram(p)`** — Vitruvian-style line-art human silhouette (240×520 viewBox), position-scaled per `_VITALS_BODY_PROFILES` + player height/weight. Sepia/parchment palette. Anatomical inner lines (collarbone, sternum, pec divides, ab segments, hip V, quad inseams, knee caps, calf muscle hints, deltoid). 21 wearable regions overlaid as translucent paths colored by `_vitalsColor(v)` (green/yellow/orange/red).
+  - **Overall health score** — `100 - max(wear, stress)`, color-coded bar
+  - **STATUS** — active injury card with severity/cause/OVR penalty
+  - **CONCERNS** — top 4 worn body parts (≥20 wear) with risk-multiplier tag
+  - **RECOVERY GUIDANCE** — auto-recs ("Sit this week — wear critical", "CTE watchlist", etc.)
+  - **RISK FACTORS** — career concussions, RB touches, prior injuries, age curve, career ejections
+  - **INJURY HISTORY** — last 6 with cause chip (N-C / HIT / SACK / WK), body-part chip, mechanism tag
+
+### Stat outcomes — all in NFL elite bands
+
+After all tuning passes (last commit `ce54166`):
+
+| Category | Audit | NFL elite |
+|---|---|---|
+| Top sacker / season | 22, 21, 21, 21, 20 | 15-22 ✓ |
+| Top rusher / season | 2055, 1874, 1833 yds | 1800-2100 ✓ |
+| Top WR / season | 1776, 1713, 1662 yds | 1700-1964 ✓ |
+| Top tackler / season | 190, 182, 180 | 150-195 ✓ |
+| Top QB / season | 5338, 5227, 4931 yds | 4500-5500 ✓ |
+| Total injuries / team | 10.7-13.8 | 12-15 IR ✓ |
+| Catastrophic % | 7-8% | ~8% ✓ |
+| Career-ending / season | 2.6 | 5-10 (slightly under) |
+| Ejections / season | 1.6 (5-season avg) | 1-3 ✓ |
+| Avg injury duration | 4.0 wks | 4-6 ✓ |
+
+### Personnel mix modernization (`play-data.js`)
+
+NFL 2024 uses 11 personnel (TRIPS) on ~62% of plays. Updated all five playbooks (BALANCED, AIR_RAID, GROUND_AND_POUND, DUAL_THREAT, OPTION) to bump TRIPS share and trim BASE (which modern NFL barely uses). Side effect: WR3 / slot CB now see realistic snap shares.
+
+### Target mix tuning (`play-data.js`)
+
+Final WR1 / WR2 / TE / RB target shares per playbook after multiple audit passes:
+- BALANCED: 38 / 24 / 22 / 16
+- AIR_RAID: 32 / 26 / 20 / 22
+- GROUND_AND_POUND: 32 / 20 / 30 / 18
+- DUAL_THREAT: 33 / 24 / 21 / 22
+- OPTION: 32 / 22 / 26 / 20
+
+---
+
+## 8. Next steps (prioritized)
+
+The major OPEN item from the engine roadmap:
+
+1. **Phase 5 — Smart pickers / player contracts**: replace flat snap-share % with three goal modes per slot: `share` ("65% of relevant snaps"), `count` ("55 snaps if game flow allows"), `touches` ("18 carries / 8 targets target"). Multi-file refactor: extend snapShares data model, modify `_rotateForSnap` + `pickRusher` + `pickReceiver` to consult mode/target, add auto-manage policies (Balanced / Ride starters / Playoff push), expose modes in the UI.
+
+Smaller follow-ups after Phase 5:
+
+2. **Auto-manage UI for rest/sit decisions** — surface wear/stress with recommended sub policy per game.
+3. **Live game viewer enhancements** — show mechanism / UR / ejection visuals in real-time play log.
+4. **Career-ending injury rate bump** — currently 2.6/season vs NFL 5-10. Could raise catastrophic upgrade chance slightly.
+5. **Non-contact share** — currently 25% vs NFL ~40%. Stress accumulation works; rate could lift further.
+6. **Multi-game suspension news on dashboard** — Currently just `franchise.news` entries; could surface as banner.
+7. **Pace tuning** — slightly too many plays per game (was 70 vs NFL 62 in an earlier audit; may have shifted).
+
+From the prior contract/extension reassessment (still open):
+
+8. **#6 AI inquiries for unhappy stars** — when `tradeRequested=true`, generate weekly inbound trade offers.
+9. **#2 Counter-offer flexibility** — custom AAV slider, "match years cut AAV" variants.
+10. **#9 Price-aware verdict** — factor demand AAV vs market into pitch verdict.
+11. **#7 Comp pick surplus value math**.
+12. **#8 Unify mid-season vs offseason demand systems**.
 
 Do NOT do at this stage unless user asks:
 - Counter-offer slider UI redesign (touches a lot of layout)
