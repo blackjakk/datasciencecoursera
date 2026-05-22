@@ -3486,8 +3486,35 @@ function _buildVitalsGuidance(p) {
   </div>`).join("");
 }
 function _buildVitalsBlock(p) {
-  const overallScore = Math.max(0, 100 - Math.max(p._wear || 0, p._stress || 0));
-  const overallColor = _vitalsColor(100 - overallScore);
+  // Overall health weights three signals so the bar matches the body
+  // diagram + active-injury state:
+  //   • Active injury → score = 0 ("OUT") regardless of decay
+  //   • _wear / _stress (acute load) — what the trainer sees Sunday
+  //   • Worst body-part scar — chronic recurrence risk (R knee at 50
+  //     after 2 prior ACLs should show in the score even after rest)
+  // Without the body-part term, a player who tore their ACL last year
+  // and decayed wear/stress to 0 reads as "100 health" — misleading.
+  const wear   = p._wear || 0;
+  const stress = p._stress || 0;
+  const maxBodyWear = Math.max(0, ...Object.values(p._bodyWear || {}));
+  const isInjured = !!(p.injury && p.injury.weeksRemaining > 0);
+  let overallScore, overallLabel;
+  if (isInjured) {
+    overallScore = 0;
+    overallLabel = p.injury._careerEnding ? "CAREER-END" :
+                   p.injury._catastrophic ? "OUT (CATA)" :
+                   `OUT ${p.injury.weeksRemaining}w`;
+  } else {
+    // Blend: acute load + worst chronic scar × 0.55 (scars matter but
+    // don't dominate). max() of the three so the worst signal wins.
+    overallScore = Math.max(0, 100 - Math.max(wear, stress, maxBodyWear * 0.55));
+    overallLabel = overallScore >= 85 ? "Healthy"
+                : overallScore >= 70 ? "Managed"
+                : overallScore >= 50 ? "Worn"
+                : overallScore >= 30 ? "Stressed"
+                :                       "Critical";
+  }
+  const overallColor = isInjured ? "#e6373a" : _vitalsColor(100 - overallScore);
   return `<div class="frn-pcard-section">
     <div class="frn-card-title" style="display:flex;justify-content:space-between;align-items:baseline">
       <span>VITALS</span>
@@ -3501,11 +3528,17 @@ function _buildVitalsBlock(p) {
         <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);padding:.5rem .6rem;border-radius:4px;margin-bottom:.3rem">
           <div style="display:flex;justify-content:space-between;align-items:baseline">
             <span style="font-size:.62rem;letter-spacing:1.2px;color:var(--gray)">OVERALL HEALTH</span>
-            <span style="color:${overallColor};font-size:1.1rem;font-weight:800">${overallScore.toFixed(0)}<span style="color:var(--gray);font-size:.7rem;font-weight:500">/100</span></span>
+            <span style="display:flex;align-items:baseline;gap:.5rem">
+              <span style="color:${overallColor};font-size:.6rem;font-weight:700;letter-spacing:.5px">${overallLabel}</span>
+              <span style="color:${overallColor};font-size:1.1rem;font-weight:800">${overallScore.toFixed(0)}<span style="color:var(--gray);font-size:.7rem;font-weight:500">/100</span></span>
+            </span>
           </div>
           <div style="height:6px;border-radius:3px;background:rgba(0,0,0,.4);overflow:hidden;margin-top:.3rem">
             <div style="height:100%;width:${overallScore}%;background:${overallColor};transition:width .3s"></div>
-          </div>
+          </div>${maxBodyWear >= 25 && !isInjured ? `
+          <div style="margin-top:.25rem;font-size:.55rem;color:var(--gray);letter-spacing:.3px">
+            Active wear ${wear.toFixed(0)} · Stress ${stress.toFixed(0)} · Chronic scar ${maxBodyWear.toFixed(0)}
+          </div>` : ""}
         </div>
         ${_vSectionTitle("Status")}
         ${_buildVitalsActiveInjury(p)}
