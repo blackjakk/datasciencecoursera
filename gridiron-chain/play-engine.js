@@ -930,13 +930,14 @@ class GameSimulator {
     };
   }
   // Pick a defender (weighted by position) and credit a stat field
-  // Credit a tackle to the primary tackler AND, ~50% of the time, an
+  // Credit a tackle to the primary tackler AND, ~30% of the time, an
   // assist to a different defender. NFL records solo + assists in the
-  // `tkl` stat — averaging ~1.5 tackle credits per defensive play, with
-  // top NFL tacklers landing 150-195/season. 0.80 inflated tops to ~475.
+  // `tkl` stat — top NFL tacklers land 150-195/season, team totals run
+  // 700-800. With assist at 0.50 we landed team totals ~1167; dropped
+  // to 0.30 paired with MLB-biased lb2 weighting in _creditDefStat.
   _creditTackle(weights) {
     const primary = this._creditDefStat("tkl", weights);
-    if (primary && Math.random() < 0.50) {
+    if (primary && Math.random() < 0.30) {
       // Assist roll: credit a different defender at the same weights.
       // Skip the primary so we don't double-bump the same player.
       this._creditDefStat("tkl", weights, primary);
@@ -955,9 +956,13 @@ class GameSimulator {
       pool.push({ name, w });
     };
     if (weights.LB) {
-      addCandidate(defStarters.lb1, weights.LB);
-      addCandidate(defStarters.lb2, weights.LB);
-      addCandidate(defStarters.lb3, weights.LB);
+      // NFL LB tackle distribution skews MLB-heavy. Bobby Wagner / Roquan
+      // Smith / Fred Warner types average ~150-180 tackles; WLB/SLB get
+      // 100-130 and 75-95. Bias lb2 (MLB slot) higher; lb3 (SLB) lower.
+      // Without this, our LBs split 1:1:1 and there's no alpha tackler.
+      addCandidate(defStarters.lb1, weights.LB * 1.00);        // WLB
+      addCandidate(defStarters.lb2, weights.LB * 1.25);        // MLB — alpha
+      addCandidate(defStarters.lb3, weights.LB * 0.75);        // SLB
     }
     if (weights.S) {
       addCandidate(defStarters.fs, weights.S);
