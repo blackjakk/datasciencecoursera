@@ -2393,7 +2393,18 @@ class GameSimulator {
       // QB AGGRESSION tilts the go-for-it rate. A risk-taking QB (high THR
       // + AWR + GUNSLINGER) elevates every "go" decision; a conservative
       // GAME_MANAGER passes the ball off to the kicker / punter more often.
-      const goTilt = this._aggTilt(this._qbAggression());   // 0.70-1.30
+      const qbTilt = this._aggTilt(this._qbAggression());   // 0.70-1.30
+      // HC personality layered on top — Riverboat Gambler always goes,
+      // Conservative always punts/kicks. Game Manager mildly conservative
+      // (favors safe outcomes). 0.60-1.40 range.
+      const offTeamId = this.poss === "home" ? this.home.id : this.away.id;
+      const hcStyle = (typeof franchise !== "undefined")
+        ? franchise.coaches?.[offTeamId]?.hc?.specialtyTrait : null;
+      const hcAggMul = hcStyle === "Riverboat Gambler" ? 1.40
+                     : hcStyle === "Conservative"      ? 0.60
+                     : hcStyle === "Game Manager"      ? 0.85
+                     :                                    1.00;
+      const goTilt = clamp(qbTilt * hcAggMul, 0.55, 1.55);
       // Decide between FG / punt / go-for-it. Rates anchor to modern
       // NFL analytics-era go-for-it data (2020+):
       //   4th-and-1 anywhere       ~60-65% go

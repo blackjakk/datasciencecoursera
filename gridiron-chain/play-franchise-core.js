@@ -1642,6 +1642,8 @@ const HC_SPECIALTY_TRAITS = [
   { key:"Roster Builder",    desc:"FA acceptance +20%" },
   { key:"Offensive Minded",  desc:"Team offense +2, OC chemistry bonus" },
   { key:"Defensive Minded",  desc:"Team defense +2, DC chemistry bonus" },
+  { key:"Riverboat Gambler", desc:"Aggressive 4th-down (+40%), more 2-pt tries" },
+  { key:"Conservative",      desc:"Cautious 4th-down (−35%), kneels earlier" },
 ];
 
 const OC_TRAITS = [
