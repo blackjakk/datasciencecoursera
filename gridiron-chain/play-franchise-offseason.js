@@ -12923,10 +12923,19 @@ function _teamPicksByYear(teamId) {
 // positions involved.
 const TRADE_DEADLINE_WEEK = 9;
 
-function _playerTradeValue(p) {
+function _playerTradeValue(p, opts = {}) {
   // 1. Non-linear OVR curve: top-end talent compresses, so the gap
   //    between OVR 95 and 99 is way bigger than 75 and 80.
-  const ovrBase = Math.pow(Math.max(0, (p.overall || 60) - 50), 1.5) / 4;
+  //
+  // Fog-of-war: pass {observerTeamId} when an outside team is evaluating
+  // this player. _perceivedOverall returns true OVR if the observer owns
+  // the player, otherwise applies name-hashed noise (tighter for vets/
+  // All-Pros, wider for rookies/journeymen). Without observerTeamId,
+  // falls back to true OVR — used for absolute "true value" displays.
+  const evalOvr = opts.observerTeamId
+    ? _perceivedOverall(p, { observerTeamId: opts.observerTeamId })
+    : (p.overall || 60);
+  const ovrBase = Math.pow(Math.max(0, evalOvr - 50), 1.5) / 4;
   // 2. Position scarcity multiplier — QBs / pass rushers / blindside
   //    tackles cost more than RBs / kickers / punters.
   const posMul = POSITION_CHIP_MULT[p.position] || 1.0;
@@ -13575,7 +13584,8 @@ function _buildBestOfferPackage(teamId, player, targetValue) {
                : aiRoster;
     pool.sort((a, b) => scoutGrade(a) - scoutGrade(b));
     extraPlayerName = pool[0].name;
-    extraPlayerValue = _playerTradeValue(pool[0]);
+    // AI team teamId is sending their own player → true OVR via observer.
+    extraPlayerValue = _playerTradeValue(pool[0], { observerTeamId: teamId });
   }
 
   let totalValue = pickValue + cashUnits + extraPlayerValue;
@@ -13745,11 +13755,18 @@ function _generateAIOffersForBlockedPlayer(p) {
     if (Math.random() < 0.35) continue; // not every team bites every week
     // What the AI offers in return: a mid-tier player from their roster
     // worth ~70-95% of p's value. Pick best fit.
+    //
+    // Fog-of-war: AI team t evaluates p (user's player) with PERCEIVED
+    // OVR — they don't know exact true rating. Own-roster (rp) gets true
+    // OVR via observerTeamId === t.id.
     const aiRoster = franchise.rosters[t.id];
-    const myValue = _playerTradeValue(p);
+    const myValue = _playerTradeValue(p, { observerTeamId: t.id });
     const candidates = aiRoster
-      .filter(rp => !rp.onTradeBlock || true) // can include their block too
-      .map(rp => ({ rp, v: _playerTradeValue(rp), diff: Math.abs(_playerTradeValue(rp) - myValue * 0.85) }))
+      .filter(rp => !rp.onTradeBlock || true)
+      .map(rp => {
+        const v = _playerTradeValue(rp, { observerTeamId: t.id });
+        return { rp, v, diff: Math.abs(v - myValue * 0.85) };
+      })
       .sort((a,b) => a.diff - b.diff);
     const offered = candidates[0]?.rp;
     if (!offered) continue;
@@ -20599,9 +20616,34 @@ function _draftFinalize() {
 // per-team divergence). Different seeds (53 vs 47) so an individual
 // player's OVR-noise and potential-noise aren't correlated.
 
-// Compute the noise width for a player. Combines experience + accolades.
-// Returns a width >= 1 used as the half-range of uniform noise.
-function _scoutNoiseWidth(p, baseWidth) {
+// Check if an observer team is the player's CURRENT team. If so, the
+// observer has full coaching/practice/tape access — true ratings.
+function _isOwnTeam(observerTeamId, p) {
+  if (!observerTeamId || !p) return false;
+  const roster = franchise?.rosters?.[observerTeamId];
+  if (!roster) return false;
+  // Match by pid first (stable), fallback to name (legacy)
+  return roster.some(rp => (p.pid && rp.pid === p.pid) || rp.name === p.name);
+}
+
+// Check if an observer team has SCOUTED the player. Scouting tightens
+// noise (better intel than league-consensus rumor). Checks both draft
+// scout reveals and in-season scout reveals.
+function _hasScouted(observerTeamId, p) {
+  if (!observerTeamId || !p) return false;
+  const pid = p.pid;
+  const name = p.name;
+  const draftReveals = franchise?.draftScoutReveals?.[observerTeamId];
+  if (draftReveals && (draftReveals[pid] || draftReveals[name])) return true;
+  const seasonReveals = franchise?.seasonScoutReveals?.[observerTeamId];
+  if (seasonReveals && (seasonReveals[pid] || seasonReveals[name])) return true;
+  return false;
+}
+
+// Compute the noise width for a player. Combines experience + accolades
+// + optional scouting reveal. Returns a width >= 1 used as the half-
+// range of uniform noise.
+function _scoutNoiseWidth(p, baseWidth, opts = {}) {
   const seasonsPlayed = p.seasonsPlayed || (p.careerHistory || []).length || 0;
   // Experience shrinks: 3+ yrs ~50%, 1-2 yrs ~70%, rookie 100%
   let width = seasonsPlayed >= 3 ? baseWidth * 0.5
@@ -20613,20 +20655,32 @@ function _scoutNoiseWidth(p, baseWidth) {
   const proBowls = p.proBowls || 0;
   const accoladeFactor = Math.max(0.2, 1 - allPros * 0.25 - proBowls * 0.08);
   width *= accoladeFactor;
+  // Scouted-by-this-observer further tightens: 50% reduction. Models the
+  // intel gap between "consensus rumor" and "we sent a scout to 3 of his
+  // games this season."
+  if (opts.observerTeamId && _hasScouted(opts.observerTeamId, p)) {
+    width *= 0.5;
+  }
   return Math.max(1, Math.round(width));
 }
 
 // Perceived potential — ceiling is uncertain even for vets. Use this for
 // any potential read by an outside observer. Even a player's OWN team
 // has only fuzzy read on ceiling (Brady was a 6th-rounder), but proven
-// superstars (multi-time All-Pros) have near-zero noise — they've
-// already realized + shown their ceiling.
-function _perceivedPotential(p) {
+// superstars (multi-time All-Pros) have near-zero noise.
+//
+// opts:
+//   observerTeamId — the team doing the evaluating. If they own the
+//                    player or have scouted them, noise tightens.
+function _perceivedPotential(p, opts = {}) {
   if (!p || p.potential == null) return p?.overall || 60;
+  // Own team reads true potential? Even own team has fuzz on ceiling
+  // (Brady pattern) — so we use perceived for own players too, just
+  // with the noise reduced by accolades. No early return here.
   let h = 0;
   const name = p.name || "";
   for (let i = 0; i < name.length; i++) h = (h * 53 + name.charCodeAt(i)) | 0;
-  const noiseWidth = _scoutNoiseWidth(p, 8);
+  const noiseWidth = _scoutNoiseWidth(p, 8, opts);
   const noise = (Math.abs(h) % (noiseWidth * 2 + 1)) - noiseWidth;
   return Math.max(40, p.potential + noise);
 }
@@ -20635,16 +20689,21 @@ function _perceivedPotential(p) {
 // than potential noise because tape doesn't lie about current production
 // the way it does about future ceiling. Multi-time All-Pros have ~0 noise.
 //
-// Pass {known:true} when the observer IS the player's team — returns
-// true OVR.
+// opts:
+//   known          — explicitly OWN player (true OVR returned directly)
+//   observerTeamId — alternative: the function infers own/scouted/outside
+//                    by checking _isOwnTeam(observerTeamId, p). If the
+//                    observer owns the player → true OVR. If scouted →
+//                    tighter noise. Otherwise → full league-consensus noise.
 function _perceivedOverall(p, opts = {}) {
   if (!p) return 60;
   const ovr = p.overall || 60;
   if (opts.known) return ovr;
+  if (opts.observerTeamId && _isOwnTeam(opts.observerTeamId, p)) return ovr;
   let h = 0;
   const name = p.name || "";
   for (let i = 0; i < name.length; i++) h = (h * 47 + name.charCodeAt(i)) | 0;
-  const noiseWidth = _scoutNoiseWidth(p, 5);
+  const noiseWidth = _scoutNoiseWidth(p, 5, opts);
   const noise = (Math.abs(h) % (noiseWidth * 2 + 1)) - noiseWidth;
   return Math.max(40, Math.min(99, ovr + noise));
 }
