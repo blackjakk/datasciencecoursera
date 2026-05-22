@@ -20576,6 +20576,79 @@ function _draftFinalize() {
   _flushSaveFranchise();
 }
 
+// ── Fog-of-war fields — true OVR / potential are HIDDEN from outsiders ──────
+//
+// RULE: only a team can see TRUE overall + potential for its OWN roster.
+// All other observers (other AI teams evaluating FAs/trades, the user
+// looking at other teams' players, the user pre-signing an unknown FA)
+// see PERCEIVED versions with stable name-hashed noise. Mirrors NFL where
+// teams have full coaching/practice/tape on their own guys but only
+// scouting reports on the rest of the league.
+//
+// Noise width scales by player exposure:
+//   - Inexperienced (rookie / <1 NFL season): WIDEST noise (no tape)
+//   - 1-2 NFL seasons:                        MEDIUM
+//   - 3+ NFL seasons:                         SMALLER (lots of tape)
+//   - 1x Pro Bowler:                          tighter still
+//   - 2x+ All-Pro:                            near-zero — proven superstars
+//                                             are universally known commodities
+//                                             (Mahomes/Donald/Kelce — no team
+//                                             "scouts" them, they know)
+//
+// Stable per-name hash so all observers see the same fuzzy number (no
+// per-team divergence). Different seeds (53 vs 47) so an individual
+// player's OVR-noise and potential-noise aren't correlated.
+
+// Compute the noise width for a player. Combines experience + accolades.
+// Returns a width >= 1 used as the half-range of uniform noise.
+function _scoutNoiseWidth(p, baseWidth) {
+  const seasonsPlayed = p.seasonsPlayed || (p.careerHistory || []).length || 0;
+  // Experience shrinks: 3+ yrs ~50%, 1-2 yrs ~70%, rookie 100%
+  let width = seasonsPlayed >= 3 ? baseWidth * 0.5
+            : seasonsPlayed >= 1 ? baseWidth * 0.7
+            : baseWidth;
+  // Accolade tightening: each All-Pro -25%, each Pro Bowl -8%. Floors at 20%.
+  // 5x All-Pro hits the floor immediately — superstars are knowns.
+  const allPros = p.allPros || 0;
+  const proBowls = p.proBowls || 0;
+  const accoladeFactor = Math.max(0.2, 1 - allPros * 0.25 - proBowls * 0.08);
+  width *= accoladeFactor;
+  return Math.max(1, Math.round(width));
+}
+
+// Perceived potential — ceiling is uncertain even for vets. Use this for
+// any potential read by an outside observer. Even a player's OWN team
+// has only fuzzy read on ceiling (Brady was a 6th-rounder), but proven
+// superstars (multi-time All-Pros) have near-zero noise — they've
+// already realized + shown their ceiling.
+function _perceivedPotential(p) {
+  if (!p || p.potential == null) return p?.overall || 60;
+  let h = 0;
+  const name = p.name || "";
+  for (let i = 0; i < name.length; i++) h = (h * 53 + name.charCodeAt(i)) | 0;
+  const noiseWidth = _scoutNoiseWidth(p, 8);
+  const noise = (Math.abs(h) % (noiseWidth * 2 + 1)) - noiseWidth;
+  return Math.max(40, p.potential + noise);
+}
+
+// Perceived overall — current ability fuzz for OUTSIDE observers. Tighter
+// than potential noise because tape doesn't lie about current production
+// the way it does about future ceiling. Multi-time All-Pros have ~0 noise.
+//
+// Pass {known:true} when the observer IS the player's team — returns
+// true OVR.
+function _perceivedOverall(p, opts = {}) {
+  if (!p) return 60;
+  const ovr = p.overall || 60;
+  if (opts.known) return ovr;
+  let h = 0;
+  const name = p.name || "";
+  for (let i = 0; i < name.length; i++) h = (h * 47 + name.charCodeAt(i)) | 0;
+  const noiseWidth = _scoutNoiseWidth(p, 5);
+  const noise = (Math.abs(h) % (noiseWidth * 2 + 1)) - noiseWidth;
+  return Math.max(40, Math.min(99, ovr + noise));
+}
+
 // Auto-cut rosters back to a realistic size after draft + UDFA fills.
 // NFL teams carry 53 active + 16 practice squad = 69 max; engine targets
 // 55 here to leave some bench depth for the sim's snap rotations.
@@ -20599,11 +20672,15 @@ function _draftFinalize() {
 function _trimAiRostersToCap(targetSize = 55, opts = {}) {
   const userId = opts.includeUser ? null : franchise.chosenTeamId;
   const floors = (typeof ROSTER_SLOTS === "object" && ROSTER_SLOTS) || {};
+  // cutValue uses PERCEIVED potential — teams act on their fuzzy read of
+  // a player's ceiling, not the true number. A hidden gem (true pot 90,
+  // perceived 78) might get cut by mistake; a perceived high-ceiling
+  // bust gets kept too long. NFL-realistic personnel evaluation.
   const cutValue = (p) => {
     const ovr = p.overall || 60;
     const age = p.age || 27;
-    const pot = p.potential || ovr;
-    const ceiling = Math.max(0, pot - ovr);
+    const perceivedPot = _perceivedPotential(p);
+    const ceiling = Math.max(0, perceivedPot - ovr);
     const youthMul = Math.max(0, (28 - age) / 6);   // age 22: 1.0, 25: 0.5, 28+: 0
     return ovr + ceiling * youthMul * 0.4;
   };
@@ -20660,11 +20737,29 @@ function _aiSignFreeAgents(opts = {}) {
   const userId = opts.includeUser ? null : franchise.chosenTeamId;
   const targetSize = opts.targetSize ?? 55;
   const ROSTER_FLOORS = (typeof ROSTER_SLOTS === "object" && ROSTER_SLOTS) || {};
+  // FA evaluation uses PERCEIVED OVR + PERCEIVED potential. AI teams
+  // don't see true numbers for outside players — they get scouted reads
+  // with name-hash noise. A 22yo true-OVR-75 with true-pot 90 might be
+  // perceived as OVR 73 / pot 82 → effective ceiling rates lower than
+  // truth. Conversely a perceived OVR 78 / pot 90 hidden gem looks
+  // even more attractive than truth. Creates NFL-realistic "misses"
+  // and "steals" instead of perfect AI hidden-gem hunting.
   const faRanking = (p) => {
+    const perceivedOvr = _perceivedOverall(p);   // no opts.known → perceived
+    const age = p.age || 27;
+    const perceivedPot = _perceivedPotential(p);
+    const ceiling = Math.max(0, perceivedPot - perceivedOvr);
+    const youthMul = Math.max(0, (28 - age) / 6);
+    return perceivedOvr + ceiling * youthMul * 0.4;
+  };
+  // For roster comparison (team's OWN players), use TRUE OVR — teams
+  // know their own guys. Potential is still fuzzy since even own-team
+  // ceiling reads are imperfect.
+  const rosterEff = (p) => {
     const ovr = p.overall || 60;
     const age = p.age || 27;
-    const pot = p.potential || ovr;
-    const ceiling = Math.max(0, pot - ovr);
+    const perceivedPot = _perceivedPotential(p);
+    const ceiling = Math.max(0, perceivedPot - ovr);
     const youthMul = Math.max(0, (28 - age) / 6);
     return ovr + ceiling * youthMul * 0.4;
   };
@@ -20691,10 +20786,11 @@ function _aiSignFreeAgents(opts = {}) {
       const needsDepth = posPlayers.length < floor;
       let starterUpgrade = false, depthUpgrade = false;
       if (posPlayers.length > 0) {
-        const bestEff = Math.max(...posPlayers.map(p => faRanking(p)));
-        const weakestEff = Math.min(...posPlayers.map(p => faRanking(p)));
-        // Effective-OVR already encodes age preference. +2 threshold is
-        // meaningful when applied to effOvr (vs raw OVR which needed +3).
+        // Comparison: PERCEIVED FA eff (faEff, fuzz applied above)
+        // against the team's OWN ROSTER true-OVR eff. Team has full
+        // intel on its own players, scouting reports on outsiders.
+        const bestEff = Math.max(...posPlayers.map(p => rosterEff(p)));
+        const weakestEff = Math.min(...posPlayers.map(p => rosterEff(p)));
         starterUpgrade = faEff >= bestEff + 2;
         depthUpgrade   = !starterUpgrade && faEff >= weakestEff + 2;
       }
