@@ -1747,10 +1747,11 @@ function _careerColsFor(pos) {
 // numbers for trench positions where contact is constant.
 // Per-game per-player CONTACT injury rate. Non-contact injuries (most
 // hamstring/calf/groin/achilles + half of ACL tears) fire from a parallel
-// stress-driven path — see _rollNonContactInjuries. Lowered ~30% from
-// the pre-split baseline so total injuries land in NFL 12-15 IR band.
-const INJURY_RATE = { QB:0.011, RB:0.021, WR:0.014, TE:0.016, OL:0.020,
-                     DL:0.020, LB:0.018, CB:0.014, S:0.012, K:0.002, P:0.002 };
+// stress-driven path — see _rollNonContactInjuries. V11 audit showed
+// 9.8 contact + 1.9 non-contact = 11.7 total but split 84/16 vs NFL ~60/40.
+// Trimming contact ~20% so the total stays ~12 with a healthier mix.
+const INJURY_RATE = { QB:0.009, RB:0.017, WR:0.012, TE:0.014, OL:0.017,
+                     DL:0.017, LB:0.015, CB:0.012, S:0.010, K:0.002, P:0.002 };
 // Each injury type carries a baseline OVR penalty applied AFTER recovery
 // to model the "rehabbing back to full speed" arc. Soft-tissue stuff
 // heals clean (penalty 0); structural injuries leave lingering damage.
@@ -1876,6 +1877,88 @@ function _pickInjuryType(position) {
 // stronger), Carson Palmer Pro Bowl Y1 back (standard), Wes Welker
 // lingering (worse than original), Robert Griffin III never-recovered
 // (career-altering, permanent loss).
+// ── BODY-PART WEAR ─────────────────────────────────────────────────────
+// Per-region wear (0-100) survives across games like _wear, but lets us
+// track where the damage actually is — slick UI visualization in Vitals
+// tab shows a body diagram with color-coded regions.
+// Flat schema (no nested L/R objects) for clean serialization + UI mapping.
+// Left/right symmetric where biology demands (shoulders, knees, etc.).
+const _BODY_PARTS = [
+  "head", "neck", "chest", "back", "groin",
+  "shoulderL", "shoulderR",
+  "hipL", "hipR",
+  "hamstringL", "hamstringR",
+  "kneeL", "kneeR",
+  "calfL", "calfR",
+  "achillesL", "achillesR",
+  "ankleL", "ankleR",
+  "handL", "handR",
+];
+function _ensureBodyWear(p) {
+  if (!p._bodyWear) {
+    p._bodyWear = {};
+    for (const part of _BODY_PARTS) p._bodyWear[part] = 0;
+  }
+}
+// Map an injury label to a body-part. Two-sided parts get a random L/R
+// unless the injury history pre-determines it (chronic recurrence). For
+// hamstring/shoulder/knee, if the player has a prior injury, 70% chance
+// the new injury hits the same side — chronic-side patterns are real.
+function _bumpBodyPart(p, label, amount = 35) {
+  _ensureBodyWear(p);
+  const bw = p._bodyWear;
+  // Helper to pick L or R, with recurrence bias on the higher-worn side.
+  const pickSide = (Lkey, Rkey) => {
+    const lWear = bw[Lkey] || 0, rWear = bw[Rkey] || 0;
+    // 70% chance to re-injure the more-worn side
+    if (lWear !== rWear && Math.random() < 0.70) return lWear > rWear ? Lkey : Rkey;
+    return Math.random() < 0.5 ? Lkey : Rkey;
+  };
+  const bump = (key) => { bw[key] = Math.min(100, (bw[key] || 0) + amount); };
+  switch (label) {
+    case "concussion":
+    case "chronic concussion syndrome":
+      bump("head"); return "head";
+    case "shoulder":
+    case "labrum tear":
+      { const k = pickSide("shoulderL","shoulderR"); bump(k); return k; }
+    case "hand/wrist":
+      { const k = pickSide("handL","handR"); bump(k); return k; }
+    case "knee":
+    case "torn ACL":
+      { const k = pickSide("kneeL","kneeR"); bump(k); return k; }
+    case "ankle sprain":
+    case "Lisfranc fracture":
+      { const k = pickSide("ankleL","ankleR"); bump(k); return k; }
+    case "hamstring":
+    case "chronic hamstring":
+      { const k = pickSide("hamstringL","hamstringR"); bump(k); return k; }
+    case "calf strain":
+      { const k = pickSide("calfL","calfR"); bump(k); return k; }
+    case "achilles":
+    case "torn achilles":
+      { const k = pickSide("achillesL","achillesR"); bump(k); return k; }
+    case "groin pull":
+      bump("groin"); return "groin";
+    default:
+      return null;
+  }
+}
+// Decay body-part wear weekly. Slower than overall wear because structural
+// damage lingers — torn ligaments leave scar tissue, concussions echo.
+// Decay is symmetric for all parts (no part-specific recovery rates yet).
+function _decayBodyPartWear(p) {
+  if (!p._bodyWear) return;
+  const age = p.age || 25;
+  // Younger bodies repair quickly; vets carry damage longer.
+  const decay = age >= 33 ? 0.7 : age >= 30 ? 1.0 : 1.4;
+  for (const part of _BODY_PARTS) {
+    if (p._bodyWear[part] > 0) {
+      p._bodyWear[part] = Math.max(0, p._bodyWear[part] - decay);
+    }
+  }
+}
+
 function _rollRehabOutcome(player) {
   const age = player.age || 27;
   let probFull       = 0.15;
@@ -2000,13 +2083,14 @@ function _rollNonContactInjuries(teamId) {
     if (p.injury && p.injury.weeksRemaining > 0) continue;
     const stress = p._stress || 0;
     // No hard floor — even fresh players occasionally pull something.
-    // Banded so high-stress players see meaningfully elevated risk.
-    const baseRate = stress >= 80 ? 0.022
-                   : stress >= 60 ? 0.015
-                   : stress >= 40 ? 0.009
-                   : stress >= 20 ? 0.005
-                   : stress >= 10 ? 0.003
-                   :                0.0015;
+    // V11 audit showed non-contact at 16% vs NFL ~40% — raised ~1.5x
+    // to land closer to NFL share.
+    const baseRate = stress >= 80 ? 0.033
+                   : stress >= 60 ? 0.022
+                   : stress >= 40 ? 0.014
+                   : stress >= 20 ? 0.008
+                   : stress >= 10 ? 0.005
+                   :                0.002;
     // Position vulnerability — speed/agility positions tear soft tissue more
     const pos = p.position || "?";
     const posMul = (pos === "WR" || pos === "CB" || pos === "S") ? 1.30
@@ -2061,11 +2145,14 @@ function _rollNonContactInjuries(teamId) {
       _careerEnding: careerEnding,
       _nonContact: true,
     };
+    // Bump body-part wear (specific region damaged) — drives the Vitals
+    // UI's color-coded body diagram. Catastrophic injuries bump harder.
+    const bodyPart = _bumpBodyPart(p, t.label, isCatastrophic ? 55 : 30);
     p.injuryHistory = p.injuryHistory || [];
     p.injuryHistory.push({
       label: t.label, week: franchise.week, season: franchise.season,
       weeks: wks, duration: wks, catastrophic: isCatastrophic,
-      careerEnding, cause: "non_contact",
+      careerEnding, cause: "non_contact", bodyPart,
     });
     if (p.injuryHistory.length > 20) p.injuryHistory = p.injuryHistory.slice(-20);
   }
@@ -2254,10 +2341,11 @@ function _rollGameInjuries(teamId) {
     if (franchise.phase === "playoffs" && pbRound != null && typeof FRANCHISE_WEEKS === "number") {
       effectiveWeek = FRANCHISE_WEEKS + pbRound + 1;
     }
+    const bodyPart = _bumpBodyPart(p, t.label, isCatastrophic ? 55 : 30);
     p.injuryHistory.push({
       label: t.label, week: effectiveWeek, season: franchise.season,
       weeks: wks, duration: wks, catastrophic: isCatastrophic,
-      careerEnding, cause: "weekly",
+      careerEnding, cause: "weekly", bodyPart,
     });
     if (p.injuryHistory.length > 20) p.injuryHistory = p.injuryHistory.slice(-20);
     const isMine = teamId === franchise.chosenTeamId;

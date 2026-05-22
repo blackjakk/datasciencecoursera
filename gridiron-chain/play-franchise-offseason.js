@@ -2090,6 +2090,13 @@ function _runWeekEndResolution() {
   if (typeof _accumulateWeeklyStress === "function") _accumulateWeeklyStress(w);
   if (typeof _decayWeeklyStress === "function") _decayWeeklyStress(w);
   if (typeof _decayWeeklyWear === "function") _decayWeeklyWear(w);
+  // Body-part wear decay — slower healing than overall wear because
+  // structural damage (torn ligaments, concussion echoes) lingers.
+  if (typeof _decayBodyPartWear === "function") {
+    for (const roster of Object.values(franchise.rosters || {})) {
+      for (const p of roster) _decayBodyPartWear(p);
+    }
+  }
   if (typeof _tickYipsForWeek === "function") _tickYipsForWeek();
   // Trade-block: unsolicited offers (no public ask) + price-tag offers
   // (public ask matched against AI inventories).
@@ -13007,6 +13014,13 @@ function frnNewSeason() {
       // Clear recency stamp — offseason is months of rest, so a Wk 1
       // concussion in the new season is "fresh", not a Second Impact case.
       p._lastConcussionWeek = null;
+      // Body-part wear partial heal — most heals to 25% but stays as
+      // a chronic scar (older injuries leave footprint on the body diagram).
+      if (p._bodyWear) {
+        for (const k of Object.keys(p._bodyWear)) {
+          if (p._bodyWear[k]) p._bodyWear[k] = Math.round(p._bodyWear[k] * 0.25);
+        }
+      }
     }
   }
   // Age the college pipeline AFTER the season counter bumps so aged

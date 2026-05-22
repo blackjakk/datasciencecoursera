@@ -703,6 +703,12 @@ class GameSimulator {
       }
     }
     player.injuryHistory = player.injuryHistory || [];
+    // Bump body-part wear (specific region damaged). _bumpBodyPart lives
+    // in play-franchise-season.js — guard for headless contexts.
+    let bodyPart = null;
+    if (typeof _bumpBodyPart === "function") {
+      bodyPart = _bumpBodyPart(player, t.label, isCatastrophic ? 55 : 30);
+    }
     if (typeof franchise !== "undefined") {
       player.injuryHistory.push({
         season: franchise.season,
@@ -710,7 +716,7 @@ class GameSimulator {
         label: t.label,
         catastrophic: isCatastrophic,
         careerEnding,
-        weeks: wks, duration: wks,
+        weeks: wks, duration: wks, bodyPart,
         cause: opts.eventType === "sack" ? "sack" : "big_hit",
         tackler: tackler?.name || null,
       });
