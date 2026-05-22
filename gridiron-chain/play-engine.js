@@ -2229,14 +2229,14 @@ class GameSimulator {
         // sacks; Lamar-tier (mobile) ~1-2; immobile + unaware QBs deeper.
         // GUNSLINGER holds the ball (deeper); PA / flea flicker = deeper drop.
         const qbSpd = qbPlayer?.stats?.[0] ?? 70;
-        const mobilityCut = (qbSpd - 70) / 8;        // SPD 90 -> -2.5, SPD 50 -> +2.5
-        const awrCut      = (qbAwr - 70) / 10;       // AWR 90 -> -2,   AWR 50 -> +2
+        const mobilityCut = (qbSpd - 70) / 15;       // SPD 90 -> -1.3, SPD 50 -> +1.3
+        const awrCut      = (qbAwr - 70) / 15;       // AWR 90 -> -1.3, AWR 50 -> +1.3
         const sackArchMod = qbArch === "POCKET"      ? -0.5
-                         : qbArch === "DUAL_THREAT"  ? -1.5
+                         : qbArch === "DUAL_THREAT"  ? -0.5
                          : qbArch === "GUNSLINGER"   ?  2.0
                          : 0;
         const sackPlayMod = isFleaFlicker ? 3 : isPlayAction ? 1 : 0;
-        const loss = Math.round(clamp(normal(6 + sackArchMod + sackPlayMod - mobilityCut - awrCut, 3), 1, 22));
+        const loss = Math.round(clamp(normal(7 + sackArchMod + sackPlayMod - mobilityCut - awrCut, 4), 1, 22));
         if (qbStats) { qbStats.sacks_taken++; qbStats.sack_yds += loss; }
         off.team.sacks_allowed++; def.team.sacks++;
         // NFL: ~30% of sacks come from LBs (mostly edge-rushing blitzers).
