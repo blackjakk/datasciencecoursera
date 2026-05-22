@@ -102,6 +102,36 @@ const _RETURN_GANG_DIST = {
   long:  [0.90, 0.10],
 };
 
+// Per-penalty base rate + metadata. Rate is per-play probability (not
+// cumulative). Pass-only types ("when": "pass") are skipped on run plays.
+// Cumulative thresholds are rebuilt every play with situational mods.
+const _PENALTY_RATES = {
+  // Pre-snap — committed by side that fouled
+  "False Start":              { rate: 0.0120, on: "off", yds: 5,  autoFirst: false, when: "any"  },
+  "Defensive Offsides":       { rate: 0.0060, on: "def", yds: 5,  autoFirst: false, when: "any"  },
+  "Neutral Zone Infraction":  { rate: 0.0030, on: "def", yds: 5,  autoFirst: false, when: "any"  },
+  "Encroachment":             { rate: 0.0030, on: "def", yds: 5,  autoFirst: false, when: "any"  },
+  "Delay of Game":            { rate: 0.0045, on: "off", yds: 5,  autoFirst: false, when: "any"  },
+  "Illegal Formation":        { rate: 0.0025, on: "off", yds: 5,  autoFirst: false, when: "any"  },
+  "Illegal Motion":           { rate: 0.0025, on: "off", yds: 5,  autoFirst: false, when: "any"  },
+  // Post-snap (any play type)
+  "Holding (Offense)":        { rate: 0.0120, on: "off", yds: 10, autoFirst: false, when: "any"  },
+  "Illegal Use of Hands (O)": { rate: 0.0025, on: "off", yds: 10, autoFirst: false, when: "any"  },
+  "Holding (Defense)":        { rate: 0.0060, on: "def", yds: 5,  autoFirst: true,  when: "any"  },
+  "Unnecessary Roughness":    { rate: 0.0040, on: "def", yds: 15, autoFirst: true,  when: "any"  },
+  "Face Mask":                { rate: 0.0020, on: "def", yds: 15, autoFirst: true,  when: "any"  },
+  "Horse Collar":             { rate: 0.0010, on: "def", yds: 15, autoFirst: true,  when: "any"  },
+  "Taunting":                 { rate: 0.0010, on: "def", yds: 15, autoFirst: true,  when: "any"  },
+  "Illegal Block in Back":    { rate: 0.0035, on: "off", yds: 10, autoFirst: false, when: "any"  },
+  // Pass-only
+  "Pass Interference (D)":    { rate: 0.0080, on: "def", yds: 15, autoFirst: true,  when: "pass" },
+  "Illegal Contact":          { rate: 0.0055, on: "def", yds: 5,  autoFirst: true,  when: "pass" },
+  "Roughing the Passer":      { rate: 0.0035, on: "def", yds: 15, autoFirst: true,  when: "pass" },
+  "Pass Interference (O)":    { rate: 0.0030, on: "off", yds: 10, autoFirst: false, when: "pass" },
+  "Ineligible Downfield":     { rate: 0.0025, on: "off", yds: 5,  autoFirst: false, when: "pass" },
+  "Intentional Grounding":    { rate: 0.0020, on: "off", yds: 10, autoFirst: false, when: "pass", lossDown: true },
+};
+
 // Position attribution for each penalty type — values are relative weights
 // (do not need to sum to 100). Sourced from NFL position-attribution data
 // (Harvard SAC penalty study, PFR OL penalty leaders, May 2026 research).
@@ -1927,50 +1957,99 @@ class GameSimulator {
     const playType = Math.random() < passProb ? "pass" : "run";
 
     // ── PENALTY ROLL ──
-    // NFL averages ~12 accepted penalties per game (~6/team) at ~9%/play
-    // overall. This roll fires on every offensive scrimmage play (punts,
-    // kickoffs, FGs have their own ST-penalty handling). Cumulative
-    // threshold: 6.55% on run plays, 9.00% on pass plays — weighted ~8%.
+    // NFL averages ~12 accepted penalties per game (~6/team) at ~9%/play.
+    // Per-type base rates live in _PENALTY_RATES; this block applies
+    // situational modifiers (down/dist, field zone, score state, home/
+    // road) and a QB-cadence multiplier on cadence-sensitive penalties
+    // (def offsides / NZI / encroachment). Cumulative thresholds are
+    // rebuilt every play so context can shift the distribution.
     //
-    // Taxonomy maps to NFL share data (research May 2026):
-    //   Off Holding ~15%, False Start ~14%, DPI ~6%, Def Holding ~7%,
-    //   Def Offsides ~5%, Unnecessary Roughness ~4%, Illegal Block in
-    //   Back ~3%, Illegal Contact ~4%, Roughing Passer ~3%, OPI ~3%,
-    //   plus rare 15-yarders (face mask, horse collar, taunting) and
-    //   loss-of-down penalties (intentional grounding).
-    //
-    // Player attribution, situational drivers, DPI heavy-tail, and
-    // accept/decline are layered in later phases.
+    // Player attribution is handled by _pickPenaltyOffender after the
+    // type is selected.
     {
+      // Situation context for modifiers.
+      const _isThird   = this.down === 3;
+      const _isFourth  = this.down === 4;
+      const _isShort   = (this.ytg || 10) <= 3;
+      const _isLong    = (this.ytg || 10) >= 7;
+      const _isRedZone = this.yardLine >= 80;
+      const _isRoadOff = this.poss !== "home";
+      const _trailingQ4 = this.quarter === 4 && (
+        this.poss === "home" ? this.score.home < this.score.away
+                             : this.score.away < this.score.home
+      );
+      // QB cadence — high-AWR QBs draw more pre-snap defensive flags.
+      // Rodgers / Mahomes archetype: AWR 92+ → ~1.2x cadence multiplier.
+      const _qbName  = this.offR?.starters?.qb;
+      const _qbObj   = _qbName ? this._playerByName.get(_qbName) : null;
+      const _qbAwr   = _qbObj?.stats?.[3] ?? 70;
+      const _cadence = clamp(1 + (_qbAwr - 75) / 75, 0.7, 1.35);
+      const _penMod = (type) => {
+        let m = 1.0;
+        if (type === "False Start") {
+          if (_isRoadOff) m *= 1.15;
+          if ((_isThird || _isFourth) && _isShort) m *= 1.40;
+        } else if (type === "Defensive Offsides" || type === "Neutral Zone Infraction" || type === "Encroachment") {
+          m *= _cadence;
+          if ((_isThird || _isFourth) && _isShort) m *= 1.60;
+        } else if (type === "Pass Interference (D)") {
+          if (_isThird && _isLong) m *= 1.50;
+          if (_isRedZone) m *= 1.30;
+          if (_trailingQ4) m *= 1.20;
+        } else if (type === "Holding (Defense)") {
+          if (_isThird && _isLong) m *= 1.20;
+          if (_isRedZone) m *= 1.15;
+        } else if (type === "Illegal Contact") {
+          if (_isThird && _isLong) m *= 1.15;
+        } else if (type === "Holding (Offense)") {
+          // OL holds more when the pass rush wins fast — proxy via 3rd-and-long.
+          // Compressed RZ splits make OL hold longer to seal blocks.
+          if (_isThird && _isLong) m *= 1.30;
+          if (_isRedZone) m *= 1.25;
+        } else if (type === "Pass Interference (O)") {
+          // Tight RZ coverage forces push-offs / pick plays.
+          if (_isRedZone) m *= 1.40;
+        } else if (type === "Illegal Use of Hands (O)") {
+          if (_isRedZone) m *= 1.20;
+        } else if (type === "Roughing the Passer") {
+          if (_trailingQ4) m *= 1.10;  // defense pinning ears back
+        } else if (type === "Delay of Game") {
+          // Pocket-statue QBs run the clock down more often.
+          if (_qbAwr < 70) m *= 1.20;
+        } else if (type === "Intentional Grounding") {
+          // Low-AWR / non-mobile QBs more likely to ground; engine doesn't
+          // expose mobility directly so use AWR as a noisy proxy.
+          if (_qbAwr < 70) m *= 1.40;
+        }
+        return m;
+      };
+      // Build cumulative thresholds.
+      const _penRoll = [];
+      let _cum = 0;
+      for (const [type, def] of Object.entries(_PENALTY_RATES)) {
+        if (def.when === "pass" && playType !== "pass") continue;
+        const rate = def.rate * _penMod(type);
+        _cum += rate;
+        _penRoll.push({ type, def, cum: _cum });
+      }
       const penR = Math.random();
       let pen = null;
-      // Pre-snap (any play type)
-      if      (penR < 0.0120) pen = { type: "False Start",             on: "off", yds: 5,  autoFirst: false };
-      else if (penR < 0.0180) pen = { type: "Defensive Offsides",      on: "def", yds: 5,  autoFirst: false };
-      else if (penR < 0.0210) pen = { type: "Neutral Zone Infraction", on: "def", yds: 5,  autoFirst: false };
-      else if (penR < 0.0240) pen = { type: "Encroachment",            on: "def", yds: 5,  autoFirst: false };
-      else if (penR < 0.0285) pen = { type: "Delay of Game",           on: "off", yds: 5,  autoFirst: false };
-      else if (penR < 0.0310) pen = { type: "Illegal Formation",       on: "off", yds: 5,  autoFirst: false };
-      else if (penR < 0.0335) pen = { type: "Illegal Motion",          on: "off", yds: 5,  autoFirst: false };
-      // Post-snap (any play type)
-      else if (penR < 0.0455) pen = { type: "Holding (Offense)",       on: "off", yds: 10, autoFirst: false };
-      else if (penR < 0.0480) pen = { type: "Illegal Use of Hands (O)",on: "off", yds: 10, autoFirst: false };
-      else if (penR < 0.0540) pen = { type: "Holding (Defense)",       on: "def", yds: 5,  autoFirst: true };
-      else if (penR < 0.0580) pen = { type: "Unnecessary Roughness",   on: "def", yds: 15, autoFirst: true };
-      else if (penR < 0.0600) pen = { type: "Face Mask",               on: "def", yds: 15, autoFirst: true };
-      else if (penR < 0.0610) pen = { type: "Horse Collar",            on: "def", yds: 15, autoFirst: true };
-      else if (penR < 0.0620) pen = { type: "Taunting",                on: "def", yds: 15, autoFirst: true };
-      else if (penR < 0.0655) pen = { type: "Illegal Block in Back",   on: "off", yds: 10, autoFirst: false };
-      // Pass-only (DPI, Illegal Contact, Roughing Passer, OPI, ineligible, grounding)
-      else if (playType === "pass") {
-        if      (penR < 0.0735) pen = { type: "Pass Interference (D)",  on: "def", yds: 15, autoFirst: true };
-        else if (penR < 0.0790) pen = { type: "Illegal Contact",        on: "def", yds: 5,  autoFirst: true };
-        else if (penR < 0.0825) pen = { type: "Roughing the Passer",    on: "def", yds: 15, autoFirst: true };
-        else if (penR < 0.0855) pen = { type: "Pass Interference (O)",  on: "off", yds: 10, autoFirst: false };
-        else if (penR < 0.0880) pen = { type: "Ineligible Downfield",   on: "off", yds: 5,  autoFirst: false };
-        else if (penR < 0.0900) pen = { type: "Intentional Grounding",  on: "off", yds: 10, autoFirst: false, lossDown: true };
+      for (const t of _penRoll) {
+        if (penR < t.cum) {
+          pen = {
+            type: t.type, on: t.def.on, yds: t.def.yds,
+            autoFirst: t.def.autoFirst, lossDown: t.def.lossDown,
+          };
+          break;
+        }
       }
       if (pen) {
+        // Capture PRE-penalty situation so audits can correlate penalty
+        // type to the down/ytg/zone where the flag was thrown (otherwise
+        // auto-first / loss-of-down branches mask the original context).
+        const _preDown     = this.down;
+        const _preYtg      = this.ytg;
+        const _preYardLine = this.yardLine;
         const flaggedKey = pen.on === "off" ? this.poss : (this.poss === "home" ? "away" : "home");
         const flaggedStats = this.stats[flaggedKey];
         flaggedStats.team.penalties   = (flaggedStats.team.penalties   || 0) + 1;
@@ -2013,6 +2092,7 @@ class GameSimulator {
           onTeam: flaggedKey,
           penType: pen.type,
           offender,
+          preDown: _preDown, preYtg: _preYtg, preYardLine: _preYardLine,
         });
         return { yards: 0, incomplete: false, isPenalty: true };
       }
