@@ -2151,7 +2151,7 @@ class GameSimulator {
                 tacklerStatsPlayers: this.defStats?.players,
                 tacklerZones: _YAC_TACKLER_ZONES, gangDist: _YAC_GANG_DIST,
               });
-              if (br.brokenTackles > 0) { yac += br.bonusYards; torBT = br.brokenTackles; }
+              if (br.brokenTackles > 0) { yac += Math.round(br.bonusYards * 0.75); torBT = br.brokenTackles; }
             }
             const yards = Math.min(Math.max(1, targetDepth + yac), 100 - startYard);
             if (qbStats) { qbStats.pass_att++; qbStats.pass_comp++; qbStats.pass_yds += yards; if (yards > qbStats.pass_long) qbStats.pass_long = yards; }
@@ -2336,7 +2336,7 @@ class GameSimulator {
               tacklerStatsPlayers: this.defStats?.players,
               tacklerZones: _YAC_TACKLER_ZONES, gangDist: _YAC_GANG_DIST,
             });
-            if (br.brokenTackles > 0) { yac += br.bonusYards; screenBT = br.brokenTackles; }
+            if (br.brokenTackles > 0) { yac += Math.round(br.bonusYards * 0.75); screenBT = br.brokenTackles; }
           }
           const yards = Math.min(clamp(airYds + yac, -3, 95), 100 - startYard);
           if (qbStats) { qbStats.pass_att++; qbStats.pass_comp++; qbStats.pass_yds += yards; if (yards > qbStats.pass_long) qbStats.pass_long = yards; }
@@ -2585,8 +2585,8 @@ class GameSimulator {
           const r = Math.random();
           if (r < 0.28) yac = 0;
           else if (r < 0.65) yac = rand(1, Math.max(3, Math.floor(airYds * 0.5)) + 2);
-          else if (r < 0.90) yac = rand(3, Math.max(6, Math.floor(airYds * 0.9)) + 3);
-          else                yac = rand(5, 16) + Math.floor(airYds * 0.5); // big YAC run
+          else if (r < 0.95) yac = rand(3, Math.max(6, Math.floor(airYds * 0.9)) + 3);
+          else                yac = rand(4, 12) + Math.floor(airYds * 0.4); // big YAC: trimmed (top 5%)
         }
         // YAC archetype tilt: SLOT and POSSESSION are YAC monsters on
         // short routes; RED_ZONE is a low-YAC big body (catches and gets
@@ -2625,7 +2625,9 @@ class GameSimulator {
           if (br.brokenTackles > 0) {
             wrJuke = true;
             const zoneMul = zoneCB ? 0.6 : 1.0;
-            yac += Math.round(br.bonusYards * zoneMul);
+            // YAC contexts get 75% of break bonus (receivers don't sprint as
+            // far after break as RBs in space).
+            yac += Math.round(br.bonusYards * zoneMul * 0.75);
             yacBrokenTackles = br.brokenTackles;
           }
         }
