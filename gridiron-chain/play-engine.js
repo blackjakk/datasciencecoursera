@@ -1817,27 +1817,48 @@ class GameSimulator {
     const playType = Math.random() < passProb ? "pass" : "run";
 
     // ── PENALTY ROLL ──
-    // ~6.3% combined chance per play (NFL averages ~12 accepted penalties
-    // per game / ~130 plays = ~9%, slightly undershooting to leave room
-    // for play-style variance). Penalties consume ~8s of clock for the
-    // flag and either replay the down (most) or trigger an automatic
-    // first (defensive holding, PI, roughing). yardLine + ytg are
-    // adjusted INSIDE this block; _drive sees isPenalty and skips its
-    // normal down/yardLine progression.
+    // NFL averages ~12 accepted penalties per game (~6/team) at ~9%/play
+    // overall. This roll fires on every offensive scrimmage play (punts,
+    // kickoffs, FGs have their own ST-penalty handling). Cumulative
+    // threshold: 6.55% on run plays, 9.00% on pass plays — weighted ~8%.
+    //
+    // Taxonomy maps to NFL share data (research May 2026):
+    //   Off Holding ~15%, False Start ~14%, DPI ~6%, Def Holding ~7%,
+    //   Def Offsides ~5%, Unnecessary Roughness ~4%, Illegal Block in
+    //   Back ~3%, Illegal Contact ~4%, Roughing Passer ~3%, OPI ~3%,
+    //   plus rare 15-yarders (face mask, horse collar, taunting) and
+    //   loss-of-down penalties (intentional grounding).
+    //
+    // Player attribution, situational drivers, DPI heavy-tail, and
+    // accept/decline are layered in later phases.
     {
       const penR = Math.random();
       let pen = null;
-      if      (penR < 0.012) pen = { type: "False Start",            on: "off", yds: 5,  autoFirst: false };
-      else if (penR < 0.020) pen = { type: "Offsides",               on: "def", yds: 5,  autoFirst: false };
-      else if (penR < 0.027) pen = { type: "Delay of Game",          on: "off", yds: 5,  autoFirst: false };
-      else if (penR < 0.040) pen = { type: "Holding (Offense)",      on: "off", yds: 10, autoFirst: false };
-      else if (penR < 0.044) pen = { type: "Holding (Defense)",      on: "def", yds: 5,  autoFirst: true };
-      // Pass-only penalties (roughing the passer, PI). DPI = spot foul,
-      // averaged at 15 yards (real-world range 5-50+, mode ~12).
+      // Pre-snap (any play type)
+      if      (penR < 0.0120) pen = { type: "False Start",             on: "off", yds: 5,  autoFirst: false };
+      else if (penR < 0.0180) pen = { type: "Defensive Offsides",      on: "def", yds: 5,  autoFirst: false };
+      else if (penR < 0.0210) pen = { type: "Neutral Zone Infraction", on: "def", yds: 5,  autoFirst: false };
+      else if (penR < 0.0240) pen = { type: "Encroachment",            on: "def", yds: 5,  autoFirst: false };
+      else if (penR < 0.0285) pen = { type: "Delay of Game",           on: "off", yds: 5,  autoFirst: false };
+      else if (penR < 0.0310) pen = { type: "Illegal Formation",       on: "off", yds: 5,  autoFirst: false };
+      else if (penR < 0.0335) pen = { type: "Illegal Motion",          on: "off", yds: 5,  autoFirst: false };
+      // Post-snap (any play type)
+      else if (penR < 0.0455) pen = { type: "Holding (Offense)",       on: "off", yds: 10, autoFirst: false };
+      else if (penR < 0.0480) pen = { type: "Illegal Use of Hands (O)",on: "off", yds: 10, autoFirst: false };
+      else if (penR < 0.0540) pen = { type: "Holding (Defense)",       on: "def", yds: 5,  autoFirst: true };
+      else if (penR < 0.0580) pen = { type: "Unnecessary Roughness",   on: "def", yds: 15, autoFirst: true };
+      else if (penR < 0.0600) pen = { type: "Face Mask",               on: "def", yds: 15, autoFirst: true };
+      else if (penR < 0.0610) pen = { type: "Horse Collar",            on: "def", yds: 15, autoFirst: true };
+      else if (penR < 0.0620) pen = { type: "Taunting",                on: "def", yds: 15, autoFirst: true };
+      else if (penR < 0.0655) pen = { type: "Illegal Block in Back",   on: "off", yds: 10, autoFirst: false };
+      // Pass-only (DPI, Illegal Contact, Roughing Passer, OPI, ineligible, grounding)
       else if (playType === "pass") {
-        if      (penR < 0.052) pen = { type: "Roughing the Passer",  on: "def", yds: 15, autoFirst: true };
-        else if (penR < 0.060) pen = { type: "Pass Interference (D)", on: "def", yds: 15, autoFirst: true };
-        else if (penR < 0.063) pen = { type: "Pass Interference (O)", on: "off", yds: 10, autoFirst: false };
+        if      (penR < 0.0735) pen = { type: "Pass Interference (D)",  on: "def", yds: 15, autoFirst: true };
+        else if (penR < 0.0790) pen = { type: "Illegal Contact",        on: "def", yds: 5,  autoFirst: true };
+        else if (penR < 0.0825) pen = { type: "Roughing the Passer",    on: "def", yds: 15, autoFirst: true };
+        else if (penR < 0.0855) pen = { type: "Pass Interference (O)",  on: "off", yds: 10, autoFirst: false };
+        else if (penR < 0.0880) pen = { type: "Ineligible Downfield",   on: "off", yds: 5,  autoFirst: false };
+        else if (penR < 0.0900) pen = { type: "Intentional Grounding",  on: "off", yds: 10, autoFirst: false, lossDown: true };
       }
       if (pen) {
         const flaggedKey = pen.on === "off" ? this.poss : (this.poss === "home" ? "away" : "home");
@@ -1853,6 +1874,12 @@ class GameSimulator {
         if (pen.autoFirst) {
           this.down = 1;
           this.ytg = 10;
+        } else if (pen.lossDown) {
+          // Loss of down (intentional grounding) — penalty enforced AND
+          // down advances. If this was 4th down, drive ends on the next
+          // _drive iteration (down > 4 triggers turnover on downs).
+          this.down = (this.down || 1) + 1;
+          this.ytg = clamp(this.ytg + (pen.on === "off" ? pen.yds : -pen.yds), 1, 99);
         } else {
           // Replay down — adjust ytg by penalty yards
           this.ytg = clamp(this.ytg + (pen.on === "off" ? pen.yds : -pen.yds), 1, 99);
@@ -1861,7 +1888,7 @@ class GameSimulator {
         this.time = Math.max(0, this.time - dt);
         this._pushVisual({
           kind: "penalty",
-          desc: `🚩 ${pen.type} on ${this[flaggedKey].name} — ${pen.yds} yds${pen.autoFirst ? ", automatic first down" : ""}`,
+          desc: `🚩 ${pen.type} on ${this[flaggedKey].name} — ${pen.yds} yds${pen.autoFirst ? ", automatic first down" : ""}${pen.lossDown ? ", loss of down" : ""}`,
           yds: pen.yds,
           onTeam: flaggedKey,
           penType: pen.type,
