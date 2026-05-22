@@ -685,13 +685,18 @@ const POSITION_SPD_MAP = {
 // These affect bench, hands-on tests, and coverage ratings. OL can't have
 // elite COV; QBs don't have elite STR; CBs aren't bench-press monsters.
 const POSITION_PHYSICAL_CAPS = {
-  QB:  { 1:{max:80}, 6:{max:50}, 9:{max:55} },                  // STR/BLK/TCK caps
-  RB:  { 8:{max:65} },                                          // COV cap
-  WR:  { 1:{max:80}, 6:{max:55} },                              // STR/BLK caps
-  OL:  { 5:{max:55}, 8:{max:45} },                              // CAT/COV caps
-  DL:  { 5:{max:55}, 8:{max:55} },                              // CAT/COV caps
-  CB:  { 1:{max:78}, 6:{max:50} },                              // STR/BLK caps
-  S:   { 1:{max:88} },                                          // STR cap
+  // Index legend: 0=SPD 1=STR 2=AGI 3=AWR 4=THR 5=CAT 6=BLK 7=PRS 8=COV 9=TCK 10=KPW
+  QB:  { 1:{max:80, min:55}, 6:{max:50}, 9:{max:55} },
+  RB:  { 1:{min:60}, 8:{max:65} },
+  WR:  { 1:{min:50, max:80}, 6:{max:55} },
+  TE:  { 1:{min:70} },
+  OL:  { 1:{min:75}, 5:{max:55}, 6:{min:70}, 8:{max:45} },
+  DL:  { 1:{min:75}, 5:{max:55}, 7:{min:60}, 8:{max:55}, 9:{min:60} },
+  LB:  { 1:{min:70}, 9:{min:65} },
+  CB:  { 1:{max:78}, 6:{max:50} },
+  S:   { 1:{max:88, min:60} },
+  K:   { 1:{max:60}, 6:{max:30}, 9:{max:40} },
+  P:   { 1:{max:60}, 6:{max:30}, 9:{max:40} },
 };
 function _applyPositionCaps(pos, stats) {
   // 1. Map SPD into position-realistic range
