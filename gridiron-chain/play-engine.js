@@ -132,6 +132,19 @@ const _PENALTY_RATES = {
   "Intentional Grounding":    { rate: 0.0020, on: "off", yds: 10, autoFirst: false, when: "pass", lossDown: true },
 };
 
+// Penalties that kill the play (the snap never legally happened). These
+// keep the "replace play with penalty" behavior — no accept/decline because
+// nothing to accept against. Everything not listed here is LIVE-BALL: the
+// play executes, and the non-offending team picks accept/decline after.
+const _DEAD_BALL_PENALTIES = new Set([
+  "False Start",
+  "Delay of Game",
+  "Neutral Zone Infraction",
+  "Encroachment",
+  "Illegal Formation",
+  "Illegal Motion",
+]);
+
 // Position attribution for each penalty type — values are relative weights
 // (do not need to sum to 100). Sourced from NFL position-attribution data
 // (Harvard SAC penalty study, PFR OL penalty leaders, May 2026 research).
@@ -998,6 +1011,117 @@ class GameSimulator {
   // position-weight map (NFL research May 2026). Within the chosen position,
   // bias toward LOW AWR — undisciplined players draw more flags. Returns a
   // player NAME or null if no candidates exist.
+  // Snapshot enough engine state to fully undo a play if a live-ball
+  // penalty is accepted after the play resolves. We deep-clone stats
+  // since the play body mutates them in place; everything else is
+  // primitive or shallow-cloneable.
+  _snapshotForPenalty() {
+    return {
+      yardLine: this.yardLine, down: this.down, ytg: this.ytg,
+      time: this.time, quarter: this.quarter, poss: this.poss,
+      score: { ...this.score },
+      stats: JSON.parse(JSON.stringify(this.stats)),
+      playsLen: this.plays.length,
+      lastClockStopped: this._lastClockStopped,
+      lastBallType: this._lastBallType,
+      lastRzDrive: this._lastRzDrive,
+      timeouts: { home: this.timeouts.home, away: this.timeouts.away },
+    };
+  }
+  _restoreFromPenaltySnapshot(s) {
+    this.yardLine = s.yardLine; this.down = s.down; this.ytg = s.ytg;
+    this.time = s.time; this.quarter = s.quarter; this.poss = s.poss;
+    this.score = { ...s.score };
+    this.stats = s.stats;
+    this.plays.length = s.playsLen;
+    this._lastClockStopped = s.lastClockStopped;
+    this._lastBallType = s.lastBallType;
+    this._lastRzDrive = s.lastRzDrive;
+    this.timeouts.home = s.timeouts.home;
+    this.timeouts.away = s.timeouts.away;
+  }
+  // Decide whether to accept the pending live-ball penalty given the
+  // actual play result. Non-offending team chooses. Compares the
+  // PRE-play snapshot (this._penSnapshot) against current state to
+  // detect score changes — never wipe a TD/FG with a 5-15 yd flag.
+  //   pen.on === "def": offense decides
+  //   pen.on === "off": defense decides
+  _shouldAcceptLivePenalty(pen, playResult, snap) {
+    snap = snap || this._penSnapshot;
+    const playYds = playResult?.yards ?? 0;
+    const isTO    = !!playResult?.turnover;
+    const isInc   = !!playResult?.incomplete;
+    // Snapshot-vs-current score deltas. Compute relative to the offense
+    // when the play STARTED (snap.poss), not current poss (turnovers flip).
+    const offSide = snap?.poss || this.poss;
+    const defSide = offSide === "home" ? "away" : "home";
+    const offScoreDelta = (this.score[offSide] || 0) - (snap?.score?.[offSide] || 0);
+    const defScoreDelta = (this.score[defSide] || 0) - (snap?.score?.[defSide] || 0);
+    if (pen.on === "def") {
+      // Offense decides — wants the better outcome.
+      if (offScoreDelta > 0) return false;          // KEEP the TD/FG/score
+      if (defScoreDelta > 0) return true;           // negate any defensive score (safety, pick-6)
+      if (isTO) return true;                        // negate the TO
+      if (pen.autoFirst) return true;               // auto-first nearly always preferred
+      if (isInc) return true;                       // incomplete vs 5+ yds + replay
+      return pen.yds >= playYds;
+    } else {
+      // Defense decides — wants the worse-for-offense outcome. Accept
+      // pushes offense to -pen.yds and REPLAYS the down. Decline leaves
+      // them at +playYds and ADVANCES the down. NFL coaches value the
+      // down progression at ~5 yds equivalent (especially on 3rd down,
+      // where decline forces a punt). Net comparison:
+      //   accept_value (offense yds equivalent)  = -pen.yds  (with replay = no down gained for defense)
+      //   decline_value (offense yds equivalent) = playYds - downBonus  (defense gains a down)
+      // Defense accepts when accept_value < decline_value.
+      if (offScoreDelta > 0) return true;           // WIPE the offense's TD/FG
+      if (defScoreDelta > 0) return false;          // KEEP the defensive score
+      if (isTO) return false;                       // keep the TO
+      if (pen.lossDown) return true;                // loss of down (e.g. IG) is bad for offense
+      const downBonus = (snap?.down === 3 || snap?.down === 4) ? 8 : 3;
+      return -pen.yds < (playYds - downBonus);
+    }
+  }
+  // Apply a fully-formed penalty (dead-ball immediate, or live-ball
+  // accepted-after-play). Mutates stats + yardLine + down/ytg + time +
+  // pushes the penalty visual. Expects pen._meta populated with
+  // flaggedKey, offender, preDown/preYtg/preYardLine.
+  _applyPenaltyEffects(pen) {
+    const { flaggedKey, offender, preDown, preYtg, preYardLine } = pen._meta || {};
+    const flaggedStats = this.stats[flaggedKey];
+    if (flaggedStats?.team) {
+      flaggedStats.team.penalties  = (flaggedStats.team.penalties  || 0) + 1;
+      flaggedStats.team.penaltyYds = (flaggedStats.team.penaltyYds || 0) + pen.yds;
+    }
+    if (offender && flaggedStats?.players?.[offender]) {
+      const ps = flaggedStats.players[offender];
+      ps.penalties   = (ps.penalties   || 0) + 1;
+      ps.penalty_yds = (ps.penalty_yds || 0) + pen.yds;
+    }
+    // Yardage direction relative to OFFENSE.
+    const dir = pen.on === "off" ? -1 : +1;
+    const newYL = clamp(this.yardLine + dir * pen.yds, 1, 99);
+    this.yardLine = newYL;
+    if (pen.autoFirst) {
+      this.down = 1;
+      this.ytg = 10;
+    } else if (pen.lossDown) {
+      this.down = (this.down || 1) + 1;
+      this.ytg = clamp(this.ytg + (pen.on === "off" ? pen.yds : -pen.yds), 1, 99);
+    } else {
+      this.ytg = clamp(this.ytg + (pen.on === "off" ? pen.yds : -pen.yds), 1, 99);
+    }
+    this.time = Math.max(0, this.time - 8);
+    this._pushVisual({
+      kind: "penalty",
+      desc: `🚩 ${pen.type}${offender ? ` on ${offender}` : ` on ${this[flaggedKey]?.name || flaggedKey}`} — ${pen.yds} yds${pen.autoFirst ? ", automatic first down" : ""}${pen.lossDown ? ", loss of down" : ""}`,
+      yds: pen.yds,
+      onTeam: flaggedKey,
+      penType: pen.type,
+      offender,
+      preDown, preYtg, preYardLine,
+    });
+  }
   _pickPenaltyOffender(posWeights, side) {
     if (!posWeights) return null;
     const teamKey = side === "off" ? this.poss : (this.poss === "home" ? "away" : "home");
@@ -1338,6 +1462,49 @@ class GameSimulator {
     }
   }
   _play() {
+    // Reset pending live-ball penalty state from previous snap.
+    this._pendingLivePen = null;
+    this._penSnapshot = null;
+    const result = this._playInner();
+    // Live-ball penalty accept/decline. The play has resolved; non-offending
+    // team picks the outcome that's better for them. ACCEPT → restore the
+    // pre-play snapshot and apply the penalty. DECLINE → play stands, log
+    // the declined flag in stats so we can audit it.
+    const pen = this._pendingLivePen;
+    if (pen) {
+      this._pendingLivePen = null;
+      const snap = this._penSnapshot;
+      this._penSnapshot = null;
+      const accept = this._shouldAcceptLivePenalty(pen, result, snap);
+      if (accept) {
+        this._restoreFromPenaltySnapshot(snap);
+        this._applyPenaltyEffects(pen);
+        return { yards: 0, incomplete: false, isPenalty: true };
+      } else {
+        // Declined — increment team-level declined counter for audit.
+        const { flaggedKey, offender } = pen._meta || {};
+        const flaggedStats = this.stats[flaggedKey];
+        if (flaggedStats?.team) {
+          flaggedStats.team.penalties_declined =
+            (flaggedStats.team.penalties_declined || 0) + 1;
+        }
+        if (offender && flaggedStats?.players?.[offender]) {
+          flaggedStats.players[offender].penalties_declined =
+            (flaggedStats.players[offender].penalties_declined || 0) + 1;
+        }
+        // Push a quiet visual so the declined flag shows in the log.
+        this._pushVisual({
+          kind: "penalty_declined",
+          desc: `🚩 ${pen.type}${offender ? ` on ${offender}` : ""} — DECLINED`,
+          penType: pen.type,
+          offender,
+          onTeam: flaggedKey,
+        });
+      }
+    }
+    return result;
+  }
+  _playInner() {
     // Depth-chart rotation: sub starters based on garbage time / fatigue
     // BEFORE any reads of this.offR.starters.X. Restores from base depth
     // chart at the top, then optionally swaps in backups.
@@ -2076,50 +2243,27 @@ class GameSimulator {
         const _preYtg      = this.ytg;
         const _preYardLine = this.yardLine;
         const flaggedKey = pen.on === "off" ? this.poss : (this.poss === "home" ? "away" : "home");
-        const flaggedStats = this.stats[flaggedKey];
-        flaggedStats.team.penalties   = (flaggedStats.team.penalties   || 0) + 1;
-        flaggedStats.team.penaltyYds  = (flaggedStats.team.penaltyYds  || 0) + pen.yds;
         // Tag the specific player who committed the foul — biased by NFL
         // position attribution and modulated by the player's AWR.
         const offender = this._pickPenaltyOffender(_PENALTY_POSITIONS[pen.type], pen.on);
-        if (offender) {
-          const ps = flaggedStats.players[offender];
-          if (ps) {
-            ps.penalties    = (ps.penalties    || 0) + 1;
-            ps.penalty_yds  = (ps.penalty_yds  || 0) + pen.yds;
-          }
-        }
-        // Yardage direction relative to OFFENSE: offensive penalty moves
-        // the ball backward (away from opponent EZ); defensive penalty
-        // moves forward.
-        const dir = pen.on === "off" ? -1 : +1;
-        const newYL = clamp(this.yardLine + dir * pen.yds, 1, 99);
-        this.yardLine = newYL;
-        if (pen.autoFirst) {
-          this.down = 1;
-          this.ytg = 10;
-        } else if (pen.lossDown) {
-          // Loss of down (intentional grounding) — penalty enforced AND
-          // down advances. If this was 4th down, drive ends on the next
-          // _drive iteration (down > 4 triggers turnover on downs).
-          this.down = (this.down || 1) + 1;
-          this.ytg = clamp(this.ytg + (pen.on === "off" ? pen.yds : -pen.yds), 1, 99);
-        } else {
-          // Replay down — adjust ytg by penalty yards
-          this.ytg = clamp(this.ytg + (pen.on === "off" ? pen.yds : -pen.yds), 1, 99);
-        }
-        const dt = 8;
-        this.time = Math.max(0, this.time - dt);
-        this._pushVisual({
-          kind: "penalty",
-          desc: `🚩 ${pen.type}${offender ? ` on ${offender}` : ` on ${this[flaggedKey].name}`} — ${pen.yds} yds${pen.autoFirst ? ", automatic first down" : ""}${pen.lossDown ? ", loss of down" : ""}`,
-          yds: pen.yds,
-          onTeam: flaggedKey,
-          penType: pen.type,
-          offender,
+        // Bundle everything needed to either apply or push as visual later.
+        pen._meta = {
+          flaggedKey, offender,
           preDown: _preDown, preYtg: _preYtg, preYardLine: _preYardLine,
-        });
-        return { yards: 0, incomplete: false, isPenalty: true };
+        };
+        // Dead-ball penalties (False Start, DOG, NZI, Encroachment, etc.)
+        // kill the play — no snap, no accept/decline. Apply immediately
+        // and return as before.
+        if (_DEAD_BALL_PENALTIES.has(pen.type)) {
+          this._applyPenaltyEffects(pen);
+          return { yards: 0, incomplete: false, isPenalty: true };
+        }
+        // Live-ball penalty: snapshot state, stash the pen, let the play
+        // body execute. Outer _play() wrapper picks accept/decline once
+        // the actual outcome is known.
+        this._pendingLivePen = pen;
+        this._penSnapshot = this._snapshotForPenalty();
+        // Fall through — play body continues normally.
       }
     }
 
