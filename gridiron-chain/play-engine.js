@@ -526,13 +526,18 @@ class GameSimulator {
   // Touches are where the real punishment happens — a 20-carry game is
   // worse on the body than a 65-snap pass-blocking shift.
   //
-  // Force-scaled per the user's request:
+  // Force-scaled:
   //   wear = baseAmount × tacklerForce × carrierVulnerability + bonuses
   //   tacklerForce = f(STR, SPD, archetype)  — bigger/faster hitters hurt more
   //   vulnerability = f(carrier STR)         — smaller players take more damage
   //   bonuses for negative-yard plays, sack depth, etc.
-  // No tackler info (e.g., screen pass that the receiver took unmolested)
-  // → flat baseAmount with carrier-only modifiers.
+  //
+  // Tackler also accrues wear (~40% of carrier wear) — action ≡ reaction;
+  // a 245-lb LB throwing his body still feels the collision.
+  //
+  // High-force hits ALSO roll a small instant-injury chance. Wear scales
+  // your weekly injury probability; the big-hit roll captures freak NFL
+  // moments — the cart-off play that wasn't accumulated damage.
   _bumpHitWear(carrierName, baseAmount, tacklerName = null, opts = {}) {
     if (!carrierName || !baseAmount) return;
     const carrier = this._playerByName.get(carrierName);
@@ -540,8 +545,9 @@ class GameSimulator {
     // Tackler-driven force. STR + SPD as mass/velocity proxies; archetype
     // tilts (HEADHUNTER/POWER hit harder, BALL_HAWK is finesse).
     let force = 1.0;
+    let tackler = null;
     if (tacklerName) {
-      const tackler = this._playerByName.get(tacklerName);
+      tackler = this._playerByName.get(tacklerName);
       if (tackler) {
         const tStr = tackler.stats?.[1] ?? 70;
         const tSpd = tackler.stats?.[0] ?? 70;
@@ -573,6 +579,89 @@ class GameSimulator {
                         * (carrier.archetype === "RECEIVING" ? 0.92 : 1.0);
     const wear = (baseAmount * force * vuln + extra) * staminaMul * carrierArchMul;
     carrier._wear = Math.min(100, (carrier._wear || 0) + wear);
+    // Tackler reciprocal wear (action ≡ reaction). 40% of the carrier's
+    // wear, no vulnerability scaling (the hitter braced for it). High-STR
+    // tacklers feel less proportionally because that's the whole point of
+    // being built for contact.
+    if (tackler) {
+      const tStamina = tackler.stats?.[12] ?? 70;
+      const tStaminaMul = clamp(1 - (tStamina - 70) / 80, 0.6, 1.4);
+      const tIronMul = tackler.ironman ? 0.8 : 1.0;
+      const tackleWear = wear * 0.4 * tStaminaMul * tIronMul;
+      tackler._wear = Math.min(100, (tackler._wear || 0) + tackleWear);
+    }
+    // BIG-HIT INJURY ROLL. Only fires for genuinely big hits (force > 1.3)
+    // or sacks. Small per-hit chance so it adds up to ~1-3 freak injuries
+    // per team per season — additive to the weekly injury roll, not a
+    // replacement. Scaled by carrier vulnerability and (for sacks) depth.
+    if (force >= 1.3 || opts.eventType === "sack") {
+      let injChance = (force - 1.0) * 0.0015 * vuln;
+      if (opts.eventType === "sack") injChance += 0.0008 + Math.abs(opts.sackDepth || 0) * 0.00015;
+      if (opts.negativeYards) injChance += Math.abs(opts.negativeYards) * 0.0003;
+      if (Math.random() < injChance && typeof this._triggerBigHitInjury === "function") {
+        this._triggerBigHitInjury(carrier, force, opts, tackler);
+      }
+    }
+  }
+  // Big-hit instant injury. Uses the franchise's injury catalogue (typed,
+  // position-weighted) but scales catastrophic-upgrade probability with
+  // hit force — a 2.0-force collision is far more likely to escalate to
+  // a torn ACL or chronic concussion than a 1.3-force hit.
+  _triggerBigHitInjury(player, force, opts, tackler) {
+    if (!player || (player.injury && player.injury.weeksRemaining > 0)) return;
+    if (typeof _pickInjuryType !== "function") return;  // graceful no-op in tests
+    let t = _pickInjuryType(player.position);
+    if (!t) return;
+    // Headhunter / power tacklers and sack hits skew concussion higher.
+    // (Sample once: if force ≥ 1.7 and hitter was a HEADHUNTER, 25% chance
+    // to override into concussion.)
+    if (tackler && (tackler.archetype === "HEADHUNTER" || opts.eventType === "sack") && force >= 1.7) {
+      if (Math.random() < 0.30 && typeof INJURY_TYPES !== "undefined") {
+        const c = INJURY_TYPES.find(x => x.label === "concussion");
+        if (c) t = c;
+      }
+    }
+    let isCatastrophic = false;
+    let careerEnding = false;
+    // Force-scaled catastrophic chance. At force 1.3 → ~3%, 1.7 → ~15%,
+    // 2.0 → ~30%. Far above the weekly _CATASTROPHIC_UPGRADE_CHANCE of 8%.
+    const catChance = clamp((force - 1.2) * 0.35, 0, 0.40);
+    if (Math.random() < catChance && typeof _CATASTROPHIC_VARIANTS !== "undefined") {
+      const variant = _CATASTROPHIC_VARIANTS[t.label];
+      if (variant) {
+        t = { ...t, ...variant };
+        isCatastrophic = true;
+        // Career-ending chance also force-scaled — a violent hit IS more
+        // likely to end someone's career.
+        const ceMul = force >= 1.9 ? 1.6 : force >= 1.6 ? 1.2 : 1.0;
+        if (Math.random() < (variant.careerEndingChance || 0) * ceMul) {
+          careerEnding = true;
+        }
+      }
+    }
+    const wks = careerEnding ? 99 : t.min + Math.floor(Math.random() * (t.max - t.min + 1));
+    player.injury = {
+      label: t.label,
+      weeksRemaining: wks,
+      _ovrPenalty: t.ovrPenalty || 0,
+      _catastrophic: isCatastrophic,
+      _careerEnding: careerEnding,
+      _bigHit: true,
+    };
+    if (careerEnding) player._retiringFromInjury = true;
+    player.injuryHistory = player.injuryHistory || [];
+    if (typeof franchise !== "undefined") {
+      player.injuryHistory.push({
+        season: franchise.season,
+        week: franchise.week,
+        label: t.label,
+        catastrophic: isCatastrophic,
+        careerEnding,
+        duration: wks,
+        cause: opts.eventType === "sack" ? "sack" : "big_hit",
+        tackler: tackler?.name || null,
+      });
+    }
   }
   // Legacy simple bump — kept for any callsites without tackler context.
   _bumpPlayerWear(name, amount) {
