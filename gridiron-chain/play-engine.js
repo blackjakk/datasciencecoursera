@@ -661,7 +661,17 @@ class GameSimulator {
         }
       }
     }
-    const wks = careerEnding ? 99 : t.min + Math.floor(Math.random() * (t.max - t.min + 1));
+    // Force-scaled severity (concussion specifically — head-impact
+    // duration scales with collision energy in real research).
+    // Other injury labels keep their built-in min/max.
+    let baseMin = t.min, baseMax = t.max;
+    if (t.label === "concussion" && !isCatastrophic) {
+      if      (force >= 2.0) { baseMin = 4; baseMax = 8; }
+      else if (force >= 1.7) { baseMin = 3; baseMax = 6; }
+      else if (force >= 1.4) { baseMin = 2; baseMax = 4; }
+      // else default 1-2 weeks
+    }
+    const wks = careerEnding ? 99 : baseMin + Math.floor(Math.random() * (baseMax - baseMin + 1));
     player.injury = {
       label: t.label,
       weeksRemaining: wks,
@@ -670,6 +680,12 @@ class GameSimulator {
       _careerEnding: careerEnding,
       _bigHit: true,
     };
+    // Concussion bookkeeping — big-hit concussions must count toward
+    // the per-season stacking AND the Second Impact recency window.
+    if (t.label === "concussion" && typeof franchise !== "undefined") {
+      player._concussionsThisSeason = (player._concussionsThisSeason || 0) + 1;
+      player._lastConcussionWeek = franchise.week;
+    }
     if (careerEnding) {
       player._retiringFromInjury = true;
       if (typeof franchise !== "undefined") {

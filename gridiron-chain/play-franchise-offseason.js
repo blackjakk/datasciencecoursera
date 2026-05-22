@@ -12898,6 +12898,9 @@ function frnNewSeason() {
         p._concussionsLifetime = (p._concussionsLifetime || 0) + p._concussionsThisSeason;
         p._concussionsThisSeason = 0;
       }
+      // Clear recency stamp — offseason is months of rest, so a Wk 1
+      // concussion in the new season is "fresh", not a Second Impact case.
+      p._lastConcussionWeek = null;
     }
   }
   // Age the college pipeline AFTER the season counter bumps so aged

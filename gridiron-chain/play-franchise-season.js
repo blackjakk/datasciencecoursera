@@ -2008,18 +2008,44 @@ function _rollGameInjuries(teamId) {
     // risk (modern-NFL safety protocol). Reset annually in offseason.
     if (t.label === "concussion") {
       p._concussionsThisSeason = (p._concussionsThisSeason || 0) + 1;
+      // Recency multiplier — Second Impact Syndrome research. A
+      // concussion ≤3 weeks after the prior one is catastrophically
+      // worse; 4-9 weeks is still elevated; 10+ weeks is mostly fresh.
+      // Resets between seasons (offseason flush in frnNewSeason).
+      const lastWk = p._lastConcussionWeek;
+      const curWk = franchise.week;
+      const weeksGap = lastWk != null ? Math.max(0, curWk - lastWk) : Infinity;
+      let recencyMul = 1.0;
+      if (weeksGap <= 3)      recencyMul = 3.5;   // Second Impact zone
+      else if (weeksGap <= 6) recencyMul = 2.2;
+      else if (weeksGap <= 9) recencyMul = 1.4;
+      // 10+: back to baseline
       if (p._concussionsThisSeason >= 2) {
-        // 2nd concussion in a season: extended rest (4-8 weeks)
-        t = { ...t, min: 4, max: 8 };
+        // 2nd concussion in a season: extended rest (4-8 weeks),
+        // longer if recency is bad (8-16 weeks for Second Impact range)
+        const baseMin = 4, baseMax = 8;
+        t = { ...t, min: Math.round(baseMin * recencyMul / 1.5), max: Math.round(baseMax * recencyMul / 1.5) };
       }
       if (p._concussionsThisSeason >= 3) {
-        // 3rd: 40% chance forced into the catastrophic variant
-        if (Math.random() < 0.40) {
+        // 3rd: 40% chance forced into the catastrophic variant (base);
+        // recency-scaled up to ~95% if back-to-back
+        const cataChance = clamp(0.40 * recencyMul, 0.40, 0.95);
+        if (Math.random() < cataChance) {
           t = { ...t, ..._CATASTROPHIC_VARIANTS["concussion"] };
           isCatastrophic = true;
-          if (Math.random() < (t.careerEndingChance || 0) * 1.5) {
+          if (Math.random() < (t.careerEndingChance || 0) * 1.5 * Math.min(2.5, recencyMul)) {
             careerEnding = true;
           }
+        }
+      }
+      // 2nd concussion within Second Impact window (≤3 weeks) — even on
+      // the 2nd, the cumulative neuro risk is real. 25% catastrophic
+      // upgrade, 5% CE chance even for young players.
+      if (p._concussionsThisSeason === 2 && weeksGap <= 3 && !isCatastrophic) {
+        if (Math.random() < 0.25) {
+          t = { ...t, ..._CATASTROPHIC_VARIANTS["concussion"] };
+          isCatastrophic = true;
+          if (Math.random() < 0.20) careerEnding = true;
         }
       }
       // CTE arc — career-long concussion count drives independent CE
@@ -2034,6 +2060,9 @@ function _rollGameInjuries(teamId) {
           careerEnding = true;
         }
       }
+      // Stamp for next concussion to compute the gap. Use the effective
+      // game-week (handles playoffs) computed below for consistency.
+      p._lastConcussionWeek = curWk;
     }
     // Catastrophic upgrade — small chance the rolled injury escalates to
     // a season-altering version. Of those, a rare careerEndingChance
