@@ -20643,6 +20643,78 @@ function _trimAiRostersToCap(targetSize = 55, opts = {}) {
   return totalCut;
 }
 
+// AI FA signing pass — each AI team scans the free-agent pool (cut vets +
+// synthetic templates) for players that fill a positional hole OR upgrade
+// a weak starter. Sorted by "signability" (OVR + youth-weighted upside)
+// so top FAs go to most-needy teams first. Top FAs get scooped up
+// quickly; bottom-tier FAs sit unsigned and eventually retire via
+// _ageUnsignedFreeAgents.
+//
+//   needsDepth = pos count < ROSTER_SLOTS floor (below the floor = a
+//                real depth hole)
+//   isUpgrade  = fa.overall >= weakestAtPos + 2 (must be a real bump)
+//
+// Caps signings at targetSize-1 so cuts can fire on the same cycle.
+// Skips user's team by default.
+function _aiSignFreeAgents(opts = {}) {
+  const userId = opts.includeUser ? null : franchise.chosenTeamId;
+  const targetSize = opts.targetSize ?? 55;
+  const ROSTER_FLOORS = (typeof ROSTER_SLOTS === "object" && ROSTER_SLOTS) || {};
+  const faRanking = (p) => {
+    const ovr = p.overall || 60;
+    const age = p.age || 27;
+    const pot = p.potential || ovr;
+    const ceiling = Math.max(0, pot - ovr);
+    const youthMul = Math.max(0, (28 - age) / 6);
+    return ovr + ceiling * youthMul * 0.4;
+  };
+  if (!Array.isArray(franchise.freeAgents) || !franchise.freeAgents.length) return 0;
+  // Sort the FA pool by signability descending. Includes BOTH cut vets
+  // (with _cutSeason tag) and synthetic templates from _generateFAPool.
+  const pool = franchise.freeAgents.slice().sort((a, b) => faRanking(b) - faRanking(a));
+  const signedIds = new Set();
+  let totalSigned = 0;
+  for (const fa of pool) {
+    // For each FA, find the team that needs them most.
+    const candidates = [];
+    for (const t of TEAMS) {
+      if (userId != null && t.id === userId) continue;
+      const roster = franchise.rosters[t.id] || [];
+      if (roster.length >= targetSize) continue;
+      const posPlayers = roster.filter(p => p.position === fa.position);
+      const floor = ROSTER_FLOORS[fa.position] || 0;
+      const needsDepth = posPlayers.length < floor;
+      let isUpgrade = false;
+      if (!needsDepth && posPlayers.length > 0) {
+        const weakestAtPos = Math.min(...posPlayers.map(p => p.overall || 60));
+        isUpgrade = (fa.overall || 60) >= weakestAtPos + 2;
+      }
+      if (needsDepth || isUpgrade) {
+        const topAtPos = posPlayers.length
+          ? Math.max(...posPlayers.map(p => p.overall || 60))
+          : 0;
+        candidates.push({ team: t, topAtPos, needsDepth });
+      }
+    }
+    if (!candidates.length) continue;
+    // Team with the most need wins (depth hole > weakest starter).
+    candidates.sort((a, b) =>
+      (b.needsDepth - a.needsDepth) || (a.topAtPos - b.topAtPos)
+    );
+    const team = candidates[0].team;
+    // Sign — clear FA tags, push to roster.
+    delete fa._cutSeason;
+    delete fa._unsignedSeasons;
+    delete fa._cutFromTeamId;
+    franchise.rosters[team.id].push(fa);
+    signedIds.add(fa.name);
+    totalSigned++;
+  }
+  // Remove signed players from FA pool.
+  franchise.freeAgents = franchise.freeAgents.filter(p => !signedIds.has(p.name));
+  return totalSigned;
+}
+
 // Age out unsigned FAs. Players who've been on the open market for 2+
 // seasons without a team effectively retire — mirrors NFL where a vet
 // who sits out a year and can't catch on the next year fades out.
