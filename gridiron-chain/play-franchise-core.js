@@ -3642,9 +3642,14 @@ function recordFranchiseResult(homeId, awayId, homeScore, awayScore) {
   if (homeScore > awayScore)      { h.w++; a.l++; }
   else if (awayScore > homeScore) { a.w++; h.l++; }
   else                            { h.t++; a.t++; }
-  // Roll injuries for both teams
+  // Roll injuries for both teams — contact path (hit-driven) and
+  // non-contact path (stress/exertion-driven). Both fire per game.
   _rollGameInjuries(homeId);
   _rollGameInjuries(awayId);
+  if (typeof _rollNonContactInjuries === "function") {
+    _rollNonContactInjuries(homeId);
+    _rollNonContactInjuries(awayId);
+  }
   // News: blowouts and upsets
   const home = getTeam(homeId), away = getTeam(awayId);
   if (!home || !away) return;

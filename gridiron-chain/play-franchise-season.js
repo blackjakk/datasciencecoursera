@@ -1745,22 +1745,30 @@ function _careerColsFor(pos) {
 // ── Injuries ──────────────────────────────────────────────────────────────────
 // Per-game injury chance per player on a team, by position. Higher
 // numbers for trench positions where contact is constant.
-// Per-game per-player base injury rate. Two audit passes targeted NFL
-// 12-15 IR placements/team/season. V1 baseline 0.012-0.022 → 9.9. V2
-// +25% → 10.9. This pass adds another ~15% to land in band. Wear- and
-// age-multipliers compound on top.
-const INJURY_RATE = { QB:0.016, RB:0.030, WR:0.020, TE:0.023, OL:0.028,
-                     DL:0.028, LB:0.026, CB:0.020, S:0.018, K:0.003, P:0.003 };
+// Per-game per-player CONTACT injury rate. Non-contact injuries (most
+// hamstring/calf/groin/achilles + half of ACL tears) fire from a parallel
+// stress-driven path — see _rollNonContactInjuries. Lowered ~30% from
+// the pre-split baseline so total injuries land in NFL 12-15 IR band.
+const INJURY_RATE = { QB:0.011, RB:0.021, WR:0.014, TE:0.016, OL:0.020,
+                     DL:0.020, LB:0.018, CB:0.014, S:0.012, K:0.002, P:0.002 };
 // Each injury type carries a baseline OVR penalty applied AFTER recovery
 // to model the "rehabbing back to full speed" arc. Soft-tissue stuff
 // heals clean (penalty 0); structural injuries leave lingering damage.
 const INJURY_TYPES = [
-  { label:"hamstring",   min:1, max:3, w:30, severity:"soft",       ovrPenalty:0 },
-  { label:"ankle sprain",min:1, max:4, w:25, severity:"soft",       ovrPenalty:0 },
+  // CONTACT-driven pool (selected by _rollGameInjuries via _POS_INJURY_WEIGHTS):
   { label:"concussion",  min:1, max:2, w:15, severity:"soft",       ovrPenalty:0 },
-  { label:"knee",        min:3, max:8, w:10, severity:"structural", ovrPenalty:3 },
   { label:"shoulder",    min:2, max:5, w:10, severity:"structural", ovrPenalty:2 },
   { label:"hand/wrist",  min:1, max:3, w:10, severity:"soft",       ovrPenalty:0 },
+  { label:"knee",        min:3, max:8, w:10, severity:"structural", ovrPenalty:3 },
+  { label:"ankle sprain",min:1, max:4, w:25, severity:"soft",       ovrPenalty:0 },
+  { label:"hamstring",   min:1, max:3, w:30, severity:"soft",       ovrPenalty:0 },
+  // NON-CONTACT-driven pool (selected by _rollNonContactInjuries via
+  // _NON_CONTACT_INJURY_WEIGHTS). Note: ankle / knee / hamstring overlap
+  // both pools because they can be both contact and stress-driven (half
+  // of ACL tears are non-contact, etc.) — the path tags it via `cause`.
+  { label:"calf strain", min:1, max:3, w:0,  severity:"soft",       ovrPenalty:0 },
+  { label:"groin pull",  min:1, max:3, w:0,  severity:"soft",       ovrPenalty:0 },
+  { label:"achilles",    min:2, max:6, w:0,  severity:"soft",       ovrPenalty:1 },
 ];
 // Catastrophic upgrade variants — 8% of all rolled injuries upgrade to a
 // season-altering version. Of those, a small careerEndingChance retires
@@ -1775,6 +1783,11 @@ const _CATASTROPHIC_VARIANTS = {
   "concussion":   { label:"chronic concussion syndrome",  min:8,  max:16, ovrPenalty:5, careerEndingChance:0.15 },
   "shoulder":     { label:"labrum tear",                  min:12, max:20, ovrPenalty:5, careerEndingChance:0.06 },
   "ankle sprain": { label:"Lisfranc fracture",            min:10, max:18, ovrPenalty:4, careerEndingChance:0.04 },
+  // Non-contact catastrophic: torn achilles is the season-ender from the
+  // achilles path; chronic hamstring is the lingering soft-tissue that
+  // hangs around all year with reduced OVR (DK Metcalf, Adams pattern).
+  "achilles":     { label:"torn achilles",                min:16, max:32, ovrPenalty:8, careerEndingChance:0.12 },
+  "hamstring":    { label:"chronic hamstring",            min:3,  max:6,  ovrPenalty:3, careerEndingChance:0.01 },
 };
 // Bumped from 0.08 → 0.12 in audit V5. Only knee/concussion/shoulder/
 // ankle are eligible for catastrophic upgrade (~60% of all injuries),
@@ -1790,23 +1803,55 @@ const _POS_INJURY_PENALTY_MUL = {
   OL: 0.7, K: 0.5, P: 0.5,
 };
 
-// Position-specific injury type weights. Skill / contact positions skew
-// toward what they actually get — RBs/WRs hamstrings + knees, OL shoulders
-// + hands (interior trench work), QBs concussions + shoulders (sacks),
-// kickers/punters mostly leg/foot tweaks.
+// Position-specific CONTACT injury type weights. NFL data: hamstring
+// strains are virtually ALL non-contact (sprint mechanics), so they're
+// removed from the contact pool here and moved to _NON_CONTACT_INJURY_
+// WEIGHTS. Ankle/knee shares roughly halved because the non-contact
+// halves of those (cut-and-tear ACL, rolled ankle on a plant) now fire
+// from the stress path.
 const _POS_INJURY_WEIGHTS = {
-  QB: { "hamstring":12, "ankle sprain":12, "concussion":28, "knee":15, "shoulder":28, "hand/wrist":5 },
-  RB: { "hamstring":28, "ankle sprain":22, "concussion":10, "knee":25, "shoulder":7,  "hand/wrist":8 },
-  WR: { "hamstring":38, "ankle sprain":22, "concussion":10, "knee":15, "shoulder":7,  "hand/wrist":8 },
-  TE: { "hamstring":22, "ankle sprain":18, "concussion":15, "knee":15, "shoulder":20, "hand/wrist":10 },
-  OL: { "hamstring":10, "ankle sprain":15, "concussion":5,  "knee":15, "shoulder":35, "hand/wrist":20 },
-  DL: { "hamstring":14, "ankle sprain":15, "concussion":10, "knee":20, "shoulder":30, "hand/wrist":11 },
-  LB: { "hamstring":20, "ankle sprain":20, "concussion":15, "knee":20, "shoulder":15, "hand/wrist":10 },
-  CB: { "hamstring":38, "ankle sprain":22, "concussion":10, "knee":15, "shoulder":7,  "hand/wrist":8 },
-  S:  { "hamstring":25, "ankle sprain":20, "concussion":22, "knee":15, "shoulder":10, "hand/wrist":8 },
-  K:  { "hamstring":28, "ankle sprain":32, "concussion":3,  "knee":15, "shoulder":5,  "hand/wrist":17 },
-  P:  { "hamstring":28, "ankle sprain":32, "concussion":3,  "knee":15, "shoulder":5,  "hand/wrist":17 },
+  QB: { "ankle sprain":10, "concussion":35, "knee":12, "shoulder":36, "hand/wrist":7 },
+  RB: { "ankle sprain":17, "concussion":13, "knee":28, "shoulder":22, "hand/wrist":20 },
+  WR: { "ankle sprain":18, "concussion":18, "knee":22, "shoulder":22, "hand/wrist":20 },
+  TE: { "ankle sprain":14, "concussion":18, "knee":22, "shoulder":30, "hand/wrist":16 },
+  OL: { "ankle sprain":13, "concussion":5,  "knee":17, "shoulder":40, "hand/wrist":25 },
+  DL: { "ankle sprain":13, "concussion":12, "knee":22, "shoulder":35, "hand/wrist":18 },
+  LB: { "ankle sprain":15, "concussion":20, "knee":22, "shoulder":22, "hand/wrist":21 },
+  CB: { "ankle sprain":18, "concussion":15, "knee":25, "shoulder":22, "hand/wrist":20 },
+  S:  { "ankle sprain":15, "concussion":32, "knee":18, "shoulder":20, "hand/wrist":15 },
+  // K/P keep hamstring in their pool — they get most injuries from kicking
+  // mechanics (which IS non-contact, but the simple model treats them as one):
+  K:  { "hamstring":40, "ankle sprain":30, "concussion":3,  "knee":12, "shoulder":5,  "hand/wrist":10 },
+  P:  { "hamstring":40, "ankle sprain":30, "concussion":3,  "knee":12, "shoulder":5,  "hand/wrist":10 },
 };
+
+// Position-specific NON-CONTACT injury weights. Hamstring dominates;
+// speed/agility positions skew higher. Achilles is rare but devastating.
+const _NON_CONTACT_INJURY_WEIGHTS = {
+  QB: { "hamstring":40, "calf strain":15, "groin pull":18, "ankle sprain":12, "knee":10, "achilles":5 },
+  RB: { "hamstring":35, "calf strain":13, "groin pull":10, "ankle sprain":15, "knee":20, "achilles":7 },
+  WR: { "hamstring":45, "calf strain":15, "groin pull":10, "ankle sprain":12, "knee":12, "achilles":6 },
+  TE: { "hamstring":35, "calf strain":14, "groin pull":10, "ankle sprain":15, "knee":18, "achilles":8 },
+  OL: { "hamstring":25, "calf strain":15, "groin pull":12, "ankle sprain":18, "knee":22, "achilles":8 },
+  DL: { "hamstring":30, "calf strain":15, "groin pull":10, "ankle sprain":15, "knee":22, "achilles":8 },
+  LB: { "hamstring":35, "calf strain":15, "groin pull":10, "ankle sprain":15, "knee":18, "achilles":7 },
+  CB: { "hamstring":45, "calf strain":15, "groin pull":10, "ankle sprain":12, "knee":12, "achilles":6 },
+  S:  { "hamstring":40, "calf strain":15, "groin pull":12, "ankle sprain":13, "knee":12, "achilles":8 },
+  K:  { "calf strain":35, "groin pull":35, "hamstring":15, "ankle sprain":10, "knee":3, "achilles":2 },
+  P:  { "calf strain":35, "groin pull":35, "hamstring":15, "ankle sprain":10, "knee":3, "achilles":2 },
+};
+
+function _pickNonContactInjuryType(position) {
+  const weights = _NON_CONTACT_INJURY_WEIGHTS[position];
+  if (!weights) return null;
+  const total = Object.values(weights).reduce((s, v) => s + v, 0);
+  let r = Math.random() * total;
+  for (const t of INJURY_TYPES) {
+    const w = weights[t.label] ?? 0;
+    if (w > 0 && (r -= w) < 0) return t;
+  }
+  return null;
+}
 
 function _pickInjuryType(position) {
   const weights = _POS_INJURY_WEIGHTS[position];
@@ -1945,6 +1990,87 @@ function _currentInjuryOnset(p) {
   }
   return best;
 }
+// Non-contact injury roll — fires from player's own stress/exertion, not
+// from hits. Hamstrings on max-effort sprints, hip flexors on cuts, half
+// of ACL tears from plant-and-twist. Per-game, after the contact roll,
+// keyed on each player's _stress level (accumulated weekly).
+function _rollNonContactInjuries(teamId) {
+  const roster = franchise.rosters[teamId] || [];
+  for (const p of roster) {
+    if (p.injury && p.injury.weeksRemaining > 0) continue;
+    const stress = p._stress || 0;
+    if (stress < 15) continue;  // fresh players safe
+    // Stress-driven base rate — banded so wear-level under 40 is mostly safe
+    const baseRate = stress >= 80 ? 0.018
+                   : stress >= 60 ? 0.011
+                   : stress >= 40 ? 0.006
+                   : stress >= 20 ? 0.003
+                   :                0;
+    if (!baseRate) continue;
+    // Position vulnerability — speed/agility positions tear soft tissue more
+    const pos = p.position || "?";
+    const posMul = (pos === "WR" || pos === "CB" || pos === "S") ? 1.30
+                 : (pos === "RB" || pos === "TE")                ? 1.10
+                 : (pos === "LB" || pos === "DL")                ? 0.85
+                 : (pos === "QB")                                  ? 0.70
+                 : (pos === "OL")                                  ? 0.65
+                 :                                                   0.50;
+    // Age — older bodies tear easier on the same usage
+    const age = p.age || 25;
+    const ageMul = age >= 33 ? 1.55 : age >= 30 ? 1.25 : 1.0;
+    // Recurrence — prior soft-tissue elevates repeat risk (Andrew Luck arc
+    // applies to non-contact too)
+    const recMul = (typeof _injuryRecurrenceMul === "function") ? _injuryRecurrenceMul(p) : 1.0;
+    // Stamina absorbs some non-contact stress
+    const stamina = p.stats?.[12] ?? 70;
+    const staMul = clamp(1.3 - stamina/100, 0.7, 1.3);
+    const rate = baseRate * posMul * ageMul * recMul * staMul;
+    if (Math.random() >= rate) continue;
+    let t = _pickNonContactInjuryType(p.position);
+    if (!t) continue;
+    // Non-contact catastrophic — torn achilles or chronic hamstring
+    let isCatastrophic = false;
+    let careerEnding = false;
+    if (Math.random() < 0.08) {
+      const variant = _CATASTROPHIC_VARIANTS[t.label];
+      if (variant) {
+        t = { ...t, ...variant };
+        isCatastrophic = true;
+        const ceAgeMul = age >= 35 ? 2.0 : age >= 32 ? 1.5 : age >= 30 ? 1.2 : 1.0;
+        if (Math.random() < (variant.careerEndingChance || 0) * ceAgeMul) {
+          careerEnding = true;
+          p._retiringFromInjury = true;
+          if (!franchise._careerEndingLog) franchise._careerEndingLog = {};
+          const sk = String(franchise.season);
+          if (!franchise._careerEndingLog[sk] || typeof franchise._careerEndingLog[sk] === "number") {
+            franchise._careerEndingLog[sk] = [];
+          }
+          franchise._careerEndingLog[sk].push({
+            name: p.name, pos: p.position, age: p.age,
+            ovr: p.overall || 0, allPros: p.allPros || 0, proBowls: p.proBowls || 0,
+            label: t.label, cause: "non_contact", week: franchise.week,
+          });
+        }
+      }
+    }
+    const wks = careerEnding ? 99 : t.min + Math.floor(Math.random() * (t.max - t.min + 1));
+    p.injury = {
+      label: t.label, weeksRemaining: wks,
+      _ovrPenalty: t.ovrPenalty || 0,
+      _catastrophic: isCatastrophic,
+      _careerEnding: careerEnding,
+      _nonContact: true,
+    };
+    p.injuryHistory = p.injuryHistory || [];
+    p.injuryHistory.push({
+      label: t.label, week: franchise.week, season: franchise.season,
+      weeks: wks, duration: wks, catastrophic: isCatastrophic,
+      careerEnding, cause: "non_contact",
+    });
+    if (p.injuryHistory.length > 20) p.injuryHistory = p.injuryHistory.slice(-20);
+  }
+}
+
 function _rollGameInjuries(teamId) {
   const roster = franchise.rosters[teamId] || [];
   const team = getTeam(teamId);

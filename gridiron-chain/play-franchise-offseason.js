@@ -1911,6 +1911,102 @@ function _inSeasonAwrGrowth() {
   }
 }
 
+// Weekly STRESS accumulation — non-contact load from a player's own
+// motion. WR running deep routes, RB cutting, CB mirroring receivers —
+// all accumulate stress on tendons/muscles. Decays during rest just
+// like wear. Drives the non-contact injury roll (hamstring, achilles,
+// non-contact ACL).
+function _accumulateWeeklyStress(weekNum) {
+  if (!franchise?.rosters) return;
+  const schedule = franchise.schedule || [];
+  for (const g of schedule) {
+    if (g.week !== weekNum || !g.played || !g.stats) continue;
+    for (const side of ["home", "away"]) {
+      const teamId = side === "home" ? g.homeId : g.awayId;
+      const roster = franchise.rosters[teamId] || [];
+      const players = g.stats[side]?.players || {};
+      for (const p of roster) {
+        const st = players[p.name];
+        if (!st || !st.snaps) continue;
+        const pos = p.position || "WR";
+        // Per-snap base — speed/cover positions ask their bodies more
+        const baseStressPerSnap =
+          (pos === "WR" || pos === "CB") ? 0.080 :
+           pos === "S"                    ? 0.060 :
+           pos === "RB"                   ? 0.070 :
+           pos === "LB"                   ? 0.045 :
+           pos === "TE"                   ? 0.045 :
+           pos === "QB"                   ? 0.035 :
+           pos === "DL"                   ? 0.030 :
+           pos === "OL"                   ? 0.025 :
+                                            0.015;
+        // SPD/AGI modulate — faster bodies bank more stress
+        const spd = p.stats?.[0] ?? 70;
+        const agi = p.stats?.[2] ?? 70;
+        const usageMul = Math.max(0.3, ((spd + agi) / 2 - 50) / 30);
+        const stamina = p.stats?.[12] ?? 70;
+        const staminaMul = Math.max(0.5, Math.min(1.5, 1.5 - stamina/80));
+        let gained = st.snaps * baseStressPerSnap * usageMul * staminaMul;
+        // Explosive-play bonuses — long sprints / breakaway runs really tax
+        // hamstring/calf/achilles. Bigger spike than steady-state snaps.
+        if (st.rec_long >= 25) gained += 0.6 * Math.floor(st.rec_long / 25);
+        if (st.rush_long >= 20) gained += 0.5 * Math.floor(st.rush_long / 20);
+        // Sacks twist the QB — count toward QB non-contact stress
+        if (st.sacks_taken) gained += st.sacks_taken * 0.3;
+        // Age multiplier — bodies bank more stress as they age
+        const age = p.age || 25;
+        const ageMul = age >= 33 ? 1.25 : age >= 30 ? 1.10 : 1.0;
+        gained *= ageMul;
+        p._stress = Math.min(100, (p._stress || 0) + gained);
+      }
+    }
+  }
+}
+
+// Weekly STRESS decay — symmetric to wear. Bye gives full bounce-back;
+// busy game gives marginal recovery; older players recover slower.
+function _decayWeeklyStress(weekNum) {
+  if (!franchise?.rosters) return;
+  const schedule = franchise.schedule || [];
+  const playedTeams = new Set();
+  for (const g of schedule) {
+    if (g.week !== weekNum) continue;
+    if (!g.played) continue;
+    playedTeams.add(g.homeId);
+    playedTeams.add(g.awayId);
+  }
+  const snapsThisWeek = new Map();
+  for (const g of schedule) {
+    if (g.week !== weekNum || !g.played || !g.stats) continue;
+    for (const side of ["home", "away"]) {
+      const players = g.stats[side]?.players || {};
+      for (const [name, st] of Object.entries(players)) {
+        if (st?.snaps) snapsThisWeek.set(name, (snapsThisWeek.get(name) || 0) + st.snaps);
+      }
+    }
+  }
+  for (const [teamIdStr, roster] of Object.entries(franchise.rosters)) {
+    const teamId = Number(teamIdStr);
+    const isBye = !playedTeams.has(teamId);
+    for (const p of roster) {
+      if (p._stress == null || p._stress <= 0) continue;
+      let recover;
+      if (isBye) recover = 35;
+      else if (p.injury && p.injury.weeksRemaining > 0) recover = 25;
+      else {
+        const snaps = snapsThisWeek.get(p.name) || 0;
+        if (snaps === 0)       recover = 22;
+        else if (snaps < 20)   recover = 14;
+        else if (snaps < 40)   recover = 8;
+        else                   recover = 4;
+      }
+      const age = p.age || 25;
+      const ageMul = age >= 35 ? 0.70 : age >= 33 ? 0.80 : age >= 30 ? 0.90 : 1.0;
+      p._stress = Math.max(0, p._stress - recover * ageMul);
+    }
+  }
+}
+
 // Weekly wear decay — bodies recover between games. Recovery scales with
 // how much a player played this week (heavy snaps → small bounce-back;
 // healthy scratch → big bounce-back; bye week → huge). Older players
@@ -1982,8 +2078,10 @@ function _runWeekEndResolution() {
     if (!seasonEnding) _faAIBidRound(w + 1, /*isInitial=*/false);
   }
   _tickInjuriesForWeek();
-  // Wear decay — bodies recover between games. Read this week's snap counts
-  // from the schedule's game stats; players who sat get bigger recovery.
+  // Stress + Wear: accumulate AND decay this week (in that order so a player
+  // who played gets the stress bump, then the small starter-decay applies).
+  if (typeof _accumulateWeeklyStress === "function") _accumulateWeeklyStress(w);
+  if (typeof _decayWeeklyStress === "function") _decayWeeklyStress(w);
   if (typeof _decayWeeklyWear === "function") _decayWeeklyWear(w);
   if (typeof _tickYipsForWeek === "function") _tickYipsForWeek();
   // Trade-block: unsolicited offers (no public ask) + price-tag offers
@@ -12894,6 +12992,7 @@ function frnNewSeason() {
   for (const roster of Object.values(franchise.rosters || {})) {
     for (const p of roster) {
       if (p._wear) p._wear = Math.round(p._wear * 0.10);
+      if (p._stress) p._stress = Math.round(p._stress * 0.10);
       if (p._concussionsThisSeason) {
         p._concussionsLifetime = (p._concussionsLifetime || 0) + p._concussionsThisSeason;
         p._concussionsThisSeason = 0;
