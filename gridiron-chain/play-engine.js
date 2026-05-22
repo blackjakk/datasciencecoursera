@@ -1075,28 +1075,64 @@ class GameSimulator {
     Object.assign(this.offR.starters, this._baseStarters[side]);
     const garbage = this._isGarbageTime();
     const snapMap = side === "home" ? this.homeSnaps : this.awaySnaps;
+    // Per-game snap counter (for count-mode contracts)
+    if (!this._slotSnaps) this._slotSnaps = { home: {}, away: {} };
+    const slotSnaps = this._slotSnaps[side];
     const trySub = (role, position) => {
       const cur = this.offR.starters[role];
       if (!cur) return;
-      // Per-snap sub probability. Base comes from the user-set snap share
-      // when present (1 - starterPct); garbage time + accumulated touches
-      // can boost it but never lower it.
-      const targetStarterPct = snapMap?.[role];
-      let p = (targetStarterPct != null) ? Math.max(0, 1 - targetStarterPct) : 0;
+      // Read contract entry — could be a legacy number OR an object
+      // with {share, mode, target, smart}. Normalize.
+      const entry = snapMap?.[role];
+      const share = (entry == null) ? null
+                  : (typeof entry === "number") ? entry
+                  : entry.share;
+      const mode = (entry && typeof entry === "object") ? entry.mode : null;
+      const target = (entry && typeof entry === "object") ? entry.target : null;
+      // ── COUNT MODE — hard cap: sub when slot snaps hit target ────
+      if (mode === "count" && target != null) {
+        slotSnaps[role] = (slotSnaps[role] || 0) + 1;
+        if (slotSnaps[role] > target) {
+          // Force sub for remainder of game (unless garbage time forces
+          // double-sub which is fine)
+          const exclude = Object.values(this.offR.starters);
+          const backup = this._pickBackup(side, position, exclude);
+          if (backup) {
+            this.offR.starters[role] = backup;
+            this._ensurePlayerStat(side, backup, position);
+          }
+          return;
+        }
+        // Below target → stay on field; no other sub roll fires
+        return;
+      }
+      // ── SHARE MODE (legacy + smart-share fallback) ───────────────
+      let p = (share != null) ? Math.max(0, 1 - share) : 0;
       if (garbage === "heavy") p = Math.max(p, 0.55);
       else if (garbage === "mild") p = Math.max(p, 0.25);
+      // Touch-based sub (legacy fatigue management)
       const t = this._touchesFor(side, cur);
       if (t >= 20)      p = Math.max(p, 0.40);
       else if (t >= 15) p = Math.max(p, 0.25);
       else if (t >= 10) p = Math.max(p, 0.12);
+      // Touch-target contract: if mode === "touches" and we've hit
+      // (or just hit) the target, sub out. Tightened from 0.8 → 0.95
+      // so the starter actually lands close to target (was missing by
+      // ~2-3 carries when 0.8 kicked the back-off early).
+      if (mode === "touches" && target != null) {
+        if (t >= target)             p = Math.max(p, 0.85);
+        else if (t >= target * 0.95) p = Math.max(p, 0.30);
+      }
       // Fatigue-driven blow: starter rests automatically at high fatigue.
       // At 70+ fatigue, sub chance bumps to at least 35%; at 90+, 60%.
-      // Mimics NFL "give him a series" decisions for a gassed RB1.
       const fat = this._fatigueLevel(cur);
       if (fat >= 90)      p = Math.max(p, 0.60);
       else if (fat >= 75) p = Math.max(p, 0.40);
       else if (fat >= 60) p = Math.max(p, 0.22);
-      if (p <= 0 || Math.random() > p) return;
+      if (p <= 0 || Math.random() > p) {
+        slotSnaps[role] = (slotSnaps[role] || 0) + 1;
+        return;
+      }
       const exclude = Object.values(this.offR.starters);
       const backup = this._pickBackup(side, position, exclude);
       if (backup) {
@@ -1117,6 +1153,26 @@ class GameSimulator {
         this._ensurePlayerStat(side, backup, "QB");
       }
     }
+  }
+  // Smart-contract touch-target API — pickers consult this to bias their
+  // selection toward whichever player has an unmet touches target. The
+  // caller passes the candidate role names; we return a multiplier per
+  // role: >1 if this player is BEHIND their target (boost), <1 if they
+  // are AT or PAST target (back off).
+  _touchTargetMul(side, role) {
+    const snapMap = side === "home" ? this.homeSnaps : this.awaySnaps;
+    const entry = snapMap?.[role];
+    if (!entry || typeof entry !== "object" || entry.mode !== "touches") return 1.0;
+    const target = entry.target;
+    if (target == null) return 1.0;
+    const name = this.offR.starters[role];
+    if (!name) return 1.0;
+    const got = this._touchesFor(side, name);
+    if (got >= target)         return 0.35;  // past target — back off
+    if (got >= target * 0.85)  return 0.85;  // close — slight back-off
+    if (got <= target * 0.45)  return 1.45;  // behind — boost
+    if (got <= target * 0.65)  return 1.20;
+    return 1.0;
   }
 
   _buildTeamStats(starters) {
@@ -3358,7 +3414,13 @@ class GameSimulator {
             const airYds = clamp(normal(7 - pressure * 1.5, 5.5), 1, 35);
             const targetDepth = Math.max(1, Math.round(airYds));
             let yac = airYds >= 5 ? rand(0, Math.max(1, Math.floor(airYds * 0.4))) : 0;
-            const rcvr = pickReceiver(pb, this.offR.starters, this._currentPersonnel, cbCoverageMix);
+                  const _touchMulTor = {
+              wr1: this._touchTargetMul(this.poss, "wr1"),
+              wr2: this._touchTargetMul(this.poss, "wr2"),
+              te:  this._touchTargetMul(this.poss, "te"),
+              rb:  this._touchTargetMul(this.poss, "rb"),
+            };
+            const rcvr = pickReceiver(pb, this.offR.starters, this._currentPersonnel, cbCoverageMix, _touchMulTor);
             // Backups (wr3/wr4/te2/rb2) aren't pre-registered in
             // _buildTeamStats — ensure their stat line exists or rec_yds
             // gets dropped while pass_yds still credits the QB.
@@ -3605,7 +3667,13 @@ class GameSimulator {
       // Pick the targeted receiver up front so their CAT/archetype affect the completion roll.
       // (Previously the receiver was picked AFTER the comp roll, so a 39-CAT WR had
       // the same comp% as a 95-CAT one — that's no longer true.)
-      const rcvr = pickReceiver(pb, this.offR.starters, this._currentPersonnel, cbCoverageMix);
+      const _touchMul = {
+        wr1: this._touchTargetMul(this.poss, "wr1"),
+        wr2: this._touchTargetMul(this.poss, "wr2"),
+        te:  this._touchTargetMul(this.poss, "te"),
+        rb:  this._touchTargetMul(this.poss, "rb"),
+      };
+      const rcvr = pickReceiver(pb, this.offR.starters, this._currentPersonnel, cbCoverageMix, _touchMul);
       // Backups (wr3/wr4/te2/rb) aren't pre-registered — ensure here.
       this._ensurePlayerStat(this.poss, rcvr, this._playerByName?.get?.(rcvr)?.position || "WR");
       const rcvrStats = off.players[rcvr];

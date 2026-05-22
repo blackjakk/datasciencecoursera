@@ -1484,15 +1484,34 @@ function _updateChemistryState() {
 // Build the per-snap rotation target map the engine consumes. Maps the
 // depth-chart slot keys whose positions actually rotate per-snap today
 // to engine starter roles, expressed as 0..1 fractions.
+// Smart player contracts — Phase 5. Each slot can carry an extended
+// contract that overrides the legacy starterPct % rotation behavior.
+// Three modes (data flows to engine via _buildSnapMap → snapMap.<role>):
+//   share:   "play X% of relevant snaps" (default — same as legacy)
+//   count:   "play X snaps if game flow allows" (engine subs at target)
+//   touches: "get X carries / catches" (pickers bias toward this slot
+//             until target met, then back off)
+// `smart` flag means context-aware routing (respect personnel groupings).
 function _buildSnapMap(teamId) {
   const ss = franchise.snapShares?.[teamId];
   if (!ss) return null;
-  const frac = (slotKey) => {
-    const pct = ss[slotKey]?.starterPct;
-    return (pct != null) ? Math.max(0, Math.min(1, pct / 100)) : null;
+  const entryFor = (slotKey) => {
+    const sd = ss[slotKey];
+    if (!sd) return null;
+    const pct = sd.starterPct;
+    if (pct == null && !sd.contract) return null;
+    const share = (pct != null) ? Math.max(0, Math.min(1, pct / 100)) : 0.70;
+    const out = { share };
+    if (sd.contract && sd.contract.mode && sd.contract.target != null) {
+      out.mode = sd.contract.mode;
+      out.target = sd.contract.target;
+      out.smart = sd.contract.smart !== false;  // default true
+      out.flexibility = sd.contract.flexibility || "balanced";
+    }
+    return out;
   };
   const map = {};
-  const set = (role, slotKey) => { const v = frac(slotKey); if (v != null) map[role] = v; };
+  const set = (role, slotKey) => { const v = entryFor(slotKey); if (v != null) map[role] = v; };
   set("qb",  "QB");
   set("rb",  "RB1");
   set("wr1", "WR1");

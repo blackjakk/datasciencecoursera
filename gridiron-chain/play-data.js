@@ -279,7 +279,10 @@ function getDefPlaybook(team) {
   return DEF_PLAYBOOKS[pool[(team.id * 7) % pool.length]] || DEF_PLAYBOOKS.BASE_43;
 }
 
-function pickReceiver(playbook, starters, personnel, coverageMix) {
+// `touchMul` (optional) — smart-contract multipliers per role keyed by
+// "wr1"/"wr2"/"te"/"rb". Multiplies the final mix share so a player
+// behind their touch target gets boosted, past target gets backed off.
+function pickReceiver(playbook, starters, personnel, coverageMix, touchMul) {
   const p = PERSONNEL[personnel] || PERSONNEL.BASE;
   const base = playbook.targetMix;
   // Adjust mix to match what's actually on the field for this personnel.
@@ -319,6 +322,19 @@ function pickReceiver(playbook, starters, personnel, coverageMix) {
     if (coverageMix.wr2 != null) mix.wr2 *= coverageMix.wr2;
     if (coverageMix.wr3 != null) mix.wr3 *= coverageMix.wr3;
     if (coverageMix.te  != null) mix.te  *= coverageMix.te;
+    const total = mix.wr1 + mix.wr2 + mix.wr3 + mix.wr4 + mix.te + mix.rb;
+    if (total > 0) {
+      for (const k of ["wr1", "wr2", "wr3", "wr4", "te", "rb"]) mix[k] /= total;
+    }
+  }
+  // Smart-contract touch-target bias: multiplies each role's share by
+  // its touchMul (>1 boosts behind-target, <1 backs off past-target).
+  // Renormalize so probabilities still sum to ~1.
+  if (touchMul) {
+    if (touchMul.wr1 != null) mix.wr1 *= touchMul.wr1;
+    if (touchMul.wr2 != null) mix.wr2 *= touchMul.wr2;
+    if (touchMul.te  != null) mix.te  *= touchMul.te;
+    if (touchMul.rb  != null) mix.rb  *= touchMul.rb;
     const total = mix.wr1 + mix.wr2 + mix.wr3 + mix.wr4 + mix.te + mix.rb;
     if (total > 0) {
       for (const k of ["wr1", "wr2", "wr3", "wr4", "te", "rb"]) mix[k] /= total;
