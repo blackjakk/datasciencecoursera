@@ -2048,13 +2048,23 @@ class GameSimulator {
       // P90 30+ yds, deep-ball fouls reach 50-60. Cap so the ball
       // never goes past the 1-yard line (NFL: DPI in end zone = ball
       // at the 1, not -1).
+      //
+      // Deep DPIs (30+ yds) only occur on plays with a deep route —
+      // there's no way to draw a 50-yd DPI on a screen pass because no
+      // deep route exists. Gate the deep bucket on context: RZ → never
+      // deep, 3rd-and-long / trailing-Q4 / GUNSLINGER+DEEP_THROWER QBs
+      // allow deep, everything else compresses into mid-range.
       if (pen && pen.type === "Pass Interference (D)") {
+        const _qbArch = _qbObj?.archetype || "BALANCED";
+        const _deepEligible =
+             !_isRedZone
+          && (_isLong || _trailingQ4 || _qbArch === "GUNSLINGER" || _qbArch === "DEEP_THROWER" || _qbArch === "GUNSLINGER_VET");
         const dpiR = Math.random();
         let dpiYds;
-        if      (dpiR < 0.40) dpiYds = rand(4, 10);    // underneath / hold
-        else if (dpiR < 0.72) dpiYds = rand(10, 20);   // intermediate
-        else if (dpiR < 0.92) dpiYds = rand(20, 35);   // downfield
-        else                  dpiYds = rand(35, 60);   // deep ball
+        if      (dpiR < 0.40) dpiYds = rand(4, 10);                                    // underneath / hold
+        else if (dpiR < 0.72) dpiYds = rand(10, 20);                                   // intermediate
+        else if (dpiR < 0.92) dpiYds = _deepEligible ? rand(20, 35) : rand(10, 22);    // downfield → compressed if no deep route
+        else                  dpiYds = _deepEligible ? rand(35, 60) : rand(15, 28);    // deep ball → compressed if no deep route
         const _distToGL = 100 - this.yardLine;
         pen.yds = Math.max(3, Math.min(dpiYds, _distToGL - 1));
       }
