@@ -1776,7 +1776,11 @@ const _CATASTROPHIC_VARIANTS = {
   "shoulder":     { label:"labrum tear",                  min:12, max:20, ovrPenalty:5, careerEndingChance:0.06 },
   "ankle sprain": { label:"Lisfranc fracture",            min:10, max:18, ovrPenalty:4, careerEndingChance:0.04 },
 };
-const _CATASTROPHIC_UPGRADE_CHANCE = 0.08;
+// Bumped from 0.08 → 0.12 in audit V5. Only knee/concussion/shoulder/
+// ankle are eligible for catastrophic upgrade (~60% of all injuries),
+// so the effective catastrophic rate after the !isCatastrophic gate
+// is ~7%. Lifts NFL career-ending injuries to ~3-5/season from 1.5.
+const _CATASTROPHIC_UPGRADE_CHANCE = 0.12;
 // Position-aware severity multiplier on the rehab OVR penalty. Speed-
 // dependent positions (CB/WR/RB) lose more from structural injuries; OL/K
 // lose less because they don't rely on explosiveness.
