@@ -2967,6 +2967,176 @@ function _buildOwnedStatsPanel(p) {
   </div>`;
 }
 
+// ── PLAYER VITALS UI ────────────────────────────────────────────────
+// Renders an SVG body diagram with color-coded regions showing per-part
+// wear, plus a recent-injury timeline. Surfaces in the player modal.
+function _vitalsColor(wearVal) {
+  // 0-30: green (healthy), 30-60: yellow (managed), 60-85: orange,
+  // 85+: red (immediate concern). Smooth gradient.
+  if (wearVal < 5)  return "#1ec96b";   // fresh green
+  if (wearVal < 30) return "#3fdf83";
+  if (wearVal < 50) return "#d4dc5a";   // yellow
+  if (wearVal < 70) return "#f0a93a";   // orange
+  if (wearVal < 85) return "#ed6a3a";   // dark orange
+  return                  "#e6373a";    // red
+}
+function _vitalsLabel(wearVal) {
+  if (wearVal < 30) return "Healthy";
+  if (wearVal < 50) return "Managed";
+  if (wearVal < 70) return "Worn";
+  if (wearVal < 85) return "Stressed";
+  return                  "Critical";
+}
+// Render the SVG body silhouette with regions filled by wear color.
+// Front-view human, ~280×420 viewBox. Approximate but readable.
+function _buildVitalsBodyDiagram(p) {
+  const bw = p._bodyWear || {};
+  const get = (k) => bw[k] || 0;
+  const stress = p._stress || 0;
+  const wear = p._wear || 0;
+  // Helper: stitch a region with title + fill
+  const region = (id, d, partKey, label) => {
+    const v = get(partKey);
+    const fill = _vitalsColor(v);
+    return `<path d="${d}" fill="${fill}" stroke="rgba(0,0,0,.35)" stroke-width="0.6"
+      data-vitals-part="${partKey}">
+      <title>${label}: ${v.toFixed(0)}/100 (${_vitalsLabel(v)})</title>
+    </path>`;
+  };
+  // Head + neck — single combined region
+  const headPaths = `
+    ${region("head", "M140 35 a30 30 0 1 0 0.1 0 z", "head", "Head")}
+    ${region("neck", "M125 60 h30 v18 h-30 z", "neck", "Neck")}`;
+  // Shoulders + arms (just shoulder caps — arms simplified)
+  const shouldersAndChest = `
+    ${region("shL", "M85 80 q-5 25 0 50 q15 5 25 -5 v-30 q-10 -10 -25 -15 z", "shoulderL", "Left shoulder")}
+    ${region("shR", "M195 80 q5 25 0 50 q-15 5 -25 -5 v-30 q10 -10 25 -15 z", "shoulderR", "Right shoulder")}
+    ${region("chest", "M110 90 h60 v55 h-60 z", "chest", "Chest")}
+    ${region("back", "M105 145 h70 v25 h-70 z", "back", "Lower back")}`;
+  // Hands (forearm icons)
+  const hands = `
+    ${region("handL", "M62 175 q-8 5 -10 25 q3 8 12 8 q8 -3 8 -15 q-2 -12 -10 -18 z", "handL", "Left hand/wrist")}
+    ${region("handR", "M218 175 q8 5 10 25 q-3 8 -12 8 q-8 -3 -8 -15 q2 -12 10 -18 z", "handR", "Right hand/wrist")}`;
+  // Hip/groin
+  const hipGroin = `
+    ${region("hipL", "M110 170 q-8 10 -3 30 h30 v-30 z", "hipL", "Left hip")}
+    ${region("hipR", "M155 170 v30 h30 q5 -20 -3 -30 z", "hipR", "Right hip")}
+    ${region("groin", "M133 198 h20 v14 h-20 z", "groin", "Groin")}`;
+  // Hamstrings (back of upper leg)
+  const hamstrings = `
+    ${region("hamL", "M112 215 q-2 25 -3 50 h22 v-50 z", "hamstringL", "Left hamstring")}
+    ${region("hamR", "M155 215 v50 h22 q-1 -25 -3 -50 z", "hamstringR", "Right hamstring")}`;
+  // Knees
+  const knees = `
+    ${region("kneeL", "M113 270 h21 v18 h-21 z", "kneeL", "Left knee")}
+    ${region("kneeR", "M155 270 h21 v18 h-21 z", "kneeR", "Right knee")}`;
+  // Calves
+  const calves = `
+    ${region("calfL", "M114 293 q-3 20 -2 45 h20 v-45 z", "calfL", "Left calf")}
+    ${region("calfR", "M155 293 v45 h20 q1 -25 -2 -45 z", "calfR", "Right calf")}`;
+  // Achilles
+  const achilles = `
+    ${region("achL", "M118 343 h12 v12 h-12 z", "achillesL", "Left achilles")}
+    ${region("achR", "M159 343 h12 v12 h-12 z", "achillesR", "Right achilles")}`;
+  // Ankles + feet
+  const ankles = `
+    ${region("ankL", "M115 358 q-5 8 -2 18 h22 v-18 z", "ankleL", "Left ankle / foot")}
+    ${region("ankR", "M152 358 v18 h22 q3 -10 -2 -18 z", "ankleR", "Right ankle / foot")}`;
+  return `<svg viewBox="0 0 280 400" width="240" height="340" xmlns="http://www.w3.org/2000/svg"
+    style="background:rgba(20,28,36,.55);border-radius:6px">
+    ${headPaths}
+    ${shouldersAndChest}
+    ${hands}
+    ${hipGroin}
+    ${hamstrings}
+    ${knees}
+    ${calves}
+    ${achilles}
+    ${ankles}
+    <text x="14" y="395" fill="rgba(255,255,255,.5)" font-size="9" font-family="-apple-system,monospace">
+      Wear ${wear.toFixed(0)} · Stress ${stress.toFixed(0)}
+    </text>
+  </svg>`;
+}
+// Recent injury timeline — last 6 entries, with body-part chip.
+function _buildVitalsInjuryTimeline(p) {
+  const hist = (p.injuryHistory || []).slice(-6).reverse();
+  if (!hist.length) return `<div style="color:var(--gray);font-size:.66rem;font-style:italic">No injury history</div>`;
+  const _LABEL_TO_PART_NAME = {
+    "head": "Head", "neck": "Neck", "chest": "Chest", "back": "Lower back",
+    "groin": "Groin",
+    "shoulderL": "L shoulder", "shoulderR": "R shoulder",
+    "hipL": "L hip", "hipR": "R hip",
+    "hamstringL": "L hamstring", "hamstringR": "R hamstring",
+    "kneeL": "L knee", "kneeR": "R knee",
+    "calfL": "L calf", "calfR": "R calf",
+    "achillesL": "L achilles", "achillesR": "R achilles",
+    "ankleL": "L ankle", "ankleR": "R ankle",
+    "handL": "L hand", "handR": "R hand",
+  };
+  const rows = hist.map(h => {
+    const part = h.bodyPart ? (_LABEL_TO_PART_NAME[h.bodyPart] || h.bodyPart) : null;
+    const wks = h.weeks ?? h.duration ?? "?";
+    const sev = h.careerEnding ? `<span style="color:#e6373a;font-weight:700">CAREER-ENDING</span>`
+              : h.catastrophic  ? `<span style="color:#ed6a3a;font-weight:700">CATASTROPHIC</span>`
+              : "";
+    const cause = h.cause === "non_contact" ? "non-contact"
+                : h.cause === "sack" ? "sack"
+                : h.cause === "big_hit" ? "big hit"
+                : "";
+    return `<div style="display:flex;justify-content:space-between;gap:.4rem;font-size:.62rem;padding:.2rem 0;border-bottom:1px solid rgba(255,255,255,.07)">
+      <span style="color:var(--gray)">S${h.season} W${h.week}</span>
+      <span style="flex:1">${h.label}${part ? ` <span style="color:var(--gray)">· ${part}</span>` : ""}</span>
+      <span style="color:var(--gray);min-width:48px;text-align:right">${wks}w${cause ? ` · ${cause}` : ""}</span>
+      ${sev}
+    </div>`;
+  }).join("");
+  return rows;
+}
+// Top concerns — worst 3 body parts (above 20 wear) with explanations.
+function _buildVitalsConcerns(p) {
+  const bw = p._bodyWear || {};
+  const entries = Object.entries(bw).filter(([, v]) => v >= 20)
+    .sort((a, b) => b[1] - a[1]).slice(0, 3);
+  if (!entries.length) return `<div style="color:#3fdf83;font-size:.66rem;font-weight:600">⊕ No active concerns</div>`;
+  const PART_NAMES = {
+    head: "Head", neck: "Neck", chest: "Chest", back: "Lower back", groin: "Groin",
+    shoulderL: "Left shoulder", shoulderR: "Right shoulder",
+    hipL: "Left hip", hipR: "Right hip",
+    hamstringL: "Left hamstring", hamstringR: "Right hamstring",
+    kneeL: "Left knee", kneeR: "Right knee",
+    calfL: "Left calf", calfR: "Right calf",
+    achillesL: "Left achilles", achillesR: "Right achilles",
+    ankleL: "Left ankle", ankleR: "Right ankle",
+    handL: "Left hand", handR: "Right hand",
+  };
+  return entries.map(([k, v]) => {
+    const color = _vitalsColor(v);
+    return `<div style="display:flex;align-items:center;gap:.4rem;font-size:.66rem;padding:.15rem 0">
+      <span style="color:${color};font-weight:700">●</span>
+      <span style="flex:1">${PART_NAMES[k] || k}</span>
+      <span style="color:${color};font-weight:700">${v.toFixed(0)}</span>
+      <span style="color:var(--gray)">${_vitalsLabel(v)}</span>
+    </div>`;
+  }).join("");
+}
+function _buildVitalsBlock(p) {
+  return `<div class="frn-pcard-section">
+    <div class="frn-card-title">VITALS</div>
+    <div style="display:flex;gap:.8rem;align-items:flex-start">
+      <div style="flex-shrink:0">
+        ${_buildVitalsBodyDiagram(p)}
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:.62rem;letter-spacing:1px;color:var(--gray);margin-bottom:.3rem">CONCERNS</div>
+        ${_buildVitalsConcerns(p)}
+        <div style="font-size:.62rem;letter-spacing:1px;color:var(--gray);margin:.7rem 0 .3rem">RECENT INJURIES</div>
+        ${_buildVitalsInjuryTimeline(p)}
+      </div>
+    </div>
+  </div>`;
+}
+
 function _buildArchetypeBlock(p) {
   // Best-effort: look up ARCHETYPE_BY_POS in window if available.
   let entry = null;
@@ -3936,6 +4106,7 @@ function _buildPlayerDetailPanel(p) {
     ${recentFormStrip ? `<div style="margin-top:.6rem">${recentFormStrip}</div>` : ""}
     ${streaksBlock}
     ${gameLogBlock ? `<div style="margin-top:.6rem">${gameLogBlock}</div>` : ""}
+    <div style="margin-top:.6rem">${_buildVitalsBlock(p)}</div>
     ${p.injury ? (() => {
       const onset = _currentInjuryOnset(p);
       const cat = !!p.injury._catastrophic;
