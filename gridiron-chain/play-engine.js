@@ -1996,11 +1996,36 @@ class GameSimulator {
       const intPct = clamp((0.007 - adv * 0.008 + defIntMod + pressure * 0.006 + ballHawkBonus + qbIntMod + qbIntFromOvr + qbAggIntMod + boxStackIntMod) * dcBallHawkMul * hcGameMgrIntMul, 0.002, 0.030);
       if (Math.random() < intPct) {
         const targetDepth = clamp(normal(11, 7), 2, 35);
+        // Sample the defender who'd be in position to pick. CAT-based drop
+        // check: NFL DBs drop ~25-30% of potential picks; ball hawks ~15%,
+        // bad-hands DBs ~40%+. If dropped, becomes a PD instead.
+        const wouldCatch = this._creditDBStat("int_made", { CB: 0.55, S: 0.35, LB: 0.10 });
+        if (wouldCatch) {
+          const catchPlayer = this._playerByName.get(wouldCatch);
+          const dbCat = catchPlayer?.stats?.[5] ?? 50;
+          const dropChance = clamp(0.55 - (dbCat - 50) * 0.012, 0.05, 0.50);
+          if (Math.random() < dropChance) {
+            // Dropped pick — undo INT credit, give PD instead, treat as incomplete
+            if (def.players[wouldCatch]) {
+              def.players[wouldCatch].int_made = Math.max(0, (def.players[wouldCatch].int_made || 0) - 1);
+              def.players[wouldCatch].pd = (def.players[wouldCatch].pd || 0) + 1;
+            }
+            if (qbStats) qbStats.pass_att++;
+            off.team.pass_att++;
+            this._pushVisual({
+              kind: "incomplete",
+              desc: `${QB}'s pass nearly intercepted — ${wouldCatch} dropped it!`,
+              startYard, endYard: startYard, passer: QB, dropper: wouldCatch,
+              isDroppedPick: true,
+            });
+            return { yards: 0, incomplete: true };
+          }
+        }
         if (qbStats) { qbStats.pass_att++; qbStats.pass_int++; }
         off.team.pass_att++; off.team.turnovers++;
         def.team.takeaways++;
-        // Credit INT to a DB (CB or S)
-        const intBy = this._creditDBStat("int_made", { CB: 0.55, S: 0.35, LB: 0.10 });
+        // Credit INT to a DB (CB or S) — already sampled via wouldCatch above
+        const intBy = wouldCatch;
         // Interception return yardage — bursty distribution. Most are
         // short (0-5), some medium (6-15), occasional house-call (16-50+).
         const retSeed = Math.random();
