@@ -1484,6 +1484,125 @@ function _updateChemistryState() {
 // Build the per-snap rotation target map the engine consumes. Maps the
 // depth-chart slot keys whose positions actually rotate per-snap today
 // to engine starter roles, expressed as 0..1 fractions.
+// ── AUTO-MANAGE POLICIES ─────────────────────────────────────────────
+// Translate per-player state (wear, stress, injury, age) into smart-
+// contract adjustments PRE-GAME. Three policies the user can set per
+// team via franchise.autoManagePolicy[teamId]:
+//
+//   "ride"          → ignore wear; full snap-share, no rest (legacy feel)
+//   "balanced"      → wear ≥ 70 trims target 20%; wear ≥ 85 rests;
+//                     stress ≥ 80 trims touches 25%; backup-OVR-aware
+//   "playoff_push"  → aggressive rest from W14+ (or playoffs): wear ≥ 60
+//                     trims 30%; wear ≥ 80 rests; saves legs for January
+//
+// Default: "balanced" for user team, "balanced" for AI teams too. Runs
+// inside frnSimOnce just before _buildSnapMap so the engine sees fresh
+// contracts. Reads/writes franchise.snapShares[teamId][slot].contract.
+const _AM_SLOT_TO_ROLE = { QB: "qb", RB1: "rb", WR1: "wr1", WR2: "wr2", TE1: "te" };
+function _autoManageRoster(teamId, opts = {}) {
+  const policy = opts.policy || franchise.autoManagePolicy?.[teamId] || "balanced";
+  if (policy === "ride") return;  // no auto-adjustments
+  if (!franchise.snapShares) franchise.snapShares = {};
+  if (!franchise.snapShares[teamId]) franchise.snapShares[teamId] = {};
+  const roster = franchise.rosters?.[teamId] || [];
+  const ss = franchise.snapShares[teamId];
+  const week = franchise.week || 1;
+  // Find best player at a position (excluding given names)
+  const bestAt = (pos, excludeNames = []) => {
+    return roster
+      .filter(p => p.position === pos && !excludeNames.includes(p.name)
+        && !(p.injury && p.injury.weeksRemaining > 0))
+      .sort((a, b) => (b.overall || 0) - (a.overall || 0))[0] || null;
+  };
+  // Compute adjustment factor for a starter based on their state.
+  // Returns 0..1 (1 = full snaps, 0 = rest).
+  const adjustFactor = (player) => {
+    if (!player) return 1.0;
+    if (player.injury && player.injury.weeksRemaining > 0) return 0.0;  // can't play
+    const wear = player._wear || 0;
+    const stress = player._stress || 0;
+    const age = player.age || 25;
+    let f = 1.0;
+    // Wear adjustments
+    if (policy === "playoff_push" && (week >= 14 || franchise.phase === "playoffs")) {
+      if (wear >= 80)      f *= 0.0;
+      else if (wear >= 60) f *= 0.65;
+      else if (wear >= 40) f *= 0.85;
+    } else {
+      // Balanced
+      if (wear >= 85)      f *= 0.0;     // rest critical
+      else if (wear >= 70) f *= 0.75;
+      else if (wear >= 50) f *= 0.90;
+    }
+    // Stress adjustments (additive)
+    if (stress >= 80)      f *= 0.70;
+    else if (stress >= 60) f *= 0.85;
+    // Age compounds — old + worn ages out faster
+    if (age >= 33 && wear >= 60) f *= 0.85;
+    // Backup-quality override: if backup is much worse than starter,
+    // don't rest as aggressively (you'd lose too much OVR).
+    const pos = player.position;
+    const backup = bestAt(pos, [player.name]);
+    if (backup && f > 0) {
+      const gap = (player.overall || 0) - (backup.overall || 0);
+      if (gap >= 20) f = Math.max(f, 0.65);   // can't realistically bench
+      else if (gap >= 15) f = Math.max(f, 0.55);
+    }
+    return Math.max(0, Math.min(1, f));
+  };
+  // Apply factor to each starter slot
+  const slots = [
+    { key: "QB",  pos: "QB" },
+    { key: "RB1", pos: "RB" },
+    { key: "WR1", pos: "WR" },
+    { key: "WR2", pos: "WR" },
+    { key: "TE1", pos: "TE" },
+  ];
+  // Pick top-OVR per position as the "starter" for adjustment math.
+  // (Real depth-chart pos to roster is via _baseStarters but for auto-
+  // manage we just read OVR.)
+  const wrSorted = roster.filter(p => p.position === "WR" && !(p.injury && p.injury.weeksRemaining > 0))
+    .sort((a, b) => (b.overall || 0) - (a.overall || 0));
+  const starterByKey = {
+    QB:  bestAt("QB"),
+    RB1: bestAt("RB"),
+    WR1: wrSorted[0] || null,
+    WR2: wrSorted[1] || null,
+    TE1: bestAt("TE"),
+  };
+  for (const { key, pos } of slots) {
+    const p = starterByKey[key];
+    if (!p) continue;
+    const factor = adjustFactor(p);
+    if (!ss[key]) ss[key] = { starterPct: 70 };
+    // Don't overwrite user's manual override unless they explicitly
+    // opted into auto-manage for this slot
+    if (ss[key].manual && !ss[key].autoManaged) continue;
+    // Respect user-set smart contracts (count/touches modes) — auto-
+    // manage only adjusts share/starterPct slots. Smart contracts have
+    // their own self-regulating sub logic in _rotateForSnap.
+    if (ss[key].contract && ss[key].contract.mode
+        && ss[key].contract.mode !== "share"
+        && !ss[key].autoManaged) continue;
+    // Compute new target. Base is 0.85 for most slots, 0.65 for WR2/TE
+    // (committee usage), 0.95 for QB.
+    const baseShare = pos === "QB" ? 0.95
+                    : pos === "WR" && key === "WR1" ? 0.85
+                    : pos === "WR" && key === "WR2" ? 0.75
+                    : pos === "TE" ? 0.72
+                    : 0.78;  // RB1
+    const finalShare = Math.round(baseShare * factor * 100);
+    ss[key].starterPct = finalShare;
+    ss[key].autoManaged = true;
+    // Annotate adjustment reason for UI surfacing
+    const wear = p._wear || 0, stress = p._stress || 0;
+    ss[key].autoReason = (factor === 0) ? "REST (wear)"
+                       : factor < 0.5  ? `heavy load (wear ${wear|0}, stress ${stress|0})`
+                       : factor < 0.85 ? `wear ${wear|0}, stress ${stress|0}`
+                       :                  "fresh";
+  }
+}
+
 // Smart player contracts — Phase 5. Each slot can carry an extended
 // contract that overrides the legacy starterPct % rotation behavior.
 // Three modes (data flows to engine via _buildSnapMap → snapMap.<role>):
@@ -1560,6 +1679,12 @@ function _computeWeeklyGameplan(myId, oppId) {
 // available on the returned `.full` for callers that need playoff details.
 function frnSimOnce(homeId, awayId, isPlayoff = false) {
   const isRivalry = _areRivals(homeId, awayId);
+  // Auto-manage: refresh snap-share contracts based on each team's
+  // current policy (defaults to "balanced"). Skips teams set to "ride".
+  if (typeof _autoManageRoster === "function") {
+    _autoManageRoster(homeId);
+    _autoManageRoster(awayId);
+  }
   const sim = new GameSimulator(
     getTeam(homeId), getTeam(awayId),
     franchise.rosters[homeId], franchise.rosters[awayId],
