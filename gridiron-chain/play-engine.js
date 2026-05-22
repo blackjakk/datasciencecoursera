@@ -1262,13 +1262,15 @@ class GameSimulator {
     // Two-minute drill: offense down by ≤16, < 2:00 left in half/game.
     // Reduces play clock (no-huddle) and bumps pass rate.
     const inTwoMin = this._isTwoMinDrill();
-    // NFL avg per-play clock burn ~27s (includes mix of clock-stopping
-    // incomplete passes / OOB / penalties). Previous 33s yielded ~50 plays/g
-    // vs NFL ~63. dtMean / sd / bounds scaled down proportionally.
-    const dtMean = inTwoMin ? 13 : 27;
-    const dtSd   = inTwoMin ? 4  : 8;
-    const dtMin  = inTwoMin ? 6  : 10;
-    const dtMax  = inTwoMin ? 24 : 48;
+    // Clock-stop carry: previous play was an incomplete pass / OOB / spike /
+    // first down — NFL game clock stops, next snap goes in ~15 sec (play
+    // clock continues but game clock paused until snap). Without this the
+    // engine burned a flat 27 sec/play regardless of result.
+    const clockStopped = !!this._lastClockStopped;
+    const dtMean = inTwoMin ? 13 : clockStopped ? 16 : 28;
+    const dtSd   = inTwoMin ? 4  : clockStopped ? 5  : 8;
+    const dtMin  = inTwoMin ? 6  : clockStopped ? 8  : 10;
+    const dtMax  = inTwoMin ? 24 : clockStopped ? 28 : 48;
     const dt = clamp(normal(dtMean, dtSd), dtMin, dtMax);
     this.time -= dt;
     if (this.time < 0) this.time = 0;
@@ -1314,11 +1316,14 @@ class GameSimulator {
     const isThirdShort = this.down === 3 && this.ytg <= 2;
     // 3rd-down situ mods. Most 3rd downs are medium (3-6 yds) so we apply
     // a base +0.010 on ANY 3rd down to nudge conversion toward NFL 40%.
-    // Short/long buckets layer on top.
+    // Short/long buckets layer on top. SKIP inside red zone — RZ tightening
+    // is separate; we don't want the 3rd-down boost re-inflating RZ TD%.
     const isThirdDown = this.down === 3;
     const situRunMod  = isThirdShort ? -0.5 : isThirdLong ?  0.5 : 0;
     const situAirMod  = isThirdLong  ? -0.5 : isThirdShort ?  0.3 : 0;
-    const situCompMod = isThirdDown ? (isThirdLong ? -0.002 : isThirdShort ? 0.025 : 0.010) : 0;
+    const situCompMod = (isThirdDown && !isRedZone)
+                        ? (isThirdLong ? -0.002 : isThirdShort ? 0.025 : 0.010)
+                        : 0;
     const situSackMul = isThirdLong  ? 1.05 : 1.0;
     this._boxStackRunMod  = (PERS_RUN[personnel]  || 0) + situRunMod;
     this._boxStackAirMod  = (PERS_AIR[personnel]  || 0) + situAirMod;
@@ -3162,6 +3167,11 @@ class GameSimulator {
     while (this.time > 0 && plays < 22) {
       plays++;
       const r = this._play();
+      // Clock-stop tracker — sets the dt regime for the NEXT snap.
+      // NFL: incompletions, OOB, scores, turnovers, and first downs all
+      // stop the game clock. The next snap goes in ~15 sec instead of ~28.
+      this._lastClockStopped = !!(r?.incomplete || r?.endDrive || r?.turnover
+        || (r?.yards != null && this.down === 1 && (r.yards || 0) >= 0));
       // 2-minute warning marker (Q2 + Q4) — push once per half right AFTER
       // the play that crossed 2:00, so it appears in the log before any
       // timeout that the trailing team might call on the same dead ball.
