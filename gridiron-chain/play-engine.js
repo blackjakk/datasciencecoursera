@@ -1693,18 +1693,42 @@ class GameSimulator {
       // + AWR + GUNSLINGER) elevates every "go" decision; a conservative
       // GAME_MANAGER passes the ball off to the kicker / punter more often.
       const goTilt = this._aggTilt(this._qbAggression());   // 0.70-1.30
-      // Decide between FG / punt / go-for-it
+      // Decide between FG / punt / go-for-it. Rates anchor to modern
+      // NFL analytics-era go-for-it data (2020+):
+      //   4th-and-1 anywhere       ~60-65% go
+      //   4th-and-2 anywhere       ~40% go
+      //   4th-and-3-4 midfield     ~25-30% go
+      //   4th-and-5+ midfield      ~5-10% go (desperation)
+      //   4th-and-goal at 1-3      ~70-80% go
+      // Field-position modifies: chip-shot FGs (≤35 yd) bias toward FG;
+      // longer FGs (40-55 yd) bias toward go. Backed-up own territory
+      // pushes toward punt.
       let action;
       if (isGoalLine) {
-        // Goal line — usually go for the TD, sometimes chip-shot FG
-        action = Math.random() < clamp(0.62 * goTilt, 0.35, 0.92) ? "go" : "fg";
+        // 4th-and-goal: NFL ~75% go on 1-3 yds, ~30% on 4+.
+        const goalGo = this.ytg <= 3 ? 0.75 : 0.30;
+        action = Math.random() < clamp(goalGo * goTilt, 0.25, 0.95) ? "go" : "fg";
       } else if (inFGRange) {
-        // In FG range — kick the FG unless 4th & 1-2 (sometimes go for it)
-        action = (isShortYTG && Math.random() < clamp(0.22 * goTilt, 0.08, 0.55)) ? "go" : "fg";
+        // In FG range (≤57 yd kick). Closer kicks lean FG; longer kicks
+        // lean go-for-it on short yardage.
+        const closeKick = toEZ <= 20;
+        let goRate;
+        if (this.ytg <= 1)      goRate = closeKick ? 0.35 : 0.65;
+        else if (this.ytg <= 2) goRate = closeKick ? 0.18 : 0.35;
+        else if (this.ytg <= 4) goRate = closeKick ? 0.04 : 0.12;
+        else                    goRate = 0;
+        action = Math.random() < clamp(goRate * goTilt, 0, 0.85) ? "go" : "fg";
       } else {
-        // Out of FG range — punt unless 4th & short OR midfield 4th-and-manageable
-        const goBase = isShortYTG ? 0.35 : (this.ytg <= 4 && toEZ <= 55 ? 0.12 : 0);
-        action = Math.random() < clamp(goBase * goTilt, 0, 0.75) ? "go" : "punt";
+        // Out of FG range. NFL is aggressive on short yardage in plus
+        // territory; backed-up own territory still punts.
+        const inOwnDeep = this.yardLine <= 30;  // own 30 or worse → conservative
+        let goRate;
+        if (this.ytg <= 1)      goRate = inOwnDeep ? 0.40 : 0.75;
+        else if (this.ytg <= 2) goRate = inOwnDeep ? 0.18 : 0.50;
+        else if (this.ytg <= 4) goRate = (toEZ <= 55) ? 0.30 : (inOwnDeep ? 0.04 : 0.12);
+        else if (this.ytg <= 7) goRate = (toEZ <= 50) ? 0.10 : 0.03;
+        else                    goRate = 0;
+        action = Math.random() < clamp(goRate * goTilt, 0, 0.90) ? "go" : "punt";
       }
       if (action === "fg") {
         const dist = toEZ + 17;
