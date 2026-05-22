@@ -20541,6 +20541,41 @@ function _draftFinalize() {
   _flushSaveFranchise();
 }
 
+// Auto-cut rosters back to a realistic size after draft + UDFA fills.
+// NFL teams carry 53 active + 16 practice squad = 69 max; engine targets
+// 55 here to leave some bench depth for the sim's snap rotations. Cuts
+// the lowest-OVR players first but preserves the per-position floor from
+// ROSTER_SLOTS so no position drops below the minimum. By default skips
+// the user's team — they manage their own cuts in the UI. Pass
+// `{includeUser:true}` from headless audits to trim ALL 32 teams.
+function _trimAiRostersToCap(targetSize = 55, opts = {}) {
+  const userId = opts.includeUser ? null : franchise.chosenTeamId;
+  const floors = (typeof ROSTER_SLOTS === "object" && ROSTER_SLOTS) || {};
+  let totalCut = 0;
+  for (const t of TEAMS) {
+    if (userId != null && t.id === userId) continue;
+    const roster = franchise.rosters[t.id] || [];
+    if (roster.length <= targetSize) continue;
+    const sorted = [...roster].sort((a, b) => (a.overall || 60) - (b.overall || 60));
+    const posCount = {};
+    for (const p of roster) posCount[p.position] = (posCount[p.position] || 0) + 1;
+    const cutNames = new Set();
+    let cuts = roster.length - targetSize;
+    for (const p of sorted) {
+      if (cuts <= 0) break;
+      const floor = floors[p.position] || 0;
+      if ((posCount[p.position] || 0) <= floor) continue;
+      cutNames.add(p.name);
+      posCount[p.position]--;
+      cuts--;
+    }
+    if (!cutNames.size) continue;
+    franchise.rosters[t.id] = roster.filter(p => !cutNames.has(p.name));
+    totalCut += cutNames.size;
+  }
+  return totalCut;
+}
+
 // ── UDFA Scramble ──────────────────────────────────────────────────────────
 // After the last draft pick (incl. comp picks), the user is given a
 // brief window to sign up to 3 priority UDFAs from the in-class pool.
