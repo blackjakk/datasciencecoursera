@@ -2051,7 +2051,14 @@ function _rollGameInjuries(teamId) {
       _catastrophic: isCatastrophic,
       _careerEnding: careerEnding,
     };
-    if (careerEnding) p._retiringFromInjury = true;
+    if (careerEnding) {
+      p._retiringFromInjury = true;
+      // League-level counter (per season) for audit visibility — retired
+      // players lose their injuryHistory when migrated to the retired pool.
+      if (!franchise._careerEndingLog) franchise._careerEndingLog = {};
+      const sk = String(franchise.season);
+      franchise._careerEndingLog[sk] = (franchise._careerEndingLog[sk] || 0) + 1;
+    }
     p.injuryHistory = p.injuryHistory || [];
     // Tag with the effective game-week. `franchise.week` doesn't advance
     // during playoff rounds, so without this every playoff injury would

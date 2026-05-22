@@ -651,7 +651,14 @@ class GameSimulator {
       _careerEnding: careerEnding,
       _bigHit: true,
     };
-    if (careerEnding) player._retiringFromInjury = true;
+    if (careerEnding) {
+      player._retiringFromInjury = true;
+      if (typeof franchise !== "undefined") {
+        if (!franchise._careerEndingLog) franchise._careerEndingLog = {};
+        const sk = String(franchise.season);
+        franchise._careerEndingLog[sk] = (franchise._careerEndingLog[sk] || 0) + 1;
+      }
+    }
     player.injuryHistory = player.injuryHistory || [];
     if (typeof franchise !== "undefined") {
       player.injuryHistory.push({
