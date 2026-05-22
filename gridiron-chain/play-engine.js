@@ -2572,7 +2572,10 @@ class GameSimulator {
         // OC Air Attack: +1.0 to air yards mean
         const ocAirAttackMod = _ocTrait === "Air Attack" ? 1.0 : 0;
         const boxStackAirMod = this._boxStackAirMod || 0;
-        const airMean = (pb.airYdsMean ?? 7.5) + 2.8 - pressure * 2.0 + qbAirMod + qbAirFromOvr + paAirMod + qbPocketAirBonus + centerFieldCap + wxAirMod + defDeepBonus + archAirMod + posAirMod + qbAggAirMod + ocAirAttackMod + boxStackAirMod;
+        // +2.8 -> +0.8: distribution audit found 31% of completions land
+        // 11-20 yds vs NFL 20%, with only 34% short (NFL 45%). Pass game
+        // was shifted right by ~2.5 yds. Trim brings airMean into NFL range.
+        const airMean = (pb.airYdsMean ?? 7.5) + 0.8 - pressure * 2.0 + qbAirMod + qbAirFromOvr + paAirMod + qbPocketAirBonus + centerFieldCap + wxAirMod + defDeepBonus + archAirMod + posAirMod + qbAggAirMod + ocAirAttackMod + boxStackAirMod;
         const airSd   = (pb.airYdsSd   ?? 6) * (qbArch === "GUNSLINGER" ? 1.25 : 1.0);
         const airYds  = clamp(normal(airMean + adv * 2, airSd), -2, 55);
         // YAC distribution — short catches / screens get more YAC potential.
