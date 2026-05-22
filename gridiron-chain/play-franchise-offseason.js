@@ -12842,8 +12842,21 @@ function frnNewSeason() {
   franchise.faNegotiations = {};
   franchise._faLastNews   = null;
   franchise.capGraceDeadline = null;
-  // Each new season starts with a fresh FA pool
+  // Each new season starts with a fresh FA pool — but preserve any
+  // cut vets from prior seasons (still on the open market). Age them
+  // by one unsigned season; any who hit the 2-yr unsigned cliff retire.
+  const carryFAs = (franchise.freeAgents || []).filter(p => p && p._cutSeason);
+  _ageUnsignedFreeAgents(2);
   franchise.freeAgents = _generateFAPool();
+  // Re-append the surviving cuts (those _ageUnsignedFreeAgents didn't
+  // retire). _ageUnsignedFreeAgents already removed retirees from
+  // franchise.freeAgents — but it was wiped by _generateFAPool above,
+  // so we restore from the snapshot here.
+  const surviving = carryFAs.filter(p => (p._unsignedSeasons || 0) < 2);
+  for (const p of surviving) {
+    p._unsignedSeasons = (p._unsignedSeasons || 0) + 1;
+    franchise.freeAgents.push(p);
+  }
   franchise._faOffers = {};
   franchise._faResults = null;
   saveFranchise();
@@ -20578,6 +20591,11 @@ function _draftFinalize() {
 // Preserves per-position ROSTER_SLOTS floors so no position drops below
 // the minimum. By default skips the user's team (UI cuts are user-
 // managed). Pass {includeUser:true} from headless audits.
+//
+// Cut players are pushed to franchise.freeAgents (NFL convention — cuts
+// ≠ retirement; cut players hit the open market and can be re-signed).
+// Tagged with _cutSeason + _unsignedSeasons so _ageUnsignedFreeAgents
+// can retire vets who go unsigned too long.
 function _trimAiRostersToCap(targetSize = 55, opts = {}) {
   const userId = opts.includeUser ? null : franchise.chosenTeamId;
   const floors = (typeof ROSTER_SLOTS === "object" && ROSTER_SLOTS) || {};
@@ -20589,6 +20607,7 @@ function _trimAiRostersToCap(targetSize = 55, opts = {}) {
     const youthMul = Math.max(0, (28 - age) / 6);   // age 22: 1.0, 25: 0.5, 28+: 0
     return ovr + ceiling * youthMul * 0.4;
   };
+  if (!franchise.freeAgents) franchise.freeAgents = [];
   let totalCut = 0;
   for (const t of TEAMS) {
     if (userId != null && t.id === userId) continue;
@@ -20597,21 +20616,70 @@ function _trimAiRostersToCap(targetSize = 55, opts = {}) {
     const sorted = [...roster].sort((a, b) => cutValue(a) - cutValue(b));
     const posCount = {};
     for (const p of roster) posCount[p.position] = (posCount[p.position] || 0) + 1;
-    const cutNames = new Set();
+    const cutSet = new Set();
+    const cutPlayers = [];
     let cuts = roster.length - targetSize;
     for (const p of sorted) {
       if (cuts <= 0) break;
       const floor = floors[p.position] || 0;
       if ((posCount[p.position] || 0) <= floor) continue;
-      cutNames.add(p.name);
+      cutSet.add(p.name);
+      cutPlayers.push(p);
       posCount[p.position]--;
       cuts--;
     }
-    if (!cutNames.size) continue;
-    franchise.rosters[t.id] = roster.filter(p => !cutNames.has(p.name));
-    totalCut += cutNames.size;
+    if (!cutSet.size) continue;
+    franchise.rosters[t.id] = roster.filter(p => !cutSet.has(p.name));
+    // Push to FA pool. They're now on the open market.
+    for (const p of cutPlayers) {
+      p._cutSeason = franchise.season;
+      p._cutFromTeamId = t.id;
+      p._unsignedSeasons = p._unsignedSeasons || 0;
+      delete p.contract;
+      franchise.freeAgents.push(p);
+    }
+    totalCut += cutSet.size;
   }
   return totalCut;
+}
+
+// Age out unsigned FAs. Players who've been on the open market for 2+
+// seasons without a team effectively retire — mirrors NFL where a vet
+// who sits out a year and can't catch on the next year fades out.
+// Preserves their career stats in _retiredPlayerPool so HoF eligibility
+// + records still work.
+function _ageUnsignedFreeAgents(maxYearsUnsigned = 2) {
+  if (!Array.isArray(franchise.freeAgents)) return 0;
+  const keep = [];
+  let retired = 0;
+  for (const p of franchise.freeAgents) {
+    // Only age out previously-cut players (have _cutSeason). Synthetic
+    // FA pool entries from _generateFAPool don't get aged this way.
+    if (!p._cutSeason) { keep.push(p); continue; }
+    p._unsignedSeasons = (p._unsignedSeasons || 0) + 1;
+    if (p._unsignedSeasons >= maxYearsUnsigned) {
+      if (!franchise._retiredPlayerPool) franchise._retiredPlayerPool = [];
+      const peakOvr = Math.max(
+        ...(p.careerHistory || []).map(h => h.ovr ?? h.overall ?? 0),
+        p.overall || 0
+      );
+      if (peakOvr >= 65 && !["K","P"].includes(p.position)) {
+        franchise._retiredPlayerPool.push({
+          name: p.name, pid: p.pid, pos: p.position,
+          retiredSeason: franchise.season, retiredAge: p.age,
+          peakOvr, retirementOvr: p.overall || 60,
+          awr: p.stats?.[3] ?? 70, archetype: p.archetype,
+          proBowls: p.proBowls || 0, allPros: p.allPros || 0, sbRings: p.sbRings || 0,
+          _fromUnsigned: true,
+        });
+      }
+      retired++;
+    } else {
+      keep.push(p);
+    }
+  }
+  franchise.freeAgents = keep;
+  return retired;
 }
 
 // ── UDFA Scramble ──────────────────────────────────────────────────────────

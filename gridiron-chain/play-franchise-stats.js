@@ -8814,21 +8814,28 @@ function _processSeasonEndRetirements() {
         else if (t >= 2500) adjAge += 2;
         else if (t >= 2000) adjAge += 1;
       }
-      // NFL median retirement age ~30 (most retire 27-32, HoF tail to 38+).
-      // Curve shifted ~3 yrs earlier than the prior version (was median ~35
-      // → real-age 35-38, way over NFL). Position offsets (RB -3, QB +3
-      // etc.) handle the per-position spread.
+      // NFL retirement curve is shark-fin shaped — not a normal distribution.
+      // Steady ramp from 26-30 (washouts who don't earn a 2nd contract),
+      // PLATEAU around 30-34 (vets who made it stick around at similar
+      // attrition), then sharp climb at 35+ (physical wall). Bucket
+      // distribution this targets:
+      //   <28: ~6%   28-30: ~35%   31-33: ~33%   34-36: ~20%   37+: ~6%
+      // — matches NFL distribution from PFR retirement-age analysis.
       let retProb = p._forceRetire ? 1 :
-                  adjAge >= 37 ? 0.95
-                  : adjAge === 36 ? 0.80
-                  : adjAge === 35 ? 0.62
-                  : adjAge === 34 ? 0.45
-                  : adjAge === 33 ? 0.30
-                  : adjAge === 32 ? 0.20
-                  : adjAge === 31 ? 0.13
-                  : adjAge === 30 ? 0.08
-                  : adjAge === 29 ? 0.04
-                  : adjAge === 28 ? 0.02
+                  adjAge >= 39 ? 0.90
+                  : adjAge === 38 ? 0.80
+                  : adjAge === 37 ? 0.65
+                  : adjAge === 36 ? 0.50
+                  : adjAge === 35 ? 0.38
+                  : adjAge === 34 ? 0.30
+                  : adjAge === 33 ? 0.26
+                  : adjAge === 32 ? 0.24
+                  : adjAge === 31 ? 0.22
+                  : adjAge === 30 ? 0.20
+                  : adjAge === 29 ? 0.14
+                  : adjAge === 28 ? 0.08
+                  : adjAge === 27 ? 0.04
+                  : adjAge === 26 ? 0.02
                   : 0;
       // Accolade-based longevity — multi-time All-Pros / Pro Bowlers hang
       // on. Each career All-Pro shaves 5% off retirement (max -35%).
