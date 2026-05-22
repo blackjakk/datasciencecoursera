@@ -20543,20 +20543,36 @@ function _draftFinalize() {
 
 // Auto-cut rosters back to a realistic size after draft + UDFA fills.
 // NFL teams carry 53 active + 16 practice squad = 69 max; engine targets
-// 55 here to leave some bench depth for the sim's snap rotations. Cuts
-// the lowest-OVR players first but preserves the per-position floor from
-// ROSTER_SLOTS so no position drops below the minimum. By default skips
-// the user's team — they manage their own cuts in the UI. Pass
-// `{includeUser:true}` from headless audits to trim ALL 32 teams.
+// 55 here to leave some bench depth for the sim's snap rotations.
+//
+// Cut priority: lowest "developmental value" first. cutValue =
+//   currentOVR + (potential - currentOVR) × youthMul × 0.4
+// where youthMul = max(0, (28 - age) / 6) — age 22 → 1.0x upside bonus,
+// age 28 → 0.0x. This protects young high-ceiling prospects (a 22yo
+// OVR-65 with potential-90 has cutValue 75, beating a 33yo OVR-70 vet
+// with cutValue 70). Without this nuance, an OVR-only sort cuts the
+// drafted rookies first and keeps the over-the-hill backups.
+//
+// Preserves per-position ROSTER_SLOTS floors so no position drops below
+// the minimum. By default skips the user's team (UI cuts are user-
+// managed). Pass {includeUser:true} from headless audits.
 function _trimAiRostersToCap(targetSize = 55, opts = {}) {
   const userId = opts.includeUser ? null : franchise.chosenTeamId;
   const floors = (typeof ROSTER_SLOTS === "object" && ROSTER_SLOTS) || {};
+  const cutValue = (p) => {
+    const ovr = p.overall || 60;
+    const age = p.age || 27;
+    const pot = p.potential || ovr;
+    const ceiling = Math.max(0, pot - ovr);
+    const youthMul = Math.max(0, (28 - age) / 6);   // age 22: 1.0, 25: 0.5, 28+: 0
+    return ovr + ceiling * youthMul * 0.4;
+  };
   let totalCut = 0;
   for (const t of TEAMS) {
     if (userId != null && t.id === userId) continue;
     const roster = franchise.rosters[t.id] || [];
     if (roster.length <= targetSize) continue;
-    const sorted = [...roster].sort((a, b) => (a.overall || 60) - (b.overall || 60));
+    const sorted = [...roster].sort((a, b) => cutValue(a) - cutValue(b));
     const posCount = {};
     for (const p of roster) posCount[p.position] = (posCount[p.position] || 0) + 1;
     const cutNames = new Set();
