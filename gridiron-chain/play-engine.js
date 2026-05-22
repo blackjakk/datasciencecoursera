@@ -2510,7 +2510,13 @@ class GameSimulator {
       // = heavy. Log curve gives diminishing returns mid-RZ so the cliff
       // hits at the goal line, matching NFL RZ TD% by yard line.
       const rzPenalty = this._inRedZone ? Math.log(1 + Math.max(0, this.yardLine - 80) / 4) : 0;
-      const rzCompBonus = -rzPenalty * 0.040;   // up to -12pp at goal-to-go
+      // Elite defensive playmakers amplify RZ disruption — top OVR DL/LB/S
+      // collapse the pocket faster + close windows in compressed space.
+      // 80 OVR = 0 extra; 95+ OVR = max bonus.
+      const _rzEliteD = this._inRedZone
+        ? Math.max(0, (Math.max(this.defR.dl, this.defR.lb, this.defR.saf) - 80) / 100)
+        : 0;
+      const rzCompBonus = -rzPenalty * 0.040 - _rzEliteD * 0.05;   // up to -17pp total
       // Fatigue effect — tired QB throws less accurately, tired secondary
       // gives up more catches. Net effect = (qbFatigue - secFatigue) * mod.
       // At max QB fatigue with fresh secondary, comp drops ~4pp.
@@ -3132,7 +3138,11 @@ class GameSimulator {
     // keep rush TDs in the slightly-over-NFL zone instead of 1.19× pace.
     // Same log curve as comp — defense piles up in box near goal line.
     const _rzPen2 = this._inRedZone ? Math.log(1 + Math.max(0, this.yardLine - 80) / 4) : 0;
-    const rzRunBonus = -_rzPen2 * 0.9;   // up to -2.7 yds at goal-to-go
+    // Elite defenders eat run-blocking in RZ — see passing RZ bonus.
+    const _rzEliteDr = this._inRedZone
+      ? Math.max(0, (Math.max(this.defR.dl, this.defR.lb, this.defR.saf) - 80) / 100)
+      : 0;
+    const rzRunBonus = -_rzPen2 * 0.9 - _rzEliteDr * 1.5;
     const boxStackRunMod = this._boxStackRunMod || 0;
     let yards = clamp(normal((rushMean + rbBoost + fbBoost + runVarMean + adv * 1.4 + runTrenchYds + fbStuffReduction - lbTackle * 0.5 - boxSafetyStuff - thumperStuff - lbGapRead + rbGapVision + carrierBoost + reverseBonus + ocRunArchBonus + dcRunStopperMalus + fatigueRunYds + rzRunBonus + boxStackRunMod) * defPbRun.runMul, rushSd * rbSdMul * runVarSd * reverseSdMul), -8, 75);
     // Yards after contact — heavy power backs lean forward and drag tacklers.
