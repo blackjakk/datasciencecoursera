@@ -1092,8 +1092,20 @@ class GameSimulator {
                        || "Returner";
     // Base ~22 yards + noise. ~10% chance of a 40+ yard return; ~0.3%
     // chance the return goes the distance (75+ yards to a TD).
-    let ret = 18 + Math.floor(Math.random() * 12);   // 18-29 (mean ~23.5)
-    if (Math.random() < 0.10) ret += Math.floor(Math.random() * 20); // 10% chance to add 0-19 more
+    // SPD/AGI of the returner shift both the base mean (±~6 yds elite vs
+    // plodder) and the breakaway-bolt-on probability — without this the
+    // base return was flat across SPD quartiles.
+    const _krPRet = this._playerByName.get(returnerName);
+    const _krSpd = _krPRet?.stats?.[0] ?? 80;
+    const _krAgi = _krPRet?.stats?.[2] ?? 75;
+    // Clamp the SPD mod to ±6 — a SPD-50 fallback returner (rare, fires
+    // when no KR is tagged) lands at -6 (mean ~17.5) rather than -9.
+    const _krSpdMod = clamp((_krSpd - 80) * 0.30, -6, 6);
+    let ret = Math.max(0, Math.round(18 + Math.random() * 12 + _krSpdMod));
+    // Breakaway floor at 0.01 — a SPD 50 player should almost never break away,
+    // not 3% per return like the engine-wide minimum.
+    const _krBreakawayCh = clamp(0.10 + (_krSpd - 80) / 250 + (_krAgi - 75) / 400, 0.01, 0.30);
+    if (Math.random() < _krBreakawayCh) ret += Math.floor(Math.random() * 20);
     // Credit KR stats — kr_yds + kr_td fields are referenced in HoF +
     // accolade tracking (play-franchise-season.js HoF, offseason
     // accolade thresholds), so we must update them or career returner
@@ -1683,12 +1695,27 @@ class GameSimulator {
         }
       }
       if (!isMuff && !isTouchback) {
-        const r = Math.random() - fairCatchBonus;  // shift the cutpoints up
+        // Resolve the returner's SPD/AGI to bias the bucket distribution
+        // (elite returners hit the long-tail more often AND reach further
+        // when they do). Without this PR yards are flat across SPD.
+        const _prSideBase = this.poss === "home" ? "away" : "home";
+        const _prStartersBase = (_prSideBase === "home" ? this.homeR : this.awayR).starters;
+        const _prNameBase = _prStartersBase.pr1 || _prStartersBase.wr2 || _prStartersBase.wr1;
+        const _prPBase = _prNameBase ? this._playerByName.get(_prNameBase) : null;
+        const _prSpd = _prPBase?.stats?.[0] ?? 80;
+        const _prAgi = _prPBase?.stats?.[2] ?? 75;
+        // Clamp the bucket shift to ±0.06 so a SPD-50 fallback PR doesn't
+        // get pushed entirely into fair-catch / short-bucket territory.
+        const _prShift = clamp(((_prSpd - 80) + (_prAgi - 75) * 0.5) / 400, -0.06, 0.06);
+        // _prMagBoost is the SPD delta for bucket-magnitude additions —
+        // floor at -15 so a slow-returner doesn't get negative bucket adds.
+        const _prMagBoost = clamp(_prSpd - 80, -15, 25);
+        const r = Math.random() - fairCatchBonus - _prShift;
         if (r < 0.18) { isFairCatch = true; }
         else if (r < 0.55) returnYards = rand(0, 6);
-        else if (r < 0.85) returnYards = rand(4, 14);
-        else if (r < 0.96) returnYards = rand(12, 28);
-        else                returnYards = rand(30, 70);
+        else if (r < 0.85) returnYards = rand(4, 14) + Math.max(0, Math.floor(_prMagBoost / 8));
+        else if (r < 0.96) returnYards = rand(12, 28) + Math.max(0, Math.floor(_prMagBoost / 5));
+        else                returnYards = rand(30, 70) + Math.max(0, Math.floor(_prMagBoost / 3));
         // Hang-time punters suppress the longest returns.
         if (returnYards >= 20 && Math.random() < bigReturnSuppress) {
           returnYards = rand(4, 14);
