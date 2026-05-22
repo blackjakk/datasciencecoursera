@@ -12888,9 +12888,16 @@ function frnNewSeason() {
   // Wear resets in the offseason — 6 months off lets bodies heal. We
   // carry over 10% to preserve a slight "chronic wear" feel for vets
   // who finished the prior year banged up.
+  // Also: reset _concussionsThisSeason (was a bug — stacked across
+  // seasons forever) and roll concussions into a lifetime counter so
+  // career CTE risk can grow with multiple concussions over time.
   for (const roster of Object.values(franchise.rosters || {})) {
     for (const p of roster) {
       if (p._wear) p._wear = Math.round(p._wear * 0.10);
+      if (p._concussionsThisSeason) {
+        p._concussionsLifetime = (p._concussionsLifetime || 0) + p._concussionsThisSeason;
+        p._concussionsThisSeason = 0;
+      }
     }
   }
   // Age the college pipeline AFTER the season counter bumps so aged

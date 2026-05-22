@@ -2022,6 +2022,18 @@ function _rollGameInjuries(teamId) {
           }
         }
       }
+      // CTE arc — career-long concussion count drives independent CE
+      // risk on every concussion. 4+ lifetime → 15%; 6+ → 30%; matches
+      // research on cumulative head-trauma exit decisions.
+      const lifetime = (p._concussionsLifetime || 0) + p._concussionsThisSeason;
+      if (lifetime >= 4 && !careerEnding) {
+        const cteChance = lifetime >= 6 ? 0.30 : 0.15;
+        if (Math.random() < cteChance) {
+          t = { ...t, ..._CATASTROPHIC_VARIANTS["concussion"] };
+          isCatastrophic = true;
+          careerEnding = true;
+        }
+      }
     }
     // Catastrophic upgrade — small chance the rolled injury escalates to
     // a season-altering version. Of those, a rare careerEndingChance

@@ -604,6 +604,20 @@ class GameSimulator {
       if (Math.random() < injChance && typeof this._triggerBigHitInjury === "function") {
         this._triggerBigHitInjury(carrier, force, opts, tackler);
       }
+      // Tackler can also get hurt on the same play — head-to-head
+      // collisions, awkward angles, the hitter takes the worst of it.
+      // Lower rate than the carrier (~1/3) because they braced, but
+      // HEADHUNTERs and high-force hits also concuss the hitter.
+      if (tackler && force >= 1.3) {
+        const tStr = tackler.stats?.[1] ?? 70;
+        const tVuln = clamp(1.0 + (75 - tStr) / 60, 0.7, 1.4);  // less than carrier vuln
+        let tInjChance = (force - 1.1) * 0.0012 * tVuln;
+        if (tackler.archetype === "HEADHUNTER") tInjChance *= 1.5;
+        if (Math.random() < tInjChance && typeof this._triggerBigHitInjury === "function") {
+          // Reverse the event — tackler is now the "carrier" of the injury
+          this._triggerBigHitInjury(tackler, force, { eventType: "hitter", concussionLean: true }, carrier);
+        }
+      }
     }
   }
   // Big-hit instant injury. Uses the franchise's injury catalogue (typed,
@@ -616,9 +630,14 @@ class GameSimulator {
     let t = _pickInjuryType(player.position);
     if (!t) return;
     // Headhunter / power tacklers and sack hits skew concussion higher.
-    // (Sample once: if force ≥ 1.7 and hitter was a HEADHUNTER, 25% chance
-    // to override into concussion.)
-    if (tackler && (tackler.archetype === "HEADHUNTER" || opts.eventType === "sack") && force >= 1.7) {
+    // Hitter-side injuries (tackler getting hurt on contact) are mostly
+    // concussions — that's literally the head-to-head collision pattern.
+    if (opts.concussionLean && typeof INJURY_TYPES !== "undefined") {
+      if (Math.random() < 0.60) {
+        const c = INJURY_TYPES.find(x => x.label === "concussion");
+        if (c) t = c;
+      }
+    } else if (tackler && (tackler.archetype === "HEADHUNTER" || opts.eventType === "sack") && force >= 1.7) {
       if (Math.random() < 0.30 && typeof INJURY_TYPES !== "undefined") {
         const c = INJURY_TYPES.find(x => x.label === "concussion");
         if (c) t = c;
