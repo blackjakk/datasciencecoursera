@@ -622,6 +622,86 @@ class GameSimulator {
   }
   // Big-hit instant injury. Uses the franchise's injury catalogue (typed,
   // position-weighted) but scales catastrophic-upgrade probability with
+  // Resolve the HIT MECHANISM — angle from which the tackler contacted
+  // the carrier. Real biomechanics: head-on collisions concuss/sternum/
+  // planted-knee; low hits target ACL/MCL/ankle; side hits hit
+  // shoulder/AC/hip; high hits go straight to concussion/neck; blindside
+  // / behind hits crush shoulders + back because the player can't brace.
+  // Tackler archetype + play context + event type determine distribution.
+  _pickHitMechanism(tackler, opts = {}) {
+    const ctx = opts.playContext || {};
+    const eventType = opts.eventType;
+    // Base weights — average tackle profile
+    const w = { head_on: 0.30, side: 0.30, low: 0.15, high: 0.08, behind: 0.17 };
+    // ── ARCHETYPE BIAS ────────────────────────────────────────────
+    if (tackler?.archetype) {
+      const a = tackler.archetype;
+      if (a === "HEADHUNTER") { w.head_on += 0.25; w.high += 0.18; w.low -= 0.08; w.side -= 0.08; }
+      else if (a === "POWER" || a === "THUMPER" || a === "ENFORCER") {
+        w.head_on += 0.18; w.low += 0.08; w.side -= 0.05;
+      }
+      else if (a === "WRAP_UP" || a === "TECHNICIAN" || a === "FUNDAMENTAL") {
+        // Textbook tackler — head across the bow, square hit, less injury angle
+        w.head_on += 0.10; w.side += 0.12; w.high -= 0.05; w.behind -= 0.05;
+      }
+      else if (a === "BALL_HAWK" || a === "COVER" || a === "SHUTDOWN") {
+        // Coverage tackler — chasing from behind / side, finesse
+        w.side += 0.12; w.behind += 0.15; w.head_on -= 0.12; w.high -= 0.03;
+      }
+      else if (a === "DESPERATION") {
+        // Beat in coverage → shoestring / cut block territory
+        w.low += 0.30; w.head_on -= 0.10; w.high -= 0.05;
+      }
+      else if (a === "BLITZER" && eventType === "sack") {
+        // Edge blitzer on a sack → blindside angle
+        w.behind += 0.40; w.head_on -= 0.10;
+      }
+    }
+    // ── PLAY-CONTEXT BIAS ────────────────────────────────────────
+    if (eventType === "sack") {
+      // Sacks: blindside (pocket collapse from edge), head-on (DT bull rush)
+      w.behind += 0.20; w.head_on += 0.10; w.low -= 0.05;
+    }
+    if (ctx.type === "pass") {
+      if (ctx.depth === "deep") {
+        // Deep ball over the middle — safety lays the wood
+        w.head_on += 0.20; w.high += 0.08; w.side += 0.05; w.low -= 0.15;
+      } else if (ctx.depth === "short" && ctx.location === "middle") {
+        // Crossing routes — LB squares up the receiver
+        w.head_on += 0.15; w.high += 0.05;
+      } else if (ctx.location === "outside") {
+        // Sideline — DB rides receiver out of bounds, side hit
+        w.side += 0.20; w.low -= 0.05;
+      }
+    }
+    if (ctx.type === "run") {
+      if (ctx.direction === "outside") {
+        // Outside zone / sweep — CBs cut at the legs, shoestring tackles
+        w.low += 0.20; w.side += 0.05; w.head_on -= 0.10;
+      } else {
+        // Inside run — head-on collisions at the LOS
+        w.head_on += 0.10; w.low += 0.05;
+      }
+    }
+    if (ctx.isGoalLine || (ctx.type === "run" && ctx.yards != null && ctx.yards < 0)) {
+      // Pile / stuff at the LOS — head-on dominates, behind impossible
+      w.head_on += 0.18; w.behind -= 0.15; w.low += 0.05;
+    }
+    if (ctx.type === "screen") {
+      // Screens — defenders converge from all angles, often pile-driven
+      w.head_on += 0.05; w.low += 0.10;
+    }
+    // ── WEIGHTED PICK ────────────────────────────────────────────
+    let total = 0;
+    for (const v of Object.values(w)) total += Math.max(0, v);
+    let r = Math.random() * total;
+    for (const [k, v] of Object.entries(w)) {
+      if (v > 0 && (r -= v) <= 0) return k;
+    }
+    return "head_on";
+  }
+  // Big-hit instant injury. Uses the franchise's injury catalogue (typed,
+  // position-weighted) but scales catastrophic-upgrade probability with
   // hit force — a 2.0-force collision is far more likely to escalate to
   // a torn ACL or chronic concussion than a 1.3-force hit.
   _triggerBigHitInjury(player, force, opts, tackler) {
@@ -639,6 +719,10 @@ class GameSimulator {
       if (typeof INJURY_TYPES === "undefined") return null;
       return INJURY_TYPES.find(x => x.label === label) || null;
     };
+    // Resolve the mechanism (head-on / side / low / high / behind) up
+    // front so it can be stamped onto injury history. Mechanism layers
+    // ON TOP of the play-context biasing below.
+    const mechanism = this._pickHitMechanism(tackler, opts);
     if (opts.concussionLean && Math.random() < 0.60) {
       // Hitter-side reciprocal injury → mostly concussion
       const c = pickType("concussion"); if (c) t = c;
@@ -668,6 +752,31 @@ class GameSimulator {
       else if (r < 0.75) { const k = pickType("knee"); if (k) t = k; }
     } else if (tackler && tackler.archetype === "HEADHUNTER" && force >= 1.7) {
       if (Math.random() < 0.45) { const c = pickType("concussion"); if (c) t = c; }
+    }
+    // ── HIT-MECHANISM OVERRIDE ──────────────────────────────────────
+    // Mechanism is the FINAL biomechanical filter — it overrides the
+    // play-context bias if the hit angle was unambiguous. A high hit
+    // (helmet-to-helmet) goes to concussion regardless of play type.
+    // A low hit (cut block / shoestring) goes to knee/ankle. A side
+    // hit hits shoulder. A behind hit (blindside sack) takes the
+    // shoulder + sometimes back/hamstring.
+    if (force >= 1.3) {
+      const r = Math.random();
+      if (mechanism === "high") {
+        if (r < 0.80) { const c = pickType("concussion"); if (c) t = c; }
+      } else if (mechanism === "low") {
+        if (r < 0.55) { const k = pickType("knee"); if (k) t = k; }
+        else if (r < 0.85) { const a = pickType("ankle sprain"); if (a) t = a; }
+      } else if (mechanism === "side") {
+        if (r < 0.55) { const s = pickType("shoulder"); if (s) t = s; }
+        else if (r < 0.70) { const h = pickType("hand/wrist"); if (h) t = h; }
+      } else if (mechanism === "behind") {
+        // Can't brace — shoulder, back/hamstring strain, occasional concussion
+        if (r < 0.40) { const s = pickType("shoulder"); if (s) t = s; }
+        else if (r < 0.60) { const ham = pickType("hamstring"); if (ham) t = ham; }
+        else if (r < 0.75) { const c = pickType("concussion"); if (c) t = c; }
+      }
+      // head_on → keep whatever the play-context picker chose
     }
     let isCatastrophic = false;
     let careerEnding = false;
@@ -724,6 +833,7 @@ class GameSimulator {
           name: player.name, pos: player.position, age: player.age,
           ovr: player.overall || 0, allPros: player.allPros || 0, proBowls: player.proBowls || 0,
           label: t.label, cause: opts.eventType === "sack" ? "sack" : "big_hit",
+          mechanism,
           tackler: tackler?.name || null,
         });
       }
@@ -744,6 +854,7 @@ class GameSimulator {
         careerEnding,
         weeks: wks, duration: wks, bodyPart,
         cause: opts.eventType === "sack" ? "sack" : "big_hit",
+        mechanism,
         tackler: tackler?.name || null,
       });
     }

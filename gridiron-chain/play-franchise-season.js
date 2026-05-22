@@ -3331,9 +3331,18 @@ function _buildVitalsInjuryTimeline(p) {
       : h.cause === "big_hit"
       ? `<span style="background:rgba(230,80,80,.15);color:#ec9090;padding:.05rem .3rem;border-radius:2px;font-size:.55rem;letter-spacing:.3px">HIT</span>`
       : `<span style="background:rgba(140,140,140,.10);color:#aaa;padding:.05rem .3rem;border-radius:2px;font-size:.55rem;letter-spacing:.3px">WK</span>`;
-    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:.4rem;font-size:.63rem;padding:.22rem 0;border-bottom:1px solid rgba(255,255,255,.05)">
+    const mech = h.mechanism ? (
+      h.mechanism === "head_on" ? "head-on" :
+      h.mechanism === "high"    ? "high hit" :
+      h.mechanism === "low"     ? "low / cut" :
+      h.mechanism === "side"    ? "side" :
+      h.mechanism === "behind"  ? "blindside" : h.mechanism
+    ) : "";
+    const tacklerNote = h.tackler ? ` · by ${h.tackler}` : "";
+    const mechTooltip = mech ? ` title="Mechanism: ${mech}${tacklerNote}"` : (h.tackler ? ` title="${tacklerNote.slice(3)}"` : "");
+    return `<div${mechTooltip} style="display:flex;justify-content:space-between;align-items:center;gap:.4rem;font-size:.63rem;padding:.22rem 0;border-bottom:1px solid rgba(255,255,255,.05)">
       <span style="color:var(--gray);min-width:50px">S${h.season} W${h.week}</span>
-      <span style="flex:1;font-weight:500">${h.label}${part ? `<span style="color:var(--gray);font-weight:400"> · ${part}</span>` : ""}</span>
+      <span style="flex:1;font-weight:500">${h.label}${part ? `<span style="color:var(--gray);font-weight:400"> · ${part}</span>` : ""}${mech ? `<span style="color:rgba(255,255,255,.4);font-weight:400;font-size:.58rem"> · ${mech}</span>` : ""}</span>
       ${causeChip}
       <span style="color:var(--gray);min-width:24px;text-align:right">${wks}w</span>
       ${sevTag}
