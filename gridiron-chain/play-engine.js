@@ -2951,6 +2951,25 @@ class GameSimulator {
     const pb = this.offPlaybook;
     let passProb = isLong ? pb.passProb.long : isShort ? pb.passProb.short : pb.passProb.mid;
     if (inTwoMin) passProb = Math.min(0.96, passProb + 0.25);   // hurry-up = pass-heavy
+    // OC personality bias — each OC trait pushes pass/run rate. Air
+    // Attack throws everywhere; Trench General / Run Architect lean run;
+    // QB Whisperer slightly pass; Red Zone Genius slightly run.
+    const offTid = this.poss === "home" ? this.home.id : this.away.id;
+    const ocBiasTrait = (typeof franchise !== "undefined") ? franchise.coaches?.[offTid]?.oc?.trait : null;
+    const ocPassBias = ocBiasTrait === "Air Attack"      ?  0.10
+                     : ocBiasTrait === "QB Whisperer"   ?  0.05
+                     : ocBiasTrait === "Red Zone Genius" ? -0.04
+                     : ocBiasTrait === "Run Architect"   ? -0.08
+                     : ocBiasTrait === "Trench General"  ? -0.10
+                     :                                       0;
+    if (ocPassBias) passProb = clamp(passProb + ocPassBias, 0.10, 0.95);
+    // HC personality also tilts — Riverboat Gambler more pass (he wants
+    // chunk plays), Conservative more run (clock-bleed).
+    const hcStyleTrait = (typeof franchise !== "undefined") ? franchise.coaches?.[offTid]?.hc?.specialtyTrait : null;
+    const hcPassBias = hcStyleTrait === "Riverboat Gambler" ?  0.04
+                     : hcStyleTrait === "Conservative"      ? -0.05
+                     :                                          0;
+    if (hcPassBias) passProb = clamp(passProb + hcPassBias, 0.10, 0.95);
     // Weekly game plan tilt — head coach has scouted the opponent and
     // dialed up pass or run accordingly. Stamped on the sim by frnSimOnce.
     const wgp = this.poss === "home" ? this.homeWgp : this.awayWgp;
