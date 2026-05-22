@@ -1929,17 +1929,20 @@ function _accumulateWeeklyStress(weekNum) {
         const st = players[p.name];
         if (!st || !st.snaps) continue;
         const pos = p.position || "WR";
-        // Per-snap base — speed/cover positions ask their bodies more
+        // Per-snap base — speed/cover positions ask their bodies more.
+        // Raised ~70% from V1 — first audit showed stress barely climbing
+        // for any position, so non-contact roll never fired (6 events in
+        // 10 seasons vs 160 target).
         const baseStressPerSnap =
-          (pos === "WR" || pos === "CB") ? 0.080 :
-           pos === "S"                    ? 0.060 :
-           pos === "RB"                   ? 0.070 :
-           pos === "LB"                   ? 0.045 :
-           pos === "TE"                   ? 0.045 :
-           pos === "QB"                   ? 0.035 :
-           pos === "DL"                   ? 0.030 :
-           pos === "OL"                   ? 0.025 :
-                                            0.015;
+          (pos === "WR" || pos === "CB") ? 0.14 :
+           pos === "S"                    ? 0.11 :
+           pos === "RB"                   ? 0.12 :
+           pos === "LB"                   ? 0.07 :
+           pos === "TE"                   ? 0.08 :
+           pos === "QB"                   ? 0.06 :
+           pos === "DL"                   ? 0.05 :
+           pos === "OL"                   ? 0.04 :
+                                            0.03;
         // SPD/AGI modulate — faster bodies bank more stress
         const spd = p.stats?.[0] ?? 70;
         const agi = p.stats?.[2] ?? 70;
@@ -1990,15 +1993,19 @@ function _decayWeeklyStress(weekNum) {
     const isBye = !playedTeams.has(teamId);
     for (const p of roster) {
       if (p._stress == null || p._stress <= 0) continue;
+      // Stress recovers slower than wear — tendons/muscles take longer
+      // to remodel than bruises. V10 audit showed only WR/CB accumulated
+      // stress because decay was matching wear (too fast for non-skill
+      // positions to build up).
       let recover;
-      if (isBye) recover = 35;
-      else if (p.injury && p.injury.weeksRemaining > 0) recover = 25;
+      if (isBye) recover = 25;
+      else if (p.injury && p.injury.weeksRemaining > 0) recover = 18;
       else {
         const snaps = snapsThisWeek.get(p.name) || 0;
-        if (snaps === 0)       recover = 22;
-        else if (snaps < 20)   recover = 14;
-        else if (snaps < 40)   recover = 8;
-        else                   recover = 4;
+        if (snaps === 0)       recover = 15;
+        else if (snaps < 20)   recover = 10;
+        else if (snaps < 40)   recover = 5;
+        else                   recover = 2;
       }
       const age = p.age || 25;
       const ageMul = age >= 35 ? 0.70 : age >= 33 ? 0.80 : age >= 30 ? 0.90 : 1.0;

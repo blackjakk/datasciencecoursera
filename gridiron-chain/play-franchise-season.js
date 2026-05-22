@@ -1999,14 +1999,14 @@ function _rollNonContactInjuries(teamId) {
   for (const p of roster) {
     if (p.injury && p.injury.weeksRemaining > 0) continue;
     const stress = p._stress || 0;
-    if (stress < 15) continue;  // fresh players safe
-    // Stress-driven base rate — banded so wear-level under 40 is mostly safe
-    const baseRate = stress >= 80 ? 0.018
-                   : stress >= 60 ? 0.011
-                   : stress >= 40 ? 0.006
-                   : stress >= 20 ? 0.003
-                   :                0;
-    if (!baseRate) continue;
+    // No hard floor — even fresh players occasionally pull something.
+    // Banded so high-stress players see meaningfully elevated risk.
+    const baseRate = stress >= 80 ? 0.022
+                   : stress >= 60 ? 0.015
+                   : stress >= 40 ? 0.009
+                   : stress >= 20 ? 0.005
+                   : stress >= 10 ? 0.003
+                   :                0.0015;
     // Position vulnerability — speed/agility positions tear soft tissue more
     const pos = p.position || "?";
     const posMul = (pos === "WR" || pos === "CB" || pos === "S") ? 1.30
