@@ -486,6 +486,20 @@ class GameSimulator {
     LB:  1.2, CB:  1.1, S:   1.0, FS:  1.0, SS:  1.0,
     K:   0.2, P:   0.2,
   };
+  // Per-snap WEAR cost — cumulative micro-damage that survives across games.
+  // Different curve than fatigue: lower per-snap, decays slowly across the
+  // week (not after each game). High wear elevates injury risk and dings
+  // late-game effective OVR. Calibrated so:
+  //   - RB workhorse (62 snaps, 20 car) hits 90+ wear by mid-season
+  //   - OL/DL starters accrue ~55-65 wear by W17 (manageable, hits late)
+  //   - QB/WR stay mostly fresh unless heavily sacked / targeted
+  static _WEAR_PER_SNAP = {
+    QB:  0.07, RB:  0.12, FB:  0.11, WR:  0.08, TE:  0.10,
+    OL:  0.12, LT:  0.12, LG:  0.12, C:   0.12, RG:  0.12, RT:  0.12,
+    DL:  0.13, DE:  0.13, DT:  0.13, LDE: 0.13, RDE: 0.13, LDT: 0.13, RDT: 0.13,
+    LB:  0.10, CB:  0.08, S:   0.08, FS:  0.08, SS:  0.08,
+    K:   0.005, P: 0.005,
+  };
   _bumpFatigue(name, costMul = 1.0) {
     if (!name) return;
     const p = this._playerByName.get(name);
@@ -500,14 +514,87 @@ class GameSimulator {
                   * (p?.archetype === "RECEIVING" ? 0.88 : 1.0);
     const cost = baseCost * costMul * staminaMul * archMul;
     this._fatigue[name] = Math.min(100, (this._fatigue[name] || 0) + cost);
+    // Wear accumulates onto the persistent player object so it survives
+    // game→game. Same modifiers (stamina + ironman) tug on wear because
+    // tougher bodies bank less micro-damage per snap.
+    if (p) {
+      const wearBase = (this.constructor._WEAR_PER_SNAP[pos] || 0.05);
+      p._wear = Math.min(100, (p._wear || 0) + wearBase * staminaMul * archMul);
+    }
+  }
+  // Wear bump for a single high-impact event (carry, reception, sack taken).
+  // Touches are where the real punishment happens — a 20-carry game is
+  // worse on the body than a 65-snap pass-blocking shift.
+  //
+  // Force-scaled per the user's request:
+  //   wear = baseAmount × tacklerForce × carrierVulnerability + bonuses
+  //   tacklerForce = f(STR, SPD, archetype)  — bigger/faster hitters hurt more
+  //   vulnerability = f(carrier STR)         — smaller players take more damage
+  //   bonuses for negative-yard plays, sack depth, etc.
+  // No tackler info (e.g., screen pass that the receiver took unmolested)
+  // → flat baseAmount with carrier-only modifiers.
+  _bumpHitWear(carrierName, baseAmount, tacklerName = null, opts = {}) {
+    if (!carrierName || !baseAmount) return;
+    const carrier = this._playerByName.get(carrierName);
+    if (!carrier) return;
+    // Tackler-driven force. STR + SPD as mass/velocity proxies; archetype
+    // tilts (HEADHUNTER/POWER hit harder, BALL_HAWK is finesse).
+    let force = 1.0;
+    if (tacklerName) {
+      const tackler = this._playerByName.get(tacklerName);
+      if (tackler) {
+        const tStr = tackler.stats?.[1] ?? 70;
+        const tSpd = tackler.stats?.[0] ?? 70;
+        // 60/60 → 0.6, 70/70 → 0.8, 85/85 → 1.30, 95/95 → 1.62
+        force = ((tStr - 45) / 40 + (tSpd - 45) / 40) / 2;
+        const arch = tackler.archetype || "";
+        const archMul = (arch === "HEADHUNTER")            ? 1.35
+                      : (arch === "POWER" || arch === "THUMPER")        ? 1.20
+                      : (arch === "ENFORCER")              ? 1.20
+                      : (arch === "BALL_HAWK" || arch === "COVER")      ? 0.85
+                      : 1.0;
+        force *= archMul;
+      }
+    }
+    force = clamp(force, 0.5, 2.2);
+    // Carrier vulnerability — smaller / less-built players absorb more
+    // damage per hit. STR is the mass proxy. 60 STR → 1.30x; 75 → 1.0x;
+    // 90 → 0.70x. The classic "WR taking a hit from a safety" effect.
+    const cStr = carrier.stats?.[1] ?? 70;
+    const vuln = clamp(1.0 + (75 - cStr) / 50, 0.65, 1.55);
+    // Event extras: getting drilled in the backfield, deep sack, etc.
+    let extra = 0;
+    if (opts.negativeYards) extra += Math.abs(opts.negativeYards) * 0.18;
+    if (opts.eventType === "sack") extra += 0.5 + Math.abs(opts.sackDepth || 0) * 0.07;
+    // Carrier modifiers — stamina absorbs some pain; ironman/RECEIVING discount.
+    const stamina = carrier.stats?.[12] ?? 70;
+    const staminaMul = clamp(1 - (stamina - 70) / 80, 0.6, 1.4);
+    const carrierArchMul = (carrier.ironman ? 0.8 : 1.0)
+                        * (carrier.archetype === "RECEIVING" ? 0.92 : 1.0);
+    const wear = (baseAmount * force * vuln + extra) * staminaMul * carrierArchMul;
+    carrier._wear = Math.min(100, (carrier._wear || 0) + wear);
+  }
+  // Legacy simple bump — kept for any callsites without tackler context.
+  _bumpPlayerWear(name, amount) {
+    this._bumpHitWear(name, amount, null, {});
   }
   _fatigueLevel(name) {
     return this._fatigue[name] || 0;
   }
   // Effective rating multiplier — at fatigue 60, ratings are 88%; at 100,
   // ratings are 80%. Caller can scale a numeric OVR / sub-stat by this.
+  // Wear layers on top in the 4th quarter only — high-wear players hold
+  // up early but fade late (mirrors NFL "worn down by Q4" feel).
   _fatigueMul(name) {
-    return 1 - (this._fatigueLevel(name) / 100) * 0.20;
+    const fatMul = 1 - (this._fatigueLevel(name) / 100) * 0.20;
+    if (this.quarter !== 4) return fatMul;
+    const p = this._playerByName?.get?.(name);
+    const wear = p?._wear || 0;
+    const wearLatePenalty = wear >= 85 ? 0.07
+                         : wear >= 70 ? 0.045
+                         : wear >= 50 ? 0.02
+                         : 0;
+    return fatMul - wearLatePenalty;
   }
   // Average fatigue across a player-array (used for OL/DL group fatigue).
   _avgFatigue(arr) {
@@ -1555,15 +1642,35 @@ class GameSimulator {
       }
       this.stats[side].team.snaps = (this.stats[side].team.snaps || 0) + 1;
       // OL/DL grind on every snap regardless of pass/run — bump both lines.
+      // Snap counts are recorded onto each player's stat line so weekly
+      // wear decay can tell who actually played vs sat (decay uses
+      // snapsThisWeek; without this, OL/DL would be treated as healthy
+      // scratches and get max recovery — undoing all their wear).
       const olSide = side === "home" ? this.homeOL : this.awayOL;
       const dlSide = side === "home" ? this.awayDL : this.homeDL; // defense
-      for (const p of olSide || []) this._bumpFatigue(p?.name);
-      for (const p of dlSide || []) this._bumpFatigue(p?.name);
+      const offSide = side;
+      const defSide = side === "home" ? "away" : "home";
+      for (const p of olSide || []) {
+        if (!p?.name) continue;
+        this._bumpFatigue(p.name);
+        const pl = this.stats[offSide].players[p.name];
+        if (pl) pl.snaps = (pl.snaps || 0) + 1;
+      }
+      for (const p of dlSide || []) {
+        if (!p?.name) continue;
+        this._bumpFatigue(p.name);
+        const pl = this.stats[defSide].players[p.name];
+        if (pl) pl.snaps = (pl.snaps || 0) + 1;
+      }
       // Defensive back-7 also takes contact every snap (LBs flow to ball,
       // DBs run with receivers). Bump them too so late-game coverage degrades.
       const defStarters = (side === "home" ? this.awayR : this.homeR).starters;
       for (const role of ["lb1", "lb2", "lb3", "cb1", "cb2", "fs", "ss"]) {
-        this._bumpFatigue(defStarters?.[role]);
+        const name = defStarters?.[role];
+        if (!name) continue;
+        this._bumpFatigue(name);
+        const pl = this.stats[defSide].players[name];
+        if (pl) pl.snaps = (pl.snaps || 0) + 1;
       }
     }
     // ── COACHING TRAIT LOOKUPS ────────────────────────────────────────────────
@@ -2802,6 +2909,7 @@ class GameSimulator {
             this._lastBallCarrier = rcvr; this._lastBallType = "pass";
             const isTorTD = clamp(startYard + yards, 0, 100) >= 100;
             const tacklerName = (yards > 0 && !isTorTD) ? this._creditTackle( { LB: 0.35, S: 0.30, CB: 0.25, DL: 0.10 }) : null;
+            this._bumpHitWear(rcvr, 0.25, tacklerName, {});
             const torEndTag = isTorTD ? " — TOUCHDOWN!" : tacklerName ? `, tackled by ${tacklerName}` : "";
             this._pushVisual({
               kind: "complete", desc: `${this.offR.starters.qb} throws on the run to ${rcvr} for ${yards} yds${torEndTag}`,
@@ -2903,6 +3011,10 @@ class GameSimulator {
           def.players[reps.dl.name].tkl = (def.players[reps.dl.name].tkl || 0) + 1;
           sackedBy = reps.dl.name;
         }
+        // Force-scaled sack wear — the sacker's STR/SPD/archetype drives hit
+        // force, sack depth adds extra (deeper sack = more time to wind up).
+        // QB getting sacked too much → wear climbs → injury risk climbs.
+        this._bumpHitWear(QB, 1.2, sackedBy, { eventType: "sack", sackDepth: loss });
         // Charge the sack to the OL who lost the rep
         if (reps.ol?.name && off.players[reps.ol.name])
           off.players[reps.ol.name].sacks_allowed = (off.players[reps.ol.name].sacks_allowed || 0) + 1;
@@ -2987,6 +3099,7 @@ class GameSimulator {
           this._lastBallCarrier = rcvr; this._lastBallType = "pass";
           const isScreenTD = clamp(startYard + yards, 0, 100) >= 100;
           const tacklerName = (yards > 0 && !isScreenTD) ? this._creditTackle( { LB: 0.30, S: 0.25, CB: 0.25, DL: 0.20 }) : null;
+          this._bumpHitWear(rcvr, 0.35, tacklerName, {});  // screens take more contact
           const screenEndTag = isScreenTD ? " — TOUCHDOWN!" : tacklerName ? `, tackled by ${tacklerName}` : "";
           this._pushVisual({
             kind: "complete", desc: `Screen to ${rcvr} for ${yards} yds${screenEndTag}`,
@@ -3343,6 +3456,7 @@ class GameSimulator {
               rcvrStats.fumbles = (rcvrStats.fumbles || 0) + 1;
               rcvrStats.fumbles_lost = (rcvrStats.fumbles_lost || 0) + 1;
             }
+            this._bumpPlayerWear(rcvr, 0.6);  // got drilled and lost the ball
             off.team.pass_att++; off.team.pass_comp++; off.team.passYds += fumbleAdvance; off.team.totalYds += fumbleAdvance;
             off.team.fumbles = (off.team.fumbles || 0) + 1;
             off.team.fumbles_lost = (off.team.fumbles_lost || 0) + 1;
@@ -3369,6 +3483,7 @@ class GameSimulator {
               rcvrStats.rec_tgt++; rcvrStats.rec++; rcvrStats.rec_yds += netYds;
               rcvrStats.fumbles = (rcvrStats.fumbles || 0) + 1;
             }
+            this._bumpPlayerWear(rcvr, 0.5);
             off.team.pass_att++; off.team.pass_comp++; off.team.passYds += netYds; off.team.totalYds += netYds;
             off.team.fumbles = (off.team.fumbles || 0) + 1;
             this._pushVisual({
@@ -3393,6 +3508,7 @@ class GameSimulator {
         // Tackle credit on the catch — DBs / LBs make most tackles in the open field
         const isTD = clamp(startYard + yards, 0, 100) >= 100;
         const tacklerName = (yards > 0 && !isTD) ? this._creditTackle( { LB: 0.35, S: 0.30, CB: 0.25, DL: 0.10 }) : null;
+        this._bumpHitWear(rcvr, 0.25, tacklerName, {});
         const flavorTag = wrJuke ? " (CATCH AND JUKE!)"
                         : isLeapingCatch ? " (HIGH POINTED!)" : "";
         const endTag = isTD ? " — TOUCHDOWN!"
@@ -3530,6 +3646,7 @@ class GameSimulator {
           carrierFumStats.rush_att++;
           carrierFumStats.rush_yds += fumbleAdvance;
         }
+        this._bumpPlayerWear(RB, 0.8);  // fumble strip = a hard hit
         off.team.rush_att++; off.team.rushYds += fumbleAdvance; off.team.totalYds += fumbleAdvance;
         const frBy = this._creditDefStat("fr", { LB: 0.35, DL: 0.35, S: 0.20, CB: 0.10 });
         const spotDesc = fumbleAdvance > 0 ? ` (lost at the ${fumbleSpotYL <= 50 ? `own ${fumbleSpotYL}` : `opp ${100 - fumbleSpotYL}`})` : "";
@@ -3553,6 +3670,7 @@ class GameSimulator {
           carrierStats.rush_att++;
           carrierStats.rush_yds += netYds;
         }
+        this._bumpPlayerWear(RB, 0.6);
         off.team.rush_att++; off.team.rushYds += netYds; off.team.totalYds += netYds;
         const finalYL = clamp(fumbleSpotYL - lossYds, 1, 99);
         this._pushVisual({
@@ -3821,6 +3939,9 @@ class GameSimulator {
         ? (yards >= 10 ? this._creditTackle( { S: 0.40, CB: 0.20, LB: 0.30, DL: 0.10 })
                        : this._creditTackle( { LB: 0.45, DL: 0.30, S: 0.15, CB: 0.10 }))
         : this._creditTackle( { DL: 0.50, LB: 0.35, S: 0.10, CB: 0.05 }));
+    // Force-scaled wear: tackler's STR/SPD/archetype × carrier vulnerability.
+    // Negative-yard carries (drilled in the backfield) add extra hit force.
+    this._bumpHitWear(carrier, 0.5, tacklerName, { negativeYards: yards < 0 ? yards : 0 });
     const rushEndTag = isRushTD ? " — TOUCHDOWN!"
                      : tacklerName ? `, tackled by ${tacklerName}` : "";
     const desc = isSpeedOption

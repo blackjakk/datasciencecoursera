@@ -1979,7 +1979,15 @@ function _rollGameInjuries(teamId) {
                 : age >= 32 ? 1.25
                 : age >= 30 ? 1.10
                 : 1.0;
-    const rate = (INJURY_RATE[p.position] || 0.01) * rateMul * recMul * ironmanMul * archMul * foMul * durabilityMul * ageMul;
+    // Wear-driven injury risk — accumulated micro-damage. Doesn't punish
+    // fresh players; ramps hard past 70 (the body's been beat up). Coach
+    // controls this with load management; auto-manage trims wear ≥70.
+    const wear = p._wear || 0;
+    const wearMul = wear >= 85 ? 1.60
+                  : wear >= 70 ? 1.35
+                  : wear >= 50 ? 1.15
+                  : 1.0;
+    const rate = (INJURY_RATE[p.position] || 0.01) * rateMul * recMul * ironmanMul * archMul * foMul * durabilityMul * ageMul * wearMul;
     if (Math.random() >= rate) continue;
     let t = _pickInjuryType(p.position);
     let isCatastrophic = false;

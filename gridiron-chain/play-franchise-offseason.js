@@ -1911,6 +1911,66 @@ function _inSeasonAwrGrowth() {
   }
 }
 
+// Weekly wear decay — bodies recover between games. Recovery scales with
+// how much a player played this week (heavy snaps → small bounce-back;
+// healthy scratch → big bounce-back; bye week → huge). Older players
+// recover slower (NFL soft-tissue science). Called from
+// _runWeekEndResolution before _bumpWeek.
+//   Bye week:           -35  (no game = full rest)
+//   On IR (out):        -25  (forced rest)
+//   0 snaps played:     -22  (healthy scratch, full week of practice rest)
+//   <20 snaps:          -14  (rotational role, light)
+//   <40 snaps:           -8
+//   40+ snaps:           -4  (normal starter workload — small recovery)
+// Age modifier: 30+ ×0.90, 33+ ×0.80, 35+ ×0.70 — older bodies recover slower.
+function _decayWeeklyWear(weekNum) {
+  if (!franchise?.rosters) return;
+  const schedule = franchise.schedule || [];
+  // Build per-team played-this-week map so we can detect byes cheaply.
+  const playedTeams = new Set();
+  for (const g of schedule) {
+    if (g.week !== weekNum) continue;
+    if (!g.played) continue;
+    playedTeams.add(g.homeId);
+    playedTeams.add(g.awayId);
+  }
+  // Build per-player snap counts from this week's game stats (engine
+  // stamps `snaps` into player stat lines, see play-engine.js line ~1552).
+  const snapsThisWeek = new Map();
+  for (const g of schedule) {
+    if (g.week !== weekNum || !g.played || !g.stats) continue;
+    for (const side of ["home", "away"]) {
+      const players = g.stats[side]?.players || {};
+      for (const [name, st] of Object.entries(players)) {
+        if (st?.snaps) snapsThisWeek.set(name, (snapsThisWeek.get(name) || 0) + st.snaps);
+      }
+    }
+  }
+  for (const [teamIdStr, roster] of Object.entries(franchise.rosters)) {
+    const teamId = Number(teamIdStr);
+    const isBye = !playedTeams.has(teamId);
+    for (const p of roster) {
+      if (p._wear == null || p._wear <= 0) continue;
+      let recover;
+      if (isBye) recover = 35;
+      else if (p.injury && p.injury.weeksRemaining > 0) recover = 25;
+      else {
+        const snaps = snapsThisWeek.get(p.name) || 0;
+        if (snaps === 0)       recover = 22;
+        else if (snaps < 20)   recover = 14;
+        else if (snaps < 40)   recover = 8;
+        else                   recover = 4;
+      }
+      const age = p.age || 25;
+      const ageMul = age >= 35 ? 0.70
+                   : age >= 33 ? 0.80
+                   : age >= 30 ? 0.90
+                   : 1.0;
+      p._wear = Math.max(0, p._wear - recover * ageMul);
+    }
+  }
+}
+
 // Split out from the old advanceWeekIfDone: end-of-week resolution.
 // Runs FA bid resolution + AI counter-bid round + injury tick. Does NOT
 // bump the week counter.
@@ -1922,6 +1982,9 @@ function _runWeekEndResolution() {
     if (!seasonEnding) _faAIBidRound(w + 1, /*isInitial=*/false);
   }
   _tickInjuriesForWeek();
+  // Wear decay — bodies recover between games. Read this week's snap counts
+  // from the schedule's game stats; players who sat get bigger recovery.
+  if (typeof _decayWeeklyWear === "function") _decayWeeklyWear(w);
   if (typeof _tickYipsForWeek === "function") _tickYipsForWeek();
   // Trade-block: unsolicited offers (no public ask) + price-tag offers
   // (public ask matched against AI inventories).
@@ -12822,6 +12885,14 @@ function frnNewSeason() {
   if (typeof _initSeasonScout === "function") _initSeasonScout(true);
   franchise.season       += 1;
   franchise.week          = 1;
+  // Wear resets in the offseason — 6 months off lets bodies heal. We
+  // carry over 10% to preserve a slight "chronic wear" feel for vets
+  // who finished the prior year banged up.
+  for (const roster of Object.values(franchise.rosters || {})) {
+    for (const p of roster) {
+      if (p._wear) p._wear = Math.round(p._wear * 0.10);
+    }
+  }
   // Age the college pipeline AFTER the season counter bumps so aged
   // players and new freshmen compute their draftSeason against the
   // NEW season number — keeps each prospect's draftSeason invariant
