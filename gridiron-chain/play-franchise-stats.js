@@ -8822,14 +8822,14 @@ function _processSeasonEndRetirements() {
       //   <28: ~6%   28-30: ~35%   31-33: ~33%   34-36: ~20%   37+: ~6%
       // — matches NFL distribution from PFR retirement-age analysis.
       let retProb = p._forceRetire ? 1 :
-                  adjAge >= 39 ? 0.90
-                  : adjAge === 38 ? 0.80
-                  : adjAge === 37 ? 0.65
-                  : adjAge === 36 ? 0.50
-                  : adjAge === 35 ? 0.38
-                  : adjAge === 34 ? 0.30
-                  : adjAge === 33 ? 0.26
-                  : adjAge === 32 ? 0.24
+                  adjAge >= 39 ? 0.92
+                  : adjAge === 38 ? 0.85
+                  : adjAge === 37 ? 0.72
+                  : adjAge === 36 ? 0.55
+                  : adjAge === 35 ? 0.42
+                  : adjAge === 34 ? 0.34
+                  : adjAge === 33 ? 0.28
+                  : adjAge === 32 ? 0.25
                   : adjAge === 31 ? 0.22
                   : adjAge === 30 ? 0.20
                   : adjAge === 29 ? 0.14
@@ -8838,12 +8838,13 @@ function _processSeasonEndRetirements() {
                   : adjAge === 26 ? 0.02
                   : 0;
       // Accolade-based longevity — multi-time All-Pros / Pro Bowlers hang
-      // on. Each career All-Pro shaves 5% off retirement (max -35%).
+      // on. Each career All-Pro shaves 3% off retirement (max -20%).
       // Models real "veteran with a HoF resume keeps playing" — Brady at
-      // 43, Brees at 41, Manning at 39, Marino at 38.
+      // 43, Brees at 41, Manning at 39, Marino at 38. Tightened from 5%
+      // because elite players were sticking past age 45.
       const allProCount = (p.allPros || 0) + Math.floor((p.proBowls || 0) / 3);
       if (allProCount > 0 && retProb > 0) {
-        const shave = Math.min(0.35, allProCount * 0.05);
+        const shave = Math.min(0.20, allProCount * 0.03);
         retProb = Math.max(0, retProb - shave);
       }
       if (retProb > 0 && Math.random() < retProb) {

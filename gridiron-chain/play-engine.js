@@ -695,14 +695,13 @@ class GameSimulator {
     };
   }
   // Pick a defender (weighted by position) and credit a stat field
-  // Credit a tackle to the primary tackler AND, ~60% of the time, an
+  // Credit a tackle to the primary tackler AND, ~50% of the time, an
   // assist to a different defender. NFL records solo + assists in the
-  // `tkl` stat (~1.5-1.6 tackle credits per defensive play across all
-  // defenders, since most tackles have a secondary defender). Without
-  // this we undershot NFL pace by ~25%.
+  // `tkl` stat — averaging ~1.5 tackle credits per defensive play, with
+  // top NFL tacklers landing 150-195/season. 0.80 inflated tops to ~475.
   _creditTackle(weights) {
     const primary = this._creditDefStat("tkl", weights);
-    if (primary && Math.random() < 0.80) {
+    if (primary && Math.random() < 0.50) {
       // Assist roll: credit a different defender at the same weights.
       // Skip the primary so we don't double-bump the same player.
       this._creditDefStat("tkl", weights, primary);
@@ -2742,10 +2741,10 @@ class GameSimulator {
       // pressure even when the OL matchup doesn't favor it.
       const mlbAggMul = this._aggTilt(this._mlbAggression()); // BLITZER MLB →  up to 1.30
       // Sack rate: NFL league avg ~7%/dropback, elite pass rush vs bad OL
-      // tops out ~13-14%. Base/pressure tuned to hit ~5-7%/dropback after
+      // tops out ~13-14%. Base/pressure tuned to land ~7%/dropback after
       // multipliers stack (sackPb playbook + AWR + def scheme + MLB agg).
-      // Fatigue: tired OL gives up sacks more; tired DL chases less. Average
-      // OL fatigue vs DL fatigue swings ±~30% on the sack rate at extremes.
+      // Top NFL pass-rushers post 15-22 sacks; prior 0.075 base capped at
+      // 0.16 only delivered ~10, so the top end got lifted.
       const _olFat = this._avgFatigue(this.poss === "home" ? this.homeOL : this.awayOL);
       const _dlFat = this._avgFatigue(this.poss === "home" ? this.awayDL : this.homeDL);
       const fatigueSackMul = 1 + (_olFat - _dlFat) / 100 * 0.30;
@@ -2754,7 +2753,7 @@ class GameSimulator {
       const momSackMul = 1 + ((this._momentum?.[this.poss === "home" ? "away" : "home"] || 0)
                             - (this._momentum?.[this.poss] || 0)) * 0.012;
       const boxStackSackMul = this._boxStackSackMul || 1;
-      const sackPct = clamp((0.075 + pressure * 0.09 - adv * 0.02 + archSackBonus) * sackPb * qbAwrSackMul * defPbCurrent.sackMul * mlbAggMul * fatigueSackMul * momSackMul * boxStackSackMul, 0.02, 0.16);
+      const sackPct = clamp((0.095 + pressure * 0.09 - adv * 0.02 + archSackBonus) * sackPb * qbAwrSackMul * defPbCurrent.sackMul * mlbAggMul * fatigueSackMul * momSackMul * boxStackSackMul, 0.02, 0.18);
       if (Math.random() < sackPct) {
         // THROW ON THE RUN — mobile QBs with high AGI sometimes escape pressure
         // and throw on the move instead of taking the sack. Lower comp / air
@@ -3233,13 +3232,13 @@ class GameSimulator {
           else if (r < 0.95) yac = rand(3, Math.max(6, Math.floor(airYds * 0.9)) + 3);
           else                yac = rand(4, 12) + Math.floor(airYds * 0.4); // big YAC: trimmed (top 5%)
         }
-        // YAC archetype tilt: SLOT and POSSESSION are YAC monsters on
-        // short routes; RED_ZONE is a low-YAC big body (catches and gets
-        // tackled in place); DEEP_THREAT doesn't get many YAC chances
-        // (already running with the ball, defenders converge).
-        const yacArchMul = rcvrArch === "SLOT"        ? 1.45
-                         : rcvrArch === "POSSESSION"  ? 1.25
-                         : rcvrArch === "ROUTE_RUNNER" ? 1.10
+        // YAC archetype tilt: SLOT and POSSESSION lead the league but the
+        // prior 1.45/1.25 stacked with high base YAC pushed top WR season
+        // yards 40-50% over NFL. Tightened so the archetype tilt models
+        // real spread (~10-15%) without inflating leaderboards.
+        const yacArchMul = rcvrArch === "SLOT"        ? 1.15
+                         : rcvrArch === "POSSESSION"  ? 1.05
+                         : rcvrArch === "ROUTE_RUNNER" ? 1.00
                          : rcvrArch === "RED_ZONE"    ? 0.55
                          : rcvrArch === "DEEP_THREAT" ? 0.85
                          : rcvrArch === "BLOCKING"    ? 0.70  // not a YAC threat
