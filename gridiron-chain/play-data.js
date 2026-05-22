@@ -138,11 +138,9 @@ const PLAYBOOKS = {
     // NFL target shares (2020-2024): WR1 25-28%, WR2 18-22%, TE 18-22%,
     // RB 12-18%. Engine WR1 was 40% → top WR getting ~2x NFL season yards.
     // Lowered + redistributed to RB (NFL pass-catching backs get 12-18% TS).
-    // NFL alpha WR1 gets ~28-32% of team targets, WR2 ~22-26%, TE
-    // ~18-22%, RB ~14-18%. After multiple passes: WR1 34, WR2 28 lands
-    // both in NFL band (top WR1 ~1500-1800 yds, top WR2 ~700-1000).
-    // Previous 38/24 split made WR2 under NFL (511 vs target 700-1000).
-    targetMix: { wr1: 0.34, wr2: 0.28, te: 0.22, rb: 0.16 },
+    // After pace fix, WR1 dropped to 1473 — bumping back from 34 to 36
+    // (still leaves WR2 at 28 in NFL band).
+    targetMix: { wr1: 0.36, wr2: 0.27, te: 0.22, rb: 0.15 },
     // 2024 NFL personnel usage: 11/TRIPS dominates (~62%), 12/HEAVY ~18%,
     // BASE basically dead. Bumped TRIPS / cut BASE.
     personnelMix: { TRIPS: 0.60, HEAVY: 0.16, SPREAD: 0.10, BASE: 0.07, I_FORM: 0.04, EMPTY: 0.03 },
