@@ -497,9 +497,9 @@ class GameSimulator {
   // and they were piling up to ~95+ by playoffs.
   static _WEAR_PER_SNAP = {
     QB:  0.06, RB:  0.12, FB:  0.11, WR:  0.07, TE:  0.09,
-    OL:  0.10, LT:  0.10, LG:  0.10, C:   0.10, RG:  0.10, RT:  0.10,
-    DL:  0.10, DE:  0.10, DT:  0.10, LDE: 0.10, RDE: 0.10, LDT: 0.10, RDT: 0.10,
-    LB:  0.08, CB:  0.07, S:   0.07, FS:  0.07, SS:  0.07,
+    OL:  0.11, LT:  0.11, LG:  0.11, C:   0.11, RG:  0.11, RT:  0.11,
+    DL:  0.11, DE:  0.11, DT:  0.11, LDE: 0.11, RDE: 0.11, LDT: 0.11, RDT: 0.11,
+    LB:  0.09, CB:  0.07, S:   0.07, FS:  0.07, SS:  0.07,
     K:   0.005, P: 0.005,
   };
   _bumpFatigue(name, costMul = 1.0) {
