@@ -1524,8 +1524,10 @@ class GameSimulator {
     const olList = this.offOL || [];
     const pickWeighted = (list) => {
       if (!list.length) return null;
-      // Weights tilt toward higher overall; ^1.6 sharpens the bias
-      const weights = list.map(p => Math.pow(Math.max(1, p.overall - 40), 1.6));
+      // Weights tilt toward higher overall; ^2.0 sharpens the bias so
+      // elite pass-rushers actually win their share of reps (audit
+      // showed top sacker at 11.6 vs NFL elite 18-22; ^1.6 was too flat).
+      const weights = list.map(p => Math.pow(Math.max(1, p.overall - 40), 2.0));
       const sum = weights.reduce((a, b) => a + b, 0);
       let r = Math.random() * sum;
       for (let i = 0; i < list.length; i++) { r -= weights[i]; if (r <= 0) return list[i]; }
@@ -3337,7 +3339,7 @@ class GameSimulator {
       const momSackMul = 1 + ((this._momentum?.[this.poss === "home" ? "away" : "home"] || 0)
                             - (this._momentum?.[this.poss] || 0)) * 0.012;
       const boxStackSackMul = this._boxStackSackMul || 1;
-      const sackPct = clamp((0.095 + pressure * 0.09 - adv * 0.02 + archSackBonus) * sackPb * qbAwrSackMul * defPbCurrent.sackMul * mlbAggMul * fatigueSackMul * momSackMul * boxStackSackMul, 0.02, 0.18);
+      const sackPct = clamp((0.105 + pressure * 0.10 - adv * 0.02 + archSackBonus) * sackPb * qbAwrSackMul * defPbCurrent.sackMul * mlbAggMul * fatigueSackMul * momSackMul * boxStackSackMul, 0.02, 0.20);
       if (Math.random() < sackPct) {
         // THROW ON THE RUN — mobile QBs with high AGI sometimes escape pressure
         // and throw on the move instead of taking the sack. Lower comp / air

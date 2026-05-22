@@ -2074,6 +2074,82 @@ function _decayWeeklyWear(weekNum) {
   }
 }
 
+// Process ejections from THIS week — auto-suspend repeat offenders and
+// push league-discipline news. Real NFL: 2 ejections same season →
+// 1-game suspension. 3+ career ejections → fine letter + risk. Big
+// helmet-hits also draw a Monday fine even when no ejection (modeled
+// as a news beat, not a player penalty).
+function _processWeeklyDiscipline(weekNum) {
+  if (!franchise) return;
+  const seasonStr = String(franchise.season);
+  const log = (franchise._ejectionLog || {})[seasonStr] || [];
+  const thisWeek = log.filter(e => e.week === weekNum);
+  if (!thisWeek.length) return;
+  // Group by offender
+  const byOffender = {};
+  for (const e of thisWeek) {
+    if (!byOffender[e.name]) byOffender[e.name] = [];
+    byOffender[e.name].push(e);
+  }
+  // Look up each offender's career + season totals → discipline decision
+  for (const [name, events] of Object.entries(byOffender)) {
+    let player = null;
+    let teamId = null;
+    outer: for (const tid of Object.keys(franchise.rosters || {})) {
+      for (const p of franchise.rosters[tid] || []) {
+        if (p.name === name) { player = p; teamId = Number(tid); break outer; }
+      }
+    }
+    if (!player) continue;
+    // Per-season ejection count
+    const seasonEj = log.filter(e => e.name === name).length;
+    const careerEj = player.ejections || 0;
+    // SUSPENSION rules:
+    //  • 2nd ejection same season  → 1 game
+    //  • 3rd career ejection       → 1 game
+    //  • 4+ career ejections       → 2 games
+    let suspGames = 0;
+    let reason = "";
+    if (careerEj >= 4) { suspGames = 2; reason = "REPEAT-OFFENDER PATTERN"; }
+    else if (careerEj >= 3) { suspGames = 1; reason = "career ejection #3"; }
+    else if (seasonEj >= 2) { suspGames = 1; reason = "second ejection this season"; }
+    // FINE-only (no suspension) — first ejection or first/second of season
+    if (suspGames === 0) {
+      const fine = events[0].mechanism === "high" ? 25000 : 12500;
+      if (typeof _pushNews === "function") {
+        const t = getTeam(teamId);
+        const teamName = t ? `${t.city} ${t.name}` : "?";
+        _pushNews({
+          type: "discipline",
+          label: `💰 LEAGUE FINE · ${name} (${player.position}, ${teamName}) fined $${fine.toLocaleString()} for Week ${weekNum} hit on ${events[0].victim || "the receiver"}`,
+          season: franchise.season, week: weekNum,
+        });
+      }
+      continue;
+    }
+    // Apply suspension — set p.injury with weeksRemaining and a special
+    // label so the engine subs them out for the next N games.
+    player.injury = {
+      label: "suspension",
+      weeksRemaining: suspGames,
+      _ovrPenalty: 0,
+      _catastrophic: false,
+      _careerEnding: false,
+      _suspension: true,
+    };
+    player.suspensions = (player.suspensions || 0) + 1;
+    if (typeof _pushNews === "function") {
+      const t = getTeam(teamId);
+      const teamName = t ? `${t.city} ${t.name}` : "?";
+      _pushNews({
+        type: "discipline",
+        label: `🚫 SUSPENDED · ${name} (${player.position}, ${teamName}) — ${suspGames} game${suspGames>1?"s":""} for ${reason}. Career ejections: ${careerEj}.`,
+        season: franchise.season, week: weekNum,
+      });
+    }
+  }
+}
+
 // Split out from the old advanceWeekIfDone: end-of-week resolution.
 // Runs FA bid resolution + AI counter-bid round + injury tick. Does NOT
 // bump the week counter.
@@ -2097,6 +2173,8 @@ function _runWeekEndResolution() {
       for (const p of roster) _decayBodyPartWear(p);
     }
   }
+  // Discipline pass — process ejections from this week (fines + suspensions)
+  if (typeof _processWeeklyDiscipline === "function") _processWeeklyDiscipline(w);
   if (typeof _tickYipsForWeek === "function") _tickYipsForWeek();
   // Trade-block: unsolicited offers (no public ask) + price-tag offers
   // (public ask matched against AI inventories).

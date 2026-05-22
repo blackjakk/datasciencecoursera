@@ -139,7 +139,9 @@ const PLAYBOOKS = {
     // RB 12-18%. Engine WR1 was 40% → top WR getting ~2x NFL season yards.
     // Lowered + redistributed to RB (NFL pass-catching backs get 12-18% TS).
     targetMix: { wr1: 0.30, wr2: 0.24, te: 0.28, rb: 0.18 },
-    personnelMix: { TRIPS: 0.40, BASE: 0.25, HEAVY: 0.12, SPREAD: 0.13, I_FORM: 0.05, EMPTY: 0.05 },
+    // 2024 NFL personnel usage: 11/TRIPS dominates (~62%), 12/HEAVY ~18%,
+    // BASE basically dead. Bumped TRIPS / cut BASE.
+    personnelMix: { TRIPS: 0.60, HEAVY: 0.16, SPREAD: 0.10, BASE: 0.07, I_FORM: 0.04, EMPTY: 0.03 },
     tierBias: {},
     airYdsMean: 7.5, airYdsSd: 6,
     rushYdsMean: 4.3, rushYdsSd: 5.5,
@@ -156,7 +158,8 @@ const PLAYBOOKS = {
     // NFL air-raid teams: WR1 still gets top share but ~30% not 38%.
     // RB pass-catching share bumped to 20% (Ekeler/CMC-tier outliers hit 22%+).
     targetMix: { wr1: 0.32, wr2: 0.26, te: 0.20, rb: 0.22 },
-    personnelMix: { TRIPS: 0.40, SPREAD: 0.30, EMPTY: 0.12, BASE: 0.10, HEAVY: 0.05, I_FORM: 0.03 },
+    // Air Raid runs 11/SPREAD/EMPTY almost exclusively. 0 BASE.
+    personnelMix: { TRIPS: 0.50, SPREAD: 0.30, EMPTY: 0.13, HEAVY: 0.04, BASE: 0.02, I_FORM: 0.01 },
     tierBias: { QB: "elite", WR: "elite" },
     // Elite QB + WRs hit at high comp% with normal air-yard depth; pay the
     // tax in sack volume from extra dropbacks and a weaker run game.
@@ -169,7 +172,9 @@ const PLAYBOOKS = {
     id: "GROUND_AND_POUND", name: "Ground & Pound", badge: "G&P",
     passProb: { long: 0.55, mid: 0.34, short: 0.20 },
     targetMix: { wr1: 0.28, wr2: 0.20, te: 0.34, rb: 0.18 },
-    personnelMix: { I_FORM: 0.30, HEAVY: 0.30, BASE: 0.22, TRIPS: 0.13, SPREAD: 0.05 },
+    // G&P is the only scheme that still uses BASE/I_FORM meaningfully
+    // (run-first identity). Still bumps TRIPS over BASE for spread looks.
+    personnelMix: { HEAVY: 0.30, I_FORM: 0.25, TRIPS: 0.25, BASE: 0.15, SPREAD: 0.05 },
     tierBias: { RB: "elite", OL: "elite" },
     // Run-first; when they DO pass it's deeper play-action — but those deep
     // shots are LOWER comp%. Sack rate is normal (no auto-discount).
@@ -184,7 +189,7 @@ const PLAYBOOKS = {
     // Dual-threat QB: WR1 still featured but RB share bumped (Lamar/CMC
     // duos see ~20% RB target share).
     targetMix: { wr1: 0.30, wr2: 0.24, te: 0.24, rb: 0.22 },
-    personnelMix: { TRIPS: 0.35, SPREAD: 0.20, BASE: 0.20, HEAVY: 0.15, I_FORM: 0.08, EMPTY: 0.02 },
+    personnelMix: { TRIPS: 0.55, SPREAD: 0.18, HEAVY: 0.14, BASE: 0.06, I_FORM: 0.05, EMPTY: 0.02 },
     tierBias: { QB: "elite", WR: "good", RB: "good" },
     airYdsMean: 7.5, airYdsSd: 6.5,
     rushYdsMean: 4.8, rushYdsSd: 5.5,
@@ -196,7 +201,7 @@ const PLAYBOOKS = {
     id: "OPTION", name: "Read Option", badge: "OPT",
     passProb: { long: 0.60, mid: 0.40, short: 0.25 },
     targetMix: { wr1: 0.30, wr2: 0.22, te: 0.28, rb: 0.20 },
-    personnelMix: { I_FORM: 0.32, HEAVY: 0.28, BASE: 0.22, TRIPS: 0.18 },
+    personnelMix: { TRIPS: 0.32, HEAVY: 0.25, I_FORM: 0.20, BASE: 0.15, SPREAD: 0.08 },
     tierBias: { QB: "elite", RB: "good" },
     airYdsMean: 7.5, airYdsSd: 6.5,
     rushYdsMean: 4.5, rushYdsSd: 6,        // good but not elite (G&P still better at pure run)
