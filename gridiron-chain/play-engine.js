@@ -2043,6 +2043,21 @@ class GameSimulator {
           break;
         }
       }
+      // DPI is a SPOT foul, not a flat 15-yarder. NFL distribution
+      // (May 2026 research): median 11, mean 17, ~47% are 15+ yds,
+      // P90 30+ yds, deep-ball fouls reach 50-60. Cap so the ball
+      // never goes past the 1-yard line (NFL: DPI in end zone = ball
+      // at the 1, not -1).
+      if (pen && pen.type === "Pass Interference (D)") {
+        const dpiR = Math.random();
+        let dpiYds;
+        if      (dpiR < 0.40) dpiYds = rand(4, 10);    // underneath / hold
+        else if (dpiR < 0.72) dpiYds = rand(10, 20);   // intermediate
+        else if (dpiR < 0.92) dpiYds = rand(20, 35);   // downfield
+        else                  dpiYds = rand(35, 60);   // deep ball
+        const _distToGL = 100 - this.yardLine;
+        pen.yds = Math.max(3, Math.min(dpiYds, _distToGL - 1));
+      }
       if (pen) {
         // Capture PRE-penalty situation so audits can correlate penalty
         // type to the down/ytg/zone where the flag was thrown (otherwise
