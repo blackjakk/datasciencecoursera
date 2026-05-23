@@ -5404,21 +5404,26 @@ function _frameStartBroadcast() {
   _uprightCtx = upr.getContext("2d");
   _uprightCtx.clearRect(0, 0, upr.width, upr.height);
   _spriteQueue.length = 0;
+  // Phase 3.2 — bump the PIXI player frame marker so sprites not
+  // refreshed by drawPlayer this frame get hidden at frame end.
+  if (typeof GCPlayer !== "undefined") GCPlayer.frameStart();
 }
 
 // Called by the tick loop after render(). Sorts queued sprite draws
 // by depth (smaller projected Y = further away = drawn first) so
 // closer players occlude farther ones on pile-ups.
 function _frameEndBroadcast() {
-  if (cameraMode !== "broadcast" || !_uprightCtx || !_spriteQueue.length) {
-    _spriteQueue.length = 0;
-    return;
-  }
-  _spriteQueue.sort((a, b) => a.screenY - b.screenY);
-  for (const item of _spriteQueue) {
-    try { item.run(); } catch (e) { console.error("sprite flush err", e); }
+  if (cameraMode === "broadcast" && _uprightCtx && _spriteQueue.length) {
+    _spriteQueue.sort((a, b) => a.screenY - b.screenY);
+    for (const item of _spriteQueue) {
+      try { item.run(); } catch (e) { console.error("sprite flush err", e); }
+    }
   }
   _spriteQueue.length = 0;
+  // Phase 3.2 — flush PIXI player layer: hide stale sprites + render
+  // the WebGL stage. Runs even when canvas2D _spriteQueue is empty
+  // (which happens when ALL players route to PIXI).
+  if (typeof GCPlayer !== "undefined") GCPlayer.frameEnd();
 }
 
 function setCameraMode(mode) {

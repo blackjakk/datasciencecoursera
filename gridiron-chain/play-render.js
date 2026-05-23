@@ -411,6 +411,20 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
       && typeof _uprightCtx !== "undefined" && _uprightCtx
       && typeof _spriteQueue !== "undefined") {
     const proj = projectBroadcast(x, y);
+    // Phase 3.2 — PIXI player route. When active, render to the WebGL
+    // sprite atlas on the dedicated #player-pixi canvas. PIXI handles
+    // depth sort via per-sprite zIndex (=screenY) on a sortableChildren
+    // container, replacing the canvas2D _spriteQueue's manual sort.
+    if (typeof GCPlayer !== "undefined" && GCPlayer.active()) {
+      const playerKey = `${color}|${label}|${facing > 0 ? "R" : "L"}`;
+      // World-coords planted scale (proj.scale ≈ 0.7..1.3 depending on
+      // depth). Pass it as the per-sprite scale; the texture was rendered
+      // at canvas2D world scale 1.0, so this scales the sprite to match
+      // what the canvas2D path would have drawn at the same depth.
+      GCPlayer.render(playerKey, proj.x, proj.y, proj.scale,
+        color, secondary, label, pose, t, facing, style);
+      return;
+    }
     const qCtx = _uprightCtx;
     const qStyle = { ...style, _bcastRestore: true };
     _spriteQueue.push({
