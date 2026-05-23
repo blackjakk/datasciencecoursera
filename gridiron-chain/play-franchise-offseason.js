@@ -2287,6 +2287,8 @@ function frnReplayClip(highlightId) {
   if (typeof animState !== "undefined") window.animState = null;
   if (typeof playing !== "undefined") window.playing = true;
   if (typeof speedMul !== "undefined") window.speedMul = 0.5; // slow-mo for replays
+  // Flag the FX layer so film grain / replay treatment kicks in.
+  window._replayMode = true;
   if (typeof startNextPlay === "function") startNextPlay();
   // Surface a small banner so the user knows this is a replay
   _pushNews?.({ type: "news",
@@ -3328,6 +3330,8 @@ function frnPlayGame(homeId, awayId, isPlayoff) {
   // Hide franchise home so gameArea takes focus; show playback controls
   $("franchiseHome").style.display = "none";
   $("playbackControls").style.display = "flex";
+  // Clear any leftover replay-mode flag from a prior highlight view.
+  window._replayMode = false;
   franchise.pendingFranchiseGame = { homeId, awayId, isPlayoff };
   saveFranchise();
 

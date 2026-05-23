@@ -41,6 +41,7 @@ const GCFx = (() => {
   let _flashDur = 0;
   let _flashColor = 0xffffff;
   let _flashPeak = 0;
+  let _pxGrainSprite = null;    // PIXI.Sprite displaying a noise texture (replay film grain)
   function _pixiAvailable() {
     return typeof PIXI !== "undefined" && typeof PIXI.Application === "function";
   }
@@ -171,6 +172,35 @@ const GCFx = (() => {
       blur.quality = 2;
       _pxParticles.filters = [blur];
       _pxApp.stage.addChild(_pxParticles);
+      // ── Film grain noise overlay (replay mode only) — generated on a
+      // canvas2D ImageData (fast, ~1ms) and loaded as a PIXI texture,
+      // then tiled across the FX canvas. Visible only when
+      // window._replayMode === true; jittered each frame for motion.
+      try {
+        const noiseCanvas = document.createElement("canvas");
+        noiseCanvas.width = noiseCanvas.height = 256;
+        const nctx = noiseCanvas.getContext("2d");
+        const img = nctx.createImageData(256, 256);
+        const data = img.data;
+        for (let i = 0; i < data.length; i += 4) {
+          const v = Math.random();
+          const lum = v > 0.93 ? 255 : v < 0.07 ? 0 : 128;
+          const a   = (v > 0.93 || v < 0.07) ? 70 : 0;
+          data[i]   = lum;
+          data[i+1] = lum;
+          data[i+2] = lum;
+          data[i+3] = a;
+        }
+        nctx.putImageData(img, 0, 0);
+        const grainTex = PIXI.Texture.from(noiseCanvas);
+        const tile = new PIXI.TilingSprite(grainTex, 1700, 720);
+        tile.alpha = 0;
+        _pxGrainSprite = tile;
+        _pxApp.stage.addChild(_pxGrainSprite);
+      } catch (e) {
+        console.warn("PIXI grain failed:", e);
+        _pxGrainSprite = null;
+      }
       // ── Flash layer on top — full-screen Sprite with PIXI.Texture.WHITE
       // tinted to the flash color. Sprite-tinting bypasses the Graphics
       // path that produced the gray-composite issue in Phase 1.5.
@@ -293,6 +323,17 @@ const GCFx = (() => {
       }
     }
     _updateFlash();
+    // Film grain — visible only in replay mode. Jitter tile position
+    // each frame so the grain has motion.
+    if (_pxGrainSprite) {
+      if (window._replayMode) {
+        _pxGrainSprite.alpha = 0.28;
+        _pxGrainSprite.tilePosition.x = (Math.random() - 0.5) * 256;
+        _pxGrainSprite.tilePosition.y = (Math.random() - 0.5) * 256;
+      } else if (_pxGrainSprite.alpha !== 0) {
+        _pxGrainSprite.alpha = 0;
+      }
+    }
     _pxApp.renderer.render(_pxApp.stage);
     return true;
   }
