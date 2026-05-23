@@ -3330,6 +3330,163 @@
     text-shadow: 0 0 6px var(--accent);
   }
 
+  /* ── TOUCHDOWN CINEMATIC ─────────────────────────────────────
+     Full-field team-color flood + giant headline. Pulses and
+     auto-fades. Layered above the field canvas while the play hold
+     plays out. */
+  .td-cinema {
+    position: absolute; inset: 0; pointer-events: none;
+    overflow: hidden; z-index: 8;
+    animation: td-cinema-overall 2.4s ease-out forwards;
+    font-family: 'Bebas Neue', 'Anton', sans-serif;
+  }
+  @keyframes td-cinema-overall {
+    0%   { opacity: 0; }
+    10%  { opacity: 1; }
+    88%  { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  .td-flood {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at center,
+      color-mix(in srgb, var(--team) 55%, transparent) 0%,
+      color-mix(in srgb, var(--team) 30%, transparent) 40%,
+      rgba(0,0,0,0.55) 80%, rgba(0,0,0,0.85) 100%);
+    animation: td-flood-pulse 0.7s ease-in-out infinite alternate;
+  }
+  @keyframes td-flood-pulse {
+    from { filter: brightness(1) saturate(1); }
+    to   { filter: brightness(1.15) saturate(1.2); }
+  }
+  .td-bars { position: absolute; inset: 0; }
+  .td-bar {
+    position: absolute; left: 0; right: 0; height: 40px;
+    background: linear-gradient(to bottom, var(--team) 50%, color-mix(in srgb, var(--team) 50%, #000) 100%);
+    border-color: var(--team-sec);
+  }
+  .td-bar.top {
+    top: 0; border-bottom: 2px solid #fff;
+    animation: td-bar-in-top 0.35s ease-out backwards;
+  }
+  .td-bar.bot {
+    bottom: 0;
+    background: linear-gradient(to top, var(--team) 50%, color-mix(in srgb, var(--team) 50%, #000) 100%);
+    border-top: 2px solid #fff;
+    animation: td-bar-in-bot 0.35s ease-out backwards;
+  }
+  @keyframes td-bar-in-top { from { transform: translateY(-100%); } to { transform: translateY(0); } }
+  @keyframes td-bar-in-bot { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  .td-content {
+    position: absolute; inset: 0; display: flex;
+    flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; color: #fff; text-shadow: 0 4px 20px rgba(0,0,0,.85);
+    animation: td-content-in 0.5s 0.2s cubic-bezier(.2,1.4,.4,1) backwards;
+  }
+  @keyframes td-content-in {
+    from { transform: scale(0.8); opacity: 0; }
+    to   { transform: scale(1); opacity: 1; }
+  }
+  .td-eyebrow {
+    font-size: 1.4rem; font-weight: 900; letter-spacing: 8px;
+    color: #fff; text-shadow: 0 2px 12px rgba(0,0,0,.9);
+  }
+  .td-headline {
+    font-size: 8rem; font-weight: 900; line-height: 0.95;
+    letter-spacing: -3px;
+    color: #fff;
+    -webkit-text-stroke: 3px var(--team);
+    text-shadow: 0 0 32px rgba(255,255,255,.55), 0 6px 24px rgba(0,0,0,.95);
+    margin: -.4rem 0;
+    animation: td-headline-pulse 0.65s ease-in-out infinite alternate;
+  }
+  @keyframes td-headline-pulse {
+    from { transform: scale(1); filter: brightness(1); }
+    to   { transform: scale(1.025); filter: brightness(1.18); }
+  }
+  .td-scorer {
+    font-size: 2.6rem; font-weight: 900; letter-spacing: 4px;
+    color: #fff; margin-top: .5rem;
+    text-shadow: 0 2px 14px rgba(0,0,0,.95);
+  }
+  .td-detail {
+    font-size: 1.05rem; font-weight: 700; letter-spacing: 5px;
+    color: #fff;
+    margin-top: .4rem; opacity: 0.92;
+  }
+  .td-sparks {
+    position: absolute; inset: 0; pointer-events: none;
+  }
+  .td-spark {
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 4px; height: 4px; border-radius: 50%;
+    background: var(--team-sec, #fff);
+    box-shadow: 0 0 8px var(--team-sec, #fff);
+    animation: td-spark-fly 1.4s ease-out forwards;
+    animation-delay: calc(var(--n) * 0.06s + 0.3s);
+    --angle: calc(var(--n) * 30deg);
+  }
+  @keyframes td-spark-fly {
+    0%   { opacity: 1; transform: translate(-50%,-50%) rotate(var(--angle)) translateY(0) scale(1); }
+    100% { opacity: 0; transform: translate(-50%,-50%) rotate(var(--angle)) translateY(-340px) scale(0.4); }
+  }
+
+  /* ── HC DECISION CALLOUT ─────────────────────────────────────
+     Coach card slides up from the field bottom on a 4th-down go
+     or 2-pt try. Trait-keyed accent + rationale quote. */
+  .hc-cinema {
+    position: absolute; inset: 0; pointer-events: none;
+    z-index: 7; display: flex; align-items: flex-end;
+    justify-content: center; padding-bottom: 30px;
+  }
+  .hc-card {
+    background: linear-gradient(135deg, rgba(0,0,0,.95), rgba(20,15,5,.95));
+    border: 2px solid var(--accent);
+    border-radius: 6px; padding: .6rem .9rem;
+    box-shadow: 0 6px 26px rgba(0,0,0,.7), 0 0 28px color-mix(in srgb, var(--accent) 40%, transparent);
+    display: flex; align-items: center; gap: 1rem;
+    max-width: 70%;
+    animation: hc-card-in 0.4s cubic-bezier(.2,1.4,.4,1) backwards;
+    color: #fff;
+  }
+  @keyframes hc-card-in {
+    from { transform: translateY(40px) scale(0.92); opacity: 0; }
+    to   { transform: translateY(0) scale(1); opacity: 1; }
+  }
+  .hc-icon {
+    font-size: 2.4rem; line-height: 1;
+    filter: drop-shadow(0 0 12px var(--accent));
+  }
+  .hc-body { display: flex; flex-direction: column; gap: .15rem; }
+  .hc-eyebrow {
+    font-size: .55rem; font-weight: 900; letter-spacing: 2px;
+    color: var(--accent);
+  }
+  .hc-name {
+    font-size: 1.1rem; font-weight: 900; color: #fff;
+    font-family: 'Bebas Neue', 'Anton', sans-serif;
+    letter-spacing: 1.5px;
+  }
+  .hc-decision {
+    font-size: 1.5rem; font-weight: 900; color: var(--accent);
+    font-family: 'Bebas Neue', 'Anton', sans-serif;
+    letter-spacing: 3px; line-height: 1;
+    text-shadow: 0 2px 8px rgba(0,0,0,.7);
+  }
+  .hc-detail {
+    display: flex; gap: .5rem; align-items: center; margin-top: .15rem;
+  }
+  .hc-meta {
+    font-size: .62rem; font-weight: 700; letter-spacing: 1.5px;
+    color: #ddd; background: rgba(255,255,255,.08);
+    padding: .1rem .35rem; border-radius: 2px;
+  }
+  .hc-meta.hc-fg { color: #ffb060; background: rgba(255,176,96,.12); }
+  .hc-rationale {
+    margin-top: .3rem; font-size: .7rem; font-style: italic;
+    color: #ddd; opacity: 0.92;
+  }
+
   /* ── BIG-HIT CINEMATIC OVERLAY ────────────────────────────────
      AAA-style hit treatment. Letterbox bars slide in from edges,
      content scales up with a force-keyed accent color, body-region

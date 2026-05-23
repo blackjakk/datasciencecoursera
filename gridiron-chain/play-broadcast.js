@@ -1115,6 +1115,8 @@ function renderGameLayout() {
   // Reset transient overlays from any prior game
   if (typeof _subTicker !== "undefined" && _subTicker.clearAll) _subTicker.clearAll();
   if (typeof _bigHitCinema !== "undefined" && _bigHitCinema.clear) _bigHitCinema.clear();
+  if (typeof _touchdownCinema !== "undefined" && _touchdownCinema.clear) _touchdownCinema.clear();
+  if (typeof _hcDecisionCinema !== "undefined" && _hcDecisionCinema.clear) _hcDecisionCinema.clear();
   // Initial field draw — engine continues to own the canvas.
   const ctx = $("field").getContext("2d");
   if (viewMode === "cinema") {

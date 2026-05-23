@@ -1,7 +1,4 @@
 // Cinematic big-hit / ejection overlay. AAA-style — letterbox bars,
-// huge force value, mechanism label, attacker → victim. Auto-cleans
-// when the play changes. Sits over the field-wrap so the canvas
-// stays visible underneath.
 const _bigHitCinema = (() => {
   let activeId = null;
   function _mechLabel(m) {
@@ -189,6 +186,137 @@ const _subTicker = (() => {
   };
 })();
 
+// Touchdown cinematic — full-field team-color flood + giant TOUCHDOWN
+// text + scorer chip. Fires when the play hold begins on a TD.
+// Auto-clears at next play start. The existing canvas-drawn TOUCHDOWN
+// text remains as a sub-element; this overlay layers above it.
+const _touchdownCinema = (() => {
+  let activeId = null;
+  function _wrap() {
+    return document.querySelector(".bspnlive-field-wrap")
+        || document.querySelector(".field-wrap")
+        || document.getElementById("field")?.parentElement;
+  }
+  return {
+    show(play) {
+      const id = `${play.kind}-${play.endYard}-${play.receiver || play.rusher}-${play.startYard}`;
+      if (activeId === id) return;
+      this.clear();
+      activeId = id;
+      const wrap = _wrap();
+      if (!wrap) return;
+      const cs = getComputedStyle(wrap);
+      if (cs.position === "static") wrap.style.position = "relative";
+      // Determine scoring team — poss is on the play, gameResult has teams.
+      const poss = play.poss;
+      const team = (poss === "home" ? gameResult?.homeTeam : gameResult?.awayTeam)
+                || (poss === "away" ? gameResult?.awayTeam : gameResult?.homeTeam);
+      const teamColor = team?.primary || "#f5c542";
+      const teamSec   = team?.secondary || "#fff";
+      const scorer = play.receiver || play.rusher || play.passer || "—";
+      const passer = play.kind === "complete" ? play.passer : null;
+      const yds = play.yards ?? 0;
+      const playLabel = play.kind === "complete"
+        ? `${yds}-YD CATCH${passer ? ` · ${passer} → ${scorer}` : ""}`
+        : play.isScramble
+        ? `${yds}-YD SCRAMBLE · ${scorer}`
+        : `${yds}-YD RUSH · ${scorer}`;
+      const el = document.createElement("div");
+      el.className = "td-cinema";
+      el.id = "td-cinema-overlay";
+      el.style.setProperty("--team", teamColor);
+      el.style.setProperty("--team-sec", teamSec);
+      el.innerHTML = `
+        <div class="td-flood"></div>
+        <div class="td-bars">
+          <div class="td-bar top"></div>
+          <div class="td-bar bot"></div>
+        </div>
+        <div class="td-content">
+          <div class="td-eyebrow">${team?.city || ""} ${team?.name || ""}</div>
+          <div class="td-headline">TOUCHDOWN</div>
+          <div class="td-scorer">${scorer}</div>
+          <div class="td-detail">${playLabel}</div>
+          <div class="td-sparks">
+            ${Array.from({length: 12}).map((_,i) =>
+              `<span class="td-spark" style="--n:${i}"></span>`).join("")}
+          </div>
+        </div>`;
+      wrap.appendChild(el);
+    },
+    clear() {
+      const el = document.getElementById("td-cinema-overlay");
+      if (el) el.remove();
+      activeId = null;
+    },
+  };
+})();
+
+// HC decision overlay — fires on engine-emitted hc_decision plays
+// (4th-down go-for-it, 2-pt try). Coach name + trait badge + decision
+// + rationale, slide-in from bottom of the field. ~1.6s beat.
+const _hcDecisionCinema = (() => {
+  let activeId = null;
+  function _wrap() {
+    return document.querySelector(".bspnlive-field-wrap")
+        || document.querySelector(".field-wrap")
+        || document.getElementById("field")?.parentElement;
+  }
+  function _traitColor(trait) {
+    return trait === "Riverboat Gambler" ? "#ff8c4d"
+         : trait === "Conservative"      ? "#7ec8e3"
+         : trait === "Game Manager"      ? "#9bd0ff"
+         : trait === "Motivator"         ? "#e8a000"
+         : "#f5c542";
+  }
+  function _traitIcon(trait) {
+    return trait === "Riverboat Gambler" ? "🎲"
+         : trait === "Conservative"      ? "🛡"
+         : trait === "Game Manager"      ? "📋"
+         : trait === "Motivator"         ? "🔥"
+         : "🎩";
+  }
+  return {
+    show(play) {
+      const id = `${play.coachName}-${play.decision}-${play.ytg}-${play.fieldPos}`;
+      if (activeId === id) return;
+      this.clear();
+      activeId = id;
+      const wrap = _wrap();
+      if (!wrap) return;
+      const cs = getComputedStyle(wrap);
+      if (cs.position === "static") wrap.style.position = "relative";
+      const accent = _traitColor(play.trait);
+      const icon = _traitIcon(play.trait);
+      const headline = play.decision === "go_4th" ? "GOING FOR IT" : (play.decision || "DECISION").toUpperCase();
+      const el = document.createElement("div");
+      el.className = "hc-cinema";
+      el.id = "hc-cinema-overlay";
+      el.style.setProperty("--accent", accent);
+      el.innerHTML = `
+        <div class="hc-card">
+          <div class="hc-icon">${icon}</div>
+          <div class="hc-body">
+            <div class="hc-eyebrow">HEAD COACH${play.trait ? ` · ${play.trait.toUpperCase()}` : ""}</div>
+            <div class="hc-name">${play.coachName || "—"}</div>
+            <div class="hc-decision">${headline}</div>
+            <div class="hc-detail">
+              <span class="hc-meta">4TH &amp; ${play.ytg ?? "?"}</span>
+              ${play.inFGRange ? `<span class="hc-meta hc-fg">FG range — passing on the kick</span>` : ""}
+            </div>
+            ${play.rationale ? `<div class="hc-rationale">"${play.rationale}"</div>` : ""}
+          </div>
+        </div>`;
+      wrap.appendChild(el);
+    },
+    clear() {
+      const el = document.getElementById("hc-cinema-overlay");
+      if (el) el.remove();
+      activeId = null;
+    },
+  };
+})();
+
 // ─── Per-play animation engine ─────────────────────────────────────────────
 function buildAnimForPlay(play, prevPlay) {
   // Returns { duration, render(t01) }
@@ -203,6 +331,17 @@ function buildAnimForPlay(play, prevPlay) {
     return { duration: 700, kind: "substitution", render: (t, ctx) => {
       drawField(ctx, homeTeam, awayTeam, null);
       _subTicker.add(play);
+    }};
+  }
+
+  // ── HC DECISION CALLOUT ────────────────────────────────────────
+  // Engine emits kind:"hc_decision" when the coach defies the analytics
+  // chart (Riverboat Gambler 4th-down go, Conservative HC desperation
+  // go, etc.). Renders a coach card with trait + rationale.
+  if (play.kind === "hc_decision") {
+    return { duration: 1600, kind: "hc_decision", render: (t, ctx) => {
+      drawField(ctx, homeTeam, awayTeam, null);
+      _hcDecisionCinema.show(play);
     }};
   }
 
@@ -719,10 +858,10 @@ function buildAnimForPlay(play, prevPlay) {
 
   // Pre-snap callouts: only AUDIBLE (when relevant) + the "BALL SNAPPED!"
   // flash at the moment of the snap. No SET/DOWN/HUT cadence text.
-  function drawPreSnapCallouts(c, t) {
+  function drawPreSnapCallouts(c, t, dur) {
     // Snap flash window — anchored to ~750ms wall time (not a fixed fraction
     // of action), so short plays still get a visible flash.
-    const snapFlashWindow = Math.min(0.5, 750 / dur);
+    const snapFlashWindow = Math.min(0.5, 750 / (dur || 2400));
     if (t > PRE && t < PRE + snapFlashWindow) {
       const flashT = (t - PRE) / snapFlashWindow;
       const fade   = flashT < 0.2 ? flashT / 0.2 : (1 - (flashT - 0.2) / 0.80);
@@ -1460,7 +1599,7 @@ function buildAnimForPlay(play, prevPlay) {
         ctx.fillText("TOUCHDOWN!", FIELD.W / 2, FIELD.H / 2);
         ctx.restore();
       }
-      drawPreSnapCallouts(ctx, t);
+      drawPreSnapCallouts(ctx, t, dur);
     }};
   }
 
@@ -1536,7 +1675,7 @@ function buildAnimForPlay(play, prevPlay) {
         ctx.fillText("SPIKE — CLOCK STOPPED", FIELD.W / 2, 23);
         ctx.restore();
       }
-      drawPreSnapCallouts(ctx, t);
+      drawPreSnapCallouts(ctx, t, dur);
     }};
   }
 
@@ -2216,7 +2355,7 @@ function buildAnimForPlay(play, prevPlay) {
         ctx.fillText("TOUCHDOWN!", FIELD.W / 2, FIELD.H / 2);
         ctx.restore();
       }
-      drawPreSnapCallouts(ctx, t);
+      drawPreSnapCallouts(ctx, t, dur);
     }};
   }
 
@@ -2359,7 +2498,7 @@ function buildAnimForPlay(play, prevPlay) {
         ctx.fillText("PRESSURE!", qb.x, qb.y - 26);
         ctx.restore();
       }
-      drawPreSnapCallouts(ctx, t);
+      drawPreSnapCallouts(ctx, t, dur);
     }};
   }
 
@@ -5090,6 +5229,13 @@ function startNextPlay() {
   if (play.kind !== "big_hit" && play.kind !== "ejection") {
     if (typeof _bigHitCinema !== "undefined") _bigHitCinema.clear();
   }
+  // Clear HC decision overlay when leaving its play
+  if (play.kind !== "hc_decision") {
+    if (typeof _hcDecisionCinema !== "undefined") _hcDecisionCinema.clear();
+  }
+  // Touchdown cinema clears on every new play start (it was shown by the
+  // PREVIOUS play's hold phase; advance = it's over)
+  if (typeof _touchdownCinema !== "undefined") _touchdownCinema.clear();
   const builder = viewMode === "cinema" ? buildCinemaAnim : buildAnimForPlay;
   const anim = builder(play, prev);
   animState = {
@@ -5153,6 +5299,9 @@ function tick(now) {
       animState.celebrate = isTD ? { kind: "TD", celebKey: pickCelebration(play, 0) }
                           : isBigPlay ? { kind: "BIG", celebKey: pickCelebration(play, 7) }
                           : null;
+      // AAA touchdown spectacle — team-color flood overlay on the field
+      // for the duration of the TD hold.
+      if (isTD && typeof _touchdownCinema !== "undefined") _touchdownCinema.show(play);
       const baseHold = hasCard ? RESULT_HOLD_MS : 90;
       const extraHold = isTD ? 1600 : isBigPlay ? 700 : 0;
       animState.holdDur = (baseHold + extraHold) / speedMul;
