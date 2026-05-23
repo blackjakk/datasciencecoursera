@@ -5666,10 +5666,31 @@ function startNextPlay() {
     updateButtons();
     const pb = document.getElementById("hudScrubPlay");
     if (pb) pb.textContent = "▶";
+    if (typeof GCAudio !== "undefined") GCAudio.crowd.stop();
     return;
   }
   const play = gameResult.plays[playHead];
   const prev = playHead > 0 ? gameResult.plays[playHead - 1] : null;
+  // ── Audio cues for this play.
+  // Ambient crowd hum runs continuously while plays are advancing; SFX
+  // layer on top for individual events.
+  if (typeof GCAudio !== "undefined") {
+    GCAudio.crowd.start();
+    const kind = play.kind;
+    if (kind === "td" || kind === "rush_td" || kind === "pass_td" ||
+        kind === "kr_td" || kind === "pr_td" || kind === "fum_td" ||
+        kind === "int_td" || kind === "two_pt_good") {
+      GCAudio.play("cheer");
+    } else if (kind === "big_hit" || kind === "ejection") {
+      GCAudio.play("hit");
+    } else if (kind === "halftime" || kind === "quarter" ||
+               kind === "ot" || kind === "two_min_warning") {
+      GCAudio.play("whistle");
+    } else if (kind !== "hc_decision") {
+      // Standard play — short snap cue at the line of scrimmage.
+      GCAudio.play("snap");
+    }
+  }
   // Clear the big-hit cinematic when the play isn't one
   if (play.kind !== "big_hit" && play.kind !== "ejection") {
     if (typeof _bigHitCinema !== "undefined") _bigHitCinema.clear();
