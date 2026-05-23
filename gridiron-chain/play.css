@@ -2957,6 +2957,82 @@
     margin-bottom: .5rem;
     border-bottom: 1px dashed var(--blbordr2);
   }
+  /* LIVE BIO panel — per-player wear/stress/snap%/injury chips. */
+  .livebio-team { margin-bottom: .55rem; }
+  .livebio-team-head {
+    display: flex; align-items: center; gap: .35rem;
+    padding: .15rem .35rem; margin-bottom: .25rem;
+    background: rgba(255,255,255,.03);
+  }
+  .livebio-team-abbr {
+    font-size: .62rem; font-weight: 700; letter-spacing: 1px;
+    color: var(--blwhite);
+  }
+  .livebio-rows { display: flex; flex-direction: column; gap: .22rem; }
+  .livebio-row {
+    background: rgba(255,255,255,.018);
+    border: 1px solid var(--blbordr2);
+    border-radius: 3px; padding: .25rem .35rem;
+    transition: background .25s, border-color .25s;
+  }
+  .livebio-row.flash {
+    background: rgba(255,90,90,.18);
+    border-color: #ff7070;
+    animation: livebio-flash 1.2s ease-out;
+  }
+  @keyframes livebio-flash {
+    0%   { background: rgba(255,90,90,.45); }
+    100% { background: rgba(255,90,90,.06); }
+  }
+  .livebio-id {
+    display: flex; align-items: center; gap: .25rem;
+    font-size: .58rem; margin-bottom: .15rem;
+  }
+  .livebio-role {
+    color: var(--blgray); font-weight: 700;
+    letter-spacing: .5px; min-width: 1.7rem;
+  }
+  .livebio-name {
+    color: var(--blwhite); flex: 1; font-weight: 600;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .livebio-ovr {
+    color: var(--gold); font-weight: 700; font-size: .56rem;
+    padding: 0 .25rem;
+  }
+  .livebio-snaps {
+    color: var(--blgray); font-size: .54rem;
+    background: rgba(255,255,255,.04); padding: .05rem .25rem;
+    border-radius: 2px;
+  }
+  .livebio-injury-chip, .livebio-hit-chip {
+    font-size: .55rem; padding: .04rem .22rem;
+    border-radius: 2px; font-weight: 600;
+  }
+  .livebio-injury-chip { background: rgba(220,50,50,.18); color: #ff9090; }
+  .livebio-hit-chip { background: rgba(255,90,90,.12); color: #ffb0b0; }
+  .livebio-bars { display: flex; flex-direction: column; gap: .15rem; }
+  .livebio-bar-row {
+    display: flex; align-items: center; gap: .3rem;
+    font-size: .52rem; line-height: 1;
+  }
+  .livebio-bar-lbl {
+    color: var(--blgray); font-weight: 700;
+    letter-spacing: .5px; min-width: .55rem;
+  }
+  .livebio-bar {
+    flex: 1; height: 5px; background: rgba(255,255,255,.05);
+    border-radius: 2px; overflow: hidden;
+  }
+  .livebio-bar-fill {
+    height: 100%; border-radius: 2px;
+    transition: width .25s ease-out;
+  }
+  .livebio-bar-val {
+    color: var(--blwhite); font-weight: 600;
+    min-width: 1.2rem; text-align: right;
+  }
+
   .bspnlive-mini-table {
     width: 100%; border-collapse: collapse;
     font-size: .72rem; font-variant-numeric: tabular-nums;

@@ -228,6 +228,89 @@ function _bspnLiveCurrentPlay(curPlay, homeT, awayT) {
   };
 }
 
+// Pulls per-player wear / stress / injury / snap% / recent big-hit for the
+// offensive skill core (QB, RB, WR1, WR2, TE) on each team. Reads live
+// state from franchise.rosters[teamId] (mutated by the engine during the
+// game) plus the latest stats snapshot. Recent big_hit visuals within the
+// last 6 plays light up the affected player's row.
+function _liveBioForTeams(gr, head, homeT, awayT, snap) {
+  if (typeof franchise === "undefined" || !franchise) return null;
+  const ROLES = [
+    { key: "qb",  label: "QB",  pos: "QB" },
+    { key: "rb",  label: "RB",  pos: "RB" },
+    { key: "wr1", label: "WR1", pos: "WR" },
+    { key: "wr2", label: "WR2", pos: "WR" },
+    { key: "te",  label: "TE",  pos: "TE" },
+  ];
+  // Walk back recent visuals for big-hit / ejection events on these players
+  const HIT_WINDOW = 6;
+  const recentHits = {};
+  for (let i = Math.max(0, head - HIT_WINDOW); i < head; i++) {
+    const p = gr.plays[i];
+    if (!p) continue;
+    if (p.kind === "big_hit" && p.carrier) {
+      recentHits[p.carrier] = {
+        force: p.force, mech: p.mechanism, playsAgo: head - 1 - i,
+      };
+    }
+    if (p.kind === "ejection" && p.victim) {
+      recentHits[p.victim] = recentHits[p.victim] || { mech: "ejection-hit", playsAgo: head - 1 - i };
+    }
+  }
+  const teamRows = (teamObj, sideKey) => {
+    const tid = teamObj?.id;
+    const roster = franchise.rosters?.[tid] || [];
+    const sidePlayers = snap?.[sideKey]?.players || {};
+    // Resolve starters by best-OVR-at-position from the live roster (the
+    // engine's _baseStarters list isn't reachable from outside the sim,
+    // and this matches buildRatings() ordering closely enough for HUD).
+    const byPos = {};
+    for (const p of roster) {
+      if (!p || (p.injury && p.injury.weeksRemaining > 0)) continue;
+      (byPos[p.position] ||= []).push(p);
+    }
+    for (const k in byPos) byPos[k].sort((a,b) => (b.overall||0) - (a.overall||0));
+    const rows = [];
+    for (const role of ROLES) {
+      const idx = role.key === "wr2" ? 1 : 0;
+      const player = byPos[role.pos]?.[idx];
+      // Also pull from full roster including injured for "out" rows
+      const anyAtPos = roster.filter(p => p.position === role.pos)
+        .sort((a,b) => (b.overall||0) - (a.overall||0));
+      const target = player || anyAtPos[idx];
+      if (!target) continue;
+      const playerStats = sidePlayers[target.name] || {};
+      const snaps = playerStats.snaps || 0;
+      // Estimate total offensive snaps for snap% — use team-level snaps from
+      // statsSnap if available
+      const teamSnaps = snap?.[sideKey]?.team?.snaps || 0;
+      const snapPct = teamSnaps > 0 ? Math.min(100, Math.round(snaps / teamSnaps * 100)) : null;
+      const wear = Math.round(target._wear || 0);
+      const stress = Math.round(target._stress || 0);
+      const isInjured = !!(target.injury && target.injury.weeksRemaining > 0);
+      const lastHit = recentHits[target.name] || null;
+      rows.push({
+        role: role.label, pos: target.position,
+        name: target.name, jersey: target.jersey || null,
+        ovr: target.overall || null,
+        wear, stress,
+        snaps, snapPct,
+        injury: isInjured ? {
+          label: target.injury.label,
+          weeks: target.injury.weeksRemaining,
+          cata: !!target.injury._catastrophic,
+        } : null,
+        lastHit,
+      });
+    }
+    return rows;
+  };
+  return {
+    home: teamRows(homeT, "home"),
+    away: teamRows(awayT, "away"),
+  };
+}
+
 /** Adapter: gameResult + playHead → BSPNLiveGameState. */
 function toBSPNLiveGameState(gr, head) {
   if (!gr) return null;
@@ -414,6 +497,11 @@ function toBSPNLiveGameState(gr, head) {
   const yardLineText = _bspnLiveYardLabel(sitPlay, homeT, awayT);
   const downLabel = _bspnLiveDownLabel(sitPlay);
 
+  // — Live bio: for each team, pull QB/RB/WR1/WR2/TE current wear+stress
+  //   + injury state from franchise rosters (mutated live during play).
+  //   Plus recent big_hit visuals for the per-row "last hit" callout.
+  const liveBio = _liveBioForTeams(gr, head, homeT, awayT, snap);
+
   return {
     // — Identity —
     gameId: `live-${homeT.id}-${awayT.id}`,
@@ -464,6 +552,9 @@ function toBSPNLiveGameState(gr, head) {
     tickerItems,
     bottomLine,
     weather: gr.weather || null,
+
+    // — Live bio (per-player wear/stress/snap%/injury) —
+    liveBio,
 
     // — Legacy aliases (kept for now; remove once all callers migrate) —
     homeScore, awayScore,
@@ -785,6 +876,73 @@ const BSPNBottomTicker = {
   },
 };
 
+// LiveBioPanel — per-team skill-player wear/stress/snap%/injury chips.
+// Surfaces engine systems (wear, stress, body-part damage, mid-game
+// substitution) that previously had no live representation.
+const LiveBioPanel = {
+  render(state) {
+    return `<div id="bspnlive-livebio">${this._body(state)}</div>`;
+  },
+  _body(state) {
+    const lb = state.liveBio;
+    if (!lb || (!lb.home?.length && !lb.away?.length)) {
+      return `<div style="font-size:.6rem;color:var(--blgray);padding:.3rem 0">No live data — pre-game.</div>`;
+    }
+    const teamBlock = (rows, team) => {
+      if (!rows?.length) return "";
+      return `<div class="livebio-team">
+        <div class="livebio-team-head" style="border-left:3px solid ${team.primary}">
+          <span class="livebio-team-abbr">${team.abbr || team.name}</span>
+        </div>
+        <div class="livebio-rows">
+          ${rows.map(r => this._row(r)).join("")}
+        </div>
+      </div>`;
+    };
+    return teamBlock(lb.away, state.awayTeam) + teamBlock(lb.home, state.homeTeam);
+  },
+  _row(r) {
+    const wearColor = r.wear >= 75 ? "#ff7070" : r.wear >= 55 ? "#e8a000" : r.wear >= 30 ? "#9bd0ff" : "#7ee08a";
+    const stressColor = r.stress >= 75 ? "#ff7070" : r.stress >= 55 ? "#e8a000" : "#7ee08a";
+    const wearW = Math.max(0, Math.min(100, r.wear));
+    const stressW = Math.max(0, Math.min(100, r.stress));
+    const hitChip = r.lastHit
+      ? `<span class="livebio-hit-chip"
+            title="Last contact: ${r.lastHit.mech || "hit"}${r.lastHit.force ? ` · force ${r.lastHit.force.toFixed(2)}` : ""}">💥${r.lastHit.force ? r.lastHit.force.toFixed(1) : ""}</span>`
+      : "";
+    const injuryChip = r.injury
+      ? `<span class="livebio-injury-chip" style="color:#ff9090"
+            title="${r.injury.label}${r.injury.cata?" — catastrophic":""}">${r.injury.cata?"🚑":"🩹"} ${r.injury.weeks}w</span>`
+      : "";
+    const snapTxt = r.snapPct != null ? `${r.snapPct}%` : (r.snaps ? `${r.snaps} sn` : "—");
+    return `<div class="livebio-row${r.lastHit?.playsAgo === 0 ? " flash" : ""}">
+      <div class="livebio-id">
+        <span class="livebio-role">${r.role}</span>
+        <span class="livebio-name">${r.name || "—"}</span>
+        ${r.ovr ? `<span class="livebio-ovr">${r.ovr}</span>` : ""}
+        <span class="livebio-snaps">${snapTxt}</span>
+        ${injuryChip}${hitChip}
+      </div>
+      <div class="livebio-bars">
+        <div class="livebio-bar-row">
+          <span class="livebio-bar-lbl">W</span>
+          <div class="livebio-bar"><div class="livebio-bar-fill" style="width:${wearW}%;background:${wearColor}"></div></div>
+          <span class="livebio-bar-val">${r.wear}</span>
+        </div>
+        <div class="livebio-bar-row">
+          <span class="livebio-bar-lbl">S</span>
+          <div class="livebio-bar"><div class="livebio-bar-fill" style="width:${stressW}%;background:${stressColor}"></div></div>
+          <span class="livebio-bar-val">${r.stress}</span>
+        </div>
+      </div>
+    </div>`;
+  },
+  update(state) {
+    const el = document.getElementById("bspnlive-livebio");
+    if (el) el.innerHTML = this._body(state);
+  },
+};
+
 const BSPNGameScreen = {
   render(state) {
     return `<div class="bspnlive-root" style="--away-color:${state.awayTeam.primary};--home-color:${state.homeTeam.primary}">
@@ -803,6 +961,10 @@ const BSPNGameScreen = {
         </aside>
         ${AsciiFieldViewer.render(state)}
         <aside class="bspnlive-side right">
+          <div class="bspnlive-panel">
+            <div class="bspnlive-panel-title">⚕ LIVE BIO</div>
+            ${LiveBioPanel.render(state)}
+          </div>
           <div class="bspnlive-panel">
             <div class="bspnlive-panel-title">LAST PLAY</div>
             ${LastPlayPanel.render(state)}
@@ -840,6 +1002,7 @@ const BSPNGameScreen = {
     BSPNScoreboard.update(state);
     BoxScoreMiniPanel.update(state);
     TeamStatsMiniPanel.update(state);
+    LiveBioPanel.update(state);
     LastPlayPanel.update(state);
     DriveSummaryPanel.update(state);
     NextUpPanel.update(state);
