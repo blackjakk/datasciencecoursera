@@ -23,9 +23,11 @@ window._useFieldPixi = (window._useFieldPixi != null) ? window._useFieldPixi : t
 
 const GCField = (() => {
   let _app = null;              // PIXI.Application bound to #field-pixi
-  let _bg = null;               // PIXI.Container holding static field bg
+  let _bg = null;               // PIXI.Container — static field background
+  let _dynG = null;             // PIXI.Graphics — per-frame LOS + FD line
   let _attachedTo = null;       // Canvas element we attached to
   let _lastRenderKey = "";      // Cache key: "homeId|awayId" — re-render on team change
+  let _lastDynKey = "";         // Last (los, firstDownAbs, possColor) — skip rerender if same
 
   function _pixiAvailable() {
     return typeof PIXI !== "undefined" && typeof PIXI.Application === "function";
@@ -54,6 +56,11 @@ const GCField = (() => {
       });
       _bg = new PIXI.Container();
       _app.stage.addChild(_bg);
+      // Per-frame dynamic graphics (LOS, FD line). Sits on top of the
+      // cached static background; cleared + redrawn each frame when the
+      // (los, firstDownAbs) state changes.
+      _dynG = new PIXI.Graphics();
+      _app.stage.addChild(_dynG);
       _attachedTo = cv;
       // Mark the wrap so CSS knows to make #field transparent.
       const wrap = cv.parentElement;
@@ -258,6 +265,40 @@ const GCField = (() => {
     return renderStatic(homeTeam, awayTeam);
   }
 
+  // Per-frame dynamic elements (LOS, FD line). Called from drawField
+  // with the current ctx_state. Cheap — just re-fills a single
+  // PIXI.Graphics, only re-renders the stage when state actually changes.
+  function drawDynamic(state) {
+    if (!_app || !_dynG) return false;
+    const los   = state?.los;
+    const fd    = state?.firstDownAbs;
+    const col   = state?.possColor || "#4b9bd5";
+    const key = `${los || ""}|${fd || ""}|${col}`;
+    if (key === _lastDynKey) {
+      // No state change — but we still re-render in case static was just
+      // (re)built and the stage needs refreshing. PIXI render() is cheap
+      // when nothing's actually changed since it uses the cached buffer.
+      _app.renderer.render(_app.stage);
+      return true;
+    }
+    _lastDynKey = key;
+    _dynG.clear();
+    if (los != null) {
+      const losHex = (typeof col === "string" && col[0] === "#")
+        ? parseInt(col.slice(1), 16) : 0x4b9bd5;
+      _dynG.lineStyle(3, losHex, 1);
+      _dynG.moveTo(los, FIELD.TOP);
+      _dynG.lineTo(los, FIELD.BOT);
+    }
+    if (fd != null) {
+      _dynG.lineStyle(3, 0xf0cc30, 1);
+      _dynG.moveTo(fd, FIELD.TOP);
+      _dynG.lineTo(fd, FIELD.BOT);
+    }
+    _app.renderer.render(_app.stage);
+    return true;
+  }
+
   // Returns true when the PIXI field can render — drawField uses this to
   // skip elements already ported to PIXI. Triggers lazy ensure() so the
   // first frame doesn't fall through to canvas2D.
@@ -267,5 +308,5 @@ const GCField = (() => {
     return !!_app;
   }
 
-  return { ensure, draw, active };
+  return { ensure, draw, drawDynamic, active };
 })();

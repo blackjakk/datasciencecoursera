@@ -221,8 +221,10 @@ function drawField(ctx, homeTeam, awayTeam, ctx_state) {
     }
   }
 
-  // LOS and first down marker
-  if (ctx_state) {
+  // LOS and first down marker — PIXI when active (Phase 2B.2), else canvas2D.
+  if (_pixiField) {
+    GCField.drawDynamic(ctx_state || {});
+  } else if (ctx_state) {
     const { los, firstDownAbs, possColor } = ctx_state;
     if (los != null) {
       ctx.strokeStyle = possColor || "#4b9bd5";
