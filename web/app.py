@@ -26,7 +26,7 @@ if str(ROOT) not in sys.path:
 
 from fantasy_draft.draft import Draft  # noqa: E402
 from fantasy_draft.keeper_predict import predict_keepers_for_league  # noqa: E402
-from fantasy_draft.keepers import Keeper, apply_keepers  # noqa: E402
+from fantasy_draft.keepers import Keeper, apply_keepers, load_keepers_file  # noqa: E402
 from fantasy_draft.league import LeagueConfig  # noqa: E402
 from fantasy_draft.players import load_players  # noqa: E402
 from fantasy_draft.predict import score_candidates_for_team  # noqa: E402
@@ -58,12 +58,14 @@ def _init_state():
     s.setdefault("by_season", {})            # historical picks by year
     s.setdefault("predicted_keepers", {})    # {team_id: [KeeperPrediction]}
     s.setdefault("applied_keepers", [])      # actual keepers used in this draft
+    s.setdefault("real_keepers_records", [])  # raw records from keepers_2026.json
     s.setdefault("current_rosters", {})      # team_id -> [(player_name, position)]
     s.setdefault("traded_picks", [])         # list[TradedPick]
     s.setdefault("my_team_idx", 0)
     s.setdefault("sleeper_dump_path", str(ROOT / "data" / "sleeper"))
     s.setdefault("league_path", str(ROOT / "configs" / "superflex_12.json"))
-    s.setdefault("players_path", str(ROOT / "data" / "players_sample.csv"))
+    s.setdefault("players_path", str(ROOT / "data" / "players_2026.csv"))
+    s.setdefault("keepers_path", str(ROOT / "data" / "keepers_2026.json"))
 
 
 _init_state()
@@ -81,6 +83,44 @@ tab_setup, tab_keepers, tab_draft = st.tabs(
 with tab_setup:
     st.header("League Setup")
 
+    st.subheader("🏆 MONEYLEAGUE 2026 preset")
+    st.caption(
+        "One click: load the league config from the Sleeper dump, 2026 "
+        "projections from the cached Sleeper fetch, and the 41 real keepers "
+        "(38 carryovers + 3 forced-drops at the 3-year cap) parsed from "
+        "MONEY_LEAGUE.xlsx."
+    )
+    if st.button("Load MONEYLEAGUE 2026", type="primary", key="load_moneyleague"):
+        try:
+            cfg = league_from_offline(
+                st.session_state.sleeper_dump_path,
+                round_penalty=2, max_years_consecutive=3,
+            )
+            players = load_players(str(ROOT / "data" / "players_2026.csv"))
+            records = pd.read_json(str(ROOT / "data" / "keepers_2026.json")).to_dict("records")
+            st.session_state.league = cfg
+            st.session_state.players = players
+            st.session_state.real_keepers_records = records
+            # Reset any in-progress draft so the new league/keepers take effect.
+            st.session_state.draft = None
+            st.session_state.applied_keepers = []
+            n_carry = sum(1 for r in records if r["status"] == "carryover")
+            n_drop = sum(1 for r in records if r["status"] == "forced_drop")
+            st.success(
+                f"Loaded **{cfg.name}** ({cfg.num_teams} teams, {cfg.rounds} rounds), "
+                f"{len(players)} 2026 projections, and {len(records)} keepers "
+                f"({n_carry} carryover, {n_drop} forced drops)."
+            )
+        except FileNotFoundError as e:
+            st.error(
+                f"Missing file: {e}. Run `python3 scripts/build_2026_keepers.py` "
+                f"to regenerate keepers_2026.json."
+            )
+        except Exception as e:
+            st.error(f"Load failed: {e}")
+
+    st.divider()
+    st.subheader("Or: load each piece manually")
     col1, col2 = st.columns(2)
 
     with col1:
@@ -167,25 +207,61 @@ with tab_setup:
 # ------------------------------------------------------------------------
 
 with tab_keepers:
-    st.header("Predicted Keepers")
-    st.caption(
-        "For each team, we rank their roster by **net value** = "
-        "player VBD − expected VBD of the player they could have drafted "
-        "in the round they'd forfeit. Top 4 = predicted keepers."
-    )
+    st.header("Keepers")
 
     league = st.session_state.league
     players = st.session_state.players
     by_season = st.session_state.by_season
+    real_records = st.session_state.real_keepers_records
 
     if not (league and players):
         st.info("Load a league and players CSV in tab 1 first.")
+    elif real_records:
+        st.caption(
+            "Real 2026 keepers parsed from MONEY_LEAGUE.xlsx. Each team's prior "
+            "keeper status (yr1/yr2/yr3) determines whether they can keep this "
+            "year — yr3 hits the cap and is force-dropped back into the pool."
+        )
+        n_carry = sum(1 for r in real_records if r["status"] == "carryover")
+        n_drop = sum(1 for r in real_records if r["status"] == "forced_drop")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Total xlsx keepers (2025)", len(real_records))
+        c2.metric("Carryover → 2026", n_carry)
+        c3.metric("Forced drops (yr3 cap)", n_drop)
+
+        # Group by team_idx for display, ordered by draft slot.
+        by_team: dict[int, list[dict]] = {}
+        for r in real_records:
+            by_team.setdefault(int(r["team_idx"]), []).append(r)
+
+        for tidx in sorted(by_team):
+            recs = sorted(by_team[tidx], key=lambda x: x["prior_round"])
+            n_keep = sum(1 for r in recs if r["status"] == "carryover")
+            st.subheader(f"Draft slot {tidx + 1} — {n_keep} keeper(s)")
+            rows = []
+            for r in recs:
+                forfeit = r["prior_round"] - league.keepers.round_penalty
+                tag = "★ KEEP" if r["status"] == "carryover" else "✕ FORCED DROP"
+                rows.append({
+                    "Status": tag,
+                    "Player": r["player_name"],
+                    "Pos": r.get("position", ""),
+                    "2025 Round": r["prior_round"],
+                    "2026 Cost": f"R{forfeit}" if forfeit > 0 else "n/a",
+                    "Yrs Kept (prior)": r["years_kept"],
+                })
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
     elif not by_season:
         st.info(
-            "No draft history loaded. Load a Sleeper dump in tab 1 to get past "
-            "drafts (needed to know who each team owns and at what cost)."
+            "No real keepers or draft history loaded. Use the MONEYLEAGUE preset "
+            "in tab 1, or load a Sleeper dump to run the keeper predictor."
         )
     else:
+        st.caption(
+            "For each team, we rank their roster by **net value** = "
+            "player VBD − expected VBD of the player they could have drafted "
+            "in the round they'd forfeit. Top 4 = predicted keepers."
+        )
         # Pick the season whose keepers we're predicting (= the season FOLLOWING
         # the most-recently-completed draft).
         last_season = max(by_season)
@@ -275,23 +351,35 @@ with tab_draft:
             # the correct ownership state.
             for line in apply_trades(draft, st.session_state.traded_picks):
                 st.text(line)
-            # Use predicted keepers if available; otherwise empty.
-            preds = st.session_state.predicted_keepers
+
             applied: list[Keeper] = []
-            n_keep = league.keepers.max_keepers_per_team or 4
-            # Map team_id (Sleeper roster_id) to team_idx (0..N-1) by enumerating
-            # the predicted team ids in sorted order.
-            team_ids = sorted(preds.keys())
-            for idx, tid in enumerate(team_ids):
-                if idx >= league.num_teams:
-                    break
-                for c in preds[tid][:n_keep]:
+            real_records = st.session_state.real_keepers_records
+            if real_records:
+                # Real xlsx-truth keepers (MONEYLEAGUE 2026 preset). Pass the
+                # forced-drops through too; apply_keepers will reject them via
+                # max_years_consecutive=3 and surface a clear log line.
+                for r in real_records:
                     applied.append(Keeper(
-                        team_idx=idx,
-                        player_name=c.player_name,
-                        prior_round=c.prior_round,
-                        years_kept=c.years_kept,
+                        team_idx=int(r["team_idx"]),
+                        player_name=r["player_name"],
+                        prior_round=int(r["prior_round"]),
+                        years_kept=int(r["years_kept"]),
                     ))
+            else:
+                # Fall back to the predictor (non-MONEYLEAGUE leagues).
+                preds = st.session_state.predicted_keepers
+                n_keep = league.keepers.max_keepers_per_team or 4
+                team_ids = sorted(preds.keys())
+                for idx, tid in enumerate(team_ids):
+                    if idx >= league.num_teams:
+                        break
+                    for c in preds[tid][:n_keep]:
+                        applied.append(Keeper(
+                            team_idx=idx,
+                            player_name=c.player_name,
+                            prior_round=c.prior_round,
+                            years_kept=c.years_kept,
+                        ))
             log = apply_keepers(draft, players, applied)
             st.session_state.draft = draft
             st.session_state.applied_keepers = applied

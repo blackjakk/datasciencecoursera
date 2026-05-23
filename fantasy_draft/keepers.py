@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from pathlib import Path
 
 from .draft import Draft, Pick
 from .players import Player
@@ -102,6 +104,28 @@ def apply_keepers(draft: Draft, all_players: list[Player], keepers: list[Keeper]
             )
 
     return log
+
+
+def load_keepers_file(path: str | Path,
+                      include_forced_drops: bool = False) -> list[Keeper]:
+    """Load the canonical keepers file produced by scripts/build_2026_keepers.py.
+
+    Each record has team_idx, player_name, prior_round, years_kept, status.
+    Forced-drop records (yr3 cap hit) are skipped by default so the live draft
+    treats those players as freely available.
+    """
+    records = json.loads(Path(path).read_text())
+    out: list[Keeper] = []
+    for r in records:
+        if not include_forced_drops and r.get("status") == "forced_drop":
+            continue
+        out.append(Keeper(
+            team_idx=int(r["team_idx"]),
+            player_name=r["player_name"],
+            prior_round=int(r["prior_round"]),
+            years_kept=int(r["years_kept"]),
+        ))
+    return out
 
 
 def _find_pick(draft: Draft, team_idx: int, start_round: int) -> Pick | None:

@@ -51,7 +51,9 @@ def fetch_sleeper_projections(
         params.append(("position[]", pos))
     url = f"{SLEEPER_PROJ_BASE}/{season}?{urllib.parse.urlencode(params)}"
 
-    with urllib.request.urlopen(url, timeout=30) as resp:
+    # Sleeper rejects requests without a browser-ish User-Agent (403).
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=30) as resp:
         data = json.loads(resp.read())
 
     if cache:

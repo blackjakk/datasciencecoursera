@@ -123,13 +123,16 @@ def league_config_from_sleeper(
     )
 
     max_keepers = int(settings.get("max_keepers", 0) or 0)
-    draft_rounds = int(settings.get("draft_rounds", 15))
+    # `settings.draft_rounds` in Sleeper is sometimes a startup/rookie draft
+    # length (MONEYLEAGUE has draft_rounds=3 but actually drafts a full 17-round
+    # roster). The reliable signal is the roster size itself.
+    total_roster = sum(slot.count for slot in roster) or int(settings.get("draft_rounds", 15))
     keepers = KeeperRules(
         enabled=max_keepers > 0,
         max_keepers_per_team=max_keepers,
         round_penalty=round_penalty,
         # Waiver/undrafted players: treated as a last-round pick per user rule.
-        undrafted_keeper_round=draft_rounds,
+        undrafted_keeper_round=total_roster,
         max_years_consecutive=max_years_consecutive,
     )
 
@@ -138,7 +141,7 @@ def league_config_from_sleeper(
     return LeagueConfig(
         name=league.get("name", "Sleeper League"),
         num_teams=num_teams,
-        rounds=int(settings.get("draft_rounds", 15)),
+        rounds=total_roster,
         snake=True,
         roster=roster,
         scoring=scoring,
