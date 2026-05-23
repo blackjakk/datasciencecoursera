@@ -1258,59 +1258,107 @@ function drawGoalposts(ctx, cx, cy) {
   ctx.restore();
 }
 
-function drawBall(ctx, x, y, scale = 1) {
-  // Black cube — the new "ball". Rendered as a small isometric 3D box with
-  // a top face, a front face, and a side face so it reads as solid.
+function drawBall(ctx, x, y, scale = 1, opts = {}) {
+  // Real football — brown leather oval with white laces. Sized to be
+  // legible on a 1700-px-wide field: ~24px tall at scale 1. Pulsing
+  // yellow halo (opts.glow !== false) makes the ball trivially trackable
+  // against player sprites.
   ctx.save();
   ctx.translate(x, y);
+  // Yellow visibility halo first (drawn under the ball)
+  if (opts.glow !== false) {
+    const haloRadius = 18 * scale;
+    const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, haloRadius);
+    halo.addColorStop(0,    "rgba(255,225,90,0.55)");
+    halo.addColorStop(0.45, "rgba(255,200,40,0.28)");
+    halo.addColorStop(1,    "rgba(255,200,40,0)");
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(0, 0, haloRadius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const angle = opts.angle != null ? opts.angle : -0.35;
+  ctx.rotate(angle);
   ctx.scale(scale, scale);
+  // Drop shadow for grounding
   ctx.shadowColor = "rgba(0,0,0,0.6)";
-  ctx.shadowBlur = 4;
-  ctx.shadowOffsetY = 2;
-  const s = 5;                     // half-edge of the cube in screen px
-  // Front face — darkest
-  ctx.fillStyle = "#0a0a0a";
+  ctx.shadowBlur = 6;
+  ctx.shadowOffsetY = 3;
+  // Body — radial gradient for that leather sheen
+  const grad = ctx.createRadialGradient(-2, -4, 2, 0, 0, 15);
+  grad.addColorStop(0, "#b86838");
+  grad.addColorStop(0.55, "#7a3f1a");
+  grad.addColorStop(1, "#3a1a08");
+  ctx.fillStyle = grad;
   ctx.beginPath();
-  ctx.moveTo(-s,  s * 0.6);
-  ctx.lineTo( s,  s * 0.6);
-  ctx.lineTo( s, -s * 0.4);
-  ctx.lineTo(-s, -s * 0.4);
-  ctx.closePath();
+  ctx.ellipse(0, 0, 8, 14, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.shadowBlur = 0;
-  // Top face — lighter (light hits the top)
-  ctx.fillStyle = "#2a2a2e";
+  // Dark seam outline
+  ctx.strokeStyle = "rgba(15,8,3,0.95)";
+  ctx.lineWidth = 1.1;
   ctx.beginPath();
-  ctx.moveTo(-s,        -s * 0.4);
-  ctx.lineTo( s,        -s * 0.4);
-  ctx.lineTo( s + s * 0.4, -s * 0.85);
-  ctx.lineTo(-s + s * 0.4, -s * 0.85);
-  ctx.closePath();
-  ctx.fill();
-  // Right side face — mid-tone (shadowed but visible)
-  ctx.fillStyle = "#1a1a1d";
-  ctx.beginPath();
-  ctx.moveTo( s,            s * 0.6);
-  ctx.lineTo( s + s * 0.4,  s * 0.15);
-  ctx.lineTo( s + s * 0.4, -s * 0.85);
-  ctx.lineTo( s,           -s * 0.4);
-  ctx.closePath();
-  ctx.fill();
-  // Crisp outline
-  ctx.strokeStyle = "rgba(0,0,0,0.85)";
-  ctx.lineWidth = 0.8;
-  ctx.beginPath();
-  // Front face outline
-  ctx.moveTo(-s,  s * 0.6); ctx.lineTo( s,  s * 0.6);
-  ctx.lineTo( s, -s * 0.4); ctx.lineTo(-s, -s * 0.4); ctx.closePath();
-  // Top edges going back
-  ctx.moveTo(-s,           -s * 0.4); ctx.lineTo(-s + s * 0.4, -s * 0.85);
-  ctx.moveTo( s,           -s * 0.4); ctx.lineTo( s + s * 0.4, -s * 0.85);
-  ctx.moveTo(-s + s * 0.4, -s * 0.85); ctx.lineTo( s + s * 0.4, -s * 0.85);
-  // Right edge going back
-  ctx.moveTo( s,            s * 0.6); ctx.lineTo( s + s * 0.4,  s * 0.15);
-  ctx.moveTo( s + s * 0.4,  s * 0.15); ctx.lineTo( s + s * 0.4, -s * 0.85);
+  ctx.ellipse(0, 0, 8, 14, 0, 0, Math.PI * 2);
   ctx.stroke();
+  // White laces — five short cross-stripes near the center
+  ctx.strokeStyle = "#fbf7ea";
+  ctx.lineWidth = 1.4;
+  ctx.lineCap = "round";
+  for (let i = -2; i <= 2; i++) {
+    ctx.beginPath();
+    ctx.moveTo(-2.5, i * 1.9);
+    ctx.lineTo(2.5,  i * 1.9);
+    ctx.stroke();
+  }
+  // Spine running through the laces
+  ctx.lineWidth = 1.1;
+  ctx.beginPath();
+  ctx.moveTo(0, -4.6);
+  ctx.lineTo(0,  4.6);
+  ctx.stroke();
+  // Highlight pip — top-left to give a "leather caught the light" pop
+  ctx.fillStyle = "rgba(255,220,180,0.4)";
+  ctx.beginPath();
+  ctx.ellipse(-2.8, -5, 2.4, 1, -0.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// Optional pass-trail polyline: faint dotted arc from ball origin to current
+// ball position, sampled in a few intermediate points for the parabolic flight.
+function drawBallTrail(ctx, fromX, fromY, toX, toY, t, opts = {}) {
+  const arcHeight = opts.arcHeight ?? Math.min(120, Math.hypot(toX - fromX, toY - fromY) * 0.18);
+  const samples = Math.max(4, Math.floor(t * 18));
+  ctx.save();
+  ctx.lineCap = "round";
+  for (let i = 1; i < samples; i++) {
+    const tt = (i / samples) * t;
+    const lx = fromX + (toX - fromX) * tt;
+    const ly = fromY + (toY - fromY) * tt - Math.sin(tt * Math.PI) * arcHeight;
+    const age = (t - tt) / Math.max(0.001, t);  // 0 = freshest
+    ctx.fillStyle = `rgba(255,235,200,${0.6 * (1 - age)})`;
+    ctx.beginPath();
+    ctx.arc(lx, ly, 1.6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+// Optional run-trail polyline: faint dotted line from ball origin to current
+// position. Reads as a path stripe; fades behind the carrier.
+function drawRunTrail(ctx, fromX, fromY, toX, toY, t, color = "rgba(245,197,66,0.55)") {
+  const samples = 14;
+  ctx.save();
+  for (let i = 1; i < samples; i++) {
+    const tt = (i / samples) * t;
+    const lx = fromX + (toX - fromX) * tt;
+    const ly = fromY + (toY - fromY) * tt;
+    const age = (t - tt) / Math.max(0.001, t);
+    ctx.fillStyle = color.replace(/[\d.]+\)$/, `${0.55 * (1 - age)})`);
+    ctx.beginPath();
+    ctx.arc(lx, ly, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.restore();
 }
 
