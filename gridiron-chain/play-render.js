@@ -437,6 +437,20 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
   // bare skin) for warmth and abrasion protection. A few skill players
   // (~15%) also opt for a long-sleeved compression shirt under the jersey.
   const longSleeves   = _linemanPos || (((phaseHash >> 8) % 100) < 15);
+  // QBs typically don't wear gloves (throwing-hand grip on one side,
+  // balance on the other). Suppress the glove draw for them.
+  const wearsGloves   = _posStr !== "QB";
+  // Knee braces on linemen — common protective gear in the trenches.
+  // Add a slight per-player chance for other positions too (~8%).
+  const wearsKneeBrace = _linemanPos || (((phaseHash >> 12) % 100) < 8);
+  // Sock striping variant — picks a deterministic pattern based on the
+  // jersey color hash so a given team's players share the same look but
+  // it varies across the league. 0=single white ring (default), 1=double
+  // band, 2=solid team color, 3=team-color ring on white sock.
+  let _teamSeed = 0;
+  const teamSeedSrc = String(color || "") + String(secondary || "");
+  for (let i = 0; i < teamSeedSrc.length; i++) _teamSeed = (_teamSeed * 31 + teamSeedSrc.charCodeAt(i)) >>> 0;
+  const sockStyle = _teamSeed % 4;
   const legAmp = rs.legAmp * ampJitter;
   const armAmp = rs.armAmp * ampJitter;
   // Shift t by per-player offset for run/carry/celebrate cycles
@@ -1021,15 +1035,48 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
     const stripeDX = side * (thighW * 0.6);
     drawSegment(sx + stripeDX * 0.55, hipY + 0.5, kneeX + stripeDX * 0.55, kneeY,
                 thighW * 0.28, color, shadeDark, shadeLight);
-    // Sock — team color, upper half of the lower leg
+    // Knee brace — small white wrap around the knee, worn by linemen +
+    // a small share of other players. Drawn before the sock so the sock
+    // overlaps it cleanly at the bottom.
+    if (wearsKneeBrace) {
+      ctx.fillStyle = "#e8e8e8";
+      ctx.beginPath();
+      ctx.ellipse(kneeX, kneeY, thighW * 0.85, 1.2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,0.45)";
+      ctx.lineWidth = 0.25;
+      ctx.stroke();
+    }
+    // Sock — base color depends on team's sock style. The sockStyle picks
+    // which color is the base and which is the accent: 0/1=team base
+    // w/ white accent (single or double band), 2=solid team color, 3=
+    // white sock with team-color accent ring.
     const sockEndX = kneeX + Math.sin(lowerA) * lowerLen * 0.55;
     const sockEndY = kneeY + Math.cos(lowerA) * lowerLen * 0.55 - lift * 0.20;
-    drawSegment(kneeX, kneeY, sockEndX, sockEndY, shinW, color, shadeDark, shadeLight);
-    // White stripe ring on the sock
-    const ringStartX = kneeX + Math.sin(lowerA) * lowerLen * 0.48;
-    const ringStartY = kneeY + Math.cos(lowerA) * lowerLen * 0.48 - lift * 0.16;
-    drawSegment(ringStartX, ringStartY, sockEndX, sockEndY, shinW * 0.95,
-                "#f1f1f1", "#c8c8c8", "#ffffff");
+    const whiteBase = sockStyle === 3;
+    const baseCol  = whiteBase ? "#f1f1f1" : color;
+    const baseDk   = whiteBase ? "#c8c8c8" : shadeDark;
+    const baseLt   = whiteBase ? "#ffffff" : shadeLight;
+    const accentCol = whiteBase ? color : "#f1f1f1";
+    const accentDk  = whiteBase ? shadeDark : "#c8c8c8";
+    const accentLt  = whiteBase ? shadeLight : "#ffffff";
+    drawSegment(kneeX, kneeY, sockEndX, sockEndY, shinW, baseCol, baseDk, baseLt);
+    if (sockStyle !== 2) {
+      // Single accent ring (default look + reverse). Double-band variant
+      // adds a second, thinner band higher up.
+      const ringStartX = kneeX + Math.sin(lowerA) * lowerLen * 0.48;
+      const ringStartY = kneeY + Math.cos(lowerA) * lowerLen * 0.48 - lift * 0.16;
+      drawSegment(ringStartX, ringStartY, sockEndX, sockEndY, shinW * 0.95,
+                  accentCol, accentDk, accentLt);
+      if (sockStyle === 1) {
+        const band2StartX = kneeX + Math.sin(lowerA) * lowerLen * 0.20;
+        const band2StartY = kneeY + Math.cos(lowerA) * lowerLen * 0.20 - lift * 0.08;
+        const band2EndX   = kneeX + Math.sin(lowerA) * lowerLen * 0.28;
+        const band2EndY   = kneeY + Math.cos(lowerA) * lowerLen * 0.28 - lift * 0.11;
+        drawSegment(band2StartX, band2StartY, band2EndX, band2EndY,
+                    shinW * 0.92, accentCol, accentDk, accentLt);
+      }
+    }
     // Cleat — team-secondary toe with a dark heel highlight so the foot
     // reads as a colored shoe rather than a generic black block.
     const cleatColor = secondary || "#1e1e26";
@@ -1089,23 +1136,29 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
     const wbX = elbowX + (handX - elbowX) * 0.82;
     const wbY = elbowY + (handY - elbowY) * 0.82;
     drawSegment(wbX, wbY, handX, handY, forearmW * 1.08, "#f1f1f1", "#bcbcbc", "#ffffff");
-    // Glove — team-secondary color block covering the hand, replacing the
-    // bare-skin knuckle. Slightly chunkier than the forearm so it reads as
-    // a padded receiver glove or running-back glove.
-    const gloveColor = secondary || "#222";
-    const gloveDark  = tweakColor(gloveColor, 0.6) || "#000";
-    const gloveLight = tweakColor(gloveColor, 1.15) || "#fff";
-    const gloveStartX = wbX + (handX - wbX) * 0.55;
-    const gloveStartY = wbY + (handY - wbY) * 0.55;
-    drawSegment(gloveStartX, gloveStartY, handX, handY, forearmW * 1.18,
-                gloveColor, gloveDark, gloveLight);
-    // Knuckle highlight on the tip — small bright dot on the glove
-    ctx.fillStyle = gloveLight;
+    // Glove — team-secondary color block covering the hand. QBs skip it
+    // (throwing-hand grip + balance-hand bare). The bare-hand fallback
+    // keeps the original skin-tone knuckle so QB hands still read.
     const tipDX = Math.sin(lowerA) * forearmW * 0.25;
     const tipDY = Math.cos(lowerA) * forearmW * 0.25;
-    ctx.beginPath();
-    ctx.arc(handX - tipDX * 0.4, handY - tipDY * 0.4, forearmW * 0.3, 0, Math.PI * 2);
-    ctx.fill();
+    if (wearsGloves) {
+      const gloveColor = secondary || "#222";
+      const gloveDark  = tweakColor(gloveColor, 0.6) || "#000";
+      const gloveLight = tweakColor(gloveColor, 1.15) || "#fff";
+      const gloveStartX = wbX + (handX - wbX) * 0.55;
+      const gloveStartY = wbY + (handY - wbY) * 0.55;
+      drawSegment(gloveStartX, gloveStartY, handX, handY, forearmW * 1.18,
+                  gloveColor, gloveDark, gloveLight);
+      ctx.fillStyle = gloveLight;
+      ctx.beginPath();
+      ctx.arc(handX - tipDX * 0.4, handY - tipDY * 0.4, forearmW * 0.3, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = skin.light;
+      ctx.beginPath();
+      ctx.arc(handX - tipDX * 0.4, handY - tipDY * 0.4, forearmW * 0.35, 0, Math.PI * 2);
+      ctx.fill();
+    }
     if (holdsBall) {
       // Black cube held in the hand (replaces the football)
       ctx.save();
