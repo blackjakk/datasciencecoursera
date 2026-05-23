@@ -4661,6 +4661,35 @@ function _buildPlayerDetailPanel(p) {
       </div>
     </div>
     ${archBlock ? `<div style="margin:.6rem 0">${archBlock}</div>` : ""}
+    ${p.injury ? (() => {
+      const onset = _currentInjuryOnset(p);
+      const cat = !!p.injury._careerEnding ? "career" : !!p.injury._catastrophic ? "cata" : "norm";
+      const stripe = cat === "career" ? "#7b2020" : cat === "cata" ? "#a72424" : "#c87a00";
+      const bg     = cat === "career" ? "rgba(123,32,32,.18)" : cat === "cata" ? "rgba(167,36,36,.16)" : "rgba(200,122,0,.14)";
+      const icon   = cat === "career" ? "💔" : cat === "cata" ? "🚑" : "🩹";
+      const sevTag = cat === "career" ? "CAREER-ENDING" : cat === "cata" ? "SEASON-ENDING" : `${p.injury.weeksRemaining}W OUT`;
+      const onsetTxt = onset?.week ? `Onset W${onset.week}` : "";
+      const cause   = p.injury.cause === "non_contact" ? "non-contact"
+                    : p.injury.cause === "big_hit" ? "big-hit collision"
+                    : p.injury.cause === "sack" ? "sack"
+                    : p.injury.cause || "contact";
+      const ovrHit  = p.injury._returnOvrPenalty || p.injury._ovrPenalty
+                    || (cat !== "norm" ? "-6" : null);
+      return `<div style="margin:.55rem 0;padding:.5rem .7rem;background:${bg};border-left:4px solid ${stripe};border-radius:3px;display:flex;align-items:center;gap:.7rem;flex-wrap:wrap">
+        <div style="font-size:1.5rem;line-height:1">${icon}</div>
+        <div style="flex:1;min-width:200px">
+          <div style="font-size:.85rem;font-weight:900;color:#ffd1d1;letter-spacing:.5px">
+            INJURED — ${p.injury.label.toUpperCase()}
+          </div>
+          <div style="font-size:.62rem;color:#ffb0b0;margin-top:.1rem">
+            ${sevTag}${onsetTxt?` · ${onsetTxt}`:""} · ${cause}${ovrHit?` · ${ovrHit} OVR on return`:""}
+          </div>
+        </div>
+        <div style="font-size:1.2rem;font-weight:900;color:#ffd1d1;text-align:right">
+          ${p.injury._careerEnding ? "DONE" : `${p.injury.weeksRemaining}w`}
+        </div>
+      </div>`;
+    })() : ""}
     ${(() => {
       // Locker-room fallout banner — surfaces consequences of an ignored
       // extension demand so the user remembers the cost. Only shown for
@@ -4690,15 +4719,6 @@ function _buildPlayerDetailPanel(p) {
     ${streaksBlock}
     ${gameLogBlock ? `<div style="margin-top:.6rem">${gameLogBlock}</div>` : ""}
     <div style="margin-top:.6rem">${_buildVitalsBlock(p)}</div>
-    ${p.injury ? (() => {
-      const onset = _currentInjuryOnset(p);
-      const cat = !!p.injury._catastrophic;
-      const icon = p.injury._careerEnding ? "💔" : cat ? "🚑" : "🩹";
-      const sev = p.injury._careerEnding ? " — CAREER-ENDING"
-                : cat ? " — SEASON-ENDING" : "";
-      const onsetTxt = onset?.week ? ` · onset W${onset.week}` : "";
-      return `<div class="frn-player-injury" style="margin-top:.55rem" title="Engine auto-subs the next healthy player at this position. Stats from the game where the injury occurred are kept (NFL-realistic).">${icon} ${p.injury.label}${onsetTxt} — ${p.injury.weeksRemaining} wk${p.injury.weeksRemaining===1?"":"s"} out${sev}</div>`;
-    })() : ""}
     ${_isInjuryProne(p) ? `<div style="margin-top:.45rem;font-size:.6rem;color:#ff9090;letter-spacing:.5px;font-weight:700" title="Injured 3+ times — elevated recurrence risk">⚠ INJURY-PRONE · ${(p.injuryHistory||[]).length} prior injuries</div>` : ""}
     ${p.coachable ? `<div style="margin-top:.45rem;font-size:.6rem;color:#7ec8e3;letter-spacing:.5px;font-weight:700" title="Absorbs coaching exceptionally well — amplified TEC growth with a Film Mastermind DC">📋 COACHABLE</div>` : ""}
     ${flav ? `<div class="frn-player-flavor" style="margin-top:.55rem">${flav}</div>` : ""}
