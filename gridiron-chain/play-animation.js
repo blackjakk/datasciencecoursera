@@ -3786,6 +3786,22 @@ function drawCinemaField(ctx, homeTeam, awayTeam, fieldState) {
   // Out-of-bounds (dark band above/below the field)
   ctx.fillStyle = "#0c0c10";
   ctx.fillRect(0, 0, FIELD.W, FIELD.H);
+  // Painted sideline pad — off-white strip just past the top chalk so the
+  // sideline reads as the edge of a painted surface, not a line floating
+  // against the dark cinematic frame. Only the top is painted; the area
+  // below CINEMA.fieldBot is the cinematic player-sprite zone (cinema
+  // mode draws player bodies extending downward from the field), where a
+  // pad would clash with the sprites.
+  {
+    const padDepth = 30;
+    ctx.fillStyle = "#d9cfb9";
+    ctx.fillRect(0, CINEMA.fieldTop - padDepth, FIELD.W, padDepth);
+    const topGrad = ctx.createLinearGradient(0, CINEMA.fieldTop - padDepth, 0, CINEMA.fieldTop);
+    topGrad.addColorStop(0, "rgba(0,0,0,0.55)");
+    topGrad.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = topGrad;
+    ctx.fillRect(0, CINEMA.fieldTop - padDepth, FIELD.W, padDepth);
+  }
   // Grass field
   const fieldGrad = ctx.createLinearGradient(0, CINEMA.fieldTop, 0, CINEMA.fieldBot);
   fieldGrad.addColorStop(0, "#1e5a2c");
