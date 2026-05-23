@@ -42,8 +42,20 @@ def main() -> None:
 
     by_season: dict[int, list[HistoricalDraftPick]] = {}
 
-    # --- Sleeper history --------------------------------------------------
-    if args.sleeper_league_id:
+    # --- Sleeper history (live or offline dump) ---------------------------
+    if args.sleeper_dump:
+        from .sleeper_offline import history_from_offline, league_from_offline
+        print(f"Loading Sleeper dump from {args.sleeper_dump}...")
+        config = league_from_offline(
+            args.sleeper_dump,
+            target_league_id=args.sleeper_league_id,
+            round_penalty=args.round_penalty,
+            max_years_consecutive=args.max_years_consecutive,
+        )
+        sleeper_hist = history_from_offline(args.sleeper_dump, max_seasons=args.seasons_back)
+        for season, picks in sleeper_hist.items():
+            by_season.setdefault(season, []).extend(picks)
+    elif args.sleeper_league_id:
         from . import sleeper as sl  # local import: keeps urllib out of cold path
         print(f"Fetching Sleeper league {args.sleeper_league_id} and walking history...")
         league_payload = sl.fetch_league(args.sleeper_league_id)
@@ -168,6 +180,8 @@ def _write_keepers(keepers: list[dict], path: str) -> None:
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Import league + keepers from Sleeper (and/or Yahoo CSVs)")
     p.add_argument("--sleeper-league-id", help="numeric Sleeper league ID")
+    p.add_argument("--sleeper-dump", help="path to a local Sleeper dump dir (data/sleeper). "
+                                          "Use this when the running env can't reach api.sleeper.app.")
     p.add_argument("--yahoo-csv", nargs="*", default=[],
                    help="one or more Yahoo draft CSVs (older seasons before Sleeper migration)")
     p.add_argument("--players", required=True, help="players CSV with ADP (used for keeper detection)")

@@ -1,0 +1,12 @@
+{
+  "league_id": "1245039290518360064",
+  "round_penalty": 2,
+  "max_keepers_per_team": 4,
+  "max_years_consecutive": 3,
+  "seasons_back": 5,
+  "_notes": [
+    "round_penalty: you forfeit a pick this many rounds higher than where the keeper was last drafted/kept.",
+    "max_years_consecutive: a player can be kept by the same team at most this many years in a row.",
+    "seasons_back: how many seasons of Sleeper history to walk via previous_league_id."
+  ]
+}
