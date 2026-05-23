@@ -3266,6 +3266,16 @@ function _backfillStamina() {
   (franchise.freeAgents || []).forEach(stamp);
 }
 
+// Backfill replay clips array onto legacy saves that predate the highlight
+// system. We can't reconstruct old highlights (sim games drop their plays
+// once stored), so historical games won't be replayable — but the array
+// being defined keeps frnReplayClip / _trimReplayClips / week-recap from
+// crashing, and new games will populate it going forward.
+function _backfillReplayClips() {
+  if (!franchise) return;
+  if (!Array.isArray(franchise.replayClips)) franchise.replayClips = [];
+}
+
 // Backfill depth chart + snap shares for any team that doesn't have one yet,
 // AND patch in any slot keys added in newer versions (RB2, DL5, DL6, NB2,
 // KR1, PR1, etc.). Without the slot-level patch, legacy saves keep their
@@ -3692,7 +3702,7 @@ function loadFranchise() {
     if (raw) {
       franchise = JSON.parse(raw);
       if (franchise && franchise.pendingFranchiseGame) franchise.pendingFranchiseGame = null;
-      _backfillPlayerPids(); _backfillTEC(); _backfillCoachingStaff(); _backfillCoachable(); _backfillPhysicalPeak(); _backfillStamina(); _backfillDepthChart(); if(typeof _backfillCollegePipeline==="function")_backfillCollegePipeline(); if(typeof _backfillSeasonScout==="function")_backfillSeasonScout(); if(typeof _backfillPinnedProspects==="function")_backfillPinnedProspects(); _repairInjuries();
+      _backfillPlayerPids(); _backfillTEC(); _backfillCoachingStaff(); _backfillCoachable(); _backfillPhysicalPeak(); _backfillStamina(); _backfillDepthChart(); _backfillReplayClips(); if(typeof _backfillCollegePipeline==="function")_backfillCollegePipeline(); if(typeof _backfillSeasonScout==="function")_backfillSeasonScout(); if(typeof _backfillPinnedProspects==="function")_backfillPinnedProspects(); _repairInjuries();
       // Race the IDB read — if IDB has a newer save (lastSaved timestamp via
       // _saveLastFlush on franchise), use it. Otherwise keep the sync result.
       _idbGet(slotId).then(idbFranchise => {
@@ -3702,7 +3712,7 @@ function loadFranchise() {
         if (idbTime > lsTime) {
           franchise = idbFranchise;
           if (franchise.pendingFranchiseGame) franchise.pendingFranchiseGame = null;
-          _backfillPlayerPids(); _backfillTEC(); _backfillCoachingStaff(); _backfillCoachable(); _backfillPhysicalPeak(); _backfillStamina(); _backfillDepthChart(); if(typeof _backfillCollegePipeline==="function")_backfillCollegePipeline(); if(typeof _backfillSeasonScout==="function")_backfillSeasonScout(); if(typeof _backfillPinnedProspects==="function")_backfillPinnedProspects(); _repairInjuries();
+          _backfillPlayerPids(); _backfillTEC(); _backfillCoachingStaff(); _backfillCoachable(); _backfillPhysicalPeak(); _backfillStamina(); _backfillDepthChart(); _backfillReplayClips(); if(typeof _backfillCollegePipeline==="function")_backfillCollegePipeline(); if(typeof _backfillSeasonScout==="function")_backfillSeasonScout(); if(typeof _backfillPinnedProspects==="function")_backfillPinnedProspects(); _repairInjuries();
           if (typeof showFranchiseDashboard === "function") showFranchiseDashboard();
         }
       }).catch(() => {});
@@ -3713,7 +3723,7 @@ function loadFranchise() {
         if (!idbFranchise) return;
         franchise = idbFranchise;
         if (franchise.pendingFranchiseGame) franchise.pendingFranchiseGame = null;
-        _backfillPlayerPids(); _backfillTEC(); _backfillCoachingStaff(); _backfillCoachable(); _backfillPhysicalPeak(); _backfillStamina(); _backfillDepthChart(); if(typeof _backfillCollegePipeline==="function")_backfillCollegePipeline(); if(typeof _backfillSeasonScout==="function")_backfillSeasonScout(); if(typeof _backfillPinnedProspects==="function")_backfillPinnedProspects(); _repairInjuries();
+        _backfillPlayerPids(); _backfillTEC(); _backfillCoachingStaff(); _backfillCoachable(); _backfillPhysicalPeak(); _backfillStamina(); _backfillDepthChart(); _backfillReplayClips(); if(typeof _backfillCollegePipeline==="function")_backfillCollegePipeline(); if(typeof _backfillSeasonScout==="function")_backfillSeasonScout(); if(typeof _backfillPinnedProspects==="function")_backfillPinnedProspects(); _repairInjuries();
         if (typeof showFranchiseDashboard === "function") showFranchiseDashboard();
       }).catch(() => {});
     }

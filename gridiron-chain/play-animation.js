@@ -5648,6 +5648,8 @@ function startNextPlay() {
     playing = false;
     renderStaticEnd();
     updateButtons();
+    const pb = document.getElementById("hudScrubPlay");
+    if (pb) pb.textContent = "▶";
     return;
   }
   const play = gameResult.plays[playHead];
@@ -5688,7 +5690,122 @@ function startNextPlay() {
   rafId = requestAnimationFrame(tick);
 }
 
+// ── Scrubbable timeline ───────────────────────────────────────────────
+// Injects a slim play/pause + drag-to-scrub timeline into the field-wrap on
+// first tick. Lets the user drag through the current play's animation in
+// real time, jump back to t=0 to re-watch, or pause on a frame.
+function _ensureScrubber() {
+  if (document.getElementById("hudScrubber")) return;
+  const wrap = document.querySelector(".bspnlive-field-wrap");
+  if (!wrap) return;
+  const el = document.createElement("div");
+  el.id = "hudScrubber";
+  el.className = "hud-scrubber";
+  el.innerHTML = `
+    <button class="hud-scrub-btn" id="hudScrubPlay" title="Play / Pause">⏸</button>
+    <button class="hud-scrub-btn" id="hudScrubRestart" title="Restart this play">↺</button>
+    <div class="hud-scrub-track" id="hudScrubTrack">
+      <div class="hud-scrub-fill" id="hudScrubFill"></div>
+      <div class="hud-scrub-knob" id="hudScrubKnob"></div>
+    </div>
+    <div class="hud-scrub-time" id="hudScrubTime">0.00s</div>`;
+  wrap.appendChild(el);
+  document.getElementById("hudScrubPlay").addEventListener("click", _scrubToggle);
+  document.getElementById("hudScrubRestart").addEventListener("click", _scrubRestart);
+  document.getElementById("hudScrubTrack").addEventListener("pointerdown", _scrubStart);
+}
+
+function _scrubToggle() {
+  if (!animState) return;
+  if (playing) {
+    // Pause — remember elapsed so resume picks up here
+    if (animState.startTime != null) {
+      animState._pausedElapsed = performance.now() - animState.startTime;
+    }
+    playing = false;
+  } else {
+    if (animState._pausedElapsed != null) {
+      animState.startTime = performance.now() - animState._pausedElapsed;
+      animState._pausedElapsed = null;
+    }
+    playing = true;
+    rafId = requestAnimationFrame(tick);
+  }
+  const btn = document.getElementById("hudScrubPlay");
+  if (btn) btn.textContent = playing ? "⏸" : "▶";
+}
+
+function _scrubRestart() {
+  if (!animState) return;
+  animState.startTime = performance.now();
+  animState.holdStart = null;
+  animState._pausedElapsed = null;
+  animState.skipHold = false;
+  if (!playing) {
+    playing = true;
+    const btn = document.getElementById("hudScrubPlay");
+    if (btn) btn.textContent = "⏸";
+    rafId = requestAnimationFrame(tick);
+  }
+}
+
+function _scrubStart(ev) {
+  if (!animState) return;
+  ev.preventDefault();
+  const wasPlaying = playing;
+  playing = false;  // hold while dragging
+  const track = ev.currentTarget;
+  const onMove = e => _scrubTo(e, track);
+  const onUp = () => {
+    document.removeEventListener("pointermove", onMove);
+    document.removeEventListener("pointerup", onUp);
+    if (wasPlaying) {
+      playing = true;
+      rafId = requestAnimationFrame(tick);
+    } else {
+      // Remember the new elapsed for resume
+      if (animState && animState.startTime != null) {
+        animState._pausedElapsed = performance.now() - animState.startTime;
+      }
+    }
+  };
+  document.addEventListener("pointermove", onMove);
+  document.addEventListener("pointerup", onUp);
+  _scrubTo(ev, track);
+}
+
+function _scrubTo(ev, track) {
+  if (!animState) return;
+  const rect = track.getBoundingClientRect();
+  let frac = (ev.clientX - rect.left) / rect.width;
+  frac = Math.max(0, Math.min(1, frac));
+  // Re-anchor startTime so elapsed = frac * duration
+  animState.startTime = performance.now() - frac * animState.duration;
+  animState.holdStart = null;
+  animState.skipHold = false;
+  // Render the new frame immediately so the scrub feels live
+  const ctx = $("field").getContext("2d");
+  _frameStartBroadcast();
+  try {
+    animState.anim.render(frac, ctx);
+    _frameEndBroadcast();
+  } catch (e) { console.error("Scrub render error", e); }
+  _updateScrubberUI(frac);
+}
+
+function _updateScrubberUI(frac) {
+  const fill = document.getElementById("hudScrubFill");
+  const knob = document.getElementById("hudScrubKnob");
+  const time = document.getElementById("hudScrubTime");
+  if (fill) fill.style.width = (frac * 100) + "%";
+  if (knob) knob.style.left = (frac * 100) + "%";
+  if (time && animState) {
+    time.textContent = ((animState.duration * frac) / 1000).toFixed(2) + "s";
+  }
+}
+
 function tick(now) {
+  _ensureScrubber();
   if (!playing || !animState) return;
   // Inter-play jog transition — animate players trotting up to the new LOS.
   if (animState.transition) {
@@ -5719,6 +5836,7 @@ function tick(now) {
   } catch (e) {
     console.error('Render error on play', animState.play, e);
   }
+  _updateScrubberUI(t);
   if (t >= 1) {
     // Hold the final frame and overlay a result card so the play can be digested.
     if (animState.holdStart == null) {

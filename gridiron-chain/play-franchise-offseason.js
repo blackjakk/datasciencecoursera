@@ -2001,7 +2001,7 @@ function _saveReplayClips(highlights) {
 // season (current season uncapped — it's actively being viewed). Plus
 // per-season-week, keep top 30 / week.
 function _trimReplayClips() {
-  if (!franchise?.highlights) return;
+  if (!franchise?.replayClips) return;
   const curSeason = franchise.season;
   // Group by season-week
   const byWeek = new Map();
@@ -2260,7 +2260,7 @@ function renderFrnReplayLib() {
 // gameResult with just the highlight's play (plus optional context plays
 // for the lead-up) and pumps it through the existing animation pipeline.
 function frnReplayClip(highlightId) {
-  if (!franchise?.highlights) return;
+  if (!franchise?.replayClips) return;
   const h = franchise.replayClips.find(x => x.id === highlightId);
   if (!h?.play) { alert("Highlight not found."); return; }
   const homeTeam = getTeam(h.homeId);
