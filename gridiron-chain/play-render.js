@@ -905,11 +905,22 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(totalScale, totalScale);
-  // Drop shadow at foot height
-  ctx.fillStyle = "rgba(0,0,0,0.40)";
-  ctx.beginPath();
-  ctx.ellipse(0, footYLocal + 0.5, 7.5 + bt.bulk * 0.8, 2.0, 0, 0, Math.PI * 2);
-  ctx.fill();
+  // Drop shadow at foot height — radial gradient gives a soft penumbra
+  // edge instead of a hard ellipse, so the player reads as planted with
+  // ambient depth (stadium lights from above) rather than glued onto the
+  // grass. Slightly larger than the body silhouette for visible spread.
+  {
+    const shR = 9.0 + bt.bulk * 0.9;            // horizontal radius
+    const shY = footYLocal + 0.8;
+    const shadowGrad = ctx.createRadialGradient(0, shY, 0.4, 0, shY, shR);
+    shadowGrad.addColorStop(0,    "rgba(0,0,0,0.55)");
+    shadowGrad.addColorStop(0.55, "rgba(0,0,0,0.30)");
+    shadowGrad.addColorStop(1,    "rgba(0,0,0,0)");
+    ctx.fillStyle = shadowGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, shY, shR, 2.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.restore();
 
   // ── BODY — animated/rotated/translated as before.
