@@ -870,19 +870,92 @@ function buildAnimForPlay(play, prevPlay) {
       c.textBaseline = "middle";
       c.fillStyle = `rgba(0,0,0,${0.62 * fade})`;
       c.fillRect(0, 24, FIELD.W, 72);
-      // Big jagged banner
+      // Big jagged banner — "HIKE!" reads more cinematic than "BALL SNAPPED!"
       c.fillStyle = `rgba(240, 204, 48, ${fade})`;
-      c.font = "900 38px Impact, Arial Black, sans-serif";
-      c.fillText("BALL SNAPPED!", FIELD.W / 2, 60);
+      c.font = "900 64px Impact, Arial Black, sans-serif";
+      c.fillText("HIKE!", FIELD.W / 2, 60);
       // Thin outline for legibility against any field
-      c.strokeStyle = `rgba(0,0,0,${0.7 * fade})`;
-      c.lineWidth = 1.2;
-      c.strokeText("BALL SNAPPED!", FIELD.W / 2, 60);
+      c.strokeStyle = `rgba(0,0,0,${0.85 * fade})`;
+      c.lineWidth = 2;
+      c.strokeText("HIKE!", FIELD.W / 2, 60);
       c.restore();
       return;
     }
     if (t > PRE) return;
     const tt = t / PRE;
+    // ── PRE-SNAP UI — Madden-style formation + cadence overlay ────
+    // Top-left: personnel + formation chip (offense)
+    // Top-right: defensive package chip
+    // Bottom-center: down + distance + yardline summary
+    // Bottom: animated cadence text (READY → SET → HUT)
+    // Faded out at the very end of pre-snap so the snap flash takes over.
+    const uiFade = tt < 0.10 ? tt / 0.10 : tt > 0.88 ? (1 - tt) / 0.12 : 1;
+    if (uiFade > 0.02) {
+      c.save();
+      // Personnel chip (top-left)
+      const personnel = play.personnel || "BASE";
+      const personnelLabel = personnel === "TRIPS"   ? "11 · TRIPS"
+                          : personnel === "SPREAD"   ? "10 · SPREAD"
+                          : personnel === "EMPTY"    ? "00 · EMPTY"
+                          : personnel === "HEAVY"    ? "12 · HEAVY"
+                          : personnel === "SMASH"    ? "21 · SMASH"
+                          : personnel === "I_FORM"   ? "21 · I-FORM"
+                          : personnel === "GOAL_LINE" ? "23 · GOAL LINE"
+                          : `${personnel}`;
+      const chipPadX = 14, chipPadY = 7;
+      c.font = "900 18px sans-serif";
+      const persW = c.measureText(personnelLabel).width + chipPadX * 2;
+      c.globalAlpha = uiFade * 0.92;
+      c.fillStyle = "rgba(0,0,0,0.78)";
+      c.fillRect(16, 92, persW, 28);
+      c.fillStyle = "#ffd54d";
+      c.fillRect(16, 92, 4, 28);  // accent stripe
+      c.fillStyle = "#fff";
+      c.textAlign = "left";
+      c.textBaseline = "middle";
+      c.fillText(personnelLabel, 28, 106);
+      // Defensive package chip (top-right)
+      const defPkg = play.defPackage || "BASE_43";
+      const defLabel = defPkg === "BASE_43" ? "4-3 BASE"
+                     : defPkg === "BASE_34" ? "3-4 BASE"
+                     : defPkg === "NICKEL"  ? "NICKEL"
+                     : defPkg === "DIME"    ? "DIME"
+                     : defPkg === "BLITZ_46" ? "46 BLITZ"
+                     : defPkg === "PREVENT" ? "PREVENT"
+                     : String(defPkg).replace(/_/g," ");
+      const defW = c.measureText(defLabel).width + chipPadX * 2;
+      c.fillStyle = "rgba(0,0,0,0.78)";
+      c.fillRect(FIELD.W - defW - 16, 92, defW, 28);
+      c.fillStyle = "#ff8a4a";
+      c.fillRect(FIELD.W - 20, 92, 4, 28);
+      c.fillStyle = "#fff";
+      c.textAlign = "right";
+      c.fillText(defLabel, FIELD.W - 28, 106);
+      // Cadence text (bottom-center) — READY → SET → HUT timed across pre-snap
+      const cadenceY = FIELD.H - 50;
+      const cadenceLabel = tt < 0.35 ? "READY"
+                        : tt < 0.65 ? "SET"
+                        : tt < 0.92 ? "HUT"
+                        : null;
+      if (cadenceLabel) {
+        c.textAlign = "center";
+        c.textBaseline = "middle";
+        // Pulse on each cadence beat
+        const beatT = cadenceLabel === "READY" ? (tt - 0)    / 0.35
+                    : cadenceLabel === "SET"   ? (tt - 0.35) / 0.30
+                    :                            (tt - 0.65) / 0.27;
+        const beatPulse = Math.min(1, Math.sin(beatT * Math.PI) * 1.2);
+        const cadFade = uiFade * (0.5 + beatPulse * 0.5);
+        c.globalAlpha = cadFade;
+        c.font = `900 ${Math.round(28 + beatPulse * 6)}px Impact, Arial Black, sans-serif`;
+        c.strokeStyle = "rgba(0,0,0,0.85)";
+        c.lineWidth = 3;
+        c.fillStyle = cadenceLabel === "HUT" ? "#ffd54d" : "#fff";
+        c.strokeText(cadenceLabel, FIELD.W / 2, cadenceY);
+        c.fillText(cadenceLabel, FIELD.W / 2, cadenceY);
+      }
+      c.restore();
+    }
     // MOTION! callout — flashes while the receiver is actually jogging across
     if (hasMotion && tt >= 0.40 && tt < 0.78 && !isAudible) {
       c.save();
