@@ -36,7 +36,10 @@ LEAGUE_ID = "591940"
 # league_id can change year-to-year via renew; see fantasy_draft/yahoo.py
 # for the OAuth-based renew walker.
 #
-# Known MONEYLEAGUE league IDs across years (Yahoo re-keys each season):
+# Known MONEYLEAGUE league IDs across years (Yahoo re-keys each season).
+# League moved from Yahoo to Sleeper starting 2023, so we ONLY fetch Yahoo
+# for 2015-2022; 2023+ comes from data/sleeper/. (Yahoo league 591940
+# continued under new owners after 2022 -- not our league.)
 #   2015 = 44369  (game_id 348, named "moneyleague")
 #   2016 = 63644  (game_id 359, named "moneyleague")
 #   2017 = 696645 (game_id 371, named "moneyleague")
@@ -45,9 +48,6 @@ LEAGUE_ID = "591940"
 #   2020 = 64590  (game_id 399, named "moneyleague")
 #   2021 = 60044  (game_id 406, named "moneyleague")
 #   2022 = 591940 (game_id 414, named "moneyleague")
-#   2023 = 591940 (game_id 423)
-#   2024 = 591940 (game_id 449, renamed "Lucky 7")
-# (2025 lives on Sleeper, not Yahoo.)
 SEASON_LEAGUE_IDS: dict[int, str] = {
     2015: "44369",
     2016: "63644",
@@ -57,8 +57,6 @@ SEASON_LEAGUE_IDS: dict[int, str] = {
     2020: "64590",
     2021: "60044",
     2022: "591940",
-    2023: "591940",
-    2024: "591940",
 }
 SEASONS = tuple(sorted(SEASON_LEAGUE_IDS))
 OUT_DIR = Path("data/yahoo")

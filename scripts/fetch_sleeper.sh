@@ -73,7 +73,7 @@ while [ -n "$current" ] && [ "$current" != "0" ] && [ "$current" != "null" ]; do
 import json, os
 drafts = json.load(open(os.path.join("$SEASON_DIR", "drafts.json")))
 ids = [d["draft_id"] for d in drafts if d.get("draft_id")]
-open(os.path.join("$SEASON_DIR", "_draft_ids.txt"), "w").write("\n".join(ids))
+open(os.path.join("$SEASON_DIR", "_draft_ids.txt"), "w").write("\n".join(ids) + "\n")
 PY
 
     while read -r DRAFT_ID; do
