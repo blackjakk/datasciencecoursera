@@ -5674,21 +5674,33 @@ function startNextPlay() {
   // ── Audio cues for this play.
   // Ambient crowd hum runs continuously while plays are advancing; SFX
   // layer on top for individual events.
+  const _kind = play.kind;
+  const _isTD   = _kind === "score" || _kind === "td" || _kind === "rush_td" ||
+                  _kind === "pass_td" || _kind === "kr_td" || _kind === "pr_td" ||
+                  _kind === "fum_td" || _kind === "int_td" || _kind === "two_pt_good" ||
+                  _kind === "fg_good" || _kind === "xp_good";
+  const _isHit  = _kind === "big_hit" || _kind === "ejection" ||
+                  _kind === "fumble" || _kind === "sack";
+  const _isSeg  = _kind === "halftime" || _kind === "quarter" ||
+                  _kind === "ot" || _kind === "two_min_warning";
   if (typeof GCAudio !== "undefined") {
     GCAudio.crowd.start();
-    const kind = play.kind;
-    if (kind === "td" || kind === "rush_td" || kind === "pass_td" ||
-        kind === "kr_td" || kind === "pr_td" || kind === "fum_td" ||
-        kind === "int_td" || kind === "two_pt_good") {
-      GCAudio.play("cheer");
-    } else if (kind === "big_hit" || kind === "ejection") {
-      GCAudio.play("hit");
-    } else if (kind === "halftime" || kind === "quarter" ||
-               kind === "ot" || kind === "two_min_warning") {
-      GCAudio.play("whistle");
-    } else if (kind !== "hc_decision") {
-      // Standard play — short snap cue at the line of scrimmage.
-      GCAudio.play("snap");
+    if (_isTD) GCAudio.play("cheer");
+    else if (_isHit) GCAudio.play("hit");
+    else if (_isSeg) GCAudio.play("whistle");
+    else if (_kind !== "hc_decision") GCAudio.play("snap");
+  }
+  // Visual FX hooks — screen shake on big hits, confetti on TDs. Particle
+  // origin is the canvas center for now; the per-play render code can call
+  // GCFx.dust(x,y) at specific player positions for richer FX in the future.
+  if (typeof GCFx !== "undefined") {
+    if (_isHit) {
+      GCFx.shake(11, 350);
+      GCFx.hitBurst(FIELD.W / 2, (FIELD.TOP + FIELD.BOT) / 2);
+    } else if (_isTD) {
+      GCFx.shake(5, 220);
+      GCFx.confetti(FIELD.W / 2, FIELD.TOP + 40,
+        (play.team === "home" ? gameResult.homeTeam.primary : gameResult.awayTeam.primary), 28);
     }
   }
   // Clear the big-hit cinematic when the play isn't one
@@ -5866,10 +5878,23 @@ function tick(now) {
   const elapsed = now - animState.startTime;
   const t = Math.min(1, elapsed / animState.duration);
   const ctx = $("field").getContext("2d");
+  // FX particle update — advance dust/debris/confetti every frame.
+  if (typeof GCFx !== "undefined") {
+    const dt = animState.lastTickAt ? (now - animState.lastTickAt) : 16.7;
+    animState.lastTickAt = now;
+    GCFx.tick(dt);
+  }
   _frameStartBroadcast();
   try {
     animState.anim.render(t, ctx);
     _frameEndBroadcast();
+    // Particles draw on top of the upright sprites overlay (broadcast cam)
+    // or on the field canvas itself (topdown). _uprightCtx is set by
+    // _frameStartBroadcast in broadcast mode; null in topdown.
+    if (typeof GCFx !== "undefined") {
+      const fxCtx = (typeof _uprightCtx !== "undefined" && _uprightCtx) ? _uprightCtx : ctx;
+      GCFx.draw(fxCtx);
+    }
   } catch (e) {
     console.error('Render error on play', animState.play, e);
   }
