@@ -17,7 +17,7 @@ mkdir -p "$OUT_DIR"
 if [ $# -ge 1 ]; then
     LEAGUE_ID="$1"
 else
-    LEAGUE_ID="$(python -c "import json; print(json.load(open('$ROOT_DIR/configs/my_sleeper.json'))['league_id'])")"
+    LEAGUE_ID="$(python3 -c "import json; print(json.load(open('$ROOT_DIR/configs/my_sleeper.json'))['league_id'])")"
 fi
 
 API="https://api.sleeper.app/v1"
@@ -69,7 +69,7 @@ while [ -n "$current" ] && [ "$current" != "0" ] && [ "$current" != "null" ]; do
     get "$API/league/$current/traded_picks"  "$SEASON_DIR/traded_picks.json" || true
 
     # For each draft in the season, pull picks.
-    python - <<PY
+    python3 - <<PY
 import json, os
 drafts = json.load(open(os.path.join("$SEASON_DIR", "drafts.json")))
 ids = [d["draft_id"] for d in drafts if d.get("draft_id")]
@@ -83,7 +83,7 @@ PY
     done < "$SEASON_DIR/_draft_ids.txt"
 
     # Step backward via previous_league_id.
-    current="$(python -c "import json; d=json.load(open('$LEAGUE_FILE')); print(d.get('previous_league_id') or '')")"
+    current="$(python3 -c "import json; d=json.load(open('$LEAGUE_FILE')); print(d.get('previous_league_id') or '')")"
 
     if [ "$seasons_walked" -ge "$MAX_SEASONS" ]; then
         echo "[stop] reached MAX_SEASONS=$MAX_SEASONS"

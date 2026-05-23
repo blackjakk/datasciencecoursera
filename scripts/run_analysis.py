@@ -25,7 +25,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from fantasy_draft.analysis import (
     keeper_retention_by_position,
     post_cap_dropoff,
-    team_keeper_tendencies,
 )
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -143,7 +142,6 @@ def main() -> None:
     pos_picks = _position_lookup()
     retention = keeper_retention_by_position(XLSX, pos_picks)
     dropoff_raw = post_cap_dropoff(XLSX, pos_picks)
-    tendencies = team_keeper_tendencies(XLSX)
 
     dropoff = _dropoff_for_json(dropoff_raw)
     payload = {
@@ -152,14 +150,6 @@ def main() -> None:
         "retention_by_position": _retention_for_json(retention),
         "post_cap_dropoff": dropoff,
         "forced_drops_2026": _forced_drops_2026(dropoff),
-        "team_tendencies_by_col": {
-            int(col): {
-                "total_keepers_all_years": info["total_keepers_all_years"],
-                "avg_keepers_per_year": round(info["avg_keepers_per_year"], 2),
-                "avg_keeper_round": info["avg_keeper_round"],
-            }
-            for col, info in tendencies.items()
-        },
     }
 
     OUT.write_text(json.dumps(payload, indent=2))

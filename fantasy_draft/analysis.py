@@ -132,16 +132,23 @@ def keeper_retention_by_position(path: str | Path,
             pos_lookup[normalize_name(name)] = p['metadata']['position']
 
     # Count transitions: yr1→yr2, yr2→yr3, yr3→dropped.
+    last_year = max(by_year) if by_year else None
     transitions: dict[str, Counter] = defaultdict(Counter)
     for name, hits in timeline.items():
         pos = pos_lookup.get(name, '?')
         hits.sort()
-        # Walk chronologically; for each year, look at next year to see if continued.
-        for i, (year, yr_n) in enumerate(hits):
+        for year, yr_n in hits:
             if yr_n == 3:
+                # Hit the cap; next-year forced drop is observable regardless
+                # of whether we have next-year data.
                 transitions[pos]['hit_cap'] += 1
                 continue
-            # Did they appear again next year as keeper?
+            if year == last_year:
+                # yr1/yr2 in the most recent year: next year hasn't been
+                # drafted yet, so the continued-vs-dropped transition is
+                # unknowable. Excluding from both numerator and denominator
+                # avoids biasing rates downward by ~1/N.
+                continue
             next_year = year + 1
             next_entry = next(((y, n) for y, n in hits if y == next_year), None)
             if next_entry and next_entry[1] == yr_n + 1:

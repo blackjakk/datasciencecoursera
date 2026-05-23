@@ -1,32 +1,32 @@
 {
-  "generated_at": "2026-05-23T23:38:56+00:00",
+  "generated_at": "2026-05-23T23:42:50+00:00",
   "source": "data/historical/MONEY_LEAGUE.xlsx",
   "retention_by_position": {
     "QB": {
-      "yr1_count": 25,
-      "yr1_to_yr2_pct": 36.0,
-      "yr2_count": 12,
-      "yr2_to_yr3_pct": 33.333333333333336,
+      "yr1_count": 19,
+      "yr1_to_yr2_pct": 47.36842105263158,
+      "yr2_count": 9,
+      "yr2_to_yr3_pct": 44.44444444444444,
       "hit_cap_count": 5
     },
     "RB": {
-      "yr1_count": 44,
-      "yr1_to_yr2_pct": 20.454545454545453,
-      "yr2_count": 19,
-      "yr2_to_yr3_pct": 26.31578947368421,
+      "yr1_count": 38,
+      "yr1_to_yr2_pct": 23.68421052631579,
+      "yr2_count": 16,
+      "yr2_to_yr3_pct": 31.25,
       "hit_cap_count": 8
     },
     "WR": {
-      "yr1_count": 55,
-      "yr1_to_yr2_pct": 25.454545454545453,
-      "yr2_count": 27,
-      "yr2_to_yr3_pct": 29.62962962962963,
+      "yr1_count": 48,
+      "yr1_to_yr2_pct": 29.166666666666668,
+      "yr2_count": 22,
+      "yr2_to_yr3_pct": 36.36363636363637,
       "hit_cap_count": 13
     },
     "TE": {
-      "yr1_count": 18,
-      "yr1_to_yr2_pct": 33.333333333333336,
-      "yr2_count": 6,
+      "yr1_count": 13,
+      "yr1_to_yr2_pct": 46.15384615384615,
+      "yr2_count": 3,
       "yr2_to_yr3_pct": 0.0,
       "hit_cap_count": 2
     }
@@ -192,82 +192,5 @@
       "historical_undrafted_pct": 17.2,
       "median_earlier_round": 2
     }
-  ],
-  "team_tendencies_by_col": {
-    "9": {
-      "total_keepers_all_years": 30,
-      "avg_keepers_per_year": 3.33,
-      "avg_keeper_round": 10.3
-    },
-    "13": {
-      "total_keepers_all_years": 22,
-      "avg_keepers_per_year": 3.14,
-      "avg_keeper_round": 10.3
-    },
-    "2": {
-      "total_keepers_all_years": 15,
-      "avg_keepers_per_year": 3.0,
-      "avg_keeper_round": 9.7
-    },
-    "8": {
-      "total_keepers_all_years": 24,
-      "avg_keepers_per_year": 2.67,
-      "avg_keeper_round": 12.4
-    },
-    "11": {
-      "total_keepers_all_years": 26,
-      "avg_keepers_per_year": 3.25,
-      "avg_keeper_round": 10.9
-    },
-    "12": {
-      "total_keepers_all_years": 24,
-      "avg_keepers_per_year": 3.0,
-      "avg_keeper_round": 9.8
-    },
-    "5": {
-      "total_keepers_all_years": 23,
-      "avg_keepers_per_year": 2.88,
-      "avg_keeper_round": 10.0
-    },
-    "4": {
-      "total_keepers_all_years": 19,
-      "avg_keepers_per_year": 2.71,
-      "avg_keeper_round": 11.5
-    },
-    "7": {
-      "total_keepers_all_years": 23,
-      "avg_keepers_per_year": 2.56,
-      "avg_keeper_round": 11.7
-    },
-    "6": {
-      "total_keepers_all_years": 30,
-      "avg_keepers_per_year": 3.0,
-      "avg_keeper_round": 11.6
-    },
-    "3": {
-      "total_keepers_all_years": 13,
-      "avg_keepers_per_year": 2.17,
-      "avg_keeper_round": 10.3
-    },
-    "10": {
-      "total_keepers_all_years": 17,
-      "avg_keepers_per_year": 2.43,
-      "avg_keeper_round": 11.1
-    },
-    "14": {
-      "total_keepers_all_years": 9,
-      "avg_keepers_per_year": 3.0,
-      "avg_keeper_round": 10.2
-    },
-    "15": {
-      "total_keepers_all_years": 3,
-      "avg_keepers_per_year": 3.0,
-      "avg_keeper_round": 13.0
-    },
-    "1": {
-      "total_keepers_all_years": 3,
-      "avg_keepers_per_year": 3.0,
-      "avg_keeper_round": 11.0
-    }
-  }
+  ]
 }

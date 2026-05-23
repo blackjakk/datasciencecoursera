@@ -633,76 +633,97 @@ with tab_insights:
             "from the repo root."
         )
     else:
-        data = _json.loads(insights_path.read_text())
+        try:
+            data = _json.loads(insights_path.read_text())
+        except Exception as e:
+            st.error(f"Couldn't read {insights_path.name}: {e}")
+            data = {}
+
         st.caption(f"Generated {data.get('generated_at', '?')} from {data.get('source', '?')}")
+
+        # All section accesses use .get() with sensible defaults so a stale
+        # JSON schema (older or newer than this code) degrades gracefully
+        # instead of taking the whole tab down with a KeyError.
+        ret = data.get("retention_by_position", {})
+        dropoff = data.get("post_cap_dropoff", {})
+        forced = data.get("forced_drops_2026", [])
 
         st.subheader("Keeper retention by position")
         st.caption(
             "Of all yr1 keepers at this position, what % became yr2 keepers? "
             "Same for yr2→yr3. Higher retention = the position holds value "
-            "across years, so paying the round-penalty premium pays off."
+            "across years, so paying the round-penalty premium pays off. "
+            "Most-recent year (e.g. 2025) is excluded from yr1/yr2 transitions "
+            "because next-year fate is unknowable until the next draft happens."
         )
-        ret = data["retention_by_position"]
         ret_rows = []
         for pos in ("QB", "RB", "WR", "TE"):
-            d = ret.get(pos, {})
+            d = ret.get(pos) or {}
+            y12 = d.get("yr1_to_yr2_pct")
+            y23 = d.get("yr2_to_yr3_pct")
             ret_rows.append({
                 "Pos": pos,
                 "Yr1 keepers (n)": d.get("yr1_count", 0),
-                "Yr1 → Yr2": f"{d['yr1_to_yr2_pct']:.0f}%" if d.get("yr1_to_yr2_pct") is not None else "—",
+                "Yr1 → Yr2": f"{y12:.0f}%" if y12 is not None else "—",
                 "Yr2 keepers (n)": d.get("yr2_count", 0),
-                "Yr2 → Yr3": f"{d['yr2_to_yr3_pct']:.0f}%" if d.get("yr2_to_yr3_pct") is not None else "—",
+                "Yr2 → Yr3": f"{y23:.0f}%" if y23 is not None else "—",
                 "Hit cap (yr3)": d.get("hit_cap_count", 0),
             })
         st.dataframe(pd.DataFrame(ret_rows), use_container_width=True, hide_index=True)
 
         st.subheader("What happens after the 3-year cap")
-        d = data["post_cap_dropoff"]
+        fates = dropoff.get("fates", {})
+        total_capped = dropoff.get("total_capped", 0)
         c1, c2, c3, c4, c5 = st.columns(5)
-        c1.metric("Capped players", d["total_capped"])
-        c2.metric("Re-drafted EARLIER", d["fates"].get("redrafted_earlier", 0))
-        c3.metric("Same round", d["fates"].get("redrafted_same_round", 0))
-        c4.metric("Re-drafted later", d["fates"].get("redrafted_later", 0))
-        c5.metric("Undrafted next year", d["fates"].get("undrafted_next_year", 0))
-        earlier_n = d["fates"].get("redrafted_earlier", 0)
-        total = d["total_capped"] or 1
-        st.markdown(
-            f"**{100 * earlier_n / total:.0f}%** of forced-out players came back "
-            f"in an *earlier* round the next year — forced drops are typically "
-            f"high-value early-round targets, not discards."
-        )
-        if d["earlier_round_distribution"]:
-            rounds = d["earlier_round_distribution"]
+        c1.metric("Capped players", total_capped)
+        c2.metric("Re-drafted EARLIER", fates.get("redrafted_earlier", 0))
+        c3.metric("Same round", fates.get("redrafted_same_round", 0))
+        c4.metric("Re-drafted later", fates.get("redrafted_later", 0))
+        c5.metric("Undrafted next year", fates.get("undrafted_next_year", 0))
+        earlier_n = fates.get("redrafted_earlier", 0)
+        if total_capped:
+            st.markdown(
+                f"**{100 * earlier_n / total_capped:.0f}%** of forced-out "
+                f"players came back in an *earlier* round the next year — "
+                f"forced drops are typically high-value early-round targets, "
+                f"not discards."
+            )
+        rounds = dropoff.get("earlier_round_distribution") or []
+        if rounds:
             median = rounds[len(rounds) // 2]
             st.caption(
                 f"Re-draft round distribution (for the {len(rounds)} who came "
                 f"back earlier): min R{rounds[0]}, median R{median}, max R{rounds[-1]}."
             )
-        with st.expander(f"Recent examples ({len(d['examples_redrafted_earlier'])})"):
-            ex_rows = [{
-                "Year capped": e["year"],
-                "Player": e["player"],
-                "Pos": e["position"],
-                "Kept at": f"R{e['kept_round']}",
-                "Re-drafted at": f"R{e['next_year_round']}",
-            } for e in d["examples_redrafted_earlier"]]
-            st.dataframe(pd.DataFrame(ex_rows), use_container_width=True, hide_index=True)
+        examples = dropoff.get("examples_redrafted_earlier") or []
+        if examples:
+            with st.expander(f"Recent examples ({len(examples)})"):
+                ex_rows = [{
+                    "Year capped": e.get("year"),
+                    "Player": e.get("player"),
+                    "Pos": e.get("position", "?"),
+                    "Kept at": f"R{e.get('kept_round')}",
+                    "Re-drafted at": f"R{e.get('next_year_round')}",
+                } for e in examples]
+                st.dataframe(pd.DataFrame(ex_rows), use_container_width=True, hide_index=True)
 
-        st.subheader("2026 forced drops — re-draft prior")
-        st.caption(
-            "This year's 3 forced drops (yr3 cap), with the historical prior "
-            "for where post-cap players tend to land. Plan to draft these "
-            "early — most teams will."
-        )
-        fd_rows = [{
-            "Player": f["player"],
-            "Pos": f["position"],
-            "2025 round": f"R{f['prior_round']}",
-            "P(redrafted earlier)": f"{f['historical_redraft_earlier_pct']:.0f}%",
-            "P(undrafted)": f"{f['historical_undrafted_pct']:.0f}%",
-            "Median earlier round": f"R{f['median_earlier_round']}" if f["median_earlier_round"] else "—",
-        } for f in data["forced_drops_2026"]]
-        st.dataframe(pd.DataFrame(fd_rows), use_container_width=True, hide_index=True)
+        if forced:
+            st.subheader("2026 forced drops — re-draft prior")
+            st.caption(
+                "This year's forced drops (yr3 cap), with the historical "
+                "prior for where post-cap players tend to land. Plan to "
+                "draft these early — most teams will."
+            )
+            fd_rows = [{
+                "Player": f.get("player"),
+                "Pos": f.get("position", "?"),
+                "2025 round": f"R{f.get('prior_round', '?')}",
+                "P(redrafted earlier)": f"{f.get('historical_redraft_earlier_pct', 0):.0f}%",
+                "P(undrafted)": f"{f.get('historical_undrafted_pct', 0):.0f}%",
+                "Median earlier round": (f"R{f['median_earlier_round']}"
+                                          if f.get("median_earlier_round") else "—"),
+            } for f in forced]
+            st.dataframe(pd.DataFrame(fd_rows), use_container_width=True, hide_index=True)
 
 
 def _show_final(draft: Draft):
