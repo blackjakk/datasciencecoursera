@@ -3335,6 +3335,94 @@ function _backfillDepthChart() {
 }
 
 // Backfill pid onto any player object that doesn't have one (legacy saves).
+// ── Injury repair migration ──────────────────────────────────────────────
+// Old saves carry these specific bugs:
+//   (a) `p.injury` set but no matching injuryHistory entry this season —
+//       the pre-fix mid-game injury path didn't always log the history row,
+//       so onset display reads as blank and recovery tracking is broken.
+//   (b) `weeksRemaining` exceeds the maximum duration for that injury type
+//       (e.g., a torn ACL with 50w remaining — engine never ticked properly).
+//   (c) `p.injury` is set with weeksRemaining = 0 — was supposed to clear
+//       at recovery but didn't on the old code path.
+//   (d) Cross-season orphan: `p.injury` from a prior season that should
+//       have rehabbed away during offseason but didn't (no offseason tick).
+//
+// One-shot, gated by `franchise._injuriesRepaired_v1`. Stashes the result
+// list on `franchise._injuryRepairReport` so the UI can surface it once.
+const _INJURY_MAX_WEEKS = {
+  "torn ACL": 24, "chronic concussion syndrome": 16, "labrum tear": 20,
+  "Lisfranc fracture": 18, "torn achilles": 32, "chronic hamstring": 6,
+  "concussion": 8, "hamstring": 6, "ankle sprain": 6, "knee": 12,
+  "shoulder": 6, "rib": 4, "back": 5, "groin": 4, "calf": 5,
+  "wrist": 4, "hand": 3, "neck": 6, "abdomen": 4, "achilles": 16,
+};
+function _repairInjuries() {
+  if (!franchise || franchise._injuriesRepaired_v1) return;
+  const fixes = [];
+  for (const [tidStr, roster] of Object.entries(franchise.rosters || {})) {
+    for (const p of roster) {
+      if (!p?.injury) continue;
+      const wr = p.injury.weeksRemaining;
+      // (c) Active injury with weeksRemaining = 0 → clear (recovery missed)
+      if (wr != null && wr <= 0) {
+        fixes.push({ name: p.name, pos: p.position, kind: "stale-zero", label: p.injury.label });
+        p.injury = null;
+        continue;
+      }
+      // (b) Implausibly long remaining → cap at catalog max
+      const catMax = _INJURY_MAX_WEEKS[p.injury.label] || 24;
+      if (wr > catMax + 8) {
+        const before = wr;
+        p.injury.weeksRemaining = catMax;
+        fixes.push({ name: p.name, pos: p.position, kind: "capped", label: p.injury.label, from: before, to: catMax });
+      }
+      // (a) + (d) Inspect injuryHistory for a matching entry this season
+      const hist = p.injuryHistory || [];
+      const thisSeasonMatch = hist.find(h =>
+        h.season === franchise.season && h.label === p.injury.label);
+      if (!thisSeasonMatch) {
+        // Could be a prior-season carryover that never cleared (d), OR a
+        // pre-fix mid-game injury where the history row was lost (a).
+        const priorMatch = [...hist].reverse().find(h => h.label === p.injury.label);
+        const seasonsAgo = priorMatch?.season != null
+          ? (franchise.season || 1) - priorMatch.season : null;
+        if (seasonsAgo != null && seasonsAgo >= 1) {
+          // Prior-season match: this should have rehabbed across the
+          // offseason. Clear the injury and apply rehab penalty as if
+          // it had completed naturally.
+          fixes.push({ name: p.name, pos: p.position, kind: "cleared-prior", label: p.injury.label, seasonsAgo });
+          if (typeof _applyRehabPenalty === "function") {
+            try { _applyRehabPenalty(p, Number(tidStr), !!p.injury._catastrophic); }
+            catch (_e) {}
+          }
+          p.injury = null;
+        } else {
+          // No history match at all — backfill a synthetic onset entry
+          // anchored at current week so the banner can display something.
+          p.injuryHistory = hist;
+          p.injuryHistory.push({
+            label: p.injury.label, week: franchise.week || 1,
+            season: franchise.season || 1,
+            weeks: p.injury.weeksRemaining,
+            catastrophic: !!p.injury._catastrophic,
+            careerEnding: !!p.injury._careerEnding,
+            cause: "unknown",
+            _backfilled: true,
+          });
+          fixes.push({ name: p.name, pos: p.position, kind: "backfilled-history", label: p.injury.label });
+        }
+      }
+    }
+  }
+  franchise._injuriesRepaired_v1 = true;
+  if (fixes.length) {
+    franchise._injuryRepairReport = {
+      fixes, total: fixes.length, repairedAtSeason: franchise.season,
+      seenByUser: false,
+    };
+  }
+}
+
 function _backfillPlayerPids() {
   if (!franchise) return;
   const seen = new Set();
@@ -3604,7 +3692,7 @@ function loadFranchise() {
     if (raw) {
       franchise = JSON.parse(raw);
       if (franchise && franchise.pendingFranchiseGame) franchise.pendingFranchiseGame = null;
-      _backfillPlayerPids(); _backfillTEC(); _backfillCoachingStaff(); _backfillCoachable(); _backfillPhysicalPeak(); _backfillStamina(); _backfillDepthChart(); if(typeof _backfillCollegePipeline==="function")_backfillCollegePipeline(); if(typeof _backfillSeasonScout==="function")_backfillSeasonScout(); if(typeof _backfillPinnedProspects==="function")_backfillPinnedProspects();
+      _backfillPlayerPids(); _backfillTEC(); _backfillCoachingStaff(); _backfillCoachable(); _backfillPhysicalPeak(); _backfillStamina(); _backfillDepthChart(); if(typeof _backfillCollegePipeline==="function")_backfillCollegePipeline(); if(typeof _backfillSeasonScout==="function")_backfillSeasonScout(); if(typeof _backfillPinnedProspects==="function")_backfillPinnedProspects(); _repairInjuries();
       // Race the IDB read — if IDB has a newer save (lastSaved timestamp via
       // _saveLastFlush on franchise), use it. Otherwise keep the sync result.
       _idbGet(slotId).then(idbFranchise => {
@@ -3614,7 +3702,7 @@ function loadFranchise() {
         if (idbTime > lsTime) {
           franchise = idbFranchise;
           if (franchise.pendingFranchiseGame) franchise.pendingFranchiseGame = null;
-          _backfillPlayerPids(); _backfillTEC(); _backfillCoachingStaff(); _backfillCoachable(); _backfillPhysicalPeak(); _backfillStamina(); _backfillDepthChart(); if(typeof _backfillCollegePipeline==="function")_backfillCollegePipeline(); if(typeof _backfillSeasonScout==="function")_backfillSeasonScout(); if(typeof _backfillPinnedProspects==="function")_backfillPinnedProspects();
+          _backfillPlayerPids(); _backfillTEC(); _backfillCoachingStaff(); _backfillCoachable(); _backfillPhysicalPeak(); _backfillStamina(); _backfillDepthChart(); if(typeof _backfillCollegePipeline==="function")_backfillCollegePipeline(); if(typeof _backfillSeasonScout==="function")_backfillSeasonScout(); if(typeof _backfillPinnedProspects==="function")_backfillPinnedProspects(); _repairInjuries();
           if (typeof showFranchiseDashboard === "function") showFranchiseDashboard();
         }
       }).catch(() => {});
@@ -3625,7 +3713,7 @@ function loadFranchise() {
         if (!idbFranchise) return;
         franchise = idbFranchise;
         if (franchise.pendingFranchiseGame) franchise.pendingFranchiseGame = null;
-        _backfillPlayerPids(); _backfillTEC(); _backfillCoachingStaff(); _backfillCoachable(); _backfillPhysicalPeak(); _backfillStamina(); _backfillDepthChart(); if(typeof _backfillCollegePipeline==="function")_backfillCollegePipeline(); if(typeof _backfillSeasonScout==="function")_backfillSeasonScout(); if(typeof _backfillPinnedProspects==="function")_backfillPinnedProspects();
+        _backfillPlayerPids(); _backfillTEC(); _backfillCoachingStaff(); _backfillCoachable(); _backfillPhysicalPeak(); _backfillStamina(); _backfillDepthChart(); if(typeof _backfillCollegePipeline==="function")_backfillCollegePipeline(); if(typeof _backfillSeasonScout==="function")_backfillSeasonScout(); if(typeof _backfillPinnedProspects==="function")_backfillPinnedProspects(); _repairInjuries();
         if (typeof showFranchiseDashboard === "function") showFranchiseDashboard();
       }).catch(() => {});
     }

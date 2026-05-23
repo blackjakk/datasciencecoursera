@@ -4,6 +4,9 @@ function showFranchiseDashboard() {
   try { frnHoverTipHide && frnHoverTipHide(); } catch {}
   try { _frnHoverTipPgHide && _frnHoverTipPgHide(); } catch {}
   if (!franchise) { renderFrnStartScreen(); return; }
+  // Surface the injury-repair report after _repairInjuries ran on load.
+  // Shown once per save (gated by report.seenByUser).
+  try { _showInjuryRepairBanner(); } catch (_e) {}
   // Defensive defaults for older saves missing newer fields
   if (!franchise.phase)            franchise.phase = "regular";
   if (!franchise.seasonStats)      franchise.seasonStats = {};
@@ -223,6 +226,62 @@ function showFranchiseDashboard() {
           <button class="btn btn-gold" onclick="frnStartNew()">+ Start New Franchise</button>
         </div>
       </div>`;
+  }
+}
+
+// One-shot toast for the injury-repair migration. Reads
+// franchise._injuryRepairReport (populated by _repairInjuries on load),
+// renders a non-blocking banner across the bottom of the screen, and
+// stamps seenByUser when the user clicks Dismiss.
+function _showInjuryRepairBanner() {
+  if (!franchise?._injuryRepairReport) return;
+  const rep = franchise._injuryRepairReport;
+  if (rep.seenByUser) return;
+  if (document.getElementById("frn-injury-repair-toast")) return; // already up
+  const KIND_LABEL = {
+    "stale-zero":         "cleared (already healed)",
+    "capped":             "duration capped to catalog max",
+    "cleared-prior":      "prior-season carry-over cleared",
+    "backfilled-history": "onset week backfilled",
+  };
+  const rows = rep.fixes.slice(0, 50).map(f => {
+    const detail = f.kind === "capped" ? ` ${f.from}w → ${f.to}w`
+                 : f.kind === "cleared-prior" && f.seasonsAgo ? ` (${f.seasonsAgo}+ seasons stale)`
+                 : "";
+    return `<div style="display:flex;justify-content:space-between;gap:.6rem;padding:.18rem 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:.62rem">
+      <span><b style="color:var(--white)">${f.pos} ${f.name}</b> <span style="color:var(--gray)">· ${f.label}</span></span>
+      <span style="color:var(--gold);font-size:.58rem">${KIND_LABEL[f.kind] || f.kind}${detail}</span>
+    </div>`;
+  }).join("");
+  const more = rep.fixes.length > 50 ? `<div style="font-size:.6rem;color:var(--gray);text-align:center;padding:.3rem">…and ${rep.fixes.length - 50} more</div>` : "";
+  const el = document.createElement("div");
+  el.id = "frn-injury-repair-toast";
+  el.style.cssText = "position:fixed;right:1rem;bottom:1rem;width:min(420px,90vw);max-height:60vh;background:var(--bg2);border:2px solid var(--gold);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.5);z-index:9000;font-family:inherit;overflow:hidden;display:flex;flex-direction:column";
+  el.innerHTML = `
+    <div style="background:rgba(200,169,0,.16);padding:.55rem .7rem;border-bottom:1px solid var(--gold);display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+      <div>
+        <div style="font-size:.85rem;font-weight:900;color:var(--gold);letter-spacing:.5px">🩹 SAVE MIGRATION</div>
+        <div style="font-size:.6rem;color:var(--gray);margin-top:.1rem">Cleaned ${rep.total} stale injury record${rep.total===1?"":"s"} from before the engine fix.</div>
+      </div>
+      <button onclick="frnDismissInjuryRepair()"
+        style="background:var(--gold);color:#000;border:none;border-radius:3px;padding:.25rem .55rem;font-weight:700;font-size:.65rem;cursor:pointer;font-family:inherit">
+        Got it
+      </button>
+    </div>
+    <div style="overflow-y:auto;padding:.4rem .7rem">
+      ${rows}${more}
+    </div>
+    <div style="padding:.35rem .7rem;font-size:.55rem;color:var(--gray);background:var(--bg3);border-top:1px solid var(--border);flex-shrink:0">
+      These were repaired in-place. New games run on the current engine rules.
+    </div>`;
+  document.body.appendChild(el);
+}
+function frnDismissInjuryRepair() {
+  const el = document.getElementById("frn-injury-repair-toast");
+  if (el) el.remove();
+  if (franchise?._injuryRepairReport) {
+    franchise._injuryRepairReport.seenByUser = true;
+    saveFranchise();
   }
 }
 
