@@ -26,6 +26,7 @@ const GCField = (() => {
   let _bg = null;               // PIXI.Container — static field background
   let _dynGlow = null;          // PIXI.Graphics — wider blurred LOS/FD halo
   let _dynG = null;             // PIXI.Graphics — sharp LOS + FD line
+  let _shadowG = null;          // PIXI.Graphics — Phase 3.1 per-frame player drop shadows
   let _attachedTo = null;       // Canvas element we attached to
   let _lastRenderKey = "";      // Cache key: "homeId|awayId" — re-render on team change
   let _lastDynKey = "";         // Last (los, firstDownAbs, possColor) — skip rerender if same
@@ -57,6 +58,12 @@ const GCField = (() => {
       });
       _bg = new PIXI.Container();
       _app.stage.addChild(_bg);
+      // Phase 3.1 player drop shadows — sits ABOVE the static field
+      // (so shadows print on the grass) but BELOW the dynamic LOS line
+      // so the chalk overlays them. Cleared + redrawn per frame as
+      // each player's drawPlayer call appends an ellipse.
+      _shadowG = new PIXI.Graphics();
+      _app.stage.addChild(_shadowG);
       // Per-frame dynamic graphics (LOS, FD line). Two layers: a wider
       // blurred "glow" under the sharp line. Looks like Madden's
       // broadcast first-down line — crisp on top, soft halo beneath.
@@ -345,5 +352,37 @@ const GCField = (() => {
     return !!_app;
   }
 
-  return { ensure, draw, drawDynamic, active };
+  // ── Phase 3.1 — Player drop shadows ──
+  // drawField calls clearShadows() once per frame; drawPlayer calls
+  // addShadow(x, y, bulk, scale) per player. Net result: a single PIXI
+  // Graphics batches every player's shadow into one WebGL draw call
+  // (much cheaper than canvas2D per-player radial gradients).
+  function clearShadows() {
+    if (!_shadowG) return;
+    _shadowG.clear();
+  }
+  function addShadow(x, y, bulk, scale) {
+    if (!_shadowG) return;
+    // Same geometry the canvas2D shadow used:
+    //   shR  = 9.0 + bulk * 0.9   (horizontal radius)
+    //   shY  = footYLocal + 0.8
+    //   ellipse(0, shY, shR, 2.4) scaled by totalScale, translated to (x,y).
+    // Caller passes the WORLD coords (x, y) which is the player's planted
+    // foot point. Bulk + scale come from body-type. We approximate the
+    // canvas2D radial-gradient penumbra with two concentric ellipses:
+    // dark inner + softer outer.
+    const totalScale = scale || 1;
+    const shR = (9.0 + (bulk || 0) * 0.9) * totalScale;
+    const shY = 2.4 * totalScale * 0.4;   // small offset toward feet
+    const cx = x;
+    const cy = y + shY;
+    _shadowG.beginFill(0x000000, 0.38);
+    _shadowG.drawEllipse(cx, cy, shR, 2.4 * totalScale);
+    _shadowG.endFill();
+    _shadowG.beginFill(0x000000, 0.20);
+    _shadowG.drawEllipse(cx, cy, shR * 1.35, 2.4 * totalScale * 1.35);
+    _shadowG.endFill();
+  }
+
+  return { ensure, draw, drawDynamic, active, clearShadows, addShadow };
 })();

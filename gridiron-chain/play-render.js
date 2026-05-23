@@ -32,6 +32,9 @@ function drawField(ctx, homeTeam, awayTeam, ctx_state) {
   const _pixiField = (typeof GCField !== "undefined") && GCField.active();
   if (_pixiField) {
     GCField.draw(homeTeam, awayTeam);
+    // Phase 3.1 — clear the per-frame player drop shadows here so each
+    // drawPlayer call this frame can append fresh shadows.
+    GCField.clearShadows();
     // Skip the base grass + mowing band fill — PIXI provides those.
   } else {
     // Base grass (slightly darker than mowing bands so sidelines read as a deeper green)
@@ -950,26 +953,33 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
   // ── GROUND DECALS — drawn at the player's planted (x, y) WITHOUT bodyDY or
   // body rotation, so they stay flat on the field even when the player ragdolls
   // on a tackle. Like Madden's star marker that acts as a ground shadow.
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(totalScale, totalScale);
-  // Drop shadow at foot height — radial gradient gives a soft penumbra
-  // edge instead of a hard ellipse, so the player reads as planted with
-  // ambient depth (stadium lights from above) rather than glued onto the
-  // grass. Slightly larger than the body silhouette for visible spread.
-  {
-    const shR = 9.0 + bt.bulk * 0.9;            // horizontal radius
-    const shY = footYLocal + 0.8;
-    const shadowGrad = ctx.createRadialGradient(0, shY, 0.4, 0, shY, shR);
-    shadowGrad.addColorStop(0,    "rgba(0,0,0,0.55)");
-    shadowGrad.addColorStop(0.55, "rgba(0,0,0,0.30)");
-    shadowGrad.addColorStop(1,    "rgba(0,0,0,0)");
-    ctx.fillStyle = shadowGrad;
-    ctx.beginPath();
-    ctx.ellipse(0, shY, shR, 2.4, 0, 0, Math.PI * 2);
-    ctx.fill();
+  // Phase 3.1 — when PIXI field is active, drop shadow is batched into a
+  // single PIXI Graphics by GCField.addShadow (one WebGL draw call for all
+  // 22 players instead of 22 canvas2D radial gradients).
+  const _shadowToPixi = (typeof GCField !== "undefined") && GCField.active();
+  if (_shadowToPixi) {
+    // Pass the world-space planted position + bulk/scale; PIXI draws
+    // the ellipse in the same coord system as the static field.
+    const footWorldY = y + (footYLocal + 0.8) * totalScale;
+    GCField.addShadow(x, footWorldY, bt.bulk, totalScale);
+  } else {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(totalScale, totalScale);
+    {
+      const shR = 9.0 + bt.bulk * 0.9;            // horizontal radius
+      const shY = footYLocal + 0.8;
+      const shadowGrad = ctx.createRadialGradient(0, shY, 0.4, 0, shY, shR);
+      shadowGrad.addColorStop(0,    "rgba(0,0,0,0.55)");
+      shadowGrad.addColorStop(0.55, "rgba(0,0,0,0.30)");
+      shadowGrad.addColorStop(1,    "rgba(0,0,0,0)");
+      ctx.fillStyle = shadowGrad;
+      ctx.beginPath();
+      ctx.ellipse(0, shY, shR, 2.4, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
   }
-  ctx.restore();
 
   // ── BODY — animated/rotated/translated as before.
   ctx.save();
