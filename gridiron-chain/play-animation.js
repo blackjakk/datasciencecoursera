@@ -5767,6 +5767,17 @@ function startNextPlay() {
                   : "TOUCHDOWN";
         GCFx.chyron(scorer, tag, teamColor, 3400);
       }
+    } else if (_kind === "drive_summary") {
+      // Drive recap chyron — shows plays / yards / TOP / result.
+      const plays = play.drivePlays || 0;
+      const yds   = play.driveYards != null ? play.driveYards : 0;
+      const ts    = play.driveTime != null
+        ? `${Math.floor(play.driveTime / 60)}:${String(Math.floor(play.driveTime % 60)).padStart(2, "0")}`
+        : "";
+      const result = (play.driveResult || "").toUpperCase();
+      const title = result || "DRIVE";
+      const sub   = `${plays} PLAYS · ${yds} YDS${ts ? " · " + ts : ""}`;
+      GCFx.chyron(title, sub, null, 3200);
     } else if (_isBigPlay && play.kind === "sack") {
       const sacker = play.tackler || play.sackBy;
       if (sacker) GCFx.chyron(sacker, "SACK", null, 2800);
