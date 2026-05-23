@@ -32,7 +32,13 @@ from fantasy_draft.players import load_players  # noqa: E402
 from fantasy_draft.predict import score_candidates_for_team  # noqa: E402
 from fantasy_draft.recommend import recommend  # noqa: E402
 from fantasy_draft.simulate import availability_distribution  # noqa: E402
-from fantasy_draft.sleeper_offline import history_from_offline, league_from_offline  # noqa: E402
+from fantasy_draft.sleeper_offline import (  # noqa: E402
+    history_from_offline,
+    league_from_offline,
+    current_rosters_from_offline,
+    traded_away_rounds_from_offline,
+)
+from fantasy_draft.trades import apply_trades, load_trades_from_sleeper_dump  # noqa: E402
 from fantasy_draft.vbd import compute_vbd_post_keepers  # noqa: E402
 from fantasy_draft.history import consolidate_years_kept, detect_keepers_by_adp  # noqa: E402
 
@@ -52,6 +58,8 @@ def _init_state():
     s.setdefault("by_season", {})            # historical picks by year
     s.setdefault("predicted_keepers", {})    # {team_id: [KeeperPrediction]}
     s.setdefault("applied_keepers", [])      # actual keepers used in this draft
+    s.setdefault("current_rosters", {})      # team_id -> [(player_name, position)]
+    s.setdefault("traded_picks", [])         # list[TradedPick]
     s.setdefault("my_team_idx", 0)
     s.setdefault("sleeper_dump_path", str(ROOT / "data" / "sleeper"))
     s.setdefault("league_path", str(ROOT / "configs" / "superflex_12.json"))
@@ -95,9 +103,17 @@ with tab_setup:
                         round_penalty=2, max_years_consecutive=3,
                     )
                     by_season = history_from_offline(st.session_state.sleeper_dump_path)
+                    rosters = current_rosters_from_offline(st.session_state.sleeper_dump_path)
+                    trades = load_trades_from_sleeper_dump(st.session_state.sleeper_dump_path)
                     st.session_state.league = cfg
                     st.session_state.by_season = by_season
-                    st.success(f"Loaded **{cfg.name}** with {len(by_season)} season(s) of history")
+                    st.session_state.current_rosters = rosters
+                    st.session_state.traded_picks = trades
+                    st.success(
+                        f"Loaded **{cfg.name}** with {len(by_season)} season(s) of history, "
+                        f"{sum(len(r) for r in rosters.values())} players across rosters, "
+                        f"{len(trades)} traded picks."
+                    )
                 except FileNotFoundError as e:
                     st.error(f"Couldn't find the dump: {e}. "
                              f"Run `scripts/fetch_sleeper.sh` first.")
@@ -187,9 +203,20 @@ with tab_keepers:
             # predicting). Use the standard VBD pass on all players.
             from fantasy_draft.vbd import compute_vbd
             compute_vbd(players, league)
+            # Build traded-away-rounds map for THIS year (after the last
+            # completed draft, picks have been swapped via trades).
+            traded_away: dict[str, set[int]] = {}
+            for t in st.session_state.traded_picks:
+                if t.original_team_idx == t.new_team_idx:
+                    continue
+                team_id = str(t.original_team_idx + 1)
+                traded_away.setdefault(team_id, set()).add(t.round_num)
+
             preds = predict_keepers_for_league(
                 by_season[last_season], players, league,
                 max_keepers=league.keepers.max_keepers_per_team or 4,
+                current_rosters=st.session_state.current_rosters or None,
+                traded_away_rounds=traded_away or None,
             )
             st.session_state.predicted_keepers = preds
 
@@ -242,8 +269,12 @@ with tab_draft:
         )
         st.session_state.my_team_idx = int(my_idx)
     with col_b:
-        if st.button("New draft", help="Reset board and apply predicted keepers"):
+        if st.button("New draft", help="Reset board, apply trades, then keepers"):
             draft = Draft.new(league)
+            # Apply traded picks BEFORE keepers, so keeper walk-forward sees
+            # the correct ownership state.
+            for line in apply_trades(draft, st.session_state.traded_picks):
+                st.text(line)
             # Use predicted keepers if available; otherwise empty.
             preds = st.session_state.predicted_keepers
             applied: list[Keeper] = []

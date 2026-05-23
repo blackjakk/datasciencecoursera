@@ -74,14 +74,21 @@ def predict_team_keepers(
     league: LeagueConfig,
     max_keepers: int = 4,
     vbd_curve: dict[int, float] | None = None,
+    team_owned_rounds: set[int] | None = None,
 ) -> list[KeeperPrediction]:
     """Rank a single team's keeper options. Returns ALL eligible candidates
     ordered by net_value descending; the top `max_keepers` are the predicted
     keepers but the rest are useful context (bubble decisions).
+
+    `team_owned_rounds`: rounds the team still owns picks in (used when
+    forfeit_round has been traded away — we walk forward to the next owned
+    round). If None, assume the team owns every round.
     """
     rules = league.keepers
     if vbd_curve is None:
         vbd_curve = expected_vbd_curve(players_with_vbd, league)
+
+    owned = team_owned_rounds if team_owned_rounds is not None else set(range(1, league.rounds + 1))
 
     by_name = {_normalize(p.name): p for p in players_with_vbd}
     candidates: list[KeeperPrediction] = []
@@ -94,11 +101,19 @@ def predict_team_keepers(
         if rules.max_years_consecutive and pick.years_kept >= rules.max_years_consecutive:
             continue
 
-        forfeit_round = pick.round_num - rules.round_penalty
-        if forfeit_round <= 0:
+        natural_forfeit = pick.round_num - rules.round_penalty
+        if natural_forfeit <= 0:
             if rules.too_early_policy != "forfeit_next_year_first":
                 continue
-            forfeit_round = 1  # crude approximation; cost still applied
+            natural_forfeit = 1
+
+        # Walk forward from natural forfeit round to the next owned round.
+        forfeit_round = next(
+            (r for r in range(natural_forfeit, league.rounds + 1) if r in owned),
+            None,
+        )
+        if forfeit_round is None:
+            continue  # team has no pick at or after the forfeit round
 
         expected_vbd = vbd_curve.get(forfeit_round, 0.0)
         net = player.vbd - expected_vbd
@@ -140,8 +155,18 @@ def predict_keepers_for_league(
     players_with_vbd: list[Player],
     league: LeagueConfig,
     max_keepers: int = 4,
+    current_rosters: dict[str, list[tuple[str, str]]] | None = None,
+    traded_away_rounds: dict[str, set[int]] | None = None,
 ) -> dict[str, list[KeeperPrediction]]:
     """Predict keepers for every team that appeared in last year's draft.
+
+    current_rosters: {team_id: [(player_name, position), ...]} — the team's
+        current roster. Any player here NOT in last_draft is treated as a
+        waiver pickup at prior_round = league.rounds (last-round cost).
+
+    traded_away_rounds: {team_id: {round_num, ...}} — rounds the team has
+        traded away this year. If a keeper's natural forfeit round is in
+        this set, we walk forward to the next owned round.
 
     Returns {team_id: [KeeperPrediction sorted by net_value desc]}.
     """
@@ -149,12 +174,42 @@ def predict_keepers_for_league(
     for pick in last_draft:
         by_team.setdefault(pick.team_id, []).append(pick)
 
+    # Synthesize waiver "picks" at last round.
+    if current_rosters:
+        drafted_by_team: dict[str, set[str]] = {
+            tid: {_normalize(p.player_name) for p in picks}
+            for tid, picks in by_team.items()
+        }
+        for tid, roster in current_rosters.items():
+            already = drafted_by_team.get(tid, set())
+            team_name = by_team[tid][0].team_name if tid in by_team and by_team[tid] else tid
+            for name, pos in roster:
+                if _normalize(name) in already:
+                    continue
+                by_team.setdefault(tid, []).append(HistoricalDraftPick(
+                    season=0,
+                    overall_pick=0,
+                    round_num=league.rounds,         # waiver -> treated as last-round pick
+                    pick_in_round=0,
+                    team_id=tid,
+                    team_name=team_name,
+                    player_name=name,
+                    player_position=pos,
+                    is_keeper=False,
+                    source="waiver",
+                ))
+
     curve = expected_vbd_curve(players_with_vbd, league)
-    return {
-        team_id: predict_team_keepers(roster, players_with_vbd, league,
-                                       max_keepers=max_keepers, vbd_curve=curve)
-        for team_id, roster in by_team.items()
-    }
+    out: dict[str, list[KeeperPrediction]] = {}
+    for team_id, roster in by_team.items():
+        traded = traded_away_rounds.get(team_id, set()) if traded_away_rounds else set()
+        owned = {r for r in range(1, league.rounds + 1) if r not in traded}
+        out[team_id] = predict_team_keepers(
+            roster, players_with_vbd, league,
+            max_keepers=max_keepers, vbd_curve=curve,
+            team_owned_rounds=owned,
+        )
+    return out
 
 
 def _stdev(xs: list[float]) -> float:

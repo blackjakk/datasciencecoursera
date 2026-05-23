@@ -54,6 +54,66 @@ def league_from_offline(root: str | Path, target_league_id: str | None = None,
                                       max_years_consecutive=max_years_consecutive)
 
 
+def current_rosters_from_offline(
+    root: str | Path,
+    league_id: str | None = None,
+) -> dict[str, list[tuple[str, str]]]:
+    """team_id -> [(player_name, position), ...] for the requested season.
+
+    If league_id is None, use the most-recent dumped league.
+    """
+    root = Path(root)
+    chosen = None
+    chosen_season = -1
+    for d in _season_dirs(root):
+        league_path = d / "league.json"
+        if not league_path.exists():
+            continue
+        with open(league_path) as f:
+            data = json.load(f)
+        if league_id and data.get("league_id") != league_id:
+            continue
+        s = int(data.get("season", 0) or 0)
+        if league_id is not None or s > chosen_season:
+            chosen = d
+            chosen_season = s
+            if league_id is not None:
+                break
+    if chosen is None:
+        return {}
+
+    rosters = _read(chosen / "rosters.json")
+    player_lookup = load_players_dump(root)
+    out: dict[str, list[tuple[str, str]]] = {}
+    for r in rosters:  # type: ignore[union-attr]
+        team_id = str(r["roster_id"])
+        roster: list[tuple[str, str]] = []
+        for pid in (r.get("players") or []):
+            meta = player_lookup.get(str(pid)) or {}
+            name = meta.get("full_name") or f"{meta.get('first_name', '')} {meta.get('last_name', '')}".strip()
+            pos = (meta.get("position") or "").upper()
+            if name:
+                roster.append((name, pos))
+        out[team_id] = roster
+    return out
+
+
+def traded_away_rounds_from_offline(
+    root: str | Path,
+    season: int | None = None,
+) -> dict[str, set[int]]:
+    """team_id -> {round_num, ...} that the team has traded away this season."""
+    from .trades import load_trades_from_sleeper_dump
+    trades = load_trades_from_sleeper_dump(root, season=season)
+    out: dict[str, set[int]] = {}
+    for t in trades:
+        if t.original_team_idx == t.new_team_idx:
+            continue
+        team_id = str(t.original_team_idx + 1)
+        out.setdefault(team_id, set()).add(t.round_num)
+    return out
+
+
 def history_from_offline(
     root: str | Path,
     max_seasons: int = 5,

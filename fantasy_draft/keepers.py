@@ -80,25 +80,42 @@ def apply_keepers(draft: Draft, all_players: list[Player], keepers: list[Keeper]
         target_pick = _find_pick(draft, team.idx, forfeit_round)
         if target_pick is None:
             log.append(
-                f"REJECT {team.name}: no available pick in R{forfeit_round} to forfeit "
-                f"for {player.name}."
+                f"REJECT {team.name}: no pick at R{forfeit_round} or later available "
+                f"(team doesn't own one) for {player.name}."
             )
             continue
 
         target_pick.player = player
         target_pick.is_keeper = True
         team.add(player)
-        team.forfeited_rounds.add(forfeit_round)
-        log.append(
-            f"KEEPER {team.name}: keeps {player.name} ({player.position}) "
-            f"using R{forfeit_round}.{target_pick.pick_in_round} (prior R{prior})."
-        )
+        team.forfeited_rounds.add(target_pick.round_num)
+        if target_pick.round_num != forfeit_round:
+            log.append(
+                f"KEEPER {team.name}: keeps {player.name} ({player.position}) using "
+                f"R{target_pick.round_num}.{target_pick.pick_in_round} (natural cost R{forfeit_round} "
+                f"unavailable - traded/used; walked forward; prior R{prior})."
+            )
+        else:
+            log.append(
+                f"KEEPER {team.name}: keeps {player.name} ({player.position}) "
+                f"using R{forfeit_round}.{target_pick.pick_in_round} (prior R{prior})."
+            )
 
     return log
 
 
-def _find_pick(draft: Draft, team_idx: int, round_num: int) -> Pick | None:
-    for pick in draft.picks:
-        if pick.team_idx == team_idx and pick.round_num == round_num and pick.player is None:
-            return pick
+def _find_pick(draft: Draft, team_idx: int, start_round: int) -> Pick | None:
+    """Earliest open pick the team owns at or after start_round.
+
+    Picks traded away show up under a different team_idx and are skipped.
+    Picks already used as keeper slots have player != None and are skipped.
+    Returns None only if the team has no available pick from start_round
+    through the end of the draft.
+    """
+    for r in range(start_round, draft.league.rounds + 1):
+        for pick in draft.picks:
+            if (pick.team_idx == team_idx
+                    and pick.round_num == r
+                    and pick.player is None):
+                return pick
     return None

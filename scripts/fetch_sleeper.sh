@@ -63,9 +63,10 @@ while [ -n "$current" ] && [ "$current" != "0" ] && [ "$current" != "null" ]; do
 
     LEAGUE_FILE="$SEASON_DIR/league.json"
     get "$API/league/$current" "$LEAGUE_FILE"
-    get "$API/league/$current/users"   "$SEASON_DIR/users.json"
-    get "$API/league/$current/rosters" "$SEASON_DIR/rosters.json"
-    get "$API/league/$current/drafts"  "$SEASON_DIR/drafts.json"
+    get "$API/league/$current/users"         "$SEASON_DIR/users.json"
+    get "$API/league/$current/rosters"       "$SEASON_DIR/rosters.json"
+    get "$API/league/$current/drafts"        "$SEASON_DIR/drafts.json"
+    get "$API/league/$current/traded_picks"  "$SEASON_DIR/traded_picks.json" || true
 
     # For each draft in the season, pull picks.
     python - <<PY
@@ -92,4 +93,23 @@ done
 
 echo
 echo "Done. Walked $seasons_walked season(s)."
+
+# --- Projections (api.sleeper.com, different host than api.sleeper.app) ----
+SEASON_NOW="$(date +%Y)"
+PROJ_FILE="$OUT_DIR/projections_${SEASON_NOW}.json"
+if [ ! -f "$PROJ_FILE" ] || [ "$(find "$PROJ_FILE" -mtime +7 -print 2>/dev/null)" ]; then
+    echo
+    echo "[projections] fetching season ${SEASON_NOW} projections..."
+    PROJ_URL="https://api.sleeper.com/projections/nfl/${SEASON_NOW}?season_type=regular&order_by=adp_half_ppr"
+    for POS in QB RB WR TE K DEF; do
+        PROJ_URL="${PROJ_URL}&position[]=${POS}"
+    done
+    if curl -sS --fail "$PROJ_URL" -o "$PROJ_FILE"; then
+        echo "  -> $PROJ_FILE"
+    else
+        echo "  [warn] projections fetch failed; you can rerun later."
+    fi
+fi
+
+echo
 echo "Now: git add data/sleeper/ && git commit -m 'sleeper dump' && git push"

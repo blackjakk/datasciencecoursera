@@ -123,10 +123,13 @@ def league_config_from_sleeper(
     )
 
     max_keepers = int(settings.get("max_keepers", 0) or 0)
+    draft_rounds = int(settings.get("draft_rounds", 15))
     keepers = KeeperRules(
         enabled=max_keepers > 0,
         max_keepers_per_team=max_keepers,
         round_penalty=round_penalty,
+        # Waiver/undrafted players: treated as a last-round pick per user rule.
+        undrafted_keeper_round=draft_rounds,
         max_years_consecutive=max_years_consecutive,
     )
 
