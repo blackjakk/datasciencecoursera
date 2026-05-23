@@ -262,9 +262,20 @@ The user picked Tier 3 ("Full engine rebuild") — migrate the canvas2D renderer
 - Initial vignette + flash attempts on `PIXI.Graphics` produced uniform gray on the headless software-WebGL renderer. Fixed by switching to the `RenderTexture + Sprite` pattern for static elements (vignette, haze, noise) and `Graphics → RenderTexture → swap-Sprite-texture` for dynamic-color elements (flash). PIXI 7 `Sprite.tint` was unreliable on SwiftShader; baking color into a fresh texture per fire works.
 - Shipped: vignette (`32b0ee4`), light beams (`32b0ee4`), flash (`4e6be68`), atmospheric haze (`33684e4`), TD celebration cinematic (`81e07f4`), replay film grain (`4472bb3`).
 
-**Phase 2 — Element ports**:
-- LED ad ribbon (`6e6e098`): CSS background → PIXI Graphics panels with cycling color palette + BlurFilter glow. First "real" port because the ribbon lives in wrap coords (not tilted-field coords).
-- True `drawField` porting (grass / mowing / end zones / yard lines / numbers / hash marks) still requires either applying the CSS rotateX tilt to a dedicated PIXI canvas OR positioning each element via `projectBroadcast()`. Deliberate multi-session arc — don't start without committing to it.
+**Phase 2 — Element ports** (extensive overlay work shipped):
+- LED ad ribbon (`6e6e098`): CSS background → PIXI Graphics panels with cycling color palette + BlurFilter glow.
+- LED ribbon "slogan flash" mode (`62d0133`): every ~5s the ribbon switches from color-cycling to solid amber with a bright scan sweep.
+- TOUCHDOWN/FIELD GOAL/EXTRA POINT/2-PT banner (`b23c88a`): PIXI.Text with overshoot scale + drop shadow.
+- Player-highlight chyron (`20a0572`): Bloomberg-style lower-left banner with name + play-type tag. Wired to TD scorers, sacks, INTs.
+- Drive recap chyron (`3424c3e`): fires on drive_summary plays w/ N PLAYS · M YDS · TOP.
+- LIVE indicator (`ebb7427`): blinking red dot + LIVE text upper-left, swaps with INSTANT REPLAY badge in replay mode.
+- INSTANT REPLAY badge + VHS scanlines + film grain (`e319402`, `4472bb3`): all gated by window._replayMode.
+- Lens flare (`e319402`): 4-pointed star sprite that fires on TDs alongside the celebration.
+- Atmospheric haze (`33684e4`), vignette + light beams (`32b0ee4`), flash (`4e6be68`), color grading (`81e07f4`).
+- End-of-game FINAL banner + final whistle + delayed cheer (`62d0133`).
+- Quarter / halftime / OT / two-min-warning banners (`62d0133`).
+
+True `drawField` porting (grass / mowing / end zones / yard lines / numbers / hash marks) still requires either applying the CSS rotateX tilt to a dedicated PIXI canvas OR positioning each element via `projectBroadcast()`. Deliberate multi-session arc — don't start without committing to it.
 
 **Phase 3 — Player render migration** (unchanged from prior plan):
 - Port `_drawPlayerImpl` (`play-render.js:407-` ~1000 lines) to PIXI Containers. Player = Container of Graphics + Sprite + Text. Pose changes update child positions/rotations. Depth-sorted sprite queue becomes PIXI z-index sorting. 2-3 sessions for clean parity.
