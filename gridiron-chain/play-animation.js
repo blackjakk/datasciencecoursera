@@ -1,8 +1,137 @@
+// Cinematic big-hit / ejection overlay. AAA-style — letterbox bars,
+// huge force value, mechanism label, attacker → victim. Auto-cleans
+// when the play changes. Sits over the field-wrap so the canvas
+// stays visible underneath.
+const _bigHitCinema = (() => {
+  let activeId = null;
+  function _mechLabel(m) {
+    return m === "head_on" ? "HEAD-ON COLLISION"
+         : m === "high"    ? "HIGH HIT"
+         : m === "low"     ? "LOW HIT"
+         : m === "side"    ? "SIDE HIT"
+         : m === "behind"  ? "BLINDSIDE"
+         : (m || "CONTACT").toUpperCase();
+  }
+  function _toneFor(force, isEject) {
+    if (isEject) return { accent: "#ff3a3a", glow: "rgba(255,40,40,.55)", label: "EJECTION" };
+    if (force >= 1.85) return { accent: "#ff2a2a", glow: "rgba(255,40,40,.50)", label: "💥 MASSIVE HIT" };
+    if (force >= 1.65) return { accent: "#ff5a2a", glow: "rgba(255,100,40,.45)", label: "💥 HEAVY HIT" };
+    return { accent: "#ffa83a", glow: "rgba(255,180,60,.35)", label: "💥 BIG HIT" };
+  }
+  function _bodyRegion(mech, eventType) {
+    if (eventType === "sack") return "back";
+    if (mech === "high" || mech === "head_on") return "head";
+    if (mech === "low") return "knee";
+    if (mech === "side") return "shoulder";
+    if (mech === "behind") return "back";
+    return "torso";
+  }
+  function _bodySVG(region, accent) {
+    const REGIONS = {
+      head:     { cx: 60, cy: 22,  r: 14 },
+      torso:    { cx: 60, cy: 60,  r: 18 },
+      shoulder: { cx: 78, cy: 44,  r: 8  },
+      knee:     { cx: 54, cy: 108, r: 7  },
+      back:     { cx: 60, cy: 60,  r: 18 },
+    };
+    const r = REGIONS[region] || REGIONS.torso;
+    return `<svg viewBox="0 0 120 140" width="100" height="120" style="display:block">
+      <ellipse cx="60" cy="22" rx="14" ry="16" fill="#222" stroke="#555" stroke-width="1.5"/>
+      <path d="M44,40 L76,40 L82,72 L74,108 L78,135 L70,135 L62,108 L58,108 L50,135 L42,135 L46,108 L38,72 Z"
+            fill="#222" stroke="#555" stroke-width="1.5"/>
+      <path d="M44,40 L26,80" stroke="#555" stroke-width="6" fill="none" stroke-linecap="round"/>
+      <path d="M76,40 L94,80" stroke="#555" stroke-width="6" fill="none" stroke-linecap="round"/>
+      <circle cx="${r.cx}" cy="${r.cy}" r="${r.r + 4}" fill="${accent}" opacity="0.25"/>
+      <circle cx="${r.cx}" cy="${r.cy}" r="${r.r}" fill="${accent}" opacity="0.45">
+        <animate attributeName="opacity" values="0.3;0.85;0.3" dur="0.9s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="${r.cx}" cy="${r.cy}" r="${Math.max(2, r.r - 4)}" fill="none" stroke="${accent}" stroke-width="2"/>
+    </svg>`;
+  }
+  function _attackerArch(play) {
+    if (typeof franchise === "undefined" || !play.tackler) return "";
+    for (const tid in (franchise.rosters || {})) {
+      const p = franchise.rosters[tid].find(x => x.name === play.tackler);
+      if (p) return p.archetype || "";
+    }
+    return "";
+  }
+  return {
+    show(play, isEject) {
+      const playId = `${play.kind}-${play.tackler || ""}-${play.carrier || play.victim || ""}-${play.force || 0}`;
+      const fieldWrap = document.querySelector(".bspnlive-field-wrap")
+                     || document.querySelector(".field-wrap")
+                     || document.getElementById("field")?.parentElement;
+      if (!fieldWrap) return;
+      if (activeId !== playId) {
+        this.clear();
+        activeId = playId;
+        const tone = _toneFor(play.force, isEject);
+        const mech = _mechLabel(play.mechanism);
+        const force = Number(play.force);
+        const arch = _attackerArch(play);
+        const region = _bodyRegion(play.mechanism, play.eventType);
+        const attacker = play.tackler || play.offender || "Defender";
+        const victim = play.carrier || play.victim || "Player";
+        const el = document.createElement("div");
+        el.className = "bighit-cinema";
+        el.id = "bighit-cinema-overlay";
+        el.style.setProperty("--accent", tone.accent);
+        el.style.setProperty("--glow", tone.glow);
+        el.innerHTML = `
+          <div class="bighit-letter top"></div>
+          <div class="bighit-letter bottom"></div>
+          <div class="bighit-content">
+            <div class="bighit-body-col">
+              ${_bodySVG(region, tone.accent)}
+              <div class="bighit-region-lbl">${region.toUpperCase()}</div>
+            </div>
+            <div class="bighit-text-col">
+              <div class="bighit-eyebrow">${tone.label}</div>
+              ${isEject ? "" : `<div class="bighit-force">${(force || 0).toFixed(2)}</div><div class="bighit-force-lbl">FORCE</div>`}
+              <div class="bighit-mech">${mech}</div>
+              <div class="bighit-players">
+                <span class="bighit-attacker">${attacker}${arch ? ` <span class="bighit-arch">${arch.replace(/_/g," ")}</span>` : ""}</span>
+                <span class="bighit-arrow">→</span>
+                <span class="bighit-victim">${victim}</span>
+              </div>
+              ${isEject ? `<div class="bighit-ejection">🚫 DISQUALIFIED — REST OF GAME</div>` : ""}
+            </div>
+          </div>`;
+        const cs = getComputedStyle(fieldWrap);
+        if (cs.position === "static") fieldWrap.style.position = "relative";
+        fieldWrap.appendChild(el);
+      }
+    },
+    clear() {
+      const el = document.getElementById("bighit-cinema-overlay");
+      if (el) el.remove();
+      activeId = null;
+    },
+  };
+})();
+
 // ─── Per-play animation engine ─────────────────────────────────────────────
 function buildAnimForPlay(play, prevPlay) {
   // Returns { duration, render(t01) }
   // t01 = 0..1 progress
   const homeTeam = gameResult.homeTeam, awayTeam = gameResult.awayTeam;
+
+  // ── CINEMATIC BIG-HIT TREATMENT ─────────────────────────────────
+  // big_hit (and ejection) plays get a 2-second AAA-style overlay
+  // injected over the field. Force value, mechanism, attacker/victim,
+  // archetype chip, body-part hit indicator. Field stays as backdrop.
+  if (play.kind === "big_hit" || play.kind === "ejection") {
+    const isEject = play.kind === "ejection";
+    const force = Number(play.force) || 1.4;
+    const dur = isEject ? 2400 : 2000;
+    return { duration: dur, kind: play.kind, render: (t, ctx) => {
+      drawField(ctx, homeTeam, awayTeam, null);
+      // Maintain a single DOM overlay; create on first frame, refresh
+      // content if missing, remove when play exits.
+      _bigHitCinema.show(play, isEject);
+    }};
+  }
 
   if (["halftime", "ot", "quarter", "two_min_warning", "timeout"].includes(play.kind)) {
     const isWarning = play.kind === "two_min_warning";
@@ -4848,6 +4977,10 @@ function startNextPlay() {
   }
   const play = gameResult.plays[playHead];
   const prev = playHead > 0 ? gameResult.plays[playHead - 1] : null;
+  // Clear the big-hit cinematic when the play isn't one
+  if (play.kind !== "big_hit" && play.kind !== "ejection") {
+    if (typeof _bigHitCinema !== "undefined") _bigHitCinema.clear();
+  }
   const builder = viewMode === "cinema" ? buildCinemaAnim : buildAnimForPlay;
   const anim = builder(play, prev);
   animState = {
