@@ -1028,6 +1028,9 @@ function renderGameLayout() {
   // is derived from the engine — same per-play state used by .update().
   const state = toBSPNLiveGameState(gameResult, playHead);
   gameArea.innerHTML = state ? BSPNGameScreen.render(state) : "";
+  // Reset transient overlays from any prior game
+  if (typeof _subTicker !== "undefined" && _subTicker.clearAll) _subTicker.clearAll();
+  if (typeof _bigHitCinema !== "undefined" && _bigHitCinema.clear) _bigHitCinema.clear();
   // Initial field draw — engine continues to own the canvas.
   const ctx = $("field").getContext("2d");
   if (viewMode === "cinema") {

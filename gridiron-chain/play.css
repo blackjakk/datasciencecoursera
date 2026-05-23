@@ -3074,6 +3074,80 @@
     filter: contrast(1.05) saturate(0.9);
   }
 
+  /* ── SUBSTITUTION TICKER ─────────────────────────────────────
+     Stack of notification chips in the upper-right of the field-wrap.
+     Each chip slides in from the right, stays ~4s, slides out. */
+  .sub-ticker {
+    position: absolute; top: 10px; right: 10px; z-index: 6;
+    display: flex; flex-direction: column; gap: 6px;
+    pointer-events: none; max-width: 280px;
+  }
+  .sub-ticker-chip {
+    background: linear-gradient(135deg, rgba(0,0,0,.92), rgba(20,20,20,.92));
+    border: 2px solid var(--accent);
+    border-left: 6px solid var(--accent);
+    border-radius: 4px; padding: .35rem .5rem;
+    box-shadow: 0 4px 14px rgba(0,0,0,.55), 0 0 18px rgba(255,80,80,.25);
+    animation: sub-chip-in 0.35s cubic-bezier(.2,1.4,.4,1) backwards;
+    color: #fff; font-family: inherit;
+    min-width: 180px;
+  }
+  .sub-ticker-chip.leaving {
+    animation: sub-chip-out 0.4s ease-in forwards;
+  }
+  @keyframes sub-chip-in {
+    from { transform: translateX(120%); opacity: 0; }
+    to   { transform: translateX(0); opacity: 1; }
+  }
+  @keyframes sub-chip-out {
+    from { transform: translateX(0); opacity: 1; }
+    to   { transform: translateX(120%); opacity: 0; }
+  }
+  .sub-chip-eyebrow {
+    font-size: .55rem; font-weight: 900; letter-spacing: 2.5px;
+    color: var(--accent); margin-bottom: .25rem;
+    display: flex; align-items: center; gap: .35rem;
+  }
+  .sub-chip-eyebrow span:first-child {
+    display: inline-block; width: 8px; height: 8px; border-radius: 2px;
+  }
+  .sub-chip-cata {
+    background: #ff3a3a; color: #fff; font-size: .5rem;
+    padding: .04rem .25rem; border-radius: 2px;
+    letter-spacing: 1px; margin-left: auto;
+    animation: sub-chip-cata-pulse 0.8s ease-in-out infinite alternate;
+  }
+  @keyframes sub-chip-cata-pulse {
+    from { background: #ff3a3a; }
+    to   { background: #ff7a7a; }
+  }
+  .sub-chip-body {
+    display: grid; grid-template-columns: 1fr auto 1fr;
+    align-items: center; gap: .35rem;
+    font-size: .68rem;
+  }
+  .sub-chip-out, .sub-chip-in {
+    display: flex; flex-direction: column; gap: .12rem;
+  }
+  .sub-chip-out { text-align: left; }
+  .sub-chip-in { text-align: left; padding-left: .35rem; border-left: 1px solid rgba(255,255,255,.12); }
+  .sub-chip-role, .sub-chip-role-in {
+    font-size: .5rem; font-weight: 700; letter-spacing: 1.5px;
+    color: var(--blgray);
+  }
+  .sub-chip-role-in { color: #7ee08a; }
+  .sub-chip-name { font-weight: 700; line-height: 1.1; }
+  .sub-chip-name.out { color: #ff9090; text-decoration: line-through; text-decoration-color: rgba(255,90,90,.55); }
+  .sub-chip-name.in  { color: #c6f5cd; }
+  .sub-chip-injury {
+    font-size: .5rem; color: #ff9090; font-style: italic;
+    margin-top: .1rem;
+  }
+  .sub-chip-arrow {
+    font-size: 1rem; color: var(--accent); font-weight: 900;
+    text-shadow: 0 0 6px var(--accent);
+  }
+
   /* ── BIG-HIT CINEMATIC OVERLAY ────────────────────────────────
      AAA-style hit treatment. Letterbox bars slide in from edges,
      content scales up with a force-keyed accent color, body-region

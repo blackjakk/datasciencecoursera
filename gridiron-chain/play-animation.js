@@ -111,11 +111,100 @@ const _bigHitCinema = (() => {
   };
 })();
 
+// Substitution ticker — a stack of chips in the upper-right of the
+// field-wrap. Each chip slides in, sits 4s, slides out. Adds idempotency
+// so re-renders during the same animation don't duplicate.
+const _subTicker = (() => {
+  const seen = new Set();
+  function _wrap() {
+    return document.querySelector(".bspnlive-field-wrap")
+        || document.querySelector(".field-wrap")
+        || document.getElementById("field")?.parentElement;
+  }
+  function _container() {
+    const wrap = _wrap();
+    if (!wrap) return null;
+    let c = wrap.querySelector(".sub-ticker");
+    if (!c) {
+      c = document.createElement("div");
+      c.className = "sub-ticker";
+      const cs = getComputedStyle(wrap);
+      if (cs.position === "static") wrap.style.position = "relative";
+      wrap.appendChild(c);
+    }
+    return c;
+  }
+  return {
+    add(play) {
+      const key = `${play.side || ""}:${play.out || ""}:${play.in || ""}:${play.reason || ""}:${play.time || play.quarter || ""}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      if (seen.size > 200) {
+        // Trim — keep it small
+        const arr = [...seen]; for (let i = 0; i < 100; i++) seen.delete(arr[i]);
+      }
+      const c = _container();
+      if (!c) return;
+      const teamColor = play.side === "home"
+        ? (gameResult?.homeTeam?.primary || "#888")
+        : (gameResult?.awayTeam?.primary || "#888");
+      const reasonStyle = {
+        injury:   { color: "#ff5050", icon: "🩹", label: "INJURY"   },
+        fatigue:  { color: "#e8a000", icon: "💨", label: "FATIGUE"  },
+        snap_plan:{ color: "#7ec8e3", icon: "📋", label: "SNAP PLAN"},
+      }[play.reason] || { color: "#aaa", icon: "↺", label: "SUB" };
+      const chip = document.createElement("div");
+      chip.className = "sub-ticker-chip";
+      chip.style.setProperty("--accent", reasonStyle.color);
+      chip.style.setProperty("--team", teamColor);
+      const sevTag = play.catastrophic ? `<span class="sub-chip-cata">SEASON-END</span>` : "";
+      chip.innerHTML = `
+        <div class="sub-chip-eyebrow"><span style="background:var(--team)"></span>${reasonStyle.icon} ${reasonStyle.label}${sevTag}</div>
+        <div class="sub-chip-body">
+          <div class="sub-chip-out">
+            <span class="sub-chip-role">${(play.position || "").toUpperCase()}</span>
+            <span class="sub-chip-name out">${play.out || "—"}</span>
+            ${play.injuryLabel ? `<span class="sub-chip-injury">${play.injuryLabel}</span>` : ""}
+          </div>
+          <div class="sub-chip-arrow">↓</div>
+          <div class="sub-chip-in">
+            <span class="sub-chip-role-in">IN</span>
+            <span class="sub-chip-name in">${play.in || "—"}</span>
+          </div>
+        </div>`;
+      c.appendChild(chip);
+      // Trim oldest if too many stacked
+      while (c.children.length > 3) c.removeChild(c.firstChild);
+      // Auto-remove after 4s (CSS handles the slide-out animation)
+      setTimeout(() => {
+        chip.classList.add("leaving");
+        setTimeout(() => chip.remove(), 420);
+      }, 4000);
+    },
+    clearAll() {
+      const c = _wrap()?.querySelector(".sub-ticker");
+      if (c) c.innerHTML = "";
+      seen.clear();
+    },
+  };
+})();
+
 // ─── Per-play animation engine ─────────────────────────────────────────────
 function buildAnimForPlay(play, prevPlay) {
   // Returns { duration, render(t01) }
   // t01 = 0..1 progress
   const homeTeam = gameResult.homeTeam, awayTeam = gameResult.awayTeam;
+
+  // ── SUBSTITUTION TICKER ─────────────────────────────────────────
+  // Injured-starter swaps fire as their own visual plays. Short duration
+  // (800ms), no field action — the ticker chip slides in and stacks
+  // alongside any prior subs. Auto-fades after 4s.
+  if (play.kind === "substitution") {
+    return { duration: 700, kind: "substitution", render: (t, ctx) => {
+      drawField(ctx, homeTeam, awayTeam, null);
+      _subTicker.add(play);
+    }};
+  }
 
   // ── CINEMATIC BIG-HIT TREATMENT ─────────────────────────────────
   // big_hit (and ejection) plays get a 2-second AAA-style overlay

@@ -1139,6 +1139,23 @@ class GameSimulator {
       const exclude = Object.values(this.offR.starters);
       const backup = this._pickBackup(side, position, exclude);
       if (backup) {
+        // Announce the sub ONCE (first snap the injured guy can't take).
+        // Track per-player so subsequent snaps don't keep spamming the same
+        // event over and over.
+        if (!this._injurySubAnnounced) this._injurySubAnnounced = new Set();
+        const key = `${side}:${curName}`;
+        if (!this._injurySubAnnounced.has(key)) {
+          this._injurySubAnnounced.add(key);
+          this._pushVisual({
+            kind: "substitution",
+            reason: "injury",
+            side, role, position,
+            out: curName, in: backup,
+            injuryLabel: cur.injury.label || "injury",
+            catastrophic: !!cur.injury._catastrophic,
+            desc: `↺ SUB · ${position} ${curName} OUT (${cur.injury.label || "injury"}) → ${backup} IN`,
+          });
+        }
         this.offR.starters[role] = backup;
         this._ensurePlayerStat(side, backup, position);
       }
