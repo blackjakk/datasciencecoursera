@@ -14844,6 +14844,109 @@ function frnAutoFillAbsorption() {
   renderFrnTrade();
 }
 
+// Auto-suggest a trade package to acquire whatever's currently in
+// tp.youReceive. Greedy build from user's inventory: picks first
+// (smallest combo that gets close to target), then a spare player at
+// a position of depth surplus if needed, then cash absorb to fill the
+// last sliver. Replaces tp.picksSend / tp.youSend / tp.yourAbsorb.
+function frnSuggestShopPackage() {
+  const tp = franchise._tradeProp;
+  if (!tp?.targetTeamId || !tp?.youReceive?.length) {
+    alert("Pick a partner and a player to acquire first.");
+    return;
+  }
+  const myId = franchise.chosenTeamId;
+  const otherId = tp.targetTeamId;
+  const theirRoster = franchise.rosters[otherId] || [];
+  const myRoster = franchise.rosters[myId] || [];
+
+  const recvPlayers = tp.youReceive
+    .map(n => theirRoster.find(p => p.name === n)).filter(Boolean);
+  if (!recvPlayers.length) { alert("Target player not found on their roster."); return; }
+
+  // Untouchable short-circuit
+  const accRule = _aiAcceptanceRatio(otherId, recvPlayers);
+  if (accRule && accRule.reject) {
+    alert(`Off-limits — ${getTeam(otherId)?.name} won't move ${accRule.untouchables.map(p => p.name).join(", ")}.`);
+    return;
+  }
+  const recvValue = recvPlayers.reduce((s, p) => s + _playerTradeValue(p), 0);
+  // Acceptance ratio + small margin so we don't propose right at the bar
+  const acceptanceRatio = Math.max(0.55, Math.min(1.10, (accRule || 1.0))) + 0.04;
+  const target = recvValue * acceptanceRatio;
+
+  // ── Pick inventory ─────────────────────────────────────────────
+  // Sort big-first — the goal is the SMALLEST set of picks that hits
+  // the target, not a flood of late-round dust. Greedy add until we
+  // either hit target or the next pick would overshoot massively.
+  // Then top up the sliver with cash.
+  const myPicks = (franchise.picks || [])
+    .filter(p => p.currentOwnerId === myId)
+    .map(p => ({ key: _tradePickKey(p), pick: p, v: _pickValue(p) }))
+    .sort((a, b) => b.v - a.v);
+
+  const chosenPickKeys = [];
+  let runningValue = 0;
+  for (const item of myPicks) {
+    if (runningValue >= target) break;
+    // If this pick would push us >40% over target while we're already
+    // close (>=60%), skip it — cash can fill the gap more precisely.
+    if (runningValue >= target * 0.60 && runningValue + item.v > target * 1.40) continue;
+    chosenPickKeys.push(item.key);
+    runningValue += item.v;
+    // Cap at 4 picks total — beyond that the offer reads as a desperate
+    // pile and we'd rather use cash or a spare player.
+    if (chosenPickKeys.length >= 4) break;
+  }
+
+  // ── Spare-player fallback ──────────────────────────────────────
+  // If picks alone can't cover, try a B+/A- backup at a position
+  // where we have depth surplus.
+  let chosenPlayerName = null;
+  if (runningValue < target * 0.80) {
+    const ROSTER_FLOORS = (typeof ROSTER_SLOTS === "object" && ROSTER_SLOTS) || {};
+    const posCounts = {};
+    for (const p of myRoster) posCounts[p.position] = (posCounts[p.position] || 0) + 1;
+    const spareCands = myRoster.filter(p => {
+      if (!p.contract) return false;
+      const surplus = (posCounts[p.position] || 0) - (ROSTER_FLOORS[p.position] || 0);
+      if (surplus < 2) return false;       // can't part with depth we need
+      if (p.onTradeBlock) return false;     // already shopped explicitly
+      if (p.overall && p.overall >= 85) return false;  // not your stars
+      if ((p.age || 0) < 24 && (p.overall || 0) >= 78) return false; // young upside, hold
+      return true;
+    });
+    // Find the spare player closest to the deficit (not gross overpay)
+    const need = target - runningValue;
+    spareCands.sort((a, b) => {
+      const da = Math.abs(_playerTradeValue(a) - need);
+      const db = Math.abs(_playerTradeValue(b) - need);
+      return da - db;
+    });
+    if (spareCands[0] && _playerTradeValue(spareCands[0]) >= need * 0.4) {
+      chosenPlayerName = spareCands[0].name;
+      runningValue += _playerTradeValue(spareCands[0]);
+    }
+  }
+
+  // ── Cash absorb top-up ────────────────────────────────────────
+  // If we're still short, offer to absorb some of THEIR dead cap
+  // (yourAbsorb in tp model). Caps at $8M for sanity.
+  const remainingDeficit = Math.max(0, target - runningValue);
+  const yourAbsorb = Math.min(8, Math.max(0, Math.round(remainingDeficit / 1.5 * 10) / 10));
+
+  // Apply
+  tp.picksSend = chosenPickKeys;
+  tp.picksReceive = tp.picksReceive || [];
+  tp.youSend = chosenPlayerName ? [chosenPlayerName] : [];
+  tp.yourAbsorb = yourAbsorb;
+  tp.theirAbsorb = tp.theirAbsorb || 0;
+  tp.result = null;
+  tp._suggestedTarget = Math.round(target * 10) / 10;
+  saveFranchise();
+  renderFrnTrade();
+}
+
 function frnSubmitTrade() {
   const tp = franchise._tradeProp;
   if (!tp) return;
@@ -15283,12 +15386,20 @@ function _renderTradeProposeTab(tp, sortBy, myRoster, cap, myCapUsed) {
             </button>
           </div>` : ""}
       </div>` : ""}
-    <div class="frn-actions" style="justify-content:center;margin-top:.8rem">
+    <div class="frn-actions" style="justify-content:center;margin-top:.8rem;gap:.5rem;flex-wrap:wrap">
+      ${(partnerId && tp.youReceive?.length) ? `<button class="btn btn-outline" onclick="frnSuggestShopPackage()"
+        style="color:var(--gold);border-color:var(--gold)"
+        title="Auto-build a package from your inventory that aims to meet their acceptance threshold. Picks first, then a spare from a position of depth surplus, then cash absorb to fill.">
+        💡 Suggest package
+      </button>` : ""}
       <button class="btn btn-gold-big" onclick="frnSubmitTrade()"
         ${(_tradeIsEmpty(tp) || !partnerId || franchise.week > TRADE_DEADLINE_WEEK)?"disabled style=\"opacity:.5;cursor:not-allowed\"":""}>
         📨 SUBMIT PROPOSAL
       </button>
-    </div>`;
+    </div>
+    ${tp._suggestedTarget && partnerId && tp.youReceive?.length ? `<div style="text-align:center;font-size:.62rem;color:var(--gray);margin-top:.3rem">
+      💡 Suggested target value: <b style="color:var(--gold)">${tp._suggestedTarget}</b> units — your offer hits ${Math.round((((tp.youSend||[]).reduce((s,n)=>{const p=(franchise.rosters[franchise.chosenTeamId]||[]).find(q=>q.name===n);return s+(p?_playerTradeValue(p):0);},0)+((tp.picksSend||[]).reduce((s,k)=>{const pk=_tradePickFromKey(k,franchise.chosenTeamId);return s+(pk?_pickValue(pk):0);},0))+(tp.yourAbsorb||0)/1.5)*10))/10} (lower-bound match)
+    </div>` : ""}`;
 }
 
 // A trade must move SOMETHING in each direction (players, picks, or cash)

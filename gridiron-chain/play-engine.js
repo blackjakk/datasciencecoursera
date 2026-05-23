@@ -1099,7 +1099,11 @@ class GameSimulator {
   _pickBackup(side, position, excludeNames) {
     const roster = side === "home" ? this.hRoster : this.aRoster;
     const set = new Set(excludeNames);
-    const candidates = roster.filter(p => p.position === position && !set.has(p.name))
+    // Filter out injured players — a torn-ACL guy shouldn't be the
+    // backup just because nobody else is on the bench at that position.
+    const candidates = roster
+      .filter(p => p.position === position && !set.has(p.name)
+                && !(p.injury && p.injury.weeksRemaining > 0))
       .sort((a, b) => (b.overall || 0) - (a.overall || 0));
     return candidates[0]?.name || null;
   }
@@ -1120,6 +1124,36 @@ class GameSimulator {
     const side = this.poss;
     // Always reset to base depth chart first, then optionally sub.
     Object.assign(this.offR.starters, this._baseStarters[side]);
+    // ── INJURY SWAP ────────────────────────────────────────────────
+    // Mid-game injuries don't update _baseStarters, so the base reset
+    // above can re-install a player who just tore their ACL. Walk the
+    // offensive starter roles and swap any injured guy for a healthy
+    // backup. This is what makes "player out 15w" actually mean he
+    // doesn't take more snaps in this game (was a real bug — injured
+    // WR1 kept getting targeted because his name was still in starters).
+    const swapIfInjured = (role, position) => {
+      const curName = this.offR.starters[role];
+      if (!curName) return;
+      const cur = this._playerByName?.get?.(curName);
+      if (!cur || !cur.injury || !(cur.injury.weeksRemaining > 0)) return;
+      const exclude = Object.values(this.offR.starters);
+      const backup = this._pickBackup(side, position, exclude);
+      if (backup) {
+        this.offR.starters[role] = backup;
+        this._ensurePlayerStat(side, backup, position);
+      }
+    };
+    swapIfInjured("qb",  "QB");
+    swapIfInjured("rb",  "RB");
+    swapIfInjured("rb2", "RB");
+    swapIfInjured("wr1", "WR");
+    swapIfInjured("wr2", "WR");
+    swapIfInjured("wr3", "WR");
+    swapIfInjured("wr4", "WR");
+    swapIfInjured("te",  "TE");
+    swapIfInjured("te2", "TE");
+    swapIfInjured("k",   "K");
+    swapIfInjured("p",   "P");
     const garbage = this._isGarbageTime();
     const snapMap = side === "home" ? this.homeSnaps : this.awaySnaps;
     // Per-game snap counter (for count-mode contracts)
