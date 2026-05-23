@@ -3592,12 +3592,23 @@
   .bspnlive-field-wrap.broadcast-cam {
     overflow: hidden;
     /* Night-sky gradient backdrop with stadium-light bloom at the rim.
-       The crowd silhouette + stadium lights layer on top via ::before /
-       ::after pseudo-elements. */
+       A dark "stadium wall" band sits between the crowd silhouette and the
+       tilted field's far edge so the field reads as planted on a barrier
+       rather than floating above the stands. Field z-index covers the
+       wall's lower portion at smaller viewports where field-top lands
+       within the band. The crowd silhouette + stadium lights layer on
+       top via ::before / ::after pseudo-elements. */
     background:
       radial-gradient(ellipse 95% 50% at 50% -8%, rgba(110,130,165,.42), transparent 65%),
       radial-gradient(ellipse 55% 45% at 15% 4%,   rgba(255,225,160,.26), transparent 72%),
       radial-gradient(ellipse 55% 45% at 85% 4%,   rgba(255,225,160,.26), transparent 72%),
+      linear-gradient(to bottom,
+        transparent 0%,
+        transparent 18%,
+        rgba(8,11,18,1) 18.2%,
+        rgba(10,13,22,1) 23%,
+        rgba(8,11,18,1) 30%,
+        transparent 30.5%),
       linear-gradient(to bottom,
         #060912 0%,        /* deep night sky */
         #1a2842 28%,       /* press-box level glow */
@@ -3611,35 +3622,36 @@
   .bspnlive-field-wrap.broadcast-cam::before {
     content: "";
     position: absolute;
-    top: 3%; left: 0; right: 0;
-    height: 32%;
+    top: 0; left: 0; right: 0;
+    height: 18%;
     background:
-      /* Crowd "specks" — tiled noise across multiple sizes for density */
-      radial-gradient(circle 1.2px at 12% 30%, rgba(245,225,200,.55) 0, transparent 2px),
-      radial-gradient(circle 1.2px at 28% 60%, rgba(200,220,240,.45) 0, transparent 2px),
-      radial-gradient(circle 1.2px at 47% 25%, rgba(245,225,200,.5)  0, transparent 2px),
-      radial-gradient(circle 1.2px at 64% 55%, rgba(230,210,190,.55) 0, transparent 2px),
-      radial-gradient(circle 1.2px at 82% 35%, rgba(200,220,240,.45) 0, transparent 2px),
-      radial-gradient(circle 1.2px at 95% 70%, rgba(245,225,200,.5)  0, transparent 2px),
-      /* Stands gradient — darker high, lighter near the field, with a
-         decked seating-tier feel (stripes) */
+      /* Crowd "specks" — kept inside the silhouette since the stadium-wall
+         band lives in the wrap background below this element. */
+      radial-gradient(circle 1.2px at 12% 28%, rgba(245,225,200,.55) 0, transparent 2px),
+      radial-gradient(circle 1.2px at 28% 55%, rgba(200,220,240,.45) 0, transparent 2px),
+      radial-gradient(circle 1.2px at 47% 22%, rgba(245,225,200,.5)  0, transparent 2px),
+      radial-gradient(circle 1.2px at 64% 48%, rgba(230,210,190,.55) 0, transparent 2px),
+      radial-gradient(circle 1.2px at 82% 32%, rgba(200,220,240,.45) 0, transparent 2px),
+      radial-gradient(circle 1.2px at 95% 62%, rgba(245,225,200,.5)  0, transparent 2px),
+      /* Decked seating-tier stripes */
       repeating-linear-gradient(to bottom,
         rgba(0,0,0,0) 0,
         rgba(0,0,0,0) 8px,
         rgba(0,0,0,.18) 8px,
         rgba(0,0,0,.18) 9px),
+      /* Stands gradient — fade to dark at the bottom so the silhouette
+         meets the wall band cleanly without a hard seam. */
       linear-gradient(to bottom,
-        rgba(15,22,35,.75) 0%,
-        rgba(28,40,60,.65) 45%,
-        rgba(40,52,72,.55) 80%,
-        rgba(20,28,40,.65) 100%);
+        rgba(15,22,35,.78) 0%,
+        rgba(28,40,60,.7)  40%,
+        rgba(35,46,66,.6)  70%,
+        rgba(18,24,36,.85) 100%);
     background-size:
       54px 54px, 62px 62px, 50px 50px, 58px 58px, 70px 70px, 46px 46px,
       100% auto, 100% 100%;
     pointer-events: none;
     z-index: 0;
-    border-bottom: 2px solid rgba(0,0,0,.55);
-    box-shadow: inset 0 -10px 16px rgba(0,0,0,.45);
+    box-shadow: inset 0 -8px 14px rgba(0,0,0,.45);
   }
   /* Stadium light banks — bright pole-mounted floodlights on a rig at the
      top of the stadium. Bigger, hotter, and with a soft bloom halo. */
