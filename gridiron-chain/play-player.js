@@ -1000,11 +1000,12 @@ const TE_ARCHETYPES = {
   HYBRID:    { label: "Hybrid",       blurb: "Balanced — does a bit of both" },
 };
 const LB_ARCHETYPES = {
-  THUMPER:  { label: "Thumper",   blurb: "Run-stopper — heavy hitter, weak in coverage" },
-  COVER:    { label: "Cover LB",  blurb: "Sideline-to-sideline — drops into pass coverage" },
-  BLITZER:  { label: "Blitzer",   blurb: "Pass rusher — gets after the QB" },
-  SIGNAL:   { label: "Signal-caller", blurb: "Smart anchor — calls plays, balanced" },
-  HYBRID:   { label: "Hybrid",    blurb: "Three-down LB — tackles + coverage" },
+  THUMPER:    { label: "Thumper",       blurb: "Run-stopper — heavy hitter, weak in coverage" },
+  COVER:      { label: "Cover LB",      blurb: "Sideline-to-sideline — drops into pass coverage" },
+  BLITZER:    { label: "Blitzer",       blurb: "Pass rusher — gets after the QB" },
+  SIGNAL:     { label: "Signal-caller", blurb: "Smart anchor — calls plays, balanced" },
+  HEADHUNTER: { label: "Headhunter",    blurb: "Big-hit enforcer — devastating contact, ejection risk" },
+  HYBRID:     { label: "Hybrid",        blurb: "Three-down LB — tackles + coverage" },
 };
 const CB_ARCHETYPES = {
   SHUTDOWN: { label: "Shutdown",  blurb: "Locks down WRs — QBs avoid him" },
@@ -1017,6 +1018,7 @@ const S_ARCHETYPES = {
   BALL_HAWK:    { label: "Ball Hawk",    blurb: "Range + nose for the ball — high INTs" },
   BOX:          { label: "Box Safety",   blurb: "Extra LB — tackle machine in the box" },
   CENTER_FIELD: { label: "Center Field", blurb: "Deep coverage — prevents big plays" },
+  HEADHUNTER:   { label: "Headhunter",   blurb: "Big-hit enforcer — devastating contact, ejection risk" },
   HYBRID:       { label: "Hybrid",       blurb: "Plays single-high or in the box equally well" },
 };
 // Kicker archetypes — affect FG accuracy, range, and kickoff distance.
@@ -1076,6 +1078,11 @@ function pickLBArchetype(stats) {
     COVER:   Math.max(0, cov - 55) * 1.4 + Math.max(0, spd - 60) * 0.6,
     BLITZER: Math.max(0, prs - 60) * 1.4 + Math.max(0, spd - 55) * 0.5,
     SIGNAL:  Math.max(0, awr - 60) * 1.4,
+    // Headhunter: high STR + TCK + SPD trifecta — Ray Lewis / Brian Dawkins
+    // profile. Gated to elites; cov < 70 keeps coverage LBs from qualifying.
+    HEADHUNTER: (str >= 78 && tck >= 75 && spd >= 70 && cov < 70)
+                ? Math.max(0, str - 70) * 1.0 + Math.max(0, tck - 70) * 0.8 + Math.max(0, spd - 65) * 0.5
+                : 0,
     HYBRID:  6,
   };
   for (const k in w) w[k] += Math.random() * 5;
@@ -1094,11 +1101,16 @@ function pickCBArchetype(stats) {
   return Object.keys(w).reduce((a, b) => w[a] >= w[b] ? a : b);
 }
 function pickSArchetype(stats) {
-  const [spd, _str, _agi, awr, _thr, _cat, _blk, _prs, cov, tck] = stats;
+  const [spd, str, _agi, awr, _thr, _cat, _blk, _prs, cov, tck] = stats;
   const w = {
     BALL_HAWK:    Math.max(0, awr - 60) * 1.4 + Math.max(0, cov - 60) * 0.5,
     BOX:          Math.max(0, tck - 60) * 1.5,
     CENTER_FIELD: Math.max(0, spd - 60) * 1.3 + Math.max(0, cov - 60) * 0.5,
+    // Headhunter: Sean Taylor / Kam Chancellor — STR + TCK + SPD profile.
+    // Slightly more permissive than LB version (safeties hit a smaller pool).
+    HEADHUNTER:   (str >= 72 && tck >= 72 && spd >= 75)
+                  ? Math.max(0, str - 65) * 1.0 + Math.max(0, tck - 65) * 0.9 + Math.max(0, spd - 70) * 0.5
+                  : 0,
     HYBRID:       8,
   };
   for (const k in w) w[k] += Math.random() * 5;

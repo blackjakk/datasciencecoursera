@@ -714,8 +714,8 @@ class GameSimulator {
     let ejectChance = 0;
     if (mech === "high" && force >= 1.7)              ejectChance += 0.18;
     if (arch === "HEADHUNTER" && isDefenseless && force >= 1.7) ejectChance += 0.10;
-    if (tackler._urThisGame >= 2)                     ejectChance += 0.35;  // second flag in game
-    if (tackler._urThisGame >= 3)                     ejectChance += 0.50;  // egregious pattern
+    if (tackler._urThisGame >= 2)                     ejectChance += 0.22;  // second flag in game
+    if (tackler._urThisGame >= 3)                     ejectChance += 0.40;  // egregious pattern
     if (ejectChance > 0 && Math.random() < ejectChance) {
       tackler._ejectedThisGame = true;
       tackler.ejections = (tackler.ejections || 0) + 1;
