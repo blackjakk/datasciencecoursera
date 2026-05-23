@@ -30,6 +30,10 @@ const GCPlayer = (() => {
   const _spriteCache = new Map();
   let _frameMarker = 0;          // ticks each frameStart; sprites not
                                  // refreshed by frame end are hidden.
+  let _frameIdx = 0;             // reset to 0 in frameStart; incremented
+                                 // by every render() call so each draw
+                                 // gets its own sprite slot regardless
+                                 // of label collisions.
 
   function _pixiAvailable() {
     return typeof PIXI !== "undefined" && typeof PIXI.Application === "function";
@@ -151,23 +155,24 @@ const GCPlayer = (() => {
   function frameStart() {
     if (!ensure()) return;
     _frameMarker++;
+    _frameIdx = 0;
   }
 
-  // Public — call per player per frame.
-  //   playerKey: stable string (e.g., `${color}|${label}`) used as the
-  //              Sprite cache key. Same player should pass same key.
-  //   screenX, screenY: the projected (broadcast cam) or world (topdown)
-  //              position where the FOOT should land on the canvas.
-  //   scale:    per-player depth scale (projected.scale in broadcast).
-  //   color/secondary/label/pose/t/facing/style: same as _drawPlayerImpl.
+  // Public — call per player per frame. We use a per-frame call-order
+  // index as the sprite slot since labels can collide (many drawPlayer
+  // calls pass label=""). Each render() gets its own sprite; sprites
+  // are pooled across frames so the PIXI render state stays warm.
+  // playerKey arg kept in signature for callers but no longer used for
+  // sprite identity (logged for future use).
   function render(playerKey, screenX, screenY, scale, color, secondary, label, pose, t, facing, style) {
     if (!ensure()) return;
-    let sprite = _spriteCache.get(playerKey);
+    const slot = _frameIdx++;
+    let sprite = _spriteCache.get(slot);
     if (!sprite) {
       sprite = new PIXI.Sprite();
       sprite.anchor.set(TEX_FOOT_FX, TEX_FOOT_FY);
       _stage.addChild(sprite);
-      _spriteCache.set(playerKey, sprite);
+      _spriteCache.set(slot, sprite);
     }
     const tex = _getTexture(color, secondary, label, pose, t || 0, facing, style);
     sprite.texture = tex;
