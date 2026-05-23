@@ -317,6 +317,84 @@ const _hcDecisionCinema = (() => {
   };
 })();
 
+// Big-play moment cinemas — INT (incl. PICK SIX), FUMBLE RECOVERY,
+// SACK (force ≥ 1.5). Card slides up from field bottom on the play
+// hold, ~1.4s beat, auto-clear on next play.
+const _momentCinema = (() => {
+  let activeId = null;
+  function _wrap() {
+    return document.querySelector(".bspnlive-field-wrap")
+        || document.querySelector(".field-wrap")
+        || document.getElementById("field")?.parentElement;
+  }
+  function _kindMeta(play) {
+    if (play.kind === "int") {
+      if (play.isPickSix) return {
+        headline: "PICK SIX",  icon: "🚀", accent: "#ffd54d",
+        sub: `${play.defender || "Defender"} returns ${play.intReturnYds || 0} yds for SIX`,
+      };
+      if (play.isTouchback) return {
+        headline: "INTERCEPTION", icon: "🦅", accent: "#9bd0ff",
+        sub: `${play.defender || "Defender"} picks it off — touchback`,
+      };
+      return {
+        headline: "INTERCEPTION", icon: "🦅", accent: "#9bd0ff",
+        sub: `${play.defender || "Defender"} picks off ${play.passer || "QB"}${play.intReturnYds ? ` · ${play.intReturnYds}-yd return` : ""}`,
+      };
+    }
+    if (play.kind === "fumble") {
+      const isDefRecov = play.recoveredBy === "def";
+      const isReturnTD = play.isReturnTD;
+      if (isReturnTD) return {
+        headline: "FUMBLE-SIX", icon: "💥", accent: "#ffd54d",
+        sub: `${play.defender || "Defender"} scoops it up — TOUCHDOWN`,
+      };
+      if (isDefRecov) return {
+        headline: "TURNOVER", icon: "🔄", accent: "#ff8a4a",
+        sub: `Fumble recovered by ${play.defender || "the defense"}${play.forcedBy ? ` · forced by ${play.forcedBy}` : ""}`,
+      };
+      return {
+        headline: "FUMBLE RECOVERY", icon: "🤲", accent: "#9be09b",
+        sub: `Offense recovers their own${play.forcedBy ? ` · forced by ${play.forcedBy}` : ""}`,
+      };
+    }
+    return null;
+  }
+  return {
+    show(play) {
+      const meta = _kindMeta(play);
+      if (!meta) return;
+      const id = `${play.kind}-${play.startYard}-${play.defender || play.recoveredBy}-${play.intReturnYds || 0}`;
+      if (activeId === id) return;
+      this.clear();
+      activeId = id;
+      const wrap = _wrap();
+      if (!wrap) return;
+      const cs = getComputedStyle(wrap);
+      if (cs.position === "static") wrap.style.position = "relative";
+      const el = document.createElement("div");
+      el.className = "moment-cinema";
+      el.id = "moment-cinema-overlay";
+      el.style.setProperty("--accent", meta.accent);
+      el.innerHTML = `
+        <div class="moment-card">
+          <div class="moment-icon">${meta.icon}</div>
+          <div class="moment-body">
+            <div class="moment-eyebrow">BIG PLAY</div>
+            <div class="moment-headline">${meta.headline}</div>
+            <div class="moment-sub">${meta.sub}</div>
+          </div>
+        </div>`;
+      wrap.appendChild(el);
+    },
+    clear() {
+      const el = document.getElementById("moment-cinema-overlay");
+      if (el) el.remove();
+      activeId = null;
+    },
+  };
+})();
+
 // ─── Per-play animation engine ─────────────────────────────────────────────
 function buildAnimForPlay(play, prevPlay) {
   // Returns { duration, render(t01) }
@@ -5309,6 +5387,8 @@ function startNextPlay() {
   // Touchdown cinema clears on every new play start (it was shown by the
   // PREVIOUS play's hold phase; advance = it's over)
   if (typeof _touchdownCinema !== "undefined") _touchdownCinema.clear();
+  // Same for big-play moment cinema
+  if (typeof _momentCinema !== "undefined") _momentCinema.clear();
   const builder = viewMode === "cinema" ? buildCinemaAnim : buildAnimForPlay;
   const anim = builder(play, prev);
   animState = {
@@ -5375,6 +5455,10 @@ function tick(now) {
       // AAA touchdown spectacle — team-color flood overlay on the field
       // for the duration of the TD hold.
       if (isTD && typeof _touchdownCinema !== "undefined") _touchdownCinema.show(play);
+      // Big-play moment card — INT (incl. pick six), FUMBLE recovery
+      if ((play.kind === "int" || play.kind === "fumble") && typeof _momentCinema !== "undefined") {
+        _momentCinema.show(play);
+      }
       const baseHold = hasCard ? RESULT_HOLD_MS : 90;
       const extraHold = isTD ? 1600 : isBigPlay ? 700 : 0;
       animState.holdDur = (baseHold + extraHold) / speedMul;

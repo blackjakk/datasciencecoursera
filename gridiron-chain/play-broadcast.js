@@ -1148,6 +1148,20 @@ const MomentumBar = {
           <span class="mom-flare-team">${(swingTeamObj?.abbr || "").toUpperCase()} +${m.lastSwing.amount}</span>
         </div>`
       : "";
+    // Crowd reaction — home stadium reads momentum + score-state. Negative
+    // for the home team flips mood. Magnitude of |home momentum| sets level.
+    const homeNet = (m.home || 0);
+    const homeLeading = (state.score.home || 0) > (state.score.away || 0);
+    let mood, moodCls, moodColor;
+    if (homeNet >= 6)       { mood = "ELECTRIC";  moodCls = "electric"; moodColor = "#ffd54d"; }
+    else if (homeNet >= 3)  { mood = "RAUCOUS";   moodCls = "raucous";  moodColor = "#ff8a4a"; }
+    else if (homeNet >= 0)  { mood = homeLeading ? "BUZZING" : "EVEN"; moodCls = ""; moodColor = "#9bd0ff"; }
+    else if (homeNet >= -3) { mood = "RESTLESS";  moodCls = ""; moodColor = "#aaa"; }
+    else if (homeNet >= -6) { mood = "STUNNED";   moodCls = ""; moodColor = "#888"; }
+    else                    { mood = "DEFLATED";  moodCls = ""; moodColor = "#666"; }
+    const crowdChip = `<span class="crowd-chip ${moodCls}" style="--mood:${moodColor}" title="Home-crowd mood inferred from team momentum + score state">
+      <span>🏟</span><span>${mood}</span>
+    </span>`;
     return `<div class="mom-strip">
       <span class="mom-team-label home" style="color:${homeColor}">${state.homeTeam?.abbr || "H"}</span>
       <div class="mom-track">
@@ -1156,6 +1170,7 @@ const MomentumBar = {
         <div class="mom-center"></div>
       </div>
       <span class="mom-team-label away" style="color:${awayColor}">${state.awayTeam?.abbr || "A"}</span>
+      ${crowdChip}
     </div>${flareChip}`;
   },
   update(state) {
@@ -1341,6 +1356,7 @@ function renderGameLayout() {
   if (typeof _bigHitCinema !== "undefined" && _bigHitCinema.clear) _bigHitCinema.clear();
   if (typeof _touchdownCinema !== "undefined" && _touchdownCinema.clear) _touchdownCinema.clear();
   if (typeof _hcDecisionCinema !== "undefined" && _hcDecisionCinema.clear) _hcDecisionCinema.clear();
+  if (typeof _momentCinema !== "undefined" && _momentCinema.clear) _momentCinema.clear();
   // Initial field draw — engine continues to own the canvas.
   const ctx = $("field").getContext("2d");
   if (viewMode === "cinema") {

@@ -3415,6 +3415,78 @@
     border-radius: 2px;
   }
 
+  /* ── BIG-PLAY MOMENT CINEMA ───────────────────────────────
+     Slides up from the field bottom on the play hold. Same overall
+     shape as the HC card but accent-keyed to the moment type. */
+  .moment-cinema {
+    position: absolute; inset: 0; pointer-events: none;
+    z-index: 7; display: flex; align-items: flex-end;
+    justify-content: center; padding-bottom: 30px;
+  }
+  .moment-card {
+    background: linear-gradient(135deg, rgba(0,0,0,.95), rgba(20,15,5,.95));
+    border: 2px solid var(--accent);
+    border-radius: 6px; padding: .55rem .9rem;
+    box-shadow: 0 6px 24px rgba(0,0,0,.7), 0 0 26px color-mix(in srgb, var(--accent) 45%, transparent);
+    display: flex; align-items: center; gap: 1rem;
+    max-width: 70%;
+    color: #fff;
+    animation: moment-card-in 0.4s cubic-bezier(.2,1.4,.4,1) backwards,
+               moment-card-out 0.45s 1.45s ease-in forwards;
+  }
+  @keyframes moment-card-in {
+    from { transform: translateY(40px) scale(0.92); opacity: 0; }
+    to   { transform: translateY(0) scale(1); opacity: 1; }
+  }
+  @keyframes moment-card-out {
+    from { transform: translateY(0); opacity: 1; }
+    to   { transform: translateY(20px); opacity: 0; }
+  }
+  .moment-icon {
+    font-size: 2.4rem; line-height: 1;
+    filter: drop-shadow(0 0 12px var(--accent));
+    animation: moment-icon-pulse 0.65s ease-in-out infinite alternate;
+  }
+  @keyframes moment-icon-pulse {
+    from { transform: scale(1); }
+    to   { transform: scale(1.12) rotate(3deg); }
+  }
+  .moment-body { display: flex; flex-direction: column; gap: .12rem; }
+  .moment-eyebrow {
+    font-size: .55rem; font-weight: 900; letter-spacing: 2px;
+    color: var(--accent);
+  }
+  .moment-headline {
+    font-size: 2rem; font-weight: 900; color: var(--accent);
+    font-family: 'Bebas Neue', 'Anton', sans-serif;
+    letter-spacing: 3px; line-height: 1;
+    text-shadow: 0 2px 8px rgba(0,0,0,.85);
+  }
+  .moment-sub {
+    font-size: .7rem; font-weight: 600; color: #ddd;
+    margin-top: .25rem;
+  }
+
+  /* ── CROWD REACTION CHIP ───────────────────────────────────
+     Lives at the right end of the momentum bar. Reads off momentum +
+     score state to label the crowd mood (ELECTRIC / RAUCOUS / FLAT /
+     STUNNED / DEFLATED). Pulses subtly. */
+  .crowd-chip {
+    display: inline-flex; align-items: center; gap: .25rem;
+    font-size: .58rem; font-weight: 900; letter-spacing: 1.5px;
+    padding: .15rem .45rem; border-radius: 3px;
+    background: rgba(0,0,0,.55);
+    border: 1px solid rgba(255,255,255,.2);
+    color: var(--mood, #fff);
+    margin-left: .5rem;
+  }
+  .crowd-chip.electric { animation: crowd-pulse 0.7s ease-in-out infinite alternate; }
+  .crowd-chip.raucous  { animation: crowd-pulse 1.0s ease-in-out infinite alternate; }
+  @keyframes crowd-pulse {
+    from { box-shadow: 0 0 4px var(--mood); }
+    to   { box-shadow: 0 0 14px var(--mood); }
+  }
+
   /* ── DRIVE MAP ───────────────────────────────────────────────
      Horizontal mini-field showing the current drive's snap-by-snap
      trail from start to current LOS. Lives in the bottom Drive tab. */
