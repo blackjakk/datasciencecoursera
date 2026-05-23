@@ -280,17 +280,34 @@ const GCField = (() => {
     const los   = state?.los;
     const fd    = state?.firstDownAbs;
     const col   = state?.possColor || "#4b9bd5";
-    const key = `${los || ""}|${fd || ""}|${col}`;
-    if (key === _lastDynKey) {
-      // No state change — but we still re-render in case static was just
-      // (re)built and the stage needs refreshing. PIXI render() is cheap
-      // when nothing's actually changed since it uses the cached buffer.
-      _app.renderer.render(_app.stage);
-      return true;
-    }
-    _lastDynKey = key;
+    _lastDynKey = `${los || ""}|${fd || ""}|${col}`;
     _dynG.clear();
     if (_dynGlow) _dynGlow.clear();
+    // ── Red-zone goal line pulse — when LOS is within 20 yards of a
+    // goal line, paint the defending goal line in a warm pulsing color.
+    // Broadcast staple ("they're in the red zone!").
+    if (los != null) {
+      const leftGoal  = FIELD.EZ_PX;
+      const rightGoal = FIELD.W - FIELD.EZ_PX;
+      const dLeft  = los - leftGoal;
+      const dRight = rightGoal - los;
+      const yardPx = FIELD.PX_PER_YARD || ((rightGoal - leftGoal) / 100);
+      const inRedZone = (dLeft >= 0 && dLeft <= 20 * yardPx) ||
+                        (dRight >= 0 && dRight <= 20 * yardPx);
+      if (inRedZone) {
+        const targetX = dLeft < dRight ? leftGoal : rightGoal;
+        // Pulse alpha 0.45..0.95 on a ~1.4s cycle
+        const pulse = 0.45 + 0.50 * (0.5 + 0.5 * Math.sin(performance.now() * 0.0045));
+        _dynG.lineStyle(4, 0xff7028, pulse);
+        _dynG.moveTo(targetX, FIELD.TOP);
+        _dynG.lineTo(targetX, FIELD.BOT);
+        if (_dynGlow) {
+          _dynGlow.lineStyle(14, 0xff7028, pulse * 0.6);
+          _dynGlow.moveTo(targetX, FIELD.TOP);
+          _dynGlow.lineTo(targetX, FIELD.BOT);
+        }
+      }
+    }
     if (los != null) {
       const losHex = (typeof col === "string" && col[0] === "#")
         ? parseInt(col.slice(1), 16) : 0x4b9bd5;
