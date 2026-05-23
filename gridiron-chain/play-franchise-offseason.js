@@ -14109,6 +14109,56 @@ function _gradeLabelToFloor(label) {
   return map[label] || 0;
 }
 
+// Auto-suggest an asking price for a blocked player. Greedy fill: pack
+// the largest picks first (max 2 per round), then make up the remainder
+// in cash. Adds a 10% premium so there's room for AI to haggle without
+// breaking the deal. Returns the same shape as the askDraft form state.
+function _suggestBlockAskForPlayer(player) {
+  // Target the player's fair value. The auction lets you counter up
+  // from below, so starting at-market gives bidders headroom to be
+  // pushed toward their ceiling rather than getting filtered out.
+  const target = Math.max(2, _playerTradeValue(player));
+  const picks = {};
+  let remaining = target;
+  // Greedy: try each round in descending value order, take up to 2 if it fits
+  for (const r of [1, 2, 3, 4, 5, 6, 7]) {
+    const v = PICK_VALUE_BY_ROUND[r];
+    if (!v || v > remaining * 1.4) continue;
+    while (remaining >= v * 0.75 && (picks[r] || 0) < 2) {
+      picks[r] = (picks[r] || 0) + 1;
+      remaining -= v;
+    }
+  }
+  // If still meaningful value left, settle with cash. ~$1.5M / value unit
+  // matches the refund-to-value math in _askPriceValue.
+  let refundAmount = 0, refundYears = 0;
+  if (remaining >= 1.5) {
+    const cashTotal = Math.round(remaining / 1.5 * 10) / 10;
+    refundAmount = Math.min(cashTotal, 6);
+    refundYears = Math.max(1, Math.ceil(cashTotal / Math.max(1, refundAmount)));
+    refundYears = Math.min(refundYears, Math.max(1, player.contract?.remaining || 1));
+  }
+  return {
+    askedPicks: picks,
+    refundAmount, refundYears,
+    refundDirection: "theyPay",
+    minPlayerGrade: "",
+    _suggestedFor: player.name,
+    _targetValue: Math.round(target * 10) / 10,
+  };
+}
+
+function frnAskSuggest() {
+  const tp = franchise._tradeProp;
+  if (!tp?.editAsk) return;
+  const myId = franchise.chosenTeamId;
+  const player = franchise.rosters[myId].find(p => p.name === tp.editAsk);
+  if (!player) return;
+  tp.askDraft = _suggestBlockAskForPlayer(player);
+  saveFranchise();
+  renderFrnTrade();
+}
+
 // Sealed-bid auction for trade-block listings: when a player goes on
 // the block, every interested AI team computes their max willingness
 // (player value + position-need bonus). They each submit ONE final
@@ -14139,23 +14189,29 @@ function _processBlockAsks() {
         const w = playerVal + need;
         return { team: t, willingness: w, need };
       })
-      // A team only bids if their willingness can plausibly meet the ask
-      .filter(c => c.willingness >= askFloor * 0.85)
+      // Any team that values the player meaningfully gets to submit a
+      // bid — even if it's below ask. Lowball offers are useful to the
+      // user as counter-fodder, and the auction would otherwise filter
+      // most teams out when the ask is set above market.
+      .filter(c => c.willingness >= Math.max(askFloor * 0.55, playerVal * 0.65))
       .sort((a,b) => b.willingness - a.willingness)
       .slice(0, 5);
 
     if (!candidates.length) continue;
 
-    // Most-willing team caps their bid at "second-most + 1". Everyone
-    // else bids their full willingness. Ensures the top bid reveals
-    // only just enough to beat the next-best, but lower-tier teams
-    // still get to put their best foot forward.
-    const secondMost = candidates[1]?.willingness || askFloor;
+    // Sealed-bid initial submissions:
+    //  - Top bidder opens at ~80% of their willingness (room to counter
+    //    up). They could nominally reveal more, but that locks them in.
+    //  - Lower bidders open at 75% of their willingness — lowball bids
+    //    the user can either accept (cheap deal) or counter up.
+    // Bids are NEVER forced above a team's willingness, so the auction
+    // is honest about each team's interest. Counters move bids toward
+    // each team's hidden ceiling.
     for (let i = 0; i < candidates.length; i++) {
       const c = candidates[i];
       const targetValue = (i === 0)
-        ? Math.max(askFloor, Math.min(c.willingness, secondMost + 1))
-        : Math.max(askFloor, c.willingness);
+        ? Math.min(c.willingness * 0.85, askFloor)
+        : Math.min(c.willingness * 0.75, askFloor);
       const pkg = _buildBestOfferPackage(c.team.id, player, targetValue);
       if (!pkg) continue;
       // Dedupe per (team, player, week)
@@ -14175,6 +14231,12 @@ function _processBlockAsks() {
         status: "pending",
         isFromAsk: true,
         bidValue: pkg.totalValue,
+        // Counter ceiling — how high this team is willing to go. Pick
+        // packages can overshoot willingness when the ask forces high
+        // rounds, so we take the max of (true willingness, current bid)
+        // to avoid negative headroom right out of the gate.
+        maxBidValue: Math.max(c.willingness, pkg.totalValue),
+        counterCount: 0,
       });
     }
   }
@@ -14547,6 +14609,67 @@ function frnRejectOffer(offerId) {
   const off = (franchise.tradeOffers||[]).find(o => o.id === offerId);
   if (!off) return;
   off.status = "rejected";
+  saveFranchise();
+  renderFrnTrade();
+}
+
+// Counter an offer with an additional ask — pick or cash. Rolls against
+// the AI's hidden max willingness. If new total ≤ maxBidValue: accepts
+// (offer bumps); else declines (the existing offer stays at the prior
+// terms, counter button decrements). Capped at 2 counters per offer.
+const COUNTER_PRESETS = {
+  pickR6: { label: "+ R6",      value: 2,    kind: "pick", round: 6 },
+  pickR5: { label: "+ R5",      value: 3,    kind: "pick", round: 5 },
+  pickR3: { label: "+ R3",      value: 9,    kind: "pick", round: 3 },
+  pickR2: { label: "+ R2",      value: 16,   kind: "pick", round: 2 },
+  cash3:  { label: "+ $3M cash", value: 4.5, kind: "cash", amount: 3 },
+  cash6:  { label: "+ $6M cash", value: 9,   kind: "cash", amount: 6 },
+};
+
+function frnCounterOffer(offerId, presetKey) {
+  const off = (franchise.tradeOffers||[]).find(o => o.id === offerId);
+  if (!off || off.status !== "pending") return;
+  if ((off.counterCount || 0) >= 2) return;
+  const preset = COUNTER_PRESETS[presetKey];
+  if (!preset) return;
+  const newTotal = (off.bidValue || 0) + preset.value;
+  off.counterCount = (off.counterCount || 0) + 1;
+  off.lastCounter = preset.label;
+  const headroom = (off.maxBidValue || off.bidValue || 0) - newTotal;
+  // Headroom-driven accept: comfortable above (>= 0) → near-certain yes;
+  // razor thin → coinflip; over the ceiling → strong no but tiny chance
+  // they cave (negotiation noise).
+  const accept = headroom > 4 ? Math.random() < 0.95
+               : headroom > 0  ? 0.55 + (headroom/4)*0.30
+               :                 Math.max(0.05, 0.30 + headroom*0.10);
+  const ok = Math.random() < accept;
+  if (ok) {
+    // Find an actual pick of that round from the team and append it,
+    // or bump the cash refund. If we can't satisfy it cleanly, treat
+    // as accept-with-equivalent-cash (engine math holds; UI shows it).
+    if (preset.kind === "pick") {
+      const aiPicks = _teamPicks(off.fromTeamId)
+        .filter(p => p.round === preset.round && !(off.pickIds || []).includes(p.id))
+        .sort((a, b) => a.year - b.year);  // soonest first
+      if (aiPicks.length) {
+        off.pickIds = [...(off.pickIds || []), aiPicks[0].id];
+      } else {
+        off.absorb = (off.absorb || 0) + preset.amount || 0; // fallback to cash
+      }
+    } else if (preset.kind === "cash") {
+      // absorb = $M dead-cap the AI eats from your contract. Larger = better
+      // for you. Track per-trade total.
+      off.absorb = (off.absorb || 0) + preset.amount;
+    }
+    off.bidValue = newTotal;
+    off.counterResult = `accepted (${preset.label})`;
+    _pushNews({ type: "trade",
+      label: `↑ ${getTeam(off.fromTeamId)?.name || "Team"} bumped offer ${preset.label}` });
+  } else {
+    off.counterResult = `refused (${preset.label})`;
+    _pushNews({ type: "trade",
+      label: `${getTeam(off.fromTeamId)?.name || "Team"} refused to add ${preset.label}` });
+  }
   saveFranchise();
   renderFrnTrade();
 }
@@ -15708,14 +15831,19 @@ function _renderBlockAskForm(playerName) {
   }
   if (ad.minPlayerGrade) askLine.push(`${ad.minPlayerGrade}+ player`);
 
+  const playerTV = Math.round(_playerTradeValue(player) * 10) / 10;
   return `
     <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem;flex-wrap:wrap">
       <button class="btn btn-outline" onclick="frnCancelAsk()">← Back</button>
       <div style="font-weight:900">Set price for ${player.name}</div>
       <div style="color:var(--gray);font-size:.7rem">(${player.position}, age ${player.age||"?"}, ${gradeLabel(scoutGrade(player))} · contract ${player.contract?.remaining||0}yr left @ $${(player.contract?.aav||0).toFixed(1)}M)</div>
+      <button class="btn btn-gold" onclick="frnAskSuggest()" style="margin-left:auto"
+        title="Fills the form with a fair asking price (10% above your scout's market value, ~${playerTV} trade-value units).">
+        💡 Suggest fair price
+      </button>
     </div>
     <div class="frn-fa-summary">
-      <span style="color:var(--gray)">Asking price is <b style="color:var(--gold)">public</b> — every team sees it. Anyone whose package matches sends an offer next week.</span>
+      <span style="color:var(--gray)">Asking price is <b style="color:var(--gold)">public</b> — every team sees it. Anyone whose package matches sends an offer next week.${ad._suggestedFor === player.name ? ` <span style="color:var(--gold)">· Suggested target: ${ad._targetValue} value units (${playerTV} player + 10% premium).</span>` : ""}</span>
     </div>
 
     <div class="frn-card-title" style="margin-top:.6rem">📋 DRAFT PICKS DEMANDED</div>
@@ -16082,11 +16210,29 @@ function _renderTradeOffersTab() {
         <div class="frn-offer-arrow">⇄</div>
         ${wantCol}
       </div>
-      ${o.status === "pending" ? `
-        <div class="frn-offer-actions">
+      ${o.status === "pending" ? (() => {
+        const counterCount = o.counterCount || 0;
+        const counterUsed = counterCount >= 2;
+        const counterChips = counterUsed ? "" : Object.entries(COUNTER_PRESETS).map(([k, p]) =>
+          `<button class="btn btn-outline" onclick="frnCounterOffer('${o.id}','${k}')"
+            style="font-size:.58rem;padding:.18rem .4rem;margin:.1rem .15rem .1rem 0" title="Ask them to add ${p.label}. They'll accept if they have headroom, refuse if not.">${p.label}</button>`
+        ).join("");
+        const lastResult = o.counterResult
+          ? `<div style="font-size:.62rem;color:${o.counterResult.startsWith("accepted")?"var(--green-lt)":"#ff9090"};margin-top:.25rem">${o.counterResult.startsWith("accepted")?"↑":"✗"} ${o.counterResult}</div>`
+          : "";
+        return `<div class="frn-offer-actions">
           <button class="btn btn-gold" onclick="frnAcceptOffer('${o.id}')">✓ Accept</button>
           <button class="btn btn-outline" onclick="frnRejectOffer('${o.id}')" style="color:var(--red)">✗ Reject</button>
-        </div>` : ""}
+        </div>
+        ${o.isFromAsk ? `<div style="margin-top:.4rem;padding:.35rem .45rem;background:var(--bg2);border:1px solid var(--border);border-radius:3px">
+          <div style="font-size:.6rem;color:var(--gray);letter-spacing:.5px;margin-bottom:.2rem">
+            ↺ COUNTER · ${counterCount}/2 used
+            ${counterUsed ? `<span style="color:#888"> — no more counters allowed</span>` : ""}
+          </div>
+          ${counterChips}
+          ${lastResult}
+        </div>` : ""}`;
+      })() : ""}
     </div>`;
   }).join("");
 }
