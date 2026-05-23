@@ -420,6 +420,22 @@ function toBSPNLiveGameState(gr, head) {
   }
   const driveStartY = driveSeq.length ? driveSeq[0].startYard : (sitPlay?.startYard ?? null);
 
+  // Momentum snapshot — walk back from head for the latest kind:"momentum"
+  // visual carrying momentumNow. The engine doesn't expose its live tally
+  // outside the sim, so we read from the visual stream.
+  let momentum = { home: 0, away: 0, lastSwing: null };
+  for (let i = head - 1; i >= Math.max(0, head - 60); i--) {
+    const p = gr.plays[i];
+    if (p?.kind === "momentum" && p.momentumNow) {
+      momentum = {
+        home: p.momentumNow.home || 0,
+        away: p.momentumNow.away || 0,
+        lastSwing: { team: p.team, amount: p.amount, source: p.source, playsAgo: head - 1 - i },
+      };
+      break;
+    }
+  }
+
   // Play-by-play rows from the current drive (latest first)
   const pbpRows = [];
   for (let i = head - 1; i >= 0 && pbpRows.length < 12; i--) {
@@ -585,6 +601,9 @@ function toBSPNLiveGameState(gr, head) {
 
     // — Live bio (per-player wear/stress/snap%/injury) —
     liveBio,
+
+    // — Momentum (running, with last-swing source) —
+    momentum,
 
     // — Legacy aliases (kept for now; remove once all callers migrate) —
     homeScore, awayScore,
@@ -1100,6 +1119,51 @@ const LiveBioPanel = {
 
 // Field HUD overlay — score/clock/down/drive corners over the canvas.
 // Built once into the field-wrap; updates each tick via DOM mutation.
+// Momentum bar — thin centered strip showing the running -10..+10
+// balance between the two teams. Color-filled toward the leading
+// side; flares when the latest swing happened within the last play
+// or two (drives a flash + flavor chip).
+const MomentumBar = {
+  render(state) {
+    return `<div class="momentum-bar" id="momentum-bar">${this._body(state)}</div>`;
+  },
+  _body(state) {
+    const m = state.momentum || { home: 0, away: 0, lastSwing: null };
+    // Net = home - away, range roughly -15..+15 (since both can be ±10)
+    const net = (m.home || 0) - (m.away || 0);
+    const pct = Math.max(-1, Math.min(1, net / 15)); // -1..+1
+    // Bar geometry: 0 in the middle, fill grows toward leading side
+    const homeFill = pct > 0 ? pct * 50 : 0;       // 0..50
+    const awayFill = pct < 0 ? -pct * 50 : 0;
+    const homeColor = state.homeTeam?.primary || "#9be09b";
+    const awayColor = state.awayTeam?.primary || "#9bd0ff";
+    const fresh = m.lastSwing && m.lastSwing.playsAgo <= 1;
+    const swingTeamObj = m.lastSwing
+      ? (m.lastSwing.team === "home" ? state.homeTeam : state.awayTeam)
+      : null;
+    const flareChip = fresh && m.lastSwing
+      ? `<div class="momentum-flare" style="--team:${swingTeamObj?.primary || "#fff"}">
+          <span class="mom-flare-icon">⚡</span>
+          <span class="mom-flare-text">${m.lastSwing.source}</span>
+          <span class="mom-flare-team">${(swingTeamObj?.abbr || "").toUpperCase()} +${m.lastSwing.amount}</span>
+        </div>`
+      : "";
+    return `<div class="mom-strip">
+      <span class="mom-team-label home" style="color:${homeColor}">${state.homeTeam?.abbr || "H"}</span>
+      <div class="mom-track">
+        <div class="mom-fill home" style="width:${homeFill}%;background:${homeColor};box-shadow:0 0 ${4 + homeFill/4}px ${homeColor}"></div>
+        <div class="mom-fill away" style="width:${awayFill}%;background:${awayColor};box-shadow:0 0 ${4 + awayFill/4}px ${awayColor}"></div>
+        <div class="mom-center"></div>
+      </div>
+      <span class="mom-team-label away" style="color:${awayColor}">${state.awayTeam?.abbr || "A"}</span>
+    </div>${flareChip}`;
+  },
+  update(state) {
+    const el = document.getElementById("momentum-bar");
+    if (el) el.innerHTML = this._body(state);
+  },
+};
+
 const FieldHUD = {
   render(state) {
     return `<div class="field-hud" id="field-hud">
@@ -1170,6 +1234,7 @@ const BSPNGameScreen = {
     return `<div class="bspnlive-root v2" style="--away-color:${state.awayTeam.primary};--home-color:${state.homeTeam.primary}">
       ${BSPNHeader.render()}
       ${BSPNScoreboard.render(state)}
+      ${MomentumBar.render(state)}
       <div class="bspnlive-body v2">
         ${AsciiFieldViewer.render(state)}
         ${FieldHUD.render(state)}
@@ -1232,6 +1297,7 @@ const BSPNGameScreen = {
   update(state) {
     if (!document.querySelector(".bspnlive-root")) return;
     BSPNScoreboard.update(state);
+    MomentumBar.update(state);
     FieldHUD.update(state);
     BoxScoreMiniPanel.update(state);
     TeamStatsMiniPanel.update(state);

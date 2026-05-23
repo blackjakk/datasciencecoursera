@@ -470,6 +470,9 @@ class GameSimulator {
     // Surface big swings as a play-by-play visual so the ticker shows them.
     if (Math.abs(amount) >= 3 && source) {
       this._pushVisual?.({ kind: "momentum", team, amount, source,
+        // Snapshot the post-swing momentum on the visual so the live HUD
+        // strip can read off the new balance directly.
+        momentumNow: { home: this._momentum.home, away: this._momentum.away },
         homeScore: this.score?.home, awayScore: this.score?.away });
     }
   }

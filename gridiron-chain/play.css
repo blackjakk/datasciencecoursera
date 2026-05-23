@@ -3338,6 +3338,83 @@
     text-shadow: 0 0 6px var(--accent);
   }
 
+  /* ── MOMENTUM BAR ───────────────────────────────────────────
+     Thin strip between the scoreboard and the field showing the
+     running momentum balance. Color-fills toward the leading team;
+     the latest swing flashes a flavor chip. */
+  .momentum-bar {
+    position: relative;
+    background: linear-gradient(to right, rgba(0,0,0,.5), rgba(20,20,20,.4), rgba(0,0,0,.5));
+    padding: .35rem .6rem .25rem;
+    border-top: 1px solid var(--blborder);
+    border-bottom: 1px solid var(--blborder);
+  }
+  .mom-strip {
+    display: flex; align-items: center; gap: .55rem;
+    max-width: 720px; margin: 0 auto;
+  }
+  .mom-team-label {
+    font-size: .65rem; font-weight: 900; letter-spacing: 2px;
+    min-width: 28px; text-align: center;
+    text-shadow: 0 1px 4px rgba(0,0,0,.8);
+  }
+  .mom-track {
+    position: relative; flex: 1; height: 8px;
+    background: rgba(255,255,255,.06);
+    border-radius: 4px; overflow: hidden;
+    display: flex; align-items: stretch;
+  }
+  .mom-fill {
+    position: absolute; top: 0; bottom: 0;
+    transition: width 0.35s cubic-bezier(.2,1.2,.4,1),
+                box-shadow 0.35s ease;
+  }
+  .mom-fill.home  { right: 50%; border-radius: 4px 0 0 4px; }
+  .mom-fill.away  { left: 50%;  border-radius: 0 4px 4px 0; }
+  .mom-center {
+    position: absolute; top: -2px; bottom: -2px;
+    left: 50%; width: 2px;
+    background: rgba(255,255,255,.55);
+    transform: translateX(-50%);
+    box-shadow: 0 0 4px rgba(255,255,255,.4);
+  }
+  .momentum-flare {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex; align-items: center; gap: .35rem;
+    background: linear-gradient(135deg, rgba(0,0,0,.95), rgba(20,15,5,.95));
+    border: 2px solid var(--team);
+    border-radius: 3px; padding: .2rem .55rem;
+    box-shadow: 0 0 18px color-mix(in srgb, var(--team) 55%, transparent),
+                0 2px 8px rgba(0,0,0,.6);
+    animation: mom-flare-in 0.4s cubic-bezier(.2,1.4,.4,1) backwards,
+               mom-flare-out 0.5s 2.5s ease-in forwards;
+    pointer-events: none;
+  }
+  @keyframes mom-flare-in {
+    from { transform: translate(-50%, -50%) scale(0.7); opacity: 0; }
+    to   { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  }
+  @keyframes mom-flare-out {
+    from { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    to   { transform: translate(-50%, -50%) scale(1.05); opacity: 0; }
+  }
+  .mom-flare-icon {
+    font-size: .95rem; line-height: 1;
+    filter: drop-shadow(0 0 4px var(--team));
+  }
+  .mom-flare-text {
+    color: #fff; font-size: .68rem; font-weight: 800;
+    letter-spacing: 1.5px;
+  }
+  .mom-flare-team {
+    color: var(--team); font-size: .62rem; font-weight: 900;
+    letter-spacing: 1.5px;
+    background: rgba(255,255,255,.06); padding: .05rem .3rem;
+    border-radius: 2px;
+  }
+
   /* ── DRIVE MAP ───────────────────────────────────────────────
      Horizontal mini-field showing the current drive's snap-by-snap
      trail from start to current LOS. Lives in the bottom Drive tab. */
