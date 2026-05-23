@@ -61,8 +61,8 @@ class KeeperRules:
 
     enabled: bool = False
     max_keepers_per_team: int = 0
-    # If a player was drafted in round R last year, you forfeit your pick in
-    # round (R - round_penalty) this year. Default of 2 matches the user's league.
+    # If a player was drafted/kept in round R last year, you forfeit your pick
+    # in round (R - round_penalty) this year. Default of 2 matches user's league.
     round_penalty: int = 2
     # Players acquired off waivers / undrafted last year typically cost a fixed
     # round. None means "not allowed to keep undrafted players".
@@ -70,6 +70,9 @@ class KeeperRules:
     # If forfeited round would be <= 0 (e.g. kept a 1st-rounder), what happens?
     # "forfeit_next_year_first" or "not_eligible".
     too_early_policy: str = "not_eligible"
+    # A player can be kept by the same team for at most this many consecutive
+    # seasons. 0 disables the cap.
+    max_years_consecutive: int = 0
 
 
 @dataclass

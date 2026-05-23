@@ -22,6 +22,7 @@
     "max_keepers_per_team": 4,
     "round_penalty": 2,
     "undrafted_keeper_round": 10,
-    "too_early_policy": "not_eligible"
+    "too_early_policy": "not_eligible",
+    "max_years_consecutive": 3
   }
 }

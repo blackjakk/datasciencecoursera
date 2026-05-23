@@ -12,9 +12,14 @@ from .players import Player
 class Keeper:
     team_idx: int
     player_name: str
-    # Round the player was selected in last year's draft. None means undrafted
-    # (waiver / UDFA), in which case league rules decide the cost.
+    # Round the player was drafted OR kept in last year (whichever was their
+    # most recent cost). None means undrafted (waiver / UDFA), in which case
+    # league rules set the cost.
     prior_round: int | None = None
+    # How many consecutive seasons this player has already been kept by this
+    # team (including the upcoming year would make it years_kept + 1). Used to
+    # enforce KeeperRules.max_years_consecutive.
+    years_kept: int = 0
 
 
 def apply_keepers(draft: Draft, all_players: list[Player], keepers: list[Keeper]) -> list[str]:
@@ -43,6 +48,13 @@ def apply_keepers(draft: Draft, all_players: list[Player], keepers: list[Keeper]
         if per_team_count[keeper.team_idx] > rules.max_keepers_per_team:
             log.append(
                 f"REJECT {team.name}: exceeds max {rules.max_keepers_per_team} keepers."
+            )
+            continue
+
+        if rules.max_years_consecutive and keeper.years_kept >= rules.max_years_consecutive:
+            log.append(
+                f"REJECT {team.name}: {keeper.player_name} already kept "
+                f"{keeper.years_kept} years (max {rules.max_years_consecutive})."
             )
             continue
 

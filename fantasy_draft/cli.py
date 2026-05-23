@@ -150,6 +150,7 @@ def _load_keepers(path: str | Path) -> list[Keeper]:
             team_idx=int(k["team_idx"]),
             player_name=k["player_name"],
             prior_round=(int(k["prior_round"]) if k.get("prior_round") is not None else None),
+            years_kept=int(k.get("years_kept", 0)),
         )
         for k in raw
     ]
