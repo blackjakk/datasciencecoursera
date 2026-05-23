@@ -36,6 +36,11 @@ const GCFx = (() => {
   let _pxAttachedTo = null;     // wrap element we attached to (for invalidation)
   let _pxVignetteSprite = null; // PIXI.Sprite displaying a pre-rendered vignette texture
   let _pxLightBeams = null;     // PIXI.Container holding animated stadium-light rays
+  let _pxFlashSprite = null;    // PIXI.Sprite (Texture.WHITE) for tinted full-screen flash
+  let _flashStart = 0;
+  let _flashDur = 0;
+  let _flashColor = 0xffffff;
+  let _flashPeak = 0;
   function _pixiAvailable() {
     return typeof PIXI !== "undefined" && typeof PIXI.Application === "function";
   }
@@ -141,6 +146,19 @@ const GCFx = (() => {
       blur.quality = 2;
       _pxParticles.filters = [blur];
       _pxApp.stage.addChild(_pxParticles);
+      // ── Flash layer on top — full-screen Sprite with PIXI.Texture.WHITE
+      // tinted to the flash color. Sprite-tinting bypasses the Graphics
+      // path that produced the gray-composite issue in Phase 1.5.
+      try {
+        _pxFlashSprite = new PIXI.Sprite(PIXI.Texture.WHITE);
+        _pxFlashSprite.width  = 1700;
+        _pxFlashSprite.height = 720;
+        _pxFlashSprite.alpha  = 0;
+        _pxApp.stage.addChild(_pxFlashSprite);
+      } catch (e) {
+        console.warn("PIXI flash sprite failed:", e);
+        _pxFlashSprite = null;
+      }
       return true;
     } catch (e) {
       console.warn("PIXI FX init failed, falling back to canvas2D:", e);
@@ -154,10 +172,57 @@ const GCFx = (() => {
     if (!m) return 0xffffff;
     return (parseInt(m[1]) << 16) | (parseInt(m[2]) << 8) | parseInt(m[3]);
   }
-  function flash(_color, _durMs, _peak) {
-    // Reserved for Phase 1.5 — the WebGL flash overlay had a software-
-    // renderer compositing issue that produced a uniform gray instead of
-    // the expected red wash. Tracked in HANDOFF.md §8 for next session.
+  function _hexFromCss(c) {
+    if (!c) return 0xffffff;
+    if (c[0] === "#") {
+      if (c.length === 4) {
+        return (parseInt(c[1], 16) * 17) << 16 |
+               (parseInt(c[2], 16) * 17) << 8 |
+                parseInt(c[3], 16) * 17;
+      }
+      return parseInt(c.slice(1), 16);
+    }
+    return _hexFromRgba(c.startsWith("rgba") ? c : "rgba(" + c.slice(4));
+  }
+  function flash(color, durMs, peak) {
+    _flashStart = performance.now();
+    _flashDur   = durMs || 240;
+    _flashColor = (typeof color === "string") ? _hexFromCss(color) : (color || 0xffffff);
+    _flashPeak  = peak != null ? peak : 0.45;
+    if (_pxFlashSprite && _pxApp) {
+      // Bake the color into a fresh RenderTexture so we never depend on
+      // sprite tint (PIXI 7 tint behavior is unreliable on the headless
+      // software-WebGL renderer we use in CI).
+      try {
+        const tex = PIXI.RenderTexture.create({ width: 1700, height: 720 });
+        const g = new PIXI.Graphics();
+        g.beginFill(_flashColor, 1);
+        g.drawRect(0, 0, 1700, 720);
+        g.endFill();
+        _pxApp.renderer.render(g, { renderTexture: tex });
+        g.destroy();
+        if (_pxFlashSprite.texture && _pxFlashSprite.texture !== PIXI.Texture.WHITE) {
+          _pxFlashSprite.texture.destroy(true);
+        }
+        _pxFlashSprite.texture = tex;
+        _pxFlashSprite.width = 1700;
+        _pxFlashSprite.height = 720;
+      } catch (e) { console.warn("flash texture rebuild failed:", e); }
+    }
+  }
+  function _updateFlash() {
+    if (!_pxFlashSprite) return;
+    if (!_flashDur) { _pxFlashSprite.alpha = 0; return; }
+    const elapsed = performance.now() - _flashStart;
+    if (elapsed >= _flashDur) {
+      _pxFlashSprite.alpha = 0;
+      _flashDur = 0;
+      return;
+    }
+    const k = elapsed / _flashDur;
+    // Fast rise to peak in the first 25%, then exponential decay.
+    const env = k < 0.25 ? (k / 0.25) : Math.exp(-(k - 0.25) * 6);
+    _pxFlashSprite.alpha = env * _flashPeak;
   }
   function _drawPixi() {
     if (!_ensurePixiOverlay()) return false;
@@ -202,6 +267,7 @@ const GCFx = (() => {
         beams[bi].alpha = pulse;
       }
     }
+    _updateFlash();
     _pxApp.renderer.render(_pxApp.stage);
     return true;
   }
