@@ -1198,6 +1198,7 @@ const FieldHUD = {
     return `<div class="hud-cam-toggle">
       <button id="camTopdownBtn" class="hud-cam-btn${td}" onclick="setCameraMode('topdown')" title="Top-down view">⬇ TOP</button>
       <button id="camBroadcastBtn" class="hud-cam-btn${bd}" onclick="setCameraMode('broadcast')" title="Broadcast camera (tilted field)">🎥 BCAST</button>
+      <button class="hud-cam-btn" onclick="frnReplayLastPlay()" title="Re-watch the previous play in slow motion">↻ REPLAY</button>
     </div>`;
   },
   _teamScore(state, side) {

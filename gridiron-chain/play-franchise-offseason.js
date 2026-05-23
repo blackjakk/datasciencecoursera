@@ -1855,6 +1855,15 @@ function markGamePlayed(homeId, awayId, homeScore, awayScore, gameStats, plays, 
     if (gameStats) g.stats = _stripGameStatsForStorage(gameStats);
     if (plays)     g.scoring = _extractScoringTimeline(plays, homeScore, awayScore);
     if (plays)     g.momentumLog = _extractMomentumLog(plays);
+    // Highlights: scan plays for big moments (TD, pick-six, big hits,
+    // long FGs, 4th-down calls). Keeps top 7 per game.
+    if (plays) {
+      try {
+        const hl = _extractReplayClips(plays, homeId, awayId,
+          franchise.season || 1, g.week || franchise.week || 1, !!ctx?.isPlayoff);
+        if (hl?.length) _saveReplayClips(hl);
+      } catch (e) { console.warn("[highlights]", e); }
+    }
     if (ctx?.weather)     g.weather = { label: ctx.weather.label, windStrength: ctx.weather.windStrength };
     if (ctx?.isRivalry)   g.isRivalry = true;
     if (ctx?.homeWgp || ctx?.awayWgp) g.gameplan = {
@@ -1886,6 +1895,320 @@ function _extractMomentumLog(plays) {
   }
   return out.length ? out : null;
 }
+
+// ── Highlights extraction ──────────────────────────────────────
+// Scores each play for "highlight value" (0-10) and returns the top N.
+// Saves the full play object so the replay system can re-render it
+// later. Highlight types: TD, PICK_SIX, BIG_PLAY, TURNOVER, BIG_HIT,
+// EJECTION, FOURTH_DOWN_GO, GAME_WINNER.
+function _scoreHighlight(play, ctx) {
+  const yards = Math.abs(play.yards || 0);
+  const endY = play.endYard ?? 0;
+  const isTD = endY >= 100 && (play.kind === "run" || play.kind === "complete");
+  const isLate4Q = (ctx.quarter || 1) >= 4 && (ctx.time || 0) <= 300;
+  let rating = 0;
+  let type = null;
+
+  if (play.kind === "int") {
+    if (play.isPickSix) { rating = 9.2; type = "PICK_SIX"; }
+    else                { rating = 6.5; type = "INT"; }
+    if (isLate4Q) rating += 0.7;
+  } else if (play.kind === "fumble") {
+    if (play.isReturnTD)        { rating = 9.0; type = "FUMBLE_SIX"; }
+    else if (play.recoveredBy === "def") { rating = 6.0; type = "TURNOVER"; }
+    else                        { rating = 3.0; type = "FUMBLE_REC"; }
+    if (isLate4Q) rating += 0.7;
+  } else if (isTD) {
+    rating = 7.0;
+    type = play.kind === "complete" ? "TD_PASS" : "TD_RUN";
+    if (yards >= 50) rating += 1.0;
+    else if (yards >= 30) rating += 0.5;
+    if (isLate4Q) rating += 1.0;
+  } else if (play.kind === "complete" && yards >= 25) {
+    rating = 4.5 + Math.min(2, (yards - 25) / 20);
+    type = "BIG_PASS";
+  } else if (play.kind === "run" && yards >= 20) {
+    rating = 4.5 + Math.min(2, (yards - 20) / 20);
+    type = "BIG_RUN";
+  } else if (play.kind === "big_hit" && (play.force || 0) >= 1.7) {
+    rating = 6.0 + Math.min(2, (play.force - 1.7) * 4);
+    type = "BIG_HIT";
+  } else if (play.kind === "ejection") {
+    rating = 7.5; type = "EJECTION";
+  } else if (play.kind === "hc_decision" && play.decision === "go_4th") {
+    rating = 4.5; type = "FOURTH_DOWN_CALL";
+  } else if (play.kind === "fg_good" && (play.dist || 0) >= 50) {
+    rating = 5.0 + Math.min(2, (play.dist - 50) / 10);
+    type = "LONG_FG";
+    if (isLate4Q) rating += 1.0;
+  }
+
+  if (rating === 0 || !type) return null;
+  return { rating: Math.min(10, Math.round(rating * 10) / 10), type };
+}
+
+function _extractReplayClips(plays, homeId, awayId, seasonNum, weekNum, isPlayoff) {
+  if (!Array.isArray(plays) || !plays.length) return [];
+  // Score every play; build a list of scored highlights
+  const candidates = [];
+  for (let i = 0; i < plays.length; i++) {
+    const p = plays[i];
+    const score = _scoreHighlight(p, p);  // play carries quarter/time
+    if (!score) continue;
+    // Build a self-contained record. Keep the full play for replay,
+    // plus 1-2 preceding plays as context (for the lead-up).
+    const ctxStart = Math.max(0, i - 2);
+    const ctxPlays = plays.slice(ctxStart, i + 1);
+    candidates.push({
+      id: `h_${seasonNum}_${weekNum}_${homeId}_${awayId}_${i}`,
+      season: seasonNum, week: weekNum, isPlayoff: !!isPlayoff,
+      homeId, awayId,
+      playIndex: i,
+      play: p,
+      ctxPlays,
+      type: score.type,
+      rating: score.rating,
+      poss: p.poss,
+      teamId: p.poss === "home" ? homeId : (p.poss === "away" ? awayId : null),
+      quarter: p.quarter, time: p.time,
+      homeScore: p.homeScore || 0, awayScore: p.awayScore || 0,
+      desc: p.desc || "",
+      players: [p.passer, p.receiver, p.rusher, p.tackler, p.defender, p.victim, p.offender]
+        .filter(Boolean).filter((v, i, a) => a.indexOf(v) === i),
+    });
+  }
+  // Keep top 7 per game so league-wide top-10 has enough variety
+  candidates.sort((a, b) => b.rating - a.rating);
+  return candidates.slice(0, 7);
+}
+
+// Persist highlights into franchise state. Idempotent — same id only
+// stored once. Trimmed via _trimReplayClips when state gets large.
+function _saveReplayClips(highlights) {
+  if (!highlights?.length || typeof franchise === "undefined" || !franchise) return;
+  franchise.replayClips = franchise.replayClips || [];
+  const seen = new Set(franchise.replayClips.map(h => h.id));
+  for (const h of highlights) {
+    if (!seen.has(h.id)) {
+      franchise.replayClips.push(h);
+      seen.add(h.id);
+    }
+  }
+  _trimReplayClips();
+}
+
+// Cap highlight storage. Strategy: keep the best 200 of any earlier
+// season (current season uncapped — it's actively being viewed). Plus
+// per-season-week, keep top 30 / week.
+function _trimReplayClips() {
+  if (!franchise?.highlights) return;
+  const curSeason = franchise.season;
+  // Group by season-week
+  const byWeek = new Map();
+  for (const h of franchise.replayClips) {
+    const key = `${h.season}_${h.week}`;
+    if (!byWeek.has(key)) byWeek.set(key, []);
+    byWeek.get(key).push(h);
+  }
+  const kept = [];
+  for (const [key, arr] of byWeek.entries()) {
+    arr.sort((a, b) => b.rating - a.rating);
+    const isCurWeek = key.startsWith(`${curSeason}_`);
+    const cap = isCurWeek ? arr.length : 30;
+    for (const h of arr.slice(0, cap)) kept.push(h);
+  }
+  // Then trim past-season highlights overall to top 200
+  const pastSeason = kept.filter(h => h.season !== curSeason);
+  if (pastSeason.length > 200) {
+    pastSeason.sort((a, b) => b.rating - a.rating);
+    const pruned = new Set(pastSeason.slice(200).map(h => h.id));
+    franchise.replayClips = kept.filter(h => !pruned.has(h.id));
+  } else {
+    franchise.replayClips = kept;
+  }
+}
+
+// Compute the weekly top-10 league-wide for a given season/week
+function _weeklyTopTen(seasonNum, weekNum, limit = 10) {
+  if (!franchise?.highlights) return [];
+  return franchise.replayClips
+    .filter(h => h.season === seasonNum && h.week === weekNum)
+    .sort((a, b) => b.rating - a.rating)
+    .slice(0, limit);
+}
+
+// Replay the previous play in the active live game. Rewinds playHead
+// to the start of the prior snap, drops speed to slow-mo, restarts.
+function frnReplayLastPlay() {
+  if (typeof gameResult === "undefined" || !gameResult?.plays?.length) return;
+  if (typeof playHead === "undefined") return;
+  // Walk back to find the most recent "real" play (skip non-snap markers
+  // like quarter / two_min_warning / timeout / momentum visuals)
+  const NON_SNAP = new Set(["quarter","halftime","ot","two_min_warning","timeout","momentum","substitution","hc_decision"]);
+  let target = playHead - 2;  // -1 was the play just shown; -2 = previous
+  while (target > 0 && NON_SNAP.has(gameResult.plays[target]?.kind)) target--;
+  target = Math.max(0, target);
+  window.playHead = target;
+  if (typeof animState !== "undefined") window.animState = null;
+  if (typeof speedMul !== "undefined") window.speedMul = 0.4;
+  if (typeof playing !== "undefined") window.playing = true;
+  if (typeof startNextPlay === "function") startNextPlay();
+}
+
+// ── Highlights browser tab ────────────────────────────────────
+// SportsCenter-style top 10 league-wide for the most recent completed
+// week, plus filters (my team, by week, by type). Each card has a
+// ▶ REPLAY button that calls frnReplayClip().
+let _frnReplayFilter = { scope: "top10", week: null, teamId: null };
+
+const _HIGHLIGHT_LABELS = {
+  TD_PASS:        { icon: "🏈", text: "TD PASS",        accent: "#ffd54d" },
+  TD_RUN:         { icon: "🏈", text: "TD RUN",         accent: "#ffd54d" },
+  PICK_SIX:       { icon: "🚀", text: "PICK SIX",        accent: "#ff7a3a" },
+  FUMBLE_SIX:     { icon: "💥", text: "FUMBLE SIX",      accent: "#ff7a3a" },
+  INT:            { icon: "🦅", text: "INTERCEPTION",    accent: "#9bd0ff" },
+  TURNOVER:       { icon: "🔄", text: "FUMBLE TURNOVER", accent: "#ff8a4a" },
+  FUMBLE_REC:     { icon: "🤲", text: "FUMBLE RECOVERY", accent: "#7ee08a" },
+  BIG_HIT:        { icon: "💢", text: "BIG HIT",         accent: "#e6373a" },
+  BIG_PASS:       { icon: "🎯", text: "BIG PASS",        accent: "#9bd0ff" },
+  BIG_RUN:        { icon: "💨", text: "BIG RUN",         accent: "#7ee08a" },
+  EJECTION:       { icon: "🚫", text: "EJECTION",        accent: "#ff3a3a" },
+  FOURTH_DOWN_CALL:{icon: "🎲", text: "4TH-DOWN GAMBLE", accent: "#ff8c4d" },
+  LONG_FG:        { icon: "🎯", text: "LONG FG",         accent: "#f5c542" },
+};
+
+function frnSetReplayFilter(scope, week, teamId) {
+  _frnReplayFilter = {
+    scope: scope || "top10",
+    week: week != null ? Number(week) : null,
+    teamId: teamId != null ? Number(teamId) : null,
+  };
+  if (typeof renderFrnReplayLib === "function") renderFrnReplayLib();
+}
+
+function renderFrnReplayLib() {
+  const el = $("frnHomeContent");
+  if (!el) return;
+  const all = franchise.replayClips || [];
+  const myId = franchise.chosenTeamId;
+  // Determine current display week — default = latest week with highlights
+  const weeksAvail = [...new Set(all.filter(h => h.season === franchise.season).map(h => h.week))].sort((a,b) => b - a);
+  const curWeek = _frnReplayFilter.week ?? weeksAvail[0] ?? franchise.week ?? 1;
+  // Filter
+  let list = all.filter(h => h.season === franchise.season);
+  let titleSuffix = "";
+  if (_frnReplayFilter.scope === "top10") {
+    list = list.filter(h => h.week === curWeek).sort((a,b) => b.rating - a.rating).slice(0, 10);
+    titleSuffix = ` · WEEK ${curWeek} TOP 10`;
+  } else if (_frnReplayFilter.scope === "myteam") {
+    list = list.filter(h => h.homeId === myId || h.awayId === myId).sort((a,b) => b.rating - a.rating).slice(0, 30);
+    titleSuffix = ` · ${getTeam(myId)?.name || "MY TEAM"}`;
+  } else if (_frnReplayFilter.scope === "season") {
+    list = list.sort((a,b) => b.rating - a.rating).slice(0, 25);
+    titleSuffix = ` · S${franchise.season} TOP 25`;
+  } else if (_frnReplayFilter.scope === "week") {
+    list = list.filter(h => h.week === curWeek).sort((a,b) => b.rating - a.rating);
+    titleSuffix = ` · WEEK ${curWeek} ALL`;
+  }
+  const scope = _frnReplayFilter.scope;
+  const weekChips = weeksAvail.slice(0, 12).map(wk =>
+    `<button class="frn-rpl-week-chip${wk === curWeek ? " active" : ""}" onclick="frnSetReplayFilter('${scope === 'top10' || scope === 'week' ? scope : 'top10'}', ${wk})">W${wk}</button>`
+  ).join("");
+  // Build the cards
+  const cardHtml = list.length
+    ? list.map((h, idx) => {
+        const meta = _HIGHLIGHT_LABELS[h.type] || { icon: "▶", text: h.type, accent: "#888" };
+        const offTeam = h.poss === "home" ? getTeam(h.homeId) : getTeam(h.awayId);
+        const defTeam = h.poss === "home" ? getTeam(h.awayId) : getTeam(h.homeId);
+        const isUser = h.homeId === myId || h.awayId === myId;
+        const clockStr = h.time != null
+          ? `${Math.floor(h.time/60)}:${String(h.time%60).padStart(2,"0")}`
+          : "";
+        const rank = scope === "top10" || scope === "season" ? `#${idx+1}` : "";
+        return `<div class="frn-rpl-card${isUser ? " mine" : ""}" style="--accent:${meta.accent};--team:${offTeam?.primary || meta.accent}">
+          ${rank ? `<div class="frn-rpl-rank">${rank}</div>` : ""}
+          <div class="frn-rpl-icon">${meta.icon}</div>
+          <div class="frn-rpl-body">
+            <div class="frn-rpl-eyebrow">
+              <span class="frn-rpl-type">${meta.text}</span>
+              <span class="frn-rpl-rating">⭐ ${h.rating.toFixed(1)}</span>
+              ${isUser ? `<span class="frn-rpl-mine-tag">YOUR TEAM</span>` : ""}
+            </div>
+            <div class="frn-rpl-desc">${h.desc || "—"}</div>
+            <div class="frn-rpl-meta">
+              ${offTeam ? `<span style="color:${offTeam.primary}">${offTeam.abbr}</span>` : ""}
+              ${defTeam ? `<span style="color:var(--blgray)">vs</span> <span style="color:${defTeam.primary}">${defTeam.abbr}</span>` : ""}
+              ${h.quarter ? ` · Q${h.quarter} ${clockStr}` : ""}
+              ${typeof h.homeScore === "number" ? ` · ${h.homeScore}-${h.awayScore}` : ""}
+              · S${h.season} W${h.week}
+            </div>
+          </div>
+          <div class="frn-rpl-actions">
+            <button class="btn btn-gold" onclick="frnReplayClip('${h.id}')">▶ REPLAY</button>
+          </div>
+        </div>`;
+      }).join("")
+    : `<div class="frn-rpl-empty">No highlights yet. Play some games — TDs, INTs, big hits, and game-winners get auto-saved here.</div>`;
+  el.innerHTML = `
+    <div class="frn-rpl-wrap">
+      <div class="frn-rpl-hero">
+        <div class="frn-rpl-hero-eyebrow">📺 GRIDIRON CHAIN HIGHLIGHTS</div>
+        <h1 class="frn-rpl-hero-title">TOP PLAYS${titleSuffix}</h1>
+        <div class="frn-rpl-hero-sub">Auto-curated from the engine — TDs, pick-sixes, big hits, 4th-down gambles. Click ▶ to re-watch in slow motion.</div>
+      </div>
+      <div class="frn-rpl-controls">
+        <div class="frn-rpl-scope-tabs">
+          <button class="frn-rpl-scope${scope==='top10'?" active":""}" onclick="frnSetReplayFilter('top10')">🏆 Top 10 (week)</button>
+          <button class="frn-rpl-scope${scope==='week'?" active":""}" onclick="frnSetReplayFilter('week', ${curWeek})">📅 All (this week)</button>
+          <button class="frn-rpl-scope${scope==='myteam'?" active":""}" onclick="frnSetReplayFilter('myteam')">⭐ My Team</button>
+          <button class="frn-rpl-scope${scope==='season'?" active":""}" onclick="frnSetReplayFilter('season')">📺 Season Top 25</button>
+        </div>
+        ${weeksAvail.length > 1 ? `<div class="frn-rpl-weeks">
+          <span style="font-size:.6rem;color:var(--blgray);margin-right:.4rem">JUMP TO:</span>
+          ${weekChips}
+        </div>` : ""}
+      </div>
+      <div class="frn-rpl-cards">${cardHtml}</div>
+    </div>`;
+}
+
+// Replay a saved highlight in the live game viewer. Builds a synthetic
+// gameResult with just the highlight's play (plus optional context plays
+// for the lead-up) and pumps it through the existing animation pipeline.
+function frnReplayClip(highlightId) {
+  if (!franchise?.highlights) return;
+  const h = franchise.replayClips.find(x => x.id === highlightId);
+  if (!h?.play) { alert("Highlight not found."); return; }
+  const homeTeam = getTeam(h.homeId);
+  const awayTeam = getTeam(h.awayId);
+  if (!homeTeam || !awayTeam) { alert("Teams missing."); return; }
+  // Build a self-contained gameResult-shaped object
+  const synthPlays = (h.ctxPlays?.length ? h.ctxPlays : [h.play]);
+  const synth = {
+    homeTeam, awayTeam,
+    homeScore: h.homeScore, awayScore: h.awayScore,
+    plays: synthPlays,
+    weather: null, isRivalry: false,
+  };
+  // Swap in
+  if (typeof gameResult !== "undefined") {
+    // assignment via window so it works across script files (game state
+    // globals are top-level let bindings)
+    window.gameResult = synth;
+  }
+  // Show the live-game shell so playback controls + canvas exist
+  if (typeof gameArea !== "undefined") gameArea.classList.remove("empty");
+  if (typeof renderGameLayout === "function") renderGameLayout();
+  if (typeof playHead !== "undefined") window.playHead = 0;
+  if (typeof animState !== "undefined") window.animState = null;
+  if (typeof playing !== "undefined") window.playing = true;
+  if (typeof speedMul !== "undefined") window.speedMul = 0.5; // slow-mo for replays
+  if (typeof startNextPlay === "function") startNextPlay();
+  // Surface a small banner so the user knows this is a replay
+  _pushNews?.({ type: "news",
+    label: `▶ Replaying: ${h.type.replace(/_/g," ")} — ${h.desc.slice(0,80)}` });
+}
+
 function _extractScoringTimeline(plays, finalHome, finalAway) {
   if (!Array.isArray(plays)) return [];
   const out = [];
@@ -2687,6 +3010,14 @@ function frnSimWeek() {
     g.stats = _stripGameStatsForStorage(r.full?.stats);
     g.scoring = _extractScoringTimeline(r.full?.plays, r.homeScore, r.awayScore);
       g.momentumLog = _extractMomentumLog(r.full?.plays);
+    // Highlights — top 7 per game saved to franchise.replayClips
+    if (r.full?.plays) {
+      try {
+        const hl = _extractReplayClips(r.full.plays, g.homeId, g.awayId,
+          franchise.season || 1, g.week || w, false);
+        if (hl?.length) _saveReplayClips(hl);
+      } catch (e) { console.warn("[highlights]", e); }
+    }
     if (r.full?.weather) g.weather = { label: r.full.weather.label, windStrength: r.full.weather.windStrength };
     if (r.full?.isRivalry) g.isRivalry = true;
     recordFranchiseResult(g.homeId, g.awayId, r.homeScore, r.awayScore);
@@ -8400,7 +8731,7 @@ function renderFrnAwards() {
       ${leagueColHtml}
     </div>
     <div class="frn-awards-hl-cta-row">
-      <button class="frn-awards-hl-cta" onclick="renderFrnHighlightsAll()">
+      <button class="frn-awards-hl-cta" onclick="renderFrnReplayLibAll()">
         🎬 View full highlight reel →
       </button>
     </div>` : "";

@@ -3415,6 +3415,101 @@
     border-radius: 2px;
   }
 
+  /* ── REPLAY LIBRARY ─────────────────────────────────────────
+     SportsCenter-style top-plays browser. Each card has type icon,
+     rating, description, team context, and a REPLAY button. */
+  .frn-rpl-wrap { padding: 1rem 1.4rem; max-width: 1100px; margin: 0 auto; }
+  .frn-rpl-hero {
+    background: linear-gradient(135deg, #1a1410, #2a2018);
+    border-left: 4px solid #ffd54d; border-radius: 4px;
+    padding: 1rem 1.2rem; margin-bottom: 1rem;
+  }
+  .frn-rpl-hero-eyebrow {
+    font-size: .65rem; letter-spacing: 4px; color: #ffd54d;
+    font-weight: 800;
+  }
+  .frn-rpl-hero-title {
+    font-size: 2rem; font-weight: 900; letter-spacing: 2px;
+    color: #fff; margin: .15rem 0;
+    font-family: 'Bebas Neue', 'Anton', sans-serif;
+  }
+  .frn-rpl-hero-sub { font-size: .68rem; color: var(--blgray); }
+  .frn-rpl-controls {
+    display: flex; flex-wrap: wrap; gap: .6rem; align-items: center;
+    margin-bottom: 1rem;
+  }
+  .frn-rpl-scope-tabs { display: flex; gap: .25rem; flex-wrap: wrap; }
+  .frn-rpl-scope {
+    background: transparent; border: 1px solid var(--blborder);
+    color: var(--blwhite); font-family: inherit;
+    padding: .35rem .7rem; font-size: .65rem; letter-spacing: 1px;
+    font-weight: 700; cursor: pointer; border-radius: 3px;
+    transition: all .15s;
+  }
+  .frn-rpl-scope:hover { border-color: #ffd54d; }
+  .frn-rpl-scope.active {
+    background: rgba(255,213,77,.16); border-color: #ffd54d; color: #ffd54d;
+  }
+  .frn-rpl-weeks {
+    display: flex; align-items: center; gap: .15rem; flex-wrap: wrap;
+    margin-left: auto;
+  }
+  .frn-rpl-week-chip {
+    background: transparent; border: 1px solid var(--blborder);
+    color: var(--blgray); font-family: inherit;
+    font-size: .58rem; padding: .15rem .42rem; cursor: pointer;
+    border-radius: 2px;
+  }
+  .frn-rpl-week-chip.active {
+    background: rgba(255,213,77,.18); border-color: #ffd54d; color: #ffd54d;
+  }
+  .frn-rpl-cards { display: flex; flex-direction: column; gap: .55rem; }
+  .frn-rpl-card {
+    display: grid; grid-template-columns: 40px 50px 1fr auto;
+    align-items: center; gap: .65rem;
+    background: rgba(255,255,255,.02);
+    border: 1px solid var(--blborder);
+    border-left: 4px solid var(--accent);
+    padding: .55rem .75rem; border-radius: 3px;
+    transition: background .15s;
+  }
+  .frn-rpl-card:hover { background: rgba(255,213,77,.04); }
+  .frn-rpl-card.mine {
+    background: linear-gradient(90deg, rgba(255,213,77,.07), transparent);
+    border-left-width: 5px;
+  }
+  .frn-rpl-rank {
+    font-size: 1.5rem; font-weight: 900; color: var(--accent);
+    font-family: 'Bebas Neue', sans-serif;
+    text-align: center;
+  }
+  .frn-rpl-icon { font-size: 1.8rem; text-align: center; }
+  .frn-rpl-body { display: flex; flex-direction: column; gap: .12rem; }
+  .frn-rpl-eyebrow {
+    display: flex; align-items: center; gap: .5rem;
+    font-size: .58rem; letter-spacing: 1.5px; font-weight: 800;
+  }
+  .frn-rpl-type { color: var(--accent); }
+  .frn-rpl-rating { color: #ffd54d; font-weight: 700; }
+  .frn-rpl-mine-tag {
+    background: rgba(255,213,77,.18); color: #ffd54d;
+    padding: .05rem .3rem; border-radius: 2px;
+  }
+  .frn-rpl-desc {
+    font-size: .85rem; color: var(--blwhite); font-weight: 600;
+    line-height: 1.25;
+  }
+  .frn-rpl-meta {
+    font-size: .58rem; color: var(--blgray); letter-spacing: .8px;
+  }
+  .frn-rpl-actions .btn {
+    font-size: .68rem; padding: .35rem .7rem; letter-spacing: 1px;
+  }
+  .frn-rpl-empty {
+    text-align: center; padding: 3rem 1rem;
+    color: var(--blgray); font-size: .8rem;
+  }
+
   /* ── BROADCAST CAMERA ───────────────────────────────────────
      Field-wrap becomes a 3D perspective container; the canvas inside
      gets a rotateX tilt to read as a sideline-camera view. CSS-only

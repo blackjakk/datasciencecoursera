@@ -6102,6 +6102,7 @@ const _FRN_TABS = [
   { id: "roster",      icon: "👥", label: "Roster" },
   { id: "frontoffice", icon: "📑", label: "Front Office" },
   { id: "league",      icon: "🏟", label: "League" },
+  { id: "replays",     icon: "📺", label: "Replays" },
   { id: "tools",       icon: "🛠", label: "Tools" },
 ];
 
@@ -6308,6 +6309,7 @@ function _frnRenderActiveTab() {
     case "roster":      return renderFrnRosterHome();
     case "frontoffice": return renderFrnFrontOfficeHome();
     case "league":      return renderFrnLeagueHome();
+    case "replays":     return (typeof renderFrnReplayLib === "function") ? renderFrnReplayLib() : renderFrnRegular();
     case "tools":       return _frnRenderTabTools();
     default:            return renderFrnRegular();
   }
