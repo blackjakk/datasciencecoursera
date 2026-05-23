@@ -424,6 +424,13 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
   for (let i = 0; i < phaseStr.length; i++) phaseHash = (phaseHash * 31 + phaseStr.charCodeAt(i)) >>> 0;
   const phaseOffset = ((phaseHash % 1000) / 1000);             // 0–1
   const ampJitter   = 0.78 + ((phaseHash >> 10) % 100) / 220;  // ~0.78–1.23
+  // Equipment flags — deterministic per-player so a given player always
+  // wears the same kit. Drives visor / towel / captain patch draws below.
+  const _posStr = String(style.position || style.role || "").toUpperCase();
+  const _skillPos = ["QB","WR","RB","TE","CB","S","FS","SS","LB","KR","PR"].includes(_posStr);
+  const wearsVisor = _skillPos && ((phaseHash >> 4) % 100) < 30;
+  const wearsTowel = ((phaseHash >> 6) % 100) < 55;
+  const isCaptain  = !!style.nickname;
   const legAmp = rs.legAmp * ampJitter;
   const armAmp = rs.armAmp * ampJitter;
   // Shift t by per-player offset for run/carry/celebrate cycles
@@ -1017,9 +1024,18 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
     const ringStartY = kneeY + Math.cos(lowerA) * lowerLen * 0.48 - lift * 0.16;
     drawSegment(ringStartX, ringStartY, sockEndX, sockEndY, shinW * 0.95,
                 "#f1f1f1", "#c8c8c8", "#ffffff");
-    // Cleat — bottom half of the lower leg in BLACK (the "foot" implied by color)
+    // Cleat — team-secondary toe with a dark heel highlight so the foot
+    // reads as a colored shoe rather than a generic black block.
+    const cleatColor = secondary || "#1e1e26";
+    const cleatDark  = tweakColor(cleatColor, 0.55) || "#000000";
+    const cleatLight = tweakColor(cleatColor, 1.15) || "#3a3a44";
     drawSegment(sockEndX, sockEndY, footX, footY, shinW * 1.02,
-                "#15151c", "#000000", "#3a3a44");
+                cleatColor, cleatDark, cleatLight);
+    // Dark sole strip along the bottom edge of the cleat for ground contact
+    ctx.fillStyle = "rgba(0,0,0,0.6)";
+    ctx.beginPath();
+    ctx.ellipse(footX, footY + 0.35, shinW * 0.95, 0.55, 0, 0, Math.PI * 2);
+    ctx.fill();
   };
   // ── Arms — Lego-style chunky tubes. Bicep = sleeve, forearm = skin.
   // Nearly as wide as the helmet (helmRx≈6.4 → arm half-width ~2.7) and
@@ -1043,16 +1059,26 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
     drawSegment(sx, shoulderY, elbowX, elbowY, bicepW, color, shadeDark, shadeLight);
     // Forearm — skin tone (short-sleeved jersey), almost as thick
     drawSegment(elbowX, elbowY, handX, handY, forearmW, skin.base, skin.dark, skin.light);
-    // Wristband — thin colored band at the wrist (just inside the hand)
+    // Wristband — thin white band at the wrist
     const wbX = elbowX + (handX - elbowX) * 0.82;
     const wbY = elbowY + (handY - elbowY) * 0.82;
     drawSegment(wbX, wbY, handX, handY, forearmW * 1.08, "#f1f1f1", "#bcbcbc", "#ffffff");
-    // No separate hand — the arm just ends. Knuckle highlight on the very tip.
-    ctx.fillStyle = skin.light;
+    // Glove — team-secondary color block covering the hand, replacing the
+    // bare-skin knuckle. Slightly chunkier than the forearm so it reads as
+    // a padded receiver glove or running-back glove.
+    const gloveColor = secondary || "#222";
+    const gloveDark  = tweakColor(gloveColor, 0.6) || "#000";
+    const gloveLight = tweakColor(gloveColor, 1.15) || "#fff";
+    const gloveStartX = wbX + (handX - wbX) * 0.55;
+    const gloveStartY = wbY + (handY - wbY) * 0.55;
+    drawSegment(gloveStartX, gloveStartY, handX, handY, forearmW * 1.18,
+                gloveColor, gloveDark, gloveLight);
+    // Knuckle highlight on the tip — small bright dot on the glove
+    ctx.fillStyle = gloveLight;
     const tipDX = Math.sin(lowerA) * forearmW * 0.25;
     const tipDY = Math.cos(lowerA) * forearmW * 0.25;
     ctx.beginPath();
-    ctx.arc(handX - tipDX * 0.4, handY - tipDY * 0.4, forearmW * 0.35, 0, Math.PI * 2);
+    ctx.arc(handX - tipDX * 0.4, handY - tipDY * 0.4, forearmW * 0.3, 0, Math.PI * 2);
     ctx.fill();
     if (holdsBall) {
       // Black cube held in the hand (replaces the football)
@@ -1122,6 +1148,14 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
   ctx.strokeStyle = "rgba(0,0,0,0.7)";
   ctx.lineWidth = 1.0;
   ctx.strokeRect(-padW/2, padTopY, padW, padBotY - padTopY);
+  // Stadium rim light on the pad top — same warm tint as the helmet rim.
+  // Stops short of the edges so it reads as light catching the pad crest.
+  ctx.strokeStyle = "rgba(255,240,205,0.5)";
+  ctx.lineWidth = 0.6;
+  ctx.beginPath();
+  ctx.moveTo(-padW/2 + 0.6, padTopY + 0.25);
+  ctx.lineTo( padW/2 - 0.6, padTopY + 0.25);
+  ctx.stroke();
   // Pad lip — dark shadow line under the pad
   ctx.fillStyle = "rgba(0,0,0,0.35)";
   ctx.fillRect(-padW/2 + 0.3, padBotY - 0.6, padW - 0.6, 0.5);
@@ -1153,11 +1187,24 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
   ctx.fillRect(torsoX + torsoW * 0.65, torsoTop + 0.5, torsoW * 0.18, torsoH - 1.5);
 
   if (label && /^\d{1,2}$/.test(label)) {
+    // Last-name strip — small uppercase nameplate above the jersey number,
+    // truncated to 7 chars so long names still fit on the small torso.
+    if (style.name) {
+      const lastName = String(style.name).split(/\s+/).pop().toUpperCase().slice(0, 7);
+      ctx.font = "bold 2.4px Impact, Arial Black, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      const namY = shoulderY + torsoLen * 0.22;
+      ctx.fillStyle = "rgba(0,0,0,0.55)";
+      ctx.fillText(lastName, 0.15, namY + 0.15);
+      ctx.fillStyle = secondary || "#fff";
+      ctx.fillText(lastName, 0, namY);
+    }
     // Big, block-style jersey number with a dark drop shadow
     ctx.font = "bold 8.5px Impact, Arial Black, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    const ny = shoulderY + torsoLen * 0.5;
+    const ny = shoulderY + torsoLen * 0.55;
     ctx.fillStyle = "rgba(0,0,0,0.55)";
     ctx.fillText(label, 0.6, ny + 0.6);
     ctx.fillStyle = secondary || "#fff";
@@ -1166,6 +1213,44 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
     ctx.strokeStyle = "rgba(0,0,0,0.35)";
     ctx.lineWidth = 0.4;
     ctx.strokeText(label, 0, ny);
+  }
+  // Captain "C" patch — small gold square with a black "C" on the upper
+  // chest, near the front of the jersey. Only nicknamed (elite) players
+  // wear it. Sits on the lit side of the torso so it catches the eye.
+  if (isCaptain) {
+    const cx = torsoX + torsoW * 0.78;
+    const cy = torsoTop + 1.6;
+    ctx.fillStyle = "#f5c542";          // gold patch
+    ctx.fillRect(cx - 1.1, cy - 1.1, 2.2, 2.2);
+    ctx.strokeStyle = "rgba(0,0,0,0.85)";
+    ctx.lineWidth = 0.3;
+    ctx.strokeRect(cx - 1.1, cy - 1.1, 2.2, 2.2);
+    ctx.fillStyle = "#0a0a0a";
+    ctx.font = "bold 1.9px serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("C", cx, cy + 0.1);
+  }
+  // Towel — small white rectangle hanging from the belt with a per-player
+  // sway driven by the run cycle. ~55% of players have one (deterministic
+  // from phaseHash).
+  if (wearsTowel) {
+    const twHangX = torsoX + torsoW * 0.30;
+    const twHangY = hipY - 0.4;
+    const sway = (pose === "run" || pose === "carry")
+      ? Math.sin(t * Math.PI * 2 + phaseOffset * 4) * 0.6
+      : 0;
+    ctx.fillStyle = "rgba(245,245,240,0.92)";
+    ctx.beginPath();
+    ctx.moveTo(twHangX - 0.7,        twHangY);
+    ctx.lineTo(twHangX + 0.7,        twHangY);
+    ctx.lineTo(twHangX + 0.5 + sway, twHangY + 2.4);
+    ctx.lineTo(twHangX - 0.5 + sway, twHangY + 2.4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "rgba(0,0,0,0.45)";
+    ctx.lineWidth = 0.2;
+    ctx.stroke();
   }
 
   // ── Arms — Lego-style chunky tubes. Bicep = sleeve, forearm = skin.
@@ -1285,6 +1370,57 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
   ctx.strokeStyle = "rgba(0,0,0,0.5)";
   ctx.lineWidth = 0.3;
   ctx.strokeRect(-helmRx * 0.7, helmY + helmRy * 0.95, helmRx * 1.4, 0.9);
+  // Stadium rim light — warm white arc traced along the upper rim of the
+  // helmet, suggesting overhead floodlights catching the top of the dome.
+  // Ties the player to the stadium-light bloom in the wrap backdrop.
+  ctx.strokeStyle = "rgba(255,240,205,0.55)";
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.ellipse(0, helmY + 0.2, helmRx * 0.96, helmRy * 0.96, 0,
+              Math.PI * 1.12, Math.PI * 1.88);
+  ctx.stroke();
+  // Helmet number — small jersey number on the BACK side of the helmet
+  // (behind the ear hole, opposite the facemask). Reads as a player
+  // identifier when the helmet is rotated away from camera.
+  if (label && /^\d{1,2}$/.test(label)) {
+    ctx.font = "bold 2.4px Impact, Arial Black, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "rgba(0,0,0,0.65)";
+    ctx.fillText(label, -facing * helmRx * 0.58 + 0.1, helmY + 0.65);
+    ctx.fillStyle = secondary || "#fff";
+    ctx.fillText(label, -facing * helmRx * 0.58,        helmY + 0.55);
+  }
+  // Visor — chrome reflective arc across the front of the facemask area,
+  // worn by ~30% of skill-position players. Sits inside the cage.
+  if (wearsVisor) {
+    const visGrad = ctx.createLinearGradient(
+      facing * helmRx * 0.3,  cageTop,
+      facing * helmRx * 0.85, cageBot
+    );
+    visGrad.addColorStop(0,   "rgba(120,160,200,0.85)");
+    visGrad.addColorStop(0.5, "rgba(40,60,90,0.85)");
+    visGrad.addColorStop(1,   "rgba(20,30,55,0.9)");
+    ctx.fillStyle = visGrad;
+    ctx.beginPath();
+    ctx.moveTo(fxInner * 0.9,    cageTop + 0.4);
+    ctx.quadraticCurveTo(
+      facing * (helmRx + 0.15), (cageTop + cageBot) / 2,
+      fxInner * 0.9,            cageBot - 0.4);
+    ctx.lineTo(fxInner * 0.6,    cageBot - 0.6);
+    ctx.quadraticCurveTo(
+      facing * helmRx * 0.7,    (cageTop + cageBot) / 2,
+      fxInner * 0.6,             cageTop + 0.6);
+    ctx.closePath();
+    ctx.fill();
+    // Sharp specular streak across the visor
+    ctx.strokeStyle = "rgba(255,255,255,0.7)";
+    ctx.lineWidth = 0.4;
+    ctx.beginPath();
+    ctx.moveTo(facing * helmRx * 0.7,  cageTop + 0.9);
+    ctx.lineTo(facing * helmRx * 0.95, cageBot - 1.2);
+    ctx.stroke();
+  }
 
   // NEAR arm — drawn LAST, after both the body AND the helmet, so it
   // appears in front of everything else. The arm on the camera-near side
