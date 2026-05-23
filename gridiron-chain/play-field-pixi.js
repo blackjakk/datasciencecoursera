@@ -156,6 +156,66 @@ const GCField = (() => {
     aText.rotation = Math.PI / 2;
     aText.scale.set(aScaleX, 1);
     _bg.addChild(aText);
+    // ── Sidelines — solid white chalk along TOP + BOT of the field.
+    const slG = new PIXI.Graphics();
+    slG.lineStyle(2, 0xffffff, 0.85);
+    slG.moveTo(0, FIELD.TOP);
+    slG.lineTo(FIELD.W, FIELD.TOP);
+    slG.moveTo(0, FIELD.BOT);
+    slG.lineTo(FIELD.W, FIELD.BOT);
+    _bg.addChild(slG);
+    // ── Yard lines — every 5 thin, every 10 thick. White at varying alpha.
+    const absYardToX = (yd) => FIELD.EZ_PX + yd * FIELD.PX_PER_YARD;
+    const ylG = new PIXI.Graphics();
+    for (let yd = 0; yd <= 100; yd += 5) {
+      const x = absYardToX(yd);
+      const isMajor = yd % 10 === 0;
+      const alpha = isMajor ? 0.85 : 0.4;
+      const width = isMajor ? 1.5 : 1;
+      ylG.lineStyle(width, 0xffffff, alpha);
+      ylG.moveTo(x, FIELD.TOP);
+      ylG.lineTo(x, FIELD.BOT);
+    }
+    _bg.addChild(ylG);
+    // ── Yard numbers — 10, 20, 30, 40, 50, 40, 30, 20, 10 at the top and
+    // bottom of the field. White with black stroke, 36px 900 sans.
+    const numStyle = {
+      fontFamily: "sans-serif",
+      fontWeight: "900",
+      fontSize: 36,
+      fill: 0xfafafa,                    // ~rgba(255,255,255,0.95)
+      stroke: 0x000000,
+      strokeThickness: 4,
+    };
+    for (let yd = 10; yd <= 90; yd += 10) {
+      const x = absYardToX(yd);
+      const num = String(yd <= 50 ? yd : 100 - yd);
+      const topT = new PIXI.Text(num, numStyle);
+      topT.anchor.set(0.5);
+      topT.position.set(x, FIELD.TOP + 52);
+      _bg.addChild(topT);
+      const botT = new PIXI.Text(num, numStyle);
+      botT.anchor.set(0.5);
+      botT.position.set(x, FIELD.BOT - 52);
+      _bg.addChild(botT);
+    }
+    // ── Hash marks — small ticks every yard (skip multiples of 5 since
+    // those are yard lines). Top + bottom rows + sideline ticks.
+    const hashG = new PIXI.Graphics();
+    for (let yd = 1; yd <= 99; yd++) {
+      if (yd % 5 === 0) continue;
+      const x = absYardToX(yd);
+      hashG.lineStyle(1, 0xffffff, 0.55);
+      hashG.moveTo(x, FIELD.TOP + 75);
+      hashG.lineTo(x, FIELD.TOP + 80);
+      hashG.moveTo(x, FIELD.BOT - 80);
+      hashG.lineTo(x, FIELD.BOT - 75);
+      hashG.moveTo(x, FIELD.TOP);
+      hashG.lineTo(x, FIELD.TOP + 6);
+      hashG.moveTo(x, FIELD.BOT);
+      hashG.lineTo(x, FIELD.BOT - 6);
+    }
+    _bg.addChild(hashG);
     _app.renderer.render(_app.stage);
     return true;
   }

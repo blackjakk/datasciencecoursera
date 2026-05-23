@@ -132,69 +132,75 @@ function drawField(ctx, homeTeam, awayTeam, ctx_state) {
     ctx.restore();
   }
 
-  // sidelines
-  ctx.strokeStyle = "rgba(255,255,255,0.85)";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(0, FIELD.TOP); ctx.lineTo(W, FIELD.TOP);
-  ctx.moveTo(0, FIELD.BOT); ctx.lineTo(W, FIELD.BOT);
-  ctx.stroke();
-
-  // yard lines (every 5 thin, every 10 thick + numbers)
-  for (let yd = 0; yd <= 100; yd += 5) {
-    const x = absYardToX(yd);
-    const isMajor = yd % 10 === 0;
-    ctx.strokeStyle = isMajor ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.4)";
-    ctx.lineWidth = isMajor ? 1.5 : 1;
+  // Sidelines — PIXI when active, canvas2D otherwise.
+  if (!_pixiField) {
+    ctx.strokeStyle = "rgba(255,255,255,0.85)";
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(x, FIELD.TOP);
-    ctx.lineTo(x, FIELD.BOT);
+    ctx.moveTo(0, FIELD.TOP); ctx.lineTo(W, FIELD.TOP);
+    ctx.moveTo(0, FIELD.BOT); ctx.lineTo(W, FIELD.BOT);
     ctx.stroke();
   }
 
-  // Yard numbers (10, 20, 30, 40, 50, 40, 30, 20, 10) — sized closer to
-  // NFL scale (~6ft tall = ~2yd = ~30px at our 15px/yd) with a black
-  // outline so they stay legible after the broadcast-cam perspective tilt
-  // foreshortens them.
-  ctx.font = "900 36px sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.lineWidth = 4;
-  ctx.strokeStyle = "rgba(0,0,0,0.85)";
-  ctx.fillStyle   = "rgba(255,255,255,0.95)";
-  for (let yd = 10; yd <= 90; yd += 10) {
-    const x = absYardToX(yd);
-    const num = yd <= 50 ? yd : 100 - yd;
-    const topY = FIELD.TOP + 52;
-    const botY = FIELD.BOT - 52;
-    ctx.strokeText(num, x, topY);
-    ctx.fillText  (num, x, topY);
-    ctx.strokeText(num, x, botY);
-    ctx.fillText  (num, x, botY);
-  }
-  ctx.textBaseline = "alphabetic";  // restore default for any later text
+  // Yard lines + numbers + hash marks — PIXI when active (Phase 2A.3),
+  // canvas2D otherwise.
+  if (!_pixiField) {
+    // yard lines (every 5 thin, every 10 thick + numbers)
+    for (let yd = 0; yd <= 100; yd += 5) {
+      const x = absYardToX(yd);
+      const isMajor = yd % 10 === 0;
+      ctx.strokeStyle = isMajor ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.4)";
+      ctx.lineWidth = isMajor ? 1.5 : 1;
+      ctx.beginPath();
+      ctx.moveTo(x, FIELD.TOP);
+      ctx.lineTo(x, FIELD.BOT);
+      ctx.stroke();
+    }
 
-  // Hash marks (small ticks every yard)
-  ctx.strokeStyle = "rgba(255,255,255,0.55)";
-  ctx.lineWidth = 1;
-  for (let yd = 1; yd <= 99; yd++) {
-    if (yd % 5 === 0) continue;
-    const x = absYardToX(yd);
-    // top hash
-    ctx.beginPath();
-    ctx.moveTo(x, FIELD.TOP + 75);
-    ctx.lineTo(x, FIELD.TOP + 80);
-    ctx.stroke();
-    // bottom hash
-    ctx.beginPath();
-    ctx.moveTo(x, FIELD.BOT - 80);
-    ctx.lineTo(x, FIELD.BOT - 75);
-    ctx.stroke();
-    // sideline ticks
-    ctx.beginPath();
-    ctx.moveTo(x, FIELD.TOP); ctx.lineTo(x, FIELD.TOP + 6);
-    ctx.moveTo(x, FIELD.BOT); ctx.lineTo(x, FIELD.BOT - 6);
-    ctx.stroke();
+    // Yard numbers (10, 20, 30, 40, 50, 40, 30, 20, 10) — sized closer to
+    // NFL scale (~6ft tall = ~2yd = ~30px at our 15px/yd) with a black
+    // outline so they stay legible after the broadcast-cam perspective tilt
+    // foreshortens them.
+    ctx.font = "900 36px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = "rgba(0,0,0,0.85)";
+    ctx.fillStyle   = "rgba(255,255,255,0.95)";
+    for (let yd = 10; yd <= 90; yd += 10) {
+      const x = absYardToX(yd);
+      const num = yd <= 50 ? yd : 100 - yd;
+      const topY = FIELD.TOP + 52;
+      const botY = FIELD.BOT - 52;
+      ctx.strokeText(num, x, topY);
+      ctx.fillText  (num, x, topY);
+      ctx.strokeText(num, x, botY);
+      ctx.fillText  (num, x, botY);
+    }
+    ctx.textBaseline = "alphabetic";  // restore default for any later text
+
+    // Hash marks (small ticks every yard)
+    ctx.strokeStyle = "rgba(255,255,255,0.55)";
+    ctx.lineWidth = 1;
+    for (let yd = 1; yd <= 99; yd++) {
+      if (yd % 5 === 0) continue;
+      const x = absYardToX(yd);
+      // top hash
+      ctx.beginPath();
+      ctx.moveTo(x, FIELD.TOP + 75);
+      ctx.lineTo(x, FIELD.TOP + 80);
+      ctx.stroke();
+      // bottom hash
+      ctx.beginPath();
+      ctx.moveTo(x, FIELD.BOT - 80);
+      ctx.lineTo(x, FIELD.BOT - 75);
+      ctx.stroke();
+      // sideline ticks
+      ctx.beginPath();
+      ctx.moveTo(x, FIELD.TOP); ctx.lineTo(x, FIELD.TOP + 6);
+      ctx.moveTo(x, FIELD.BOT); ctx.lineTo(x, FIELD.BOT - 6);
+      ctx.stroke();
+    }
   }
 
   // 50 yard line midfield logo — ASCII block letter for the home team
