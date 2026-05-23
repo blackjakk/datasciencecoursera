@@ -37,6 +37,9 @@ LEAGUE_ID = "591940"
 # for the OAuth-based renew walker.
 #
 # Known MONEYLEAGUE league IDs across years (Yahoo re-keys each season):
+#   2015 = 44369  (game_id 348, named "moneyleague")
+#   2016 = 63644  (game_id 359, named "moneyleague")
+#   2017 = 696645 (game_id 371, named "moneyleague")
 #   2018 = 50466  (game_id 380, named "moneyleague")
 #   2019 = 36588  (game_id 390, named "moneyleague")
 #   2020 = 64590  (game_id 399, named "moneyleague")
@@ -44,9 +47,11 @@ LEAGUE_ID = "591940"
 #   2022 = 591940 (game_id 414, named "moneyleague")
 #   2023 = 591940 (game_id 423)
 #   2024 = 591940 (game_id 449, renamed "Lucky 7")
-# 2015-2017 IDs are unknown — Yahoo doesn't expose the renew chain in
-# public HTML, so they need to be supplied manually (see SEASON_LEAGUE_IDS).
+# (2025 lives on Sleeper, not Yahoo.)
 SEASON_LEAGUE_IDS: dict[int, str] = {
+    2015: "44369",
+    2016: "63644",
+    2017: "696645",
     2018: "50466",
     2019: "36588",
     2020: "64590",
