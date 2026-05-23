@@ -1,0 +1,483 @@
+{
+  "generated_at": "2026-05-23T23:51:11+00:00",
+  "source": "data/historical/MONEY_LEAGUE.xlsx",
+  "note": "Team names attached via 2023+ Sleeper rosters. Pre-2023 xlsx years use draft-slot columns that don't cleanly map to current teams, so those records bucket as 'col_N_pre-sleeper'.",
+  "teams": [
+    {
+      "team_name": "I Herald LEMVP",
+      "seasons_in_league": 2,
+      "total_keepers": 11,
+      "avg_keepers_per_year": 5.5,
+      "avg_keeper_round": 10.8,
+      "yr3_caps_hit": 1,
+      "most_kept_position": "RB",
+      "position_counts": {
+        "QB": 4,
+        "RB": 5,
+        "WR": 1,
+        "TE": 1,
+        "K": 0,
+        "DEF": 0
+      }
+    },
+    {
+      "team_name": "kylefiggy",
+      "seasons_in_league": 2,
+      "total_keepers": 11,
+      "avg_keepers_per_year": 5.5,
+      "avg_keeper_round": 10.6,
+      "yr3_caps_hit": 2,
+      "most_kept_position": "QB",
+      "position_counts": {
+        "QB": 5,
+        "RB": 1,
+        "WR": 3,
+        "TE": 2,
+        "K": 0,
+        "DEF": 0
+      }
+    },
+    {
+      "team_name": "\u2b50\ufe0f\u2b50\ufe0f\u2b50\ufe0f",
+      "seasons_in_league": 2,
+      "total_keepers": 8,
+      "avg_keepers_per_year": 4.0,
+      "avg_keeper_round": 9.8,
+      "yr3_caps_hit": 0,
+      "most_kept_position": "WR",
+      "position_counts": {
+        "QB": 0,
+        "RB": 0,
+        "WR": 5,
+        "TE": 3,
+        "K": 0,
+        "DEF": 0
+      }
+    },
+    {
+      "team_name": "Unicorn Poo",
+      "seasons_in_league": 2,
+      "total_keepers": 8,
+      "avg_keepers_per_year": 4.0,
+      "avg_keeper_round": 9.5,
+      "yr3_caps_hit": 0,
+      "most_kept_position": "RB",
+      "position_counts": {
+        "QB": 2,
+        "RB": 3,
+        "WR": 2,
+        "TE": 1,
+        "K": 0,
+        "DEF": 0
+      }
+    },
+    {
+      "team_name": "BergerBoy Brigade \u2b50\ufe0f\u2b50\ufe0f\u2b50\ufe0f",
+      "seasons_in_league": 2,
+      "total_keepers": 8,
+      "avg_keepers_per_year": 4.0,
+      "avg_keeper_round": 10.1,
+      "yr3_caps_hit": 0,
+      "most_kept_position": "WR",
+      "position_counts": {
+        "QB": 1,
+        "RB": 2,
+        "WR": 5,
+        "TE": 0,
+        "K": 0,
+        "DEF": 0
+      }
+    },
+    {
+      "team_name": "TBreswick",
+      "seasons_in_league": 2,
+      "total_keepers": 8,
+      "avg_keepers_per_year": 4.0,
+      "avg_keeper_round": 10.9,
+      "yr3_caps_hit": 1,
+      "most_kept_position": "QB",
+      "position_counts": {
+        "QB": 3,
+        "RB": 3,
+        "WR": 2,
+        "TE": 0,
+        "K": 0,
+        "DEF": 0
+      }
+    },
+    {
+      "team_name": "Barry Sandals",
+      "seasons_in_league": 2,
+      "total_keepers": 6,
+      "avg_keepers_per_year": 3.0,
+      "avg_keeper_round": 10.7,
+      "yr3_caps_hit": 0,
+      "most_kept_position": "TE",
+      "position_counts": {
+        "QB": 0,
+        "RB": 2,
+        "WR": 2,
+        "TE": 2,
+        "K": 0,
+        "DEF": 0
+      }
+    },
+    {
+      "team_name": "she Tuten on my Bhayshul",
+      "seasons_in_league": 2,
+      "total_keepers": 5,
+      "avg_keepers_per_year": 2.5,
+      "avg_keeper_round": 9.0,
+      "yr3_caps_hit": 1,
+      "most_kept_position": "QB",
+      "position_counts": {
+        "QB": 2,
+        "RB": 1,
+        "WR": 2,
+        "TE": 0,
+        "K": 0,
+        "DEF": 0
+      }
+    },
+    {
+      "team_name": "Chester A. Arthur",
+      "seasons_in_league": 2,
+      "total_keepers": 5,
+      "avg_keepers_per_year": 2.5,
+      "avg_keeper_round": 12.2,
+      "yr3_caps_hit": 1,
+      "most_kept_position": "WR",
+      "position_counts": {
+        "QB": 0,
+        "RB": 2,
+        "WR": 3,
+        "TE": 0,
+        "K": 0,
+        "DEF": 0
+      }
+    },
+    {
+      "team_name": "Trez Bridges & Co.",
+      "seasons_in_league": 1,
+      "total_keepers": 4,
+      "avg_keepers_per_year": 4.0,
+      "avg_keeper_round": 10.0,
+      "yr3_caps_hit": 0,
+      "most_kept_position": "RB",
+      "position_counts": {
+        "QB": 0,
+        "RB": 2,
+        "WR": 1,
+        "TE": 1,
+        "K": 0,
+        "DEF": 0
+      }
+    },
+    {
+      "team_name": "Wi1dboy",
+      "seasons_in_league": 1,
+      "total_keepers": 3,
+      "avg_keepers_per_year": 3.0,
+      "avg_keeper_round": 10.3,
+      "yr3_caps_hit": 0,
+      "most_kept_position": "QB",
+      "position_counts": {
+        "QB": 1,
+        "RB": 1,
+        "WR": 0,
+        "TE": 1,
+        "K": 0,
+        "DEF": 0
+      }
+    },
+    {
+      "team_name": "Guap's Guys",
+      "seasons_in_league": 1,
+      "total_keepers": 3,
+      "avg_keepers_per_year": 3.0,
+      "avg_keeper_round": 13.0,
+      "yr3_caps_hit": 1,
+      "most_kept_position": "QB",
+      "position_counts": {
+        "QB": 2,
+        "RB": 0,
+        "WR": 0,
+        "TE": 1,
+        "K": 0,
+        "DEF": 0
+      }
+    },
+    {
+      "team_name": "col_6_pre-sleeper",
+      "seasons_in_league": 8,
+      "total_keepers": 23,
+      "avg_keepers_per_year": 2.88,
+      "avg_keeper_round": 11.5,
+      "yr3_caps_hit": 2,
+      "most_kept_position": "WR",
+      "position_counts": {
+        "QB": 2,
+        "RB": 8,
+        "WR": 12,
+        "TE": 1,
+        "K": 0,
+        "DEF": 0
+      }
+    },
+    {
+      "team_name": "col_9_pre-sleeper",
+      "seasons_in_league": 7,
+      "total_keepers": 22,
+      "avg_keepers_per_year": 3.14,
+      "avg_keeper_round": 10.8,
+      "yr3_caps_hit": 2,
+      "most_kept_position": "WR",
+      "position_counts": {
+        "QB": 2,
+        "RB": 7,
+        "WR": 8,
+        "TE": 4,
+        "K": 0,
+        "DEF": 0
+      }
+    },
+    {
+      "team_name": "col_8_pre-sleeper",
+      "seasons_in_league": 7,
+      "total_keepers": 19,
+      "avg_keepers_per_year": 2.71,
+      "avg_keeper_round": 12.5,
+      "yr3_caps_hit": 2,
+      "most_kept_position": "RB",
+      "position_counts": {
+        "QB": 2,
+        "RB": 9,
+        "WR": 6,
+        "TE": 2,
+        "K": 0,
+        "DEF": 0
+      }
+    },
+    {
+      "team_name": "col_7_pre-sleeper",
+      "seasons_in_league": 7,
+      "total_keepers": 18,
+      "avg_keepers_per_year": 2.57,
+      "avg_keeper_round": 11.7,
+      "yr3_caps_hit": 1,
+      "most_kept_position": "WR",
+      "position_counts": {
+        "QB": 4,
+        "RB": 5,
+        "WR": 6,
+        "TE": 2,
+        "K": 0,
+        "DEF": 0
+      }
+    },
+    {
+      "team_name": "col_5_pre-sleeper",
+      "seasons_in_league": 6,
+      "total_keepers": 17,
+      "avg_keepers_per_year": 2.83,
+      "avg_keeper_round": 10.4,
+      "yr3_caps_hit": 2,
+      "most_kept_position": "WR",
+      "position_counts": {
+        "QB": 2,
+        "RB": 6,
+        "WR": 7,
+        "TE": 2,
+        "K": 0,
+        "DEF": 0
+      }
+    },
+    {
+      "team_name": "col_12_pre-sleeper",
+      "seasons_in_league": 6,
+      "total_keepers": 16,
+      "avg_keepers_per_year": 2.67,
+      "avg_keeper_round": 9.8,
+      "yr3_caps_hit": 2,
+      "most_kept_position": "WR",
+      "position_counts": {
+        "QB": 1,
+        "RB": 7,
+        "WR": 8,
+        "TE": 0,
+        "K": 0,
+        "DEF": 0
+      }
+    },
+    {
+      "team_name": "col_11_pre-sleeper",
+      "seasons_in_league": 6,
+      "total_keepers": 15,
+      "avg_keepers_per_year": 2.5,
+      "avg_keeper_round": 11.5,
+      "yr3_caps_hit": 3,
+      "most_kept_position": "WR",
+      "position_counts": {
+        "QB": 2,
+        "RB": 5,
+        "WR": 6,
+        "TE": 2,
+        "K": 0,
+        "DEF": 0
+      }
+    },
+    {
+      "team_name": "col_10_pre-sleeper",
+      "seasons_in_league": 6,
+      "total_keepers": 14,
+      "avg_keepers_per_year": 2.33,
+      "avg_keeper_round": 10.6,
+      "yr3_caps_hit": 2,
+      "most_kept_position": "WR",
+      "position_counts": {
+        "QB": 0,
+        "RB": 4,
+        "WR": 10,
+        "TE": 0,
+        "K": 0,
+        "DEF": 0
+      }
+    },
+    {
+      "team_name": "col_4_pre-sleeper",
+      "seasons_in_league": 5,
+      "total_keepers": 12,
+      "avg_keepers_per_year": 2.4,
+      "avg_keeper_round": 12.0,
+      "yr3_caps_hit": 1,
+      "most_kept_position": "WR",
+      "position_counts": {
+        "QB": 0,
+        "RB": 5,
+        "WR": 7,
+        "TE": 0,
+        "K": 0,
+        "DEF": 0
+      }
+    },
+    {
+      "team_name": "col_13_pre-sleeper",
+      "seasons_in_league": 5,
+      "total_keepers": 12,
+      "avg_keepers_per_year": 2.4,
+      "avg_keeper_round": 10.8,
+      "yr3_caps_hit": 2,
+      "most_kept_position": "QB",
+      "position_counts": {
+        "QB": 5,
+        "RB": 3,
+        "WR": 2,
+        "TE": 2,
+        "K": 0,
+        "DEF": 0
+      }
+    },
+    {
+      "team_name": "col_3_pre-sleeper",
+      "seasons_in_league": 4,
+      "total_keepers": 10,
+      "avg_keepers_per_year": 2.5,
+      "avg_keeper_round": 9.4,
+      "yr3_caps_hit": 1,
+      "most_kept_position": "WR",
+      "position_counts": {
+        "QB": 1,
+        "RB": 2,
+        "WR": 6,
+        "TE": 1,
+        "K": 0,
+        "DEF": 0
+      }
+    },
+    {
+      "team_name": "col_14_pre-sleeper",
+      "seasons_in_league": 3,
+      "total_keepers": 9,
+      "avg_keepers_per_year": 3.0,
+      "avg_keeper_round": 10.2,
+      "yr3_caps_hit": 1,
+      "most_kept_position": "WR",
+      "position_counts": {
+        "QB": 2,
+        "RB": 1,
+        "WR": 3,
+        "TE": 3,
+        "K": 0,
+        "DEF": 0
+      }
+    },
+    {
+      "team_name": "col_2_pre-sleeper",
+      "seasons_in_league": 3,
+      "total_keepers": 7,
+      "avg_keepers_per_year": 2.33,
+      "avg_keeper_round": 8.4,
+      "yr3_caps_hit": 1,
+      "most_kept_position": "WR",
+      "position_counts": {
+        "QB": 1,
+        "RB": 1,
+        "WR": 4,
+        "TE": 1,
+        "K": 0,
+        "DEF": 0
+      }
+    },
+    {
+      "team_name": "col_15_pre-sleeper",
+      "seasons_in_league": 1,
+      "total_keepers": 3,
+      "avg_keepers_per_year": 3.0,
+      "avg_keeper_round": 13.0,
+      "yr3_caps_hit": 0,
+      "most_kept_position": "WR",
+      "position_counts": {
+        "QB": 1,
+        "RB": 0,
+        "WR": 2,
+        "TE": 0,
+        "K": 0,
+        "DEF": 0
+      }
+    },
+    {
+      "team_name": "col_1_pre-sleeper",
+      "seasons_in_league": 1,
+      "total_keepers": 3,
+      "avg_keepers_per_year": 3.0,
+      "avg_keeper_round": 11.0,
+      "yr3_caps_hit": 0,
+      "most_kept_position": "RB",
+      "position_counts": {
+        "QB": 0,
+        "RB": 2,
+        "WR": 1,
+        "TE": 0,
+        "K": 0,
+        "DEF": 0
+      }
+    },
+    {
+      "team_name": "col_3",
+      "seasons_in_league": 1,
+      "total_keepers": 1,
+      "avg_keepers_per_year": 1.0,
+      "avg_keeper_round": 14.0,
+      "yr3_caps_hit": 0,
+      "most_kept_position": "RB",
+      "position_counts": {
+        "QB": 0,
+        "RB": 1,
+        "WR": 0,
+        "TE": 0,
+        "K": 0,
+        "DEF": 0
+      }
+    }
+  ]
+}

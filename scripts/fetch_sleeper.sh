@@ -82,6 +82,18 @@ PY
         get "$API/draft/$DRAFT_ID/picks" "$SEASON_DIR/draft_${DRAFT_ID}_picks.json"
     done < "$SEASON_DIR/_draft_ids.txt"
 
+    # Weekly matchups (each entry has roster_id, points, starters/players/
+    # players_points). Pull regular + playoffs (weeks 1..17).
+    MATCHUPS_DIR="$SEASON_DIR/matchups"
+    mkdir -p "$MATCHUPS_DIR"
+    for week in $(seq 1 17); do
+        get "$API/league/$current/matchups/$week" "$MATCHUPS_DIR/week_${week}.json" || true
+    done
+
+    # Playoff brackets (winners + losers). Tells us champion + final standings.
+    get "$API/league/$current/winners_bracket" "$SEASON_DIR/winners_bracket.json" || true
+    get "$API/league/$current/losers_bracket"  "$SEASON_DIR/losers_bracket.json"  || true
+
     # Step backward via previous_league_id.
     current="$(python3 -c "import json; d=json.load(open('$LEAGUE_FILE')); print(d.get('previous_league_id') or '')")"
 

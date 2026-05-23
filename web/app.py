@@ -74,9 +74,12 @@ def _init_state():
 _init_state()
 
 
-tab_setup, tab_keepers, tab_draft, tab_insights = st.tabs(
-    ["1. Setup", "2. Keeper Predictions", "3. Live Draft", "4. Historical Insights"]
-)
+(tab_setup, tab_keepers, tab_draft, tab_insights, tab_positions,
+ tab_tendencies, tab_history) = st.tabs([
+    "1. Setup", "2. Keeper Predictions", "3. Live Draft",
+    "4. Historical Insights", "5. Position-by-Round",
+    "6. Team Tendencies", "7. League History",
+])
 
 
 # ------------------------------------------------------------------------
@@ -724,6 +727,194 @@ with tab_insights:
                                           if f.get("median_earlier_round") else "—"),
             } for f in forced]
             st.dataframe(pd.DataFrame(fd_rows), use_container_width=True, hide_index=True)
+
+
+# ------------------------------------------------------------------------
+# Tab 5: Position-by-Round (which position pays off best in each round?)
+# ------------------------------------------------------------------------
+
+with tab_positions:
+    st.header("Position-by-Round ROI")
+    st.caption(
+        "Mean season fantasy points scored by players drafted at each "
+        "(round, position) across all completed Sleeper seasons. "
+        "Regenerate with `python3 scripts/run_position_analysis.py`."
+    )
+
+    pos_path = ROOT / "data" / "position_by_round.json"
+    if not pos_path.exists():
+        st.warning(
+            "No position-by-round data yet. Run "
+            "`python3 scripts/run_position_analysis.py` from the repo root."
+        )
+    else:
+        try:
+            pdata = _json.loads(pos_path.read_text())
+        except Exception as e:
+            st.error(f"Couldn't read {pos_path.name}: {e}")
+            pdata = {}
+
+        seasons = pdata.get("seasons_covered") or []
+        st.caption(
+            f"Generated {pdata.get('generated_at', '?')} | "
+            f"seasons {seasons} | "
+            f"{pdata.get('n_picks', 0)} draft picks analyzed."
+        )
+
+        league = st.session_state.get("league")
+        if league and any("super_flex" in s.name.lower() or s.name.lower() == "qb"
+                          for s in league.roster):
+            n_qb = sum(s.count for s in league.roster
+                        if s.name.lower() in ("qb", "super_flex"))
+            if n_qb >= 2:
+                st.info(
+                    f"This is a **{n_qb}-QB starting league** (superflex), "
+                    f"which is why QBs dominate the mean-points table at "
+                    f"every round. Plan accordingly."
+                )
+
+        st.subheader("Best position per round")
+        st.caption("Position with the highest mean season-points scored, "
+                   "minimum 2 samples in that (round, position) bucket.")
+        best = pdata.get("best_position_per_round") or []
+        best_rows = [{
+            "Round": b["round"],
+            "Best position": b["best_position"],
+            "Mean points": b["mean_points"],
+            "Sample size": b["n_samples"],
+            "Advantage over 2nd": (f"+{b['advantage_over_2nd']:.0f} vs {b['second_best']}"
+                                    if b.get("advantage_over_2nd") and b.get("second_best")
+                                    else "—"),
+        } for b in best]
+        st.dataframe(pd.DataFrame(best_rows), use_container_width=True, hide_index=True)
+
+        st.subheader("Full breakdown — mean points by (round, position)")
+        brp = pdata.get("by_round_position") or {}
+        # Build a wide table: rows = rounds, columns = positions.
+        rounds = sorted(int(r) for r in brp)
+        positions = ("QB", "RB", "WR", "TE", "K", "DEF")
+        full_rows = []
+        for rnd in rounds:
+            r = {"Round": f"R{rnd}"}
+            for pos in positions:
+                d = (brp.get(str(rnd)) or {}).get(pos)
+                if d:
+                    r[pos] = f"{d['mean']:.0f} (n={d['n']})"
+                else:
+                    r[pos] = "—"
+            full_rows.append(r)
+        st.dataframe(pd.DataFrame(full_rows), use_container_width=True, hide_index=True)
+
+
+# ------------------------------------------------------------------------
+# Tab 6: Team Tendencies (per-team keeper habits from MONEY_LEAGUE.xlsx)
+# ------------------------------------------------------------------------
+
+with tab_tendencies:
+    st.header("Team Tendencies")
+    st.caption(
+        "Per-team keeper habits across 11 years of MONEY_LEAGUE history. "
+        "Use this to predict what opponents will keep / how aggressive "
+        "they'll be in the early rounds."
+    )
+
+    tend_path = ROOT / "data" / "team_tendencies.json"
+    if not tend_path.exists():
+        st.warning(
+            "No tendencies data yet. Run "
+            "`python3 scripts/run_team_tendencies.py` from the repo root."
+        )
+    else:
+        try:
+            tdata = _json.loads(tend_path.read_text())
+        except Exception as e:
+            st.error(f"Couldn't read {tend_path.name}: {e}")
+            tdata = {}
+
+        st.caption(f"Generated {tdata.get('generated_at', '?')}")
+
+        teams = tdata.get("teams") or []
+        if not teams:
+            st.info("No team data found.")
+        else:
+            rows = [{
+                "Team": t["team_name"],
+                "Seasons": t["seasons_in_league"],
+                "Total keepers": t["total_keepers"],
+                "Avg keepers/yr": f"{t['avg_keepers_per_year']:.1f}",
+                "Avg keeper round": (f"R{t['avg_keeper_round']:.1f}"
+                                      if t["avg_keeper_round"] else "—"),
+                "Most-kept pos": t.get("most_kept_position") or "—",
+                "Yr3 caps hit": t["yr3_caps_hit"],
+            } for t in teams]
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+            st.subheader("Position mix kept per team")
+            mix_rows = []
+            for t in teams:
+                mix = t.get("position_counts") or {}
+                row = {"Team": t["team_name"]}
+                for pos in ("QB", "RB", "WR", "TE", "K", "DEF"):
+                    row[pos] = mix.get(pos, 0)
+                mix_rows.append(row)
+            st.dataframe(pd.DataFrame(mix_rows), use_container_width=True, hide_index=True)
+
+
+# ------------------------------------------------------------------------
+# Tab 7: League History (standings + champions per season)
+# ------------------------------------------------------------------------
+
+with tab_history:
+    st.header("League History")
+    st.caption(
+        "Standings, champions, and per-season highlights pulled from "
+        "Sleeper. Years prior to 2023 lived on Yahoo and don't have "
+        "results data we can fetch."
+    )
+
+    from fantasy_draft.results import load_all_seasons  # noqa: E402
+
+    try:
+        seasons = load_all_seasons(ROOT / "data" / "sleeper")
+    except Exception as e:
+        st.error(f"Couldn't load season results: {e}")
+        seasons = {}
+
+    if not seasons:
+        st.info("No Sleeper season data. Run `scripts/fetch_sleeper.sh` first.")
+    else:
+        st.subheader("Champions")
+        champ_rows = []
+        for yr, s in sorted(seasons.items()):
+            champ_rid = s.get("champion_roster_id")
+            champ = s["rosters"].get(champ_rid, {}).get("team_name", "—") if champ_rid else "—"
+            champ_rows.append({
+                "Year": yr,
+                "League name": s.get("name") or "—",
+                "Champion": champ,
+                "Teams": s.get("num_teams", 0),
+            })
+        st.dataframe(pd.DataFrame(champ_rows), use_container_width=True, hide_index=True)
+
+        st.subheader("Standings by year")
+        for yr in sorted(seasons, reverse=True):
+            s = seasons[yr]
+            with st.expander(f"{yr} {s.get('name') or ''}", expanded=(yr == max(seasons))):
+                rows = []
+                champ_rid = s.get("champion_roster_id")
+                for rid, r in sorted(s["rosters"].items(),
+                                      key=lambda x: (-x[1]["wins"], -x[1]["fpts"])):
+                    badge = "🏆 " if rid == champ_rid else ""
+                    rows.append({
+                        "Team": badge + r["team_name"],
+                        "W": r["wins"],
+                        "L": r["losses"],
+                        "T": r["ties"],
+                        "Points For": round(r["fpts"], 1),
+                        "Points Against": round(r["fpts_against"], 1),
+                        "Margin": round(r["fpts"] - r["fpts_against"], 1),
+                    })
+                st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
 
 def _show_final(draft: Draft):
