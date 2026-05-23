@@ -839,13 +839,62 @@ function _preseasonRosterTab(roster, selName) {
   if (selName) selected = roster.find(p => p.pid === selName || p.name === selName);
   if (!selected) selected = roster.slice().sort((a,b) => b.overall - a.overall)[0];
 
-  let listHtml = "";
+  // Cap context for the header
+  const myId = franchise.chosenTeamId;
+  const cap = effectiveSalaryCap(myId);
+  const capUsed = capUsedByTeam(myId);
+  const capLeft = cap - capUsed;
+  const j1Used = _june1Used(myId);
+  const j1Left = JUNE1_DESIGNATIONS_PER_TEAM - j1Used;
+
+  // Decision-panel mode: when a release is pending, the right pane becomes
+  // a side-by-side Standard vs Post-June-1 comparison instead of the player
+  // detail panel. Player detail still shows when nothing is pending.
+  const pendingDecisionHtml = _releasePending
+    ? _buildReleaseDecisionPanel(roster)
+    : null;
+
+  // Header strip: cap meter + post-June 1 counter — top-of-page context.
+  const capPct = Math.min(100, capUsed / cap * 100);
+  const capColor = capUsed >= cap * 0.97 ? "var(--red)" : capUsed >= cap * 0.88 ? "#e8a000" : "var(--green-lt)";
+  const headerHtml = `
+    <div style="display:flex;align-items:center;gap:.8rem;padding:.5rem .7rem;background:var(--bg3);border:1px solid var(--border);border-radius:5px;margin-bottom:.65rem;flex-wrap:wrap">
+      <div style="flex:1;min-width:280px">
+        <div style="display:flex;justify-content:space-between;font-size:.6rem;color:var(--gray);margin-bottom:.18rem">
+          <span>SALARY CAP</span>
+          <span style="color:${capLeft<0?"var(--red)":"var(--gray)"}">${capLeft >= 0 ? `$${capLeft.toFixed(1)}M room` : `$${Math.abs(capLeft).toFixed(1)}M over`}</span>
+        </div>
+        <div style="height:8px;background:#222;border-radius:4px;overflow:hidden;position:relative">
+          <div style="height:100%;width:${capPct.toFixed(1)}%;background:${capColor};transition:width .2s"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:.62rem;margin-top:.18rem">
+          <span style="color:var(--gray)">$<b style="color:var(--white)">${capUsed.toFixed(1)}M</b> used</span>
+          <span style="color:var(--gray)">$<b style="color:var(--gold)">${cap.toFixed(0)}M</b> cap</span>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-start;padding:.25rem .55rem;background:var(--bg2);border:1px solid var(--border);border-radius:4px;min-width:130px"
+           title="Post-June 1 designations: 2 per team per offseason. Use to defer most dead-cap on a release to next year.">
+        <span style="font-size:.55rem;letter-spacing:.5px;color:var(--gray)">📅 POST-JUN 1</span>
+        <span style="font-size:.95rem;font-weight:700;color:${j1Left===0?"#888":"var(--gold)"}">${j1Used} / ${JUNE1_DESIGNATIONS_PER_TEAM}</span>
+        <span style="font-size:.55rem;color:var(--gray)">${j1Left} remaining</span>
+      </div>
+    </div>`;
+
+  let listHtml = headerHtml;
   for (const pos of posOrder) {
     const players = (groups[pos] || []).slice().sort((a,b) => b.overall - a.overall);
     if (!players.length) continue;
     listHtml += `<div class="frn-pre-pos-group">
       <div class="frn-pre-pos-title">${pos} <span style="color:var(--gray);font-weight:400;font-size:.6rem">${players.length}</span></div>
       <table class="frn-pre-roster-table">
+        <thead><tr>
+          <th></th><th>Player</th><th>Grade</th><th>Pot</th><th>Age</th>
+          <th title="Annual Avg Value × years remaining">AAV</th>
+          <th title="This year's cap charge (base + bonus proration)">Cap Hit</th>
+          <th title="Total dead cap if released now (prorated bonus × years remaining)">Dead</th>
+          <th title="Net current-year cap relief if released (Cap Hit − this-year dead)">Save</th>
+          <th></th>
+        </tr></thead>
         <tbody>
           ${players.map((p, i) => {
             const pKey = p.pid || p.name;
@@ -854,39 +903,42 @@ function _preseasonRosterTab(roster, selName) {
             const isSel = selected && (selected.pid ? selected.pid === p.pid : selected.name === p.name);
             const aav = p.contract?.aav || 0;
             const yrs = p.contract?.remaining || 0;
+            const capHit = currentYearCapHit(p);
+            const { perYear: deadPerYr, years: deadYrs } = deadCapOnRelease(p);
+            const deadTotal = Math.round(deadPerYr * deadYrs * 10) / 10;
+            const thisYearSave = Math.round((capHit - deadPerYr) * 10) / 10;
+            const escNm = p.name.replace(/'/g, "\\'");
             const isPendingRelease = _releasePending?.name === p.name && _releasePending?.pos === p.position;
-            if (isPendingRelease) {
-              const { deadPerYr, deadYrs, deadTotal, june1, j1Year1, j1Year2, j1Allowed, j1Used } = _releasePending;
-              const deadMsg = deadTotal > 0
-                ? (june1
-                    ? `☠ <b style="color:#ff9090">Y1 $${j1Year1.toFixed(1)}M</b> · <b style="color:#ff9090">Y2 $${j1Year2.toFixed(1)}M</b> (deferred lump)`
-                    : `☠ Dead cap: <b style="color:var(--red)">$${deadPerYr.toFixed(1)}M × ${deadYrs}yr = $${deadTotal.toFixed(1)}M</b>`)
-                : `<span style="color:var(--green-lt)">No dead cap — fully freed</span>`;
-              const j1Eligible = (j1Allowed || 0) > 0 && deadYrs >= 2 && deadTotal > 0;
-              const escNm = p.name.replace(/'/g, "\\'");
-              const j1Toggle = j1Eligible
-                ? `<button class="btn ${june1?"btn-gold":"btn-outline"}" onclick="frnReleasePlayer('${escNm}','${p.position}',${!june1})" style="font-size:.6rem;padding:.18rem .45rem" title="Post-June 1: pushes the bulk of dead cap to next year. ${j1Used||0}/${JUNE1_DESIGNATIONS_PER_TEAM} used this offseason.">📅 Post-Jun 1${june1?" ✓":""}</button>`
-                : (deadYrs < 2 ? `<span style="color:#888;font-size:.55rem">(June 1 needs ≥2yr dead)</span>`
-                              : (j1Allowed === 0 ? `<span style="color:#888;font-size:.55rem">(June 1: ${j1Used||0}/${JUNE1_DESIGNATIONS_PER_TEAM} used)</span>` : ""));
-              return `<tr style="background:rgba(220,50,50,.12)">
-                <td colspan="6" style="padding:.4rem .6rem">
-                  <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
-                    <span style="font-weight:700;color:var(--red)">Release ${p.name}?</span>
-                    <span style="font-size:.68rem">${deadMsg}</span>
-                    ${j1Toggle}
-                    <button class="btn btn-outline" onclick="frnReleasePlayerConfirm()" style="font-size:.62rem;padding:.2rem .5rem;border-color:var(--red);color:var(--red)">✓ Confirm Release</button>
-                    <button class="btn btn-outline" onclick="frnReleasePlayerCancel()" style="font-size:.62rem;padding:.2rem .5rem">✗ Cancel</button>
-                  </div>
-                </td>
-              </tr>`;
-            }
-            return `<tr class="frn-scout-row ${isSel?"selected":""}" onclick="renderFrnPreseason('roster',null,null,'${escName}')">
+            const tag = potentialTag(p, { known: true });
+            // Compress the potential tag to a short chip for the table
+            const potChip = tag
+              ? `<span title="${tag}" style="font-size:.56rem;padding:.08rem .3rem;border-radius:3px;background:${
+                  tag.includes("HIGH CEILING") ? "rgba(255,215,0,.18);color:#ffd700"
+                  : tag.includes("Late bloomer") ? "rgba(120,255,120,.15);color:#9af0a3"
+                  : tag.includes("Bust") ? "rgba(255,100,100,.18);color:#ff9090"
+                  : tag.includes("Capped") || tag.includes("Fell short") ? "rgba(200,100,100,.13);color:#ff9090"
+                  : tag.includes("Hit ceiling") || tag.includes("At ceiling") ? "rgba(150,150,150,.18);color:var(--gray)"
+                  : "rgba(160,160,160,.15);color:var(--gray)"
+                }">${tag.replace(/^[📋⭐↗▾⚠✓≈↘]\s*/,"").replace(/\s*$/,"").slice(0,12)}</span>`
+              : `<span style="color:#555;font-size:.6rem">—</span>`;
+            const ageColor = (p.age||0) >= 33 ? "#ff9090" : (p.age||0) >= 30 ? "#e8a000" : "var(--gray)";
+            const saveColor = thisYearSave >= 5 ? "var(--green-lt)" : thisYearSave > 0 ? "#9af0a3" : thisYearSave < 0 ? "var(--red)" : "var(--gray)";
+            const deadColor = deadTotal === 0 ? "var(--green-lt)" : deadTotal >= 10 ? "var(--red)" : "#ff9090";
+            const rowBg = isPendingRelease ? "rgba(220,50,50,.18)" : "";
+            const cutBtn = isPendingRelease
+              ? `<button class="frn-pre-cut" onclick="event.stopPropagation();frnReleasePlayerCancel()" title="Cancel release" style="background:var(--red);color:#fff">✗</button>`
+              : `<button class="frn-pre-cut" onclick="event.stopPropagation();frnReleasePlayer('${escNm}','${p.position}')" title="Release — opens decision panel">✗</button>`;
+            return `<tr class="frn-scout-row ${isSel?"selected":""}" style="background:${rowBg}" onclick="renderFrnPreseason('roster',null,null,'${escName}')">
               <td class="frn-scout-slot">${isStarter?"★":"#"+(i+1)}</td>
               <td style="font-weight:${isStarter?700:400}"><span style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px" onclick="event.stopPropagation();frnOpenPlayerCard('${escName}','${(p.pid||"").replace(/'/g,"\\'")}')">${p.name}</span></td>
               <td>${gradeBadge(p)}</td>
-              <td style="color:var(--gray)">${p.age || "?"}</td>
-              <td style="color:var(--gold);font-size:.7rem">$${aav.toFixed(1)}M · ${yrs}yr</td>
-              <td><button class="frn-pre-cut" onclick="event.stopPropagation();frnReleasePlayer('${escName}','${p.position}')" title="Release — frees cap, removes from roster">✗</button></td>
+              <td>${potChip}</td>
+              <td style="color:${ageColor}">${p.age || "?"}</td>
+              <td style="color:var(--gold);font-size:.68rem;white-space:nowrap">$${aav.toFixed(1)}M·${yrs}y</td>
+              <td style="color:var(--white);font-weight:600;font-size:.68rem">$${capHit.toFixed(1)}M</td>
+              <td style="font-size:.65rem;color:${deadColor};white-space:nowrap">${deadTotal===0?"—":`$${deadTotal.toFixed(1)}M`}</td>
+              <td style="font-size:.68rem;font-weight:700;color:${saveColor};white-space:nowrap">${thisYearSave>0?"+":""}$${thisYearSave.toFixed(1)}M</td>
+              <td>${cutBtn}</td>
             </tr>`;
           }).join("")}
         </tbody>
@@ -896,7 +948,109 @@ function _preseasonRosterTab(roster, selName) {
 
   return `<div class="frn-scout-split">
     <div class="frn-scout-roster">${listHtml}</div>
-    <div class="frn-scout-player">${selected ? _buildPlayerDetailPanel(selected) : ""}</div>
+    <div class="frn-scout-player">${
+      pendingDecisionHtml || (selected ? _buildPlayerDetailPanel(selected) : "")
+    }</div>
+  </div>`;
+}
+
+// Side-by-side release decision panel — replaces the player detail pane
+// when _releasePending is set. Shows Standard vs Post-June-1 in two cards
+// so the user can SEE the trade-off rather than reading explanatory text.
+function _buildReleaseDecisionPanel(roster) {
+  const p = roster.find(q => q.name === _releasePending.name && q.position === _releasePending.pos);
+  if (!p) return "";
+  const { deadPerYr, deadYrs, deadTotal, june1, j1Year1, j1Year2, j1Allowed, j1Used } = _releasePending;
+  const capHit = currentYearCapHit(p);
+  const standardSaveY1 = Math.round((capHit - deadPerYr) * 10) / 10;
+  const j1SaveY1 = Math.round((capHit - (j1Year1 || deadPerYr)) * 10) / 10;
+  const j1Eligible = (j1Allowed || 0) > 0 && deadYrs >= 2 && deadTotal > 0;
+  const tag = potentialTag(p, { known: true });
+  const escNm = p.name.replace(/'/g, "\\'");
+  const saveDelta = j1SaveY1 - standardSaveY1;
+  const futureDelta = (j1Year2 || 0) - (deadPerYr * (deadYrs - 1));
+
+  // Card builder so the two layouts are visually identical except for the numbers
+  function cutCard(kind) {
+    const isJ1 = kind === "june1";
+    const accent = isJ1 ? "var(--gold)" : "var(--red)";
+    const title = isJ1 ? "POST-JUNE 1 CUT" : "STANDARD CUT";
+    const subtitle = isJ1
+      ? `<span style="font-size:.55rem;color:${j1Left()===0?"#888":"var(--green-lt)"};letter-spacing:.5px">${j1Left()} / ${JUNE1_DESIGNATIONS_PER_TEAM} LEFT</span>`
+      : `<span style="font-size:.55rem;color:var(--gray);letter-spacing:.5px">ALWAYS AVAILABLE</span>`;
+    const y1Save = isJ1 ? j1SaveY1 : standardSaveY1;
+    const y1Dead = isJ1 ? j1Year1 : deadPerYr;
+    const y2Plus = isJ1
+      ? [{ y: "Y2", amt: j1Year2 || 0, note: "(deferred lump)" }]
+      : Array.from({ length: deadYrs - 1 }, (_, k) => ({ y: `Y${k+2}`, amt: deadPerYr, note: "" }));
+    const totalDead = isJ1 ? ((j1Year1 || 0) + (j1Year2 || 0)) : deadTotal;
+    const isPending = (isJ1 && june1) || (!isJ1 && !june1);
+    const confirmBtn = isJ1 && !j1Eligible
+      ? `<div style="font-size:.6rem;color:#888;text-align:center;padding:.5rem 0">
+          ${deadYrs < 2 ? "Needs ≥2yr dead to defer" : `0 / ${JUNE1_DESIGNATIONS_PER_TEAM} designations left`}
+        </div>`
+      : `<button onclick="frnReleasePlayer('${escNm}','${p.position}',${isJ1});frnReleasePlayerConfirm()"
+           style="display:block;width:100%;padding:.4rem;background:${accent};color:${isJ1?"#000":"#fff"};font-weight:700;border:none;border-radius:4px;cursor:pointer;font-size:.7rem;letter-spacing:.5px">
+           ✓ ${isJ1 ? "CONFIRM POST-JUN 1" : "CONFIRM STANDARD"}
+         </button>`;
+    const dim = (isJ1 && !j1Eligible) ? .55 : 1;
+
+    return `<div style="flex:1;background:var(--bg2);border:2px solid ${isPending?accent:"var(--border)"};border-radius:6px;padding:.6rem;opacity:${dim}">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.4rem">
+        <span style="font-size:.7rem;font-weight:700;letter-spacing:.5px;color:${accent}">${title}</span>
+        ${subtitle}
+      </div>
+      <div style="font-size:.6rem;color:var(--gray);letter-spacing:.5px;margin-bottom:.15rem">THIS YEAR</div>
+      <div style="display:flex;justify-content:space-between;font-size:.7rem;padding:.15rem 0">
+        <span>Cap freed</span>
+        <span style="color:var(--green-lt);font-weight:700">+$${capHit.toFixed(1)}M</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:.7rem;padding:.15rem 0">
+        <span>Dead cap</span>
+        <span style="color:#ff9090;font-weight:700">−$${(y1Dead||0).toFixed(1)}M</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:.78rem;padding:.25rem 0;border-top:1px solid var(--border);margin-top:.15rem">
+        <span style="font-weight:700">Net Y1</span>
+        <span style="color:${y1Save>0?"var(--green-lt)":"var(--red)"};font-weight:900">${y1Save>0?"+":""}$${y1Save.toFixed(1)}M</span>
+      </div>
+      ${y2Plus.length ? `
+        <div style="font-size:.6rem;color:var(--gray);letter-spacing:.5px;margin:.4rem 0 .15rem">FUTURE YEARS</div>
+        ${y2Plus.map(y => `<div style="display:flex;justify-content:space-between;font-size:.68rem;padding:.1rem 0">
+          <span>${y.y}${y.note?` <span style="color:var(--gray);font-size:.55rem">${y.note}</span>`:""}</span>
+          <span style="color:#ff9090">−$${(y.amt||0).toFixed(1)}M</span>
+        </div>`).join("")}` : ""}
+      <div style="display:flex;justify-content:space-between;font-size:.65rem;color:var(--gray);padding:.3rem 0 .5rem;border-top:1px solid var(--border);margin-top:.25rem">
+        <span>Total dead</span>
+        <span style="color:#ff9090">$${totalDead.toFixed(1)}M</span>
+      </div>
+      ${confirmBtn}
+    </div>`;
+  }
+
+  function j1Left() { return Math.max(0, JUNE1_DESIGNATIONS_PER_TEAM - (j1Used || 0)); }
+
+  const advice = j1Eligible
+    ? `<div style="font-size:.65rem;color:var(--gold);background:rgba(200,169,0,.08);border:1px solid rgba(200,169,0,.3);border-radius:4px;padding:.4rem .55rem;margin-top:.6rem">
+        💡 Post-June 1 frees <b>$${saveDelta>0?`${saveDelta.toFixed(1)}M more`:`the same`}</b> this year but pushes <b>$${Math.abs(futureDelta).toFixed(1)}M ${futureDelta>0?"more":"less"}</b> to next year. Use when you need cap NOW for free agency or trades.
+      </div>`
+    : "";
+
+  return `<div style="padding:.5rem .6rem;background:var(--bg3);border:1px solid var(--border);border-radius:6px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:.5rem;margin-bottom:.5rem">
+      <div>
+        <div style="font-size:.95rem;font-weight:700;color:var(--red);letter-spacing:.4px">RELEASE ${p.name}?</div>
+        <div style="font-size:.6rem;color:var(--gray);margin-top:.1rem">
+          ${p.position} · age ${p.age} · ${gradeBadge(p).replace(/<[^>]*>/g,"").trim()} grade${tag?` · ${tag}`:""}
+          · $${(p.contract?.aav||0).toFixed(1)}M × ${p.contract?.remaining||0}yr
+        </div>
+      </div>
+      <button onclick="frnReleasePlayerCancel()" style="font-size:.62rem;padding:.25rem .6rem;background:transparent;color:var(--gray);border:1px solid var(--border);border-radius:3px;cursor:pointer">✗ Cancel</button>
+    </div>
+    <div style="display:flex;gap:.55rem;flex-wrap:wrap">
+      ${cutCard("standard")}
+      ${cutCard("june1")}
+    </div>
+    ${advice}
   </div>`;
 }
 
