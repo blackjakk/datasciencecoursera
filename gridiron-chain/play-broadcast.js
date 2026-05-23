@@ -289,6 +289,15 @@ function _liveBioForTeams(gr, head, homeT, awayT, snap) {
       const stress = Math.round(target._stress || 0);
       const isInjured = !!(target.injury && target.injury.weeksRemaining > 0);
       const lastHit = recentHits[target.name] || null;
+      // Body-part wear snapshot (chronic scars). Only include regions with
+      // meaningful wear so the silhouette doesn't get noisy.
+      const bodyWear = {};
+      if (target._bodyWear) {
+        for (const k of Object.keys(target._bodyWear)) {
+          const v = target._bodyWear[k];
+          if (v >= 15) bodyWear[k] = v;
+        }
+      }
       rows.push({
         role: role.label, pos: target.position,
         name: target.name, jersey: target.jersey || null,
@@ -301,6 +310,7 @@ function _liveBioForTeams(gr, head, homeT, awayT, snap) {
           cata: !!target.injury._catastrophic,
         } : null,
         lastHit,
+        bodyWear,
       });
     }
     return rows;
@@ -389,6 +399,26 @@ function toBSPNLiveGameState(gr, head) {
   const startT = driveSlice[0]?.time ?? last?.time ?? 0;
   const endT   = last?.time ?? 0;
   const driveTimeSec = Math.max(0, startT - endT);
+
+  // Drive map sequence — each scoring/snap play in this drive, mapped to
+  // absolute yard lines for the team in possession. Used by DriveMapPanel.
+  const DRIVE_MAP_KINDS = new Set(["run","complete","incomplete","int","fumble","punt","fg_good","fg_miss","score","big_hit","ejection","substitution","hc_decision"]);
+  const driveSeq = [];
+  for (const p of driveSlice) {
+    if (!DRIVE_MAP_KINDS.has(p.kind)) continue;
+    if (p.startYard == null) continue;
+    const sY = p.startYard;
+    const eY = p.endYard != null ? p.endYard : p.startYard + (p.yards || 0);
+    driveSeq.push({
+      kind: p.kind,
+      startYard: sY,
+      endYard: Math.max(0, Math.min(100, eY)),
+      yards: p.yards || 0,
+      poss: p.poss,
+      isTD: (eY >= 100) && (p.kind === "run" || p.kind === "complete"),
+    });
+  }
+  const driveStartY = driveSeq.length ? driveSeq[0].startYard : (sitPlay?.startYard ?? null);
 
   // Play-by-play rows from the current drive (latest first)
   const pbpRows = [];
@@ -562,7 +592,7 @@ function toBSPNLiveGameState(gr, head) {
     yardLabel: yardLineText,
     poss: sitPlay?.poss || null,
     nextUp,
-    drive: { plays: drivePlays, yards: driveYards, timeSec: driveTimeSec },
+    drive: { plays: drivePlays, yards: driveYards, timeSec: driveTimeSec, sequence: driveSeq, startYard: driveStartY },
     boxScore: {
       home: { team: snap.home?.team || {}, players: snap.home?.players || {} },
       away: { team: snap.away?.team || {}, players: snap.away?.players || {} },
@@ -768,6 +798,83 @@ const LastPlayPanel = {
   },
 };
 
+// Drive map — horizontal mini-field showing the current drive's path
+// from start to current LOS, with markers per snap and TD endpoints.
+const DriveMapPanel = {
+  render(state) {
+    return `<div id="bspnlive-drivemap">${this._body(state)}</div>`;
+  },
+  _body(state) {
+    const d = state.drive || {};
+    const seq = d.sequence || [];
+    const possIsHome = state.possessionTeamId === state.homeTeam?.id;
+    const team = possIsHome ? state.homeTeam : state.awayTeam;
+    if (!seq.length || d.startYard == null) {
+      return `<div style="font-size:.62rem;color:var(--blgray);padding:.5rem 0;text-align:center">
+        ${state.possessionTeamId ? `${team?.abbr || ""} starting drive…` : "No drive in progress."}
+      </div>`;
+    }
+    const startY = d.startYard;
+    const curY = seq[seq.length - 1].endYard;
+    const teamColor = team?.primary || "#f5c542";
+    // Build the strip: 100-yard field with markers for each snap.
+    // Yard 0 = own goal, 100 = opp goal. Each pct is yard %.
+    const yToPct = y => Math.max(0, Math.min(100, y));
+    const marks = seq.map((p, i) => {
+      const x = yToPct(p.endYard);
+      const isLast = i === seq.length - 1;
+      const isGain = p.yards > 0;
+      const isLoss = p.yards < 0;
+      const sym = p.kind === "complete" ? "✦"
+               : p.kind === "run" ? "●"
+               : p.kind === "incomplete" ? "✕"
+               : p.kind === "int" || p.kind === "fumble" ? "⚠"
+               : p.kind === "fg_good" ? "FG"
+               : p.kind === "fg_miss" ? "✕"
+               : p.kind === "punt" ? "P"
+               : "·";
+      const color = p.isTD ? "#ffd54d"
+                  : isLast ? teamColor
+                  : isGain ? "#9be09b"
+                  : isLoss ? "#ff9090"
+                  : "#aaa";
+      return `<div class="drvmap-mark${isLast ? " current" : ""}${p.isTD ? " td" : ""}"
+                   style="left:${x}%;color:${color};border-color:${color}"
+                   title="Play ${i+1}: ${p.kind} · ${p.startYard} → ${p.endYard} (${p.yards>=0?"+":""}${p.yards} yd)">
+                ${sym}
+              </div>`;
+    }).join("");
+    // Connecting path: snap → snap line
+    const pathPts = [`${yToPct(startY)},50`].concat(seq.map(p => `${yToPct(p.endYard)},50`)).join(" ");
+    return `<div class="drvmap-wrap">
+      <div class="drvmap-meta">
+        <span style="color:${teamColor};font-weight:700">${team?.abbr || "—"}</span>
+        <span style="color:var(--blgray)">${d.plays || 0} plays · ${d.yards >= 0 ? "+" : ""}${d.yards} yds · ${Math.floor((d.timeSec||0)/60)}:${String((d.timeSec||0)%60).padStart(2,"0")}</span>
+        <span style="color:var(--blgray);margin-left:auto">start: ${startY <= 50 ? `own ${startY}` : `opp ${100 - startY}`}</span>
+      </div>
+      <div class="drvmap-field" style="--team:${teamColor}">
+        <div class="drvmap-grid">
+          ${[10,20,30,40,50,60,70,80,90].map(y =>
+            `<div class="drvmap-tick" style="left:${y}%">
+              <span class="drvmap-tick-num">${y === 50 ? "50" : (y > 50 ? 100 - y : y)}</span>
+            </div>`).join("")}
+        </div>
+        <svg class="drvmap-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+          <polyline points="${pathPts}"
+            fill="none" stroke="${teamColor}" stroke-width="0.6"
+            stroke-dasharray="0" opacity="0.85" />
+        </svg>
+        <div class="drvmap-start" style="left:${yToPct(startY)}%" title="Drive start at ${startY}">▶</div>
+        ${marks}
+      </div>
+    </div>`;
+  },
+  update(state) {
+    const el = document.getElementById("bspnlive-drivemap");
+    if (el) el.innerHTML = this._body(state);
+  },
+};
+
 const DriveSummaryPanel = {
   render(state) {
     return `<div id="bspnlive-drive">${this._body(state)}</div>`;
@@ -879,6 +986,47 @@ const BSPNBottomTicker = {
 // LiveBioPanel — per-team skill-player wear/stress/snap%/injury chips.
 // Surfaces engine systems (wear, stress, body-part damage, mid-game
 // substitution) that previously had no live representation.
+// Body-part hot map SVG for the LIVE BIO row. Renders a tiny Vitruvian
+// silhouette with colored markers on any region whose chronic body-wear
+// score has crossed the visibility threshold. Coordinates match the
+// _BODY_PARTS keys in play-franchise-season.js.
+const _BODYHOT_COORDS = {
+  head:        { cx: 20, cy: 7  }, neck:        { cx: 20, cy: 13 },
+  chest:       { cx: 20, cy: 24 }, back:        { cx: 20, cy: 26 },
+  groin:       { cx: 20, cy: 33 },
+  shoulderL:   { cx: 14, cy: 18 }, shoulderR:   { cx: 26, cy: 18 },
+  hipL:        { cx: 17, cy: 35 }, hipR:        { cx: 23, cy: 35 },
+  hamstringL:  { cx: 17, cy: 42 }, hamstringR:  { cx: 23, cy: 42 },
+  kneeL:       { cx: 17, cy: 49 }, kneeR:       { cx: 23, cy: 49 },
+  calfL:       { cx: 17, cy: 53 }, calfR:       { cx: 23, cy: 53 },
+  achillesL:   { cx: 17, cy: 57 }, achillesR:   { cx: 23, cy: 57 },
+  ankleL:      { cx: 16, cy: 61 }, ankleR:      { cx: 24, cy: 61 },
+  handL:       { cx: 9,  cy: 30 }, handR:       { cx: 31, cy: 30 },
+};
+function _bodyHotMapSVG(bodyWear) {
+  // Always render the silhouette outline even with no wear so the
+  // chip slot stays a stable size. Render dots for any region the
+  // adapter passed through (already filtered to wear >= 15).
+  const markers = Object.entries(bodyWear || {}).map(([part, v]) => {
+    const c = _BODYHOT_COORDS[part];
+    if (!c) return "";
+    const intensity = Math.min(100, v) / 100;
+    const color = v >= 70 ? "#ff3a3a" : v >= 45 ? "#ff8a4a" : "#e8a000";
+    const r = 2 + intensity * 1.8;
+    const titlePart = part.replace(/([LR])$/, " $1").replace(/^./, c => c.toUpperCase());
+    return `<g><circle cx="${c.cx}" cy="${c.cy}" r="${r + 1.5}" fill="${color}" opacity="${0.22 + intensity * 0.18}"/>
+      <circle cx="${c.cx}" cy="${c.cy}" r="${r}" fill="${color}" opacity="${0.7 + intensity * 0.3}"><title>${titlePart}: ${Math.round(v)}</title></circle></g>`;
+  }).join("");
+  return `<svg viewBox="0 0 40 70" width="32" height="56" class="livebio-bodyhot">
+    <ellipse cx="20" cy="7" rx="4.5" ry="5.2" fill="#222" stroke="#555" stroke-width=".6"/>
+    <path d="M14,13 L26,13 L28,22 L24,38 L26,68 L22,68 L20,38 L18,38 L17,68 L13,68 L15,38 L11,22 Z"
+          fill="#222" stroke="#555" stroke-width=".6"/>
+    <path d="M14,14 L8,30" stroke="#555" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+    <path d="M26,14 L32,30" stroke="#555" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+    ${markers}
+  </svg>`;
+}
+
 const LiveBioPanel = {
   render(state) {
     return `<div id="bspnlive-livebio">${this._body(state)}</div>`;
@@ -915,6 +1063,8 @@ const LiveBioPanel = {
             title="${r.injury.label}${r.injury.cata?" — catastrophic":""}">${r.injury.cata?"🚑":"🩹"} ${r.injury.weeks}w</span>`
       : "";
     const snapTxt = r.snapPct != null ? `${r.snapPct}%` : (r.snaps ? `${r.snaps} sn` : "—");
+    const hotSvg = _bodyHotMapSVG(r.bodyWear || {});
+    const hasScars = Object.keys(r.bodyWear || {}).length > 0;
     return `<div class="livebio-row${r.lastHit?.playsAgo === 0 ? " flash" : ""}">
       <div class="livebio-id">
         <span class="livebio-role">${r.role}</span>
@@ -923,16 +1073,21 @@ const LiveBioPanel = {
         <span class="livebio-snaps">${snapTxt}</span>
         ${injuryChip}${hitChip}
       </div>
-      <div class="livebio-bars">
-        <div class="livebio-bar-row">
-          <span class="livebio-bar-lbl">W</span>
-          <div class="livebio-bar"><div class="livebio-bar-fill" style="width:${wearW}%;background:${wearColor}"></div></div>
-          <span class="livebio-bar-val">${r.wear}</span>
+      <div class="livebio-content">
+        <div class="livebio-bars">
+          <div class="livebio-bar-row">
+            <span class="livebio-bar-lbl">W</span>
+            <div class="livebio-bar"><div class="livebio-bar-fill" style="width:${wearW}%;background:${wearColor}"></div></div>
+            <span class="livebio-bar-val">${r.wear}</span>
+          </div>
+          <div class="livebio-bar-row">
+            <span class="livebio-bar-lbl">S</span>
+            <div class="livebio-bar"><div class="livebio-bar-fill" style="width:${stressW}%;background:${stressColor}"></div></div>
+            <span class="livebio-bar-val">${r.stress}</span>
+          </div>
         </div>
-        <div class="livebio-bar-row">
-          <span class="livebio-bar-lbl">S</span>
-          <div class="livebio-bar"><div class="livebio-bar-fill" style="width:${stressW}%;background:${stressColor}"></div></div>
-          <span class="livebio-bar-val">${r.stress}</span>
+        <div class="livebio-bodyhot-col${hasScars ? "" : " empty"}" title="${hasScars ? `Chronic wear / past injuries by region` : `No notable region wear`}">
+          ${hotSvg}
         </div>
       </div>
     </div>`;
@@ -1049,7 +1204,9 @@ const BSPNGameScreen = {
             ${TeamStatsMiniPanel.render(state)}
           </div>
           <div class="bspnlive-bottom-pane" data-pane="drive">
-            <div class="bspnlive-drive-row">
+            <div class="bspnlive-panel-title" style="text-align:left;padding-bottom:.3rem;margin-bottom:.45rem">DRIVE MAP</div>
+            ${DriveMapPanel.render(state)}
+            <div class="bspnlive-drive-row" style="margin-top:.7rem">
               <div class="bspnlive-drive-col">
                 <div class="bspnlive-panel-title">DRIVE SUMMARY</div>
                 ${DriveSummaryPanel.render(state)}
@@ -1081,6 +1238,7 @@ const BSPNGameScreen = {
     LiveBioPanel.update(state);
     LastPlayPanel.update(state);
     DriveSummaryPanel.update(state);
+    DriveMapPanel.update(state);
     NextUpPanel.update(state);
     PlayByPlayPanel.update(state);
     TopPerformersPanel.update(state);

@@ -3193,6 +3193,14 @@
   }
   .livebio-injury-chip { background: rgba(220,50,50,.18); color: #ff9090; }
   .livebio-hit-chip { background: rgba(255,90,90,.12); color: #ffb0b0; }
+  .livebio-content { display: flex; gap: .4rem; align-items: stretch; }
+  .livebio-content .livebio-bars { flex: 1; }
+  .livebio-bodyhot-col {
+    display: flex; align-items: center; justify-content: center;
+    width: 32px; flex-shrink: 0;
+    opacity: 1; transition: opacity .2s;
+  }
+  .livebio-bodyhot-col.empty { opacity: 0.30; }
   .livebio-bars { display: flex; flex-direction: column; gap: .15rem; }
   .livebio-bar-row {
     display: flex; align-items: center; gap: .3rem;
@@ -3328,6 +3336,86 @@
   .sub-chip-arrow {
     font-size: 1rem; color: var(--accent); font-weight: 900;
     text-shadow: 0 0 6px var(--accent);
+  }
+
+  /* ── DRIVE MAP ───────────────────────────────────────────────
+     Horizontal mini-field showing the current drive's snap-by-snap
+     trail from start to current LOS. Lives in the bottom Drive tab. */
+  .drvmap-wrap {
+    background: rgba(0,0,0,.3);
+    border: 1px solid var(--blborder);
+    border-radius: 4px; padding: .55rem .7rem;
+  }
+  .drvmap-meta {
+    display: flex; align-items: center; gap: .6rem;
+    font-size: .65rem; margin-bottom: .45rem;
+    letter-spacing: 1px;
+  }
+  .drvmap-field {
+    position: relative; height: 38px;
+    background: linear-gradient(90deg,
+      rgba(60,140,80,.45) 0%,
+      rgba(60,140,80,.45) 7%,
+      rgba(80,170,100,.32) 7%,
+      rgba(80,170,100,.32) 93%,
+      rgba(60,140,80,.45) 93%,
+      rgba(60,140,80,.45) 100%);
+    border: 1px solid rgba(120,180,140,.4);
+    border-radius: 2px;
+    overflow: visible;
+  }
+  .drvmap-grid {
+    position: absolute; inset: 0;
+  }
+  .drvmap-tick {
+    position: absolute; top: 0; bottom: 0;
+    width: 1px; background: rgba(255,255,255,.18);
+  }
+  .drvmap-tick-num {
+    position: absolute; top: -10px; left: -6px;
+    font-size: .48rem; color: rgba(255,255,255,.55);
+    letter-spacing: 0.5px;
+  }
+  .drvmap-svg {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+  }
+  .drvmap-start {
+    position: absolute; top: 50%; transform: translate(-50%, -50%);
+    color: var(--team); font-size: .8rem; font-weight: 900;
+    text-shadow: 0 0 4px var(--team);
+    z-index: 3;
+  }
+  .drvmap-mark {
+    position: absolute; top: 50%; transform: translate(-50%, -50%);
+    font-size: .7rem; font-weight: 900;
+    width: 16px; height: 16px;
+    border-radius: 50%; background: rgba(0,0,0,.7);
+    border: 1.5px solid currentColor;
+    display: flex; align-items: center; justify-content: center;
+    line-height: 1; cursor: default;
+    z-index: 2;
+    transition: transform .12s;
+  }
+  .drvmap-mark:hover { transform: translate(-50%, -50%) scale(1.4); z-index: 4; }
+  .drvmap-mark.current {
+    width: 20px; height: 20px;
+    box-shadow: 0 0 10px currentColor;
+    animation: drvmap-current-pulse 1.2s ease-in-out infinite alternate;
+  }
+  @keyframes drvmap-current-pulse {
+    from { box-shadow: 0 0 6px currentColor; }
+    to   { box-shadow: 0 0 14px currentColor; }
+  }
+  .drvmap-mark.td {
+    background: #ffd54d; color: #000 !important;
+    font-size: .55rem; letter-spacing: 1px;
+    animation: drvmap-td-pulse 0.7s ease-in-out infinite alternate;
+  }
+  @keyframes drvmap-td-pulse {
+    from { transform: translate(-50%, -50%) scale(1); }
+    to   { transform: translate(-50%, -50%) scale(1.15); }
   }
 
   /* ── TOUCHDOWN CINEMATIC ─────────────────────────────────────
