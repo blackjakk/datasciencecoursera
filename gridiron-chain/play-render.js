@@ -425,12 +425,18 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
   const phaseOffset = ((phaseHash % 1000) / 1000);             // 0–1
   const ampJitter   = 0.78 + ((phaseHash >> 10) % 100) / 220;  // ~0.78–1.23
   // Equipment flags — deterministic per-player so a given player always
-  // wears the same kit. Drives visor / towel / captain patch draws below.
+  // wears the same kit. Drives visor / towel / captain patch / sleeve
+  // draws below.
   const _posStr = String(style.position || style.role || "").toUpperCase();
   const _skillPos = ["QB","WR","RB","TE","CB","S","FS","SS","LB","KR","PR"].includes(_posStr);
-  const wearsVisor = _skillPos && ((phaseHash >> 4) % 100) < 30;
-  const wearsTowel = ((phaseHash >> 6) % 100) < 55;
-  const isCaptain  = !!style.nickname;
+  const _linemanPos = ["C","G","T","OG","OT","OL","DE","DT","NT","DL"].includes(_posStr);
+  const wearsVisor    = _skillPos && ((phaseHash >> 4) % 100) < 30;
+  const wearsTowel    = ((phaseHash >> 6) % 100) < 55;
+  const isCaptain     = !!style.nickname;
+  // Linemen wear long sleeves (forearm covered by jersey color instead of
+  // bare skin) for warmth and abrasion protection. A few skill players
+  // (~15%) also opt for a long-sleeved compression shirt under the jersey.
+  const longSleeves   = _linemanPos || (((phaseHash >> 8) % 100) < 15);
   const legAmp = rs.legAmp * ampJitter;
   const armAmp = rs.armAmp * ampJitter;
   // Shift t by per-player offset for run/carry/celebrate cycles
@@ -1036,6 +1042,21 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
     ctx.beginPath();
     ctx.ellipse(footX, footY + 0.35, shinW * 0.95, 0.55, 0, 0, Math.PI * 2);
     ctx.fill();
+    // Foot dust — small light-tan puff behind the trailing foot during
+    // run/carry. The leg with the LARGER lift is mid-swing (in the air),
+    // so we kick up dust from the OTHER (planted, pushing-off) foot.
+    if ((pose === "run" || pose === "carry") && lift < 2) {
+      ctx.fillStyle = "rgba(190,170,130,0.32)";
+      const dustX = footX - facing * 1.2;
+      const dustY = footY + 0.6;
+      ctx.beginPath();
+      ctx.ellipse(dustX, dustY, 2.4, 1.0, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(190,170,130,0.18)";
+      ctx.beginPath();
+      ctx.ellipse(dustX - facing * 0.8, dustY - 0.1, 1.6, 0.7, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
   };
   // ── Arms — Lego-style chunky tubes. Bicep = sleeve, forearm = skin.
   // Nearly as wide as the helmet (helmRx≈6.4 → arm half-width ~2.7) and
@@ -1057,8 +1078,13 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
     const handY = elbowY + Math.cos(lowerA) * lower + armReachY * 0.6;
     // Jersey sleeve (bicep) — team color, very thick
     drawSegment(sx, shoulderY, elbowX, elbowY, bicepW, color, shadeDark, shadeLight);
-    // Forearm — skin tone (short-sleeved jersey), almost as thick
-    drawSegment(elbowX, elbowY, handX, handY, forearmW, skin.base, skin.dark, skin.light);
+    // Forearm — bare skin (short sleeves) or team color (long sleeves /
+    // compression layer); linemen + ~15% of skill players wear long sleeves.
+    if (longSleeves) {
+      drawSegment(elbowX, elbowY, handX, handY, forearmW, color, shadeDark, shadeLight);
+    } else {
+      drawSegment(elbowX, elbowY, handX, handY, forearmW, skin.base, skin.dark, skin.light);
+    }
     // Wristband — thin white band at the wrist
     const wbX = elbowX + (handX - elbowX) * 0.82;
     const wbY = elbowY + (handY - elbowY) * 0.82;
@@ -1156,9 +1182,20 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
   ctx.moveTo(-padW/2 + 0.6, padTopY + 0.25);
   ctx.lineTo( padW/2 - 0.6, padTopY + 0.25);
   ctx.stroke();
-  // Pad lip — dark shadow line under the pad
-  ctx.fillStyle = "rgba(0,0,0,0.35)";
+  // Pad lip — dark shadow line under the pad (ambient occlusion at the
+  // pad-to-torso seam). Slightly deeper than before so the pad reads as
+  // a separate piece of equipment resting on the jersey.
+  ctx.fillStyle = "rgba(0,0,0,0.55)";
   ctx.fillRect(-padW/2 + 0.3, padBotY - 0.6, padW - 0.6, 0.5);
+  // Armhole AO — small dark wedges where the bicep meets the pad, so the
+  // arm reads as inset into the shoulder pad rather than glued on top.
+  ctx.fillStyle = "rgba(0,0,0,0.35)";
+  ctx.beginPath();
+  ctx.ellipse(-padW/2 + 0.4, padBotY - 0.5, 1.4, 1.2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse( padW/2 - 0.4, padBotY - 0.5, 1.4, 1.2, 0, 0, Math.PI * 2);
+  ctx.fill();
 
   // ── Torso — flat RECTANGLE (Roblox-style block torso) ──
   const torsoW = (padW - 1.6);   // slightly narrower than the pads
@@ -1268,6 +1305,13 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
   const helmRx = headR + 2.2;             // wider
   const helmRy = helmH + 1.4;             // taller
   const helmY  = shoulderY - helmRy - 0.6;
+  // Neck shadow — dark ellipse where the helmet sits on the shoulder pads,
+  // before the helmet draw paints over it. Reads as ambient occlusion in
+  // the deep crevice between the helmet bottom and the pad crest.
+  ctx.fillStyle = "rgba(0,0,0,0.6)";
+  ctx.beginPath();
+  ctx.ellipse(0, padTopY - 0.4, helmRx * 0.55, 1.5, 0, 0, Math.PI * 2);
+  ctx.fill();
   // Visible chin/jaw — skin block peeking out below the round dome
   ctx.fillStyle = skin.base;
   ctx.beginPath();
