@@ -7,6 +7,8 @@ function showFranchiseDashboard() {
   // Surface the injury-repair report after _repairInjuries ran on load.
   // Shown once per save (gated by report.seenByUser).
   try { _showInjuryRepairBanner(); } catch (_e) {}
+  // Week recap modal — pops once per completed week with the top plays
+  try { _showWeekRecapIfReady && _showWeekRecapIfReady(); } catch (_e) {}
   // Defensive defaults for older saves missing newer fields
   if (!franchise.phase)            franchise.phase = "regular";
   if (!franchise.seasonStats)      franchise.seasonStats = {};

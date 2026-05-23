@@ -23,14 +23,25 @@ function absYardToX(absYard) {
 
 function drawField(ctx, homeTeam, awayTeam, ctx_state) {
   const W = FIELD.W, H = FIELD.H;
-  // grass bands
-  ctx.fillStyle = "#1f6b34";
+  // Base grass (slightly darker than mowing bands so sidelines read as a deeper green)
+  ctx.fillStyle = "#1c5e2f";
   ctx.fillRect(0, 0, W, H);
-  // alternating mowed bands
+  // Alternating mowed bands — stronger contrast so the grass texture reads
+  // even at small sizes / with broadcast camera tilt.
   for (let i = 0; i < 10; i++) {
-    ctx.fillStyle = i % 2 === 0 ? "#236d36" : "#1f6431";
+    ctx.fillStyle = i % 2 === 0 ? "#2b7a40" : "#1d6232";
     const x = FIELD.EZ_PX + i * 10 * FIELD.PX_PER_YARD;
     ctx.fillRect(x, FIELD.TOP, 10 * FIELD.PX_PER_YARD, FIELD.BOT - FIELD.TOP);
+  }
+  // Subtle field-wide vignette — slightly darker at the corners so the
+  // midfield action sits in a soft spotlight (broadcast camera feel).
+  {
+    const cx = W / 2, cy = (FIELD.TOP + FIELD.BOT) / 2;
+    const grad = ctx.createRadialGradient(cx, cy, Math.min(W, H) * 0.25, cx, cy, Math.max(W, H) * 0.65);
+    grad.addColorStop(0, "rgba(0,0,0,0)");
+    grad.addColorStop(1, "rgba(0,0,0,0.22)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, FIELD.TOP, W, FIELD.BOT - FIELD.TOP);
   }
   // end zones (team colors)
   ctx.fillStyle = homeTeam.primary;
@@ -52,24 +63,30 @@ function drawField(ctx, homeTeam, awayTeam, ctx_state) {
   ctx.font = `900 ${ezTargetH}px monospace`;
   const hMeasure = ctx.measureText(hName).width || 1;
   const hScaleX  = ezTargetW / hMeasure;
-  ctx.fillStyle = "rgba(255,255,255,0.55)";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.translate(FIELD.EZ_PX / 2, (FIELD.TOP + FIELD.BOT) / 2);
   ctx.rotate(-Math.PI / 2);
   ctx.scale(hScaleX, 1);
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = "rgba(0,0,0,0.55)";
+  ctx.strokeText(hName, 0, 0);
+  ctx.fillStyle = "rgba(255,255,255,0.92)";
   ctx.fillText(hName, 0, 0);
   ctx.restore();
   ctx.save();
   ctx.font = `900 ${ezTargetH}px monospace`;
   const aMeasure = ctx.measureText(aName).width || 1;
   const aScaleX  = ezTargetW / aMeasure;
-  ctx.fillStyle = "rgba(255,255,255,0.55)";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.translate(W - FIELD.EZ_PX / 2, (FIELD.TOP + FIELD.BOT) / 2);
   ctx.rotate(Math.PI / 2);
   ctx.scale(aScaleX, 1);
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = "rgba(0,0,0,0.55)";
+  ctx.strokeText(aName, 0, 0);
+  ctx.fillStyle = "rgba(255,255,255,0.92)";
   ctx.fillText(aName, 0, 0);
   ctx.restore();
 

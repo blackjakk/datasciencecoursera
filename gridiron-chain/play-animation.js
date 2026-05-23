@@ -5368,11 +5368,11 @@ let viewMode = "tactical"; // 'tactical' | 'cinema'
 // parallel upright overlay canvas (#field-uprights) draws player sprites
 // at projected positions so they stay billboarded (upright) rather than
 // foreshortened with the field plane.
-let cameraMode = "topdown"; // 'topdown' | 'broadcast'
+let cameraMode = "broadcast"; // 'topdown' | 'broadcast' — broadcast is the default for that "watching it on TV" feel
 let _uprightCtx = null;      // set per frame by _frameStartBroadcast()
 let _spriteQueue = [];        // deferred sprite draws (player/ball) for depth sort
-const BROADCAST_TILT_DEG = 38;
-const BROADCAST_PERSPECTIVE_PX = 1100;
+const BROADCAST_TILT_DEG = 32;
+const BROADCAST_PERSPECTIVE_PX = 1300;
 
 // Called by the tick loop before each render(). Clears the upright
 // overlay canvas and sets _uprightCtx so drawPlayer/drawBall route

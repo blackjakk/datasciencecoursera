@@ -2028,6 +2028,90 @@ function _trimReplayClips() {
   }
 }
 
+// Week-recap modal — fires once per completed week (gated by
+// franchise._lastRecapSeen). Shows top 6 plays of the week with
+// inline replay buttons + a "Watch reel" play-all chain.
+function _showWeekRecapIfReady() {
+  if (!franchise) return;
+  // Only show during regular season when a week just completed
+  if (franchise.phase !== "regular") return;
+  if (!franchise.weekPending) return;
+  // Most recent COMPLETED week is one less than current (week increments
+  // after weekPending is resolved). But if the user just simmed and the
+  // bumpWeek hasn't fired, current week = the just-completed one.
+  const completedWeek = franchise.week;
+  const seasonKey = `${franchise.season}_${completedWeek}`;
+  if (franchise._lastRecapSeen === seasonKey) return;
+  // Pull top 6 league-wide plays for this week
+  const top = (franchise.replayClips || [])
+    .filter(h => h.season === franchise.season && h.week === completedWeek)
+    .sort((a, b) => b.rating - a.rating)
+    .slice(0, 6);
+  if (!top.length) return;
+  // Already rendered? Skip
+  if (document.getElementById("frn-week-recap-modal")) return;
+  const myId = franchise.chosenTeamId;
+  const cards = top.map((h, idx) => {
+    const meta = _HIGHLIGHT_LABELS[h.type] || { icon: "▶", text: h.type, accent: "#888" };
+    const offTeam = h.poss === "home" ? getTeam(h.homeId) : getTeam(h.awayId);
+    const defTeam = h.poss === "home" ? getTeam(h.awayId) : getTeam(h.homeId);
+    const isUser = h.homeId === myId || h.awayId === myId;
+    const clockStr = h.time != null
+      ? `${Math.floor(h.time/60)}:${String(h.time%60).padStart(2,"0")}`
+      : "";
+    return `<div class="recap-card${isUser ? " mine" : ""}" style="--accent:${meta.accent}">
+      <div class="recap-rank">#${idx+1}</div>
+      <div class="recap-icon">${meta.icon}</div>
+      <div class="recap-body">
+        <div class="recap-eyebrow">
+          <span class="recap-type">${meta.text}</span>
+          <span class="recap-rating">⭐ ${h.rating.toFixed(1)}</span>
+          ${isUser ? `<span class="recap-mine">YOUR TEAM</span>` : ""}
+        </div>
+        <div class="recap-desc">${h.desc || "—"}</div>
+        <div class="recap-meta">
+          ${offTeam ? `<span style="color:${offTeam.primary}">${offTeam.abbr}</span>` : ""}
+          ${defTeam ? `<span style="color:var(--blgray)">vs</span> <span style="color:${defTeam.primary}">${defTeam.abbr}</span>` : ""}
+          ${h.quarter ? ` · Q${h.quarter} ${clockStr}` : ""}
+          ${typeof h.homeScore === "number" ? ` · ${h.homeScore}-${h.awayScore}` : ""}
+        </div>
+      </div>
+      <button class="btn btn-gold" onclick="frnReplayClip('${h.id}')">▶</button>
+    </div>`;
+  }).join("");
+  const el = document.createElement("div");
+  el.id = "frn-week-recap-modal";
+  el.className = "frn-week-recap-modal";
+  el.innerHTML = `
+    <div class="frn-week-recap-card">
+      <div class="frn-week-recap-header">
+        <div class="frn-week-recap-eyebrow">📺 GRIDIRON CHAIN HIGHLIGHTS</div>
+        <h1 class="frn-week-recap-title">WEEK ${completedWeek} TOP PLAYS</h1>
+        <div class="frn-week-recap-sub">${top.length} of the league's best moments — click ▶ to re-watch in slow-mo.</div>
+      </div>
+      <div class="frn-week-recap-cards">${cards}</div>
+      <div class="frn-week-recap-cta">
+        <button class="btn btn-outline" onclick="frnDismissWeekRecap()">✗ Dismiss</button>
+        <button class="btn btn-gold-big" onclick="frnOpenReplaysTab()">📺 OPEN REPLAY LIBRARY</button>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+}
+
+function frnDismissWeekRecap() {
+  const el = document.getElementById("frn-week-recap-modal");
+  if (el) el.remove();
+  if (franchise) {
+    franchise._lastRecapSeen = `${franchise.season}_${franchise.week}`;
+    saveFranchise();
+  }
+}
+
+function frnOpenReplaysTab() {
+  frnDismissWeekRecap();
+  if (typeof frnSetTab === "function") frnSetTab("replays");
+}
+
 // Compute the weekly top-10 league-wide for a given season/week
 function _weeklyTopTen(seasonNum, weekNum, limit = 10) {
   if (!franchise?.highlights) return [];

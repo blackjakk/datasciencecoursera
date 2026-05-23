@@ -3415,6 +3415,79 @@
     border-radius: 2px;
   }
 
+  /* ── WEEK RECAP MODAL ───────────────────────────────────────
+     Auto-pops once per completed week with the top 6 league-wide plays. */
+  .frn-week-recap-modal {
+    position: fixed; inset: 0; z-index: 9000;
+    background: rgba(0,0,0,.78);
+    display: flex; align-items: center; justify-content: center;
+    animation: recap-bg-in .25s ease-out;
+    padding: 1rem;
+  }
+  @keyframes recap-bg-in { from { opacity: 0; } to { opacity: 1; } }
+  .frn-week-recap-card {
+    background: linear-gradient(135deg, #181410, #221912);
+    border: 2px solid #ffd54d;
+    border-radius: 6px;
+    max-width: 880px; width: 100%;
+    max-height: 90vh; overflow-y: auto;
+    box-shadow: 0 12px 50px rgba(0,0,0,.85), 0 0 40px rgba(255,213,77,.25);
+    animation: recap-card-in .4s cubic-bezier(.2,1.4,.4,1);
+  }
+  @keyframes recap-card-in {
+    from { transform: scale(0.94) translateY(20px); opacity: 0; }
+    to   { transform: scale(1) translateY(0); opacity: 1; }
+  }
+  .frn-week-recap-header {
+    padding: 1.1rem 1.4rem .7rem;
+    border-bottom: 1px solid rgba(255,213,77,.2);
+  }
+  .frn-week-recap-eyebrow {
+    font-size: .68rem; letter-spacing: 4px; color: #ffd54d; font-weight: 800;
+  }
+  .frn-week-recap-title {
+    font-size: 2.2rem; font-weight: 900; letter-spacing: 3px;
+    color: #fff; margin: .2rem 0;
+    font-family: 'Bebas Neue', 'Anton', sans-serif;
+  }
+  .frn-week-recap-sub { font-size: .72rem; color: var(--blgray); }
+  .frn-week-recap-cards {
+    padding: .9rem 1.4rem; display: flex; flex-direction: column; gap: .45rem;
+  }
+  .recap-card {
+    display: grid; grid-template-columns: 34px 44px 1fr auto;
+    align-items: center; gap: .55rem;
+    background: rgba(255,255,255,.025);
+    border: 1px solid var(--blborder);
+    border-left: 4px solid var(--accent);
+    padding: .45rem .65rem; border-radius: 3px;
+  }
+  .recap-card.mine { background: linear-gradient(90deg, rgba(255,213,77,.08), transparent); }
+  .recap-rank {
+    font-size: 1.4rem; font-weight: 900; color: var(--accent);
+    font-family: 'Bebas Neue', sans-serif; text-align: center;
+  }
+  .recap-icon { font-size: 1.7rem; text-align: center; }
+  .recap-body { display: flex; flex-direction: column; gap: .1rem; }
+  .recap-eyebrow {
+    display: flex; gap: .45rem; align-items: center;
+    font-size: .55rem; letter-spacing: 1.5px; font-weight: 800;
+  }
+  .recap-type { color: var(--accent); }
+  .recap-rating { color: #ffd54d; }
+  .recap-mine {
+    background: rgba(255,213,77,.18); color: #ffd54d;
+    padding: .04rem .28rem; border-radius: 2px;
+  }
+  .recap-desc { font-size: .78rem; color: var(--blwhite); font-weight: 600; line-height: 1.2; }
+  .recap-meta { font-size: .55rem; color: var(--blgray); letter-spacing: .8px; }
+  .recap-card .btn { font-size: .85rem; padding: .35rem .6rem; }
+  .frn-week-recap-cta {
+    padding: .8rem 1.4rem 1.1rem;
+    display: flex; gap: .6rem; justify-content: flex-end;
+    border-top: 1px solid rgba(255,255,255,.06);
+  }
+
   /* ── REPLAY LIBRARY ─────────────────────────────────────────
      SportsCenter-style top-plays browser. Each card has type icon,
      rating, description, team context, and a REPLAY button. */
@@ -3518,59 +3591,78 @@
      get clipped at the bottom edge. */
   .bspnlive-field-wrap.broadcast-cam {
     overflow: hidden;
-    /* Night-sky gradient backdrop with a subtle stadium-light glow at
-       the top. The crowd silhouette + stadium structure layer on top
-       via ::before / ::after pseudo-elements. */
+    /* Night-sky gradient backdrop with stadium-light bloom at the rim.
+       The crowd silhouette + stadium lights layer on top via ::before /
+       ::after pseudo-elements. */
     background:
-      radial-gradient(ellipse 90% 45% at 50% -10%, rgba(80,90,110,.35), transparent 60%),
-      radial-gradient(ellipse 50% 40% at 15% 5%,   rgba(255,225,160,.18), transparent 70%),
-      radial-gradient(ellipse 50% 40% at 85% 5%,   rgba(255,225,160,.18), transparent 70%),
+      radial-gradient(ellipse 95% 50% at 50% -8%, rgba(110,130,165,.42), transparent 65%),
+      radial-gradient(ellipse 55% 45% at 15% 4%,   rgba(255,225,160,.26), transparent 72%),
+      radial-gradient(ellipse 55% 45% at 85% 4%,   rgba(255,225,160,.26), transparent 72%),
       linear-gradient(to bottom,
-        #0a1018 0%,        /* night sky / press box */
-        #1a2230 25%,
-        #0a0d12 60%,
+        #060912 0%,        /* deep night sky */
+        #1a2842 28%,       /* press-box level glow */
+        #0a0d18 62%,
         #000 100%);
     padding-bottom: 6%;
     position: relative;
   }
-  /* Stadium crowd silhouette — a band of dim "stands" with subtle pixel
-     dots simulating crowd density. Sits above the night-sky gradient,
-     below the tilted field. */
+  /* Stadium crowd silhouette — packed stands with pixel-dot crowd density.
+     Sits above the night-sky gradient, below the tilted field. */
   .bspnlive-field-wrap.broadcast-cam::before {
     content: "";
     position: absolute;
-    top: 4%; left: 0; right: 0;
-    height: 26%;
+    top: 3%; left: 0; right: 0;
+    height: 32%;
     background:
-      /* Crowd "specks" — a tiled noise overlay made from radial dots */
-      radial-gradient(circle 1px at 12% 30%, rgba(220,200,180,.4) 0, transparent 2px),
-      radial-gradient(circle 1px at 28% 60%, rgba(180,200,220,.3) 0, transparent 2px),
-      radial-gradient(circle 1px at 47% 25%, rgba(220,200,180,.35) 0, transparent 2px),
-      radial-gradient(circle 1px at 64% 55%, rgba(200,180,160,.4) 0, transparent 2px),
-      radial-gradient(circle 1px at 82% 35%, rgba(180,200,220,.3) 0, transparent 2px),
-      radial-gradient(circle 1px at 95% 70%, rgba(220,200,180,.35) 0, transparent 2px),
-      /* Stands gradient — darker at the top, lighter near the field */
+      /* Crowd "specks" — tiled noise across multiple sizes for density */
+      radial-gradient(circle 1.2px at 12% 30%, rgba(245,225,200,.55) 0, transparent 2px),
+      radial-gradient(circle 1.2px at 28% 60%, rgba(200,220,240,.45) 0, transparent 2px),
+      radial-gradient(circle 1.2px at 47% 25%, rgba(245,225,200,.5)  0, transparent 2px),
+      radial-gradient(circle 1.2px at 64% 55%, rgba(230,210,190,.55) 0, transparent 2px),
+      radial-gradient(circle 1.2px at 82% 35%, rgba(200,220,240,.45) 0, transparent 2px),
+      radial-gradient(circle 1.2px at 95% 70%, rgba(245,225,200,.5)  0, transparent 2px),
+      /* Stands gradient — darker high, lighter near the field, with a
+         decked seating-tier feel (stripes) */
+      repeating-linear-gradient(to bottom,
+        rgba(0,0,0,0) 0,
+        rgba(0,0,0,0) 8px,
+        rgba(0,0,0,.18) 8px,
+        rgba(0,0,0,.18) 9px),
       linear-gradient(to bottom,
-        rgba(20,30,45,.65) 0%,
-        rgba(30,42,60,.55) 50%,
-        rgba(35,45,55,.4) 100%);
-    background-size: 60px 60px, 70px 70px, 55px 55px, 65px 65px, 80px 80px, 50px 50px, 100% 100%;
+        rgba(15,22,35,.75) 0%,
+        rgba(28,40,60,.65) 45%,
+        rgba(40,52,72,.55) 80%,
+        rgba(20,28,40,.65) 100%);
+    background-size:
+      54px 54px, 62px 62px, 50px 50px, 58px 58px, 70px 70px, 46px 46px,
+      100% auto, 100% 100%;
     pointer-events: none;
     z-index: 0;
-    border-bottom: 1px solid rgba(255,255,255,.06);
+    border-bottom: 2px solid rgba(0,0,0,.55);
+    box-shadow: inset 0 -10px 16px rgba(0,0,0,.45);
   }
-  /* Stadium-light bloom — bright glow points at the top corners + center. */
+  /* Stadium light banks — bright pole-mounted floodlights on a rig at the
+     top of the stadium. Bigger, hotter, and with a soft bloom halo. */
   .bspnlive-field-wrap.broadcast-cam::after {
     content: "";
     position: absolute;
-    top: 0; left: 0; right: 0; height: 30%;
+    top: 0; left: 0; right: 0; height: 32%;
     background:
-      radial-gradient(circle 20px at 12% 8%, rgba(255,250,220,.55) 0%, rgba(255,250,220,0) 70%),
-      radial-gradient(circle 20px at 50% 6%, rgba(255,250,220,.55) 0%, rgba(255,250,220,0) 70%),
-      radial-gradient(circle 20px at 88% 8%, rgba(255,250,220,.55) 0%, rgba(255,250,220,0) 70%);
+      /* Main floodlight bloom — large warm halos */
+      radial-gradient(circle 26px at 10% 6%, rgba(255,250,220,.75) 0%, rgba(255,250,220,0) 70%),
+      radial-gradient(circle 26px at 32% 4%, rgba(255,250,220,.68) 0%, rgba(255,250,220,0) 70%),
+      radial-gradient(circle 26px at 50% 5%, rgba(255,250,220,.75) 0%, rgba(255,250,220,0) 70%),
+      radial-gradient(circle 26px at 68% 4%, rgba(255,250,220,.68) 0%, rgba(255,250,220,0) 70%),
+      radial-gradient(circle 26px at 90% 6%, rgba(255,250,220,.75) 0%, rgba(255,250,220,0) 70%),
+      /* Tight bright cores — the actual bulbs */
+      radial-gradient(circle 4px at 10% 6%, rgba(255,255,255,.95) 0%, rgba(255,255,255,0) 80%),
+      radial-gradient(circle 4px at 32% 4%, rgba(255,255,255,.9)  0%, rgba(255,255,255,0) 80%),
+      radial-gradient(circle 4px at 50% 5%, rgba(255,255,255,.95) 0%, rgba(255,255,255,0) 80%),
+      radial-gradient(circle 4px at 68% 4%, rgba(255,255,255,.9)  0%, rgba(255,255,255,0) 80%),
+      radial-gradient(circle 4px at 90% 6%, rgba(255,255,255,.95) 0%, rgba(255,255,255,0) 80%);
     pointer-events: none;
     z-index: 1;
-    filter: blur(2px);
+    filter: blur(.6px);
   }
   .bspnlive-field-wrap.broadcast-cam canvas {
     transition: transform 0.3s ease-out;
