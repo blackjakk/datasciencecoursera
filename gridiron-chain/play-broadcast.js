@@ -1187,6 +1187,15 @@ const FieldHUD = {
       <div class="hud-corner top-right">${this._teamScore(state, "away")}</div>
       <div class="hud-corner bot-left">${this._situation(state)}</div>
       <div class="hud-corner bot-right">${this._drive(state)}</div>
+      ${this._cameraToggle()}
+    </div>`;
+  },
+  _cameraToggle() {
+    const td = (typeof cameraMode !== "undefined" && cameraMode === "topdown") ? " active" : "";
+    const bd = (typeof cameraMode !== "undefined" && cameraMode === "broadcast") ? " active" : "";
+    return `<div class="hud-cam-toggle">
+      <button id="camTopdownBtn" class="hud-cam-btn${td}" onclick="setCameraMode('topdown')" title="Top-down view">⬇ TOP</button>
+      <button id="camBroadcastBtn" class="hud-cam-btn${bd}" onclick="setCameraMode('broadcast')" title="Broadcast camera (tilted field)">🎥 BCAST</button>
     </div>`;
   },
   _teamScore(state, side) {
@@ -1240,7 +1249,8 @@ const FieldHUD = {
       <div class="hud-corner top-center">${this._clock(state)}</div>
       <div class="hud-corner top-right">${this._teamScore(state, "away")}</div>
       <div class="hud-corner bot-left">${this._situation(state)}</div>
-      <div class="hud-corner bot-right">${this._drive(state)}</div>`;
+      <div class="hud-corner bot-right">${this._drive(state)}</div>
+      ${this._cameraToggle()}`;
   },
 };
 
@@ -1358,6 +1368,11 @@ function renderGameLayout() {
   if (typeof _hcDecisionCinema !== "undefined" && _hcDecisionCinema.clear) _hcDecisionCinema.clear();
   if (typeof _momentCinema !== "undefined" && _momentCinema.clear) _momentCinema.clear();
   if (typeof _segmentCinema !== "undefined" && _segmentCinema.clear) _segmentCinema.clear();
+  // Re-apply camera mode — renderGameLayout just rebuilt the field-wrap +
+  // canvas, so the perspective CSS we set last time is gone.
+  if (typeof setCameraMode === "function" && typeof cameraMode !== "undefined") {
+    setCameraMode(cameraMode);
+  }
   // Initial field draw — engine continues to own the canvas.
   const ctx = $("field").getContext("2d");
   if (viewMode === "cinema") {

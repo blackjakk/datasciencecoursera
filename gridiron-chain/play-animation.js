@@ -5358,6 +5358,94 @@ function roundedRect(ctx, x, y, w, h, r) {
 // ═══════════════════════════════════════════════════════════════════════════
 let viewMode = "tactical"; // 'tactical' | 'cinema'
 
+// Broadcast camera — tilts the field via CSS perspective + rotateX. Player
+// sprites stay upright in their canvas drawing (which gets tilted with
+// the field for now — proper billboarding lands in a follow-up commit).
+// Persists across renders via the .broadcast-cam class on field-wrap.
+let cameraMode = "topdown"; // 'topdown' | 'broadcast'
+const BROADCAST_TILT_DEG = 38;
+const BROADCAST_PERSPECTIVE_PX = 1100;
+
+function setCameraMode(mode) {
+  cameraMode = (mode === "broadcast") ? "broadcast" : "topdown";
+  // Apply / remove the perspective transform on the field-wrap
+  const wrap = document.querySelector(".bspnlive-field-wrap")
+            || document.querySelector(".field-wrap")
+            || document.getElementById("field")?.parentElement;
+  const canvas = document.getElementById("field");
+  if (cameraMode === "broadcast") {
+    if (wrap) {
+      wrap.classList.add("broadcast-cam");
+      wrap.style.perspective = BROADCAST_PERSPECTIVE_PX + "px";
+      wrap.style.perspectiveOrigin = "50% 80%";
+    }
+    if (canvas) {
+      // Scale Y to keep the rotated field filling vertical space the same.
+      // rotateX(38°) compresses the projected height by ~cos(38°) ≈ 0.79;
+      // counter-scale ~1.27 brings it back to original visual height.
+      canvas.style.transform = `rotateX(${BROADCAST_TILT_DEG}deg) scaleY(${1 / Math.cos(BROADCAST_TILT_DEG * Math.PI / 180)})`;
+      canvas.style.transformOrigin = "50% 100%";
+    }
+  } else {
+    if (wrap) {
+      wrap.classList.remove("broadcast-cam");
+      wrap.style.perspective = "";
+      wrap.style.perspectiveOrigin = "";
+    }
+    if (canvas) {
+      canvas.style.transform = "";
+      canvas.style.transformOrigin = "";
+    }
+  }
+  // Update the button states (if those buttons exist on the page yet)
+  const tdBtn = document.getElementById("camTopdownBtn");
+  const bdBtn = document.getElementById("camBroadcastBtn");
+  if (tdBtn) tdBtn.classList.toggle("active", cameraMode === "topdown");
+  if (bdBtn) bdBtn.classList.toggle("active", cameraMode === "broadcast");
+  // Repaint
+  if (typeof renderBSPNLive === "function") renderBSPNLive();
+}
+
+// Project a canvas-space (x, y) point through the broadcast camera's
+// perspective+rotateX transform to get its screen-space (x, y, scale).
+// Match the same math the CSS uses: perspective(P) rotateX(θ) with origin
+// at (cx, FIELD.H). Returns { x, y, scale } in canvas coordinates (the
+// caller can use them to draw a sprite at the right place / size).
+function projectBroadcast(x, y) {
+  if (cameraMode !== "broadcast") return { x, y, scale: 1 };
+  const cx = FIELD.W / 2;
+  const cy = FIELD.H;
+  const θ = BROADCAST_TILT_DEG * Math.PI / 180;
+  const P = BROADCAST_PERSPECTIVE_PX;
+  // Translate to origin (bottom-center)
+  const dx = x - cx;
+  const dy = y - cy;       // <= 0 for points on the field (above bottom)
+  // rotateX (CSS positive = top tilts away from viewer):
+  //   y' = dy * cos(θ)  ;  z' = -dy * sin(θ)
+  // For dy < 0 (above origin), z' is positive… wait —
+  // CSS: positive rotateX rotates +Y toward -Z. So a point at -Y (above
+  // origin) rotates toward +Z (toward viewer)? Let me re-derive:
+  // After rotateX(θ): (x, y, 0) → (x, y·cos(θ), -y·sin(θ))
+  //   For y < 0 (above origin in canvas coords): -y·sin(θ) > 0 (toward viewer)
+  //   For y > 0 (below origin):                   -y·sin(θ) < 0 (away)
+  // That contradicts the visual where the TOP of the canvas appears further!
+  // Actually CSS y goes DOWN. In a 3D right-handed view that means +Y in CSS
+  // = -Y in standard math. So a CSS rotateX(positive) tilts the TOP back.
+  // Net effect: above the origin (smaller canvas y) → z' = -|dy|*sin(θ) < 0
+  // (further from viewer, smaller projected). Below origin → closer (larger).
+  // Our origin is at the bottom (cy = FIELD.H), so all field points have
+  // dy <= 0 → all are at z <= 0 → all scale ≤ 1.
+  const y3d = dy * Math.cos(θ);
+  const z3d = dy * Math.sin(θ);     // negative for above-origin → further
+  // Perspective divide (CSS perspective puts viewer at z = +P looking at z = 0)
+  const scale = P / (P - z3d);
+  return {
+    x: cx + dx * scale,
+    y: cy + y3d * scale,
+    scale,
+  };
+}
+
 function setViewMode(mode) {
   viewMode = mode;
   document.getElementById("viewTacticalBtn").classList.toggle("active", mode === "tactical");
