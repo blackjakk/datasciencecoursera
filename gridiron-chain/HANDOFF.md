@@ -30,6 +30,38 @@ Recent commits on this arc:
 - `f3099b3` — revert of broadcast tilt/perspective tweak (players landing off-field)
 - `a68d701` — fix WR alignment off-field in broadcast cam (rewrote `projectBroadcast`)
 - `7814b93` — scrubbable timeline + replay-clips backfill
+- `682d508` — handoff refresh
+- `e295b6a` — sideline pad: skip top apron in broadcast cam to avoid crowd gap
+- `7580d74` — stadium wall band between crowd and field in broadcast cam
+- `473f3fc` — port top sideline pad to cinema field render
+- `904c69f` — LED ad ribbon on the stadium wall in broadcast cam
+- `9823439` — larger yard-line numbers with black stroke
+- `7ee5370` — soft radial-gradient player drop shadows
+- `ddb54a4` — Tier 1 player uniform pass (cleats, gloves, name, captain "C", towel, visor, rim light)
+- `062606b` — Tier 2 polish: AO shading, long sleeves on linemen, foot dust
+- `c15fb85` — Tier 2 pass B: sock striping variants, knee braces, QB no gloves
+- `5a5cfd4` — stadium audio system (Web Audio API, synth-based SFX)
+- `c85bbd0` — visual FX layer (particles, screen shake) + vendored PIXI
+
+### Audio system (new)
+
+- **`play-audio.js`** — `GCAudio` global, vanilla Web Audio API. Lazy-inits AudioContext on first user gesture per browser autoplay policy.
+- **SFX**: `snap` (square wave with frequency drop), `whistle` (sine + LFO vibrato), `hit` (low-pass noise + sub osc sweep), `cheer` (band-pass noise swell).
+- **Ambient**: `GCAudio.crowd.start()` runs a band-pass-filtered noise loop while plays advance, stops at game end. ~6% gain so it sits under SFX.
+- **Hooks** in `play-animation.js:startNextPlay`: routes per-`play.kind` to the appropriate SFX. Note actual kinds used (per a sample game): `score`/`fg_good`/`xp_good` → cheer; `big_hit`/`ejection`/`fumble`/`sack` → hit; `halftime`/`quarter`/`ot`/`two_min_warning` → whistle; `hc_decision` → silent; everything else → snap.
+- **Mute toggle** in the field HUD camera bar (🔊/🔇 button). `_toggleAudio()` in `play-broadcast.js`. Single global enable flag.
+
+### Visual FX layer (new)
+
+- **`play-fx.js`** — `GCFx` global, canvas2D particles + CSS-transform screen shake. API: `dust(x,y,dir)`, `hitBurst(x,y,color)`, `confetti(x,y,color,n)`, `shake(strength,ms)`, plus `tick(dtMs)` + `draw(ctx)`.
+- **Wired into tick loop** at `play-animation.js:5867-` — `tick(dt)` between frame setup, `draw(fxCtx)` after `_frameEndBroadcast`. `fxCtx` is `_uprightCtx` in broadcast, the field ctx in topdown.
+- **Event hooks** in `startNextPlay`: score → confetti (28 particles, team-color palette) + light shake; big_hit/sack/fumble/ejection → hit burst (22 chips) + heavy shake (11px / 350ms).
+- **Particle cap** 600 in `MAX`. Tan dust + team-color chips + 4-color confetti palette. Designed so the API can later re-point to a PIXI ParticleContainer with no caller changes.
+
+### PIXI vendoring (new, not yet active)
+
+- **`vendor/pixi.min.js`** — PIXI.js 7.4.0 (MIT, 456KB) downloaded from GitHub releases.
+- **Not yet loaded by play.html** — vendored as the foundation for the future WebGL renderer migration. See section 8 for the migration roadmap.
 
 ### Broadcast camera
 
@@ -215,11 +247,39 @@ NFL 2024 uses 11 personnel (TRIPS) on ~62% of plays. All five playbooks (BALANCE
 
 ## 8. Next steps (prioritized)
 
-### Visual / broadcast follow-ups (current arc)
+### PIXI / WebGL migration (committed direction — Tier 3 from session art-direction discussion)
 
-1. **Sideline graphic flush with field bottom** — the white sideline pad area below the green looks disconnected. A proper painted chalk strip flush with `FIELD.BOT` would make players standing near the sideline look planted instead of floating into the apron. Touches `play-render.js` `drawField` and broadcast-cam CSS.
-2. **Player art rebuild + ambient depth** — current sprites are functional but flat compared to the upgraded field. Touches `_drawPlayerImpl` in `play-render.js` around line 371. User was offered this after the broadcast-default commit but didn't confirm — ask first.
-3. **Mechanism / UR / ejection visuals** in real-time play log — show hit mechanism chips ("blindside", "high hit") + UR flags + ejection moments as they happen, not just in injury history.
+The user picked Tier 3 ("Full engine rebuild") — migrate the canvas2D renderer to PIXI.js for WebGL shaders, real particle systems, post-processing. PIXI is **already vendored** at `vendor/pixi.min.js` (7.4.0, MIT, 456KB). This is multi-session work.
+
+**Phase 1 — Foundation** (next session):
+- Load `vendor/pixi.min.js` via script tag in `play.html` (before `play-render.js`).
+- Initialize a PIXI Application sized to the wrap, attached as a SIBLING canvas to `#field-uprights`, with `pointer-events: none` and z-index above the upright overlay but below the HUD.
+- Re-implement `GCFx` (particles + shake) on top of `PIXI.ParticleContainer` so all FX go through WebGL. Caller API stays identical — `GCFx.dust(...)`, `GCFx.hitBurst(...)`, etc.
+- Add a bloom filter on the FX layer so confetti / hit chips / LED ribbon glow naturally.
+
+**Phase 2 — Field render migration**:
+- Port `drawField` (`play-render.js:24-180`) to PIXI Graphics + Sprite. The grass, mowing bands, end zones, sidelines, yard numbers, hash marks, LOS marker, first-down line are all paint operations that map cleanly to PIXI Graphics.
+- Keep the existing `#field` canvas around as a fallback during the migration.
+- Verify topdown + broadcast cam look identical to the canvas2D version before deleting the old code.
+
+**Phase 3 — Player render migration**:
+- Port `_drawPlayerImpl` (`play-render.js:407-` — the big one, ~1000 lines) to PIXI Containers. Each player becomes a `Container` with child `Graphics` for helmet/body/limbs and child `Sprite`/`Text` for jersey number + name. Pose changes update child positions/rotations.
+- This is the biggest single piece. Estimate 2-3 sessions to migrate cleanly with parity testing.
+- The depth-sorted sprite queue (`_spriteQueue`) becomes PIXI's z-index sorting on the player Container parent.
+
+**Phase 4 — Effects unlocked by PIXI**:
+- Bloom on stadium lights + LED ribbon.
+- Motion blur on breakaway runs (PIXI `MotionBlurFilter` from `@pixi/filter-motion-blur` — would need to vendor separately).
+- Color grading for weather/time-of-day (day vs night vs snow).
+- Screen-space distortion ripple on big hits.
+- Sprite sheet animation for player run cycles (sample Mixamo as reference, export keyframes).
+
+**Don't break the working game during migration.** Keep both renderers alive behind a feature flag (`useWebGL`) and switch to PIXI fully only when parity is verified.
+
+### Visual / broadcast follow-ups (still open in canvas2D)
+
+1. **Mechanism / UR / ejection visuals** in real-time play log — show hit mechanism chips ("blindside", "high hit") + UR flags + ejection moments as they happen, not just in injury history. Independent of the PIXI migration.
+2. **Helmet shape rework toward NFL silhouette** — was proposed mid-session (option B from art-direction discussion: NFL helmet not sphere, slimmer proportions, jersey hang). Deferred when user committed to Tier 3 PIXI migration. Would be **redone in PIXI** during Phase 3, so don't do it in canvas2D first.
 
 ### Engine roadmap (open from prior session)
 
