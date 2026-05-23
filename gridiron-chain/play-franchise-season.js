@@ -856,15 +856,24 @@ function _preseasonRosterTab(roster, selName) {
             const yrs = p.contract?.remaining || 0;
             const isPendingRelease = _releasePending?.name === p.name && _releasePending?.pos === p.position;
             if (isPendingRelease) {
-              const { deadPerYr, deadYrs, deadTotal } = _releasePending;
+              const { deadPerYr, deadYrs, deadTotal, june1, j1Year1, j1Year2, j1Allowed, j1Used } = _releasePending;
               const deadMsg = deadTotal > 0
-                ? `☠ Dead cap: <b style="color:var(--red)">$${deadPerYr.toFixed(1)}M × ${deadYrs}yr = $${deadTotal.toFixed(1)}M</b>`
+                ? (june1
+                    ? `☠ <b style="color:#ff9090">Y1 $${j1Year1.toFixed(1)}M</b> · <b style="color:#ff9090">Y2 $${j1Year2.toFixed(1)}M</b> (deferred lump)`
+                    : `☠ Dead cap: <b style="color:var(--red)">$${deadPerYr.toFixed(1)}M × ${deadYrs}yr = $${deadTotal.toFixed(1)}M</b>`)
                 : `<span style="color:var(--green-lt)">No dead cap — fully freed</span>`;
+              const j1Eligible = (j1Allowed || 0) > 0 && deadYrs >= 2 && deadTotal > 0;
+              const escNm = p.name.replace(/'/g, "\\'");
+              const j1Toggle = j1Eligible
+                ? `<button class="btn ${june1?"btn-gold":"btn-outline"}" onclick="frnReleasePlayer('${escNm}','${p.position}',${!june1})" style="font-size:.6rem;padding:.18rem .45rem" title="Post-June 1: pushes the bulk of dead cap to next year. ${j1Used||0}/${JUNE1_DESIGNATIONS_PER_TEAM} used this offseason.">📅 Post-Jun 1${june1?" ✓":""}</button>`
+                : (deadYrs < 2 ? `<span style="color:#888;font-size:.55rem">(June 1 needs ≥2yr dead)</span>`
+                              : (j1Allowed === 0 ? `<span style="color:#888;font-size:.55rem">(June 1: ${j1Used||0}/${JUNE1_DESIGNATIONS_PER_TEAM} used)</span>` : ""));
               return `<tr style="background:rgba(220,50,50,.12)">
                 <td colspan="6" style="padding:.4rem .6rem">
                   <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
                     <span style="font-weight:700;color:var(--red)">Release ${p.name}?</span>
                     <span style="font-size:.68rem">${deadMsg}</span>
+                    ${j1Toggle}
                     <button class="btn btn-outline" onclick="frnReleasePlayerConfirm()" style="font-size:.62rem;padding:.2rem .5rem;border-color:var(--red);color:var(--red)">✓ Confirm Release</button>
                     <button class="btn btn-outline" onclick="frnReleasePlayerCancel()" style="font-size:.62rem;padding:.2rem .5rem">✗ Cancel</button>
                   </div>
@@ -4544,33 +4553,9 @@ function _buildPlayerDetailPanel(p) {
   </div>`;
 }
 
-function frnReleasePlayer(name, pos) {
-  const teamId = franchise.chosenTeamId;
-  const roster = franchise.rosters[teamId];
-  const idx = roster.findIndex(p => p.name === name && p.position === pos);
-  if (idx === -1) return;
-  const p = roster[idx];
-  const { perYear: deadPerYr, years: deadYrs } = deadCapOnRelease(p);
-  const deadTotal = deadPerYr * deadYrs;
-  const msg = deadTotal > 0
-    ? `Release ${name}?\n\nDead cap: $${deadPerYr.toFixed(1)}M × ${deadYrs}yr = $${deadTotal.toFixed(1)}M — prorated signing bonus still counts against your cap.`
-    : `Release ${name}? No signing bonus remaining — cap is fully freed.`;
-  if (!confirm(msg)) return;
-  roster.splice(idx, 1);
-  if (deadTotal > 0) {
-    franchise.refunds = franchise.refunds || [];
-    franchise.refunds.push({
-      kind: "dead_cap",
-      fromTeamId: teamId,
-      toTeamId: null,
-      amount: deadPerYr,
-      yearsRemaining: deadYrs,
-      label: `Dead cap: ${name}`,
-    });
-  }
-  saveFranchise();
-  renderFrnPreseason("roster");
-}
+// frnReleasePlayer / frnReleasePlayerConfirm / frnReleasePlayerCancel
+// live in play-franchise-core.js — they drive the inline _releasePending
+// row instead of a browser confirm() dialog.
 
 function frnStartSeason() {
   const cap = franchise.salaryCap || SALARY_CAP_BASE;

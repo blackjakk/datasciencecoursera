@@ -10,7 +10,20 @@ const SALARY_CAP_BASE = 200; // $M — grows ~5-9% each offseason
 
 // Inline confirmation state — avoids browser confirm()/alert() dialogs.
 let _restructurePending = null; // {teamId,name,pos,currentBase,newProration,freed,remaining}
-let _releasePending     = null; // {name,pos,deadPerYr,deadYrs,deadTotal}
+let _releasePending     = null; // {name,pos,deadPerYr,deadYrs,deadTotal,june1,j1Year1,j1Year2,j1Allowed,j1Used}
+
+// NFL post-June 1 cap rule: each team gets 2 designations per offseason.
+// Normal cut: all remaining bonus proration counts as dead cap (spread over
+// remaining years in our model). June-1 cut: only this year's proration
+// counts in the current cap year; the rest lumps into next year. Saves cap
+// NOW at the cost of cap later.
+const JUNE1_DESIGNATIONS_PER_TEAM = 2;
+function _june1Used(teamId) {
+  return ((franchise?._june1Used || {})[teamId]) || 0;
+}
+function _june1Remaining(teamId) {
+  return Math.max(0, JUNE1_DESIGNATIONS_PER_TEAM - _june1Used(teamId));
+}
 let _resignPreview      = null; // idx of resign row showing year-by-year signing preview
 
 // ── Practice squad system ────────────────────────────────────────────────────
@@ -407,6 +420,8 @@ function capUsedByTeam(teamId) {
   // refunds offset the receiver's cap.
   for (const r of (franchise?.refunds || [])) {
     if (!r.yearsRemaining || r.yearsRemaining <= 0) continue;
+    // Deferred refund (post-June 1 lump): doesn't count until startSeason hits.
+    if (r.startSeason && (franchise.season || 1) < r.startSeason) continue;
     if (r.fromTeamId === teamId) used += r.amount;
     else if (r.toTeamId === teamId) used -= r.amount;
   }
@@ -713,9 +728,12 @@ function frnRestructureCancel() {
 }
 
 // ── Release player (two-step: prompt then confirm) ──────────────────────────
-function frnReleasePlayer(name, pos) {
-  // If already pending this same player, cancel (toggle).
-  if (_releasePending?.name === name && _releasePending?.pos === pos) {
+// Toggling the same name closes the pending row. Toggling the June-1 flag
+// re-opens the pending row with the alternate dead-cap structure.
+function frnReleasePlayer(name, pos, june1 = null) {
+  // If already pending this same player with same june1 state, cancel.
+  if (_releasePending && _releasePending.name === name && _releasePending.pos === pos
+      && (june1 === null || !!_releasePending.june1 === !!june1)) {
     _releasePending = null;
     renderFrnPreseason("roster");
     return;
@@ -726,13 +744,27 @@ function frnReleasePlayer(name, pos) {
   if (!p) return;
   const { perYear: deadPerYr, years: deadYrs } = deadCapOnRelease(p);
   const deadTotal = deadPerYr * deadYrs;
-  _releasePending = { name, pos, deadPerYr, deadYrs, deadTotal };
+  const j1Allowed = _june1Remaining(teamId);
+  // Resolve effective june1 state — keep existing if just opening, else use param.
+  const wantJune1 = june1 === null ? !!_releasePending?.june1 : !!june1;
+  // Can only designate june1 if eligible AND there are 2+ dead years to split.
+  const j1Eligible = wantJune1 && j1Allowed > 0 && deadYrs >= 2;
+  // June-1 split: current year takes just 1 year of proration; next year takes
+  // the remaining (deadYrs - 1) lumped as a single-season hit.
+  const j1Year1 = j1Eligible ? Math.round(deadPerYr * 10) / 10 : 0;
+  const j1Year2 = j1Eligible ? Math.round(deadPerYr * (deadYrs - 1) * 10) / 10 : 0;
+  _releasePending = {
+    name, pos, deadPerYr, deadYrs, deadTotal,
+    june1: j1Eligible,
+    j1Year1, j1Year2,
+    j1Allowed, j1Used: _june1Used(teamId),
+  };
   renderFrnPreseason("roster");
 }
 
 function frnReleasePlayerConfirm() {
   if (!_releasePending) return;
-  const { name, pos, deadPerYr, deadYrs, deadTotal } = _releasePending;
+  const { name, pos, deadPerYr, deadYrs, deadTotal, june1, j1Year1, j1Year2 } = _releasePending;
   const teamId = franchise.chosenTeamId;
   const roster = franchise.rosters[teamId];
   const idx = roster.findIndex(p => p.name === name && p.position === pos);
@@ -740,10 +772,32 @@ function frnReleasePlayerConfirm() {
   roster.splice(idx, 1);
   if (deadTotal > 0) {
     franchise.refunds = franchise.refunds || [];
-    franchise.refunds.push({
-      kind: "dead_cap", fromTeamId: teamId, toTeamId: null,
-      amount: deadPerYr, yearsRemaining: deadYrs, label: `Dead cap: ${name}`,
-    });
+    if (june1) {
+      // Current year: one year of proration only.
+      franchise.refunds.push({
+        kind: "dead_cap", fromTeamId: teamId, toTeamId: null,
+        amount: j1Year1, yearsRemaining: 1, label: `Dead cap (Jun 1): ${name}`,
+      });
+      // Next year: lump of remaining years as a single-season hit.
+      // startSeason gates it: doesn't count toward cap until that season,
+      // and the offseason rollover skips ticking it down until then.
+      if (j1Year2 > 0) {
+        franchise.refunds.push({
+          kind: "dead_cap", fromTeamId: teamId, toTeamId: null,
+          amount: j1Year2, yearsRemaining: 1,
+          startSeason: (franchise.season || 1) + 1,
+          label: `Dead cap (Jun 1 deferred): ${name}`,
+        });
+      }
+      // Consume a designation
+      franchise._june1Used = franchise._june1Used || {};
+      franchise._june1Used[teamId] = (franchise._june1Used[teamId] || 0) + 1;
+    } else {
+      franchise.refunds.push({
+        kind: "dead_cap", fromTeamId: teamId, toTeamId: null,
+        amount: deadPerYr, yearsRemaining: deadYrs, label: `Dead cap: ${name}`,
+      });
+    }
   }
   _releasePending = null;
   saveFranchise();

@@ -8336,11 +8336,17 @@ function startFrnOffseason() {
       }
     }
   }
-  // Salary-refund obligations also tick down; clear expired ones
+  // Salary-refund obligations also tick down; clear expired ones.
+  // Deferred refunds (post-June 1 lumps) don't tick until their startSeason
+  // arrives — otherwise they'd burn off before they get a chance to count.
+  const nextSeason = (franchise.season || 1) + 1;
   for (const r of (franchise.refunds || [])) {
+    if (r.startSeason && nextSeason < r.startSeason) continue;
     if (r.yearsRemaining > 0) r.yearsRemaining -= 1;
   }
   franchise.refunds = (franchise.refunds || []).filter(r => r.yearsRemaining > 0);
+  // Reset per-team post-June 1 designation counter for the new offseason
+  franchise._june1Used = {};
   // Cap inflation: 5-9% per season (mean ~7%)
   const growth = 0.05 + Math.random() * 0.04;
   franchise.salaryCap = Math.round(
