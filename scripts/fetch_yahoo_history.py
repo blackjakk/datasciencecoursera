@@ -1,17 +1,28 @@
-"""Scrape public Yahoo league draft results to CSV.
+"""Scrape Yahoo league draft results to CSV.
 
-Yahoo doesn't require auth to view a public league's draft page; the HTML
-contains every pick in a round-by-round table layout. We parse those tables
-and emit one CSV per season matching the schema the rest of this project's
-yahoo importer expects (see fantasy_draft/yahoo.py).
+Yahoo serves public leagues' draft pages anonymously; older / private
+seasons require an authenticated session. We support both:
 
-Position is NOT in the draft results page — it appears on each player's
-profile (a separate HTTP request per player). We leave position blank here;
-a downstream pass can backfill from a Sleeper player catalog if needed.
+  - Anonymous (no cookies): works for recent public leagues.
+  - Cookie-authenticated: paste a Yahoo session cookie string into
+    .yahoo_cookies (gitignored) and the script will send it. This unlocks
+    pre-2022 draft pages and private leagues.
+
+How to get cookies:
+  1. Log into football.fantasysports.yahoo.com in your browser.
+  2. DevTools -> Application -> Cookies -> yahoo.com
+  3. Copy the values for T, Y, SSL, B (and any others Yahoo set).
+  4. Save them as one line in `.yahoo_cookies` at the repo root in the
+     form:  T=...; Y=...; SSL=...; B=...
+     (or just copy the entire Cookie header from a request in DevTools'
+     Network tab — works the same way.)
+
+The script writes one CSV per season into data/yahoo/league_<id>/.
 """
 from __future__ import annotations
 
 import csv
+import os
 import re
 import sys
 import urllib.error
@@ -20,19 +31,33 @@ from html import unescape
 from pathlib import Path
 
 LEAGUE_ID = "591940"
-# Only 2022 is the actual MONEYLEAGUE predecessor at this league_id. Yahoo
-# assigns league IDs per-season independently, so the same numeric ID in 2023
-# or 2024 happens to belong to unrelated leagues (team rosters don't match
-# MONEYLEAGUE). Pre-2022 requires login. To pull a different season/league,
-# edit LEAGUE_ID + SEASONS and re-run.
-SEASONS = (2022,)
+# Pre-2022 needs cookies. With them, you can also follow the renew chain
+# backward — Yahoo's URL pattern is /YEAR/f1/LEAGUE_ID/draftresults and the
+# league_id can change year-to-year via renew; see fantasy_draft/yahoo.py
+# for the OAuth-based renew walker.
+SEASONS = tuple(range(2015, 2026))
 OUT_DIR = Path("data/yahoo/league_591940")
+COOKIE_FILE = Path(".yahoo_cookies")
 
 UA = "Mozilla/5.0"
 
 
+def _cookie_header() -> str | None:
+    """Return Cookie header value if cookies are available, else None."""
+    env = os.environ.get("YAHOO_COOKIES")
+    if env:
+        return env.strip()
+    if COOKIE_FILE.exists():
+        return COOKIE_FILE.read_text().strip() or None
+    return None
+
+
 def fetch(url: str) -> str:
-    req = urllib.request.Request(url, headers={"User-Agent": UA})
+    headers = {"User-Agent": UA}
+    cookies = _cookie_header()
+    if cookies:
+        headers["Cookie"] = cookies
+    req = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(req, timeout=30) as resp:
         return resp.read().decode("utf-8", errors="replace")
 
@@ -87,6 +112,8 @@ def parse_draft(html: str, season: int, num_teams: int = 12) -> list[dict]:
 
 def main():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
+    cookies_present = bool(_cookie_header())
+    print(f"  Cookie auth: {'YES' if cookies_present else 'no (pre-2022 will skip)'}")
     totals = {}
     for season in SEASONS:
         url = f"https://football.fantasysports.yahoo.com/{season}/f1/{LEAGUE_ID}/draftresults"
@@ -95,7 +122,15 @@ def main():
         except urllib.error.HTTPError as e:
             print(f"  {season}: HTTP error {e.code}; skipping.")
             continue
+        # Yahoo redirects unauthenticated requests for old/private leagues
+        # to a login page; detect that case so we don't write empty CSVs.
+        if "Login - Sign in to Yahoo" in html[:5000] or "<title>Sign in" in html[:5000]:
+            print(f"  {season}: login wall (cookies missing or expired); skipping.")
+            continue
         picks = parse_draft(html, season)
+        if not picks:
+            print(f"  {season}: no picks parsed (league may not exist this season); skipping.")
+            continue
         out_path = OUT_DIR / f"draft_{season}.csv"
         with open(out_path, "w", newline="") as f:
             w = csv.DictWriter(f, fieldnames=[
@@ -105,14 +140,14 @@ def main():
             w.writeheader()
             w.writerows(picks)
         totals[season] = len(picks)
-        # Quick stats: teams + max round
         teams = sorted({p["team_name"] for p in picks})
         rounds = max((p["round"] for p in picks), default=0)
         print(f"  {season}: {len(picks)} picks across {len(teams)} teams, "
               f"{rounds} rounds  ->  {out_path}")
 
     if not totals:
-        print("\nNo draft data found. Check that the league is public.")
+        print("\nNo draft data fetched. If pre-2022 is what you want, write your "
+              "Yahoo session cookies to .yahoo_cookies first (see module docstring).")
         sys.exit(1)
 
 
