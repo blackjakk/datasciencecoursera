@@ -2594,6 +2594,29 @@ class GameSimulator {
           action = Math.random() < clamp(goRate * goTilt * scoreMod * commitMod, 0, 0.95) ? "go" : "punt";
         }
       }
+      // HC decision callout — when the coach defies the chart, surface it.
+      // Fires on go-for-its outside the obvious 4th-and-1 case (or when an
+      // identifiable HC trait drove the call). Skipped on auto-punts.
+      if (action === "go" && (hcStyle === "Riverboat Gambler" || hcStyle === "Conservative" || this.ytg >= 3)) {
+        const offTeamObj = this.poss === "home" ? this.home : this.away;
+        const hcName = (typeof franchise !== "undefined")
+          ? franchise.coaches?.[offTeamId]?.hc?.name : null;
+        this._pushVisual({
+          kind: "hc_decision",
+          decision: "go_4th",
+          coachName: hcName || `${offTeamObj?.name || "Team"} HC`,
+          trait: hcStyle || null,
+          side: this.poss,
+          ytg: this.ytg,
+          fieldPos: this.yardLine,
+          inFGRange,
+          rationale: hcStyle === "Riverboat Gambler" ? "Gambler instincts — going for it"
+                   : hcStyle === "Conservative" ? "Defies type — desperate situation"
+                   : this.ytg <= 2 ? "Short yardage gamble"
+                   : "Analytics-era aggression",
+          desc: `🎩 ${hcName || "HC"} → 4TH-DOWN GO (${this.ytg} to gain)`,
+        });
+      }
       if (action === "fg") {
         const dist = toEZ + 17;
         // ── ICE THE KICKER ──
