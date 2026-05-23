@@ -197,28 +197,28 @@ function drawField(ctx, homeTeam, awayTeam, ctx_state) {
     }
   }
 
-  // 50 yard line midfield logo — ASCII block letter for the home team
-  // (their initial), drawn in their primary color, with a faded gold ring
-  // for contrast against the grass.
-  const midX = absYardToX(50);
-  const midY = (FIELD.TOP + FIELD.BOT) / 2;
-  ctx.fillStyle = "rgba(200,169,0,0.14)";
-  ctx.beginPath();
-  ctx.arc(midX, midY, 56, 0, Math.PI * 2);
-  ctx.fill();
-  if (homeTeam) {
-    const initial = (homeTeam.name || "?")[0].toUpperCase();
-    ctx.save();
-    ctx.fillStyle = homeTeam.primary;
-    ctx.strokeStyle = homeTeam.secondary;
-    ctx.lineWidth = 3;
-    ctx.font = "900 88px monospace";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.globalAlpha = 0.55;
-    ctx.strokeText(initial, midX, midY);
-    ctx.fillText(initial, midX, midY);
-    ctx.restore();
+  // Midfield team-initial logo — PIXI when active (Phase 2B.1).
+  if (!_pixiField) {
+    const midX = absYardToX(50);
+    const midY = (FIELD.TOP + FIELD.BOT) / 2;
+    ctx.fillStyle = "rgba(200,169,0,0.14)";
+    ctx.beginPath();
+    ctx.arc(midX, midY, 56, 0, Math.PI * 2);
+    ctx.fill();
+    if (homeTeam) {
+      const initial = (homeTeam.name || "?")[0].toUpperCase();
+      ctx.save();
+      ctx.fillStyle = homeTeam.primary;
+      ctx.strokeStyle = homeTeam.secondary;
+      ctx.lineWidth = 3;
+      ctx.font = "900 88px monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.globalAlpha = 0.55;
+      ctx.strokeText(initial, midX, midY);
+      ctx.fillText(initial, midX, midY);
+      ctx.restore();
+    }
   }
 
   // LOS and first down marker
@@ -240,13 +240,15 @@ function drawField(ctx, homeTeam, awayTeam, ctx_state) {
     }
   }
 
-  // Goal line posts indicator
-  ctx.strokeStyle = "#f0cc30";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(FIELD.EZ_PX, FIELD.TOP); ctx.lineTo(FIELD.EZ_PX, FIELD.BOT);
-  ctx.moveTo(W - FIELD.EZ_PX, FIELD.TOP); ctx.lineTo(W - FIELD.EZ_PX, FIELD.BOT);
-  ctx.stroke();
+  // Goal line indicators — PIXI when active (Phase 2B.1).
+  if (!_pixiField) {
+    ctx.strokeStyle = "#f0cc30";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(FIELD.EZ_PX, FIELD.TOP); ctx.lineTo(FIELD.EZ_PX, FIELD.BOT);
+    ctx.moveTo(W - FIELD.EZ_PX, FIELD.TOP); ctx.lineTo(W - FIELD.EZ_PX, FIELD.BOT);
+    ctx.stroke();
+  }
   // ── Weather effects: badge + particles ──
   const wx = (typeof gameResult !== "undefined") ? gameResult?.weather : null;
   if (wx && wx.label !== "CLEAR") {

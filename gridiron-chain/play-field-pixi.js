@@ -216,6 +216,38 @@ const GCField = (() => {
       hashG.lineTo(x, FIELD.BOT - 6);
     }
     _bg.addChild(hashG);
+    // ── Midfield team-initial logo — gold ring with the home-team initial
+    // in their primary color. Same dimensions as canvas2D drawField.
+    const midX = absYardToX(50);
+    const midY = (FIELD.TOP + FIELD.BOT) / 2;
+    const ringG = new PIXI.Graphics();
+    ringG.beginFill(0xc8a900, 0.14);
+    ringG.drawCircle(midX, midY, 56);
+    ringG.endFill();
+    _bg.addChild(ringG);
+    if (homeTeam) {
+      const initial = (homeTeam.name || "?")[0].toUpperCase();
+      const initText = new PIXI.Text(initial, {
+        fontFamily: "monospace",
+        fontWeight: "900",
+        fontSize: 88,
+        fill: homeHex,
+        stroke: hexColor(homeTeam.secondary, 0xffffff),
+        strokeThickness: 3,
+      });
+      initText.anchor.set(0.5);
+      initText.position.set(midX, midY);
+      initText.alpha = 0.55;
+      _bg.addChild(initText);
+    }
+    // ── Goal line indicators — yellow vertical lines at both goal lines.
+    const glG = new PIXI.Graphics();
+    glG.lineStyle(2, 0xf0cc30, 1);
+    glG.moveTo(FIELD.EZ_PX, FIELD.TOP);
+    glG.lineTo(FIELD.EZ_PX, FIELD.BOT);
+    glG.moveTo(FIELD.W - FIELD.EZ_PX, FIELD.TOP);
+    glG.lineTo(FIELD.W - FIELD.EZ_PX, FIELD.BOT);
+    _bg.addChild(glG);
     _app.renderer.render(_app.stage);
     return true;
   }
