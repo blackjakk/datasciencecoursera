@@ -53,6 +53,12 @@ const GCFx = (() => {
   let _pxBigText   = null;      // PIXI.Text big celebration text ("TOUCHDOWN!" etc.)
   let _bigTextStart = 0;
   let _bigTextDur   = 0;
+  let _pxChyron    = null;      // PIXI.Container player-highlight chyron
+  let _chyronBg    = null;      // PIXI.Graphics chyron background bar
+  let _chyronTitle = null;      // PIXI.Text big name
+  let _chyronSub   = null;      // PIXI.Text subtitle
+  let _chyronStart = 0;
+  let _chyronDur   = 0;
   function _pixiAvailable() {
     return typeof PIXI !== "undefined" && typeof PIXI.Application === "function";
   }
@@ -366,6 +372,42 @@ const GCFx = (() => {
         console.warn("PIXI big text failed:", e);
         _pxBigText = null;
       }
+      // ── Player-highlight chyron — Bloomberg-style lower-left banner
+      // that slides in showing a key player's name + stat blurb. Hidden
+      // by default; triggered via GCFx.chyron(name, subtitle, color).
+      try {
+        _pxChyron = new PIXI.Container();
+        _pxChyron.position.set(28, 560);    // bottom-left of the wrap
+        _chyronBg = new PIXI.Graphics();
+        _chyronBg.beginFill(0x0a0a14, 0.88);
+        _chyronBg.drawRect(0, 0, 540, 100);
+        _chyronBg.endFill();
+        _chyronBg.beginFill(0xf5c542, 1);  // accent stripe
+        _chyronBg.drawRect(0, 0, 8, 100);
+        _chyronBg.endFill();
+        _pxChyron.addChild(_chyronBg);
+        _chyronTitle = new PIXI.Text("", {
+          fontFamily: "Impact, Arial Black, sans-serif",
+          fontSize: 42,
+          fill: 0xffffff,
+          letterSpacing: 1.5,
+        });
+        _chyronTitle.position.set(24, 12);
+        _pxChyron.addChild(_chyronTitle);
+        _chyronSub = new PIXI.Text("", {
+          fontFamily: "Impact, Arial Black, sans-serif",
+          fontSize: 22,
+          fill: 0xf5c542,
+          letterSpacing: 2,
+        });
+        _chyronSub.position.set(24, 60);
+        _pxChyron.addChild(_chyronSub);
+        _pxChyron.alpha = 0;
+        _pxApp.stage.addChild(_pxChyron);
+      } catch (e) {
+        console.warn("PIXI chyron failed:", e);
+        _pxChyron = null;
+      }
       // ── Flash layer on top — full-screen Sprite with PIXI.Texture.WHITE
       // tinted to the flash color. Sprite-tinting bypasses the Graphics
       // path that produced the gray-composite issue in Phase 1.5.
@@ -567,6 +609,35 @@ const GCFx = (() => {
         _pxReplayBadge.alpha = 0;
       }
     }
+    // Player chyron — slides in from the left, holds, slides out.
+    if (_pxChyron && _chyronDur) {
+      const elapsed = performance.now() - _chyronStart;
+      if (elapsed >= _chyronDur) {
+        _pxChyron.alpha = 0;
+        _pxChyron.position.x = 28;
+        _chyronDur = 0;
+      } else {
+        const k = elapsed / _chyronDur;
+        let xOff, alpha;
+        if (k < 0.12) {
+          // Slide in from off-screen left
+          const p = k / 0.12;
+          xOff = -540 * (1 - p);
+          alpha = p;
+        } else if (k < 0.85) {
+          // Hold
+          xOff = 0;
+          alpha = 1;
+        } else {
+          // Slide out left while fading
+          const p = (k - 0.85) / 0.15;
+          xOff = -160 * p;
+          alpha = 1 - p;
+        }
+        _pxChyron.position.x = 28 + xOff;
+        _pxChyron.alpha = alpha;
+      }
+    }
     // Big celebration text — pops in fast, holds, fades out. Slight
     // overshoot scale on the pop for a "banner slam-in" feel.
     if (_pxBigText && _bigTextDur) {
@@ -712,6 +783,24 @@ const GCFx = (() => {
   // like a real broadcast TD celebration.
   let celebrationStart = 0;
   let celebrationDur   = 0;
+  function chyron(name, subtitle, color, durMs) {
+    if (!_pxChyron || !_chyronTitle || !_chyronSub || !_chyronBg) return;
+    _chyronTitle.text = String(name || "").toUpperCase();
+    _chyronSub.text   = String(subtitle || "");
+    // Accent stripe in the team color (or gold if missing).
+    const accent = (color != null)
+      ? ((typeof color === "string") ? _hexFromCss(color) : color)
+      : 0xf5c542;
+    _chyronBg.clear();
+    _chyronBg.beginFill(0x0a0a14, 0.88);
+    _chyronBg.drawRect(0, 0, 540, 100);
+    _chyronBg.endFill();
+    _chyronBg.beginFill(accent, 1);
+    _chyronBg.drawRect(0, 0, 8, 100);
+    _chyronBg.endFill();
+    _chyronStart = performance.now();
+    _chyronDur   = durMs || 3200;
+  }
   function bigText(text, color, durMs) {
     if (!_pxBigText) return;
     _pxBigText.text = String(text || "").toUpperCase();
@@ -830,5 +919,5 @@ const GCFx = (() => {
 
   function clear() { particles.length = 0; }
 
-  return { dust, hitBurst, confetti, shake, flash, celebration, lensFlare, bigText, tick, draw, clear };
+  return { dust, hitBurst, confetti, shake, flash, celebration, lensFlare, bigText, chyron, tick, draw, clear };
 })();

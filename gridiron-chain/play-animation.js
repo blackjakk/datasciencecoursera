@@ -5753,6 +5753,26 @@ function startNextPlay() {
                    : is2P ? "TWO-POINT CONVERSION!"
                    : "TOUCHDOWN!";
       GCFx.bigText(banner, teamColor, 1700);
+      // Player highlight chyron — name the scorer + a short tag.
+      const scorer = play.receiver || play.rusher || play.passer || play.returner;
+      if (scorer && !isXP) {
+        const tag = isFG ? `${play.fgYds || ""} YD FIELD GOAL`.trim()
+                  : is2P ? "2-POINT CONVERSION"
+                  : play.kind === "pass_td" ? "PASSING TD"
+                  : play.kind === "rush_td" ? "RUSHING TD"
+                  : play.kind === "kr_td"   ? "KICKOFF RETURN TD"
+                  : play.kind === "pr_td"   ? "PUNT RETURN TD"
+                  : play.kind === "int_td"  ? "PICK SIX"
+                  : play.kind === "fum_td"  ? "FUMBLE RETURN TD"
+                  : "TOUCHDOWN";
+        GCFx.chyron(scorer, tag, teamColor, 3400);
+      }
+    } else if (_isBigPlay && play.kind === "sack") {
+      const sacker = play.tackler || play.sackBy;
+      if (sacker) GCFx.chyron(sacker, "SACK", null, 2800);
+    } else if (_isBigPlay && (play.kind === "interception" || play.kind === "int_no_td")) {
+      const picker = play.defender || play.intercepter;
+      if (picker) GCFx.chyron(picker, "INTERCEPTION", null, 2800);
     }
   }
   // Clear the big-hit cinematic when the play isn't one
