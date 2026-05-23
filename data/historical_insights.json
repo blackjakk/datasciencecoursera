@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-23T23:31:17+00:00",
+  "generated_at": "2026-05-23T23:38:56+00:00",
   "source": "data/historical/MONEY_LEAGUE.xlsx",
   "retention_by_position": {
     "QB": {
@@ -10,23 +10,23 @@
       "hit_cap_count": 5
     },
     "RB": {
-      "yr1_count": 42,
-      "yr1_to_yr2_pct": 19.047619047619047,
-      "yr2_count": 18,
-      "yr2_to_yr3_pct": 16.666666666666668,
-      "hit_cap_count": 7
+      "yr1_count": 44,
+      "yr1_to_yr2_pct": 20.454545454545453,
+      "yr2_count": 19,
+      "yr2_to_yr3_pct": 26.31578947368421,
+      "hit_cap_count": 8
     },
     "WR": {
-      "yr1_count": 52,
-      "yr1_to_yr2_pct": 25.0,
+      "yr1_count": 55,
+      "yr1_to_yr2_pct": 25.454545454545453,
       "yr2_count": 27,
-      "yr2_to_yr3_pct": 25.925925925925927,
-      "hit_cap_count": 12
+      "yr2_to_yr3_pct": 29.62962962962963,
+      "hit_cap_count": 13
     },
     "TE": {
       "yr1_count": 18,
-      "yr1_to_yr2_pct": 27.77777777777778,
-      "yr2_count": 5,
+      "yr1_to_yr2_pct": 33.333333333333336,
+      "yr2_count": 6,
       "yr2_to_yr3_pct": 0.0,
       "hit_cap_count": 2
     }
@@ -34,10 +34,10 @@
   "post_cap_dropoff": {
     "total_capped": 29,
     "fates": {
-      "undrafted_next_year": 8,
+      "undrafted_next_year": 5,
       "redrafted_same_round": 2,
-      "redrafted_later": 3,
-      "redrafted_earlier": 16
+      "redrafted_later": 4,
+      "redrafted_earlier": 18
     },
     "earlier_round_distribution": [
       1,
@@ -55,7 +55,9 @@
       3,
       3,
       5,
-      6
+      5,
+      6,
+      8
     ],
     "examples_redrafted_earlier": [
       {
@@ -92,6 +94,20 @@
         "position": "TE",
         "kept_round": 8,
         "next_year_round": 5
+      },
+      {
+        "year": 2021,
+        "player": "James Conner",
+        "position": "RB",
+        "kept_round": 13,
+        "next_year_round": 5
+      },
+      {
+        "year": 2020,
+        "player": "JuJu Smith-Schuster",
+        "position": "WR",
+        "kept_round": 13,
+        "next_year_round": 8
       },
       {
         "year": 2019,
@@ -148,20 +164,6 @@
         "position": "WR",
         "kept_round": 11,
         "next_year_round": 2
-      },
-      {
-        "year": 2017,
-        "player": "Jarvis Landry",
-        "position": "WR",
-        "kept_round": 12,
-        "next_year_round": 6
-      },
-      {
-        "year": 2016,
-        "player": "Le'Veon Bell",
-        "position": "RB",
-        "kept_round": 3,
-        "next_year_round": 1
       }
     ]
   },
@@ -170,24 +172,24 @@
       "player": "Geno Smith",
       "position": "QB",
       "prior_round": 11,
-      "historical_redraft_earlier_pct": 55.2,
-      "historical_undrafted_pct": 27.6,
+      "historical_redraft_earlier_pct": 62.1,
+      "historical_undrafted_pct": 17.2,
       "median_earlier_round": 2
     },
     {
       "player": "Brock Purdy",
       "position": "QB",
       "prior_round": 11,
-      "historical_redraft_earlier_pct": 55.2,
-      "historical_undrafted_pct": 27.6,
+      "historical_redraft_earlier_pct": 62.1,
+      "historical_undrafted_pct": 17.2,
       "median_earlier_round": 2
     },
     {
       "player": "Jordan Love",
       "position": "QB",
       "prior_round": 11,
-      "historical_redraft_earlier_pct": 55.2,
-      "historical_undrafted_pct": 27.6,
+      "historical_redraft_earlier_pct": 62.1,
+      "historical_undrafted_pct": 17.2,
       "median_earlier_round": 2
     }
   ],

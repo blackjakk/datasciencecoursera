@@ -15,6 +15,7 @@ from pathlib import Path
 
 import openpyxl
 
+from .name_aliases import resolve_xlsx_name
 from .xlsx_history import load_all_keepers, normalize_name, KeeperRecord
 
 
@@ -82,6 +83,9 @@ def load_full_grid(path: str | Path) -> dict[int, dict[tuple[int, int], dict]]:
                     continue
                 if not isinstance(cell.value, str):
                     continue
+                canonical = resolve_xlsx_name(cell.value)
+                if canonical is None:
+                    continue  # owner name / admin label
                 color = None
                 try:
                     color = cell.fill.fgColor.rgb if cell.fill.fgColor else None
@@ -93,7 +97,8 @@ def load_full_grid(path: str | Path) -> dict[int, dict[tuple[int, int], dict]]:
                     cm = re.search(r'(\d+)', comment)
                     yr_n = int(cm.group(1)) if cm else 1
                 grid[(cell.row, cell.column)] = {
-                    'name': cell.value.strip(),
+                    'name': canonical,
+                    'raw_name': cell.value.strip(),
                     'color': color,
                     'years_kept': yr_n,
                     'comment': comment.strip(),

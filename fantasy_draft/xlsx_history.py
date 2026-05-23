@@ -22,19 +22,27 @@ from pathlib import Path
 
 import openpyxl
 
+from .name_aliases import resolve_xlsx_name
+
 
 @dataclass
 class KeeperRecord:
     year: int
     round_num: int
     column: int            # spreadsheet column 2..13 (= draft_slot + 1)
-    player_name: str
+    player_name: str       # canonical name (post-alias resolution)
+    raw_xlsx_name: str     # original cell value before alias resolution
     years_kept: int        # 1, 2, or 3 (3 = hits the cap, can't keep next year)
     raw_note: str
 
 
 def load_keepers_for_year(path: str | Path, year: int) -> list[KeeperRecord]:
-    """Extract all keeper-tagged players from a single tab."""
+    """Extract all keeper-tagged players from a single tab.
+
+    Player names are passed through name_aliases.resolve_xlsx_name so they
+    join cleanly to the Sleeper catalog. The original xlsx string is kept
+    in raw_xlsx_name for debugging.
+    """
     wb = openpyxl.load_workbook(path, data_only=True)
     sheet_name = f"FF{year}"
     if sheet_name not in wb.sheetnames:
@@ -47,13 +55,19 @@ def load_keepers_for_year(path: str | Path, year: int) -> list[KeeperRecord]:
                 continue
             if cell.value is None:
                 continue
+            raw = str(cell.value).strip()
+            canonical = resolve_xlsx_name(raw)
+            if canonical is None:
+                # Owner-name or admin string with a stray "keeper" comment.
+                continue
             m = re.search(r'(\d+)', cell.comment.text)
             yr_n = int(m.group(1)) if m else 1
             out.append(KeeperRecord(
                 year=year,
                 round_num=cell.row,
                 column=cell.column,
-                player_name=str(cell.value).strip(),
+                player_name=canonical,
+                raw_xlsx_name=raw,
                 years_kept=yr_n,
                 raw_note=cell.comment.text.strip(),
             ))
