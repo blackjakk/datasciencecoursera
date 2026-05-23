@@ -102,7 +102,7 @@ const GCFx = (() => {
         // clear in the center. RenderTexture caches the result so the
         // per-frame cost is just blitting one Sprite.
         const W = 1700, H = 720, cx = W / 2, cy = H * 0.58;
-        vignG.beginFill(0x000000, 0.5);
+        vignG.beginFill(0x000000, 0.32);
         vignG.drawRect(0, 0, W, H);
         vignG.endFill();
         // Subtractive bright ellipses — clear the center.
@@ -140,7 +140,7 @@ const GCFx = (() => {
           const t = i / (bands - 1);                         // 0..1, top→bot
           // Heavy near the top (where the field's far edge lands after
           // the broadcast tilt), tapering to nothing past 40% of canvas.
-          const a = Math.max(0, 0.16 * (1 - t * 2.5));
+          const a = Math.max(0, 0.10 * (1 - t * 2.5));
           hazeG.beginFill(0xa8b6c8, a);
           hazeG.drawRect(0, t * 720, 1700, 720 / bands + 1);
           hazeG.endFill();
