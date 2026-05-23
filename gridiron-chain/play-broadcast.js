@@ -943,24 +943,82 @@ const LiveBioPanel = {
   },
 };
 
+// Field HUD overlay — score/clock/down/drive corners over the canvas.
+// Built once into the field-wrap; updates each tick via DOM mutation.
+const FieldHUD = {
+  render(state) {
+    return `<div class="field-hud" id="field-hud">
+      <div class="hud-corner top-left">${this._teamScore(state, "home")}</div>
+      <div class="hud-corner top-center">${this._clock(state)}</div>
+      <div class="hud-corner top-right">${this._teamScore(state, "away")}</div>
+      <div class="hud-corner bot-left">${this._situation(state)}</div>
+      <div class="hud-corner bot-right">${this._drive(state)}</div>
+    </div>`;
+  },
+  _teamScore(state, side) {
+    const t = side === "home" ? state.homeTeam : state.awayTeam;
+    const score = side === "home" ? state.score.home : state.score.away;
+    const possIcon = state.possessionTeamId === t.id
+      ? `<span class="hud-poss" style="background:${t.primary}">●</span>` : "";
+    const to = state.timeouts?.[side] ?? 3;
+    const toDots = Array.from({length:3}).map((_,i) =>
+      `<span class="hud-to-dot${i < to ? " on" : ""}"></span>`).join("");
+    return `<div class="hud-team-score" style="--team:${t.primary}">
+      <div class="hud-team-meta">
+        ${possIcon}
+        <span class="hud-team-abbr">${t.abbr || t.name?.slice(0,3).toUpperCase()}</span>
+      </div>
+      <div class="hud-score-num">${score ?? 0}</div>
+      <div class="hud-to-strip">${toDots}</div>
+    </div>`;
+  },
+  _clock(state) {
+    return `<div class="hud-clock">
+      <div class="hud-quarter">${state.quarter || "—"}</div>
+      <div class="hud-clock-num">${state.clock || "0:00"}</div>
+    </div>`;
+  },
+  _situation(state) {
+    if (!state.downLabel) return "";
+    const isRZ = state.absoluteYardLine != null && state.absoluteYardLine >= 80;
+    const isGL = state.absoluteYardLine != null && state.absoluteYardLine >= 95;
+    return `<div class="hud-situation">
+      <div class="hud-down">${state.downLabel || ""}</div>
+      <div class="hud-yardline">${state.yardLineText || ""}</div>
+      ${isGL ? `<div class="hud-zone gold">GOAL LINE</div>`
+            : isRZ ? `<div class="hud-zone red">RED ZONE</div>` : ""}
+    </div>`;
+  },
+  _drive(state) {
+    const d = state.drive || {};
+    const mins = Math.floor((d.timeSec || 0) / 60);
+    const secs = (d.timeSec || 0) % 60;
+    return `<div class="hud-drive">
+      <div class="hud-drive-lbl">DRIVE</div>
+      <div class="hud-drive-num">${d.plays || 0} pl · ${d.yards || 0} yd · ${mins}:${String(secs).padStart(2,"0")}</div>
+    </div>`;
+  },
+  update(state) {
+    const el = document.getElementById("field-hud");
+    if (!el) return;
+    el.innerHTML = `
+      <div class="hud-corner top-left">${this._teamScore(state, "home")}</div>
+      <div class="hud-corner top-center">${this._clock(state)}</div>
+      <div class="hud-corner top-right">${this._teamScore(state, "away")}</div>
+      <div class="hud-corner bot-left">${this._situation(state)}</div>
+      <div class="hud-corner bot-right">${this._drive(state)}</div>`;
+  },
+};
+
 const BSPNGameScreen = {
   render(state) {
-    return `<div class="bspnlive-root" style="--away-color:${state.awayTeam.primary};--home-color:${state.homeTeam.primary}">
+    return `<div class="bspnlive-root v2" style="--away-color:${state.awayTeam.primary};--home-color:${state.homeTeam.primary}">
       ${BSPNHeader.render()}
       ${BSPNScoreboard.render(state)}
-      <div class="bspnlive-body">
-        <aside class="bspnlive-side left">
-          <div class="bspnlive-panel">
-            <div class="bspnlive-panel-title">BOX SCORE</div>
-            ${BoxScoreMiniPanel.render(state)}
-          </div>
-          <div class="bspnlive-panel">
-            <div class="bspnlive-panel-title">TEAM STATS</div>
-            ${TeamStatsMiniPanel.render(state)}
-          </div>
-        </aside>
+      <div class="bspnlive-body v2">
         ${AsciiFieldViewer.render(state)}
-        <aside class="bspnlive-side right">
+        ${FieldHUD.render(state)}
+        <aside class="bspnlive-side right v2">
           <div class="bspnlive-panel">
             <div class="bspnlive-panel-title">⚕ LIVE BIO</div>
             ${LiveBioPanel.render(state)}
@@ -969,26 +1027,43 @@ const BSPNGameScreen = {
             <div class="bspnlive-panel-title">LAST PLAY</div>
             ${LastPlayPanel.render(state)}
           </div>
-          <div class="bspnlive-panel">
-            <div class="bspnlive-panel-title">DRIVE SUMMARY</div>
-            ${DriveSummaryPanel.render(state)}
-          </div>
-          <div class="bspnlive-panel">
-            <div class="bspnlive-panel-title">NEXT UP</div>
-            ${NextUpPanel.render(state)}
-          </div>
         </aside>
       </div>
-      <div class="bspnlive-bottom">
-        <div class="bspnlive-pbp">
-          <div class="bspnlive-panel-title bspnlive-pbp-title">PLAY-BY-PLAY</div>
-          ${PlayByPlayPanel.render(state)}
-          <div id="playLog" class="play-log" style="display:none"></div>
+      <div class="bspnlive-bottom v2">
+        <div class="bspnlive-bottom-tabs">
+          <button class="bspnlive-tab active" data-tab="pbp" onclick="_bspnSwitchTab('pbp')">PLAY-BY-PLAY</button>
+          <button class="bspnlive-tab" data-tab="box" onclick="_bspnSwitchTab('box')">BOX SCORE</button>
+          <button class="bspnlive-tab" data-tab="stats" onclick="_bspnSwitchTab('stats')">TEAM STATS</button>
+          <button class="bspnlive-tab" data-tab="drive" onclick="_bspnSwitchTab('drive')">DRIVE · NEXT UP</button>
+          <button class="bspnlive-tab" data-tab="perf" onclick="_bspnSwitchTab('perf')">TOP PERFORMERS</button>
         </div>
-        <aside class="bspnlive-perf">
-          <div class="bspnlive-panel-title bspnlive-perf-title">TOP PERFORMERS</div>
-          ${TopPerformersPanel.render(state)}
-        </aside>
+        <div class="bspnlive-bottom-content">
+          <div class="bspnlive-bottom-pane active" data-pane="pbp">
+            ${PlayByPlayPanel.render(state)}
+            <div id="playLog" class="play-log" style="display:none"></div>
+          </div>
+          <div class="bspnlive-bottom-pane" data-pane="box">
+            ${BoxScoreMiniPanel.render(state)}
+          </div>
+          <div class="bspnlive-bottom-pane" data-pane="stats">
+            ${TeamStatsMiniPanel.render(state)}
+          </div>
+          <div class="bspnlive-bottom-pane" data-pane="drive">
+            <div class="bspnlive-drive-row">
+              <div class="bspnlive-drive-col">
+                <div class="bspnlive-panel-title">DRIVE SUMMARY</div>
+                ${DriveSummaryPanel.render(state)}
+              </div>
+              <div class="bspnlive-drive-col">
+                <div class="bspnlive-panel-title">NEXT UP</div>
+                ${NextUpPanel.render(state)}
+              </div>
+            </div>
+          </div>
+          <div class="bspnlive-bottom-pane" data-pane="perf">
+            ${TopPerformersPanel.render(state)}
+          </div>
+        </div>
       </div>
       ${BSPNBottomTicker.render(state)}
       <!-- Hidden legacy nodes kept so existing render helpers don't blow up -->
@@ -1000,6 +1075,7 @@ const BSPNGameScreen = {
   update(state) {
     if (!document.querySelector(".bspnlive-root")) return;
     BSPNScoreboard.update(state);
+    FieldHUD.update(state);
     BoxScoreMiniPanel.update(state);
     TeamStatsMiniPanel.update(state);
     LiveBioPanel.update(state);
@@ -1011,6 +1087,14 @@ const BSPNGameScreen = {
     BSPNBottomTicker.update(state);
   },
 };
+
+// Tab switcher for the bottom strip (box / stats / pbp / drive / perf).
+function _bspnSwitchTab(name) {
+  document.querySelectorAll(".bspnlive-tab").forEach(t =>
+    t.classList.toggle("active", t.dataset.tab === name));
+  document.querySelectorAll(".bspnlive-bottom-pane").forEach(p =>
+    p.classList.toggle("active", p.dataset.pane === name));
+}
 
 // Per-play refresh — called from the existing animation loop via the
 // legacy renderScoreboard/renderBoxScore/renderPlayLog hooks.

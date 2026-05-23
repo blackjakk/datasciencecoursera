@@ -2942,6 +2942,188 @@
   @media (max-width: 1100px) {
     .bspnlive-body { grid-template-columns: 1fr; }
   }
+
+  /* ── V2 LAYOUT: field hero ─────────────────────────────────────
+     Drops the left sidebar entirely (box score / team stats move
+     to the bottom tabbed strip). Right sidebar slims to LIVE BIO +
+     LAST PLAY. Field takes the rest of the row. */
+  .bspnlive-body.v2 {
+    grid-template-columns: 1fr 290px;
+    position: relative;
+  }
+  @media (max-width: 1100px) {
+    .bspnlive-body.v2 { grid-template-columns: 1fr; }
+  }
+  .bspnlive-side.right.v2 {
+    padding: .6rem .7rem; overflow-y: auto;
+    max-height: 75vh;
+  }
+  .bspnlive-side.right.v2 .bspnlive-panel { margin-bottom: 1rem; }
+  .bspnlive-side.right.v2 .bspnlive-panel-title {
+    font-size: .65rem; letter-spacing: 1.5px;
+    text-align: left; padding-bottom: .25rem;
+  }
+
+  /* ── FIELD HUD OVERLAYS ─────────────────────────────────────
+     Madden-style corner HUD on top of the field canvas. Score in
+     top corners, clock top-center, situation bot-left, drive bot-right. */
+  .field-hud {
+    position: absolute; inset: 0; pointer-events: none;
+    z-index: 4;
+    font-family: 'Bebas Neue', 'Anton', sans-serif;
+  }
+  .hud-corner {
+    position: absolute; padding: .5rem .8rem;
+    color: #fff;
+  }
+  .hud-corner.top-left   { top: 8px; left: 8px; }
+  .hud-corner.top-right  { top: 8px; right: 8px; }
+  .hud-corner.top-center { top: 8px; left: 50%; transform: translateX(-50%); }
+  .hud-corner.bot-left   { bottom: 8px; left: 8px; }
+  .hud-corner.bot-right  { bottom: 8px; right: 8px; }
+
+  .hud-team-score {
+    display: flex; flex-direction: column; align-items: flex-start;
+    background: linear-gradient(135deg, rgba(0,0,0,.88), rgba(20,20,20,.88));
+    border-left: 5px solid var(--team);
+    border-radius: 3px; padding: .35rem .7rem .3rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,.6);
+    min-width: 80px;
+  }
+  .hud-team-meta {
+    display: flex; align-items: center; gap: .35rem;
+    font-size: .7rem; letter-spacing: 2px; color: #ddd;
+  }
+  .hud-team-abbr { font-weight: 700; }
+  .hud-poss {
+    display: inline-block; width: 9px; height: 9px;
+    border-radius: 50%;
+    box-shadow: 0 0 6px currentColor;
+    color: transparent;
+    animation: hud-poss-pulse 1.2s ease-in-out infinite alternate;
+  }
+  @keyframes hud-poss-pulse {
+    from { opacity: 0.6; transform: scale(1); }
+    to   { opacity: 1; transform: scale(1.15); }
+  }
+  .hud-score-num {
+    font-size: 2.4rem; font-weight: 900; line-height: 1;
+    margin-top: .05rem;
+    text-shadow: 0 2px 4px rgba(0,0,0,.7);
+  }
+  .hud-to-strip {
+    display: flex; gap: 3px; margin-top: .25rem;
+  }
+  .hud-to-dot {
+    width: 8px; height: 3px; background: rgba(255,255,255,.18);
+    border-radius: 1px;
+  }
+  .hud-to-dot.on { background: var(--team); box-shadow: 0 0 4px var(--team); }
+
+  .hud-clock {
+    background: linear-gradient(135deg, rgba(0,0,0,.88), rgba(20,20,20,.88));
+    border: 1px solid rgba(255,255,255,.15);
+    border-radius: 3px; padding: .35rem .75rem;
+    text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,.6);
+  }
+  .hud-quarter {
+    font-size: .7rem; letter-spacing: 3px;
+    color: var(--gold, #f5c542); font-weight: 700;
+  }
+  .hud-clock-num {
+    font-size: 1.8rem; font-weight: 900; line-height: 1;
+    margin-top: .05rem; color: #fff;
+    text-shadow: 0 2px 4px rgba(0,0,0,.7);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .hud-situation {
+    background: linear-gradient(135deg, rgba(0,0,0,.88), rgba(20,20,20,.88));
+    border: 1px solid rgba(255,255,255,.15);
+    border-radius: 3px; padding: .35rem .75rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,.6);
+    min-width: 130px;
+  }
+  .hud-down {
+    font-size: 1.3rem; font-weight: 900; line-height: 1;
+    color: var(--gold, #f5c542);
+    text-shadow: 0 2px 4px rgba(0,0,0,.7);
+  }
+  .hud-yardline {
+    font-size: .8rem; letter-spacing: 1.5px;
+    color: #ddd; margin-top: .15rem;
+  }
+  .hud-zone {
+    margin-top: .25rem; padding: .12rem .4rem;
+    font-size: .55rem; letter-spacing: 2px; font-weight: 900;
+    border-radius: 2px; display: inline-block;
+  }
+  .hud-zone.red {
+    background: #cf2626; color: #fff;
+    animation: hud-zone-pulse 1s ease-in-out infinite alternate;
+  }
+  .hud-zone.gold {
+    background: #f5c542; color: #000;
+    animation: hud-zone-pulse 1s ease-in-out infinite alternate;
+  }
+  @keyframes hud-zone-pulse {
+    from { opacity: 0.8; }
+    to   { opacity: 1; box-shadow: 0 0 10px currentColor; }
+  }
+
+  .hud-drive {
+    background: linear-gradient(135deg, rgba(0,0,0,.78), rgba(20,20,20,.78));
+    border-radius: 3px; padding: .25rem .6rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,.55);
+  }
+  .hud-drive-lbl {
+    font-size: .55rem; letter-spacing: 2.5px;
+    color: #999; font-weight: 700;
+  }
+  .hud-drive-num {
+    font-size: .85rem; font-weight: 700;
+    color: #fff; margin-top: .1rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── V2 BOTTOM TABBED STRIP ──────────────────────────────────
+     Consolidates box / team-stats / pbp / drive / perf into a
+     single tabbed area so the field can dominate the row above. */
+  .bspnlive-bottom.v2 {
+    display: flex; flex-direction: column;
+    background: var(--blbg2);
+    border-top: 1px solid var(--blborder);
+    border-bottom: 1px solid var(--blborder);
+  }
+  .bspnlive-bottom-tabs {
+    display: flex; gap: 0;
+    border-bottom: 1px solid var(--blborder);
+    background: var(--blbg);
+  }
+  .bspnlive-tab {
+    background: transparent; border: none; color: var(--blgray);
+    font-family: inherit; font-size: .65rem; letter-spacing: 1.5px;
+    font-weight: 700; padding: .5rem .9rem; cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color .15s, border-color .15s;
+  }
+  .bspnlive-tab:hover { color: var(--blwhite); }
+  .bspnlive-tab.active {
+    color: var(--gold, #f5c542);
+    border-bottom-color: var(--gold, #f5c542);
+  }
+  .bspnlive-bottom-content {
+    padding: .6rem .9rem; max-height: 240px; overflow-y: auto;
+  }
+  .bspnlive-bottom-pane { display: none; }
+  .bspnlive-bottom-pane.active { display: block; }
+  .bspnlive-drive-row {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
+  }
+  .bspnlive-drive-col .bspnlive-panel-title {
+    text-align: left; font-size: .6rem; padding-bottom: .25rem;
+    margin-bottom: .35rem;
+  }
   .bspnlive-side {
     padding: .8rem 1rem; min-width: 0;
     background: var(--blbg2);
