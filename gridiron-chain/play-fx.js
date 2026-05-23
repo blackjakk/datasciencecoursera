@@ -43,6 +43,11 @@ const GCFx = (() => {
   let _flashPeak = 0;
   let _pxGrainSprite = null;    // PIXI.Sprite displaying a noise texture (replay film grain)
   let _pxLedContainer = null;   // PIXI.Container holding animated LED ad panels
+  let _pxLensFlare = null;      // PIXI.Sprite (radial star) shown briefly on score
+  let _flareStart = 0;
+  let _flareDur   = 0;
+  let _pxScanlines = null;      // PIXI.TilingSprite scanline overlay (replay)
+  let _pxReplayBadge = null;    // PIXI.Text "INSTANT REPLAY" badge (replay)
   function _pixiAvailable() {
     return typeof PIXI !== "undefined" && typeof PIXI.Application === "function";
   }
@@ -232,6 +237,79 @@ const GCFx = (() => {
         console.warn("PIXI grain failed:", e);
         _pxGrainSprite = null;
       }
+      // ── Lens flare — bright radial star sprite at midfield that fires
+      // briefly on score events. Pre-rendered to a RenderTexture so the
+      // per-frame cost is just adjusting position + alpha.
+      try {
+        const flareTex = PIXI.RenderTexture.create({ width: 360, height: 360 });
+        const flareG = new PIXI.Graphics();
+        // Soft radial halo via concentric rings
+        for (let r = 22; r > 0; r--) {
+          const t = r / 22;
+          const a = Math.pow(t, 1.6) * 0.045;
+          flareG.beginFill(0xfff4d0, a);
+          flareG.drawCircle(180, 180, r * 8);
+          flareG.endFill();
+        }
+        // 4-pointed star streaks (horizontal + vertical bright bars)
+        flareG.beginFill(0xffffe0, 0.85);
+        flareG.drawRect(40, 178, 280, 4);
+        flareG.drawRect(178, 40, 4, 280);
+        flareG.endFill();
+        // 4-pointed star secondary streaks (45°-rotated diagonals via thin rects)
+        flareG.beginFill(0xffe8b0, 0.35);
+        flareG.drawRect(80, 178, 200, 4);
+        flareG.endFill();
+        _pxApp.renderer.render(flareG, { renderTexture: flareTex });
+        flareG.destroy();
+        _pxLensFlare = new PIXI.Sprite(flareTex);
+        _pxLensFlare.anchor.set(0.5);
+        _pxLensFlare.position.set(850, 360);
+        _pxLensFlare.alpha = 0;
+        _pxLensFlare.blendMode = PIXI.BLEND_MODES.ADD;
+        _pxApp.stage.addChild(_pxLensFlare);
+      } catch (e) {
+        console.warn("PIXI lens flare failed:", e);
+        _pxLensFlare = null;
+      }
+      // ── Replay scanlines — horizontal lines tile pattern that overlays
+      // the field in replay mode. Sits under the LED ribbon so the ads
+      // stay crisp. Visible only when window._replayMode === true.
+      try {
+        const slineCanvas = document.createElement("canvas");
+        slineCanvas.width = 2; slineCanvas.height = 4;
+        const sctx = slineCanvas.getContext("2d");
+        sctx.fillStyle = "rgba(0,0,0,0.42)";
+        sctx.fillRect(0, 0, 2, 1);
+        sctx.fillStyle = "rgba(0,0,0,0.20)";
+        sctx.fillRect(0, 1, 2, 1);
+        const slineTex = PIXI.Texture.from(slineCanvas);
+        _pxScanlines = new PIXI.TilingSprite(slineTex, 1700, 720);
+        _pxScanlines.alpha = 0;
+        _pxApp.stage.addChild(_pxScanlines);
+      } catch (e) {
+        console.warn("PIXI scanlines failed:", e);
+        _pxScanlines = null;
+      }
+      // ── INSTANT REPLAY badge — visible only when window._replayMode is
+      // true. Pulsing alpha + slight red tint.
+      try {
+        _pxReplayBadge = new PIXI.Text("● INSTANT REPLAY", {
+          fontFamily: "Impact, Arial Black, sans-serif",
+          fontSize: 38,
+          fill: 0xff3030,
+          stroke: 0x000000,
+          strokeThickness: 5,
+          letterSpacing: 2,
+        });
+        _pxReplayBadge.anchor.set(1, 0);                 // right-top aligned
+        _pxReplayBadge.position.set(1700 - 28, 24);
+        _pxReplayBadge.alpha = 0;
+        _pxApp.stage.addChild(_pxReplayBadge);
+      } catch (e) {
+        console.warn("PIXI replay badge failed:", e);
+        _pxReplayBadge = null;
+      }
       // ── Flash layer on top — full-screen Sprite with PIXI.Texture.WHITE
       // tinted to the flash color. Sprite-tinting bypasses the Graphics
       // path that produced the gray-composite issue in Phase 1.5.
@@ -377,6 +455,21 @@ const GCFx = (() => {
       }
     }
     _updateFlash();
+    // Lens flare — fast rise to peak (~15% of dur), then exp decay.
+    // Rotates slightly while fading for "broadcast camera" lens feel.
+    if (_pxLensFlare && _flareDur) {
+      const elapsed = performance.now() - _flareStart;
+      if (elapsed >= _flareDur) {
+        _pxLensFlare.alpha = 0;
+        _flareDur = 0;
+      } else {
+        const k = elapsed / _flareDur;
+        const env = k < 0.15 ? (k / 0.15) : Math.exp(-(k - 0.15) * 4.5);
+        _pxLensFlare.alpha = env * 0.85;
+        _pxLensFlare.rotation = k * 0.3;
+        _pxLensFlare.scale.set(0.7 + env * 0.45);
+      }
+    }
     // Film grain — visible only in replay mode. Jitter tile position
     // each frame so the grain has motion.
     if (_pxGrainSprite) {
@@ -386,6 +479,26 @@ const GCFx = (() => {
         _pxGrainSprite.tilePosition.y = (Math.random() - 0.5) * 256;
       } else if (_pxGrainSprite.alpha !== 0) {
         _pxGrainSprite.alpha = 0;
+      }
+    }
+    // VHS scanlines — visible only in replay mode. Slight downward
+    // drift so the scanlines feel like an old broadcast tube.
+    if (_pxScanlines) {
+      if (window._replayMode) {
+        _pxScanlines.alpha = 0.35;
+        _pxScanlines.tilePosition.y = (performance.now() * 0.012) % 4;
+      } else if (_pxScanlines.alpha !== 0) {
+        _pxScanlines.alpha = 0;
+      }
+    }
+    // INSTANT REPLAY badge — visible only in replay mode, with a slow
+    // alpha pulse that mimics a recording indicator.
+    if (_pxReplayBadge) {
+      if (window._replayMode) {
+        const pulse = 0.65 + 0.35 * Math.sin(performance.now() * 0.005);
+        _pxReplayBadge.alpha = pulse;
+      } else if (_pxReplayBadge.alpha !== 0) {
+        _pxReplayBadge.alpha = 0;
       }
     }
     _pxApp.renderer.render(_pxApp.stage);
@@ -488,6 +601,13 @@ const GCFx = (() => {
   // like a real broadcast TD celebration.
   let celebrationStart = 0;
   let celebrationDur   = 0;
+  function lensFlare(durMs, x, y) {
+    _flareStart = performance.now();
+    _flareDur   = durMs || 700;
+    if (_pxLensFlare) {
+      _pxLensFlare.position.set(x != null ? x : 850, y != null ? y : 360);
+    }
+  }
   function celebration(durMs) {
     celebrationStart = performance.now();
     celebrationDur   = durMs || 1400;
@@ -588,5 +708,5 @@ const GCFx = (() => {
 
   function clear() { particles.length = 0; }
 
-  return { dust, hitBurst, confetti, shake, flash, celebration, tick, draw, clear };
+  return { dust, hitBurst, confetti, shake, flash, celebration, lensFlare, tick, draw, clear };
 })();

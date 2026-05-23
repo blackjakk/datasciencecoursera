@@ -5709,6 +5709,7 @@ function startNextPlay() {
       GCFx.confetti(FIELD.W * 0.18,   FIELD.TOP + 40, teamColor, 18);
       GCFx.confetti(FIELD.W * 0.82,   FIELD.TOP + 40, teamColor, 18);
       GCFx.flash(teamColor, 320, 0.22);
+      GCFx.lensFlare(700);            // bright lens flare burst at midfield
       GCFx.celebration(1400);         // brief slow-zoom cinematic
     }
   }
