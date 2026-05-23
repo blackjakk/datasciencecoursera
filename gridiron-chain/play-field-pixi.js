@@ -97,6 +97,65 @@ const GCField = (() => {
       bandG.endFill();
     }
     _bg.addChild(bandG);
+    // ── End zones — team-color rectangles flanking the field ──
+    const ezG = new PIXI.Graphics();
+    const hexColor = (cssCol, fallback) => {
+      if (typeof cssCol !== "string") return fallback;
+      if (cssCol[0] === "#") {
+        if (cssCol.length === 4) {
+          return (parseInt(cssCol[1], 16) * 17) << 16 |
+                 (parseInt(cssCol[2], 16) * 17) << 8 |
+                  parseInt(cssCol[3], 16) * 17;
+        }
+        return parseInt(cssCol.slice(1), 16);
+      }
+      return fallback;
+    };
+    const homeHex = hexColor(homeTeam?.primary, 0x002244);
+    const awayHex = hexColor(awayTeam?.primary, 0x880022);
+    ezG.beginFill(homeHex, 1);
+    ezG.drawRect(0, FIELD.TOP, FIELD.EZ_PX, FIELD.BOT - FIELD.TOP);
+    ezG.endFill();
+    ezG.beginFill(awayHex, 1);
+    ezG.drawRect(FIELD.W - FIELD.EZ_PX, FIELD.TOP, FIELD.EZ_PX, FIELD.BOT - FIELD.TOP);
+    ezG.endFill();
+    _bg.addChild(ezG);
+    // ── End zone team text — rotated 90° to read along the field, scaled
+    // to fill the endzone length. PIXI.Text natively supports rotation +
+    // independent scale.x/scale.y, and dropShadow gives us the 4px black
+    // stroke effect. Matches canvas2D drawField exactly.
+    const ezSpan = FIELD.BOT - FIELD.TOP;
+    const ezPad  = 8;
+    const ezTargetH = FIELD.EZ_PX * 0.78;
+    const ezTargetW = ezSpan - ezPad * 2;
+    const makeText = (name) => {
+      const t = new PIXI.Text(String(name || "").toUpperCase(), {
+        fontFamily: "monospace",
+        fontWeight: "900",
+        fontSize: ezTargetH,
+        fill: 0xf0f0f0,                  // ~rgba(255,255,255,0.92)
+        stroke: 0x000000,
+        strokeThickness: 4,
+      });
+      t.anchor.set(0.5);
+      return t;
+    };
+    const hText = makeText(homeTeam?.name);
+    const hMeasure = hText.width || 1;
+    const hScaleX = ezTargetW / hMeasure;
+    hText.position.set(FIELD.EZ_PX / 2, (FIELD.TOP + FIELD.BOT) / 2);
+    hText.rotation = -Math.PI / 2;
+    // scale.x stretches the text along its natural reading direction,
+    // which after the 90° rotation is the vertical-on-screen axis.
+    hText.scale.set(hScaleX, 1);
+    _bg.addChild(hText);
+    const aText = makeText(awayTeam?.name);
+    const aMeasure = aText.width || 1;
+    const aScaleX = ezTargetW / aMeasure;
+    aText.position.set(FIELD.W - FIELD.EZ_PX / 2, (FIELD.TOP + FIELD.BOT) / 2);
+    aText.rotation = Math.PI / 2;
+    aText.scale.set(aScaleX, 1);
+    _bg.addChild(aText);
     _app.renderer.render(_app.stage);
     return true;
   }

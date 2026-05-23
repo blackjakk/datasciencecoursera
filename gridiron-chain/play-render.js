@@ -83,52 +83,54 @@ function drawField(ctx, homeTeam, awayTeam, ctx_state) {
     ctx.fillStyle = grad;
     ctx.fillRect(0, FIELD.TOP, W, FIELD.BOT - FIELD.TOP);
   }
-  // end zones (team colors)
-  ctx.fillStyle = homeTeam.primary;
-  ctx.fillRect(0, FIELD.TOP, FIELD.EZ_PX, FIELD.BOT - FIELD.TOP);
-  ctx.fillStyle = awayTeam.primary;
-  ctx.fillRect(W - FIELD.EZ_PX, FIELD.TOP, FIELD.EZ_PX, FIELD.BOT - FIELD.TOP);
+  // End zones + team text — PIXI when active (Phase 2A.2), canvas2D otherwise.
+  if (!_pixiField) {
+    ctx.fillStyle = homeTeam.primary;
+    ctx.fillRect(0, FIELD.TOP, FIELD.EZ_PX, FIELD.BOT - FIELD.TOP);
+    ctx.fillStyle = awayTeam.primary;
+    ctx.fillRect(W - FIELD.EZ_PX, FIELD.TOP, FIELD.EZ_PX, FIELD.BOT - FIELD.TOP);
 
-  // End zone team text — sized to FILL the endzone. Font size fills the
-  // narrow dimension (EZ width = 100 px after rotation becomes text height),
-  // then horizontally scaled to fit the long dimension (field height between
-  // sidelines becomes text width).
-  const ezSpan = FIELD.BOT - FIELD.TOP;
-  const ezPad  = 8;   // tiny breathing room from the sidelines
-  const ezTargetH = FIELD.EZ_PX * 0.78;          // text height (cap height) target
-  const ezTargetW = ezSpan - ezPad * 2;          // available length along the field
-  const hName = homeTeam.name.toUpperCase();
-  const aName = awayTeam.name.toUpperCase();
-  ctx.save();
-  ctx.font = `900 ${ezTargetH}px monospace`;
-  const hMeasure = ctx.measureText(hName).width || 1;
-  const hScaleX  = ezTargetW / hMeasure;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.translate(FIELD.EZ_PX / 2, (FIELD.TOP + FIELD.BOT) / 2);
-  ctx.rotate(-Math.PI / 2);
-  ctx.scale(hScaleX, 1);
-  ctx.lineWidth = 4;
-  ctx.strokeStyle = "rgba(0,0,0,0.55)";
-  ctx.strokeText(hName, 0, 0);
-  ctx.fillStyle = "rgba(255,255,255,0.92)";
-  ctx.fillText(hName, 0, 0);
-  ctx.restore();
-  ctx.save();
-  ctx.font = `900 ${ezTargetH}px monospace`;
-  const aMeasure = ctx.measureText(aName).width || 1;
-  const aScaleX  = ezTargetW / aMeasure;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.translate(W - FIELD.EZ_PX / 2, (FIELD.TOP + FIELD.BOT) / 2);
-  ctx.rotate(Math.PI / 2);
-  ctx.scale(aScaleX, 1);
-  ctx.lineWidth = 4;
-  ctx.strokeStyle = "rgba(0,0,0,0.55)";
-  ctx.strokeText(aName, 0, 0);
-  ctx.fillStyle = "rgba(255,255,255,0.92)";
-  ctx.fillText(aName, 0, 0);
-  ctx.restore();
+    // End zone team text — sized to FILL the endzone. Font size fills the
+    // narrow dimension (EZ width = 100 px after rotation becomes text height),
+    // then horizontally scaled to fit the long dimension (field height between
+    // sidelines becomes text width).
+    const ezSpan = FIELD.BOT - FIELD.TOP;
+    const ezPad  = 8;   // tiny breathing room from the sidelines
+    const ezTargetH = FIELD.EZ_PX * 0.78;          // text height (cap height) target
+    const ezTargetW = ezSpan - ezPad * 2;          // available length along the field
+    const hName = homeTeam.name.toUpperCase();
+    const aName = awayTeam.name.toUpperCase();
+    ctx.save();
+    ctx.font = `900 ${ezTargetH}px monospace`;
+    const hMeasure = ctx.measureText(hName).width || 1;
+    const hScaleX  = ezTargetW / hMeasure;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.translate(FIELD.EZ_PX / 2, (FIELD.TOP + FIELD.BOT) / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.scale(hScaleX, 1);
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = "rgba(0,0,0,0.55)";
+    ctx.strokeText(hName, 0, 0);
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.fillText(hName, 0, 0);
+    ctx.restore();
+    ctx.save();
+    ctx.font = `900 ${ezTargetH}px monospace`;
+    const aMeasure = ctx.measureText(aName).width || 1;
+    const aScaleX  = ezTargetW / aMeasure;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.translate(W - FIELD.EZ_PX / 2, (FIELD.TOP + FIELD.BOT) / 2);
+    ctx.rotate(Math.PI / 2);
+    ctx.scale(aScaleX, 1);
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = "rgba(0,0,0,0.55)";
+    ctx.strokeText(aName, 0, 0);
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.fillText(aName, 0, 0);
+    ctx.restore();
+  }
 
   // sidelines
   ctx.strokeStyle = "rgba(255,255,255,0.85)";
