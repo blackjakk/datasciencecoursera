@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-23T22:41:09+00:00",
+  "generated_at": "2026-05-23T23:31:17+00:00",
   "source": "data/historical/MONEY_LEAGUE.xlsx",
   "retention_by_position": {
     "QB": {
@@ -35,8 +35,9 @@
     "total_capped": 29,
     "fates": {
       "undrafted_next_year": 8,
-      "redrafted_later": 7,
-      "redrafted_earlier": 14
+      "redrafted_same_round": 2,
+      "redrafted_later": 3,
+      "redrafted_earlier": 16
     },
     "earlier_round_distribution": [
       1,
@@ -44,6 +45,8 @@
       1,
       1,
       1,
+      1,
+      2,
       2,
       2,
       2,
@@ -134,6 +137,13 @@
       },
       {
         "year": 2017,
+        "player": "Mike Evans",
+        "position": "WR",
+        "kept_round": 3,
+        "next_year_round": 2
+      },
+      {
+        "year": 2017,
         "player": "Odell Beckham Jr",
         "position": "WR",
         "kept_round": 11,
@@ -148,10 +158,10 @@
       },
       {
         "year": 2016,
-        "player": "Alshon Jeffery",
-        "position": "WR",
-        "kept_round": 8,
-        "next_year_round": 3
+        "player": "Le'Veon Bell",
+        "position": "RB",
+        "kept_round": 3,
+        "next_year_round": 1
       }
     ]
   },
@@ -160,7 +170,7 @@
       "player": "Geno Smith",
       "position": "QB",
       "prior_round": 11,
-      "historical_redraft_earlier_pct": 48.3,
+      "historical_redraft_earlier_pct": 55.2,
       "historical_undrafted_pct": 27.6,
       "median_earlier_round": 2
     },
@@ -168,7 +178,7 @@
       "player": "Brock Purdy",
       "position": "QB",
       "prior_round": 11,
-      "historical_redraft_earlier_pct": 48.3,
+      "historical_redraft_earlier_pct": 55.2,
       "historical_undrafted_pct": 27.6,
       "median_earlier_round": 2
     },
@@ -176,7 +186,7 @@
       "player": "Jordan Love",
       "position": "QB",
       "prior_round": 11,
-      "historical_redraft_earlier_pct": 48.3,
+      "historical_redraft_earlier_pct": 55.2,
       "historical_undrafted_pct": 27.6,
       "median_earlier_round": 2
     }
@@ -251,6 +261,11 @@
       "total_keepers_all_years": 3,
       "avg_keepers_per_year": 3.0,
       "avg_keeper_round": 13.0
+    },
+    "1": {
+      "total_keepers_all_years": 3,
+      "avg_keepers_per_year": 3.0,
+      "avg_keeper_round": 11.0
     }
   }
 }

@@ -24,8 +24,44 @@ class PlayerCareerLine:
     appearances: list[tuple[int, int, int]]  # (year, round, years_kept)
 
 
+def _detect_layout(ws) -> tuple[int, int]:
+    """Find the round-number column and the last round, scanning all columns
+    for a 1, 2, 3, ... sequence starting at row 1.
+
+    The sheet layout changed across years:
+      - 2019-2025: round number in col 1,    picks in cols 2..13.
+      - 2018:      round number in col 5,    picks in cols 6..15.
+      - 2016-2017: round number in col 4,    picks in cols 5..14.
+      - 2015:      NO round column at all;   picks in cols 1..10, rows ARE
+                   rounds. Falls back to round_col=0 (no skip), max=19.
+
+    openpyxl returns numbers as floats (1.0, 2.0, ...). Returns
+    (round_col, last_round). round_col=0 means "no round col; don't skip
+    any columns on the left."
+    """
+    for col_idx in range(1, ws.max_column + 1):
+        contiguous = 0
+        for row_idx in range(1, ws.max_row + 1):
+            v = ws.cell(row=row_idx, column=col_idx).value
+            if isinstance(v, (int, float)) and float(v) == contiguous + 1:
+                contiguous += 1
+            else:
+                break
+        if contiguous >= 10:  # need at least a 10-round draft to count
+            return col_idx, contiguous
+    # No round column (older 2015 layout). Use max practical draft size as cap.
+    return 0, 19
+
+
 def load_full_grid(path: str | Path) -> dict[int, dict[tuple[int, int], dict]]:
-    """{year: {(round, col): {name, color, comment}}} for every cell with a player."""
+    """{year: {(round, col): {name, color, comment}}} for every cell with a player.
+
+    Only cells inside the actual draft grid are read (rows 1..last_round,
+    cols immediately right of the round column). Cells below the draft
+    (legend like "Color"/"Hotel"/"Dues", commissioner notes, free-form
+    comments) and cells to the left (team-name roster legend in older
+    sheets) are excluded.
+    """
     wb = openpyxl.load_workbook(path, data_only=True)
     out: dict[int, dict[tuple[int, int], dict]] = {}
     for sheet in wb.sheetnames:
@@ -34,12 +70,15 @@ def load_full_grid(path: str | Path) -> dict[int, dict[tuple[int, int], dict]]:
             continue
         year = int(m.group(1))
         ws = wb[sheet]
+        round_col, max_round = _detect_layout(ws)
         grid: dict[tuple[int, int], dict] = {}
         for row in ws.iter_rows():
             for cell in row:
                 if cell.value is None or not str(cell.value).strip():
                     continue
-                if cell.column == 1:  # skip the round-number column
+                if cell.column <= round_col:  # round column + everything left of it
+                    continue
+                if cell.row > max_round:  # below the draft grid -- legend/notes
                     continue
                 if not isinstance(cell.value, str):
                     continue
@@ -177,6 +216,21 @@ def post_cap_dropoff(path: str | Path,
                 if normalize_name(data['name']) == normalize_name(k.player_name):
                     next_appearance = (r, c)
                     break
+            # "Earlier" = redrafted in a strictly earlier round than where they
+            # were kept (held or grew their value). The old threshold
+            # `next_year_round < k.round_num - 2` had two problems: (1) it
+            # confused round_penalty with delta-detection so an R3 keeper
+            # required next_year_round < 1 (impossible), silently routing
+            # every early-round capped player to "redrafted_later"; (2) it
+            # treated "same round" as "later" rather than "same value".
+            if not next_appearance:
+                fate = 'undrafted_next_year'
+            elif next_appearance[0] < k.round_num:
+                fate = 'redrafted_earlier'
+            elif next_appearance[0] == k.round_num:
+                fate = 'redrafted_same_round'
+            else:
+                fate = 'redrafted_later'
             out.append({
                 'capped_year': year,
                 'player': k.player_name,
@@ -184,8 +238,6 @@ def post_cap_dropoff(path: str | Path,
                 'kept_at_round': k.round_num,
                 'next_year_round': next_appearance[0] if next_appearance else None,
                 'next_year_col': next_appearance[1] if next_appearance else None,
-                'fate': ('redrafted_earlier' if next_appearance and next_appearance[0] < k.round_num - 2
-                         else 'redrafted_later' if next_appearance
-                         else 'undrafted_next_year'),
+                'fate': fate,
             })
     return out

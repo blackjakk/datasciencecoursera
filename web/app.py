@@ -658,11 +658,12 @@ with tab_insights:
 
         st.subheader("What happens after the 3-year cap")
         d = data["post_cap_dropoff"]
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Capped players (11 yrs)", d["total_capped"])
+        c1, c2, c3, c4, c5 = st.columns(5)
+        c1.metric("Capped players", d["total_capped"])
         c2.metric("Re-drafted EARLIER", d["fates"].get("redrafted_earlier", 0))
-        c3.metric("Re-drafted later", d["fates"].get("redrafted_later", 0))
-        c4.metric("Undrafted next year", d["fates"].get("undrafted_next_year", 0))
+        c3.metric("Same round", d["fates"].get("redrafted_same_round", 0))
+        c4.metric("Re-drafted later", d["fates"].get("redrafted_later", 0))
+        c5.metric("Undrafted next year", d["fates"].get("undrafted_next_year", 0))
         earlier_n = d["fates"].get("redrafted_earlier", 0)
         total = d["total_capped"] or 1
         st.markdown(

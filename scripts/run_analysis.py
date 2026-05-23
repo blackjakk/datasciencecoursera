@@ -36,17 +36,39 @@ OUT = ROOT / "data" / "historical_insights.json"
 
 
 def _position_lookup() -> list[dict]:
-    """Build a position-lookup list combining 2025 Sleeper picks + 2026 projections.
+    """Build a position-lookup list combining the most-recent Sleeper draft
+    picks + 2026 projections.
 
     The analysis functions only need {'metadata': {'first_name', 'last_name',
-    'position'}}, so we cast both sources into that shape.
+    'position'}}, so we cast both sources into that shape. The 2026
+    projections file is gitignored (regeneratable via scripts/fetch_sleeper.sh)
+    -- absence is a hard error.
     """
     picks: list[dict] = []
     pick_files = glob.glob(str(ROOT / "data" / "sleeper" / "league_*" / "draft_*_picks.json"))
-    if pick_files:
-        picks.extend(json.load(open(pick_files[-1])))
+    if not pick_files:
+        print("WARN: no Sleeper draft picks found under data/sleeper/league_*/. "
+              "Position lookup will fall back to '?' for older players. "
+              "Run scripts/fetch_sleeper.sh.", file=sys.stderr)
+    else:
+        # Pick the picks file from the most-recent season by reading league.json.
+        # Lexicographic ordering on league_id is coincidentally correct today
+        # but breaks the moment a league is re-keyed.
+        def _season_for(picks_path: str) -> int:
+            league_path = Path(picks_path).parent / "league.json"
+            try:
+                return int(json.loads(league_path.read_text()).get("season") or 0)
+            except (FileNotFoundError, ValueError):
+                return 0
+        latest = max(pick_files, key=_season_for)
+        with open(latest) as f:
+            picks.extend(json.load(f))
 
-    proj = json.load(open(PROJ_2026))
+    if not PROJ_2026.exists():
+        sys.exit(f"ERROR: {PROJ_2026.relative_to(ROOT)} missing -- run "
+                 f"scripts/fetch_sleeper.sh to regenerate it.")
+    with open(PROJ_2026) as f:
+        proj = json.load(f)
     for r in proj:
         p = r.get("player") or {}
         fn, ln, pos = p.get("first_name"), p.get("last_name"), p.get("position")
@@ -111,6 +133,13 @@ def _forced_drops_2026(dropoff: dict) -> list[dict]:
 
 
 def main() -> None:
+    if not XLSX.exists():
+        sys.exit(f"ERROR: {XLSX.relative_to(ROOT)} missing -- this is the "
+                 f"source of truth for keeper history.")
+    if not KEEPERS_2026.exists():
+        sys.exit(f"ERROR: {KEEPERS_2026.relative_to(ROOT)} missing -- run "
+                 f"scripts/build_2026_keepers.py first.")
+
     pos_picks = _position_lookup()
     retention = keeper_retention_by_position(XLSX, pos_picks)
     dropoff_raw = post_cap_dropoff(XLSX, pos_picks)
