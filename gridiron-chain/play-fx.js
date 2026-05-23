@@ -24,6 +24,104 @@ const GCFx = (() => {
   let shakeAmp   = 0;
   let shakeTarget = null;
 
+  // ── PIXI WebGL renderer (Phase 1) ─────────────────────────────────────
+  // When PIXI is available we render particles via WebGL Graphics + a
+  // BlurFilter "bloom-lite" pass. Particle data + update logic stay in
+  // canvas2D so the caller API is unchanged; only the draw step swaps.
+  // PIXI canvas gets attached as a child of the field-wrap once and
+  // re-attached on wrap rebuilds (renderGameLayout reassembles innerHTML).
+  let _pxApp = null;            // PIXI.Application
+  let _pxParticles = null;      // PIXI.Container holding particle Graphics
+  let _pxPool = [];             // recycled Graphics instances
+  let _pxAttachedTo = null;     // wrap element we attached to (for invalidation)
+  function _pixiAvailable() {
+    return typeof PIXI !== "undefined" && typeof PIXI.Application === "function";
+  }
+  function _ensurePixiOverlay() {
+    if (!_pixiAvailable()) return false;
+    const wrap = document.querySelector(".bspnlive-field-wrap.broadcast-cam")
+              || document.querySelector(".bspnlive-field-wrap")
+              || document.querySelector(".field-wrap");
+    if (!wrap) return false;
+    // Wrap was rebuilt — our canvas got detached. Destroy and recreate.
+    if (_pxApp && _pxAttachedTo !== wrap) {
+      try { _pxApp.destroy(true, { children: true, texture: true }); } catch (_) {}
+      _pxApp = null; _pxParticles = null; _pxPool.length = 0;
+    }
+    if (_pxApp) return true;
+    try {
+      _pxApp = new PIXI.Application({
+        width: 1700, height: 720,
+        backgroundAlpha: 0,
+        antialias: true,
+        autoStart: false,            // we drive renders from the game tick
+      });
+      const view = _pxApp.view;
+      view.className = "gc-pixi-fx";
+      view.style.cssText =
+        "position:absolute;inset:0;width:100%;height:100%;" +
+        "pointer-events:none;z-index:4;";
+      wrap.appendChild(view);
+      _pxAttachedTo = wrap;
+      _pxParticles = new PIXI.Container();
+      // "Bloom-lite": a soft blur on the particle container gives a
+      // glow halo that ties the FX to the LED ribbon / stadium lights.
+      const blur = new PIXI.BlurFilter();
+      blur.blur = 2.2;
+      blur.quality = 3;
+      _pxParticles.filters = [blur];
+      // Additive blend so chips on top of bright field areas still pop.
+      _pxParticles.blendMode = PIXI.BLEND_MODES.NORMAL;
+      _pxApp.stage.addChild(_pxParticles);
+      return true;
+    } catch (e) {
+      console.warn("PIXI FX init failed, falling back to canvas2D:", e);
+      _pxApp = null;
+      return false;
+    }
+  }
+  function _hexFromRgba(rgbaPrefix) {
+    // "rgba(255,180,80,"  →  0xFFB450
+    const m = /rgba\((\d+),(\d+),(\d+),/.exec(rgbaPrefix);
+    if (!m) return 0xffffff;
+    return (parseInt(m[1]) << 16) | (parseInt(m[2]) << 8) | parseInt(m[3]);
+  }
+  function _drawPixi() {
+    if (!_ensurePixiOverlay()) return false;
+    // Pool: reuse Graphics across frames; index into _pxPool.
+    let i = 0;
+    for (const p of particles) {
+      const alpha = Math.max(0, 1 - p.life / p.ttl);
+      let g = _pxPool[i];
+      if (!g) {
+        g = new PIXI.Graphics();
+        _pxPool[i] = g;
+        _pxParticles.addChild(g);
+      }
+      g.visible = true;
+      g.clear();
+      const tint = _hexFromRgba(p.col);
+      if (p.type === "confetti" && p.rot != null) {
+        g.beginFill(tint, alpha);
+        g.drawRect(-p.r, -p.r * 0.35, p.r * 2, p.r * 0.7);
+        g.endFill();
+        g.position.set(p.x, p.y);
+        g.rotation = p.rot;
+      } else {
+        g.beginFill(tint, alpha);
+        g.drawCircle(0, 0, Math.max(0.5, p.r));
+        g.endFill();
+        g.position.set(p.x, p.y);
+        g.rotation = 0;
+      }
+      i++;
+    }
+    // Hide any extra pooled Graphics from a previous (larger) frame.
+    for (; i < _pxPool.length; i++) _pxPool[i].visible = false;
+    _pxApp.renderer.render(_pxApp.stage);
+    return true;
+  }
+
   function _push(p) {
     if (particles.length >= MAX) return;
     particles.push(p);
@@ -143,6 +241,9 @@ const GCFx = (() => {
   }
 
   function draw(ctx) {
+    // Prefer PIXI WebGL rendering with bloom; transparent fallback to
+    // canvas2D if PIXI failed to init or isn't attached yet.
+    if (_drawPixi()) return;
     if (!particles.length) return;
     ctx.save();
     for (const p of particles) {
