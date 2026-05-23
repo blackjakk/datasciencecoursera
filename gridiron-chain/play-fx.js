@@ -34,6 +34,8 @@ const GCFx = (() => {
   let _pxParticles = null;      // PIXI.Container holding particle Graphics
   let _pxPool = [];             // recycled Graphics instances
   let _pxAttachedTo = null;     // wrap element we attached to (for invalidation)
+  let _pxVignetteSprite = null; // PIXI.Sprite displaying a pre-rendered vignette texture
+  let _pxLightBeams = null;     // PIXI.Container holding animated stadium-light rays
   function _pixiAvailable() {
     return typeof PIXI !== "undefined" && typeof PIXI.Application === "function";
   }
@@ -64,11 +66,79 @@ const GCFx = (() => {
         "pointer-events:none;z-index:4;";
       wrap.appendChild(view);
       _pxAttachedTo = wrap;
+      // ── Vignette layer (drawn FIRST — bottom of z-stack). Pre-render
+      // to a RenderTexture once, then display as a Sprite. This bypasses
+      // the per-frame Graphics path that produced the gray-composite
+      // artifact on software WebGL in Phase 1.5.
+      try {
+        const vignTex = PIXI.RenderTexture.create({ width: 1700, height: 720 });
+        const vignG = new PIXI.Graphics();
+        // Build a proper radial vignette: draw a dark full-canvas rect,
+        // then "punch" a transparent center via PIXI BLEND_MODES.ERASE on
+        // overlapping bright ellipses. Net result: dark at the corners,
+        // clear in the center. RenderTexture caches the result so the
+        // per-frame cost is just blitting one Sprite.
+        const W = 1700, H = 720, cx = W / 2, cy = H * 0.58;
+        vignG.beginFill(0x000000, 0.5);
+        vignG.drawRect(0, 0, W, H);
+        vignG.endFill();
+        // Subtractive bright ellipses — clear the center.
+        vignG.blendMode = PIXI.BLEND_MODES.ERASE;
+        const layers = 10;
+        for (let i = 0; i < layers; i++) {
+          const t = (layers - i) / layers;     // 1 → 1/layers
+          const rx = (0.30 + 0.50 * t) * W;
+          const ry = (0.34 + 0.55 * t) * H;
+          const a = 0.12 * t;
+          vignG.beginFill(0xffffff, a);
+          vignG.drawEllipse(cx, cy, rx, ry);
+          vignG.endFill();
+        }
+        _pxApp.renderer.render(vignG, { renderTexture: vignTex });
+        vignG.destroy();
+        _pxVignetteSprite = new PIXI.Sprite(vignTex);
+        _pxApp.stage.addChild(_pxVignetteSprite);
+      } catch (e) {
+        console.warn("PIXI vignette failed:", e);
+      }
+      // ── Stadium light beams (drawn second). Soft additive sprites at
+      // the existing CSS stadium-light positions, gently pulsing. New
+      // effect that wasn't easily doable in canvas2D.
+      try {
+        _pxLightBeams = new PIXI.Container();
+        _pxLightBeams.blendMode = PIXI.BLEND_MODES.ADD;
+        const beamTex = PIXI.RenderTexture.create({ width: 180, height: 720 });
+        const beamG = new PIXI.Graphics();
+        // Soft conical beam — bright at top, fading to transparent.
+        for (let i = 0; i < 22; i++) {
+          const t = i / 21;
+          const halfW = 14 + t * 70;
+          const yTop = t * 720 * 0.6;
+          const a = (1 - t) * 0.06;
+          beamG.beginFill(0xfff0c8, a);
+          beamG.drawRect(90 - halfW, yTop, halfW * 2, 12);
+          beamG.endFill();
+        }
+        _pxApp.renderer.render(beamG, { renderTexture: beamTex });
+        beamG.destroy();
+        const beamPositions = [0.10, 0.32, 0.50, 0.68, 0.90];
+        for (const px of beamPositions) {
+          const s = new PIXI.Sprite(beamTex);
+          s.anchor.set(0.5, 0);
+          s.position.set(px * 1700, 8);
+          s.alpha = 0.55;
+          _pxLightBeams.addChild(s);
+        }
+        _pxApp.stage.addChild(_pxLightBeams);
+      } catch (e) {
+        console.warn("PIXI light beams failed:", e);
+        _pxLightBeams = null;
+      }
       // ── Particle layer with bloom-lite blur ──
       _pxParticles = new PIXI.Container();
       const blur = new PIXI.BlurFilter();
       blur.blur = 2.4;
-      blur.quality = 2;            // 2 passes — visible bloom, cheap GPU cost
+      blur.quality = 2;
       _pxParticles.filters = [blur];
       _pxApp.stage.addChild(_pxParticles);
       return true;
@@ -121,6 +191,17 @@ const GCFx = (() => {
     }
     // Hide any extra pooled Graphics from a previous (larger) frame.
     for (; i < _pxPool.length; i++) _pxPool[i].visible = false;
+    // Stadium light beams — slow per-beam pulse so the lighting feels
+    // alive instead of static. Phase offset per beam keeps them out of
+    // sync.
+    if (_pxLightBeams) {
+      const now = performance.now() / 1000;
+      const beams = _pxLightBeams.children;
+      for (let bi = 0; bi < beams.length; bi++) {
+        const pulse = 0.4 + 0.18 * Math.sin(now * 0.6 + bi * 1.7);
+        beams[bi].alpha = pulse;
+      }
+    }
     _pxApp.renderer.render(_pxApp.stage);
     return true;
   }
