@@ -3742,6 +3742,11 @@
   .bspnlive-field-wrap.broadcast-cam .field-hud {
     z-index: 4;
   }
+  /* Push the field-status text past the LIVE pill in broadcast cam */
+  .bspnlive-field-wrap.broadcast-cam .bspnlive-field-overlay {
+    top: .9rem;
+    padding-left: 8.5rem;
+  }
 
   /* Camera toggle in the field HUD */
   .hud-cam-toggle {

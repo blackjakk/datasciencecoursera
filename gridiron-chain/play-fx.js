@@ -245,26 +245,31 @@ const GCFx = (() => {
         console.warn("PIXI scanlines failed:", e);
         _pxScanlines = null;
       }
-      // ── LIVE broadcast indicator — red blinking dot + "LIVE" text in
-      // the upper-left of the field-wrap. Always visible during gameplay,
-      // hidden during replay (the INSTANT REPLAY badge takes its place).
+      // ── LIVE broadcast indicator — red blinking dot + "LIVE" text in a
+      // translucent backplate pill in the upper-left of the field-wrap.
+      // Always visible during gameplay, hidden during replay (the INSTANT
+      // REPLAY badge takes its place).
       try {
         _pxLiveBadge = new PIXI.Container();
-        _pxLiveBadge.position.set(28, 24);
+        _pxLiveBadge.position.set(36, 36);
+        const plate = new PIXI.Graphics();
+        plate.beginFill(0x000000, 0.55);
+        plate.lineStyle(1.5, 0xff3030, 0.7);
+        plate.drawRoundedRect(0, 0, 108, 38, 6);
+        plate.endFill();
+        _pxLiveBadge.addChild(plate);
         _pxLiveDot = new PIXI.Graphics();
         _pxLiveDot.beginFill(0xff3030, 1);
-        _pxLiveDot.drawCircle(14, 22, 11);
+        _pxLiveDot.drawCircle(16, 19, 7);
         _pxLiveDot.endFill();
         _pxLiveBadge.addChild(_pxLiveDot);
         const liveText = new PIXI.Text("LIVE", {
           fontFamily: "Impact, Arial Black, sans-serif",
-          fontSize: 36,
+          fontSize: 24,
           fill: 0xffffff,
-          stroke: 0x000000,
-          strokeThickness: 5,
           letterSpacing: 2,
         });
-        liveText.position.set(34, 4);
+        liveText.position.set(34, 7);
         _pxLiveBadge.addChild(liveText);
         _pxApp.stage.addChild(_pxLiveBadge);
       } catch (e) {

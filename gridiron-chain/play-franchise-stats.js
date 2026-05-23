@@ -3976,10 +3976,10 @@ function _bsCompRow(label, aVal, hVal, awayColor, homeColor, fmt) {
 
 function _bspnAbbr(team) {
   if (!team) return "TBD";
-  const c = (team.city || "").trim();
   const n = (team.name || "").trim();
-  if (c && n) return (c[0] + n.slice(0, 2)).toUpperCase();
-  return (n || "TBD").slice(0, 3).toUpperCase();
+  if (n) return n.slice(0, 3).toUpperCase();
+  const c = (team.city || "").trim();
+  return (c || "TBD").slice(0, 3).toUpperCase();
 }
 function _bspnEsc(s) {
   return String(s ?? "")

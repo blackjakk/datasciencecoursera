@@ -25,10 +25,10 @@
 
 function _bspnLiveAbbr(team) {
   if (!team) return "TBD";
-  const c = (team.city || "").trim();
   const n = (team.name || "").trim();
-  if (c && n) return (c[0] + n.slice(0, 2)).toUpperCase();
-  return (n || "TBD").slice(0, 3).toUpperCase();
+  if (n) return n.slice(0, 3).toUpperCase();
+  const c = (team.city || "").trim();
+  return (c || "TBD").slice(0, 3).toUpperCase();
 }
 function _bspnLiveQuarterLabel(q) {
   if (q == null) return "—";
@@ -706,7 +706,6 @@ const AsciiFieldViewer = {
   // owns the surrounding chrome + play caption.
   render(state) {
     return `<main class="bspnlive-center">
-      <div class="bspnlive-field-title">WATCH LIVE</div>
       <div class="bspnlive-field-wrap field-wrap">
         <canvas id="field-pixi" width="${FIELD.W}" height="${FIELD.H}"
           style="position:absolute;inset:0;width:100%;height:auto;pointer-events:none"></canvas>
