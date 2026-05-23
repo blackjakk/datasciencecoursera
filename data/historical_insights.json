@@ -1,0 +1,256 @@
+{
+  "generated_at": "2026-05-23T22:41:09+00:00",
+  "source": "data/historical/MONEY_LEAGUE.xlsx",
+  "retention_by_position": {
+    "QB": {
+      "yr1_count": 25,
+      "yr1_to_yr2_pct": 36.0,
+      "yr2_count": 12,
+      "yr2_to_yr3_pct": 33.333333333333336,
+      "hit_cap_count": 5
+    },
+    "RB": {
+      "yr1_count": 42,
+      "yr1_to_yr2_pct": 19.047619047619047,
+      "yr2_count": 18,
+      "yr2_to_yr3_pct": 16.666666666666668,
+      "hit_cap_count": 7
+    },
+    "WR": {
+      "yr1_count": 52,
+      "yr1_to_yr2_pct": 25.0,
+      "yr2_count": 27,
+      "yr2_to_yr3_pct": 25.925925925925927,
+      "hit_cap_count": 12
+    },
+    "TE": {
+      "yr1_count": 18,
+      "yr1_to_yr2_pct": 27.77777777777778,
+      "yr2_count": 5,
+      "yr2_to_yr3_pct": 0.0,
+      "hit_cap_count": 2
+    }
+  },
+  "post_cap_dropoff": {
+    "total_capped": 29,
+    "fates": {
+      "undrafted_next_year": 8,
+      "redrafted_later": 7,
+      "redrafted_earlier": 14
+    },
+    "earlier_round_distribution": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      2,
+      2,
+      2,
+      2,
+      3,
+      3,
+      3,
+      5,
+      6
+    ],
+    "examples_redrafted_earlier": [
+      {
+        "year": 2024,
+        "player": "Amon-Ra St. Brown",
+        "position": "WR",
+        "kept_round": 11,
+        "next_year_round": 2
+      },
+      {
+        "year": 2022,
+        "player": "A.J. Brown",
+        "position": "WR",
+        "kept_round": 11,
+        "next_year_round": 2
+      },
+      {
+        "year": 2022,
+        "player": "Mark Andrews",
+        "position": "TE",
+        "kept_round": 11,
+        "next_year_round": 3
+      },
+      {
+        "year": 2021,
+        "player": "Nick Chubb",
+        "position": "RB",
+        "kept_round": 8,
+        "next_year_round": 3
+      },
+      {
+        "year": 2021,
+        "player": "George Kittle",
+        "position": "TE",
+        "kept_round": 8,
+        "next_year_round": 5
+      },
+      {
+        "year": 2019,
+        "player": "Michael Thomas",
+        "position": "WR",
+        "kept_round": 6,
+        "next_year_round": 1
+      },
+      {
+        "year": 2019,
+        "player": "Davante Adams",
+        "position": "WR",
+        "kept_round": 12,
+        "next_year_round": 1
+      },
+      {
+        "year": 2019,
+        "player": "Tyreek Hill",
+        "position": "WR",
+        "kept_round": 13,
+        "next_year_round": 1
+      },
+      {
+        "year": 2018,
+        "player": "David Johnson",
+        "position": "RB",
+        "kept_round": 7,
+        "next_year_round": 1
+      },
+      {
+        "year": 2018,
+        "player": "Devonta Freeman",
+        "position": "RB",
+        "kept_round": 7,
+        "next_year_round": 2
+      },
+      {
+        "year": 2017,
+        "player": "Deandre Hopkins",
+        "position": "WR",
+        "kept_round": 4,
+        "next_year_round": 1
+      },
+      {
+        "year": 2017,
+        "player": "Odell Beckham Jr",
+        "position": "WR",
+        "kept_round": 11,
+        "next_year_round": 2
+      },
+      {
+        "year": 2017,
+        "player": "Jarvis Landry",
+        "position": "WR",
+        "kept_round": 12,
+        "next_year_round": 6
+      },
+      {
+        "year": 2016,
+        "player": "Alshon Jeffery",
+        "position": "WR",
+        "kept_round": 8,
+        "next_year_round": 3
+      }
+    ]
+  },
+  "forced_drops_2026": [
+    {
+      "player": "Geno Smith",
+      "position": "QB",
+      "prior_round": 11,
+      "historical_redraft_earlier_pct": 48.3,
+      "historical_undrafted_pct": 27.6,
+      "median_earlier_round": 2
+    },
+    {
+      "player": "Brock Purdy",
+      "position": "QB",
+      "prior_round": 11,
+      "historical_redraft_earlier_pct": 48.3,
+      "historical_undrafted_pct": 27.6,
+      "median_earlier_round": 2
+    },
+    {
+      "player": "Jordan Love",
+      "position": "QB",
+      "prior_round": 11,
+      "historical_redraft_earlier_pct": 48.3,
+      "historical_undrafted_pct": 27.6,
+      "median_earlier_round": 2
+    }
+  ],
+  "team_tendencies_by_col": {
+    "9": {
+      "total_keepers_all_years": 30,
+      "avg_keepers_per_year": 3.33,
+      "avg_keeper_round": 10.3
+    },
+    "13": {
+      "total_keepers_all_years": 22,
+      "avg_keepers_per_year": 3.14,
+      "avg_keeper_round": 10.3
+    },
+    "2": {
+      "total_keepers_all_years": 15,
+      "avg_keepers_per_year": 3.0,
+      "avg_keeper_round": 9.7
+    },
+    "8": {
+      "total_keepers_all_years": 24,
+      "avg_keepers_per_year": 2.67,
+      "avg_keeper_round": 12.4
+    },
+    "11": {
+      "total_keepers_all_years": 26,
+      "avg_keepers_per_year": 3.25,
+      "avg_keeper_round": 10.9
+    },
+    "12": {
+      "total_keepers_all_years": 24,
+      "avg_keepers_per_year": 3.0,
+      "avg_keeper_round": 9.8
+    },
+    "5": {
+      "total_keepers_all_years": 23,
+      "avg_keepers_per_year": 2.88,
+      "avg_keeper_round": 10.0
+    },
+    "4": {
+      "total_keepers_all_years": 19,
+      "avg_keepers_per_year": 2.71,
+      "avg_keeper_round": 11.5
+    },
+    "7": {
+      "total_keepers_all_years": 23,
+      "avg_keepers_per_year": 2.56,
+      "avg_keeper_round": 11.7
+    },
+    "6": {
+      "total_keepers_all_years": 30,
+      "avg_keepers_per_year": 3.0,
+      "avg_keeper_round": 11.6
+    },
+    "3": {
+      "total_keepers_all_years": 13,
+      "avg_keepers_per_year": 2.17,
+      "avg_keeper_round": 10.3
+    },
+    "10": {
+      "total_keepers_all_years": 17,
+      "avg_keepers_per_year": 2.43,
+      "avg_keeper_round": 11.1
+    },
+    "14": {
+      "total_keepers_all_years": 9,
+      "avg_keepers_per_year": 3.0,
+      "avg_keeper_round": 10.2
+    },
+    "15": {
+      "total_keepers_all_years": 3,
+      "avg_keepers_per_year": 3.0,
+      "avg_keeper_round": 13.0
+    }
+  }
+}
