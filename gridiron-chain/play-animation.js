@@ -5722,8 +5722,17 @@ function startNextPlay() {
       GCFx.confetti(FIELD.W * 0.18,   FIELD.TOP + 40, teamColor, 18);
       GCFx.confetti(FIELD.W * 0.82,   FIELD.TOP + 40, teamColor, 18);
       GCFx.flash(teamColor, 320, 0.22);
-      GCFx.lensFlare(700);            // bright lens flare burst at midfield
-      GCFx.celebration(1400);         // brief slow-zoom cinematic
+      GCFx.lensFlare(700);
+      GCFx.celebration(1400);
+      // Big celebration text — context-aware banner.
+      const isFG = _kind === "fg_good";
+      const isXP = _kind === "xp_good";
+      const is2P = _kind === "two_pt_good";
+      const banner = isFG ? "FIELD GOAL!"
+                   : isXP ? "EXTRA POINT"
+                   : is2P ? "TWO-POINT CONVERSION!"
+                   : "TOUCHDOWN!";
+      GCFx.bigText(banner, teamColor, 1700);
     }
   }
   // Clear the big-hit cinematic when the play isn't one

@@ -50,6 +50,9 @@ const GCFx = (() => {
   let _pxReplayBadge = null;    // PIXI.Text "INSTANT REPLAY" badge (replay)
   let _pxLiveBadge = null;      // PIXI.Container LIVE indicator (always-on)
   let _pxLiveDot   = null;      // PIXI.Graphics blinking red dot
+  let _pxBigText   = null;      // PIXI.Text big celebration text ("TOUCHDOWN!" etc.)
+  let _bigTextStart = 0;
+  let _bigTextDur   = 0;
   function _pixiAvailable() {
     return typeof PIXI !== "undefined" && typeof PIXI.Application === "function";
   }
@@ -338,6 +341,31 @@ const GCFx = (() => {
         console.warn("PIXI replay badge failed:", e);
         _pxReplayBadge = null;
       }
+      // ── Big celebration text — drawn near the top so the TOUCHDOWN!
+      // banner reads above the field action. Scale and alpha animated
+      // per-fire via GCFx.bigText(text, color, durMs).
+      try {
+        _pxBigText = new PIXI.Text("", {
+          fontFamily: "Impact, Arial Black, sans-serif",
+          fontSize: 110,
+          fill: 0xffffff,
+          stroke: 0x000000,
+          strokeThickness: 9,
+          letterSpacing: 6,
+          dropShadow: true,
+          dropShadowAlpha: 0.85,
+          dropShadowBlur: 6,
+          dropShadowAngle: Math.PI / 2,
+          dropShadowDistance: 8,
+        });
+        _pxBigText.anchor.set(0.5);
+        _pxBigText.position.set(850, 220);
+        _pxBigText.alpha = 0;
+        _pxApp.stage.addChild(_pxBigText);
+      } catch (e) {
+        console.warn("PIXI big text failed:", e);
+        _pxBigText = null;
+      }
       // ── Flash layer on top — full-screen Sprite with PIXI.Texture.WHITE
       // tinted to the flash color. Sprite-tinting bypasses the Graphics
       // path that produced the gray-composite issue in Phase 1.5.
@@ -529,6 +557,40 @@ const GCFx = (() => {
         _pxReplayBadge.alpha = 0;
       }
     }
+    // Big celebration text — pops in fast, holds, fades out. Slight
+    // overshoot scale on the pop for a "banner slam-in" feel.
+    if (_pxBigText && _bigTextDur) {
+      const elapsed = performance.now() - _bigTextStart;
+      if (elapsed >= _bigTextDur) {
+        _pxBigText.alpha = 0;
+        _bigTextDur = 0;
+      } else {
+        const k = elapsed / _bigTextDur;
+        let env, scale;
+        if (k < 0.10) {
+          // Pop-in with overshoot
+          const p = k / 0.10;
+          env = p;
+          scale = 1.18 - 0.18 * (1 - p);
+        } else if (k < 0.18) {
+          // Settle from overshoot
+          const p = (k - 0.10) / 0.08;
+          env = 1;
+          scale = 1.18 - 0.18 * p;
+        } else if (k < 0.72) {
+          // Hold
+          env = 1;
+          scale = 1.0;
+        } else {
+          // Fade out
+          const p = (k - 0.72) / 0.28;
+          env = 1 - p;
+          scale = 1.0 + 0.05 * p;
+        }
+        _pxBigText.alpha = env;
+        _pxBigText.scale.set(scale);
+      }
+    }
     // LIVE badge — hidden during replay (replaced by INSTANT REPLAY).
     // Otherwise the red dot blinks every ~1.4s like a real LIVE feed.
     if (_pxLiveBadge && _pxLiveDot) {
@@ -640,6 +702,17 @@ const GCFx = (() => {
   // like a real broadcast TD celebration.
   let celebrationStart = 0;
   let celebrationDur   = 0;
+  function bigText(text, color, durMs) {
+    if (!_pxBigText) return;
+    _pxBigText.text = String(text || "").toUpperCase();
+    if (color != null) {
+      _pxBigText.style.fill = (typeof color === "string") ? _hexFromCss(color) : color;
+    } else {
+      _pxBigText.style.fill = 0xffffff;
+    }
+    _bigTextStart = performance.now();
+    _bigTextDur   = durMs || 1600;
+  }
   function lensFlare(durMs, x, y) {
     _flareStart = performance.now();
     _flareDur   = durMs || 700;
@@ -747,5 +820,5 @@ const GCFx = (() => {
 
   function clear() { particles.length = 0; }
 
-  return { dust, hitBurst, confetti, shake, flash, celebration, lensFlare, tick, draw, clear };
+  return { dust, hitBurst, confetti, shake, flash, celebration, lensFlare, bigText, tick, draw, clear };
 })();
