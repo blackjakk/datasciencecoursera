@@ -5666,7 +5666,16 @@ function startNextPlay() {
     updateButtons();
     const pb = document.getElementById("hudScrubPlay");
     if (pb) pb.textContent = "▶";
-    if (typeof GCAudio !== "undefined") GCAudio.crowd.stop();
+    if (typeof GCAudio !== "undefined") {
+      GCAudio.play("whistle");                // final whistle
+      setTimeout(() => GCAudio.play("cheer"), 220);
+      // Fade ambient crowd a moment later (after the final cheer settles)
+      setTimeout(() => GCAudio.crowd.stop(), 1800);
+    }
+    if (typeof GCFx !== "undefined") {
+      GCFx.bigText("FINAL", 0xf5c542, 3200);
+      GCFx.lensFlare(1100, 850, 360);
+    }
     return;
   }
   const play = gameResult.plays[playHead];
@@ -5698,7 +5707,18 @@ function startNextPlay() {
       // get both the impact and the reaction.
       if (_kind === "fumble" || _kind === "sack") GCAudio.play("bigplay");
     }
-    else if (_isSeg) GCAudio.play("whistle");
+    else if (_isSeg) {
+      GCAudio.play("whistle");
+      if (typeof GCFx !== "undefined") {
+        const seg = _kind === "halftime"        ? "HALFTIME"
+                  : _kind === "two_min_warning" ? "TWO-MINUTE WARNING"
+                  : _kind === "ot"              ? "OVERTIME"
+                  : _kind === "quarter"
+                      ? `END OF Q${(play.quarter || 1) - 1 || 4}`
+                      : "QUARTER BREAK";
+        GCFx.bigText(seg, 0xf5c542, 2200);
+      }
+    }
     else if (_isGroan) GCAudio.play("groan");
     else if (_isBigPlay) GCAudio.play("bigplay");
     else if (_kind !== "hc_decision") GCAudio.play("snap");

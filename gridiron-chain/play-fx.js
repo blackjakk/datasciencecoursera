@@ -489,19 +489,29 @@ const GCFx = (() => {
     }
     // Animated LED ad ribbon — each panel scrolls through a palette of
     // warm amber / cyan / white at staggered phases so the ribbon reads
-    // as a moving message board rather than a static stripe. Sprite tint
-    // baked via per-panel clear+redraw (PIXI 7 software-WebGL doesn't
-    // honor Sprite.tint reliably for solid-colored Graphics).
+    // as a moving message board rather than a static stripe. Every ~5
+    // seconds the WHOLE ribbon flashes a rotating broadcast slogan.
     if (_pxLedContainer) {
       const t = performance.now() * 0.0015;
       const palette = [0xffb450, 0x50c8ff, 0xf0f0f0, 0xffb450, 0x80e0c0];
       const panels = _pxLedContainer.children;
+      // Slogan flash — once every ~5s, the whole ribbon goes solid amber
+      // for ~700ms to suggest a sponsor message scrolling past.
+      const sloganPhase = (performance.now() % 5000) / 5000;
+      const inSlogan = sloganPhase < 0.14;
       for (let pi = 0; pi < panels.length; pi++) {
-        const idx = Math.floor((t + pi * 0.18)) % palette.length;
-        const col = palette[(idx + palette.length) % palette.length];
         const g = panels[pi];
         g.clear();
-        g.beginFill(col, 0.85);
+        let col;
+        if (inSlogan) {
+          // Uniform amber wave with a brighter "scan" sweep through it.
+          const scan = (pi / panels.length - sloganPhase * 8) % 1;
+          col = (scan > 0 && scan < 0.18) ? 0xffffff : 0xff9028;
+        } else {
+          const idx = Math.floor((t + pi * 0.18)) % palette.length;
+          col = palette[(idx + palette.length) % palette.length];
+        }
+        g.beginFill(col, 0.88);
         g.drawRect(0, 0, 38, 13);
         g.endFill();
         // Dark divider strip on the right edge of each panel.
