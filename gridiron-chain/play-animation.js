@@ -5358,13 +5358,28 @@ function roundedRect(ctx, x, y, w, h, r) {
 // ═══════════════════════════════════════════════════════════════════════════
 let viewMode = "tactical"; // 'tactical' | 'cinema'
 
-// Broadcast camera — tilts the field via CSS perspective + rotateX. Player
-// sprites stay upright in their canvas drawing (which gets tilted with
-// the field for now — proper billboarding lands in a follow-up commit).
-// Persists across renders via the .broadcast-cam class on field-wrap.
+// Broadcast camera — field canvas gets CSS perspective + rotateX; a
+// parallel upright overlay canvas (#field-uprights) draws player sprites
+// at projected positions so they stay billboarded (upright) rather than
+// foreshortened with the field plane.
 let cameraMode = "topdown"; // 'topdown' | 'broadcast'
+let _uprightCtx = null;      // set per frame by _frameStartBroadcast()
 const BROADCAST_TILT_DEG = 38;
 const BROADCAST_PERSPECTIVE_PX = 1100;
+
+// Called by the tick loop before each render(). Clears the upright
+// overlay canvas and sets _uprightCtx so drawPlayer/drawBall route
+// there in broadcast mode.
+function _frameStartBroadcast() {
+  if (cameraMode !== "broadcast") {
+    _uprightCtx = null;
+    return;
+  }
+  const upr = document.getElementById("field-uprights");
+  if (!upr) { _uprightCtx = null; return; }
+  _uprightCtx = upr.getContext("2d");
+  _uprightCtx.clearRect(0, 0, upr.width, upr.height);
+}
 
 function setCameraMode(mode) {
   cameraMode = (mode === "broadcast") ? "broadcast" : "topdown";
@@ -5632,6 +5647,7 @@ function tick(now) {
   const elapsed = now - animState.startTime;
   const t = Math.min(1, elapsed / animState.duration);
   const ctx = $("field").getContext("2d");
+  _frameStartBroadcast();
   try {
     animState.anim.render(t, ctx);
   } catch (e) {
