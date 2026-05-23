@@ -262,7 +262,27 @@ The user picked Tier 3 ("Full engine rebuild") — migrate the canvas2D renderer
 - Initial vignette + flash attempts on `PIXI.Graphics` produced uniform gray on the headless software-WebGL renderer. Fixed by switching to the `RenderTexture + Sprite` pattern for static elements (vignette, haze, noise) and `Graphics → RenderTexture → swap-Sprite-texture` for dynamic-color elements (flash). PIXI 7 `Sprite.tint` was unreliable on SwiftShader; baking color into a fresh texture per fire works.
 - Shipped: vignette (`32b0ee4`), light beams (`32b0ee4`), flash (`4e6be68`), atmospheric haze (`33684e4`), TD celebration cinematic (`81e07f4`), replay film grain (`4472bb3`).
 
-**Phase 2 — Element ports** (extensive overlay work shipped):
+**Phase 2A — Static field migration to tilted PIXI canvas** (DONE):
+- `d9979d5` Phase 2A.1: Stood up #field-pixi as a sibling of #field, both tilted via the same CSS rotateX(38°)/scaleY transform. PIXI Application attached with autoStart:false + preserveDrawingBuffer:true. Grass + mowing bands rendered into a Container, cached per (homeId|awayId). Canvas2D drawField skips the same elements when GCField.active().
+- `863013a` Phase 2A.2: End zones (team-color Graphics) + KRAKEN/TITANS PIXI.Text rotated -90°/+90° with scale.x stretching the natural reading direction.
+- `7e02b33` Phase 2A.3: Sidelines, yard lines (every 5/10), yard numbers, hash marks, sideline ticks.
+- `64a6551` killed four compounding dimming sources (PIXI vignette + PIXI haze + canvas2D radial vignette + CSS contrast) — field reads vibrant green now.
+
+**Phase 2B — Remaining field elements** (DONE):
+- `634a36a` Phase 2B.1: Midfield team-initial logo (gold ring + initial PIXI.Text) + goal line indicators.
+- `f2e177d` Phase 2B.2: Per-frame LOS + first-down line on a separate _dynG Graphics. GCField.drawDynamic(state) is called by drawField each frame.
+- `ec749a1` LOS/FD glow halo — wider blurred lines on _dynGlow Graphics with BlurFilter, broadcast first-down-line styling.
+- `f7c55f3` Red-zone goal-line pulse — when LOS is within 20 yards of a goal line, that goal line pulses warm orange.
+
+Weather particles are still canvas2D. Phase 2C would port them to a PIXI ParticleContainer; works fine as-is so deferred.
+
+**Phase 3 — Player + ball migration** (NOT STARTED, multi-session):
+- The big remaining work. ~1000 lines of `_drawPlayerImpl` in play-render.js + drawBall + ball trail.
+- Players need depth sorting in broadcast cam (PIXI z-index sort replacing _spriteQueue).
+- Ball + player must move together — depth-sorted in the same container.
+- Recommended approach: dedicated PIXI Container per player (Graphics for body parts + Sprite/Text for jersey number + name). Pose update mutates child transforms.
+
+**Phase 2 — Element ports** (extensive overlay work shipped earlier this session):
 - LED ad ribbon (`6e6e098`): CSS background → PIXI Graphics panels with cycling color palette + BlurFilter glow.
 - LED ribbon "slogan flash" mode (`62d0133`): every ~5s the ribbon switches from color-cycling to solid amber with a bright scan sweep.
 - TOUCHDOWN/FIELD GOAL/EXTRA POINT/2-PT banner (`b23c88a`): PIXI.Text with overshoot scale + drop shadow.
