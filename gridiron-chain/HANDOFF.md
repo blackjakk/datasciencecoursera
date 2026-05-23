@@ -258,10 +258,23 @@ The user picked Tier 3 ("Full engine rebuild") — migrate the canvas2D renderer
 - `preserveDrawingBuffer: true` so Playwright headless screenshots capture WebGL output.
 - Canvas2D fallback intact — `_drawPixi` returns false on init failure.
 
-**Phase 1.5 — Stage layers** (deferred, attempted in session but backed out):
-- Vignette overlay (radial darkening via concentric alpha ellipses on a PIXI.Graphics) and event flash (full-canvas tint that fires on TD / big_hit) — both implemented but produced a uniform gray on the headless software-WebGL renderer in CI / Playwright. The Graphics objects rendered, the `_updateFlash` callback fired with correct alpha values, but the composite output was wrong (likely an issue with how the BlurFilter on the sibling particle container interacts with the SwiftShader path).
-- **Next session**: debug in a real Chrome instance instead of headless. If the flash composites correctly with hardware WebGL, restore the code. Alternative path: use `PIXI.Sprite` with a tinted `PIXI.Texture.WHITE` instead of `PIXI.Graphics` for the flash (sprite tinting bypasses any Graphics-renderer quirks).
-- Reserved API: `GCFx.flash(color, durMs, peak)` is exposed as a no-op so future event hooks can be written against it now.
+**Phase 1.5 — Stage layers** (resolved + extended):
+- Initial vignette + flash attempts on `PIXI.Graphics` produced uniform gray on the headless software-WebGL renderer. Fixed by switching to the `RenderTexture + Sprite` pattern for static elements (vignette, haze, noise) and `Graphics → RenderTexture → swap-Sprite-texture` for dynamic-color elements (flash). PIXI 7 `Sprite.tint` was unreliable on SwiftShader; baking color into a fresh texture per fire works.
+- Shipped: vignette (`32b0ee4`), light beams (`32b0ee4`), flash (`4e6be68`), atmospheric haze (`33684e4`), TD celebration cinematic (`81e07f4`), replay film grain (`4472bb3`).
+
+**Phase 2 — Element ports**:
+- LED ad ribbon (`6e6e098`): CSS background → PIXI Graphics panels with cycling color palette + BlurFilter glow. First "real" port because the ribbon lives in wrap coords (not tilted-field coords).
+- True `drawField` porting (grass / mowing / end zones / yard lines / numbers / hash marks) still requires either applying the CSS rotateX tilt to a dedicated PIXI canvas OR positioning each element via `projectBroadcast()`. Deliberate multi-session arc — don't start without committing to it.
+
+**Phase 3 — Player render migration** (unchanged from prior plan):
+- Port `_drawPlayerImpl` (`play-render.js:407-` ~1000 lines) to PIXI Containers. Player = Container of Graphics + Sprite + Text. Pose changes update child positions/rotations. Depth-sorted sprite queue becomes PIXI z-index sorting. 2-3 sessions for clean parity.
+
+**Phase 4 — Effects unlocked**:
+- Bloom upgrade on lights + LED ribbon (already in light/particles, can extend).
+- Motion blur on breakaway runs (needs `@pixi/filter-motion-blur` vendored separately).
+- Color grading by weather/time (currently a static CSS filter; PIXI ColorMatrixFilter would let it vary per state).
+- Screen-space distortion ripple on big hits.
+- Sprite sheet animation for run cycles (sample Mixamo for reference).
 
 **Phase 2 — Field render migration**:
 - Port `drawField` (`play-render.js:24-180`) to PIXI Graphics + Sprite. The grass, mowing bands, end zones, sidelines, yard numbers, hash marks, LOS marker, first-down line are all paint operations that map cleanly to PIXI Graphics.
