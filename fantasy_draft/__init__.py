@@ -9,6 +9,9 @@ from .history import (
     consolidate_years_kept,
     latest_season_keepers,
 )
+from .vbd import compute_vbd, compute_vbd_post_keepers, compute_replacement_ranks
+from .simulate import availability_distribution, AvailabilityReport, simulate_once
+from .recommend import recommend, Recommendation
 
 __all__ = [
     "LeagueConfig",
@@ -28,4 +31,12 @@ __all__ = [
     "detect_keepers_by_adp",
     "consolidate_years_kept",
     "latest_season_keepers",
+    "compute_vbd",
+    "compute_vbd_post_keepers",
+    "compute_replacement_ranks",
+    "availability_distribution",
+    "AvailabilityReport",
+    "simulate_once",
+    "recommend",
+    "Recommendation",
 ]

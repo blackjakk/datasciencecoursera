@@ -18,6 +18,7 @@ class Player:
     tier: int = 99
     rank_overall: int = 999      # expert overall rank
     rank_position: int = 999     # expert positional rank
+    vbd: float = 0.0             # value-based-drafting score; filled by vbd.compute_vbd
 
     def __str__(self) -> str:
         return f"{self.name} ({self.position}-{self.team})"

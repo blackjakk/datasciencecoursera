@@ -18,6 +18,9 @@ from .keepers import Keeper, apply_keepers
 from .league import LeagueConfig
 from .players import Player, load_players
 from .predict import predict_pick, score_candidates
+from .simulate import availability_distribution
+from .recommend import recommend
+from .vbd import compute_vbd, compute_vbd_post_keepers
 
 
 def main() -> None:
@@ -34,13 +37,34 @@ def main() -> None:
             print(line)
         print()
 
+    # Compute VBD on the (post-keeper) player pool.
+    kept_names = {p.player.name for p in draft.picks if p.is_keeper and p.player}
+    _, repl = compute_vbd_post_keepers(players, league, keeper_names=kept_names)
+    if args.show_vbd:
+        _print_replacement(repl)
+
     _print_header(league, draft, args.my_team)
-    _run_draft(draft, players, my_team_idx=args.my_team, auto=args.auto, top_n=args.top_n)
+    _run_draft(
+        draft, players,
+        my_team_idx=args.my_team, auto=args.auto, top_n=args.top_n,
+        mc_sims=args.sims, recommend_sims=args.recommend_sims,
+        temperature=args.temperature,
+    )
     print("\n=== DRAFT COMPLETE ===")
     print(draft.summary())
 
 
-def _run_draft(draft: Draft, players: list[Player], my_team_idx: int | None, auto: bool, top_n: int) -> None:
+def _print_replacement(repl: dict[str, float]) -> None:
+    print("Replacement-level projection per position (post-keeper):")
+    for pos in sorted(repl):
+        print(f"  {pos:5} {repl[pos]:6.1f}")
+    print()
+
+
+def _run_draft(
+    draft: Draft, players: list[Player], my_team_idx: int | None,
+    auto: bool, top_n: int, mc_sims: int, recommend_sims: int, temperature: float,
+) -> None:
     while True:
         pick = draft.on_the_clock
         if pick is None:
@@ -61,6 +85,10 @@ def _run_draft(draft: Draft, players: list[Player], my_team_idx: int | None, aut
 
         if is_my_pick and not auto:
             _show_my_options(pick, team, ranked)
+            if recommend_sims > 0:
+                _show_recommendations(draft, players, my_team_idx, recommend_sims, temperature)
+            if mc_sims > 0:
+                _show_availability_next(draft, players, my_team_idx, mc_sims, temperature)
             chosen = _prompt_human_pick(available)
             if chosen is None:
                 print("Exiting draft early.")
@@ -77,7 +105,7 @@ def _run_draft(draft: Draft, players: list[Player], my_team_idx: int | None, aut
             print(
                 f"R{pick.round_num}.{pick.pick_in_round} ({pick.overall:>3}) "
                 f"{team.name}{tag}: {best.player}  "
-                f"[score={best.score:.2f}, {best.reason}]"
+                f"[vbd={best.player.vbd:.0f}, {best.reason}]"
             )
 
 
@@ -88,9 +116,43 @@ def _show_my_options(pick, team, ranked) -> None:
     for i, c in enumerate(ranked, start=1):
         print(
             f"  {i:>2}. {c.player}  ADP={c.player.adp:>5.1f}  "
-            f"proj={c.player.projection:>5.1f}  "
+            f"proj={c.player.projection:>5.1f}  vbd={c.player.vbd:>5.1f}  "
             f"score={c.score:.2f}  ({c.reason})"
         )
+
+
+def _show_recommendations(draft, players, my_team_idx, n_sims, temperature) -> None:
+    print(f"\nRunning {n_sims} sims per candidate for opportunity-cost ranking...")
+    recs = recommend(
+        draft, players, my_team_idx,
+        top_k_candidates=8, n_sims_per_candidate=n_sims, temperature=temperature,
+    )
+    print("Recommended (by expected total VBD across your remaining picks):")
+    best = recs[0].expected_total_vbd if recs else 0.0
+    for i, r in enumerate(recs, start=1):
+        gap = best - r.expected_total_vbd
+        print(
+            f"  {i:>2}. {r.player.name:24} ({r.player.position}) "
+            f"E[total VBD]={r.expected_total_vbd:6.1f}  "
+            f"now={r.immediate_vbd:5.1f} + future={r.expected_future_vbd:5.1f}  "
+            f"(opp-cost vs best: {gap:+.1f})"
+        )
+
+
+def _show_availability_next(draft, players, my_team_idx, n_sims, temperature) -> None:
+    print(f"\nRunning {n_sims} sims to forecast availability at your next picks...")
+    reports = availability_distribution(
+        draft, players, my_team_idx, n_sims=n_sims, temperature=temperature,
+    )
+    if len(reports) < 2:
+        return
+    next_report = reports[1]  # reports[0] is the current pick
+    print(f"At your next pick (overall {next_report.your_pick_overall}), "
+          f"probability still available:")
+    for name, prob in next_report.top(n=12):
+        if prob < 0.15:
+            continue
+        print(f"  {prob*100:5.1f}%  {name}")
 
 
 def _prompt_human_pick(available: list[Player]) -> Player | None:
@@ -166,6 +228,16 @@ def _parse_args() -> argparse.Namespace:
                    help="0-indexed team slot you're drafting for (you'll be prompted on your picks)")
     p.add_argument("--auto", action="store_true", help="auto-draft every team, including yours")
     p.add_argument("--top-n", type=int, default=10, help="how many suggestions to show on your pick")
+    p.add_argument("--sims", type=int, default=0,
+                   help="if >0, run this many Monte Carlo sims at each of your picks to "
+                        "forecast who'll be available next time")
+    p.add_argument("--recommend-sims", type=int, default=0,
+                   help="if >0, run this many sims per top candidate at your picks for "
+                        "opportunity-cost ranking")
+    p.add_argument("--temperature", type=float, default=0.35,
+                   help="softmax temperature for other teams' picks (lower = more deterministic)")
+    p.add_argument("--show-vbd", action="store_true",
+                   help="print replacement-level projection per position at start")
     return p.parse_args()
 
 
