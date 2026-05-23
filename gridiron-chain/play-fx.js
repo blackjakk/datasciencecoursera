@@ -386,7 +386,46 @@ const GCFx = (() => {
     }
   }
 
-  // Advance particle state and shake.
+  // ── Score-celebration cinematic ──────────────────────────────────────
+  // Adds a brief slow-zoom pulse + extended confetti shower on touchdowns
+  // and big scoring plays. Called from the engine event hooks alongside
+  // confetti+flash+shake; layers on top so the cumulative effect feels
+  // like a real broadcast TD celebration.
+  let celebrationStart = 0;
+  let celebrationDur   = 0;
+  function celebration(durMs) {
+    celebrationStart = performance.now();
+    celebrationDur   = durMs || 1400;
+    if (!shakeTarget) {
+      shakeTarget = document.querySelector(".bspnlive-field-wrap")
+                 || document.querySelector(".field-wrap");
+    }
+  }
+  function _updateCelebration() {
+    if (!shakeTarget || !celebrationDur) return;
+    const elapsed = performance.now() - celebrationStart;
+    if (elapsed >= celebrationDur) {
+      celebrationDur = 0;
+      // Reset the wrap transform — but only if shake isn't also active.
+      const shakeStillOn = (performance.now() - shakeStart) < shakeDur;
+      if (!shakeStillOn) shakeTarget.style.transform = "";
+      return;
+    }
+    const k = elapsed / celebrationDur;
+    // Brief slow-zoom in then back out — peaks at ~30% in, returns to
+    // 1.0 by the end. Subtle (3% max scale) so it doesn't fight shake.
+    const env = Math.sin(k * Math.PI);             // 0 → 1 → 0
+    const scale = 1 + 0.03 * env;
+    // Apply a single transform that combines any active shake offset
+    // with the celebration scale. shake is updated separately in tick();
+    // we only set scale here, then shake re-adds its translate.
+    if (!shakeTarget.dataset.celebScale) {
+      shakeTarget.dataset.celebScale = "active";
+    }
+    shakeTarget.style.transform = `scale(${scale.toFixed(4)})`;
+  }
+
+  // Advance particle state, shake, and celebration zoom.
   function tick(dtMs) {
     const dt = dtMs || 16.7;
     // Particles
@@ -401,16 +440,29 @@ const GCFx = (() => {
       p.r += (p.rg || 0) * dt;
       if (p.rotV) p.rot += p.rotV * dt;
     }
-    // Shake — apply transform to the field-wrap target until duration ends.
+    // Shake + celebration zoom — combined into a single CSS transform.
     if (shakeTarget) {
-      const elapsed = performance.now() - shakeStart;
-      if (elapsed < shakeDur) {
-        const decay = 1 - elapsed / shakeDur;
-        const dx = (Math.random() - 0.5) * 2 * shakeAmp * decay;
-        const dy = (Math.random() - 0.5) * 2 * shakeAmp * decay;
-        shakeTarget.style.transform = `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px)`;
-      } else if (shakeTarget.style.transform) {
-        shakeTarget.style.transform = "";
+      const sNow = performance.now();
+      const shakeOn = (sNow - shakeStart) < shakeDur;
+      const celebOn = celebrationDur && (sNow - celebrationStart) < celebrationDur;
+      if (!shakeOn && !celebOn) {
+        if (shakeTarget.style.transform) shakeTarget.style.transform = "";
+      } else {
+        let dx = 0, dy = 0, scale = 1;
+        if (shakeOn) {
+          const decay = 1 - (sNow - shakeStart) / shakeDur;
+          dx = (Math.random() - 0.5) * 2 * shakeAmp * decay;
+          dy = (Math.random() - 0.5) * 2 * shakeAmp * decay;
+        }
+        if (celebOn) {
+          const k = (sNow - celebrationStart) / celebrationDur;
+          const env = Math.sin(k * Math.PI);
+          scale = 1 + 0.03 * env;
+        } else if (!shakeOn) {
+          celebrationDur = 0;
+        }
+        shakeTarget.style.transform =
+          `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px) scale(${scale.toFixed(4)})`;
       }
     }
   }
@@ -441,5 +493,5 @@ const GCFx = (() => {
 
   function clear() { particles.length = 0; }
 
-  return { dust, hitBurst, confetti, shake, flash, tick, draw, clear };
+  return { dust, hitBurst, confetti, shake, flash, celebration, tick, draw, clear };
 })();

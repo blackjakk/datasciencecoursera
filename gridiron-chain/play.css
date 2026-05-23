@@ -3651,6 +3651,11 @@
       0 0, 0 0;
     padding-bottom: 6%;
     position: relative;
+    /* Broadcast color grading — slight saturation lift, gentle warmth,
+       a tiny contrast bump. Applies to all wrap children including the
+       canvas2D field, the upright sprite overlay, and the PIXI FX
+       canvas. Tunes the whole scene to a cinematic broadcast look. */
+    filter: saturate(1.10) contrast(1.04) brightness(0.98);
   }
   /* Stadium crowd silhouette — packed stands with pixel-dot crowd density.
      Sits above the night-sky gradient, below the tilted field. */

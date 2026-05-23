@@ -5703,8 +5703,13 @@ function startNextPlay() {
         ? gameResult.homeTeam.primary
         : gameResult.awayTeam.primary);
       GCFx.shake(5, 220);
-      GCFx.confetti(FIELD.W / 2, FIELD.TOP + 40, teamColor, 28);
-      GCFx.flash(teamColor, 320, 0.22);   // team-tinted celebration flash
+      // Triple confetti burst — center + two endzone bursts so the
+      // celebration feels like a full stadium reaction.
+      GCFx.confetti(FIELD.W / 2,      FIELD.TOP + 40, teamColor, 32);
+      GCFx.confetti(FIELD.W * 0.18,   FIELD.TOP + 40, teamColor, 18);
+      GCFx.confetti(FIELD.W * 0.82,   FIELD.TOP + 40, teamColor, 18);
+      GCFx.flash(teamColor, 320, 0.22);
+      GCFx.celebration(1400);         // brief slow-zoom cinematic
     }
   }
   // Clear the big-hit cinematic when the play isn't one
