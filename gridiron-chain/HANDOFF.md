@@ -276,11 +276,12 @@ The user picked Tier 3 ("Full engine rebuild") — migrate the canvas2D renderer
 
 Weather particles are still canvas2D. Phase 2C would port them to a PIXI ParticleContainer; works fine as-is so deferred.
 
-**Phase 3 — Player + ball migration** (NOT STARTED, multi-session):
-- The big remaining work. ~1000 lines of `_drawPlayerImpl` in play-render.js + drawBall + ball trail.
-- Players need depth sorting in broadcast cam (PIXI z-index sort replacing _spriteQueue).
-- Ball + player must move together — depth-sorted in the same container.
-- Recommended approach: dedicated PIXI Container per player (Graphics for body parts + Sprite/Text for jersey number + name). Pose update mutates child transforms.
+**Phase 3 — Player + ball migration** (STARTED, multi-session):
+- `4cefb2a` Phase 3.1: Player drop shadows ported. Single batched PIXI Graphics on the field-pixi canvas — one WebGL draw call for all 22 players' shadows instead of 22 canvas2D radial-gradient strokes. `GCField.clearShadows()` at the top of drawField, `GCField.addShadow(x, y, bulk, scale)` from drawPlayer (Phase 3.1 path). Canvas2D path kept as fallback.
+- **Remaining**: ~1000 lines of `_drawPlayerImpl` in play-render.js + drawBall + ball trail. Players need depth sorting in broadcast cam (PIXI z-index sort replacing _spriteQueue). Ball + player must move together — depth-sorted in the same container.
+- **Recommended next step (Phase 3.2)**: pre-render canonical player poses to PIXI textures once (canvas2D → PIXI.Texture.from(canvas)), then per-frame just position + scale + rotate a Sprite per player. This is the sprite-sheet approach Madden uses — avoids rewriting all the canvas2D paint code in PIXI Graphics, and gets the perf win immediately (sprite blit vs 1000-line canvas2D pass per player per frame).
+- **Architectural tension**: the canvas2D player code branches on pose / facing / position type / time. Pre-rendering all combinations = sprite atlas. Plausible scope: 10-15 unique poses × 32 team color combos. Or: render per-team on first use, cache textures. Better starting point than a 1:1 Graphics port.
+- **Depth sort**: when Phase 3 is fully on PIXI, _spriteQueue dies. PIXI Container `sortableChildren = true` + `child.zIndex = projected.screenY` replaces it (same semantics, GPU-batched).
 
 **Phase 2 — Element ports** (extensive overlay work shipped earlier this session):
 - LED ad ribbon (`6e6e098`): CSS background → PIXI Graphics panels with cycling color palette + BlurFilter glow.
