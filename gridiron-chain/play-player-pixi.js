@@ -17,7 +17,7 @@
 // Feature flag — window._usePlayerPixi. Default false until Phase 3.2.2
 // wires it into drawPlayer; toggle to true to test in devtools.
 
-window._usePlayerPixi = (window._usePlayerPixi != null) ? window._usePlayerPixi : false;
+window._usePlayerPixi = (window._usePlayerPixi != null) ? window._usePlayerPixi : true;
 
 const GCPlayer = (() => {
   let _app = null;              // PIXI.Application bound to #player-pixi
