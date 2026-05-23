@@ -1,0 +1,18 @@
+{
+  "name": "2QB 12-team PPR",
+  "num_teams": 12,
+  "rounds": 15,
+  "snake": true,
+  "roster": [
+    {"name": "QB", "count": 2},
+    {"name": "RB", "count": 2},
+    {"name": "WR", "count": 3},
+    {"name": "TE", "count": 1},
+    {"name": "FLEX", "count": 1},
+    {"name": "K", "count": 1},
+    {"name": "DEF", "count": 1},
+    {"name": "BENCH", "count": 6}
+  ],
+  "scoring": {"reception": 1.0},
+  "keepers": {"enabled": false}
+}
