@@ -23,9 +23,21 @@ function absYardToX(absYard) {
 
 function drawField(ctx, homeTeam, awayTeam, ctx_state) {
   const W = FIELD.W, H = FIELD.H;
-  // Base grass (slightly darker than mowing bands so sidelines read as a deeper green)
-  ctx.fillStyle = "#1c5e2f";
-  ctx.fillRect(0, 0, W, H);
+  // ── Phase 2A: PIXI field hand-off ──
+  // When the WebGL field is active we render grass + mowing bands via
+  // PIXI on a separate tilted canvas underneath. The canvas2D #field
+  // becomes transparent for those layers but continues to render
+  // everything else (sidelines, end zones, yard lines, players, ball,
+  // LOS, FD line, weather) on top.
+  const _pixiField = (typeof GCField !== "undefined") && GCField.active();
+  if (_pixiField) {
+    GCField.draw(homeTeam, awayTeam);
+    // Skip the base grass + mowing band fill — PIXI provides those.
+  } else {
+    // Base grass (slightly darker than mowing bands so sidelines read as a deeper green)
+    ctx.fillStyle = "#1c5e2f";
+    ctx.fillRect(0, 0, W, H);
+  }
   // Painted sideline pad — the strip beyond the chalk where coaches, chain
   // crew, and out-of-bounds players land. Grounds the chalk so it reads as
   // the edge of a painted surface, not a line floating in space.
@@ -52,11 +64,14 @@ function drawField(ctx, homeTeam, awayTeam, ctx_state) {
     ctx.fillRect(0, FIELD.BOT, W, H - FIELD.BOT);
   }
   // Alternating mowed bands — stronger contrast so the grass texture reads
-  // even at small sizes / with broadcast camera tilt.
-  for (let i = 0; i < 10; i++) {
-    ctx.fillStyle = i % 2 === 0 ? "#2b7a40" : "#1d6232";
-    const x = FIELD.EZ_PX + i * 10 * FIELD.PX_PER_YARD;
-    ctx.fillRect(x, FIELD.TOP, 10 * FIELD.PX_PER_YARD, FIELD.BOT - FIELD.TOP);
+  // even at small sizes / with broadcast camera tilt. Skipped when the
+  // PIXI field is active (rendered there instead).
+  if (!_pixiField) {
+    for (let i = 0; i < 10; i++) {
+      ctx.fillStyle = i % 2 === 0 ? "#2b7a40" : "#1d6232";
+      const x = FIELD.EZ_PX + i * 10 * FIELD.PX_PER_YARD;
+      ctx.fillRect(x, FIELD.TOP, 10 * FIELD.PX_PER_YARD, FIELD.BOT - FIELD.TOP);
+    }
   }
   // Subtle field-wide vignette — slightly darker at the corners so the
   // midfield action sits in a soft spotlight (broadcast camera feel).

@@ -175,6 +175,20 @@
     width: 100%; height: auto; display: block; border-radius: 6px;
     background: var(--field-dk); cursor: pointer;
     image-rendering: pixelated; image-rendering: crisp-edges;
+    position: relative; z-index: 2;
+  }
+  /* PIXI field canvas — Phase 2A static field background. Sits BELOW
+     #field via z-index; #field stays canvas2D for dynamic elements
+     (players, ball, LOS, FD) which composite on top. */
+  #field-pixi {
+    border-radius: 6px;
+    image-rendering: pixelated; image-rendering: crisp-edges;
+    z-index: 1;
+  }
+  /* When the PIXI field is active, the canvas2D field becomes
+     transparent so the WebGL grass underneath shows through. */
+  .field-wrap.uses-pixi-field #field {
+    background: transparent;
   }
   .field-overlay {
     display: flex; align-items: center; justify-content: space-between;

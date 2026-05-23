@@ -5429,6 +5429,7 @@ function setCameraMode(mode) {
             || document.querySelector(".field-wrap")
             || document.getElementById("field")?.parentElement;
   const canvas = document.getElementById("field");
+  const canvasPixi = document.getElementById("field-pixi");
   if (cameraMode === "broadcast") {
     if (wrap) {
       wrap.classList.add("broadcast-cam");
@@ -5442,6 +5443,12 @@ function setCameraMode(mode) {
       canvas.style.transform = `rotateX(${BROADCAST_TILT_DEG}deg) scaleY(${1 / Math.cos(BROADCAST_TILT_DEG * Math.PI / 180)})`;
       canvas.style.transformOrigin = "50% 100%";
     }
+    if (canvasPixi) {
+      // PIXI field canvas tracks #field's transform exactly so it stays
+      // aligned with the canvas2D layer above it.
+      canvasPixi.style.transform = `rotateX(${BROADCAST_TILT_DEG}deg) scaleY(${1 / Math.cos(BROADCAST_TILT_DEG * Math.PI / 180)})`;
+      canvasPixi.style.transformOrigin = "50% 100%";
+    }
   } else {
     if (wrap) {
       wrap.classList.remove("broadcast-cam");
@@ -5451,6 +5458,10 @@ function setCameraMode(mode) {
     if (canvas) {
       canvas.style.transform = "";
       canvas.style.transformOrigin = "";
+    }
+    if (canvasPixi) {
+      canvasPixi.style.transform = "";
+      canvasPixi.style.transformOrigin = "";
     }
   }
   // Update the button states (if those buttons exist on the page yet)

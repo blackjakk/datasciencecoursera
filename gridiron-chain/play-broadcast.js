@@ -708,6 +708,8 @@ const AsciiFieldViewer = {
     return `<main class="bspnlive-center">
       <div class="bspnlive-field-title">WATCH LIVE</div>
       <div class="bspnlive-field-wrap field-wrap">
+        <canvas id="field-pixi" width="${FIELD.W}" height="${FIELD.H}"
+          style="position:absolute;inset:0;width:100%;height:auto;pointer-events:none"></canvas>
         <canvas id="field" width="${FIELD.W}" height="${FIELD.H}"></canvas>
         <canvas id="field-uprights" width="${FIELD.W}" height="${FIELD.H}"
           style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none"></canvas>
