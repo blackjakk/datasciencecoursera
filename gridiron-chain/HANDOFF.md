@@ -251,11 +251,17 @@ NFL 2024 uses 11 personnel (TRIPS) on ~62% of plays. All five playbooks (BALANCE
 
 The user picked Tier 3 ("Full engine rebuild") — migrate the canvas2D renderer to PIXI.js for WebGL shaders, real particle systems, post-processing. PIXI is **already vendored** at `vendor/pixi.min.js` (7.4.0, MIT, 456KB). This is multi-session work.
 
-**Phase 1 — Foundation** (next session):
-- Load `vendor/pixi.min.js` via script tag in `play.html` (before `play-render.js`).
-- Initialize a PIXI Application sized to the wrap, attached as a SIBLING canvas to `#field-uprights`, with `pointer-events: none` and z-index above the upright overlay but below the HUD.
-- Re-implement `GCFx` (particles + shake) on top of `PIXI.ParticleContainer` so all FX go through WebGL. Caller API stays identical — `GCFx.dust(...)`, `GCFx.hitBurst(...)`, etc.
-- Add a bloom filter on the FX layer so confetti / hit chips / LED ribbon glow naturally.
+**Phase 1 — Foundation** (DONE, `1dccbe1`):
+- Loaded `vendor/pixi.min.js` via script tag in `play.html`.
+- Initialized a PIXI.Application as a `.gc-pixi-fx` canvas attached to the broadcast-cam wrap, internal 1700×720, `pointer-events:none`, z-index 4. Re-attached on wrap rebuilds (`_ensurePixiOverlay` pattern).
+- Re-implemented `GCFx.draw` on PIXI Graphics in a pooled Container. Caller API unchanged. BlurFilter (blur 2.4, quality 2) provides bloom-lite.
+- `preserveDrawingBuffer: true` so Playwright headless screenshots capture WebGL output.
+- Canvas2D fallback intact — `_drawPixi` returns false on init failure.
+
+**Phase 1.5 — Stage layers** (deferred, attempted in session but backed out):
+- Vignette overlay (radial darkening via concentric alpha ellipses on a PIXI.Graphics) and event flash (full-canvas tint that fires on TD / big_hit) — both implemented but produced a uniform gray on the headless software-WebGL renderer in CI / Playwright. The Graphics objects rendered, the `_updateFlash` callback fired with correct alpha values, but the composite output was wrong (likely an issue with how the BlurFilter on the sibling particle container interacts with the SwiftShader path).
+- **Next session**: debug in a real Chrome instance instead of headless. If the flash composites correctly with hardware WebGL, restore the code. Alternative path: use `PIXI.Sprite` with a tinted `PIXI.Texture.WHITE` instead of `PIXI.Graphics` for the flash (sprite tinting bypasses any Graphics-renderer quirks).
+- Reserved API: `GCFx.flash(color, durMs, peak)` is exposed as a no-op so future event hooks can be written against it now.
 
 **Phase 2 — Field render migration**:
 - Port `drawField` (`play-render.js:24-180`) to PIXI Graphics + Sprite. The grass, mowing bands, end zones, sidelines, yard numbers, hash marks, LOS marker, first-down line are all paint operations that map cleanly to PIXI Graphics.

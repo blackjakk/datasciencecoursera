@@ -55,6 +55,7 @@ const GCFx = (() => {
         backgroundAlpha: 0,
         antialias: true,
         autoStart: false,            // we drive renders from the game tick
+        preserveDrawingBuffer: true, // lets headless screenshots capture WebGL
       });
       const view = _pxApp.view;
       view.className = "gc-pixi-fx";
@@ -63,15 +64,12 @@ const GCFx = (() => {
         "pointer-events:none;z-index:4;";
       wrap.appendChild(view);
       _pxAttachedTo = wrap;
+      // ── Particle layer with bloom-lite blur ──
       _pxParticles = new PIXI.Container();
-      // "Bloom-lite": a soft blur on the particle container gives a
-      // glow halo that ties the FX to the LED ribbon / stadium lights.
       const blur = new PIXI.BlurFilter();
-      blur.blur = 2.2;
-      blur.quality = 3;
+      blur.blur = 2.4;
+      blur.quality = 2;            // 2 passes — visible bloom, cheap GPU cost
       _pxParticles.filters = [blur];
-      // Additive blend so chips on top of bright field areas still pop.
-      _pxParticles.blendMode = PIXI.BLEND_MODES.NORMAL;
       _pxApp.stage.addChild(_pxParticles);
       return true;
     } catch (e) {
@@ -85,6 +83,11 @@ const GCFx = (() => {
     const m = /rgba\((\d+),(\d+),(\d+),/.exec(rgbaPrefix);
     if (!m) return 0xffffff;
     return (parseInt(m[1]) << 16) | (parseInt(m[2]) << 8) | parseInt(m[3]);
+  }
+  function flash(_color, _durMs, _peak) {
+    // Reserved for Phase 1.5 — the WebGL flash overlay had a software-
+    // renderer compositing issue that produced a uniform gray instead of
+    // the expected red wash. Tracked in HANDOFF.md §8 for next session.
   }
   function _drawPixi() {
     if (!_ensurePixiOverlay()) return false;
@@ -266,5 +269,5 @@ const GCFx = (() => {
 
   function clear() { particles.length = 0; }
 
-  return { dust, hitBurst, confetti, shake, tick, draw, clear };
+  return { dust, hitBurst, confetti, shake, flash, tick, draw, clear };
 })();

@@ -5698,9 +5698,11 @@ function startNextPlay() {
       GCFx.shake(11, 350);
       GCFx.hitBurst(FIELD.W / 2, (FIELD.TOP + FIELD.BOT) / 2);
     } else if (_isTD) {
+      const teamColor = (play.team === "home"
+        ? gameResult.homeTeam.primary
+        : gameResult.awayTeam.primary);
       GCFx.shake(5, 220);
-      GCFx.confetti(FIELD.W / 2, FIELD.TOP + 40,
-        (play.team === "home" ? gameResult.homeTeam.primary : gameResult.awayTeam.primary), 28);
+      GCFx.confetti(FIELD.W / 2, FIELD.TOP + 40, teamColor, 28);
     }
   }
   // Clear the big-hit cinematic when the play isn't one
