@@ -3422,20 +3422,72 @@
      already; we add a bit of bottom padding so the rotated canvas doesn't
      get clipped at the bottom edge. */
   .bspnlive-field-wrap.broadcast-cam {
-    overflow: visible;
-    background: linear-gradient(to bottom,
-      #0a1018 0%,        /* night sky / press box */
-      #1a2230 30%,
-      #000 70%);
-    padding-bottom: 8%;  /* visual breathing room under the tilted field */
+    overflow: hidden;
+    /* Night-sky gradient backdrop with a subtle stadium-light glow at
+       the top. The crowd silhouette + stadium structure layer on top
+       via ::before / ::after pseudo-elements. */
+    background:
+      radial-gradient(ellipse 90% 45% at 50% -10%, rgba(80,90,110,.35), transparent 60%),
+      radial-gradient(ellipse 50% 40% at 15% 5%,   rgba(255,225,160,.18), transparent 70%),
+      radial-gradient(ellipse 50% 40% at 85% 5%,   rgba(255,225,160,.18), transparent 70%),
+      linear-gradient(to bottom,
+        #0a1018 0%,        /* night sky / press box */
+        #1a2230 25%,
+        #0a0d12 60%,
+        #000 100%);
+    padding-bottom: 6%;
+    position: relative;
+  }
+  /* Stadium crowd silhouette — a band of dim "stands" with subtle pixel
+     dots simulating crowd density. Sits above the night-sky gradient,
+     below the tilted field. */
+  .bspnlive-field-wrap.broadcast-cam::before {
+    content: "";
+    position: absolute;
+    top: 4%; left: 0; right: 0;
+    height: 26%;
+    background:
+      /* Crowd "specks" — a tiled noise overlay made from radial dots */
+      radial-gradient(circle 1px at 12% 30%, rgba(220,200,180,.4) 0, transparent 2px),
+      radial-gradient(circle 1px at 28% 60%, rgba(180,200,220,.3) 0, transparent 2px),
+      radial-gradient(circle 1px at 47% 25%, rgba(220,200,180,.35) 0, transparent 2px),
+      radial-gradient(circle 1px at 64% 55%, rgba(200,180,160,.4) 0, transparent 2px),
+      radial-gradient(circle 1px at 82% 35%, rgba(180,200,220,.3) 0, transparent 2px),
+      radial-gradient(circle 1px at 95% 70%, rgba(220,200,180,.35) 0, transparent 2px),
+      /* Stands gradient — darker at the top, lighter near the field */
+      linear-gradient(to bottom,
+        rgba(20,30,45,.65) 0%,
+        rgba(30,42,60,.55) 50%,
+        rgba(35,45,55,.4) 100%);
+    background-size: 60px 60px, 70px 70px, 55px 55px, 65px 65px, 80px 80px, 50px 50px, 100% 100%;
+    pointer-events: none;
+    z-index: 0;
+    border-bottom: 1px solid rgba(255,255,255,.06);
+  }
+  /* Stadium-light bloom — bright glow points at the top corners + center. */
+  .bspnlive-field-wrap.broadcast-cam::after {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 30%;
+    background:
+      radial-gradient(circle 20px at 12% 8%, rgba(255,250,220,.55) 0%, rgba(255,250,220,0) 70%),
+      radial-gradient(circle 20px at 50% 6%, rgba(255,250,220,.55) 0%, rgba(255,250,220,0) 70%),
+      radial-gradient(circle 20px at 88% 8%, rgba(255,250,220,.55) 0%, rgba(255,250,220,0) 70%);
+    pointer-events: none;
+    z-index: 1;
+    filter: blur(2px);
   }
   .bspnlive-field-wrap.broadcast-cam canvas {
     transition: transform 0.3s ease-out;
     will-change: transform;
+    position: relative;
+    z-index: 2;
   }
-  /* Field HUD stays UN-tilted — it's the overlay div, not the canvas */
+  .bspnlive-field-wrap.broadcast-cam #field-uprights {
+    z-index: 3;
+  }
   .bspnlive-field-wrap.broadcast-cam .field-hud {
-    /* nothing — sits above the tilted canvas as a flat overlay */
+    z-index: 4;
   }
 
   /* Camera toggle in the field HUD */
