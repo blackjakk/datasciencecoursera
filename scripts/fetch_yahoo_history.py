@@ -38,14 +38,18 @@ LEAGUE_ID = "591940"
 #
 # Known MONEYLEAGUE league IDs across years (Yahoo re-keys each season):
 #   2018 = 50466  (game_id 380, named "moneyleague")
+#   2019 = 36588  (game_id 390, named "moneyleague")
+#   2020 = 64590  (game_id 399, named "moneyleague")
 #   2021 = 60044  (game_id 406, named "moneyleague")
 #   2022 = 591940 (game_id 414, named "moneyleague")
 #   2023 = 591940 (game_id 423)
 #   2024 = 591940 (game_id 449, renamed "Lucky 7")
-# 2019/2020 IDs are unknown — Yahoo doesn't expose the renew chain in
+# 2015-2017 IDs are unknown — Yahoo doesn't expose the renew chain in
 # public HTML, so they need to be supplied manually (see SEASON_LEAGUE_IDS).
 SEASON_LEAGUE_IDS: dict[int, str] = {
     2018: "50466",
+    2019: "36588",
+    2020: "64590",
     2021: "60044",
     2022: "591940",
     2023: "591940",
