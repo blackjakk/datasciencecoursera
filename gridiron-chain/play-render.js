@@ -135,16 +135,27 @@ function drawField(ctx, homeTeam, awayTeam, ctx_state) {
     ctx.stroke();
   }
 
-  // Yard numbers (10, 20, 30, 40, 50, 40, 30, 20, 10)
-  ctx.fillStyle = "rgba(255,255,255,0.85)";
-  ctx.font = "bold 18px sans-serif";
+  // Yard numbers (10, 20, 30, 40, 50, 40, 30, 20, 10) — sized closer to
+  // NFL scale (~6ft tall = ~2yd = ~30px at our 15px/yd) with a black
+  // outline so they stay legible after the broadcast-cam perspective tilt
+  // foreshortens them.
+  ctx.font = "900 36px sans-serif";
   ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = "rgba(0,0,0,0.85)";
+  ctx.fillStyle   = "rgba(255,255,255,0.95)";
   for (let yd = 10; yd <= 90; yd += 10) {
     const x = absYardToX(yd);
     const num = yd <= 50 ? yd : 100 - yd;
-    ctx.fillText(num, x, FIELD.TOP + 30);
-    ctx.fillText(num, x, FIELD.BOT - 14);
+    const topY = FIELD.TOP + 52;
+    const botY = FIELD.BOT - 52;
+    ctx.strokeText(num, x, topY);
+    ctx.fillText  (num, x, topY);
+    ctx.strokeText(num, x, botY);
+    ctx.fillText  (num, x, botY);
   }
+  ctx.textBaseline = "alphabetic";  // restore default for any later text
 
   // Hash marks (small ticks every yard)
   ctx.strokeStyle = "rgba(255,255,255,0.55)";
