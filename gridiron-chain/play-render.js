@@ -1636,6 +1636,12 @@ function drawBall(ctx, x, y, scale = 1, opts = {}) {
       && typeof _uprightCtx !== "undefined" && _uprightCtx
       && typeof _spriteQueue !== "undefined") {
     const proj = projectBroadcast(x, y);
+    // Phase 3.3 — route ball to PIXI when player atlas is active so the
+    // ball depth-sorts WITH PIXI player sprites via shared zIndex.
+    if (typeof GCPlayer !== "undefined" && GCPlayer.active()) {
+      GCPlayer.renderBall(proj.x, proj.y, scale * proj.scale, opts && opts.angle, opts);
+      return;
+    }
     const qCtx = _uprightCtx;
     const finalScale = scale * proj.scale;
     _spriteQueue.push({

@@ -185,7 +185,51 @@ const GCPlayer = (() => {
     for (const [key, sprite] of _spriteCache) {
       if (sprite._lastFrame !== _frameMarker) sprite.visible = false;
     }
+    frameEndBall();
     _app.renderer.render(_app.stage);
+  }
+
+  // ── Ball renderer (Phase 3.3) ─────────────────────────────────────
+  // Same sprite-atlas pattern for the football. One base texture per
+  // glow-vs-no-glow variant; rotation handled via sprite.rotation
+  // (continuous, not cached). Sprite lives in the same _stage as
+  // players so depth sorting via zIndex is unified.
+  const BALL_TEX_W = 48, BALL_TEX_H = 48;
+  function _renderBallToTexture(glow) {
+    if (typeof _drawBallImpl !== "function") return null;
+    const canvas = document.createElement("canvas");
+    canvas.width = BALL_TEX_W;
+    canvas.height = BALL_TEX_H;
+    const offCtx = canvas.getContext("2d");
+    try {
+      _drawBallImpl(offCtx, BALL_TEX_W / 2, BALL_TEX_H / 2, 1, { glow, angle: 0 });
+    } catch (e) {
+      console.warn("offscreen ball render failed:", e);
+    }
+    return PIXI.Texture.from(canvas);
+  }
+  let _ballSprite = null;
+  let _ballTexGlow = null, _ballTexPlain = null;
+  function renderBall(screenX, screenY, scale, angle, opts) {
+    if (!ensure()) return;
+    const glow = opts ? opts.glow !== false : true;
+    if (glow && !_ballTexGlow)  _ballTexGlow  = _renderBallToTexture(true);
+    if (!glow && !_ballTexPlain) _ballTexPlain = _renderBallToTexture(false);
+    const tex = glow ? _ballTexGlow : _ballTexPlain;
+    if (!tex) return;
+    if (!_ballSprite) {
+      _ballSprite = new PIXI.Sprite();
+      _ballSprite.anchor.set(0.5);
+      _stage.addChild(_ballSprite);
+    }
+    _ballSprite.texture = tex;
+    _ballSprite.position.set(screenX, screenY);
+    _ballSprite.scale.set(scale, scale);
+    _ballSprite.rotation = angle || 0;
+    _ballSprite.zIndex = screenY + 0.5;   // slight bias so ball renders
+                                          // just above same-y players
+    _ballSprite.visible = true;
+    _ballSprite._lastFrame = _frameMarker;
   }
 
   function active() {
@@ -202,5 +246,12 @@ const GCPlayer = (() => {
     };
   }
 
-  return { ensure, frameStart, render, frameEnd, active, _stats };
+  function frameEndBall() {
+    // If ball wasn't rendered this frame, hide it
+    if (_ballSprite && _ballSprite._lastFrame !== _frameMarker) {
+      _ballSprite.visible = false;
+    }
+  }
+
+  return { ensure, frameStart, render, renderBall, frameEnd, frameEndBall, active, _stats };
 })();
