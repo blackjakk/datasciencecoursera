@@ -42,6 +42,7 @@ const GCFx = (() => {
   let _flashColor = 0xffffff;
   let _flashPeak = 0;
   let _pxGrainSprite = null;    // PIXI.Sprite displaying a noise texture (replay film grain)
+  let _pxLedContainer = null;   // PIXI.Container holding animated LED ad panels
   function _pixiAvailable() {
     return typeof PIXI !== "undefined" && typeof PIXI.Application === "function";
   }
@@ -164,6 +165,36 @@ const GCFx = (() => {
       } catch (e) {
         console.warn("PIXI light beams failed:", e);
         _pxLightBeams = null;
+      }
+      // ── Animated LED ad ribbon (Phase 2 port from CSS) — sits on the
+      // stadium wall band where the static CSS ribbon was. Each panel
+      // gets a per-frame color from a cycling palette, with a slight
+      // bloom blur so the ribbon glows like a real LED display.
+      try {
+        _pxLedContainer = new PIXI.Container();
+        const ledBlur = new PIXI.BlurFilter();
+        ledBlur.blur = 1.6;
+        ledBlur.quality = 1;
+        _pxLedContainer.filters = [ledBlur];
+        const panelW = 38;
+        const gap    = 2;
+        const stride = panelW + gap;
+        const yPos   = 720 * 0.184;     // anchor to wall band
+        const height = 13;
+        // Pre-build panels — we mutate their colors per frame in _drawPixi.
+        const totalPanels = Math.ceil(1700 / stride);
+        for (let i = 0; i < totalPanels; i++) {
+          const g = new PIXI.Graphics();
+          g.beginFill(0xffffff, 1);     // placeholder; tinted per frame
+          g.drawRect(0, 0, panelW, height);
+          g.endFill();
+          g.position.set(i * stride, yPos);
+          _pxLedContainer.addChild(g);
+        }
+        _pxApp.stage.addChild(_pxLedContainer);
+      } catch (e) {
+        console.warn("PIXI LED ribbon failed:", e);
+        _pxLedContainer = null;
       }
       // ── Particle layer with bloom-lite blur ──
       _pxParticles = new PIXI.Container();
@@ -320,6 +351,29 @@ const GCFx = (() => {
       for (let bi = 0; bi < beams.length; bi++) {
         const pulse = 0.4 + 0.18 * Math.sin(now * 0.6 + bi * 1.7);
         beams[bi].alpha = pulse;
+      }
+    }
+    // Animated LED ad ribbon — each panel scrolls through a palette of
+    // warm amber / cyan / white at staggered phases so the ribbon reads
+    // as a moving message board rather than a static stripe. Sprite tint
+    // baked via per-panel clear+redraw (PIXI 7 software-WebGL doesn't
+    // honor Sprite.tint reliably for solid-colored Graphics).
+    if (_pxLedContainer) {
+      const t = performance.now() * 0.0015;
+      const palette = [0xffb450, 0x50c8ff, 0xf0f0f0, 0xffb450, 0x80e0c0];
+      const panels = _pxLedContainer.children;
+      for (let pi = 0; pi < panels.length; pi++) {
+        const idx = Math.floor((t + pi * 0.18)) % palette.length;
+        const col = palette[(idx + palette.length) % palette.length];
+        const g = panels[pi];
+        g.clear();
+        g.beginFill(col, 0.85);
+        g.drawRect(0, 0, 38, 13);
+        g.endFill();
+        // Dark divider strip on the right edge of each panel.
+        g.beginFill(0x080b12, 0.95);
+        g.drawRect(38, 0, 2, 13);
+        g.endFill();
       }
     }
     _updateFlash();
