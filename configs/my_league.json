@@ -1,0 +1,42 @@
+{
+  "name": "MONEYLEAGUE",
+  "num_teams": 12,
+  "rounds": 17,
+  "snake": true,
+  "roster": [
+    {"name": "QB", "count": 1},
+    {"name": "RB", "count": 2},
+    {"name": "WR", "count": 3},
+    {"name": "TE", "count": 1},
+    {"name": "FLEX", "count": 1},
+    {"name": "SUPERFLEX", "count": 1},
+    {"name": "K", "count": 1},
+    {"name": "DEF", "count": 1},
+    {"name": "BENCH", "count": 6}
+  ],
+  "scoring": {
+    "passing_yards": 0.04,
+    "passing_td": 4.0,
+    "interception": -1.0,
+    "rushing_yards": 0.1,
+    "rushing_td": 6.0,
+    "receiving_yards": 0.1,
+    "receiving_td": 6.0,
+    "reception": 0.5,
+    "fumble_lost": -2.0
+  },
+  "keepers": {
+    "enabled": true,
+    "max_keepers_per_team": 4,
+    "round_penalty": 2,
+    "undrafted_keeper_round": 17,
+    "too_early_policy": "not_eligible",
+    "max_years_consecutive": 3
+  },
+  "_sleeper_meta": {
+    "league_id": "1245039290518360064",
+    "previous_league_id": "1085805164784664576",
+    "draft_id": "1245039290522550272",
+    "season": "2025"
+  }
+}
