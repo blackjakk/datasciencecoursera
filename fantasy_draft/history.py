@@ -67,6 +67,45 @@ def detect_keepers_by_adp(
     return flagged
 
 
+def overlay_xlsx_keepers(
+    picks_by_season: dict[int, list[HistoricalDraftPick]],
+    xlsx_path: str,
+) -> int:
+    """Stamp is_keeper + years_kept onto Sleeper picks using xlsx-truth.
+
+    The MONEY_LEAGUE.xlsx is the authoritative keeper record (hand-tagged
+    comments on the spreadsheet). Sleeper's `is_keeper` flag is partial
+    (e.g. 2023 has 0 keeper tags, 2024 has 17, 2025 has 33), so we
+    overwrite from the xlsx wherever we can name-match.
+
+    Mutates picks in place. Returns count of picks whose is_keeper was
+    set/changed from the xlsx.
+    """
+    from .name_aliases import resolve_xlsx_name
+    from .xlsx_history import load_all_keepers
+
+    xlsx_by_year = load_all_keepers(xlsx_path)
+    overlaid = 0
+    for season, picks in picks_by_season.items():
+        xlsx_for_year = xlsx_by_year.get(season, [])
+        # Build {normalized_canonical_name: years_kept}
+        xlsx_lookup: dict[str, int] = {}
+        for k in xlsx_for_year:
+            canonical = resolve_xlsx_name(k.player_name) or k.player_name
+            xlsx_lookup[_normalize(canonical)] = k.years_kept
+
+        for pick in picks:
+            key = _normalize(pick.player_name)
+            if key in xlsx_lookup:
+                if not pick.is_keeper:
+                    overlaid += 1
+                pick.is_keeper = True
+                pick.years_kept = xlsx_lookup[key]
+            elif pick.is_keeper is None:
+                pick.is_keeper = False
+    return overlaid
+
+
 def consolidate_years_kept(
     picks_by_season: dict[int, list[HistoricalDraftPick]],
 ) -> dict[int, list[HistoricalDraftPick]]:

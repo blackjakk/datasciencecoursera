@@ -42,7 +42,7 @@ from fantasy_draft.trades import apply_trades, load_trades_from_sleeper_dump  # 
 
 import json as _json  # noqa: E402
 from fantasy_draft.vbd import compute_vbd_post_keepers  # noqa: E402
-from fantasy_draft.history import consolidate_years_kept, detect_keepers_by_adp  # noqa: E402
+from fantasy_draft.history import consolidate_years_kept, detect_keepers_by_adp, overlay_xlsx_keepers  # noqa: E402
 
 st.set_page_config(page_title="Fantasy Draft Tool", layout="wide")
 st.title("Fantasy Football Draft Tool")
@@ -337,6 +337,19 @@ with tab_keepers:
         # Run keeper detection on the historical drafts, then consolidate
         # years_kept so the cap can fire.
         with st.spinner("Detecting historical keepers and computing VBD..."):
+            # Source-of-truth precedence:
+            #   1. MONEY_LEAGUE.xlsx (authoritative; hand-tagged keeper
+            #      comments) -- overlay first.
+            #   2. Sleeper is_keeper flags (partial -- many seasons missing).
+            #   3. ADP-anomaly heuristic (last resort for picks not in xlsx).
+            xlsx_path = ROOT / "data" / "historical" / "MONEY_LEAGUE.xlsx"
+            if xlsx_path.exists():
+                n_overlaid = overlay_xlsx_keepers(by_season, str(xlsx_path))
+                st.caption(
+                    f"📊 Overlaid **{n_overlaid}** keeper tags from "
+                    f"MONEY_LEAGUE.xlsx (the authoritative source). Remaining "
+                    f"picks fall through to the ADP-anomaly heuristic."
+                )
             for s, picks in by_season.items():
                 detect_keepers_by_adp(picks, players, num_teams=league.num_teams,
                                        round_threshold=1.5)
