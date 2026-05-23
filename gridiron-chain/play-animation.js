@@ -5407,6 +5407,7 @@ function _frameEndBroadcast() {
 
 function setCameraMode(mode) {
   cameraMode = (mode === "broadcast") ? "broadcast" : "topdown";
+  _bcastGeom = null;   // wrap dimensions change with the broadcast-cam class
   // Apply / remove the perspective transform on the field-wrap
   const wrap = document.querySelector(".bspnlive-field-wrap")
             || document.querySelector(".field-wrap")
@@ -5445,44 +5446,84 @@ function setCameraMode(mode) {
   if (typeof renderBSPNLive === "function") renderBSPNLive();
 }
 
+// Cached wrap/field geometry for projectBroadcast — rebuilt on camera mode
+// change and window resize.
+let _bcastGeom = null;
+function _updateBroadcastGeom() {
+  const wrap = document.querySelector(".bspnlive-field-wrap");
+  if (!wrap) { _bcastGeom = null; return; }
+  const cs = getComputedStyle(wrap);
+  const padL = parseFloat(cs.paddingLeft) || 0;
+  const padT = parseFloat(cs.paddingTop) || 0;
+  const wrapW = wrap.clientWidth;
+  const wrapH = wrap.clientHeight;
+  // Field's CSS width = wrap content width (assumes symmetric horizontal padding).
+  // Height comes from the canvas aspect ratio (FIELD.H / FIELD.W) because the
+  // canvas CSS rule is width:100%; height:auto.
+  const fieldW = Math.max(1, wrapW - 2 * padL);
+  const fieldH = fieldW * (FIELD.H / FIELD.W);
+  const θ = BROADCAST_TILT_DEG * Math.PI / 180;
+  _bcastGeom = {
+    wrapW, wrapH, padL, padT, fieldW, fieldH,
+    ox: padL + fieldW / 2,   // #field transformOrigin x in wrap CSS
+    oy: padT + fieldH,        // #field transformOrigin y in wrap CSS (50%, 100%)
+    cosθ: Math.cos(θ),
+    sinθ: Math.sin(θ),
+    sY: 1 / Math.cos(θ),
+    P: BROADCAST_PERSPECTIVE_PX,
+    Px: wrapW / 2,            // perspective-origin x (50%)
+    Py: wrapH * 0.8,          // perspective-origin y (80%)
+  };
+}
+if (typeof window !== "undefined") {
+  window.addEventListener("resize", () => { _bcastGeom = null; });
+}
+
 // Project a canvas-space (x, y) point through the broadcast camera's
-// perspective+rotateX transform to get its screen-space (x, y, scale).
-// Match the same math the CSS uses: perspective(P) rotateX(θ) with origin
-// at (cx, FIELD.H). Returns { x, y, scale } in canvas coordinates (the
-// caller can use them to draw a sprite at the right place / size).
+// perspective+rotateX+scaleY transform to get the equivalent upright-canvas
+// internal (x, y) and the perspective scale. Replicates the full CSS pipeline
+// applied to #field (scaleY then rotateX, origin 50% 100%) and to the wrap
+// (perspective P, origin 50% 80%), then maps the screen-space result back
+// into the upright canvas's internal coords (since the upright canvas spans
+// the full wrap padding box via inset:0).
 function projectBroadcast(x, y) {
   if (cameraMode !== "broadcast") return { x, y, scale: 1 };
-  const cx = FIELD.W / 2;
-  const cy = FIELD.H;
-  const θ = BROADCAST_TILT_DEG * Math.PI / 180;
-  const P = BROADCAST_PERSPECTIVE_PX;
-  // Translate to origin (bottom-center)
-  const dx = x - cx;
-  const dy = y - cy;       // <= 0 for points on the field (above bottom)
-  // rotateX (CSS positive = top tilts away from viewer):
-  //   y' = dy * cos(θ)  ;  z' = -dy * sin(θ)
-  // For dy < 0 (above origin), z' is positive… wait —
-  // CSS: positive rotateX rotates +Y toward -Z. So a point at -Y (above
-  // origin) rotates toward +Z (toward viewer)? Let me re-derive:
-  // After rotateX(θ): (x, y, 0) → (x, y·cos(θ), -y·sin(θ))
-  //   For y < 0 (above origin in canvas coords): -y·sin(θ) > 0 (toward viewer)
-  //   For y > 0 (below origin):                   -y·sin(θ) < 0 (away)
-  // That contradicts the visual where the TOP of the canvas appears further!
-  // Actually CSS y goes DOWN. In a 3D right-handed view that means +Y in CSS
-  // = -Y in standard math. So a CSS rotateX(positive) tilts the TOP back.
-  // Net effect: above the origin (smaller canvas y) → z' = -|dy|*sin(θ) < 0
-  // (further from viewer, smaller projected). Below origin → closer (larger).
-  // Our origin is at the bottom (cy = FIELD.H), so all field points have
-  // dy <= 0 → all are at z <= 0 → all scale ≤ 1.
-  const y3d = dy * Math.cos(θ);
-  const z3d = dy * Math.sin(θ);     // negative for above-origin → further
-  // Perspective divide (CSS perspective puts viewer at z = +P looking at z = 0)
-  const scale = P / (P - z3d);
-  return {
-    x: cx + dx * scale,
-    y: cy + y3d * scale,
-    scale,
-  };
+  if (!_bcastGeom) _updateBroadcastGeom();
+  if (!_bcastGeom) return { x, y, scale: 1 };
+  const g = _bcastGeom;
+
+  // Canvas-internal → #field pre-transform CSS coords (within wrap)
+  const Cx = g.padL + (x / FIELD.W) * g.fieldW;
+  const Cy = g.padT + (y / FIELD.H) * g.fieldH;
+
+  // Distance from #field transformOrigin (50%, 100%)
+  const dx = Cx - g.ox;
+  const dy = Cy - g.oy;       // <= 0 for points above the bottom-center origin
+
+  // Apply scaleY(1/cosθ) then rotateX(θ).
+  // For (x, y, 0) after rotateX(θ) the rotation matrix gives:
+  //   y' = y*cosθ  ;  z' = y*sinθ
+  // Pre-scaled by sY, so y becomes dy*sY (more negative above origin).
+  const sdy = dy * g.sY;
+  const y3d = sdy * g.cosθ;
+  const z3d = sdy * g.sinθ;    // negative for above-origin → further from viewer
+
+  // Wrap CSS coords + depth after transform
+  const fx = g.ox + dx;
+  const fy = g.oy + y3d;
+  const fz = z3d;
+
+  // Wrap perspective (P=1100, origin 50% 80%). fz < 0 → scale < 1.
+  const persScale = g.P / (g.P - fz);
+  const screenX = g.Px + (fx - g.Px) * persScale;
+  const screenY = g.Py + (fy - g.Py) * persScale;
+
+  // Wrap CSS → upright canvas internal coords. Upright canvas covers the
+  // wrap's padding box (clientW × clientH) via inset:0, so:
+  const uX = screenX * (FIELD.W / g.wrapW);
+  const uY = screenY * (FIELD.H / g.wrapH);
+
+  return { x: uX, y: uY, scale: persScale };
 }
 
 function setViewMode(mode) {
