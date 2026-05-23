@@ -35,8 +35,22 @@ LEAGUE_ID = "591940"
 # backward — Yahoo's URL pattern is /YEAR/f1/LEAGUE_ID/draftresults and the
 # league_id can change year-to-year via renew; see fantasy_draft/yahoo.py
 # for the OAuth-based renew walker.
-SEASONS = tuple(range(2015, 2026))
-OUT_DIR = Path("data/yahoo/league_591940")
+#
+# Known MONEYLEAGUE league IDs across years (Yahoo re-keys each season):
+#   2018 = 50466  (game_id 380, named "moneyleague")
+#   2022 = 591940 (game_id 414, named "moneyleague")
+#   2023 = 591940 (game_id 423)
+#   2024 = 591940 (game_id 449, renamed "Lucky 7")
+# 2019/2020/2021 IDs are unknown — Yahoo doesn't expose the renew chain in
+# public HTML, so they need to be supplied manually (see SEASON_LEAGUE_IDS).
+SEASON_LEAGUE_IDS: dict[int, str] = {
+    2018: "50466",
+    2022: "591940",
+    2023: "591940",
+    2024: "591940",
+}
+SEASONS = tuple(sorted(SEASON_LEAGUE_IDS))
+OUT_DIR = Path("data/yahoo")
 COOKIE_FILE = Path(".yahoo_cookies")
 
 UA = "Mozilla/5.0"
@@ -116,7 +130,8 @@ def main():
     print(f"  Cookie auth: {'YES' if cookies_present else 'no (pre-2022 will skip)'}")
     totals = {}
     for season in SEASONS:
-        url = f"https://football.fantasysports.yahoo.com/{season}/f1/{LEAGUE_ID}/draftresults"
+        league_id = SEASON_LEAGUE_IDS[season]
+        url = f"https://football.fantasysports.yahoo.com/{season}/f1/{league_id}/draftresults"
         try:
             html = fetch(url)
         except urllib.error.HTTPError as e:
@@ -127,11 +142,17 @@ def main():
         if "Login - Sign in to Yahoo" in html[:5000] or "<title>Sign in" in html[:5000]:
             print(f"  {season}: login wall (cookies missing or expired); skipping.")
             continue
+        # "There was a problem" means the league_id doesn't exist for that year.
+        if "There was a problem" in html[:2000]:
+            print(f"  {season}: league {league_id} doesn't exist that year; skipping.")
+            continue
         picks = parse_draft(html, season)
         if not picks:
             print(f"  {season}: no picks parsed (league may not exist this season); skipping.")
             continue
-        out_path = OUT_DIR / f"draft_{season}.csv"
+        season_dir = OUT_DIR / f"league_{league_id}"
+        season_dir.mkdir(parents=True, exist_ok=True)
+        out_path = season_dir / f"draft_{season}.csv"
         with open(out_path, "w", newline="") as f:
             w = csv.DictWriter(f, fieldnames=[
                 "season", "overall_pick", "round", "pick_in_round",
