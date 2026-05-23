@@ -1357,6 +1357,7 @@ function renderGameLayout() {
   if (typeof _touchdownCinema !== "undefined" && _touchdownCinema.clear) _touchdownCinema.clear();
   if (typeof _hcDecisionCinema !== "undefined" && _hcDecisionCinema.clear) _hcDecisionCinema.clear();
   if (typeof _momentCinema !== "undefined" && _momentCinema.clear) _momentCinema.clear();
+  if (typeof _segmentCinema !== "undefined" && _segmentCinema.clear) _segmentCinema.clear();
   // Initial field draw — engine continues to own the canvas.
   const ctx = $("field").getContext("2d");
   if (viewMode === "cinema") {

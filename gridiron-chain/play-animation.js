@@ -317,6 +317,107 @@ const _hcDecisionCinema = (() => {
   };
 })();
 
+// Segment cinema — full-screen card for end-of-quarter / halftime /
+// overtime / two-minute warning. Replaces the old plain-text canvas
+// overlay. Score-by-quarter table on halftime + EOQ. ~2s beat,
+// auto-fades. (Timeouts kept on the simple canvas treatment — less
+// disruptive, more frequent.)
+const _segmentCinema = (() => {
+  let activeId = null;
+  function _wrap() {
+    return document.querySelector(".bspnlive-field-wrap")
+        || document.querySelector(".field-wrap")
+        || document.getElementById("field")?.parentElement;
+  }
+  function _meta(play) {
+    if (play.kind === "halftime")        return { headline: "HALFTIME", sub: "End of 2nd Quarter", accent: "#f5c542" };
+    if (play.kind === "ot")              return { headline: "OVERTIME", sub: "Tied — sudden death", accent: "#ff5a4a" };
+    if (play.kind === "two_min_warning") return { headline: "2-MINUTE WARNING", sub: "", accent: "#e8a000" };
+    if (play.kind === "quarter") {
+      // play.desc has the "End of Q1" type info. Try to parse.
+      const m = /Q(\d)/i.exec(play.desc || "");
+      const q = m ? Number(m[1]) : null;
+      return {
+        headline: q ? `END OF Q${q}` : "QUARTER",
+        sub: q === 1 ? "1st quarter complete"
+            : q === 2 ? "Half time approaching"
+            : q === 3 ? "Final quarter begins"
+            : "Quarter complete",
+        accent: "#9bd0ff",
+      };
+    }
+    return null;
+  }
+  function _quarterScoresHTML(play) {
+    // Walk back through plays to compute Q1..Q4 running scores.
+    if (!gameResult?.plays) return "";
+    const qScores = { 1:{h:0,a:0}, 2:{h:0,a:0}, 3:{h:0,a:0}, 4:{h:0,a:0} };
+    const playIdx = gameResult.plays.indexOf(play);
+    const upto = playIdx >= 0 ? playIdx + 1 : gameResult.plays.length;
+    for (let i = 0; i < upto; i++) {
+      const p = gameResult.plays[i];
+      if (p?.kind === "score" && p.pts && p.poss) {
+        const q = Math.min(4, Math.max(1, p.quarter || 1));
+        const side = p.poss === "home" ? "h" : "a";
+        qScores[q][side] += p.pts;
+      }
+    }
+    const homeT = gameResult?.homeTeam, awayT = gameResult?.awayTeam;
+    const homeTotal = qScores[1].h + qScores[2].h + qScores[3].h + qScores[4].h;
+    const awayTotal = qScores[1].a + qScores[2].a + qScores[3].a + qScores[4].a;
+    return `<table class="seg-qtable">
+      <thead><tr>
+        <th></th><th>Q1</th><th>Q2</th><th>Q3</th><th>Q4</th><th class="seg-qtotal">T</th>
+      </tr></thead>
+      <tbody>
+        <tr style="--team:${awayT?.primary || "#fff"}">
+          <td class="seg-qabbr">${awayT?.abbr || "A"}</td>
+          <td>${qScores[1].a}</td><td>${qScores[2].a}</td><td>${qScores[3].a}</td><td>${qScores[4].a}</td>
+          <td class="seg-qtotal">${awayTotal}</td>
+        </tr>
+        <tr style="--team:${homeT?.primary || "#fff"}">
+          <td class="seg-qabbr">${homeT?.abbr || "H"}</td>
+          <td>${qScores[1].h}</td><td>${qScores[2].h}</td><td>${qScores[3].h}</td><td>${qScores[4].h}</td>
+          <td class="seg-qtotal">${homeTotal}</td>
+        </tr>
+      </tbody>
+    </table>`;
+  }
+  return {
+    show(play) {
+      const meta = _meta(play);
+      if (!meta) return;
+      const id = `${play.kind}-${play.quarter || 0}-${play.time || 0}`;
+      if (activeId === id) return;
+      this.clear();
+      activeId = id;
+      const wrap = _wrap();
+      if (!wrap) return;
+      const cs = getComputedStyle(wrap);
+      if (cs.position === "static") wrap.style.position = "relative";
+      const showTable = play.kind === "halftime" || play.kind === "quarter";
+      const el = document.createElement("div");
+      el.className = "seg-cinema";
+      el.id = "seg-cinema-overlay";
+      el.style.setProperty("--accent", meta.accent);
+      el.innerHTML = `
+        <div class="seg-flood"></div>
+        <div class="seg-content">
+          <div class="seg-eyebrow">${play.kind === "halftime" ? "GRIDIRON CHAIN" : ""}</div>
+          <div class="seg-headline">${meta.headline}</div>
+          ${meta.sub ? `<div class="seg-sub">${meta.sub}</div>` : ""}
+          ${showTable ? `<div class="seg-table-wrap">${_quarterScoresHTML(play)}</div>` : ""}
+        </div>`;
+      wrap.appendChild(el);
+    },
+    clear() {
+      const el = document.getElementById("seg-cinema-overlay");
+      if (el) el.remove();
+      activeId = null;
+    },
+  };
+})();
+
 // Big-play moment cinemas — INT (incl. PICK SIX), FUMBLE RECOVERY,
 // SACK (force ≥ 1.5). Card slides up from field bottom on the play
 // hold, ~1.4s beat, auto-clear on next play.
@@ -440,25 +541,32 @@ function buildAnimForPlay(play, prevPlay) {
   }
 
   if (["halftime", "ot", "quarter", "two_min_warning", "timeout"].includes(play.kind)) {
-    const isWarning = play.kind === "two_min_warning";
     const isTimeout = play.kind === "timeout";
-    const dur = isTimeout ? 1400 : isWarning ? 1500 : 1200;
+    // Timeouts stay on the simple canvas treatment (frequent, less major).
+    // Quarter ends / halftime / OT / 2-min warning get the cinematic.
+    if (isTimeout) {
+      const dur = 1400;
+      return { duration: dur, kind: play.kind, render: (t, ctx) => {
+        drawField(ctx, homeTeam, awayTeam, null);
+        ctx.fillStyle = "rgba(20,30,50,0.65)";
+        ctx.fillRect(0, 0, FIELD.W, FIELD.H);
+        ctx.fillStyle = "#9bd0ff";
+        ctx.font = "bold 36px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(play.desc, FIELD.W / 2, FIELD.H / 2);
+        if (play.timeoutsRemaining) {
+          ctx.font = "bold 14px sans-serif";
+          ctx.fillStyle = "#cccccc";
+          const h = play.timeoutsRemaining.home, a = play.timeoutsRemaining.away;
+          ctx.fillText(`${homeTeam.name} ${h} TO  ·  ${awayTeam.name} ${a} TO`, FIELD.W / 2, FIELD.H / 2 + 40);
+        }
+      }};
+    }
+    const dur = play.kind === "halftime" ? 2400 : play.kind === "ot" ? 2200 : 1800;
     return { duration: dur, kind: play.kind, render: (t, ctx) => {
       drawField(ctx, homeTeam, awayTeam, null);
-      ctx.fillStyle = isWarning ? "rgba(40,20,0,0.65)" : isTimeout ? "rgba(20,30,50,0.65)" : "rgba(0,0,0,0.55)";
-      ctx.fillRect(0, 0, FIELD.W, FIELD.H);
-      ctx.fillStyle = isTimeout ? "#9bd0ff" : "#f0cc30";
-      ctx.font = "bold " + (isTimeout ? "36px" : "42px") + " sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(play.desc, FIELD.W / 2, FIELD.H / 2);
-      // Show remaining timeouts on a TO call
-      if (isTimeout && play.timeoutsRemaining) {
-        ctx.font = "bold 14px sans-serif";
-        ctx.fillStyle = "#cccccc";
-        const h = play.timeoutsRemaining.home, a = play.timeoutsRemaining.away;
-        ctx.fillText(`${homeTeam.name} ${h} TO  ·  ${awayTeam.name} ${a} TO`, FIELD.W / 2, FIELD.H / 2 + 40);
-      }
+      _segmentCinema.show(play);
     }};
   }
 
@@ -5389,6 +5497,11 @@ function startNextPlay() {
   if (typeof _touchdownCinema !== "undefined") _touchdownCinema.clear();
   // Same for big-play moment cinema
   if (typeof _momentCinema !== "undefined") _momentCinema.clear();
+  // Clear segment cinema when leaving a quarter/halftime/2-min/OT play
+  if (play.kind !== "halftime" && play.kind !== "ot" &&
+      play.kind !== "quarter" && play.kind !== "two_min_warning") {
+    if (typeof _segmentCinema !== "undefined") _segmentCinema.clear();
+  }
   const builder = viewMode === "cinema" ? buildCinemaAnim : buildAnimForPlay;
   const anim = builder(play, prev);
   animState = {
