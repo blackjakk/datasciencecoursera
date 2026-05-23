@@ -48,6 +48,8 @@ const GCFx = (() => {
   let _flareDur   = 0;
   let _pxScanlines = null;      // PIXI.TilingSprite scanline overlay (replay)
   let _pxReplayBadge = null;    // PIXI.Text "INSTANT REPLAY" badge (replay)
+  let _pxLiveBadge = null;      // PIXI.Container LIVE indicator (always-on)
+  let _pxLiveDot   = null;      // PIXI.Graphics blinking red dot
   function _pixiAvailable() {
     return typeof PIXI !== "undefined" && typeof PIXI.Application === "function";
   }
@@ -291,6 +293,32 @@ const GCFx = (() => {
         console.warn("PIXI scanlines failed:", e);
         _pxScanlines = null;
       }
+      // ── LIVE broadcast indicator — red blinking dot + "LIVE" text in
+      // the upper-left of the field-wrap. Always visible during gameplay,
+      // hidden during replay (the INSTANT REPLAY badge takes its place).
+      try {
+        _pxLiveBadge = new PIXI.Container();
+        _pxLiveBadge.position.set(28, 24);
+        _pxLiveDot = new PIXI.Graphics();
+        _pxLiveDot.beginFill(0xff3030, 1);
+        _pxLiveDot.drawCircle(14, 22, 11);
+        _pxLiveDot.endFill();
+        _pxLiveBadge.addChild(_pxLiveDot);
+        const liveText = new PIXI.Text("LIVE", {
+          fontFamily: "Impact, Arial Black, sans-serif",
+          fontSize: 36,
+          fill: 0xffffff,
+          stroke: 0x000000,
+          strokeThickness: 5,
+          letterSpacing: 2,
+        });
+        liveText.position.set(34, 4);
+        _pxLiveBadge.addChild(liveText);
+        _pxApp.stage.addChild(_pxLiveBadge);
+      } catch (e) {
+        console.warn("PIXI live badge failed:", e);
+        _pxLiveBadge = null;
+      }
       // ── INSTANT REPLAY badge — visible only when window._replayMode is
       // true. Pulsing alpha + slight red tint.
       try {
@@ -499,6 +527,17 @@ const GCFx = (() => {
         _pxReplayBadge.alpha = pulse;
       } else if (_pxReplayBadge.alpha !== 0) {
         _pxReplayBadge.alpha = 0;
+      }
+    }
+    // LIVE badge — hidden during replay (replaced by INSTANT REPLAY).
+    // Otherwise the red dot blinks every ~1.4s like a real LIVE feed.
+    if (_pxLiveBadge && _pxLiveDot) {
+      if (window._replayMode) {
+        _pxLiveBadge.alpha = 0;
+      } else {
+        _pxLiveBadge.alpha = 1;
+        const blink = (performance.now() % 1400) < 800 ? 1 : 0.25;
+        _pxLiveDot.alpha = blink;
       }
     }
     _pxApp.renderer.render(_pxApp.stage);

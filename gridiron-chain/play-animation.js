@@ -5683,11 +5683,24 @@ function startNextPlay() {
                   _kind === "fumble" || _kind === "sack";
   const _isSeg  = _kind === "halftime" || _kind === "quarter" ||
                   _kind === "ot" || _kind === "two_min_warning";
+  const _isGroan = _kind === "incomplete" || _kind === "fg_miss" ||
+                   _kind === "xp_miss"   || _kind === "to_downs" ||
+                   _kind === "interception";
+  const _isBigPlay = _kind === "int_no_td" || _kind === "interception" ||
+                     _kind === "fumble"    || _kind === "long_run" ||
+                     _kind === "long_pass" || _kind === "sack";
   if (typeof GCAudio !== "undefined") {
     GCAudio.crowd.start();
     if (_isTD) GCAudio.play("cheer");
-    else if (_isHit) GCAudio.play("hit");
+    else if (_isHit) {
+      GCAudio.play("hit");
+      // Big-play crowd swell layered with the hit thud — bigger moments
+      // get both the impact and the reaction.
+      if (_kind === "fumble" || _kind === "sack") GCAudio.play("bigplay");
+    }
     else if (_isSeg) GCAudio.play("whistle");
+    else if (_isGroan) GCAudio.play("groan");
+    else if (_isBigPlay) GCAudio.play("bigplay");
     else if (_kind !== "hc_decision") GCAudio.play("snap");
   }
   // Visual FX hooks — screen shake on big hits, confetti on TDs. Particle

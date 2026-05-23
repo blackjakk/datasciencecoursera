@@ -146,6 +146,51 @@ const GCAudio = (() => {
     src.start(t); src.stop(t + 1.7);
   }
 
+  function _playGroan() {
+    const c = _ensureCtx(); if (!c) return;
+    const t = c.currentTime;
+    // Crowd groan — low-passed noise with a descending pitch via filter
+    // freq sweep. Reads as disappointment (incomplete pass, missed FG).
+    const buf = _noiseBuffer(); if (!buf) return;
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    const filt = c.createBiquadFilter();
+    filt.type = "bandpass";
+    filt.frequency.setValueAtTime(500, t);
+    filt.frequency.exponentialRampToValueAtTime(220, t + 0.9);
+    filt.Q.value = 0.7;
+    const gain = c.createGain();
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.linearRampToValueAtTime(0.28, t + 0.25);
+    gain.gain.linearRampToValueAtTime(0.0001, t + 1.0);
+    src.connect(filt).connect(gain).connect(masterGain);
+    src.start(t); src.stop(t + 1.1);
+  }
+
+  function _playBigPlay() {
+    const c = _ensureCtx(); if (!c) return;
+    const t = c.currentTime;
+    // Big-play swell — quick rising band-pass noise. Reads as "ohhh!"
+    // when something significant but not yet a score happens (long run,
+    // big completion, sack, INT).
+    const buf = _noiseBuffer(); if (!buf) return;
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    const filt = c.createBiquadFilter();
+    filt.type = "bandpass";
+    filt.frequency.setValueAtTime(600, t);
+    filt.frequency.exponentialRampToValueAtTime(1200, t + 0.5);
+    filt.Q.value = 0.6;
+    const gain = c.createGain();
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.linearRampToValueAtTime(0.32, t + 0.35);
+    gain.gain.linearRampToValueAtTime(0.0001, t + 1.0);
+    src.connect(filt).connect(gain).connect(masterGain);
+    src.start(t); src.stop(t + 1.1);
+  }
+
   // ── Ambient crowd hum (looping low-level murmur) ──────────────────────
   function _crowdStart() {
     const c = _ensureCtx(); if (!c) return;
@@ -190,6 +235,8 @@ const GCAudio = (() => {
       else if (name === "whistle") _playWhistle();
       else if (name === "hit")     _playHit();
       else if (name === "cheer")   _playCheer();
+      else if (name === "groan")   _playGroan();
+      else if (name === "bigplay") _playBigPlay();
     } catch (_) {}
   }
 
