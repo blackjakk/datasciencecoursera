@@ -89,69 +89,12 @@ const GCFx = (() => {
         "pointer-events:none;z-index:4;";
       wrap.appendChild(view);
       _pxAttachedTo = wrap;
-      // ── Vignette layer (drawn FIRST — bottom of z-stack). Pre-render
-      // to a RenderTexture once, then display as a Sprite. This bypasses
-      // the per-frame Graphics path that produced the gray-composite
-      // artifact on software WebGL in Phase 1.5.
-      try {
-        const vignTex = PIXI.RenderTexture.create({ width: 1700, height: 720 });
-        const vignG = new PIXI.Graphics();
-        // Build a proper radial vignette: draw a dark full-canvas rect,
-        // then "punch" a transparent center via PIXI BLEND_MODES.ERASE on
-        // overlapping bright ellipses. Net result: dark at the corners,
-        // clear in the center. RenderTexture caches the result so the
-        // per-frame cost is just blitting one Sprite.
-        const W = 1700, H = 720, cx = W / 2, cy = H * 0.58;
-        vignG.beginFill(0x000000, 0.32);
-        vignG.drawRect(0, 0, W, H);
-        vignG.endFill();
-        // Subtractive bright ellipses — clear the center.
-        vignG.blendMode = PIXI.BLEND_MODES.ERASE;
-        const layers = 10;
-        for (let i = 0; i < layers; i++) {
-          const t = (layers - i) / layers;     // 1 → 1/layers
-          const rx = (0.30 + 0.50 * t) * W;
-          const ry = (0.34 + 0.55 * t) * H;
-          const a = 0.12 * t;
-          vignG.beginFill(0xffffff, a);
-          vignG.drawEllipse(cx, cy, rx, ry);
-          vignG.endFill();
-        }
-        _pxApp.renderer.render(vignG, { renderTexture: vignTex });
-        vignG.destroy();
-        _pxVignetteSprite = new PIXI.Sprite(vignTex);
-        _pxApp.stage.addChild(_pxVignetteSprite);
-      } catch (e) {
-        console.warn("PIXI vignette failed:", e);
-      }
-      // ── Stadium light beams (drawn second). Soft additive sprites at
-      // the existing CSS stadium-light positions, gently pulsing. New
-      // effect that wasn't easily doable in canvas2D.
-      // ── Atmospheric haze (drawn before the light beams) — vertical
-      // gradient that fades from a soft bluish-gray at the top (far
-      // distance under the broadcast cam tilt) to transparent at the
-      // bottom (near camera). Simulates distance fog seen in real TV
-      // broadcasts and gives the field a sense of depth.
-      try {
-        const hazeTex = PIXI.RenderTexture.create({ width: 1700, height: 720 });
-        const hazeG = new PIXI.Graphics();
-        const bands = 24;
-        for (let i = 0; i < bands; i++) {
-          const t = i / (bands - 1);                         // 0..1, top→bot
-          // Heavy near the top (where the field's far edge lands after
-          // the broadcast tilt), tapering to nothing past 40% of canvas.
-          const a = Math.max(0, 0.10 * (1 - t * 2.5));
-          hazeG.beginFill(0xa8b6c8, a);
-          hazeG.drawRect(0, t * 720, 1700, 720 / bands + 1);
-          hazeG.endFill();
-        }
-        _pxApp.renderer.render(hazeG, { renderTexture: hazeTex });
-        hazeG.destroy();
-        const hazeSprite = new PIXI.Sprite(hazeTex);
-        _pxApp.stage.addChild(hazeSprite);
-      } catch (e) {
-        console.warn("PIXI haze failed:", e);
-      }
+      // ── Vignette + atmospheric haze REMOVED — they were flattening the
+      // field's vibrant green into a washed-out dim look. Broadcast
+      // atmosphere now comes from the LED ribbon, stadium light beams,
+      // particle bloom, and the bigger event graphics (banners, chyrons,
+      // lens flare). If we want corner framing back, do it via a single
+      // CSS box-shadow on the wrap (easier to dial, no compositing tax).
       try {
         _pxLightBeams = new PIXI.Container();
         _pxLightBeams.blendMode = PIXI.BLEND_MODES.ADD;

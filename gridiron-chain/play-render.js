@@ -73,16 +73,10 @@ function drawField(ctx, homeTeam, awayTeam, ctx_state) {
       ctx.fillRect(x, FIELD.TOP, 10 * FIELD.PX_PER_YARD, FIELD.BOT - FIELD.TOP);
     }
   }
-  // Subtle field-wide vignette — slightly darker at the corners so the
-  // midfield action sits in a soft spotlight (broadcast camera feel).
-  {
-    const cx = W / 2, cy = (FIELD.TOP + FIELD.BOT) / 2;
-    const grad = ctx.createRadialGradient(cx, cy, Math.min(W, H) * 0.25, cx, cy, Math.max(W, H) * 0.65);
-    grad.addColorStop(0, "rgba(0,0,0,0)");
-    grad.addColorStop(1, "rgba(0,0,0,0.22)");
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, FIELD.TOP, W, FIELD.BOT - FIELD.TOP);
-  }
+  // Canvas2D field-wide vignette removed — it was compounding with the
+  // PIXI overlay vignette (now also removed) to over-darken the field.
+  // Broadcast atmosphere now comes from light beams + LED ribbon +
+  // particle bloom only.
   // End zones + team text — PIXI when active (Phase 2A.2), canvas2D otherwise.
   if (!_pixiField) {
     ctx.fillStyle = homeTeam.primary;
