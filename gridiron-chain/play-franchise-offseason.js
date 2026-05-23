@@ -7154,28 +7154,58 @@ function renderFrnResignings() {
   const expiring   = myRoster.filter(p => p.contract && p.contract.remaining <= 0);
   const committed  = myRoster.filter(p => p.contract && p.contract.remaining > 0);
   const capCommitted = committed.reduce((s, p) => s + currentYearCapHit(p), 0);
+  // Pending team-option decisions (_processContractOptions set the flags)
+  const optionPending = myRoster.filter(p => p.contract?._teamOptionPending);
 
-  if (expiring.length === 0) {
+  if (expiring.length === 0 && optionPending.length === 0) {
     frnProceedToRosterChanges();
     return;
   }
 
-  // Default offer: 3-year deal at market rate.
+  // Default offer: 3-year deal at market rate. Seed and merge — keep any
+  // in-progress decisions while picking up newly-expiring players (e.g.,
+  // someone whose team option was just declined).
+  franchise._resignPending = franchise._resignPending || [];
+  const existingNames = new Set(franchise._resignPending.map(r => `${r.pos}:${r.name}`));
   expiring.sort((a, b) => (b.overall || 0) - (a.overall || 0));
-  franchise._resignPending = expiring.map(p => {
+  for (const p of expiring) {
+    if (existingNames.has(`${p.position}:${p.name}`)) continue;
     const baseMarket = computeMarketValue(p, cap);
     const offerYears = 3;
-    return {
+    franchise._resignPending.push({
       name: p.name, pos: p.position, overall: p.overall, age: p.age,
       baseMarket,
       offer: _resignAavForYears(baseMarket, offerYears),
       offerYears,
       structure: _defaultStructure(p.age || 27, p.overall || 70),
       decision: null,
-    };
-  });
+    });
+  }
   saveFranchise();
   _renderResignUI(cap, capCommitted);
+}
+
+// Team-option decision: pick up = contract continues normally; decline =
+// player walks at end of current year (no dead cap penalty).
+function frnTeamOptionDecide(name, pos, pickUp) {
+  const myId = franchise.chosenTeamId;
+  const p = (franchise.rosters[myId] || []).find(q => q.name === name && q.position === pos);
+  if (!p?.contract?._teamOptionPending) return;
+  if (pickUp) {
+    // Pick up — option fires, contract continues. AAV / bases unchanged in
+    // our model (we treat the team-option as the team's right to exit
+    // cleanly at that year, rather than an alternate salary).
+    delete p.contract._teamOptionPending;
+    _pushNews({ type: "extension", label: `✓ Picked up team option on ${pos} ${name}` });
+  } else {
+    // Decline — player walks at end of current year (set remaining to 0
+    // so they expire cleanly with no dead cap firing).
+    p.contract.remaining = 0;
+    delete p.contract._teamOptionPending;
+    _pushNews({ type: "extension", label: `↗ Declined team option on ${pos} ${name} — enters free agency` });
+  }
+  saveFranchise();
+  renderFrnResignings();
 }
 
 function _renderResignUI(cap, capCommitted) {
@@ -7412,6 +7442,12 @@ function _renderResignUI(cap, capCommitted) {
                 const desc = s==="BALANCED"?"flat salaries":s==="BACKLOADED"?"cheap now, costly later":"costly now, cheap later";
                 return `<button class="btn ${struct===s?"btn-gold":"btn-outline"}" onclick="frnResignSetStructure(${idx},'${s}')" style="font-size:.55rem;padding:.1rem .3rem" title="${desc}">${s[0]+s.slice(1).toLowerCase()}</button>`;
               }).join("")}
+              ${r.offerYears >= 2 ? `<button
+                class="btn ${r.teamOption?"btn-gold":"btn-outline"}"
+                onclick="frnResignToggleTeamOption(${idx})"
+                style="font-size:.55rem;padding:.1rem .3rem"
+                title="Add a team option on the final year. AAV drops 3% in exchange. You can walk before the option year fires without dead cap.">
+                📋 Opt${r.teamOption?" ✓":""}</button>` : ""}
             </div>
           </div>
           <div class="frn-resign-btns">
@@ -7448,6 +7484,60 @@ function _renderResignUI(cap, capCommitted) {
     sectionFor("🛡 Starters",       byTier.starter,    "75–84 OVR"),
     sectionFor("📋 Depth & Role",   byTier.depth,      "<75 OVR"),
   ].join("");
+
+  // Team-option decisions — players whose option year is up. Renders above
+  // resign sections so the user clears them first. Each card shows market
+  // vs option to make pick-up/decline obvious.
+  const myRosterOpts = franchise.rosters[chosenTeamId] || [];
+  const optionPending = myRosterOpts.filter(p => p.contract?._teamOptionPending);
+  const optionBanner = optionPending.length ? `
+    <section class="frn-resign-section" style="border:2px solid var(--gold);background:rgba(200,169,0,.05)">
+      <div class="frn-resign-section-head" style="background:rgba(200,169,0,.12);border-bottom:1px solid var(--gold)">
+        <span class="title" style="color:var(--gold)">📋 TEAM OPTION DECISIONS</span>
+        <span class="eyebrow">${optionPending.length} player${optionPending.length===1?"":"s"} — option year is up</span>
+      </div>
+      <div style="padding:.45rem .6rem .15rem;font-size:.62rem;color:var(--gray)">
+        Pick up to keep them at the preset option value. Decline = they enter free agency cleanly (no dead cap).
+      </div>
+      <div style="display:flex;flex-direction:column;gap:.4rem;padding:.4rem .55rem .6rem">
+        ${optionPending.map(p => {
+          const optVal = p.contract.teamOption?.value || p.contract.aav || 0;
+          const market = computeMarketValue(p, cap);
+          const ratio = optVal > 0 ? market / optVal : 1;
+          const verdict = ratio >= 1.10
+            ? { label: "⭐ STEAL", color: "var(--green-lt)", text: `Market $${market.toFixed(1)}M beats option $${optVal.toFixed(1)}M` }
+            : ratio >= 0.92
+              ? { label: "≈ FAIR", color: "var(--gold)", text: `Market $${market.toFixed(1)}M ≈ option $${optVal.toFixed(1)}M` }
+              : { label: "⚠ OVERPAY", color: "#ff9090", text: `Market $${market.toFixed(1)}M < option $${optVal.toFixed(1)}M` };
+          const escNm = p.name.replace(/'/g, "\\'");
+          const tag = (typeof potentialTag === "function") ? potentialTag(p, { known: true }) : "";
+          const stat = _statLine(p.name);
+          return `<div style="display:flex;align-items:center;gap:.6rem;padding:.45rem .55rem;background:var(--bg2);border:1px solid var(--border);border-radius:4px;flex-wrap:wrap">
+            <div style="flex:1;min-width:280px">
+              <div style="font-weight:700;color:var(--white)">
+                ${p.name}
+                <span style="color:var(--gray);font-weight:400;font-size:.7rem"> · ${p.position} · age ${p.age} · ${p.overall||"?"} OVR${tag?` · ${tag}`:""}</span>
+              </div>
+              ${stat ? `<div style="font-size:.6rem;color:var(--gray);margin-top:.1rem">${stat}</div>` : ""}
+              <div style="font-size:.65rem;color:${verdict.color};margin-top:.15rem;font-weight:600">
+                ${verdict.label} <span style="color:var(--gray);font-weight:400">— ${verdict.text}</span>
+              </div>
+            </div>
+            <div style="display:flex;gap:.35rem">
+              <button class="btn btn-gold" onclick="frnTeamOptionDecide('${escNm}','${p.position}',true)"
+                      style="font-size:.65rem;padding:.28rem .55rem" title="Keep him at option value $${optVal.toFixed(1)}M">
+                ✓ Pick up
+              </button>
+              <button class="btn btn-outline" onclick="frnTeamOptionDecide('${escNm}','${p.position}',false)"
+                      style="font-size:.65rem;padding:.28rem .55rem;color:#ff9090;border-color:#552020"
+                      title="Player walks to FA cleanly (no dead cap)">
+                ↗ Decline
+              </button>
+            </div>
+          </div>`;
+        }).join("")}
+      </div>
+    </section>` : "";
 
   const acceptedCost = _resignPending
     .filter(r => r.decision === "accept").reduce((s, r) => s + r.offer, 0);
@@ -7509,11 +7599,12 @@ function _renderResignUI(cap, capCommitted) {
         ? `<button class="frn-resign-bulk-btn" onclick="frnResignBulkDeclineOver(5)">✗ Walk all &gt; $5M</button>` : ""}
     </div>
 
+    ${optionBanner}
     ${sectionsHtml}
 
     <div class="frn-actions" style="justify-content:center;margin-top:1.2rem;flex-wrap:wrap;gap:.5rem">
-      ${pending > 0
-        ? `<div style="color:var(--gray);font-size:.78rem">${pending} decision${pending>1?"s":""} remaining</div>`
+      ${pending > 0 || optionPending.length > 0
+        ? `<div style="color:var(--gray);font-size:.78rem">${pending + optionPending.length} decision${(pending+optionPending.length)>1?"s":""} remaining</div>`
         : `<button class="btn btn-gold" onclick="frnOpenResignRecap()">✓ Review &amp; Continue →</button>`}
     </div>`;
 }
@@ -7782,6 +7873,25 @@ function frnResignDecide(idx, decision) {
   _renderResignUIRefresh();
 }
 
+// Toggle a team option on the final year of the offer. Player gives up
+// security in exchange for a 3% AAV discount; team can walk before the
+// option year fires without taking dead cap.
+function frnResignToggleTeamOption(idx) {
+  const row = franchise._resignPending?.[idx];
+  if (!row || row.decision) return;
+  if (row.offerYears < 2) return;
+  const wasOn = !!row.teamOption;
+  if (wasOn) {
+    delete row.teamOption;
+    row.offer = Math.round(row.offer / 0.97 * 10) / 10;  // restore market
+  } else {
+    row.teamOption = true;
+    row.offer = Math.round(row.offer * 0.97 * 10) / 10;  // 3% discount
+  }
+  saveFranchise();
+  _renderResignUIRefresh();
+}
+
 function frnResignAdjustYears(idx, delta) {
   const row = franchise._resignPending?.[idx];
   if (!row || row.decision) return;
@@ -7841,6 +7951,13 @@ function frnConfirmResignings() {
         startSeason: (franchise.season || 1) + 1, // contract starts NEXT season
         signedOvr: player.overall || 70,
       };
+      // Team option: fires the offseason BEFORE the final year — `year: 1`
+      // matches the `c.remaining === c.teamOption.year` guard in
+      // _processContractOptions. value records what the player would earn
+      // on pick-up (used by the decision UI to show market-vs-option).
+      if (r.teamOption) {
+        player.contract.teamOption = { year: 1, value: r.offer };
+      }
       _clearGrudgeFlags(player);
     } else {
       // Declined: remove from roster (enters FA — currently just lost).
@@ -8355,6 +8472,9 @@ function startFrnOffseason() {
   // Detect unhappy stars on the user's roster — they'll demand extensions
   // at the offseason summary screen.
   _detectHoldouts();
+  // Resolve contract options: auto-decide player options vs market; flag
+  // user-team team-options for manual pick-up/decline in the resign UI.
+  _processContractOptions();
   franchise.phase = "offseason";
   franchise._resignPending = null;
   saveFranchise();
