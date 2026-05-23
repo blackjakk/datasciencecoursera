@@ -24,7 +24,8 @@ window._useFieldPixi = (window._useFieldPixi != null) ? window._useFieldPixi : t
 const GCField = (() => {
   let _app = null;              // PIXI.Application bound to #field-pixi
   let _bg = null;               // PIXI.Container — static field background
-  let _dynG = null;             // PIXI.Graphics — per-frame LOS + FD line
+  let _dynGlow = null;          // PIXI.Graphics — wider blurred LOS/FD halo
+  let _dynG = null;             // PIXI.Graphics — sharp LOS + FD line
   let _attachedTo = null;       // Canvas element we attached to
   let _lastRenderKey = "";      // Cache key: "homeId|awayId" — re-render on team change
   let _lastDynKey = "";         // Last (los, firstDownAbs, possColor) — skip rerender if same
@@ -56,9 +57,15 @@ const GCField = (() => {
       });
       _bg = new PIXI.Container();
       _app.stage.addChild(_bg);
-      // Per-frame dynamic graphics (LOS, FD line). Sits on top of the
-      // cached static background; cleared + redrawn each frame when the
-      // (los, firstDownAbs) state changes.
+      // Per-frame dynamic graphics (LOS, FD line). Two layers: a wider
+      // blurred "glow" under the sharp line. Looks like Madden's
+      // broadcast first-down line — crisp on top, soft halo beneath.
+      _dynGlow = new PIXI.Graphics();
+      const glowBlur = new PIXI.BlurFilter();
+      glowBlur.blur = 8;
+      glowBlur.quality = 2;
+      _dynGlow.filters = [glowBlur];
+      _app.stage.addChild(_dynGlow);
       _dynG = new PIXI.Graphics();
       _app.stage.addChild(_dynG);
       _attachedTo = cv;
@@ -283,14 +290,27 @@ const GCField = (() => {
     }
     _lastDynKey = key;
     _dynG.clear();
+    if (_dynGlow) _dynGlow.clear();
     if (los != null) {
       const losHex = (typeof col === "string" && col[0] === "#")
         ? parseInt(col.slice(1), 16) : 0x4b9bd5;
+      // Wider blurred halo underneath for a soft glow
+      if (_dynGlow) {
+        _dynGlow.lineStyle(10, losHex, 0.55);
+        _dynGlow.moveTo(los, FIELD.TOP);
+        _dynGlow.lineTo(los, FIELD.BOT);
+      }
+      // Sharp line on top
       _dynG.lineStyle(3, losHex, 1);
       _dynG.moveTo(los, FIELD.TOP);
       _dynG.lineTo(los, FIELD.BOT);
     }
     if (fd != null) {
+      if (_dynGlow) {
+        _dynGlow.lineStyle(10, 0xf0cc30, 0.55);
+        _dynGlow.moveTo(fd, FIELD.TOP);
+        _dynGlow.lineTo(fd, FIELD.BOT);
+      }
       _dynG.lineStyle(3, 0xf0cc30, 1);
       _dynG.moveTo(fd, FIELD.TOP);
       _dynG.lineTo(fd, FIELD.BOT);
