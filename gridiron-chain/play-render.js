@@ -325,26 +325,33 @@ function pickBodyType(pos, archetype) {
 }
 
 function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style = {}) {
-  // Broadcast camera: route to the upright overlay canvas and project
-  // the world (x, y) through projectBroadcast() so the sprite lands at
-  // the same screen-space position the tilted field puts it, but is
-  // drawn upright (not foreshortened with the field plane).
+  // Broadcast camera: queue the draw to the upright overlay so we can
+  // depth-sort all sprites before flushing. The frame-end hook
+  // (_frameEndBroadcast) sorts by projected-Y (smaller = further away)
+  // then runs each queued draw — closer players naturally occlude
+  // farther ones on pile-ups.
   if (typeof cameraMode !== "undefined" && cameraMode === "broadcast"
-      && typeof _uprightCtx !== "undefined" && _uprightCtx) {
+      && typeof _uprightCtx !== "undefined" && _uprightCtx
+      && typeof _spriteQueue !== "undefined") {
     const proj = projectBroadcast(x, y);
-    ctx = _uprightCtx;
-    x = proj.x;
-    y = proj.y;
-    // Scale the sprite by depth so far-side players read smaller.
-    // Apply by mutating the bodyType scale via the existing pipeline —
-    // we save the canvas + apply a uniform scale around the sprite anchor.
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.scale(proj.scale, proj.scale);
-    ctx.translate(-x, -y);
-    // Sentinel so we know to ctx.restore() at the end.
-    style = { ...style, _bcastRestore: true };
+    const qCtx = _uprightCtx;
+    const qStyle = { ...style, _bcastRestore: true };
+    _spriteQueue.push({
+      screenY: proj.y,
+      run: () => {
+        qCtx.save();
+        qCtx.translate(proj.x, proj.y);
+        qCtx.scale(proj.scale, proj.scale);
+        qCtx.translate(-proj.x, -proj.y);
+        _drawPlayerImpl(qCtx, proj.x, proj.y, color, secondary, label, pose, t, facing, qStyle);
+      },
+    });
+    return;
   }
+  _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, style);
+}
+
+function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, style = {}) {
   pose = pose || "idle";
   t = t || 0;
   facing = facing || 1;
@@ -1281,16 +1288,24 @@ function drawGoalposts(ctx, cx, cy) {
 }
 
 function drawBall(ctx, x, y, scale = 1, opts = {}) {
-  // Broadcast camera: route to the upright overlay and project. Ball
-  // scales by depth too — closer ball reads bigger, far ball smaller.
+  // Broadcast camera: queue the ball draw to the upright overlay with
+  // depth scaling. Sorted alongside player sprites in _frameEndBroadcast.
   if (typeof cameraMode !== "undefined" && cameraMode === "broadcast"
-      && typeof _uprightCtx !== "undefined" && _uprightCtx) {
+      && typeof _uprightCtx !== "undefined" && _uprightCtx
+      && typeof _spriteQueue !== "undefined") {
     const proj = projectBroadcast(x, y);
-    ctx = _uprightCtx;
-    x = proj.x;
-    y = proj.y;
-    scale = scale * proj.scale;
+    const qCtx = _uprightCtx;
+    const finalScale = scale * proj.scale;
+    _spriteQueue.push({
+      screenY: proj.y,
+      run: () => _drawBallImpl(qCtx, proj.x, proj.y, finalScale, opts),
+    });
+    return;
   }
+  _drawBallImpl(ctx, x, y, scale, opts);
+}
+
+function _drawBallImpl(ctx, x, y, scale = 1, opts = {}) {
   // Real football — brown leather oval with white laces. Sized to be
   // legible on a 1700-px-wide field: ~24px tall at scale 1. Pulsing
   // yellow halo (opts.glow !== false) makes the ball trivially trackable

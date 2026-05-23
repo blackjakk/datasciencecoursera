@@ -1045,6 +1045,12 @@ function buildAnimForPlay(play, prevPlay) {
   // Pre-snap callouts: only AUDIBLE (when relevant) + the "BALL SNAPPED!"
   // flash at the moment of the snap. No SET/DOWN/HUT cadence text.
   function drawPreSnapCallouts(c, t, dur) {
+    // Broadcast camera: route all banners/text to the upright overlay
+    // canvas so they don't tilt with the field plane.
+    if (typeof cameraMode !== "undefined" && cameraMode === "broadcast"
+        && typeof _uprightCtx !== "undefined" && _uprightCtx) {
+      c = _uprightCtx;
+    }
     // Snap flash window — anchored to ~750ms wall time (not a fixed fraction
     // of action), so short plays still get a visible flash.
     const snapFlashWindow = Math.min(0.5, 750 / (dur || 2400));
@@ -5364,6 +5370,7 @@ let viewMode = "tactical"; // 'tactical' | 'cinema'
 // foreshortened with the field plane.
 let cameraMode = "topdown"; // 'topdown' | 'broadcast'
 let _uprightCtx = null;      // set per frame by _frameStartBroadcast()
+let _spriteQueue = [];        // deferred sprite draws (player/ball) for depth sort
 const BROADCAST_TILT_DEG = 38;
 const BROADCAST_PERSPECTIVE_PX = 1100;
 
@@ -5373,12 +5380,29 @@ const BROADCAST_PERSPECTIVE_PX = 1100;
 function _frameStartBroadcast() {
   if (cameraMode !== "broadcast") {
     _uprightCtx = null;
+    _spriteQueue.length = 0;
     return;
   }
   const upr = document.getElementById("field-uprights");
   if (!upr) { _uprightCtx = null; return; }
   _uprightCtx = upr.getContext("2d");
   _uprightCtx.clearRect(0, 0, upr.width, upr.height);
+  _spriteQueue.length = 0;
+}
+
+// Called by the tick loop after render(). Sorts queued sprite draws
+// by depth (smaller projected Y = further away = drawn first) so
+// closer players occlude farther ones on pile-ups.
+function _frameEndBroadcast() {
+  if (cameraMode !== "broadcast" || !_uprightCtx || !_spriteQueue.length) {
+    _spriteQueue.length = 0;
+    return;
+  }
+  _spriteQueue.sort((a, b) => a.screenY - b.screenY);
+  for (const item of _spriteQueue) {
+    try { item.run(); } catch (e) { console.error("sprite flush err", e); }
+  }
+  _spriteQueue.length = 0;
 }
 
 function setCameraMode(mode) {
@@ -5650,6 +5674,7 @@ function tick(now) {
   _frameStartBroadcast();
   try {
     animState.anim.render(t, ctx);
+    _frameEndBroadcast();
   } catch (e) {
     console.error('Render error on play', animState.play, e);
   }
