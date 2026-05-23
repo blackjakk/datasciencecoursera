@@ -108,7 +108,34 @@ def projections_to_players(
             bye=int(meta.get("bye_week") or 0),
             rank_overall=i,
         ))
-    return out
+
+    # Sleeper returns several different NFL players who share a name (e.g.
+    # three "Josh Johnson"s). Downstream code (apply_keepers, draft.available,
+    # the simulator's Counter) keys on name; duplicates cause wrong-player
+    # matches and inflate availability probabilities above 100%. Dedupe by
+    # name, keeping the highest-projection version (the "real" player rather
+    # than a UDFA namesake) and disambiguating any remaining ties with team.
+    out.sort(key=lambda p: -p.projection)
+    seen: dict[str, Player] = {}
+    deduped: list[Player] = []
+    for p in out:
+        if p.name in seen:
+            # Promote remaining same-name players to "Name (TEAM)" so they
+            # remain in the pool but no longer collide.
+            other = seen[p.name]
+            uniq = f"{p.name} ({p.team or p.position})"
+            p = Player(name=uniq, position=p.position, team=p.team, adp=p.adp,
+                       projection=p.projection, bye=p.bye, tier=p.tier,
+                       rank_overall=p.rank_overall, rank_position=p.rank_position)
+            seen[uniq] = p
+        else:
+            seen[p.name] = p
+        deduped.append(p)
+    # Restore ADP order so rank_overall stays meaningful.
+    deduped.sort(key=lambda p: p.adp)
+    for i, p in enumerate(deduped, start=1):
+        p.rank_overall = i
+    return deduped
 
 
 def write_players_csv(players: list[Player], path: str | Path) -> None:
