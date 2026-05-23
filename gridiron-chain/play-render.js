@@ -26,6 +26,27 @@ function drawField(ctx, homeTeam, awayTeam, ctx_state) {
   // Base grass (slightly darker than mowing bands so sidelines read as a deeper green)
   ctx.fillStyle = "#1c5e2f";
   ctx.fillRect(0, 0, W, H);
+  // Painted sideline pad — the strip beyond the chalk where coaches, chain
+  // crew, and out-of-bounds players land. Without this, the area past
+  // FIELD.TOP / FIELD.BOT reads as more grass and the chalk line looks like
+  // it's floating in space under the broadcast cam tilt.
+  {
+    ctx.fillStyle = "#d9cfb9";
+    ctx.fillRect(0, 0,         W, FIELD.TOP);            // far-side pad (above field)
+    ctx.fillRect(0, FIELD.BOT,  W, H - FIELD.BOT);       // near-side pad (below field)
+    // Recessed shading toward the canvas edge so the pad reads as the
+    // painted "out of bounds" surface, not as a flat overlay panel.
+    const topGrad = ctx.createLinearGradient(0, 0, 0, FIELD.TOP);
+    topGrad.addColorStop(0, "rgba(0,0,0,0.32)");
+    topGrad.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = topGrad;
+    ctx.fillRect(0, 0, W, FIELD.TOP);
+    const botGrad = ctx.createLinearGradient(0, FIELD.BOT, 0, H);
+    botGrad.addColorStop(0, "rgba(0,0,0,0)");
+    botGrad.addColorStop(1, "rgba(0,0,0,0.32)");
+    ctx.fillStyle = botGrad;
+    ctx.fillRect(0, FIELD.BOT, W, H - FIELD.BOT);
+  }
   // Alternating mowed bands — stronger contrast so the grass texture reads
   // even at small sizes / with broadcast camera tilt.
   for (let i = 0; i < 10; i++) {
