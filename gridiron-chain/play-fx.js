@@ -109,6 +109,31 @@ const GCFx = (() => {
       // ── Stadium light beams (drawn second). Soft additive sprites at
       // the existing CSS stadium-light positions, gently pulsing. New
       // effect that wasn't easily doable in canvas2D.
+      // ── Atmospheric haze (drawn before the light beams) — vertical
+      // gradient that fades from a soft bluish-gray at the top (far
+      // distance under the broadcast cam tilt) to transparent at the
+      // bottom (near camera). Simulates distance fog seen in real TV
+      // broadcasts and gives the field a sense of depth.
+      try {
+        const hazeTex = PIXI.RenderTexture.create({ width: 1700, height: 720 });
+        const hazeG = new PIXI.Graphics();
+        const bands = 24;
+        for (let i = 0; i < bands; i++) {
+          const t = i / (bands - 1);                         // 0..1, top→bot
+          // Heavy near the top (where the field's far edge lands after
+          // the broadcast tilt), tapering to nothing past 40% of canvas.
+          const a = Math.max(0, 0.16 * (1 - t * 2.5));
+          hazeG.beginFill(0xa8b6c8, a);
+          hazeG.drawRect(0, t * 720, 1700, 720 / bands + 1);
+          hazeG.endFill();
+        }
+        _pxApp.renderer.render(hazeG, { renderTexture: hazeTex });
+        hazeG.destroy();
+        const hazeSprite = new PIXI.Sprite(hazeTex);
+        _pxApp.stage.addChild(hazeSprite);
+      } catch (e) {
+        console.warn("PIXI haze failed:", e);
+      }
       try {
         _pxLightBeams = new PIXI.Container();
         _pxLightBeams.blendMode = PIXI.BLEND_MODES.ADD;
