@@ -15,7 +15,7 @@
     {"name": "BENCH", "count": 6}
   ],
   "scoring": {
-    "reception": 1.0
+    "reception": 0.5
   },
   "keepers": {
     "enabled": true,
