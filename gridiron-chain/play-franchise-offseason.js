@@ -4831,6 +4831,80 @@ function renderFrnAnalytics(defaultTab) {
         : "";
       const escName = p.name.replace(/'/g, "\\'");
       const isPendingRestructure = _restructurePending?.name === p.name && _restructurePending?.pos === p.position;
+      const isPendingPayCut      = _payCutPending?.name === p.name && _payCutPending?.pos === p.position;
+      // Inline pay-cut negotiation row — sits in place of the player row
+      // while the user picks a cut depth (or sees the player's response).
+      if (isPendingPayCut) {
+        const { currentAav, market, overpayPct, result, newAav, cutPct, acceptChance } = _payCutPending;
+        if (result == null) {
+          const overpayLabel = overpayPct >= 0.25 ? `<span style="color:#ff9090;font-weight:700">overpaid by ${(overpayPct*100).toFixed(0)}%</span>`
+                            : overpayPct >= 0.05 ? `<span style="color:#e8a000">slightly above market</span>`
+                            : overpayPct >= -0.05 ? `<span style="color:var(--gray)">fair value</span>`
+                            : `<span style="color:var(--green-lt)">underpaid — he'll laugh</span>`;
+          const presetBtn = (pct) => {
+            const newA = Math.max(0.5, Math.round(currentAav * (1 - pct) * 10) / 10);
+            const chance = _payCutAcceptChance(p, pct, market);
+            const cColor = chance >= 0.55 ? "var(--green-lt)" : chance >= 0.30 ? "var(--gold)" : "#ff9090";
+            return `<button class="btn btn-outline" onclick="frnPayCutSubmit(${pct})"
+              style="font-size:.6rem;padding:.22rem .5rem;display:flex;flex-direction:column;align-items:center;line-height:1.2;min-width:90px"
+              title="Ask for a ${Math.round(pct*100)}% cut. Accept chance ${(chance*100).toFixed(0)}%.">
+              <span style="font-weight:700">−${Math.round(pct*100)}% → $${newA.toFixed(1)}M</span>
+              <span style="font-size:.5rem;color:${cColor};margin-top:.1rem">${(chance*100).toFixed(0)}% accept</span>
+            </button>`;
+          };
+          return `<tr style="background:rgba(80,160,80,.10)">
+            <td style="font-weight:700;color:var(--green-lt)">${p.name}</td>
+            <td style="color:var(--gray)">${p.position}</td>
+            <td colspan="6" style="font-size:.66rem;padding:.4rem .5rem">
+              <div style="display:flex;flex-wrap:wrap;align-items:center;gap:.5rem 1rem">
+                <span>Current AAV <b style="color:var(--white)">$${currentAav.toFixed(1)}M</b>
+                · market <b>$${market.toFixed(1)}M</b> — ${overpayLabel}</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:.4rem;margin-top:.4rem;flex-wrap:wrap">
+                <span style="color:var(--gray);font-size:.58rem;letter-spacing:.4px">REQUEST CUT:</span>
+                ${presetBtn(0.10)}
+                ${presetBtn(0.20)}
+                ${presetBtn(0.30)}
+              </div>
+            </td>
+            <td colspan="2" style="white-space:nowrap;padding:.4rem .5rem">
+              <button class="btn btn-outline" onclick="frnPayCutClose()" style="font-size:.62rem;padding:.2rem .5rem">✗ Cancel</button>
+            </td>
+          </tr>`;
+        }
+        // Result phase — accepted or declined
+        if (result === "accept") {
+          const freed = Math.round((currentAav - newAav) * 10) / 10;
+          return `<tr style="background:rgba(80,180,80,.16)">
+            <td style="font-weight:700;color:var(--green-lt)">${p.name}</td>
+            <td style="color:var(--gray)">${p.position}</td>
+            <td colspan="6" style="font-size:.7rem;padding:.4rem .5rem">
+              <span style="color:var(--green-lt);font-weight:700">✓ ACCEPTED</span>
+              · agreed to ${Math.round(cutPct*100)}% cut · new AAV
+              <b style="color:var(--white)">$${newAav.toFixed(1)}M</b>
+              · freed <b style="color:var(--green-lt)">$${freed.toFixed(1)}M</b> on cap
+            </td>
+            <td colspan="2" style="white-space:nowrap;padding:.4rem .5rem">
+              <button class="btn btn-gold" onclick="frnPayCutClose()" style="font-size:.62rem;padding:.2rem .5rem">✓ OK</button>
+            </td>
+          </tr>`;
+        }
+        // Declined
+        return `<tr style="background:rgba(180,80,80,.14)">
+          <td style="font-weight:700;color:#ff9090">${p.name}</td>
+          <td style="color:var(--gray)">${p.position}</td>
+          <td colspan="6" style="font-size:.7rem;padding:.4rem .5rem">
+            <span style="color:#ff9090;font-weight:700">✗ REFUSED</span>
+            · won't take ${Math.round(cutPct*100)}% cut (${Math.round((acceptChance||0)*100)}% was the odds).
+            Stays at <b style="color:var(--white)">$${currentAav.toFixed(1)}M</b>.
+            You can keep him or release him.
+          </td>
+          <td colspan="2" style="white-space:nowrap;padding:.4rem .5rem">
+            <button class="btn btn-outline" onclick="frnReleasePlayer('${escName}','${p.position}');frnPayCutClose()" style="font-size:.62rem;padding:.2rem .5rem;color:var(--red);border-color:#552020">✗ Release</button>
+            <button class="btn btn-outline" onclick="frnPayCutClose()" style="font-size:.62rem;padding:.2rem .5rem;margin-left:.2rem">Keep</button>
+          </td>
+        </tr>`;
+      }
       // Inline restructure confirmation row — no browser dialog
       if (isPendingRestructure) {
         const { freed, newProration, currentBase, remaining, voidYearsAdd = 0, maxNewVoid = 0, existingVoid = 0 } = _restructurePending;
@@ -4880,7 +4954,8 @@ function renderFrnAnalytics(defaultTab) {
         </td>
         <td style="color:var(--gray);font-size:.65rem">${c.remaining}yr left</td>
         <td style="font-size:.65rem">
-          ${canRestructure ? `<button class="btn btn-outline" onclick="frnRestructure(${chosenTeamId},'${escName}','${p.position}')" style="font-size:.58rem;padding:.15rem .4rem;color:var(--gold)" title="Convert base salary to signing bonus — frees cap now, adds dead money">↺ Restructure</button>` : ""}
+          ${canRestructure ? `<button class="btn btn-outline" onclick="frnRestructure(${chosenTeamId},'${escName}','${p.position}')" style="font-size:.58rem;padding:.15rem .4rem;color:var(--gold);margin-right:.15rem" title="Convert base salary to signing bonus — frees cap now, adds dead money">↺ Restructure</button>` : ""}
+          ${(c.remaining||0) >= 2 && c.payCutRequestedSeason !== franchise.season ? `<button class="btn btn-outline" onclick="frnRequestPayCut('${escName}','${p.position}')" style="font-size:.58rem;padding:.15rem .4rem;color:var(--green-lt)" title="Ask the player to take a pay cut. Accept chance depends on age, market overpay, and cut depth.">💰 Pay cut</button>` : ""}
           ${expiring ? `<span style="color:var(--red)">EXPIRING</span>` : ""}
         </td>
       </tr>`;

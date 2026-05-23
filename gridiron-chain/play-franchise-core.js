@@ -11,6 +11,7 @@ const SALARY_CAP_BASE = 200; // $M — grows ~5-9% each offseason
 // Inline confirmation state — avoids browser confirm()/alert() dialogs.
 let _restructurePending = null; // {teamId,name,pos,currentBase,newProration,freed,remaining}
 let _releasePending     = null; // {name,pos,deadPerYr,deadYrs,deadTotal,june1,j1Year1,j1Year2,j1Allowed,j1Used}
+let _payCutPending      = null; // {name,pos,currentAav,market,overpayPct,result:null|"accept"|"decline",newAav,cutPct}
 
 // NFL post-June 1 cap rule: each team gets 2 designations per offseason.
 // Normal cut: all remaining bonus proration counts as dead cap (spread over
@@ -807,6 +808,109 @@ function frnReleasePlayerConfirm() {
 function frnReleasePlayerCancel() {
   _releasePending = null;
   renderFrnPreseason("roster");
+}
+
+// ── Pay-cut negotiation ─────────────────────────────────────────────────────
+// Vet on a bloated deal: ask him to take a cut or risk release.
+// Accept chance is driven by how overpaid he is, age (older vets have
+// fewer alternatives), depth of the requested cut, and OVR leverage
+// (stars decline harder). Once accepted, the contract recomputes at
+// the new AAV with fresh bonus proration + base schedule.
+function _payCutAcceptChance(player, cutPct, market) {
+  const aav = player.contract?.aav || 0;
+  if (!aav) return 0;
+  const newAav = aav * (1 - cutPct);
+  // Overpay factor — how much above market the current deal is
+  const overpay = market > 0 ? (aav / market) - 1 : 0;   // 0 = fair, +0.5 = 50% over
+  // Underpay leverage — if you're cutting an already-fair deal, hard no
+  const newVsMarket = market > 0 ? newAav / market : 1;
+  // Base chance grows with overpay; collapses if the new offer is below market
+  let chance = 0.10;
+  chance += Math.max(0, overpay) * 0.80;          // big overpay → big willingness
+  chance -= Math.max(0, 1.0 - newVsMarket) * 1.20; // new < market = walk-away
+  // Age: older = fewer outside options
+  const age = player.age || 26;
+  if (age >= 33)      chance += 0.25;
+  else if (age >= 30) chance += 0.12;
+  else if (age <= 26) chance -= 0.10;
+  // Cut depth: steeper asks are insulting
+  chance -= Math.max(0, cutPct - 0.10) * 1.4;
+  // Stars decline harder (OVR leverage)
+  const ovr = player.overall || 70;
+  if (ovr >= 90)      chance -= 0.15;
+  else if (ovr >= 85) chance -= 0.08;
+  // Already-cut-this-season penalty (don't keep asking)
+  if (player.contract?.payCutRequestedSeason === franchise?.season) chance -= 0.35;
+  return Math.max(0.03, Math.min(0.92, chance));
+}
+
+function frnRequestPayCut(name, pos) {
+  // Toggle off
+  if (_payCutPending?.name === name && _payCutPending?.pos === pos) {
+    _payCutPending = null;
+    renderFrnAnalytics("mysheet");
+    return;
+  }
+  const teamId = franchise.chosenTeamId;
+  const roster = franchise.rosters[teamId];
+  const p = roster?.find(q => q.name === name && q.position === pos);
+  if (!p?.contract || (p.contract.remaining || 0) < 2) return;
+  const cap = franchise.salaryCap || SALARY_CAP_BASE;
+  const market = computeMarketValue(p, cap);
+  const currentAav = p.contract.aav;
+  _payCutPending = {
+    name, pos,
+    currentAav,
+    market,
+    overpayPct: market > 0 ? (currentAav / market - 1) : 0,
+    result: null,
+    newAav: null,
+    cutPct: null,
+  };
+  renderFrnAnalytics("mysheet");
+}
+
+function frnPayCutSubmit(cutPct) {
+  if (!_payCutPending) return;
+  const teamId = franchise.chosenTeamId;
+  const p = (franchise.rosters[teamId] || []).find(
+    q => q.name === _payCutPending.name && q.position === _payCutPending.pos
+  );
+  if (!p?.contract) { _payCutPending = null; return; }
+  const chance = _payCutAcceptChance(p, cutPct, _payCutPending.market);
+  const accepted = Math.random() < chance;
+  const newAav = Math.max(0.5, Math.round(p.contract.aav * (1 - cutPct) * 10) / 10);
+  _payCutPending.cutPct = cutPct;
+  _payCutPending.newAav = newAav;
+  _payCutPending.result = accepted ? "accept" : "decline";
+  _payCutPending.acceptChance = chance;
+  // Stamp the attempt so the same player can't be repeatedly asked
+  p.contract.payCutRequestedSeason = franchise.season;
+  if (accepted) {
+    // Recompute contract at the new AAV — keep years/structure, regenerate
+    // bonus proration + base schedule so cap math stays clean.
+    const years = p.contract.years || 1;
+    const struct = p.contract.structure || "BALANCED";
+    const { signingBonus, bonusProration } = _signingBonusCalc(newAav, years, p.overall || 70);
+    p.contract.aav = newAav;
+    p.contract.signedAav = newAav;
+    p.contract.signingBonus = signingBonus;
+    p.contract.bonusProration = bonusProration;
+    p.contract.baseSalaries = _baseSalarySchedule(newAav, years, struct, bonusProration);
+    p.contract.guaranteedAAV = Math.min(p.contract.guaranteedAAV ?? newAav, newAav);
+    _pushNews({ type: "extension",
+      label: `✓ ${p.position} ${p.name} took a ${Math.round(cutPct*100)}% pay cut — new AAV $${newAav.toFixed(1)}M` });
+  } else {
+    _pushNews({ type: "extension",
+      label: `✗ ${p.position} ${p.name} refused a ${Math.round(cutPct*100)}% pay cut` });
+  }
+  saveFranchise();
+  renderFrnAnalytics("mysheet");
+}
+
+function frnPayCutClose() {
+  _payCutPending = null;
+  renderFrnAnalytics("mysheet");
 }
 
 // ── Scouting representation: never expose raw OVR. Players are shown to the
