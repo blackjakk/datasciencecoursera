@@ -2018,7 +2018,11 @@ const _CATASTROPHIC_VARIANTS = {
 // ankle are eligible for catastrophic upgrade (~60% of all injuries),
 // so the effective catastrophic rate after the !isCatastrophic gate
 // is ~7%. Lifts NFL career-ending injuries to ~3-5/season from 1.5.
-const _CATASTROPHIC_UPGRADE_CHANCE = 0.12;
+//
+// 2026-05 tuning: prior 0.12 produced ~2.6 career-ending/season —
+// below NFL's 5-10. Bumped to 0.20 to lift the rate by ~67% toward
+// the lower end of the NFL band (~4.3/season).
+const _CATASTROPHIC_UPGRADE_CHANCE = 0.20;
 // Position-aware severity multiplier on the rehab OVR penalty. Speed-
 // dependent positions (CB/WR/RB) lose more from structural injuries; OL/K
 // lose less because they don't rely on explosiveness.
@@ -2311,12 +2315,15 @@ function _rollNonContactInjuries(teamId) {
     //   V11: 16% (too low)
     //   V12-V14: 23% (still under)
     //   V15: ~32% target (lifted bands 1.4-1.5x)
-    let baseRate = stress >= 80 ? 0.048
-                 : stress >= 60 ? 0.032
-                 : stress >= 40 ? 0.020
-                 : stress >= 20 ? 0.012
-                 : stress >= 10 ? 0.008
-                 :                0.003;
+    //   2026-05: handoff §8 noted actual still ~25% — pushing to ~40%
+    //   by lifting each band ~25% (high-stress bands lifted most since
+    //   stress is the primary non-contact driver per Mai et al. 2017).
+    let baseRate = stress >= 80 ? 0.062
+                 : stress >= 60 ? 0.042
+                 : stress >= 40 ? 0.026
+                 : stress >= 20 ? 0.015
+                 : stress >= 10 ? 0.010
+                 :                0.004;
     // Early-season transition spike — NFL injury data (Mai et al. 2017,
     // PFR injury reports) shows ACL + hamstring incidence is ~2-2.5x
     // higher in Weeks 1-4 than mid-season. Bodies haven't built game-
@@ -2377,10 +2384,13 @@ function _rollNonContactInjuries(teamId) {
       const found = INJURY_TYPES.find(x => x.label === earlyType);
       if (found) t = found;
     }
-    // Non-contact catastrophic — torn achilles or chronic hamstring
+    // Non-contact catastrophic — torn achilles or chronic hamstring.
+    // 2026-05 tuning: 0.08 → 0.13 to match the catastrophic uplift on
+    // the contact path. Non-contact catastrophic ends ~1-1.5 careers
+    // per season instead of ~0.6.
     let isCatastrophic = false;
     let careerEnding = false;
-    if (Math.random() < 0.08) {
+    if (Math.random() < 0.13) {
       const variant = _CATASTROPHIC_VARIANTS[t.label];
       if (variant) {
         t = { ...t, ...variant };

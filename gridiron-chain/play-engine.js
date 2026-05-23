@@ -2394,11 +2394,13 @@ class GameSimulator {
     // engine burned a flat 27 sec/play regardless of result.
     const clockStopped = !!this._lastClockStopped;
     // NFL per-snap clock burn (incl. dead ball before snap):
-    //   normal:  ~30-33s   (engine 31)  was 33 (overshoot — scoring fell
-    //                       to 18.7 from 22.7; split the difference)
+    //   normal:  ~30-33s   (engine 32)  prior 31 produced 70 plays/game
+    //                       vs NFL 62; bumped to 32 to add ~3s/play and
+    //                       trim ~2-3 plays/game. (33 was prior overshoot
+    //                       — scoring fell to 18.7 from 22.7.)
     //   stopped: ~13s      (engine 13)  incomp / OOB / TO / spike
     //   2-min:   ~12s      (engine 12)  no-huddle pace
-    const dtMean = inTwoMin ? 12 : clockStopped ? 13 : 31;
+    const dtMean = inTwoMin ? 12 : clockStopped ? 13 : 32;
     const dtSd   = inTwoMin ? 3  : clockStopped ? 4  : 8;
     const dtMin  = inTwoMin ? 5  : clockStopped ? 6  : 14;
     const dtMax  = inTwoMin ? 22 : clockStopped ? 22 : 50;
