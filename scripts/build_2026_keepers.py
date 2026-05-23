@@ -72,13 +72,18 @@ def build() -> list[dict]:
             canonical = k.player_name
             print(f"WARN: {k.player_name} not in 2026 projections; using raw name.")
 
-        draft_slot = int(p["draft_slot"])
+        draft_slot_2025 = int(p["draft_slot"])
         roster_id = int(p["roster_id"])
         status = "forced_drop" if k.years_kept >= 3 else "carryover"
+        # team_idx keys on roster_id (persistent team identity) so it lines up
+        # with traded_picks.json (also keyed on roster_id). The 2026 draft slot
+        # order isn't drawn yet; the live-draft engine treats team_idx as the
+        # 2026 snake slot, so this implicitly assumes slot = roster_id until
+        # the real 2026 draft is created and slots are randomized.
         out.append({
-            "team_idx": draft_slot - 1,         # 0..11 for the Draft
-            "draft_slot": draft_slot,           # 1..12
-            "roster_id": roster_id,             # for cross-reference with Sleeper
+            "team_idx": roster_id - 1,          # 0..11; matches trades' roster_id key
+            "roster_id": roster_id,
+            "draft_slot_2025": draft_slot_2025,  # informational only
             "player_name": canonical,
             "position": p["metadata"]["position"],
             "prior_round": k.round_num,
@@ -101,14 +106,14 @@ def main():
 
     print(f"\nWrote {OUT_PATH} with {len(records)} records "
           f"({len(carryover)} carryover, {len(forced)} forced drops).")
-    print("\nPer-team summary:")
+    print("\nPer-team summary (keyed by roster_id):")
     for idx in sorted(by_team):
         recs = by_team[idx]
         carry = [r for r in recs if r["status"] == "carryover"]
         drop = [r for r in recs if r["status"] == "forced_drop"]
         names = ", ".join(f"{r['player_name']}(R{r['prior_round']},yr{r['years_kept']})"
                           for r in recs)
-        print(f"  slot {idx+1:>2} ({len(carry)} keep, {len(drop)} drop): {names}")
+        print(f"  roster {idx+1:>2} ({len(carry)} keep, {len(drop)} drop): {names}")
 
 
 if __name__ == "__main__":

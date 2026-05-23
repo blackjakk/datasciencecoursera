@@ -1,8 +1,8 @@
 [
   {
     "team_idx": 7,
-    "draft_slot": 8,
     "roster_id": 8,
+    "draft_slot_2025": 8,
     "player_name": "George Kittle",
     "position": "TE",
     "prior_round": 4,
@@ -11,8 +11,8 @@
   },
   {
     "team_idx": 11,
-    "draft_slot": 12,
     "roster_id": 12,
+    "draft_slot_2025": 12,
     "player_name": "Brock Bowers",
     "position": "TE",
     "prior_round": 4,
@@ -20,9 +20,9 @@
     "status": "carryover"
   },
   {
-    "team_idx": 0,
-    "draft_slot": 1,
+    "team_idx": 5,
     "roster_id": 6,
+    "draft_slot_2025": 1,
     "player_name": "C.J. Stroud",
     "position": "QB",
     "prior_round": 5,
@@ -30,9 +30,9 @@
     "status": "carryover"
   },
   {
-    "team_idx": 6,
-    "draft_slot": 7,
+    "team_idx": 9,
     "roster_id": 10,
+    "draft_slot_2025": 7,
     "player_name": "Kyler Murray",
     "position": "QB",
     "prior_round": 5,
@@ -40,9 +40,9 @@
     "status": "carryover"
   },
   {
-    "team_idx": 9,
-    "draft_slot": 10,
+    "team_idx": 2,
     "roster_id": 3,
+    "draft_slot_2025": 10,
     "player_name": "Brian Thomas",
     "position": "WR",
     "prior_round": 5,
@@ -50,9 +50,9 @@
     "status": "carryover"
   },
   {
-    "team_idx": 10,
-    "draft_slot": 11,
+    "team_idx": 3,
     "roster_id": 4,
+    "draft_slot_2025": 11,
     "player_name": "Courtland Sutton",
     "position": "WR",
     "prior_round": 5,
@@ -60,9 +60,9 @@
     "status": "carryover"
   },
   {
-    "team_idx": 3,
-    "draft_slot": 4,
+    "team_idx": 10,
     "roster_id": 11,
+    "draft_slot_2025": 4,
     "player_name": "Nico Collins",
     "position": "WR",
     "prior_round": 6,
@@ -70,9 +70,9 @@
     "status": "carryover"
   },
   {
-    "team_idx": 2,
-    "draft_slot": 3,
+    "team_idx": 6,
     "roster_id": 7,
+    "draft_slot_2025": 3,
     "player_name": "Bryce Young",
     "position": "QB",
     "prior_round": 7,
@@ -81,8 +81,8 @@
   },
   {
     "team_idx": 7,
-    "draft_slot": 8,
     "roster_id": 8,
+    "draft_slot_2025": 8,
     "player_name": "Jaxon Smith-Njigba",
     "position": "WR",
     "prior_round": 7,
@@ -90,9 +90,9 @@
     "status": "carryover"
   },
   {
-    "team_idx": 9,
-    "draft_slot": 10,
+    "team_idx": 2,
     "roster_id": 3,
+    "draft_slot_2025": 10,
     "player_name": "Bo Nix",
     "position": "QB",
     "prior_round": 7,
@@ -101,8 +101,8 @@
   },
   {
     "team_idx": 11,
-    "draft_slot": 12,
     "roster_id": 12,
+    "draft_slot_2025": 12,
     "player_name": "Rashee Rice",
     "position": "WR",
     "prior_round": 7,
@@ -110,9 +110,9 @@
     "status": "carryover"
   },
   {
-    "team_idx": 3,
-    "draft_slot": 4,
+    "team_idx": 10,
     "roster_id": 11,
+    "draft_slot_2025": 4,
     "player_name": "De'Von Achane",
     "position": "RB",
     "prior_round": 8,
@@ -120,9 +120,9 @@
     "status": "carryover"
   },
   {
-    "team_idx": 10,
-    "draft_slot": 11,
+    "team_idx": 3,
     "roster_id": 4,
+    "draft_slot_2025": 11,
     "player_name": "J.K. Dobbins",
     "position": "RB",
     "prior_round": 8,
@@ -131,8 +131,8 @@
   },
   {
     "team_idx": 11,
-    "draft_slot": 12,
     "roster_id": 12,
+    "draft_slot_2025": 12,
     "player_name": "Jameson Williams",
     "position": "WR",
     "prior_round": 8,
@@ -140,9 +140,9 @@
     "status": "carryover"
   },
   {
-    "team_idx": 5,
-    "draft_slot": 6,
+    "team_idx": 0,
     "roster_id": 1,
+    "draft_slot_2025": 6,
     "player_name": "Drake Maye",
     "position": "QB",
     "prior_round": 9,
@@ -150,9 +150,9 @@
     "status": "carryover"
   },
   {
-    "team_idx": 2,
-    "draft_slot": 3,
+    "team_idx": 6,
     "roster_id": 7,
+    "draft_slot_2025": 3,
     "player_name": "Baker Mayfield",
     "position": "QB",
     "prior_round": 10,
@@ -161,8 +161,8 @@
   },
   {
     "team_idx": 4,
-    "draft_slot": 5,
     "roster_id": 5,
+    "draft_slot_2025": 5,
     "player_name": "Jordan Mason",
     "position": "RB",
     "prior_round": 10,
@@ -170,9 +170,9 @@
     "status": "carryover"
   },
   {
-    "team_idx": 0,
-    "draft_slot": 1,
+    "team_idx": 5,
     "roster_id": 6,
+    "draft_slot_2025": 1,
     "player_name": "Geno Smith",
     "position": "QB",
     "prior_round": 11,
@@ -181,8 +181,8 @@
   },
   {
     "team_idx": 1,
-    "draft_slot": 2,
     "roster_id": 2,
+    "draft_slot_2025": 2,
     "player_name": "Khalil Shakir",
     "position": "WR",
     "prior_round": 11,
@@ -191,8 +191,8 @@
   },
   {
     "team_idx": 4,
-    "draft_slot": 5,
     "roster_id": 5,
+    "draft_slot_2025": 5,
     "player_name": "Brock Purdy",
     "position": "QB",
     "prior_round": 11,
@@ -200,9 +200,9 @@
     "status": "forced_drop"
   },
   {
-    "team_idx": 6,
-    "draft_slot": 7,
+    "team_idx": 9,
     "roster_id": 10,
+    "draft_slot_2025": 7,
     "player_name": "Sam LaPorta",
     "position": "TE",
     "prior_round": 11,
@@ -211,8 +211,8 @@
   },
   {
     "team_idx": 8,
-    "draft_slot": 9,
     "roster_id": 9,
+    "draft_slot_2025": 9,
     "player_name": "Jordan Love",
     "position": "QB",
     "prior_round": 11,
@@ -220,9 +220,9 @@
     "status": "forced_drop"
   },
   {
-    "team_idx": 2,
-    "draft_slot": 3,
+    "team_idx": 6,
     "roster_id": 7,
+    "draft_slot_2025": 3,
     "player_name": "Bucky Irving",
     "position": "RB",
     "prior_round": 12,
@@ -230,9 +230,9 @@
     "status": "carryover"
   },
   {
-    "team_idx": 3,
-    "draft_slot": 4,
+    "team_idx": 10,
     "roster_id": 11,
+    "draft_slot_2025": 4,
     "player_name": "Justin Fields",
     "position": "QB",
     "prior_round": 12,
@@ -241,8 +241,8 @@
   },
   {
     "team_idx": 4,
-    "draft_slot": 5,
     "roster_id": 5,
+    "draft_slot_2025": 5,
     "player_name": "Tucker Kraft",
     "position": "TE",
     "prior_round": 12,
@@ -251,8 +251,8 @@
   },
   {
     "team_idx": 7,
-    "draft_slot": 8,
     "roster_id": 8,
+    "draft_slot_2025": 8,
     "player_name": "Josh Downs",
     "position": "WR",
     "prior_round": 12,
@@ -260,9 +260,9 @@
     "status": "carryover"
   },
   {
-    "team_idx": 10,
-    "draft_slot": 11,
+    "team_idx": 3,
     "roster_id": 4,
+    "draft_slot_2025": 11,
     "player_name": "Jake Ferguson",
     "position": "TE",
     "prior_round": 12,
@@ -270,9 +270,9 @@
     "status": "carryover"
   },
   {
-    "team_idx": 0,
-    "draft_slot": 1,
+    "team_idx": 5,
     "roster_id": 6,
+    "draft_slot_2025": 1,
     "player_name": "Chase Brown",
     "position": "RB",
     "prior_round": 13,
@@ -280,9 +280,9 @@
     "status": "carryover"
   },
   {
-    "team_idx": 3,
-    "draft_slot": 4,
+    "team_idx": 10,
     "roster_id": 11,
+    "draft_slot_2025": 4,
     "player_name": "Puka Nacua",
     "position": "WR",
     "prior_round": 13,
@@ -290,9 +290,9 @@
     "status": "carryover"
   },
   {
-    "team_idx": 5,
-    "draft_slot": 6,
+    "team_idx": 0,
     "roster_id": 1,
+    "draft_slot_2025": 6,
     "player_name": "Ricky Pearsall",
     "position": "WR",
     "prior_round": 13,
@@ -301,8 +301,8 @@
   },
   {
     "team_idx": 7,
-    "draft_slot": 8,
     "roster_id": 8,
+    "draft_slot_2025": 8,
     "player_name": "Kyren Williams",
     "position": "RB",
     "prior_round": 13,
@@ -311,8 +311,8 @@
   },
   {
     "team_idx": 8,
-    "draft_slot": 9,
     "roster_id": 9,
+    "draft_slot_2025": 9,
     "player_name": "Michael Penix",
     "position": "QB",
     "prior_round": 13,
@@ -321,8 +321,8 @@
   },
   {
     "team_idx": 11,
-    "draft_slot": 12,
     "roster_id": 12,
+    "draft_slot_2025": 12,
     "player_name": "Trey McBride",
     "position": "TE",
     "prior_round": 13,
@@ -331,8 +331,8 @@
   },
   {
     "team_idx": 4,
-    "draft_slot": 5,
     "roster_id": 5,
+    "draft_slot_2025": 5,
     "player_name": "J.J. McCarthy",
     "position": "QB",
     "prior_round": 14,
@@ -340,9 +340,9 @@
     "status": "carryover"
   },
   {
-    "team_idx": 9,
-    "draft_slot": 10,
+    "team_idx": 2,
     "roster_id": 3,
+    "draft_slot_2025": 10,
     "player_name": "Chuba Hubbard",
     "position": "RB",
     "prior_round": 14,
@@ -350,9 +350,9 @@
     "status": "carryover"
   },
   {
-    "team_idx": 0,
-    "draft_slot": 1,
+    "team_idx": 5,
     "roster_id": 6,
+    "draft_slot_2025": 1,
     "player_name": "Jonnu Smith",
     "position": "TE",
     "prior_round": 15,
@@ -361,8 +361,8 @@
   },
   {
     "team_idx": 1,
-    "draft_slot": 2,
     "roster_id": 2,
+    "draft_slot_2025": 2,
     "player_name": "Darnell Mooney",
     "position": "WR",
     "prior_round": 15,
@@ -370,9 +370,9 @@
     "status": "carryover"
   },
   {
-    "team_idx": 6,
-    "draft_slot": 7,
+    "team_idx": 9,
     "roster_id": 10,
+    "draft_slot_2025": 7,
     "player_name": "Tyrone Tracy",
     "position": "RB",
     "prior_round": 15,
@@ -381,8 +381,8 @@
   },
   {
     "team_idx": 8,
-    "draft_slot": 9,
     "roster_id": 9,
+    "draft_slot_2025": 9,
     "player_name": "Hunter Henry",
     "position": "TE",
     "prior_round": 15,
@@ -390,9 +390,9 @@
     "status": "carryover"
   },
   {
-    "team_idx": 9,
-    "draft_slot": 10,
+    "team_idx": 2,
     "roster_id": 3,
+    "draft_slot_2025": 10,
     "player_name": "Jauan Jennings",
     "position": "WR",
     "prior_round": 15,
@@ -400,9 +400,9 @@
     "status": "carryover"
   },
   {
-    "team_idx": 10,
-    "draft_slot": 11,
+    "team_idx": 3,
     "roster_id": 4,
+    "draft_slot_2025": 11,
     "player_name": "Jerome Ford",
     "position": "RB",
     "prior_round": 15,

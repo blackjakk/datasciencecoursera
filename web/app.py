@@ -39,6 +39,8 @@ from fantasy_draft.sleeper_offline import (  # noqa: E402
     traded_away_rounds_from_offline,
 )
 from fantasy_draft.trades import apply_trades, load_trades_from_sleeper_dump  # noqa: E402
+
+import json as _json  # noqa: E402
 from fantasy_draft.vbd import compute_vbd_post_keepers  # noqa: E402
 from fantasy_draft.history import consolidate_years_kept, detect_keepers_by_adp  # noqa: E402
 
@@ -61,6 +63,7 @@ def _init_state():
     s.setdefault("real_keepers_records", [])  # raw records from keepers_2026.json
     s.setdefault("current_rosters", {})      # team_id -> [(player_name, position)]
     s.setdefault("traded_picks", [])         # list[TradedPick]
+    s.setdefault("team_names", None)         # optional list[str], one per team_idx
     s.setdefault("my_team_idx", 0)
     s.setdefault("sleeper_dump_path", str(ROOT / "data" / "sleeper"))
     s.setdefault("league_path", str(ROOT / "configs" / "superflex_12.json"))
@@ -92,29 +95,69 @@ with tab_setup:
     )
     if st.button("Load MONEYLEAGUE 2026", type="primary", key="load_moneyleague"):
         try:
+            dump_path = Path(st.session_state.sleeper_dump_path)
             cfg = league_from_offline(
-                st.session_state.sleeper_dump_path,
+                str(dump_path),
                 round_penalty=2, max_years_consecutive=3,
             )
             players = load_players(str(ROOT / "data" / "players_2026.csv"))
-            records = pd.read_json(str(ROOT / "data" / "keepers_2026.json")).to_dict("records")
+            records = _json.loads((ROOT / "data" / "keepers_2026.json").read_text())
+
+            # Build team names from rosters.json + users.json so the draft
+            # board shows "TBreswick" etc. instead of "Team 1".
+            league_dir = dump_path / f"league_{cfg.name and ''}"  # placeholder; we re-derive
+            # Find the most-recent league dir (the only one we have for now).
+            league_dirs = sorted(
+                d for d in dump_path.iterdir()
+                if d.is_dir() and d.name.startswith("league_")
+            )
+            team_names: list[str] = [f"Team {i+1}" for i in range(cfg.num_teams)]
+            if league_dirs:
+                ldir = league_dirs[-1]
+                rosters_path = ldir / "rosters.json"
+                users_path = ldir / "users.json"
+                if rosters_path.exists() and users_path.exists():
+                    users = {u["user_id"]: u for u in _json.loads(users_path.read_text())}
+                    for r in _json.loads(rosters_path.read_text()):
+                        rid = int(r["roster_id"])
+                        owner = users.get(r.get("owner_id") or "", {})
+                        meta = owner.get("metadata") or {}
+                        nm = meta.get("team_name") or owner.get("display_name") or f"Roster {rid}"
+                        if 1 <= rid <= cfg.num_teams:
+                            team_names[rid - 1] = nm
+
+            # 2026 traded picks - both keepers_2026.json and trades use
+            # roster_id - 1 as team_idx so they line up.
+            trades_all = load_trades_from_sleeper_dump(str(dump_path))
+            trades_2026 = [t for t in trades_all if t.season == 2026]
+
             st.session_state.league = cfg
             st.session_state.players = players
             st.session_state.real_keepers_records = records
+            st.session_state.team_names = team_names
+            st.session_state.traded_picks = trades_2026
             # Reset any in-progress draft so the new league/keepers take effect.
             st.session_state.draft = None
             st.session_state.applied_keepers = []
+
             n_carry = sum(1 for r in records if r["status"] == "carryover")
             n_drop = sum(1 for r in records if r["status"] == "forced_drop")
             st.success(
                 f"Loaded **{cfg.name}** ({cfg.num_teams} teams, {cfg.rounds} rounds), "
-                f"{len(players)} 2026 projections, and {len(records)} keepers "
-                f"({n_carry} carryover, {n_drop} forced drops)."
+                f"{len(players)} 2026 projections, {len(records)} keepers "
+                f"({n_carry} carryover, {n_drop} forced drops), and "
+                f"{len(trades_2026)} traded 2026 picks."
+            )
+            st.caption(
+                "Note: 2026 draft slots haven't been drawn yet — team_idx is "
+                "keyed by roster_id, so the snake order matches roster IDs 1..12. "
+                "Reorder once slots are set."
             )
         except FileNotFoundError as e:
             st.error(
-                f"Missing file: {e}. Run `python3 scripts/build_2026_keepers.py` "
-                f"to regenerate keepers_2026.json."
+                f"Missing file: {e}. Run `scripts/fetch_sleeper.sh` to refresh "
+                f"the dump and `python3 scripts/build_2026_keepers.py` to "
+                f"rebuild keepers_2026.json."
             )
         except Exception as e:
             st.error(f"Load failed: {e}")
@@ -224,20 +267,40 @@ with tab_keepers:
         )
         n_carry = sum(1 for r in real_records if r["status"] == "carryover")
         n_drop = sum(1 for r in real_records if r["status"] == "forced_drop")
-        c1, c2, c3 = st.columns(3)
+        trades_2026 = st.session_state.traded_picks
+        c1, c2, c3, c4 = st.columns(4)
         c1.metric("Total xlsx keepers (2025)", len(real_records))
         c2.metric("Carryover → 2026", n_carry)
         c3.metric("Forced drops (yr3 cap)", n_drop)
+        c4.metric("Traded 2026 picks", len(trades_2026))
+
+        if trades_2026:
+            with st.expander(f"2026 traded picks ({len(trades_2026)})"):
+                tnames = st.session_state.team_names or [f"Team {i+1}" for i in range(league.num_teams)]
+                trade_rows = []
+                for t in sorted(trades_2026, key=lambda x: (x.original_team_idx, x.round_num)):
+                    orig = tnames[t.original_team_idx] if 0 <= t.original_team_idx < len(tnames) else f"idx{t.original_team_idx}"
+                    new = tnames[t.new_team_idx] if 0 <= t.new_team_idx < len(tnames) else f"idx{t.new_team_idx}"
+                    if t.original_team_idx == t.new_team_idx:
+                        continue  # net no-op (traded out and back)
+                    trade_rows.append({
+                        "Round": t.round_num,
+                        "Original owner": orig,
+                        "Current owner": new,
+                    })
+                st.dataframe(pd.DataFrame(trade_rows), use_container_width=True, hide_index=True)
 
         # Group by team_idx for display, ordered by draft slot.
         by_team: dict[int, list[dict]] = {}
         for r in real_records:
             by_team.setdefault(int(r["team_idx"]), []).append(r)
 
+        tnames = st.session_state.team_names or [f"Team {i+1}" for i in range(league.num_teams)]
         for tidx in sorted(by_team):
             recs = sorted(by_team[tidx], key=lambda x: x["prior_round"])
             n_keep = sum(1 for r in recs if r["status"] == "carryover")
-            st.subheader(f"Draft slot {tidx + 1} — {n_keep} keeper(s)")
+            team_name = tnames[tidx] if 0 <= tidx < len(tnames) else f"Team {tidx+1}"
+            st.subheader(f"{team_name} — {n_keep} keeper(s)")
             rows = []
             for r in recs:
                 forfeit = r["prior_round"] - league.keepers.round_penalty
@@ -346,7 +409,8 @@ with tab_draft:
         st.session_state.my_team_idx = int(my_idx)
     with col_b:
         if st.button("New draft", help="Reset board, apply trades, then keepers"):
-            draft = Draft.new(league)
+            team_names = st.session_state.get("team_names") or None
+            draft = Draft.new(league, team_names=team_names)
             # Apply traded picks BEFORE keepers, so keeper walk-forward sees
             # the correct ownership state.
             for line in apply_trades(draft, st.session_state.traded_picks):
