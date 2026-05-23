@@ -1324,39 +1324,48 @@ function drawBall(ctx, x, y, scale = 1, opts = {}) {
   ctx.restore();
 }
 
-// Optional pass-trail polyline: faint dotted arc from ball origin to current
-// ball position, sampled in a few intermediate points for the parabolic flight.
+// Pass-trail polyline: glowing dotted parabolic arc from release to
+// current ball position. Sampled in 24 points for a smooth arc, with
+// a soft yellow glow + warm white core so the throw path reads at a
+// glance even amongst player sprites.
 function drawBallTrail(ctx, fromX, fromY, toX, toY, t, opts = {}) {
-  const arcHeight = opts.arcHeight ?? Math.min(120, Math.hypot(toX - fromX, toY - fromY) * 0.18);
-  const samples = Math.max(4, Math.floor(t * 18));
+  const arcHeight = opts.arcHeight ?? Math.min(140, Math.hypot(toX - fromX, toY - fromY) * 0.22);
+  const samples = Math.max(8, Math.floor(t * 24));
   ctx.save();
-  ctx.lineCap = "round";
+  ctx.shadowColor = "rgba(255,210,80,0.6)";
+  ctx.shadowBlur = 5;
   for (let i = 1; i < samples; i++) {
     const tt = (i / samples) * t;
     const lx = fromX + (toX - fromX) * tt;
     const ly = fromY + (toY - fromY) * tt - Math.sin(tt * Math.PI) * arcHeight;
     const age = (t - tt) / Math.max(0.001, t);  // 0 = freshest
-    ctx.fillStyle = `rgba(255,235,200,${0.6 * (1 - age)})`;
+    const fade = 1 - age;
+    ctx.fillStyle = `rgba(255,240,180,${0.85 * fade})`;
     ctx.beginPath();
-    ctx.arc(lx, ly, 1.6, 0, Math.PI * 2);
+    ctx.arc(lx, ly, 2.8, 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.restore();
 }
 
-// Optional run-trail polyline: faint dotted line from ball origin to current
-// position. Reads as a path stripe; fades behind the carrier.
-function drawRunTrail(ctx, fromX, fromY, toX, toY, t, color = "rgba(245,197,66,0.55)") {
-  const samples = 14;
+// Run-trail polyline: dotted line from snap point to current carrier
+// position. Reads as a path stripe; fades from team color into bright
+// behind the carrier so the route they ran is visible.
+function drawRunTrail(ctx, fromX, fromY, toX, toY, t, color = "rgba(245,197,66,0.9)") {
+  if (Math.hypot(toX - fromX, toY - fromY) < 12) return; // too short to read
+  const samples = 18;
   ctx.save();
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 4;
   for (let i = 1; i < samples; i++) {
     const tt = (i / samples) * t;
     const lx = fromX + (toX - fromX) * tt;
     const ly = fromY + (toY - fromY) * tt;
     const age = (t - tt) / Math.max(0.001, t);
-    ctx.fillStyle = color.replace(/[\d.]+\)$/, `${0.55 * (1 - age)})`);
+    const fade = 1 - age;
+    ctx.fillStyle = color.replace(/[\d.]+\)$/, `${0.85 * fade})`);
     ctx.beginPath();
-    ctx.arc(lx, ly, 2, 0, Math.PI * 2);
+    ctx.arc(lx, ly, 3, 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.restore();

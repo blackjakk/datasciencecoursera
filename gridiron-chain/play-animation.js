@@ -1376,6 +1376,19 @@ function buildAnimForPlay(play, prevPlay) {
         carrierToDraw = rb;
       }
       drawPlayers([...off2, carrierToDraw], def);
+      // RUN TRAIL — dotted breadcrumbs from the LOS to the current ball
+      // position. Only after the snap-and-handoff phase so it doesn't
+      // smear out from the center pre-snap.
+      if (runT > 0.10 && typeof drawRunTrail === "function") {
+        const teamColor = (poss === "home" ? gameResult?.homeTeam : gameResult?.awayTeam)?.primary || "#f5c542";
+        // Convert hex team color to rgba for the trail; fall back to gold
+        const rgba = (() => {
+          if (!teamColor || teamColor[0] !== "#" || teamColor.length !== 7) return "rgba(245,197,66,0.55)";
+          const r = parseInt(teamColor.slice(1,3),16), g = parseInt(teamColor.slice(3,5),16), b = parseInt(teamColor.slice(5,7),16);
+          return `rgba(${r},${g},${b},0.55)`;
+        })();
+        drawRunTrail(ctx, centerX, cy, ballX, ballY, runT, rgba);
+      }
       drawBall(ctx, ballX, ballY);
       // SPEED OPTION banner — shows the play call. Once the read fires
       // (after PITCH_T), a secondary line shows whether the QB made the
@@ -2125,6 +2138,13 @@ function buildAnimForPlay(play, prevPlay) {
       // C→QB snap window, then suppress while the QB cradles/cocks (his hand
       // draws it), then resume once the ball is released and in flight.
       const showStandalone = (t < PRE) || (at < snapMotionAT) || (at >= releaseAT);
+      // PASS TRAIL — once the ball is in flight, draw a fading parabolic
+      // dotted trail from release point to current ball position. Persists
+      // through catch + YAC so the user can see the throw retroactively.
+      if (at >= releaseAT && typeof drawBallTrail === "function") {
+        const flightProg = Math.min(1, (at - releaseAT) / Math.max(0.0001, throwEndAT - releaseAT));
+        drawBallTrail(ctx, releaseX, releaseY, ballX, ballY, flightProg, { arcHeight: arcHeight * 0.85 });
+      }
       if (showStandalone) drawBall(ctx, ballX, ballY, arc > 30 ? 1.3 : 1);
       // Play-action / Flea-flicker / Throw-on-run banner at the top of the field
       if ((play.isPlayAction || play.isTOR || play.isFleaFlicker) && t < throwPhase + 0.08) {
