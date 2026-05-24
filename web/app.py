@@ -38,6 +38,11 @@ from fantasy_draft.sleeper_offline import (  # noqa: E402
     current_rosters_from_offline,
     traded_away_rounds_from_offline,
 )
+from fantasy_draft.sleeper_live import (  # noqa: E402
+    fetch_draft_picks,
+    find_2026_draft,
+    sync_draft_from_sleeper,
+)
 from fantasy_draft.trades import apply_trades, load_trades_from_sleeper_dump  # noqa: E402
 
 import json as _json  # noqa: E402
@@ -69,6 +74,10 @@ def _init_state():
     s.setdefault("league_path", str(ROOT / "configs" / "superflex_12.json"))
     s.setdefault("players_path", str(ROOT / "data" / "players_2026.csv"))
     s.setdefault("keepers_path", str(ROOT / "data" / "keepers_2026.json"))
+    # Live-sync state -- the 2026 MONEYLEAGUE draft on Sleeper.
+    s.setdefault("live_draft_id", "1364055104721788928")
+    s.setdefault("live_last_sync", None)     # timestamp string
+    s.setdefault("live_last_count", 0)       # total Sleeper picks seen
 
 
 _init_state()
@@ -474,6 +483,87 @@ with tab_draft:
     if not draft:
         st.info("Click **New draft** to start.")
         st.stop()
+
+    # --- Live sync with Sleeper ---
+    with st.expander("🔴 Live Sleeper sync (pull picks from the actual draft)",
+                     expanded=False):
+        st.caption(
+            "Pulls picks from the Sleeper draft endpoint and applies any new "
+            "ones to the board so VBD, recommendations, and availability "
+            "forecasts reflect what's actually happening."
+        )
+        sc1, sc2, sc3 = st.columns([3, 1, 1])
+        with sc1:
+            st.session_state.live_draft_id = st.text_input(
+                "Sleeper draft_id",
+                st.session_state.live_draft_id,
+                help="2026 MONEYLEAGUE = 1364055104721788928",
+            )
+        with sc2:
+            if st.button("Sync now", type="primary"):
+                import datetime as _dt
+                try:
+                    live = fetch_draft_picks(st.session_state.live_draft_id)
+                    n_new, log_lines = sync_draft_from_sleeper(draft, players, live)
+                    st.session_state.live_last_sync = _dt.datetime.now().strftime("%H:%M:%S")
+                    st.session_state.live_last_count = len(live)
+                    # Recompute VBD now that more players are off the board.
+                    kept_or_drafted = {
+                        p.player.name for p in draft.picks if p.player is not None
+                    }
+                    compute_vbd_post_keepers(players, league,
+                                              keeper_names=kept_or_drafted)
+                    st.success(
+                        f"Synced {n_new} new pick(s). Sleeper has "
+                        f"{len(live)} pick(s) total."
+                    )
+                    if log_lines:
+                        with st.expander("Sync log", expanded=False):
+                            for line in log_lines[-30:]:
+                                st.text(line)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Sync failed: {e}")
+        with sc3:
+            if st.session_state.live_last_sync:
+                st.metric("Last sync", st.session_state.live_last_sync,
+                          delta=f"{st.session_state.live_last_count} picks")
+            else:
+                st.caption("(not synced yet)")
+
+        auto_refresh = st.checkbox(
+            "🔁 Auto-sync every 10 seconds",
+            value=False,
+            help="Poll Sleeper continuously while the draft runs. Note: while "
+                 "auto-sync is on, the UI pauses for 10 seconds between "
+                 "refreshes -- toggle off if you need to interact with the "
+                 "page.",
+        )
+        st.caption(
+            "💡 Heads-up: the draft order isn't known until Sleeper assigns "
+            "slot_to_roster_id (after live draft starts). Until then, local "
+            "team names follow roster_id order, which may not match the "
+            "actual draft slot order. Click \"New draft\" again once the "
+            "order is set to re-align."
+        )
+
+        if auto_refresh:
+            import time as _time
+            try:
+                live = fetch_draft_picks(st.session_state.live_draft_id)
+                n_new, _ = sync_draft_from_sleeper(draft, players, live)
+                if n_new:
+                    kept_or_drafted = {p.player.name for p in draft.picks
+                                       if p.player is not None}
+                    compute_vbd_post_keepers(players, league,
+                                              keeper_names=kept_or_drafted)
+                    import datetime as _dt
+                    st.session_state.live_last_sync = _dt.datetime.now().strftime("%H:%M:%S")
+                    st.session_state.live_last_count = len(live)
+            except Exception as e:
+                st.warning(f"Auto-sync error (will retry): {e}")
+            _time.sleep(10)
+            st.rerun()
 
     # --- Board view ---
     pick = draft.on_the_clock
