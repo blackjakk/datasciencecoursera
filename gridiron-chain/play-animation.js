@@ -1610,30 +1610,24 @@ function buildAnimForPlay(play, prevPlay) {
       // + ragdoll roll-around) so the play doesn't end the instant the
       // carrier is touched.
       if (runT > 0.72 && yards < 90 && !isTD) {
-        // Carrier ragdoll. NFL-Blitz-style impact: bigger force on
-        // big-force plays, dust burst + screen shake + optional BIG HIT
-        // banner at the moment of contact.
+        // Carrier ragdoll. The impact FEEL comes from the player's own
+        // motion (launch + spin) plus brief time dilation, NOT dust/
+        // shake noise. force scales the launch velocity and a slow-mo
+        // window so the impact frame is held briefly.
         const nowMs = t * dur;
         if (!formation.rb._ragdoll) {
-          const hvx = -dir;           // pushed backward against momentum
-          const hvy = (((play.startYard * 7) >>> 0) % 7) - 3;   // slight angle
+          const hvx = -dir;
+          const hvy = (((play.startYard * 7) >>> 0) % 7) - 3;
           const force = play.force || 0;
-          const fbase = 180 + Math.min(150, force * 8);    // bigger launch
+          const fbase = 180 + Math.min(150, force * 8);
           initRagdoll(formation.rb, hvx, hvy, fbase, nowMs,
                       (play.startYard * 11 + (play.yards||0)) >>> 0);
-          // Trigger FX once at the moment of impact
-          if (typeof GCFx !== "undefined") {
-            try {
-              GCFx.hitBurst(rb.x, rb.y, "#ffe070");
-              const shakeMag = 4 + Math.min(12, force * 1.2);
-              const shakeMs  = 220 + Math.min(280, force * 24);
-              GCFx.shake(shakeMag, shakeMs);
-              // BIG HIT banner threshold tied to play.force data point
-              if (force >= 7) {
-                const label = force >= 9 ? "BONE CRUSHER" : "BIG HIT";
-                if (GCFx.bigText) GCFx.bigText(label, "#ffd54d", 700);
-              }
-            } catch (e) {}
+          // Cinematic slow-mo at impact — duration & depth scale with
+          // force. Bigger hits get held longer / slower. Read by tick().
+          if (typeof animState !== "undefined" && animState) {
+            const slowMs = 100 + Math.min(220, force * 22);
+            animState.slowMoUntil = performance.now() + slowMs;
+            animState.slowMoMul = Math.max(0.20, 0.50 - force * 0.025);
           }
         }
         stepRagdoll(formation.rb, nowMs, 8);
@@ -6355,6 +6349,15 @@ function tick(now) {
     }
     rafId = requestAnimationFrame(tick);
     return;
+  }
+  // Cinematic slow-mo at tackle impact — set by initRagdoll for the
+  // carrier. While now < slowMoUntil, burn (1 - slowMoMul) * frameDt
+  // back into startTime so play-elapsed grows at (slowMoMul)x of real
+  // time. Result: a brief slow-mo hold on the impact frame.
+  if (animState.slowMoUntil && now < animState.slowMoUntil) {
+    const frameDt = animState.lastTickAt ? (now - animState.lastTickAt) : 0;
+    const mul = animState.slowMoMul || 0.30;
+    animState.startTime += frameDt * (1 - mul);
   }
   const elapsed = now - animState.startTime;
   const t = Math.min(1, elapsed / animState.duration);
