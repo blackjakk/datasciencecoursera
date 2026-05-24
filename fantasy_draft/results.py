@@ -118,15 +118,25 @@ def load_all_seasons(sleeper_dir: str | Path = "data/sleeper") -> dict[int, dict
 
 def load_player_ownership_windows(
     sleeper_dir: str | Path = "data/sleeper",
-) -> dict[tuple[int, str], list[tuple[int, int, int]]]:
-    """For each (season, player_id), return a list of (start_wk, end_wk, rid)
-    intervals tracking who actually owned the player each week.
+    xlsx_path: str | Path = "data/historical/MONEY_LEAGUE.xlsx",
+) -> dict[tuple[int, str], list[tuple]]:
+    """For each (season, player_id), return a list of intervals tracking
+    who owned the player each week. Each interval is:
 
-    Used to credit FA/streaming pickups only for weeks the player was on
-    that manager's roster — not the full rest-of-season (which double-counts
-    when the player gets dropped or traded away).
+        (start_wk, end_wk, rid)                — back-compat 3-tuple
+        (start_wk, end_wk, rid, acquisition)   — when unpacking 4 values
+
+    `acquisition` is one of: "draft", "trade", "add" (waiver/FA add).
+    Callers that want to distinguish trades from wire pickups should
+    iterate as `for sw, ew, rid, src in windows:`.
+
+    For seasons in UNRELIABLE_ATTRIBUTION_SEASONS (currently {2023}), the
+    raw Sleeper draft picks don't reflect the actual Yahoo-era pick trades
+    that happened pre-migration. We overlay xlsx cell-color attribution
+    onto the W1 seed so the starting owner is correct.
     """
-    ownership: dict[tuple[int, str], list[tuple[int, int, int]]] = {}
+    xlsx_overlay = _xlsx_attribution_map(xlsx_path) if Path(xlsx_path).exists() else {}
+    ownership: dict[tuple[int, str], list[tuple]] = {}
     for season_dir in sorted(Path(sleeper_dir).glob("league_*")):
         if not (season_dir / "league.json").exists():
             continue
@@ -134,16 +144,22 @@ def load_player_ownership_windows(
         season = int(lg.get("season") or 0)
         if not season:
             continue
-        current: dict[str, tuple[int, int]] = {}  # pid -> (rid, start_wk)
-        # Seed from draft picks (whoever drafted owns from W1).
+        # current: pid -> (rid, start_wk, acquisition_source)
+        current: dict[str, tuple[int, int, str]] = {}
+        season_overlay = (xlsx_overlay.get(season, {})
+                          if season in UNRELIABLE_ATTRIBUTION_SEASONS else {})
         pf = list(season_dir.glob("draft_*_picks.json"))
         if pf:
             for p in json.loads(pf[0].read_text(encoding="utf-8")):
                 pid = str(p.get("player_id") or "")
                 rid = int(p.get("roster_id") or 0)
                 if pid and rid:
-                    current[pid] = (rid, 1)
-        # Walk transactions in week order.
+                    metadata = p.get("metadata") or {}
+                    player_name = (
+                        f"{metadata.get('first_name', '')} "
+                        f"{metadata.get('last_name', '')}").strip().lower()
+                    overlay_rid = season_overlay.get(player_name)
+                    current[pid] = (overlay_rid or rid, 1, "draft")
         for tf in sorted((season_dir / "transactions").glob("week_*.json"),
                           key=lambda f: int(f.stem.split("_")[1])):
             wk = int(tf.stem.split("_")[1])
@@ -155,24 +171,26 @@ def load_player_ownership_windows(
             for t in txns:
                 if t.get("status") not in ("complete", "completed"):
                     continue
-                # Process drops first (so add can overwrite cleanly).
+                t_type = t.get("type", "")
+                acq = "trade" if t_type == "trade" else "add"
                 for pid, rid in (t.get("drops") or {}).items():
                     pid = str(pid); rid = int(rid)
                     if pid in current and current[pid][0] == rid:
                         start = current[pid][1]
+                        src = current[pid][2]
                         ownership.setdefault((season, pid), []).append(
-                            (start, wk - 1, rid))
+                            (start, wk - 1, rid, src))
                         del current[pid]
                 for pid, rid in (t.get("adds") or {}).items():
                     pid = str(pid); rid = int(rid)
                     if pid in current and current[pid][0] != rid:
                         start = current[pid][1]
+                        src = current[pid][2]
                         ownership.setdefault((season, pid), []).append(
-                            (start, wk - 1, current[pid][0]))
-                    current[pid] = (rid, wk)
-        # Close open intervals at season end.
-        for pid, (rid, start) in current.items():
-            ownership.setdefault((season, pid), []).append((start, 17, rid))
+                            (start, wk - 1, current[pid][0], src))
+                    current[pid] = (rid, wk, acq)
+        for pid, (rid, start, src) in current.items():
+            ownership.setdefault((season, pid), []).append((start, 17, rid, src))
     return ownership
 
 
@@ -271,7 +289,8 @@ def summarize_trade(
         if ownership_windows is not None:
             # Sum pts only for weeks the receiver actually held the player.
             total = 0.0
-            for s_wk, e_wk, owner_rid in ownership_windows.get((season, str(pid)), []):
+            for window in ownership_windows.get((season, str(pid)), []):
+                s_wk, e_wk, owner_rid = window[0], window[1], window[2]
                 if owner_rid != receiver_rid: continue
                 if e_wk < trade_week: continue  # interval before trade
                 start = max(s_wk, trade_week)

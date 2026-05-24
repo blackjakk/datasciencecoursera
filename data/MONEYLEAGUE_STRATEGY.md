@@ -71,33 +71,33 @@ The wire is the most under-played lever in the league. Big hits show up *every s
 
 | Year | Wk | Pos | Player | Pts produced | Drafter |
 |---|---|---|---|---|---|
-| 2023 | W3 | QB | **Josh Allen** | +350 | Troy |
-| 2025 | W3 | RB | **Jahmyr Gibbs** | +282 | Josh |
-| 2023 | W3 | WR | **DJ Moore** | +213 | Troy |
-| 2024 | W10 | QB | **Josh Allen** | +202 | Troy |
-| 2024 | W9 | QB | **Jayden Daniels** | +197 | Brian |
-| 2023 | W3 | RB | **Kyren Williams** | +197 | Brower |
-| 2023 | W3 | WR | **Keenan Allen** | +187 | Brower |
-| 2023 | W5 | RB | **Rachaad White** | +185 | Tim |
 | 2025 | W5 | RB | **Rico Dowdle** | +176 | Troy |
-| 2023 | W2 | WR | **DeVonta Smith** | +173 | Donnie |
+| 2024 | W7 | QB | **Russell Wilson** | +166 | Troy |
+| 2023 | W5 | QB | **Gardner Minshew** | +166 | Brower |
+| 2024 | W2 | WR | **Darnell Mooney** | +159 | Donnie |
+| 2023 | W2 | WR | **Adam Thielen** | +158 | Lem |
+| 2025 | W10 | QB | **Jacoby Brissett** | +152 | Trevor |
+| 2024 | W7 | WR | **Jerry Jeudy** | +144 | Trevor |
+| 2023 | W6 | WR | **Puka Nacua** | +141 | Trevor |
+| 2023 | W2 | K | **Brandon Aubrey** | +141 | Kyle |
+| 2025 | W2 | WR | **Wan'Dale Robinson** | +139 | Kyle |
 
 **Volume vs hit-rate per manager (2023-2025):**
 
 | Manager | Total adds | >50 pt hits | Hit rate | Total wire pts |
 |---|---|---|---|---|
-| Trevor | 192 | 15 | 8% | +3021 |
-| Brower | 149 | 20 | 13% | +3001 |
-| Troy | 100 | 14 | 14% | +2999 |
-| Josh | 97 | 17 | 18% | +2565 |
-| Brian | 105 | 19 | 18% | +2475 |
-| Coop | 50 | 18 | 36% | +2214 |
-| Kyle | 84 | 14 | 17% | +2138 |
-| Lem | 78 | 11 | 14% | +2000 |
-| Ankur | 84 | 13 | 15% | +1994 |
-| Eric | 56 | 11 | 20% | +1782 |
-| Tim | 43 | 10 | 23% | +1444 |
-| Donnie | 29 | 11 | 38% | +1388 |
+| Trevor | 173 | 7 | 4% | +2002 |
+| Brower | 138 | 12 | 9% | +1960 |
+| Lem | 73 | 11 | 15% | +1933 |
+| Coop | 46 | 16 | 35% | +1879 |
+| Josh | 87 | 11 | 13% | +1814 |
+| Troy | 92 | 7 | 8% | +1808 |
+| Kyle | 76 | 11 | 14% | +1753 |
+| Brian | 92 | 13 | 14% | +1652 |
+| Ankur | 77 | 7 | 9% | +1350 |
+| Eric | 48 | 6 | 12% | +1179 |
+| Tim | 38 | 7 | 18% | +966 |
+| Donnie | 22 | 7 | 32% | +827 |
 
 Two distinct successful styles:
 
@@ -110,28 +110,27 @@ Both work. What *doesn't* work: mid-volume with low hit-rate (Ankur, Kyle, Lem i
 
 | Position | Total adds | Avg pts/add | >100 pt hits |
 |---|---|---|---|
-| QB | 143 | 31 | 16 |
-| RB | 232 | 25 | 18 |
-| WR | 243 | 29 | 21 |
-| TE | 131 | 25 | 5 |
+| QB | 122 | 20 | 7 |
+| RB | 204 | 17 | 7 |
+| WR | 212 | 21 | 9 |
+| TE | 107 | 20 | 3 |
 | DEF | 192 | 19 | 4 |
-| K | 126 | 22 | 3 |
+| K | 125 | 22 | 3 |
 
 **QB and RB pickups yield the most per-attempt.** WR/TE adds have the worst average return — the WR3 who had a good Sunday is almost always a trap. **If you're picking up a WR, it should be a rookie with a target share spike, not a veteran who just scored a TD.**
 
 **When the big hits happen (>100 pt pickups, by week):**
 
 ```
-  W 2: ████████ (8)
-  W 3: ███████████ (11)
+  W 2: ███████ (7)
+  W 3: ██ (2)
   W 4: █ (1)
-  W 5: ███████ (7)
-  W 6: ████████ (8)
-  W 7: ████████ (8)
+  W 5: █████ (5)
+  W 6: ████ (4)
+  W 7: ██████ (6)
   W 8: ████ (4)
-  W 9: ██ (2)
-  W10: ██████████████ (14)
-  W11: ███ (3)
+  W10: █ (1)
+  W11: ██ (2)
   W13: █ (1)
 ```
 Three clear peaks:

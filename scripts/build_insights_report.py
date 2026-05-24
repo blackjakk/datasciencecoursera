@@ -171,8 +171,8 @@ def _pickup_tenure() -> tuple[float, float, float, float]:
     ownership = load_player_ownership_windows(ROOT / "data" / "sleeper")
     tenures = []
     for (s, pid), windows in ownership.items():
-        for sw, ew, rid in windows:
-            if sw <= 1:
+        for sw, ew, rid, _src in windows:
+            if sw <= 1 or _src != "add":
                 continue
             tenures.append(ew - sw + 1)
     avg = statistics.mean(tenures)

@@ -101,17 +101,17 @@ def build_markdown() -> str:
     week_scores = _all_weekly_scores(seasons)
     week_scores = [w for w in week_scores if _mgr(w[2])]
 
-    # Top wire hit overall
+    # Top wire hit overall — only count actual waiver/FA adds, not trades.
     top_wire = None
     boomerangs: list[tuple[int, str, int]] = []
     for (s, pid), windows in ownership.items():
         seen = set()
-        for sw, ew, rid in windows:
-            if rid in seen:
+        for sw, ew, rid, src in windows:
+            if rid in seen and src == "add":
                 boomerangs.append((s, pid, rid))
                 break
             seen.add(rid)
-            if sw <= 1:
+            if sw <= 1 or src != "add":
                 continue
             pts = sum(weekly.get(s, {}).get(wk, {}).get(pid, 0.0)
                       for wk in range(sw, min(ew + 1, 18)))
@@ -274,8 +274,8 @@ def build_markdown() -> str:
     # === Manager personality awards ===
     add_counts: dict[int, int] = Counter()
     for (s, pid), windows in ownership.items():
-        for sw, ew, rid in windows:
-            if sw > 1 and _mgr(rid):
+        for sw, ew, rid, src in windows:
+            if sw > 1 and src == "add" and _mgr(rid):
                 add_counts[rid] += 1
     if add_counts:
         most_active = add_counts.most_common(1)[0]

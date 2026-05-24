@@ -45,7 +45,7 @@ Forget the percentile composites. These are the awards we'd actually hand out at
 
 ## 🧙 Wire Wizard — best free-agent pickup
 
-**Troy** plucked **Josh Allen** off the wire in 2023 Week 3, who then produced **+350 points** in the games after the add. Easily the best wire add of the Sleeper era.
+**Troy** plucked **Rico Dowdle** off the wire in 2025 Week 5, who then produced **+176 points** in the games after the add. Easily the best wire add of the Sleeper era.
 
 ---
 
@@ -55,17 +55,17 @@ Forget the percentile composites. These are the awards we'd actually hand out at
 
 ## 🪃 The Boomerang Award — keeps re-adding the same guys
 
-**Trevor** has re-added a player they previously dropped **31 different times** across the Sleeper era. There's a hypothesis being tested here, and the hypothesis is: nobody else wants this guy either.
+**Trevor** has re-added a player they previously dropped **32 different times** across the Sleeper era. There's a hypothesis being tested here, and the hypothesis is: nobody else wants this guy either.
 
 ---
 
 ## 🌀 Hyper-Manager — most wire activity
 
-**Trevor** made **192 adds** over 3 seasons. Reportedly has push notifications on for Sleeper, ESPN, NFL.com, RotoWire, and three different weather apps for Buffalo.
+**Trevor** made **173 adds** over 3 seasons. Reportedly has push notifications on for Sleeper, ESPN, NFL.com, RotoWire, and three different weather apps for Buffalo.
 
 ## 🛋️ Couch Coach — least wire activity
 
-**Donnie** made just **29 adds** total. Set-it-and-forget-it energy. Honestly respect the discipline.
+**Donnie** made just **22 adds** total. Set-it-and-forget-it energy. Honestly respect the discipline.
 
 ---
 

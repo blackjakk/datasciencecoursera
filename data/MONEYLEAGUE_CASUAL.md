@@ -15,11 +15,11 @@ Translation: it doesn't matter if you're a "good drafter" in the abstract. What 
 
 Look at the league-winners that came off the wire in the last 3 years:
 
-- **Josh Allen** (QB) — picked up W3 of 2023, +350 pts after the add
-- **Jahmyr Gibbs** (RB) — picked up W3 of 2025, +282 pts after the add
-- **DJ Moore** (WR) — picked up W3 of 2023, +213 pts after the add
-- **Josh Allen** (QB) — picked up W10 of 2024, +202 pts after the add
-- **Jayden Daniels** (QB) — picked up W9 of 2024, +197 pts after the add
+- **Rico Dowdle** (RB) — picked up W5 of 2025, +176 pts after the add
+- **Russell Wilson** (QB) — picked up W7 of 2024, +166 pts after the add
+- **Gardner Minshew** (QB) — picked up W5 of 2023, +166 pts after the add
+- **Darnell Mooney** (WR) — picked up W2 of 2024, +159 pts after the add
+- **Adam Thielen** (WR) — picked up W2 of 2023, +158 pts after the add
 
 These aren't random. They follow a pattern. Every year, around Week 2-3 a workhorse RB gets hurt and his handcuff becomes a league-winner. Around Week 7-10 a starting QB gets benched or hurt and a backup takes over. Around Week 10 the trade deadline causes a wave of drops as people clear playoff roster space.
 

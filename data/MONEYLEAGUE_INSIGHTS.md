@@ -80,10 +80,10 @@ Three things jump out:
 
 Across 3 years and **~1,000+ wire pickups**:
 
-- Average tenure on a roster: **3.5 weeks**
+- Average tenure on a roster: **3.1 weeks**
 - Median tenure: **2 weeks**
-- Pickups dropped within 2 weeks: **56%**
-- Pickups that stick 8+ weeks: **16%**
+- Pickups dropped within 2 weeks: **60%**
+- Pickups that stick 8+ weeks: **11%**
 
 More than half of every wire add gets dropped almost immediately. Only 1 in 6 turns into a meaningful contributor. The wire is signal-poor in expectation — but the signal is *concentrated* in a few players, which is why the strategy is volume, not selectivity.
 

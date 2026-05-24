@@ -87,7 +87,9 @@ def _wire_stats_by_mgr() -> dict[int, dict]:
         for (s, pid), windows in ownership.items():
             if s != season:
                 continue
-            for start_wk, end_wk, rid in windows:
+            for start_wk, end_wk, rid, _src in windows:
+                if _src != "add":
+                    continue
                 if start_wk <= 1:
                     continue
                 pts = sum(weekly[season].get(wk, {}).get(pid, 0.0)
@@ -112,7 +114,9 @@ def _top_wire_hits(n: int = 15) -> list[dict]:
         for (s, pid), windows in ownership.items():
             if s != season:
                 continue
-            for start_wk, end_wk, rid in windows:
+            for start_wk, end_wk, rid, _src in windows:
+                if _src != "add":
+                    continue
                 if start_wk <= 1:
                     continue
                 pts = sum(weekly[season].get(wk, {}).get(pid, 0.0)
@@ -140,7 +144,9 @@ def _week_distribution_of_big_hits() -> dict[int, int]:
         for (s, pid), windows in ownership.items():
             if s != season:
                 continue
-            for start_wk, end_wk, rid in windows:
+            for start_wk, end_wk, rid, _src in windows:
+                if _src != "add":
+                    continue
                 if start_wk <= 1:
                     continue
                 pts = sum(weekly[season].get(wk, {}).get(pid, 0.0)
@@ -161,7 +167,9 @@ def _pos_yield_overall() -> dict[str, dict]:
         for (s, pid), windows in ownership.items():
             if s != season:
                 continue
-            for start_wk, end_wk, rid in windows:
+            for start_wk, end_wk, rid, _src in windows:
+                if _src != "add":
+                    continue
                 if start_wk <= 1:
                     continue
                 pts = sum(weekly[season].get(wk, {}).get(pid, 0.0)

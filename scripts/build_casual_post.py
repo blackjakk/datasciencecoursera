@@ -41,8 +41,8 @@ def _top_wire_hits(n: int = 6) -> list[dict]:
         for (s, pid), windows in ownership.items():
             if s != season:
                 continue
-            for start_wk, end_wk, rid in windows:
-                if start_wk <= 1:
+            for start_wk, end_wk, rid, _src in windows:
+                if start_wk <= 1 or _src != "add":
                     continue
                 pts = sum(weekly[season].get(wk, {}).get(pid, 0.0)
                           for wk in range(start_wk, min(end_wk + 1, 18)))

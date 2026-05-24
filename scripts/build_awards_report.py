@@ -119,7 +119,8 @@ def compute_data():
                     # streaming/dropping).
                     intervals = owners.get((season, str(pid)), [])
                     pts = 0.0
-                    for s_wk, e_wk, owner_rid in intervals:
+                    for window in intervals:
+                        s_wk, e_wk, owner_rid = window[0], window[1], window[2]
                         if owner_rid == rid and s_wk >= wk:
                             pts += sum(pp_sw[season].get(w, {}).get(str(pid), 0.0)
                                        for w in range(s_wk, e_wk + 1))
@@ -373,7 +374,8 @@ def compute_data():
                         rid_a = int(rid_a)
                         intv = owners.get((yr, str(pid)), [])
                         pts = 0
-                        for s_wk, e_wk, own in intv:
+                        for window in intv:
+                            s_wk, e_wk, own = window[0], window[1], window[2]
                             if own == rid_a and s_wk >= wk:
                                 pts += sum(pp_sw[yr].get(w, {}).get(str(pid), 0) for w in range(s_wk, e_wk + 1))
                                 break
