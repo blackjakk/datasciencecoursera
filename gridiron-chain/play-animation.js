@@ -1527,6 +1527,16 @@ function buildAnimForPlay(play, prevPlay) {
       // Use two independent seeds so we can roll two moves per play
       const seedA = ((play.startYard * 17 + (play.yards || 0) * 53) >>> 0) % 100 / 100;
       const seedB = ((play.startYard * 41 + (play.yards || 0) * 29 + 7) >>> 0) % 100 / 100;
+      // Pre-pick which pursuer is the primary tackler (gets the visible
+      // "hit" or "dive" pose at the tackle moment). Hashed off the play
+      // so the same play picks the same tackler every render. Range is
+      // the LB/CB/S pursuit pool (i>=4); DL stay engaged at LOS.
+      const tacklerHash = (((play.startYard * 31) ^ ((play.yards||0) * 17) ^ ((play.time||0) * 13)) >>> 0);
+      const numPursuers = Math.max(1, formation.defense.length - 4);
+      const primaryTacklerIdx = 4 + (tacklerHash % numPursuers);
+      // 30% chance the primary tackler arrives via a diving hit; 70% wraps
+      // up upright. Carrier gets the same "tackled" ragdoll either way.
+      const primaryTacklerDives = ((tacklerHash >>> 6) % 100) < 30;
       // Most plays display a move; broken tackles ALWAYS show one (forces probabilities to 1)
       const bt = play.brokenTackles || 0;
       const eluciveProb = bt > 0 ? 1.0 : (rbArch === "ELUSIVE" ? 0.95 : rbArch === "SPEED" ? 0.65 : 0.55);
@@ -1710,10 +1720,23 @@ function buildAnimForPlay(play, prevPlay) {
         // ball actually is. Fallback to -dir when carrier is at the same
         // x as defender (lateral-only chase moment).
         dd.facing = (rb.x > dd.x) ? 1 : (rb.x < dd.x ? -1 : -dir);
-        // Tackle pose — defenders ragdoll with the carrier starting at 0.72.
+        // Tackle pose — variety. PRIMARY tackler drives in (hit) or dives
+        // (big-hit dive); pile-on defenders ragdoll alongside the carrier;
+        // the DODGED defender (juked) flies past the carrier in a
+        // missed-dive pose during the cut window. Was "everyone gets
+        // tackled" — every tackle looked the same.
         if (!isTrucked && yards < 90 && tt > 0.72 && Math.hypot(rb.x - dd.x, rb.y - dd.y) < 28) {
-          dd.pose = "tackled";
+          if (i === primaryTacklerIdx) {
+            dd.pose = primaryTacklerDives ? "dive" : "hit";
+          } else {
+            dd.pose = "tackled";
+          }
           dd.t = Math.min(1, (tt - 0.72) / 0.28);
+        } else if (isDodged && tt > 0.34 && tt < 0.58) {
+          // Juked defender dives at the carrier's PRE-move position and
+          // misses. Lands flat after the dive arc completes.
+          dd.pose = "dive";
+          dd.t = Math.min(1, (tt - 0.34) / 0.24);
         }
         return dd;
       });

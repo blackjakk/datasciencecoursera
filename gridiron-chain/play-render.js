@@ -963,6 +963,37 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
       rArm = 0.4;
       lLeg = runPhase * 0.3; rLeg = -runPhase * 0.3;
       break;
+    case "hit": {
+      // Tackler driving INTO the ball carrier — body upright but angled
+      // forward into the contact, both arms wrapped, legs powering
+      // through. t advances 0→1 across the impact window; impact spike
+      // around 0.30-0.50.
+      const ph = Math.min(1, Math.max(0, t));
+      const impact = Math.sin(Math.min(1, ph * 1.8) * Math.PI);   // peaks mid-window
+      lArm = -1.6 + ph * 0.5;        // arms wrapped forward across the carrier
+      rArm = -1.6 + ph * 0.5;
+      lLeg = 0.55 + impact * 0.25;   // legs driving through
+      rLeg = -0.40 - impact * 0.20;
+      bodyTilt = facing * (0.25 + impact * 0.20);   // lean into the hit
+      bodyDY = -0.5 - impact * 1.4;   // raise off ground at impact peak
+      break;
+    }
+    case "dive": {
+      // Diving tackle attempt — body launches HORIZONTAL through the
+      // air with arms extended forward (Superman). t 0→1 across the
+      // dive arc; lands flat at t=1 (the "splat").
+      const ph = Math.min(1, Math.max(0, t));
+      const airT = Math.min(1, ph * 1.4);
+      const arc = Math.sin(airT * Math.PI);
+      bodyRot = -Math.PI / 2 * facing * Math.min(1, ph * 1.3);   // rotate to horizontal
+      bodyDY = -arc * 7 + Math.max(0, ph - 0.78) * 35;           // hang time, then plant
+      bodyTilt = facing * 0.45;
+      lArm = -2.4;    // both arms reaching forward
+      rArm = -2.4;
+      lLeg = 0.6;     // legs trailing back
+      rLeg = -0.6;
+      break;
+    }
     case "block":
       lArm = -0.5; rArm = 0.5;
       lLeg = 0.1;  rLeg = -0.1;
