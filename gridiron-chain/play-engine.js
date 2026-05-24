@@ -81,6 +81,57 @@ const _RUN_GANG_DIST = {
   mid:   [0.55, 0.37, 0.08],
   long:  [0.85, 0.15],
 };
+// ── LEVEL-4 CONCEPT × COVERAGE LIBRARY ─────────────────────────────────
+// Named offensive concepts (route trees) and defensive coverages, with a
+// per-matchup read-success table. Replaces the air-yards class mixture with
+// "QB calls a concept, defense calls a coverage, lookup matchup → primary
+// or fallback throw" — the actual structural model of how NFL passing
+// works. Concepts have characteristic depth (primary) and a checkdown
+// (fallback). Coverages have characteristic strengths/weaknesses against
+// concept types. Read success per (concept, coverage) pair is calibrated
+// from NFL film/analytics convention; QB awareness + pressure modulate.
+const PASS_CONCEPTS = {
+  QUICK_GAME: {  // slants, hitches, RPO — quick read, beats blitz
+    primaryDepth: 4,  primarySd: 1.5,
+    fallbackDepth: 1, fallbackSd: 1.0,
+    readSuccessVs: { C0_BLITZ: 0.82, C1_MAN: 0.62, C2_ZONE: 0.55, C3_ZONE: 0.66, C4_QUARTERS: 0.55, TAMPA_2: 0.55 },
+  },
+  DRAG_MESH: {   // crossers — beats man, vulnerable to gap zones
+    primaryDepth: 7,  primarySd: 2.0,
+    fallbackDepth: 3, fallbackSd: 1.5,
+    readSuccessVs: { C0_BLITZ: 0.55, C1_MAN: 0.78, C2_ZONE: 0.55, C3_ZONE: 0.52, C4_QUARTERS: 0.50, TAMPA_2: 0.48 },
+  },
+  INTERMEDIATE: {  // digs/outs/post-corner — beats zone, vulnerable to man + pressure
+    primaryDepth: 12, primarySd: 2.5,
+    fallbackDepth: 5, fallbackSd: 2.0,
+    readSuccessVs: { C0_BLITZ: 0.42, C1_MAN: 0.52, C2_ZONE: 0.68, C3_ZONE: 0.62, C4_QUARTERS: 0.48, TAMPA_2: 0.55 },
+  },
+  VERTICAL: {    // go/deep post — beats single-high, dies vs 2-deep
+    primaryDepth: 22, primarySd: 3.5,
+    fallbackDepth: 4, fallbackSd: 2.0,
+    readSuccessVs: { C0_BLITZ: 0.75, C1_MAN: 0.55, C2_ZONE: 0.40, C3_ZONE: 0.38, C4_QUARTERS: 0.30, TAMPA_2: 0.40 },
+  },
+  SCREEN: {      // behind/at LOS — manufactured YAC, beats blitz, vulnerable to disciplined zone
+    primaryDepth: -1, primarySd: 1.5,
+    fallbackDepth: 2, fallbackSd: 1.5,
+    readSuccessVs: { C0_BLITZ: 0.85, C1_MAN: 0.65, C2_ZONE: 0.52, C3_ZONE: 0.55, C4_QUARTERS: 0.55, TAMPA_2: 0.65 },
+  },
+  PA_SHOT: {     // play-action vertical — slow developing, beats single-high
+    primaryDepth: 18, primarySd: 4.0,
+    fallbackDepth: 7, fallbackSd: 2.5,
+    readSuccessVs: { C0_BLITZ: 0.40, C1_MAN: 0.65, C2_ZONE: 0.55, C3_ZONE: 0.52, C4_QUARTERS: 0.42, TAMPA_2: 0.48 },
+  },
+};
+const PASS_CONCEPT_FREQ = {  // base offensive concept call distribution
+  // Rebalanced from initial draft (30/18/22/13/10/7) — too much QUICK_GAME +
+  // SCREEN dragged attempt-avg airYds to 6.2 vs NFL ~8.5-9. Shifted weight
+  // to INTERMEDIATE / VERTICAL / PA_SHOT.
+  QUICK_GAME: 0.22, DRAG_MESH: 0.17, INTERMEDIATE: 0.30, VERTICAL: 0.16, SCREEN: 0.05, PA_SHOT: 0.10,
+};
+const PASS_COVERAGE_FREQ = { // base defensive coverage distribution
+  C0_BLITZ: 0.05, C1_MAN: 0.22, C2_ZONE: 0.18, C3_ZONE: 0.32, C4_QUARTERS: 0.15, TAMPA_2: 0.08,
+};
+
 const _YAC_TACKLER_ZONES = {
   short: { S: 0.40, CB: 0.35, LB: 0.25 },              // catch + immediate wrap
   mid:   { S: 0.40, CB: 0.30, LB: 0.30 },              // typical YAC
@@ -1675,6 +1726,86 @@ class GameSimulator {
   get defDL()      { return this.poss === "home" ? this.awayDL : this.homeDL; }
   get offArch()    { return this.poss === "home" ? this.homeArch : this.awayArch; }
   get defArch()    { return this.poss === "home" ? this.awayArch : this.homeArch; }
+  // LEVEL-4 — pick an offensive concept + defensive coverage for this snap.
+  // Tilts base frequencies by down/distance + playbook tendencies.
+  _pickPassConcept(pb) {
+    const f = { ...PASS_CONCEPT_FREQ };
+    const dn = this.down, yg = this.ytg;
+    // 3rd-and-long → push toward INTERMEDIATE / VERTICAL to target sticks
+    if (dn >= 3 && yg >= 8) {
+      f.QUICK_GAME *= 0.35; f.SCREEN *= 0.50; f.DRAG_MESH *= 0.65;
+      f.INTERMEDIATE *= 1.9; f.VERTICAL *= 1.7; f.PA_SHOT *= 0.7;
+    }
+    // 3rd-and-short → push toward QUICK_GAME / DRAG_MESH (move chains)
+    if (dn >= 3 && yg <= 3) {
+      f.QUICK_GAME *= 1.7; f.DRAG_MESH *= 1.4; f.SCREEN *= 1.2;
+      f.INTERMEDIATE *= 0.55; f.VERTICAL *= 0.25; f.PA_SHOT *= 0.4;
+    }
+    // Goal line → quick game heavy
+    if (this.yardLine >= 95) {
+      f.VERTICAL *= 0.2; f.PA_SHOT *= 0.6;
+      f.QUICK_GAME *= 1.4; f.DRAG_MESH *= 1.2;
+    }
+    // Playbook tilts
+    const pid = pb?.id;
+    if (pid === "AIR_RAID") {
+      f.INTERMEDIATE *= 1.3; f.VERTICAL *= 1.5; f.QUICK_GAME *= 0.9;
+      f.PA_SHOT *= 0.5; f.SCREEN *= 0.8;
+    } else if (pid === "WEST_COAST") {
+      f.QUICK_GAME *= 1.3; f.DRAG_MESH *= 1.4; f.SCREEN *= 1.2;
+      f.VERTICAL *= 0.6; f.PA_SHOT *= 0.7;
+    } else if (pid === "GROUND_AND_POUND") {
+      f.PA_SHOT *= 1.9; f.SCREEN *= 1.3;
+      f.VERTICAL *= 0.6; f.INTERMEDIATE *= 0.85;
+    } else if (pid === "OPTION") {
+      f.QUICK_GAME *= 1.2; f.PA_SHOT *= 1.4;
+      f.INTERMEDIATE *= 0.7;
+    }
+    // Aggressive QBs tilt deep
+    const agg = this._qbAggression?.() ?? 50;
+    if (agg > 70)       { f.VERTICAL *= 1.3; f.PA_SHOT *= 1.2; f.QUICK_GAME *= 0.85; }
+    else if (agg < 35)  { f.QUICK_GAME *= 1.25; f.SCREEN *= 1.15; f.VERTICAL *= 0.7; }
+    // Weighted roll
+    let total = 0; for (const v of Object.values(f)) total += v;
+    let r = Math.random() * total;
+    for (const [name, p] of Object.entries(f)) { r -= p; if (r <= 0) return name; }
+    return "QUICK_GAME";
+  }
+  _pickPassCoverage(defPb) {
+    const f = { ...PASS_COVERAGE_FREQ };
+    const dn = this.down, yg = this.ytg;
+    // 3rd-and-long → push toward deep zones / 2-high / TAMPA
+    if (dn >= 3 && yg >= 8) {
+      f.C0_BLITZ *= 0.40; f.C1_MAN *= 0.70;
+      f.C2_ZONE *= 1.30; f.C3_ZONE *= 1.15; f.C4_QUARTERS *= 1.55; f.TAMPA_2 *= 1.55;
+    }
+    // 3rd-and-short → blitz / man (jam routes, force quick)
+    if (dn >= 3 && yg <= 3) {
+      f.C0_BLITZ *= 1.9; f.C1_MAN *= 1.5;
+      f.C2_ZONE *= 0.55; f.C3_ZONE *= 0.60; f.C4_QUARTERS *= 0.45; f.TAMPA_2 *= 0.55;
+    }
+    // Goal line → man-heavy (no room for zone holes)
+    if (this.yardLine >= 95) {
+      f.C0_BLITZ *= 1.5; f.C1_MAN *= 1.7;
+      f.C2_ZONE *= 0.40; f.C3_ZONE *= 0.40; f.C4_QUARTERS *= 0.30;
+    }
+    // Defensive playbook tilt (using the existing schemes)
+    const did = defPb?.id;
+    if (did === "BLITZ_46" || did === "PRESS_MAN") {
+      f.C0_BLITZ *= 1.6; f.C1_MAN *= 1.4;
+      f.C2_ZONE *= 0.7; f.C4_QUARTERS *= 0.7;
+    } else if (did === "COVER_2_SHELL" || did === "TAMPA_2") {
+      f.C2_ZONE *= 1.7; f.TAMPA_2 *= 1.8;
+      f.C0_BLITZ *= 0.5; f.C1_MAN *= 0.6;
+    } else if (did === "PREVENT" || did === "QUARTERS") {
+      f.C4_QUARTERS *= 1.8; f.TAMPA_2 *= 1.3;
+      f.C0_BLITZ *= 0.3; f.C1_MAN *= 0.5;
+    }
+    let total = 0; for (const v of Object.values(f)) total += v;
+    let r = Math.random() * total;
+    for (const [name, p] of Object.entries(f)) { r -= p; if (r <= 0) return name; }
+    return "C3_ZONE";
+  }
   // Pick a DL rep + OL rep for this play, weighted toward higher-rated guys
   _pickTrenchRep() {
     const dlList = this.defDL || [];
@@ -4091,53 +4222,38 @@ class GameSimulator {
         const stickAim = (this.down >= 3 && this.ytg >= 8)
           ? Math.min(6, this.ytg - 8)
           : 0;
-        // ── CLASS-MIXTURE AIR YARDS ─────────────────────────────────────
-        // NFL QBs throw to ROUTE CONCEPTS, not random distances. Real air-
-        // yards distribution is multimodal: ~55% short concepts (slants,
-        // RPO, screens at 0-5 yds), ~28% intermediate (digs, outs at 6-15),
-        // ~13% deep (go, deep posts at 16-25), ~4% shot plays (26+). Each
-        // concept has tight intrinsic spread. The old single-normal draw
-        // (mean ~9, sd ~6) produced too many random in-between throws and
-        // missed the concentration at characteristic depths — also tied
-        // upper YPA tightly to YAC bucket lottery instead of QB intent.
-        const airBaselineMod = ((pb.airYdsMean ?? 7.5) - 7.5)  // playbook tilt
-          + qbAirMod + qbAirFromOvr + paAirMod + qbPocketAirBonus
-          + centerFieldCap + wxAirMod + defDeepBonus + archAirMod
-          + posAirMod + qbAggAirMod + ocAirAttackMod + boxStackAirMod
-          + adv * 2;
-        // Aggressive-vs-conservative signal (-1..+1)
-        const aMod = clamp(airBaselineMod / 5, -1, 1);
-        // Pressure forces short — under heavy pressure QB dumps off
-        const pressureShort = clamp(pressure * 0.30, 0, 0.45);
-        // Stick-aim on 3rd-and-long: shift mass toward intermediate/deep
-        const stickShift = stickAim / 8;   // 0..0.75
-        // GUNSLINGER bumps deep/shot
-        const gunMod = (qbArch === "GUNSLINGER") ? 1 : 0;
-        // Class probabilities (NFL baseline tilted by signals).
-        // First pass at 55/28/13/4 dropped Pass YPA to 6.88 (NFL ~7.2) because
-        // air-yards mean fell to 8.25. Re-weighted to push more attempts into
-        // intermediate/deep (NFL pass-attempt mean is ~9 air yards).
-        let p_short  = clamp(0.47 + pressureShort - aMod * 0.18 - stickShift * 0.30 - gunMod * 0.05, 0.20, 0.85);
-        let p_inter  = clamp(0.30 + aMod * 0.04 + stickShift * 0.20 - pressureShort * 0.35 - gunMod * 0.04, 0.10, 0.50);
-        let p_deep   = clamp(0.17 + aMod * 0.10 + stickShift * 0.08 - pressureShort * 0.25 + gunMod * 0.05, 0.02, 0.30);
-        let p_shot   = clamp(0.06 + aMod * 0.05 + stickShift * 0.02 - pressureShort * 0.20 + gunMod * 0.04, 0, 0.15);
-        const _psum = p_short + p_inter + p_deep + p_shot;
-        p_short /= _psum; p_inter /= _psum; p_deep /= _psum; p_shot /= _psum;
-        // Class draw — narrow intrinsic spread per concept
-        // Intermediate/deep/shot class means trimmed — first-pass values
-        // produced pass YPA 7.70 (NFL ~7.2). YAC adds ~4.5 on completions;
-        // class baselines slightly lower bring YPA into NFL band.
-        const _aCls = Math.random();
+        // ── LEVEL-4 CONCEPT × COVERAGE PASS RESOLUTION ──────────────────
+        // QB calls a concept, defense calls a coverage, lookup the matchup
+        // table for read success rate. Read success → throw to concept's
+        // primary depth. Read failure → throw to fallback (checkdown).
+        // This replaces the air-yards class mixture with the actual NFL
+        // passing model. Existing comp%/YAC/sack logic proceeds on the
+        // resulting airYds.
+        const _concept = this._pickPassConcept(pb);
+        const _coverage = this._pickPassCoverage(defPbCurrent);
+        const _conceptDef = PASS_CONCEPTS[_concept];
+        // Read success rates calibrated slightly upward from matchup
+        // baseline. +0.08 was too generous (scoring 26.0 vs NFL 22);
+        // +0.04 lands attempt-avg airYds near NFL 7.5-8.
+        const _readBase = (_conceptDef.readSuccessVs[_coverage] ?? 0.50) + 0.04;
+        const _qbAwr = this._playerByName?.get?.(QB?.name)?.stats?.[3] ?? 70;
+        const _qbReadMod = (_qbAwr - 70) / 200;             // ±0.075
+        const _pressReadCut = clamp(pressure * 0.10, 0, 0.20); // pressure cuts read time (less aggressive)
+        const _readMod = _qbReadMod - _pressReadCut + paAirMod * 0.02 - defDeepBonus * 0.015;
+        const _readSuccess = Math.random() < clamp(_readBase + _readMod, 0.15, 0.92);
         let airYds;
-        if (_aCls < p_short) {
-          airYds = clamp(Math.round(normal(3.0, 1.5)), -2, 6);
-        } else if (_aCls < p_short + p_inter) {
-          airYds = clamp(Math.round(normal(9.0, 2.5)), 6, 16);
-        } else if (_aCls < p_short + p_inter + p_deep) {
-          airYds = clamp(Math.round(normal(18.0, 3.0)), 16, 28);
+        if (_readSuccess) {
+          airYds = clamp(Math.round(_conceptDef.primaryDepth + normal(0, _conceptDef.primarySd)), -2, 55);
         } else {
-          airYds = clamp(Math.round(normal(27.0, 5.0)), 26, 55);
+          airYds = clamp(Math.round(_conceptDef.fallbackDepth + normal(0, _conceptDef.fallbackSd)), -2, 55);
         }
+        // Stick-aim safety: 3rd-and-long fallback shouldn't dump for FD lost
+        if (stickAim > 0 && !_readSuccess && airYds < this.ytg - 1) {
+          airYds = clamp(Math.round(airYds + stickAim * 0.6), -2, 55);
+        }
+        // Stash for stat tracking / play-by-play surfacing
+        this._lastPassConcept = _concept;
+        this._lastPassCoverage = _coverage;
         // YAC distribution — short catches / screens get more YAC potential.
         // Tuned to land NFL-average ~4.5 yds YAC per completion. The prior
         // "bumped YAC" (mean ~5.5) was a band-aid for the bimodal single-
