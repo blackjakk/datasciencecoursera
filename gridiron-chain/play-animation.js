@@ -1024,10 +1024,18 @@ function buildAnimForPlay(play, prevPlay) {
   // Replaces the old eased-cubic linear blend that made the RB shoot to the end zone
   // in the first 30% of the play. Now the carrier hangs near the LOS for the early
   // mesh/read frames before exploding through the hole.
-  function runPacing(runT) {
+  //
+  // cruiseEnd was a fixed 0.78, so 22% of action time was "ragdoll" wait at the
+  // tackle spot. Fine at short durations (~300ms). After bumping scaledDuration
+  // for long plays, 22% became 2+ seconds of the carrier standing still waiting
+  // to be tackled — "teleport then wait" feel. Now adaptive: cap ragdoll
+  // wall-time at ~1000ms by pushing cruiseEnd up on big plays.
+  function runPacing(runT, actionMs) {
     const meshEnd = 0.10;     // QB-RB exchange + first step
     const readEnd = 0.22;     // reading the blocks, building speed
-    const cruiseEnd = 0.78;   // RB reaches the tackle spot; rest is ragdoll
+    const cruiseEnd = actionMs
+      ? Math.max(0.78, Math.min(0.94, 1 - 1000 / actionMs))
+      : 0.78;
     const meshDist  = 0.04;
     const readDist  = 0.14;
     const cruiseDist = 1.0;
@@ -1281,7 +1289,7 @@ function buildAnimForPlay(play, prevPlay) {
           qbCurY = edgeY + optSide * 8 * after;
         } else {
           // Keep — QB continues forward toward endX
-          const progress = runPacing(runT);
+          const progress = runPacing(runT, actionDur);
           const after = (runT - PITCH_T) / (1 - PITCH_T);
           qbCurX = qb.x + (endX - qb.x) * progress;
           qbCurY = edgeY + (cy + optSide * 25 - edgeY) * Math.min(1, after);
@@ -1341,7 +1349,7 @@ function buildAnimForPlay(play, prevPlay) {
         // the seam (rb.x jumped from qb.x+3yd to ~qb.x+0.3yd at runT=0.16).
         // A single curve from qb.x → endX eliminates the teleport, the
         // stall, and the ball-going-backwards-then-forward shudder.
-        const progress = runPacing(runT);
+        const progress = runPacing(runT, actionDur);
         rb.x = qb.x + (endX - qb.x) * progress;
         // Slight lateral sway during the mesh window (0-0.20) shows the
         // option look; QB then straightens out for the sprint.
@@ -1450,7 +1458,7 @@ function buildAnimForPlay(play, prevPlay) {
       } else {
         // Realistic pacing: mesh (slow) → read (ramp) → cruise (linear) → tackle.
         // The RB now lingers near the LOS for the early frames before exploding.
-        const progress = runPacing(runT);
+        const progress = runPacing(runT, actionDur);
         ballX = qb.x + (endX - qb.x) * progress;
         rb.x = qb.x + (endX - qb.x) * progress;
         // RB stays in the backfield until the read phase ends, then merges to the LOS lane.
