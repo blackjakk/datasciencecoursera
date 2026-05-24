@@ -127,9 +127,13 @@ const GCPlayer = (() => {
     return PIXI.Texture.from(canvas);
   }
 
-  // Quantize t to a finite set of frames per pose. 6 frames per pose
-  // is enough animation to read as fluid without exploding cache size.
-  const T_BUCKETS = 6;
+  // Quantize t to a finite set of frames per pose. 12 frames per pose
+  // gives a noticeably smoother run / throw / tackle cycle than 6 —
+  // legs/arms read as fluid motion instead of stepping through 6 stop-
+  // frames. Sprite cache roughly doubles but stays well within budget
+  // (each texture is ~72KB; 12 buckets × ~50 active pose-color combos =
+  // ~40MB worst case).
+  const T_BUCKETS = 12;
   function _texKey(color, secondary, label, pose, t, facing, style) {
     const tBucket = Math.max(0, Math.min(T_BUCKETS - 1, Math.floor(t * T_BUCKETS)));
     // style flags that affect rendering go into the key; ignore style
