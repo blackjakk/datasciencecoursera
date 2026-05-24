@@ -1935,6 +1935,34 @@ function buildAnimForPlay(play, prevPlay) {
         const tyBase = isDodged
           ? (rb.y - rbLateral) + lane * 8               // chases stale position
           : rb.y + lane * 8;
+        // ── LANE DISCIPLINE / COVERAGE ASSIGNMENT ─────────────────
+        // Most defenders DON'T chase the carrier from the snap. Real
+        // run defense:
+        //   LBs / NB / SS  → fill the gap, pursue the carrier
+        //   CBs            → stay with their WR until run breaks contain
+        //   FS             → stay deep, big-play insurance
+        // "Broken contain" trips when the run is meaningful (>12 yd for
+        // CB release, >15 yd for FS). Until then, CBs cover, FS holds.
+        const isCB = (i === idxCB1 || i === idxCB2);
+        const isFS = (i === idxS2);
+        const cbBroken = (yards >= 12) || (runT > 0.65);
+        const fsBroken = (yards >= 15) || (runT > 0.70);
+        const isPrimaryOverride = (i === primaryTacklerIdx);   // primary always pursues
+        let tx = txBase, ty = tyBase;
+        if (!isPrimaryOverride && isCB && !cbBroken) {
+          // CB stays with assigned WR — track WR position with slight
+          // outside leverage. CB1 → wr1, CB2 → wr2.
+          const wrTarget = (i === idxCB1) ? formation.wr1 : formation.wr2;
+          if (wrTarget) {
+            tx = wrTarget.x + dir * 2;        // 2px head-on leverage
+            ty = wrTarget.y;
+          }
+        } else if (!isPrimaryOverride && isFS && !fsBroken) {
+          // FS holds deep position — only minor lateral shift to track
+          // the ball's lateral side.
+          tx = d.x;
+          ty = d.y + Math.sign(rb.y - d.y) * 4;
+        }
         const elapsedMs = Math.max(0, (t - PRE - reactDelay) * dur);
         const carrierFast = (rbArch === "SPEED" || rbArch === "ELUSIVE") ? 0.92 : 1.0;
         const factor = (i >= idxCB1 ? 1.02 : (i === idxS1 || i === idxS2 ? 1.0 : 0.92)) * carrierFast;
@@ -1977,12 +2005,22 @@ function buildAnimForPlay(play, prevPlay) {
               });
               d._simSpeedFactor = simFactor;
             }
-            const intercept = simIntercept(d._sim, { x: rb.x, y: rb.y, vx: carrierVel.vx, vy: carrierVel.vy });
-            // Apply lane discipline as an offset from the intercept
-            const tx = intercept.x + (txBase - rb.x);
-            const ty = intercept.y + (tyBase - rb.y);
+            // For pursuit defenders, compute intercept with lane offset.
+            // For coverage defenders (CB on WR / FS deep), aim directly
+            // at their assignment — no intercept of carrier velocity.
+            const inCoverage = (!isPrimaryOverride && isCB && !cbBroken) ||
+                               (!isPrimaryOverride && isFS && !fsBroken);
+            let aimX, aimY;
+            if (inCoverage) {
+              aimX = tx;
+              aimY = ty;
+            } else {
+              const intercept = simIntercept(d._sim, { x: rb.x, y: rb.y, vx: carrierVel.vx, vy: carrierVel.vy });
+              aimX = intercept.x + (tx - rb.x);
+              aimY = intercept.y + (ty - rb.y);
+            }
             const beforeX = d._sim.x, beforeY = d._sim.y;
-            d._sim.stepTowardAt(tx, ty, nowMs);
+            d._sim.stepTowardAt(aimX, aimY, nowMs);
             np = { x: d._sim.x, y: d._sim.y,
                    moved: Math.hypot(d._sim.x - beforeX, d._sim.y - beforeY) > 0.5 };
           } else {
