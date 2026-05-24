@@ -2081,13 +2081,12 @@ with tab_charts:
         # ============================================================
         st.subheader("3. Champion DNA — where did winners get their points?")
         st.caption("For each season's champion, breakdown of season points by "
-                   "the ROUND of their roster's drafted players. **2023 "
-                   "excluded** because that draft came from a post-Yahoo "
-                   "migration and pick-to-manager attribution is unreliable.")
+                   "the ROUND of their roster's drafted players. 2023 attribution "
+                   "restored from MONEY_LEAGUE.xlsx cell-color overlay (~87% of "
+                   "2023 picks correctly attributed; the remainder fall back to "
+                   "Sleeper's reconstructed roster_id).")
         champ_data = []
         for yr, s in sorted(D["seasons"].items()):
-            if yr == 2023:  # skip — attribution unreliable
-                continue
             champ_rid = s.get("champion_roster_id")
             if not champ_rid:
                 continue
@@ -2149,12 +2148,10 @@ with tab_charts:
         st.subheader("5. Draft capital realized vs final wins")
         st.caption("Each dot = (team, season). X = sum of season points from "
                    "drafted players; Y = wins. Does drafting better correlate "
-                   "with winning in a keeper league? **2023 excluded** "
-                   "(post-migration pick attribution unreliable).")
+                   "with winning in a keeper league? (2023 attribution via "
+                   "xlsx cell-color overlay; 87% of picks correctly attributed.)")
         dvw_rows = []
         for yr, s in D["seasons"].items():
-            if yr == 2023:
-                continue
             for rid, r in s["rosters"].items():
                 team_pick_pts = sum(p["season_points"] for p in D["picks"]
                                      if p["season"] == yr and p["roster_id"] == rid)
