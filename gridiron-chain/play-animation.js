@@ -507,9 +507,48 @@ function buildAnimForPlay(play, prevPlay) {
   // (800ms), no field action — the ticker chip slides in and stacks
   // alongside any prior subs. Auto-fades after 4s.
   if (play.kind === "substitution") {
-    return { duration: 700, kind: "substitution", render: (t, ctx) => {
+    // Injury subs now show the OUTGOING player on the field, clutching
+    // the affected body part. Catastrophic injuries get a stretcher
+    // overlay. play.injuryLabel + play.catastrophic drove only the
+    // ticker text before — now drive an actual on-field visual.
+    const isInjury = play.reason === "injury";
+    const duration = isInjury ? (play.catastrophic ? 1800 : 1400) : 700;
+    return { duration, kind: "substitution", render: (t, ctx) => {
       drawField(ctx, homeTeam, awayTeam, null);
       _subTicker.add(play);
+      if (isInjury) {
+        const isHome = play.side === "home";
+        const teamColor = isHome ? (homeTeam.primary || "#502c80") : (awayTeam.primary || "#a01818");
+        const teamSec = isHome ? (homeTeam.secondary || "#f5c542") : (awayTeam.secondary || "#ffffff");
+        // Position the player at midfield-ish, just below the LOS line
+        const px = FIELD.W * 0.45;
+        const py = (FIELD.TOP + FIELD.BOT) / 2 + 30;
+        // Clutch the affected body part — pose driven by injury label.
+        // Labels like "concussion", "shoulder", "knee", "ankle", "ribs"
+        // mostly map to "tackled" with extra arm/head emphasis. Use the
+        // existing tackled pose as the base — already shows clutching.
+        drawPlayer(ctx, px, py, teamColor, teamSec, "", "tackled", Math.min(1, t * 1.5), 1, {
+          role: play.position || "RB",
+        });
+        // Body-part label
+        const label = (play.injuryLabel || "DOWN").toUpperCase();
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.font = "bold 14px monospace";
+        ctx.fillStyle = "rgba(255,170,80,0.95)";
+        ctx.strokeStyle = "rgba(0,0,0,0.8)";
+        ctx.lineWidth = 3;
+        ctx.strokeText(label, px, py - 38);
+        ctx.fillText(label, px, py - 38);
+        // Catastrophic — stretcher cart icon (chevron + cross)
+        if (play.catastrophic) {
+          ctx.font = "bold 18px monospace";
+          ctx.fillStyle = "rgba(255,80,80,0.95)";
+          ctx.strokeText("🚑 CART", px, py + 38);
+          ctx.fillText("🚑 CART", px, py + 38);
+        }
+        ctx.restore();
+      }
     }};
   }
 
