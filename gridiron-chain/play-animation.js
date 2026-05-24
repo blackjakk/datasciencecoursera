@@ -2404,8 +2404,42 @@ function buildAnimForPlay(play, prevPlay) {
       const routeT = aT > 0 ? Math.min(1, aT / throwFrac) : 0;
       const wrPathX0 = wrBase.x;
       const wrPathY0 = wrBase.y;
-      wr.x = wrPathX0 + (targetX - wrPathX0) * routeT;
-      wr.y = wrPathY0 + (targetY - wrPathY0) * routeT;
+      // Route SHAPE varies by play.concept. Old code was a single linear
+      // lerp from start to target regardless of concept — every route
+      // looked the same. Now each concept has a 2-segment path through
+      // a CONTROL POINT, so slants break diagonally inside, digs go
+      // straight then 90° break, drags run shallow + lateral, etc.
+      // All concepts still end at (targetX, targetY) so the ball lands
+      // where it should.
+      const _conc = play.concept || "VERTICAL";
+      // Control point as fraction of (path depth, path lateral) — defines
+      // where the receiver is at the BREAK point of the route.
+      const ctrl =
+            _conc === "QUICK_GAME"   ? { breakT: 0.30, depthF: 0.40, latF: 0.0 }   // slant: 4-step then break IN
+          : _conc === "DRAG_MESH"    ? { breakT: 0.30, depthF: 0.20, latF: -0.5 }  // shallow + cross toward midfield
+          : _conc === "INTERMEDIATE" ? { breakT: 0.72, depthF: 1.0,  latF: 0.0 }   // vertical stem, sharp break
+          : _conc === "VERTICAL"     ? { breakT: 0.95, depthF: 0.95, latF: 0.0 }   // straight line
+          : _conc === "PA_SHOT"      ? { breakT: 0.95, depthF: 0.95, latF: 0.0 }
+          : _conc === "SCREEN"       ? null
+          :                            { breakT: 0.95, depthF: 0.95, latF: 0.0 };
+      if (ctrl) {
+        const midX = wrPathX0 + (targetX - wrPathX0) * ctrl.depthF;
+        // latF interpolates between (start Y = 0) and (cy = 1, midfield).
+        const midY = wrPathY0 + (cy - wrPathY0) * ctrl.latF;
+        if (routeT < ctrl.breakT) {
+          const p = routeT / ctrl.breakT;
+          wr.x = wrPathX0 + (midX - wrPathX0) * p;
+          wr.y = wrPathY0 + (midY - wrPathY0) * p;
+        } else {
+          const p = (routeT - ctrl.breakT) / (1 - ctrl.breakT);
+          wr.x = midX + (targetX - midX) * p;
+          wr.y = midY + (targetY - midY) * p;
+        }
+      } else {
+        // SCREEN — keep the existing linear handling
+        wr.x = wrPathX0 + (targetX - wrPathX0) * routeT;
+        wr.y = wrPathY0 + (targetY - wrPathY0) * routeT;
+      }
 
       // Throw style — TOUCH lobs high+slow, ZIP fires low+fast, DEEP arcs even higher
       const throwType = play.throwType || (isScreen ? "CHECKDOWN" : "TOUCH");
