@@ -91,7 +91,7 @@ def compute_data():
 
     wire = defaultdict(lambda: {
         "fa_adds": 0, "fa_hits": 0, "fa_hit_vbd": 0.0, "best_fa": None,
-        "kept": 0, "kept_vbd": 0.0,
+        "kept": 0, "kept_vbd": 0.0, "future_carry": 0.0,
     })
     best_pickup_ever = None
     for ld in sorted((ROOT / "data" / "sleeper").glob("league_*")):
@@ -127,14 +127,51 @@ def compute_data():
                         best_pickup_ever = {"name": nm, "rid": rid, "pts": pts,
                                              "wk": wk, "season": season}
 
-    # Keeper carryovers (player-seasons where someone was kept).
+    # Keeper carryovers using BOTH the Sleeper is_keeper flag AND
+    # multi-year-roster detection (anyone on roster 2+ consecutive years
+    # is functionally a keeper carryover even if Sleeper's flag missed it).
+    holdovers = defaultdict(list)
     for p in picks:
-        if not p.get("is_keeper"):
+        if p["player_name"]:
+            holdovers[(p["roster_id"], p["player_name"])].append(p)
+    for (rid, _name), entries in holdovers.items():
+        if len(entries) < 2:
             continue
-        wire[p["roster_id"]]["kept"] += 1
-        wire[p["roster_id"]]["kept_vbd"] += p["vbd"]
+        season_to_entry = {e["season"]: e for e in entries}
+        seasons_list = sorted(season_to_entry)
+        # Find consecutive runs; 2nd+ year of each run = carryover.
+        run = [seasons_list[0]]
+        runs = []
+        for s in seasons_list[1:]:
+            if s == run[-1] + 1:
+                run.append(s)
+            else:
+                if len(run) >= 2:
+                    runs.append(run)
+                run = [s]
+        if len(run) >= 2:
+            runs.append(run)
+        for r in runs:
+            for s in r[1:]:  # 2nd year onward = carryover
+                e = season_to_entry[s]
+                wire[rid]["kept"] += 1
+                wire[rid]["kept_vbd"] += e["vbd"]
+
+    # Future-carry credit: projected 2026 keeper raw VBD (top players who
+    # will keep producing). Captures Puka-style multi-year asset value
+    # beyond the historical data.
+    try:
+        keepers_2026 = json.loads((ROOT / "data" / "keepers_2026.json").read_text(encoding="utf-8"))
+        for k in keepers_2026:
+            if k.get("status") != "carryover":
+                continue
+            rid = int(k["team_idx"]) + 1  # team_idx -> roster_id
+            wire[rid]["future_carry"] = wire[rid].get("future_carry", 0.0) + (k.get("raw_vbd") or 0)
+    except FileNotFoundError:
+        pass
+
     for rid, m in wire.items():
-        m["total"] = m["fa_hit_vbd"] + m["kept_vbd"]
+        m["total"] = m["fa_hit_vbd"] + m["kept_vbd"] + m.get("future_carry", 0)
 
     # ===== Lineup commander =====
     SLOTS = [("QB", {"QB"}, 1), ("RB", {"RB"}, 2), ("WR", {"WR"}, 3),
@@ -287,20 +324,22 @@ def build_markdown(D: dict) -> str:
     md.append(f"\n*By raw per-pick: **{raw_top}** #1. "
               f"By skill-adjusted (above-expectation): **{skill_top}** #1, {skill_2nd} #2.*\n")
 
-    # ========== Wire Game (FA + Keepers combined) ==========
-    md.append("## 🔍 WIRE GAME — talent acquisition (FA hits + keeper carryover value)")
-    md.append("FA + keepers are one skill: find good players outside the draft and hold them. "
-              "Score = positive-VBD FA pickups + total VBD from kept-player-seasons. "
-              "Sub-replacement adds are excluded (those can be dropped — pure noise).\n")
-    md.append("| Rank | Manager | FA hits | FA VBD | # Kept | Keeper VBD | **Total** | Best FA pickup |")
-    md.append("|---|---|---|---|---|---|---|---|")
+    # ========== Wire Game (FA + Keepers + Future Carry) ==========
+    md.append("## 🔍 WIRE GAME — talent acquisition + multi-year retention")
+    md.append("FA + keepers + future-carry are one skill: find good players outside the draft, hold them, "
+              "and lock in projected future value. Components: "
+              "(a) positive-VBD FA pickups, "
+              "(b) carryover VBD from 2+ consecutive years on roster, "
+              "(c) projected 2026 keeper raw VBD (future credit for current top players).\n")
+    md.append("| Rank | Manager | FA hits | FA VBD | Carry yrs | Carry VBD | 2026 future | **Total** | Best FA pickup |")
+    md.append("|---|---|---|---|---|---|---|---|---|")
     rows = sorted(D["wire"].items(), key=lambda x: -x[1]["total"])
     for i, (rid, m) in enumerate(rows, 1):
         best = m["best_fa"]
         best_str = f"{best['name']} ({best['pts']:.0f}, {best['season']} W{best['wk']})" if best else "—"
         md.append(f"| {i} | **{mgr_name(rid)}** | {m['fa_hits']}/{m['fa_adds']} | "
                   f"{m['fa_hit_vbd']:+.0f} | {m['kept']} | "
-                  f"{m['kept_vbd']:+.0f} | **{m['total']:+.0f}** | {best_str} |")
+                  f"{m['kept_vbd']:+.0f} | {m['future_carry']:+.0f} | **{m['total']:+.0f}** | {best_str} |")
     md.append("")
 
     bp = D["best_pickup"]

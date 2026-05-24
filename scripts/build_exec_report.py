@@ -87,7 +87,8 @@ def gather():
                     if pts is not None:
                         pp_sw[season][wk][str(pid)] = float(pts)
 
-    wire = defaultdict(lambda: {"adds": 0, "fa_vbd": 0.0, "kept": 0, "kept_vbd": 0.0})
+    wire = defaultdict(lambda: {"adds": 0, "fa_vbd": 0.0, "kept": 0,
+                                  "kept_vbd": 0.0, "future_carry": 0.0})
     for ld in sorted((ROOT / "data" / "sleeper").glob("league_*")):
         if not (ld / "league.json").exists():
             continue
@@ -112,12 +113,47 @@ def gather():
                     wire[rid]["adds"] += 1
                     if fa_vbd > 0:
                         wire[rid]["fa_vbd"] += fa_vbd
+    # Keeper carryovers via multi-year roster detection (more robust than
+    # Sleeper's is_keeper flag which has gaps post-migration).
+    holdovers = defaultdict(list)
     for p in picks:
-        if p.get("is_keeper"):
-            wire[p["roster_id"]]["kept"] += 1
-            wire[p["roster_id"]]["kept_vbd"] += p["vbd"]
+        if p["player_name"]:
+            holdovers[(p["roster_id"], p["player_name"])].append(p)
+    for (rid, _name), entries in holdovers.items():
+        if len(entries) < 2:
+            continue
+        season_to_entry = {e["season"]: e for e in entries}
+        ss = sorted(season_to_entry)
+        run = [ss[0]]
+        runs = []
+        for s in ss[1:]:
+            if s == run[-1] + 1:
+                run.append(s)
+            else:
+                if len(run) >= 2:
+                    runs.append(run)
+                run = [s]
+        if len(run) >= 2:
+            runs.append(run)
+        for r in runs:
+            for s in r[1:]:
+                wire[rid]["kept"] += 1
+                wire[rid]["kept_vbd"] += season_to_entry[s]["vbd"]
+
+    # Future credit: projected 2026 keeper raw VBD.
+    try:
+        keepers_2026 = json.loads((ROOT / "data" / "keepers_2026.json").read_text(encoding="utf-8"))
+        for k in keepers_2026:
+            if k.get("status") != "carryover":
+                continue
+            rid = int(k["team_idx"]) + 1
+            wire[rid]["future_carry"] = wire[rid].get("future_carry", 0.0) + (k.get("raw_vbd") or 0)
+    except FileNotFoundError:
+        pass
+
     for rid in wire:
-        wire[rid]["total"] = wire[rid]["fa_vbd"] + wire[rid]["kept_vbd"]
+        wire[rid]["total"] = (wire[rid]["fa_vbd"] + wire[rid]["kept_vbd"]
+                              + wire[rid].get("future_carry", 0))
 
     # Lineup.
     SLOTS = [("QB", {"QB"}, 1), ("RB", {"RB"}, 2), ("WR", {"WR"}, 3),

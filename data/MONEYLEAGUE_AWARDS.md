@@ -25,23 +25,23 @@ Above-expectation per pick: positive = beat what an average drafter would have g
 
 *By raw per-pick: **Donnie** #1. By skill-adjusted (above-expectation): **Lem** #1, Brian #2.*
 
-## 🔍 WIRE GAME — talent acquisition (FA hits + keeper carryover value)
-FA + keepers are one skill: find good players outside the draft and hold them. Score = positive-VBD FA pickups + total VBD from kept-player-seasons. Sub-replacement adds are excluded (those can be dropped — pure noise).
+## 🔍 WIRE GAME — talent acquisition + multi-year retention
+FA + keepers + future-carry are one skill: find good players outside the draft, hold them, and lock in projected future value. Components: (a) positive-VBD FA pickups, (b) carryover VBD from 2+ consecutive years on roster, (c) projected 2026 keeper raw VBD (future credit for current top players).
 
-| Rank | Manager | FA hits | FA VBD | # Kept | Keeper VBD | **Total** | Best FA pickup |
-|---|---|---|---|---|---|---|---|
-| 1 | **Brower** | 48/161 | +2025 | 5 | +383 | **+2408** | Gardner Minshew (166, 2023 W5) |
-| 2 | **Trevor** | 40/189 | +1186 | 6 | +668 | **+1854** | Puka Nacua (217, 2023 W1) |
-| 3 | **Josh** | 29/96 | +1296 | 1 | +62 | **+1358** | Joshua Dobbs (211, 2023 W1) |
-| 4 | **Coop** | 13/54 | +770 | 7 | +457 | **+1228** | Jacoby Brissett (172, 2025 W6) |
-| 5 | **Troy** | 26/98 | +1099 | 5 | +73 | **+1172** | Kyren Williams (222, 2023 W1) |
-| 6 | **Brian** | 20/107 | +955 | 4 | -21 | **+934** | Chris Boswell (155, 2024 W1) |
-| 7 | **Lem** | 12/81 | +395 | 7 | +325 | **+720** | Adam Thielen (158, 2023 W2) |
-| 8 | **Eric** | 19/50 | +616 | 0 | +0 | **+616** | Jake Bates (138, 2025 W2) |
-| 9 | **Ankur** | 12/82 | +423 | 5 | +144 | **+568** | Rico Dowdle (180, 2025 W4) |
-| 10 | **Kyle** | 14/80 | +529 | 7 | -131 | **+398** | Brandon Aubrey (141, 2023 W2) |
-| 11 | **Tim** | 6/39 | +280 | 3 | +107 | **+387** | Kareem Hunt (110, 2023 W2) |
-| 12 | **Donnie** | 9/23 | +331 | 0 | +0 | **+331** | Darnell Mooney (159, 2024 W2) |
+| Rank | Manager | FA hits | FA VBD | Carry yrs | Carry VBD | 2026 future | **Total** | Best FA pickup |
+|---|---|---|---|---|---|---|---|---|
+| 1 | **Brower** | 48/161 | +2025 | 5 | +276 | +137 | **+2437** | Gardner Minshew (166, 2023 W5) |
+| 2 | **Trevor** | 40/189 | +1186 | 10 | +479 | +180 | **+1846** | Puka Nacua (217, 2023 W1) |
+| 3 | **Josh** | 29/96 | +1296 | 4 | +52 | +35 | **+1383** | Joshua Dobbs (211, 2023 W1) |
+| 4 | **Troy** | 26/98 | +1099 | 8 | +105 | -13 | **+1191** | Kyren Williams (222, 2023 W1) |
+| 5 | **Coop** | 13/54 | +770 | 8 | +321 | +88 | **+1179** | Jacoby Brissett (172, 2025 W6) |
+| 6 | **Eric** | 19/50 | +616 | 5 | +417 | +45 | **+1079** | Jake Bates (138, 2025 W2) |
+| 7 | **Brian** | 20/107 | +955 | 5 | +8 | +25 | **+988** | Chris Boswell (155, 2024 W1) |
+| 8 | **Donnie** | 9/23 | +331 | 5 | +469 | +0 | **+799** | Darnell Mooney (159, 2024 W2) |
+| 9 | **Lem** | 12/81 | +395 | 9 | +348 | +48 | **+792** | Adam Thielen (158, 2023 W2) |
+| 10 | **Kyle** | 14/80 | +529 | 11 | +71 | +0 | **+600** | Brandon Aubrey (141, 2023 W2) |
+| 11 | **Ankur** | 12/82 | +423 | 4 | +155 | -15 | **+564** | Rico Dowdle (180, 2025 W4) |
+| 12 | **Tim** | 6/39 | +280 | 6 | +68 | +9 | **+356** | Kareem Hunt (110, 2023 W2) |
 
 **League best raw pickup ever:** Kyren Williams → Troy (W1 2023, +222 pts the rest of the year)
 
@@ -223,18 +223,18 @@ Each manager's percentile rank within each skill, averaged.
 
 | Rank | Manager | Draft | Wire | Lineup | Trade | **Avg** |
 |---|---|---|---|---|---|---|
-| 1 | **Eric** | 73 | 36 | 91 | 64 | **66** |
-| 2 | **Brian** | 91 | 55 | 55 | 55 | **64** |
-| 3 | **Lem** | 100 | 45 | 64 | 45 | **64** |
+| 1 | **Eric** | 73 | 55 | 91 | 64 | **70** |
+| 2 | **Donnie** | 55 | 36 | 73 | 100 | **66** |
+| 3 | **Brian** | 91 | 45 | 55 | 55 | **61** |
 | 4 | **Brower** | 36 | 100 | 82 | 27 | **61** |
-| 5 | **Donnie** | 55 | 0 | 73 | 100 | **57** |
-| 6 | **Ankur** | 82 | 27 | 27 | 82 | **55** |
+| 5 | **Lem** | 100 | 27 | 64 | 45 | **59** |
+| 6 | **Ankur** | 82 | 9 | 27 | 82 | **50** |
 | 7 | **Josh** | 18 | 82 | 0 | 91 | **48** |
 | 8 | **Trevor** | 64 | 91 | 9 | 18 | **45** |
-| 9 | **Coop** | 9 | 73 | 18 | 73 | **43** |
-| 10 | **Kyle** | 45 | 18 | 100 | 9 | **43** |
-| 11 | **Troy** | 27 | 64 | 36 | 0 | **32** |
-| 12 | **Tim** | 0 | 9 | 45 | 36 | **23** |
+| 9 | **Kyle** | 45 | 18 | 100 | 9 | **43** |
+| 10 | **Coop** | 9 | 64 | 18 | 73 | **41** |
+| 11 | **Troy** | 27 | 73 | 36 | 0 | **34** |
+| 12 | **Tim** | 0 | 0 | 45 | 36 | **20** |
 
 *Percentiles 0-100 (100 = best, 0 = worst). Composite = average across the 4 skills.*
 
