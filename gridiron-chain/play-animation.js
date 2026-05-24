@@ -2799,6 +2799,31 @@ function buildAnimForPlay(play, prevPlay) {
             dd.pose = aT > 0.92 ? "tackled" : "run";
           }
         }
+        // DROPPED PICK — play.isDroppedPick + play.dropper. The defender
+        // who could have intercepted closes on the ball, reaches up for
+        // it, and the ball goes THROUGH their hands. Visible "dropper"
+        // identity even though we can't match by name (no per-defender
+        // names on the formation), the intDefIdx target maps to the
+        // covering defender of the targeted WR — same defender who
+        // would've made the pick.
+        if (play.isDroppedPick && i === intDefIdx) {
+          if (t < throwPhase) {
+            const tt = Math.min(1, aT / (throwFrac));
+            dd.x = d.x + (targetX - d.x) * easeOutCubic(tt);
+            dd.y = d.y + (targetY - d.y) * easeOutCubic(tt);
+            // Closer to throwPhase: reach pose, arms up for the ball
+            if (aT > throwFrac * 0.85) dd.pose = "reach";
+          } else if (t < throwPhase + 0.15) {
+            // Catch frame — at the ball, arms still up
+            dd.x = ballX - dir * 2;
+            dd.y = ballY;
+            dd.pose = "reach";
+          } else {
+            // After the drop — frustrated, on the ground
+            dd.pose = "tackled";
+            dd.t = Math.min(1, (t - throwPhase - 0.15) / 0.2);
+          }
+        }
         return dd;
       });
 
@@ -3348,6 +3373,34 @@ function buildAnimForPlay(play, prevPlay) {
       // Ball drawn on top of everyone EXCEPT after the pile has formed (then
       // it's buried under the dogpile)
       if (t < 0.78) drawBall(ctx, ballX, ballY, ballScale);
+
+      // SPOT MARKERS — chalk on the field at the catch yard line (if this
+      // was a fumble-after-catch) and at the fumble spot. Helps the
+      // viewer track the progression: caught HERE → ran → fumbled THERE.
+      // Driven by play.catchYL + play.fumbleSpotYL (previously unused).
+      if (play.catchYL != null || play.fumbleSpotYL != null) {
+        ctx.save();
+        const drawSpot = (yl, label, color) => {
+          if (yl == null) return;
+          const sx = yardToAbsX(yl, poss);
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          ctx.moveTo(sx, cy - 10);
+          ctx.lineTo(sx, cy + 10);
+          ctx.stroke();
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.arc(sx, cy - 14, 3.2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.font = "bold 11px monospace";
+          ctx.textAlign = "center";
+          ctx.fillText(label, sx, cy - 19);
+        };
+        drawSpot(play.catchYL, "CATCH", "rgba(110,210,255,0.85)");
+        drawSpot(play.fumbleSpotYL ?? (play.yards != null ? null : null), "FUMBLE", "rgba(255,170,80,0.95)");
+        ctx.restore();
+      }
 
       // "FUMBLE!" callout
       if (t < 0.32) {
