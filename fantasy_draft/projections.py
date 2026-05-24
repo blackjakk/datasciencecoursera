@@ -30,6 +30,11 @@ SCORING_FIELDS = {
     "standard": "pts_std",
     "ppr": "pts_ppr",
     "half_ppr": "pts_half_ppr",
+    # Sleeper doesn't expose a separate "superflex" points field — the
+    # scoring is the same as half-PPR, just a different ADP. We re-use
+    # pts_half_ppr and pick adp_2qb instead.
+    "superflex": "pts_half_ppr",
+    "2qb": "pts_half_ppr",
 }
 
 
@@ -76,10 +81,15 @@ def projections_to_players(
     if scoring not in SCORING_FIELDS:
         raise ValueError(f"scoring must be one of {list(SCORING_FIELDS)}")
     points_field = SCORING_FIELDS[scoring]
+    # For superflex/2QB leagues, prefer adp_2qb over the single-QB ADP.
+    # Half-PPR ADP undersells top QBs by 3-6 rounds (e.g. Jalen Hurts ADP
+    # ~68 single-QB vs ~12 in 2QB) — the recommender needs the right anchor.
     adp_field = {
         "standard": "adp_std",
         "ppr": "adp_ppr",
         "half_ppr": "adp_half_ppr",
+        "superflex": "adp_2qb",
+        "2qb": "adp_2qb",
     }[scoring]
 
     out: list[Player] = []

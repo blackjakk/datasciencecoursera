@@ -12,7 +12,7 @@
     "net_vbd": 2.8,
     "raw_vbd": 58.8,
     "pick_value_baseline": 56.0,
-    "adp": 48.9,
+    "adp": 3.5,
     "is_waiver": false
   },
   {
@@ -28,7 +28,7 @@
     "net_vbd": 17.1,
     "raw_vbd": 0.1,
     "pick_value_baseline": -17.0,
-    "adp": 94.9,
+    "adp": 109.5,
     "is_waiver": false
   },
   {
@@ -44,7 +44,7 @@
     "net_vbd": 3.5,
     "raw_vbd": -14.8,
     "pick_value_baseline": -18.3,
-    "adp": 78.8,
+    "adp": 100.7,
     "is_waiver": false
   },
   {
@@ -60,7 +60,7 @@
     "net_vbd": 69.4,
     "raw_vbd": 27.9,
     "pick_value_baseline": -41.5,
-    "adp": 40.6,
+    "adp": 54.8,
     "is_waiver": false
   },
   {
@@ -76,7 +76,7 @@
     "net_vbd": 1.3,
     "raw_vbd": 24.0,
     "pick_value_baseline": 22.7,
-    "adp": 55.9,
+    "adp": 63.7,
     "is_waiver": false
   },
   {
@@ -108,7 +108,7 @@
     "net_vbd": 45.1,
     "raw_vbd": -5.7,
     "pick_value_baseline": -50.8,
-    "adp": 140.9,
+    "adp": 153.2,
     "is_waiver": true
   },
   {
@@ -140,7 +140,7 @@
     "net_vbd": 24.2,
     "raw_vbd": -10.7,
     "pick_value_baseline": -34.9,
-    "adp": 96.6,
+    "adp": 115.9,
     "is_waiver": false
   },
   {
@@ -156,7 +156,7 @@
     "net_vbd": 4.0,
     "raw_vbd": -21.3,
     "pick_value_baseline": -25.3,
-    "adp": 83.2,
+    "adp": 105.9,
     "is_waiver": true
   },
   {
@@ -172,7 +172,7 @@
     "net_vbd": 35.5,
     "raw_vbd": -31.5,
     "pick_value_baseline": -67.0,
-    "adp": 157.2,
+    "adp": 173.0,
     "is_waiver": true
   },
   {
@@ -188,7 +188,7 @@
     "net_vbd": 38.2,
     "raw_vbd": -12.6,
     "pick_value_baseline": -50.8,
-    "adp": 111.7,
+    "adp": 125.0,
     "is_waiver": true
   },
   {
@@ -204,7 +204,7 @@
     "net_vbd": -0.0,
     "raw_vbd": 42.9,
     "pick_value_baseline": 42.9,
-    "adp": 105.8,
+    "adp": 36.2,
     "is_waiver": false
   },
   {
@@ -220,7 +220,7 @@
     "net_vbd": 51.1,
     "raw_vbd": 0.3,
     "pick_value_baseline": -50.8,
-    "adp": 82.6,
+    "adp": 96.5,
     "is_waiver": true
   },
   {
@@ -236,7 +236,7 @@
     "net_vbd": -73.2,
     "raw_vbd": -30.3,
     "pick_value_baseline": 42.9,
-    "adp": 999.0,
+    "adp": 186.5,
     "is_waiver": false
   },
   {
@@ -252,7 +252,7 @@
     "net_vbd": 45.1,
     "raw_vbd": -21.9,
     "pick_value_baseline": -67.0,
-    "adp": 110.3,
+    "adp": 123.6,
     "is_waiver": true
   },
   {
@@ -268,7 +268,7 @@
     "net_vbd": 63.4,
     "raw_vbd": 47.9,
     "pick_value_baseline": -15.5,
-    "adp": 20.5,
+    "adp": 34.5,
     "is_waiver": false
   },
   {
@@ -284,7 +284,7 @@
     "net_vbd": 39.7,
     "raw_vbd": 21.4,
     "pick_value_baseline": -18.3,
-    "adp": 28.5,
+    "adp": 42.1,
     "is_waiver": false
   },
   {
@@ -300,7 +300,7 @@
     "net_vbd": 10.5,
     "raw_vbd": 10.8,
     "pick_value_baseline": 0.3,
-    "adp": 52.6,
+    "adp": 70.8,
     "is_waiver": false
   },
   {
@@ -316,7 +316,7 @@
     "net_vbd": 44.8,
     "raw_vbd": 9.9,
     "pick_value_baseline": -34.9,
-    "adp": 59.4,
+    "adp": 77.3,
     "is_waiver": false
   },
   {
@@ -348,7 +348,7 @@
     "net_vbd": 18.0,
     "raw_vbd": 46.6,
     "pick_value_baseline": 28.6,
-    "adp": 90.9,
+    "adp": 14.2,
     "is_waiver": false
   },
   {
@@ -364,7 +364,7 @@
     "net_vbd": 98.3,
     "raw_vbd": 16.6,
     "pick_value_baseline": -81.7,
-    "adp": 66.7,
+    "adp": 79.7,
     "is_waiver": true
   },
   {
@@ -380,7 +380,7 @@
     "net_vbd": 42.9,
     "raw_vbd": 27.4,
     "pick_value_baseline": -15.5,
-    "adp": 34.9,
+    "adp": 50.6,
     "is_waiver": false
   },
   {
@@ -396,7 +396,7 @@
     "net_vbd": 38.6,
     "raw_vbd": 95.5,
     "pick_value_baseline": 56.9,
-    "adp": 7.9,
+    "adp": 7.2,
     "is_waiver": false
   },
   {
@@ -412,7 +412,7 @@
     "net_vbd": 2.8,
     "raw_vbd": 30.4,
     "pick_value_baseline": 27.6,
-    "adp": 49.7,
+    "adp": 58.4,
     "is_waiver": false
   },
   {
@@ -428,7 +428,7 @@
     "net_vbd": 29.8,
     "raw_vbd": 27.1,
     "pick_value_baseline": -2.7,
-    "adp": 41.6,
+    "adp": 52.8,
     "is_waiver": false
   },
   {
@@ -444,7 +444,7 @@
     "net_vbd": -13.2,
     "raw_vbd": 29.7,
     "pick_value_baseline": 42.9,
-    "adp": 126.2,
+    "adp": 50.0,
     "is_waiver": false
   },
   {
@@ -460,7 +460,7 @@
     "net_vbd": 60.2,
     "raw_vbd": 17.4,
     "pick_value_baseline": -42.8,
-    "adp": 95.5,
+    "adp": 110.9,
     "is_waiver": true
   },
   {
@@ -476,7 +476,7 @@
     "net_vbd": 71.1,
     "raw_vbd": 20.3,
     "pick_value_baseline": -50.8,
-    "adp": 67.8,
+    "adp": 81.2,
     "is_waiver": true
   },
   {
@@ -492,7 +492,7 @@
     "net_vbd": 19.4,
     "raw_vbd": 12.6,
     "pick_value_baseline": -6.8,
-    "adp": 86.6,
+    "adp": 101.0,
     "is_waiver": false
   },
   {
@@ -508,7 +508,7 @@
     "net_vbd": 65.7,
     "raw_vbd": -16.0,
     "pick_value_baseline": -81.7,
-    "adp": 103.7,
+    "adp": 114.3,
     "is_waiver": true
   },
   {
@@ -524,7 +524,7 @@
     "net_vbd": 6.7,
     "raw_vbd": -6.1,
     "pick_value_baseline": -12.8,
-    "adp": 113.6,
+    "adp": 127.0,
     "is_waiver": false
   },
   {
@@ -540,7 +540,7 @@
     "net_vbd": 72.9,
     "raw_vbd": 38.0,
     "pick_value_baseline": -34.9,
-    "adp": 38.1,
+    "adp": 54.0,
     "is_waiver": false
   },
   {
@@ -556,7 +556,7 @@
     "net_vbd": 56.2,
     "raw_vbd": -25.5,
     "pick_value_baseline": -81.7,
-    "adp": 106.2,
+    "adp": 118.6,
     "is_waiver": true
   },
   {
@@ -572,7 +572,7 @@
     "net_vbd": 31.7,
     "raw_vbd": 1.2,
     "pick_value_baseline": -30.5,
-    "adp": 85.5,
+    "adp": 107.9,
     "is_waiver": false
   },
   {
@@ -588,7 +588,7 @@
     "net_vbd": 99.0,
     "raw_vbd": 64.1,
     "pick_value_baseline": -34.9,
-    "adp": 14.5,
+    "adp": 21.2,
     "is_waiver": false
   },
   {
@@ -604,7 +604,7 @@
     "net_vbd": 136.4,
     "raw_vbd": 119.4,
     "pick_value_baseline": -17.0,
-    "adp": 6.8,
+    "adp": 6.4,
     "is_waiver": false
   },
   {
@@ -620,7 +620,7 @@
     "net_vbd": 23.5,
     "raw_vbd": -32.9,
     "pick_value_baseline": -56.4,
-    "adp": 166.8,
+    "adp": 193.8,
     "is_waiver": false
   },
   {
@@ -636,7 +636,7 @@
     "net_vbd": 76.5,
     "raw_vbd": 59.9,
     "pick_value_baseline": -16.6,
-    "adp": 20.7,
+    "adp": 22.3,
     "is_waiver": false
   },
   {
@@ -652,7 +652,7 @@
     "net_vbd": 2.9,
     "raw_vbd": 36.6,
     "pick_value_baseline": 33.7,
-    "adp": 52.2,
+    "adp": 60.9,
     "is_waiver": false
   },
   {
@@ -668,7 +668,7 @@
     "net_vbd": 61.4,
     "raw_vbd": 18.6,
     "pick_value_baseline": -42.8,
-    "adp": 99.7,
+    "adp": 112.0,
     "is_waiver": true
   }
 ]

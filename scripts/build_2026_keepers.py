@@ -82,7 +82,7 @@ def _build_candidates() -> list[dict]:
     rosters = json.loads(ROSTERS_PATH.read_text(encoding="utf-8"))
     picks = json.loads(PICKS_PATH.read_text(encoding="utf-8"))
     catalog = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
-    proj = load_projections_from_cache(PROJ_CACHE, scoring="half_ppr")
+    proj = load_projections_from_cache(PROJ_CACHE, scoring="superflex")
     name_to_canonical = {normalize_name(p.name): p.name for p in proj}
 
     # Map player_id -> 2025 draft pick (for prior_round) and keep position.

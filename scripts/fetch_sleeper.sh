@@ -120,7 +120,9 @@ PROJ_FILE="$OUT_DIR/projections_${SEASON_NOW}.json"
 if [ ! -f "$PROJ_FILE" ] || [ "$(find "$PROJ_FILE" -mtime +7 -print 2>/dev/null)" ]; then
     echo
     echo "[projections] fetching season ${SEASON_NOW} projections..."
-    PROJ_URL="https://api.sleeper.com/projections/nfl/${SEASON_NOW}?season_type=regular&order_by=adp_half_ppr"
+    # order_by=adp_2qb gives us superflex ADP first; adp_half_ppr is still
+    # included in each row's `stats` for non-superflex use.
+    PROJ_URL="https://api.sleeper.com/projections/nfl/${SEASON_NOW}?season_type=regular&order_by=adp_2qb"
     for POS in QB RB WR TE K DEF; do
         PROJ_URL="${PROJ_URL}&position[]=${POS}"
     done
