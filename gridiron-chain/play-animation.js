@@ -665,10 +665,14 @@ function buildAnimForPlay(play, prevPlay) {
       const fails = ((ksHash >>> (16 + i)) & 3) === 0;
       blockerAssignments.push({ targetCov, fails });
     }
-    return { duration: 3200, kind: "kickoff", render: (t, ctx) => {
+    // Slowed: kickoff ball used to fly 51 yd/s (real NFL ~16). Bumped
+    // total duration 3200→4400 and FLIGHT_END 0.40→0.48 so the ball
+    // hangs ~2100ms (≈ 31 yd/s for 65yd kick — still compressed but
+    // no longer feels like a missile).
+    return { duration: 4400, kind: "kickoff", render: (t, ctx) => {
       drawField(ctx, homeTeam, awayTeam, null);
-      const FLIGHT_END = 0.40;
-      const RETURN_END = 0.82;
+      const FLIGHT_END = 0.48;
+      const RETURN_END = 0.85;
       // ── Ball + returner positions ──
       let ballX, ballY, returnerX = catchX, returnerY = cy;
       let returnerPose = "stance";
@@ -2866,9 +2870,14 @@ function buildAnimForPlay(play, prevPlay) {
       // flicker delays the normal throw flow.
       const at = aT;
       const snapMotionAT = 0.04;             // ball travels C→QB in first 4% of action
-      const dropEndAT  = throwFrac * 0.29;   // dropback ends here
-      const cockHoldAT = throwFrac * 0.65;   // ball reaches the ear, "held cocked"
-      const releaseAT  = throwFrac * 0.73;   // ball leaves the hand
+      // Phase timing (within action time). Previously the ball spent
+      // only 27% of the pre-catch window in flight (releaseAT 0.73 →
+      // throwEndAT 1.0), which felt fast: a 15yd throw arrived in
+      // ~600ms even though basePass had 2200ms of pre-catch budget.
+      // Stretched the flight window to 42% so the ball visibly arcs.
+      const dropEndAT  = throwFrac * 0.30;   // dropback ends here
+      const cockHoldAT = throwFrac * 0.50;   // ball reaches the ear, "held cocked"
+      const releaseAT  = throwFrac * 0.58;   // ball leaves the hand (earlier than before)
       const throwEndAT = throwFrac;          // ball arrives at WR
       // Ball-in-hand positions
       const releaseX = qb.x + dir * 1.5;
@@ -4277,7 +4286,10 @@ function buildAnimForPlay(play, prevPlay) {
     const returnEndX = isReturnTD
       ? (poss === "home" ? FIELD.EZ_PX * 0.5 : FIELD.W - FIELD.EZ_PX * 0.5)
       : holderX - dir * 6;
-    const dur = (isBlocked || isReturned) ? (isReturnTD ? 4200 : 3200) : 2600;
+    // Slowed: FG flight used to feel rushed. Bumped 2600→3400 base,
+    // 3200→4200 returned, 4200→5400 return-TD so the kick has time
+    // to develop + arc visibly through the uprights.
+    const dur = (isBlocked || isReturned) ? (isReturnTD ? 5400 : 4200) : 3400;
     return { duration: dur, kind: play.kind, render: (t, c) => {
       ctx = c;
       drawField(ctx, homeTeam, awayTeam, fieldState);
@@ -4437,13 +4449,17 @@ function buildAnimForPlay(play, prevPlay) {
     const isReturnTD  = !!play.isReturnTD;
     // Duration scales with the return so big returns have time to develop
     // (no more teleporting across the field in 1 second).
+    // Slowed: punt air time was ~672ms (~74 yd/s, ~5x real). Bumped
+    // base 2400→3200 (TB/FC) and 2800→3700 (returns), AIR_END
+    // 0.46→0.55 so air time is ~1700ms (~30 yd/s for 50yd punt —
+    // still compressed but feels like a real punt).
     const dur = (isTouchback || isFairCatch)
-              ? 2400
-              : Math.round(2800 + Math.min(returnYards, 70) * 38);
-    // Phase boundaries — return phase is now ~46% of the animation
-    const PH_WIND_END  = 0.18;
-    const PH_AIR_END   = 0.46;
-    const PH_FIELD_END = 0.54;
+              ? 3200
+              : Math.round(3700 + Math.min(returnYards, 70) * 38);
+    // Phase boundaries — air phase expanded so the ball hangs
+    const PH_WIND_END  = 0.16;
+    const PH_AIR_END   = 0.55;
+    const PH_FIELD_END = 0.60;
     const RET_LEN      = 1 - PH_FIELD_END;
     return { duration: dur, kind: "punt", render: (t, c) => {
       ctx = c;
