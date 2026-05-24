@@ -81,6 +81,41 @@ Computed by comparing actual starting lineup pts vs. the optimal lineup from eac
 | 11 | **kylefiggy** | 5 | -133 | -26.6 |
 | 12 | **Trez Bridges & Co.** | 2 | -182 | -90.8 |
 
+## 🌊 BEST STREAMERS — K/DEF waiver kings
+Sum of positive-VBD K/DEF pickups across the season. Volume + matchup-savvy = high streamer score. (K/DEF VBD is already counted in the Wire Game total above; this is the dedicated breakdown.)
+
+| Rank | Manager | K/DEF adds | Hits | Hit VBD | Best stream |
+|---|---|---|---|---|---|
+| 1 | **Brower** | 58 | 38 | +1716 | SEA (125, 2025 W6) |
+| 2 | **Josh** | 43 | 25 | +1118 | DEN (131, 2024 W4) |
+| 3 | **Trevor** | 74 | 37 | +993 | CLE (149, 2023 W2) |
+| 4 | **Brian** | 24 | 15 | +841 | Chris Boswell (155, 2024 W1) |
+| 5 | **Troy** | 38 | 21 | +796 | Ka'imi Fairbairn (158, 2025 W1) |
+| 6 | **Coop** | 16 | 10 | +657 | Jake Elliott (129, 2023 W2) |
+| 7 | **Eric** | 27 | 19 | +616 | Jake Bates (138, 2025 W2) |
+| 8 | **Kyle** | 26 | 12 | +451 | Brandon Aubrey (141, 2023 W2) |
+| 9 | **Tim** | 11 | 6 | +280 | SEA (105, 2025 W8) |
+| 10 | **Lem** | 14 | 9 | +279 | MIN (117, 2024 W3) |
+| 11 | **Ankur** | 15 | 9 | +278 | DEN (115, 2024 W6) |
+| 12 | **Donnie** | 10 | 7 | +262 | Jake Elliott (106, 2024 W6) |
+
+## 🎯 K/DEF DRAFTING EDGE — drafting kickers/defenses at the right round
+Above-empirical-mean VBD for K/DEF picks. Drafting Tucker R12 or Dicker R14 = big edge.
+
+| Rank | Manager | # K/DEF picks | Above-exp total | Per pick | Best K/DEF pick |
+|---|---|---|---|---|---|
+| 1 | **Lem** | 6 | +239 | +39.8 | Justin Tucker (2023 R12, +145) |
+| 2 | **Tim** | 5 | +185 | +37.1 | Ka'imi Fairbairn (2024 R16, +90) |
+| 3 | **Brian** | 6 | +110 | +18.3 | Evan McPherson (2023 R16, +84) |
+| 4 | **Coop** | 4 | +55 | +13.8 | Buffalo Bills (2023 R15, +62) |
+| 5 | **Trevor** | 2 | +41 | +20.4 | Jake Bates (2025 R15, +57) |
+| 6 | **Kyle** | 4 | +5 | +1.3 | Younghoe Koo (2024 R17, +24) |
+| 7 | **Donnie** | 5 | +3 | +0.6 | Tyler Bass (2023 R15, +47) |
+| 8 | **Ankur** | 6 | -29 | -4.9 | Baltimore Ravens (2023 R16, +25) |
+| 9 | **Eric** | 4 | -37 | -9.2 | Harrison Butker (2023 R15, +67) |
+| 10 | **Troy** | 4 | -37 | -9.2 | Brandon Aubrey (2024 R15, +47) |
+| 11 | **Josh** | 3 | -116 | -38.8 | Evan McPherson (2025 R17, -19) |
+
 ## 💰 BIGGEST TANK ARTISTS — sold the most value via trades
 Sum of given-value (players + picks) across all trades. Star-sells = trades where they gave a +100 VBD player/pick.
 

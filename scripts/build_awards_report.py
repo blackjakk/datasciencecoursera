@@ -93,6 +93,7 @@ def compute_data():
         "fa_adds": 0, "fa_hits": 0, "fa_hit_vbd": 0.0, "best_fa": None,
         "kept": 0, "kept_vbd": 0.0, "future_carry": 0.0,
     })
+    kdef_stream = defaultdict(lambda: {"adds": 0, "hits": 0, "vbd": 0.0, "best": None})
     best_pickup_ever = None
     for ld in sorted((ROOT / "data" / "sleeper").glob("league_*")):
         if not (ld / "league.json").exists():
@@ -116,13 +117,25 @@ def compute_data():
                     pos = (catalog.get(str(pid)) or {}).get("position") or ""
                     fa_vbd = pts - repl[season].get(pos, 0)
                     wire[rid]["fa_adds"] += 1
+                    nm = (catalog.get(str(pid)) or {}).get("full_name", pid)
+                    # All positive-VBD FA pickups feed the Wire Game total.
                     if fa_vbd > 0:
                         wire[rid]["fa_hits"] += 1
                         wire[rid]["fa_hit_vbd"] += fa_vbd
-                    nm = (catalog.get(str(pid)) or {}).get("full_name", pid)
-                    if not wire[rid]["best_fa"] or pts > wire[rid]["best_fa"]["pts"]:
+                    if not wire[rid]["best_fa"] or pts > (
+                            (wire[rid]["best_fa"] or {}).get("pts", -999)):
                         wire[rid]["best_fa"] = {"name": nm, "pts": pts,
                                                   "wk": wk, "season": season}
+                    # K/DEF also feed the dedicated Streamers award.
+                    if pos in ("K", "DEF", "DST"):
+                        kdef_stream[rid]["adds"] += 1
+                        if fa_vbd > 0:
+                            kdef_stream[rid]["hits"] += 1
+                            kdef_stream[rid]["vbd"] += fa_vbd
+                        if not kdef_stream[rid].get("best") or pts > kdef_stream[rid]["best"]["pts"]:
+                            kdef_stream[rid]["best"] = {"name": nm, "pts": pts,
+                                                          "pos": pos, "wk": wk,
+                                                          "season": season}
                     if not best_pickup_ever or pts > best_pickup_ever["pts"]:
                         best_pickup_ever = {"name": nm, "rid": rid, "pts": pts,
                                              "wk": wk, "season": season}
@@ -279,11 +292,29 @@ def compute_data():
         for rid in s["rosters"]:
             n_years[rid] += 1
 
+    # K/DEF DRAFTING EDGE — above empirical mean at the round picked.
+    pv_pos = pv["by_round_position"]
+    kdef_draft = defaultdict(lambda: {"n": 0, "above": 0.0, "best": None})
+    for p in picks:
+        if p.get("is_keeper") or p["position"] not in ("K", "DEF"):
+            continue
+        rid = p["roster_id"]
+        per_pos = pv_pos.get(str(p["round"]), {}).get(p["position"], {})
+        exp_mean = per_pos.get("mean_vbd", 0) if per_pos else 0
+        above = p["vbd"] - exp_mean
+        kdef_draft[rid]["n"] += 1
+        kdef_draft[rid]["above"] += above
+        if not kdef_draft[rid]["best"] or above > kdef_draft[rid]["best"]["above"]:
+            kdef_draft[rid]["best"] = {"name": p["player_name"], "season": p["season"],
+                                          "round": p["round"], "above": above}
+
     return {
         "picks": picks,
         "seasons": seasons,
         "draft": draft,
         "wire": wire,
+        "kdef_stream": kdef_stream,
+        "kdef_draft": kdef_draft,
         "lineup": lineup,
         "trade": trade,
         "tank": tank,
@@ -368,6 +399,34 @@ def build_markdown(D: dict) -> str:
     for i, (team, m) in enumerate(rows, 1):
         per = m["net"] / max(1, m["n"])
         md.append(f"| {i} | **{team}** | {m['n']} | {m['net']:+.0f} | {per:+.1f} |")
+    md.append("")
+
+    # ========== Best Streamers (K/DEF FA) ==========
+    md.append("## 🌊 BEST STREAMERS — K/DEF waiver kings")
+    md.append("Sum of positive-VBD K/DEF pickups across the season. Volume + matchup-savvy = high streamer score. "
+              "(K/DEF VBD is already counted in the Wire Game total above; this is the dedicated breakdown.)\n")
+    md.append("| Rank | Manager | K/DEF adds | Hits | Hit VBD | Best stream |")
+    md.append("|---|---|---|---|---|---|")
+    rows = sorted(D["kdef_stream"].items(), key=lambda x: -x[1]["vbd"])
+    for i, (rid, m) in enumerate(rows, 1):
+        b = m.get("best")
+        best_str = f"{b['name']} ({b['pts']:.0f}, {b['season']} W{b['wk']})" if b else "—"
+        md.append(f"| {i} | **{mgr_name(rid)}** | {m['adds']} | {m['hits']} | "
+                  f"{m['vbd']:+.0f} | {best_str} |")
+    md.append("")
+
+    # ========== K/DEF Drafting Edge ==========
+    md.append("## 🎯 K/DEF DRAFTING EDGE — drafting kickers/defenses at the right round")
+    md.append("Above-empirical-mean VBD for K/DEF picks. Drafting Tucker R12 or Dicker R14 = big edge.\n")
+    md.append("| Rank | Manager | # K/DEF picks | Above-exp total | Per pick | Best K/DEF pick |")
+    md.append("|---|---|---|---|---|---|")
+    rows = sorted(D["kdef_draft"].items(), key=lambda x: -x[1]["above"])
+    for i, (rid, m) in enumerate(rows, 1):
+        b = m.get("best")
+        best_str = f"{b['name']} ({b['season']} R{b['round']}, {b['above']:+.0f})" if b else "—"
+        per_pick = m["above"] / max(1, m["n"])
+        md.append(f"| {i} | **{mgr_name(rid)}** | {m['n']} | "
+                  f"{m['above']:+.0f} | {per_pick:+.1f} | {best_str} |")
     md.append("")
 
     # ========== Tank Artists ==========
