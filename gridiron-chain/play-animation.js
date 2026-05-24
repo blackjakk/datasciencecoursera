@@ -2509,6 +2509,10 @@ function buildAnimForPlay(play, prevPlay) {
                     : wrChoice === "wr2" ? idxCB2
                     : wrChoice === "te"  ? (targetY < cy ? idxS1 : idxS2)
                     :                       (targetY < cy ? idxLB3 : idxLB1);  // LB for RB checkdown
+    // Lazy-init set for post-catch pursuit limiter — populated on the
+    // first frame after the catch, kept stable for the rest of the play
+    // so the same defenders continue chasing instead of swapping.
+    let _postCatchPursuerSet = null;
     const yac = isComplete ? (play.yac ?? Math.max(0, (play.yards ?? 0) - catchDepth)) : 0;
     // Final Y where YAC ends — receiver may drift back toward middle if running upfield
     const finalY = targetY + (cy - targetY) * Math.min(0.5, yac / 40);
@@ -3049,11 +3053,28 @@ function buildAnimForPlay(play, prevPlay) {
           }
         }
         if (play.kind === "complete" && t > throwPhase) {
-          // Safeties + CBs + key LBs pursue the ball after the catch
-          const isCB  = i === idxCB1 || i === idxCB2;
-          const isSaf = i === idxS1  || i === idxS2;
-          const isLB  = i === idxLB1 || i === idxLBmid;
-          if (isCB || isSaf || isLB) {
+          // Post-catch pursuit — was ALL 2 CBs + 2 Ss + 2 LBs (6
+          // defenders) sprinting at the ball. Real NFL: 2-3 converge,
+          // rest hold their assignment. Now: only the closest
+          // POST_CATCH_PURSUERS defenders (besides intDefIdx, which
+          // has its own guaranteed-arrival code below) actually
+          // pursue. Everyone else holds their coverage assignment.
+          const POST_CATCH_PURSUERS = 2;
+          if (!_postCatchPursuerSet) {
+            // Lazy-compute the closest set on first frame post-throw
+            const candidates = [];
+            for (let j = 4; j < formation.defense.length; j++) {
+              if (j === intDefIdx) continue;
+              const dj = formation.defense[j];
+              const cx = (dj._cx ?? dj.x), cy_ = (dj._cy ?? dj.y);
+              candidates.push({ j, dist: Math.hypot(cx - ballX, cy_ - ballY) });
+            }
+            candidates.sort((a, b) => a.dist - b.dist);
+            _postCatchPursuerSet = new Set(candidates.slice(0, POST_CATCH_PURSUERS).map(c => c.j));
+          }
+          if (_postCatchPursuerSet.has(i)) {
+            const isCB  = i === idxCB1 || i === idxCB2;
+            const isSaf = i === idxS1  || i === idxS2;
             const elapsedMs = Math.max(0, (t - throwPhase) * dur);
             const factor = isCB ? 1.05 : isSaf ? 1.0 : 0.95;
             const np = pursue(dd, ballX - dir * 4, ballY, elapsedMs, factor);
