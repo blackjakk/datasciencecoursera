@@ -351,14 +351,18 @@ const CELEB_STYLES = ["fist_pump", "ref_signal", "spike", "first_down", "point_s
 // COMPACT = short and small — slot WR/CB, elusive RB
 const BODY_TYPES = {
   //               padW   torsoLen  torsoBotW  legLen  armLen  helmH   scale  bulk
-  HUGE:        { padW: 16.0, torsoLen: 9.8, torsoBotW: 6.0, legLen: 9.0,  armLen: 7.8, helmH: 5.9, scale: 1.45, bulk: 1.6 },
-  BIG:         { padW: 13.5, torsoLen: 9.0, torsoBotW: 4.8, legLen: 8.8,  armLen: 7.5, helmH: 5.7, scale: 1.35, bulk: 1.0 },
-  HEAVY_SHORT: { padW: 14.5, torsoLen: 7.8, torsoBotW: 5.5, legLen: 7.5,  armLen: 7.0, helmH: 5.6, scale: 1.36, bulk: 1.4 },
-  TALL_HEAVY:  { padW: 14.0, torsoLen: 10.2,torsoBotW: 5.2, legLen: 10.0, armLen: 8.2, helmH: 5.7, scale: 1.40, bulk: 1.2 },
-  BROAD:       { padW: 11.8, torsoLen: 8.5, torsoBotW: 4.0, legLen: 9.0,  armLen: 7.5, helmH: 5.5, scale: 1.30, bulk: 0.8 },
-  NORMAL:      { padW: 10.0, torsoLen: 8.5, torsoBotW: 3.5, legLen: 9.0,  armLen: 7.5, helmH: 5.5, scale: 1.30, bulk: 0.5 },
-  LEAN:        { padW: 9.0,  torsoLen: 9.5, torsoBotW: 2.6, legLen: 10.2, armLen: 8.4, helmH: 5.3, scale: 1.30, bulk: 0.2 },
-  COMPACT:     { padW: 8.8,  torsoLen: 7.5, torsoBotW: 3.0, legLen: 8.2,  armLen: 6.8, helmH: 5.2, scale: 1.24, bulk: 0.4 },
+  // Proportions rebalanced toward NFL: longer torso, narrower pads, smaller
+  // helmet (helmH reduced). Old proportions read as Lego bobblehead at all
+  // viewing scales because the helmet was ~50% of body height; NFL ratio is
+  // closer to 1:5. New torso also gives jersey real estate for hang.
+  HUGE:        { padW: 13.5, torsoLen: 11.5, torsoBotW: 5.5, legLen: 10.0, armLen: 8.5, helmH: 4.6, scale: 1.45, bulk: 1.6 },
+  BIG:         { padW: 11.5, torsoLen: 10.8, torsoBotW: 4.4, legLen: 9.8,  armLen: 8.2, helmH: 4.4, scale: 1.35, bulk: 1.0 },
+  HEAVY_SHORT: { padW: 12.2, torsoLen: 9.5,  torsoBotW: 5.0, legLen: 8.5,  armLen: 7.7, helmH: 4.3, scale: 1.36, bulk: 1.4 },
+  TALL_HEAVY:  { padW: 12.0, torsoLen: 12.0, torsoBotW: 4.8, legLen: 11.0, armLen: 8.9, helmH: 4.4, scale: 1.40, bulk: 1.2 },
+  BROAD:       { padW: 10.2, torsoLen: 10.3, torsoBotW: 3.7, legLen: 10.0, armLen: 8.2, helmH: 4.2, scale: 1.30, bulk: 0.8 },
+  NORMAL:      { padW: 8.6,  torsoLen: 10.3, torsoBotW: 3.2, legLen: 10.0, armLen: 8.2, helmH: 4.2, scale: 1.30, bulk: 0.5 },
+  LEAN:        { padW: 7.8,  torsoLen: 11.2, torsoBotW: 2.4, legLen: 11.2, armLen: 9.0, helmH: 4.0, scale: 1.30, bulk: 0.2 },
+  COMPACT:     { padW: 7.6,  torsoLen: 9.0,  torsoBotW: 2.8, legLen: 9.0,  armLen: 7.4, helmH: 4.0, scale: 1.24, bulk: 0.4 },
 };
 const LINE_BODY_POOL = ["HUGE", "BIG", "HEAVY_SHORT", "TALL_HEAVY", "BIG", "TALL_HEAVY"];
 function pickBodyType(pos, archetype) {
@@ -1407,8 +1411,8 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
   // pronounced forward overhang at the brow where the facemask attaches.
   // From a side view: bulged crown, curve down the back to the earhole, jaw-
   // guard tapers IN sharply below ear, front juts forward at brow level.
-  const helmRx = headR + 1.0;             // narrower
-  const helmRy = helmH + 2.6;             // much taller — real NFL helmets are tall
+  const helmRx = headR * 0.85 + 0.2;     // smaller relative to body
+  const helmRy = helmH + 1.3;             // proportionally shorter (helmH itself was reduced)
   const helmY  = shoulderY - helmRy - 0.4;
   // facing-aware front/back x signs
   const fF =  facing;   // +1 = front
