@@ -1027,21 +1027,33 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
       lLeg = 0.1;  rLeg = -0.1;
       bodyTilt = facing * 0.15;
       break;
-    case "engage":
-      // Engagement arms — biceps forward at ~46°, forearms FOLDED BACK
-      // toward 11° so the HAND lands on the opponent's body (3-4 units
-      // in front of the player) instead of fully extending 12+ units
-      // past the opponent. Old pose was arms straight forward (PI/2)
-      // which made hands clip way through whoever was being blocked.
-      lArm = 0.8;
-      rArm = 0.8;
-      lForearmOverride = 0.20;
-      rForearmOverride = 0.20;
-      // Slight stagger and forward weight — pushing-into-opponent
-      lLeg = 0.4; rLeg = -0.4;
-      bodyTilt = facing * 0.18;
-      bodyDY = Math.sin(t * Math.PI * 6) * 0.4;
+    case "engage": {
+      // Engagement varies by lineman archetype. style.archetype is set
+      // upstream from per-formation hash (or play.dlType for the sack
+      // play's breaking rusher). Each archetype tweaks bicep, forearm,
+      // leg spread, body tilt, and jitter rate so each lineman has a
+      // visible "stance signature" instead of all linemen looking
+      // identical.
+      const arch = (style && style.archetype) || "";
+      let bicep = 0.8, forearm = 0.20, tilt = 0.18, legSpread = 0.4, dyMul = 1.0;
+      // DL archetypes
+      if      (arch === "POWER")      { bicep = 0.70; forearm = 0.12; tilt = 0.28; legSpread = 0.55; dyMul = 0.6; }
+      else if (arch === "SPEED")      { bicep = 1.00; forearm = 0.35; tilt = 0.10; legSpread = 0.30; dyMul = 1.4; }
+      else if (arch === "TWEENER")    { bicep = 0.90; forearm = 0.30; tilt = 0.16; legSpread = 0.42; dyMul = 1.8; }
+      else if (arch === "PENETRATOR") { bicep = 0.85; forearm = 0.25; tilt = 0.32; legSpread = 0.50; dyMul = 0.8; }
+      // OL archetypes (TECHNICIAN exists in both — defaults are close to it)
+      else if (arch === "ANCHOR")     { bicep = 0.60; forearm = 0.10; tilt = 0.12; legSpread = 0.60; dyMul = 0.4; }
+      else if (arch === "ATHLETIC")   { bicep = 0.85; forearm = 0.25; tilt = 0.18; legSpread = 0.35; dyMul = 1.0; }
+      else if (arch === "PLUG")       { bicep = 0.55; forearm = 0.10; tilt = 0.10; legSpread = 0.55; dyMul = 0.5; }
+      else if (arch === "MAULER")     { bicep = 0.75; forearm = 0.15; tilt = 0.32; legSpread = 0.50; dyMul = 0.8; }
+      lArm = bicep; rArm = bicep;
+      lForearmOverride = forearm;
+      rForearmOverride = forearm;
+      lLeg = legSpread; rLeg = -legSpread;
+      bodyTilt = facing * tilt;
+      bodyDY = Math.sin(t * Math.PI * 6 * dyMul) * 0.4;
       break;
+    }
     case "sack":
       lArm = -0.6; rArm = -0.6;
       lLeg = -0.5; rLeg = 0.5;

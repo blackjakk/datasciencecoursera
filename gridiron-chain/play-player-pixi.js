@@ -139,7 +139,11 @@ const GCPlayer = (() => {
     // style flags that affect rendering go into the key; ignore style
     // params that are equivalent for the same player.
     const sk = style ? `${style.longSleeves ? 1 : 0}${style.glove ? 1 : 0}${style.brace ? 1 : 0}` : "0";
-    return `${color}|${secondary}|${label}|${pose}|${facing}|${tBucket}|${sk}`;
+    // Archetype variants drive the "engage" pose stance — must be in
+    // the key or all linemen render the same cached texture regardless
+    // of archetype.
+    const ak = style && style.archetype ? style.archetype : "";
+    return `${color}|${secondary}|${label}|${pose}|${facing}|${tBucket}|${sk}|${ak}`;
   }
   function _getTexture(color, secondary, label, pose, t, facing, style) {
     const key = _texKey(color, secondary, label, pose, t, facing, style);

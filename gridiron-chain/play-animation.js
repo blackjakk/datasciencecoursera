@@ -1037,6 +1037,18 @@ function buildAnimForPlay(play, prevPlay) {
   // Defender pursuit speed cap — tuned to a fast NFL defender (~9 yds/s).
   // Carrier runs slightly faster, so on breakaways defenders visibly trail.
   const PURSUIT_PX_MS = (FIELD.PX_PER_YARD * 9) / 1000;
+  // Lineman archetype tagging — deterministic by slot so each OL/DL has
+  // a consistent visual signature across plays. play.dlType (sack play)
+  // takes precedence for the breaking rusher; everyone else hashes off
+  // their formation position. Drives the "engage" pose variants in
+  // play-render.js.
+  const _DL_ARCH = ["POWER", "SPEED", "TWEENER", "PENETRATOR", "TECHNICIAN"];
+  const _OL_ARCH = ["ANCHOR", "ATHLETIC", "TECHNICIAN", "PLUG", "MAULER"];
+  function _archForLineman(p, role) {
+    const pool = (role === "DL") ? _DL_ARCH : _OL_ARCH;
+    const h = ((Math.abs(p.x | 0) * 31 + Math.abs(p.y | 0) * 13) >>> 0);
+    return pool[h % pool.length];
+  }
   // ── Ragdoll physics — kinematic rigid-body. On impact, initialize
   // velocity + angular velocity from the hit vector. Each frame, integrate
   // with gravity, damping, and a ground bounce. State persists on the
@@ -1851,6 +1863,7 @@ function buildAnimForPlay(play, prevPlay) {
             dd.x = d.x + Math.sin(tt * Math.PI * 6 + i * 0.4) * 1.5;
             dd.y = d.y + wobble;
             dd.pose = "engage";
+            dd.archetype = _archForLineman(d, "DL");
             dd.t = tt;
           }
           dd.facing = -dir;
@@ -1995,7 +2008,7 @@ function buildAnimForPlay(play, prevPlay) {
               driveY = _pitchSide * reachT * 12;
             }
           }
-          return { ...p, x: p.x + driveX, y: p.y + wobble + driveY, pose: "engage", t: tt, facing: dir };
+          return { ...p, x: p.x + driveX, y: p.y + wobble + driveY, pose: "engage", t: tt, facing: dir, archetype: _archForLineman(p, "OL") };
         }
         if (p.role === "TE") {
           // TE seals the edge — engage a defender to the side, doesn't run free
@@ -2764,6 +2777,10 @@ function buildAnimForPlay(play, prevPlay) {
             dd.y = baseY + pathDY;
             // After release, the rusher arrives in the QB's face and engages
             dd.pose = aT > throwFrac ? "engage" : "run";
+            // Breaking rusher's archetype: prefer play.dlType (specific
+            // DL who beat his man) if present, else hash by position.
+            dd.archetype = (play.dlType && _DL_ARCH.indexOf(play.dlType) >= 0)
+              ? play.dlType : _archForLineman(d, "DL");
           } else if (aT < throwFrac + 0.05) {
             // DL stuck at LOS engaged with OL — hold position with jitter.
             // Old code moved them -dir*4*tt (toward the offense) which
@@ -2774,6 +2791,7 @@ function buildAnimForPlay(play, prevPlay) {
             dd.y = d.y + wobble;
             dd.pose = "engage";
             dd.t = tt;
+            dd.archetype = _archForLineman(d, "DL");
           }
         }
         // CB / WR interaction varies by coverage. In MAN (C0/C1) the CB
@@ -3039,7 +3057,12 @@ function buildAnimForPlay(play, prevPlay) {
           const tt = Math.min(1, aT / 0.55);
           const dropBack = 3 * tt;
           const wobble = Math.sin(tt * Math.PI * 6 + p.y * 0.05) * 1.3;
-          return { ...p, x: p.x - dir * dropBack, y: p.y + wobble, pose: "engage", t: tt, facing: dir };
+          // OL pass-pro archetype: prefer play.olType (specific OL beat
+          // on the sack play) when present, else hash by slot. OL with
+          // their archetype show distinct base/stance.
+          const olArch = (play.olType && _OL_ARCH.indexOf(play.olType) >= 0)
+            ? play.olType : _archForLineman(p, "OL");
+          return { ...p, x: p.x - dir * dropBack, y: p.y + wobble, pose: "engage", t: tt, facing: dir, archetype: olArch };
         }
         // Non-targeted receivers run REAL routes (decoys clear coverage).
         // Was capped at ~6 yards downfield with the slow (t*3)%1 leg
