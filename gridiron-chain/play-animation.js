@@ -2597,11 +2597,45 @@ function buildAnimForPlay(play, prevPlay) {
         const dd = { ...d };
         dd.t = (t * 3 + i * 0.13) % 1;
         dd.facing = -dir;
-        // Pre-snap: hold stance, but allow defensive shift / pointer
+        // Pre-snap: hold stance + apply coverage-aware depth alignment.
+        // play.coverage was unused beyond the broadcast UI label. Now
+        // drives CB / S depth so each coverage VISUALLY differs:
+        //   C0_BLITZ:  CBs press (2yd), Ss walked up (5yd)
+        //   C1_MAN:    CBs press, 1S deep (14yd) + 1S box (6yd)
+        //   C2_ZONE:   CBs at 4yd, both Ss deep wide (12yd)
+        //   TAMPA_2:   like C2 but MLB drops post-snap (still 12/4)
+        //   C3_ZONE:   CBs off 8yd, 1S deep middle 14yd, 1S 8yd
+        //   C4_QUARTERS: CBs deep 10yd, both Ss deep 12yd
         if (t < PRE) {
           const sh = defShiftXY(i, t);
-          dd.x = d.x + sh.dx;
-          dd.y = d.y + sh.dy;
+          let dx = sh.dx, dy = sh.dy;
+          const cov = play.coverage;
+          if (cov && (d.role === "CB" || d.role === "S" || d.role === "NB")) {
+            const pxPerYd = FIELD.PX_PER_YARD;
+            const baseX = losX;
+            const cbDepth =
+                  (cov === "C0_BLITZ" || cov === "C1_MAN") ? 2
+                : (cov === "C2_ZONE"  || cov === "TAMPA_2") ? 4
+                : (cov === "C3_ZONE")     ? 8
+                : (cov === "C4_QUARTERS") ? 10
+                : null;
+            const safDepth = (idxS) => {
+              if (cov === "C0_BLITZ") return 5;
+              if (cov === "C1_MAN")   return (i === idxS1) ? 14 : 6;
+              if (cov === "C2_ZONE" || cov === "TAMPA_2") return 12;
+              if (cov === "C3_ZONE")     return (i === idxS1) ? 14 : 8;
+              if (cov === "C4_QUARTERS") return 12;
+              return null;
+            };
+            if (d.role === "CB" && cbDepth != null) {
+              dx = (baseX + dir * cbDepth * pxPerYd) - d.x;
+            } else if (d.role === "S") {
+              const depth = safDepth(i);
+              if (depth != null) dx = (baseX + dir * depth * pxPerYd) - d.x;
+            }
+          }
+          dd.x = d.x + dx;
+          dd.y = d.y + dy;
           dd.pose = isDefShifting(i, t) ? "run" : (isDefPointer(i) ? "point" : "stance");
           return dd;
         }
@@ -2660,11 +2694,22 @@ function buildAnimForPlay(play, prevPlay) {
             dd.t = tt;
           }
         }
-        // CBs follow their WRs downfield
+        // CB / WR interaction varies by coverage. In MAN (C0/C1) the CB
+        // follows his WR downfield. In ZONE (C2/C3/C4/TAMPA_2) the CB
+        // settles at his zone depth and reads the QB. Was always
+        // following WR regardless of coverage, which made man and zone
+        // visually indistinguishable.
         if (i >= idxCB1) {
           const tt = Math.min(1, aT / 0.55);
+          const cov = play.coverage;
+          const isMan = !cov || cov === "C0_BLITZ" || cov === "C1_MAN";
           if (i === idxCB1 || i === idxCB2) {
-            dd.x += dir * tt * (catchDepth) * FIELD.PX_PER_YARD * 0.85;
+            if (isMan) {
+              dd.x += dir * tt * (catchDepth) * FIELD.PX_PER_YARD * 0.85;
+            } else {
+              // Zone — small forward bail / read-step only
+              dd.x += dir * Math.min(tt * 4, 4);
+            }
           }
         }
         if (play.kind === "complete" && t > throwPhase) {
