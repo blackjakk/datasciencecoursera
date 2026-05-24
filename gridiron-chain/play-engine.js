@@ -4244,11 +4244,45 @@ class GameSimulator {
           const tacklerName = (yards > 0 && !isScreenTD) ? this._creditTackle(screenCtx) : null;
           this._bumpHitWear(rcvr, 0.35, tacklerName, { playContext: screenCtx });  // screens take more contact
           const screenEndTag = isScreenTD ? " — TOUCHDOWN!" : tacklerName ? `, tackled by ${tacklerName}` : "";
+          // PATH B Phase 8 — screen motion. RB receives a short toss
+          // and runs downfield; engine emits carrier path + decoy
+          // routes for WRs/TE.
+          this._lastPassConcept = "SCREEN";
+          const _scrThrowT = 0.30;     // RB catches very early (short toss)
+          const _scrCarrierTrack = {
+            role: "RB", origin: { slot: "rb" },
+            waypoints: [
+              { t: 0,                          dxYd: 0, dyYd: 0 },                                      // formation
+              { t: 0.10,                       dxYd: -1, dyYd: 0 },                                     // step toward QB
+              { t: _scrThrowT,                 dxYd: airYds, dyYd: -0.5 },                              // catch (lateral toss)
+              { t: Math.min(1, _scrThrowT + (1 - _scrThrowT) * 0.85),
+                                                dxYd: yards, dyYd: Math.min(2, yac * 0.05) },           // YAC end
+              { t: 1,                          dxYd: yards, dyYd: Math.min(2, yac * 0.05) },
+            ],
+          };
+          // WR/TE decoys go vertical to clear coverage
+          const _scrRoutes = this._buildPassRouteTracks({
+            targetSlot: null, targetDepth: 18, yac: 0,
+            concept: "VERTICAL", throwT: _scrThrowT,
+          });
+          delete _scrRoutes.rb;     // RB has its own track
+          const _scrZoneDrops = this._buildPassZoneDrops({
+            tacklerSlot: this._resolveDefSlot(tacklerName),
+            throwT: _scrThrowT, coverage: this._lastPassCoverage,
+          });
           this._pushVisual({
             kind: "complete", desc: `Screen to ${rcvr} for ${yards} yds${screenEndTag}`,
             startYard, targetDepth: airYds, catchDepth: airYds, yac, yards,
             endYard: clamp(startYard + yards, 0, 100), receiver: rcvr,
             passer: this.offR.starters.qb, tackler: tacklerName, isScreen: true,
+            throwType: "CHECKDOWN",
+            motion: {
+              targetSlot: "rb",
+              throwT: _scrThrowT,
+              dropDepth: 2,
+              tracks: { ..._scrRoutes, rb: _scrCarrierTrack, ..._scrZoneDrops,
+                        targetWR: _scrCarrierTrack },
+            },
           });
           return { yards };
         } else {
@@ -4256,10 +4290,32 @@ class GameSimulator {
           if (qbStats) qbStats.pass_att++;
           if (rcvrStats) rcvrStats.rec_tgt++;
           off.team.pass_att++;
+          // Also emit motion for blown-up screens — RB still moves toward
+          // the catch spot but doesn't catch; defenders converge.
+          this._lastPassConcept = "SCREEN";
+          const _scrIncThrowT = 0.30;
+          const _scrIncCarrier = {
+            role: "RB", origin: { slot: "rb" },
+            waypoints: [
+              { t: 0,           dxYd: 0,  dyYd: 0 },
+              { t: 0.15,        dxYd: -1, dyYd: 0 },
+              { t: _scrIncThrowT, dxYd: 0, dyYd: -0.5 },
+              { t: 1,           dxYd: 0,  dyYd: -0.5 },
+            ],
+          };
+          const _scrIncZoneDrops = this._buildPassZoneDrops({
+            tacklerSlot: null, throwT: _scrIncThrowT, coverage: this._lastPassCoverage,
+          });
           this._pushVisual({
             kind: "incomplete", desc: `Screen broken up — incomplete`,
             startYard, targetDepth: -1, endYard: startYard,
             passer: this.offR.starters.qb, intended: rcvr, isScreen: true,
+            motion: {
+              targetSlot: "rb",
+              throwT: _scrIncThrowT,
+              dropDepth: 2,
+              tracks: { rb: _scrIncCarrier, ..._scrIncZoneDrops },
+            },
           });
           return { yards: 0, incomplete: true };
         }
