@@ -77,8 +77,7 @@ def _build_keeper_value_table():
     curve = expected_vbd_curve(players, cfg)
 
     players_by_name = {p.name.lower(): p for p in players}
-    carryover = []
-    forced = []
+    carryover, drop_rec, forced = [], [], []
     for r in records:
         p = players_by_name.get(r["player_name"].lower())
         if p is None:
@@ -94,11 +93,14 @@ def _build_keeper_value_table():
             "net_vbd": net_vbd, "team": team_name,
             "years_kept": r["years_kept"],
         }
-        if r["status"] == "carryover":
+        status = r["status"]
+        if status == "carryover":
             carryover.append(row)
+        elif status == "drop_recommended":
+            drop_rec.append(row)
         else:
             forced.append(row)
-    return carryover, forced, team_names, trades, cfg
+    return carryover, drop_rec, forced, team_names, trades, cfg
 
 
 def _team_vbd_totals(carryover):
@@ -115,7 +117,7 @@ def build_markdown() -> str:
     insights = json.loads((ROOT / "data" / "historical_insights.json").read_text())
     pos_data = json.loads((ROOT / "data" / "position_by_round.json").read_text())
     seasons = load_all_seasons(ROOT / "data" / "sleeper")
-    carryover, forced, team_names, trades, cfg = _build_keeper_value_table()
+    carryover, drop_rec, forced, team_names, trades, cfg = _build_keeper_value_table()
     team_totals = _team_vbd_totals(carryover)
 
     top = sorted(carryover, key=lambda k: -k["net_vbd"])[:8]

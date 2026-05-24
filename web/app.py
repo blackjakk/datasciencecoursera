@@ -278,13 +278,17 @@ with tab_keepers:
             "year — yr3 hits the cap and is force-dropped back into the pool."
         )
         n_carry = sum(1 for r in real_records if r["status"] == "carryover")
-        n_drop = sum(1 for r in real_records if r["status"] == "forced_drop")
+        n_drop_rec = sum(1 for r in real_records if r["status"] == "drop_recommended")
+        n_forced = sum(1 for r in real_records if r["status"] == "forced_drop")
         trades_2026 = st.session_state.traded_picks
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Total xlsx keepers (2025)", len(real_records))
-        c2.metric("Carryover → 2026", n_carry)
-        c3.metric("Forced drops (yr3 cap)", n_drop)
-        c4.metric("Traded 2026 picks", len(trades_2026))
+        c1, c2, c3, c4, c5 = st.columns(5)
+        c1.metric("2025 keepers (xlsx)", len(real_records))
+        c2.metric("Carryover → 2026", n_carry,
+                  help="Net VBD ≥ 0; team should re-keep.")
+        c3.metric("Drop-recommended", n_drop_rec,
+                  help="Net VBD < 0; team would do better drafting fresh with that pick.")
+        c4.metric("Forced drops (yr3 cap)", n_forced)
+        c5.metric("Traded 2026 picks", len(trades_2026))
 
         if trades_2026:
             with st.expander(f"2026 traded picks ({len(trades_2026)})"):
@@ -316,15 +320,22 @@ with tab_keepers:
             rows = []
             for r in recs:
                 forfeit = r["prior_round"] - league.keepers.round_penalty
-                tag = "★ KEEP" if r["status"] == "carryover" else "✕ FORCED DROP"
-                rows.append({
+                tag = {
+                    "carryover": "★ KEEP",
+                    "drop_recommended": "↓ DROP (better to draft)",
+                    "forced_drop": "✕ FORCED DROP (yr3 cap)",
+                }.get(r["status"], r["status"])
+                row = {
                     "Status": tag,
                     "Player": r["player_name"],
                     "Pos": r.get("position", ""),
                     "2025 Round": r["prior_round"],
                     "2026 Cost": f"R{forfeit}" if forfeit > 0 else "n/a",
                     "Yrs Kept (prior)": r["years_kept"],
-                })
+                }
+                if r.get("net_vbd") is not None:
+                    row["Net VBD"] = f"{r['net_vbd']:+.1f}"
+                rows.append(row)
             st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
     elif not by_season:
         st.info(
@@ -444,10 +455,13 @@ with tab_draft:
             applied: list[Keeper] = []
             real_records = st.session_state.real_keepers_records
             if real_records:
-                # Real xlsx-truth keepers (MONEYLEAGUE 2026 preset). Pass the
-                # forced-drops through too; apply_keepers will reject them via
-                # max_years_consecutive=3 and surface a clear log line.
+                # Real xlsx-truth keepers (MONEYLEAGUE 2026 preset). Only
+                # apply status == "carryover" -- forced_drop (yr3 cap) and
+                # drop_recommended (net VBD < 0; team is better off drafting
+                # someone else with that pick) records are documentation only.
                 for r in real_records:
+                    if r.get("status") != "carryover":
+                        continue
                     applied.append(Keeper(
                         team_idx=int(r["team_idx"]),
                         player_name=r["player_name"],

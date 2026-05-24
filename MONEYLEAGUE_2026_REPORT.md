@@ -1,6 +1,6 @@
 # MONEYLEAGUE 2026 — Pre-Draft Snapshot
 
-*Generated 2026-05-24 00:11 UTC from `data/*.json` + `MONEY_LEAGUE.xlsx`.*
+*Generated 2026-05-24 00:26 UTC from `data/*.json` + `MONEY_LEAGUE.xlsx`.*
 
 **Format:** 12 teams · 17-round superflex · half-PPR · 4 keepers max · 2-round penalty · 3-year consecutive cap · 11 years of history (since 2015).
 
@@ -8,7 +8,7 @@
 
 ## Keeper landscape
 
-41 players tagged as keepers in 2025 → **38 roll into 2026** at cost − 2. **3 yr3 keepers hit the cap** and return to the pool:
+16 players tagged as keepers in 2025 → **13 roll into 2026** at cost − 2. **3 yr3 keepers hit the cap** and return to the pool:
 
 | Player | Pos | 2026 ADP | VBD | Last team |
 |---|---|---|---|---|
@@ -16,7 +16,7 @@
 | Jordan Love | QB | 126.2 | +0.0 | Guap's Guys |
 | Geno Smith | QB | — | -60.0 | I Herald LEMVP |
 
-7 of 12 teams have **fewer than 4 carryovers** and will fill the remaining slots from the waiver/undrafted pool.
+9 of 12 teams have **fewer than 4 carryovers** and will fill the remaining slots from the waiver/undrafted pool.
 
 ---
 
@@ -39,18 +39,15 @@ Net VBD = player's VBD − expected VBD at the round they cost. Higher = more ke
 
 | Team | Keepers | VBD total |
 |---|---:|---:|
-| ⭐️⭐️⭐️ | 4 | +72.3 |
-| Barry Sandals | 4 | +18.5 |
-| TBreswick | 2 | +13.7 |
-| BergerBoy Brigade ⭐️⭐️⭐️ | 4 | -60.1 |
-| she Tuten on my Bhayshul | 3 | -67.6 |
-| Unicorn Poo | 4 | -77.2 |
-| Chester A. Arthur | 2 | **-101.7** |
-| Wi1dboy | 3 | **-104.2** |
-| I Herald LEMVP | 3 | **-124.1** |
-| Guap's Guys | 2 | **-185.7** |
-| Trez Bridges & Co. | 4 | **-203.9** |
-| kylefiggy | 3 | **-303.6** |
+| BergerBoy Brigade ⭐️⭐️⭐️ | 3 | **+187.7** |
+| Barry Sandals | 2 | +96.9 |
+| ⭐️⭐️⭐️ | 2 | +76.2 |
+| I Herald LEMVP | 1 | +47.9 |
+| she Tuten on my Bhayshul | 1 | +21.4 |
+| TBreswick | 1 | +19.6 |
+| Wi1dboy | 1 | +11.6 |
+| kylefiggy | 1 | +3.3 |
+| Unicorn Poo | 1 | +1.2 |
 
 ---
 

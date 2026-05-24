@@ -7,7 +7,8 @@
     "position": "TE",
     "prior_round": 4,
     "years_kept": 1,
-    "status": "carryover"
+    "status": "drop_recommended",
+    "net_vbd": -64.9
   },
   {
     "team_idx": 11,
@@ -17,7 +18,8 @@
     "position": "TE",
     "prior_round": 4,
     "years_kept": 1,
-    "status": "carryover"
+    "status": "drop_recommended",
+    "net_vbd": -0.3
   },
   {
     "team_idx": 5,
@@ -27,7 +29,8 @@
     "position": "QB",
     "prior_round": 5,
     "years_kept": 2,
-    "status": "carryover"
+    "status": "drop_recommended",
+    "net_vbd": -89.7
   },
   {
     "team_idx": 9,
@@ -37,7 +40,8 @@
     "position": "QB",
     "prior_round": 5,
     "years_kept": 2,
-    "status": "carryover"
+    "status": "drop_recommended",
+    "net_vbd": -58.7
   },
   {
     "team_idx": 2,
@@ -47,7 +51,8 @@
     "position": "WR",
     "prior_round": 5,
     "years_kept": 1,
-    "status": "carryover"
+    "status": "drop_recommended",
+    "net_vbd": -34.1
   },
   {
     "team_idx": 3,
@@ -57,7 +62,8 @@
     "position": "WR",
     "prior_round": 5,
     "years_kept": 1,
-    "status": "carryover"
+    "status": "drop_recommended",
+    "net_vbd": -47.5
   },
   {
     "team_idx": 10,
@@ -67,7 +73,8 @@
     "position": "WR",
     "prior_round": 6,
     "years_kept": 2,
-    "status": "carryover"
+    "status": "carryover",
+    "net_vbd": 24.5
   },
   {
     "team_idx": 6,
@@ -77,7 +84,8 @@
     "position": "QB",
     "prior_round": 7,
     "years_kept": 1,
-    "status": "carryover"
+    "status": "drop_recommended",
+    "net_vbd": -77.3
   },
   {
     "team_idx": 7,
@@ -87,7 +95,8 @@
     "position": "WR",
     "prior_round": 7,
     "years_kept": 1,
-    "status": "carryover"
+    "status": "carryover",
+    "net_vbd": 69.5
   },
   {
     "team_idx": 2,
@@ -97,7 +106,8 @@
     "position": "QB",
     "prior_round": 7,
     "years_kept": 1,
-    "status": "carryover"
+    "status": "drop_recommended",
+    "net_vbd": -6.8
   },
   {
     "team_idx": 11,
@@ -107,7 +117,8 @@
     "position": "WR",
     "prior_round": 7,
     "years_kept": 2,
-    "status": "carryover"
+    "status": "drop_recommended",
+    "net_vbd": -3.6
   },
   {
     "team_idx": 10,
@@ -117,7 +128,8 @@
     "position": "RB",
     "prior_round": 8,
     "years_kept": 2,
-    "status": "carryover"
+    "status": "carryover",
+    "net_vbd": 49.8
   },
   {
     "team_idx": 3,
@@ -127,7 +139,8 @@
     "position": "RB",
     "prior_round": 8,
     "years_kept": 1,
-    "status": "carryover"
+    "status": "drop_recommended",
+    "net_vbd": -25.0
   },
   {
     "team_idx": 11,
@@ -137,7 +150,8 @@
     "position": "WR",
     "prior_round": 8,
     "years_kept": 2,
-    "status": "carryover"
+    "status": "carryover",
+    "net_vbd": 16.3
   },
   {
     "team_idx": 0,
@@ -147,7 +161,8 @@
     "position": "QB",
     "prior_round": 9,
     "years_kept": 1,
-    "status": "carryover"
+    "status": "carryover",
+    "net_vbd": 19.6
   },
   {
     "team_idx": 6,
@@ -157,7 +172,8 @@
     "position": "QB",
     "prior_round": 10,
     "years_kept": 2,
-    "status": "carryover"
+    "status": "drop_recommended",
+    "net_vbd": -11.7
   },
   {
     "team_idx": 4,
@@ -167,7 +183,8 @@
     "position": "RB",
     "prior_round": 10,
     "years_kept": 1,
-    "status": "carryover"
+    "status": "drop_recommended",
+    "net_vbd": -44.0
   },
   {
     "team_idx": 5,
@@ -177,7 +194,8 @@
     "position": "QB",
     "prior_round": 11,
     "years_kept": 3,
-    "status": "forced_drop"
+    "status": "forced_drop",
+    "net_vbd": null
   },
   {
     "team_idx": 1,
@@ -187,7 +205,8 @@
     "position": "WR",
     "prior_round": 11,
     "years_kept": 1,
-    "status": "carryover"
+    "status": "drop_recommended",
+    "net_vbd": -14.6
   },
   {
     "team_idx": 4,
@@ -197,7 +216,8 @@
     "position": "QB",
     "prior_round": 11,
     "years_kept": 3,
-    "status": "forced_drop"
+    "status": "forced_drop",
+    "net_vbd": null
   },
   {
     "team_idx": 9,
@@ -207,7 +227,8 @@
     "position": "TE",
     "prior_round": 11,
     "years_kept": 2,
-    "status": "carryover"
+    "status": "carryover",
+    "net_vbd": 11.6
   },
   {
     "team_idx": 8,
@@ -217,7 +238,8 @@
     "position": "QB",
     "prior_round": 11,
     "years_kept": 3,
-    "status": "forced_drop"
+    "status": "forced_drop",
+    "net_vbd": null
   },
   {
     "team_idx": 6,
@@ -227,7 +249,8 @@
     "position": "RB",
     "prior_round": 12,
     "years_kept": 1,
-    "status": "carryover"
+    "status": "carryover",
+    "net_vbd": 21.4
   },
   {
     "team_idx": 10,
@@ -237,7 +260,8 @@
     "position": "QB",
     "prior_round": 12,
     "years_kept": 1,
-    "status": "carryover"
+    "status": "drop_recommended",
+    "net_vbd": -247.8
   },
   {
     "team_idx": 4,
@@ -247,7 +271,8 @@
     "position": "TE",
     "prior_round": 12,
     "years_kept": 1,
-    "status": "carryover"
+    "status": "carryover",
+    "net_vbd": 3.3
   },
   {
     "team_idx": 7,
@@ -257,7 +282,8 @@
     "position": "WR",
     "prior_round": 12,
     "years_kept": 2,
-    "status": "carryover"
+    "status": "drop_recommended",
+    "net_vbd": -13.5
   },
   {
     "team_idx": 3,
@@ -267,7 +293,8 @@
     "position": "TE",
     "prior_round": 12,
     "years_kept": 2,
-    "status": "carryover"
+    "status": "drop_recommended",
+    "net_vbd": -6.7
   },
   {
     "team_idx": 5,
@@ -277,7 +304,8 @@
     "position": "RB",
     "prior_round": 13,
     "years_kept": 2,
-    "status": "carryover"
+    "status": "carryover",
+    "net_vbd": 47.9
   },
   {
     "team_idx": 10,
@@ -287,7 +315,8 @@
     "position": "WR",
     "prior_round": 13,
     "years_kept": 2,
-    "status": "carryover"
+    "status": "carryover",
+    "net_vbd": 113.4
   },
   {
     "team_idx": 0,
@@ -297,7 +326,8 @@
     "position": "WR",
     "prior_round": 13,
     "years_kept": 1,
-    "status": "carryover"
+    "status": "drop_recommended",
+    "net_vbd": -5.9
   },
   {
     "team_idx": 7,
@@ -307,7 +337,8 @@
     "position": "RB",
     "prior_round": 13,
     "years_kept": 2,
-    "status": "carryover"
+    "status": "carryover",
+    "net_vbd": 27.4
   },
   {
     "team_idx": 8,
@@ -317,7 +348,8 @@
     "position": "QB",
     "prior_round": 13,
     "years_kept": 1,
-    "status": "carryover"
+    "status": "drop_recommended",
+    "net_vbd": -174.1
   },
   {
     "team_idx": 11,
@@ -327,7 +359,8 @@
     "position": "TE",
     "prior_round": 13,
     "years_kept": 2,
-    "status": "carryover"
+    "status": "carryover",
+    "net_vbd": 59.9
   },
   {
     "team_idx": 4,
@@ -337,7 +370,8 @@
     "position": "QB",
     "prior_round": 14,
     "years_kept": 1,
-    "status": "carryover"
+    "status": "drop_recommended",
+    "net_vbd": -262.9
   },
   {
     "team_idx": 2,
@@ -347,7 +381,8 @@
     "position": "RB",
     "prior_round": 14,
     "years_kept": 1,
-    "status": "carryover"
+    "status": "carryover",
+    "net_vbd": 1.2
   },
   {
     "team_idx": 5,
@@ -357,7 +392,8 @@
     "position": "TE",
     "prior_round": 15,
     "years_kept": 1,
-    "status": "carryover"
+    "status": "drop_recommended",
+    "net_vbd": -82.3
   },
   {
     "team_idx": 1,
@@ -367,7 +403,8 @@
     "position": "WR",
     "prior_round": 15,
     "years_kept": 1,
-    "status": "carryover"
+    "status": "drop_recommended",
+    "net_vbd": -87.1
   },
   {
     "team_idx": 9,
@@ -377,7 +414,8 @@
     "position": "RB",
     "prior_round": 15,
     "years_kept": 1,
-    "status": "carryover"
+    "status": "drop_recommended",
+    "net_vbd": -57.1
   },
   {
     "team_idx": 8,
@@ -387,7 +425,8 @@
     "position": "TE",
     "prior_round": 15,
     "years_kept": 1,
-    "status": "carryover"
+    "status": "drop_recommended",
+    "net_vbd": -11.6
   },
   {
     "team_idx": 2,
@@ -397,7 +436,8 @@
     "position": "WR",
     "prior_round": 15,
     "years_kept": 1,
-    "status": "carryover"
+    "status": "drop_recommended",
+    "net_vbd": -37.5
   },
   {
     "team_idx": 3,
@@ -407,6 +447,7 @@
     "position": "RB",
     "prior_round": 15,
     "years_kept": 1,
-    "status": "carryover"
+    "status": "drop_recommended",
+    "net_vbd": -124.7
   }
 ]
