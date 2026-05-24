@@ -2968,16 +2968,26 @@ function buildAnimForPlay(play, prevPlay) {
           const wobble = Math.sin(tt * Math.PI * 6 + p.y * 0.05) * 1.3;
           return { ...p, x: p.x - dir * dropBack, y: p.y + wobble, pose: "engage", t: tt, facing: dir };
         }
-        // Non-targeted receivers still run their routes (decoys clear coverage)
+        // Non-targeted receivers run REAL routes (decoys clear coverage).
+        // Was capped at ~6 yards downfield with the slow (t*3)%1 leg
+        // cycle, so they looked stationary next to the one targeted WR
+        // running 15+ yards. Now they cover catchDepth-relative ground
+        // at a real jog cadence so multiple receivers are visibly
+        // running on every pass play.
         if ((p.role === "WR1" || p.role === "WR2" || p.role === "WR3" || p.role === "WR4" || p.role === "WR5" || p.role === "TE1" || p.role === "TE" || p.role === "TE2") && aT > 0) {
-          const tt = Math.min(1, aT / 0.6);
-          // Each receiver runs a slightly different angle so it looks like a real
-          // route concept rather than a 5-man straight-line sprint.
+          const tt = Math.min(1, aT / Math.max(0.1, throwFrac));
           const idHash = ((p.y * 7 + (p.x * 3)) >>> 0) % 100 / 100;
-          const angle  = (idHash - 0.5) * 0.45;          // ±0.22 rad off straight
-          const depth  = 14 + idHash * 8;                // 14-22 px downfield
-          return { ...p, x: p.x + dir * tt * depth, y: p.y + Math.sin(angle) * tt * 18,
-                   pose: "run", t: (t * 3) % 1, facing: dir };
+          // Decoy depth varies per receiver (60-120% of targeted depth)
+          // so the field isn't a 4-WR conga line. Angle drifts toward
+          // the lateral side they started on.
+          const decoyDepth = catchDepth * (0.6 + idHash * 0.6);
+          const lateralOff = (idHash - 0.5) * 36;
+          const strideHz = 2.0;
+          return { ...p, x: p.x + dir * tt * decoyDepth * FIELD.PX_PER_YARD,
+                   y: p.y + Math.sin(tt * Math.PI * 0.6) * lateralOff,
+                   pose: "run",
+                   t: ((t * (dur / 1000)) * strideHz) % 1,
+                   facing: dir };
         }
         return { ...p, pose: "idle", facing: dir };
       });
