@@ -1689,7 +1689,14 @@ function buildAnimForPlay(play, prevPlay) {
           if (isMotion) {
             const yOff = motionYOffset(t);
             const moving = isInMotionNow(t);
-            return { ...p, y: p.y + yOff,
+            // Retreat behind the QB during active motion so the path runs
+            // BEHIND the line, not through it. WRs are placed at losX
+            // (right on the LOS) — without this offset, motion drags the
+            // player across the offensive line at OL depth, visually
+            // clipping through the linemen. Real NFL motion goes behind
+            // both the OL (-dir*2) and the QB (-dir*6).
+            const xOff = moving ? -dir * 10 : 0;
+            return { ...p, x: p.x + xOff, y: p.y + yOff,
                      pose: moving ? "run" : "stance",
                      t: (t * 3) % 1, facing: dir };
           }
