@@ -2590,11 +2590,24 @@ function buildAnimForPlay(play, prevPlay) {
     const _tdEZBonus = _isTDComplete ? dir * 5 * FIELD.PX_PER_YARD : 0;
     const endX = isComplete ? yardToAbsX(play.endYard, poss) + _tdEZBonus : targetX;
     // Which defender picks off the pass on an INT — match the receiver's side
-    // 7=cb1 (top), 8=cb2 (bottom), 9=s1 (top safety), 10=s2 (bottom safety)
-    const intDefIdx = wrChoice === "wr1" ? idxCB1
-                    : wrChoice === "wr2" ? idxCB2
-                    : wrChoice === "te"  ? (targetY < cy ? idxS1 : idxS2)
-                    :                       (targetY < cy ? idxLB3 : idxLB1);  // LB for RB checkdown
+    // 7=cb1 (top), 8=cb2 (bottom), 9=s1 (top safety), 10=s2 (bottom safety).
+    // PATH B sweep — on an INT the engine samples defender ∈ {CB 55%,
+    // S 35%, LB 10%} and emits the name as `play.defender`. Resolve
+    // to the formation index so the visual interceptor matches the
+    // named one (was always a CB even when engine credited a safety).
+    let intDefIdx = wrChoice === "wr1" ? idxCB1
+                  : wrChoice === "wr2" ? idxCB2
+                  : wrChoice === "te"  ? (targetY < cy ? idxS1 : idxS2)
+                  :                       (targetY < cy ? idxLB3 : idxLB1);  // LB for RB checkdown
+    // INT: engine emits `defender`. Dropped pick (incomplete with
+    // isDroppedPick): engine emits `dropper`. Same resolution path.
+    const _intName = (play.kind === "int" && play.defender) ? play.defender
+                   : (play.isDroppedPick && play.dropper)   ? play.dropper
+                   : null;
+    if (_intName) {
+      const resolved = formation.defense.findIndex(d => d && d.name === _intName);
+      if (resolved >= 0) intDefIdx = resolved;
+    }
     // Lazy-init set for post-catch pursuit limiter — populated on the
     // first frame after the catch, kept stable for the rest of the play
     // so the same defenders continue chasing instead of swapping.
@@ -3652,7 +3665,14 @@ function buildAnimForPlay(play, prevPlay) {
     const r = (i) => ((sackSeed >> (i * 3)) & 0xff) / 256;  // pseudorandom 0-1 from seed bits
     // Each sack picks: who's the primary rusher, when contact happens,
     // dance frequency/intensity, fall direction, second-chaser presence.
-    const primaryIdx = Math.floor(r(0) * 4);         // 0-3 (which DL gets there first)
+    // PATH B sweep — engine knows dlName (the sacker). Resolve to its
+    // formation index so the visual sacker matches the named one.
+    // Falls back to hash pick when name resolution fails.
+    let primaryIdx = Math.floor(r(0) * 4);
+    if (play.dlName) {
+      const resolved = formation.defense.findIndex(d => d && d.name === play.dlName);
+      if (resolved >= 0 && resolved < 4) primaryIdx = resolved;   // DL is idx 0-3
+    }
     const contactT = 0.62 + r(1) * 0.26;             // sack contact at 0.62-0.88
     const danceFreq = 3.5 + r(2) * 4.5;              // pocket wiggle frequency
     const danceAmpY = 4 + r(3) * 12;                 // Y wiggle amplitude
