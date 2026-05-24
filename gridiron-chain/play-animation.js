@@ -1016,13 +1016,19 @@ function buildAnimForPlay(play, prevPlay) {
     const dx = tx - d._cx, dy = ty - d._cy;
     const dist = Math.hypot(dx, dy);
     const maxMove = PURSUIT_PX_MS * dt * factor;
+    let actualMove;
     if (dist <= maxMove) {
       d._cx = tx; d._cy = ty;
+      actualMove = dist;
     } else {
       const f = maxMove / Math.max(0.001, dist);
       d._cx += dx * f; d._cy += dy * f;
+      actualMove = maxMove;
     }
-    return { x: d._cx, y: d._cy };
+    // moved = did the defender actually translate enough this frame to
+    // justify a running leg-cycle. Below threshold (e.g., already at
+    // target, target isn't moving) we'll freeze the legs in the caller.
+    return { x: d._cx, y: d._cy, moved: actualMove > 0.15 };
   };
   // Action duration scales with yardage. Rebalanced based on cruise-speed
   // math: with runPacing's cruise covering 86% of distance in 56% of time,
@@ -1621,10 +1627,10 @@ function buildAnimForPlay(play, prevPlay) {
             const ty = attacksQb ? qbPosY            : rbPosY + opt.optSide * 4;
             const factor = attacksQb ? 1.05 : 0.78;
             const elapsedMs = Math.max(0, (t - PRE) * dur);
-            const np = elapsedMs > 0 ? pursue(d, tx, ty, elapsedMs, factor) : { x: d.x, y: d.y };
+            const np = elapsedMs > 0 ? pursue(d, tx, ty, elapsedMs, factor) : { x: d.x, y: d.y, moved: false };
             dd.x = np.x; dd.y = np.y;
             dd.pose = "run";
-            dd.t = (t * 3 + i * 0.13) % 1;
+            dd.t = np.moved ? (t * 3 + i * 0.13) % 1 : 0;
             dd.facing = -dir;
             // Tackle at the end if right on the carrier (the real ball-carrier
             // is rb.x/y by convention here regardless of pitch/keep).
@@ -1644,7 +1650,7 @@ function buildAnimForPlay(play, prevPlay) {
             const np = pursue(d, rb.x + dir * 2, rb.y, elapsedMs, 0.85);
             dd.x = np.x; dd.y = np.y;
             dd.pose = "run";
-            dd.t = (t * 3) % 1;
+            dd.t = np.moved ? (t * 3) % 1 : 0;
           } else {
             // Stuck at LOS — hold position with jitter. Old code moved
             // the DL by -dir*tt*4 which (despite the "pushed back"
@@ -1680,7 +1686,7 @@ function buildAnimForPlay(play, prevPlay) {
         // Pursuit speed: DBs slightly faster than LBs; ELUSIVE backs leave LBs behind
         const carrierFast = (rbArch === "SPEED" || rbArch === "ELUSIVE") ? 0.92 : 1.0;
         const factor = (i >= idxCB1 ? 1.02 : (i === idxS1 || i === idxS2 ? 1.0 : 0.92)) * carrierFast;
-        const np = elapsedMs > 0 ? pursue(d, txBase, tyBase, elapsedMs, factor) : { x: d.x, y: d.y };
+        const np = elapsedMs > 0 ? pursue(d, txBase, tyBase, elapsedMs, factor) : { x: d.x, y: d.y, moved: false };
         dd.x = np.x; dd.y = np.y;
         if (isTrucked) {
           // Trucked defender ragdolls — anchor to carrier position and fall
@@ -1692,7 +1698,11 @@ function buildAnimForPlay(play, prevPlay) {
           dd.t = truckT;
         } else {
           dd.pose = "run";
-          dd.t = (t * 3 + i * 0.13) % 1;
+          // Freeze the leg cycle when the defender hasn't translated this
+          // frame — caught up to the carrier / target isn't moving. Old
+          // code kept the run-cycle going regardless, so a stationary
+          // defender looked like they were sprinting in place.
+          dd.t = np.moved ? (t * 3 + i * 0.13) % 1 : 0;
         }
         // Face the CARRIER, not just -dir. With -dir, a defender chasing
         // a runner laterally always faced the LOS (toward the endzone),
@@ -2802,6 +2812,7 @@ function buildAnimForPlay(play, prevPlay) {
           const angleOffset = isPrimary ? 0 : (i - primaryIdx) * 4;
           const np = pursue(d, qb.x + dir * 2 + angleOffset, qb.y + (isSecondary ? 6 : 0), elapsedMs, isPrimary ? 1.0 : 0.85);
           dd.x = np.x; dd.y = np.y;
+          if (!np.moved) dd.t = 0;   // freeze legs when not moving
           if (isPrimary && tt > contactT + 0.03) dd.pose = "sack";
           if (isSecondary && tt > contactT + 0.05) dd.pose = "sack";
         } else if (i >= 4 && i <= 6) {
@@ -2809,6 +2820,7 @@ function buildAnimForPlay(play, prevPlay) {
           const elapsedMs = Math.max(0, tt) * dur * 0.55;
           const np = pursue(d, qb.x + dir * 6, qb.y + (i - 5) * 12, elapsedMs, 0.7);
           dd.x = np.x; dd.y = np.y;
+          if (!np.moved) dd.t = 0;
         }
         return dd;
       });
