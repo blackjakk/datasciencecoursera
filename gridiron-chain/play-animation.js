@@ -1014,11 +1014,14 @@ function buildAnimForPlay(play, prevPlay) {
     const dist = Math.hypot(hitDirX, hitDirY) || 1;
     const ux = hitDirX / dist;
     const uy = hitDirY / dist;
-    // Slight randomized upward kick + spin for variety
+    // Upward kick + spin scale with hit force for Blitz-style hangtime —
+    // bigger hits launch the player higher with more spin. Per-seed
+    // jitter ensures every ragdoll looks slightly different.
     const seedF = (seed >>> 0);
     const spinSign = (seedF & 1) ? -1 : 1;
-    const spinMag = 6 + ((seedF >>> 1) & 7);    // 6-13 rad/s
-    const upKick  = 40 + ((seedF >>> 4) & 31);  // 40-71 px/s
+    const forceScale = Math.min(1.6, Math.max(0.7, force / 130));
+    const spinMag = (8 + ((seedF >>> 1) & 11)) * forceScale;    // 5.6-21+ rad/s
+    const upKick  = (60 + ((seedF >>> 4) & 63)) * forceScale;   // ~40-200 px/s
     player._ragdoll = {
       vx: ux * force,
       vy: uy * force - upKick,
@@ -1607,16 +1610,31 @@ function buildAnimForPlay(play, prevPlay) {
       // + ragdoll roll-around) so the play doesn't end the instant the
       // carrier is touched.
       if (runT > 0.72 && yards < 90 && !isTD) {
-        // Carrier ragdoll. The hit vector is OPPOSITE the carrier's
-        // motion direction (the tackler arrived from the front). Force
-        // scales with play.force when present so big hits look bigger.
+        // Carrier ragdoll. NFL-Blitz-style impact: bigger force on
+        // big-force plays, dust burst + screen shake + optional BIG HIT
+        // banner at the moment of contact.
         const nowMs = t * dur;
         if (!formation.rb._ragdoll) {
           const hvx = -dir;           // pushed backward against momentum
           const hvy = (((play.startYard * 7) >>> 0) % 7) - 3;   // slight angle
-          const fbase = 130 + Math.min(80, (play.force || 0) * 4);
+          const force = play.force || 0;
+          const fbase = 180 + Math.min(150, force * 8);    // bigger launch
           initRagdoll(formation.rb, hvx, hvy, fbase, nowMs,
                       (play.startYard * 11 + (play.yards||0)) >>> 0);
+          // Trigger FX once at the moment of impact
+          if (typeof GCFx !== "undefined") {
+            try {
+              GCFx.hitBurst(rb.x, rb.y, "#ffe070");
+              const shakeMag = 4 + Math.min(12, force * 1.2);
+              const shakeMs  = 220 + Math.min(280, force * 24);
+              GCFx.shake(shakeMag, shakeMs);
+              // BIG HIT banner threshold tied to play.force data point
+              if (force >= 7) {
+                const label = force >= 9 ? "BONE CRUSHER" : "BIG HIT";
+                if (GCFx.bigText) GCFx.bigText(label, "#ffd54d", 700);
+              }
+            } catch (e) {}
+          }
         }
         stepRagdoll(formation.rb, nowMs, 8);
         rbPose = "ragdoll";
