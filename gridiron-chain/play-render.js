@@ -1065,9 +1065,10 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
     }
   }
 
-  // ── Legs — chunky Lego-style blocks, NO feet, just color change for cleats ──
-  // Thick rectangular thighs/shins, single-piece per leg, with the bottom
-  // segment colored black to imply the cleat.
+  // ── Legs — chunky Lego-style blocks with knee bend.
+  // Thick rectangular thighs/shins. Non-running poses get a small natural
+  // athletic-stance bend so legs aren't stilts. OL/DL three-point stance
+  // deepens this into a real crouch.
   const thighW = 2.6 + bt.bulk * 0.55;
   const shinW  = 2.4 + bt.bulk * 0.45;
   const drawLeg = (side, angle, lift) => {
@@ -1076,11 +1077,25 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
     const upperLen = legLen * 0.52;
     const lowerLen = legLen * 0.52;
     const bending = pose === "run" || pose === "carry";
+    // Natural stance knee bend — thigh angles forward, shin angles back
+    // by the same amount so the foot lands roughly under the hip with
+    // the knee out front. Deeper for line stance (three-point crouch).
+    let idleBend = 0;
+    if (!bending && lift === 0) {
+      const isLineStance = pose === "stance" && (style.role === "OL" || style.role === "DL");
+      idleBend = isLineStance ? 0.55 : 0.18;
+    }
+    const upperA = a + facing * idleBend;
     const bendBase = bending ? rs.kneeBend * Math.abs(Math.sin(a)) : 0;
     const bend = bendBase + (lift / 7) * 0.8;
-    const kneeX = sx + Math.sin(a) * upperLen;
-    const kneeY = hipY + Math.cos(a) * upperLen - lift * 0.55;
-    const lowerA = a + facing * bend * (a >= 0 ? 1 : -1);
+    const kneeX = sx + Math.sin(upperA) * upperLen;
+    const kneeY = hipY + Math.cos(upperA) * upperLen - lift * 0.55;
+    // For the moving (run/carry) cycle, keep the original lowerA logic
+    // exactly. For idle/stance, subtract the idleBend so the shin returns
+    // to vertical and the foot stays under the hip.
+    const lowerA = bending
+      ? a + facing * bend * (a >= 0 ? 1 : -1)
+      : a - facing * idleBend;
     const footX = kneeX + Math.sin(lowerA) * lowerLen;
     const footY = kneeY + Math.cos(lowerA) * lowerLen - lift * 0.35;
     // White pants (thigh)
