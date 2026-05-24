@@ -2490,6 +2490,7 @@ class GameSimulator {
           startYard: 35, endYard: 50,
           isOnside: true, onsideRecovered: true,
           poss: scoringTeamKey,
+          motion: { result: "onsideRecovered", contactT: 0.15, scrumT: 0.55 },
         });
         this.poss = scoringTeamKey;
         this.yardLine = 50;            // kicking team starts at the 50
@@ -2500,6 +2501,7 @@ class GameSimulator {
           startYard: 35, endYard: 50,
           isOnside: true, onsideRecovered: false,
           poss: receivingKey,
+          motion: { result: "onsideLost", contactT: 0.15, scrumT: 0.55 },
         });
         this.poss = receivingKey;
         this.yardLine = 50;            // receiving team starts at the 50
@@ -2583,6 +2585,7 @@ class GameSimulator {
         startYard: 35, endYard: 100,
         kicker: kickerKey, returner: returnerName,
         isReturnTD: true,
+        motion: { result: "returnTD", contactT: 0.05, catchT: 0.48, tackleT: null },
       });
       return { endYL: 100, isTD: true };
     }
@@ -2618,6 +2621,7 @@ class GameSimulator {
       startYard: 35, endYard: endYL,
       kicker: kickerKey, returner: returnerName,
       retYds: ret,
+      motion: { result: "returned", contactT: 0.05, catchT: 0.48, tackleT: 0.85 },
     });
     return { endYL, isTD: false };
   }
@@ -2641,7 +2645,8 @@ class GameSimulator {
         // dropped from the quarter totals.
         this._pushVisual({ kind: "score", desc: `${scoringTeam.city} ${scoringTeam.name} — Extra Point (+1)`, poss: scoringSide, pts: 1, scoreType: "Extra Point" });
       } else {
-        this._pushVisual({ kind: "fg_miss", desc: `${scoringTeam.city} ${scoringTeam.name} — Extra Point MISSED` });
+        this._pushVisual({ kind: "fg_miss", desc: `${scoringTeam.city} ${scoringTeam.name} — Extra Point MISSED`,
+          motion: { result: "miss", missType: Math.random() < 0.5 ? "wide_l" : "wide_r", contactT: 0.45, flightT: 0.85 } });
       }
     } else {
       if (Math.random() < 0.48) {
@@ -4888,6 +4893,8 @@ class GameSimulator {
               startYard, endYard: fumbleYL,
               catchYL, fumbleYL, receiver: rcvr, passer: this.offR.starters.qb,
               defender: frBy, forcedBy: ffBy, recoveredBy: "def",
+              motion: { result: "passFumbleLost", catchYL, fumbleYL, fumbleT: 0.65, scrumT: 0.90,
+                        forcedBySlot: this._resolveDefSlot(ffBy) },
             });
             this._lastBallCarrier = rcvr; this._lastBallType = "pass";
             const defSide = this.poss === "home" ? "away" : "home";
@@ -4911,6 +4918,8 @@ class GameSimulator {
               startYard, endYard: clamp(startYard + netYds, 0, 100),
               catchYL, fumbleYL, receiver: rcvr, passer: this.offR.starters.qb,
               forcedBy: ffBy, recoveredBy: "off",
+              motion: { result: "passFumbleRecoveredOff", catchYL, fumbleYL, fumbleT: 0.65, scrumT: 0.90,
+                        forcedBySlot: this._resolveDefSlot(ffBy) },
             });
             this._lastBallCarrier = rcvr; this._lastBallType = "pass";
             return { yards: netYds };
@@ -5186,6 +5195,8 @@ class GameSimulator {
           startYard, endYard: fumbleSpotYL,
           rusher: RB, defender: frBy, forcedBy: ffBy, recoveredBy: "def", scrumMisses,
           fumbleSpotYL,
+          motion: { result: "fumbleLost", fumbleT: 0.55, scrumT: 0.85, fumbleSpotYL,
+                    forcedBySlot: this._resolveDefSlot(ffBy) },
         });
         const _defSideFum = this.poss === "home" ? "away" : "home";
         this._swingMomentum(_defSideFum, 3, "FUMBLE");
@@ -5209,6 +5220,8 @@ class GameSimulator {
           startYard, endYard: finalYL,
           rusher: RB, forcedBy: ffBy, recoveredBy: "off", scrumMisses,
           yards: netYds,
+          motion: { result: "fumbleRecoveredOff", fumbleT: 0.55, scrumT: 0.85,
+                    fumbleSpotYL, forcedBySlot: this._resolveDefSlot(ffBy) },
         });
         return { yards: netYds };
       }
@@ -5985,6 +5998,7 @@ class GameSimulator {
           kind: "kickoff",
           desc: `Free kick after safety — ${this[defKey].name} receives at the 25`,
           startYard: 20, endYard: 25,
+          motion: { result: "freeKick", contactT: 0.05, catchT: 0.48, tackleT: 0.85 },
         });
         return;
       }
@@ -6120,6 +6134,7 @@ class GameSimulator {
       kind: "kickoff",
       desc: `${this[openingKicker].city} ${this[openingKicker].name} kicks off to ${this[this.openingKickReceiver].name}`,
       startYard: 35, endYard: 25,
+      motion: { result: "openingKick", contactT: 0.05, catchT: 0.48, tackleT: 0.85 },
     });
     while (this.quarter <= 4) {
       if (this.time <= 0) {
@@ -6138,6 +6153,7 @@ class GameSimulator {
             kind: "kickoff",
             desc: `${this[halfKicker].city} ${this[halfKicker].name} kicks off to start the second half`,
             startYard: 35, endYard: 25,
+            motion: { result: "halftimeKick", contactT: 0.05, catchT: 0.48, tackleT: 0.85 },
           });
         }
         // Q1↔Q2 and Q3↔Q4: drive state (poss, yardLine, down, ytg) is
@@ -6170,6 +6186,7 @@ class GameSimulator {
         kind: "kickoff",
         desc: `${this[otKicker].city} ${this[otKicker].name} kicks off to open overtime`,
         startYard: 35, endYard: 25,
+        motion: { result: "overtimeKick", contactT: 0.05, catchT: 0.48, tackleT: 0.85 },
       });
       // First possession
       if (this.time > 0) this._drive();
