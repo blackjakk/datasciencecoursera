@@ -25,8 +25,16 @@ from pathlib import Path
 from .players import Player
 
 
+_SUFFIXES = ("jr", "sr", "ii", "iii", "iv", "v")
+
+
 def _norm(name: str) -> str:
-    return "".join(c.lower() for c in (name or "") if c.isalnum())
+    # Strip the trailing-suffix tokens FantasyCalc adds (e.g. "Calvin
+    # Ridley Jr." vs FantasyPros' "Calvin Ridley") so the name match works.
+    tokens = (name or "").lower().replace(".", "").split()
+    while tokens and tokens[-1] in _SUFFIXES:
+        tokens.pop()
+    return "".join(c for c in " ".join(tokens) if c.isalnum())
 
 
 def overlay_rankings(

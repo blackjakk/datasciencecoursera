@@ -50,8 +50,26 @@ def _softmax_pick(
         team, league, available, overall_pick, top_n=top_k,
     )
     if not candidates:
-        # Fallback: best available by projection/VBD.
-        return max(available, key=lambda p: (p.vbd, p.projection))
+        # Fallback: best available by projection/VBD, but honor the same
+        # K/DEF round floor as score_candidates_for_team so the safety net
+        # doesn't contradict the recommender's policy.
+        current_round = (overall_pick - 1) // max(league.num_teams, 1) + 1
+        kicker_def_round_floor = max(1, league.rounds - 2)
+        pool = available
+        if current_round < kicker_def_round_floor:
+            pool = [p for p in pool if p.position not in ("K", "DEF", "DST")]
+        if not pool:
+            pool = available  # nothing else left; original behavior
+        if not pool:
+            # Truly empty draft pool — return the best of `available` if any,
+            # otherwise raise a clearer error than max()'s ValueError.
+            if available:
+                return max(available, key=lambda p: (p.vbd, p.projection))
+            raise RuntimeError(
+                f"Draft pool exhausted at pick #{overall_pick} — no players "
+                f"available for team {team.idx}."
+            )
+        return max(pool, key=lambda p: (p.vbd, p.projection))
 
     if temperature <= 1e-6:
         return candidates[0].player

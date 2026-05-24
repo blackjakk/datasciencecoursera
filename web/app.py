@@ -188,8 +188,12 @@ with tab_setup:
             st.session_state.team_names = team_names
             st.session_state.traded_picks = trades_2026
             # Reset any in-progress draft so the new league/keepers take effect.
+            # Also clear mock + Monte Carlo state so stale results from a
+            # previous league/slot don't display under the new context.
             st.session_state.draft = None
             st.session_state.applied_keepers = []
+            st.session_state.mock_draft_result = None
+            st.session_state.mc_result = None
 
             n_carry = sum(1 for r in records if r["status"] == "carryover")
             n_drop = sum(1 for r in records if r["status"] == "forced_drop")
@@ -687,6 +691,8 @@ with tab_keepers:
                         )
                     if cc2.button("↩️ Revert to model picks", key="revert_overrides"):
                         # Drop the user's overrides and reload from base file.
+                        # Also DELETE the override file so the preset re-load
+                        # path doesn't silently restore it on next refresh.
                         try:
                             base = _json.loads(
                                 (ROOT / "data" / "keepers_2026.json").read_text(encoding="utf-8"))
@@ -694,7 +700,13 @@ with tab_keepers:
                             st.session_state.draft = None
                             st.session_state.applied_keepers = []
                             st.session_state.mock_draft_result = None
-                            st.success("Reverted to model picks from data/keepers_2026.json.")
+                            st.session_state.mc_result = None
+                            override_path = ROOT / "data" / "keepers_2026_override.json"
+                            if override_path.exists():
+                                override_path.unlink()
+                                st.success("Reverted to model picks; removed override file.")
+                            else:
+                                st.success("Reverted to model picks (no override file existed).")
                         except Exception as e:
                             st.error(f"Revert failed: {e}")
         except Exception as e:
@@ -848,6 +860,11 @@ with tab_draft:
             log = apply_keepers(draft, players, applied)
             st.session_state.draft = draft
             st.session_state.applied_keepers = applied
+            # New draft -> any prior mock/Monte Carlo results refer to a
+            # stale draft state. Clear them so the UI doesn't render
+            # mismatched player names against the new draft order.
+            st.session_state.mock_draft_result = None
+            st.session_state.mc_result = None
             for line in log:
                 st.text(line)
             # Compute VBD with these keepers removed.
@@ -2156,7 +2173,11 @@ with tab_charts:
                     f"{meta.get('first_name', '')} {meta.get('last_name', '')}".strip())
                 if not nm:
                     continue
-                adp = (entry.get("stats") or {}).get("adp_half_ppr")
+                # Use 2QB ADP for this superflex league (matches the rest
+                # of the app post-migration). Falls back to half-PPR for
+                # non-skill positions where 2QB ADP is missing.
+                stats = entry.get("stats") or {}
+                adp = stats.get("adp_2qb") or stats.get("adp_half_ppr")
                 if adp and adp < 500:
                     adp_lookup[_norm(nm)] = float(adp)
         except Exception:
