@@ -5082,12 +5082,60 @@ class GameSimulator {
         { t: 1.00, dxYd: yards,               dyYd: _carrierLateralEndYd },   // settled
       ],
     };
+    // ── PRIMARY TACKLER TRACK (Path B Phase 3a) ─────────────────────
+    // Path-B answer to the "defender teleports" bug. Engine emits the
+    // tackler's pursuit path in YARDS relative to (LOS, cy). The
+    // start spot is role-aware (MLB starts shallower than FS), the
+    // converge spot equals the carrier's tackle-spot waypoint, so
+    // the tackler arrives at the right place at exactly tackleT.
+    //
+    // Cadence mirrors the carrier:
+    //   t=0:    formation
+    //   t=0.10: read (defender holds lane while diagnosing run)
+    //   t=0.22: break (commits toward play-side)
+    //   t=0.78: tackle spot (converges with carrier)
+    //   t=1.0:  settled
+    //
+    // Animation will read this for the primary tackler; remaining
+    // defenders stay on legacy pursuit logic until later phases.
+    const _tacklerStart = (() => {
+      // Play-side bias: positive = same side as carrier's lateral end
+      const sideY = _carrierLateralEndYd >= 0 ? 1 : -1;
+      switch (_tacklerRole) {
+        case "MLB": return { dxYd:  4, dyYd:  0 };
+        case "OLB": return { dxYd:  4, dyYd:  sideY * 4 };
+        case "SS":  return { dxYd:  8, dyYd:  sideY * 5 };
+        case "FS":  return { dxYd: 12, dyYd:  0 };
+        case "CB":  return { dxYd:  5, dyYd:  sideY * 18 };
+        default:    return { dxYd:  4, dyYd:  0 };
+      }
+    })();
+    // Tackler "read" — small drift while diagnosing the play.
+    // FS / safeties drift downhill, LBs hold lane, CBs settle.
+    const _readDxYd = _tacklerRole === "FS" || _tacklerRole === "SS"
+      ? _tacklerStart.dxYd - 1.5     // downhill
+      : _tacklerStart.dxYd;
+    // "Break" waypoint: defender starts converging toward the carrier
+    // at t≈0.22 (when the back hits the hole). Halfway between start
+    // and tackle spot, with slight downhill bias.
+    const _breakDxYd = (_readDxYd + yards) * 0.45;
+    const _breakDyYd = (_tacklerStart.dyYd + _carrierLateralEndYd) * 0.5;
+    const _tacklerTrack = {
+      role: _tacklerRole,
+      waypoints: [
+        { t: 0.00, dxYd: _tacklerStart.dxYd, dyYd: _tacklerStart.dyYd },     // formation
+        { t: 0.10, dxYd: _readDxYd,          dyYd: _tacklerStart.dyYd },     // read (lane)
+        { t: 0.22, dxYd: _breakDxYd,         dyYd: _breakDyYd },              // break
+        { t: 0.78, dxYd: yards,              dyYd: _carrierLateralEndYd },    // tackle spot
+        { t: 1.00, dxYd: yards,              dyYd: _carrierLateralEndYd },    // settled
+      ],
+    };
     const _motion = {
       tacklerRole: _tacklerRole,
       tackleT:    0.78,                                  // matches TACKLE_START_AT in animation
       hitDir:     { dx: -1, dy: _hitLatSign * 0.3 },     // pushed backward + lateral
       carrierEndDY: _carrierEndDY,
-      tracks: { carrier: _carrierTrack },
+      tracks: { carrier: _carrierTrack, tackler: _tacklerTrack },
     };
     this._pushVisual({ kind: "run", desc, startYard, yards, endYard: clamp(startYard + yards, 0, 100), rusher: carrier, isQBRun, isReverse, runType, isSpeedOption, isPitch, optionRead, tackler: tacklerName, brokenTackles, isTwoBack: useTwoBack, fb: useTwoBack ? this.offR.starters.rb2 : null, motion: _motion });
     return { yards };

@@ -2017,8 +2017,29 @@ function buildAnimForPlay(play, prevPlay) {
         // to that. Sim then naturally accelerates them along an
         // intercept angle — no rubber-band needed for the common case.
         const isPrimary = (i === primaryTacklerIdx);
+        // PATH B Phase 3a — engine-emitted tackler track wins over sim
+        // for the primary tackler. Reads play.motion.tracks.tackler and
+        // sets np directly from the interpolated waypoint. Skips the
+        // dynamic-speed-sim entirely so no rubber-band correction is
+        // needed downstream (the engine path IS the authoritative pursuit).
+        const _tacklerTrack = (play.motion && play.motion.tracks && play.motion.tracks.tackler) || null;
+        const _useTacklerMotion = isPrimary && !isDodged && !isTrucked && _tacklerTrack && typeof MotionPlayback !== "undefined";
+        let np;
+        if (_useTacklerMotion) {
+          const sample = MotionPlayback.sampleTrack(_tacklerTrack, runT);
+          if (sample) {
+            const nx = losX + dir * sample.dxYd * FIELD.PX_PER_YARD;
+            const ny = cy + sample.dyYd * FIELD.PX_PER_YARD;
+            const moved = Math.hypot(nx - d.x, ny - d.y) > 0.5;
+            np = { x: nx, y: ny, moved };
+            // Park the sim at this spot so any later code that reads
+            // d._sim sees a consistent position (no teleport on the
+            // next frame if motion ends).
+            if (d._sim) { d._sim.x = nx; d._sim.y = ny; }
+          }
+        }
         let primarySpeedPx = SIM_DEFAULTS.MAX_SPEED * factor;
-        if (isPrimary && !isDodged) {
+        if (!_useTacklerMotion && isPrimary && !isDodged) {
           const tackleX = endX - dir * 4;
           const tackleY = cy + 28 + 2;     // ~where rb.y ends up
           const distPx = Math.hypot(tackleX - d.x, tackleY - d.y);
@@ -2036,42 +2057,43 @@ function buildAnimForPlay(play, prevPlay) {
         // CARRIER's velocity. Primary tackler's speed is tuned so the
         // sim catches the carrier naturally; rubber-band remains as
         // fallback below but should be moot now.
-        let np;
-        if (typeof SimPlayer !== "undefined") {
-          const carrierVel = carrierVelocityToward(rb.x, rb.y, endX, cy + 28, 180);
-          const nowMs = t * dur;
-          if (elapsedMs > 0) {
-            // Ensure sim exists with the right speed (resync for primary tackler)
-            if (!d._sim || Math.abs((d._simSpeedFactor || 0) - simFactor) > 0.01) {
-              d._sim = new SimPlayer(d.x, d.y, {
-                maxSpeed: SIM_DEFAULTS.MAX_SPEED * simFactor,
-                accel: SIM_DEFAULTS.ACCEL,
-              });
-              d._simSpeedFactor = simFactor;
-            }
-            // For pursuit defenders, compute intercept with lane offset.
-            // For coverage defenders (CB on WR / FS deep), aim directly
-            // at their assignment — no intercept of carrier velocity.
-            const inCoverage = (!isPrimaryOverride && isCB && !cbBroken) ||
-                               (!isPrimaryOverride && isFS && !fsBroken);
-            let aimX, aimY;
-            if (inCoverage) {
-              aimX = tx;
-              aimY = ty;
+        if (!np) {
+          if (typeof SimPlayer !== "undefined") {
+            const carrierVel = carrierVelocityToward(rb.x, rb.y, endX, cy + 28, 180);
+            const nowMs = t * dur;
+            if (elapsedMs > 0) {
+              // Ensure sim exists with the right speed (resync for primary tackler)
+              if (!d._sim || Math.abs((d._simSpeedFactor || 0) - simFactor) > 0.01) {
+                d._sim = new SimPlayer(d.x, d.y, {
+                  maxSpeed: SIM_DEFAULTS.MAX_SPEED * simFactor,
+                  accel: SIM_DEFAULTS.ACCEL,
+                });
+                d._simSpeedFactor = simFactor;
+              }
+              // For pursuit defenders, compute intercept with lane offset.
+              // For coverage defenders (CB on WR / FS deep), aim directly
+              // at their assignment — no intercept of carrier velocity.
+              const inCoverage = (!isPrimaryOverride && isCB && !cbBroken) ||
+                                 (!isPrimaryOverride && isFS && !fsBroken);
+              let aimX, aimY;
+              if (inCoverage) {
+                aimX = tx;
+                aimY = ty;
+              } else {
+                const intercept = simIntercept(d._sim, { x: rb.x, y: rb.y, vx: carrierVel.vx, vy: carrierVel.vy });
+                aimX = intercept.x + (tx - rb.x);
+                aimY = intercept.y + (ty - rb.y);
+              }
+              const beforeX = d._sim.x, beforeY = d._sim.y;
+              d._sim.stepTowardAt(aimX, aimY, nowMs);
+              np = { x: d._sim.x, y: d._sim.y,
+                     moved: Math.hypot(d._sim.x - beforeX, d._sim.y - beforeY) > 0.5 };
             } else {
-              const intercept = simIntercept(d._sim, { x: rb.x, y: rb.y, vx: carrierVel.vx, vy: carrierVel.vy });
-              aimX = intercept.x + (tx - rb.x);
-              aimY = intercept.y + (ty - rb.y);
+              np = { x: d.x, y: d.y, moved: false };
             }
-            const beforeX = d._sim.x, beforeY = d._sim.y;
-            d._sim.stepTowardAt(aimX, aimY, nowMs);
-            np = { x: d._sim.x, y: d._sim.y,
-                   moved: Math.hypot(d._sim.x - beforeX, d._sim.y - beforeY) > 0.5 };
           } else {
-            np = { x: d.x, y: d.y, moved: false };
+            np = elapsedMs > 0 ? pursue(d, txBase, tyBase, elapsedMs, factor) : { x: d.x, y: d.y, moved: false };
           }
-        } else {
-          np = elapsedMs > 0 ? pursue(d, txBase, tyBase, elapsedMs, factor) : { x: d.x, y: d.y, moved: false };
         }
         dd.x = np.x; dd.y = np.y;
         if (isTrucked) {
@@ -2109,7 +2131,10 @@ function buildAnimForPlay(play, prevPlay) {
         // runT 0.40 → 0.75. With the sim now sized to reach the tackle
         // spot, the defender is usually already near the carrier and
         // this fallback applies very little correction.
-        if (i === primaryTacklerIdx && !isTrucked && yards < 90) {
+        // PATH B Phase 3a — skip rubber-band entirely when engine
+        // motion is driving the tackler. The waypoint path already
+        // lands on the carrier at t=0.78.
+        if (i === primaryTacklerIdx && !isTrucked && yards < 90 && !_useTacklerMotion) {
           const arriveStartT = 0.40;
           const arriveEndT   = 0.75;
           if (runT > arriveStartT) {

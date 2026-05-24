@@ -18,19 +18,26 @@
 //       // Linear interpolation between consecutive waypoints.
 //       // Sort by t ascending. First t should be 0 (formation pos);
 //       // last t should be 1 (post-play resting pos).
+//       //
+//       // Coordinates: dxYd / dyYd are YARDS relative to the line of
+//       // scrimmage (positive dxYd = downfield) and field center
+//       // (positive dyYd = "down" toward the bottom sideline).
+//       // Animation translates to pixels via
+//       //   px = losX + dir * dxYd * FIELD.PX_PER_YARD
+//       //   py = cy + dyYd * FIELD.PX_PER_YARD
+//       // This keeps the engine agnostic to the field's pixel layout.
 //       waypoints: Array<{
 //         t:        number,    // 0..1
-//         x:        number,    // pixel coords
-//         y:        number,
+//         dxYd:     number,    // yards downfield from LOS
+//         dyYd:     number,    // yards lateral from field center
 //         pose?:    string,    // optional pose override; persists from prev wp
 //         facing?:  number,    // -1 or +1; persists
 //         poseT?:   number,    // optional internal pose t (0..1)
-//         // future: ragdollState, archetype, etc.
 //       }>,
 //     },
 //   },
 //   // Ball track (separate from any single player — could be in flight)
-//   ball: Array<{ t, x, y, scale?, angle? }>,
+//   ball: Array<{ t, dxYd, dyYd, scale?, angle? }>,
 //   // Discrete events that fire AT specific t values (banners, hit fx,
 //   // pose triggers that aren't pose-transitions).
 //   events: Array<{ t, kind, ...payload }>,
@@ -43,14 +50,14 @@ const MotionPlayback = (() => {
   // Linear interpolate between two waypoints. Pose / facing persist from
   // the EARLIER waypoint (they "latch" until the next explicit change).
   function _lerpWp(a, b, t) {
-    if (b == null) return { x: a.x, y: a.y, pose: a.pose, facing: a.facing, poseT: a.poseT };
-    if (a == null) return { x: b.x, y: b.y, pose: b.pose, facing: b.facing, poseT: b.poseT };
+    if (b == null) return { dxYd: a.dxYd, dyYd: a.dyYd, pose: a.pose, facing: a.facing, poseT: a.poseT };
+    if (a == null) return { dxYd: b.dxYd, dyYd: b.dyYd, pose: b.pose, facing: b.facing, poseT: b.poseT };
     const span = b.t - a.t;
     const f = span > 0.0001 ? (t - a.t) / span : 0;
     const ff = Math.max(0, Math.min(1, f));
     return {
-      x: a.x + (b.x - a.x) * ff,
-      y: a.y + (b.y - a.y) * ff,
+      dxYd: a.dxYd + (b.dxYd - a.dxYd) * ff,
+      dyYd: a.dyYd + (b.dyYd - a.dyYd) * ff,
       // Pose latches — keep a's pose until t crosses INTO b's window.
       // This means the pose set at waypoint N is in effect from t=N
       // until t=N+1 (when N+1's pose takes over).
@@ -94,8 +101,8 @@ const MotionPlayback = (() => {
     const span = b.t - a.t;
     const f = span > 0.0001 ? (t - a.t) / span : 0;
     return {
-      x: a.x + (b.x - a.x) * f,
-      y: a.y + (b.y - a.y) * f,
+      dxYd: a.dxYd + (b.dxYd - a.dxYd) * f,
+      dyYd: a.dyYd + (b.dyYd - a.dyYd) * f,
       scale: (a.scale ?? 1) + ((b.scale ?? 1) - (a.scale ?? 1)) * f,
       angle: a.angle ?? b.angle ?? 0,
     };
