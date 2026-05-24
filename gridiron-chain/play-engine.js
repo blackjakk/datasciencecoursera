@@ -2394,13 +2394,16 @@ class GameSimulator {
     // engine burned a flat 27 sec/play regardless of result.
     const clockStopped = !!this._lastClockStopped;
     // NFL per-snap clock burn (incl. dead ball before snap):
-    //   normal:  ~30-33s   (engine 32)  prior 31 produced 70 plays/game
-    //                       vs NFL 62; bumped to 32 to add ~3s/play and
-    //                       trim ~2-3 plays/game. (33 was prior overshoot
-    //                       — scoring fell to 18.7 from 22.7.)
+    //   normal:  ~28-30s   (engine 29)  earlier 32 produced 53.9 plays/team
+    //                       vs NFL 62; trimmed to 29 to add ~3s of capacity
+    //                       per play. Trade-off: drives extend OR drive count
+    //                       rises depending on YPP — with YAC + stick-aim
+    //                       fixes pushing YPP to NFL-correct 5.45, the extra
+    //                       capacity becomes additional plays at NFL yardage
+    //                       (the right scoring + yards cascade).
     //   stopped: ~13s      (engine 13)  incomp / OOB / TO / spike
     //   2-min:   ~12s      (engine 12)  no-huddle pace
-    const dtMean = inTwoMin ? 12 : clockStopped ? 13 : 32;
+    const dtMean = inTwoMin ? 12 : clockStopped ? 13 : 29;
     const dtSd   = inTwoMin ? 3  : clockStopped ? 4  : 8;
     const dtMin  = inTwoMin ? 5  : clockStopped ? 6  : 14;
     const dtMax  = inTwoMin ? 22 : clockStopped ? 22 : 50;
