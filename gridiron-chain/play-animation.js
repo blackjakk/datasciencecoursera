@@ -2613,8 +2613,39 @@ function buildAnimForPlay(play, prevPlay) {
           // phase, since they're held up at the LOS and barely move anyway.
           const tt = Math.min(1, aT / 0.55);
           if (i === breakingRusher) {
-            dd.x = d.x + (qb.x - d.x) * tt * 0.85;
-            dd.y = d.y + (qb.y - d.y) * tt * 0.6;
+            // Path shape varies by dlMove — the rusher's PATH to the QB
+            // reflects HOW they beat the OL. play.dlMove was sitting
+            // unused beyond a text callout; now drives the actual chase
+            // geometry. 5 visual categories pulled from the 15 archetype
+            // moves.
+            const move = play.dlMove || "";
+            const moveCat = /SPEED|GET-OFF|GHOST/.test(move) ? "SPEED"
+                          : /SWIM|ARM-OVER|CROSS/.test(move)  ? "SWIM"
+                          : /SPIN|COUNTER/.test(move)         ? "SPIN"
+                          : /DIP|CLUB/.test(move)             ? "DIP"
+                          : "BULL";   // bull rush / long arm / stab / pierce / hand fight (default)
+            const baseX = d.x + (qb.x - d.x) * tt * 0.85;
+            const baseY = d.y + (qb.y - d.y) * tt * 0.6;
+            let pathDX = 0, pathDY = 0;
+            if (moveCat === "SPEED") {
+              // Wide outside arc — peel AWAY from QB lateral first, swing in late.
+              const arc = Math.sin(tt * Math.PI);
+              const outSide = (d.y > qb.y ? 1 : -1);
+              pathDY = outSide * arc * 14;
+            } else if (moveCat === "SWIM") {
+              // Brief lateral bump during the engagement phase only
+              const eng = tt < 0.35 ? Math.sin((tt / 0.35) * Math.PI) : 0;
+              pathDY = (d.y > qb.y ? -1 : 1) * eng * 9;
+            } else if (moveCat === "SPIN") {
+              // Zigzag laterally — spinning past the OL
+              pathDY = Math.sin(tt * Math.PI * 2.5) * 7 * (1 - tt * 0.5);
+            } else if (moveCat === "DIP") {
+              // Lower, tighter line — drops the body and rips through
+              pathDY = -Math.sin(tt * Math.PI * 0.8) * 4;
+            }
+            // BULL: no offset, straight bull-line through the OL
+            dd.x = baseX + pathDX;
+            dd.y = baseY + pathDY;
             // After release, the rusher arrives in the QB's face and engages
             dd.pose = aT > throwFrac ? "engage" : "run";
           } else if (aT < throwFrac + 0.05) {
