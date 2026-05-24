@@ -2561,7 +2561,15 @@ function buildAnimForPlay(play, prevPlay) {
     }
     // Pick receiver lane deterministically per play (screens always go to the RB)
     const wrRoll = ((play.startYard * 13 + (play.time||0)) >>> 0) % 100 / 100;
+    // PATH B Phase 3b — when engine emits motion with a targetSlot,
+    // the animation MUST animate that exact receiver (so the route
+    // track lines up, ball flight lands on the right player, and the
+    // covering CB shadows the actual catcher). Falls back to the
+    // legacy hash for older plays/non-standard kinds.
+    const _engineSlot = play.motion && play.motion.targetSlot;
     const wrChoice = isScreen ? "rb"
+                   : (_engineSlot === "wr1" || _engineSlot === "wr2" || _engineSlot === "te" || _engineSlot === "rb")
+                     ? _engineSlot
                    : wrRoll < 0.45 ? "wr1"
                    : wrRoll < 0.78 ? "wr2"
                    : wrRoll < 0.92 ? "te"
