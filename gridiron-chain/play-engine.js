@@ -3793,22 +3793,13 @@ class GameSimulator {
         // intercepter's role (CB / S based on coverage assignment),
         // return distance, whether it's a pick-six. Animation renders
         // it. Same schema as run-play fumble motion.
-        // PATH B Phase 6 — INT also gets per-slot routes + LB drops
-        // (engine credits intercepter via _resolveDefSlot; receivers
-        // still run their routes up to the pick moment).
-        const _intIntendedSlot = rcvr === this.offR.starters.wr1 ? "wr1"
-                               : rcvr === this.offR.starters.wr2 ? "wr2"
-                               : rcvr === this.offR.starters.te  ? "te"
-                               : rcvr === this.offR.starters.rb  ? "rb"
-                               : null;
+        // PATH B Phase 6 — INT zone drops. (Receiver routes skipped
+        // here because rcvr/targetSlot isn't picked in this branch;
+        // animation handles WR run-toward-the-ball during the pick.)
         const _intScaledMs = Math.max(2200, Math.min(11500, Math.abs(Math.max(targetDepth, 8)) / 12 * 1000 + 1000));
         const _intPostCatchMs = 1500;
         const _intActionMs = _intScaledMs + _intPostCatchMs;
         const _intThrowT = _intScaledMs / _intActionMs;
-        const _intRouteTracks = _intIntendedSlot ? this._buildPassRouteTracks({
-          targetSlot: _intIntendedSlot, targetDepth, yac: 0,
-          concept: this._lastPassConcept, throwT: _intThrowT,
-        }) : {};
         const _intDefSlot = this._resolveDefSlot(intBy);
         const _intZoneDrops = this._buildPassZoneDrops({ tacklerSlot: _intDefSlot, throwT: _intThrowT });
         const _intMotion = {
@@ -3822,9 +3813,8 @@ class GameSimulator {
           returnYds:  finalRetYds,
           isPickSix:  isPickSix,
           isTouchback: isTouchback,
-          targetSlot: _intIntendedSlot,
           throwT: _intThrowT,
-          tracks: { ..._intRouteTracks, ..._intZoneDrops },
+          tracks: { ..._intZoneDrops },
         };
         this._pushVisual({
           kind: "int", desc: isPickSix
@@ -4075,6 +4065,57 @@ class GameSimulator {
         // Pick a move from the DL's archetype toolkit
         const moves = DL_ARCHETYPES[reps.dlType]?.moves || ["SACK"];
         const move = moves[Math.floor(Math.random() * moves.length)];
+        // PATH B Phase 7 — sacker pursuit track. Engine emits a path
+        // for the named DL/blitzer to converge on the QB's drop spot.
+        // contactT varies by depth (deep drops give longer pursuits).
+        const _sackerName = sackedBy || reps.dl?.name || null;
+        const _sackerSlot = this._resolveDefSlot(_sackerName) || (() => {
+          if (!_sackerName || !this.defR?.starters) return null;
+          const ds = this.defR.starters;
+          if (_sackerName === ds.de1) return "de1";
+          if (_sackerName === ds.de2) return "de2";
+          if (_sackerName === ds.dt1) return "dt1";
+          if (_sackerName === ds.dt2) return "dt2";
+          return null;
+        })();
+        const _sackerStart = (() => {
+          // DL slot positions in YARDS (LOS+0.5, lateral by slot).
+          // de1 (left end): dyYd ≈ -8;  dt1 (left tackle): dyYd ≈ -2.5
+          // dt2 (right tackle): dyYd ≈ +2.5;  de2 (right end): dyYd ≈ +8
+          // LB blitzer: dyYd ≈ 0, dxYd ≈ +4
+          switch (_sackerSlot) {
+            case "de1": return { dxYd: 0.5, dyYd: -8 };
+            case "dt1": return { dxYd: 0.5, dyYd: -2.5 };
+            case "dt2": return { dxYd: 0.5, dyYd:  2.5 };
+            case "de2": return { dxYd: 0.5, dyYd:  8 };
+            case "lb1": return { dxYd: 4,   dyYd: -3 };
+            case "lb2": return { dxYd: 4,   dyYd:  0 };
+            case "lb3": return { dxYd: 4,   dyYd:  3 };
+            case "ss":  return { dxYd: 8,   dyYd:  5 };
+            case "fs":  return { dxYd: 12,  dyYd:  0 };
+            case "cb1": return { dxYd: 5,   dyYd: -16 };
+            case "cb2": return { dxYd: 5,   dyYd:  16 };
+            default:    return { dxYd: 0.5, dyYd:  0 };
+          }
+        })();
+        // QB drops back to roughly -(loss) yards from LOS (sack spot).
+        // Engine uses positive dxYd for downfield, so QB at dxYd = -loss.
+        const _qbSackXYd = -loss;
+        // Contact time varies — strip sacks / blitzes come faster
+        const _sackContactT = sackedByMove === "BLITZ" ? 0.55
+                            : loss >= 8                ? 0.85
+                            : 0.72;
+        const _sackerTrack = _sackerSlot ? {
+          role: _sackerSlot.toUpperCase(),
+          sackerName: _sackerName,
+          waypoints: [
+            { t: 0.00, dxYd: _sackerStart.dxYd, dyYd: _sackerStart.dyYd },                                 // formation
+            { t: 0.18, dxYd: _sackerStart.dxYd + 0.5, dyYd: _sackerStart.dyYd * 0.9 },                     // engaged
+            { t: _sackContactT * 0.5, dxYd: (_sackerStart.dxYd + _qbSackXYd) * 0.4, dyYd: _sackerStart.dyYd * 0.5 },   // breaking
+            { t: _sackContactT,       dxYd: _qbSackXYd,                 dyYd: 0 },                                  // contact
+            { t: 1.00,                 dxYd: _qbSackXYd,                 dyYd: 0 },                                  // settled
+          ],
+        } : null;
         this._pushVisual({
           kind: "sack", desc: `${this.offR.starters.qb} sacked for -${loss} yds`,
           startYard, sackLoss: loss, endYard: clamp(startYard - loss, 1, 99),
@@ -4082,6 +4123,12 @@ class GameSimulator {
           dlName: reps.dl?.name, dlType: reps.dlType, dlMove: move,
           olName: reps.ol?.name, olType: reps.olType,
           isPlayAction, isFleaFlicker,
+          motion: _sackerTrack ? {
+            sackerName: _sackerName,
+            sackerSlot: _sackerSlot,
+            contactT: _sackContactT,
+            tracks: { sacker: _sackerTrack },
+          } : null,
         });
         // Return negative yardage and let _drive() handle the down progression.
         // (Previously we mutated this.yardLine/down/ytg directly which double-counted

@@ -3829,6 +3829,22 @@ function buildAnimForPlay(play, prevPlay) {
         }
         if (t <= PRE) return dd;
         const tt = (t - PRE) / (1 - PRE);
+        // PATH B Phase 7 — engine-emitted sacker track wins for the
+        // named DL/blitzer. Other DLs continue with the existing
+        // pursue-based logic so the visual "pile" still develops.
+        const _sackerTrack = (play.motion && play.motion.tracks && play.motion.tracks.sacker) || null;
+        const _sackerName = play.motion && play.motion.sackerName;
+        const _isSackerByName = _sackerName && d.name === _sackerName;
+        if (_sackerTrack && _isSackerByName && typeof MotionPlayback !== "undefined") {
+          const sample = MotionPlayback.sampleTrack(_sackerTrack, tt);
+          if (sample) {
+            dd.x = losX + dir * sample.dxYd * FIELD.PX_PER_YARD;
+            dd.y = cy + sample.dyYd * FIELD.PX_PER_YARD;
+            const _engineContactT = (play.motion && play.motion.contactT) || contactT;
+            if (tt > _engineContactT + 0.03) dd.pose = "sack";
+            return dd;
+          }
+        }
         if (i < 4) {
           const isPrimary = i === primaryIdx;
           const isSecondary = secondChaser && i === secondIdx;
