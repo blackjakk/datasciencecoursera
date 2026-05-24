@@ -1290,6 +1290,13 @@ function buildAnimForPlay(play, prevPlay) {
     const actionDur = scaledDuration(yards) + RUN_TACKLE_MS;
     const dur = actionDur + PRE_MS;
     PRE = PRE_MS / dur;
+    // Play-side picks for run concepts — hoisted out of the RB block so
+    // they're also available to the OL/FB renders. counterSide/stretchSide/
+    // pitchSide use the same hash formulas as the existing RB code so the
+    // sides agree.
+    const _counterSide = ((play.startYard * 11) % 2) === 0 ? 1 : -1;
+    const _stretchSide = ((play.startYard * 17) % 2) === 0 ? 1 : -1;
+    const _pitchSide   = ((play.startYard * 13) % 2) === 0 ? 1 : -1;
     return { duration: dur, kind: "run", render: (t, c) => {
       ctx = c;
       drawField(ctx, homeTeam, awayTeam, fieldState);
@@ -1909,15 +1916,44 @@ function buildAnimForPlay(play, prevPlay) {
         if (t < PRE) return { ...p, pose: "stance" };
         const tt = runT;
         if (p.role === "OL") {
-          // Engage DL at the LOS — small forward drive + jitter, but do
-          // NOT fire 9px forward past the DL (which made OL+DL bodies
-          // clip through each other every play). Forward drive capped at
-          // ~3 px = "winning the rep slightly" without crossing into
-          // the defender's space.
+          // Blocking pattern by runType. Slot is the OL's lateral seat
+          // (-2 leftmost guard ... +2 rightmost). Defines who pulls,
+          // who reaches, etc.
           const slot = (p.y - cy) / 14;
           const wobble = Math.sin(tt * Math.PI * 5 + slot * 1.7) * 1.5;
-          const drive = dir * Math.min(tt * 6, 3);
-          return { ...p, x: p.x + drive, y: p.y + wobble, pose: "engage", t: tt, facing: dir };
+          const rt = play.runType || "inside";
+          // counter: ONE guard (opposite the play side) pulls across to
+          //   lead the carrier into the cutback gap. Other OL fire fwd.
+          // stretch: ALL OL flow lateral toward the play side ("zone
+          //   step") — synchronous slide before engaging.
+          // pitch: outside OL on the play side reaches out toward the
+          //   sideline; backside OL drives forward.
+          // inside (default): straight-ahead drive.
+          let driveX = dir * Math.min(tt * 6, 3);
+          let driveY = 0;
+          if (rt === "counter") {
+            const pullSlot = -_counterSide * 1;     // guard opposite play side pulls
+            const isPuller = Math.round(slot) === pullSlot;
+            if (isPuller) {
+              // Pull across the formation in the play-side direction
+              const pullT = Math.min(1, tt * 1.7);
+              driveX = dir * 1.5;
+              driveY = _counterSide * pullT * 18;
+            }
+          } else if (rt === "stretch") {
+            // Whole line flows toward the play side before engagement
+            const flowT = Math.min(1, tt * 1.4);
+            driveX = dir * Math.min(tt * 3.5, 2);
+            driveY = _stretchSide * flowT * 5;
+          } else if (rt === "pitch") {
+            const isPlaySideOuter = Math.sign(slot) === Math.sign(_pitchSide) && Math.abs(slot) >= 1.5;
+            if (isPlaySideOuter) {
+              const reachT = Math.min(1, tt * 1.6);
+              driveX = dir * 1.0;
+              driveY = _pitchSide * reachT * 12;
+            }
+          }
+          return { ...p, x: p.x + driveX, y: p.y + wobble + driveY, pose: "engage", t: tt, facing: dir };
         }
         if (p.role === "TE") {
           // TE seals the edge — engage a defender to the side, doesn't run free
