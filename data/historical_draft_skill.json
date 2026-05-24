@@ -1,0 +1,630 @@
+{
+  "years": [
+    2019,
+    2020,
+    2021,
+    2022,
+    2023,
+    2024
+  ],
+  "scoring": "0.5 PPR (avg of nflverse fp + fp_ppr)",
+  "replacement_ranks": {
+    "QB": 22,
+    "RB": 31,
+    "WR": 42,
+    "TE": 13,
+    "K": 12,
+    "DEF": 12
+  },
+  "per_season": {
+    "2019": {
+      "brower_barry": {
+        "manager_name": "Brower",
+        "total_vbd": 62.900000000000034,
+        "n_picks": 17,
+        "n_matched": 13
+      },
+      "notebooks_left": {
+        "manager_name": "Notebooks",
+        "total_vbd": 234.44000000000005,
+        "n_picks": 17,
+        "n_matched": 16
+      },
+      "trevor_bergerboy": {
+        "manager_name": "Trevor",
+        "total_vbd": 210.73999999999998,
+        "n_picks": 17,
+        "n_matched": 15
+      },
+      "coop": {
+        "manager_name": "Coop",
+        "total_vbd": 356.3399999999999,
+        "n_picks": 17,
+        "n_matched": 16
+      },
+      "troy_mullings": {
+        "manager_name": "Troy",
+        "total_vbd": 494.3199999999998,
+        "n_picks": 17,
+        "n_matched": 15
+      },
+      "donnie": {
+        "manager_name": "Donnie",
+        "total_vbd": 56.639999999999986,
+        "n_picks": 17,
+        "n_matched": 16
+      },
+      "eric_m": {
+        "manager_name": "Eric",
+        "total_vbd": 411.58,
+        "n_picks": 17,
+        "n_matched": 15
+      },
+      "tim_breswick": {
+        "manager_name": "Tim",
+        "total_vbd": -314.28,
+        "n_picks": 17,
+        "n_matched": 12
+      },
+      "brian_bigguap": {
+        "manager_name": "Brian",
+        "total_vbd": 296.40000000000003,
+        "n_picks": 17,
+        "n_matched": 15
+      },
+      "kyle_figgy": {
+        "manager_name": "Kyle",
+        "total_vbd": 696.9199999999998,
+        "n_picks": 17,
+        "n_matched": 15
+      },
+      "lem": {
+        "manager_name": "Lem",
+        "total_vbd": -66.16000000000004,
+        "n_picks": 17,
+        "n_matched": 14
+      },
+      "dave_predecessor": {
+        "manager_name": "Dave",
+        "total_vbd": 464.44000000000017,
+        "n_picks": 17,
+        "n_matched": 16
+      }
+    },
+    "2020": {
+      "donnie": {
+        "manager_name": "Donnie",
+        "total_vbd": -5.659999999999982,
+        "n_picks": 17,
+        "n_matched": 15
+      },
+      "lem": {
+        "manager_name": "Lem",
+        "total_vbd": 252.81999999999994,
+        "n_picks": 17,
+        "n_matched": 15
+      },
+      "nick_lewis_left": {
+        "manager_name": "Nick Lewis",
+        "total_vbd": 164.09999999999994,
+        "n_picks": 17,
+        "n_matched": 15
+      },
+      "tim_breswick": {
+        "manager_name": "Tim",
+        "total_vbd": 206.92000000000007,
+        "n_picks": 17,
+        "n_matched": 15
+      },
+      "eric_m": {
+        "manager_name": "Eric",
+        "total_vbd": 445.9599999999999,
+        "n_picks": 17,
+        "n_matched": 16
+      },
+      "coop": {
+        "manager_name": "Coop",
+        "total_vbd": 599.4400000000002,
+        "n_picks": 17,
+        "n_matched": 14
+      },
+      "brower_barry": {
+        "manager_name": "Brower",
+        "total_vbd": 280.05999999999995,
+        "n_picks": 17,
+        "n_matched": 15
+      },
+      "brian_bigguap": {
+        "manager_name": "Brian",
+        "total_vbd": 604.1000000000001,
+        "n_picks": 17,
+        "n_matched": 15
+      },
+      "trevor_bergerboy": {
+        "manager_name": "Trevor",
+        "total_vbd": 500.23999999999984,
+        "n_picks": 17,
+        "n_matched": 15
+      },
+      "kyle_figgy": {
+        "manager_name": "Kyle",
+        "total_vbd": 462.4800000000001,
+        "n_picks": 17,
+        "n_matched": 14
+      },
+      "dave_predecessor": {
+        "manager_name": "Dave",
+        "total_vbd": 531.02,
+        "n_picks": 17,
+        "n_matched": 15
+      },
+      "troy_mullings": {
+        "manager_name": "Troy",
+        "total_vbd": -91.49999999999997,
+        "n_picks": 17,
+        "n_matched": 16
+      }
+    },
+    "2021": {
+      "ankur_patel": {
+        "manager_name": "Ankur",
+        "total_vbd": -26.45999999999995,
+        "n_picks": 17,
+        "n_matched": 14
+      },
+      "troy_mullings": {
+        "manager_name": "Troy",
+        "total_vbd": 530.5200000000002,
+        "n_picks": 17,
+        "n_matched": 16
+      },
+      "lem": {
+        "manager_name": "Lem",
+        "total_vbd": 61.30000000000007,
+        "n_picks": 17,
+        "n_matched": 15
+      },
+      "brian_bigguap": {
+        "manager_name": "Brian",
+        "total_vbd": 543.0000000000002,
+        "n_picks": 17,
+        "n_matched": 15
+      },
+      "dave_predecessor": {
+        "manager_name": "Dave",
+        "total_vbd": 831.1,
+        "n_picks": 17,
+        "n_matched": 15
+      },
+      "donnie": {
+        "manager_name": "Donnie",
+        "total_vbd": 169.3,
+        "n_picks": 17,
+        "n_matched": 15
+      },
+      "kyle_figgy": {
+        "manager_name": "Kyle",
+        "total_vbd": 432.70000000000005,
+        "n_picks": 17,
+        "n_matched": 15
+      },
+      "eric_m": {
+        "manager_name": "Eric",
+        "total_vbd": 214.86000000000013,
+        "n_picks": 17,
+        "n_matched": 14
+      },
+      "tim_breswick": {
+        "manager_name": "Tim",
+        "total_vbd": 211.14000000000007,
+        "n_picks": 17,
+        "n_matched": 13
+      },
+      "brower_barry": {
+        "manager_name": "Brower",
+        "total_vbd": 771.5,
+        "n_picks": 17,
+        "n_matched": 14
+      },
+      "trevor_bergerboy": {
+        "manager_name": "Trevor",
+        "total_vbd": 727.94,
+        "n_picks": 17,
+        "n_matched": 15
+      },
+      "coop": {
+        "manager_name": "Coop",
+        "total_vbd": 123.94000000000003,
+        "n_picks": 17,
+        "n_matched": 15
+      }
+    },
+    "2022": {
+      "kyle_figgy": {
+        "manager_name": "Kyle",
+        "total_vbd": 802.6200000000001,
+        "n_picks": 17,
+        "n_matched": 15
+      },
+      "coop": {
+        "manager_name": "Coop",
+        "total_vbd": 823.92,
+        "n_picks": 17,
+        "n_matched": 15
+      },
+      "tim_breswick": {
+        "manager_name": "Tim",
+        "total_vbd": 598.1400000000001,
+        "n_picks": 17,
+        "n_matched": 14
+      },
+      "donnie": {
+        "manager_name": "Donnie",
+        "total_vbd": 216.70000000000005,
+        "n_picks": 17,
+        "n_matched": 14
+      },
+      "ankur_patel": {
+        "manager_name": "Ankur",
+        "total_vbd": 592.5200000000001,
+        "n_picks": 17,
+        "n_matched": 15
+      },
+      "eric_m": {
+        "manager_name": "Eric",
+        "total_vbd": 662.7799999999999,
+        "n_picks": 17,
+        "n_matched": 15
+      },
+      "troy_mullings": {
+        "manager_name": "Troy",
+        "total_vbd": -291.5,
+        "n_picks": 17,
+        "n_matched": 14
+      },
+      "lem": {
+        "manager_name": "Lem",
+        "total_vbd": 212.60000000000002,
+        "n_picks": 17,
+        "n_matched": 13
+      },
+      "dave_predecessor": {
+        "manager_name": "Dave",
+        "total_vbd": 278.0200000000002,
+        "n_picks": 17,
+        "n_matched": 16
+      },
+      "brian_bigguap": {
+        "manager_name": "Brian",
+        "total_vbd": -119.33999999999992,
+        "n_picks": 17,
+        "n_matched": 16
+      },
+      "brower_barry": {
+        "manager_name": "Brower",
+        "total_vbd": 254.3799999999999,
+        "n_picks": 17,
+        "n_matched": 14
+      },
+      "trevor_bergerboy": {
+        "manager_name": "Trevor",
+        "total_vbd": 353.74000000000007,
+        "n_picks": 17,
+        "n_matched": 15
+      }
+    },
+    "2023": {
+      "donnie": {
+        "manager_name": "Donnie",
+        "total_vbd": 588.28,
+        "n_picks": 17,
+        "n_matched": 15
+      },
+      "eric_m": {
+        "manager_name": "Eric",
+        "total_vbd": 366.84,
+        "n_picks": 17,
+        "n_matched": 15
+      },
+      "brower_barry": {
+        "manager_name": "Brower",
+        "total_vbd": 778.3399999999998,
+        "n_picks": 17,
+        "n_matched": 16
+      },
+      "troy_mullings": {
+        "manager_name": "Troy",
+        "total_vbd": 835.3599999999999,
+        "n_picks": 17,
+        "n_matched": 15
+      },
+      "brian_bigguap": {
+        "manager_name": "Brian",
+        "total_vbd": 1065.3799999999999,
+        "n_picks": 17,
+        "n_matched": 15
+      },
+      "dave_predecessor": {
+        "manager_name": "Dave",
+        "total_vbd": 3.8799999999999955,
+        "n_picks": 17,
+        "n_matched": 17
+      },
+      "trevor_bergerboy": {
+        "manager_name": "Trevor",
+        "total_vbd": 484.48,
+        "n_picks": 17,
+        "n_matched": 17
+      },
+      "tim_breswick": {
+        "manager_name": "Tim",
+        "total_vbd": -174.70000000000005,
+        "n_picks": 17,
+        "n_matched": 15
+      },
+      "lem": {
+        "manager_name": "Lem",
+        "total_vbd": 107.29999999999991,
+        "n_picks": 17,
+        "n_matched": 15
+      },
+      "kyle_figgy": {
+        "manager_name": "Kyle",
+        "total_vbd": 207.9399999999999,
+        "n_picks": 17,
+        "n_matched": 16
+      },
+      "coop": {
+        "manager_name": "Coop",
+        "total_vbd": -398.34000000000003,
+        "n_picks": 17,
+        "n_matched": 17
+      },
+      "ankur_patel": {
+        "manager_name": "Ankur",
+        "total_vbd": -233.68,
+        "n_picks": 17,
+        "n_matched": 15
+      }
+    },
+    "2024": {
+      "dave_predecessor": {
+        "manager_name": "Dave",
+        "total_vbd": 775.9399999999999,
+        "n_picks": 17,
+        "n_matched": 16
+      },
+      "ankur_patel": {
+        "manager_name": "Ankur",
+        "total_vbd": 631.76,
+        "n_picks": 17,
+        "n_matched": 15
+      },
+      "coop": {
+        "manager_name": "Coop",
+        "total_vbd": 1142.7400000000002,
+        "n_picks": 17,
+        "n_matched": 16
+      },
+      "tim_breswick": {
+        "manager_name": "Tim",
+        "total_vbd": 26.35999999999997,
+        "n_picks": 17,
+        "n_matched": 15
+      },
+      "brian_bigguap": {
+        "manager_name": "Brian",
+        "total_vbd": 219.38000000000002,
+        "n_picks": 17,
+        "n_matched": 16
+      },
+      "lem": {
+        "manager_name": "Lem",
+        "total_vbd": 777.78,
+        "n_picks": 17,
+        "n_matched": 16
+      },
+      "donnie": {
+        "manager_name": "Donnie",
+        "total_vbd": 1.6600000000000108,
+        "n_picks": 17,
+        "n_matched": 14
+      },
+      "troy_mullings": {
+        "manager_name": "Troy",
+        "total_vbd": 405.75999999999993,
+        "n_picks": 17,
+        "n_matched": 14
+      },
+      "eric_m": {
+        "manager_name": "Eric",
+        "total_vbd": 163.4400000000001,
+        "n_picks": 17,
+        "n_matched": 15
+      },
+      "brower_barry": {
+        "manager_name": "Brower",
+        "total_vbd": 219.15999999999997,
+        "n_picks": 17,
+        "n_matched": 17
+      },
+      "trevor_bergerboy": {
+        "manager_name": "Trevor",
+        "total_vbd": 269.94,
+        "n_picks": 17,
+        "n_matched": 17
+      },
+      "kyle_figgy": {
+        "manager_name": "Kyle",
+        "total_vbd": -11.799999999999926,
+        "n_picks": 17,
+        "n_matched": 15
+      }
+    }
+  },
+  "cumulative": {
+    "brower_barry": {
+      "manager_name": "Brower",
+      "total_vbd": 2366.3399999999997,
+      "n_picks": 102,
+      "n_matched": 89,
+      "seasons": 6,
+      "vbd_per_season": 394.38999999999993
+    },
+    "notebooks_left": {
+      "manager_name": "Notebooks",
+      "total_vbd": 234.44000000000005,
+      "n_picks": 17,
+      "n_matched": 16,
+      "seasons": 1,
+      "vbd_per_season": 234.44000000000005
+    },
+    "trevor_bergerboy": {
+      "manager_name": "Trevor",
+      "total_vbd": 2547.08,
+      "n_picks": 102,
+      "n_matched": 94,
+      "seasons": 6,
+      "vbd_per_season": 424.5133333333333
+    },
+    "coop": {
+      "manager_name": "Coop",
+      "total_vbd": 2648.04,
+      "n_picks": 102,
+      "n_matched": 93,
+      "seasons": 6,
+      "vbd_per_season": 441.34
+    },
+    "troy_mullings": {
+      "manager_name": "Troy",
+      "total_vbd": 1882.9599999999998,
+      "n_picks": 102,
+      "n_matched": 90,
+      "seasons": 6,
+      "vbd_per_season": 313.82666666666665
+    },
+    "donnie": {
+      "manager_name": "Donnie",
+      "total_vbd": 1026.92,
+      "n_picks": 102,
+      "n_matched": 89,
+      "seasons": 6,
+      "vbd_per_season": 171.15333333333334
+    },
+    "eric_m": {
+      "manager_name": "Eric",
+      "total_vbd": 2265.46,
+      "n_picks": 102,
+      "n_matched": 90,
+      "seasons": 6,
+      "vbd_per_season": 377.57666666666665
+    },
+    "tim_breswick": {
+      "manager_name": "Tim",
+      "total_vbd": 553.5800000000003,
+      "n_picks": 102,
+      "n_matched": 84,
+      "seasons": 6,
+      "vbd_per_season": 92.26333333333338
+    },
+    "brian_bigguap": {
+      "manager_name": "Brian",
+      "total_vbd": 2608.9200000000005,
+      "n_picks": 102,
+      "n_matched": 92,
+      "seasons": 6,
+      "vbd_per_season": 434.8200000000001
+    },
+    "kyle_figgy": {
+      "manager_name": "Kyle",
+      "total_vbd": 2590.8600000000006,
+      "n_picks": 102,
+      "n_matched": 90,
+      "seasons": 6,
+      "vbd_per_season": 431.8100000000001
+    },
+    "lem": {
+      "manager_name": "Lem",
+      "total_vbd": 1345.6399999999999,
+      "n_picks": 102,
+      "n_matched": 88,
+      "seasons": 6,
+      "vbd_per_season": 224.2733333333333
+    },
+    "dave_predecessor": {
+      "manager_name": "Dave",
+      "total_vbd": 2884.4000000000005,
+      "n_picks": 102,
+      "n_matched": 95,
+      "seasons": 6,
+      "vbd_per_season": 480.7333333333334
+    },
+    "nick_lewis_left": {
+      "manager_name": "Nick Lewis",
+      "total_vbd": 164.09999999999994,
+      "n_picks": 17,
+      "n_matched": 15,
+      "seasons": 1,
+      "vbd_per_season": 164.09999999999994
+    },
+    "ankur_patel": {
+      "manager_name": "Ankur",
+      "total_vbd": 964.1400000000001,
+      "n_picks": 68,
+      "n_matched": 59,
+      "seasons": 4,
+      "vbd_per_season": 241.03500000000003
+    }
+  },
+  "replacements_by_season": {
+    "2019": {
+      "QB": 189.16,
+      "RB": 132.0,
+      "WR": 109.0,
+      "TE": 71.0,
+      "K": 0.0,
+      "DEF": 0.0
+    },
+    "2020": {
+      "QB": 198.4,
+      "RB": 97.6,
+      "WR": 120.6,
+      "TE": 108.9,
+      "K": 0.0,
+      "DEF": 0.0
+    },
+    "2021": {
+      "QB": 194.5,
+      "RB": 116.19999999999999,
+      "WR": 107.0,
+      "TE": 106.0,
+      "K": 0.0,
+      "DEF": 0.0
+    },
+    "2022": {
+      "QB": 165.24,
+      "RB": 109.3,
+      "WR": 113.1,
+      "TE": 70.8,
+      "K": 0.0,
+      "DEF": 0.0
+    },
+    "2023": {
+      "QB": 149.74,
+      "RB": 127.80000000000001,
+      "WR": 121.75999999999999,
+      "TE": 106.80000000000001,
+      "K": 0.0,
+      "DEF": 0.0
+    },
+    "2024": {
+      "QB": 177.14,
+      "RB": 125.5,
+      "WR": 119.0,
+      "TE": 91.7,
+      "K": 0.0,
+      "DEF": 0.0
+    }
+  },
+  "unmatched_count": 80
+}
