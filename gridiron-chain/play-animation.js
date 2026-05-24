@@ -2259,13 +2259,15 @@ function buildAnimForPlay(play, prevPlay) {
         ballX = releaseX + (flightTX - releaseX) * tt;
         arc = Math.sin(tt * Math.PI) * arcHeight * incArcMul;
         ballY = releaseY + (flightTY - releaseY) * tt - arc;
-        // Spiral orientation — ball points along its velocity vector.
-        // dy in screen space includes the arc derivative; cos(tt*π) is
-        // positive on the way up (nose-up) and negative on the way
-        // down (nose-down), matching a real parabolic spiral.
+        // Spiral orientation — ball nose points along the velocity vector.
+        // The flight ball is drawn with its LONG AXIS ALONG Y (ellipse
+        // 8x14, ry>rx), so the tip sits at (0, ±ry) before rotation.
+        // To align tip with velocity (vx,vy), rotate by atan2(vx, -vy)
+        // (not atan2(vy, vx) — that aligned the SHORT axis with velocity,
+        // which is why the ball came out sideways).
         const vx = flightTX - releaseX;
         const vy = (flightTY - releaseY) - Math.cos(tt * Math.PI) * Math.PI * arcHeight * incArcMul;
-        ballAngle = Math.atan2(vy, vx);
+        ballAngle = Math.atan2(vx, -vy);
       } else {
         const tt = (t - throwPhase) / (1 - throwPhase);
         if (play.kind === "complete") {
@@ -2283,10 +2285,17 @@ function buildAnimForPlay(play, prevPlay) {
           wr.x = ballX;
           wr.y = ballY;
         } else if (play.kind === "incomplete") {
-          // Ball settles where it landed (offset from intended target by
-          // the incomplete reason). Batted balls drop fast at the LOS.
-          ballX = targetX + incOffsetX;
-          ballY = targetY + incOffsetY + tt * (incDropFast ? 60 : 25);
+          // Ball CONTINUES past the catch point on its trajectory, then
+          // falls. Previously it stopped at the receiver position and
+          // slowly drifted down (25px over the whole post-throw window),
+          // which looked like the receiver caught it and dropped it.
+          // Now: continues forward AND drops faster, so the ball clearly
+          // leaves the catch zone like a real incomplete pass.
+          const fallVy = incDropFast ? 90 : 65;
+          ballX = targetX + incOffsetX + dir * tt * 35;
+          ballY = targetY + incOffsetY + tt * fallVy;
+          // Tumbling spiral — ball keeps pointing in its motion direction
+          ballAngle = Math.atan2(dir * 35, -fallVy);
         } else {
           // INT — defender catches the ball. Return distance varies:
           // ~55% short (0-2 yds, WR tackles immediately), 30% medium (3-12 yds),
@@ -2512,10 +2521,16 @@ function buildAnimForPlay(play, prevPlay) {
         :   "run")))))));
       // For the tackled fall, pass fall-progress (not stride cycle) so the
       // ragdoll animation actually animates from "just hit" → "flat".
+      // For run/carry, the stride cycle rate must scale to PLAY DURATION,
+      // not be a flat fraction of t. (t*3)%1 = only 3 strides across the
+      // whole play. On a 12-second play that's 4 seconds per stride — way
+      // too slow, reads as the receiver sliding/gliding. Real jog is
+      // ~2 strides/sec. Drive cycle off elapsed wall time instead.
+      const strideHz = 2.0;
       const wrIsTackled = wrPose === "tackled";
       const wrTackleT = wrIsTackled ? Math.min(1, (aT - TACKLE_START_AT) / (1 - TACKLE_START_AT))
                        : inLeapWindow ? leapInternalT
-                       : (t * 3) % 1;
+                       : ((t * (dur / 1000)) * strideHz) % 1;
       const wrWithPose = { ...wr,
         pose: wrPose,
         t: wrTackleT,
