@@ -6207,7 +6207,7 @@ function buildCinemaAnim(play, prevPlay) {
 // ═══════════════════════════════════════════════════════════════════════════
 // Play-result digest card — big banner that holds for ~1.4s after each play
 // ═══════════════════════════════════════════════════════════════════════════
-const RESULT_HOLD_MS = 2100;
+const RESULT_HOLD_MS = 2700;
 
 // "Tom Brady" → "BRADY" (last token, uppercased).
 function lastNameUpper(name) {
@@ -6414,7 +6414,12 @@ function drawResultCard(ctx, play, holdT) {
   // popped the card at holdT*5 (full opacity by ~280ms), which cut the
   // post-tackle moment off. Now holds the action frame alone for 30% of
   // the hold window, then fades the card in.
-  const fadeIn = Math.max(0, Math.min(1, (holdT - 0.30) / 0.22));
+  // Settle beat after the tackle. User: "it ends as soon as theyre on
+  // the ground." Previously card started fading in at 30% of hold (~630
+  // ms in) — right when the ragdoll completed. Pushed to 45% (~1215 ms
+  // in) so there's a real "tackle complete, scrum on the ground" beat
+  // of about a full second before the card overlays.
+  const fadeIn = Math.max(0, Math.min(1, (holdT - 0.45) / 0.18));
   const fadeOut = holdT > 0.88 ? Math.max(0, 1 - (holdT - 0.88) / 0.12) : 1;
   const opacity = fadeIn * fadeOut;
   const slideY = (1 - fadeIn) * -24;
