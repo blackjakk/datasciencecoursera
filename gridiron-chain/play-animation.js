@@ -1730,8 +1730,12 @@ function buildAnimForPlay(play, prevPlay) {
         // Carrier ragdoll. The impact FEEL comes from the player's own
         // motion (launch + spin) plus brief time dilation, NOT dust/
         // shake noise. force scales the launch velocity and a slow-mo
-        // window so the impact frame is held briefly.
-        const nowMs = t * dur;
+        // window so the impact frame is held briefly. nowMs uses
+        // performance.now() (not t*dur) so the ragdoll integrator
+        // keeps advancing past t=1.0 during the post-action hold —
+        // otherwise the carrier freezes mid-fall when the play timer
+        // clamps.
+        const nowMs = performance.now();
         if (!formation.rb._ragdoll) {
           const force = play.force || 0;
           const mech = play.mechanism || "head-on";
@@ -2109,7 +2113,10 @@ function buildAnimForPlay(play, prevPlay) {
             // Hit vector aims slightly TOWARD the carrier so the
             // defender falls inward, not outward. Tiny lateral jitter
             // per defender so they don't all land in the same spot.
-            const nowMs = t * dur;
+            // nowMs uses performance.now() so the ragdoll continues
+            // advancing through the post-action hold (otherwise the
+            // pile freezes mid-fall when t clamps to 1.0).
+            const nowMs = performance.now();
             if (!d._ragdoll) {
               const inX = -Math.sign((dd.x - rb.x) || 1) * 0.4;   // toward carrier
               const inY = -Math.sign((dd.y - rb.y) || 1) * 0.4;
