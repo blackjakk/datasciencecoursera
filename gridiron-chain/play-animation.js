@@ -1175,16 +1175,20 @@ function buildAnimForPlay(play, prevPlay) {
     // target, target isn't moving) we'll freeze the legs in the caller.
     return { x: d._cx, y: d._cy, moved: actualMove > 0.15 };
   };
-  // Action duration scales with yardage. Rebalanced based on cruise-speed
-  // math: with runPacing's cruise covering 86% of distance in 56% of time,
-  // the OLD formula produced 18 yd/s (~36 mph) cruise on 80-yard plays
-  // (real NFL top speed is ~23 mph) and 2.2 yd/s on 2-yard stuffs (walking
-  // pace). New curve: faster floor for short plays, steeper slope for long
-  // plays so cruise lands near a realistic 12 yd/s.
-  //   2yd → 920ms,  5yd → 1250ms,  10yd → 1800ms,  20yd → 2900ms,
-  //   50yd → 6200ms,  80yd → 9500ms,  100yd → 11000ms (capped)
+  // Action duration scales with yardage. Derived from real-football math
+  // so plays don't "stop early": distance / cruise-speed + ragdoll beat,
+  // floored at a real minimum action time. Real NFL snap-to-whistle is
+  // 3-7s for typical plays, 8-12s for breakaways.
+  //   distance time = yds / 12 yd/s (= NFL top sustained speed)
+  //   + 1000ms ragdoll
+  //   floored at 2200ms so even a 2-yard stuff has visible action
+  //   capped at 11500ms for full-field plays
+  //   2yd → 2200ms,  5yd → 2200ms,  10yd → 2200ms (floor binds),
+  //   20yd → 2667ms,  40yd → 4333ms,  60yd → 6000ms,  80yd → 7667ms,
+  //   100yd → 9333ms (under the cap)
   function scaledDuration(yds) {
-    return clamp(700 + Math.abs(yds || 0) * 110, 1000, 11000);
+    const distTimeMs = Math.abs(yds || 0) / 12 * 1000;
+    return clamp(distTimeMs + 1000, 2200, 11500);
   }
   // Pre-snap timing — ~3 seconds of huddle break, line set, audible, "HUT HUT"
   // before the center snaps. Audibles add an extra ~600 ms.
