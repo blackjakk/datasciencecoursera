@@ -814,10 +814,23 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
       }
       break;
     }
-    case "reach": case "catch":
-      lArm = -2.4; rArm = -2.4;
+    case "reach": case "catch": {
+      // Hands EXTENDED UP for the ball — high-point catch. Legs keep
+      // the run-cycle so the receiver doesn't visibly stop / glide for
+      // the entire catch window. Was just arms-only, which froze the
+      // legs for ~15% of action time = a clear "stop and float" frame.
+      const ph = runPhase;
+      lLeg =  ph * legAmp;
+      rLeg = -ph * legAmp;
+      lLegLift = Math.max(0, -ph) * 7;
+      rLegLift = Math.max(0,  ph) * 7;
+      lArm = -2.4;
+      rArm = -2.4;
       armReachY = -3;
+      bodyTilt = facing * rs.lean * 0.5;     // slight lean into the catch
+      bodyDY = -(Math.abs(ph) * 0.4 + 0.2) * rs.bob;
       break;
+    }
     case "celebrate": {
       // TD celebration — both arms raised high, slight wave, body
       // bouncing in place. t goes 0→1 across the celebration window.
@@ -1118,11 +1131,15 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
     const bend = bendBase + (lift / 7) * 0.8;
     const kneeX = sx + Math.sin(upperA) * upperLen;
     const kneeY = hipY + Math.cos(upperA) * upperLen - lift * 0.55;
-    // For the moving (run/carry) cycle, keep the original lowerA logic
-    // exactly. For idle/stance, subtract the idleBend so the shin returns
-    // to vertical and the foot stays under the hip.
+    // Knee flexion bends the SHIN BACK toward vertical from whichever side
+    // the thigh is on. Old formula was `a + facing * bend * sign(a)`,
+    // which for right-facing forward-planted legs gave shin = thigh + bend
+    // — i.e. the shin tilted MORE forward than the thigh (knee bending
+    // backward, bird-leg). Now lowerA = a - sign(a) * bend, which always
+    // pulls the shin toward 0 (straight down), so the knee bends the
+    // correct anatomical direction regardless of facing.
     const lowerA = bending
-      ? a + facing * bend * (a >= 0 ? 1 : -1)
+      ? a - bend * (a >= 0 ? 1 : -1)
       : a - facing * idleBend;
     const footX = kneeX + Math.sin(lowerA) * lowerLen;
     const footY = kneeY + Math.cos(lowerA) * lowerLen - lift * 0.35;

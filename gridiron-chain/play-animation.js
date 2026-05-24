@@ -2257,7 +2257,15 @@ function buildAnimForPlay(play, prevPlay) {
         const flightTX = targetX + incOffsetX;
         const flightTY = targetY + incOffsetY;
         ballX = releaseX + (flightTX - releaseX) * tt;
-        arc = Math.sin(tt * Math.PI) * arcHeight * incArcMul;
+        // Arc lands at HAND/HEAD height, not feet. Original parabola
+        // dropped to 0 at catch, so the ball arrived at the receiver's
+        // chest. NFL catches are at HAND HEIGHT (above the head), so
+        // we add a linear ascent term that ramps the ball UP to ~14px
+        // above field-y by tt=1 — matches the receiver's reach-arm
+        // tip position. Reduced for batted / underthrown so those land
+        // at the right (low) height.
+        const handElev = incDropFast ? 0 : (incOffsetY < 0 ? 18 : 14);
+        arc = Math.sin(tt * Math.PI) * arcHeight * incArcMul + tt * handElev;
         ballY = releaseY + (flightTY - releaseY) * tt - arc;
         // Spiral orientation — ball nose points along the velocity vector.
         // The flight ball is drawn with its LONG AXIS ALONG Y (ellipse
@@ -2266,7 +2274,7 @@ function buildAnimForPlay(play, prevPlay) {
         // (not atan2(vy, vx) — that aligned the SHORT axis with velocity,
         // which is why the ball came out sideways).
         const vx = flightTX - releaseX;
-        const vy = (flightTY - releaseY) - Math.cos(tt * Math.PI) * Math.PI * arcHeight * incArcMul;
+        const vy = (flightTY - releaseY) - Math.cos(tt * Math.PI) * Math.PI * arcHeight * incArcMul - handElev;
         ballAngle = Math.atan2(vx, -vy);
       } else {
         const tt = (t - throwPhase) / (1 - throwPhase);
@@ -5229,11 +5237,25 @@ function formatPlayResult(play) {
       if (isFirstDown) return { title: "FIRST DOWN", sub: `${yards} yards from ${passer} to ${rcvr}`, color: "#9be09b" };
       return { title: `COMPLETE +${yards}`, sub: `${passer} to ${rcvr}`, color: "#ffffff" };
     }
-    case "incomplete":
+    case "incomplete": {
       if (play.isDrop) {
         return { title: "DROP!", sub: intended ? `${intended} can't hang on` : `Receiver drops it`, color: "#e07070" };
       }
-      return { title: "INCOMPLETE", sub: intended ? `${passer} pass to ${intended} falls away` : `${passer} pass falls away`, color: "#cccccc" };
+      // Use the specific incomplete reason for the banner sub-text so
+      // the viewer knows WHAT happened, not just that the pass was
+      // incomplete. Maps incReason → human-readable phrase.
+      const reasonMap = {
+        overthrown:  intended ? `${passer} overthrows ${intended}`       : `Pass sails high`,
+        underthrown: intended ? `${passer} throws short of ${intended}`   : `Pass falls short`,
+        throwaway:   `${passer} throws it away — out of bounds`,
+        batted:      `Batted down at the line`,
+        offtarget:   intended ? `${passer} off-target to ${intended}`     : `Pass off-target`,
+      };
+      const sub = reasonMap[play.incReason]
+        || (intended ? `${passer} pass to ${intended} hits the turf`
+                     : `${passer} pass hits the turf`);
+      return { title: "INCOMPLETE", sub, color: "#cccccc" };
+    }
     case "int":
       return { title: "INTERCEPTION!", sub: `${passer} picked off — turnover`, color: "#e07070", big: true };
     case "sack": {
