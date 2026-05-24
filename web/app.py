@@ -521,6 +521,17 @@ with tab_keepers:
                     bl = (pv_pos.get(c['forfeit_round']) or {}).get(c['position'],
                                                                     pv_blind.get(c['forfeit_round'], 0.0))
                     net = round(p.vbd - bl, 1)
+                    # Round savings vs ADP: positive = keeper cost is LATER
+                    # (cheaper pick) than where market would draft this player.
+                    # Negative = OVERPAY (you give up an earlier/better pick
+                    # than market price). Loveland: cost R8, ADP R5 -> +3 saved.
+                    if p.adp < 999:
+                        adp_round = max(1, int((p.adp - 1) // league.num_teams) + 1)
+                        savings = c['forfeit_round'] - adp_round
+                        savings_str = (f"+{savings} (steal)" if savings >= 2
+                                       else f"{savings:+d}")
+                    else:
+                        savings_str = "—"
                     yr3 = c['years_kept'] >= 3
                     pick_rows.append({
                         "Keep?": c['player_name'] in model_picks,
@@ -528,6 +539,8 @@ with tab_keepers:
                         "Pos": c['position'],
                         "Prior R": c['prior_round'],
                         "Natural cost": f"R{c['forfeit_round']}",
+                        "ADP rd": ("R" + str(adp_round)) if p.adp < 999 else "—",
+                        "Savings": savings_str,
                         "Raw VBD": raw,
                         "R-baseline": round(bl, 1),
                         "Net (natural)": net,
@@ -541,7 +554,7 @@ with tab_keepers:
                             "Keep?", help="Check up to 4 (yr3 cap blocked)."),
                     },
                     disabled=["Player","Pos","Prior R","Natural cost",
-                              "Raw VBD","R-baseline","Net (natural)",
+                              "ADP rd","Savings","Raw VBD","R-baseline","Net (natural)",
                               "Years kept","Status"],
                     hide_index=True, use_container_width=True,
                     key="override_keepers_editor",
