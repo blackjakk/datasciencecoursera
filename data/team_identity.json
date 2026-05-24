@@ -1,0 +1,149 @@
+{
+  "_comment": "Maps each league member (canonical identity) to their team names across xlsx, Sleeper, and Yahoo. roster_id is the Sleeper roster_id (stable 2023+). xlsx_nickname is the short name used in MONEY_LEAGUE.xlsx 'Team' column. yahoo_team_names is keyed by season since members rename teams every year. confidence: high = directly matched via display_name or persistent Yahoo name; medium = inferred from xlsx nicknames and process of elimination; low = guess based on context. EDIT THIS FILE to fix mistakes.",
+
+  "managers": {
+    "brian_berger": {
+      "canonical_name": "Brian (BergerBoy)",
+      "sleeper_roster_id": 11,
+      "sleeper_display_name": "tjt5055",
+      "xlsx_nicknames": ["Brian", "Berger Boy Briga"],
+      "yahoo_team_names": {
+        "2015": "BergerBoy Brigade", "2016": "BergerBoy Brigade", "2017": "BergerBoy Brigade",
+        "2018": "BergerBoy Brigade", "2019": "BergerBoy Brigade", "2020": "BergerBoy Brigade",
+        "2021": "BergerBoy Brigade", "2022": "BergerBoy Brigade"
+      },
+      "confidence": "high"
+    },
+    "kyle_figgy": {
+      "canonical_name": "Kyle (Figgy)",
+      "sleeper_roster_id": 5,
+      "sleeper_display_name": "kylefiggy",
+      "xlsx_nicknames": ["Figgy"],
+      "yahoo_team_names": {
+        "2015": "?", "2016": "?", "2017": "?", "2018": "?",
+        "2019": "Figgy", "2020": "Figgy", "2021": "Figgy", "2022": "Figgy"
+      },
+      "confidence": "high"
+    },
+    "lem": {
+      "canonical_name": "Lem (LEMVP)",
+      "sleeper_roster_id": 6,
+      "sleeper_display_name": "LEMVP",
+      "xlsx_nicknames": ["Lem"],
+      "yahoo_team_names": {
+        "2015": "LEMVP & Associates", "2016": "?", "2017": "?", "2018": "LEMVP & Associates",
+        "2019": "?", "2020": "?", "2021": "?", "2022": "The pigeon outside Lems window"
+      },
+      "confidence": "high"
+    },
+    "brower_barry": {
+      "canonical_name": "Brower (Barry)",
+      "sleeper_roster_id": 8,
+      "sleeper_display_name": "kbrower",
+      "xlsx_nicknames": ["Brower"],
+      "yahoo_team_names": {
+        "2015": "?", "2016": "?", "2017": "?", "2018": "?",
+        "2019": "Barry Sandals", "2020": "Barry Sandals",
+        "2021": "Barry Sandals", "2022": "Barry Sandals"
+      },
+      "confidence": "high"
+    },
+    "ankur_patel": {
+      "canonical_name": "Ankur (Patel)",
+      "sleeper_roster_id": 3,
+      "sleeper_display_name": "apatel185",
+      "xlsx_nicknames": ["Ankur"],
+      "yahoo_team_names": {
+        "2022": "Hail Koo"
+      },
+      "confidence": "high"
+    },
+    "troy_mullings": {
+      "canonical_name": "Troy (Mullings)",
+      "sleeper_roster_id": 4,
+      "sleeper_display_name": "troymullings",
+      "xlsx_nicknames": ["Troy"],
+      "yahoo_team_names": {
+        "2015": "?", "2016": "?", "2017": "?", "2018": "?",
+        "2019": "?", "2020": "?", "2021": "?", "2022": "?"
+      },
+      "confidence": "high_for_xlsx_only"
+    },
+    "big_guap": {
+      "canonical_name": "Big Guap",
+      "sleeper_roster_id": 9,
+      "sleeper_display_name": "bigguap69",
+      "xlsx_nicknames": ["Big Guap 69", "Bgu"],
+      "yahoo_team_names": {
+        "2015": "Big Don's Cuties?", "2018": "?",
+        "2019": "Guap Gang", "2020": "Guap Gang", "2021": "Guap Gang",
+        "2022": "?"
+      },
+      "confidence": "high_for_sleeper"
+    },
+    "eric_m": {
+      "canonical_name": "Eric (Mattesich)",
+      "sleeper_roster_id": 7,
+      "sleeper_display_name": "emattessich",
+      "xlsx_nicknames": ["Eric"],
+      "yahoo_team_names": {
+        "2015": "?", "2016": "?", "2017": "?", "2018": "?",
+        "2019": "?", "2020": "?", "2021": "?", "2022": "?"
+      },
+      "confidence": "medium"
+    },
+    "tim_breswick": {
+      "canonical_name": "Tim (Breswick)",
+      "sleeper_roster_id": 1,
+      "sleeper_display_name": "TBreswick",
+      "xlsx_nicknames": ["Tim"],
+      "yahoo_team_names": {
+        "2017": "?", "2018": "?", "2019": "?", "2020": "?",
+        "2021": "?", "2022": "?"
+      },
+      "confidence": "medium"
+    },
+    "trevor": {
+      "canonical_name": "Trevor",
+      "sleeper_roster_id": 10,
+      "sleeper_display_name": "wvw5022 / Wi1dboy",
+      "xlsx_nicknames": ["Trevor"],
+      "yahoo_team_names": {
+        "2016": "?", "2017": "?", "2019": "Trevor’s Semifinals?"
+      },
+      "confidence": "low"
+    },
+    "donnie": {
+      "canonical_name": "Donnie",
+      "sleeper_roster_id": 2,
+      "sleeper_display_name": "dibach215",
+      "xlsx_nicknames": ["Donnie"],
+      "yahoo_team_names": {
+        "2020": "Don’s Special Guys?"
+      },
+      "confidence": "low"
+    },
+    "coop_or_josh_or_dave": {
+      "canonical_name": "Coop / Dave / Josh (rid 12)",
+      "sleeper_roster_id": 12,
+      "sleeper_display_name": "BigDickNicholas",
+      "xlsx_nicknames": ["Coop", "Dave", "Josh"],
+      "yahoo_team_names": {
+        "2015": "?"
+      },
+      "confidence": "low"
+    }
+  },
+
+  "unmatched_xlsx_nicknames": [
+    "Wang", "Nark", "Donnie (in 2015 only?)", "Mrs Doubtfire (one-time)"
+  ],
+  "unmatched_yahoo_persistent_names": [
+    "The Dream Team (2017-2022)",
+    "Deez Hos Ain't Royal (2015-2018)",
+    "Weird Flex but OK (2019-2022)",
+    "Wet Ass Posluzny (2020-2022)",
+    "Terror Squad (2019-2021)",
+    "Arnold Palmer Lite (2016-2018)"
+  ]
+}

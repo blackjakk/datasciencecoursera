@@ -1063,6 +1063,31 @@ with tab_history:
         "results data we can fetch."
     )
 
+    # Manager identity — links Yahoo team names, xlsx nicknames, and Sleeper
+    # display names to a single person. Edit data/team_identity.json to fix.
+    from fantasy_draft.team_identity import all_managers  # noqa: E402
+    with st.expander("Manager identity (Yahoo ↔ xlsx ↔ Sleeper)", expanded=False):
+        st.caption(
+            "Map each league member's Yahoo team names (pre-2023) to their "
+            "current Sleeper roster + xlsx nickname. Confidence flagged per "
+            "row. Edit `data/team_identity.json` to correct."
+        )
+        ident_rows = []
+        for m in all_managers():
+            yahoo_names = m.get("yahoo_team_names", {})
+            yrs = sorted(yahoo_names) if yahoo_names else []
+            ident_rows.append({
+                "Manager": m["canonical_name"],
+                "Sleeper rid": m.get("sleeper_roster_id"),
+                "Sleeper display": m.get("sleeper_display_name"),
+                "xlsx nick": ", ".join(m.get("xlsx_nicknames", [])),
+                "Yahoo names": " | ".join(
+                    f"{y}: {yahoo_names[y]}" for y in yrs
+                ) or "—",
+                "Confidence": m.get("confidence", ""),
+            })
+        st.dataframe(pd.DataFrame(ident_rows), use_container_width=True, hide_index=True)
+
     from fantasy_draft.results import load_all_seasons  # noqa: E402
 
     try:
