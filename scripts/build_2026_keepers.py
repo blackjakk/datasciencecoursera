@@ -59,7 +59,8 @@ PROJ_CACHE = _ROOT / "data" / "sleeper_projections_2026.json"
 OUT_PATH = _ROOT / "data" / "keepers_2026.json"
 PICK_VALUE_PATH = _ROOT / "data" / "pick_value.json"
 
-WAIVER_PRIOR_ROUND = 19   # league rule: waiver/undrafted pickups cost R17 (= 19 - 2)
+WAIVER_PRIOR_ROUND = 17   # league rule: waivers count as R17 (last round) for
+                          # keepers; the -2 penalty makes the cost R15.
 ROUND_PENALTY = 2
 MAX_KEEPERS = 4
 MAX_YEARS = 3
