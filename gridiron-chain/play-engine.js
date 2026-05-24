@@ -3478,7 +3478,10 @@ class GameSimulator {
         isTouchback, isFairCatch, isReturnTD,
         endYard: finalLand,
         kicker: P,
+        returner: PR,
         punterArch: pArch,
+        motion: { result: isTouchback ? "touchback" : isFairCatch ? "fairCatch" : "returned",
+                  contactT: 0.20, landT: 0.55 },
       });
         return { endDrive: true, punt: effectivePunt, isReturnTD };
       }
