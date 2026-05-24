@@ -133,6 +133,14 @@ with tab_setup:
             from fantasy_draft.players import enrich_with_injuries
             n_injured = enrich_with_injuries(
                 players, str(ROOT / "data" / "sleeper" / "players_nfl.json"))
+            # External superflex-aware rankings (FantasyPros 38-expert consensus
+            # + FantasyCalc 2QB-superflex trade values).
+            from fantasy_draft.rankings_overlay import overlay_rankings
+            overlay_stats = overlay_rankings(
+                players,
+                str(ROOT / "data" / "rankings_fantasypros.json"),
+                str(ROOT / "data" / "rankings_fantasycalc.json"),
+            )
             # Prefer override file (user's saved custom slate) if present.
             override_path = ROOT / "data" / "keepers_2026_override.json"
             base_path = ROOT / "data" / "keepers_2026.json"
@@ -287,9 +295,14 @@ with tab_setup:
 
     if st.session_state.players:
         n_injured = sum(1 for p in st.session_state.players if p.injury_status)
+        n_fp = sum(1 for p in st.session_state.players if p.fp_rank_overall)
+        n_fc = sum(1 for p in st.session_state.players if p.fc_value)
         msg = f"Player pool: {len(st.session_state.players)} loaded"
-        if n_injured:
-            msg += f" ({n_injured} flagged with injury status)"
+        extras = []
+        if n_injured: extras.append(f"{n_injured} injury-flagged")
+        if n_fp: extras.append(f"{n_fp} FantasyPros ranks")
+        if n_fc: extras.append(f"{n_fc} FantasyCalc values")
+        if extras: msg += f"  •  {' / '.join(extras)}"
         st.success(msg)
 
     # --- Your team selector ---
@@ -995,6 +1008,9 @@ with tab_draft:
             "Pos": c.player.position,
             "Team": c.player.team,
             "ADP": c.player.adp,
+            "FP rk": c.player.fp_rank_overall or "—",
+            "FC val": c.player.fc_value or "—",
+            "30d trend": (f"{c.player.fc_trend_30day:+}" if c.player.fc_trend_30day else "—"),
             "Proj": c.player.projection,
             "VBD": round(c.player.vbd, 1),
             "Score": round(c.score, 2),

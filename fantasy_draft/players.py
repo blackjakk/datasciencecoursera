@@ -26,6 +26,15 @@ class Player:
     injury_body_part: str = ""
     injury_notes: str = ""
     age: int = 0                 # 0 = unknown
+    # External rankings overlays (populated by fantasy_draft.rankings_overlay).
+    fp_rank_overall: int | None = None  # FantasyPros 38-expert consensus
+    fp_rank_pos: str | None = None
+    fp_tier: int | None = None
+    fp_adp_avg: float | None = None
+    fc_value: int | None = None         # FantasyCalc trade value 0-10000
+    fc_overall_rank: int | None = None
+    fc_position_rank: int | None = None
+    fc_trend_30day: int | None = None   # positive = trending up
 
     def __str__(self) -> str:
         return f"{self.name} ({self.position}-{self.team})"
