@@ -45,14 +45,19 @@ from fantasy_draft.vbd import compute_vbd_post_keepers  # noqa: E402
 from fantasy_draft.xlsx_history import load_keepers_for_year, normalize_name  # noqa: E402
 
 
-XLSX_PATH = Path("data/historical/MONEY_LEAGUE.xlsx")
-SEASON_2025 = Path("data/sleeper/league_1245039290518360064")
+# Resolve paths relative to the project root, not the caller's cwd. The
+# Streamlit app imports this module from web/app.py with cwd = repo root,
+# but on Windows the streamlit launcher can shift cwd; absolute paths keep
+# both 'python scripts/...' and the override panel working.
+_ROOT = Path(__file__).resolve().parent.parent
+XLSX_PATH = _ROOT / "data" / "historical" / "MONEY_LEAGUE.xlsx"
+SEASON_2025 = _ROOT / "data" / "sleeper" / "league_1245039290518360064"
 PICKS_PATH = SEASON_2025 / "draft_1245039290522550272_picks.json"
 ROSTERS_PATH = SEASON_2025 / "rosters.json"
-CATALOG_PATH = Path("data/sleeper/players_nfl.json")
-PROJ_CACHE = Path("data/sleeper_projections_2026.json")
-OUT_PATH = Path("data/keepers_2026.json")
-PICK_VALUE_PATH = Path("data/pick_value.json")
+CATALOG_PATH = _ROOT / "data" / "sleeper" / "players_nfl.json"
+PROJ_CACHE = _ROOT / "data" / "sleeper_projections_2026.json"
+OUT_PATH = _ROOT / "data" / "keepers_2026.json"
+PICK_VALUE_PATH = _ROOT / "data" / "pick_value.json"
 
 WAIVER_PRIOR_ROUND = 19   # league rule: waiver/undrafted pickups cost R17 (= 19 - 2)
 ROUND_PENALTY = 2
@@ -159,10 +164,10 @@ def _score_and_select(candidates: list[dict], n_iterations: int = 3) -> list[dic
     "what R5 QBs typically deliver" rather than the round-blind average.
 
     Returns the final keeper records (carryover + forced_drop)."""
-    cfg = league_from_offline(str(Path("data/sleeper")),
+    cfg = league_from_offline(str(_ROOT / "data" / "sleeper"),
                                round_penalty=ROUND_PENALTY,
                                max_years_consecutive=MAX_YEARS)
-    players = load_players("data/players_2026.csv")
+    players = load_players(str(_ROOT / "data" / "players_2026.csv"))
 
     pv_blind, pv_position_aware = _load_pick_value()
 
@@ -177,7 +182,7 @@ def _score_and_select(candidates: list[dict], n_iterations: int = 3) -> list[dic
     # Start with no keepers selected.
     selected_names: set[str] = set()
 
-    trades = [t for t in load_trades_from_sleeper_dump("data/sleeper")
+    trades = [t for t in load_trades_from_sleeper_dump(str(_ROOT / "data" / "sleeper"))
               if t.season == 2026]
 
     # Picks-owned per team per round, post-trade only — computed once from a
