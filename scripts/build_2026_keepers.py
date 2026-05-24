@@ -1,31 +1,35 @@
-"""Build the canonical 2026 keepers file from xlsx truth + 2026 projections.
+"""Build the canonical 2026 keepers file from 2025 ENDING ROSTERS + 2026
+projections (the roster-wide approach).
 
 Pipeline:
-  1. Read 2025 keepers from MONEY_LEAGUE.xlsx (41 records: 24 yr1, 14 yr2, 3 yr3).
-  2. Map each to the 2025 Sleeper draft pick via (normalized_name, round) to get
-     the team's draft_slot.
-  3. Match the player to the canonical 2026 projections name (handles
-     "CJ Stroud" vs "C.J. Stroud", etc.) so apply_keepers can find them.
-  4. Compute each eligible keeper's NET VBD (player's 2026 VBD minus the
-     expected VBD of the player you'd otherwise draft in the forfeit
-     round). Any keeper with net VBD < 0 is downgraded from "carryover"
-     to "drop_recommended" -- the team is better off forfeiting that
-     keeper slot than burning the pick on someone below replacement.
-  5. Emit data/keepers_2026.json with one record per 2025 keeper.
+  1. Walk every player on every team's 2025 end-of-season roster
+     (data/sleeper/league_<2025>/rosters.json).
+  2. Determine each candidate's prior_round:
+       - drafted in 2025 -> the round they were drafted in
+       - waiver / undrafted pickup -> 19 (so 2026 cost = R17, the last
+         round; per league rule "waiver = R17+2")
+  3. Cross-reference MONEY_LEAGUE.xlsx 2025 keeper tags to get years_kept
+     (so we can fire the 3-year cap correctly).
+  4. Compute each candidate's 2026 net VBD = post-keeper VBD minus the
+     expected VBD of the player you'd otherwise draft at the forfeit
+     round. Iterate 2 passes so replacement levels converge after
+     picking keepers.
+  5. For each team, take the top max_keepers candidates with net VBD > 0
+     and prior_round >= 3 (R1/R2 picks ineligible: forfeit_round would
+     be <= 0).
+  6. Emit data/keepers_2026.json -- the top-4-positive per team as
+     "carryover", plus all yr3 cap hits as "forced_drop" for
+     documentation.
 
 `status` is one of:
-  - "carryover":        eligible AND net VBD >= 0; will be applied to draft.
-  - "drop_recommended": eligible BUT net VBD < 0; assumed dropped.
-  - "forced_drop":      yr3 keepers hitting the 3-year cap; cannot be kept.
-
-Both "drop_recommended" and "forced_drop" records still go in the file for
-documentation, but apply_keepers (via the live-draft loader) only honors
-"carryover" status.
+  - "carryover":   in the top-4-positive set for this team; will be applied.
+  - "forced_drop": yr3 keepers hitting the 3-year cap; cannot be kept.
 """
 from __future__ import annotations
 
 import json
 import sys
+from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -33,6 +37,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from fantasy_draft.draft import Draft  # noqa: E402
 from fantasy_draft.keeper_predict import expected_vbd_curve  # noqa: E402
 from fantasy_draft.keepers import Keeper, apply_keepers  # noqa: E402
+from fantasy_draft.name_aliases import resolve_xlsx_name  # noqa: E402
 from fantasy_draft.players import load_players  # noqa: E402
 from fantasy_draft.projections import load_projections_from_cache  # noqa: E402
 from fantasy_draft.sleeper_offline import league_from_offline  # noqa: E402
@@ -42,170 +47,225 @@ from fantasy_draft.xlsx_history import load_keepers_for_year, normalize_name  # 
 
 
 XLSX_PATH = Path("data/historical/MONEY_LEAGUE.xlsx")
-PICKS_PATH = Path("data/sleeper/league_1245039290518360064/draft_1245039290522550272_picks.json")
+SEASON_2025 = Path("data/sleeper/league_1245039290518360064")
+PICKS_PATH = SEASON_2025 / "draft_1245039290522550272_picks.json"
+ROSTERS_PATH = SEASON_2025 / "rosters.json"
+CATALOG_PATH = Path("data/sleeper/players_nfl.json")
 PROJ_CACHE = Path("data/sleeper_projections_2026.json")
 OUT_PATH = Path("data/keepers_2026.json")
 
-
-def _index_picks_by_name(picks: list[dict]) -> dict[str, dict]:
-    """norm_name -> pick row (most-recent / unique match)."""
-    out: dict[str, dict] = {}
-    for p in picks:
-        meta = p.get("metadata") or {}
-        name = f"{meta.get('first_name', '').strip()} {meta.get('last_name', '').strip()}".strip()
-        if not name:
-            continue
-        out[normalize_name(name)] = p
-    return out
+WAIVER_PRIOR_ROUND = 19   # league rule: waiver/undrafted pickups cost R17 (= 19 - 2)
+ROUND_PENALTY = 2
+MAX_KEEPERS = 4
+MAX_YEARS = 3
 
 
-def _canonical_name_lookup(proj_players) -> dict[str, str]:
-    return {normalize_name(p.name): p.name for p in proj_players}
+def _canonical_for_player(player_meta: dict, name_to_canonical: dict[str, str]) -> str:
+    """Resolve a Sleeper player catalog entry to a 2026-projections canonical name."""
+    nm = player_meta.get("full_name") or (
+        f"{player_meta.get('first_name', '').strip()} "
+        f"{player_meta.get('last_name', '').strip()}"
+    ).strip()
+    if not nm:
+        return ""
+    return name_to_canonical.get(normalize_name(nm), nm)
 
 
-def _compute_net_vbd_by_canonical_name() -> dict[str, float]:
-    """Run the full pipeline (trades + keepers as if every eligible 2025
-    keeper were declared) to get a post-keeper VBD context, then compute
-    net VBD for each candidate keeper using the same curve the report
-    uses. Returns {lowercased_canonical_name: net_vbd}.
+def _build_candidates() -> list[dict]:
+    """For each (team, player) pair on the 2025 ending roster, build a
+    candidate dict with everything needed to score it as a 2026 keeper."""
+    rosters = json.loads(ROSTERS_PATH.read_text())
+    picks = json.loads(PICKS_PATH.read_text())
+    catalog = json.loads(CATALOG_PATH.read_text())
+    proj = load_projections_from_cache(PROJ_CACHE, scoring="half_ppr")
+    name_to_canonical = {normalize_name(p.name): p.name for p in proj}
 
-    The "pretend everyone keeps everything" pass is just to get the right
-    replacement levels. We then read the resulting VBDs off each keeper
-    individually.
-    """
+    # Map player_id -> 2025 draft pick (for prior_round) and keep position.
+    pick_by_pid: dict[str, dict] = {str(p["player_id"]): p for p in picks}
+
+    # xlsx 2025 tags for years_kept tracking. resolve_xlsx_name first so we
+    # match the canonical Sleeper name.
+    xlsx_keepers = load_keepers_for_year(XLSX_PATH, 2025)
+    years_kept_by_canonical: dict[str, int] = {}
+    for k in xlsx_keepers:
+        canon = resolve_xlsx_name(k.player_name) or k.player_name
+        years_kept_by_canonical[normalize_name(canon)] = k.years_kept
+
+    candidates: list[dict] = []
+    for r in rosters:
+        roster_id = int(r["roster_id"])
+        team_idx = roster_id - 1
+        for pid in (r.get("players") or []):
+            pid = str(pid)
+            cat_entry = catalog.get(pid)
+            if not cat_entry:
+                continue
+            pos = cat_entry.get("position")
+            if pos not in ("QB", "RB", "WR", "TE", "K", "DEF"):
+                continue
+            canonical = _canonical_for_player(cat_entry, name_to_canonical)
+            if not canonical:
+                continue
+
+            # prior_round: from 2025 draft pick OR waiver default.
+            if pid in pick_by_pid:
+                prior_round = int(pick_by_pid[pid]["round"])
+            else:
+                prior_round = WAIVER_PRIOR_ROUND
+
+            forfeit_round = prior_round - ROUND_PENALTY
+            if forfeit_round < 1:
+                # R1 or R2 picks: not eligible (cost would be 0 or negative).
+                continue
+
+            years_kept = years_kept_by_canonical.get(normalize_name(canonical), 0)
+
+            candidates.append({
+                "team_idx": team_idx,
+                "roster_id": roster_id,
+                "player_id": pid,
+                "player_name": canonical,
+                "position": pos,
+                "prior_round": prior_round,
+                "forfeit_round": forfeit_round,
+                "years_kept": years_kept,
+                "is_waiver": pid not in pick_by_pid,
+            })
+    return candidates
+
+
+def _score_and_select(candidates: list[dict], n_iterations: int = 3) -> list[dict]:
+    """Compute net VBD for each candidate, pick top-MAX_KEEPERS positive per
+    team. Iterates so replacement levels stabilize after the first selection.
+
+    Returns the final keeper records (carryover + forced_drop)."""
     cfg = league_from_offline(str(Path("data/sleeper")),
-                               round_penalty=2, max_years_consecutive=3)
+                               round_penalty=ROUND_PENALTY,
+                               max_years_consecutive=MAX_YEARS)
     players = load_players("data/players_2026.csv")
 
-    # Pass 1: pretend every eligible 2025 keeper carries over.
-    xlsx_keepers = load_keepers_for_year(XLSX_PATH, 2025)
-    picks = json.loads(PICKS_PATH.read_text())
-    pick_idx = _index_picks_by_name(picks)
-    proj = load_projections_from_cache(PROJ_CACHE, scoring="half_ppr")
-    canon = _canonical_name_lookup(proj)
+    # Start with no keepers selected.
+    selected_names: set[str] = set()
 
-    draft = Draft.new(cfg)
-    trades = [t for t in load_trades_from_sleeper_dump("data/sleeper")
-              if t.season == 2026]
-    apply_trades(draft, trades)
-    applied = []
-    for k in xlsx_keepers:
-        if k.years_kept >= 3:
-            continue
-        norm = normalize_name(k.player_name)
-        p = pick_idx.get(norm)
-        if not p:
-            continue
-        canonical = canon.get(norm) or k.player_name
-        applied.append(Keeper(
-            team_idx=int(p["roster_id"]) - 1,
-            player_name=canonical,
-            prior_round=k.round_num,
-            years_kept=k.years_kept,
-        ))
-    apply_keepers(draft, players, applied)
-    kept = {p.player.name for p in draft.picks if p.is_keeper and p.player}
-    _, replacement_proj = compute_vbd_post_keepers(players, cfg, keeper_names=kept)
-    # Assign post-keeper VBD to the kept players too.
-    kept_lc = {n.lower() for n in kept}
-    for p in players:
-        if p.name.lower() in kept_lc:
-            p.vbd = p.projection - replacement_proj.get(p.position, 0.0)
+    for it in range(n_iterations):
+        draft = Draft.new(cfg)
+        trades = [t for t in load_trades_from_sleeper_dump("data/sleeper")
+                  if t.season == 2026]
+        apply_trades(draft, trades)
+        applied = []
+        for nm in selected_names:
+            # Find the candidate matching this name to recover prior_round.
+            cand = next((c for c in candidates if c["player_name"] == nm), None)
+            if cand is None:
+                continue
+            applied.append(Keeper(
+                team_idx=cand["team_idx"],
+                player_name=nm,
+                prior_round=cand["prior_round"],
+                years_kept=cand["years_kept"],
+            ))
+        apply_keepers(draft, players, applied)
+        kept = {p.player.name for p in draft.picks if p.is_keeper and p.player}
+        _, replacement_proj = compute_vbd_post_keepers(players, cfg, keeper_names=kept)
+        kept_lc = {n.lower() for n in kept}
+        for p in players:
+            if p.name.lower() in kept_lc:
+                p.vbd = p.projection - replacement_proj.get(p.position, 0.0)
+        curve = expected_vbd_curve(players, cfg)
+        pbn = {p.name.lower(): p for p in players}
 
-    curve = expected_vbd_curve(players, cfg)
-    pbn = {p.name.lower(): p for p in players}
+        # Score every candidate.
+        for c in candidates:
+            p = pbn.get(c["player_name"].lower())
+            if p is None:
+                c["net_vbd"] = None
+                continue
+            c["net_vbd"] = round(p.vbd - curve.get(c["forfeit_round"], 0.0), 1)
+            c["raw_vbd"] = round(p.vbd, 1)
+            c["adp"] = p.adp
 
-    out: dict[str, float] = {}
-    for k in xlsx_keepers:
-        if k.years_kept >= 3:
-            continue
-        norm = normalize_name(k.player_name)
-        canonical = canon.get(norm) or k.player_name
-        p = pbn.get(canonical.lower())
-        if p is None:
-            continue
-        forfeit = max(1, k.round_num - cfg.keepers.round_penalty)
-        out[canonical.lower()] = p.vbd - curve.get(forfeit, 0.0)
-    return out
+        # Re-pick top-4 positive per team (ignore yr3 cap = forced_drop).
+        new_selected: set[str] = set()
+        by_team: dict[int, list[dict]] = defaultdict(list)
+        for c in candidates:
+            by_team[c["team_idx"]].append(c)
+        for team_idx, cands in by_team.items():
+            eligible = [c for c in cands
+                        if c["years_kept"] < MAX_YEARS
+                        and c.get("net_vbd") is not None
+                        and c["net_vbd"] > 0]
+            eligible.sort(key=lambda c: -c["net_vbd"])
+            for c in eligible[:MAX_KEEPERS]:
+                new_selected.add(c["player_name"])
 
+        if new_selected == selected_names:
+            break
+        selected_names = new_selected
+        print(f"  iter {it+1}: {len(selected_names)} keepers selected")
 
-def build() -> list[dict]:
-    keepers = load_keepers_for_year(XLSX_PATH, 2025)
-    picks = json.loads(PICKS_PATH.read_text())
-    pick_idx = _index_picks_by_name(picks)
-    proj = load_projections_from_cache(PROJ_CACHE, scoring="half_ppr")
-    canon = _canonical_name_lookup(proj)
-    net_vbd_lookup = _compute_net_vbd_by_canonical_name()
-
+    # Build the output records.
     out: list[dict] = []
-    for k in keepers:
-        norm = normalize_name(k.player_name)
-        p = pick_idx.get(norm)
-        if not p:
-            print(f"WARN: no Sleeper pick for {k.player_name} R{k.round_num}; skipping.")
+    selected_set = selected_names
+    seen = set()
+    for c in candidates:
+        is_selected = c["player_name"] in selected_set
+        is_forced = c["years_kept"] >= MAX_YEARS
+        # Only emit:
+        #   1. selected carryovers (top-4-positive per team)
+        #   2. forced_drops (yr3 cap)
+        if not (is_selected or is_forced):
             continue
-        canonical = canon.get(norm)
-        if canonical is None:
-            # Player not in 2026 projections (retired? out of league?). Keep
-            # the xlsx name; the live draft will flag it on apply.
-            canonical = k.player_name
-            print(f"WARN: {k.player_name} not in 2026 projections; using raw name.")
-
-        draft_slot_2025 = int(p["draft_slot"])
-        roster_id = int(p["roster_id"])
-
-        if k.years_kept >= 3:
-            status = "forced_drop"
-            net_vbd = None
-        else:
-            net_vbd = round(net_vbd_lookup.get(canonical.lower(), 0.0), 1)
-            status = "carryover" if net_vbd >= 0 else "drop_recommended"
-
+        key = (c["team_idx"], c["player_name"])
+        if key in seen:
+            continue
+        seen.add(key)
         out.append({
-            "team_idx": roster_id - 1,          # 0..11; matches trades' roster_id key
-            "roster_id": roster_id,
-            "draft_slot_2025": draft_slot_2025,  # informational only
-            "player_name": canonical,
-            "position": p["metadata"]["position"],
-            "prior_round": k.round_num,
-            "years_kept": k.years_kept,
-            "status": status,
-            "net_vbd": net_vbd,
+            "team_idx": c["team_idx"],
+            "roster_id": c["roster_id"],
+            "player_name": c["player_name"],
+            "position": c["position"],
+            "prior_round": c["prior_round"],
+            "forfeit_round": c["forfeit_round"],
+            "years_kept": c["years_kept"],
+            "status": "forced_drop" if is_forced else "carryover",
+            "net_vbd": c.get("net_vbd"),
+            "raw_vbd": c.get("raw_vbd"),
+            "adp": c.get("adp"),
+            "is_waiver": c.get("is_waiver"),
         })
     return out
 
 
 def main():
-    records = build()
+    candidates = _build_candidates()
+    print(f"Built {len(candidates)} keeper candidates across all 12 rosters.")
+    records = _score_and_select(candidates)
+
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     OUT_PATH.write_text(json.dumps(records, indent=2))
 
     carryover = [r for r in records if r["status"] == "carryover"]
-    drop_rec = [r for r in records if r["status"] == "drop_recommended"]
     forced = [r for r in records if r["status"] == "forced_drop"]
-    by_team: dict[int, list[dict]] = {}
+    by_team: dict[int, list[dict]] = defaultdict(list)
     for r in records:
-        by_team.setdefault(r["team_idx"], []).append(r)
+        by_team[r["team_idx"]].append(r)
 
     print(f"\nWrote {OUT_PATH} with {len(records)} records "
-          f"({len(carryover)} carryover, {len(drop_rec)} drop_recommended, "
-          f"{len(forced)} forced drops).")
-    print("\nPer-team summary (keyed by roster_id):")
+          f"({len(carryover)} carryover, {len(forced)} forced drops).")
+    print("\nPer-team selected keepers:")
     for idx in sorted(by_team):
-        recs = by_team[idx]
+        recs = sorted(by_team[idx], key=lambda r: -(r.get("net_vbd") or 0))
         carry = [r for r in recs if r["status"] == "carryover"]
-        dropr = [r for r in recs if r["status"] == "drop_recommended"]
         forced_team = [r for r in recs if r["status"] == "forced_drop"]
-        keep_names = ", ".join(f"{r['player_name']}(+{r['net_vbd']:.0f})"
-                                for r in carry)
-        drop_names = ", ".join(f"{r['player_name']}({r['net_vbd']:.0f})"
-                                for r in dropr)
-        forced_names = ", ".join(r['player_name'] for r in forced_team)
-        print(f"  roster {idx+1:>2}: {len(carry)} KEEP [{keep_names}]")
-        if dropr:
-            print(f"             {len(dropr)} DROP [{drop_names}]")
-        if forced_team:
-            print(f"             {len(forced_team)} FORCED [{forced_names}]")
+        kn = ", ".join(f"{r['player_name']}(R{r['forfeit_round']}, "
+                        f"{r.get('net_vbd', 0):+.0f})" for r in carry)
+        fn = ", ".join(f"{r['player_name']}" for r in forced_team)
+        total = sum(r.get("net_vbd") or 0 for r in carry)
+        print(f"  roster {idx+1:>2}: {len(carry)} KEEP, total {total:+.0f}")
+        if kn:
+            print(f"             {kn}")
+        if fn:
+            print(f"             FORCED: {fn}")
 
 
 if __name__ == "__main__":
