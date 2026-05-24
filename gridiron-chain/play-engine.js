@@ -3672,6 +3672,22 @@ class GameSimulator {
           this.score[this.poss === "home" ? "away" : "home"] += 6;
           def.team.def_td = (def.team.def_td || 0) + 1;
         }
+        // PATH B motion intent for INT plays. Engine knows the
+        // intercepter's role (CB / S based on coverage assignment),
+        // return distance, whether it's a pick-six. Animation renders
+        // it. Same schema as run-play fumble motion.
+        const _intMotion = {
+          intercepterRole: (intBy && this.defR && this.defR.starters)
+            ? (intBy === this.defR.starters.cb1 || intBy === this.defR.starters.cb2 ? "CB"
+              : intBy === this.defR.starters.s1 || intBy === this.defR.starters.s2  ? "S"
+              : intBy === this.defR.starters.nb                                      ? "NB"
+              :                                                                       "LB")
+            : "CB",
+          interceptT: 0.55,         // catch fraction of action
+          returnYds:  finalRetYds,
+          isPickSix:  isPickSix,
+          isTouchback: isTouchback,
+        };
         this._pushVisual({
           kind: "int", desc: isPickSix
             ? `PICK SIX! ${intBy} returns it ${finalRetYds} yds for a touchdown!`
@@ -3685,6 +3701,7 @@ class GameSimulator {
           intReturnYds: finalRetYds, isPickSix, isTouchback, intSpotYL,
           isPlayAction, isFleaFlicker,
           concept: this._lastPassConcept, coverage: this._lastPassCoverage,
+          motion: _intMotion,
         });
         if (isPickSix) this._defScoreXP();
         // Momentum: defense takes ball (+3); pick-six = catastrophic for

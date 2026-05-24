@@ -3448,6 +3448,51 @@ function buildAnimForPlay(play, prevPlay) {
         ctx.fillText("TOUCHDOWN!", FIELD.W / 2, FIELD.H / 2);
         ctx.restore();
       }
+      // INT CONTEXT CARD — same treatment as fumble. User: "interception
+      // needs to have context info too." Pulls from play.passer /
+      // play.defender (intercepter) / play.intended / play.intReturnYds.
+      if (play.kind === "int" && aT > throwPhase) {
+        const intLocalT = (aT - throwPhase) / Math.max(0.001, 1 - throwPhase);
+        const fadeT = Math.min(1, intLocalT * 4) * Math.min(1, (1 - intLocalT) * 6);
+        const lastName = (n) => String(n || "").split(/\s+/).pop().toUpperCase();
+        const passer  = lastName(play.passer);
+        const picker  = lastName(play.defender);
+        const target  = lastName(play.intended);
+        const retYds  = play.intReturnYds || 0;
+        const downTag = play.down ? `${play.down}${play.down===1?"ST":play.down===2?"ND":play.down===3?"RD":"TH"}` : "";
+        const ytgTag  = (play.ytg != null) ? ` & ${play.ytg}` : "";
+        // 3-line card
+        const line1 = downTag ? `${downTag}${ytgTag}` : "INTERCEPTION";
+        const line2 = target
+          ? `${passer} intended for ${target} — ${picker} steps in front`
+          : `${passer} pass picked off by ${picker}`;
+        const line3 = play.isPickSix          ? "🚀 PICK SIX — DEFENSIVE TOUCHDOWN"
+                    : play.isTouchback        ? "Touchback — recovered in the end zone"
+                    : retYds > 0              ? `Returned ${retYds} yds`
+                    :                            "No return — tackled immediately";
+        ctx.save();
+        ctx.textAlign = "left";
+        ctx.textBaseline = "top";
+        const cardX = 24, cardY = FIELD.H - 96;
+        const cardW = 420, cardH = 76;
+        ctx.fillStyle = `rgba(0,0,0,${fadeT * 0.72})`;
+        ctx.fillRect(cardX, cardY, cardW, cardH);
+        ctx.strokeStyle = `rgba(120,180,255,${fadeT * 0.95})`;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(cardX, cardY, cardW, cardH);
+        ctx.font = "bold 11px monospace";
+        ctx.fillStyle = `rgba(120,180,255,${fadeT})`;
+        ctx.fillText(line1, cardX + 12, cardY + 10);
+        ctx.font = "bold 13px sans-serif";
+        ctx.fillStyle = `rgba(255,255,255,${fadeT})`;
+        ctx.fillText(line2, cardX + 12, cardY + 30);
+        ctx.font = "bold 13px sans-serif";
+        ctx.fillStyle = play.isPickSix
+          ? `rgba(255,212,77,${fadeT})`
+          : `rgba(255,150,80,${fadeT})`;
+        ctx.fillText(line3, cardX + 12, cardY + 52);
+        ctx.restore();
+      }
       drawPreSnapCallouts(ctx, t, dur);
     }};
   }
