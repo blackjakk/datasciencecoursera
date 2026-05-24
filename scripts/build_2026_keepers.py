@@ -35,7 +35,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from fantasy_draft.draft import Draft  # noqa: E402
-from fantasy_draft.keeper_predict import expected_vbd_curve  # noqa: E402
 from fantasy_draft.keepers import Keeper, apply_keepers  # noqa: E402
 from fantasy_draft.name_aliases import resolve_xlsx_name  # noqa: E402
 from fantasy_draft.players import load_players  # noqa: E402
@@ -53,6 +52,7 @@ ROSTERS_PATH = SEASON_2025 / "rosters.json"
 CATALOG_PATH = Path("data/sleeper/players_nfl.json")
 PROJ_CACHE = Path("data/sleeper_projections_2026.json")
 OUT_PATH = Path("data/keepers_2026.json")
+PICK_VALUE_PATH = Path("data/pick_value.json")
 
 WAIVER_PRIOR_ROUND = 19   # league rule: waiver/undrafted pickups cost R17 (= 19 - 2)
 ROUND_PENALTY = 2
@@ -134,15 +134,45 @@ def _build_candidates() -> list[dict]:
     return candidates
 
 
+def _load_pick_value() -> tuple[dict[int, float], dict[int, dict[str, float]]]:
+    """Load empirical pick value chart. Returns (round->mean_vbd_blind,
+    round->{pos: mean_vbd_position_aware})."""
+    if not PICK_VALUE_PATH.exists():
+        sys.exit(f"ERROR: {PICK_VALUE_PATH} missing. Run "
+                 f"scripts/build_pick_value.py first.")
+    raw = json.loads(PICK_VALUE_PATH.read_text())
+    blind = {int(r): d["mean_vbd"] for r, d in raw["by_round"].items()}
+    position_aware: dict[int, dict[str, float]] = {}
+    for r, per_pos in raw["by_round_position"].items():
+        position_aware[int(r)] = {pos: d["mean_vbd"] for pos, d in per_pos.items()}
+    return blind, position_aware
+
+
 def _score_and_select(candidates: list[dict], n_iterations: int = 3) -> list[dict]:
     """Compute net VBD for each candidate, pick top-MAX_KEEPERS positive per
     team. Iterates so replacement levels stabilize after the first selection.
+
+    Uses the EMPIRICAL pick-value chart (mean VBD actually delivered by
+    historical players drafted at each round/position) as the comparison
+    baseline instead of a current-year projection-based VBD curve. The
+    position-aware variant is used so a keeper QB at R5 is judged against
+    "what R5 QBs typically deliver" rather than the round-blind average.
 
     Returns the final keeper records (carryover + forced_drop)."""
     cfg = league_from_offline(str(Path("data/sleeper")),
                                round_penalty=ROUND_PENALTY,
                                max_years_consecutive=MAX_YEARS)
     players = load_players("data/players_2026.csv")
+
+    pv_blind, pv_position_aware = _load_pick_value()
+
+    def _baseline_for(round_num: int, position: str) -> float:
+        """Position-aware historical baseline VBD at this forfeit round."""
+        per_pos = pv_position_aware.get(round_num) or {}
+        if position in per_pos:
+            return per_pos[position]
+        # Fallback: round-blind mean if position has no sample at this round.
+        return pv_blind.get(round_num, 0.0)
 
     # Start with no keepers selected.
     selected_names: set[str] = set()
@@ -154,7 +184,6 @@ def _score_and_select(candidates: list[dict], n_iterations: int = 3) -> list[dic
         apply_trades(draft, trades)
         applied = []
         for nm in selected_names:
-            # Find the candidate matching this name to recover prior_round.
             cand = next((c for c in candidates if c["player_name"] == nm), None)
             if cand is None:
                 continue
@@ -171,17 +200,18 @@ def _score_and_select(candidates: list[dict], n_iterations: int = 3) -> list[dic
         for p in players:
             if p.name.lower() in kept_lc:
                 p.vbd = p.projection - replacement_proj.get(p.position, 0.0)
-        curve = expected_vbd_curve(players, cfg)
         pbn = {p.name.lower(): p for p in players}
 
-        # Score every candidate.
+        # Score every candidate using EMPIRICAL pick value at forfeit round.
         for c in candidates:
             p = pbn.get(c["player_name"].lower())
             if p is None:
                 c["net_vbd"] = None
                 continue
-            c["net_vbd"] = round(p.vbd - curve.get(c["forfeit_round"], 0.0), 1)
+            baseline = _baseline_for(c["forfeit_round"], c["position"])
+            c["net_vbd"] = round(p.vbd - baseline, 1)
             c["raw_vbd"] = round(p.vbd, 1)
+            c["pick_value_baseline"] = round(baseline, 1)
             c["adp"] = p.adp
 
         # Re-pick top-4 positive per team (ignore yr3 cap = forced_drop).
@@ -230,6 +260,7 @@ def _score_and_select(candidates: list[dict], n_iterations: int = 3) -> list[dic
             "status": "forced_drop" if is_forced else "carryover",
             "net_vbd": c.get("net_vbd"),
             "raw_vbd": c.get("raw_vbd"),
+            "pick_value_baseline": c.get("pick_value_baseline"),
             "adp": c.get("adp"),
             "is_waiver": c.get("is_waiver"),
         })

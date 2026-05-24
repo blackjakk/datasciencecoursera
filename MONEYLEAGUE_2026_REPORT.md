@@ -1,6 +1,6 @@
 # MONEYLEAGUE 2026 — Pre-Draft Snapshot
 
-*Generated 2026-05-24 00:34 UTC from `data/*.json` + `MONEY_LEAGUE.xlsx`.*
+*Generated 2026-05-24 00:44 UTC from `data/*.json` + `MONEY_LEAGUE.xlsx`.*
 
 **Format:** 12 teams · 17-round superflex · half-PPR · 4 keepers max · 2-round penalty · 3-year consecutive cap · 11 years of history (since 2015).
 
@@ -8,7 +8,7 @@
 
 ## Keeper landscape
 
-44 players tagged as keepers in 2025 → **41 roll into 2026** at cost − 2. **3 yr3 keepers hit the cap** and return to the pool:
+41 players tagged as keepers in 2025 → **38 roll into 2026** at cost − 2. **3 yr3 keepers hit the cap** and return to the pool:
 
 | Player | Pos | 2026 ADP | VBD | Last team |
 |---|---|---|---|---|
@@ -16,7 +16,7 @@
 | Jordan Love | QB | 126.2 | +29.7 | Guap's Guys |
 | Geno Smith | QB | — | -30.3 | I Herald LEMVP |
 
-2 of 12 teams have **fewer than 4 carryovers** and will fill the remaining slots from the waiver/undrafted pool.
+3 of 12 teams have **fewer than 4 carryovers** and will fill the remaining slots from the waiver/undrafted pool.
 
 ---
 
@@ -26,30 +26,30 @@ Net VBD = player's VBD − expected VBD at the round they cost. Higher = more ke
 
 | Cost | Player | Pos | Net VBD | Team |
 |---|---|---|---:|---|
-| R11 | Puka Nacua | WR | **+120.3** | BergerBoy Brigade ⭐️⭐️⭐️ |
-| R11 | Trey McBride | TE | **+66.4** | ⭐️⭐️⭐️ |
-| R5 | Jaxon Smith-Njigba | WR | **+63.4** | Barry Sandals |
-| R11 | Chase Brown | RB | **+59.5** | I Herald LEMVP |
-| R6 | De'Von Achane | RB | **+52.4** | BergerBoy Brigade ⭐️⭐️⭐️ |
-| R7 | Drake Maye | QB | **+41.8** | TBreswick |
-| R11 | Kyren Williams | RB | **+39.0** | Barry Sandals |
-| R8 | Jaxson Dart | QB | **+35.8** | Barry Sandals |
+| R11 | Puka Nacua | WR | **+119.5** | BergerBoy Brigade ⭐️⭐️⭐️ |
+| R5 | Jaxon Smith-Njigba | WR | **+68.2** | Barry Sandals |
+| R11 | Trey McBride | TE | **+52.8** | ⭐️⭐️⭐️ |
+| R11 | Chase Brown | RB | **+47.9** | I Herald LEMVP |
+| R6 | De'Von Achane | RB | **+43.7** | BergerBoy Brigade ⭐️⭐️⭐️ |
+| R9 | Javonte Williams | RB | **+23.9** | TBreswick |
+| R9 | Luther Burden | WR | **+23.2** | Guap's Guys |
+| R17 | Christian Watson | WR | **+21.4** | Guap's Guys |
 
 **Team keeper-value totals** (sum of net VBD across carryovers):
 
 | Team | Keepers | VBD total |
 |---|---:|---:|
-| BergerBoy Brigade ⭐️⭐️⭐️ | 4 | **+198.5** |
-| Barry Sandals | 4 | **+161.5** |
-| ⭐️⭐️⭐️ | 4 | **+103.3** |
-| I Herald LEMVP | 4 | +97.6 |
-| Guap's Guys | 4 | +86.1 |
-| TBreswick | 4 | +77.0 |
-| she Tuten on my Bhayshul | 4 | +59.3 |
-| Wi1dboy | 4 | +51.4 |
-| Unicorn Poo | 3 | +30.4 |
-| kylefiggy | 4 | +23.1 |
-| Chester A. Arthur | 2 | +21.4 |
+| BergerBoy Brigade ⭐️⭐️⭐️ | 4 | **+132.8** |
+| Barry Sandals | 4 | +63.4 |
+| ⭐️⭐️⭐️ | 4 | +36.0 |
+| Unicorn Poo | 3 | +19.4 |
+| TBreswick | 4 | +5.5 |
+| Wi1dboy | 4 | -9.2 |
+| Guap's Guys | 4 | -13.0 |
+| she Tuten on my Bhayshul | 4 | -24.4 |
+| Trez Bridges & Co. | 1 | -31.1 |
+| I Herald LEMVP | 4 | -46.7 |
+| kylefiggy | 2 | -49.1 |
 
 ---
 
