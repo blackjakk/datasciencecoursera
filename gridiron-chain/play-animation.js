@@ -2819,11 +2819,11 @@ function buildAnimForPlay(play, prevPlay) {
       // PATH B Phase 3b — engine-emitted route track wins if present.
       // dyYd in the track is "yards toward midfield", so animation
       // projects with sign(cy - formationY). Falls back to legacy
-      // concept-driven ctrl logic otherwise.
-      const _wrMotionTrack = (play.motion && play.motion.tracks && play.motion.tracks.targetWR) || null;
-      const _wrMotionSlot = play.motion && play.motion.targetSlot;
-      const _wrMotionMatches = _wrMotionTrack && _wrMotionSlot === wrChoice;
-      if (_wrMotionMatches && typeof MotionPlayback !== "undefined") {
+      // concept-driven ctrl logic otherwise. Phase 4 keys tracks by
+      // slot (tracks.wr1 / wr2 / te / rb), so we read directly.
+      const _wrMotionTrack = (play.motion && play.motion.tracks)
+        ? play.motion.tracks[wrChoice] : null;
+      if (_wrMotionTrack && typeof MotionPlayback !== "undefined") {
         // Sample at action time (aT) — engine waypoints are in the same scale.
         const sample = MotionPlayback.sampleTrack(_wrMotionTrack, aT);
         if (sample) {

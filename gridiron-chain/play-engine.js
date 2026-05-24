@@ -1509,6 +1509,62 @@ class GameSimulator {
     }
     return tracks;
   }
+  // Build the post-catch tackler pursuit track. Formation start +
+  // converge on the receiver's catch + YAC endpoint at t=0.78.
+  _buildPassTacklerTrack(opts) {
+    const { tacklerSlot, tacklerName, targetSlot, targetDepth, yac, throwT, routeTracks } = opts;
+    const startBySlot = {
+      cb1: { dxYd: 5,  dyYd: -16 },
+      cb2: { dxYd: 5,  dyYd:  16 },
+      fs:  { dxYd: 12, dyYd:   0 },
+      ss:  { dxYd: 8,  dyYd:   5 },
+      lb1: { dxYd: 4,  dyYd:  -3 },
+      lb2: { dxYd: 4,  dyYd:   0 },
+      lb3: { dxYd: 4,  dyYd:   3 },
+      nb:  { dxYd: 5,  dyYd: -10 },
+    };
+    const start = startBySlot[tacklerSlot];
+    if (!start) return null;
+    // Resolve receiver's catch + YAC endpoint in absolute (LOS, cy)
+    // yards. Receiver tracks emit dyYd as "toward midfield" relative
+    // to the formation slot — convert to absolute via slot sign +
+    // formation offset.
+    const wrSign = targetSlot === "wr1" ? -1
+                 : targetSlot === "wr2" ?  1
+                 : targetSlot === "te"  ?  1
+                 : targetSlot === "rb"  ?  1
+                 : 0;
+    const wrFormOffsetYd = targetSlot === "wr1" || targetSlot === "wr2" ? 16
+                         : targetSlot === "te" ? 5
+                         : targetSlot === "rb" ? 1.87
+                         : 0;
+    // Sample the route track's catch waypoint for the actual latAtCatch
+    // (cleaner than recomputing concept shape).
+    let endLatAbs = 0;
+    if (targetSlot && routeTracks && routeTracks[targetSlot]) {
+      const wps = routeTracks[targetSlot].waypoints;
+      // throwT waypoint is the third (catch moment); ydyYd is "toward
+      // midfield" so its absolute value is the slot's lateral
+      // displacement from formation.
+      const catchWp = wps.find(w => Math.abs(w.t - throwT) < 0.01) || wps[2];
+      if (catchWp) endLatAbs = catchWp.dyYd;
+    }
+    const endDxYd = targetDepth + yac;
+    const endDyAbs = wrSign * (wrFormOffsetYd - endLatAbs);
+    return {
+      role: tacklerSlot.toUpperCase(),
+      tacklerName,
+      waypoints: [
+        { t: 0.00,        dxYd: start.dxYd,                                                            dyYd: start.dyYd },
+        { t: throwT * 0.6,
+                          dxYd: start.dxYd - (tacklerSlot.startsWith("cb") ? 0 : 1.5),
+                          dyYd: start.dyYd * 0.7 },
+        { t: throwT,      dxYd: targetDepth - 2,                                                       dyYd: endDyAbs * 0.6 },
+        { t: 0.78,        dxYd: endDxYd,                                                               dyYd: endDyAbs },
+        { t: 1.00,        dxYd: endDxYd,                                                               dyYd: endDyAbs },
+      ],
+    };
+  }
   // Build LB / FS / SS coverage-aware tracks for pass plays.
   // Coverage matters: C0_BLITZ sends LBs at the QB, C1_MAN puts LBs
   // on TE/RB, zone coverages drop them to hook zones at depth.
@@ -4396,8 +4452,7 @@ class GameSimulator {
               targetSlot: "rb",
               throwT: _scrThrowT,
               dropDepth: 2,
-              tracks: { ..._scrRoutes, rb: _scrCarrierTrack, ..._scrZoneDrops,
-                        targetWR: _scrCarrierTrack },
+              tracks: { ..._scrRoutes, rb: _scrCarrierTrack, ..._scrZoneDrops },
             },
           });
           return { yards };
@@ -4903,67 +4958,11 @@ class GameSimulator {
         const _postCatchMs = isTD ? 2400 : 1700;
         const _actionMs   = _scaledMs + _postCatchMs;
         const _throwT     = _scaledMs / _actionMs;
-        // Per-slot route shape. dyYd is yards toward midfield (positive
-        // = inside break). Each slot can run a different route within
-        // the same concept (drag/intermediate/etc).
-        const _slotRouteShape = (slot, conc) => {
-          // For non-targeted slots, vary the route slightly so the
-          // visual doesn't show every receiver running the same path.
-          switch (conc) {
-            case "QUICK_GAME":   return { breakF: 0.30, depthFAtBreak: 0.40, depth: 6,  latAtBreak: 0.5, latAtCatch: slot === "te" ? -1.5 : 2.5 };
-            case "DRAG_MESH":
-              // Mesh: one drags low, one runs intermediate cross
-              if (slot === "wr1") return { breakF: 0.30, depthFAtBreak: 0.20, depth: 6,  latAtBreak: 3.0, latAtCatch: 8.0 };
-              if (slot === "wr2") return { breakF: 0.30, depthFAtBreak: 0.20, depth: 8,  latAtBreak: -2.5, latAtCatch: -6.0 };  // crosser opposite
-              if (slot === "te")  return { breakF: 0.55, depthFAtBreak: 0.70, depth: 12, latAtBreak: 1.0, latAtCatch: 3.0 };    // shallow seam
-              return { breakF: 0.30, depthFAtBreak: 0.20, depth: 5, latAtBreak: 0, latAtCatch: 4 };
-            case "INTERMEDIATE":
-              if (slot === "wr1") return { breakF: 0.72, depthFAtBreak: 1.00, depth: 14, latAtBreak: 0.0, latAtCatch: -3.0 };   // comeback / out
-              if (slot === "wr2") return { breakF: 0.72, depthFAtBreak: 1.00, depth: 12, latAtBreak: 0.0, latAtCatch: 3.0 };    // dig
-              if (slot === "te")  return { breakF: 0.50, depthFAtBreak: 0.65, depth: 10, latAtBreak: 0.0, latAtCatch: 0.0 };
-              return { breakF: 0.50, depthFAtBreak: 0.50, depth: 8, latAtBreak: 0, latAtCatch: 0 };
-            case "VERTICAL":
-            case "PA_SHOT":
-              // 4-verts spacing: outsides go deep, te runs seam
-              if (slot === "wr1") return { breakF: 0.95, depthFAtBreak: 0.95, depth: 22, latAtBreak: 0.0, latAtCatch: 0.0 };
-              if (slot === "wr2") return { breakF: 0.95, depthFAtBreak: 0.95, depth: 22, latAtBreak: 0.0, latAtCatch: 0.0 };
-              if (slot === "te")  return { breakF: 0.95, depthFAtBreak: 0.95, depth: 18, latAtBreak: 0.0, latAtCatch: 1.5 };    // seam
-              return { breakF: 0.95, depthFAtBreak: 0.95, depth: 18, latAtBreak: 0, latAtCatch: 0 };
-            case "SCREEN":
-              return null;   // animation handles linearly
-            default:
-              return { breakF: 0.50, depthFAtBreak: 0.50, depth: 10, latAtBreak: 0.0, latAtCatch: 0.0 };
-          }
-        };
-        const _routeTrackFor = (slot) => {
-          const shape = _slotRouteShape(slot, this._lastPassConcept);
-          if (!shape) return null;
-          const isTgt = slot === _targetSlot;
-          // Targeted slot ends at catch + YAC; others end at their route's natural endpoint.
-          const endDepth = isTgt ? targetDepth : shape.depth;
-          const endLat   = shape.latAtCatch;
-          const wps = [
-            { t: 0,                                          dxYd: 0,                              dyYd: 0 },
-            { t: _throwT * shape.breakF,                     dxYd: endDepth * shape.depthFAtBreak, dyYd: shape.latAtBreak },
-            { t: _throwT,                                    dxYd: endDepth,                       dyYd: endLat },
-          ];
-          if (isTgt) {
-            // Post-catch — yac yards downfield, lateral drift toward middle
-            wps.push({ t: Math.min(1, _throwT + (1 - _throwT) * 0.85), dxYd: endDepth + yac, dyYd: endLat + Math.min(2, yac * 0.05) });
-            wps.push({ t: 1, dxYd: endDepth + yac, dyYd: endLat + Math.min(2, yac * 0.05) });
-          } else {
-            // Non-targets keep running their route stem briefly, then settle
-            wps.push({ t: Math.min(1, _throwT + (1 - _throwT) * 0.85), dxYd: endDepth + 2, dyYd: endLat });
-            wps.push({ t: 1, dxYd: endDepth + 2, dyYd: endLat });
-          }
-          return { role: slot.toUpperCase(), origin: { slot }, waypoints: wps };
-        };
-        const _routeTracks = {};
-        for (const slot of ["wr1", "wr2", "te", "rb"]) {
-          if (!this.offR.starters[slot === "te" ? "te" : slot]) continue;   // skip if no player in slot
-          const trk = _routeTrackFor(slot);
-          if (trk) _routeTracks[slot] = trk;
-        }
+        // Per-slot route tracks — shared with incomplete + INT via the helper.
+        const _routeTracks = this._buildPassRouteTracks({
+          targetSlot: _targetSlot, targetDepth, yac,
+          concept: this._lastPassConcept, throwT: _throwT,
+        });
         const _hasTracks = Object.keys(_routeTracks).length > 0;
         // ── PATH B Phase 5 — post-catch tackler pursuit track ────────
         // Mirror of Phase 3a's run-play tackler track, but for the
@@ -4974,71 +4973,14 @@ class GameSimulator {
         // sim-physics post-catch pursuit, which used to teleport the
         // tackler to whoever was geometrically closest (often disagreed
         // with the named tackler).
-        let _passTacklerTrack = null;
-        let _passTacklerSlot  = null;
-        if (tacklerName && this.defR && this.defR.starters) {
-          const ds = this.defR.starters;
-          _passTacklerSlot = tacklerName === ds.cb1 ? "cb1"
-                           : tacklerName === ds.cb2 ? "cb2"
-                           : tacklerName === ds.fs  ? "fs"
-                           : tacklerName === ds.ss  ? "ss"
-                           : tacklerName === ds.lb1 ? "lb1"
-                           : tacklerName === ds.lb2 ? "lb2"
-                           : tacklerName === ds.lb3 ? "lb3"
-                           : tacklerName === ds.nb  ? "nb"
-                           : null;
-          if (_passTacklerSlot) {
-            // Formation start in YARDS from (LOS, cy). Mirrors animation's
-            // makeFormation defaults — keep approximate; exact pixels
-            // come from animation when projecting.
-            const startBySlot = {
-              cb1: { dxYd: 5,  dyYd: -16 },
-              cb2: { dxYd: 5,  dyYd:  16 },
-              fs:  { dxYd: 12, dyYd:   0 },
-              ss:  { dxYd: 8,  dyYd:   5 },
-              lb1: { dxYd: 4,  dyYd:  -3 },
-              lb2: { dxYd: 4,  dyYd:   0 },
-              lb3: { dxYd: 4,  dyYd:   3 },
-              nb:  { dxYd: 5,  dyYd:  -10 },
-            };
-            const start = startBySlot[_passTacklerSlot];
-            // YAC endpoint — converge on the carrier's actual y position.
-            // Receiver tracks emit `dyYd = yards toward midfield from
-            // formation y`. The tackler track uses absolute dyYd from
-            // cy, so convert: wr1 is on TOP (formation y ≈ cy - 16yds,
-            // sign -1), wr2 on BOTTOM (sign +1). Wr's catch y in abs:
-            //   wrAbsDyYd = wrSign * (formOffsetYd - latAtCatch)
-            // (running toward middle reduces |dyYd|).
-            const endDxYd = targetDepth + yac;
-            const _wrShape = _slotRouteShape(_targetSlot, this._lastPassConcept);
-            const endLatAbs = _wrShape ? _wrShape.latAtCatch : 0;
-            const _wrSign = _targetSlot === "wr1" ? -1
-                          : _targetSlot === "wr2" ?  1
-                          : _targetSlot === "te"  ?  1
-                          : _targetSlot === "rb"  ?  1
-                          : 0;
-            const _wrFormOffsetYd = _targetSlot === "wr1" || _targetSlot === "wr2" ? 16
-                                  : _targetSlot === "te" ? 5
-                                  : _targetSlot === "rb" ? 1.87   // RB starts at cy + 28px = +1.87yd
-                                  : 0;
-            const _endDyAbs = _wrSign * (_wrFormOffsetYd - endLatAbs);
-            // Pursuit waypoints. Defender holds their assignment until
-            // the throw, then breaks toward the catch + YAC spot.
-            _passTacklerTrack = {
-              role: _passTacklerSlot.toUpperCase(),
-              tacklerName,
-              waypoints: [
-                { t: 0.00,       dxYd: start.dxYd,         dyYd: start.dyYd },                       // formation
-                { t: _throwT * 0.6,
-                                 dxYd: start.dxYd - (_passTacklerSlot.startsWith("cb") ? 0 : 1.5),
-                                 dyYd: start.dyYd * 0.7 },                                            // read / shuffle
-                { t: _throwT,    dxYd: targetDepth - 2,    dyYd: _endDyAbs * 0.6 },                  // closing at the catch
-                { t: 0.78,       dxYd: endDxYd,            dyYd: _endDyAbs },                         // tackle spot
-                { t: 1.00,       dxYd: endDxYd,            dyYd: _endDyAbs },                         // settled
-              ],
-            };
-          }
-        }
+        const _passTacklerSlot = this._resolveDefSlot(tacklerName);
+        const _passTacklerTrack = _passTacklerSlot
+          ? this._buildPassTacklerTrack({
+              tacklerSlot: _passTacklerSlot, tacklerName,
+              targetSlot: _targetSlot, targetDepth, yac,
+              throwT: _throwT, routeTracks: _routeTracks,
+            })
+          : null;
         // ── PATH B Phase 7b — coverage-aware LB / safety tracks ────
         // _buildPassZoneDrops now varies by play.coverage: BLITZ →
         // LBs charge QB; MAN → LBs cover TE/RB; ZONE → drop to hooks;
@@ -5080,9 +5022,8 @@ class GameSimulator {
             tackleT: 0.78,
             tacklerSlot: _passTacklerSlot,
             tacklerName,
-            // Back-compat: animation Phase 3b still looks at tracks.targetWR.
-            // Phase 4+ readers should prefer tracks[targetSlot].
-            tracks: { ..._routeTracks, targetWR: _routeTracks[_targetSlot] || null,
+            // Phase 4+ readers key on slot directly (tracks.wr1 etc).
+            tracks: { ..._routeTracks,
                       ..._passTacklerTrack ? { tackler: _passTacklerTrack } : {},
                       ..._secondaryPassTracks },
           } : null,
