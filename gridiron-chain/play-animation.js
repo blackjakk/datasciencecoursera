@@ -998,13 +998,31 @@ function buildAnimForPlay(play, prevPlay) {
   // Defender pursuit speed cap — tuned to a fast NFL defender (~9 yds/s).
   // Carrier runs slightly faster, so on breakaways defenders visibly trail.
   const PURSUIT_PX_MS = (FIELD.PX_PER_YARD * 9) / 1000;
+  // INCREMENTAL pursuit. Previously this computed "where would d be at
+  // time elapsedMs if it traveled from d.x to (tx, ty) at constant
+  // velocity", recomputing the path from d.x EVERY frame. When the
+  // target shifted between frames (carrier juke, dodged stale-target
+  // snap, sack pocket collapse, truck anchor), the entire path
+  // re-drew from the origin and the defender appeared to teleport —
+  // because the SAME elapsed time aimed at a NEW target lands at a
+  // new fraction along a new line. Now mutates per-defender state
+  // (_cx, _cy, _lastMs) so each call advances by dt FROM the last
+  // known position; target changes only affect the direction of the
+  // next small step.
   const pursue = (d, tx, ty, elapsedMs, factor = 1.0) => {
-    const dx = tx - d.x, dy = ty - d.y;
+    if (d._cx == null) { d._cx = d.x; d._cy = d.y; d._lastMs = 0; }
+    const dt = Math.max(0, elapsedMs - d._lastMs);
+    d._lastMs = elapsedMs;
+    const dx = tx - d._cx, dy = ty - d._cy;
     const dist = Math.hypot(dx, dy);
-    const maxMove = PURSUIT_PX_MS * elapsedMs * factor;
-    if (dist <= maxMove) return { x: tx, y: ty };
-    const f = maxMove / Math.max(0.001, dist);
-    return { x: d.x + dx * f, y: d.y + dy * f };
+    const maxMove = PURSUIT_PX_MS * dt * factor;
+    if (dist <= maxMove) {
+      d._cx = tx; d._cy = ty;
+    } else {
+      const f = maxMove / Math.max(0.001, dist);
+      d._cx += dx * f; d._cy += dy * f;
+    }
+    return { x: d._cx, y: d._cy };
   };
   // Action duration scales with yardage. Rebalanced based on cruise-speed
   // math: with runPacing's cruise covering 86% of distance in 56% of time,
@@ -1671,7 +1689,12 @@ function buildAnimForPlay(play, prevPlay) {
           dd.pose = "run";
           dd.t = (t * 3 + i * 0.13) % 1;
         }
-        dd.facing = -dir;
+        // Face the CARRIER, not just -dir. With -dir, a defender chasing
+        // a runner laterally always faced the LOS (toward the endzone),
+        // even when sprinting sideways. Now they turn to face where the
+        // ball actually is. Fallback to -dir when carrier is at the same
+        // x as defender (lateral-only chase moment).
+        dd.facing = (rb.x > dd.x) ? 1 : (rb.x < dd.x ? -1 : -dir);
         // Tackle pose — defenders ragdoll with the carrier starting at 0.72.
         if (!isTrucked && yards < 90 && tt > 0.72 && Math.hypot(rb.x - dd.x, rb.y - dd.y) < 28) {
           dd.pose = "tackled";
