@@ -4076,18 +4076,32 @@ class GameSimulator {
         // +0.8 -> +1.5: YAC trim cut offense too much (YPA fell to 0.91x).
         // Partial restore — passes back to ~7.0 yds avg without re-inflating
         // sacks or RZ.
-        const airMean = (pb.airYdsMean ?? 7.5) + 1.5 - pressure * 2.0 + qbAirMod + qbAirFromOvr + paAirMod + qbPocketAirBonus + centerFieldCap + wxAirMod + defDeepBonus + archAirMod + posAirMod + qbAggAirMod + ocAirAttackMod + boxStackAirMod;
+        // STICK-AWARE AIR YARDS on 3rd-and-long. NFL QBs target the chains
+        // on 3rd-and-long; ours were throwing 4-yard checkdowns on 3rd-and-12
+        // (audit showed 3rd-and-long pass YPA at 5.65 vs NFL ~7.5 — completed
+        // throws were landing well short of the sticks). Push airMean to at
+        // least target the sticks when ytg is ≥ 8; capped at +6 so 3rd-and-30
+        // doesn't become a moonball every snap.
+        const stickAim = (this.down >= 3 && this.ytg >= 8)
+          ? Math.min(6, this.ytg - 8)
+          : 0;
+        const airMean = (pb.airYdsMean ?? 7.5) + 1.5 + stickAim - pressure * 2.0 + qbAirMod + qbAirFromOvr + paAirMod + qbPocketAirBonus + centerFieldCap + wxAirMod + defDeepBonus + archAirMod + posAirMod + qbAggAirMod + ocAirAttackMod + boxStackAirMod;
         const airSd   = (pb.airYdsSd   ?? 6) * (qbArch === "GUNSLINGER" ? 1.25 : 1.0);
         const airYds  = clamp(normal(airMean + adv * 2, airSd), -2, 55);
         // YAC distribution — short catches / screens get more YAC potential.
-        // Tuned to land NFL-average ~5.5 yds YAC per completion.
+        // Tuned to land NFL-average ~5.5 yds YAC per completion. Earlier
+        // tuning was bimodal — 28% "zero YAC" wrap-immediately bucket plus a
+        // thin middle pushed avg to ~4.2 (below NFL ~5.5). Trimmed the 0-bucket
+        // (28→20%) and bumped the meaty middle ranges so honest 4-8 yard
+        // chunks-after-catch fire more often; cascades through 3rd-down
+        // distance distribution into drive length and pace.
         let yac = 0;
         if (airYds >= 1) {
           const r = Math.random();
-          if (r < 0.28) yac = 0;
-          else if (r < 0.65) yac = rand(1, Math.max(3, Math.floor(airYds * 0.5)) + 2);
-          else if (r < 0.95) yac = rand(3, Math.max(6, Math.floor(airYds * 0.9)) + 3);
-          else                yac = rand(4, 12) + Math.floor(airYds * 0.4); // big YAC: trimmed (top 5%)
+          if (r < 0.20) yac = 0;
+          else if (r < 0.62) yac = rand(2, Math.max(4, Math.floor(airYds * 0.6)) + 2);
+          else if (r < 0.93) yac = rand(4, Math.max(8, Math.floor(airYds * 1.0)) + 3);
+          else                yac = rand(5, 15) + Math.floor(airYds * 0.5); // big YAC: trimmed (top 7%)
         }
         // YAC archetype tilt: SLOT and POSSESSION lead the league but the
         // prior 1.45/1.25 stacked with high base YAC pushed top WR season
