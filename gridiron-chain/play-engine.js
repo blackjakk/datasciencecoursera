@@ -4463,12 +4463,16 @@ class GameSimulator {
                         : isLeapingCatch ? " (HIGH POINTED!)" : "";
         const endTag = isTD ? " — TOUCHDOWN!"
                      : tacklerName ? `, tackled by ${tacklerName}` : "";
-        // ── PATH B Phase 3b — targeted WR route track ───────────────
-        // Engine emits the route shape (concept-driven) so animation
-        // doesn't reinvent it AND CB coverage can shadow it. Origin is
-        // the WR's formation slot; waypoints are deltas in YARDS. dyYd
-        // is "toward midfield" (positive = inside break, negative =
-        // toward sideline) — animation projects with the slot's y vs cy.
+        // ── PATH B Phase 4 — per-slot route tracks for ALL receivers ────
+        // Engine emits route waypoints for EVERY receiver on the field
+        // (targeted + decoys) so animation doesn't fall back to hash
+        // decoys for non-targets. Each track is keyed by formation slot
+        // ("wr1", "wr2", "te", "rb") with origin: { slot }; waypoints
+        // are deltas in YARDS where dyYd is "toward midfield" (positive
+        // = inside break, negative = toward sideline). Targeted slot
+        // gets the full track that ends at the catch + YAC spot;
+        // non-targeted slots get a route ending at their concept-
+        // appropriate spot (no catch, just the route).
         const _targetSlot = rcvr === this.offR.starters.wr1 ? "wr1"
                           : rcvr === this.offR.starters.wr2 ? "wr2"
                           : rcvr === this.offR.starters.te  ? "te"
@@ -4481,43 +4485,100 @@ class GameSimulator {
         const _postCatchMs = isTD ? 2400 : 1700;
         const _actionMs   = _scaledMs + _postCatchMs;
         const _throwT     = _scaledMs / _actionMs;
-        // Route shape per concept. dyYd is yards toward midfield.
-        // breakF = fraction of the route (0..1 of throwT) where the
-        // WR's break happens; latAtBreak/latAtCatch are toward-mid yards.
-        const _routeShape = (() => {
-          switch (this._lastPassConcept) {
-            case "QUICK_GAME":   return { breakF: 0.30, depthFAtBreak: 0.40, latAtBreak: 0.5, latAtCatch:  2.5 };   // slant
-            case "DRAG_MESH":    return { breakF: 0.30, depthFAtBreak: 0.20, latAtBreak: 3.0, latAtCatch:  8.0 };   // drag cross
-            case "INTERMEDIATE": return { breakF: 0.72, depthFAtBreak: 1.00, latAtBreak: 0.0, latAtCatch:  0.0 };   // dig / out
-            case "VERTICAL":     return { breakF: 0.95, depthFAtBreak: 0.95, latAtBreak: 0.0, latAtCatch:  0.0 };   // straight
-            case "PA_SHOT":      return { breakF: 0.95, depthFAtBreak: 0.95, latAtBreak: 0.0, latAtCatch:  0.0 };
-            case "SCREEN":       return null;   // animation keeps linear handling
-            default:             return { breakF: 0.50, depthFAtBreak: 0.50, latAtBreak: 0.0, latAtCatch:  0.0 };
+        // Per-slot route shape. dyYd is yards toward midfield (positive
+        // = inside break). Each slot can run a different route within
+        // the same concept (drag/intermediate/etc).
+        const _slotRouteShape = (slot, conc) => {
+          // For non-targeted slots, vary the route slightly so the
+          // visual doesn't show every receiver running the same path.
+          switch (conc) {
+            case "QUICK_GAME":   return { breakF: 0.30, depthFAtBreak: 0.40, depth: 6,  latAtBreak: 0.5, latAtCatch: slot === "te" ? -1.5 : 2.5 };
+            case "DRAG_MESH":
+              // Mesh: one drags low, one runs intermediate cross
+              if (slot === "wr1") return { breakF: 0.30, depthFAtBreak: 0.20, depth: 6,  latAtBreak: 3.0, latAtCatch: 8.0 };
+              if (slot === "wr2") return { breakF: 0.30, depthFAtBreak: 0.20, depth: 8,  latAtBreak: -2.5, latAtCatch: -6.0 };  // crosser opposite
+              if (slot === "te")  return { breakF: 0.55, depthFAtBreak: 0.70, depth: 12, latAtBreak: 1.0, latAtCatch: 3.0 };    // shallow seam
+              return { breakF: 0.30, depthFAtBreak: 0.20, depth: 5, latAtBreak: 0, latAtCatch: 4 };
+            case "INTERMEDIATE":
+              if (slot === "wr1") return { breakF: 0.72, depthFAtBreak: 1.00, depth: 14, latAtBreak: 0.0, latAtCatch: -3.0 };   // comeback / out
+              if (slot === "wr2") return { breakF: 0.72, depthFAtBreak: 1.00, depth: 12, latAtBreak: 0.0, latAtCatch: 3.0 };    // dig
+              if (slot === "te")  return { breakF: 0.50, depthFAtBreak: 0.65, depth: 10, latAtBreak: 0.0, latAtCatch: 0.0 };
+              return { breakF: 0.50, depthFAtBreak: 0.50, depth: 8, latAtBreak: 0, latAtCatch: 0 };
+            case "VERTICAL":
+            case "PA_SHOT":
+              // 4-verts spacing: outsides go deep, te runs seam
+              if (slot === "wr1") return { breakF: 0.95, depthFAtBreak: 0.95, depth: 22, latAtBreak: 0.0, latAtCatch: 0.0 };
+              if (slot === "wr2") return { breakF: 0.95, depthFAtBreak: 0.95, depth: 22, latAtBreak: 0.0, latAtCatch: 0.0 };
+              if (slot === "te")  return { breakF: 0.95, depthFAtBreak: 0.95, depth: 18, latAtBreak: 0.0, latAtCatch: 1.5 };    // seam
+              return { breakF: 0.95, depthFAtBreak: 0.95, depth: 18, latAtBreak: 0, latAtCatch: 0 };
+            case "SCREEN":
+              return null;   // animation handles linearly
+            default:
+              return { breakF: 0.50, depthFAtBreak: 0.50, depth: 10, latAtBreak: 0.0, latAtCatch: 0.0 };
           }
-        })();
-        const _targetWRTrack = (_targetSlot && _routeShape) ? {
-          role: _targetSlot.toUpperCase(),
-          origin: { slot: _targetSlot },
-          waypoints: [
-            { t: 0,                                   dxYd: 0,                                        dyYd: 0 },
-            { t: _throwT * _routeShape.breakF,        dxYd: targetDepth * _routeShape.depthFAtBreak, dyYd: _routeShape.latAtBreak },
-            { t: _throwT,                              dxYd: targetDepth,                              dyYd: _routeShape.latAtCatch },
+        };
+        const _routeTrackFor = (slot) => {
+          const shape = _slotRouteShape(slot, this._lastPassConcept);
+          if (!shape) return null;
+          const isTgt = slot === _targetSlot;
+          // Targeted slot ends at catch + YAC; others end at their route's natural endpoint.
+          const endDepth = isTgt ? targetDepth : shape.depth;
+          const endLat   = shape.latAtCatch;
+          const wps = [
+            { t: 0,                                          dxYd: 0,                              dyYd: 0 },
+            { t: _throwT * shape.breakF,                     dxYd: endDepth * shape.depthFAtBreak, dyYd: shape.latAtBreak },
+            { t: _throwT,                                    dxYd: endDepth,                       dyYd: endLat },
+          ];
+          if (isTgt) {
             // Post-catch — yac yards downfield, lateral drift toward middle
-            { t: Math.min(1, _throwT + (1 - _throwT) * 0.85), dxYd: targetDepth + yac, dyYd: _routeShape.latAtCatch + Math.min(2, yac * 0.05) },
-            { t: 1,                                    dxYd: targetDepth + yac,                       dyYd: _routeShape.latAtCatch + Math.min(2, yac * 0.05) },
-          ],
-        } : null;
+            wps.push({ t: Math.min(1, _throwT + (1 - _throwT) * 0.85), dxYd: endDepth + yac, dyYd: endLat + Math.min(2, yac * 0.05) });
+            wps.push({ t: 1, dxYd: endDepth + yac, dyYd: endLat + Math.min(2, yac * 0.05) });
+          } else {
+            // Non-targets keep running their route stem briefly, then settle
+            wps.push({ t: Math.min(1, _throwT + (1 - _throwT) * 0.85), dxYd: endDepth + 2, dyYd: endLat });
+            wps.push({ t: 1, dxYd: endDepth + 2, dyYd: endLat });
+          }
+          return { role: slot.toUpperCase(), origin: { slot }, waypoints: wps };
+        };
+        const _routeTracks = {};
+        for (const slot of ["wr1", "wr2", "te", "rb"]) {
+          if (!this.offR.starters[slot === "te" ? "te" : slot]) continue;   // skip if no player in slot
+          const trk = _routeTrackFor(slot);
+          if (trk) _routeTracks[slot] = trk;
+        }
+        const _hasTracks = Object.keys(_routeTracks).length > 0;
+        // ── PATH B Phase 4.2 — throwType + dropDepth ────────────────
+        // Animation was defaulting every completion to TOUCH because
+        // the engine never emitted throwType for normal passes. Engine
+        // decides based on depth + QB throw skill: DEEP for 20+ yds,
+        // ZIP for short-to-mid with a strong arm, CHECKDOWN for
+        // backfield outlets, TOUCH for everything in between.
+        // dropDepth: 3-step (short), 5-step (mid), 7-step (deep / PA).
+        const _throwTypeEmit = (() => {
+          if (targetDepth >= 20) return "DEEP";
+          if (targetDepth < 5)   return "CHECKDOWN";
+          if (targetDepth >= 8 && qbThr >= 82) return "ZIP";
+          return "TOUCH";
+        })();
+        const _dropDepthEmit = isPlayAction ? 7
+                             : targetDepth >= 20 ? 7
+                             : targetDepth >= 10 ? 5
+                             :                     3;
         this._pushVisual({
           kind: "complete",
           desc: `${this.offR.starters.qb} → ${rcvr} for ${yards} yds${flavorTag}${endTag}`,
           startYard, targetDepth, catchDepth: targetDepth, yac, yards,
           endYard: clamp(startYard + yards, 0, 100), receiver: rcvr, passer: this.offR.starters.qb,
-          tackler: tacklerName, throwType, isPlayAction, isFleaFlicker, wrJuke, isLeapingCatch, catchRadius,
+          tackler: tacklerName, throwType: _throwTypeEmit,
+          isPlayAction, isFleaFlicker, wrJuke, isLeapingCatch, catchRadius,
           concept: this._lastPassConcept, coverage: this._lastPassCoverage,
-          motion: _targetWRTrack ? {
+          motion: _hasTracks ? {
             targetSlot: _targetSlot,
             throwT: _throwT,
-            tracks: { targetWR: _targetWRTrack },
+            dropDepth: _dropDepthEmit,
+            // Back-compat: animation Phase 3b still looks at tracks.targetWR.
+            // Phase 4 readers should prefer tracks[targetSlot].
+            tracks: { ..._routeTracks, targetWR: _routeTracks[_targetSlot] || null },
           } : null,
         });
         return { yards };

@@ -2697,7 +2697,11 @@ function buildAnimForPlay(play, prevPlay) {
       // (visible spiral / nose-forward), not stuck in a fixed tilt.
       let ballAngle = -0.35;
 
-      const dropDepth = isScreen ? 2 : 5;
+      // PATH B Phase 4.3 — engine-emitted drop depth.
+      // 3-step (short), 5-step (mid), 7-step (deep / PA). Animation
+      // used a fixed 5 for everything; engine now varies by route.
+      const _engineDropDepth = play.motion && play.motion.dropDepth;
+      const dropDepth = isScreen ? 2 : (typeof _engineDropDepth === "number" ? _engineDropDepth : 5);
       const dropAmt = aT > 0
         ? Math.min(1, aT / dropFrac) * dropDepth * FIELD.PX_PER_YARD
         : 0;
@@ -3530,13 +3534,36 @@ function buildAnimForPlay(play, prevPlay) {
         // First ~20% = RELEASE pose (explosive first step), then transition
         // to standard run cycle. WRs and TEs explode off the LOS before
         // settling into a route.
+        // PATH B Phase 4 — when the engine emits per-slot route tracks,
+        // sample them instead of hashing decoy paths. Each receiver
+        // runs the route the engine specified for their slot.
         if ((p.role === "WR1" || p.role === "WR2" || p.role === "WR3" || p.role === "WR4" || p.role === "WR5" || p.role === "TE1" || p.role === "TE" || p.role === "TE2") && aT > 0) {
           const tt = Math.min(1, aT / Math.max(0.1, throwFrac));
+          const strideHz = 2.0;
+          const inRelease = tt < 0.20;
+          // Map this player to a slot key for engine track lookup.
+          const slotKey = p === formation.wr1 ? "wr1"
+                        : p === formation.wr2 ? "wr2"
+                        : p === formation.te  ? "te"
+                        : null;
+          const trk = (slotKey && play.motion && play.motion.tracks) ? play.motion.tracks[slotKey] : null;
+          if (trk && typeof MotionPlayback !== "undefined") {
+            const sample = MotionPlayback.sampleTrack(trk, aT);
+            if (sample) {
+              const toMidSign = Math.sign(cy - p.y) || 1;
+              return { ...p,
+                       x: p.x + dir * sample.dxYd * FIELD.PX_PER_YARD,
+                       y: p.y + toMidSign * sample.dyYd * FIELD.PX_PER_YARD,
+                       pose: inRelease ? "release" : "run",
+                       t: ((t * (dur / 1000)) * strideHz) % 1,
+                       facing: dir };
+            }
+          }
+          // Fallback: legacy hash decoys for receivers without a slot
+          // track (WR3+, screen plays, plays missing motion data).
           const idHash = ((p.y * 7 + (p.x * 3)) >>> 0) % 100 / 100;
           const decoyDepth = catchDepth * (0.6 + idHash * 0.6);
           const lateralOff = (idHash - 0.5) * 36;
-          const strideHz = 2.0;
-          const inRelease = tt < 0.20;
           return { ...p, x: p.x + dir * tt * decoyDepth * FIELD.PX_PER_YARD,
                    y: p.y + Math.sin(tt * Math.PI * 0.6) * lateralOff,
                    pose: inRelease ? "release" : "run",
