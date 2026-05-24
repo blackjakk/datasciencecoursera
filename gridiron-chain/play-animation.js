@@ -1821,6 +1821,18 @@ function buildAnimForPlay(play, prevPlay) {
       // Determine which DL "wins" his rep — for big runs, the OL is winning at every gap
       // (we ALSO need at least one DL to break free if the run is short / for losses)
       const dlBreaksFree = yards < 2 ? 1 : 0;  // on stuffs, one rusher penetrates
+      // PILE SIZE CAP — limit how many defenders flip to the tackled/
+      // ragdoll pose. Was "every defender within 28px gets the pose" so
+      // when 4-5 defenders happened to be close they ALL piled on,
+      // looking like a bomb. Real NFL tackles: 1 primary + 1-2 piling
+      // on. Compute the 3 closest defenders to the carrier; only they
+      // can be in the pile. Others stay running.
+      const PILE_CAP = 3;
+      const _defDistArr = formation.defense.map((d, i) => ({
+        i, dist: Math.hypot((d._cx ?? d.x) - rb.x, (d._cy ?? d.y) - rb.y),
+      }));
+      _defDistArr.sort((a, b) => a.dist - b.dist);
+      const pileIdxSet = new Set(_defDistArr.slice(0, PILE_CAP).map(o => o.i));
       // Defense: DL get locked up at LOS (engaged with OL); LBs/DBs pursue
       const def = formation.defense.map((d, i) => {
         const dd = { ...d };
@@ -2007,7 +2019,10 @@ function buildAnimForPlay(play, prevPlay) {
         // Tackle pose — variety. PRIMARY tackler drives in (hit) or dives
         // (big-hit dive); pile-on defenders RAGDOLL with physics; the
         // DODGED defender (juked) flies past in a missed-dive pose.
-        if (!isTrucked && yards < 90 && tt > 0.72 && Math.hypot(rb.x - dd.x, rb.y - dd.y) < 28) {
+        // PILE CAP: only the closest PILE_CAP defenders + the primary
+        // can be in the pile. Others stay running (out of position).
+        const _inPile = (i === primaryTacklerIdx) || pileIdxSet.has(i);
+        if (!isTrucked && _inPile && yards < 90 && tt > 0.72 && Math.hypot(rb.x - dd.x, rb.y - dd.y) < 28) {
           if (i === primaryTacklerIdx) {
             dd.pose = primaryTacklerDives ? "dive" : "hit";
             dd.t = Math.min(1, (tt - 0.72) / 0.28);
