@@ -4255,8 +4255,12 @@ function buildAnimForPlay(play, prevPlay) {
     const isBlocked = play.kind === "fg_blocked";
     const isReturned = !!play.isReturned;
     const isReturnTD = !!play.isReturnTD;
+    // PATH B Phase 10 — engine emits missType when known
+    const _engineMissType = play.motion && play.motion.missType;
     const missRoll = ((play.startYard * 17 + (play.time || 0)) >>> 0) % 100 / 100;
-    const missType = isGood ? "good" : (missRoll < 0.5 ? (missRoll < 0.25 ? "wide_l" : "wide_r") : "short");
+    const missType = isGood ? "good"
+                   : _engineMissType ? _engineMissType
+                   : (missRoll < 0.5 ? (missRoll < 0.25 ? "wide_l" : "wide_r") : "short");
     const HASH_HALF = 40;
     const goalX = poss === "home" ? FIELD.W - FIELD.EZ_PX * 0.4 : FIELD.EZ_PX * 0.4;
     // Special-teams positions

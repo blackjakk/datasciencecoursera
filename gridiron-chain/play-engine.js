@@ -3128,7 +3128,14 @@ class GameSimulator {
         if (Math.random() < fgPct) {
           if (kStats) { kStats.fg_made++; if (dist > kStats.fg_long) kStats.fg_long = dist; }
           this._score(3, `${dist}-yd FG`);
-          this._pushVisual({ kind: "fg_good", desc: `${this.offR.starters.k} drills it from ${dist} yds!`, startYard, endYard: 100, fgDist: dist, kicker: this.offR.starters.k });
+          // PATH B Phase 10 — FG motion: holder/longSnapper/missType
+          this._pushVisual({
+            kind: "fg_good", desc: `${this.offR.starters.k} drills it from ${dist} yds!`,
+            startYard, endYard: 100, fgDist: dist, kicker: this.offR.starters.k,
+            holder: this.offR.starters.p || this.offR.starters.qb,
+            longSnapper: this.offR.starters.ls || null,
+            motion: { result: "good", contactT: 0.45, flightT: 0.85 },
+          });
           return { endDrive: true, fgGood: true };
         } else {
           // Long missed FGs (>50 yd attempts) can be returned by the defense
@@ -3137,6 +3144,11 @@ class GameSimulator {
           if (isReturnable) {
             const isReturnTD = Math.random() < 0.05;
             const recoveryYard = isReturnTD ? 0 : Math.max(0, startYard - 8 - Math.floor(Math.random() * 12));
+            // PATH B Phase 10 — engine decides miss type so animation
+            // doesn't hash. Long misses tend to be "short" (came up
+            // short of the uprights); near-distance misses are wide.
+            const _missType = dist >= 50 ? (Math.random() < 0.55 ? "short" : (Math.random() < 0.5 ? "wide_l" : "wide_r"))
+                            : (Math.random() < 0.5 ? "wide_l" : "wide_r");
             this._pushVisual({
               kind: "fg_miss",
               desc: isReturnTD
@@ -3144,6 +3156,9 @@ class GameSimulator {
                 : `${this.offR.starters.k} misses from ${dist} — returned to the ${recoveryYard}`,
               startYard, endYard: recoveryYard, fgDist: dist, kicker: this.offR.starters.k,
               isReturnTD, isReturned: true,
+              holder: this.offR.starters.p || this.offR.starters.qb,
+              longSnapper: this.offR.starters.ls || null,
+              motion: { result: "miss", missType: _missType, contactT: 0.45, flightT: 0.85 },
             });
             if (isReturnTD) {
               const defScore = this.poss === "home" ? "away" : "home";
@@ -3155,7 +3170,15 @@ class GameSimulator {
               this._defScoreXP();
             }
           } else {
-            this._pushVisual({ kind: "fg_miss", desc: `${this.offR.starters.k} misses from ${dist} — no good`, startYard, endYard: startYard, fgDist: dist, kicker: this.offR.starters.k });
+            const _missType = dist >= 45 ? (Math.random() < 0.6 ? "short" : (Math.random() < 0.5 ? "wide_l" : "wide_r"))
+                            : (Math.random() < 0.5 ? "wide_l" : "wide_r");
+            this._pushVisual({
+              kind: "fg_miss", desc: `${this.offR.starters.k} misses from ${dist} — no good`,
+              startYard, endYard: startYard, fgDist: dist, kicker: this.offR.starters.k,
+              holder: this.offR.starters.p || this.offR.starters.qb,
+              longSnapper: this.offR.starters.ls || null,
+              motion: { result: "miss", missType: _missType, contactT: 0.45, flightT: 0.85 },
+            });
           }
         }
         return { endDrive: true };
