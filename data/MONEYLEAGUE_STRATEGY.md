@@ -43,13 +43,13 @@ Different drafters topped each scoring era — and the league has had three dist
 
 - **Standard era** (2015-18): 10-team, 0 PPR, 2QB
 - **Half-PPR Yahoo** (2019-22): 12-team, 0.5 PPR, 2QB
-- **Superflex Sleeper** (2023-24): 12-team, 0.5 PPR, superflex
+- **Superflex Sleeper** (2023-25): 12-team, 0.5 PPR, superflex
 
 **Per-era top-3 drafters (by VBD/season):**
 
 | Era | #1 | #2 | #3 |
 |---|---|---|---|
-| Superflex Sleeper (2023-24) | Brian (+642/yr) | Troy (+621/yr) | Brower (+499/yr) |
+| Superflex Sleeper (2023-25) | Donnie (+623/yr) | Brian (+516/yr) | Lem (+484/yr) |
 
 Earlier eras had completely different top-3s — the leaderboard resets when scoring changes. The lesson: **what worked in one format doesn't automatically carry forward.** This is most relevant if/when we ever tweak scoring again.
 

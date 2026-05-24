@@ -16,7 +16,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from fantasy_draft.results import load_player_ownership_windows, load_weekly_player_points  # noqa: E402
+from fantasy_draft.results import (  # noqa: E402
+    load_draft_picks_with_points,
+    load_player_ownership_windows,
+    load_weekly_player_points,
+)
 from fantasy_draft.team_identity import manager_for_sleeper_roster  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -27,6 +31,48 @@ PDF_OUT = ROOT / "data" / "MONEYLEAGUE_STRATEGY.pdf"
 def _mgr_name(rid: int) -> str:
     m = manager_for_sleeper_roster(rid)
     return m["canonical_name"].split(" (")[0] if m else f"rid{rid}"
+
+
+def _sf_era_draft_top3() -> list[tuple[str, float]]:
+    """Compute per-season draft VBD over 2023-2025 from Sleeper data
+    (the live source — nflverse only has through 2024).
+    Returns sorted [(manager_name, vbd_per_season), ...]."""
+    picks = load_draft_picks_with_points(ROOT / "data" / "sleeper")
+    pv = json.loads((ROOT / "data" / "pick_value.json").read_text())
+    RANKS = pv["replacement_ranks_used"]
+
+    per_season: dict[int, list[dict]] = defaultdict(list)
+    for p in picks:
+        per_season[p["season"]].append(p)
+
+    def repl_for(sp):
+        by_pos: dict[str, list[float]] = defaultdict(list)
+        for p in sp:
+            if p["position"] in RANKS and p["season_points"]:
+                by_pos[p["position"]].append(p["season_points"])
+        out = {}
+        for pos, pts in by_pos.items():
+            pts.sort(reverse=True)
+            out[pos] = pts[min(RANKS[pos] - 1, len(pts) - 1)] if pts else 0.0
+        return out
+
+    repl = {s: repl_for(ps) for s, ps in per_season.items()}
+    by_mgr_season: dict[tuple[int, int], float] = defaultdict(float)
+    for p in picks:
+        if p.get("is_keeper"):
+            continue
+        vbd = (p["season_points"] or 0) - repl[p["season"]].get(p["position"], 0)
+        by_mgr_season[(p["roster_id"], p["season"])] += vbd
+
+    by_mgr: dict[int, list[float]] = defaultdict(list)
+    for (rid, season), v in by_mgr_season.items():
+        if 2023 <= season <= 2025:
+            by_mgr[rid].append(v)
+
+    ranked = sorted(
+        ((_mgr_name(rid), sum(vs) / len(vs)) for rid, vs in by_mgr.items()),
+        key=lambda kv: -kv[1])
+    return ranked[:3]
 
 
 def _wire_stats_by_mgr() -> dict[int, dict]:
@@ -189,7 +235,7 @@ def build_markdown() -> str:
               "had three distinct scoring eras:\n")
     md.append("- **Standard era** (2015-18): 10-team, 0 PPR, 2QB")
     md.append("- **Half-PPR Yahoo** (2019-22): 12-team, 0.5 PPR, 2QB")
-    md.append("- **Superflex Sleeper** (2023-24): 12-team, 0.5 PPR, superflex\n")
+    md.append("- **Superflex Sleeper** (2023-25): 12-team, 0.5 PPR, superflex\n")
     md.append("**Per-era top-3 drafters (by VBD/season):**\n")
 
     def era_top3(year_range):
@@ -201,15 +247,11 @@ def build_markdown() -> str:
             ((mid, sum(v)/len(v)) for mid, v in ms.items()),
             key=lambda kv: -kv[1])[:3]
 
+    sf_top3 = _sf_era_draft_top3()
     md.append("| Era | #1 | #2 | #3 |")
     md.append("|---|---|---|---|")
-    for label, yr in [("Superflex Sleeper (2023-24)", range(2023, 2025))]:
-        top = era_top3(yr)
-        cells = []
-        for mid, v in top:
-            nm = cum.get(mid, {}).get("manager_name", mid)
-            cells.append(f"{nm} ({v:+.0f}/yr)")
-        md.append(f"| {label} | {cells[0]} | {cells[1]} | {cells[2]} |")
+    cells = [f"{n} ({v:+.0f}/yr)" for n, v in sf_top3]
+    md.append(f"| Superflex Sleeper (2023-25) | {cells[0]} | {cells[1]} | {cells[2]} |")
     md.append("")
     md.append("Earlier eras had completely different top-3s — the leaderboard "
               "resets when scoring changes. The lesson: **what worked in one "
