@@ -25,6 +25,7 @@ class Player:
     injury_status: str = ""      # Healthy / Questionable / Out / IR / NA / ...
     injury_body_part: str = ""
     injury_notes: str = ""
+    age: int = 0                 # 0 = unknown
 
     def __str__(self) -> str:
         return f"{self.name} ({self.position}-{self.team})"
@@ -90,6 +91,11 @@ def enrich_with_injuries(players: list[Player],
         e = by_name.get((pl.name.lower(), pl.position))
         if not e:
             continue
+        # Age is always copied across so the stash filter can use it.
+        try:
+            pl.age = int(e.get("age") or 0)
+        except (TypeError, ValueError):
+            pl.age = 0
         st = (e.get("injury_status") or "").strip()
         if st and st not in ("Healthy",):
             pl.injury_status = st
@@ -99,13 +105,23 @@ def enrich_with_injuries(players: list[Player],
     return n
 
 
+# Stash bets pay off NEXT year, not this one — so old players are bad
+# stashes even if injured today. Position-specific age cliffs roughly
+# match where fantasy production drops off.
+_STASH_AGE_CAP = {"RB": 28, "WR": 30, "TE": 31, "QB": 35}
+
+
 def is_stash_candidate(p: Player,
                         late_round_adp_floor: float = 120.0) -> bool:
     """Late-ADP player with a serious injury — the kind people draft cheap
-    now to keep next year at a discounted forfeit round."""
-    if p.position not in ("QB", "RB", "WR", "TE"):
+    now to keep next year at a discounted forfeit round. Old players are
+    excluded since the stash is a bet on NEXT season's production."""
+    if p.position not in _STASH_AGE_CAP:
         return False
     if p.adp < late_round_adp_floor:
+        return False
+    # Age cutoff: only enforce when we actually know the age (>0).
+    if p.age and p.age > _STASH_AGE_CAP[p.position]:
         return False
     status = (p.injury_status or "").upper()
     if status in ("IR", "OUT", "PUP", "SUSP", "SUSPENDED"):

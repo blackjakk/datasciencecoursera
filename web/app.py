@@ -1107,6 +1107,7 @@ with tab_draft:
                 stash_rows.append({
                     "Player": p.name,
                     "Pos": p.position,
+                    "Age": p.age or "?",
                     "Team": p.team,
                     "ADP": round(p.adp, 1),
                     "Likely round (2026)": f"R{drafted_round}",
