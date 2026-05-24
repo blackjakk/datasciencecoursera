@@ -1643,7 +1643,8 @@ function buildAnimForPlay(play, prevPlay) {
       } else {
         if (runT < 0.14)        rbPose = "reach";
         else if (runT < 0.30)   rbPose = "run";
-        else                     rbPose = "carry";
+        else                     rbPose = "churn";   // high-knee carry through cruise
+
       }
       let rbT = (t * 3) % 1;
       let rbLateral = 0;
@@ -3028,6 +3029,9 @@ function buildAnimForPlay(play, prevPlay) {
       // action time; ragdoll plays out from there to the end.
       const TACKLE_START_AT = 0.78;   // 22% of action time devoted to tackle+ragdoll
       const passIsTD = (play.endYard ?? 0) >= 100;
+      // First 20% of the route window = RELEASE pose (explosive first
+      // step off the LOS). After that, standard run until catch.
+      const inRelease = aT > 0 && aT < throwFrac * 0.20;
       const wrPose = t < PRE
         ? "idle"   // hold stance pre-snap (auto-flips to role stance via drawPlayer)
         : (wrIntPose
@@ -3037,7 +3041,8 @@ function buildAnimForPlay(play, prevPlay) {
         :  (isPostCatch && aT > TACKLE_START_AT && passIsTD ? "celebrate"
         :  (isPostCatch && aT > TACKLE_START_AT && (play.yards ?? 0) < 90 ? "tackled"
         :  (isPostCatch ? "carry"
-        :   "run")))))));
+        :  (inRelease ? "release"
+        :   "run"))))))));
       // For the tackled fall, pass fall-progress (not stride cycle) so the
       // ragdoll animation actually animates from "just hit" → "flat".
       // For run/carry, the stride cycle rate must scale to PLAY DURATION,
@@ -3114,23 +3119,19 @@ function buildAnimForPlay(play, prevPlay) {
                    facing: dir, archetype: olArch };
         }
         // Non-targeted receivers run REAL routes (decoys clear coverage).
-        // Was capped at ~6 yards downfield with the slow (t*3)%1 leg
-        // cycle, so they looked stationary next to the one targeted WR
-        // running 15+ yards. Now they cover catchDepth-relative ground
-        // at a real jog cadence so multiple receivers are visibly
-        // running on every pass play.
+        // First ~20% = RELEASE pose (explosive first step), then transition
+        // to standard run cycle. WRs and TEs explode off the LOS before
+        // settling into a route.
         if ((p.role === "WR1" || p.role === "WR2" || p.role === "WR3" || p.role === "WR4" || p.role === "WR5" || p.role === "TE1" || p.role === "TE" || p.role === "TE2") && aT > 0) {
           const tt = Math.min(1, aT / Math.max(0.1, throwFrac));
           const idHash = ((p.y * 7 + (p.x * 3)) >>> 0) % 100 / 100;
-          // Decoy depth varies per receiver (60-120% of targeted depth)
-          // so the field isn't a 4-WR conga line. Angle drifts toward
-          // the lateral side they started on.
           const decoyDepth = catchDepth * (0.6 + idHash * 0.6);
           const lateralOff = (idHash - 0.5) * 36;
           const strideHz = 2.0;
+          const inRelease = tt < 0.20;
           return { ...p, x: p.x + dir * tt * decoyDepth * FIELD.PX_PER_YARD,
                    y: p.y + Math.sin(tt * Math.PI * 0.6) * lateralOff,
-                   pose: "run",
+                   pose: inRelease ? "release" : "run",
                    t: ((t * (dur / 1000)) * strideHz) % 1,
                    facing: dir };
         }

@@ -1009,6 +1009,48 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
       bodyDY = Math.sin(t * Math.PI * 6) * 0.25;
       break;
     }
+    case "churn": {
+      // RB high-knee churn — ball carrier in the open field. Bigger
+      // stride amplitude than steady run, HIGH knee lift for power-
+      // running visual. One arm cradles the ball (handled by carry
+      // logic upstream if cradleBall set); the other pumps.
+      const ph = runPhase;
+      lLeg =  ph * 1.05;
+      rLeg = -ph * 1.05;
+      lLegLift = Math.max(0, -ph) * 11;     // higher than run's 7
+      rLegLift = Math.max(0,  ph) * 11;
+      // Off-arm pumps; cradle arm wraps ball (cradleBall fires in carry
+      // post-arm draw, this just sets the bicep angle.)
+      if (facing === 1) {
+        lArm = 0.4; lForearmOverride = 2.2;       // left wraps the ball
+        rArm = -ph * 1.0;                          // right pumps
+        cradleBallSide = -1;
+      } else {
+        rArm = 0.4; rForearmOverride = -2.2;
+        lArm =  ph * 1.0;
+        cradleBallSide = 1;
+      }
+      cradleBall = true;
+      bodyTilt = facing * 0.07;
+      bodyDY = -(Math.abs(ph) * 0.7 + 0.3);
+      break;
+    }
+    case "release": {
+      // WR first-step release at the LOS — explosive vertical push,
+      // body leaned FORWARD harder than mid-route cruise, longer first
+      // stride than a steady-state run. Distinguishes "exploding off
+      // the LOS" from "cruising downfield".
+      const ph = runPhase;
+      lLeg =  ph * 0.85;          // bigger stride than run's legAmp
+      rLeg = -ph * 0.85;
+      lLegLift = Math.max(0, -ph) * 9;   // higher first step
+      rLegLift = Math.max(0,  ph) * 9;
+      lArm = -ph * 1.1;           // exaggerated arm pump
+      rArm =  ph * 1.1;
+      bodyTilt = facing * 0.18;   // hard forward lean
+      bodyDY = -(Math.abs(ph) * 0.7 + 0.3);
+      break;
+    }
     case "scrape": {
       // LB read-step / scrape — body faces the offense, feet shuffle
       // laterally as the LB reads the run gap. Mid base, hands ready
