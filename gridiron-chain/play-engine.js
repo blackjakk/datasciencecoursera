@@ -4655,7 +4655,67 @@ class GameSimulator {
       : 0;
     const rzRunBonus = -_rzPen2 * 0.9 - _rzEliteDr * 1.5;
     const boxStackRunMod = this._boxStackRunMod || 0;
-    let yards = clamp(normal((rushMean + rbBoost + fbBoost + runVarMean + adv * 1.4 + runTrenchYds + fbStuffReduction - lbTackle * 0.5 - boxSafetyStuff - thumperStuff - lbGapRead + rbGapVision + carrierBoost + reverseBonus + ocRunArchBonus + dcRunStopperMalus + fatigueRunYds + rzRunBonus + boxStackRunMod) * defPbRun.runMul, rushSd * rbSdMul * runVarSd * reverseSdMul), -8, 75);
+    // ── CLASS-MIXTURE RUN YARDAGE ────────────────────────────────────────
+    // Real football outcomes aren't a single bell curve. A run is one of
+    // five outcome CLASSES: blocking fails (TFL), stuffed-at-line (1-2 yds),
+    // designed-gain works (3-7 yds), one defender beaten (burst 8-15), or
+    // broken open (16+). Each class has tight intrinsic spread; the matchup
+    // signal shifts WHICH CLASS FIRES MORE OFTEN, with a smaller within-class
+    // magnitude shift. This produces NFL-shaped distribution (fat 3-7yd
+    // middle, modest tails) instead of the wide-bell chunk-or-stuff pattern.
+    const matchupBonus = (rushMean - 4.3)
+      + rbBoost + fbBoost + runVarMean + adv * 1.4 + runTrenchYds
+      + fbStuffReduction - lbTackle * 0.5 - boxSafetyStuff - thumperStuff
+      - lbGapRead + rbGapVision + carrierBoost + reverseBonus
+      + ocRunArchBonus + dcRunStopperMalus + fatigueRunYds + rzRunBonus
+      + boxStackRunMod;
+    // Matchup-signal-to-probability shift. Typical bonus range -2..+3 yds.
+    const m01 = clamp(matchupBonus / 5, -0.8, 0.8);
+    // Defensive playbook stiffness — runMul < 1 means stuffier run D
+    const defStiff = clamp(1 - (defPbRun.runMul || 1), -0.5, 0.5);
+    // NFL baseline class probabilities (per Football Outsiders + Sharp data):
+    //   TFL/loss:  ~10%  (mean -2.0)
+    //   Stuff 0-2: ~25%  (mean  1.3)
+    //   Designed:  ~48%  (mean  4.5)  ← the "honest 4-5 yard middle"
+    //   Burst:     ~12%  (mean 10.0)
+    //   Big 16+:   ~ 5%  (mean 20.0)
+    // Mean = .10(-2) + .25(1.3) + .48(4.5) + .12(10) + .05(20) ≈ 4.49 ypc
+    let p_tfl   = clamp(0.10 - m01 * 0.04 + defStiff * 0.05, 0.02, 0.25);
+    let p_stuff = clamp(0.25 - m01 * 0.05 + defStiff * 0.05, 0.08, 0.40);
+    let p_burst = clamp(0.12 + m01 * 0.04 - defStiff * 0.04, 0.03, 0.25);
+    let p_big   = clamp(0.05 + m01 * 0.025 - defStiff * 0.02, 0.005, 0.15);
+    let p_des   = 1 - p_tfl - p_stuff - p_burst - p_big;
+    if (p_des < 0.20) {
+      const s = p_tfl + p_stuff + p_burst + p_big;
+      const k = 0.80 / s;
+      p_tfl *= k; p_stuff *= k; p_burst *= k; p_big *= k;
+      p_des = 0.20;
+    }
+    // Within-class magnitude shift — ~40% of bonus passes through to mean.
+    // The other 60% of the bonus signal is "spent" shifting probabilities.
+    const withinShift = matchupBonus * 0.4;
+    // Reverse plays widen the burst/big classes
+    const _bSd = 3 * (reverseSdMul || 1);
+    const _gSd = 9 * (reverseSdMul || 1);
+    // Class draw
+    const _cls = Math.random();
+    let yards;
+    if (_cls < p_tfl) {
+      yards = Math.round(normal(-2.0 + withinShift, 1.5));
+      yards = clamp(yards, -8, 0);
+    } else if (_cls < p_tfl + p_stuff) {
+      yards = Math.round(normal(1.3 + withinShift, 1.0));
+      yards = clamp(yards, 0, 4);
+    } else if (_cls < p_tfl + p_stuff + p_des) {
+      yards = Math.round(normal(4.5 + withinShift, 1.8 * (rbSdMul || 1)));
+      yards = clamp(yards, 1, 9);
+    } else if (_cls < p_tfl + p_stuff + p_des + p_burst) {
+      yards = Math.round(normal(10.0 + withinShift, _bSd));
+      yards = clamp(yards, 7, 18);
+    } else {
+      yards = Math.round(normal(20.0 + withinShift * 1.5, _gSd));
+      yards = clamp(yards, 14, 75);
+    }
     // Yards after contact — heavy power backs lean forward and drag tacklers.
     // Applied to every positive carry, before the break-tackle event rolls.
     if (!isQBRun && yards > 0) {
