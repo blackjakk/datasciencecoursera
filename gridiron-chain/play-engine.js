@@ -3590,11 +3590,13 @@ class GameSimulator {
       const momSackMul = 1 + ((this._momentum?.[this.poss === "home" ? "away" : "home"] || 0)
                             - (this._momentum?.[this.poss] || 0)) * 0.012;
       const boxStackSackMul = this._boxStackSackMul || 1;
-      // Base sack chance trimmed 0.105 → 0.090. First pass at 0.075 hit NFL
-      // sack count (4.6/game) but each prevented sack swaps -7yd for +7yd, a
-      // 14-yard swing per snap that pushed YPP 11% over NFL. 0.090 lands sacks
-      // near NFL ~5.0 while keeping yardage in band.
-      const sackPct = clamp((0.090 + pressure * 0.10 - adv * 0.02 + archSackBonus) * sackPb * qbAwrSackMul * defPbCurrent.sackMul * mlbAggMul * fatigueSackMul * momSackMul * boxStackSackMul, 0.02, 0.20);
+      // Base sack chance — 0.075 lands sacks near NFL ~5.0/game with the
+      // level-3 trench-battle model. Earlier values: 0.105 (sacks 7.1),
+      // 0.075 (sacks 4.6, over-corrected scoring), 0.090 (sacks 5.4 pre-
+      // trench, 6.4 post-trench-runs as trench resolution shifted RNG
+      // walk). Reset back to 0.075 — trench-driven run distribution adds
+      // its own per-snap variance that produces enough "pressure feel".
+      const sackPct = clamp((0.075 + pressure * 0.10 - adv * 0.02 + archSackBonus) * sackPb * qbAwrSackMul * defPbCurrent.sackMul * mlbAggMul * fatigueSackMul * momSackMul * boxStackSackMul, 0.02, 0.20);
       if (Math.random() < sackPct) {
         // THROW ON THE RUN — mobile QBs with high AGI sometimes escape pressure
         // and throw on the move instead of taking the sack. Lower comp / air
