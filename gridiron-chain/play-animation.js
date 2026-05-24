@@ -3229,6 +3229,30 @@ function buildAnimForPlay(play, prevPlay) {
             }
           }
         }
+        // PATH B Phase 5 — engine-emitted post-catch tackler track wins
+        // over sim-physics pursuit for the named tackler. When the
+        // engine credits a safety with the tackle on a deep ball, the
+        // animation now drives that safety to the catch+YAC spot via
+        // the motion waypoints — no more "closest defender via sim
+        // geometry happens to be a CB" override.
+        const _passTacklerTrack = (play.motion && play.motion.tracks && play.motion.tracks.tackler) || null;
+        const _passTacklerName = play.motion && play.motion.tacklerName;
+        const _isPassTacklerByName = play.kind === "complete" && _passTacklerName && d.name === _passTacklerName;
+        if (window._dbgTackler && _passTacklerName && i === 0) {
+          console.log('[Phase5 dbg] tacklerName=', _passTacklerName, ' hasTrack=', !!_passTacklerTrack, ' d.names=', formation.defense.map(x => x.name));
+          window._dbgTackler = false;
+        }
+        if (_passTacklerTrack && _isPassTacklerByName && typeof MotionPlayback !== "undefined") {
+          const sample = MotionPlayback.sampleTrack(_passTacklerTrack, aT);
+          if (sample) {
+            dd.x = losX + dir * sample.dxYd * FIELD.PX_PER_YARD;
+            dd.y = cy + sample.dyYd * FIELD.PX_PER_YARD;
+            // Lock pursuit-state so any later code reads consistent pos
+            if (d._sim) { d._sim.x = dd.x; d._sim.y = dd.y; }
+            d._postCatchSynced = true;     // skip the sync block below
+            dd.facing = -dir;
+          }
+        }
         if (play.kind === "complete" && t > throwPhase) {
           // Post-catch pursuit — was ALL 2 CBs + 2 Ss + 2 LBs (6
           // defenders) sprinting at the ball. Real NFL: 2-3 converge,
@@ -3249,7 +3273,9 @@ function buildAnimForPlay(play, prevPlay) {
             candidates.sort((a, b) => a.dist - b.dist);
             _postCatchPursuerSet = new Set(candidates.slice(0, POST_CATCH_PURSUERS).map(c => c.j));
           }
-          if (_postCatchPursuerSet.has(i)) {
+          // Skip sim pursuit for the named tackler — motion track above
+          // already drove them. Other defenders still use sim physics.
+          if (_postCatchPursuerSet.has(i) && !_isPassTacklerByName) {
             const isCB  = i === idxCB1 || i === idxCB2;
             const isSaf = i === idxS1  || i === idxS2;
             // SYNC pursue state with the defender's CURRENT rendered
@@ -3275,7 +3301,9 @@ function buildAnimForPlay(play, prevPlay) {
         // carrier's final position by the tackle window. Without this, big YAC
         // plays would show the WR getting "tackled" by no one (the slow pursue
         // function couldn't close 30+yd gaps before the tackle pose kicked in).
-        if (play.kind === "complete" && i === intDefIdx && t > throwPhase) {
+        // Skip when motion is driving a NAMED tackler — they're already
+        // at the YAC endpoint via the track.
+        if (play.kind === "complete" && i === intDefIdx && t > throwPhase && !_passTacklerTrack) {
           // Where the cover defender was at the catch moment
           const cbStartX = d.x + dir * catchDepth * 0.85 * FIELD.PX_PER_YARD;
           const cbStartY = d.y;

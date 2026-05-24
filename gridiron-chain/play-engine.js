@@ -4547,6 +4547,78 @@ class GameSimulator {
           if (trk) _routeTracks[slot] = trk;
         }
         const _hasTracks = Object.keys(_routeTracks).length > 0;
+        // ── PATH B Phase 5 — post-catch tackler pursuit track ────────
+        // Mirror of Phase 3a's run-play tackler track, but for the
+        // receiver-after-the-catch case. Engine derives the tackler's
+        // formation role from the credited tackler's name (defR.starters
+        // lookup), emits a pursuit path that converges on the YAC
+        // endpoint at t=0.78. Animation samples instead of running the
+        // sim-physics post-catch pursuit, which used to teleport the
+        // tackler to whoever was geometrically closest (often disagreed
+        // with the named tackler).
+        let _passTacklerTrack = null;
+        let _passTacklerSlot  = null;
+        if (tacklerName && this.defR && this.defR.starters) {
+          const ds = this.defR.starters;
+          _passTacklerSlot = tacklerName === ds.cb1 ? "cb1"
+                           : tacklerName === ds.cb2 ? "cb2"
+                           : tacklerName === ds.fs  ? "fs"
+                           : tacklerName === ds.ss  ? "ss"
+                           : tacklerName === ds.lb1 ? "lb1"
+                           : tacklerName === ds.lb2 ? "lb2"
+                           : tacklerName === ds.lb3 ? "lb3"
+                           : tacklerName === ds.nb  ? "nb"
+                           : null;
+          if (_passTacklerSlot) {
+            // Formation start in YARDS from (LOS, cy). Mirrors animation's
+            // makeFormation defaults — keep approximate; exact pixels
+            // come from animation when projecting.
+            const startBySlot = {
+              cb1: { dxYd: 5,  dyYd: -16 },
+              cb2: { dxYd: 5,  dyYd:  16 },
+              fs:  { dxYd: 12, dyYd:   0 },
+              ss:  { dxYd: 8,  dyYd:   5 },
+              lb1: { dxYd: 4,  dyYd:  -3 },
+              lb2: { dxYd: 4,  dyYd:   0 },
+              lb3: { dxYd: 4,  dyYd:   3 },
+              nb:  { dxYd: 5,  dyYd:  -10 },
+            };
+            const start = startBySlot[_passTacklerSlot];
+            // YAC endpoint — converge on the carrier's actual y position.
+            // Receiver tracks emit `dyYd = yards toward midfield from
+            // formation y`. The tackler track uses absolute dyYd from
+            // cy, so convert: wr1 is on TOP (formation y ≈ cy - 16yds,
+            // sign -1), wr2 on BOTTOM (sign +1). Wr's catch y in abs:
+            //   wrAbsDyYd = wrSign * (formOffsetYd - latAtCatch)
+            // (running toward middle reduces |dyYd|).
+            const endDxYd = targetDepth + yac;
+            const _wrShape = _slotRouteShape(_targetSlot, this._lastPassConcept);
+            const endLatAbs = _wrShape ? _wrShape.latAtCatch : 0;
+            const _wrSign = _targetSlot === "wr1" ? -1
+                          : _targetSlot === "wr2" ?  1
+                          : _targetSlot === "te"  ?  1
+                          : 0;
+            const _wrFormOffsetYd = _targetSlot === "wr1" || _targetSlot === "wr2" ? 16
+                                  : _targetSlot === "te" ? 5
+                                  : 0;
+            const _endDyAbs = _wrSign * (_wrFormOffsetYd - endLatAbs);
+            // Pursuit waypoints. Defender holds their assignment until
+            // the throw, then breaks toward the catch + YAC spot.
+            _passTacklerTrack = {
+              role: _passTacklerSlot.toUpperCase(),
+              tacklerName,
+              waypoints: [
+                { t: 0.00,       dxYd: start.dxYd,         dyYd: start.dyYd },                       // formation
+                { t: _throwT * 0.6,
+                                 dxYd: start.dxYd - (_passTacklerSlot.startsWith("cb") ? 0 : 1.5),
+                                 dyYd: start.dyYd * 0.7 },                                            // read / shuffle
+                { t: _throwT,    dxYd: targetDepth - 2,    dyYd: _endDyAbs * 0.6 },                  // closing at the catch
+                { t: 0.78,       dxYd: endDxYd,            dyYd: _endDyAbs },                         // tackle spot
+                { t: 1.00,       dxYd: endDxYd,            dyYd: _endDyAbs },                         // settled
+              ],
+            };
+          }
+        }
         // ── PATH B Phase 4.2 — throwType + dropDepth ────────────────
         // Animation was defaulting every completion to TOUCH because
         // the engine never emitted throwType for normal passes. Engine
@@ -4576,9 +4648,13 @@ class GameSimulator {
             targetSlot: _targetSlot,
             throwT: _throwT,
             dropDepth: _dropDepthEmit,
+            tackleT: 0.78,
+            tacklerSlot: _passTacklerSlot,
+            tacklerName,
             // Back-compat: animation Phase 3b still looks at tracks.targetWR.
-            // Phase 4 readers should prefer tracks[targetSlot].
-            tracks: { ..._routeTracks, targetWR: _routeTracks[_targetSlot] || null },
+            // Phase 4+ readers should prefer tracks[targetSlot].
+            tracks: { ..._routeTracks, targetWR: _routeTracks[_targetSlot] || null,
+                      ..._passTacklerTrack ? { tackler: _passTacklerTrack } : {} },
           } : null,
         });
         return { yards };
