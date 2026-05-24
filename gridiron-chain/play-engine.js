@@ -2394,16 +2394,13 @@ class GameSimulator {
     // engine burned a flat 27 sec/play regardless of result.
     const clockStopped = !!this._lastClockStopped;
     // NFL per-snap clock burn (incl. dead ball before snap):
-    //   normal:  ~28-30s   (engine 29)  earlier 32 produced 53.9 plays/team
-    //                       vs NFL 62; trimmed to 29 to add ~3s of capacity
-    //                       per play. Trade-off: drives extend OR drive count
-    //                       rises depending on YPP — with YAC + stick-aim
-    //                       fixes pushing YPP to NFL-correct 5.45, the extra
-    //                       capacity becomes additional plays at NFL yardage
-    //                       (the right scoring + yards cascade).
+    //   normal:  ~26-28s   (engine 27)  class-mixture-tuned ypp lands at NFL
+    //                       but plays/team still 58.2 vs NFL 62. Trim from 29
+    //                       to 27 adds ~4 plays/team/game, lifting score from
+    //                       19.3 toward NFL 22 (efficiency × volume).
     //   stopped: ~13s      (engine 13)  incomp / OOB / TO / spike
     //   2-min:   ~12s      (engine 12)  no-huddle pace
-    const dtMean = inTwoMin ? 12 : clockStopped ? 13 : 29;
+    const dtMean = inTwoMin ? 12 : clockStopped ? 13 : 27;
     const dtSd   = inTwoMin ? 3  : clockStopped ? 4  : 8;
     const dtMin  = inTwoMin ? 5  : clockStopped ? 6  : 14;
     const dtMax  = inTwoMin ? 22 : clockStopped ? 22 : 50;
@@ -4125,16 +4122,19 @@ class GameSimulator {
         const _psum = p_short + p_inter + p_deep + p_shot;
         p_short /= _psum; p_inter /= _psum; p_deep /= _psum; p_shot /= _psum;
         // Class draw — narrow intrinsic spread per concept
+        // Intermediate/deep/shot class means trimmed — first-pass values
+        // produced pass YPA 7.70 (NFL ~7.2). YAC adds ~4.5 on completions;
+        // class baselines slightly lower bring YPA into NFL band.
         const _aCls = Math.random();
         let airYds;
         if (_aCls < p_short) {
           airYds = clamp(Math.round(normal(3.0, 1.5)), -2, 6);
         } else if (_aCls < p_short + p_inter) {
-          airYds = clamp(Math.round(normal(10.0, 2.5)), 6, 16);
+          airYds = clamp(Math.round(normal(9.0, 2.5)), 6, 16);
         } else if (_aCls < p_short + p_inter + p_deep) {
-          airYds = clamp(Math.round(normal(20.0, 3.0)), 16, 28);
+          airYds = clamp(Math.round(normal(18.0, 3.0)), 16, 28);
         } else {
-          airYds = clamp(Math.round(normal(30.0, 5.0)), 26, 55);
+          airYds = clamp(Math.round(normal(27.0, 5.0)), 26, 55);
         }
         // YAC distribution — short catches / screens get more YAC potential.
         // Tuned to land NFL-average ~4.5 yds YAC per completion. The prior
@@ -4741,20 +4741,23 @@ class GameSimulator {
     // Class draw
     const _cls = Math.random();
     let yards;
+    // Class means trimmed — first-pass values landed rush YPC at 4.90 (NFL
+    // ~4.4). Lean-forward + broken-tackle add ~0.4 yds on top, so the class
+    // baseline needs to be ~4.0 for measured ypc to land at NFL avg.
     if (_cls < p_tfl) {
       yards = Math.round(normal(-2.0 + withinShift, 1.5));
       yards = clamp(yards, -8, 0);
     } else if (_cls < p_tfl + p_stuff) {
-      yards = Math.round(normal(1.3 + withinShift, 1.0));
+      yards = Math.round(normal(1.0 + withinShift, 1.0));
       yards = clamp(yards, 0, 4);
     } else if (_cls < p_tfl + p_stuff + p_des) {
-      yards = Math.round(normal(4.5 + withinShift, 1.8 * (rbSdMul || 1)));
+      yards = Math.round(normal(4.0 + withinShift, 1.8 * (rbSdMul || 1)));
       yards = clamp(yards, 1, 9);
     } else if (_cls < p_tfl + p_stuff + p_des + p_burst) {
-      yards = Math.round(normal(10.0 + withinShift, _bSd));
+      yards = Math.round(normal(9.0 + withinShift, _bSd));
       yards = clamp(yards, 7, 18);
     } else {
-      yards = Math.round(normal(20.0 + withinShift * 1.5, _gSd));
+      yards = Math.round(normal(18.0 + withinShift * 1.5, _gSd));
       yards = clamp(yards, 14, 75);
     }
     // Yards after contact — heavy power backs lean forward and drag tacklers.
