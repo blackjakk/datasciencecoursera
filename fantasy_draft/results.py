@@ -116,6 +116,66 @@ def load_all_seasons(sleeper_dir: str | Path = "data/sleeper") -> dict[int, dict
     return out
 
 
+def load_player_ownership_windows(
+    sleeper_dir: str | Path = "data/sleeper",
+) -> dict[tuple[int, str], list[tuple[int, int, int]]]:
+    """For each (season, player_id), return a list of (start_wk, end_wk, rid)
+    intervals tracking who actually owned the player each week.
+
+    Used to credit FA/streaming pickups only for weeks the player was on
+    that manager's roster — not the full rest-of-season (which double-counts
+    when the player gets dropped or traded away).
+    """
+    ownership: dict[tuple[int, str], list[tuple[int, int, int]]] = {}
+    for season_dir in sorted(Path(sleeper_dir).glob("league_*")):
+        if not (season_dir / "league.json").exists():
+            continue
+        lg = json.loads((season_dir / "league.json").read_text(encoding="utf-8"))
+        season = int(lg.get("season") or 0)
+        if not season:
+            continue
+        current: dict[str, tuple[int, int]] = {}  # pid -> (rid, start_wk)
+        # Seed from draft picks (whoever drafted owns from W1).
+        pf = list(season_dir.glob("draft_*_picks.json"))
+        if pf:
+            for p in json.loads(pf[0].read_text(encoding="utf-8")):
+                pid = str(p.get("player_id") or "")
+                rid = int(p.get("roster_id") or 0)
+                if pid and rid:
+                    current[pid] = (rid, 1)
+        # Walk transactions in week order.
+        for tf in sorted((season_dir / "transactions").glob("week_*.json"),
+                          key=lambda f: int(f.stem.split("_")[1])):
+            wk = int(tf.stem.split("_")[1])
+            try:
+                txns = json.loads(tf.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            txns.sort(key=lambda t: t.get("status_updated") or 0)
+            for t in txns:
+                if t.get("status") not in ("complete", "completed"):
+                    continue
+                # Process drops first (so add can overwrite cleanly).
+                for pid, rid in (t.get("drops") or {}).items():
+                    pid = str(pid); rid = int(rid)
+                    if pid in current and current[pid][0] == rid:
+                        start = current[pid][1]
+                        ownership.setdefault((season, pid), []).append(
+                            (start, wk - 1, rid))
+                        del current[pid]
+                for pid, rid in (t.get("adds") or {}).items():
+                    pid = str(pid); rid = int(rid)
+                    if pid in current and current[pid][0] != rid:
+                        start = current[pid][1]
+                        ownership.setdefault((season, pid), []).append(
+                            (start, wk - 1, current[pid][0]))
+                    current[pid] = (rid, wk)
+        # Close open intervals at season end.
+        for pid, (rid, start) in current.items():
+            ownership.setdefault((season, pid), []).append((start, 17, rid))
+    return ownership
+
+
 def load_weekly_player_points(
     sleeper_dir: str | Path = "data/sleeper",
 ) -> dict[int, dict[int, dict[str, float]]]:

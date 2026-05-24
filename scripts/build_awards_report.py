@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from fantasy_draft.results import (
     load_draft_picks_with_points, load_all_seasons,
-    load_all_trades, summarize_trade,
+    load_all_trades, summarize_trade, load_player_ownership_windows,
 )
 from fantasy_draft.team_identity import manager_for_sleeper_roster
 
@@ -94,6 +94,8 @@ def compute_data():
         "kept": 0, "kept_vbd": 0.0, "future_carry": 0.0,
     })
     kdef_stream = defaultdict(lambda: {"adds": 0, "hits": 0, "vbd": 0.0, "best": None})
+    # Ownership windows: who actually held each player which weeks.
+    owners = load_player_ownership_windows(ROOT / "data" / "sleeper")
     best_pickup_ever = None
     for ld in sorted((ROOT / "data" / "sleeper").glob("league_*")):
         if not (ld / "league.json").exists():
@@ -111,9 +113,17 @@ def compute_data():
                 if t.get("status") not in ("complete", "completed"):
                     continue
                 for pid, rid in (t.get("adds") or {}).items():
-                    pts = sum(pp_sw[season].get(w, {}).get(str(pid), 0.0)
-                              for w in range(wk, 18))
                     rid = int(rid)
+                    # Use ownership window to credit only weeks this rid
+                    # actually held the player (avoids double-counting when
+                    # streaming/dropping).
+                    intervals = owners.get((season, str(pid)), [])
+                    pts = 0.0
+                    for s_wk, e_wk, owner_rid in intervals:
+                        if owner_rid == rid and s_wk >= wk:
+                            pts += sum(pp_sw[season].get(w, {}).get(str(pid), 0.0)
+                                       for w in range(s_wk, e_wk + 1))
+                            break  # only the interval starting at this pickup
                     pos = (catalog.get(str(pid)) or {}).get("position") or ""
                     fa_vbd = pts - repl[season].get(pos, 0)
                     wire[rid]["fa_adds"] += 1

@@ -30,20 +30,20 @@ FA + keepers + future-carry are one skill: find good players outside the draft, 
 
 | Rank | Manager | FA hits | FA VBD | Carry yrs | Carry VBD | 2026 future | **Total** | Best FA pickup |
 |---|---|---|---|---|---|---|---|---|
-| 1 | **Brower** | 48/161 | +2025 | 5 | +276 | +137 | **+2437** | Gardner Minshew (166, 2023 W5) |
-| 2 | **Trevor** | 40/189 | +1186 | 10 | +479 | +180 | **+1846** | Puka Nacua (217, 2023 W1) |
-| 3 | **Josh** | 29/96 | +1296 | 4 | +52 | +35 | **+1383** | Joshua Dobbs (211, 2023 W1) |
-| 4 | **Troy** | 26/98 | +1099 | 8 | +105 | -13 | **+1191** | Kyren Williams (222, 2023 W1) |
-| 5 | **Coop** | 13/54 | +770 | 8 | +321 | +88 | **+1179** | Jacoby Brissett (172, 2025 W6) |
-| 6 | **Eric** | 19/50 | +616 | 5 | +417 | +45 | **+1079** | Jake Bates (138, 2025 W2) |
-| 7 | **Brian** | 20/107 | +955 | 5 | +8 | +25 | **+988** | Chris Boswell (155, 2024 W1) |
-| 8 | **Donnie** | 9/23 | +331 | 5 | +469 | +0 | **+799** | Darnell Mooney (159, 2024 W2) |
-| 9 | **Lem** | 12/81 | +395 | 9 | +348 | +48 | **+792** | Adam Thielen (158, 2023 W2) |
-| 10 | **Kyle** | 14/80 | +529 | 11 | +71 | +0 | **+600** | Brandon Aubrey (141, 2023 W2) |
-| 11 | **Ankur** | 12/82 | +423 | 4 | +155 | -15 | **+564** | Rico Dowdle (180, 2025 W4) |
-| 12 | **Tim** | 6/39 | +280 | 6 | +68 | +9 | **+356** | Kareem Hunt (110, 2023 W2) |
+| 1 | **Coop** | 12/54 | +535 | 8 | +321 | +88 | **+944** | Quentin Johnston (123, 2025 W1) |
+| 2 | **Brower** | 16/161 | +461 | 5 | +276 | +137 | **+873** | Gardner Minshew (166, 2023 W5) |
+| 3 | **Trevor** | 11/189 | +193 | 10 | +479 | +180 | **+852** | Jacoby Brissett (152, 2025 W10) |
+| 4 | **Eric** | 11/50 | +290 | 5 | +417 | +45 | **+753** | Cameron Dicker (117, 2024 W7) |
+| 5 | **Donnie** | 7/23 | +284 | 5 | +469 | +0 | **+753** | Darnell Mooney (159, 2024 W2) |
+| 6 | **Lem** | 9/81 | +319 | 9 | +348 | +48 | **+716** | Adam Thielen (158, 2023 W2) |
+| 7 | **Josh** | 17/96 | +493 | 4 | +52 | +35 | **+580** | Joshua Dobbs (206, 2023 W1) |
+| 8 | **Troy** | 18/98 | +431 | 8 | +105 | -13 | **+523** | Rico Dowdle (176, 2025 W5) |
+| 9 | **Brian** | 14/107 | +482 | 5 | +8 | +25 | **+516** | Chris Boswell (155, 2024 W1) |
+| 10 | **Kyle** | 7/80 | +382 | 11 | +71 | +0 | **+453** | Brandon Aubrey (141, 2023 W2) |
+| 11 | **Ankur** | 4/82 | +184 | 4 | +155 | -15 | **+324** | Gus Edwards (173, 2023 W1) |
+| 12 | **Tim** | 4/39 | +130 | 6 | +68 | +9 | **+206** | Kareem Hunt (110, 2023 W2) |
 
-**League best raw pickup ever:** Kyren Williams → Troy (W1 2023, +222 pts the rest of the year)
+**League best raw pickup ever:** Joshua Dobbs → Josh (W1 2023, +206 pts the rest of the year)
 
 ## 🎬 LINEUP COMMANDER — least pts left on bench per week
 Computed by comparing actual starting lineup pts vs. the optimal lineup from each week's roster.
@@ -86,18 +86,18 @@ Sum of positive-VBD K/DEF pickups across the season. Volume + matchup-savvy = hi
 
 | Rank | Manager | K/DEF adds | Hits | Hit VBD | Best stream |
 |---|---|---|---|---|---|
-| 1 | **Brower** | 58 | 38 | +1716 | SEA (125, 2025 W6) |
-| 2 | **Josh** | 43 | 25 | +1118 | DEN (131, 2024 W4) |
-| 3 | **Trevor** | 74 | 37 | +993 | CLE (149, 2023 W2) |
-| 4 | **Brian** | 24 | 15 | +841 | Chris Boswell (155, 2024 W1) |
-| 5 | **Troy** | 38 | 21 | +796 | Ka'imi Fairbairn (158, 2025 W1) |
-| 6 | **Coop** | 16 | 10 | +657 | Jake Elliott (129, 2023 W2) |
-| 7 | **Eric** | 27 | 19 | +616 | Jake Bates (138, 2025 W2) |
-| 8 | **Kyle** | 26 | 12 | +451 | Brandon Aubrey (141, 2023 W2) |
-| 9 | **Tim** | 11 | 6 | +280 | SEA (105, 2025 W8) |
-| 10 | **Lem** | 14 | 9 | +279 | MIN (117, 2024 W3) |
-| 11 | **Ankur** | 15 | 9 | +278 | DEN (115, 2024 W6) |
-| 12 | **Donnie** | 10 | 7 | +262 | Jake Elliott (106, 2024 W6) |
+| 1 | **Coop** | 16 | 9 | +422 | PHI (101, 2024 W8) |
+| 2 | **Brian** | 24 | 9 | +371 | Chris Boswell (155, 2024 W1) |
+| 3 | **Brower** | 58 | 12 | +323 | CLE (124, 2023 W6) |
+| 4 | **Josh** | 43 | 13 | +320 | MIA (85, 2023 W10) |
+| 5 | **Troy** | 38 | 15 | +316 | Ka'imi Fairbairn (102, 2025 W1) |
+| 6 | **Kyle** | 26 | 6 | +308 | Brandon Aubrey (141, 2023 W2) |
+| 7 | **Eric** | 27 | 11 | +290 | Cameron Dicker (117, 2024 W7) |
+| 8 | **Donnie** | 10 | 6 | +240 | Jake Elliott (106, 2024 W6) |
+| 9 | **Lem** | 14 | 6 | +203 | MIN (117, 2024 W3) |
+| 10 | **Trevor** | 74 | 10 | +164 | Jake Moody (46, 2023 W1) |
+| 11 | **Ankur** | 15 | 3 | +131 | DEN (115, 2024 W6) |
+| 12 | **Tim** | 11 | 4 | +130 | Jake Bates (84, 2025 W8) |
 
 ## 🎯 K/DEF DRAFTING EDGE — drafting kickers/defenses at the right round
 Above-empirical-mean VBD for K/DEF picks. Drafting Tucker R12 or Dicker R14 = big edge.
@@ -191,18 +191,18 @@ Picks that missed their round's expected VBD by the widest margin.
 ## 🌪️ MOST ACTIVE GM — waiver / FA volume
 | Rank | Manager | Total adds | Hits | Hit % | Style |
 |---|---|---|---|---|---|
-| 1 | **Trevor** | 189 | 40 | 21% | 🌪️ spray-and-pray volume |
-| 2 | **Brower** | 161 | 48 | 30% | 🌪️ spray-and-pray volume |
-| 3 | **Brian** | 107 | 20 | 19% | active churner |
-| 4 | **Troy** | 98 | 26 | 27% | active churner |
-| 5 | **Josh** | 96 | 29 | 30% | active churner |
-| 6 | **Ankur** | 82 | 12 | 15% | selective tactical |
-| 7 | **Lem** | 81 | 12 | 15% | selective tactical |
-| 8 | **Kyle** | 80 | 14 | 18% | selective tactical |
-| 9 | **Coop** | 54 | 13 | 24% | selective tactical |
-| 10 | **Eric** | 50 | 19 | 38% | selective tactical |
-| 11 | **Tim** | 39 | 6 | 15% | minimal-touch |
-| 12 | **Donnie** | 23 | 9 | 39% | minimal-touch |
+| 1 | **Trevor** | 189 | 11 | 6% | 🌪️ spray-and-pray volume |
+| 2 | **Brower** | 161 | 16 | 10% | 🌪️ spray-and-pray volume |
+| 3 | **Brian** | 107 | 14 | 13% | active churner |
+| 4 | **Troy** | 98 | 18 | 18% | active churner |
+| 5 | **Josh** | 96 | 17 | 18% | active churner |
+| 6 | **Ankur** | 82 | 4 | 5% | selective tactical |
+| 7 | **Lem** | 81 | 9 | 11% | selective tactical |
+| 8 | **Kyle** | 80 | 7 | 9% | selective tactical |
+| 9 | **Coop** | 54 | 12 | 22% | selective tactical |
+| 10 | **Eric** | 50 | 11 | 22% | selective tactical |
+| 11 | **Tim** | 39 | 4 | 10% | minimal-touch |
+| 12 | **Donnie** | 23 | 7 | 30% | minimal-touch |
 
 ## 👑 CHAMPIONS & STANDINGS
 ### 2023 — 🏆 Eric
@@ -258,17 +258,17 @@ Each manager's percentile rank within each skill, averaged.
 
 | Rank | Manager | Draft | Wire | Lineup | Trade | **Avg** |
 |---|---|---|---|---|---|---|
-| 1 | **Eric** | 73 | 55 | 91 | 64 | **70** |
-| 2 | **Donnie** | 55 | 36 | 73 | 100 | **66** |
-| 3 | **Brian** | 91 | 45 | 55 | 55 | **61** |
-| 4 | **Brower** | 36 | 100 | 82 | 27 | **61** |
-| 5 | **Lem** | 100 | 27 | 64 | 45 | **59** |
-| 6 | **Ankur** | 82 | 9 | 27 | 82 | **50** |
-| 7 | **Josh** | 18 | 82 | 0 | 91 | **48** |
-| 8 | **Trevor** | 64 | 91 | 9 | 18 | **45** |
+| 1 | **Eric** | 73 | 73 | 91 | 64 | **75** |
+| 2 | **Donnie** | 55 | 64 | 73 | 100 | **73** |
+| 3 | **Lem** | 100 | 55 | 64 | 45 | **66** |
+| 4 | **Brower** | 36 | 91 | 82 | 27 | **59** |
+| 5 | **Brian** | 91 | 27 | 55 | 55 | **57** |
+| 6 | **Coop** | 9 | 100 | 18 | 73 | **50** |
+| 7 | **Ankur** | 82 | 9 | 27 | 82 | **50** |
+| 8 | **Trevor** | 64 | 82 | 9 | 18 | **43** |
 | 9 | **Kyle** | 45 | 18 | 100 | 9 | **43** |
-| 10 | **Coop** | 9 | 64 | 18 | 73 | **41** |
-| 11 | **Troy** | 27 | 73 | 36 | 0 | **34** |
+| 10 | **Josh** | 18 | 45 | 0 | 91 | **39** |
+| 11 | **Troy** | 27 | 36 | 36 | 0 | **25** |
 | 12 | **Tim** | 0 | 0 | 45 | 36 | **20** |
 
 *Percentiles 0-100 (100 = best, 0 = worst). Composite = average across the 4 skills.*
