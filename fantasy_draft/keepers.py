@@ -22,6 +22,10 @@ class Keeper:
     # team (including the upcoming year would make it years_kept + 1). Used to
     # enforce KeeperRules.max_years_consecutive.
     years_kept: int = 0
+    # Pre-resolved forfeit round (e.g. bumped up from natural cost because
+    # another keeper on this team also wanted the same round). When set,
+    # apply_keepers uses this exact round instead of computing from prior.
+    effective_forfeit_round: int | None = None
 
 
 def apply_keepers(draft: Draft, all_players: list[Player], keepers: list[Keeper]) -> list[str]:
@@ -67,17 +71,20 @@ def apply_keepers(draft: Draft, all_players: list[Player], keepers: list[Keeper]
                 continue
             prior = rules.undrafted_keeper_round
 
-        forfeit_round = prior - rules.round_penalty
-        if forfeit_round <= 0:
-            if rules.too_early_policy == "not_eligible":
-                log.append(
-                    f"REJECT {team.name}: {player.name} drafted in R{prior} can't be kept "
-                    f"(penalty would forfeit R{forfeit_round})."
-                )
-                continue
-            # Otherwise: penalty applies to next year's first; we just take this
-            # year's first as the cost so the team still pays a pick.
-            forfeit_round = 1
+        if keeper.effective_forfeit_round is not None:
+            forfeit_round = keeper.effective_forfeit_round
+        else:
+            forfeit_round = prior - rules.round_penalty
+            if forfeit_round <= 0:
+                if rules.too_early_policy == "not_eligible":
+                    log.append(
+                        f"REJECT {team.name}: {player.name} drafted in R{prior} can't be kept "
+                        f"(penalty would forfeit R{forfeit_round})."
+                    )
+                    continue
+                # Otherwise: penalty applies to next year's first; we just take this
+                # year's first as the cost so the team still pays a pick.
+                forfeit_round = 1
 
         target_pick = _find_pick(draft, team.idx, forfeit_round)
         if target_pick is None:
@@ -119,11 +126,13 @@ def load_keepers_file(path: str | Path,
     for r in records:
         if not include_forced_drops and r.get("status") == "forced_drop":
             continue
+        eff = r.get("effective_forfeit_round")
         out.append(Keeper(
             team_idx=int(r["team_idx"]),
             player_name=r["player_name"],
             prior_round=int(r["prior_round"]),
             years_kept=int(r["years_kept"]),
+            effective_forfeit_round=int(eff) if eff is not None else None,
         ))
     return out
 

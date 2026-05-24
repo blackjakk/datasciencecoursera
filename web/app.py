@@ -340,18 +340,25 @@ with tab_keepers:
                 return f"~R{best_r}" if best_r else "—"
 
             for r in recs:
-                forfeit = r["prior_round"] - league.keepers.round_penalty
+                natural = r["prior_round"] - league.keepers.round_penalty
+                eff = r.get("effective_forfeit_round")
                 tag = {
                     "carryover": "★ KEEP",
                     "drop_recommended": "↓ DROP (better to draft)",
                     "forced_drop": "✕ FORCED DROP (yr3 cap)",
                 }.get(r["status"], r["status"])
+                if natural <= 0:
+                    cost_str = "n/a"
+                elif eff is not None and int(eff) != natural:
+                    cost_str = f"R{eff}↑ (nat R{natural}, bumped — same-round collision)"
+                else:
+                    cost_str = f"R{natural}"
                 row = {
                     "Status": tag,
                     "Player": r["player_name"],
                     "Pos": r.get("position", ""),
                     "2025 Round": r["prior_round"],
-                    "2026 Cost": f"R{forfeit}" if forfeit > 0 else "n/a",
+                    "2026 Cost": cost_str,
                     "Yrs Kept (prior)": r["years_kept"],
                 }
                 if r.get("net_vbd") is not None:
@@ -1215,10 +1222,13 @@ with tab_assets:
                 if r.get("status") != "carryover":
                     continue
                 tidx = int(r["team_idx"])
-                forfeit_by_team.setdefault(tidx, []).append(int(r["forfeit_round"]))
+                eff = int(r.get("effective_forfeit_round") or r["forfeit_round"])
+                nat = int(r["forfeit_round"])
+                forfeit_by_team.setdefault(tidx, []).append(eff)
                 keeper_vbd_by_team[tidx] = keeper_vbd_by_team.get(tidx, 0.0) + (r.get("net_vbd") or 0)
+                bump = "↑" if eff != nat else ""
                 keepers_by_team.setdefault(tidx, []).append(
-                    f"{r['player_name']} (R{r['forfeit_round']}, {(r.get('net_vbd') or 0):+.0f})"
+                    f"{r['player_name']} (R{eff}{bump}, {(r.get('net_vbd') or 0):+.0f})"
                 )
 
             rows = []

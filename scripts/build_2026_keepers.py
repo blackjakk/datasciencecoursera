@@ -177,10 +177,19 @@ def _score_and_select(candidates: list[dict], n_iterations: int = 3) -> list[dic
     # Start with no keepers selected.
     selected_names: set[str] = set()
 
+    trades = [t for t in load_trades_from_sleeper_dump("data/sleeper")
+              if t.season == 2026]
+
+    # Picks-owned per team per round, post-trade only — computed once from a
+    # CLEAN draft so iterative keeper application doesn't shrink it.
+    clean = Draft.new(cfg)
+    apply_trades(clean, trades)
+    picks_owned: dict[int, dict[int, int]] = defaultdict(lambda: defaultdict(int))
+    for pk in clean.picks:
+        picks_owned[pk.team_idx][pk.round_num] += 1
+
     for it in range(n_iterations):
         draft = Draft.new(cfg)
-        trades = [t for t in load_trades_from_sleeper_dump("data/sleeper")
-                  if t.season == 2026]
         apply_trades(draft, trades)
         applied = []
         for nm in selected_names:
@@ -214,19 +223,50 @@ def _score_and_select(candidates: list[dict], n_iterations: int = 3) -> list[dic
             c["pick_value_baseline"] = round(baseline, 1)
             c["adp"] = p.adp
 
-        # Re-pick top-4 positive per team (ignore yr3 cap = forced_drop).
+        # Per-team collision-aware selection. League rule: two keepers at the
+        # same forfeit_round can't share one pick — the lower-VBD keeper bumps
+        # UP one round (more expensive). Unless the team owns multiple picks
+        # at that round (trade), in which case both can pay natural cost.
         new_selected: set[str] = set()
+        for c in candidates:
+            c["effective_forfeit_round"] = c["forfeit_round"]
         by_team: dict[int, list[dict]] = defaultdict(list)
         for c in candidates:
             by_team[c["team_idx"]].append(c)
         for team_idx, cands in by_team.items():
-            eligible = [c for c in cands
-                        if c["years_kept"] < MAX_YEARS
-                        and c.get("net_vbd") is not None
-                        and c["net_vbd"] > 0]
-            eligible.sort(key=lambda c: -c["net_vbd"])
-            for c in eligible[:MAX_KEEPERS]:
+            owned = picks_owned.get(team_idx, {})
+            used: dict[int, int] = defaultdict(int)
+            ranked = sorted(
+                (c for c in cands
+                 if c["years_kept"] < MAX_YEARS
+                 and c.get("raw_vbd") is not None),
+                key=lambda c: -c["raw_vbd"],
+            )
+            selected_for_team = 0
+            for c in ranked:
+                if selected_for_team >= MAX_KEEPERS:
+                    break
+                natural = c["forfeit_round"]
+                chosen = None
+                for r in range(natural, 0, -1):
+                    if used[r] < owned.get(r, 0):
+                        chosen = r
+                        break
+                if chosen is None:
+                    continue
+                baseline = _baseline_for(chosen, c["position"])
+                p = pbn.get(c["player_name"].lower())
+                if p is None:
+                    continue
+                net_at_chosen = round(p.vbd - baseline, 1)
+                if net_at_chosen <= 0:
+                    continue
+                used[chosen] += 1
+                c["effective_forfeit_round"] = chosen
+                c["net_vbd"] = net_at_chosen
+                c["pick_value_baseline"] = round(baseline, 1)
                 new_selected.add(c["player_name"])
+                selected_for_team += 1
 
         if new_selected == selected_names:
             break
@@ -256,6 +296,7 @@ def _score_and_select(candidates: list[dict], n_iterations: int = 3) -> list[dic
             "position": c["position"],
             "prior_round": c["prior_round"],
             "forfeit_round": c["forfeit_round"],
+            "effective_forfeit_round": c.get("effective_forfeit_round", c["forfeit_round"]),
             "years_kept": c["years_kept"],
             "status": "forced_drop" if is_forced else "carryover",
             "net_vbd": c.get("net_vbd"),
@@ -288,7 +329,10 @@ def main():
         recs = sorted(by_team[idx], key=lambda r: -(r.get("net_vbd") or 0))
         carry = [r for r in recs if r["status"] == "carryover"]
         forced_team = [r for r in recs if r["status"] == "forced_drop"]
-        kn = ", ".join(f"{r['player_name']}(R{r['forfeit_round']}, "
+        def _cost(r):
+            eff = r.get("effective_forfeit_round", r["forfeit_round"])
+            return f"R{eff}" + ("↑" if eff != r["forfeit_round"] else "")
+        kn = ", ".join(f"{r['player_name']}({_cost(r)}, "
                         f"{r.get('net_vbd', 0):+.0f})" for r in carry)
         fn = ", ".join(f"{r['player_name']}" for r in forced_team)
         total = sum(r.get("net_vbd") or 0 for r in carry)
