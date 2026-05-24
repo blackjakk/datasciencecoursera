@@ -1918,19 +1918,39 @@ function buildAnimForPlay(play, prevPlay) {
         const elapsedMs = Math.max(0, (t - PRE - reactDelay) * dur);
         const carrierFast = (rbArch === "SPEED" || rbArch === "ELUSIVE") ? 0.92 : 1.0;
         const factor = (i >= idxCB1 ? 1.02 : (i === idxS1 || i === idxS2 ? 1.0 : 0.92)) * carrierFast;
+        // Primary tackler bumped — engine outcome (named tackler at the
+        // specified yard) is preserved by making sure SOMEONE catches
+        // in time. Everyone else uses realistic speed.
+        const isPrimary = (i === primaryTacklerIdx);
+        const simFactor = isPrimary ? Math.max(factor, 1.15) : factor;
         // PHYSICS SIM pursuit — defender computes intercept against the
-        // carrier's velocity vector and accelerates toward that point.
-        // Real angles emerge (defender cuts across the field instead of
-        // chasing in a straight line). Fallback to legacy pursue() when
-        // SimPlayer isn't loaded.
+        // CARRIER's velocity (was bug: passed the lane-offset target as
+        // carrier position, intercept came out wrong). Now intercepts
+        // the actual rb.x/rb.y + lane-offset target post-intercept.
         let np;
         if (typeof SimPlayer !== "undefined") {
           const carrierVel = carrierVelocityToward(rb.x, rb.y, endX, cy + 28, 180);
-          const carrierSim = { x: txBase, y: tyBase, vx: carrierVel.vx, vy: carrierVel.vy };
           const nowMs = t * dur;
-          np = elapsedMs > 0
-            ? simPursue(d, carrierSim, nowMs, factor)
-            : { x: d.x, y: d.y, moved: false };
+          if (elapsedMs > 0) {
+            // Ensure sim exists with the right speed (resync for primary tackler)
+            if (!d._sim || d._simSpeedFactor !== simFactor) {
+              d._sim = new SimPlayer(d.x, d.y, {
+                maxSpeed: SIM_DEFAULTS.MAX_SPEED * simFactor,
+                accel: SIM_DEFAULTS.ACCEL,
+              });
+              d._simSpeedFactor = simFactor;
+            }
+            const intercept = simIntercept(d._sim, { x: rb.x, y: rb.y, vx: carrierVel.vx, vy: carrierVel.vy });
+            // Apply lane discipline as an offset from the intercept
+            const tx = intercept.x + (txBase - rb.x);
+            const ty = intercept.y + (tyBase - rb.y);
+            const beforeX = d._sim.x, beforeY = d._sim.y;
+            d._sim.stepTowardAt(tx, ty, nowMs);
+            np = { x: d._sim.x, y: d._sim.y,
+                   moved: Math.hypot(d._sim.x - beforeX, d._sim.y - beforeY) > 0.5 };
+          } else {
+            np = { x: d.x, y: d.y, moved: false };
+          }
         } else {
           np = elapsedMs > 0 ? pursue(d, txBase, tyBase, elapsedMs, factor) : { x: d.x, y: d.y, moved: false };
         }

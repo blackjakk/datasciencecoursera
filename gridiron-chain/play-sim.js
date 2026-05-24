@@ -13,7 +13,10 @@
 
 // All constants in PIXELS (matches FIELD coords). 1 yard = 15 px.
 const SIM_DEFAULT_MAX_SPEED = 9.5 * 15;     // ≈ 142 px/s — top NFL DB speed
-const SIM_DEFAULT_ACCEL     = 18.0 * 15;    // ≈ 270 px/s² — explosive start
+// Lower default accel so the spool-up from rest is VISIBLE in the
+// animation (was 18 yd/s² which hit top speed in 0.53s — looked nearly
+// instant). 10 yd/s² hits top in ~1s — clear "build-up" motion.
+const SIM_DEFAULT_ACCEL     = 10.0 * 15;    // ≈ 150 px/s²
 const SIM_CONTACT_RADIUS    = 12;           // ≈ 0.8 yd — circle radius for collision
 
 function _len(x, y) { return Math.sqrt(x * x + y * y); }
