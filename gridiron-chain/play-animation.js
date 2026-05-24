@@ -3599,12 +3599,18 @@ function buildAnimForPlay(play, prevPlay) {
 
   if (play.kind === "fumble") {
     // Real fumble sequence — the carrier loses the ball at the spot, ball
-    // rolls forward bouncing, and the on-field players collapse on it. No
-    // more "circle of strangers" scene; uses the actual formation.
+    // rolls forward bouncing, and the on-field players collapse on it.
     const recoveredBy = play.recoveredBy || "def";
     const fumYards = play.yards || 0;
     const fumX = losX + dir * fumYards * FIELD.PX_PER_YARD;
-    const fumY = cy;
+    // Lateral fumble position — was cy (literal center of field), now
+    // tracks where the carrier was running. Use play.motion.carrierEndDY
+    // if engine emitted it; otherwise use the RB's formation lane
+    // (cy + 28 for default I-form) with small per-play variance.
+    const motionDY = (play.motion && play.motion.carrierEndDY != null)
+      ? play.motion.carrierEndDY
+      : 28 + (((play.startYard * 17) >>> 0) % 21) - 10;
+    const fumY = cy + motionDY;
     // Ball drifts forward as it rolls, ending up ~3-5 yards past the spot
     const restX = fumX + dir * 50;
     const restY = fumY + ((((play.startYard * 13) >>> 0) % 21) - 10);
@@ -3616,15 +3622,17 @@ function buildAnimForPlay(play, prevPlay) {
       let ballX, ballY, ballScale;
       if (t < 0.12) {
         const pt = t / 0.12;
-        ballX = fumX + dir * pt * 12;
-        ballY = fumY - Math.sin(pt * Math.PI) * 16;
-        ballScale = 1.0 + Math.sin(pt * Math.PI) * 0.25;
+        // Ball pops loose — reduced amplitude so it reads as "punched
+        // out" not "blown up". Was 16px pop / 0.25 scale spike.
+        ballX = fumX + dir * pt * 8;
+        ballY = fumY - Math.sin(pt * Math.PI) * 8;
+        ballScale = 1.0 + Math.sin(pt * Math.PI) * 0.15;
       } else if (t < 0.65) {
         const pt = (t - 0.12) / 0.53;
         const sm = pt * pt * (3 - 2 * pt);
-        ballX = fumX + dir * 12 + (restX - fumX - dir * 12) * sm + Math.sin(pt * Math.PI * 6) * 4;
-        ballY = fumY + (restY - fumY) * sm - Math.abs(Math.sin(pt * Math.PI * 5)) * 7;
-        ballScale = 0.9 + Math.abs(Math.cos(pt * Math.PI * 5)) * 0.2;
+        ballX = fumX + dir * 8 + (restX - fumX - dir * 8) * sm + Math.sin(pt * Math.PI * 6) * 2;
+        ballY = fumY + (restY - fumY) * sm - Math.abs(Math.sin(pt * Math.PI * 5)) * 4;
+        ballScale = 0.95 + Math.abs(Math.cos(pt * Math.PI * 5)) * 0.1;
       } else {
         ballX = restX;
         ballY = restY;
@@ -3639,18 +3647,13 @@ function buildAnimForPlay(play, prevPlay) {
       const matchesCarrier = (p) =>
         (p.role === "RB" || p.role === "QB") && rusherName;
 
-      // Fumble pile sizing — was "everyone sprints at 24 yd/s and
-      // dives" which made it look like a bomb went off. Real NFL: 5-8
-      // closest players converge fast; the rest jog up gradually or
-      // stay back (they're out of position). Now:
-      //   • Top SCRUM_SIZE closest non-carriers actually rush the ball
-      //   • Of those, scrumMisses get the staggered dive treatment
-      //   • Everyone else jogs slowly toward the area but stays out of
-      //     the actual pile
-      const SCRUM_SIZE = 7;            // realistic pile-up size
-      const SPRINT_PX = 180;            // ≈ 12 yd/s — realistic top speed
-      const OL_PX     = 100;            // OL lumber to the ball
-      const JOG_PX    = 65;             // ≈ 4.3 yd/s — far players jog up
+      // Fumble pile sizing — dialed further down. Was 7 participants
+      // sprinting at 180 px/s which still read as a bomb. NFL fumble
+      // recovery has 3-5 bodies in the immediate pile.
+      const SCRUM_SIZE = 5;
+      const SPRINT_PX = 150;            // ≈ 10 yd/s — slower, more deliberate
+      const OL_PX     = 85;             // OL lumber
+      const JOG_PX    = 50;             // ≈ 3.3 yd/s — far players trot
       const scrumMisses = Math.min(3, play.scrumMisses || 0);
       const allNonCarriers = [...offPlayers, ...defPlayers].filter(p => !(p.role === "RB" || p.role === "QB"));
       allNonCarriers.sort((a, b) =>
@@ -3797,6 +3800,49 @@ function buildAnimForPlay(play, prevPlay) {
         ctx.lineWidth = 4;
         ctx.strokeText(lbl, FIELD.W / 2, 60);
         ctx.fillText(lbl, FIELD.W / 2, 60);
+        ctx.restore();
+      }
+      // CONTEXT CARD — what play, who fumbled, who forced it, when.
+      // User: "what play did the fumble occur on? who fumbled doing
+      // what and when?" Was missing on fumble plays entirely. Pulls
+      // from play.rusher / forcedBy / yards / down / ytg.
+      if (t > 0.18 && t < 0.95) {
+        const fadeT = Math.min(1, (t - 0.18) / 0.10) * Math.min(1, (0.95 - t) / 0.05);
+        const lastName = (n) => String(n || "").split(/\s+/).pop().toUpperCase();
+        const carrier = lastName(play.rusher);
+        const forcer  = lastName(play.forcedBy);
+        const yardTag = `${play.yards >= 0 ? "+" : ""}${play.yards || 0}YD`;
+        const downTag = play.down ? `${play.down}${play.down===1?"ST":play.down===2?"ND":play.down===3?"RD":"TH"}` : "";
+        const ytgTag  = (play.ytg != null) ? ` & ${play.ytg}` : "";
+        // 3-line card: SITUATION / ACTION / SPOT
+        const line1 = downTag ? `${downTag}${ytgTag}` : "FUMBLE";
+        const line2 = forcer
+          ? `${carrier} stripped by ${forcer} on a ${yardTag} carry`
+          : `${carrier} loses the ball on a ${yardTag} carry`;
+        const line3 = (recoveredBy === "off")
+          ? "Offense recovers — drive continues"
+          : "DEFENSE RECOVERS — turnover";
+        ctx.save();
+        ctx.textAlign = "left";
+        ctx.textBaseline = "top";
+        const cardX = 24, cardY = FIELD.H - 96;
+        const cardW = 380, cardH = 76;
+        ctx.fillStyle = `rgba(0,0,0,${fadeT * 0.72})`;
+        ctx.fillRect(cardX, cardY, cardW, cardH);
+        ctx.strokeStyle = `rgba(255,170,80,${fadeT * 0.95})`;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(cardX, cardY, cardW, cardH);
+        ctx.font = "bold 11px monospace";
+        ctx.fillStyle = `rgba(255,170,80,${fadeT})`;
+        ctx.fillText(line1, cardX + 12, cardY + 10);
+        ctx.font = "bold 13px sans-serif";
+        ctx.fillStyle = `rgba(255,255,255,${fadeT})`;
+        ctx.fillText(line2, cardX + 12, cardY + 30);
+        ctx.font = "bold 13px sans-serif";
+        ctx.fillStyle = (recoveredBy === "off")
+          ? `rgba(155,224,155,${fadeT})`
+          : `rgba(255,150,80,${fadeT})`;
+        ctx.fillText(line3, cardX + 12, cardY + 52);
         ctx.restore();
       }
     }};
