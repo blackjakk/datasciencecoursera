@@ -69,7 +69,9 @@ def _init_state():
     s.setdefault("current_rosters", {})      # team_id -> [(player_name, position)]
     s.setdefault("traded_picks", [])         # list[TradedPick]
     s.setdefault("team_names", None)         # optional list[str], one per team_idx
-    s.setdefault("my_team_idx", 0)
+    # Default to Brian / Big Guap (rid 9 -> team_idx 8) per the league
+    # identity map. Override via the Setup tab's "Your team" selector.
+    s.setdefault("my_team_idx", 8)
     s.setdefault("sleeper_dump_path", str(ROOT / "data" / "sleeper"))
     s.setdefault("league_path", str(ROOT / "configs" / "superflex_12.json"))
     s.setdefault("players_path", str(ROOT / "data" / "players_2026.csv"))
@@ -128,6 +130,9 @@ with tab_setup:
             order_rids = others + [runnerup_rid, champ_rid]   # slots 1..12
             cfg.draft_order = [rid - 1 for rid in order_rids]
             players = load_players(str(ROOT / "data" / "players_2026.csv"))
+            from fantasy_draft.players import enrich_with_injuries
+            n_injured = enrich_with_injuries(
+                players, str(ROOT / "data" / "sleeper" / "players_nfl.json"))
             records = _json.loads((ROOT / "data" / "keepers_2026.json").read_text(encoding="utf-8"))
 
             # Build team names from rosters.json + users.json so the draft
@@ -270,7 +275,33 @@ with tab_setup:
                      f"{k.round_penalty}-round penalty, max {k.max_years_consecutive} years")
 
     if st.session_state.players:
-        st.success(f"Player pool: {len(st.session_state.players)} loaded")
+        n_injured = sum(1 for p in st.session_state.players if p.injury_status)
+        msg = f"Player pool: {len(st.session_state.players)} loaded"
+        if n_injured:
+            msg += f" ({n_injured} flagged with injury status)"
+        st.success(msg)
+
+    # --- Your team selector ---
+    if cfg and st.session_state.team_names:
+        st.divider()
+        st.subheader("Your team")
+        st.caption(
+            "Used for the `🟢 YOUR PICK` badge in Live Draft and as the default "
+            "team when a tab needs one. Doesn't affect keepers, trades, or "
+            "recommendations — those are team-agnostic."
+        )
+        names = st.session_state.team_names
+        cur = st.session_state.my_team_idx
+        if not (0 <= cur < len(names)):
+            cur = 0
+        choice = st.selectbox(
+            "Which team are you?",
+            options=list(range(len(names))),
+            format_func=lambda i: f"{i+1}. {names[i]}",
+            index=cur,
+            key="user_team_select",
+        )
+        st.session_state.my_team_idx = int(choice)
 
 
 # ------------------------------------------------------------------------
@@ -481,13 +512,13 @@ with tab_draft:
         st.stop()
 
     # --- Initialize or reset draft ---
+    team_names_dbg = st.session_state.team_names or [f"Team {i+1}" for i in range(league.num_teams)]
+    my_label = team_names_dbg[st.session_state.my_team_idx] if 0 <= st.session_state.my_team_idx < len(team_names_dbg) else "?"
+    st.caption(f"Your team: **{my_label}** (slot {st.session_state.my_team_idx + 1}). "
+               f"Change in Setup tab.")
     col_a, col_b, col_c = st.columns([1, 1, 2])
     with col_a:
-        my_idx = st.number_input(
-            "Your team slot (0-indexed)", min_value=0,
-            max_value=league.num_teams - 1, value=st.session_state.my_team_idx, step=1,
-        )
-        st.session_state.my_team_idx = int(my_idx)
+        pass
     with col_b:
         if st.button("New draft", help="Reset board, apply trades, then keepers"):
             team_names = st.session_state.get("team_names") or None
@@ -792,6 +823,40 @@ with tab_draft:
                     st.dataframe(pd.DataFrame(av_rows), use_container_width=True, hide_index=True)
                 else:
                     st.info("No future picks of yours to forecast.")
+
+    # --- Stash candidates: injured-but-talented late-ADP players who'd be
+    # cheap keepers next year. Shown so the user sees them even though their
+    # 2026 projection (and therefore VBD) is suppressed by the injury.
+    from fantasy_draft.players import is_stash_candidate
+    stash_pool = [p for p in available if is_stash_candidate(p)]
+    if stash_pool:
+        with st.expander(f"💉 Stash candidates ({len(stash_pool)}) — "
+                          f"injured-but-talented late picks for next-year keeper value",
+                          expanded=False):
+            st.caption(
+                "Late-ADP players with serious injuries (IR / Out / surgery-flagged). "
+                "Their 2026 VBD is low because they're hurt, but drafting them in R15-17 "
+                "lets you keep them in 2027 at a discounted forfeit round."
+            )
+            stash_pool.sort(key=lambda p: p.adp)
+            stash_rows = []
+            for p in stash_pool[:40]:
+                # Implied 2027 forfeit round if drafted this round and kept.
+                drafted_round = max(1, int((p.adp - 1) // league.num_teams) + 1)
+                forfeit_2027 = max(1, drafted_round - league.keepers.round_penalty)
+                stash_rows.append({
+                    "Player": p.name,
+                    "Pos": p.position,
+                    "Team": p.team,
+                    "ADP": round(p.adp, 1),
+                    "Likely round (2026)": f"R{drafted_round}",
+                    "2027 cost if kept": f"R{forfeit_2027}",
+                    "Injury": p.injury_status,
+                    "Body part": p.injury_body_part,
+                    "Notes": p.injury_notes[:50],
+                })
+            st.dataframe(pd.DataFrame(stash_rows),
+                          use_container_width=True, hide_index=True)
 
     # --- Full board (collapsed) ---
     with st.expander("Full draft log"):
