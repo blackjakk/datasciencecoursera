@@ -1938,22 +1938,39 @@ function buildAnimForPlay(play, prevPlay) {
         const elapsedMs = Math.max(0, (t - PRE - reactDelay) * dur);
         const carrierFast = (rbArch === "SPEED" || rbArch === "ELUSIVE") ? 0.92 : 1.0;
         const factor = (i >= idxCB1 ? 1.02 : (i === idxS1 || i === idxS2 ? 1.0 : 0.92)) * carrierFast;
-        // Primary tackler bumped — engine outcome (named tackler at the
-        // specified yard) is preserved by making sure SOMEONE catches
-        // in time. Everyone else uses realistic speed.
+        // Primary tackler's max speed is DYNAMICALLY tuned so they can
+        // reach the tackle spot via REAL pursuit physics. Compute the
+        // distance from their formation position to the tackle spot,
+        // divide by the time available (until runT 0.78), set max speed
+        // to that. Sim then naturally accelerates them along an
+        // intercept angle — no rubber-band needed for the common case.
         const isPrimary = (i === primaryTacklerIdx);
-        const simFactor = isPrimary ? Math.max(factor, 1.15) : factor;
+        let primarySpeedPx = SIM_DEFAULTS.MAX_SPEED * factor;
+        if (isPrimary && !isDodged) {
+          const tackleX = endX - dir * 4;
+          const tackleY = cy + 28 + 2;     // ~where rb.y ends up
+          const distPx = Math.hypot(tackleX - d.x, tackleY - d.y);
+          const availSec = Math.max(0.4, (0.78 - PRE / 1 - reactDelay) * (dur / 1000));
+          // Need this speed (px/sec) to JUST reach the spot. Add 10%
+          // margin so they arrive slightly early (looks decisive).
+          const needed = distPx / availSec * 1.10;
+          // Clamp to a believable range — 7 yd/s floor (jog), 18 yd/s
+          // ceiling (top-end NFL sprint). Beyond 18 yd/s would look
+          // superhuman and break the realism premise.
+          primarySpeedPx = clamp(needed, SIM_DEFAULTS.MAX_SPEED * 0.8, 18 * 15);
+        }
+        const simFactor = isPrimary ? (primarySpeedPx / SIM_DEFAULTS.MAX_SPEED) : factor;
         // PHYSICS SIM pursuit — defender computes intercept against the
-        // CARRIER's velocity (was bug: passed the lane-offset target as
-        // carrier position, intercept came out wrong). Now intercepts
-        // the actual rb.x/rb.y + lane-offset target post-intercept.
+        // CARRIER's velocity. Primary tackler's speed is tuned so the
+        // sim catches the carrier naturally; rubber-band remains as
+        // fallback below but should be moot now.
         let np;
         if (typeof SimPlayer !== "undefined") {
           const carrierVel = carrierVelocityToward(rb.x, rb.y, endX, cy + 28, 180);
           const nowMs = t * dur;
           if (elapsedMs > 0) {
             // Ensure sim exists with the right speed (resync for primary tackler)
-            if (!d._sim || d._simSpeedFactor !== simFactor) {
+            if (!d._sim || Math.abs((d._simSpeedFactor || 0) - simFactor) > 0.01) {
               d._sim = new SimPlayer(d.x, d.y, {
                 maxSpeed: SIM_DEFAULTS.MAX_SPEED * simFactor,
                 accel: SIM_DEFAULTS.ACCEL,
@@ -2004,22 +2021,25 @@ function buildAnimForPlay(play, prevPlay) {
             dd.t = np.moved ? (t * 3 + i * 0.13) % 1 : 0;
           }
         }
-        // GUARANTEED TACKLER — primary tackler eases toward the carrier
-        // OVER the cruise window (runT 0.30 → 0.70), not just at the
-        // tackle moment. Earlier start spreads the catch-up motion
-        // gradually so the defender appears to chase ALONGSIDE the
-        // carrier, instead of teleporting in during the last 200ms
-        // while the carrier stands still at cruiseEnd.
+        // GUARANTEED TACKLER FALLBACK — keep a soft rubber-band in case
+        // the sim's tuned speed doesn't quite catch (edge cases:
+        // defender far off-axis, dodge-stale target, etc.). Eased over
+        // runT 0.40 → 0.75. With the sim now sized to reach the tackle
+        // spot, the defender is usually already near the carrier and
+        // this fallback applies very little correction.
         if (i === primaryTacklerIdx && !isTrucked && yards < 90) {
-          const arriveStartT = 0.30;
-          const arriveEndT   = 0.70;
+          const arriveStartT = 0.40;
+          const arriveEndT   = 0.75;
           if (runT > arriveStartT) {
             const arrProg = Math.min(1, (runT - arriveStartT) / (arriveEndT - arriveStartT));
             const eased   = arrProg * arrProg * (3 - 2 * arrProg);
             const fromX = np.x, fromY = np.y;
             const toX = rb.x - dir * 4, toY = rb.y + 2;
-            dd.x = fromX + (toX - fromX) * eased;
-            dd.y = fromY + (toY - fromY) * eased;
+            // Only blend if the sim hasn't caught — measure distance gap
+            const distGap = Math.hypot(toX - fromX, toY - fromY);
+            const blendStrength = distGap > 20 ? eased : eased * 0.3;
+            dd.x = fromX + (toX - fromX) * blendStrength;
+            dd.y = fromY + (toY - fromY) * blendStrength;
           }
         }
         // Face the CARRIER, not just -dir.
