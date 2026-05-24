@@ -915,15 +915,24 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
       lLeg = -0.7; rLeg = 0.3;
       break;
     case "spin": {
-      // Real spin move: rotate around the vertical axis (not a front flip).
-      // X-scale = cos(angle) gives the 2D illusion of the body twisting.
+      // Real spin move: rotate around vertical axis. X-scale = cos(angle)
+      // gives the 2D illusion of the body twisting (squishing to a line
+      // when edge-on). Adding bodyRot wobble + Y bob so it reads as a
+      // SPIN, not just a sprite mirror flip — user reported "the spin
+      // move is just flipping the sprite over."
       const spinA = t * Math.PI * 2;
       spinXScale = Math.cos(spinA);
-      // Arms tucked in tight against the chest during the spin
-      lArm = 0.45; rArm = -0.45;
-      // Slight stagger in the legs to keep some motion
-      lLeg = -0.15; rLeg = 0.15;
-      // Carrier holds the ball securely against the body
+      // Body tilts side-to-side as it rotates — like a top wobbling
+      bodyRot = Math.sin(spinA) * 0.18;
+      // Slight vertical bob — player pushes off / lands
+      bodyDY = -1.5 * Math.abs(Math.sin(spinA)) * (1 - Math.abs(Math.cos(spinA)));
+      // Arms tucked tight against the chest — and pinwheel slightly
+      // around the rotation so they're not static
+      lArm = 0.45 + Math.sin(spinA) * 0.15;
+      rArm = -0.45 + Math.sin(spinA) * 0.15;
+      // Legs cross over as the body rotates
+      lLeg = -0.15 + Math.cos(spinA + Math.PI) * 0.30;
+      rLeg = 0.15 - Math.cos(spinA + Math.PI) * 0.30;
       rightHandBall = true;
       break;
     }
