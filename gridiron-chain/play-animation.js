@@ -3265,18 +3265,51 @@ function buildAnimForPlay(play, prevPlay) {
       const matchesCarrier = (p) =>
         (p.role === "RB" || p.role === "QB") && rusherName;
 
+      // play.scrumMisses tells us HOW MANY failed dive attempts before
+      // the recovery. We pick the N closest non-carrier players and give
+      // them staggered DIVE poses during the scrum window so the user
+      // actually SEES the missed dives, instead of one generic pile.
+      const scrumMisses = Math.min(4, play.scrumMisses || 0);
+      const allNonCarriers = [...offPlayers, ...defPlayers].filter(p => !(p.role === "RB" || p.role === "QB"));
+      allNonCarriers.sort((a, b) =>
+        Math.hypot(a.x - fumX, a.y - fumY) - Math.hypot(b.x - fumX, b.y - fumY));
+      const missers = new Set(allNonCarriers.slice(0, scrumMisses));
+
       const renderConverging = (players, isOff) => {
         const color = isOff ? possColor : oppColor;
         const sec = isOff ? team.secondary : oppTeam.secondary;
         for (const p of players) {
           const carrier = isOff && matchesCarrier(p);
-          let pX, pY, pPose;
+          let pX, pY, pPose, pT = (t * 3) % 1;
           if (carrier) {
             // Carrier collapses at the fumble spot, ragdoll
             const collapseT = Math.min(1, t / 0.18);
             pX = p.x + (fumX - p.x) * collapseT;
             pY = p.y + (fumY + 6 - p.y) * collapseT;
             pPose = "tackled";
+          } else if (missers.has(p)) {
+            // Designated misser — sprints toward the ball, then DIVES
+            // in their assigned window. Each misser gets a unique
+            // staggered timing so they dive in succession.
+            const myIdx = [...missers].indexOf(p);
+            const diveStart = 0.34 + myIdx * 0.10;
+            const diveEnd   = diveStart + 0.16;
+            const isOL = p.role === "OL";
+            const speedMul = isOL ? 0.45 : 1.0;
+            const dx = ballX - p.x, dy = ballY - p.y;
+            const dist = Math.hypot(dx, dy);
+            const maxMove = Math.min(t, diveStart) * 360 * speedMul;
+            const moveFrac = Math.min(1, maxMove / Math.max(1, dist));
+            pX = p.x + dx * moveFrac;
+            pY = p.y + dy * moveFrac;
+            if (t >= diveStart && t < diveEnd) {
+              pPose = "dive";
+              pT = (t - diveStart) / 0.16;
+            } else if (t >= diveEnd) {
+              pPose = "tackled";   // landed flat after missing
+            } else {
+              pPose = "run";
+            }
           } else {
             // OL drag (slow), DL/LB/CB/S/WR sprint
             const isOL = p.role === "OL";
@@ -3297,7 +3330,7 @@ function buildAnimForPlay(play, prevPlay) {
               pPose = "run";
             }
           }
-          drawPlayer(ctx, pX, pY, color, sec, p.label || "", pPose, (t * 3) % 1, isOff ? dir : -dir, p);
+          drawPlayer(ctx, pX, pY, color, sec, p.label || "", pPose, pT, isOff ? dir : -dir, p);
         }
       };
       renderConverging(offPlayers, true);
