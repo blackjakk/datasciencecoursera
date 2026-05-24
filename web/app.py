@@ -314,6 +314,46 @@ with tab_setup:
         )
         st.session_state.my_team_idx = int(choice)
 
+        # --- Draft slot override (lottery hasn't been drawn yet) ---
+        st.subheader("Your 2026 draft slot")
+        st.caption(
+            "Since the lottery hasn't been drawn, try out different slots. "
+            "Bottom-half finishers (places 7-12 in 2025) get slots 1-6; "
+            "top-half get slots 7-12. Champion gets 12, runner-up 11 "
+            "(based on the prior 2 years' pattern). Re-rolling here swaps "
+            "your team into the chosen slot and bumps whoever was there to "
+            "your old slot. Reset the draft after changing."
+        )
+        # Find current slot of the user's team.
+        try:
+            current_slot = (cfg.draft_order.index(st.session_state.my_team_idx) + 1
+                            if cfg.draft_order else st.session_state.my_team_idx + 1)
+        except ValueError:
+            current_slot = st.session_state.my_team_idx + 1
+        new_slot = st.selectbox(
+            "Slot to simulate from",
+            options=list(range(1, cfg.num_teams + 1)),
+            index=current_slot - 1,
+            format_func=lambda s: f"Slot {s}" + (" (current)" if s == current_slot else ""),
+            key="your_slot_select",
+        )
+        if new_slot != current_slot:
+            # Swap user's team with whoever currently occupies the new slot.
+            order = list(cfg.draft_order) if cfg.draft_order else list(range(cfg.num_teams))
+            i_user = order.index(st.session_state.my_team_idx)
+            i_target = new_slot - 1
+            order[i_user], order[i_target] = order[i_target], order[i_user]
+            cfg.draft_order = order
+            st.session_state.draft = None
+            st.session_state.mock_draft_result = None
+            st.session_state.mc_result = None
+            displaced = (st.session_state.team_names[order[i_user]]
+                         if st.session_state.team_names else f"Team {order[i_user]+1}")
+            st.success(
+                f"You're now at slot {new_slot}. {displaced} moved to your "
+                f"old slot {current_slot}. Reset Live Draft to apply."
+            )
+
 
 # ------------------------------------------------------------------------
 # Tab 2: Keeper Predictions
