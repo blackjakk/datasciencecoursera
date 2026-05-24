@@ -559,7 +559,8 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
   // is edge-on / invisible; at 180° they're mirrored; at 360° back to start).
   let spinXScale = 1;
   let leftHandBall = false, rightHandBall = false;
-  let cradleBall = false;        // carry pose — football tucked between BOTH hands at chest
+  let cradleBall = false;        // carry pose — football tucked under one arm (NFL style)
+  let cradleBallSide = -1;       // which hand wraps the ball: -1 = left, +1 = right
   let rForearmOverride = null;   // throw pose drives a custom forearm angle
   let lForearmOverride = null;   // for right-facing QB throw (left arm is throw arm)
   let exclaim = null;
@@ -602,18 +603,26 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
           rArm = 1.3;
           rightHandBall = true;
         } else {
-          // Ball carrier in the open field — ball HELD TIGHT AT THE CHEST.
-          // Bicep hangs at the side (only slightly forward); forearm wraps
-          // inward AND up so the hand ends up at chest-center, cradling the
-          // ball like a real RB / KR (NOT extended out front like a punter).
-          // The forearm angles are negated by facing so the same wrap reads
-          // correctly whether the player faces left or right. cradleBall
-          // signals the post-arm draw to place the football at the midpoint
-          // of both hands instead of off to one side.
-          lArm = 0.2;
-          rArm = 0.2;
-          rForearmOverride = -2.0 * facing;   // right forearm wraps left+up to chest
-          lForearmOverride =  2.0 * facing;   // left forearm wraps right+up to chest
+          // Ball carrier in the open field — ball TUCKED UNDER one arm
+          // (NFL style), not cradled at the chest. The carrying arm wraps
+          // tight against the ribs/bicep; the OFF arm pumps with the run
+          // cycle for balance. Carry arm = near-camera side so the ball
+          // reads to the viewer; cradleBall flag drives the post-arm draw
+          // to place the football at the wrapping hand position with a
+          // slight inward offset (under the bicep, not in front of it).
+          if (facing === 1) {
+            // Right-facing → carry with LEFT (near) arm
+            lArm = 0.4;
+            lForearmOverride = 2.2 * facing;
+            rArm = -ph * armAmp * 0.85;   // right arm pumps
+            cradleBallSide = -1;
+          } else {
+            // Left-facing → carry with RIGHT (near) arm
+            rArm = 0.4;
+            rForearmOverride = -2.2 * facing;
+            lArm =  ph * armAmp * 0.85;   // left arm pumps
+            cradleBallSide = 1;
+          }
           cradleBall = true;
         }
       }
@@ -1800,11 +1809,19 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
   // instead of clutched off to one side. Wrap fingers protrude from
   // behind each end of the ball.
   if (cradleBall) {
-    const bx = (lHand.handX + rHand.handX) / 2;
-    const by = (lHand.handY + rHand.handY) / 2 + 0.4;
+    // Tucked under the carrying arm — position at the wrapping hand,
+    // then pull INWARD toward the body center so the ball sits between
+    // the bicep and the ribs (under the armpit), not floating in front
+    // of the chest. The carry hand is on one side per cradleBallSide.
+    const carryHand = cradleBallSide === 1 ? rHand : lHand;
+    const bx = carryHand.handX + cradleBallSide * -1.2;   // inward toward body
+    const by = carryHand.handY + 0.6;                      // slightly below the hand
     ctx.save();
     ctx.translate(bx, by);
-    ctx.rotate(-0.30 * facing);
+    // Tilt the ball so the nose points slightly forward in the run
+    // direction (facing-dependent) — a tucked ball usually points
+    // forward, not perpendicular.
+    ctx.rotate(-0.20 * facing);
     const rx = 3.6, ry = 1.8;
     const ballGrad = ctx.createRadialGradient(-rx * 0.3, -ry * 0.5, 0.2, 0, 0, rx * 1.2);
     ballGrad.addColorStop(0,    "#a86a3a");
@@ -1854,8 +1871,8 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
       ctx.fill();
       ctx.stroke();
     };
-    fingerNub(lHand.handX, lHand.handY);
-    fingerNub(rHand.handX, rHand.handY);
+    // Only the CARRYING hand grips the ball — the other arm is pumping.
+    fingerNub(carryHand.handX, carryHand.handY);
   }
   // For 3-point stance, draw a ground line where the lead hand plants.
   if (drawGroundHand) {
