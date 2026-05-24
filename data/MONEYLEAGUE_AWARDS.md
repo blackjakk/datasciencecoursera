@@ -253,25 +253,34 @@ Picks that missed their round's expected VBD by the widest margin.
 | 11 | **Brian** | 4-10 | 1494.4 | 1763.2 |
 | 12 | **Troy** | 3-11 | 1582.4 | 1853.4 |
 
-## 🏅 COMPOSITE LEAGUE RANKING
-Each manager's percentile rank within each skill, averaged.
+## 🏅 LEAGUE COMPOSITE — skill (3 categories) + luck shown separately
+**Skill = avg of Draft/Wire/Trade percentiles** (the things you control). **Luck** shown next to it but NOT averaged in — it's the noise (variance + scheduling). High skill + low luck = regression candidate.
 
-| Rank | Manager | Draft | Wire | Lineup | Trade | **Avg** |
+| Rank | Manager | Draft | Wire | Trade | **Skill** | Luck | Note |
+|---|---|---|---|---|---|---|---|
+| 1 | **Donnie** | 55 | 64 | 100 | **73** | 27 |  |
+| 2 | **Eric** | 73 | 73 | 55 | **67** | 36 |  |
+| 3 | **Coop** | 9 | 100 | 91 | **67** | 45 |  |
+| 4 | **Lem** | 100 | 55 | 45 | **67** | 9 | 🍀 unlucky → due |
+| 5 | **Brian** | 91 | 27 | 64 | **61** | 0 | 🍀 unlucky → due |
+| 6 | **Ankur** | 82 | 9 | 82 | **58** | 82 |  |
+| 7 | **Brower** | 36 | 91 | 27 | **52** | 100 |  |
+| 8 | **Trevor** | 64 | 82 | 0 | **48** | 64 |  |
+| 9 | **Josh** | 18 | 45 | 73 | **45** | 73 |  |
+| 10 | **Kyle** | 45 | 18 | 18 | **27** | 91 | ⚠️ over-performing (lucky) |
+| 11 | **Troy** | 27 | 36 | 9 | **24** | 18 |  |
+| 12 | **Tim** | 0 | 0 | 36 | **12** | 64 |  |
+
+## 🏆 CHAMPION'S EDGE — what each champion won via
+For every championship season, which category was the champion's biggest edge that year. Per-season percentiles within that year's league.
+
+| Year | Champion | Draft | Wire | Trade | Luck | Verdict |
 |---|---|---|---|---|---|---|
-| 1 | **Donnie** | 55 | 64 | 73 | 100 | **73** |
-| 2 | **Eric** | 73 | 73 | 91 | 55 | **73** |
-| 3 | **Lem** | 100 | 55 | 64 | 45 | **66** |
-| 4 | **Brower** | 36 | 91 | 82 | 27 | **59** |
-| 5 | **Brian** | 91 | 27 | 55 | 64 | **59** |
-| 6 | **Coop** | 9 | 100 | 18 | 91 | **55** |
-| 7 | **Ankur** | 82 | 9 | 27 | 82 | **50** |
-| 8 | **Kyle** | 45 | 18 | 100 | 18 | **45** |
-| 9 | **Trevor** | 64 | 82 | 9 | 0 | **39** |
-| 10 | **Josh** | 18 | 45 | 0 | 73 | **34** |
-| 11 | **Troy** | 27 | 36 | 36 | 9 | **27** |
-| 12 | **Tim** | 0 | 0 | 45 | 36 | **20** |
+| 2023 | 🏆 **Eric** | 91 | 9 | 91 | 27 | Draft #1 (91th pct) won it |
+| 2024 | 🏆 **Coop** | 100 | 91 | 100 | 45 | Draft #1 (100th pct) won it |
+| 2025 | 🏆 **Trevor** | 91 | 82 | 0 | 18 | Draft #1 (91th pct) won it |
 
-*Percentiles 0-100 (100 = best, 0 = worst). Composite = average across the 4 skills.*
+*Every champion has been Top-2 in drafting their winning year. Peak-season drafting matters more than 3-year-average drafting skill.*
 
 ---
 

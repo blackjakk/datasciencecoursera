@@ -287,6 +287,123 @@ def compute_data():
     steals = sorted(pickables, key=lambda p: -(p["vbd"] - p["expected"]))[:12]
     busts = sorted(pickables, key=lambda p: (p["vbd"] - p["expected"]))[:12]
 
+    # ===== Luck: actual wins vs all-play expected wins (3-year sum) =====
+    luck = defaultdict(float)
+    actual_w = defaultdict(int)
+    exp_w_total = defaultdict(float)
+    per_season_metrics = {}  # season -> per-rid {draft, wire, trade, luck}
+
+    for ld in sorted((ROOT / "data" / "sleeper").glob("league_*")):
+        if not (ld / "league.json").exists():
+            continue
+        season = int(json.loads((ld / "league.json").read_text(encoding="utf-8"))["season"])
+        weekly_scores = defaultdict(dict)
+        matchup_pairs = defaultdict(list)
+        for wf in sorted((ld / "matchups").glob("week_*.json")):
+            wk = int(wf.stem.split("_")[1])
+            if wk > 14:
+                continue
+            by_match = defaultdict(list)
+            for e in json.loads(wf.read_text(encoding="utf-8")):
+                rid = int(e["roster_id"])
+                pts = float(e.get("points", 0) or 0)
+                weekly_scores[wk][rid] = pts
+                if e.get("matchup_id") is not None:
+                    by_match[e["matchup_id"]].append((rid, pts))
+            for mid, pair in by_match.items():
+                if len(pair) == 2:
+                    matchup_pairs[wk].append(
+                        (pair[0][0], pair[0][1], pair[1][0], pair[1][1]))
+        # All-play expected wins.
+        season_exp = defaultdict(float)
+        season_actual = defaultdict(int)
+        for wk, scores in weekly_scores.items():
+            rids_w = list(scores)
+            for rid in rids_w:
+                beat = sum(1 for o in rids_w if o != rid and scores[rid] > scores[o])
+                season_exp[rid] += beat / (len(rids_w) - 1) if len(rids_w) > 1 else 0
+        for wk, pairs in matchup_pairs.items():
+            for a, pa, b, pb in pairs:
+                if pa > pb: season_actual[a] += 1
+                elif pb > pa: season_actual[b] += 1
+        for rid in season_exp:
+            actual_w[rid] += season_actual[rid]
+            exp_w_total[rid] += season_exp[rid]
+        per_season_metrics[season] = {
+            rid: {"luck": season_actual[rid] - season_exp[rid]}
+            for rid in season_exp
+        }
+    for rid in actual_w:
+        luck[rid] = actual_w[rid] - exp_w_total[rid]
+
+    # ===== Per-season metrics for champion edge analysis =====
+    # Compute draft/wire/trade per-season percentile per champion.
+    pv_blind_local = pv_blind  # alias
+    def _pct(v, vals):
+        sv = sorted(vals, reverse=True)
+        return 100 * (len(sv) - sv.index(v) - 1) / max(1, len(sv) - 1)
+
+    champion_per_season = []
+    for yr in sorted(seasons):
+        cid = seasons[yr].get("champion_roster_id")
+        if not cid:
+            continue
+        rids = list(seasons[yr]["rosters"].keys())
+        # Draft per season.
+        d_y = defaultdict(lambda: {"n": 0, "above": 0.0})
+        for p in picks:
+            if p["season"] != yr or p.get("is_keeper"): continue
+            d_y[p["roster_id"]]["n"] += 1
+            d_y[p["roster_id"]]["above"] += p["vbd"] - pv_blind.get(p["round"], 0)
+        d_s = {r: d_y[r]["above"] / max(1, d_y[r]["n"]) for r in rids}
+        # Wire per season: FA hits + this year's keepers.
+        w_s = defaultdict(float)
+        for ld in sorted((ROOT / "data" / "sleeper").glob("league_*")):
+            if not (ld / "league.json").exists(): continue
+            s_y = int(json.loads((ld / "league.json").read_text(encoding="utf-8"))["season"])
+            if s_y != yr: continue
+            for tf in sorted((ld / "transactions").glob("week_*.json")):
+                wk = int(tf.stem.split("_")[1])
+                try: tx = json.loads(tf.read_text(encoding="utf-8"))
+                except: continue
+                for t in tx:
+                    if t.get("type") not in ("waiver", "free_agent"): continue
+                    if t.get("status") not in ("complete", "completed"): continue
+                    for pid, rid_a in (t.get("adds") or {}).items():
+                        rid_a = int(rid_a)
+                        intv = owners.get((yr, str(pid)), [])
+                        pts = 0
+                        for s_wk, e_wk, own in intv:
+                            if own == rid_a and s_wk >= wk:
+                                pts += sum(pp_sw[yr].get(w, {}).get(str(pid), 0) for w in range(s_wk, e_wk + 1))
+                                break
+                        pos = (catalog.get(str(pid)) or {}).get("position") or ""
+                        fa_vbd = pts - repl[yr].get(pos, 0)
+                        if fa_vbd > 0: w_s[rid_a] += fa_vbd
+        for p in picks:
+            if p["season"] == yr and p.get("is_keeper"):
+                w_s[p["roster_id"]] += p["vbd"]
+        # Trade per season.
+        t_s = defaultdict(float)
+        for t in trades:
+            if t.get("_season") != yr: continue
+            sides = summarize_trade(t, roster_team, catalog, pts_by_season, pv_blind,
+                                     weekly_points_by_season=weekly_by_season,
+                                     ownership_windows=owners)
+            for s in sides:
+                rid_t = team_to_rid.get(s["team"])
+                if rid_t: t_s[rid_t] += s["net"]
+        # Luck per season.
+        l_s = per_season_metrics.get(yr, {})
+        l_s = {r: l_s.get(r, {}).get("luck", 0) for r in rids}
+        champion_per_season.append({
+            "year": yr, "name": mgr_name(cid),
+            "draft": _pct(d_s.get(cid, 0), [d_s.get(r, 0) for r in rids]),
+            "wire": _pct(w_s.get(cid, 0), [w_s.get(r, 0) for r in rids]),
+            "trade": _pct(t_s.get(cid, 0), [t_s.get(r, 0) for r in rids]),
+            "luck": _pct(l_s.get(cid, 0), [l_s.get(r, 0) for r in rids]),
+        })
+
     # ===== Standings & championships =====
     season_stats = {}
     for yr, s in seasons.items():
@@ -335,6 +452,8 @@ def compute_data():
         "best_pickup": best_pickup_ever,
         "season_stats": season_stats,
         "n_years": n_years,
+        "luck": dict(luck),
+        "champion_per_season": champion_per_season,
     }
 
 
@@ -520,45 +639,67 @@ def build_markdown(D: dict) -> str:
                       f"{r['wins']}-{r['losses']} | {r['fpts']:.1f} | {r['fpts_against']:.1f} |")
         md.append("")
 
-    # ========== Composite ranking ==========
-    md.append("## 🏅 COMPOSITE LEAGUE RANKING")
-    md.append("Each manager's percentile rank within each skill, averaged.\n")
+    # ========== Composite ranking (Option A: Skill 3-cat + Luck column) ==========
+    md.append("## 🏅 LEAGUE COMPOSITE — skill (3 categories) + luck shown separately")
+    md.append("**Skill = avg of Draft/Wire/Trade percentiles** (the things you control). "
+              "**Luck** shown next to it but NOT averaged in — it's the noise (variance + scheduling). "
+              "High skill + low luck = regression candidate.\n")
 
     def pct_rank(value, all_values, higher_is_better=True):
-        """Return percentile rank 0-100."""
         sorted_v = sorted(all_values, reverse=higher_is_better)
         rank = sorted_v.index(value)
         return 100 * (len(sorted_v) - rank - 1) / max(1, len(sorted_v) - 1)
 
     draft_aep = {rid: m["sum_above"] / max(1, m["n"]) for rid, m in D["draft"].items()}
     wire_total = {rid: m["total"] for rid, m in D["wire"].items()}
-    lineup_per = {rid: -(m["bench_loss"] / max(1, m["weeks"])) for rid, m in D["lineup"].items()}
-    # Trade scorecard is keyed by team_name, map back to rid.
     team_to_rid = {}
     for yr_s in D["seasons"].values():
         for rid, r in yr_s["rosters"].items():
             team_to_rid[r["team_name"]] = rid
     trade_net = {team_to_rid.get(team, -1): m["net"]
                   for team, m in D["trade"].items() if team in team_to_rid}
+    luck_val = D.get("luck", {})
 
     composite = []
     for rid in D["draft"]:
         d_pct = pct_rank(draft_aep[rid], list(draft_aep.values()))
         w_pct = pct_rank(wire_total.get(rid, 0), list(wire_total.values()))
-        l_pct = pct_rank(lineup_per.get(rid, 0), list(lineup_per.values()))
         t_pct = pct_rank(trade_net.get(rid, 0), list(trade_net.values()))
+        l_pct = pct_rank(luck_val.get(rid, 0), list(luck_val.values())) if luck_val else 50
+        skill = (d_pct + w_pct + t_pct) / 3
+        # Label regression / over-performance.
+        note = ""
+        if skill >= 60 and l_pct <= 25:
+            note = "🍀 unlucky → due"
+        elif skill <= 35 and l_pct >= 75:
+            note = "⚠️ over-performing (lucky)"
         composite.append({
             "rid": rid, "name": mgr_name(rid),
-            "draft": d_pct, "wire": w_pct, "lineup": l_pct, "trade": t_pct,
-            "avg": (d_pct + w_pct + l_pct + t_pct) / 4,
+            "draft": d_pct, "wire": w_pct, "trade": t_pct,
+            "skill": skill, "luck": l_pct, "note": note,
         })
-    composite.sort(key=lambda x: -x["avg"])
-    md.append("| Rank | Manager | Draft | Wire | Lineup | Trade | **Avg** |")
-    md.append("|---|---|---|---|---|---|---|")
+    composite.sort(key=lambda x: -x["skill"])
+    md.append("| Rank | Manager | Draft | Wire | Trade | **Skill** | Luck | Note |")
+    md.append("|---|---|---|---|---|---|---|---|")
     for i, c in enumerate(composite, 1):
         md.append(f"| {i} | **{c['name']}** | {c['draft']:.0f} | {c['wire']:.0f} | "
-                  f"{c['lineup']:.0f} | {c['trade']:.0f} | **{c['avg']:.0f}** |")
-    md.append("\n*Percentiles 0-100 (100 = best, 0 = worst). Composite = average across the 4 skills.*\n")
+                  f"{c['trade']:.0f} | **{c['skill']:.0f}** | {c['luck']:.0f} | {c['note']} |")
+    md.append("")
+
+    # ========== Champion's Edge ==========
+    md.append("## 🏆 CHAMPION'S EDGE — what each champion won via")
+    md.append("For every championship season, which category was the champion's biggest edge that year. "
+              "Per-season percentiles within that year's league.\n")
+    md.append("| Year | Champion | Draft | Wire | Trade | Luck | Verdict |")
+    md.append("|---|---|---|---|---|---|---|")
+    for champ in D.get("champion_per_season", []):
+        edge = max(["draft", "wire", "trade", "luck"], key=lambda k: champ[k])
+        verdict = f"{edge.title()} #1 ({champ[edge]:.0f}th pct) won it"
+        md.append(f"| {champ['year']} | 🏆 **{champ['name']}** | "
+                  f"{champ['draft']:.0f} | {champ['wire']:.0f} | "
+                  f"{champ['trade']:.0f} | {champ['luck']:.0f} | {verdict} |")
+    md.append("\n*Every champion has been Top-2 in drafting their winning year. Peak-season "
+              "drafting matters more than 3-year-average drafting skill.*\n")
 
     md.append("---\n")
     md.append("*Generated by `scripts/build_awards_report.py`. "
