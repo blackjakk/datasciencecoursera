@@ -25,25 +25,25 @@ Above-expectation per pick: positive = beat what an average drafter would have g
 
 *By raw per-pick: Donnie #1 (slot 1 every year). By skill-adjusted: Lem #1, with Brian a hair behind.*
 
-## 🔍 TALENT SCOUTING — waiver / free-agent skill
-Per-add average + hit rate (% of adds scoring 80+ rest-of-season).
+## 🔍 WIRE GAME — talent acquisition (FA hits + keeper carryover value)
+FA + keepers are one skill: find good players outside the draft and hold them. Score = positive-VBD FA pickups + total VBD from kept-player-seasons. Sub-replacement adds are excluded (those can be dropped — pure noise).
 
-| Rank | Manager | Adds | Total pts | Pts/add | Hits | Hit % | Best pickup |
+| Rank | Manager | FA hits | FA VBD | # Kept | Keeper VBD | **Total** | Best FA pickup |
 |---|---|---|---|---|---|---|---|
-| 1 | **Coop** | 54 | +3213 | +59.5 | 18 | 33% | Jacoby Brissett (172, 2025 W6) |
-| 2 | **Donnie** | 23 | +1143 | +49.7 | 5 | 22% | Darnell Mooney (159, 2024 W2) |
-| 3 | **Josh (Wi1dboy, took over Dave's roster in 2025)** | 96 | +4423 | +46.1 | 19 | 20% | Joshua Dobbs (211, 2023 W1) |
-| 4 | **Brower (Barry)** | 161 | +6773 | +42.1 | 29 | 18% | Gardner Minshew (166, 2023 W5) |
-| 5 | **Eric (Mattesich)** | 50 | +1961 | +39.2 | 6 | 12% | Jake Bates (138, 2025 W2) |
-| 6 | **Brian (Big Guap)** | 107 | +3964 | +37.0 | 14 | 13% | Chris Boswell (155, 2024 W1) |
-| 7 | **Ankur (Patel)** | 82 | +3026 | +36.9 | 10 | 12% | Rico Dowdle (180, 2025 W4) |
-| 8 | **Tim (Breswick)** | 39 | +1388 | +35.6 | 5 | 13% | Kareem Hunt (110, 2023 W2) |
-| 9 | **Troy (Mullings)** | 98 | +3444 | +35.1 | 11 | 11% | Kyren Williams (222, 2023 W1) |
-| 10 | **Kyle (Figgy)** | 80 | +2749 | +34.4 | 6 | 8% | Brandon Aubrey (141, 2023 W2) |
-| 11 | **Lem (LEMVP)** | 81 | +2688 | +33.2 | 7 | 9% | Adam Thielen (158, 2023 W2) |
-| 12 | **Trevor (BergerBoy)** | 189 | +5639 | +29.8 | 15 | 8% | Puka Nacua (217, 2023 W1) |
+| 1 | **Brower (Barry)** | 48/161 | +2025 | 5 | +383 | **+2408** | Gardner Minshew (166, 2023 W5) |
+| 2 | **Trevor (BergerBoy)** | 40/189 | +1186 | 6 | +668 | **+1854** | Puka Nacua (217, 2023 W1) |
+| 3 | **Josh (Wi1dboy, took over Dave's roster in 2025)** | 29/96 | +1296 | 1 | +62 | **+1358** | Joshua Dobbs (211, 2023 W1) |
+| 4 | **Coop** | 13/54 | +770 | 7 | +457 | **+1228** | Jacoby Brissett (172, 2025 W6) |
+| 5 | **Troy (Mullings)** | 26/98 | +1099 | 5 | +73 | **+1172** | Kyren Williams (222, 2023 W1) |
+| 6 | **Brian (Big Guap)** | 20/107 | +955 | 4 | -21 | **+934** | Chris Boswell (155, 2024 W1) |
+| 7 | **Lem (LEMVP)** | 12/81 | +395 | 7 | +325 | **+720** | Adam Thielen (158, 2023 W2) |
+| 8 | **Eric (Mattesich)** | 19/50 | +616 | 0 | +0 | **+616** | Jake Bates (138, 2025 W2) |
+| 9 | **Ankur (Patel)** | 12/82 | +423 | 5 | +144 | **+568** | Rico Dowdle (180, 2025 W4) |
+| 10 | **Kyle (Figgy)** | 14/80 | +529 | 7 | -131 | **+398** | Brandon Aubrey (141, 2023 W2) |
+| 11 | **Tim (Breswick)** | 6/39 | +280 | 3 | +107 | **+387** | Kareem Hunt (110, 2023 W2) |
+| 12 | **Donnie** | 9/23 | +331 | 0 | +0 | **+331** | Darnell Mooney (159, 2024 W2) |
 
-**League best pickup ever:** Kyren Williams → Troy (Mullings) (W1 2023, +222 pts the rest of the year)
+**League best raw pickup ever:** Kyren Williams → Troy (Mullings) (W1 2023, +222 pts the rest of the year)
 
 ## 🎬 LINEUP COMMANDER — least pts left on bench per week
 Computed by comparing actual starting lineup pts vs. the optimal lineup from each week's roster.
@@ -118,20 +118,20 @@ Picks that missed their round's expected VBD by the widest margin.
 | 12 | 2025 | R16 | **Jalen Milroe** | QB | -169 | Brower (Barry) |
 
 ## 🌪️ MOST ACTIVE GM — waiver / FA volume
-| Rank | Manager | Adds | Pts/add | Style |
-|---|---|---|---|---|
-| 1 | **Trevor (BergerBoy)** | 189 | +29.8 | 🌪️ spray-and-pray volume |
-| 2 | **Brower (Barry)** | 161 | +42.1 | 🌪️ spray-and-pray volume |
-| 3 | **Brian (Big Guap)** | 107 | +37.0 | active churner |
-| 4 | **Troy (Mullings)** | 98 | +35.1 | active churner |
-| 5 | **Josh (Wi1dboy, took over Dave's roster in 2025)** | 96 | +46.1 | active churner |
-| 6 | **Ankur (Patel)** | 82 | +36.9 | selective tactical |
-| 7 | **Lem (LEMVP)** | 81 | +33.2 | selective tactical |
-| 8 | **Kyle (Figgy)** | 80 | +34.4 | selective tactical |
-| 9 | **Coop** | 54 | +59.5 | selective tactical |
-| 10 | **Eric (Mattesich)** | 50 | +39.2 | selective tactical |
-| 11 | **Tim (Breswick)** | 39 | +35.6 | minimal-touch |
-| 12 | **Donnie** | 23 | +49.7 | minimal-touch |
+| Rank | Manager | Total adds | Hits | Hit % | Style |
+|---|---|---|---|---|---|
+| 1 | **Trevor (BergerBoy)** | 189 | 40 | 21% | 🌪️ spray-and-pray volume |
+| 2 | **Brower (Barry)** | 161 | 48 | 30% | 🌪️ spray-and-pray volume |
+| 3 | **Brian (Big Guap)** | 107 | 20 | 19% | active churner |
+| 4 | **Troy (Mullings)** | 98 | 26 | 27% | active churner |
+| 5 | **Josh (Wi1dboy, took over Dave's roster in 2025)** | 96 | 29 | 30% | active churner |
+| 6 | **Ankur (Patel)** | 82 | 12 | 15% | selective tactical |
+| 7 | **Lem (LEMVP)** | 81 | 12 | 15% | selective tactical |
+| 8 | **Kyle (Figgy)** | 80 | 14 | 18% | selective tactical |
+| 9 | **Coop** | 54 | 13 | 24% | selective tactical |
+| 10 | **Eric (Mattesich)** | 50 | 19 | 38% | selective tactical |
+| 11 | **Tim (Breswick)** | 39 | 6 | 15% | minimal-touch |
+| 12 | **Donnie** | 23 | 9 | 39% | minimal-touch |
 
 ## 👑 CHAMPIONS & STANDINGS
 ### 2023 — 🏆 Eric (Mattesich)
@@ -185,20 +185,20 @@ Picks that missed their round's expected VBD by the widest margin.
 ## 🏅 COMPOSITE LEAGUE RANKING
 Each manager's percentile rank within each skill, averaged.
 
-| Rank | Manager | Draft | FA | Lineup | Trade | **Avg** |
+| Rank | Manager | Draft | Wire | Lineup | Trade | **Avg** |
 |---|---|---|---|---|---|---|
 | 1 | **Brian (Big Guap)** | 91 | 55 | 55 | 100 | **75** |
-| 2 | **Eric (Mattesich)** | 73 | 64 | 91 | 36 | **66** |
-| 3 | **Brower (Barry)** | 36 | 73 | 82 | 73 | **66** |
-| 4 | **Donnie** | 55 | 91 | 73 | 18 | **59** |
-| 5 | **Lem (LEMVP)** | 100 | 9 | 64 | 45 | **55** |
-| 6 | **Ankur (Patel)** | 82 | 45 | 27 | 64 | **55** |
-| 7 | **Josh (Wi1dboy, took over Dave's roster in 2025)** | 18 | 82 | 0 | 91 | **48** |
+| 2 | **Brower (Barry)** | 36 | 100 | 82 | 73 | **73** |
+| 3 | **Lem (LEMVP)** | 100 | 45 | 64 | 45 | **64** |
+| 4 | **Eric (Mattesich)** | 73 | 36 | 91 | 36 | **59** |
+| 5 | **Ankur (Patel)** | 82 | 27 | 27 | 64 | **50** |
+| 6 | **Josh (Wi1dboy, took over Dave's roster in 2025)** | 18 | 82 | 0 | 91 | **48** |
+| 7 | **Troy (Mullings)** | 27 | 64 | 36 | 55 | **45** |
 | 8 | **Kyle (Figgy)** | 45 | 18 | 100 | 9 | **43** |
-| 9 | **Tim (Breswick)** | 0 | 36 | 45 | 82 | **41** |
-| 10 | **Coop** | 9 | 100 | 18 | 27 | **39** |
-| 11 | **Troy (Mullings)** | 27 | 27 | 36 | 55 | **36** |
-| 12 | **Trevor (BergerBoy)** | 64 | 0 | 9 | 0 | **18** |
+| 9 | **Trevor (BergerBoy)** | 64 | 91 | 9 | 0 | **41** |
+| 10 | **Donnie** | 55 | 0 | 73 | 18 | **36** |
+| 11 | **Tim (Breswick)** | 0 | 9 | 45 | 82 | **34** |
+| 12 | **Coop** | 9 | 73 | 18 | 27 | **32** |
 
 *Percentiles 0-100 (100 = best, 0 = worst). Composite = average across the 4 skills.*
 

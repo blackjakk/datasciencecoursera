@@ -70,7 +70,9 @@ def compute_data():
         draft[rid]["sum_vbd"] += p["vbd"]
         draft[rid]["sum_above"] += p["vbd"] - p["expected"]
 
-    # ===== FA / waivers =====
+    # ===== Wire Game (FA hits + Keeper carryovers) =====
+    # Find FA pickups that scored positive VBD (hits — kept rest-of-season).
+    # Sub-replacement adds are noise (can be dropped); count only the wins.
     pp_sw = defaultdict(lambda: defaultdict(dict))
     for ld in sorted((ROOT / "data" / "sleeper").glob("league_*")):
         if not (ld / "league.json").exists():
@@ -83,8 +85,10 @@ def compute_data():
                     if pts is not None:
                         pp_sw[season][wk][str(pid)] = float(pts)
 
-    fa = defaultdict(lambda: {"adds": 0, "pts": 0.0, "hits": 0, "misses": 0,
-                                "best": None})
+    wire = defaultdict(lambda: {
+        "fa_adds": 0, "fa_hits": 0, "fa_hit_vbd": 0.0, "best_fa": None,
+        "kept": 0, "kept_vbd": 0.0,
+    })
     best_pickup_ever = None
     for ld in sorted((ROOT / "data" / "sleeper").glob("league_*")):
         if not (ld / "league.json").exists():
@@ -105,19 +109,28 @@ def compute_data():
                     pts = sum(pp_sw[season].get(w, {}).get(str(pid), 0.0)
                               for w in range(wk, 18))
                     rid = int(rid)
-                    fa[rid]["adds"] += 1
-                    fa[rid]["pts"] += pts
-                    if pts >= 80:
-                        fa[rid]["hits"] += 1
-                    if pts < 10:
-                        fa[rid]["misses"] += 1
+                    pos = (catalog.get(str(pid)) or {}).get("position") or ""
+                    fa_vbd = pts - repl[season].get(pos, 0)
+                    wire[rid]["fa_adds"] += 1
+                    if fa_vbd > 0:
+                        wire[rid]["fa_hits"] += 1
+                        wire[rid]["fa_hit_vbd"] += fa_vbd
                     nm = (catalog.get(str(pid)) or {}).get("full_name", pid)
-                    if not fa[rid]["best"] or pts > fa[rid]["best"]["pts"]:
-                        fa[rid]["best"] = {"name": nm, "pts": pts,
-                                            "wk": wk, "season": season}
+                    if not wire[rid]["best_fa"] or pts > wire[rid]["best_fa"]["pts"]:
+                        wire[rid]["best_fa"] = {"name": nm, "pts": pts,
+                                                  "wk": wk, "season": season}
                     if not best_pickup_ever or pts > best_pickup_ever["pts"]:
                         best_pickup_ever = {"name": nm, "rid": rid, "pts": pts,
                                              "wk": wk, "season": season}
+
+    # Keeper carryovers (player-seasons where someone was kept).
+    for p in picks:
+        if not p.get("is_keeper"):
+            continue
+        wire[p["roster_id"]]["kept"] += 1
+        wire[p["roster_id"]]["kept_vbd"] += p["vbd"]
+    for rid, m in wire.items():
+        m["total"] = m["fa_hit_vbd"] + m["kept_vbd"]
 
     # ===== Lineup commander =====
     SLOTS = [("QB", {"QB"}, 1), ("RB", {"RB"}, 2), ("WR", {"WR"}, 3),
@@ -197,7 +210,7 @@ def compute_data():
         "picks": picks,
         "seasons": seasons,
         "draft": draft,
-        "fa": fa,
+        "wire": wire,
         "lineup": lineup,
         "trade": trade,
         "steals": steals,
@@ -231,24 +244,24 @@ def build_markdown(D: dict) -> str:
     md.append("\n*By raw per-pick: Donnie #1 (slot 1 every year). "
               "By skill-adjusted: Lem #1, with Brian a hair behind.*\n")
 
-    # ========== FA ==========
-    md.append("## 🔍 TALENT SCOUTING — waiver / free-agent skill")
-    md.append("Per-add average + hit rate (% of adds scoring 80+ rest-of-season).\n")
-    md.append("| Rank | Manager | Adds | Total pts | Pts/add | Hits | Hit % | Best pickup |")
+    # ========== Wire Game (FA + Keepers combined) ==========
+    md.append("## 🔍 WIRE GAME — talent acquisition (FA hits + keeper carryover value)")
+    md.append("FA + keepers are one skill: find good players outside the draft and hold them. "
+              "Score = positive-VBD FA pickups + total VBD from kept-player-seasons. "
+              "Sub-replacement adds are excluded (those can be dropped — pure noise).\n")
+    md.append("| Rank | Manager | FA hits | FA VBD | # Kept | Keeper VBD | **Total** | Best FA pickup |")
     md.append("|---|---|---|---|---|---|---|---|")
-    rows = sorted(D["fa"].items(), key=lambda x: -x[1]["pts"] / max(1, x[1]["adds"]))
+    rows = sorted(D["wire"].items(), key=lambda x: -x[1]["total"])
     for i, (rid, m) in enumerate(rows, 1):
-        ppa = m["pts"] / max(1, m["adds"])
-        hit_pct = m["hits"] * 100 / max(1, m["adds"])
-        best = m["best"]
+        best = m["best_fa"]
         best_str = f"{best['name']} ({best['pts']:.0f}, {best['season']} W{best['wk']})" if best else "—"
-        md.append(f"| {i} | **{mgr_name(rid)}** | {m['adds']} | "
-                  f"+{m['pts']:.0f} | +{ppa:.1f} | {m['hits']} | {hit_pct:.0f}% | {best_str} |")
+        md.append(f"| {i} | **{mgr_name(rid)}** | {m['fa_hits']}/{m['fa_adds']} | "
+                  f"{m['fa_hit_vbd']:+.0f} | {m['kept']} | "
+                  f"{m['kept_vbd']:+.0f} | **{m['total']:+.0f}** | {best_str} |")
     md.append("")
 
-    # Best pickups across league.
     bp = D["best_pickup"]
-    md.append(f"**League best pickup ever:** {bp['name']} → {mgr_name(bp['rid'])} "
+    md.append(f"**League best raw pickup ever:** {bp['name']} → {mgr_name(bp['rid'])} "
               f"(W{bp['wk']} {bp['season']}, +{bp['pts']:.0f} pts the rest of the year)\n")
 
     # ========== Lineup commander ==========
@@ -298,20 +311,21 @@ def build_markdown(D: dict) -> str:
 
     # ========== Activity ==========
     md.append("## 🌪️ MOST ACTIVE GM — waiver / FA volume")
-    md.append("| Rank | Manager | Adds | Pts/add | Style |")
-    md.append("|---|---|---|---|---|")
-    rows = sorted(D["fa"].items(), key=lambda x: -x[1]["adds"])
+    md.append("| Rank | Manager | Total adds | Hits | Hit % | Style |")
+    md.append("|---|---|---|---|---|---|")
+    rows = sorted(D["wire"].items(), key=lambda x: -x[1]["fa_adds"])
     for i, (rid, m) in enumerate(rows, 1):
-        ppa = m["pts"] / max(1, m["adds"])
-        if m["adds"] >= 150:
+        hit_pct = m["fa_hits"] * 100 / max(1, m["fa_adds"])
+        if m["fa_adds"] >= 150:
             style = "🌪️ spray-and-pray volume"
-        elif m["adds"] >= 90:
+        elif m["fa_adds"] >= 90:
             style = "active churner"
-        elif m["adds"] >= 50:
+        elif m["fa_adds"] >= 50:
             style = "selective tactical"
         else:
             style = "minimal-touch"
-        md.append(f"| {i} | **{mgr_name(rid)}** | {m['adds']} | +{ppa:.1f} | {style} |")
+        md.append(f"| {i} | **{mgr_name(rid)}** | {m['fa_adds']} | "
+                  f"{m['fa_hits']} | {hit_pct:.0f}% | {style} |")
     md.append("")
 
     # ========== Standings + champions ==========
@@ -340,7 +354,7 @@ def build_markdown(D: dict) -> str:
         return 100 * (len(sorted_v) - rank - 1) / max(1, len(sorted_v) - 1)
 
     draft_aep = {rid: m["sum_above"] / max(1, m["n"]) for rid, m in D["draft"].items()}
-    fa_ppa = {rid: m["pts"] / max(1, m["adds"]) for rid, m in D["fa"].items()}
+    wire_total = {rid: m["total"] for rid, m in D["wire"].items()}
     lineup_per = {rid: -(m["bench_loss"] / max(1, m["weeks"])) for rid, m in D["lineup"].items()}
     # Trade scorecard is keyed by team_name, map back to rid.
     team_to_rid = {}
@@ -353,19 +367,19 @@ def build_markdown(D: dict) -> str:
     composite = []
     for rid in D["draft"]:
         d_pct = pct_rank(draft_aep[rid], list(draft_aep.values()))
-        f_pct = pct_rank(fa_ppa.get(rid, 0), list(fa_ppa.values()))
+        w_pct = pct_rank(wire_total.get(rid, 0), list(wire_total.values()))
         l_pct = pct_rank(lineup_per.get(rid, 0), list(lineup_per.values()))
         t_pct = pct_rank(trade_net.get(rid, 0), list(trade_net.values()))
         composite.append({
             "rid": rid, "name": mgr_name(rid),
-            "draft": d_pct, "fa": f_pct, "lineup": l_pct, "trade": t_pct,
-            "avg": (d_pct + f_pct + l_pct + t_pct) / 4,
+            "draft": d_pct, "wire": w_pct, "lineup": l_pct, "trade": t_pct,
+            "avg": (d_pct + w_pct + l_pct + t_pct) / 4,
         })
     composite.sort(key=lambda x: -x["avg"])
-    md.append("| Rank | Manager | Draft | FA | Lineup | Trade | **Avg** |")
+    md.append("| Rank | Manager | Draft | Wire | Lineup | Trade | **Avg** |")
     md.append("|---|---|---|---|---|---|---|")
     for i, c in enumerate(composite, 1):
-        md.append(f"| {i} | **{c['name']}** | {c['draft']:.0f} | {c['fa']:.0f} | "
+        md.append(f"| {i} | **{c['name']}** | {c['draft']:.0f} | {c['wire']:.0f} | "
                   f"{c['lineup']:.0f} | {c['trade']:.0f} | **{c['avg']:.0f}** |")
     md.append("\n*Percentiles 0-100 (100 = best, 0 = worst). Composite = average across the 4 skills.*\n")
 
