@@ -151,6 +151,7 @@ def summarize_trade(
     player_catalog: dict[str, dict],
     player_total_points_by_season: dict[int, dict[str, float]],
     pick_value_blind: dict[int, float],
+    weekly_points_by_season: dict[int, dict[int, dict[str, float]]] | None = None,
 ) -> list[dict]:
     """Per-roster summary of a single trade.
 
@@ -168,6 +169,14 @@ def summarize_trade(
     drops = trade.get("drops") or {}
     picks = trade.get("draft_picks") or []
     season_pts = player_total_points_by_season.get(season, {})
+    trade_week = int(trade.get("_week") or 1)
+    # Use weekly points to only credit production AFTER the trade week.
+    # Without weekly data, fall back to full season points (overstates value).
+    def player_post_trade_pts(pid: str) -> float:
+        if weekly_points_by_season is None:
+            return season_pts.get(pid, 0.0)
+        wk_data = weekly_points_by_season.get(season, {})
+        return sum(wk_data.get(w, {}).get(pid, 0.0) for w in range(trade_week, 18))
 
     rows: list[dict] = []
     for rid in rosters:
@@ -181,14 +190,14 @@ def summarize_trade(
             if int(dest) == rid:
                 meta = player_catalog.get(pid) or {}
                 nm = meta.get("full_name") or f"player_{pid}"
-                pts = season_pts.get(pid, 0.0)
+                pts = player_post_trade_pts(pid)
                 received_players.append(f"{nm} ({pts:.0f} pts)")
                 received_player_pts += pts
         for pid, src in drops.items():
             if int(src) == rid:
                 meta = player_catalog.get(pid) or {}
                 nm = meta.get("full_name") or f"player_{pid}"
-                pts = season_pts.get(pid, 0.0)
+                pts = player_post_trade_pts(pid)
                 given_players.append(f"{nm} ({pts:.0f} pts)")
                 given_player_pts += pts
         for p in picks:
