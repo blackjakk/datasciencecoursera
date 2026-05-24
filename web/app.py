@@ -413,6 +413,125 @@ with tab_keepers:
                     row["Trade value"] = _round_equiv(r["raw_vbd"])
                 rows.append(row)
             st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+        # --- Override keepers for YOUR team ---
+        # Re-build the candidate pool from scratch so the user can force-include
+        # a borderline player (e.g. Loveland's net VBD was -1.7 — close enough
+        # to want to gamble on upside). Pre-checks the algorithm's choices.
+        st.divider()
+        st.subheader("🧪 Override your keepers")
+        st.caption(
+            "Pick any 4 from your full roster. We'll compute the net VBD at "
+            "each player's natural cost (with collision bumps applied). "
+            "Use this to test 'what if I keep player X over the model's pick'."
+        )
+        my_idx = st.session_state.my_team_idx
+        try:
+            from scripts.build_2026_keepers import _build_candidates, _load_pick_value
+            from fantasy_draft.vbd import compute_vbd_post_keepers
+            from fantasy_draft.draft import Draft as _Draft
+            from fantasy_draft.trades import apply_trades as _apply_trades
+            all_cands = _build_candidates()
+            pv_blind, pv_pos = _load_pick_value()
+            my_cands = [c for c in all_cands if c['team_idx'] == my_idx]
+            if not my_cands:
+                st.info("No candidates for your team. Make sure preset is loaded.")
+            else:
+                # Vanilla VBD (no keepers applied) for scoring.
+                _, repl_v = compute_vbd_post_keepers(players, league,
+                                                      keeper_names=set())
+                for p in players:
+                    p.vbd = p.projection - repl_v.get(p.position, 0.0)
+                pbn = {p.name.lower(): p for p in players}
+                # Pre-check the algorithm's selections.
+                model_picks = {r['player_name'] for r in real_records
+                                if int(r['team_idx']) == my_idx
+                                and r['status'] == 'carryover'}
+                # Owned picks per round, post-trade, for collision checks.
+                _cd = _Draft.new(league)
+                for _ln in _apply_trades(_cd, st.session_state.traded_picks or []):
+                    pass
+                owned = {}
+                for pk in _cd.picks:
+                    if pk.team_idx == my_idx:
+                        owned[pk.round_num] = owned.get(pk.round_num, 0) + 1
+
+                pick_rows = []
+                for c in sorted(my_cands, key=lambda c: -(pbn.get(c['player_name'].lower(), None).vbd if pbn.get(c['player_name'].lower()) else -999)):
+                    p = pbn.get(c['player_name'].lower())
+                    raw = round(p.vbd, 1) if p else None
+                    bl = (pv_pos.get(c['forfeit_round']) or {}).get(c['position'],
+                                                                    pv_blind.get(c['forfeit_round'], 0.0))
+                    net = round((p.vbd if p else 0) - bl, 1)
+                    yr3 = c['years_kept'] >= 3
+                    pick_rows.append({
+                        "Keep?": c['player_name'] in model_picks,
+                        "Player": c['player_name'],
+                        "Pos": c['position'],
+                        "Prior R": c['prior_round'],
+                        "Natural cost": f"R{c['forfeit_round']}",
+                        "Raw VBD": raw,
+                        "R-baseline": round(bl, 1),
+                        "Net (natural)": net,
+                        "Years kept": c['years_kept'],
+                        "Status": "🚫 yr3 cap" if yr3 else "",
+                    })
+                edited = st.data_editor(
+                    pd.DataFrame(pick_rows),
+                    column_config={
+                        "Keep?": st.column_config.CheckboxColumn(
+                            "Keep?", help="Check up to 4 (yr3 cap blocked)."),
+                    },
+                    disabled=["Player","Pos","Prior R","Natural cost",
+                              "Raw VBD","R-baseline","Net (natural)",
+                              "Years kept","Status"],
+                    hide_index=True, use_container_width=True,
+                    key="override_keepers_editor",
+                )
+                # Validate the user's selection.
+                picked = edited[edited["Keep?"] == True]
+                blocked_yr3 = picked[picked["Status"].str.contains("yr3", na=False)]
+                if len(picked) > league.keepers.max_keepers_per_team:
+                    st.error(f"Selected {len(picked)} keepers but max is "
+                              f"{league.keepers.max_keepers_per_team}.")
+                elif len(blocked_yr3) > 0:
+                    st.error(f"Can't keep {', '.join(blocked_yr3['Player'])} — "
+                              f"3-year cap reached.")
+                else:
+                    # Collision-resolve and report.
+                    sel = picked.sort_values("Raw VBD", ascending=False).to_dict("records")
+                    used = {}
+                    total_net = 0.0
+                    eff_rows = []
+                    for s in sel:
+                        natural = int(s["Natural cost"].lstrip("R"))
+                        chosen = None
+                        for r in range(natural, 0, -1):
+                            if used.get(r, 0) < owned.get(r, 0):
+                                chosen = r; break
+                        if chosen is None:
+                            eff_rows.append({**s, "Effective cost": "❌ no pick"})
+                            continue
+                        used[chosen] = used.get(chosen, 0) + 1
+                        bl_eff = (pv_pos.get(chosen) or {}).get(s["Pos"],
+                                                                 pv_blind.get(chosen, 0))
+                        net_eff = round(float(s["Raw VBD"]) - bl_eff, 1)
+                        total_net += net_eff
+                        bump = "↑" if chosen != natural else ""
+                        eff_rows.append({
+                            "Player": s["Player"],
+                            "Pos": s["Pos"],
+                            "Natural": s["Natural cost"],
+                            "Effective": f"R{chosen}{bump}",
+                            "Raw VBD": s["Raw VBD"],
+                            "Net @ effective": net_eff,
+                        })
+                    st.write(f"**Total net VBD:** {total_net:+.1f}")
+                    if eff_rows:
+                        st.dataframe(pd.DataFrame(eff_rows),
+                                      use_container_width=True, hide_index=True)
+        except Exception as e:
+            st.warning(f"Override panel unavailable: {e}")
     elif not by_season:
         st.info(
             "No real keepers or draft history loaded. Use the MONEYLEAGUE preset "
@@ -857,6 +976,68 @@ with tab_draft:
                 })
             st.dataframe(pd.DataFrame(stash_rows),
                           use_container_width=True, hide_index=True)
+
+    # --- Full mock draft (simulate the rest of the draft from here) ---
+    with st.expander("🎲 Run a full mock draft from this point", expanded=False):
+        st.caption(
+            "Plays out every remaining pick using the softmax recommender "
+            "(blends VBD, positional need, ADP). Each team picks as the "
+            "model thinks it would. Use it to see what your roster looks "
+            "like end-to-end, or to test different keeper/trade scenarios."
+        )
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            mock_temp = st.slider("Randomness (temperature)", 0.0, 1.0, 0.35, 0.05,
+                                   key="mock_temp",
+                                   help="0 = always pick top candidate; 1 = uniform over top-K.")
+        with c2:
+            mock_topk = st.slider("Top-K candidate pool", 5, 30, 15, 1, key="mock_topk")
+        with c3:
+            mock_seed = st.number_input("Seed (0 = random)", 0, 999999, 0, key="mock_seed")
+        if st.button("Run mock draft", key="run_mock_draft"):
+            from fantasy_draft.simulate import simulate_full_draft
+            import random as _rng
+            rng = _rng.Random(int(mock_seed)) if mock_seed else _rng.Random()
+            full = simulate_full_draft(
+                draft, players, st.session_state.my_team_idx,
+                temperature=float(mock_temp), top_k=int(mock_topk), rng=rng,
+            )
+            st.session_state.mock_draft_result = full
+        full = st.session_state.get("mock_draft_result")
+        if full:
+            # Your roster summary first.
+            your = [p for p in full if p.is_you]
+            st.subheader(f"Your roster ({len(your)} picks)")
+            by_pos: dict[str, list] = {}
+            for p in your:
+                by_pos.setdefault(p.position, []).append(p)
+            your_rows = [{
+                "R": p.round_num,
+                "Pick": p.pick_in_round,
+                "Overall": p.overall,
+                "Player": p.player_name + (" 🔒" if p.is_keeper else ""),
+                "Pos": p.position,
+                "VBD": round(p.vbd, 1),
+            } for p in your]
+            st.dataframe(pd.DataFrame(your_rows),
+                          use_container_width=True, hide_index=True)
+            cols = st.columns(len(by_pos) or 1)
+            for col, (pos, plist) in zip(cols, sorted(by_pos.items())):
+                col.metric(f"{pos}", len(plist),
+                           f"VBD {round(sum(p.vbd for p in plist), 1):+}")
+            # Full board.
+            st.subheader("Full simulated board")
+            full_rows = [{
+                "R": p.round_num,
+                "Pick": p.pick_in_round,
+                "Overall": p.overall,
+                "Team": ("🎯 " if p.is_you else "") + p.team_name,
+                "Player": p.player_name + (" 🔒" if p.is_keeper else ""),
+                "Pos": p.position,
+                "VBD": round(p.vbd, 1),
+            } for p in full]
+            st.dataframe(pd.DataFrame(full_rows),
+                          use_container_width=True, hide_index=True, height=600)
 
     # --- Full board (collapsed) ---
     with st.expander("Full draft log"):

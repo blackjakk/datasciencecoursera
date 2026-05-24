@@ -116,6 +116,75 @@ def simulate_once(
 
 
 @dataclass
+class FullSimPick:
+    overall: int
+    round_num: int
+    pick_in_round: int
+    team_idx: int
+    team_name: str
+    player_name: str
+    position: str
+    vbd: float
+    is_keeper: bool = False
+    is_you: bool = False
+
+
+def simulate_full_draft(
+    draft: Draft,
+    players: list[Player],
+    my_team_idx: int,
+    temperature: float = 0.35,
+    top_k: int = 15,
+    rng: random.Random | None = None,
+) -> list[FullSimPick]:
+    """Simulate every remaining pick once and return the full sequence,
+    including keepers already placed. Used to play out a full mock draft
+    from the user's current draft position."""
+    rng = rng or random.Random()
+    teams = _snapshot_teams(draft)
+    drafted_names: set[str] = {p.player.name for p in draft.picks if p.player is not None}
+    pool = [p for p in players if p.name not in drafted_names]
+    removed: set[str] = set()
+    pbn = {p.name.lower(): p for p in players}
+
+    def alive() -> list[Player]:
+        if not removed:
+            return pool
+        return [p for p in pool if p.name not in removed]
+
+    out: list[FullSimPick] = []
+    for pick in draft.picks:
+        team_name = draft.teams[pick.team_idx].name
+        if pick.player is not None:
+            # Already placed (a keeper, an earlier sim pick, or a real pick).
+            out.append(FullSimPick(
+                overall=pick.overall, round_num=pick.round_num,
+                pick_in_round=pick.pick_in_round, team_idx=pick.team_idx,
+                team_name=team_name,
+                player_name=pick.player.name, position=pick.player.position,
+                vbd=pick.player.vbd, is_keeper=pick.is_keeper,
+                is_you=pick.team_idx == my_team_idx,
+            ))
+            removed.add(pick.player.name)
+            continue
+        team = teams[pick.team_idx]
+        avail = alive()
+        chosen = _softmax_pick(avail, team, draft.league, pick.overall,
+                                temperature, top_k, rng)
+        team.roster.append(chosen)
+        removed.add(chosen.name)
+        out.append(FullSimPick(
+            overall=pick.overall, round_num=pick.round_num,
+            pick_in_round=pick.pick_in_round, team_idx=pick.team_idx,
+            team_name=team_name,
+            player_name=chosen.name, position=chosen.position,
+            vbd=chosen.vbd, is_keeper=False,
+            is_you=pick.team_idx == my_team_idx,
+        ))
+    return out
+
+
+@dataclass
 class AvailabilityReport:
     your_pick_overall: int
     n_sims: int
