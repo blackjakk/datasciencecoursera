@@ -219,14 +219,50 @@ def summarize_trade(
 
 # Seasons where the Sleeper draft data is a post-Yahoo-migration
 # reconstruction. Pick-to-roster_id attribution for these years is
-# unreliable (Yahoo-era pick trades didn't survive the migration).
-# Per-player season points are still valid; only the drafter is wrong.
+# unreliable in the raw Sleeper data (Yahoo-era pick trades didn't
+# survive the migration). When the xlsx is available, those years are
+# transparently re-attributed via cell-color → manager → roster_id.
 UNRELIABLE_ATTRIBUTION_SEASONS = {2023}
+
+
+def _xlsx_attribution_map(xlsx_path: str | Path) -> dict[int, dict[str, int]]:
+    """Returns {year: {player_name_lower: sleeper_roster_id}} from xlsx
+    cell colors. Empty dict if xlsx isn't available."""
+    from pathlib import Path as _P
+    xp = _P(xlsx_path)
+    if not xp.exists():
+        return {}
+    try:
+        from .xlsx_drafts import load_xlsx_drafts
+        from .team_identity import all_managers
+    except Exception:
+        return {}
+    nick_to_rid: dict[str, int] = {}
+    for m in all_managers():
+        if m.get("sleeper_roster_id") is None:
+            continue
+        for nick in m.get("xlsx_nicknames", []):
+            nick_to_rid[nick.lower()] = m["sleeper_roster_id"]
+        nick_to_rid.setdefault(m["canonical_name"].split()[0].lower(),
+                                m["sleeper_roster_id"])
+    # Dave owned rid 10 in 2023-24 before Josh took over.
+    nick_to_rid.setdefault("dave", 10)
+    out: dict[int, dict[str, int]] = {}
+    drafts = load_xlsx_drafts(xp)
+    for year, picks in drafts.items():
+        by_player: dict[str, int] = {}
+        for xp_pick in picks:
+            rid = nick_to_rid.get(xp_pick.manager_nickname.lower())
+            if rid:
+                by_player[xp_pick.player_name.lower()] = rid
+        out[year] = by_player
+    return out
 
 
 def load_draft_picks_with_points(
     sleeper_dir: str | Path = "data/sleeper",
     exclude_unreliable_attribution: bool = False,
+    xlsx_path: str | Path = "data/historical/MONEY_LEAGUE.xlsx",
 ) -> list[dict]:
     """For every Sleeper season, join draft picks to per-player season
     total points. Returns a flat list of:
@@ -245,6 +281,7 @@ def load_draft_picks_with_points(
     """
     sleeper_dir = Path(sleeper_dir)
     seasons = load_all_seasons(sleeper_dir)
+    xlsx_attribution = _xlsx_attribution_map(xlsx_path)
     out: list[dict] = []
     for season_dir in sorted(sleeper_dir.glob("league_*")):
         if not (season_dir / "league.json").exists():
@@ -253,18 +290,29 @@ def load_draft_picks_with_points(
         season = int(lg.get("season") or 0)
         if season not in seasons:
             continue
-        if exclude_unreliable_attribution and season in UNRELIABLE_ATTRIBUTION_SEASONS:
+        # 2023 is unreliable IF we can't fix it via xlsx. When the xlsx
+        # has data for this year, attribution is restored.
+        season_xlsx = xlsx_attribution.get(season, {})
+        attributable_via_xlsx = bool(season_xlsx)
+        unreliable = (season in UNRELIABLE_ATTRIBUTION_SEASONS
+                      and not attributable_via_xlsx)
+        if exclude_unreliable_attribution and unreliable:
             continue
         s = seasons[season]
         pick_files = list(season_dir.glob("draft_*_picks.json"))
         if not pick_files:
             continue
         picks = json.loads(pick_files[0].read_text(encoding="utf-8"))
-        reliable = season not in UNRELIABLE_ATTRIBUTION_SEASONS
+        reliable = not unreliable
         for p in picks:
             meta = p.get("metadata") or {}
             pid = str(p.get("player_id") or "")
             rid = int(p.get("roster_id") or 0)
+            player_name = f"{meta.get('first_name','').strip()} {meta.get('last_name','').strip()}".strip()
+            # Re-attribute via xlsx where available.
+            xlsx_rid = season_xlsx.get(player_name.lower())
+            if xlsx_rid is not None and season in UNRELIABLE_ATTRIBUTION_SEASONS:
+                rid = xlsx_rid
             out.append({
                 "season": season,
                 "round": int(p.get("round") or 0),
@@ -273,10 +321,13 @@ def load_draft_picks_with_points(
                 "roster_id": rid,
                 "team_name": s["rosters"].get(rid, {}).get("team_name", f"Roster {rid}"),
                 "player_id": pid,
-                "player_name": f"{meta.get('first_name','').strip()} {meta.get('last_name','').strip()}".strip(),
+                "player_name": player_name,
                 "position": (meta.get("position") or "").upper(),
                 "season_points": s["player_total_points"].get(pid, 0.0),
                 "is_keeper": bool(p.get("is_keeper")),
                 "attribution_reliable": reliable,
+                "attribution_source": ("xlsx" if (season in UNRELIABLE_ATTRIBUTION_SEASONS
+                                                   and xlsx_rid is not None)
+                                       else "sleeper"),
             })
     return out
