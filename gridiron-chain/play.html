@@ -123,6 +123,10 @@
 <script src="play-player.js"></script>
 <script src="play-audio.js"></script>
 <script src="play-fx.js"></script>
+<!-- PIXI.js WebGL renderer — backs play-field-pixi.js + play-player-pixi.js.
+     Both files were written but were silently no-op'ing because the library
+     wasn't loaded (`typeof PIXI === "undefined"`). Now wired in. -->
+<script src="https://cdn.jsdelivr.net/npm/pixi.js@7.4.3/dist/pixi.min.js"></script>
 <script src="play-field-pixi.js"></script>
 <script src="play-engine.js"></script>
 <script src="play-render.js"></script>

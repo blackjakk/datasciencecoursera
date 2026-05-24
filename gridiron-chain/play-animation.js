@@ -5236,7 +5236,7 @@ function buildCinemaAnim(play, prevPlay) {
 // ═══════════════════════════════════════════════════════════════════════════
 // Play-result digest card — big banner that holds for ~1.4s after each play
 // ═══════════════════════════════════════════════════════════════════════════
-const RESULT_HOLD_MS = 1400;
+const RESULT_HOLD_MS = 2100;
 
 // "Tom Brady" → "BRADY" (last token, uppercased).
 function lastNameUpper(name) {
@@ -5438,7 +5438,12 @@ function drawResultCard(ctx, play, holdT) {
   const isBroadcast = (typeof cameraMode !== "undefined" && cameraMode === "broadcast"
                        && typeof _uprightCtx !== "undefined" && _uprightCtx);
   if (isBroadcast) ctx = _uprightCtx;
-  const fadeIn = Math.min(1, holdT * 5);
+  // Card delayed so the post-play scene is visible for ~600ms before the
+  // banner overlays. User feedback: "animation ends abruptly" — old code
+  // popped the card at holdT*5 (full opacity by ~280ms), which cut the
+  // post-tackle moment off. Now holds the action frame alone for 30% of
+  // the hold window, then fades the card in.
+  const fadeIn = Math.max(0, Math.min(1, (holdT - 0.30) / 0.22));
   const fadeOut = holdT > 0.88 ? Math.max(0, 1 - (holdT - 0.88) / 0.12) : 1;
   const opacity = fadeIn * fadeOut;
   const slideY = (1 - fadeIn) * -24;
