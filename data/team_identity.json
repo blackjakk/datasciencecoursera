@@ -8,9 +8,14 @@
       "sleeper_display_name": "tjt5055",
       "xlsx_nicknames": ["Brian", "Berger Boy Briga"],
       "yahoo_team_names": {
-        "2015": "BergerBoy Brigade", "2016": "BergerBoy Brigade", "2017": "BergerBoy Brigade",
-        "2018": "BergerBoy Brigade", "2019": "BergerBoy Brigade", "2020": "BergerBoy Brigade",
-        "2021": "BergerBoy Brigade", "2022": "BergerBoy Brigade"
+        "2016": "BergerBoy Brigade?",
+        "2017": "BergerBoy Brigade?",
+        "2018": "BergerBoy Brigade",
+        "2019": "BergerBoy Brigade",
+        "2020": "BergerBoy Brigade",
+        "2021": "BergerBoy Brigade",
+        "2022": "BergerBoy Brigade",
+        "_note": "Brian first appears in FF2016 xlsx (not in FF2015). 2018+ confirmed via xlsx nickname 'Berger Boy Briga'. 2015 BergerBoy Brigade was actually Trevor's team (per FF2015 slot 10)."
       },
       "confidence": "high"
     },
@@ -20,10 +25,15 @@
       "sleeper_display_name": "kylefiggy",
       "xlsx_nicknames": ["Figgy"],
       "yahoo_team_names": {
-        "2015": "?", "2016": "?", "2017": "?", "2018": "?",
-        "2019": "Figgy", "2020": "Figgy", "2021": "Figgy", "2022": "Figgy"
+        "2015": "ButtersBottomBitches?",
+        "2016": "Trust the Process?",
+        "2019": "Figgy",
+        "2020": "Figgy",
+        "2021": "Figgy",
+        "2022": "Figgy",
+        "_note": "From 2019 onward Figgy used his nickname as team_name. 2015-2018 used silly one-off names."
       },
-      "confidence": "high"
+      "confidence": "high_from_2019"
     },
     "lem": {
       "canonical_name": "Lem (LEMVP)",
@@ -31,8 +41,9 @@
       "sleeper_display_name": "LEMVP",
       "xlsx_nicknames": ["Lem"],
       "yahoo_team_names": {
-        "2015": "LEMVP & Associates", "2016": "?", "2017": "?", "2018": "LEMVP & Associates",
-        "2019": "?", "2020": "?", "2021": "?", "2022": "The pigeon outside Lems window"
+        "2015": "LEMVP & Associates",
+        "2018": "LEMVP & Associates",
+        "2022": "The pigeon outside Lems window"
       },
       "confidence": "high"
     },
@@ -42,9 +53,11 @@
       "sleeper_display_name": "kbrower",
       "xlsx_nicknames": ["Brower"],
       "yahoo_team_names": {
-        "2015": "?", "2016": "?", "2017": "?", "2018": "?",
-        "2019": "Barry Sandals", "2020": "Barry Sandals",
-        "2021": "Barry Sandals", "2022": "Barry Sandals"
+        "2019": "Barry Sandals",
+        "2020": "Barry Sandals",
+        "2021": "Barry Sandals",
+        "2022": "Barry Sandals",
+        "_note": "Brower joined the league in 2019 (not in FF2015-2018 xlsx) and used 'Barry Sandals' consistently."
       },
       "confidence": "high"
     },
@@ -54,7 +67,8 @@
       "sleeper_display_name": "apatel185",
       "xlsx_nicknames": ["Ankur"],
       "yahoo_team_names": {
-        "2022": "Hail Koo"
+        "2022": "Hail Koo",
+        "_note": "Ankur joined late (FF2022 payment row '0.0' dues = new member). Only 1 Yahoo year before Sleeper migration."
       },
       "confidence": "high"
     },
@@ -64,22 +78,26 @@
       "sleeper_display_name": "troymullings",
       "xlsx_nicknames": ["Troy"],
       "yahoo_team_names": {
-        "2015": "?", "2016": "?", "2017": "?", "2018": "?",
-        "2019": "?", "2020": "?", "2021": "?", "2022": "?"
+        "2015": "Tyrodasaurus Rex?",
+        "2016": "Tyrodasaurus Rex?",
+        "_note": "Troy was in FF2015-2024 xlsx. 'Tyrodasaurus Rex' appeared 2015-2016 only — Tyrod was a popular meme so this could be Troy's pun on his own name. Post-2016 Troy used different team names."
       },
       "confidence": "high_for_xlsx_only"
     },
     "big_guap": {
-      "canonical_name": "Big Guap",
+      "canonical_name": "Big Guap (Guap Gang)",
       "sleeper_roster_id": 9,
       "sleeper_display_name": "bigguap69",
       "xlsx_nicknames": ["Big Guap 69", "Bgu"],
       "yahoo_team_names": {
-        "2015": "Big Don's Cuties?", "2018": "?",
-        "2019": "Guap Gang", "2020": "Guap Gang", "2021": "Guap Gang",
-        "2022": "?"
+        "2015": "Big Don's Cuties?",
+        "2018": "Kareem Hunt did 9/11?",
+        "2019": "Guap Gang",
+        "2020": "Guap Gang",
+        "2021": "Guap Gang",
+        "_note": "Used 'Guap Gang' 2019-2021. Skipped 2022 Yahoo (or used different name)."
       },
-      "confidence": "high_for_sleeper"
+      "confidence": "high_from_2019"
     },
     "eric_m": {
       "canonical_name": "Eric (Mattesich)",
@@ -87,10 +105,13 @@
       "sleeper_display_name": "emattessich",
       "xlsx_nicknames": ["Eric"],
       "yahoo_team_names": {
-        "2015": "?", "2016": "?", "2017": "?", "2018": "?",
-        "2019": "?", "2020": "?", "2021": "?", "2022": "?"
+        "2015": "Deez Hos Ain't Royal",
+        "2016": "Deez Hos Ain't Royal",
+        "2017": "Deez Hos Ain't Royal",
+        "2018": "Deez Hos Ain't Royal",
+        "_note": "Eric was in FF2015-2024 xlsx and used 'Deez Hos Ain't Royal' as a persistent Yahoo team_name 2015-2018. Likely continued under different name 2019-2022."
       },
-      "confidence": "medium"
+      "confidence": "high"
     },
     "tim_breswick": {
       "canonical_name": "Tim (Breswick)",
@@ -98,8 +119,21 @@
       "sleeper_display_name": "TBreswick",
       "xlsx_nicknames": ["Tim"],
       "yahoo_team_names": {
-        "2017": "?", "2018": "?", "2019": "?", "2020": "?",
-        "2021": "?", "2022": "?"
+        "2017": "Arnold Palmer Lite?",
+        "2018": "Arnold Palmer Lite?",
+        "_note": "Tim first appears in FF2017 xlsx. 'Arnold Palmer Lite' was a persistent Yahoo team 2016-2018 — possibly Tim or Nark (Nark used it in 2016, then was gone by 2017, so Tim may have inherited the name)."
+      },
+      "confidence": "medium"
+    },
+    "donnie": {
+      "canonical_name": "Donnie",
+      "sleeper_roster_id": 2,
+      "sleeper_display_name": "dibach215",
+      "xlsx_nicknames": ["Donnie"],
+      "yahoo_team_names": {
+        "2015": "Big Don's Cuties?",
+        "2020": "Don's Special Guys?",
+        "_note": "Donnie was in FF2015-2016 xlsx (likely left, then returned 2022+). 'Don's Special Guys' 2020 and 'Big Don's Cuties' 2015 both contain 'Don' which fits."
       },
       "confidence": "medium"
     },
@@ -111,10 +145,14 @@
       "previous_owner": {
         "nickname": "Dave",
         "xlsx_nicknames": ["Dave"],
-        "active_seasons": "2017-2024 (xlsx); 2023-2024 (Sleeper rid 10 as wvw5022 / 'Dave on Montgomery Ave')"
+        "active_seasons": "2017-2024 (xlsx); 2023-2024 (Sleeper rid 10 as wvw5022 / 'Dave on Montgomery Ave')",
+        "yahoo_team_names_guess": {
+          "2017": "Fuck the Process? (slot 7 in FF2017 = Dave)",
+          "_note": "Dave first appears FF2017. Yahoo team_names 2018+ unknown — could be 'Land of the Freemans' 2018, 'The Dream Team' 2019-2022 (the only persistent Yahoo team across those years that hasn't been claimed)."
+        }
       },
       "yahoo_team_names": {
-        "_note": "Pre-2025 Yahoo seasons under Dave's ownership — Yahoo names not yet matched"
+        "_note": "Josh joined 2025; no Yahoo history."
       },
       "confidence": "high"
     },
@@ -151,14 +189,26 @@
   },
 
   "unmatched_xlsx_nicknames": [
-    "Wang", "Nark", "Mrs Doubtfire (one-time)"
+    "Wang (FF2015-2018; left after 2018)",
+    "Nark (FF2015-2016 only)",
+    "Mrs Doubtfire (FF2018 only — likely a Yahoo team_name used as nickname for one year)",
+    "Trevor (FF2015-2022 xlsx, not on current Sleeper)"
   ],
   "unmatched_yahoo_persistent_names": [
-    "The Dream Team (2017-2022)",
-    "Deez Hos Ain't Royal (2015-2018)",
-    "Weird Flex but OK (2019-2022)",
-    "Wet Ass Posluzny (2020-2022)",
-    "Terror Squad (2019-2021)",
-    "Arnold Palmer Lite (2016-2018)"
-  ]
+    "The Dream Team (2017-2022) — best candidate: Dave (matches his 2017-2022 active years)",
+    "Weird Flex but OK (2019-2022) — could be Wang's continuation, or a member who left before Sleeper migration",
+    "Wet Ass Posluzny (2020-2022) — unattributed",
+    "Terror Squad (2019-2021) — unattributed",
+    "Arnold Palmer Lite (2016-2018) — Tim or Nark (Tim joined 2017, Nark left 2017)"
+  ],
+  "_high_confidence_summary": {
+    "Eric": "Deez Hos Ain't Royal 2015-2018 (then likely continued — needs lookup)",
+    "Brian": "BergerBoy Brigade 2016 onward (joined post-FF2015)",
+    "Lem": "LEMVP & Associates (2015 + 2018), 'The pigeon outside Lems window' (2022)",
+    "Figgy": "Various silly names 2015-2018, then 'Figgy' 2019-2022",
+    "Brower": "Barry Sandals 2019-2022 (joined league 2019)",
+    "Big Guap": "Guap Gang 2019-2021",
+    "Ankur": "Hail Koo 2022 (joined 2022)",
+    "Josh": "No Yahoo years; replaced Dave in 2025 (Sleeper era only)"
+  }
 }
