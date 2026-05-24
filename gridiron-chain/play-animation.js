@@ -3080,6 +3080,13 @@ function buildAnimForPlay(play, prevPlay) {
               // Movement backward (deeper into coverage) during backpedal
               const bpProg = (aT - jamT) / Math.max(0.001, backpedalT - jamT);
               dd.x = d.x + dir * bpProg * 8;
+            } else {
+              // After backpedal — CB is HOLDING their coverage. Position
+              // mostly static (set above by isMan/zone block). Freeze
+              // the leg cycle so they don't visibly run-in-place while
+              // tracking the WR. User: "defender legs move while staring
+              // at the qb and staying still."
+              dd.t = 0;
             }
           }
           // SAFETIES also backpedal briefly (smaller window)
@@ -3091,6 +3098,10 @@ function buildAnimForPlay(play, prevPlay) {
               dd.facing = -dir;
               const bpProg = aT / Math.max(0.001, backpedalT);
               dd.x = d.x + dir * bpProg * 5;
+            } else {
+              // Holding deep — freeze legs so the safety reads as
+              // standing in coverage, not jogging in place.
+              dd.t = 0;
             }
           }
         }
@@ -3117,6 +3128,19 @@ function buildAnimForPlay(play, prevPlay) {
           if (_postCatchPursuerSet.has(i)) {
             const isCB  = i === idxCB1 || i === idxCB2;
             const isSaf = i === idxS1  || i === idxS2;
+            // SYNC pursue state with the defender's CURRENT rendered
+            // position before the first post-catch step. Without this,
+            // pursue() starts from d._cx = d.x (formation home), so on
+            // the first post-catch frame the defender visually
+            // TELEPORTS from wherever the coverage code drew them
+            // (downfield CB, backpedaled S) back to formation, then
+            // sprints to the ball.
+            if (!d._postCatchSynced) {
+              d._cx = dd.x;
+              d._cy = dd.y;
+              d._lastMs = 0;
+              d._postCatchSynced = true;
+            }
             const elapsedMs = Math.max(0, (t - throwPhase) * dur);
             const factor = isCB ? 1.05 : isSaf ? 1.0 : 0.95;
             const np = pursue(dd, ballX - dir * 4, ballY, elapsedMs, factor);
