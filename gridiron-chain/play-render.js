@@ -986,6 +986,24 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
       bodyTilt += Math.sin(fallT * Math.PI * 2.2) * 0.05 * (1 - fallEase);
       break;
     }
+    case "jam": {
+      // Press-coverage JAM at the snap — CB punches both hands into the
+      // WR's chest pads, body squared up, legs in a solid wide base.
+      // Brief moment (~80-150ms of action time) before transitioning to
+      // backpedal or chase. Both arms fully extended forward; body
+      // squared to the LOS (no facing flip during the jam).
+      const ph = Math.min(1, t);   // 0 → 1 across the jam window
+      // Quick punch — arms thrust forward at jam peak, slight retract
+      const punch = Math.sin(Math.min(1, ph * 2) * Math.PI);
+      lArm = 1.10 + punch * 0.10;
+      rArm = 1.10 + punch * 0.10;
+      lForearmOverride = 0.25;
+      rForearmOverride = 0.25;
+      lLeg = 0.45; rLeg = -0.45;     // wide stable base
+      bodyTilt = facing * 0.08;       // slight forward lean into contact
+      bodyDY = -punch * 1.0;          // pop up at impact
+      break;
+    }
     case "stiff":
       lArm = Math.PI / 2;
       rArm = 0.4;
