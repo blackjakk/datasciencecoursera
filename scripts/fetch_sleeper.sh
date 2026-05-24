@@ -94,6 +94,14 @@ PY
     get "$API/league/$current/winners_bracket" "$SEASON_DIR/winners_bracket.json" || true
     get "$API/league/$current/losers_bracket"  "$SEASON_DIR/losers_bracket.json"  || true
 
+    # Transactions: trades, waivers, free agents. Pulled per week.
+    # Trades are the interesting subset for trade-value validation.
+    TXN_DIR="$SEASON_DIR/transactions"
+    mkdir -p "$TXN_DIR"
+    for week in $(seq 1 17); do
+        get "$API/league/$current/transactions/$week" "$TXN_DIR/week_${week}.json" || true
+    done
+
     # Step backward via previous_league_id.
     current="$(python3 -c "import json; d=json.load(open('$LEAGUE_FILE')); print(d.get('previous_league_id') or '')")"
 

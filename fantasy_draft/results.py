@@ -116,6 +116,107 @@ def load_all_seasons(sleeper_dir: str | Path = "data/sleeper") -> dict[int, dict
     return out
 
 
+def load_all_trades(sleeper_dir: str | Path = "data/sleeper") -> list[dict]:
+    """Walk every season's transactions/week_*.json, return all completed
+    trades flattened with season + week annotated. Returns a list of dicts
+    keyed by the raw Sleeper schema plus '_season' and '_week'."""
+    sleeper_dir = Path(sleeper_dir)
+    out: list[dict] = []
+    for season_dir in sorted(sleeper_dir.glob("league_*")):
+        if not (season_dir / "league.json").exists():
+            continue
+        lg = json.loads((season_dir / "league.json").read_text())
+        season = int(lg.get("season") or 0)
+        txn_dir = season_dir / "transactions"
+        if not txn_dir.exists():
+            continue
+        for wf in sorted(txn_dir.glob("week_*.json")):
+            week = int(wf.stem.split("_")[1])
+            try:
+                txns = json.loads(wf.read_text())
+            except Exception:
+                continue
+            for t in txns:
+                if t.get("type") == "trade" and t.get("status") == "complete":
+                    t = dict(t)
+                    t["_season"] = season
+                    t["_week"] = week
+                    out.append(t)
+    return out
+
+
+def summarize_trade(
+    trade: dict,
+    roster_team_name: dict[int, str],
+    player_catalog: dict[str, dict],
+    player_total_points_by_season: dict[int, dict[str, float]],
+    pick_value_blind: dict[int, float],
+) -> list[dict]:
+    """Per-roster summary of a single trade.
+
+    For each roster involved, returns a row with: team name, players
+    received (+ their season pts), picks received (+ pick value), players
+    given (+ season pts), picks given (+ pick value), net VBD delta.
+
+    The `season pts` and `pick value` are valued in the context of the
+    SEASON the trade occurred (e.g. a 2023 trade values picks via that
+    year's pick chart and players via their 2023 season production).
+    """
+    season = trade.get("_season")
+    rosters = trade.get("roster_ids") or []
+    adds = trade.get("adds") or {}
+    drops = trade.get("drops") or {}
+    picks = trade.get("draft_picks") or []
+    season_pts = player_total_points_by_season.get(season, {})
+
+    rows: list[dict] = []
+    for rid in rosters:
+        rid = int(rid)
+        team_name = roster_team_name.get(rid, f"Roster {rid}")
+        received_players, given_players = [], []
+        received_pick_value, given_pick_value = 0.0, 0.0
+        received_player_pts, given_player_pts = 0.0, 0.0
+
+        for pid, dest in adds.items():
+            if int(dest) == rid:
+                meta = player_catalog.get(pid) or {}
+                nm = meta.get("full_name") or f"player_{pid}"
+                pts = season_pts.get(pid, 0.0)
+                received_players.append(f"{nm} ({pts:.0f} pts)")
+                received_player_pts += pts
+        for pid, src in drops.items():
+            if int(src) == rid:
+                meta = player_catalog.get(pid) or {}
+                nm = meta.get("full_name") or f"player_{pid}"
+                pts = season_pts.get(pid, 0.0)
+                given_players.append(f"{nm} ({pts:.0f} pts)")
+                given_player_pts += pts
+        for p in picks:
+            rnd = int(p.get("round") or 0)
+            pv = pick_value_blind.get(rnd, 0.0)
+            if int(p.get("owner_id") or 0) == rid:
+                received_pick_value += pv
+                yr = p.get("season") or "?"
+                received_players.append(f"{yr} R{rnd} (~{pv:+.0f} VBD)")
+            elif int(p.get("previous_owner_id") or 0) == rid:
+                given_pick_value += pv
+                yr = p.get("season") or "?"
+                given_players.append(f"{yr} R{rnd} (~{pv:+.0f} VBD)")
+
+        net = (received_player_pts + received_pick_value) - (given_player_pts + given_pick_value)
+        rows.append({
+            "season": season,
+            "week": trade.get("_week"),
+            "team": team_name,
+            "received": ", ".join(received_players) or "—",
+            "given": ", ".join(given_players) or "—",
+            "received_value": round(received_player_pts + received_pick_value, 1),
+            "given_value": round(given_player_pts + given_pick_value, 1),
+            "net": round(net, 1),
+        })
+    return rows
+
+
 def load_draft_picks_with_points(
     sleeper_dir: str | Path = "data/sleeper",
 ) -> list[dict]:

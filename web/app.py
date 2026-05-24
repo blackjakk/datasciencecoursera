@@ -319,6 +319,26 @@ with tab_keepers:
             team_name = tnames[tidx] if 0 <= tidx < len(tnames) else f"Team {tidx+1}"
             st.subheader(f"{team_name} — {n_keep} keeper(s)")
             rows = []
+            # Load pick value chart so we can label each keeper's
+            # "what would they trade for" round equivalent.
+            pv_blind_local: dict[int, float] = {}
+            pv_p = ROOT / "data" / "pick_value.json"
+            if pv_p.exists():
+                _pv = _json.loads(pv_p.read_text())
+                pv_blind_local = {int(rr): d["mean_vbd"]
+                                   for rr, d in _pv["by_round"].items()}
+
+            def _round_equiv(raw_vbd: float) -> str:
+                """Find round R where pv_blind[R] is closest to raw_vbd."""
+                if not pv_blind_local or raw_vbd is None:
+                    return "—"
+                best_r, best_diff = None, float("inf")
+                for rr, vv in pv_blind_local.items():
+                    d = abs(vv - raw_vbd)
+                    if d < best_diff:
+                        best_diff, best_r = d, rr
+                return f"~R{best_r}" if best_r else "—"
+
             for r in recs:
                 forfeit = r["prior_round"] - league.keepers.round_penalty
                 tag = {
@@ -336,6 +356,8 @@ with tab_keepers:
                 }
                 if r.get("net_vbd") is not None:
                     row["Net VBD"] = f"{r['net_vbd']:+.1f}"
+                if r.get("raw_vbd") is not None:
+                    row["Trade value"] = _round_equiv(r["raw_vbd"])
                 rows.append(row)
             st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
     elif not by_season:
@@ -1062,6 +1084,88 @@ with tab_history:
                         "Margin": round(r["fpts"] - r["fpts_against"], 1),
                     })
                 st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+        # --- Trade history (retroactively valued) ---
+        from fantasy_draft.results import load_all_trades, summarize_trade  # noqa: E402
+        try:
+            trades = load_all_trades(ROOT / "data" / "sleeper")
+        except Exception:
+            trades = []
+        if trades:
+            st.subheader(f"Trade history — retroactive value ({len(trades)} trades)")
+            st.caption(
+                "Each trade scored after the fact: players = season points "
+                "actually scored, picks = mean VBD historically delivered at "
+                "that round. Positive net = this team won the trade in hindsight."
+            )
+            # Build lookups.
+            roster_team_name = {}
+            pts_by_season: dict[int, dict[str, float]] = {}
+            for ss in seasons.values():
+                for rid, rr in ss["rosters"].items():
+                    roster_team_name[rid] = rr["team_name"]
+                pts_by_season[ss["season"]] = ss["player_total_points"]
+            try:
+                catalog = _json.loads(
+                    (ROOT / "data" / "sleeper" / "players_nfl.json").read_text())
+            except Exception:
+                catalog = {}
+            pv_blind_t: dict[int, float] = {}
+            pv_p = ROOT / "data" / "pick_value.json"
+            if pv_p.exists():
+                _pv = _json.loads(pv_p.read_text())
+                pv_blind_t = {int(rr): d["mean_vbd"]
+                              for rr, d in _pv["by_round"].items()}
+
+            # Render per season descending.
+            seasons_with_trades = sorted({t["_season"] for t in trades}, reverse=True)
+            for yr in seasons_with_trades:
+                yr_trades = [t for t in trades if t["_season"] == yr]
+                with st.expander(f"{yr}: {len(yr_trades)} trade(s)"):
+                    summary_rows = []
+                    for t in yr_trades:
+                        sides = summarize_trade(t, roster_team_name, catalog,
+                                                pts_by_season, pv_blind_t)
+                        # Show one row per side, paired together by week.
+                        for side in sides:
+                            verdict = ("🏆" if side["net"] > 20
+                                       else "👍" if side["net"] > 0
+                                       else "👎" if side["net"] < -20 else "≈")
+                            summary_rows.append({
+                                "Week": side["week"],
+                                "Team": f"{verdict} {side['team']}",
+                                "Received": side["received"][:80],
+                                "Gave": side["given"][:80],
+                                "Net value": f"{side['net']:+.0f}",
+                            })
+                    st.dataframe(pd.DataFrame(summary_rows),
+                                  use_container_width=True, hide_index=True)
+
+            st.subheader("All-time trade scorecard")
+            st.caption("Aggregate net value per team across all trades. "
+                       "Positive total = consistently wins trades by retroactive value.")
+            from collections import defaultdict as _dd
+            tally = _dd(lambda: {"team": "", "n": 0, "net": 0.0, "wins": 0, "losses": 0})
+            for t in trades:
+                sides = summarize_trade(t, roster_team_name, catalog,
+                                        pts_by_season, pv_blind_t)
+                for s in sides:
+                    e = tally[s["team"]]
+                    e["team"] = s["team"]
+                    e["n"] += 1
+                    e["net"] += s["net"]
+                    if s["net"] > 20: e["wins"] += 1
+                    elif s["net"] < -20: e["losses"] += 1
+            score_rows = sorted(tally.values(), key=lambda r: -r["net"])
+            sc_rows = [{
+                "Team": e["team"],
+                "Trades": e["n"],
+                "Wins (+20 VBD)": e["wins"],
+                "Losses (-20 VBD)": e["losses"],
+                "Net value": round(e["net"], 1),
+                "Net per trade": round(e["net"] / max(1, e["n"]), 1),
+            } for e in score_rows]
+            st.dataframe(pd.DataFrame(sc_rows), use_container_width=True, hide_index=True)
 
 
 # ------------------------------------------------------------------------
