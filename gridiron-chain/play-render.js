@@ -1129,18 +1129,25 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
       break;
     }
     case "hit": {
-      // Tackler driving INTO the ball carrier — body upright but angled
-      // forward into the contact, both arms wrapped, legs powering
-      // through. t advances 0→1 across the impact window; impact spike
-      // around 0.30-0.50.
+      // Tackler driving INTO the ball carrier and FOLLOWING THROUGH to
+      // a crumpled stance on top of the pile. Was ending upright at t=1
+      // (tackler standing over the carrier looking weird), which the
+      // user called out as "guys standing there mid tackle."
+      //   0.0 - 0.5  IMPACT     — drive through, arms wrap, body rises
+      //   0.5 - 1.0  FOLLOW     — body crumples forward over the carrier
       const ph = Math.min(1, Math.max(0, t));
-      const impact = Math.sin(Math.min(1, ph * 1.8) * Math.PI);   // peaks mid-window
-      lArm = -1.6 + ph * 0.5;        // arms wrapped forward across the carrier
+      const impact = Math.sin(Math.min(1, ph * 1.8) * Math.PI);
+      const followT = Math.max(0, ph - 0.5) / 0.5;       // 0→1 across follow
+      const followEase = followT * followT * (3 - 2 * followT);
+      lArm = -1.6 + ph * 0.5;
       rArm = -1.6 + ph * 0.5;
-      lLeg = 0.55 + impact * 0.25;   // legs driving through
-      rLeg = -0.40 - impact * 0.20;
-      bodyTilt = facing * (0.25 + impact * 0.20);   // lean into the hit
-      bodyDY = -0.5 - impact * 1.4;   // raise off ground at impact peak
+      // Legs drive then fold under as the tackler crumples forward
+      lLeg =  0.55 + impact * 0.25 - followEase * 0.40;
+      rLeg = -0.40 - impact * 0.20 + followEase * 0.40;
+      // Lean continues forward into the carrier, settling into a hunch
+      bodyTilt = facing * (0.25 + impact * 0.20 + followEase * 0.35);
+      // Pop up at impact peak, then drop DOWN onto the pile
+      bodyDY = -0.5 - impact * 1.4 + followEase * 3.0;
       break;
     }
     case "dive": {
