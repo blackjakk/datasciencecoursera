@@ -1206,8 +1206,12 @@ function buildAnimForPlay(play, prevPlay) {
   function runPacing(runT, actionMs) {
     const meshEnd = 0.10;     // QB-RB exchange + first step
     const readEnd = 0.22;     // reading the blocks, building speed
+    // Cruise window extended on long plays so the carrier doesn't stop
+    // and wait. Was 1 - 1000/dur (1s ragdoll) — left ~1s of carrier
+    // standing still at the tackle spot on long plays. 1 - 600/dur cuts
+    // that to ~600ms which is enough for the tackle visual to play.
     const cruiseEnd = actionMs
-      ? Math.max(0.78, Math.min(0.94, 1 - 1000 / actionMs))
+      ? Math.max(0.78, Math.min(0.96, 1 - 600 / actionMs))
       : 0.78;
     const meshDist  = 0.04;
     const readDist  = 0.14;
@@ -2000,15 +2004,15 @@ function buildAnimForPlay(play, prevPlay) {
             dd.t = np.moved ? (t * 3 + i * 0.13) % 1 : 0;
           }
         }
-        // GUARANTEED TACKLER — primary tackler arrives AT the carrier's
-        // final spot by the tackle window. Without this, big runs left
-        // the carrier standing still at cruiseEnd for seconds while
-        // defenders pursued at the speed cap. Now the primary tackler's
-        // position eases from their pursue point → carrier's final spot
-        // over runT 0.50 → 0.78, so the tackle triggers on time.
+        // GUARANTEED TACKLER — primary tackler eases toward the carrier
+        // OVER the cruise window (runT 0.30 → 0.70), not just at the
+        // tackle moment. Earlier start spreads the catch-up motion
+        // gradually so the defender appears to chase ALONGSIDE the
+        // carrier, instead of teleporting in during the last 200ms
+        // while the carrier stands still at cruiseEnd.
         if (i === primaryTacklerIdx && !isTrucked && yards < 90) {
-          const arriveStartT = 0.50;
-          const arriveEndT   = 0.78;
+          const arriveStartT = 0.30;
+          const arriveEndT   = 0.70;
           if (runT > arriveStartT) {
             const arrProg = Math.min(1, (runT - arriveStartT) / (arriveEndT - arriveStartT));
             const eased   = arrProg * arrProg * (3 - 2 * arrProg);
