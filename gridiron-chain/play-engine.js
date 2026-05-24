@@ -1509,45 +1509,106 @@ class GameSimulator {
     }
     return tracks;
   }
-  // Build LB / FS / SS hook-zone drop tracks for pass plays. Skips
-  // the slot matching the credited tackler (their tackler track wins).
+  // Build LB / FS / SS coverage-aware tracks for pass plays.
+  // Coverage matters: C0_BLITZ sends LBs at the QB, C1_MAN puts LBs
+  // on TE/RB, zone coverages drop them to hook zones at depth.
+  // Skips the slot matching the credited tackler.
   _buildPassZoneDrops(opts) {
-    const { tacklerSlot, throwT } = opts;
+    const { tacklerSlot, throwT, coverage = "C2_ZONE" } = opts;
     const out = {};
-    const lbHookDrops = {
-      lb1: { dxYd: 5, dyYd: -7 },
-      lb2: { dxYd: 5, dyYd:  0 },
-      lb3: { dxYd: 5, dyYd:  7 },
+    const isBlitz = coverage === "C0_BLITZ";
+    const isMan   = coverage === "C0_BLITZ" || coverage === "C1_MAN";
+    const isTampa = coverage === "TAMPA_2";
+    // LB drops — vary by coverage. For BLITZ they charge the QB.
+    const lbZoneDrops = {
+      lb1: { dxYd: 5, dyYd: -7 },     // hook left
+      lb2: { dxYd: 5, dyYd:  0 },     // hook middle
+      lb3: { dxYd: 5, dyYd:  7 },     // hook right
+    };
+    const lbBlitzPaths = {
+      lb1: { dxYd: -3, dyYd: -2 },    // blitz from left A-gap
+      lb2: { dxYd: -3, dyYd:  0 },    // blitz up the middle
+      lb3: { dxYd: -3, dyYd:  2 },    // blitz from right A-gap
+    };
+    const lbManCovers = {
+      lb1: { dxYd: 8,  dyYd: -5 },    // cover RB out left
+      lb2: { dxYd: 10, dyYd:  3 },    // cover TE
+      lb3: { dxYd: 8,  dyYd:  5 },    // cover RB out right
     };
     for (const lbN of ["lb1", "lb2", "lb3"]) {
       if (tacklerSlot === lbN) continue;
-      const drop = lbHookDrops[lbN];
+      const target = isBlitz ? lbBlitzPaths[lbN]
+                   : isMan   ? lbManCovers[lbN]
+                   :           lbZoneDrops[lbN];
+      // Tampa-2: MLB (lb2) drops to deep middle instead of underneath
+      if (isTampa && lbN === "lb2") {
+        out.lb2 = {
+          role: "LB",
+          waypoints: [
+            { t: 0.00, dxYd: 4,  dyYd: 0 },
+            { t: 0.25, dxYd: 8,  dyYd: 0 },
+            { t: throwT, dxYd: 14, dyYd: 0 },
+            { t: 0.78, dxYd: 14, dyYd: 0 },
+            { t: 1.00, dxYd: 14, dyYd: 0 },
+          ],
+        };
+        continue;
+      }
       out[lbN] = {
         role: "LB",
         waypoints: [
-          { t: 0.00, dxYd: 4, dyYd: drop.dyYd * 0.4 },
-          { t: 0.20, dxYd: drop.dxYd, dyYd: drop.dyYd },
-          { t: throwT, dxYd: drop.dxYd, dyYd: drop.dyYd },
-          { t: 0.78, dxYd: drop.dxYd, dyYd: drop.dyYd },
-          { t: 1.00, dxYd: drop.dxYd, dyYd: drop.dyYd },
+          { t: 0.00, dxYd: 4, dyYd: target.dyYd * 0.4 },
+          { t: 0.20, dxYd: target.dxYd, dyYd: target.dyYd },
+          { t: throwT, dxYd: target.dxYd, dyYd: target.dyYd },
+          { t: 0.78, dxYd: target.dxYd, dyYd: target.dyYd },
+          { t: 1.00, dxYd: target.dxYd, dyYd: target.dyYd },
         ],
       };
     }
+    // FS / SS — vary depth by coverage.
+    //   C0_BLITZ: SS walks up (5-6yd box). FS shallow centerfielder.
+    //   C1_MAN:   FS deep solo (16yd). SS in box (6yd).
+    //   C2_ZONE:  Both deep half (12yd, ±10yd lateral).
+    //   C3_ZONE:  FS deep middle (14). SS deep third (12, +8yd).
+    //   C4_QUARTERS: Both deep, wider (12, ±12yd).
+    //   TAMPA_2:  Both deep half (12, ±10yd) + MLB deep middle.
     if (tacklerSlot !== "fs") {
+      const fsTgt =
+            coverage === "C0_BLITZ" ? { dxYd: 8,  dyYd: -3 }
+          : coverage === "C1_MAN"   ? { dxYd: 16, dyYd:  0 }
+          : coverage === "C2_ZONE"  ? { dxYd: 12, dyYd: -10 }
+          : coverage === "TAMPA_2"  ? { dxYd: 12, dyYd: -10 }
+          : coverage === "C3_ZONE"  ? { dxYd: 14, dyYd:  0 }
+          : coverage === "C4_QUARTERS" ? { dxYd: 12, dyYd: -12 }
+          :                              { dxYd: 14, dyYd:  0 };
       out.fs = {
         role: "FS",
         waypoints: [
-          { t: 0.00, dxYd: 12, dyYd: 0 }, { t: 0.20, dxYd: 14, dyYd: 0 },
-          { t: throwT, dxYd: 15, dyYd: 0 }, { t: 0.78, dxYd: 15, dyYd: 0 }, { t: 1.00, dxYd: 15, dyYd: 0 },
+          { t: 0.00, dxYd: 12,        dyYd: 0 },
+          { t: 0.20, dxYd: fsTgt.dxYd, dyYd: fsTgt.dyYd * 0.6 },
+          { t: throwT, dxYd: fsTgt.dxYd, dyYd: fsTgt.dyYd },
+          { t: 0.78, dxYd: fsTgt.dxYd, dyYd: fsTgt.dyYd },
+          { t: 1.00, dxYd: fsTgt.dxYd, dyYd: fsTgt.dyYd },
         ],
       };
     }
     if (tacklerSlot !== "ss") {
+      const ssTgt =
+            coverage === "C0_BLITZ" ? { dxYd: -2, dyYd: 4 }    // SS blitz
+          : coverage === "C1_MAN"   ? { dxYd: 6,  dyYd: 4 }    // box
+          : coverage === "C2_ZONE"  ? { dxYd: 12, dyYd: 10 }   // deep half right
+          : coverage === "TAMPA_2"  ? { dxYd: 12, dyYd: 10 }
+          : coverage === "C3_ZONE"  ? { dxYd: 12, dyYd: 8 }    // deep third
+          : coverage === "C4_QUARTERS" ? { dxYd: 12, dyYd: 12 }
+          :                              { dxYd: 10, dyYd: 3 };
       out.ss = {
         role: "SS",
         waypoints: [
-          { t: 0.00, dxYd: 8, dyYd: 5 }, { t: 0.20, dxYd: 9, dyYd: 4 },
-          { t: throwT, dxYd: 10, dyYd: 3 }, { t: 0.78, dxYd: 10, dyYd: 3 }, { t: 1.00, dxYd: 10, dyYd: 3 },
+          { t: 0.00, dxYd: 8,         dyYd: 5 },
+          { t: 0.20, dxYd: ssTgt.dxYd, dyYd: ssTgt.dyYd * 0.7 },
+          { t: throwT, dxYd: ssTgt.dxYd, dyYd: ssTgt.dyYd },
+          { t: 0.78, dxYd: ssTgt.dxYd, dyYd: ssTgt.dyYd },
+          { t: 1.00, dxYd: ssTgt.dxYd, dyYd: ssTgt.dyYd },
         ],
       };
     }
@@ -3801,7 +3862,7 @@ class GameSimulator {
         const _intActionMs = _intScaledMs + _intPostCatchMs;
         const _intThrowT = _intScaledMs / _intActionMs;
         const _intDefSlot = this._resolveDefSlot(intBy);
-        const _intZoneDrops = this._buildPassZoneDrops({ tacklerSlot: _intDefSlot, throwT: _intThrowT });
+        const _intZoneDrops = this._buildPassZoneDrops({ tacklerSlot: _intDefSlot, throwT: _intThrowT, coverage: this._lastPassCoverage });
         const _intMotion = {
           intercepterRole: (intBy && this.defR && this.defR.starters)
             ? (intBy === this.defR.starters.cb1 || intBy === this.defR.starters.cb2 ? "CB"
@@ -4806,58 +4867,15 @@ class GameSimulator {
             };
           }
         }
-        // ── PATH B Phase 5b — pass-play LB / safety zone drops ────
-        // Non-tackler LBs and safeties get hook-zone drop tracks so
-        // they no longer "run in place" at the formation post-snap.
-        // Coverage-aware would be richer; for v1 we just emit a
-        // generic hook drop and let the named tackler win when
-        // they're an LB/safety.
-        const _secondaryPassTracks = {};
-        const _lbHookDrops = {
-          lb1: { dxYd: 5, dyYd: -7 },     // WLB — left hook
-          lb2: { dxYd: 5, dyYd:  0 },     // MLB — middle hook
-          lb3: { dxYd: 5, dyYd:  7 },     // SLB — right hook
-        };
-        for (const lbN of ["lb1", "lb2", "lb3"]) {
-          if (_passTacklerSlot === lbN) continue;
-          const drop = _lbHookDrops[lbN];
-          _secondaryPassTracks[lbN] = {
-            role: "LB",
-            waypoints: [
-              { t: 0.00,       dxYd: 4,         dyYd: drop.dyYd * 0.4 },   // formation (slightly closer to mid)
-              { t: 0.20,       dxYd: drop.dxYd, dyYd: drop.dyYd },         // backpedal into hook
-              { t: _throwT,    dxYd: drop.dxYd, dyYd: drop.dyYd },         // settled
-              { t: 0.78,       dxYd: drop.dxYd, dyYd: drop.dyYd },
-              { t: 1.00,       dxYd: drop.dxYd, dyYd: drop.dyYd },
-            ],
-          };
-        }
-        // FS deep middle (when not tackler).
-        if (_passTacklerSlot !== "fs") {
-          _secondaryPassTracks.fs = {
-            role: "FS",
-            waypoints: [
-              { t: 0.00,       dxYd: 12, dyYd: 0 },
-              { t: 0.20,       dxYd: 14, dyYd: 0 },
-              { t: _throwT,    dxYd: 15, dyYd: 0 },
-              { t: 0.78,       dxYd: 15, dyYd: 0 },
-              { t: 1.00,       dxYd: 15, dyYd: 0 },
-            ],
-          };
-        }
-        // SS half-field / box.
-        if (_passTacklerSlot !== "ss") {
-          _secondaryPassTracks.ss = {
-            role: "SS",
-            waypoints: [
-              { t: 0.00,       dxYd: 8, dyYd: 5 },
-              { t: 0.20,       dxYd: 9, dyYd: 4 },
-              { t: _throwT,    dxYd: 10, dyYd: 3 },
-              { t: 0.78,       dxYd: 10, dyYd: 3 },
-              { t: 1.00,       dxYd: 10, dyYd: 3 },
-            ],
-          };
-        }
+        // ── PATH B Phase 7b — coverage-aware LB / safety tracks ────
+        // _buildPassZoneDrops now varies by play.coverage: BLITZ →
+        // LBs charge QB; MAN → LBs cover TE/RB; ZONE → drop to hooks;
+        // TAMPA_2 → MLB drops deep middle, etc.
+        const _secondaryPassTracks = this._buildPassZoneDrops({
+          tacklerSlot: _passTacklerSlot,
+          throwT: _throwT,
+          coverage: this._lastPassCoverage,
+        });
         // ── PATH B Phase 4.2 — throwType + dropDepth ────────────────
         // Animation was defaulting every completion to TOUCH because
         // the engine never emitted throwType for normal passes. Engine
@@ -4974,7 +4992,7 @@ class GameSimulator {
         targetSlot: _incTargetSlot, targetDepth, yac: 0,
         concept: this._lastPassConcept, throwT: _incThrowT,
       }) : {};
-      const _incZoneDrops = this._buildPassZoneDrops({ tacklerSlot: null, throwT: _incThrowT });
+      const _incZoneDrops = this._buildPassZoneDrops({ tacklerSlot: null, throwT: _incThrowT, coverage: this._lastPassCoverage });
       const _incHasMotion = Object.keys(_incRouteTracks).length > 0;
       this._pushVisual({
         kind: "incomplete",
