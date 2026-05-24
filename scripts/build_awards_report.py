@@ -171,19 +171,51 @@ def compute_data():
                 lineup[int(e["roster_id"])]["weeks"] += 1
                 lineup[int(e["roster_id"])]["bench_loss"] += (opt - actual)
 
-    # ===== Trade scorecard =====
+    # ===== Trade scorecard (post-trade weekly points only) =====
     trades = load_all_trades(ROOT / "data" / "sleeper")
     pts_by_season = {s["season"]: s["player_total_points"] for s in seasons.values()}
     roster_team = {rid: r["team_name"]
                    for s in seasons.values() for rid, r in s["rosters"].items()}
+    team_to_rid = {r["team_name"]: rid for s in seasons.values()
+                    for rid, r in s["rosters"].items()}
+    weekly_by_season = {s: dict(w) for s, w in pp_sw.items()}
     trade = defaultdict(lambda: {"n": 0, "net": 0.0})
+    tank = defaultdict(lambda: {"n_trades": 0, "given": 0.0, "received": 0.0,
+                                  "star_sells": 0, "biggest_loss": 0.0})
+    leverage = defaultdict(lambda: {"n_future_given": 0, "future_given_val": 0.0,
+                                      "n_future_received": 0, "future_received_val": 0.0})
     for t in trades:
-        if t.get("_season") == 2023:  # unreliable attribution
+        if t.get("_season") == 2023:
             continue
-        sides = summarize_trade(t, roster_team, catalog, pts_by_season, pv_blind)
+        sides = summarize_trade(t, roster_team, catalog, pts_by_season, pv_blind,
+                                 weekly_points_by_season=weekly_by_season)
         for s in sides:
             trade[s["team"]]["n"] += 1
             trade[s["team"]]["net"] += s["net"]
+            rid = team_to_rid.get(s["team"])
+            if rid is not None:
+                tank[rid]["n_trades"] += 1
+                tank[rid]["given"] += s["given_value"]
+                tank[rid]["received"] += s["received_value"]
+                if s["given_value"] >= 100:
+                    tank[rid]["star_sells"] += 1
+                if s["net"] < tank[rid]["biggest_loss"]:
+                    tank[rid]["biggest_loss"] = s["net"]
+        # Future picks given/received.
+        season = t.get("_season")
+        for pk in (t.get("draft_picks") or []):
+            rnd = int(pk.get("round") or 0)
+            pick_season = int(pk.get("season") or 0)
+            value = pv_blind.get(rnd, 0)
+            new_owner = int(pk.get("owner_id") or 0)
+            prev_owner = int(pk.get("previous_owner_id") or 0)
+            if pick_season > season:
+                if prev_owner > 0:
+                    leverage[prev_owner]["n_future_given"] += 1
+                    leverage[prev_owner]["future_given_val"] += value
+                if new_owner > 0:
+                    leverage[new_owner]["n_future_received"] += 1
+                    leverage[new_owner]["future_received_val"] += value
 
     # ===== Best/worst single picks =====
     pickables = [p for p in picks if not p.get("is_keeper")]
@@ -213,6 +245,8 @@ def compute_data():
         "wire": wire,
         "lineup": lineup,
         "trade": trade,
+        "tank": tank,
+        "leverage": leverage,
         "steals": steals,
         "busts": busts,
         "best_pickup": best_pickup_ever,
@@ -286,6 +320,31 @@ def build_markdown(D: dict) -> str:
     for i, (team, m) in enumerate(rows, 1):
         per = m["net"] / max(1, m["n"])
         md.append(f"| {i} | **{team}** | {m['n']} | {m['net']:+.0f} | {per:+.1f} |")
+    md.append("")
+
+    # ========== Tank Artists ==========
+    md.append("## 💰 BIGGEST TANK ARTISTS — sold the most value via trades")
+    md.append("Sum of given-value (players + picks) across all trades. Star-sells = trades where they gave a +100 VBD player/pick.\n")
+    md.append("| Rank | Manager | Trades | VBD given | Net | Star-sells | Biggest single loss |")
+    md.append("|---|---|---|---|---|---|---|")
+    rows = sorted(D["tank"].items(), key=lambda x: -x[1]["given"])
+    for i, (rid, m) in enumerate(rows, 1):
+        net = m["received"] - m["given"]
+        md.append(f"| {i} | **{mgr_name(rid)}** | {m['n_trades']} | "
+                  f"+{m['given']:.0f} | {net:+.0f} | {m['star_sells']} | {m['biggest_loss']:+.0f} |")
+    md.append("")
+
+    # ========== Leverage Future ==========
+    md.append("## 🔮 LEVERAGES THE FUTURE — gave up future-season picks to win NOW")
+    md.append("Count + value of FUTURE-SEASON picks given up in trades. High value = aggressive 'mortgage the future' approach.\n")
+    md.append("| Rank | Manager | Future picks given | Value given | Net future mortgage |")
+    md.append("|---|---|---|---|---|")
+    rows = sorted(D["leverage"].items(),
+                   key=lambda x: -(x[1]["future_given_val"] - x[1]["future_received_val"]))
+    for i, (rid, m) in enumerate(rows, 1):
+        net_mortgage = m["future_given_val"] - m["future_received_val"]
+        md.append(f"| {i} | **{mgr_name(rid)}** | {m['n_future_given']} | "
+                  f"+{m['future_given_val']:.0f} | {net_mortgage:+.0f} |")
     md.append("")
 
     # ========== Steals & busts ==========
@@ -456,19 +515,23 @@ def md_to_html(md_text: str) -> str:
     close_para(); close_table()
 
     css = """
-    body { font-family: 'Helvetica', sans-serif; font-size: 11pt; line-height: 1.4;
-            color: #222; max-width: 850px; margin: 0 auto; padding: 1.5em; }
-    h1 { color: #b8860b; border-bottom: 3px solid #b8860b; padding-bottom: 8px; }
-    h2 { color: #1e6091; border-bottom: 1px solid #1e6091; padding-bottom: 4px; margin-top: 1.5em; }
-    h3 { color: #444; margin-top: 1em; }
-    table { border-collapse: collapse; margin: 0.5em 0 1em 0; width: 100%; font-size: 9.5pt; }
-    th, td { border: 1px solid #ddd; padding: 5px 8px; text-align: left; }
-    th { background: #f0f0f0; font-weight: 600; }
+    @page { size: letter; margin: 0.4in; }
+    body { font-family: 'Helvetica', sans-serif; font-size: 9pt; line-height: 1.25;
+            color: #222; margin: 0; padding: 0; }
+    h1 { color: #b8860b; border-bottom: 2px solid #b8860b; padding-bottom: 3px;
+          margin: 0 0 4px 0; font-size: 16pt; }
+    h2 { color: #1e6091; border-bottom: 1px solid #1e6091; padding-bottom: 1px;
+          margin: 10px 0 3px 0; font-size: 11pt; }
+    h3 { color: #444; margin: 6px 0 2px 0; font-size: 10pt; }
+    p { margin: 2px 0; }
+    table { border-collapse: collapse; margin: 2px 0 4px 0; width: 100%; font-size: 8pt; }
+    th, td { border: 1px solid #ccc; padding: 1.5px 4px; text-align: left; }
+    th { background: #efefef; font-weight: 600; }
     tr:nth-child(even) td { background: #fafafa; }
     strong { color: #000; }
-    em { color: #555; }
-    code { background: #f5f5f5; padding: 1px 4px; border-radius: 3px; font-size: 0.9em; }
-    hr { border: none; border-top: 2px solid #ddd; margin: 2em 0; }
+    em { color: #666; font-style: italic; }
+    code { background: #f5f5f5; padding: 0 3px; border-radius: 2px; font-size: 0.92em; }
+    hr { border: none; border-top: 1px solid #ddd; margin: 8px 0; }
     """
     return f"<html><head><meta charset='utf-8'><style>{css}</style></head><body>{''.join(html_lines)}</body></html>"
 

@@ -68,18 +68,54 @@ Computed by comparing actual starting lineup pts vs. the optimal lineup from eac
 
 | Rank | Team / Manager | Trades | Net VBD | Per trade |
 |---|---|---|---|---|
-| 1 | **Guap's Guys** | 6 | +276 | +46.1 |
-| 2 | **Wi1dboy** | 4 | +194 | +48.6 |
-| 3 | **TBreswick** | 4 | +110 | +27.5 |
-| 4 | **Barry Sandals** | 4 | +65 | +16.2 |
-| 5 | **Unicorn Poo** | 3 | +57 | +18.9 |
-| 6 | **Trez Bridges & Co.** | 2 | +20 | +10.1 |
-| 7 | **I Herald LEMVP** | 2 | +2 | +0.9 |
-| 8 | **she Tuten on my Bhayshul** | 4 | -11 | -2.8 |
-| 9 | **⭐️⭐️⭐️** | 3 | -20 | -6.6 |
-| 10 | **Chester A. Arthur** | 3 | -86 | -28.7 |
-| 11 | **kylefiggy** | 5 | -200 | -40.0 |
-| 12 | **BergerBoy Brigade ⭐️⭐️⭐️** | 10 | -407 | -40.7 |
+| 1 | **Chester A. Arthur** | 3 | +153 | +51.1 |
+| 2 | **Wi1dboy** | 4 | +95 | +23.8 |
+| 3 | **Unicorn Poo** | 3 | +77 | +25.5 |
+| 4 | **⭐️⭐️⭐️** | 3 | +60 | +20.1 |
+| 5 | **she Tuten on my Bhayshul** | 4 | +50 | +12.5 |
+| 6 | **Guap's Guys** | 6 | +47 | +7.8 |
+| 7 | **I Herald LEMVP** | 2 | +34 | +16.9 |
+| 8 | **TBreswick** | 4 | -10 | -2.4 |
+| 9 | **Barry Sandals** | 4 | -92 | -23.0 |
+| 10 | **BergerBoy Brigade ⭐️⭐️⭐️** | 10 | -100 | -10.0 |
+| 11 | **kylefiggy** | 5 | -133 | -26.6 |
+| 12 | **Trez Bridges & Co.** | 2 | -182 | -90.8 |
+
+## 💰 BIGGEST TANK ARTISTS — sold the most value via trades
+Sum of given-value (players + picks) across all trades. Star-sells = trades where they gave a +100 VBD player/pick.
+
+| Rank | Manager | Trades | VBD given | Net | Star-sells | Biggest single loss |
+|---|---|---|---|---|---|---|
+| 1 | **Trevor (BergerBoy)** | 10 | +1193 | -100 | 5 | -159 |
+| 2 | **Ankur (Patel)** | 3 | +912 | +77 | 3 | -46 |
+| 3 | **Troy (Mullings)** | 2 | +900 | -182 | 2 | -130 |
+| 4 | **Kyle (Figgy)** | 5 | +850 | -133 | 4 | -130 |
+| 5 | **Josh (Wi1dboy, took over Dave's roster in 2025)** | 4 | +579 | +95 | 4 | -79 |
+| 6 | **Brian (Big Guap)** | 6 | +495 | +47 | 3 | -38 |
+| 7 | **Eric (Mattesich)** | 4 | +464 | +50 | 2 | -38 |
+| 8 | **Tim (Breswick)** | 4 | +444 | -10 | 1 | -39 |
+| 9 | **Donnie** | 3 | +423 | +153 | 2 | +0 |
+| 10 | **Brower (Barry)** | 4 | +313 | -92 | 2 | -47 |
+| 11 | **Coop** | 3 | +291 | +60 | 1 | -15 |
+| 12 | **Lem (LEMVP)** | 2 | +249 | +34 | 1 | -12 |
+
+## 🔮 LEVERAGES THE FUTURE — gave up future-season picks to win NOW
+Count + value of FUTURE-SEASON picks given up in trades. High value = aggressive 'mortgage the future' approach.
+
+| Rank | Manager | Future picks given | Value given | Net future mortgage |
+|---|---|---|---|---|
+| 1 | **Brian (Big Guap)** | 3 | +348 | +283 |
+| 2 | **Troy (Mullings)** | 3 | +353 | +261 |
+| 3 | **Josh (Wi1dboy, took over Dave's roster in 2025)** | 2 | +263 | +245 |
+| 4 | **Brower (Barry)** | 2 | +181 | +187 |
+| 5 | **Tim (Breswick)** | 3 | +182 | +133 |
+| 6 | **Ankur (Patel)** | 6 | +444 | +65 |
+| 7 | **Trevor (BergerBoy)** | 5 | +347 | -51 |
+| 8 | **Eric (Mattesich)** | 1 | +9 | -123 |
+| 9 | **Coop** | 1 | +9 | -123 |
+| 10 | **Lem (LEMVP)** | 2 | +24 | -205 |
+| 11 | **Kyle (Figgy)** | 4 | +144 | -333 |
+| 12 | **Donnie** | 4 | +56 | -342 |
 
 ## 💎 BIGGEST DRAFT STEALS EVER (top 12)
 Picks that beat their round's expected VBD by the widest margin.
@@ -187,18 +223,18 @@ Each manager's percentile rank within each skill, averaged.
 
 | Rank | Manager | Draft | Wire | Lineup | Trade | **Avg** |
 |---|---|---|---|---|---|---|
-| 1 | **Brian (Big Guap)** | 91 | 55 | 55 | 100 | **75** |
-| 2 | **Brower (Barry)** | 36 | 100 | 82 | 73 | **73** |
+| 1 | **Eric (Mattesich)** | 73 | 36 | 91 | 64 | **66** |
+| 2 | **Brian (Big Guap)** | 91 | 55 | 55 | 55 | **64** |
 | 3 | **Lem (LEMVP)** | 100 | 45 | 64 | 45 | **64** |
-| 4 | **Eric (Mattesich)** | 73 | 36 | 91 | 36 | **59** |
-| 5 | **Ankur (Patel)** | 82 | 27 | 27 | 64 | **50** |
-| 6 | **Josh (Wi1dboy, took over Dave's roster in 2025)** | 18 | 82 | 0 | 91 | **48** |
-| 7 | **Troy (Mullings)** | 27 | 64 | 36 | 55 | **45** |
-| 8 | **Kyle (Figgy)** | 45 | 18 | 100 | 9 | **43** |
-| 9 | **Trevor (BergerBoy)** | 64 | 91 | 9 | 0 | **41** |
-| 10 | **Donnie** | 55 | 0 | 73 | 18 | **36** |
-| 11 | **Tim (Breswick)** | 0 | 9 | 45 | 82 | **34** |
-| 12 | **Coop** | 9 | 73 | 18 | 27 | **32** |
+| 4 | **Brower (Barry)** | 36 | 100 | 82 | 27 | **61** |
+| 5 | **Donnie** | 55 | 0 | 73 | 100 | **57** |
+| 6 | **Ankur (Patel)** | 82 | 27 | 27 | 82 | **55** |
+| 7 | **Josh (Wi1dboy, took over Dave's roster in 2025)** | 18 | 82 | 0 | 91 | **48** |
+| 8 | **Trevor (BergerBoy)** | 64 | 91 | 9 | 18 | **45** |
+| 9 | **Coop** | 9 | 73 | 18 | 73 | **43** |
+| 10 | **Kyle (Figgy)** | 45 | 18 | 100 | 9 | **43** |
+| 11 | **Troy (Mullings)** | 27 | 64 | 36 | 0 | **32** |
+| 12 | **Tim (Breswick)** | 0 | 9 | 45 | 36 | **23** |
 
 *Percentiles 0-100 (100 = best, 0 = worst). Composite = average across the 4 skills.*
 
