@@ -423,7 +423,12 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     // sprite atlas on the dedicated #player-pixi canvas. PIXI handles
     // depth sort via per-sprite zIndex (=screenY) on a sortableChildren
     // container, replacing the canvas2D _spriteQueue's manual sort.
-    if (typeof GCPlayer !== "undefined" && GCPlayer.active()) {
+    // EXCEPT for ragdoll: texture cache key is (pose, tBucket), so the
+    // cached texture from the first ragdoll frame is reused for ALL
+    // subsequent frames — physics rotation/Y offset don't apply on the
+    // GPU sprite. Force ragdoll players through the canvas2D path so
+    // each frame re-renders with the current physics state.
+    if (typeof GCPlayer !== "undefined" && GCPlayer.active() && pose !== "ragdoll") {
       const playerKey = `${color}|${label}|${facing > 0 ? "R" : "L"}`;
       // World-coords planted scale (proj.scale ≈ 0.7..1.3 depending on
       // depth). Pass it as the per-sprite scale; the texture was rendered
