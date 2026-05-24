@@ -3085,11 +3085,17 @@ function buildAnimForPlay(play, prevPlay) {
           const dropBack = 3 * tt;
           const wobble = Math.sin(tt * Math.PI * 6 + p.y * 0.05) * 1.3;
           // OL pass-pro archetype: prefer play.olType (specific OL beat
-          // on the sack play) when present, else hash by slot. OL with
-          // their archetype show distinct base/stance.
+          // on the sack play) when present, else hash by slot.
           const olArch = (play.olType && _OL_ARCH.indexOf(play.olType) >= 0)
             ? play.olType : _archForLineman(p, "OL");
-          return { ...p, x: p.x - dir * dropBack, y: p.y + wobble, pose: "engage", t: tt, facing: dir, archetype: olArch };
+          // Pass-pro = KICK-SLIDE footwork: wide base, low squat, arms
+          // punched out. Not generic "engage". Was the same engage pose
+          // OL use on run blocks — pass pro has a completely different
+          // visual signature in real football.
+          return { ...p, x: p.x - dir * dropBack, y: p.y + wobble,
+                   pose: "kick_slide",
+                   t: ((t * (dur / 1000)) * 2.2) % 1,
+                   facing: dir, archetype: olArch };
         }
         // Non-targeted receivers run REAL routes (decoys clear coverage).
         // Was capped at ~6 yards downfield with the slow (t*3)%1 leg

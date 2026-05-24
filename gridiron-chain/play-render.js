@@ -1009,6 +1009,26 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
       bodyDY = Math.sin(t * Math.PI * 6) * 0.25;
       break;
     }
+    case "kick_slide": {
+      // OL pass-protection footwork — wide stable base, body squatted
+      // low, arms PUNCHED forward to meet the rusher, feet shuffling
+      // laterally (not striding). Legs stay spread WIDE the whole time;
+      // small alternating lift to suggest the slide. Body upright with
+      // slight backward weight transfer.
+      const ph = runPhase;
+      lLeg =  0.50;                                    // wide planted base
+      rLeg = -0.50;
+      lLegLift = Math.max(0, -ph) * 1.6;               // tiny shuffle lift
+      rLegLift = Math.max(0,  ph) * 1.6;
+      // Arms PUNCHED out — engagement-style hand placement
+      lArm = 0.85;
+      rArm = 0.85;
+      lForearmOverride = 0.10;
+      rForearmOverride = 0.10;
+      bodyTilt = facing * -0.05;       // weight slightly back, anchored
+      bodyDY = Math.sin(t * Math.PI * 5) * 0.30;       // controlled bob
+      break;
+    }
     case "hit": {
       // Tackler driving INTO the ball carrier — body upright but angled
       // forward into the contact, both arms wrapped, legs powering
