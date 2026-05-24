@@ -182,25 +182,17 @@
       },
       "confidence": "medium"
     },
-    "wang_left": {
-      "canonical_name": "Wang (left the league)",
+    "dave_aka_wang": {
+      "canonical_name": "Dave (aka Wang, replaced by Josh in 2025)",
       "sleeper_roster_id": null,
-      "sleeper_display_name": "(not in Sleeper era)",
-      "xlsx_nicknames": ["Wang"],
+      "sleeper_display_name": "(replaced by Josh in 2025)",
+      "xlsx_nicknames": ["Dave", "Wang"],
       "yahoo_team_names": {
         "2015": "LeGarratte Blunt?",
         "2016": "Joffrey Sucks?",
         "2018": "BergerBoy Brigade?"
       },
-      "confidence": "low — left before Sleeper migration"
-    },
-    "dave_predecessor": {
-      "canonical_name": "Dave (predecessor to Josh's roster)",
-      "sleeper_roster_id": null,
-      "sleeper_display_name": "(replaced by Josh in 2025)",
-      "xlsx_nicknames": ["Dave"],
-      "yahoo_team_names": {},
-      "confidence": "high — Josh took over Dave's roster in 2025"
+      "confidence": "high — Dave and Wang are the same person per league owner"
     },
     "notebooks_left": {
       "canonical_name": "Notebooks (left after 2019)",

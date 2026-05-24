@@ -30,8 +30,8 @@
   },
   "per_season": {
     "2015": {
-      "wang_left": {
-        "manager_name": "Wang",
+      "dave_aka_wang": {
+        "manager_name": "Dave",
         "total_vbd": 752.0000000000002,
         "n_picks": 19,
         "n_matched": 17
@@ -128,8 +128,8 @@
         "n_picks": 19,
         "n_matched": 18
       },
-      "wang_left": {
-        "manager_name": "Wang",
+      "dave_aka_wang": {
+        "manager_name": "Dave",
         "total_vbd": -136.56000000000003,
         "n_picks": 19,
         "n_matched": 18
@@ -184,7 +184,7 @@
         "n_picks": 19,
         "n_matched": 16
       },
-      "dave_predecessor": {
+      "dave_aka_wang": {
         "manager_name": "Dave",
         "total_vbd": -157.64,
         "n_picks": 19,
@@ -264,7 +264,7 @@
         "n_picks": 19,
         "n_matched": 16
       },
-      "dave_predecessor": {
+      "dave_aka_wang": {
         "manager_name": "Dave",
         "total_vbd": 215.77999999999992,
         "n_picks": 19,
@@ -344,7 +344,7 @@
         "n_picks": 17,
         "n_matched": 14
       },
-      "dave_predecessor": {
+      "dave_aka_wang": {
         "manager_name": "Dave",
         "total_vbd": 464.44000000000017,
         "n_picks": 17,
@@ -412,7 +412,7 @@
         "n_picks": 17,
         "n_matched": 14
       },
-      "dave_predecessor": {
+      "dave_aka_wang": {
         "manager_name": "Dave",
         "total_vbd": 531.02,
         "n_picks": 17,
@@ -450,7 +450,7 @@
         "n_picks": 17,
         "n_matched": 15
       },
-      "dave_predecessor": {
+      "dave_aka_wang": {
         "manager_name": "Dave",
         "total_vbd": 831.1,
         "n_picks": 17,
@@ -548,7 +548,7 @@
         "n_picks": 17,
         "n_matched": 13
       },
-      "dave_predecessor": {
+      "dave_aka_wang": {
         "manager_name": "Dave",
         "total_vbd": 278.0200000000002,
         "n_picks": 17,
@@ -604,7 +604,7 @@
         "n_picks": 17,
         "n_matched": 15
       },
-      "dave_predecessor": {
+      "dave_aka_wang": {
         "manager_name": "Dave",
         "total_vbd": 3.8799999999999955,
         "n_picks": 17,
@@ -648,7 +648,7 @@
       }
     },
     "2024": {
-      "dave_predecessor": {
+      "dave_aka_wang": {
         "manager_name": "Dave",
         "total_vbd": 775.9399999999999,
         "n_picks": 17,
@@ -723,13 +723,13 @@
     }
   },
   "cumulative": {
-    "wang_left": {
-      "manager_name": "Wang",
-      "total_vbd": 615.4400000000002,
-      "n_picks": 38,
-      "n_matched": 35,
-      "seasons": 2,
-      "vbd_per_season": 307.7200000000001
+    "dave_aka_wang": {
+      "manager_name": "Dave",
+      "total_vbd": 3557.980000000001,
+      "n_picks": 178,
+      "n_matched": 165,
+      "seasons": 10,
+      "vbd_per_season": 355.7980000000001
     },
     "kyle_figgy": {
       "manager_name": "Kyle",
@@ -810,14 +810,6 @@
       "n_matched": 115,
       "seasons": 8,
       "vbd_per_season": 74.69000000000004
-    },
-    "dave_predecessor": {
-      "manager_name": "Dave",
-      "total_vbd": 2942.5400000000004,
-      "n_picks": 140,
-      "n_matched": 130,
-      "seasons": 8,
-      "vbd_per_season": 367.81750000000005
     },
     "brower_barry": {
       "manager_name": "Brower",
