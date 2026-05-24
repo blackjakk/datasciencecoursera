@@ -60,6 +60,25 @@ def _replacement_points_for_season(picks_for_season: list[dict],
     return out
 
 
+# Season weighting: more recent seasons matter more (league + player pool
+# evolves). Linear taper — the most recent season gets weight equal to the
+# number of seasons we have, oldest gets weight 1. With 3 seasons this gives
+# 2025=3, 2024=2, 2023=1 (so 2025 is 3x as influential as 2023).
+def _season_weight(season: int, seasons_covered: list[int]) -> float:
+    if not seasons_covered:
+        return 1.0
+    sorted_seasons = sorted(seasons_covered)
+    rank = sorted_seasons.index(season) + 1  # 1=oldest
+    return float(rank)
+
+
+def _weighted_mean(values: list[float], weights: list[float]) -> float:
+    tw = sum(weights)
+    if tw == 0:
+        return 0.0
+    return sum(v * w for v, w in zip(values, weights)) / tw
+
+
 def main():
     picks = load_draft_picks_with_points(ROOT / "data" / "sleeper")
     if not picks:
@@ -88,7 +107,7 @@ def main():
         repl = repl_by_season.get(p["season"], {}).get(p["position"], 0.0)
         p["vbd"] = p["season_points"] - repl
 
-    # Aggregate position-blind by round.
+    # Aggregate position-blind by round, weighted toward recent seasons.
     by_round: dict[int, dict] = {}
     rounds = sorted({p["round"] for p in picks if p["round"]})
     for rnd in rounds:
@@ -96,16 +115,17 @@ def main():
                   and p["position"] in POSITIONS]
         if not bucket:
             continue
+        weights = [_season_weight(p["season"], seasons_covered) for p in bucket]
         vbds = [p["vbd"] for p in bucket]
         pts = [p["season_points"] for p in bucket]
         by_round[rnd] = {
-            "mean_vbd": round(statistics.mean(vbds), 1),
+            "mean_vbd": round(_weighted_mean(vbds, weights), 1),
             "median_vbd": round(statistics.median(vbds), 1),
-            "mean_points": round(statistics.mean(pts), 1),
+            "mean_points": round(_weighted_mean(pts, weights), 1),
             "n_samples": len(bucket),
         }
 
-    # Aggregate position-aware (round, position).
+    # Aggregate position-aware (round, position), weighted.
     by_round_position: dict[int, dict[str, dict]] = {}
     for rnd in rounds:
         per_pos: dict[str, dict] = {}
@@ -114,16 +134,19 @@ def main():
                       and p["position"] == pos]
             if not bucket:
                 continue
+            weights = [_season_weight(p["season"], seasons_covered) for p in bucket]
             per_pos[pos] = {
-                "mean_vbd": round(statistics.mean(p["vbd"] for p in bucket), 1),
-                "mean_points": round(statistics.mean(p["season_points"] for p in bucket), 1),
+                "mean_vbd": round(_weighted_mean([p["vbd"] for p in bucket], weights), 1),
+                "mean_points": round(_weighted_mean([p["season_points"] for p in bucket], weights), 1),
                 "n_samples": len(bucket),
             }
         by_round_position[rnd] = per_pos
 
+    season_weights = {s: _season_weight(s, seasons_covered) for s in seasons_covered}
     payload = {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "seasons_covered": seasons_covered,
+        "season_weights": season_weights,
         "n_picks": len(picks),
         "replacement_ranks_used": replacement_ranks,
         "by_round": {str(k): v for k, v in by_round.items()},
