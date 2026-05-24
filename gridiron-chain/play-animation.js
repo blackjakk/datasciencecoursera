@@ -998,6 +998,67 @@ function buildAnimForPlay(play, prevPlay) {
   // Defender pursuit speed cap — tuned to a fast NFL defender (~9 yds/s).
   // Carrier runs slightly faster, so on breakaways defenders visibly trail.
   const PURSUIT_PX_MS = (FIELD.PX_PER_YARD * 9) / 1000;
+  // ── Ragdoll physics — kinematic rigid-body. On impact, initialize
+  // velocity + angular velocity from the hit vector. Each frame, integrate
+  // with gravity, damping, and a ground bounce. State persists on the
+  // formation player object (d._ragdoll) so it survives across frames
+  // within a play and resets when a new play / formation is created.
+  // Render uses style._ragdoll via the "ragdoll" pose case.
+  const RAG_GRAVITY = 480;       // px/s² downward
+  const RAG_DAMP_X  = 0.96;      // per-step velocity damping
+  const RAG_DAMP_Y  = 0.99;
+  const RAG_DAMP_W  = 0.94;      // angular damping
+  function initRagdoll(player, hitDirX, hitDirY, force, nowMs, seed) {
+    // hitDirX/Y is the unit vector FROM the hitter TO the victim — that's
+    // the direction the victim flies. Force is impulse magnitude (px/s).
+    const dist = Math.hypot(hitDirX, hitDirY) || 1;
+    const ux = hitDirX / dist;
+    const uy = hitDirY / dist;
+    // Slight randomized upward kick + spin for variety
+    const seedF = (seed >>> 0);
+    const spinSign = (seedF & 1) ? -1 : 1;
+    const spinMag = 6 + ((seedF >>> 1) & 7);    // 6-13 rad/s
+    const upKick  = 40 + ((seedF >>> 4) & 31);  // 40-71 px/s
+    player._ragdoll = {
+      vx: ux * force,
+      vy: uy * force - upKick,
+      angVel: spinSign * spinMag,
+      dx: 0, dy: 0, rot: 0,
+      life: 0,
+      onGround: false,
+      lastMs: nowMs,
+    };
+  }
+  function stepRagdoll(player, nowMs, groundDy) {
+    const r = player._ragdoll;
+    if (!r) return;
+    const dt = Math.min(0.05, Math.max(0, (nowMs - r.lastMs) / 1000));
+    r.lastMs = nowMs;
+    if (dt <= 0) return;
+    r.vy += RAG_GRAVITY * dt;
+    r.dx += r.vx * dt;
+    r.dy += r.vy * dt;
+    r.rot += r.angVel * dt;
+    if (r.dy >= groundDy) {
+      // Landed — bounce a bit, then stick
+      if (r.vy > 30) {
+        r.dy = groundDy;
+        r.vy = -r.vy * 0.20;
+        r.angVel *= 0.5;
+        r.vx *= 0.55;
+      } else {
+        r.dy = groundDy;
+        r.vy = 0;
+        r.angVel *= 0.6;
+        r.vx *= 0.7;
+      }
+      r.onGround = true;
+    }
+    r.vx *= RAG_DAMP_X;
+    r.vy *= RAG_DAMP_Y;
+    r.angVel *= RAG_DAMP_W;
+    r.life = Math.min(1, r.life + dt * 1.4);
+  }
   // INCREMENTAL pursuit. Previously this computed "where would d be at
   // time elapsedMs if it traveled from d.x to (tx, ty) at constant
   // velocity", recomputing the path from d.x EVERY frame. When the
@@ -1546,8 +1607,19 @@ function buildAnimForPlay(play, prevPlay) {
       // + ragdoll roll-around) so the play doesn't end the instant the
       // carrier is touched.
       if (runT > 0.72 && yards < 90 && !isTD) {
-        rbPose = "tackled";
-        rbT = Math.min(1, (runT - 0.72) / 0.28);
+        // Carrier ragdoll. The hit vector is OPPOSITE the carrier's
+        // motion direction (the tackler arrived from the front). Force
+        // scales with play.force when present so big hits look bigger.
+        const nowMs = t * dur;
+        if (!formation.rb._ragdoll) {
+          const hvx = -dir;           // pushed backward against momentum
+          const hvy = (((play.startYard * 7) >>> 0) % 7) - 3;   // slight angle
+          const fbase = 130 + Math.min(80, (play.force || 0) * 4);
+          initRagdoll(formation.rb, hvx, hvy, fbase, nowMs,
+                      (play.startYard * 11 + (play.yards||0)) >>> 0);
+        }
+        stepRagdoll(formation.rb, nowMs, 8);
+        rbPose = "ragdoll";
       } else if (runT > 0.72 && isTD) {
         // TD CELEBRATION — arms up, bouncing in the end zone
         rbPose = "celebrate";
@@ -1594,6 +1666,10 @@ function buildAnimForPlay(play, prevPlay) {
         }
       }
       rb.pose = rbPose; rb.t = rbT; rb.facing = dir;
+      // Expose ragdoll state to the renderer via style. The spread copy
+      // of formation.rb at the top of the frame may not have captured
+      // _ragdoll if init happened later this frame, so re-attach.
+      if (formation.rb._ragdoll) rb._ragdoll = formation.rb._ragdoll;
       rb.y += rbLateral;
       ballY += rbLateral;
       // Determine which DL "wins" his rep — for big runs, the OL is winning at every gap
@@ -1721,17 +1797,26 @@ function buildAnimForPlay(play, prevPlay) {
         // x as defender (lateral-only chase moment).
         dd.facing = (rb.x > dd.x) ? 1 : (rb.x < dd.x ? -1 : -dir);
         // Tackle pose — variety. PRIMARY tackler drives in (hit) or dives
-        // (big-hit dive); pile-on defenders ragdoll alongside the carrier;
-        // the DODGED defender (juked) flies past the carrier in a
-        // missed-dive pose during the cut window. Was "everyone gets
-        // tackled" — every tackle looked the same.
+        // (big-hit dive); pile-on defenders RAGDOLL with physics; the
+        // DODGED defender (juked) flies past in a missed-dive pose.
         if (!isTrucked && yards < 90 && tt > 0.72 && Math.hypot(rb.x - dd.x, rb.y - dd.y) < 28) {
           if (i === primaryTacklerIdx) {
             dd.pose = primaryTacklerDives ? "dive" : "hit";
+            dd.t = Math.min(1, (tt - 0.72) / 0.28);
           } else {
-            dd.pose = "tackled";
+            // Pile-on defender — physics ragdoll. Init on first tackle
+            // frame using a hit vector pointing away from the carrier so
+            // they fly AWAY from the impact.
+            const nowMs = t * dur;
+            if (!d._ragdoll) {
+              const hvx = (dd.x - rb.x) || 1;
+              const hvy = (dd.y - rb.y);
+              initRagdoll(d, hvx, hvy, 110 + (i * 17 % 60), nowMs, tacklerHash + i * 7);
+            }
+            stepRagdoll(d, nowMs, 8);   // groundDy ~= 8 below body origin
+            dd._ragdoll = d._ragdoll;   // expose state to renderer via style
+            dd.pose = "ragdoll";
           }
-          dd.t = Math.min(1, (tt - 0.72) / 0.28);
         } else if (isDodged && tt > 0.34 && tt < 0.58) {
           // Juked defender dives at the carrier's PRE-move position and
           // misses. Lands flat after the dive arc completes.

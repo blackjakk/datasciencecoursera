@@ -940,6 +940,29 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
       lLeg = Math.abs(Math.sin(t * Math.PI * 4)) * 0.7;
       rLeg = -Math.abs(Math.sin(t * Math.PI * 4 + Math.PI)) * 0.7;
       break;
+    case "ragdoll": {
+      // PHYSICS-DRIVEN ragdoll — reads kinematic state from style._ragdoll
+      // populated by play-animation.js. Differs from "tackled" (scripted
+      // fall) in that body rotation and Y offset come from integration
+      // of impact velocity + gravity, so EVERY tackle falls differently
+      // based on the hit angle. Limbs flail by life-driven jitter that
+      // damps to settled positions.
+      const r = style._ragdoll || {};
+      const life = Math.min(1, Math.max(0, r.life || 0));
+      const wobble = 1 - life;
+      bodyRot = r.rot || 0;
+      bodyDY = r.dy || 0;
+      bodyTilt = 0;
+      // Arms flail outward by the hit + slight chaotic shake while airborne
+      const flailL = -0.6 - life * 0.8 + Math.sin((r.life || 0) * 12) * 0.4 * wobble;
+      const flailR =  0.6 + life * 0.8 + Math.cos((r.life || 0) * 12) * 0.4 * wobble;
+      lArm = flailL;
+      rArm = flailR;
+      // Legs splay
+      lLeg = -life * 0.8 + Math.sin((r.life || 0) * 14) * 0.25 * wobble;
+      rLeg =  life * 0.8 + Math.cos((r.life || 0) * 14) * 0.25 * wobble;
+      break;
+    }
     case "tackled": {
       // Ragdoll fall: t is interpreted as fall progress (0=just hit, 1=flat on ground).
       // Body rotates from upright to horizontal, limbs splay outward, body bobs down
