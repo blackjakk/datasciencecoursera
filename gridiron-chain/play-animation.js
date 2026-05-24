@@ -1900,12 +1900,25 @@ function buildAnimForPlay(play, prevPlay) {
           const truckT = Math.min(1, Math.max(0, (runT - 0.34) / 0.20));
           dd.t = truckT;
         } else {
-          dd.pose = "run";
-          // Freeze the leg cycle when the defender hasn't translated this
-          // frame — caught up to the carrier / target isn't moving. Old
-          // code kept the run-cycle going regardless, so a stationary
-          // defender looked like they were sprinting in place.
-          dd.t = np.moved ? (t * 3 + i * 0.13) % 1 : 0;
+          // LB SCRAPE — read the play first, then commit. For the
+          // first ~25% of run-cycle, LBs (i in [idxLB1, idxCB1)) show
+          // the scrape pose (lateral shuffle, hands ready). After
+          // that they transition to run pursuit. Other defender
+          // levels (CB/S) skip scrape and go straight to run since
+          // they're already in coverage shells.
+          const isLB = i >= idxLB1 && i < idxCB1;
+          if (isLB && runT < 0.25) {
+            dd.pose = "scrape";
+            dd.t = ((t * (dur / 1000)) * 2.5) % 1;
+          } else {
+            dd.pose = "run";
+            // Freeze the leg cycle when the defender hasn't translated
+            // this frame — caught up to the carrier / target isn't
+            // moving. Old code kept the run-cycle going regardless, so
+            // a stationary defender looked like they were sprinting in
+            // place.
+            dd.t = np.moved ? (t * 3 + i * 0.13) % 1 : 0;
+          }
         }
         // Face the CARRIER, not just -dir. With -dir, a defender chasing
         // a runner laterally always faced the LOS (toward the endzone),

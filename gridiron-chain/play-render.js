@@ -1009,6 +1009,23 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
       bodyDY = Math.sin(t * Math.PI * 6) * 0.25;
       break;
     }
+    case "scrape": {
+      // LB read-step / scrape — body faces the offense, feet shuffle
+      // laterally as the LB reads the run gap. Mid base, hands ready
+      // at the chest. Differs from backpedal (which moves backward) —
+      // scrape is mostly LATERAL with a slight forward lean (LB
+      // reading downhill, ready to fill).
+      const ph = runPhase;
+      lLeg =  0.35;            // mid base, planted
+      rLeg = -0.35;
+      lLegLift = Math.max(0,  ph) * 2.2;   // tiny lateral lift
+      rLegLift = Math.max(0, -ph) * 2.2;
+      lArm =  0.20;            // hands at chest, ready to engage
+      rArm = -0.20;
+      bodyTilt = facing * 0.06;    // slight forward lean (downhill)
+      bodyDY = Math.sin(t * Math.PI * 6) * 0.20;
+      break;
+    }
     case "drop_step": {
       // QB drop-back footwork — turns body partially sideways (open hip),
       // crosses one foot behind the other as he retreats. Carries the
