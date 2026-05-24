@@ -1643,14 +1643,25 @@ function buildAnimForPlay(play, prevPlay) {
           ballX = rb.x;
         }
       } else {
-        // Realistic pacing: mesh (slow) → read (ramp) → cruise (linear) → tackle.
-        // The RB now lingers near the LOS for the early frames before exploding.
-        const progress = runPacing(runT, actionDur);
-        ballX = qb.x + (endX - qb.x) * progress;
-        rb.x = qb.x + (endX - qb.x) * progress;
-        // RB stays in the backfield until the read phase ends, then merges to the LOS lane.
-        // Use the same progress curve so the lateral merge tracks the forward burst.
-        rb.y = cy + (1 - progress) * 18;
+        // PATH B Phase 2 — read the engine-emitted carrier track when
+        // present. Animation just interpolates between waypoints; no
+        // per-frame runPacing math here. Falls back to legacy pacing
+        // when motion data isn't present (older plays, non-standard).
+        const motionTrack = play.motion && play.motion.tracks && play.motion.tracks.carrier;
+        const sample = motionTrack && typeof MotionPlayback !== "undefined"
+          ? MotionPlayback.sampleTrack(motionTrack, runT)
+          : null;
+        if (sample) {
+          rb.x = losX + dir * sample.dxYd * FIELD.PX_PER_YARD;
+          rb.y = cy + sample.dyYd * FIELD.PX_PER_YARD;
+          ballX = rb.x;
+        } else {
+          // Legacy path — runPacing inference.
+          const progress = runPacing(runT, actionDur);
+          ballX = qb.x + (endX - qb.x) * progress;
+          rb.x = qb.x + (endX - qb.x) * progress;
+          rb.y = cy + (1 - progress) * 18;
+        }
       }
       // ── BALL FOLLOWS CARRIER ──
       // If a variant didn't explicitly set ballY (it sets ballX = rb.x but

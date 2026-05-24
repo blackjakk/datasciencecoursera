@@ -128,6 +128,11 @@
      velocity/acceleration/intercept-angles instead of straight-line
      tween. Engine still owns outcomes; this is the visual layer. -->
 <script src="play-sim.js"></script>
+<!-- Path B Phase 2 — engine-owned motion schema + playback utility.
+     Engine emits play.motion (per-player waypoint tracks, ball track,
+     discrete events). Animation reads via MotionPlayback.sampleTrack
+     and renders. Pure playback layer; no per-frame inference. -->
+<script src="play-motion.js"></script>
 <!-- PIXI.js WebGL renderer — backs play-field-pixi.js + play-player-pixi.js.
      Both files were written but were silently no-op'ing because the library
      wasn't loaded (`typeof PIXI === "undefined"`). Now wired in. -->

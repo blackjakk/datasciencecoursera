@@ -5058,11 +5058,36 @@ class GameSimulator {
     const _hitSeed = (startYard * 7 + (yards * 11)) >>> 0;
     const _hitLatSign = (_hitSeed & 1) ? 1 : -1;
     const _carrierEndDY = ((_hitSeed >> 1) & 31) - 15;   // -15..+15 px
+    // ── CARRIER WAYPOINT TRACK (Path B Phase 2) ─────────────────────
+    // 5 key frames describe the carrier's path through the play.
+    // Coordinates are YARDS relative to (LOS, cy). Animation
+    // translates to pixels via losX + dxYd * PX_PER_YARD.
+    //
+    //   t = 0       — formation spot (8 yds behind LOS, ~1.87 lateral)
+    //   t = 0.10    — mesh (handoff): just behind LOS, lateral merging
+    //   t = 0.22    — read (hit the hole): at LOS, lateral roughly cy
+    //   t = 0.78    — tackle spot: full yardage gained, lateral = end Y
+    //   t = 1.0     — settled at tackle spot
+    //
+    // Future phases will add jukes (lateral spike + dodge defender
+    // dive), counter motion (false step), pitch fan-out, etc.
+    const _carrierLateralEndYd = (_carrierEndDY || 0) / 15;
+    const _carrierTrack = {
+      role: isQBRun ? "QB" : "RB",
+      waypoints: [
+        { t: 0.00, dxYd: -8,                  dyYd: 1.87 },                   // formation
+        { t: 0.10, dxYd: -4,                  dyYd: 1.00 },                   // mesh
+        { t: 0.22, dxYd: yards * 0.14,        dyYd: 0.50 },                   // read
+        { t: 0.78, dxYd: yards,               dyYd: _carrierLateralEndYd },   // tackle spot
+        { t: 1.00, dxYd: yards,               dyYd: _carrierLateralEndYd },   // settled
+      ],
+    };
     const _motion = {
       tacklerRole: _tacklerRole,
       tackleT:    0.78,                                  // matches TACKLE_START_AT in animation
       hitDir:     { dx: -1, dy: _hitLatSign * 0.3 },     // pushed backward + lateral
       carrierEndDY: _carrierEndDY,
+      tracks: { carrier: _carrierTrack },
     };
     this._pushVisual({ kind: "run", desc, startYard, yards, endYard: clamp(startYard + yards, 0, 100), rusher: carrier, isQBRun, isReverse, runType, isSpeedOption, isPitch, optionRead, tackler: tacklerName, brokenTackles, isTwoBack: useTwoBack, fb: useTwoBack ? this.offR.starters.rb2 : null, motion: _motion });
     return { yards };

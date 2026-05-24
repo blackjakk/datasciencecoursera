@@ -1,0 +1,115 @@
+// ─── Motion playback (Path B Phase 2) ────────────────────────────────────
+//
+// Engine-owned motion schema + a playback utility. The engine knows the
+// outcome of a play AND has all the context (formation, assignments,
+// archetype matchups). It should emit motion intent for every player
+// involved, then the animation layer is a pure renderer — no more
+// hash-based tackler picks, lerp inventions, rubber-bands, or state
+// syncs.
+//
+// SCHEMA — play.motion (when populated by engine):
+// {
+//   // Per-actor motion track, keyed by role / formation slot label.
+//   // Roles match formation.* names: "QB", "RB", "WR1", "WR2", "TE",
+//   // "OL0"..."OL4", "DL0"..."DL3", "LB0"..., "CB1", "CB2", "S1", "S2".
+//   tracks: {
+//     [role: string]: {
+//       // Time-keyed waypoints (t in 0..1 of action time).
+//       // Linear interpolation between consecutive waypoints.
+//       // Sort by t ascending. First t should be 0 (formation pos);
+//       // last t should be 1 (post-play resting pos).
+//       waypoints: Array<{
+//         t:        number,    // 0..1
+//         x:        number,    // pixel coords
+//         y:        number,
+//         pose?:    string,    // optional pose override; persists from prev wp
+//         facing?:  number,    // -1 or +1; persists
+//         poseT?:   number,    // optional internal pose t (0..1)
+//         // future: ragdollState, archetype, etc.
+//       }>,
+//     },
+//   },
+//   // Ball track (separate from any single player — could be in flight)
+//   ball: Array<{ t, x, y, scale?, angle? }>,
+//   // Discrete events that fire AT specific t values (banners, hit fx,
+//   // pose triggers that aren't pose-transitions).
+//   events: Array<{ t, kind, ...payload }>,
+// }
+//
+// Phase 2 implementation: just the playback primitive. Emission +
+// consumption hooks come in subsequent commits.
+
+const MotionPlayback = (() => {
+  // Linear interpolate between two waypoints. Pose / facing persist from
+  // the EARLIER waypoint (they "latch" until the next explicit change).
+  function _lerpWp(a, b, t) {
+    if (b == null) return { x: a.x, y: a.y, pose: a.pose, facing: a.facing, poseT: a.poseT };
+    if (a == null) return { x: b.x, y: b.y, pose: b.pose, facing: b.facing, poseT: b.poseT };
+    const span = b.t - a.t;
+    const f = span > 0.0001 ? (t - a.t) / span : 0;
+    const ff = Math.max(0, Math.min(1, f));
+    return {
+      x: a.x + (b.x - a.x) * ff,
+      y: a.y + (b.y - a.y) * ff,
+      // Pose latches — keep a's pose until t crosses INTO b's window.
+      // This means the pose set at waypoint N is in effect from t=N
+      // until t=N+1 (when N+1's pose takes over).
+      pose: a.pose,
+      facing: a.facing != null ? a.facing : (b.facing != null ? b.facing : 1),
+      poseT: a.poseT != null
+        ? (b.poseT != null ? a.poseT + (b.poseT - a.poseT) * ff : a.poseT)
+        : b.poseT,
+    };
+  }
+
+  // Query a track at time t. Returns the interpolated waypoint state.
+  function sampleTrack(track, t) {
+    if (!track || !track.waypoints || !track.waypoints.length) return null;
+    const wps = track.waypoints;
+    if (t <= wps[0].t) return _lerpWp(wps[0], wps[0], wps[0].t);
+    if (t >= wps[wps.length - 1].t) {
+      const last = wps[wps.length - 1];
+      return _lerpWp(last, last, last.t);
+    }
+    // Binary search for the bracketing pair
+    let lo = 0, hi = wps.length - 1;
+    while (hi - lo > 1) {
+      const mid = (lo + hi) >> 1;
+      if (wps[mid].t <= t) lo = mid; else hi = mid;
+    }
+    return _lerpWp(wps[lo], wps[hi], t);
+  }
+
+  // Sample the ball track. Same interpolation semantics.
+  function sampleBall(ballTrack, t) {
+    if (!ballTrack || !ballTrack.length) return null;
+    if (t <= ballTrack[0].t) return { ...ballTrack[0] };
+    if (t >= ballTrack[ballTrack.length - 1].t) return { ...ballTrack[ballTrack.length - 1] };
+    let lo = 0, hi = ballTrack.length - 1;
+    while (hi - lo > 1) {
+      const mid = (lo + hi) >> 1;
+      if (ballTrack[mid].t <= t) lo = mid; else hi = mid;
+    }
+    const a = ballTrack[lo], b = ballTrack[hi];
+    const span = b.t - a.t;
+    const f = span > 0.0001 ? (t - a.t) / span : 0;
+    return {
+      x: a.x + (b.x - a.x) * f,
+      y: a.y + (b.y - a.y) * f,
+      scale: (a.scale ?? 1) + ((b.scale ?? 1) - (a.scale ?? 1)) * f,
+      angle: a.angle ?? b.angle ?? 0,
+    };
+  }
+
+  // Return events that fired SINCE the last sampled t. Useful for
+  // edge-triggered hooks (sounds, banners, fx). Caller tracks lastT.
+  function eventsBetween(events, lastT, nowT) {
+    if (!events || !events.length) return [];
+    return events.filter(e => e.t > lastT && e.t <= nowT);
+  }
+
+  return { sampleTrack, sampleBall, eventsBetween };
+})();
+
+// Module-level export — referenced by play-animation.js
+window.MotionPlayback = MotionPlayback;
