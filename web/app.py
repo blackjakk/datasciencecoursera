@@ -580,6 +580,35 @@ with tab_draft:
         st.success("Draft complete!")
         st.stop()
 
+    # --- Recent picks stream (most useful during a live draft) ---
+    completed = [p for p in draft.picks if p.player is not None]
+    if completed:
+        st.markdown("### Recent picks")
+        n_recent = 10
+        recent = completed[-n_recent:][::-1]   # newest first
+        my_idx = st.session_state.my_team_idx
+        rec_rows = []
+        for p in recent:
+            tname = draft.teams[p.team_idx].name
+            marker = ""
+            if p.team_idx == my_idx:
+                marker = "🎯 "
+            elif p.is_keeper:
+                marker = "★ "
+            rec_rows.append({
+                "Pick": f"R{p.round_num}.{p.pick_in_round} (#{p.overall})",
+                "Team": marker + tname,
+                "Player": p.player.name,
+                "Pos": p.player.position,
+                "NFL": p.player.team,
+                "Type": "KEEPER" if p.is_keeper else "draft",
+            })
+        st.dataframe(pd.DataFrame(rec_rows), use_container_width=True, hide_index=True)
+        st.caption(
+            f"Showing last {len(recent)} of {len(completed)} completed pick(s). "
+            f"Sync more in via the Live Sleeper sync expander above."
+        )
+
     team = draft.teams[pick.team_idx]
     is_me = pick.team_idx == st.session_state.my_team_idx
     header = (f"On the clock: **R{pick.round_num}.{pick.pick_in_round}** "
