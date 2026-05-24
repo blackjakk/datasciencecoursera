@@ -5179,12 +5179,80 @@ class GameSimulator {
         { t: 1.00, dxYd: yards,              dyYd: _carrierLateralEndYd },    // settled
       ],
     };
+    // ── SECONDARY DEFENDER LANE DISCIPLINE (Path B Phase 3c) ────────
+    // Non-tackler defenders get short tracks describing zone behavior:
+    // FS holds deep middle until breakaway; SS plays downhill but stops
+    // at second-level support; CBs hold outside contain at the
+    // sideline numbers. Skip the slot matching the primary tackler so
+    // the tackler track (which converges) wins. Solves the
+    // "everyone converges on the carrier" feel on inside runs.
+    //
+    // Side bias: defenders on the play-side close more, backside
+    // holds responsibility. _playSide is +1 for bottom of field
+    // (positive dyYd), -1 for top.
+    const _secondaryTracks = {};
+    const _playSide = _carrierLateralEndYd >= 0 ? 1 : -1;
+    const _isBreakaway = yards >= 12;
+    // FS (free safety): deep middle help. Holds at -12 yds deep until
+    // play threatens breakaway (yards >= 12), then comes downhill but
+    // stops short of the tackle (still safety; the tackler is the
+    // converger). When FS IS the tackler (long runs), skip.
+    if (_tacklerRole !== "FS") {
+      const fsConvergeYds = _isBreakaway ? yards * 0.4 : 8;
+      _secondaryTracks.fs = {
+        role: "FS",
+        waypoints: [
+          { t: 0.00, dxYd: 12, dyYd: 0 },                               // deep middle
+          { t: 0.10, dxYd: 11, dyYd: 0 },                               // read
+          { t: 0.30, dxYd: 10, dyYd: _playSide * 0.5 },                 // shuffle play-side
+          { t: 0.78, dxYd: fsConvergeYds, dyYd: _playSide * 2 },        // support arrival
+          { t: 1.00, dxYd: fsConvergeYds, dyYd: _playSide * 2 },
+        ],
+      };
+    }
+    // SS (strong safety): force player. Comes downhill but stops at
+    // the box (~6 yds deep) unless the play breaks outside.
+    if (_tacklerRole !== "SS") {
+      const ssFinalYds = (runType === "stretch" || runType === "pitch") ? 7 : 6;
+      _secondaryTracks.ss = {
+        role: "SS",
+        waypoints: [
+          { t: 0.00, dxYd: 8, dyYd: _playSide * 5 },                    // formation alley
+          { t: 0.20, dxYd: 7, dyYd: _playSide * 4 },                    // downhill
+          { t: 0.40, dxYd: ssFinalYds, dyYd: _playSide * 3 },           // box-edge fit
+          { t: 0.78, dxYd: ssFinalYds, dyYd: _playSide * 3 },           // hold
+          { t: 1.00, dxYd: ssFinalYds, dyYd: _playSide * 3 },
+        ],
+      };
+    }
+    // CB1 / CB2: outside contain. Squeeze inward 2-3 yds but never
+    // leave the perimeter unless the play is to their side.
+    const _cb1ContainYds = (runType === "stretch" && _playSide < 0) || (runType === "pitch" && _playSide < 0) ? 4 : 6;
+    const _cb2ContainYds = (runType === "stretch" && _playSide > 0) || (runType === "pitch" && _playSide > 0) ? 4 : 6;
+    _secondaryTracks.cb1 = {
+      role: "CB",
+      waypoints: [
+        { t: 0.00, dxYd: 5,                dyYd: -16 },                 // press / outside
+        { t: 0.20, dxYd: _cb1ContainYds,   dyYd: -14 },                 // squeeze
+        { t: 0.78, dxYd: _cb1ContainYds,   dyYd: -13 },                 // contain
+        { t: 1.00, dxYd: _cb1ContainYds,   dyYd: -13 },
+      ],
+    };
+    _secondaryTracks.cb2 = {
+      role: "CB",
+      waypoints: [
+        { t: 0.00, dxYd: 5,                dyYd: 16 },
+        { t: 0.20, dxYd: _cb2ContainYds,   dyYd: 14 },
+        { t: 0.78, dxYd: _cb2ContainYds,   dyYd: 13 },
+        { t: 1.00, dxYd: _cb2ContainYds,   dyYd: 13 },
+      ],
+    };
     const _motion = {
       tacklerRole: _tacklerRole,
       tackleT:    0.78,                                  // matches TACKLE_START_AT in animation
       hitDir:     { dx: -1, dy: _hitLatSign * 0.3 },     // pushed backward + lateral
       carrierEndDY: _carrierEndDY,
-      tracks: { carrier: _carrierTrack, tackler: _tacklerTrack },
+      tracks: { carrier: _carrierTrack, tackler: _tacklerTrack, ..._secondaryTracks },
     };
     this._pushVisual({ kind: "run", desc, startYard, yards, endYard: clamp(startYard + yards, 0, 100), rusher: carrier, isQBRun, isReverse, runType, isSpeedOption, isPitch, optionRead, tackler: tacklerName, brokenTackles, isTwoBack: useTwoBack, fb: useTwoBack ? this.offR.starters.rb2 : null, motion: _motion });
     return { yards };

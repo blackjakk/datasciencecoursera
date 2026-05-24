@@ -2024,6 +2024,19 @@ function buildAnimForPlay(play, prevPlay) {
         // needed downstream (the engine path IS the authoritative pursuit).
         const _tacklerTrack = (play.motion && play.motion.tracks && play.motion.tracks.tackler) || null;
         const _useTacklerMotion = isPrimary && !isDodged && !isTrucked && _tacklerTrack && typeof MotionPlayback !== "undefined";
+        // PATH B Phase 3c — secondary defender lane discipline tracks.
+        // FS / SS / CB1 / CB2 (when not the primary tackler) get
+        // engine-emitted zone behaviors so they don't all converge
+        // on the carrier. Track keys: fs, ss, cb1, cb2.
+        const _tracksAll = (play.motion && play.motion.tracks) || null;
+        let _secondaryTrack = null;
+        if (_tracksAll && !isPrimary && !isTrucked && !isDodged) {
+          if      (i === idxS1)  _secondaryTrack = _tracksAll.fs;
+          else if (i === idxS2)  _secondaryTrack = _tracksAll.ss;
+          else if (i === idxCB1) _secondaryTrack = _tracksAll.cb1;
+          else if (i === idxCB2) _secondaryTrack = _tracksAll.cb2;
+        }
+        const _useSecondaryMotion = _secondaryTrack && typeof MotionPlayback !== "undefined";
         let np;
         if (_useTacklerMotion) {
           const sample = MotionPlayback.sampleTrack(_tacklerTrack, runT);
@@ -2035,6 +2048,15 @@ function buildAnimForPlay(play, prevPlay) {
             // Park the sim at this spot so any later code that reads
             // d._sim sees a consistent position (no teleport on the
             // next frame if motion ends).
+            if (d._sim) { d._sim.x = nx; d._sim.y = ny; }
+          }
+        } else if (_useSecondaryMotion) {
+          const sample = MotionPlayback.sampleTrack(_secondaryTrack, runT);
+          if (sample) {
+            const nx = losX + dir * sample.dxYd * FIELD.PX_PER_YARD;
+            const ny = cy + sample.dyYd * FIELD.PX_PER_YARD;
+            const moved = Math.hypot(nx - d.x, ny - d.y) > 0.5;
+            np = { x: nx, y: ny, moved };
             if (d._sim) { d._sim.x = nx; d._sim.y = ny; }
           }
         }
