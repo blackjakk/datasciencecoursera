@@ -3184,10 +3184,12 @@ function buildAnimForPlay(play, prevPlay) {
               // for THIS CB's assigned WR, shadow the WR's current
               // position (with outside leverage). Solves the long-
               // standing "CB stares at QB while WR runs free" bug.
+              // PHASE 5b — Phase 4 emits per-slot routes for ALL
+              // receivers, so both CB1 and CB2 can shadow their
+              // assigned WR (not just the targeted one).
               const cbSlot = (i === idxCB1) ? "wr1" : (i === idxCB2) ? "wr2" : null;
-              const trk = (play.motion && play.motion.tracks && play.motion.tracks.targetWR) || null;
-              const trkSlot = play.motion && play.motion.targetSlot;
-              if (cbSlot && trk && trkSlot === cbSlot && typeof MotionPlayback !== "undefined") {
+              const trk = (cbSlot && play.motion && play.motion.tracks) ? play.motion.tracks[cbSlot] : null;
+              if (cbSlot && trk && typeof MotionPlayback !== "undefined") {
                 const wrTarget = (cbSlot === "wr1") ? formation.wr1 : formation.wr2;
                 const sample = MotionPlayback.sampleTrack(trk, aT);
                 if (sample && wrTarget) {

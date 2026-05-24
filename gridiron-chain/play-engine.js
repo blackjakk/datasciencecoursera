@@ -4597,9 +4597,11 @@ class GameSimulator {
             const _wrSign = _targetSlot === "wr1" ? -1
                           : _targetSlot === "wr2" ?  1
                           : _targetSlot === "te"  ?  1
+                          : _targetSlot === "rb"  ?  1
                           : 0;
             const _wrFormOffsetYd = _targetSlot === "wr1" || _targetSlot === "wr2" ? 16
                                   : _targetSlot === "te" ? 5
+                                  : _targetSlot === "rb" ? 1.87   // RB starts at cy + 28px = +1.87yd
                                   : 0;
             const _endDyAbs = _wrSign * (_wrFormOffsetYd - endLatAbs);
             // Pursuit waypoints. Defender holds their assignment until
