@@ -559,6 +559,7 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
   // is edge-on / invisible; at 180° they're mirrored; at 360° back to start).
   let spinXScale = 1;
   let leftHandBall = false, rightHandBall = false;
+  let cradleBall = false;        // carry pose — football tucked between BOTH hands at chest
   let rForearmOverride = null;   // throw pose drives a custom forearm angle
   let lForearmOverride = null;   // for right-facing QB throw (left arm is throw arm)
   let exclaim = null;
@@ -606,12 +607,14 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
           // inward AND up so the hand ends up at chest-center, cradling the
           // ball like a real RB / KR (NOT extended out front like a punter).
           // The forearm angles are negated by facing so the same wrap reads
-          // correctly whether the player faces left or right.
+          // correctly whether the player faces left or right. cradleBall
+          // signals the post-arm draw to place the football at the midpoint
+          // of both hands instead of off to one side.
           lArm = 0.2;
           rArm = 0.2;
           rForearmOverride = -2.0 * facing;   // right forearm wraps left+up to chest
           lForearmOverride =  2.0 * facing;   // left forearm wraps right+up to chest
-          rightHandBall = true;
+          cradleBall = true;
         }
       }
       break;
@@ -635,14 +638,13 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
       const sway = Math.sin(t * Math.PI * 0.8) * 0.4;
       const role = style.role || "";
       if (role === "OL" || role === "DL") {
-        // 3-point stance — knees deeply bent (drawLeg adds ~31° bend
-        // for line stance), body lowered to match the leg crouch.
-        // bodyTilt was 0.45 rad which rotated the FEET out from under
-        // the player (the rotation pivot is the body origin, not the
-        // hips). Reduced to 0.18 — enough lean to read as "ready to
-        // fire off the line" without distorting the whole sprite.
+        // 3-point stance — knees deeply bent (drawLeg adds ~31° bend),
+        // body lowered, torso angled forward toward the line of
+        // scrimmage. Legs no longer swing out from under the player
+        // because drawLeg counter-rotates the leg frame to stay
+        // vertical, so the forward lean can be aggressive.
         bodyDY = 1.5;
-        bodyTilt = facing * 0.18;
+        bodyTilt = facing * 0.40;
         lArm = 0; rArm = 0;
         lLeg = 0; rLeg = 0;
       } else if (role === "WR1" || role === "WR2") {
@@ -1079,6 +1081,18 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
   const drawLeg = (side, angle, lift) => {
     const a = angle * facing;
     const sx = side * 2.6;
+    // Counter-rotate the leg's local frame so legs hang VERTICAL from the
+    // hip joint regardless of body tilt — pivots inverse-rotation around
+    // the hip point so the hip itself stays attached to the rotated
+    // torso while the thigh+shin go straight down. Fixes the OL/DL
+    // three-point stance where lean was swinging the feet sideways out
+    // from under the player.
+    ctx.save();
+    if (bodyTilt !== 0) {
+      ctx.translate(sx, hipY);
+      ctx.rotate(-bodyTilt);
+      ctx.translate(-sx, -hipY);
+    }
     const upperLen = legLen * 0.52;
     const lowerLen = legLen * 0.52;
     const bending = pose === "run" || pose === "carry";
@@ -1221,6 +1235,7 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
       ctx.ellipse(dustX - facing * 0.8, dustY - 0.1, 1.6, 0.7, 0, 0, Math.PI * 2);
       ctx.fill();
     }
+    ctx.restore();    // close the leg-vertical inverse-tilt save
   };
   // ── Arms — Lego-style chunky tubes. Bicep = sleeve, forearm = skin.
   // Nearly as wide as the helmet (helmRx≈6.4 → arm half-width ~2.7) and
@@ -1780,6 +1795,68 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
   // lHand / rHand for any downstream consumers (3-point ground-hand decal).
   const lHand = farSide === -1 ? farHand : nearHand;
   const rHand = farSide === 1  ? farHand : nearHand;
+  // CRADLE BALL — football held with BOTH hands at chest. Drawn at the
+  // midpoint of the two hands so it reads as "tucked between hands"
+  // instead of clutched off to one side. Wrap fingers protrude from
+  // behind each end of the ball.
+  if (cradleBall) {
+    const bx = (lHand.handX + rHand.handX) / 2;
+    const by = (lHand.handY + rHand.handY) / 2 + 0.4;
+    ctx.save();
+    ctx.translate(bx, by);
+    ctx.rotate(-0.30 * facing);
+    const rx = 3.6, ry = 1.8;
+    const ballGrad = ctx.createRadialGradient(-rx * 0.3, -ry * 0.5, 0.2, 0, 0, rx * 1.2);
+    ballGrad.addColorStop(0,    "#a86a3a");
+    ballGrad.addColorStop(0.55, "#7a4a26");
+    ballGrad.addColorStop(1,    "#4a2c14");
+    ctx.fillStyle = ballGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#f5f5f0";
+    ctx.fillRect(-0.9, -0.35, 1.8, 0.55);
+    ctx.strokeStyle = "rgba(40,30,20,0.7)";
+    ctx.lineWidth = 0.18;
+    for (let i = 0; i < 4; i++) {
+      const lx = -0.7 + i * 0.46;
+      ctx.beginPath();
+      ctx.moveTo(lx, -0.45);
+      ctx.lineTo(lx,  0.30);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "rgba(245,245,240,0.85)";
+    ctx.fillRect( rx * 0.55, -ry * 0.7, 0.35, ry * 1.4);
+    ctx.fillRect(-rx * 0.55 - 0.35, -ry * 0.7, 0.35, ry * 1.4);
+    ctx.strokeStyle = "rgba(0,0,0,0.65)";
+    ctx.lineWidth = 0.35;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+    // Fingers — small thumb-tip bumps poking over the ball ends. Sized
+    // so they READ as fingers gripping a ball, not as flanking blobs.
+    const wrapColor = wearsGloves ? (secondary || "#222") : skin.dark;
+    ctx.fillStyle = wrapColor;
+    ctx.strokeStyle = "rgba(0,0,0,0.55)";
+    ctx.lineWidth = 0.25;
+    // Place the finger nub slightly INWARD from each hand so it overlaps
+    // the ball end rather than sitting away from it. Direction = from
+    // hand toward ball center, capped at a small offset.
+    const fingerNub = (hx, hy) => {
+      const dx = bx - hx, dy = by - hy;
+      const d = Math.hypot(dx, dy) || 1;
+      const ux = dx / d, uy = dy / d;
+      const fx = hx + ux * 1.4;        // small inward offset onto ball edge
+      const fy = hy + uy * 1.4;
+      ctx.beginPath();
+      ctx.ellipse(fx, fy, 0.55, 0.85, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    };
+    fingerNub(lHand.handX, lHand.handY);
+    fingerNub(rHand.handX, rHand.handY);
+  }
   // For 3-point stance, draw a ground line where the lead hand plants.
   if (drawGroundHand) {
     ctx.fillStyle = "rgba(0,0,0,0.25)";
