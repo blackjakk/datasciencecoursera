@@ -84,11 +84,11 @@ _init_state()
 
 
 (tab_setup, tab_keepers, tab_draft, tab_insights, tab_positions,
- tab_tendencies, tab_history, tab_assets, tab_trade) = st.tabs([
+ tab_tendencies, tab_history, tab_assets, tab_trade, tab_charts) = st.tabs([
     "1. Setup", "2. Keeper Predictions", "3. Live Draft",
     "4. Historical Insights", "5. Position-by-Round",
     "6. Team Tendencies", "7. League History",
-    "8. Pre-Draft Assets", "9. Trade Evaluator",
+    "8. Pre-Draft Assets", "9. Trade Evaluator", "10. Charts",
 ])
 
 
@@ -1361,6 +1361,455 @@ with tab_trade:
                 f"Side B: {total_b:+.1f} VBD  |  "
                 f"Delta: {delta:+.1f}"
             )
+
+
+# ------------------------------------------------------------------------
+# Tab 10: Charts (11 visualizations across the full dataset)
+# ------------------------------------------------------------------------
+
+with tab_charts:
+    import altair as alt  # noqa: E402
+
+    st.header("Charts & insights")
+    st.caption("Visualizations across 11 seasons of MONEY_LEAGUE history.")
+
+    # ---------- shared data loads ----------
+    pv_path = ROOT / "data" / "pick_value.json"
+    pbr_path = ROOT / "data" / "position_by_round.json"
+
+    @st.cache_data
+    def _load_chart_data():
+        from fantasy_draft.results import (  # noqa: E402
+            load_all_seasons, load_draft_picks_with_points, load_all_trades,
+            summarize_trade,
+        )
+        from fantasy_draft.xlsx_history import load_all_keepers, normalize_name  # noqa: E402
+        from fantasy_draft.name_aliases import resolve_xlsx_name  # noqa: E402
+
+        pv = _json.loads(pv_path.read_text()) if pv_path.exists() else {}
+        pbr = _json.loads(pbr_path.read_text()) if pbr_path.exists() else {}
+
+        try:
+            catalog = _json.loads(
+                (ROOT / "data" / "sleeper" / "players_nfl.json").read_text())
+        except Exception:
+            catalog = {}
+
+        seasons = load_all_seasons(ROOT / "data" / "sleeper")
+        picks = load_draft_picks_with_points(ROOT / "data" / "sleeper")
+        trades = load_all_trades(ROOT / "data" / "sleeper")
+
+        roster_team_name: dict[int, str] = {}
+        for ss in seasons.values():
+            for rid, rr in ss["rosters"].items():
+                roster_team_name[rid] = rr["team_name"]
+        pts_by_season = {ss["season"]: ss["player_total_points"]
+                         for ss in seasons.values()}
+        pv_blind = {int(r): d["mean_vbd"]
+                    for r, d in (pv.get("by_round") or {}).items()}
+
+        # All trades summarized.
+        trade_rows = []
+        for t in trades:
+            for s in summarize_trade(t, roster_team_name, catalog,
+                                      pts_by_season, pv_blind):
+                trade_rows.append(s)
+
+        # xlsx keepers (years_kept history).
+        try:
+            xlsx_by_year = load_all_keepers(
+                ROOT / "data" / "historical" / "MONEY_LEAGUE.xlsx")
+        except Exception:
+            xlsx_by_year = {}
+
+        return {
+            "pv": pv, "pbr": pbr, "catalog": catalog, "seasons": seasons,
+            "picks": picks, "trades": trades, "trade_rows": trade_rows,
+            "xlsx_by_year": xlsx_by_year, "pv_blind": pv_blind,
+            "roster_team_name": roster_team_name,
+            "pts_by_season": pts_by_season,
+        }
+
+    try:
+        D = _load_chart_data()
+    except Exception as e:
+        st.error(f"Couldn't load chart data: {e}")
+        D = None
+
+    if D:
+        # ============================================================
+        # 1. Pick value decay curve
+        # ============================================================
+        st.subheader("1. Pick value decay curve (empirical)")
+        st.caption("Mean VBD delivered per round across 3 Sleeper seasons. "
+                   "R1-R2 are the premium picks; R9+ trend toward replacement.")
+        pv_rows = [{"Round": int(r), "Mean VBD": d["mean_vbd"],
+                    "Median VBD": d["median_vbd"]}
+                   for r, d in (D["pv"].get("by_round") or {}).items()]
+        pv_df = pd.DataFrame(pv_rows).sort_values("Round")
+        chart = (alt.Chart(pv_df).mark_line(point=True)
+                  .encode(x=alt.X("Round:O"),
+                          y=alt.Y("Mean VBD:Q", title="Mean VBD"),
+                          tooltip=["Round", "Mean VBD", "Median VBD"])
+                  .properties(height=260))
+        st.altair_chart(chart, use_container_width=True)
+
+        # ============================================================
+        # 2. Position × round heatmap
+        # ============================================================
+        st.subheader("2. Position × round heatmap (mean season pts)")
+        st.caption("Color = mean season pts scored by players drafted at that "
+                   "(round, position). QBs blaze across every round in this superflex.")
+        pbr_rows = []
+        for rnd, per_pos in (D["pbr"].get("by_round_position") or {}).items():
+            for pos, d in per_pos.items():
+                pbr_rows.append({"Round": int(rnd), "Position": pos,
+                                  "Mean pts": d["mean"], "n": d["n"]})
+        pbr_df = pd.DataFrame(pbr_rows)
+        if not pbr_df.empty:
+            heat = (alt.Chart(pbr_df).mark_rect()
+                    .encode(x=alt.X("Round:O"),
+                            y=alt.Y("Position:O",
+                                     sort=["QB", "RB", "WR", "TE", "K", "DEF"]),
+                            color=alt.Color("Mean pts:Q",
+                                             scale=alt.Scale(scheme="viridis")),
+                            tooltip=["Round", "Position", "Mean pts", "n"])
+                    .properties(height=220))
+            st.altair_chart(heat, use_container_width=True)
+
+        # ============================================================
+        # 3. Champion DNA — roster composition by draft round
+        # ============================================================
+        st.subheader("3. Champion DNA — where did winners get their points?")
+        st.caption("For each season's champion, breakdown of season points by "
+                   "the ROUND of their roster's drafted players.")
+        champ_data = []
+        for yr, s in sorted(D["seasons"].items()):
+            champ_rid = s.get("champion_roster_id")
+            if not champ_rid:
+                continue
+            for p in D["picks"]:
+                if p["season"] == yr and p["roster_id"] == champ_rid:
+                    champ_data.append({
+                        "Year": yr,
+                        "Round": p["round"],
+                        "Player": p["player_name"],
+                        "Position": p["position"],
+                        "Points": p["season_points"],
+                    })
+        if champ_data:
+            cdf = pd.DataFrame(champ_data)
+            champ_chart = (alt.Chart(cdf).mark_bar()
+                            .encode(x=alt.X("Round:O"),
+                                    y=alt.Y("sum(Points):Q",
+                                             title="Total season points"),
+                                    color=alt.Color("Position:N"),
+                                    column=alt.Column("Year:O"),
+                                    tooltip=["Year", "Round", "Position",
+                                             "Player", "Points"])
+                            .properties(height=240))
+            st.altair_chart(champ_chart, use_container_width=False)
+
+        # ============================================================
+        # 4. Manager trade scorecard
+        # ============================================================
+        st.subheader("4. Manager trade scorecard (net retroactive value)")
+        st.caption("Sum of trade-value delta across all 45 trades. "
+                   "Positive = consistent trade winner in hindsight.")
+        from collections import defaultdict as _dd
+        tally = _dd(lambda: {"team": "", "n": 0, "net": 0.0})
+        for s in D["trade_rows"]:
+            e = tally[s["team"]]
+            e["team"] = s["team"]
+            e["n"] += 1
+            e["net"] += s["net"]
+        tdf = pd.DataFrame(list(tally.values()))
+        if not tdf.empty:
+            tdf = tdf.sort_values("net", ascending=False)
+            ts_chart = (alt.Chart(tdf).mark_bar()
+                          .encode(x=alt.X("net:Q", title="Net trade value"),
+                                  y=alt.Y("team:N", sort="-x"),
+                                  color=alt.condition("datum.net > 0",
+                                                       alt.value("#2ca02c"),
+                                                       alt.value("#d62728")),
+                                  tooltip=["team", "n", "net"])
+                          .properties(height=320))
+            st.altair_chart(ts_chart, use_container_width=True)
+
+        # ============================================================
+        # 5. Draft capital vs wins
+        # ============================================================
+        st.subheader("5. Draft capital realized vs final wins")
+        st.caption("Each dot = (team, season). X = sum of season points from "
+                   "drafted players; Y = wins. Does drafting better correlate "
+                   "with winning in a keeper league?")
+        dvw_rows = []
+        for yr, s in D["seasons"].items():
+            for rid, r in s["rosters"].items():
+                team_pick_pts = sum(p["season_points"] for p in D["picks"]
+                                     if p["season"] == yr and p["roster_id"] == rid)
+                dvw_rows.append({
+                    "Year": yr,
+                    "Team": r["team_name"],
+                    "Draft pts": round(team_pick_pts, 1),
+                    "Wins": r["wins"],
+                    "PF": round(r["fpts"], 1),
+                })
+        ddf = pd.DataFrame(dvw_rows)
+        if not ddf.empty:
+            scatter = (alt.Chart(ddf).mark_circle(size=120)
+                        .encode(x=alt.X("Draft pts:Q",
+                                         title="Total points from drafted players"),
+                                y=alt.Y("Wins:Q"),
+                                color=alt.Color("Year:N"),
+                                tooltip=["Year", "Team", "Draft pts", "Wins", "PF"])
+                        .properties(height=320))
+            trend = (alt.Chart(ddf).mark_line(color="grey",
+                                                strokeDash=[3, 3])
+                       .transform_regression("Draft pts", "Wins")
+                       .encode(x="Draft pts:Q", y="Wins:Q"))
+            st.altair_chart(scatter + trend, use_container_width=True)
+
+        # ============================================================
+        # 6. ADP vs actual pick (reachers and value-finders)
+        # ============================================================
+        st.subheader("6. ADP vs actual pick number")
+        st.caption("Above the diagonal = team reached (took a player earlier "
+                   "than ADP). Below = grabbed value. Recent season only "
+                   "(matched to current ADP).")
+        # Use latest projections ADP for 2025 picks.
+        adp_lookup: dict[str, float] = {}
+        try:
+            from fantasy_draft.results import load_all_seasons  # already imported
+            from fantasy_draft.xlsx_history import normalize_name as _norm  # noqa: E402
+            adp_proj = _json.loads(
+                (ROOT / "data" / "sleeper_projections_2026.json").read_text())
+            for entry in adp_proj:
+                meta = entry.get("player") or {}
+                nm = meta.get("full_name") or (
+                    f"{meta.get('first_name', '')} {meta.get('last_name', '')}".strip())
+                if not nm:
+                    continue
+                adp = (entry.get("stats") or {}).get("adp_half_ppr")
+                if adp and adp < 500:
+                    adp_lookup[_norm(nm)] = float(adp)
+        except Exception:
+            pass
+        adp_rows = []
+        for p in D["picks"]:
+            if p["season"] != max(D["seasons"]):
+                continue
+            from fantasy_draft.xlsx_history import normalize_name as _nm2
+            adp = adp_lookup.get(_nm2(p["player_name"]))
+            if adp is None:
+                continue
+            adp_rows.append({
+                "Team": p["team_name"],
+                "Player": p["player_name"],
+                "ADP": adp,
+                "Actual": p["overall_pick"],
+                "Position": p["position"],
+            })
+        adp_df = pd.DataFrame(adp_rows)
+        if not adp_df.empty:
+            line = (alt.Chart(pd.DataFrame({"x": [0, 200], "y": [0, 200]}))
+                      .mark_line(strokeDash=[2, 2], color="grey")
+                      .encode(x="x:Q", y="y:Q"))
+            scatter = (alt.Chart(adp_df).mark_circle(size=80, opacity=0.7)
+                        .encode(x=alt.X("ADP:Q"),
+                                y=alt.Y("Actual:Q", title="Actual pick #"),
+                                color="Team:N",
+                                tooltip=["Team", "Player", "Position", "ADP", "Actual"])
+                        .properties(height=400))
+            st.altair_chart(line + scatter, use_container_width=True)
+
+        # ============================================================
+        # 7. Keeper hit rate by position (from xlsx)
+        # ============================================================
+        st.subheader("7. Keeper retention by position")
+        st.caption("For each position, % of yr1 keepers that became yr2 "
+                   "(blue) and % of yr2 that became yr3 (orange). From "
+                   "historical_insights.json — already shown numerically in tab 4.")
+        try:
+            ret = _json.loads(
+                (ROOT / "data" / "historical_insights.json").read_text()
+            )["retention_by_position"]
+        except Exception:
+            ret = {}
+        kr_rows = []
+        for pos in ("QB", "RB", "WR", "TE"):
+            d = ret.get(pos, {})
+            if d.get("yr1_to_yr2_pct") is not None:
+                kr_rows.append({"Position": pos, "Transition": "yr1→yr2",
+                                "Pct": d["yr1_to_yr2_pct"],
+                                "Sample": d["yr1_count"]})
+            if d.get("yr2_to_yr3_pct") is not None:
+                kr_rows.append({"Position": pos, "Transition": "yr2→yr3",
+                                "Pct": d["yr2_to_yr3_pct"],
+                                "Sample": d["yr2_count"]})
+        if kr_rows:
+            krdf = pd.DataFrame(kr_rows)
+            krchart = (alt.Chart(krdf).mark_bar()
+                        .encode(x=alt.X("Position:N"),
+                                y=alt.Y("Pct:Q", title="Retention %"),
+                                color="Transition:N",
+                                xOffset="Transition:N",
+                                tooltip=["Position", "Transition", "Pct", "Sample"])
+                        .properties(height=240))
+            st.altair_chart(krchart, use_container_width=True)
+
+        # ============================================================
+        # 8. Best/worst keepers ever (retroactive)
+        # ============================================================
+        st.subheader("8. Best & worst keepers, retroactive")
+        st.caption("For every keeper tagged in xlsx 2023-2025 history, how "
+                   "did they actually score that year vs. an average pick at "
+                   "their keeper cost round?")
+        keeper_results = []
+        for yr, recs in (D["xlsx_by_year"] or {}).items():
+            pts_for_year = D["pts_by_season"].get(yr, {})
+            # Need to look up player_id by name -> season points.
+            # Build a quick name->pid index per year from picks.
+            year_pts_by_name = {}
+            for p in D["picks"]:
+                if p["season"] == yr:
+                    year_pts_by_name[normalize_name(p["player_name"])] = (
+                        p["season_points"], p["round"], p["team_name"])
+            for k in recs:
+                from fantasy_draft.xlsx_history import normalize_name as _n3
+                canon = resolve_xlsx_name(k.player_name) or k.player_name
+                key = _n3(canon)
+                row = year_pts_by_name.get(key)
+                if not row:
+                    continue
+                pts, drafted_round, team = row
+                forfeit = max(1, k.round_num - 2)
+                pv_at_forfeit = (D["pv"].get("by_round") or {}).get(
+                    str(forfeit), {}).get("mean_points", 0)
+                keeper_results.append({
+                    "Year": yr, "Player": canon, "Team": team,
+                    "Kept at": f"R{k.round_num}",
+                    "Cost (forfeit)": f"R{forfeit}",
+                    "Actual pts": round(pts, 0),
+                    "Avg pts at cost R": round(pv_at_forfeit, 0),
+                    "Surplus": round(pts - pv_at_forfeit, 0),
+                })
+        kdf = pd.DataFrame(keeper_results)
+        if not kdf.empty:
+            best = kdf.nlargest(10, "Surplus")
+            worst = kdf.nsmallest(10, "Surplus")
+            c1, c2 = st.columns(2)
+            with c1:
+                st.markdown("**Top 10 keeper hits**")
+                st.dataframe(best, use_container_width=True, hide_index=True)
+            with c2:
+                st.markdown("**Bottom 10 keeper busts**")
+                st.dataframe(worst, use_container_width=True, hide_index=True)
+
+        # ============================================================
+        # 9. Trade activity timeline
+        # ============================================================
+        st.subheader("9. Trade activity by week")
+        st.caption("When in the season do trades happen? Spike near the "
+                   "trade deadline?")
+        ta_rows = []
+        for t in D["trades"]:
+            ta_rows.append({"Season": t["_season"], "Week": t["_week"]})
+        tadf = pd.DataFrame(ta_rows)
+        if not tadf.empty:
+            timeline = (alt.Chart(tadf).mark_bar()
+                          .encode(x=alt.X("Week:O"),
+                                  y=alt.Y("count()", title="Trades"),
+                                  color="Season:N",
+                                  tooltip=["Season", "Week", "count()"])
+                          .properties(height=240))
+            st.altair_chart(timeline, use_container_width=True)
+
+        # ============================================================
+        # 10. Manager-pair affinity (who trades with whom)
+        # ============================================================
+        st.subheader("10. Manager-pair trade affinity")
+        st.caption("How often each pair of managers traded with each other "
+                   "(across all 45 trades). Heatmap; brighter = more trades.")
+        pair_counts: dict[tuple[str, str], int] = {}
+        for t in D["trades"]:
+            rosters = sorted(t.get("roster_ids") or [])
+            for i in range(len(rosters)):
+                for j in range(i + 1, len(rosters)):
+                    a = D["roster_team_name"].get(int(rosters[i]),
+                                                  f"R{rosters[i]}")
+                    b = D["roster_team_name"].get(int(rosters[j]),
+                                                  f"R{rosters[j]}")
+                    pair_counts[(a, b)] = pair_counts.get((a, b), 0) + 1
+        if pair_counts:
+            pairs_data = []
+            teams_seen = set()
+            for (a, b), n in pair_counts.items():
+                pairs_data.append({"A": a, "B": b, "Count": n})
+                pairs_data.append({"A": b, "B": a, "Count": n})  # mirror
+                teams_seen.update([a, b])
+            for t in teams_seen:
+                pairs_data.append({"A": t, "B": t, "Count": 0})  # diagonal
+            pdf2 = pd.DataFrame(pairs_data)
+            heatmap = (alt.Chart(pdf2).mark_rect()
+                        .encode(x=alt.X("A:N", sort=sorted(teams_seen)),
+                                y=alt.Y("B:N", sort=sorted(teams_seen)),
+                                color=alt.Color("Count:Q",
+                                                 scale=alt.Scale(scheme="blues")),
+                                tooltip=["A", "B", "Count"])
+                        .properties(height=400))
+            st.altair_chart(heatmap, use_container_width=True)
+
+        # ============================================================
+        # 11. Year-over-year roster stability
+        # ============================================================
+        st.subheader("11. Year-over-year roster stability")
+        st.caption("% of each team's roster retained from previous season. "
+                   "100% = no churn, 0% = totally rebuilt.")
+        stab_rows = []
+        years_sorted = sorted(D["seasons"])
+        for i in range(1, len(years_sorted)):
+            prev_yr, cur_yr = years_sorted[i - 1], years_sorted[i]
+            prev = D["seasons"][prev_yr]["rosters"]
+            cur = D["seasons"][cur_yr]["rosters"]
+            # Need rosters' player_id sets per team. Re-read from raw JSON.
+            prev_dir = (ROOT / "data" / "sleeper" /
+                         f"league_{D['seasons'][prev_yr]['league_id']}")
+            cur_dir = (ROOT / "data" / "sleeper" /
+                        f"league_{D['seasons'][cur_yr]['league_id']}")
+            try:
+                prev_rosters_raw = _json.loads(
+                    (prev_dir / "rosters.json").read_text())
+                cur_rosters_raw = _json.loads(
+                    (cur_dir / "rosters.json").read_text())
+            except Exception:
+                continue
+            prev_pid_by_rid = {int(r["roster_id"]):
+                                set(str(p) for p in (r.get("players") or []))
+                                for r in prev_rosters_raw}
+            cur_pid_by_rid = {int(r["roster_id"]):
+                                set(str(p) for p in (r.get("players") or []))
+                                for r in cur_rosters_raw}
+            for rid in cur_pid_by_rid:
+                team = cur.get(rid, {}).get("team_name", f"R{rid}")
+                pset = prev_pid_by_rid.get(rid, set())
+                cset = cur_pid_by_rid.get(rid, set())
+                if pset:
+                    pct = 100 * len(pset & cset) / len(pset)
+                else:
+                    pct = 0
+                stab_rows.append({"Year": cur_yr, "Team": team,
+                                   "Retention %": round(pct, 1)})
+        sdf = pd.DataFrame(stab_rows)
+        if not sdf.empty:
+            stab_chart = (alt.Chart(sdf).mark_bar()
+                            .encode(x=alt.X("Team:N", sort="-y"),
+                                    y=alt.Y("Retention %:Q"),
+                                    color="Year:N",
+                                    xOffset="Year:N",
+                                    tooltip=["Team", "Year", "Retention %"])
+                            .properties(height=320))
+            st.altair_chart(stab_chart, use_container_width=True)
 
 
 def _show_final(draft: Draft):
