@@ -275,8 +275,13 @@ def build_markdown(D: dict) -> str:
         aep = m["sum_above"] / max(1, m["n"])
         md.append(f"| {i} | **{mgr_name(rid)}** | {m['n']} | "
                   f"{m['sum_vbd']:+.0f} | {ppp:+.1f} | {aep:+.1f} |")
-    md.append("\n*By raw per-pick: Donnie #1 (slot 1 every year). "
-              "By skill-adjusted: Lem #1, with Brian a hair behind.*\n")
+    # Dynamic annotation — compute who's actually top by each metric.
+    by_raw = sorted(D["draft"].items(), key=lambda x: -x[1]["sum_vbd"] / max(1, x[1]["n"]))
+    raw_top = mgr_name(by_raw[0][0])
+    skill_top = mgr_name(rows[0][0])
+    skill_2nd = mgr_name(rows[1][0]) if len(rows) > 1 else "?"
+    md.append(f"\n*By raw per-pick: **{raw_top}** #1. "
+              f"By skill-adjusted (above-expectation): **{skill_top}** #1, {skill_2nd} #2.*\n")
 
     # ========== Wire Game (FA + Keepers combined) ==========
     md.append("## 🔍 WIRE GAME — talent acquisition (FA hits + keeper carryover value)")

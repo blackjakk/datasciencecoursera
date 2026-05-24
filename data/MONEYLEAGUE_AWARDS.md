@@ -23,7 +23,7 @@ Above-expectation per pick: positive = beat what an average drafter would have g
 | 11 | **Coop** | 45 | +720 | +16.0 | -31.0 |
 | 12 | **Tim (Breswick)** | 46 | +858 | +18.7 | -32.3 |
 
-*By raw per-pick: Donnie #1 (slot 1 every year). By skill-adjusted: Lem #1, with Brian a hair behind.*
+*By raw per-pick: **Donnie** #1. By skill-adjusted (above-expectation): **Lem (LEMVP)** #1, Brian (Big Guap) #2.*
 
 ## 🔍 WIRE GAME — talent acquisition (FA hits + keeper carryover value)
 FA + keepers are one skill: find good players outside the draft and hold them. Score = positive-VBD FA pickups + total VBD from kept-player-seasons. Sub-replacement adds are excluded (those can be dropped — pure noise).

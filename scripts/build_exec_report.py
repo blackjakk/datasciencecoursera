@@ -323,10 +323,23 @@ def build_html(D, composite, raw):
                            f"<td>{c['pct']['trade']:.0f}</td>"
                            f"<td><b>{c['avg']:.0f}</b></td></tr>")
 
+    # Build the skill-vs-titles sentence dynamically so it stays accurate.
+    rid_to_rank = {c["rid"]: i for i, c in enumerate(composite, 1)}
+    champ_ranks = []
+    for yr in sorted(D["seasons"]):
+        cid = D["seasons"][yr].get("champion_roster_id")
+        if cid:
+            champ_ranks.append(f"{mgr_name(cid)} (rank #{rid_to_rank.get(cid, '?')}) won {yr}")
+    skill_pred_sentence = "; ".join(champ_ranks) + ". "
+    aligned = [yr for yr in sorted(D["seasons"])
+                 if (cid := D["seasons"][yr].get("champion_roster_id"))
+                 and rid_to_rank.get(cid, 99) <= 4]
+    if aligned:
+        skill_pred_sentence += f"Only {len(aligned)} of {len(champ_ranks)} chips align with top-4 composite. "
+    skill_pred_sentence += ("Fantasy is variance-dominated over a 14-week sample; "
+                             "even the best manager wins ~30% of seasons.")
     insights = [
-        ("Skill does not predict championships",
-         "Trevor (composite #9) won 2025. Coop (composite #12) won 2024. Only Eric's 2023 chip aligns with skill rank. "
-         "Fantasy is variance-dominated over a 14-week sample; even the best manager wins ~30% of seasons."),
+        ("Skill does not predict championships", skill_pred_sentence),
         ("R2 is the highest-value single pick — even more than R1",
          "Snake-reversal puts elite-tier RBs and the rookie-WR breakouts (Hampton, Bowers) in R2 — mean +132 VBD vs R1's +124."),
         ("Wait on QB to R4, hammer the bench R6-R8",
@@ -395,10 +408,12 @@ def build_html(D, composite, raw):
     <div class="subtitle">Generated {today} · 3 Sleeper seasons (2023-2025) · 2023 attribution via xlsx color overlay</div>
     <div class="champs"><b>Champions:</b> {champ_line}</div>
 
-    <h2>Composite Ranking — outlier-trimmed, frequency-weighted</h2>
+    <h2>Composite Ranking — frequency-weighted, post-trade weekly pts</h2>
     <div style="font-size:8.5pt;color:#666;margin-bottom:3px;">
       Lineup×3 (every wk) + Draft×2 + Wire×2 + Trade×1.
-      Trade outliers (|net|≥200) excluded. Numbers = percentile (0-100, higher better).
+      Trades valued by post-trade-week production only (Jayden Daniels W9 swap
+      no longer credits the buyer with his W1-W8 points).
+      Numbers = percentile (0-100, higher better).
     </div>
     <table>
       <tr><th>#</th><th>Manager</th><th>Draft</th><th>Wire</th><th>Lineup</th><th>Trade</th><th>Avg</th></tr>

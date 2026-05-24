@@ -116,6 +116,35 @@ def load_all_seasons(sleeper_dir: str | Path = "data/sleeper") -> dict[int, dict
     return out
 
 
+def load_weekly_player_points(
+    sleeper_dir: str | Path = "data/sleeper",
+) -> dict[int, dict[int, dict[str, float]]]:
+    """Returns {season: {week: {player_id: points}}}.
+
+    Used by summarize_trade() to value a trade only by the points scored
+    AFTER the trade week (so e.g. a W9 Daniels trade doesn't credit the
+    receiver for Daniels' W1-W8 production).
+    """
+    out: dict[int, dict[int, dict[str, float]]] = {}
+    for season_dir in sorted(Path(sleeper_dir).glob("league_*")):
+        if not (season_dir / "league.json").exists():
+            continue
+        lg = json.loads((season_dir / "league.json").read_text(encoding="utf-8"))
+        season = int(lg.get("season") or 0)
+        if not season:
+            continue
+        out[season] = {}
+        for wf in sorted((season_dir / "matchups").glob("week_*.json")):
+            wk = int(wf.stem.split("_")[1])
+            week_pts: dict[str, float] = {}
+            for e in json.loads(wf.read_text(encoding="utf-8")):
+                for pid, pts in (e.get("players_points") or {}).items():
+                    if pts is not None:
+                        week_pts[str(pid)] = float(pts)
+            out[season][wk] = week_pts
+    return out
+
+
 def load_all_trades(sleeper_dir: str | Path = "data/sleeper") -> list[dict]:
     """Walk every season's transactions/week_*.json, return all completed
     trades flattened with season + week annotated. Returns a list of dicts
