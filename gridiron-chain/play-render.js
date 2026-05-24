@@ -635,9 +635,14 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
       const sway = Math.sin(t * Math.PI * 0.8) * 0.4;
       const role = style.role || "";
       if (role === "OL" || role === "DL") {
-        // 3-point stance — body crouched, NO extended limbs (just body lean)
-        bodyDY = 5;
-        bodyTilt = facing * 0.45;
+        // 3-point stance — knees deeply bent (drawLeg adds ~31° bend
+        // for line stance), body lowered to match the leg crouch.
+        // bodyTilt was 0.45 rad which rotated the FEET out from under
+        // the player (the rotation pivot is the body origin, not the
+        // hips). Reduced to 0.18 — enough lean to read as "ready to
+        // fire off the line" without distorting the whole sprite.
+        bodyDY = 1.5;
+        bodyTilt = facing * 0.18;
         lArm = 0; rArm = 0;
         lLeg = 0; rLeg = 0;
       } else if (role === "WR1" || role === "WR2") {
@@ -1146,18 +1151,61 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
                     shinW * 0.92, accentCol, accentDk, accentLt);
       }
     }
-    // Cleat — team-secondary toe with a dark heel highlight so the foot
-    // reads as a colored shoe rather than a generic black block.
+    // Extend the sock down past the ankle so there's no gap between the
+    // sock and the cleat (the original cleat segment was the leg's
+    // bottom-half, but the new horizontal cleat needs a sock to land on).
+    const ankleX = kneeX + Math.sin(lowerA) * lowerLen * 0.92;
+    const ankleY = kneeY + Math.cos(lowerA) * lowerLen * 0.92 - lift * 0.32;
+    drawSegment(sockEndX, sockEndY, ankleX, ankleY, shinW, baseCol, baseDk, baseLt);
+    // Cleat — HORIZONTAL shoe shape at ground level, toe pulled forward
+    // in the facing direction. Replaces the old "segment along the leg
+    // direction" which made cleats look like a stubby continuation of
+    // the shin. Real cleats are low, flat, and toe-pointed.
     const cleatColor = secondary || "#1e1e26";
     const cleatDark  = tweakColor(cleatColor, 0.55) || "#000000";
     const cleatLight = tweakColor(cleatColor, 1.15) || "#3a3a44";
-    drawSegment(sockEndX, sockEndY, footX, footY, shinW * 1.02,
-                cleatColor, cleatDark, cleatLight);
-    // Dark sole strip along the bottom edge of the cleat for ground contact
-    ctx.fillStyle = "rgba(0,0,0,0.6)";
+    const toeFwd = facing * shinW * 0.95;     // toe juts forward
+    const heelBack = -facing * shinW * 0.45;  // heel slightly back
+    const cleatTop = footY - shinW * 0.35;
+    const cleatBot = footY + shinW * 0.30;
+    ctx.fillStyle = cleatColor;
     ctx.beginPath();
-    ctx.ellipse(footX, footY + 0.35, shinW * 0.95, 0.55, 0, 0, Math.PI * 2);
+    ctx.moveTo(footX + heelBack, cleatTop + 0.2);
+    ctx.quadraticCurveTo(footX + heelBack * 0.5, cleatTop - 0.2,
+                          footX + toeFwd * 0.4, cleatTop);
+    ctx.quadraticCurveTo(footX + toeFwd * 0.85, cleatTop + 0.1,
+                          footX + toeFwd, cleatTop + (cleatBot - cleatTop) * 0.55);
+    ctx.lineTo(footX + toeFwd * 0.8, cleatBot);
+    ctx.lineTo(footX + heelBack,     cleatBot);
+    ctx.closePath();
     ctx.fill();
+    // Lit side of the cleat — small highlight across the upper toe-cap
+    ctx.fillStyle = cleatLight;
+    ctx.beginPath();
+    ctx.moveTo(footX + toeFwd * 0.05, cleatTop + 0.1);
+    ctx.quadraticCurveTo(footX + toeFwd * 0.55, cleatTop - 0.15,
+                          footX + toeFwd * 0.85, cleatTop + 0.25);
+    ctx.lineTo(footX + toeFwd * 0.85, cleatTop + 0.55);
+    ctx.lineTo(footX + toeFwd * 0.05, cleatTop + 0.55);
+    ctx.closePath();
+    ctx.fill();
+    // Dark sole stripe along the bottom — ground contact line
+    ctx.fillStyle = "rgba(0,0,0,0.65)";
+    ctx.fillRect(footX + heelBack, cleatBot - 0.35,
+                 (toeFwd * 0.8) - heelBack, 0.5);
+    // Outline
+    ctx.strokeStyle = "rgba(0,0,0,0.75)";
+    ctx.lineWidth = 0.4;
+    ctx.beginPath();
+    ctx.moveTo(footX + heelBack, cleatTop + 0.2);
+    ctx.quadraticCurveTo(footX + heelBack * 0.5, cleatTop - 0.2,
+                          footX + toeFwd * 0.4, cleatTop);
+    ctx.quadraticCurveTo(footX + toeFwd * 0.85, cleatTop + 0.1,
+                          footX + toeFwd, cleatTop + (cleatBot - cleatTop) * 0.55);
+    ctx.lineTo(footX + toeFwd * 0.8, cleatBot);
+    ctx.lineTo(footX + heelBack,     cleatBot);
+    ctx.closePath();
+    ctx.stroke();
     // Foot dust — small light-tan puff behind the trailing foot during
     // run/carry. The leg with the LARGER lift is mid-swing (in the air),
     // so we kick up dust from the OTHER (planted, pushing-off) foot.
@@ -1229,41 +1277,59 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
       ctx.fill();
     }
     if (holdsBall) {
-      // Black cube held in the hand (replaces the football)
+      // Brown football — leather oval with white laces. Was a black
+      // isometric cube which had nothing to do with a football. The
+      // ball tilts in the carry direction (facing) so it points the
+      // way the player is moving, like a real tucked-in carry.
       ctx.save();
       ctx.translate(handX, handY + 0.4);
-      const s = 3.6;                   // cube half-edge in the hand
-      ctx.fillStyle = "#0a0a0a";
+      const tilt = -0.30 * facing;
+      ctx.rotate(tilt);
+      const rx = 3.6, ry = 1.8;        // oval radii
+      // Leather base — radial gradient for a slight 3D bulge
+      const ballGrad = ctx.createRadialGradient(-rx * 0.3, -ry * 0.5, 0.2,
+                                                 0, 0, rx * 1.2);
+      ballGrad.addColorStop(0,    "#a86a3a");
+      ballGrad.addColorStop(0.55, "#7a4a26");
+      ballGrad.addColorStop(1,    "#4a2c14");
+      ctx.fillStyle = ballGrad;
       ctx.beginPath();
-      ctx.moveTo(-s,  s * 0.6); ctx.lineTo( s,  s * 0.6);
-      ctx.lineTo( s, -s * 0.4); ctx.lineTo(-s, -s * 0.4); ctx.closePath();
+      ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = "#2a2a2e";
+      // White laces — three small bars across the top center
+      ctx.fillStyle = "#f5f5f0";
+      ctx.fillRect(-0.9, -0.35, 1.8, 0.55);
+      ctx.strokeStyle = "rgba(40,30,20,0.7)";
+      ctx.lineWidth = 0.18;
+      for (let i = 0; i < 4; i++) {
+        const lx = -0.7 + i * 0.46;
+        ctx.beginPath();
+        ctx.moveTo(lx, -0.45);
+        ctx.lineTo(lx,  0.30);
+        ctx.stroke();
+      }
+      // White ring stripes at each end (NFL ball has them; college doesn't,
+      // but stylized white stripes help the ball read at small scales)
+      ctx.fillStyle = "rgba(245,245,240,0.85)";
+      ctx.fillRect( rx * 0.55, -ry * 0.7, 0.35, ry * 1.4);
+      ctx.fillRect(-rx * 0.55 - 0.35, -ry * 0.7, 0.35, ry * 1.4);
+      // Outline
+      ctx.strokeStyle = "rgba(0,0,0,0.65)";
+      ctx.lineWidth = 0.35;
       ctx.beginPath();
-      ctx.moveTo(-s,        -s * 0.4); ctx.lineTo( s,        -s * 0.4);
-      ctx.lineTo( s + s * 0.4, -s * 0.85); ctx.lineTo(-s + s * 0.4, -s * 0.85);
-      ctx.closePath();
-      ctx.fill();
-      ctx.fillStyle = "#1a1a1d";
-      ctx.beginPath();
-      ctx.moveTo( s,            s * 0.6);
-      ctx.lineTo( s + s * 0.4,  s * 0.15);
-      ctx.lineTo( s + s * 0.4, -s * 0.85);
-      ctx.lineTo( s,           -s * 0.4);
-      ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = "rgba(0,0,0,0.9)";
-      ctx.lineWidth = 0.6;
-      ctx.beginPath();
-      ctx.moveTo(-s,  s * 0.6); ctx.lineTo( s,  s * 0.6);
-      ctx.lineTo( s, -s * 0.4); ctx.lineTo(-s, -s * 0.4); ctx.closePath();
-      ctx.moveTo(-s,           -s * 0.4); ctx.lineTo(-s + s * 0.4, -s * 0.85);
-      ctx.moveTo( s,           -s * 0.4); ctx.lineTo( s + s * 0.4, -s * 0.85);
-      ctx.moveTo(-s + s * 0.4, -s * 0.85); ctx.lineTo( s + s * 0.4, -s * 0.85);
-      ctx.moveTo( s,            s * 0.6); ctx.lineTo( s + s * 0.4,  s * 0.15);
-      ctx.moveTo( s + s * 0.4,  s * 0.15); ctx.lineTo( s + s * 0.4, -s * 0.85);
+      ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
+      // Fingers wrapping the near end of the ball — small glove/skin
+      // bumps sticking out from behind the ball at the carry-side end.
+      const wrapColor = wearsGloves ? (secondary || "#222") : skin.dark;
+      ctx.fillStyle = wrapColor;
+      ctx.beginPath();
+      ctx.ellipse(handX - facing * 2.4, handY + 0.6, 0.9, 1.3, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,0.55)";
+      ctx.lineWidth = 0.3;
+      ctx.stroke();
     }
     return { handX, handY };
   };
