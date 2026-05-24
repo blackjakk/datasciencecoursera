@@ -1451,6 +1451,123 @@ class GameSimulator {
   // is a high-assist gang tackle, etc. See _tackleWeightsForContext.
   //
   // Backwards-compat: callers can still pass a raw weights object
+  // Build per-slot WR/TE/RB route tracks for a pass play. Shared by
+  // complete, incomplete, and int handlers so route fidelity is
+  // consistent regardless of outcome.
+  _buildPassRouteTracks(opts) {
+    const { targetSlot, targetDepth, yac = 0, concept, throwT } = opts;
+    const slotRouteShape = (slot, conc) => {
+      switch (conc) {
+        case "QUICK_GAME":   return { breakF: 0.30, depthFAtBreak: 0.40, depth: 6,  latAtBreak: 0.5, latAtCatch: slot === "te" ? -1.5 : 2.5 };
+        case "DRAG_MESH":
+          if (slot === "wr1") return { breakF: 0.30, depthFAtBreak: 0.20, depth: 6,  latAtBreak: 3.0, latAtCatch: 8.0 };
+          if (slot === "wr2") return { breakF: 0.30, depthFAtBreak: 0.20, depth: 8,  latAtBreak: -2.5, latAtCatch: -6.0 };
+          if (slot === "te")  return { breakF: 0.55, depthFAtBreak: 0.70, depth: 12, latAtBreak: 1.0, latAtCatch: 3.0 };
+          return { breakF: 0.30, depthFAtBreak: 0.20, depth: 5, latAtBreak: 0, latAtCatch: 4 };
+        case "INTERMEDIATE":
+          if (slot === "wr1") return { breakF: 0.72, depthFAtBreak: 1.00, depth: 14, latAtBreak: 0.0, latAtCatch: -3.0 };
+          if (slot === "wr2") return { breakF: 0.72, depthFAtBreak: 1.00, depth: 12, latAtBreak: 0.0, latAtCatch: 3.0 };
+          if (slot === "te")  return { breakF: 0.50, depthFAtBreak: 0.65, depth: 10, latAtBreak: 0.0, latAtCatch: 0.0 };
+          return { breakF: 0.50, depthFAtBreak: 0.50, depth: 8, latAtBreak: 0, latAtCatch: 0 };
+        case "VERTICAL":
+        case "PA_SHOT":
+          if (slot === "wr1") return { breakF: 0.95, depthFAtBreak: 0.95, depth: 22, latAtBreak: 0.0, latAtCatch: 0.0 };
+          if (slot === "wr2") return { breakF: 0.95, depthFAtBreak: 0.95, depth: 22, latAtBreak: 0.0, latAtCatch: 0.0 };
+          if (slot === "te")  return { breakF: 0.95, depthFAtBreak: 0.95, depth: 18, latAtBreak: 0.0, latAtCatch: 1.5 };
+          return { breakF: 0.95, depthFAtBreak: 0.95, depth: 18, latAtBreak: 0, latAtCatch: 0 };
+        case "SCREEN":
+          return null;
+        default:
+          return { breakF: 0.50, depthFAtBreak: 0.50, depth: 10, latAtBreak: 0.0, latAtCatch: 0.0 };
+      }
+    };
+    const trackFor = (slot) => {
+      const shape = slotRouteShape(slot, concept);
+      if (!shape) return null;
+      const isTgt = slot === targetSlot;
+      const endDepth = isTgt ? targetDepth : shape.depth;
+      const endLat   = shape.latAtCatch;
+      const wps = [
+        { t: 0,                                          dxYd: 0,                              dyYd: 0 },
+        { t: throwT * shape.breakF,                      dxYd: endDepth * shape.depthFAtBreak, dyYd: shape.latAtBreak },
+        { t: throwT,                                     dxYd: endDepth,                       dyYd: endLat },
+      ];
+      if (isTgt && yac > 0) {
+        wps.push({ t: Math.min(1, throwT + (1 - throwT) * 0.85), dxYd: endDepth + yac, dyYd: endLat + Math.min(2, yac * 0.05) });
+        wps.push({ t: 1, dxYd: endDepth + yac, dyYd: endLat + Math.min(2, yac * 0.05) });
+      } else {
+        wps.push({ t: Math.min(1, throwT + (1 - throwT) * 0.85), dxYd: endDepth + 2, dyYd: endLat });
+        wps.push({ t: 1, dxYd: endDepth + 2, dyYd: endLat });
+      }
+      return { role: slot.toUpperCase(), origin: { slot }, waypoints: wps };
+    };
+    const tracks = {};
+    for (const slot of ["wr1", "wr2", "te", "rb"]) {
+      if (!this.offR.starters[slot === "te" ? "te" : slot]) continue;
+      const trk = trackFor(slot);
+      if (trk) tracks[slot] = trk;
+    }
+    return tracks;
+  }
+  // Build LB / FS / SS hook-zone drop tracks for pass plays. Skips
+  // the slot matching the credited tackler (their tackler track wins).
+  _buildPassZoneDrops(opts) {
+    const { tacklerSlot, throwT } = opts;
+    const out = {};
+    const lbHookDrops = {
+      lb1: { dxYd: 5, dyYd: -7 },
+      lb2: { dxYd: 5, dyYd:  0 },
+      lb3: { dxYd: 5, dyYd:  7 },
+    };
+    for (const lbN of ["lb1", "lb2", "lb3"]) {
+      if (tacklerSlot === lbN) continue;
+      const drop = lbHookDrops[lbN];
+      out[lbN] = {
+        role: "LB",
+        waypoints: [
+          { t: 0.00, dxYd: 4, dyYd: drop.dyYd * 0.4 },
+          { t: 0.20, dxYd: drop.dxYd, dyYd: drop.dyYd },
+          { t: throwT, dxYd: drop.dxYd, dyYd: drop.dyYd },
+          { t: 0.78, dxYd: drop.dxYd, dyYd: drop.dyYd },
+          { t: 1.00, dxYd: drop.dxYd, dyYd: drop.dyYd },
+        ],
+      };
+    }
+    if (tacklerSlot !== "fs") {
+      out.fs = {
+        role: "FS",
+        waypoints: [
+          { t: 0.00, dxYd: 12, dyYd: 0 }, { t: 0.20, dxYd: 14, dyYd: 0 },
+          { t: throwT, dxYd: 15, dyYd: 0 }, { t: 0.78, dxYd: 15, dyYd: 0 }, { t: 1.00, dxYd: 15, dyYd: 0 },
+        ],
+      };
+    }
+    if (tacklerSlot !== "ss") {
+      out.ss = {
+        role: "SS",
+        waypoints: [
+          { t: 0.00, dxYd: 8, dyYd: 5 }, { t: 0.20, dxYd: 9, dyYd: 4 },
+          { t: throwT, dxYd: 10, dyYd: 3 }, { t: 0.78, dxYd: 10, dyYd: 3 }, { t: 1.00, dxYd: 10, dyYd: 3 },
+        ],
+      };
+    }
+    return out;
+  }
+  // Resolve a player name to a defensive formation slot key
+  // (cb1/cb2/fs/ss/lb1/lb2/lb3/nb), or null if not a starter.
+  _resolveDefSlot(name) {
+    if (!name || !this.defR || !this.defR.starters) return null;
+    const ds = this.defR.starters;
+    return name === ds.cb1 ? "cb1"
+         : name === ds.cb2 ? "cb2"
+         : name === ds.fs  ? "fs"
+         : name === ds.ss  ? "ss"
+         : name === ds.lb1 ? "lb1"
+         : name === ds.lb2 ? "lb2"
+         : name === ds.lb3 ? "lb3"
+         : name === ds.nb  ? "nb"
+         : null;
+  }
   // ({ LB, S, CB, DL }) — recognized by the presence of those keys.
   _creditTackle(contextOrWeights) {
     let weights, assistRate;
@@ -3676,6 +3793,24 @@ class GameSimulator {
         // intercepter's role (CB / S based on coverage assignment),
         // return distance, whether it's a pick-six. Animation renders
         // it. Same schema as run-play fumble motion.
+        // PATH B Phase 6 — INT also gets per-slot routes + LB drops
+        // (engine credits intercepter via _resolveDefSlot; receivers
+        // still run their routes up to the pick moment).
+        const _intIntendedSlot = rcvr === this.offR.starters.wr1 ? "wr1"
+                               : rcvr === this.offR.starters.wr2 ? "wr2"
+                               : rcvr === this.offR.starters.te  ? "te"
+                               : rcvr === this.offR.starters.rb  ? "rb"
+                               : null;
+        const _intScaledMs = Math.max(2200, Math.min(11500, Math.abs(Math.max(targetDepth, 8)) / 12 * 1000 + 1000));
+        const _intPostCatchMs = 1500;
+        const _intActionMs = _intScaledMs + _intPostCatchMs;
+        const _intThrowT = _intScaledMs / _intActionMs;
+        const _intRouteTracks = _intIntendedSlot ? this._buildPassRouteTracks({
+          targetSlot: _intIntendedSlot, targetDepth, yac: 0,
+          concept: this._lastPassConcept, throwT: _intThrowT,
+        }) : {};
+        const _intDefSlot = this._resolveDefSlot(intBy);
+        const _intZoneDrops = this._buildPassZoneDrops({ tacklerSlot: _intDefSlot, throwT: _intThrowT });
         const _intMotion = {
           intercepterRole: (intBy && this.defR && this.defR.starters)
             ? (intBy === this.defR.starters.cb1 || intBy === this.defR.starters.cb2 ? "CB"
@@ -3687,6 +3822,9 @@ class GameSimulator {
           returnYds:  finalRetYds,
           isPickSix:  isPickSix,
           isTouchback: isTouchback,
+          targetSlot: _intIntendedSlot,
+          throwT: _intThrowT,
+          tracks: { ..._intRouteTracks, ..._intZoneDrops },
         };
         this._pushVisual({
           kind: "int", desc: isPickSix
@@ -4775,6 +4913,22 @@ class GameSimulator {
         else if ((pick -= wUndertrown) < 0) { incReason = "underthrown"; incDesc = `${QB}'s pass UNDERTHROWN — ${rcvr} can't reach it`; }
         else                                { incReason = "offtarget"; incDesc = `${QB}'s pass off-target — ${rcvr} can't get there`; }
       }
+      // PATH B Phase 6 — incomplete also gets per-slot routes + LB drops
+      const _incTargetSlot = rcvr === this.offR.starters.wr1 ? "wr1"
+                           : rcvr === this.offR.starters.wr2 ? "wr2"
+                           : rcvr === this.offR.starters.te  ? "te"
+                           : rcvr === this.offR.starters.rb  ? "rb"
+                           : null;
+      const _incScaledMs = Math.max(2200, Math.min(11500, Math.abs(Math.max(targetDepth, 8)) / 12 * 1000 + 1000));
+      const _incPostCatchMs = 600;
+      const _incActionMs = _incScaledMs + _incPostCatchMs;
+      const _incThrowT = _incScaledMs / _incActionMs;
+      const _incRouteTracks = _incTargetSlot ? this._buildPassRouteTracks({
+        targetSlot: _incTargetSlot, targetDepth, yac: 0,
+        concept: this._lastPassConcept, throwT: _incThrowT,
+      }) : {};
+      const _incZoneDrops = this._buildPassZoneDrops({ tacklerSlot: null, throwT: _incThrowT });
+      const _incHasMotion = Object.keys(_incRouteTracks).length > 0;
       this._pushVisual({
         kind: "incomplete",
         desc: incDesc,
@@ -4782,6 +4936,11 @@ class GameSimulator {
         passer: this.offR.starters.qb, intended: rcvr, defender: pdName,
         isDrop, isPlayAction, isFleaFlicker, isLeapMiss, incReason,
         concept: this._lastPassConcept, coverage: this._lastPassCoverage,
+        motion: _incHasMotion ? {
+          targetSlot: _incTargetSlot,
+          throwT: _incThrowT,
+          tracks: { ..._incRouteTracks, ..._incZoneDrops },
+        } : null,
       });
       return { yards: 0, incomplete: true };
     }

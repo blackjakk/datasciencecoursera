@@ -3246,7 +3246,8 @@ function buildAnimForPlay(play, prevPlay) {
         // existing post-catch _postCatchPursuerSet logic still owns
         // the after-catch convergence.
         let _passSecondaryTrack = null;
-        if (play.kind === "complete" && t < throwPhase && !_isPassTacklerByName && play.motion?.tracks) {
+        const _isPassKind = play.kind === "complete" || play.kind === "incomplete" || play.kind === "int";
+        if (_isPassKind && t < throwPhase && !_isPassTacklerByName && play.motion?.tracks) {
           const ti = play.motion.tracks;
           const isLBIdx = (i >= idxLB1 && i < idxCB1);
           const lbOrdinal = i - idxLB1;     // 0, 1, 2
