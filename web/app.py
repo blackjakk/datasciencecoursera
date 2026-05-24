@@ -84,10 +84,11 @@ _init_state()
 
 
 (tab_setup, tab_keepers, tab_draft, tab_insights, tab_positions,
- tab_tendencies, tab_history) = st.tabs([
+ tab_tendencies, tab_history, tab_assets, tab_trade) = st.tabs([
     "1. Setup", "2. Keeper Predictions", "3. Live Draft",
     "4. Historical Insights", "5. Position-by-Round",
     "6. Team Tendencies", "7. League History",
+    "8. Pre-Draft Assets", "9. Trade Evaluator",
 ])
 
 
@@ -1061,6 +1062,201 @@ with tab_history:
                         "Margin": round(r["fpts"] - r["fpts_against"], 1),
                     })
                 st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+
+# ------------------------------------------------------------------------
+# Tab 8: Pre-Draft Assets (every team's total draft capital in VBD)
+# ------------------------------------------------------------------------
+
+with tab_assets:
+    st.header("Pre-Draft Team Assets")
+    st.caption(
+        "Each team's total draft capital before the draft starts: pick "
+        "value (empirical, from historical drafts) + keeper VBD. Picks "
+        "they forfeit to declare keepers are removed; traded picks are "
+        "reassigned to the new owner."
+    )
+
+    pv_path = ROOT / "data" / "pick_value.json"
+    kp_path = ROOT / "data" / "keepers_2026.json"
+    if not (pv_path.exists() and kp_path.exists()):
+        st.warning("Missing data/pick_value.json or data/keepers_2026.json. "
+                   "Run scripts/build_pick_value.py and "
+                   "scripts/build_2026_keepers.py.")
+    else:
+        league = st.session_state.league
+        team_names = (st.session_state.get("team_names")
+                      or [f"Team {i+1}" for i in range(league.num_teams)]
+                      if league else None)
+        if not (league and team_names):
+            st.info("Load the league in Tab 1 first.")
+        else:
+            from fantasy_draft.draft import Draft as _Draft  # noqa: E402
+            from fantasy_draft.trades import apply_trades as _apply_trades  # noqa: E402
+
+            pv = _json.loads(pv_path.read_text())
+            pv_blind = {int(r): d["mean_vbd"] for r, d in pv["by_round"].items()}
+            keeper_records = _json.loads(kp_path.read_text())
+
+            # Build a fresh draft to determine pick ownership (apply trades, then
+            # mark forfeited rounds via the keepers themselves).
+            asset_draft = _Draft.new(league, team_names=team_names)
+            for _ln in _apply_trades(asset_draft, st.session_state.traded_picks or []):
+                pass
+            # Mark forfeited rounds per team_idx from the carryover keepers.
+            forfeit_by_team: dict[int, list[int]] = {}
+            keeper_vbd_by_team: dict[int, float] = {}
+            keepers_by_team: dict[int, list[str]] = {}
+            for r in keeper_records:
+                if r.get("status") != "carryover":
+                    continue
+                tidx = int(r["team_idx"])
+                forfeit_by_team.setdefault(tidx, []).append(int(r["forfeit_round"]))
+                keeper_vbd_by_team[tidx] = keeper_vbd_by_team.get(tidx, 0.0) + (r.get("net_vbd") or 0)
+                keepers_by_team.setdefault(tidx, []).append(
+                    f"{r['player_name']} (R{r['forfeit_round']}, {(r.get('net_vbd') or 0):+.0f})"
+                )
+
+            rows = []
+            for tidx, team in enumerate(asset_draft.teams):
+                # Picks the team owns post-trades, excluding forfeited rounds.
+                forfeited = set(forfeit_by_team.get(tidx, []))
+                own_picks = [p for p in asset_draft.picks
+                              if p.team_idx == tidx and p.round_num not in forfeited]
+                pick_value_total = sum(pv_blind.get(p.round_num, 0.0) for p in own_picks)
+                keeper_value = keeper_vbd_by_team.get(tidx, 0.0)
+                total = pick_value_total + keeper_value
+                rows.append({
+                    "Team": team.name,
+                    "Picks owned": len(own_picks),
+                    "Pick value (VBD)": round(pick_value_total, 1),
+                    "Keepers": len(keepers_by_team.get(tidx, [])),
+                    "Keeper VBD": round(keeper_value, 1),
+                    "TOTAL VBD": round(total, 1),
+                })
+            rows.sort(key=lambda r: -r["TOTAL VBD"])
+            df = pd.DataFrame(rows)
+            st.dataframe(df, use_container_width=True, hide_index=True)
+            st.caption(
+                "**TOTAL VBD** is the sum of (empirical mean VBD per pick "
+                "the team owns) + (net VBD of each kept player). Higher = "
+                "stronger draft position."
+            )
+
+            with st.expander("Per-team keeper details"):
+                for r in sorted(rows, key=lambda x: -x["TOTAL VBD"]):
+                    tidx = next(i for i, t in enumerate(asset_draft.teams) if t.name == r["Team"])
+                    kps = keepers_by_team.get(tidx, [])
+                    forfeited = sorted(forfeit_by_team.get(tidx, []))
+                    st.markdown(
+                        f"**{r['Team']}** — {len(kps)} keeper(s), "
+                        f"forfeit rounds: {forfeited or '(none)'}"
+                    )
+                    if kps:
+                        for k in kps:
+                            st.text(f"  • {k}")
+
+
+# ------------------------------------------------------------------------
+# Tab 9: Trade Evaluator (compare two sides in pick + player VBD)
+# ------------------------------------------------------------------------
+
+with tab_trade:
+    st.header("Trade Evaluator")
+    st.caption(
+        "Sum picks + players on each side in VBD. Picks use the empirical "
+        "round-mean from historical drafts (position-blind); players use "
+        "their current 2026 VBD. Threshold for a 'fair' trade is ±20 VBD."
+    )
+
+    pv_path = ROOT / "data" / "pick_value.json"
+    if not pv_path.exists():
+        st.warning("Run scripts/build_pick_value.py first.")
+    else:
+        league = st.session_state.league
+        players = st.session_state.players
+        if not (league and players):
+            st.info("Load the league + players in Tab 1 first.")
+        else:
+            pv = _json.loads(pv_path.read_text())
+            pv_blind = {int(r): d["mean_vbd"] for r, d in pv["by_round"].items()}
+
+            # Recompute VBD without any keepers removed (baseline view).
+            from fantasy_draft.vbd import compute_vbd as _compute_vbd  # noqa: E402
+            _compute_vbd(players, league)
+            player_lookup = {p.name: p for p in sorted(players, key=lambda x: -x.vbd)}
+            player_options = ["(select)"] + list(player_lookup.keys())[:300]  # top 300 by VBD
+
+            pick_options = [f"R{r}" for r in range(1, league.rounds + 1)]
+
+            colA, colB = st.columns(2)
+
+            def _side_inputs(label: str, key_prefix: str):
+                """UI for one side of the trade. Returns (picks_total, players_total, items)."""
+                st.subheader(label)
+                n_picks = st.number_input(
+                    f"# picks", min_value=0, max_value=8, value=0,
+                    key=f"{key_prefix}_n_picks",
+                )
+                picks_total = 0.0
+                pick_items = []
+                for i in range(int(n_picks)):
+                    rnd_label = st.selectbox(
+                        f"Pick {i+1}", pick_options,
+                        key=f"{key_prefix}_pick_{i}",
+                    )
+                    rnd = int(rnd_label[1:])
+                    v = pv_blind.get(rnd, 0.0)
+                    picks_total += v
+                    pick_items.append(f"{rnd_label} = {v:+.0f} VBD")
+                n_players = st.number_input(
+                    f"# players", min_value=0, max_value=6, value=0,
+                    key=f"{key_prefix}_n_players",
+                )
+                players_total = 0.0
+                player_items = []
+                for i in range(int(n_players)):
+                    nm = st.selectbox(
+                        f"Player {i+1}", player_options,
+                        key=f"{key_prefix}_player_{i}",
+                    )
+                    if nm and nm != "(select)":
+                        p = player_lookup.get(nm)
+                        if p:
+                            players_total += p.vbd
+                            player_items.append(f"{p.name} ({p.position}) = {p.vbd:+.1f} VBD")
+                total = picks_total + players_total
+                st.metric(f"{label} total", f"{total:+.1f} VBD")
+                with st.expander(f"{label} itemized"):
+                    for it in pick_items + player_items:
+                        st.text(f"  • {it}")
+                return total, pick_items + player_items
+
+            with colA:
+                total_a, items_a = _side_inputs("Side A", "trade_a")
+            with colB:
+                total_b, items_b = _side_inputs("Side B", "trade_b")
+
+            st.divider()
+            delta = total_a - total_b
+            abs_d = abs(delta)
+            if abs_d <= 20:
+                verdict = "✅ **FAIR TRADE** (within ±20 VBD)"
+                color = "green"
+            elif abs_d <= 50:
+                winner = "Side A" if delta > 0 else "Side B"
+                verdict = f"⚖️ **Slight edge to {winner}** ({abs_d:.0f} VBD)"
+                color = "blue"
+            else:
+                winner = "Side A" if delta > 0 else "Side B"
+                verdict = f"🚨 **LOPSIDED — {winner} wins** ({abs_d:.0f} VBD)"
+                color = "red"
+            st.markdown(f"### {verdict}")
+            st.caption(
+                f"Side A: {total_a:+.1f} VBD  |  "
+                f"Side B: {total_b:+.1f} VBD  |  "
+                f"Delta: {delta:+.1f}"
+            )
 
 
 def _show_final(draft: Draft):
