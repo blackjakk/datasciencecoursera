@@ -1646,8 +1646,13 @@ function buildAnimForPlay(play, prevPlay) {
             dd.pose = "run";
             dd.t = (t * 3) % 1;
           } else {
-            // Stuck at LOS, getting pushed back slightly
-            dd.x = d.x - dir * tt * 4 + Math.sin(tt * Math.PI * 5) * 1.5;
+            // Stuck at LOS — hold position with jitter. Old code moved
+            // the DL by -dir*tt*4 which (despite the "pushed back"
+            // comment) was actually moving them TOWARD the offense's
+            // home — combined with the OL also moving toward the DL,
+            // the bodies crossed straight through each other. Now both
+            // sides hold their initial line and engage at the LOS.
+            dd.x = d.x + Math.sin(tt * Math.PI * 6 + i * 0.4) * 1.5;
             dd.y = d.y + wobble;
             dd.pose = "engage";
             dd.t = tt;
@@ -1727,10 +1732,15 @@ function buildAnimForPlay(play, prevPlay) {
         if (t < PRE) return { ...p, pose: "stance" };
         const tt = runT;
         if (p.role === "OL") {
-          // Push forward 8-10 px to meet the DL; wobble a bit during engagement
+          // Engage DL at the LOS — small forward drive + jitter, but do
+          // NOT fire 9px forward past the DL (which made OL+DL bodies
+          // clip through each other every play). Forward drive capped at
+          // ~3 px = "winning the rep slightly" without crossing into
+          // the defender's space.
           const slot = (p.y - cy) / 14;
           const wobble = Math.sin(tt * Math.PI * 5 + slot * 1.7) * 1.5;
-          return { ...p, x: p.x + dir * tt * 9, y: p.y + wobble, pose: "engage", t: tt, facing: dir };
+          const drive = dir * Math.min(tt * 6, 3);
+          return { ...p, x: p.x + drive, y: p.y + wobble, pose: "engage", t: tt, facing: dir };
         }
         if (p.role === "TE") {
           // TE seals the edge — engage a defender to the side, doesn't run free
@@ -2378,8 +2388,12 @@ function buildAnimForPlay(play, prevPlay) {
             // After release, the rusher arrives in the QB's face and engages
             dd.pose = aT > throwFrac ? "engage" : "run";
           } else if (aT < throwFrac + 0.05) {
+            // DL stuck at LOS engaged with OL — hold position with jitter.
+            // Old code moved them -dir*4*tt (toward the offense) which
+            // crossed straight through the retreating OL. Now both hold
+            // the line and look like a real LOS engagement.
             const wobble = Math.sin(tt * Math.PI * 6 + d.y * 0.08) * 1.2;
-            dd.x = d.x - dir * 4 * tt + wobble * 0.4;
+            dd.x = d.x + wobble * 0.6;
             dd.y = d.y + wobble;
             dd.pose = "engage";
             dd.t = tt;

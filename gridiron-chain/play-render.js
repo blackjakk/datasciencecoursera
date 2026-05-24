@@ -969,10 +969,18 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
       bodyTilt = facing * 0.15;
       break;
     case "engage":
-      lArm = Math.PI / 2 - 0.2;
-      rArm = Math.PI / 2 + 0.2;
+      // Engagement arms — biceps forward at ~46°, forearms FOLDED BACK
+      // toward 11° so the HAND lands on the opponent's body (3-4 units
+      // in front of the player) instead of fully extending 12+ units
+      // past the opponent. Old pose was arms straight forward (PI/2)
+      // which made hands clip way through whoever was being blocked.
+      lArm = 0.8;
+      rArm = 0.8;
+      lForearmOverride = 0.20;
+      rForearmOverride = 0.20;
+      // Slight stagger and forward weight — pushing-into-opponent
       lLeg = 0.4; rLeg = -0.4;
-      bodyTilt = facing * 0.2;
+      bodyTilt = facing * 0.18;
       bodyDY = Math.sin(t * Math.PI * 6) * 0.4;
       break;
     case "sack":
