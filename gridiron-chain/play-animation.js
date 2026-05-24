@@ -1691,13 +1691,25 @@ function buildAnimForPlay(play, prevPlay) {
       // Use two independent seeds so we can roll two moves per play
       const seedA = ((play.startYard * 17 + (play.yards || 0) * 53) >>> 0) % 100 / 100;
       const seedB = ((play.startYard * 41 + (play.yards || 0) * 29 + 7) >>> 0) % 100 / 100;
-      // Pre-pick which pursuer is the primary tackler (gets the visible
-      // "hit" or "dive" pose at the tackle moment). Hashed off the play
-      // so the same play picks the same tackler every render. Range is
-      // the LB/CB/S pursuit pool (i>=4); DL stay engaged at LOS.
+      // PATH B: tackler decision comes from play.motion (engine-owned).
+      // Falls back to per-play hash if engine didn't emit motion data
+      // (older plays or non-run kinds that don't populate it yet).
       const tacklerHash = (((play.startYard * 31) ^ ((play.yards||0) * 17) ^ ((play.time||0) * 13)) >>> 0);
       const numPursuers = Math.max(1, formation.defense.length - 4);
-      const primaryTacklerIdx = 4 + (tacklerHash % numPursuers);
+      // Map play.motion.tacklerRole → defender index in formation.defense
+      function _idxForTacklerRole(role) {
+        if (role === "MLB") return idxLBmid;
+        if (role === "OLB") return (tacklerHash & 1) ? idxLB1 : idxLB3;
+        if (role === "SS")  return idxS1;
+        if (role === "FS")  return idxS2;
+        if (role === "CB")  return (tacklerHash & 1) ? idxCB1 : idxCB2;
+        return null;
+      }
+      const _motionRole = (play.motion && play.motion.tacklerRole) || null;
+      const _motionIdx = _motionRole ? _idxForTacklerRole(_motionRole) : null;
+      const primaryTacklerIdx = (_motionIdx != null && _motionIdx < formation.defense.length)
+        ? _motionIdx
+        : 4 + (tacklerHash % numPursuers);
       // Tackler-arrives-via-dive odds. Mechanism overrides the random
       // pick: "low" tackles (cut/shoestring) are ALWAYS dive; "behind"
       // tackles (chase-down) are NEVER dive; others use the per-play

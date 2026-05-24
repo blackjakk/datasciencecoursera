@@ -5017,7 +5017,37 @@ class GameSimulator {
         : runVariantTag
           ? `${this.offR.starters.rb} ${runVariantTag} for ${yards} yds${brokeNote}${rushEndTag}`
           : `${this.offR.starters.rb} runs for ${yards} yds${brokeNote}${rushEndTag}`;
-    this._pushVisual({ kind: "run", desc, startYard, yards, endYard: clamp(startYard + yards, 0, 100), rusher: carrier, isQBRun, isReverse, runType, isSpeedOption, isPitch, optionRead, tackler: tacklerName, brokenTackles, isTwoBack: useTwoBack, fb: useTwoBack ? this.offR.starters.rb2 : null });
+    // ── PATH B: motion intent for animation playback ─────────────
+    // play.motion carries decisions the engine makes about the play's
+    // visual shape. Animation reads these instead of inferring (which
+    // is what created all the rubber-band / hash patches). Phase 1
+    // schema:
+    //   tacklerRole   – role of the tackling defender (MLB/OLB/SS/FS/CB)
+    //                   Animation maps role → defender index.
+    //   tackleT       – action-time when the tackle happens (0..1)
+    //   hitDir        – impact unit vector (carrier knockback direction)
+    //   carrierEndDY  – lateral Y offset of the carrier's final spot
+    //                   (relative to cy), so animation doesn't hash.
+    // Tackler-role decision lives here so it reflects the play context
+    // (gap type, run type, yardage) rather than a per-play hash.
+    let _tacklerRole = "MLB";
+    if (yards >= 15)              _tacklerRole = "FS";          // breakaway → free safety
+    else if (yards >= 8)          _tacklerRole = "SS";          // intermediate → strong safety
+    else if (runType === "stretch" || runType === "pitch") _tacklerRole = "OLB";  // outside → edge LB
+    else if (runType === "counter") _tacklerRole = "MLB";       // misdirection → MLB cleans up
+    else                          _tacklerRole = "MLB";         // inside / default → MLB
+    // Hit direction — carrier knocked back along the motion axis with
+    // a slight lateral component based on tackler approach.
+    const _hitSeed = (startYard * 7 + (yards * 11)) >>> 0;
+    const _hitLatSign = (_hitSeed & 1) ? 1 : -1;
+    const _carrierEndDY = ((_hitSeed >> 1) & 31) - 15;   // -15..+15 px
+    const _motion = {
+      tacklerRole: _tacklerRole,
+      tackleT:    0.78,                                  // matches TACKLE_START_AT in animation
+      hitDir:     { dx: -1, dy: _hitLatSign * 0.3 },     // pushed backward + lateral
+      carrierEndDY: _carrierEndDY,
+    };
+    this._pushVisual({ kind: "run", desc, startYard, yards, endYard: clamp(startYard + yards, 0, 100), rusher: carrier, isQBRun, isReverse, runType, isSpeedOption, isPitch, optionRead, tackler: tacklerName, brokenTackles, isTwoBack: useTwoBack, fb: useTwoBack ? this.offR.starters.rb2 : null, motion: _motion });
     return { yards };
   }
   _drive() {
