@@ -454,7 +454,20 @@ def compute_data():
         "n_years": n_years,
         "luck": dict(luck),
         "champion_per_season": champion_per_season,
+        "historical": _load_historical(),
     }
+
+
+def _load_historical() -> dict | None:
+    """Load 2015-2024 draft skill from data/historical_draft_skill.json.
+    Returns None if the file isn't present (the section is just skipped)."""
+    path = ROOT / "data" / "historical_draft_skill.json"
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text())
+    except Exception:
+        return None
 
 
 def build_markdown(D: dict) -> str:
@@ -685,6 +698,84 @@ def build_markdown(D: dict) -> str:
         md.append(f"| {i} | **{c['name']}** | {c['draft']:.0f} | {c['wire']:.0f} | "
                   f"{c['trade']:.0f} | **{c['skill']:.0f}** | {c['luck']:.0f} | {c['note']} |")
     md.append("")
+
+    # ========== 10-Year Draft Dynasty ==========
+    hist = D.get("historical")
+    if hist:
+        md.append("## 📜 10-YEAR DRAFT DYNASTY (2015-2024)")
+        md.append("Per-season VBD over 10 league seasons, using xlsx cell-color "
+                  "attribution + public nflverse season stats. Three scoring eras: "
+                  "Standard (2015-18: 10-team, 0 PPR), Half-PPR Yahoo (2019-22: "
+                  "12-team, 2QB), Superflex Sleeper (2023-24). 2025 covered in the "
+                  "live tables above.\n")
+        years = [int(y) for y in hist["years"]]
+        cum = hist["cumulative"]
+
+        # Cumulative — tenured (10-season) managers first, then partial-tenure
+        full = [(mid, r) for mid, r in cum.items() if r["seasons"] == len(years)]
+        partial = [(mid, r) for mid, r in cum.items() if r["seasons"] < len(years)]
+        full.sort(key=lambda kv: -kv[1]["vbd_per_season"])
+        partial.sort(key=lambda kv: -kv[1]["vbd_per_season"])
+        md.append("### 10-year cumulative (full-tenure managers)")
+        md.append("| Rank | Manager | Per-season VBD | 10-yr Total | Picks matched |")
+        md.append("|---|---|---|---|---|")
+        for i, (mid, r) in enumerate(full, 1):
+            md.append(f"| {i} | **{r['manager_name']}** | "
+                      f"{r['vbd_per_season']:+.0f} | {r['total_vbd']:+.0f} | "
+                      f"{r['n_matched']}/{r['n_picks']} |")
+        if partial:
+            md.append("\n### Partial-tenure managers")
+            md.append("| Manager | Seasons | Per-season VBD | Years |")
+            md.append("|---|---|---|---|")
+            for mid, r in partial:
+                played = sorted(int(y) for y in hist["per_season"]
+                                if mid in hist["per_season"][y])
+                yrs = ", ".join(str(y) for y in played)
+                md.append(f"| {r['manager_name']} | {r['seasons']} | "
+                          f"{r['vbd_per_season']:+.0f} | {yrs} |")
+
+        # Per-era champions
+        md.append("\n### Per-era leaders")
+        def era_top3(yr_range, label):
+            ms: dict[str, list[float]] = {}
+            for y in yr_range:
+                for mid, r in hist["per_season"].get(str(y), {}).items():
+                    ms.setdefault(mid, []).append(r["total_vbd"])
+            ranked = sorted(
+                ((mid, sum(v) / len(v)) for mid, v in ms.items()),
+                key=lambda kv: -kv[1])[:3]
+            names = []
+            for mid, v in ranked:
+                nm = cum.get(mid, {}).get("manager_name", mid)
+                names.append(f"{nm} ({v:+.0f}/yr)")
+            return f"**{label}**: " + " · ".join(names)
+        md.append(era_top3(range(2015, 2019), "Standard era (2015-18)"))
+        md.append("")
+        md.append(era_top3(range(2019, 2023), "Half-PPR Yahoo (2019-22)"))
+        md.append("")
+        md.append(era_top3(range(2023, 2025), "Superflex Sleeper (2023-24)"))
+
+        # Per-season matrix (top 10 by 10-year total)
+        md.append("\n### Per-season VBD matrix")
+        rank_order = sorted(cum.items(),
+                            key=lambda kv: -kv[1]["vbd_per_season"])
+        header = "| Manager | " + " | ".join(str(y) for y in years) + " | Avg |"
+        md.append(header)
+        md.append("|" + "---|" * (len(years) + 2))
+        for mid, r in rank_order:
+            cells = []
+            vals = []
+            for y in years:
+                v = hist["per_season"].get(str(y), {}).get(mid, {}).get("total_vbd")
+                if v is None:
+                    cells.append("—")
+                else:
+                    cells.append(f"{v:+.0f}")
+                    vals.append(v)
+            avg = sum(vals) / len(vals) if vals else 0
+            md.append(f"| {r['manager_name']} | " + " | ".join(cells)
+                      + f" | {avg:+.0f} |")
+        md.append("")
 
     # ========== Champion's Edge ==========
     md.append("## 🏆 CHAMPION'S EDGE — what each champion won via")

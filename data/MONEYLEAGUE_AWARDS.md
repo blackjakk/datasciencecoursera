@@ -271,6 +271,58 @@ Picks that missed their round's expected VBD by the widest margin.
 | 11 | **Troy** | 27 | 36 | 9 | **24** | 18 |  |
 | 12 | **Tim** | 0 | 0 | 36 | **12** | 64 |  |
 
+## 📜 10-YEAR DRAFT DYNASTY (2015-2024)
+Per-season VBD over 10 league seasons, using xlsx cell-color attribution + public nflverse season stats. Three scoring eras: Standard (2015-18: 10-team, 0 PPR), Half-PPR Yahoo (2019-22: 12-team, 2QB), Superflex Sleeper (2023-24). 2025 covered in the live tables above.
+
+### 10-year cumulative (full-tenure managers)
+| Rank | Manager | Per-season VBD | 10-yr Total | Picks matched |
+|---|---|---|---|---|
+| 1 | **Brian** | +388 | +3881 | 161/178 |
+| 2 | **Dave** | +356 | +3558 | 165/178 |
+| 3 | **Kyle** | +331 | +3307 | 158/178 |
+| 4 | **Eric** | +320 | +3201 | 157/178 |
+| 5 | **Lem** | +225 | +2250 | 153/178 |
+| 6 | **Troy** | +210 | +2101 | 156/178 |
+| 7 | **Trevor** | +183 | +1833 | 165/178 |
+| 8 | **Coop** | +181 | +1813 | 158/178 |
+| 9 | **Donnie** | +81 | +805 | 154/178 |
+
+### Partial-tenure managers
+| Manager | Seasons | Per-season VBD | Years |
+|---|---|---|---|
+| Brower | 6 | +394 | 2019, 2020, 2021, 2022, 2023, 2024 |
+| Ankur | 4 | +241 | 2021, 2022, 2023, 2024 |
+| Notebooks | 1 | +234 | 2019 |
+| Nick Lewis | 1 | +164 | 2020 |
+| Nark | 2 | +100 | 2015, 2016 |
+| Tim | 8 | +75 | 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024 |
+
+### Per-era leaders
+**Standard era (2015-18)**: Brian (+318/yr) · Eric (+234/yr) · Lem (+226/yr)
+
+**Half-PPR Yahoo (2019-22)**: Kyle (+599/yr) · Dave (+526/yr) · Coop (+476/yr)
+
+**Superflex Sleeper (2023-24)**: Brian (+642/yr) · Troy (+621/yr) · Brower (+499/yr)
+
+### Per-season VBD matrix
+| Manager | 2015 | 2016 | 2017 | 2018 | 2019 | 2020 | 2021 | 2022 | 2023 | 2024 | Avg |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Brower | — | — | — | — | +63 | +280 | +772 | +254 | +778 | +219 | +394 |
+| Brian | +146 | +255 | +254 | +617 | +296 | +604 | +543 | -119 | +1065 | +219 | +388 |
+| Dave | +752 | -137 | -158 | +216 | +464 | +531 | +831 | +278 | +4 | +776 | +356 |
+| Kyle | +114 | +627 | -320 | +295 | +697 | +462 | +433 | +803 | +208 | -12 | +331 |
+| Eric | -296 | +261 | +416 | +554 | +412 | +446 | +215 | +663 | +367 | +163 | +320 |
+| Ankur | — | — | — | — | — | — | -26 | +593 | -234 | +632 | +241 |
+| Notebooks | — | — | — | — | +234 | — | — | — | — | — | +234 |
+| Lem | -196 | -258 | +497 | +862 | -66 | +253 | +61 | +213 | +107 | +778 | +225 |
+| Troy | +180 | -252 | +557 | -267 | +494 | -91 | +531 | -292 | +835 | +406 | +210 |
+| Trevor | -342 | -313 | -154 | +94 | +211 | +500 | +728 | +354 | +484 | +270 | +183 |
+| Coop | -188 | +9 | -309 | -347 | +356 | +599 | +124 | +824 | -398 | +1143 | +181 |
+| Nick Lewis | — | — | — | — | — | +164 | — | — | — | — | +164 |
+| Nark | -72 | +271 | — | — | — | — | — | — | — | — | +100 |
+| Donnie | +118 | -122 | +272 | -490 | +57 | -6 | +169 | +217 | +588 | +2 | +81 |
+| Tim | — | — | -4 | +48 | -314 | +207 | +211 | +598 | -175 | +26 | +75 |
+
 ## 🏆 CHAMPION'S EDGE — what each champion won via
 For every championship season, which category was the champion's biggest edge that year. Per-season percentiles within that year's league.
 
