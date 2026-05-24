@@ -2140,16 +2140,22 @@ function buildAnimForPlay(play, prevPlay) {
           if (isMotion) {
             const yOff = motionYOffset(t);
             const moving = isInMotionNow(t);
-            // Retreat behind the QB during active motion so the path runs
-            // BEHIND the line, not through it. WRs are placed at losX
-            // (right on the LOS) — without this offset, motion drags the
-            // player across the offensive line at OL depth, visually
-            // clipping through the linemen. Real NFL motion goes behind
-            // both the OL (-dir*2) and the QB (-dir*6).
-            const xOff = moving ? -dir * 10 : 0;
+            // Path goes 20px back from the LOS so the motion player is
+            // CLEARLY behind the OL (at LOS - dir*2) and the QB (LOS -
+            // dir*6). Was only 10px which was still visually clipping
+            // with the line at broadcast-cam depth.
+            const xOff = moving ? -dir * 20 : 0;
+            // Face the DIRECTION OF MOTION when actively running. If
+            // motionEndY > motionStartY, player is moving toward higher
+            // field-Y → faces +1. Otherwise faces -1. Reverts to dir
+            // (offense direction) once motion stops so they line up for
+            // the snap.
+            const motionFacing = moving
+              ? ((motionEndY > motionStartY) ? 1 : -1)
+              : dir;
             return { ...p, x: p.x + xOff, y: p.y + yOff,
                      pose: moving ? "run" : "stance",
-                     t: (t * 3) % 1, facing: dir };
+                     t: (t * 3) % 1, facing: motionFacing };
           }
         }
         if (t < PRE) return { ...p, pose: "stance" };
@@ -3310,10 +3316,16 @@ function buildAnimForPlay(play, prevPlay) {
           if (isMotion) {
             const yOff = motionYOffset(t);
             const moving = isInMotionNow(t);
-            const facingMotion = (motionEndY > motionStartY) ? 1 : -1;
-            return { ...p, y: p.y + yOff,
+            // Path 20px back from LOS so it clears the line. Face the
+            // direction of motion while active; revert to offense dir
+            // once motion stops.
+            const xOff = moving ? -dir * 20 : 0;
+            const motionFacing = moving
+              ? ((motionEndY > motionStartY) ? 1 : -1)
+              : dir;
+            return { ...p, x: p.x + xOff, y: p.y + yOff,
                      pose: moving ? "run" : "idle",
-                     t: (t * 3) % 1, facing: dir };
+                     t: (t * 3) % 1, facing: motionFacing };
           }
         }
         if (p === formation.wr1 && wrChoice === "wr1") return wrWithPose;
