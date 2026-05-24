@@ -672,7 +672,7 @@ function buildAnimForPlay(play, prevPlay) {
       // ── Ball + returner positions ──
       let ballX, ballY, returnerX = catchX, returnerY = cy;
       let returnerPose = "stance";
-      let returnerT = ((performance.now() / 333)) % 1;
+      let returnerT = (t < 0.95 ? ((performance.now() / 333)) % 1 : 0);
       let returnerFacing = recvDir;
       if (t < FLIGHT_END) {
         const ft = t / FLIGHT_END;
@@ -796,14 +796,14 @@ function buildAnimForPlay(play, prevPlay) {
         let cPose, cT;
         if (t < FLIGHT_END) {
           cPose = "run";
-          cT = ((performance.now() / 333) + i * 0.11) % 1;
+          cT = (t < 0.95 ? ((performance.now() / 333) + i * 0.11) % 1 : 0);
         } else if (t < RETURN_END) {
           if (covBlocked[i]) {
             cPose = "engage";
-            cT = ((performance.now() / 333) + i * 0.13) % 1;
+            cT = (t < 0.95 ? ((performance.now() / 333) + i * 0.13) % 1 : 0);
           } else {
             cPose = "run";
-            cT = ((performance.now() / 333) + i * 0.11) % 1;
+            cT = (t < 0.95 ? ((performance.now() / 333) + i * 0.11) % 1 : 0);
           }
         } else {
           // Tackle phase: primary always tackles; secondary on style >= 1;
@@ -820,10 +820,10 @@ function buildAnimForPlay(play, prevPlay) {
             cT = Math.min(1, (t - RETURN_END) / (1 - RETURN_END));
           } else if (closeEnough) {
             cPose = "engage";
-            cT = ((performance.now() / 333) + i * 0.13) % 1;
+            cT = (t < 0.95 ? ((performance.now() / 333) + i * 0.13) % 1 : 0);
           } else {
             cPose = "run";
-            cT = ((performance.now() / 333) + i * 0.11) % 1;
+            cT = (t < 0.95 ? ((performance.now() / 333) + i * 0.11) % 1 : 0);
           }
         }
         drawPlayer(ctx, cpos.x, cpos.y, kickTeam.primary, kickTeam.secondary, "",
@@ -848,7 +848,7 @@ function buildAnimForPlay(play, prevPlay) {
         } else {
           bPose = "run";
         }
-        bT = ((performance.now() / 333) + i * 0.17) % 1;
+        bT = (t < 0.95 ? ((performance.now() / 333) + i * 0.17) % 1 : 0);
         drawPlayer(ctx, bpos.x, bpos.y, recvTeam.primary, recvTeam.secondary, "",
                    bPose, bT, recvDir);
       }
@@ -1683,7 +1683,7 @@ function buildAnimForPlay(play, prevPlay) {
         else                     rbPose = "churn";   // high-knee carry through cruise
 
       }
-      let rbT = ((performance.now() / 333)) % 1;
+      let rbT = (t < 0.95 ? ((performance.now() / 333)) % 1 : 0);
       let rbLateral = 0;
       let dodgeIdx = -1;
       let moveCallout = null;
@@ -1865,7 +1865,7 @@ function buildAnimForPlay(play, prevPlay) {
           dd.x = d.x + sh.dx;
           dd.y = d.y + sh.dy;
           dd.pose = isDefShifting(i, t) ? "run" : (isDefPointer(i) ? "point" : "stance");
-          dd.t = ((performance.now() / 333)) % 1;
+          dd.t = (t < 0.95 ? ((performance.now() / 333)) % 1 : 0);
           dd.facing = -dir;
           return dd;
         }
@@ -1898,7 +1898,7 @@ function buildAnimForPlay(play, prevPlay) {
             const np = elapsedMs > 0 ? pursue(d, tx, ty, elapsedMs, factor) : { x: d.x, y: d.y, moved: false };
             dd.x = np.x; dd.y = np.y;
             dd.pose = "run";
-            dd.t = np.moved ? ((performance.now() / 333) + i * 0.13) % 1 : 0;
+            dd.t = np.moved ? (t < 0.95 ? ((performance.now() / 333) + i * 0.13) % 1 : 0) : 0;
             dd.facing = -dir;
             // Tackle at the end if right on the carrier (the real ball-carrier
             // is rb.x/y by convention here regardless of pitch/keep).
@@ -1918,7 +1918,7 @@ function buildAnimForPlay(play, prevPlay) {
             const np = pursue(d, rb.x + dir * 2, rb.y, elapsedMs, 0.85);
             dd.x = np.x; dd.y = np.y;
             dd.pose = "run";
-            dd.t = np.moved ? ((performance.now() / 333)) % 1 : 0;
+            dd.t = np.moved ? (t < 0.95 ? ((performance.now() / 333)) % 1 : 0) : 0;
           } else {
             // Stuck at LOS — hold position with jitter. Old code moved
             // the DL by -dir*tt*4 which (despite the "pushed back"
@@ -2072,7 +2072,7 @@ function buildAnimForPlay(play, prevPlay) {
             // moving. Old code kept the run-cycle going regardless, so
             // a stationary defender looked like they were sprinting in
             // place.
-            dd.t = np.moved ? ((performance.now() / 333) + i * 0.13) % 1 : 0;
+            dd.t = np.moved ? (t < 0.95 ? ((performance.now() / 333) + i * 0.13) % 1 : 0) : 0;
           }
         }
         // GUARANTEED TACKLER FALLBACK — keep a soft rubber-band in case
@@ -2162,7 +2162,7 @@ function buildAnimForPlay(play, prevPlay) {
               : dir;
             return { ...p, x: p.x + xOff, y: p.y + yOff,
                      pose: moving ? "run" : "stance",
-                     t: ((performance.now() / 333)) % 1, facing: motionFacing };
+                     t: (t < 0.95 ? ((performance.now() / 333)) % 1 : 0), facing: motionFacing };
           }
         }
         if (t < PRE) return { ...p, pose: "stance" };
@@ -2220,7 +2220,7 @@ function buildAnimForPlay(play, prevPlay) {
           const fbYMerge = (cy - p.y) * 0.35 * fbProg;
           const fbPose = tt < 0.50 ? "run" : "engage";
           return { ...p, x: p.x + dir * fbXJump, y: p.y + fbYMerge,
-                   pose: fbPose, t: fbPose === "run" ? ((performance.now() / 333)) % 1 : tt, facing: dir };
+                   pose: fbPose, t: fbPose === "run" ? (t < 0.95 ? ((performance.now() / 333)) % 1 : 0) : tt, facing: dir };
         }
         // WRs RUN-BLOCK on run plays — sprint at their CB then drive-block.
         // First ~30% of the play they release straight downfield, then they
@@ -2247,12 +2247,12 @@ function buildAnimForPlay(play, prevPlay) {
           const isEngaged = tt > 0.35;
           return { ...p, x: baseX, y: baseY,
                    pose: isEngaged ? "engage" : "run",
-                   t: isEngaged ? closeT : ((performance.now() / 333) + 0.5) % 1,
+                   t: isEngaged ? closeT : (t < 0.95 ? ((performance.now() / 333) + 0.5) % 1 : 0),
                    facing: dir };
         }
         // WRs release downfield (run block on screens/runs) — fallback for any
         // role string we didn't catch above.
-        return { ...p, x: p.x + dir * tt * 14, pose: "run", t: ((performance.now() / 333) + 0.5) % 1, facing: dir };
+        return { ...p, x: p.x + dir * tt * 14, pose: "run", t: (t < 0.95 ? ((performance.now() / 333) + 0.5) % 1 : 0), facing: dir };
       });
       // For scrambles / option keepers the QB is the actual ball carrier — so
       // we render the QB sprite at the carrier position with the carrier pose,
@@ -2271,7 +2271,7 @@ function buildAnimForPlay(play, prevPlay) {
         // backfield as a check-down blocker.
         carrierToDraw = (optRbX !== null)
           ? { ...formation.rb, x: optRbX, y: optRbY,
-              pose: "run", t: ((performance.now() / 333)) % 1, facing: dir }
+              pose: "run", t: (t < 0.95 ? ((performance.now() / 333)) % 1 : 0), facing: dir }
           : { ...formation.rb,
               x: formation.rb.x + dir * Math.min(8, runT * 18),
               y: formation.rb.y - dir * Math.min(0, runT * 4),
@@ -2287,7 +2287,7 @@ function buildAnimForPlay(play, prevPlay) {
           if (p.role !== "QB") return p;
           if (optQbX !== null) {
             return { ...p, x: optQbX, y: optQbY,
-                     pose: "run", t: ((performance.now() / 333)) % 1, facing: dir };
+                     pose: "run", t: (t < 0.95 ? ((performance.now() / 333)) % 1 : 0), facing: dir };
           }
           const handoffPose = t < PRE
             ? "idle"                                  // stance pre-snap
@@ -2442,7 +2442,7 @@ function buildAnimForPlay(play, prevPlay) {
         { ...formation.qb, pose: qbPose, t: qbT, facing: dir },
       ];
       const def = formation.defense.map((d, i) => ({
-        ...d, pose: "stance", t: ((performance.now() / 333)) % 1, facing: -dir,
+        ...d, pose: "stance", t: (t < 0.95 ? ((performance.now() / 333)) % 1 : 0), facing: -dir,
       }));
       drawPlayers(off, def);
       drawBall(ctx, ballX, ballY);
@@ -2899,7 +2899,7 @@ function buildAnimForPlay(play, prevPlay) {
                            : 1;  // one rusher breaks through on tight throws/INTs
       const def = formation.defense.map((d, i) => {
         const dd = { ...d };
-        dd.t = ((performance.now() / 333) + i * 0.13) % 1;
+        dd.t = (t < 0.95 ? ((performance.now() / 333) + i * 0.13) % 1 : 0);
         dd.facing = -dir;
         // Pre-snap: hold stance + apply coverage-aware depth alignment.
         // play.coverage was unused beyond the broadcast UI label. Now
@@ -3192,7 +3192,7 @@ function buildAnimForPlay(play, prevPlay) {
           qbT = 0;
         } else {
           qbPose = "carry";   // got the ball, holding it
-          qbT = ((performance.now() / 333)) % 1;
+          qbT = (t < 0.95 ? ((performance.now() / 333)) % 1 : 0);
         }
       } else {
         const at = aT;   // flicker-aware action time
@@ -3312,7 +3312,7 @@ function buildAnimForPlay(play, prevPlay) {
           else if (fT < 0.80) rbPose = "throw";          // pitching back (cradle/cock)
           else rbPose = "stance";                        // settled, decoy
           return { ...p, x: flickerRBX, y: flickerRBY,
-                   pose: rbPose, t: rbPose === "throw" ? Math.min(0.30, (fT - 0.50) / 0.30 * 0.30) : ((performance.now() / 333)) % 1,
+                   pose: rbPose, t: rbPose === "throw" ? Math.min(0.30, (fT - 0.50) / 0.30 * 0.30) : (t < 0.95 ? ((performance.now() / 333)) % 1 : 0),
                    facing: dir };
         }
         // Pre-snap motion: the motion player jogs across the formation
@@ -3332,7 +3332,7 @@ function buildAnimForPlay(play, prevPlay) {
               : dir;
             return { ...p, x: p.x + xOff, y: p.y + yOff,
                      pose: moving ? "run" : "idle",
-                     t: ((performance.now() / 333)) % 1, facing: motionFacing };
+                     t: (t < 0.95 ? ((performance.now() / 333)) % 1 : 0), facing: motionFacing };
           }
         }
         if (p === formation.wr1 && wrChoice === "wr1") return wrWithPose;
@@ -3347,7 +3347,7 @@ function buildAnimForPlay(play, prevPlay) {
             const tt = Math.min(1, (aT - 0.2) / 0.6);
             const downfield = dir * tt * 32;
             const driftY = (p.y - cy) * (1 - tt * 0.4) + tt * (cy + screenSide * 35 - p.y) * 0.4;
-            return { ...p, x: p.x + downfield, y: cy + driftY, pose: "run", t: ((performance.now() / 333)) % 1, facing: dir };
+            return { ...p, x: p.x + downfield, y: cy + driftY, pose: "run", t: (t < 0.95 ? ((performance.now() / 333)) % 1 : 0), facing: dir };
           }
           const tt = Math.min(1, aT / 0.55);
           const dropBack = 3 * tt;
@@ -3567,7 +3567,7 @@ function buildAnimForPlay(play, prevPlay) {
         }
       }
       const def = formation.defense.map((d, i) => {
-        const dd = { ...d, pose: t < PRE ? "stance" : "run", t: ((performance.now() / 333) + i * 0.13) % 1, facing: -dir };
+        const dd = { ...d, pose: t < PRE ? "stance" : "run", t: (t < 0.95 ? ((performance.now() / 333) + i * 0.13) % 1 : 0), facing: -dir };
         if (t < PRE) {
           const sh = defShiftXY(i, t);
           dd.x = d.x + sh.dx;
@@ -3603,7 +3603,7 @@ function buildAnimForPlay(play, prevPlay) {
         return dd;
       });
       const off = formation.offense.map(p => {
-        if (p.role === "QB") return { ...qb, pose: qbPose, t: ((performance.now() / 333) + 0.4) % 1, facing: dir };
+        if (p.role === "QB") return { ...qb, pose: qbPose, t: (t < 0.95 ? ((performance.now() / 333) + 0.4) % 1 : 0), facing: dir };
         if (p.role === "OL" && t > PRE) {
           const tt = (t - PRE) / (1 - PRE);
           const slotDepth = Math.abs((p.y - cy) / 14);
@@ -3613,7 +3613,7 @@ function buildAnimForPlay(play, prevPlay) {
         if ((p.role === "WR1" || p.role === "WR2" || p.role === "TE") && t > PRE) {
           // Receivers ran routes but are now standing around (no one to throw to)
           const tt = (t - PRE) / (1 - PRE);
-          return { ...p, x: p.x + dir * tt * 80, pose: tt > 0.8 ? "idle" : "run", t: ((performance.now() / 333) + 0.5) % 1, facing: dir };
+          return { ...p, x: p.x + dir * tt * 80, pose: tt > 0.8 ? "idle" : "run", t: (t < 0.95 ? ((performance.now() / 333) + 0.5) % 1 : 0), facing: dir };
         }
         return { ...p, pose: "idle", facing: dir };
       });
@@ -3749,7 +3749,7 @@ function buildAnimForPlay(play, prevPlay) {
         const sec = isOff ? team.secondary : oppTeam.secondary;
         for (const p of players) {
           const carrier = isOff && matchesCarrier(p);
-          let pX, pY, pPose, pT = ((performance.now() / 333)) % 1;
+          let pX, pY, pPose, pT = (t < 0.95 ? ((performance.now() / 333)) % 1 : 0);
           if (carrier) {
             // Carrier path:
             //   CARRY PHASE  — running from formation to fumble spot
@@ -4222,7 +4222,7 @@ function buildAnimForPlay(play, prevPlay) {
         const isEngaged = phase === "return" && !isFree;
         const pose = isEngaged ? "engage" : "run";
         const facing = isEngaged ? -dir : dir;  // engaged chasers face the blocker / returner
-        drawPlayer(ctx, cx_, cy_, possColor, team.secondary, "", pose, ((performance.now() / 333) + i * 0.2) % 1, facing);
+        drawPlayer(ctx, cx_, cy_, possColor, team.secondary, "", pose, (t < 0.95 ? ((performance.now() / 333) + i * 0.2) % 1 : 0), facing);
       }
       // ── 3 RETURN-TEAM BLOCKERS — each glued to their assigned chaser during the return ──
       for (let i = 0; i < 3; i++) {
@@ -4247,7 +4247,7 @@ function buildAnimForPlay(play, prevPlay) {
         }
         const blockerPose = (phase === "return" || phase === "field") ? "engage" : "run";
         const facing = dir;  // blockers face the chasers coming from the punt direction
-        drawPlayer(ctx, bx, by, oppColor, oppTeam.secondary, "", blockerPose, ((performance.now() / 333) + i * 0.15) % 1, facing);
+        drawPlayer(ctx, bx, by, oppColor, oppTeam.secondary, "", blockerPose, (t < 0.95 ? ((performance.now() / 333) + i * 0.15) % 1 : 0), facing);
       }
       // Returner (with ball after fielding)
       const returnerX = phase === "return" ? ballX : landX;
@@ -4255,7 +4255,7 @@ function buildAnimForPlay(play, prevPlay) {
       const returnerPose = phase === "return" ? "carry"
                          : (phase === "field" ? "catch" : "idle");
       const returnerFacing = phase === "return" ? -dir : dir;  // turns around to run back
-      drawPlayer(ctx, returnerX, returnerDrawY, oppColor, oppTeam.secondary, "", returnerPose, ((performance.now() / 333)) % 1, returnerFacing);
+      drawPlayer(ctx, returnerX, returnerDrawY, oppColor, oppTeam.secondary, "", returnerPose, (t < 0.95 ? ((performance.now() / 333)) % 1 : 0), returnerFacing);
       drawBall(ctx, ballX, ballY, 1 + arc / 200);
       // Callouts
       if (phase === "field" || (phase === "return" && t < PH_FIELD_END + RET_LEN * 0.25)) {

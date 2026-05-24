@@ -143,7 +143,12 @@ const GCPlayer = (() => {
     // the key or all linemen render the same cached texture regardless
     // of archetype.
     const ak = style && style.archetype ? style.archetype : "";
-    return `${color}|${secondary}|${label}|${pose}|${facing}|${tBucket}|${sk}|${ak}`;
+    // Name in the key so each player's skin tone gets its own texture.
+    // Without this, two players with the same (color, label, pose) but
+    // different skin tones share a cached texture and the rendered skin
+    // FLICKERS between them as the cache resolves first-write-wins.
+    const nm = style && style.name ? style.name : "";
+    return `${color}|${secondary}|${label}|${pose}|${facing}|${tBucket}|${sk}|${ak}|${nm}`;
   }
   function _getTexture(color, secondary, label, pose, t, facing, style) {
     const key = _texKey(color, secondary, label, pose, t, facing, style);
