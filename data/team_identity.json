@@ -103,15 +103,20 @@
       },
       "confidence": "medium"
     },
-    "trevor": {
-      "canonical_name": "Trevor",
+    "josh_wildboy": {
+      "canonical_name": "Josh (Wi1dboy, took over Dave's roster in 2025)",
       "sleeper_roster_id": 10,
-      "sleeper_display_name": "wvw5022 / Wi1dboy",
-      "xlsx_nicknames": ["Trevor"],
-      "yahoo_team_names": {
-        "2016": "?", "2017": "?", "2019": "Trevor’s Semifinals?"
+      "sleeper_display_name": "Wi1dboy (2025) / wvw5022 (2023-2024 = Dave)",
+      "xlsx_nicknames": ["Josh"],
+      "previous_owner": {
+        "nickname": "Dave",
+        "xlsx_nicknames": ["Dave"],
+        "active_seasons": "2017-2024 (xlsx); 2023-2024 (Sleeper rid 10 as wvw5022 / 'Dave on Montgomery Ave')"
       },
-      "confidence": "low"
+      "yahoo_team_names": {
+        "_note": "Pre-2025 Yahoo seasons under Dave's ownership — Yahoo names not yet matched"
+      },
+      "confidence": "high"
     },
     "donnie": {
       "canonical_name": "Donnie",
@@ -123,20 +128,30 @@
       },
       "confidence": "low"
     },
-    "coop_or_josh_or_dave": {
-      "canonical_name": "Coop / Dave / Josh (rid 12)",
+    "coop": {
+      "canonical_name": "Coop",
       "sleeper_roster_id": 12,
       "sleeper_display_name": "BigDickNicholas",
-      "xlsx_nicknames": ["Coop", "Dave", "Josh"],
+      "xlsx_nicknames": ["Coop"],
       "yahoo_team_names": {
-        "2015": "?"
+        "_note": "Pre-2023 Yahoo names not yet matched"
       },
-      "confidence": "low"
+      "confidence": "medium"
+    },
+    "trevor": {
+      "canonical_name": "Trevor",
+      "sleeper_roster_id": null,
+      "sleeper_display_name": "(not on current Sleeper roster — left the league?)",
+      "xlsx_nicknames": ["Trevor"],
+      "yahoo_team_names": {
+        "2019": "Trevor’s Semifinals?"
+      },
+      "confidence": "unresolved"
     }
   },
 
   "unmatched_xlsx_nicknames": [
-    "Wang", "Nark", "Donnie (in 2015 only?)", "Mrs Doubtfire (one-time)"
+    "Wang", "Nark", "Mrs Doubtfire (one-time)"
   ],
   "unmatched_yahoo_persistent_names": [
     "The Dream Team (2017-2022)",
