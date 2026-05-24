@@ -86,7 +86,9 @@ def simulate_once(
     # a single player is O(1) (mark in set) instead of O(N) rebuild. The
     # scoring step filters by membership in the set.
     drafted_names: set[str] = {p.player.name for p in draft.picks if p.player is not None}
-    pool = [p for p in players if p.name not in drafted_names]
+    valid_positions = set(draft.league.position_demand().keys())
+    pool = [p for p in players
+            if p.name not in drafted_names and p.position in valid_positions]
     removed: set[str] = set()
 
     def alive() -> list[Player]:
@@ -143,7 +145,12 @@ def simulate_full_draft(
     rng = rng or random.Random()
     teams = _snapshot_teams(draft)
     drafted_names: set[str] = {p.player.name for p in draft.picks if p.player is not None}
-    pool = [p for p in players if p.name not in drafted_names]
+    # Drop positions the league doesn't roster (FB, P, LB, ...). Without this,
+    # the softmax fallback (and recommender shortlist) drag fullbacks into
+    # late-round picks once skill players thin out.
+    valid_positions = set(draft.league.position_demand().keys())
+    pool = [p for p in players
+            if p.name not in drafted_names and p.position in valid_positions]
     removed: set[str] = set()
     pbn = {p.name.lower(): p for p in players}
 

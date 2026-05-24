@@ -76,17 +76,31 @@ def score_candidates_for_team(
     top_n: int = 10,
     prefilter_n: int = 40,
 ) -> list[Candidate]:
+    # K/DEF have constant tiny demand, so once a team has 0 of them the need
+    # score spikes and they get picked far too early (e.g. R5 kickers). Defer
+    # K/DEF candidacy to the last 3 rounds of the draft — matches standard
+    # fantasy practice and stops the simulator from polluting mid-round picks.
+    current_round = (overall_pick - 1) // max(league.num_teams, 1) + 1
+    kicker_def_round_floor = max(1, league.rounds - 2)
+
     # Hot path: most candidates are far down the board. Pre-filter to the
     # top-N by raw VBD (or ADP if VBD is missing) before computing full
     # scores. This cuts simulation cost ~5x without changing recommendations
     # meaningfully — the bottom-150 players never make the top-10 anyway.
-    if len(available) > prefilter_n:
-        if any(p.vbd != 0.0 for p in available[:5]):
-            shortlist = sorted(available, key=lambda p: -p.vbd)[:prefilter_n]
+    # If we're before the K/DEF round floor, exclude those positions from the
+    # prefilter — otherwise their relatively-high VBD (+2-3 vs 0 for late
+    # skill players) crowds the entire shortlist and the recommender returns
+    # nothing, triggering the BPA fallback which hands out K/DEF anyway.
+    base_pool = available
+    if current_round < kicker_def_round_floor:
+        base_pool = [p for p in available if p.position not in ("K", "DEF", "DST")]
+    if len(base_pool) > prefilter_n:
+        if any(p.vbd != 0.0 for p in base_pool[:5]):
+            shortlist = sorted(base_pool, key=lambda p: -p.vbd)[:prefilter_n]
         else:
-            shortlist = sorted(available, key=lambda p: p.adp)[:prefilter_n]
+            shortlist = sorted(base_pool, key=lambda p: p.adp)[:prefilter_n]
     else:
-        shortlist = available
+        shortlist = base_pool
 
     # Need scores are per-position, so compute them once per call.
     needs = team.needs(league)
@@ -97,8 +111,20 @@ def score_candidates_for_team(
     candidates: list[Candidate] = []
     for player in shortlist:
         pos = player.position
-        # Inline _position_legal_for_team for speed.
-        if counts.get(pos, 0) >= demand.get(pos, 0) + bench_cushion:
+        # Skip positions that aren't part of this league's roster at all
+        # (e.g. FB, P showing up in Sleeper's catalog but no FLEX/BENCH slot
+        # consumes them). Otherwise the bench-cushion check below lets them
+        # through at 0 demand.
+        if demand.get(pos, 0) == 0:
+            continue
+        if pos in ("K", "DEF", "DST") and current_round < kicker_def_round_floor:
+            continue
+        # Inline _position_legal_for_team for speed. K/DEF get no bench
+        # cushion — one is plenty; stacking 2-3 wastes late picks.
+        cap = demand.get(pos, 0)
+        if pos not in ("K", "DEF", "DST"):
+            cap += bench_cushion
+        if counts.get(pos, 0) >= cap:
             continue
         v = _value_score(player, overall_pick, league)
         pos_need = needs.get(pos, 0.0)
