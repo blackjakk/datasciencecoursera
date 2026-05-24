@@ -1,6 +1,6 @@
 # MONEYLEAGUE 2026 — Pre-Draft Snapshot
 
-*Generated 2026-05-24 00:44 UTC from `data/*.json` + `MONEY_LEAGUE.xlsx`.*
+*Generated 2026-05-24 01:02 UTC from `data/*.json` + `MONEY_LEAGUE.xlsx`.*
 
 **Format:** 12 teams · 17-round superflex · half-PPR · 4 keepers max · 2-round penalty · 3-year consecutive cap · 11 years of history (since 2015).
 
