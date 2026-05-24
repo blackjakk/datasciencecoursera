@@ -19,21 +19,26 @@
 //       // Sort by t ascending. First t should be 0 (formation pos);
 //       // last t should be 1 (post-play resting pos).
 //       //
-//       // Coordinates: dxYd / dyYd are YARDS relative to the line of
-//       // scrimmage (positive dxYd = downfield) and field center
-//       // (positive dyYd = "down" toward the bottom sideline).
-//       // Animation translates to pixels via
+//       // Coordinates: dxYd / dyYd are YARDS relative to a chosen
+//       // ORIGIN. Default origin = (LOS, cy):
 //       //   px = losX + dir * dxYd * FIELD.PX_PER_YARD
 //       //   py = cy + dyYd * FIELD.PX_PER_YARD
-//       // This keeps the engine agnostic to the field's pixel layout.
+//       //
+//       // Optional `origin` field anchors waypoints to a formation
+//       // slot's spot instead (so route tracks for WRs can be emitted
+//       // without the engine knowing pixel coords):
+//       //   origin: { slot: "wr1" | "wr2" | "te" | "rb" | ... }
+//       //   px = formation[slot].x + dir * dxYd * FIELD.PX_PER_YARD
+//       //   py = formation[slot].y + dyYd * FIELD.PX_PER_YARD
 //       waypoints: Array<{
 //         t:        number,    // 0..1
-//         dxYd:     number,    // yards downfield from LOS
-//         dyYd:     number,    // yards lateral from field center
+//         dxYd:     number,    // yards downfield from origin
+//         dyYd:     number,    // yards lateral from origin
 //         pose?:    string,    // optional pose override; persists from prev wp
 //         facing?:  number,    // -1 or +1; persists
 //         poseT?:   number,    // optional internal pose t (0..1)
 //       }>,
+//       origin?: { slot: string },   // optional; defaults to (LOS, cy)
 //     },
 //   },
 //   // Ball track (separate from any single player — could be in flight)

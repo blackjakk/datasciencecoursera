@@ -4463,6 +4463,50 @@ class GameSimulator {
                         : isLeapingCatch ? " (HIGH POINTED!)" : "";
         const endTag = isTD ? " — TOUCHDOWN!"
                      : tacklerName ? `, tackled by ${tacklerName}` : "";
+        // ── PATH B Phase 3b — targeted WR route track ───────────────
+        // Engine emits the route shape (concept-driven) so animation
+        // doesn't reinvent it AND CB coverage can shadow it. Origin is
+        // the WR's formation slot; waypoints are deltas in YARDS. dyYd
+        // is "toward midfield" (positive = inside break, negative =
+        // toward sideline) — animation projects with the slot's y vs cy.
+        const _targetSlot = rcvr === this.offR.starters.wr1 ? "wr1"
+                          : rcvr === this.offR.starters.wr2 ? "wr2"
+                          : rcvr === this.offR.starters.te  ? "te"
+                          : rcvr === this.offR.starters.rb  ? "rb"
+                          : null;
+        // Animation uses scaledDuration(max(targetDepth, yards, 8)) +
+        // POST_CATCH_MS to time the play. Mirror that here so engine's
+        // routeT (0=snap, 1=settled) aligns with animation's aT.
+        const _scaledMs = Math.max(2200, Math.min(11500, Math.abs(Math.max(targetDepth, yards, 8)) / 12 * 1000 + 1000));
+        const _postCatchMs = isTD ? 2400 : 1700;
+        const _actionMs   = _scaledMs + _postCatchMs;
+        const _throwT     = _scaledMs / _actionMs;
+        // Route shape per concept. dyYd is yards toward midfield.
+        // breakF = fraction of the route (0..1 of throwT) where the
+        // WR's break happens; latAtBreak/latAtCatch are toward-mid yards.
+        const _routeShape = (() => {
+          switch (this._lastPassConcept) {
+            case "QUICK_GAME":   return { breakF: 0.30, depthFAtBreak: 0.40, latAtBreak: 0.5, latAtCatch:  2.5 };   // slant
+            case "DRAG_MESH":    return { breakF: 0.30, depthFAtBreak: 0.20, latAtBreak: 3.0, latAtCatch:  8.0 };   // drag cross
+            case "INTERMEDIATE": return { breakF: 0.72, depthFAtBreak: 1.00, latAtBreak: 0.0, latAtCatch:  0.0 };   // dig / out
+            case "VERTICAL":     return { breakF: 0.95, depthFAtBreak: 0.95, latAtBreak: 0.0, latAtCatch:  0.0 };   // straight
+            case "PA_SHOT":      return { breakF: 0.95, depthFAtBreak: 0.95, latAtBreak: 0.0, latAtCatch:  0.0 };
+            case "SCREEN":       return null;   // animation keeps linear handling
+            default:             return { breakF: 0.50, depthFAtBreak: 0.50, latAtBreak: 0.0, latAtCatch:  0.0 };
+          }
+        })();
+        const _targetWRTrack = (_targetSlot && _routeShape) ? {
+          role: _targetSlot.toUpperCase(),
+          origin: { slot: _targetSlot },
+          waypoints: [
+            { t: 0,                                   dxYd: 0,                                        dyYd: 0 },
+            { t: _throwT * _routeShape.breakF,        dxYd: targetDepth * _routeShape.depthFAtBreak, dyYd: _routeShape.latAtBreak },
+            { t: _throwT,                              dxYd: targetDepth,                              dyYd: _routeShape.latAtCatch },
+            // Post-catch — yac yards downfield, lateral drift toward middle
+            { t: Math.min(1, _throwT + (1 - _throwT) * 0.85), dxYd: targetDepth + yac, dyYd: _routeShape.latAtCatch + Math.min(2, yac * 0.05) },
+            { t: 1,                                    dxYd: targetDepth + yac,                       dyYd: _routeShape.latAtCatch + Math.min(2, yac * 0.05) },
+          ],
+        } : null;
         this._pushVisual({
           kind: "complete",
           desc: `${this.offR.starters.qb} → ${rcvr} for ${yards} yds${flavorTag}${endTag}`,
@@ -4470,6 +4514,11 @@ class GameSimulator {
           endYard: clamp(startYard + yards, 0, 100), receiver: rcvr, passer: this.offR.starters.qb,
           tackler: tacklerName, throwType, isPlayAction, isFleaFlicker, wrJuke, isLeapingCatch, catchRadius,
           concept: this._lastPassConcept, coverage: this._lastPassCoverage,
+          motion: _targetWRTrack ? {
+            targetSlot: _targetSlot,
+            throwT: _throwT,
+            tracks: { targetWR: _targetWRTrack },
+          } : null,
         });
         return { yards };
       }

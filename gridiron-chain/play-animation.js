@@ -2745,7 +2745,22 @@ function buildAnimForPlay(play, prevPlay) {
           : _conc === "PA_SHOT"      ? { breakT: 0.95, depthF: 0.95, latF: 0.0 }
           : _conc === "SCREEN"       ? null
           :                            { breakT: 0.95, depthF: 0.95, latF: 0.0 };
-      if (ctrl) {
+      // PATH B Phase 3b — engine-emitted route track wins if present.
+      // dyYd in the track is "yards toward midfield", so animation
+      // projects with sign(cy - formationY). Falls back to legacy
+      // concept-driven ctrl logic otherwise.
+      const _wrMotionTrack = (play.motion && play.motion.tracks && play.motion.tracks.targetWR) || null;
+      const _wrMotionSlot = play.motion && play.motion.targetSlot;
+      const _wrMotionMatches = _wrMotionTrack && _wrMotionSlot === wrChoice;
+      if (_wrMotionMatches && typeof MotionPlayback !== "undefined") {
+        // Sample at action time (aT) — engine waypoints are in the same scale.
+        const sample = MotionPlayback.sampleTrack(_wrMotionTrack, aT);
+        if (sample) {
+          const toMidSign = Math.sign(cy - wrPathY0) || 1;
+          wr.x = wrPathX0 + dir * sample.dxYd * FIELD.PX_PER_YARD;
+          wr.y = wrPathY0 + toMidSign * sample.dyYd * FIELD.PX_PER_YARD;
+        }
+      } else if (ctrl) {
         const midX = wrPathX0 + (targetX - wrPathX0) * ctrl.depthF;
         // latF interpolates between (start Y = 0) and (cy = 1, midfield).
         const midY = wrPathY0 + (cy - wrPathY0) * ctrl.latF;
@@ -3117,12 +3132,38 @@ function buildAnimForPlay(play, prevPlay) {
               const bpProg = (aT - jamT) / Math.max(0.001, backpedalT - jamT);
               dd.x = d.x + dir * bpProg * 8;
             } else {
-              // After backpedal — CB is HOLDING their coverage. Position
-              // mostly static (set above by isMan/zone block). Freeze
-              // the leg cycle so they don't visibly run-in-place while
-              // tracking the WR. User: "defender legs move while staring
-              // at the qb and staying still."
-              dd.t = 0;
+              // After backpedal — CB is HOLDING their coverage.
+              // PATH B Phase 3b — if the engine emitted a route track
+              // for THIS CB's assigned WR, shadow the WR's current
+              // position (with outside leverage). Solves the long-
+              // standing "CB stares at QB while WR runs free" bug.
+              const cbSlot = (i === idxCB1) ? "wr1" : (i === idxCB2) ? "wr2" : null;
+              const trk = (play.motion && play.motion.tracks && play.motion.tracks.targetWR) || null;
+              const trkSlot = play.motion && play.motion.targetSlot;
+              if (cbSlot && trk && trkSlot === cbSlot && typeof MotionPlayback !== "undefined") {
+                const wrTarget = (cbSlot === "wr1") ? formation.wr1 : formation.wr2;
+                const sample = MotionPlayback.sampleTrack(trk, aT);
+                if (sample && wrTarget) {
+                  const toMidSign = Math.sign(cy - wrTarget.y) || 1;
+                  const wrX = wrTarget.x + dir * sample.dxYd * FIELD.PX_PER_YARD;
+                  const wrY = wrTarget.y + toMidSign * sample.dyYd * FIELD.PX_PER_YARD;
+                  // Outside leverage — CB stays a step head-on and
+                  // slightly to the WR's outside-sideline. Tracks the
+                  // WR's break naturally without rubber-banding.
+                  dd.x = wrX + dir * 2;
+                  dd.y = wrY + toMidSign * -3;   // 3 yds outside (away from middle)
+                  // CB is running with the WR — leg cycle active.
+                  dd.t = (t < 0.95 ? ((performance.now() / 333) + i * 0.13) % 1 : 0);
+                  dd.facing = dir;     // running with the route, downfield
+                } else {
+                  // Position mostly static (set above). Freeze legs.
+                  dd.t = 0;
+                }
+              } else {
+                // Position mostly static (set above by isMan/zone block).
+                // Freeze the leg cycle so they don't visibly run-in-place.
+                dd.t = 0;
+              }
             }
           }
           // SAFETIES also backpedal briefly (smaller window)
