@@ -1403,63 +1403,113 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
   if (nearSide === 1) drawLeg(1, rLeg, rLegLift);
   else                drawLeg(-1, lLeg, lLegLift);
 
-  // ── Helmet — ROUND chunky dome (Roblox-style head). Big sphere on top. ─────
-  const helmRx = headR + 2.2;             // wider
-  const helmRy = helmH + 1.4;             // taller
-  const helmY  = shoulderY - helmRy - 0.6;
-  // Neck shadow — dark ellipse where the helmet sits on the shoulder pads,
-  // before the helmet draw paints over it. Reads as ambient occlusion in
-  // the deep crevice between the helmet bottom and the pad crest.
+  // ── Helmet — NFL silhouette (path-based). Taller than wide, tapered jaw,
+  // pronounced forward overhang at the brow where the facemask attaches.
+  // From a side view: bulged crown, curve down the back to the earhole, jaw-
+  // guard tapers IN sharply below ear, front juts forward at brow level.
+  const helmRx = headR + 1.0;             // narrower
+  const helmRy = helmH + 2.6;             // much taller — real NFL helmets are tall
+  const helmY  = shoulderY - helmRy - 0.4;
+  // facing-aware front/back x signs
+  const fF =  facing;   // +1 = front
+  const fB = -facing;
+  // Neck shadow — dark ellipse where helmet sits on the shoulder pads
   ctx.fillStyle = "rgba(0,0,0,0.6)";
   ctx.beginPath();
-  ctx.ellipse(0, padTopY - 0.4, helmRx * 0.55, 1.5, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, padTopY - 0.4, helmRx * 0.55, 1.4, 0, 0, Math.PI * 2);
   ctx.fill();
-  // Visible chin/jaw — skin block peeking out below the round dome
+  // Visible chin/jaw — skin sliver below the helmet jaw guard
   ctx.fillStyle = skin.base;
   ctx.beginPath();
-  ctx.ellipse(facing * 0.2, helmY + helmRy * 0.88, helmRx * 0.6, helmRy * 0.32, 0, 0, Math.PI * 2);
+  ctx.ellipse(fF * 0.4, helmY + helmRy * 0.92, helmRx * 0.50, helmRy * 0.20, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = skin.dark;
-  ctx.lineWidth = 0.6;
+  ctx.lineWidth = 0.5;
   ctx.stroke();
-  // Round helmet dome — radial gradient (highlight up-front, shadow back-bottom)
-  const helmGrad = ctx.createRadialGradient(facing * 1.8, helmY - helmRy * 0.45, 0.5,
+  // Helmet body — custom path: crown bulge → front overhang at brow → jaw taper → back curve
+  // Path points (relative to center, facing-aware):
+  const _crownT  = { x: fF * 0.2,         y: helmY - helmRy * 0.95 };  // top of crown
+  const _frontT  = { x: fF * helmRx * 0.85, y: helmY - helmRy * 0.55 };  // upper front
+  const _brow    = { x: fF * helmRx * 1.02, y: helmY - helmRy * 0.10 };  // brow jut (widest in front)
+  const _frontM  = { x: fF * helmRx * 0.90, y: helmY + helmRy * 0.30 };  // mid front
+  const _jawF    = { x: fF * helmRx * 0.55, y: helmY + helmRy * 0.78 };  // jaw front
+  const _chin    = { x: fF * 0.0,           y: helmY + helmRy * 0.92 };  // chin bottom
+  const _jawB    = { x: fB * helmRx * 0.65, y: helmY + helmRy * 0.75 };  // jaw back
+  const _backM   = { x: fB * helmRx * 0.95, y: helmY + helmRy * 0.10 };  // mid back (widest back)
+  const _backT   = { x: fB * helmRx * 0.75, y: helmY - helmRy * 0.55 };  // upper back
+  const helmGrad = ctx.createRadialGradient(fF * 1.8, helmY - helmRy * 0.45, 0.5,
                                             0, helmY, helmRx + 1.6);
   helmGrad.addColorStop(0,    shadeLight);
   helmGrad.addColorStop(0.4,  color);
   helmGrad.addColorStop(1,    shadeDark);
   ctx.fillStyle = helmGrad;
   ctx.beginPath();
-  ctx.ellipse(0, helmY, helmRx, helmRy, 0, 0, Math.PI * 2);
+  ctx.moveTo(_crownT.x, _crownT.y);
+  // Crown → front upper (gentle outward arc)
+  ctx.bezierCurveTo(fF * helmRx * 0.55, helmY - helmRy * 1.00,
+                    fF * helmRx * 0.85, helmY - helmRy * 0.85,
+                    _frontT.x, _frontT.y);
+  // Front upper → brow (forward jut)
+  ctx.bezierCurveTo(fF * helmRx * 1.00, helmY - helmRy * 0.40,
+                    fF * helmRx * 1.05, helmY - helmRy * 0.25,
+                    _brow.x, _brow.y);
+  // Brow → mid front (slight retreat)
+  ctx.bezierCurveTo(fF * helmRx * 1.02, helmY + helmRy * 0.10,
+                    fF * helmRx * 0.98, helmY + helmRy * 0.20,
+                    _frontM.x, _frontM.y);
+  // Mid front → jaw front (taper in)
+  ctx.bezierCurveTo(fF * helmRx * 0.82, helmY + helmRy * 0.55,
+                    fF * helmRx * 0.70, helmY + helmRy * 0.72,
+                    _jawF.x, _jawF.y);
+  // Jaw front → chin (narrow underside)
+  ctx.bezierCurveTo(fF * helmRx * 0.30, helmY + helmRy * 0.95,
+                    fF * helmRx * 0.10, helmY + helmRy * 0.98,
+                    _chin.x, _chin.y);
+  // Chin → jaw back
+  ctx.bezierCurveTo(fB * helmRx * 0.20, helmY + helmRy * 0.95,
+                    fB * helmRx * 0.40, helmY + helmRy * 0.85,
+                    _jawB.x, _jawB.y);
+  // Jaw back → mid back (gentle outward arc)
+  ctx.bezierCurveTo(fB * helmRx * 0.90, helmY + helmRy * 0.55,
+                    fB * helmRx * 1.00, helmY + helmRy * 0.30,
+                    _backM.x, _backM.y);
+  // Mid back → upper back
+  ctx.bezierCurveTo(fB * helmRx * 0.95, helmY - helmRy * 0.20,
+                    fB * helmRx * 0.88, helmY - helmRy * 0.40,
+                    _backT.x, _backT.y);
+  // Upper back → crown (closing arc)
+  ctx.bezierCurveTo(fB * helmRx * 0.55, helmY - helmRy * 0.90,
+                    fB * helmRx * 0.30, helmY - helmRy * 1.00,
+                    _crownT.x, _crownT.y);
+  ctx.closePath();
   ctx.fill();
   ctx.strokeStyle = "rgba(0,0,0,0.8)";
   ctx.lineWidth = 1.2;
   ctx.stroke();
-  // Bottom rim — solid dark crescent so the helmet reads as a heavy sphere
-  ctx.strokeStyle = "rgba(0,0,0,0.55)";
-  ctx.lineWidth = 1.6;
-  ctx.beginPath();
-  ctx.ellipse(0, helmY + 0.6, helmRx - 0.3, helmRy - 0.4, 0, 0.18, Math.PI - 0.18);
-  ctx.stroke();
-  // Center stripe — NFL-style mohawk that runs front-to-back across the TOP of
-  // the helmet. From a side view it reads as a thin arc tracing the upper crown.
+  // Center stripe — mohawk along the crown. Bezier traces the top of the
+  // new helmet path so the stripe sits ON the helmet, not floating above it.
   ctx.strokeStyle = secondary || "#fff";
   ctx.lineWidth = 1.5;
+  ctx.lineCap = "round";
   ctx.beginPath();
-  ctx.ellipse(0, helmY, helmRx * 0.92, helmRy * 0.92, 0,
-              Math.PI * 1.18, Math.PI * 1.82);
+  ctx.moveTo(fB * helmRx * 0.55, helmY - helmRy * 0.78);
+  ctx.bezierCurveTo(fB * helmRx * 0.30, helmY - helmRy * 0.97,
+                    fF * helmRx * 0.20, helmY - helmRy * 0.97,
+                    fF * helmRx * 0.55, helmY - helmRy * 0.78);
   ctx.stroke();
   // Top-front highlight — bright reflection on the upper-front dome
-  ctx.strokeStyle = "rgba(255,255,255,0.45)";
-  ctx.lineWidth = 1.4;
+  ctx.strokeStyle = "rgba(255,255,255,0.40)";
+  ctx.lineWidth = 1.2;
   ctx.beginPath();
-  ctx.ellipse(facing * 1.2, helmY - helmRy * 0.35, helmRx * 0.5, helmRy * 0.55, 0,
-              Math.PI * 1.05, Math.PI * 1.6);
+  ctx.moveTo(fF * helmRx * 0.30, helmY - helmRy * 0.88);
+  ctx.bezierCurveTo(fF * helmRx * 0.75, helmY - helmRy * 0.70,
+                    fF * helmRx * 0.95, helmY - helmRy * 0.40,
+                    fF * helmRx * 0.95, helmY - helmRy * 0.10);
   ctx.stroke();
-  // Ear hole — small dark dot on the BACK side of the helmet
+  // Ear hole — small dark dot on the back side, positioned mid-helmet
   ctx.fillStyle = "rgba(0,0,0,0.65)";
   ctx.beginPath();
-  ctx.arc(-facing * 1.9, helmY + 0.7, 1.1, 0, Math.PI * 2);
+  ctx.arc(fB * helmRx * 0.50, helmY + helmRy * 0.10, 1.0, 0, Math.PI * 2);
   ctx.fill();
   // ── Team logo decal on the side of the helmet (small badge with team's
   // secondary color outline, primary fill) ─────
@@ -1478,11 +1528,12 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
   ctx.beginPath();
   ctx.arc(logoX - 0.3, logoY - 0.4, 0.5, 0, Math.PI * 2);
   ctx.fill();
-  // ── Facemask cage — chrome bars across the front of the round helmet ─────
-  const fxOuter = facing * (helmRx + 0.2);
-  const fxInner = facing * (helmRx * 0.22);
-  const cageTop = helmY - helmRy * 0.10;
-  const cageBot = helmY + helmRy * 0.42;
+  // ── Facemask cage — chrome bars protruding from the brow → chin. Attaches
+  // at the brow's forward jut point (helmRx * 1.02) and extends to chin guard.
+  const fxOuter = facing * (helmRx + 0.5);
+  const fxInner = facing * (helmRx * 0.30);
+  const cageTop = helmY - helmRy * 0.05;
+  const cageBot = helmY + helmRy * 0.58;
   // Vertical "nose" bar curving slightly outward
   ctx.strokeStyle = "#2c2c34";
   ctx.lineWidth = 1.6;
