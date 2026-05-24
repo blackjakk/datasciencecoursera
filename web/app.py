@@ -530,6 +530,89 @@ with tab_keepers:
                     if eff_rows:
                         st.dataframe(pd.DataFrame(eff_rows),
                                       use_container_width=True, hide_index=True)
+
+                    # --- Save these as my keepers (persists to override JSON
+                    # and replaces the user's-team records in session) ---
+                    cc1, cc2 = st.columns([1, 1])
+                    save = cc1.button("💾 Save as my keepers",
+                                       help="Replaces this team's entries in "
+                                            "data/keepers_2026.json with the "
+                                            "checked set and writes a backup "
+                                            "to data/keepers_2026_override.json. "
+                                            "Next draft / mock will use these.",
+                                       key="save_keeper_override")
+                    if save:
+                        # Look up roster_id from existing records for this team.
+                        sample = next((r for r in real_records
+                                       if int(r['team_idx']) == my_idx), None)
+                        rid = sample.get('roster_id') if sample else my_idx + 1
+                        # Build new records.
+                        new_recs = []
+                        used_chk = {}
+                        for s in sorted(sel, key=lambda x: -float(x["Raw VBD"])):
+                            natural = int(s["Natural cost"].lstrip("R"))
+                            cand = next((c for c in my_cands
+                                          if c['player_name'] == s["Player"]), None)
+                            if cand is None: continue
+                            chosen = None
+                            for r in range(natural, 0, -1):
+                                if used_chk.get(r, 0) < owned.get(r, 0):
+                                    chosen = r; break
+                            if chosen is None: continue
+                            used_chk[chosen] = used_chk.get(chosen, 0) + 1
+                            bl_eff = (pv_pos.get(chosen) or {}).get(s["Pos"],
+                                                                     pv_blind.get(chosen, 0))
+                            net_eff = round(float(s["Raw VBD"]) - bl_eff, 1)
+                            new_recs.append({
+                                "team_idx": my_idx,
+                                "roster_id": rid,
+                                "player_name": s["Player"],
+                                "position": s["Pos"],
+                                "prior_round": int(cand["prior_round"]),
+                                "forfeit_round": int(cand["forfeit_round"]),
+                                "effective_forfeit_round": int(chosen),
+                                "years_kept": int(cand["years_kept"]),
+                                "status": "carryover",
+                                "net_vbd": net_eff,
+                                "raw_vbd": float(s["Raw VBD"]),
+                                "pick_value_baseline": round(bl_eff, 1),
+                                "adp": None,
+                                "is_waiver": bool(cand.get("is_waiver")),
+                                "_override": True,
+                            })
+                        # Replace user's team entries in session_state.
+                        kept_others = [r for r in real_records
+                                       if int(r['team_idx']) != my_idx]
+                        merged = kept_others + new_recs
+                        st.session_state.real_keepers_records = merged
+                        # Persist override file (full merged JSON so it can be
+                        # loaded later by load_keepers_file directly).
+                        override_path = ROOT / "data" / "keepers_2026_override.json"
+                        override_path.write_text(
+                            _json.dumps(merged, indent=2), encoding="utf-8")
+                        # Reset any in-progress draft so the new keepers take.
+                        st.session_state.draft = None
+                        st.session_state.applied_keepers = []
+                        st.session_state.mock_draft_result = None
+                        st.success(
+                            f"Saved {len(new_recs)} override keeper(s) for "
+                            f"team_idx {my_idx}. Reset Live Draft to apply."
+                        )
+                        st.caption(
+                            f"Backup written to `{override_path.relative_to(ROOT)}`."
+                        )
+                    if cc2.button("↩️ Revert to model picks", key="revert_overrides"):
+                        # Drop the user's overrides and reload from base file.
+                        try:
+                            base = _json.loads(
+                                (ROOT / "data" / "keepers_2026.json").read_text(encoding="utf-8"))
+                            st.session_state.real_keepers_records = base
+                            st.session_state.draft = None
+                            st.session_state.applied_keepers = []
+                            st.session_state.mock_draft_result = None
+                            st.success("Reverted to model picks from data/keepers_2026.json.")
+                        except Exception as e:
+                            st.error(f"Revert failed: {e}")
         except Exception as e:
             st.warning(f"Override panel unavailable: {e}")
     elif not by_season:

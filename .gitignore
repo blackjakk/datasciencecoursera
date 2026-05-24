@@ -51,3 +51,4 @@ __pycache__/
 data/sleeper/players_nfl.json
 data/sleeper/projections_*.json
 data/sleeper/league_*/_draft_ids.txt
+data/keepers_2026_override.json
