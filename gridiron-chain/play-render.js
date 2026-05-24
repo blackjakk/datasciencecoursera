@@ -545,6 +545,7 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
   const helmH = bt.helmH;
   const torsoLen = bt.torsoLen;
   const padW = bt.padW;
+  const torsoBotW = bt.torsoBotW;
   const armLen = bt.armLen;
   const legLen = bt.legLen;
   const runPhase = Math.sin(t * Math.PI * 2);
@@ -1268,25 +1269,44 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
     ? drawArm(1, rArm, rightHandBall, rForearmOverride)
     : drawArm(-1, lArm, leftHandBall, lForearmOverride);
 
-  // ── Shoulder pads — BLOCKY rectangle slab on top of the torso ──
-  const padTopY = shoulderY - 1.8;
-  const padBotY = shoulderY + 2.2;
+  // ── Shoulder pads — curved deltoid crowns with a center neck dip.
+  // Replaced the old flat slab: NFL pads have two raised lobes over the
+  // deltoids and a lower scoop in the middle where the jersey collar
+  // shows through. The helmet sits in that scoop, which both reveals a
+  // bit of neck and makes the silhouette read like a player not a brick.
+  const padTopY  = shoulderY - 1.8;       // crest of the deltoid lobes
+  const padDipY  = shoulderY - 0.6;       // bottom of the center neck scoop
+  const padBotY  = shoulderY + 2.2;
+  const padHalfW = padW / 2;
   const padGrad = ctx.createLinearGradient(0, padTopY, 0, padBotY);
   padGrad.addColorStop(0,    shadeLight);
   padGrad.addColorStop(0.55, color);
   padGrad.addColorStop(1,    shadeDark);
   ctx.fillStyle = padGrad;
-  ctx.fillRect(-padW/2, padTopY, padW, padBotY - padTopY);
+  ctx.beginPath();
+  ctx.moveTo(-padHalfW, padBotY);
+  ctx.lineTo(-padHalfW, padTopY + 0.4);
+  // left deltoid lobe
+  ctx.quadraticCurveTo(-padHalfW * 0.85, padTopY - 0.2, -padHalfW * 0.55, padTopY);
+  // dip toward neck
+  ctx.quadraticCurveTo(-padHalfW * 0.20, padDipY,        0,                  padDipY);
+  ctx.quadraticCurveTo( padHalfW * 0.20, padDipY,        padHalfW * 0.55,    padTopY);
+  // right deltoid lobe
+  ctx.quadraticCurveTo( padHalfW * 0.85, padTopY - 0.2,  padHalfW,           padTopY + 0.4);
+  ctx.lineTo(padHalfW, padBotY);
+  ctx.closePath();
+  ctx.fill();
   ctx.strokeStyle = "rgba(0,0,0,0.7)";
   ctx.lineWidth = 1.0;
-  ctx.strokeRect(-padW/2, padTopY, padW, padBotY - padTopY);
-  // Stadium rim light on the pad top — same warm tint as the helmet rim.
-  // Stops short of the edges so it reads as light catching the pad crest.
-  ctx.strokeStyle = "rgba(255,240,205,0.5)";
+  ctx.stroke();
+  // Rim light on each deltoid crest
+  ctx.strokeStyle = "rgba(255,240,205,0.55)";
   ctx.lineWidth = 0.6;
   ctx.beginPath();
-  ctx.moveTo(-padW/2 + 0.6, padTopY + 0.25);
-  ctx.lineTo( padW/2 - 0.6, padTopY + 0.25);
+  ctx.moveTo(-padHalfW * 0.92, padTopY + 0.3);
+  ctx.quadraticCurveTo(-padHalfW * 0.80, padTopY - 0.05, -padHalfW * 0.55, padTopY + 0.15);
+  ctx.moveTo( padHalfW * 0.92, padTopY + 0.3);
+  ctx.quadraticCurveTo( padHalfW * 0.80, padTopY - 0.05,  padHalfW * 0.55, padTopY + 0.15);
   ctx.stroke();
   // Pad lip — dark shadow line under the pad (ambient occlusion at the
   // pad-to-torso seam). Slightly deeper than before so the pad reads as
@@ -1303,31 +1323,61 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
   ctx.ellipse( padW/2 - 0.4, padBotY - 0.5, 1.4, 1.2, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // ── Torso — flat RECTANGLE (Roblox-style block torso) ──
-  const torsoW = (padW - 1.6);   // slightly narrower than the pads
-  const torsoX = -torsoW / 2;
+  // ── Torso — TAPERED trapezoid (wider at chest, narrower at waist).
+  // Was a flat rectangle, which made every player look like a block of
+  // cheese. Real shoulder-pad silhouette tapers ~20-30% from pad width
+  // down to the waist; torsoBotW (per body type) drives the waist width
+  // so HUGE keeps a barrel torso and LEAN tapers to a wedge.
+  const torsoTopW = (padW - 1.6);
+  const torsoBotWAdj = Math.max(torsoBotW, torsoTopW * 0.55);
   const torsoTop = shoulderY + 2;
   const torsoH = hipY - torsoTop;
-  const torsoGradH = ctx.createLinearGradient(-torsoW/2, 0, torsoW/2, 0);
+  const ttHalf = torsoTopW / 2;
+  const tbHalf = torsoBotWAdj / 2;
+  const torsoGradH = ctx.createLinearGradient(-ttHalf, 0, ttHalf, 0);
   torsoGradH.addColorStop(0,    shadeDark);
   torsoGradH.addColorStop(0.30, color);
   torsoGradH.addColorStop(0.70, color);
   torsoGradH.addColorStop(1,    shadeMid);
   ctx.fillStyle = torsoGradH;
-  ctx.fillRect(torsoX, torsoTop, torsoW, torsoH);
+  ctx.beginPath();
+  ctx.moveTo(-ttHalf, torsoTop);
+  ctx.lineTo( ttHalf, torsoTop);
+  ctx.lineTo( tbHalf, hipY);
+  ctx.lineTo(-tbHalf, hipY);
+  ctx.closePath();
+  ctx.fill();
   ctx.strokeStyle = "rgba(0,0,0,0.7)";
   ctx.lineWidth = 1.0;
-  ctx.strokeRect(torsoX, torsoTop, torsoW, torsoH);
-  // Secondary-color trim on the sides of the jersey (vertical stripes)
+  ctx.stroke();
+  // Secondary-color side stripes — follow the taper so they read as part
+  // of the jersey, not stickers on a box.
   ctx.fillStyle = secondary || "#fff";
-  ctx.fillRect(torsoX, torsoTop, 0.9, torsoH);
-  ctx.fillRect(torsoX + torsoW - 0.9, torsoTop, 0.9, torsoH);
-  // Belt — dark band at the bottom of the torso
+  const stripeW = 0.9;
+  ctx.beginPath();
+  ctx.moveTo(-ttHalf,           torsoTop);
+  ctx.lineTo(-ttHalf + stripeW, torsoTop);
+  ctx.lineTo(-tbHalf + stripeW, hipY);
+  ctx.lineTo(-tbHalf,           hipY);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo( ttHalf,           torsoTop);
+  ctx.lineTo( ttHalf - stripeW, torsoTop);
+  ctx.lineTo( tbHalf - stripeW, hipY);
+  ctx.lineTo( tbHalf,           hipY);
+  ctx.closePath();
+  ctx.fill();
+  // Belt — dark band at the bottom, follows the waist width
   ctx.fillStyle = "rgba(0,0,0,0.55)";
-  ctx.fillRect(torsoX, hipY - 1.2, torsoW, 1.2);
+  ctx.fillRect(-tbHalf, hipY - 1.2, torsoBotWAdj, 1.2);
   // Subtle vertical chest highlight on the LIT side
   ctx.fillStyle = "rgba(255,255,255,0.16)";
-  ctx.fillRect(torsoX + torsoW * 0.65, torsoTop + 0.5, torsoW * 0.18, torsoH - 1.5);
+  ctx.fillRect(ttHalf * 0.30, torsoTop + 0.5, ttHalf * 0.18, torsoH - 1.5);
+  // Aliases for downstream (captain patch / towel) that were written
+  // against the old rectangle origin.
+  const torsoW = torsoTopW;
+  const torsoX = -ttHalf;
 
   if (label && /^\d{1,2}$/.test(label)) {
     // Last-name strip — small uppercase nameplate above the jersey number,
@@ -1413,14 +1463,29 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
   // guard tapers IN sharply below ear, front juts forward at brow level.
   const helmRx = headR * 0.85 + 0.2;     // smaller relative to body
   const helmRy = helmH + 1.3;             // proportionally shorter (helmH itself was reduced)
-  const helmY  = shoulderY - helmRy - 0.4;
+  const helmY  = shoulderY - helmRy - 1.4; // lifted to expose a visible neck above the pads
   // facing-aware front/back x signs
   const fF =  facing;   // +1 = front
   const fB = -facing;
-  // Neck shadow — dark ellipse where helmet sits on the shoulder pads
-  ctx.fillStyle = "rgba(0,0,0,0.6)";
+  // Visible neck — skin-toned wedge filling the gap between the helmet
+  // jaw and the shoulder-pad scoop. Was previously implicit (helmet
+  // overlapped the pads with no neck at all), which made the helmet look
+  // bolted directly to the torso.
+  const neckTopY = helmY + helmRy * 0.78;
+  const neckBotY = padDipY + 0.2;
+  const neckHalfW = helmRx * 0.42;
+  ctx.fillStyle = skin.dark;
   ctx.beginPath();
-  ctx.ellipse(0, padTopY - 0.4, helmRx * 0.55, 1.4, 0, 0, Math.PI * 2);
+  ctx.moveTo(-neckHalfW * 0.85, neckTopY);
+  ctx.lineTo( neckHalfW * 0.85, neckTopY);
+  ctx.lineTo( neckHalfW,        neckBotY);
+  ctx.lineTo(-neckHalfW,        neckBotY);
+  ctx.closePath();
+  ctx.fill();
+  // Neck shadow — dark crescent on the pad scoop just under the chin
+  ctx.fillStyle = "rgba(0,0,0,0.55)";
+  ctx.beginPath();
+  ctx.ellipse(0, padDipY + 0.1, helmRx * 0.50, 0.9, 0, 0, Math.PI * 2);
   ctx.fill();
   // Visible chin/jaw — skin sliver below the helmet jaw guard
   ctx.fillStyle = skin.base;
