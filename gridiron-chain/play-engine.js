@@ -4092,23 +4092,64 @@ class GameSimulator {
         const stickAim = (this.down >= 3 && this.ytg >= 8)
           ? Math.min(6, this.ytg - 8)
           : 0;
-        const airMean = (pb.airYdsMean ?? 7.5) + 1.5 + stickAim - pressure * 2.0 + qbAirMod + qbAirFromOvr + paAirMod + qbPocketAirBonus + centerFieldCap + wxAirMod + defDeepBonus + archAirMod + posAirMod + qbAggAirMod + ocAirAttackMod + boxStackAirMod;
-        const airSd   = (pb.airYdsSd   ?? 6) * (qbArch === "GUNSLINGER" ? 1.25 : 1.0);
-        const airYds  = clamp(normal(airMean + adv * 2, airSd), -2, 55);
+        // ── CLASS-MIXTURE AIR YARDS ─────────────────────────────────────
+        // NFL QBs throw to ROUTE CONCEPTS, not random distances. Real air-
+        // yards distribution is multimodal: ~55% short concepts (slants,
+        // RPO, screens at 0-5 yds), ~28% intermediate (digs, outs at 6-15),
+        // ~13% deep (go, deep posts at 16-25), ~4% shot plays (26+). Each
+        // concept has tight intrinsic spread. The old single-normal draw
+        // (mean ~9, sd ~6) produced too many random in-between throws and
+        // missed the concentration at characteristic depths — also tied
+        // upper YPA tightly to YAC bucket lottery instead of QB intent.
+        const airBaselineMod = ((pb.airYdsMean ?? 7.5) - 7.5)  // playbook tilt
+          + qbAirMod + qbAirFromOvr + paAirMod + qbPocketAirBonus
+          + centerFieldCap + wxAirMod + defDeepBonus + archAirMod
+          + posAirMod + qbAggAirMod + ocAirAttackMod + boxStackAirMod
+          + adv * 2;
+        // Aggressive-vs-conservative signal (-1..+1)
+        const aMod = clamp(airBaselineMod / 5, -1, 1);
+        // Pressure forces short — under heavy pressure QB dumps off
+        const pressureShort = clamp(pressure * 0.30, 0, 0.45);
+        // Stick-aim on 3rd-and-long: shift mass toward intermediate/deep
+        const stickShift = stickAim / 8;   // 0..0.75
+        // GUNSLINGER bumps deep/shot
+        const gunMod = (qbArch === "GUNSLINGER") ? 1 : 0;
+        // Class probabilities (NFL baseline tilted by signals).
+        // First pass at 55/28/13/4 dropped Pass YPA to 6.88 (NFL ~7.2) because
+        // air-yards mean fell to 8.25. Re-weighted to push more attempts into
+        // intermediate/deep (NFL pass-attempt mean is ~9 air yards).
+        let p_short  = clamp(0.47 + pressureShort - aMod * 0.18 - stickShift * 0.30 - gunMod * 0.05, 0.20, 0.85);
+        let p_inter  = clamp(0.30 + aMod * 0.04 + stickShift * 0.20 - pressureShort * 0.35 - gunMod * 0.04, 0.10, 0.50);
+        let p_deep   = clamp(0.17 + aMod * 0.10 + stickShift * 0.08 - pressureShort * 0.25 + gunMod * 0.05, 0.02, 0.30);
+        let p_shot   = clamp(0.06 + aMod * 0.05 + stickShift * 0.02 - pressureShort * 0.20 + gunMod * 0.04, 0, 0.15);
+        const _psum = p_short + p_inter + p_deep + p_shot;
+        p_short /= _psum; p_inter /= _psum; p_deep /= _psum; p_shot /= _psum;
+        // Class draw — narrow intrinsic spread per concept
+        const _aCls = Math.random();
+        let airYds;
+        if (_aCls < p_short) {
+          airYds = clamp(Math.round(normal(3.0, 1.5)), -2, 6);
+        } else if (_aCls < p_short + p_inter) {
+          airYds = clamp(Math.round(normal(10.0, 2.5)), 6, 16);
+        } else if (_aCls < p_short + p_inter + p_deep) {
+          airYds = clamp(Math.round(normal(20.0, 3.0)), 16, 28);
+        } else {
+          airYds = clamp(Math.round(normal(30.0, 5.0)), 26, 55);
+        }
         // YAC distribution — short catches / screens get more YAC potential.
-        // Tuned to land NFL-average ~5.5 yds YAC per completion. Earlier
-        // tuning was bimodal — 28% "zero YAC" wrap-immediately bucket plus a
-        // thin middle pushed avg to ~4.2 (below NFL ~5.5). Trimmed the 0-bucket
-        // (28→20%) and bumped the meaty middle ranges so honest 4-8 yard
-        // chunks-after-catch fire more often; cascades through 3rd-down
-        // distance distribution into drive length and pace.
+        // Tuned to land NFL-average ~4.5 yds YAC per completion. The prior
+        // "bumped YAC" (mean ~5.5) was a band-aid for the bimodal single-
+        // normal pass system that wasn't producing enough chunks via
+        // airYds. With the class-mixture air-yards model (concepts deliver
+        // chunks structurally), the YAC bump double-counts and pushes
+        // pass YPA past NFL. Dialed back closer to NFL baseline.
         let yac = 0;
         if (airYds >= 1) {
           const r = Math.random();
-          if (r < 0.20) yac = 0;
-          else if (r < 0.62) yac = rand(2, Math.max(4, Math.floor(airYds * 0.6)) + 2);
-          else if (r < 0.93) yac = rand(4, Math.max(8, Math.floor(airYds * 1.0)) + 3);
-          else                yac = rand(5, 15) + Math.floor(airYds * 0.5); // big YAC: trimmed (top 7%)
+          if (r < 0.25) yac = 0;
+          else if (r < 0.65) yac = rand(1, Math.max(3, Math.floor(airYds * 0.55)) + 2);
+          else if (r < 0.94) yac = rand(3, Math.max(7, Math.floor(airYds * 0.9)) + 3);
+          else                yac = rand(4, 12) + Math.floor(airYds * 0.4);
         }
         // YAC archetype tilt: SLOT and POSSESSION lead the league but the
         // prior 1.45/1.25 stacked with high base YAC pushed top WR season
