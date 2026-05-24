@@ -3525,14 +3525,23 @@ function buildAnimForPlay(play, prevPlay) {
       const matchesCarrier = (p) =>
         (p.role === "RB" || p.role === "QB") && rusherName;
 
-      // play.scrumMisses tells us HOW MANY failed dive attempts before
-      // the recovery. We pick the N closest non-carrier players and give
-      // them staggered DIVE poses during the scrum window so the user
-      // actually SEES the missed dives, instead of one generic pile.
-      const scrumMisses = Math.min(4, play.scrumMisses || 0);
+      // Fumble pile sizing — was "everyone sprints at 24 yd/s and
+      // dives" which made it look like a bomb went off. Real NFL: 5-8
+      // closest players converge fast; the rest jog up gradually or
+      // stay back (they're out of position). Now:
+      //   • Top SCRUM_SIZE closest non-carriers actually rush the ball
+      //   • Of those, scrumMisses get the staggered dive treatment
+      //   • Everyone else jogs slowly toward the area but stays out of
+      //     the actual pile
+      const SCRUM_SIZE = 7;            // realistic pile-up size
+      const SPRINT_PX = 180;            // ≈ 12 yd/s — realistic top speed
+      const OL_PX     = 100;            // OL lumber to the ball
+      const JOG_PX    = 65;             // ≈ 4.3 yd/s — far players jog up
+      const scrumMisses = Math.min(3, play.scrumMisses || 0);
       const allNonCarriers = [...offPlayers, ...defPlayers].filter(p => !(p.role === "RB" || p.role === "QB"));
       allNonCarriers.sort((a, b) =>
         Math.hypot(a.x - fumX, a.y - fumY) - Math.hypot(b.x - fumX, b.y - fumY));
+      const scrumParticipants = new Set(allNonCarriers.slice(0, SCRUM_SIZE));
       const missers = new Set(allNonCarriers.slice(0, scrumMisses));
 
       const renderConverging = (players, isOff) => {
@@ -3549,46 +3558,51 @@ function buildAnimForPlay(play, prevPlay) {
             pPose = "tackled";
           } else if (missers.has(p)) {
             // Designated misser — sprints toward the ball, then DIVES
-            // in their assigned window. Each misser gets a unique
-            // staggered timing so they dive in succession.
+            // in their assigned window. Staggered so they dive in
+            // succession instead of simultaneously.
             const myIdx = [...missers].indexOf(p);
-            const diveStart = 0.34 + myIdx * 0.10;
-            const diveEnd   = diveStart + 0.16;
+            const diveStart = 0.40 + myIdx * 0.12;
+            const diveEnd   = diveStart + 0.18;
             const isOL = p.role === "OL";
-            const speedMul = isOL ? 0.45 : 1.0;
+            const speed = isOL ? OL_PX : SPRINT_PX;
             const dx = ballX - p.x, dy = ballY - p.y;
             const dist = Math.hypot(dx, dy);
-            const maxMove = Math.min(t, diveStart) * 360 * speedMul;
+            const maxMove = Math.min(t, diveStart) * speed;
             const moveFrac = Math.min(1, maxMove / Math.max(1, dist));
             pX = p.x + dx * moveFrac;
             pY = p.y + dy * moveFrac;
             if (t >= diveStart && t < diveEnd) {
               pPose = "dive";
-              pT = (t - diveStart) / 0.16;
+              pT = (t - diveStart) / 0.18;
             } else if (t >= diveEnd) {
               pPose = "tackled";   // landed flat after missing
             } else {
               pPose = "run";
             }
-          } else {
-            // OL drag (slow), DL/LB/CB/S/WR sprint
+          } else if (scrumParticipants.has(p)) {
+            // Actual pile participants — sprint to the ball, then fall
+            // into the pile. Realistic NFL speed (12 yd/s), not 24.
             const isOL = p.role === "OL";
-            const speedMul = isOL ? 0.45 : (p.role === "WR1" || p.role === "WR2" || p.role === "TE") ? 0.70 : 1.0;
+            const speed = isOL ? OL_PX : SPRINT_PX;
             const dx = ballX - p.x, dy = ballY - p.y;
             const dist = Math.hypot(dx, dy);
-            const maxMove = t * 360 * speedMul;
+            const maxMove = t * speed;
             const moveFrac = Math.min(1, maxMove / Math.max(1, dist));
             pX = p.x + dx * moveFrac;
             pY = p.y + dy * moveFrac;
-            // Once close enough, dive into the pile
             const newDist = Math.hypot(ballX - pX, ballY - pY);
-            if (newDist < 38 && t > 0.55) {
-              pPose = "tackled";
-            } else if (newDist < 38) {
-              pPose = "tackled";
-            } else {
-              pPose = "run";
-            }
+            pPose = newDist < 28 ? "tackled" : "run";
+          } else {
+            // Out-of-position — jog slowly toward the area, never get
+            // close enough to join the pile. Stays in "run" pose with
+            // small movement so the field doesn't look frozen.
+            const dx = ballX - p.x, dy = ballY - p.y;
+            const dist = Math.hypot(dx, dy);
+            const maxMove = t * JOG_PX;
+            const moveFrac = Math.min(0.6, maxMove / Math.max(1, dist));
+            pX = p.x + dx * moveFrac;
+            pY = p.y + dy * moveFrac;
+            pPose = "run";
           }
           drawPlayer(ctx, pX, pY, color, sec, p.label || "", pPose, pT, isOff ? dir : -dir, p);
         }
