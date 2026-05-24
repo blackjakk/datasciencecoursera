@@ -1921,11 +1921,25 @@ function buildAnimForPlay(play, prevPlay) {
             dd.t = np.moved ? (t * 3 + i * 0.13) % 1 : 0;
           }
         }
-        // Face the CARRIER, not just -dir. With -dir, a defender chasing
-        // a runner laterally always faced the LOS (toward the endzone),
-        // even when sprinting sideways. Now they turn to face where the
-        // ball actually is. Fallback to -dir when carrier is at the same
-        // x as defender (lateral-only chase moment).
+        // GUARANTEED TACKLER — primary tackler arrives AT the carrier's
+        // final spot by the tackle window. Without this, big runs left
+        // the carrier standing still at cruiseEnd for seconds while
+        // defenders pursued at the speed cap. Now the primary tackler's
+        // position eases from their pursue point → carrier's final spot
+        // over runT 0.50 → 0.78, so the tackle triggers on time.
+        if (i === primaryTacklerIdx && !isTrucked && yards < 90) {
+          const arriveStartT = 0.50;
+          const arriveEndT   = 0.78;
+          if (runT > arriveStartT) {
+            const arrProg = Math.min(1, (runT - arriveStartT) / (arriveEndT - arriveStartT));
+            const eased   = arrProg * arrProg * (3 - 2 * arrProg);
+            const fromX = np.x, fromY = np.y;
+            const toX = rb.x - dir * 4, toY = rb.y + 2;
+            dd.x = fromX + (toX - fromX) * eased;
+            dd.y = fromY + (toY - fromY) * eased;
+          }
+        }
+        // Face the CARRIER, not just -dir.
         dd.facing = (rb.x > dd.x) ? 1 : (rb.x < dd.x ? -1 : -dir);
         // Tackle pose — variety. PRIMARY tackler drives in (hit) or dives
         // (big-hit dive); pile-on defenders RAGDOLL with physics; the
