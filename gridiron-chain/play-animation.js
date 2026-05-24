@@ -1006,11 +1006,16 @@ function buildAnimForPlay(play, prevPlay) {
     const f = maxMove / Math.max(0.001, dist);
     return { x: d.x + dx * f, y: d.y + dy * f };
   };
-  // Action duration scales with yardage — this is JUST the post-snap action,
-  // pre-snap is added on top via PRE_MS. Big plays now get proportionally more
-  // time so they don't teleport (10yd→~2.0s, 40yd→~4.1s, 80yd→~6.9s).
+  // Action duration scales with yardage. Rebalanced based on cruise-speed
+  // math: with runPacing's cruise covering 86% of distance in 56% of time,
+  // the OLD formula produced 18 yd/s (~36 mph) cruise on 80-yard plays
+  // (real NFL top speed is ~23 mph) and 2.2 yd/s on 2-yard stuffs (walking
+  // pace). New curve: faster floor for short plays, steeper slope for long
+  // plays so cruise lands near a realistic 12 yd/s.
+  //   2yd → 920ms,  5yd → 1250ms,  10yd → 1800ms,  20yd → 2900ms,
+  //   50yd → 6200ms,  80yd → 9500ms,  100yd → 11000ms (capped)
   function scaledDuration(yds) {
-    return clamp(1300 + Math.abs(yds || 0) * 70, 1400, 7500);
+    return clamp(700 + Math.abs(yds || 0) * 110, 1000, 11000);
   }
   // Pre-snap timing — ~3 seconds of huddle break, line set, audible, "HUT HUT"
   // before the center snaps. Audibles add an extra ~600 ms.
@@ -2399,12 +2404,25 @@ function buildAnimForPlay(play, prevPlay) {
       } else {
         const at = aT;   // flicker-aware action time
         const tf = throwFrac;
-        if (at < tf * 0.29) {
+        // QB pose timeline (post-rebalance). Old code spent 36% of the throw
+        // window in cradle+cock — that was 846ms for a 15-yard pass when
+        // real NFL cock-back is ~200ms. Cock now compressed to 10% of tf,
+        // with dropback expanded to absorb the slack (more "scanning the
+        // field" time, like a real QB). Also skip the cradle sub-phase
+        // (qbT 0→0.18) because it's just "stand still with ball at chest" —
+        // visually identical to the dropback pose, so it reads as a dead
+        // beat where the throw should be starting.
+        //   0    - 0.55 tf: dropback (carry pose)
+        //   0.55 - 0.65 tf: cock-back (qbT 0.18→0.42, fast wind-up)
+        //   0.65 - 0.73 tf: hold at cocked ear (qbT 0.42→0.48)
+        //   0.73 - 0.85 tf: snap / release (qbT 0.48→0.68, release ~0.55)
+        //   0.85 - 1.00 tf: follow-through (qbT 0.68→1.0)
+        if (at < tf * 0.55) {
           qbPose = "carry";
           qbT = (t * 3 + 0.5) % 1;
         } else if (at < tf * 0.65) {
           qbPose = "throw";
-          qbT = (at - tf * 0.29) / (tf * 0.36) * 0.42;
+          qbT = 0.18 + (at - tf * 0.55) / (tf * 0.10) * (0.42 - 0.18);
         } else if (at < tf * 0.73) {
           qbPose = "throw";
           qbT = 0.42 + (at - tf * 0.65) / (tf * 0.08) * 0.06;
@@ -2413,7 +2431,7 @@ function buildAnimForPlay(play, prevPlay) {
           qbT = 0.48 + (at - tf * 0.73) / (tf * 0.12) * 0.20;
         } else if (at < tf * 1.0) {
           qbPose = "throw";
-          qbT = 0.62 + (at - tf * 0.85) / (tf * 0.15) * 0.33;
+          qbT = 0.68 + (at - tf * 0.85) / (tf * 0.15) * 0.32;
         } else {
           qbPose = "idle";
           qbT = 0;
