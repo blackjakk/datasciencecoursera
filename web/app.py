@@ -2044,6 +2044,7 @@ with tab_charts:
         st.caption("For every keeper tagged in xlsx 2023-2025 history, how "
                    "did they actually score that year vs. an average pick at "
                    "their keeper cost round?")
+        from fantasy_draft.xlsx_history import normalize_name as _n3  # noqa: E402
         keeper_results = []
         for yr, recs in (D["xlsx_by_year"] or {}).items():
             pts_for_year = D["pts_by_season"].get(yr, {})
@@ -2052,10 +2053,9 @@ with tab_charts:
             year_pts_by_name = {}
             for p in D["picks"]:
                 if p["season"] == yr:
-                    year_pts_by_name[normalize_name(p["player_name"])] = (
+                    year_pts_by_name[_n3(p["player_name"])] = (
                         p["season_points"], p["round"], p["team_name"])
             for k in recs:
-                from fantasy_draft.xlsx_history import normalize_name as _n3
                 canon = resolve_xlsx_name(k.player_name) or k.player_name
                 key = _n3(canon)
                 row = year_pts_by_name.get(key)
