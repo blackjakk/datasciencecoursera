@@ -1,131 +1,125 @@
 # MONEYLEAGUE 2026 — Pre-Draft Snapshot
 
-**Format:** 12 teams · 17-round superflex · half-PPR · 4 keepers max · 2-round
-penalty · 3-year consecutive cap · 11 years of history (since 2015).
+*Generated 2026-05-24 00:11 UTC from `data/*.json` + `MONEY_LEAGUE.xlsx`.*
+
+**Format:** 12 teams · 17-round superflex · half-PPR · 4 keepers max · 2-round penalty · 3-year consecutive cap · 11 years of history (since 2015).
 
 ---
 
 ## Keeper landscape
 
-41 players tagged as keepers in 2025 → **38 roll into 2026** at cost − 2. Three
-yr3 keepers hit the cap and **return to the pool**:
+41 players tagged as keepers in 2025 → **38 roll into 2026** at cost − 2. **3 yr3 keepers hit the cap** and return to the pool:
 
 | Player | Pos | 2026 ADP | VBD | Last team |
 |---|---|---|---|---|
-| Brock Purdy | QB | 105.8 | +42.9 | kylefiggy |
-| Jordan Love | QB | 126.2 | +29.7 | Guap's Guys |
-| Geno Smith | QB | 999 | −30.3 | I Herald LEMVP |
+| Brock Purdy | QB | 105.8 | +13.1 | kylefiggy |
+| Jordan Love | QB | 126.2 | +0.0 | Guap's Guys |
+| Geno Smith | QB | — | -60.0 | I Herald LEMVP |
 
-7 of 12 teams have **fewer than 4 carryovers** and will fill the remaining
-slots from waiver/undrafted players at the league's last-round cost.
+7 of 12 teams have **fewer than 4 carryovers** and will fill the remaining slots from the waiver/undrafted pool.
 
 ---
 
-## Keeper value, ranked
+## Top keeper values
 
-Top keepers (VBD vs. the player you'd otherwise get in the forfeited round):
+Net VBD = player's VBD − expected VBD at the round they cost. Higher = more keeper edge.
 
-| Cost | Player | Pos | VBD | Team |
+| Cost | Player | Pos | Net VBD | Team |
 |---|---|---|---:|---|
-| R11 | Puka Nacua | WR | **+120.5** | BergerBoy Brigade |
-| R5  | Jaxon Smith-Njigba | WR | +96.6 | Barry Sandals |
-| R6  | De'Von Achane | RB | +75.9 | BergerBoy Brigade |
-| R11 | Trey McBride | TE | +66.6 | ⭐️⭐️⭐️ |
-| R2  | Brock Bowers | TE | +63.2 | ⭐️⭐️⭐️ |
-| R11 | Chase Brown | RB | +59.7 | I Herald LEMVP |
-| R4  | Nico Collins | WR | +59.5 | BergerBoy Brigade |
-| R7  | Drake Maye | QB | +58.8 | TBreswick |
+| R11 | Puka Nacua | WR | **+113.4** | BergerBoy Brigade ⭐️⭐️⭐️ |
+| R5 | Jaxon Smith-Njigba | WR | **+69.5** | Barry Sandals |
+| R11 | Trey McBride | TE | **+59.9** | ⭐️⭐️⭐️ |
+| R6 | De'Von Achane | RB | **+49.8** | BergerBoy Brigade ⭐️⭐️⭐️ |
+| R11 | Chase Brown | RB | **+47.9** | I Herald LEMVP |
+| R11 | Kyren Williams | RB | **+27.4** | Barry Sandals |
+| R4 | Nico Collins | WR | **+24.5** | BergerBoy Brigade ⭐️⭐️⭐️ |
+| R10 | Bucky Irving | RB | **+21.4** | she Tuten on my Bhayshul |
 
-**Team keeper-value totals** (sum of VBD across kept players):
+**Team keeper-value totals** (sum of net VBD across carryovers):
 
 | Team | Keepers | VBD total |
 |---|---:|---:|
-| ⭐️⭐️⭐️ | 4 | **+191.0** |
-| Barry Sandals | 4 | +128.0 |
-| TBreswick | 2 | +60.0 |
-| Unicorn Poo | 4 | +39.9 |
-| BergerBoy Brigade ⭐️⭐️⭐️ | 4 | +37.8 |
-| she Tuten on my Bhayshul | 3 | +27.8 |
-| Wi1dboy | 3 | −13.6 |
-| I Herald LEMVP | 3 | −34.5 |
-| Chester A. Arthur | 2 | −86.5 |
-| Trez Bridges & Co. | 4 | −110.8 |
-| Guap's Guys | 2 | −149.3 |
-| kylefiggy | 3 | **−251.3** |
-
-⭐️⭐️⭐️ enters the draft with a +191 VBD head start and the league's two best
-TEs. kylefiggy is upside-down: Justin Fields, JJ McCarthy, and Tucker Kraft
-all project below replacement for their forfeit rounds.
+| ⭐️⭐️⭐️ | 4 | +72.3 |
+| Barry Sandals | 4 | +18.5 |
+| TBreswick | 2 | +13.7 |
+| BergerBoy Brigade ⭐️⭐️⭐️ | 4 | -60.1 |
+| she Tuten on my Bhayshul | 3 | -67.6 |
+| Unicorn Poo | 4 | -77.2 |
+| Chester A. Arthur | 2 | **-101.7** |
+| Wi1dboy | 3 | **-104.2** |
+| I Herald LEMVP | 3 | **-124.1** |
+| Guap's Guys | 2 | **-185.7** |
+| Trez Bridges & Co. | 4 | **-203.9** |
+| kylefiggy | 3 | **-303.6** |
 
 ---
 
 ## Trade activity (2026 picks)
 
-20 traded picks on file; **18 net moves** after round-trips. Four teams sat
-out: Trez Bridges, she Tuten on my Bhayshul, Barry Sandals, Guap's Guys.
+20 traded picks on file; **18 net moves** after round-trips.
 
 | Team | Gained | Lost |
 |---|---|---|
-| kylefiggy | +R1, R1, R2, R4 | R4, R8, R13, R14 |
-| Chester A. Arthur | +R1, R3 | R13, R14 |
-| Unicorn Poo | +R14, R14, R15 | R1, R2, R4 |
-| BergerBoy Brigade | +R4, R8, R13 | R1, R2, R4 |
-| TBreswick | +R13, R14 | R1, R3 |
-| I Herald LEMVP | +R2, R4 | R14, R15 |
-| ⭐️⭐️⭐️ | +R2 | R17 |
-| Wi1dboy | +R17 | R2 |
-
-Notable: **kylefiggy now owns three R1 picks** (after their keeper pile already
-costs them R8, R9, R10) — they're trying to rebuild around fresh elite talent
-while shedding their underperforming yr1-yr2 keeper stack. **TBreswick gave up
-their R1 and R3** for a pair of mid-teens — either an extreme punt or signal
-of confidence in their two top-30 keepers (Drake Maye, Ricky Pearsall).
+| BergerBoy Brigade ⭐️⭐️⭐️ | R4, R8, R13 | R1, R2, R4 |
+| Chester A. Arthur | R1, R3 | R13, R14 |
+| I Herald LEMVP | R2, R4 | R14, R15 |
+| TBreswick | R13, R14 | R1, R3 |
+| Unicorn Poo | R14, R14, R15 | R1, R2, R4 |
+| Wi1dboy | R17 | R2 |
+| kylefiggy | R1, R1, R2, R4 | R4, R8, R13, R14 |
+| ⭐️⭐️⭐️ | R2 | R17 |
 
 ---
 
-## 11-year patterns
+## 11-year retention patterns
 
-**Per-position retention (1st-year → 2nd-year keeper):**
+Latest-year keepers excluded from the yr1→yr2 column (their fate isn't observable yet).
 
-| Pos | Yr1 → Yr2 | Yr2 → Yr3 | Total cap hits (11 yrs) |
+| Pos | Yr1 → Yr2 | Yr2 → Yr3 | Total cap hits |
 |---|---|---|---:|
-| QB | 31% (n=16) | **38%** (n=8) | 3 |
-| RB | 29% (n=21) | 11% (n=9) | 3 |
-| WR | 33% (n=27) | 18% (n=17) | 7 |
-| TE | 25% (n=12) | 0% (n=3) | 2 |
+| QB | 47% (n=19) | 44% (n=9) | 5 |
+| RB | 24% (n=38) | 31% (n=16) | 8 |
+| WR | 29% (n=48) | 36% (n=22) | 13 |
+| TE | 46% (n=13) | 0% (n=3) | 2 |
 
-QBs are the position most likely to be kept all three years in a row. TEs
-**never** get held to yr3 — by then the round penalty is too painful for
-the position. WRs hit the cap most often (7 times), which tracks: long careers,
-predictable production, easier to project a third year of value.
+**Post-cap fate:** of the 29 players who hit the 3-year cap across 11 years, **18 (62%) were re-drafted EARLIER** the next year — forced drops are typically high-value early-round targets, not discards. (2 same round, 4 later, 5 undrafted.)
 
-**League activity, year by year:**
+Of those re-drafted earlier: min R1, median R2, max R8.
 
-The league averaged ~30 keepers/year recently (max 41 in 2025, the most
-in its history). Anomalies: **2020** had only 4 keepers (COVID-shortened
-prep?), **2023** had zero (rule reset?). Engagement is at an all-time
-high heading into 2026.
+---
 
-**Most-kept players ever:** Deshaun Watson (5 different years), then a
-cluster at 3 years including Kittle, Mayfield, Tyreek Hill, Davante Adams,
-Mike Evans — the WR longevity pattern shows up clearly.
+## Position-by-round ROI (2023-2025)
+
+Mean season fantasy points scored by players drafted at each (round, position) across the 3 most-recent seasons. Superflex amplifies QB dominance.
+
+| Round | Best position | Mean points | Sample | Advantage |
+|---:|---|---:|---:|---|
+| R1 | QB | 288 | n=11 | +77 vs RB |
+| R2 | QB | 266 | n=9 | +36 vs RB |
+| R3 | QB | 189 | n=7 | +19 vs RB |
+| R4 | QB | 228 | n=6 | +35 vs RB |
+| R5 | QB | 229 | n=7 | +65 vs RB |
+| R6 | QB | 265 | n=4 | +131 vs TE |
+| R7 | QB | 230 | n=6 | +76 vs WR |
+| R8 | QB | 249 | n=5 | +116 vs RB |
+| R9 | QB | 213 | n=8 | +118 vs WR |
+| R10 | QB | 182 | n=7 | +69 vs TE |
+
+---
+
+## Recent champions
+
+| Year | Champion |
+|---:|---|
+| 2023 | 🏆 emattessich |
+| 2024 | 🏆 ⭐️⭐️⭐️ |
+| 2025 | 🏆 BergerBoy Brigade ⭐️⭐️⭐️ |
 
 ---
 
 ## What to expect on draft day
 
-- **Round 1 board after keepers:** Bijan Robinson, Jahmyr Gibbs, Ja'Marr
-  Chase, Christian McCaffrey, Jonathan Taylor lead the available pool —
-  the elite WR/TE keepers (Bowers, JSN, Nico, Puka, Achane) won't be
-  there.
-- **QB cliff:** With 3 forced-drop QBs back in the pool (Purdy, Love,
-  Geno) and history saying 38% of yr2 QB keepers get held to yr3, expect
-  **QBs to fly early** — superflex magnifies this.
-- **TE scarcity:** Bowers, Kittle, McBride, Kraft, LaPorta, Ferguson,
-  Hunter Henry, Jonnu Smith all kept. Only Sam LaPorta-class options
-  remain after R5.
-- **kylefiggy and Chester each enter R1 with 3 and 2 picks respectively**;
-  Unicorn Poo, BergerBoy, and TBreswick have **zero R1 picks**. ADP at the
-  top of the board is going to swing hard with whoever wins those acquired
-  slots — and 2026 draft slot assignments haven't been drawn yet, so the
-  exact pick order is TBD.
+- **Round 1 board after keepers:** Bijan Robinson, Jahmyr Gibbs, Ja'Marr Chase, Christian McCaffrey, Jonathan Taylor lead the available pool — top WR/TE keepers like Puka Nacua won't be there.
+- **QB cliff in superflex:** 44% of yr2 QB keepers get held to yr3 (highest position retention) AND best-position-per-round shows QBs winning every round 1-10 in this league's data. Expect QBs to fly early.
+- **Forced-drop targets:** 62% of capped players come back EARLIER the next year. The 3 forced-drop QBs (Geno Smith, Brock Purdy, Jordan Love) are exactly this archetype — plan to take them well before R11.
+- **Draft order TBD:** Sleeper hadn't assigned 2026 draft slots as of this report. ADP will swing hard depending on who gets the kylefiggy / Chester A. Arthur acquired picks.
