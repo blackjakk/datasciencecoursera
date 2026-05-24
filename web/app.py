@@ -1140,6 +1140,105 @@ with tab_draft:
             st.dataframe(pd.DataFrame(full_rows),
                           use_container_width=True, hide_index=True, height=600)
 
+    # --- Monte Carlo: aggregate stats over many sims ---
+    with st.expander("📊 Monte Carlo (run N drafts and aggregate)", expanded=False):
+        st.caption(
+            "Runs the full mock-draft simulator N times with different random "
+            "seeds and aggregates: most-likely player at each of your picks, "
+            "your roster's VBD distribution, and most-frequently-drafted "
+            "players across all sims."
+        )
+        mc1, mc2, mc3 = st.columns(3)
+        n_sims = mc1.slider("Number of sims", 10, 500, 100, 10, key="mc_n")
+        mc_temp = mc2.slider("Temperature", 0.0, 1.0, 0.35, 0.05, key="mc_temp")
+        mc_topk = mc3.slider("Top-K", 5, 30, 15, 1, key="mc_topk")
+        if st.button(f"Run {n_sims} mock drafts", key="run_monte_carlo"):
+            from fantasy_draft.simulate import simulate_full_draft
+            import random as _rng
+            from collections import Counter, defaultdict
+            my_idx = st.session_state.my_team_idx
+            your_picks_dist: dict[int, Counter] = defaultdict(Counter)
+            total_vbd_runs: list[float] = []
+            pos_count_runs: list[dict] = []
+            player_freq: Counter = Counter()
+            with st.spinner(f"Running {n_sims} sims..."):
+                for i in range(int(n_sims)):
+                    rng = _rng.Random(i + 1)
+                    sim = simulate_full_draft(
+                        draft, players, my_idx,
+                        temperature=float(mc_temp), top_k=int(mc_topk), rng=rng,
+                    )
+                    your = [p for p in sim if p.is_you]
+                    total_vbd_runs.append(sum(p.vbd for p in your))
+                    pc = Counter(p.position for p in your)
+                    pos_count_runs.append(dict(pc))
+                    for p in your:
+                        your_picks_dist[p.overall][p.player_name] += 1
+                        player_freq[p.player_name] += 1
+            st.session_state.mc_result = {
+                "n_sims": int(n_sims),
+                "picks_dist": dict(your_picks_dist),
+                "total_vbd": total_vbd_runs,
+                "pos_counts": pos_count_runs,
+                "player_freq": dict(player_freq),
+            }
+        mc = st.session_state.get("mc_result")
+        if mc:
+            n = mc["n_sims"]
+            st.write(f"### Aggregated over {n} sims")
+            import statistics as _stat
+            vbds = mc["total_vbd"]
+            v1, v2, v3 = st.columns(3)
+            v1.metric("Mean total VBD", f"{_stat.mean(vbds):+.1f}")
+            v2.metric("Median", f"{_stat.median(vbds):+.1f}")
+            v3.metric("Best run", f"{max(vbds):+.1f}",
+                      delta=f"worst {min(vbds):+.1f}")
+
+            # Per-pick most-likely player(s).
+            st.write("#### Most-likely player at each of your picks")
+            pick_rows = []
+            for overall in sorted(mc["picks_dist"]):
+                dist = mc["picks_dist"][overall]
+                top3 = dist.most_common(3)
+                # Use the pick metadata from draft.picks (round, slot).
+                pk = next((p for p in draft.picks if p.overall == overall), None)
+                rr = f"R{pk.round_num}.{pk.pick_in_round}" if pk else f"#{overall}"
+                pick_rows.append({
+                    "Pick": rr,
+                    "Overall": overall,
+                    "Top choice": f"{top3[0][0]} ({top3[0][1]*100//n}%)" if top3 else "",
+                    "2nd": f"{top3[1][0]} ({top3[1][1]*100//n}%)" if len(top3) > 1 else "",
+                    "3rd": f"{top3[2][0]} ({top3[2][1]*100//n}%)" if len(top3) > 2 else "",
+                    "Unique players": len(dist),
+                })
+            st.dataframe(pd.DataFrame(pick_rows),
+                          use_container_width=True, hide_index=True)
+
+            # Most-frequently drafted to your team across all sims.
+            st.write("#### Top players ending up on your team")
+            freq = sorted(mc["player_freq"].items(),
+                          key=lambda x: -x[1])[:25]
+            st.dataframe(pd.DataFrame([
+                {"Player": nm, "Sims drafted": cnt,
+                 "Rate": f"{cnt*100//n}%"} for nm, cnt in freq
+            ]), use_container_width=True, hide_index=True)
+
+            # Position breakdown distribution.
+            st.write("#### Roster composition by position")
+            pos_rows = []
+            all_positions = {p for pc in mc["pos_counts"] for p in pc}
+            for pos in sorted(all_positions):
+                counts = [pc.get(pos, 0) for pc in mc["pos_counts"]]
+                pos_rows.append({
+                    "Position": pos,
+                    "Mean": round(_stat.mean(counts), 2),
+                    "Min": min(counts),
+                    "Max": max(counts),
+                    "Mode": _stat.mode(counts),
+                })
+            st.dataframe(pd.DataFrame(pos_rows),
+                          use_container_width=True, hide_index=True)
+
     # --- Full board (collapsed) ---
     with st.expander("Full draft log"):
         log_rows = []
