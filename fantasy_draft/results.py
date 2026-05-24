@@ -241,6 +241,7 @@ def summarize_trade(
     player_total_points_by_season: dict[int, dict[str, float]],
     pick_value_blind: dict[int, float],
     weekly_points_by_season: dict[int, dict[int, dict[str, float]]] | None = None,
+    ownership_windows: dict[tuple[int, str], list[tuple[int, int, int]]] | None = None,
 ) -> list[dict]:
     """Per-roster summary of a single trade.
 
@@ -259,14 +260,24 @@ def summarize_trade(
     picks = trade.get("draft_picks") or []
     season_pts = player_total_points_by_season.get(season, {})
     trade_week = int(trade.get("_week") or 1)
-    # Use weekly points to only credit production AFTER the trade week.
-    # Without weekly data, fall back to full season points (overstates value).
-    def player_post_trade_pts(pid: str) -> float:
+    # Use weekly points + ownership windows to only credit production while
+    # the receiver actually held the player. Without ownership data, fall
+    # back to "all weeks after trade" (overstates if receiver drops). Without
+    # weekly data either, fall back to full season points.
+    def player_post_trade_pts(pid: str, receiver_rid: int) -> float:
         if weekly_points_by_season is None:
             return season_pts.get(pid, 0.0)
         wk_data = weekly_points_by_season.get(season, {})
-        # Sum trade_week through W18 to cover any late-season trades + the
-        # rare Sleeper W18 entries.
+        if ownership_windows is not None:
+            # Sum pts only for weeks the receiver actually held the player.
+            total = 0.0
+            for s_wk, e_wk, owner_rid in ownership_windows.get((season, str(pid)), []):
+                if owner_rid != receiver_rid: continue
+                if e_wk < trade_week: continue  # interval before trade
+                start = max(s_wk, trade_week)
+                total += sum(wk_data.get(w, {}).get(pid, 0.0)
+                             for w in range(start, e_wk + 1))
+            return total
         return sum(wk_data.get(w, {}).get(pid, 0.0) for w in range(trade_week, 19))
 
     rows: list[dict] = []
@@ -281,14 +292,17 @@ def summarize_trade(
             if int(dest) == rid:
                 meta = player_catalog.get(pid) or {}
                 nm = meta.get("full_name") or f"player_{pid}"
-                pts = player_post_trade_pts(pid)
+                pts = player_post_trade_pts(pid, rid)
                 received_players.append(f"{nm} ({pts:.0f} pts)")
                 received_player_pts += pts
         for pid, src in drops.items():
             if int(src) == rid:
                 meta = player_catalog.get(pid) or {}
                 nm = meta.get("full_name") or f"player_{pid}"
-                pts = player_post_trade_pts(pid)
+                # Value "given" = what the OTHER side gained from the player.
+                # Find the new owner (whoever this player went to in adds).
+                new_owner = next((int(d) for p, d in adds.items() if p == pid), 0)
+                pts = player_post_trade_pts(pid, new_owner) if new_owner else 0.0
                 given_players.append(f"{nm} ({pts:.0f} pts)")
                 given_player_pts += pts
         for p in picks:

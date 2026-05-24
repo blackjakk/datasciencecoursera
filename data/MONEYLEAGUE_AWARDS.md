@@ -69,17 +69,17 @@ Computed by comparing actual starting lineup pts vs. the optimal lineup from eac
 | Rank | Team / Manager | Trades | Net VBD | Per trade |
 |---|---|---|---|---|
 | 1 | **Chester A. Arthur** | 3 | +153 | +51.1 |
-| 2 | **Wi1dboy** | 4 | +95 | +23.8 |
-| 3 | **Unicorn Poo** | 3 | +77 | +25.5 |
-| 4 | **⭐️⭐️⭐️** | 3 | +60 | +20.1 |
-| 5 | **she Tuten on my Bhayshul** | 4 | +50 | +12.5 |
-| 6 | **Guap's Guys** | 6 | +47 | +7.8 |
-| 7 | **I Herald LEMVP** | 2 | +34 | +16.9 |
+| 2 | **⭐️⭐️⭐️** | 3 | +148 | +49.3 |
+| 3 | **Unicorn Poo** | 3 | +113 | +37.8 |
+| 4 | **Wi1dboy** | 4 | +100 | +25.1 |
+| 5 | **Guap's Guys** | 6 | +66 | +11.0 |
+| 6 | **she Tuten on my Bhayshul** | 4 | +50 | +12.5 |
+| 7 | **I Herald LEMVP** | 2 | +16 | +8.1 |
 | 8 | **TBreswick** | 4 | -10 | -2.4 |
 | 9 | **Barry Sandals** | 4 | -92 | -23.0 |
-| 10 | **BergerBoy Brigade ⭐️⭐️⭐️** | 10 | -100 | -10.0 |
-| 11 | **kylefiggy** | 5 | -133 | -26.6 |
-| 12 | **Trez Bridges & Co.** | 2 | -182 | -90.8 |
+| 10 | **kylefiggy** | 5 | -131 | -26.2 |
+| 11 | **Trez Bridges & Co.** | 2 | -182 | -90.8 |
+| 12 | **BergerBoy Brigade ⭐️⭐️⭐️** | 10 | -233 | -23.3 |
 
 ## 🌊 BEST STREAMERS — K/DEF waiver kings
 Sum of positive-VBD K/DEF pickups across the season. Volume + matchup-savvy = high streamer score. (K/DEF VBD is already counted in the Wire Game total above; this is the dedicated breakdown.)
@@ -121,18 +121,18 @@ Sum of given-value (players + picks) across all trades. Star-sells = trades wher
 
 | Rank | Manager | Trades | VBD given | Net | Star-sells | Biggest single loss |
 |---|---|---|---|---|---|---|
-| 1 | **Trevor** | 10 | +1193 | -100 | 5 | -159 |
-| 2 | **Ankur** | 3 | +912 | +77 | 3 | -46 |
-| 3 | **Troy** | 2 | +900 | -182 | 2 | -130 |
-| 4 | **Kyle** | 5 | +850 | -133 | 4 | -130 |
-| 5 | **Josh** | 4 | +579 | +95 | 4 | -79 |
-| 6 | **Brian** | 6 | +495 | +47 | 3 | -38 |
+| 1 | **Trevor** | 10 | +1193 | -233 | 5 | -165 |
+| 2 | **Troy** | 2 | +900 | -182 | 2 | -130 |
+| 3 | **Ankur** | 3 | +876 | +113 | 3 | -28 |
+| 4 | **Kyle** | 5 | +828 | -131 | 4 | -109 |
+| 5 | **Josh** | 4 | +574 | +100 | 4 | -79 |
+| 6 | **Brian** | 6 | +476 | +66 | 3 | -38 |
 | 7 | **Eric** | 4 | +464 | +50 | 2 | -38 |
 | 8 | **Tim** | 4 | +444 | -10 | 1 | -39 |
 | 9 | **Donnie** | 3 | +423 | +153 | 2 | +0 |
 | 10 | **Brower** | 4 | +313 | -92 | 2 | -47 |
-| 11 | **Coop** | 3 | +291 | +60 | 1 | -15 |
-| 12 | **Lem** | 2 | +249 | +34 | 1 | -12 |
+| 11 | **Lem** | 2 | +249 | +16 | 1 | -12 |
+| 12 | **Coop** | 3 | +203 | +148 | 1 | -15 |
 
 ## 🔮 LEVERAGES THE FUTURE — gave up future-season picks to win NOW
 Count + value of FUTURE-SEASON picks given up in trades. High value = aggressive 'mortgage the future' approach.
@@ -258,17 +258,17 @@ Each manager's percentile rank within each skill, averaged.
 
 | Rank | Manager | Draft | Wire | Lineup | Trade | **Avg** |
 |---|---|---|---|---|---|---|
-| 1 | **Eric** | 73 | 73 | 91 | 64 | **75** |
-| 2 | **Donnie** | 55 | 64 | 73 | 100 | **73** |
+| 1 | **Donnie** | 55 | 64 | 73 | 100 | **73** |
+| 2 | **Eric** | 73 | 73 | 91 | 55 | **73** |
 | 3 | **Lem** | 100 | 55 | 64 | 45 | **66** |
 | 4 | **Brower** | 36 | 91 | 82 | 27 | **59** |
-| 5 | **Brian** | 91 | 27 | 55 | 55 | **57** |
-| 6 | **Coop** | 9 | 100 | 18 | 73 | **50** |
+| 5 | **Brian** | 91 | 27 | 55 | 64 | **59** |
+| 6 | **Coop** | 9 | 100 | 18 | 91 | **55** |
 | 7 | **Ankur** | 82 | 9 | 27 | 82 | **50** |
-| 8 | **Trevor** | 64 | 82 | 9 | 18 | **43** |
-| 9 | **Kyle** | 45 | 18 | 100 | 9 | **43** |
-| 10 | **Josh** | 18 | 45 | 0 | 91 | **39** |
-| 11 | **Troy** | 27 | 36 | 36 | 0 | **25** |
+| 8 | **Kyle** | 45 | 18 | 100 | 18 | **45** |
+| 9 | **Trevor** | 64 | 82 | 9 | 0 | **39** |
+| 10 | **Josh** | 18 | 45 | 0 | 73 | **34** |
+| 11 | **Troy** | 27 | 36 | 36 | 9 | **27** |
 | 12 | **Tim** | 0 | 0 | 45 | 36 | **20** |
 
 *Percentiles 0-100 (100 = best, 0 = worst). Composite = average across the 4 skills.*

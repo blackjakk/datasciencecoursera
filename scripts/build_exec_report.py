@@ -146,7 +146,7 @@ def gather():
         for k in keepers_2026:
             if k.get("status") != "carryover":
                 continue
-            rid = int(k["team_idx"]) + 1
+            rid = int(k.get("roster_id") or int(k["team_idx"]) + 1)
             wire[rid]["future_carry"] = wire[rid].get("future_carry", 0.0) + (k.get("raw_vbd") or 0)
     except FileNotFoundError:
         pass
@@ -202,12 +202,16 @@ def gather():
                    for s in seasons.values() for rid, r in s["rosters"].items()}
     # Convert pp_sw to {season: {week: {pid: pts}}} format summarize_trade wants.
     weekly_by_season = {season: dict(weeks) for season, weeks in pp_sw.items()}
+    # Ownership windows so trade scoring only credits actual hold periods.
+    from fantasy_draft.results import load_player_ownership_windows
+    owners = load_player_ownership_windows(ROOT / "data" / "sleeper")
     trade_total = defaultdict(float)
     for t in trades:
         if t.get("_season") == 2023:
             continue
         sides = summarize_trade(t, roster_team, catalog, pts_by_season, pv_blind,
-                                 weekly_points_by_season=weekly_by_season)
+                                 weekly_points_by_season=weekly_by_season,
+                                 ownership_windows=owners)
         if not sides:
             continue
         for s in sides:

@@ -1668,13 +1668,16 @@ with tab_history:
         # --- Trade history (retroactively valued) ---
         from fantasy_draft.results import (
             load_all_trades, summarize_trade, load_weekly_player_points,
+            load_player_ownership_windows,
         )  # noqa: E402
         try:
             trades = load_all_trades(ROOT / "data" / "sleeper")
             weekly_pts = load_weekly_player_points(ROOT / "data" / "sleeper")
+            ownership = load_player_ownership_windows(ROOT / "data" / "sleeper")
         except Exception:
             trades = []
             weekly_pts = {}
+            ownership = {}
         if trades:
             st.subheader(f"Trade history — retroactive value ({len(trades)} trades)")
             st.caption(
@@ -1713,7 +1716,8 @@ with tab_history:
                     for t in yr_trades:
                         sides = summarize_trade(t, roster_team_name, catalog,
                                                 pts_by_season, pv_blind_t,
-                                                weekly_points_by_season=weekly_pts)
+                                                weekly_points_by_season=weekly_pts,
+                                                ownership_windows=ownership)
                         # Show one row per side, paired together by week.
                         for side in sides:
                             verdict = ("🏆" if side["net"] > 20
@@ -1741,7 +1745,8 @@ with tab_history:
                     continue
                 sides = summarize_trade(t, roster_team_name, catalog,
                                         pts_by_season, pv_blind_t,
-                                        weekly_points_by_season=weekly_pts)
+                                        weekly_points_by_season=weekly_pts,
+                                        ownership_windows=ownership)
                 for s in sides:
                     e = tally[s["team"]]
                     e["team"] = s["team"]
@@ -1991,11 +1996,14 @@ with tab_charts:
         except Exception:
             catalog = {}
 
-        from fantasy_draft.results import load_weekly_player_points  # noqa: E402
+        from fantasy_draft.results import (
+            load_weekly_player_points, load_player_ownership_windows,
+        )  # noqa: E402
         seasons = load_all_seasons(ROOT / "data" / "sleeper")
         picks = load_draft_picks_with_points(ROOT / "data" / "sleeper")
         trades = load_all_trades(ROOT / "data" / "sleeper")
         weekly_pts = load_weekly_player_points(ROOT / "data" / "sleeper")
+        ownership = load_player_ownership_windows(ROOT / "data" / "sleeper")
 
         roster_team_name: dict[int, str] = {}
         for ss in seasons.values():
@@ -2011,7 +2019,8 @@ with tab_charts:
         for t in trades:
             for s in summarize_trade(t, roster_team_name, catalog,
                                       pts_by_season, pv_blind,
-                                      weekly_points_by_season=weekly_pts):
+                                      weekly_points_by_season=weekly_pts,
+                                      ownership_windows=ownership):
                 trade_rows.append(s)
 
         # xlsx keepers (years_kept history).
