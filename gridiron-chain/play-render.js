@@ -2203,14 +2203,15 @@ function drawBall(ctx, x, y, scale = 1, opts = {}) {
 
 function _drawBallImpl(ctx, x, y, scale = 1, opts = {}) {
   // Real football — brown leather oval with white laces. Sized to be
-  // legible on a 1700-px-wide field: ~24px tall at scale 1. Pulsing
+  // legible on a 1700-px-wide field while staying proportional to the
+  // ~32px-tall player sprites: ~18px tall at scale 1 (was 28). Pulsing
   // yellow halo (opts.glow !== false) makes the ball trivially trackable
   // against player sprites.
   ctx.save();
   ctx.translate(x, y);
   // Yellow visibility halo first (drawn under the ball)
   if (opts.glow !== false) {
-    const haloRadius = 18 * scale;
+    const haloRadius = 12 * scale;
     const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, haloRadius);
     halo.addColorStop(0,    "rgba(255,225,90,0.55)");
     halo.addColorStop(0.45, "rgba(255,200,40,0.28)");
@@ -2225,44 +2226,44 @@ function _drawBallImpl(ctx, x, y, scale = 1, opts = {}) {
   ctx.scale(scale, scale);
   // Drop shadow for grounding
   ctx.shadowColor = "rgba(0,0,0,0.6)";
-  ctx.shadowBlur = 6;
-  ctx.shadowOffsetY = 3;
+  ctx.shadowBlur = 4;
+  ctx.shadowOffsetY = 2;
   // Body — radial gradient for that leather sheen
-  const grad = ctx.createRadialGradient(-2, -4, 2, 0, 0, 15);
+  const grad = ctx.createRadialGradient(-1.3, -2.5, 1.5, 0, 0, 10);
   grad.addColorStop(0, "#b86838");
   grad.addColorStop(0.55, "#7a3f1a");
   grad.addColorStop(1, "#3a1a08");
   ctx.fillStyle = grad;
   ctx.beginPath();
-  ctx.ellipse(0, 0, 8, 14, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 0, 5, 9, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.shadowBlur = 0;
   // Dark seam outline
   ctx.strokeStyle = "rgba(15,8,3,0.95)";
-  ctx.lineWidth = 1.1;
+  ctx.lineWidth = 0.8;
   ctx.beginPath();
-  ctx.ellipse(0, 0, 8, 14, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 0, 5, 9, 0, 0, Math.PI * 2);
   ctx.stroke();
   // White laces — five short cross-stripes near the center
   ctx.strokeStyle = "#fbf7ea";
-  ctx.lineWidth = 1.4;
+  ctx.lineWidth = 1.0;
   ctx.lineCap = "round";
   for (let i = -2; i <= 2; i++) {
     ctx.beginPath();
-    ctx.moveTo(-2.5, i * 1.9);
-    ctx.lineTo(2.5,  i * 1.9);
+    ctx.moveTo(-1.6, i * 1.2);
+    ctx.lineTo(1.6,  i * 1.2);
     ctx.stroke();
   }
   // Spine running through the laces
-  ctx.lineWidth = 1.1;
+  ctx.lineWidth = 0.8;
   ctx.beginPath();
-  ctx.moveTo(0, -4.6);
-  ctx.lineTo(0,  4.6);
+  ctx.moveTo(0, -3.0);
+  ctx.lineTo(0,  3.0);
   ctx.stroke();
   // Highlight pip — top-left to give a "leather caught the light" pop
   ctx.fillStyle = "rgba(255,220,180,0.4)";
   ctx.beginPath();
-  ctx.ellipse(-2.8, -5, 2.4, 1, -0.5, 0, Math.PI * 2);
+  ctx.ellipse(-1.8, -3.2, 1.5, 0.7, -0.5, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 }
