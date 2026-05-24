@@ -2184,14 +2184,26 @@ function buildAnimForPlay(play, prevPlay) {
     const yac = isComplete ? (play.yac ?? Math.max(0, (play.yards ?? 0) - catchDepth)) : 0;
     // Final Y where YAC ends — receiver may drift back toward middle if running upfield
     const finalY = targetY + (cy - targetY) * Math.min(0.5, yac / 40);
-    // Pass plays — base duration covers drop + ball flight. Tack on POST_CATCH
-    // time for YAC + tackle + ragdoll so the play doesn't end the instant the
-    // receiver catches it.
+    // Pass plays — base duration covers drop + ball flight. Tack on
+    // POST_CATCH time for YAC + tackle so the play doesn't end the
+    // instant the receiver catches it.
+    //
+    // SCREEN bug: previously basePass used max(targetDepth, yards, 8)
+    // which on a 40-yd screen allocated 5.1s of "flight" for a 2-yd
+    // toss behind the LOS, plus a fixed 1.7s POST_CATCH meant the RB
+    // had to cover 40 yards in 1.5s. Ball appeared to crawl, then RB
+    // teleported downfield. Fix: screens use a SHORT ball flight
+    // (~5 yd) and POST_CATCH scaled to actual YAC distance so the
+    // post-catch run gets proportional time.
     const passYards = (play.yards ?? 0) + ((play.targetDepth ?? 0) > (play.yards ?? 0) ? 0 : 0);
-    const basePass  = scaledDuration(Math.max(play.targetDepth ?? 0, play.yards ?? 0, 8));
+    const basePass  = isScreen
+      ? scaledDuration(5)
+      : scaledDuration(Math.max(play.targetDepth ?? 0, play.yards ?? 0, 8));
     // Receiving TDs get extra post-catch time for the celebration banner.
     const isPassTD = play.kind === "complete" && (play.endYard ?? 0) >= 100;
-    const POST_CATCH_MS = isPassTD                  ? 2400
+    const screenYacMs = isScreen ? scaledDuration(Math.abs(play.yards || 0)) + 600 : 0;
+    const POST_CATCH_MS = isPassTD                  ? Math.max(2400, screenYacMs + 600)
+                        : isScreen && play.kind === "complete"  ? screenYacMs
                         : play.kind === "complete"  ? 1700
                         : play.kind === "int"       ? 1500
                         : play.kind === "incomplete" ? 600
@@ -2205,8 +2217,13 @@ function buildAnimForPlay(play, prevPlay) {
       // dropPhase / throwPhase are absolute t values within the full play.
       // The throwPhase now corresponds to the END of the pre-catch portion;
       // remaining action time is YAC + tackle.
-      const dropFrac  = isScreen ? 0.30 : (basePass * 0.42) / actionDur;
-      const throwFrac = isScreen ? 0.78 : basePass / actionDur;
+      // Use the natural basePass/actionDur ratio for everything. The old
+      // hardcoded `throwFrac = 0.78` for screens compounded the basePass
+      // bug — it told the play that 78% of action was pre-catch even
+      // when basePass was reduced for screens, leaving only 22% for the
+      // RB to cover all the YAC.
+      const dropFrac  = (basePass * 0.42) / actionDur;
+      const throwFrac = basePass / actionDur;
       const dropPhase  = PRE + (1 - PRE) * dropFrac;
       const throwPhase = PRE + (1 - PRE) * throwFrac;
       // ACTION-relative time — 0 at snap, 1 at end of play. Use this for any
