@@ -2810,6 +2810,33 @@ function buildAnimForPlay(play, prevPlay) {
               // Zone — small forward bail / read-step only
               dd.x += dir * Math.min(tt * 4, 4);
             }
+            // BACKPEDAL on the snap. CB faces the offense, pushes off
+            // alternating feet to move backward into coverage depth
+            // before turning to run with the WR. Real DB footwork —
+            // currently every CB just used the run pose. After the
+            // backpedal window (~30% of pre-catch action), they
+            // transition to run/chase. Safeties also get a brief
+            // backpedal beat.
+            const backpedalT = throwFrac * 0.30;
+            if (aT < backpedalT) {
+              dd.pose = "backpedal";
+              dd.t = ((t * (dur / 1000)) * 2.0) % 1;
+              dd.facing = -dir;     // face the offense throughout
+              // Movement backward (deeper into coverage) during backpedal
+              const bpProg = aT / Math.max(0.001, backpedalT);
+              dd.x = d.x + dir * bpProg * 8;
+            }
+          }
+          // SAFETIES also backpedal briefly (smaller window)
+          if (i === idxS1 || i === idxS2) {
+            const backpedalT = throwFrac * 0.20;
+            if (aT < backpedalT) {
+              dd.pose = "backpedal";
+              dd.t = ((t * (dur / 1000)) * 1.8) % 1;
+              dd.facing = -dir;
+              const bpProg = aT / Math.max(0.001, backpedalT);
+              dd.x = d.x + dir * bpProg * 5;
+            }
           }
         }
         if (play.kind === "complete" && t > throwPhase) {

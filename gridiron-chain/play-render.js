@@ -991,6 +991,24 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
       rArm = 0.4;
       lLeg = runPhase * 0.3; rLeg = -runPhase * 0.3;
       break;
+    case "backpedal": {
+      // Defender backpedal — body faces the offense (forward) but moves
+      // BACKWARD by pushing off alternating feet. Legs cycle in the
+      // OPPOSITE direction from run pose (small back stride instead of
+      // forward stride). Body leans slightly back, arms loose at sides.
+      // Used by CBs and Safeties at the snap before they turn and run
+      // with the WR (man) or settle in their zone.
+      const ph = runPhase;
+      lLeg = -ph * 0.45;
+      rLeg =  ph * 0.45;
+      lLegLift = Math.max(0,  ph) * 3.5;
+      rLegLift = Math.max(0, -ph) * 3.5;
+      lArm = -0.15;
+      rArm =  0.15;
+      bodyTilt = facing * -0.10;       // lean AWAY from the offense
+      bodyDY = Math.sin(t * Math.PI * 6) * 0.25;
+      break;
+    }
     case "hit": {
       // Tackler driving INTO the ball carrier — body upright but angled
       // forward into the contact, both arms wrapped, legs powering
