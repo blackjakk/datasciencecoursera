@@ -1808,7 +1808,17 @@ function buildAnimForPlay(play, prevPlay) {
           rbPose = "juke";
           const cutDir = seedA < eluciveProb / 2 ? 1 : -1;
           const within = (runT - 0.34) / 0.18;
-          rbLateral = cutDir * Math.sin(within * Math.PI) * 22;
+          // Bigger lateral cut (22 → 38) so the carrier visibly clears
+          // the dodged defender's tackle radius (28px). With a 22px cut
+          // the defender's dive ended within tackle range — looked like
+          // they "stayed near" the carrier rather than overshooting.
+          // Anticipation lean — slight pre-cut load 60ms before the
+          // burst (opposite direction = setup) for the visible "head
+          // fake" beat.
+          const anticT = Math.max(0, Math.min(1, (runT - 0.30) / 0.04));
+          const cutT   = Math.max(0, within);
+          rbLateral = (-cutDir * anticT * 6 * (1 - cutT)) +
+                      (cutDir * Math.sin(within * Math.PI) * 38);
           dodgeIdx = 4;
           moveCallout = "JUKE!";
         }
@@ -1819,7 +1829,10 @@ function buildAnimForPlay(play, prevPlay) {
         rbT = (runT - 0.44) / 0.14;
         const cutDir = seedB < 0.5 ? 1 : -1;
         const within = (runT - 0.44) / 0.14;
-        rbLateral = cutDir * Math.sin(within * Math.PI) * 14;
+        // Bigger lateral travel during the spin (14 → 28) so the carrier
+        // visibly moves OUT of the dodged defender's tackle radius
+        // rather than spinning more-or-less in place.
+        rbLateral = cutDir * Math.sin(within * Math.PI) * 28;
         dodgeIdx = 6;
         moveCallout = "SPIN!";
       }
@@ -1945,11 +1958,15 @@ function buildAnimForPlay(play, prevPlay) {
         const isDodged = i === dodgeIdx && rbLateral !== 0;
         // TRUCK STICK — the targeted defender gets bowled over (ragdolled)
         const isTrucked = i === dodgeIdx && rbPose === "truck";
+        // Dodged defender OVERSHOOTS — targets a spot 12px FORWARD of
+        // the carrier's stale (pre-move) Y position. Bigger overshoot
+        // ensures the dive visibly clears the carrier's new position
+        // and the defender lands flat on empty grass.
         const txBase = isDodged
-          ? rb.x + dir * 4                              // overshoots toward old line
+          ? rb.x + dir * 12                             // overshoot forward
           : rb.x + dir * (4 + ((i - 4) % 3) * 3);
         const tyBase = isDodged
-          ? (rb.y - rbLateral) + lane * 8               // chases stale position
+          ? (rb.y - rbLateral) + lane * 8               // chases stale Y
           : rb.y + lane * 8;
         // ── LANE DISCIPLINE / COVERAGE ASSIGNMENT ─────────────────
         // Most defenders DON'T chase the carrier from the snap. Real
