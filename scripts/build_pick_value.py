@@ -80,11 +80,22 @@ def _weighted_mean(values: list[float], weights: list[float]) -> float:
 
 
 def main():
-    picks = load_draft_picks_with_points(ROOT / "data" / "sleeper")
+    # exclude_unreliable_attribution drops 2023 (post-Yahoo-migration data).
+    # 2023's is_keeper flags are all zero in the migrated draft data, which
+    # would inflate the pick_value chart by treating actual 2023 keepers as
+    # fresh draft picks at R3-R6.
+    picks = load_draft_picks_with_points(ROOT / "data" / "sleeper",
+                                          exclude_unreliable_attribution=True)
     if not picks:
         sys.exit("ERROR: no Sleeper picks under data/sleeper/. Run "
                  "scripts/fetch_sleeper.sh first.")
     seasons_covered = sorted({p["season"] for p in picks})
+    print(f"[pick_value] using seasons {seasons_covered} (2023 excluded — "
+          f"post-migration is_keeper flags are missing)")
+    # Filter out keeper picks so the empirical baselines reflect what a
+    # fresh draft pick at that round historically delivers, not what a
+    # kept player produced (which would inflate R3-R6 baselines).
+    picks = [p for p in picks if not p.get("is_keeper")]
 
     # Use the most-recent league config for the replacement-rank model
     # (consistent across years; should be fine since the league hasn't

@@ -141,18 +141,6 @@
       },
       "confidence": "high"
     },
-    "donnie": {
-      "canonical_name": "Donnie",
-      "sleeper_roster_id": 2,
-      "sleeper_display_name": "dibach215",
-      "xlsx_nicknames": ["Donnie"],
-      "yahoo_team_names": {
-        "2015": "Big Don's Cuties?",
-        "2020": "Don's Special Guys?",
-        "_note": "Donnie was in FF2015-2016 xlsx (likely left, then returned 2022+). 'Don's Special Guys' 2020 and 'Big Don's Cuties' 2015 both contain 'Don' which fits."
-      },
-      "confidence": "medium"
-    },
     "josh_wildboy": {
       "canonical_name": "Josh (Wi1dboy, took over Dave's roster in 2025)",
       "sleeper_roster_id": 10,
@@ -178,9 +166,11 @@
       "sleeper_display_name": "dibach215",
       "xlsx_nicknames": ["Donnie"],
       "yahoo_team_names": {
-        "2020": "Don’s Special Guys?"
+        "2015": "Big Don's Cuties?",
+        "2020": "Don's Special Guys?",
+        "_note": "Donnie was in FF2015-2016 xlsx (likely left, then returned 2022+). 'Don's Special Guys' 2020 and 'Big Don's Cuties' 2015 both contain 'Don' which fits."
       },
-      "confidence": "low"
+      "confidence": "medium"
     },
     "coop": {
       "canonical_name": "Coop",

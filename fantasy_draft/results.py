@@ -217,14 +217,31 @@ def summarize_trade(
     return rows
 
 
+# Seasons where the Sleeper draft data is a post-Yahoo-migration
+# reconstruction. Pick-to-roster_id attribution for these years is
+# unreliable (Yahoo-era pick trades didn't survive the migration).
+# Per-player season points are still valid; only the drafter is wrong.
+UNRELIABLE_ATTRIBUTION_SEASONS = {2023}
+
+
 def load_draft_picks_with_points(
     sleeper_dir: str | Path = "data/sleeper",
+    exclude_unreliable_attribution: bool = False,
 ) -> list[dict]:
     """For every Sleeper season, join draft picks to per-player season
     total points. Returns a flat list of:
 
       {season, round, pick_in_round, overall_pick, roster_id, team_name,
-       player_id, player_name, position, season_points, is_keeper}
+       player_id, player_name, position, season_points, is_keeper,
+       attribution_reliable}
+
+    `attribution_reliable=False` is set for seasons in
+    UNRELIABLE_ATTRIBUTION_SEASONS (currently {2023}) — those came from
+    a post-Yahoo-migration reconstruction and the roster_id field does
+    not reflect who actually drafted the player.
+
+    Set `exclude_unreliable_attribution=True` to filter those out
+    entirely (useful for "best drafter" or trade-scorecard analyses).
     """
     sleeper_dir = Path(sleeper_dir)
     seasons = load_all_seasons(sleeper_dir)
@@ -236,11 +253,14 @@ def load_draft_picks_with_points(
         season = int(lg.get("season") or 0)
         if season not in seasons:
             continue
+        if exclude_unreliable_attribution and season in UNRELIABLE_ATTRIBUTION_SEASONS:
+            continue
         s = seasons[season]
         pick_files = list(season_dir.glob("draft_*_picks.json"))
         if not pick_files:
             continue
         picks = json.loads(pick_files[0].read_text(encoding="utf-8"))
+        reliable = season not in UNRELIABLE_ATTRIBUTION_SEASONS
         for p in picks:
             meta = p.get("metadata") or {}
             pid = str(p.get("player_id") or "")
@@ -257,5 +277,6 @@ def load_draft_picks_with_points(
                 "position": (meta.get("position") or "").upper(),
                 "season_points": s["player_total_points"].get(pid, 0.0),
                 "is_keeper": bool(p.get("is_keeper")),
+                "attribution_reliable": reliable,
             })
     return out

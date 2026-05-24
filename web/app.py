@@ -1701,7 +1701,10 @@ with tab_history:
             seasons_with_trades = sorted({t["_season"] for t in trades}, reverse=True)
             for yr in seasons_with_trades:
                 yr_trades = [t for t in trades if t["_season"] == yr]
-                with st.expander(f"{yr}: {len(yr_trades)} trade(s)"):
+                title = f"{yr}: {len(yr_trades)} trade(s)"
+                if yr == 2023:
+                    title += "  ⚠️ attribution unreliable (post-migration)"
+                with st.expander(title):
                     summary_rows = []
                     for t in yr_trades:
                         sides = summarize_trade(t, roster_team_name, catalog,
@@ -1723,10 +1726,14 @@ with tab_history:
 
             st.subheader("All-time trade scorecard")
             st.caption("Aggregate net value per team across all trades. "
-                       "Positive total = consistently wins trades by retroactive value.")
+                       "Positive total = consistently wins trades by retroactive value. "
+                       "**Excludes 2023** — post-migration roster_id attribution "
+                       "is unreliable for that year.")
             from collections import defaultdict as _dd
             tally = _dd(lambda: {"team": "", "n": 0, "net": 0.0, "wins": 0, "losses": 0})
             for t in trades:
+                if t.get("_season") == 2023:
+                    continue
                 sides = summarize_trade(t, roster_team_name, catalog,
                                         pts_by_season, pv_blind_t)
                 for s in sides:
@@ -2065,9 +2072,13 @@ with tab_charts:
         # ============================================================
         st.subheader("3. Champion DNA — where did winners get their points?")
         st.caption("For each season's champion, breakdown of season points by "
-                   "the ROUND of their roster's drafted players.")
+                   "the ROUND of their roster's drafted players. **2023 "
+                   "excluded** because that draft came from a post-Yahoo "
+                   "migration and pick-to-manager attribution is unreliable.")
         champ_data = []
         for yr, s in sorted(D["seasons"].items()):
+            if yr == 2023:  # skip — attribution unreliable
+                continue
             champ_rid = s.get("champion_roster_id")
             if not champ_rid:
                 continue
@@ -2097,11 +2108,15 @@ with tab_charts:
         # 4. Manager trade scorecard
         # ============================================================
         st.subheader("4. Manager trade scorecard (net retroactive value)")
-        st.caption("Sum of trade-value delta across all 45 trades. "
-                   "Positive = consistent trade winner in hindsight.")
+        st.caption("Sum of trade-value delta across all trades. "
+                   "Positive = consistent trade winner in hindsight. "
+                   "**2023 trades excluded** — those came from the Yahoo "
+                   "migration and roster_id attribution is unreliable.")
         from collections import defaultdict as _dd
         tally = _dd(lambda: {"team": "", "n": 0, "net": 0.0})
         for s in D["trade_rows"]:
+            if s.get("season") == 2023:
+                continue
             e = tally[s["team"]]
             e["team"] = s["team"]
             e["n"] += 1
@@ -2125,9 +2140,12 @@ with tab_charts:
         st.subheader("5. Draft capital realized vs final wins")
         st.caption("Each dot = (team, season). X = sum of season points from "
                    "drafted players; Y = wins. Does drafting better correlate "
-                   "with winning in a keeper league?")
+                   "with winning in a keeper league? **2023 excluded** "
+                   "(post-migration pick attribution unreliable).")
         dvw_rows = []
         for yr, s in D["seasons"].items():
+            if yr == 2023:
+                continue
             for rid, r in s["rosters"].items():
                 team_pick_pts = sum(p["season_points"] for p in D["picks"]
                                      if p["season"] == yr and p["roster_id"] == rid)
