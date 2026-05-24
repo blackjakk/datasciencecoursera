@@ -205,7 +205,9 @@ def summarize_trade(
         if weekly_points_by_season is None:
             return season_pts.get(pid, 0.0)
         wk_data = weekly_points_by_season.get(season, {})
-        return sum(wk_data.get(w, {}).get(pid, 0.0) for w in range(trade_week, 18))
+        # Sum trade_week through W18 to cover any late-season trades + the
+        # rare Sleeper W18 entries.
+        return sum(wk_data.get(w, {}).get(pid, 0.0) for w in range(trade_week, 19))
 
     rows: list[dict] = []
     for rid in rosters:

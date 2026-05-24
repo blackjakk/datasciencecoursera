@@ -28,7 +28,11 @@ PDF_OUT = ROOT / "data" / "MONEYLEAGUE_AWARDS.pdf"
 
 def mgr_name(rid: int) -> str:
     m = manager_for_sleeper_roster(rid)
-    return m["canonical_name"] if m else f"Roster {rid}"
+    if not m:
+        return f"Roster {rid}"
+    # Strip parenthetical league nicknames for cleaner display
+    # (e.g. "Lem (LEMVP)" -> "Lem").
+    return m["canonical_name"].split(" (")[0]
 
 
 def compute_data():
