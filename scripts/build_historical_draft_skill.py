@@ -43,6 +43,11 @@ OUT_JSON = ROOT / "data" / "historical_draft_skill.json"
 
 # Replacement ranks for a 12-team superflex 0.5 PPR league (matches
 # current pick_value.json). Used to compute VBD per pick.
+#
+# Format history: 2QB-required from at least 2019 through 2022, then
+# switched to superflex in 2023 (Sleeper migration). Both formats yield
+# essentially the same QB replacement rank (~22), so a single set of
+# ranks is valid for the entire 2019-2024 window covered here.
 REPLACEMENT_RANKS = {"QB": 22, "RB": 31, "WR": 42, "TE": 13, "K": 12, "DEF": 12}
 
 # Player-name fixups for tokens that nflverse spells differently from
