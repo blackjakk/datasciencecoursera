@@ -4855,8 +4855,12 @@ function buildCinemaAnim(play, prevPlay) {
       }
       setCamFromCarrier((holderWX + goalWX) / 2);
       drawCinemaField(ctx, homeTeam, awayTeam, { losYard: startYardAbs });
-      // Big top-down goalposts (drawn in screen coords past the goal line)
-      drawTopDownGoalposts(ctx, worldToScreenX(goalWX), lateralToScreenY(0));
+      // Big top-down goalposts (drawn in screen coords past the goal line).
+      // In broadcast cam the stadium goalposts are already drawn standing
+      // up on the upright overlay; skip the flat H here to avoid doubling.
+      if (cameraMode !== "broadcast") {
+        drawTopDownGoalposts(ctx, worldToScreenX(goalWX), lateralToScreenY(0));
+      }
       const sprites = [];
       sprites.push({ x: worldToScreenX(holderWX), y: lateralToScreenY(0), team: offTeam, frame: t > 0.3 ? "stiff" : "idle", flipped: false, faceSeed: kickerSeed });
       sprites.push({ x: worldToScreenX(holderWX - 25), y: lateralToScreenY(0.5), team: offTeam, frame: "tackled", flipped: false, faceSeed: nameSeed("Holder") });
@@ -5415,10 +5419,79 @@ function _frameStartBroadcast() {
   if (!upr) { _uprightCtx = null; return; }
   _uprightCtx = upr.getContext("2d");
   _uprightCtx.clearRect(0, 0, upr.width, upr.height);
+  // Stadium goalposts at both end zones — drawn behind sprites so a
+  // player crossing in front of one occludes it correctly.
+  try { drawStadiumGoalposts(_uprightCtx); } catch (e) { /* defensive */ }
   _spriteQueue.length = 0;
   // Phase 3.2 — bump the PIXI player frame marker so sprites not
   // refreshed by drawPlayer this frame get hidden at frame end.
   if (typeof GCPlayer !== "undefined") GCPlayer.frameStart();
+}
+
+// Y-shaped stadium goalposts at the back of each end zone, drawn on the
+// flat upright overlay so they stand UP in broadcast cam (canvas2D #field
+// is CSS rotateX'd which would lay an H flat against the ground).
+function drawStadiumGoalposts(ctx) {
+  if (!ctx || cameraMode !== "broadcast") return;
+  const yMid = (FIELD.TOP + FIELD.BOT) / 2;
+  // Back of each end zone (a few px in from the canvas edge so the post
+  // base reads as inside the playing surface).
+  _drawOneGoalpost(ctx, 18, yMid);
+  _drawOneGoalpost(ctx, FIELD.W - 18, yMid);
+}
+function _drawOneGoalpost(ctx, fieldX, fieldYMid) {
+  const PXY = 15; // FIELD.PX_PER_YARD
+  const halfLat = 3 * PXY;  // crossbar half-width: ~3yd from center each side
+  const baseC = projectBroadcast(fieldX, fieldYMid);
+  const baseL = projectBroadcast(fieldX, fieldYMid - halfLat);
+  const baseR = projectBroadcast(fieldX, fieldYMid + halfLat);
+  if (!baseC || baseC.scale <= 0) return;
+  const s = baseC.scale;
+  const sinθ = Math.sin(BROADCAST_TILT_DEG * Math.PI / 180);
+  // Vertical pixel heights for crossbar + uprights at this perspective scale.
+  // 3yd crossbar height, 12yd upright extension above the crossbar.
+  const crossbarH = 3 * PXY * sinθ * s;
+  const uprightH  = 12 * PXY * sinθ * s;
+  const crossbarL_y = baseL.y - crossbarH;
+  const crossbarR_y = baseR.y - crossbarH;
+  const crossbarC_y = baseC.y - crossbarH;
+
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  // Thin dark stroke first (silhouette / depth), then yellow on top.
+  const drawStrokes = (color, widthMul) => {
+    ctx.strokeStyle = color;
+    // Support pole
+    ctx.lineWidth = Math.max(2, 4.5 * s * widthMul);
+    ctx.beginPath();
+    ctx.moveTo(baseC.x, baseC.y);
+    ctx.lineTo(baseC.x, crossbarC_y);
+    ctx.stroke();
+    // Crossbar
+    ctx.lineWidth = Math.max(2, 3.8 * s * widthMul);
+    ctx.beginPath();
+    ctx.moveTo(baseL.x, crossbarL_y);
+    ctx.lineTo(baseR.x, crossbarR_y);
+    ctx.stroke();
+    // Two vertical uprights
+    ctx.beginPath();
+    ctx.moveTo(baseL.x, crossbarL_y);
+    ctx.lineTo(baseL.x, crossbarL_y - uprightH);
+    ctx.moveTo(baseR.x, crossbarR_y);
+    ctx.lineTo(baseR.x, crossbarR_y - uprightH);
+    ctx.stroke();
+  };
+  drawStrokes("rgba(0,0,0,0.55)", 1.45);
+  drawStrokes("#ffe048", 1.0);
+  // Small flag/wind sock at the top of each upright (visual flourish that
+  // makes the posts read as part of a real stadium, not a wireframe).
+  ctx.fillStyle = "#ff7a3a";
+  const flagH = Math.max(4, 8 * s);
+  const flagW = Math.max(6, 12 * s);
+  ctx.fillRect(baseL.x, crossbarL_y - uprightH - flagH, flagW, flagH);
+  ctx.fillRect(baseR.x - flagW, crossbarR_y - uprightH - flagH, flagW, flagH);
+  ctx.restore();
 }
 
 // Called by the tick loop after render(). Sorts queued sprite draws
