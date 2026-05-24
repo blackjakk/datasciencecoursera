@@ -114,7 +114,7 @@ with tab_setup:
                 round_penalty=2, max_years_consecutive=3,
             )
             players = load_players(str(ROOT / "data" / "players_2026.csv"))
-            records = _json.loads((ROOT / "data" / "keepers_2026.json").read_text())
+            records = _json.loads((ROOT / "data" / "keepers_2026.json").read_text(encoding="utf-8"))
 
             # Build team names from rosters.json + users.json so the draft
             # board shows "TBreswick" etc. instead of "Team 1".
@@ -130,8 +130,8 @@ with tab_setup:
                 rosters_path = ldir / "rosters.json"
                 users_path = ldir / "users.json"
                 if rosters_path.exists() and users_path.exists():
-                    users = {u["user_id"]: u for u in _json.loads(users_path.read_text())}
-                    for r in _json.loads(rosters_path.read_text()):
+                    users = {u["user_id"]: u for u in _json.loads(users_path.read_text(encoding="utf-8"))}
+                    for r in _json.loads(rosters_path.read_text(encoding="utf-8")):
                         rid = int(r["roster_id"])
                         owner = users.get(r.get("owner_id") or "", {})
                         meta = owner.get("metadata") or {}
@@ -324,7 +324,7 @@ with tab_keepers:
             pv_blind_local: dict[int, float] = {}
             pv_p = ROOT / "data" / "pick_value.json"
             if pv_p.exists():
-                _pv = _json.loads(pv_p.read_text())
+                _pv = _json.loads(pv_p.read_text(encoding="utf-8"))
                 pv_blind_local = {int(rr): d["mean_vbd"]
                                    for rr, d in _pv["by_round"].items()}
 
@@ -806,7 +806,7 @@ with tab_insights:
         )
     else:
         try:
-            data = _json.loads(insights_path.read_text())
+            data = _json.loads(insights_path.read_text(encoding="utf-8"))
         except Exception as e:
             st.error(f"Couldn't read {insights_path.name}: {e}")
             data = {}
@@ -918,7 +918,7 @@ with tab_positions:
         )
     else:
         try:
-            pdata = _json.loads(pos_path.read_text())
+            pdata = _json.loads(pos_path.read_text(encoding="utf-8"))
         except Exception as e:
             st.error(f"Couldn't read {pos_path.name}: {e}")
             pdata = {}
@@ -995,7 +995,7 @@ with tab_tendencies:
         )
     else:
         try:
-            tdata = _json.loads(tend_path.read_text())
+            tdata = _json.loads(tend_path.read_text(encoding="utf-8"))
         except Exception as e:
             st.error(f"Couldn't read {tend_path.name}: {e}")
             tdata = {}
@@ -1107,13 +1107,13 @@ with tab_history:
                 pts_by_season[ss["season"]] = ss["player_total_points"]
             try:
                 catalog = _json.loads(
-                    (ROOT / "data" / "sleeper" / "players_nfl.json").read_text())
+                    (ROOT / "data" / "sleeper" / "players_nfl.json").read_text(encoding="utf-8"))
             except Exception:
                 catalog = {}
             pv_blind_t: dict[int, float] = {}
             pv_p = ROOT / "data" / "pick_value.json"
             if pv_p.exists():
-                _pv = _json.loads(pv_p.read_text())
+                _pv = _json.loads(pv_p.read_text(encoding="utf-8"))
                 pv_blind_t = {int(rr): d["mean_vbd"]
                               for rr, d in _pv["by_round"].items()}
 
@@ -1198,9 +1198,9 @@ with tab_assets:
             from fantasy_draft.draft import Draft as _Draft  # noqa: E402
             from fantasy_draft.trades import apply_trades as _apply_trades  # noqa: E402
 
-            pv = _json.loads(pv_path.read_text())
+            pv = _json.loads(pv_path.read_text(encoding="utf-8"))
             pv_blind = {int(r): d["mean_vbd"] for r, d in pv["by_round"].items()}
-            keeper_records = _json.loads(kp_path.read_text())
+            keeper_records = _json.loads(kp_path.read_text(encoding="utf-8"))
 
             # Build a fresh draft to determine pick ownership (apply trades, then
             # mark forfeited rounds via the keepers themselves).
@@ -1282,7 +1282,7 @@ with tab_trade:
         if not (league and players):
             st.info("Load the league + players in Tab 1 first.")
         else:
-            pv = _json.loads(pv_path.read_text())
+            pv = _json.loads(pv_path.read_text(encoding="utf-8"))
             pv_blind = {int(r): d["mean_vbd"] for r, d in pv["by_round"].items()}
 
             # Recompute VBD without any keepers removed (baseline view).
@@ -1386,12 +1386,12 @@ with tab_charts:
         from fantasy_draft.xlsx_history import load_all_keepers, normalize_name  # noqa: E402
         from fantasy_draft.name_aliases import resolve_xlsx_name  # noqa: E402
 
-        pv = _json.loads(pv_path.read_text()) if pv_path.exists() else {}
-        pbr = _json.loads(pbr_path.read_text()) if pbr_path.exists() else {}
+        pv = _json.loads(pv_path.read_text(encoding="utf-8")) if pv_path.exists() else {}
+        pbr = _json.loads(pbr_path.read_text(encoding="utf-8")) if pbr_path.exists() else {}
 
         try:
             catalog = _json.loads(
-                (ROOT / "data" / "sleeper" / "players_nfl.json").read_text())
+                (ROOT / "data" / "sleeper" / "players_nfl.json").read_text(encoding="utf-8"))
         except Exception:
             catalog = {}
 
@@ -1583,7 +1583,7 @@ with tab_charts:
             from fantasy_draft.results import load_all_seasons  # already imported
             from fantasy_draft.xlsx_history import normalize_name as _norm  # noqa: E402
             adp_proj = _json.loads(
-                (ROOT / "data" / "sleeper_projections_2026.json").read_text())
+                (ROOT / "data" / "sleeper_projections_2026.json").read_text(encoding="utf-8"))
             for entry in adp_proj:
                 meta = entry.get("player") or {}
                 nm = meta.get("full_name") or (
@@ -1632,7 +1632,7 @@ with tab_charts:
                    "historical_insights.json — already shown numerically in tab 4.")
         try:
             ret = _json.loads(
-                (ROOT / "data" / "historical_insights.json").read_text()
+                (ROOT / "data" / "historical_insights.json").read_text(encoding="utf-8")
             )["retention_by_position"]
         except Exception:
             ret = {}
@@ -1779,9 +1779,9 @@ with tab_charts:
                         f"league_{D['seasons'][cur_yr]['league_id']}")
             try:
                 prev_rosters_raw = _json.loads(
-                    (prev_dir / "rosters.json").read_text())
+                    (prev_dir / "rosters.json").read_text(encoding="utf-8"))
                 cur_rosters_raw = _json.loads(
-                    (cur_dir / "rosters.json").read_text())
+                    (cur_dir / "rosters.json").read_text(encoding="utf-8"))
             except Exception:
                 continue
             prev_pid_by_rid = {int(r["roster_id"]):

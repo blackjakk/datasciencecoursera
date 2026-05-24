@@ -52,7 +52,7 @@ def load_trades_from_sleeper_dump(
         league_path = d / "league.json"
         if not league_path.exists():
             continue
-        with open(league_path) as f:
+        with open(league_path, encoding="utf-8") as f:
             data = json.load(f)
         s = int(data.get("season", 0) or 0)
         if season is None:
@@ -66,7 +66,7 @@ def load_trades_from_sleeper_dump(
     trades_path = chosen_dir / "traded_picks.json"
     if not trades_path.exists():
         return []
-    with open(trades_path) as f:
+    with open(trades_path, encoding="utf-8") as f:
         raw = json.load(f)
 
     out: list[TradedPick] = []

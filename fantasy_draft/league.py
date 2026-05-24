@@ -123,7 +123,7 @@ class LeagueConfig:
 
     @classmethod
     def load(cls, path: str | Path) -> "LeagueConfig":
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             return cls.from_dict(json.load(f))
 
 

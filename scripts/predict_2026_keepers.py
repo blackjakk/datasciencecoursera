@@ -20,7 +20,7 @@ ROUNDS = 17
 ROUND_PENALTY = 2
 MAX_KEEPERS = 4
 
-picks = json.loads(PICKS_FILE.read_text())
+picks = json.loads(PICKS_FILE.read_text(encoding="utf-8"))
 by_team: dict[int, list[dict]] = defaultdict(list)
 for p in picks:
     by_team[p["roster_id"]].append(p)

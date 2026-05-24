@@ -43,7 +43,7 @@ def fetch_sleeper_projections(
     positions = positions or DEFAULT_POSITIONS
     cache = Path(cache_path) if cache_path else None
     if cache and cache.exists() and (time.time() - cache.stat().st_mtime) < ttl_days * 86400:
-        with open(cache) as f:
+        with open(cache, encoding="utf-8") as f:
             return json.load(f)
 
     params = [("season_type", "regular"), ("order_by", "adp_half_ppr")]
@@ -58,7 +58,7 @@ def fetch_sleeper_projections(
 
     if cache:
         cache.parent.mkdir(parents=True, exist_ok=True)
-        with open(cache, "w") as f:
+        with open(cache, "w", encoding="utf-8") as f:
             json.dump(data, f)
     return data
 
@@ -141,7 +141,7 @@ def projections_to_players(
 def write_players_csv(players: list[Player], path: str | Path) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", newline="") as f:
+    with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow([
             "name", "position", "team", "adp", "projection",
@@ -158,6 +158,6 @@ def load_projections_from_cache(
     cache_path: str | Path = "data/sleeper_projections.json",
     scoring: str = "half_ppr",
 ) -> list[Player]:
-    with open(cache_path) as f:
+    with open(cache_path, encoding="utf-8") as f:
         raw = json.load(f)
     return projections_to_players(raw, scoring=scoring)

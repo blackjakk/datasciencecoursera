@@ -30,7 +30,7 @@ def load_players(path: str | Path) -> list[Player]:
     Unknown columns are ignored. Missing optional columns get sensible defaults.
     """
     players: list[Player] = []
-    with open(path, newline="") as f:
+    with open(path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
             players.append(

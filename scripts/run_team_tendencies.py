@@ -37,7 +37,7 @@ def _build_player_position_lookup() -> dict[str, str]:
     out: dict[str, str] = {}
     if not cat_path.exists():
         return out
-    cat = json.loads(cat_path.read_text())
+    cat = json.loads(cat_path.read_text(encoding="utf-8"))
     for p in cat.values():
         pos = p.get("position") or ""
         if pos not in POSITIONS:
@@ -59,9 +59,9 @@ def _build_xlsx_col_to_team(year: int = 2025) -> dict[int, str]:
     If a column has multiple keepers, take the majority match.
     """
     # Load 2025 Sleeper rosters -> {team_name: set(player_norm_names)}
-    users = {u["user_id"]: u for u in json.loads((SLEEPER_2025 / "users.json").read_text())}
-    rosters = json.loads((SLEEPER_2025 / "rosters.json").read_text())
-    cat = json.loads((ROOT / "data" / "sleeper" / "players_nfl.json").read_text())
+    users = {u["user_id"]: u for u in json.loads((SLEEPER_2025 / "users.json").read_text(encoding="utf-8"))}
+    rosters = json.loads((SLEEPER_2025 / "rosters.json").read_text(encoding="utf-8"))
+    cat = json.loads((ROOT / "data" / "sleeper" / "players_nfl.json").read_text(encoding="utf-8"))
 
     team_to_players: dict[str, set[str]] = {}
     for r in rosters:

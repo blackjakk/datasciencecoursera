@@ -114,7 +114,7 @@ def load_keepers_file(path: str | Path,
     Forced-drop records (yr3 cap hit) are skipped by default so the live draft
     treats those players as freely available.
     """
-    records = json.loads(Path(path).read_text())
+    records = json.loads(Path(path).read_text(encoding="utf-8"))
     out: list[Keeper] = []
     for r in records:
         if not include_forced_drops and r.get("status") == "forced_drop":

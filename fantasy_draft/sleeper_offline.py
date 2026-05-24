@@ -17,12 +17,12 @@ from .sleeper import league_config_from_sleeper, picks_for_draft
 def load_players_dump(root: str | Path) -> dict:
     """Sleeper's full NFL player catalog from the local dump."""
     path = Path(root) / "players_nfl.json"
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 
 def _read(path: Path) -> dict | list:
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -69,7 +69,7 @@ def current_rosters_from_offline(
         league_path = d / "league.json"
         if not league_path.exists():
             continue
-        with open(league_path) as f:
+        with open(league_path, encoding="utf-8") as f:
             data = json.load(f)
         if league_id and data.get("league_id") != league_id:
             continue

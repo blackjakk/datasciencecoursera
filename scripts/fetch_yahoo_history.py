@@ -71,7 +71,7 @@ def _cookie_header() -> str | None:
     if env:
         return env.strip()
     if COOKIE_FILE.exists():
-        return COOKIE_FILE.read_text().strip() or None
+        return COOKIE_FILE.read_text(encoding="utf-8").strip() or None
     return None
 
 
@@ -162,7 +162,7 @@ def main():
         season_dir = OUT_DIR / f"league_{league_id}"
         season_dir.mkdir(parents=True, exist_ok=True)
         out_path = season_dir / f"draft_{season}.csv"
-        with open(out_path, "w", newline="") as f:
+        with open(out_path, "w", newline="", encoding="utf-8") as f:
             w = csv.DictWriter(f, fieldnames=[
                 "season", "overall_pick", "round", "pick_in_round",
                 "team_id", "team_name", "player_name", "position", "is_keeper",

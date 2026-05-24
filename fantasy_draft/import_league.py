@@ -168,12 +168,12 @@ def _write_league(cfg: LeagueConfig, path: str) -> None:
         "scoring": cfg.scoring.__dict__,
         "keepers": cfg.keepers.__dict__,
     }
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
 
 def _write_keepers(keepers: list[dict], path: str) -> None:
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         json.dump(keepers, f, indent=2)
 
 

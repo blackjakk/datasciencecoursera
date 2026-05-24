@@ -197,7 +197,7 @@ def _print_header(league: LeagueConfig, draft: Draft, my_team_idx: int | None) -
 def _load_team_names(path: str | None, num_teams: int) -> list[str] | None:
     if path is None:
         return None
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         names = [line.strip() for line in f if line.strip()]
     if len(names) != num_teams:
         raise ValueError(f"team names file has {len(names)} entries, league expects {num_teams}")
@@ -205,7 +205,7 @@ def _load_team_names(path: str | None, num_teams: int) -> list[str] | None:
 
 
 def _load_keepers(path: str | Path) -> list[Keeper]:
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         raw = json.load(f)
     return [
         Keeper(

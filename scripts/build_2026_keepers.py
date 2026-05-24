@@ -74,9 +74,9 @@ def _canonical_for_player(player_meta: dict, name_to_canonical: dict[str, str]) 
 def _build_candidates() -> list[dict]:
     """For each (team, player) pair on the 2025 ending roster, build a
     candidate dict with everything needed to score it as a 2026 keeper."""
-    rosters = json.loads(ROSTERS_PATH.read_text())
-    picks = json.loads(PICKS_PATH.read_text())
-    catalog = json.loads(CATALOG_PATH.read_text())
+    rosters = json.loads(ROSTERS_PATH.read_text(encoding="utf-8"))
+    picks = json.loads(PICKS_PATH.read_text(encoding="utf-8"))
+    catalog = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
     proj = load_projections_from_cache(PROJ_CACHE, scoring="half_ppr")
     name_to_canonical = {normalize_name(p.name): p.name for p in proj}
 
@@ -140,7 +140,7 @@ def _load_pick_value() -> tuple[dict[int, float], dict[int, dict[str, float]]]:
     if not PICK_VALUE_PATH.exists():
         sys.exit(f"ERROR: {PICK_VALUE_PATH} missing. Run "
                  f"scripts/build_pick_value.py first.")
-    raw = json.loads(PICK_VALUE_PATH.read_text())
+    raw = json.loads(PICK_VALUE_PATH.read_text(encoding="utf-8"))
     blind = {int(r): d["mean_vbd"] for r, d in raw["by_round"].items()}
     position_aware: dict[int, dict[str, float]] = {}
     for r, per_pos in raw["by_round_position"].items():

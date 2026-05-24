@@ -56,17 +56,17 @@ def _position_lookup() -> list[dict]:
         def _season_for(picks_path: str) -> int:
             league_path = Path(picks_path).parent / "league.json"
             try:
-                return int(json.loads(league_path.read_text()).get("season") or 0)
+                return int(json.loads(league_path.read_text(encoding="utf-8")).get("season") or 0)
             except (FileNotFoundError, ValueError):
                 return 0
         latest = max(pick_files, key=_season_for)
-        with open(latest) as f:
+        with open(latest, encoding="utf-8") as f:
             picks.extend(json.load(f))
 
     if not PROJ_2026.exists():
         sys.exit(f"ERROR: {PROJ_2026.relative_to(ROOT)} missing -- run "
                  f"scripts/fetch_sleeper.sh to regenerate it.")
-    with open(PROJ_2026) as f:
+    with open(PROJ_2026, encoding="utf-8") as f:
         proj = json.load(f)
     for r in proj:
         p = r.get("player") or {}
@@ -112,7 +112,7 @@ def _dropoff_for_json(drop: list[dict]) -> dict:
 def _forced_drops_2026(dropoff: dict) -> list[dict]:
     """For each of this year's forced-drops, attach a prior on where they're
     likely to be re-drafted, using the historical post-cap distribution."""
-    records = json.loads(KEEPERS_2026.read_text())
+    records = json.loads(KEEPERS_2026.read_text(encoding="utf-8"))
     forced = [r for r in records if r.get("status") == "forced_drop"]
     fates = dropoff["fates"]
     total = dropoff["total_capped"] or 1

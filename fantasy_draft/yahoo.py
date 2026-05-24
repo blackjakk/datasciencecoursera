@@ -35,7 +35,7 @@ _REQUIRED_CSV_COLS = {"season", "overall_pick", "round", "pick_in_round",
 def import_draft_csv(path: str | Path, source: str = "yahoo_csv") -> list[HistoricalDraftPick]:
     """Load a draft from a CSV file. See module docstring for columns."""
     path = Path(path)
-    with open(path, newline="") as f:
+    with open(path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         missing = _REQUIRED_CSV_COLS - set(reader.fieldnames or [])
         if missing:

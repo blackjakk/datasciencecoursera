@@ -79,11 +79,11 @@ def fetch_players_dump(cache_path: str | Path = "data/sleeper_players.json", ttl
     """Sleeper's full NFL player catalog. ~5MB; cache locally."""
     path = Path(cache_path)
     if path.exists() and (time.time() - path.stat().st_mtime) < ttl_days * 86400:
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             return json.load(f)
     data = _get("/players/nfl")
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f)
     return data
 

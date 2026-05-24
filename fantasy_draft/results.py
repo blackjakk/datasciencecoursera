@@ -27,7 +27,7 @@ def load_player_catalog(sleeper_dir: str | Path = "data/sleeper") -> dict[str, d
     p = Path(sleeper_dir) / "players_nfl.json"
     if not p.exists():
         return {}
-    return json.loads(p.read_text())
+    return json.loads(p.read_text(encoding="utf-8"))
 
 
 def load_season_results(season_dir: str | Path) -> dict:
@@ -46,9 +46,9 @@ def load_season_results(season_dir: str | Path) -> dict:
       }
     """
     season_dir = Path(season_dir)
-    league = json.loads((season_dir / "league.json").read_text())
-    users = {u["user_id"]: u for u in json.loads((season_dir / "users.json").read_text())}
-    rosters_raw = json.loads((season_dir / "rosters.json").read_text())
+    league = json.loads((season_dir / "league.json").read_text(encoding="utf-8"))
+    users = {u["user_id"]: u for u in json.loads((season_dir / "users.json").read_text(encoding="utf-8"))}
+    rosters_raw = json.loads((season_dir / "rosters.json").read_text(encoding="utf-8"))
 
     rosters: dict[int, dict] = {}
     for r in rosters_raw:
@@ -73,7 +73,7 @@ def load_season_results(season_dir: str | Path) -> dict:
     matchups_dir = season_dir / "matchups"
     for wk_file in sorted(matchups_dir.glob("week_*.json")):
         week = int(wk_file.stem.split("_")[1])
-        entries = json.loads(wk_file.read_text())
+        entries = json.loads(wk_file.read_text(encoding="utf-8"))
         for e in entries:
             rid = int(e["roster_id"])
             pts = float(e.get("points") or 0.0)
@@ -87,7 +87,7 @@ def load_season_results(season_dir: str | Path) -> dict:
     champion_rid = None
     wb_file = season_dir / "winners_bracket.json"
     if wb_file.exists():
-        bracket = json.loads(wb_file.read_text())
+        bracket = json.loads(wb_file.read_text(encoding="utf-8"))
         if bracket:
             final = max(bracket, key=lambda g: g.get("r", 0))
             champion_rid = final.get("w")
@@ -125,7 +125,7 @@ def load_all_trades(sleeper_dir: str | Path = "data/sleeper") -> list[dict]:
     for season_dir in sorted(sleeper_dir.glob("league_*")):
         if not (season_dir / "league.json").exists():
             continue
-        lg = json.loads((season_dir / "league.json").read_text())
+        lg = json.loads((season_dir / "league.json").read_text(encoding="utf-8"))
         season = int(lg.get("season") or 0)
         txn_dir = season_dir / "transactions"
         if not txn_dir.exists():
@@ -133,7 +133,7 @@ def load_all_trades(sleeper_dir: str | Path = "data/sleeper") -> list[dict]:
         for wf in sorted(txn_dir.glob("week_*.json")):
             week = int(wf.stem.split("_")[1])
             try:
-                txns = json.loads(wf.read_text())
+                txns = json.loads(wf.read_text(encoding="utf-8"))
             except Exception:
                 continue
             for t in txns:
@@ -232,7 +232,7 @@ def load_draft_picks_with_points(
     for season_dir in sorted(sleeper_dir.glob("league_*")):
         if not (season_dir / "league.json").exists():
             continue
-        lg = json.loads((season_dir / "league.json").read_text())
+        lg = json.loads((season_dir / "league.json").read_text(encoding="utf-8"))
         season = int(lg.get("season") or 0)
         if season not in seasons:
             continue
@@ -240,7 +240,7 @@ def load_draft_picks_with_points(
         pick_files = list(season_dir.glob("draft_*_picks.json"))
         if not pick_files:
             continue
-        picks = json.loads(pick_files[0].read_text())
+        picks = json.loads(pick_files[0].read_text(encoding="utf-8"))
         for p in picks:
             meta = p.get("metadata") or {}
             pid = str(p.get("player_id") or "")

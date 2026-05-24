@@ -40,15 +40,15 @@ def _build_keeper_value_table():
     cfg = league_from_offline(str(ROOT / "data" / "sleeper"),
                                round_penalty=2, max_years_consecutive=3)
     players = load_players(str(ROOT / "data" / "players_2026.csv"))
-    records = json.loads((ROOT / "data" / "keepers_2026.json").read_text())
+    records = json.loads((ROOT / "data" / "keepers_2026.json").read_text(encoding="utf-8"))
 
     # Resolve team names from rosters + users.
     dump = ROOT / "data" / "sleeper"
     team_names = [f"Team {i+1}" for i in range(cfg.num_teams)]
     for ld in sorted(dump.iterdir()):
         if ld.is_dir() and ld.name.startswith("league_"):
-            users = {u["user_id"]: u for u in json.loads((ld / "users.json").read_text())}
-            for r in json.loads((ld / "rosters.json").read_text()):
+            users = {u["user_id"]: u for u in json.loads((ld / "users.json").read_text(encoding="utf-8"))}
+            for r in json.loads((ld / "rosters.json").read_text(encoding="utf-8")):
                 rid = int(r["roster_id"])
                 owner = users.get(r.get("owner_id") or "", {})
                 meta = owner.get("metadata") or {}
@@ -114,8 +114,8 @@ def _team_vbd_totals(carryover):
 
 
 def build_markdown() -> str:
-    insights = json.loads((ROOT / "data" / "historical_insights.json").read_text())
-    pos_data = json.loads((ROOT / "data" / "position_by_round.json").read_text())
+    insights = json.loads((ROOT / "data" / "historical_insights.json").read_text(encoding="utf-8"))
+    pos_data = json.loads((ROOT / "data" / "position_by_round.json").read_text(encoding="utf-8"))
     seasons = load_all_seasons(ROOT / "data" / "sleeper")
     carryover, drop_rec, forced, team_names, trades, cfg = _build_keeper_value_table()
     team_totals = _team_vbd_totals(carryover)
