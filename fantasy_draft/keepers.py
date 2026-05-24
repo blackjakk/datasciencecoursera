@@ -138,17 +138,33 @@ def load_keepers_file(path: str | Path,
 
 
 def _find_pick(draft: Draft, team_idx: int, start_round: int) -> Pick | None:
-    """Earliest open pick the team owns at or after start_round.
+    """Find an open pick the team owns at start_round, otherwise walk UP
+    (toward earlier/more-expensive rounds) per the league's same-cost-
+    collision rule ("give up a round above"). Walks from start_round down
+    to R1. If nothing is owned in that range, falls back to walking forward
+    (later/cheaper) so trade-away cases where the team has only later picks
+    still resolve.
 
     Picks traded away show up under a different team_idx and are skipped.
     Picks already used as keeper slots have player != None and are skipped.
-    Returns None only if the team has no available pick from start_round
-    through the end of the draft.
+    Returns None only if the team has no available pick anywhere.
     """
-    for r in range(start_round, draft.league.rounds + 1):
+    def _open_at(r: int) -> Pick | None:
         for pick in draft.picks:
             if (pick.team_idx == team_idx
                     and pick.round_num == r
                     and pick.player is None):
                 return pick
+        return None
+
+    # Walk UP first (more expensive — matches the collision rule).
+    for r in range(start_round, 0, -1):
+        p = _open_at(r)
+        if p is not None:
+            return p
+    # Fallback: walk forward (cheaper) for the trade-away case.
+    for r in range(start_round + 1, draft.league.rounds + 1):
+        p = _open_at(r)
+        if p is not None:
+            return p
     return None

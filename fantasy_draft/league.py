@@ -115,6 +115,7 @@ class LeagueConfig:
         roster = [RosterSlot(name=s["name"], count=int(s["count"])) for s in data.get("roster", [])]
         scoring = ScoringRules(**data.get("scoring", {}))
         keepers = KeeperRules(**data.get("keepers", {}))
+        do = data.get("draft_order")
         return cls(
             name=data.get("name", "My League"),
             num_teams=int(data.get("num_teams", 12)),
@@ -123,6 +124,7 @@ class LeagueConfig:
             roster=roster,
             scoring=scoring,
             keepers=keepers,
+            draft_order=[int(x) for x in do] if do else None,
         )
 
     @classmethod

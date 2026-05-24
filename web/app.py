@@ -133,7 +133,14 @@ with tab_setup:
             from fantasy_draft.players import enrich_with_injuries
             n_injured = enrich_with_injuries(
                 players, str(ROOT / "data" / "sleeper" / "players_nfl.json"))
-            records = _json.loads((ROOT / "data" / "keepers_2026.json").read_text(encoding="utf-8"))
+            # Prefer override file (user's saved custom slate) if present.
+            override_path = ROOT / "data" / "keepers_2026_override.json"
+            base_path = ROOT / "data" / "keepers_2026.json"
+            keepers_src = override_path if override_path.exists() else base_path
+            records = _json.loads(keepers_src.read_text(encoding="utf-8"))
+            if keepers_src == override_path:
+                st.caption(f"📌 Loaded keeper overrides from {override_path.name} — "
+                           f"delete that file or hit ↩️ in Keepers tab to revert.")
 
             # Build team names from rosters.json + users.json so the draft
             # board shows "TBreswick" etc. instead of "Team 1".
@@ -163,6 +170,10 @@ with tab_setup:
             trades_all = load_trades_from_sleeper_dump(str(dump_path))
             trades_2026 = [t for t in trades_all if t.season == 2026]
 
+            # Clamp my_team_idx in case a saved default is out of range for
+            # this league (e.g. <9 teams when the default is 8).
+            if not (0 <= st.session_state.my_team_idx < cfg.num_teams):
+                st.session_state.my_team_idx = 0
             st.session_state.league = cfg
             st.session_state.players = players
             st.session_state.real_keepers_records = records
@@ -456,13 +467,20 @@ with tab_keepers:
                     if pk.team_idx == my_idx:
                         owned[pk.round_num] = owned.get(pk.round_num, 0) + 1
 
-                pick_rows = []
-                for c in sorted(my_cands, key=lambda c: -(pbn.get(c['player_name'].lower(), None).vbd if pbn.get(c['player_name'].lower()) else -999)):
+                def _vbd_of(c):
                     p = pbn.get(c['player_name'].lower())
-                    raw = round(p.vbd, 1) if p else None
+                    return p.vbd if p else float("-inf")
+                pick_rows = []
+                for c in sorted(my_cands, key=lambda c: -_vbd_of(c)):
+                    p = pbn.get(c['player_name'].lower())
+                    if p is None:
+                        # Skip candidates not in the 2026 projections pool —
+                        # we can't score them, so they shouldn't be checkable.
+                        continue
+                    raw = round(p.vbd, 1)
                     bl = (pv_pos.get(c['forfeit_round']) or {}).get(c['position'],
                                                                     pv_blind.get(c['forfeit_round'], 0.0))
-                    net = round((p.vbd if p else 0) - bl, 1)
+                    net = round(p.vbd - bl, 1)
                     yr3 = c['years_kept'] >= 3
                     pick_rows.append({
                         "Keep?": c['player_name'] in model_picks,
@@ -2045,6 +2063,7 @@ with tab_charts:
                    "did they actually score that year vs. an average pick at "
                    "their keeper cost round?")
         from fantasy_draft.xlsx_history import normalize_name as _n3  # noqa: E402
+        from fantasy_draft.name_aliases import resolve_xlsx_name  # noqa: E402
         keeper_results = []
         for yr, recs in (D["xlsx_by_year"] or {}).items():
             pts_for_year = D["pts_by_season"].get(yr, {})
