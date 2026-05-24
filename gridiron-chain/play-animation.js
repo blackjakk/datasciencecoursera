@@ -1014,14 +1014,15 @@ function buildAnimForPlay(play, prevPlay) {
     const dist = Math.hypot(hitDirX, hitDirY) || 1;
     const ux = hitDirX / dist;
     const uy = hitDirY / dist;
-    // Upward kick + spin scale with hit force for Blitz-style hangtime —
-    // bigger hits launch the player higher with more spin. Per-seed
-    // jitter ensures every ragdoll looks slightly different.
+    // Tackle PILE — bodies collapse, they don't explode. Spin and upward
+    // kick capped so players fall in place with slight tumble instead
+    // of flying apart. Per-seed jitter keeps each ragdoll a little
+    // different without anyone going airborne.
     const seedF = (seed >>> 0);
     const spinSign = (seedF & 1) ? -1 : 1;
-    const forceScale = Math.min(1.6, Math.max(0.7, force / 130));
-    const spinMag = (8 + ((seedF >>> 1) & 11)) * forceScale;    // 5.6-21+ rad/s
-    const upKick  = (60 + ((seedF >>> 4) & 63)) * forceScale;   // ~40-200 px/s
+    const forceScale = Math.min(1.1, Math.max(0.5, force / 200));
+    const spinMag = (2 + ((seedF >>> 1) & 5)) * forceScale;     // 1-7 rad/s
+    const upKick  = (15 + ((seedF >>> 4) & 25)) * forceScale;   // 7-44 px/s
     player._ragdoll = {
       vx: ux * force,
       vy: uy * force - upKick,
@@ -1619,7 +1620,10 @@ function buildAnimForPlay(play, prevPlay) {
           const hvx = -dir;
           const hvy = (((play.startYard * 7) >>> 0) % 7) - 3;
           const force = play.force || 0;
-          const fbase = 180 + Math.min(150, force * 8);
+          // Carrier gets shoved BACK at impact — modest velocity so the
+          // body topples instead of launching. Big hits flag through
+          // play.force scale up but never explode (cap ~140 px/s).
+          const fbase = 50 + Math.min(90, force * 6);
           initRagdoll(formation.rb, hvx, hvy, fbase, nowMs,
                       (play.startYard * 11 + (play.yards||0)) >>> 0);
           // Cinematic slow-mo at impact — duration & depth scale with
@@ -1816,14 +1820,18 @@ function buildAnimForPlay(play, prevPlay) {
             dd.pose = primaryTacklerDives ? "dive" : "hit";
             dd.t = Math.min(1, (tt - 0.72) / 0.28);
           } else {
-            // Pile-on defender — physics ragdoll. Init on first tackle
-            // frame using a hit vector pointing away from the carrier so
-            // they fly AWAY from the impact.
+            // Pile-on defender — collapses ON the pile, doesn't ricochet.
+            // Hit vector aims slightly TOWARD the carrier so the
+            // defender falls inward, not outward. Tiny lateral jitter
+            // per defender so they don't all land in the same spot.
             const nowMs = t * dur;
             if (!d._ragdoll) {
-              const hvx = (dd.x - rb.x) || 1;
-              const hvy = (dd.y - rb.y);
-              initRagdoll(d, hvx, hvy, 110 + (i * 17 % 60), nowMs, tacklerHash + i * 7);
+              const inX = -Math.sign((dd.x - rb.x) || 1) * 0.4;   // toward carrier
+              const inY = -Math.sign((dd.y - rb.y) || 1) * 0.4;
+              const jitter = ((tacklerHash + i * 17) % 7) - 3;
+              const hvx = inX + jitter * 0.1;
+              const hvy = inY + ((i * 13) % 7 - 3) * 0.1;
+              initRagdoll(d, hvx, hvy, 35 + (i * 5 % 25), nowMs, tacklerHash + i * 7);
             }
             stepRagdoll(d, nowMs, 8);   // groundDy ~= 8 below body origin
             dd._ragdoll = d._ragdoll;   // expose state to renderer via style
