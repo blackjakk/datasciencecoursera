@@ -113,6 +113,20 @@ with tab_setup:
                 str(dump_path),
                 round_penalty=2, max_years_consecutive=3,
             )
+            # 2026 draft slot lottery: based on the pattern from prior years,
+            # the prior-year CHAMPION drafts last (slot 12) and the RUNNER-UP
+            # drafts at slot 11. Other slots are randomized within the
+            # bottom-half (places 7-12 -> slots 1-6) and top-half-excluding-
+            # finalists (places 3-6 -> slots 7-10). 2025 results:
+            #   champ      = roster 11 (BergerBoy Brigade)   -> slot 12
+            #   runner-up  = roster 10 (Wi1dboy)             -> slot 11
+            # Remaining 10 rosters: best-guess by roster_id until the lottery
+            # is drawn.
+            champ_rid, runnerup_rid = 11, 10  # 2025 results
+            others = [rid for rid in range(1, cfg.num_teams + 1)
+                      if rid not in (champ_rid, runnerup_rid)]
+            order_rids = others + [runnerup_rid, champ_rid]   # slots 1..12
+            cfg.draft_order = [rid - 1 for rid in order_rids]
             players = load_players(str(ROOT / "data" / "players_2026.csv"))
             records = _json.loads((ROOT / "data" / "keepers_2026.json").read_text(encoding="utf-8"))
 
@@ -162,9 +176,10 @@ with tab_setup:
                 f"{len(trades_2026)} traded 2026 picks."
             )
             st.caption(
-                "Note: 2026 draft slots haven't been drawn yet — team_idx is "
-                "keyed by roster_id, so the snake order matches roster IDs 1..12. "
-                "Reorder once slots are set."
+                f"2026 draft order: champ ({team_names[champ_rid-1]}) = slot 12, "
+                f"runner-up ({team_names[runnerup_rid-1]}) = slot 11. "
+                f"Other 10 slots are best-guess by roster_id until the lottery "
+                f"is drawn — override in code or rerun once known."
             )
         except FileNotFoundError as e:
             st.error(

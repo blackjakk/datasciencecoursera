@@ -121,10 +121,11 @@ def _build_pick_order(league: LeagueConfig) -> list[Pick]:
     """Construct the full pick list with snake order if enabled."""
     picks: list[Pick] = []
     overall = 1
+    base_order = list(league.draft_order) if league.draft_order else list(range(league.num_teams))
     for rnd in range(1, league.rounds + 1):
-        order = range(league.num_teams)
+        order = list(base_order)
         if league.snake and rnd % 2 == 0:
-            order = reversed(order)
+            order = list(reversed(order))
         for pos, team_idx in enumerate(order, start=1):
             picks.append(
                 Pick(

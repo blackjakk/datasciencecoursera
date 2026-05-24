@@ -84,6 +84,10 @@ class LeagueConfig:
     roster: list[RosterSlot] = field(default_factory=list)
     scoring: ScoringRules = field(default_factory=ScoringRules)
     keepers: KeeperRules = field(default_factory=KeeperRules)
+    # R1 pick order as team_idx values (0-indexed). When set, slot N goes to
+    # draft_order[N-1]. Snake reversal applies as usual. When None, default to
+    # range(num_teams) so slot == team_idx + 1.
+    draft_order: list[int] | None = None
 
     @property
     def starters(self) -> list[RosterSlot]:
