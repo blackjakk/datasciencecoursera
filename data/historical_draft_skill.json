@@ -1,5 +1,9 @@
 {
   "years": [
+    2015,
+    2016,
+    2017,
+    2018,
     2019,
     2020,
     2021,
@@ -8,7 +12,7 @@
     2024
   ],
   "scoring": "0.5 PPR (avg of nflverse fp + fp_ppr)",
-  "replacement_ranks": {
+  "replacement_ranks_12team": {
     "QB": 22,
     "RB": 31,
     "WR": 42,
@@ -16,7 +20,263 @@
     "K": 12,
     "DEF": 12
   },
+  "replacement_ranks_10team": {
+    "QB": 18,
+    "RB": 26,
+    "WR": 35,
+    "TE": 11,
+    "K": 10,
+    "DEF": 10
+  },
   "per_season": {
+    "2015": {
+      "wang_left": {
+        "manager_name": "Wang",
+        "total_vbd": 752.0000000000002,
+        "n_picks": 19,
+        "n_matched": 17
+      },
+      "kyle_figgy": {
+        "manager_name": "Kyle",
+        "total_vbd": 113.90000000000005,
+        "n_picks": 19,
+        "n_matched": 19
+      },
+      "donnie": {
+        "manager_name": "Donnie",
+        "total_vbd": 118.20000000000009,
+        "n_picks": 19,
+        "n_matched": 17
+      },
+      "nark": {
+        "manager_name": "Nark",
+        "total_vbd": -71.85999999999999,
+        "n_picks": 19,
+        "n_matched": 17
+      },
+      "troy_mullings": {
+        "manager_name": "Troy",
+        "total_vbd": 179.74000000000007,
+        "n_picks": 19,
+        "n_matched": 16
+      },
+      "eric_m": {
+        "manager_name": "Eric",
+        "total_vbd": -295.65999999999997,
+        "n_picks": 19,
+        "n_matched": 16
+      },
+      "coop": {
+        "manager_name": "Coop",
+        "total_vbd": -187.98000000000002,
+        "n_picks": 19,
+        "n_matched": 17
+      },
+      "trevor_bergerboy": {
+        "manager_name": "Trevor",
+        "total_vbd": -341.93999999999994,
+        "n_picks": 19,
+        "n_matched": 18
+      },
+      "brian_bigguap": {
+        "manager_name": "Brian",
+        "total_vbd": 146.4,
+        "n_picks": 19,
+        "n_matched": 18
+      },
+      "lem": {
+        "manager_name": "Lem",
+        "total_vbd": -196.39999999999998,
+        "n_picks": 19,
+        "n_matched": 16
+      }
+    },
+    "2016": {
+      "kyle_figgy": {
+        "manager_name": "Kyle",
+        "total_vbd": 627.3400000000001,
+        "n_picks": 19,
+        "n_matched": 17
+      },
+      "coop": {
+        "manager_name": "Coop",
+        "total_vbd": 8.799999999999969,
+        "n_picks": 19,
+        "n_matched": 16
+      },
+      "nark": {
+        "manager_name": "Nark",
+        "total_vbd": 271.11999999999995,
+        "n_picks": 19,
+        "n_matched": 16
+      },
+      "lem": {
+        "manager_name": "Lem",
+        "total_vbd": -258.5,
+        "n_picks": 19,
+        "n_matched": 17
+      },
+      "eric_m": {
+        "manager_name": "Eric",
+        "total_vbd": 261.08000000000004,
+        "n_picks": 19,
+        "n_matched": 16
+      },
+      "brian_bigguap": {
+        "manager_name": "Brian",
+        "total_vbd": 254.86,
+        "n_picks": 19,
+        "n_matched": 18
+      },
+      "wang_left": {
+        "manager_name": "Wang",
+        "total_vbd": -136.56000000000003,
+        "n_picks": 19,
+        "n_matched": 18
+      },
+      "troy_mullings": {
+        "manager_name": "Troy",
+        "total_vbd": -251.78000000000003,
+        "n_picks": 19,
+        "n_matched": 17
+      },
+      "donnie": {
+        "manager_name": "Donnie",
+        "total_vbd": -121.90000000000003,
+        "n_picks": 19,
+        "n_matched": 16
+      },
+      "trevor_bergerboy": {
+        "manager_name": "Trevor",
+        "total_vbd": -312.53999999999985,
+        "n_picks": 19,
+        "n_matched": 19
+      }
+    },
+    "2017": {
+      "tim_breswick": {
+        "manager_name": "Tim",
+        "total_vbd": -4.0,
+        "n_picks": 19,
+        "n_matched": 16
+      },
+      "lem": {
+        "manager_name": "Lem",
+        "total_vbd": 497.2400000000001,
+        "n_picks": 19,
+        "n_matched": 16
+      },
+      "troy_mullings": {
+        "manager_name": "Troy",
+        "total_vbd": 556.6800000000001,
+        "n_picks": 19,
+        "n_matched": 17
+      },
+      "donnie": {
+        "manager_name": "Donnie",
+        "total_vbd": 271.62,
+        "n_picks": 19,
+        "n_matched": 16
+      },
+      "brian_bigguap": {
+        "manager_name": "Brian",
+        "total_vbd": 253.52000000000004,
+        "n_picks": 19,
+        "n_matched": 16
+      },
+      "dave_predecessor": {
+        "manager_name": "Dave",
+        "total_vbd": -157.64,
+        "n_picks": 19,
+        "n_matched": 17
+      },
+      "eric_m": {
+        "manager_name": "Eric",
+        "total_vbd": 415.90000000000003,
+        "n_picks": 19,
+        "n_matched": 17
+      },
+      "trevor_bergerboy": {
+        "manager_name": "Trevor",
+        "total_vbd": -153.85999999999996,
+        "n_picks": 19,
+        "n_matched": 16
+      },
+      "coop": {
+        "manager_name": "Coop",
+        "total_vbd": -308.76,
+        "n_picks": 19,
+        "n_matched": 15
+      },
+      "kyle_figgy": {
+        "manager_name": "Kyle",
+        "total_vbd": -319.93999999999994,
+        "n_picks": 19,
+        "n_matched": 16
+      }
+    },
+    "2018": {
+      "brian_bigguap": {
+        "manager_name": "Brian",
+        "total_vbd": 617.2600000000002,
+        "n_picks": 19,
+        "n_matched": 17
+      },
+      "kyle_figgy": {
+        "manager_name": "Kyle",
+        "total_vbd": 295.15999999999997,
+        "n_picks": 19,
+        "n_matched": 16
+      },
+      "tim_breswick": {
+        "manager_name": "Tim",
+        "total_vbd": 47.94000000000004,
+        "n_picks": 19,
+        "n_matched": 15
+      },
+      "lem": {
+        "manager_name": "Lem",
+        "total_vbd": 862.22,
+        "n_picks": 19,
+        "n_matched": 16
+      },
+      "eric_m": {
+        "manager_name": "Eric",
+        "total_vbd": 553.7999999999998,
+        "n_picks": 19,
+        "n_matched": 18
+      },
+      "trevor_bergerboy": {
+        "manager_name": "Trevor",
+        "total_vbd": 93.7599999999999,
+        "n_picks": 19,
+        "n_matched": 18
+      },
+      "troy_mullings": {
+        "manager_name": "Troy",
+        "total_vbd": -266.7800000000001,
+        "n_picks": 19,
+        "n_matched": 16
+      },
+      "donnie": {
+        "manager_name": "Donnie",
+        "total_vbd": -489.78000000000003,
+        "n_picks": 19,
+        "n_matched": 16
+      },
+      "dave_predecessor": {
+        "manager_name": "Dave",
+        "total_vbd": 215.77999999999992,
+        "n_picks": 19,
+        "n_matched": 18
+      },
+      "coop": {
+        "manager_name": "Coop",
+        "total_vbd": -346.86,
+        "n_picks": 19,
+        "n_matched": 17
+      }
+    },
     "2019": {
       "brower_barry": {
         "manager_name": "Brower",
@@ -463,6 +723,102 @@
     }
   },
   "cumulative": {
+    "wang_left": {
+      "manager_name": "Wang",
+      "total_vbd": 615.4400000000002,
+      "n_picks": 38,
+      "n_matched": 35,
+      "seasons": 2,
+      "vbd_per_season": 307.7200000000001
+    },
+    "kyle_figgy": {
+      "manager_name": "Kyle",
+      "total_vbd": 3307.3200000000006,
+      "n_picks": 178,
+      "n_matched": 158,
+      "seasons": 10,
+      "vbd_per_season": 330.7320000000001
+    },
+    "donnie": {
+      "manager_name": "Donnie",
+      "total_vbd": 805.0600000000001,
+      "n_picks": 178,
+      "n_matched": 154,
+      "seasons": 10,
+      "vbd_per_season": 80.506
+    },
+    "nark": {
+      "manager_name": "Nark",
+      "total_vbd": 199.25999999999996,
+      "n_picks": 38,
+      "n_matched": 33,
+      "seasons": 2,
+      "vbd_per_season": 99.62999999999998
+    },
+    "troy_mullings": {
+      "manager_name": "Troy",
+      "total_vbd": 2100.8199999999997,
+      "n_picks": 178,
+      "n_matched": 156,
+      "seasons": 10,
+      "vbd_per_season": 210.08199999999997
+    },
+    "eric_m": {
+      "manager_name": "Eric",
+      "total_vbd": 3200.58,
+      "n_picks": 178,
+      "n_matched": 157,
+      "seasons": 10,
+      "vbd_per_season": 320.058
+    },
+    "coop": {
+      "manager_name": "Coop",
+      "total_vbd": 1813.2400000000002,
+      "n_picks": 178,
+      "n_matched": 158,
+      "seasons": 10,
+      "vbd_per_season": 181.324
+    },
+    "trevor_bergerboy": {
+      "manager_name": "Trevor",
+      "total_vbd": 1832.5000000000002,
+      "n_picks": 178,
+      "n_matched": 165,
+      "seasons": 10,
+      "vbd_per_season": 183.25000000000003
+    },
+    "brian_bigguap": {
+      "manager_name": "Brian",
+      "total_vbd": 3880.960000000001,
+      "n_picks": 178,
+      "n_matched": 161,
+      "seasons": 10,
+      "vbd_per_season": 388.0960000000001
+    },
+    "lem": {
+      "manager_name": "Lem",
+      "total_vbd": 2250.2,
+      "n_picks": 178,
+      "n_matched": 153,
+      "seasons": 10,
+      "vbd_per_season": 225.01999999999998
+    },
+    "tim_breswick": {
+      "manager_name": "Tim",
+      "total_vbd": 597.5200000000003,
+      "n_picks": 140,
+      "n_matched": 115,
+      "seasons": 8,
+      "vbd_per_season": 74.69000000000004
+    },
+    "dave_predecessor": {
+      "manager_name": "Dave",
+      "total_vbd": 2942.5400000000004,
+      "n_picks": 140,
+      "n_matched": 130,
+      "seasons": 8,
+      "vbd_per_season": 367.81750000000005
+    },
     "brower_barry": {
       "manager_name": "Brower",
       "total_vbd": 2366.3399999999997,
@@ -478,86 +834,6 @@
       "n_matched": 16,
       "seasons": 1,
       "vbd_per_season": 234.44000000000005
-    },
-    "trevor_bergerboy": {
-      "manager_name": "Trevor",
-      "total_vbd": 2547.08,
-      "n_picks": 102,
-      "n_matched": 94,
-      "seasons": 6,
-      "vbd_per_season": 424.5133333333333
-    },
-    "coop": {
-      "manager_name": "Coop",
-      "total_vbd": 2648.04,
-      "n_picks": 102,
-      "n_matched": 93,
-      "seasons": 6,
-      "vbd_per_season": 441.34
-    },
-    "troy_mullings": {
-      "manager_name": "Troy",
-      "total_vbd": 1882.9599999999998,
-      "n_picks": 102,
-      "n_matched": 90,
-      "seasons": 6,
-      "vbd_per_season": 313.82666666666665
-    },
-    "donnie": {
-      "manager_name": "Donnie",
-      "total_vbd": 1026.92,
-      "n_picks": 102,
-      "n_matched": 89,
-      "seasons": 6,
-      "vbd_per_season": 171.15333333333334
-    },
-    "eric_m": {
-      "manager_name": "Eric",
-      "total_vbd": 2265.46,
-      "n_picks": 102,
-      "n_matched": 90,
-      "seasons": 6,
-      "vbd_per_season": 377.57666666666665
-    },
-    "tim_breswick": {
-      "manager_name": "Tim",
-      "total_vbd": 553.5800000000003,
-      "n_picks": 102,
-      "n_matched": 84,
-      "seasons": 6,
-      "vbd_per_season": 92.26333333333338
-    },
-    "brian_bigguap": {
-      "manager_name": "Brian",
-      "total_vbd": 2608.9200000000005,
-      "n_picks": 102,
-      "n_matched": 92,
-      "seasons": 6,
-      "vbd_per_season": 434.8200000000001
-    },
-    "kyle_figgy": {
-      "manager_name": "Kyle",
-      "total_vbd": 2590.8600000000006,
-      "n_picks": 102,
-      "n_matched": 90,
-      "seasons": 6,
-      "vbd_per_season": 431.8100000000001
-    },
-    "lem": {
-      "manager_name": "Lem",
-      "total_vbd": 1345.6399999999999,
-      "n_picks": 102,
-      "n_matched": 88,
-      "seasons": 6,
-      "vbd_per_season": 224.2733333333333
-    },
-    "dave_predecessor": {
-      "manager_name": "Dave",
-      "total_vbd": 2884.4000000000005,
-      "n_picks": 102,
-      "n_matched": 95,
-      "seasons": 6,
-      "vbd_per_season": 480.7333333333334
     },
     "nick_lewis_left": {
       "manager_name": "Nick Lewis",
@@ -577,6 +853,38 @@
     }
   },
   "replacements_by_season": {
+    "2015": {
+      "QB": 226.46,
+      "RB": 118.8,
+      "WR": 92.3,
+      "TE": 83.7,
+      "K": 0.0,
+      "DEF": 0.0
+    },
+    "2016": {
+      "QB": 243.12,
+      "RB": 110.5,
+      "WR": 88.8,
+      "TE": 83.3,
+      "K": 0.6,
+      "DEF": 0.0
+    },
+    "2017": {
+      "QB": 187.32,
+      "RB": 109.2,
+      "WR": 85.1,
+      "TE": 79.4,
+      "K": 0.0,
+      "DEF": 0.0
+    },
+    "2018": {
+      "QB": 215.76,
+      "RB": 107.4,
+      "WR": 97.7,
+      "TE": 78.9,
+      "K": 4.08,
+      "DEF": 0.0
+    },
     "2019": {
       "QB": 189.16,
       "RB": 132.0,
@@ -626,5 +934,5 @@
       "DEF": 0.0
     }
   },
-  "unmatched_count": 80
+  "unmatched_count": 134
 }

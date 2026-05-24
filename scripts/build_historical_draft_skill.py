@@ -1,26 +1,34 @@
-"""Historical draft-skill rankings for Yahoo-era seasons (2019-2022).
+"""Historical draft-skill rankings for 2015-2024 (full Yahoo + Sleeper eras).
 
 Sources:
   - data/historical/MONEY_LEAGUE.xlsx  (xlsx cell-color drafts)
   - data/nflverse/player_stats_season.csv  (nflverse season stats 1999-2024)
 
-For each xlsx-attributed pick, we look up the player's actual fantasy
+For each xlsx-attributed pick we look up the player's actual fantasy
 points that season, compute VBD (points above replacement at their
-position), and aggregate per manager per season. Era scoring: 2019+ used
-0.5 PPR per the xlsx "Half Point PPR" note, so we average nflverse's
-fantasy_points (0 PPR) and fantasy_points_ppr (1 PPR).
+position), and aggregate per manager per season.
 
-Outputs:
-  data/historical_draft_skill.json — per (season, manager) totals
-  Prints a per-season + cumulative ranking table.
+Scoring eras (per xlsx "Half Point PPR" annotations):
+  - 2015-2018: 0 PPR  → use nflverse fantasy_points directly
+  - 2019+:     0.5 PPR → average fantasy_points + fantasy_points_ppr
 
-Limitations (vs current 2023-25 metrics):
+QB-format history:
+  - Always 2QB/SF from at least 2015 (per user). Both 2QB and superflex
+    yield ~22 QB replacement rank, so a single set of replacement ranks
+    works throughout.
+
+League size:
+  - 2015-2018: 10 teams, 19 rounds → 190 picks/season
+  - 2019+:     12 teams, 17 rounds → 204 picks/season
+  Replacement ranks are scaled down by 10/12 for the 10-team era.
+
+Limitations:
   - No wire/trade/luck — only draft skill, since xlsx doesn't have
     matchup or transaction data and Yahoo OAuth is gated.
-  - Player-name match is fuzzy (xlsx names are abbreviated like
-    "Todd Girle"); unmatched picks log to stderr.
-  - Superflex + same replacement ranks assumed throughout (good for
-    2019+; would not apply to pre-2019 0-PPR era).
+  - Kickers + DEF aren't in nflverse season stats — treated as neutral
+    (no VBD contribution either way; consistent across managers).
+  - Player names get normalized + fuzzy-matched; ~5% of picks fall
+    through (mostly K + injured/retired players).
 """
 from __future__ import annotations
 
@@ -41,14 +49,29 @@ ROOT = Path(__file__).resolve().parent.parent
 NFLVERSE_CSV = ROOT / "data" / "nflverse" / "player_stats_season.csv"
 OUT_JSON = ROOT / "data" / "historical_draft_skill.json"
 
-# Replacement ranks for a 12-team superflex 0.5 PPR league (matches
+# Replacement ranks for a 12-team 2QB/superflex 0.5 PPR league (matches
 # current pick_value.json). Used to compute VBD per pick.
 #
-# Format history: 2QB-required from at least 2019 through 2022, then
+# Format history: 2QB starters from at least 2015 through 2022, then
 # switched to superflex in 2023 (Sleeper migration). Both formats yield
 # essentially the same QB replacement rank (~22), so a single set of
-# ranks is valid for the entire 2019-2024 window covered here.
-REPLACEMENT_RANKS = {"QB": 22, "RB": 31, "WR": 42, "TE": 13, "K": 12, "DEF": 12}
+# ranks is valid throughout. For the 10-team era we scale ranks by
+# 10/12 (computed in _replacement_ranks_for_year below).
+REPLACEMENT_RANKS_12T = {"QB": 22, "RB": 31, "WR": 42, "TE": 13, "K": 12, "DEF": 12}
+
+
+def _replacement_ranks_for_year(year: int) -> dict[str, int]:
+    """10-team era (2015-2018) had fewer roster spots, so the replacement
+    rank drops proportionally (10/12). Round to nearest integer."""
+    if year <= 2018:
+        return {pos: max(1, round(r * 10 / 12))
+                for pos, r in REPLACEMENT_RANKS_12T.items()}
+    return REPLACEMENT_RANKS_12T
+
+
+def _scoring_for_year(year: int) -> str:
+    """Returns the scoring rule label. 0.5 PPR started 2019."""
+    return "0.5ppr" if year >= 2019 else "0ppr"
 
 # Player-name fixups for tokens that nflverse spells differently from
 # the xlsx abbreviations. Most matching is handled by normalization
@@ -143,9 +166,10 @@ def _edit_distance(a: str, b: str) -> int:
 
 
 def _load_nflverse_points(seasons: list[int]) -> dict[tuple[int, str], dict]:
-    """Return {(season, normalized_name): {pts_05ppr, position}}.
+    """Return {(season, normalized_name): {pts, position, raw_name}}.
 
-    0.5 PPR = average of fantasy_points (0 PPR) and fantasy_points_ppr (1 PPR).
+    Era-appropriate scoring: 2019+ uses 0.5 PPR (average of fantasy_points
+    and fantasy_points_ppr), 2015-2018 uses 0 PPR (fantasy_points directly).
     """
     out: dict[tuple[int, str], dict] = {}
     s_set = set(seasons)
@@ -165,9 +189,8 @@ def _load_nflverse_points(seasons: list[int]) -> dict[tuple[int, str], dict]:
                 fp_ppr = float(row["fantasy_points_ppr"] or 0)
             except ValueError:
                 continue
-            pts = (fp + fp_ppr) / 2.0
+            pts = (fp + fp_ppr) / 2.0 if s >= 2019 else fp
             key = (s, _norm(name))
-            # If duplicate, prefer the row with more games (regular season starter)
             if key not in out or pts > out[key]["pts"]:
                 out[key] = {"pts": pts, "position": row["position"], "raw_name": name}
     return out
@@ -219,23 +242,25 @@ def _match_player(season: int, xlsx_name: str,
     return None
 
 
-def _compute_vbd_for_season(picks_with_pts: list[dict]) -> None:
-    """Mutate each pick dict to add 'vbd' = pts - replacement_at_position."""
+def _compute_vbd_for_season(picks_with_pts: list[dict], year: int) -> dict:
+    """Mutate each pick dict to add 'vbd' = pts - replacement_at_position.
+    Uses year-appropriate replacement ranks (10-team era vs 12-team)."""
+    ranks_used = _replacement_ranks_for_year(year)
     by_pos: dict[str, list[float]] = defaultdict(list)
     for p in picks_with_pts:
-        if p["position"] in REPLACEMENT_RANKS and p["pts"] is not None:
+        if p["position"] in ranks_used and p["pts"] is not None:
             by_pos[p["position"]].append(p["pts"])
     replacement: dict[str, float] = {}
-    for pos, ranks in REPLACEMENT_RANKS.items():
+    for pos, rank in ranks_used.items():
         pts_list = sorted(by_pos.get(pos, []), reverse=True)
         if not pts_list:
             replacement[pos] = 0.0
-        elif ranks <= len(pts_list):
-            replacement[pos] = pts_list[ranks - 1]
+        elif rank <= len(pts_list):
+            replacement[pos] = pts_list[rank - 1]
         else:
             replacement[pos] = pts_list[-1]
     for p in picks_with_pts:
-        if p["pts"] is None or p["position"] not in REPLACEMENT_RANKS:
+        if p["pts"] is None or p["position"] not in ranks_used:
             p["vbd"] = None
         else:
             p["vbd"] = p["pts"] - replacement[p["position"]]
@@ -248,9 +273,11 @@ def main():
     # main awards report which uses live Sleeper data; we keep this script
     # focused on the years not already in the main report (2019-2022) plus
     # 2023-2024 for cross-validation against the live-Sleeper numbers.
-    historical_years = sorted(y for y in xlsx if 2019 <= y <= 2024)
+    # nflverse season stats currently end at 2024. 2025 is covered by the
+    # main awards report which uses live Sleeper data.
+    historical_years = sorted(y for y in xlsx if 2015 <= y <= 2024)
     if not historical_years:
-        sys.exit("No xlsx years 2019-2024 found.")
+        sys.exit("No xlsx years 2015-2024 found.")
     print(f"Years available: {historical_years}", file=sys.stderr)
 
     nfl = _load_nflverse_points(historical_years)
@@ -293,7 +320,7 @@ def main():
                 "manager_id": mgr_id,
                 "manager_name": mgr_name,
             })
-        repl = _compute_vbd_for_season(picks)
+        repl = _compute_vbd_for_season(picks, year)
         replacements_by_season[year] = repl
         per_season[year] = picks
 
@@ -312,9 +339,13 @@ def main():
                 mgr_totals[mid]["n_matched"] += 1
         per_season_mgr[year] = dict(mgr_totals)
 
-    # Eras: Yahoo (2019-2022) vs Sleeper-migration era (2023-2024).
-    yahoo_years = [y for y in historical_years if y <= 2022]
-    sleeper_years = [y for y in historical_years if y >= 2023]
+    # Era splits:
+    #  - Standard scoring (2015-2018): 10-team, 0 PPR, 2QB
+    #  - Half PPR (2019-2022): 12-team, 0.5 PPR, 2QB
+    #  - Sleeper SF (2023-2024): 12-team, 0.5 PPR, superflex
+    standard_years = [y for y in historical_years if y <= 2018]
+    halfppr_years = [y for y in historical_years if 2019 <= y <= 2022]
+    sf_years = [y for y in historical_years if y >= 2023]
 
     def _era_block(years: list[int], label: str):
         if not years:
@@ -343,8 +374,9 @@ def main():
         return block
 
     print()
-    yahoo_block = _era_block(yahoo_years, "YAHOO ERA")
-    sleeper_block = _era_block(sleeper_years, "SLEEPER ERA")
+    _era_block(standard_years, "STANDARD-SCORING ERA (10-team, 0 PPR)")
+    _era_block(halfppr_years, "HALF-PPR YAHOO ERA (12-team, 2QB)")
+    _era_block(sf_years, "SUPERFLEX SLEEPER ERA (12-team)")
 
     # Cumulative across all historical years
     cumulative: dict[str, dict] = defaultdict(
@@ -410,7 +442,8 @@ def main():
     payload = {
         "years": historical_years,
         "scoring": "0.5 PPR (avg of nflverse fp + fp_ppr)",
-        "replacement_ranks": REPLACEMENT_RANKS,
+        "replacement_ranks_12team": REPLACEMENT_RANKS_12T,
+        "replacement_ranks_10team": _replacement_ranks_for_year(2015),
         "per_season": {str(y): per_season_mgr[y] for y in historical_years},
         "cumulative": cumulative,
         "replacements_by_season": {str(y): replacements_by_season[y]
