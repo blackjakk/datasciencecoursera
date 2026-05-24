@@ -2552,8 +2552,16 @@ function buildAnimForPlay(play, prevPlay) {
                    : wrChoice === "te"  ? formation.te
                    :                       formation.rb;
       const wr = { ...wrBase };
-      // Route progression: 0 → 1 from snap to throwPhase (action-relative)
-      const routeT = aT > 0 ? Math.min(1, aT / throwFrac) : 0;
+      // Route progression: 0 → 1 from snap to throwPhase. In press
+      // coverage (C0/C1) the route start is delayed by the jam window
+      // so the WR is briefly held at the LOS before releasing — the
+      // visible "fight off the jam" beat.
+      const _cov = play.coverage;
+      const _wrIsPressed = (_cov === "C0_BLITZ" || _cov === "C1_MAN") &&
+                           (wrChoice === "wr1" || wrChoice === "wr2");
+      const _jamDelay = _wrIsPressed ? throwFrac * 0.07 : 0;
+      const _effThrow = Math.max(0.001, throwFrac - _jamDelay);
+      const routeT = aT > _jamDelay ? Math.min(1, (aT - _jamDelay) / _effThrow) : 0;
       const wrPathX0 = wrBase.x;
       const wrPathY0 = wrBase.y;
       // Route SHAPE varies by play.concept. Old code was a single linear
@@ -2815,6 +2823,15 @@ function buildAnimForPlay(play, prevPlay) {
             };
             if (d.role === "CB" && cbDepth != null) {
               dx = (baseX + dir * cbDepth * pxPerYd) - d.x;
+              // PRESS — CB1/CB2 also align their Y to their assigned WR
+              // so they're nose-to-nose at the snap, not at their formation
+              // home slot. Only for press depths (≤4yd).
+              if (cbDepth <= 4) {
+                const wrTarget = (i === idxCB1) ? formation.wr1
+                              : (i === idxCB2) ? formation.wr2
+                              : null;
+                if (wrTarget) dy = (wrTarget.y - d.y);
+              }
             } else if (d.role === "S") {
               const depth = safDepth(i);
               if (depth != null) dx = (baseX + dir * depth * pxPerYd) - d.x;
@@ -2908,13 +2925,33 @@ function buildAnimForPlay(play, prevPlay) {
             // backpedal window (~30% of pre-catch action), they
             // transition to run/chase. Safeties also get a brief
             // backpedal beat.
+            // PRESS JAM — when CB is in press coverage (C0/C1), they
+            // open with a brief punch at the WR's chest before backing
+            // off. ~7% of throw window = ~140ms for a typical pass.
+            // CB stays nose-to-nose with WR during the jam, then
+            // transitions to backpedal.
+            const jamT = isMan ? throwFrac * 0.07 : 0;
             const backpedalT = throwFrac * 0.30;
-            if (aT < backpedalT) {
+            if (jamT > 0 && aT < jamT) {
+              dd.pose = "jam";
+              // jam pose t advances 0→1 across the jam window so the
+              // punch arc completes mid-window
+              dd.t = aT / jamT;
+              dd.facing = -dir;
+              // Stay locked to WR position during the jam
+              const wrTarget = (i === idxCB1) ? formation.wr1
+                            : (i === idxCB2) ? formation.wr2
+                            : null;
+              if (wrTarget) {
+                dd.x = d.x + dir * 1.5;   // half-step into WR
+                dd.y = wrTarget.y;
+              }
+            } else if (aT < backpedalT) {
               dd.pose = "backpedal";
               dd.t = ((t * (dur / 1000)) * 2.0) % 1;
               dd.facing = -dir;     // face the offense throughout
               // Movement backward (deeper into coverage) during backpedal
-              const bpProg = aT / Math.max(0.001, backpedalT);
+              const bpProg = (aT - jamT) / Math.max(0.001, backpedalT - jamT);
               dd.x = d.x + dir * bpProg * 8;
             }
           }
