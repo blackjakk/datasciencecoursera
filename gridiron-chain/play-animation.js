@@ -2064,6 +2064,10 @@ function buildAnimForPlay(play, prevPlay) {
       const qb = { ...formation.qb };
       let ballX, ballY = cy;
       let arc = 0;
+      // Default ball orientation. Set to the velocity vector during the
+      // FLIGHT phase below so the football points where it's going
+      // (visible spiral / nose-forward), not stuck in a fixed tilt.
+      let ballAngle = -0.35;
 
       const dropDepth = isScreen ? 2 : 5;
       const dropAmt = aT > 0
@@ -2248,6 +2252,13 @@ function buildAnimForPlay(play, prevPlay) {
         ballX = releaseX + (flightTX - releaseX) * tt;
         arc = Math.sin(tt * Math.PI) * arcHeight * incArcMul;
         ballY = releaseY + (flightTY - releaseY) * tt - arc;
+        // Spiral orientation — ball points along its velocity vector.
+        // dy in screen space includes the arc derivative; cos(tt*π) is
+        // positive on the way up (nose-up) and negative on the way
+        // down (nose-down), matching a real parabolic spiral.
+        const vx = flightTX - releaseX;
+        const vy = (flightTY - releaseY) - Math.cos(tt * Math.PI) * Math.PI * arcHeight * incArcMul;
+        ballAngle = Math.atan2(vy, vx);
       } else {
         const tt = (t - throwPhase) / (1 - throwPhase);
         if (play.kind === "complete") {
@@ -2575,7 +2586,7 @@ function buildAnimForPlay(play, prevPlay) {
         const flightProg = Math.min(1, (at - releaseAT) / Math.max(0.0001, throwEndAT - releaseAT));
         drawBallTrail(ctx, releaseX, releaseY, ballX, ballY, flightProg, { arcHeight: arcHeight * 0.85 });
       }
-      if (showStandalone) drawBall(ctx, ballX, ballY, arc > 30 ? 1.3 : 1);
+      if (showStandalone) drawBall(ctx, ballX, ballY, arc > 30 ? 1.3 : 1, { angle: ballAngle });
       // Play-action / Flea-flicker / Throw-on-run banner at the top of the field
       if ((play.isPlayAction || play.isTOR || play.isFleaFlicker) && t < throwPhase + 0.08) {
         ctx.save();
