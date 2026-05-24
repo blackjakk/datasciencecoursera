@@ -1614,6 +1614,96 @@ class GameSimulator {
     }
     return out;
   }
+  // Build OL / DL blocker waypoint tracks for a run play. Engine-
+  // driven so animation doesn't reinvent the run-type-aware blocking
+  // patterns. dyYd is yards FROM cy (absolute). OL slot Y offsets:
+  // slot s ∈ {0..4}, dyYd = (s - 2) * 2.13 (matches makeFormation
+  // olGap of 32px = 2.13 yd).
+  _buildRunBlockerTracks(opts) {
+    const { runType, yards, gapYd = 0, fbInLeadBlock = false } = opts;
+    const out = {};
+    const OL_GAP_YD = 2.13;
+    // Side biases for run-type variations
+    const counterSide = Math.sign(gapYd) || 1;     // pull side
+    const stretchSide = Math.sign(gapYd) || 1;
+    const pitchSide   = Math.sign(gapYd) || 1;
+    for (let s = 0; s < 5; s++) {
+      const slotY = (s - 2) * OL_GAP_YD;
+      let driveX = 0.4;        // baseline drive forward (0.4 yds)
+      let driveY = 0;
+      if (runType === "counter") {
+        // Guard opposite the play side pulls — slot -1 if right play,
+        // slot +1 if left play.
+        const pullSlot = -counterSide;
+        if (Math.round(slotY / OL_GAP_YD) === pullSlot) {
+          driveX = 0.1;
+          driveY = counterSide * 1.2;
+        }
+      } else if (runType === "stretch") {
+        // Whole line flows toward the play side before engagement
+        driveX = 0.25;
+        driveY = stretchSide * 0.35;
+      } else if (runType === "pitch") {
+        const isPlaySideOuter = Math.sign(slotY) === Math.sign(pitchSide) && Math.abs(slotY) >= 3;
+        if (isPlaySideOuter) {
+          driveX = 0.1;
+          driveY = pitchSide * 0.8;
+        }
+      }
+      // OL fires from formation (-0.13 yd, slotY) → drive (driveX, slotY+driveY)
+      out[`ol${s}`] = {
+        role: "OL",
+        waypoints: [
+          { t: 0.00, dxYd: -0.13,           dyYd: slotY },                 // formation
+          { t: 0.10, dxYd: -0.13 + 0.15,    dyYd: slotY + driveY * 0.3 },  // step off LOS
+          { t: 0.30, dxYd: -0.13 + driveX,  dyYd: slotY + driveY },        // engaged
+          { t: 0.78, dxYd: -0.13 + driveX,  dyYd: slotY + driveY },        // sustain
+          { t: 1.00, dxYd: -0.13 + driveX,  dyYd: slotY + driveY },        // settled
+        ],
+      };
+    }
+    // DL — held up at the LOS, get pushed back slightly (especially
+    // interior on power runs). Each DL slot: 0=DE-left, 1=DT-left,
+    // 2=DT-right, 3=DE-right. y-offsets ≈ ±8 / ±2.5.
+    const dlOffsets = [
+      { y: -8 },    // de1
+      { y: -2.5 },  // dt1
+      { y:  2.5 },  // dt2
+      { y:  8 },    // de2
+    ];
+    for (let s = 0; s < 4; s++) {
+      const offY = dlOffsets[s].y;
+      // Push-back: DL gets backed up 0.3 yds, interior more on power runs
+      const isInterior = s === 1 || s === 2;
+      const pushBack = (runType === "counter" || runType === "stretch") ? 0.2
+                     : isInterior && yards >= 4 ? 0.4
+                     : 0.15;
+      out[`dl${s}`] = {
+        role: "DL",
+        waypoints: [
+          { t: 0.00, dxYd: 0.5,                 dyYd: offY },           // LOS engagement
+          { t: 0.20, dxYd: 0.5 - pushBack * 0.5, dyYd: offY },          // taking the punch
+          { t: 0.45, dxYd: 0.5 - pushBack,       dyYd: offY },          // driven back
+          { t: 0.78, dxYd: 0.5 - pushBack,       dyYd: offY },
+          { t: 1.00, dxYd: 0.5 - pushBack,       dyYd: offY },
+        ],
+      };
+    }
+    // FB lead-block to the 2nd level (LB) when in I-form / pro-set
+    if (fbInLeadBlock) {
+      out.fb = {
+        role: "FB",
+        waypoints: [
+          { t: 0.00, dxYd: -5,              dyYd: 0.27 },          // I-form depth
+          { t: 0.15, dxYd: -1,              dyYd: gapYd * 0.5 },   // through the gap
+          { t: 0.40, dxYd:  4,              dyYd: gapYd },          // engage LB
+          { t: 0.78, dxYd:  4,              dyYd: gapYd },          // sustain
+          { t: 1.00, dxYd:  4,              dyYd: gapYd },
+        ],
+      };
+    }
+    return out;
+  }
   // Resolve a player name to a defensive formation slot key
   // (cb1/cb2/fs/ss/lb1/lb2/lb3/nb), or null if not a starter.
   _resolveDefSlot(name) {
@@ -5719,12 +5809,22 @@ class GameSimulator {
         { t: 1.00, dxYd: _cb2ContainYds,   dyYd: 13 },
       ],
     };
+    // Phase 9 — OL/DL blocker tracks (run plays). _carrierLateralEndYd
+    // serves as a proxy for the gap the carrier hits.
+    const _blockerTracks = this._buildRunBlockerTracks({
+      runType: runType || "inside",
+      yards,
+      gapYd: _carrierLateralEndYd,
+      fbInLeadBlock: useTwoBack,
+    });
     const _motion = {
       tacklerRole: _tacklerRole,
       tackleT:    0.78,                                  // matches TACKLE_START_AT in animation
       hitDir:     { dx: -1, dy: _hitLatSign * 0.3 },     // pushed backward + lateral
       carrierEndDY: _carrierEndDY,
-      tracks: { carrier: _carrierTrack, tackler: _tacklerTrack, ..._secondaryTracks },
+      gapYd:      _carrierLateralEndYd,
+      tracks: { carrier: _carrierTrack, tackler: _tacklerTrack,
+                ..._secondaryTracks, ..._blockerTracks },
     };
     this._pushVisual({ kind: "run", desc, startYard, yards, endYard: clamp(startYard + yards, 0, 100), rusher: carrier, isQBRun, isReverse, runType, isSpeedOption, isPitch, optionRead, tackler: tacklerName, brokenTackles, isTwoBack: useTwoBack, fb: useTwoBack ? this.offR.starters.rb2 : null, motion: _motion });
     return { yards };

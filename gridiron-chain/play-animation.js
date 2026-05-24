@@ -1934,7 +1934,10 @@ function buildAnimForPlay(play, prevPlay) {
           }
         }
         if (i < 4) {
-          // DL paired with OL — held up at the LOS. The "winning" DL pushes through.
+          // PATH B Phase 9 — engine-emitted DL anchor track wins when
+          // present. DL holds the LOS with a slight push-back; engine
+          // varies by run type + interior position. Non-tackler DL.
+          const _dlTrack = play.motion?.tracks?.[`dl${i}`];
           const wobble = Math.sin(tt * Math.PI * 4 + d.y * 0.09) * 1.3;
           if (i === dlBreaksFree && tt > 0.3) {
             // This DL penetrates and chases the carrier (speed-capped)
@@ -1943,13 +1946,17 @@ function buildAnimForPlay(play, prevPlay) {
             dd.x = np.x; dd.y = np.y;
             dd.pose = "run";
             dd.t = np.moved ? (t < 0.95 ? ((performance.now() / 333)) % 1 : 0) : 0;
+          } else if (_dlTrack && typeof MotionPlayback !== "undefined") {
+            const sample = MotionPlayback.sampleTrack(_dlTrack, runT);
+            if (sample) {
+              dd.x = losX + dir * sample.dxYd * FIELD.PX_PER_YARD + Math.sin(tt * Math.PI * 6 + i * 0.4) * 1.5;
+              dd.y = cy + sample.dyYd * FIELD.PX_PER_YARD + wobble;
+              dd.pose = "engage";
+              dd.archetype = _archForLineman(d, "DL");
+              dd.t = tt;
+            }
           } else {
-            // Stuck at LOS — hold position with jitter. Old code moved
-            // the DL by -dir*tt*4 which (despite the "pushed back"
-            // comment) was actually moving them TOWARD the offense's
-            // home — combined with the OL also moving toward the DL,
-            // the bodies crossed straight through each other. Now both
-            // sides hold their initial line and engage at the LOS.
+            // Fallback — hold at formation with jitter
             dd.x = d.x + Math.sin(tt * Math.PI * 6 + i * 0.4) * 1.5;
             dd.y = d.y + wobble;
             dd.pose = "engage";
@@ -2243,6 +2250,23 @@ function buildAnimForPlay(play, prevPlay) {
         if (t < PRE) return { ...p, pose: "stance" };
         const tt = runT;
         if (p.role === "OL") {
+          // PATH B Phase 9 — engine-emitted OL track wins when present.
+          // Each OL has a slot index 0-4 based on y position; engine
+          // emits tracks.ol0..ol4 with run-type-aware drive paths.
+          const olSlotIdx = Math.round((p.y - cy) / 14) + 2;   // 0..4 from top
+          const _olTrack = play.motion?.tracks?.[`ol${olSlotIdx}`];
+          if (_olTrack && typeof MotionPlayback !== "undefined") {
+            const sample = MotionPlayback.sampleTrack(_olTrack, runT);
+            if (sample) {
+              const wobble = Math.sin(tt * Math.PI * 5 + olSlotIdx * 1.7) * 1.5;
+              return { ...p,
+                x: losX + dir * sample.dxYd * FIELD.PX_PER_YARD + wobble * 0.6,
+                y: cy + sample.dyYd * FIELD.PX_PER_YARD + wobble,
+                pose: "engage", t: tt, facing: dir,
+                archetype: _archForLineman(p, "OL"),
+              };
+            }
+          }
           // Blocking pattern by runType. Slot is the OL's lateral seat
           // (-2 leftmost guard ... +2 rightmost). Defines who pulls,
           // who reaches, etc.
