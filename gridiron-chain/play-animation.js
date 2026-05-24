@@ -1037,6 +1037,35 @@ function buildAnimForPlay(play, prevPlay) {
   // Defender pursuit speed cap — tuned to a fast NFL defender (~9 yds/s).
   // Carrier runs slightly faster, so on breakaways defenders visibly trail.
   const PURSUIT_PX_MS = (FIELD.PX_PER_YARD * 9) / 1000;
+  // ── Physics-sim pursuit (Phase 1) ─────────────────────────────────────
+  // Each defender lazily attaches a SimPlayer to their formation object.
+  // Pursuit uses INTERCEPT calculation against the carrier's velocity —
+  // real angles instead of straight-line tween. Engine outcomes still
+  // own the play; the sim is the visual layer.
+  function simPursue(d, carrier, nowMs, speedMul) {
+    if (typeof SimPlayer === "undefined") return null;
+    if (!d._sim) {
+      d._sim = new SimPlayer(d.x, d.y, {
+        maxSpeed: SIM_DEFAULTS.MAX_SPEED * (speedMul || 1.0),
+        accel: SIM_DEFAULTS.ACCEL,
+      });
+    }
+    const cVx = carrier.vx || 0;
+    const cVy = carrier.vy || 0;
+    const target = simIntercept(d._sim, { x: carrier.x, y: carrier.y, vx: cVx, vy: cVy });
+    const beforeX = d._sim.x, beforeY = d._sim.y;
+    d._sim.stepTowardAt(target.x, target.y, nowMs);
+    const moved = Math.hypot(d._sim.x - beforeX, d._sim.y - beforeY) > 0.5;
+    return { x: d._sim.x, y: d._sim.y, moved };
+  }
+  // Estimate carrier velocity from tween end-point. Used as input to
+  // simIntercept so defenders aim at where the carrier WILL BE.
+  function carrierVelocityToward(rbX, rbY, endX, endY, speedPxPerSec) {
+    const dx = endX - rbX, dy = endY - rbY;
+    const d = Math.hypot(dx, dy);
+    if (d < 0.5) return { vx: 0, vy: 0 };
+    return { vx: (dx / d) * speedPxPerSec, vy: (dy / d) * speedPxPerSec };
+  }
   // Lineman archetype tagging — deterministic by slot so each OL/DL has
   // a consistent visual signature across plays. play.dlType (sack play)
   // takes precedence for the breaking rusher; everyone else hashes off
@@ -1887,10 +1916,24 @@ function buildAnimForPlay(play, prevPlay) {
           ? (rb.y - rbLateral) + lane * 8               // chases stale position
           : rb.y + lane * 8;
         const elapsedMs = Math.max(0, (t - PRE - reactDelay) * dur);
-        // Pursuit speed: DBs slightly faster than LBs; ELUSIVE backs leave LBs behind
         const carrierFast = (rbArch === "SPEED" || rbArch === "ELUSIVE") ? 0.92 : 1.0;
         const factor = (i >= idxCB1 ? 1.02 : (i === idxS1 || i === idxS2 ? 1.0 : 0.92)) * carrierFast;
-        const np = elapsedMs > 0 ? pursue(d, txBase, tyBase, elapsedMs, factor) : { x: d.x, y: d.y, moved: false };
+        // PHYSICS SIM pursuit — defender computes intercept against the
+        // carrier's velocity vector and accelerates toward that point.
+        // Real angles emerge (defender cuts across the field instead of
+        // chasing in a straight line). Fallback to legacy pursue() when
+        // SimPlayer isn't loaded.
+        let np;
+        if (typeof SimPlayer !== "undefined") {
+          const carrierVel = carrierVelocityToward(rb.x, rb.y, endX, cy + 28, 180);
+          const carrierSim = { x: txBase, y: tyBase, vx: carrierVel.vx, vy: carrierVel.vy };
+          const nowMs = t * dur;
+          np = elapsedMs > 0
+            ? simPursue(d, carrierSim, nowMs, factor)
+            : { x: d.x, y: d.y, moved: false };
+        } else {
+          np = elapsedMs > 0 ? pursue(d, txBase, tyBase, elapsedMs, factor) : { x: d.x, y: d.y, moved: false };
+        }
         dd.x = np.x; dd.y = np.y;
         if (isTrucked) {
           // Trucked defender ragdolls — anchor to carrier position and fall

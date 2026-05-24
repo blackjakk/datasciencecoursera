@@ -123,6 +123,11 @@
 <script src="play-player.js"></script>
 <script src="play-audio.js"></script>
 <script src="play-fx.js"></script>
+<!-- Physics sim primitives: SimPlayer, simIntercept, etc.
+     Used by play-animation.js to drive defender pursuit with real
+     velocity/acceleration/intercept-angles instead of straight-line
+     tween. Engine still owns outcomes; this is the visual layer. -->
+<script src="play-sim.js"></script>
 <!-- PIXI.js WebGL renderer — backs play-field-pixi.js + play-player-pixi.js.
      Both files were written but were silently no-op'ing because the library
      wasn't loaded (`typeof PIXI === "undefined"`). Now wired in. -->
