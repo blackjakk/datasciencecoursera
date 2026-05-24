@@ -4621,6 +4621,58 @@ class GameSimulator {
             };
           }
         }
+        // ── PATH B Phase 5b — pass-play LB / safety zone drops ────
+        // Non-tackler LBs and safeties get hook-zone drop tracks so
+        // they no longer "run in place" at the formation post-snap.
+        // Coverage-aware would be richer; for v1 we just emit a
+        // generic hook drop and let the named tackler win when
+        // they're an LB/safety.
+        const _secondaryPassTracks = {};
+        const _lbHookDrops = {
+          lb1: { dxYd: 5, dyYd: -7 },     // WLB — left hook
+          lb2: { dxYd: 5, dyYd:  0 },     // MLB — middle hook
+          lb3: { dxYd: 5, dyYd:  7 },     // SLB — right hook
+        };
+        for (const lbN of ["lb1", "lb2", "lb3"]) {
+          if (_passTacklerSlot === lbN) continue;
+          const drop = _lbHookDrops[lbN];
+          _secondaryPassTracks[lbN] = {
+            role: "LB",
+            waypoints: [
+              { t: 0.00,       dxYd: 4,         dyYd: drop.dyYd * 0.4 },   // formation (slightly closer to mid)
+              { t: 0.20,       dxYd: drop.dxYd, dyYd: drop.dyYd },         // backpedal into hook
+              { t: _throwT,    dxYd: drop.dxYd, dyYd: drop.dyYd },         // settled
+              { t: 0.78,       dxYd: drop.dxYd, dyYd: drop.dyYd },
+              { t: 1.00,       dxYd: drop.dxYd, dyYd: drop.dyYd },
+            ],
+          };
+        }
+        // FS deep middle (when not tackler).
+        if (_passTacklerSlot !== "fs") {
+          _secondaryPassTracks.fs = {
+            role: "FS",
+            waypoints: [
+              { t: 0.00,       dxYd: 12, dyYd: 0 },
+              { t: 0.20,       dxYd: 14, dyYd: 0 },
+              { t: _throwT,    dxYd: 15, dyYd: 0 },
+              { t: 0.78,       dxYd: 15, dyYd: 0 },
+              { t: 1.00,       dxYd: 15, dyYd: 0 },
+            ],
+          };
+        }
+        // SS half-field / box.
+        if (_passTacklerSlot !== "ss") {
+          _secondaryPassTracks.ss = {
+            role: "SS",
+            waypoints: [
+              { t: 0.00,       dxYd: 8, dyYd: 5 },
+              { t: 0.20,       dxYd: 9, dyYd: 4 },
+              { t: _throwT,    dxYd: 10, dyYd: 3 },
+              { t: 0.78,       dxYd: 10, dyYd: 3 },
+              { t: 1.00,       dxYd: 10, dyYd: 3 },
+            ],
+          };
+        }
         // ── PATH B Phase 4.2 — throwType + dropDepth ────────────────
         // Animation was defaulting every completion to TOUCH because
         // the engine never emitted throwType for normal passes. Engine
@@ -4656,7 +4708,8 @@ class GameSimulator {
             // Back-compat: animation Phase 3b still looks at tracks.targetWR.
             // Phase 4+ readers should prefer tracks[targetSlot].
             tracks: { ..._routeTracks, targetWR: _routeTracks[_targetSlot] || null,
-                      ..._passTacklerTrack ? { tackler: _passTacklerTrack } : {} },
+                      ..._passTacklerTrack ? { tackler: _passTacklerTrack } : {},
+                      ..._secondaryPassTracks },
           } : null,
         });
         return { yards };

@@ -3240,9 +3240,35 @@ function buildAnimForPlay(play, prevPlay) {
         const _passTacklerTrack = (play.motion && play.motion.tracks && play.motion.tracks.tackler) || null;
         const _passTacklerName = play.motion && play.motion.tacklerName;
         const _isPassTacklerByName = play.kind === "complete" && _passTacklerName && d.name === _passTacklerName;
-        if (window._dbgTackler && _passTacklerName && i === 0) {
-          console.log('[Phase5 dbg] tacklerName=', _passTacklerName, ' hasTrack=', !!_passTacklerTrack, ' d.names=', formation.defense.map(x => x.name));
-          window._dbgTackler = false;
+        // PHASE 5b — non-tackler LB / safety zone drops. Engine emits
+        // tracks.lb1 / lb2 / lb3 / fs / ss for pass plays; map this
+        // defender's slot to its track and sample it pre-catch. The
+        // existing post-catch _postCatchPursuerSet logic still owns
+        // the after-catch convergence.
+        let _passSecondaryTrack = null;
+        if (play.kind === "complete" && t < throwPhase && !_isPassTacklerByName && play.motion?.tracks) {
+          const ti = play.motion.tracks;
+          const isLBIdx = (i >= idxLB1 && i < idxCB1);
+          const lbOrdinal = i - idxLB1;     // 0, 1, 2
+          if (isLBIdx) {
+            _passSecondaryTrack = lbOrdinal === 0 ? ti.lb1
+                                : lbOrdinal === 1 ? ti.lb2
+                                : lbOrdinal === 2 ? ti.lb3
+                                : null;
+          } else if (i === idxS1) {
+            _passSecondaryTrack = ti.fs;
+          } else if (i === idxS2) {
+            _passSecondaryTrack = ti.ss;
+          }
+        }
+        if (_passSecondaryTrack && typeof MotionPlayback !== "undefined") {
+          const sample = MotionPlayback.sampleTrack(_passSecondaryTrack, aT);
+          if (sample) {
+            dd.x = losX + dir * sample.dxYd * FIELD.PX_PER_YARD;
+            dd.y = cy + sample.dyYd * FIELD.PX_PER_YARD;
+            if (d._sim) { d._sim.x = dd.x; d._sim.y = dd.y; }
+            dd.facing = -dir;
+          }
         }
         if (_passTacklerTrack && _isPassTacklerByName && typeof MotionPlayback !== "undefined") {
           const sample = MotionPlayback.sampleTrack(_passTacklerTrack, aT);
