@@ -2388,6 +2388,10 @@ class GameSimulator {
     return result;
   }
   _playInner() {
+    // Clear per-snap concept/coverage stash so non-main-pass pushes
+    // (screen, rollout, sack) don't inherit stale values from prior plays.
+    this._lastPassConcept = null;
+    this._lastPassCoverage = null;
     // Depth-chart rotation: sub starters based on garbage time / fatigue
     // BEFORE any reads of this.offR.starters.X. Restores from base depth
     // chart at the top, then optionally swaps in backups.
@@ -3680,6 +3684,7 @@ class GameSimulator {
           passer: this.offR.starters.qb, defender: intBy,
           intReturnYds: finalRetYds, isPickSix, isTouchback, intSpotYL,
           isPlayAction, isFleaFlicker,
+          concept: this._lastPassConcept, coverage: this._lastPassCoverage,
         });
         if (isPickSix) this._defScoreXP();
         // Momentum: defense takes ball (+3); pick-six = catastrophic for
@@ -4447,6 +4452,7 @@ class GameSimulator {
           startYard, targetDepth, catchDepth: targetDepth, yac, yards,
           endYard: clamp(startYard + yards, 0, 100), receiver: rcvr, passer: this.offR.starters.qb,
           tackler: tacklerName, throwType, isPlayAction, isFleaFlicker, wrJuke, isLeapingCatch, catchRadius,
+          concept: this._lastPassConcept, coverage: this._lastPassCoverage,
         });
         return { yards };
       }
@@ -4517,6 +4523,7 @@ class GameSimulator {
         startYard, targetDepth, endYard: startYard,
         passer: this.offR.starters.qb, intended: rcvr, defender: pdName,
         isDrop, isPlayAction, isFleaFlicker, isLeapMiss, incReason,
+        concept: this._lastPassConcept, coverage: this._lastPassCoverage,
       });
       return { yards: 0, incomplete: true };
     }

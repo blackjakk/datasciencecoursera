@@ -463,6 +463,9 @@ function toBSPNLiveGameState(gr, head) {
       eventType: p.eventType || null,
       penType: p.penType || null,
       hitTrigger: !!(p.decisionContext && p.decisionContext.hitTrigger),
+      // Level-4 — offensive concept called + defensive coverage faced.
+      concept: p.concept || null,
+      coverage: p.coverage || null,
     });
   }
   pbpRows.reverse();
@@ -946,8 +949,22 @@ const _MECH_LABEL = {
 const _MECH_COLOR = {
   high: "#e6373a", head_on: "#ed6a3a", low: "#f0a93a", side: "#90c4ec", behind: "#d4dc5a",
 };
+// Level-4 concept/coverage labels — short tags for the PBP chip strip.
+const _CONCEPT_LABEL = {
+  QUICK_GAME: "QUICK", DRAG_MESH: "MESH", INTERMEDIATE: "INT",
+  VERTICAL: "VERT", SCREEN: "SCRN", PA_SHOT: "PA",
+};
+const _COVERAGE_LABEL = {
+  C0_BLITZ: "C0", C1_MAN: "C1", C2_ZONE: "C2",
+  C3_ZONE: "C3", C4_QUARTERS: "C4", TAMPA_2: "TAMPA",
+};
 function _pbpChips(r) {
   const chips = [];
+  if (r.concept && r.coverage) {
+    const cn = _CONCEPT_LABEL[r.concept] || r.concept;
+    const cv = _COVERAGE_LABEL[r.coverage] || r.coverage;
+    chips.push(`<span class="bspn-pbp-chip ghost" style="color:#c9a83a;border-color:#c9a83a">${cn} vs ${cv}</span>`);
+  }
   if (r.mechanism) {
     const lbl = _MECH_LABEL[r.mechanism] || String(r.mechanism).toUpperCase();
     const col = _MECH_COLOR[r.mechanism] || "#90c4ec";
