@@ -1599,9 +1599,14 @@ function buildAnimForPlay(play, prevPlay) {
       const tacklerHash = (((play.startYard * 31) ^ ((play.yards||0) * 17) ^ ((play.time||0) * 13)) >>> 0);
       const numPursuers = Math.max(1, formation.defense.length - 4);
       const primaryTacklerIdx = 4 + (tacklerHash % numPursuers);
-      // 30% chance the primary tackler arrives via a diving hit; 70% wraps
-      // up upright. Carrier gets the same "tackled" ragdoll either way.
-      const primaryTacklerDives = ((tacklerHash >>> 6) % 100) < 30;
+      // Tackler-arrives-via-dive odds. Mechanism overrides the random
+      // pick: "low" tackles (cut/shoestring) are ALWAYS dive; "behind"
+      // tackles (chase-down) are NEVER dive; others use the per-play
+      // hash for 30% dive variety.
+      const _mechHint = play.mechanism || "head-on";
+      const primaryTacklerDives = _mechHint === "low"    ? true
+                                : _mechHint === "behind" ? false
+                                : ((tacklerHash >>> 6) % 100) < 30;
       // Most plays display a move; broken tackles ALWAYS show one (forces probabilities to 1)
       const bt = play.brokenTackles || 0;
       const eluciveProb = bt > 0 ? 1.0 : (rbArch === "ELUSIVE" ? 0.95 : rbArch === "SPEED" ? 0.65 : 0.55);
@@ -1617,15 +1622,49 @@ function buildAnimForPlay(play, prevPlay) {
         // window so the impact frame is held briefly.
         const nowMs = t * dur;
         if (!formation.rb._ragdoll) {
-          const hvx = -dir;
-          const hvy = (((play.startYard * 7) >>> 0) % 7) - 3;
           const force = play.force || 0;
-          // Carrier gets shoved BACK at impact — modest velocity so the
-          // body topples instead of launching. Big hits flag through
-          // play.force scale up but never explode (cap ~140 px/s).
-          const fbase = 50 + Math.min(90, force * 6);
+          const mech = play.mechanism || "head-on";
+          // Mechanism drives the FALL SHAPE — high/low/side/behind each
+          // produce a distinct ragdoll trajectory.
+          //   head-on / high: carrier topples BACKWARD (-dir)
+          //   low: feet stop, upper body continues FORWARD (+dir), spinout
+          //   side: lateral tumble (perpendicular jolt)
+          //   behind: shoved FORWARD (+dir), low spin, face-first fall
+          const sideSign = ((play.startYard * 23) >>> 0) & 1 ? 1 : -1;
+          let hvx, hvy, fbase, spinBoost;
+          if (mech === "low") {
+            hvx =  dir * 0.4;          // upper body forward
+            hvy = sideSign * 0.3;
+            fbase = 70 + Math.min(80, force * 5);
+            spinBoost = 1.8;           // tumble forward (high spin)
+          } else if (mech === "side") {
+            hvx = -dir * 0.25;
+            hvy = sideSign * 1.0;      // mostly lateral
+            fbase = 55 + Math.min(75, force * 5);
+            spinBoost = 1.2;
+          } else if (mech === "behind") {
+            hvx =  dir * 0.8;          // shoved forward
+            hvy = sideSign * 0.2;
+            fbase = 40 + Math.min(70, force * 5);
+            spinBoost = 0.5;           // less spin, more belly-flop
+          } else if (mech === "high") {
+            hvx = -dir * 0.9;          // toppled back hard
+            hvy = sideSign * 0.2;
+            fbase = 60 + Math.min(95, force * 6);
+            spinBoost = 1.0;
+          } else {
+            // head-on / default — backward shove with light angle
+            hvx = -dir;
+            hvy = sideSign * 0.4;
+            fbase = 50 + Math.min(90, force * 6);
+            spinBoost = 0.9;
+          }
           initRagdoll(formation.rb, hvx, hvy, fbase, nowMs,
                       (play.startYard * 11 + (play.yards||0)) >>> 0);
+          // Apply mechanism-specific spin boost on top of the base spin
+          if (formation.rb._ragdoll) {
+            formation.rb._ragdoll.angVel *= spinBoost;
+          }
           // Cinematic slow-mo at impact — duration & depth scale with
           // force. Bigger hits get held longer / slower. Read by tick().
           if (typeof animState !== "undefined" && animState) {
