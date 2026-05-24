@@ -3209,8 +3209,20 @@ function buildAnimForPlay(play, prevPlay) {
         }
         phase = "return";
       }
-      // Punter
-      drawPlayer(ctx, startX, cy, possColor, team.secondary, "", "idle", 0, dir);
+      // Punter — actually punts the ball. Was rendered as "idle" while
+      // the football magically flew away. Now uses the "kick" pose with
+      // t advancing through the windup/strike during the snap+wind phase
+      // and following through during early air phase.
+      //   0    - 0.08: idle (receiving the snap)
+      //   0.08 - 0.18: kick pose, kickT 0 → 0.5 (windup + plant + strike)
+      //   0.18 - 0.30: kick pose, kickT 0.5 → 1.0 (follow-through)
+      //   0.30+      : stiff (watching the ball)
+      let punterPose, punterT;
+      if (t < 0.08)        { punterPose = "idle";  punterT = 0; }
+      else if (t < 0.18)   { punterPose = "kick";  punterT = (t - 0.08) / 0.10 * 0.5; }
+      else if (t < 0.30)   { punterPose = "kick";  punterT = 0.5 + (t - 0.18) / 0.12 * 0.5; }
+      else                 { punterPose = "stiff"; punterT = 0; }
+      drawPlayer(ctx, startX, cy, possColor, team.secondary, "", punterPose, punterT, dir);
       // ── 4 COVERAGE PLAYERS — 3 get engaged by blockers, 1 stays free for the tackle ──
       const laneYs = [returnerY - 38, returnerY - 14, returnerY + 14, returnerY + 38];
       const chaserPositions = [];
@@ -5051,7 +5063,14 @@ function buildCinemaAnim(play, prevPlay) {
 
       const sprites = [];
       // Punter
-      sprites.push({ x: worldToScreenX(punterWX), y: lateralToScreenY(0), team: offTeam, frame: t > 0.16 ? "stiff" : "idle", flipped: false, faceSeed: punterSeed });
+      // Punter actually punts — kick pose during snap+wind+early air,
+      // follow-through during air, stiff after the ball is gone.
+      let pframe = "idle", pT = 0;
+      if (t < 0.08)        { pframe = "idle";  pT = 0; }
+      else if (t < 0.18)   { pframe = "kick";  pT = (t - 0.08) / 0.10 * 0.5; }
+      else if (t < 0.30)   { pframe = "kick";  pT = 0.5 + (t - 0.18) / 0.12 * 0.5; }
+      else                 { pframe = "stiff"; pT = 0; }
+      sprites.push({ x: worldToScreenX(punterWX), y: lateralToScreenY(0), team: offTeam, frame: pframe, frameT: pT, flipped: false, faceSeed: punterSeed });
       // Punter's protection
       const lineLats = [-4, -2, 0, 2, 4];
       for (let i = 0; i < 5; i++) {
