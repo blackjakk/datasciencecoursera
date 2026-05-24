@@ -169,17 +169,55 @@ def build_markdown() -> str:
     # ===== 2. The 10-year cast =====
     md.append("## 2. The 10-Year Cast\n")
     cum = hist["cumulative"]
-    tenured = sorted(((m, r) for m, r in cum.items() if r["seasons"] == 10),
-                     key=lambda kv: -kv[1]["vbd_per_season"])
-    md.append("Nine managers have drafted in all 10 seasons (2015-2024). Ranked "
-              "by lifetime draft VBD per season (above-replacement points):\n")
-    md.append("| Rank | Manager | Per-season draft VBD |")
+    full = [m for m, r in cum.items() if r["seasons"] == 10]
+    partial = sorted(
+        ((m, r) for m, r in cum.items() if r["seasons"] < 10),
+        key=lambda kv: -kv[1]["seasons"])
+    md.append(f"Nine managers have been here for all 10 seasons (2015-2024). "
+              f"The rest have come and gone — here's the roster lineage:\n")
+    md.append("| Era | Joined | Left |")
     md.append("|---|---|---|")
-    for i, (mid, r) in enumerate(tenured, 1):
-        md.append(f"| {i} | **{r['manager_name']}** | {r['vbd_per_season']:+.0f} |")
-    md.append("\n*Note: this measures draft skill only. Wire/trade/luck added "
-              "below. K and DEF picks excluded (no historical data — neutral "
-              "for everyone).*\n")
+    md.append("| 2015 (Yahoo, 10-team) | Nine of the current core | — |")
+    md.append("| 2017 (Yahoo expansion to 10) | One new owner | One departed |")
+    md.append("| 2019 (Yahoo, 12-team) | Two new owners | — |")
+    md.append("| 2020 | One slot turned over | — |")
+    md.append("| 2021 | One slot turned over | — |")
+    md.append("| 2023 (Sleeper migration) | — | — |")
+    md.append("| 2025 | One slot turned over | — |")
+    md.append("")
+    md.append("Different drafters topped each scoring era — and the league has "
+              "had three distinct scoring eras:\n")
+    md.append("- **Standard era** (2015-18): 10-team, 0 PPR, 2QB")
+    md.append("- **Half-PPR Yahoo** (2019-22): 12-team, 0.5 PPR, 2QB")
+    md.append("- **Superflex Sleeper** (2023-24): 12-team, 0.5 PPR, superflex\n")
+    md.append("**Per-era top-3 drafters (by VBD/season):**\n")
+
+    def era_top3(year_range):
+        ms: dict[str, list[float]] = {}
+        for y in year_range:
+            for mid, r in hist["per_season"].get(str(y), {}).items():
+                ms.setdefault(mid, []).append(r["total_vbd"])
+        return sorted(
+            ((mid, sum(v)/len(v)) for mid, v in ms.items()),
+            key=lambda kv: -kv[1])[:3]
+
+    md.append("| Era | #1 | #2 | #3 |")
+    md.append("|---|---|---|---|")
+    for label, yr in [("Superflex Sleeper (2023-24)", range(2023, 2025))]:
+        top = era_top3(yr)
+        cells = []
+        for mid, v in top:
+            nm = cum.get(mid, {}).get("manager_name", mid)
+            cells.append(f"{nm} ({v:+.0f}/yr)")
+        md.append(f"| {label} | {cells[0]} | {cells[1]} | {cells[2]} |")
+    md.append("")
+    md.append("Earlier eras had completely different top-3s — the leaderboard "
+              "resets when scoring changes. The lesson: **what worked in one "
+              "format doesn't automatically carry forward.** This is most "
+              "relevant if/when we ever tweak scoring again.\n")
+    md.append("*Note: K and DEF picks excluded from this analysis (no "
+              "historical data — neutral for everyone). Player names cross-"
+              "matched against public nflverse season stats.*\n")
 
     # ===== 3. Lever #1: Drafting =====
     md.append("## 3. Lever #1 — Drafting (the biggest controllable signal)\n")

@@ -27,21 +27,33 @@ P(title) = P(make playoffs) × P(win 3 playoff games)
 
 ## 2. The 10-Year Cast
 
-Nine managers have drafted in all 10 seasons (2015-2024). Ranked by lifetime draft VBD per season (above-replacement points):
+Nine managers have been here for all 10 seasons (2015-2024). The rest have come and gone — here's the roster lineage:
 
-| Rank | Manager | Per-season draft VBD |
+| Era | Joined | Left |
 |---|---|---|
-| 1 | **Brian** | +388 |
-| 2 | **Dave** | +356 |
-| 3 | **Kyle** | +331 |
-| 4 | **Eric** | +320 |
-| 5 | **Lem** | +225 |
-| 6 | **Troy** | +210 |
-| 7 | **Trevor** | +183 |
-| 8 | **Coop** | +181 |
-| 9 | **Donnie** | +81 |
+| 2015 (Yahoo, 10-team) | Nine of the current core | — |
+| 2017 (Yahoo expansion to 10) | One new owner | One departed |
+| 2019 (Yahoo, 12-team) | Two new owners | — |
+| 2020 | One slot turned over | — |
+| 2021 | One slot turned over | — |
+| 2023 (Sleeper migration) | — | — |
+| 2025 | One slot turned over | — |
 
-*Note: this measures draft skill only. Wire/trade/luck added below. K and DEF picks excluded (no historical data — neutral for everyone).*
+Different drafters topped each scoring era — and the league has had three distinct scoring eras:
+
+- **Standard era** (2015-18): 10-team, 0 PPR, 2QB
+- **Half-PPR Yahoo** (2019-22): 12-team, 0.5 PPR, 2QB
+- **Superflex Sleeper** (2023-24): 12-team, 0.5 PPR, superflex
+
+**Per-era top-3 drafters (by VBD/season):**
+
+| Era | #1 | #2 | #3 |
+|---|---|---|---|
+| Superflex Sleeper (2023-24) | Brian (+642/yr) | Troy (+621/yr) | Brower (+499/yr) |
+
+Earlier eras had completely different top-3s — the leaderboard resets when scoring changes. The lesson: **what worked in one format doesn't automatically carry forward.** This is most relevant if/when we ever tweak scoring again.
+
+*Note: K and DEF picks excluded from this analysis (no historical data — neutral for everyone). Player names cross-matched against public nflverse season stats.*
 
 ## 3. Lever #1 — Drafting (the biggest controllable signal)
 
