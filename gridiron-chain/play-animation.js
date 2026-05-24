@@ -3598,42 +3598,61 @@ function buildAnimForPlay(play, prevPlay) {
   }
 
   if (play.kind === "fumble") {
-    // Real fumble sequence — the carrier loses the ball at the spot, ball
-    // rolls forward bouncing, and the on-field players collapse on it.
+    // Full fumble sequence — carrier RUNS from LOS, gets HIT at the
+    // fumble spot, ball pops loose, then scrum + recovery. Previously
+    // the play started with the ball already loose at midfield —
+    // missed the entire run-up. User: "fumbles should happen in the
+    // middle of a play."
+    //   0.00 - CARRY_END:    carrier runs forward like a normal run
+    //   CARRY_END - STRIP_END: tackler closes, hit + ball pops loose
+    //   STRIP_END - SCRUM_END: ball rolls, players converge, dive
+    //   SCRUM_END - 1.0:     recovery confirmed, banners
+    const CARRY_END = 0.32;
+    const STRIP_END = 0.40;
+    const SCRUM_END = 0.88;
     const recoveredBy = play.recoveredBy || "def";
     const fumYards = play.yards || 0;
-    const fumX = losX + dir * fumYards * FIELD.PX_PER_YARD;
-    // Lateral fumble position — was cy (literal center of field), now
-    // tracks where the carrier was running. Use play.motion.carrierEndDY
-    // if engine emitted it; otherwise use the RB's formation lane
-    // (cy + 28 for default I-form) with small per-play variance.
+    const startX   = losX;
+    const fumX     = losX + dir * fumYards * FIELD.PX_PER_YARD;
+    // Lateral fumble position — tracks where the carrier was running.
     const motionDY = (play.motion && play.motion.carrierEndDY != null)
       ? play.motion.carrierEndDY
       : 28 + (((play.startYard * 17) >>> 0) % 21) - 10;
     const fumY = cy + motionDY;
-    // Ball drifts forward as it rolls, ending up ~3-5 yards past the spot
+    const startY = cy + 28;       // RB formation lane
+    // Ball rolls forward after the strip — ends up ~3 yards past
     const restX = fumX + dir * 50;
     const restY = fumY + ((((play.startYard * 13) >>> 0) % 21) - 10);
-    return { duration: 2600, kind: "fumble", render: (t, c) => {
+    return { duration: 4200, kind: "fumble", render: (t, c) => {
       ctx = c;
       drawField(ctx, homeTeam, awayTeam, fieldState);
 
       // Ball physics — pop loose → roll forward bouncing → settle
       let ballX, ballY, ballScale;
-      if (t < 0.12) {
-        const pt = t / 0.12;
-        // Ball pops loose — reduced amplitude so it reads as "punched
-        // out" not "blown up". Was 16px pop / 0.25 scale spike.
+      if (t < CARRY_END) {
+        // CARRY PHASE — ball is in the carrier's hands, traveling
+        // with him from LOS to the fumble spot.
+        const pt = t / CARRY_END;
+        const sm = pt * pt * (3 - 2 * pt);
+        ballX = startX + (fumX - startX) * sm;
+        ballY = startY + (fumY - startY) * sm;
+        ballScale = 0.95;
+      } else if (t < STRIP_END) {
+        // STRIP PHASE — ball POPS loose at the hit. Small upward arc
+        // off the carrier's hands at the moment of contact.
+        const pt = (t - CARRY_END) / (STRIP_END - CARRY_END);
         ballX = fumX + dir * pt * 8;
-        ballY = fumY - Math.sin(pt * Math.PI) * 8;
+        ballY = fumY - Math.sin(pt * Math.PI) * 10;
         ballScale = 1.0 + Math.sin(pt * Math.PI) * 0.15;
-      } else if (t < 0.65) {
-        const pt = (t - 0.12) / 0.53;
+      } else if (t < SCRUM_END - 0.05) {
+        // ROLL PHASE — ball bounces forward, settling near restX.
+        const pt = (t - STRIP_END) / (SCRUM_END - 0.05 - STRIP_END);
         const sm = pt * pt * (3 - 2 * pt);
         ballX = fumX + dir * 8 + (restX - fumX - dir * 8) * sm + Math.sin(pt * Math.PI * 6) * 2;
         ballY = fumY + (restY - fumY) * sm - Math.abs(Math.sin(pt * Math.PI * 5)) * 4;
         ballScale = 0.95 + Math.abs(Math.cos(pt * Math.PI * 5)) * 0.1;
       } else {
+        // SETTLED — ball at rest, pile forming on top.
         ballX = restX;
         ballY = restY;
         ballScale = 0.85;
@@ -3668,58 +3687,83 @@ function buildAnimForPlay(play, prevPlay) {
           const carrier = isOff && matchesCarrier(p);
           let pX, pY, pPose, pT = (t * 3) % 1;
           if (carrier) {
-            // Carrier collapses at the fumble spot, ragdoll
-            const collapseT = Math.min(1, t / 0.18);
-            pX = p.x + (fumX - p.x) * collapseT;
-            pY = p.y + (fumY + 6 - p.y) * collapseT;
-            pPose = "tackled";
+            // Carrier path:
+            //   CARRY PHASE  — running from formation to fumble spot
+            //   STRIP PHASE  — getting hit, body crumples
+            //   SCRUM        — on the ground at the fumble spot
+            if (t < CARRY_END) {
+              const pt = t / CARRY_END;
+              const sm = pt * pt * (3 - 2 * pt);
+              pX = startX + (fumX - startX) * sm;
+              pY = startY + (fumY - startY) * sm;
+              pPose = "carry";
+            } else if (t < STRIP_END) {
+              const pt = (t - CARRY_END) / (STRIP_END - CARRY_END);
+              pX = fumX + dir * pt * 4;     // slight further forward as he loses balance
+              pY = fumY + pt * 3;
+              pPose = "reach";              // arms out as ball comes loose
+            } else {
+              const collapseT = Math.min(1, (t - STRIP_END) / 0.10);
+              pX = fumX + dir * 4;
+              pY = fumY + 6;
+              pPose = "tackled";
+              pT = collapseT;
+            }
           } else if (missers.has(p)) {
-            // Designated misser — sprints toward the ball, then DIVES
-            // in their assigned window. Staggered so they dive in
-            // succession instead of simultaneously.
+            // Designated misser — only starts converging AFTER the ball
+            // is loose (STRIP_END). Stays in formation pose during the
+            // carry. Then sprints and dives in their staggered window.
             const myIdx = [...missers].indexOf(p);
-            const diveStart = 0.40 + myIdx * 0.12;
+            const diveStart = STRIP_END + 0.05 + myIdx * 0.10;
             const diveEnd   = diveStart + 0.18;
             const isOL = p.role === "OL";
             const speed = isOL ? OL_PX : SPRINT_PX;
+            const tConverge = Math.max(0, t - STRIP_END);
             const dx = ballX - p.x, dy = ballY - p.y;
             const dist = Math.hypot(dx, dy);
-            const maxMove = Math.min(t, diveStart) * speed;
+            const maxMove = Math.min(tConverge, diveStart - STRIP_END) * speed;
             const moveFrac = Math.min(1, maxMove / Math.max(1, dist));
             pX = p.x + dx * moveFrac;
             pY = p.y + dy * moveFrac;
-            if (t >= diveStart && t < diveEnd) {
+            if (t < STRIP_END) {
+              pPose = "engage";   // still in their assignment
+            } else if (t >= diveStart && t < diveEnd) {
               pPose = "dive";
               pT = (t - diveStart) / 0.18;
             } else if (t >= diveEnd) {
-              pPose = "tackled";   // landed flat after missing
+              pPose = "tackled";
             } else {
               pPose = "run";
             }
           } else if (scrumParticipants.has(p)) {
-            // Actual pile participants — sprint to the ball, then fall
-            // into the pile. Realistic NFL speed (12 yd/s), not 24.
+            // Pile participants — engaged in their assignment during
+            // the carry phase, sprint toward the loose ball ONLY after
+            // STRIP_END.
             const isOL = p.role === "OL";
             const speed = isOL ? OL_PX : SPRINT_PX;
+            const tConverge = Math.max(0, t - STRIP_END);
             const dx = ballX - p.x, dy = ballY - p.y;
             const dist = Math.hypot(dx, dy);
-            const maxMove = t * speed;
+            const maxMove = tConverge * speed;
             const moveFrac = Math.min(1, maxMove / Math.max(1, dist));
             pX = p.x + dx * moveFrac;
             pY = p.y + dy * moveFrac;
-            const newDist = Math.hypot(ballX - pX, ballY - pY);
-            pPose = newDist < 28 ? "tackled" : "run";
+            if (t < STRIP_END) {
+              pPose = "engage";
+            } else {
+              const newDist = Math.hypot(ballX - pX, ballY - pY);
+              pPose = newDist < 28 ? "tackled" : "run";
+            }
           } else {
-            // Out-of-position — jog slowly toward the area, never get
-            // close enough to join the pile. Stays in "run" pose with
-            // small movement so the field doesn't look frozen.
+            // Out-of-position — assignment during carry, then jog after.
+            const tConverge = Math.max(0, t - STRIP_END);
             const dx = ballX - p.x, dy = ballY - p.y;
             const dist = Math.hypot(dx, dy);
-            const maxMove = t * JOG_PX;
+            const maxMove = tConverge * JOG_PX;
             const moveFrac = Math.min(0.6, maxMove / Math.max(1, dist));
             pX = p.x + dx * moveFrac;
             pY = p.y + dy * moveFrac;
-            pPose = "run";
+            pPose = t < STRIP_END ? "engage" : "run";
           }
           drawPlayer(ctx, pX, pY, color, sec, p.label || "", pPose, pT, isOff ? dir : -dir, p);
         }
@@ -3759,9 +3803,11 @@ function buildAnimForPlay(play, prevPlay) {
         ctx.restore();
       }
 
-      // "FUMBLE!" callout
-      if (t < 0.32) {
-        const fadeIn = Math.min(1, t / 0.10);
+      // "FUMBLE!" callout — fires AT THE STRIP MOMENT now, not at t=0.
+      // User sees the carrier running, getting hit, THEN the banner.
+      if (t > CARRY_END && t < CARRY_END + 0.20) {
+        const localT = (t - CARRY_END) / 0.20;
+        const fadeIn = Math.min(1, localT * 4);
         ctx.save();
         ctx.textAlign = "center";
         ctx.font = "900 38px monospace";
