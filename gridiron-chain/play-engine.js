@@ -4696,45 +4696,100 @@ class GameSimulator {
       : 0;
     const rzRunBonus = -_rzPen2 * 0.9 - _rzEliteDr * 1.5;
     const boxStackRunMod = this._boxStackRunMod || 0;
-    // ── CLASS-MIXTURE RUN YARDAGE ────────────────────────────────────────
-    // Real football outcomes aren't a single bell curve. A run is one of
-    // five outcome CLASSES: blocking fails (TFL), stuffed-at-line (1-2 yds),
-    // designed-gain works (3-7 yds), one defender beaten (burst 8-15), or
-    // broken open (16+). Each class has tight intrinsic spread; the matchup
-    // signal shifts WHICH CLASS FIRES MORE OFTEN, with a smaller within-class
-    // magnitude shift. This produces NFL-shaped distribution (fat 3-7yd
-    // middle, modest tails) instead of the wide-bell chunk-or-stuff pattern.
-    const matchupBonus = (rushMean - 4.3)
-      + rbBoost + fbBoost + runVarMean + adv * 1.4 + runTrenchYds
-      + fbStuffReduction - lbTackle * 0.5 - boxSafetyStuff - thumperStuff
-      - lbGapRead + rbGapVision + carrierBoost + reverseBonus
-      + ocRunArchBonus + dcRunStopperMalus + fatigueRunYds + rzRunBonus
-      + boxStackRunMod;
-    // Matchup-signal-to-probability shift. Typical bonus range -2..+3 yds.
-    const m01 = clamp(matchupBonus / 5, -0.8, 0.8);
-    // Defensive playbook stiffness — runMul < 1 means stuffier run D
-    const defStiff = clamp(1 - (defPbRun.runMul || 1), -0.5, 0.5);
-    // NFL baseline class probabilities (per Football Outsiders + Sharp data):
-    //   TFL/loss:  ~10%  (mean -2.0)
-    //   Stuff 0-2: ~25%  (mean  1.3)
-    //   Designed:  ~48%  (mean  4.5)  ← the "honest 4-5 yard middle"
-    //   Burst:     ~12%  (mean 10.0)
-    //   Big 16+:   ~ 5%  (mean 20.0)
-    // Mean = .10(-2) + .25(1.3) + .48(4.5) + .12(10) + .05(20) ≈ 4.49 ypc
-    let p_tfl   = clamp(0.10 - m01 * 0.04 + defStiff * 0.05, 0.02, 0.25);
-    let p_stuff = clamp(0.25 - m01 * 0.05 + defStiff * 0.05, 0.08, 0.40);
-    let p_burst = clamp(0.12 + m01 * 0.04 - defStiff * 0.04, 0.03, 0.25);
-    let p_big   = clamp(0.05 + m01 * 0.025 - defStiff * 0.02, 0.005, 0.15);
-    let p_des   = 1 - p_tfl - p_stuff - p_burst - p_big;
-    if (p_des < 0.20) {
-      const s = p_tfl + p_stuff + p_burst + p_big;
-      const k = 0.80 / s;
-      p_tfl *= k; p_stuff *= k; p_burst *= k; p_big *= k;
-      p_des = 0.20;
+    // ── LEVEL-3 TRENCH-BATTLE RUN MODEL ─────────────────────────────────
+    // Real football: every snap is a player-vs-player battle. A great OL vs
+    // bad DL produces a QUALITATIVELY DIFFERENT distribution shape (lots of
+    // designed/burst, almost no TFL/stuff) than the reverse. Additive
+    // bonuses can't capture this — they only shift the mean. Multiplicative
+    // matchups produce real per-team variance.
+    //
+    // Resolve a TRENCH BATTLE per snap from actual player ratings + the
+    // archetype matchup table. Outcome is one of five tiers (dominant_win →
+    // dominant_loss). Each outcome maps to a CHARACTERISTIC class profile —
+    // dominant_win is heavy on designed/burst/big with almost no negatives;
+    // dominant_loss is heavy on TFL/stuff with almost no chunk plays.
+    // Secondary effects (FB blocking, LB pursuit, fatigue, RZ, scheme,
+    // reverse) apply small targeted shifts on TOP of the trench-determined
+    // base, NOT as additive signal into a single normal.
+    const _olOvr = reps?.ol?.overall ?? this.offR.ol ?? 70;
+    const _dlOvr = reps?.dl?.overall ?? this.defR.dl ?? 70;
+    // Battle score — positive favors OL. Includes archetype matchup table
+    // (runMul) so e.g. POWER DL vs PASS-PROTECT OL produces a real edge.
+    const _battleScore = (_olOvr - _dlOvr) / 8 + (runMul - 1) * 5
+                       + (rushMean - 4.3) * 0.5;   // playbook tilt
+    // Per-snap noise — even dominant OLs lose some reps; even bad OLs win
+    // some. SD 1.5 keeps outcomes probabilistic, not deterministic.
+    const _noise = normal(0, 1.5);
+    const _finalScore = _battleScore + _noise;
+    let _trench;
+    if      (_finalScore >  3)  _trench = 'dominant_win';
+    else if (_finalScore >  1)  _trench = 'win';
+    else if (_finalScore > -1)  _trench = 'even';
+    else if (_finalScore > -3)  _trench = 'loss';
+    else                        _trench = 'dominant_loss';
+    // Outcome → base class probability profile. Each profile is internally
+    // consistent: more winning = fewer negatives + more chunks. The five
+    // profiles produce a 2.5+ yard YPC spread between trench mismatches,
+    // matching real NFL elite-vs-bottom rushing spread.
+    const TRENCH = {
+      // tfl,  stuff, des,  burst, big      // mean ypc (-2/1/4/9/18 means)
+      dominant_win:  [0.02, 0.10, 0.50, 0.25, 0.13], // ~6.7
+      win:           [0.05, 0.18, 0.55, 0.15, 0.07], // ~4.7
+      even:          [0.10, 0.25, 0.48, 0.12, 0.05], // ~3.9
+      loss:          [0.18, 0.35, 0.35, 0.08, 0.04], // ~2.8
+      dominant_loss: [0.30, 0.45, 0.20, 0.04, 0.01], // ~1.2
+    };
+    let [p_tfl, p_stuff, p_des, p_burst, p_big] = TRENCH[_trench];
+    // ── SECONDARY MATCHUP MODIFIERS (small targeted shifts) ─────────────
+    // These apply on TOP of the trench-determined base — they don't drive
+    // the shape, they tune it. Each one affects a specific class boundary
+    // (e.g. LB pursuit adds STUFF risk, not TFL risk).
+    p_stuff += clamp(lbTackle * 0.04, -0.04, 0.06);      // strong LBs wrap up
+    p_stuff -= clamp(fbStuffReduction * 0.05, 0, 0.06);  // FB lead block helps
+    p_des   += clamp(fbStuffReduction * 0.05, 0, 0.06);
+    p_tfl   += clamp(thumperStuff * 0.04, 0, 0.06);      // thumper LBs blow up
+    p_stuff += clamp(boxSafetyStuff * 0.03, 0, 0.05);    // safety run support
+    p_des   += clamp(rbGapVision * 0.03, -0.03, 0.05);   // vision finds creases
+    p_burst += clamp(rbGapVision * 0.02, -0.02, 0.04);
+    // LB gap-shooting compresses everything toward the middle
+    p_tfl   += clamp(lbGapRead * 0.025, 0, 0.05);
+    p_burst -= clamp(lbGapRead * 0.025, 0, 0.05);
+    // Fatigue removes burst/big plays
+    if (fatigueRunYds < 0) {
+      p_burst += fatigueRunYds * 0.015;
+      p_big   += fatigueRunYds * 0.008;
     }
-    // Within-class magnitude shift — ~40% of bonus passes through to mean.
-    // The other 60% of the bonus signal is "spent" shifting probabilities.
-    const withinShift = matchupBonus * 0.4;
+    // Red zone: field compressed → fewer chunks, more stuffs
+    if (this._inRedZone) {
+      p_big   *= 0.4;
+      p_burst *= 0.7;
+      p_stuff += 0.06;
+    }
+    // Box stacking → more stuffs/TFL, fewer big plays
+    if (boxStackRunMod < 0) {
+      p_tfl   -= boxStackRunMod * 0.015;
+      p_stuff -= boxStackRunMod * 0.025;
+      p_big   += boxStackRunMod * 0.010;
+    }
+    // Reverse plays: high variance, lots of TFL + lots of big
+    if (isReverse) {
+      p_tfl   += 0.10; p_stuff -= 0.05; p_des -= 0.20;
+      p_burst += 0.08; p_big   += 0.07;
+    }
+    // OC/DC scheme tilts (small)
+    p_des += clamp(ocRunArchBonus * 0.05 + dcRunStopperMalus * 0.05, -0.05, 0.05);
+    // Clamp + renormalize
+    p_tfl   = clamp(p_tfl,   0.005, 0.45);
+    p_stuff = clamp(p_stuff, 0.02,  0.55);
+    p_burst = clamp(p_burst, 0.005, 0.35);
+    p_big   = clamp(p_big,   0.001, 0.20);
+    p_des   = Math.max(0.10, 1 - p_tfl - p_stuff - p_burst - p_big);
+    const _psum = p_tfl + p_stuff + p_des + p_burst + p_big;
+    p_tfl /= _psum; p_stuff /= _psum; p_des /= _psum; p_burst /= _psum; p_big /= _psum;
+    // Within-class shift now SMALL — most variance is in class choice.
+    // Captures fine RB skill (archetype) + scheme variance + QB run bonus.
+    const withinShift = (rbBoost + carrierBoost + runVarMean) * 0.4
+                      + reverseBonus * 0.3;
     // Reverse plays widen the burst/big classes
     const _bSd = 3 * (reverseSdMul || 1);
     const _gSd = 9 * (reverseSdMul || 1);
