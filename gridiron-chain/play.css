@@ -4410,6 +4410,33 @@
     color: var(--blgray); font-style: italic;
     border-bottom: 1px solid var(--blbordr2); padding: .35rem 0;
   }
+  .bspnlive-pbp-row.big-hit {
+    background: rgba(230,55,58,.06);
+    border-left: 2px solid #e6373a;
+  }
+  .bspnlive-pbp-row.penalty {
+    background: rgba(245,197,66,.06);
+    border-left: 2px solid #f5c542;
+  }
+  .bspnlive-pbp-row.ejection {
+    background: rgba(230,55,58,.18);
+    border-left: 3px solid #e6373a;
+    color: #ec9090; font-weight: 700;
+  }
+  .bspn-pbp-chips {
+    grid-column: 4 / -1;
+    display: flex; flex-wrap: wrap; gap: .2rem;
+    margin-top: .15rem;
+  }
+  .bspn-pbp-chip {
+    font-size: .54rem; letter-spacing: .6px; font-weight: 800;
+    padding: .05rem .3rem; border-radius: 2px;
+    line-height: 1.2;
+  }
+  .bspn-pbp-chip.ghost {
+    background: transparent;
+    border: 1px solid currentColor;
+  }
   .bspnlive-perf {
     padding: .7rem 1rem;
   }

@@ -455,6 +455,14 @@ function toBSPNLiveGameState(gr, head) {
       dd: p.down ? `${p.down}-${p.ytg ?? "?"}` : "",
       ydLabel: _bspnLiveYardLabel(p, homeT, awayT),
       desc: p.desc || "",
+      // Biomechanics / discipline metadata — surfaced as chips in the row.
+      mechanism: p.mechanism || (p.decisionContext && p.decisionContext.mechanism) || null,
+      force: typeof p.force === "number"
+        ? p.force
+        : (p.decisionContext && typeof p.decisionContext.force === "number" ? p.decisionContext.force : null),
+      eventType: p.eventType || null,
+      penType: p.penType || null,
+      hitTrigger: !!(p.decisionContext && p.decisionContext.hitTrigger),
     });
   }
   pbpRows.reverse();
@@ -932,6 +940,36 @@ const NextUpPanel = {
   },
 };
 
+const _MECH_LABEL = {
+  head_on: "HEAD-ON", high: "HIGH", low: "LOW", side: "SIDE", behind: "BLINDSIDE",
+};
+const _MECH_COLOR = {
+  high: "#e6373a", head_on: "#ed6a3a", low: "#f0a93a", side: "#90c4ec", behind: "#d4dc5a",
+};
+function _pbpChips(r) {
+  const chips = [];
+  if (r.mechanism) {
+    const lbl = _MECH_LABEL[r.mechanism] || String(r.mechanism).toUpperCase();
+    const col = _MECH_COLOR[r.mechanism] || "#90c4ec";
+    chips.push(`<span class="bspn-pbp-chip" style="background:${col};color:#000">${lbl}</span>`);
+  }
+  if (r.force != null) {
+    const fc = r.force >= 1.9 ? "#e6373a" : r.force >= 1.7 ? "#ed6a3a" : r.force >= 1.4 ? "#f0a93a" : "#90c4ec";
+    chips.push(`<span class="bspn-pbp-chip ghost" style="color:${fc};border-color:${fc}">⚡ ${r.force.toFixed(2)}</span>`);
+  }
+  if (r.eventType === "sack") {
+    chips.push(`<span class="bspn-pbp-chip ghost" style="color:#90c4ec;border-color:#90c4ec">SACK</span>`);
+  }
+  if (r.kind === "penalty") {
+    const isUR = r.penType === "Unnecessary Roughness";
+    const col = isUR ? "#e6373a" : "#f5c542";
+    chips.push(`<span class="bspn-pbp-chip" style="background:${col};color:#000">🚩 FLAG</span>`);
+  }
+  if (r.kind === "ejection") {
+    chips.push(`<span class="bspn-pbp-chip" style="background:#e6373a;color:#fff">🚫 EJECTION</span>`);
+  }
+  return chips.length ? `<div class="bspn-pbp-chips">${chips.join("")}</div>` : "";
+}
 const PlayByPlayPanel = {
   render(state) {
     return `<div id="bspnlive-pbp" class="bspnlive-pbp-list">${this._body(state)}</div>`;
@@ -941,11 +979,16 @@ const PlayByPlayPanel = {
       if (r.kind === "drive-start") {
         return `<div class="bspnlive-pbp-row drive-start">${r.desc}</div>`;
       }
-      return `<div class="bspnlive-pbp-row">
+      const rowCls = r.kind === "ejection" ? "bspnlive-pbp-row ejection"
+                   : r.kind === "big_hit"  ? "bspnlive-pbp-row big-hit"
+                   : r.kind === "penalty"  ? "bspnlive-pbp-row penalty"
+                   : "bspnlive-pbp-row";
+      return `<div class="${rowCls}">
         <span class="q">${r.q} ${r.t}</span>
         <span class="t" style="color:${r.teamColor||"var(--blgreen)"}">${r.teamAbbr||""}</span>
         <span class="dd">${r.dd} ${r.ydLabel||""}</span>
         <span class="desc">${_bspnEsc(r.desc)}</span>
+        ${_pbpChips(r)}
       </div>`;
     }).join("");
     return rows || `<div style="color:var(--blgray);font-style:italic;font-size:.7rem">Play-by-play will appear here.</div>`;
