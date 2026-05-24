@@ -31,6 +31,10 @@ function drawField(ctx, homeTeam, awayTeam, ctx_state) {
   // LOS, FD line, weather) on top.
   const _pixiField = (typeof GCField !== "undefined") && GCField.active();
   if (_pixiField) {
+    // Wipe the canvas2D layer every frame. PIXI handles the grass
+    // underneath, but anything we paint here (ball trail, callout text,
+    // weather streaks) needs a fresh canvas — without this it smears.
+    ctx.clearRect(0, 0, W, H);
     GCField.draw(homeTeam, awayTeam);
     // Phase 3.1 — clear the per-frame player drop shadows here so each
     // drawPlayer call this frame can append fresh shadows.
