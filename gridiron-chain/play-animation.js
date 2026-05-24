@@ -1280,9 +1280,12 @@ function buildAnimForPlay(play, prevPlay) {
   }
 
   if (play.kind === "run") {
-    const endX = yardToAbsX(play.endYard, poss);
     const yards = play.yards ?? 0;
     const isTD = (play.endYard ?? 0) >= 100;
+    // TD runs: push the endX 5 yards INTO the endzone so the carrier
+    // runs THROUGH the goal line and celebrates in the EZ instead of
+    // stopping at the white stripe.
+    const endX = yardToAbsX(play.endYard, poss) + (isTD ? dir * 5 * FIELD.PX_PER_YARD : 0);
     // Extra time at the end. Non-TDs get a tackle-ragdoll window; TDs
     // get a celebration window where the scorer raises arms + a banner
     // flashes. Big-play TDs get more celebration time — let it breathe.
@@ -2269,7 +2272,13 @@ function buildAnimForPlay(play, prevPlay) {
                   : wrChoice === "te"  ? cy + 28
                   :                       cy - 10;
     const isComplete = play.kind === "complete";
-    const endX = isComplete ? yardToAbsX(play.endYard, poss) : targetX;
+    // Push TD catches INTO the endzone (~5 yards past the goal line) so
+    // the WR runs THROUGH the goal line + celebrates in the EZ instead
+    // of stopping right at the white stripe. Real NFL plays use the
+    // endzone depth — receiver carries the ball 3-7 yards in.
+    const _isTDComplete = isComplete && (play.endYard ?? 0) >= 100;
+    const _tdEZBonus = _isTDComplete ? dir * 5 * FIELD.PX_PER_YARD : 0;
+    const endX = isComplete ? yardToAbsX(play.endYard, poss) + _tdEZBonus : targetX;
     // Which defender picks off the pass on an INT — match the receiver's side
     // 7=cb1 (top), 8=cb2 (bottom), 9=s1 (top safety), 10=s2 (bottom safety)
     const intDefIdx = wrChoice === "wr1" ? idxCB1
