@@ -1009,6 +1009,28 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
       bodyDY = Math.sin(t * Math.PI * 6) * 0.25;
       break;
     }
+    case "drop_step": {
+      // QB drop-back footwork — turns body partially sideways (open hip),
+      // crosses one foot behind the other as he retreats. Carries the
+      // ball at the chest with both hands (cradled). Legs bigger arc
+      // than backpedal (real strides, not shuffles) but body still
+      // faces the LOS direction. Was rendered as generic "carry" which
+      // looked like the QB was just standing while moving back.
+      const ph = runPhase;
+      // Reverse stride — legs swing back-and-forth, but the BACK leg
+      // crosses further (drop steps lead with the back foot).
+      lLeg = -ph * 0.55;
+      rLeg =  ph * 0.55;
+      lLegLift = Math.max(0,  ph) * 5;
+      rLegLift = Math.max(0, -ph) * 5;
+      // Arms cradled — both forearms wrapped to the chest (ball in hand)
+      lArm = 1.3;
+      rArm = 1.3;
+      rightHandBall = true;
+      bodyTilt = facing * -0.06;       // slight backward weight
+      bodyDY = Math.sin(t * Math.PI * 5) * 0.35;
+      break;
+    }
     case "kick_slide": {
       // OL pass-protection footwork — wide stable base, body squatted
       // low, arms PUNCHED forward to meet the rusher, feet shuffling

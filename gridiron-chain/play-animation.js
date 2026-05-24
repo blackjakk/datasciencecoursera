@@ -2956,8 +2956,11 @@ function buildAnimForPlay(play, prevPlay) {
         //   0.73 - 0.85 tf: snap / release (qbT 0.48→0.68, release ~0.55)
         //   0.85 - 1.00 tf: follow-through (qbT 0.68→1.0)
         if (at < tf * 0.55) {
-          qbPose = "carry";
-          qbT = (t * 3 + 0.5) % 1;
+          // Dropback phase — use the dedicated drop_step footwork pose
+          // instead of generic carry (which had no real backward
+          // movement — looked like the QB was floating in place).
+          qbPose = "drop_step";
+          qbT = ((t * (dur / 1000)) * 1.8) % 1;
         } else if (at < tf * 0.65) {
           qbPose = "throw";
           qbT = 0.18 + (at - tf * 0.55) / (tf * 0.10) * (0.42 - 0.18);
