@@ -5304,6 +5304,13 @@ function drawConfettiRain(ctx, holdT, team) {
 function drawResultCard(ctx, play, holdT) {
   const result = formatPlayResult(play);
   if (!result) return;
+  // Broadcast cam: route the banner to the flat upright overlay so it
+  // doesn't get perspective-warped with the tilted field plane. Anchored
+  // to the "sky" zone above the field tilt so the action below stays
+  // unobstructed.
+  const isBroadcast = (typeof cameraMode !== "undefined" && cameraMode === "broadcast"
+                       && typeof _uprightCtx !== "undefined" && _uprightCtx);
+  if (isBroadcast) ctx = _uprightCtx;
   const fadeIn = Math.min(1, holdT * 5);
   const fadeOut = holdT > 0.88 ? Math.max(0, 1 - (holdT - 0.88) / 0.12) : 1;
   const opacity = fadeIn * fadeOut;
@@ -5320,7 +5327,12 @@ function drawResultCard(ctx, play, holdT) {
   const bannerW = Math.max(titleW, subW) + padX * 2;
   const bannerH = result.sub ? titleSize + subSize + 28 : titleSize + 24;
   const bannerX = (FIELD.W - bannerW) / 2;
-  const bannerY = 34 + slideY;
+  // Broadcast: sit between the LED ad ribbon and the tilted field plane
+  // (the perspective "sky" zone). Out of the action, never clipped by
+  // the scrubber chrome at the bottom of the wrap.
+  const bannerY = isBroadcast
+    ? 32 + slideY
+    : 34 + slideY;
 
   ctx.globalAlpha = opacity;
   // Backdrop
