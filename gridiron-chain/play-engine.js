@@ -1613,11 +1613,11 @@ class GameSimulator {
       out[lbN] = {
         role: "LB",
         waypoints: [
-          { t: 0.00, dxYd: 5.5, dyYd: target.dyYd * 0.4 },   // matches formation lbDepth
-          { t: 0.20, dxYd: target.dxYd, dyYd: target.dyYd },
-          { t: throwT, dxYd: target.dxYd, dyYd: target.dyYd },
-          { t: 0.78, dxYd: target.dxYd, dyYd: target.dyYd },
-          { t: 1.00, dxYd: target.dxYd, dyYd: target.dyYd },
+          { t: 0.00, dxYd: 5.5, dyYd: target.dyYd * 0.4 },         // formation (matches lbDepth)
+          { t: 0.20, dxYd: target.dxYd, dyYd: target.dyYd },       // backpedal into hook
+          { t: throwT, dxYd: target.dxYd, dyYd: target.dyYd },     // hold at hook through the throw
+          { t: 0.78, dxYd: target.dxYd + 3, dyYd: target.dyYd * 0.6 },   // break on ball — drift forward + toward middle
+          { t: 1.00, dxYd: target.dxYd + 4, dyYd: target.dyYd * 0.4 },   // continuing convergence
         ],
       };
     }
@@ -5645,12 +5645,32 @@ class GameSimulator {
     //                   (relative to cy), so animation doesn't hash.
     // Tackler-role decision lives here so it reflects the play context
     // (gap type, run type, yardage) rather than a per-play hash.
-    let _tacklerRole = "MLB";
-    if (yards >= 15)              _tacklerRole = "FS";          // breakaway → free safety
-    else if (yards >= 8)          _tacklerRole = "SS";          // intermediate → strong safety
-    else if (runType === "stretch" || runType === "pitch") _tacklerRole = "OLB";  // outside → edge LB
-    else if (runType === "counter") _tacklerRole = "MLB";       // misdirection → MLB cleans up
-    else                          _tacklerRole = "MLB";         // inside / default → MLB
+    // Tackler-role decision: prefer the credited tackler's ACTUAL
+    // slot (so visual animator + box score agree on who made the
+    // tackle). Falls back to a context-based heuristic for plays
+    // where the tackle wasn't credited yet (TDs) or the credit
+    // resolved to a slot the animation can't render directly.
+    let _tacklerRole = null;
+    const _tacklerSlot = this._resolveDefSlot(tacklerName);
+    if (_tacklerSlot) {
+      // Map slot → role label the animation expects.
+      _tacklerRole = _tacklerSlot === "cb1" || _tacklerSlot === "cb2" ? "CB"
+                   : _tacklerSlot === "fs" ? "FS"
+                   : _tacklerSlot === "ss" ? "SS"
+                   : _tacklerSlot === "lb1" ? "OLB"
+                   : _tacklerSlot === "lb2" ? "MLB"
+                   : _tacklerSlot === "lb3" ? "OLB"
+                   : _tacklerSlot === "nb" ? "CB"
+                   : null;
+    }
+    if (!_tacklerRole) {
+      // Fallback heuristic for TDs / unresolved credits
+      if (yards >= 15)              _tacklerRole = "FS";          // breakaway → free safety
+      else if (yards >= 8)          _tacklerRole = "SS";          // intermediate → strong safety
+      else if (runType === "stretch" || runType === "pitch") _tacklerRole = "OLB";  // outside → edge LB
+      else if (runType === "counter") _tacklerRole = "MLB";       // misdirection → MLB cleans up
+      else                          _tacklerRole = "MLB";         // inside / default → MLB
+    }
     // Hit direction — carrier knocked back along the motion axis with
     // a slight lateral component based on tackler approach.
     const _hitSeed = (startYard * 7 + (yards * 11)) >>> 0;
