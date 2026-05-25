@@ -3570,18 +3570,28 @@ function buildAnimForPlay(play, prevPlay) {
         // Secondary track drives the defender every frame the track is
         // defined — including the tackler. Without this, the named
         // tackler's dd resets to formation default on the first post-
-        // throw frame (before the pursuit block runs), so the sim sync
-        // grabs the formation spot and the safety teleports from
-        // coverage back to his default depth. With this, dd holds the
-        // coverage position right up to the moment pursuit takes over,
-        // and the sim syncs from the coverage spot.
+        // throw frame and the safety teleports.
         const _applySecondary = _passSecondaryTrack;
+        // Active pursuit = post-throw and this defender is the named
+        // tackler or in the pursuit set. When pursuing, the sim is the
+        // source of truth — secondary should not overwrite it.
+        const _activePursuit = play.kind === "complete" && t > throwPhase &&
+                               (_isPassTacklerByName || d._postCatchSynced);
         if (_applySecondary && typeof MotionPlayback !== "undefined") {
           const sample = MotionPlayback.sampleTrack(_passSecondaryTrack, aT);
           if (sample) {
             dd.x = losX + dir * sample.dxYd * FIELD.PX_PER_YARD;
             dd.y = cy + sample.dyYd * FIELD.PX_PER_YARD;
-            if (d._sim) { d._sim.x = dd.x; d._sim.y = dd.y; }
+            // Sync sim to track ONLY if the defender is NOT actively
+            // pursuing. Once pursue() takes over (post-throw, tackler
+            // or in pursuit set after sync), sim is the position of
+            // record; overwriting sim.x with the track sample each
+            // frame nullified the pursue() acceleration — defender
+            // stayed glued to the zone-drop track and the sim only
+            // got a tiny per-frame nudge that never accumulated.
+            if (d._sim && !_activePursuit) {
+              d._sim.x = dd.x; d._sim.y = dd.y;
+            }
             dd.facing = -dir;
             if (aT < 0.78) dd.pose = "scrape";
             if (!MotionPlayback.isMoving(_passSecondaryTrack, aT)) dd.t = 0;
