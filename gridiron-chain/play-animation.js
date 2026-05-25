@@ -572,9 +572,11 @@ function _simulateKickoffAgents(opts) {
   } = opts;
   const DT_MS = 16;
   const NUM_FRAMES = Math.ceil(duration_ms / DT_MS) + 1;
-  // Base speeds (visual yards per second)
-  const COVER_BASE_YPS   = 16;
-  const BLOCKER_BASE_YPS = 13;
+  // Base speeds (visual yards per second). Gunners are skill players —
+  // bumped from 16 to 18 yps to look like the top sprinters they are
+  // on real special teams. Blockers stay a touch slower.
+  const COVER_BASE_YPS   = 18;
+  const BLOCKER_BASE_YPS = 14;
   // Per-play primary-cover speed: distance from kicker line to tackle
   // spot (in straight-line including the primary's Y lane offset),
   // divided by the time available. Guarantees primary arrives at the
@@ -689,15 +691,18 @@ function _simulateKickoffAgents(opts) {
         }
       } else {
         if (isWedge) {
-          // Escort the returner in a V-formation. Wings (i=3, 6) sit
-          // wider laterally and slightly farther in front; insides
-          // (i=4, 5) are tight to the middle just ahead of the carrier.
-          // Closer to him than before (5-8 yd, was 8-12 yd) — real
-          // wedges are tight to the ball-carrier so he can read their
-          // blocks.
+          // Tight diamond wedge — 4 blockers in a compact group 4-6 yd
+          // in front of the returner, ±4 yd wide. Real NFL wedges are
+          // tight; previously I had this spread ±12 yd which looked
+          // like a chorus line. Carrier reads off the inside blockers,
+          // wings clean up edge gunners.
+          //
+          //                  wing 3       wing 6
+          //                       inside 4 inside 5
+          //                         RETURNER
           const off = i - 3;   // 0..3
-          const dxYd = [8, 5, 5, 8][off];
-          const dyYd = [-12, -4, 4, 12][off];
+          const dxYd = [6, 4, 4, 6][off];
+          const dyYd = [-5, -1.5, 1.5, 5][off];
           targetX = returner.x + recvDir * dxYd;
           targetY = returner.y + dyYd;
         } else {
