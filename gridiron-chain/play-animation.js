@@ -3648,41 +3648,37 @@ function buildAnimForPlay(play, prevPlay) {
             const np = pursue(dd, ballX, ballY, elapsedMs, factor);
             dd.x = np.x; dd.y = np.y;
             // COLLISION SEPARATION — never let the pursuer occupy the
-            // carrier's exact position. When the sim gets within ~1 yd
-            // (the contact radius), push the defender back along the
-            // approach vector so the two sprites stay visually
-            // separated as a tackle pair (defender wrapping from his
-            // approach angle) instead of merging into one stacked
-            // sprite. Also dampens the sim velocity so the defender
-            // doesn't keep ramming.
-            const CONTACT_DIST = 15;   // ~1 yd
+            // carrier's exact position. When the sim gets within
+            // CONTACT_DIST, push the defender back along the approach
+            // vector so the two sprites stay visually separated as a
+            // tackle pair instead of merging. Smaller distance reads
+            // as contact (sprites visibly touching); previous 15 px
+            // ≈ 1 yd left them clearly apart and "not tackling".
+            const CONTACT_DIST = 10;   // ~0.67 yd — sprites partially overlap
             const distToCar = Math.hypot(dd.x - ballX, dd.y - ballY);
             if (distToCar < CONTACT_DIST) {
               const ang = Math.atan2(dd.y - ballY, dd.x - ballX);
               dd.x = ballX + Math.cos(ang) * CONTACT_DIST;
               dd.y = ballY + Math.sin(ang) * CONTACT_DIST;
+              // Light velocity damping (was 0.30 → too aggressive, sim
+              // took 1.5 s to re-accelerate from damped speed and the
+              // carrier pulled away on bigger YAC plays). 0.65 keeps
+              // most of the velocity so the defender can keep pace
+              // with the carrier during the wrap.
               if (d._sim) {
                 d._sim.x = dd.x; d._sim.y = dd.y;
-                d._sim.vx *= 0.30; d._sim.vy *= 0.30;
+                d._sim.vx *= 0.65; d._sim.vy *= 0.65;
               }
-              // Named tackler wraps + goes down with the carrier. Other
-              // pursuers in contact range engage but don't fall.
+              // Named tackler wraps + DRIVES the carrier down. Use the
+              // dedicated "hit" pose — it's the one designed for a
+              // tackler driving into a carrier and following through
+              // to a crumple, not the carrier's own ragdoll fall pose.
               if (_isPassTacklerByName) {
-                dd.pose = (aT > 0.78) ? "tackled" : "engage";
-                if (dd.pose === "tackled") {
+                if (aT > 0.78) {
+                  dd.pose = "hit";
                   dd.t = Math.min(1, (aT - 0.78) / 0.22);
-                  // Combined-momentum fall direction (same physics as
-                  // the carrier's _wrFallDir). Defender's fallDir is the
-                  // NEGATION of the carrier's because they face opposite
-                  // directions — same physical fall direction = opposite
-                  // fallDir values relative to facing.
-                  const _pcSec = Math.max(0.1, (1 - throwPhase) * dur / 1000);
-                  const _cVx = (endX - targetX) / _pcSec;
-                  const _tVx = d._sim ? d._sim.vx : 0;
-                  const _comb = _cVx + _tVx;
-                  const _cFall = (_comb * dir < 0) ? -1 : 1;
-                  dd.fallDir = -_cFall;
                 } else {
+                  dd.pose = "engage";
                   dd.t = (t < 0.95 ? ((performance.now() / 333)) % 1 : 0);
                 }
               } else {
