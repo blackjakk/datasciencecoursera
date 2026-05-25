@@ -553,7 +553,7 @@ def render_card_html(c):
           <tr><td class="attr">RING</td><td class="bar"><div class="bar-fill" style="width:{c['rings_rating']}%;background:{color}"></div></td><td class="val">{c['rings_rating']}</td><td class="raw">{c['rings']} ring{'s' if c['rings']!=1 else ''}</td></tr>
           <tr><td class="attr">WIN%</td><td class="bar"><div class="bar-fill" style="width:{c['winp_rating']}%;background:{color}"></div></td><td class="val">{c['winp_rating']}</td><td class="raw">{c['w']}-{c['l']} ({c['winpct']:.3f})</td></tr>
           <tr><td class="attr">PPG</td><td class="bar"><div class="bar-fill" style="width:{c['ppg_rating']}%;background:{color}"></div></td><td class="val">{c['ppg_rating']}</td><td class="raw">{c['ppg']:.1f}</td></tr>
-          <tr><td class="attr">DRFT</td><td class="bar"><div class="bar-fill" style="width:{c['draft_rating']}%;background:{color}"></div></td><td class="val">{c['draft_rating']}</td><td class="raw">{c['draft_spp']:+.0f}/pk vs avg · {c['draft_picks']}p</td></tr>
+          <tr><td class="attr">DRFT</td><td class="bar"><div class="bar-fill" style="width:{c['draft_rating']}%;background:{color}"></div></td><td class="val">{c['draft_rating']}</td><td class="raw">{c['draft_spp']:+.1f}/pk · {c['draft_picks']}p</td></tr>
           <tr><td class="attr">TRADE</td><td class="bar"><div class="bar-fill" style="width:{c['trade_rating']}%;background:{color}"></div></td><td class="val">{c['trade_rating']}</td><td class="raw">{c['trade_vbd']:+.0f} ({c['trade_n']}t)</td></tr>
         </table>
       </div>
