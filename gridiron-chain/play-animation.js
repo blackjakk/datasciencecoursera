@@ -693,10 +693,16 @@ function _simulateKickoffAgents(opts) {
           targetX = returner.x + recvDir * (8 + (i - 3) * 1.5);
           targetY = returner.y + (i - 4.5) * 6;
         } else {
-          // Stay between assigned cover and the returner — shielding role.
+          // Wall blocker — STAY GLUED to assigned cover for the rest of
+          // the play. Tracking the midpoint of (cov, returner) made the
+          // wall congregate on the returner once he passed the engaged
+          // cov (midpoint follows returner instead of staying with cov).
+          // Now wall stays just on the returner-side of cov, maintaining
+          // leverage. Engaged cov is held; play moves around the block.
           const cov = cover[a.targetCov];
-          targetX = (cov.x + returner.x) * 0.5;
-          targetY = (cov.y + returner.y) * 0.5;
+          const toRetSign = Math.sign(returner.x - cov.x) || recvDir;
+          targetX = cov.x + toRetSign * 4;
+          targetY = cov.y;
         }
       }
       const dx = targetX - b.x;
@@ -1021,21 +1027,28 @@ function buildAnimForPlay(play, prevPlay) {
                  { name: "ko-kicker" });
 
       // ── Draw blockers ──
+      // Facing: receiving-team blockers face the INCOMING cover, which is
+      // on the kicker side = -recvDir. They need this even while
+      // backpedaling — a real blocker peels back facing the gunners, not
+      // facing his own returner. The default "run" pose auto-flips facing
+      // by velocity, so during the backpedal a blocker moving in -X had
+      // his facing flipped to face the returner. "backpedal" pose keeps
+      // the caller-set facing intact.
       for (let i = 0; i < NUM_BLOCKERS; i++) {
         const bpos = snap.blockers[i];
         const a = blockerAssignments[i];
         const cov = snap.cover[a.targetCov];
-        // Engaged if non-failing blocker is in contact with assigned cover.
         const engaged = !a.fails && cov &&
                         ((bpos.x - cov.x) * (bpos.x - cov.x) +
                          (bpos.y - cov.y) * (bpos.y - cov.y)) < 22 * 22;
         let bPose;
-        if (t < FLIGHT_END * 0.05) bPose = "stance";
-        else if (engaged)          bPose = "engage";
-        else                       bPose = "run";
+        if (t < FLIGHT_END * 0.05)      bPose = "stance";
+        else if (engaged)               bPose = "engage";
+        else if (t < FLIGHT_END)        bPose = "backpedal";
+        else                            bPose = "run";
         const bT = (t < 0.95 ? ((performance.now() / 333) + i * 0.17) % 1 : 0);
         drawPlayer(ctx, bpos.x, bpos.y, recvTeam.primary, recvTeam.secondary, "",
-                   bPose, bT, recvDir, { name: "ko-blocker-" + i });
+                   bPose, bT, -recvDir, { name: "ko-blocker-" + i });
       }
 
       // ── Returner (last so he draws on top) ──
