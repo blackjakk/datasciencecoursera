@@ -1518,9 +1518,9 @@ class GameSimulator {
       cb2: { dxYd: 5,  dyYd:  16 },
       fs:  { dxYd: 12, dyYd:   0 },
       ss:  { dxYd: 8,  dyYd:   5 },
-      lb1: { dxYd: 4,  dyYd:  -3 },
-      lb2: { dxYd: 4,  dyYd:   0 },
-      lb3: { dxYd: 4,  dyYd:   3 },
+      lb1: { dxYd: 5.5, dyYd: -3 },     // matches makeFormation lbDepth=5.5
+      lb2: { dxYd: 5.5, dyYd:  0 },
+      lb3: { dxYd: 5.5, dyYd:  3 },
       nb:  { dxYd: 5,  dyYd: -10 },
     };
     const start = startBySlot[tacklerSlot];
@@ -1601,8 +1601,8 @@ class GameSimulator {
         out.lb2 = {
           role: "LB",
           waypoints: [
-            { t: 0.00, dxYd: 4,  dyYd: 0 },
-            { t: 0.25, dxYd: 8,  dyYd: 0 },
+            { t: 0.00, dxYd: 5.5, dyYd: 0 },   // matches formation
+            { t: 0.25, dxYd: 9,   dyYd: 0 },
             { t: throwT, dxYd: 14, dyYd: 0 },
             { t: 0.78, dxYd: 14, dyYd: 0 },
             { t: 1.00, dxYd: 14, dyYd: 0 },
@@ -1613,7 +1613,7 @@ class GameSimulator {
       out[lbN] = {
         role: "LB",
         waypoints: [
-          { t: 0.00, dxYd: 4, dyYd: target.dyYd * 0.4 },
+          { t: 0.00, dxYd: 5.5, dyYd: target.dyYd * 0.4 },   // matches formation lbDepth
           { t: 0.20, dxYd: target.dxYd, dyYd: target.dyYd },
           { t: throwT, dxYd: target.dxYd, dyYd: target.dyYd },
           { t: 0.78, dxYd: target.dxYd, dyYd: target.dyYd },
@@ -1752,9 +1752,9 @@ class GameSimulator {
         waypoints: [
           { t: 0.00, dxYd: -5,              dyYd: 0.27 },          // I-form depth
           { t: 0.15, dxYd: -1,              dyYd: gapYd * 0.5 },   // through the gap
-          { t: 0.40, dxYd:  4,              dyYd: gapYd },          // engage LB
-          { t: 0.78, dxYd:  4,              dyYd: gapYd },          // sustain
-          { t: 1.00, dxYd:  4,              dyYd: gapYd },
+          { t: 0.40, dxYd:  5.5,            dyYd: gapYd },          // engage LB at new depth
+          { t: 0.78, dxYd:  5.5,            dyYd: gapYd },          // sustain
+          { t: 1.00, dxYd:  5.5,            dyYd: gapYd },
         ],
       };
     }

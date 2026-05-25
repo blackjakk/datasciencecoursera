@@ -2477,7 +2477,10 @@ function makeFormation(losX, poss, opts = {}) {
   // ── LINEBACKERS (0-3 by package) ──
   // BASE_43: 3 LBs (W/M/S). NICKEL: 2 LBs (W/M, drop SAM). DIME: 1 LB (M).
   // QUARTER: 0 LBs (5-DB look vs empty/00).
-  const lbDepth = isGL ? 1.5 : 4;
+  // LB depth: real NFL ~5yd off ball (~3yd behind DL). With DL at
+  // 2.5yd in our compressed sprite world, LBs at 5.5yd gives a clean
+  // ~3yd gap that doesn't visually clip into the front line.
+  const lbDepth = isGL ? 2.5 : 5.5;
   const lbs = [];
   if (dpDef.lb === 3) {
     lbs.push({ x: losX + dir * lbDepth * PX, y: cy - (isGL ? 28 : 44), role: "LB" });
