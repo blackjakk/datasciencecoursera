@@ -209,11 +209,11 @@ def compute_preseason_ranks():
     cap = _norm([r["pick_value"] for r in rows])
     ros = _norm([r["roster_ppg"] for r in rows])
 
-    # Weights: 80% ASSETS (56% pick capital + 24% roster proxy)
-    #          20% SKILL  (10% trade + 10% draft)
+    # Weights: 70% ASSETS (49% pick capital + 21% roster proxy)
+    #          30% SKILL  (15% trade + 15% draft)
     for i, r in enumerate(rows):
-        score = (0.56 * cap[i] + 0.24 * ros[i]
-                 + 0.10 * trd[i] + 0.10 * drf[i])
+        score = (0.49 * cap[i] + 0.21 * ros[i]
+                 + 0.15 * trd[i] + 0.15 * drf[i])
         r["trade_norm"] = round(trd[i])
         r["draft_norm"] = round(drf[i])
         r["cap_norm"] = round(cap[i])
@@ -367,10 +367,10 @@ def build_html(rows, paths):
              f'<p class="subtitle">{today} · MONEYLEAGUE · Big Guap\'s Hot Takes</p></div>')
 
     h.append('<h2>Preseason Power Score</h2>')
-    h.append('<p class="note">Composite: <strong>80% ASSETS</strong> '
-             '(56% 2026 R1-R3 pick capital · 24% 2025 PPG roster proxy) + '
-             '<strong>20% SKILL</strong> (10% career trade VBD/trade · '
-             '10% career draft surplus/pick). Recent record intentionally '
+    h.append('<p class="note">Composite: <strong>70% ASSETS</strong> '
+             '(49% 2026 R1-R3 pick capital · 21% 2025 PPG roster proxy) + '
+             '<strong>30% SKILL</strong> (15% career trade VBD/trade · '
+             '15% career draft surplus/pick). Recent record intentionally '
              'excluded — this is "who has the tools," not "who got hot."</p>')
     h.append(f'<img class="chart" src="{_data_uri(paths["power"])}"/>')
 
