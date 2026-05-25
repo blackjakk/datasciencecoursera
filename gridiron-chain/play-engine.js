@@ -91,24 +91,30 @@ const _RUN_GANG_DIST = {
 // concept types. Read success per (concept, coverage) pair is calibrated
 // from NFL film/analytics convention; QB awareness + pressure modulate.
 const PASS_CONCEPTS = {
+  // Fallback depths were too shallow — read-failed throws were landing at
+  // 1-4 yds AT the LOS far too often, producing the "QB dumps it for 1
+  // yd" pattern. NFL QBs more often throw away or take the sack instead
+  // of accepting a 1-yd checkdown. Bumped fallback depths so even a read
+  // failure leaves something resembling a legitimate target depth (the
+  // RB/TE settle in front of the sticks, not at the QB's feet).
   QUICK_GAME: {  // slants, hitches, RPO — quick read, beats blitz
     primaryDepth: 4,  primarySd: 1.5,
-    fallbackDepth: 1, fallbackSd: 1.0,
+    fallbackDepth: 3, fallbackSd: 1.0,
     readSuccessVs: { C0_BLITZ: 0.82, C1_MAN: 0.62, C2_ZONE: 0.55, C3_ZONE: 0.66, C4_QUARTERS: 0.55, TAMPA_2: 0.55 },
   },
   DRAG_MESH: {   // crossers — beats man, vulnerable to gap zones
     primaryDepth: 7,  primarySd: 2.0,
-    fallbackDepth: 3, fallbackSd: 1.5,
+    fallbackDepth: 4, fallbackSd: 1.5,
     readSuccessVs: { C0_BLITZ: 0.55, C1_MAN: 0.78, C2_ZONE: 0.55, C3_ZONE: 0.52, C4_QUARTERS: 0.50, TAMPA_2: 0.48 },
   },
   INTERMEDIATE: {  // digs/outs/post-corner — beats zone, vulnerable to man + pressure
     primaryDepth: 12, primarySd: 2.5,
-    fallbackDepth: 5, fallbackSd: 2.0,
+    fallbackDepth: 6, fallbackSd: 2.0,
     readSuccessVs: { C0_BLITZ: 0.42, C1_MAN: 0.52, C2_ZONE: 0.68, C3_ZONE: 0.62, C4_QUARTERS: 0.48, TAMPA_2: 0.55 },
   },
   VERTICAL: {    // go/deep post — beats single-high, dies vs 2-deep
     primaryDepth: 22, primarySd: 3.5,
-    fallbackDepth: 4, fallbackSd: 2.0,
+    fallbackDepth: 8, fallbackSd: 2.5,
     readSuccessVs: { C0_BLITZ: 0.75, C1_MAN: 0.55, C2_ZONE: 0.40, C3_ZONE: 0.38, C4_QUARTERS: 0.30, TAMPA_2: 0.40 },
   },
   SCREEN: {      // behind/at LOS — manufactured YAC, beats blitz, vulnerable to disciplined zone
@@ -118,7 +124,7 @@ const PASS_CONCEPTS = {
   },
   PA_SHOT: {     // play-action vertical — slow developing, beats single-high
     primaryDepth: 18, primarySd: 4.0,
-    fallbackDepth: 7, fallbackSd: 2.5,
+    fallbackDepth: 9, fallbackSd: 2.5,
     readSuccessVs: { C0_BLITZ: 0.40, C1_MAN: 0.65, C2_ZONE: 0.55, C3_ZONE: 0.52, C4_QUARTERS: 0.42, TAMPA_2: 0.48 },
   },
 };

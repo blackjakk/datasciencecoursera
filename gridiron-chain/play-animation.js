@@ -755,22 +755,26 @@ function buildAnimForPlay(play, prevPlay) {
       // Stored so blockers can target a specific coverage opponent.
       const coverPos = [];
       // FLIGHT_CLOSE_FRAC: how far coverage advances toward the catch
-      // point during the kick. Was 0.55 — left coverage with 22+ yd
-      // still to close in the much-shorter return window, which
-      // required a fake-fast close that read as a teleport. Bumping
-      // to 0.78 lets coverage do the bulk of their sprint during the
-      // kick (when there's time budget), so the return phase is just
-      // the final convergence.
-      const FLIGHT_CLOSE_FRAC = 0.78;
+      // point during the kick. Bumped 0.78 → 0.88: gunners arrive
+      // near the catch as the ball lands (matches real NFL — gunners
+      // can be on top of the returner by the time it gets there).
+      // Lateral convergence also runs during flight so the lanes
+      // narrow as the gunners sprint — was happening only post-catch,
+      // which made it look like a teleport once the catch happened.
+      const FLIGHT_CLOSE_FRAC = 0.88;
       for (let i = 0; i < NUM_COVER; i++) {
         let cx, cy_;
         if (t < FLIGHT_END) {
           const ft = t / FLIGHT_END;
           cx = kickerLineX + (catchX - kickerLineX) * ft * FLIGHT_CLOSE_FRAC;
-          cy_ = coverLanes[i];
+          // 60% of lateral convergence happens during the kick — gunners
+          // tilt their lanes IN toward the catch as they sprint.
+          cy_ = coverLanes[i] + (cy - coverLanes[i]) * ft * 0.60;
         } else if (t < RETURN_END) {
           const rt = (t - FLIGHT_END) / (RETURN_END - FLIGHT_END);
           const sprintFromX = kickerLineX + (catchX - kickerLineX) * FLIGHT_CLOSE_FRAC;
+          // Lane Y at flight-end (60% converged toward cy)
+          const sprintFromY = coverLanes[i] + (cy - coverLanes[i]) * 0.60;
           const isPrimary   = i === primaryTacklerIdx;
           const isSecondary = i === secondaryTacklerIdx;
           let targetX, targetY;
@@ -784,12 +788,8 @@ function buildAnimForPlay(play, prevPlay) {
             targetX = returnerX - recvDir * (12 + (i % 4) * 8);
             targetY = coverLanes[i] + (returnerY - coverLanes[i]) * 0.6;
           }
-          // LINEAR close. The ease-in-out quad I had peaked at 2x average
-          // velocity mid-phase — that peak read as a teleport even though
-          // the average was reasonable. Linear keeps the velocity flat,
-          // which is what real coverage does (constant sprint speed).
           cx = sprintFromX + (targetX - sprintFromX) * rt;
-          cy_ = coverLanes[i] + (targetY - coverLanes[i]) * rt;
+          cy_ = sprintFromY + (targetY - sprintFromY) * rt;
         } else {
           const tk = (t - RETURN_END) / (1 - RETURN_END);
           const isPrimary   = i === primaryTacklerIdx;
