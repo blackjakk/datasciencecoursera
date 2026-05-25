@@ -5,36 +5,36 @@
 
 ## 📊 By the Numbers
 
-- **Total trades scraped**: 181 (155 Yahoo + 26 Sleeper)
+- **Total trades scraped**: 181 (136 Yahoo + 45 Sleeper)
 - **Players moved**: 508
 - **Draft picks moved**: 424
 - **Most active year**: see volume chart below
 
 ## 🏆 Top Fleecers — Aggregate Ranking
 
-Each manager's **total net point delta across all Yahoo trades** they were ever in. Positive = net winner, negative = net loser. The single number that summarizes who has fleeced whom over 12 years.
+Each manager's **total net point delta across every scored trade** they were ever in (Yahoo 2011-2022 + Sleeper 2023-2024). Positive = net winner, negative = net loser. The single number that summarizes who has fleeced whom over the league's run. *2025 Sleeper trades excluded — nflverse season totals not yet available; picks not scored.*
 
 | Rank | Manager | Trades | Net VBD | Per trade |
 |---|---|---|---|---|
-| 1 | **Trevor** | 38 | **+1675** | +44 |
-| 2 | **Dave** | 22 | **+1644** | +75 |
-| 3 | **Ankur** | 7 | **+850** | +121 |
-| 4 | **Eric** | 7 | **+611** | +87 |
-| 5 | **Coop** | 35 | **+611** | +17 |
-| 6 | **Kyle** | 21 | **+372** | +18 |
+| 1 | **Trevor** | 50 | **+1500** | +30 |
+| 2 | **Dave** | 27 | **+1444** | +53 |
+| 3 | **Eric** | 15 | **+1060** | +71 |
+| 4 | **Kyle** | 26 | **+900** | +35 |
+| 5 | **Ankur** | 9 | **+479** | +53 |
+| 6 | **Coop** | 41 | **+429** | +10 |
 | 7 | **Z** | 2 | **+146** | +73 |
-| 8 | **Brower** | 11 | **+121** | +11 |
-| 9 | **Nick Lewis** | 4 | **-62** | -16 |
-| 10 | **Tim** | 9 | **-87** | -10 |
+| 8 | **Brower** | 21 | **+44** | +2 |
+| 9 | **Troy** | 23 | **-48** | -2 |
+| 10 | **Nick Lewis** | 4 | **-62** | -16 |
 | 11 | **Former manager** | 1 | **-119** | -119 |
-| 12 | **Lem** | 19 | **-219** | -12 |
-| 13 | **Notebooks** | 1 | **-452** | -452 |
-| 14 | **Troy** | 19 | **-455** | -24 |
-| 15 | **Brian** | 35 | **-1028** | -29 |
+| 12 | **Lem** | 20 | **-340** | -17 |
+| 13 | **Tim** | 14 | **-369** | -26 |
+| 14 | **Notebooks** | 1 | **-452** | -452 |
+| 15 | **Brian** | 46 | **-1303** | -28 |
 | 16 | **Nark** | 10 | **-1338** | -134 |
-| 17 | **Donnie** | 31 | **-2271** | -73 |
+| 17 | **Donnie** | 36 | **-1969** | -55 |
 
-*Net point deltas count full-season nflverse scoring for each trade. **Trevor** is the league's net winner (+1675) across 38 trades. **Donnie** is the net loser (-2271).*
+*Net point deltas count full-season nflverse scoring for each trade. **Trevor** is the league's net winner (+1500) across 50 trades. **Donnie** is the net loser (-1969).*
 
 ## 🌀 Most Active Traders
 
@@ -106,25 +106,25 @@ The biggest 2-team blockbusters in league history. Most include 5+ players and 5
 
 ## 🦈 Top Fleecers
 
-Net points imbalance per pair (Yahoo era scoring; full-season nflverse points). Positive = the fleecer's net advantage. Status uses *all* trade history including Sleeper.
+Net points imbalance per pair (full-season nflverse points through 2024; 2025 Sleeper trades excluded). Positive = the fleecer's net advantage. Status uses *all* trade history including unscored 2025.
 
 | Fleecer | Victim | Trades | W-L | Net | Last trade | Status |
 |---|---|---|---|---|---|---|
-| **Dave** | Donnie | 6 | 4-2 | **+1070** | 2024 | fleecer left league |
-| **Trevor** | Brian | 10 | 7-3 | **+1006** | 2025 | still active |
-| **Eric** | Brian | 4 | 3-1 | **+892** | 2024 | still active |
+| **Eric** | Brian | 10 | 6-2 | **+1184** | 2024 | still active |
+| **Dave** | Donnie | 7 | 5-2 | **+1136** | 2024 | fleecer left league |
+| **Trevor** | Brian | 12 | 8-4 | **+945** | 2025 | still active |
 | **Trevor** | Nark | 3 | 3-0 | **+563** | 2016 | victim left league |
 | **Trevor** | Donnie | 7 | 5-1 | **+541** | 2022 | ⚠️ silent 3yr |
-| **Brian** | Donnie | 6 | 3-3 | **+515** | 2024 | still active |
-| **Kyle** | Coop | 5 | 4-1 | **+485** | 2024 | still active |
+| **Brower** | Trevor | 5 | 3-0 | **+517** | 2024 | still active |
+| **Kyle** | Coop | 6 | 4-1 | **+485** | 2024 | still active |
+| **Brian** | Donnie | 8 | 4-4 | **+473** | 2024 | still active |
+| **Dave** | Troy | 3 | 2-1 | **+460** | 2023 | fleecer left league |
 | **Lem** | Dave | 3 | 3-0 | **+437** | 2018 | victim left league |
-| **Dave** | Trevor | 3 | 2-1 | **+410** | 2023 | fleecer left league |
 | **Ankur** | Lem | 3 | 3-0 | **+390** | 2025 | still active |
-| **Brian** | Coop | 3 | 2-1 | **+385** | 2023 | still active |
+| **Brian** | Coop | 4 | 2-2 | **+384** | 2023 | still active |
 | **Coop** | Troy | 5 | 4-1 | **+355** | 2022 | ⚠️ silent 3yr |
 | **Nick Lewis** | Brian | 2 | 1-1 | **+335** | 2013 | fleecer left league |
-| **Coop** | Donnie | 5 | 3-2 | **+324** | 2023 | still active |
-| **Troy** | Eric | 2 | 1-1 | **+322** | 2024 | still active |
+| **Dave** | Trevor | 4 | 2-2 | **+325** | 2023 | fleecer left league |
 
 ## 🚪 'Trade Rape → Victim Bailed' Cases
 
@@ -141,12 +141,13 @@ Pairs where one side has dominated by 400+ net points but they're **still active
 
 | Fleecer | 'Loyal Customer' | Trades | W-L | Net | Last trade |
 |---|---|---|---|---|---|
-| **Dave** | Donnie | 6 | 4-2 | +1070 | 2024 |
-| **Trevor** | Brian | 10 | 7-3 | +1006 | 2025 |
-| **Eric** | Brian | 4 | 3-1 | +892 | 2024 |
-| **Brian** | Donnie | 6 | 3-3 | +515 | 2024 |
-| **Kyle** | Coop | 5 | 4-1 | +485 | 2024 |
-| **Dave** | Trevor | 3 | 2-1 | +410 | 2023 |
+| **Eric** | Brian | 10 | 6-2 | +1184 | 2024 |
+| **Dave** | Donnie | 7 | 5-2 | +1136 | 2024 |
+| **Trevor** | Brian | 12 | 8-4 | +945 | 2025 |
+| **Brower** | Trevor | 5 | 3-0 | +517 | 2024 |
+| **Kyle** | Coop | 6 | 4-1 | +485 | 2024 |
+| **Brian** | Donnie | 8 | 4-4 | +473 | 2024 |
+| **Dave** | Troy | 3 | 2-1 | +460 | 2023 |
 
 ## 👯 Closest Trade Partners (most trades between same 2)
 

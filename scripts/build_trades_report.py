@@ -24,6 +24,7 @@ from fantasy_draft.team_identity import all_managers, manager_for_sleeper_roster
 ROOT = Path(__file__).resolve().parent.parent
 MD_OUT = ROOT / "data" / "MONEYLEAGUE_TRADES.md"
 PDF_OUT = ROOT / "data" / "MONEYLEAGUE_TRADES.pdf"
+NFL_SCORED_YEARS = set(range(2011, 2025))  # nflverse season data through 2024
 
 
 def _mgr_name(mid):
@@ -70,9 +71,16 @@ def _yahoo_name_lookup():
     return out
 
 
+def _load_sleeper_players():
+    p = json.loads((ROOT / "data" / "sleeper" / "players_nfl.json").read_text())
+    return {pid: (d.get("full_name") or f"{d.get('first_name','')} {d.get('last_name','')}").strip()
+            for pid, d in p.items()}
+
+
 def _load_all_trades():
     """Yields normalized trades from Yahoo + Sleeper."""
     name_to_mgr = _yahoo_name_lookup()
+    sleeper_names = _load_sleeper_players()
     out = []
     for f in sorted((ROOT / "data" / "yahoo").glob("league_*/trades_*.json")):
         yr = int(re.search(r"trades_(\d+)\.json", str(f)).group(1))
@@ -116,9 +124,9 @@ def _load_all_trades():
         b_picks = [p for p in picks if p.get("owner_id") == rids[1]]
         out.append({"year": yr, "date": "sleeper", "source": "sleeper",
                     "side_a_mgr": ma, "side_b_mgr": mb,
-                    "side_a": {"received_players": [{"name": p} for p in a_players],
+                    "side_a": {"received_players": [{"name": sleeper_names.get(p, p)} for p in a_players],
                                 "received_picks": a_picks},
-                    "side_b": {"received_players": [{"name": p} for p in b_players],
+                    "side_b": {"received_players": [{"name": sleeper_names.get(p, p)} for p in b_players],
                                 "received_picks": b_picks},
                     "raw": t})
     return out
@@ -149,15 +157,15 @@ def build_markdown():
         per_mgr[mb]["p_giv"] += len(a.get("received_players", []))
         per_mgr[mb]["pk_giv"] += len(a.get("received_picks", []))
 
-        # Score trade (Yahoo only since we have nfl points)
-        if t["source"] == "yahoo":
+        # Score trade if we have nflverse season data for that year
+        if t["year"] in NFL_SCORED_YEARS:
             pa = sum(nfl.get((t["year"], _norm(p["name"])), 0)
                      for p in a.get("received_players", []))
             pb = sum(nfl.get((t["year"], _norm(p["name"])), 0)
                      for p in b.get("received_players", []))
             key = tuple(sorted([ma, mb]))
             net = (pa - pb) if key[0] == ma else (pb - pa)
-            pair_trades[key].append((t["year"], net, "yahoo"))
+            pair_trades[key].append((t["year"], net, t["source"]))
 
         # Biggest single trade by asset count
         n_a = (len(a.get("received_players", []))
@@ -168,14 +176,18 @@ def build_markdown():
 
     biggest.sort(key=lambda x: -(x[5] + x[6]))
 
+    n_yahoo = sum(1 for t in trades if t["source"] == "yahoo")
+    n_sleeper = sum(1 for t in trades if t["source"] == "sleeper")
+    n_total = n_yahoo + n_sleeper
+
     md = []
     md.append("# 🤝 MONEYLEAGUE — Trade Behavior")
-    md.append(f"*{today} · 181 trades across 15 years (2011-2025) · "
+    md.append(f"*{today} · {n_total} trades across 15 years (2011-2025) · "
               "Yahoo + Sleeper data*\n")
     md.append("---\n")
 
     md.append("## 📊 By the Numbers\n")
-    md.append(f"- **Total trades scraped**: 181 (155 Yahoo + 26 Sleeper)")
+    md.append(f"- **Total trades scraped**: {n_total} ({n_yahoo} Yahoo + {n_sleeper} Sleeper)")
     md.append(f"- **Players moved**: {sum(d['p_recv'] for d in per_mgr.values())}")
     md.append(f"- **Draft picks moved**: {sum(d['pk_recv'] for d in per_mgr.values())}")
     md.append(f"- **Most active year**: see volume chart below\n")
@@ -183,14 +195,16 @@ def build_markdown():
     # ===== Active traders =====
     # ===== Aggregate Fleecer Ranking (sum of net VBD across all trades) =====
     md.append("## 🏆 Top Fleecers — Aggregate Ranking\n")
-    md.append("Each manager's **total net point delta across all Yahoo "
-              "trades** they were ever in. Positive = net winner, "
-              "negative = net loser. The single number that summarizes who "
-              "has fleeced whom over 12 years.\n")
+    md.append("Each manager's **total net point delta across every scored "
+              "trade** they were ever in (Yahoo 2011-2022 + Sleeper 2023-2024). "
+              "Positive = net winner, negative = net loser. The single number "
+              "that summarizes who has fleeced whom over the league's run. "
+              "*2025 Sleeper trades excluded — nflverse season totals not yet "
+              "available; picks not scored.*\n")
     agg = defaultdict(float)
     agg_n = defaultdict(int)
     for t in trades:
-        if t["source"] != "yahoo":
+        if t["year"] not in NFL_SCORED_YEARS:
             continue
         pa = sum(nfl.get((t["year"], _norm(p["name"])), 0)
                  for p in t["side_a"].get("received_players", []))
@@ -282,9 +296,10 @@ def build_markdown():
         return rec.get("sleeper_roster_id") is None
 
     md.append("## 🦈 Top Fleecers\n")
-    md.append("Net points imbalance per pair (Yahoo era scoring; full-season "
-              "nflverse points). Positive = the fleecer's net advantage. "
-              "Status uses *all* trade history including Sleeper.\n")
+    md.append("Net points imbalance per pair (full-season nflverse points "
+              "through 2024; 2025 Sleeper trades excluded). Positive = the "
+              "fleecer's net advantage. Status uses *all* trade history "
+              "including unscored 2025.\n")
     cases = []
     for (a, b), trs in pair_trades.items():
         if len(trs) < 2:
