@@ -178,6 +178,17 @@ def build_markdown() -> str:
         md.append("\n---\n")
 
     # Era roundup tables
+    md.append("## 📊 Charts\n")
+    chart_dir = ROOT / "data" / "charts"
+    if (chart_dir / "championships.png").exists():
+        md.append(f"![Championships]({chart_dir / 'championships.png'})\n")
+    if (chart_dir / "all_time_wl.png").exists():
+        md.append(f"![All-time W/L]({chart_dir / 'all_time_wl.png'})\n")
+    if (chart_dir / "winpct_timeline.png").exists():
+        md.append(f"![Win % by year]({chart_dir / 'winpct_timeline.png'})\n")
+    if (chart_dir / "ppg_timeline.png").exists():
+        md.append(f"![PPG by year]({chart_dir / 'ppg_timeline.png'})\n")
+
     md.append("## 🏛️ The Eras of MONEYLEAGUE\n")
     md.append("Three distinct league eras, three different dynasties:\n")
     md.append("| Era | Years | Teams | Scoring | Format |")
@@ -272,6 +283,12 @@ def _md_to_html(md_text: str) -> str:
         return t
 
     for ln in lines:
+        m = re.match(r"!\[([^\]]*)\]\(([^)]+)\)", ln.strip())
+        if m:
+            cp(); ct()
+            html.append(f'<img src="{m.group(2)}" alt="{m.group(1)}" '
+                        f'style="max-width:100%;margin:10px 0;"/>')
+            continue
         if ln.startswith("# "):
             cp(); ct(); html.append(f"<h1>{inline(ln[2:])}</h1>")
         elif ln.startswith("## "):

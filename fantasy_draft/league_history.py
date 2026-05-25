@@ -89,10 +89,27 @@ def _load_yahoo_seasons() -> dict[int, dict]:
     return out
 
 
+# Roster-handoff overrides: when a Sleeper roster_id changed hands
+# mid-Sleeper-era, attribute the historical seasons to the previous owner.
+ROSTER_HANDOFFS: dict[tuple[int, int], str] = {
+    # (season, sleeper_roster_id) -> manager_id who actually owned it
+    (2023, 10): "dave_aka_wang",
+    (2024, 10): "dave_aka_wang",
+}
+
+
 def _load_sleeper_seasons() -> dict[int, dict]:
     """Reuse existing Sleeper loader for 2023-2025."""
     from .results import load_all_seasons
     from .team_identity import manager_for_sleeper_roster
+
+    def mgr_for_rid_in_season(rid: int, season: int) -> dict | None:
+        if (season, rid) in ROSTER_HANDOFFS:
+            mid = ROSTER_HANDOFFS[(season, rid)]
+            for m in all_managers():
+                if m["id"] == mid:
+                    return m
+        return manager_for_sleeper_roster(rid)
 
     out: dict[int, dict] = {}
     seasons = load_all_seasons(ROOT / "data" / "sleeper")
@@ -138,7 +155,7 @@ def _load_sleeper_seasons() -> dict[int, dict]:
                     rid = side["roster_id"]
                     pts = side["points"]
                     opp_pts = opp_side["points"]
-                    m = manager_for_sleeper_roster(rid)
+                    m = mgr_for_rid_in_season(rid, season)
                     if not m:
                         continue
                     mgr_id = m["id"]
@@ -160,7 +177,7 @@ def _load_sleeper_seasons() -> dict[int, dict]:
         # All-play
         for wk, scores in wkpts.items():
             for rid, pts in scores.items():
-                m = manager_for_sleeper_roster(rid)
+                m = mgr_for_rid_in_season(rid, season)
                 if not m:
                     continue
                 mgr_id = m["id"]

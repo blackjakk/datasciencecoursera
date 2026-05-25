@@ -20,7 +20,7 @@ This league started in **2011 with 8 teams** on Yahoo, expanded to 10 in 2013, e
 | 3 | **Nark** | The Danny O'Shea's | 8-5 | 1613 | 1560 | 137.0 (W10) |
 | 4 | **Coop** | Dirty Old Men | 6-7 | 1556 | 1599 | 128.7 (W12) |
 | 5 | **Brian** | Bibi Jones Gangbang | 5-8 | 1528 | 1592 | 124.0 (W5) |
-| 6 | **Former manager** | HOLD MA DICK | 5-8 | 1541 | 1582 | 129.1 (W2) |
+| 6 | **Nick Lewis** | HOLD MA DICK | 5-8 | 1541 | 1582 | 129.1 (W2) |
 | 7 | **Lem** | Rushinators | 5-8 | 1596 | 1567 | 134.7 (W9) |
 | 8 | **Eric** | LockOut w my CockOut | 4-9 | 1437 | 1547 | 125.0 (W2) |
 
@@ -39,7 +39,7 @@ This league started in **2011 with 8 teams** on Yahoo, expanded to 10 in 2013, e
 | 2 | **Eric** | LockOut w my CockOut | 9-4 | 1705 | 1607 | 142.8 (W7) |
 | 3 | **Kyle** | Figgy | 9-4 | 1624 | 1594 | 138.7 (W3) |
 | 4 | **Brian** | THIS SINBAD HOUSE | 8-5 | 1658 | 1642 | 140.6 (W5) |
-| 5 | **Former manager** | Kelce's Beard Cheese | 7-6 | 1693 | 1672 | 141.6 (W2) |
+| 5 | **Nick Lewis** | Kelce's Beard Cheese | 7-6 | 1693 | 1672 | 141.6 (W2) |
 | 6 | **Nark** | The Danny O'Shea's | 4-9 | 1588 | 1668 | 131.6 (W11) |
 | 7 | **Lem** | Rushinators | 4-9 | 1604 | 1667 | 136.4 (W5) |
 | 8 | **Former manager** | Nut up or shut up | 0-13 | 1568 | 1687 | 134.1 (W3) |
@@ -64,15 +64,14 @@ This league started in **2011 with 8 teams** on Yahoo, expanded to 10 in 2013, e
 | 5 | **Nark** | The Danny O'Shea's | 6-7 | 1509 | 1478 | 128.6 (W1) |
 | 6 | **Dave** | BrownsToTheSuperBowl | 6-7 | 1402 | 1402 | 125.3 (W8) |
 | 7 | **Troy** | Byrd's Nest | 6-7 | 1455 | 1461 | 124.2 (W1) |
-| 8 | **Former manager** | Mud Monkeys | 5-8 | 1431 | 1458 | 130.5 (W1) |
+| 8 | **Nick Lewis** | Mud Monkeys | 5-8 | 1431 | 1458 | 130.5 (W1) |
 | 9 | **Kyle** | Figgy | 4-9 | 1397 | 1490 | 121.9 (W13) |
-| 10 | **Nick Lewis** | Mr. Y. Mirosho | 1-12 | 1191 | 1511 | 119.4 (W1) |
 
 - 🚀 Top single-week: **Coop 137.3** in W11
-- 💩 Low: **Nick Lewis 66.2** in W9
+- 💩 Low: **Nick Lewis 81.2** in W10
 - 🌊 Schedule-cursed: **Nark** (6 actual W, 7.9 expected)
 - 🍀 Schedule-blessed: **Dave** (6 actual W, 4.2 expected)
-- ➕ **Joined**: Dave, Nick Lewis, Troy
+- ➕ **Joined**: Dave, Troy
 - ➖ **Left**: Former manager
 
 ---
@@ -97,7 +96,7 @@ This league started in **2011 with 8 teams** on Yahoo, expanded to 10 in 2013, e
 - 🌊 Schedule-cursed: **Coop** (3 actual W, 5.6 expected)
 - 🍀 Schedule-blessed: **Eric** (10 actual W, 7.3 expected)
 - ➕ **Joined**: Donnie, Trevor
-- ➖ **Left**: Former manager, Nick Lewis
+- ➖ **Left**: Nick Lewis
 
 ---
 
@@ -300,7 +299,7 @@ This league started in **2011 with 8 teams** on Yahoo, expanded to 10 in 2013, e
 | 3 | **Kyle** | — | 9-4 | 1715 | 1533 | 195.0 (W13) |
 | 4 | **Donnie** | — | 8-5 | 1891 | 1688 | 212.1 (W4) |
 | 5 | **Trevor** | — | 8-5 | 1682 | 1633 | 200.9 (W5) |
-| 6 | **Josh** | — | 8-5 | 1608 | 1706 | 178.5 (W11) |
+| 6 | **Dave** | — | 8-5 | 1608 | 1706 | 178.5 (W11) |
 | 7 | **Eric** | — | 7-6 | 1783 | 1654 | 179.4 (W5) |
 | 8 | **Ankur** | — | 6-7 | 1402 | 1560 | 174.4 (W2) |
 | 9 | **Tim** | — | 4-9 | 1362 | 1752 | 146.5 (W8) |
@@ -312,8 +311,6 @@ This league started in **2011 with 8 teams** on Yahoo, expanded to 10 in 2013, e
 - 💩 Low: **Tim 64.1** in W4
 - 🌊 Schedule-cursed: **Coop** (3 actual W, 7.6 expected)
 - 🍀 Schedule-blessed: **Troy** (9 actual W, 5.6 expected)
-- ➕ **Joined**: Josh
-- ➖ **Left**: Dave
 
 ---
 
@@ -328,7 +325,7 @@ This league started in **2011 with 8 teams** on Yahoo, expanded to 10 in 2013, e
 | 3 | **Coop** | — | 9-4 | 1995 | 1707 | 197.3 (W2) |
 | 4 | **Trevor** | — | 7-6 | 1624 | 1571 | 164.6 (W13) |
 | 5 | **Troy** | — | 7-6 | 1718 | 1591 | 164.5 (W13) |
-| 6 | **Josh** | — | 7-6 | 1802 | 1640 | 191.0 (W2) |
+| 6 | **Dave** | — | 7-6 | 1802 | 1640 | 191.0 (W2) |
 | 7 | **Brian** | — | 6-7 | 1830 | 1817 | 191.2 (W11) |
 | 8 | **Donnie** | — | 6-7 | 1610 | 1732 | 162.4 (W3) |
 | 9 | **Lem** | — | 6-7 | 1684 | 1803 | 176.2 (W11) |
@@ -339,7 +336,7 @@ This league started in **2011 with 8 teams** on Yahoo, expanded to 10 in 2013, e
 - 🚀 Top single-week: **Coop 197.3** in W2
 - 💩 Low: **Kyle 63.1** in W10
 - 🌊 Schedule-cursed: **Eric** (3 actual W, 6.4 expected)
-- 🍀 Schedule-blessed: **Josh** (7 actual W, 4.1 expected)
+- 🍀 Schedule-blessed: **Dave** (7 actual W, 4.1 expected)
 
 ---
 
@@ -366,8 +363,20 @@ This league started in **2011 with 8 teams** on Yahoo, expanded to 10 in 2013, e
 - 💩 Low: **Brian 72.5** in W6
 - 🌊 Schedule-cursed: **Kyle** (3 actual W, 8.1 expected)
 - 🍀 Schedule-blessed: **Trevor** (9 actual W, 4.5 expected)
+- ➕ **Joined**: Josh
+- ➖ **Left**: Dave
 
 ---
+
+## 📊 Charts
+
+![Championships](/home/user/datasciencecoursera/data/charts/championships.png)
+
+![All-time W/L](/home/user/datasciencecoursera/data/charts/all_time_wl.png)
+
+![Win % by year](/home/user/datasciencecoursera/data/charts/winpct_timeline.png)
+
+![PPG by year](/home/user/datasciencecoursera/data/charts/ppg_timeline.png)
 
 ## 🏛️ The Eras of MONEYLEAGUE
 
@@ -395,7 +404,7 @@ Three distinct league eras, three different dynasties:
 | 9 | **Donnie** | 12 | 57 | 99 | 18987 | 20343 |
 | 10 | **Tim** | 9 | 46 | 71 | 14463 | 15455 |
 | 11 | **Ankur** | 5 | 37 | 28 | 8526 | 8337 |
-| 12 | **Josh** | 3 | 24 | 15 | 5085 | 4992 |
+| 12 | **Josh** | 1 | 9 | 4 | 1676 | 1646 |
 
 ## 🎖️ All-Time Champions
 
@@ -409,10 +418,9 @@ Three distinct league eras, three different dynasties:
 
 | Manager | Years Active | Record |
 |---|---|---|
-| Dave | 2013-2022 | 83-47 |
+| Dave | 2013-2024 | 98-58 |
 | Nark | 2011-2016 | 38-40 |
-| Former manager | 2011-2013 | 17-22 |
-| Nick Lewis | 2013-2020 | 8-18 |
+| Nick Lewis | 2011-2020 | 24-28 |
 | Former manager | 2012 | 0-13 |
 | Notebooks | 2019 | 3-10 |
 

@@ -307,7 +307,7 @@
       "confidence": "medium \u2014 only appears in FF2019"
     },
     "nick_lewis_left": {
-      "canonical_name": "Nick Lewis (one-year manager 2020)",
+      "canonical_name": "Nick Lewis (joined 2011-13, came back 2020)",
       "sleeper_roster_id": null,
       "sleeper_display_name": "(left league)",
       "xlsx_nicknames": [
@@ -315,21 +315,11 @@
       ],
       "yahoo_team_names": {
         "2020": "LewLew Ferrari",
-        "2013": "Mr. Y. Mirosho"
-      },
-      "confidence": "medium \u2014 only appears in FF2020"
-    },
-    "former_pre2014": {
-      "canonical_name": "Former manager (HOLD MA DICK / Kelce's Beard Cheese)",
-      "sleeper_roster_id": null,
-      "sleeper_display_name": "(left before 2014)",
-      "xlsx_nicknames": [],
-      "yahoo_team_names": {
+        "2013": "Mud Monkeys",
         "2011": "HOLD MA DICK",
-        "2012": "Kelce's Beard Cheese",
-        "2013": "Mud Monkeys"
+        "2012": "Kelce's Beard Cheese"
       },
-      "confidence": "low \u2014 unknown identity, persistent across 2011-2013"
+      "confidence": "high \u2014 confirmed: HOLD MA DICK / Kelce's / Mud Monkeys / LewLew Ferrari"
     },
     "former_pre2014_2": {
       "canonical_name": "Former manager (Nut up or shut up)",
