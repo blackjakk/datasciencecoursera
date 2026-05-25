@@ -1,0 +1,240 @@
+{
+  "season": 2018,
+  "league_id": "50466",
+  "teams": {
+    "1": "Kareem Hunt did 9/11",
+    "2": "Arnold Palmer Lite",
+    "3": "LEMVP & Associates",
+    "4": "BergerBoy Brigade",
+    "5": "Deez Hos Ain't Royal",
+    "6": "Land of the Freemans",
+    "7": "Mrs. Doubtfire",
+    "8": "The Dream Team",
+    "9": "The Mandingo...",
+    "10": "Barkley\u2019s Biddies"
+  },
+  "weeks": {
+    "1": [
+      {
+        "team_a": 1,
+        "team_b": 2,
+        "pts_a": 142.76,
+        "pts_b": 121.67,
+        "winner": 1
+      },
+      {
+        "team_a": 3,
+        "team_b": 9,
+        "pts_a": 145.54,
+        "pts_b": 119.58,
+        "winner": 3
+      },
+      {
+        "team_a": 4,
+        "team_b": 8,
+        "pts_a": 136.13,
+        "pts_b": 117.9,
+        "winner": 4
+      },
+      {
+        "team_a": 5,
+        "team_b": 7,
+        "pts_a": 146.04,
+        "pts_b": 106.0,
+        "winner": 5
+      },
+      {
+        "team_a": 6,
+        "team_b": 10,
+        "pts_a": 134.12,
+        "pts_b": 142.79,
+        "winner": 10
+      }
+    ],
+    "2": [
+      {
+        "team_a": 1,
+        "team_b": 3,
+        "pts_a": 135.13,
+        "pts_b": 124.64,
+        "winner": 1
+      },
+      {
+        "team_a": 2,
+        "team_b": 10,
+        "pts_a": 126.99,
+        "pts_b": 136.54,
+        "winner": 10
+      },
+      {
+        "team_a": 4,
+        "team_b": 9,
+        "pts_a": 129.31,
+        "pts_b": 119.05,
+        "winner": 4
+      },
+      {
+        "team_a": 5,
+        "team_b": 8,
+        "pts_a": 134.32,
+        "pts_b": 116.81,
+        "winner": 5
+      },
+      {
+        "team_a": 6,
+        "team_b": 7,
+        "pts_a": 128.53,
+        "pts_b": 101.4,
+        "winner": 6
+      }
+    ],
+    "3": [
+      {
+        "team_a": 1,
+        "team_b": 4,
+        "pts_a": 137.29,
+        "pts_b": 128.11,
+        "winner": 1
+      },
+      {
+        "team_a": 2,
+        "team_b": 3,
+        "pts_a": 136.05,
+        "pts_b": 135.18,
+        "winner": 2
+      },
+      {
+        "team_a": 5,
+        "team_b": 9,
+        "pts_a": 138.38,
+        "pts_b": 100.76,
+        "winner": 5
+      },
+      {
+        "team_a": 6,
+        "team_b": 8,
+        "pts_a": 131.41,
+        "pts_b": 122.59,
+        "winner": 6
+      },
+      {
+        "team_a": 7,
+        "team_b": 10,
+        "pts_a": 112.43,
+        "pts_b": 134.88,
+        "winner": 10
+      }
+    ],
+    "4": [
+      {
+        "team_a": 1,
+        "team_b": 5,
+        "pts_a": 138.51,
+        "pts_b": 135.06,
+        "winner": 1
+      },
+      {
+        "team_a": 2,
+        "team_b": 4,
+        "pts_a": 126.45,
+        "pts_b": 121.91,
+        "winner": 2
+      },
+      {
+        "team_a": 3,
+        "team_b": 10,
+        "pts_a": 140.22,
+        "pts_b": 136.27,
+        "winner": 3
+      },
+      {
+        "team_a": 6,
+        "team_b": 9,
+        "pts_a": 130.55,
+        "pts_b": 104.46,
+        "winner": 6
+      },
+      {
+        "team_a": 7,
+        "team_b": 8,
+        "pts_a": 106.24,
+        "pts_b": 122.4,
+        "winner": 8
+      }
+    ],
+    "5": [
+      {
+        "team_a": 1,
+        "team_b": 6,
+        "pts_a": 145.05,
+        "pts_b": 134.06,
+        "winner": 1
+      },
+      {
+        "team_a": 2,
+        "team_b": 5,
+        "pts_a": 112.94,
+        "pts_b": 144.94,
+        "winner": 5
+      },
+      {
+        "team_a": 3,
+        "team_b": 4,
+        "pts_a": 138.34,
+        "pts_b": 127.47,
+        "winner": 3
+      },
+      {
+        "team_a": 7,
+        "team_b": 9,
+        "pts_a": 109.48,
+        "pts_b": 110.82,
+        "winner": 9
+      },
+      {
+        "team_a": 8,
+        "team_b": 10,
+        "pts_a": 116.1,
+        "pts_b": 132.64,
+        "winner": 10
+      }
+    ],
+    "6": [
+      {
+        "team_a": 1,
+        "team_b": 7,
+        "pts_a": 142.6,
+        "pts_b": 104.81,
+        "winner": 1
+      },
+      {
+        "team_a": 2,
+        "team_b": 6,
+        "pts_a": 115.07,
+        "pts_b": 136.04,
+        "winner": 6
+      },
+      {
+        "team_a": 3,
+        "team_b": 5,
+        "pts_a": 150.71,
+        "pts_b": 123.52,
+        "winner": 3
+      },
+      {
+        "team_a": 4,
+        "team_b": 10,
+        "pts_a": 128.05,
+        "pts_b": 134.83,
+        "winner": 10
+      },
+      {
+        "team_a": 8,
+        "team_b": 9,
+        "pts_a": 117.16,
+        "pts_b": 108.34,
+        "winner": 8
+      }
+    ]
+  }
+}
