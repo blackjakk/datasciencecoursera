@@ -12,29 +12,29 @@
 
 ## 🏆 Top Fleecers — Aggregate Ranking
 
-Each manager's **total net point delta across every scored trade** they were ever in (Yahoo 2011-2022 + Sleeper 2023-2024). Positive = net winner, negative = net loser. The single number that summarizes who has fleeced whom over the league's run. *2025 Sleeper trades excluded — nflverse season totals not yet available; picks not scored.*
+Each manager's **total net point delta across every scored trade** they were ever in (Yahoo 2011-2022 + Sleeper 2023-2024). Positive = net winner, negative = net loser. **Picks are scored as the rookie-year nflverse points of the player actually drafted with that pick** (resolved via Yahoo draft CSVs 2015-2022 + Sleeper drafts 2023-2025; cross-platform Yahoo→Sleeper picks resolved by manager identity). *2025 Sleeper trades and picks for the 2026 draft excluded — no season data yet. Yahoo picks for the 2012-2014 drafts are unresolved (no draft data that far back).*
 
 | Rank | Manager | Trades | Net VBD | Per trade |
 |---|---|---|---|---|
-| 1 | **Dave** | 27 | **+3867** | +143 |
-| 2 | **Brower** | 21 | **+1172** | +56 |
-| 3 | **Kyle** | 26 | **+905** | +35 |
-| 4 | **Troy** | 23 | **+627** | +27 |
-| 5 | **Ankur** | 9 | **+479** | +53 |
-| 6 | **Eric** | 15 | **+266** | +18 |
-| 7 | **Trevor** | 50 | **+252** | +5 |
-| 8 | **Coop** | 41 | **+249** | +6 |
+| 1 | **Dave** | 27 | **+4718** | +175 |
+| 2 | **Brower** | 21 | **+1426** | +68 |
+| 3 | **Coop** | 41 | **+1039** | +25 |
+| 4 | **Brian** | 46 | **+661** | +14 |
+| 5 | **Trevor** | 50 | **+569** | +11 |
+| 6 | **Troy** | 23 | **+466** | +20 |
+| 7 | **Kyle** | 26 | **+464** | +18 |
+| 8 | **Ankur** | 9 | **+235** | +26 |
 | 9 | **Z** | 2 | **+146** | +73 |
-| 10 | **Brian** | 46 | **+54** | +1 |
-| 11 | **Nick Lewis** | 4 | **-62** | -16 |
-| 12 | **Former manager** | 1 | **-119** | -119 |
-| 13 | **Notebooks** | 1 | **-452** | -452 |
-| 14 | **Lem** | 20 | **-729** | -36 |
+| 10 | **Nick Lewis** | 4 | **-62** | -16 |
+| 11 | **Former manager** | 1 | **-119** | -119 |
+| 12 | **Notebooks** | 1 | **-452** | -452 |
+| 13 | **Lem** | 20 | **-854** | -43 |
+| 14 | **Eric** | 15 | **-879** | -59 |
 | 15 | **Nark** | 10 | **-1505** | -150 |
-| 16 | **Tim** | 14 | **-1622** | -116 |
-| 17 | **Donnie** | 36 | **-3529** | -98 |
+| 16 | **Tim** | 14 | **-2077** | -148 |
+| 17 | **Donnie** | 36 | **-3777** | -105 |
 
-*Net point deltas count full-season nflverse scoring for each trade. **Dave** is the league's net winner (+3867) across 27 trades. **Donnie** is the net loser (-3529).*
+*Net point deltas count full-season nflverse scoring for each trade. **Dave** is the league's net winner (+4718) across 27 trades. **Donnie** is the net loser (-3777).*
 
 ## 🌀 Most Active Traders
 
@@ -110,20 +110,20 @@ Net points imbalance per pair (full-season nflverse points through 2024; 2025 Sl
 
 | Fleecer | Victim | Trades | W-L | Net | Last trade | Status |
 |---|---|---|---|---|---|---|
-| **Dave** | Donnie | 7 | 5-2 | **+2052** | 2024 | fleecer left league |
-| **Dave** | Trevor | 4 | 3-1 | **+1940** | 2023 | fleecer left league |
-| **Brian** | Donnie | 8 | 5-3 | **+829** | 2024 | still active |
-| **Trevor** | Donnie | 7 | 6-1 | **+796** | 2022 | ⚠️ silent 3yr |
-| **Trevor** | Brian | 12 | 6-6 | **+795** | 2025 | still active |
-| **Eric** | Brian | 10 | 6-2 | **+759** | 2024 | still active |
+| **Dave** | Donnie | 7 | 5-2 | **+2385** | 2024 | fleecer left league |
+| **Dave** | Trevor | 4 | 3-1 | **+1782** | 2023 | fleecer left league |
+| **Troy** | Eric | 3 | 2-1 | **+893** | 2024 | still active |
+| **Trevor** | Donnie | 7 | 6-1 | **+858** | 2022 | ⚠️ silent 3yr |
+| **Brian** | Donnie | 8 | 5-3 | **+798** | 2024 | still active |
 | **Trevor** | Nark | 3 | 3-0 | **+748** | 2016 | victim left league |
+| **Trevor** | Brian | 12 | 6-6 | **+726** | 2025 | still active |
+| **Brower** | Coop | 4 | 3-1 | **+720** | 2023 | still active |
 | **Lem** | Dave | 3 | 3-0 | **+717** | 2018 | victim left league |
-| **Brower** | Coop | 4 | 3-1 | **+716** | 2023 | still active |
-| **Troy** | Eric | 3 | 1-1 | **+690** | 2024 | still active |
+| **Brower** | Troy | 2 | 2-0 | **+709** | 2023 | still active |
+| **Dave** | Troy | 3 | 2-1 | **+649** | 2023 | fleecer left league |
 | **Troy** | Lem | 2 | 1-1 | **+613** | 2019 | ⚠️ silent 6yr |
+| **Kyle** | Coop | 6 | 5-1 | **+602** | 2024 | still active |
 | **Trevor** | Kyle | 8 | 6-2 | **+600** | 2025 | still active |
-| **Kyle** | Dave | 3 | 2-0 | **+548** | 2024 | victim left league |
-| **Kyle** | Coop | 6 | 4-1 | **+528** | 2024 | still active |
 | **Coop** | Lem | 3 | 2-1 | **+526** | 2020 | ⚠️ silent 5yr |
 
 ## 🚪 'Trade Rape → Victim Bailed' Cases
@@ -132,7 +132,7 @@ Pairs where one side dominated and the other side **stopped trading with them fo
 
 | Fleecer | Victim | W-L | Net | Last trade | Years silent |
 |---|---|---|---|---|---|
-| **Trevor** | Donnie | 6-1 | +796 | 2022 | 3 |
+| **Trevor** | Donnie | 6-1 | +858 | 2022 | 3 |
 | **Troy** | Lem | 1-1 | +613 | 2019 | 6 |
 | **Coop** | Lem | 2-1 | +526 | 2020 | 5 |
 | **Brian** | Kyle | 1-1 | +483 | 2021 | 4 |
@@ -144,18 +144,17 @@ Pairs where one side has dominated by 400+ net points but they're **still active
 
 | Fleecer | 'Loyal Customer' | Trades | W-L | Net | Last trade |
 |---|---|---|---|---|---|
-| **Dave** | Donnie | 7 | 5-2 | +2052 | 2024 |
-| **Dave** | Trevor | 4 | 3-1 | +1940 | 2023 |
-| **Brian** | Donnie | 8 | 5-3 | +829 | 2024 |
-| **Trevor** | Brian | 12 | 6-6 | +795 | 2025 |
-| **Eric** | Brian | 10 | 6-2 | +759 | 2024 |
-| **Brower** | Coop | 4 | 3-1 | +716 | 2023 |
-| **Troy** | Eric | 3 | 1-1 | +690 | 2024 |
+| **Dave** | Donnie | 7 | 5-2 | +2385 | 2024 |
+| **Dave** | Trevor | 4 | 3-1 | +1782 | 2023 |
+| **Troy** | Eric | 3 | 2-1 | +893 | 2024 |
+| **Brian** | Donnie | 8 | 5-3 | +798 | 2024 |
+| **Trevor** | Brian | 12 | 6-6 | +726 | 2025 |
+| **Brower** | Coop | 4 | 3-1 | +720 | 2023 |
+| **Brower** | Troy | 2 | 2-0 | +709 | 2023 |
+| **Dave** | Troy | 3 | 2-1 | +649 | 2023 |
+| **Kyle** | Coop | 6 | 5-1 | +602 | 2024 |
 | **Trevor** | Kyle | 8 | 6-2 | +600 | 2025 |
-| **Kyle** | Dave | 3 | 2-0 | +548 | 2024 |
-| **Kyle** | Coop | 6 | 4-1 | +528 | 2024 |
-| **Brower** | Trevor | 5 | 3-0 | +517 | 2024 |
-| **Dave** | Troy | 3 | 2-1 | +484 | 2023 |
+| **Brower** | Trevor | 5 | 4-1 | +518 | 2024 |
 
 ## 👯 Closest Trade Partners (most trades between same 2)
 
@@ -184,4 +183,4 @@ Pairs where one side has dominated by 400+ net points but they're **still active
 
 ---
 
-*Methodology: Yahoo transactions scraped via authenticated session, parsed via HTML row-pairing (each trade = 2 consecutive `<tr>` rows with rowspan=2 trade icon). Sleeper trades pulled from offline data dump. Net point scoring uses full-season nflverse fantasy points (0.5 PPR for 2019+, 0 PPR before).*
+*Methodology: Yahoo transactions scraped via authenticated session, parsed via HTML row-pairing (each trade = 2 consecutive `<tr>` rows with rowspan=2 trade icon). Sleeper trades pulled from offline data dump. Net point scoring uses full-season nflverse fantasy points (0.5 PPR for 2019+, 0 PPR before). Draft picks are resolved to the player actually drafted with that pick (snake-order math against each year's draft data) and scored using that player's points in the draft year.*
