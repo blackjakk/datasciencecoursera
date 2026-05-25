@@ -624,7 +624,6 @@ function _simulateKickoffAgents(opts) {
     // === COVER ===
     for (let i = 0; i < NUM_COVER; i++) {
       const c = cover[i];
-      if (c.engaged) continue;  // held by a blocker — no progress
       const isPrimary   = i === primaryTacklerIdx;
       const isSecondary = i === secondaryTacklerIdx;
       let targetX, targetY;
@@ -646,7 +645,13 @@ function _simulateKickoffAgents(opts) {
       const dy = targetY - c.y;
       const d = Math.sqrt(dx * dx + dy * dy);
       if (d > 1) {
-        const speed = isPrimary ? PRIMARY_PX_F : COVER_BASE_PX_F;
+        // Engaged cover SLOWS to 30% speed — still progressing toward
+        // returner, just held up by the block. Used to freeze them
+        // entirely, which left ~6 cover players standing still for the
+        // whole play once they got engaged during flight-phase
+        // convergence. Real gunners fight through, they don't statue.
+        const baseSpeed = isPrimary ? PRIMARY_PX_F : COVER_BASE_PX_F;
+        const speed = c.engaged ? baseSpeed * 0.30 : baseSpeed;
         c.x += (dx / d) * speed;
         c.y += (dy / d) * speed;
       }
@@ -689,6 +694,10 @@ function _simulateKickoffAgents(opts) {
       }
     }
     // === ENGAGEMENT (cover held up by blocker) ===
+    // Block only counts if blocker is BETWEEN cover and returner — i.e.,
+    // shielding. Two converging players in the open field aren't a block;
+    // they're just passing each other. That false-engagement was what
+    // froze cover players mid-flight during the cover→returner sprint.
     for (let i = 0; i < NUM_COVER; i++) { cover[i].engaged = false; cover[i].engagedBy = -1; }
     for (let bi = 0; bi < NUM_BLOCKERS; bi++) {
       const a = blockerAssignments[bi];
@@ -698,10 +707,18 @@ function _simulateKickoffAgents(opts) {
       const c = cover[a.targetCov];
       const dx = b.x - c.x;
       const dy = b.y - c.y;
-      if (dx * dx + dy * dy < 22 * 22) {
-        c.engaged = true;
-        c.engagedBy = bi;
-      }
+      if (dx * dx + dy * dy >= 22 * 22) continue;
+      // Leverage check: blocker must be on the returner-side of cover.
+      // If cover has gotten past the blocker (blocker is now behind
+      // the cover relative to the returner), the block has failed and
+      // cover continues unimpeded.
+      const covToReturnerX = returner.x - c.x;
+      const covToBlockerX  = b.x        - c.x;
+      const hasLeverage = covToReturnerX * covToBlockerX > 0
+                          || Math.abs(covToReturnerX) < 4;
+      if (!hasLeverage) continue;
+      c.engaged = true;
+      c.engagedBy = bi;
     }
     // Snapshot
     frames.push({
