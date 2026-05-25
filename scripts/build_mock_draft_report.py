@@ -25,9 +25,32 @@ CHART_DIR = ROOT / "data" / "charts" / "mock"
 CHART_DIR.mkdir(parents=True, exist_ok=True)
 CHROMIUM_EXEC = bpr.CHROMIUM_EXEC
 
-# Team_idx -> manager_id (1-indexed slot in Sleeper draft; team_idx is 0-indexed)
-SLOT_TO_RID = {1: 6, 2: 2, 3: 7, 4: 11, 5: 5, 6: 1, 7: 10, 8: 8,
-               9: 9, 10: 3, 11: 4, 12: 12}
+# Predicted 2026 draft order: reverse final 2025 standings.
+# Playoff teams ranked by playoff finish (champ picks last); rest by reg-season.
+# 2025: Trevor=champ, Josh=runnerup, Ankur=3rd, Brower=4th, Tim=5th, Eric=6th
+# Non-playoff (by reg season wins+fpts): Coop, Lem, Donnie, Kyle, Brian, Troy(worst)
+# Slot = pick number in R1 (1 = first overall = worst team).
+PREDICTED_SLOT_TO_RID = {
+    1: 4,    # Troy (3-11, worst)
+    2: 9,    # Brian (4-10, #11 fpts)
+    3: 5,    # Kyle (4-10)
+    4: 2,    # Donnie (4-10)
+    5: 6,    # Lem (5-9)
+    6: 12,   # Coop (6-8)
+    7: 7,    # Eric (playoff 6th)
+    8: 1,    # Tim (playoff 5th)
+    9: 8,    # Brower (playoff 4th)
+    10: 3,   # Ankur (playoff 3rd)
+    11: 10,  # Josh (runner-up)
+    12: 11,  # Trevor (champion - picks last)
+}
+
+# Default Sleeper placeholder
+SLEEPER_PLACEHOLDER_SLOT_TO_RID = {1: 6, 2: 2, 3: 7, 4: 11, 5: 5, 6: 1,
+                                    7: 10, 8: 8, 9: 9, 10: 3, 11: 4, 12: 12}
+
+# Use predicted order
+SLOT_TO_RID = PREDICTED_SLOT_TO_RID
 ROSTER_HANDOFFS = {(2025, 10): "josh_wildboy"}
 
 POS_COLORS = {
