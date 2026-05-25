@@ -2561,24 +2561,8 @@ function buildAnimForPlay(play, prevPlay) {
         ctx.fillText(moveCallout, lblX, lblY);
         ctx.restore();
       }
-      // TD CELEBRATION BANNER — pulses in the end zone once the carrier
-      // crosses the goal line.
-      if (isTD && runT > 0.72) {
-        const cT = Math.min(1, (runT - 0.72) / 0.28);
-        const pulse = 1 + Math.sin(cT * Math.PI * 8) * 0.04;
-        ctx.save();
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillStyle = "rgba(0,0,0,0.55)";
-        ctx.fillRect(FIELD.W/2 - 220, FIELD.H/2 - 38, 440, 76);
-        ctx.font = `900 ${Math.round(56 * pulse)}px sans-serif`;
-        ctx.lineWidth = 5;
-        ctx.strokeStyle = "rgba(0,0,0,0.9)";
-        ctx.strokeText("TOUCHDOWN!", FIELD.W / 2, FIELD.H / 2);
-        ctx.fillStyle = "#ffd54d";
-        ctx.fillText("TOUCHDOWN!", FIELD.W / 2, FIELD.H / 2);
-        ctx.restore();
-      }
+      // In-canvas TOUCHDOWN! banner removed — _touchdownCinema overlay
+      // + GCFx.chyron + result card already handle scoring chrome.
       drawPreSnapCallouts(ctx, t, dur);
     }};
   }
@@ -3890,23 +3874,8 @@ function buildAnimForPlay(play, prevPlay) {
         ctx.fillText(lbl, lblX, lblY);
         ctx.restore();
       }
-      // TD CELEBRATION BANNER for pass TDs
-      if (passIsTD && isPostCatch && aT > 0.78) {
-        const cT = Math.min(1, (aT - 0.78) / 0.22);
-        const pulse = 1 + Math.sin(cT * Math.PI * 8) * 0.04;
-        ctx.save();
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillStyle = "rgba(0,0,0,0.55)";
-        ctx.fillRect(FIELD.W/2 - 220, FIELD.H/2 - 38, 440, 76);
-        ctx.font = `900 ${Math.round(56 * pulse)}px sans-serif`;
-        ctx.lineWidth = 5;
-        ctx.strokeStyle = "rgba(0,0,0,0.9)";
-        ctx.strokeText("TOUCHDOWN!", FIELD.W / 2, FIELD.H / 2);
-        ctx.fillStyle = "#ffd54d";
-        ctx.fillText("TOUCHDOWN!", FIELD.W / 2, FIELD.H / 2);
-        ctx.restore();
-      }
+      // In-canvas TOUCHDOWN! banner removed — cinema overlay + chyron
+      // + result card cover the scoring chrome.
       // INT CONTEXT CARD — same treatment as fumble. User: "interception
       // needs to have context info too." Pulls from play.passer /
       // play.defender (intercepter) / play.intended / play.intReturnYds.
@@ -4126,19 +4095,9 @@ function buildAnimForPlay(play, prevPlay) {
           ctx.stroke();
         }
       }
-      // "PRESSURE!" callout when the pocket starts collapsing
-      if (sackT > 0.25 && sackT < 0.55) {
-        ctx.save();
-        ctx.textAlign = "center";
-        ctx.font = "900 18px sans-serif";
-        ctx.fillStyle = "rgba(255,255,255,0.85)";
-        ctx.strokeStyle = "rgba(0,0,0,0.7)";
-        ctx.lineWidth = 3;
-        ctx.strokeText("PRESSURE!", qb.x, qb.y - 26);
-        ctx.fillStyle = "#d65a5a";
-        ctx.fillText("PRESSURE!", qb.x, qb.y - 26);
-        ctx.restore();
-      }
+      // PRESSURE! callout removed — was firing on every sack, contributed
+      // to the per-play text wall. The SACK! result card carries the
+      // information after the play resolves.
       drawPreSnapCallouts(ctx, t, dur);
     }};
   }
@@ -4500,7 +4459,12 @@ function buildAnimForPlay(play, prevPlay) {
     return { duration: dur, kind: play.kind, render: (t, c) => {
       ctx = c;
       drawField(ctx, homeTeam, awayTeam, fieldState);
-      drawGoalposts(ctx, goalX, cy);
+      // In broadcast cam, the stadium Y-shaped uprights are already drawn
+      // on the field overlay — skip the flat top-down H to avoid the
+      // "original goalposts" doubled with the stadium pair.
+      if (typeof cameraMode === "undefined" || cameraMode !== "broadcast") {
+        drawGoalposts(ctx, goalX, cy);
+      }
 
       // ── Special-teams formation (drawn instead of regular formation) ──
       // 9-man protection along the LOS, holder kneeling, kicker offset.
@@ -7432,14 +7396,33 @@ function startNextPlay() {
   const _isBigPlay = _kind === "int_no_td" || _kind === "interception" ||
                      _kind === "fumble"    || _kind === "long_run" ||
                      _kind === "long_pass" || _kind === "sack";
+  // Plays that begin with a QB snap — fire the synthetic "HIKE!" vocal
+  // in addition to the snap click so the cadence is audible.
+  const _isSnapPlay = _kind === "run" || _kind === "complete" ||
+                      _kind === "incomplete" || _kind === "sack" ||
+                      _kind === "int" || _kind === "interception" ||
+                      _kind === "int_no_td" || _kind === "fumble" ||
+                      _kind === "scramble" || _kind === "two_pt_good" ||
+                      _kind === "two_pt_fail";
+  // Plays that end with a tackle or downed ball — referee whistle at
+  // the play hold, grunts at the contact moment.
+  const _isTackleEnd = _kind === "run" || _kind === "complete" ||
+                       _kind === "sack" || _kind === "scramble" ||
+                       _kind === "fumble" || _kind === "kickoff" ||
+                       _kind === "punt";
   if (typeof GCAudio !== "undefined") {
     GCAudio.crowd.start();
-    if (_isTD) GCAudio.play("cheer");
+    if (_isTD) {
+      GCAudio.play("cheer");
+      GCAudio.crowd.swell(0.30, 1500, 1800);   // crowd bed swells with TD cheer
+    }
     else if (_isHit) {
       GCAudio.play("hit");
-      // Big-play crowd swell layered with the hit thud — bigger moments
-      // get both the impact and the reaction.
-      if (_kind === "fumble" || _kind === "sack") GCAudio.play("bigplay");
+      GCAudio.play("grunt");
+      if (_kind === "fumble" || _kind === "sack") {
+        GCAudio.play("bigplay");
+        GCAudio.crowd.swell(0.18, 900, 1300);
+      }
     }
     else if (_isSeg) {
       GCAudio.play("whistle");
@@ -7454,8 +7437,16 @@ function startNextPlay() {
       }
     }
     else if (_isGroan) GCAudio.play("groan");
-    else if (_isBigPlay) GCAudio.play("bigplay");
+    else if (_isBigPlay) {
+      GCAudio.play("bigplay");
+      GCAudio.crowd.swell(0.20, 1000, 1400);
+    }
     else if (_kind !== "hc_decision") GCAudio.play("snap");
+    // QB cadence — the snap click leads into a vocal "HIKE!" so the
+    // pre-snap sounds like the QB is actually calling the cadence.
+    if (_isSnapPlay) {
+      setTimeout(() => { try { GCAudio.play("hike"); } catch (_) {} }, 220);
+    }
   }
   // Visual FX hooks — screen shake on big hits, confetti on TDs. Particle
   // origin is the canvas center for now; the per-play render code can call
@@ -7478,15 +7469,16 @@ function startNextPlay() {
       GCFx.flash(teamColor, 320, 0.22);
       GCFx.lensFlare(700);
       GCFx.celebration(1400);
-      // Big celebration text — context-aware banner.
+      // Big celebration banner — only for TOUCHDOWN, where it doubles
+      // the cinema overlay's chyron and reads as the marquee moment.
+      // FG / XP / 2P scoring chrome is already conveyed by the result
+      // card; an extra middle-of-field banner just stacks text.
       const isFG = _kind === "fg_good";
       const isXP = _kind === "xp_good";
       const is2P = _kind === "two_pt_good";
-      const banner = isFG ? "FIELD GOAL!"
-                   : isXP ? "EXTRA POINT"
-                   : is2P ? "TWO-POINT CONVERSION!"
-                   : "TOUCHDOWN!";
-      GCFx.bigText(banner, teamColor, 1700);
+      if (!isFG && !isXP && !is2P) {
+        GCFx.bigText("TOUCHDOWN!", teamColor, 1700);
+      }
       // Player highlight chyron — name the scorer + a short tag.
       const scorer = play.receiver || play.rusher || play.passer || play.returner;
       if (scorer && !isXP) {
@@ -7747,6 +7739,25 @@ function tick(now) {
       // Big-play moment card — INT (incl. pick six), FUMBLE recovery
       if ((play.kind === "int" || play.kind === "fumble") && typeof _momentCinema !== "undefined") {
         _momentCinema.show(play);
+      }
+      // End-of-play sounds. Whistle fires on plays that end with a
+      // tackle / downed ball; tackle grunts layer on contact-end plays
+      // (run / complete / sack). Score plays get cheer not whistle.
+      if (typeof GCAudio !== "undefined") {
+        const _endTackle = play.kind === "run" || play.kind === "complete" ||
+                           play.kind === "sack" || play.kind === "scramble" ||
+                           play.kind === "fumble" || play.kind === "kickoff" ||
+                           play.kind === "punt" || play.kind === "incomplete";
+        if (_endTackle && !isTD) {
+          GCAudio.play("whistle");
+          if (play.kind === "run" || play.kind === "complete" ||
+              play.kind === "sack" || play.kind === "scramble" ||
+              play.kind === "fumble") {
+            GCAudio.play("grunt");
+            // Big-play crowd swell at the resolution moment for hard-hit plays.
+            if (isBigPlay) GCAudio.crowd.swell(0.18, 800, 1200);
+          }
+        }
       }
       const baseHold = hasCard ? RESULT_HOLD_MS : 90;
       const extraHold = isTD ? 1600 : isBigPlay ? 700 : 0;

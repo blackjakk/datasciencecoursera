@@ -168,6 +168,101 @@ const GCAudio = (() => {
     src.start(t); src.stop(t + 1.1);
   }
 
+  // Vocal "HIKE!" — synthesized two-formant burst that reads as a male
+  // shout. Two oscillator pairs at vowel formant centers (F1 ~700, F2
+  // ~1100 for /aɪ/; then sweep to F1 ~500, F2 ~900 for /k/ tail) over
+  // a noise burst tail to suggest the consonant.
+  function _playHike() {
+    const c = _ensureCtx(); if (!c) return;
+    const t = c.currentTime;
+    const fundamental = 145;  // adult male vocal fundamental
+    const dur = 0.34;
+    // Two formant oscillators driven by the fundamental for vowel body.
+    function _formant(freqAt0, freqAtEnd, gainAt0, gainPeak) {
+      const o = c.createOscillator();
+      const g = c.createGain();
+      o.type = "sawtooth";
+      o.frequency.setValueAtTime(freqAt0, t);
+      o.frequency.exponentialRampToValueAtTime(freqAtEnd, t + dur);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(gainPeak, t + 0.05);
+      g.gain.exponentialRampToValueAtTime(gainAt0, t + 0.22);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      // Bandpass at the formant center to shape it as a vowel.
+      const bp = c.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.setValueAtTime(freqAt0, t);
+      bp.frequency.exponentialRampToValueAtTime(freqAtEnd, t + dur);
+      bp.Q.value = 6;
+      o.connect(g).connect(bp).connect(masterGain);
+      o.start(t); o.stop(t + dur + 0.02);
+    }
+    _formant(720, 540, 0.04, 0.18);   // F1 sweep (vowel body)
+    _formant(1180, 920, 0.03, 0.14);  // F2 sweep
+    // Fundamental sub for chest body.
+    const sub = c.createOscillator();
+    const subG = c.createGain();
+    sub.type = "triangle";
+    sub.frequency.setValueAtTime(fundamental, t);
+    subG.gain.setValueAtTime(0.0001, t);
+    subG.gain.exponentialRampToValueAtTime(0.10, t + 0.06);
+    subG.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    sub.connect(subG).connect(masterGain);
+    sub.start(t); sub.stop(t + dur + 0.02);
+    // Brief noise burst at the tail to suggest /k/ stop release.
+    const buf = _noiseBuffer();
+    if (buf) {
+      const ns = c.createBufferSource();
+      ns.buffer = buf;
+      const nf = c.createBiquadFilter();
+      nf.type = "highpass";
+      nf.frequency.value = 1800;
+      const ng = c.createGain();
+      ng.gain.setValueAtTime(0.0001, t + dur - 0.06);
+      ng.gain.exponentialRampToValueAtTime(0.10, t + dur - 0.04);
+      ng.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      ns.connect(nf).connect(ng).connect(masterGain);
+      ns.start(t + dur - 0.06); ns.stop(t + dur + 0.02);
+    }
+  }
+
+  // Tackle grunt — short, low formant burst for "uhh" with pitch falling.
+  // Slight pitch randomization so back-to-back grunts don't sound identical.
+  function _playGrunt() {
+    const c = _ensureCtx(); if (!c) return;
+    const t = c.currentTime;
+    const dur = 0.22;
+    const pitchVar = 1 + (Math.random() - 0.5) * 0.18;   // ±9%
+    const o = c.createOscillator();
+    const g = c.createGain();
+    o.type = "sawtooth";
+    o.frequency.setValueAtTime(190 * pitchVar, t);
+    o.frequency.exponentialRampToValueAtTime(110 * pitchVar, t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.16, t + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    const bp = c.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 560;
+    bp.Q.value = 4;
+    o.connect(g).connect(bp).connect(masterGain);
+    o.start(t); o.stop(t + dur + 0.02);
+  }
+
+  // Boost the crowd loop gain for a moment — used on big plays / scores
+  // so the ambient bed swells along with the cheer SFX. Auto-decays.
+  function _crowdSwell(amount = 0.25, holdMs = 1200, fallMs = 1500) {
+    if (!crowdGain || !ctx) return;
+    const t = ctx.currentTime;
+    const baseG = 0.06;
+    const peak  = Math.min(0.45, baseG + amount);
+    crowdGain.gain.cancelScheduledValues(t);
+    crowdGain.gain.setValueAtTime(crowdGain.gain.value, t);
+    crowdGain.gain.exponentialRampToValueAtTime(peak, t + 0.25);
+    crowdGain.gain.setValueAtTime(peak, t + 0.25 + holdMs / 1000);
+    crowdGain.gain.exponentialRampToValueAtTime(baseG, t + 0.25 + (holdMs + fallMs) / 1000);
+  }
+
   function _playBigPlay() {
     const c = _ensureCtx(); if (!c) return;
     const t = c.currentTime;
@@ -237,6 +332,8 @@ const GCAudio = (() => {
       else if (name === "cheer")   _playCheer();
       else if (name === "groan")   _playGroan();
       else if (name === "bigplay") _playBigPlay();
+      else if (name === "hike")    _playHike();
+      else if (name === "grunt")   _playGrunt();
     } catch (_) {}
   }
 
@@ -248,7 +345,7 @@ const GCAudio = (() => {
 
   return {
     play,
-    crowd: { start: _crowdStart, stop: _crowdStop },
+    crowd: { start: _crowdStart, stop: _crowdStop, swell: _crowdSwell },
     setEnabled,
     isEnabled,
   };
