@@ -49,6 +49,10 @@ LEAGUE_LORE: dict[int, list[str]] = {
         "🤢 **Eric allegedly got drugged at the Tropicana, threw up "
         "everywhere, and didn't attend another in-person draft until 2025.**",
     ],
+    2019: [
+        "🏟️ **The Xfinity Live (Philly) Draft.** First year of the 12-team "
+        "expansion. Brower and Notebooks joined as the two new teams.",
+    ],
     2018: [
         "🏖️ **The Ocean's Resort AC Draft.** Memorable for watching "
         "preseason Mahomes-to-Tyreek connect — *before* Mahomes' breakout "
