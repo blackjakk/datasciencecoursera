@@ -26,6 +26,7 @@ LEAGUE_CFG = ROOT / "configs" / "my_league.json"
 PLAYERS_CSV = ROOT / "data" / "players_2026.csv"
 KEEPERS_JSON = ROOT / "data" / "keepers_2026.json"
 TRADED_PICKS_JSON = ROOT / "data" / "sleeper" / "league_1245039290518360064" / "traded_picks.json"
+FP_RANKINGS = ROOT / "data" / "rankings_fantasypros.json"
 
 PICKS_OUT = Path("/tmp/mock_draft_picks.json")
 MC_OUT = ROOT / "data" / "mc_summary_all.json"
@@ -47,9 +48,60 @@ def _norm(s: str) -> str:
     return s.lower().replace(".", "").replace("'", "").replace("-", " ").strip()
 
 
+def _apply_fp_overlay(players: list) -> int:
+    """Take FantasyPros outright when present: override adp with fp_adp_avg,
+    promote projection to the Sleeper-projection of the (fp_rank_pos)-th
+    player at that position. Falls back to Sleeper for unmatched players.
+
+    Returns the count of players promoted.
+    """
+    fp_data = json.loads(FP_RANKINGS.read_text())
+    fp_by_key: dict[tuple[str, str], dict] = {}
+    for r in fp_data.get("players", []):
+        fp_by_key[(_norm(r["name"]), r["position"].upper())] = r
+
+    # Per-position list of players sorted by Sleeper projection (desc) — we use
+    # this to convert FP positional rank to a projection number.
+    by_pos: dict[str, list] = defaultdict(list)
+    for p in players:
+        by_pos[p.position].append(p)
+    for pos in by_pos:
+        by_pos[pos].sort(key=lambda x: -x.projection)
+    pos_proj_at_rank = {
+        pos: [p.projection for p in lst] for pos, lst in by_pos.items()
+    }
+
+    promoted = 0
+    for p in players:
+        key = (_norm(p.name), p.position.upper())
+        fp = fp_by_key.get(key)
+        if not fp:
+            continue
+        # ADP override
+        fp_adp = fp.get("fp_adp_avg")
+        if fp_adp is not None:
+            try:
+                p.adp = float(fp_adp)
+            except (TypeError, ValueError):
+                pass
+        # Projection promotion: FP says you're RB26 -> use the proj of the
+        # 26th-best RB by Sleeper projection.
+        pos_rank_str = fp.get("fp_rank_pos") or ""  # e.g. "RB26"
+        digits = "".join(c for c in pos_rank_str if c.isdigit())
+        if digits:
+            target_rank = int(digits)  # 1-indexed
+            proj_list = pos_proj_at_rank.get(p.position, [])
+            if proj_list and 1 <= target_rank <= len(proj_list):
+                p.projection = proj_list[target_rank - 1]
+                promoted += 1
+    return promoted
+
+
 def build_draft() -> tuple[Draft, list, int]:
     league = LeagueConfig.load(LEAGUE_CFG)
     players = load_players(PLAYERS_CSV)
+    n_promoted = _apply_fp_overlay(players)
+    print(f"FP overlay applied: {n_promoted} players promoted to FP positional rank")
     compute_vbd(players, league)
 
     # Roster IDs filtered to those we have a slot for.
