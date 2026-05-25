@@ -200,13 +200,105 @@ def trade_assets_flow_chart(trades):
     return out
 
 
+def lopsided_pairs_chart(trades):
+    """Cumulative point delta per pair — find the heists and the avoiders."""
+    import csv as _csv, re as _re, unicodedata as _u
+
+    def norm(s):
+        s = _u.normalize("NFKD", s).encode("ascii","ignore").decode().lower().strip()
+        return _re.sub(r"\s+", " ", _re.sub(r"[^a-z0-9 ]", " ", s)).strip()
+
+    nfl = {}
+    with open(ROOT / "data" / "nflverse" / "player_stats_season.csv") as f:
+        for row in _csv.DictReader(f):
+            if row["season_type"] != "REG":
+                continue
+            try:
+                s = int(row["season"])
+                fp = float(row["fantasy_points"] or 0)
+                fpp = float(row["fantasy_points_ppr"] or 0)
+            except Exception:
+                continue
+            pts = (fp + fpp)/2 if s >= 2019 else fp
+            name = row["player_display_name"] or row["player_name"]
+            if not name:
+                continue
+            key = (s, norm(name))
+            if key not in nfl or pts > nfl[key]:
+                nfl[key] = pts
+
+    pair_data = defaultdict(list)  # (a, b) sorted -> [(year, a_net, last_year)]
+    for t in trades:
+        if t["date"] == "sleeper":
+            continue  # Sleeper-era covered separately
+        mids = t["mgr_ids"]
+        if len(mids) != 2 or None in mids:
+            continue
+        a_mid, b_mid = mids
+        yr = t["year"]
+        raw = t["raw"]
+        sa, sb = raw["sides"]
+        pts_a = sum(nfl.get((yr, norm(p["name"])), 0)
+                    for p in sa.get("received_players", []))
+        pts_b = sum(nfl.get((yr, norm(p["name"])), 0)
+                    for p in sb.get("received_players", []))
+        key = tuple(sorted([a_mid, b_mid]))
+        net_for_first = (pts_a - pts_b) if key[0] == a_mid else (pts_b - pts_a)
+        pair_data[key].append((yr, net_for_first))
+
+    # Top 8 most-lopsided pairs (by |net|)
+    summary = []
+    for pair, recs in pair_data.items():
+        if len(recs) < 3:
+            continue
+        recs.sort()
+        net = sum(n for _, n in recs)
+        last_yr = max(y for y, _ in recs)
+        summary.append((pair, recs, net, last_yr))
+    summary.sort(key=lambda x: -abs(x[2]))
+    summary = summary[:8]
+
+    fig, ax = plt.subplots(figsize=(11, 5.5))
+    cmap = plt.get_cmap("tab10")
+    for i, (pair, recs, net, last_yr) in enumerate(summary):
+        recs.sort()
+        cum = 0
+        xs, ys = [], []
+        for y, n in recs:
+            cum += n
+            xs.append(y); ys.append(cum)
+        # If gone silent (no trades after 2020) extend a dashed line to 2025
+        silent_tag = ""
+        if last_yr <= 2020:
+            xs.append(2025); ys.append(cum)
+            silent_tag = " ⚠ silent"
+        label = (f"{_mgr_name(pair[0])} − {_mgr_name(pair[1])} "
+                 f"({net:+.0f}{silent_tag})")
+        ax.plot(xs, ys, marker="o", linewidth=2,
+                color=cmap(i % 10), label=label,
+                linestyle="--" if silent_tag else "-")
+    ax.axhline(0, color="black", alpha=0.4)
+    ax.set_xlabel("Season")
+    ax.set_ylabel(f"Cumulative net pts (first manager perspective)")
+    ax.set_title("Most Lopsided Trade Pairs (≥3 trades, Yahoo era)\n"
+                 "Dashed = no trade in 4+ years (one side stopped coming back)")
+    ax.legend(loc="center left", bbox_to_anchor=(1.01, 0.5), fontsize=8)
+    ax.set_xticks(range(2011, 2026))
+    ax.grid(True, alpha=0.3)
+    plt.tight_layout()
+    out = CHART_DIR / "trade_lopsided_pairs.png"
+    plt.savefig(out, dpi=150); plt.close()
+    return out
+
+
 def main():
     trades = _load_all_trades_with_mgrs()
     print(f"Loaded {len(trades)} trades across 15 years")
     o1 = trade_volume_chart(trades)
     o2 = trade_network_chart(trades)
     o3 = trade_assets_flow_chart(trades)
-    print(f"Wrote {o1}, {o2}, {o3}")
+    o4 = lopsided_pairs_chart(trades)
+    print(f"Wrote {o1}, {o2}, {o3}, {o4}")
 
 
 if __name__ == "__main__":
