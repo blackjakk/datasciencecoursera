@@ -120,7 +120,23 @@ const MotionPlayback = (() => {
     return events.filter(e => e.t > lastT && e.t <= nowT);
   }
 
-  return { sampleTrack, sampleBall, eventsBetween };
+  // Velocity check — returns true when the track has meaningful motion
+  // at time t. Used by animation to freeze the leg cycle when a player
+  // is parked in a hold segment (e.g., LB sitting in his hook zone,
+  // CB shadowing a WR who's settled at the catch spot). Without this,
+  // players "freeze while their feet move" because the default leg
+  // animation runs off wall-clock regardless of body translation.
+  function isMoving(track, t, minDeltaYd = 0.05) {
+    if (!track || !track.waypoints || !track.waypoints.length) return false;
+    const a = sampleTrack(track, Math.max(0, t - 0.02));
+    const b = sampleTrack(track, t);
+    if (!a || !b) return false;
+    const dx = (b.dxYd || 0) - (a.dxYd || 0);
+    const dy = (b.dyYd || 0) - (a.dyYd || 0);
+    return Math.hypot(dx, dy) >= minDeltaYd;
+  }
+
+  return { sampleTrack, sampleBall, eventsBetween, isMoving };
 })();
 
 // Module-level export — referenced by play-animation.js

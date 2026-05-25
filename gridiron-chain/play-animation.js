@@ -3234,8 +3234,10 @@ function buildAnimForPlay(play, prevPlay) {
                   // WR's break naturally without rubber-banding.
                   dd.x = wrX + dir * 2;
                   dd.y = wrY + toMidSign * -3;   // 3 yds outside (away from middle)
-                  // CB is running with the WR — leg cycle active.
-                  dd.t = (t < 0.95 ? ((performance.now() / 333) + i * 0.13) % 1 : 0);
+                  // CB running with WR only if the WR is actually moving;
+                  // freeze legs when both are parked at the catch spot.
+                  const moving = MotionPlayback.isMoving(trk, aT);
+                  dd.t = moving ? (t < 0.95 ? ((performance.now() / 333) + i * 0.13) % 1 : 0) : 0;
                   dd.facing = dir;     // running with the route, downfield
                 } else {
                   // Position mostly static (set above). Freeze legs.
@@ -3302,6 +3304,9 @@ function buildAnimForPlay(play, prevPlay) {
             dd.y = cy + sample.dyYd * FIELD.PX_PER_YARD;
             if (d._sim) { d._sim.x = dd.x; d._sim.y = dd.y; }
             dd.facing = -dir;
+            // Freeze legs when player is settled in zone — feet were
+            // cycling off wall-clock even when body wasn't translating.
+            if (!MotionPlayback.isMoving(_passSecondaryTrack, aT)) dd.t = 0;
           }
         }
         if (_passTacklerTrack && _isPassTacklerByName && typeof MotionPlayback !== "undefined") {
@@ -3313,6 +3318,7 @@ function buildAnimForPlay(play, prevPlay) {
             if (d._sim) { d._sim.x = dd.x; d._sim.y = dd.y; }
             d._postCatchSynced = true;     // skip the sync block below
             dd.facing = -dir;
+            if (!MotionPlayback.isMoving(_passTacklerTrack, aT)) dd.t = 0;
           }
         }
         if (play.kind === "complete" && t > throwPhase) {
@@ -3641,11 +3647,14 @@ function buildAnimForPlay(play, prevPlay) {
             const sample = MotionPlayback.sampleTrack(trk, aT);
             if (sample) {
               const toMidSign = Math.sign(cy - p.y) || 1;
+              // Freeze legs when the route has settled (waypoints in
+              // hold segment). Otherwise feet cycle off wall-clock.
+              const moving = MotionPlayback.isMoving(trk, aT);
               return { ...p,
                        x: p.x + dir * sample.dxYd * FIELD.PX_PER_YARD,
                        y: p.y + toMidSign * sample.dyYd * FIELD.PX_PER_YARD,
                        pose: inRelease ? "release" : "run",
-                       t: ((t * (dur / 1000)) * strideHz) % 1,
+                       t: moving ? ((t * (dur / 1000)) * strideHz) % 1 : 0,
                        facing: dir };
             }
           }
@@ -3880,6 +3889,8 @@ function buildAnimForPlay(play, prevPlay) {
             dd.y = cy + sample.dyYd * FIELD.PX_PER_YARD;
             const _engineContactT = (play.motion && play.motion.contactT) || contactT;
             if (tt > _engineContactT + 0.03) dd.pose = "sack";
+            // Freeze legs once the sacker is parked on the QB.
+            if (!MotionPlayback.isMoving(_sackerTrack, tt)) dd.t = 0;
             return dd;
           }
         }
