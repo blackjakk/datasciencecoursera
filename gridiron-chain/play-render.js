@@ -2145,6 +2145,19 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
     const carryHand = cradleBallSide === 1 ? rHand : lHand;
     const bx = carryHand.handX + cradleBallSide * -1.2;   // inward toward body
     const by = carryHand.handY + 0.6;                      // slightly below the hand
+    // ── HANDS-TRACK-BALL ──────────────────────────────────────────────
+    // Stash the world-space position of this carry hand so the caller
+    // can draw the standalone ball AT THE HAND instead of at body
+    // center. Per-player keyed by name so multiple carriers in the
+    // same frame (rare — handoff transitions) don't overwrite each
+    // other; consumer looks up by carrier name.
+    const _localToWorld = (lx, ly) => ({
+      x: x + lx * totalScale,
+      y: y + ly * totalScale,
+    });
+    const _w = _localToWorld(bx, by);
+    drawPlayer._carryHandSink = drawPlayer._carryHandSink || {};
+    drawPlayer._carryHandSink[style.name || ("p_" + label)] = { x: _w.x, y: _w.y, frameMs: performance.now() };
     ctx.save();
     ctx.translate(bx, by);
     // Tilt the ball so the nose points slightly forward in the run

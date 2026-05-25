@@ -2448,7 +2448,18 @@ function buildAnimForPlay(play, prevPlay) {
         })();
         drawRunTrail(ctx, centerX, cy, ballX, ballY, runT, rgba);
       }
-      drawBall(ctx, ballX, ballY);
+      // HANDS-TRACK-BALL: pull the standalone ball to the carrier's
+      // tuck-hand world position (populated by _drawPlayerImpl when
+      // it rendered the carrier with cradleBall=true). Falls back to
+      // ballX/ballY (body center) for plays where the carry pose
+      // didn't fire (pre-snap, dropped balls, ragdoll, etc.).
+      const _carrierName = play.rusher || play.receiver;
+      const _carrierHand = _carrierName && drawPlayer._carryHandSink
+        ? drawPlayer._carryHandSink[_carrierName]
+        : null;
+      const _ballDrawX = _carrierHand ? _carrierHand.x : ballX;
+      const _ballDrawY = _carrierHand ? _carrierHand.y : ballY;
+      drawBall(ctx, _ballDrawX, _ballDrawY);
       // SPEED OPTION banner — shows the play call. Once the read fires
       // (after PITCH_T), a secondary line shows whether the QB made the
       // RIGHT or WRONG read of the edge defender's commit.
