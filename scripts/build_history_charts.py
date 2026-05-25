@@ -32,6 +32,7 @@ KNOWN_CHAMPIONS: dict[int, str] = {
     2011: "nark",          # Danny O'Shea's 139.70 d. Trevor (Reno Mahe 911) 118.74
     2012: "kyle_figgy",    # Figgy 128.02 d. Eric (LockOut w my CockOut) 111.66
     2013: "coop",          # Dirty Old Men 124.58 d. Kyle (Figgy) 120.02
+    2014: "trevor_bergerboy",  # BergerBoy Brigade 165.84 d. Lem 132.76
 }
 
 
