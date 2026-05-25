@@ -343,6 +343,9 @@
 <h2>Trade Fleecer Ledger</h2>
 <p class="section-intro">Net VBD across every scored trade (Yahoo 2011-2022 + Sleeper 2023-2024), including picks (scored as the rookie-year production of the player actually drafted). Green = won, red = lost.</p>
 <img class="chart" src="/home/user/datasciencecoursera/data/charts/rankings/vbd.png"/>
+<h2>Trade Fleecing Matrix</h2>
+<p class="section-intro">Every pairwise relationship in the league. Read across a row: <em>green cells</em> are managers this person fleeced, <em>red cells</em> are the ones who fleeced them. Number = net VBD; small subscript = trade count. Rows ordered by all-time OVR.</p>
+<img class="chart" src="/home/user/datasciencecoursera/data/charts/rankings/trade_heatmap.png"/>
 <h2>Best Drafters</h2>
 <p class="section-intro">Rookie-year nflverse points produced by every player each manager drafted, normalized per pick. Minimum 20 career picks to qualify.</p>
 <img class="chart" src="/home/user/datasciencecoursera/data/charts/rankings/drafters.png"/>

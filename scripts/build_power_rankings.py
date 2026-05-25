@@ -679,6 +679,127 @@ def chart_championships_timeline(path):
     plt.close()
 
 
+def chart_trade_heatmap(path, cards):
+    """Pairwise net VBD matrix: cell[row][col] = row mgr's net advantage
+    over col mgr across all their trades together."""
+    _setup_mpl()
+    nfl = btr._load_nflverse()
+    sleeper_names = btr._load_sleeper_players()
+    spp = btr._build_sleeper_pick_resolver()
+    ypp = btr._build_yahoo_pick_resolver()
+    ynm = btr._yahoo_name_lookup()
+    mgr_rid = {m["id"]: m["sleeper_roster_id"]
+               for m in all_managers() if m.get("sleeper_roster_id")}
+
+    def score(side, source, year, giver):
+        pts = sum(nfl.get((year, _norm(p["name"])), 0)
+                  for p in side.get("received_players", []))
+        for pk in side.get("received_picks", []):
+            rnd = pk.get("round")
+            if not rnd:
+                continue
+            if source == "sleeper":
+                season = int(pk.get("season") or 0)
+                orig = pk.get("previous_owner_id") or pk.get("roster_id")
+                if not (season and orig):
+                    continue
+                pid = spp.get((season, rnd, orig))
+                n = sleeper_names.get(pid, "") if pid else ""
+                if n:
+                    pts += nfl.get((season, _norm(n)), 0)
+            else:
+                ty = year + 1
+                of = (pk.get("originally_from") or "").rstrip("?").strip().lower()
+                om = ynm.get((year, of)) if of else None
+                om = om or giver
+                pl = ypp.get((ty, rnd, om))
+                if pl:
+                    pts += nfl.get((ty, _norm(pl)), 0)
+                elif ty >= 2023:
+                    r = mgr_rid.get(om)
+                    if r:
+                        pid = spp.get((ty, rnd, r))
+                        n = sleeper_names.get(pid, "") if pid else ""
+                        if n:
+                            pts += nfl.get((ty, _norm(n)), 0)
+        return pts
+
+    # Build pairwise stats
+    pair_net = defaultdict(float)
+    pair_n = defaultdict(int)
+    trades = btr._load_all_trades()
+    for t in trades:
+        if t["year"] not in btr.NFL_SCORED_YEARS:
+            continue
+        ma, mb = t["side_a_mgr"], t["side_b_mgr"]
+        pa = score(t["side_a"], t["source"], t["year"], mb)
+        pb = score(t["side_b"], t["source"], t["year"], ma)
+        pair_net[(ma, mb)] += (pa - pb)
+        pair_net[(mb, ma)] += (pb - pa)
+        pair_n[(ma, mb)] += 1
+        pair_n[(mb, ma)] += 1
+
+    # Order managers by their card OVR (best to worst, top-down)
+    mgrs = [c["mid"] for c in sorted(cards, key=lambda c: -c["ovr"])]
+    n = len(mgrs)
+    M = np.full((n, n), np.nan)
+    cnt = np.zeros((n, n), dtype=int)
+    for i, a in enumerate(mgrs):
+        for j, b in enumerate(mgrs):
+            if i == j:
+                continue
+            if pair_n[(a, b)] > 0:
+                M[i, j] = pair_net[(a, b)]
+                cnt[i, j] = pair_n[(a, b)]
+
+    # Symmetric diverging scale around 0
+    vmax = float(np.nanmax(np.abs(M)))
+    if not vmax or np.isnan(vmax):
+        vmax = 1.0
+
+    fig, ax = plt.subplots(figsize=(10, 8.5), dpi=140)
+    cmap = plt.get_cmap("RdYlGn")
+    im = ax.imshow(M, cmap=cmap, vmin=-vmax, vmax=vmax, aspect="equal")
+    # Diagonal = gray
+    for i in range(n):
+        ax.add_patch(plt.Rectangle((i - 0.5, i - 0.5), 1, 1,
+                                    color="#1a1d24", zorder=2))
+    names = [_mgr_name(m) for m in mgrs]
+    ax.set_xticks(range(n))
+    ax.set_yticks(range(n))
+    ax.set_xticklabels(names, rotation=45, ha="right", fontsize=9,
+                        fontweight="bold")
+    ax.set_yticklabels(names, fontsize=9, fontweight="bold")
+    ax.tick_params(top=True, labeltop=True, bottom=False, labelbottom=False)
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="left",
+             rotation_mode="anchor")
+    # Annotate cells
+    for i in range(n):
+        for j in range(n):
+            if i == j or np.isnan(M[i, j]):
+                continue
+            val = M[i, j]
+            # Text color based on cell brightness
+            tc = "white" if abs(val) > 0.55 * vmax else "#1a1d24"
+            ax.text(j, i - 0.12, f"{val:+.0f}", ha="center", va="center",
+                    fontsize=8, color=tc, fontweight="bold")
+            ax.text(j, i + 0.25, f"{cnt[i, j]}t", ha="center", va="center",
+                    fontsize=6.5, color=tc, alpha=0.85)
+    # Subtle grid
+    for x in range(n + 1):
+        ax.axhline(x - 0.5, color="white", linewidth=2)
+        ax.axvline(x - 0.5, color="white", linewidth=2)
+    ax.set_title("Trade Fleecing Matrix  ·  ROW's net VBD vs COLUMN  "
+                 "·  green = row dominated, red = row got fleeced",
+                 loc="left", pad=24, fontsize=12)
+    cbar = plt.colorbar(im, ax=ax, fraction=0.04, pad=0.02)
+    cbar.set_label("Net VBD (row - column)", fontweight="bold")
+    cbar.ax.tick_params(labelsize=8)
+    plt.tight_layout()
+    plt.savefig(path, bbox_inches="tight", facecolor="white")
+    plt.close()
+
+
 def chart_sleeper_winpct_trend(path):
     """Per-season win pct per current manager."""
     _setup_mpl()
@@ -743,6 +864,7 @@ def build_html():
         "vbd": CHART_DIR / "vbd.png",
         "drafters": CHART_DIR / "drafters.png",
         "champs": CHART_DIR / "champs.png",
+        "trade_heatmap": CHART_DIR / "trade_heatmap.png",
         "ovr_sleeper": CHART_DIR / "ovr_sleeper.png",
         "radar_sleeper": CHART_DIR / "radar_sleeper.png",
         "sleeper_trend": CHART_DIR / "sleeper_trend.png",
@@ -753,6 +875,7 @@ def build_html():
     chart_trade_vbd(cards, chart_paths["vbd"])
     chart_drafters(cards, chart_paths["drafters"])
     chart_championships_timeline(chart_paths["champs"])
+    chart_trade_heatmap(chart_paths["trade_heatmap"], cards)
     chart_ovr_ranking(cards_s, chart_paths["ovr_sleeper"], "Sleeper Era OVR Rankings")
     chart_radar_grid(cards_s, chart_paths["radar_sleeper"],
                      "Sleeper Era Top 6 — Attribute Profiles")
@@ -891,6 +1014,15 @@ def build_html():
              '(scored as the rookie-year production of the player actually '
              'drafted). Green = won, red = lost.</p>')
     h.append(f'<img class="chart" src="{chart_paths["vbd"]}"/>')
+
+    # ===== Trade heatmap =====
+    h.append('<h2>Trade Fleecing Matrix</h2>')
+    h.append('<p class="section-intro">Every pairwise relationship in the '
+             'league. Read across a row: <em>green cells</em> are managers '
+             'this person fleeced, <em>red cells</em> are the ones who '
+             'fleeced them. Number = net VBD; small subscript = trade count. '
+             'Rows ordered by all-time OVR.</p>')
+    h.append(f'<img class="chart" src="{chart_paths["trade_heatmap"]}"/>')
 
     # ===== Best drafters =====
     h.append('<h2>Best Drafters</h2>')
