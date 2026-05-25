@@ -22,7 +22,7 @@ Combined Yahoo (2011-2022) + Sleeper (2023-2025). Active managers only; former m
 | 9 | **Donnie** | 12 | 57 | 99 | 37% | 18987 | 20343 |
 | 10 | **Tim** | 9 | 46 | 71 | 39% | 14463 | 15455 |
 | 11 | **Ankur** | 5 | 37 | 28 | 57% | 8526 | 8337 |
-| 12 | **Josh** | 3 | 24 | 15 | 62% | 5085 | 4992 |
+| 12 | **Josh** | 1 | 9 | 4 | 69% | 1676 | 1646 |
 
 *Win% over **regular season games only** (W1-W13). Hot take: this is the most honest measure of long-term competitiveness — no playoff luck, no schedule tricks.*
 
@@ -38,10 +38,10 @@ Combined Yahoo (2011-2022) + Sleeper (2023-2025). Active managers only; former m
 | 6 | **Coop** | 197.3 | 2024 W2 |
 | 7 | **Kyle** | 195.0 | 2023 W13 |
 | 8 | **Brian** | 191.2 | 2024 W11 |
-| 9 | **Josh** | 191.0 | 2024 W2 |
-| 10 | **Tim** | 184.5 | 2025 W3 |
-| 11 | **Eric** | 179.4 | 2023 W5 |
-| 12 | **Lem** | 176.2 | 2024 W11 |
+| 9 | **Tim** | 184.5 | 2025 W3 |
+| 10 | **Eric** | 179.4 | 2023 W5 |
+| 11 | **Lem** | 176.2 | 2024 W11 |
+| 12 | **Josh** | 161.0 | 2025 W12 |
 
 ## 💩 All-Time Single-Game Lows (≥10 pts)
 
@@ -59,8 +59,8 @@ Just for fun — the worst weeks ever.
 | 8 | **Eric** | 78.3 | 2015 W5 |
 | 9 | **Lem** | 79.6 | 2023 W4 |
 | 10 | **Trevor** | 82.9 | 2024 W10 |
-| 11 | **Josh** | 83.7 | 2023 W5 |
-| 12 | **Brower** | 87.8 | 2023 W1 |
+| 11 | **Brower** | 87.8 | 2023 W1 |
+| 12 | **Josh** | 98.1 | 2025 W3 |
 
 ## 🏆 Championships (the only ring that matters)
 
