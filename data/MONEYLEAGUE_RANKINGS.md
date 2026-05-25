@@ -53,7 +53,7 @@ Computed as **all-play expected wins**: your weekly score compared against every
 | 11 | **Lem** | 22.8 | 14 | -8.8 |
 | 12 | **Tim** | 20.5 | 17 | -3.5 |
 
-This is **the most accurate measure of who's been good** in our league. Brower remains #1 (no surprise — most wins AND most points). What's interesting is the bottom: Brian, Lem, and Tim all have fewer expected wins than several teams they outranked in actual wins. They're not unlucky — they're just losing.
+This is **the most accurate measure of who's been good** in our league. Brower remains #1 (no surprise — most wins AND most points). What's striking is the gap between actual and expected for some managers: several teams below the actual-wins line have substantially MORE expected wins than their record shows. That's the schedule-luck story — quantified in its own table further down.
 
 ## 🔥 Total Points Scored (42 games)
 

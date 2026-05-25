@@ -232,10 +232,11 @@ def build_markdown() -> str:
     md.append("")
     md.append("This is **the most accurate measure of who's been good** in "
               "our league. Brower remains #1 (no surprise — most wins AND "
-              "most points). What's interesting is the bottom: Brian, Lem, "
-              "and Tim all have fewer expected wins than several teams "
-              "they outranked in actual wins. They're not unlucky — they're "
-              "just losing.\n")
+              "most points). What's striking is the gap between actual and "
+              "expected for some managers: several teams below the actual-"
+              "wins line have substantially MORE expected wins than their "
+              "record shows. That's the schedule-luck story — quantified in "
+              "its own table further down.\n")
 
     # ===== 4. Total points scored =====
     md.append("## 🔥 Total Points Scored (42 games)\n")
