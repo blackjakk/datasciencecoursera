@@ -42,12 +42,19 @@ def _yahoo_team_names_by_year() -> dict[int, dict[str, str]]:
 # Add to this dict as more comes back to you.
 LEAGUE_LORE: dict[int, list[str]] = {
     2015: [
-        "🎰 **The Tropicana Draft.** Donnie loaded up on TEs early "
+        "🎰 **The Tropicana AC Draft.** Donnie loaded up on TEs early "
         "(Martellus Bennett R4, Julius Thomas R5) and won the title with "
         "the biggest championship blowout in league history "
         "(Big Don's Cuties 171.78 d. Troy 89.80).",
-        "🤢 **Eric allegedly got drugged at the Tropicana draft, threw up "
+        "🤢 **Eric allegedly got drugged at the Tropicana, threw up "
         "everywhere, and didn't attend another in-person draft until 2025.**",
+    ],
+    2018: [
+        "🏖️ **The Ocean's Resort AC Draft.** Memorable for watching "
+        "preseason Mahomes-to-Tyreek connect — *before* Mahomes' breakout "
+        "MVP season. Brian also went **13-0 in the regular season** "
+        "(Kareem Hunt did 9/11), the only undefeated reg season in league "
+        "history.",
     ],
     2017: [
         "🎰 **The Strip Club Draft.** This was the year the draft was held "
