@@ -494,6 +494,43 @@
         "pts_b": 150.22,
         "winner": 8
       }
+    ],
+    "14": [
+      {
+        "team_a": 1,
+        "team_b": 6,
+        "pts_a": 130.16,
+        "pts_b": 85.4,
+        "winner": 1
+      },
+      {
+        "team_a": 2,
+        "team_b": 5,
+        "pts_a": 150.98,
+        "pts_b": 145.4,
+        "winner": 2
+      },
+      {
+        "team_a": 3,
+        "team_b": 4,
+        "pts_a": 188.3,
+        "pts_b": 92.78,
+        "winner": 3
+      },
+      {
+        "team_a": 7,
+        "team_b": 9,
+        "pts_a": 115.8,
+        "pts_b": 129.46,
+        "winner": 9
+      },
+      {
+        "team_a": 8,
+        "team_b": 10,
+        "pts_a": 117.44,
+        "pts_b": 86.32,
+        "winner": 8
+      }
     ]
   }
 }
