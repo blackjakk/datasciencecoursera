@@ -61,8 +61,9 @@ LEAGUE_LORE: dict[int, list[str]] = {
         "history.",
     ],
     2017: [
-        "🎰 **The Strip Club Draft.** This was the year the draft was held "
-        "at a strip club. Figgy used his final pick (R19.10) on **Bobby Turbo**.",
+        "🎰 **The Delilah's (Philly) Strip Club Draft.** Yes, the draft was "
+        "held at Delilah's in Philadelphia. Figgy used his final pick "
+        "(R19.10) on **Bobby Turbo**.",
         "🏆 **Coop didn't even attend the draft — and won the championship "
         "anyway.** The Dream Team 139.92 d. Dave (Fuck the Process) 106.84.",
         "✈️ **Lem missed the draft when his Spirit Airlines flight got "
