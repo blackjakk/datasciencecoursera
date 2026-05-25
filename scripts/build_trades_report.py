@@ -77,6 +77,69 @@ def _load_sleeper_players():
             for pid, d in p.items()}
 
 
+def _build_sleeper_pick_resolver():
+    """Map (target_season, round, original_roster_id) -> player_id picked."""
+    out = {}
+    for lg in ["league_1001657805583077376",
+               "league_1085805164784664576",
+               "league_1245039290518360064"]:
+        drafts = json.loads((ROOT / "data/sleeper" / lg / "drafts.json").read_text())
+        for d in drafts:
+            picks_f = ROOT / "data/sleeper" / lg / f"draft_{d['draft_id']}_picks.json"
+            if not picks_f.exists():
+                continue
+            picks = json.loads(picks_f.read_text())
+            season = int(d["season"])
+            slot_to_rid = {int(k): v for k, v in (d.get("slot_to_roster_id") or {}).items()}
+            n = d["settings"]["teams"]
+            for p in picks:
+                rnd = p["round"]
+                slot_in_round = ((p["pick_no"] - 1) % n) + 1
+                orig_slot = (n + 1 - slot_in_round) if rnd % 2 == 0 else slot_in_round
+                orig_rid = slot_to_rid.get(orig_slot)
+                if orig_rid and p.get("player_id"):
+                    out[(season, rnd, orig_rid)] = p["player_id"]
+    return out
+
+
+def _build_yahoo_pick_resolver():
+    """Map (target_season, round, original_manager_id) -> player name picked."""
+    mgr_by_yr_name = _yahoo_name_lookup()
+    # Per-year team_name -> draft slot from CSV
+    yr_team_to_slot = {}
+    yr_round_slot_to_player = {}
+    for f in sorted((ROOT / "data" / "yahoo").glob("league_*/draft_*.csv")):
+        with open(f) as fh:
+            rdr = _csv.DictReader(fh)
+            for row in rdr:
+                yr = int(row["season"])
+                tn = row["team_name"].strip().lower()
+                slot = int(row["pick_in_round"])
+                rnd = int(row["round"])
+                # Slot = round 1 pick_in_round for that team
+                if rnd == 1:
+                    yr_team_to_slot[(yr, tn)] = slot
+                yr_round_slot_to_player[(yr, rnd, slot)] = row["player_name"]
+    out = {}
+    # For each (target_year, round, manager) we need slot.
+    # Compute snake-corrected slot per round.
+    # Build via: for each manager known to be in target_year, find their r1 slot.
+    n_teams_per_year = {}
+    for (yr, _), s in yr_team_to_slot.items():
+        n_teams_per_year[yr] = max(n_teams_per_year.get(yr, 0), s)
+    for (yr, tn), r1_slot in yr_team_to_slot.items():
+        mid = mgr_by_yr_name.get((yr, tn))
+        if not mid:
+            continue
+        n = n_teams_per_year[yr]
+        for rnd in range(1, 18):
+            slot = (n + 1 - r1_slot) if rnd % 2 == 0 else r1_slot
+            player = yr_round_slot_to_player.get((yr, rnd, slot))
+            if player:
+                out[(yr, rnd, mid)] = player
+    return out
+
+
 def _load_all_trades():
     """Yields normalized trades from Yahoo + Sleeper."""
     name_to_mgr = _yahoo_name_lookup()
@@ -135,7 +198,39 @@ def _load_all_trades():
 def build_markdown():
     nfl = _load_nflverse()
     trades = _load_all_trades()
+    sleeper_names = _load_sleeper_players()
+    sleeper_pick_player = _build_sleeper_pick_resolver()
+    yahoo_pick_player = _build_yahoo_pick_resolver()
+    yahoo_name_to_mgr = _yahoo_name_lookup()
     today = date.today().strftime("%B %Y")
+
+    def _score_side(side, source, trade_year, giver_mgr):
+        pts = sum(nfl.get((trade_year, _norm(p["name"])), 0)
+                  for p in side.get("received_players", []))
+        for pk in side.get("received_picks", []):
+            rnd = pk.get("round")
+            if not rnd:
+                continue
+            if source == "sleeper":
+                season = int(pk.get("season") or 0)
+                orig_rid = pk.get("previous_owner_id") or pk.get("roster_id")
+                if not (season and orig_rid):
+                    continue
+                pid = sleeper_pick_player.get((season, rnd, orig_rid))
+                if not pid:
+                    continue
+                name = sleeper_names.get(pid, "")
+                if name:
+                    pts += nfl.get((season, _norm(name)), 0)
+            else:
+                target_yr = trade_year + 1
+                of = (pk.get("originally_from") or "").rstrip("?").strip().lower()
+                orig_mgr = yahoo_name_to_mgr.get((trade_year, of)) if of else None
+                orig_mgr = orig_mgr or giver_mgr
+                player = yahoo_pick_player.get((target_yr, rnd, orig_mgr))
+                if player:
+                    pts += nfl.get((target_yr, _norm(player)), 0)
+        return pts
 
     # Compute per-manager + per-pair stats
     per_mgr = defaultdict(lambda: {"n": 0, "p_recv": 0, "p_giv": 0,
@@ -159,10 +254,9 @@ def build_markdown():
 
         # Score trade if we have nflverse season data for that year
         if t["year"] in NFL_SCORED_YEARS:
-            pa = sum(nfl.get((t["year"], _norm(p["name"])), 0)
-                     for p in a.get("received_players", []))
-            pb = sum(nfl.get((t["year"], _norm(p["name"])), 0)
-                     for p in b.get("received_players", []))
+            # giver of a's assets is b's manager, and vice versa
+            pa = _score_side(a, t["source"], t["year"], mb)
+            pb = _score_side(b, t["source"], t["year"], ma)
             key = tuple(sorted([ma, mb]))
             net = (pa - pb) if key[0] == ma else (pb - pa)
             pair_trades[key].append((t["year"], net, t["source"]))
@@ -197,19 +291,20 @@ def build_markdown():
     md.append("## 🏆 Top Fleecers — Aggregate Ranking\n")
     md.append("Each manager's **total net point delta across every scored "
               "trade** they were ever in (Yahoo 2011-2022 + Sleeper 2023-2024). "
-              "Positive = net winner, negative = net loser. The single number "
-              "that summarizes who has fleeced whom over the league's run. "
-              "*2025 Sleeper trades excluded — nflverse season totals not yet "
-              "available; picks not scored.*\n")
+              "Positive = net winner, negative = net loser. "
+              "**Picks are scored as the rookie-year nflverse points of the "
+              "player actually drafted with that pick** (resolved via Yahoo "
+              "draft CSVs 2015-2022 and Sleeper draft data 2023-2025). "
+              "*2025 Sleeper trades and picks for the 2026 draft excluded — "
+              "no season data yet. Yahoo picks for the 2012-2014 drafts and "
+              "the 2023 (Sleeper) draft are unresolved.*\n")
     agg = defaultdict(float)
     agg_n = defaultdict(int)
     for t in trades:
         if t["year"] not in NFL_SCORED_YEARS:
             continue
-        pa = sum(nfl.get((t["year"], _norm(p["name"])), 0)
-                 for p in t["side_a"].get("received_players", []))
-        pb = sum(nfl.get((t["year"], _norm(p["name"])), 0)
-                 for p in t["side_b"].get("received_players", []))
+        pa = _score_side(t["side_a"], t["source"], t["year"], t["side_b_mgr"])
+        pb = _score_side(t["side_b"], t["source"], t["year"], t["side_a_mgr"])
         agg[t["side_a_mgr"]] += (pa - pb)
         agg[t["side_b_mgr"]] += (pb - pa)
         agg_n[t["side_a_mgr"]] += 1
@@ -408,7 +503,10 @@ def build_markdown():
               "consecutive `<tr>` rows with rowspan=2 trade icon). Sleeper "
               "trades pulled from offline data dump. Net point scoring uses "
               "full-season nflverse fantasy points (0.5 PPR for 2019+, "
-              "0 PPR before).*")
+              "0 PPR before). Draft picks are resolved to the player actually "
+              "drafted with that pick (snake-order math against each year's "
+              "draft data) and scored using that player's points in the "
+              "draft year.*")
     return "\n".join(md)
 
 

@@ -16,25 +16,25 @@ Each manager's **total net point delta across every scored trade** they were eve
 
 | Rank | Manager | Trades | Net VBD | Per trade |
 |---|---|---|---|---|
-| 1 | **Trevor** | 50 | **+1500** | +30 |
-| 2 | **Dave** | 27 | **+1444** | +53 |
-| 3 | **Eric** | 15 | **+1060** | +71 |
-| 4 | **Kyle** | 26 | **+900** | +35 |
+| 1 | **Dave** | 27 | **+3867** | +143 |
+| 2 | **Brower** | 21 | **+1172** | +56 |
+| 3 | **Kyle** | 26 | **+905** | +35 |
+| 4 | **Troy** | 23 | **+627** | +27 |
 | 5 | **Ankur** | 9 | **+479** | +53 |
-| 6 | **Coop** | 41 | **+429** | +10 |
-| 7 | **Z** | 2 | **+146** | +73 |
-| 8 | **Brower** | 21 | **+44** | +2 |
-| 9 | **Troy** | 23 | **-48** | -2 |
-| 10 | **Nick Lewis** | 4 | **-62** | -16 |
-| 11 | **Former manager** | 1 | **-119** | -119 |
-| 12 | **Lem** | 20 | **-340** | -17 |
-| 13 | **Tim** | 14 | **-369** | -26 |
-| 14 | **Notebooks** | 1 | **-452** | -452 |
-| 15 | **Brian** | 46 | **-1303** | -28 |
-| 16 | **Nark** | 10 | **-1338** | -134 |
-| 17 | **Donnie** | 36 | **-1969** | -55 |
+| 6 | **Eric** | 15 | **+266** | +18 |
+| 7 | **Trevor** | 50 | **+252** | +5 |
+| 8 | **Coop** | 41 | **+249** | +6 |
+| 9 | **Z** | 2 | **+146** | +73 |
+| 10 | **Brian** | 46 | **+54** | +1 |
+| 11 | **Nick Lewis** | 4 | **-62** | -16 |
+| 12 | **Former manager** | 1 | **-119** | -119 |
+| 13 | **Notebooks** | 1 | **-452** | -452 |
+| 14 | **Lem** | 20 | **-729** | -36 |
+| 15 | **Nark** | 10 | **-1505** | -150 |
+| 16 | **Tim** | 14 | **-1622** | -116 |
+| 17 | **Donnie** | 36 | **-3529** | -98 |
 
-*Net point deltas count full-season nflverse scoring for each trade. **Trevor** is the league's net winner (+1500) across 50 trades. **Donnie** is the net loser (-1969).*
+*Net point deltas count full-season nflverse scoring for each trade. **Dave** is the league's net winner (+3867) across 27 trades. **Donnie** is the net loser (-3529).*
 
 ## 🌀 Most Active Traders
 
@@ -110,21 +110,21 @@ Net points imbalance per pair (full-season nflverse points through 2024; 2025 Sl
 
 | Fleecer | Victim | Trades | W-L | Net | Last trade | Status |
 |---|---|---|---|---|---|---|
-| **Eric** | Brian | 10 | 6-2 | **+1184** | 2024 | still active |
-| **Dave** | Donnie | 7 | 5-2 | **+1136** | 2024 | fleecer left league |
-| **Trevor** | Brian | 12 | 8-4 | **+945** | 2025 | still active |
-| **Trevor** | Nark | 3 | 3-0 | **+563** | 2016 | victim left league |
-| **Trevor** | Donnie | 7 | 5-1 | **+541** | 2022 | ⚠️ silent 3yr |
-| **Brower** | Trevor | 5 | 3-0 | **+517** | 2024 | still active |
-| **Kyle** | Coop | 6 | 4-1 | **+485** | 2024 | still active |
-| **Brian** | Donnie | 8 | 4-4 | **+473** | 2024 | still active |
-| **Dave** | Troy | 3 | 2-1 | **+460** | 2023 | fleecer left league |
-| **Lem** | Dave | 3 | 3-0 | **+437** | 2018 | victim left league |
-| **Ankur** | Lem | 3 | 3-0 | **+390** | 2025 | still active |
-| **Brian** | Coop | 4 | 2-2 | **+384** | 2023 | still active |
-| **Coop** | Troy | 5 | 4-1 | **+355** | 2022 | ⚠️ silent 3yr |
-| **Nick Lewis** | Brian | 2 | 1-1 | **+335** | 2013 | fleecer left league |
-| **Dave** | Trevor | 4 | 2-2 | **+325** | 2023 | fleecer left league |
+| **Dave** | Donnie | 7 | 5-2 | **+2052** | 2024 | fleecer left league |
+| **Dave** | Trevor | 4 | 3-1 | **+1940** | 2023 | fleecer left league |
+| **Brian** | Donnie | 8 | 5-3 | **+829** | 2024 | still active |
+| **Trevor** | Donnie | 7 | 6-1 | **+796** | 2022 | ⚠️ silent 3yr |
+| **Trevor** | Brian | 12 | 6-6 | **+795** | 2025 | still active |
+| **Eric** | Brian | 10 | 6-2 | **+759** | 2024 | still active |
+| **Trevor** | Nark | 3 | 3-0 | **+748** | 2016 | victim left league |
+| **Lem** | Dave | 3 | 3-0 | **+717** | 2018 | victim left league |
+| **Brower** | Coop | 4 | 3-1 | **+716** | 2023 | still active |
+| **Troy** | Eric | 3 | 1-1 | **+690** | 2024 | still active |
+| **Troy** | Lem | 2 | 1-1 | **+613** | 2019 | ⚠️ silent 6yr |
+| **Trevor** | Kyle | 8 | 6-2 | **+600** | 2025 | still active |
+| **Kyle** | Dave | 3 | 2-0 | **+548** | 2024 | victim left league |
+| **Kyle** | Coop | 6 | 4-1 | **+528** | 2024 | still active |
+| **Coop** | Lem | 3 | 2-1 | **+526** | 2020 | ⚠️ silent 5yr |
 
 ## 🚪 'Trade Rape → Victim Bailed' Cases
 
@@ -132,8 +132,11 @@ Pairs where one side dominated and the other side **stopped trading with them fo
 
 | Fleecer | Victim | W-L | Net | Last trade | Years silent |
 |---|---|---|---|---|---|
-| **Trevor** | Donnie | 5-1 | +541 | 2022 | 3 |
-| **Coop** | Troy | 4-1 | +355 | 2022 | 3 |
+| **Trevor** | Donnie | 6-1 | +796 | 2022 | 3 |
+| **Troy** | Lem | 1-1 | +613 | 2019 | 6 |
+| **Coop** | Lem | 2-1 | +526 | 2020 | 5 |
+| **Brian** | Kyle | 1-1 | +483 | 2021 | 4 |
+| **Coop** | Tim | 2-0 | +470 | 2018 | 7 |
 
 ## 🐑 Loyal Customers — Victims Who Keep Coming Back
 
@@ -141,13 +144,18 @@ Pairs where one side has dominated by 400+ net points but they're **still active
 
 | Fleecer | 'Loyal Customer' | Trades | W-L | Net | Last trade |
 |---|---|---|---|---|---|
-| **Eric** | Brian | 10 | 6-2 | +1184 | 2024 |
-| **Dave** | Donnie | 7 | 5-2 | +1136 | 2024 |
-| **Trevor** | Brian | 12 | 8-4 | +945 | 2025 |
+| **Dave** | Donnie | 7 | 5-2 | +2052 | 2024 |
+| **Dave** | Trevor | 4 | 3-1 | +1940 | 2023 |
+| **Brian** | Donnie | 8 | 5-3 | +829 | 2024 |
+| **Trevor** | Brian | 12 | 6-6 | +795 | 2025 |
+| **Eric** | Brian | 10 | 6-2 | +759 | 2024 |
+| **Brower** | Coop | 4 | 3-1 | +716 | 2023 |
+| **Troy** | Eric | 3 | 1-1 | +690 | 2024 |
+| **Trevor** | Kyle | 8 | 6-2 | +600 | 2025 |
+| **Kyle** | Dave | 3 | 2-0 | +548 | 2024 |
+| **Kyle** | Coop | 6 | 4-1 | +528 | 2024 |
 | **Brower** | Trevor | 5 | 3-0 | +517 | 2024 |
-| **Kyle** | Coop | 6 | 4-1 | +485 | 2024 |
-| **Brian** | Donnie | 8 | 4-4 | +473 | 2024 |
-| **Dave** | Troy | 3 | 2-1 | +460 | 2023 |
+| **Dave** | Troy | 3 | 2-1 | +484 | 2023 |
 
 ## 👯 Closest Trade Partners (most trades between same 2)
 
