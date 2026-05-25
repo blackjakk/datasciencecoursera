@@ -159,17 +159,36 @@ def _norm(s):
 
 
 def compute_keeper_value(top_n=4, min_keeper_round=3):
-    """Sum of top-N 2025 fpts per current roster — keeper-eligible asset.
+    """Each manager's projected 2026 keeper bundle value.
 
-    Keeper rules applied:
-    1. Max 4 keepers per roster (we take top 4 here).
-    2. Player must have been drafted in 2025 R3 or later (R1/R2 picks
-       can't be kept; the keeper-cost rule means R3 keeper costs your R1).
-       Waiver pickups (no 2025 pick) are eligible.
-    3. Max 3 years as keeper (xlsx FF2025 comments encode current year):
-       anyone tagged '3rd year keeper' in 2025 is ineligible for 2026.
-    4. Player must still be on the manager's end-of-2025 roster.
+    Uses scripts.predict_2026_keepers.predict_2026_keepers() which handles:
+    1. Auto-rolling 2025 keepers (cost -2 rounds)
+    2. Enforcing 3-year max via xlsx FF2025 keeper-year comments
+    3. Filling remaining slots from R3+ non-keeper roster players
+    Returns {mid: {'value': sum_pts, 'players': [(pid, pts), ...]}}
+    Value = sum of 2025 fpts of the projected 2026 keepers.
     """
+    from scripts.predict_2026_keepers import predict_2026_keepers
+    rid_to_mid = {m["sleeper_roster_id"]: m["id"]
+                  for m in all_managers() if m.get("sleeper_roster_id")}
+    pred = predict_2026_keepers()
+    out = {}
+    for rid, block in pred.items():
+        mid = ROSTER_HANDOFFS.get((2025, rid)) or rid_to_mid.get(rid)
+        if not mid:
+            continue
+        keepers = block["predicted"]
+        scored = [(k["player_id"], k["pts_2025"]) for k in keepers]
+        out[mid] = {
+            "value": sum(p for _, p in scored),
+            "players": scored,
+            "_keepers_detail": keepers,
+        }
+    return out
+
+
+def _OLD_compute_keeper_value(top_n=4, min_keeper_round=3):
+    """(deprecated) old top-4 by raw fpts — replaced by prediction-driven."""
     LG = "league_1245039290518360064"
     rosters = json.loads((ROOT / "data/sleeper" / LG / "rosters.json").read_text())
     ptot = defaultdict(float)
@@ -279,7 +298,7 @@ def compute_preseason_ranks():
                       + pick_cap[mid][3] * 1)
         ppg_2025 = s2025["ppg"]
 
-        kp = keepers.get(mid, {"value": 0, "players": []})
+        kp = keepers.get(mid, {"value": 0, "players": [], "_keepers_detail": []})
         rows.append({
             "mid": mid,
             "name": bpr._mgr_name(mid),
@@ -295,6 +314,7 @@ def compute_preseason_ranks():
             "roster_ppg": ppg_2025,
             "keeper_value": kp["value"],
             "keeper_players": kp["players"],
+            "keepers_detail": kp.get("_keepers_detail", []),
             "wl_2025": (s2025["w"], s2025["l"]),
             "rank_2025": s2025["wins_rank"],
         })
@@ -411,18 +431,25 @@ def _player_catalog():
     return _PLAYER_CATALOG
 
 
-def _format_keepers(scored_players):
-    """Inline keeper chips with portrait + name + 2025 pts."""
+def _format_keepers(scored_players, keepers_detail=None):
+    """Inline keeper chips with portrait + name + 2025 pts + 2026 cost."""
     catalog = _player_catalog()
+    detail_by_pid = {k["player_id"]: k for k in (keepers_detail or [])}
     parts = []
     for pid, pts in scored_players:
         nm = catalog.get(pid, {}).get("full_name", pid)
         portrait = ROOT / "data/charts/players" / f"{pid}.jpg"
         img = (f'<img class="keeper-portrait" src="{_data_uri(portrait)}"/>'
                if portrait.exists() else "")
+        det = detail_by_pid.get(pid, {})
+        cost = det.get("cost_round_2026")
+        yr = det.get("year_2026")
+        cost_tag = (f'<span class="kc-cost">R{cost}·Y{yr}</span>'
+                    if cost else "")
         parts.append(f'<span class="keeper-chip">{img}'
                      f'<span class="kc-name">{nm}</span>'
-                     f'<span class="kc-pts">{int(pts)}</span></span>')
+                     f'<span class="kc-pts">{int(pts)}</span>'
+                     f'{cost_tag}</span>')
     return "".join(parts) or "—"
 
 
@@ -452,7 +479,7 @@ def render_rank_card(r):
           <div><span class="lbl">Skill (trade · draft)</span><div class="val">{r['trade_per']:+.0f} · {r['draft_spp']:+.1f}</div></div>
         </div>
         <div class="keeper-label">Likely Keepers</div>
-        <div class="keepers-grid">{_format_keepers(r['keeper_players'])}</div>
+        <div class="keepers-grid">{_format_keepers(r['keeper_players'], r.get('keepers_detail'))}</div>
         <div class="rank-take">{body}</div>
       </div>
     </div>
@@ -529,6 +556,9 @@ def build_html(rows, paths):
     .kc-pts { color: #0a3d62; font-weight: 700;
               font-size: 7.5pt; background: #fef3c7; padding: 1px 5px;
               border-radius: 6px; flex-shrink: 0; }
+    .kc-cost { color: white; background: #0a3d62; font-weight: 700;
+               font-size: 7pt; padding: 1px 5px; border-radius: 6px;
+               flex-shrink: 0; letter-spacing: 0.3px; }
     @page { size: letter; margin: 0.45in; }
     """
     h = ['<!DOCTYPE html><html><head><meta charset="utf-8">',
