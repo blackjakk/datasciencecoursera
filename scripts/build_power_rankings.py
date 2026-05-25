@@ -17,7 +17,9 @@ from pathlib import Path
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.patches import FancyBboxPatch
+import matplotlib.font_manager as fm
+from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+import matplotlib.image as mpimg
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -33,19 +35,55 @@ MD_OUT = ROOT / "data" / "MONEYLEAGUE_POWER_RANKINGS.md"
 CHART_DIR = ROOT / "data" / "charts" / "rankings"
 CHART_DIR.mkdir(parents=True, exist_ok=True)
 
-# Modern color palette (clean + bold)
+# Modern color palette
 PALETTE = {
-    "gold": "#d4a017",
-    "navy": "#0a3d62",
-    "teal": "#1f7a8c",
-    "emerald": "#2d6a4f",
-    "orange": "#dd6e42",
-    "crimson": "#a23737",
-    "slate": "#3d405b",
-    "cream": "#f7f4ea",
-    "ink": "#1a1d24",
+    "gold": "#d4a017", "navy": "#0a3d62", "teal": "#1f7a8c",
+    "emerald": "#2d6a4f", "orange": "#dd6e42", "crimson": "#a23737",
+    "slate": "#3d405b", "cream": "#f7f4ea", "ink": "#1a1d24",
     "gray": "#6b7280",
 }
+
+# Per-manager brand colors — stable across every chart
+MANAGER_COLORS = {
+    "trevor_bergerboy": "#2d6a4f",  # forest
+    "coop":             "#1f3a5f",  # navy
+    "dave_aka_wang":    "#8b1e3f",  # wine
+    "kyle_figgy":       "#f59e0b",  # gold
+    "brower_barry":     "#0891b2",  # teal
+    "ankur_patel":      "#7c3aed",  # purple
+    "eric_m":           "#dc2626",  # red
+    "troy_mullings":    "#15803d",  # green
+    "brian_bigguap":    "#1e40af",  # royal blue
+    "lem":              "#65a30d",  # lime
+    "donnie":           "#9a3412",  # rust
+    "tim_breswick":     "#0f172a",  # ink
+    "josh_wildboy":     "#a855f7",  # violet
+    "nark":             "#78716c",  # stone
+    "jp_former":        "#525252",  # gray
+    "nick_lewis_left":  "#737373",  # gray
+    "notebooks_left":   "#a3a3a3",  # silver
+}
+
+
+def mgr_color(mid):
+    return MANAGER_COLORS.get(mid, PALETTE["gray"])
+
+
+def _register_fonts():
+    """Add Inter + Bebas Neue to matplotlib."""
+    for f in (ROOT / "data" / "fonts").glob("*.ttf"):
+        try:
+            fm.fontManager.addfont(str(f))
+        except Exception:
+            pass
+
+
+_register_fonts()
+
+
+def _avatar_path(mid):
+    p = ROOT / "data" / "charts" / "avatars" / f"{mid}.jpg"
+    return p if p.exists() else None
 
 # Reuse build_trades_report helpers
 from scripts import build_trades_report as btr  # noqa: E402
@@ -405,13 +443,17 @@ def archetype(card):
 
 
 def render_card_html(c):
-    color = tier_color(c["ovr"])
+    color = mgr_color(c["mid"])
     arch = archetype(c)
     badge = "" if c.get("is_current", True) else ' <span class="badge-fmr">FMR</span>'
+    av = _avatar_path(c["mid"])
+    av_html = (f'<img class="avatar" src="file://{av}"/>'
+               if av else '<div class="avatar avatar-placeholder"></div>')
     return f"""
     <div class="card">
-      <div class="card-head" style="background:{color}">
+      <div class="card-head" style="background:linear-gradient(135deg, {color} 0%, {color}dd 100%)">
         <div class="ovr">{c['ovr']}</div>
+        {av_html}
         <div class="card-name">
           <div class="player-name">{c['name']}{badge}</div>
           <div class="archetype">{arch} · {tier(c['ovr'])}</div>
@@ -478,7 +520,7 @@ def build_madden_cards_sleeper(stats, vbd, vbd_n, draft):
 
 def _setup_mpl():
     plt.rcParams.update({
-        "font.family": "DejaVu Sans",
+        "font.family": ["Inter", "DejaVu Sans", "sans-serif"],
         "font.size": 10,
         "axes.facecolor": "#ffffff",
         "figure.facecolor": "#ffffff",
@@ -501,7 +543,7 @@ def chart_ovr_ranking(cards, path, title="All-Time Power Rankings"):
     cards = sorted(cards, key=lambda c: c["ovr"])
     names = [c["name"] + (" (FMR)" if not c.get("is_current", True) else "") for c in cards]
     ovrs = [c["ovr"] for c in cards]
-    colors = [tier_color(o) for o in ovrs]
+    colors = [mgr_color(c["mid"]) for c in cards]
     fig, ax = plt.subplots(figsize=(9, max(3, 0.42 * len(cards) + 1)), dpi=140)
     bars = ax.barh(names, ovrs, color=colors, edgecolor="white", linewidth=1.5, height=0.72)
     ax.set_xlim(40, 100)
@@ -558,17 +600,26 @@ def chart_radar_grid(cards, path, title="Top 6 Player Profiles"):
 
 def chart_scatter_winpct_ppg(cards, path):
     _setup_mpl()
-    fig, ax = plt.subplots(figsize=(9, 5.5), dpi=140)
+    fig, ax = plt.subplots(figsize=(9, 6), dpi=140)
+    # Avatars as scatter points
     for c in cards:
-        color = tier_color(c["ovr"])
-        size = 200 + 60 * c["rings"]
-        ax.scatter(c["winpct"], c["ppg"], s=size, color=color,
-                   alpha=0.75, edgecolor="white", linewidth=1.5, zorder=3)
-        offset = 0.012 if c["winpct"] < 0.55 else -0.012
-        ha = "left" if c["winpct"] < 0.55 else "right"
-        ax.annotate(c["name"], (c["winpct"], c["ppg"]),
-                    xytext=(c["winpct"] + offset, c["ppg"] + 0.3),
-                    fontsize=9, ha=ha, color=PALETTE["ink"], fontweight="bold")
+        color = mgr_color(c["mid"])
+        ax.scatter(c["winpct"], c["ppg"], s=900, color=color,
+                   alpha=0.18, edgecolor="none", zorder=2)
+        # Overlay avatar
+        av = _avatar_path(c["mid"])
+        if av:
+            img = mpimg.imread(av)
+            im = OffsetImage(img, zoom=0.10)
+            ab = AnnotationBbox(im, (c["winpct"], c["ppg"]),
+                                 frameon=False, zorder=4)
+            ax.add_artist(ab)
+        # Label below
+        ax.annotate(c["name"] + (f" · {c['rings']}R" if c["rings"] else ""),
+                    (c["winpct"], c["ppg"]),
+                    xytext=(0, -18), textcoords="offset points",
+                    fontsize=8.5, ha="center", color=PALETTE["ink"],
+                    fontweight="bold")
     ax.axvline(0.5, color=PALETTE["gray"], linestyle="--", alpha=0.5)
     ax.axhline(np.mean([c["ppg"] for c in cards]),
                color=PALETTE["gray"], linestyle="--", alpha=0.5)
@@ -800,6 +851,121 @@ def chart_trade_heatmap(path, cards):
     plt.close()
 
 
+def chart_trade_network(path, cards):
+    """Force-directed trade network. Nodes = avatars, edges = trade
+    relationships (thickness = volume, color intensity = imbalance)."""
+    import networkx as nx
+    _setup_mpl()
+
+    nfl = btr._load_nflverse()
+    sleeper_names = btr._load_sleeper_players()
+    spp = btr._build_sleeper_pick_resolver()
+    ypp = btr._build_yahoo_pick_resolver()
+    ynm = btr._yahoo_name_lookup()
+    mgr_rid = {m["id"]: m["sleeper_roster_id"]
+               for m in all_managers() if m.get("sleeper_roster_id")}
+
+    def score(side, source, year, giver):
+        pts = sum(nfl.get((year, _norm(p["name"])), 0)
+                  for p in side.get("received_players", []))
+        for pk in side.get("received_picks", []):
+            rnd = pk.get("round")
+            if not rnd:
+                continue
+            if source == "sleeper":
+                season = int(pk.get("season") or 0)
+                orig = pk.get("previous_owner_id") or pk.get("roster_id")
+                if not (season and orig):
+                    continue
+                pid = spp.get((season, rnd, orig))
+                n = sleeper_names.get(pid, "") if pid else ""
+                if n:
+                    pts += nfl.get((season, _norm(n)), 0)
+            else:
+                ty = year + 1
+                of = (pk.get("originally_from") or "").rstrip("?").strip().lower()
+                om = ynm.get((year, of)) if of else None
+                om = om or giver
+                pl = ypp.get((ty, rnd, om))
+                if pl:
+                    pts += nfl.get((ty, _norm(pl)), 0)
+                elif ty >= 2023:
+                    r = mgr_rid.get(om)
+                    if r:
+                        pid = spp.get((ty, rnd, r))
+                        n = sleeper_names.get(pid, "") if pid else ""
+                        if n:
+                            pts += nfl.get((ty, _norm(n)), 0)
+        return pts
+
+    pair_count = defaultdict(int)
+    pair_net = defaultdict(float)
+    trades = btr._load_all_trades()
+    for t in trades:
+        if t["year"] not in btr.NFL_SCORED_YEARS:
+            continue
+        ma, mb = t["side_a_mgr"], t["side_b_mgr"]
+        key = tuple(sorted([ma, mb]))
+        pa = score(t["side_a"], t["source"], t["year"], mb)
+        pb = score(t["side_b"], t["source"], t["year"], ma)
+        pair_count[key] += 1
+        # Net from key[0]'s perspective
+        if key[0] == ma:
+            pair_net[key] += (pa - pb)
+        else:
+            pair_net[key] += (pb - pa)
+
+    G = nx.Graph()
+    mgr_ids = [c["mid"] for c in cards]
+    trade_n_by_mgr = {c["mid"]: c["trade_n"] for c in cards}
+    for mid in mgr_ids:
+        G.add_node(mid, trades=trade_n_by_mgr.get(mid, 0))
+    for (a, b), n in pair_count.items():
+        if a in mgr_ids and b in mgr_ids and n >= 2:
+            G.add_edge(a, b, weight=n, net=pair_net[(a, b)])
+
+    fig, ax = plt.subplots(figsize=(10, 9), dpi=140)
+    pos = nx.spring_layout(G, k=1.8, iterations=120, seed=42, weight="weight")
+
+    # Edges: thickness = trade count, color = imbalance direction
+    max_net = max((abs(d["net"]) for _, _, d in G.edges(data=True)), default=1)
+    for u, v, d in G.edges(data=True):
+        net = d["net"]
+        # Color intensity by imbalance (red = lopsided, gray = balanced)
+        intensity = min(1.0, abs(net) / max(max_net, 1))
+        color = (0.55 + 0.4 * intensity, 0.55 - 0.3 * intensity, 0.6 - 0.4 * intensity)
+        lw = 0.6 + 0.45 * d["weight"]
+        x = [pos[u][0], pos[v][0]]
+        y = [pos[u][1], pos[v][1]]
+        ax.plot(x, y, color=color, linewidth=lw, alpha=0.55, zorder=1)
+
+    # Nodes: avatars sized by trade volume
+    max_trades = max((G.nodes[n]["trades"] for n in G.nodes()), default=1)
+    for n in G.nodes():
+        x, y = pos[n]
+        size = 0.06 + 0.08 * (G.nodes[n]["trades"] / max(max_trades, 1))
+        # Color ring for manager
+        ax.scatter(x, y, s=2800 * size * size, color=mgr_color(n),
+                   alpha=0.85, zorder=2,
+                   edgecolor="white", linewidth=2)
+        av = _avatar_path(n)
+        if av:
+            img = mpimg.imread(av)
+            im = OffsetImage(img, zoom=0.14 + 0.10 * (G.nodes[n]["trades"] / max(max_trades, 1)))
+            ab = AnnotationBbox(im, (x, y), frameon=False, zorder=3)
+            ax.add_artist(ab)
+        ax.text(x, y - 0.12, _mgr_name(n), ha="center", va="top",
+                fontsize=9, fontweight="bold", color=PALETTE["ink"], zorder=4)
+
+    ax.set_axis_off()
+    ax.set_title("Trade Network · node size = trade volume · "
+                 "edge thickness = pair frequency · edge color = imbalance",
+                 fontsize=12, loc="left", pad=14)
+    plt.tight_layout()
+    plt.savefig(path, bbox_inches="tight", facecolor="white")
+    plt.close()
+
+
 def chart_sleeper_winpct_trend(path):
     """Per-season win pct per current manager."""
     _setup_mpl()
@@ -817,13 +983,12 @@ def chart_sleeper_winpct_trend(path):
     # Plot
     seasons = sorted(set().union(*[set(s.keys()) for s in series.values()]))
     fig, ax = plt.subplots(figsize=(9, 5), dpi=140)
-    palette = plt.cm.tab20.colors
     items = sorted(series.items(), key=lambda kv: -np.mean(list(kv[1].values())))
-    for i, (mid, ser) in enumerate(items):
+    for mid, ser in items:
         ys = [ser.get(s, np.nan) for s in seasons]
-        ax.plot(seasons, ys, marker="o", linewidth=2.2, markersize=7,
-                color=palette[i % len(palette)],
-                label=_mgr_name(mid))
+        ax.plot(seasons, ys, marker="o", linewidth=2.4, markersize=8,
+                color=mgr_color(mid), label=_mgr_name(mid),
+                markeredgecolor="white", markeredgewidth=1.4)
     ax.set_xticks(seasons)
     ax.axhline(0.5, color=PALETTE["gray"], linestyle="--", alpha=0.5)
     ax.set_ylim(0, 1)
@@ -865,6 +1030,7 @@ def build_html():
         "drafters": CHART_DIR / "drafters.png",
         "champs": CHART_DIR / "champs.png",
         "trade_heatmap": CHART_DIR / "trade_heatmap.png",
+        "trade_network": CHART_DIR / "trade_network.png",
         "ovr_sleeper": CHART_DIR / "ovr_sleeper.png",
         "radar_sleeper": CHART_DIR / "radar_sleeper.png",
         "sleeper_trend": CHART_DIR / "sleeper_trend.png",
@@ -876,6 +1042,7 @@ def build_html():
     chart_drafters(cards, chart_paths["drafters"])
     chart_championships_timeline(chart_paths["champs"])
     chart_trade_heatmap(chart_paths["trade_heatmap"], cards)
+    chart_trade_network(chart_paths["trade_network"], cards)
     chart_ovr_ranking(cards_s, chart_paths["ovr_sleeper"], "Sleeper Era OVR Rankings")
     chart_radar_grid(cards_s, chart_paths["radar_sleeper"],
                      "Sleeper Era Top 6 — Attribute Profiles")
@@ -908,11 +1075,16 @@ def build_html():
     .card { border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;
             page-break-inside: avoid;
             box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
-    .card-head { color: white; padding: 10px 12px; display: flex;
-                 align-items: center; gap: 12px; }
-    .ovr { font-family: 'Bebas Neue', sans-serif; font-size: 32pt;
-           font-weight: bold; min-width: 46px; text-align: center;
-           line-height: 1; }
+    .card-head { color: white; padding: 12px 14px; display: flex;
+                 align-items: center; gap: 12px; position: relative;
+                 overflow: hidden; }
+    .ovr { font-family: 'Bebas Neue', sans-serif; font-size: 36pt;
+           font-weight: bold; min-width: 50px; text-align: center;
+           line-height: 1; text-shadow: 0 2px 4px rgba(0,0,0,0.25); }
+    .avatar { width: 46px; height: 46px; border-radius: 50%;
+              object-fit: cover; border: 2.5px solid rgba(255,255,255,0.85);
+              box-shadow: 0 2px 6px rgba(0,0,0,0.2); }
+    .avatar-placeholder { background: rgba(255,255,255,0.25); }
     .player-name { font-size: 14pt; font-weight: 800; line-height: 1.1; }
     .archetype { font-size: 8.5pt; opacity: 0.92; margin-top: 3px;
                  font-weight: 500; }
@@ -990,8 +1162,8 @@ def build_html():
              '<strong>Draft 17%</strong>, Trade 13%, PPG 12%, Longevity 8%. '
              'Each attribute is normalized 0-99 within the active-vet pool. '
              '<strong>FMR</strong> = former manager.</p>')
-    h.append(f'<img class="chart" src="{chart_paths["ovr_all"]}"/>')
-    h.append(f'<img class="chart" src="{chart_paths["radar_top"]}"/>')
+    h.append(f'<img class="chart" src="file://{chart_paths["ovr_all"]}"/>')
+    h.append(f'<img class="chart" src="file://{chart_paths["radar_top"]}"/>')
 
     # ===== Madden cards =====
     h.append('<h2>All-Time Player Cards</h2>')
@@ -1005,7 +1177,7 @@ def build_html():
     h.append('<p class="section-intro">Where each manager lives on the '
              'win-rate / scoring plane. The top-right is the dream; the '
              'bottom-left is the basement. Bubble size = rings.</p>')
-    h.append(f'<img class="chart" src="{chart_paths["scatter"]}"/>')
+    h.append(f'<img class="chart" src="file://{chart_paths["scatter"]}"/>')
 
     # ===== Trade fleecer ledger =====
     h.append('<h2>Trade Fleecer Ledger</h2>')
@@ -1013,7 +1185,7 @@ def build_html():
              '(Yahoo 2011-2022 + Sleeper 2023-2024), including picks '
              '(scored as the rookie-year production of the player actually '
              'drafted). Green = won, red = lost.</p>')
-    h.append(f'<img class="chart" src="{chart_paths["vbd"]}"/>')
+    h.append(f'<img class="chart" src="file://{chart_paths["vbd"]}"/>')
 
     # ===== Trade heatmap =====
     h.append('<h2>Trade Fleecing Matrix</h2>')
@@ -1022,20 +1194,28 @@ def build_html():
              'this person fleeced, <em>red cells</em> are the ones who '
              'fleeced them. Number = net VBD; small subscript = trade count. '
              'Rows ordered by all-time OVR.</p>')
-    h.append(f'<img class="chart" src="{chart_paths["trade_heatmap"]}"/>')
+    h.append(f'<img class="chart" src="file://{chart_paths["trade_heatmap"]}"/>')
+
+    # ===== Trade network =====
+    h.append('<h2>Trade Network</h2>')
+    h.append('<p class="section-intro">Force-directed graph of the league\'s '
+             'trade economy. Bigger node = trades more; edges show pair '
+             'frequency (thickness) and imbalance (color depth). Managers '
+             'who only trade with a few others get pulled to the periphery.</p>')
+    h.append(f'<img class="chart" src="file://{chart_paths["trade_network"]}"/>')
 
     # ===== Best drafters =====
     h.append('<h2>Best Drafters</h2>')
     h.append('<p class="section-intro">Rookie-year nflverse points produced '
              'by every player each manager drafted, normalized per pick. '
              'Minimum 20 career picks to qualify.</p>')
-    h.append(f'<img class="chart" src="{chart_paths["drafters"]}"/>')
+    h.append(f'<img class="chart" src="file://{chart_paths["drafters"]}"/>')
 
     # ===== Championship timeline =====
     h.append('<h2>Championship Timeline</h2>')
     h.append('<p class="section-intro">15 years of titles, one trophy per '
              'season. Rows ordered by total ring count.</p>')
-    h.append(f'<img class="chart" src="{chart_paths["champs"]}"/>')
+    h.append(f'<img class="chart" src="file://{chart_paths["champs"]}"/>')
 
     # ===== Sleeper era split =====
     h.append('<h2>Sleeper Era (2023-2025)</h2>')
@@ -1043,9 +1223,9 @@ def build_html():
              'view. Weights tilt away from longevity (5%) and toward '
              'draft (22%) and win% (22%). All 12 current rosters '
              'included regardless of tenure.</p>')
-    h.append(f'<img class="chart" src="{chart_paths["ovr_sleeper"]}"/>')
-    h.append(f'<img class="chart" src="{chart_paths["sleeper_trend"]}"/>')
-    h.append(f'<img class="chart" src="{chart_paths["radar_sleeper"]}"/>')
+    h.append(f'<img class="chart" src="file://{chart_paths["ovr_sleeper"]}"/>')
+    h.append(f'<img class="chart" src="file://{chart_paths["sleeper_trend"]}"/>')
+    h.append(f'<img class="chart" src="file://{chart_paths["radar_sleeper"]}"/>')
 
     h.append('<h2>Sleeper Era Player Cards</h2>')
     h.append('<div class="cards-grid">')
@@ -1070,14 +1250,36 @@ def build_html():
     return "\n".join(h)
 
 
+CHROMIUM_EXEC = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
+
+
+def _render_pdf_playwright(html: str, out_path: Path):
+    import os
+    os.environ["PLAYWRIGHT_BROWSERS_PATH"] = "/opt/pw-browsers"
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as p:
+        b = p.chromium.launch(executable_path=CHROMIUM_EXEC,
+                              args=["--no-sandbox", "--disable-dev-shm-usage"])
+        ctx = b.new_context(viewport={"width": 820, "height": 1100})
+        page = ctx.new_page()
+        page.set_content(html, wait_until="networkidle")
+        # Wait for fonts + images
+        page.evaluate("document.fonts.ready")
+        page.pdf(
+            path=str(out_path),
+            format="Letter",
+            margin={"top": "0.4in", "bottom": "0.4in",
+                    "left": "0.4in", "right": "0.4in"},
+            print_background=True,
+            prefer_css_page_size=False,
+        )
+        b.close()
+
+
 def main():
     html = build_html()
-    MD_OUT.write_text(html)  # save the HTML alongside for debugging
-    try:
-        from weasyprint import HTML
-    except ImportError:
-        sys.exit("weasyprint not installed.")
-    HTML(string=html, base_url=str(ROOT)).write_pdf(str(PDF_OUT))
+    MD_OUT.write_text(html)
+    _render_pdf_playwright(html, PDF_OUT)
     print(f"Wrote {PDF_OUT.relative_to(ROOT)}")
 
 
