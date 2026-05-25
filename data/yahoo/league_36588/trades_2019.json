@@ -9,6 +9,29 @@
         "date_str": "Nov 9, 6:31 pm",
         "received_players": [
           {
+            "name": "Ronald Jones",
+            "nfl_team": "Dal",
+            "pos": "RB"
+          },
+          {
+            "name": "Julio Jones",
+            "nfl_team": "Phi",
+            "pos": "WR"
+          },
+          {
+            "name": "Carson Wentz",
+            "nfl_team": "Min",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": []
+      },
+      {
+        "received_team": "Weird Flex but OK",
+        "initiator": "",
+        "date_str": "Nov 9, 6:31 pm",
+        "received_players": [
+          {
             "name": "James Conner",
             "nfl_team": "Ari",
             "pos": "RB"
@@ -25,19 +48,6 @@
           }
         ],
         "received_picks": []
-      },
-      {
-        "received_team": "Weird Flex but OK",
-        "initiator": "",
-        "date_str": "Nov 9, 6:31 pm",
-        "received_players": [
-          {
-            "name": "Chris Carson",
-            "nfl_team": "Sea",
-            "pos": "RB"
-          }
-        ],
-        "received_picks": []
       }
     ]
   },
@@ -51,9 +61,9 @@
         "date_str": "Nov 5, 12:11 pm",
         "received_players": [
           {
-            "name": "Adam Thielen",
-            "nfl_team": "Pit",
-            "pos": "WR"
+            "name": "Chris Carson",
+            "nfl_team": "Sea",
+            "pos": "RB"
           }
         ],
         "received_picks": []
@@ -62,6 +72,25 @@
         "received_team": "Barry Sandals",
         "initiator": "",
         "date_str": "Nov 5, 12:11 pm",
+        "received_players": [
+          {
+            "name": "Adam Thielen",
+            "nfl_team": "Pit",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": []
+      }
+    ]
+  },
+  {
+    "season": 2019,
+    "date_str": "Oct 18, 12:50 pm",
+    "sides": [
+      {
+        "received_team": "Troll Toll",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 18, 12:50 pm",
         "received_players": [
           {
             "name": "Jimmy Garoppolo",
@@ -74,15 +103,9 @@
             "round": 1
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2019,
-    "date_str": "Oct 18, 12:50 pm",
-    "sides": [
+      },
       {
-        "received_team": "Troll Toll",
+        "received_team": "No Chubby Strippers",
         "initiator": "BIGGUAP",
         "date_str": "Oct 18, 12:50 pm",
         "received_players": [
@@ -102,11 +125,17 @@
             "round": 4
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "season": 2019,
+    "date_str": "Oct 18, 12:23 pm",
+    "sides": [
       {
-        "received_team": "No Chubby Strippers",
+        "received_team": "Carli Lloyd Banks",
         "initiator": "BIGGUAP",
-        "date_str": "Oct 18, 12:50 pm",
+        "date_str": "Oct 18, 12:23 pm",
         "received_players": [
           {
             "name": "Greg Olsen",
@@ -122,15 +151,9 @@
             "round": 8
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2019,
-    "date_str": "Oct 18, 12:23 pm",
-    "sides": [
+      },
       {
-        "received_team": "Carli Lloyd Banks",
+        "received_team": "No Chubby Strippers",
         "initiator": "BIGGUAP",
         "date_str": "Oct 18, 12:23 pm",
         "received_players": [
@@ -148,11 +171,17 @@
             "round": 10
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "season": 2019,
+    "date_str": "Oct 15, 11:16 am",
+    "sides": [
       {
-        "received_team": "No Chubby Strippers",
+        "received_team": "Carli Lloyd Banks",
         "initiator": "BIGGUAP",
-        "date_str": "Oct 18, 12:23 pm",
+        "date_str": "Oct 15, 11:16 am",
         "received_players": [
           {
             "name": "Mitchell Trubisky",
@@ -170,15 +199,9 @@
             "round": 1
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2019,
-    "date_str": "Oct 15, 11:16 am",
-    "sides": [
+      },
       {
-        "received_team": "Carli Lloyd Banks",
+        "received_team": "BergerBoy Brigade",
         "initiator": "BIGGUAP",
         "date_str": "Oct 15, 11:16 am",
         "received_players": [
@@ -198,11 +221,17 @@
             "round": 6
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "season": 2019,
+    "date_str": "Oct 13, 4:26 pm",
+    "sides": [
       {
-        "received_team": "BergerBoy Brigade",
+        "received_team": "Figgy",
         "initiator": "BIGGUAP",
-        "date_str": "Oct 15, 11:16 am",
+        "date_str": "Oct 13, 4:26 pm",
         "received_players": [
           {
             "name": "Saquon Barkley",
@@ -215,15 +244,9 @@
             "round": 17
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2019,
-    "date_str": "Oct 13, 4:26 pm",
-    "sides": [
+      },
       {
-        "received_team": "Figgy",
+        "received_team": "The Dream Team",
         "initiator": "BIGGUAP",
         "date_str": "Oct 13, 4:26 pm",
         "received_players": [],
@@ -232,11 +255,17 @@
             "round": 1
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "season": 2019,
+    "date_str": "Oct 12, 9:44 pm",
+    "sides": [
       {
         "received_team": "The Dream Team",
         "initiator": "BIGGUAP",
-        "date_str": "Oct 13, 4:26 pm",
+        "date_str": "Oct 12, 9:44 pm",
         "received_players": [
           {
             "name": "Kenny Golladay",
@@ -254,15 +283,9 @@
             "round": 6
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2019,
-    "date_str": "Oct 12, 9:44 pm",
-    "sides": [
+      },
       {
-        "received_team": "The Dream Team",
+        "received_team": "Terror Squad",
         "initiator": "BIGGUAP",
         "date_str": "Oct 12, 9:44 pm",
         "received_players": [
@@ -278,11 +301,17 @@
             "originally_from": "Barry Sandals"
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "season": 2019,
+    "date_str": "Oct 9, 2:01 pm",
+    "sides": [
       {
-        "received_team": "Terror Squad",
-        "initiator": "BIGGUAP",
-        "date_str": "Oct 12, 9:44 pm",
+        "received_team": "Trevor\u2019s Semifinals",
+        "initiator": "",
+        "date_str": "Oct 9, 2:01 pm",
         "received_players": [
           {
             "name": "Kirk Cousins",
@@ -296,15 +325,9 @@
           }
         ],
         "received_picks": []
-      }
-    ]
-  },
-  {
-    "season": 2019,
-    "date_str": "Oct 9, 2:01 pm",
-    "sides": [
+      },
       {
-        "received_team": "Trevor\u2019s Semifinals",
+        "received_team": "Guap Gang",
         "initiator": "",
         "date_str": "Oct 9, 2:01 pm",
         "received_players": [
@@ -320,11 +343,17 @@
           }
         ],
         "received_picks": []
-      },
+      }
+    ]
+  },
+  {
+    "season": 2019,
+    "date_str": "Oct 8, 4:15 pm",
+    "sides": [
       {
-        "received_team": "Guap Gang",
+        "received_team": "Carli Lloyd Banks",
         "initiator": "",
-        "date_str": "Oct 9, 2:01 pm",
+        "date_str": "Oct 8, 4:15 pm",
         "received_players": [
           {
             "name": "Frank Gore",
@@ -342,15 +371,9 @@
             "round": 1
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2019,
-    "date_str": "Oct 8, 4:15 pm",
-    "sides": [
+      },
       {
-        "received_team": "Carli Lloyd Banks",
+        "received_team": "Guap Gang",
         "initiator": "",
         "date_str": "Oct 8, 4:15 pm",
         "received_players": [
@@ -370,19 +393,6 @@
             "round": 4
           }
         ]
-      },
-      {
-        "received_team": "Guap Gang",
-        "initiator": "",
-        "date_str": "Oct 8, 4:15 pm",
-        "received_players": [
-          {
-            "name": "Daniel Jones",
-            "nfl_team": "Ind",
-            "pos": "QB"
-          }
-        ],
-        "received_picks": []
       }
     ]
   },
@@ -396,8 +406,8 @@
         "date_str": "Oct 8, 12:34 pm",
         "received_players": [
           {
-            "name": "Matthew Stafford",
-            "nfl_team": "LAR",
+            "name": "Daniel Jones",
+            "nfl_team": "Ind",
             "pos": "QB"
           }
         ],
@@ -407,6 +417,25 @@
         "received_team": "The Dream Team",
         "initiator": "BIGGUAP",
         "date_str": "Oct 8, 12:34 pm",
+        "received_players": [
+          {
+            "name": "Matthew Stafford",
+            "nfl_team": "LAR",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": []
+      }
+    ]
+  },
+  {
+    "season": 2019,
+    "date_str": "Oct 1, 11:44 am",
+    "sides": [
+      {
+        "received_team": "Trevor\u2019s Semifinals",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 1, 11:44 am",
         "received_players": [
           {
             "name": "Austin Ekeler",
@@ -432,15 +461,9 @@
             "round": 3
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2019,
-    "date_str": "Oct 1, 11:44 am",
-    "sides": [
+      },
       {
-        "received_team": "Trevor\u2019s Semifinals",
+        "received_team": "Terror Squad",
         "initiator": "BIGGUAP",
         "date_str": "Oct 1, 11:44 am",
         "received_players": [
@@ -468,11 +491,17 @@
             "round": 15
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "season": 2019,
+    "date_str": "Sep 24, 6:09 pm",
+    "sides": [
       {
-        "received_team": "Terror Squad",
+        "received_team": "The Dream Team",
         "initiator": "BIGGUAP",
-        "date_str": "Oct 1, 11:44 am",
+        "date_str": "Sep 24, 6:09 pm",
         "received_players": [
           {
             "name": "Saquon Barkley",
@@ -488,15 +517,9 @@
             "round": 16
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2019,
-    "date_str": "Sep 24, 6:09 pm",
-    "sides": [
+      },
       {
-        "received_team": "The Dream Team",
+        "received_team": "Barry Sandals",
         "initiator": "BIGGUAP",
         "date_str": "Sep 24, 6:09 pm",
         "received_players": [
@@ -514,13 +537,6 @@
             "round": 15
           }
         ]
-      },
-      {
-        "received_team": "Barry Sandals",
-        "initiator": "BIGGUAP",
-        "date_str": "Sep 24, 6:09 pm",
-        "received_players": [],
-        "received_picks": []
       }
     ]
   }

@@ -72,10 +72,13 @@ def _fetch(url: str, cookies: Optional[str]) -> Optional[str]:
 # Capture each "Traded to ..." block, stopping before the next or end-marker.
 # Yahoo's HTML uses class-based markup; after stripping tags we get a
 # flat text stream of trade segments separated by "Traded to" headers.
-_SIDE_RE = re.compile(
+# Each trade row in Yahoo HTML: [players + picks] then "Traded to X (Y) DATE"
+# at the RIGHT side of the row. After tag-stripping, the body APPEARS
+# BEFORE "Traded to X". Anchor on the header; capture the body that
+# came before (between prior "Traded to" / page-start and this one).
+_HEADER_RE = re.compile(
     r"Traded to ([^()\n]+?)\s*(?:\(\s*([^)]+?)\s*\))?\s*"
-    r"(\w{3,4} \d{1,2}, \d{1,2}:\d{2} (?:am|pm))\s*"
-    r"([\s\S]*?)(?=Traded to |\Z)"
+    r"(\w{3,4} \d{1,2}, \d{1,2}:\d{2} (?:am|pm))"
 )
 _PLAYER_RE = re.compile(
     r"([A-Z][\w\.\-']+(?:\s[A-Z][\w\.\-']+){1,3}(?:\s[IVX]+| Jr\.?| Sr\.?)?)\s+"
@@ -88,12 +91,27 @@ _DATE_PARSE = re.compile(r"(\w{3,4}) (\d{1,2}), (\d{1,2}):(\d{2}) (am|pm)")
 def parse_trades_page(html: str, season: int) -> list[dict]:
     text = re.sub(r"<[^>]+>", " ", html)
     text = re.sub(r"\s+", " ", unescape(text)).strip()
+
+    # Find all "Traded to X" headers with their positions. For each one,
+    # the body (players + picks that X received) is the text BETWEEN
+    # the previous header's end (or page start) and THIS header's start.
+    headers = list(_HEADER_RE.finditer(text))
     sides = []
-    for m in _SIDE_RE.finditer(text):
+    prev_end = 0
+    # Heuristic page-start trim: skip the initial nav/JS chunk before the
+    # first "Traded to". The actual trade list starts shortly before the
+    # first header — we look back ~2KB from the first header to find a
+    # marker like "Transactions" or just use the raw preceding region.
+    if headers:
+        # Trim everything before "Transactions" if present
+        tr = text.find("Transactions")
+        if 0 <= tr < headers[0].start():
+            prev_end = tr + len("Transactions")
+    for m in headers:
+        body = text[prev_end:m.start()].strip()
         team_to = m.group(1).strip()
         initiator = (m.group(2) or "").strip()
         date_str = m.group(3).strip()
-        body = m.group(4).strip()
         players = []
         for p in _PLAYER_RE.finditer(body):
             name = re.sub(r"^(NA|Q|O|D|IR|SUSP)\s+", "", p.group(1)).strip()
@@ -110,6 +128,7 @@ def parse_trades_page(html: str, season: int) -> list[dict]:
             "date_str": date_str,
             "received_players": players, "received_picks": picks,
         })
+        prev_end = m.end()
     # Pair sides into trades. Yahoo's page lists each side sequentially —
     # for a 2-team trade, 2 consecutive "Traded to X" rows describe it.
     # If multiple trades happened at the same minute, they appear as

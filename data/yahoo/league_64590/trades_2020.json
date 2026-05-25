@@ -9,6 +9,28 @@
         "date_str": "Nov 13, 4:36 pm",
         "received_players": [
           {
+            "name": "Mike Davis",
+            "nfl_team": "Bal",
+            "pos": "RB"
+          },
+          {
+            "name": "Christian McCaffrey",
+            "nfl_team": "SF",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 17
+          }
+        ]
+      },
+      {
+        "received_team": "Guap Gang",
+        "initiator": "",
+        "date_str": "Nov 13, 4:36 pm",
+        "received_players": [
+          {
             "name": "Chase Edmonds",
             "nfl_team": "Was",
             "pos": "RB"
@@ -24,11 +46,17 @@
             "round": 3
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "season": 2020,
+    "date_str": "Nov 13, 1:29 pm",
+    "sides": [
       {
-        "received_team": "Guap Gang",
-        "initiator": "",
-        "date_str": "Nov 13, 4:36 pm",
+        "received_team": "Wet Ass Posluzny",
+        "initiator": "BIGGUAP",
+        "date_str": "Nov 13, 1:29 pm",
         "received_players": [
           {
             "name": "Josh Jacobs",
@@ -41,15 +69,9 @@
             "round": 4
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2020,
-    "date_str": "Nov 13, 1:29 pm",
-    "sides": [
+      },
       {
-        "received_team": "Wet Ass Posluzny",
+        "received_team": "Terror Squad",
         "initiator": "BIGGUAP",
         "date_str": "Nov 13, 1:29 pm",
         "received_players": [],
@@ -58,19 +80,6 @@
             "round": 2
           }
         ]
-      },
-      {
-        "received_team": "Terror Squad",
-        "initiator": "BIGGUAP",
-        "date_str": "Nov 13, 1:29 pm",
-        "received_players": [
-          {
-            "name": "Mark Andrews",
-            "nfl_team": "Bal",
-            "pos": "TE"
-          }
-        ],
-        "received_picks": []
       }
     ]
   },
@@ -84,8 +93,8 @@
         "date_str": "Nov 12, 4:49 pm",
         "received_players": [
           {
-            "name": "Darren Waller",
-            "nfl_team": "Mia",
+            "name": "Mark Andrews",
+            "nfl_team": "Bal",
             "pos": "TE"
           }
         ],
@@ -95,12 +104,14 @@
         "received_team": "Barry Sandals",
         "initiator": "",
         "date_str": "Nov 12, 4:49 pm",
-        "received_players": [],
-        "received_picks": [
+        "received_players": [
           {
-            "round": 8
+            "name": "Darren Waller",
+            "nfl_team": "Mia",
+            "pos": "TE"
           }
-        ]
+        ],
+        "received_picks": []
       }
     ]
   },
@@ -110,6 +121,17 @@
     "sides": [
       {
         "received_team": "Figgy",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 30, 5:42 pm",
+        "received_players": [],
+        "received_picks": [
+          {
+            "round": 8
+          }
+        ]
+      },
+      {
+        "received_team": "BergerBoy Brigade",
         "initiator": "BIGGUAP",
         "date_str": "Oct 30, 5:42 pm",
         "received_players": [
@@ -124,11 +146,17 @@
             "round": 12
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "season": 2020,
+    "date_str": "Oct 28, 1:01 pm",
+    "sides": [
       {
-        "received_team": "BergerBoy Brigade",
+        "received_team": "Figgy",
         "initiator": "BIGGUAP",
-        "date_str": "Oct 30, 5:42 pm",
+        "date_str": "Oct 28, 1:01 pm",
         "received_players": [
           {
             "name": "Mike Williams",
@@ -146,15 +174,9 @@
             "round": 1
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2020,
-    "date_str": "Oct 28, 1:01 pm",
-    "sides": [
+      },
       {
-        "received_team": "Figgy",
+        "received_team": "BergerBoy Brigade",
         "initiator": "BIGGUAP",
         "date_str": "Oct 28, 1:01 pm",
         "received_players": [
@@ -166,23 +188,6 @@
           {
             "name": "Aaron Jones Sr.",
             "nfl_team": "Min",
-            "pos": "RB"
-          }
-        ],
-        "received_picks": [
-          {
-            "round": 4
-          }
-        ]
-      },
-      {
-        "received_team": "BergerBoy Brigade",
-        "initiator": "BIGGUAP",
-        "date_str": "Oct 28, 1:01 pm",
-        "received_players": [
-          {
-            "name": "Ronald Jones",
-            "nfl_team": "Dal",
             "pos": "RB"
           }
         ],
@@ -204,6 +209,23 @@
         "date_str": "Oct 28, 11:34 am",
         "received_players": [
           {
+            "name": "Ronald Jones",
+            "nfl_team": "Dal",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 4
+          }
+        ]
+      },
+      {
+        "received_team": "BergerBoy Brigade",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 28, 11:34 am",
+        "received_players": [
+          {
             "name": "Dalvin Cook",
             "nfl_team": "Dal",
             "pos": "RB"
@@ -215,19 +237,6 @@
             "originally_from": "The Dream Team"
           }
         ]
-      },
-      {
-        "received_team": "BergerBoy Brigade",
-        "initiator": "BIGGUAP",
-        "date_str": "Oct 28, 11:34 am",
-        "received_players": [
-          {
-            "name": "Ronald Jones",
-            "nfl_team": "Dal",
-            "pos": "RB"
-          }
-        ],
-        "received_picks": []
       }
     ]
   },
@@ -241,8 +250,8 @@
         "date_str": "Oct 27, 6:42 am",
         "received_players": [
           {
-            "name": "Mike Davis",
-            "nfl_team": "Bal",
+            "name": "Ronald Jones",
+            "nfl_team": "Dal",
             "pos": "RB"
           }
         ],
@@ -251,6 +260,25 @@
       {
         "received_team": "Guap Gang",
         "initiator": "",
+        "date_str": "Oct 27, 6:42 am",
+        "received_players": [
+          {
+            "name": "Mike Davis",
+            "nfl_team": "Bal",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": []
+      }
+    ]
+  },
+  {
+    "season": 2020,
+    "date_str": "Oct 27, 6:42 am",
+    "sides": [
+      {
+        "received_team": "Don\u2019s Special Guys",
+        "initiator": "BIGGUAP",
         "date_str": "Oct 27, 6:42 am",
         "received_players": [
           {
@@ -264,15 +292,9 @@
             "round": 4
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2020,
-    "date_str": "Oct 27, 6:42 am",
-    "sides": [
+      },
       {
-        "received_team": "Don\u2019s Special Guys",
+        "received_team": "The Dream Team",
         "initiator": "BIGGUAP",
         "date_str": "Oct 27, 6:42 am",
         "received_players": [
@@ -287,19 +309,6 @@
             "round": 8
           }
         ]
-      },
-      {
-        "received_team": "The Dream Team",
-        "initiator": "BIGGUAP",
-        "date_str": "Oct 27, 6:42 am",
-        "received_players": [
-          {
-            "name": "DJ Chark",
-            "nfl_team": "Atl",
-            "pos": "WR"
-          }
-        ],
-        "received_picks": []
       }
     ]
   },
@@ -313,8 +322,8 @@
         "date_str": "Oct 27, 6:42 am",
         "received_players": [
           {
-            "name": "Kenny Golladay",
-            "nfl_team": "NYG",
+            "name": "DJ Chark",
+            "nfl_team": "Atl",
             "pos": "WR"
           }
         ],
@@ -322,6 +331,25 @@
       },
       {
         "received_team": "Guap Gang",
+        "initiator": "",
+        "date_str": "Oct 27, 6:42 am",
+        "received_players": [
+          {
+            "name": "Kenny Golladay",
+            "nfl_team": "NYG",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": []
+      }
+    ]
+  },
+  {
+    "season": 2020,
+    "date_str": "Oct 27, 6:42 am",
+    "sides": [
+      {
+        "received_team": "Don\u2019s Special Guys",
         "initiator": "",
         "date_str": "Oct 27, 6:42 am",
         "received_players": [
@@ -341,15 +369,9 @@
             "round": 2
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2020,
-    "date_str": "Oct 27, 6:42 am",
-    "sides": [
+      },
       {
-        "received_team": "Don\u2019s Special Guys",
+        "received_team": "Guap Gang",
         "initiator": "",
         "date_str": "Oct 27, 6:42 am",
         "received_players": [
@@ -369,19 +391,6 @@
             "round": 4
           }
         ]
-      },
-      {
-        "received_team": "Guap Gang",
-        "initiator": "",
-        "date_str": "Oct 27, 6:42 am",
-        "received_players": [
-          {
-            "name": "Justin Tucker",
-            "nfl_team": "Bal",
-            "pos": "K"
-          }
-        ],
-        "received_picks": []
       }
     ]
   },
@@ -395,8 +404,8 @@
         "date_str": "Oct 21, 10:46 am",
         "received_players": [
           {
-            "name": "Younghoe Koo",
-            "nfl_team": "NYG",
+            "name": "Justin Tucker",
+            "nfl_team": "Bal",
             "pos": "K"
           }
         ],
@@ -406,6 +415,25 @@
         "received_team": "Barry Sandals",
         "initiator": "BIGGUAP",
         "date_str": "Oct 21, 10:46 am",
+        "received_players": [
+          {
+            "name": "Younghoe Koo",
+            "nfl_team": "NYG",
+            "pos": "K"
+          }
+        ],
+        "received_picks": []
+      }
+    ]
+  },
+  {
+    "season": 2020,
+    "date_str": "Oct 14, 8:10 am",
+    "sides": [
+      {
+        "received_team": "#1 Pokemon Master",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 14, 8:10 am",
         "received_players": [
           {
             "name": "Darrell Henderson Jr.",
@@ -418,15 +446,9 @@
             "round": 6
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2020,
-    "date_str": "Oct 14, 8:10 am",
-    "sides": [
+      },
       {
-        "received_team": "#1 Pokemon Master",
+        "received_team": "The Dream Team",
         "initiator": "BIGGUAP",
         "date_str": "Oct 14, 8:10 am",
         "received_players": [
@@ -441,11 +463,17 @@
             "round": 8
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "season": 2020,
+    "date_str": "Oct 7, 12:02 am",
+    "sides": [
       {
-        "received_team": "The Dream Team",
+        "received_team": "Waiting For 2021",
         "initiator": "BIGGUAP",
-        "date_str": "Oct 14, 8:10 am",
+        "date_str": "Oct 7, 12:02 am",
         "received_players": [
           {
             "name": "T.Y. Hilton",
@@ -466,15 +494,9 @@
             "round": 3
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2020,
-    "date_str": "Oct 7, 12:02 am",
-    "sides": [
+      },
       {
-        "received_team": "Waiting For 2021",
+        "received_team": "Weird Flex but OK",
         "initiator": "BIGGUAP",
         "date_str": "Oct 7, 12:02 am",
         "received_players": [
@@ -497,11 +519,17 @@
             "round": 11
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "season": 2020,
+    "date_str": "Oct 6, 11:11 am",
+    "sides": [
       {
-        "received_team": "Weird Flex but OK",
+        "received_team": "The Dream Team",
         "initiator": "BIGGUAP",
-        "date_str": "Oct 7, 12:02 am",
+        "date_str": "Oct 6, 11:11 am",
         "received_players": [
           {
             "name": "Patrick Mahomes",
@@ -517,15 +545,9 @@
             "round": 17
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2020,
-    "date_str": "Oct 6, 11:11 am",
-    "sides": [
+      },
       {
-        "received_team": "The Dream Team",
+        "received_team": "Waiting For 2021",
         "initiator": "BIGGUAP",
         "date_str": "Oct 6, 11:11 am",
         "received_players": [
@@ -543,11 +565,17 @@
             "round": 3
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "season": 2020,
+    "date_str": "Sep 23, 4:05 pm",
+    "sides": [
       {
-        "received_team": "Waiting For 2021",
+        "received_team": "Terror Squad",
         "initiator": "BIGGUAP",
-        "date_str": "Oct 6, 11:11 am",
+        "date_str": "Sep 23, 4:05 pm",
         "received_players": [
           {
             "name": "Daniel Jones",
@@ -568,15 +596,9 @@
             "round": 4
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2020,
-    "date_str": "Sep 23, 4:05 pm",
-    "sides": [
+      },
       {
-        "received_team": "Terror Squad",
+        "received_team": "Barry Sandals",
         "initiator": "BIGGUAP",
         "date_str": "Sep 23, 4:05 pm",
         "received_players": [
@@ -599,19 +621,6 @@
             "round": 13
           }
         ]
-      },
-      {
-        "received_team": "Barry Sandals",
-        "initiator": "BIGGUAP",
-        "date_str": "Sep 23, 4:05 pm",
-        "received_players": [
-          {
-            "name": "Teddy Bridgewater",
-            "nfl_team": "Det",
-            "pos": "QB"
-          }
-        ],
-        "received_picks": []
       }
     ]
   },
@@ -625,9 +634,9 @@
         "date_str": "Sep 7, 9:02 pm",
         "received_players": [
           {
-            "name": "Chris Herndon",
-            "nfl_team": "Min",
-            "pos": "TE"
+            "name": "Teddy Bridgewater",
+            "nfl_team": "Det",
+            "pos": "QB"
           }
         ],
         "received_picks": []
@@ -638,9 +647,9 @@
         "date_str": "Sep 7, 9:02 pm",
         "received_players": [
           {
-            "name": "Tyler Boyd",
-            "nfl_team": "Ten",
-            "pos": "WR"
+            "name": "Chris Herndon",
+            "nfl_team": "Min",
+            "pos": "TE"
           }
         ],
         "received_picks": []
@@ -657,9 +666,9 @@
         "date_str": "Sep 6, 3:30 pm",
         "received_players": [
           {
-            "name": "Zack Moss",
-            "nfl_team": "Cin",
-            "pos": "RB"
+            "name": "Tyler Boyd",
+            "nfl_team": "Ten",
+            "pos": "WR"
           }
         ],
         "received_picks": []
@@ -668,7 +677,13 @@
         "received_team": "BergerBoy Brigade",
         "initiator": "",
         "date_str": "Sep 6, 3:30 pm",
-        "received_players": [],
+        "received_players": [
+          {
+            "name": "Zack Moss",
+            "nfl_team": "Cin",
+            "pos": "RB"
+          }
+        ],
         "received_picks": []
       }
     ]

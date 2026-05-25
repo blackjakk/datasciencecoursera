@@ -7,6 +7,39 @@
         "received_team": "Deez Hos Ain't Royal",
         "initiator": "",
         "date_str": "Nov 26, 5:36 pm",
+        "received_players": [
+          {
+            "name": "Randall Cobb",
+            "nfl_team": "NYJ",
+            "pos": "WR"
+          },
+          {
+            "name": "LeSean McCoy",
+            "nfl_team": "TB",
+            "pos": "RB"
+          },
+          {
+            "name": "Dez Bryant",
+            "nfl_team": "Bal",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 3
+          },
+          {
+            "round": 4
+          },
+          {
+            "round": 7
+          }
+        ]
+      },
+      {
+        "received_team": "PillowBoy Posse",
+        "initiator": "",
+        "date_str": "Nov 26, 5:36 pm",
         "received_players": [],
         "received_picks": [
           {
@@ -17,23 +50,6 @@
           },
           {
             "round": 6
-          }
-        ]
-      },
-      {
-        "received_team": "PillowBoy Posse",
-        "initiator": "",
-        "date_str": "Nov 26, 5:36 pm",
-        "received_players": [
-          {
-            "name": "Tom Brady",
-            "nfl_team": "TB",
-            "pos": "QB"
-          }
-        ],
-        "received_picks": [
-          {
-            "round": 9
           }
         ]
       }
@@ -49,14 +65,14 @@
         "date_str": "Nov 19, 7:15 pm",
         "received_players": [
           {
-            "name": "Robert Griffin III",
-            "nfl_team": "Bal",
+            "name": "Tom Brady",
+            "nfl_team": "TB",
             "pos": "QB"
           }
         ],
         "received_picks": [
           {
-            "round": 7
+            "round": 9
           }
         ]
       },
@@ -66,14 +82,14 @@
         "date_str": "Nov 19, 7:15 pm",
         "received_players": [
           {
-            "name": "Drew Brees",
-            "nfl_team": "NO",
+            "name": "Robert Griffin III",
+            "nfl_team": "Bal",
             "pos": "QB"
           }
         ],
         "received_picks": [
           {
-            "round": 6
+            "round": 7
           }
         ]
       }
@@ -89,14 +105,14 @@
         "date_str": "Nov 19, 7:11 pm",
         "received_players": [
           {
-            "name": "Lorenzo Taliaferro",
-            "nfl_team": "Bal",
-            "pos": "RB"
+            "name": "Drew Brees",
+            "nfl_team": "NO",
+            "pos": "QB"
           }
         ],
         "received_picks": [
           {
-            "round": 5
+            "round": 6
           }
         ]
       },
@@ -106,14 +122,14 @@
         "date_str": "Nov 19, 7:11 pm",
         "received_players": [
           {
-            "name": "Arian Foster",
-            "nfl_team": "Mia",
+            "name": "Lorenzo Taliaferro",
+            "nfl_team": "Bal",
             "pos": "RB"
           }
         ],
         "received_picks": [
           {
-            "round": 7
+            "round": 5
           }
         ]
       }
@@ -129,15 +145,14 @@
         "date_str": "Nov 19, 7:10 pm",
         "received_players": [
           {
-            "name": "Latavius Murray",
-            "nfl_team": "Buf",
+            "name": "Arian Foster",
+            "nfl_team": "Mia",
             "pos": "RB"
           }
         ],
         "received_picks": [
           {
-            "round": 6,
-            "originally_from": "ButtersBottomBitches"
+            "round": 7
           }
         ]
       },
@@ -147,14 +162,14 @@
         "date_str": "Nov 19, 7:10 pm",
         "received_players": [
           {
-            "name": "Bobby Rainey",
-            "nfl_team": "Bal",
+            "name": "Latavius Murray",
+            "nfl_team": "Buf",
             "pos": "RB"
           }
         ],
         "received_picks": [
           {
-            "round": 5,
+            "round": 6,
             "originally_from": "ButtersBottomBitches"
           }
         ]
@@ -171,14 +186,15 @@
         "date_str": "Nov 19, 7:09 pm",
         "received_players": [
           {
-            "name": "Alfred Morris",
-            "nfl_team": "NYG",
+            "name": "Bobby Rainey",
+            "nfl_team": "Bal",
             "pos": "RB"
           }
         ],
         "received_picks": [
           {
-            "round": 8
+            "round": 5,
+            "originally_from": "ButtersBottomBitches"
           }
         ]
       },
@@ -188,9 +204,9 @@
         "date_str": "Nov 19, 7:09 pm",
         "received_players": [
           {
-            "name": "Rob Gronkowski",
-            "nfl_team": "TB",
-            "pos": "TE"
+            "name": "Alfred Morris",
+            "nfl_team": "NYG",
+            "pos": "RB"
           }
         ],
         "received_picks": [
@@ -211,15 +227,14 @@
         "date_str": "Nov 19, 6:47 pm",
         "received_players": [
           {
-            "name": "Jordan Cameron",
-            "nfl_team": "Mia",
+            "name": "Rob Gronkowski",
+            "nfl_team": "TB",
             "pos": "TE"
           }
         ],
         "received_picks": [
           {
-            "round": 7,
-            "originally_from": "Sammetius Watkinutus"
+            "round": 8
           }
         ]
       },
@@ -229,14 +244,15 @@
         "date_str": "Nov 19, 6:47 pm",
         "received_players": [
           {
-            "name": "Austin Davis",
-            "nfl_team": "Ten",
-            "pos": "QB"
+            "name": "Jordan Cameron",
+            "nfl_team": "Mia",
+            "pos": "TE"
           }
         ],
         "received_picks": [
           {
-            "round": 8
+            "round": 7,
+            "originally_from": "Sammetius Watkinutus"
           }
         ]
       }
@@ -252,6 +268,23 @@
         "date_str": "Nov 18, 7:49 pm",
         "received_players": [
           {
+            "name": "Austin Davis",
+            "nfl_team": "Ten",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 8
+          }
+        ]
+      },
+      {
+        "received_team": "BergerBoy Brigade",
+        "initiator": "BIGGUAP",
+        "date_str": "Nov 18, 7:49 pm",
+        "received_players": [
+          {
             "name": "Shane Vereen",
             "nfl_team": "NYG",
             "pos": "RB"
@@ -262,11 +295,17 @@
             "round": 9
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "season": 2014,
+    "date_str": "Nov 18, 2:03 pm",
+    "sides": [
       {
-        "received_team": "BergerBoy Brigade",
+        "received_team": "Dirty Old Men",
         "initiator": "BIGGUAP",
-        "date_str": "Nov 18, 7:49 pm",
+        "date_str": "Nov 18, 2:03 pm",
         "received_players": [
           {
             "name": "Peyton Manning",
@@ -293,15 +332,9 @@
             "originally_from": "LeGarratte Blunt"
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2014,
-    "date_str": "Nov 18, 2:03 pm",
-    "sides": [
+      },
       {
-        "received_team": "Dirty Old Men",
+        "received_team": "Sammetius Watkinutus",
         "initiator": "BIGGUAP",
         "date_str": "Nov 18, 2:03 pm",
         "received_players": [
@@ -329,11 +362,17 @@
             "round": 6
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "season": 2014,
+    "date_str": "Nov 5, 3:35 pm",
+    "sides": [
       {
-        "received_team": "Sammetius Watkinutus",
+        "received_team": "LEMVP & Associates",
         "initiator": "BIGGUAP",
-        "date_str": "Nov 18, 2:03 pm",
+        "date_str": "Nov 5, 3:35 pm",
         "received_players": [
           {
             "name": "Kyle Orton",
@@ -351,15 +390,9 @@
             "round": 4
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2014,
-    "date_str": "Nov 5, 3:35 pm",
-    "sides": [
+      },
       {
-        "received_team": "LEMVP & Associates",
+        "received_team": "LeGarratte Blunt",
         "initiator": "BIGGUAP",
         "date_str": "Nov 5, 3:35 pm",
         "received_players": [
@@ -374,11 +407,17 @@
             "round": 2
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "season": 2014,
+    "date_str": "Nov 4, 6:25 am",
+    "sides": [
       {
-        "received_team": "LeGarratte Blunt",
+        "received_team": "ButtersBottomBitches",
         "initiator": "BIGGUAP",
-        "date_str": "Nov 5, 3:35 pm",
+        "date_str": "Nov 4, 6:25 am",
         "received_players": [
           {
             "name": "Rashad Jennings",
@@ -395,15 +434,9 @@
             "round": 5
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2014,
-    "date_str": "Nov 4, 6:25 am",
-    "sides": [
+      },
       {
-        "received_team": "ButtersBottomBitches",
+        "received_team": "BergerBoy Brigade",
         "initiator": "BIGGUAP",
         "date_str": "Nov 4, 6:25 am",
         "received_players": [
@@ -421,11 +454,17 @@
             "round": 6
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "season": 2014,
+    "date_str": "Oct 31, 5:22 pm",
+    "sides": [
       {
-        "received_team": "BergerBoy Brigade",
+        "received_team": "LEMVP & Associates",
         "initiator": "BIGGUAP",
-        "date_str": "Nov 4, 6:25 am",
+        "date_str": "Oct 31, 5:22 pm",
         "received_players": [
           {
             "name": "Ryan Fitzpatrick",
@@ -438,15 +477,9 @@
             "round": 2
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2014,
-    "date_str": "Oct 31, 5:22 pm",
-    "sides": [
+      },
       {
-        "received_team": "LEMVP & Associates",
+        "received_team": "LeGarratte Blunt",
         "initiator": "BIGGUAP",
         "date_str": "Oct 31, 5:22 pm",
         "received_players": [
@@ -461,11 +494,17 @@
             "round": 1
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "season": 2014,
+    "date_str": "Oct 31, 4:57 pm",
+    "sides": [
       {
-        "received_team": "LeGarratte Blunt",
+        "received_team": "BergerBoy Brigade",
         "initiator": "BIGGUAP",
-        "date_str": "Oct 31, 5:22 pm",
+        "date_str": "Oct 31, 4:57 pm",
         "received_players": [
           {
             "name": "Calvin Johnson",
@@ -484,15 +523,9 @@
             "round": 19
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2014,
-    "date_str": "Oct 31, 4:57 pm",
-    "sides": [
+      },
       {
-        "received_team": "BergerBoy Brigade",
+        "received_team": "LeGarratte Blunt",
         "initiator": "BIGGUAP",
         "date_str": "Oct 31, 4:57 pm",
         "received_players": [
@@ -513,11 +546,17 @@
             "round": 16
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "season": 2014,
+    "date_str": "Oct 30, 11:45 pm",
+    "sides": [
       {
-        "received_team": "LeGarratte Blunt",
+        "received_team": "Sammetius Watkinutus",
         "initiator": "BIGGUAP",
-        "date_str": "Oct 31, 4:57 pm",
+        "date_str": "Oct 30, 11:45 pm",
         "received_players": [
           {
             "name": "Matthew Stafford",
@@ -540,15 +579,9 @@
             "round": 12
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2014,
-    "date_str": "Oct 30, 11:45 pm",
-    "sides": [
+      },
       {
-        "received_team": "Sammetius Watkinutus",
+        "received_team": "LeGarratte Blunt",
         "initiator": "BIGGUAP",
         "date_str": "Oct 30, 11:45 pm",
         "received_players": [
@@ -568,19 +601,6 @@
             "round": 3
           }
         ]
-      },
-      {
-        "received_team": "LeGarratte Blunt",
-        "initiator": "BIGGUAP",
-        "date_str": "Oct 30, 11:45 pm",
-        "received_players": [
-          {
-            "name": "Colin Kaepernick",
-            "nfl_team": "SF",
-            "pos": "QB"
-          }
-        ],
-        "received_picks": []
       }
     ]
   },
@@ -594,9 +614,9 @@
         "date_str": "Oct 29, 3:03 pm",
         "received_players": [
           {
-            "name": "Dez Bryant",
-            "nfl_team": "Bal",
-            "pos": "WR"
+            "name": "Colin Kaepernick",
+            "nfl_team": "SF",
+            "pos": "QB"
           }
         ],
         "received_picks": []
@@ -605,6 +625,25 @@
         "received_team": "PillowBoy Posse",
         "initiator": "",
         "date_str": "Oct 29, 3:03 pm",
+        "received_players": [
+          {
+            "name": "Dez Bryant",
+            "nfl_team": "Bal",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": []
+      }
+    ]
+  },
+  {
+    "season": 2014,
+    "date_str": "Oct 21, 6:05 am",
+    "sides": [
+      {
+        "received_team": "Jville Jizz",
+        "initiator": "",
+        "date_str": "Oct 21, 6:05 am",
         "received_players": [
           {
             "name": "Dez Bryant",
@@ -622,15 +661,9 @@
             "round": 1
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2014,
-    "date_str": "Oct 21, 6:05 am",
-    "sides": [
+      },
       {
-        "received_team": "Jville Jizz",
+        "received_team": "PillowBoy Posse",
         "initiator": "",
         "date_str": "Oct 21, 6:05 am",
         "received_players": [
@@ -650,19 +683,6 @@
             "round": 3
           }
         ]
-      },
-      {
-        "received_team": "PillowBoy Posse",
-        "initiator": "",
-        "date_str": "Oct 21, 6:05 am",
-        "received_players": [
-          {
-            "name": "Chris Ivory",
-            "nfl_team": "Buf",
-            "pos": "RB"
-          }
-        ],
-        "received_picks": []
       }
     ]
   },
@@ -676,9 +696,9 @@
         "date_str": "Oct 21, 6:05 am",
         "received_players": [
           {
-            "name": "Steve Smith",
-            "nfl_team": "Bal",
-            "pos": "WR"
+            "name": "Chris Ivory",
+            "nfl_team": "Buf",
+            "pos": "RB"
           }
         ],
         "received_picks": []
@@ -687,6 +707,25 @@
         "received_team": "Dirty Old Men",
         "initiator": "BIGGUAP",
         "date_str": "Oct 21, 6:05 am",
+        "received_players": [
+          {
+            "name": "Steve Smith",
+            "nfl_team": "Bal",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": []
+      }
+    ]
+  },
+  {
+    "season": 2014,
+    "date_str": "Sep 24, 11:02 am",
+    "sides": [
+      {
+        "received_team": "PillowBoy Posse",
+        "initiator": "",
+        "date_str": "Sep 24, 11:02 am",
         "received_players": [
           {
             "name": "Bernard Pierce",
@@ -704,15 +743,9 @@
             "round": 6
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2014,
-    "date_str": "Sep 24, 11:02 am",
-    "sides": [
+      },
       {
-        "received_team": "PillowBoy Posse",
+        "received_team": "BergerBoy Brigade",
         "initiator": "",
         "date_str": "Sep 24, 11:02 am",
         "received_players": [
@@ -732,19 +765,6 @@
             "round": 6
           }
         ]
-      },
-      {
-        "received_team": "BergerBoy Brigade",
-        "initiator": "",
-        "date_str": "Sep 24, 11:02 am",
-        "received_players": [
-          {
-            "name": "Knile Davis",
-            "nfl_team": "GB",
-            "pos": "RB"
-          }
-        ],
-        "received_picks": []
       }
     ]
   },
@@ -758,9 +778,9 @@
         "date_str": "Sep 20, 10:13 am",
         "received_players": [
           {
-            "name": "Jake Locker",
-            "nfl_team": "Ten",
-            "pos": "QB"
+            "name": "Knile Davis",
+            "nfl_team": "GB",
+            "pos": "RB"
           }
         ],
         "received_picks": []
@@ -769,7 +789,13 @@
         "received_team": "LeGarratte Blunt",
         "initiator": "BIGGUAP",
         "date_str": "Sep 20, 10:13 am",
-        "received_players": [],
+        "received_players": [
+          {
+            "name": "Jake Locker",
+            "nfl_team": "Ten",
+            "pos": "QB"
+          }
+        ],
         "received_picks": []
       }
     ]

@@ -9,6 +9,24 @@
         "date_str": "Nov 9, 5:09 am",
         "received_players": [
           {
+            "name": "Jay Cutler",
+            "nfl_team": "Mia",
+            "pos": "QB"
+          },
+          {
+            "name": "Vincent Jackson",
+            "nfl_team": "TB",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": []
+      },
+      {
+        "received_team": "Figgy",
+        "initiator": "",
+        "date_str": "Nov 9, 5:09 am",
+        "received_players": [
+          {
             "name": "Mike Wallace",
             "nfl_team": "Phi",
             "pos": "WR"
@@ -20,11 +38,17 @@
           }
         ],
         "received_picks": []
-      },
+      }
+    ]
+  },
+  {
+    "season": 2012,
+    "date_str": "Oct 10, 4:06 am",
+    "sides": [
       {
-        "received_team": "Figgy",
+        "received_team": "THIS SINBAD HOUSE",
         "initiator": "",
-        "date_str": "Nov 9, 5:09 am",
+        "date_str": "Oct 10, 4:06 am",
         "received_players": [
           {
             "name": "Brent Celek",
@@ -43,25 +67,6 @@
           }
         ],
         "received_picks": []
-      }
-    ]
-  },
-  {
-    "season": 2012,
-    "date_str": "Oct 10, 4:06 am",
-    "sides": [
-      {
-        "received_team": "THIS SINBAD HOUSE",
-        "initiator": "",
-        "date_str": "Oct 10, 4:06 am",
-        "received_players": [
-          {
-            "name": "Rob Gronkowski",
-            "nfl_team": "TB",
-            "pos": "TE"
-          }
-        ],
-        "received_picks": []
       },
       {
         "received_team": "Dirty Old Men",
@@ -69,9 +74,9 @@
         "date_str": "Oct 10, 4:06 am",
         "received_players": [
           {
-            "name": "Kevin Smith",
-            "nfl_team": "Det",
-            "pos": "RB"
+            "name": "Rob Gronkowski",
+            "nfl_team": "TB",
+            "pos": "TE"
           }
         ],
         "received_picks": []
@@ -88,8 +93,8 @@
         "date_str": "Sep 23, 3:51 am",
         "received_players": [
           {
-            "name": "BenJarvus Green-Ellis",
-            "nfl_team": "Cin",
+            "name": "Kevin Smith",
+            "nfl_team": "Det",
             "pos": "RB"
           }
         ],
@@ -99,7 +104,13 @@
         "received_team": "The Danny O'Shea's",
         "initiator": "",
         "date_str": "Sep 23, 3:51 am",
-        "received_players": [],
+        "received_players": [
+          {
+            "name": "BenJarvus Green-Ellis",
+            "nfl_team": "Cin",
+            "pos": "RB"
+          }
+        ],
         "received_picks": []
       }
     ]

@@ -9,14 +9,14 @@
         "date_str": "Nov 11, 8:59 am",
         "received_players": [
           {
-            "name": "Allen Robinson",
-            "nfl_team": "Det",
+            "name": "A.J. Green",
+            "nfl_team": "Ari",
             "pos": "WR"
           },
           {
-            "name": "LeSean McCoy",
-            "nfl_team": "TB",
-            "pos": "RB"
+            "name": "Stefon Diggs",
+            "nfl_team": "NE",
+            "pos": "WR"
           }
         ],
         "received_picks": []
@@ -27,14 +27,14 @@
         "date_str": "Nov 11, 8:59 am",
         "received_players": [
           {
-            "name": "Greg Olsen",
-            "nfl_team": "Sea",
-            "pos": "TE"
+            "name": "Allen Robinson",
+            "nfl_team": "Det",
+            "pos": "WR"
           },
           {
-            "name": "Doug Baldwin",
-            "nfl_team": "Sea",
-            "pos": "WR"
+            "name": "LeSean McCoy",
+            "nfl_team": "TB",
+            "pos": "RB"
           }
         ],
         "received_picks": []
@@ -51,6 +51,24 @@
         "date_str": "Nov 8, 12:07 pm",
         "received_players": [
           {
+            "name": "Greg Olsen",
+            "nfl_team": "Sea",
+            "pos": "TE"
+          },
+          {
+            "name": "Doug Baldwin",
+            "nfl_team": "Sea",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": []
+      },
+      {
+        "received_team": "Dirty Old Men",
+        "initiator": "BIGGUAP",
+        "date_str": "Nov 8, 12:07 pm",
+        "received_players": [
+          {
             "name": "Gary Barnidge",
             "nfl_team": "Cle",
             "pos": "TE"
@@ -62,11 +80,17 @@
           }
         ],
         "received_picks": []
-      },
+      }
+    ]
+  },
+  {
+    "season": 2016,
+    "date_str": "Oct 30, 10:56 am",
+    "sides": [
       {
-        "received_team": "Dirty Old Men",
+        "received_team": "Bing Bong Brothers",
         "initiator": "BIGGUAP",
-        "date_str": "Nov 8, 12:07 pm",
+        "date_str": "Oct 30, 10:56 am",
         "received_players": [
           {
             "name": "Jay Cutler",
@@ -79,15 +103,9 @@
             "round": 10
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2016,
-    "date_str": "Oct 30, 10:56 am",
-    "sides": [
+      },
       {
-        "received_team": "Bing Bong Brothers",
+        "received_team": "Tyrodasaurus Rex",
         "initiator": "BIGGUAP",
         "date_str": "Oct 30, 10:56 am",
         "received_players": [
@@ -102,17 +120,6 @@
             "round": 8
           }
         ]
-      },
-      {
-        "received_team": "Tyrodasaurus Rex",
-        "initiator": "BIGGUAP",
-        "date_str": "Oct 30, 10:56 am",
-        "received_players": [],
-        "received_picks": [
-          {
-            "round": 2
-          }
-        ]
       }
     ]
   },
@@ -122,6 +129,17 @@
     "sides": [
       {
         "received_team": "Tyrodasaurus Rex",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 11, 10:52 pm",
+        "received_players": [],
+        "received_picks": [
+          {
+            "round": 2
+          }
+        ]
+      },
+      {
+        "received_team": "Joffrey Sucks",
         "initiator": "BIGGUAP",
         "date_str": "Oct 11, 10:52 pm",
         "received_players": [
@@ -151,19 +169,6 @@
             "round": 5
           }
         ]
-      },
-      {
-        "received_team": "Joffrey Sucks",
-        "initiator": "BIGGUAP",
-        "date_str": "Oct 11, 10:52 pm",
-        "received_players": [
-          {
-            "name": "Drew Brees",
-            "nfl_team": "NO",
-            "pos": "QB"
-          }
-        ],
-        "received_picks": []
       }
     ]
   },
@@ -177,9 +182,9 @@
         "date_str": "Oct 6, 5:03 pm",
         "received_players": [
           {
-            "name": "Mike Evans",
-            "nfl_team": "SF",
-            "pos": "WR"
+            "name": "Drew Brees",
+            "nfl_team": "NO",
+            "pos": "QB"
           }
         ],
         "received_picks": []
@@ -188,6 +193,25 @@
         "received_team": "Dirty Old Men",
         "initiator": "BIGGUAP",
         "date_str": "Oct 6, 5:03 pm",
+        "received_players": [
+          {
+            "name": "Mike Evans",
+            "nfl_team": "SF",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": []
+      }
+    ]
+  },
+  {
+    "season": 2016,
+    "date_str": "Oct 5, 9:40 am",
+    "sides": [
+      {
+        "received_team": "Bing Bong Brothers",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 5, 9:40 am",
         "received_players": [
           {
             "name": "Drew Stanton",
@@ -200,15 +224,9 @@
             "round": 9
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2016,
-    "date_str": "Oct 5, 9:40 am",
-    "sides": [
+      },
       {
-        "received_team": "Bing Bong Brothers",
+        "received_team": "BergerBoy Brigade",
         "initiator": "BIGGUAP",
         "date_str": "Oct 5, 9:40 am",
         "received_players": [
@@ -223,10 +241,16 @@
             "round": 17
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "season": 2016,
+    "date_str": "Oct 5, 9:40 am",
+    "sides": [
       {
-        "received_team": "BergerBoy Brigade",
-        "initiator": "BIGGUAP",
+        "received_team": "Sunday Scaries",
+        "initiator": "",
         "date_str": "Oct 5, 9:40 am",
         "received_players": [
           {
@@ -240,15 +264,9 @@
             "round": 6
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2016,
-    "date_str": "Oct 5, 9:40 am",
-    "sides": [
+      },
       {
-        "received_team": "Sunday Scaries",
+        "received_team": "Bing Bong Brothers",
         "initiator": "",
         "date_str": "Oct 5, 9:40 am",
         "received_players": [],
@@ -257,11 +275,17 @@
             "round": 5
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "season": 2016,
+    "date_str": "Sep 28, 1:36 pm",
+    "sides": [
       {
-        "received_team": "Bing Bong Brothers",
-        "initiator": "",
-        "date_str": "Oct 5, 9:40 am",
+        "received_team": "Dirty Old Men",
+        "initiator": "BIGGUAP",
+        "date_str": "Sep 28, 1:36 pm",
         "received_players": [
           {
             "name": "Rob Kelley",
@@ -277,15 +301,9 @@
             "round": 4
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2016,
-    "date_str": "Sep 28, 1:36 pm",
-    "sides": [
+      },
       {
-        "received_team": "Dirty Old Men",
+        "received_team": "Trust the Process",
         "initiator": "BIGGUAP",
         "date_str": "Sep 28, 1:36 pm",
         "received_players": [
@@ -303,20 +321,6 @@
             "round": 8
           }
         ]
-      },
-      {
-        "received_team": "Trust the Process",
-        "initiator": "BIGGUAP",
-        "date_str": "Sep 28, 1:36 pm",
-        "received_players": [],
-        "received_picks": [
-          {
-            "round": 1
-          },
-          {
-            "round": 4
-          }
-        ]
       }
     ]
   },
@@ -326,6 +330,20 @@
     "sides": [
       {
         "received_team": "Bing Bong Brothers",
+        "initiator": "BIGGUAP",
+        "date_str": "Sep 28, 12:49 pm",
+        "received_players": [],
+        "received_picks": [
+          {
+            "round": 1
+          },
+          {
+            "round": 4
+          }
+        ]
+      },
+      {
+        "received_team": "Dirty Old Men",
         "initiator": "BIGGUAP",
         "date_str": "Sep 28, 12:49 pm",
         "received_players": [
@@ -353,11 +371,17 @@
             "round": 19
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "season": 2016,
+    "date_str": "Sep 28, 12:20 pm",
+    "sides": [
       {
-        "received_team": "Dirty Old Men",
+        "received_team": "BergerBoy Brigade",
         "initiator": "BIGGUAP",
-        "date_str": "Sep 28, 12:49 pm",
+        "date_str": "Sep 28, 12:20 pm",
         "received_players": [
           {
             "name": "Michael Crabtree",
@@ -375,15 +399,9 @@
             "round": 10
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2016,
-    "date_str": "Sep 28, 12:20 pm",
-    "sides": [
+      },
       {
-        "received_team": "BergerBoy Brigade",
+        "received_team": "Arnold Palmer Lite",
         "initiator": "BIGGUAP",
         "date_str": "Sep 28, 12:20 pm",
         "received_players": [
@@ -403,17 +421,6 @@
             "round": 7
           }
         ]
-      },
-      {
-        "received_team": "Arnold Palmer Lite",
-        "initiator": "BIGGUAP",
-        "date_str": "Sep 28, 12:20 pm",
-        "received_players": [],
-        "received_picks": [
-          {
-            "round": 1
-          }
-        ]
       }
     ]
   },
@@ -423,6 +430,17 @@
     "sides": [
       {
         "received_team": "Bing Bong Brothers",
+        "initiator": "BIGGUAP",
+        "date_str": "Sep 28, 11:22 am",
+        "received_players": [],
+        "received_picks": [
+          {
+            "round": 1
+          }
+        ]
+      },
+      {
+        "received_team": "BergerBoy Brigade",
         "initiator": "BIGGUAP",
         "date_str": "Sep 28, 11:22 am",
         "received_players": [
@@ -435,23 +453,6 @@
         "received_picks": [
           {
             "round": 3
-          }
-        ]
-      },
-      {
-        "received_team": "BergerBoy Brigade",
-        "initiator": "BIGGUAP",
-        "date_str": "Sep 28, 11:22 am",
-        "received_players": [
-          {
-            "name": "Ryan Mathews",
-            "nfl_team": "Phi",
-            "pos": "RB"
-          }
-        ],
-        "received_picks": [
-          {
-            "round": 1
           }
         ]
       }
@@ -467,6 +468,23 @@
         "date_str": "Sep 28, 12:01 am",
         "received_players": [
           {
+            "name": "Ryan Mathews",
+            "nfl_team": "Phi",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 1
+          }
+        ]
+      },
+      {
+        "received_team": "Trust the Process",
+        "initiator": "BIGGUAP",
+        "date_str": "Sep 28, 12:01 am",
+        "received_players": [
+          {
             "name": "Le'Veon Bell",
             "nfl_team": "TB",
             "pos": "RB"
@@ -477,19 +495,6 @@
             "round": 8
           }
         ]
-      },
-      {
-        "received_team": "Trust the Process",
-        "initiator": "BIGGUAP",
-        "date_str": "Sep 28, 12:01 am",
-        "received_players": [
-          {
-            "name": "Jarvis Landry",
-            "nfl_team": "NO",
-            "pos": "WR"
-          }
-        ],
-        "received_picks": []
       }
     ]
   },
@@ -503,9 +508,9 @@
         "date_str": "Aug 29, 9:26 am",
         "received_players": [
           {
-            "name": "Melvin Gordon III",
-            "nfl_team": "Bal",
-            "pos": "RB"
+            "name": "Jarvis Landry",
+            "nfl_team": "NO",
+            "pos": "WR"
           }
         ],
         "received_picks": []
@@ -514,7 +519,13 @@
         "received_team": "Dirty Old Men",
         "initiator": "BIGGUAP",
         "date_str": "Aug 29, 9:26 am",
-        "received_players": [],
+        "received_players": [
+          {
+            "name": "Melvin Gordon III",
+            "nfl_team": "Bal",
+            "pos": "RB"
+          }
+        ],
         "received_picks": []
       }
     ]

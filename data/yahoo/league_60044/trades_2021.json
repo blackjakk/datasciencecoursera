@@ -9,6 +9,42 @@
         "date_str": "Nov 21, 12:29 am",
         "received_players": [
           {
+            "name": "Tony Jones",
+            "nfl_team": "Ari",
+            "pos": "RB"
+          },
+          {
+            "name": "Matthew Stafford",
+            "nfl_team": "LAR",
+            "pos": "QB"
+          },
+          {
+            "name": "DEF Jamaal Williams",
+            "nfl_team": "NO",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 3
+          },
+          {
+            "round": 7
+          },
+          {
+            "round": 9
+          },
+          {
+            "round": 13
+          }
+        ]
+      },
+      {
+        "received_team": "Walking Off Like Antonio",
+        "initiator": "BIGGUAP",
+        "date_str": "Nov 21, 12:29 am",
+        "received_players": [
+          {
             "name": "Antonio Brown",
             "nfl_team": "TB",
             "pos": "WR"
@@ -43,11 +79,17 @@
             "round": 13
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "season": 2021,
+    "date_str": "Nov 17, 7:33 pm",
+    "sides": [
       {
-        "received_team": "Walking Off Like Antonio",
+        "received_team": "BergerBoy Brigade",
         "initiator": "BIGGUAP",
-        "date_str": "Nov 21, 12:29 am",
+        "date_str": "Nov 17, 7:33 pm",
         "received_players": [
           {
             "name": "Christian McCaffrey",
@@ -61,15 +103,9 @@
             "originally_from": "Zero Win Percentage"
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2021,
-    "date_str": "Nov 17, 7:33 pm",
-    "sides": [
+      },
       {
-        "received_team": "BergerBoy Brigade",
+        "received_team": "#1 Pokemon Master",
         "initiator": "BIGGUAP",
         "date_str": "Nov 17, 7:33 pm",
         "received_players": [
@@ -84,11 +120,17 @@
             "round": 2
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "season": 2021,
+    "date_str": "Nov 11, 5:58 pm",
+    "sides": [
       {
-        "received_team": "#1 Pokemon Master",
+        "received_team": "The Dream Team",
         "initiator": "BIGGUAP",
-        "date_str": "Nov 17, 7:33 pm",
+        "date_str": "Nov 11, 5:58 pm",
         "received_players": [
           {
             "name": "Tyler Higbee",
@@ -106,15 +148,9 @@
             "round": 1
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2021,
-    "date_str": "Nov 11, 5:58 pm",
-    "sides": [
+      },
       {
-        "received_team": "The Dream Team",
+        "received_team": "Barry Sandals",
         "initiator": "BIGGUAP",
         "date_str": "Nov 11, 5:58 pm",
         "received_players": [
@@ -134,11 +170,17 @@
             "round": 5
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "season": 2021,
+    "date_str": "Nov 7, 12:47 pm",
+    "sides": [
       {
-        "received_team": "Barry Sandals",
+        "received_team": "Wet Ass Posluzny",
         "initiator": "BIGGUAP",
-        "date_str": "Nov 11, 5:58 pm",
+        "date_str": "Nov 7, 12:47 pm",
         "received_players": [
           {
             "name": "Brandin Cooks",
@@ -167,15 +209,9 @@
             "round": 5
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2021,
-    "date_str": "Nov 7, 12:47 pm",
-    "sides": [
+      },
       {
-        "received_team": "Wet Ass Posluzny",
+        "received_team": "Terror Squad",
         "initiator": "BIGGUAP",
         "date_str": "Nov 7, 12:47 pm",
         "received_players": [
@@ -206,11 +242,17 @@
             "round": 11
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "season": 2021,
+    "date_str": "Nov 3, 3:11 pm",
+    "sides": [
       {
-        "received_team": "Terror Squad",
+        "received_team": "Barry Sandals",
         "initiator": "BIGGUAP",
-        "date_str": "Nov 7, 12:47 pm",
+        "date_str": "Nov 3, 3:11 pm",
         "received_players": [
           {
             "name": "DK Metcalf",
@@ -223,15 +265,9 @@
             "round": 7
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2021,
-    "date_str": "Nov 3, 3:11 pm",
-    "sides": [
+      },
       {
-        "received_team": "Barry Sandals",
+        "received_team": "Zero Win Percentage",
         "initiator": "BIGGUAP",
         "date_str": "Nov 3, 3:11 pm",
         "received_players": [
@@ -246,11 +282,17 @@
             "round": 2
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "season": 2021,
+    "date_str": "Nov 2, 5:46 pm",
+    "sides": [
       {
-        "received_team": "Zero Win Percentage",
+        "received_team": "Moaning Myrtle",
         "initiator": "BIGGUAP",
-        "date_str": "Nov 3, 3:11 pm",
+        "date_str": "Nov 2, 5:46 pm",
         "received_players": [
           {
             "name": "Justin Fields",
@@ -279,15 +321,9 @@
             "round": 12
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2021,
-    "date_str": "Nov 2, 5:46 pm",
-    "sides": [
+      },
       {
-        "received_team": "Moaning Myrtle",
+        "received_team": "Walking Off Like Antonio",
         "initiator": "BIGGUAP",
         "date_str": "Nov 2, 5:46 pm",
         "received_players": [
@@ -318,11 +354,17 @@
             "round": 16
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "season": 2021,
+    "date_str": "Nov 1, 7:36 pm",
+    "sides": [
       {
-        "received_team": "Walking Off Like Antonio",
+        "received_team": "BergerBoy Brigade",
         "initiator": "BIGGUAP",
-        "date_str": "Nov 2, 5:46 pm",
+        "date_str": "Nov 1, 7:36 pm",
         "received_players": [
           {
             "name": "Davante Adams",
@@ -335,15 +377,9 @@
             "round": 7
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2021,
-    "date_str": "Nov 1, 7:36 pm",
-    "sides": [
+      },
       {
-        "received_team": "BergerBoy Brigade",
+        "received_team": "Moaning Myrtle",
         "initiator": "BIGGUAP",
         "date_str": "Nov 1, 7:36 pm",
         "received_players": [
@@ -358,11 +394,17 @@
             "round": 1
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "season": 2021,
+    "date_str": "Oct 28, 5:49 pm",
+    "sides": [
       {
-        "received_team": "Moaning Myrtle",
-        "initiator": "BIGGUAP",
-        "date_str": "Nov 1, 7:36 pm",
+        "received_team": "Figgy",
+        "initiator": "",
+        "date_str": "Oct 28, 5:49 pm",
         "received_players": [
           {
             "name": "Baker Mayfield",
@@ -396,15 +438,9 @@
             "round": 5
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2021,
-    "date_str": "Oct 28, 5:49 pm",
-    "sides": [
+      },
       {
-        "received_team": "Figgy",
+        "received_team": "Guap Gang",
         "initiator": "",
         "date_str": "Oct 28, 5:49 pm",
         "received_players": [
@@ -440,23 +476,6 @@
             "round": 9
           }
         ]
-      },
-      {
-        "received_team": "Guap Gang",
-        "initiator": "",
-        "date_str": "Oct 28, 5:49 pm",
-        "received_players": [
-          {
-            "name": "Chase Claypool",
-            "nfl_team": "Buf",
-            "pos": "WR"
-          }
-        ],
-        "received_picks": [
-          {
-            "round": 1
-          }
-        ]
       }
     ]
   },
@@ -470,14 +489,14 @@
         "date_str": "Oct 13, 9:33 pm",
         "received_players": [
           {
-            "name": "Christian McCaffrey",
-            "nfl_team": "SF",
-            "pos": "RB"
+            "name": "Chase Claypool",
+            "nfl_team": "Buf",
+            "pos": "WR"
           }
         ],
         "received_picks": [
           {
-            "round": 8
+            "round": 1
           }
         ]
       },
@@ -487,14 +506,14 @@
         "date_str": "Oct 13, 9:33 pm",
         "received_players": [
           {
-            "name": "Marvin Jones Jr.",
-            "nfl_team": "Det",
-            "pos": "WR"
+            "name": "Christian McCaffrey",
+            "nfl_team": "SF",
+            "pos": "RB"
           }
         ],
         "received_picks": [
           {
-            "round": 10
+            "round": 8
           }
         ]
       }
@@ -510,6 +529,23 @@
         "date_str": "Oct 6, 10:11 am",
         "received_players": [
           {
+            "name": "Marvin Jones Jr.",
+            "nfl_team": "Det",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 10
+          }
+        ]
+      },
+      {
+        "received_team": "Barry Sandals",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 6, 10:11 am",
+        "received_players": [
+          {
             "name": "K.J. Osborn",
             "nfl_team": "Ten",
             "pos": "WR"
@@ -520,19 +556,6 @@
             "round": 8
           }
         ]
-      },
-      {
-        "received_team": "Barry Sandals",
-        "initiator": "BIGGUAP",
-        "date_str": "Oct 6, 10:11 am",
-        "received_players": [
-          {
-            "name": "David Montgomery",
-            "nfl_team": "Hou",
-            "pos": "RB"
-          }
-        ],
-        "received_picks": []
       }
     ]
   },
@@ -546,9 +569,9 @@
         "date_str": "Sep 6, 1:27 pm",
         "received_players": [
           {
-            "name": "CeeDee Lamb",
-            "nfl_team": "Dal",
-            "pos": "WR"
+            "name": "David Montgomery",
+            "nfl_team": "Hou",
+            "pos": "RB"
           }
         ],
         "received_picks": []
@@ -557,7 +580,13 @@
         "received_team": "Walking Off Like Antonio",
         "initiator": "BIGGUAP",
         "date_str": "Sep 6, 1:27 pm",
-        "received_players": [],
+        "received_players": [
+          {
+            "name": "CeeDee Lamb",
+            "nfl_team": "Dal",
+            "pos": "WR"
+          }
+        ],
         "received_picks": []
       }
     ]

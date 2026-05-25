@@ -9,9 +9,9 @@
         "date_str": "Oct 20, 5:30 am",
         "received_players": [
           {
-            "name": "Brandon Lloyd",
-            "nfl_team": "SF",
-            "pos": "WR"
+            "name": "Frank Gore",
+            "nfl_team": "NYJ",
+            "pos": "RB"
           }
         ],
         "received_picks": []
@@ -22,13 +22,8 @@
         "date_str": "Oct 20, 5:30 am",
         "received_players": [
           {
-            "name": "Willis McGahee",
-            "nfl_team": "Cle",
-            "pos": "RB"
-          },
-          {
-            "name": "Miles Austin",
-            "nfl_team": "Phi",
+            "name": "Brandon Lloyd",
+            "nfl_team": "SF",
             "pos": "WR"
           }
         ],
@@ -46,6 +41,24 @@
         "date_str": "Oct 16, 4:13 am",
         "received_players": [
           {
+            "name": "Willis McGahee",
+            "nfl_team": "Cle",
+            "pos": "RB"
+          },
+          {
+            "name": "Miles Austin",
+            "nfl_team": "Phi",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": []
+      },
+      {
+        "received_team": "HOLD MA DICK",
+        "initiator": "",
+        "date_str": "Oct 16, 4:13 am",
+        "received_players": [
+          {
             "name": "Rashard Mendenhall",
             "nfl_team": "Ari",
             "pos": "RB"
@@ -57,11 +70,17 @@
           }
         ],
         "received_picks": []
-      },
+      }
+    ]
+  },
+  {
+    "season": 2011,
+    "date_str": "Sep 30, 4:58 am",
+    "sides": [
       {
-        "received_team": "HOLD MA DICK",
+        "received_team": "Dirty Old Men",
         "initiator": "",
-        "date_str": "Oct 16, 4:13 am",
+        "date_str": "Sep 30, 4:58 am",
         "received_players": [
           {
             "name": "Andy Dalton",
@@ -75,15 +94,9 @@
           }
         ],
         "received_picks": []
-      }
-    ]
-  },
-  {
-    "season": 2011,
-    "date_str": "Sep 30, 4:58 am",
-    "sides": [
+      },
       {
-        "received_team": "Dirty Old Men",
+        "received_team": "Figgy",
         "initiator": "",
         "date_str": "Sep 30, 4:58 am",
         "received_players": [
@@ -99,9 +112,15 @@
           }
         ],
         "received_picks": []
-      },
+      }
+    ]
+  },
+  {
+    "season": 2011,
+    "date_str": "Sep 30, 4:58 am",
+    "sides": [
       {
-        "received_team": "Figgy",
+        "received_team": "Dirty Old Men",
         "initiator": "",
         "date_str": "Sep 30, 4:58 am",
         "received_players": [
@@ -117,15 +136,9 @@
           }
         ],
         "received_picks": []
-      }
-    ]
-  },
-  {
-    "season": 2011,
-    "date_str": "Sep 30, 4:58 am",
-    "sides": [
+      },
       {
-        "received_team": "Dirty Old Men",
+        "received_team": "Reno Mahe 911",
         "initiator": "",
         "date_str": "Sep 30, 4:58 am",
         "received_players": [
@@ -140,13 +153,6 @@
             "pos": "RB"
           }
         ],
-        "received_picks": []
-      },
-      {
-        "received_team": "Reno Mahe 911",
-        "initiator": "",
-        "date_str": "Sep 30, 4:58 am",
-        "received_players": [],
         "received_picks": []
       }
     ]

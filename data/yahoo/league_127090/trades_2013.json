@@ -9,6 +9,23 @@
         "date_str": "Nov 5, 5:48 am",
         "received_players": [
           {
+            "name": "Knowshon Moreno",
+            "nfl_team": "Mia",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 2
+          }
+        ]
+      },
+      {
+        "received_team": "Figgy",
+        "initiator": "",
+        "date_str": "Nov 5, 5:48 am",
+        "received_players": [
+          {
             "name": "Adrian Peterson",
             "nfl_team": "Sea",
             "pos": "RB"
@@ -29,24 +46,6 @@
             "round": 9
           }
         ]
-      },
-      {
-        "received_team": "Figgy",
-        "initiator": "",
-        "date_str": "Nov 5, 5:48 am",
-        "received_players": [
-          {
-            "name": "Josh Gordon",
-            "nfl_team": "Ten",
-            "pos": "WR"
-          },
-          {
-            "name": "Frank Gore",
-            "nfl_team": "NYJ",
-            "pos": "RB"
-          }
-        ],
-        "received_picks": []
       }
     ]
   },
@@ -60,14 +59,14 @@
         "date_str": "Oct 13, 4:23 am",
         "received_players": [
           {
-            "name": "Rob Gronkowski",
-            "nfl_team": "TB",
-            "pos": "TE"
+            "name": "Josh Gordon",
+            "nfl_team": "Ten",
+            "pos": "WR"
           },
           {
-            "name": "Denarius Moore",
-            "nfl_team": "Buf",
-            "pos": "WR"
+            "name": "Frank Gore",
+            "nfl_team": "NYJ",
+            "pos": "RB"
           }
         ],
         "received_picks": []
@@ -78,9 +77,14 @@
         "date_str": "Oct 13, 4:23 am",
         "received_players": [
           {
-            "name": "Geno Smith",
-            "nfl_team": "NYJ",
-            "pos": "QB"
+            "name": "Rob Gronkowski",
+            "nfl_team": "TB",
+            "pos": "TE"
+          },
+          {
+            "name": "Denarius Moore",
+            "nfl_team": "Buf",
+            "pos": "WR"
           }
         ],
         "received_picks": []
@@ -97,8 +101,8 @@
         "date_str": "Oct 11, 5:04 am",
         "received_players": [
           {
-            "name": "Nick Foles",
-            "nfl_team": "Ind",
+            "name": "Geno Smith",
+            "nfl_team": "NYJ",
             "pos": "QB"
           }
         ],
@@ -108,6 +112,25 @@
         "received_team": "PEDs 'til I DDT",
         "initiator": "",
         "date_str": "Oct 11, 5:04 am",
+        "received_players": [
+          {
+            "name": "Nick Foles",
+            "nfl_team": "Ind",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": []
+      }
+    ]
+  },
+  {
+    "season": 2013,
+    "date_str": "Oct 8, 5:55 am",
+    "sides": [
+      {
+        "received_team": "Byrd's Nest",
+        "initiator": "",
+        "date_str": "Oct 8, 5:55 am",
         "received_players": [
           {
             "name": "Roddy White",
@@ -135,15 +158,9 @@
             "round": 6
           }
         ]
-      }
-    ]
-  },
-  {
-    "season": 2013,
-    "date_str": "Oct 8, 5:55 am",
-    "sides": [
+      },
       {
-        "received_team": "Byrd's Nest",
+        "received_team": "Mr. Y. Mirosho",
         "initiator": "",
         "date_str": "Oct 8, 5:55 am",
         "received_players": [
@@ -173,24 +190,6 @@
             "round": 8
           }
         ]
-      },
-      {
-        "received_team": "Mr. Y. Mirosho",
-        "initiator": "",
-        "date_str": "Oct 8, 5:55 am",
-        "received_players": [
-          {
-            "name": "Matthew Stafford",
-            "nfl_team": "LAR",
-            "pos": "QB"
-          },
-          {
-            "name": "C.J. Spiller",
-            "nfl_team": "KC",
-            "pos": "RB"
-          }
-        ],
-        "received_picks": []
       }
     ]
   },
@@ -204,13 +203,13 @@
         "date_str": "Oct 2, 4:17 am",
         "received_players": [
           {
-            "name": "Michael Vick",
-            "nfl_team": "Pit",
+            "name": "Matthew Stafford",
+            "nfl_team": "LAR",
             "pos": "QB"
           },
           {
-            "name": "Trenton Richardson",
-            "nfl_team": "LV",
+            "name": "C.J. Spiller",
+            "nfl_team": "KC",
             "pos": "RB"
           }
         ],
@@ -222,9 +221,14 @@
         "date_str": "Oct 2, 4:17 am",
         "received_players": [
           {
-            "name": "Alex Smith",
-            "nfl_team": "Was",
+            "name": "Michael Vick",
+            "nfl_team": "Pit",
             "pos": "QB"
+          },
+          {
+            "name": "Trenton Richardson",
+            "nfl_team": "LV",
+            "pos": "RB"
           }
         ],
         "received_picks": []
@@ -241,9 +245,9 @@
         "date_str": "Sep 4, 3:30 am",
         "received_players": [
           {
-            "name": "Jared Cook",
-            "nfl_team": "LAC",
-            "pos": "TE"
+            "name": "Alex Smith",
+            "nfl_team": "Was",
+            "pos": "QB"
           }
         ],
         "received_picks": []
@@ -252,7 +256,13 @@
         "received_team": "PEDs 'til I DDT",
         "initiator": "",
         "date_str": "Sep 4, 3:30 am",
-        "received_players": [],
+        "received_players": [
+          {
+            "name": "Jared Cook",
+            "nfl_team": "LAC",
+            "pos": "TE"
+          }
+        ],
         "received_picks": []
       }
     ]
