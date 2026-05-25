@@ -48,6 +48,9 @@ LEAGUE_LORE: dict[int, list[str]] = {
         "Founding member **'Z'** drafted HOLD MA DICK, lasted through "
         "2013, then left.",
     ],
+    2014: [
+        "🏠 **Drafted at Brian's old place.**",
+    ],
     2013: [
         "📈 **League expansion to 10 teams.** Nick Lewis joined the league "
         "(played as Mr. Y. Mirosho).",
@@ -66,6 +69,15 @@ LEAGUE_LORE: dict[int, list[str]] = {
         "🤢 **Eric allegedly got drugged at the Tropicana, threw up "
         "everywhere, and didn't attend another in-person draft until 2025.**",
     ],
+    2025: [
+        "🍗 **The Bonchon Draft (Philly).**",
+    ],
+    2024: [
+        "🍺 **The German Pub Draft (Philly).**",
+    ],
+    2023: [
+        "🎮 **The Dave & Buster's Draft.** First Sleeper-era draft.",
+    ],
     2022: [
         "🚀 **Ankur — last place to champion in one year.** Finished dead "
         "last in 2021 (literally named 'Zero Win Percentage'), then won "
@@ -73,12 +85,15 @@ LEAGUE_LORE: dict[int, list[str]] = {
         "Brian finished 12th this year.",
     ],
     2021: [
+        "🍻 **The Rittenhouse Basement Pub Draft.** Played in a small pub's "
+        "basement; the staff gave guests hard times about COVID vaccination "
+        "cards.",
         "🏆 **Dave's 2nd ring** (Walking Off Like Antonio 132.76 d. Troy "
         "123.58). Trevor demolished Brower 188.06 to 114.40 in the 3rd "
         "place game.",
     ],
     2020: [
-        "🦠 **The COVID Season.** Draft format/venue likely virtual.",
+        "💻 **The Online COVID Draft.** Virtual draft.",
         "🥈 **Trevor wins his 2nd ring** (BergerBoy 170.76 d. Brower 161.52) "
         "— the highest-scoring championship final in league history. "
         "Brower made his first final and lost.",
