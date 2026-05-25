@@ -29,7 +29,8 @@ CHART_DIR.mkdir(parents=True, exist_ok=True)
 KNOWN_CHAMPIONS: dict[int, str] = {
     # Sleeper-era picked up automatically from sleeper data;
     # Yahoo entries are added here as confirmed from Yahoo trophy room.
-    2011: "nark",  # Danny O'Shea's 139.70 d. Trevor's Reno Mahe 911 118.74
+    2011: "nark",          # Danny O'Shea's 139.70 d. Trevor (Reno Mahe 911) 118.74
+    2012: "kyle_figgy",    # Figgy 128.02 d. Eric (LockOut w my CockOut) 111.66
 }
 
 
