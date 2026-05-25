@@ -228,6 +228,7 @@ def lopsided_pairs_chart(trades):
                 nfl[key] = pts
 
     pair_data = defaultdict(list)  # (a, b) sorted -> [(year, a_net, last_year)]
+    skipped_incomplete = 0
     for t in trades:
         if t["date"] == "sleeper":
             continue  # Sleeper-era covered separately
@@ -238,6 +239,13 @@ def lopsided_pairs_chart(trades):
         yr = t["year"]
         raw = t["raw"]
         sa, sb = raw["sides"]
+        # Skip trades where one side has zero assets — Yahoo data is
+        # missing that side. Per the league, no trade is one-sided.
+        a_assets = len(sa.get("received_players", [])) + len(sa.get("received_picks", []))
+        b_assets = len(sb.get("received_players", [])) + len(sb.get("received_picks", []))
+        if a_assets == 0 or b_assets == 0:
+            skipped_incomplete += 1
+            continue
         pts_a = sum(nfl.get((yr, norm(p["name"])), 0)
                     for p in sa.get("received_players", []))
         pts_b = sum(nfl.get((yr, norm(p["name"])), 0)
@@ -280,8 +288,9 @@ def lopsided_pairs_chart(trades):
     ax.axhline(0, color="black", alpha=0.4)
     ax.set_xlabel("Season")
     ax.set_ylabel(f"Cumulative net pts (first manager perspective)")
-    ax.set_title("Most Lopsided Trade Pairs (≥3 trades, Yahoo era)\n"
-                 "Dashed = no trade in 4+ years (one side stopped coming back)")
+    ax.set_title(f"Most Lopsided Trade Pairs (≥3 trades, Yahoo era)\n"
+                 f"Dashed = no trade in 4+ years (one side stopped). "
+                 f"{skipped_incomplete} trades w/ missing-side data excluded.")
     ax.legend(loc="center left", bbox_to_anchor=(1.01, 0.5), fontsize=8)
     ax.set_xticks(range(2011, 2026))
     ax.grid(True, alpha=0.3)
