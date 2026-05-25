@@ -171,6 +171,115 @@ def ppg_over_time_chart(history: dict):
     return out
 
 
+def top_players_per_manager_chart(history: dict):
+    """Top 3 players (by lifetime pts attributed to that manager) per team."""
+    import csv as _csv, re as _re, unicodedata as _u
+    from fantasy_draft.xlsx_drafts import load_xlsx_drafts
+    from fantasy_draft.results import (
+        load_player_ownership_windows, load_weekly_player_points,
+    )
+    from fantasy_draft.team_identity import (
+        manager_for_xlsx_nickname, manager_for_sleeper_roster,
+    )
+
+    def norm(s):
+        s = _u.normalize("NFKD", s).encode("ascii","ignore").decode().lower().strip()
+        s = _re.sub(r"[^a-z0-9 ]", " ", s); s = _re.sub(r"\s+", " ", s).strip()
+        return s
+
+    nfl: dict = {}
+    nfl_csv = ROOT / "data" / "nflverse" / "player_stats_season.csv"
+    with open(nfl_csv) as f:
+        for row in _csv.DictReader(f):
+            if row["season_type"] != "REG":
+                continue
+            try:
+                s = int(row["season"])
+                fp = float(row["fantasy_points"] or 0)
+                fp_ppr = float(row["fantasy_points_ppr"] or 0)
+            except Exception:
+                continue
+            pts = (fp + fp_ppr)/2 if s >= 2019 else fp
+            name = row["player_display_name"] or row["player_name"]
+            if not name:
+                continue
+            key = (s, norm(name))
+            prev = nfl.get(key)
+            if not prev or pts > prev[0]:
+                nfl[key] = (pts, name)
+
+    per_mgr: dict = defaultdict(lambda: defaultdict(float))
+
+    xlsx = load_xlsx_drafts()
+    for yr, picks in xlsx.items():
+        if yr > 2022:
+            continue
+        for p in picks:
+            mgr = manager_for_xlsx_nickname(p.manager_nickname)
+            if not mgr:
+                continue
+            hit = nfl.get((yr, norm(p.player_name)))
+            if not hit:
+                continue
+            pts, raw = hit
+            per_mgr[mgr["id"]][raw] += pts
+
+    ownership = load_player_ownership_windows(ROOT / "data" / "sleeper")
+    weekly = load_weekly_player_points(ROOT / "data" / "sleeper")
+    players_meta = json.loads(
+        (ROOT / "data" / "sleeper" / "players_nfl.json").read_text())
+
+    def mgr_for_rid(rid, season):
+        if season in (2023, 2024) and rid == 10:
+            for m in all_managers():
+                if m["id"] == "dave_aka_wang":
+                    return m
+        return manager_for_sleeper_roster(rid)
+
+    for (yr, pid), windows in ownership.items():
+        pinfo = players_meta.get(pid, {})
+        raw = (f"{pinfo.get('first_name','?')} "
+               f"{pinfo.get('last_name','?')}").strip()
+        for sw, ew, rid, src in windows:
+            m = mgr_for_rid(rid, yr)
+            if not m:
+                continue
+            pts = sum(weekly.get(yr, {}).get(wk, {}).get(pid, 0.0)
+                      for wk in range(sw, min(ew + 1, 18)))
+            per_mgr[m["id"]][raw] += pts
+
+    # Build chart: 12 panels, 1 per current mgr, top 3 horizontal bars each
+    current = [m for m in all_managers() if m.get("sleeper_roster_id")]
+    current.sort(key=lambda x: x["canonical_name"])
+
+    fig, axes = plt.subplots(4, 3, figsize=(14, 14))
+    axes = axes.flatten()
+    for i, m in enumerate(current):
+        ax = axes[i]
+        name = m["canonical_name"].split(" (")[0]
+        top = sorted(per_mgr.get(m["id"], {}).items(),
+                     key=lambda kv: -kv[1])[:3]
+        if not top:
+            ax.axis("off"); continue
+        players = [p for p, _ in top]
+        vals = [v for _, v in top]
+        bars = ax.barh(players, vals, color="#2c5d7c")
+        ax.invert_yaxis()
+        ax.set_title(name, fontsize=12, fontweight="bold")
+        ax.set_xlim(0, max(vals) * 1.18)
+        for bar, v in zip(bars, vals):
+            ax.text(v + max(vals)*0.02, bar.get_y() + bar.get_height()/2,
+                    f"{v:.0f}", va="center", fontsize=9)
+        ax.tick_params(axis="y", labelsize=10)
+        ax.tick_params(axis="x", labelsize=8)
+    plt.suptitle("Top 3 Players by Lifetime Points Per Team (2011-2025)",
+                 fontsize=14, fontweight="bold", y=0.995)
+    plt.tight_layout()
+    out = CHART_DIR / "top_players_per_mgr.png"
+    plt.savefig(out, dpi=130); plt.close()
+    return out
+
+
 def main():
     history = load_all_history()
 
@@ -187,7 +296,8 @@ def main():
     out2 = all_time_wins_chart(history)
     out3 = winpct_over_time_chart(history)
     out4 = ppg_over_time_chart(history)
-    print(f"Wrote {out1}, {out2}, {out3}, {out4}")
+    out5 = top_players_per_manager_chart(history)
+    print(f"Wrote {out1}, {out2}, {out3}, {out4}, {out5}")
     if not KNOWN_CHAMPIONS:
         print("\n[note] Only Sleeper-era champions (2023-2025) shown.")
         print("       Add Yahoo-era champions to KNOWN_CHAMPIONS dict in this script.")

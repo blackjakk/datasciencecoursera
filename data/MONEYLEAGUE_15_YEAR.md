@@ -20,7 +20,7 @@ This league started in **2011 with 8 teams** on Yahoo, expanded to 10 in 2013, e
 | 3 | **Nark** | The Danny O'Shea's | 8-5 | 1613 | 1560 | 137.0 (W10) |
 | 4 | **Coop** | Dirty Old Men | 6-7 | 1556 | 1599 | 128.7 (W12) |
 | 5 | **Brian** | Bibi Jones Gangbang | 5-8 | 1528 | 1592 | 124.0 (W5) |
-| 6 | **Nick Lewis** | HOLD MA DICK | 5-8 | 1541 | 1582 | 129.1 (W2) |
+| 6 | **Z** | HOLD MA DICK | 5-8 | 1541 | 1582 | 129.1 (W2) |
 | 7 | **Lem** | Rushinators | 5-8 | 1596 | 1567 | 134.7 (W9) |
 | 8 | **Eric** | LockOut w my CockOut | 4-9 | 1437 | 1547 | 125.0 (W2) |
 
@@ -28,6 +28,7 @@ This league started in **2011 with 8 teams** on Yahoo, expanded to 10 in 2013, e
 - 💩 Low: **Eric 92.9** in W8
 - 🌊 Schedule-cursed: **Lem** (5 actual W, 6.9 expected)
 - 🍀 Schedule-blessed: **Eric** (4 actual W, 2.4 expected)
+- 🎯 **Inaugural season.** 8 founding members. **Nark** (also called 'Dave' — distinct from later Dave-aka-Wang) took the first-ever championship 139.70 over Trevor (Reno Mahe 911). Founding member **'Z'** drafted HOLD MA DICK, lasted through 2013, then left.
 
 ---
 
@@ -39,7 +40,7 @@ This league started in **2011 with 8 teams** on Yahoo, expanded to 10 in 2013, e
 | 2 | **Eric** | LockOut w my CockOut | 9-4 | 1705 | 1607 | 142.8 (W7) |
 | 3 | **Kyle** | Figgy | 9-4 | 1624 | 1594 | 138.7 (W3) |
 | 4 | **Brian** | THIS SINBAD HOUSE | 8-5 | 1658 | 1642 | 140.6 (W5) |
-| 5 | **Nick Lewis** | Kelce's Beard Cheese | 7-6 | 1693 | 1672 | 141.6 (W2) |
+| 5 | **Z** | Kelce's Beard Cheese | 7-6 | 1693 | 1672 | 141.6 (W2) |
 | 6 | **Nark** | The Danny O'Shea's | 4-9 | 1588 | 1668 | 131.6 (W11) |
 | 7 | **Lem** | Rushinators | 4-9 | 1604 | 1667 | 136.4 (W5) |
 | 8 | **Former manager** | Nut up or shut up | 0-13 | 1568 | 1687 | 134.1 (W3) |
@@ -64,15 +65,19 @@ This league started in **2011 with 8 teams** on Yahoo, expanded to 10 in 2013, e
 | 5 | **Nark** | The Danny O'Shea's | 6-7 | 1509 | 1478 | 128.6 (W1) |
 | 6 | **Dave** | BrownsToTheSuperBowl | 6-7 | 1402 | 1402 | 125.3 (W8) |
 | 7 | **Troy** | Byrd's Nest | 6-7 | 1455 | 1461 | 124.2 (W1) |
-| 8 | **Nick Lewis** | Mud Monkeys | 5-8 | 1431 | 1458 | 130.5 (W1) |
+| 8 | **Z** | Mud Monkeys | 5-8 | 1431 | 1458 | 130.5 (W1) |
 | 9 | **Kyle** | Figgy | 4-9 | 1397 | 1490 | 121.9 (W13) |
+| 10 | **Nick Lewis** | Mr. Y. Mirosho | 1-12 | 1191 | 1511 | 119.4 (W1) |
 
 - 🚀 Top single-week: **Coop 137.3** in W11
-- 💩 Low: **Nick Lewis 81.2** in W10
+- 💩 Low: **Nick Lewis 66.2** in W9
 - 🌊 Schedule-cursed: **Nark** (6 actual W, 7.9 expected)
 - 🍀 Schedule-blessed: **Dave** (6 actual W, 4.2 expected)
-- ➕ **Joined**: Dave, Troy
+- ➕ **Joined**: Dave, Nick Lewis, Troy
 - ➖ **Left**: Former manager
+- 📈 **League expansion to 10 teams.** Nick Lewis joined the league (played as Mr. Y. Mirosho).
+- 🦅 **Nick Lewis felt bad and traded Brian Nick Foles** — Mike Vick's backup — who then exploded for one of the best fantasy QB seasons ever in Philly.
+- 🚪 **The Foles trade was negotiated the same night Eric ran through Brian's friend Mike's screen door.** Mike, again, is not in the league.
 
 ---
 
@@ -96,7 +101,7 @@ This league started in **2011 with 8 teams** on Yahoo, expanded to 10 in 2013, e
 - 🌊 Schedule-cursed: **Coop** (3 actual W, 5.6 expected)
 - 🍀 Schedule-blessed: **Eric** (10 actual W, 7.3 expected)
 - ➕ **Joined**: Donnie, Trevor
-- ➖ **Left**: Nick Lewis
+- ➖ **Left**: Nick Lewis, Z
 
 ---
 
@@ -119,6 +124,8 @@ This league started in **2011 with 8 teams** on Yahoo, expanded to 10 in 2013, e
 - 💩 Low: **Eric 78.3** in W5
 - 🌊 Schedule-cursed: **Kyle** (0 actual W, 2.2 expected)
 - 🍀 Schedule-blessed: **Donnie** (12 actual W, 9.9 expected)
+- 🎰 **The Tropicana AC Draft.** Donnie loaded up on TEs early (Martellus Bennett R4, Julius Thomas R5) and won the title with the biggest championship blowout in league history (Big Don's Cuties 171.78 d. Troy 89.80).
+- 🤢 **Eric allegedly got drugged at the Tropicana, threw up everywhere, and didn't attend another in-person draft until 2025.**
 
 ---
 
@@ -163,7 +170,10 @@ This league started in **2011 with 8 teams** on Yahoo, expanded to 10 in 2013, e
 - 🍀 Schedule-blessed: **Trevor** (7 actual W, 3.8 expected)
 - ➕ **Joined**: Tim
 - ➖ **Left**: Nark
-- 🎰 **The Strip Club Draft.** This was the year the draft was held at a strip club. Figgy used his final pick (R19.10) on **Bobby Turbo**.
+- 🎰 **The Delilah's (Philly) Strip Club Draft.** Yes, the draft was held at Delilah's in Philadelphia. Figgy used his final pick (R19.10) on **Bobby Turbo**.
+- 🏆 **Coop didn't even attend the draft — and won the championship anyway.** The Dream Team 139.92 d. Dave (Fuck the Process) 106.84.
+- ✈️ **Lem missed the draft when his Spirit Airlines flight got cancelled** — the origin of his lifelong feud with Spirit.
+- 🥋 **Brian's friend Mike — not in the league — got accidentally kicked in the face by a stripper at Delilah's.** Reportedly still had a great time.
 
 ---
 
@@ -186,6 +196,7 @@ This league started in **2011 with 8 teams** on Yahoo, expanded to 10 in 2013, e
 - 💩 Low: **Donnie 44.0** in W9
 - 🌊 Schedule-cursed: **Eric** (8 actual W, 10.3 expected)
 - 🍀 Schedule-blessed: **Brian** (13 actual W, 11.1 expected)
+- 🏖️ **The Ocean's Resort AC Draft.** Memorable for watching preseason Mahomes-to-Tyreek connect — *before* Mahomes' breakout MVP season. Brian also went **13-0 in the regular season** (Kareem Hunt did 9/11), the only undefeated reg season in league history.
 
 ---
 
@@ -211,6 +222,7 @@ This league started in **2011 with 8 teams** on Yahoo, expanded to 10 in 2013, e
 - 🌊 Schedule-cursed: **Coop** (4 actual W, 7.1 expected)
 - 🍀 Schedule-blessed: **Brower** (7 actual W, 5.5 expected)
 - ➕ **Joined**: Brower, Notebooks
+- 🏟️ **The Xfinity Live (Philly) Draft.** First year of the 12-team expansion. Brower and Notebooks joined as the two new teams.
 
 ---
 
@@ -378,6 +390,8 @@ This league started in **2011 with 8 teams** on Yahoo, expanded to 10 in 2013, e
 
 ![PPG by year](/home/user/datasciencecoursera/data/charts/ppg_timeline.png)
 
+![Top players per manager](/home/user/datasciencecoursera/data/charts/top_players_per_mgr.png)
+
 ## 🏛️ The Eras of MONEYLEAGUE
 
 Three distinct league eras, three different dynasties:
@@ -420,7 +434,8 @@ Three distinct league eras, three different dynasties:
 |---|---|---|
 | Dave | 2013-2024 | 98-58 |
 | Nark | 2011-2016 | 38-40 |
-| Nick Lewis | 2011-2020 | 24-28 |
+| Z | 2011-2013 | 17-22 |
+| Nick Lewis | 2013-2020 | 8-18 |
 | Former manager | 2012 | 0-13 |
 | Notebooks | 2019 | 3-10 |
 
