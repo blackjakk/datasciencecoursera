@@ -691,31 +691,28 @@ function _simulateKickoffAgents(opts) {
         }
       } else {
         if (isWedge) {
-          // Tight diamond wedge — 4 blockers in a compact group 4-6 yd
-          // in front of the returner, ±4 yd wide. Real NFL wedges are
-          // tight; previously I had this spread ±12 yd which looked
-          // like a chorus line. Carrier reads off the inside blockers,
-          // wings clean up edge gunners.
-          //
-          //                  wing 3       wing 6
-          //                       inside 4 inside 5
-          //                         RETURNER
+          // Spread escort (not a tight wedge) — modern NFL/college kickoff
+          // return blocking is much more lateral than the old diamond
+          // shape. 4 blockers spread ±13 yd wide, 4-7 yd in front. Each
+          // pairs with their assigned cov (handled by engagement check)
+          // and the returner runs through the gaps between pairs.
           const off = i - 3;   // 0..3
-          const dxYd = [6, 4, 4, 6][off];
-          const dyYd = [-5, -1.5, 1.5, 5][off];
+          const dxYd = [7, 5, 5, 7][off];
+          const dyYd = [-13, -4, 4, 13][off];
           targetX = returner.x + recvDir * dxYd;
           targetY = returner.y + dyYd;
         } else {
-          // Wall blocker — STAY GLUED to assigned cover for the rest of
-          // the play. Tracking the midpoint of (cov, returner) made the
-          // wall congregate on the returner once he passed the engaged
-          // cov (midpoint follows returner instead of staying with cov).
-          // Now wall stays just on the returner-side of cov, maintaining
-          // leverage. Engaged cov is held; play moves around the block.
+          // Wall blocker — engages assigned cov BUT drifts downfield with
+          // the play. Previous behavior froze the blocker at the initial
+          // contact point so once the returner ran past, the wall stayed
+          // behind and looked like static scenery. Now target = 30% from
+          // cov toward returner, which means as the returner advances the
+          // blocker drags the engagement forward. Combined with the
+          // cov-locked-to-blocker logic below, the blocker pulls his
+          // gunner downfield while keeping him out of the play.
           const cov = cover[a.targetCov];
-          const toRetSign = Math.sign(returner.x - cov.x) || recvDir;
-          targetX = cov.x + toRetSign * 4;
-          targetY = cov.y;
+          targetX = cov.x + (returner.x - cov.x) * 0.30;
+          targetY = cov.y * 0.70 + returner.y * 0.30;
         }
       }
       const dx = targetX - b.x;
@@ -736,10 +733,10 @@ function _simulateKickoffAgents(opts) {
       }
     }
     // === ENGAGEMENT (cover held up by blocker) ===
-    // Block only counts if blocker is BETWEEN cover and returner — i.e.,
-    // shielding. Two converging players in the open field aren't a block;
-    // they're just passing each other. That false-engagement was what
-    // froze cover players mid-flight during the cover→returner sprint.
+    // Block only counts if blocker is BETWEEN cover and returner OR
+    // they're essentially overlapping (engaged at the same position).
+    // Two converging players in the open field aren't a block; they're
+    // just passing each other.
     for (let i = 0; i < NUM_COVER; i++) { cover[i].engaged = false; cover[i].engagedBy = -1; }
     for (let bi = 0; bi < NUM_BLOCKERS; bi++) {
       const a = blockerAssignments[bi];
@@ -750,17 +747,31 @@ function _simulateKickoffAgents(opts) {
       const dx = b.x - c.x;
       const dy = b.y - c.y;
       if (dx * dx + dy * dy >= 22 * 22) continue;
-      // Leverage check: blocker must be on the returner-side of cover.
-      // If cover has gotten past the blocker (blocker is now behind
-      // the cover relative to the returner), the block has failed and
-      // cover continues unimpeded.
+      // Leverage check. Blocker is engaged if:
+      //   - Blocker is on the returner-side of cov (sheilding), OR
+      //   - Cov is very close to returner (within 4 yd), OR
+      //   - Blocker and cov are essentially at the same X (overlap block)
       const covToReturnerX = returner.x - c.x;
       const covToBlockerX  = b.x        - c.x;
       const hasLeverage = covToReturnerX * covToBlockerX > 0
-                          || Math.abs(covToReturnerX) < 4;
+                          || Math.abs(covToReturnerX) < 4
+                          || Math.abs(covToBlockerX)  < 3;
       if (!hasLeverage) continue;
       c.engaged = true;
       c.engagedBy = bi;
+    }
+    // Engaged cov gets DRAGGED toward its blocker — the blocker is
+    // physically pulling/pushing the gunner along, not just slowing
+    // him. Without this, the blocker can drift downfield with the
+    // play and leave the engaged cov "free" (engagement check passes
+    // but cov sprite is far away). 12% drag per frame keeps cov tight
+    // to his blocker for the rest of the play.
+    for (let i = 0; i < NUM_COVER; i++) {
+      const c = cover[i];
+      if (!c.engaged) continue;
+      const eb = blockers[c.engagedBy];
+      c.x += (eb.x - c.x) * 0.12;
+      c.y += (eb.y - c.y) * 0.12;
     }
     // Snapshot
     frames.push({
