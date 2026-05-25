@@ -33,6 +33,7 @@ KNOWN_CHAMPIONS: dict[int, str] = {
     2012: "kyle_figgy",    # Figgy 128.02 d. Eric (LockOut w my CockOut) 111.66
     2013: "coop",          # Dirty Old Men 124.58 d. Kyle (Figgy) 120.02
     2014: "trevor_bergerboy",  # BergerBoy Brigade 165.84 d. Lem 132.76
+    2015: "donnie",            # Big Don's Cuties 171.78 d. Troy (Tyrodasaurus Rex) 89.80
 }
 
 
