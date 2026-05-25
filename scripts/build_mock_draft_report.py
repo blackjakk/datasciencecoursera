@@ -35,8 +35,8 @@ PREDICTED_SLOT_TO_RID = {
     2: 9,    # Brian (4-10, #11 fpts)
     3: 5,    # Kyle (4-10)
     4: 2,    # Donnie (4-10)
-    5: 6,    # Lem (5-9)
-    6: 12,   # Coop (6-8)
+    5: 12,   # Coop (6-8)
+    6: 6,    # Lem (5-9) — CONSOLATION WINNER, bumped to last non-playoff slot
     7: 7,    # Eric (playoff 6th)
     8: 1,    # Tim (playoff 5th)
     9: 8,    # Brower (playoff 4th)
