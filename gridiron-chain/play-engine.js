@@ -1610,20 +1610,29 @@ class GameSimulator {
         };
         continue;
       }
-      // Shuffle/read phase between hook arrival and throw — LB shouldn't
-      // freeze for 25% of the play while the QB reads. Two reactive
-      // shuffles (lateral drift) keep the legs moving and the LB looking
-      // engaged with the play instead of statue-locked.
-      const _shuf1T = 0.20 + (throwT - 0.20) * 0.40;
-      const _shuf2T = 0.20 + (throwT - 0.20) * 0.78;
-      const _shufLat = 1.6;   // ~1.6 yd lateral drift
+      // Per-LB shuffle: staggered TIMING and direction so all 3 LBs don't
+      // shuffle in unison at the same moment. Amplitude kept tiny (0.6 yd)
+      // so the motion reads as reading-the-QB, not a sprint. Direction
+      // for outside LBs biases toward midfield first (where the QB
+      // usually targets); MLB drifts forward and back instead of lateral.
+      const _lbIdx = lbN === "lb1" ? 0 : lbN === "lb2" ? 1 : 2;
+      const _shufStartFrac = [0.18, 0.42, 0.28][_lbIdx];   // first shuffle ratio within hook→throw window
+      const _shufMidFrac   = [0.62, 0.85, 0.55][_lbIdx];   // second shuffle ratio
+      const _shuf1T = 0.20 + (throwT - 0.20) * _shufStartFrac;
+      const _shuf2T = 0.20 + (throwT - 0.20) * _shufMidFrac;
+      const _shufLat = 0.6;   // 0.6 yd lateral drift (was 1.6 — superhuman)
+      // First drift biased toward midfield. lb1 hooks left (dyYd < 0)
+      // so midfield = +dyYd; lb3 hooks right so midfield = -dyYd; lb2
+      // shuffles slightly forward/back instead of lateral.
+      const _shufLatSign = lbN === "lb2" ? 0 : (target.dyYd > 0 ? -1 : 1);
+      const _shufFwdSign = lbN === "lb2" ? 1 : 0;
       out[lbN] = {
         role: "LB",
         waypoints: [
           { t: 0.00, dxYd: 5.5, dyYd: target.dyYd * 0.4 },              // formation (matches lbDepth)
           { t: 0.20, dxYd: target.dxYd, dyYd: target.dyYd },            // backpedal into hook
-          { t: _shuf1T, dxYd: target.dxYd + 0.4, dyYd: target.dyYd + _shufLat },   // shuffle toward QB read
-          { t: _shuf2T, dxYd: target.dxYd - 0.2, dyYd: target.dyYd - _shufLat },   // shuffle back the other way
+          { t: _shuf1T, dxYd: target.dxYd + _shufFwdSign * 0.3, dyYd: target.dyYd + _shufLatSign * _shufLat },
+          { t: _shuf2T, dxYd: target.dxYd - _shufFwdSign * 0.2, dyYd: target.dyYd - _shufLatSign * _shufLat * 0.4 },
           { t: throwT, dxYd: target.dxYd, dyYd: target.dyYd },          // re-set at the throw moment
           { t: 0.78, dxYd: target.dxYd + 3, dyYd: target.dyYd * 0.6 }, // break on ball — drift forward + toward middle
           { t: 1.00, dxYd: target.dxYd + 4, dyYd: target.dyYd * 0.4 }, // continuing convergence

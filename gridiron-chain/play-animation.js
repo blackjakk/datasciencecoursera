@@ -754,15 +754,23 @@ function buildAnimForPlay(play, prevPlay) {
       // ── Compute kicking-team coverage positions (no draw yet) ──
       // Stored so blockers can target a specific coverage opponent.
       const coverPos = [];
+      // FLIGHT_CLOSE_FRAC: how far coverage advances toward the catch
+      // point during the kick. Was 0.55 — left coverage with 22+ yd
+      // still to close in the much-shorter return window, which
+      // required a fake-fast close that read as a teleport. Bumping
+      // to 0.78 lets coverage do the bulk of their sprint during the
+      // kick (when there's time budget), so the return phase is just
+      // the final convergence.
+      const FLIGHT_CLOSE_FRAC = 0.78;
       for (let i = 0; i < NUM_COVER; i++) {
         let cx, cy_;
         if (t < FLIGHT_END) {
           const ft = t / FLIGHT_END;
-          cx = kickerLineX + (catchX - kickerLineX) * ft * 0.55;
+          cx = kickerLineX + (catchX - kickerLineX) * ft * FLIGHT_CLOSE_FRAC;
           cy_ = coverLanes[i];
         } else if (t < RETURN_END) {
           const rt = (t - FLIGHT_END) / (RETURN_END - FLIGHT_END);
-          const sprintFromX = kickerLineX + (catchX - kickerLineX) * 0.55;
+          const sprintFromX = kickerLineX + (catchX - kickerLineX) * FLIGHT_CLOSE_FRAC;
           const isPrimary   = i === primaryTacklerIdx;
           const isSecondary = i === secondaryTacklerIdx;
           let targetX, targetY;
@@ -776,24 +784,17 @@ function buildAnimForPlay(play, prevPlay) {
             targetX = returnerX - recvDir * (12 + (i % 4) * 8);
             targetY = coverLanes[i] + (returnerY - coverLanes[i]) * 0.6;
           }
-          // Eased close — accelerate as they near the returner (running
-          // momentum). Reaches target exactly at rt=1, so the next phase
-          // can pick up from there with no positional jump. Previous
-          // formula used rt * 1.3 (clamped to 1.0 at rt≈0.77) which made
-          // coverage cover ~25 yd in under a second — read as a teleport.
-          const eased = rt < 0.5 ? 2 * rt * rt : 1 - Math.pow(-2 * rt + 2, 2) / 2;
-          cx = sprintFromX + (targetX - sprintFromX) * eased;
-          cy_ = coverLanes[i] + (targetY - coverLanes[i]) * eased;
+          // LINEAR close. The ease-in-out quad I had peaked at 2x average
+          // velocity mid-phase — that peak read as a teleport even though
+          // the average was reasonable. Linear keeps the velocity flat,
+          // which is what real coverage does (constant sprint speed).
+          cx = sprintFromX + (targetX - sprintFromX) * rt;
+          cy_ = coverLanes[i] + (targetY - coverLanes[i]) * rt;
         } else {
-          // Tackle phase — continue from the return-phase END position
-          // toward the final pile/spacing position. No more jumping
-          // directly to `px` at the phase boundary.
           const tk = (t - RETURN_END) / (1 - RETURN_END);
           const isPrimary   = i === primaryTacklerIdx;
           const isSecondary = i === secondaryTacklerIdx;
           const inPile      = tackleStyle === 3 && (i % 2 === 0 || isPrimary || isSecondary);
-          // Mirror the return-phase target so the start of tackle phase
-          // matches where they were at t = RETURN_END.
           let lastTargetX, lastTargetY;
           if (isPrimary) {
             lastTargetX = returnerX + recvDir * 2;
@@ -3122,7 +3123,12 @@ function buildAnimForPlay(play, prevPlay) {
           // For big YAC plays, blend toward LINEAR motion so the receiver
           // doesn't snap forward and stand still — matches the run play fix.
           const yacYds = Math.abs((endX - targetX) / FIELD.PX_PER_YARD);
-          const linearW = Math.min(1, Math.max(0, (yacYds - 6) / 18));  // 0 at 6 yds, 1 at 24+
+          // Linear weight: ramps in much earlier so even SHORT-YAC catches
+          // don't stall. Was (yacYds - 6) / 18 — small YACs were fully
+          // eased-out, so the receiver decelerated to a stop the moment he
+          // touched the ball and stood there until the tackle. Now linear
+          // takes over by 4 yd of YAC; pure ease only on minimal/no YAC.
+          const linearW = Math.min(1, Math.max(0, (yacYds - 1) / 4));
           const eased = easeOutCubic(tt);
           const ramp = tt < 0.10 ? (tt / 0.10) * (tt / 0.10) * 0.10 : tt;
           const progress = eased * (1 - linearW) + ramp * linearW;
@@ -3433,6 +3439,14 @@ function buildAnimForPlay(play, prevPlay) {
             dd.y = cy + sample.dyYd * FIELD.PX_PER_YARD;
             if (d._sim) { d._sim.x = dd.x; d._sim.y = dd.y; }
             dd.facing = -dir;
+            // Pre-break, switch to "scrape" pose so the leg cycle still
+            // animates from velocity but the FACING stays caller-set
+            // (toward the offense). The default "run" pose auto-faces
+            // by velocity — when an LB's lateral shuffle had a small
+            // +x velocity blip, his facing flipped to +dir and he
+            // appeared to look AWAY from the QB just as the ball was
+            // thrown near him.
+            if (aT < 0.78) dd.pose = "scrape";
             // Freeze legs when player is settled in zone — feet were
             // cycling off wall-clock even when body wasn't translating.
             if (!MotionPlayback.isMoving(_passSecondaryTrack, aT)) dd.t = 0;
