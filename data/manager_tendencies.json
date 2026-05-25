@@ -1,0 +1,463 @@
+{
+  "_note": "delta_rounds < 0 means this manager drafts this position EARLIER than the league average; > 0 means they wait.",
+  "league_first_avg": {
+    "RB": 2.86,
+    "WR": 2.67,
+    "QB": 3.72,
+    "TE": 7.12,
+    "DEF": 14.71,
+    "K": 15.41
+  },
+  "tendencies": {
+    "tim_breswick": {
+      "QB": {
+        "delta_rounds": -0.72,
+        "manager_first_avg": 3.0,
+        "league_first_avg": 3.72,
+        "n_samples": 3
+      },
+      "RB": {
+        "delta_rounds": -1.19,
+        "manager_first_avg": 1.67,
+        "league_first_avg": 2.86,
+        "n_samples": 3
+      },
+      "WR": {
+        "delta_rounds": 0.33,
+        "manager_first_avg": 3.0,
+        "league_first_avg": 2.67,
+        "n_samples": 3
+      },
+      "TE": {
+        "delta_rounds": -2.45,
+        "manager_first_avg": 4.67,
+        "league_first_avg": 7.12,
+        "n_samples": 3
+      },
+      "K": {
+        "delta_rounds": 0.59,
+        "manager_first_avg": 16.0,
+        "league_first_avg": 15.41,
+        "n_samples": 2
+      },
+      "DEF": {
+        "delta_rounds": 0.62,
+        "manager_first_avg": 15.33,
+        "league_first_avg": 14.71,
+        "n_samples": 3
+      }
+    },
+    "kyle_figgy": {
+      "QB": {
+        "delta_rounds": 3.94,
+        "manager_first_avg": 7.67,
+        "league_first_avg": 3.72,
+        "n_samples": 3
+      },
+      "RB": {
+        "delta_rounds": 0.14,
+        "manager_first_avg": 3.0,
+        "league_first_avg": 2.86,
+        "n_samples": 3
+      },
+      "WR": {
+        "delta_rounds": 0.0,
+        "manager_first_avg": 2.67,
+        "league_first_avg": 2.67,
+        "n_samples": 3
+      },
+      "TE": {
+        "delta_rounds": 1.55,
+        "manager_first_avg": 8.67,
+        "league_first_avg": 7.12,
+        "n_samples": 3
+      },
+      "K": {
+        "delta_rounds": -0.08,
+        "manager_first_avg": 15.33,
+        "league_first_avg": 15.41,
+        "n_samples": 3
+      },
+      "DEF": {
+        "delta_rounds": 2.29,
+        "manager_first_avg": 17.0,
+        "league_first_avg": 14.71,
+        "n_samples": 1
+      }
+    },
+    "donnie": {
+      "QB": {
+        "delta_rounds": -0.39,
+        "manager_first_avg": 3.33,
+        "league_first_avg": 3.72,
+        "n_samples": 3
+      },
+      "RB": {
+        "delta_rounds": 1.14,
+        "manager_first_avg": 4.0,
+        "league_first_avg": 2.86,
+        "n_samples": 3
+      },
+      "WR": {
+        "delta_rounds": -1.0,
+        "manager_first_avg": 1.67,
+        "league_first_avg": 2.67,
+        "n_samples": 3
+      },
+      "TE": {
+        "delta_rounds": -1.78,
+        "manager_first_avg": 5.33,
+        "league_first_avg": 7.12,
+        "n_samples": 3
+      },
+      "K": {
+        "delta_rounds": 0.59,
+        "manager_first_avg": 16.0,
+        "league_first_avg": 15.41,
+        "n_samples": 2
+      },
+      "DEF": {
+        "delta_rounds": 1.96,
+        "manager_first_avg": 16.67,
+        "league_first_avg": 14.71,
+        "n_samples": 3
+      }
+    },
+    "ankur_patel": {
+      "QB": {
+        "delta_rounds": -2.39,
+        "manager_first_avg": 1.33,
+        "league_first_avg": 3.72,
+        "n_samples": 3
+      },
+      "RB": {
+        "delta_rounds": 1.14,
+        "manager_first_avg": 4.0,
+        "league_first_avg": 2.86,
+        "n_samples": 3
+      },
+      "WR": {
+        "delta_rounds": -1.0,
+        "manager_first_avg": 1.67,
+        "league_first_avg": 2.67,
+        "n_samples": 3
+      },
+      "TE": {
+        "delta_rounds": 1.22,
+        "manager_first_avg": 8.33,
+        "league_first_avg": 7.12,
+        "n_samples": 3
+      },
+      "K": {
+        "delta_rounds": -0.91,
+        "manager_first_avg": 14.5,
+        "league_first_avg": 15.41,
+        "n_samples": 2
+      },
+      "DEF": {
+        "delta_rounds": -1.38,
+        "manager_first_avg": 13.33,
+        "league_first_avg": 14.71,
+        "n_samples": 3
+      }
+    },
+    "troy_mullings": {
+      "QB": {
+        "delta_rounds": 4.28,
+        "manager_first_avg": 8.0,
+        "league_first_avg": 3.72,
+        "n_samples": 3
+      },
+      "RB": {
+        "delta_rounds": -0.86,
+        "manager_first_avg": 2.0,
+        "league_first_avg": 2.86,
+        "n_samples": 3
+      },
+      "WR": {
+        "delta_rounds": 1.67,
+        "manager_first_avg": 4.33,
+        "league_first_avg": 2.67,
+        "n_samples": 3
+      },
+      "TE": {
+        "delta_rounds": -0.45,
+        "manager_first_avg": 6.67,
+        "league_first_avg": 7.12,
+        "n_samples": 3
+      },
+      "K": {
+        "delta_rounds": 0.09,
+        "manager_first_avg": 15.5,
+        "league_first_avg": 15.41,
+        "n_samples": 2
+      },
+      "DEF": {
+        "delta_rounds": 1.29,
+        "manager_first_avg": 16.0,
+        "league_first_avg": 14.71,
+        "n_samples": 2
+      }
+    },
+    "lem": {
+      "QB": {
+        "delta_rounds": -0.06,
+        "manager_first_avg": 3.67,
+        "league_first_avg": 3.72,
+        "n_samples": 3
+      },
+      "RB": {
+        "delta_rounds": -0.86,
+        "manager_first_avg": 2.0,
+        "league_first_avg": 2.86,
+        "n_samples": 3
+      },
+      "WR": {
+        "delta_rounds": -0.33,
+        "manager_first_avg": 2.33,
+        "league_first_avg": 2.67,
+        "n_samples": 3
+      },
+      "TE": {
+        "delta_rounds": 4.22,
+        "manager_first_avg": 11.33,
+        "league_first_avg": 7.12,
+        "n_samples": 3
+      },
+      "K": {
+        "delta_rounds": -0.41,
+        "manager_first_avg": 15.0,
+        "league_first_avg": 15.41,
+        "n_samples": 3
+      },
+      "DEF": {
+        "delta_rounds": -3.71,
+        "manager_first_avg": 11.0,
+        "league_first_avg": 14.71,
+        "n_samples": 2
+      }
+    },
+    "eric_m": {
+      "QB": {
+        "delta_rounds": 0.28,
+        "manager_first_avg": 4.0,
+        "league_first_avg": 3.72,
+        "n_samples": 3
+      },
+      "RB": {
+        "delta_rounds": -0.86,
+        "manager_first_avg": 2.0,
+        "league_first_avg": 2.86,
+        "n_samples": 3
+      },
+      "WR": {
+        "delta_rounds": 0.33,
+        "manager_first_avg": 3.0,
+        "league_first_avg": 2.67,
+        "n_samples": 3
+      },
+      "TE": {
+        "delta_rounds": -3.12,
+        "manager_first_avg": 4.0,
+        "league_first_avg": 7.12,
+        "n_samples": 3
+      },
+      "K": {
+        "delta_rounds": 0.59,
+        "manager_first_avg": 16.0,
+        "league_first_avg": 15.41,
+        "n_samples": 2
+      },
+      "DEF": {
+        "delta_rounds": -1.71,
+        "manager_first_avg": 13.0,
+        "league_first_avg": 14.71,
+        "n_samples": 1
+      }
+    },
+    "trevor_bergerboy": {
+      "QB": {
+        "delta_rounds": -1.06,
+        "manager_first_avg": 2.67,
+        "league_first_avg": 3.72,
+        "n_samples": 3
+      },
+      "RB": {
+        "delta_rounds": 0.81,
+        "manager_first_avg": 3.67,
+        "league_first_avg": 2.86,
+        "n_samples": 3
+      },
+      "WR": {
+        "delta_rounds": 0.33,
+        "manager_first_avg": 3.0,
+        "league_first_avg": 2.67,
+        "n_samples": 3
+      },
+      "TE": {
+        "delta_rounds": 2.88,
+        "manager_first_avg": 10.0,
+        "league_first_avg": 7.12,
+        "n_samples": 3
+      },
+      "K": {
+        "delta_rounds": -0.41,
+        "manager_first_avg": 15.0,
+        "league_first_avg": 15.41,
+        "n_samples": 1
+      },
+      "DEF": {
+        "delta_rounds": 2.29,
+        "manager_first_avg": 17.0,
+        "league_first_avg": 14.71,
+        "n_samples": 1
+      }
+    },
+    "brower_barry": {
+      "QB": {
+        "delta_rounds": -1.39,
+        "manager_first_avg": 2.33,
+        "league_first_avg": 3.72,
+        "n_samples": 3
+      },
+      "RB": {
+        "delta_rounds": 3.14,
+        "manager_first_avg": 6.0,
+        "league_first_avg": 2.86,
+        "n_samples": 3
+      },
+      "WR": {
+        "delta_rounds": 2.0,
+        "manager_first_avg": 4.67,
+        "league_first_avg": 2.67,
+        "n_samples": 3
+      },
+      "TE": {
+        "delta_rounds": -0.62,
+        "manager_first_avg": 6.5,
+        "league_first_avg": 7.12,
+        "n_samples": 2
+      },
+      "K": {
+        "delta_rounds": -3.41,
+        "manager_first_avg": 12.0,
+        "league_first_avg": 15.41,
+        "n_samples": 1
+      }
+    },
+    "brian_bigguap": {
+      "QB": {
+        "delta_rounds": -0.06,
+        "manager_first_avg": 3.67,
+        "league_first_avg": 3.72,
+        "n_samples": 3
+      },
+      "RB": {
+        "delta_rounds": -0.53,
+        "manager_first_avg": 2.33,
+        "league_first_avg": 2.86,
+        "n_samples": 3
+      },
+      "WR": {
+        "delta_rounds": 0.0,
+        "manager_first_avg": 2.67,
+        "league_first_avg": 2.67,
+        "n_samples": 3
+      },
+      "TE": {
+        "delta_rounds": -1.12,
+        "manager_first_avg": 6.0,
+        "league_first_avg": 7.12,
+        "n_samples": 2
+      },
+      "K": {
+        "delta_rounds": 1.09,
+        "manager_first_avg": 16.5,
+        "league_first_avg": 15.41,
+        "n_samples": 2
+      },
+      "DEF": {
+        "delta_rounds": 1.29,
+        "manager_first_avg": 16.0,
+        "league_first_avg": 14.71,
+        "n_samples": 3
+      }
+    },
+    "josh_wildboy": {
+      "QB": {
+        "delta_rounds": -0.72,
+        "manager_first_avg": 3.0,
+        "league_first_avg": 3.72,
+        "n_samples": 3
+      },
+      "RB": {
+        "delta_rounds": -1.19,
+        "manager_first_avg": 1.67,
+        "league_first_avg": 2.86,
+        "n_samples": 3
+      },
+      "WR": {
+        "delta_rounds": -1.33,
+        "manager_first_avg": 1.33,
+        "league_first_avg": 2.67,
+        "n_samples": 3
+      },
+      "TE": {
+        "delta_rounds": 1.22,
+        "manager_first_avg": 8.33,
+        "league_first_avg": 7.12,
+        "n_samples": 3
+      },
+      "K": {
+        "delta_rounds": 1.59,
+        "manager_first_avg": 17.0,
+        "league_first_avg": 15.41,
+        "n_samples": 1
+      },
+      "DEF": {
+        "delta_rounds": -1.71,
+        "manager_first_avg": 13.0,
+        "league_first_avg": 14.71,
+        "n_samples": 2
+      }
+    },
+    "coop": {
+      "QB": {
+        "delta_rounds": -1.72,
+        "manager_first_avg": 2.0,
+        "league_first_avg": 3.72,
+        "n_samples": 3
+      },
+      "RB": {
+        "delta_rounds": -0.86,
+        "manager_first_avg": 2.0,
+        "league_first_avg": 2.86,
+        "n_samples": 3
+      },
+      "WR": {
+        "delta_rounds": -1.0,
+        "manager_first_avg": 1.67,
+        "league_first_avg": 2.67,
+        "n_samples": 3
+      },
+      "TE": {
+        "delta_rounds": -2.12,
+        "manager_first_avg": 5.0,
+        "league_first_avg": 7.12,
+        "n_samples": 3
+      },
+      "K": {
+        "delta_rounds": -0.41,
+        "manager_first_avg": 15.0,
+        "league_first_avg": 15.41,
+        "n_samples": 1
+      },
+      "DEF": {
+        "delta_rounds": -0.71,
+        "manager_first_avg": 14.0,
+        "league_first_avg": 14.71,
+        "n_samples": 3
+      }
+    }
+  }
+}
