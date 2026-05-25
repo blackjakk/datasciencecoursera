@@ -182,17 +182,17 @@ def team_idx_to_mid_by_name(name):
 
 
 def find_steals_reaches(picks, top_n=10):
-    """ADP delta = ADP - actual_overall. Positive = went later than ADP (steal),
-    Negative = went earlier (reach)."""
+    """ADP delta = overall_pick - ADP. Positive = drafted LATER than ADP (steal —
+    they fell). Negative = drafted EARLIER than ADP (reach — taken too soon)."""
     candidates = []
     for p in picks:
         if p["is_keeper"]:
             continue
         if p["adp"] >= 999:
             continue
-        candidates.append((p, p["adp"] - p["overall"]))
-    steals = sorted(candidates, key=lambda x: -x[1])[:top_n]
-    reaches = sorted(candidates, key=lambda x: x[1])[:top_n]
+        candidates.append((p, p["overall"] - p["adp"]))
+    steals = sorted(candidates, key=lambda x: -x[1])[:top_n]   # biggest fall
+    reaches = sorted(candidates, key=lambda x: x[1])[:top_n]   # most premature
     return steals, reaches
 
 
@@ -406,9 +406,9 @@ def build_html(picks):
 
     # ===== Steals & Reaches =====
     h.append('<h2>Steals &amp; Reaches</h2>')
-    h.append('<p class="note">ADP delta = ADP rank − actual draft pick. '
-             '<strong style="color:#16a34a">Positive</strong> = fell further than ADP (steal). '
-             '<strong style="color:#dc2626">Negative</strong> = drafted earlier than ADP (reach).</p>')
+    h.append('<p class="note">ADP delta = actual pick − ADP rank. '
+             '<strong style="color:#16a34a">Positive</strong> = drafted LATER than ADP suggested (the player fell — bargain). '
+             '<strong style="color:#dc2626">Negative</strong> = drafted EARLIER than ADP suggested (reach — paid premium).</p>')
     h.append('<div class="steals-reaches">')
     h.append('<div><h3 style="font-family:Bebas Neue;color:#16a34a;letter-spacing:1px;font-size:14pt;margin:0">TOP STEALS</h3>'
              '<table class="sr-table"><tr><th>Player</th><th>Pos</th><th>Team</th><th>Pick</th><th>ADP</th><th>Δ</th></tr>')
