@@ -1,46 +1,88 @@
 <!DOCTYPE html><html><head><meta charset="utf-8">
 <style>
-    body { font-family: -apple-system, system-ui, sans-serif; max-width: 760px;
-           margin: 24px auto; padding: 0 20px; color: #1a1a1a;
-           line-height: 1.45; font-size: 10.5pt; }
-    h1 { font-size: 22pt; border-bottom: 3px solid #b8860b;
-         padding-bottom: 6px; margin: 0 0 4px; }
-    h2 { font-size: 14pt; color: #0a4d6b; margin: 22px 0 8px;
-         border-left: 4px solid #b8860b; padding-left: 10px; }
-    h3 { font-size: 11pt; color: #444; margin: 14px 0 4px; }
-    .subtitle { color: #666; margin: 0 0 16px; font-size: 10pt; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Bebas+Neue&display=swap');
+    body { font-family: 'Inter', -apple-system, system-ui, sans-serif;
+           max-width: 780px; margin: 18px auto; padding: 0 22px;
+           color: #1a1d24; line-height: 1.5; font-size: 10.5pt;
+           background: #ffffff; }
+    h1 { font-family: 'Bebas Neue', sans-serif; font-size: 38pt;
+         letter-spacing: 1px; margin: 0; color: #0a3d62;
+         line-height: 1; }
+    .hero { background: linear-gradient(135deg, #0a3d62 0%, #1f7a8c 100%);
+            color: white; padding: 22px 26px; border-radius: 14px;
+            margin-bottom: 22px; }
+    .hero h1 { color: white; }
+    .hero .subtitle { color: rgba(255,255,255,0.85); font-size: 11pt;
+                      margin: 6px 0 0; font-weight: 500; }
+    h2 { font-family: 'Bebas Neue', sans-serif; font-size: 22pt;
+         letter-spacing: 1px; color: #0a3d62; margin: 28px 0 4px;
+         padding-bottom: 4px; border-bottom: 3px solid #d4a017; }
+    h3 { font-size: 11pt; color: #3d405b; margin: 14px 0 4px;
+         font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+    .subtitle { color: #6b7280; margin: 0 0 14px; font-size: 10pt; }
+    .chart { width: 100%; margin: 6px 0 14px; page-break-inside: avoid; }
     .cards-grid { display: grid; grid-template-columns: 1fr 1fr;
-                  gap: 10px; margin: 8px 0; }
-    .card { border: 1px solid #ccc; border-radius: 8px; overflow: hidden;
-            page-break-inside: avoid; }
-    .card-head { color: white; padding: 8px 10px; display: flex;
-                 align-items: center; gap: 10px; }
-    .ovr { font-size: 24pt; font-weight: bold; min-width: 38px; text-align: center; }
-    .player-name { font-size: 13pt; font-weight: bold; line-height: 1.1; }
-    .archetype { font-size: 8.5pt; opacity: 0.9; margin-top: 2px; }
-    .card-body { padding: 6px 10px 8px; }
+                  gap: 10px; margin: 10px 0; }
+    .card { border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;
+            page-break-inside: avoid;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
+    .card-head { color: white; padding: 10px 12px; display: flex;
+                 align-items: center; gap: 12px; }
+    .ovr { font-family: 'Bebas Neue', sans-serif; font-size: 32pt;
+           font-weight: bold; min-width: 46px; text-align: center;
+           line-height: 1; }
+    .player-name { font-size: 14pt; font-weight: 800; line-height: 1.1; }
+    .archetype { font-size: 8.5pt; opacity: 0.92; margin-top: 3px;
+                 font-weight: 500; }
+    .card-body { padding: 8px 12px 10px; }
     .attr-table { width: 100%; font-size: 8.5pt; }
-    .attr-table td { padding: 1px 4px; }
-    .attr { font-weight: bold; color: #444; width: 38px; }
+    .attr-table td { padding: 2px 4px; }
+    .attr { font-weight: 700; color: #3d405b; width: 38px;
+            font-size: 8pt; letter-spacing: 0.4px; }
     .bar { width: 100%; }
-    .bar-fill { height: 7px; border-radius: 3px; background: #888; min-width: 4px; }
-    .val { width: 22px; text-align: right; font-weight: bold; }
-    .raw { color: #666; font-size: 8pt; text-align: right; min-width: 80px; }
-    .badge-fmr { font-size: 7pt; background: #444; color: #fff;
-                 padding: 1px 4px; border-radius: 3px; vertical-align: middle; }
-    table { width: 100%; border-collapse: collapse; margin: 4px 0 10px;
-            font-size: 9pt; }
-    th { background: #2c5d7c; color: white; padding: 3px 7px; text-align: left; }
-    td { padding: 3px 7px; border-bottom: 1px solid #ddd; }
-    tr:nth-child(even) td { background: #f8f8f8; }
-    .note { font-size: 9pt; color: #666; font-style: italic; margin: 4px 0 10px; }
-    .top3 { font-size: 9.5pt; }
-    @page { size: letter; margin: 0.5in; }
+    .bar-fill { height: 8px; border-radius: 4px; background: #888;
+                min-width: 4px; }
+    .val { width: 24px; text-align: right; font-weight: 800;
+           color: #1a1d24; }
+    .raw { color: #6b7280; font-size: 8pt; text-align: right;
+           min-width: 90px; }
+    .badge-fmr { font-size: 7pt; background: rgba(0,0,0,0.3); color: #fff;
+                 padding: 1px 5px; border-radius: 4px;
+                 vertical-align: middle; font-weight: 700; }
+    table { width: 100%; border-collapse: collapse; margin: 4px 0 12px;
+            font-size: 9.5pt; }
+    th { background: #0a3d62; color: white; padding: 5px 8px;
+         text-align: left; font-weight: 700; }
+    td { padding: 4px 8px; border-bottom: 1px solid #f0f0f0; }
+    tr:nth-child(even) td { background: #fafafa; }
+    .note { font-size: 9pt; color: #6b7280; margin: 4px 0 14px;
+            line-height: 1.5; }
+    .top3 { font-size: 9.5pt; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            border-radius: 8px; overflow: hidden; }
+    .top3 th { display: none; }
+    .top3 td { padding: 6px 10px; border-bottom: 1px solid #f0f0f0; }
+    .stat-cards { display: grid; grid-template-columns: repeat(4, 1fr);
+                  gap: 8px; margin: 8px 0 14px; }
+    .stat-card { background: #f7f4ea; border-radius: 10px; padding: 10px 12px;
+                 text-align: center; border: 1px solid #e5e7eb; }
+    .stat-card .num { font-family: 'Bebas Neue', sans-serif;
+                       font-size: 22pt; color: #0a3d62; line-height: 1; }
+    .stat-card .lbl { font-size: 8pt; color: #6b7280; margin-top: 4px;
+                      text-transform: uppercase; letter-spacing: 0.5px;
+                      font-weight: 600; }
+    .section-intro { color: #3d405b; font-size: 10pt; margin: 4px 0 10px; }
+    @page { size: letter; margin: 0.45in; }
     </style></head><body>
-<h1>🏆 MONEYLEAGUE Power Rankings</h1>
-<p class="subtitle">May 2026 · Madden-style ratings · Current managers + long-tenured former vets (10+ yrs)</p>
-<h2>⚡ All-Time Madden OVR</h2>
-<p class="note">OVR = 30% Rings + 20% Win% + 17% Draft + 13% Trade + 12% PPG + 8% Longevity. Ratings 0-99 scaled within this pool. <strong>FMR</strong> = former manager.</p>
+<div class="hero">
+<h1>MONEYLEAGUE POWER RANKINGS</h1>
+<p class="subtitle">May 2026 · 15-year retrospective · Madden-style attribute scoring · charts + cards</p>
+</div>
+<div class="stat-cards"><div class="stat-card"><div class="num">15</div><div class="lbl">Yrs of History</div></div><div class="stat-card"><div class="num">14</div><div class="lbl">Champions Crowned</div></div><div class="stat-card"><div class="num">164</div><div class="lbl">Trades Logged</div></div><div class="stat-card"><div class="num">90</div><div class="lbl">Top OVR</div></div></div>
+<h2>All-Time Power Rankings</h2>
+<p class="section-intro">OVR is a weighted composite: <strong>Rings 30%</strong>, <strong>Win% 20%</strong>, <strong>Draft 17%</strong>, Trade 13%, PPG 12%, Longevity 8%. Each attribute is normalized 0-99 within the active-vet pool. <strong>FMR</strong> = former manager.</p>
+<img class="chart" src="/home/user/datasciencecoursera/data/charts/rankings/ovr_all.png"/>
+<img class="chart" src="/home/user/datasciencecoursera/data/charts/rankings/radar_top.png"/>
+<h2>All-Time Player Cards</h2>
 <div class="cards-grid">
 
     <div class="card">
@@ -295,8 +337,24 @@
     </div>
     
 </div>
-<h2>📱 Sleeper Era OVR (2023-2025)</h2>
-<p class="note">Only the last 3 seasons counted. Same attributes, re-weighted: Rings 25% + Win% 22% + Draft 22% + Trade 13% + PPG 13% + Long 5% (recency-heavy).</p>
+<h2>Win% vs Scoring</h2>
+<p class="section-intro">Where each manager lives on the win-rate / scoring plane. The top-right is the dream; the bottom-left is the basement. Bubble size = rings.</p>
+<img class="chart" src="/home/user/datasciencecoursera/data/charts/rankings/scatter.png"/>
+<h2>Trade Fleecer Ledger</h2>
+<p class="section-intro">Net VBD across every scored trade (Yahoo 2011-2022 + Sleeper 2023-2024), including picks (scored as the rookie-year production of the player actually drafted). Green = won, red = lost.</p>
+<img class="chart" src="/home/user/datasciencecoursera/data/charts/rankings/vbd.png"/>
+<h2>Best Drafters</h2>
+<p class="section-intro">Rookie-year nflverse points produced by every player each manager drafted, normalized per pick. Minimum 20 career picks to qualify.</p>
+<img class="chart" src="/home/user/datasciencecoursera/data/charts/rankings/drafters.png"/>
+<h2>Championship Timeline</h2>
+<p class="section-intro">15 years of titles, one trophy per season. Rows ordered by total ring count.</p>
+<img class="chart" src="/home/user/datasciencecoursera/data/charts/rankings/champs.png"/>
+<h2>Sleeper Era (2023-2025)</h2>
+<p class="section-intro">The last 3 seasons only — recency view. Weights tilt away from longevity (5%) and toward draft (22%) and win% (22%). All 12 current rosters included regardless of tenure.</p>
+<img class="chart" src="/home/user/datasciencecoursera/data/charts/rankings/ovr_sleeper.png"/>
+<img class="chart" src="/home/user/datasciencecoursera/data/charts/rankings/sleeper_trend.png"/>
+<img class="chart" src="/home/user/datasciencecoursera/data/charts/rankings/radar_sleeper.png"/>
+<h2>Sleeper Era Player Cards</h2>
 <div class="cards-grid">
 
     <div class="card">
@@ -551,53 +609,6 @@
     </div>
     
 </div>
-<h2>🥇 League Leaders</h2>
-<div class="cards-grid">
-<div><h3>💍 Most Rings</h3><table class='top3'><tr><td>1. <strong>Trevor</strong></td><td>3</td></tr><tr><td>2. <strong>Coop</strong></td><td>3</td></tr><tr><td>3. <strong>Dave</strong></td><td>2</td></tr></table></div>
-<div><h3>📈 Highest Win%</h3><table class='top3'><tr><td>1. <strong>Brower</strong></td><td>0.680</td></tr><tr><td>2. <strong>Dave</strong></td><td>0.634</td></tr><tr><td>3. <strong>Trevor</strong></td><td>0.597</td></tr></table></div>
-<div><h3>🎯 Highest PPG</h3><table class='top3'><tr><td>1. <strong>Brower</strong></td><td>140.4</td></tr><tr><td>2. <strong>Dave</strong></td><td>134.3</td></tr><tr><td>3. <strong>Trevor</strong></td><td>131.9</td></tr></table></div>
-<div><h3>🦈 Best Trader (VBD)</h3><table class='top3'><tr><td>1. <strong>Dave</strong></td><td>+4718</td></tr><tr><td>2. <strong>Brower</strong></td><td>+1426</td></tr><tr><td>3. <strong>Coop</strong></td><td>+1039</td></tr></table></div>
-<div><h3>📝 Best Drafter (pts/pick)</h3><table class='top3'><tr><td>1. <strong>Dave</strong></td><td>129.2</td></tr><tr><td>2. <strong>Brower</strong></td><td>127.8</td></tr><tr><td>3. <strong>Ankur</strong></td><td>127.5</td></tr></table></div>
-<div><h3>⏳ Most Years</h3><table class='top3'><tr><td>1. <strong>Trevor</strong></td><td>15</td></tr><tr><td>2. <strong>Coop</strong></td><td>15</td></tr><tr><td>3. <strong>Kyle</strong></td><td>15</td></tr></table></div>
-</div>
-<h2>🏅 Championship History</h2>
-<table><thead><tr><th>Year</th><th>Champion</th></tr></thead><tbody>
-<tr><td>2011</td><td><strong>Nark</strong></td></tr>
-<tr><td>2012</td><td><strong>Kyle</strong></td></tr>
-<tr><td>2013</td><td><strong>Coop</strong></td></tr>
-<tr><td>2014</td><td><strong>Trevor</strong></td></tr>
-<tr><td>2015</td><td><strong>Donnie</strong></td></tr>
-<tr><td>2016</td><td><strong>Kyle</strong></td></tr>
-<tr><td>2017</td><td><strong>Coop</strong></td></tr>
-<tr><td>2018</td><td><strong>Dave</strong></td></tr>
-<tr><td>2019</td><td><strong>Troy</strong></td></tr>
-<tr><td>2020</td><td><strong>Trevor</strong></td></tr>
-<tr><td>2021</td><td><strong>Dave</strong></td></tr>
-<tr><td>2022</td><td><strong>Ankur</strong></td></tr>
-<tr><td>2023</td><td><strong>Eric</strong></td></tr>
-<tr><td>2024</td><td><strong>Coop</strong></td></tr>
-<tr><td>2025</td><td><strong>Trevor</strong></td></tr>
-</tbody></table>
-<h2>🦈 Aggregate Trade Fleecer Ranking</h2>
-<p class="note">Net VBD across all scored trades (Yahoo 2011-2022 + Sleeper 2023-2024). Picks scored as the rookie-year points of the player actually drafted.</p>
-<table><thead><tr><th>Rk</th><th>Manager</th><th>Trades</th><th>Net VBD</th><th>Per Trade</th></tr></thead><tbody>
-<tr><td>1</td><td><strong>Dave</strong></td><td>27</td><td><strong>+4718</strong></td><td>+175</td></tr>
-<tr><td>2</td><td><strong>Brower</strong></td><td>21</td><td><strong>+1426</strong></td><td>+68</td></tr>
-<tr><td>3</td><td><strong>Coop</strong></td><td>41</td><td><strong>+1039</strong></td><td>+25</td></tr>
-<tr><td>4</td><td><strong>Trevor</strong></td><td>51</td><td><strong>+727</strong></td><td>+14</td></tr>
-<tr><td>5</td><td><strong>Brian</strong></td><td>46</td><td><strong>+661</strong></td><td>+14</td></tr>
-<tr><td>6</td><td><strong>Troy</strong></td><td>23</td><td><strong>+466</strong></td><td>+20</td></tr>
-<tr><td>7</td><td><strong>Kyle</strong></td><td>26</td><td><strong>+464</strong></td><td>+18</td></tr>
-<tr><td>8</td><td><strong>Ankur</strong></td><td>9</td><td><strong>+235</strong></td><td>+26</td></tr>
-<tr><td>9</td><td><strong>Nick Lewis</strong></td><td>4</td><td><strong>-62</strong></td><td>-16</td></tr>
-<tr><td>10</td><td><strong>JP</strong></td><td>2</td><td><strong>-131</strong></td><td>-65</td></tr>
-<tr><td>11</td><td><strong>Jimmy Notebooks</strong></td><td>1</td><td><strong>-452</strong></td><td>-452</td></tr>
-<tr><td>12</td><td><strong>Lem</strong></td><td>20</td><td><strong>-854</strong></td><td>-43</td></tr>
-<tr><td>13</td><td><strong>Eric</strong></td><td>15</td><td><strong>-879</strong></td><td>-59</td></tr>
-<tr><td>14</td><td><strong>Nark</strong></td><td>10</td><td><strong>-1505</strong></td><td>-150</td></tr>
-<tr><td>15</td><td><strong>Tim</strong></td><td>14</td><td><strong>-2077</strong></td><td>-148</td></tr>
-<tr><td>16</td><td><strong>Donnie</strong></td><td>36</td><td><strong>-3777</strong></td><td>-105</td></tr>
-</tbody></table>
-<h2>📜 Methodology</h2>
-<p class="note">Win/loss + PPG: regular-season games only. Yahoo data via scraped matchups; Sleeper via league API. Trade VBD: full-season nflverse fantasy points for players + rookie-year points of the player drafted at each traded pick (snake-order math against actual draft data). 2025 Sleeper trades excluded — no season stats yet.</p>
+<h2>Methodology</h2>
+<p class="note">Win/loss + PPG: regular-season games only (weeks 1-13 for 8/10-team years, 1-14 for 12-team years). Yahoo data via scraped matchups; Sleeper via league API. Rings: KNOWN_CHAMPIONS dict (Yahoo era) + winners_bracket.json (Sleeper era). Trade VBD: full-season nflverse fantasy points (0.5 PPR for 2019+, 0 PPR before) for players + rookie-year points of the player actually drafted at each traded pick (snake-order math against each year's actual draft data). Draft skill: total rookie-year points / total picks made. 2025 Sleeper trades excluded — no nflverse 2025 totals yet.</p>
 </body></html>

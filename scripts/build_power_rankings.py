@@ -6,12 +6,19 @@ weights: Rings 35%, Win% 25%, PPG 15%, Trade VBD 15%, Longevity 10%.
 from __future__ import annotations
 
 import json
+import math
 import re
 import sys
 import unicodedata
 from collections import defaultdict
 from datetime import date
 from pathlib import Path
+
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+from matplotlib.patches import FancyBboxPatch
+import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -23,6 +30,22 @@ from fantasy_draft.team_identity import (  # noqa: E402
 ROOT = Path(__file__).resolve().parent.parent
 PDF_OUT = ROOT / "data" / "MONEYLEAGUE_POWER_RANKINGS.pdf"
 MD_OUT = ROOT / "data" / "MONEYLEAGUE_POWER_RANKINGS.md"
+CHART_DIR = ROOT / "data" / "charts" / "rankings"
+CHART_DIR.mkdir(parents=True, exist_ok=True)
+
+# Modern color palette (clean + bold)
+PALETTE = {
+    "gold": "#d4a017",
+    "navy": "#0a3d62",
+    "teal": "#1f7a8c",
+    "emerald": "#2d6a4f",
+    "orange": "#dd6e42",
+    "crimson": "#a23737",
+    "slate": "#3d405b",
+    "cream": "#f7f4ea",
+    "ink": "#1a1d24",
+    "gray": "#6b7280",
+}
 
 # Reuse build_trades_report helpers
 from scripts import build_trades_report as btr  # noqa: E402
@@ -453,6 +476,248 @@ def build_madden_cards_sleeper(stats, vbd, vbd_n, draft):
     return cards
 
 
+def _setup_mpl():
+    plt.rcParams.update({
+        "font.family": "DejaVu Sans",
+        "font.size": 10,
+        "axes.facecolor": "#ffffff",
+        "figure.facecolor": "#ffffff",
+        "axes.edgecolor": PALETTE["gray"],
+        "axes.labelcolor": PALETTE["ink"],
+        "axes.titleweight": "bold",
+        "axes.titlesize": 13,
+        "axes.titlecolor": PALETTE["ink"],
+        "axes.spines.top": False,
+        "axes.spines.right": False,
+        "xtick.color": PALETTE["gray"],
+        "ytick.color": PALETTE["gray"],
+        "grid.color": "#e5e7eb",
+        "grid.alpha": 0.7,
+    })
+
+
+def chart_ovr_ranking(cards, path, title="All-Time Power Rankings"):
+    _setup_mpl()
+    cards = sorted(cards, key=lambda c: c["ovr"])
+    names = [c["name"] + (" (FMR)" if not c.get("is_current", True) else "") for c in cards]
+    ovrs = [c["ovr"] for c in cards]
+    colors = [tier_color(o) for o in ovrs]
+    fig, ax = plt.subplots(figsize=(9, max(3, 0.42 * len(cards) + 1)), dpi=140)
+    bars = ax.barh(names, ovrs, color=colors, edgecolor="white", linewidth=1.5, height=0.72)
+    ax.set_xlim(40, 100)
+    ax.set_xlabel("OVR Rating", fontweight="bold")
+    ax.set_title(title, loc="left", pad=14)
+    ax.grid(axis="x", linestyle="--", alpha=0.4)
+    ax.set_axisbelow(True)
+    for bar, ovr in zip(bars, ovrs):
+        ax.text(bar.get_width() + 0.8, bar.get_y() + bar.get_height() / 2,
+                f"{ovr}", va="center", ha="left",
+                fontweight="bold", fontsize=11, color=PALETTE["ink"])
+    # Tier divider lines
+    for v, lbl in [(65, "Depth"), (75, "Starter"), (80, "Pro Bowler"),
+                   (85, "Star"), (90, "Franchise")]:
+        ax.axvline(v, color=PALETTE["gray"], linestyle=":", alpha=0.5, linewidth=0.8)
+        ax.text(v, len(cards) - 0.4, lbl, ha="center", va="bottom",
+                color=PALETTE["gray"], fontsize=7, alpha=0.8)
+    plt.tight_layout()
+    plt.savefig(path, bbox_inches="tight", facecolor="white")
+    plt.close()
+
+
+def chart_radar_grid(cards, path, title="Top 6 Player Profiles"):
+    _setup_mpl()
+    top = sorted(cards, key=lambda c: -c["ovr"])[:6]
+    cats = ["RING", "WIN%", "PPG", "DRFT", "TRADE", "LONG"]
+    angles = np.linspace(0, 2 * np.pi, len(cats), endpoint=False).tolist()
+    angles += angles[:1]
+    fig, axes = plt.subplots(2, 3, figsize=(10, 7), dpi=140,
+                              subplot_kw=dict(polar=True))
+    for ax, c in zip(axes.flat, top):
+        vals = [c["rings_rating"], c["winp_rating"], c["ppg_rating"],
+                c["draft_rating"], c["trade_rating"], c["long_rating"]]
+        vals += vals[:1]
+        color = tier_color(c["ovr"])
+        ax.plot(angles, vals, color=color, linewidth=2.2)
+        ax.fill(angles, vals, color=color, alpha=0.25)
+        ax.set_xticks(angles[:-1])
+        ax.set_xticklabels(cats, fontsize=8, color=PALETTE["ink"])
+        ax.set_yticks([40, 60, 80, 100])
+        ax.set_yticklabels([], fontsize=7)
+        ax.set_ylim(30, 100)
+        ax.set_title(f"{c['name']}  ({c['ovr']})", color=color,
+                     fontweight="bold", fontsize=11, pad=12)
+        ax.grid(color="#d1d5db", linewidth=0.6)
+        ax.spines["polar"].set_color("#d1d5db")
+    for ax in axes.flat[len(top):]:
+        ax.set_visible(False)
+    fig.suptitle(title, fontweight="bold", fontsize=14, color=PALETTE["ink"], y=0.99)
+    plt.tight_layout()
+    plt.savefig(path, bbox_inches="tight", facecolor="white")
+    plt.close()
+
+
+def chart_scatter_winpct_ppg(cards, path):
+    _setup_mpl()
+    fig, ax = plt.subplots(figsize=(9, 5.5), dpi=140)
+    for c in cards:
+        color = tier_color(c["ovr"])
+        size = 200 + 60 * c["rings"]
+        ax.scatter(c["winpct"], c["ppg"], s=size, color=color,
+                   alpha=0.75, edgecolor="white", linewidth=1.5, zorder=3)
+        offset = 0.012 if c["winpct"] < 0.55 else -0.012
+        ha = "left" if c["winpct"] < 0.55 else "right"
+        ax.annotate(c["name"], (c["winpct"], c["ppg"]),
+                    xytext=(c["winpct"] + offset, c["ppg"] + 0.3),
+                    fontsize=9, ha=ha, color=PALETTE["ink"], fontweight="bold")
+    ax.axvline(0.5, color=PALETTE["gray"], linestyle="--", alpha=0.5)
+    ax.axhline(np.mean([c["ppg"] for c in cards]),
+               color=PALETTE["gray"], linestyle="--", alpha=0.5)
+    ax.set_xlabel("Career Win %", fontweight="bold")
+    ax.set_ylabel("Career PPG", fontweight="bold")
+    ax.set_title("Win% vs Points-per-Game  ·  Bubble size = ring count",
+                 loc="left", pad=14)
+    ax.grid(linestyle="--", alpha=0.4)
+    ax.set_axisbelow(True)
+    plt.tight_layout()
+    plt.savefig(path, bbox_inches="tight", facecolor="white")
+    plt.close()
+
+
+def chart_trade_vbd(cards, path):
+    _setup_mpl()
+    s = sorted(cards, key=lambda c: c["trade_vbd"])
+    names = [c["name"] for c in s]
+    vals = [c["trade_vbd"] for c in s]
+    colors = [PALETTE["emerald"] if v >= 0 else PALETTE["crimson"] for v in vals]
+    fig, ax = plt.subplots(figsize=(9, max(3, 0.4 * len(s) + 1)), dpi=140)
+    ax.barh(names, vals, color=colors, edgecolor="white", linewidth=1.2, height=0.7)
+    ax.axvline(0, color=PALETTE["ink"], linewidth=1)
+    for i, (v, c) in enumerate(zip(vals, s)):
+        x = v + (60 if v >= 0 else -60)
+        ha = "left" if v >= 0 else "right"
+        ax.text(x, i, f"{v:+.0f}  ({c['trade_n']}t)", va="center", ha=ha,
+                fontsize=9, color=PALETTE["ink"], fontweight="bold")
+    pad = max(abs(min(vals)), max(vals)) * 0.25
+    ax.set_xlim(min(vals) - pad, max(vals) + pad)
+    ax.set_xlabel("Net VBD (points)", fontweight="bold")
+    ax.set_title("Trade Fleecer Ledger  ·  green = winner, red = loser",
+                 loc="left", pad=14)
+    ax.grid(axis="x", linestyle="--", alpha=0.4)
+    ax.set_axisbelow(True)
+    plt.tight_layout()
+    plt.savefig(path, bbox_inches="tight", facecolor="white")
+    plt.close()
+
+
+def chart_drafters(cards, path):
+    _setup_mpl()
+    s = sorted([c for c in cards if c["draft_picks"] > 20],
+                key=lambda c: c["draft_ppp"])
+    names = [c["name"] for c in s]
+    vals = [c["draft_ppp"] for c in s]
+    colors = [tier_color(c["ovr"]) for c in s]
+    fig, ax = plt.subplots(figsize=(9, max(3, 0.4 * len(s) + 1)), dpi=140)
+    ax.barh(names, vals, color=colors, edgecolor="white", linewidth=1.2, height=0.7)
+    for i, (v, c) in enumerate(zip(vals, s)):
+        ax.text(v + 1.5, i, f"{v:.1f}  ({c['draft_picks']}p)",
+                va="center", fontsize=9, color=PALETTE["ink"], fontweight="bold")
+    ax.set_xlim(min(vals) - 5, max(vals) + 18)
+    ax.set_xlabel("Rookie-Year Points Per Pick", fontweight="bold")
+    ax.set_title("Best Drafters  ·  pts produced per pick made",
+                 loc="left", pad=14)
+    ax.grid(axis="x", linestyle="--", alpha=0.4)
+    ax.set_axisbelow(True)
+    plt.tight_layout()
+    plt.savefig(path, bbox_inches="tight", facecolor="white")
+    plt.close()
+
+
+def chart_championships_timeline(path):
+    _setup_mpl()
+    # Collect (year, mgr_id) for every champion
+    champs = []
+    for yr, mid in KNOWN_CHAMPIONS.items():
+        champs.append((yr, mid))
+    for season, s in load_all_seasons().items():
+        if season in KNOWN_CHAMPIONS:
+            continue
+        rid = s.get("champion_roster_id")
+        if rid:
+            mid = ROSTER_HANDOFFS.get((season, int(rid)),
+                                       (manager_for_sleeper_roster(int(rid)) or {}).get("id"))
+            if mid:
+                champs.append((season, mid))
+    champs.sort()
+    # Order managers by total rings desc
+    counts = defaultdict(int)
+    for _, mid in champs:
+        counts[mid] += 1
+    mgr_order = sorted(counts, key=lambda m: -counts[m])
+    y_pos = {m: i for i, m in enumerate(mgr_order)}
+    fig, ax = plt.subplots(figsize=(10, 0.55 * len(mgr_order) + 1), dpi=140)
+    years = sorted({y for y, _ in champs})
+    yr_min, yr_max = min(years), max(years)
+    # Grid: faint vertical line per year
+    for y in range(yr_min, yr_max + 1):
+        ax.axvline(y, color="#e5e7eb", linewidth=0.5, zorder=0)
+    # Trophies — star markers
+    for yr, mid in champs:
+        ax.scatter(yr, y_pos[mid], s=420, color=PALETTE["gold"], zorder=3,
+                   edgecolor=PALETTE["ink"], linewidth=1.2, marker="*")
+    ax.set_yticks(range(len(mgr_order)))
+    ax.set_yticklabels([f"{_mgr_name(m)}  ({counts[m]})" for m in mgr_order],
+                       fontweight="bold")
+    ax.set_xticks(years)
+    ax.set_xticklabels([str(y) for y in years], rotation=0, fontsize=8)
+    ax.set_xlim(yr_min - 0.5, yr_max + 0.5)
+    ax.invert_yaxis()
+    ax.set_title("Championship Timeline (2011-2025)", loc="left", pad=14, fontsize=14)
+    ax.spines["left"].set_visible(False)
+    ax.tick_params(left=False)
+    plt.tight_layout()
+    plt.savefig(path, bbox_inches="tight", facecolor="white")
+    plt.close()
+
+
+def chart_sleeper_winpct_trend(path):
+    """Per-season win pct per current manager."""
+    _setup_mpl()
+    rid_to_mid = {m["sleeper_roster_id"]: m["id"]
+                  for m in all_managers() if m.get("sleeper_roster_id")}
+    series = defaultdict(dict)
+    for season, s in load_all_seasons().items():
+        for rid, r in s["rosters"].items():
+            mid = ROSTER_HANDOFFS.get((season, int(rid)), rid_to_mid.get(int(rid)))
+            if not mid:
+                continue
+            g = r["wins"] + r["losses"]
+            if g:
+                series[mid][season] = r["wins"] / g
+    # Plot
+    seasons = sorted(set().union(*[set(s.keys()) for s in series.values()]))
+    fig, ax = plt.subplots(figsize=(9, 5), dpi=140)
+    palette = plt.cm.tab20.colors
+    items = sorted(series.items(), key=lambda kv: -np.mean(list(kv[1].values())))
+    for i, (mid, ser) in enumerate(items):
+        ys = [ser.get(s, np.nan) for s in seasons]
+        ax.plot(seasons, ys, marker="o", linewidth=2.2, markersize=7,
+                color=palette[i % len(palette)],
+                label=_mgr_name(mid))
+    ax.set_xticks(seasons)
+    ax.axhline(0.5, color=PALETTE["gray"], linestyle="--", alpha=0.5)
+    ax.set_ylim(0, 1)
+    ax.set_ylabel("Win %", fontweight="bold")
+    ax.set_title("Sleeper-Era Win% by Season",
+                 loc="left", pad=14, fontsize=14)
+    ax.legend(loc="center left", bbox_to_anchor=(1.0, 0.5), fontsize=8,
+              frameon=False, ncol=1)
+    ax.grid(linestyle="--", alpha=0.4)
+    ax.set_axisbelow(True)
+    plt.tight_layout()
+    plt.savefig(path, bbox_inches="tight", facecolor="white")
+    plt.close()
+
+
 def build_html():
     # All-time
     stats = compute_career_stats()
@@ -469,129 +734,205 @@ def build_html():
 
     today = date.today().strftime("%B %Y")
 
+    # Generate charts
+    print("rendering charts…")
+    chart_paths = {
+        "ovr_all": CHART_DIR / "ovr_all.png",
+        "radar_top": CHART_DIR / "radar_top.png",
+        "scatter": CHART_DIR / "scatter.png",
+        "vbd": CHART_DIR / "vbd.png",
+        "drafters": CHART_DIR / "drafters.png",
+        "champs": CHART_DIR / "champs.png",
+        "ovr_sleeper": CHART_DIR / "ovr_sleeper.png",
+        "radar_sleeper": CHART_DIR / "radar_sleeper.png",
+        "sleeper_trend": CHART_DIR / "sleeper_trend.png",
+    }
+    chart_ovr_ranking(cards, chart_paths["ovr_all"], "All-Time OVR Rankings")
+    chart_radar_grid(cards, chart_paths["radar_top"], "All-Time Top 6 — Attribute Profiles")
+    chart_scatter_winpct_ppg(cards, chart_paths["scatter"])
+    chart_trade_vbd(cards, chart_paths["vbd"])
+    chart_drafters(cards, chart_paths["drafters"])
+    chart_championships_timeline(chart_paths["champs"])
+    chart_ovr_ranking(cards_s, chart_paths["ovr_sleeper"], "Sleeper Era OVR Rankings")
+    chart_radar_grid(cards_s, chart_paths["radar_sleeper"],
+                     "Sleeper Era Top 6 — Attribute Profiles")
+    chart_sleeper_winpct_trend(chart_paths["sleeper_trend"])
+
     css = """
-    body { font-family: -apple-system, system-ui, sans-serif; max-width: 760px;
-           margin: 24px auto; padding: 0 20px; color: #1a1a1a;
-           line-height: 1.45; font-size: 10.5pt; }
-    h1 { font-size: 22pt; border-bottom: 3px solid #b8860b;
-         padding-bottom: 6px; margin: 0 0 4px; }
-    h2 { font-size: 14pt; color: #0a4d6b; margin: 22px 0 8px;
-         border-left: 4px solid #b8860b; padding-left: 10px; }
-    h3 { font-size: 11pt; color: #444; margin: 14px 0 4px; }
-    .subtitle { color: #666; margin: 0 0 16px; font-size: 10pt; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Bebas+Neue&display=swap');
+    body { font-family: 'Inter', -apple-system, system-ui, sans-serif;
+           max-width: 780px; margin: 18px auto; padding: 0 22px;
+           color: #1a1d24; line-height: 1.5; font-size: 10.5pt;
+           background: #ffffff; }
+    h1 { font-family: 'Bebas Neue', sans-serif; font-size: 38pt;
+         letter-spacing: 1px; margin: 0; color: #0a3d62;
+         line-height: 1; }
+    .hero { background: linear-gradient(135deg, #0a3d62 0%, #1f7a8c 100%);
+            color: white; padding: 22px 26px; border-radius: 14px;
+            margin-bottom: 22px; }
+    .hero h1 { color: white; }
+    .hero .subtitle { color: rgba(255,255,255,0.85); font-size: 11pt;
+                      margin: 6px 0 0; font-weight: 500; }
+    h2 { font-family: 'Bebas Neue', sans-serif; font-size: 22pt;
+         letter-spacing: 1px; color: #0a3d62; margin: 28px 0 4px;
+         padding-bottom: 4px; border-bottom: 3px solid #d4a017; }
+    h3 { font-size: 11pt; color: #3d405b; margin: 14px 0 4px;
+         font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+    .subtitle { color: #6b7280; margin: 0 0 14px; font-size: 10pt; }
+    .chart { width: 100%; margin: 6px 0 14px; page-break-inside: avoid; }
     .cards-grid { display: grid; grid-template-columns: 1fr 1fr;
-                  gap: 10px; margin: 8px 0; }
-    .card { border: 1px solid #ccc; border-radius: 8px; overflow: hidden;
-            page-break-inside: avoid; }
-    .card-head { color: white; padding: 8px 10px; display: flex;
-                 align-items: center; gap: 10px; }
-    .ovr { font-size: 24pt; font-weight: bold; min-width: 38px; text-align: center; }
-    .player-name { font-size: 13pt; font-weight: bold; line-height: 1.1; }
-    .archetype { font-size: 8.5pt; opacity: 0.9; margin-top: 2px; }
-    .card-body { padding: 6px 10px 8px; }
+                  gap: 10px; margin: 10px 0; }
+    .card { border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;
+            page-break-inside: avoid;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
+    .card-head { color: white; padding: 10px 12px; display: flex;
+                 align-items: center; gap: 12px; }
+    .ovr { font-family: 'Bebas Neue', sans-serif; font-size: 32pt;
+           font-weight: bold; min-width: 46px; text-align: center;
+           line-height: 1; }
+    .player-name { font-size: 14pt; font-weight: 800; line-height: 1.1; }
+    .archetype { font-size: 8.5pt; opacity: 0.92; margin-top: 3px;
+                 font-weight: 500; }
+    .card-body { padding: 8px 12px 10px; }
     .attr-table { width: 100%; font-size: 8.5pt; }
-    .attr-table td { padding: 1px 4px; }
-    .attr { font-weight: bold; color: #444; width: 38px; }
+    .attr-table td { padding: 2px 4px; }
+    .attr { font-weight: 700; color: #3d405b; width: 38px;
+            font-size: 8pt; letter-spacing: 0.4px; }
     .bar { width: 100%; }
-    .bar-fill { height: 7px; border-radius: 3px; background: #888; min-width: 4px; }
-    .val { width: 22px; text-align: right; font-weight: bold; }
-    .raw { color: #666; font-size: 8pt; text-align: right; min-width: 80px; }
-    .badge-fmr { font-size: 7pt; background: #444; color: #fff;
-                 padding: 1px 4px; border-radius: 3px; vertical-align: middle; }
-    table { width: 100%; border-collapse: collapse; margin: 4px 0 10px;
-            font-size: 9pt; }
-    th { background: #2c5d7c; color: white; padding: 3px 7px; text-align: left; }
-    td { padding: 3px 7px; border-bottom: 1px solid #ddd; }
-    tr:nth-child(even) td { background: #f8f8f8; }
-    .note { font-size: 9pt; color: #666; font-style: italic; margin: 4px 0 10px; }
-    .top3 { font-size: 9.5pt; }
-    @page { size: letter; margin: 0.5in; }
+    .bar-fill { height: 8px; border-radius: 4px; background: #888;
+                min-width: 4px; }
+    .val { width: 24px; text-align: right; font-weight: 800;
+           color: #1a1d24; }
+    .raw { color: #6b7280; font-size: 8pt; text-align: right;
+           min-width: 90px; }
+    .badge-fmr { font-size: 7pt; background: rgba(0,0,0,0.3); color: #fff;
+                 padding: 1px 5px; border-radius: 4px;
+                 vertical-align: middle; font-weight: 700; }
+    table { width: 100%; border-collapse: collapse; margin: 4px 0 12px;
+            font-size: 9.5pt; }
+    th { background: #0a3d62; color: white; padding: 5px 8px;
+         text-align: left; font-weight: 700; }
+    td { padding: 4px 8px; border-bottom: 1px solid #f0f0f0; }
+    tr:nth-child(even) td { background: #fafafa; }
+    .note { font-size: 9pt; color: #6b7280; margin: 4px 0 14px;
+            line-height: 1.5; }
+    .top3 { font-size: 9.5pt; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            border-radius: 8px; overflow: hidden; }
+    .top3 th { display: none; }
+    .top3 td { padding: 6px 10px; border-bottom: 1px solid #f0f0f0; }
+    .stat-cards { display: grid; grid-template-columns: repeat(4, 1fr);
+                  gap: 8px; margin: 8px 0 14px; }
+    .stat-card { background: #f7f4ea; border-radius: 10px; padding: 10px 12px;
+                 text-align: center; border: 1px solid #e5e7eb; }
+    .stat-card .num { font-family: 'Bebas Neue', sans-serif;
+                       font-size: 22pt; color: #0a3d62; line-height: 1; }
+    .stat-card .lbl { font-size: 8pt; color: #6b7280; margin-top: 4px;
+                      text-transform: uppercase; letter-spacing: 0.5px;
+                      font-weight: 600; }
+    .section-intro { color: #3d405b; font-size: 10pt; margin: 4px 0 10px; }
+    @page { size: letter; margin: 0.45in; }
     """
+
+    n_yrs = max(c["years"] for c in cards)
+    n_champs = sum(c["rings"] for c in cards)
+    n_trades = sum(c["trade_n"] for c in cards) // 2
+    top_ovr = max(c["ovr"] for c in cards)
 
     h = ['<!DOCTYPE html><html><head><meta charset="utf-8">',
          f'<style>{css}</style></head><body>']
-    h.append('<h1>🏆 MONEYLEAGUE Power Rankings</h1>')
-    h.append(f'<p class="subtitle">{today} · Madden-style ratings · '
-             'Current managers + long-tenured former vets (10+ yrs)</p>')
 
-    # ===== All-time Madden cards =====
-    h.append('<h2>⚡ All-Time Madden OVR</h2>')
-    h.append('<p class="note">OVR = 30% Rings + 20% Win% + 17% Draft + '
-             '13% Trade + 12% PPG + 8% Longevity. Ratings 0-99 scaled '
-             'within this pool. <strong>FMR</strong> = former manager.</p>')
+    # Hero
+    h.append('<div class="hero">')
+    h.append('<h1>MONEYLEAGUE POWER RANKINGS</h1>')
+    h.append(f'<p class="subtitle">{today} · 15-year retrospective '
+             '· Madden-style attribute scoring · charts + cards</p>')
+    h.append('</div>')
+
+    # Stat strip
+    h.append('<div class="stat-cards">'
+             f'<div class="stat-card"><div class="num">{n_yrs}</div>'
+             '<div class="lbl">Yrs of History</div></div>'
+             f'<div class="stat-card"><div class="num">{n_champs}</div>'
+             '<div class="lbl">Champions Crowned</div></div>'
+             f'<div class="stat-card"><div class="num">{n_trades}</div>'
+             '<div class="lbl">Trades Logged</div></div>'
+             f'<div class="stat-card"><div class="num">{top_ovr}</div>'
+             '<div class="lbl">Top OVR</div></div>'
+             '</div>')
+
+    # ===== All-time chart =====
+    h.append('<h2>All-Time Power Rankings</h2>')
+    h.append('<p class="section-intro">OVR is a weighted composite: '
+             '<strong>Rings 30%</strong>, <strong>Win% 20%</strong>, '
+             '<strong>Draft 17%</strong>, Trade 13%, PPG 12%, Longevity 8%. '
+             'Each attribute is normalized 0-99 within the active-vet pool. '
+             '<strong>FMR</strong> = former manager.</p>')
+    h.append(f'<img class="chart" src="{chart_paths["ovr_all"]}"/>')
+    h.append(f'<img class="chart" src="{chart_paths["radar_top"]}"/>')
+
+    # ===== Madden cards =====
+    h.append('<h2>All-Time Player Cards</h2>')
     h.append('<div class="cards-grid">')
     for c in cards:
         h.append(render_card_html(c))
     h.append('</div>')
 
-    # ===== Sleeper era cards =====
-    h.append('<h2>📱 Sleeper Era OVR (2023-2025)</h2>')
-    h.append('<p class="note">Only the last 3 seasons counted. Same '
-             'attributes, re-weighted: Rings 25% + Win% 22% + Draft 22% + '
-             'Trade 13% + PPG 13% + Long 5% (recency-heavy).</p>')
+    # ===== Win% vs PPG scatter =====
+    h.append('<h2>Win% vs Scoring</h2>')
+    h.append('<p class="section-intro">Where each manager lives on the '
+             'win-rate / scoring plane. The top-right is the dream; the '
+             'bottom-left is the basement. Bubble size = rings.</p>')
+    h.append(f'<img class="chart" src="{chart_paths["scatter"]}"/>')
+
+    # ===== Trade fleecer ledger =====
+    h.append('<h2>Trade Fleecer Ledger</h2>')
+    h.append('<p class="section-intro">Net VBD across every scored trade '
+             '(Yahoo 2011-2022 + Sleeper 2023-2024), including picks '
+             '(scored as the rookie-year production of the player actually '
+             'drafted). Green = won, red = lost.</p>')
+    h.append(f'<img class="chart" src="{chart_paths["vbd"]}"/>')
+
+    # ===== Best drafters =====
+    h.append('<h2>Best Drafters</h2>')
+    h.append('<p class="section-intro">Rookie-year nflverse points produced '
+             'by every player each manager drafted, normalized per pick. '
+             'Minimum 20 career picks to qualify.</p>')
+    h.append(f'<img class="chart" src="{chart_paths["drafters"]}"/>')
+
+    # ===== Championship timeline =====
+    h.append('<h2>Championship Timeline</h2>')
+    h.append('<p class="section-intro">15 years of titles, one trophy per '
+             'season. Rows ordered by total ring count.</p>')
+    h.append(f'<img class="chart" src="{chart_paths["champs"]}"/>')
+
+    # ===== Sleeper era split =====
+    h.append('<h2>Sleeper Era (2023-2025)</h2>')
+    h.append('<p class="section-intro">The last 3 seasons only — recency '
+             'view. Weights tilt away from longevity (5%) and toward '
+             'draft (22%) and win% (22%). All 12 current rosters '
+             'included regardless of tenure.</p>')
+    h.append(f'<img class="chart" src="{chart_paths["ovr_sleeper"]}"/>')
+    h.append(f'<img class="chart" src="{chart_paths["sleeper_trend"]}"/>')
+    h.append(f'<img class="chart" src="{chart_paths["radar_sleeper"]}"/>')
+
+    h.append('<h2>Sleeper Era Player Cards</h2>')
     h.append('<div class="cards-grid">')
     for c in cards_s:
         h.append(render_card_html(c))
     h.append('</div>')
 
-    # ===== League leaders =====
-    h.append('<h2>🥇 League Leaders</h2>')
-
-    def top3(label, key, fmt, reverse=True):
-        rows = sorted(cards, key=lambda c: (-c[key]) if reverse else c[key])[:3]
-        lines = [f"<tr><td>{i+1}. <strong>{r['name']}</strong></td>"
-                 f"<td>{fmt.format(r[key])}</td></tr>"
-                 for i, r in enumerate(rows)]
-        return f"<h3>{label}</h3><table class='top3'>{''.join(lines)}</table>"
-
-    h.append('<div class="cards-grid">')
-    h.append('<div>' + top3("💍 Most Rings", "rings", "{}") + '</div>')
-    h.append('<div>' + top3("📈 Highest Win%", "winpct", "{:.3f}") + '</div>')
-    h.append('<div>' + top3("🎯 Highest PPG", "ppg", "{:.1f}") + '</div>')
-    h.append('<div>' + top3("🦈 Best Trader (VBD)", "trade_vbd", "{:+.0f}") + '</div>')
-    h.append('<div>' + top3("📝 Best Drafter (pts/pick)", "draft_ppp", "{:.1f}") + '</div>')
-    h.append('<div>' + top3("⏳ Most Years", "years", "{}") + '</div>')
-    h.append('</div>')
-
-    # ===== Championship history =====
-    h.append('<h2>🏅 Championship History</h2>')
-    h.append('<table><thead><tr><th>Year</th><th>Champion</th></tr></thead><tbody>')
-    for yr in sorted(KNOWN_CHAMPIONS):
-        h.append(f'<tr><td>{yr}</td><td><strong>{_mgr_name(KNOWN_CHAMPIONS[yr])}</strong></td></tr>')
-    # Sleeper champs auto-detected
-    for season, s in sorted(load_all_seasons().items()):
-        if season in KNOWN_CHAMPIONS:
-            continue
-        rid = s.get("champion_roster_id")
-        if rid:
-            mid = ROSTER_HANDOFFS.get((season, int(rid)),
-                                      (manager_for_sleeper_roster(int(rid)) or {}).get("id"))
-            if mid:
-                h.append(f'<tr><td>{season}</td><td><strong>{_mgr_name(mid)}</strong></td></tr>')
-    h.append('</tbody></table>')
-
-    # ===== Trade behavior (mini version) =====
-    h.append('<h2>🦈 Aggregate Trade Fleecer Ranking</h2>')
-    h.append('<p class="note">Net VBD across all scored trades (Yahoo 2011-2022 + Sleeper 2023-2024). '
-             'Picks scored as the rookie-year points of the player actually drafted.</p>')
-    by_vbd = sorted(vbd.items(), key=lambda kv: -kv[1])
-    h.append('<table><thead><tr><th>Rk</th><th>Manager</th><th>Trades</th>'
-             '<th>Net VBD</th><th>Per Trade</th></tr></thead><tbody>')
-    for i, (mid, net) in enumerate(by_vbd, 1):
-        n = vbd_n[mid]
-        per = net / n if n else 0
-        h.append(f'<tr><td>{i}</td><td><strong>{_mgr_name(mid)}</strong></td>'
-                 f'<td>{n}</td><td><strong>{net:+.0f}</strong></td>'
-                 f'<td>{per:+.0f}</td></tr>')
-    h.append('</tbody></table>')
-
-    h.append('<h2>📜 Methodology</h2>')
-    h.append('<p class="note">Win/loss + PPG: regular-season games only. '
+    # ===== Methodology =====
+    h.append('<h2>Methodology</h2>')
+    h.append('<p class="note">Win/loss + PPG: regular-season games only '
+             '(weeks 1-13 for 8/10-team years, 1-14 for 12-team years). '
              'Yahoo data via scraped matchups; Sleeper via league API. '
-             'Trade VBD: full-season nflverse fantasy points for players + '
-             'rookie-year points of the player drafted at each traded pick '
-             '(snake-order math against actual draft data). '
-             '2025 Sleeper trades excluded — no season stats yet.</p>')
+             'Rings: KNOWN_CHAMPIONS dict (Yahoo era) + winners_bracket.json '
+             '(Sleeper era). Trade VBD: full-season nflverse fantasy points '
+             '(0.5 PPR for 2019+, 0 PPR before) for players + rookie-year '
+             'points of the player actually drafted at each traded pick '
+             '(snake-order math against each year\'s actual draft data). '
+             'Draft skill: total rookie-year points / total picks made. '
+             '2025 Sleeper trades excluded — no nflverse 2025 totals yet.</p>')
 
     h.append('</body></html>')
     return "\n".join(h)
