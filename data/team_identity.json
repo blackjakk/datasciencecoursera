@@ -309,7 +309,7 @@
       "confidence": "medium \u2014 only appears in FF2019"
     },
     "nick_lewis_left": {
-      "canonical_name": "Nick Lewis (one year 2013, came back 2020)",
+      "canonical_name": "Nick Lewis (joined 2013 replacing Z, came back briefly 2020)",
       "sleeper_roster_id": null,
       "sleeper_display_name": "(left league)",
       "xlsx_nicknames": [
@@ -332,7 +332,7 @@
       "confidence": "low \u2014 unknown identity, only 2012 appearance"
     },
     "z_former": {
-      "canonical_name": "Z (founding member, left after 2013)",
+      "canonical_name": "Z (founding member, left after 2013 \u2014 replaced by Nick Lewis)",
       "sleeper_roster_id": null,
       "sleeper_display_name": "(left before 2014)",
       "xlsx_nicknames": [

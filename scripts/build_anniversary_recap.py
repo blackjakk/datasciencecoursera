@@ -48,6 +48,13 @@ LEAGUE_LORE: dict[int, list[str]] = {
         "Founding member **'Z'** drafted HOLD MA DICK, lasted through "
         "2013, then left.",
     ],
+    2013: [
+        "📈 **League expansion to 10 teams.** Nick Lewis joined the league "
+        "(played as Mr. Y. Mirosho).",
+        "🦅 **Nick Lewis felt bad and traded Brian Nick Foles** — Mike "
+        "Vick's backup — who then exploded for one of the best fantasy QB "
+        "seasons ever in Philly.",
+    ],
     2015: [
         "🎰 **The Tropicana AC Draft.** Donnie loaded up on TEs early "
         "(Martellus Bennett R4, Julius Thomas R5) and won the title with "
