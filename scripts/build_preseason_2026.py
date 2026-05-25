@@ -154,15 +154,13 @@ def compute_pick_capital():
 
 
 def compute_preseason_ranks():
-    """Returns sorted list of dicts ranking managers heading into 2026."""
-    sl = lambda y: 2023 <= y <= 2025
-    stats_all = bpr.compute_career_stats(year_filter=sl)
-    vbd_s, _ = bpr.compute_trade_vbd(year_filter=sl)
-    draft_s = bpr.compute_draft_stats(year_filter=sl)
-    sleeper_cards = bpr.build_madden_cards_sleeper(stats_all, vbd_s, {}, draft_s)
-    sleeper_ovr = {c["mid"]: c["ovr"] for c in sleeper_cards}
+    """Returns sorted list of dicts ranking managers heading into 2026
+    based on ASSETS + SKILL (not recent record)."""
+    # Career skill metrics (Yahoo + Sleeper combined)
+    vbd_all, vbd_n_all = bpr.compute_trade_vbd()
+    draft_all = bpr.compute_draft_stats()
 
-    # 2025 specifics
+    # 2025 specifics (for ROSTER strength proxy)
     season_table = bpr.compute_season_table()
     pick_cap = compute_pick_capital()
 
@@ -175,49 +173,51 @@ def compute_preseason_ranks():
         s2025 = season_table.get((2025, mid))
         if not s2025:
             continue
-        s2024 = season_table.get((2024, mid))
-        sleeper_ovr_v = sleeper_ovr.get(mid, 60)
-        wpct_2025 = s2025["w"] / max(s2025["games"], 1)
-        wpct_2024 = (s2024["w"] / max(s2024["games"], 1)) if s2024 else 0.5
-        ppg_2025 = s2025["ppg"]
+        n_trades = vbd_n_all.get(mid, 0)
+        trade_per = vbd_all.get(mid, 0) / n_trades if n_trades else 0
+        draft_spp = draft_all.get(mid, {}).get("spp", 0)
         early_picks = pick_cap[mid][1] + pick_cap[mid][2] + pick_cap[mid][3]
-        momentum = wpct_2025 - wpct_2024
+        # Weighted early-pick value (R1 worth 3, R2 worth 2, R3 worth 1)
+        pick_value = (pick_cap[mid][1] * 3 + pick_cap[mid][2] * 2
+                      + pick_cap[mid][3] * 1)
+        ppg_2025 = s2025["ppg"]
 
         rows.append({
             "mid": mid,
             "name": bpr._mgr_name(mid),
-            "sleeper_ovr": sleeper_ovr_v,
-            "wpct_2025": wpct_2025,
-            "wl_2025": (s2025["w"], s2025["l"]),
-            "ppg_2025": ppg_2025,
-            "rank_2025": s2025["wins_rank"],
+            "trade_per": trade_per,
+            "trade_n": n_trades,
+            "trade_total": vbd_all.get(mid, 0),
+            "draft_spp": draft_spp,
+            "pick_value": pick_value,
+            "early_picks": early_picks,
             "r1_2026": pick_cap[mid][1],
             "r2_2026": pick_cap[mid][2],
             "r3_2026": pick_cap[mid][3],
-            "early_picks": early_picks,
-            "momentum": momentum,
+            "roster_ppg": ppg_2025,
+            "wl_2025": (s2025["w"], s2025["l"]),
+            "rank_2025": s2025["wins_rank"],
         })
 
-    # Normalize each component 0-100
-    def _norm(vals, lo_pct=1, hi_pct=99):
+    def _norm(vals):
         vmin, vmax = min(vals), max(vals)
         return [(0 if vmax == vmin else (v - vmin) / (vmax - vmin)) * 100
                 for v in vals]
 
-    sov = _norm([r["sleeper_ovr"] for r in rows])
-    wpc = _norm([r["wpct_2025"] for r in rows])
-    ppg = _norm([r["ppg_2025"] for r in rows])
-    cap = _norm([r["early_picks"] for r in rows])
-    mom = _norm([r["momentum"] for r in rows])
+    trd = _norm([r["trade_per"] for r in rows])
+    drf = _norm([r["draft_spp"] for r in rows])
+    cap = _norm([r["pick_value"] for r in rows])
+    ros = _norm([r["roster_ppg"] for r in rows])
 
+    # Weights: 80% ASSETS (56% pick capital + 24% roster proxy)
+    #          20% SKILL  (10% trade + 10% draft)
     for i, r in enumerate(rows):
-        score = (0.35 * sov[i] + 0.25 * wpc[i] + 0.15 * ppg[i]
-                 + 0.15 * cap[i] + 0.10 * mom[i])
-        r["sleeper_norm"] = round(sov[i])
-        r["wpct_norm"] = round(wpc[i])
-        r["ppg_norm"] = round(ppg[i])
+        score = (0.56 * cap[i] + 0.24 * ros[i]
+                 + 0.10 * trd[i] + 0.10 * drf[i])
+        r["trade_norm"] = round(trd[i])
+        r["draft_norm"] = round(drf[i])
         r["cap_norm"] = round(cap[i])
-        r["mom_norm"] = round(mom[i])
+        r["roster_norm"] = round(ros[i])
         r["power_score"] = round(score, 1)
 
     rows.sort(key=lambda r: -r["power_score"])
@@ -283,8 +283,7 @@ def render_rank_card(r):
     av = _avatar_path(r["mid"])
     av_html = (f'<img class="avatar" src="{_data_uri(av)}"/>' if av else
                '<div class="avatar avatar-placeholder"></div>')
-    mom_arrow = "↑" if r["momentum"] > 0.05 else ("↓" if r["momentum"] < -0.05 else "→")
-    mom_color = "#16a34a" if r["momentum"] > 0.05 else ("#dc2626" if r["momentum"] < -0.05 else "#6b7280")
+    # No momentum field in assets+skill mode; using rank-2025 as a side-stat.
     return f"""
     <div class="rank-card">
       <div class="rank-head" style="background:linear-gradient(135deg, {color} 0%, {color}dd 100%)">
@@ -300,9 +299,14 @@ def render_rank_card(r):
         <table class="rank-stats">
           <tr>
             <td>2025: <strong>{r['wl_2025'][0]}-{r['wl_2025'][1]}</strong> (#{r['rank_2025']})</td>
-            <td>PPG <strong>{r['ppg_2025']:.1f}</strong></td>
-            <td>Momentum <strong style="color:{mom_color}">{mom_arrow} {r['momentum']*100:+.0f}%</strong></td>
-            <td>2026 R1-R3: <strong>{r['early_picks']}</strong> ({r['r1_2026']}/{r['r2_2026']}/{r['r3_2026']})</td>
+            <td>2025 PPG <strong>{r['roster_ppg']:.1f}</strong></td>
+            <td>2026 R1/R2/R3: <strong>{r['r1_2026']}/{r['r2_2026']}/{r['r3_2026']}</strong></td>
+          </tr>
+          <tr>
+            <td colspan="3" style="padding-top:4px;color:#6b7280;font-size:8.5pt">
+              SKILL: trade <strong>{r['trade_per']:+.0f}/trade ({r['trade_n']} trades)</strong> ·
+              draft <strong>{r['draft_spp']:+.1f}/pk surplus</strong>
+            </td>
           </tr>
         </table>
         <div class="rank-take">{body}</div>
@@ -363,8 +367,11 @@ def build_html(rows, paths):
              f'<p class="subtitle">{today} · MONEYLEAGUE · Big Guap\'s Hot Takes</p></div>')
 
     h.append('<h2>Preseason Power Score</h2>')
-    h.append('<p class="note">Composite: 35% Sleeper-era OVR · 25% 2025 win% · '
-             '15% 2025 PPG · 15% 2026 early-round pick capital · 10% momentum.</p>')
+    h.append('<p class="note">Composite: <strong>80% ASSETS</strong> '
+             '(56% 2026 R1-R3 pick capital · 24% 2025 PPG roster proxy) + '
+             '<strong>20% SKILL</strong> (10% career trade VBD/trade · '
+             '10% career draft surplus/pick). Recent record intentionally '
+             'excluded — this is "who has the tools," not "who got hot."</p>')
     h.append(f'<img class="chart" src="{_data_uri(paths["power"])}"/>')
 
     h.append('<h2>2026 Pick Capital</h2>')
