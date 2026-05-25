@@ -496,6 +496,49 @@ const _momentCinema = (() => {
   };
 })();
 
+// ── UNIFIED ST DURATION FORMULA (module scope so kickoff/punt/FG can
+//    call it before reaching the original in-function declarations) ──
+// First-principles fix for the "every play kind invents its own
+// duration formula" drift that caused the kickoff timing bug + the
+// "ball flies too fast" complaints that had to be patched per-kind.
+//
+// ONE knob (ST_YPS_VISUAL) tunes how fast ball+return reads on
+// screen across kickoff/punt/FG. Bump it down → everything slower,
+// up → everything faster. No more poking three different constants
+// to keep ST plays consistent.
+//
+// Returns { duration, presnapT, flightT, returnT } where each *T is
+// the end-fraction of that phase (0..1). Animation uses these
+// instead of hard-coded constants so the ball-flight + return ratios
+// automatically scale with the play's actual yardage.
+const ST_YPS_VISUAL = 24;     // ~2x compression vs real NFL (~13 yps)
+function _stPlayTiming(opts) {
+  const {
+    ballYds        = 0,
+    runYds         = 0,
+    presnapMs      = 0,
+    payoffMs       = 700,
+    minActionMs    = 1400,
+    maxActionMs    = 8000,
+  } = opts || {};
+  const distYds   = Math.abs(ballYds) + Math.abs(runYds);
+  const rawAction = (distYds / ST_YPS_VISUAL) * 1000;
+  const actionMs  = clamp(rawAction, minActionMs, maxActionMs);
+  // When the action min/max clamps, scale ball/run proportionally
+  // so phase ratios stay honest.
+  const scale     = rawAction > 0 ? actionMs / rawAction : 1;
+  const ballMs    = Math.abs(ballYds) / ST_YPS_VISUAL * 1000 * scale;
+  const runMs     = Math.abs(runYds)  / ST_YPS_VISUAL * 1000 * scale;
+  const duration  = Math.round(presnapMs + actionMs + payoffMs);
+  return {
+    duration,
+    presnapT: presnapMs / duration,
+    flightT:  (presnapMs + ballMs) / duration,
+    returnT:  (presnapMs + ballMs + runMs) / duration,
+  };
+}
+function _stPlayDuration(opts) { return _stPlayTiming(opts).duration; }
+
 // ─── Per-play animation engine ─────────────────────────────────────────────
 function buildAnimForPlay(play, prevPlay) {
   // Returns { duration, render(t01) }
@@ -665,14 +708,17 @@ function buildAnimForPlay(play, prevPlay) {
       const fails = ((ksHash >>> (16 + i)) & 3) === 0;
       blockerAssignments.push({ targetCov, fails });
     }
-    // Slowed: kickoff ball used to fly 51 yd/s (real NFL ~16). Bumped
-    // total duration 3200→4400 and FLIGHT_END 0.40→0.48 so the ball
-    // hangs ~2100ms (≈ 31 yd/s for 65yd kick — still compressed but
-    // no longer feels like a missile).
-    return { duration: 4400, kind: "kickoff", render: (t, ctx) => {
+    // Unified ST timing — phases derived from actual yardage, not
+    // hardcoded fractions. Short returns spend less of the play on
+    // the return phase; long returns get more.
+    const _koReturnYds = Math.max(8, Math.abs((play.endYard || 25) - 25));
+    const _koTiming = _stPlayTiming({
+      ballYds: 65, runYds: _koReturnYds, presnapMs: 0, payoffMs: 700,
+    });
+    return { duration: _koTiming.duration, kind: "kickoff", render: (t, ctx) => {
       drawField(ctx, homeTeam, awayTeam, null);
-      const FLIGHT_END = 0.48;
-      const RETURN_END = 0.85;
+      const FLIGHT_END = _koTiming.flightT;
+      const RETURN_END = _koTiming.returnT;
       // ── Ball + returner positions ──
       let ballX, ballY, returnerX = catchX, returnerY = cy;
       let returnerPose = "stance";
@@ -1039,9 +1085,6 @@ function buildAnimForPlay(play, prevPlay) {
     : -1;
   const isDefPointer = (idx) => idx === pointerIdx && idx !== shiftIdx;
 
-  // Defender pursuit speed cap — tuned to a fast NFL defender (~9 yds/s).
-  // Carrier runs slightly faster, so on breakaways defenders visibly trail.
-  const PURSUIT_PX_MS = (FIELD.PX_PER_YARD * 9) / 1000;
   // Estimate carrier velocity from tween end-point. Used as input to
   // simIntercept so defenders aim at where the carrier WILL BE.
   function carrierVelocityToward(rbX, rbY, endX, endY, speedPxPerSec) {
@@ -1205,6 +1248,7 @@ function buildAnimForPlay(play, prevPlay) {
     const distTimeMs = Math.abs(yds || 0) / 12 * 1000;
     return clamp(distTimeMs + 1000, 2200, 11500);
   }
+  // _stPlayTiming / _stPlayDuration live at module scope — see top of file.
   // Pre-snap timing — ~3 seconds of huddle break, line set, audible, "HUT HUT"
   // before the center snaps. Audibles add an extra ~600 ms.
   const PRE_MS = isAudible ? 3600 : 3000;
@@ -4325,10 +4369,15 @@ function buildAnimForPlay(play, prevPlay) {
     const returnEndX = isReturnTD
       ? (poss === "home" ? FIELD.EZ_PX * 0.5 : FIELD.W - FIELD.EZ_PX * 0.5)
       : holderX - dir * 6;
-    // Slowed: FG flight used to feel rushed. Bumped 2600→3400 base,
-    // 3200→4200 returned, 4200→5400 return-TD so the kick has time
-    // to develop + arc visibly through the uprights.
-    const dur = (isBlocked || isReturned) ? (isReturnTD ? 5400 : 4200) : 3400;
+    // Unified ST timing. FG: ball flies to uprights, optional return.
+    const _fgDist = play.fgDist || 35;
+    const _fgRunYds = isReturned ? (play.endYard || 30) : 0;
+    const dur = _stPlayDuration({
+      ballYds:   _fgDist,
+      runYds:    _fgRunYds,
+      presnapMs: 1800,   // snap + holder + kicker plant
+      payoffMs:  isReturnTD ? 1800 : (isBlocked || isReturned) ? 1200 : 800,
+    });
     return { duration: dur, kind: play.kind, render: (t, c) => {
       ctx = c;
       drawField(ctx, homeTeam, awayTeam, fieldState);
@@ -4486,19 +4535,24 @@ function buildAnimForPlay(play, prevPlay) {
     const isTouchback = !!play.isTouchback;
     const isFairCatch = !!play.isFairCatch;
     const isReturnTD  = !!play.isReturnTD;
-    // Duration scales with the return so big returns have time to develop
-    // (no more teleporting across the field in 1 second).
-    // Slowed: punt air time was ~672ms (~74 yd/s, ~5x real). Bumped
-    // base 2400→3200 (TB/FC) and 2800→3700 (returns), AIR_END
-    // 0.46→0.55 so air time is ~1700ms (~30 yd/s for 50yd punt —
-    // still compressed but feels like a real punt).
-    const dur = (isTouchback || isFairCatch)
-              ? 3200
-              : Math.round(3700 + Math.min(returnYards, 70) * 38);
-    // Phase boundaries — air phase expanded so the ball hangs
-    const PH_WIND_END  = 0.16;
-    const PH_AIR_END   = 0.55;
-    const PH_FIELD_END = 0.60;
+    // Unified ST timing: punt distance + return + presnap setup.
+    // TB/FC plays skip the return phase (runYds = 0) but still need
+    // the ball-flight + post-catch hold.
+    const _puntBallYds = play.puntYards || 45;
+    const _puntRunYds  = (isTouchback || isFairCatch) ? 0 : Math.min(returnYards, 70);
+    const _puntTiming = _stPlayTiming({
+      ballYds:   _puntBallYds,
+      runYds:    _puntRunYds,
+      presnapMs: 1400,
+      payoffMs:  isReturnTD ? 1200 : 800,
+    });
+    const dur = _puntTiming.duration;
+    // Phase boundaries derived from the timing components — air time
+    // automatically scales with punt distance; return time with the
+    // actual return yardage.
+    const PH_WIND_END  = _puntTiming.presnapT;
+    const PH_AIR_END   = _puntTiming.flightT;
+    const PH_FIELD_END = _puntTiming.flightT + 0.03;
     const RET_LEN      = 1 - PH_FIELD_END;
     return { duration: dur, kind: "punt", render: (t, c) => {
       ctx = c;
