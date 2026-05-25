@@ -1610,14 +1610,23 @@ class GameSimulator {
         };
         continue;
       }
+      // Shuffle/read phase between hook arrival and throw — LB shouldn't
+      // freeze for 25% of the play while the QB reads. Two reactive
+      // shuffles (lateral drift) keep the legs moving and the LB looking
+      // engaged with the play instead of statue-locked.
+      const _shuf1T = 0.20 + (throwT - 0.20) * 0.40;
+      const _shuf2T = 0.20 + (throwT - 0.20) * 0.78;
+      const _shufLat = 1.6;   // ~1.6 yd lateral drift
       out[lbN] = {
         role: "LB",
         waypoints: [
-          { t: 0.00, dxYd: 5.5, dyYd: target.dyYd * 0.4 },         // formation (matches lbDepth)
-          { t: 0.20, dxYd: target.dxYd, dyYd: target.dyYd },       // backpedal into hook
-          { t: throwT, dxYd: target.dxYd, dyYd: target.dyYd },     // hold at hook through the throw
-          { t: 0.78, dxYd: target.dxYd + 3, dyYd: target.dyYd * 0.6 },   // break on ball — drift forward + toward middle
-          { t: 1.00, dxYd: target.dxYd + 4, dyYd: target.dyYd * 0.4 },   // continuing convergence
+          { t: 0.00, dxYd: 5.5, dyYd: target.dyYd * 0.4 },              // formation (matches lbDepth)
+          { t: 0.20, dxYd: target.dxYd, dyYd: target.dyYd },            // backpedal into hook
+          { t: _shuf1T, dxYd: target.dxYd + 0.4, dyYd: target.dyYd + _shufLat },   // shuffle toward QB read
+          { t: _shuf2T, dxYd: target.dxYd - 0.2, dyYd: target.dyYd - _shufLat },   // shuffle back the other way
+          { t: throwT, dxYd: target.dxYd, dyYd: target.dyYd },          // re-set at the throw moment
+          { t: 0.78, dxYd: target.dxYd + 3, dyYd: target.dyYd * 0.6 }, // break on ball — drift forward + toward middle
+          { t: 1.00, dxYd: target.dxYd + 4, dyYd: target.dyYd * 0.4 }, // continuing convergence
         ],
       };
     }
@@ -1778,6 +1787,7 @@ class GameSimulator {
   // ({ LB, S, CB, DL }) — recognized by the presence of those keys.
   _creditTackle(contextOrWeights) {
     let weights, assistRate;
+    let sideHint = null;
     if (contextOrWeights && (contextOrWeights.LB != null || contextOrWeights.S != null
         || contextOrWeights.CB != null || contextOrWeights.DL != null)) {
       weights = contextOrWeights;
@@ -1786,28 +1796,47 @@ class GameSimulator {
       const t = this._tackleWeightsForContext(contextOrWeights);
       weights = t.weights;
       assistRate = t.assistRate;
+      sideHint = contextOrWeights && contextOrWeights.sideHint || null;
     }
-    const primary = this._creditDefStat("tkl", weights);
+    const primary = this._creditDefStat("tkl", weights, null, sideHint);
     if (primary && Math.random() < assistRate) {
       // Assist roll: credit a different defender at the same weights.
       // Skip the primary so we don't double-bump the same player.
-      this._creditDefStat("tkl", weights, primary);
+      this._creditDefStat("tkl", weights, primary, sideHint);
     }
     return primary;
   }
-  _creditDefStat(field, weights, excludeName) {
+  _creditDefStat(field, weights, excludeName, sideHint) {
     const def = this.defStats;
     if (!def) return;
     const defStarters = this.defR.starters;
-    // weights = { LB: 0.4, S: 0.3, DL: 0.15, CB: 0.15 }
+    // sideHint ("left" | "right" | "middle" | null): biases CB / S / LB
+    // picks toward the slot whose alignment matches where the play
+    // resolved, so a catch on the right sideline doesn't credit the
+    // left-side CB. Convention: cb1 = left, cb2 = right; lb1 = WLB
+    // (left), lb2 = MLB (middle), lb3 = SLB (right); ss = strong-side
+    // (typically right), fs = deep middle (no side preference).
+    const sideBoost = (slot) => {
+      if (!sideHint) return 1.0;
+      const isLeft  = sideHint === "left";
+      const isRight = sideHint === "right";
+      const isMid   = sideHint === "middle";
+      if (slot === "cb1") return isLeft  ? 2.4 : isRight ? 0.35 : 1.0;
+      if (slot === "cb2") return isRight ? 2.4 : isLeft  ? 0.35 : 1.0;
+      if (slot === "ss")  return isRight ? 1.6 : isMid   ? 1.1  : 0.85;
+      if (slot === "fs")  return isMid   ? 1.4 : 1.0;
+      if (slot === "lb1") return isLeft  ? 1.4 : isRight ? 0.7  : 1.0;
+      if (slot === "lb3") return isRight ? 1.4 : isLeft  ? 0.7  : 1.0;
+      return 1.0;
+    };
     const pool = [];
-    const addCandidate = (name, w) => {
+    const addCandidate = (name, w, slot) => {
       if (!name) return;
       if (excludeName && name === excludeName) return;
       // Skip ejected players — they're out of the game
       const ply = this._playerByName?.get?.(name);
       if (ply && ply._ejectedThisGame) return;
-      pool.push({ name, w });
+      pool.push({ name, w: w * sideBoost(slot) });
     };
     if (weights.LB) {
       // NFL LB tackle distribution skews MLB-heavy. Bobby Wagner / Roquan
@@ -1816,23 +1845,23 @@ class GameSimulator {
       // 1.15x (was 1.25x) after play-context weighting introduced
       // high-LB-share contexts (short-middle pass 50%, inside run 45%)
       // — too much bias drove top tackler past NFL elite ceiling.
-      addCandidate(defStarters.lb1, weights.LB * 0.95);        // WLB
-      addCandidate(defStarters.lb2, weights.LB * 1.15);        // MLB — alpha
-      addCandidate(defStarters.lb3, weights.LB * 0.85);        // SLB
+      addCandidate(defStarters.lb1, weights.LB * 0.95, "lb1");   // WLB
+      addCandidate(defStarters.lb2, weights.LB * 1.15, "lb2");   // MLB — alpha
+      addCandidate(defStarters.lb3, weights.LB * 0.85, "lb3");   // SLB
     }
     if (weights.S) {
-      addCandidate(defStarters.fs, weights.S);
-      addCandidate(defStarters.ss, weights.S);
+      addCandidate(defStarters.fs, weights.S, "fs");
+      addCandidate(defStarters.ss, weights.S, "ss");
     }
     if (weights.DL) {
-      addCandidate(defStarters.de1, weights.DL);
-      addCandidate(defStarters.de2, weights.DL);
-      addCandidate(defStarters.dt1, weights.DL);
-      addCandidate(defStarters.dt2, weights.DL);
+      addCandidate(defStarters.de1, weights.DL, "de1");
+      addCandidate(defStarters.de2, weights.DL, "de2");
+      addCandidate(defStarters.dt1, weights.DL, "dt1");
+      addCandidate(defStarters.dt2, weights.DL, "dt2");
     }
     if (weights.CB) {
-      addCandidate(defStarters.cb1, weights.CB);
-      addCandidate(defStarters.cb2, weights.CB);
+      addCandidate(defStarters.cb1, weights.CB, "cb1");
+      addCandidate(defStarters.cb2, weights.CB, "cb2");
     }
     if (!pool.length) return null;
     const total = pool.reduce((a, b) => a + b.w, 0);
@@ -4945,7 +4974,15 @@ class GameSimulator {
         // weights shift heavily (deep pass → almost always a safety).
         const isTD = clamp(startYard + yards, 0, 100) >= 100;
         const depthBucket = airYds >= 20 ? "deep" : airYds >= 10 ? "mid" : "short";
-        const passCtx = { type: "pass", depth: depthBucket };
+        // sideHint: targeted-WR slot → field side, so the credited tackler
+        // lines up with where the catch actually happened. Without this,
+        // a deep right-sideline catch could credit the left CB.
+        const _passSideHint = rcvr === this.offR.starters.wr1 ? "left"
+                            : rcvr === this.offR.starters.wr2 ? "right"
+                            : rcvr === this.offR.starters.te  ? "right"
+                            : rcvr === this.offR.starters.rb  ? "middle"
+                            : "middle";
+        const passCtx = { type: "pass", depth: depthBucket, sideHint: _passSideHint };
         const tacklerName = (yards > 0 && !isTD) ? this._creditTackle(passCtx) : null;
         this._bumpHitWear(rcvr, 0.25, tacklerName, { playContext: passCtx });
         const flavorTag = wrJuke ? " (CATCH AND JUKE!)"

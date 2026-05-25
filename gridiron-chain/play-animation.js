@@ -763,8 +763,6 @@ function buildAnimForPlay(play, prevPlay) {
         } else if (t < RETURN_END) {
           const rt = (t - FLIGHT_END) / (RETURN_END - FLIGHT_END);
           const sprintFromX = kickerLineX + (catchX - kickerLineX) * 0.55;
-          // Primary tackler runs straight at the returner; secondary
-          // arrives from a side angle; the rest spread out to contain.
           const isPrimary   = i === primaryTacklerIdx;
           const isSecondary = i === secondaryTacklerIdx;
           let targetX, targetY;
@@ -778,15 +776,35 @@ function buildAnimForPlay(play, prevPlay) {
             targetX = returnerX - recvDir * (12 + (i % 4) * 8);
             targetY = coverLanes[i] + (returnerY - coverLanes[i]) * 0.6;
           }
-          cx = sprintFromX + (targetX - sprintFromX) * Math.min(1, rt * 1.3);
-          cy_ = coverLanes[i] + (targetY - coverLanes[i]) * Math.min(1, rt * 1.2);
+          // Eased close — accelerate as they near the returner (running
+          // momentum). Reaches target exactly at rt=1, so the next phase
+          // can pick up from there with no positional jump. Previous
+          // formula used rt * 1.3 (clamped to 1.0 at rt≈0.77) which made
+          // coverage cover ~25 yd in under a second — read as a teleport.
+          const eased = rt < 0.5 ? 2 * rt * rt : 1 - Math.pow(-2 * rt + 2, 2) / 2;
+          cx = sprintFromX + (targetX - sprintFromX) * eased;
+          cy_ = coverLanes[i] + (targetY - coverLanes[i]) * eased;
         } else {
-          // Tackle phase — primary stays on the returner; secondary
-          // arrives at the pile; pile-up style brings 3-4 defenders in.
+          // Tackle phase — continue from the return-phase END position
+          // toward the final pile/spacing position. No more jumping
+          // directly to `px` at the phase boundary.
           const tk = (t - RETURN_END) / (1 - RETURN_END);
           const isPrimary   = i === primaryTacklerIdx;
           const isSecondary = i === secondaryTacklerIdx;
           const inPile      = tackleStyle === 3 && (i % 2 === 0 || isPrimary || isSecondary);
+          // Mirror the return-phase target so the start of tackle phase
+          // matches where they were at t = RETURN_END.
+          let lastTargetX, lastTargetY;
+          if (isPrimary) {
+            lastTargetX = returnerX + recvDir * 2;
+            lastTargetY = returnerY;
+          } else if (isSecondary && tackleStyle >= 1) {
+            lastTargetX = returnerX - recvDir * 6;
+            lastTargetY = returnerY + (i % 2 === 0 ? 8 : -8);
+          } else {
+            lastTargetX = returnerX - recvDir * (12 + (i % 4) * 8);
+            lastTargetY = coverLanes[i] + (returnerY - coverLanes[i]) * 0.6;
+          }
           let px, py;
           if (isPrimary) {
             px = returnerX; py = returnerY;
@@ -799,8 +817,9 @@ function buildAnimForPlay(play, prevPlay) {
             px = returnerX - recvDir * (10 + (i % 4) * 6);
             py = returnerY + ((i % 3) - 1) * 7;
           }
-          cx = returnerX + (px - returnerX) * (1 - Math.min(1, tk * 2) * 0.7);
-          cy_ = returnerY + (py - returnerY) * (1 - Math.min(1, tk * 2) * 0.5);
+          const tkEase = Math.min(1, tk * 1.8);
+          cx = lastTargetX + (px - lastTargetX) * tkEase;
+          cy_ = lastTargetY + (py - lastTargetY) * tkEase;
         }
         coverPos.push({ x: cx, y: cy_ });
       }
