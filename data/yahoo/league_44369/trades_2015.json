@@ -1,0 +1,569 @@
+[
+  {
+    "season": 2015,
+    "date_str": "Nov 11, 1:27 pm",
+    "sides": [
+      {
+        "received_team": "Tyrodasaurus Rex",
+        "initiator": "BIGGUAP",
+        "date_str": "Nov 11, 1:27 pm",
+        "received_players": [
+          {
+            "name": "Jonathan Stewart",
+            "nfl_team": "NYG",
+            "pos": "RB"
+          },
+          {
+            "name": "Tony Romo",
+            "nfl_team": "Dal",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 5,
+            "originally_from": "Dirty Old Men"
+          },
+          {
+            "round": 10
+          }
+        ]
+      },
+      {
+        "received_team": "The Danny O'Shea's",
+        "initiator": "BIGGUAP",
+        "date_str": "Nov 11, 1:27 pm",
+        "received_players": [
+          {
+            "name": "Branden Oliver",
+            "nfl_team": "LAC",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 2
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2015,
+    "date_str": "Nov 10, 3:47 pm",
+    "sides": [
+      {
+        "received_team": "The Danny O'Shea's",
+        "initiator": "BIGGUAP",
+        "date_str": "Nov 10, 3:47 pm",
+        "received_players": [
+          {
+            "name": "DeAngelo Williams",
+            "nfl_team": "Pit",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 9
+          }
+        ]
+      },
+      {
+        "received_team": "Big Don's Cuties",
+        "initiator": "BIGGUAP",
+        "date_str": "Nov 10, 3:47 pm",
+        "received_players": [
+          {
+            "name": "Teddy Bridgewater",
+            "nfl_team": "Det",
+            "pos": "QB"
+          },
+          {
+            "name": "Joe Flacco",
+            "nfl_team": "Cin",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2015,
+    "date_str": "Nov 10, 12:19 pm",
+    "sides": [
+      {
+        "received_team": "ButtersBottomBitches",
+        "initiator": "BIGGUAP",
+        "date_str": "Nov 10, 12:19 pm",
+        "received_players": [
+          {
+            "name": "Derek Carr",
+            "nfl_team": "NO",
+            "pos": "QB"
+          },
+          {
+            "name": "Lamar Miller",
+            "nfl_team": "NO",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 18
+          }
+        ]
+      },
+      {
+        "received_team": "BergerBoy Brigade",
+        "initiator": "BIGGUAP",
+        "date_str": "Nov 10, 12:19 pm",
+        "received_players": [
+          {
+            "name": "Davante Adams",
+            "nfl_team": "LAR",
+            "pos": "WR"
+          },
+          {
+            "name": "Andre Ellington",
+            "nfl_team": "Hou",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 3
+          },
+          {
+            "round": 7
+          },
+          {
+            "round": 8
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2015,
+    "date_str": "Nov 5, 6:08 pm",
+    "sides": [
+      {
+        "received_team": "ButtersBottomBitches",
+        "initiator": "BIGGUAP",
+        "date_str": "Nov 5, 6:08 pm",
+        "received_players": [
+          {
+            "name": "Alshon Jeffery",
+            "nfl_team": "Phi",
+            "pos": "WR"
+          },
+          {
+            "name": "Eddie Lacy",
+            "nfl_team": "Sea",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 7
+          },
+          {
+            "round": 15
+          },
+          {
+            "round": 8
+          }
+        ]
+      },
+      {
+        "received_team": "LeGarratte Blunt",
+        "initiator": "BIGGUAP",
+        "date_str": "Nov 5, 6:08 pm",
+        "received_players": [
+          {
+            "name": "Delanie Walker",
+            "nfl_team": "Ten",
+            "pos": "TE"
+          },
+          {
+            "name": "Keenan Allen",
+            "nfl_team": "LAC",
+            "pos": "WR"
+          },
+          {
+            "name": "Shane Vereen",
+            "nfl_team": "NYG",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 2
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2015,
+    "date_str": "Nov 4, 8:03 pm",
+    "sides": [
+      {
+        "received_team": "ButtersBottomBitches",
+        "initiator": "BIGGUAP",
+        "date_str": "Nov 4, 8:03 pm",
+        "received_players": [
+          {
+            "name": "Martavis Bryant",
+            "nfl_team": "Was",
+            "pos": "WR"
+          },
+          {
+            "name": "Charcandrick West",
+            "nfl_team": "KC",
+            "pos": "RB"
+          },
+          {
+            "name": "Jeremy Maclin",
+            "nfl_team": "Bal",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 19
+          }
+        ]
+      },
+      {
+        "received_team": "LEMVP & Associates",
+        "initiator": "BIGGUAP",
+        "date_str": "Nov 4, 8:03 pm",
+        "received_players": [
+          {
+            "name": "Geno Smith",
+            "nfl_team": "NYJ",
+            "pos": "QB"
+          },
+          {
+            "name": "Steve Johnson",
+            "nfl_team": "LAC",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 3
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2015,
+    "date_str": "Nov 4, 7:45 pm",
+    "sides": [
+      {
+        "received_team": "RIP Brittney Murphy",
+        "initiator": "",
+        "date_str": "Nov 4, 7:45 pm",
+        "received_players": [
+          {
+            "name": "Andy Dalton",
+            "nfl_team": "Phi",
+            "pos": "QB"
+          },
+          {
+            "name": "Calvin Johnson",
+            "nfl_team": "Det",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 6
+          }
+        ]
+      },
+      {
+        "received_team": "BergerBoy Brigade",
+        "initiator": "",
+        "date_str": "Nov 4, 7:45 pm",
+        "received_players": [
+          {
+            "name": "Charles Clay",
+            "nfl_team": "Ari",
+            "pos": "TE"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 6
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2015,
+    "date_str": "Nov 3, 5:27 pm",
+    "sides": [
+      {
+        "received_team": "ButtersBottomBitches",
+        "initiator": "BIGGUAP",
+        "date_str": "Nov 3, 5:27 pm",
+        "received_players": [
+          {
+            "name": "Mike Evans",
+            "nfl_team": "SF",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 12
+          }
+        ]
+      },
+      {
+        "received_team": "BergerBoy Brigade",
+        "initiator": "BIGGUAP",
+        "date_str": "Nov 3, 5:27 pm",
+        "received_players": [
+          {
+            "name": "Reggie Bush",
+            "nfl_team": "Buf",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 9
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2015,
+    "date_str": "Oct 21, 11:10 am",
+    "sides": [
+      {
+        "received_team": "ButtersBottomBitches",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 21, 11:10 am",
+        "received_players": [
+          {
+            "name": "Melvin Gordon III",
+            "nfl_team": "Bal",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 10
+          }
+        ]
+      },
+      {
+        "received_team": "Big Don's Cuties",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 21, 11:10 am",
+        "received_players": [
+          {
+            "name": "Larry Donnell",
+            "nfl_team": "NYG",
+            "pos": "TE"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 5
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2015,
+    "date_str": "Oct 20, 11:56 pm",
+    "sides": [
+      {
+        "received_team": "ButtersBottomBitches",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 20, 11:56 pm",
+        "received_players": [
+          {
+            "name": "Ryan Fitzpatrick",
+            "nfl_team": "Was",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 6
+          }
+        ]
+      },
+      {
+        "received_team": "Big Don's Cuties",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 20, 11:56 pm",
+        "received_players": [
+          {
+            "name": "Antonio Gates",
+            "nfl_team": "LAC",
+            "pos": "TE"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 16
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2015,
+    "date_str": "Oct 15, 9:13 pm",
+    "sides": [
+      {
+        "received_team": "BergerBoy Brigade",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 15, 9:13 pm",
+        "received_players": [
+          {
+            "name": "Colin Kaepernick",
+            "nfl_team": "SF",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 13
+          }
+        ]
+      },
+      {
+        "received_team": "ButtersBottomBitches",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 15, 9:13 pm",
+        "received_players": [],
+        "received_picks": [
+          {
+            "round": 3
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2015,
+    "date_str": "Oct 7, 9:21 pm",
+    "sides": [
+      {
+        "received_team": "Dirty Old Men",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 7, 9:21 pm",
+        "received_players": [
+          {
+            "name": "Todd Gurley",
+            "nfl_team": "Atl",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 9
+          }
+        ]
+      },
+      {
+        "received_team": "Big Don's Cuties",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 7, 9:21 pm",
+        "received_players": [
+          {
+            "name": "Teddy Bridgewater",
+            "nfl_team": "Det",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": []
+      }
+    ]
+  },
+  {
+    "season": 2015,
+    "date_str": "Oct 7, 1:09 pm",
+    "sides": [
+      {
+        "received_team": "BergerBoy Brigade",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 7, 1:09 pm",
+        "received_players": [
+          {
+            "name": "Jameis Winston",
+            "nfl_team": "NYG",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": []
+      },
+      {
+        "received_team": "ButtersBottomBitches",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 7, 1:09 pm",
+        "received_players": [
+          {
+            "name": "Jordy Nelson",
+            "nfl_team": "LV",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 2
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2015,
+    "date_str": "Oct 5, 8:37 pm",
+    "sides": [
+      {
+        "received_team": "Dirty Old Men",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 5, 8:37 pm",
+        "received_players": [
+          {
+            "name": "Rob Gronkowski",
+            "nfl_team": "TB",
+            "pos": "TE"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 5
+          }
+        ]
+      },
+      {
+        "received_team": "Tyrodasaurus Rex",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 5, 8:37 pm",
+        "received_players": [],
+        "received_picks": []
+      }
+    ]
+  }
+]
