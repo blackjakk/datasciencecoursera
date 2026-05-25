@@ -465,6 +465,18 @@ def _player_catalog():
     return _PLAYER_CATALOG
 
 
+def _abbrev_name(nm: str) -> str:
+    """Abbreviate first name to fit in keeper chip: 'Christian Watson' -> 'C. Watson'.
+    Leaves single-name entities (defenses) unchanged."""
+    parts = nm.split()
+    if len(parts) < 2:
+        return nm
+    first, *rest = parts
+    if len(first) <= 2:  # e.g. "JK Dobbins", "DJ Moore"
+        return nm
+    return f"{first[0]}. {' '.join(rest)}"
+
+
 def _format_keepers(scored_players, keepers_detail=None):
     """Inline keeper chips with portrait + name + 2025 pts + 2026 cost."""
     catalog = _player_catalog()
@@ -472,6 +484,7 @@ def _format_keepers(scored_players, keepers_detail=None):
     parts = []
     for pid, pts in scored_players:
         nm = catalog.get(pid, {}).get("full_name", pid)
+        short = _abbrev_name(nm)
         portrait = ROOT / "data/charts/players" / f"{pid}.jpg"
         img = (f'<img class="keeper-portrait" src="{_data_uri(portrait)}"/>'
                if portrait.exists() else "")
@@ -481,7 +494,7 @@ def _format_keepers(scored_players, keepers_detail=None):
         cost_tag = (f'<span class="kc-cost">R{cost}·Y{yr}</span>'
                     if cost else "")
         parts.append(f'<span class="keeper-chip">{img}'
-                     f'<span class="kc-name">{nm}</span>'
+                     f'<span class="kc-name">{short}</span>'
                      f'<span class="kc-pts">{int(pts)}</span>'
                      f'{cost_tag}</span>')
     return "".join(parts) or "—"
@@ -574,7 +587,7 @@ def build_html(rows, paths):
     .keeper-label { display: block; font-size: 7.5pt; font-weight: 700;
                     color: #6b7280; letter-spacing: 0.6px;
                     text-transform: uppercase; margin: 4px 0 4px; }
-    .keepers-grid { display: grid; grid-template-columns: repeat(4, 1fr);
+    .keepers-grid { display: grid; grid-template-columns: repeat(2, 1fr);
                     gap: 6px; }
     .rank-take { font-size: 9.5pt; color: #1a1d24; margin-top: 6px;
                  line-height: 1.55; }
@@ -584,9 +597,9 @@ def build_html(rows, paths):
     .keeper-portrait { width: 22px; height: 22px; border-radius: 50%;
                        object-fit: cover; background: #d1d5db;
                        border: 1px solid #cbd5e1; flex-shrink: 0; }
-    .kc-name { font-weight: 700; color: #1a1d24; font-size: 8pt;
-               white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-               flex: 1; min-width: 0; }
+    .kc-name { font-weight: 700; color: #1a1d24; font-size: 9pt;
+               line-height: 1.15; flex: 1; min-width: 0;
+               white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .kc-pts { color: #0a3d62; font-weight: 700;
               font-size: 7.5pt; background: #fef3c7; padding: 1px 5px;
               border-radius: 6px; flex-shrink: 0; }
