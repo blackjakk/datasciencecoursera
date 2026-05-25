@@ -46,6 +46,8 @@ LEAGUE_LORE: dict[int, list[str]] = {
         "at a strip club. Figgy used his final pick (R19.10) on **Bobby Turbo**.",
         "🏆 **Coop didn't even attend the draft — and won the championship "
         "anyway.** The Dream Team 139.92 d. Dave (Fuck the Process) 106.84.",
+        "✈️ **Lem missed the draft when his Spirit Airlines flight got "
+        "cancelled** — the origin of his lifelong feud with Spirit.",
     ],
 }
 
