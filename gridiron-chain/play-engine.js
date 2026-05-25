@@ -1737,11 +1737,11 @@ class GameSimulator {
       out[`dl${s}`] = {
         role: "DL",
         waypoints: [
-          { t: 0.00, dxYd: 0.5,                 dyYd: offY },           // LOS engagement
-          { t: 0.20, dxYd: 0.5 - pushBack * 0.5, dyYd: offY },          // taking the punch
-          { t: 0.45, dxYd: 0.5 - pushBack,       dyYd: offY },          // driven back
-          { t: 0.78, dxYd: 0.5 - pushBack,       dyYd: offY },
-          { t: 1.00, dxYd: 0.5 - pushBack,       dyYd: offY },
+          { t: 0.00, dxYd: 2.5,                 dyYd: offY },           // LOS engagement (matches formation)
+          { t: 0.20, dxYd: 2.5 - pushBack * 0.5, dyYd: offY },          // taking the punch
+          { t: 0.45, dxYd: 2.5 - pushBack,       dyYd: offY },          // driven back
+          { t: 0.78, dxYd: 2.5 - pushBack,       dyYd: offY },
+          { t: 1.00, dxYd: 2.5 - pushBack,       dyYd: offY },
         ],
       };
     }
@@ -4322,10 +4322,10 @@ class GameSimulator {
           // dt2 (right tackle): dyYd ≈ +2.5;  de2 (right end): dyYd ≈ +8
           // LB blitzer: dyYd ≈ 0, dxYd ≈ +4
           switch (_sackerSlot) {
-            case "de1": return { dxYd: 0.5, dyYd: -8 };
-            case "dt1": return { dxYd: 0.5, dyYd: -2.5 };
-            case "dt2": return { dxYd: 0.5, dyYd:  2.5 };
-            case "de2": return { dxYd: 0.5, dyYd:  8 };
+            case "de1": return { dxYd: 2.5, dyYd: -8 };
+            case "dt1": return { dxYd: 2.5, dyYd: -2.5 };
+            case "dt2": return { dxYd: 2.5, dyYd:  2.5 };
+            case "de2": return { dxYd: 2.5, dyYd:  8 };
             case "lb1": return { dxYd: 4,   dyYd: -3 };
             case "lb2": return { dxYd: 4,   dyYd:  0 };
             case "lb3": return { dxYd: 4,   dyYd:  3 };
@@ -4333,25 +4333,32 @@ class GameSimulator {
             case "fs":  return { dxYd: 12,  dyYd:  0 };
             case "cb1": return { dxYd: 5,   dyYd: -16 };
             case "cb2": return { dxYd: 5,   dyYd:  16 };
-            default:    return { dxYd: 0.5, dyYd:  0 };
+            default:    return { dxYd: 2.5, dyYd:  0 };
           }
         })();
-        // QB drops back to roughly -(loss) yards from LOS (sack spot).
-        // Engine uses positive dxYd for downfield, so QB at dxYd = -loss.
-        const _qbSackXYd = -loss;
-        // Contact time varies — strip sacks / blitzes come faster
-        const _sackContactT = sackedByMove === "BLITZ" ? 0.55
-                            : loss >= 8                ? 0.85
-                            : 0.72;
+        // QB at his drop position is roughly -6 yards behind LOS during
+        // the dance; final sack spot is at -(loss) yards from LOS (the
+        // QB falls FORWARD from drop to sack spot during the takedown).
+        const _qbDropXYd = -6;            // where QB is during the pocket dance
+        const _qbSackXYd = -loss;         // where QB ends up after fall
+        // Contact time — when the sacker reaches the QB. Pushed later
+        // than before (0.72→0.85 normal) so the sacker isn't standing
+        // around for the back third of the play; from contact to 0.95
+        // the sacker follows the QB forward through the fall.
+        const _sackContactT = sackedByMove === "BLITZ" ? 0.65
+                            : loss >= 8                ? 0.88
+                            : 0.82;
         const _sackerTrack = _sackerSlot ? {
           role: _sackerSlot.toUpperCase(),
           sackerName: _sackerName,
           waypoints: [
-            { t: 0.00, dxYd: _sackerStart.dxYd, dyYd: _sackerStart.dyYd },                                 // formation
-            { t: 0.18, dxYd: _sackerStart.dxYd + 0.5, dyYd: _sackerStart.dyYd * 0.9 },                     // engaged
-            { t: _sackContactT * 0.5, dxYd: (_sackerStart.dxYd + _qbSackXYd) * 0.4, dyYd: _sackerStart.dyYd * 0.5 },   // breaking
-            { t: _sackContactT,       dxYd: _qbSackXYd,                 dyYd: 0 },                                  // contact
-            { t: 1.00,                 dxYd: _qbSackXYd,                 dyYd: 0 },                                  // settled
+            { t: 0.00,                          dxYd: _sackerStart.dxYd,                                       dyYd: _sackerStart.dyYd },                 // formation
+            { t: 0.22,                          dxYd: _sackerStart.dxYd + 0.5,                                  dyYd: _sackerStart.dyYd * 0.85 },          // engaged at LOS
+            { t: _sackContactT * 0.55,          dxYd: (_sackerStart.dxYd + _qbDropXYd) * 0.5,                   dyYd: _sackerStart.dyYd * 0.4 },           // breaking through
+            { t: _sackContactT * 0.85,          dxYd: _qbDropXYd + (_sackerStart.dxYd - _qbDropXYd) * 0.25,     dyYd: _sackerStart.dyYd * 0.15 },          // closing the last yard
+            { t: _sackContactT,                 dxYd: _qbDropXYd,                                               dyYd: 0 },                                 // CONTACT at QB's drop position
+            { t: 0.95,                          dxYd: _qbSackXYd,                                               dyYd: 0 },                                 // riding QB forward through the fall
+            { t: 1.00,                          dxYd: _qbSackXYd,                                               dyYd: 0 },                                 // settled on top
           ],
         } : null;
         this._pushVisual({

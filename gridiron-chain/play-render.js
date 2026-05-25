@@ -2385,11 +2385,13 @@ function makeFormation(losX, poss, opts = {}) {
   }
 
   // Defensive line (4) — wider stance to match the OL spread. Goal-line:
-  // tighter and crashing harder.
+  // tighter and crashing harder. Pre-snap depth bumped from 1.5 → 2.5
+  // yards because sprite width (~30px = 2yd) was making OL and DL
+  // visibly touch in the gap at the LOS.
   const dline = [];
   const dlGap = isGL ? 26 : 34;
   for (let i = -1.5; i <= 1.5; i += 1) {
-    dline.push({ x: losX + dir * (isGL ? 0.5 : 1.5) * PX, y: cy + i * dlGap, role: "DL" });
+    dline.push({ x: losX + dir * (isGL ? 1.0 : 2.5) * PX, y: cy + i * dlGap, role: "DL" });
   }
 
   // ── LINEBACKERS (0-3 by package) ──

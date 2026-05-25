@@ -3812,7 +3812,12 @@ function buildAnimForPlay(play, prevPlay) {
       const resolved = formation.defense.findIndex(d => d && d.name === play.dlName);
       if (resolved >= 0 && resolved < 4) primaryIdx = resolved;   // DL is idx 0-3
     }
-    const contactT = 0.62 + r(1) * 0.26;             // sack contact at 0.62-0.88
+    // Use engine-emitted contactT when present so the QB tackle pose
+    // and the sacker pursuit track converge on the same frame. Falls
+    // back to per-play random for plays without motion.
+    const contactT = (play.motion && typeof play.motion.contactT === "number")
+      ? play.motion.contactT
+      : 0.62 + r(1) * 0.26;
     const danceFreq = 3.5 + r(2) * 4.5;              // pocket wiggle frequency
     const danceAmpY = 4 + r(3) * 12;                 // Y wiggle amplitude
     const danceAmpX = 2 + r(4) * 8;                  // X drift amplitude
