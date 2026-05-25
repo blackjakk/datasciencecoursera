@@ -44,6 +44,8 @@ LEAGUE_LORE: dict[int, list[str]] = {
     2017: [
         "🎰 **The Strip Club Draft.** This was the year the draft was held "
         "at a strip club. Figgy used his final pick (R19.10) on **Bobby Turbo**.",
+        "🏆 **Coop didn't even attend the draft — and won the championship "
+        "anyway.** The Dream Team 139.92 d. Dave (Fuck the Process) 106.84.",
     ],
 }
 
