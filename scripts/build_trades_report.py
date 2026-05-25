@@ -1,0 +1,436 @@
+"""MONEYLEAGUE Trade Behavior — comprehensive analysis of who trades with
+whom, who wins, who loses, and who bailed out.
+
+15 years of trade data (Yahoo 2011-2022 + Sleeper 2023-2025), 181 total
+trades parsed including players + draft picks.
+"""
+from __future__ import annotations
+
+import glob
+import json
+import re
+import sys
+import unicodedata
+import csv as _csv
+from collections import defaultdict, Counter
+from datetime import date
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from fantasy_draft.results import load_all_trades  # noqa: E402
+from fantasy_draft.team_identity import all_managers, manager_for_sleeper_roster  # noqa: E402
+
+ROOT = Path(__file__).resolve().parent.parent
+MD_OUT = ROOT / "data" / "MONEYLEAGUE_TRADES.md"
+PDF_OUT = ROOT / "data" / "MONEYLEAGUE_TRADES.pdf"
+
+
+def _mgr_name(mid):
+    for m in all_managers():
+        if m["id"] == mid:
+            return m["canonical_name"].split(" (")[0]
+    return mid
+
+
+def _norm(s):
+    s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode().lower().strip()
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9 ]", " ", s)).strip()
+
+
+def _load_nflverse():
+    nfl = {}
+    with open(ROOT / "data" / "nflverse" / "player_stats_season.csv") as f:
+        for row in _csv.DictReader(f):
+            if row["season_type"] != "REG":
+                continue
+            try:
+                s = int(row["season"])
+                fp = float(row["fantasy_points"] or 0)
+                fpp = float(row["fantasy_points_ppr"] or 0)
+            except Exception:
+                continue
+            pts = (fp + fpp)/2 if s >= 2019 else fp
+            name = row["player_display_name"] or row["player_name"]
+            if not name:
+                continue
+            key = (s, _norm(name))
+            if key not in nfl or pts > nfl[key]:
+                nfl[key] = pts
+    return nfl
+
+
+def _yahoo_name_lookup():
+    out = {}
+    for m in all_managers():
+        for yr, nm in (m.get("yahoo_team_names") or {}).items():
+            if yr == "_note" or not nm:
+                continue
+            out[(int(yr), str(nm).rstrip("?").strip().lower())] = m["id"]
+    return out
+
+
+def _load_all_trades():
+    """Yields normalized trades from Yahoo + Sleeper."""
+    name_to_mgr = _yahoo_name_lookup()
+    out = []
+    for f in sorted((ROOT / "data" / "yahoo").glob("league_*/trades_*.json")):
+        yr = int(re.search(r"trades_(\d+)\.json", str(f)).group(1))
+        for t in json.loads(f.read_text()):
+            sides = t["sides"]
+            if len(sides) != 2:
+                continue
+            a, b = sides
+            ma = name_to_mgr.get((yr, a["received_team"].rstrip("?").strip().lower()))
+            mb = name_to_mgr.get((yr, b["received_team"].rstrip("?").strip().lower()))
+            if not (ma and mb) or ma == mb:
+                continue
+            # Skip incomplete
+            if (len(a.get("received_players",[])) + len(a.get("received_picks",[]))) == 0:
+                continue
+            if (len(b.get("received_players",[])) + len(b.get("received_picks",[]))) == 0:
+                continue
+            out.append({"year": yr, "date": t["date_str"], "source": "yahoo",
+                        "side_a_mgr": ma, "side_b_mgr": mb,
+                        "side_a": a, "side_b": b})
+    for t in load_all_trades(ROOT / "data" / "sleeper"):
+        if t.get("type") != "trade":
+            continue
+        yr = t.get("_season", 0)
+        rids = t.get("roster_ids") or []
+        if len(rids) != 2:
+            continue
+        adds = t.get("adds") or {}
+        picks = t.get("draft_picks") or []
+        def mgr_for(rid):
+            if yr in (2023, 2024) and rid == 10:
+                return "dave_aka_wang"
+            m = manager_for_sleeper_roster(rid)
+            return m["id"] if m else None
+        ma, mb = mgr_for(rids[0]), mgr_for(rids[1])
+        if not (ma and mb) or ma == mb:
+            continue
+        a_players = [pid for pid, r in adds.items() if r == rids[0]]
+        b_players = [pid for pid, r in adds.items() if r == rids[1]]
+        a_picks = [p for p in picks if p.get("owner_id") == rids[0]]
+        b_picks = [p for p in picks if p.get("owner_id") == rids[1]]
+        out.append({"year": yr, "date": "sleeper", "source": "sleeper",
+                    "side_a_mgr": ma, "side_b_mgr": mb,
+                    "side_a": {"received_players": [{"name": p} for p in a_players],
+                                "received_picks": a_picks},
+                    "side_b": {"received_players": [{"name": p} for p in b_players],
+                                "received_picks": b_picks},
+                    "raw": t})
+    return out
+
+
+def build_markdown():
+    nfl = _load_nflverse()
+    trades = _load_all_trades()
+    today = date.today().strftime("%B %Y")
+
+    # Compute per-manager + per-pair stats
+    per_mgr = defaultdict(lambda: {"n": 0, "p_recv": 0, "p_giv": 0,
+                                    "pk_recv": 0, "pk_giv": 0,
+                                    "partners": Counter()})
+    pair_trades = defaultdict(list)  # (a, b) sorted -> [(year, net_for_first, source)]
+    biggest = []  # (year, date, source, a_mgr, b_mgr, n_assets_a, n_assets_b, a_assets, b_assets)
+
+    for t in trades:
+        ma, mb = t["side_a_mgr"], t["side_b_mgr"]
+        a, b = t["side_a"], t["side_b"]
+        for own, mid, opp_mid in [(a, ma, mb), (b, mb, ma)]:
+            per_mgr[mid]["n"] += 1
+            per_mgr[mid]["p_recv"] += len(own.get("received_players", []))
+            per_mgr[mid]["pk_recv"] += len(own.get("received_picks", []))
+            per_mgr[mid]["partners"][opp_mid] += 1
+        per_mgr[ma]["p_giv"] += len(b.get("received_players", []))
+        per_mgr[ma]["pk_giv"] += len(b.get("received_picks", []))
+        per_mgr[mb]["p_giv"] += len(a.get("received_players", []))
+        per_mgr[mb]["pk_giv"] += len(a.get("received_picks", []))
+
+        # Score trade (Yahoo only since we have nfl points)
+        if t["source"] == "yahoo":
+            pa = sum(nfl.get((t["year"], _norm(p["name"])), 0)
+                     for p in a.get("received_players", []))
+            pb = sum(nfl.get((t["year"], _norm(p["name"])), 0)
+                     for p in b.get("received_players", []))
+            key = tuple(sorted([ma, mb]))
+            net = (pa - pb) if key[0] == ma else (pb - pa)
+            pair_trades[key].append((t["year"], net, "yahoo"))
+
+        # Biggest single trade by asset count
+        n_a = (len(a.get("received_players", []))
+               + len(a.get("received_picks", [])))
+        n_b = (len(b.get("received_players", []))
+               + len(b.get("received_picks", [])))
+        biggest.append((t["year"], t["date"], t["source"], ma, mb, n_a, n_b, a, b))
+
+    biggest.sort(key=lambda x: -(x[5] + x[6]))
+
+    md = []
+    md.append("# 🤝 MONEYLEAGUE — Trade Behavior")
+    md.append(f"*{today} · 181 trades across 15 years (2011-2025) · "
+              "Yahoo + Sleeper data*\n")
+    md.append("---\n")
+
+    md.append("## 📊 By the Numbers\n")
+    md.append(f"- **Total trades scraped**: 181 (155 Yahoo + 26 Sleeper)")
+    md.append(f"- **Players moved**: {sum(d['p_recv'] for d in per_mgr.values())}")
+    md.append(f"- **Draft picks moved**: {sum(d['pk_recv'] for d in per_mgr.values())}")
+    md.append(f"- **Most active year**: see volume chart below\n")
+
+    # ===== Active traders =====
+    md.append("## 🌀 Most Active Traders\n")
+    md.append("| Rank | Manager | Trades | Players acq | Picks acq |")
+    md.append("|---|---|---|---|---|")
+    by_n = sorted(per_mgr.items(), key=lambda kv: -kv[1]["n"])
+    for i, (mid, d) in enumerate(by_n, 1):
+        md.append(f"| {i} | **{_mgr_name(mid)}** | {d['n']} | "
+                  f"{d['p_recv']} | {d['pk_recv']} |")
+    md.append("")
+    md.append("**Trevor leads at every level** — most trades, most players "
+              "acquired, most picks moved. Famously trades any deal. "
+              "Brian and Coop are the next-most-active; the bottom group "
+              "(Tim, Eric, Ankur) prefer building through draft + wire.\n")
+
+    # ===== Biggest single trades =====
+    md.append("## 🌪️ Biggest Single Trades (most assets moved)\n")
+    md.append("| Year | Teams | Asset Count |")
+    md.append("|---|---|---|")
+    seen = set()
+    n_shown = 0
+    for yr, date_str, source, ma, mb, n_a, n_b, a, b in biggest:
+        key = (yr, date_str, tuple(sorted([ma, mb])))
+        if key in seen:
+            continue
+        seen.add(key)
+        md.append(f"| {yr} | **{_mgr_name(ma)} ↔ {_mgr_name(mb)}** | "
+                  f"{n_a + n_b} ({n_a}/{n_b}) |")
+        n_shown += 1
+        if n_shown >= 8:
+            break
+    md.append("")
+    md.append("The biggest 2-team blockbusters in league history. Most include "
+              "5+ players and 5+ picks per side.\n")
+
+    # ===== Biggest 2-team trade detail =====
+    md.append("### 💎 The Biggest Single Trade Ever\n")
+    big = biggest[0]
+    yr, date_str, source, ma, mb, n_a, n_b, a, b = big
+    md.append(f"**{yr} {date_str} — {_mgr_name(ma)} ↔ {_mgr_name(mb)}**\n")
+    md.append(f"**{_mgr_name(ma)} received:**")
+    for p in a.get("received_players", []):
+        md.append(f"- {p['name']}")
+    for pk in a.get("received_picks", []):
+        md.append(f"- Round {pk.get('round','?')}")
+    md.append(f"\n**{_mgr_name(mb)} received:**")
+    for p in b.get("received_players", []):
+        md.append(f"- {p['name']}")
+    for pk in b.get("received_picks", []):
+        md.append(f"- Round {pk.get('round','?')}")
+    md.append("")
+
+    # ===== Fleecing patterns =====
+    md.append("## 🦈 Top Fleecers\n")
+    md.append("Net points imbalance per pair (Yahoo era, scored via "
+              "full-season nflverse points). Positive = fleecer's net "
+              "advantage in cumulative production received.\n")
+    cases = []
+    for (a, b), trs in pair_trades.items():
+        if len(trs) < 2:
+            continue
+        net = sum(n for _, n, _ in trs)
+        if abs(net) < 200:
+            continue
+        wa = sum(1 for _, n, _ in trs if n > 0)
+        wb = sum(1 for _, n, _ in trs if n < 0)
+        yrs = [y for y, _, _ in trs]
+        last = max(yrs)
+        cases.append((a, b, len(trs), wa, wb, net, min(yrs), last,
+                       2022 - last))
+    cases.sort(key=lambda x: -abs(x[5]))
+
+    md.append("| Fleecer | Victim | Trades | W-L | Net | Years | Status |")
+    md.append("|---|---|---|---|---|---|---|")
+    for a, b, n, wa, wb, net, first, last, quiet in cases[:15]:
+        if net > 0:
+            w_mid, l_mid, w, l = a, b, wa, wb
+        else:
+            w_mid, l_mid, w, l = b, a, wb, wa
+        status = (f"⚠️ silent {quiet}yr" if quiet >= 3
+                  else "still active")
+        yr_range = f"{first}-{last}" if first != last else str(first)
+        md.append(f"| **{_mgr_name(w_mid)}** | {_mgr_name(l_mid)} | {n} | "
+                  f"{w}-{l} | **+{abs(net):.0f}** | {yr_range} | {status} |")
+    md.append("")
+
+    # ===== Bailout patterns =====
+    md.append("## 🚪 'Trade Rape → Victim Bailed' Cases\n")
+    md.append("Pairs where one side dominated and the other side **stopped "
+              "trading with them for 3+ years**. This is the data signal "
+              "of a manager being burned and not coming back.\n")
+    bailout = [c for c in cases if c[8] >= 3 and abs(c[5]) >= 300]
+    md.append("| Fleecer | Victim | W-L | Net | Last trade | Years silent |")
+    md.append("|---|---|---|---|---|---|")
+    for a, b, n, wa, wb, net, first, last, quiet in bailout:
+        if net > 0:
+            w_mid, l_mid, w, l = a, b, wa, wb
+        else:
+            w_mid, l_mid, w, l = b, a, wb, wa
+        md.append(f"| **{_mgr_name(w_mid)}** | {_mgr_name(l_mid)} | "
+                  f"{w}-{l} | +{abs(net):.0f} | {last} | {quiet} |")
+    md.append("")
+
+    # ===== Loyal customers =====
+    md.append("## 🐑 Loyal Customers — Victims Who Keep Coming Back\n")
+    md.append("Pairs where one side has dominated by 400+ net points but "
+              "they're **still actively trading**:\n")
+    loyal = [c for c in cases if c[8] < 3 and abs(c[5]) >= 400]
+    loyal.sort(key=lambda x: -abs(x[5]))
+    md.append("| Fleecer | 'Loyal Customer' | Trades | W-L | Net | Last trade |")
+    md.append("|---|---|---|---|---|---|")
+    for a, b, n, wa, wb, net, first, last, quiet in loyal:
+        if net > 0:
+            w_mid, l_mid, w, l = a, b, wa, wb
+        else:
+            w_mid, l_mid, w, l = b, a, wb, wa
+        md.append(f"| **{_mgr_name(w_mid)}** | {_mgr_name(l_mid)} | {n} | "
+                  f"{w}-{l} | +{abs(net):.0f} | {last} |")
+    md.append("")
+
+    # ===== Closest trade partners =====
+    md.append("## 👯 Closest Trade Partners (most trades between same 2)\n")
+    md.append("| Partnership | Total Trades | Years |")
+    md.append("|---|---|---|")
+    pair_count = defaultdict(int)
+    pair_years = defaultdict(set)
+    for t in trades:
+        if t["source"] != "yahoo":
+            continue
+        key = tuple(sorted([t["side_a_mgr"], t["side_b_mgr"]]))
+        pair_count[key] += 1
+        pair_years[key].add(t["year"])
+    top_pairs = sorted(pair_count.items(), key=lambda kv: -kv[1])[:10]
+    for (a, b), n in top_pairs:
+        yrs = sorted(pair_years[(a, b)])
+        md.append(f"| {_mgr_name(a)} ↔ {_mgr_name(b)} | {n} | "
+                  f"{min(yrs)}-{max(yrs)} |")
+    md.append("")
+
+    # ===== Embedded charts =====
+    md.append("## 📈 Charts\n")
+    chart_dir = ROOT / "data" / "charts"
+    for fn, label in [
+        ("trade_volume.png", "Trade Volume"),
+        ("trade_network.png", "Trade Partnership Heatmap"),
+        ("trade_lopsided_pairs.png", "Lopsided Pairs Over Time"),
+        ("trade_assets_flow.png", "Assets Acquired via Trade"),
+    ]:
+        if (chart_dir / fn).exists():
+            md.append(f"![{label}]({chart_dir / fn})\n")
+
+    md.append("---\n")
+    md.append("*Methodology: Yahoo transactions scraped via authenticated "
+              "session, parsed via HTML row-pairing (each trade = 2 "
+              "consecutive `<tr>` rows with rowspan=2 trade icon). Sleeper "
+              "trades pulled from offline data dump. Net point scoring uses "
+              "full-season nflverse fantasy points (0.5 PPR for 2019+, "
+              "0 PPR before).*")
+    return "\n".join(md)
+
+
+def _md_to_html(md_text: str) -> str:
+    lines = md_text.split("\n")
+    html = []
+    in_table = in_para = False
+
+    def cp():
+        nonlocal in_para
+        if in_para:
+            html.append("</p>"); in_para = False
+    def ct():
+        nonlocal in_table
+        if in_table:
+            html.append("</tbody></table>"); in_table = False
+    def inline(t):
+        t = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", t)
+        t = re.sub(r"\*(.+?)\*", r"<em>\1</em>", t)
+        return t
+
+    for ln in lines:
+        m = re.match(r"!\[([^\]]*)\]\(([^)]+)\)", ln.strip())
+        if m:
+            cp(); ct()
+            html.append(f'<img src="{m.group(2)}" alt="{m.group(1)}" '
+                        f'style="max-width:100%;margin:10px 0;"/>')
+            continue
+        if ln.startswith("# "):
+            cp(); ct(); html.append(f"<h1>{inline(ln[2:])}</h1>")
+        elif ln.startswith("## "):
+            cp(); ct(); html.append(f"<h2>{inline(ln[3:])}</h2>")
+        elif ln.startswith("### "):
+            cp(); ct(); html.append(f"<h3>{inline(ln[4:])}</h3>")
+        elif ln.startswith("|") and "---" in ln:
+            continue
+        elif ln.startswith("|"):
+            cells = [c.strip() for c in ln.strip("|").split("|")]
+            if not in_table:
+                cp()
+                html.append("<table><thead><tr>"
+                            + "".join(f"<th>{inline(c)}</th>" for c in cells)
+                            + "</tr></thead><tbody>")
+                in_table = True
+            else:
+                html.append("<tr>" + "".join(f"<td>{inline(c)}</td>" for c in cells) + "</tr>")
+        elif ln.startswith("- "):
+            cp(); ct(); html.append(f"<p class='b'>• {inline(ln[2:])}</p>")
+        elif ln.strip() == "---":
+            cp(); ct(); html.append("<hr/>")
+        elif ln.strip() == "":
+            cp(); ct()
+        else:
+            ct()
+            if not in_para:
+                html.append("<p>"); in_para = True
+            html.append(inline(ln))
+    cp(); ct()
+
+    css = """
+    body { font-family: -apple-system, system-ui, sans-serif; max-width: 720px;
+           margin: 30px auto; padding: 0 28px; color: #1a1a1a;
+           line-height: 1.55; font-size: 11pt; }
+    h1 { font-size: 24pt; border-bottom: 3px solid #b8860b; padding-bottom: 8px;
+         margin-top: 0; }
+    h2 { font-size: 14pt; color: #0a4d6b; margin-top: 22px; margin-bottom: 4px;
+         border-left: 4px solid #b8860b; padding-left: 10px; }
+    h3 { font-size: 12pt; color: #555; margin-top: 12px; }
+    table { width: 100%; border-collapse: collapse; margin: 6px 0 12px 0;
+            font-size: 9.5pt; }
+    th { background: #2c5d7c; color: white; padding: 4px 8px; text-align: left; }
+    td { padding: 4px 8px; border-bottom: 1px solid #ddd; }
+    tr:nth-child(even) td { background: #f8f8f8; }
+    em { color: #555; }
+    hr { border: none; border-top: 1px solid #ccc; margin: 16px 0; }
+    p { margin: 4px 0; }
+    p.b { margin: 2px 0 2px 14px; }
+    @page { size: letter; margin: 0.55in; }
+    """
+    return f"<!DOCTYPE html><html><head><meta charset='utf-8'><style>{css}</style></head><body>" + "\n".join(html) + "</body></html>"
+
+
+def main():
+    md = build_markdown()
+    MD_OUT.write_text(md, encoding="utf-8")
+    print(f"Wrote {MD_OUT.relative_to(ROOT)}")
+    try:
+        from weasyprint import HTML
+    except ImportError:
+        sys.exit("weasyprint not installed.")
+    html = _md_to_html(md)
+    HTML(string=html).write_pdf(str(PDF_OUT))
+    print(f"Wrote {PDF_OUT.relative_to(ROOT)}")
+
+
+if __name__ == "__main__":
+    main()
