@@ -2870,14 +2870,14 @@ function buildAnimForPlay(play, prevPlay) {
       // flicker delays the normal throw flow.
       const at = aT;
       const snapMotionAT = 0.04;             // ball travels C→QB in first 4% of action
-      // Phase timing (within action time). Previously the ball spent
-      // only 27% of the pre-catch window in flight (releaseAT 0.73 →
-      // throwEndAT 1.0), which felt fast: a 15yd throw arrived in
-      // ~600ms even though basePass had 2200ms of pre-catch budget.
-      // Stretched the flight window to 42% so the ball visibly arcs.
-      const dropEndAT  = throwFrac * 0.30;   // dropback ends here
-      const cockHoldAT = throwFrac * 0.50;   // ball reaches the ear, "held cocked"
-      const releaseAT  = throwFrac * 0.58;   // ball leaves the hand (earlier than before)
+      // Phase timing (within action time). Must stay in sync with the
+      // QB throw pose timeline below (~tf*0.73 release, tf*1.0 follow-
+      // through). Moving releaseAT earlier without shifting the QB
+      // pose caused the ball to leave the hand before the throwing
+      // motion started — reverted.
+      const dropEndAT  = throwFrac * 0.29;   // dropback ends here
+      const cockHoldAT = throwFrac * 0.65;   // ball reaches the ear, "held cocked"
+      const releaseAT  = throwFrac * 0.73;   // ball leaves the hand (matches QB pose)
       const throwEndAT = throwFrac;          // ball arrives at WR
       // Ball-in-hand positions
       const releaseX = qb.x + dir * 1.5;
