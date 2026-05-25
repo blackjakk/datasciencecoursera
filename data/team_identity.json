@@ -297,16 +297,17 @@
       "confidence": "high \u2014 Dave and Wang are the same person per league owner"
     },
     "notebooks_left": {
-      "canonical_name": "Notebooks (left after 2019)",
+      "canonical_name": "Jimmy Notebooks (one-year guy, 2019 only)",
       "sleeper_roster_id": null,
       "sleeper_display_name": "(left league)",
       "xlsx_nicknames": [
-        "Notebooks"
+        "Notebooks",
+        "Jimmy Notebooks"
       ],
       "yahoo_team_names": {
         "2019": "Troll Toll"
       },
-      "confidence": "medium \u2014 only appears in FF2019"
+      "confidence": "high \u2014 Brian confirms Jimmy Notebooks, 2019 only"
     },
     "nick_lewis_left": {
       "canonical_name": "Nick Lewis (joined 2012, came back briefly 2020)",
