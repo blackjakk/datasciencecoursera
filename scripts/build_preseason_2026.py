@@ -122,12 +122,53 @@ def _setup_mpl():
     })
 
 
-def compute_keeper_value(top_n=4, min_keeper_round=4):
+def _xlsx_keeper_years_2025():
+    """Parse FF2025 sheet comments → {normalized_player_name: year_of_keeping}.
+
+    Year 3 means 'this is their 3rd year being kept' → CANNOT be kept again
+    in 2026 (3-year max rule).
+    """
+    import openpyxl
+    import re as _re
+    out = {}
+    try:
+        wb = openpyxl.load_workbook(ROOT / "data/historical/MONEY_LEAGUE.xlsx",
+                                     data_only=True)
+        ws = wb["FF2025"]
+        for r in range(1, 18):
+            for c in range(2, 14):
+                cell = ws.cell(r, c)
+                if not (cell.comment and "keeper" in cell.comment.text.lower()):
+                    continue
+                m = _re.search(r"(\d+)(?:st|nd|rd|th)\s*year keeper",
+                               cell.comment.text, _re.IGNORECASE)
+                if not m or not cell.value:
+                    continue
+                year = int(m.group(1))
+                name = _norm(str(cell.value))
+                out[name] = year
+    except Exception:
+        pass
+    return out
+
+
+def _norm(s):
+    import re as _re, unicodedata as _ud
+    s = _ud.normalize("NFKD", s).encode("ascii", "ignore").decode().lower().strip()
+    return _re.sub(r"\s+", " ", _re.sub(r"[^a-z0-9 ]", " ", s)).strip()
+
+
+def compute_keeper_value(top_n=4, min_keeper_round=3):
     """Sum of top-N 2025 fpts per current roster — keeper-eligible asset.
 
-    Filters out players drafted in rounds 1 through (min_keeper_round - 1) of
-    the 2025 draft, since per league rules those can't be kept for 2026.
-    Players acquired off waivers (no 2025 draft pick) are always eligible.
+    Keeper rules applied:
+    1. Max 4 keepers per roster (we take top 4 here).
+    2. Player must have been drafted in 2025 R3 or later (R1/R2 picks
+       can't be kept; the keeper-cost rule means R3 keeper costs your R1).
+       Waiver pickups (no 2025 pick) are eligible.
+    3. Max 3 years as keeper (xlsx FF2025 comments encode current year):
+       anyone tagged '3rd year keeper' in 2025 is ineligible for 2026.
+    4. Player must still be on the manager's end-of-2025 roster.
     """
     LG = "league_1245039290518360064"
     rosters = json.loads((ROOT / "data/sleeper" / LG / "rosters.json").read_text())
@@ -138,12 +179,21 @@ def compute_keeper_value(top_n=4, min_keeper_round=4):
                 if p:
                     ptot[pid] += p
 
-    # Map each 2025-drafted player_id -> draft round
     draft_round = {}
     draft_f = list((ROOT / "data/sleeper" / LG).glob("draft_*_picks.json"))[0]
     for p in json.loads(draft_f.read_text()):
-        if p.get("player_id"):
-            draft_round[p["player_id"]] = int(p["round"])
+        pid = p.get("player_id")
+        if pid:
+            draft_round[pid] = int(p["round"])
+
+    # xlsx-derived: name -> year of keeping in 2025
+    keeper_years = _xlsx_keeper_years_2025()
+
+    # Sleeper player catalog for name lookup
+    catalog = json.loads((ROOT / "data/sleeper/players_nfl.json").read_text())
+    pid_name = {pid: _norm(p.get("full_name") or
+                            f"{p.get('first_name','')} {p.get('last_name','')}")
+                for pid, p in catalog.items()}
 
     rid_to_mid = {m["sleeper_roster_id"]: m["id"]
                   for m in all_managers() if m.get("sleeper_roster_id")}
@@ -153,8 +203,15 @@ def compute_keeper_value(top_n=4, min_keeper_round=4):
         mid = ROSTER_HANDOFFS.get((2025, rid)) or rid_to_mid.get(rid)
         if not mid:
             continue
-        eligible = [pid for pid in (r.get("players") or [])
-                    if draft_round.get(pid, 99) >= min_keeper_round]
+        eligible = []
+        for pid in (r.get("players") or []):
+            rnd = draft_round.get(pid, 99)
+            if rnd < min_keeper_round:
+                continue
+            # 3-year max keeper rule
+            if keeper_years.get(pid_name.get(pid, ""), 0) >= 3:
+                continue
+            eligible.append(pid)
         scored = sorted([(pid, ptot.get(pid, 0)) for pid in eligible],
                          key=lambda x: -x[1])[:top_n]
         out[mid] = {"value": sum(p for _, p in scored), "players": scored}
