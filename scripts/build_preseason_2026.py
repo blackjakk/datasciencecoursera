@@ -122,8 +122,13 @@ def _setup_mpl():
     })
 
 
-def compute_keeper_value(top_n=4):
-    """Sum of top-N 2025 fpts per current roster — keeper-eligible asset."""
+def compute_keeper_value(top_n=4, min_keeper_round=4):
+    """Sum of top-N 2025 fpts per current roster — keeper-eligible asset.
+
+    Filters out players drafted in rounds 1 through (min_keeper_round - 1) of
+    the 2025 draft, since per league rules those can't be kept for 2026.
+    Players acquired off waivers (no 2025 draft pick) are always eligible.
+    """
     LG = "league_1245039290518360064"
     rosters = json.loads((ROOT / "data/sleeper" / LG / "rosters.json").read_text())
     ptot = defaultdict(float)
@@ -132,6 +137,14 @@ def compute_keeper_value(top_n=4):
             for pid, p in (e.get("players_points") or {}).items():
                 if p:
                     ptot[pid] += p
+
+    # Map each 2025-drafted player_id -> draft round
+    draft_round = {}
+    draft_f = list((ROOT / "data/sleeper" / LG).glob("draft_*_picks.json"))[0]
+    for p in json.loads(draft_f.read_text()):
+        if p.get("player_id"):
+            draft_round[p["player_id"]] = int(p["round"])
+
     rid_to_mid = {m["sleeper_roster_id"]: m["id"]
                   for m in all_managers() if m.get("sleeper_roster_id")}
     out = {}
@@ -140,7 +153,9 @@ def compute_keeper_value(top_n=4):
         mid = ROSTER_HANDOFFS.get((2025, rid)) or rid_to_mid.get(rid)
         if not mid:
             continue
-        scored = sorted([(pid, ptot.get(pid, 0)) for pid in (r.get("players") or [])],
+        eligible = [pid for pid in (r.get("players") or [])
+                    if draft_round.get(pid, 99) >= min_keeper_round]
+        scored = sorted([(pid, ptot.get(pid, 0)) for pid in eligible],
                          key=lambda x: -x[1])[:top_n]
         out[mid] = {"value": sum(p for _, p in scored), "players": scored}
     return out
@@ -187,7 +202,7 @@ def compute_preseason_ranks():
     # 2025 specifics
     season_table = bpr.compute_season_table()
     pick_cap = compute_pick_capital()
-    keepers = compute_keeper_value(top_n=4)
+    keepers = compute_keeper_value(top_n=4, min_keeper_round=3)
 
     rows = []
     current_mids = [m["id"] for m in all_managers()
@@ -257,20 +272,41 @@ def compute_preseason_ranks():
 
 
 def chart_preseason_power(rows, path):
+    """Stacked bar: pick contribution / keeper contribution / skill contribution
+    to each manager's preseason power score."""
     _setup_mpl()
     s = sorted(rows, key=lambda r: r["power_score"])
     names = [r["name"] for r in s]
-    vals = [r["power_score"] for r in s]
-    colors = [bpr.mgr_color(r["mid"]) for r in s]
-    fig, ax = plt.subplots(figsize=(9, 0.42 * len(s) + 1), dpi=140)
-    bars = ax.barh(names, vals, color=colors, edgecolor="white", linewidth=1.4, height=0.72)
-    for i, v in enumerate(vals):
-        ax.text(v + 1, i, f"{v:.1f}", va="center", fontsize=10,
+    # Contributions: cap_norm × 0.35, keeper_norm × 0.30, (trd+drf)/2 × 0.30
+    # (Roster depth at 0.05 folded into picks for visual simplicity)
+    picks_contrib = [r["cap_norm"] * 0.35 + r["roster_norm"] * 0.05 for r in s]
+    keep_contrib = [r["keeper_norm"] * 0.30 for r in s]
+    skill_contrib = [(r["trade_norm"] + r["draft_norm"]) * 0.5 * 0.30 for r in s]
+    totals = [r["power_score"] for r in s]
+
+    fig, ax = plt.subplots(figsize=(9, 0.45 * len(s) + 1), dpi=140)
+    y = np.arange(len(s))
+    PICK_COLOR = "#0a3d62"
+    KEEP_COLOR = "#1f7a8c"
+    SKILL_COLOR = "#d4a017"
+    ax.barh(y, picks_contrib, color=PICK_COLOR, edgecolor="white", linewidth=1.2,
+            label="Picks + depth")
+    ax.barh(y, keep_contrib, left=picks_contrib, color=KEEP_COLOR,
+            edgecolor="white", linewidth=1.2, label="Keepers")
+    starts = [p + k for p, k in zip(picks_contrib, keep_contrib)]
+    ax.barh(y, skill_contrib, left=starts, color=SKILL_COLOR,
+            edgecolor="white", linewidth=1.2, label="Skill")
+    for i, total in enumerate(totals):
+        ax.text(total + 1, i, f"{total:.1f}", va="center", fontsize=10,
                 fontweight="bold", color="#1a1d24")
-    ax.set_xlim(0, max(vals) * 1.18)
-    ax.set_xlabel("Preseason Power Score", fontweight="bold")
-    ax.set_title("Summer 2026 GUAP Preseason Power Rankings",
-                 loc="left", pad=14, fontsize=14)
+    ax.set_yticks(y)
+    ax.set_yticklabels(names, fontweight="bold")
+    ax.set_xlim(0, max(totals) * 1.18)
+    ax.set_xlabel("Preseason Power Score (stacked by source)", fontweight="bold")
+    ax.set_title("Summer 2026 GUAP Preseason Power Rankings  ·  "
+                 "blue = picks · teal = keepers · gold = skill",
+                 loc="left", pad=14, fontsize=13)
+    ax.legend(loc="lower right", frameon=False, fontsize=9)
     ax.grid(axis="x", linestyle="--", alpha=0.4)
     ax.set_axisbelow(True)
     plt.tight_layout()
@@ -352,13 +388,14 @@ def render_rank_card(r):
         <div class="power-score"><div class="ps-num">{r['power_score']:.1f}</div><div class="ps-lbl">Power</div></div>
       </div>
       <div class="rank-body">
-        <div class="rank-stats-row">
-          <div>2025: <strong>{r['wl_2025'][0]}-{r['wl_2025'][1]}</strong> (#{r['rank_2025']})</div>
-          <div>2026 picks <strong>R1×{r['r1_2026']} R2×{r['r2_2026']} R3×{r['r3_2026']}</strong></div>
-          <div>Top-4 keep value <strong>{r['keeper_value']:.0f}</strong></div>
+        <div class="stat-strip">
+          <div><span class="lbl">2025</span><div class="val">{r['wl_2025'][0]}-{r['wl_2025'][1]} <span style="color:#6b7280;font-weight:500">#{r['rank_2025']}</span></div></div>
+          <div><span class="lbl">2026 R1/R2/R3</span><div class="val">{r['r1_2026']} / {r['r2_2026']} / {r['r3_2026']}</div></div>
+          <div><span class="lbl">Keep Value</span><div class="val">{r['keeper_value']:.0f}</div></div>
+          <div><span class="lbl">Skill (trade · draft)</span><div class="val">{r['trade_per']:+.0f} · {r['draft_spp']:+.1f}</div></div>
         </div>
-        <div class="keeper-row"><span class="keeper-label">KEEPERS</span> {_format_keepers(r['keeper_players'])}</div>
-        <div class="skill-row">SKILL: trade <strong>{r['trade_per']:+.0f}/t ({r['trade_n']})</strong> · draft <strong>{r['draft_spp']:+.1f}/pk</strong></div>
+        <div class="keeper-label">Likely Keepers</div>
+        <div class="keepers-grid">{_format_keepers(r['keeper_players'])}</div>
         <div class="rank-take">{body}</div>
       </div>
     </div>
@@ -405,26 +442,36 @@ def build_html(rows, paths):
     .ps-lbl { font-size: 7.5pt; opacity: 0.85; letter-spacing: 0.5px;
               text-transform: uppercase; }
     .rank-body { padding: 8px 14px 10px; }
-    .rank-stats-row { display: flex; gap: 18px; font-size: 9pt;
-                      color: #3d405b; margin-bottom: 4px; }
-    .keeper-row { margin: 4px 0; display: flex; align-items: center;
-                  flex-wrap: wrap; gap: 0; }
-    .keeper-label { font-size: 8pt; font-weight: 700; color: #6b7280;
-                    letter-spacing: 0.5px; margin-right: 6px; }
-    .skill-row { color: #6b7280; font-size: 8.5pt; margin-top: 3px; }
+    .stat-strip { display: grid; grid-template-columns: repeat(4, 1fr);
+                  gap: 0; font-size: 9pt; color: #3d405b;
+                  background: #f9fafb; border-radius: 6px;
+                  padding: 6px 10px; margin-bottom: 6px; }
+    .stat-strip > div { padding: 0 4px; border-right: 1px solid #e5e7eb;
+                        line-height: 1.25; }
+    .stat-strip > div:last-child { border-right: none; }
+    .stat-strip .lbl { font-size: 7.5pt; color: #6b7280;
+                       text-transform: uppercase; letter-spacing: 0.4px;
+                       font-weight: 600; }
+    .stat-strip .val { font-weight: 700; color: #1a1d24; font-size: 10pt; }
+    .keeper-label { display: block; font-size: 7.5pt; font-weight: 700;
+                    color: #6b7280; letter-spacing: 0.6px;
+                    text-transform: uppercase; margin: 4px 0 4px; }
+    .keepers-grid { display: grid; grid-template-columns: repeat(4, 1fr);
+                    gap: 6px; }
     .rank-take { font-size: 9.5pt; color: #1a1d24; margin-top: 6px;
                  line-height: 1.55; }
-    .keeper-chip { display: inline-flex; align-items: center; gap: 5px;
-                   background: #f3f4f6; border-radius: 18px; padding: 2px 9px 2px 2px;
-                   margin: 2px 4px 2px 0; font-size: 8.5pt;
-                   border: 1px solid #e5e7eb; }
-    .keeper-portrait { width: 26px; height: 26px; border-radius: 50%;
+    .keeper-chip { display: flex; align-items: center; gap: 5px;
+                   background: #f9fafb; border-radius: 6px; padding: 4px 6px;
+                   font-size: 8pt; border: 1px solid #e5e7eb; overflow: hidden; }
+    .keeper-portrait { width: 22px; height: 22px; border-radius: 50%;
                        object-fit: cover; background: #d1d5db;
-                       border: 1px solid #cbd5e1; }
-    .kc-name { font-weight: 700; color: #1a1d24; }
-    .kc-pts { color: #0a3d62; font-weight: 700; margin-left: 3px;
-              font-size: 8pt; background: #fef3c7; padding: 0 5px;
-              border-radius: 8px; }
+                       border: 1px solid #cbd5e1; flex-shrink: 0; }
+    .kc-name { font-weight: 700; color: #1a1d24; font-size: 8pt;
+               white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+               flex: 1; min-width: 0; }
+    .kc-pts { color: #0a3d62; font-weight: 700;
+              font-size: 7.5pt; background: #fef3c7; padding: 1px 5px;
+              border-radius: 6px; flex-shrink: 0; }
     @page { size: letter; margin: 0.45in; }
     """
     h = ['<!DOCTYPE html><html><head><meta charset="utf-8">',
@@ -436,10 +483,11 @@ def build_html(rows, paths):
     h.append('<p class="note">Composite: <strong>70% ASSETS</strong> '
              '(35% 2026 R1-R3 pick capital · 30% top-4 keeper value · '
              '5% roster depth) + <strong>30% SKILL</strong> (15% career '
-             'trade VBD/trade · 15% career draft surplus/pick). Recent '
-             'record intentionally excluded — this is "who has the tools," '
-             'not "who got hot." Keeper value = sum of each roster\'s '
-             'top-4 player 2025 fpts (league allows max 4 keepers).</p>')
+             'trade VBD/trade · 15% career draft surplus/pick). '
+             'Keeper rule: players drafted R3 or later in 2025 are '
+             'eligible (R3 keepers cost your R1 pick; R4 cost R2; etc.). '
+             'Recent W-L excluded — this is "who has the tools," '
+             'not "who got hot."</p>')
     h.append(f'<img class="chart" src="{_data_uri(paths["power"])}"/>')
 
     h.append('<h2>2026 Pick Capital</h2>')
