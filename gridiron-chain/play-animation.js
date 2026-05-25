@@ -663,14 +663,20 @@ function _simulateKickoffAgents(opts) {
       const isWedge = (i >= 3 && i <= 6);
       let targetX, targetY;
       if (t < flightT) {
-        // Setup phase — wedge drops back in front of catch; wall advances
-        // to meet incoming cover at midfield-ish.
+        // Setup phase — wedge drops back in front of catch; wall pursues
+        // its assigned cover (with leverage — stay just on the
+        // returner-side of cov so we have inside position when contact
+        // happens). The OLD target was midfield, which equals receiver's
+        // 40 — which is exactly blockerStartX, so wall blockers had
+        // ZERO distance to their target and stood still the whole kick.
         if (isWedge) {
           targetX = catchX + recvDir * 10;
           targetY = cy + (blockerLanes[i] - cy) * 0.5;
         } else {
-          targetX = (catchX + kickerLineX) * 0.5;
-          targetY = blockerLanes[i];
+          const cov = cover[a.targetCov];
+          const toRetSign = Math.sign(returner.x - cov.x) || recvDir;
+          targetX = cov.x + toRetSign * 5;
+          targetY = cov.y;
         }
       } else {
         if (isWedge) {
