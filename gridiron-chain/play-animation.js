@@ -1445,7 +1445,7 @@ function buildAnimForPlay(play, prevPlay) {
   // _stPlayTiming / _stPlayDuration live at module scope — see top of file.
   // Pre-snap timing — ~3 seconds of huddle break, line set, audible, "HUT HUT"
   // before the center snaps. Audibles add an extra ~600 ms.
-  const PRE_MS = isAudible ? 3600 : 3000;
+  const PRE_MS = isAudible ? 2800 : 2200;
   // Realistic run pacing: handoff mesh → read the hole → burst → sustained → tackle.
   // Replaces the old eased-cubic linear blend that made the RB shoot to the end zone
   // in the first 30% of the play. Now the carrier hangs near the LOS for the early
@@ -3125,9 +3125,14 @@ function buildAnimForPlay(play, prevPlay) {
       // through). Moving releaseAT earlier without shifting the QB
       // pose caused the ball to leave the hand before the throwing
       // motion started — reverted.
-      const dropEndAT  = throwFrac * 0.29;   // dropback ends here
-      const cockHoldAT = throwFrac * 0.65;   // ball reaches the ear, "held cocked"
-      const releaseAT  = throwFrac * 0.73;   // ball leaves the hand (matches QB pose)
+      // Throw timing — release moved earlier so the FLIGHT phase is
+      // longer in absolute time. Was 0.27 of throwFrac → flight covered
+      // 15 yd in ~470 ms = 32 yps = ~75 mph. NFL passes are 50-60 mph.
+      // Now 0.45 of throwFrac → ~780 ms for 15 yd = ~45 mph. Slower,
+      // visible, matches "I can track the ball" feel.
+      const dropEndAT  = throwFrac * 0.25;   // dropback ends here
+      const cockHoldAT = throwFrac * 0.48;   // ball reaches the ear, "held cocked"
+      const releaseAT  = throwFrac * 0.55;   // ball leaves the hand (matches QB pose)
       const throwEndAT = throwFrac;          // ball arrives at WR
       // Ball-in-hand positions
       const releaseX = qb.x + dir * 1.5;
@@ -3732,37 +3737,30 @@ function buildAnimForPlay(play, prevPlay) {
       } else {
         const at = aT;   // flicker-aware action time
         const tf = throwFrac;
-        // QB pose timeline (post-rebalance). Old code spent 36% of the throw
-        // window in cradle+cock — that was 846ms for a 15-yard pass when
-        // real NFL cock-back is ~200ms. Cock now compressed to 10% of tf,
-        // with dropback expanded to absorb the slack (more "scanning the
-        // field" time, like a real QB). Also skip the cradle sub-phase
-        // (qbT 0→0.18) because it's just "stand still with ball at chest" —
-        // visually identical to the dropback pose, so it reads as a dead
-        // beat where the throw should be starting.
-        //   0    - 0.55 tf: dropback (carry pose)
-        //   0.55 - 0.65 tf: cock-back (qbT 0.18→0.42, fast wind-up)
-        //   0.65 - 0.73 tf: hold at cocked ear (qbT 0.42→0.48)
-        //   0.73 - 0.85 tf: snap / release (qbT 0.48→0.68, release ~0.55)
-        //   0.85 - 1.00 tf: follow-through (qbT 0.68→1.0)
-        if (at < tf * 0.55) {
-          // Dropback phase — use the dedicated drop_step footwork pose
-          // instead of generic carry (which had no real backward
-          // movement — looked like the QB was floating in place).
+        // QB pose timeline — shifted earlier to match the new release at
+        // tf * 0.55 (was tf * 0.73). Dropback compressed; cock + release
+        // start sooner. The follow-through still finishes at tf so the
+        // ball is in the air while the QB completes his motion.
+        //   0    - 0.35 tf: dropback (drop_step)
+        //   0.35 - 0.45 tf: cock-back (qbT 0.18→0.42)
+        //   0.45 - 0.50 tf: hold at cocked ear (qbT 0.42→0.48)
+        //   0.50 - 0.65 tf: snap / release (qbT 0.48→0.68, ball out at 0.55)
+        //   0.65 - 1.00 tf: follow-through (qbT 0.68→1.0)
+        if (at < tf * 0.35) {
           qbPose = "drop_step";
           qbT = ((t * (dur / 1000)) * 1.8) % 1;
+        } else if (at < tf * 0.45) {
+          qbPose = "throw";
+          qbT = 0.18 + (at - tf * 0.35) / (tf * 0.10) * (0.42 - 0.18);
+        } else if (at < tf * 0.50) {
+          qbPose = "throw";
+          qbT = 0.42 + (at - tf * 0.45) / (tf * 0.05) * 0.06;
         } else if (at < tf * 0.65) {
           qbPose = "throw";
-          qbT = 0.18 + (at - tf * 0.55) / (tf * 0.10) * (0.42 - 0.18);
-        } else if (at < tf * 0.73) {
-          qbPose = "throw";
-          qbT = 0.42 + (at - tf * 0.65) / (tf * 0.08) * 0.06;
-        } else if (at < tf * 0.85) {
-          qbPose = "throw";
-          qbT = 0.48 + (at - tf * 0.73) / (tf * 0.12) * 0.20;
+          qbT = 0.48 + (at - tf * 0.50) / (tf * 0.15) * 0.20;
         } else if (at < tf * 1.0) {
           qbPose = "throw";
-          qbT = 0.68 + (at - tf * 0.85) / (tf * 0.15) * 0.32;
+          qbT = 0.68 + (at - tf * 0.65) / (tf * 0.35) * 0.32;
         } else {
           qbPose = "idle";
           qbT = 0;
@@ -3831,22 +3829,33 @@ function buildAnimForPlay(play, prevPlay) {
       const wrTackleT = wrIsTackled ? Math.min(1, (aT - TACKLE_START_AT) / (1 - TACKLE_START_AT))
                        : inLeapWindow ? leapInternalT
                        : ((t * (dur / 1000)) * strideHz) % 1;
-      // PER-PLAY FALL DIRECTION based on collision geometry. Defaults to
-      // forward (chase / angle tackle, carrier's momentum carries the body
-      // forward through contact). Flips to backward when the named tackler
-      // is significantly AHEAD of the carrier at contact — that's a
-      // head-on collision where the carrier ran INTO the defender and gets
-      // knocked back. We look at the named tackler's CURRENT position
-      // relative to the carrier in the run direction:
-      //   tackler ahead by > 3 yd  → head-on, backward fall
-      //   else                      → chase/side, forward fall
+      // PER-PLAY FALL DIRECTION via combined-momentum model.
+      //
+      // Both the carrier and the named tackler have a velocity at the
+      // moment of contact. Treat them as equal mass: combined momentum
+      // direction = vCarrier + vTackler. The carrier falls in the
+      // direction of that combined vector (relative to his facing).
+      //
+      //   chase tackle:    carrier vx=+12, tackler vx=+15  →  combined +27  →  forward fall
+      //   head-on, equal:  carrier vx=+12, tackler vx=-15  →  combined  -3  →  backward fall
+      //   head-on, slow D: carrier vx=+12, tackler vx=-8   →  combined  +4  →  forward fall (carrier overpowers)
+      //   side hit:        carrier vx=+12, tackler vx≈0    →  combined +12  →  forward fall
+      //
+      // Carrier velocity comes from the YAC formula (constant rate from
+      // catchX → endX over the post-catch window). Tackler velocity is
+      // read from his SimPlayer.
       const _outerTacklerName = play.motion && play.motion.tacklerName;
       let _wrFallDir = 1;
       if (wrIsTackled && _outerTacklerName) {
         const _tk = def.find(d => d && d.name === _outerTacklerName);
         if (_tk) {
-          const aheadPx = (_tk.x - wr.x) * dir;
-          if (aheadPx > 3 * FIELD.PX_PER_YARD) _wrFallDir = -1;
+          const postCatchSec = Math.max(0.1, (1 - throwPhase) * dur / 1000);
+          const carrierVx = (endX - targetX) / postCatchSec;       // px/s
+          const tackVx    = (_tk._sim && typeof _tk._sim.vx === "number") ? _tk._sim.vx : 0;
+          const combinedVx = carrierVx + tackVx;
+          // dir = offense forward direction. combinedVx in dir's sense:
+          // positive → forward fall, negative → backward.
+          if (combinedVx * dir < 0) _wrFallDir = -1;
         }
       }
       const wrWithPose = { ...wr,
