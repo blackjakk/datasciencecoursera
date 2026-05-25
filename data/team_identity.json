@@ -272,7 +272,7 @@
         "2021": "The Dream Team",
         "2022": "The Dream Team"
       },
-      "confidence": "medium"
+      "confidence": "high — Brian confirms Dirty Old Men was always Coop"
     },
     "dave_aka_wang": {
       "canonical_name": "Dave (aka Wang, replaced by Josh in 2025)",
@@ -309,27 +309,18 @@
       "confidence": "medium \u2014 only appears in FF2019"
     },
     "nick_lewis_left": {
-      "canonical_name": "Nick Lewis (joined 2013 replacing Z, came back briefly 2020)",
+      "canonical_name": "Nick Lewis (joined 2012, came back briefly 2020)",
       "sleeper_roster_id": null,
       "sleeper_display_name": "(left league)",
       "xlsx_nicknames": [
         "Nick Lewis"
       ],
       "yahoo_team_names": {
-        "2020": "LewLew Ferrari",
-        "2013": "Mr. Y. Mirosho"
+        "2012": "Nut up or shut up",
+        "2013": "Mr. Y. Mirosho",
+        "2020": "LewLew Ferrari"
       },
-      "confidence": "high \u2014 confirmed: HOLD MA DICK / Kelce's / Mud Monkeys / LewLew Ferrari"
-    },
-    "former_pre2014_2": {
-      "canonical_name": "Former manager (Nut up or shut up)",
-      "sleeper_roster_id": null,
-      "sleeper_display_name": "(left before 2014)",
-      "xlsx_nicknames": [],
-      "yahoo_team_names": {
-        "2012": "Nut up or shut up"
-      },
-      "confidence": "low \u2014 unknown identity, only 2012 appearance"
+      "confidence": "high \u2014 Brian confirms Nut up or shut up (2012) was Nick Lewis"
     },
     "z_former": {
       "canonical_name": "Z (founding member, left after 2013 \u2014 replaced by Nick Lewis)",

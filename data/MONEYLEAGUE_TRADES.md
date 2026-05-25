@@ -25,14 +25,13 @@ Each manager's **total net point delta across every scored trade** they were eve
 | 7 | **Kyle** | 26 | **+464** | +18 |
 | 8 | **Ankur** | 9 | **+235** | +26 |
 | 9 | **Z** | 2 | **+146** | +73 |
-| 10 | **Nick Lewis** | 4 | **-62** | -16 |
-| 11 | **Former manager** | 1 | **-119** | -119 |
-| 12 | **Notebooks** | 1 | **-452** | -452 |
-| 13 | **Lem** | 20 | **-854** | -43 |
-| 14 | **Eric** | 15 | **-879** | -59 |
-| 15 | **Nark** | 10 | **-1505** | -150 |
-| 16 | **Tim** | 14 | **-2077** | -148 |
-| 17 | **Donnie** | 36 | **-3777** | -105 |
+| 10 | **Nick Lewis** | 5 | **-181** | -36 |
+| 11 | **Notebooks** | 1 | **-452** | -452 |
+| 12 | **Lem** | 20 | **-854** | -43 |
+| 13 | **Eric** | 15 | **-879** | -59 |
+| 14 | **Nark** | 10 | **-1505** | -150 |
+| 15 | **Tim** | 14 | **-2077** | -148 |
+| 16 | **Donnie** | 36 | **-3777** | -105 |
 
 *Net point deltas count full-season nflverse scoring for each trade. **Dave** is the league's net winner (+4718) across 27 trades. **Donnie** is the net loser (-3777).*
 
@@ -53,11 +52,10 @@ Each manager's **total net point delta across every scored trade** they were eve
 | 11 | **Eric** | 15 | 20 | 21 |
 | 12 | **Ankur** | 11 | 16 | 14 |
 | 13 | **Nark** | 10 | 13 | 8 |
-| 14 | **Nick Lewis** | 4 | 8 | 2 |
+| 14 | **Nick Lewis** | 5 | 9 | 2 |
 | 15 | **Z** | 2 | 3 | 0 |
 | 16 | **Josh** | 2 | 2 | 1 |
-| 17 | **Former manager** | 1 | 1 | 0 |
-| 18 | **Notebooks** | 1 | 1 | 1 |
+| 17 | **Notebooks** | 1 | 1 | 1 |
 
 **Trevor leads at every level** — most trades, most players acquired, most picks moved. Famously trades any deal. Brian and Coop are the next-most-active; the bottom group (Tim, Eric, Ankur) prefer building through draft + wire.
 
