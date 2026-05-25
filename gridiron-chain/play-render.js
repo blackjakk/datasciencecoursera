@@ -409,53 +409,87 @@ function pickBodyType(pos, archetype) {
   return "NORMAL";
 }
 
-// ── LOCOMOTION-DRIVEN POSE-T ─────────────────────────────────────────
+// ── LOCOMOTION-DRIVEN POSE-T + FACING ────────────────────────────────
 // First-principles fix for "every play people freeze while their feet
-// move": locomotion pose-t (stride cycle) is derived from the player's
-// distance traveled — NOT wall-clock — so when the body stops, the
-// legs stop too. Strides are 2.7yd for normal builds, 3.5yd for big
-// linemen (slower turnover). Event-driven poses (throw, tackle, dive,
-// jam, sack, etc.) keep their explicit t value because their `t`
-// represents progress through a specific motion, not foot placement.
-const _LOCOMOTION_POSES = new Set(["run", "carry", "release", "scrape", "backpedal", "jog"]);
+// move" + "defenders running sideline to sideline always face the
+// endzone." Both come from the same root: animation state was being
+// set from things OTHER than the body's actual translation — wall-
+// clock for legs, hand-picked direction for facing. Now both are
+// derived from per-player position deltas:
+//
+//   distAcc → stride phase  (legs only cycle when the body translates)
+//   sign(vx) → facing       (player faces where they're moving)
+//
+// Event-driven poses (throw, tackle, dive, jam, sack, kick_slide,
+// drop_step, etc.) keep their explicit t/facing because those
+// represent specific scripted motions, not general locomotion.
+// Backpedal is locomotion-shaped but deliberately faces OPPOSITE its
+// direction of travel — kept as caller-controlled.
+const _LOCOMOTION_POSES = new Set(["run", "carry", "release", "scrape", "jog"]);
+const _FACING_AUTO_POSES = new Set(["run", "carry", "release", "jog"]);   // scrape stays caller-set (LB faces offense), backpedal stays caller-set
 const _locoCache = new Map();
-function _locomotionT(x, y, pose, style, label, facing, providedT) {
-  if (!_LOCOMOTION_POSES.has(pose)) return providedT;
+function _locoState(x, y, pose, style, label, facing) {
   // Identity — player name preferred (unique within a game). Linemen
   // typically have no name field; fall back to a stable composite.
-  // Pose is NOT in the key so the stride phase persists across pose
-  // transitions (run → carry → run → backpedal etc. all share the
-  // same distance accumulator; legs don't snap back to neutral mid-play).
+  // Pose is NOT in the key so phase persists across pose transitions.
   const id = style && style.name
     ? style.name
     : `${(style && style.role) || "P"}|${label || ""}|${facing > 0 ? "R" : "L"}`;
   let s = _locoCache.get(id);
-  if (!s) { s = { lastX: x, lastY: y, distAcc: 0 }; _locoCache.set(id, s); }
+  if (!s) { s = { lastX: x, lastY: y, distAcc: 0, vxEMA: 0, vyEMA: 0, facing: facing }; _locoCache.set(id, s); }
   const dx = x - s.lastX, dy = y - s.lastY;
   const dist = Math.hypot(dx, dy);
   // Teleport guard — between plays a player may jump huge distances
-  // (formation reset). Don't accumulate those frames into stride cycle;
-  // just reset the anchor so the next real movement counts.
-  if (dist > 80) {
+  // (formation reset). Don't accumulate those frames; reset the anchor.
+  const teleport = dist > 80;
+  if (teleport) {
     s.lastX = x; s.lastY = y;
-    return 0;
+    s.vxEMA = 0; s.vyEMA = 0;
+    return { state: s, dist: 0, dx: 0, dy: 0, teleport: true };
   }
   s.distAcc += dist;
+  // Velocity EMA — smooths frame-to-frame jitter so facing doesn't
+  // flicker when a player oscillates around 0 lateral velocity.
+  // Time constant ~3 frames at 60fps.
+  const alpha = 0.35;
+  s.vxEMA = s.vxEMA * (1 - alpha) + dx * alpha;
+  s.vyEMA = s.vyEMA * (1 - alpha) + dy * alpha;
   s.lastX = x; s.lastY = y;
+  return { state: s, dist, dx, dy, teleport: false };
+}
+
+function _locomotionT(loco, pose, style) {
+  if (!_LOCOMOTION_POSES.has(pose)) return null;
+  if (loco.teleport) return 0;
   // Stride length in pixels. Bigger bodies have longer strides.
   const bt = style && style.bodyType;
   const cyclePx = (bt === "HUGE") ? 56
                 : (bt === "BIG" || bt === "TALL_HEAVY" || bt === "HEAVY_SHORT") ? 48
                 : (bt === "BROAD" || bt === "COMPACT") ? 40
                 :                                          38;   // NORMAL / LEAN
-  return (s.distAcc / cyclePx) % 1;
+  return (loco.state.distAcc / cyclePx) % 1;
+}
+
+function _locomotionFacing(loco, pose, providedFacing) {
+  if (!_FACING_AUTO_POSES.has(pose)) return providedFacing;
+  // Use EMA'd horizontal velocity. Threshold avoids flicker when
+  // mostly-lateral motion has a tiny x component.
+  const vx = loco.state.vxEMA;
+  if (Math.abs(vx) > 0.6) {
+    loco.state.facing = vx > 0 ? 1 : -1;
+  }
+  return loco.state.facing;
 }
 
 function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style = {}) {
-  // Override pose-t for locomotion poses with a distance-driven cycle.
-  // Caller can still pass `t` for event-driven poses (throw, tackle,
-  // dive, etc.) — those are left unchanged.
-  t = _locomotionT(x, y, pose, style, label, facing, t);
+  // Derive locomotion-driven pose-t and facing from per-player position
+  // deltas. Caller's t and facing are used as fallback / for non-
+  // locomotion poses. Cache update happens every frame (regardless of
+  // pose) so velocity continuity is maintained across pose transitions.
+  const loco = _locoState(x, y, pose, style, label, facing);
+  const tOverride = _locomotionT(loco, pose, style);
+  if (tOverride != null) t = tOverride;
+  facing = _locomotionFacing(loco, pose, facing);
   // Broadcast camera: queue the draw to the upright overlay so we can
   // depth-sort all sprites before flushing. The frame-end hook
   // (_frameEndBroadcast) sorts by projected-Y (smaller = further away)
