@@ -409,7 +409,53 @@ function pickBodyType(pos, archetype) {
   return "NORMAL";
 }
 
+// ── LOCOMOTION-DRIVEN POSE-T ─────────────────────────────────────────
+// First-principles fix for "every play people freeze while their feet
+// move": locomotion pose-t (stride cycle) is derived from the player's
+// distance traveled — NOT wall-clock — so when the body stops, the
+// legs stop too. Strides are 2.7yd for normal builds, 3.5yd for big
+// linemen (slower turnover). Event-driven poses (throw, tackle, dive,
+// jam, sack, etc.) keep their explicit t value because their `t`
+// represents progress through a specific motion, not foot placement.
+const _LOCOMOTION_POSES = new Set(["run", "carry", "release", "scrape", "backpedal", "jog"]);
+const _locoCache = new Map();
+function _locomotionT(x, y, pose, style, label, facing, providedT) {
+  if (!_LOCOMOTION_POSES.has(pose)) return providedT;
+  // Identity — player name preferred (unique within a game). Linemen
+  // typically have no name field; fall back to a stable composite.
+  // Pose is NOT in the key so the stride phase persists across pose
+  // transitions (run → carry → run → backpedal etc. all share the
+  // same distance accumulator; legs don't snap back to neutral mid-play).
+  const id = style && style.name
+    ? style.name
+    : `${(style && style.role) || "P"}|${label || ""}|${facing > 0 ? "R" : "L"}`;
+  let s = _locoCache.get(id);
+  if (!s) { s = { lastX: x, lastY: y, distAcc: 0 }; _locoCache.set(id, s); }
+  const dx = x - s.lastX, dy = y - s.lastY;
+  const dist = Math.hypot(dx, dy);
+  // Teleport guard — between plays a player may jump huge distances
+  // (formation reset). Don't accumulate those frames into stride cycle;
+  // just reset the anchor so the next real movement counts.
+  if (dist > 80) {
+    s.lastX = x; s.lastY = y;
+    return 0;
+  }
+  s.distAcc += dist;
+  s.lastX = x; s.lastY = y;
+  // Stride length in pixels. Bigger bodies have longer strides.
+  const bt = style && style.bodyType;
+  const cyclePx = (bt === "HUGE") ? 56
+                : (bt === "BIG" || bt === "TALL_HEAVY" || bt === "HEAVY_SHORT") ? 48
+                : (bt === "BROAD" || bt === "COMPACT") ? 40
+                :                                          38;   // NORMAL / LEAN
+  return (s.distAcc / cyclePx) % 1;
+}
+
 function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style = {}) {
+  // Override pose-t for locomotion poses with a distance-driven cycle.
+  // Caller can still pass `t` for event-driven poses (throw, tackle,
+  // dive, etc.) — those are left unchanged.
+  t = _locomotionT(x, y, pose, style, label, facing, t);
   // Broadcast camera: queue the draw to the upright overlay so we can
   // depth-sort all sprites before flushing. The frame-end hook
   // (_frameEndBroadcast) sorts by projected-Y (smaller = further away)
