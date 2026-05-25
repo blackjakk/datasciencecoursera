@@ -3580,8 +3580,19 @@ function buildAnimForPlay(play, prevPlay) {
         if (_passTacklerTrack && _isPassTacklerByName && typeof MotionPlayback !== "undefined") {
           const sample = MotionPlayback.sampleTrack(_passTacklerTrack, aT);
           if (sample) {
-            dd.x = losX + dir * sample.dxYd * FIELD.PX_PER_YARD;
-            dd.y = cy + sample.dyYd * FIELD.PX_PER_YARD;
+            const trackX = losX + dir * sample.dxYd * FIELD.PX_PER_YARD;
+            const trackY = cy + sample.dyYd * FIELD.PX_PER_YARD;
+            // Blend in from the defender's CURRENT position to the track
+            // over the first 10% of action time. The track's t=0 waypoint
+            // is hardcoded to a formation default (e.g., fs at dyYd=0),
+            // but the pre-snap depth alignment placed the safety at a
+            // coverage-specific spot (e.g., C2 fs at dyYd=-10). Snapping
+            // directly to the track at t=0 caused a 3-4 yd lateral
+            // teleport. Now the tackler slides smoothly from his
+            // coverage position into his pursuit track.
+            const blendIn = Math.min(1, Math.max(0, aT / 0.10));
+            dd.x = dd.x + (trackX - dd.x) * blendIn;
+            dd.y = dd.y + (trackY - dd.y) * blendIn;
             // Lock pursuit-state so any later code reads consistent pos
             if (d._sim) { d._sim.x = dd.x; d._sim.y = dd.y; }
             d._postCatchSynced = true;     // skip the sync block below
