@@ -91,16 +91,19 @@ def _fetch(url: str, cookies: Optional[str], max_retries: int = 4) -> Optional[s
 
 def _parse_matchup_page(html: str, league_id: str, year: int) -> Optional[dict]:
     """Pull team_id+name+score for the two teams on this matchup page."""
-    # The page structure has two team blocks with F-shade scores. Team names
-    # are linked via /YEAR/f1/LEAGUE/TEAM_ID with the team name as link text.
-    # We pair the two scores in document order with the two team links.
+    # Team links: /YEAR/f1/LEAGUE/TEAM_ID with team name as link text.
+    # Team total scores appear in <td class='Fz-xxl ...'> cells in the
+    # main "Points" row. PRIOR BUG: matched 'F-shade' class which is
+    # the projected-score row below — completely different numbers.
     teams_re = re.compile(
         rf'/{year}/f1/{league_id}/(\d+)["\'][^>]*>([^<]{{3,40}})</'
     )
-    scores_re = re.compile(r"F-shade[^>]*>(\d{2,3}\.\d{2})")
+    scores_re = re.compile(
+        r"class=['\"]Fz-xxl[^'\"]*['\"][^>]*>(\d{1,3}\.\d{2})"
+    )
     teams = teams_re.findall(html)
     scores = scores_re.findall(html)
-    # Filter to unique team links in encounter order
+    # Unique team links in encounter order
     seen = set()
     unique_teams = []
     for tid, nm in teams:
