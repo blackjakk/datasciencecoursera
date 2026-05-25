@@ -436,18 +436,17 @@ def compute_preseason_ranks():
     drf = _norm([r["draft_spp"] for r in rows])
     cap = _norm([r["pick_value"] for r in rows])
     kpr = _norm([r["keeper_value"] for r in rows])
-    ros = _norm([r["roster_ppg"] for r in rows])
 
-    # 70% ASSETS = 35% pick capital + 30% keeper value + 5% roster depth
+    # 70% ASSETS = 40% pick capital + 30% keeper value
     # 30% SKILL  = 15% trade + 15% draft
+    # (Dropped the 5% backward-looking roster_ppg term; folded into picks.)
     for i, r in enumerate(rows):
-        score = (0.35 * cap[i] + 0.30 * kpr[i] + 0.05 * ros[i]
+        score = (0.40 * cap[i] + 0.30 * kpr[i]
                  + 0.15 * trd[i] + 0.15 * drf[i])
         r["trade_norm"] = round(trd[i])
         r["draft_norm"] = round(drf[i])
         r["cap_norm"] = round(cap[i])
         r["keeper_norm"] = round(kpr[i])
-        r["roster_norm"] = round(ros[i])
         r["power_score"] = round(score, 1)
 
     rows.sort(key=lambda r: -r["power_score"])
@@ -464,7 +463,7 @@ def chart_preseason_power(rows, path):
     names = [r["name"] for r in s]
     # Contributions: cap_norm × 0.35, keeper_norm × 0.30, (trd+drf)/2 × 0.30
     # (Roster depth at 0.05 folded into picks for visual simplicity)
-    picks_contrib = [r["cap_norm"] * 0.35 + r["roster_norm"] * 0.05 for r in s]
+    picks_contrib = [r["cap_norm"] * 0.40 for r in s]
     keep_contrib = [r["keeper_norm"] * 0.30 for r in s]
     skill_contrib = [(r["trade_norm"] + r["draft_norm"]) * 0.5 * 0.30 for r in s]
     totals = [r["power_score"] for r in s]
@@ -488,7 +487,7 @@ def chart_preseason_power(rows, path):
     ax.set_yticklabels(names, fontweight="bold")
     ax.set_xlim(0, max(totals) * 1.18)
     ax.set_xlabel("Preseason Power Score (stacked by source)", fontweight="bold")
-    ax.set_title("Summer 2026 GUAP Preseason Power Rankings  ·  "
+    ax.set_title("2026 Preseason GUAP Rankings  ·  "
                  "blue = picks · teal = keepers · gold = skill",
                  loc="left", pad=14, fontsize=13)
     ax.legend(loc="lower right", frameon=False, fontsize=9)
@@ -576,11 +575,10 @@ def _format_keepers(scored_players, keepers_detail=None):
 
 def render_rank_card(r):
     color = bpr.mgr_color(r["mid"])
-    label, body = GUAP_TAKES.get(r["mid"], ("?", "..."))
+    label, body = GUAP_TAKES.get(r["mid"], ("", ""))
     av = _avatar_path(r["mid"])
     av_html = (f'<img class="avatar" src="{_data_uri(av)}"/>' if av else
                '<div class="avatar avatar-placeholder"></div>')
-    # No momentum field in assets+skill mode; using rank-2025 as a side-stat.
     return f"""
     <div class="rank-card">
       <div class="rank-head" style="background:linear-gradient(135deg, {color} 0%, {color}dd 100%)">
@@ -684,20 +682,19 @@ def build_html(rows, paths):
     """
     h = ['<!DOCTYPE html><html><head><meta charset="utf-8">',
          f'<style>{css}</style></head><body>']
-    h.append('<div class="hero"><h1>2026 PRESEASON POWER RANKINGS</h1>'
-             f'<p class="subtitle">{today} · MONEYLEAGUE · Big Guap\'s Hot Takes</p></div>')
+    h.append('<div class="hero"><h1>2026 PRESEASON GUAP RANKINGS</h1>'
+             f'<p class="subtitle">{today} · MONEYLEAGUE</p></div>')
 
     h.append('<h2>Preseason Power Score</h2>')
     h.append('<p class="note">Composite: <strong>70% ASSETS</strong> '
-             '(35% 2026 pick capital — projected pts/round from '
+             '(40% 2026 pick capital — projected pts/round from '
              'data/pick_value.json · 30% top-4 keeper projected pts '
-             '× multi-year multiplier · 5% roster depth) + '
-             '<strong>30% SKILL</strong> (15% trade VBD/trade · 15% draft '
-             'surplus/pick — Sleeper-era weighted, career fallback for '
-             'small samples). Keeper multipliers: <strong>Y1 = 1.6×</strong> '
-             '(3 yrs remaining), <strong>Y2 = 1.3×</strong> (2 yrs), '
-             '<strong>Y3 = 1.0×</strong> (final year). Forward-looking '
-             '— recent W-L excluded.</p>')
+             '× multi-year multiplier) + <strong>30% SKILL</strong> '
+             '(15% trade VBD/trade · 15% draft surplus/pick — Sleeper-era '
+             'weighted, career fallback for small samples). '
+             'Keeper multipliers: <strong>Y1 1.6×</strong> · '
+             '<strong>Y2 1.3×</strong> · <strong>Y3 1.0×</strong> '
+             '(final year). Forward-looking — recent W-L excluded.</p>')
     h.append(f'<img class="chart" src="{_data_uri(paths["power"])}"/>')
 
     h.append('<h2>2026 Pick Capital</h2>')
@@ -705,7 +702,7 @@ def build_html(rows, paths):
              'where the meaningful rookie draft action happens.</p>')
     h.append(f'<img class="chart" src="{_data_uri(paths["capital"])}"/>')
 
-    h.append('<h2>The Rankings (with GUAP Takes)</h2>')
+    h.append('<h2>The Rankings & Takes</h2>')
     for r in rows:
         h.append(render_rank_card(r))
 
