@@ -37,7 +37,8 @@ PREDICTED_SLOT_TO_RID = {
 }
 
 N_SIMS = 50
-TEMPERATURE = 0.35
+MC_TEMPERATURE = 0.25       # Monte Carlo: some variance for honest distributions
+DISPLAY_TEMPERATURE = 0.0   # Displayed board: greedy / no reaches
 TOP_K = 15
 MY_RID = 9  # Brian — bottom of consolation
 
@@ -135,10 +136,12 @@ def main():
     draft, players, my_team_idx = build_draft()
     players_by_name = {_norm(p.name): p for p in players}
 
-    # One full sim for the draft board.
+    # One full sim for the draft board — deterministic so the visible board
+    # has no implausible reaches (e.g. Chase falling past pick 5).
     rng = random.Random(42)
     full = simulate_full_draft(draft, players, my_team_idx,
-                               temperature=TEMPERATURE, top_k=TOP_K, rng=rng)
+                               temperature=DISPLAY_TEMPERATURE,
+                               top_k=TOP_K, rng=rng)
     picks_dicts = [_pick_to_dict(fp, players_by_name) for fp in full]
     PICKS_OUT.write_text(json.dumps(picks_dicts, indent=2))
     print(f"Wrote {PICKS_OUT} ({len(picks_dicts)} picks)")
@@ -159,7 +162,7 @@ def main():
     for sim_idx in range(N_SIMS):
         sim_rng = random.Random(mc_rng.randint(0, 10**9))
         sim_full = simulate_full_draft(draft, players, my_team_idx,
-                                       temperature=TEMPERATURE, top_k=TOP_K,
+                                       temperature=MC_TEMPERATURE, top_k=TOP_K,
                                        rng=sim_rng)
         team_totals = defaultdict(float)
         for fp in sim_full:
