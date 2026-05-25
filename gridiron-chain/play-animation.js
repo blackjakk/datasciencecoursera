@@ -733,8 +733,12 @@ function buildAnimForPlay(play, prevPlay) {
         returnerPose = ft > 0.85 ? "reach" : "stance";
       } else if (t < RETURN_END) {
         const rt = (t - FLIGHT_END) / (RETURN_END - FLIGHT_END);
-        const sm = rt * rt * (3 - 2 * rt);
-        returnerX = catchX + (localFinalX - catchX) * sm;
+        // LINEAR motion — constant speed during the return. Smoothstep
+        // decelerated the returner near the end of the return phase,
+        // which made him appear to STALL right before the tackle. With
+        // linear, the returner is still at full speed when the cover
+        // catches him — tackle reads as a collision, not a stop-then-pop.
+        returnerX = catchX + (localFinalX - catchX) * rt;
         returnerY = cy + Math.sin(rt * Math.PI * 1.5) * 5;
         ballX = returnerX;
         ballY = returnerY;
@@ -791,36 +795,25 @@ function buildAnimForPlay(play, prevPlay) {
           cx = sprintFromX + (targetX - sprintFromX) * rt;
           cy_ = sprintFromY + (targetY - sprintFromY) * rt;
         } else {
-          const tk = (t - RETURN_END) / (1 - RETURN_END);
+          // Tackle phase: HOLD at the same positions where the return
+          // phase ended. The previous pile-arrangement snap moved
+          // non-primary cover by 30-50 lateral px in ~150 ms — that
+          // was the "everyone teleports to where he should be tackled"
+          // bug. With this hold, primary stays ON the returner (and
+          // gets the tackle pose), secondaries are at his side, the
+          // rest are spread behind. No phase-boundary motion at all.
           const isPrimary   = i === primaryTacklerIdx;
           const isSecondary = i === secondaryTacklerIdx;
-          const inPile      = tackleStyle === 3 && (i % 2 === 0 || isPrimary || isSecondary);
-          let lastTargetX, lastTargetY;
           if (isPrimary) {
-            lastTargetX = returnerX + recvDir * 2;
-            lastTargetY = returnerY;
+            cx = returnerX + recvDir * 2;
+            cy_ = returnerY;
           } else if (isSecondary && tackleStyle >= 1) {
-            lastTargetX = returnerX - recvDir * 6;
-            lastTargetY = returnerY + (i % 2 === 0 ? 8 : -8);
+            cx = returnerX - recvDir * 6;
+            cy_ = returnerY + (i % 2 === 0 ? 8 : -8);
           } else {
-            lastTargetX = returnerX - recvDir * (12 + (i % 4) * 8);
-            lastTargetY = coverLanes[i] + (returnerY - coverLanes[i]) * 0.6;
+            cx = returnerX - recvDir * (12 + (i % 4) * 8);
+            cy_ = coverLanes[i] + (returnerY - coverLanes[i]) * 0.6;
           }
-          let px, py;
-          if (isPrimary) {
-            px = returnerX; py = returnerY;
-          } else if (isSecondary && tackleStyle >= 1) {
-            px = returnerX - recvDir * 4; py = returnerY + ((i & 1) ? 6 : -6);
-          } else if (inPile) {
-            px = returnerX - recvDir * (4 + (i % 3) * 3);
-            py = returnerY + ((i % 3) - 1) * 5;
-          } else {
-            px = returnerX - recvDir * (10 + (i % 4) * 6);
-            py = returnerY + ((i % 3) - 1) * 7;
-          }
-          const tkEase = Math.min(1, tk * 1.8);
-          cx = lastTargetX + (px - lastTargetX) * tkEase;
-          cy_ = lastTargetY + (py - lastTargetY) * tkEase;
         }
         coverPos.push({ x: cx, y: cy_ });
       }
