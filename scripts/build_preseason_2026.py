@@ -159,33 +159,34 @@ def _norm(s):
 
 
 def compute_keeper_value(top_n=4, min_keeper_round=3):
-    """Each manager's projected 2026 keepers loaded from data/keepers_2026.json
-    (built by scripts/build_2026_keepers.py — the canonical predictor
-    using value-over-replacement + 3-year cap enforcement).
-
-    Returns {mid: {'value': sum_pts_2025, 'players': [(pid, pts), ...],
-                    '_keepers_detail': [...]}}
+    """Each manager's projected 2026 keepers from data/keepers_2026.json,
+    valued by 2026 projected half-PPR points (forward-looking).
     """
     rid_to_mid = {m["sleeper_roster_id"]: m["id"]
                   for m in all_managers() if m.get("sleeper_roster_id")}
     keepers_file = ROOT / "data" / "keepers_2026.json"
     raw = json.loads(keepers_file.read_text())
 
-    # Group by roster_id, only the carryovers (forced_drop are aged-out)
     by_rid = defaultdict(list)
     for e in raw:
         if e.get("status") == "carryover":
             by_rid[e["roster_id"]].append(e)
 
-    # 2025 player pts (for value display alongside VBD)
-    LG = "league_1245039290518360064"
-    ptot = defaultdict(float)
-    for f in sorted((ROOT / "data/sleeper" / LG / "matchups").glob("week_*.json")):
-        for e in json.loads(f.read_text()):
-            for pid, p in (e.get("players_points") or {}).items():
-                if p:
-                    ptot[pid] += p
-    # Look up player_id by name (xlsx uses name; we need pid for portraits)
+    # 2026 projections: name(lower) -> projected half-ppr pts
+    proj_raw = json.loads((ROOT / "data/sleeper_projections_2026.json").read_text())
+    proj_by_name: dict[str, float] = {}
+    proj_by_pid: dict[str, float] = {}
+    for p in proj_raw:
+        pid = p.get("player_id")
+        pts = (p.get("stats") or {}).get("pts_half_ppr", 0)
+        if not pts:
+            continue
+        nm = (p.get("player") or {}).get("full_name") or ""
+        if nm:
+            proj_by_name[nm.lower()] = pts
+        if pid:
+            proj_by_pid[pid] = pts
+
     players = json.loads((ROOT / "data/sleeper/players_nfl.json").read_text())
     name_to_pid: dict[str, str] = {}
     for pid, p in players.items():
@@ -201,8 +202,9 @@ def compute_keeper_value(top_n=4, min_keeper_round=3):
         details = []
         for k in keepers:
             pid = name_to_pid.get(k["player_name"].lower(), "")
-            pts = ptot.get(pid, 0) if pid else 0
-            scored.append((pid, pts))
+            proj = (proj_by_pid.get(pid) or
+                    proj_by_name.get(k["player_name"].lower(), 0))
+            scored.append((pid, proj))
             details.append({
                 "name": k["player_name"],
                 "player_id": pid,
@@ -210,7 +212,7 @@ def compute_keeper_value(top_n=4, min_keeper_round=3):
                 "year_2025": k.get("years_kept", 0),
                 "year_2026": (k.get("years_kept", 0) or 0) + 1,
                 "cost_round_2026": k.get("forfeit_round", k.get("effective_forfeit_round", 0)),
-                "pts_2025": round(pts, 1),
+                "proj_2026": round(proj, 1),
                 "net_vbd_2026": round(k.get("net_vbd", 0), 1),
             })
         out[mid] = {
@@ -218,6 +220,55 @@ def compute_keeper_value(top_n=4, min_keeper_round=3):
             "players": scored,
             "_keepers_detail": details,
         }
+    return out
+
+
+def compute_pick_value():
+    """Sum of round-mean projected pick value across all 2026 picks owned
+    (using data/pick_value.json — actual historical points by round).
+    """
+    pv = json.loads((ROOT / "data/pick_value.json").read_text())
+    by_round = {int(k): v["mean_points"] for k, v in pv["by_round"].items()}
+    # For rounds outside the file (R6-17), extrapolate decay
+    last_known = max(by_round)
+    last_val = by_round[last_known]
+    for rnd in range(last_known + 1, 18):
+        # decay 15% per round past last known
+        by_round[rnd] = last_val * (0.85 ** (rnd - last_known))
+
+    rid_to_mid = {m["sleeper_roster_id"]: m["id"]
+                  for m in all_managers() if m.get("sleeper_roster_id")}
+
+    def mgr(rid):
+        return ROSTER_HANDOFFS.get((2025, rid)) or rid_to_mid.get(rid)
+
+    # Start each roster with 1 pick per round R1-R17
+    picks = defaultdict(lambda: defaultdict(int))
+    for rid in range(1, 13):
+        m = mgr(rid)
+        if m:
+            for rnd in range(1, 18):
+                picks[m][rnd] += 1
+    LG = "league_1245039290518360064"
+    for f in sorted((ROOT / "data/sleeper" / LG / "transactions").glob("week_*.json")):
+        for t in json.loads(f.read_text()):
+            if t.get("type") != "trade" or t.get("status") != "complete":
+                continue
+            for pk in (t.get("draft_picks") or []):
+                if str(pk.get("season")) != "2026":
+                    continue
+                orig = mgr(pk["previous_owner_id"])
+                new = mgr(pk["owner_id"])
+                rnd = pk["round"]
+                if orig:
+                    picks[orig][rnd] -= 1
+                if new:
+                    picks[new][rnd] += 1
+
+    out = {}
+    for mid, r2cnt in picks.items():
+        total = sum(by_round.get(rnd, 0) * cnt for rnd, cnt in r2cnt.items())
+        out[mid] = total
     return out
 
 
@@ -304,14 +355,18 @@ def compute_pick_capital():
 
 def compute_preseason_ranks():
     """Returns sorted list of dicts ranking managers heading into 2026
-    based on ASSETS + SKILL (not recent record)."""
-    # Career skill metrics (Yahoo + Sleeper combined)
+    based on ASSETS + SKILL (forward-looking, not recent record)."""
+    # Skill: weighted by recency — last 3 years (Sleeper era) only
+    sl = lambda y: 2023 <= y <= 2025
+    vbd_recent, vbd_n_recent = bpr.compute_trade_vbd(year_filter=sl)
+    draft_recent = bpr.compute_draft_stats(year_filter=sl)
+    # All-time as fallback for managers with thin recent samples
     vbd_all, vbd_n_all = bpr.compute_trade_vbd()
     draft_all = bpr.compute_draft_stats()
 
-    # 2025 specifics
     season_table = bpr.compute_season_table()
     pick_cap = compute_pick_capital()
+    pick_val = compute_pick_value()  # NEW: projected pts per owned pick
     keepers = compute_keeper_value(top_n=4, min_keeper_round=3)
 
     rows = []
@@ -323,13 +378,21 @@ def compute_preseason_ranks():
         s2025 = season_table.get((2025, mid))
         if not s2025:
             continue
-        n_trades = vbd_n_all.get(mid, 0)
-        trade_per = vbd_all.get(mid, 0) / n_trades if n_trades else 0
-        draft_spp = draft_all.get(mid, {}).get("spp", 0)
+        # Skill — prefer Sleeper-era; fall back to career if no recent trades
+        n_recent = vbd_n_recent.get(mid, 0)
+        if n_recent >= 3:
+            trade_per = vbd_recent.get(mid, 0) / n_recent
+            n_trades = n_recent
+        else:
+            n_all = vbd_n_all.get(mid, 0)
+            trade_per = vbd_all.get(mid, 0) / n_all if n_all else 0
+            n_trades = n_all
+        # Draft skill — recent if enough picks, else career
+        draft_spp = (draft_recent.get(mid, {}).get("spp")
+                     if draft_recent.get(mid, {}).get("picks", 0) >= 20
+                     else draft_all.get(mid, {}).get("spp", 0))
         early_picks = pick_cap[mid][1] + pick_cap[mid][2] + pick_cap[mid][3]
-        # Weighted early-pick value (R1 worth 3, R2 worth 2, R3 worth 1)
-        pick_value = (pick_cap[mid][1] * 3 + pick_cap[mid][2] * 2
-                      + pick_cap[mid][3] * 1)
+        pick_value = pick_val.get(mid, 0)  # projected pts from owned picks
         ppg_2025 = s2025["ppg"]
 
         kp = keepers.get(mid, {"value": 0, "players": [], "_keepers_detail": []})
@@ -615,13 +678,12 @@ def build_html(rows, paths):
 
     h.append('<h2>Preseason Power Score</h2>')
     h.append('<p class="note">Composite: <strong>70% ASSETS</strong> '
-             '(35% 2026 R1-R3 pick capital · 30% top-4 keeper value · '
-             '5% roster depth) + <strong>30% SKILL</strong> (15% career '
-             'trade VBD/trade · 15% career draft surplus/pick). '
-             'Keeper rule: players drafted R3 or later in 2025 are '
-             'eligible (R3 keepers cost your R1 pick; R4 cost R2; etc.). '
-             'Recent W-L excluded — this is "who has the tools," '
-             'not "who got hot."</p>')
+             '(35% 2026 pick capital — projected pts/round from '
+             'data/pick_value.json · 30% projected 2026 pts of top-4 '
+             'predicted keepers · 5% roster depth) + '
+             '<strong>30% SKILL</strong> (15% trade VBD/trade · 15% draft '
+             'surplus/pick — Sleeper-era weighted, career fallback for '
+             'small samples). Forward-looking — recent W-L excluded.</p>')
     h.append(f'<img class="chart" src="{_data_uri(paths["power"])}"/>')
 
     h.append('<h2>2026 Pick Capital</h2>')
