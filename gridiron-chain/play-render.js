@@ -2464,23 +2464,35 @@ function makeFormation(losX, poss, opts = {}) {
     }
   }
 
-  // Defensive line (4) — wider stance to match the OL spread. Goal-line:
-  // tighter and crashing harder. Pre-snap depth bumped from 1.5 → 2.5
-  // yards because sprite width (~30px = 2yd) was making OL and DL
-  // visibly touch in the gap at the LOS.
+  // ── FRONT-SEVEN STACK ──────────────────────────────────────────────
+  // DL and LB depths are MECHANICALLY COUPLED — LBs play "behind the
+  // front" in real football and need physical separation from the DL
+  // row in sprite space (~30px width means we need ~3yd between row
+  // centers to avoid visible clipping). Encoded as relative offset so
+  // bumping DL depth automatically pushes LBs back too (the bug that
+  // shipped before this refactor: bumped DL_DEPTH 1.5→2.5 but forgot
+  // to bump lbDepth, so LBs visibly touched the DL).
+  // Secondary (CB/S) depths are NOT in this stack — they're scheme-
+  // driven (press vs off coverage, single-high vs split safety) and
+  // change with the coverage call, not with the front depth.
+  // NOTE: engine motion tracks (_buildPassZoneDrops in play-engine.js,
+  // sacker starts, run blockers) hardcode matching depths. If you
+  // change DL_DEPTH_YD or LB_BEHIND_DL_YD, also update those.
+  const DL_DEPTH_YD     = isGL ? 1.0 : 2.5;     // DL on the ball
+  const LB_BEHIND_DL_YD = isGL ? 1.5 : 3.0;     // gap-fill depth behind front
+  const lbDepth         = DL_DEPTH_YD + LB_BEHIND_DL_YD;
+
+  // Defensive line (4) — wider stance to match the OL spread.
+  // Goal-line: tighter and crashing harder.
   const dline = [];
   const dlGap = isGL ? 26 : 34;
   for (let i = -1.5; i <= 1.5; i += 1) {
-    dline.push({ x: losX + dir * (isGL ? 1.0 : 2.5) * PX, y: cy + i * dlGap, role: "DL" });
+    dline.push({ x: losX + dir * DL_DEPTH_YD * PX, y: cy + i * dlGap, role: "DL" });
   }
 
   // ── LINEBACKERS (0-3 by package) ──
   // BASE_43: 3 LBs (W/M/S). NICKEL: 2 LBs (W/M, drop SAM). DIME: 1 LB (M).
   // QUARTER: 0 LBs (5-DB look vs empty/00).
-  // LB depth: real NFL ~5yd off ball (~3yd behind DL). With DL at
-  // 2.5yd in our compressed sprite world, LBs at 5.5yd gives a clean
-  // ~3yd gap that doesn't visually clip into the front line.
-  const lbDepth = isGL ? 2.5 : 5.5;
   const lbs = [];
   if (dpDef.lb === 3) {
     lbs.push({ x: losX + dir * lbDepth * PX, y: cy - (isGL ? 28 : 44), role: "LB" });
