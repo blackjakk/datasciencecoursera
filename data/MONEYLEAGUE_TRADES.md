@@ -10,6 +10,32 @@
 - **Draft picks moved**: 424
 - **Most active year**: see volume chart below
 
+## 🏆 Top Fleecers — Aggregate Ranking
+
+Each manager's **total net point delta across all Yahoo trades** they were ever in. Positive = net winner, negative = net loser. The single number that summarizes who has fleeced whom over 12 years.
+
+| Rank | Manager | Trades | Net VBD | Per trade |
+|---|---|---|---|---|
+| 1 | **Trevor** | 38 | **+1675** | +44 |
+| 2 | **Dave** | 22 | **+1644** | +75 |
+| 3 | **Ankur** | 7 | **+850** | +121 |
+| 4 | **Eric** | 7 | **+611** | +87 |
+| 5 | **Coop** | 35 | **+611** | +17 |
+| 6 | **Kyle** | 21 | **+372** | +18 |
+| 7 | **Z** | 2 | **+146** | +73 |
+| 8 | **Brower** | 11 | **+121** | +11 |
+| 9 | **Nick Lewis** | 4 | **-62** | -16 |
+| 10 | **Tim** | 9 | **-87** | -10 |
+| 11 | **Former manager** | 1 | **-119** | -119 |
+| 12 | **Lem** | 19 | **-219** | -12 |
+| 13 | **Notebooks** | 1 | **-452** | -452 |
+| 14 | **Troy** | 19 | **-455** | -24 |
+| 15 | **Brian** | 35 | **-1028** | -29 |
+| 16 | **Nark** | 10 | **-1338** | -134 |
+| 17 | **Donnie** | 31 | **-2271** | -73 |
+
+*Net point deltas count full-season nflverse scoring for each trade. **Trevor** is the league's net winner (+1675) across 38 trades. **Donnie** is the net loser (-2271).*
+
 ## 🌀 Most Active Traders
 
 | Rank | Manager | Trades | Players acq | Picks acq |

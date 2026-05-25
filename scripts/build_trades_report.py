@@ -181,6 +181,43 @@ def build_markdown():
     md.append(f"- **Most active year**: see volume chart below\n")
 
     # ===== Active traders =====
+    # ===== Aggregate Fleecer Ranking (sum of net VBD across all trades) =====
+    md.append("## 🏆 Top Fleecers — Aggregate Ranking\n")
+    md.append("Each manager's **total net point delta across all Yahoo "
+              "trades** they were ever in. Positive = net winner, "
+              "negative = net loser. The single number that summarizes who "
+              "has fleeced whom over 12 years.\n")
+    agg = defaultdict(float)
+    agg_n = defaultdict(int)
+    for t in trades:
+        if t["source"] != "yahoo":
+            continue
+        pa = sum(nfl.get((t["year"], _norm(p["name"])), 0)
+                 for p in t["side_a"].get("received_players", []))
+        pb = sum(nfl.get((t["year"], _norm(p["name"])), 0)
+                 for p in t["side_b"].get("received_players", []))
+        agg[t["side_a_mgr"]] += (pa - pb)
+        agg[t["side_b_mgr"]] += (pb - pa)
+        agg_n[t["side_a_mgr"]] += 1
+        agg_n[t["side_b_mgr"]] += 1
+    rows = sorted(agg.items(), key=lambda kv: -kv[1])
+    md.append("| Rank | Manager | Trades | Net VBD | Per trade |")
+    md.append("|---|---|---|---|---|")
+    for i, (mid, net) in enumerate(rows, 1):
+        n = agg_n[mid]
+        per = net/n if n else 0
+        md.append(f"| {i} | **{_mgr_name(mid)}** | {n} | "
+                  f"**{net:+.0f}** | {per:+.0f} |")
+    md.append("")
+    top_fleecer = rows[0]
+    bottom = rows[-1]
+    md.append(f"*Net point deltas count full-season nflverse scoring for "
+              f"each trade. **{_mgr_name(top_fleecer[0])}** is the league's "
+              f"net winner ({top_fleecer[1]:+.0f}) across "
+              f"{agg_n[top_fleecer[0]]} trades. "
+              f"**{_mgr_name(bottom[0])}** is the net loser "
+              f"({bottom[1]:+.0f}).*\n")
+
     md.append("## 🌀 Most Active Traders\n")
     md.append("| Rank | Manager | Trades | Players acq | Picks acq |")
     md.append("|---|---|---|---|---|")
@@ -448,7 +485,7 @@ def main():
     except ImportError:
         sys.exit("weasyprint not installed.")
     html = _md_to_html(md)
-    HTML(string=html).write_pdf(str(PDF_OUT))
+    HTML(string=html, base_url=str(ROOT)).write_pdf(str(PDF_OUT))
     print(f"Wrote {PDF_OUT.relative_to(ROOT)}")
 
 
