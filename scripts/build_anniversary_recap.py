@@ -41,6 +41,11 @@ def _yahoo_team_names_by_year() -> dict[int, dict[str, str]]:
 # League lore — memorable stories tied to specific seasons.
 # Add to this dict as more comes back to you.
 LEAGUE_LORE: dict[int, list[str]] = {
+    2011: [
+        "🎯 **Inaugural season.** 8 founding members, including **Nick Lewis "
+        "(known as 'Z')** as HOLD MA DICK. Nark (The Danny O'Shea's) took "
+        "the first-ever championship 139.70 over Trevor (Reno Mahe 911).",
+    ],
     2015: [
         "🎰 **The Tropicana AC Draft.** Donnie loaded up on TEs early "
         "(Martellus Bennett R4, Julius Thomas R5) and won the title with "
