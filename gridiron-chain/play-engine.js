@@ -1591,7 +1591,13 @@ class GameSimulator {
   // on TE/RB, zone coverages drop them to hook zones at depth.
   // Skips the slot matching the credited tackler.
   _buildPassZoneDrops(opts) {
-    const { tacklerSlot, throwT, coverage = "C2_ZONE" } = opts;
+    const { tacklerSlot, throwT, coverage = "C2_ZONE", catchDepth = 0 } = opts;
+    // Deep catches (15+ yd) draw LBs out of their hook zones — they
+    // can't catch up to a deep ball but they should at least TURN AND
+    // RUN toward the play instead of jogging in place at hook depth.
+    // Non-deep catches use the small post-throw drift that keeps them
+    // near hook so they don't pile onto short catches.
+    const _isDeepCatch = catchDepth >= 15;
     const out = {};
     const isBlitz = coverage === "C0_BLITZ";
     const isMan   = coverage === "C0_BLITZ" || coverage === "C1_MAN";
@@ -1656,12 +1662,17 @@ class GameSimulator {
           { t: _shuf2T, dxYd: target.dxYd - _shufFwdSign * 0.2, dyYd: target.dyYd - _shufLatSign * _shufLat * 0.4 },
           { t: throwT, dxYd: target.dxYd, dyYd: target.dyYd },          // re-set at the throw moment
           // Smaller break-on-ball drift — these are NON-tackler LBs in
-          // zone. They shouldn't all converge on the catch (that piled
-          // 3 extra sprites onto every short middle catch and made the
-          // play unreadable). Tackler LB gets the full track via
-          // motion.tracks.tackler; these stay near their hook.
-          { t: 0.78, dxYd: target.dxYd + 1, dyYd: target.dyYd * 0.88 },
-          { t: 1.00, dxYd: target.dxYd + 2, dyYd: target.dyYd * 0.75 },
+          // zone. Short / medium catches: small drift (don't pile on).
+          // Deep catches: turn and run upfield — LB won't catch up to a
+          // deep ball but the visual reaction reads as defenders
+          // engaging the play, not jogging in place.
+          ...(_isDeepCatch ? [
+            { t: 0.78, dxYd: target.dxYd + 5, dyYd: target.dyYd * 0.45 },
+            { t: 1.00, dxYd: target.dxYd + 10, dyYd: target.dyYd * 0.25 },
+          ] : [
+            { t: 0.78, dxYd: target.dxYd + 1, dyYd: target.dyYd * 0.88 },
+            { t: 1.00, dxYd: target.dxYd + 2, dyYd: target.dyYd * 0.75 },
+          ]),
         ],
       };
     }
@@ -5085,6 +5096,7 @@ class GameSimulator {
           tacklerSlot: _passTacklerSlot,
           throwT: _throwT,
           coverage: this._lastPassCoverage,
+          catchDepth: targetDepth,
         });
         // ── PATH B Phase 4.2 — throwType + dropDepth ────────────────
         // Animation was defaulting every completion to TOUCH because

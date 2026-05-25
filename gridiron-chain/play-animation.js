@@ -3875,67 +3875,69 @@ function buildAnimForPlay(play, prevPlay) {
       // First 20% of the route window = RELEASE pose (explosive first
       // step off the LOS). After that, standard run until catch.
       const inRelease = aT > 0 && aT < throwFrac * 0.20;
+      // Pre-compute whether this frame is the carrier-going-down moment
+      // so the fall-variant logic below can pick the right pose. The
+      // variant is computed AFTER `def` is built so it can read the
+      // tackler's sim velocity for the momentum model.
+      const _isTackleNow = play.kind === "complete" && t > throwPhase + 0.10
+                         && aT > TACKLE_START_AT && (play.yards ?? 0) < 90;
+      // FALL VARIANT — picked from combined-momentum physics before the
+      // wrPose chain runs. Three poses available:
+      //   tackled   – default ragdoll (rotates 90° to horizontal)
+      //   tumble    – big chase tackle, carrier rolls 270° head-over-heels
+      //   spin_fall – side hit, carrier spins to one side
+      const _outerTacklerName = play.motion && play.motion.tacklerName;
+      let _wrFallDir = 1;
+      let _wrSideDir = 1;
+      let _wrFallPose = "tackled";
+      if (_isTackleNow && _outerTacklerName) {
+        const _tk = def.find(d => d && d.name === _outerTacklerName);
+        if (_tk) {
+          const postCatchSec = Math.max(0.1, (1 - throwPhase) * dur / 1000);
+          const carrierVx = (endX - targetX) / postCatchSec;
+          const tackVx    = (_tk._sim && typeof _tk._sim.vx === "number") ? _tk._sim.vx : 0;
+          const tackVy    = (_tk._sim && typeof _tk._sim.vy === "number") ? _tk._sim.vy : 0;
+          const combinedVx = carrierVx + tackVx;
+          const combinedVy = tackVy;
+          if (combinedVx * dir < 0) _wrFallDir = -1;
+          _wrSideDir = combinedVy >= 0 ? 1 : -1;
+          const absVx = Math.abs(combinedVx);
+          const absVy = Math.abs(combinedVy);
+          const yacYds = Math.abs(endX - targetX) / FIELD.PX_PER_YARD;
+          if (absVy > absVx * 0.7 && absVy > 80) {
+            _wrFallPose = "spin_fall";
+          } else if (yacYds > 8 && combinedVx * dir > 180) {
+            _wrFallPose = "tumble";
+          }
+        }
+      }
       const wrPose = t < PRE
-        ? "idle"   // hold stance pre-snap (auto-flips to role stance via drawPlayer)
+        ? "idle"
         : (wrIntPose
         || (inWRJukeWindow ? "juke"
         :  (inLeapWindow ? "leap"
         :  (isCatching ? "reach"
         :  (isPostCatch && aT > TACKLE_START_AT && passIsTD ? "celebrate"
-        :  (isPostCatch && aT > TACKLE_START_AT && (play.yards ?? 0) < 90 ? "tackled"
+        :  (_isTackleNow ? _wrFallPose
         :  (isPostCatch ? "carry"
         :  (inRelease ? "release"
         :   "run"))))))));
-      // For the tackled fall, pass fall-progress (not stride cycle) so the
-      // ragdoll animation actually animates from "just hit" → "flat".
-      // For run/carry, the stride cycle rate must scale to PLAY DURATION,
-      // not be a flat fraction of t. (t*3)%1 = only 3 strides across the
-      // whole play. On a 12-second play that's 4 seconds per stride — way
-      // too slow, reads as the receiver sliding/gliding. Real jog is
-      // ~2 strides/sec. Drive cycle off elapsed wall time instead.
+      const wrIsTackled = wrPose === "tackled" || wrPose === "tumble" || wrPose === "spin_fall";
+      // For the tackled fall, pass fall-progress (not stride cycle).
+      // For run/carry, drive stride off wall time at ~2 strides/sec.
       const strideHz = 2.0;
-      const wrIsTackled = wrPose === "tackled";
       const wrTackleT = wrIsTackled ? Math.min(1, (aT - TACKLE_START_AT) / (1 - TACKLE_START_AT))
                        : inLeapWindow ? leapInternalT
                        : ((t * (dur / 1000)) * strideHz) % 1;
-      // PER-PLAY FALL DIRECTION via combined-momentum model.
-      //
-      // Both the carrier and the named tackler have a velocity at the
-      // moment of contact. Treat them as equal mass: combined momentum
-      // direction = vCarrier + vTackler. The carrier falls in the
-      // direction of that combined vector (relative to his facing).
-      //
-      //   chase tackle:    carrier vx=+12, tackler vx=+15  →  combined +27  →  forward fall
-      //   head-on, equal:  carrier vx=+12, tackler vx=-15  →  combined  -3  →  backward fall
-      //   head-on, slow D: carrier vx=+12, tackler vx=-8   →  combined  +4  →  forward fall (carrier overpowers)
-      //   side hit:        carrier vx=+12, tackler vx≈0    →  combined +12  →  forward fall
-      //
-      // Carrier velocity comes from the YAC formula (constant rate from
-      // catchX → endX over the post-catch window). Tackler velocity is
-      // read from his SimPlayer.
-      const _outerTacklerName = play.motion && play.motion.tacklerName;
-      let _wrFallDir = 1;
-      if (wrIsTackled && _outerTacklerName) {
-        const _tk = def.find(d => d && d.name === _outerTacklerName);
-        if (_tk) {
-          const postCatchSec = Math.max(0.1, (1 - throwPhase) * dur / 1000);
-          const carrierVx = (endX - targetX) / postCatchSec;       // px/s
-          const tackVx    = (_tk._sim && typeof _tk._sim.vx === "number") ? _tk._sim.vx : 0;
-          const combinedVx = carrierVx + tackVx;
-          // dir = offense forward direction. combinedVx in dir's sense:
-          // positive → forward fall, negative → backward.
-          if (combinedVx * dir < 0) _wrFallDir = -1;
-        }
-      }
       const wrWithPose = { ...wr,
         pose: wrPose,
         t: wrTackleT,
         facing: (play.kind === "int" && t > throwPhase + 0.05) ? -dir : dir,
-        // Pass-catch tackles default to forward falls (carrier's forward
-        // momentum carries through contact). Computed per-play above based
-        // on tackler position relative to carrier — flips to backward on
-        // head-on hits where the defender is in the carrier's path.
+        // Fall variant picked from combined-momentum physics above.
+        // fallDir = forward (+1) / backward (-1); sideDir = left/right
+        // (only used by spin_fall pose).
         fallDir: wrIsTackled ? _wrFallDir : undefined,
+        sideDir: wrIsTackled ? _wrSideDir : undefined,
       };
       const off = formation.offense.map(p => {
         if (p.role === "QB") return qbWithPose;

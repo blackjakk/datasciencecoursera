@@ -1088,6 +1088,51 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
       bodyTilt += Math.sin(fallT * Math.PI * 2.2) * 0.05 * (1 - fallEase);
       break;
     }
+    case "tumble": {
+      // BIG-IMPACT FALL — carrier rolls forward through contact instead
+      // of just rotating to horizontal. Used for chase tackles after a
+      // big YAC run, when the carrier's momentum was high and the hit
+      // sends him head-over-heels. Rotation goes 270° (1.5x past
+      // horizontal — head past the body, body past the legs) and the
+      // body bobs to suggest the roll. Arms windmill, legs cycle.
+      const ph = Math.min(1, Math.max(0, t));
+      const fallEase = ph * ph * (3 - 2 * ph);
+      const fallDir = (style && style.fallDir) || 1;
+      // 270° rotation (1.5π rad). Past horizontal, head ends up behind.
+      bodyRot = (Math.PI * 1.5) * facing * fallDir * fallEase;
+      // Y bob — body lifts on contact, drops past horizontal, settles
+      bodyDY = fallEase * 4 + Math.sin(ph * Math.PI) * -3;
+      // Arms windmill outward
+      lArm = -0.4 - fallEase * 0.9 + Math.sin(ph * Math.PI * 3) * 0.35;
+      rArm =  0.4 + fallEase * 0.9 - Math.sin(ph * Math.PI * 3) * 0.35;
+      // Legs cycle as the body rolls
+      lLeg = -fallEase * 0.7 + Math.cos(ph * Math.PI * 2.5) * 0.45;
+      rLeg =  fallEase * 0.7 - Math.cos(ph * Math.PI * 2.5) * 0.45;
+      bodyTilt += Math.sin(ph * Math.PI * 3.0) * 0.10 * (1 - fallEase);
+      break;
+    }
+    case "spin_fall": {
+      // SIDE-HIT FALL — carrier spun off-axis by a lateral collision.
+      // Used when the combined momentum at contact has a strong Y
+      // component (side hit or angle tackle). Body rotates LATERAL
+      // first (around a vertical axis — represented as bodyTilt wobble
+      // + asymmetric leg lift), then collapses to horizontal.
+      const ph = Math.min(1, Math.max(0, t));
+      const fallEase = ph * ph * (3 - 2 * ph);
+      const fallDir = (style && style.fallDir) || 1;
+      const sideDir = (style && style.sideDir) || 1;   // +1 right, -1 left
+      // Body rotates to horizontal with a side-component lean
+      bodyRot = (Math.PI / 2) * facing * fallDir * fallEase;
+      bodyTilt = sideDir * 0.40 * fallEase + Math.sin(ph * Math.PI * 4) * 0.08;
+      bodyDY = fallEase * 6 + Math.sin(ph * Math.PI) * -1.5;
+      // Arms whip to the side, away from the spin axis
+      lArm = -0.4 - fallEase * 1.0 + sideDir * 0.30;
+      rArm =  0.4 + fallEase * 1.0 + sideDir * 0.30;
+      // Legs splay asymmetrically (one leg up, one out)
+      lLeg = -fallEase * 0.90 + sideDir * 0.20;
+      rLeg =  fallEase * 0.90 - sideDir * 0.20;
+      break;
+    }
     case "jam": {
       // Press-coverage JAM at the snap — CB punches both hands into the
       // WR's chest pads, body squared up, legs in a solid wide base.
