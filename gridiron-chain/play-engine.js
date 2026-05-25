@@ -5034,8 +5034,16 @@ class GameSimulator {
         // gets the full track that ends at the catch + YAC spot;
         // non-targeted slots get a route ending at their concept-
         // appropriate spot (no catch, just the route).
+        // Slot WR (wr3) folded into "wr2" — they don't have their own
+        // route shape in _buildPassRouteTracks and the animation has no
+        // wrChoice handler for them. Mapping to wr2 means the animation
+        // shows wr2 making the catch (visual mismatch vs the credited
+        // receiver, but no teleport: the ball lands where a tracked
+        // receiver actually is, instead of falling back to a random
+        // hash-picked WR who's running an unrelated route).
         const _targetSlot = rcvr === this.offR.starters.wr1 ? "wr1"
                           : rcvr === this.offR.starters.wr2 ? "wr2"
+                          : rcvr === this.offR.starters.wr3 ? "wr2"
                           : rcvr === this.offR.starters.te  ? "te"
                           : rcvr === this.offR.starters.rb  ? "rb"
                           : null;
@@ -5180,8 +5188,15 @@ class GameSimulator {
         else                                { incReason = "offtarget"; incDesc = `${QB}'s pass off-target — ${rcvr} can't get there`; }
       }
       // PATH B Phase 6 — incomplete also gets per-slot routes + LB drops
+      // Slot WR (wr3) folded into "wr2" — see the matching comment on
+      // _targetSlot above. Without this, incomplete passes to a slot WR
+      // had no route track at all → animation picked a random WR and
+      // the ball landed where the engine intended (wr3's spot) while
+      // the rendered receiver was running an unrelated route. That's
+      // the "WR teleports to the ball" report on dropped slot passes.
       const _incTargetSlot = rcvr === this.offR.starters.wr1 ? "wr1"
                            : rcvr === this.offR.starters.wr2 ? "wr2"
+                           : rcvr === this.offR.starters.wr3 ? "wr2"
                            : rcvr === this.offR.starters.te  ? "te"
                            : rcvr === this.offR.starters.rb  ? "rb"
                            : null;
