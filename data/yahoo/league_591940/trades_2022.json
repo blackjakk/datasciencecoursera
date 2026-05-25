@@ -1,0 +1,746 @@
+[
+  {
+    "season": 2022,
+    "date_str": "Nov 19, 8:38 pm",
+    "sides": [
+      {
+        "received_team": "Community Day Lamb",
+        "initiator": "BIGGUAP",
+        "date_str": "Nov 19, 8:38 pm",
+        "received_players": [
+          {
+            "name": "Jakobi Meyers",
+            "nfl_team": "Jax",
+            "pos": "WR"
+          },
+          {
+            "name": "D'Onta Foreman",
+            "nfl_team": "Cle",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 4
+          }
+        ]
+      },
+      {
+        "received_team": "Barry Sandals",
+        "initiator": "BIGGUAP",
+        "date_str": "Nov 19, 8:38 pm",
+        "received_players": [
+          {
+            "name": "Amon-Ra St. Brown",
+            "nfl_team": "Det",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 6
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2022,
+    "date_str": "Nov 17, 4:36 pm",
+    "sides": [
+      {
+        "received_team": "Wet Ass Posluzny",
+        "initiator": "",
+        "date_str": "Nov 17, 4:36 pm",
+        "received_players": [],
+        "received_picks": [
+          {
+            "round": 2
+          }
+        ]
+      },
+      {
+        "received_team": "The pigeon outside Lems window",
+        "initiator": "",
+        "date_str": "Nov 17, 4:36 pm",
+        "received_players": [
+          {
+            "name": "Kirk Cousins",
+            "nfl_team": "LV",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 9
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2022,
+    "date_str": "Nov 17, 4:35 pm",
+    "sides": [
+      {
+        "received_team": "Weird Flex but OK",
+        "initiator": "BIGGUAP",
+        "date_str": "Nov 17, 4:35 pm",
+        "received_players": [],
+        "received_picks": [
+          {
+            "round": 4
+          }
+        ]
+      },
+      {
+        "received_team": "Barry Sandals",
+        "initiator": "BIGGUAP",
+        "date_str": "Nov 17, 4:35 pm",
+        "received_players": [
+          {
+            "name": "J.K. Dobbins",
+            "nfl_team": "Den",
+            "pos": "RB"
+          },
+          {
+            "name": "Mack Hollins",
+            "nfl_team": "NE",
+            "pos": "WR"
+          },
+          {
+            "name": "Hayden Hurst",
+            "nfl_team": "LAC",
+            "pos": "TE"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 5
+          },
+          {
+            "round": 9
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2022,
+    "date_str": "Nov 16, 10:17 am",
+    "sides": [
+      {
+        "received_team": "The pigeon outside Lems window",
+        "initiator": "",
+        "date_str": "Nov 16, 10:17 am",
+        "received_players": [
+          {
+            "name": "Dalton Schultz",
+            "nfl_team": "Hou",
+            "pos": "TE"
+          },
+          {
+            "name": "Keenan Allen",
+            "nfl_team": "LAC",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 6,
+            "originally_from": "BergerBoy Brigade"
+          },
+          {
+            "round": 10
+          }
+        ]
+      },
+      {
+        "received_team": "BergerBoy Brigade",
+        "initiator": "",
+        "date_str": "Nov 16, 10:17 am",
+        "received_players": [
+          {
+            "name": "T.J. Hockenson",
+            "nfl_team": "Min",
+            "pos": "TE"
+          }
+        ],
+        "received_picks": []
+      }
+    ]
+  },
+  {
+    "season": 2022,
+    "date_str": "Nov 9, 8:47 pm",
+    "sides": [
+      {
+        "received_team": "Hail Koo",
+        "initiator": "BIGGUAP",
+        "date_str": "Nov 9, 8:47 pm",
+        "received_players": [
+          {
+            "name": "Najee Harris",
+            "nfl_team": "LAC",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": []
+      },
+      {
+        "received_team": "The Dream Team",
+        "initiator": "BIGGUAP",
+        "date_str": "Nov 9, 8:47 pm",
+        "received_players": [
+          {
+            "name": "DeAndre Hopkins",
+            "nfl_team": "Bal",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 6
+          },
+          {
+            "round": 8
+          },
+          {
+            "round": 11
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2022,
+    "date_str": "Nov 5, 12:41 pm",
+    "sides": [
+      {
+        "received_team": "The Dream Team",
+        "initiator": "BIGGUAP",
+        "date_str": "Nov 5, 12:41 pm",
+        "received_players": [
+          {
+            "name": "Michael Gallup",
+            "nfl_team": "Was",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 1
+          },
+          {
+            "round": 4
+          },
+          {
+            "round": 8
+          }
+        ]
+      },
+      {
+        "received_team": "Cadillac Crippling Crusaders",
+        "initiator": "BIGGUAP",
+        "date_str": "Nov 5, 12:41 pm",
+        "received_players": [
+          {
+            "name": "Jeff Wilson Jr.",
+            "nfl_team": "Mia",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 6
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2022,
+    "date_str": "Nov 2, 4:06 pm",
+    "sides": [
+      {
+        "received_team": "The pigeon outside Lems window",
+        "initiator": "",
+        "date_str": "Nov 2, 4:06 pm",
+        "received_players": [
+          {
+            "name": "Miles Sanders",
+            "nfl_team": "Dal",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 13
+          }
+        ]
+      },
+      {
+        "received_team": "BergerBoy Brigade",
+        "initiator": "",
+        "date_str": "Nov 2, 4:06 pm",
+        "received_players": [
+          {
+            "name": "Davis Mills",
+            "nfl_team": "Hou",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 6
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2022,
+    "date_str": "Nov 2, 4:05 pm",
+    "sides": [
+      {
+        "received_team": "Tom Hanks",
+        "initiator": "BIGGUAP",
+        "date_str": "Nov 2, 4:05 pm",
+        "received_players": [
+          {
+            "name": "Jared Goff",
+            "nfl_team": "Det",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 9
+          }
+        ]
+      },
+      {
+        "received_team": "The Dream Team",
+        "initiator": "BIGGUAP",
+        "date_str": "Nov 2, 4:05 pm",
+        "received_players": [
+          {
+            "name": "Pat Freiermuth",
+            "nfl_team": "Pit",
+            "pos": "TE"
+          }
+        ],
+        "received_picks": []
+      },
+      {
+        "received_team": "Tom Hanks",
+        "initiator": "BIGGUAP",
+        "date_str": "Nov 2, 4:05 pm",
+        "received_players": [
+          {
+            "name": "Joshua Palmer",
+            "nfl_team": "Buf",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": []
+      },
+      {
+        "received_team": "Community Day Lamb",
+        "initiator": "BIGGUAP",
+        "date_str": "Nov 2, 4:05 pm",
+        "received_players": [],
+        "received_picks": [
+          {
+            "round": 1
+          },
+          {
+            "round": 14
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2022,
+    "date_str": "Oct 21, 12:33 pm",
+    "sides": [
+      {
+        "received_team": "Tom Hanks",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 21, 12:33 pm",
+        "received_players": [],
+        "received_picks": [
+          {
+            "round": 3,
+            "originally_from": "Community Day Lamb"
+          },
+          {
+            "round": 3
+          }
+        ]
+      },
+      {
+        "received_team": "The Washington Football Team",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 21, 12:33 pm",
+        "received_players": [
+          {
+            "name": "Nyheim Miller-Hines",
+            "nfl_team": "LAC",
+            "pos": "RB"
+          },
+          {
+            "name": "James Cook III",
+            "nfl_team": "Buf",
+            "pos": "RB"
+          },
+          {
+            "name": "Isaiah McKenzie",
+            "nfl_team": "Mia",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 3
+          },
+          {
+            "round": 5
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2022,
+    "date_str": "Oct 20, 11:01 pm",
+    "sides": [
+      {
+        "received_team": "Tom Hanks",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 20, 11:01 pm",
+        "received_players": [
+          {
+            "name": "Diontae Johnson",
+            "nfl_team": "Cle",
+            "pos": "WR"
+          },
+          {
+            "name": "Tua Tagovailoa",
+            "nfl_team": "Atl",
+            "pos": "QB"
+          },
+          {
+            "name": "Joe Mixon",
+            "nfl_team": "Hou",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 6
+          },
+          {
+            "round": 8
+          }
+        ]
+      },
+      {
+        "received_team": "Community Day Lamb",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 20, 11:01 pm",
+        "received_players": [
+          {
+            "name": "DJ Moore",
+            "nfl_team": "Buf",
+            "pos": "WR"
+          },
+          {
+            "name": "Tony Pollard",
+            "nfl_team": "Ten",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 1
+          },
+          {
+            "round": 2
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2022,
+    "date_str": "Oct 20, 10:59 pm",
+    "sides": [
+      {
+        "received_team": "Tom Hanks",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 20, 10:59 pm",
+        "received_players": [
+          {
+            "name": "Derrick Henry",
+            "nfl_team": "Bal",
+            "pos": "RB"
+          },
+          {
+            "name": "Stefon Diggs",
+            "nfl_team": "NE",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 10
+          },
+          {
+            "round": 13
+          }
+        ]
+      },
+      {
+        "received_team": "Hail Koo",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 20, 10:59 pm",
+        "received_players": [
+          {
+            "name": "Romeo Doubs",
+            "nfl_team": "NE",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 3
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2022,
+    "date_str": "Oct 18, 7:57 pm",
+    "sides": [
+      {
+        "received_team": "The Washington Football Team",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 18, 7:57 pm",
+        "received_players": [
+          {
+            "name": "Kyler Murray",
+            "nfl_team": "Min",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 11
+          }
+        ]
+      },
+      {
+        "received_team": "BergerBoy Brigade",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 18, 7:57 pm",
+        "received_players": [
+          {
+            "name": "Isiah Pacheco",
+            "nfl_team": "Det",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 3
+          }
+        ]
+      },
+      {
+        "received_team": "The Washington Football Team",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 18, 7:57 pm",
+        "received_players": [
+          {
+            "name": "Josh Jacobs",
+            "nfl_team": "GB",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 12,
+            "originally_from": "Hail Koo"
+          }
+        ]
+      },
+      {
+        "received_team": "Hail Koo",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 18, 7:57 pm",
+        "received_players": [
+          {
+            "name": "Zach Ertz",
+            "nfl_team": "Was",
+            "pos": "TE"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 14
+          }
+        ]
+      },
+      {
+        "received_team": "BergerBoy Brigade",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 18, 7:57 pm",
+        "received_players": [
+          {
+            "name": "Joshua Palmer",
+            "nfl_team": "Buf",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 7
+          }
+        ]
+      },
+      {
+        "received_team": "Tom Hanks",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 18, 7:57 pm",
+        "received_players": [
+          {
+            "name": "Tom Brady",
+            "nfl_team": "TB",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 7
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2022,
+    "date_str": "Oct 8, 1:01 pm",
+    "sides": [
+      {
+        "received_team": "Hail Koo",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 8, 1:01 pm",
+        "received_players": [
+          {
+            "name": "James Robinson",
+            "nfl_team": "NO",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 12
+          }
+        ]
+      },
+      {
+        "received_team": "The Washington Football Team",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 8, 1:01 pm",
+        "received_players": [
+          {
+            "name": "Isiah Pacheco",
+            "nfl_team": "Det",
+            "pos": "RB"
+          },
+          {
+            "name": "Dak Prescott",
+            "nfl_team": "Dal",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": []
+      }
+    ]
+  },
+  {
+    "season": 2022,
+    "date_str": "Oct 6, 7:58 pm",
+    "sides": [
+      {
+        "received_team": "Hail Koo",
+        "initiator": "",
+        "date_str": "Oct 6, 7:58 pm",
+        "received_players": [
+          {
+            "name": "Keenan Allen",
+            "nfl_team": "LAC",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": []
+      },
+      {
+        "received_team": "The pigeon outside Lems window",
+        "initiator": "",
+        "date_str": "Oct 6, 7:58 pm",
+        "received_players": [
+          {
+            "name": "Cooper Kupp",
+            "nfl_team": "Sea",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 13
+          },
+          {
+            "round": 16
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2022,
+    "date_str": "Sep 14, 7:56 pm",
+    "sides": [
+      {
+        "received_team": "Figgy",
+        "initiator": "BIGGUAP",
+        "date_str": "Sep 14, 7:56 pm",
+        "received_players": [
+          {
+            "name": "Allen Lazard",
+            "nfl_team": "NYJ",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 1
+          },
+          {
+            "round": 4
+          }
+        ]
+      },
+      {
+        "received_team": "Cadillac Crippling Crusaders",
+        "initiator": "BIGGUAP",
+        "date_str": "Sep 14, 7:56 pm",
+        "received_players": [],
+        "received_picks": []
+      }
+    ]
+  }
+]

@@ -1,0 +1,516 @@
+[
+  {
+    "season": 2016,
+    "date_str": "Nov 11, 8:59 am",
+    "sides": [
+      {
+        "received_team": "Sunday Scaries",
+        "initiator": "",
+        "date_str": "Nov 11, 8:59 am",
+        "received_players": [
+          {
+            "name": "Allen Robinson",
+            "nfl_team": "Det",
+            "pos": "WR"
+          },
+          {
+            "name": "LeSean McCoy",
+            "nfl_team": "TB",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": []
+      },
+      {
+        "received_team": "Dirty Old Men",
+        "initiator": "",
+        "date_str": "Nov 11, 8:59 am",
+        "received_players": [
+          {
+            "name": "Greg Olsen",
+            "nfl_team": "Sea",
+            "pos": "TE"
+          },
+          {
+            "name": "Doug Baldwin",
+            "nfl_team": "Sea",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": []
+      }
+    ]
+  },
+  {
+    "season": 2016,
+    "date_str": "Nov 8, 12:07 pm",
+    "sides": [
+      {
+        "received_team": "Raichu a Love Song",
+        "initiator": "BIGGUAP",
+        "date_str": "Nov 8, 12:07 pm",
+        "received_players": [
+          {
+            "name": "Gary Barnidge",
+            "nfl_team": "Cle",
+            "pos": "TE"
+          },
+          {
+            "name": "A.J. Green",
+            "nfl_team": "Ari",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": []
+      },
+      {
+        "received_team": "Dirty Old Men",
+        "initiator": "BIGGUAP",
+        "date_str": "Nov 8, 12:07 pm",
+        "received_players": [
+          {
+            "name": "Jay Cutler",
+            "nfl_team": "Mia",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 10
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2016,
+    "date_str": "Oct 30, 10:56 am",
+    "sides": [
+      {
+        "received_team": "Bing Bong Brothers",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 30, 10:56 am",
+        "received_players": [
+          {
+            "name": "Geno Smith",
+            "nfl_team": "NYJ",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 8
+          }
+        ]
+      },
+      {
+        "received_team": "Tyrodasaurus Rex",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 30, 10:56 am",
+        "received_players": [],
+        "received_picks": [
+          {
+            "round": 2
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2016,
+    "date_str": "Oct 11, 10:52 pm",
+    "sides": [
+      {
+        "received_team": "Tyrodasaurus Rex",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 11, 10:52 pm",
+        "received_players": [
+          {
+            "name": "Frank Gore",
+            "nfl_team": "NYJ",
+            "pos": "RB"
+          },
+          {
+            "name": "Kyle Rudolph",
+            "nfl_team": "TB",
+            "pos": "TE"
+          },
+          {
+            "name": "Jeremy Maclin",
+            "nfl_team": "Bal",
+            "pos": "WR"
+          },
+          {
+            "name": "Brandon Marshall",
+            "nfl_team": "Sea",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 5
+          }
+        ]
+      },
+      {
+        "received_team": "Joffrey Sucks",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 11, 10:52 pm",
+        "received_players": [
+          {
+            "name": "Drew Brees",
+            "nfl_team": "NO",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": []
+      }
+    ]
+  },
+  {
+    "season": 2016,
+    "date_str": "Oct 6, 5:03 pm",
+    "sides": [
+      {
+        "received_team": "BergerBoy Brigade",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 6, 5:03 pm",
+        "received_players": [
+          {
+            "name": "Mike Evans",
+            "nfl_team": "SF",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": []
+      },
+      {
+        "received_team": "Dirty Old Men",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 6, 5:03 pm",
+        "received_players": [
+          {
+            "name": "Drew Stanton",
+            "nfl_team": "TB",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 9
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2016,
+    "date_str": "Oct 5, 9:40 am",
+    "sides": [
+      {
+        "received_team": "Bing Bong Brothers",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 5, 9:40 am",
+        "received_players": [
+          {
+            "name": "Ryan Fitzpatrick",
+            "nfl_team": "Was",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 17
+          }
+        ]
+      },
+      {
+        "received_team": "BergerBoy Brigade",
+        "initiator": "BIGGUAP",
+        "date_str": "Oct 5, 9:40 am",
+        "received_players": [
+          {
+            "name": "Andy Dalton",
+            "nfl_team": "Phi",
+            "pos": "QB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 6
+          }
+        ]
+      },
+      {
+        "received_team": "Sunday Scaries",
+        "initiator": "",
+        "date_str": "Oct 5, 9:40 am",
+        "received_players": [],
+        "received_picks": [
+          {
+            "round": 5
+          }
+        ]
+      },
+      {
+        "received_team": "Bing Bong Brothers",
+        "initiator": "",
+        "date_str": "Oct 5, 9:40 am",
+        "received_players": [
+          {
+            "name": "Rob Kelley",
+            "nfl_team": "Was",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 2
+          },
+          {
+            "round": 4
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2016,
+    "date_str": "Sep 28, 1:36 pm",
+    "sides": [
+      {
+        "received_team": "Dirty Old Men",
+        "initiator": "BIGGUAP",
+        "date_str": "Sep 28, 1:36 pm",
+        "received_players": [
+          {
+            "name": "Rob Gronkowski",
+            "nfl_team": "TB",
+            "pos": "TE"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 7
+          },
+          {
+            "round": 8
+          }
+        ]
+      },
+      {
+        "received_team": "Trust the Process",
+        "initiator": "BIGGUAP",
+        "date_str": "Sep 28, 1:36 pm",
+        "received_players": [],
+        "received_picks": [
+          {
+            "round": 1
+          },
+          {
+            "round": 4
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2016,
+    "date_str": "Sep 28, 12:49 pm",
+    "sides": [
+      {
+        "received_team": "Bing Bong Brothers",
+        "initiator": "BIGGUAP",
+        "date_str": "Sep 28, 12:49 pm",
+        "received_players": [
+          {
+            "name": "Todd Gurley",
+            "nfl_team": "Atl",
+            "pos": "RB"
+          },
+          {
+            "name": "Greg Olsen",
+            "nfl_team": "Sea",
+            "pos": "TE"
+          },
+          {
+            "name": "Stefon Diggs",
+            "nfl_team": "NE",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 18
+          },
+          {
+            "round": 19
+          }
+        ]
+      },
+      {
+        "received_team": "Dirty Old Men",
+        "initiator": "BIGGUAP",
+        "date_str": "Sep 28, 12:49 pm",
+        "received_players": [
+          {
+            "name": "Michael Crabtree",
+            "nfl_team": "Ari",
+            "pos": "WR"
+          },
+          {
+            "name": "Jonathan Stewart",
+            "nfl_team": "NYG",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 10
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2016,
+    "date_str": "Sep 28, 12:20 pm",
+    "sides": [
+      {
+        "received_team": "BergerBoy Brigade",
+        "initiator": "BIGGUAP",
+        "date_str": "Sep 28, 12:20 pm",
+        "received_players": [
+          {
+            "name": "Travis Benjamin",
+            "nfl_team": "SF",
+            "pos": "WR"
+          },
+          {
+            "name": "Giovani Bernard",
+            "nfl_team": "TB",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 7
+          }
+        ]
+      },
+      {
+        "received_team": "Arnold Palmer Lite",
+        "initiator": "BIGGUAP",
+        "date_str": "Sep 28, 12:20 pm",
+        "received_players": [],
+        "received_picks": [
+          {
+            "round": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2016,
+    "date_str": "Sep 28, 11:22 am",
+    "sides": [
+      {
+        "received_team": "Bing Bong Brothers",
+        "initiator": "BIGGUAP",
+        "date_str": "Sep 28, 11:22 am",
+        "received_players": [
+          {
+            "name": "Odell Beckham Jr.",
+            "nfl_team": "Mia",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 3
+          }
+        ]
+      },
+      {
+        "received_team": "BergerBoy Brigade",
+        "initiator": "BIGGUAP",
+        "date_str": "Sep 28, 11:22 am",
+        "received_players": [
+          {
+            "name": "Ryan Mathews",
+            "nfl_team": "Phi",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "season": 2016,
+    "date_str": "Sep 28, 12:01 am",
+    "sides": [
+      {
+        "received_team": "Tyrodasaurus Rex",
+        "initiator": "BIGGUAP",
+        "date_str": "Sep 28, 12:01 am",
+        "received_players": [
+          {
+            "name": "Le'Veon Bell",
+            "nfl_team": "TB",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": [
+          {
+            "round": 8
+          }
+        ]
+      },
+      {
+        "received_team": "Trust the Process",
+        "initiator": "BIGGUAP",
+        "date_str": "Sep 28, 12:01 am",
+        "received_players": [
+          {
+            "name": "Jarvis Landry",
+            "nfl_team": "NO",
+            "pos": "WR"
+          }
+        ],
+        "received_picks": []
+      }
+    ]
+  },
+  {
+    "season": 2016,
+    "date_str": "Aug 29, 9:26 am",
+    "sides": [
+      {
+        "received_team": "Arnold Palmer Lite",
+        "initiator": "BIGGUAP",
+        "date_str": "Aug 29, 9:26 am",
+        "received_players": [
+          {
+            "name": "Melvin Gordon III",
+            "nfl_team": "Bal",
+            "pos": "RB"
+          }
+        ],
+        "received_picks": []
+      },
+      {
+        "received_team": "Dirty Old Men",
+        "initiator": "BIGGUAP",
+        "date_str": "Aug 29, 9:26 am",
+        "received_players": [],
+        "received_picks": []
+      }
+    ]
+  }
+]
