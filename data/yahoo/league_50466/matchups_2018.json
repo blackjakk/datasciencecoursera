@@ -11,16 +11,16 @@
     "7": "Mrs. Doubtfire",
     "8": "The Dream Team",
     "9": "The Mandingo...",
-    "10": "Barkley\u2019s Biddies"
+    "10": "Barkley’s Biddies"
   },
   "weeks": {
     "1": [
       {
         "team_a": 1,
         "team_b": 2,
-        "pts_a": 142.76,
-        "pts_b": 121.67,
-        "winner": 1
+        "pts_a": 138.96,
+        "pts_b": 150.8,
+        "winner": 2
       },
       {
         "team_a": 3,
@@ -55,8 +55,8 @@
       {
         "team_a": 1,
         "team_b": 3,
-        "pts_a": 135.13,
-        "pts_b": 124.64,
+        "pts_a": 206.3,
+        "pts_b": 147.34,
         "winner": 1
       },
       {
@@ -92,8 +92,8 @@
       {
         "team_a": 1,
         "team_b": 4,
-        "pts_a": 137.29,
-        "pts_b": 128.11,
+        "pts_a": 130.96,
+        "pts_b": 101.24,
         "winner": 1
       },
       {
@@ -129,8 +129,8 @@
       {
         "team_a": 1,
         "team_b": 5,
-        "pts_a": 138.51,
-        "pts_b": 135.06,
+        "pts_a": 181.24,
+        "pts_b": 149.7,
         "winner": 1
       },
       {
@@ -166,8 +166,8 @@
       {
         "team_a": 1,
         "team_b": 6,
-        "pts_a": 145.05,
-        "pts_b": 134.06,
+        "pts_a": 161.84,
+        "pts_b": 105.92,
         "winner": 1
       },
       {
@@ -203,8 +203,8 @@
       {
         "team_a": 1,
         "team_b": 7,
-        "pts_a": 142.6,
-        "pts_b": 104.81,
+        "pts_a": 151.68,
+        "pts_b": 108.48,
         "winner": 1
       },
       {
@@ -240,8 +240,8 @@
       {
         "team_a": 1,
         "team_b": 8,
-        "pts_a": 145.11,
-        "pts_b": 103.55,
+        "pts_a": 135.38,
+        "pts_b": 98.02,
         "winner": 1
       },
       {
@@ -277,8 +277,8 @@
       {
         "team_a": 1,
         "team_b": 9,
-        "pts_a": 160.58,
-        "pts_b": 114.54,
+        "pts_a": 152.24,
+        "pts_b": 125.36,
         "winner": 1
       },
       {
@@ -314,8 +314,8 @@
       {
         "team_a": 1,
         "team_b": 10,
-        "pts_a": 143.11,
-        "pts_b": 118.98,
+        "pts_a": 125.86,
+        "pts_b": 119.08,
         "winner": 1
       },
       {
@@ -351,8 +351,8 @@
       {
         "team_a": 1,
         "team_b": 2,
-        "pts_a": 145.19,
-        "pts_b": 126.61,
+        "pts_a": 192.6,
+        "pts_b": 141.46,
         "winner": 1
       },
       {
@@ -388,8 +388,8 @@
       {
         "team_a": 1,
         "team_b": 3,
-        "pts_a": 158.24,
-        "pts_b": 135.12,
+        "pts_a": 145.04,
+        "pts_b": 121.62,
         "winner": 1
       },
       {
@@ -425,9 +425,9 @@
       {
         "team_a": 1,
         "team_b": 4,
-        "pts_a": 133.93,
-        "pts_b": 118.35,
-        "winner": 1
+        "pts_a": 132.06,
+        "pts_b": 133.66,
+        "winner": 4
       },
       {
         "team_a": 2,
@@ -462,8 +462,8 @@
       {
         "team_a": 1,
         "team_b": 5,
-        "pts_a": 153.55,
-        "pts_b": 142.05,
+        "pts_a": 163.98,
+        "pts_b": 104.26,
         "winner": 1
       },
       {
