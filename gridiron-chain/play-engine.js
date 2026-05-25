@@ -1557,17 +1557,32 @@ class GameSimulator {
     }
     const endDxYd = targetDepth + yac;
     const endDyAbs = wrSign * (wrFormOffsetYd - endLatAbs);
+    // Tackler keeps closing on the receiver THROUGH the tackle moment
+    // instead of arriving early and holding. Previously: tackler at the
+    // endpoint by t=0.78, then sat there for ~22% of the play while the
+    // receiver glided in — "defender waited for him there, receiver fell
+    // backwards without contact". Now the tackler is STILL APPROACHING
+    // at t=0.78 (slightly past the catch line in the carrier's run
+    // direction) and continues driving FORWARD through to t=1.0 — looks
+    // like a driving tackle, not a static collision.
     return {
       role: tacklerSlot.toUpperCase(),
       tacklerName,
       waypoints: [
-        { t: 0.00,        dxYd: start.dxYd,                                                            dyYd: start.dyYd },
-        { t: throwT * 0.6,
+        { t: 0.00,        dxYd: start.dxYd,                       dyYd: start.dyYd },
+        { t: throwT * 0.7,
                           dxYd: start.dxYd - (tacklerSlot.startsWith("cb") ? 0 : 1.5),
                           dyYd: start.dyYd * 0.7 },
-        { t: throwT,      dxYd: targetDepth - 2,                                                       dyYd: endDyAbs * 0.6 },
-        { t: 0.78,        dxYd: endDxYd,                                                               dyYd: endDyAbs },
-        { t: 1.00,        dxYd: endDxYd,                                                               dyYd: endDyAbs },
+        // At the catch moment, tackler is still 5-6 yd short of the
+        // YAC endpoint (closing fast from coverage).
+        { t: throwT,      dxYd: Math.max(targetDepth - 3, start.dxYd),    dyYd: endDyAbs * 0.5 },
+        // At the tackle moment, tackler meets the receiver mid-stride —
+        // both arriving at the YAC spot at the same instant.
+        { t: 0.78,        dxYd: endDxYd,                          dyYd: endDyAbs },
+        // After contact, tackler keeps driving forward 2-3 yd (driving
+        // the carrier back). Matches the receiver's post-tackle motion
+        // so they look locked together going down, not statues.
+        { t: 1.00,        dxYd: endDxYd + 2.5,                    dyYd: endDyAbs },
       ],
     };
   }
