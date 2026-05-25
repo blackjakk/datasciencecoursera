@@ -3831,16 +3831,33 @@ function buildAnimForPlay(play, prevPlay) {
       const wrTackleT = wrIsTackled ? Math.min(1, (aT - TACKLE_START_AT) / (1 - TACKLE_START_AT))
                        : inLeapWindow ? leapInternalT
                        : ((t * (dur / 1000)) * strideHz) % 1;
+      // PER-PLAY FALL DIRECTION based on collision geometry. Defaults to
+      // forward (chase / angle tackle, carrier's momentum carries the body
+      // forward through contact). Flips to backward when the named tackler
+      // is significantly AHEAD of the carrier at contact — that's a
+      // head-on collision where the carrier ran INTO the defender and gets
+      // knocked back. We look at the named tackler's CURRENT position
+      // relative to the carrier in the run direction:
+      //   tackler ahead by > 3 yd  → head-on, backward fall
+      //   else                      → chase/side, forward fall
+      const _outerTacklerName = play.motion && play.motion.tacklerName;
+      let _wrFallDir = 1;
+      if (wrIsTackled && _outerTacklerName) {
+        const _tk = def.find(d => d && d.name === _outerTacklerName);
+        if (_tk) {
+          const aheadPx = (_tk.x - wr.x) * dir;
+          if (aheadPx > 3 * FIELD.PX_PER_YARD) _wrFallDir = -1;
+        }
+      }
       const wrWithPose = { ...wr,
         pose: wrPose,
         t: wrTackleT,
         facing: (play.kind === "int" && t > throwPhase + 0.05) ? -dir : dir,
-        // Pass-catch tackles are almost always forward falls: the receiver
-        // was running at speed when contact happened, his momentum carries
-        // him forward through the hit. Backward fall (head opposite of
-        // direction) was wrong — reads as if the carrier was knocked back
-        // by a defender who wasn't there.
-        fallDir: wrIsTackled ? 1 : undefined,
+        // Pass-catch tackles default to forward falls (carrier's forward
+        // momentum carries through contact). Computed per-play above based
+        // on tackler position relative to carrier — flips to backward on
+        // head-on hits where the defender is in the carrier's path.
+        fallDir: wrIsTackled ? _wrFallDir : undefined,
       };
       const off = formation.offense.map(p => {
         if (p.role === "QB") return qbWithPose;
