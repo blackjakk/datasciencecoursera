@@ -31,12 +31,12 @@ CHROMIUM_EXEC = bpr.CHROMIUM_EXEC
 # Non-playoff (by reg season wins+fpts): Coop, Lem, Donnie, Kyle, Brian, Troy(worst)
 # Slot = pick number in R1 (1 = first overall = worst team).
 PREDICTED_SLOT_TO_RID = {
-    1: 4,    # Troy (3-11, worst)
-    2: 9,    # Brian (4-10, #11 fpts)
-    3: 5,    # Kyle (4-10)
-    4: 2,    # Donnie (4-10)
-    5: 12,   # Coop (6-8)
-    6: 6,    # Lem (5-9) — CONSOLATION WINNER, bumped to last non-playoff slot
+    1: 6,    # Lem — CONSOLATION WINNER (gets #1 overall per league rule)
+    2: 4,    # Troy (3-11, worst record)
+    3: 9,    # Brian (4-10, #11 fpts)
+    4: 5,    # Kyle (4-10)
+    5: 2,    # Donnie (4-10)
+    6: 12,   # Coop (6-8)
     7: 7,    # Eric (playoff 6th)
     8: 1,    # Tim (playoff 5th)
     9: 8,    # Brower (playoff 4th)
