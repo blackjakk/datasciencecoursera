@@ -57,16 +57,49 @@ class Team:
     def needs(self, league: LeagueConfig) -> dict[str, float]:
         """Per-position 'need' score: how badly this team needs another player
         at each position to fill starters. Flex/superflex slots count partially
-        toward each eligible position."""
+        toward each eligible position.
+
+        SUPERFLEX bias: when a slot accepts QBs alongside other positions, QBs
+        get the bulk of the weight (70%) since they almost always win the
+        SUPERFLEX in practice. Otherwise teams in superflex leagues under-draft
+        QB depth.
+
+        Superflex scarcity: in leagues that start 2 QBs (i.e. QB is eligible
+        for a flex-like slot), teams with fewer than 3 QBs still register a
+        non-zero QB need even after starters are filled — protects against the
+        backup-QB injury risk.
+        """
         slots_left = self.slots_remaining(league)
         need: dict[str, float] = {}
         for slot_name, count in slots_left.items():
             if count <= 0:
                 continue
             eligible = SLOT_ELIGIBILITY[slot_name]
-            weight = count / len(eligible)
-            for pos in eligible:
-                need[pos] = need.get(pos, 0.0) + weight
+            if "QB" in eligible and len(eligible) > 1:
+                # SUPERFLEX-style slot: bias toward QB (70/30 vs other eligibles)
+                others = eligible - {"QB"}
+                qb_share = 0.70 * count
+                other_share = (0.30 / len(others)) * count if others else 0
+                need["QB"] = need.get("QB", 0.0) + qb_share
+                for pos in others:
+                    need[pos] = need.get(pos, 0.0) + other_share
+            else:
+                weight = count / len(eligible)
+                for pos in eligible:
+                    need[pos] = need.get(pos, 0.0) + weight
+
+        # Superflex scarcity bonus: in 2-QB-start leagues, teams under 3 QBs
+        # still register meaningful QB need (injury insurance / position
+        # scarcity premium).
+        is_superflex_league = any(
+            "QB" in SLOT_ELIGIBILITY.get(s.name, frozenset()) and
+            len(SLOT_ELIGIBILITY[s.name]) > 1
+            for s in league.starters
+        )
+        if is_superflex_league:
+            qb_count = self.position_counts().get("QB", 0)
+            if qb_count < 3:
+                need["QB"] = need.get("QB", 0.0) + (3 - qb_count) * 0.25
         return need
 
 
