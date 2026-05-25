@@ -3322,12 +3322,17 @@ function buildAnimForPlay(play, prevPlay) {
         const _isPassTacklerByName = play.kind === "complete" && _passTacklerName && d.name === _passTacklerName;
         // PHASE 5b — non-tackler LB / safety zone drops. Engine emits
         // tracks.lb1 / lb2 / lb3 / fs / ss for pass plays; map this
-        // defender's slot to its track and sample it pre-catch. The
-        // existing post-catch _postCatchPursuerSet logic still owns
-        // the after-catch convergence.
+        // defender's slot to its track and sample it. Applied for the
+        // FULL play (was gated to t < throwPhase, which meant defenders
+        // fell back to formation positions post-catch — visible as a
+        // freeze-and-snap). Now: motion holds them at their hook through
+        // the end of the play. Post-catch pursuers and the named tackler
+        // get their own drivers below (post-catch sim, tackler track),
+        // which run AFTER this block and override dd.x/dd.y for those
+        // specific defenders.
         let _passSecondaryTrack = null;
         const _isPassKind = play.kind === "complete" || play.kind === "incomplete" || play.kind === "int";
-        if (_isPassKind && t < throwPhase && !_isPassTacklerByName && play.motion?.tracks) {
+        if (_isPassKind && !_isPassTacklerByName && play.motion?.tracks) {
           const ti = play.motion.tracks;
           const isLBIdx = (i >= idxLB1 && i < idxCB1);
           const lbOrdinal = i - idxLB1;     // 0, 1, 2
