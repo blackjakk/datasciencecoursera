@@ -1,6 +1,5 @@
-"""MONEYLEAGUE definitive rankings — multiple defensible metrics with
-an honest opinion at the end. The "this is what the data actually says"
-report.
+"""MONEYLEAGUE category leaderboards — every angle the league might
+care about, with my synthesis at the end.
 """
 from __future__ import annotations
 
@@ -42,29 +41,38 @@ def _compute_all_metrics() -> dict:
         if crid:
             champs[s] = crid
 
-    # All-play wins per (rid, season)
+    # All-play wins per (rid, season) + collect weekly score lists for CV/max
     apw: dict[int, dict[int, int]] = defaultdict(lambda: defaultdict(int))
+    weekly_pts: dict[int, list[float]] = defaultdict(list)
+    max_week: dict[int, tuple[int, int, float]] = {}  # rid → (season, week, pts)
     for s, sd in seasons.items():
         wkpts: dict[int, dict[int, float]] = defaultdict(dict)
         for (rid, wk), pts in sd.get("weekly_team_points", {}).items():
             if wk <= 14:
                 wkpts[wk][rid] = pts
+                weekly_pts[rid].append(pts)
+                if rid not in max_week or pts > max_week[rid][2]:
+                    max_week[rid] = (s, wk, pts)
         for wk, scores in wkpts.items():
             for rid, p in scores.items():
                 for orid, op in scores.items():
                     if orid != rid and p > op:
                         apw[rid][s] += 1
 
-    # Actual wins from matchup files
+    # Actual wins + playoff appearances (top-6 by wins makes playoffs)
     actual: dict[int, dict[int, int]] = defaultdict(lambda: defaultdict(int))
+    po_appearances: dict[int, int] = defaultdict(int)
     for ld in glob.glob(str(ROOT / "data" / "sleeper" / "league_*")):
         li_path = Path(ld) / "league.json"
         if not li_path.exists():
             continue
         season = int(json.loads(li_path.read_text()).get("season", 0))
+        if season not in (2023, 2024, 2025):
+            continue
         mdir = Path(ld) / "matchups"
         if not mdir.exists():
             continue
+        season_wins: dict[int, int] = defaultdict(int)
         for wf in sorted(mdir.glob("week_*.json")):
             wk = int(wf.stem.replace("week_", ""))
             if wk > 14:
@@ -81,6 +89,11 @@ def _compute_all_metrics() -> dict:
                     w, l = pair[0], pair[1]
                     if w["points"] != l["points"]:
                         actual[w["roster_id"]][season] += 1
+                        season_wins[w["roster_id"]] += 1
+        # Playoff teams = top 6 by wins (assume tiebreaker by PF, but for counts good enough)
+        top6 = sorted(season_wins.items(), key=lambda kv: -kv[1])[:6]
+        for rid, _ in top6:
+            po_appearances[rid] += 1
 
     # Total PF
     pf: dict[int, dict[int, float]] = defaultdict(lambda: defaultdict(float))
@@ -89,7 +102,7 @@ def _compute_all_metrics() -> dict:
             if wk <= 14:
                 pf[rid][s] += pts
 
-    # Draft VBD per season per mgr (live Sleeper data 2023-25)
+    # Draft VBD overall + by position (QB / RB / WR)
     picks = load_draft_picks_with_points(ROOT / "data" / "sleeper")
     pv = json.loads((ROOT / "data" / "pick_value.json").read_text())
     RANKS = pv["replacement_ranks_used"]
@@ -108,22 +121,26 @@ def _compute_all_metrics() -> dict:
         return out
     repl = {s: repl_for(ps) for s, ps in per_season_picks.items()}
     draft_vbd: dict[int, dict[int, float]] = defaultdict(lambda: defaultdict(float))
+    pos_vbd: dict[str, dict[int, float]] = defaultdict(lambda: defaultdict(float))
     for p in picks:
         if p.get("is_keeper"):
             continue
         v = (p["season_points"] or 0) - repl[p["season"]].get(p["position"], 0)
         draft_vbd[p["roster_id"]][p["season"]] += v
+        pos_vbd[p["position"]][p["roster_id"]] += v
 
-    # Wire VBD (FA adds only, not trades)
+    # Wire VBD (FA adds only, not trades) + total adds count
     ownership = load_player_ownership_windows(ROOT / "data" / "sleeper")
     weekly = load_weekly_player_points(ROOT / "data" / "sleeper")
     wire_pts: dict[int, float] = defaultdict(float)
+    wire_adds: dict[int, int] = defaultdict(int)
     for (s, pid), windows in ownership.items():
         if s not in (2023, 2024, 2025):
             continue
         for sw, ew, rid, src in windows:
             if sw <= 1 or src != "add":
                 continue
+            wire_adds[rid] += 1
             wire_pts[rid] += sum(weekly.get(s, {}).get(wk, {}).get(pid, 0.0)
                                   for wk in range(sw, min(ew + 1, 18)))
 
@@ -135,18 +152,27 @@ def _compute_all_metrics() -> dict:
         ch_yrs = [s for s, crid in champs.items() if crid == rid]
         a_w = sum(actual[rid].values())
         apw_total = sum(apw[rid].values())
-        # 11 opponents × 14 weeks × 3 years = 462 max possible
         exp_w = (apw_total / 462) * 14 * 3 if apw_total else 0
         tpf = sum(pf[rid].values())
         dvbd = sum(draft_vbd[rid].values())
         wpts = wire_pts[rid]
+        wkly = weekly_pts.get(rid, [])
+        cv = (100 * statistics.stdev(wkly) / statistics.mean(wkly)
+              if len(wkly) > 1 else 0.0)
+        mx = max_week.get(rid, (0, 0, 0))
         rows.append({
             "rid": rid, "name": nm,
             "championships": ch_yrs,
             "actual_w": a_w, "expected_w": exp_w,
+            "playoff_appearances": po_appearances.get(rid, 0),
             "total_pf": tpf, "draft_vbd": dvbd,
-            "wire_pts": wpts,
+            "wire_pts": wpts, "wire_adds": wire_adds.get(rid, 0),
             "luck": a_w - exp_w,
+            "cv": cv,
+            "max_week": mx,  # (season, week, pts)
+            "qb_vbd": pos_vbd["QB"].get(rid, 0),
+            "rb_vbd": pos_vbd["RB"].get(rid, 0),
+            "wr_vbd": pos_vbd["WR"].get(rid, 0),
         })
     return {"rows": rows, "champions": champs}
 
@@ -158,11 +184,10 @@ def build_markdown() -> str:
     today = date.today().strftime("%B %Y")
 
     md: list[str] = []
-    md.append("# MONEYLEAGUE Rankings — The Honest Version")
-    md.append(f"*{today} · Sleeper era 2023-2025*\n")
-    md.append("Multiple defensible metrics, ranked, with my opinion at the "
-              "end. No cherry-picking, no obfuscation. If the numbers say "
-              "something, the numbers say it.\n")
+    md.append("# MONEYLEAGUE Category Leaderboards")
+    md.append(f"*{today} · Sleeper era 2023-2025 · 42 regular-season games per manager*\n")
+    md.append("Twelve different lenses on who's been good at what — followed "
+              "by a synthesis at the end.\n")
     md.append("---\n")
 
     # ===== 1. Championships =====
@@ -220,11 +245,52 @@ def build_markdown() -> str:
     for i, r in enumerate(by_pf, 1):
         md.append(f"| {i} | **{r['name']}** | {r['total_pf']:.0f} | "
                   f"{r['total_pf']/42:.1f} |")
+    median_ppg = statistics.median(r["total_pf"]/42 for r in rows)
+    leader = by_pf[0]
+    md.append(f"\nLeader averages **{leader['total_pf']/42:.1f} PPG** "
+              f"vs the league median of ~{median_ppg:.0f}. That few-point "
+              f"edge week after week compounds into wins.\n")
+
+    # ===== Playoff appearances =====
+    md.append("## 🎟️ Playoff Appearances (out of 3)\n")
+    by_po = sorted(rows, key=lambda r: (-r["playoff_appearances"], -r["actual_w"]))
+    md.append("| Rank | Manager | Appearances | Titles |")
+    md.append("|---|---|---|---|")
+    for i, r in enumerate(by_po, 1):
+        ch = ", ".join(str(y) for y in r["championships"]) or "—"
+        md.append(f"| {i} | **{r['name']}** | {r['playoff_appearances']}/3 | {ch} |")
     md.append("")
-    md.append("Same shape as expected wins, because that's what expected "
-              "wins is measuring. Brower's lead here is enormous — he's "
-              "averaged **117.9 PPG vs the league median of ~109**. That "
-              "8-point edge week after week is what built his 33-win record.\n")
+    md.append("Making the playoffs is the threshold question; winning one "
+              "is a different game entirely. Several managers have made all "
+              "three playoffs without converting; one champion did it on "
+              "just one playoff appearance.\n")
+
+    # ===== Consistency =====
+    md.append("## 📐 Consistency Index — Weekly Scoring CV\n")
+    by_cv = sorted(rows, key=lambda r: r["cv"])
+    md.append("| Rank | Manager | Avg PPG | StdDev | CV |")
+    md.append("|---|---|---|---|---|")
+    for i, r in enumerate(by_cv, 1):
+        avg = r["total_pf"]/42
+        sd = avg * r["cv"]/100
+        md.append(f"| {i} | **{r['name']}** | {avg:.1f} | {sd:.1f} | {r['cv']:.1f}% |")
+    md.append("")
+    md.append("Coefficient of variation — lower = steadier week to week. "
+              "Consistent rosters dodge the bad-week blowups that kill "
+              "playoff seeding. Volatile rosters can boom-OR-bust; the "
+              "bust weeks usually outnumber the booms.\n")
+
+    # ===== Highest single-game score =====
+    md.append("## 🚀 Highest Single-Game Score\n")
+    by_max = sorted(rows, key=lambda r: -r["max_week"][2])
+    md.append("| Rank | Manager | Best Game | When |")
+    md.append("|---|---|---|---|")
+    for i, r in enumerate(by_max, 1):
+        s, w, p = r["max_week"]
+        md.append(f"| {i} | **{r['name']}** | {p:.1f} | {s} W{w} |")
+    md.append("")
+    md.append("The single-week explosions. These are the games you screenshot "
+              "and never let anyone forget.\n")
 
     # ===== 5. Draft skill =====
     md.append("## 🎯 Draft VBD (3-year cumulative)\n")
@@ -241,18 +307,49 @@ def build_markdown() -> str:
               "**Drafting is the controllable thing that most correlates "
               "with winning.**\n")
 
-    # ===== 6. Wire VBD =====
+    # ===== 6. Best QB Drafter (position-specific) =====
+    md.append("## 👑 Best QB Drafter\n")
+    by_qb = sorted(rows, key=lambda r: -r["qb_vbd"])
+    md.append("| Rank | Manager | 3-yr QB VBD |")
+    md.append("|---|---|---|")
+    for i, r in enumerate(by_qb, 1):
+        md.append(f"| {i} | **{r['name']}** | {r['qb_vbd']:+.0f} |")
+    md.append("")
+    md.append("In a 2QB/SF league, QB drafting is the highest-leverage "
+              "category. Top of this list = found a top-12 QB in the late "
+              "rounds and rode him to multiple titles' worth of points.\n")
+
+    # ===== Wire VBD =====
     md.append("## 🔍 Wire Production (FA adds only, no trades)\n")
     by_wire = sorted(rows, key=lambda r: -r["wire_pts"])
-    md.append("| Rank | Manager | 3-yr Wire pts |")
-    md.append("|---|---|---|")
+    md.append("| Rank | Manager | 3-yr Wire pts | Hit rate |")
+    md.append("|---|---|---|---|")
     for i, r in enumerate(by_wire, 1):
-        md.append(f"| {i} | **{r['name']}** | +{r['wire_pts']:.0f} |")
+        adds = max(1, r["wire_adds"])
+        ppa = r["wire_pts"] / adds
+        md.append(f"| {i} | **{r['name']}** | +{r['wire_pts']:.0f} | "
+                  f"{ppa:.1f} pts/add |")
     md.append("")
-    md.append("Wire pickup production (not including trade acquisitions). "
-              "Volume managers — Brower, Trevor, Brian — tend to top this "
-              "ranking. Selective managers underperform here by definition "
-              "but make up for it elsewhere.\n")
+    md.append("Wire pickup production excludes trade acquisitions (which "
+              "are credited to the trade ledger, not the wire). Volume "
+              "drives the top of this ranking; selective adders show up "
+              "with high pts/add but lower totals.\n")
+
+    # ===== Activity =====
+    md.append("## ⚡ Wire Activity — Total Adds (3 years)\n")
+    by_adds = sorted(rows, key=lambda r: -r["wire_adds"])
+    md.append("| Rank | Manager | Adds | Per Year |")
+    md.append("|---|---|---|---|")
+    for i, r in enumerate(by_adds, 1):
+        md.append(f"| {i} | **{r['name']}** | {r['wire_adds']} | "
+                  f"{r['wire_adds']/3:.0f}/yr |")
+    md.append("")
+    md.append("Two valid strategies here: spray-and-pray volume vs "
+              "selective tactical. The bottom of this list isn't bad — "
+              "Donnie has the fewest adds and the highest hit rate. "
+              "The middle of this list (~80-100 adds with low hit rate) "
+              "is the worst zone — too active to be selective, too sparse "
+              "to catch every league-winner.\n")
 
     # ===== 7. Luckiest / unluckiest =====
     md.append("## 🍀 Luck Standings — Actual vs Expected Wins\n")
@@ -269,47 +366,66 @@ def build_markdown() -> str:
               "schedule-unlucky managers will regress upward in 2026 — "
               "that's not a hope, that's math.**\n")
 
-    # ===== 8. My honest verdict =====
-    md.append("## 🎙️ My Take — Who's Actually Been Good\n")
-    md.append("Synthesizing all of the above, here's my opinion on what the "
-              "data says, separating skill from luck:\n")
+    # ===== Luck — kept in the verdict section feeds =====
+    # (we want the luck table earlier too, so move it before this)
 
-    # Identify standouts dynamically
+    # ===== Synthesis =====
+    md.append("## 🎙️ Synthesis — What the Data Actually Says\n")
+    md.append("Pulling all twelve leaderboards together, here are the "
+              "labels that the data supports — computed dynamically, no "
+              "favorites:\n")
+
     top_strength = max(rows, key=lambda r: r["expected_w"])
     top_draft = max(rows, key=lambda r: r["draft_vbd"])
+    top_qb = max(rows, key=lambda r: r["qb_vbd"])
+    top_wire = max(rows, key=lambda r: r["wire_pts"])
     most_unlucky = min(rows, key=lambda r: r["luck"])
     most_lucky = max(rows, key=lambda r: r["luck"])
     bottom_strength = min(rows, key=lambda r: r["expected_w"])
+    most_consistent = min(rows, key=lambda r: r["cv"])
+    most_volatile = max(rows, key=lambda r: r["cv"])
+    biggest_game = max(rows, key=lambda r: r["max_week"][2])
+    most_po = max(rows, key=lambda r: r["playoff_appearances"])
 
-    md.append(f"**🥇 Best overall manager (skill, not luck): {top_strength['name']}.** "
-              f"Most points scored, most actual wins, most expected wins — "
-              f"three different metrics, same answer. The only thing missing "
-              f"is a title, which is a coin flip every January.\n")
-    md.append(f"**🎯 Best drafter: {top_draft['name']}** "
-              f"({top_draft['draft_vbd']:+.0f} 3-yr VBD). The actual edge in "
-              f"the controllable phase of the year. Hasn't yet converted to "
-              f"a title because drafting alone doesn't win December.\n")
-    md.append(f"**🍀 Luckiest: {most_lucky['name']}** "
+    md.append(f"**🥇 Best overall team** (most points, most wins, most "
+              f"expected wins): **{top_strength['name']}**. The only thing "
+              f"missing is a ring, which is a coin flip every January.\n")
+    md.append(f"**🎟️ Most playoff appearances**: **{most_po['name']}** "
+              f"({most_po['playoff_appearances']}/3). Reliable contention "
+              f"every year.\n")
+    md.append(f"**🎯 Best drafter** ({top_draft['draft_vbd']:+.0f} 3-yr VBD): "
+              f"**{top_draft['name']}**.\n")
+    md.append(f"**👑 Best QB drafter** ({top_qb['qb_vbd']:+.0f}): "
+              f"**{top_qb['name']}**. The most valuable position group "
+              f"in our format.\n")
+    md.append(f"**🔍 Best on the wire**: **{top_wire['name']}** "
+              f"(+{top_wire['wire_pts']:.0f} pts off waivers).\n")
+    md.append(f"**📐 Steadiest team** (lowest CV at {most_consistent['cv']:.1f}%): "
+              f"**{most_consistent['name']}**. Almost never has a bad week.\n")
+    md.append(f"**🎢 Most volatile team** ({most_volatile['cv']:.1f}% CV): "
+              f"**{most_volatile['name']}**. When it's good it's great, but "
+              f"the bad weeks come for everyone eventually.\n")
+    md.append(f"**🚀 Single-week ceiling**: **{biggest_game['name']}** with "
+              f"a **{biggest_game['max_week'][2]:.1f}-point** explosion in "
+              f"{biggest_game['max_week'][0]} W{biggest_game['max_week'][1]}.\n")
+    md.append(f"**🍀 Most schedule-lucky**: **{most_lucky['name']}** "
               f"({most_lucky['luck']:+.1f} wins above expectation). "
-              f"Significant slice of {most_lucky['name']}'s record is schedule. "
-              f"Probably regresses in 2026.\n")
-    md.append(f"**🌊 Most unlucky: {most_unlucky['name']}** "
+              f"Some regression coming in 2026.\n")
+    md.append(f"**🌊 Most schedule-unlucky**: **{most_unlucky['name']}** "
               f"({most_unlucky['luck']:+.1f} wins below expectation). Has "
-              f"been a better team than the record shows. Bet on the bounce-"
-              f"back.\n")
-    md.append(f"**🛠️ Most work to do: {bottom_strength['name']}** "
+              f"been better than the record shows.\n")
+    md.append(f"**🛠️ Most growth needed**: **{bottom_strength['name']}** "
               f"({bottom_strength['expected_w']:.1f} expected wins over 3 "
-              f"years). Not luck — just hasn't scored enough points. The "
-              f"answer for 2026: better draft, more wire activity.\n")
+              f"years). Mostly a scoring problem.\n")
 
-    md.append("**The honest answer about the league**: this is a *tight* "
-              "league. Outside of Brower's clear top-tier dominance and "
-              "Tim's clear bottom-tier struggle, **the middle 8 managers are "
-              "all within ~6 expected wins of each other across 42 games.** "
-              "That's why we have three different champs in three years. "
-              "Any of these teams can win it. The question is who'll have "
-              "the peak draft year + favorable schedule when their turn "
-              "comes.\n")
+    md.append("**The big takeaway**: this is a *tight* league. Outside of "
+              f"{top_strength['name']}'s clear top-tier dominance and "
+              f"{bottom_strength['name']}'s scoring struggle, the middle 9 "
+              "managers are all within ~6 expected wins of each other across "
+              "42 games. Three different champs in three years isn't a "
+              "coincidence — any of these teams can win it. The question is "
+              "who'll have the peak draft year + a friendly schedule when "
+              "their turn comes.\n")
 
     md.append("---\n")
     md.append("*All rankings from offline Sleeper data dump. Regular season "

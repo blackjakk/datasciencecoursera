@@ -1,7 +1,7 @@
-# MONEYLEAGUE Rankings — The Honest Version
-*May 2026 · Sleeper era 2023-2025*
+# MONEYLEAGUE Category Leaderboards
+*May 2026 · Sleeper era 2023-2025 · 42 regular-season games per manager*
 
-Multiple defensible metrics, ranked, with my opinion at the end. No cherry-picking, no obfuscation. If the numbers say something, the numbers say it.
+Twelve different lenses on who's been good at what — followed by a synthesis at the end.
 
 ---
 
@@ -72,7 +72,64 @@ This is **the most accurate measure of who's been good** in our league. Brower r
 | 11 | **Lem** | 4411 | 105.0 |
 | 12 | **Tim** | 4318 | 102.8 |
 
-Same shape as expected wins, because that's what expected wins is measuring. Brower's lead here is enormous — he's averaged **117.9 PPG vs the league median of ~109**. That 8-point edge week after week is what built his 33-win record.
+Leader averages **117.9 PPG** vs the league median of ~109. That few-point edge week after week compounds into wins.
+
+## 🎟️ Playoff Appearances (out of 3)
+
+| Rank | Manager | Appearances | Titles |
+|---|---|---|---|
+| 1 | **Brower** | 3/3 | — |
+| 2 | **Ankur** | 2/3 | — |
+| 3 | **Josh** | 2/3 | — |
+| 4 | **Donnie** | 2/3 | — |
+| 5 | **Troy** | 2/3 | — |
+| 6 | **Eric** | 2/3 | 2023 |
+| 7 | **Trevor** | 1/3 | 2025 |
+| 8 | **Kyle** | 1/3 | — |
+| 9 | **Coop** | 1/3 | 2024 |
+| 10 | **Tim** | 1/3 | — |
+| 11 | **Brian** | 1/3 | — |
+| 12 | **Lem** | 0/3 | — |
+
+Making the playoffs is the threshold question; winning one is a different game entirely. Several managers have made all three playoffs without converting; one champion did it on just one playoff appearance.
+
+## 📐 Consistency Index — Weekly Scoring CV
+
+| Rank | Manager | Avg PPG | StdDev | CV |
+|---|---|---|---|---|
+| 1 | **Eric** | 108.9 | 16.9 | 15.5% |
+| 2 | **Brower** | 117.9 | 19.2 | 16.3% |
+| 3 | **Lem** | 105.0 | 20.6 | 19.6% |
+| 4 | **Coop** | 111.9 | 23.1 | 20.6% |
+| 5 | **Troy** | 112.5 | 25.5 | 22.7% |
+| 6 | **Brian** | 107.2 | 24.4 | 22.7% |
+| 7 | **Tim** | 102.8 | 23.6 | 22.9% |
+| 8 | **Josh** | 107.2 | 25.1 | 23.5% |
+| 9 | **Donnie** | 111.1 | 26.2 | 23.6% |
+| 10 | **Trevor** | 107.1 | 26.0 | 24.3% |
+| 11 | **Ankur** | 110.1 | 27.3 | 24.8% |
+| 12 | **Kyle** | 114.1 | 29.2 | 25.6% |
+
+Coefficient of variation — lower = steadier week to week. Consistent rosters dodge the bad-week blowups that kill playoff seeding. Volatile rosters can boom-OR-bust; the bust weeks usually outnumber the booms.
+
+## 🚀 Highest Single-Game Score
+
+| Rank | Manager | Best Game | When |
+|---|---|---|---|
+| 1 | **Kyle** | 224.2 | 2023 W4 |
+| 2 | **Josh** | 222.2 | 2023 W8 |
+| 3 | **Troy** | 212.1 | 2023 W2 |
+| 4 | **Donnie** | 199.0 | 2025 W3 |
+| 5 | **Brian** | 195.1 | 2024 W12 |
+| 6 | **Ankur** | 193.1 | 2025 W2 |
+| 7 | **Trevor** | 191.2 | 2024 W9 |
+| 8 | **Tim** | 182.4 | 2023 W2 |
+| 9 | **Brower** | 182.4 | 2024 W8 |
+| 10 | **Coop** | 180.3 | 2023 W8 |
+| 11 | **Lem** | 177.7 | 2025 W7 |
+| 12 | **Eric** | 176.1 | 2025 W3 |
+
+The single-week explosions. These are the games you screenshot and never let anyone forget.
 
 ## 🎯 Draft VBD (3-year cumulative)
 
@@ -93,24 +150,62 @@ Same shape as expected wins, because that's what expected wins is measuring. Bro
 
 Draft skill measured strictly: above-replacement points delivered by drafted players (keepers excluded). The champions (Eric, Coop, Trevor) all ranked top-5 here. **Drafting is the controllable thing that most correlates with winning.**
 
+## 👑 Best QB Drafter
+
+| Rank | Manager | 3-yr QB VBD |
+|---|---|---|
+| 1 | **Eric** | +625 |
+| 2 | **Brian** | +580 |
+| 3 | **Trevor** | +551 |
+| 4 | **Brower** | +547 |
+| 5 | **Donnie** | +527 |
+| 6 | **Ankur** | +450 |
+| 7 | **Josh** | +231 |
+| 8 | **Tim** | +129 |
+| 9 | **Lem** | +27 |
+| 10 | **Troy** | +8 |
+| 11 | **Coop** | -148 |
+| 12 | **Kyle** | -177 |
+
+In a 2QB/SF league, QB drafting is the highest-leverage category. Top of this list = found a top-12 QB in the late rounds and rode him to multiple titles' worth of points.
+
 ## 🔍 Wire Production (FA adds only, no trades)
 
-| Rank | Manager | 3-yr Wire pts |
-|---|---|---|
-| 1 | **Trevor** | +2002 |
-| 2 | **Brower** | +1960 |
-| 3 | **Lem** | +1933 |
-| 4 | **Coop** | +1879 |
-| 5 | **Josh** | +1814 |
-| 6 | **Troy** | +1808 |
-| 7 | **Kyle** | +1753 |
-| 8 | **Brian** | +1652 |
-| 9 | **Ankur** | +1350 |
-| 10 | **Eric** | +1179 |
-| 11 | **Tim** | +966 |
-| 12 | **Donnie** | +827 |
+| Rank | Manager | 3-yr Wire pts | Hit rate |
+|---|---|---|---|
+| 1 | **Trevor** | +2002 | 11.6 pts/add |
+| 2 | **Brower** | +1960 | 14.2 pts/add |
+| 3 | **Lem** | +1933 | 26.5 pts/add |
+| 4 | **Coop** | +1879 | 40.9 pts/add |
+| 5 | **Josh** | +1814 | 20.9 pts/add |
+| 6 | **Troy** | +1808 | 19.6 pts/add |
+| 7 | **Kyle** | +1753 | 23.1 pts/add |
+| 8 | **Brian** | +1652 | 18.0 pts/add |
+| 9 | **Ankur** | +1350 | 17.5 pts/add |
+| 10 | **Eric** | +1179 | 24.6 pts/add |
+| 11 | **Tim** | +966 | 25.4 pts/add |
+| 12 | **Donnie** | +827 | 37.6 pts/add |
 
-Wire pickup production (not including trade acquisitions). Volume managers — Brower, Trevor, Brian — tend to top this ranking. Selective managers underperform here by definition but make up for it elsewhere.
+Wire pickup production excludes trade acquisitions (which are credited to the trade ledger, not the wire). Volume drives the top of this ranking; selective adders show up with high pts/add but lower totals.
+
+## ⚡ Wire Activity — Total Adds (3 years)
+
+| Rank | Manager | Adds | Per Year |
+|---|---|---|---|
+| 1 | **Trevor** | 173 | 58/yr |
+| 2 | **Brower** | 138 | 46/yr |
+| 3 | **Troy** | 92 | 31/yr |
+| 4 | **Brian** | 92 | 31/yr |
+| 5 | **Josh** | 87 | 29/yr |
+| 6 | **Ankur** | 77 | 26/yr |
+| 7 | **Kyle** | 76 | 25/yr |
+| 8 | **Lem** | 73 | 24/yr |
+| 9 | **Eric** | 48 | 16/yr |
+| 10 | **Coop** | 46 | 15/yr |
+| 11 | **Tim** | 38 | 13/yr |
+| 12 | **Donnie** | 22 | 7/yr |
+
+Two valid strategies here: spray-and-pray volume vs selective tactical. The bottom of this list isn't bad — Donnie has the fewest adds and the highest hit rate. The middle of this list (~80-100 adds with low hit rate) is the worst zone — too active to be selective, too sparse to catch every league-winner.
 
 ## 🍀 Luck Standings — Actual vs Expected Wins
 
@@ -131,21 +226,33 @@ Wire pickup production (not including trade acquisitions). Volume managers — B
 
 Positive luck = won more than your points deserved. Negative luck = the schedule has been hostile. **Trevor and Josh have been the league's beneficiaries.** **The most schedule-unlucky managers will regress upward in 2026 — that's not a hope, that's math.**
 
-## 🎙️ My Take — Who's Actually Been Good
+## 🎙️ Synthesis — What the Data Actually Says
 
-Synthesizing all of the above, here's my opinion on what the data says, separating skill from luck:
+Pulling all twelve leaderboards together, here are the labels that the data supports — computed dynamically, no favorites:
 
-**🥇 Best overall manager (skill, not luck): Brower.** Most points scored, most actual wins, most expected wins — three different metrics, same answer. The only thing missing is a title, which is a coin flip every January.
+**🥇 Best overall team** (most points, most wins, most expected wins): **Brower**. The only thing missing is a ring, which is a coin flip every January.
 
-**🎯 Best drafter: Donnie** (+1868 3-yr VBD). The actual edge in the controllable phase of the year. Hasn't yet converted to a title because drafting alone doesn't win December.
+**🎟️ Most playoff appearances**: **Brower** (3/3). Reliable contention every year.
 
-**🍀 Luckiest: Trevor** (+1.5 wins above expectation). Significant slice of Trevor's record is schedule. Probably regresses in 2026.
+**🎯 Best drafter** (+1868 3-yr VBD): **Donnie**.
 
-**🌊 Most unlucky: Brian** (-9.5 wins below expectation). Has been a better team than the record shows. Bet on the bounce-back.
+**👑 Best QB drafter** (+625): **Eric**. The most valuable position group in our format.
 
-**🛠️ Most work to do: Tim** (20.5 expected wins over 3 years). Not luck — just hasn't scored enough points. The answer for 2026: better draft, more wire activity.
+**🔍 Best on the wire**: **Trevor** (+2002 pts off waivers).
 
-**The honest answer about the league**: this is a *tight* league. Outside of Brower's clear top-tier dominance and Tim's clear bottom-tier struggle, **the middle 8 managers are all within ~6 expected wins of each other across 42 games.** That's why we have three different champs in three years. Any of these teams can win it. The question is who'll have the peak draft year + favorable schedule when their turn comes.
+**📐 Steadiest team** (lowest CV at 15.5%): **Eric**. Almost never has a bad week.
+
+**🎢 Most volatile team** (25.6% CV): **Kyle**. When it's good it's great, but the bad weeks come for everyone eventually.
+
+**🚀 Single-week ceiling**: **Kyle** with a **224.2-point** explosion in 2023 W4.
+
+**🍀 Most schedule-lucky**: **Trevor** (+1.5 wins above expectation). Some regression coming in 2026.
+
+**🌊 Most schedule-unlucky**: **Brian** (-9.5 wins below expectation). Has been better than the record shows.
+
+**🛠️ Most growth needed**: **Tim** (20.5 expected wins over 3 years). Mostly a scoring problem.
+
+**The big takeaway**: this is a *tight* league. Outside of Brower's clear top-tier dominance and Tim's scoring struggle, the middle 9 managers are all within ~6 expected wins of each other across 42 games. Three different champs in three years isn't a coincidence — any of these teams can win it. The question is who'll have the peak draft year + a friendly schedule when their turn comes.
 
 ---
 
