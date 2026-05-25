@@ -1,0 +1,622 @@
+{
+  "season": 2020,
+  "league_id": "64590",
+  "teams": {
+    "1": "Guap Gang",
+    "2": "Barry Sandals",
+    "3": "BergerBoy Brigade",
+    "4": "Don\u2019s Special Guys",
+    "5": "Figgy",
+    "6": "Waiting For 2021",
+    "7": "Wet Ass Posluzny",
+    "8": "Terror Squad",
+    "9": "The Dream Team",
+    "10": "#1 Pokemon Master",
+    "11": "LewLew Ferrari",
+    "12": "Weird Flex but OK"
+  },
+  "weeks": {
+    "1": [
+      {
+        "team_a": 1,
+        "team_b": 2,
+        "pts_a": 137.17,
+        "pts_b": 150.66,
+        "winner": 2
+      },
+      {
+        "team_a": 3,
+        "team_b": 11,
+        "pts_a": 135.4,
+        "pts_b": 141.31,
+        "winner": 11
+      },
+      {
+        "team_a": 4,
+        "team_b": 10,
+        "pts_a": 156.05,
+        "pts_b": 153.58,
+        "winner": 4
+      },
+      {
+        "team_a": 5,
+        "team_b": 9,
+        "pts_a": 141.47,
+        "pts_b": 140.06,
+        "winner": 5
+      },
+      {
+        "team_a": 6,
+        "team_b": 8,
+        "pts_a": 150.38,
+        "pts_b": 134.84,
+        "winner": 6
+      },
+      {
+        "team_a": 7,
+        "team_b": 12,
+        "pts_a": 145.99,
+        "pts_b": 133.43,
+        "winner": 7
+      }
+    ],
+    "2": [
+      {
+        "team_a": 1,
+        "team_b": 3,
+        "pts_a": 143.74,
+        "pts_b": 135.33,
+        "winner": 1
+      },
+      {
+        "team_a": 2,
+        "team_b": 12,
+        "pts_a": 148.74,
+        "pts_b": 143.14,
+        "winner": 2
+      },
+      {
+        "team_a": 4,
+        "team_b": 11,
+        "pts_a": 154.29,
+        "pts_b": 142.53,
+        "winner": 4
+      },
+      {
+        "team_a": 5,
+        "team_b": 10,
+        "pts_a": 134.12,
+        "pts_b": 146.1,
+        "winner": 10
+      },
+      {
+        "team_a": 6,
+        "team_b": 9,
+        "pts_a": 145.18,
+        "pts_b": 145.75,
+        "winner": 9
+      },
+      {
+        "team_a": 7,
+        "team_b": 8,
+        "pts_a": 146.2,
+        "pts_b": 128.42,
+        "winner": 7
+      }
+    ],
+    "3": [
+      {
+        "team_a": 1,
+        "team_b": 4,
+        "pts_a": 134.34,
+        "pts_b": 124.0,
+        "winner": 1
+      },
+      {
+        "team_a": 2,
+        "team_b": 3,
+        "pts_a": 167.83,
+        "pts_b": 144.66,
+        "winner": 2
+      },
+      {
+        "team_a": 5,
+        "team_b": 11,
+        "pts_a": 137.08,
+        "pts_b": 139.11,
+        "winner": 11
+      },
+      {
+        "team_a": 6,
+        "team_b": 10,
+        "pts_a": 148.41,
+        "pts_b": 155.79,
+        "winner": 10
+      },
+      {
+        "team_a": 7,
+        "team_b": 9,
+        "pts_a": 148.76,
+        "pts_b": 155.02,
+        "winner": 9
+      },
+      {
+        "team_a": 8,
+        "team_b": 12,
+        "pts_a": 118.32,
+        "pts_b": 151.93,
+        "winner": 12
+      }
+    ],
+    "4": [
+      {
+        "team_a": 1,
+        "team_b": 5,
+        "pts_a": 145.16,
+        "pts_b": 143.06,
+        "winner": 1
+      },
+      {
+        "team_a": 2,
+        "team_b": 4,
+        "pts_a": 167.81,
+        "pts_b": 132.78,
+        "winner": 2
+      },
+      {
+        "team_a": 3,
+        "team_b": 12,
+        "pts_a": 142.4,
+        "pts_b": 125.68,
+        "winner": 3
+      },
+      {
+        "team_a": 6,
+        "team_b": 11,
+        "pts_a": 146.22,
+        "pts_b": 152.12,
+        "winner": 11
+      },
+      {
+        "team_a": 7,
+        "team_b": 10,
+        "pts_a": 153.76,
+        "pts_b": 159.84,
+        "winner": 10
+      },
+      {
+        "team_a": 8,
+        "team_b": 9,
+        "pts_a": 122.33,
+        "pts_b": 147.09,
+        "winner": 9
+      }
+    ],
+    "5": [
+      {
+        "team_a": 1,
+        "team_b": 6,
+        "pts_a": 136.91,
+        "pts_b": 128.98,
+        "winner": 1
+      },
+      {
+        "team_a": 2,
+        "team_b": 5,
+        "pts_a": 160.2,
+        "pts_b": 131.66,
+        "winner": 2
+      },
+      {
+        "team_a": 3,
+        "team_b": 4,
+        "pts_a": 149.71,
+        "pts_b": 111.33,
+        "winner": 3
+      },
+      {
+        "team_a": 7,
+        "team_b": 11,
+        "pts_a": 143.23,
+        "pts_b": 128.13,
+        "winner": 7
+      },
+      {
+        "team_a": 8,
+        "team_b": 10,
+        "pts_a": 119.72,
+        "pts_b": 142.66,
+        "winner": 10
+      },
+      {
+        "team_a": 9,
+        "team_b": 12,
+        "pts_a": 151.43,
+        "pts_b": 145.18,
+        "winner": 9
+      }
+    ],
+    "6": [
+      {
+        "team_a": 1,
+        "team_b": 7,
+        "pts_a": 134.75,
+        "pts_b": 139.56,
+        "winner": 7
+      },
+      {
+        "team_a": 2,
+        "team_b": 6,
+        "pts_a": 156.59,
+        "pts_b": 125.57,
+        "winner": 2
+      },
+      {
+        "team_a": 3,
+        "team_b": 5,
+        "pts_a": 151.14,
+        "pts_b": 143.26,
+        "winner": 3
+      },
+      {
+        "team_a": 4,
+        "team_b": 12,
+        "pts_a": 131.37,
+        "pts_b": 150.04,
+        "winner": 12
+      },
+      {
+        "team_a": 8,
+        "team_b": 11,
+        "pts_a": 124.49,
+        "pts_b": 131.9,
+        "winner": 11
+      },
+      {
+        "team_a": 9,
+        "team_b": 10,
+        "pts_a": 153.83,
+        "pts_b": 120.98,
+        "winner": 9
+      }
+    ],
+    "7": [
+      {
+        "team_a": 1,
+        "team_b": 8,
+        "pts_a": 131.66,
+        "pts_b": 113.75,
+        "winner": 1
+      },
+      {
+        "team_a": 2,
+        "team_b": 7,
+        "pts_a": 137.73,
+        "pts_b": 144.32,
+        "winner": 7
+      },
+      {
+        "team_a": 3,
+        "team_b": 6,
+        "pts_a": 144.67,
+        "pts_b": 125.05,
+        "winner": 3
+      },
+      {
+        "team_a": 4,
+        "team_b": 5,
+        "pts_a": 111.04,
+        "pts_b": 128.94,
+        "winner": 5
+      },
+      {
+        "team_a": 9,
+        "team_b": 11,
+        "pts_a": 149.95,
+        "pts_b": 136.57,
+        "winner": 9
+      },
+      {
+        "team_a": 10,
+        "team_b": 12,
+        "pts_a": 127.39,
+        "pts_b": 153.93,
+        "winner": 12
+      }
+    ],
+    "8": [
+      {
+        "team_a": 1,
+        "team_b": 9,
+        "pts_a": 144.42,
+        "pts_b": 159.55,
+        "winner": 9
+      },
+      {
+        "team_a": 2,
+        "team_b": 8,
+        "pts_a": 137.1,
+        "pts_b": 121.86,
+        "winner": 2
+      },
+      {
+        "team_a": 3,
+        "team_b": 7,
+        "pts_a": 142.16,
+        "pts_b": 145.44,
+        "winner": 7
+      },
+      {
+        "team_a": 4,
+        "team_b": 6,
+        "pts_a": 112.53,
+        "pts_b": 128.24,
+        "winner": 6
+      },
+      {
+        "team_a": 5,
+        "team_b": 12,
+        "pts_a": 125.25,
+        "pts_b": 146.87,
+        "winner": 12
+      },
+      {
+        "team_a": 10,
+        "team_b": 11,
+        "pts_a": 115.46,
+        "pts_b": 141.5,
+        "winner": 11
+      }
+    ],
+    "9": [
+      {
+        "team_a": 1,
+        "team_b": 10,
+        "pts_a": 126.43,
+        "pts_b": 121.86,
+        "winner": 1
+      },
+      {
+        "team_a": 2,
+        "team_b": 9,
+        "pts_a": 148.99,
+        "pts_b": 145.29,
+        "winner": 2
+      },
+      {
+        "team_a": 3,
+        "team_b": 8,
+        "pts_a": 155.03,
+        "pts_b": 115.08,
+        "winner": 3
+      },
+      {
+        "team_a": 4,
+        "team_b": 7,
+        "pts_a": 125.05,
+        "pts_b": 141.19,
+        "winner": 7
+      },
+      {
+        "team_a": 5,
+        "team_b": 6,
+        "pts_a": 126.68,
+        "pts_b": 128.04,
+        "winner": 6
+      },
+      {
+        "team_a": 11,
+        "team_b": 12,
+        "pts_a": 143.61,
+        "pts_b": 155.26,
+        "winner": 12
+      }
+    ],
+    "10": [
+      {
+        "team_a": 1,
+        "team_b": 11,
+        "pts_a": 114.41,
+        "pts_b": 126.35,
+        "winner": 11
+      },
+      {
+        "team_a": 2,
+        "team_b": 10,
+        "pts_a": 152.93,
+        "pts_b": 125.96,
+        "winner": 2
+      },
+      {
+        "team_a": 3,
+        "team_b": 9,
+        "pts_a": 159.16,
+        "pts_b": 137.67,
+        "winner": 3
+      },
+      {
+        "team_a": 4,
+        "team_b": 8,
+        "pts_a": 122.32,
+        "pts_b": 116.25,
+        "winner": 4
+      },
+      {
+        "team_a": 5,
+        "team_b": 7,
+        "pts_a": 116.57,
+        "pts_b": 152.79,
+        "winner": 7
+      },
+      {
+        "team_a": 6,
+        "team_b": 12,
+        "pts_a": 133.45,
+        "pts_b": 147.73,
+        "winner": 12
+      }
+    ],
+    "11": [
+      {
+        "team_a": 1,
+        "team_b": 12,
+        "pts_a": 123.13,
+        "pts_b": 157.09,
+        "winner": 12
+      },
+      {
+        "team_a": 2,
+        "team_b": 11,
+        "pts_a": 155.02,
+        "pts_b": 133.47,
+        "winner": 2
+      },
+      {
+        "team_a": 3,
+        "team_b": 10,
+        "pts_a": 144.7,
+        "pts_b": 116.73,
+        "winner": 3
+      },
+      {
+        "team_a": 4,
+        "team_b": 9,
+        "pts_a": 109.14,
+        "pts_b": 158.01,
+        "winner": 9
+      },
+      {
+        "team_a": 5,
+        "team_b": 8,
+        "pts_a": 128.91,
+        "pts_b": 116.06,
+        "winner": 5
+      },
+      {
+        "team_a": 6,
+        "team_b": 7,
+        "pts_a": 137.46,
+        "pts_b": 152.25,
+        "winner": 7
+      }
+    ],
+    "12": [
+      {
+        "team_a": 1,
+        "team_b": 2,
+        "pts_a": 120.23,
+        "pts_b": 142.41,
+        "winner": 2
+      },
+      {
+        "team_a": 3,
+        "team_b": 11,
+        "pts_a": 153.18,
+        "pts_b": 133.26,
+        "winner": 3
+      },
+      {
+        "team_a": 4,
+        "team_b": 10,
+        "pts_a": 117.56,
+        "pts_b": 120.53,
+        "winner": 10
+      },
+      {
+        "team_a": 5,
+        "team_b": 9,
+        "pts_a": 132.48,
+        "pts_b": 164.22,
+        "winner": 9
+      },
+      {
+        "team_a": 6,
+        "team_b": 8,
+        "pts_a": 139.89,
+        "pts_b": 129.2,
+        "winner": 6
+      },
+      {
+        "team_a": 7,
+        "team_b": 12,
+        "pts_a": 150.73,
+        "pts_b": 154.13,
+        "winner": 12
+      }
+    ],
+    "13": [
+      {
+        "team_a": 1,
+        "team_b": 3,
+        "pts_a": 120.39,
+        "pts_b": 153.37,
+        "winner": 3
+      },
+      {
+        "team_a": 2,
+        "team_b": 12,
+        "pts_a": 150.92,
+        "pts_b": 152.02,
+        "winner": 12
+      },
+      {
+        "team_a": 4,
+        "team_b": 11,
+        "pts_a": 106.61,
+        "pts_b": 121.75,
+        "winner": 11
+      },
+      {
+        "team_a": 5,
+        "team_b": 10,
+        "pts_a": 126.83,
+        "pts_b": 125.71,
+        "winner": 5
+      },
+      {
+        "team_a": 6,
+        "team_b": 9,
+        "pts_a": 142.81,
+        "pts_b": 163.71,
+        "winner": 9
+      },
+      {
+        "team_a": 7,
+        "team_b": 8,
+        "pts_a": 143.22,
+        "pts_b": 113.78,
+        "winner": 7
+      }
+    ],
+    "14": [
+      {
+        "team_a": 3,
+        "team_b": 12,
+        "pts_a": 156.65,
+        "pts_b": 151.19,
+        "winner": 3
+      },
+      {
+        "team_a": 4,
+        "team_b": 8,
+        "pts_a": 95.2,
+        "pts_b": 115.65,
+        "winner": 8
+      },
+      {
+        "team_a": 5,
+        "team_b": 7,
+        "pts_a": 133.29,
+        "pts_b": 148.8,
+        "winner": 7
+      },
+      {
+        "team_a": 6,
+        "team_b": 10,
+        "pts_a": 132.61,
+        "pts_b": 131.91,
+        "winner": 6
+      }
+    ]
+  }
+}
