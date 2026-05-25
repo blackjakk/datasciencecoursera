@@ -66,6 +66,25 @@ LEAGUE_LORE: dict[int, list[str]] = {
         "🤢 **Eric allegedly got drugged at the Tropicana, threw up "
         "everywhere, and didn't attend another in-person draft until 2025.**",
     ],
+    2022: [
+        "🚀 **Ankur — last place to champion in one year.** Finished dead "
+        "last in 2021 (literally named 'Zero Win Percentage'), then won "
+        "the title in his 2nd year (Hail Koo 158.36 d. Coop 132.00). "
+        "Brian finished 12th this year.",
+    ],
+    2021: [
+        "🏆 **Dave's 2nd ring** (Walking Off Like Antonio 132.76 d. Troy "
+        "123.58). Trevor demolished Brower 188.06 to 114.40 in the 3rd "
+        "place game.",
+    ],
+    2020: [
+        "🦠 **The COVID Season.** Draft format/venue likely virtual.",
+        "🥈 **Trevor wins his 2nd ring** (BergerBoy 170.76 d. Brower 161.52) "
+        "— the highest-scoring championship final in league history. "
+        "Brower made his first final and lost.",
+        "🔥 **The 3rd-place game outscored the final** — Eric 188.48 d. "
+        "Coop 178.92.",
+    ],
     2019: [
         "🏟️ **The Xfinity Live (Philly) Draft.** First year of the 12-team "
         "expansion. Brower and Notebooks joined as the two new teams.",

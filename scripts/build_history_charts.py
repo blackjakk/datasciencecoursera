@@ -38,6 +38,9 @@ KNOWN_CHAMPIONS: dict[int, str] = {
     2017: "coop",              # The Dream Team 139.92 d. Dave (Fuck the Process) 106.84
     2018: "dave_aka_wang",     # Land of the Freemans 139.46 d. Lem 101.30
     2019: "troy_mullings",     # Terror Squad 135.28 d. Dave 121.66 — Troy's 1st ring
+    2020: "trevor_bergerboy",  # BergerBoy 170.76 d. Brower 161.52 — Trevor's 2nd ring
+    2021: "dave_aka_wang",     # Walking Off Like Antonio 132.76 d. Troy 123.58 — Dave's 2nd
+    2022: "ankur_patel",       # Hail Koo 158.36 d. Coop 132.00 — Ankur's 1st (rookie-year)
 }
 
 
