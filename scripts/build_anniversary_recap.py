@@ -122,6 +122,9 @@ LEAGUE_LORE: dict[int, list[str]] = {
         "👑 **Dave wins his first ring** (Land of the Freemans 139.46 d. "
         "Lem 101.30) — using the elite vets he extracted from Trevor.",
     ],
+    2016: [
+        "🦀 **The Chickie's & Pete's Draft (probably).**",
+    ],
     2017: [
         "🎰 **The Delilah's (Philly) Strip Club Draft.** Yes, the draft was "
         "held at Delilah's in Philadelphia. Figgy used his final pick "
