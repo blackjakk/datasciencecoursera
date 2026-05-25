@@ -129,33 +129,47 @@ def parse_trades_page(html: str, season: int) -> list[dict]:
     return trades
 
 
+def _sides_key(t):
+    """Hashable identity of a trade for dedup."""
+    return (t["date_str"], tuple(
+        (s["received_team"], len(s["received_players"]), len(s["received_picks"]))
+        for s in t["sides"]))
+
+
 def scrape_year(season: int, league_id: str,
                 cookies: Optional[str]) -> list[dict]:
     all_trades = []
+    seen = set()
     pos = 0
+    empty_streak = 0
     while True:
         url = (f"https://football.fantasysports.yahoo.com/"
                f"{season}/f1/{league_id}/transactions"
                f"?transactionsfilter=trade&pos={pos}")
         html = _fetch(url, cookies)
         if not html:
-            break
+            empty_streak += 1
+            if empty_streak >= 2:
+                break
+            pos += 25
+            continue
         trades = parse_trades_page(html, season)
-        if not trades:
-            break
-        # Deduplicate by date+sides hash to detect end of pagination
-        new = [t for t in trades
-               if not any(t["date_str"] == prev["date_str"]
-                          and t["sides"] == prev["sides"]
-                          for prev in all_trades)]
-        if not new:
-            break
-        all_trades.extend(new)
-        print(f"  {season} pos={pos}: +{len(new)} trades "
-              f"({len(all_trades)} total)")
+        new = [t for t in trades if _sides_key(t) not in seen]
+        for t in new:
+            seen.add(_sides_key(t))
+        if new:
+            all_trades.extend(new)
+            print(f"  {season} pos={pos}: +{len(new)} trades "
+                  f"({len(all_trades)} total)")
+            empty_streak = 0
+        else:
+            empty_streak += 1
+            print(f"  {season} pos={pos}: 0 new (streak {empty_streak})")
+            if empty_streak >= 2:
+                break
         pos += 25
         time.sleep(2)
-        if pos > 500:  # safety cap
+        if pos > 500:
             break
     return all_trades
 
