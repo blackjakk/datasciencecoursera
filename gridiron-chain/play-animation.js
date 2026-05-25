@@ -663,20 +663,28 @@ function _simulateKickoffAgents(opts) {
       const isWedge = (i >= 3 && i <= 6);
       let targetX, targetY;
       if (t < flightT) {
-        // Setup phase — wedge drops back in front of catch; wall blockers
-        // STAND IN COVER'S LANE at their existing depth (recv 40) instead
-        // of chasing the gunner. Real blockers position; they don't run
-        // down a faster sprinter. They shift LATERALLY to match the
-        // assigned cover's incoming lane, then wait for the collision.
+        // Setup phase — receiving team forms LAYERED blocking as the ball
+        // is in the air. Two depths:
+        //
+        //   Wedge (mid 4): drops back to ~10 yd in front of returner,
+        //                  tightened laterally — close-in shield around
+        //                  the carrier.
+        //
+        //   Wall  (outer 6): drops back to ~17 yd in front of returner,
+        //                    in their assigned cover's incoming lane —
+        //                    intercept layer that the gunners hit before
+        //                    they ever reach the wedge.
+        //
+        // Both layers backpedal AT THE SNAP (from blockerStartX at recv 40
+        // back toward the returner). The wall was holding at the 40 in
+        // cover's lane before — now it actively retreats to form the
+        // outer layer of blocking.
         if (isWedge) {
           targetX = catchX + recvDir * 10;
           targetY = cy + (blockerLanes[i] - cy) * 0.5;
         } else {
           const cov = cover[a.targetCov];
-          // Hold the 40-yd line depth; shift Y to intercept cov's lane.
-          // Small forward step (recvDir * -4) so the block point is just
-          // on the kicker-side of recv 40, where the gunner hits the wall.
-          targetX = blockerStartX + recvDir * -4;
+          targetX = catchX + recvDir * 17;
           targetY = cov.y;
         }
       } else {
