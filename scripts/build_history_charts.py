@@ -28,7 +28,8 @@ CHART_DIR.mkdir(parents=True, exist_ok=True)
 # detected. Append as we learn them.
 KNOWN_CHAMPIONS: dict[int, str] = {
     # Sleeper-era picked up automatically from sleeper data;
-    # Yahoo entries get filled in here once verified.
+    # Yahoo entries are added here as confirmed from Yahoo trophy room.
+    2011: "nark",  # Danny O'Shea's 139.70 d. Trevor's Reno Mahe 911 118.74
 }
 
 
