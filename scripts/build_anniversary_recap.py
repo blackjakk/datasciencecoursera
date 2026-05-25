@@ -41,6 +41,10 @@ def _yahoo_team_names_by_year() -> dict[int, dict[str, str]]:
 # League lore — memorable stories tied to specific seasons.
 # Add to this dict as more comes back to you.
 LEAGUE_LORE: dict[int, list[str]] = {
+    2018: [
+        "🎰 **The Tropicana Draft.** Eric allegedly got drugged, threw up "
+        "everywhere, and didn't attend another in-person draft until 2025.",
+    ],
     2017: [
         "🎰 **The Strip Club Draft.** This was the year the draft was held "
         "at a strip club. Figgy used his final pick (R19.10) on **Bobby Turbo**.",
