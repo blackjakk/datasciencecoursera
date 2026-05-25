@@ -5,6 +5,8 @@ weights: Rings 35%, Win% 25%, PPG 15%, Trade VBD 15%, Longevity 10%.
 """
 from __future__ import annotations
 
+import base64
+
 import json
 import math
 import re
@@ -84,6 +86,18 @@ _register_fonts()
 def _avatar_path(mid):
     p = ROOT / "data" / "charts" / "avatars" / f"{mid}.jpg"
     return p if p.exists() else None
+
+
+def _data_uri(path: Path, mime: str | None = None) -> str:
+    """Return base64 data: URI for an image (Playwright headless won't follow file://)."""
+    if not Path(path).exists():
+        return ""
+    if mime is None:
+        ext = str(path).lower().split(".")[-1]
+        mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+                "svg": "image/svg+xml"}.get(ext, "image/png")
+    b = Path(path).read_bytes()
+    return f"data:{mime};base64,{base64.b64encode(b).decode()}"
 
 # Reuse build_trades_report helpers
 from scripts import build_trades_report as btr  # noqa: E402
@@ -372,9 +386,10 @@ def build_madden_cards(stats, vbd, vbd_n, draft):
         lng = _scale(s["n_years"], rng["yrs"][0], rng["yrs"][1])
         d = draft.get(mid, {"pts": 0, "picks": 0, "ppp": 0})
         drf = _scale(d["ppp"], rng["ppp"][0], rng["ppp"][1])
-        # Weights: Rings 30, Win% 20, PPG 12, Trade 13, Draft 17, Long 8
-        ovr = round(0.30 * rings + 0.20 * winp + 0.12 * ppg
-                    + 0.13 * trd + 0.17 * drf + 0.08 * lng)
+        # OVR weights — longevity excluded (called out separately as tenure)
+        # Rings 33 + Win% 22 + Draft 18 + Trade 14 + PPG 13 = 100
+        ovr = round(0.33 * rings + 0.22 * winp + 0.13 * ppg
+                    + 0.14 * trd + 0.18 * drf)
         cards.append({
             "mid": mid, "name": _mgr_name(mid), "ovr": ovr,
             "rings_rating": rings, "winp_rating": winp,
@@ -447,7 +462,7 @@ def render_card_html(c):
     arch = archetype(c)
     badge = "" if c.get("is_current", True) else ' <span class="badge-fmr">FMR</span>'
     av = _avatar_path(c["mid"])
-    av_html = (f'<img class="avatar" src="file://{av}"/>'
+    av_html = (f'<img class="avatar" src="{_data_uri(av)}"/>'
                if av else '<div class="avatar avatar-placeholder"></div>')
     return f"""
     <div class="card">
@@ -457,6 +472,7 @@ def render_card_html(c):
         <div class="card-name">
           <div class="player-name">{c['name']}{badge}</div>
           <div class="archetype">{arch} · {tier(c['ovr'])}</div>
+          <div class="tenure-tag">{c['years']} yrs in league</div>
         </div>
       </div>
       <div class="card-body">
@@ -466,7 +482,6 @@ def render_card_html(c):
           <tr><td class="attr">PPG</td><td class="bar"><div class="bar-fill" style="width:{c['ppg_rating']}%;background:{color}"></div></td><td class="val">{c['ppg_rating']}</td><td class="raw">{c['ppg']:.1f}</td></tr>
           <tr><td class="attr">DRFT</td><td class="bar"><div class="bar-fill" style="width:{c['draft_rating']}%;background:{color}"></div></td><td class="val">{c['draft_rating']}</td><td class="raw">{c['draft_ppp']:.1f}/pick · {c['draft_picks']}p</td></tr>
           <tr><td class="attr">TRADE</td><td class="bar"><div class="bar-fill" style="width:{c['trade_rating']}%;background:{color}"></div></td><td class="val">{c['trade_rating']}</td><td class="raw">{c['trade_vbd']:+.0f} ({c['trade_n']}t)</td></tr>
-          <tr><td class="attr">LONG</td><td class="bar"><div class="bar-fill" style="width:{c['long_rating']}%;background:{color}"></div></td><td class="val">{c['long_rating']}</td><td class="raw">{c['years']} yrs</td></tr>
         </table>
       </div>
     </div>
@@ -501,8 +516,10 @@ def build_madden_cards_sleeper(stats, vbd, vbd_n, draft):
         lng = _scale(s["n_years"], rng["yrs"][0], rng["yrs"][1])
         d = draft.get(mid, {"pts": 0, "picks": 0, "ppp": 0})
         drf = _scale(d["ppp"], rng["ppp"][0], rng["ppp"][1])
-        ovr = round(0.25 * rings + 0.22 * winp + 0.13 * ppg
-                    + 0.13 * trd + 0.22 * drf + 0.05 * lng)
+        # Sleeper era — same exclusion of longevity
+        # Rings 26 + Win% 24 + Draft 23 + Trade 14 + PPG 13 = 100
+        ovr = round(0.26 * rings + 0.24 * winp + 0.13 * ppg
+                    + 0.14 * trd + 0.23 * drf)
         cards.append({
             "mid": mid, "name": _mgr_name(mid), "ovr": ovr,
             "rings_rating": rings, "winp_rating": winp,
@@ -569,16 +586,16 @@ def chart_ovr_ranking(cards, path, title="All-Time Power Rankings"):
 def chart_radar_grid(cards, path, title="Top 6 Player Profiles"):
     _setup_mpl()
     top = sorted(cards, key=lambda c: -c["ovr"])[:6]
-    cats = ["RING", "WIN%", "PPG", "DRFT", "TRADE", "LONG"]
+    cats = ["RING", "WIN%", "PPG", "DRFT", "TRADE"]
     angles = np.linspace(0, 2 * np.pi, len(cats), endpoint=False).tolist()
     angles += angles[:1]
     fig, axes = plt.subplots(2, 3, figsize=(10, 7), dpi=140,
                               subplot_kw=dict(polar=True))
     for ax, c in zip(axes.flat, top):
         vals = [c["rings_rating"], c["winp_rating"], c["ppg_rating"],
-                c["draft_rating"], c["trade_rating"], c["long_rating"]]
+                c["draft_rating"], c["trade_rating"]]
         vals += vals[:1]
-        color = tier_color(c["ovr"])
+        color = mgr_color(c["mid"])
         ax.plot(angles, vals, color=color, linewidth=2.2)
         ax.fill(angles, vals, color=color, alpha=0.25)
         ax.set_xticks(angles[:-1])
@@ -601,32 +618,34 @@ def chart_radar_grid(cards, path, title="Top 6 Player Profiles"):
 def chart_scatter_winpct_ppg(cards, path):
     _setup_mpl()
     fig, ax = plt.subplots(figsize=(9, 6), dpi=140)
-    # Avatars as scatter points
+    # Bubble size = rings (exponential so 0 -> dot, 3 -> big circle)
     for c in cards:
         color = mgr_color(c["mid"])
-        ax.scatter(c["winpct"], c["ppg"], s=900, color=color,
-                   alpha=0.18, edgecolor="none", zorder=2)
-        # Overlay avatar
-        av = _avatar_path(c["mid"])
-        if av:
-            img = mpimg.imread(av)
-            im = OffsetImage(img, zoom=0.10)
-            ab = AnnotationBbox(im, (c["winpct"], c["ppg"]),
-                                 frameon=False, zorder=4)
-            ax.add_artist(ab)
-        # Label below
-        ax.annotate(c["name"] + (f" · {c['rings']}R" if c["rings"] else ""),
+        size = 60 + (c["rings"] ** 2) * 380   # 0:60, 1:440, 2:1580, 3:3480
+        ax.scatter(c["winpct"], c["ppg"], s=size, color=color,
+                   alpha=0.55, edgecolor="white", linewidth=1.6, zorder=3)
+        # Label below the bubble
+        ax.annotate(c["name"] + (f"  {c['rings']}R" if c["rings"] else ""),
                     (c["winpct"], c["ppg"]),
-                    xytext=(0, -18), textcoords="offset points",
-                    fontsize=8.5, ha="center", color=PALETTE["ink"],
+                    xytext=(0, -(math.sqrt(size) / 2) - 8),
+                    textcoords="offset points",
+                    fontsize=9, ha="center", color=PALETTE["ink"],
                     fontweight="bold")
     ax.axvline(0.5, color=PALETTE["gray"], linestyle="--", alpha=0.5)
     ax.axhline(np.mean([c["ppg"] for c in cards]),
                color=PALETTE["gray"], linestyle="--", alpha=0.5)
     ax.set_xlabel("Career Win %", fontweight="bold")
     ax.set_ylabel("Career PPG", fontweight="bold")
-    ax.set_title("Win% vs Points-per-Game  ·  Bubble size = ring count",
+    ax.set_title("Win% vs PPG  ·  Bubble size = championship count  "
+                 "·  Dot = 0 rings · Giant = 3 rings",
                  loc="left", pad=14)
+    # Pad axes a bit so big bubbles fit
+    xpad = (max(c["winpct"] for c in cards) - min(c["winpct"] for c in cards)) * 0.18
+    ypad = (max(c["ppg"] for c in cards) - min(c["ppg"] for c in cards)) * 0.18
+    ax.set_xlim(min(c["winpct"] for c in cards) - xpad,
+                max(c["winpct"] for c in cards) + xpad)
+    ax.set_ylim(min(c["ppg"] for c in cards) - ypad,
+                max(c["ppg"] for c in cards) + ypad)
     ax.grid(linestyle="--", alpha=0.4)
     ax.set_axisbelow(True)
     plt.tight_layout()
@@ -666,7 +685,7 @@ def chart_drafters(cards, path):
                 key=lambda c: c["draft_ppp"])
     names = [c["name"] for c in s]
     vals = [c["draft_ppp"] for c in s]
-    colors = [tier_color(c["ovr"]) for c in s]
+    colors = [mgr_color(c["mid"]) for c in s]
     fig, ax = plt.subplots(figsize=(9, max(3, 0.4 * len(s) + 1)), dpi=140)
     ax.barh(names, vals, color=colors, edgecolor="white", linewidth=1.2, height=0.7)
     for i, (v, c) in enumerate(zip(vals, s)):
@@ -966,6 +985,238 @@ def chart_trade_network(path, cards):
     plt.close()
 
 
+def compute_season_table():
+    """Returns {(season, mid): {'w','l','fpts','games','ppg',
+                                  'wins_rank','fpts_rank','n_teams'}}."""
+    ytm = {}
+    for m in all_managers():
+        for yr, tn in (m.get("yahoo_team_names") or {}).items():
+            if yr == "_note" or not tn:
+                continue
+            ytm[(int(yr), tn.strip().lower())] = m["id"]
+    rows = defaultdict(lambda: {"w": 0, "l": 0, "fpts": 0.0, "games": 0})
+
+    for f in sorted((ROOT / "data" / "yahoo").glob("league_*/matchups_*.json")):
+        yr = int(f.stem.split("_")[1])
+        d = json.loads(f.read_text())
+        teams = d.get("teams", {})
+        tid_to_mgr = {}
+        for tid, name in teams.items():
+            mid = ytm.get((yr, name.strip().lower()))
+            if mid:
+                tid_to_mgr[int(tid)] = mid
+        n_teams = len(teams)
+        reg_end = 14 if n_teams == 12 else 13
+        for wk_str, games in d.get("weeks", {}).items():
+            if int(wk_str) > reg_end:
+                continue
+            for g in games:
+                ma = tid_to_mgr.get(g["team_a"])
+                mb = tid_to_mgr.get(g["team_b"])
+                if not (ma and mb):
+                    continue
+                rows[(yr, ma)]["fpts"] += g["pts_a"]
+                rows[(yr, mb)]["fpts"] += g["pts_b"]
+                rows[(yr, ma)]["games"] += 1
+                rows[(yr, mb)]["games"] += 1
+                if g["winner"] == g["team_a"]:
+                    rows[(yr, ma)]["w"] += 1
+                    rows[(yr, mb)]["l"] += 1
+                elif g["winner"] == g["team_b"]:
+                    rows[(yr, mb)]["w"] += 1
+                    rows[(yr, ma)]["l"] += 1
+
+    for season, s in load_all_seasons().items():
+        for rid, r in s["rosters"].items():
+            m = manager_for_sleeper_roster(int(rid))
+            mid = ROSTER_HANDOFFS.get((season, int(rid)),
+                                       m["id"] if m else None)
+            if not mid:
+                continue
+            rows[(season, mid)]["w"] = r["wins"]
+            rows[(season, mid)]["l"] = r["losses"]
+            rows[(season, mid)]["fpts"] = r["fpts"]
+            rows[(season, mid)]["games"] = r["wins"] + r["losses"]
+
+    # Add ranks per season
+    by_year = defaultdict(dict)
+    for (yr, mid), v in rows.items():
+        by_year[yr][mid] = v
+    out = {}
+    for yr, mgrs in by_year.items():
+        n_teams = len(mgrs)
+        wr = sorted(mgrs, key=lambda m: -mgrs[m]["w"])
+        fr = sorted(mgrs, key=lambda m: -mgrs[m]["fpts"])
+        for mid, v in mgrs.items():
+            out[(yr, mid)] = {
+                **v, "n_teams": n_teams,
+                "ppg": v["fpts"] / v["games"] if v["games"] else 0,
+                "wins_rank": wr.index(mid) + 1,
+                "fpts_rank": fr.index(mid) + 1,
+            }
+    return out
+
+
+def chart_tenure_timeline(path, cards):
+    """Gantt-style timeline of who was in the league each year, with ring stars."""
+    _setup_mpl()
+    # Pull every (yr, mid) from season table to know tenure
+    season_table = compute_season_table()
+    # Champions per year
+    champs = dict(KNOWN_CHAMPIONS)
+    for season, s in load_all_seasons().items():
+        if season in champs:
+            continue
+        rid = s.get("champion_roster_id")
+        if rid:
+            m = manager_for_sleeper_roster(int(rid))
+            mid = ROSTER_HANDOFFS.get((season, int(rid)),
+                                       m["id"] if m else None)
+            if mid:
+                champs[season] = mid
+    # Years present per manager
+    years_by_mid = defaultdict(set)
+    for (yr, mid) in season_table:
+        years_by_mid[mid].add(yr)
+
+    mgr_ids = [c["mid"] for c in sorted(cards, key=lambda c: -len(years_by_mid.get(c["mid"], set())))]
+    years_all = sorted({y for ys in years_by_mid.values() for y in ys})
+    yr_min, yr_max = min(years_all), max(years_all)
+    fig, ax = plt.subplots(figsize=(11, 0.42 * len(mgr_ids) + 1), dpi=140)
+    for i, mid in enumerate(mgr_ids):
+        ys = sorted(years_by_mid.get(mid, set()))
+        if not ys:
+            continue
+        # Plot continuous bars (consecutive ranges) and gap markers
+        color = mgr_color(mid)
+        prev = None
+        run_start = None
+        for y in ys + [None]:
+            if prev is None:
+                run_start = y; prev = y; continue
+            if y == prev + 1:
+                prev = y; continue
+            # End of run
+            ax.barh(i, prev - run_start + 1, left=run_start - 0.4,
+                    height=0.66, color=color, alpha=0.85,
+                    edgecolor="white", linewidth=0.5)
+            run_start = y; prev = y
+        # Champion stars
+        for y in ys:
+            if champs.get(y) == mid:
+                ax.scatter(y, i, marker="*", s=250, color=PALETTE["gold"],
+                           edgecolor=PALETTE["ink"], linewidth=1.2,
+                           zorder=4)
+    n_rings = {m: sum(1 for y in years_by_mid[m] if champs.get(y) == m)
+               for m in mgr_ids}
+    names = [f"{_mgr_name(m)}  ({len(years_by_mid[m])}y · {n_rings[m]}R)"
+             for m in mgr_ids]
+    ax.set_yticks(range(len(mgr_ids)))
+    ax.set_yticklabels(names, fontweight="bold", fontsize=9)
+    ax.set_xticks(years_all)
+    ax.set_xticklabels([str(y) for y in years_all], fontsize=8)
+    ax.set_xlim(yr_min - 0.5, yr_max + 0.5)
+    ax.invert_yaxis()
+    ax.set_title("Tenure Timeline  ·  bars = active in league  "
+                 "·  gold stars = championships",
+                 loc="left", pad=14, fontsize=13)
+    ax.spines["left"].set_visible(False)
+    ax.tick_params(left=False)
+    ax.grid(axis="x", linestyle=":", color="#d1d5db", alpha=0.6, zorder=0)
+    ax.set_axisbelow(True)
+    plt.tight_layout()
+    plt.savefig(path, bbox_inches="tight", facecolor="white")
+    plt.close()
+
+
+def chart_finish_heatmap(path, cards):
+    """Manager rows × year cols, color = regular-season finishing rank
+    (1 = gold, last = red)."""
+    _setup_mpl()
+    season_table = compute_season_table()
+    mgrs = [c["mid"] for c in sorted(cards, key=lambda c: -c["ovr"])]
+    years_all = sorted({yr for (yr, _) in season_table})
+    # Normalize: 1 -> 0.0 (best), last -> 1.0 (worst)
+    M = np.full((len(mgrs), len(years_all)), np.nan)
+    labels = np.full((len(mgrs), len(years_all)), "", dtype=object)
+    for i, mid in enumerate(mgrs):
+        for j, yr in enumerate(years_all):
+            s = season_table.get((yr, mid))
+            if s:
+                rank = s["wins_rank"]
+                n = s["n_teams"]
+                M[i, j] = (rank - 1) / max(n - 1, 1)
+                labels[i, j] = str(rank)
+
+    fig, ax = plt.subplots(figsize=(11, 0.42 * len(mgrs) + 1.5), dpi=140)
+    cmap = plt.get_cmap("RdYlGn_r")
+    im = ax.imshow(M, cmap=cmap, vmin=0, vmax=1, aspect="auto")
+    for i in range(len(mgrs)):
+        for j in range(len(years_all)):
+            if not np.isnan(M[i, j]):
+                # text color
+                v = M[i, j]
+                tc = "white" if v < 0.18 or v > 0.78 else PALETTE["ink"]
+                ax.text(j, i, labels[i, j], ha="center", va="center",
+                        color=tc, fontsize=8, fontweight="bold")
+    ax.set_xticks(range(len(years_all)))
+    ax.set_xticklabels([str(y) for y in years_all], fontsize=8)
+    ax.set_yticks(range(len(mgrs)))
+    ax.set_yticklabels([_mgr_name(m) for m in mgrs], fontweight="bold",
+                       fontsize=9)
+    ax.set_title("Regular-Season Finish by Year  ·  green = top, red = bottom  "
+                 "·  number = rank within that year's league",
+                 loc="left", pad=14, fontsize=12)
+    for x in range(len(years_all) + 1):
+        ax.axvline(x - 0.5, color="white", linewidth=1.2)
+    for y in range(len(mgrs) + 1):
+        ax.axhline(y - 0.5, color="white", linewidth=1.2)
+    cbar = plt.colorbar(im, ax=ax, fraction=0.025, pad=0.01,
+                         ticks=[0, 0.5, 1])
+    cbar.ax.set_yticklabels(["#1", "Middle", "Last"])
+    cbar.ax.tick_params(labelsize=8)
+    plt.tight_layout()
+    plt.savefig(path, bbox_inches="tight", facecolor="white")
+    plt.close()
+
+
+def chart_schedule_luck(path, cards):
+    """Career schedule-luck index: (fpts_rank - wins_rank) avg per manager.
+    Positive = luckier than they scored; negative = unlucky."""
+    _setup_mpl()
+    season_table = compute_season_table()
+    luck = defaultdict(list)
+    for (yr, mid), s in season_table.items():
+        luck[mid].append(s["fpts_rank"] - s["wins_rank"])
+    # luck > 0 → won more games than fpts-rank would predict
+    avg = {m: np.mean(v) for m, v in luck.items() if len(v) >= 3}
+    items = sorted([c["mid"] for c in cards if c["mid"] in avg],
+                   key=lambda m: -avg[m])
+    fig, ax = plt.subplots(figsize=(9, 0.42 * len(items) + 1), dpi=140)
+    vals = [avg[m] for m in items]
+    colors = [mgr_color(m) for m in items]
+    bars = ax.barh([_mgr_name(m) for m in items][::-1], vals[::-1],
+                    color=colors[::-1], edgecolor="white", linewidth=1.4,
+                    height=0.72)
+    ax.axvline(0, color=PALETTE["ink"], linewidth=1)
+    for i, (m, v) in enumerate(list(zip(items, vals))[::-1]):
+        x = v + (0.08 if v >= 0 else -0.08)
+        ha = "left" if v >= 0 else "right"
+        ax.text(x, i, f"{v:+.2f}", va="center", ha=ha, fontsize=9,
+                fontweight="bold", color=PALETTE["ink"])
+    rng = max(abs(min(vals)), max(vals)) * 1.35
+    ax.set_xlim(-rng, rng)
+    ax.set_xlabel("Avg (FPTS rank − Wins rank) per season",
+                  fontweight="bold")
+    ax.set_title("Schedule Luck  ·  positive = won more than score suggested · "
+                 "negative = unlucky", loc="left", pad=14, fontsize=12)
+    ax.grid(axis="x", linestyle="--", alpha=0.4)
+    ax.set_axisbelow(True)
+    plt.tight_layout()
+    plt.savefig(path, bbox_inches="tight", facecolor="white")
+    plt.close()
+
+
 def chart_sleeper_winpct_trend(path):
     """Per-season win pct per current manager."""
     _setup_mpl()
@@ -1031,6 +1282,9 @@ def build_html():
         "champs": CHART_DIR / "champs.png",
         "trade_heatmap": CHART_DIR / "trade_heatmap.png",
         "trade_network": CHART_DIR / "trade_network.png",
+        "tenure": CHART_DIR / "tenure.png",
+        "finish_heatmap": CHART_DIR / "finish_heatmap.png",
+        "schedule_luck": CHART_DIR / "schedule_luck.png",
         "ovr_sleeper": CHART_DIR / "ovr_sleeper.png",
         "radar_sleeper": CHART_DIR / "radar_sleeper.png",
         "sleeper_trend": CHART_DIR / "sleeper_trend.png",
@@ -1043,6 +1297,9 @@ def build_html():
     chart_championships_timeline(chart_paths["champs"])
     chart_trade_heatmap(chart_paths["trade_heatmap"], cards)
     chart_trade_network(chart_paths["trade_network"], cards)
+    chart_tenure_timeline(chart_paths["tenure"], cards)
+    chart_finish_heatmap(chart_paths["finish_heatmap"], cards)
+    chart_schedule_luck(chart_paths["schedule_luck"], cards)
     chart_ovr_ranking(cards_s, chart_paths["ovr_sleeper"], "Sleeper Era OVR Rankings")
     chart_radar_grid(cards_s, chart_paths["radar_sleeper"],
                      "Sleeper Era Top 6 — Attribute Profiles")
@@ -1088,6 +1345,9 @@ def build_html():
     .player-name { font-size: 14pt; font-weight: 800; line-height: 1.1; }
     .archetype { font-size: 8.5pt; opacity: 0.92; margin-top: 3px;
                  font-weight: 500; }
+    .tenure-tag { font-size: 7.5pt; opacity: 0.8; margin-top: 4px;
+                  font-weight: 500; letter-spacing: 0.4px;
+                  text-transform: uppercase; }
     .card-body { padding: 8px 12px 10px; }
     .attr-table { width: 100%; font-size: 8.5pt; }
     .attr-table td { padding: 2px 4px; }
@@ -1157,13 +1417,14 @@ def build_html():
 
     # ===== All-time chart =====
     h.append('<h2>All-Time Power Rankings</h2>')
-    h.append('<p class="section-intro">OVR is a weighted composite: '
-             '<strong>Rings 30%</strong>, <strong>Win% 20%</strong>, '
-             '<strong>Draft 17%</strong>, Trade 13%, PPG 12%, Longevity 8%. '
-             'Each attribute is normalized 0-99 within the active-vet pool. '
+    h.append('<p class="section-intro">OVR composite (longevity excluded — '
+             'called out separately as tenure): '
+             '<strong>Rings 33%</strong>, <strong>Win% 22%</strong>, '
+             '<strong>Draft 18%</strong>, Trade 14%, PPG 13%. Each '
+             'attribute normalized 0-99 within the pool. '
              '<strong>FMR</strong> = former manager.</p>')
-    h.append(f'<img class="chart" src="file://{chart_paths["ovr_all"]}"/>')
-    h.append(f'<img class="chart" src="file://{chart_paths["radar_top"]}"/>')
+    h.append(f'<img class="chart" src="{_data_uri(chart_paths["ovr_all"])}"/>')
+    h.append(f'<img class="chart" src="{_data_uri(chart_paths["radar_top"])}"/>')
 
     # ===== Madden cards =====
     h.append('<h2>All-Time Player Cards</h2>')
@@ -1177,7 +1438,7 @@ def build_html():
     h.append('<p class="section-intro">Where each manager lives on the '
              'win-rate / scoring plane. The top-right is the dream; the '
              'bottom-left is the basement. Bubble size = rings.</p>')
-    h.append(f'<img class="chart" src="file://{chart_paths["scatter"]}"/>')
+    h.append(f'<img class="chart" src="{_data_uri(chart_paths["scatter"])}"/>')
 
     # ===== Trade fleecer ledger =====
     h.append('<h2>Trade Fleecer Ledger</h2>')
@@ -1185,7 +1446,7 @@ def build_html():
              '(Yahoo 2011-2022 + Sleeper 2023-2024), including picks '
              '(scored as the rookie-year production of the player actually '
              'drafted). Green = won, red = lost.</p>')
-    h.append(f'<img class="chart" src="file://{chart_paths["vbd"]}"/>')
+    h.append(f'<img class="chart" src="{_data_uri(chart_paths["vbd"])}"/>')
 
     # ===== Trade heatmap =====
     h.append('<h2>Trade Fleecing Matrix</h2>')
@@ -1194,7 +1455,7 @@ def build_html():
              'this person fleeced, <em>red cells</em> are the ones who '
              'fleeced them. Number = net VBD; small subscript = trade count. '
              'Rows ordered by all-time OVR.</p>')
-    h.append(f'<img class="chart" src="file://{chart_paths["trade_heatmap"]}"/>')
+    h.append(f'<img class="chart" src="{_data_uri(chart_paths["trade_heatmap"])}"/>')
 
     # ===== Trade network =====
     h.append('<h2>Trade Network</h2>')
@@ -1202,30 +1463,55 @@ def build_html():
              'trade economy. Bigger node = trades more; edges show pair '
              'frequency (thickness) and imbalance (color depth). Managers '
              'who only trade with a few others get pulled to the periphery.</p>')
-    h.append(f'<img class="chart" src="file://{chart_paths["trade_network"]}"/>')
+    h.append(f'<img class="chart" src="{_data_uri(chart_paths["trade_network"])}"/>')
 
     # ===== Best drafters =====
     h.append('<h2>Best Drafters</h2>')
     h.append('<p class="section-intro">Rookie-year nflverse points produced '
              'by every player each manager drafted, normalized per pick. '
              'Minimum 20 career picks to qualify.</p>')
-    h.append(f'<img class="chart" src="file://{chart_paths["drafters"]}"/>')
+    h.append(f'<img class="chart" src="{_data_uri(chart_paths["drafters"])}"/>')
+
+    # ===== Tenure timeline =====
+    h.append('<h2>Tenure Timeline</h2>')
+    h.append('<p class="section-intro">Who was in the league each year, '
+             'with championships marked as gold stars. Shows how the '
+             'league has evolved (8 → 10 → 12 teams) and who\'s been the '
+             'most loyal.</p>')
+    h.append(f'<img class="chart" src="{_data_uri(chart_paths["tenure"])}"/>')
+
+    # ===== Finish heatmap =====
+    h.append('<h2>Regular-Season Finish, Year by Year</h2>')
+    h.append('<p class="section-intro">Each cell is where that manager '
+             'finished in the regular-season standings that year (green = '
+             'top, red = bottom). Reveals consistency, peak years, droughts.'
+             '</p>')
+    h.append(f'<img class="chart" src="{_data_uri(chart_paths["finish_heatmap"])}"/>')
+
+    # ===== Schedule luck =====
+    h.append('<h2>Schedule Luck</h2>')
+    h.append('<p class="section-intro">Average gap between FPTS rank and '
+             'Wins rank across every season. <strong>Positive</strong> = '
+             'won more games than their scoring deserved (lucky matchups). '
+             '<strong>Negative</strong> = scored well but couldn\'t catch '
+             'a break.</p>')
+    h.append(f'<img class="chart" src="{_data_uri(chart_paths["schedule_luck"])}"/>')
 
     # ===== Championship timeline =====
     h.append('<h2>Championship Timeline</h2>')
     h.append('<p class="section-intro">15 years of titles, one trophy per '
              'season. Rows ordered by total ring count.</p>')
-    h.append(f'<img class="chart" src="file://{chart_paths["champs"]}"/>')
+    h.append(f'<img class="chart" src="{_data_uri(chart_paths["champs"])}"/>')
 
     # ===== Sleeper era split =====
     h.append('<h2>Sleeper Era (2023-2025)</h2>')
     h.append('<p class="section-intro">The last 3 seasons only — recency '
-             'view. Weights tilt away from longevity (5%) and toward '
-             'draft (22%) and win% (22%). All 12 current rosters '
-             'included regardless of tenure.</p>')
-    h.append(f'<img class="chart" src="file://{chart_paths["ovr_sleeper"]}"/>')
-    h.append(f'<img class="chart" src="file://{chart_paths["sleeper_trend"]}"/>')
-    h.append(f'<img class="chart" src="file://{chart_paths["radar_sleeper"]}"/>')
+             'view. Weights: Rings 26%, Win% 24%, Draft 23%, Trade 14%, '
+             'PPG 13%. All 12 current rosters included regardless of '
+             'tenure.</p>')
+    h.append(f'<img class="chart" src="{_data_uri(chart_paths["ovr_sleeper"])}"/>')
+    h.append(f'<img class="chart" src="{_data_uri(chart_paths["sleeper_trend"])}"/>')
+    h.append(f'<img class="chart" src="{_data_uri(chart_paths["radar_sleeper"])}"/>')
 
     h.append('<h2>Sleeper Era Player Cards</h2>')
     h.append('<div class="cards-grid">')
