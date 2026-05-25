@@ -3530,19 +3530,18 @@ function buildAnimForPlay(play, prevPlay) {
         const _passTacklerTrack = (play.motion && play.motion.tracks && play.motion.tracks.tackler) || null;
         const _passTacklerName = play.motion && play.motion.tacklerName;
         const _isPassTacklerByName = play.kind === "complete" && _passTacklerName && d.name === _passTacklerName;
-        // PHASE 5b — non-tackler LB / safety zone drops. Engine emits
-        // tracks.lb1 / lb2 / lb3 / fs / ss for pass plays; map this
-        // defender's slot to its track and sample it. Applied for the
-        // FULL play (was gated to t < throwPhase, which meant defenders
-        // fell back to formation positions post-catch — visible as a
-        // freeze-and-snap). Now: motion holds them at their hook through
-        // the end of the play. Post-catch pursuers and the named tackler
-        // get their own drivers below (post-catch sim, tackler track),
-        // which run AFTER this block and override dd.x/dd.y for those
-        // specific defenders.
+        // PHASE 5b → PHASE 12 — zone drops for ALL coverage defenders
+        // (LB + S), INCLUDING the named tackler. The tackler holds his
+        // coverage assignment until the catch, then breaks via the
+        // sim-physics post-catch pursuit (added below). This replaces
+        // the old tackler-track scheme that pre-routed the defender to
+        // the YAC endpoint — that always teleported off coverage at
+        // the snap and made the tackler stand still at the endpoint
+        // waiting for the receiver to glide in. Now the tackler stays
+        // in coverage, then ACTUALLY chases the receiver at speed.
         let _passSecondaryTrack = null;
         const _isPassKind = play.kind === "complete" || play.kind === "incomplete" || play.kind === "int";
-        if (_isPassKind && !_isPassTacklerByName && play.motion?.tracks) {
+        if (_isPassKind && play.motion?.tracks) {
           const ti = play.motion.tracks;
           const isLBIdx = (i >= idxLB1 && i < idxCB1);
           const lbOrdinal = i - idxLB1;     // 0, 1, 2
@@ -3557,91 +3556,76 @@ function buildAnimForPlay(play, prevPlay) {
             _passSecondaryTrack = ti.ss;
           }
         }
-        if (_passSecondaryTrack && typeof MotionPlayback !== "undefined") {
+        // Secondary track drives the defender UNTIL the catch. After
+        // the catch, the named tackler's sim pursuit overrides (so
+        // their physics-driven chase starts from this coverage spot).
+        const _applySecondary = _passSecondaryTrack
+                              && (t <= throwPhase || !_isPassTacklerByName);
+        if (_applySecondary && typeof MotionPlayback !== "undefined") {
           const sample = MotionPlayback.sampleTrack(_passSecondaryTrack, aT);
           if (sample) {
             dd.x = losX + dir * sample.dxYd * FIELD.PX_PER_YARD;
             dd.y = cy + sample.dyYd * FIELD.PX_PER_YARD;
             if (d._sim) { d._sim.x = dd.x; d._sim.y = dd.y; }
             dd.facing = -dir;
-            // Pre-break, switch to "scrape" pose so the leg cycle still
-            // animates from velocity but the FACING stays caller-set
-            // (toward the offense). The default "run" pose auto-faces
-            // by velocity — when an LB's lateral shuffle had a small
-            // +x velocity blip, his facing flipped to +dir and he
-            // appeared to look AWAY from the QB just as the ball was
-            // thrown near him.
             if (aT < 0.78) dd.pose = "scrape";
-            // Freeze legs when player is settled in zone — feet were
-            // cycling off wall-clock even when body wasn't translating.
             if (!MotionPlayback.isMoving(_passSecondaryTrack, aT)) dd.t = 0;
           }
         }
-        if (_passTacklerTrack && _isPassTacklerByName && typeof MotionPlayback !== "undefined") {
-          const sample = MotionPlayback.sampleTrack(_passTacklerTrack, aT);
-          if (sample) {
-            const trackX = losX + dir * sample.dxYd * FIELD.PX_PER_YARD;
-            const trackY = cy + sample.dyYd * FIELD.PX_PER_YARD;
-            // Blend in from the defender's CURRENT position to the track
-            // over the first 10% of action time. The track's t=0 waypoint
-            // is hardcoded to a formation default (e.g., fs at dyYd=0),
-            // but the pre-snap depth alignment placed the safety at a
-            // coverage-specific spot (e.g., C2 fs at dyYd=-10). Snapping
-            // directly to the track at t=0 caused a 3-4 yd lateral
-            // teleport. Now the tackler slides smoothly from his
-            // coverage position into his pursuit track.
-            const blendIn = Math.min(1, Math.max(0, aT / 0.10));
-            dd.x = dd.x + (trackX - dd.x) * blendIn;
-            dd.y = dd.y + (trackY - dd.y) * blendIn;
-            // Lock pursuit-state so any later code reads consistent pos
-            if (d._sim) { d._sim.x = dd.x; d._sim.y = dd.y; }
-            d._postCatchSynced = true;     // skip the sync block below
-            dd.facing = -dir;
-            if (!MotionPlayback.isMoving(_passTacklerTrack, aT)) dd.t = 0;
-          }
-        }
+        // PHASE 12 — post-catch agent sim. Replaces the old tackler-
+        // track override entirely. The named tackler is just another
+        // pursuer, sprinting at top speed from his coverage spot. The
+        // tackle EMERGES when his sim catches the carrier instead of
+        // being a snap-to-waypoint at a predetermined endpoint.
         if (play.kind === "complete" && t > throwPhase) {
-          // Post-catch pursuit — was ALL 2 CBs + 2 Ss + 2 LBs (6
-          // defenders) sprinting at the ball. Real NFL: 2-3 converge,
-          // rest hold their assignment. Now: only the closest
-          // POST_CATCH_PURSUERS defenders (besides intDefIdx, which
-          // has its own guaranteed-arrival code below) actually
-          // pursue. Everyone else holds their coverage assignment.
+          // Build the pursuit set on the first post-throw frame: the
+          // named tackler is always in it, plus the 2 closest other
+          // defenders (the natural "convergers"). Rest hold their zone.
           const POST_CATCH_PURSUERS = 2;
           if (!_postCatchPursuerSet) {
-            // Lazy-compute the closest set on first frame post-throw
             const candidates = [];
             for (let j = 4; j < formation.defense.length; j++) {
               if (j === intDefIdx) continue;
               const dj = formation.defense[j];
+              if (_passTacklerName && dj && dj.name === _passTacklerName) continue;
               const cx = (dj._sim?.x ?? dj.x), cy_ = (dj._sim?.y ?? dj.y);
               candidates.push({ j, dist: Math.hypot(cx - ballX, cy_ - ballY) });
             }
             candidates.sort((a, b) => a.dist - b.dist);
             _postCatchPursuerSet = new Set(candidates.slice(0, POST_CATCH_PURSUERS).map(c => c.j));
           }
-          // Skip sim pursuit for the named tackler — motion track above
-          // already drove them. Other defenders still use sim physics.
-          if (_postCatchPursuerSet.has(i) && !_isPassTacklerByName) {
+          const inPursuit = _postCatchPursuerSet.has(i) || _isPassTacklerByName;
+          if (inPursuit) {
             const isCB  = i === idxCB1 || i === idxCB2;
             const isSaf = i === idxS1  || i === idxS2;
-            // SYNC pursue state with the defender's CURRENT rendered
-            // position before the first post-catch step. Without this,
-            // SimPlayer's internal position is at formation home, so
-            // the first post-catch frame visually teleports the
-            // defender from wherever coverage drew them back to
-            // formation, then sprints toward the ball.
+            // Sync SimPlayer state with the defender's CURRENT rendered
+            // position (which is the coverage spot from the zone-drop
+            // track) before the first sim step. Without this the sim
+            // starts from formation home and teleports back to coverage
+            // on the first frame post-throw.
             if (!d._postCatchSynced) {
               if (d._sim) {
                 d._sim.x = dd.x; d._sim.y = dd.y;
-                d._sim._lastMs = null;   // reset clock so first step has dt=0
+                d._sim._lastMs = null;
               }
               d._postCatchSynced = true;
             }
             const elapsedMs = Math.max(0, (t - throwPhase) * dur);
-            const factor = isCB ? 1.05 : isSaf ? 1.0 : 0.95;
-            const np = pursue(dd, ballX - dir * 4, ballY, elapsedMs, factor);
+            // Named tackler runs FASTER than the other pursuers — his
+            // speed factor is what makes him the one who actually
+            // catches the carrier (matching the box-score outcome).
+            // 1.25 was tuned so a tackler from typical coverage depth
+            // closes a typical YAC catch by aT ≈ 0.78.
+            const factor = _isPassTacklerByName ? 1.25
+                        : isCB ? 1.05 : isSaf ? 1.0 : 0.95;
+            // Aim at the carrier's current position; SimPlayer handles
+            // acceleration and top-speed cap. Pursuer naturally chases
+            // and converges; tackle pose engages when contact happens
+            // (existing aT > 0.78 logic OR when the sim closes within
+            // contact distance).
+            const np = pursue(dd, ballX, ballY, elapsedMs, factor);
             dd.x = np.x; dd.y = np.y;
+            if (_isPassTacklerByName) dd.facing = -dir;
           }
         }
         // GUARANTEED TACKLER — the assigned coverage defender arrives at the
