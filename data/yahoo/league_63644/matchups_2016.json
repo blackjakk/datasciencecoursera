@@ -1,0 +1,92 @@
+{
+  "season": 2016,
+  "league_id": "63644",
+  "teams": {
+    "1": "Sunday Scaries",
+    "2": "BergerBoy Brigade",
+    "3": "Bing Bong Brothers",
+    "4": "Trust the Process",
+    "5": "Deez Hos Ain't Royal",
+    "6": "Dirty Old Men",
+    "7": "Joffrey Sucks",
+    "8": "Raichu a Love Song",
+    "9": "Arnold Palmer Lite",
+    "10": "Tyrodasaurus Rex"
+  },
+  "weeks": {
+    "1": [
+      {
+        "team_a": 1,
+        "team_b": 2,
+        "pts_a": 124.89,
+        "pts_b": 124.1,
+        "winner": 1
+      },
+      {
+        "team_a": 3,
+        "team_b": 9,
+        "pts_a": 117.86,
+        "pts_b": 128.09,
+        "winner": 9
+      },
+      {
+        "team_a": 4,
+        "team_b": 8,
+        "pts_a": 139.56,
+        "pts_b": 116.79,
+        "winner": 4
+      },
+      {
+        "team_a": 5,
+        "team_b": 7,
+        "pts_a": 128.47,
+        "pts_b": 123.06,
+        "winner": 5
+      },
+      {
+        "team_a": 6,
+        "team_b": 10,
+        "pts_a": 122.6,
+        "pts_b": 116.3,
+        "winner": 6
+      }
+    ],
+    "2": [
+      {
+        "team_a": 1,
+        "team_b": 3,
+        "pts_a": 116.67,
+        "pts_b": 123.57,
+        "winner": 3
+      },
+      {
+        "team_a": 2,
+        "team_b": 10,
+        "pts_a": 126.45,
+        "pts_b": 117.17,
+        "winner": 2
+      },
+      {
+        "team_a": 4,
+        "team_b": 9,
+        "pts_a": 134.01,
+        "pts_b": 129.81,
+        "winner": 4
+      },
+      {
+        "team_a": 5,
+        "team_b": 8,
+        "pts_a": 123.96,
+        "pts_b": 130.25,
+        "winner": 8
+      },
+      {
+        "team_a": 6,
+        "team_b": 7,
+        "pts_a": 118.43,
+        "pts_b": 135.46,
+        "winner": 7
+      }
+    ]
+  }
+}

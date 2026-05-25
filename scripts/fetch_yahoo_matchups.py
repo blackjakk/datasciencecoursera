@@ -61,16 +61,28 @@ def _load_cookies() -> Optional[str]:
     return None
 
 
-def _fetch(url: str, cookies: Optional[str]) -> Optional[str]:
+def _fetch(url: str, cookies: Optional[str], max_retries: int = 4) -> Optional[str]:
     req = urllib.request.Request(url, headers={"User-Agent": UA})
     if cookies:
         req.add_header("Cookie", cookies)
-    try:
-        with urllib.request.urlopen(req, timeout=20) as r:
-            return r.read().decode("utf-8", errors="ignore")
-    except (urllib.error.URLError, urllib.error.HTTPError) as e:
-        print(f"  ERROR fetching {url}: {e}", file=sys.stderr)
-        return None
+    backoff = 30  # seconds
+    for attempt in range(max_retries):
+        try:
+            with urllib.request.urlopen(req, timeout=20) as r:
+                return r.read().decode("utf-8", errors="ignore")
+        except urllib.error.HTTPError as e:
+            if e.code == 999 and attempt < max_retries - 1:
+                print(f"  rate-limited (999); sleeping {backoff}s and retrying...",
+                      file=sys.stderr)
+                time.sleep(backoff)
+                backoff *= 2
+                continue
+            print(f"  ERROR fetching {url}: {e}", file=sys.stderr)
+            return None
+        except urllib.error.URLError as e:
+            print(f"  ERROR fetching {url}: {e}", file=sys.stderr)
+            return None
+    return None
 
 
 def _parse_matchup_page(html: str, league_id: str, year: int) -> Optional[dict]:
@@ -107,10 +119,15 @@ def scrape_season(year: int, league_id: str, cookies: Optional[str],
                   out_path: Path) -> dict:
     teams: dict[int, str] = {}
     weeks: dict[str, list[dict]] = {}
+    n_teams_guess = 0  # filled in after first week
     for wk in REG_SEASON_WEEKS:
         seen_pairs: set[frozenset[int]] = set()
         wk_matchups: list[dict] = []
+        # Stop early once we have all expected matchups (n_teams / 2).
+        target = n_teams_guess // 2 if n_teams_guess else None
         for team_id in range(1, MAX_TEAMS + 1):
+            if target and len(seen_pairs) >= target:
+                break
             url = (f"https://football.fantasysports.yahoo.com/"
                    f"{year}/f1/{league_id}/matchup?week={wk}&mid1={team_id}")
             html = _fetch(url, cookies)
@@ -130,10 +147,20 @@ def scrape_season(year: int, league_id: str, cookies: Optional[str],
             })
             teams[parsed["team_a"]] = parsed["name_a"]
             teams[parsed["team_b"]] = parsed["name_b"]
-            time.sleep(0.15)  # be polite
+            time.sleep(1.5)  # be polite (Yahoo rate-limits aggressively)
+        if not n_teams_guess and len(teams) >= 8:
+            n_teams_guess = len(teams)
         weeks[str(wk)] = wk_matchups
         print(f"  W{wk:>2}: {len(wk_matchups)} matchups, "
               f"{len(teams)} teams known")
+        # Save partial progress after each week
+        payload = {
+            "season": year, "league_id": league_id,
+            "teams": {str(k): v for k, v in sorted(teams.items())},
+            "weeks": weeks,
+        }
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(json.dumps(payload, indent=2))
     payload = {
         "season": year,
         "league_id": league_id,
@@ -167,8 +194,12 @@ def main():
         out_path = (ROOT / "data" / "yahoo" / f"league_{league_id}"
                     / f"matchups_{year}.json")
         if out_path.exists():
-            print(f"\n[skip] {out_path.relative_to(ROOT)} exists — delete to refetch")
-            continue
+            existing = json.loads(out_path.read_text())
+            n = sum(len(v) for v in existing.get("weeks", {}).values())
+            if n >= 50:  # roughly complete (10-team×14wk = 70, 12-team×14wk = 84)
+                print(f"\n[skip] {out_path.relative_to(ROOT)} already has {n} matchups")
+                continue
+            print(f"\n[resume] {out_path.relative_to(ROOT)} has {n} matchups — refetching")
         print(f"\n=== {year} (league {league_id}) ===")
         try:
             payload = scrape_season(year, league_id, cookies, out_path)
