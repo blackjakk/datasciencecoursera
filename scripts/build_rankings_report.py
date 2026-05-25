@@ -19,7 +19,10 @@ from fantasy_draft.results import (  # noqa: E402
     load_player_ownership_windows,
     load_weekly_player_points,
 )
-from fantasy_draft.team_identity import manager_for_sleeper_roster  # noqa: E402
+from fantasy_draft.league_history import load_all_history  # noqa: E402
+from fantasy_draft.team_identity import (  # noqa: E402
+    manager_for_sleeper_roster, all_managers,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 MD_OUT = ROOT / "data" / "MONEYLEAGUE_RANKINGS.md"
@@ -191,6 +194,76 @@ def build_markdown() -> str:
     md.append("---\n")
 
     # ===== 1. Championships =====
+    # ===== 15-year all-time =====
+    history = load_all_history()
+    all_time: dict[str, dict] = {}
+    for yr, sd in history.items():
+        for mid, r in sd["rosters"].items():
+            d = all_time.setdefault(mid, {
+                "years": set(), "wins": 0, "losses": 0,
+                "pf": 0.0, "pa": 0.0, "high": (0, 0, 0.0),
+                "low": (0, 0, 999.0),
+            })
+            d["years"].add(yr)
+            d["wins"] += r["wins"]
+            d["losses"] += r["losses"]
+            d["pf"] += r["pf"]
+            d["pa"] += r["pa"]
+            if r["high_score"][1] > d["high"][2]:
+                d["high"] = (yr, r["high_score"][0], r["high_score"][1])
+            if 0 < r["low_score"][1] < d["low"][2]:
+                d["low"] = (yr, r["low_score"][0], r["low_score"][1])
+
+    mgr_name = {m["id"]: m["canonical_name"].split(" (")[0]
+                for m in all_managers()}
+    current = {m["id"] for m in all_managers() if m.get("sleeper_roster_id")}
+    sorted_all = sorted(all_time.items(),
+                        key=lambda kv: -kv[1]["wins"])
+
+    md.append("## 🕰️ All-Time Standings (2011-2025, regular season only)\n")
+    md.append("Combined Yahoo (2011-2022) + Sleeper (2023-2025). Active "
+              "managers only; former members in a footnote.\n")
+    md.append("| Rank | Manager | Years | W | L | Win% | PF | PA |")
+    md.append("|---|---|---|---|---|---|---|---|")
+    rank = 0
+    for mid, d in sorted_all:
+        if mid not in current:
+            continue
+        rank += 1
+        n_yr = len(d["years"])
+        gp = d["wins"] + d["losses"]
+        wp = 100 * d["wins"] / max(1, gp)
+        md.append(f"| {rank} | **{mgr_name[mid]}** | {n_yr} | "
+                  f"{d['wins']} | {d['losses']} | {wp:.0f}% | "
+                  f"{d['pf']:.0f} | {d['pa']:.0f} |")
+    md.append("")
+    md.append("*Win% over **regular season games only** (W1-W13). Hot take: "
+              "this is the most honest measure of long-term competitiveness — "
+              "no playoff luck, no schedule tricks.*\n")
+
+    md.append("## 🚀 All-Time Single-Game High Scores\n")
+    md.append("| Rank | Manager | High | When |")
+    md.append("|---|---|---|---|")
+    by_high = sorted(((mid, d) for mid, d in all_time.items() if mid in current),
+                     key=lambda kv: -kv[1]["high"][2])
+    for i, (mid, d) in enumerate(by_high, 1):
+        yr, wk, pts = d["high"]
+        md.append(f"| {i} | **{mgr_name[mid]}** | {pts:.1f} | {yr} W{wk} |")
+    md.append("")
+
+    md.append("## 💩 All-Time Single-Game Lows (≥10 pts)\n")
+    md.append("Just for fun — the worst weeks ever.\n")
+    md.append("| Rank | Manager | Low | When |")
+    md.append("|---|---|---|---|")
+    by_low = sorted(((mid, d) for mid, d in all_time.items() if mid in current),
+                    key=lambda kv: kv[1]["low"][2])
+    for i, (mid, d) in enumerate(by_low, 1):
+        yr, wk, pts = d["low"]
+        if pts > 990:
+            continue
+        md.append(f"| {i} | **{mgr_name[mid]}** | {pts:.1f} | {yr} W{wk} |")
+    md.append("")
+
     md.append("## 🏆 Championships (the only ring that matters)\n")
     md.append("| Year | Champion |")
     md.append("|---|---|")

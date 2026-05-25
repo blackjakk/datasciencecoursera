@@ -5,6 +5,63 @@ Twelve different lenses on who's been good at what — followed by a synthesis a
 
 ---
 
+## 🕰️ All-Time Standings (2011-2025, regular season only)
+
+Combined Yahoo (2011-2022) + Sleeper (2023-2025). Active managers only; former members in a footnote.
+
+| Rank | Manager | Years | W | L | Win% | PF | PA |
+|---|---|---|---|---|---|---|---|
+| 1 | **Trevor** | 13 | 105 | 64 | 62% | 22567 | 21159 |
+| 2 | **Coop** | 15 | 102 | 93 | 52% | 24898 | 24638 |
+| 3 | **Eric** | 15 | 102 | 93 | 52% | 24978 | 24745 |
+| 4 | **Kyle** | 15 | 97 | 98 | 50% | 24459 | 24484 |
+| 5 | **Lem** | 15 | 91 | 104 | 47% | 24362 | 24764 |
+| 6 | **Brian** | 15 | 87 | 108 | 45% | 24252 | 25000 |
+| 7 | **Troy** | 13 | 82 | 87 | 49% | 21639 | 21577 |
+| 8 | **Brower** | 7 | 61 | 30 | 67% | 12782 | 11709 |
+| 9 | **Donnie** | 12 | 57 | 99 | 37% | 18987 | 20343 |
+| 10 | **Tim** | 9 | 46 | 71 | 39% | 14463 | 15455 |
+| 11 | **Ankur** | 5 | 37 | 28 | 57% | 8526 | 8337 |
+| 12 | **Josh** | 3 | 24 | 15 | 62% | 5085 | 4992 |
+
+*Win% over **regular season games only** (W1-W13). Hot take: this is the most honest measure of long-term competitiveness — no playoff luck, no schedule tricks.*
+
+## 🚀 All-Time Single-Game High Scores
+
+| Rank | Manager | High | When |
+|---|---|---|---|
+| 1 | **Troy** | 224.2 | 2023 W5 |
+| 2 | **Brower** | 222.2 | 2023 W10 |
+| 3 | **Donnie** | 212.1 | 2023 W4 |
+| 4 | **Trevor** | 200.9 | 2023 W5 |
+| 5 | **Ankur** | 199.0 | 2025 W2 |
+| 6 | **Coop** | 197.3 | 2024 W2 |
+| 7 | **Kyle** | 195.0 | 2023 W13 |
+| 8 | **Brian** | 191.2 | 2024 W11 |
+| 9 | **Josh** | 191.0 | 2024 W2 |
+| 10 | **Tim** | 184.5 | 2025 W3 |
+| 11 | **Eric** | 179.4 | 2023 W5 |
+| 12 | **Lem** | 176.2 | 2024 W11 |
+
+## 💩 All-Time Single-Game Lows (≥10 pts)
+
+Just for fun — the worst weeks ever.
+
+| Rank | Manager | Low | When |
+|---|---|---|---|
+| 1 | **Donnie** | 44.0 | 2018 W9 |
+| 2 | **Kyle** | 63.1 | 2024 W10 |
+| 3 | **Tim** | 64.1 | 2023 W4 |
+| 4 | **Ankur** | 64.8 | 2023 W4 |
+| 5 | **Brian** | 72.5 | 2025 W6 |
+| 6 | **Troy** | 76.2 | 2025 W13 |
+| 7 | **Coop** | 76.9 | 2023 W9 |
+| 8 | **Eric** | 78.3 | 2015 W5 |
+| 9 | **Lem** | 79.6 | 2023 W4 |
+| 10 | **Trevor** | 82.9 | 2024 W10 |
+| 11 | **Josh** | 83.7 | 2023 W5 |
+| 12 | **Brower** | 87.8 | 2023 W1 |
+
 ## 🏆 Championships (the only ring that matters)
 
 | Year | Champion |
