@@ -561,7 +561,7 @@ def chart_ovr_ranking(cards, path, title="All-Time Power Rankings"):
     names = [c["name"] + (" (FMR)" if not c.get("is_current", True) else "") for c in cards]
     ovrs = [c["ovr"] for c in cards]
     colors = [mgr_color(c["mid"]) for c in cards]
-    fig, ax = plt.subplots(figsize=(9, max(3, 0.42 * len(cards) + 1)), dpi=140)
+    fig, ax = plt.subplots(figsize=(9, max(2.8, 0.32 * len(cards) + 0.5)), dpi=140)
     bars = ax.barh(names, ovrs, color=colors, edgecolor="white", linewidth=1.5, height=0.72)
     ax.set_xlim(40, 100)
     ax.set_xlabel("OVR Rating", fontweight="bold")
@@ -1217,6 +1217,407 @@ def chart_schedule_luck(path, cards):
     plt.close()
 
 
+def _load_player_positions():
+    """Map normalized player name -> NFL position."""
+    import csv
+    pos = {}
+    with open(ROOT / "data" / "nflverse" / "player_stats_season.csv") as f:
+        for row in csv.DictReader(f):
+            n = (row["player_display_name"] or row["player_name"] or "").strip()
+            p = row.get("position")
+            if n and p:
+                pos.setdefault(_norm(n), p)
+    return pos
+
+
+def _load_all_drafts():
+    """Returns list of {season, round, mid, player, pos}."""
+    import csv
+    name_to_mgr = btr._yahoo_name_lookup()
+    sleeper_names = btr._load_sleeper_players()
+    sleeper_pos = {pid: d.get("position")
+                    for pid, d in json.loads(
+                        (ROOT / "data" / "sleeper" / "players_nfl.json").read_text()
+                    ).items()}
+    pos_lookup = _load_player_positions()
+    mgr_rid_to_id = {m["sleeper_roster_id"]: m["id"]
+                     for m in all_managers() if m.get("sleeper_roster_id")}
+    out = []
+    # Yahoo
+    for f in sorted((ROOT / "data" / "yahoo").glob("league_*/draft_*.csv")):
+        with open(f) as fh:
+            for row in csv.DictReader(fh):
+                yr = int(row["season"])
+                tn = row["team_name"].strip().lower()
+                mid = name_to_mgr.get((yr, tn))
+                player = row.get("player_name", "")
+                if not (mid and player):
+                    continue
+                pos = pos_lookup.get(_norm(player), "?")
+                out.append({"season": yr, "round": int(row["round"]),
+                             "mid": mid, "player": player, "pos": pos})
+    # Sleeper
+    for lg in ["league_1001657805583077376",
+               "league_1085805164784664576",
+               "league_1245039290518360064"]:
+        d_idx = json.loads((ROOT / "data/sleeper" / lg / "drafts.json").read_text())
+        for d in d_idx:
+            picks_f = (ROOT / "data/sleeper" / lg /
+                        f"draft_{d['draft_id']}_picks.json")
+            if not picks_f.exists():
+                continue
+            season = int(d["season"])
+            for p in json.loads(picks_f.read_text()):
+                rid = int(p.get("roster_id") or 0)
+                mid = ROSTER_HANDOFFS.get((season, rid)) or mgr_rid_to_id.get(rid)
+                pid = p.get("player_id")
+                name = sleeper_names.get(pid, "") if pid else ""
+                if not (mid and name):
+                    continue
+                pos = sleeper_pos.get(pid) or pos_lookup.get(_norm(name), "?")
+                out.append({"season": season, "round": int(p.get("round") or 0),
+                             "mid": mid, "player": name, "pos": pos or "?"})
+    return out
+
+
+def chart_position_drafted(path, cards):
+    """Stacked horizontal bars per manager — what positions they draft
+    in each round. Shows draft strategy preferences."""
+    _setup_mpl()
+    drafts = _load_all_drafts()
+    mgrs = [c["mid"] for c in cards]
+    positions = ["QB", "RB", "WR", "TE", "K", "DEF"]
+    pos_colors = {"QB": "#dc2626", "RB": "#0891b2", "WR": "#2d6a4f",
+                  "TE": "#f59e0b", "K": "#9a3412", "DEF": "#525252"}
+    # rounds to show
+    rounds = list(range(1, 11))  # focus on rounds 1-10
+    # data: mgr -> round -> position -> count
+    cnt = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+    for p in drafts:
+        if p["mid"] in mgrs and p["round"] in rounds:
+            pos = p["pos"] if p["pos"] in positions else "?"
+            if pos != "?":
+                cnt[p["mid"]][p["round"]][pos] += 1
+    n_mgrs = len(mgrs)
+    ncols = 3
+    nrows = math.ceil(n_mgrs / ncols)
+    fig, axes = plt.subplots(nrows, ncols, figsize=(11.5, 2.0 * nrows + 1), dpi=140)
+    axes_flat = axes.flat if hasattr(axes, "flat") else [axes]
+    for ax, mid in zip(axes_flat, mgrs):
+        bottoms = np.zeros(len(rounds))
+        for pos in positions:
+            vals = [cnt[mid][r][pos] for r in rounds]
+            ax.bar(rounds, vals, bottom=bottoms, color=pos_colors[pos],
+                    label=pos, edgecolor="white", linewidth=0.6, width=0.85)
+            bottoms += np.array(vals)
+        ax.set_title(_mgr_name(mid), fontsize=10, fontweight="bold",
+                     color=mgr_color(mid), loc="left")
+        ax.set_xticks(rounds)
+        ax.set_xticklabels(rounds, fontsize=7)
+        ax.tick_params(axis="y", labelsize=7)
+        ax.set_xlim(0.4, len(rounds) + 0.6)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+    for ax in axes_flat[n_mgrs:]:
+        ax.set_visible(False)
+    # Single legend across the top
+    handles = [plt.Rectangle((0, 0), 1, 1, color=pos_colors[p]) for p in positions]
+    fig.legend(handles, positions, loc="upper center", ncol=len(positions),
+               frameon=False, bbox_to_anchor=(0.5, 1.02), fontsize=9)
+    fig.suptitle("Positions Drafted by Round  ·  rounds 1-10  ·  "
+                 "stacked counts across career",
+                 fontsize=13, fontweight="bold", y=1.06, x=0.07, ha="left")
+    plt.tight_layout()
+    plt.savefig(path, bbox_inches="tight", facecolor="white")
+    plt.close()
+
+
+def chart_h2h_matrix(path, cards):
+    """Pairwise W-L matrix across all regular-season matchups (career)."""
+    _setup_mpl()
+    ytm = {}
+    for m in all_managers():
+        for yr, tn in (m.get("yahoo_team_names") or {}).items():
+            if yr == "_note" or not tn:
+                continue
+            ytm[(int(yr), tn.strip().lower())] = m["id"]
+    h2h = defaultdict(lambda: [0, 0])  # (a, b) -> [a_wins, b_wins]
+    # Yahoo
+    for f in sorted((ROOT / "data" / "yahoo").glob("league_*/matchups_*.json")):
+        yr = int(f.stem.split("_")[1])
+        d = json.loads(f.read_text())
+        teams = d.get("teams", {})
+        tid_to_mgr = {}
+        for tid, name in teams.items():
+            mid = ytm.get((yr, name.strip().lower()))
+            if mid:
+                tid_to_mgr[int(tid)] = mid
+        n_teams = len(teams)
+        reg_end = 14 if n_teams == 12 else 13
+        for wk_str, games in d.get("weeks", {}).items():
+            if int(wk_str) > reg_end:
+                continue
+            for g in games:
+                ma = tid_to_mgr.get(g["team_a"])
+                mb = tid_to_mgr.get(g["team_b"])
+                if not (ma and mb):
+                    continue
+                key = tuple(sorted([ma, mb]))
+                if g["winner"] == g["team_a"]:
+                    if key[0] == ma:
+                        h2h[key][0] += 1
+                    else:
+                        h2h[key][1] += 1
+                elif g["winner"] == g["team_b"]:
+                    if key[0] == mb:
+                        h2h[key][0] += 1
+                    else:
+                        h2h[key][1] += 1
+    # Sleeper
+    for season, s in load_all_seasons().items():
+        rid_to_mid = {}
+        for rid in s["rosters"]:
+            m = manager_for_sleeper_roster(int(rid))
+            mid = ROSTER_HANDOFFS.get((season, int(rid)),
+                                       m["id"] if m else None)
+            if mid:
+                rid_to_mid[int(rid)] = mid
+        # Walk Sleeper matchups
+        mu_dir = ROOT / "data" / "sleeper" / f"league_{s['league_id']}" / "matchups"
+        for wkf in sorted(mu_dir.glob("week_*.json")):
+            wk = int(wkf.stem.split("_")[1])
+            if wk > 14:
+                continue
+            entries = json.loads(wkf.read_text())
+            # Group by matchup_id
+            by_mid = defaultdict(list)
+            for e in entries:
+                if e.get("matchup_id") is not None:
+                    by_mid[e["matchup_id"]].append(e)
+            for mids_pair in by_mid.values():
+                if len(mids_pair) != 2:
+                    continue
+                a, b = mids_pair
+                ma = rid_to_mid.get(int(a["roster_id"]))
+                mb = rid_to_mid.get(int(b["roster_id"]))
+                if not (ma and mb):
+                    continue
+                key = tuple(sorted([ma, mb]))
+                pa = a.get("points") or 0
+                pb = b.get("points") or 0
+                if pa > pb:
+                    if key[0] == ma:
+                        h2h[key][0] += 1
+                    else:
+                        h2h[key][1] += 1
+                elif pb > pa:
+                    if key[0] == mb:
+                        h2h[key][0] += 1
+                    else:
+                        h2h[key][1] += 1
+    # Build matrix
+    mgrs = [c["mid"] for c in sorted(cards, key=lambda c: -c["ovr"])]
+    n = len(mgrs)
+    M = np.full((n, n), np.nan)
+    Lbl = np.full((n, n), "", dtype=object)
+    for i, a in enumerate(mgrs):
+        for j, b in enumerate(mgrs):
+            if i == j:
+                continue
+            key = tuple(sorted([a, b]))
+            wa, wb = h2h.get(key, [0, 0])
+            if key[0] == a:
+                w, l = wa, wb
+            else:
+                w, l = wb, wa
+            if w + l > 0:
+                M[i, j] = w - l
+                Lbl[i, j] = f"{w}-{l}"
+    vmax = float(np.nanmax(np.abs(M))) or 1.0
+    fig, ax = plt.subplots(figsize=(10, 8.5), dpi=140)
+    im = ax.imshow(M, cmap="RdYlGn", vmin=-vmax, vmax=vmax, aspect="equal")
+    for i in range(n):
+        ax.add_patch(plt.Rectangle((i - 0.5, i - 0.5), 1, 1,
+                                    color="#1a1d24", zorder=2))
+    names = [_mgr_name(m) for m in mgrs]
+    ax.set_xticks(range(n)); ax.set_yticks(range(n))
+    ax.set_xticklabels(names, rotation=45, ha="left", fontsize=9,
+                       fontweight="bold", rotation_mode="anchor")
+    ax.set_yticklabels(names, fontsize=9, fontweight="bold")
+    ax.tick_params(top=True, labeltop=True, bottom=False, labelbottom=False)
+    for i in range(n):
+        for j in range(n):
+            if i == j or np.isnan(M[i, j]):
+                continue
+            v = M[i, j]
+            tc = "white" if abs(v) > 0.55 * vmax else "#1a1d24"
+            ax.text(j, i, Lbl[i, j], ha="center", va="center",
+                    fontsize=8, color=tc, fontweight="bold")
+    for x in range(n + 1):
+        ax.axhline(x - 0.5, color="white", linewidth=2)
+        ax.axvline(x - 0.5, color="white", linewidth=2)
+    ax.set_title("Head-to-Head Matrix  ·  career regular-season record  "
+                 "·  ROW vs COLUMN  ·  green = ROW dominant",
+                 loc="left", pad=24, fontsize=12)
+    cbar = plt.colorbar(im, ax=ax, fraction=0.04, pad=0.02)
+    cbar.set_label("Win margin (row - column)", fontweight="bold")
+    cbar.ax.tick_params(labelsize=8)
+    plt.tight_layout()
+    plt.savefig(path, bbox_inches="tight", facecolor="white")
+    plt.close()
+
+
+def chart_recent_vs_lifetime(path, cards, cards_s):
+    """Sleeper-era OVR minus all-time OVR per current manager."""
+    _setup_mpl()
+    by_mid = {c["mid"]: c["ovr"] for c in cards}
+    by_mid_s = {c["mid"]: c["ovr"] for c in cards_s}
+    rows = []
+    for mid, ovr_s in by_mid_s.items():
+        if mid in by_mid:
+            rows.append((mid, ovr_s - by_mid[mid], by_mid[mid], ovr_s))
+    rows.sort(key=lambda r: -r[1])
+    fig, ax = plt.subplots(figsize=(9, 0.45 * len(rows) + 1), dpi=140)
+    names = [_mgr_name(r[0]) for r in rows][::-1]
+    vals = [r[1] for r in rows][::-1]
+    colors = [mgr_color(r[0]) for r in rows][::-1]
+    ax.barh(names, vals, color=colors, edgecolor="white", linewidth=1.2,
+            height=0.72)
+    ax.axvline(0, color=PALETTE["ink"], linewidth=1)
+    for i, (mid, delta, ovr, ovr_s) in enumerate(rows[::-1]):
+        x = delta + (0.45 if delta >= 0 else -0.45)
+        ha = "left" if delta >= 0 else "right"
+        ax.text(x, i, f"{delta:+d}  ({ovr}→{ovr_s})", va="center", ha=ha,
+                fontsize=9, fontweight="bold", color=PALETTE["ink"])
+    rng = max(abs(min(vals)), max(vals)) * 1.6
+    ax.set_xlim(-rng, rng)
+    ax.set_xlabel("Sleeper-era OVR − All-time OVR", fontweight="bold")
+    ax.set_title("Recent vs Lifetime  ·  who’s heating up, who’s cooling off",
+                 loc="left", pad=14, fontsize=12)
+    ax.grid(axis="x", linestyle="--", alpha=0.4)
+    ax.set_axisbelow(True)
+    plt.tight_layout()
+    plt.savefig(path, bbox_inches="tight", facecolor="white")
+    plt.close()
+
+
+def chart_best_worst_seasons(path):
+    """Top 8 best + 8 worst (mgr, year) seasons by composite score."""
+    _setup_mpl()
+    st = compute_season_table()
+    items = []
+    for (yr, mid), s in st.items():
+        if s["games"] < 8:
+            continue
+        # Composite: win_pct + ppg z-score
+        items.append((yr, mid, s["w"], s["l"], s["w"] / s["games"],
+                      s["ppg"], s["n_teams"], s["wins_rank"]))
+    # Best 8 by win pct (tie-break PPG)
+    best = sorted(items, key=lambda x: (-x[4], -x[5]))[:8]
+    worst = sorted(items, key=lambda x: (x[4], x[5]))[:8]
+    fig, axes = plt.subplots(1, 2, figsize=(12, 0.42 * 8 + 1.5), dpi=140)
+    for ax, rows, title, cmap in [
+        (axes[0], best, "Top 8 Seasons (by win%)", "Greens"),
+        (axes[1], worst, "Bottom 8 Seasons", "Reds"),
+    ]:
+        labels = [f"{_mgr_name(m)}  {y}" for y, m, w, l, wp, p, n, r in rows][::-1]
+        vals = [wp for y, m, w, l, wp, p, n, r in rows][::-1]
+        colors = [mgr_color(m) for y, m, w, l, wp, p, n, r in rows][::-1]
+        ax.barh(labels, vals, color=colors, edgecolor="white",
+                linewidth=1.2, height=0.72)
+        for i, (y, m, w, l, wp, p, n, r) in enumerate(rows[::-1]):
+            ax.text(wp + 0.005, i, f"{w}-{l} · {p:.1f} PPG · #{r}/{n}",
+                    va="center", fontsize=8.5, color=PALETTE["ink"])
+        ax.set_xlim(0, 1)
+        ax.set_xlabel("Regular-season win %", fontweight="bold")
+        ax.set_title(title, loc="left", pad=12, fontsize=12)
+        ax.grid(axis="x", linestyle="--", alpha=0.4)
+        ax.set_axisbelow(True)
+    plt.tight_layout()
+    plt.savefig(path, bbox_inches="tight", facecolor="white")
+    plt.close()
+
+
+def fav_players_by_mgr(top_n=3):
+    """{mid: [(player, times_drafted), ...]} top players each mgr has drafted."""
+    drafts = _load_all_drafts()
+    cnt = defaultdict(lambda: defaultdict(int))
+    for p in drafts:
+        if p["pos"] == "DEF":
+            continue
+        cnt[p["mid"]][p["player"]] += 1
+    out = {}
+    for mid, players in cnt.items():
+        top = sorted(players.items(), key=lambda kv: -kv[1])
+        # Take only those drafted 2+ times
+        top = [(n, c) for n, c in top if c >= 2][:top_n]
+        out[mid] = top
+    return out
+
+
+def sleeper_championship_blueprint():
+    """Returns analysis of each Sleeper-era champion: roster snapshot,
+    trade count + timing, top contributors."""
+    LEAGUES = {2023: "league_1001657805583077376",
+               2024: "league_1085805164784664576",
+               2025: "league_1245039290518360064"}
+    champs = {}
+    mgr_rid = {m["sleeper_roster_id"]: m["id"]
+               for m in all_managers() if m.get("sleeper_roster_id")}
+    seasons = load_all_seasons()
+    sleeper_names = btr._load_sleeper_players()
+    for season, lg in LEAGUES.items():
+        s = seasons[season]
+        rid = s.get("champion_roster_id")
+        if not rid:
+            continue
+        mid = ROSTER_HANDOFFS.get((season, int(rid)), mgr_rid.get(int(rid)))
+        # Draft pool
+        picks_f = list((ROOT / "data" / "sleeper" / lg).glob("draft_*_picks.json"))[0]
+        picks = json.loads(picks_f.read_text())
+        their_picks = [p for p in picks if int(p.get("roster_id") or 0) == rid]
+        # Sort by round
+        their_picks.sort(key=lambda p: p.get("pick_no") or 0)
+        # Trades during season (theirs)
+        tx_dir = ROOT / "data" / "sleeper" / lg / "transactions"
+        trade_history = []
+        for wf in sorted(tx_dir.glob("week_*.json")):
+            wk = int(wf.stem.split("_")[1])
+            for t in json.loads(wf.read_text()):
+                if t.get("type") != "trade" or t.get("status") != "complete":
+                    continue
+                if rid not in (t.get("roster_ids") or []):
+                    continue
+                # Players they got
+                adds = t.get("adds") or {}
+                got = [sleeper_names.get(pid, pid)
+                       for pid, r in adds.items() if int(r) == rid]
+                gave = [sleeper_names.get(pid, pid)
+                        for pid, r in adds.items() if int(r) != rid]
+                trade_history.append((wk, got, gave,
+                                      t.get("draft_picks") or []))
+        # Top contributors (top season points among players they finished season with)
+        # Use player_total_points from season + last roster snapshot
+        # Approximate: use draft picks + adds during season minus drops
+        # Simpler: top 10 player point totals from their drafted picks
+        drafted_pts = []
+        for p in their_picks:
+            pid = p.get("player_id")
+            pts = s["player_total_points"].get(pid, 0)
+            nm = sleeper_names.get(pid, "?")
+            pos = (p.get("metadata") or {}).get("position", "?")
+            rnd = p.get("round")
+            drafted_pts.append((nm, pos, rnd, pts))
+        drafted_pts.sort(key=lambda x: -x[3])
+        champs[season] = {
+            "mid": mid, "name": _mgr_name(mid),
+            "picks": their_picks,
+            "trades": trade_history,
+            "top_contributors": drafted_pts[:6],
+        }
+    return champs
+
+
 def chart_sleeper_winpct_trend(path):
     """Per-season win pct per current manager."""
     _setup_mpl()
@@ -1285,6 +1686,10 @@ def build_html():
         "tenure": CHART_DIR / "tenure.png",
         "finish_heatmap": CHART_DIR / "finish_heatmap.png",
         "schedule_luck": CHART_DIR / "schedule_luck.png",
+        "position_drafted": CHART_DIR / "position_drafted.png",
+        "h2h_matrix": CHART_DIR / "h2h_matrix.png",
+        "recent_vs_lifetime": CHART_DIR / "recent_vs_lifetime.png",
+        "best_worst_seasons": CHART_DIR / "best_worst_seasons.png",
         "ovr_sleeper": CHART_DIR / "ovr_sleeper.png",
         "radar_sleeper": CHART_DIR / "radar_sleeper.png",
         "sleeper_trend": CHART_DIR / "sleeper_trend.png",
@@ -1300,6 +1705,12 @@ def build_html():
     chart_tenure_timeline(chart_paths["tenure"], cards)
     chart_finish_heatmap(chart_paths["finish_heatmap"], cards)
     chart_schedule_luck(chart_paths["schedule_luck"], cards)
+    chart_position_drafted(chart_paths["position_drafted"], cards)
+    chart_h2h_matrix(chart_paths["h2h_matrix"], cards)
+    chart_recent_vs_lifetime(chart_paths["recent_vs_lifetime"], cards, cards_s)
+    chart_best_worst_seasons(chart_paths["best_worst_seasons"])
+    fav_players = fav_players_by_mgr(top_n=4)
+    blueprint = sleeper_championship_blueprint()
     chart_ovr_ranking(cards_s, chart_paths["ovr_sleeper"], "Sleeper Era OVR Rankings")
     chart_radar_grid(cards_s, chart_paths["radar_sleeper"],
                      "Sleeper Era Top 6 — Attribute Profiles")
@@ -1321,12 +1732,15 @@ def build_html():
     .hero .subtitle { color: rgba(255,255,255,0.85); font-size: 11pt;
                       margin: 6px 0 0; font-weight: 500; }
     h2 { font-family: 'Bebas Neue', sans-serif; font-size: 22pt;
-         letter-spacing: 1px; color: #0a3d62; margin: 28px 0 4px;
-         padding-bottom: 4px; border-bottom: 3px solid #d4a017; }
-    h3 { font-size: 11pt; color: #3d405b; margin: 14px 0 4px;
+         letter-spacing: 1px; color: #0a3d62; margin: 16px 0 2px;
+         padding-bottom: 3px; border-bottom: 3px solid #d4a017; }
+    h3 { font-size: 11pt; color: #3d405b; margin: 10px 0 4px;
          font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-    .subtitle { color: #6b7280; margin: 0 0 14px; font-size: 10pt; }
-    .chart { width: 100%; margin: 6px 0 14px; page-break-inside: avoid; }
+    .subtitle { color: #6b7280; margin: 0 0 10px; font-size: 10pt; }
+    .chart { width: 100%; max-height: 4.2in; object-fit: contain;
+             margin: 2px 0 4px; display: block; }
+    .chart.tall { max-height: 6in; }
+    .section-intro { margin: 2px 0 6px; }
     .cards-grid { display: grid; grid-template-columns: 1fr 1fr;
                   gap: 10px; margin: 10px 0; }
     .card { border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;
@@ -1384,8 +1798,17 @@ def build_html():
     .stat-card .lbl { font-size: 8pt; color: #6b7280; margin-top: 4px;
                       text-transform: uppercase; letter-spacing: 0.5px;
                       font-weight: 600; }
-    .section-intro { color: #3d405b; font-size: 10pt; margin: 4px 0 10px; }
-    @page { size: letter; margin: 0.45in; }
+    .section-intro { color: #3d405b; font-size: 10pt; margin: 2px 0 6px; }
+    .bp-card { margin: 6px 0; padding: 8px 12px 4px;
+               background: #fafafa; border-radius: 6px; }
+    .bp-head { font-family: 'Bebas Neue', sans-serif; letter-spacing: 1px;
+               font-size: 16pt; margin-bottom: 4px; }
+    .bp-year { color: #6b7280; margin-right: 8px; }
+    .bp-champ { font-weight: 700; }
+    .bp-section { font-size: 9.5pt; margin: 4px 0; }
+    .bp-section ul { margin: 2px 0 4px 18px; padding: 0; }
+    .bp-section li { margin: 1px 0; }
+    @page { size: letter; margin: 0.4in; }
     """
 
     n_yrs = max(c["years"] for c in cards)
@@ -1424,7 +1847,7 @@ def build_html():
              'attribute normalized 0-99 within the pool. '
              '<strong>FMR</strong> = former manager.</p>')
     h.append(f'<img class="chart" src="{_data_uri(chart_paths["ovr_all"])}"/>')
-    h.append(f'<img class="chart" src="{_data_uri(chart_paths["radar_top"])}"/>')
+    h.append(f'<img class="chart tall" src="{_data_uri(chart_paths["radar_top"])}"/>')
 
     # ===== Madden cards =====
     h.append('<h2>All-Time Player Cards</h2>')
@@ -1455,7 +1878,7 @@ def build_html():
              'this person fleeced, <em>red cells</em> are the ones who '
              'fleeced them. Number = net VBD; small subscript = trade count. '
              'Rows ordered by all-time OVR.</p>')
-    h.append(f'<img class="chart" src="{_data_uri(chart_paths["trade_heatmap"])}"/>')
+    h.append(f'<img class="chart tall" src="{_data_uri(chart_paths["trade_heatmap"])}"/>')
 
     # ===== Trade network =====
     h.append('<h2>Trade Network</h2>')
@@ -1463,7 +1886,7 @@ def build_html():
              'trade economy. Bigger node = trades more; edges show pair '
              'frequency (thickness) and imbalance (color depth). Managers '
              'who only trade with a few others get pulled to the periphery.</p>')
-    h.append(f'<img class="chart" src="{_data_uri(chart_paths["trade_network"])}"/>')
+    h.append(f'<img class="chart tall" src="{_data_uri(chart_paths["trade_network"])}"/>')
 
     # ===== Best drafters =====
     h.append('<h2>Best Drafters</h2>')
@@ -1478,7 +1901,7 @@ def build_html():
              'with championships marked as gold stars. Shows how the '
              'league has evolved (8 → 10 → 12 teams) and who\'s been the '
              'most loyal.</p>')
-    h.append(f'<img class="chart" src="{_data_uri(chart_paths["tenure"])}"/>')
+    h.append(f'<img class="chart tall" src="{_data_uri(chart_paths["tenure"])}"/>')
 
     # ===== Finish heatmap =====
     h.append('<h2>Regular-Season Finish, Year by Year</h2>')
@@ -1486,7 +1909,7 @@ def build_html():
              'finished in the regular-season standings that year (green = '
              'top, red = bottom). Reveals consistency, peak years, droughts.'
              '</p>')
-    h.append(f'<img class="chart" src="{_data_uri(chart_paths["finish_heatmap"])}"/>')
+    h.append(f'<img class="chart tall" src="{_data_uri(chart_paths["finish_heatmap"])}"/>')
 
     # ===== Schedule luck =====
     h.append('<h2>Schedule Luck</h2>')
@@ -1503,6 +1926,52 @@ def build_html():
              'season. Rows ordered by total ring count.</p>')
     h.append(f'<img class="chart" src="{_data_uri(chart_paths["champs"])}"/>')
 
+    # ===== Head-to-Head Matrix =====
+    h.append('<h2>Head-to-Head Career Matrix</h2>')
+    h.append('<p class="section-intro">Every pairwise regular-season '
+             'matchup record. Cell = ROW manager\'s career W-L vs the '
+             'COLUMN manager. Green = ROW dominant; red = ROW gets beat. '
+             'Rows ordered by all-time OVR.</p>')
+    h.append(f'<img class="chart tall" src="{_data_uri(chart_paths["h2h_matrix"])}"/>')
+
+    # ===== Position Drafted Strategy =====
+    h.append('<h2>Position Drafted by Round — Draft Strategy</h2>')
+    h.append('<p class="section-intro">Stacked position mix across each '
+             'manager\'s entire drafting career (rounds 1-10). Reveals '
+             'whether they reach for QBs early, hoard RBs, ignore TE, etc.</p>')
+    h.append(f'<img class="chart tall" src="{_data_uri(chart_paths["position_drafted"])}"/>')
+
+    # ===== Best & worst single seasons =====
+    h.append('<h2>Best & Worst Single Seasons of All Time</h2>')
+    h.append('<p class="section-intro">Top 8 and bottom 8 individual '
+             'manager-seasons across 15 years of regular-season play '
+             '(minimum 8 games).</p>')
+    h.append(f'<img class="chart" src="{_data_uri(chart_paths["best_worst_seasons"])}"/>')
+
+    # ===== Favorite players =====
+    h.append('<h2>Favorite Players — Drafted Multiple Times</h2>')
+    h.append('<p class="section-intro">Players each manager has drafted '
+             'in multiple seasons. The repeat targets reveal who manages by '
+             'crush versus who casts a wide net.</p>')
+    h.append('<table><thead><tr><th>Manager</th><th>Favorite players (× times drafted)</th></tr></thead><tbody>')
+    ordered_mgrs = [c["mid"] for c in cards]
+    for mid in ordered_mgrs:
+        favs = fav_players.get(mid, [])
+        if not favs:
+            cells = "<em style='color:#9ca3af'>no repeat targets</em>"
+        else:
+            cells = " · ".join(f"<strong>{n}</strong> ×{c}" for n, c in favs)
+        h.append(f'<tr><td><strong style="color:{mgr_color(mid)}">'
+                 f'{_mgr_name(mid)}</strong></td><td>{cells}</td></tr>')
+    h.append('</tbody></table>')
+
+    # ===== Recent vs Lifetime delta =====
+    h.append('<h2>Heating Up vs Cooling Off</h2>')
+    h.append('<p class="section-intro">Sleeper-era OVR minus all-time OVR. '
+             'Positive = they\'re playing better than their career average '
+             'suggests. Negative = falling off.</p>')
+    h.append(f'<img class="chart" src="{_data_uri(chart_paths["recent_vs_lifetime"])}"/>')
+
     # ===== Sleeper era split =====
     h.append('<h2>Sleeper Era (2023-2025)</h2>')
     h.append('<p class="section-intro">The last 3 seasons only — recency '
@@ -1511,13 +1980,50 @@ def build_html():
              'tenure.</p>')
     h.append(f'<img class="chart" src="{_data_uri(chart_paths["ovr_sleeper"])}"/>')
     h.append(f'<img class="chart" src="{_data_uri(chart_paths["sleeper_trend"])}"/>')
-    h.append(f'<img class="chart" src="{_data_uri(chart_paths["radar_sleeper"])}"/>')
+    h.append(f'<img class="chart tall" src="{_data_uri(chart_paths["radar_sleeper"])}"/>')
 
     h.append('<h2>Sleeper Era Player Cards</h2>')
     h.append('<div class="cards-grid">')
     for c in cards_s:
         h.append(render_card_html(c))
     h.append('</div>')
+
+    # ===== Championship blueprint =====
+    h.append('<h2>What a Sleeper-Era Championship Looks Like</h2>')
+    h.append('<p class="section-intro">Each Sleeper-era champion\'s '
+             'roster blueprint: their top contributing draftees + '
+             'in-season trade activity.</p>')
+    for season in sorted(blueprint.keys()):
+        bp = blueprint[season]
+        color = mgr_color(bp["mid"])
+        n_tr = len(bp["trades"])
+        trade_weeks = sorted({wk for wk, *_ in bp["trades"]})
+        avg_wk = f"W{int(np.mean(trade_weeks))}" if trade_weeks else "—"
+        h.append(f'<div class="bp-card" style="border-left:6px solid {color}">')
+        h.append(f'<div class="bp-head"><span class="bp-year">{season}</span> '
+                 f'<span class="bp-champ" style="color:{color}">{bp["name"]}</span></div>')
+        # Top contributors
+        h.append('<div class="bp-section"><strong>Top draft contributors:</strong><ul>')
+        for nm, pos, rnd, pts in bp["top_contributors"]:
+            h.append(f'<li><strong>{nm}</strong> ({pos}, R{rnd}) — '
+                     f'{pts:.0f} pts</li>')
+        h.append('</ul></div>')
+        # Trade activity
+        if bp["trades"]:
+            h.append(f'<div class="bp-section"><strong>{n_tr} in-season trade'
+                     f'{"s" if n_tr != 1 else ""}</strong> · avg week: {avg_wk}<ul>')
+            for wk, got, gave, picks in bp["trades"]:
+                got_s = ", ".join(got[:4]) or "—"
+                gave_s = ", ".join(gave[:4]) or "—"
+                pk_s = (f" + {len(picks)} pick(s) moved"
+                        if picks else "")
+                h.append(f'<li>W{wk}: <strong>got</strong> {got_s}; '
+                         f'<strong>gave</strong> {gave_s}{pk_s}</li>')
+            h.append('</ul></div>')
+        else:
+            h.append('<div class="bp-section"><em>No in-season trades — '
+                     'won via draft + waivers alone.</em></div>')
+        h.append('</div>')
 
     # ===== Methodology =====
     h.append('<h2>Methodology</h2>')
