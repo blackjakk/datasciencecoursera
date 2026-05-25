@@ -3249,21 +3249,27 @@ function buildAnimForPlay(play, prevPlay) {
       } else {
         const tt = (t - throwPhase) / (1 - throwPhase);
         if (play.kind === "complete") {
-          // After catch: ball + receiver travel together to (endX, finalY).
-          // For big YAC plays, blend toward LINEAR motion so the receiver
-          // doesn't snap forward and stand still — matches the run play fix.
-          const yacYds = Math.abs((endX - targetX) / FIELD.PX_PER_YARD);
-          // Linear weight: ramps in much earlier so even SHORT-YAC catches
-          // don't stall. Was (yacYds - 6) / 18 — small YACs were fully
-          // eased-out, so the receiver decelerated to a stop the moment he
-          // touched the ball and stood there until the tackle. Now linear
-          // takes over by 4 yd of YAC; pure ease only on minimal/no YAC.
-          const linearW = Math.min(1, Math.max(0, (yacYds - 1) / 4));
-          const eased = easeOutCubic(tt);
-          const ramp = tt < 0.10 ? (tt / 0.10) * (tt / 0.10) * 0.10 : tt;
-          const progress = eased * (1 - linearW) + ramp * linearW;
-          ballX = targetX + (endX - targetX) * progress;
-          ballY = targetY + (finalY - targetY) * progress;
+          // After catch: ball + receiver travel together to (effEndX, finalY).
+          //
+          // MINIMUM VISUAL CARRY: 0-YAC catches (leaps, contested grabs) had
+          // endX == targetX, so the formula put the receiver at the catch
+          // spot and left him there. Visually that's a freeze ("WR catches
+          // it then stands still until the tackle pose engages and he falls
+          // backward"). Real receivers always carry 1-2 yd from momentum
+          // even on contested catches — the box score doesn't track it,
+          // but the visual needs it for continuity.
+          const _minCarryPx = 1.5 * FIELD.PX_PER_YARD;
+          const _raw = endX - targetX;
+          const _effEndX = Math.abs(_raw) >= _minCarryPx
+                         ? endX
+                         : targetX + dir * _minCarryPx;
+          // LINEAR motion — constant velocity from catch to tackle. The
+          // old eased motion (easeOutCubic) was 87% done by tt=0.5,
+          // leaving the receiver stationary for the back half of the
+          // YAC window. Linear keeps him moving at speed all the way
+          // through to contact, where the tackle pose takes over.
+          ballX = targetX + (_effEndX - targetX) * tt;
+          ballY = targetY + (finalY - targetY) * tt;
           // Receiver carries the ball — keep them locked together
           wr.x = ballX;
           wr.y = ballY;
