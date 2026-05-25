@@ -171,8 +171,12 @@ def ppg_over_time_chart(history: dict):
     return out
 
 
-def top_players_per_manager_chart(history: dict):
-    """Top 3 players (by lifetime pts attributed to that manager) per team."""
+REPL_RANKS = {"QB": 22, "RB": 31, "WR": 42, "TE": 13, "K": 12, "DEF": 12}
+
+
+def top_players_per_manager_chart(history: dict, mode: str = "vbd"):
+    """Top 3 players per team. mode='raw' for raw points, 'vbd' for impact
+    (points above positional replacement)."""
     import csv as _csv, re as _re, unicodedata as _u
     from fantasy_draft.xlsx_drafts import load_xlsx_drafts
     from fantasy_draft.results import (
@@ -187,7 +191,7 @@ def top_players_per_manager_chart(history: dict):
         s = _re.sub(r"[^a-z0-9 ]", " ", s); s = _re.sub(r"\s+", " ", s).strip()
         return s
 
-    nfl: dict = {}
+    nfl: dict = {}  # (season, norm_name) -> (pts, position, raw_name)
     nfl_csv = ROOT / "data" / "nflverse" / "player_stats_season.csv"
     with open(nfl_csv) as f:
         for row in _csv.DictReader(f):
@@ -201,12 +205,32 @@ def top_players_per_manager_chart(history: dict):
                 continue
             pts = (fp + fp_ppr)/2 if s >= 2019 else fp
             name = row["player_display_name"] or row["player_name"]
+            pos = row.get("position", "")
             if not name:
                 continue
             key = (s, norm(name))
             prev = nfl.get(key)
             if not prev or pts > prev[0]:
-                nfl[key] = (pts, name)
+                nfl[key] = (pts, pos, name)
+
+    # Compute replacement per (season, position)
+    by_season_pos: dict = defaultdict(lambda: defaultdict(list))
+    for (s, _n), (pts, pos, _raw) in nfl.items():
+        if pos in REPL_RANKS:
+            by_season_pos[s][pos].append(pts)
+    repl: dict = {}
+    for s, by_pos in by_season_pos.items():
+        for pos, pts_list in by_pos.items():
+            pts_list.sort(reverse=True)
+            rank = REPL_RANKS[pos]
+            repl[(s, pos)] = (pts_list[rank-1] if rank <= len(pts_list)
+                              else (pts_list[-1] if pts_list else 0))
+
+    def impact(season, pos, pts):
+        if mode == "raw":
+            return pts
+        r = repl.get((season, pos), 0)
+        return max(0, pts - r)  # only positive VBD counts as "impact"
 
     per_mgr: dict = defaultdict(lambda: defaultdict(float))
 
@@ -221,8 +245,8 @@ def top_players_per_manager_chart(history: dict):
             hit = nfl.get((yr, norm(p.player_name)))
             if not hit:
                 continue
-            pts, raw = hit
-            per_mgr[mgr["id"]][raw] += pts
+            pts, pos, raw = hit
+            per_mgr[mgr["id"]][raw] += impact(yr, pos, pts)
 
     ownership = load_player_ownership_windows(ROOT / "data" / "sleeper")
     weekly = load_weekly_player_points(ROOT / "data" / "sleeper")
@@ -236,17 +260,46 @@ def top_players_per_manager_chart(history: dict):
                     return m
         return manager_for_sleeper_roster(rid)
 
+    # Compute Sleeper-era player-season totals + positions for replacement calc
+    sleeper_season_totals: dict = defaultdict(lambda: defaultdict(float))
+    for yr in (2023, 2024, 2025):
+        for wk, week_data in weekly.get(yr, {}).items():
+            for pid, pts in week_data.items():
+                sleeper_season_totals[yr][pid] += pts
+    # Replacement levels per Sleeper season
+    s_repl: dict = {}
+    for yr, pid_pts in sleeper_season_totals.items():
+        by_pos = defaultdict(list)
+        for pid, pts in pid_pts.items():
+            pos = players_meta.get(pid, {}).get("position", "")
+            if pos in REPL_RANKS:
+                by_pos[pos].append(pts)
+        for pos, lst in by_pos.items():
+            lst.sort(reverse=True)
+            rank = REPL_RANKS[pos]
+            s_repl[(yr, pos)] = (lst[rank-1] if rank <= len(lst)
+                                 else (lst[-1] if lst else 0))
+
     for (yr, pid), windows in ownership.items():
         pinfo = players_meta.get(pid, {})
         raw = (f"{pinfo.get('first_name','?')} "
                f"{pinfo.get('last_name','?')}").strip()
+        pos = pinfo.get("position", "")
+        season_total = sleeper_season_totals.get(yr, {}).get(pid, 0)
+        season_repl = s_repl.get((yr, pos), 0)
+        season_vbd = max(0, season_total - season_repl)
         for sw, ew, rid, src in windows:
             m = mgr_for_rid(rid, yr)
             if not m:
                 continue
-            pts = sum(weekly.get(yr, {}).get(wk, {}).get(pid, 0.0)
-                      for wk in range(sw, min(ew + 1, 18)))
-            per_mgr[m["id"]][raw] += pts
+            pts_held = sum(weekly.get(yr, {}).get(wk, {}).get(pid, 0.0)
+                            for wk in range(sw, min(ew + 1, 18)))
+            if mode == "raw":
+                per_mgr[m["id"]][raw] += pts_held
+            else:
+                # VBD attribution: share of season VBD proportional to pts held
+                share = (pts_held / season_total) if season_total else 0
+                per_mgr[m["id"]][raw] += season_vbd * share
 
     # Build chart: 12 panels, 1 per current mgr, top 3 horizontal bars each
     current = [m for m in all_managers() if m.get("sleeper_roster_id")]
@@ -272,10 +325,12 @@ def top_players_per_manager_chart(history: dict):
                     f"{v:.0f}", va="center", fontsize=9)
         ax.tick_params(axis="y", labelsize=10)
         ax.tick_params(axis="x", labelsize=8)
-    plt.suptitle("Top 3 Players by Lifetime Points Per Team (2011-2025)",
-                 fontsize=14, fontweight="bold", y=0.995)
+    title = ("Top 3 Players by Lifetime VBD-Impact Per Team (2011-2025)"
+             if mode == "vbd"
+             else "Top 3 Players by Raw Lifetime Points Per Team (2011-2025)")
+    plt.suptitle(title, fontsize=14, fontweight="bold", y=0.995)
     plt.tight_layout()
-    out = CHART_DIR / "top_players_per_mgr.png"
+    out = CHART_DIR / (f"top_players_per_mgr_{mode}.png")
     plt.savefig(out, dpi=130); plt.close()
     return out
 
@@ -296,8 +351,9 @@ def main():
     out2 = all_time_wins_chart(history)
     out3 = winpct_over_time_chart(history)
     out4 = ppg_over_time_chart(history)
-    out5 = top_players_per_manager_chart(history)
-    print(f"Wrote {out1}, {out2}, {out3}, {out4}, {out5}")
+    out5 = top_players_per_manager_chart(history, mode="vbd")
+    out6 = top_players_per_manager_chart(history, mode="raw")
+    print(f"Wrote {out1}, {out2}, {out3}, {out4}, {out5}, {out6}")
     if not KNOWN_CHAMPIONS:
         print("\n[note] Only Sleeper-era champions (2023-2025) shown.")
         print("       Add Yahoo-era champions to KNOWN_CHAMPIONS dict in this script.")

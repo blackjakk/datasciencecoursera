@@ -232,8 +232,10 @@ def build_markdown() -> str:
         md.append(f"![Win % by year]({chart_dir / 'winpct_timeline.png'})\n")
     if (chart_dir / "ppg_timeline.png").exists():
         md.append(f"![PPG by year]({chart_dir / 'ppg_timeline.png'})\n")
-    if (chart_dir / "top_players_per_mgr.png").exists():
-        md.append(f"![Top players per manager]({chart_dir / 'top_players_per_mgr.png'})\n")
+    if (chart_dir / "top_players_per_mgr_vbd.png").exists():
+        md.append(f"![Top players per manager — VBD]({chart_dir / 'top_players_per_mgr_vbd.png'})\n")
+    if (chart_dir / "top_players_per_mgr_raw.png").exists():
+        md.append(f"![Top players per manager — raw]({chart_dir / 'top_players_per_mgr_raw.png'})\n")
 
     md.append("## 🏛️ The Eras of MONEYLEAGUE\n")
     md.append("Three distinct league eras, three different dynasties:\n")

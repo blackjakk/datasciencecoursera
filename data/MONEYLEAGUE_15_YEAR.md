@@ -390,7 +390,9 @@ This league started in **2011 with 8 teams** on Yahoo, expanded to 10 in 2013, e
 
 ![PPG by year](/home/user/datasciencecoursera/data/charts/ppg_timeline.png)
 
-![Top players per manager](/home/user/datasciencecoursera/data/charts/top_players_per_mgr.png)
+![Top players per manager — VBD](/home/user/datasciencecoursera/data/charts/top_players_per_mgr_vbd.png)
+
+![Top players per manager — raw](/home/user/datasciencecoursera/data/charts/top_players_per_mgr_raw.png)
 
 ## 🏛️ The Eras of MONEYLEAGUE
 
