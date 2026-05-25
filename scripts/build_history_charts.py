@@ -36,6 +36,8 @@ KNOWN_CHAMPIONS: dict[int, str] = {
     2015: "donnie",            # Big Don's Cuties 171.78 d. Troy (Tyrodasaurus Rex) 89.80
     2016: "kyle_figgy",        # Trust the Process 189.06 d. Eric (Deez Hos) 150.46
     2017: "coop",              # The Dream Team 139.92 d. Dave (Fuck the Process) 106.84
+    2018: "dave_aka_wang",     # Land of the Freemans 139.46 d. Lem 101.30
+    2019: "troy_mullings",     # Terror Squad 135.28 d. Dave 121.66 — Troy's 1st ring
 }
 
 
