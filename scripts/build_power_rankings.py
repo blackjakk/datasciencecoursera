@@ -214,18 +214,21 @@ def compute_career_stats(year_filter=None):
 
 
 def compute_draft_stats(year_filter=None):
-    """Returns {mid: {'pts': total_rookie_pts, 'picks': n_picks, 'ppp': pts_per_pick}}."""
+    """Returns {mid: {'pts', 'picks', 'ppp', 'surplus', 'spp'}}.
+
+    'ppp'      = raw rookie-year pts/pick (volume — rewards high picks)
+    'surplus'  = total pts over league avg for that (year, round)
+    'spp'      = surplus per pick — actual drafting skill independent of slot
+    """
     nfl = btr._load_nflverse()
     sleeper_names = btr._load_sleeper_players()
     ynm = btr._yahoo_name_lookup()
     mgr_rid_to_id = {m["sleeper_roster_id"]: m["id"]
                      for m in all_managers() if m.get("sleeper_roster_id")}
 
+    # Pass 1: gather every pick
+    picks_raw = []
     import csv
-    pts_by_mgr = defaultdict(float)
-    picks_by_mgr = defaultdict(int)
-
-    # Yahoo draft CSVs (2015-2022)
     for f in sorted((ROOT / "data" / "yahoo").glob("league_*/draft_*.csv")):
         with open(f) as fh:
             for row in csv.DictReader(fh):
@@ -236,15 +239,11 @@ def compute_draft_stats(year_filter=None):
                     continue
                 tn = row["team_name"].strip().lower()
                 mid = ynm.get((yr, tn))
-                if not mid:
-                    continue
                 player = row.get("player_name") or ""
-                if not player:
+                if not (mid and player):
                     continue
-                picks_by_mgr[mid] += 1
-                pts_by_mgr[mid] += nfl.get((yr, _norm(player)), 0)
-
-    # Sleeper drafts
+                pts = nfl.get((yr, _norm(player)), 0)
+                picks_raw.append((yr, int(row["round"]), mid, pts))
     for lg in ["league_1001657805583077376",
                "league_1085805164784664576",
                "league_1245039290518360064"]:
@@ -254,28 +253,45 @@ def compute_draft_stats(year_filter=None):
                         f"draft_{d['draft_id']}_picks.json")
             if not picks_f.exists():
                 continue
-            picks = json.loads(picks_f.read_text())
             season = int(d["season"])
             if season not in btr.NFL_SCORED_YEARS:
                 continue
             if year_filter and not year_filter(season):
                 continue
-            for p in picks:
+            for p in json.loads(picks_f.read_text()):
                 rid = int(p.get("roster_id") or 0)
                 mid = ROSTER_HANDOFFS.get((season, rid)) or mgr_rid_to_id.get(rid)
-                if not mid:
-                    continue
                 pid = p.get("player_id")
                 name = sleeper_names.get(pid, "") if pid else ""
-                picks_by_mgr[mid] += 1
-                if name:
-                    pts_by_mgr[mid] += nfl.get((season, _norm(name)), 0)
+                if not (mid and name):
+                    continue
+                pts = nfl.get((season, _norm(name)), 0)
+                picks_raw.append((season, int(p.get("round") or 0), mid, pts))
+
+    # Pass 2: league avg pts per (year, round)
+    by_yr_rnd = defaultdict(list)
+    for yr, rnd, mid, pts in picks_raw:
+        by_yr_rnd[(yr, rnd)].append(pts)
+    round_avg = {k: (sum(v) / len(v)) for k, v in by_yr_rnd.items() if v}
+
+    # Pass 3: per-manager aggregation
+    pts_by_mgr = defaultdict(float)
+    picks_by_mgr = defaultdict(int)
+    surplus_by_mgr = defaultdict(float)
+    for yr, rnd, mid, pts in picks_raw:
+        pts_by_mgr[mid] += pts
+        picks_by_mgr[mid] += 1
+        surplus_by_mgr[mid] += pts - round_avg.get((yr, rnd), 0)
 
     out = {}
     for mid in picks_by_mgr:
         n = picks_by_mgr[mid]
-        out[mid] = {"pts": pts_by_mgr[mid], "picks": n,
-                    "ppp": pts_by_mgr[mid] / n if n else 0}
+        out[mid] = {
+            "pts": pts_by_mgr[mid], "picks": n,
+            "ppp": pts_by_mgr[mid] / n if n else 0,
+            "surplus": surplus_by_mgr[mid],
+            "spp": surplus_by_mgr[mid] / n if n else 0,
+        }
     return out
 
 
@@ -374,7 +390,7 @@ def build_madden_cards(stats, vbd, vbd_n, draft):
         "ppg": _safe(lambda m: pool[m]["ppg"]),
         "vbd": _safe(lambda m: vbd.get(m, 0)),
         "yrs": _safe(lambda m: pool[m]["n_years"]),
-        "ppp": _safe(lambda m: draft.get(m, {}).get("ppp", 0)),
+        "spp": _safe(lambda m: draft.get(m, {}).get("spp", 0)),
     }
 
     cards = []
@@ -384,8 +400,8 @@ def build_madden_cards(stats, vbd, vbd_n, draft):
         ppg = _scale(s["ppg"], rng["ppg"][0], rng["ppg"][1])
         trd = _scale(vbd.get(mid, 0), rng["vbd"][0], rng["vbd"][1], 40, 99)
         lng = _scale(s["n_years"], rng["yrs"][0], rng["yrs"][1])
-        d = draft.get(mid, {"pts": 0, "picks": 0, "ppp": 0})
-        drf = _scale(d["ppp"], rng["ppp"][0], rng["ppp"][1])
+        d = draft.get(mid, {"pts": 0, "picks": 0, "ppp": 0, "surplus": 0, "spp": 0})
+        drf = _scale(d["spp"], rng["spp"][0], rng["spp"][1], 40, 99)
         # OVR weights — longevity excluded (called out separately as tenure)
         # Rings 33 + Win% 22 + Draft 18 + Trade 14 + PPG 13 = 100
         ovr = round(0.33 * rings + 0.22 * winp + 0.13 * ppg
@@ -397,7 +413,7 @@ def build_madden_cards(stats, vbd, vbd_n, draft):
             "draft_rating": drf, "long_rating": lng,
             "rings": s["rings"], "winpct": s["winpct"], "ppg": s["ppg"],
             "trade_vbd": vbd.get(mid, 0), "trade_n": vbd_n.get(mid, 0),
-            "draft_ppp": d["ppp"], "draft_picks": d["picks"],
+            "draft_ppp": d["ppp"], "draft_spp": d["spp"], "draft_surplus": d["surplus"], "draft_picks": d["picks"],
             "years": s["n_years"], "w": s["w"], "l": s["l"],
             "is_current": is_current(mid),
         })
@@ -480,7 +496,7 @@ def render_card_html(c):
           <tr><td class="attr">RING</td><td class="bar"><div class="bar-fill" style="width:{c['rings_rating']}%;background:{color}"></div></td><td class="val">{c['rings_rating']}</td><td class="raw">{c['rings']} ring{'s' if c['rings']!=1 else ''}</td></tr>
           <tr><td class="attr">WIN%</td><td class="bar"><div class="bar-fill" style="width:{c['winp_rating']}%;background:{color}"></div></td><td class="val">{c['winp_rating']}</td><td class="raw">{c['w']}-{c['l']} ({c['winpct']:.3f})</td></tr>
           <tr><td class="attr">PPG</td><td class="bar"><div class="bar-fill" style="width:{c['ppg_rating']}%;background:{color}"></div></td><td class="val">{c['ppg_rating']}</td><td class="raw">{c['ppg']:.1f}</td></tr>
-          <tr><td class="attr">DRFT</td><td class="bar"><div class="bar-fill" style="width:{c['draft_rating']}%;background:{color}"></div></td><td class="val">{c['draft_rating']}</td><td class="raw">{c['draft_ppp']:.1f}/pick · {c['draft_picks']}p</td></tr>
+          <tr><td class="attr">DRFT</td><td class="bar"><div class="bar-fill" style="width:{c['draft_rating']}%;background:{color}"></div></td><td class="val">{c['draft_rating']}</td><td class="raw">{c['draft_spp']:+.0f}/pk vs avg · {c['draft_picks']}p</td></tr>
           <tr><td class="attr">TRADE</td><td class="bar"><div class="bar-fill" style="width:{c['trade_rating']}%;background:{color}"></div></td><td class="val">{c['trade_rating']}</td><td class="raw">{c['trade_vbd']:+.0f} ({c['trade_n']}t)</td></tr>
         </table>
       </div>
@@ -505,7 +521,7 @@ def build_madden_cards_sleeper(stats, vbd, vbd_n, draft):
         "ppg": _safe(lambda m: pool[m]["ppg"]),
         "vbd": _safe(lambda m: vbd.get(m, 0)),
         "yrs": _safe(lambda m: pool[m]["n_years"]),
-        "ppp": _safe(lambda m: draft.get(m, {}).get("ppp", 0)),
+        "spp": _safe(lambda m: draft.get(m, {}).get("spp", 0)),
     }
     cards = []
     for mid, s in pool.items():
@@ -514,8 +530,8 @@ def build_madden_cards_sleeper(stats, vbd, vbd_n, draft):
         ppg = _scale(s["ppg"], rng["ppg"][0], rng["ppg"][1])
         trd = _scale(vbd.get(mid, 0), rng["vbd"][0], rng["vbd"][1], 40, 99)
         lng = _scale(s["n_years"], rng["yrs"][0], rng["yrs"][1])
-        d = draft.get(mid, {"pts": 0, "picks": 0, "ppp": 0})
-        drf = _scale(d["ppp"], rng["ppp"][0], rng["ppp"][1])
+        d = draft.get(mid, {"pts": 0, "picks": 0, "ppp": 0, "surplus": 0, "spp": 0})
+        drf = _scale(d["spp"], rng["spp"][0], rng["spp"][1], 40, 99)
         # Sleeper era — same exclusion of longevity
         # Rings 26 + Win% 24 + Draft 23 + Trade 14 + PPG 13 = 100
         ovr = round(0.26 * rings + 0.24 * winp + 0.13 * ppg
@@ -527,7 +543,7 @@ def build_madden_cards_sleeper(stats, vbd, vbd_n, draft):
             "draft_rating": drf, "long_rating": lng,
             "rings": s["rings"], "winpct": s["winpct"], "ppg": s["ppg"],
             "trade_vbd": vbd.get(mid, 0), "trade_n": vbd_n.get(mid, 0),
-            "draft_ppp": d["ppp"], "draft_picks": d["picks"],
+            "draft_ppp": d["ppp"], "draft_spp": d["spp"], "draft_surplus": d["surplus"], "draft_picks": d["picks"],
             "years": s["n_years"], "w": s["w"], "l": s["l"],
             "is_current": True,
         })
@@ -682,18 +698,24 @@ def chart_trade_vbd(cards, path):
 def chart_drafters(cards, path):
     _setup_mpl()
     s = sorted([c for c in cards if c["draft_picks"] > 20],
-                key=lambda c: c["draft_ppp"])
+                key=lambda c: c["draft_spp"])
     names = [c["name"] for c in s]
-    vals = [c["draft_ppp"] for c in s]
+    vals = [c["draft_spp"] for c in s]
     colors = [mgr_color(c["mid"]) for c in s]
     fig, ax = plt.subplots(figsize=(9, max(3, 0.4 * len(s) + 1)), dpi=140)
     ax.barh(names, vals, color=colors, edgecolor="white", linewidth=1.2, height=0.7)
+    ax.axvline(0, color=PALETTE["ink"], linewidth=1)
     for i, (v, c) in enumerate(zip(vals, s)):
-        ax.text(v + 1.5, i, f"{v:.1f}  ({c['draft_picks']}p)",
-                va="center", fontsize=9, color=PALETTE["ink"], fontweight="bold")
-    ax.set_xlim(min(vals) - 5, max(vals) + 18)
-    ax.set_xlabel("Rookie-Year Points Per Pick", fontweight="bold")
-    ax.set_title("Best Drafters  ·  pts produced per pick made",
+        x = v + (1.0 if v >= 0 else -1.0)
+        ha = "left" if v >= 0 else "right"
+        ax.text(x, i, f"{v:+.1f}  ({c['draft_picks']}p · raw {c['draft_ppp']:.0f})",
+                va="center", ha=ha, fontsize=9, color=PALETTE["ink"],
+                fontweight="bold")
+    rng = max(abs(min(vals)), abs(max(vals))) * 1.7
+    ax.set_xlim(-rng, rng)
+    ax.set_xlabel("Surplus pts per pick (vs round avg)", fontweight="bold")
+    ax.set_title("Best Drafters  ·  pts vs league round avg — true drafting skill, "
+                 "not pick-slot luck",
                  loc="left", pad=14)
     ax.grid(axis="x", linestyle="--", alpha=0.4)
     ax.set_axisbelow(True)
@@ -1733,7 +1755,8 @@ def build_html():
                       margin: 6px 0 0; font-weight: 500; }
     h2 { font-family: 'Bebas Neue', sans-serif; font-size: 22pt;
          letter-spacing: 1px; color: #0a3d62; margin: 16px 0 2px;
-         padding-bottom: 3px; border-bottom: 3px solid #d4a017; }
+         padding-bottom: 3px; border-bottom: 3px solid #d4a017;
+         break-after: avoid-page; page-break-after: avoid; }
     h3 { font-size: 11pt; color: #3d405b; margin: 10px 0 4px;
          font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
     .subtitle { color: #6b7280; margin: 0 0 10px; font-size: 10pt; }
@@ -1798,7 +1821,8 @@ def build_html():
     .stat-card .lbl { font-size: 8pt; color: #6b7280; margin-top: 4px;
                       text-transform: uppercase; letter-spacing: 0.5px;
                       font-weight: 600; }
-    .section-intro { color: #3d405b; font-size: 10pt; margin: 2px 0 6px; }
+    .section-intro { color: #3d405b; font-size: 10pt; margin: 2px 0 6px;
+                     break-after: avoid-page; page-break-after: avoid; }
     .bp-card { margin: 6px 0; padding: 8px 12px 4px;
                background: #fafafa; border-radius: 6px; }
     .bp-head { font-family: 'Bebas Neue', sans-serif; letter-spacing: 1px;
@@ -1890,9 +1914,12 @@ def build_html():
 
     # ===== Best drafters =====
     h.append('<h2>Best Drafters</h2>')
-    h.append('<p class="section-intro">Rookie-year nflverse points produced '
-             'by every player each manager drafted, normalized per pick. '
-             'Minimum 20 career picks to qualify.</p>')
+    h.append('<p class="section-intro"><strong>Draft skill</strong> measured '
+             'as surplus rookie-year points vs the league average for the '
+             'same round and year. Strips out the "high-pick advantage" — a '
+             'drafter with a bunch of R1 picks isn\'t penalized for finding '
+             'a normal R1 player. Positive = found above-replacement value. '
+             'Min 20 career picks.</p>')
     h.append(f'<img class="chart" src="{_data_uri(chart_paths["drafters"])}"/>')
 
     # ===== Tenure timeline =====
