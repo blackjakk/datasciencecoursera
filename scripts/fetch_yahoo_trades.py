@@ -88,47 +88,67 @@ _PICK_RE = re.compile(r"Round (\d+)(?:\s*\(traded from ([^)]+)\))?")
 _DATE_PARSE = re.compile(r"(\w{3,4}) (\d{1,2}), (\d{1,2}):(\d{2}) (am|pm)")
 
 
-def parse_trades_page(html: str, season: int) -> list[dict]:
-    text = re.sub(r"<[^>]+>", " ", html)
-    text = re.sub(r"\s+", " ", unescape(text)).strip()
+_TRADE_ICON_TD = re.compile(
+    r'<td[^>]*rowspan\s*=\s*"?2"?[^>]*class="[^"]*F-trade'
+    r'|<td[^>]*class="[^"]*F-trade[^"]*"[^>]*rowspan\s*=\s*"?2"?'
+    r'|<span[^>]*class="[^"]*F-trade[^"]*"',
+    re.IGNORECASE
+)
 
-    # Find all "Traded to X" headers with their positions. For each one,
-    # the body (players + picks that X received) is the text BETWEEN
-    # the previous header's end (or page start) and THIS header's start.
-    headers = list(_HEADER_RE.finditer(text))
+
+def _parse_one_side(row_html: str, league_id: str, year: int) -> Optional[dict]:
+    """Extract received_team + players + picks from a single <tr> row."""
+    text = re.sub(r"<[^>]+>", " ", row_html)
+    text = re.sub(r"\s+", " ", unescape(text)).strip()
+    m = _HEADER_RE.search(text)
+    if not m:
+        return None
+    body = text[:m.start()].strip()
+    players = []
+    for p in _PLAYER_RE.finditer(body):
+        name = re.sub(r"^(NA|Q|O|D|IR|SUSP)\s+", "", p.group(1)).strip()
+        players.append({"name": name, "nfl_team": p.group(2), "pos": p.group(3)})
+    picks = []
+    for pm in _PICK_RE.finditer(body):
+        pk = {"round": int(pm.group(1))}
+        if pm.group(2):
+            pk["originally_from"] = pm.group(2).strip()
+        picks.append(pk)
+    return {
+        "received_team": m.group(1).strip(),
+        "initiator": (m.group(2) or "").strip(),
+        "date_str": m.group(3).strip(),
+        "received_players": players,
+        "received_picks": picks,
+    }
+
+
+def parse_trades_page(html: str, season: int) -> list[dict]:
+    # Each trade = 2 consecutive <tr> rows. The FIRST row contains a
+    # rowspan="2" trade-icon <td>; the second row inherits the rowspan
+    # column so it doesn't have that <td>. Pair sequentially by walking
+    # the row list.
+    rows = re.findall(r"<tr[^>]*>([\s\S]*?)</tr>", html)
+    # Keep only rows that contain a "Traded to" header
+    trade_rows = [r for r in rows if "Traded to" in r]
+
+    league_id = ""  # unused inside helper
     sides = []
-    prev_end = 0
-    # Heuristic page-start trim: skip the initial nav/JS chunk before the
-    # first "Traded to". The actual trade list starts shortly before the
-    # first header — we look back ~2KB from the first header to find a
-    # marker like "Transactions" or just use the raw preceding region.
-    if headers:
-        # Trim everything before "Transactions" if present
-        tr = text.find("Transactions")
-        if 0 <= tr < headers[0].start():
-            prev_end = tr + len("Transactions")
-    for m in headers:
-        body = text[prev_end:m.start()].strip()
-        team_to = m.group(1).strip()
-        initiator = (m.group(2) or "").strip()
-        date_str = m.group(3).strip()
-        players = []
-        for p in _PLAYER_RE.finditer(body):
-            name = re.sub(r"^(NA|Q|O|D|IR|SUSP)\s+", "", p.group(1)).strip()
-            players.append({"name": name, "nfl_team": p.group(2),
-                            "pos": p.group(3)})
-        picks = []
-        for pm in _PICK_RE.finditer(body):
-            pk = {"round": int(pm.group(1))}
-            if pm.group(2):
-                pk["originally_from"] = pm.group(2).strip()
-            picks.append(pk)
-        sides.append({
-            "received_team": team_to, "initiator": initiator,
-            "date_str": date_str,
-            "received_players": players, "received_picks": picks,
-        })
-        prev_end = m.end()
+    for row in trade_rows:
+        side = _parse_one_side(row, league_id, season)
+        if side:
+            sides.append(side)
+
+    # Pair sequentially — each consecutive pair is one trade.
+    trades = []
+    for i in range(0, len(sides) - 1, 2):
+        a, b = sides[i], sides[i + 1]
+        # Sanity check: dates should match
+        if a["date_str"] != b["date_str"]:
+            # Misalignment — skip this pair to avoid bad data
+            continue
+        trades.append({"season": season, "date_str": a["date_str"],
+                        "sides": [a, b]})
     # Pair sides into trades. Yahoo's page lists each side sequentially —
     # for a 2-team trade, 2 consecutive "Traded to X" rows describe it.
     # If multiple trades happened at the same minute, they appear as
