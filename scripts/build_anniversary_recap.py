@@ -126,15 +126,15 @@ LEAGUE_LORE: dict[int, list[str]] = {
         "🦀 **The Chickie's & Pete's Draft (probably).**",
     ],
     2017: [
-        "🎰 **The Delilah's (Philly) Strip Club Draft.** Yes, the draft was "
-        "held at Delilah's in Philadelphia. Figgy used his final pick "
+        "🎰 **The Club Risqué (Philly) Strip Club Draft.** Yes, the draft was "
+        "held at Club Risqué in Philadelphia. Figgy used his final pick "
         "(R19.10) on **Bobby Turbo**.",
         "🏆 **Coop didn't even attend the draft — and won the championship "
         "anyway.** The Dream Team 139.92 d. Dave (Fuck the Process) 106.84.",
         "✈️ **Lem missed the draft when his Spirit Airlines flight got "
         "cancelled** — the origin of his lifelong feud with Spirit.",
         "🥋 **Brian's friend Mike — not in the league — got accidentally "
-        "kicked in the face by a stripper at Delilah's.** Reportedly still "
+        "kicked in the face by a stripper at Club Risqué.** Reportedly still "
         "had a great time.",
     ],
 }

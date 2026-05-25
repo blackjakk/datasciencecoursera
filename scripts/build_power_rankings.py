@@ -118,7 +118,7 @@ PERSONALITIES = {
         "league — he wrings value out of every round. The closest thing to a perennial contender."),
     "coop": ("The Stealth Champion",
         "3 rings on a .537 win pct — wins championships without ever dominating the regular season. "
-        "Famously didn't even attend the 2017 Delilah's draft and still won the title. "
+        "Famously didn't even attend the 2017 Club Risqué draft and still won the title. "
         "Iron-man 15-year vet who shows up when it matters."),
     "dave_aka_wang": ("The Departed GOAT",
         "By the numbers, the most complete manager in league history: +4718 trade VBD (#1 by a mile), "
