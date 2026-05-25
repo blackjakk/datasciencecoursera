@@ -85,8 +85,9 @@ LEAGUE_LORE: dict[int, list[str]] = {
         "anyway.** The Dream Team 139.92 d. Dave (Fuck the Process) 106.84.",
         "✈️ **Lem missed the draft when his Spirit Airlines flight got "
         "cancelled** — the origin of his lifelong feud with Spirit.",
-        "🥋 **Brian's friend Mike — not in the league — got kicked in the "
-        "face by a stripper at Delilah's.** Innocent bystander.",
+        "🥋 **Brian's friend Mike — not in the league — got accidentally "
+        "kicked in the face by a stripper at Delilah's.** Reportedly still "
+        "had a great time.",
     ],
 }
 
