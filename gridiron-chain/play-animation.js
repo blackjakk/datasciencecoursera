@@ -539,6 +539,184 @@ function _stPlayTiming(opts) {
 }
 function _stPlayDuration(opts) { return _stPlayTiming(opts).duration; }
 
+// ─── KICKOFF / PUNT-RETURN AGENT SIM ──────────────────────────────────
+// Forward-physics simulation for special-teams returns. Each player has
+// position + role, accelerates toward a role-specific target, and moves
+// at a capped speed. The tackle EMERGES when the primary cover catches
+// the returner — there's no predetermined tackle layout to snap to.
+//
+// Called ONCE at play creation, returns a frame-indexed trajectory cache
+// that the per-frame render samples in O(1). This is what replaced the
+// old phase-based scripts where flight/return/tackle each had their own
+// position formulas and the boundaries between them were where bugs lived.
+//
+// Speeds are tuned so:
+//   - Cover gunners move at ~16 yps (≈32 mph after the 2x time
+//     compression — realistic NFL gunner speed).
+//   - Blockers a touch slower at ~13 yps.
+//   - Returner speed is auto-tuned per-play so he arrives at finalX
+//     (= the engine's tackle spot, derived from play.endYard) exactly
+//     at the return-phase end, matching the engine's yardage outcome.
+//   - Primary cover's speed is ALSO auto-tuned so he arrives at the
+//     same place at the same time — that's how the visual matches
+//     the engine's emitted tackler without snapping anyone.
+function _simulateKickoffAgents(opts) {
+  const {
+    duration_ms, flightT, returnT,
+    kickerLineX, catchX, finalX, cy, recvDir,
+    NUM_COVER, NUM_BLOCKERS,
+    coverLanes, blockerLanes, blockerStartX,
+    primaryTacklerIdx, secondaryTacklerIdx,
+    tackleStyle, blockerAssignments,
+    PX_PER_YD,
+  } = opts;
+  const DT_MS = 16;
+  const NUM_FRAMES = Math.ceil(duration_ms / DT_MS) + 1;
+  // Base speeds (visual yards per second)
+  const COVER_BASE_YPS   = 16;
+  const BLOCKER_BASE_YPS = 13;
+  // Per-play primary-cover speed: distance from kicker line to tackle
+  // spot (in straight-line including the primary's Y lane offset),
+  // divided by the time available. Guarantees primary arrives at the
+  // returner's final spot at returnT — no fudging needed at the boundary.
+  const _primaryDistX = Math.abs(finalX - kickerLineX);
+  const _primaryDistY = Math.abs(coverLanes[primaryTacklerIdx] - cy);
+  const _primaryTotalDistPx = Math.sqrt(_primaryDistX * _primaryDistX + _primaryDistY * _primaryDistY);
+  const _arriveMs = Math.max(200, duration_ms * returnT);
+  const PRIMARY_PX_F = (_primaryTotalDistPx / _arriveMs) * DT_MS;
+  // Returner per-play speed: distance from catch to finalX over the
+  // return phase. Ensures returner reaches finalX at returnT.
+  const _retDistPx = Math.abs(finalX - catchX);
+  const _retDurMs  = Math.max(200, duration_ms * (returnT - flightT));
+  const RETURNER_PX_F = (_retDistPx / _retDurMs) * DT_MS;
+  const COVER_BASE_PX_F   = COVER_BASE_YPS   * PX_PER_YD * DT_MS / 1000;
+  const BLOCKER_BASE_PX_F = BLOCKER_BASE_YPS * PX_PER_YD * DT_MS / 1000;
+  // Initial state
+  const cover = [];
+  for (let i = 0; i < NUM_COVER; i++) {
+    cover.push({ x: kickerLineX, y: coverLanes[i], engaged: false, engagedBy: -1 });
+  }
+  const blockers = [];
+  for (let i = 0; i < NUM_BLOCKERS; i++) {
+    blockers.push({ x: blockerStartX, y: blockerLanes[i] });
+  }
+  const returner = { x: catchX, y: cy };
+  const frames = [];
+  for (let frame = 0; frame < NUM_FRAMES; frame++) {
+    const t = Math.min(1, (frame * DT_MS) / duration_ms);
+    // === RETURNER ===
+    if (t < flightT) {
+      returner.x = catchX;
+      returner.y = cy;
+    } else if (t < returnT) {
+      // Linear forward motion toward finalX (constant speed).
+      const dx = finalX - returner.x;
+      const dy = cy - returner.y;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d > 1) {
+        returner.x += (dx / d) * RETURNER_PX_F;
+        returner.y += (dy / d) * RETURNER_PX_F;
+      }
+      // Small lateral cut wobble — keeps the run from feeling robotic.
+      returner.y += Math.sin(frame * 0.18) * 0.4;
+    }
+    // After returnT: returner held at last position (tackle pose).
+    // === COVER ===
+    for (let i = 0; i < NUM_COVER; i++) {
+      const c = cover[i];
+      if (c.engaged) continue;  // held by a blocker — no progress
+      const isPrimary   = i === primaryTacklerIdx;
+      const isSecondary = i === secondaryTacklerIdx;
+      let targetX, targetY;
+      if (isPrimary) {
+        // Head-on to returner's current position.
+        targetX = returner.x;
+        targetY = returner.y;
+      } else if (isSecondary && tackleStyle >= 1) {
+        // Side angle — slightly behind on the return-direction axis,
+        // offset laterally.
+        targetX = returner.x + recvDir * 5;
+        targetY = returner.y + (i % 2 === 0 ? 8 : -8);
+      } else {
+        // Contain — stays behind in the return direction, holds lane.
+        targetX = returner.x + recvDir * (12 + (i % 4) * 6);
+        targetY = c.y + (returner.y - c.y) * 0.15;
+      }
+      const dx = targetX - c.x;
+      const dy = targetY - c.y;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d > 1) {
+        const speed = isPrimary ? PRIMARY_PX_F : COVER_BASE_PX_F;
+        c.x += (dx / d) * speed;
+        c.y += (dy / d) * speed;
+      }
+    }
+    // === BLOCKERS ===
+    for (let i = 0; i < NUM_BLOCKERS; i++) {
+      const b = blockers[i];
+      const a = blockerAssignments[i];
+      const isWedge = (i >= 3 && i <= 6);
+      let targetX, targetY;
+      if (t < flightT) {
+        // Setup phase — wedge drops back in front of catch; wall advances
+        // to meet incoming cover at midfield-ish.
+        if (isWedge) {
+          targetX = catchX + recvDir * 10;
+          targetY = cy + (blockerLanes[i] - cy) * 0.5;
+        } else {
+          targetX = (catchX + kickerLineX) * 0.5;
+          targetY = blockerLanes[i];
+        }
+      } else {
+        if (isWedge) {
+          // Escort the returner — stays slightly in front in his run dir.
+          targetX = returner.x + recvDir * (8 + (i - 3) * 1.5);
+          targetY = returner.y + (i - 4.5) * 6;
+        } else {
+          // Stay between assigned cover and the returner — shielding role.
+          const cov = cover[a.targetCov];
+          targetX = (cov.x + returner.x) * 0.5;
+          targetY = (cov.y + returner.y) * 0.5;
+        }
+      }
+      const dx = targetX - b.x;
+      const dy = targetY - b.y;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      const speed = a.fails ? BLOCKER_BASE_PX_F * 0.4 : BLOCKER_BASE_PX_F;
+      if (d > 1) {
+        b.x += (dx / d) * speed;
+        b.y += (dy / d) * speed;
+      }
+    }
+    // === ENGAGEMENT (cover held up by blocker) ===
+    for (let i = 0; i < NUM_COVER; i++) { cover[i].engaged = false; cover[i].engagedBy = -1; }
+    for (let bi = 0; bi < NUM_BLOCKERS; bi++) {
+      const a = blockerAssignments[bi];
+      if (a.fails) continue;
+      if (a.targetCov === primaryTacklerIdx) continue;   // primary breaks through
+      const b = blockers[bi];
+      const c = cover[a.targetCov];
+      const dx = b.x - c.x;
+      const dy = b.y - c.y;
+      if (dx * dx + dy * dy < 22 * 22) {
+        c.engaged = true;
+        c.engagedBy = bi;
+      }
+    }
+    // Snapshot
+    frames.push({
+      returner: { x: returner.x, y: returner.y },
+      cover: cover.map(c => ({ x: c.x, y: c.y, engaged: c.engaged, engagedBy: c.engagedBy })),
+      blockers: blockers.map(b => ({ x: b.x, y: b.y })),
+    });
+  }
+  return { frames, NUM_FRAMES, DT_MS, duration_ms };
+}
+function _sampleAgentSim(sim, t) {
+  const f = Math.min(sim.NUM_FRAMES - 1, Math.max(0, Math.floor(t * sim.NUM_FRAMES)));
+  return sim.frames[f];
+}
+
 // ─── Per-play animation engine ─────────────────────────────────────────────
 function buildAnimForPlay(play, prevPlay) {
   // Returns { duration, render(t01) }
@@ -666,7 +844,12 @@ function buildAnimForPlay(play, prevPlay) {
     // Key x coordinates
     const kickerLineX = yardToAbsX(35, kickPoss);   // kicking team at their own 35
     const catchX     = yardToAbsX(15, recvPoss);    // returner catches at his 15
-    const finalX     = yardToAbsX(25, recvPoss);    // tackle at his 25
+    // Tackle spot uses the engine's actual endYard, not a hardcoded 25.
+    // The old animation always tackled at the receiver's 25 even when the
+    // engine said the return went for 35 yards — that mismatch is half of
+    // why the play looked scripted.
+    const _koEndYard = (play.endYard != null) ? play.endYard : 25;
+    const finalX = yardToAbsX(_koEndYard, recvPoss);
     const cy = (FIELD.TOP + FIELD.BOT) / 2;
     // Lane positions for 10 kicking-team coverage players (skipping kicker).
     // Spread vertically across the field.
@@ -708,19 +891,33 @@ function buildAnimForPlay(play, prevPlay) {
       const fails = ((ksHash >>> (16 + i)) & 3) === 0;
       blockerAssignments.push({ targetCov, fails });
     }
-    // Unified ST timing — phases derived from actual yardage, not
-    // hardcoded fractions. Short returns spend less of the play on
-    // the return phase; long returns get more.
-    const _koReturnYds = Math.max(8, Math.abs((play.endYard || 25) - 25));
+    // Unified ST timing — phases derived from actual yardage.
+    const _koReturnYds = Math.max(8, Math.abs(_koEndYard - 25));
     const _koTiming = _stPlayTiming({
       ballYds: 65, runYds: _koReturnYds, presnapMs: 0, payoffMs: 700,
+    });
+    // Agent sim — run ONCE at play creation. Forward physics, constant
+    // speeds, no phase-script. Trajectory cached for the render fn.
+    const _agentSim = _simulateKickoffAgents({
+      duration_ms: _koTiming.duration,
+      flightT: _koTiming.flightT, returnT: _koTiming.returnT,
+      kickerLineX, catchX, finalX, cy, recvDir,
+      NUM_COVER, NUM_BLOCKERS,
+      coverLanes, blockerLanes, blockerStartX,
+      primaryTacklerIdx, secondaryTacklerIdx,
+      tackleStyle, blockerAssignments,
+      PX_PER_YD: FIELD.PX_PER_YARD,
     });
     return { duration: _koTiming.duration, kind: "kickoff", render: (t, ctx) => {
       drawField(ctx, homeTeam, awayTeam, null);
       const FLIGHT_END = _koTiming.flightT;
       const RETURN_END = _koTiming.returnT;
-      // ── Ball + returner positions ──
-      let ballX, ballY, returnerX = catchX, returnerY = cy;
+      const snap = _sampleAgentSim(_agentSim, t);
+      // Ball arc is independent of agent positions — the ball follows
+      // a parabolic trajectory during flight, then sits with the carrier.
+      const returnerX = snap.returner.x;
+      const returnerY = snap.returner.y;
+      let ballX, ballY;
       let returnerPose = "stance";
       let returnerT = (t < 0.95 ? ((performance.now() / 333)) % 1 : 0);
       let returnerFacing = recvDir;
@@ -728,201 +925,33 @@ function buildAnimForPlay(play, prevPlay) {
         const ft = t / FLIGHT_END;
         ballX = kickerLineX + (catchX - kickerLineX) * ft;
         ballY = cy - Math.sin(ft * Math.PI) * 130;
-        returnerX = catchX;
-        returnerY = cy;
         returnerPose = ft > 0.85 ? "reach" : "stance";
       } else if (t < RETURN_END) {
-        const rt = (t - FLIGHT_END) / (RETURN_END - FLIGHT_END);
-        // LINEAR motion — constant speed during the return. Smoothstep
-        // decelerated the returner near the end of the return phase,
-        // which made him appear to STALL right before the tackle. With
-        // linear, the returner is still at full speed when the cover
-        // catches him — tackle reads as a collision, not a stop-then-pop.
-        returnerX = catchX + (localFinalX - catchX) * rt;
-        returnerY = cy + Math.sin(rt * Math.PI * 1.5) * 5;
         ballX = returnerX;
         ballY = returnerY;
         returnerPose = "carry";
       } else {
-        returnerX = localFinalX;
-        returnerY = cy;
         ballX = returnerX;
         ballY = returnerY;
         returnerPose = "tackled";
         returnerT = Math.min(1, (t - RETURN_END) / (1 - RETURN_END));
-        // Spin-tackle variant: returner is hit hard and pivots before
-        // hitting the ground — flip facing so the fall rotates the other way.
         if (tackleStyle === 2) returnerFacing = -recvDir;
-      }
-
-      // ── Compute kicking-team coverage positions (no draw yet) ──
-      // Stored so blockers can target a specific coverage opponent.
-      const coverPos = [];
-      // FLIGHT_CLOSE_FRAC: how far coverage advances toward the catch
-      // point during the kick. Bumped 0.78 → 0.88: gunners arrive
-      // near the catch as the ball lands (matches real NFL — gunners
-      // can be on top of the returner by the time it gets there).
-      // Lateral convergence also runs during flight so the lanes
-      // narrow as the gunners sprint — was happening only post-catch,
-      // which made it look like a teleport once the catch happened.
-      const FLIGHT_CLOSE_FRAC = 0.88;
-      for (let i = 0; i < NUM_COVER; i++) {
-        let cx, cy_;
-        if (t < FLIGHT_END) {
-          const ft = t / FLIGHT_END;
-          cx = kickerLineX + (catchX - kickerLineX) * ft * FLIGHT_CLOSE_FRAC;
-          // 60% of lateral convergence happens during the kick — gunners
-          // tilt their lanes IN toward the catch as they sprint.
-          cy_ = coverLanes[i] + (cy - coverLanes[i]) * ft * 0.60;
-        } else if (t < RETURN_END) {
-          const rt = (t - FLIGHT_END) / (RETURN_END - FLIGHT_END);
-          const sprintFromX = kickerLineX + (catchX - kickerLineX) * FLIGHT_CLOSE_FRAC;
-          // Lane Y at flight-end (60% converged toward cy)
-          const sprintFromY = coverLanes[i] + (cy - coverLanes[i]) * 0.60;
-          const isPrimary   = i === primaryTacklerIdx;
-          const isSecondary = i === secondaryTacklerIdx;
-          let targetX, targetY;
-          if (isPrimary) {
-            targetX = returnerX + recvDir * 2;       // meet head-on
-            targetY = returnerY;
-          } else if (isSecondary && tackleStyle >= 1) {
-            targetX = returnerX - recvDir * 6;       // wrap from behind/side
-            targetY = returnerY + (i % 2 === 0 ? 8 : -8);
-          } else {
-            targetX = returnerX - recvDir * (12 + (i % 4) * 8);
-            targetY = coverLanes[i] + (returnerY - coverLanes[i]) * 0.6;
-          }
-          cx = sprintFromX + (targetX - sprintFromX) * rt;
-          cy_ = sprintFromY + (targetY - sprintFromY) * rt;
-        } else {
-          // Tackle phase: HOLD at the same positions where the return
-          // phase ended. The previous pile-arrangement snap moved
-          // non-primary cover by 30-50 lateral px in ~150 ms — that
-          // was the "everyone teleports to where he should be tackled"
-          // bug. With this hold, primary stays ON the returner (and
-          // gets the tackle pose), secondaries are at his side, the
-          // rest are spread behind. No phase-boundary motion at all.
-          const isPrimary   = i === primaryTacklerIdx;
-          const isSecondary = i === secondaryTacklerIdx;
-          if (isPrimary) {
-            cx = returnerX + recvDir * 2;
-            cy_ = returnerY;
-          } else if (isSecondary && tackleStyle >= 1) {
-            cx = returnerX - recvDir * 6;
-            cy_ = returnerY + (i % 2 === 0 ? 8 : -8);
-          } else {
-            cx = returnerX - recvDir * (12 + (i % 4) * 8);
-            cy_ = coverLanes[i] + (returnerY - coverLanes[i]) * 0.6;
-          }
-        }
-        coverPos.push({ x: cx, y: cy_ });
-      }
-
-      // ── Compute blocker positions ──
-      // Strategy: middle lanes (i=3..6) form a WEDGE that drops back to
-      // shield the returner; outer lanes (i=0..2, 7..9) form a WALL that
-      // advances into incoming coverage to intercept them. Blockers move
-      // during the kick flight — they don't wait for the catch.
-      const blockerPos = [];
-      const _wallMeetX = catchX + (kickerLineX - catchX) * 0.42;  // intercept point ~midfield-ish
-      for (let i = 0; i < NUM_BLOCKERS; i++) {
-        const baseY = blockerLanes[i];
-        const { targetCov, fails } = blockerAssignments[i];
-        const targetPos = coverPos[targetCov];
-        const isWedge = (i >= 3 && i <= 6);
-        let bx, by_;
-        if (t < FLIGHT_END) {
-          const ft = t / FLIGHT_END;
-          const ease = ft * ft * (3 - 2 * ft);
-          if (isWedge) {
-            // Drop back to ~10yd in front of returner, tighten laterally.
-            const wedgeX = catchX + recvDir * 10;
-            const wedgeY = cy + (baseY - cy) * 0.4;
-            bx = blockerStartX + (wedgeX - blockerStartX) * ease;
-            by_ = baseY + (wedgeY - baseY) * ease;
-          } else {
-            // Advance into incoming coverage.
-            bx = blockerStartX + (_wallMeetX - blockerStartX) * ease;
-            by_ = baseY;
-          }
-        } else {
-          const rt = (Math.min(t, RETURN_END) - FLIGHT_END) / (RETURN_END - FLIGHT_END);
-          if (isWedge) {
-            // Escort the returner — stay 8-12yd in front (in his run dir),
-            // tightened laterally. Blend from flight-end wedge pos.
-            const wedgeXFlight = catchX + recvDir * 10;
-            const wedgeYFlight = cy + (baseY - cy) * 0.4;
-            const escortX = returnerX + recvDir * (8 + (i - 3) * 1.5);
-            const escortY = returnerY + (i - 4.5) * 6;
-            const blend = Math.min(1, rt * 1.5);
-            bx = wedgeXFlight + (escortX - wedgeXFlight) * blend;
-            by_ = wedgeYFlight + (escortY - wedgeYFlight) * blend;
-          } else {
-            // Wall blocker — stay between assigned coverage and the
-            // returner. Block-point = midpoint of cov and returner.
-            const blockX = (targetPos.x + returnerX) / 2;
-            const blockY = (targetPos.y + returnerY) / 2;
-            const closeRate = Math.min(1, rt * (fails ? 0.4 : 1.4));
-            bx = _wallMeetX + (blockX - _wallMeetX) * closeRate;
-            by_ = baseY + (blockY - baseY) * closeRate;
-          }
-        }
-        blockerPos.push({ x: bx, y: by_ });
-      }
-
-      // ── Engagement: any coverage in contact with a non-failing blocker
-      //    gets HELD UP (primary tackler always breaks through). The
-      //    engagement actually drags coverage motion — not just pose.
-      const covBlocked = new Array(NUM_COVER).fill(false);
-      const covBlockedBy = new Array(NUM_COVER).fill(-1);
-      for (let i = 0; i < NUM_COVER; i++) {
-        if (i === primaryTacklerIdx) continue;
-        let minDist = Infinity;
-        let bestB = -1;
-        for (let b = 0; b < NUM_BLOCKERS; b++) {
-          if (blockerAssignments[b].fails) continue;
-          const dist = Math.hypot(blockerPos[b].x - coverPos[i].x,
-                                  blockerPos[b].y - coverPos[i].y);
-          if (dist < minDist) { minDist = dist; bestB = b; }
-        }
-        if (bestB >= 0 && minDist < 22) {
-          covBlocked[i] = true;
-          covBlockedBy[i] = bestB;
-        }
-      }
-      // Drag engaged coverage back toward the blocker — they can't
-      // blow past contact. (Skip during pure tackle phase so the pile
-      // can still close on the returner.)
-      if (t < RETURN_END) {
-        for (let i = 0; i < NUM_COVER; i++) {
-          if (!covBlocked[i]) continue;
-          const bp = blockerPos[covBlockedBy[i]];
-          coverPos[i].x = bp.x + (coverPos[i].x - bp.x) * 0.22;
-          coverPos[i].y = bp.y + (coverPos[i].y - bp.y) * 0.55;
-        }
       }
 
       // ── Draw coverage ──
       for (let i = 0; i < NUM_COVER; i++) {
-        const cpos = coverPos[i];
+        const cpos = snap.cover[i];
         let cPose, cT;
-        if (t < FLIGHT_END) {
-          cPose = "run";
-          cT = (t < 0.95 ? ((performance.now() / 333) + i * 0.11) % 1 : 0);
-        } else if (t < RETURN_END) {
-          if (covBlocked[i]) {
-            cPose = "engage";
-            cT = (t < 0.95 ? ((performance.now() / 333) + i * 0.13) % 1 : 0);
-          } else {
-            cPose = "run";
-            cT = (t < 0.95 ? ((performance.now() / 333) + i * 0.11) % 1 : 0);
-          }
-        } else {
-          // Tackle phase: primary always tackles; secondary on style >= 1;
-          // pile-up brings the close ones down too.
+        if (t < FLIGHT_END * 0.05) {
+          cPose = "stance";
+          cT = 0;
+        } else if (cpos.engaged) {
+          cPose = "engage";
+          cT = (t < 0.95 ? ((performance.now() / 333) + i * 0.13) % 1 : 0);
+        } else if (t >= RETURN_END) {
           const isPrimary   = i === primaryTacklerIdx;
           const isSecondary = i === secondaryTacklerIdx;
-          const closeEnough = Math.hypot(cpos.x - returnerX, cpos.y - returnerY) < 16;
+          const closeEnough = Math.hypot(cpos.x - returnerX, cpos.y - returnerY) < 18;
           const tackles =
             isPrimary ||
             (isSecondary && tackleStyle >= 1) ||
@@ -937,6 +966,9 @@ function buildAnimForPlay(play, prevPlay) {
             cPose = "run";
             cT = (t < 0.95 ? ((performance.now() / 333) + i * 0.11) % 1 : 0);
           }
+        } else {
+          cPose = "run";
+          cT = (t < 0.95 ? ((performance.now() / 333) + i * 0.11) % 1 : 0);
         }
         drawPlayer(ctx, cpos.x, cpos.y, kickTeam.primary, kickTeam.secondary, "",
                    cPose, cT, -recvDir, { name: "ko-cov-" + i });
@@ -950,18 +982,18 @@ function buildAnimForPlay(play, prevPlay) {
 
       // ── Draw blockers ──
       for (let i = 0; i < NUM_BLOCKERS; i++) {
-        const bpos = blockerPos[i];
-        const { targetCov, fails } = blockerAssignments[i];
-        const engaged = !fails && covBlocked[targetCov];
-        let bPose, bT;
-        if (t < FLIGHT_END) {
-          bPose = "stance";
-        } else if (engaged) {
-          bPose = "engage";
-        } else {
-          bPose = "run";
-        }
-        bT = (t < 0.95 ? ((performance.now() / 333) + i * 0.17) % 1 : 0);
+        const bpos = snap.blockers[i];
+        const a = blockerAssignments[i];
+        const cov = snap.cover[a.targetCov];
+        // Engaged if non-failing blocker is in contact with assigned cover.
+        const engaged = !a.fails && cov &&
+                        ((bpos.x - cov.x) * (bpos.x - cov.x) +
+                         (bpos.y - cov.y) * (bpos.y - cov.y)) < 22 * 22;
+        let bPose;
+        if (t < FLIGHT_END * 0.05) bPose = "stance";
+        else if (engaged)          bPose = "engage";
+        else                       bPose = "run";
+        const bT = (t < 0.95 ? ((performance.now() / 333) + i * 0.17) % 1 : 0);
         drawPlayer(ctx, bpos.x, bpos.y, recvTeam.primary, recvTeam.secondary, "",
                    bPose, bT, recvDir, { name: "ko-blocker-" + i });
       }
