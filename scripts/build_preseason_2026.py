@@ -193,6 +193,12 @@ def compute_keeper_value(top_n=4, min_keeper_round=3):
         nm = p.get("full_name") or f"{p.get('first_name','')} {p.get('last_name','')}".strip()
         name_to_pid[nm.lower()] = pid
 
+    # Multi-year multiplier: more years remaining = more long-term value
+    #   Y1 (2026 + 2027 + 2028 left)  -> 1.6x
+    #   Y2 (2026 + 2027 left)         -> 1.3x
+    #   Y3 (2026 only — final year)   -> 1.0x
+    MULTI_YEAR = {1: 1.6, 2: 1.3, 3: 1.0}
+
     out = {}
     for rid, keepers in by_rid.items():
         mid = ROSTER_HANDOFFS.get((2025, rid)) or rid_to_mid.get(rid)
@@ -204,15 +210,20 @@ def compute_keeper_value(top_n=4, min_keeper_round=3):
             pid = name_to_pid.get(k["player_name"].lower(), "")
             proj = (proj_by_pid.get(pid) or
                     proj_by_name.get(k["player_name"].lower(), 0))
-            scored.append((pid, proj))
+            year_2026 = (k.get("years_kept", 0) or 0) + 1
+            multiplier = MULTI_YEAR.get(year_2026, 1.0)
+            weighted = proj * multiplier
+            scored.append((pid, weighted))
             details.append({
                 "name": k["player_name"],
                 "player_id": pid,
                 "pos": k.get("position", "?"),
                 "year_2025": k.get("years_kept", 0),
-                "year_2026": (k.get("years_kept", 0) or 0) + 1,
+                "year_2026": year_2026,
                 "cost_round_2026": k.get("forfeit_round", k.get("effective_forfeit_round", 0)),
                 "proj_2026": round(proj, 1),
+                "multi_year_mult": multiplier,
+                "weighted_value": round(weighted, 1),
                 "net_vbd_2026": round(k.get("net_vbd", 0), 1),
             })
         out[mid] = {
@@ -679,11 +690,14 @@ def build_html(rows, paths):
     h.append('<h2>Preseason Power Score</h2>')
     h.append('<p class="note">Composite: <strong>70% ASSETS</strong> '
              '(35% 2026 pick capital — projected pts/round from '
-             'data/pick_value.json · 30% projected 2026 pts of top-4 '
-             'predicted keepers · 5% roster depth) + '
+             'data/pick_value.json · 30% top-4 keeper projected pts '
+             '× multi-year multiplier · 5% roster depth) + '
              '<strong>30% SKILL</strong> (15% trade VBD/trade · 15% draft '
              'surplus/pick — Sleeper-era weighted, career fallback for '
-             'small samples). Forward-looking — recent W-L excluded.</p>')
+             'small samples). Keeper multipliers: <strong>Y1 = 1.6×</strong> '
+             '(3 yrs remaining), <strong>Y2 = 1.3×</strong> (2 yrs), '
+             '<strong>Y3 = 1.0×</strong> (final year). Forward-looking '
+             '— recent W-L excluded.</p>')
     h.append(f'<img class="chart" src="{_data_uri(paths["power"])}"/>')
 
     h.append('<h2>2026 Pick Capital</h2>')
