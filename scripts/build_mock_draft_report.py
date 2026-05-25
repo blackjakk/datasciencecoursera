@@ -196,42 +196,48 @@ def find_steals_reaches(picks, top_n=10):
 
 
 def render_draft_board_html(picks, round_range=None):
-    """17 rounds × 12 teams grid. Each cell shows player + pos.
-    round_range: optional (lo, hi) tuple to render only a slice."""
-    by_cell = {(p["round"], p["team_idx"]): p for p in picks}
+    """Snake-order board. Each row = 1 round of 12 picks in actual draft order.
+    Cells colored by the manager that MADE that pick (reflects pick trades).
+    Column header shows pick_in_round (1..12)."""
+    by_overall = {p["overall"]: p for p in picks}
     all_rounds = sorted({p["round"] for p in picks})
     if round_range:
         lo, hi = round_range
         rounds = [r for r in all_rounds if lo <= r <= hi]
     else:
         rounds = all_rounds
-    teams = sorted({p["team_idx"] for p in picks})
+    NTEAMS = 12
 
     h = ['<table class="board">']
+    # Header: R + pick number 1..12
     h.append('<thead><tr><th class="rd-col">R</th>')
-    for ti in teams:
-        nm = team_idx_to_name(ti)
-        mid = team_idx_to_mid(ti)
-        color = bpr.mgr_color(mid) if mid else "#666"
-        h.append(f'<th class="team-col" style="background:{color}">{nm}</th>')
+    for col in range(1, NTEAMS + 1):
+        h.append(f'<th class="pick-col">{col}</th>')
     h.append('</tr></thead><tbody>')
 
     for rnd in rounds:
         h.append(f'<tr><td class="rd-num">{rnd}</td>')
-        for ti in teams:
-            cell = by_cell.get((rnd, ti))
+        # In snake order
+        for col in range(1, NTEAMS + 1):
+            overall = (rnd - 1) * NTEAMS + col
+            cell = by_overall.get(overall)
             if not cell:
                 h.append('<td class="empty">—</td>')
                 continue
             pos = cell["position"]
             pos_color = POS_COLORS.get(pos, "#888")
             kept = ' k' if cell["is_keeper"] else ""
+            mid = team_idx_to_mid(cell["team_idx"])
+            team_color = bpr.mgr_color(mid) if mid else "#888"
+            team_name = team_idx_to_name(cell["team_idx"])
             short = cell["player_name"]
             if " " in short:
                 first, last = short.split(" ", 1)
                 short = f"{first[0]}. {last}"
-            short = short[:18]
-            h.append(f'<td class="cell{kept}" style="border-left:3px solid {pos_color}">'
+            short = short[:16]
+            h.append(f'<td class="cell{kept}" style="background:{team_color}22;'
+                     f'border-left:3px solid {team_color};border-top:2px solid {pos_color}">'
+                     f'<span class="tname" style="color:{team_color}">{team_name}</span>'
                      f'<span class="pname">{short}</span>'
                      f'<span class="pos" style="color:{pos_color}">{pos}</span></td>')
         h.append('</tr>')
@@ -353,20 +359,24 @@ def build_html(picks):
     .chart-half { max-height: 3.4in; margin: 2px 0 4px; }
     .page-break { page-break-after: always; height: 0; }
     .board { width: 100%; border-collapse: separate; border-spacing: 1px;
-             font-size: 7pt; }
+             font-size: 7pt; table-layout: fixed; }
     .board th { background: #0a3d62; color: white; padding: 3px 2px;
-                font-weight: 700; }
-    .team-col { font-family: 'Bebas Neue', sans-serif; font-size: 9pt;
-                letter-spacing: 0.5px; }
-    .rd-col { width: 18px; }
-    .rd-num { background: #f9fafb; font-weight: 700; text-align: center;
-              font-size: 8pt; color: #6b7280; }
-    .cell { background: white; padding: 2px 4px; border-radius: 3px;
-            font-size: 7pt; line-height: 1.15; }
-    .cell.k { background: #fef3c7; }
-    .pname { display: block; font-weight: 700; color: #1a1d24; }
-    .pos { font-size: 6pt; font-weight: 700; }
-    .empty { color: #d1d5db; text-align: center; font-size: 8pt; }
+                font-weight: 700; font-size: 8pt; }
+    .pick-col { font-family: 'Bebas Neue', sans-serif; }
+    .rd-col { width: 22px; }
+    .rd-num { background: #0a3d62; color: white; font-weight: 700;
+              text-align: center; font-family: 'Bebas Neue', sans-serif;
+              font-size: 12pt; }
+    .cell { padding: 3px 5px; border-radius: 4px;
+            font-size: 7.5pt; line-height: 1.2; }
+    .cell.k { background: #fef3c7 !important;
+              border-left: 3px solid #d4a017 !important; }
+    .tname { display: block; font-size: 6pt; font-weight: 700;
+             letter-spacing: 0.3px; text-transform: uppercase; }
+    .pname { display: block; font-weight: 700; color: #1a1d24; margin-top: 1px; }
+    .pos { font-size: 6pt; font-weight: 700; opacity: 0.7; }
+    .empty { color: #d1d5db; text-align: center; font-size: 8pt;
+             background: #f9fafb; }
     .steals-reaches { display: grid; grid-template-columns: 1fr 1fr;
                       gap: 16px; }
     .sr-table { width: 100%; font-size: 9pt; border-collapse: collapse; }
