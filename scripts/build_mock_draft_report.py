@@ -30,19 +30,28 @@ CHROMIUM_EXEC = bpr.CHROMIUM_EXEC
 # 2025: Trevor=champ, Josh=runnerup, Ankur=3rd, Brower=4th, Tim=5th, Eric=6th
 # Non-playoff (by reg season wins+fpts): Coop, Lem, Donnie, Kyle, Brian, Troy(worst)
 # Slot = pick number in R1 (1 = first overall = worst team).
+# 2025 consolation bracket results determine picks 1-6:
+#   7th (consolation champ) = Lem      -> R1.1
+#   8th (consolation 2nd)   = Coop     -> R1.2
+#   9th (consolation 3rd)   = Kyle     -> R1.3
+#   10th                    = Troy     -> R1.4
+#   11th                    = Donnie   -> R1.5
+#   12th (last)             = Brian    -> R1.6
+# Playoff teams take picks 7-12 in reverse finish (champ last):
+#   6th = Eric, 5th = Tim, 4th = Brower, 3rd = Ankur, 2nd = Josh, 1st = Trevor
 PREDICTED_SLOT_TO_RID = {
-    1: 6,    # Lem — CONSOLATION WINNER (gets #1 overall per league rule)
-    2: 4,    # Troy (3-11, worst record)
-    3: 9,    # Brian (4-10, #11 fpts)
-    4: 5,    # Kyle (4-10)
-    5: 2,    # Donnie (4-10)
-    6: 12,   # Coop (6-8)
+    1: 6,    # Lem (consolation champ → 7th place)
+    2: 12,   # Coop (consolation runner-up → 8th)
+    3: 5,    # Kyle (consolation 3rd → 9th)
+    4: 4,    # Troy (10th)
+    5: 2,    # Donnie (11th)
+    6: 9,    # Brian (12th — last place)
     7: 7,    # Eric (playoff 6th)
     8: 1,    # Tim (playoff 5th)
     9: 8,    # Brower (playoff 4th)
     10: 3,   # Ankur (playoff 3rd)
     11: 10,  # Josh (runner-up)
-    12: 11,  # Trevor (champion - picks last)
+    12: 11,  # Trevor (champion)
 }
 
 # Default Sleeper placeholder
