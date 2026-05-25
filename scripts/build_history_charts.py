@@ -31,6 +31,7 @@ KNOWN_CHAMPIONS: dict[int, str] = {
     # Yahoo entries are added here as confirmed from Yahoo trophy room.
     2011: "nark",          # Danny O'Shea's 139.70 d. Trevor (Reno Mahe 911) 118.74
     2012: "kyle_figgy",    # Figgy 128.02 d. Eric (LockOut w my CockOut) 111.66
+    2013: "coop",          # Dirty Old Men 124.58 d. Kyle (Figgy) 120.02
 }
 
 
