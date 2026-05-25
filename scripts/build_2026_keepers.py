@@ -155,6 +155,74 @@ def _load_pick_value() -> tuple[dict[int, float], dict[int, dict[str, float]]]:
     return blind, position_aware
 
 
+def _load_adp_baselines() -> tuple[dict[int, float], dict[int, dict[str, float]]]:
+    """ADP-based forward-looking baselines: mean projected VBD per round.
+
+    For each player with ADP + projection, compute VBD as pts above
+    positional replacement (per pick_value.json replacement_ranks_used),
+    then bucket into 12-team round. Round baseline = mean VBD of players
+    whose ADP falls in that round.
+
+    Forward-looking opportunity cost: "if I forfeit this pick, the player
+    I'd draft has this much VBD on average."
+    """
+    from collections import defaultdict
+    proj = json.loads(PROJ_CACHE.read_text(encoding="utf-8"))
+    catalog = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+    pv_raw = json.loads(PICK_VALUE_PATH.read_text(encoding="utf-8"))
+    replacement_ranks = pv_raw.get("replacement_ranks_used", {})
+
+    # 1. Group projections by position, rank within each, find replacement pts
+    by_pos: dict[str, list[tuple[str, float]]] = defaultdict(list)
+    for p in proj:
+        pid = p.get("player_id")
+        if not pid:
+            continue
+        s = p.get("stats") or {}
+        pts = s.get("pts_half_ppr", 0)
+        if pts <= 0:
+            continue
+        pos = (catalog.get(pid) or {}).get("position", "?")
+        by_pos[pos].append((pid, pts))
+    replacement_pts: dict[str, float] = {}
+    for pos, lst in by_pos.items():
+        lst.sort(key=lambda x: -x[1])
+        rank = replacement_ranks.get(pos, max(len(lst) // 3, 12))
+        replacement_pts[pos] = lst[rank - 1][1] if rank <= len(lst) else 0
+
+    # 2. Compute VBD per player, bucket by ADP round
+    pid_pos: dict[str, str] = {pid: (catalog.get(pid) or {}).get("position", "?")
+                                for pid, _ in (lp for lst in by_pos.values() for lp in lst)}
+    by_round: dict[int, list[float]] = defaultdict(list)
+    by_round_pos: dict[int, dict[str, list[float]]] = defaultdict(
+        lambda: defaultdict(list))
+    for p in proj:
+        pid = p.get("player_id")
+        if not pid:
+            continue
+        s = p.get("stats") or {}
+        adp = s.get("adp_half_ppr", 999)
+        pts = s.get("pts_half_ppr", 0)
+        if adp >= 999 or pts <= 0:
+            continue
+        pick = int(adp)
+        if pick < 1:
+            continue
+        rnd = (pick - 1) // 12 + 1
+        if not 1 <= rnd <= 17:
+            continue
+        pos = pid_pos.get(pid, "?")
+        vbd = pts - replacement_pts.get(pos, 0)
+        by_round[rnd].append(vbd)
+        by_round_pos[rnd][pos].append(vbd)
+    round_mean = {rnd: sum(v) / len(v) for rnd, v in by_round.items() if v}
+    pos_mean: dict[int, dict[str, float]] = {}
+    for rnd, per_pos in by_round_pos.items():
+        pos_mean[rnd] = {pos: sum(v) / len(v) for pos, v in per_pos.items()
+                          if len(v) >= 2}
+    return round_mean, pos_mean
+
+
 def _score_and_select(candidates: list[dict], n_iterations: int = 3) -> list[dict]:
     """Compute net VBD for each candidate, pick top-MAX_KEEPERS positive per
     team. Iterates so replacement levels stabilize after the first selection.
@@ -171,14 +239,27 @@ def _score_and_select(candidates: list[dict], n_iterations: int = 3) -> list[dic
                                max_years_consecutive=MAX_YEARS)
     players = load_players(str(_ROOT / "data" / "players_2026.csv"))
 
-    pv_blind, pv_position_aware = _load_pick_value()
+    # ADP-based baselines (forward-looking opportunity cost) — replaces
+    # the historical pick_value chart that was producing wrong recs
+    # (e.g. saying Loveland TE3 was a worse R8 keeper than the average
+    # historical R8 TE bargain like 2024 McBride).
+    adp_round_mean, adp_round_pos_mean = _load_adp_baselines()
+    pv_blind, pv_position_aware = _load_pick_value()  # kept as fallback
 
     def _baseline_for(round_num: int, position: str) -> float:
-        """Position-aware historical baseline VBD at this forfeit round."""
-        per_pos = pv_position_aware.get(round_num) or {}
-        if position in per_pos:
+        """Mean projected 2026 pts for a player with ADP in this round.
+        Use position-aware where sample is non-trivial; else round-blind."""
+        per_pos = adp_round_pos_mean.get(round_num) or {}
+        if position in per_pos and len(per_pos) > 0:
+            # Use position-aware only if there are enough players in that
+            # position at that round (>=2 samples). Otherwise fall to blind.
             return per_pos[position]
-        # Fallback: round-blind mean if position has no sample at this round.
+        if round_num in adp_round_mean:
+            return adp_round_mean[round_num]
+        # Fallback to historical pick_value chart for rounds beyond ADP coverage
+        per_pos_hist = pv_position_aware.get(round_num) or {}
+        if position in per_pos_hist:
+            return per_pos_hist[position]
         return pv_blind.get(round_num, 0.0)
 
     # Start with no keepers selected.
