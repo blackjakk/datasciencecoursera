@@ -831,13 +831,14 @@ function buildAnimForPlay(play, prevPlay) {
           }
         }
         drawPlayer(ctx, cpos.x, cpos.y, kickTeam.primary, kickTeam.secondary, "",
-                   cPose, cT, -recvDir);
+                   cPose, cT, -recvDir, { name: "ko-cov-" + i });
       }
 
       // ── Kicker — stays back near his 35 throughout the play ──
       drawPlayer(ctx, kickerLineX - recvDir * 4, cy, kickTeam.primary, kickTeam.secondary,
                  "K", t < FLIGHT_END * 0.4 ? "kick" : "idle",
-                 t < FLIGHT_END * 0.4 ? Math.min(1, t / (FLIGHT_END * 0.4)) : 0, -recvDir);
+                 t < FLIGHT_END * 0.4 ? Math.min(1, t / (FLIGHT_END * 0.4)) : 0, -recvDir,
+                 { name: "ko-kicker" });
 
       // ── Draw blockers ──
       for (let i = 0; i < NUM_BLOCKERS; i++) {
@@ -854,12 +855,12 @@ function buildAnimForPlay(play, prevPlay) {
         }
         bT = (t < 0.95 ? ((performance.now() / 333) + i * 0.17) % 1 : 0);
         drawPlayer(ctx, bpos.x, bpos.y, recvTeam.primary, recvTeam.secondary, "",
-                   bPose, bT, recvDir);
+                   bPose, bT, recvDir, { name: "ko-blocker-" + i });
       }
 
       // ── Returner (last so he draws on top) ──
       drawPlayer(ctx, returnerX, returnerY, recvTeam.primary, recvTeam.secondary,
-                 "", returnerPose, returnerT, returnerFacing);
+                 "", returnerPose, returnerT, returnerFacing, { name: "ko-returner" });
 
       // Ball — only show if not held by the returner pose
       drawBall(ctx, ballX, ballY, 1 + (t < FLIGHT_END ? Math.sin((t/FLIGHT_END) * Math.PI) * 0.3 : 0));
@@ -3836,9 +3837,21 @@ function buildAnimForPlay(play, prevPlay) {
     const secondIdx = (primaryIdx + 1 + Math.floor(r(8) * 3)) % 4;
     const fallTilt = -0.6 + r(9) * 1.2;              // tackle fall angle bias (left/right)
     const dropDepth = 4 + r(10) * 3;                 // how deep the QB drops (4-7 yds)
+    let _sackRumbled = false;
     return { duration: dur, kind: "sack", render: (t, c) => {
       ctx = c;
       drawField(ctx, homeTeam, awayTeam, fieldState);
+      // RUMBLE at contact (engine-emitted contactT). Edge-triggered
+      // so the shake fires once when the sacker arrives at the QB,
+      // not at play start (which used to paint an "explosion in the
+      // middle of the field" before anything happened).
+      if (!_sackRumbled && t > PRE) {
+        const tt = (t - PRE) / (1 - PRE);
+        if (tt >= contactT - 0.01 && typeof GCFx !== "undefined") {
+          GCFx.shake(5, 200);
+          _sackRumbled = true;
+        }
+      }
       const qb = { ...formation.qb };
       let qbPose = "idle";
       if (t > PRE) {
@@ -4542,7 +4555,7 @@ function buildAnimForPlay(play, prevPlay) {
       else if (t < 0.18)   { punterPose = "kick";  punterT = (t - 0.08) / 0.10 * 0.5; }
       else if (t < 0.30)   { punterPose = "kick";  punterT = 0.5 + (t - 0.18) / 0.12 * 0.5; }
       else                 { punterPose = "stiff"; punterT = 0; }
-      drawPlayer(ctx, startX, cy, possColor, team.secondary, "", punterPose, punterT, dir);
+      drawPlayer(ctx, startX, cy, possColor, team.secondary, "", punterPose, punterT, dir, { name: "punter" });
       // ── 4 COVERAGE PLAYERS — 3 get engaged by blockers, 1 stays free for the tackle ──
       const laneYs = [returnerY - 38, returnerY - 14, returnerY + 14, returnerY + 38];
       const chaserPositions = [];
@@ -4571,7 +4584,7 @@ function buildAnimForPlay(play, prevPlay) {
         const isEngaged = phase === "return" && !isFree;
         const pose = isEngaged ? "engage" : "run";
         const facing = isEngaged ? -dir : dir;  // engaged chasers face the blocker / returner
-        drawPlayer(ctx, cx_, cy_, possColor, team.secondary, "", pose, (t < 0.95 ? ((performance.now() / 333) + i * 0.2) % 1 : 0), facing);
+        drawPlayer(ctx, cx_, cy_, possColor, team.secondary, "", pose, (t < 0.95 ? ((performance.now() / 333) + i * 0.2) % 1 : 0), facing, { name: "punt-cov-" + i });
       }
       // ── 3 RETURN-TEAM BLOCKERS — each glued to their assigned chaser during the return ──
       for (let i = 0; i < 3; i++) {
@@ -4596,7 +4609,7 @@ function buildAnimForPlay(play, prevPlay) {
         }
         const blockerPose = (phase === "return" || phase === "field") ? "engage" : "run";
         const facing = dir;  // blockers face the chasers coming from the punt direction
-        drawPlayer(ctx, bx, by, oppColor, oppTeam.secondary, "", blockerPose, (t < 0.95 ? ((performance.now() / 333) + i * 0.15) % 1 : 0), facing);
+        drawPlayer(ctx, bx, by, oppColor, oppTeam.secondary, "", blockerPose, (t < 0.95 ? ((performance.now() / 333) + i * 0.15) % 1 : 0), facing, { name: "punt-block-" + i });
       }
       // Returner (with ball after fielding)
       const returnerX = phase === "return" ? ballX : landX;
@@ -4604,7 +4617,7 @@ function buildAnimForPlay(play, prevPlay) {
       const returnerPose = phase === "return" ? "carry"
                          : (phase === "field" ? "catch" : "idle");
       const returnerFacing = phase === "return" ? -dir : dir;  // turns around to run back
-      drawPlayer(ctx, returnerX, returnerDrawY, oppColor, oppTeam.secondary, "", returnerPose, (t < 0.95 ? ((performance.now() / 333)) % 1 : 0), returnerFacing);
+      drawPlayer(ctx, returnerX, returnerDrawY, oppColor, oppTeam.secondary, "", returnerPose, (t < 0.95 ? ((performance.now() / 333)) % 1 : 0), returnerFacing, { name: "punt-returner" });
       drawBall(ctx, ballX, ballY, 1 + arc / 200);
       // Callouts
       if (phase === "field" || (phase === "return" && t < PH_FIELD_END + RET_LEN * 0.25)) {
@@ -7242,8 +7255,13 @@ function startNextPlay() {
                   _kind === "pass_td" || _kind === "kr_td" || _kind === "pr_td" ||
                   _kind === "fum_td" || _kind === "int_td" || _kind === "two_pt_good" ||
                   _kind === "fg_good" || _kind === "xp_good";
-  const _isHit  = _kind === "big_hit" || _kind === "ejection" ||
-                  _kind === "fumble" || _kind === "sack";
+  // _isHit triggers a screen shake + center-field hitBurst at PLAY
+  // START. That made sense for big_hit / ejection (the play IS the
+  // hit). For sack / fumble it fired AT THE SNAP, painting an
+  // "explosion in the middle of the field" before anything had
+  // happened. Those play kinds now fire their own per-frame rumble
+  // at the actual contact moment.
+  const _isHit  = _kind === "big_hit" || _kind === "ejection";
   const _isSeg  = _kind === "halftime" || _kind === "quarter" ||
                   _kind === "ot" || _kind === "two_min_warning";
   const _isGroan = _kind === "incomplete" || _kind === "fg_miss" ||
