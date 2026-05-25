@@ -54,6 +54,9 @@ LEAGUE_LORE: dict[int, list[str]] = {
         "🦅 **Nick Lewis felt bad and traded Brian Nick Foles** — Mike "
         "Vick's backup — who then exploded for one of the best fantasy QB "
         "seasons ever in Philly.",
+        "🚪 **The Foles trade was negotiated the same night Eric ran "
+        "through Brian's friend Mike's screen door.** Mike, again, is not "
+        "in the league.",
     ],
     2015: [
         "🎰 **The Tropicana AC Draft.** Donnie loaded up on TEs early "
@@ -82,6 +85,8 @@ LEAGUE_LORE: dict[int, list[str]] = {
         "anyway.** The Dream Team 139.92 d. Dave (Fuck the Process) 106.84.",
         "✈️ **Lem missed the draft when his Spirit Airlines flight got "
         "cancelled** — the origin of his lifelong feud with Spirit.",
+        "🥋 **Brian's friend Mike — not in the league — got kicked in the "
+        "face by a stripper at Delilah's.** Innocent bystander.",
     ],
 }
 
