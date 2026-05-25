@@ -684,9 +684,13 @@ function _simulateKickoffAgents(opts) {
         // locomotion auto-face system (blockers running TOWARD the returner
         // looked like they were facing him and running at him).
         if (isWedge) {
+          // Spread escort at TWO DEPTHS — wings are lead blockers 18 yd
+          // upfield, insides are personal escorts 7 yd close. Used to
+          // have all 4 at the same 5-7 yd depth which read as a tight
+          // horizontal line right in front of the returner.
           const off = i - 3;
-          const dxYd = [7, 5, 5, 7][off];
-          const dyYd = [-9, -3, 3, 9][off];    // yards
+          const dxYd = [18, 7, 7, 18][off];
+          const dyYd = [-10, -2, 2, 10][off];   // yards
           targetX = catchX + recvDir * dxYd;
           targetY = cy + dyYd * PX_PER_YD;
         } else {
@@ -696,19 +700,13 @@ function _simulateKickoffAgents(opts) {
         }
       } else {
         if (isWedge) {
-          // Spread escort (not a tight wedge) — modern NFL / college KR
-          // blocking is wide and lateral. 4 blockers spread ±9 yd wide,
-          // 5-7 yd in front of the returner. Each pairs with their
-          // assigned cov (engagement check handles it) and the returner
-          // runs through the gaps between pairs.
-          //
-          // dyYd values are YARDS — were being added directly as pixels
-          // (PX_PER_YARD = 15), so my previous ±13 was actually ±0.87 yd
-          // = tightly bunched ~1 ft apart. Multiplying by PX_PER_YD now
-          // gives a real ±9 yd spread.
+          // Same depth split during the return — insides escort the
+          // carrier (7 yd ahead, ±2 yd wide), wings lead the play
+          // (18 yd ahead, ±10 yd wide). Returner runs through the
+          // channel between them.
           const off = i - 3;   // 0..3
-          const dxYd = [7, 5, 5, 7][off];
-          const dyYd = [-9, -3, 3, 9][off];
+          const dxYd = [18, 7, 7, 18][off];
+          const dyYd = [-10, -2, 2, 10][off];
           targetX = returner.x + recvDir * dxYd;
           targetY = returner.y + dyYd * PX_PER_YD;
         } else {

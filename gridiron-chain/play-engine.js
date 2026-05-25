@@ -1640,8 +1640,13 @@ class GameSimulator {
           { t: _shuf1T, dxYd: target.dxYd + _shufFwdSign * 0.3, dyYd: target.dyYd + _shufLatSign * _shufLat },
           { t: _shuf2T, dxYd: target.dxYd - _shufFwdSign * 0.2, dyYd: target.dyYd - _shufLatSign * _shufLat * 0.4 },
           { t: throwT, dxYd: target.dxYd, dyYd: target.dyYd },          // re-set at the throw moment
-          { t: 0.78, dxYd: target.dxYd + 3, dyYd: target.dyYd * 0.6 }, // break on ball — drift forward + toward middle
-          { t: 1.00, dxYd: target.dxYd + 4, dyYd: target.dyYd * 0.4 }, // continuing convergence
+          // Smaller break-on-ball drift — these are NON-tackler LBs in
+          // zone. They shouldn't all converge on the catch (that piled
+          // 3 extra sprites onto every short middle catch and made the
+          // play unreadable). Tackler LB gets the full track via
+          // motion.tracks.tackler; these stay near their hook.
+          { t: 0.78, dxYd: target.dxYd + 1, dyYd: target.dyYd * 0.88 },
+          { t: 1.00, dxYd: target.dxYd + 2, dyYd: target.dyYd * 0.75 },
         ],
       };
     }
