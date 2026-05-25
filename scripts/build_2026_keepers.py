@@ -107,7 +107,8 @@ def _build_candidates() -> list[dict]:
             if not cat_entry:
                 continue
             pos = cat_entry.get("position")
-            if pos not in ("QB", "RB", "WR", "TE", "K", "DEF"):
+            # League rule: K and DEF are not keeper-eligible
+            if pos not in ("QB", "RB", "WR", "TE"):
                 continue
             canonical = _canonical_for_player(cat_entry, name_to_canonical)
             if not canonical:
