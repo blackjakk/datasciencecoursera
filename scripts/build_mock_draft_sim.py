@@ -415,6 +415,10 @@ def main():
     per_team_round_seq_picks: dict[int, dict[int, dict[int, Counter]]] = {
         ti: defaultdict(lambda: defaultdict(Counter)) for ti in range(12)
     }
+    # Per-team per-sim full roster: {ti: [ [(rnd, seq, player_name), ...], ... ]}
+    per_team_sim_rosters: dict[int, list[list[tuple[int, int, str]]]] = {
+        ti: [] for ti in range(12)
+    }
     mc_rng = random.Random(7)
     for sim_idx in range(N_SIMS):
         sim_rng = random.Random(mc_rng.randint(0, 10**9))
@@ -425,6 +429,7 @@ def main():
             team_idx_to_mgr=team_idx_to_mgr,
         )
         team_totals = defaultdict(float)
+        team_picks: dict[int, list[tuple[int, int, str]]] = defaultdict(list)
         round_seq_counter: dict[tuple[int, int], int] = defaultdict(int)
         for fp in sorted(sim_full, key=lambda x: x.overall):
             p = players_by_name.get(_norm(fp.player_name))
@@ -434,33 +439,56 @@ def main():
             seq = round_seq_counter[key]
             round_seq_counter[key] += 1
             per_team_round_seq_picks[fp.team_idx][fp.round_num][seq][fp.player_name] += 1
+            team_picks[fp.team_idx].append((fp.round_num, seq, fp.player_name))
         for ti, tot in team_totals.items():
             per_team_totals[ti].append(tot)
+            per_team_sim_rosters[ti].append(team_picks[ti])
 
     per_team_out = {}
     for ti in range(12):
-        totals = sorted(per_team_totals[ti])
-        if not totals:
+        totals_unsorted = per_team_totals[ti]
+        if not totals_unsorted:
             continue
+        mean_tot = sum(totals_unsorted) / len(totals_unsorted)
+        totals = sorted(totals_unsorted)
         def pctl(q):
             i = max(0, min(len(totals) - 1, int(round(q * (len(totals) - 1)))))
             return totals[i]
-        # Build the pick_distribution out: for each round, list of distributions
-        # (one per pick that team has in that round). Use a list so order is
-        # preserved (seq 0 first).
+
+        # Representative sim: the one whose team-total is closest to the mean.
+        # Renders as one internally-consistent roster (vs the modal-per-slot
+        # collapse which double-counts positions across non-consistent sims).
+        rep_idx = min(range(len(totals_unsorted)),
+                      key=lambda i: abs(totals_unsorted[i] - mean_tot))
+        rep_roster = per_team_sim_rosters[ti][rep_idx]
+
+        # For each pick in the representative roster, annotate with the
+        # MC confidence (% of sims where THIS slot picked THIS player).
+        rep_picks_annotated = []
+        for rnd, seq, name in rep_roster:
+            dist = per_team_round_seq_picks[ti].get(rnd, {}).get(seq, Counter())
+            n_sims_here = sum(dist.values())
+            pct = (dist.get(name, 0) / n_sims_here * 100) if n_sims_here else 0
+            rep_picks_annotated.append({
+                "round": rnd, "seq": seq, "player": name,
+                "pct": round(pct, 1),
+            })
+
+        # Keep the full pick_distribution for back-compat.
         pick_dist: dict[str, list[dict[str, int]]] = {}
         for rnd in sorted(per_team_round_seq_picks[ti]):
             seqs = per_team_round_seq_picks[ti][rnd]
-            pick_dist[str(rnd)] = [
-                dict(seqs[seq]) for seq in sorted(seqs)
-            ]
+            pick_dist[str(rnd)] = [dict(seqs[seq]) for seq in sorted(seqs)]
+
         per_team_out[str(ti)] = {
-            "mean": sum(totals) / len(totals),
+            "mean": mean_tot,
             "p25": pctl(0.25),
             "p50": pctl(0.50),
             "p75": pctl(0.75),
             "min": totals[0],
             "max": totals[-1],
+            "representative_total": totals_unsorted[rep_idx],
+            "representative_roster": rep_picks_annotated,
             "pick_distribution": pick_dist,
         }
 

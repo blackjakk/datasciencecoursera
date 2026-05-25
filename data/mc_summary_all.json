@@ -22,6 +22,111 @@
       "p75": 3115.9599999999996,
       "min": 2896.76,
       "max": 3215.72,
+      "representative_total": 3038.98,
+      "representative_roster": [
+        {
+          "round": 1,
+          "seq": 0,
+          "player": "Jahmyr Gibbs",
+          "pct": 6.0
+        },
+        {
+          "round": 2,
+          "seq": 0,
+          "player": "Trevor Lawrence",
+          "pct": 6.0
+        },
+        {
+          "round": 2,
+          "seq": 1,
+          "player": "Malik Nabers",
+          "pct": 4.0
+        },
+        {
+          "round": 3,
+          "seq": 0,
+          "player": "Ashton Jeanty",
+          "pct": 2.0
+        },
+        {
+          "round": 4,
+          "seq": 0,
+          "player": "Baker Mayfield",
+          "pct": 2.0
+        },
+        {
+          "round": 4,
+          "seq": 1,
+          "player": "Rome Odunze",
+          "pct": 4.0
+        },
+        {
+          "round": 5,
+          "seq": 0,
+          "player": "Chris Olave",
+          "pct": 100.0
+        },
+        {
+          "round": 6,
+          "seq": 0,
+          "player": "Makai Lemon",
+          "pct": 10.0
+        },
+        {
+          "round": 7,
+          "seq": 0,
+          "player": "DJ Moore",
+          "pct": 4.0
+        },
+        {
+          "round": 8,
+          "seq": 0,
+          "player": "Cam Ward",
+          "pct": 2.0
+        },
+        {
+          "round": 9,
+          "seq": 0,
+          "player": "Tyler Allgeier",
+          "pct": 2.0
+        },
+        {
+          "round": 10,
+          "seq": 0,
+          "player": "Kenyon Sadiq",
+          "pct": 4.0
+        },
+        {
+          "round": 11,
+          "seq": 0,
+          "player": "Chase Brown",
+          "pct": 100.0
+        },
+        {
+          "round": 12,
+          "seq": 0,
+          "player": "Juwan Johnson",
+          "pct": 100.0
+        },
+        {
+          "round": 13,
+          "seq": 0,
+          "player": "Michael Wilson",
+          "pct": 100.0
+        },
+        {
+          "round": 16,
+          "seq": 0,
+          "player": "Will Reichard",
+          "pct": 6.0
+        },
+        {
+          "round": 17,
+          "seq": 0,
+          "player": "Los Angeles Chargers",
+          "pct": 4.0
+        }
+      ],
       "pick_distribution": {
         "1": [
           {
@@ -427,12 +532,117 @@
       }
     },
     "1": {
-      "mean": 2896.5348000000004,
+      "mean": 2896.5348,
       "p25": 2851.6,
       "p50": 2897.3600000000006,
       "p75": 2938.14,
       "min": 2700.7400000000007,
       "max": 3022.7999999999997,
+      "representative_total": 2897.3600000000006,
+      "representative_roster": [
+        {
+          "round": 1,
+          "seq": 0,
+          "player": "Jahmyr Gibbs",
+          "pct": 22.0
+        },
+        {
+          "round": 2,
+          "seq": 0,
+          "player": "Kenneth Walker",
+          "pct": 8.0
+        },
+        {
+          "round": 2,
+          "seq": 1,
+          "player": "Joe Burrow",
+          "pct": 10.0
+        },
+        {
+          "round": 3,
+          "seq": 0,
+          "player": "Drake London",
+          "pct": 6.0
+        },
+        {
+          "round": 4,
+          "seq": 0,
+          "player": "TreVeyon Henderson",
+          "pct": 12.0
+        },
+        {
+          "round": 5,
+          "seq": 0,
+          "player": "Brock Bowers",
+          "pct": 28.0
+        },
+        {
+          "round": 6,
+          "seq": 0,
+          "player": "Jameson Williams",
+          "pct": 100.0
+        },
+        {
+          "round": 7,
+          "seq": 0,
+          "player": "Sam Darnold",
+          "pct": 100.0
+        },
+        {
+          "round": 8,
+          "seq": 0,
+          "player": "D'Andre Swift",
+          "pct": 2.0
+        },
+        {
+          "round": 9,
+          "seq": 0,
+          "player": "Denzel Boston",
+          "pct": 6.0
+        },
+        {
+          "round": 10,
+          "seq": 0,
+          "player": "Isaac TeSlaa",
+          "pct": 8.0
+        },
+        {
+          "round": 11,
+          "seq": 0,
+          "player": "Trey McBride",
+          "pct": 100.0
+        },
+        {
+          "round": 12,
+          "seq": 0,
+          "player": "Brandon Aiyuk",
+          "pct": 4.0
+        },
+        {
+          "round": 13,
+          "seq": 0,
+          "player": "Houston Texans",
+          "pct": 12.0
+        },
+        {
+          "round": 14,
+          "seq": 0,
+          "player": "Jacory Croskey-Merritt",
+          "pct": 2.0
+        },
+        {
+          "round": 15,
+          "seq": 0,
+          "player": "Parker Washington",
+          "pct": 100.0
+        },
+        {
+          "round": 16,
+          "seq": 0,
+          "player": "Zane Gonzalez",
+          "pct": 2.0
+        }
+      ],
       "pick_distribution": {
         "1": [
           {
@@ -828,12 +1038,117 @@
       }
     },
     "2": {
-      "mean": 3104.7835999999998,
+      "mean": 3104.7835999999993,
       "p25": 3040.48,
       "p50": 3126.56,
       "p75": 3170.8599999999997,
       "min": 2890.7599999999993,
       "max": 3255.8999999999996,
+      "representative_total": 3108.58,
+      "representative_roster": [
+        {
+          "round": 1,
+          "seq": 0,
+          "player": "Jalen Hurts",
+          "pct": 4.0
+        },
+        {
+          "round": 1,
+          "seq": 1,
+          "player": "Josh Jacobs",
+          "pct": 4.0
+        },
+        {
+          "round": 1,
+          "seq": 2,
+          "player": "Christian McCaffrey",
+          "pct": 2.0
+        },
+        {
+          "round": 2,
+          "seq": 0,
+          "player": "CeeDee Lamb",
+          "pct": 6.0
+        },
+        {
+          "round": 2,
+          "seq": 1,
+          "player": "Jared Goff",
+          "pct": 2.0
+        },
+        {
+          "round": 3,
+          "seq": 0,
+          "player": "George Pickens",
+          "pct": 6.0
+        },
+        {
+          "round": 4,
+          "seq": 0,
+          "player": "Jordan Love",
+          "pct": 6.0
+        },
+        {
+          "round": 5,
+          "seq": 0,
+          "player": "Saquon Barkley",
+          "pct": 4.0
+        },
+        {
+          "round": 6,
+          "seq": 0,
+          "player": "Jayden Reed",
+          "pct": 6.0
+        },
+        {
+          "round": 7,
+          "seq": 0,
+          "player": "DK Metcalf",
+          "pct": 4.0
+        },
+        {
+          "round": 9,
+          "seq": 0,
+          "player": "Makai Lemon",
+          "pct": 2.0
+        },
+        {
+          "round": 10,
+          "seq": 0,
+          "player": "Tucker Kraft",
+          "pct": 100.0
+        },
+        {
+          "round": 11,
+          "seq": 0,
+          "player": "Chris Rodriguez",
+          "pct": 6.0
+        },
+        {
+          "round": 12,
+          "seq": 0,
+          "player": "Hunter Henry",
+          "pct": 100.0
+        },
+        {
+          "round": 15,
+          "seq": 0,
+          "player": "Wan'Dale Robinson",
+          "pct": 100.0
+        },
+        {
+          "round": 16,
+          "seq": 0,
+          "player": "Evan McPherson",
+          "pct": 6.0
+        },
+        {
+          "round": 17,
+          "seq": 0,
+          "player": "Jacksonville Jaguars",
+          "pct": 6.0
+        }
+      ],
       "pick_distribution": {
         "1": [
           {
@@ -1258,12 +1573,117 @@
       }
     },
     "3": {
-      "mean": 2665.7455999999993,
+      "mean": 2665.7456000000006,
       "p25": 2604.9,
       "p50": 2673.3399999999997,
       "p75": 2708.6,
       "min": 2514.5799999999995,
       "max": 2844.36,
+      "representative_total": 2665.14,
+      "representative_roster": [
+        {
+          "round": 1,
+          "seq": 0,
+          "player": "Ja'Marr Chase",
+          "pct": 34.0
+        },
+        {
+          "round": 2,
+          "seq": 0,
+          "player": "Lamar Jackson",
+          "pct": 10.0
+        },
+        {
+          "round": 3,
+          "seq": 0,
+          "player": "Emeka Egbuka",
+          "pct": 2.0
+        },
+        {
+          "round": 4,
+          "seq": 0,
+          "player": "Rome Odunze",
+          "pct": 10.0
+        },
+        {
+          "round": 5,
+          "seq": 0,
+          "player": "David Montgomery",
+          "pct": 4.0
+        },
+        {
+          "round": 6,
+          "seq": 0,
+          "player": "Matthew Stafford",
+          "pct": 2.0
+        },
+        {
+          "round": 7,
+          "seq": 0,
+          "player": "Tyler Warren",
+          "pct": 4.0
+        },
+        {
+          "round": 8,
+          "seq": 0,
+          "player": "Quentin Johnston",
+          "pct": 2.0
+        },
+        {
+          "round": 9,
+          "seq": 0,
+          "player": "Bryce Young",
+          "pct": 4.0
+        },
+        {
+          "round": 10,
+          "seq": 0,
+          "player": "Jake Ferguson",
+          "pct": 100.0
+        },
+        {
+          "round": 11,
+          "seq": 0,
+          "player": "Jaylin Noel",
+          "pct": 4.0
+        },
+        {
+          "round": 12,
+          "seq": 0,
+          "player": "Ryan Flournoy",
+          "pct": 6.0
+        },
+        {
+          "round": 13,
+          "seq": 0,
+          "player": "Tyrone Tracy",
+          "pct": 4.0
+        },
+        {
+          "round": 14,
+          "seq": 0,
+          "player": "Philadelphia Eagles",
+          "pct": 22.0
+        },
+        {
+          "round": 15,
+          "seq": 0,
+          "player": "Rico Dowdle",
+          "pct": 100.0
+        },
+        {
+          "round": 16,
+          "seq": 0,
+          "player": "Wil Lutz",
+          "pct": 2.0
+        },
+        {
+          "round": 17,
+          "seq": 0,
+          "player": "Isiah Pacheco",
+          "pct": 42.0
+        }
+      ],
       "pick_distribution": {
         "1": [
           {
@@ -1726,12 +2146,117 @@
       }
     },
     "4": {
-      "mean": 2806.618,
+      "mean": 2806.618000000001,
       "p25": 2740.02,
       "p50": 2810.8800000000006,
       "p75": 2859.3599999999997,
       "min": 2638.6600000000003,
       "max": 2987.3199999999993,
+      "representative_total": 2808.8999999999996,
+      "representative_roster": [
+        {
+          "round": 1,
+          "seq": 0,
+          "player": "Drake London",
+          "pct": 8.0
+        },
+        {
+          "round": 1,
+          "seq": 1,
+          "player": "Ja'Marr Chase",
+          "pct": 10.0
+        },
+        {
+          "round": 2,
+          "seq": 0,
+          "player": "Christian McCaffrey",
+          "pct": 6.0
+        },
+        {
+          "round": 3,
+          "seq": 0,
+          "player": "Justin Herbert",
+          "pct": 2.0
+        },
+        {
+          "round": 3,
+          "seq": 1,
+          "player": "Kenneth Walker",
+          "pct": 6.0
+        },
+        {
+          "round": 4,
+          "seq": 0,
+          "player": "Tee Higgins",
+          "pct": 4.0
+        },
+        {
+          "round": 5,
+          "seq": 0,
+          "player": "C.J. Stroud",
+          "pct": 2.0
+        },
+        {
+          "round": 6,
+          "seq": 0,
+          "player": "Dalton Schultz",
+          "pct": 4.0
+        },
+        {
+          "round": 7,
+          "seq": 0,
+          "player": "Jacory Croskey-Merritt",
+          "pct": 4.0
+        },
+        {
+          "round": 8,
+          "seq": 0,
+          "player": "Quentin Johnston",
+          "pct": 4.0
+        },
+        {
+          "round": 9,
+          "seq": 0,
+          "player": "Denzel Boston",
+          "pct": 12.0
+        },
+        {
+          "round": 10,
+          "seq": 0,
+          "player": "Kayshon Boutte",
+          "pct": 6.0
+        },
+        {
+          "round": 11,
+          "seq": 0,
+          "player": "Tyler Allgeier",
+          "pct": 6.0
+        },
+        {
+          "round": 12,
+          "seq": 0,
+          "player": "Rhamondre Stevenson",
+          "pct": 8.0
+        },
+        {
+          "round": 15,
+          "seq": 0,
+          "player": "Chase McLaughlin",
+          "pct": 2.0
+        },
+        {
+          "round": 16,
+          "seq": 0,
+          "player": "Cleveland Browns",
+          "pct": 8.0
+        },
+        {
+          "round": 17,
+          "seq": 0,
+          "player": "Chig Okonkwo",
+          "pct": 6.0
+        }
+      ],
       "pick_distribution": {
         "1": [
           {
@@ -2231,6 +2756,111 @@
       "p75": 2898.76,
       "min": 2665.8,
       "max": 3136.2599999999998,
+      "representative_total": 2852.08,
+      "representative_roster": [
+        {
+          "round": 1,
+          "seq": 0,
+          "player": "Jahmyr Gibbs",
+          "pct": 20.0
+        },
+        {
+          "round": 2,
+          "seq": 0,
+          "player": "Jaxson Dart",
+          "pct": 10.0
+        },
+        {
+          "round": 3,
+          "seq": 0,
+          "player": "Saquon Barkley",
+          "pct": 10.0
+        },
+        {
+          "round": 4,
+          "seq": 0,
+          "player": "Josh Jacobs",
+          "pct": 2.0
+        },
+        {
+          "round": 5,
+          "seq": 0,
+          "player": "Matthew Stafford",
+          "pct": 6.0
+        },
+        {
+          "round": 6,
+          "seq": 0,
+          "player": "Kyle Pitts",
+          "pct": 10.0
+        },
+        {
+          "round": 7,
+          "seq": 0,
+          "player": "Jaylen Warren",
+          "pct": 8.0
+        },
+        {
+          "round": 8,
+          "seq": 0,
+          "player": "Colston Loveland",
+          "pct": 100.0
+        },
+        {
+          "round": 9,
+          "seq": 0,
+          "player": "Luther Burden",
+          "pct": 100.0
+        },
+        {
+          "round": 10,
+          "seq": 0,
+          "player": "RJ Harvey",
+          "pct": 4.0
+        },
+        {
+          "round": 11,
+          "seq": 0,
+          "player": "Brandon Aiyuk",
+          "pct": 2.0
+        },
+        {
+          "round": 12,
+          "seq": 0,
+          "player": "Tre' Harris",
+          "pct": 4.0
+        },
+        {
+          "round": 13,
+          "seq": 0,
+          "player": "Darnell Mooney",
+          "pct": 2.0
+        },
+        {
+          "round": 14,
+          "seq": 0,
+          "player": "Alec Pierce",
+          "pct": 100.0
+        },
+        {
+          "round": 15,
+          "seq": 0,
+          "player": "Christian Watson",
+          "pct": 100.0
+        },
+        {
+          "round": 16,
+          "seq": 0,
+          "player": "Ka'imi Fairbairn",
+          "pct": 2.0
+        },
+        {
+          "round": 17,
+          "seq": 0,
+          "player": "New York Giants",
+          "pct": 12.0
+        }
+      ],
       "pick_distribution": {
         "1": [
           {
@@ -2638,12 +3268,117 @@
       }
     },
     "6": {
-      "mean": 2667.6124,
+      "mean": 2667.6124000000004,
       "p25": 2605.0000000000005,
       "p50": 2664.1800000000003,
       "p75": 2718.94,
       "min": 2546.5800000000004,
       "max": 2847.86,
+      "representative_total": 2664.1800000000003,
+      "representative_roster": [
+        {
+          "round": 1,
+          "seq": 0,
+          "player": "Ja'Marr Chase",
+          "pct": 8.0
+        },
+        {
+          "round": 2,
+          "seq": 0,
+          "player": "DeVonta Smith",
+          "pct": 6.0
+        },
+        {
+          "round": 3,
+          "seq": 0,
+          "player": "Tyler Shough",
+          "pct": 4.0
+        },
+        {
+          "round": 4,
+          "seq": 0,
+          "player": "Kyle Pitts",
+          "pct": 12.0
+        },
+        {
+          "round": 5,
+          "seq": 0,
+          "player": "Jordan Addison",
+          "pct": 4.0
+        },
+        {
+          "round": 6,
+          "seq": 0,
+          "player": "D'Andre Swift",
+          "pct": 6.0
+        },
+        {
+          "round": 7,
+          "seq": 0,
+          "player": "Cam Skattebo",
+          "pct": 100.0
+        },
+        {
+          "round": 8,
+          "seq": 0,
+          "player": "DJ Moore",
+          "pct": 4.0
+        },
+        {
+          "round": 9,
+          "seq": 0,
+          "player": "Chris Godwin",
+          "pct": 2.0
+        },
+        {
+          "round": 10,
+          "seq": 0,
+          "player": "Bucky Irving",
+          "pct": 100.0
+        },
+        {
+          "round": 11,
+          "seq": 0,
+          "player": "Bhayshul Tuten",
+          "pct": 100.0
+        },
+        {
+          "round": 12,
+          "seq": 0,
+          "player": "Brandon Aiyuk",
+          "pct": 2.0
+        },
+        {
+          "round": 13,
+          "seq": 0,
+          "player": "Blake Corum",
+          "pct": 100.0
+        },
+        {
+          "round": 14,
+          "seq": 0,
+          "player": "Dalton Kincaid",
+          "pct": 2.0
+        },
+        {
+          "round": 15,
+          "seq": 0,
+          "player": "Chris Boswell",
+          "pct": 12.0
+        },
+        {
+          "round": 16,
+          "seq": 0,
+          "player": "Buffalo Bills",
+          "pct": 6.0
+        },
+        {
+          "round": 17,
+          "seq": 0,
+          "player": "Aaron Rodgers",
+          "pct": 20.0
+        }
+      ],
       "pick_distribution": {
         "1": [
           {
@@ -3046,12 +3781,117 @@
       }
     },
     "7": {
-      "mean": 2458.8892,
+      "mean": 2458.8892000000005,
       "p25": 2405.6000000000004,
       "p50": 2455.7400000000002,
       "p75": 2524.8399999999997,
       "min": 2307.8799999999997,
       "max": 2618.0,
+      "representative_total": 2459.54,
+      "representative_roster": [
+        {
+          "round": 2,
+          "seq": 0,
+          "player": "Malik Nabers",
+          "pct": 14.0
+        },
+        {
+          "round": 4,
+          "seq": 0,
+          "player": "Tetairoa McMillan",
+          "pct": 4.0
+        },
+        {
+          "round": 5,
+          "seq": 0,
+          "player": "Jaylen Warren",
+          "pct": 2.0
+        },
+        {
+          "round": 6,
+          "seq": 0,
+          "player": "Kyler Murray",
+          "pct": 2.0
+        },
+        {
+          "round": 7,
+          "seq": 0,
+          "player": "Drake Maye",
+          "pct": 100.0
+        },
+        {
+          "round": 8,
+          "seq": 0,
+          "player": "Jayden Reed",
+          "pct": 4.0
+        },
+        {
+          "round": 9,
+          "seq": 0,
+          "player": "Javonte Williams",
+          "pct": 100.0
+        },
+        {
+          "round": 10,
+          "seq": 0,
+          "player": "Brandon Aiyuk",
+          "pct": 4.0
+        },
+        {
+          "round": 11,
+          "seq": 0,
+          "player": "Ricky Pearsall",
+          "pct": 100.0
+        },
+        {
+          "round": 12,
+          "seq": 0,
+          "player": "Chris Bell",
+          "pct": 8.0
+        },
+        {
+          "round": 13,
+          "seq": 0,
+          "player": "Woody Marks",
+          "pct": 4.0
+        },
+        {
+          "round": 13,
+          "seq": 1,
+          "player": "Jordan Mason",
+          "pct": 6.0
+        },
+        {
+          "round": 14,
+          "seq": 0,
+          "player": "Isaiah Likely",
+          "pct": 2.0
+        },
+        {
+          "round": 14,
+          "seq": 1,
+          "player": "Jason Myers",
+          "pct": 20.0
+        },
+        {
+          "round": 15,
+          "seq": 0,
+          "player": "AJ Barner",
+          "pct": 100.0
+        },
+        {
+          "round": 16,
+          "seq": 0,
+          "player": "Cleveland Browns",
+          "pct": 2.0
+        },
+        {
+          "round": 17,
+          "seq": 0,
+          "player": "Jonah Coleman",
+          "pct": 56.0
+        }
+      ],
       "pick_distribution": {
         "2": [
           {
@@ -3429,12 +4269,117 @@
       }
     },
     "8": {
-      "mean": 2836.5224000000003,
+      "mean": 2836.5223999999994,
       "p25": 2778.6799999999994,
       "p50": 2824.6400000000003,
       "p75": 2898.1399999999994,
       "min": 2711.4599999999996,
       "max": 3015.3999999999996,
+      "representative_total": 2837.52,
+      "representative_roster": [
+        {
+          "round": 1,
+          "seq": 0,
+          "player": "Caleb Williams",
+          "pct": 12.0
+        },
+        {
+          "round": 2,
+          "seq": 0,
+          "player": "Jaylen Waddle",
+          "pct": 4.0
+        },
+        {
+          "round": 3,
+          "seq": 0,
+          "player": "Joe Burrow",
+          "pct": 6.0
+        },
+        {
+          "round": 4,
+          "seq": 0,
+          "player": "Saquon Barkley",
+          "pct": 2.0
+        },
+        {
+          "round": 5,
+          "seq": 0,
+          "player": "Jaxon Smith-Njigba",
+          "pct": 100.0
+        },
+        {
+          "round": 6,
+          "seq": 0,
+          "player": "Carnell Tate",
+          "pct": 2.0
+        },
+        {
+          "round": 7,
+          "seq": 0,
+          "player": "Jayden Higgins",
+          "pct": 8.0
+        },
+        {
+          "round": 8,
+          "seq": 0,
+          "player": "DK Metcalf",
+          "pct": 2.0
+        },
+        {
+          "round": 9,
+          "seq": 0,
+          "player": "Fernando Mendoza",
+          "pct": 12.0
+        },
+        {
+          "round": 10,
+          "seq": 0,
+          "player": "Jalen McMillan",
+          "pct": 8.0
+        },
+        {
+          "round": 11,
+          "seq": 0,
+          "player": "Kyren Williams",
+          "pct": 100.0
+        },
+        {
+          "round": 12,
+          "seq": 0,
+          "player": "Tyler Allgeier",
+          "pct": 10.0
+        },
+        {
+          "round": 13,
+          "seq": 0,
+          "player": "Tyrone Tracy",
+          "pct": 4.0
+        },
+        {
+          "round": 14,
+          "seq": 0,
+          "player": "Oronde Gadsden",
+          "pct": 100.0
+        },
+        {
+          "round": 15,
+          "seq": 0,
+          "player": "Harold Fannin",
+          "pct": 100.0
+        },
+        {
+          "round": 16,
+          "seq": 0,
+          "player": "Harrison Butker",
+          "pct": 10.0
+        },
+        {
+          "round": 17,
+          "seq": 0,
+          "player": "Washington Commanders",
+          "pct": 10.0
+        }
+      ],
       "pick_distribution": {
         "1": [
           {
@@ -3848,6 +4793,111 @@
       "p75": 2304.7799999999997,
       "min": 2138.68,
       "max": 2437.46,
+      "representative_total": 2252.9599999999996,
+      "representative_roster": [
+        {
+          "round": 3,
+          "seq": 0,
+          "player": "Jeremiyah Love",
+          "pct": 6.0
+        },
+        {
+          "round": 5,
+          "seq": 0,
+          "player": "Bo Nix",
+          "pct": 100.0
+        },
+        {
+          "round": 6,
+          "seq": 0,
+          "player": "David Montgomery",
+          "pct": 4.0
+        },
+        {
+          "round": 7,
+          "seq": 0,
+          "player": "Rome Odunze",
+          "pct": 2.0
+        },
+        {
+          "round": 8,
+          "seq": 0,
+          "player": "Cam Ward",
+          "pct": 2.0
+        },
+        {
+          "round": 9,
+          "seq": 0,
+          "player": "Eli Stowers",
+          "pct": 6.0
+        },
+        {
+          "round": 10,
+          "seq": 0,
+          "player": "Tony Pollard",
+          "pct": 2.0
+        },
+        {
+          "round": 11,
+          "seq": 0,
+          "player": "Tre Tucker",
+          "pct": 8.0
+        },
+        {
+          "round": 12,
+          "seq": 0,
+          "player": "Seattle Seahawks",
+          "pct": 6.0
+        },
+        {
+          "round": 13,
+          "seq": 0,
+          "player": "Jauan Jennings",
+          "pct": 100.0
+        },
+        {
+          "round": 14,
+          "seq": 0,
+          "player": "Calvin Ridley",
+          "pct": 6.0
+        },
+        {
+          "round": 14,
+          "seq": 1,
+          "player": "Tank Dell",
+          "pct": 2.0
+        },
+        {
+          "round": 14,
+          "seq": 2,
+          "player": "Evan Engram",
+          "pct": 2.0
+        },
+        {
+          "round": 15,
+          "seq": 0,
+          "player": "Jalen Coker",
+          "pct": 100.0
+        },
+        {
+          "round": 15,
+          "seq": 1,
+          "player": "Jake Bates",
+          "pct": 4.0
+        },
+        {
+          "round": 16,
+          "seq": 0,
+          "player": "Geno Smith",
+          "pct": 50.0
+        },
+        {
+          "round": 17,
+          "seq": 0,
+          "player": "Keaton Mitchell",
+          "pct": 50.0
+        }
+      ],
       "pick_distribution": {
         "3": [
           {
@@ -4252,6 +5302,111 @@
       "p75": 2508.02,
       "min": 2292.92,
       "max": 2635.2799999999997,
+      "representative_total": 2450.2,
+      "representative_roster": [
+        {
+          "round": 1,
+          "seq": 0,
+          "player": "Amon-Ra St. Brown",
+          "pct": 8.0
+        },
+        {
+          "round": 3,
+          "seq": 0,
+          "player": "Jayden Daniels",
+          "pct": 8.0
+        },
+        {
+          "round": 4,
+          "seq": 0,
+          "player": "Justin Jefferson",
+          "pct": 2.0
+        },
+        {
+          "round": 5,
+          "seq": 0,
+          "player": "Carnell Tate",
+          "pct": 4.0
+        },
+        {
+          "round": 6,
+          "seq": 0,
+          "player": "Travis Etienne",
+          "pct": 100.0
+        },
+        {
+          "round": 7,
+          "seq": 0,
+          "player": "Jacory Croskey-Merritt",
+          "pct": 4.0
+        },
+        {
+          "round": 8,
+          "seq": 0,
+          "player": "Daniel Jones",
+          "pct": 4.0
+        },
+        {
+          "round": 9,
+          "seq": 0,
+          "player": "Sam LaPorta",
+          "pct": 100.0
+        },
+        {
+          "round": 10,
+          "seq": 0,
+          "player": "Kayshon Boutte",
+          "pct": 6.0
+        },
+        {
+          "round": 11,
+          "seq": 0,
+          "player": "Jordan Addison",
+          "pct": 2.0
+        },
+        {
+          "round": 12,
+          "seq": 0,
+          "player": "Stefon Diggs",
+          "pct": 2.0
+        },
+        {
+          "round": 13,
+          "seq": 0,
+          "player": "Seattle Seahawks",
+          "pct": 22.0
+        },
+        {
+          "round": 14,
+          "seq": 0,
+          "player": "Brandon Aubrey",
+          "pct": 44.0
+        },
+        {
+          "round": 15,
+          "seq": 0,
+          "player": "Dallas Goedert",
+          "pct": 100.0
+        },
+        {
+          "round": 16,
+          "seq": 0,
+          "player": "Jonathon Brooks",
+          "pct": 28.0
+        },
+        {
+          "round": 17,
+          "seq": 0,
+          "player": "Brian Robinson",
+          "pct": 44.0
+        },
+        {
+          "round": 17,
+          "seq": 1,
+          "player": "Mike Washington",
+          "pct": 18.0
+        }
+      ],
       "pick_distribution": {
         "1": [
           {
@@ -4638,12 +5793,117 @@
       }
     },
     "11": {
-      "mean": 2589.812,
+      "mean": 2589.8119999999994,
       "p25": 2545.4600000000005,
       "p50": 2584.2,
       "p75": 2630.1000000000004,
       "min": 2452.0000000000005,
       "max": 2746.4199999999996,
+      "representative_total": 2591.38,
+      "representative_roster": [
+        {
+          "round": 3,
+          "seq": 0,
+          "player": "Jayden Daniels",
+          "pct": 4.0
+        },
+        {
+          "round": 4,
+          "seq": 0,
+          "player": "Nico Collins",
+          "pct": 100.0
+        },
+        {
+          "round": 5,
+          "seq": 0,
+          "player": "Marvin Harrison",
+          "pct": 10.0
+        },
+        {
+          "round": 6,
+          "seq": 0,
+          "player": "De'Von Achane",
+          "pct": 100.0
+        },
+        {
+          "round": 7,
+          "seq": 0,
+          "player": "Travis Kelce",
+          "pct": 4.0
+        },
+        {
+          "round": 8,
+          "seq": 0,
+          "player": "J.K. Dobbins",
+          "pct": 4.0
+        },
+        {
+          "round": 8,
+          "seq": 1,
+          "player": "KC Concepcion",
+          "pct": 2.0
+        },
+        {
+          "round": 9,
+          "seq": 0,
+          "player": "Denzel Boston",
+          "pct": 2.0
+        },
+        {
+          "round": 10,
+          "seq": 0,
+          "player": "Dalton Kincaid",
+          "pct": 12.0
+        },
+        {
+          "round": 11,
+          "seq": 0,
+          "player": "Puka Nacua",
+          "pct": 100.0
+        },
+        {
+          "round": 12,
+          "seq": 0,
+          "player": "Chuba Hubbard",
+          "pct": 100.0
+        },
+        {
+          "round": 13,
+          "seq": 0,
+          "player": "Antonio Williams",
+          "pct": 4.0
+        },
+        {
+          "round": 13,
+          "seq": 1,
+          "player": "Kenneth Gainwell",
+          "pct": 2.0
+        },
+        {
+          "round": 14,
+          "seq": 0,
+          "player": "Tyrone Tracy",
+          "pct": 6.0
+        },
+        {
+          "round": 15,
+          "seq": 0,
+          "player": "Harrison Butker",
+          "pct": 8.0
+        },
+        {
+          "round": 16,
+          "seq": 0,
+          "player": "New England Patriots",
+          "pct": 4.0
+        },
+        {
+          "round": 17,
+          "seq": 0,
+          "player": "Aaron Rodgers",
+          "pct": 2.0
+        }
+      ],
       "pick_distribution": {
         "3": [
           {

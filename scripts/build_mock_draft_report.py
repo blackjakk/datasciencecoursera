@@ -537,29 +537,53 @@ def build_html(picks):
             h.append(f'<div class="mc-head">{av_html}<span class="mc-name">{nm}</span>'
                      f'<span class="mc-tot">{data.get("mean",0):.0f}<span class="lbl">MEAN</span></span></div>')
             h.append('<table class="mc-mini">')
-            for rnd in sorted(int(r) for r in data.get("pick_distribution", {})):
-                slots = data["pick_distribution"][str(rnd)]
-                # Backwards compat: old format was a single dict per round.
-                if isinstance(slots, dict):
-                    slots = [slots]
-                for seq, dist in enumerate(slots):
-                    if not dist:
-                        continue
-                    top1 = max(dist.items(), key=lambda kv: kv[1])
-                    nm_top, cnt = top1
-                    pct = cnt * 100 // n_sims
+            # Use the representative-sim roster (an internally-consistent draft
+            # closest to the team's mean total), not the modal-per-slot which
+            # could double-count positions across non-consistent sims.
+            rep = data.get("representative_roster")
+            if rep:
+                # Determine if any round has multiple picks so we can label
+                # R1·1 / R1·2 when traded picks stack a round.
+                round_counts: dict[int, int] = {}
+                for entry in rep:
+                    round_counts[entry["round"]] = round_counts.get(entry["round"], 0) + 1
+                for entry in rep:
+                    nm_top = entry["player"]
+                    pct = int(round(entry["pct"]))
+                    rnd = entry["round"]
+                    seq = entry["seq"]
                     p_abbrev = nm_top
                     if " " in p_abbrev:
                         f, l = p_abbrev.split(" ", 1)
                         if len(f) > 2:
                             p_abbrev = f"{f[0]}. {l}"
                     p_abbrev = p_abbrev[:18]
-                    # When a team has multiple picks in this round, label them
-                    # R1·1, R1·2 to make the order clear.
-                    rnd_label = f"R{rnd}" if len(slots) == 1 else f"R{rnd}·{seq+1}"
+                    rnd_label = (f"R{rnd}" if round_counts.get(rnd, 1) == 1
+                                 else f"R{rnd}·{seq+1}")
                     h.append(f'<tr><td class="r">{rnd_label}</td>'
                              f'<td><strong>{p_abbrev}</strong></td>'
                              f'<td class="pct">{pct}%</td></tr>')
+            else:
+                # Legacy fallback: modal pick per slot (older mc_summary files).
+                for rnd in sorted(int(r) for r in data.get("pick_distribution", {})):
+                    slots = data["pick_distribution"][str(rnd)]
+                    if isinstance(slots, dict):
+                        slots = [slots]
+                    for seq, dist in enumerate(slots):
+                        if not dist:
+                            continue
+                        nm_top, cnt = max(dist.items(), key=lambda kv: kv[1])
+                        pct = cnt * 100 // n_sims
+                        p_abbrev = nm_top
+                        if " " in p_abbrev:
+                            f, l = p_abbrev.split(" ", 1)
+                            if len(f) > 2:
+                                p_abbrev = f"{f[0]}. {l}"
+                        p_abbrev = p_abbrev[:18]
+                        rnd_label = f"R{rnd}" if len(slots) == 1 else f"R{rnd}·{seq+1}"
+                        h.append(f'<tr><td class="r">{rnd_label}</td>'
+                                 f'<td><strong>{p_abbrev}</strong></td>'
+                                 f'<td class="pct">{pct}%</td></tr>')
             h.append('</table></div>')
         h.append('</div>')
         h.append('<div class="page-break"></div>')
