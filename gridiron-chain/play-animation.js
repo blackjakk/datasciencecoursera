@@ -689,9 +689,17 @@ function _simulateKickoffAgents(opts) {
         }
       } else {
         if (isWedge) {
-          // Escort the returner — stays slightly in front in his run dir.
-          targetX = returner.x + recvDir * (8 + (i - 3) * 1.5);
-          targetY = returner.y + (i - 4.5) * 6;
+          // Escort the returner in a V-formation. Wings (i=3, 6) sit
+          // wider laterally and slightly farther in front; insides
+          // (i=4, 5) are tight to the middle just ahead of the carrier.
+          // Closer to him than before (5-8 yd, was 8-12 yd) — real
+          // wedges are tight to the ball-carrier so he can read their
+          // blocks.
+          const off = i - 3;   // 0..3
+          const dxYd = [8, 5, 5, 8][off];
+          const dyYd = [-12, -4, 4, 12][off];
+          targetX = returner.x + recvDir * dxYd;
+          targetY = returner.y + dyYd;
         } else {
           // Wall blocker — STAY GLUED to assigned cover for the rest of
           // the play. Tracking the midpoint of (cov, returner) made the
@@ -708,7 +716,15 @@ function _simulateKickoffAgents(opts) {
       const dx = targetX - b.x;
       const dy = targetY - b.y;
       const d = Math.sqrt(dx * dx + dy * dy);
-      const speed = a.fails ? BLOCKER_BASE_PX_F * 0.4 : BLOCKER_BASE_PX_F;
+      // Wedge needs RETURNER_PX_F to keep up with the carrier during
+      // escort — at base speed (slower than returner), wedge blockers
+      // got caught from behind and stacked on the returner's position.
+      // During flight they only need base speed to drop back into
+      // formation, so cap the boost to the return phase.
+      let speed;
+      if (a.fails) speed = BLOCKER_BASE_PX_F * 0.4;
+      else if (isWedge && t >= flightT) speed = Math.max(BLOCKER_BASE_PX_F, RETURNER_PX_F);
+      else speed = BLOCKER_BASE_PX_F;
       if (d > 1) {
         b.x += (dx / d) * speed;
         b.y += (dy / d) * speed;
@@ -1027,16 +1043,20 @@ function buildAnimForPlay(play, prevPlay) {
                  { name: "ko-kicker" });
 
       // ── Draw blockers ──
-      // Facing: receiving-team blockers face the INCOMING cover, which is
-      // on the kicker side = -recvDir. They need this even while
-      // backpedaling — a real blocker peels back facing the gunners, not
-      // facing his own returner. The default "run" pose auto-flips facing
-      // by velocity, so during the backpedal a blocker moving in -X had
-      // his facing flipped to face the returner. "backpedal" pose keeps
-      // the caller-set facing intact.
+      // Facing differs by role:
+      //   Wall (outer 6): always faces the INCOMING cover (-recvDir).
+      //                   These guys are blocking gunners coming downfield,
+      //                   so they look at the cover, not the returner.
+      //   Wedge (mid 4): during escort, faces +recvDir (where the returner
+      //                  is going) — they're leading the carrier upfield.
+      // The auto-face by velocity was flipping wall blockers to face the
+      // returner when they stood waiting for cover; that's the "lined up
+      // like receivers" look. "backpedal" + "engage" poses keep
+      // caller-set facing intact.
       for (let i = 0; i < NUM_BLOCKERS; i++) {
         const bpos = snap.blockers[i];
         const a = blockerAssignments[i];
+        const isWedge = (i >= 3 && i <= 6);
         const cov = snap.cover[a.targetCov];
         const engaged = !a.fails && cov &&
                         ((bpos.x - cov.x) * (bpos.x - cov.x) +
@@ -1047,8 +1067,11 @@ function buildAnimForPlay(play, prevPlay) {
         else if (t < FLIGHT_END)        bPose = "backpedal";
         else                            bPose = "run";
         const bT = (t < 0.95 ? ((performance.now() / 333) + i * 0.17) % 1 : 0);
+        // Wedge runs WITH the returner (downfield) once we're past flight.
+        // Wall always faces the incoming gunners.
+        const bFacing = (isWedge && t >= FLIGHT_END) ? recvDir : -recvDir;
         drawPlayer(ctx, bpos.x, bpos.y, recvTeam.primary, recvTeam.secondary, "",
-                   bPose, bT, -recvDir, { name: "ko-blocker-" + i });
+                   bPose, bT, bFacing, { name: "ko-blocker-" + i });
       }
 
       // ── Returner (last so he draws on top) ──
