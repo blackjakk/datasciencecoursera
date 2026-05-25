@@ -645,13 +645,13 @@ function _simulateKickoffAgents(opts) {
       const dy = targetY - c.y;
       const d = Math.sqrt(dx * dx + dy * dy);
       if (d > 1) {
-        // Engaged cover SLOWS to 30% speed — still progressing toward
-        // returner, just held up by the block. Used to freeze them
-        // entirely, which left ~6 cover players standing still for the
-        // whole play once they got engaged during flight-phase
-        // convergence. Real gunners fight through, they don't statue.
+        // Engaged cover slows to 15% speed — barely moving, like a real
+        // NFL block where the gunner is wrapped up at the line. 30% was
+        // still too fast: cover bled through the block and tackled the
+        // returner anyway. At 15%, only the primary (exempt) and the
+        // failed-block gunners reach the returner with any speed.
         const baseSpeed = isPrimary ? PRIMARY_PX_F : COVER_BASE_PX_F;
-        const speed = c.engaged ? baseSpeed * 0.30 : baseSpeed;
+        const speed = c.engaged ? baseSpeed * 0.15 : baseSpeed;
         c.x += (dx / d) * speed;
         c.y += (dy / d) * speed;
       }
@@ -663,19 +663,20 @@ function _simulateKickoffAgents(opts) {
       const isWedge = (i >= 3 && i <= 6);
       let targetX, targetY;
       if (t < flightT) {
-        // Setup phase — wedge drops back in front of catch; wall pursues
-        // its assigned cover (with leverage — stay just on the
-        // returner-side of cov so we have inside position when contact
-        // happens). The OLD target was midfield, which equals receiver's
-        // 40 — which is exactly blockerStartX, so wall blockers had
-        // ZERO distance to their target and stood still the whole kick.
+        // Setup phase — wedge drops back in front of catch; wall blockers
+        // STAND IN COVER'S LANE at their existing depth (recv 40) instead
+        // of chasing the gunner. Real blockers position; they don't run
+        // down a faster sprinter. They shift LATERALLY to match the
+        // assigned cover's incoming lane, then wait for the collision.
         if (isWedge) {
           targetX = catchX + recvDir * 10;
           targetY = cy + (blockerLanes[i] - cy) * 0.5;
         } else {
           const cov = cover[a.targetCov];
-          const toRetSign = Math.sign(returner.x - cov.x) || recvDir;
-          targetX = cov.x + toRetSign * 5;
+          // Hold the 40-yd line depth; shift Y to intercept cov's lane.
+          // Small forward step (recvDir * -4) so the block point is just
+          // on the kicker-side of recv 40, where the gunner hits the wall.
+          targetX = blockerStartX + recvDir * -4;
           targetY = cov.y;
         }
       } else {
@@ -906,12 +907,20 @@ function buildAnimForPlay(play, prevPlay) {
     const primaryTacklerIdx = (ksHash >>> 8) % NUM_COVER;
     // Secondary tackler (used for two-man / pile-up styles).
     const secondaryTacklerIdx = (primaryTacklerIdx + 1 + ((ksHash >>> 11) % (NUM_COVER - 1))) % NUM_COVER;
-    // Blocker assignments — each receiving-team blocker targets a specific
-    // coverage opponent. About 1 in 4 blockers whiff their block entirely.
+    // Blocker assignments — each receiving-team blocker is paired with
+    // the cover gunner in the same lane (small ±1 offset for variety),
+    // not a random-offset matchup. Random pairing sent blocker 0 (top
+    // of field) chasing cover 5 (middle), across 100+ px of Y — blocker
+    // never caught the gunner and the block whiffed visually. Same-lane
+    // matchup means blockers actually stand in their gunner's lane.
+    //
+    // Failure rate: 12.5% (was 25%). The earlier rate plus my too-fast
+    // gunner speed meant ~4 cover players ran past blocks every kickoff.
     const blockerAssignments = [];
+    const _bOffset = (ksHash >>> 14) & 1;   // 0 or 1 — slight lane skew
     for (let i = 0; i < NUM_BLOCKERS; i++) {
-      const targetCov = (i + ((ksHash >>> 14) % NUM_COVER)) % NUM_COVER;
-      const fails = ((ksHash >>> (16 + i)) & 3) === 0;
+      const targetCov = Math.max(0, Math.min(NUM_COVER - 1, i + _bOffset));
+      const fails = ((ksHash >>> (16 + i)) & 7) === 0;   // ~12.5% whiff
       blockerAssignments.push({ targetCov, fails });
     }
     // Unified ST timing — phases derived from actual yardage.
