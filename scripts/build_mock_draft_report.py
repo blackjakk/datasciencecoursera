@@ -335,7 +335,7 @@ def build_html(picks):
     chart_position_runs(picks, chart_paths["pos_runs"])
     chart_team_projection(team_totals, chart_paths["team_proj"])
 
-    steals, reaches = find_steals_reaches(picks, top_n=8)
+    steals, reaches = find_steals_reaches(picks, top_n=10)
 
     css = """
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Bebas+Neue&display=swap');
@@ -381,13 +381,40 @@ def build_html(picks):
            line-height: 1; }
     .empty { color: #d1d5db; text-align: center; font-size: 7pt;
              background: #f9fafb; }
-    .mc-table { width: 70%; font-size: 9.5pt; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+               margin-top: 8px; }
+    .mc-summary { font-size: 9pt; color: #3d405b; margin: 0 0 6px;
+                  padding: 4px 8px; background: #f9fafb; border-radius: 6px;
+                  border-left: 4px solid #0a3d62; }
+    .mc-table { width: 100%; font-size: 9pt; }
     .mc-table th { background: #0a3d62; color: white; padding: 5px 8px;
                    text-align: left; }
     .mc-table td { padding: 4px 8px; border-bottom: 1px solid #f0f0f0; }
     .mc-table .rd { background: #f9fafb; font-weight: 700; width: 36px;
                     color: #0a3d62; }
     .pct { color: #6b7280; font-weight: 600; font-size: 8.5pt; }
+    .mc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+               margin-top: 6px; }
+    .mc-card { border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden;
+               page-break-inside: avoid; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+    .mc-head { background: #f9fafb; padding: 4px 8px; display: flex;
+               align-items: center; gap: 6px; }
+    .mc-avatar { width: 22px; height: 22px; border-radius: 50%;
+                 object-fit: cover; flex-shrink: 0; }
+    .mc-name { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.4px;
+               font-size: 11pt; flex: 1; }
+    .mc-tot { font-family: 'Bebas Neue', sans-serif; font-size: 11pt;
+              color: #0a3d62; line-height: 1; text-align: right; }
+    .mc-tot .lbl { display: block; font-size: 6pt; letter-spacing: 0.3px;
+                   color: #6b7280; font-family: 'Inter', sans-serif;
+                   text-transform: uppercase; font-weight: 600; }
+    .mc-mini { width: 100%; font-size: 7pt; }
+    .mc-mini td { padding: 1px 4px; border-bottom: 1px solid #f9fafb;
+                  line-height: 1.3; }
+    .mc-mini .r { color: #6b7280; font-weight: 700; width: 22px;
+                  font-family: 'Bebas Neue', sans-serif; font-size: 8.5pt; }
+    .mc-mini .pct { text-align: right; color: #16a34a; font-weight: 700;
+                    width: 28px; }
     .steals-reaches { display: grid; grid-template-columns: 1fr 1fr;
                       gap: 16px; }
     .sr-table { width: 100%; font-size: 9pt; border-collapse: collapse; }
@@ -455,36 +482,13 @@ def build_html(picks):
     h.append(render_draft_board_html(picks, round_range=(10, 17)))
     h.append('<div class="page-break"></div>')
 
-    # ===== Monte Carlo (Brian's pick distribution) =====
-    mc_path = ROOT / "data" / "mc_summary.json" if (ROOT / "data" / "mc_summary.json").exists() else Path("/tmp/mc_summary.json")
-    if mc_path.exists():
-        mc = json.loads(mc_path.read_text())
-        h.append('<h2>Brian\'s Monte Carlo Mock — Pick Distribution</h2>')
-        bt = mc.get('brian_total_proj', {})
-        h.append(f'<p class="note">{mc.get("n_sims", 0)} sims with softmax sampling for other teams; '
-                 f'keeper-biased VBD scoring. Your projected roster total: '
-                 f'<strong>mean {bt.get("mean", 0):.0f}</strong> · '
-                 f'range [{bt.get("min", 0):.0f} – {bt.get("max", 0):.0f}] · '
-                 f'p25/p50/p75 = {bt.get("p25", 0):.0f} / {bt.get("p50", 0):.0f} / {bt.get("p75", 0):.0f}.</p>')
-        h.append('<table class="mc-table"><thead><tr><th>Rd</th><th>Most likely (% of sims)</th></tr></thead><tbody>')
-        for rnd in sorted(int(r) for r in mc.get('brian_pick_distribution', {})):
-            dist = mc['brian_pick_distribution'][str(rnd)]
-            top3 = sorted(dist.items(), key=lambda kv: -kv[1])[:3]
-            cells = []
-            for nm, cnt in top3:
-                pct = cnt * 100 // mc.get('n_sims', 50)
-                cells.append(f'<strong>{nm}</strong> <span class="pct">({pct}%)</span>')
-            h.append(f'<tr><td class="rd">R{rnd}</td><td>' + ' · '.join(cells) + '</td></tr>')
-        h.append('</tbody></table>')
-        h.append('<div class="page-break"></div>')
-
-    # ===== Steals & Reaches =====
+    # ===== Steals/Reaches first (compact, one page) =====
     h.append('<h2>Steals &amp; Reaches</h2>')
-    h.append('<p class="note">ADP delta = actual pick − ADP rank. '
-             '<strong style="color:#16a34a">Positive</strong> = drafted LATER than ADP suggested (the player fell — bargain). '
-             '<strong style="color:#dc2626">Negative</strong> = drafted EARLIER than ADP suggested (reach — paid premium).</p>')
-    h.append('<div class="steals-reaches">')
-    h.append('<div><h3 style="font-family:Bebas Neue;color:#16a34a;letter-spacing:1px;font-size:14pt;margin:0">TOP STEALS</h3>'
+    h.append('<p class="note">ADP δ = pick − ADP. '
+             '<strong style="color:#16a34a">Positive</strong> = fell (steal). '
+             '<strong style="color:#dc2626">Negative</strong> = reach.</p>')
+    h.append('<div class="two-col">')
+    h.append('<div><h3 style="font-family:Bebas Neue;color:#16a34a;font-size:13pt;margin:0 0 4px;letter-spacing:0.5px">TOP STEALS</h3>'
              '<table class="sr-table"><tr><th>Player</th><th>Pos</th><th>Team</th><th>Pick</th><th>ADP</th><th>Δ</th></tr>')
     for p, delta in steals:
         h.append(f'<tr><td><strong>{p["player_name"]}</strong></td>'
@@ -494,7 +498,7 @@ def build_html(picks):
                  f'<td>{p["adp"]:.0f}</td>'
                  f'<td class="delta-pos">+{delta:.0f}</td></tr>')
     h.append('</table></div>')
-    h.append('<div><h3 style="font-family:Bebas Neue;color:#dc2626;letter-spacing:1px;font-size:14pt;margin:0">TOP REACHES</h3>'
+    h.append('<div><h3 style="font-family:Bebas Neue;color:#dc2626;font-size:13pt;margin:0 0 4px;letter-spacing:0.5px">TOP REACHES</h3>'
              '<table class="sr-table"><tr><th>Player</th><th>Pos</th><th>Team</th><th>Pick</th><th>ADP</th><th>Δ</th></tr>')
     for p, delta in reaches:
         h.append(f'<tr><td><strong>{p["player_name"]}</strong></td>'
@@ -504,6 +508,53 @@ def build_html(picks):
                  f'<td>{p["adp"]:.0f}</td>'
                  f'<td class="delta-neg">{delta:.0f}</td></tr>')
     h.append('</table></div></div>')
+    h.append('<div class="page-break"></div>')
+
+    # ===== Monte Carlo: ALL 12 managers' pick distributions =====
+    mc_all_path = ROOT / "data" / "mc_summary_all.json"
+    if mc_all_path.exists():
+        mc_all = json.loads(mc_all_path.read_text())
+        n_sims = mc_all.get("n_sims", 50)
+        h.append('<h2>Monte Carlo — Pick Distributions (All Teams)</h2>')
+        h.append(f'<p class="note">{n_sims} sims with softmax sampling (temp=0.35) + '
+                 'keeper-biased VBD scoring. For each manager, the most-likely pick per round '
+                 'with confidence %. <strong>High %</strong> = consensus call. '
+                 '<strong>Low % spread across many names</strong> = high variance / many viable options.</p>')
+
+        per_team = mc_all.get("per_team", {})
+        # Order managers by predicted draft slot (1..12)
+        # team_idx 0..11 corresponds to slot 1..12
+        h.append('<div class="mc-grid">')
+        for ti in range(12):
+            data = per_team.get(str(ti), {})
+            mid = team_idx_to_mid(ti)
+            nm = team_idx_to_name(ti)
+            color = bpr.mgr_color(mid) if mid else "#666"
+            avatar = ROOT / "data/charts/avatars" / f"{mid}.jpg"
+            av_html = (f'<img class="mc-avatar" src="{_data_uri(avatar)}"/>'
+                       if avatar.exists() else '')
+            h.append(f'<div class="mc-card" style="border-top:5px solid {color}">')
+            h.append(f'<div class="mc-head">{av_html}<span class="mc-name">{nm}</span>'
+                     f'<span class="mc-tot">{data.get("mean",0):.0f}<span class="lbl">MEAN</span></span></div>')
+            h.append('<table class="mc-mini">')
+            for rnd in sorted(int(r) for r in data.get("pick_distribution", {})):
+                dist = data["pick_distribution"][str(rnd)]
+                top1 = max(dist.items(), key=lambda kv: kv[1])
+                nm_top, cnt = top1
+                pct = cnt * 100 // n_sims
+                # Abbreviate name
+                p_abbrev = nm_top
+                if " " in p_abbrev:
+                    f, l = p_abbrev.split(" ", 1)
+                    if len(f) > 2:
+                        p_abbrev = f"{f[0]}. {l}"
+                p_abbrev = p_abbrev[:18]
+                h.append(f'<tr><td class="r">R{rnd}</td>'
+                         f'<td><strong>{p_abbrev}</strong></td>'
+                         f'<td class="pct">{pct}%</td></tr>')
+            h.append('</table></div>')
+        h.append('</div>')
+        h.append('<div class="page-break"></div>')
 
     # ===== Position runs + Roster strength on one page =====
     h.append('<h2>Position Runs &amp; Roster Strength</h2>')

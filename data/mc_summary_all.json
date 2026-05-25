@@ -1,0 +1,889 @@
+{
+  "n_sims": 50,
+  "team_idx_to_mid_slot": {
+    "6": 1,
+    "12": 2,
+    "5": 3,
+    "4": 4,
+    "2": 5,
+    "9": 6,
+    "7": 7,
+    "1": 8,
+    "8": 9,
+    "3": 10,
+    "10": 11,
+    "11": 12
+  },
+  "per_team": {
+    "0": {
+      "mean": 2838.8024000000005,
+      "p25": 2724.4800000000005,
+      "p50": 2810.8800000000006,
+      "p75": 2966.22,
+      "min": 2458.76,
+      "max": 3239.9,
+      "pick_distribution": {
+        "1": {
+          "Bijan Robinson": 7,
+          "Amon-Ra St. Brown": 6,
+          "Ashton Jeanty": 5
+        },
+        "2": {
+          "Jaxson Dart": 7,
+          "Fernando Mendoza": 6,
+          "Josh Allen": 5
+        },
+        "3": {
+          "Brock Bowers": 8,
+          "Omarion Hampton": 5,
+          "Jeremiyah Love": 5
+        },
+        "4": {
+          "Jordan Addison": 7,
+          "Makai Lemon": 7,
+          "Jalen Hurts": 4
+        },
+        "6": {
+          "Stefon Diggs": 5,
+          "Michael Pittman": 5,
+          "Romeo Doubs": 5
+        },
+        "7": {
+          "Jayden Reed": 4,
+          "Khalil Shakir": 4,
+          "Jordan Addison": 3
+        },
+        "8": {
+          "Jacory Croskey-Merritt": 4,
+          "Tyrone Tracy": 4,
+          "Brian Robinson": 3
+        },
+        "9": {
+          "Jordan Mason": 4,
+          "Zach Charbonnet": 4,
+          "Tyrone Tracy": 3
+        },
+        "10": {
+          "T.J. Hockenson": 5,
+          "Dylan Sampson": 4,
+          "Antonio Williams": 3
+        },
+        "16": {
+          "Jaylen Wright": 3,
+          "Cade Otton": 3,
+          "Jonathon Brooks": 2
+        },
+        "17": {
+          "Gunnar Helm": 5,
+          "Kendre Miller": 4,
+          "Kaleb Johnson": 4
+        }
+      }
+    },
+    "1": {
+      "mean": 2761.8335999999995,
+      "p25": 2657.04,
+      "p50": 2765.6399999999994,
+      "p75": 2854.96,
+      "min": 2477.34,
+      "max": 3151.72,
+      "pick_distribution": {
+        "1": {
+          "Jonathan Taylor": 12,
+          "James Cook": 7,
+          "Derrick Henry": 6
+        },
+        "2": {
+          "Christian McCaffrey": 7,
+          "Ashton Jeanty": 7,
+          "Malik Nabers": 6
+        },
+        "3": {
+          "DeVonta Smith": 5,
+          "Garrett Wilson": 4,
+          "Kenneth Walker": 4
+        },
+        "4": {
+          "Patrick Mahomes": 5,
+          "Jordan Love": 4,
+          "Trevor Lawrence": 4
+        },
+        "5": {
+          "Brian Thomas": 6,
+          "Makai Lemon": 5,
+          "Jordan Addison": 4
+        },
+        "8": {
+          "Jacory Croskey-Merritt": 4,
+          "Kenneth Gainwell": 4,
+          "James Conner": 4
+        },
+        "9": {
+          "Zach Charbonnet": 6,
+          "Tyrone Tracy": 6,
+          "Aaron Jones": 5
+        },
+        "10": {
+          "Travis Hunter": 7,
+          "Emmett Johnson": 5,
+          "Jadarian Price": 3
+        },
+        "12": {
+          "Adonai Mitchell": 4,
+          "Kayshon Boutte": 4,
+          "Jonathon Brooks": 4
+        },
+        "13": {
+          "Troy Franklin": 5,
+          "Jonathon Brooks": 4,
+          "David Njoku": 4
+        },
+        "14": {
+          "Zachariah Branch": 4,
+          "Eli Stowers": 4,
+          "Sean Tucker": 3
+        },
+        "16": {
+          "Cade Otton": 5,
+          "Terrance Ferguson": 3,
+          "Eli Stowers": 3
+        }
+      }
+    },
+    "2": {
+      "mean": 2803.2680000000005,
+      "p25": 2685.0599999999995,
+      "p50": 2801.3400000000006,
+      "p75": 2877.6400000000003,
+      "min": 2598.2600000000007,
+      "max": 3225.72,
+      "pick_distribution": {
+        "1": {
+          "CeeDee Lamb": 9,
+          "James Cook": 9,
+          "Jahmyr Gibbs": 9
+        },
+        "2": {
+          "James Cook": 6,
+          "Caleb Williams": 5,
+          "Rashee Rice": 5
+        },
+        "3": {
+          "Kenneth Walker": 6,
+          "Josh Allen": 5,
+          "Trevor Lawrence": 5
+        },
+        "4": {
+          "Brian Thomas": 4,
+          "Ladd McConkey": 4,
+          "Makai Lemon": 4
+        },
+        "5": {
+          "Chris Godwin": 6,
+          "Jordan Addison": 4,
+          "Makai Lemon": 4
+        },
+        "6": {
+          "Michael Pittman": 5,
+          "Stefon Diggs": 4,
+          "Chris Godwin": 4
+        },
+        "7": {
+          "Michael Pittman": 5,
+          "Jayden Reed": 5,
+          "Xavier Worthy": 5
+        },
+        "9": {
+          "Woody Marks": 10,
+          "James Conner": 4,
+          "Jacory Croskey-Merritt": 3
+        },
+        "11": {
+          "Dylan Sampson": 5,
+          "Matthew Golden": 5,
+          "Rachaad White": 3
+        },
+        "16": {
+          "Jaylen Wright": 4,
+          "Demond Claiborne": 4,
+          "Kaleb Johnson": 4
+        },
+        "17": {
+          "Nicholas Singleton": 4,
+          "Najee Harris": 3,
+          "Darnell Mooney": 3
+        }
+      }
+    },
+    "3": {
+      "mean": 2421.0324000000005,
+      "p25": 2333.32,
+      "p50": 2388.6400000000003,
+      "p75": 2521.78,
+      "min": 2144.26,
+      "max": 2728.7400000000002,
+      "pick_distribution": {
+        "1": {
+          "George Pickens": 6,
+          "Drake London": 6,
+          "Garrett Wilson": 6
+        },
+        "2": {
+          "Terry McLaurin": 8,
+          "Tee Higgins": 4,
+          "DeVonta Smith": 4
+        },
+        "3": {
+          "TreVeyon Henderson": 4,
+          "Ladd McConkey": 4,
+          "Davante Adams": 3
+        },
+        "4": {
+          "Kyle Monangai": 4,
+          "Courtland Sutton": 3,
+          "J.K. Dobbins": 3
+        },
+        "5": {
+          "Baker Mayfield": 4,
+          "Patrick Mahomes": 3,
+          "Kyler Murray": 3
+        },
+        "6": {
+          "Dalton Kincaid": 4,
+          "Dalton Schultz": 4,
+          "Kyle Pitts": 4
+        },
+        "7": {
+          "Tyler Shough": 6,
+          "Baker Mayfield": 5,
+          "Patrick Mahomes": 4
+        },
+        "8": {
+          "Tyler Allgeier": 5,
+          "James Conner": 4,
+          "Jayden Higgins": 4
+        },
+        "9": {
+          "Tyler Allgeier": 5,
+          "Jordan Mason": 5,
+          "Josh Downs": 5
+        },
+        "11": {
+          "Matthew Golden": 6,
+          "Denzel Boston": 6,
+          "Deebo Samuel": 4
+        },
+        "12": {
+          "Pat Bryant": 7,
+          "Jerry Jeudy": 6,
+          "Kayshon Boutte": 5
+        },
+        "13": {
+          "Kimani Vidal": 6,
+          "Chimere Dike": 4,
+          "Jonathon Brooks": 4
+        },
+        "14": {
+          "Zachariah Branch": 5,
+          "Elic Ayomanor": 3,
+          "Emanuel Wilson": 3
+        },
+        "16": {
+          "Devin Neal": 4,
+          "Nicholas Singleton": 3,
+          "Germie Bernard": 3
+        },
+        "17": {
+          "Cade Otton": 4,
+          "Marvin Mims": 3,
+          "Colby Parkinson": 3
+        }
+      }
+    },
+    "4": {
+      "mean": 2571.2003999999997,
+      "p25": 2460.9,
+      "p50": 2576.5600000000004,
+      "p75": 2652.7800000000007,
+      "min": 2264.06,
+      "max": 2898.52,
+      "pick_distribution": {
+        "1": {
+          "CeeDee Lamb": 11,
+          "Drake London": 9,
+          "Jaylen Waddle": 7
+        },
+        "2": {
+          "Mike Evans": 10,
+          "D'Andre Swift": 4,
+          "Jahmyr Gibbs": 3
+        },
+        "3": {
+          "Tyler Warren": 12,
+          "Brock Bowers": 8,
+          "DeVonta Smith": 6
+        },
+        "4": {
+          "Dalton Kincaid": 5,
+          "Tyler Warren": 4,
+          "Quinshon Judkins": 3
+        },
+        "5": {
+          "Brock Purdy": 4,
+          "Jared Goff": 4,
+          "Cam Ward": 4
+        },
+        "6": {
+          "Marvin Harrison": 4,
+          "Kyle Monangai": 4,
+          "Kyle Pitts": 3
+        },
+        "7": {
+          "C.J. Stroud": 7,
+          "Dak Prescott": 3,
+          "Jayden Daniels": 3
+        },
+        "8": {
+          "J.K. Dobbins": 6,
+          "Tyler Allgeier": 6,
+          "Josh Downs": 5
+        },
+        "9": {
+          "Romeo Doubs": 4,
+          "Jadarian Price": 4,
+          "Jacory Croskey-Merritt": 4
+        },
+        "10": {
+          "Travis Hunter": 7,
+          "Antonio Williams": 7,
+          "Deebo Samuel": 7
+        },
+        "11": {
+          "Dylan Sampson": 8,
+          "Matthew Golden": 6,
+          "Rachaad White": 3
+        },
+        "12": {
+          "Chris Rodriguez": 4,
+          "Jonathon Brooks": 4,
+          "Kimani Vidal": 4
+        },
+        "15": {
+          "Tre Tucker": 4,
+          "Emanuel Wilson": 3,
+          "Kaytron Allen": 3
+        },
+        "16": {
+          "Cade Otton": 5,
+          "Marvin Mims": 4,
+          "Demond Claiborne": 4
+        },
+        "17": {
+          "Germie Bernard": 4,
+          "Ryan Flournoy": 3,
+          "Gunnar Helm": 3
+        }
+      }
+    },
+    "5": {
+      "mean": 2629.2220000000007,
+      "p25": 2529.079999999999,
+      "p50": 2623.36,
+      "p75": 2732.38,
+      "min": 2360.4400000000005,
+      "max": 3011.4799999999996,
+      "pick_distribution": {
+        "1": {
+          "Josh Jacobs": 7,
+          "Breece Hall": 6,
+          "Saquon Barkley": 5
+        },
+        "2": {
+          "D'Andre Swift": 6,
+          "RJ Harvey": 6,
+          "Josh Jacobs": 5
+        },
+        "3": {
+          "Jayden Daniels": 6,
+          "Jalen Hurts": 4,
+          "Fernando Mendoza": 4
+        },
+        "4": {
+          "D'Andre Swift": 7,
+          "Rome Odunze": 6,
+          "Jaylen Warren": 4
+        },
+        "5": {
+          "Amon-Ra St. Brown": 4,
+          "Cam Ward": 3,
+          "Caleb Williams": 3
+        },
+        "6": {
+          "Stefon Diggs": 5,
+          "Quentin Johnston": 5,
+          "Jakobi Meyers": 4
+        },
+        "7": {
+          "Khalil Shakir": 5,
+          "Xavier Worthy": 5,
+          "Jayden Higgins": 4
+        },
+        "10": {
+          "Denzel Boston": 4,
+          "Omar Cooper": 4,
+          "Jonah Coleman": 4
+        },
+        "11": {
+          "Antonio Williams": 7,
+          "Braelon Allen": 4,
+          "Tyjae Spears": 4
+        },
+        "12": {
+          "Kimani Vidal": 7,
+          "Chris Rodriguez": 5,
+          "Adonai Mitchell": 4
+        },
+        "13": {
+          "Jonathon Brooks": 4,
+          "Mike Washington": 4,
+          "Colby Parkinson": 4
+        },
+        "16": {
+          "Demond Claiborne": 7,
+          "Nicholas Singleton": 6,
+          "Najee Harris": 4
+        },
+        "17": {
+          "Tua Tagovailoa": 3,
+          "Garrett Nussmeier": 3,
+          "Devin Neal": 3
+        }
+      }
+    },
+    "6": {
+      "mean": 2391.0648,
+      "p25": 2297.44,
+      "p50": 2414.9200000000005,
+      "p75": 2473.2600000000007,
+      "min": 2096.2599999999998,
+      "max": 2719.7200000000003,
+      "pick_distribution": {
+        "1": {
+          "George Pickens": 6,
+          "Rashee Rice": 5,
+          "Ja'Marr Chase": 5
+        },
+        "2": {
+          "A.J. Brown": 6,
+          "Emeka Egbuka": 4,
+          "Mike Evans": 4
+        },
+        "3": {
+          "Fernando Mendoza": 11,
+          "Brock Purdy": 6,
+          "Jaxson Dart": 4
+        },
+        "4": {
+          "Tyler Warren": 6,
+          "DK Metcalf": 5,
+          "Kyle Pitts": 4
+        },
+        "5": {
+          "Kenyon Sadiq": 8,
+          "Travis Kelce": 7,
+          "Dalton Kincaid": 6
+        },
+        "6": {
+          "Romeo Doubs": 7,
+          "Quentin Johnston": 6,
+          "Jordan Addison": 5
+        },
+        "8": {
+          "Jayden Higgins": 5,
+          "Josh Downs": 5,
+          "Kenneth Gainwell": 5
+        },
+        "9": {
+          "Trey Benson": 5,
+          "KC Concepcion": 4,
+          "Woody Marks": 4
+        },
+        "12": {
+          "Jalen McMillan": 5,
+          "Kayshon Boutte": 5,
+          "Antonio Williams": 4
+        },
+        "14": {
+          "Calvin Ridley": 4,
+          "Isaac TeSlaa": 4,
+          "Ja'Kobi Lane": 3
+        },
+        "15": {
+          "Chig Okonkwo": 5,
+          "Tre Tucker": 5,
+          "Zachariah Branch": 5
+        },
+        "16": {
+          "Theo Johnson": 5,
+          "Cade Otton": 5,
+          "Gunnar Helm": 4
+        },
+        "17": {
+          "Garrett Nussmeier": 6,
+          "Kyle Williams": 3,
+          "Matthew Stafford": 3
+        }
+      }
+    },
+    "7": {
+      "mean": 2360.3404,
+      "p25": 2287.3199999999997,
+      "p50": 2350.0000000000005,
+      "p75": 2430.24,
+      "min": 2100.36,
+      "max": 2658.0200000000004,
+      "pick_distribution": {
+        "2": {
+          "Tee Higgins": 9,
+          "DeVonta Smith": 6,
+          "Emeka Egbuka": 5
+        },
+        "4": {
+          "David Montgomery": 6,
+          "Rome Odunze": 5,
+          "Quinshon Judkins": 5
+        },
+        "5": {
+          "Kyle Monangai": 4,
+          "Quentin Johnston": 3,
+          "Jaylen Warren": 3
+        },
+        "6": {
+          "Dalton Kincaid": 4,
+          "Kyle Monangai": 4,
+          "Brian Thomas": 3
+        },
+        "8": {
+          "Daniel Jones": 6,
+          "C.J. Stroud": 4,
+          "Cam Ward": 4
+        },
+        "10": {
+          "Denzel Boston": 6,
+          "Omar Cooper": 6,
+          "Jonah Coleman": 4
+        },
+        "12": {
+          "Jalen McMillan": 7,
+          "Kayshon Boutte": 5,
+          "Kimani Vidal": 4
+        },
+        "13": {
+          "Brandon Aiyuk": 9,
+          "Chimere Dike": 8,
+          "Tank Bigsby": 7
+        },
+        "14": {
+          "Kaytron Allen": 8,
+          "Isaac TeSlaa": 7,
+          "Ja'Kobi Lane": 7
+        },
+        "16": {
+          "Jaylin Noel": 4,
+          "Eli Stowers": 3,
+          "Ray Davis": 3
+        },
+        "17": {
+          "Garrett Nussmeier": 4,
+          "Jordan Love": 3,
+          "Zachariah Branch": 2
+        }
+      }
+    },
+    "8": {
+      "mean": 2574.0148,
+      "p25": 2469.82,
+      "p50": 2583.32,
+      "p75": 2646.6199999999994,
+      "min": 2308.2999999999997,
+      "max": 3117.2,
+      "pick_distribution": {
+        "1": {
+          "Tetairoa McMillan": 5,
+          "Ja'Marr Chase": 4,
+          "Amon-Ra St. Brown": 4
+        },
+        "2": {
+          "Joe Burrow": 8,
+          "Caleb Williams": 8,
+          "Kenneth Walker": 5
+        },
+        "3": {
+          "RJ Harvey": 6,
+          "Fernando Mendoza": 4,
+          "Jalen Hurts": 3
+        },
+        "4": {
+          "Marvin Harrison": 4,
+          "Carnell Tate": 3,
+          "Rome Odunze": 3
+        },
+        "6": {
+          "Cam Ward": 5,
+          "Baker Mayfield": 5,
+          "Jalen Hurts": 4
+        },
+        "7": {
+          "Jayden Higgins": 7,
+          "Xavier Worthy": 6,
+          "Quentin Johnston": 4
+        },
+        "8": {
+          "KC Concepcion": 10,
+          "Josh Downs": 7,
+          "Brian Robinson": 4
+        },
+        "9": {
+          "Jordan Mason": 5,
+          "Alvin Kamara": 5,
+          "Woody Marks": 3
+        },
+        "10": {
+          "Tyjae Spears": 4,
+          "Jordan Mason": 4,
+          "Woody Marks": 3
+        },
+        "12": {
+          "Adonai Mitchell": 5,
+          "Kayshon Boutte": 4,
+          "Jalen McMillan": 3
+        },
+        "13": {
+          "Tank Bigsby": 6,
+          "Isiah Pacheco": 6,
+          "Mike Washington": 4
+        },
+        "16": {
+          "Jaylin Noel": 6,
+          "Jaylen Wright": 4,
+          "Theo Johnson": 3
+        },
+        "17": {
+          "Garrett Nussmeier": 7,
+          "Kaleb Johnson": 4,
+          "Elijah Sarratt": 4
+        }
+      }
+    },
+    "9": {
+      "mean": 2083.9784,
+      "p25": 1983.36,
+      "p50": 2069.7200000000003,
+      "p75": 2209.44,
+      "min": 1779.54,
+      "max": 2374.6400000000003,
+      "pick_distribution": {
+        "3": {
+          "Quinshon Judkins": 6,
+          "Rhamondre Stevenson": 5,
+          "RJ Harvey": 5
+        },
+        "6": {
+          "Marvin Harrison": 4,
+          "Quinshon Judkins": 3,
+          "Kyle Monangai": 3
+        },
+        "7": {
+          "Kenyon Sadiq": 10,
+          "Isaiah Likely": 3,
+          "Brian Robinson": 3
+        },
+        "8": {
+          "Kenyon Sadiq": 8,
+          "Mark Andrews": 5,
+          "Tyrone Tracy": 4
+        },
+        "9": {
+          "Isaiah Likely": 6,
+          "Brenton Strange": 5,
+          "Jacory Croskey-Merritt": 5
+        },
+        "10": {
+          "Bryce Young": 6,
+          "Kyler Murray": 5,
+          "Matthew Stafford": 4
+        },
+        "11": {
+          "Braelon Allen": 6,
+          "Rashid Shaheed": 4,
+          "Emmett Johnson": 4
+        },
+        "12": {
+          "Adonai Mitchell": 4,
+          "Matthew Golden": 4,
+          "Antonio Williams": 4
+        },
+        "14": {
+          "Zachariah Branch": 10,
+          "Elic Ayomanor": 10,
+          "Ja'Kobi Lane": 10
+        },
+        "15": {
+          "Nicholas Singleton": 5,
+          "Ja'Kobi Lane": 3,
+          "Elic Ayomanor": 3
+        },
+        "16": {
+          "Devin Neal": 3,
+          "Kaytron Allen": 3,
+          "Theo Johnson": 3
+        },
+        "17": {
+          "Garrett Nussmeier": 4,
+          "Tory Horton": 3,
+          "Gunnar Helm": 3
+        }
+      }
+    },
+    "10": {
+      "mean": 2313.9848000000006,
+      "p25": 2221.38,
+      "p50": 2297.86,
+      "p75": 2440.8000000000006,
+      "min": 1879.02,
+      "max": 2596.9600000000005,
+      "pick_distribution": {
+        "1": {
+          "Jaylen Waddle": 6,
+          "Emeka Egbuka": 5,
+          "Zay Flowers": 4
+        },
+        "3": {
+          "Jordyn Tyson": 7,
+          "Carnell Tate": 5,
+          "DK Metcalf": 5
+        },
+        "4": {
+          "Caleb Williams": 5,
+          "Breece Hall": 4,
+          "Fernando Mendoza": 4
+        },
+        "5": {
+          "Brian Thomas": 4,
+          "David Montgomery": 4,
+          "Quinshon Judkins": 3
+        },
+        "7": {
+          "KC Concepcion": 7,
+          "Jayden Higgins": 5,
+          "Xavier Worthy": 3
+        },
+        "8": {
+          "Jared Goff": 5,
+          "Matthew Stafford": 5,
+          "Jaylen Warren": 4
+        },
+        "10": {
+          "Jordan Mason": 5,
+          "Trey Benson": 5,
+          "Emmett Johnson": 3
+        },
+        "11": {
+          "Braelon Allen": 7,
+          "Adonai Mitchell": 5,
+          "Rashid Shaheed": 5
+        },
+        "12": {
+          "Rashid Shaheed": 6,
+          "Kayshon Boutte": 4,
+          "Adonai Mitchell": 4
+        },
+        "13": {
+          "Tre' Harris": 8,
+          "Calvin Ridley": 5,
+          "Isiah Pacheco": 5
+        },
+        "14": {
+          "Isaac TeSlaa": 6,
+          "Ja'Kobi Lane": 5,
+          "Tre' Harris": 4
+        },
+        "16": {
+          "Ray Davis": 8,
+          "Jaylin Noel": 4,
+          "David Njoku": 3
+        },
+        "17": {
+          "Germie Bernard": 5,
+          "Demond Claiborne": 5,
+          "Devin Neal": 4
+        }
+      }
+    },
+    "11": {
+      "mean": 2447.5924,
+      "p25": 2368.52,
+      "p50": 2473.12,
+      "p75": 2544.76,
+      "min": 1919.4399999999998,
+      "max": 2802.56,
+      "pick_distribution": {
+        "3": {
+          "Carnell Tate": 7,
+          "Rome Odunze": 5,
+          "DK Metcalf": 5
+        },
+        "5": {
+          "Mark Andrews": 6,
+          "George Kittle": 5,
+          "Travis Kelce": 4
+        },
+        "7": {
+          "Baker Mayfield": 4,
+          "Kyler Murray": 4,
+          "C.J. Stroud": 4
+        },
+        "8": {
+          "Brian Robinson": 6,
+          "Jared Goff": 4,
+          "C.J. Stroud": 4
+        },
+        "9": {
+          "Jonah Coleman": 6,
+          "Alvin Kamara": 5,
+          "Tyreek Hill": 5
+        },
+        "10": {
+          "Emmett Johnson": 4,
+          "Deebo Samuel": 4,
+          "Jacory Croskey-Merritt": 3
+        },
+        "13": {
+          "Keaton Mitchell": 7,
+          "Pat Bryant": 6,
+          "Troy Franklin": 6
+        },
+        "14": {
+          "Ja'Kobi Lane": 5,
+          "Keaton Mitchell": 5,
+          "Kayshon Boutte": 4
+        },
+        "15": {
+          "Tre Tucker": 4,
+          "Troy Franklin": 3,
+          "Devin Neal": 3
+        },
+        "16": {
+          "Terrance Ferguson": 6,
+          "Elic Ayomanor": 3,
+          "Colby Parkinson": 3
+        },
+        "17": {
+          "Chris Bell": 4,
+          "Tory Horton": 3,
+          "Darnell Mooney": 2
+        }
+      }
+    }
+  }
+}
