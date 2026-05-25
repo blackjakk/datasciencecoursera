@@ -19,13 +19,13 @@ Each manager's **total net point delta across every scored trade** they were eve
 | 1 | **Dave** | 27 | **+4718** | +175 |
 | 2 | **Brower** | 21 | **+1426** | +68 |
 | 3 | **Coop** | 41 | **+1039** | +25 |
-| 4 | **Brian** | 46 | **+661** | +14 |
-| 5 | **Trevor** | 52 | **+609** | +12 |
+| 4 | **Trevor** | 51 | **+727** | +14 |
+| 5 | **Brian** | 46 | **+661** | +14 |
 | 6 | **Troy** | 23 | **+466** | +20 |
 | 7 | **Kyle** | 26 | **+464** | +18 |
 | 8 | **Ankur** | 9 | **+235** | +26 |
-| 9 | **JP** | 1 | **-12** | -12 |
-| 10 | **Nick Lewis** | 4 | **-62** | -16 |
+| 9 | **Nick Lewis** | 4 | **-62** | -16 |
+| 10 | **JP** | 2 | **-131** | -65 |
 | 11 | **Jimmy Notebooks** | 1 | **-452** | -452 |
 | 12 | **Lem** | 20 | **-854** | -43 |
 | 13 | **Eric** | 15 | **-879** | -59 |
@@ -39,7 +39,7 @@ Each manager's **total net point delta across every scored trade** they were eve
 
 | Rank | Manager | Trades | Players acq | Picks acq |
 |---|---|---|---|---|
-| 1 | **Trevor** | 56 | 76 | 65 |
+| 1 | **Trevor** | 55 | 75 | 65 |
 | 2 | **Brian** | 47 | 66 | 37 |
 | 3 | **Coop** | 42 | 50 | 39 |
 | 4 | **Donnie** | 37 | 43 | 44 |
@@ -53,9 +53,9 @@ Each manager's **total net point delta across every scored trade** they were eve
 | 12 | **Ankur** | 11 | 16 | 14 |
 | 13 | **Nark** | 10 | 13 | 8 |
 | 14 | **Nick Lewis** | 4 | 8 | 2 |
-| 15 | **Josh** | 2 | 2 | 1 |
-| 16 | **Jimmy Notebooks** | 1 | 1 | 1 |
-| 17 | **JP** | 1 | 2 | 0 |
+| 15 | **JP** | 2 | 3 | 0 |
+| 16 | **Josh** | 2 | 2 | 1 |
+| 17 | **Jimmy Notebooks** | 1 | 1 | 1 |
 
 **Trevor leads at every level** — most trades, most players acquired, most picks moved. Famously trades any deal. Brian and Coop are the next-most-active; the bottom group (Tim, Eric, Ankur) prefer building through draft + wire.
 
@@ -114,11 +114,11 @@ Net points imbalance per pair (full-season nflverse points through 2024; 2025 Sl
 | **Trevor** | Brian | 13 | 7-6 | **+884** | 2025 | still active |
 | **Trevor** | Donnie | 7 | 6-1 | **+858** | 2022 | ⚠️ silent 3yr |
 | **Brian** | Donnie | 8 | 5-3 | **+798** | 2024 | still active |
+| **Trevor** | Nark | 3 | 3-0 | **+748** | 2016 | victim left league |
 | **Brower** | Coop | 4 | 3-1 | **+720** | 2023 | still active |
 | **Lem** | Dave | 3 | 3-0 | **+717** | 2018 | victim left league |
 | **Brower** | Troy | 2 | 2-0 | **+709** | 2023 | still active |
 | **Dave** | Troy | 3 | 2-1 | **+649** | 2023 | fleecer left league |
-| **Trevor** | Nark | 4 | 3-1 | **+629** | 2016 | victim left league |
 | **Troy** | Lem | 2 | 1-1 | **+613** | 2019 | ⚠️ silent 6yr |
 | **Kyle** | Coop | 6 | 5-1 | **+602** | 2024 | still active |
 | **Trevor** | Kyle | 8 | 6-2 | **+600** | 2025 | still active |
@@ -166,8 +166,8 @@ Pairs where one side has dominated by 400+ net points but they're **still active
 | Coop ↔ Kyle | 5 | 2011-2019 |
 | Coop ↔ Troy | 5 | 2014-2022 |
 | Coop ↔ Donnie | 5 | 2015-2022 |
-| Nark ↔ Trevor | 4 | 2012-2016 |
 | Brian ↔ Eric | 4 | 2014-2022 |
+| Lem ↔ Trevor | 4 | 2017-2022 |
 
 ## 📈 Charts
 
