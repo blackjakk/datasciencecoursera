@@ -3567,11 +3567,15 @@ function buildAnimForPlay(play, prevPlay) {
             _passSecondaryTrack = ti.ss;
           }
         }
-        // Secondary track drives the defender UNTIL the catch. After
-        // the catch, the named tackler's sim pursuit overrides (so
-        // their physics-driven chase starts from this coverage spot).
-        const _applySecondary = _passSecondaryTrack
-                              && (t <= throwPhase || !_isPassTacklerByName);
+        // Secondary track drives the defender every frame the track is
+        // defined — including the tackler. Without this, the named
+        // tackler's dd resets to formation default on the first post-
+        // throw frame (before the pursuit block runs), so the sim sync
+        // grabs the formation spot and the safety teleports from
+        // coverage back to his default depth. With this, dd holds the
+        // coverage position right up to the moment pursuit takes over,
+        // and the sim syncs from the coverage spot.
+        const _applySecondary = _passSecondaryTrack;
         if (_applySecondary && typeof MotionPlayback !== "undefined") {
           const sample = MotionPlayback.sampleTrack(_passSecondaryTrack, aT);
           if (sample) {
