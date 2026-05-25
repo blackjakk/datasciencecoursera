@@ -110,6 +110,63 @@ ROSTER_HANDOFFS = {(2023, 10): "dave_aka_wang",
 MIN_YEARS_CURRENT = 5     # current managers need 5+ years
 MIN_YEARS_FORMER = 10     # former managers need 10+ years (e.g. Dave Wang)
 
+# Unique "calling card" per manager, derived from the underlying data
+PERSONALITIES = {
+    "trevor_bergerboy": ("The Volume Drafter",
+        "15 straight years, 3 rings, AND the league's most-frequent trader (52 trades). "
+        "Despite never drafting from a high slot, his +9.0 surplus/pick is the best in the "
+        "league — he wrings value out of every round. The closest thing to a perennial contender."),
+    "coop": ("The Stealth Champion",
+        "3 rings on a .537 win pct — wins championships without ever dominating the regular season. "
+        "Famously didn't even attend the 2017 Delilah's draft and still won the title. "
+        "Iron-man 15-year vet who shows up when it matters."),
+    "dave_aka_wang": ("The Departed GOAT",
+        "By the numbers, the most complete manager in league history: +4718 trade VBD (#1 by a mile), "
+        ".596 win pct, 2 rings in 12 years. Then he handed the roster to Josh after 2024. "
+        "He left at the peak."),
+    "kyle_figgy": ("The Manic-Depressive",
+        "Two rings (2012, 2016) but the most volatile finishing record in the league — "
+        "regularly oscillates between #1 and #10. When he's on, he wins it. When he's off, "
+        "he's the basement."),
+    "brower_barry": ("The Choker (Sorry)",
+        "League's best win pct (.701), best PPG (135.8), and #2 draft skill (+8.7 surplus). "
+        "0 rings. Every regular season is a coronation; every playoff is a heart attack. "
+        "Most underrated active manager."),
+    "ankur_patel": ("The Rookie Champion",
+        "Won his ring in 2022, his FIRST season in the league. Has been respectable since "
+        "but hasn't replicated it. The cautionary tale that a hot draft can carry you all the way."),
+    "eric_m": ("The Sneaky Drafter",
+        "Below-average trade VBD (-879) but quietly #4 in draft skill (+7.2 surplus/pick). "
+        "His 2023 ring came mostly from the draft — not midseason wheeling. The exact opposite "
+        "profile of Donnie."),
+    "troy_mullings": ("The Heist Survivor",
+        "13-year vet, 1 ring (2019), and the most schedule-unlucky player in recent years "
+        "(-0.54 fpts-to-wins gap). Often scores his way out of the playoff race but can't "
+        "translate to W's."),
+    "brian_bigguap": ("The Beautiful Loser",
+        "15 years, 46 trades, 0 rings. The most active manager who has never won. "
+        "Went 11-0 in 2018's regular season then lost in the playoffs to finish 4th. "
+        "Has played every snap of MONEYLEAGUE history without lifting the trophy."),
+    "lem": ("The Cosmically Unlucky",
+        "15 years, 0 rings, schedule luck -0.80 (worst in the league). Routinely scores enough "
+        "to win but gets matched against the week's highest scorer. The universe owes him a ring."),
+    "donnie": ("The Lottery Winner",
+        "1 ring + EVERYTHING ELSE is worst-or-near-worst: -3777 trade VBD (worst by 1700+), "
+        ".362 win pct, -13.4 draft surplus. Living proof that fantasy football has a luck variance "
+        "the size of Texas."),
+    "tim_breswick": ("The Quiet Anchor",
+        "9 years, 0 rings, .452 win pct. Doesn't trade much (-2077 VBD), doesn't draft well "
+        "(-10.7 surplus). Doesn't get fleeced either. The league's bedrock — always there, "
+        "never the story."),
+    "josh_wildboy": ("The Heir",
+        "Took over Dave's roster in 2025 and went 9-5 in his rookie season. "
+        "Inherited a champion's infrastructure; the question is whether he can keep the dynasty alive."),
+    "nark": ("The Original Champion",
+        "Won the inaugural title in 2011 (back when the league was 8 teams). Stuck around through "
+        "2016, then peaced out. Holds the unique distinction of being the only champion who "
+        "doesn't exist in the Sleeper era."),
+}
+
 
 def _mgr_name(mid):
     for m in all_managers():
@@ -1721,7 +1778,6 @@ def build_html():
     chart_scatter_winpct_ppg(cards, chart_paths["scatter"])
     chart_trade_vbd(cards, chart_paths["vbd"])
     chart_drafters(cards, chart_paths["drafters"])
-    chart_championships_timeline(chart_paths["champs"])
     chart_trade_heatmap(chart_paths["trade_heatmap"], cards)
     chart_trade_network(chart_paths["trade_network"], cards)
     chart_tenure_timeline(chart_paths["tenure"], cards)
@@ -1823,6 +1879,22 @@ def build_html():
                       font-weight: 600; }
     .section-intro { color: #3d405b; font-size: 10pt; margin: 2px 0 6px;
                      break-after: avoid-page; page-break-after: avoid; }
+    .callout { background: #fdf6e3; border-left: 4px solid #d4a017;
+               padding: 8px 12px; font-size: 9.5pt; margin: 4px 0 14px;
+               color: #2a2a2a; border-radius: 0 6px 6px 0; }
+    .callout strong { color: #0a3d62; }
+    .personalities { display: grid; grid-template-columns: 1fr 1fr;
+                     gap: 8px; margin: 6px 0; }
+    .persona { border: 1px solid #e5e7eb; border-left: 5px solid;
+               border-radius: 6px; padding: 8px 12px;
+               page-break-inside: avoid; }
+    .persona-name { font-family: 'Bebas Neue', sans-serif;
+                    letter-spacing: 0.8px; font-size: 15pt;
+                    margin: 0 0 2px; }
+    .persona-label { font-weight: 700; color: #0a3d62;
+                     font-size: 9pt; text-transform: uppercase;
+                     letter-spacing: 0.6px; margin-bottom: 4px; }
+    .persona-body { font-size: 9.5pt; color: #3d405b; line-height: 1.5; }
     .bp-card { margin: 6px 0; padding: 8px 12px 4px;
                background: #fafafa; border-radius: 6px; }
     .bp-head { font-family: 'Bebas Neue', sans-serif; letter-spacing: 1px;
@@ -1871,7 +1943,9 @@ def build_html():
              'attribute normalized 0-99 within the pool. '
              '<strong>FMR</strong> = former manager.</p>')
     h.append(f'<img class="chart" src="{_data_uri(chart_paths["ovr_all"])}"/>')
+    h.append("<div class=\"callout\"><strong>Take:</strong> Dave (FMR) still tops the all-time ladder — he left the league at peak. Among current managers, <strong>Trevor</strong> is the lone Franchise-tier player.</div>")
     h.append(f'<img class="chart tall" src="{_data_uri(chart_paths["radar_top"])}"/>')
+    h.append("<div class=\"callout\"><strong>Take:</strong> Compare the polygon shapes — Dave's is the most balanced (high on every axis); Coop is win-and-rings-heavy but lighter on draft + trade.</div>")
 
     # ===== Madden cards =====
     h.append('<h2>All-Time Player Cards</h2>')
@@ -1886,6 +1960,7 @@ def build_html():
              'win-rate / scoring plane. The top-right is the dream; the '
              'bottom-left is the basement. Bubble size = rings.</p>')
     h.append(f'<img class="chart" src="{_data_uri(chart_paths["scatter"])}"/>')
+    h.append("<div class=\"callout\"><strong>Take:</strong> <strong>Brower</strong> lives alone in the top-right — best win% AND PPG in the league, with a tiny 0-ring dot. <strong>Donnie</strong> sits in the bottom-left with a 1-ring bubble: lucky ring on otherwise-bottom-tier production.</div>")
 
     # ===== Trade fleecer ledger =====
     h.append('<h2>Trade Fleecer Ledger</h2>')
@@ -1894,6 +1969,7 @@ def build_html():
              '(scored as the rookie-year production of the player actually '
              'drafted). Green = won, red = lost.</p>')
     h.append(f'<img class="chart" src="{_data_uri(chart_paths["vbd"])}"/>')
+    h.append("<div class=\"callout\"><strong>Take:</strong> <strong>Dave</strong> won the trade ledger by +4718, more than 3× the next closest. <strong>Donnie</strong> lost -3777, the worst pile of bad trades in league history.</div>")
 
     # ===== Trade heatmap =====
     h.append('<h2>Trade Fleecing Matrix</h2>')
@@ -1903,6 +1979,7 @@ def build_html():
              'fleeced them. Number = net VBD; small subscript = trade count. '
              'Rows ordered by all-time OVR.</p>')
     h.append(f'<img class="chart tall" src="{_data_uri(chart_paths["trade_heatmap"])}"/>')
+    h.append("<div class=\"callout\"><strong>Take:</strong> Look at Dave's row — almost universally green. Look at Donnie's row — almost universally red. The Brian-Eric cell is roughly neutral (~+180 Brian once picks are scored, which surprised everyone).</div>")
 
     # ===== Trade network =====
     h.append('<h2>Trade Network</h2>')
@@ -1911,6 +1988,7 @@ def build_html():
              'frequency (thickness) and imbalance (color depth). Managers '
              'who only trade with a few others get pulled to the periphery.</p>')
     h.append(f'<img class="chart tall" src="{_data_uri(chart_paths["trade_network"])}"/>')
+    h.append("<div class=\"callout\"><strong>Take:</strong> Trevor and Brian are central hubs (they trade with everyone). Tim and Ankur sit near the periphery — light traders who prefer the wire.</div>")
 
     # ===== Best drafters =====
     h.append('<h2>Best Drafters</h2>')
@@ -1921,6 +1999,7 @@ def build_html():
              'a normal R1 player. Positive = found above-replacement value. '
              'Min 20 career picks.</p>')
     h.append(f'<img class="chart" src="{_data_uri(chart_paths["drafters"])}"/>')
+    h.append("<div class=\"callout\"><strong>Take:</strong> <strong>Trevor's +9.0 surplus/pick</strong> is the league-best drafter — even though his raw pts/pick is mid-tier, he beats round expectation more than anyone. Ankur's raw was deceptively high; once normalized for slot, he's actually a bottom-3 drafter.</div>")
 
     # ===== Tenure timeline =====
     h.append('<h2>Tenure Timeline</h2>')
@@ -1929,6 +2008,7 @@ def build_html():
              'league has evolved (8 → 10 → 12 teams) and who\'s been the '
              'most loyal.</p>')
     h.append(f'<img class="chart tall" src="{_data_uri(chart_paths["tenure"])}"/>')
+    h.append("<div class=\"callout\"><strong>Take:</strong> Six managers have played all 15 seasons (Trevor, Coop, Kyle, Eric, Brian, Lem). Only Trevor + Coop have 3 rings; Brian + Lem are the only iron-men with zero.</div>")
 
     # ===== Finish heatmap =====
     h.append('<h2>Regular-Season Finish, Year by Year</h2>')
@@ -1937,6 +2017,7 @@ def build_html():
              'top, red = bottom). Reveals consistency, peak years, droughts.'
              '</p>')
     h.append(f'<img class="chart tall" src="{_data_uri(chart_paths["finish_heatmap"])}"/>')
+    h.append("<div class=\"callout\"><strong>Take:</strong> Kyle's row is the most volatile (#1 three times AND #10 four times). Brower's row since 2019 is an unbroken streak of top-3 regular seasons. Donnie's recent years are mostly red.</div>")
 
     # ===== Schedule luck =====
     h.append('<h2>Schedule Luck</h2>')
@@ -1946,12 +2027,9 @@ def build_html():
              '<strong>Negative</strong> = scored well but couldn\'t catch '
              'a break.</p>')
     h.append(f'<img class="chart" src="{_data_uri(chart_paths["schedule_luck"])}"/>')
+    h.append("<div class=\"callout\"><strong>Take:</strong> <strong>Lem at -0.80</strong> is brutally unlucky — scores enough to win but constantly matched against the week's high score. Brower + Ankur both at +1.00 — their records flatter their actual scoring.</div>")
 
-    # ===== Championship timeline =====
-    h.append('<h2>Championship Timeline</h2>')
-    h.append('<p class="section-intro">15 years of titles, one trophy per '
-             'season. Rows ordered by total ring count.</p>')
-    h.append(f'<img class="chart" src="{_data_uri(chart_paths["champs"])}"/>')
+    # (Championship timeline removed — redundant with tenure timeline stars)
 
     # ===== Head-to-Head Matrix =====
     h.append('<h2>Head-to-Head Career Matrix</h2>')
@@ -1960,6 +2038,7 @@ def build_html():
              'COLUMN manager. Green = ROW dominant; red = ROW gets beat. '
              'Rows ordered by all-time OVR.</p>')
     h.append(f'<img class="chart tall" src="{_data_uri(chart_paths["h2h_matrix"])}"/>')
+    h.append("<div class=\"callout\"><strong>Take:</strong> Dave's row is mostly green (he beat almost everyone he played). Coop owns Lem and Donnie. Donnie's row is mostly red.</div>")
 
     # ===== Position Drafted Strategy =====
     h.append('<h2>Position Drafted by Round — Draft Strategy</h2>')
@@ -1967,6 +2046,7 @@ def build_html():
              'manager\'s entire drafting career (rounds 1-10). Reveals '
              'whether they reach for QBs early, hoard RBs, ignore TE, etc.</p>')
     h.append(f'<img class="chart tall" src="{_data_uri(chart_paths["position_drafted"])}"/>')
+    h.append("<div class=\"callout\"><strong>Take:</strong> Notice who hoards QBs early (red blocks in early rounds) vs who waits. Most managers go RB/WR heavy in rounds 1-4; the early-QB drafters stand out clearly.</div>")
 
     # ===== Best & worst single seasons =====
     h.append('<h2>Best & Worst Single Seasons of All Time</h2>')
@@ -1974,6 +2054,7 @@ def build_html():
              'manager-seasons across 15 years of regular-season play '
              '(minimum 8 games).</p>')
     h.append(f'<img class="chart" src="{_data_uri(chart_paths["best_worst_seasons"])}"/>')
+    h.append("<div class=\"callout\"><strong>Take:</strong> Brower's recent Sleeper-era seasons dominate the top-8 list — most rings-less elite stretch in league history. Brian + Lem each appear multiple times in the bottom-8.</div>")
 
     # ===== Favorite players =====
     h.append('<h2>Favorite Players — Drafted Multiple Times</h2>')
@@ -1998,6 +2079,7 @@ def build_html():
              'Positive = they\'re playing better than their career average '
              'suggests. Negative = falling off.</p>')
     h.append(f'<img class="chart" src="{_data_uri(chart_paths["recent_vs_lifetime"])}"/>')
+    h.append("<div class=\"callout\"><strong>Take:</strong> <strong>Brower</strong> is heating up the most (Sleeper-era OVR well above his all-time). <strong>Trevor</strong> is the steadiest (small delta). Watch out for the cooling-off trend on the bottom.</div>")
 
     # ===== Sleeper era split =====
     h.append('<h2>Sleeper Era (2023-2025)</h2>')
@@ -2051,6 +2133,25 @@ def build_html():
             h.append('<div class="bp-section"><em>No in-season trades — '
                      'won via draft + waivers alone.</em></div>')
         h.append('</div>')
+
+    # ===== League Personalities =====
+    h.append('<h2>League Personalities</h2>')
+    h.append('<p class="section-intro">One sentence per manager — '
+             'what the numbers and lore say defines them.</p>')
+    h.append('<div class="personalities">')
+    # Order: current managers by OVR, then former managers
+    ordered = [c["mid"] for c in cards if c.get("is_current", True)] + \
+              [c["mid"] for c in cards if not c.get("is_current", True)]
+    for mid in ordered:
+        if mid not in PERSONALITIES:
+            continue
+        label, body = PERSONALITIES[mid]
+        color = mgr_color(mid)
+        h.append(f'<div class="persona" style="border-left-color:{color}">'
+                 f'<div class="persona-label" style="color:{color}">{label}</div>'
+                 f'<div class="persona-name">{_mgr_name(mid)}</div>'
+                 f'<div class="persona-body">{body}</div></div>')
+    h.append('</div>')
 
     # ===== Methodology =====
     h.append('<h2>Methodology</h2>')
