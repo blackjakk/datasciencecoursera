@@ -164,6 +164,7 @@ This league started in **2011 with 8 teams** on Yahoo, expanded to 10 in 2013, e
 - 🍀 Schedule-blessed: **Trevor** (7 actual W, 3.8 expected)
 - ➕ **Joined**: Tim
 - ➖ **Left**: Nark
+- 🎰 **The Strip Club Draft.** This was the year the draft was held at a strip club. Figgy used his final pick (R19.10) on **Bobby Turbo**.
 
 ---
 

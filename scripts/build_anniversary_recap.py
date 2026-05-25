@@ -38,6 +38,16 @@ def _yahoo_team_names_by_year() -> dict[int, dict[str, str]]:
     return out
 
 
+# League lore — memorable stories tied to specific seasons.
+# Add to this dict as more comes back to you.
+LEAGUE_LORE: dict[int, list[str]] = {
+    2017: [
+        "🎰 **The Strip Club Draft.** This was the year the draft was held "
+        "at a strip club. Figgy used his final pick (R19.10) on **Bobby Turbo**.",
+    ],
+}
+
+
 def _era_for_year(yr: int) -> str:
     if yr <= 2012:
         return "8-team era · standard scoring"
@@ -162,6 +172,9 @@ def build_markdown() -> str:
 
         for n in notes:
             md.append(f"- {n}")
+        # Add any lore notes
+        for lore in LEAGUE_LORE.get(yr, []):
+            md.append(f"- {lore}")
         md.append("\n---\n")
 
     # Era roundup tables
