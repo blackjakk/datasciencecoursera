@@ -3641,6 +3641,50 @@ function buildAnimForPlay(play, prevPlay) {
             }
             const np = pursue(dd, ballX, ballY, elapsedMs, factor);
             dd.x = np.x; dd.y = np.y;
+            // COLLISION SEPARATION — never let the pursuer occupy the
+            // carrier's exact position. When the sim gets within ~1 yd
+            // (the contact radius), push the defender back along the
+            // approach vector so the two sprites stay visually
+            // separated as a tackle pair (defender wrapping from his
+            // approach angle) instead of merging into one stacked
+            // sprite. Also dampens the sim velocity so the defender
+            // doesn't keep ramming.
+            const CONTACT_DIST = 15;   // ~1 yd
+            const distToCar = Math.hypot(dd.x - ballX, dd.y - ballY);
+            if (distToCar < CONTACT_DIST) {
+              const ang = Math.atan2(dd.y - ballY, dd.x - ballX);
+              dd.x = ballX + Math.cos(ang) * CONTACT_DIST;
+              dd.y = ballY + Math.sin(ang) * CONTACT_DIST;
+              if (d._sim) {
+                d._sim.x = dd.x; d._sim.y = dd.y;
+                d._sim.vx *= 0.30; d._sim.vy *= 0.30;
+              }
+              // Named tackler wraps + goes down with the carrier. Other
+              // pursuers in contact range engage but don't fall.
+              if (_isPassTacklerByName) {
+                dd.pose = (aT > 0.78) ? "tackled" : "engage";
+                if (dd.pose === "tackled") {
+                  dd.t = Math.min(1, (aT - 0.78) / 0.22);
+                  // Combined-momentum fall direction (same physics as
+                  // the carrier's _wrFallDir). Defender's fallDir is the
+                  // NEGATION of the carrier's because they face opposite
+                  // directions — same physical fall direction = opposite
+                  // fallDir values relative to facing.
+                  const _pcSec = Math.max(0.1, (1 - throwPhase) * dur / 1000);
+                  const _cVx = (endX - targetX) / _pcSec;
+                  const _tVx = d._sim ? d._sim.vx : 0;
+                  const _comb = _cVx + _tVx;
+                  const _cFall = (_comb * dir < 0) ? -1 : 1;
+                  dd.fallDir = -_cFall;
+                } else {
+                  dd.t = (t < 0.95 ? ((performance.now() / 333)) % 1 : 0);
+                }
+              } else {
+                // Other pursuers: engage pose during contact, no fall.
+                dd.pose = "engage";
+                dd.t = (t < 0.95 ? ((performance.now() / 333)) % 1 : 0);
+              }
+            }
             if (_isPassTacklerByName) dd.facing = -dir;
           }
         }
