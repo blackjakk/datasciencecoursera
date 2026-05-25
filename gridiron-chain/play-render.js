@@ -1232,24 +1232,37 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
     }
     case "hit": {
       // Tackler driving INTO the ball carrier and FOLLOWING THROUGH to
-      // a crumpled stance on top of the pile. Was ending upright at t=1
-      // (tackler standing over the carrier looking weird), which the
-      // user called out as "guys standing there mid tackle."
+      // a FALLEN position on top of the pile. Previous version ended
+      // upright-but-hunched (bodyTilt only), which the user called out
+      // as "guys standing there mid tackle" — the tackler made contact
+      // and then just stood there. Now during the FOLLOW phase the
+      // body rotates to horizontal, matching the carrier's fall.
       //   0.0 - 0.5  IMPACT     — drive through, arms wrap, body rises
-      //   0.5 - 1.0  FOLLOW     — body crumples forward over the carrier
+      //   0.5 - 1.0  FOLLOW     — body crumples and ROTATES to horizontal
+      //
+      // style.fallDir controls which way the head goes (forward / back).
+      // Default +1 (head in facing direction); the pass-play tackler
+      // code sets it to match the combined-momentum direction so both
+      // tackler and carrier fall the same physical way.
       const ph = Math.min(1, Math.max(0, t));
       const impact = Math.sin(Math.min(1, ph * 1.8) * Math.PI);
       const followT = Math.max(0, ph - 0.5) / 0.5;       // 0→1 across follow
       const followEase = followT * followT * (3 - 2 * followT);
+      const fallDir = (style && style.fallDir) || 1;
       lArm = -1.6 + ph * 0.5;
       rArm = -1.6 + ph * 0.5;
       // Legs drive then fold under as the tackler crumples forward
       lLeg =  0.55 + impact * 0.25 - followEase * 0.40;
       rLeg = -0.40 - impact * 0.20 + followEase * 0.40;
-      // Lean continues forward into the carrier, settling into a hunch
-      bodyTilt = facing * (0.25 + impact * 0.20 + followEase * 0.35);
-      // Pop up at impact peak, then drop DOWN onto the pile
-      bodyDY = -0.5 - impact * 1.4 + followEase * 3.0;
+      // bodyTilt = impact lean. Fades out during follow as bodyRot takes
+      // over and the body rotates to horizontal.
+      bodyTilt = facing * (0.25 + impact * 0.20) * (1 - followEase);
+      // bodyRot rotates to ~horizontal during the follow phase. Same
+      // formula shape as the "tackled" pose so a tackler and his
+      // carrier end up oriented the same physical direction.
+      bodyRot = (Math.PI / 2) * facing * fallDir * followEase * 0.90;
+      // Pop up at impact peak, then drop ALL THE WAY DOWN onto the pile
+      bodyDY = -0.5 - impact * 1.4 + followEase * 4.5;
       break;
     }
     case "dive": {

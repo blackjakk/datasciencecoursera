@@ -3670,13 +3670,22 @@ function buildAnimForPlay(play, prevPlay) {
                 d._sim.vx *= 0.65; d._sim.vy *= 0.65;
               }
               // Named tackler wraps + DRIVES the carrier down. Use the
-              // dedicated "hit" pose — it's the one designed for a
-              // tackler driving into a carrier and following through
-              // to a crumple, not the carrier's own ragdoll fall pose.
+              // dedicated "hit" pose — it's designed for a tackler
+              // driving into a carrier and now (with the play-render
+              // update) rotates to horizontal during follow-through so
+              // the defender actually FALLS at the end of the tackle.
+              // fallDir matches the carrier's combined-momentum fall
+              // (negated because defender faces opposite of carrier).
               if (_isPassTacklerByName) {
                 if (aT > 0.78) {
                   dd.pose = "hit";
                   dd.t = Math.min(1, (aT - 0.78) / 0.22);
+                  const _pcSec = Math.max(0.1, (1 - throwPhase) * dur / 1000);
+                  const _cVx = (endX - targetX) / _pcSec;
+                  const _tVx = d._sim ? d._sim.vx : 0;
+                  const _comb = _cVx + _tVx;
+                  const _cFall = (_comb * dir < 0) ? -1 : 1;
+                  dd.fallDir = -_cFall;
                 } else {
                   dd.pose = "engage";
                   dd.t = (t < 0.95 ? ((performance.now() / 333)) % 1 : 0);
