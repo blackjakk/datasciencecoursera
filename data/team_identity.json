@@ -147,10 +147,11 @@
       "confidence": "high"
     },
     "nark": {
-      "canonical_name": "Nark (left the league)",
+      "canonical_name": "Nark (aka 'Dave', left after 2016)",
       "sleeper_roster_id": null,
       "sleeper_display_name": "(not in Sleeper era \u2014 left before 2023 migration)",
       "xlsx_nicknames": [
+        "Dave (Nark)",
         "Nark"
       ],
       "yahoo_team_names": {
@@ -161,7 +162,8 @@
         "2015": "The Danny O'Shea's",
         "2016": "Arnold Palmer Lite"
       },
-      "confidence": "high"
+      "confidence": "high",
+      "_disambiguation_note": "TWO different 'Daves' in league history: this Nark/Dave left after 2016, and Dave-aka-Wang joined in 2013 and stayed through 2024. They overlapped 2013-2016 \u2014 could be conflated in casual chat but are distinct in Yahoo data (different team_ids + team_names)."
     },
     "eric_m": {
       "canonical_name": "Eric (Mattesich)",
@@ -307,20 +309,17 @@
       "confidence": "medium \u2014 only appears in FF2019"
     },
     "nick_lewis_left": {
-      "canonical_name": "Nick Lewis (aka 'Z', joined 2011-13, came back 2020)",
+      "canonical_name": "Nick Lewis (one year 2013, came back 2020)",
       "sleeper_roster_id": null,
       "sleeper_display_name": "(left league)",
       "xlsx_nicknames": [
-        "Nick Lewis",
-        "Z"
+        "Nick Lewis"
       ],
       "yahoo_team_names": {
         "2020": "LewLew Ferrari",
-        "2013": "Mud Monkeys",
-        "2011": "HOLD MA DICK",
-        "2012": "Kelce's Beard Cheese"
+        "2013": "Mr. Y. Mirosho"
       },
-      "confidence": "high \u2014 confirmed: HOLD MA DICK / Kelce's / Mud Monkeys / LewLew Ferrari; nicknamed 'Z'"
+      "confidence": "high \u2014 confirmed: HOLD MA DICK / Kelce's / Mud Monkeys / LewLew Ferrari"
     },
     "former_pre2014_2": {
       "canonical_name": "Former manager (Nut up or shut up)",
@@ -331,6 +330,20 @@
         "2012": "Nut up or shut up"
       },
       "confidence": "low \u2014 unknown identity, only 2012 appearance"
+    },
+    "z_former": {
+      "canonical_name": "Z (founding member, left after 2013)",
+      "sleeper_roster_id": null,
+      "sleeper_display_name": "(left before 2014)",
+      "xlsx_nicknames": [
+        "Z"
+      ],
+      "yahoo_team_names": {
+        "2011": "HOLD MA DICK",
+        "2012": "Kelce's Beard Cheese",
+        "2013": "Mud Monkeys"
+      },
+      "confidence": "high \u2014 confirmed by Brian as 'Z', the original last-pick guy"
     }
   }
 }
