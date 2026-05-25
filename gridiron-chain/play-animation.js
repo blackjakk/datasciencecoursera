@@ -2671,7 +2671,31 @@ function buildAnimForPlay(play, prevPlay) {
                    :                  "rb";
     // Screen RB releases to the strong-side flat; normal receivers run their lane
     const screenSide = ((play.startYard * 17) >>> 0) % 2 ? 1 : -1;
+    // Derive catchTargetX/Y from the engine-emitted route track when
+    // present — so the ball lands EXACTLY where the motion-driven
+    // receiver will be at throwT, no last-frame snap. The hardcoded
+    // legacy values (cy - 70 for wr1 etc.) ignored the route's
+    // lateral break, so the WR would be at one y from motion and
+    // the ball arrived at a different y → visible teleport at catch.
+    const _wrTrk = (play.motion && play.motion.tracks) ? play.motion.tracks[wrChoice] : null;
+    const _wrBase = wrChoice === "wr1" ? formation.wr1
+                  : wrChoice === "wr2" ? formation.wr2
+                  : wrChoice === "te"  ? formation.te
+                  :                       formation.rb;
+    let _catchTargetY;
+    if (_wrTrk && _wrBase && typeof MotionPlayback !== "undefined" && !isScreen) {
+      // Sample at engine-emitted throwT (catch moment in action time).
+      // This is the same time the WR's motion-driven render samples
+      // at the catch frame, so the ball lands exactly where the WR is.
+      const _engineThrowT = (play.motion && play.motion.throwT) || 0.56;
+      const catchSample = MotionPlayback.sampleTrack(_wrTrk, _engineThrowT);
+      if (catchSample) {
+        const toMidSign = Math.sign(cy - _wrBase.y) || 1;
+        _catchTargetY = _wrBase.y + toMidSign * catchSample.dyYd * FIELD.PX_PER_YARD;
+      }
+    }
     const targetY = isScreen ? cy + screenSide * 50
+                  : _catchTargetY != null ? _catchTargetY
                   : wrChoice === "wr1" ? cy - 70
                   : wrChoice === "wr2" ? cy + 65
                   : wrChoice === "te"  ? cy + 28
@@ -2775,9 +2799,12 @@ function buildAnimForPlay(play, prevPlay) {
       // used a fixed 5 for everything; engine now varies by route.
       const _engineDropDepth = play.motion && play.motion.dropDepth;
       const dropDepth = isScreen ? 2 : (typeof _engineDropDepth === "number" ? _engineDropDepth : 5);
-      const dropAmt = aT > 0
-        ? Math.min(1, aT / dropFrac) * dropDepth * FIELD.PX_PER_YARD
-        : 0;
+      // Dropback uses ease-out so the QB DECELERATES into the pocket
+      // spot instead of snapping to a halt at full depth. Linear
+      // motion read as "QB stops abruptly" at the apex of the drop.
+      const dropProgress = aT > 0 ? Math.min(1, aT / dropFrac) : 0;
+      const dropEased    = 1 - Math.pow(1 - dropProgress, 2);   // ease-out quadratic
+      const dropAmt      = dropEased * dropDepth * FIELD.PX_PER_YARD;
       qb.x -= dir * dropAmt;
       // FLEA FLICKER — during the trick phase the QB shuffles slightly back
       // and pretends to hand off, then catches the pitch back.
