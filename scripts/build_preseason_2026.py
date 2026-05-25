@@ -159,30 +159,64 @@ def _norm(s):
 
 
 def compute_keeper_value(top_n=4, min_keeper_round=3):
-    """Each manager's projected 2026 keeper bundle value.
+    """Each manager's projected 2026 keepers loaded from data/keepers_2026.json
+    (built by scripts/build_2026_keepers.py — the canonical predictor
+    using value-over-replacement + 3-year cap enforcement).
 
-    Uses scripts.predict_2026_keepers.predict_2026_keepers() which handles:
-    1. Auto-rolling 2025 keepers (cost -2 rounds)
-    2. Enforcing 3-year max via xlsx FF2025 keeper-year comments
-    3. Filling remaining slots from R3+ non-keeper roster players
-    Returns {mid: {'value': sum_pts, 'players': [(pid, pts), ...]}}
-    Value = sum of 2025 fpts of the projected 2026 keepers.
+    Returns {mid: {'value': sum_pts_2025, 'players': [(pid, pts), ...],
+                    '_keepers_detail': [...]}}
     """
-    from scripts.predict_2026_keepers import predict_2026_keepers
     rid_to_mid = {m["sleeper_roster_id"]: m["id"]
                   for m in all_managers() if m.get("sleeper_roster_id")}
-    pred = predict_2026_keepers()
+    keepers_file = ROOT / "data" / "keepers_2026.json"
+    raw = json.loads(keepers_file.read_text())
+
+    # Group by roster_id, only the carryovers (forced_drop are aged-out)
+    by_rid = defaultdict(list)
+    for e in raw:
+        if e.get("status") == "carryover":
+            by_rid[e["roster_id"]].append(e)
+
+    # 2025 player pts (for value display alongside VBD)
+    LG = "league_1245039290518360064"
+    ptot = defaultdict(float)
+    for f in sorted((ROOT / "data/sleeper" / LG / "matchups").glob("week_*.json")):
+        for e in json.loads(f.read_text()):
+            for pid, p in (e.get("players_points") or {}).items():
+                if p:
+                    ptot[pid] += p
+    # Look up player_id by name (xlsx uses name; we need pid for portraits)
+    players = json.loads((ROOT / "data/sleeper/players_nfl.json").read_text())
+    name_to_pid: dict[str, str] = {}
+    for pid, p in players.items():
+        nm = p.get("full_name") or f"{p.get('first_name','')} {p.get('last_name','')}".strip()
+        name_to_pid[nm.lower()] = pid
+
     out = {}
-    for rid, block in pred.items():
+    for rid, keepers in by_rid.items():
         mid = ROSTER_HANDOFFS.get((2025, rid)) or rid_to_mid.get(rid)
         if not mid:
             continue
-        keepers = block["predicted"]
-        scored = [(k["player_id"], k["pts_2025"]) for k in keepers]
+        scored = []
+        details = []
+        for k in keepers:
+            pid = name_to_pid.get(k["player_name"].lower(), "")
+            pts = ptot.get(pid, 0) if pid else 0
+            scored.append((pid, pts))
+            details.append({
+                "name": k["player_name"],
+                "player_id": pid,
+                "pos": k.get("position", "?"),
+                "year_2025": k.get("years_kept", 0),
+                "year_2026": (k.get("years_kept", 0) or 0) + 1,
+                "cost_round_2026": k.get("forfeit_round", k.get("effective_forfeit_round", 0)),
+                "pts_2025": round(pts, 1),
+                "net_vbd_2026": round(k.get("net_vbd", 0), 1),
+            })
         out[mid] = {
             "value": sum(p for _, p in scored),
             "players": scored,
-            "_keepers_detail": keepers,
+            "_keepers_detail": details,
         }
     return out
 
