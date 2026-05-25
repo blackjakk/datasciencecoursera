@@ -122,6 +122,30 @@ def _setup_mpl():
     })
 
 
+def compute_keeper_value(top_n=4):
+    """Sum of top-N 2025 fpts per current roster — keeper-eligible asset."""
+    LG = "league_1245039290518360064"
+    rosters = json.loads((ROOT / "data/sleeper" / LG / "rosters.json").read_text())
+    ptot = defaultdict(float)
+    for f in sorted((ROOT / "data/sleeper" / LG / "matchups").glob("week_*.json")):
+        for e in json.loads(f.read_text()):
+            for pid, p in (e.get("players_points") or {}).items():
+                if p:
+                    ptot[pid] += p
+    rid_to_mid = {m["sleeper_roster_id"]: m["id"]
+                  for m in all_managers() if m.get("sleeper_roster_id")}
+    out = {}
+    for r in rosters:
+        rid = r["roster_id"]
+        mid = ROSTER_HANDOFFS.get((2025, rid)) or rid_to_mid.get(rid)
+        if not mid:
+            continue
+        scored = sorted([(pid, ptot.get(pid, 0)) for pid in (r.get("players") or [])],
+                         key=lambda x: -x[1])[:top_n]
+        out[mid] = {"value": sum(p for _, p in scored), "players": scored}
+    return out
+
+
 def compute_pick_capital():
     """Returns {mid: {round: count}} of 2026 picks owned."""
     rid_to_mid = {m["sleeper_roster_id"]: m["id"]
@@ -160,9 +184,10 @@ def compute_preseason_ranks():
     vbd_all, vbd_n_all = bpr.compute_trade_vbd()
     draft_all = bpr.compute_draft_stats()
 
-    # 2025 specifics (for ROSTER strength proxy)
+    # 2025 specifics
     season_table = bpr.compute_season_table()
     pick_cap = compute_pick_capital()
+    keepers = compute_keeper_value(top_n=4)
 
     rows = []
     current_mids = [m["id"] for m in all_managers()
@@ -182,6 +207,7 @@ def compute_preseason_ranks():
                       + pick_cap[mid][3] * 1)
         ppg_2025 = s2025["ppg"]
 
+        kp = keepers.get(mid, {"value": 0, "players": []})
         rows.append({
             "mid": mid,
             "name": bpr._mgr_name(mid),
@@ -195,6 +221,8 @@ def compute_preseason_ranks():
             "r2_2026": pick_cap[mid][2],
             "r3_2026": pick_cap[mid][3],
             "roster_ppg": ppg_2025,
+            "keeper_value": kp["value"],
+            "keeper_players": kp["players"],
             "wl_2025": (s2025["w"], s2025["l"]),
             "rank_2025": s2025["wins_rank"],
         })
@@ -207,16 +235,18 @@ def compute_preseason_ranks():
     trd = _norm([r["trade_per"] for r in rows])
     drf = _norm([r["draft_spp"] for r in rows])
     cap = _norm([r["pick_value"] for r in rows])
+    kpr = _norm([r["keeper_value"] for r in rows])
     ros = _norm([r["roster_ppg"] for r in rows])
 
-    # Weights: 70% ASSETS (49% pick capital + 21% roster proxy)
-    #          30% SKILL  (15% trade + 15% draft)
+    # 70% ASSETS = 35% pick capital + 30% keeper value + 5% roster depth
+    # 30% SKILL  = 15% trade + 15% draft
     for i, r in enumerate(rows):
-        score = (0.49 * cap[i] + 0.21 * ros[i]
+        score = (0.35 * cap[i] + 0.30 * kpr[i] + 0.05 * ros[i]
                  + 0.15 * trd[i] + 0.15 * drf[i])
         r["trade_norm"] = round(trd[i])
         r["draft_norm"] = round(drf[i])
         r["cap_norm"] = round(cap[i])
+        r["keeper_norm"] = round(kpr[i])
         r["roster_norm"] = round(ros[i])
         r["power_score"] = round(score, 1)
 
@@ -277,6 +307,32 @@ def chart_pick_capital(rows, path):
     plt.close()
 
 
+_PLAYER_CATALOG = None
+
+
+def _player_catalog():
+    global _PLAYER_CATALOG
+    if _PLAYER_CATALOG is None:
+        _PLAYER_CATALOG = json.loads(
+            (ROOT / "data/sleeper/players_nfl.json").read_text())
+    return _PLAYER_CATALOG
+
+
+def _format_keepers(scored_players):
+    """Inline keeper chips with portrait + name + 2025 pts."""
+    catalog = _player_catalog()
+    parts = []
+    for pid, pts in scored_players:
+        nm = catalog.get(pid, {}).get("full_name", pid)
+        portrait = ROOT / "data/charts/players" / f"{pid}.jpg"
+        img = (f'<img class="keeper-portrait" src="{_data_uri(portrait)}"/>'
+               if portrait.exists() else "")
+        parts.append(f'<span class="keeper-chip">{img}'
+                     f'<span class="kc-name">{nm}</span>'
+                     f'<span class="kc-pts">{int(pts)}</span></span>')
+    return "".join(parts) or "—"
+
+
 def render_rank_card(r):
     color = bpr.mgr_color(r["mid"])
     label, body = GUAP_TAKES.get(r["mid"], ("?", "..."))
@@ -296,19 +352,13 @@ def render_rank_card(r):
         <div class="power-score"><div class="ps-num">{r['power_score']:.1f}</div><div class="ps-lbl">Power</div></div>
       </div>
       <div class="rank-body">
-        <table class="rank-stats">
-          <tr>
-            <td>2025: <strong>{r['wl_2025'][0]}-{r['wl_2025'][1]}</strong> (#{r['rank_2025']})</td>
-            <td>2025 PPG <strong>{r['roster_ppg']:.1f}</strong></td>
-            <td>2026 R1/R2/R3: <strong>{r['r1_2026']}/{r['r2_2026']}/{r['r3_2026']}</strong></td>
-          </tr>
-          <tr>
-            <td colspan="3" style="padding-top:4px;color:#6b7280;font-size:8.5pt">
-              SKILL: trade <strong>{r['trade_per']:+.0f}/trade ({r['trade_n']} trades)</strong> ·
-              draft <strong>{r['draft_spp']:+.1f}/pk surplus</strong>
-            </td>
-          </tr>
-        </table>
+        <div class="rank-stats-row">
+          <div>2025: <strong>{r['wl_2025'][0]}-{r['wl_2025'][1]}</strong> (#{r['rank_2025']})</div>
+          <div>2026 picks <strong>R1×{r['r1_2026']} R2×{r['r2_2026']} R3×{r['r3_2026']}</strong></div>
+          <div>Top-4 keep value <strong>{r['keeper_value']:.0f}</strong></div>
+        </div>
+        <div class="keeper-row"><span class="keeper-label">KEEPERS</span> {_format_keepers(r['keeper_players'])}</div>
+        <div class="skill-row">SKILL: trade <strong>{r['trade_per']:+.0f}/t ({r['trade_n']})</strong> · draft <strong>{r['draft_spp']:+.1f}/pk</strong></div>
         <div class="rank-take">{body}</div>
       </div>
     </div>
@@ -355,10 +405,26 @@ def build_html(rows, paths):
     .ps-lbl { font-size: 7.5pt; opacity: 0.85; letter-spacing: 0.5px;
               text-transform: uppercase; }
     .rank-body { padding: 8px 14px 10px; }
-    .rank-stats { width: 100%; font-size: 9pt; color: #3d405b; }
-    .rank-stats td { padding: 1px 4px; }
+    .rank-stats-row { display: flex; gap: 18px; font-size: 9pt;
+                      color: #3d405b; margin-bottom: 4px; }
+    .keeper-row { margin: 4px 0; display: flex; align-items: center;
+                  flex-wrap: wrap; gap: 0; }
+    .keeper-label { font-size: 8pt; font-weight: 700; color: #6b7280;
+                    letter-spacing: 0.5px; margin-right: 6px; }
+    .skill-row { color: #6b7280; font-size: 8.5pt; margin-top: 3px; }
     .rank-take { font-size: 9.5pt; color: #1a1d24; margin-top: 6px;
                  line-height: 1.55; }
+    .keeper-chip { display: inline-flex; align-items: center; gap: 5px;
+                   background: #f3f4f6; border-radius: 18px; padding: 2px 9px 2px 2px;
+                   margin: 2px 4px 2px 0; font-size: 8.5pt;
+                   border: 1px solid #e5e7eb; }
+    .keeper-portrait { width: 26px; height: 26px; border-radius: 50%;
+                       object-fit: cover; background: #d1d5db;
+                       border: 1px solid #cbd5e1; }
+    .kc-name { font-weight: 700; color: #1a1d24; }
+    .kc-pts { color: #0a3d62; font-weight: 700; margin-left: 3px;
+              font-size: 8pt; background: #fef3c7; padding: 0 5px;
+              border-radius: 8px; }
     @page { size: letter; margin: 0.45in; }
     """
     h = ['<!DOCTYPE html><html><head><meta charset="utf-8">',
@@ -368,10 +434,12 @@ def build_html(rows, paths):
 
     h.append('<h2>Preseason Power Score</h2>')
     h.append('<p class="note">Composite: <strong>70% ASSETS</strong> '
-             '(49% 2026 R1-R3 pick capital · 21% 2025 PPG roster proxy) + '
-             '<strong>30% SKILL</strong> (15% career trade VBD/trade · '
-             '15% career draft surplus/pick). Recent record intentionally '
-             'excluded — this is "who has the tools," not "who got hot."</p>')
+             '(35% 2026 R1-R3 pick capital · 30% top-4 keeper value · '
+             '5% roster depth) + <strong>30% SKILL</strong> (15% career '
+             'trade VBD/trade · 15% career draft surplus/pick). Recent '
+             'record intentionally excluded — this is "who has the tools," '
+             'not "who got hot." Keeper value = sum of each roster\'s '
+             'top-4 player 2025 fpts (league allows max 4 keepers).</p>')
     h.append(f'<img class="chart" src="{_data_uri(paths["power"])}"/>')
 
     h.append('<h2>2026 Pick Capital</h2>')
