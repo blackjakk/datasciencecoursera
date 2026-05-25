@@ -129,7 +129,13 @@
             "round": 14
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "season": 2017,
+    "date_str": "Oct 24, 8:10 am",
+    "sides": [
       {
         "received_team": "BergerBoy Brigade",
         "initiator": "BIGGUAP",
@@ -291,7 +297,13 @@
           }
         ],
         "received_picks": []
-      },
+      }
+    ]
+  },
+  {
+    "season": 2017,
+    "date_str": "Oct 10, 9:20 am",
+    "sides": [
       {
         "received_team": "RIP August Ames",
         "initiator": "",
@@ -324,7 +336,13 @@
             "round": 5
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "season": 2017,
+    "date_str": "Oct 10, 9:20 am",
+    "sides": [
       {
         "received_team": "Baking Dabs",
         "initiator": "BIGGUAP",

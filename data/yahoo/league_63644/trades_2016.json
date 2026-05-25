@@ -240,7 +240,13 @@
             "round": 6
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "season": 2016,
+    "date_str": "Oct 5, 9:40 am",
+    "sides": [
       {
         "received_team": "Sunday Scaries",
         "initiator": "",

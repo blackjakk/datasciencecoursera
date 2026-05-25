@@ -264,7 +264,13 @@
             "round": 4
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "season": 2020,
+    "date_str": "Oct 27, 6:42 am",
+    "sides": [
       {
         "received_team": "Don\u2019s Special Guys",
         "initiator": "BIGGUAP",
@@ -294,7 +300,13 @@
           }
         ],
         "received_picks": []
-      },
+      }
+    ]
+  },
+  {
+    "season": 2020,
+    "date_str": "Oct 27, 6:42 am",
+    "sides": [
       {
         "received_team": "#1 Pokemon Master",
         "initiator": "",
@@ -329,7 +341,13 @@
             "round": 2
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "season": 2020,
+    "date_str": "Oct 27, 6:42 am",
+    "sides": [
       {
         "received_team": "Don\u2019s Special Guys",
         "initiator": "",

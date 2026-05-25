@@ -76,6 +76,10 @@ LEAGUE_LORE: dict[int, list[str]] = {
         "MVP season. Brian also went **13-0 in the regular season** "
         "(Kareem Hunt did 9/11), the only undefeated reg season in league "
         "history.",
+        "💰 **The Heist of the Century (Oct 30 8:10am).** Trevor traded "
+        "Geronimo Allison + 2 picks to Dave for **Keenan Allen + Dalvin "
+        "Cook + Cam Newton + Latavius Murray + DeAndre Hopkins + 5 picks**. "
+        "13 assets to 3. Still the most lopsided 2-team trade on record.",
     ],
     2017: [
         "🎰 **The Delilah's (Philly) Strip Club Draft.** Yes, the draft was "

@@ -110,15 +110,22 @@ def parse_trades_page(html: str, season: int) -> list[dict]:
             "date_str": date_str,
             "received_players": players, "received_picks": picks,
         })
-    # Group sides by date_str (and initiator) into trades.
-    # A 2-team trade = 2 sides with same date_str.
-    grouped: dict = {}
-    for s in sides:
-        key = s["date_str"]
-        grouped.setdefault(key, []).append(s)
+    # Pair sides into trades. Yahoo's page lists each side sequentially —
+    # for a 2-team trade, 2 consecutive "Traded to X" rows describe it.
+    # If multiple trades happened at the same minute, they appear as
+    # 4+ consecutive rows (2 per trade). We pair sequentially.
     trades = []
-    for date_str, ss in grouped.items():
-        trades.append({"season": season, "date_str": date_str, "sides": ss})
+    i = 0
+    while i + 1 < len(sides):
+        a, b = sides[i], sides[i + 1]
+        # Sanity: same date_str
+        if a["date_str"] == b["date_str"]:
+            trades.append({"season": season, "date_str": a["date_str"],
+                            "sides": [a, b]})
+            i += 2
+        else:
+            # Solo side without partner — skip but log
+            i += 1
     return trades
 
 

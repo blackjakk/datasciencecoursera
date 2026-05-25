@@ -331,7 +331,13 @@
           }
         ],
         "received_picks": []
-      },
+      }
+    ]
+  },
+  {
+    "season": 2022,
+    "date_str": "Nov 2, 4:05 pm",
+    "sides": [
       {
         "received_team": "Tom Hanks",
         "initiator": "BIGGUAP",
@@ -558,7 +564,13 @@
             "round": 3
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "season": 2022,
+    "date_str": "Oct 18, 7:57 pm",
+    "sides": [
       {
         "received_team": "The Washington Football Team",
         "initiator": "BIGGUAP",
@@ -593,7 +605,13 @@
             "round": 14
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "season": 2022,
+    "date_str": "Oct 18, 7:57 pm",
+    "sides": [
       {
         "received_team": "BergerBoy Brigade",
         "initiator": "BIGGUAP",

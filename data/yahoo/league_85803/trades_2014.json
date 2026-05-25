@@ -663,7 +663,13 @@
           }
         ],
         "received_picks": []
-      },
+      }
+    ]
+  },
+  {
+    "season": 2014,
+    "date_str": "Oct 21, 6:05 am",
+    "sides": [
       {
         "received_team": "Sammetius Watkinutus",
         "initiator": "BIGGUAP",

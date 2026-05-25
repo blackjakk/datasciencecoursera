@@ -117,7 +117,13 @@
           }
         ],
         "received_picks": []
-      },
+      }
+    ]
+  },
+  {
+    "season": 2011,
+    "date_str": "Sep 30, 4:58 am",
+    "sides": [
       {
         "received_team": "Dirty Old Men",
         "initiator": "",
