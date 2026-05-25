@@ -805,39 +805,88 @@ function buildAnimForPlay(play, prevPlay) {
         coverPos.push({ x: cx, y: cy_ });
       }
 
-      // ── Compute blocker positions (track assigned coverage opponent) ──
+      // ── Compute blocker positions ──
+      // Strategy: middle lanes (i=3..6) form a WEDGE that drops back to
+      // shield the returner; outer lanes (i=0..2, 7..9) form a WALL that
+      // advances into incoming coverage to intercept them. Blockers move
+      // during the kick flight — they don't wait for the catch.
       const blockerPos = [];
+      const _wallMeetX = catchX + (kickerLineX - catchX) * 0.42;  // intercept point ~midfield-ish
       for (let i = 0; i < NUM_BLOCKERS; i++) {
         const baseY = blockerLanes[i];
         const { targetCov, fails } = blockerAssignments[i];
         const targetPos = coverPos[targetCov];
+        const isWedge = (i >= 3 && i <= 6);
         let bx, by_;
         if (t < FLIGHT_END) {
-          bx = blockerStartX;
-          by_ = baseY;
+          const ft = t / FLIGHT_END;
+          const ease = ft * ft * (3 - 2 * ft);
+          if (isWedge) {
+            // Drop back to ~10yd in front of returner, tighten laterally.
+            const wedgeX = catchX + recvDir * 10;
+            const wedgeY = cy + (baseY - cy) * 0.4;
+            bx = blockerStartX + (wedgeX - blockerStartX) * ease;
+            by_ = baseY + (wedgeY - baseY) * ease;
+          } else {
+            // Advance into incoming coverage.
+            bx = blockerStartX + (_wallMeetX - blockerStartX) * ease;
+            by_ = baseY;
+          }
         } else {
-          // Sprint toward their assigned coverage opponent's current
-          // position. Failed blockers track 30% as fast — they "miss".
           const rt = (Math.min(t, RETURN_END) - FLIGHT_END) / (RETURN_END - FLIGHT_END);
-          const closeRate = Math.min(1, rt * (fails ? 0.5 : 1.6));
-          bx = blockerStartX + (targetPos.x - blockerStartX) * closeRate;
-          by_ = baseY + (targetPos.y - baseY) * closeRate;
+          if (isWedge) {
+            // Escort the returner — stay 8-12yd in front (in his run dir),
+            // tightened laterally. Blend from flight-end wedge pos.
+            const wedgeXFlight = catchX + recvDir * 10;
+            const wedgeYFlight = cy + (baseY - cy) * 0.4;
+            const escortX = returnerX + recvDir * (8 + (i - 3) * 1.5);
+            const escortY = returnerY + (i - 4.5) * 6;
+            const blend = Math.min(1, rt * 1.5);
+            bx = wedgeXFlight + (escortX - wedgeXFlight) * blend;
+            by_ = wedgeYFlight + (escortY - wedgeYFlight) * blend;
+          } else {
+            // Wall blocker — stay between assigned coverage and the
+            // returner. Block-point = midpoint of cov and returner.
+            const blockX = (targetPos.x + returnerX) / 2;
+            const blockY = (targetPos.y + returnerY) / 2;
+            const closeRate = Math.min(1, rt * (fails ? 0.4 : 1.4));
+            bx = _wallMeetX + (blockX - _wallMeetX) * closeRate;
+            by_ = baseY + (blockY - baseY) * closeRate;
+          }
         }
         blockerPos.push({ x: bx, y: by_ });
       }
 
-      // ── Determine engagement state per coverage player ──
-      // A coverage player is "blocked" (engage pose) if a non-failing
-      // blocker is within contact distance of them AND that coverage
-      // player isn't the one tackling the returner.
+      // ── Engagement: any coverage in contact with a non-failing blocker
+      //    gets HELD UP (primary tackler always breaks through). The
+      //    engagement actually drags coverage motion — not just pose.
       const covBlocked = new Array(NUM_COVER).fill(false);
-      for (let i = 0; i < NUM_BLOCKERS; i++) {
-        const { targetCov, fails } = blockerAssignments[i];
-        if (fails) continue;
-        if (targetCov === primaryTacklerIdx) continue;   // primary breaks through
-        const dist = Math.hypot(blockerPos[i].x - coverPos[targetCov].x,
-                                blockerPos[i].y - coverPos[targetCov].y);
-        if (dist < 18) covBlocked[targetCov] = true;
+      const covBlockedBy = new Array(NUM_COVER).fill(-1);
+      for (let i = 0; i < NUM_COVER; i++) {
+        if (i === primaryTacklerIdx) continue;
+        let minDist = Infinity;
+        let bestB = -1;
+        for (let b = 0; b < NUM_BLOCKERS; b++) {
+          if (blockerAssignments[b].fails) continue;
+          const dist = Math.hypot(blockerPos[b].x - coverPos[i].x,
+                                  blockerPos[b].y - coverPos[i].y);
+          if (dist < minDist) { minDist = dist; bestB = b; }
+        }
+        if (bestB >= 0 && minDist < 22) {
+          covBlocked[i] = true;
+          covBlockedBy[i] = bestB;
+        }
+      }
+      // Drag engaged coverage back toward the blocker — they can't
+      // blow past contact. (Skip during pure tackle phase so the pile
+      // can still close on the returner.)
+      if (t < RETURN_END) {
+        for (let i = 0; i < NUM_COVER; i++) {
+          if (!covBlocked[i]) continue;
+          const bp = blockerPos[covBlockedBy[i]];
+          coverPos[i].x = bp.x + (coverPos[i].x - bp.x) * 0.22;
+          coverPos[i].y = bp.y + (coverPos[i].y - bp.y) * 0.55;
+        }
       }
 
       // ── Draw coverage ──
