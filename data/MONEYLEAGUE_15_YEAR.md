@@ -102,6 +102,7 @@ This league started in **2011 with 8 teams** on Yahoo, expanded to 10 in 2013, e
 - 🍀 Schedule-blessed: **Eric** (10 actual W, 7.3 expected)
 - ➕ **Joined**: Donnie, Trevor
 - ➖ **Left**: Nick Lewis, Z
+- 🏠 **Drafted at Brian's old place.**
 
 ---
 
@@ -146,6 +147,7 @@ This league started in **2011 with 8 teams** on Yahoo, expanded to 10 in 2013, e
 
 - 🚀 Top single-week: **Kyle 155.6** in W5
 - 💩 Low: **Donnie 87.5** in W7
+- 🦀 **The Chickie's & Pete's Draft (probably).**
 
 ---
 
@@ -196,7 +198,10 @@ This league started in **2011 with 8 teams** on Yahoo, expanded to 10 in 2013, e
 - 💩 Low: **Donnie 44.0** in W9
 - 🌊 Schedule-cursed: **Eric** (8 actual W, 10.3 expected)
 - 🍀 Schedule-blessed: **Brian** (13 actual W, 11.1 expected)
-- 🏖️ **The Ocean's Resort AC Draft.** Memorable for watching preseason Mahomes-to-Tyreek connect — *before* Mahomes' breakout MVP season. Brian also went **13-0 in the regular season** (Kareem Hunt did 9/11), the only undefeated reg season in league history.
+- 🏖️ **The Ocean's Resort AC Draft.** Memorable for watching preseason Mahomes-to-Tyreek connect — *before* Mahomes' breakout MVP season.
+- 💎 **Brian's 13-0 regular season** (Kareem Hunt did 9/11) — the only undefeated reg season in league history. Then lost the semifinal to Lem and **dropped the 3rd-place game by 0.86 points** to Kyle. 14-2 with no ring.
+- 💰 **The Heist of the Century (Oct 30 8:10am).** Dave acquired **Keenan Allen + Dalvin Cook + Cam Newton + Latavius Murray + DeAndre Hopkins + 5 picks** from Trevor for Tre'Quan Smith, Deshaun Watson, Sterling Shepard, Ito Smith, Evan Engram + 5 picks (incl. a R1). Dave then went on to win the championship.
+- 👑 **Dave wins his first ring** (Land of the Freemans 139.46 d. Lem 101.30) — using the elite vets he extracted from Trevor.
 
 ---
 
@@ -223,6 +228,7 @@ This league started in **2011 with 8 teams** on Yahoo, expanded to 10 in 2013, e
 - 🍀 Schedule-blessed: **Brower** (7 actual W, 5.5 expected)
 - ➕ **Joined**: Brower, Notebooks
 - 🏟️ **The Xfinity Live (Philly) Draft.** First year of the 12-team expansion. Brower and Notebooks joined as the two new teams.
+- 🥇 **Troy wins his first ring** (Terror Squad 135.28 d. Dave 121.66). Dave fell short again — second runner-up appearance in 2 years.
 
 ---
 
@@ -249,6 +255,9 @@ This league started in **2011 with 8 teams** on Yahoo, expanded to 10 in 2013, e
 - 🍀 Schedule-blessed: **Brian** (6 actual W, 4.3 expected)
 - ➕ **Joined**: Nick Lewis
 - ➖ **Left**: Notebooks
+- 💻 **The Online COVID Draft.** Virtual draft.
+- 🥈 **Trevor wins his 2nd ring** (BergerBoy 170.76 d. Brower 161.52) — the highest-scoring championship final in league history. Brower made his first final and lost.
+- 🔥 **The 3rd-place game outscored the final** — Eric 188.48 d. Coop 178.92.
 
 ---
 
@@ -273,6 +282,8 @@ This league started in **2011 with 8 teams** on Yahoo, expanded to 10 in 2013, e
 - 💩 Low: **Donnie 99.2** in W12
 - ➕ **Joined**: Ankur
 - ➖ **Left**: Nick Lewis
+- 🍻 **The Rittenhouse Basement Pub Draft.** Played in a small pub's basement; the staff gave guests hard times about COVID vaccination cards.
+- 🏆 **Dave's 2nd ring** (Walking Off Like Antonio 132.76 d. Troy 123.58). Trevor demolished Brower 188.06 to 114.40 in the 3rd place game.
 
 ---
 
@@ -297,6 +308,7 @@ This league started in **2011 with 8 teams** on Yahoo, expanded to 10 in 2013, e
 - 💩 Low: **Donnie 84.4** in W10
 - 🌊 Schedule-cursed: **Donnie** (2 actual W, 4.6 expected)
 - 🍀 Schedule-blessed: **Trevor** (7 actual W, 4.7 expected)
+- 🚀 **Ankur — last place to champion in one year.** Finished dead last in 2021 (literally named 'Zero Win Percentage'), then won the title in his 2nd year (Hail Koo 158.36 d. Coop 132.00). Brian finished 12th this year.
 
 ---
 
@@ -323,6 +335,7 @@ This league started in **2011 with 8 teams** on Yahoo, expanded to 10 in 2013, e
 - 💩 Low: **Tim 64.1** in W4
 - 🌊 Schedule-cursed: **Coop** (3 actual W, 7.6 expected)
 - 🍀 Schedule-blessed: **Troy** (9 actual W, 5.6 expected)
+- 🎮 **The Dave & Buster's Draft.** First Sleeper-era draft.
 
 ---
 
@@ -349,6 +362,7 @@ This league started in **2011 with 8 teams** on Yahoo, expanded to 10 in 2013, e
 - 💩 Low: **Kyle 63.1** in W10
 - 🌊 Schedule-cursed: **Eric** (3 actual W, 6.4 expected)
 - 🍀 Schedule-blessed: **Dave** (7 actual W, 4.1 expected)
+- 🍺 **The German Pub Draft (Philly).**
 
 ---
 
@@ -377,6 +391,7 @@ This league started in **2011 with 8 teams** on Yahoo, expanded to 10 in 2013, e
 - 🍀 Schedule-blessed: **Trevor** (9 actual W, 4.5 expected)
 - ➕ **Joined**: Josh
 - ➖ **Left**: Dave
+- 🍗 **The Bonchon Draft (Philly).**
 
 ---
 
