@@ -116,14 +116,13 @@ def team_idx_to_name(idx):
 
 
 def chart_position_runs(picks, path):
-    """Cumulative position picks over the draft."""
+    """Cumulative position picks over the draft. Skip K/DEF (all R16-R17)."""
     _setup_mpl()
     overall = sorted({p["overall"] for p in picks})
     cum = defaultdict(lambda: defaultdict(int))
     for p in picks:
         pos = p["position"] if p["position"] in POS_COLORS else "OTHER"
         cum[p["overall"]][pos] += 1
-    # Running totals
     running = defaultdict(int)
     series = defaultdict(list)
     x = []
@@ -131,19 +130,19 @@ def chart_position_runs(picks, path):
         for pos in cum[o]:
             running[pos] += cum[o][pos]
         x.append(o)
-        for pos in ["QB", "RB", "WR", "TE", "K", "DEF"]:
+        for pos in ["QB", "RB", "WR", "TE"]:
             series[pos].append(running[pos])
-    fig, ax = plt.subplots(figsize=(9, 4.5), dpi=140)
-    for pos in ["QB", "RB", "WR", "TE", "K", "DEF"]:
+    fig, ax = plt.subplots(figsize=(9, 3.6), dpi=140)
+    for pos in ["RB", "WR", "QB", "TE"]:
         ax.plot(x, series[pos], color=POS_COLORS[pos], linewidth=2.4,
                 label=pos)
     ax.set_xlabel("Overall pick", fontweight="bold")
     ax.set_ylabel("Cumulative drafted", fontweight="bold")
-    ax.set_title("Position Runs Over the Draft",
-                 loc="left", pad=12, fontsize=13)
+    ax.set_title("Position Runs Over the Draft  ·  K + DEF excluded (all picked R16-R17)",
+                 loc="left", pad=10, fontsize=12)
     ax.grid(linestyle="--", alpha=0.4)
     ax.set_axisbelow(True)
-    ax.legend(loc="lower right", frameon=False)
+    ax.legend(loc="lower right", frameon=False, ncol=4)
     plt.tight_layout()
     plt.savefig(path, bbox_inches="tight", facecolor="white")
     plt.close()
@@ -156,7 +155,7 @@ def chart_team_projection(team_totals, path):
     names = [t[0] for t in s]
     vals = [t[1] for t in s]
     colors = [bpr.mgr_color(team_idx_to_mid_by_name(t[0])) for t in s]
-    fig, ax = plt.subplots(figsize=(9, 0.42 * len(s) + 0.8), dpi=140)
+    fig, ax = plt.subplots(figsize=(9, 0.32 * len(s) + 0.6), dpi=140)
     ax.barh(names, vals, color=colors, edgecolor="white", linewidth=1.2,
             height=0.72)
     for i, v in enumerate(vals):
@@ -196,15 +195,19 @@ def find_steals_reaches(picks, top_n=10):
     return steals, reaches
 
 
-def render_draft_board_html(picks):
-    """17 rounds × 12 teams grid. Each cell shows player + pos."""
-    # Group picks: (round, team_idx) -> pick
+def render_draft_board_html(picks, round_range=None):
+    """17 rounds × 12 teams grid. Each cell shows player + pos.
+    round_range: optional (lo, hi) tuple to render only a slice."""
     by_cell = {(p["round"], p["team_idx"]): p for p in picks}
-    rounds = sorted({p["round"] for p in picks})
+    all_rounds = sorted({p["round"] for p in picks})
+    if round_range:
+        lo, hi = round_range
+        rounds = [r for r in all_rounds if lo <= r <= hi]
+    else:
+        rounds = all_rounds
     teams = sorted({p["team_idx"] for p in picks})
 
     h = ['<table class="board">']
-    # Header row
     h.append('<thead><tr><th class="rd-col">R</th>')
     for ti in teams:
         nm = team_idx_to_name(ti)
@@ -237,7 +240,7 @@ def render_draft_board_html(picks):
 
 
 def render_team_card(ti, team_picks):
-    """Per-team roster summary."""
+    """Per-team roster summary — compact 2-column inner layout."""
     mid = team_idx_to_mid(ti)
     nm = team_idx_to_name(ti)
     color = bpr.mgr_color(mid) if mid else "#666"
@@ -245,51 +248,66 @@ def render_team_card(ti, team_picks):
     av_html = (f'<img class="t-avatar" src="{_data_uri(avatar)}"/>'
                if avatar.exists() else '<div class="t-avatar"></div>')
 
-    # Group by position
     by_pos = defaultdict(list)
     total_proj = 0
     for p in team_picks:
         by_pos[p["position"]].append(p)
         total_proj += p["projection"]
 
-    # Project starters (1 QB + 2 RB + 3 WR + 1 TE + 1 FLEX + 1 SUPERFLEX)
     qbs = sorted(by_pos["QB"], key=lambda x: -x["projection"])
     rbs = sorted(by_pos["RB"], key=lambda x: -x["projection"])
     wrs = sorted(by_pos["WR"], key=lambda x: -x["projection"])
     tes = sorted(by_pos["TE"], key=lambda x: -x["projection"])
     starters = qbs[:1] + rbs[:2] + wrs[:3] + tes[:1]
-    flex_pool = rbs[2:] + wrs[3:] + tes[1:]
-    flex_pool.sort(key=lambda x: -x["projection"])
+    flex_pool = sorted(rbs[2:] + wrs[3:] + tes[1:], key=lambda x: -x["projection"])
     flex = flex_pool[:1]
-    superflex_pool = qbs[1:] + flex_pool[1:]
-    superflex_pool.sort(key=lambda x: -x["projection"])
+    superflex_pool = sorted(qbs[1:] + flex_pool[1:], key=lambda x: -x["projection"])
     superflex = superflex_pool[:1]
+    starter_set = set(id(p) for p in starters + flex + superflex)
     starter_pts = sum(p["projection"] for p in starters + flex + superflex)
 
-    rows = []
+    # Build ordered roster
+    all_players = []
     for pos in ["QB", "RB", "WR", "TE", "K", "DEF"]:
-        if pos not in by_pos:
-            continue
-        for p in sorted(by_pos[pos], key=lambda x: -x["projection"]):
-            star = "*" if p in (starters + flex + superflex) else ""
-            keep_tag = ' <span class="k-tag">K</span>' if p["is_keeper"] else ""
-            row_color = POS_COLORS.get(pos, "#888")
-            rows.append(f'<tr><td style="color:{row_color};font-weight:700">{pos}</td>'
-                        f'<td>{p["player_name"]}{keep_tag}</td>'
-                        f'<td class="proj">{p["projection"]:.0f}{star}</td>'
-                        f'<td class="rd">R{p["round"]}</td></tr>')
+        for p in sorted(by_pos.get(pos, []), key=lambda x: -x["projection"]):
+            all_players.append(p)
+
+    def cell_html(p):
+        star = "*" if id(p) in starter_set else ""
+        keep_tag = ' <span class="k-tag">K</span>' if p["is_keeper"] else ""
+        row_color = POS_COLORS.get(p["position"], "#888")
+        # Abbreviate first name
+        nm = p["player_name"]
+        if " " in nm:
+            f, l = nm.split(" ", 1)
+            if len(f) > 2:
+                nm = f"{f[0]}. {l}"
+        return (f'<tr><td style="color:{row_color};font-weight:700">{p["position"]}</td>'
+                f'<td>{nm}{keep_tag}</td>'
+                f'<td class="proj">{p["projection"]:.0f}{star}</td>'
+                f'<td class="rd">R{p["round"]}</td></tr>')
+
+    # 2-column inner layout (split ~half/half)
+    half = (len(all_players) + 1) // 2
+    left_rows = [cell_html(p) for p in all_players[:half]]
+    right_rows = [cell_html(p) for p in all_players[half:]]
+    while len(right_rows) < len(left_rows):
+        right_rows.append('<tr><td colspan="4">&nbsp;</td></tr>')
 
     return f"""
-    <div class="t-card" style="border-top:6px solid {color}">
+    <div class="t-card" style="border-top:5px solid {color}">
       <div class="t-head">
         {av_html}
         <div class="t-name">{nm}</div>
         <div class="t-totals">
-          <div class="t-tot">{total_proj:.0f}<span class="lbl">TOTAL</span></div>
-          <div class="t-tot">{starter_pts:.0f}<span class="lbl">STARTERS</span></div>
+          <div class="t-tot">{total_proj:.0f}<span class="lbl">TOT</span></div>
+          <div class="t-tot">{starter_pts:.0f}<span class="lbl">START</span></div>
         </div>
       </div>
-      <table class="t-table">{''.join(rows)}</table>
+      <div class="t-cols">
+        <table class="t-table">{''.join(left_rows)}</table>
+        <table class="t-table">{''.join(right_rows)}</table>
+      </div>
     </div>
     """
 
@@ -330,8 +348,10 @@ def build_html(picks):
          break-after: avoid-page; }
     .note { color: #6b7280; font-size: 9pt; margin: 2px 0 8px;
             break-after: avoid-page; }
-    .chart { width: 100%; max-height: 4.5in; object-fit: contain;
-             display: block; margin: 4px 0 12px; }
+    .chart { width: 100%; max-height: 5.5in; object-fit: contain;
+             display: block; margin: 4px 0 8px; }
+    .chart-half { max-height: 3.4in; margin: 2px 0 4px; }
+    .page-break { page-break-after: always; height: 0; }
     .board { width: 100%; border-collapse: separate; border-spacing: 1px;
              font-size: 7pt; }
     .board th { background: #0a3d62; color: white; padding: 3px 2px;
@@ -355,29 +375,33 @@ def build_html(picks):
     .sr-table td { padding: 3px 6px; border-bottom: 1px solid #f0f0f0; }
     .sr-table .delta-pos { color: #16a34a; font-weight: 700; }
     .sr-table .delta-neg { color: #dc2626; font-weight: 700; }
-    .team-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
-                 margin: 10px 0; }
+    .team-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+                 margin: 8px 0; }
     .t-card { border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;
               page-break-inside: avoid; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-    .t-head { display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+    .t-head { display: flex; align-items: center; gap: 6px; padding: 5px 8px;
               background: #f9fafb; }
-    .t-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover;
+    .t-avatar { width: 26px; height: 26px; border-radius: 50%; object-fit: cover;
                 background: #d1d5db; flex-shrink: 0; }
-    .t-name { font-family: 'Bebas Neue', sans-serif; font-size: 14pt;
-              letter-spacing: 0.5px; flex: 1; }
-    .t-totals { display: flex; gap: 8px; }
-    .t-tot { font-family: 'Bebas Neue', sans-serif; font-size: 16pt;
+    .t-name { font-family: 'Bebas Neue', sans-serif; font-size: 12pt;
+              letter-spacing: 0.4px; flex: 1; }
+    .t-totals { display: flex; gap: 6px; }
+    .t-tot { font-family: 'Bebas Neue', sans-serif; font-size: 13pt;
              color: #0a3d62; text-align: right; line-height: 1; }
-    .t-tot .lbl { display: block; font-size: 7pt; letter-spacing: 0.4px;
+    .t-tot .lbl { display: block; font-size: 6pt; letter-spacing: 0.3px;
                   color: #6b7280; font-family: 'Inter', sans-serif;
                   text-transform: uppercase; font-weight: 600;
-                  margin-top: 2px; }
-    .t-table { width: 100%; font-size: 8.5pt; }
-    .t-table td { padding: 1px 6px; border-bottom: 1px solid #f9fafb; }
+                  margin-top: 1px; }
+    .t-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+    .t-cols .t-table { border-left: 1px solid #f0f0f0; }
+    .t-cols .t-table:first-child { border-left: none; }
+    .t-table { width: 100%; font-size: 7.5pt; }
+    .t-table td { padding: 0px 5px; border-bottom: 1px solid #f9fafb;
+                  line-height: 1.25; }
     .t-table .proj { text-align: right; font-weight: 700; color: #1a1d24;
-                     width: 40px; }
-    .t-table .rd { text-align: right; color: #9ca3af; font-size: 7.5pt;
-                   width: 28px; }
+                     width: 32px; }
+    .t-table .rd { text-align: right; color: #9ca3af; font-size: 6.5pt;
+                   width: 24px; }
     .k-tag { background: #fef3c7; color: #92400e; font-size: 7pt;
              padding: 0 4px; border-radius: 3px; margin-left: 4px;
              font-weight: 700; }
@@ -393,8 +417,8 @@ def build_html(picks):
     h.append('<div class="hero"><h1>2026 MOCK DRAFT</h1>'
              f'<p class="subtitle">{today} · MONEYLEAGUE · projected final boards</p></div>')
 
-    # ===== Draft board =====
-    h.append('<h2>The Board</h2>')
+    # ===== Draft board — split into 2 halves =====
+    h.append('<h2>The Board · R1–R9</h2>')
     h.append('<p class="note">Yellow cells = keepers. Color stripe = position. '
              'Projected by recursive auto-pick (best VBD × positional need × roster fit).</p>')
     h.append('<div class="legend">')
@@ -402,7 +426,13 @@ def build_html(picks):
         h.append(f'<div class="legend-item"><div class="legend-dot" '
                  f'style="background:{color}"></div>{pos}</div>')
     h.append('</div>')
-    h.append(render_draft_board_html(picks))
+    h.append(render_draft_board_html(picks, round_range=(1, 9)))
+    h.append('<div class="page-break"></div>')
+
+    h.append('<h2>The Board · R10–R17</h2>')
+    h.append('<p class="note">Late-round depth, handcuffs, K/DEF.</p>')
+    h.append(render_draft_board_html(picks, round_range=(10, 17)))
+    h.append('<div class="page-break"></div>')
 
     # ===== Steals & Reaches =====
     h.append('<h2>Steals &amp; Reaches</h2>')
@@ -431,16 +461,13 @@ def build_html(picks):
                  f'<td class="delta-neg">{delta:.0f}</td></tr>')
     h.append('</table></div></div>')
 
-    # ===== Position runs chart =====
-    h.append('<h2>Position Runs</h2>')
-    h.append('<p class="note">When did each position fly off the board? The slope shows the run.</p>')
-    h.append(f'<img class="chart" src="{_data_uri(chart_paths["pos_runs"])}"/>')
-
-    # ===== Team projection ranks =====
-    h.append('<h2>Projected Roster Strength</h2>')
-    h.append('<p class="note">Sum of half-PPR projections across the full 17-player roster. '
-             'Imperfect (projections wobble), but a directional read.</p>')
-    h.append(f'<img class="chart" src="{_data_uri(chart_paths["team_proj"])}"/>')
+    # ===== Position runs + Roster strength on one page =====
+    h.append('<h2>Position Runs &amp; Roster Strength</h2>')
+    h.append('<p class="note"><strong>Top:</strong> when each position flew off the board. '
+             '<strong>Bottom:</strong> projected total roster pts (full 17-player roster).</p>')
+    h.append(f'<img class="chart chart-half" src="{_data_uri(chart_paths["pos_runs"])}"/>')
+    h.append(f'<img class="chart chart-half" src="{_data_uri(chart_paths["team_proj"])}"/>')
+    h.append('<div class="page-break"></div>')
 
     # ===== Per-team cards =====
     h.append('<h2>Team-by-Team Boards</h2>')
