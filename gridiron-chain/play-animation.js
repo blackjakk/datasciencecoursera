@@ -1042,27 +1042,6 @@ function buildAnimForPlay(play, prevPlay) {
   // Defender pursuit speed cap — tuned to a fast NFL defender (~9 yds/s).
   // Carrier runs slightly faster, so on breakaways defenders visibly trail.
   const PURSUIT_PX_MS = (FIELD.PX_PER_YARD * 9) / 1000;
-  // ── Physics-sim pursuit (Phase 1) ─────────────────────────────────────
-  // Each defender lazily attaches a SimPlayer to their formation object.
-  // Pursuit uses INTERCEPT calculation against the carrier's velocity —
-  // real angles instead of straight-line tween. Engine outcomes still
-  // own the play; the sim is the visual layer.
-  function simPursue(d, carrier, nowMs, speedMul) {
-    if (typeof SimPlayer === "undefined") return null;
-    if (!d._sim) {
-      d._sim = new SimPlayer(d.x, d.y, {
-        maxSpeed: SIM_DEFAULTS.MAX_SPEED * (speedMul || 1.0),
-        accel: SIM_DEFAULTS.ACCEL,
-      });
-    }
-    const cVx = carrier.vx || 0;
-    const cVy = carrier.vy || 0;
-    const target = simIntercept(d._sim, { x: carrier.x, y: carrier.y, vx: cVx, vy: cVy });
-    const beforeX = d._sim.x, beforeY = d._sim.y;
-    d._sim.stepTowardAt(target.x, target.y, nowMs);
-    const moved = Math.hypot(d._sim.x - beforeX, d._sim.y - beforeY) > 0.5;
-    return { x: d._sim.x, y: d._sim.y, moved };
-  }
   // Estimate carrier velocity from tween end-point. Used as input to
   // simIntercept so defenders aim at where the carrier WILL BE.
   function carrierVelocityToward(rbX, rbY, endX, endY, speedPxPerSec) {
@@ -1159,26 +1138,57 @@ function buildAnimForPlay(play, prevPlay) {
   // (_cx, _cy, _lastMs) so each call advances by dt FROM the last
   // known position; target changes only affect the direction of the
   // next small step.
-  const pursue = (d, tx, ty, elapsedMs, factor = 1.0) => {
-    if (d._cx == null) { d._cx = d.x; d._cy = d.y; d._lastMs = 0; }
-    const dt = Math.max(0, elapsedMs - d._lastMs);
-    d._lastMs = elapsedMs;
-    const dx = tx - d._cx, dy = ty - d._cy;
-    const dist = Math.hypot(dx, dy);
-    const maxMove = PURSUIT_PX_MS * dt * factor;
-    let actualMove;
-    if (dist <= maxMove) {
+  // UNIFIED PURSUIT — SimPlayer-backed. Replaces the old time-based
+  // tween (`_cx/_cy/_lastMs` cache) and the dead `simPursue()` helper.
+  // One pursuit system across the codebase. Caller can opt into
+  // intercept-against-carrier-velocity by passing opts.carrier.
+  //
+  //   pursue(d, tx, ty, elapsedMs, factor)
+  //     — direct pursuit toward (tx, ty)
+  //   pursue(d, tx, ty, elapsedMs, factor, { carrier: { x, y, vx, vy } })
+  //     — intercept: aim at where the carrier WILL be, plus the
+  //       lane offset (tx - carrier.x, ty - carrier.y).
+  //
+  // Returns { x, y, moved } where `moved` indicates translation > 0.5px
+  // this frame. (Locomotion-driven legs now self-derive in drawPlayer,
+  // so `moved` is mostly redundant — kept for callers that gate other
+  // behavior on actual movement.)
+  const pursue = (d, tx, ty, elapsedMs, factor = 1.0, opts = {}) => {
+    if (typeof SimPlayer === "undefined") {
+      // Fallback only if play-sim.js didn't load — should never happen.
       d._cx = tx; d._cy = ty;
-      actualMove = dist;
-    } else {
-      const f = maxMove / Math.max(0.001, dist);
-      d._cx += dx * f; d._cy += dy * f;
-      actualMove = maxMove;
+      return { x: tx, y: ty, moved: false };
     }
-    // moved = did the defender actually translate enough this frame to
-    // justify a running leg-cycle. Below threshold (e.g., already at
-    // target, target isn't moving) we'll freeze the legs in the caller.
-    return { x: d._cx, y: d._cy, moved: actualMove > 0.15 };
+    const targetFactor = factor || 1.0;
+    if (!d._sim) {
+      d._sim = new SimPlayer(d.x, d.y, {
+        maxSpeed: SIM_DEFAULTS.MAX_SPEED * targetFactor,
+        accel: SIM_DEFAULTS.ACCEL,
+      });
+      d._simFactor = targetFactor;
+    } else if (Math.abs((d._simFactor || 0) - targetFactor) > 0.01) {
+      // Speed re-cap — used by the run-play primary-tackler dynamic speed.
+      d._sim.maxSpeed = SIM_DEFAULTS.MAX_SPEED * targetFactor;
+      d._simFactor = targetFactor;
+    }
+    let aimX = tx, aimY = ty;
+    if (opts.carrier && typeof simIntercept === "function") {
+      const intercept = simIntercept(d._sim, {
+        x: opts.carrier.x, y: opts.carrier.y,
+        vx: opts.carrier.vx || 0, vy: opts.carrier.vy || 0,
+      });
+      // Lane offset — preserve the (tx, ty) lane the caller wanted
+      // relative to the carrier's current spot, then add the intercept
+      // delta so the defender aims at where the carrier WILL be.
+      aimX = intercept.x + (tx - opts.carrier.x);
+      aimY = intercept.y + (ty - opts.carrier.y);
+    }
+    const beforeX = d._sim.x, beforeY = d._sim.y;
+    d._sim.stepTowardAt(aimX, aimY, elapsedMs);
+    return {
+      x: d._sim.x, y: d._sim.y,
+      moved: Math.hypot(d._sim.x - beforeX, d._sim.y - beforeY) > 0.5,
+    };
   };
   // Action duration scales with yardage. Derived from real-football math
   // so plays don't "stop early": distance / cruise-speed + ragdoll beat,
@@ -1882,7 +1892,7 @@ function buildAnimForPlay(play, prevPlay) {
       // can be in the pile. Others stay running.
       const PILE_CAP = 3;
       const _defDistArr = formation.defense.map((d, i) => ({
-        i, dist: Math.hypot((d._cx ?? d.x) - rb.x, (d._cy ?? d.y) - rb.y),
+        i, dist: Math.hypot((d._sim?.x ?? d.x) - rb.x, (d._sim?.y ?? d.y) - rb.y),
       }));
       _defDistArr.sort((a, b) => a.dist - b.dist);
       const pileIdxSet = new Set(_defDistArr.slice(0, PILE_CAP).map(o => o.i));
@@ -2092,41 +2102,20 @@ function buildAnimForPlay(play, prevPlay) {
         // sim catches the carrier naturally; rubber-band remains as
         // fallback below but should be moot now.
         if (!np) {
-          if (typeof SimPlayer !== "undefined") {
-            const carrierVel = carrierVelocityToward(rb.x, rb.y, endX, cy + 28, 180);
+          if (elapsedMs > 0) {
             const nowMs = t * dur;
-            if (elapsedMs > 0) {
-              // Ensure sim exists with the right speed (resync for primary tackler)
-              if (!d._sim || Math.abs((d._simSpeedFactor || 0) - simFactor) > 0.01) {
-                d._sim = new SimPlayer(d.x, d.y, {
-                  maxSpeed: SIM_DEFAULTS.MAX_SPEED * simFactor,
-                  accel: SIM_DEFAULTS.ACCEL,
-                });
-                d._simSpeedFactor = simFactor;
-              }
-              // For pursuit defenders, compute intercept with lane offset.
-              // For coverage defenders (CB on WR / FS deep), aim directly
-              // at their assignment — no intercept of carrier velocity.
-              const inCoverage = (!isPrimaryOverride && isCB && !cbBroken) ||
-                                 (!isPrimaryOverride && isFS && !fsBroken);
-              let aimX, aimY;
-              if (inCoverage) {
-                aimX = tx;
-                aimY = ty;
-              } else {
-                const intercept = simIntercept(d._sim, { x: rb.x, y: rb.y, vx: carrierVel.vx, vy: carrierVel.vy });
-                aimX = intercept.x + (tx - rb.x);
-                aimY = intercept.y + (ty - rb.y);
-              }
-              const beforeX = d._sim.x, beforeY = d._sim.y;
-              d._sim.stepTowardAt(aimX, aimY, nowMs);
-              np = { x: d._sim.x, y: d._sim.y,
-                     moved: Math.hypot(d._sim.x - beforeX, d._sim.y - beforeY) > 0.5 };
-            } else {
-              np = { x: d.x, y: d.y, moved: false };
-            }
+            // Coverage defenders (CB on WR, FS deep) aim directly at
+            // their assignment. Pursuit defenders intercept against the
+            // carrier's velocity. One pursue() call handles both via
+            // the carrier opt.
+            const inCoverage = (!isPrimaryOverride && isCB && !cbBroken) ||
+                               (!isPrimaryOverride && isFS && !fsBroken);
+            const carrierVel = inCoverage ? null
+                             : carrierVelocityToward(rb.x, rb.y, endX, cy + 28, 180);
+            np = pursue(d, tx, ty, nowMs, simFactor,
+              inCoverage ? {} : { carrier: { x: rb.x, y: rb.y, vx: carrierVel.vx, vy: carrierVel.vy } });
           } else {
-            np = elapsedMs > 0 ? pursue(d, txBase, tyBase, elapsedMs, factor) : { x: d.x, y: d.y, moved: false };
+            np = { x: d.x, y: d.y, moved: false };
           }
         }
         dd.x = np.x; dd.y = np.y;
@@ -3336,7 +3325,7 @@ function buildAnimForPlay(play, prevPlay) {
             for (let j = 4; j < formation.defense.length; j++) {
               if (j === intDefIdx) continue;
               const dj = formation.defense[j];
-              const cx = (dj._cx ?? dj.x), cy_ = (dj._cy ?? dj.y);
+              const cx = (dj._sim?.x ?? dj.x), cy_ = (dj._sim?.y ?? dj.y);
               candidates.push({ j, dist: Math.hypot(cx - ballX, cy_ - ballY) });
             }
             candidates.sort((a, b) => a.dist - b.dist);
@@ -3349,15 +3338,15 @@ function buildAnimForPlay(play, prevPlay) {
             const isSaf = i === idxS1  || i === idxS2;
             // SYNC pursue state with the defender's CURRENT rendered
             // position before the first post-catch step. Without this,
-            // pursue() starts from d._cx = d.x (formation home), so on
-            // the first post-catch frame the defender visually
-            // TELEPORTS from wherever the coverage code drew them
-            // (downfield CB, backpedaled S) back to formation, then
-            // sprints to the ball.
+            // SimPlayer's internal position is at formation home, so
+            // the first post-catch frame visually teleports the
+            // defender from wherever coverage drew them back to
+            // formation, then sprints toward the ball.
             if (!d._postCatchSynced) {
-              d._cx = dd.x;
-              d._cy = dd.y;
-              d._lastMs = 0;
+              if (d._sim) {
+                d._sim.x = dd.x; d._sim.y = dd.y;
+                d._sim._lastMs = null;   // reset clock so first step has dt=0
+              }
               d._postCatchSynced = true;
             }
             const elapsedMs = Math.max(0, (t - throwPhase) * dur);
