@@ -80,38 +80,34 @@ The biggest 2-team blockbusters in league history. Most include 5+ players and 5
 
 ## 🦈 Top Fleecers
 
-Net points imbalance per pair (Yahoo era, scored via full-season nflverse points). Positive = fleecer's net advantage in cumulative production received.
+Net points imbalance per pair (Yahoo era scoring; full-season nflverse points). Positive = the fleecer's net advantage. Status uses *all* trade history including Sleeper.
 
-| Fleecer | Victim | Trades | W-L | Net | Years | Status |
+| Fleecer | Victim | Trades | W-L | Net | Last trade | Status |
 |---|---|---|---|---|---|---|
-| **Dave** | Donnie | 6 | 4-2 | **+1070** | 2018-2022 | still active |
-| **Trevor** | Brian | 10 | 7-3 | **+1006** | 2014-2022 | still active |
-| **Eric** | Brian | 4 | 3-1 | **+892** | 2014-2022 | still active |
-| **Trevor** | Nark | 3 | 3-0 | **+563** | 2014-2016 | ⚠️ silent 6yr |
-| **Trevor** | Donnie | 7 | 5-1 | **+541** | 2014-2022 | still active |
-| **Brian** | Donnie | 6 | 3-3 | **+515** | 2014-2020 | still active |
-| **Kyle** | Coop | 5 | 4-1 | **+485** | 2011-2019 | ⚠️ silent 3yr |
-| **Lem** | Dave | 3 | 3-0 | **+437** | 2014-2018 | ⚠️ silent 4yr |
-| **Dave** | Trevor | 3 | 2-1 | **+410** | 2014-2018 | ⚠️ silent 4yr |
-| **Ankur** | Lem | 3 | 3-0 | **+390** | 2021-2022 | still active |
-| **Brian** | Coop | 3 | 2-1 | **+385** | 2012-2018 | ⚠️ silent 4yr |
-| **Coop** | Troy | 5 | 4-1 | **+355** | 2014-2022 | still active |
-| **Nick Lewis** | Brian | 2 | 1-1 | **+335** | 2013 | ⚠️ silent 9yr |
-| **Coop** | Donnie | 5 | 3-2 | **+324** | 2015-2022 | still active |
-| **Troy** | Eric | 2 | 1-1 | **+322** | 2020-2021 | still active |
+| **Dave** | Donnie | 6 | 4-2 | **+1070** | 2024 | fleecer left league |
+| **Trevor** | Brian | 10 | 7-3 | **+1006** | 2025 | still active |
+| **Eric** | Brian | 4 | 3-1 | **+892** | 2024 | still active |
+| **Trevor** | Nark | 3 | 3-0 | **+563** | 2016 | victim left league |
+| **Trevor** | Donnie | 7 | 5-1 | **+541** | 2022 | ⚠️ silent 3yr |
+| **Brian** | Donnie | 6 | 3-3 | **+515** | 2024 | still active |
+| **Kyle** | Coop | 5 | 4-1 | **+485** | 2024 | still active |
+| **Lem** | Dave | 3 | 3-0 | **+437** | 2018 | victim left league |
+| **Dave** | Trevor | 3 | 2-1 | **+410** | 2023 | fleecer left league |
+| **Ankur** | Lem | 3 | 3-0 | **+390** | 2025 | still active |
+| **Brian** | Coop | 3 | 2-1 | **+385** | 2023 | still active |
+| **Coop** | Troy | 5 | 4-1 | **+355** | 2022 | ⚠️ silent 3yr |
+| **Nick Lewis** | Brian | 2 | 1-1 | **+335** | 2013 | fleecer left league |
+| **Coop** | Donnie | 5 | 3-2 | **+324** | 2023 | still active |
+| **Troy** | Eric | 2 | 1-1 | **+322** | 2024 | still active |
 
 ## 🚪 'Trade Rape → Victim Bailed' Cases
 
-Pairs where one side dominated and the other side **stopped trading with them for 3+ years**. This is the data signal of a manager being burned and not coming back.
+Pairs where one side dominated and the other side **stopped trading with them for 3+ years**. Excludes cases where the victim simply left the league.
 
 | Fleecer | Victim | W-L | Net | Last trade | Years silent |
 |---|---|---|---|---|---|
-| **Trevor** | Nark | 3-0 | +563 | 2016 | 6 |
-| **Kyle** | Coop | 4-1 | +485 | 2019 | 3 |
-| **Lem** | Dave | 3-0 | +437 | 2018 | 4 |
-| **Dave** | Trevor | 2-1 | +410 | 2018 | 4 |
-| **Brian** | Coop | 2-1 | +385 | 2018 | 4 |
-| **Nick Lewis** | Brian | 1-1 | +335 | 2013 | 9 |
+| **Trevor** | Donnie | 5-1 | +541 | 2022 | 3 |
+| **Coop** | Troy | 4-1 | +355 | 2022 | 3 |
 
 ## 🐑 Loyal Customers — Victims Who Keep Coming Back
 
@@ -119,11 +115,12 @@ Pairs where one side has dominated by 400+ net points but they're **still active
 
 | Fleecer | 'Loyal Customer' | Trades | W-L | Net | Last trade |
 |---|---|---|---|---|---|
-| **Dave** | Donnie | 6 | 4-2 | +1070 | 2022 |
-| **Trevor** | Brian | 10 | 7-3 | +1006 | 2022 |
-| **Eric** | Brian | 4 | 3-1 | +892 | 2022 |
-| **Trevor** | Donnie | 7 | 5-1 | +541 | 2022 |
-| **Brian** | Donnie | 6 | 3-3 | +515 | 2020 |
+| **Dave** | Donnie | 6 | 4-2 | +1070 | 2024 |
+| **Trevor** | Brian | 10 | 7-3 | +1006 | 2025 |
+| **Eric** | Brian | 4 | 3-1 | +892 | 2024 |
+| **Brian** | Donnie | 6 | 3-3 | +515 | 2024 |
+| **Kyle** | Coop | 5 | 4-1 | +485 | 2024 |
+| **Dave** | Trevor | 3 | 2-1 | +410 | 2023 |
 
 ## 👯 Closest Trade Partners (most trades between same 2)
 

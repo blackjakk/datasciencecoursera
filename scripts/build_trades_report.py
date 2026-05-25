@@ -232,10 +232,22 @@ def build_markdown():
     md.append("")
 
     # ===== Fleecing patterns =====
+    # Compute per-pair stats including Sleeper trades for "still active" check
+    pair_all_years = defaultdict(set)  # for last-trade-overall
+    for t in trades:
+        key = tuple(sorted([t["side_a_mgr"], t["side_b_mgr"]]))
+        pair_all_years[key].add(t["year"])
+
+    def left_league(mid):
+        rec = next((m for m in all_managers() if m["id"] == mid), None)
+        if not rec:
+            return False
+        return rec.get("sleeper_roster_id") is None
+
     md.append("## 🦈 Top Fleecers\n")
-    md.append("Net points imbalance per pair (Yahoo era, scored via "
-              "full-season nflverse points). Positive = fleecer's net "
-              "advantage in cumulative production received.\n")
+    md.append("Net points imbalance per pair (Yahoo era scoring; full-season "
+              "nflverse points). Positive = the fleecer's net advantage. "
+              "Status uses *all* trade history including Sleeper.\n")
     cases = []
     for (a, b), trs in pair_trades.items():
         if len(trs) < 2:
@@ -246,31 +258,39 @@ def build_markdown():
         wa = sum(1 for _, n, _ in trs if n > 0)
         wb = sum(1 for _, n, _ in trs if n < 0)
         yrs = [y for y, _, _ in trs]
-        last = max(yrs)
-        cases.append((a, b, len(trs), wa, wb, net, min(yrs), last,
-                       2022 - last))
+        last_overall = max(pair_all_years.get((a, b), {0}))
+        cases.append((a, b, len(trs), wa, wb, net, min(yrs), last_overall,
+                       2025 - last_overall))
     cases.sort(key=lambda x: -abs(x[5]))
 
-    md.append("| Fleecer | Victim | Trades | W-L | Net | Years | Status |")
+    md.append("| Fleecer | Victim | Trades | W-L | Net | Last trade | Status |")
     md.append("|---|---|---|---|---|---|---|")
     for a, b, n, wa, wb, net, first, last, quiet in cases[:15]:
         if net > 0:
             w_mid, l_mid, w, l = a, b, wa, wb
         else:
             w_mid, l_mid, w, l = b, a, wb, wa
-        status = (f"⚠️ silent {quiet}yr" if quiet >= 3
-                  else "still active")
-        yr_range = f"{first}-{last}" if first != last else str(first)
+        if left_league(l_mid):
+            status = f"victim left league"
+        elif left_league(w_mid):
+            status = f"fleecer left league"
+        elif quiet >= 3:
+            status = f"⚠️ silent {quiet}yr"
+        else:
+            status = "still active"
         md.append(f"| **{_mgr_name(w_mid)}** | {_mgr_name(l_mid)} | {n} | "
-                  f"{w}-{l} | **+{abs(net):.0f}** | {yr_range} | {status} |")
+                  f"{w}-{l} | **+{abs(net):.0f}** | {last} | {status} |")
     md.append("")
 
     # ===== Bailout patterns =====
     md.append("## 🚪 'Trade Rape → Victim Bailed' Cases\n")
     md.append("Pairs where one side dominated and the other side **stopped "
-              "trading with them for 3+ years**. This is the data signal "
-              "of a manager being burned and not coming back.\n")
-    bailout = [c for c in cases if c[8] >= 3 and abs(c[5]) >= 300]
+              "trading with them for 3+ years**. Excludes cases where the "
+              "victim simply left the league.\n")
+    bailout = [c for c in cases
+               if c[8] >= 3 and abs(c[5]) >= 300
+               and not left_league(c[1] if c[5] > 0 else c[0])
+               and not left_league(c[0] if c[5] > 0 else c[1])]
     md.append("| Fleecer | Victim | W-L | Net | Last trade | Years silent |")
     md.append("|---|---|---|---|---|---|")
     for a, b, n, wa, wb, net, first, last, quiet in bailout:
