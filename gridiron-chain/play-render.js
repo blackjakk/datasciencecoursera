@@ -2216,6 +2216,30 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
     // Only the CARRYING hand grips the ball — the other arm is pumping.
     fingerNub(carryHand.handX, carryHand.handY);
   }
+  // ── HANDS-TRACK-BALL for THROW and REACH/CATCH poses ──────────────
+  // The carry case (cradleBall) is handled above. For throw, the ball-
+  // hand is whichever arm holds the ball (leftHandBall / rightHandBall
+  // flags set in the pose). For reach/catch, both hands are extended
+  // up — stash the midpoint so the ball arrives between them.
+  if ((pose === "throw" || pose === "reach" || pose === "catch") && style && (style.name || label != null)) {
+    let handX_local = null, handY_local = null;
+    if (pose === "throw") {
+      const ballHand = rightHandBall ? rHand : leftHandBall ? lHand : null;
+      if (ballHand) { handX_local = ballHand.handX; handY_local = ballHand.handY; }
+    } else {
+      // reach / catch — midpoint of the two raised hands
+      if (lHand && rHand) {
+        handX_local = (lHand.handX + rHand.handX) * 0.5;
+        handY_local = (lHand.handY + rHand.handY) * 0.5;
+      }
+    }
+    if (handX_local != null) {
+      const wx = x + handX_local * totalScale;
+      const wy = y + handY_local * totalScale;
+      drawPlayer._carryHandSink = drawPlayer._carryHandSink || {};
+      drawPlayer._carryHandSink[style.name || ("p_" + label)] = { x: wx, y: wy, frameMs: performance.now(), pose };
+    }
+  }
   // For 3-point stance, draw a ground line where the lead hand plants.
   if (drawGroundHand) {
     ctx.fillStyle = "rgba(0,0,0,0.25)";

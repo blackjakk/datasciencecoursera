@@ -3728,7 +3728,34 @@ function buildAnimForPlay(play, prevPlay) {
         const flightProg = Math.min(1, (at - releaseAT) / Math.max(0.0001, throwEndAT - releaseAT));
         drawBallTrail(ctx, releaseX, releaseY, ballX, ballY, flightProg, { arcHeight: arcHeight * 0.85 });
       }
-      if (showStandalone) drawBall(ctx, ballX, ballY, arc > 30 ? 1.3 : 1, { angle: ballAngle });
+      // HANDS-TRACK-BALL on pass plays — pull standalone ball to the
+      // ball-hand position. Phases:
+      //   QB cradle/cock (suppressed in showStandalone) — no effect
+      //   QB release (just after releaseAT) — ball at throwing hand
+      //   Flight — caller's ballX/ballY (engine trajectory)
+      //   Catch arrival (around throwEndAT) — ball at receiver's
+      //     raised reach hands (midpoint of both)
+      //   Post-catch carry — ball at receiver's tuck hand
+      const _passerName = play.passer;
+      const _rcvrName   = play.receiver || play.intended;
+      const _carrierSink = drawPlayer._carryHandSink || {};
+      let _ballDrawX = ballX, _ballDrawY = ballY, _ballDrawAng = ballAngle;
+      // At release moment (briefly after release): ball comes out of throw hand
+      if (at < releaseAT + 0.02 && at > releaseAT - 0.02 && _passerName && _carrierSink[_passerName]) {
+        const h = _carrierSink[_passerName];
+        _ballDrawX = h.x; _ballDrawY = h.y;
+      }
+      // At catch arrival: ball lands at receiver's raised hands
+      else if (at >= throwEndAT - 0.02 && at < throwEndAT + 0.04 && _rcvrName && _carrierSink[_rcvrName]) {
+        const h = _carrierSink[_rcvrName];
+        _ballDrawX = h.x; _ballDrawY = h.y;
+      }
+      // Post-catch carry: ball at receiver's tuck hand
+      else if (at > throwEndAT + 0.04 && _rcvrName && _carrierSink[_rcvrName]) {
+        const h = _carrierSink[_rcvrName];
+        _ballDrawX = h.x; _ballDrawY = h.y;
+      }
+      if (showStandalone) drawBall(ctx, _ballDrawX, _ballDrawY, arc > 30 ? 1.3 : 1, { angle: _ballDrawAng });
       // Play-action / Flea-flicker / Throw-on-run banner at the top of the field
       if ((play.isPlayAction || play.isTOR || play.isFleaFlicker) && t < throwPhase + 0.08) {
         ctx.save();
