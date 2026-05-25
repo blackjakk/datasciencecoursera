@@ -3988,9 +3988,20 @@ function buildAnimForPlay(play, prevPlay) {
     // Ball rolls forward after the strip — ends up ~3 yards past
     const restX = fumX + dir * 50;
     const restY = fumY + ((((play.startYard * 13) >>> 0) % 21) - 10);
+    let _rumbled = false;
     return { duration: 4200, kind: "fumble", render: (t, c) => {
       ctx = c;
       drawField(ctx, homeTeam, awayTeam, fieldState);
+
+      // RUMBLE at the strip — brief screen shake when ball comes loose
+      // so the hit reads as impact (not just "ball appeared on grass").
+      // Fired once, edge-triggered. User: "at the hit there should be
+      // rumble and then people pile on top of the pile."
+      if (!_rumbled && t >= CARRY_END && typeof GCFx !== "undefined") {
+        GCFx.shake(6, 240);
+        if (typeof GCAudio !== "undefined") GCAudio.play("bigplay");
+        _rumbled = true;
+      }
 
       // Ball physics — pop loose → roll forward bouncing → settle
       let ballX, ballY, ballScale;
@@ -4097,27 +4108,37 @@ function buildAnimForPlay(play, prevPlay) {
               pT = (t - diveStart) / 0.18;
             } else if (t >= diveEnd) {
               pPose = "tackled";
+              pT = 1;            // LOCK — no wall-clock somersault
             } else {
               pPose = "run";
             }
           } else if (scrumParticipants.has(p)) {
-            // Pile participants — engaged in their assignment during
-            // the carry phase, sprint toward the loose ball ONLY after
-            // STRIP_END.
+            // Pile participants — staggered arrival in waves so the
+            // pile builds up instead of all 5 hitting at once (which
+            // read as a bomb). Wave 1: closest player arrives quickly;
+            // Wave 2: ~150ms later; Wave 3: ~300ms later.
+            const myIdx = [...scrumParticipants].indexOf(p);
+            const waveDelay = myIdx * 0.04;     // ~150ms per wave at 4200ms total
             const isOL = p.role === "OL";
             const speed = isOL ? OL_PX : SPRINT_PX;
-            const tConverge = Math.max(0, t - STRIP_END);
+            const tConverge = Math.max(0, t - STRIP_END - waveDelay);
             const dx = ballX - p.x, dy = ballY - p.y;
             const dist = Math.hypot(dx, dy);
             const maxMove = tConverge * speed;
             const moveFrac = Math.min(1, maxMove / Math.max(1, dist));
             pX = p.x + dx * moveFrac;
             pY = p.y + dy * moveFrac;
-            if (t < STRIP_END) {
+            if (t < STRIP_END + waveDelay) {
               pPose = "engage";
             } else {
               const newDist = Math.hypot(ballX - pX, ballY - pY);
-              pPose = newDist < 28 ? "tackled" : "run";
+              if (newDist < 28) {
+                pPose = "tackled";
+                pT = 1;     // LOCK the pose — was cycling via wall-clock,
+                            // creating the "somersaulting in place" bug
+              } else {
+                pPose = "run";
+              }
             }
           } else {
             // Out-of-position — assignment during carry, then jog after.
