@@ -359,24 +359,35 @@ def build_html(picks):
     .chart-half { max-height: 3.4in; margin: 2px 0 4px; }
     .page-break { page-break-after: always; height: 0; }
     .board { width: 100%; border-collapse: separate; border-spacing: 1px;
-             font-size: 7pt; table-layout: fixed; }
-    .board th { background: #0a3d62; color: white; padding: 3px 2px;
-                font-weight: 700; font-size: 8pt; }
+             font-size: 7pt; table-layout: fixed;
+             page-break-inside: avoid; }
+    .board th { background: #0a3d62; color: white; padding: 2px 2px;
+                font-weight: 700; font-size: 7.5pt; }
     .pick-col { font-family: 'Bebas Neue', sans-serif; }
     .rd-col { width: 22px; }
     .rd-num { background: #0a3d62; color: white; font-weight: 700;
               text-align: center; font-family: 'Bebas Neue', sans-serif;
-              font-size: 12pt; }
-    .cell { padding: 3px 5px; border-radius: 4px;
-            font-size: 7.5pt; line-height: 1.2; }
+              font-size: 11pt; }
+    .cell { padding: 2px 4px; border-radius: 3px;
+            font-size: 7pt; line-height: 1.1; }
     .cell.k { background: #fef3c7 !important;
               border-left: 3px solid #d4a017 !important; }
-    .tname { display: block; font-size: 6pt; font-weight: 700;
-             letter-spacing: 0.3px; text-transform: uppercase; }
-    .pname { display: block; font-weight: 700; color: #1a1d24; margin-top: 1px; }
-    .pos { font-size: 6pt; font-weight: 700; opacity: 0.7; }
-    .empty { color: #d1d5db; text-align: center; font-size: 8pt;
+    .tname { display: block; font-size: 5.5pt; font-weight: 700;
+             letter-spacing: 0.3px; text-transform: uppercase;
+             line-height: 1; }
+    .pname { display: block; font-weight: 700; color: #1a1d24;
+             margin-top: 1px; font-size: 7.5pt; line-height: 1.05; }
+    .pos { font-size: 5.5pt; font-weight: 700; opacity: 0.7;
+           line-height: 1; }
+    .empty { color: #d1d5db; text-align: center; font-size: 7pt;
              background: #f9fafb; }
+    .mc-table { width: 70%; font-size: 9.5pt; }
+    .mc-table th { background: #0a3d62; color: white; padding: 5px 8px;
+                   text-align: left; }
+    .mc-table td { padding: 4px 8px; border-bottom: 1px solid #f0f0f0; }
+    .mc-table .rd { background: #f9fafb; font-weight: 700; width: 36px;
+                    color: #0a3d62; }
+    .pct { color: #6b7280; font-weight: 600; font-size: 8.5pt; }
     .steals-reaches { display: grid; grid-template-columns: 1fr 1fr;
                       gap: 16px; }
     .sr-table { width: 100%; font-size: 9pt; border-collapse: collapse; }
@@ -443,6 +454,29 @@ def build_html(picks):
     h.append('<p class="note">Late-round depth, handcuffs, K/DEF.</p>')
     h.append(render_draft_board_html(picks, round_range=(10, 17)))
     h.append('<div class="page-break"></div>')
+
+    # ===== Monte Carlo (Brian's pick distribution) =====
+    mc_path = ROOT / "data" / "mc_summary.json" if (ROOT / "data" / "mc_summary.json").exists() else Path("/tmp/mc_summary.json")
+    if mc_path.exists():
+        mc = json.loads(mc_path.read_text())
+        h.append('<h2>Brian\'s Monte Carlo Mock — Pick Distribution</h2>')
+        bt = mc.get('brian_total_proj', {})
+        h.append(f'<p class="note">{mc.get("n_sims", 0)} sims with softmax sampling for other teams; '
+                 f'keeper-biased VBD scoring. Your projected roster total: '
+                 f'<strong>mean {bt.get("mean", 0):.0f}</strong> · '
+                 f'range [{bt.get("min", 0):.0f} – {bt.get("max", 0):.0f}] · '
+                 f'p25/p50/p75 = {bt.get("p25", 0):.0f} / {bt.get("p50", 0):.0f} / {bt.get("p75", 0):.0f}.</p>')
+        h.append('<table class="mc-table"><thead><tr><th>Rd</th><th>Most likely (% of sims)</th></tr></thead><tbody>')
+        for rnd in sorted(int(r) for r in mc.get('brian_pick_distribution', {})):
+            dist = mc['brian_pick_distribution'][str(rnd)]
+            top3 = sorted(dist.items(), key=lambda kv: -kv[1])[:3]
+            cells = []
+            for nm, cnt in top3:
+                pct = cnt * 100 // mc.get('n_sims', 50)
+                cells.append(f'<strong>{nm}</strong> <span class="pct">({pct}%)</span>')
+            h.append(f'<tr><td class="rd">R{rnd}</td><td>' + ' · '.join(cells) + '</td></tr>')
+        h.append('</tbody></table>')
+        h.append('<div class="page-break"></div>')
 
     # ===== Steals & Reaches =====
     h.append('<h2>Steals &amp; Reaches</h2>')
