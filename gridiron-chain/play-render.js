@@ -1061,9 +1061,22 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
       // Ragdoll fall: t is interpreted as fall progress (0=just hit, 1=flat on ground).
       // Body rotates from upright to horizontal, limbs splay outward, body bobs down
       // with a small upward bounce at impact.
+      //
+      // style.fallDir controls which direction the head goes:
+      //   -1 (default): backward fall (head opposite of facing) — head-on hit,
+      //      defender's force overpowers carrier's momentum (think: power runner
+      //      stuffed at the line, or a head-on tackle of a stationary receiver).
+      //   +1: forward fall (head in facing direction) — chase tackle / angle
+      //      tackle where the carrier's momentum carries them forward through
+      //      contact (think: WR caught in stride, RB hit from behind).
+      //
+      // Real NFL: most YAC and breakaway tackles are forward falls because
+      // the carrier was running at speed when contact happened. Backward falls
+      // are reserved for power-vs-power head-on collisions.
       const fallT = Math.min(1, Math.max(0, t));
       const fallEase = fallT * fallT * (3 - 2 * fallT);     // smoothstep
-      bodyRot = -Math.PI / 2 * facing * fallEase;            // rotate toward horizontal
+      const fallDir = (style && style.fallDir) || -1;
+      bodyRot = (Math.PI / 2) * facing * fallDir * fallEase;
       bodyDY = fallEase * 5 + Math.sin(fallT * Math.PI) * -2;// downward + small upward bump at peak
       // Arms flail outward as the body falls
       lArm = -0.4 - fallEase * 0.8;                          // -0.4 → -1.2

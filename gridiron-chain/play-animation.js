@@ -3611,18 +3611,29 @@ function buildAnimForPlay(play, prevPlay) {
               d._postCatchSynced = true;
             }
             const elapsedMs = Math.max(0, (t - throwPhase) * dur);
-            // Named tackler runs FASTER than the other pursuers — his
-            // speed factor is what makes him the one who actually
-            // catches the carrier (matching the box-score outcome).
-            // 1.25 was tuned so a tackler from typical coverage depth
-            // closes a typical YAC catch by aT ≈ 0.78.
-            const factor = _isPassTacklerByName ? 1.25
-                        : isCB ? 1.05 : isSaf ? 1.0 : 0.95;
-            // Aim at the carrier's current position; SimPlayer handles
-            // acceleration and top-speed cap. Pursuer naturally chases
-            // and converges; tackle pose engages when contact happens
-            // (existing aT > 0.78 logic OR when the sim closes within
-            // contact distance).
+            // Named tackler speed AUTO-SCALES per-play so he arrives at
+            // the carrier by tackle time. Big YAC plays leave the
+            // tackler far behind at fixed 1.25x; he can't close 20+ yd
+            // in the remaining post-catch window. Now we compute the
+            // speed actually needed (distance to carrier / time until
+            // tackle pose) and bump the factor to make that — capped
+            // at 2.0x base to avoid superhuman closing on small gaps.
+            let factor = _isPassTacklerByName ? 1.25
+                       : isCB ? 1.05 : isSaf ? 1.0 : 0.95;
+            if (_isPassTacklerByName) {
+              const TACKLE_AT = 0.78;
+              const distRemaining = Math.hypot(ballX - dd.x, ballY - dd.y);
+              const timeRemaining = (TACKLE_AT - aT) * dur;
+              if (timeRemaining > 80 && distRemaining > 12) {
+                const speedNeededPxSec = (distRemaining / timeRemaining) * 1000;
+                const neededFactor = speedNeededPxSec / SIM_DEFAULTS.MAX_SPEED;
+                // Cap at 2.5x base (~24 yps visual = top-end NFL sprint).
+                // For huge YAC plays where the tackler simply can't close in
+                // the remaining time, the cap binds — but at least he's
+                // visibly closing instead of standing still 20 yd behind.
+                factor = Math.min(2.5, Math.max(factor, neededFactor));
+              }
+            }
             const np = pursue(dd, ballX, ballY, elapsedMs, factor);
             dd.x = np.x; dd.y = np.y;
             if (_isPassTacklerByName) dd.facing = -dir;
@@ -3824,6 +3835,12 @@ function buildAnimForPlay(play, prevPlay) {
         pose: wrPose,
         t: wrTackleT,
         facing: (play.kind === "int" && t > throwPhase + 0.05) ? -dir : dir,
+        // Pass-catch tackles are almost always forward falls: the receiver
+        // was running at speed when contact happened, his momentum carries
+        // him forward through the hit. Backward fall (head opposite of
+        // direction) was wrong — reads as if the carrier was knocked back
+        // by a defender who wasn't there.
+        fallDir: wrIsTackled ? 1 : undefined,
       };
       const off = formation.offense.map(p => {
         if (p.role === "QB") return qbWithPose;
