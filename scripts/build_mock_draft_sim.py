@@ -170,6 +170,26 @@ def _softmax_choice(scored: list[tuple[float, object]], temperature: float,
     return scored[-1][1]
 
 
+def _compute_pos_caps(league) -> dict[str, int]:
+    """Per-position roster cap matching predict.py's logic. Used by the
+    fallback path so it can respect the same cap as score_candidates_for_team."""
+    from fantasy_draft.vbd import FLEX_SHARES
+    demand = league.position_demand()
+    caps: dict[str, int] = {}
+    for pos in demand:
+        direct = sum(s.count for s in league.starters if s.name == pos)
+        flex_share = 0.0
+        for slot in league.starters:
+            if slot.name in FLEX_SHARES and pos in FLEX_SHARES[slot.name]:
+                flex_share += slot.count * FLEX_SHARES[slot.name][pos]
+        if pos in ("K", "DEF", "DST"):
+            backup = 0
+        else:
+            backup = max(1, direct)
+        caps[pos] = direct + round(flex_share) + backup
+    return caps
+
+
 def simulate_full_draft_with_tendencies(
     draft: Draft, players: list, my_team_idx: int,
     temperature: float, top_k: int, rng: random.Random,
@@ -183,6 +203,7 @@ def simulate_full_draft_with_tendencies(
     pool = [p for p in players
             if p.name not in drafted and p.position in valid_positions]
     removed: set[str] = set()
+    pos_caps = _compute_pos_caps(draft.league)
 
     def alive():
         if not removed:
@@ -213,10 +234,14 @@ def simulate_full_draft_with_tendencies(
 
         # If this manager has an early-K or early-DEF tendency, predict.py's
         # default R15 floor blocks them. Inject the top K/DEF player manually
-        # when we're within 2 rounds of their expected pick.
+        # when we're within 2 rounds of their expected pick — but only if the
+        # team doesn't already have one (K/DEF cap = 1).
         existing_pos = {c.player.position for c in candidates}
+        team_counts = team.position_counts()
         for early_pos in ('K', 'DEF'):
             if early_pos in existing_pos:
+                continue
+            if team_counts.get(early_pos, 0) >= 1:
                 continue
             expected = mgr_expected.get(mgr, {}).get(early_pos) if mgr else None
             if expected is None or pick.round_num < expected - 2:
@@ -233,8 +258,14 @@ def simulate_full_draft_with_tendencies(
             ))
 
         if not candidates:
-            # Fallback to best available (mirrors simulate._softmax_pick).
-            chosen = max(avail, key=lambda p: (p.vbd, p.projection))
+            # Cap-aware fallback: only consider positions the team isn't
+            # already capped on. Otherwise BPA hands out 2nd K/DEFs.
+            team_counts = team.position_counts()
+            cap_ok = [p for p in avail
+                      if team_counts.get(p.position, 0) <
+                         pos_caps.get(p.position, 99)]
+            chosen = max(cap_ok if cap_ok else avail,
+                         key=lambda p: (p.vbd, p.projection))
         else:
             scored = []
             for c in candidates:

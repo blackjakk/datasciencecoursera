@@ -108,6 +108,28 @@ def score_candidates_for_team(
     demand = league.position_demand()
     bench_cushion = max(1, league.bench_size // 3)
 
+    # Per-position roster cap. The old formula (demand + bench_cushion) treated
+    # TE the same as RB because both are FLEX-eligible — letting a team take
+    # 5 TEs in a league with only 1 TE starter slot. Real fantasy rosters
+    # carry ~1 backup at TE/QB and 2-3 at RB/WR. Compute realistic cap as:
+    #   direct_starter + flex/superflex share + backup_depth
+    # where backup_depth scales with direct starters (handcuffs go with RBs,
+    # not with TEs).
+    from .vbd import FLEX_SHARES
+    pos_cap: dict[str, int] = {}
+    for p_pos in demand:
+        direct = sum(s.count for s in league.starters if s.name == p_pos)
+        flex_share = 0.0
+        for slot in league.starters:
+            if slot.name in FLEX_SHARES and p_pos in FLEX_SHARES[slot.name]:
+                flex_share += slot.count * FLEX_SHARES[slot.name][p_pos]
+        if p_pos in ("K", "DEF", "DST"):
+            backup = 0
+        else:
+            # 1 backup minimum, scale with starter count (RB=2 backups, WR=3)
+            backup = max(1, direct)
+        pos_cap[p_pos] = direct + round(flex_share) + backup
+
     candidates: list[Candidate] = []
     for player in shortlist:
         pos = player.position
@@ -119,12 +141,8 @@ def score_candidates_for_team(
             continue
         if pos in ("K", "DEF", "DST") and current_round < kicker_def_round_floor:
             continue
-        # Inline _position_legal_for_team for speed. K/DEF get no bench
-        # cushion — one is plenty; stacking 2-3 wastes late picks.
-        cap = demand.get(pos, 0)
-        if pos not in ("K", "DEF", "DST"):
-            cap += bench_cushion
-        if counts.get(pos, 0) >= cap:
+        # Per-position cap (see derivation above).
+        if counts.get(pos, 0) >= pos_cap.get(pos, demand.get(pos, 0) + bench_cushion):
             continue
         v = _value_score(player, overall_pick, league)
         pos_need = needs.get(pos, 0.0)

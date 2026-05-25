@@ -57,36 +57,38 @@ class Team:
     def needs(self, league: LeagueConfig) -> dict[str, float]:
         """Per-position 'need' score: how badly this team needs another player
         at each position to fill starters. Flex/superflex slots count partially
-        toward each eligible position.
+        toward each eligible position, weighted by realistic usage (FLEX
+        almost always goes to RB/WR, rarely TE; SUPERFLEX almost always QB).
 
-        SUPERFLEX bias: when a slot accepts QBs alongside other positions, QBs
-        get the bulk of the weight (70%) since they almost always win the
-        SUPERFLEX in practice. Otherwise teams in superflex leagues under-draft
-        QB depth.
+        Uses fantasy_draft.vbd.FLEX_SHARES as the empirical share-by-position
+        table. Without it, equal-share splitting gave TE the same 33% of FLEX
+        as RB — so a team that keeper-rostered a top TE still registered
+        meaningful TE need and would reach on TE2 in early rounds.
 
         Superflex scarcity: in leagues that start 2 QBs (i.e. QB is eligible
         for a flex-like slot), teams with fewer than 3 QBs still register a
         non-zero QB need even after starters are filled — protects against the
         backup-QB injury risk.
         """
+        from .vbd import FLEX_SHARES
         slots_left = self.slots_remaining(league)
         need: dict[str, float] = {}
         for slot_name, count in slots_left.items():
             if count <= 0:
                 continue
             eligible = SLOT_ELIGIBILITY[slot_name]
-            if "QB" in eligible and len(eligible) > 1:
-                # SUPERFLEX-style slot: bias toward QB (70/30 vs other eligibles)
-                others = eligible - {"QB"}
-                qb_share = 0.70 * count
-                other_share = (0.30 / len(others)) * count if others else 0
-                need["QB"] = need.get("QB", 0.0) + qb_share
-                for pos in others:
-                    need[pos] = need.get(pos, 0.0) + other_share
-            else:
+            if slot_name in FLEX_SHARES:
+                # Empirical share per position rather than equal split.
+                for pos, share in FLEX_SHARES[slot_name].items():
+                    need[pos] = need.get(pos, 0.0) + count * share
+            elif len(eligible) > 1:
+                # Unknown multi-position slot: fall back to equal split.
                 weight = count / len(eligible)
                 for pos in eligible:
                     need[pos] = need.get(pos, 0.0) + weight
+            else:
+                pos = next(iter(eligible))
+                need[pos] = need.get(pos, 0.0) + count
 
         # Superflex scarcity bonus: in 2-QB-start leagues, teams under 3 QBs
         # still register meaningful QB need (injury insurance / position
