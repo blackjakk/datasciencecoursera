@@ -39,6 +39,10 @@ COOKIE_FILE = ROOT / ".yahoo_cookies"
 
 # Same league-id table as fetch_yahoo_history.py.
 SEASON_LEAGUE_IDS: dict[int, str] = {
+    2011: "774143",
+    2012: "342156",
+    2013: "127090",
+    2014: "85803",
     2015: "44369",
     2016: "63644",
     2017: "696645",
