@@ -24,7 +24,7 @@ Each manager's **total net point delta across every scored trade** they were eve
 | 6 | **Troy** | 23 | **+466** | +20 |
 | 7 | **Kyle** | 26 | **+464** | +18 |
 | 8 | **Ankur** | 9 | **+235** | +26 |
-| 9 | **Z** | 1 | **-12** | -12 |
+| 9 | **JP** | 1 | **-12** | -12 |
 | 10 | **Nick Lewis** | 4 | **-62** | -16 |
 | 11 | **Jimmy Notebooks** | 1 | **-452** | -452 |
 | 12 | **Lem** | 20 | **-854** | -43 |
@@ -55,7 +55,7 @@ Each manager's **total net point delta across every scored trade** they were eve
 | 14 | **Nick Lewis** | 4 | 8 | 2 |
 | 15 | **Josh** | 2 | 2 | 1 |
 | 16 | **Jimmy Notebooks** | 1 | 1 | 1 |
-| 17 | **Z** | 1 | 2 | 0 |
+| 17 | **JP** | 1 | 2 | 0 |
 
 **Trevor leads at every level** — most trades, most players acquired, most picks moved. Famously trades any deal. Brian and Coop are the next-most-active; the bottom group (Tim, Eric, Ankur) prefer building through draft + wire.
 

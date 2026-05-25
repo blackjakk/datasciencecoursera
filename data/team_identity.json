@@ -48,7 +48,7 @@
         "2012": "Nut up or shut up",
         "2011": "Reno Mahe 911"
       },
-      "confidence": "high"
+      "confidence": "high for 2011 + 2014-present — 2012 'Nut up or shut up' and 2013 'Mud Monkeys' could be JP instead of Trevor (unresolved)"
     },
     "kyle_figgy": {
       "canonical_name": "Kyle (Figgy)",
@@ -324,18 +324,20 @@
       },
       "confidence": "high"
     },
-    "z_former": {
-      "canonical_name": "Z (founding member, left after 2012)",
+    "jp_former": {
+      "canonical_name": "JP (founding member, left after 2012 or 2013)",
       "sleeper_roster_id": null,
-      "sleeper_display_name": "(left before 2013)",
+      "sleeper_display_name": "(left early)",
       "xlsx_nicknames": [
+        "JP",
         "Z"
       ],
       "yahoo_team_names": {
         "2011": "HOLD MA DICK",
         "2012": "Kelce's Beard Cheese"
       },
-      "confidence": "high \u2014 confirmed by Brian as 'Z', the original last-pick guy"
+      "confidence": "high for 2011-2012 team names \u2014 uncertain whether JP also owned 'Nut up or shut up' 2012 and/or 'Mud Monkeys' 2013 (currently attributed to Trevor)",
+      "_note": "Previously labeled 'Z' in xlsx; Brian clarified actual name is JP. 2012/2013 attribution between JP and Trevor is unresolved."
     }
   }
 }
