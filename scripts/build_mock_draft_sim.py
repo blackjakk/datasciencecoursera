@@ -25,7 +25,6 @@ ROOT = Path(__file__).resolve().parent.parent
 LEAGUE_CFG = ROOT / "configs" / "my_league.json"
 PLAYERS_CSV = ROOT / "data" / "players_2026.csv"
 KEEPERS_JSON = ROOT / "data" / "keepers_2026.json"
-ROSTERS_JSON = ROOT / "data" / "sleeper" / "league_1245039290518360064" / "rosters.json"
 TRADED_PICKS_JSON = ROOT / "data" / "sleeper" / "league_1245039290518360064" / "traded_picks.json"
 
 PICKS_OUT = Path("/tmp/mock_draft_picks.json")
@@ -60,25 +59,14 @@ def build_draft() -> tuple[Draft, list, int]:
     draft = Draft.new(league, team_names)
 
     # Apply 2026 traded picks: reassign Pick.team_idx by ownership.
-    # traded_picks entries: {season, round, roster_id (original), owner_id (current)}
-    # owner_id is a sleeper user_id; map via rosters.json to roster_id.
-    rosters = json.loads(ROSTERS_JSON.read_text())
-    user_to_rid = {r["owner_id"]: r["roster_id"] for r in rosters}
+    # traded_picks entries: {season, round, roster_id (original owner),
+    # owner_id (current owner — also a roster_id, NOT a Sleeper user_id)}.
     traded = json.loads(TRADED_PICKS_JSON.read_text())
-    # We need: for each (round, original_roster_id), the current owner's roster_id.
-    # The trade log can chain: A->B->C across multiple entries; final entry wins.
-    # Sleeper convention: each row's owner_id is the current owner, so iterating
-    # in file order and keeping the last entry per (round, roster_id) gives the
-    # current state.
     overrides: dict[tuple[int, int], int] = {}
     for t in traded:
         if str(t.get("season")) != "2026":
             continue
-        new_owner_user = t["owner_id"]
-        new_owner_rid = user_to_rid.get(new_owner_user)
-        if new_owner_rid is None:
-            continue
-        overrides[(int(t["round"]), int(t["roster_id"]))] = new_owner_rid
+        overrides[(int(t["round"]), int(t["roster_id"]))] = int(t["owner_id"])
 
     for pick in draft.picks:
         orig_slot = (pick.pick_in_round if pick.round_num % 2 == 1
