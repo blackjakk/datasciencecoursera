@@ -377,9 +377,12 @@ def main():
     print(f"QB counts per team (sorted): {qb_counts}")
 
     # Monte Carlo across N_SIMS — collect totals + pick distribution per team.
+    # Track each pick by (team_idx, round, seq_within_round) so trades that
+    # give a team multiple picks in one round show up as separate rows.
     per_team_totals: dict[int, list[float]] = {ti: [] for ti in range(12)}
-    per_team_round_picks: dict[int, dict[int, Counter]] = {
-        ti: defaultdict(Counter) for ti in range(12)
+    # per_team_round_seq_picks[ti][rnd][seq] -> Counter of player_name
+    per_team_round_seq_picks: dict[int, dict[int, dict[int, Counter]]] = {
+        ti: defaultdict(lambda: defaultdict(Counter)) for ti in range(12)
     }
     mc_rng = random.Random(7)
     for sim_idx in range(N_SIMS):
@@ -391,11 +394,15 @@ def main():
             team_idx_to_mgr=team_idx_to_mgr,
         )
         team_totals = defaultdict(float)
-        for fp in sim_full:
+        round_seq_counter: dict[tuple[int, int], int] = defaultdict(int)
+        for fp in sorted(sim_full, key=lambda x: x.overall):
             p = players_by_name.get(_norm(fp.player_name))
             if p:
                 team_totals[fp.team_idx] += p.projection
-            per_team_round_picks[fp.team_idx][fp.round_num][fp.player_name] += 1
+            key = (fp.team_idx, fp.round_num)
+            seq = round_seq_counter[key]
+            round_seq_counter[key] += 1
+            per_team_round_seq_picks[fp.team_idx][fp.round_num][seq][fp.player_name] += 1
         for ti, tot in team_totals.items():
             per_team_totals[ti].append(tot)
 
@@ -407,6 +414,15 @@ def main():
         def pctl(q):
             i = max(0, min(len(totals) - 1, int(round(q * (len(totals) - 1)))))
             return totals[i]
+        # Build the pick_distribution out: for each round, list of distributions
+        # (one per pick that team has in that round). Use a list so order is
+        # preserved (seq 0 first).
+        pick_dist: dict[str, list[dict[str, int]]] = {}
+        for rnd in sorted(per_team_round_seq_picks[ti]):
+            seqs = per_team_round_seq_picks[ti][rnd]
+            pick_dist[str(rnd)] = [
+                dict(seqs[seq]) for seq in sorted(seqs)
+            ]
         per_team_out[str(ti)] = {
             "mean": sum(totals) / len(totals),
             "p25": pctl(0.25),
@@ -414,10 +430,7 @@ def main():
             "p75": pctl(0.75),
             "min": totals[0],
             "max": totals[-1],
-            "pick_distribution": {
-                str(rnd): dict(per_team_round_picks[ti][rnd])
-                for rnd in sorted(per_team_round_picks[ti])
-            },
+            "pick_distribution": pick_dist,
         }
 
     out = {

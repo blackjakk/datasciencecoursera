@@ -538,20 +538,28 @@ def build_html(picks):
                      f'<span class="mc-tot">{data.get("mean",0):.0f}<span class="lbl">MEAN</span></span></div>')
             h.append('<table class="mc-mini">')
             for rnd in sorted(int(r) for r in data.get("pick_distribution", {})):
-                dist = data["pick_distribution"][str(rnd)]
-                top1 = max(dist.items(), key=lambda kv: kv[1])
-                nm_top, cnt = top1
-                pct = cnt * 100 // n_sims
-                # Abbreviate name
-                p_abbrev = nm_top
-                if " " in p_abbrev:
-                    f, l = p_abbrev.split(" ", 1)
-                    if len(f) > 2:
-                        p_abbrev = f"{f[0]}. {l}"
-                p_abbrev = p_abbrev[:18]
-                h.append(f'<tr><td class="r">R{rnd}</td>'
-                         f'<td><strong>{p_abbrev}</strong></td>'
-                         f'<td class="pct">{pct}%</td></tr>')
+                slots = data["pick_distribution"][str(rnd)]
+                # Backwards compat: old format was a single dict per round.
+                if isinstance(slots, dict):
+                    slots = [slots]
+                for seq, dist in enumerate(slots):
+                    if not dist:
+                        continue
+                    top1 = max(dist.items(), key=lambda kv: kv[1])
+                    nm_top, cnt = top1
+                    pct = cnt * 100 // n_sims
+                    p_abbrev = nm_top
+                    if " " in p_abbrev:
+                        f, l = p_abbrev.split(" ", 1)
+                        if len(f) > 2:
+                            p_abbrev = f"{f[0]}. {l}"
+                    p_abbrev = p_abbrev[:18]
+                    # When a team has multiple picks in this round, label them
+                    # R1·1, R1·2 to make the order clear.
+                    rnd_label = f"R{rnd}" if len(slots) == 1 else f"R{rnd}·{seq+1}"
+                    h.append(f'<tr><td class="r">{rnd_label}</td>'
+                             f'<td><strong>{p_abbrev}</strong></td>'
+                             f'<td class="pct">{pct}%</td></tr>')
             h.append('</table></div>')
         h.append('</div>')
         h.append('<div class="page-break"></div>')
