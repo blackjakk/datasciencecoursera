@@ -21,7 +21,8 @@
         "2017": "RIP August Ames",
         "2016": "Sunday Scaries",
         "2012": "THIS SINBAD HOUSE",
-        "2013": "PEDs 'til I DDT"
+        "2013": "PEDs 'til I DDT",
+        "2011": "Bibi Jones Gangbang"
       },
       "confidence": "high"
     },
@@ -42,7 +43,8 @@
         "2020": "BergerBoy Brigade",
         "2021": "BergerBoy Brigade",
         "2022": "BergerBoy Brigade",
-        "2014": "BergerBoy Brigade"
+        "2014": "BergerBoy Brigade",
+        "2011": "Reno Mahe 911"
       },
       "confidence": "high"
     },
@@ -87,7 +89,9 @@
         "2021": "#1 Pokemon Master",
         "2019": "Trevor\u2019s Semifinals",
         "2017": "Baking Dabs",
-        "2016": "Raichu a Love Song"
+        "2016": "Raichu a Love Song",
+        "2011": "Rushinators",
+        "2012": "Rushinators"
       },
       "confidence": "high"
     },
@@ -137,7 +141,8 @@
         "2017": "The Mandingo...",
         "2018": "The Mandingo...",
         "2022": "Cadillac Crippling Crusaders",
-        "2014": "Sammetius Watkinutus"
+        "2014": "Sammetius Watkinutus",
+        "2013": "Byrd's Nest"
       },
       "confidence": "high"
     },
@@ -174,7 +179,10 @@
         "2021": "Wet Ass Posluzny",
         "2022": "Wet Ass Posluzny",
         "2014": "Deez Hos Ain't Royal",
-        "2019": "Sam Darnolds a Slut"
+        "2019": "Sam Darnolds a Slut",
+        "2011": "LockOut w my CockOut",
+        "2012": "LockOut w my CockOut",
+        "2013": "Gu's Ricemobile"
       },
       "confidence": "high"
     },
@@ -281,7 +289,8 @@
         "2022": "Community Day Lamb",
         "2021": "Walking Off Like Antonio",
         "2020": "Waiting For 2021",
-        "2018": "Land of the Freemans"
+        "2018": "Land of the Freemans",
+        "2013": "BrownsToTheSuperBowl"
       },
       "confidence": "high \u2014 Dave and Wang are the same person per league owner"
     },
@@ -305,9 +314,32 @@
         "Nick Lewis"
       ],
       "yahoo_team_names": {
-        "2020": "LewLew Ferrari"
+        "2020": "LewLew Ferrari",
+        "2013": "Mr. Y. Mirosho"
       },
       "confidence": "medium \u2014 only appears in FF2020"
+    },
+    "former_pre2014": {
+      "canonical_name": "Former manager (HOLD MA DICK / Kelce's Beard Cheese)",
+      "sleeper_roster_id": null,
+      "sleeper_display_name": "(left before 2014)",
+      "xlsx_nicknames": [],
+      "yahoo_team_names": {
+        "2011": "HOLD MA DICK",
+        "2012": "Kelce's Beard Cheese",
+        "2013": "Mud Monkeys"
+      },
+      "confidence": "low \u2014 unknown identity, persistent across 2011-2013"
+    },
+    "former_pre2014_2": {
+      "canonical_name": "Former manager (Nut up or shut up)",
+      "sleeper_roster_id": null,
+      "sleeper_display_name": "(left before 2014)",
+      "xlsx_nicknames": [],
+      "yahoo_team_names": {
+        "2012": "Nut up or shut up"
+      },
+      "confidence": "low \u2014 unknown identity, only 2012 appearance"
     }
   }
 }
