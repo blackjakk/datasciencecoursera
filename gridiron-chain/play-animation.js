@@ -2934,7 +2934,7 @@ function buildAnimForPlay(play, prevPlay) {
                         : isScreen && play.kind === "complete"  ? screenYacMs
                         : play.kind === "complete"  ? 1700
                         : play.kind === "int"       ? 1500
-                        : play.kind === "incomplete" ? 600
+                        : play.kind === "incomplete" ? 250
                         : 1000;
     const actionDur = basePass + POST_CATCH_MS;
     const dur = actionDur + PRE_MS;
@@ -7928,7 +7928,13 @@ function tick(now) {
           }
         }
       }
-      const baseHold = hasCard ? RESULT_HOLD_MS : 90;
+      // Routine plays (incomplete, no-yards run) hold shorter than the
+      // standard RESULT_HOLD_MS. 2700ms after an incomplete is just
+      // staring at a frozen ball on the ground — the play is over,
+      // viewer doesn't need to dwell. Cut to 1300ms.
+      const _routineHold = play.kind === "incomplete"
+                        || (play.kind === "run" && (play.yards ?? 0) <= 1 && !isTD);
+      const baseHold = hasCard ? (_routineHold ? 1300 : RESULT_HOLD_MS) : 90;
       const extraHold = isTD ? 1600 : isBigPlay ? 700 : 0;
       animState.holdDur = (baseHold + extraHold) / speedMul;
     }
