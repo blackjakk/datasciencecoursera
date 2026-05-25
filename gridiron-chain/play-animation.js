@@ -678,12 +678,17 @@ function _simulateKickoffAgents(opts) {
         //                    they ever reach the wedge.
         //
         // Both layers backpedal AT THE SNAP (from blockerStartX at recv 40
-        // back toward the returner). The wall was holding at the 40 in
-        // cover's lane before — now it actively retreats to form the
-        // outer layer of blocking.
+        // back toward the returner). Wedge flight target ALIGNS with the
+        // return-phase offsets so there's no backtrack at the boundary —
+        // backtrack at that boundary was flipping wedge facing via the
+        // locomotion auto-face system (blockers running TOWARD the returner
+        // looked like they were facing him and running at him).
         if (isWedge) {
-          targetX = catchX + recvDir * 10;
-          targetY = cy + (blockerLanes[i] - cy) * 0.5;
+          const off = i - 3;
+          const dxYd = [7, 5, 5, 7][off];
+          const dyYd = [-9, -3, 3, 9][off];    // yards
+          targetX = catchX + recvDir * dxYd;
+          targetY = cy + dyYd * PX_PER_YD;
         } else {
           const cov = cover[a.targetCov];
           targetX = catchX + recvDir * 17;
@@ -691,16 +696,21 @@ function _simulateKickoffAgents(opts) {
         }
       } else {
         if (isWedge) {
-          // Spread escort (not a tight wedge) — modern NFL/college kickoff
-          // return blocking is much more lateral than the old diamond
-          // shape. 4 blockers spread ±13 yd wide, 4-7 yd in front. Each
-          // pairs with their assigned cov (handled by engagement check)
-          // and the returner runs through the gaps between pairs.
+          // Spread escort (not a tight wedge) — modern NFL / college KR
+          // blocking is wide and lateral. 4 blockers spread ±9 yd wide,
+          // 5-7 yd in front of the returner. Each pairs with their
+          // assigned cov (engagement check handles it) and the returner
+          // runs through the gaps between pairs.
+          //
+          // dyYd values are YARDS — were being added directly as pixels
+          // (PX_PER_YARD = 15), so my previous ±13 was actually ±0.87 yd
+          // = tightly bunched ~1 ft apart. Multiplying by PX_PER_YD now
+          // gives a real ±9 yd spread.
           const off = i - 3;   // 0..3
           const dxYd = [7, 5, 5, 7][off];
-          const dyYd = [-13, -4, 4, 13][off];
+          const dyYd = [-9, -3, 3, 9][off];
           targetX = returner.x + recvDir * dxYd;
-          targetY = returner.y + dyYd;
+          targetY = returner.y + dyYd * PX_PER_YD;
         } else {
           // Wall blocker — engages assigned cov BUT drifts downfield with
           // the play. Previous behavior froze the blocker at the initial
