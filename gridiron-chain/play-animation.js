@@ -4976,6 +4976,126 @@ function buildAnimForPlay(play, prevPlay) {
     }};
   }
 
+  if (play.kind === "punt" && play.isBlocked) {
+    // BLOCKED PUNT — distinct sequence from a normal punt. Rusher
+    // breaks through, ball is deflected just past the punter's foot,
+    // wobbles backward toward a recovery spot. If isReturnTD, the
+    // recoverer runs it back; otherwise the defense gets the ball
+    // at the spot.
+    const isReturnTD = !!play.isReturnTD;
+    const recoverX = losX - dir * (4 + ((play.startYard * 11) >>> 0) % 6);
+    const recoverY = cy + (((play.startYard * 7) >>> 0) % 11) - 5;
+    const tdEndX = poss === "home" ? FIELD.EZ_PX * 0.5 : FIELD.W - FIELD.EZ_PX * 0.5;
+    // Block point — just past the punter's foot (where the rusher
+    // gets a hand on the ball).
+    const blockX = losX - dir * 10 * FIELD.PX_PER_YARD;
+    const blockY = recoverY;
+    const dur = isReturnTD ? 2800 : 1900;
+    return { duration: dur, kind: "punt", render: (t, c) => {
+      ctx = c;
+      drawField(ctx, homeTeam, awayTeam, fieldState);
+      const startX = losX - dir * 12 * FIELD.PX_PER_YARD;   // punter's spot
+      let ballX, ballY, arc = 0, ballHidden = false, ballScale = 1;
+      const T_SNAP = 0.06;
+      const T_WIND_END = 0.22;
+      const T_BLOCK = 0.32;
+      const T_RECOVER = 0.55;
+      if (t < T_SNAP) {
+        ballX = losX + (startX - losX) * (t / T_SNAP);
+        ballY = cy;
+      } else if (t < T_WIND_END) {
+        ballX = startX; ballY = cy;
+      } else if (t < T_BLOCK) {
+        const bp = (t - T_WIND_END) / (T_BLOCK - T_WIND_END);
+        ballX = startX + (blockX - startX) * bp;
+        ballY = cy;
+        arc = Math.sin(bp * Math.PI * 0.6) * 18;
+        ballScale = 0.95;
+      } else if (t < T_RECOVER) {
+        const wp = (t - T_BLOCK) / (T_RECOVER - T_BLOCK);
+        ballX = blockX + (recoverX - blockX) * wp;
+        ballY = blockY + Math.sin(wp * Math.PI * 3) * 6;
+        arc = Math.max(0, 14 - wp * 14) + Math.abs(Math.sin(wp * Math.PI * 4)) * 6;
+        ballScale = 0.9;
+      } else {
+        if (isReturnTD) {
+          const rt = (t - T_RECOVER) / (1 - T_RECOVER);
+          ballX = recoverX + (tdEndX - recoverX) * rt;
+          ballY = recoverY;
+          drawPlayer(ctx, ballX, ballY, oppColor, oppTeam.secondary, "",
+                     rt > 0.92 ? "celebrate" : "carry",
+                     (t < 0.95 ? ((performance.now() / 333)) % 1 : 0),
+                     -dir, { name: "punt-blk-recoverer" });
+          ballHidden = true;
+        } else {
+          ballX = recoverX; ballY = recoverY;
+          drawPlayer(ctx, recoverX, recoverY, oppColor, oppTeam.secondary, "",
+                     "stance", 0, -dir, { name: "punt-blk-recoverer" });
+        }
+      }
+      // Punter — kick pose during strike, knocked-off-balance after.
+      let punterPose, punterT;
+      if (t < T_WIND_END)        { punterPose = "idle";  punterT = 0; }
+      else if (t < T_BLOCK)      { punterPose = "kick";  punterT = (t - T_WIND_END) / (T_BLOCK - T_WIND_END); }
+      else                       { punterPose = "stiff"; punterT = 0; }
+      drawPlayer(ctx, startX, cy, possColor, team.secondary, "", punterPose, punterT, dir, { name: "punter" });
+      // Rusher — sprints from LOS toward the punter, dives at the
+      // block point.
+      const rusherStartX = losX + dir * 1;
+      const rusherY = cy + (((play.startYard * 13) >>> 0) % 9) - 4;
+      let rusherX, rusherPose, rusherT;
+      if (t < T_WIND_END) {
+        rusherX = rusherStartX;
+        rusherPose = "stance"; rusherT = 0;
+      } else if (t < T_BLOCK) {
+        const sp = (t - T_WIND_END) / (T_BLOCK - T_WIND_END);
+        rusherX = rusherStartX + (blockX - rusherStartX) * sp;
+        rusherPose = sp > 0.7 ? "dive" : "run";
+        rusherT = sp > 0.7 ? (sp - 0.7) / 0.3 : (t < 0.95 ? ((performance.now() / 333)) % 1 : 0);
+      } else if (t < T_RECOVER) {
+        rusherX = blockX + dir * 4;
+        rusherPose = "tackled";
+        rusherT = Math.min(1, (t - T_BLOCK) / 0.10);
+      } else {
+        const rt = (t - T_RECOVER) / (1 - T_RECOVER);
+        rusherX = blockX + (recoverX - blockX) * Math.min(1, rt * 1.5);
+        rusherPose = "run";
+        rusherT = (t < 0.95 ? ((performance.now() / 333)) % 1 : 0);
+      }
+      if (t < T_RECOVER) {
+        drawPlayer(ctx, rusherX, rusherY, oppColor, oppTeam.secondary, "", rusherPose, rusherT, -dir, { name: "punt-rusher" });
+      }
+      if (!ballHidden) drawBall(ctx, ballX, ballY - arc, ballScale + (arc / 200));
+      // "BLOCKED!" banner during the deflection window
+      if (t > T_WIND_END && t < T_RECOVER + 0.10) {
+        const fadeT = Math.min(1, Math.min((t - T_WIND_END) / 0.05, (T_RECOVER + 0.10 - t) / 0.15));
+        ctx.save();
+        ctx.globalAlpha = fadeT;
+        ctx.fillStyle = "#e07070";
+        ctx.strokeStyle = "rgba(0,0,0,0.85)";
+        ctx.lineWidth = 4;
+        ctx.font = "900 46px monospace";
+        ctx.textAlign = "center";
+        ctx.strokeText("BLOCKED!", FIELD.W / 2, 60);
+        ctx.fillText("BLOCKED!", FIELD.W / 2, 60);
+        ctx.restore();
+      }
+      if (isReturnTD && t > 0.85) {
+        const fadeT = Math.min(1, (t - 0.85) / 0.10);
+        ctx.save();
+        ctx.globalAlpha = fadeT;
+        ctx.fillStyle = "#f0cc30";
+        ctx.strokeStyle = "rgba(0,0,0,0.85)";
+        ctx.lineWidth = 4;
+        ctx.font = "900 44px monospace";
+        ctx.textAlign = "center";
+        ctx.strokeText("RETURN TD!", FIELD.W / 2, 110);
+        ctx.fillText("RETURN TD!", FIELD.W / 2, 110);
+        ctx.restore();
+      }
+    }};
+  }
+
   if (play.kind === "punt") {
     const landYardAbs = play.landYard ?? play.endYard ?? play.startYard;
     const landX = yardToAbsX(landYardAbs, poss);
