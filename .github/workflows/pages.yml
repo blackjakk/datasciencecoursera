@@ -37,6 +37,7 @@ jobs:
           cp -r vendor portraits career dist/
         working-directory: gridiron-chain
       - name: Copy draft_helper into dist/draft_helper
+        working-directory: .
         run: |
           mkdir -p gridiron-chain/dist/draft_helper
           cp -r draft_helper/* gridiron-chain/dist/draft_helper/
