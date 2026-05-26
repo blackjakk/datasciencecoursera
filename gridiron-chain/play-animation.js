@@ -560,6 +560,18 @@ function _stPlayDuration(opts) { return _stPlayTiming(opts).duration; }
 //   - Primary cover's speed is ALSO auto-tuned so he arrives at the
 //     same place at the same time — that's how the visual matches
 //     the engine's emitted tackler without snapping anyone.
+// Agent-based KR sim. Two roles only:
+//   LEAD (6): assigned to one cov. Target = cov's CURRENT position
+//             (not a fixed field coord). Always closing on a moving
+//             threat, so never stuck. On contact, brief grapple, then
+//             release and convert to escort.
+//   ESCORT (4): no cov assignment. Target = a position relative to the
+//               RETURNER (varying depth/width slots). Always moves with
+//               the carrier — never anchored to midfield.
+//
+// First-principles rule: every blocker's target is another agent, never
+// a static coordinate. As long as some agent is moving, every blocker
+// has something to chase.
 function _simulateKickoffAgents(opts) {
   const {
     duration_ms, flightT, returnT,
@@ -572,35 +584,44 @@ function _simulateKickoffAgents(opts) {
   } = opts;
   const DT_MS = 16;
   const NUM_FRAMES = Math.ceil(duration_ms / DT_MS) + 1;
-  // Base speeds (visual yards per second). Gunners are skill players —
-  // bumped from 16 to 18 yps to look like the top sprinters they are
-  // on real special teams. Blockers stay a touch slower.
   const COVER_BASE_YPS   = 18;
-  const BLOCKER_BASE_YPS = 14;
-  // Per-play primary-cover speed: distance from kicker line to tackle
-  // spot (in straight-line including the primary's Y lane offset),
-  // divided by the time available. Guarantees primary arrives at the
-  // returner's final spot at returnT — no fudging needed at the boundary.
+  const BLOCKER_BASE_YPS = 15;
+  const ENGAGE_DIST      = 18;     // px — close enough to grapple
+  const ENGAGED_MULT     = 0.30;   // both bodies slow during the wrestle
+  const ENGAGE_DRIFT_YPS = 6;      // engaged pair drifts upfield together
+  const ENGAGE_TIMEOUT_MS = 350;   // lead releases after this and becomes escort
+  // Per-play primary-cover speed: distance/time so primary arrives at finalX at returnT.
   const _primaryDistX = Math.abs(finalX - kickerLineX);
   const _primaryDistY = Math.abs(coverLanes[primaryTacklerIdx] - cy);
   const _primaryTotalDistPx = Math.sqrt(_primaryDistX * _primaryDistX + _primaryDistY * _primaryDistY);
   const _arriveMs = Math.max(200, duration_ms * returnT);
   const PRIMARY_PX_F = (_primaryTotalDistPx / _arriveMs) * DT_MS;
-  // Returner per-play speed: distance from catch to finalX over the
-  // return phase. Ensures returner reaches finalX at returnT.
   const _retDistPx = Math.abs(finalX - catchX);
   const _retDurMs  = Math.max(200, duration_ms * (returnT - flightT));
   const RETURNER_PX_F = (_retDistPx / _retDurMs) * DT_MS;
-  const COVER_BASE_PX_F   = COVER_BASE_YPS   * PX_PER_YD * DT_MS / 1000;
-  const BLOCKER_BASE_PX_F = BLOCKER_BASE_YPS * PX_PER_YD * DT_MS / 1000;
+  const COVER_BASE_PX_F    = COVER_BASE_YPS    * PX_PER_YD * DT_MS / 1000;
+  const BLOCKER_BASE_PX_F  = BLOCKER_BASE_YPS  * PX_PER_YD * DT_MS / 1000;
+  const ENGAGE_DRIFT_PX_F  = ENGAGE_DRIFT_YPS  * PX_PER_YD * DT_MS / 1000;
+  const ENGAGE_TIMEOUT_FRAMES = Math.ceil(ENGAGE_TIMEOUT_MS / DT_MS);
   // Initial state
   const cover = [];
   for (let i = 0; i < NUM_COVER; i++) {
     cover.push({ x: kickerLineX, y: coverLanes[i], engaged: false, engagedBy: -1 });
   }
+  // Lead↔cov pairing: 6 leads at blocker indices 0,1,2,7,8,9 each get one cov.
+  // Escort slots: blocker indices 3..6 — 4 layered positions around returner.
+  const leadCovFor = (i) => (i < 3) ? i : (i - 4);   // 0,1,2 → 0,1,2 ; 7,8,9 → 3,4,5
   const blockers = [];
   for (let i = 0; i < NUM_BLOCKERS; i++) {
-    blockers.push({ x: blockerStartX, y: blockerLanes[i] });
+    const isEscort = (i >= 3 && i <= 6);
+    blockers.push({
+      x: blockerStartX, y: blockerLanes[i],
+      role: isEscort ? "escort" : "lead",
+      escortSlot: isEscort ? (i - 3) : -1,    // 0..3 for escorts; reassigned on release for leads
+      targetCov: isEscort ? -1 : leadCovFor(i),
+      engagedSince: -1,
+      released: false,
+    });
   }
   const returner = { x: catchX, y: cy };
   const frames = [];
@@ -611,7 +632,6 @@ function _simulateKickoffAgents(opts) {
       returner.x = catchX;
       returner.y = cy;
     } else if (t < returnT) {
-      // Linear forward motion toward finalX (constant speed).
       const dx = finalX - returner.x;
       const dy = cy - returner.y;
       const d = Math.sqrt(dx * dx + dy * dy);
@@ -619,27 +639,21 @@ function _simulateKickoffAgents(opts) {
         returner.x += (dx / d) * RETURNER_PX_F;
         returner.y += (dy / d) * RETURNER_PX_F;
       }
-      // Small lateral cut wobble — keeps the run from feeling robotic.
       returner.y += Math.sin(frame * 0.18) * 0.4;
     }
-    // After returnT: returner held at last position (tackle pose).
-    // === COVER ===
+    // === COVER === (unchanged — pursues returner, slows when engaged)
     for (let i = 0; i < NUM_COVER; i++) {
       const c = cover[i];
       const isPrimary   = i === primaryTacklerIdx;
       const isSecondary = i === secondaryTacklerIdx;
       let targetX, targetY;
       if (isPrimary) {
-        // Head-on to returner's current position.
         targetX = returner.x;
         targetY = returner.y;
       } else if (isSecondary && tackleStyle >= 1) {
-        // Side angle — slightly behind on the return-direction axis,
-        // offset laterally.
         targetX = returner.x + recvDir * 5;
         targetY = returner.y + (i % 2 === 0 ? 8 : -8);
       } else {
-        // Contain — stays behind in the return direction, holds lane.
         targetX = returner.x + recvDir * (12 + (i % 4) * 6);
         targetY = c.y + (returner.y - c.y) * 0.15;
       }
@@ -647,11 +661,6 @@ function _simulateKickoffAgents(opts) {
       const dy = targetY - c.y;
       const d = Math.sqrt(dx * dx + dy * dy);
       if (d > 1) {
-        // Engaged cover slows to 15% speed — barely moving, like a real
-        // NFL block where the gunner is wrapped up at the line. 30% was
-        // still too fast: cover bled through the block and tackled the
-        // returner anyway. At 15%, only the primary (exempt) and the
-        // failed-block gunners reach the returner with any speed.
         const baseSpeed = isPrimary ? PRIMARY_PX_F : COVER_BASE_PX_F;
         const speed = c.engaged ? baseSpeed * 0.15 : baseSpeed;
         c.x += (dx / d) * speed;
@@ -662,109 +671,80 @@ function _simulateKickoffAgents(opts) {
     for (let i = 0; i < NUM_BLOCKERS; i++) {
       const b = blockers[i];
       const a = blockerAssignments[i];
-      const isWedge = (i >= 3 && i <= 6);
-      let targetX, targetY;
-      if (t < flightT) {
-        // Setup phase — receiving team forms LAYERED blocking as the ball
-        // is in the air. Two depths:
-        //
-        //   Wedge (mid 4): drops back to ~10 yd in front of returner,
-        //                  tightened laterally — close-in shield around
-        //                  the carrier.
-        //
-        //   Wall  (outer 6): drops back to ~17 yd in front of returner,
-        //                    in their assigned cover's incoming lane —
-        //                    intercept layer that the gunners hit before
-        //                    they ever reach the wedge.
-        //
-        // Both layers backpedal AT THE SNAP (from blockerStartX at recv 40
-        // back toward the returner). Wedge flight target ALIGNS with the
-        // return-phase offsets so there's no backtrack at the boundary —
-        // backtrack at that boundary was flipping wedge facing via the
-        // locomotion auto-face system (blockers running TOWARD the returner
-        // looked like they were facing him and running at him).
-        if (isWedge) {
-          // Spread escort at TWO DEPTHS — wings are lead blockers 18 yd
-          // upfield, insides are personal escorts 7 yd close. Used to
-          // have all 4 at the same 5-7 yd depth which read as a tight
-          // horizontal line right in front of the returner.
-          const off = i - 3;
-          const dxYd = [18, 7, 7, 18][off];
-          const dyYd = [-10, -2, 2, 10][off];   // yards
-          targetX = catchX + recvDir * dxYd;
-          targetY = cy + dyYd * PX_PER_YD;
-        } else {
-          // Wall blocker — set up at a fixed MEET POINT roughly between
-          // the catch and the kicker line (45% of the way to kicker).
-          // Cov is sprinting from kicker line toward catch; at this meet
-          // point, cov runs INTO the wall and gets engaged. Old target
-          // was catchX + recvDir * 17 — that put wall ~17 yd downfield
-          // of where cov ended up (cov closes 88% to catch by flight
-          // end, so wall ended up FAR DOWNFIELD of cov, then had to run
-          // BACKWARD to engage. "Running all the way back to the KR.")
-          const cov = cover[a.targetCov];
-          targetX = catchX + (kickerLineX - catchX) * 0.45;
-          targetY = cov.y;
-        }
+      const failsRole = a.fails;
+      // Determine target.
+      let targetX, targetY, speedCap;
+      const isLead = (b.role === "lead" && !b.released && !failsRole);
+      if (isLead) {
+        // LEAD: track cov's current position. No static field coord —
+        // cov is always moving, so we always have something to chase.
+        const cov = cover[b.targetCov];
+        targetX = cov.x;
+        targetY = cov.y;
+        speedCap = BLOCKER_BASE_PX_F;
+      } else if (b.role === "escort") {
+        // Native ESCORT: layered position in front of the returner.
+        // Wings (slots 0,3) lead at 18 yd; insides (1,2) escort at 7 yd.
+        const slot = b.escortSlot;
+        const dxYd = [18, 7, 7, 18][slot];
+        const dyYd = [-10, -2, 2, 10][slot];
+        targetX = returner.x + recvDir * dxYd;
+        targetY = returner.y + dyYd * PX_PER_YD;
+        speedCap = Math.max(BLOCKER_BASE_PX_F, RETURNER_PX_F);
       } else {
-        if (isWedge) {
-          // Same depth split during the return — insides escort the
-          // carrier (7 yd ahead, ±2 yd wide), wings lead the play
-          // (18 yd ahead, ±10 yd wide). Returner runs through the
-          // channel between them.
-          const off = i - 3;   // 0..3
-          const dxYd = [18, 7, 7, 18][off];
-          const dyYd = [-10, -2, 2, 10][off];
-          targetX = returner.x + recvDir * dxYd;
-          targetY = returner.y + dyYd * PX_PER_YD;
+        // RELEASED lead — peeled off the gunner, now trailing the play.
+        // Falls in behind the returner, holding the original Y lane so
+        // released leads don't all pile on the wing escort slots.
+        targetX = returner.x - recvDir * (6 + (i % 3) * 4);
+        targetY = b.y * 0.85 + returner.y * 0.15;
+        speedCap = Math.max(BLOCKER_BASE_PX_F, RETURNER_PX_F);
+      }
+      // Engagement check (lead within ENGAGE_DIST of his cov).
+      let isEngaged = false;
+      if (isLead) {
+        const cov = cover[b.targetCov];
+        const cd = Math.hypot(cov.x - b.x, cov.y - b.y);
+        if (cd < ENGAGE_DIST) {
+          isEngaged = true;
+          if (b.engagedSince < 0) b.engagedSince = frame;
         } else {
-          // Wall blocker — anchored ~24 yd in front of the returner,
-          // tracking cov's lane. Advances with the play (wall + cov
-          // get dragged downfield together by the blocker-lock).
-          // Holding still at the meet point made wall look "stuck at
-          // the 50". Now it advances forward with the returner so
-          // half the return team isn't a statue.
-          const cov = cover[a.targetCov];
-          targetX = returner.x + recvDir * 24;
-          targetY = cov.y;
+          b.engagedSince = -1;
         }
       }
+      // Apply speed.
+      let speed = speedCap;
+      if (failsRole) speed = BLOCKER_BASE_PX_F * 0.4;
+      else if (isEngaged) speed *= ENGAGED_MULT;
       const dx = targetX - b.x;
       const dy = targetY - b.y;
       const d = Math.sqrt(dx * dx + dy * dy);
-      // Wedge needs RETURNER_PX_F to keep up with the carrier during
-      // escort — at base speed (slower than returner), wedge blockers
-      // got caught from behind and stacked on the returner's position.
-      // During flight they only need base speed to drop back into
-      // formation, so cap the boost to the return phase.
-      let speed;
-      if (a.fails) speed = BLOCKER_BASE_PX_F * 0.4;
-      else if (isWedge && t >= flightT) speed = Math.max(BLOCKER_BASE_PX_F, RETURNER_PX_F);
-      else speed = BLOCKER_BASE_PX_F;
       if (d > 1) {
         b.x += (dx / d) * speed;
         b.y += (dy / d) * speed;
       }
+      // Engagement drift — engaged pair gets shoved upfield by the play.
+      if (isEngaged) {
+        b.x += recvDir * ENGAGE_DRIFT_PX_F;
+      }
+      // Release timer — leads peel off after a brief grapple and convert
+      // to escorts. Real blockers don't latch forever; they rejoin the play.
+      if (isLead && b.engagedSince >= 0 && (frame - b.engagedSince) > ENGAGE_TIMEOUT_FRAMES) {
+        b.released = true;
+        b.engagedSince = -1;
+      }
     }
-    // === ENGAGEMENT (cover held up by blocker) ===
-    // Block only counts if blocker is BETWEEN cover and returner OR
-    // they're essentially overlapping (engaged at the same position).
-    // Two converging players in the open field aren't a block; they're
-    // just passing each other.
+    // === ENGAGEMENT (cov slowed + dragged by lead blocker) ===
     for (let i = 0; i < NUM_COVER; i++) { cover[i].engaged = false; cover[i].engagedBy = -1; }
     for (let bi = 0; bi < NUM_BLOCKERS; bi++) {
+      const b = blockers[bi];
+      if (b.role !== "lead" || b.released) continue;
       const a = blockerAssignments[bi];
       if (a.fails) continue;
-      if (a.targetCov === primaryTacklerIdx) continue;   // primary breaks through
-      const b = blockers[bi];
-      const c = cover[a.targetCov];
+      if (b.targetCov === primaryTacklerIdx) continue;   // primary breaks through
+      const c = cover[b.targetCov];
       const dx = b.x - c.x;
       const dy = b.y - c.y;
       if (dx * dx + dy * dy >= 22 * 22) continue;
-      // Leverage check. Blocker is engaged if:
-      //   - Blocker is on the returner-side of cov (sheilding), OR
-      //   - Cov is very close to returner (within 4 yd), OR
-      //   - Blocker and cov are essentially at the same X (overlap block)
       const covToReturnerX = returner.x - c.x;
       const covToBlockerX  = b.x        - c.x;
       const hasLeverage = covToReturnerX * covToBlockerX > 0
@@ -774,12 +754,7 @@ function _simulateKickoffAgents(opts) {
       c.engaged = true;
       c.engagedBy = bi;
     }
-    // Engaged cov gets DRAGGED toward its blocker — the blocker is
-    // physically pulling/pushing the gunner along, not just slowing
-    // him. Without this, the blocker can drift downfield with the
-    // play and leave the engaged cov "free" (engagement check passes
-    // but cov sprite is far away). 12% drag per frame keeps cov tight
-    // to his blocker for the rest of the play.
+    // Cov gets DRAGGED toward its lead — wrestle physics.
     for (let i = 0; i < NUM_COVER; i++) {
       const c = cover[i];
       if (!c.engaged) continue;
@@ -791,7 +766,7 @@ function _simulateKickoffAgents(opts) {
     frames.push({
       returner: { x: returner.x, y: returner.y },
       cover: cover.map(c => ({ x: c.x, y: c.y, engaged: c.engaged, engagedBy: c.engagedBy })),
-      blockers: blockers.map(b => ({ x: b.x, y: b.y })),
+      blockers: blockers.map(b => ({ x: b.x, y: b.y, role: b.role, released: b.released })),
     });
   }
   return { frames, NUM_FRAMES, DT_MS, duration_ms };
@@ -1073,38 +1048,32 @@ function buildAnimForPlay(play, prevPlay) {
                  { name: "ko-kicker" });
 
       // ── Draw blockers ──
-      // Facing differs by role:
-      //   Wall (outer 6): always faces the INCOMING cover (-recvDir).
-      //                   These guys are blocking gunners coming downfield,
-      //                   so they look at the cover, not the returner.
-      //   Wedge (mid 4): during escort, faces +recvDir (where the returner
-      //                  is going) — they're leading the carrier upfield.
-      // The auto-face by velocity was flipping wall blockers to face the
-      // returner when they stood waiting for cover; that's the "lined up
-      // like receivers" look. "backpedal" + "engage" poses keep
-      // caller-set facing intact.
+      // Pose by role + state. The sim now tags each blocker frame with
+      // its role ("lead" | "escort") and whether a lead has released.
+      //   LEAD pre-contact: "run" — sprinting upfield to meet cov.
+      //   LEAD engaged:     "engage" — wrestling cov, drifting upfield.
+      //   LEAD released → behaves like escort.
+      //   ESCORT pre-snap:  "backpedal" — settling into escort slot
+      //                     without auto-facing the deeper returner.
+      //   ESCORT in motion: "run" — leading the carrier upfield.
+      // All facing = recvDir (toward the play). "engage" / "backpedal"
+      // poses don't auto-face, so the explicit facing sticks.
       for (let i = 0; i < NUM_BLOCKERS; i++) {
         const bpos = snap.blockers[i];
-        const a = blockerAssignments[i];
-        const isWedge = (i >= 3 && i <= 6);
-        const cov = snap.cover[a.targetCov];
-        const engaged = !a.fails && cov &&
-                        ((bpos.x - cov.x) * (bpos.x - cov.x) +
-                         (bpos.y - cov.y) * (bpos.y - cov.y)) < 22 * 22;
+        const isLeadRole = (bpos.role === "lead" && !bpos.released);
+        const isEngaged = !!snap.cover.find(c => c.engagedBy === i);
         let bPose;
-        if (t < FLIGHT_END * 0.05)      bPose = "stance";
-        else if (engaged)               bPose = "engage";
-        else if (t < FLIGHT_END)        bPose = "backpedal";
-        else                            bPose = "run";
+        if (t < FLIGHT_END * 0.05) {
+          bPose = "stance";
+        } else if (isEngaged) {
+          bPose = "engage";
+        } else if (isLeadRole) {
+          bPose = "run";
+        } else {
+          // Escort native, or released lead now escorting.
+          bPose = (t < FLIGHT_END) ? "backpedal" : "run";
+        }
         const bT = (t < 0.95 ? ((performance.now() / 333) + i * 0.17) % 1 : 0);
-        // ALL blockers face +recvDir = toward the incoming cover side
-        // (= same direction the returner is going). Wall faces cov.
-        // Wedge during return faces downfield (returner's direction)
-        // = same direction. Wedge during flight backpedals while still
-        // facing forward (the "backpedal" pose handles the body shape).
-        // Previously was -recvDir, which made the blockers face the
-        // RETURNER (away from cov) — user complaint that "guys on
-        // offense are facing the KR".
         const bFacing = recvDir;
         drawPlayer(ctx, bpos.x, bpos.y, recvTeam.primary, recvTeam.secondary, "",
                    bPose, bT, bFacing, { name: "ko-blocker-" + i });
