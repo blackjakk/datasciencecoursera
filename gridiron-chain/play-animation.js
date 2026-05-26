@@ -3657,9 +3657,26 @@ function buildAnimForPlay(play, prevPlay) {
 
           const isPursuer = _postCatchPursuerSet.has(i) || _isPassTacklerByName;
           if (isPursuer) {
-            // Sync sim once on first pursuit frame.
+            // Sync sim once on first pursuit frame. CRITICAL: if d._sim
+            // doesn't exist yet (defender didn't run pursue() during
+            // pre-throw — e.g. a deep safety whose only motion was the
+            // zone-drop track), CREATE it AT dd.x. The previous code
+            // only synced when d._sim already existed; otherwise pursue()
+            // below would init a fresh sim at d.x (formation position),
+            // and dd.x = sim.x would teleport the defender backward from
+            // the coverage spot to near the formation. That was the
+            // "defender slides backwards on a long pass" glitch.
             if (!d._postCatchSynced) {
-              if (d._sim) { d._sim.x = dd.x; d._sim.y = dd.y; d._sim._lastMs = null; }
+              if (typeof SimPlayer !== "undefined") {
+                if (!d._sim) {
+                  d._sim = new SimPlayer(dd.x, dd.y, {
+                    maxSpeed: SIM_DEFAULTS.MAX_SPEED,
+                    accel: SIM_DEFAULTS.ACCEL,
+                  });
+                } else {
+                  d._sim.x = dd.x; d._sim.y = dd.y; d._sim._lastMs = null;
+                }
+              }
               d._postCatchSynced = true;
             }
             // Pursuit speed factor. Auto-scaled for anyone who NEEDS to
