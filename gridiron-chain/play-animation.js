@@ -694,8 +694,16 @@ function _simulateKickoffAgents(opts) {
           targetX = catchX + recvDir * dxYd;
           targetY = cy + dyYd * PX_PER_YD;
         } else {
+          // Wall blocker — set up at a fixed MEET POINT roughly between
+          // the catch and the kicker line (45% of the way to kicker).
+          // Cov is sprinting from kicker line toward catch; at this meet
+          // point, cov runs INTO the wall and gets engaged. Old target
+          // was catchX + recvDir * 17 — that put wall ~17 yd downfield
+          // of where cov ended up (cov closes 88% to catch by flight
+          // end, so wall ended up FAR DOWNFIELD of cov, then had to run
+          // BACKWARD to engage. "Running all the way back to the KR.")
           const cov = cover[a.targetCov];
-          targetX = catchX + recvDir * 17;
+          targetX = catchX + (kickerLineX - catchX) * 0.45;
           targetY = cov.y;
         }
       } else {
@@ -710,17 +718,13 @@ function _simulateKickoffAgents(opts) {
           targetX = returner.x + recvDir * dxYd;
           targetY = returner.y + dyYd * PX_PER_YD;
         } else {
-          // Wall blocker — engages assigned cov BUT drifts downfield with
-          // the play. Previous behavior froze the blocker at the initial
-          // contact point so once the returner ran past, the wall stayed
-          // behind and looked like static scenery. Now target = 30% from
-          // cov toward returner, which means as the returner advances the
-          // blocker drags the engagement forward. Combined with the
-          // cov-locked-to-blocker logic below, the blocker pulls his
-          // gunner downfield while keeping him out of the play.
+          // Wall blocker — HOLD at the meet point through the return.
+          // Cov is engaged here; returner runs past them. No drift
+          // toward returner (was causing wall to chase the carrier away
+          // from his blocked assignment).
           const cov = cover[a.targetCov];
-          targetX = cov.x + (returner.x - cov.x) * 0.30;
-          targetY = cov.y * 0.70 + returner.y * 0.30;
+          targetX = catchX + (kickerLineX - catchX) * 0.45;
+          targetY = cov.y;
         }
       }
       const dx = targetX - b.x;
@@ -1091,9 +1095,15 @@ function buildAnimForPlay(play, prevPlay) {
         else if (t < FLIGHT_END)        bPose = "backpedal";
         else                            bPose = "run";
         const bT = (t < 0.95 ? ((performance.now() / 333) + i * 0.17) % 1 : 0);
-        // Wedge runs WITH the returner (downfield) once we're past flight.
-        // Wall always faces the incoming gunners.
-        const bFacing = (isWedge && t >= FLIGHT_END) ? recvDir : -recvDir;
+        // ALL blockers face +recvDir = toward the incoming cover side
+        // (= same direction the returner is going). Wall faces cov.
+        // Wedge during return faces downfield (returner's direction)
+        // = same direction. Wedge during flight backpedals while still
+        // facing forward (the "backpedal" pose handles the body shape).
+        // Previously was -recvDir, which made the blockers face the
+        // RETURNER (away from cov) — user complaint that "guys on
+        // offense are facing the KR".
+        const bFacing = recvDir;
         drawPlayer(ctx, bpos.x, bpos.y, recvTeam.primary, recvTeam.secondary, "",
                    bPose, bT, bFacing, { name: "ko-blocker-" + i });
       }
