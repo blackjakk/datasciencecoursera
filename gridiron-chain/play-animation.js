@@ -2894,6 +2894,10 @@ function buildAnimForPlay(play, prevPlay) {
     // tween that compressed long YAC into 2.4s of impossible 17-yps
     // sliding). Initialised lazily on the first post-throw render frame.
     let _wrSim = null;
+    // Downfield-blocker picks. Map from player ref → slot index (0 or 1)
+    // for the two non-target offensive players closest to the carrier
+    // at the catch. Sticky across the play so the same guys block.
+    let _downfieldBlockerMap = null;
     const yac = isComplete ? (play.yac ?? Math.max(0, (play.yards ?? 0) - catchDepth)) : 0;
     // Visual top speed for a WR sprint. ~13 yps is slightly compressed
     // from real NFL top speed (~12) so plays don't feel slow.
@@ -4074,6 +4078,78 @@ function buildAnimForPlay(play, prevPlay) {
         if (p === formation.wr2 && wrChoice === "wr2") return wrWithPose;
         if (p === formation.te && wrChoice === "te") return wrWithPose;
         if (p === formation.rb && wrChoice === "rb") return wrWithPose;
+        // === POST-CATCH DOWNFIELD BLOCKING + TD CELEBRATION ===
+        // Non-target receivers (and the RB if he isn't the target) take
+        // on two roles during the post-catch window:
+        //   - The 2 closest to the carrier become downfield blockers,
+        //     running 6-9 yd ahead of the carrier in offset lanes.
+        //   - On a TD past aT 0.85, nearby teammates converge on the
+        //     scorer for a group celebration.
+        // OL stay at the LOS regardless — they're not downfield blockers
+        // on a pass play (they were pass-blocking the rush).
+        if (play.kind === "complete" && t > throwPhase
+            && p.role !== "QB" && p.role !== "OL"
+            && (p.role === "WR1" || p.role === "WR2" || p.role === "WR3"
+                || p.role === "WR4" || p.role === "WR5"
+                || p.role === "TE1" || p.role === "TE" || p.role === "TE2"
+                || p.role === "RB")) {
+          // Lazy-init blocker picks on first post-catch frame.
+          if (!_downfieldBlockerMap) {
+            const _isTarget = (cand) =>
+                 (cand === formation.wr1 && wrChoice === "wr1")
+              || (cand === formation.wr2 && wrChoice === "wr2")
+              || (cand === formation.te  && wrChoice === "te")
+              || (cand === formation.rb  && wrChoice === "rb");
+            const candidates = [];
+            for (const cand of formation.offense) {
+              if (cand.role === "QB" || cand.role === "OL") continue;
+              if (_isTarget(cand)) continue;
+              const dist = Math.hypot(cand.x - wr.x, cand.y - wr.y);
+              candidates.push({ ref: cand, dist });
+            }
+            candidates.sort((a, b) => a.dist - b.dist);
+            _downfieldBlockerMap = new Map();
+            candidates.slice(0, 2).forEach((c, idx) => _downfieldBlockerMap.set(c.ref, idx));
+          }
+          const isTDCeleb = passIsTD && aT > 0.85;
+          const slotIdx = _downfieldBlockerMap.get(p);   // 0, 1, or undefined
+          let targetX = null, targetY = null, targetPose = "run";
+          if (isTDCeleb) {
+            // Cluster around scorer with deterministic angle per player.
+            const hash = ((p.y * 17 + p.x * 13) >>> 0) % 1000;
+            const angle = (hash / 1000) * Math.PI * 2;
+            const radius = (4 + (hash % 4)) * FIELD.PX_PER_YARD;
+            targetX = wr.x + Math.cos(angle) * radius;
+            targetY = wr.y + Math.sin(angle) * radius;
+            // Once we're close to the target spot, switch to celebrate
+            // pose. Hash gives some celebration variety.
+            const _curX = p._followX != null ? p._followX : p.x;
+            const _curY = p._followY != null ? p._followY : p.y;
+            const _gap = Math.hypot(_curX - targetX, _curY - targetY);
+            targetPose = _gap < 18 ? "celebrate" : "run";
+          } else if (slotIdx != null) {
+            // Downfield blocker — 6-9 yd ahead of carrier, lateral offset.
+            const dxYd = 6 + slotIdx * 3;
+            const dyYd = slotIdx === 0 ? -4 : 4;
+            targetX = wr.x + dir * dxYd * FIELD.PX_PER_YARD;
+            targetY = wr.y + dyYd * FIELD.PX_PER_YARD;
+          }
+          if (targetX != null) {
+            if (p._followX == null) { p._followX = p.x; p._followY = p.y; }
+            // Faster lerp during TD celebration so distant players still
+            // reach the scorer before the play ends.
+            const lerpRate = isTDCeleb ? 0.12 : 0.05;
+            p._followX += (targetX - p._followX) * lerpRate;
+            p._followY += (targetY - p._followY) * lerpRate;
+            return { ...p,
+                     x: p._followX, y: p._followY,
+                     pose: targetPose,
+                     t: targetPose === "celebrate"
+                          ? Math.min(1, (aT - 0.85) / 0.15)
+                          : (t < 0.95 ? ((performance.now() / 333)) % 1 : 0),
+                     facing: dir };
+          }
+        }
         if (p.role === "OL" && aT > 0) {
           if (isScreen) {
             if (aT < 0.2) {
