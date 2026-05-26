@@ -490,6 +490,23 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   const tOverride = _locomotionT(loco, pose, style);
   if (tOverride != null) t = tOverride;
   facing = _locomotionFacing(loco, pose, facing);
+  // SPRITE FAST-PATH (top-down camera only for now). If a PixelLab
+  // sprite is loaded for this pose + 8-direction, draw it and skip
+  // the entire shape-math implementation. Broadcast camera falls
+  // through to the existing projection/queue/pixi pipeline since the
+  // sprite would need its own projection treatment.
+  const _isBroadcast = typeof cameraMode !== "undefined" && cameraMode === "broadcast";
+  if (!_isBroadcast && typeof drawPlayerSprite === "function") {
+    ctx.save();
+    ctx.translate(x, y);
+    const vx = loco && loco.state ? loco.state.vxEMA : 0;
+    const vy = loco && loco.state ? loco.state.vyEMA : 0;
+    if (drawPlayerSprite(ctx, pose, t, vx, vy, color)) {
+      ctx.restore();
+      return;
+    }
+    ctx.restore();
+  }
   // Broadcast camera: queue the draw to the upright overlay so we can
   // depth-sort all sprites before flushing. The frame-end hook
   // (_frameEndBroadcast) sorts by projected-Y (smaller = further away)

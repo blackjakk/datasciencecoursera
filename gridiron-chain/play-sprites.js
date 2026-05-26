@@ -1,187 +1,174 @@
 // ─── Sprite atlas (optional skin for drawPlayer) ────────────────────────
 //
 // Drop-in sprite rendering on top of the existing pose-math drawPlayer.
-// If sprites are loaded for a given pose, the sprite is drawn and the
-// shape-math is skipped. If not, drawPlayer falls back to the
+// If sprites are loaded for a given pose + direction, the sprite is drawn
+// and the shape-math is skipped. If not, drawPlayer falls back to the
 // hand-tuned body-part rendering. Mix and match as you generate assets.
 //
-// HOW TO ADD SPRITES:
+// PIXELLAB ASSET LAYOUT
+// ─────────────────────
 //
-//   1. Generate sprite PNGs in PixelLab.ai (or any tool that produces
-//      consistent characters across poses). Recommended size: 64x64 per
-//      frame, top-down view, white jersey + white helmet so we can
-//      tint per-team at runtime.
+// Each pose lives in its own folder:
 //
-//   2. Drop the PNGs into /gridiron-chain/sprites/ with the filename
-//      pattern below. Example:
+//   sprites/<pose>/<direction>.png         (single-frame poses)
+//   sprites/<pose>/<direction>_<frame>.png (animation cycles)
 //
-//        sprites/player_run.png        → 4-frame strip, 64×256 (4×64)
-//        sprites/player_carry.png      → 4-frame strip, 64×256
-//        sprites/player_tackled.png    → 1 frame,        64×64
-//        sprites/player_hit.png        → 1 frame,        64×64
-//        ...
+// Directions match PixelLab's "low top-down" 8-direction output:
+//   south, south-east, east, north-east, north, north-west, west, south-west
 //
-//      Each strip is HORIZONTAL: frames laid out left-to-right inside
-//      one row of height 64. Frames are read in order for animation
-//      cycles (run pose t=0 → frame 0, t=0.25 → frame 1, etc).
+// Examples:
+//   sprites/idle/south.png                 (mannequin idle, facing camera)
+//   sprites/run/east_0.png ... east_3.png  (4-frame run cycle, facing right)
+//   sprites/tackled/south.png              (single fallen frame)
 //
-//   3. The sprite layer auto-loads any file matching the pattern at
-//      page load. To force a manual load (e.g. for a content drop
-//      after page load) call `SpriteAtlas.preload()`.
+// The atlas auto-loads any matching files at page load. Files that 404
+// are silently treated as "not authored yet" — drawPlayer falls back to
+// canvas pose math for those (pose, direction) combinations.
 //
-//   4. To tint white pixels to team color, sprites are drawn through
-//      an off-screen canvas with a multiply blend against the team
-//      primary color. Sprite outlines stay dark; jersey/helmet white
-//      areas pick up the team color.
+// TEAM COLORS
+// ───────────
+// PixelLab characters are generated in white/grey so we can tint at
+// runtime. Each sprite is recolored once per (pose, direction, color)
+// via multiply blend, then cached.
 //
-// MINIMUM USEFUL ASSET SET (priority order):
-//   P0:  run (4 frames), carry (4), tackled (1), hit (1)
-//   P1:  idle, stance, engage, kick_slide (2), celebrate (4)
-//   P2:  reach, handoff, leap, dive
-//   ...
+// FACING → DIRECTION
+// ──────────────────
+// The game uses ±1 facing + (vx, vy) locomotion velocity. We pick the
+// 8-direction sprite that best matches the player's heading angle.
 
 const _SPRITE_BASE_URL = "sprites/";
-const _SPRITE_FRAME_SIZE = 64;   // px per frame; must match the asset
+const _SPRITE_FRAME_SIZE = 92;   // PixelLab default; tracks generator output
 
-// Pose name → expected frame count. Add entries here as you add poses.
+// Direction order matches PixelLab's rotation set.
+const _DIRECTIONS = [
+  "east", "north-east", "north", "north-west",
+  "west", "south-west", "south", "south-east",
+];
+
+// Pose name → { frames: N, dirs: [...] } — N=1 for single-frame, >1 for
+// animation cycles. Falls back to mid-pose-math if not present.
 const _SPRITE_POSES = {
-  // Locomotion
-  idle:        { frames: 1 },
-  stance:      { frames: 1 },
-  run:         { frames: 4 },
-  carry:       { frames: 4 },
-  churn:       { frames: 4 },
-  backpedal:   { frames: 4 },
-  scrape:      { frames: 4 },
-  release:     { frames: 2 },
-  drop_step:   { frames: 4 },
-  // Catch / handoff
-  reach:       { frames: 1 },
-  catch:       { frames: 1 },
-  handoff:     { frames: 1 },
-  leap:        { frames: 1 },
-  // Blocking
-  engage:      { frames: 2 },
-  kick_slide:  { frames: 2 },
-  block:       { frames: 1 },
-  jam:         { frames: 1 },
-  // Tackle / impact
-  hit:         { frames: 1 },
-  dive:        { frames: 1 },
-  tackled:     { frames: 1 },
-  tumble:      { frames: 1 },
-  spin_fall:   { frames: 1 },
-  ragdoll:     { frames: 1 },
-  sack:        { frames: 1 },
-  stiff:       { frames: 1 },
-  // QB / kicker / specialty
-  throw:       { frames: 4 },
-  kick:        { frames: 4 },
-  // Locomotion variants
-  juke:        { frames: 1 },
-  spin:        { frames: 2 },
-  hurdle:      { frames: 1 },
-  truck:       { frames: 1 },
-  // Celebration
-  celebrate:   { frames: 4 },
-  lateral:     { frames: 1 },
-  point:       { frames: 1 },
+  idle:        { frames: 1, dirs: _DIRECTIONS },
+  stance:      { frames: 1, dirs: _DIRECTIONS },
+  run:         { frames: 4, dirs: _DIRECTIONS },
+  carry:       { frames: 4, dirs: _DIRECTIONS },
+  reach:       { frames: 1, dirs: _DIRECTIONS },
+  handoff:     { frames: 1, dirs: _DIRECTIONS },
+  engage:      { frames: 2, dirs: _DIRECTIONS },
+  kick_slide:  { frames: 2, dirs: _DIRECTIONS },
+  hit:         { frames: 1, dirs: _DIRECTIONS },
+  dive:        { frames: 1, dirs: _DIRECTIONS },
+  tackled:     { frames: 1, dirs: _DIRECTIONS },
+  celebrate:   { frames: 4, dirs: _DIRECTIONS },
+  throw:       { frames: 4, dirs: _DIRECTIONS },
+  kick:        { frames: 4, dirs: _DIRECTIONS },
 };
 
-const _spriteCache = {};         // pose → HTMLImageElement (raw sprite strip)
-const _tintCache = new Map();    // (pose,color) → off-screen canvas (tinted)
-let _spritesEnabled = false;     // flips true once at least one image loads
+// Per-(pose,dir,frame) raw image cache. Keyed "pose|dir|frame".
+const _spriteCache = {};
+// Per-(pose,dir,frame,color) tinted canvas cache.
+const _tintCache = new Map();
+let _spritesEnabled = false;
 
-function _loadSpritePose(pose) {
-  const url = _SPRITE_BASE_URL + "player_" + pose + ".png";
+function _loadSprite(pose, dir, frame) {
+  const key = `${pose}|${dir}|${frame}`;
+  if (_spriteCache[key] !== undefined) return;
+  const fname = frame == null
+    ? `${dir}.png`
+    : `${dir}_${frame}.png`;
+  const url = `${_SPRITE_BASE_URL}${pose}/${fname}`;
   const img = new Image();
   img.crossOrigin = "anonymous";
-  img.onload = () => {
-    _spriteCache[pose] = img;
-    _spritesEnabled = true;
-  };
-  img.onerror = () => {
-    // 404 expected for poses we haven't authored yet — silent.
-    _spriteCache[pose] = null;
-  };
+  img.onload  = () => { _spriteCache[key] = img; _spritesEnabled = true; };
+  img.onerror = () => { _spriteCache[key] = null; };
   img.src = url;
-  _spriteCache[pose] = "loading";
+  _spriteCache[key] = "loading";
 }
 
 function _preloadAllSprites() {
   for (const pose of Object.keys(_SPRITE_POSES)) {
-    if (_spriteCache[pose] === undefined) _loadSpritePose(pose);
+    const def = _SPRITE_POSES[pose];
+    for (const dir of def.dirs) {
+      if (def.frames === 1) {
+        _loadSprite(pose, dir, null);
+      } else {
+        for (let f = 0; f < def.frames; f++) _loadSprite(pose, dir, f);
+      }
+    }
   }
 }
 
 // Public API
 const SpriteAtlas = {
   preload: _preloadAllSprites,
-  isLoaded: (pose) => !!_spriteCache[pose] && _spriteCache[pose] !== "loading",
   anyLoaded: () => _spritesEnabled,
 };
 
-// Tint a sprite strip to team color. Cached per (pose, color) so we
-// only do the multiply blend once per team per pose, not per frame.
-function _tintedSprite(pose, hexColor) {
-  const key = pose + "|" + hexColor;
+// Multiply-blend tint to recolor white pixels to team color. Cached.
+function _tintedSprite(srcImg, key, hexColor) {
   let cached = _tintCache.get(key);
   if (cached) return cached;
-  const src = _spriteCache[pose];
-  if (!src || src === "loading") return null;
   const off = document.createElement("canvas");
-  off.width = src.width;
-  off.height = src.height;
+  off.width = srcImg.width;
+  off.height = srcImg.height;
   const octx = off.getContext("2d");
-  // Draw the raw sprite first.
-  octx.drawImage(src, 0, 0);
-  // Multiply the team color over it — white pixels become team color,
-  // black pixels stay black. Sprite must use WHITE for tintable areas
-  // (jersey, helmet body) and any non-tinted detail in dark grey/black.
+  octx.drawImage(srcImg, 0, 0);
   octx.globalCompositeOperation = "multiply";
   octx.fillStyle = hexColor;
-  octx.fillRect(0, 0, off.width, off.height);
-  // Restore alpha from the original (multiply can darken transparent
-  // pixels into visible darkness without this).
+  octx.fillRect(0, 0, srcImg.width, srcImg.height);
   octx.globalCompositeOperation = "destination-in";
-  octx.drawImage(src, 0, 0);
+  octx.drawImage(srcImg, 0, 0);
   _tintCache.set(key, off);
   return off;
 }
 
+// Map (vx, vy) → 8-direction string. velocity-relative; if stationary
+// or unknown, defaults to "south" (facing the broadcast camera).
+function _velocityToDirection(vx, vy) {
+  if (Math.abs(vx) < 0.05 && Math.abs(vy) < 0.05) return "south";
+  // atan2 returns (-π, π] with 0 = east; we need to map to 8 octants.
+  // In our coord system, +y is DOWN (south) and +x is EAST.
+  // The DIRECTIONS array is ordered starting at east, going CCW visually
+  // (north is up), but on canvas +y goes DOWN. So the octant for an
+  // angle is: 0=east (vx>0,vy=0), 2=north (vy<0), 4=west, 6=south.
+  // atan2(vy, vx) where vy is canvas-down gives clockwise angle from
+  // east, so we negate vy to get CCW math-angle.
+  const ang = Math.atan2(-vy, vx);   // -π..π, CCW from east
+  // Map to 0..8 with 0=east.
+  let octant = Math.round((ang / (Math.PI / 4)) + 8) % 8;
+  // _DIRECTIONS index order: 0=east, 1=NE, 2=N, 3=NW, 4=W, 5=SW, 6=S, 7=SE
+  // Already CCW from east — matches octant.
+  return _DIRECTIONS[octant];
+}
+
 // Draw the player using a sprite if available. Returns true if drawn,
 // false if the caller should fall back to shape rendering.
-//
-// Caller is expected to have already translated the context to (x,y).
-// `t` is the pose-internal time (0..1 for animation cycles, or 0 for
-// single-frame poses). `facing` is +1 (right) or -1 (left); the sprite
-// is horizontally flipped for -1.
-function drawPlayerSprite(ctx, pose, t, facing, teamPrimary) {
+// `ctx` must already be translated/rotated to the player's local origin.
+// `vx`, `vy` are recent velocity (used to pick the 8-direction sprite).
+// `t` is the pose-internal time (0..1 for animation cycles).
+function drawPlayerSprite(ctx, pose, t, vx, vy, teamPrimary) {
   if (!_spritesEnabled) return false;
   const def = _SPRITE_POSES[pose];
   if (!def) return false;
-  const src = _spriteCache[pose];
+  const dir = _velocityToDirection(vx || 0, vy || 0);
+  const frameIdx = def.frames > 1
+    ? Math.floor(Math.max(0, Math.min(0.999, t)) * def.frames)
+    : null;
+  const key = `${pose}|${dir}|${frameIdx == null ? "" : frameIdx}`;
+  const src = _spriteCache[key];
   if (!src || src === "loading") return false;
-  const tinted = teamPrimary ? _tintedSprite(pose, teamPrimary) : src;
-  if (!tinted) return false;
-  const frameCount = Math.max(1, def.frames);
-  const frameIdx = frameCount > 1
-    ? Math.floor(Math.max(0, Math.min(0.999, t)) * frameCount)
-    : 0;
-  const fw = _SPRITE_FRAME_SIZE;
-  const fh = _SPRITE_FRAME_SIZE;
-  const sx = frameIdx * fw;
-  const sy = 0;
-  ctx.save();
-  if (facing < 0) ctx.scale(-1, 1);
-  ctx.drawImage(tinted, sx, sy, fw, fh, -fw / 2, -fh / 2, fw, fh);
-  ctx.restore();
+  const tinted = teamPrimary
+    ? _tintedSprite(src, `${key}|${teamPrimary}`, teamPrimary)
+    : src;
+  const fw = src.width;
+  const fh = src.height;
+  // Sprite is drawn centered on the player's local origin.
+  ctx.drawImage(tinted, -fw / 2, -fh / 2);
   return true;
 }
 
 // Auto-preload at module load.
 if (typeof window !== "undefined") {
-  // Defer one tick so script-tag load order doesn't matter.
   setTimeout(_preloadAllSprites, 0);
   window.SpriteAtlas = SpriteAtlas;
   window.drawPlayerSprite = drawPlayerSprite;
