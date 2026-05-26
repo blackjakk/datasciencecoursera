@@ -3580,10 +3580,25 @@ function buildAnimForPlay(play, prevPlay) {
         // pursuer, sprinting at top speed from his coverage spot. The
         // tackle EMERGES when his sim catches the carrier instead of
         // being a snap-to-waypoint at a predetermined endpoint.
-        if (play.kind === "complete" && t > throwPhase) {
-          // Build the pursuit set on the first post-throw frame: the
-          // named tackler is always in it, plus the 2 closest other
-          // defenders (the natural "convergers"). Rest hold their zone.
+        // === POST-CATCH DEFENDER STATE MACHINE ===
+        // Replaces the prior scattered logic: path A (sim pursuit + contact
+        // snap), path B (guaranteed tackler position blend), and the unified
+        // tackle-event pose override. ONE block now owns the entire post-
+        // throw pursuit-through-tackle sequence.
+        //
+        // States (derived per-frame from observable facts — not stored):
+        //   PURSUE     pursuer not yet in contact → sim physics, "run"
+        //   CONTACT    pursuer within CONTACT_DIST, aT < TACKLE_START_AT → "engage"
+        //   DOWN       pursuer within CONTACT_DIST (or named/cover), aT > TACKLE_START_AT → "hit"
+        //   HOLD_ZONE  non-pursuer → upstream zone-drop track wins; no-op
+        //
+        // INT and dropped-pick are handled in dedicated blocks BELOW; the
+        // state machine skips them.
+        const _isDroppedPickDropper = play.isDroppedPick && i === intDefIdx;
+        const _isIntCarrier         = play.kind === "int" && i === intDefIdx;
+        if (play.kind === "complete" && t > throwPhase
+            && !_isIntCarrier && !_isDroppedPickDropper) {
+          // Build pursuit set ONCE on first post-throw frame.
           const POST_CATCH_PURSUERS = 2;
           if (!_postCatchPursuerSet) {
             const candidates = [];
@@ -3596,113 +3611,95 @@ function buildAnimForPlay(play, prevPlay) {
             }
             candidates.sort((a, b) => a.dist - b.dist);
             _postCatchPursuerSet = new Set(candidates.slice(0, POST_CATCH_PURSUERS).map(c => c.j));
-            // ALWAYS include the cover defender — they're already next to
-            // the WR at catch and need to physically drive into the
-            // tackle, not stay parked in their zone-drop position.
-            // Excluding them (the old behavior, justified by "they have
-            // path B for guaranteed positioning") meant they did nothing
-            // when the engine emitted a tackler track for someone else:
-            // the unified tackle-event block then couldn't see them as
-            // close to the carrier and they stayed upright.
+            // Cover defender always pursues — they're already next to the
+            // WR at catch. Excluding them used to leave them parked in the
+            // zone-drop position when the engine emitted a track for a
+            // different tackler; they then never reached the carrier and
+            // the unified tackle block couldn't see them as close.
             _postCatchPursuerSet.add(intDefIdx);
           }
-          const inPursuit = _postCatchPursuerSet.has(i) || _isPassTacklerByName;
-          if (inPursuit) {
-            const isCB  = i === idxCB1 || i === idxCB2;
-            const isSaf = i === idxS1  || i === idxS2;
-            // Sync SimPlayer state with the defender's CURRENT rendered
-            // position (which is the coverage spot from the zone-drop
-            // track) before the first sim step. Without this the sim
-            // starts from formation home and teleports back to coverage
-            // on the first frame post-throw.
+
+          const isPursuer = _postCatchPursuerSet.has(i) || _isPassTacklerByName;
+          if (isPursuer) {
+            // Sync sim once on first pursuit frame.
             if (!d._postCatchSynced) {
-              if (d._sim) {
-                d._sim.x = dd.x; d._sim.y = dd.y;
-                d._sim._lastMs = null;
-              }
+              if (d._sim) { d._sim.x = dd.x; d._sim.y = dd.y; d._sim._lastMs = null; }
               d._postCatchSynced = true;
             }
-            const elapsedMs = Math.max(0, (t - throwPhase) * dur);
-            // Named tackler speed AUTO-SCALES per-play so he arrives at
-            // the carrier by tackle time. Big YAC plays leave the
-            // tackler far behind at fixed 1.25x; he can't close 20+ yd
-            // in the remaining post-catch window. Now we compute the
-            // speed actually needed (distance to carrier / time until
-            // tackle pose) and bump the factor to make that — capped
-            // at 2.0x base to avoid superhuman closing on small gaps.
+            // Pursuit speed factor. Auto-scaled for anyone who NEEDS to
+            // close by the tackle window (named tackler + cover defender).
+            // Other pursuers use a fixed base factor.
+            const isCB  = i === idxCB1 || i === idxCB2;
+            const isSaf = i === idxS1  || i === idxS2;
             let factor = _isPassTacklerByName ? 1.25
                        : isCB ? 1.05 : isSaf ? 1.0 : 0.95;
-            if (_isPassTacklerByName) {
-              const TACKLE_AT = 0.78;
+            const _needArrival = _isPassTacklerByName || i === intDefIdx;
+            if (_needArrival) {
               const distRemaining = Math.hypot(ballX - dd.x, ballY - dd.y);
-              const timeRemaining = (TACKLE_AT - aT) * dur;
+              const timeRemaining = (tackleEvent.fallStartT - aT) * dur;
               if (timeRemaining > 80 && distRemaining > 12) {
                 const speedNeededPxSec = (distRemaining / timeRemaining) * 1000;
                 const neededFactor = speedNeededPxSec / SIM_DEFAULTS.MAX_SPEED;
-                // Cap at 2.5x base (~24 yps visual = top-end NFL sprint).
-                // For huge YAC plays where the tackler simply can't close in
-                // the remaining time, the cap binds — but at least he's
-                // visibly closing instead of standing still 20 yd behind.
                 factor = Math.min(2.5, Math.max(factor, neededFactor));
               }
             }
+            // Step sim toward the carrier.
+            const elapsedMs = Math.max(0, (t - throwPhase) * dur);
             const np = pursue(dd, ballX, ballY, elapsedMs, factor);
             dd.x = np.x; dd.y = np.y;
-            // COLLISION SEPARATION — never let the pursuer occupy the
-            // carrier's exact position. When the sim gets within
-            // CONTACT_DIST, push the defender back along the approach
-            // vector so the two sprites stay visually separated as a
-            // tackle pair instead of merging. Smaller distance reads
-            // as contact (sprites visibly touching); previous 15 px
-            // ≈ 1 yd left them clearly apart and "not tackling".
-            const CONTACT_DIST = 10;   // ~0.67 yd — sprites partially overlap
-            const distToCar = Math.hypot(dd.x - ballX, dd.y - ballY);
-            if (distToCar < CONTACT_DIST) {
+
+            // Backup positioning for the cover defender — blend toward the
+            // tackle spot if the sim is still too far. Replaces the old
+            // path B that ran unconditionally; now scoped to "sim not
+            // close enough yet".
+            const CONTACT_DIST = 10;
+            let _distToCar = Math.hypot(dd.x - ballX, dd.y - ballY);
+            if (i === intDefIdx && _distToCar > CONTACT_DIST * 3) {
+              const tackleX = endX - dir * 5;
+              const tackleY = finalY + 4;
+              const arrProgress = clamp((t - throwPhase) / Math.max(0.001, (PRE + (1 - PRE) * tackleEvent.fallStartT) - throwPhase), 0, 1);
+              const blend = arrProgress * arrProgress;
+              dd.x = dd.x + (tackleX - dd.x) * blend;
+              dd.y = dd.y + (tackleY - dd.y) * blend;
+              if (d._sim) { d._sim.x = dd.x; d._sim.y = dd.y; }
+              _distToCar = Math.hypot(dd.x - ballX, dd.y - ballY);
+            }
+
+            // Contact snap — never let pursuer overlap carrier.
+            const inContact = _distToCar < CONTACT_DIST;
+            if (inContact) {
               const ang = Math.atan2(dd.y - ballY, dd.x - ballX);
               dd.x = ballX + Math.cos(ang) * CONTACT_DIST;
               dd.y = ballY + Math.sin(ang) * CONTACT_DIST;
-              // Light velocity damping (was 0.30 → too aggressive, sim
-              // took 1.5 s to re-accelerate from damped speed and the
-              // carrier pulled away on bigger YAC plays). 0.65 keeps
-              // most of the velocity so the defender can keep pace
-              // with the carrier during the wrap.
               if (d._sim) {
                 d._sim.x = dd.x; d._sim.y = dd.y;
                 d._sim.vx *= 0.65; d._sim.vy *= 0.65;
               }
-              // Pre-tackle contact = engage. The unified tackleEvent block
-              // at the end of this iteration handles the "hit" pose during
-              // the tackle window for ALL close defenders, named or not.
+            }
+
+            // State → pose. Single decision point.
+            dd.facing = -dir;
+            const _atTackleWindow = aT > tackleEvent.fallStartT;
+            const _isLockedTackler = _isPassTacklerByName || i === intDefIdx;
+            if (_atTackleWindow && (inContact || _isLockedTackler)) {
+              // DOWN
+              dd.pose = "hit";
+              dd.t = Math.min(1, (aT - tackleEvent.fallStartT) / (1 - tackleEvent.fallStartT));
+              if (_isPassTacklerByName) {
+                const _tVx = d._sim ? d._sim.vx : 0;
+                const _comb = tackleEvent.carrierVx + _tVx;
+                dd.fallDir = -(_comb * dir < 0 ? -1 : 1);
+              } else {
+                dd.fallDir = -1;
+              }
+            } else if (inContact) {
+              // CONTACT (pre-tackle)
               dd.pose = "engage";
               dd.t = (t < 0.95 ? ((performance.now() / 333)) % 1 : 0);
             }
-            if (_isPassTacklerByName) dd.facing = -dir;
+            // else PURSUE — pose stays "run" from upstream sim/track.
           }
-        }
-        // GUARANTEED TACKLER — the assigned coverage defender arrives at the
-        // carrier's final position by the tackle window. Without this, big YAC
-        // plays would show the WR getting "tackled" by no one (the slow pursue
-        // function couldn't close 30+yd gaps before the tackle pose kicked in).
-        // Skip when motion is driving a NAMED tackler — they're already
-        // at the YAC endpoint via the track.
-        if (play.kind === "complete" && i === intDefIdx && t > throwPhase && !_passTacklerTrack) {
-          // Where the cover defender was at the catch moment
-          const cbStartX = d.x + dir * catchDepth * 0.85 * FIELD.PX_PER_YARD;
-          const cbStartY = d.y;
-          // Tackle spot — just behind & lateral to the carrier (so the hit is visible)
-          const tackleX = endX - dir * 5;
-          const tackleY = finalY + 4;
-          // Progress from catch → tackle moment
-          const tackleStartT = PRE + (1 - PRE) * 0.78;  // matches TACKLE_START_AT
-          const arrProgress = clamp((t - throwPhase) / Math.max(0.001, tackleStartT - throwPhase), 0, 1);
-          dd.x = cbStartX + (tackleX - cbStartX) * easeOutCubic(arrProgress);
-          dd.y = cbStartY + (tackleY - cbStartY) * easeOutCubic(arrProgress);
-          // Position only — the unified tackleEvent block at the end of
-          // this iteration sets the "hit" pose for this defender (he's
-          // the intDefIdx → automatically falls during the tackle window).
-          dd.pose = "run";
-          dd.t = (t < 0.95 ? ((performance.now() / 333) + i * 0.13) % 1 : 0);
-          dd.facing = -dir;
+          // Non-pursuers: HOLD_ZONE — upstream zone-drop track set pose+pos.
         }
         // INT — the picking defender races to the catch spot, then carries the ball back
         if (play.kind === "int" && i === intDefIdx) {
@@ -3740,33 +3737,6 @@ function buildAnimForPlay(play, prevPlay) {
             // After the drop — frustrated, on the ground
             dd.pose = "tackled";
             dd.t = Math.min(1, (t - throwPhase - 0.15) / 0.2);
-          }
-        }
-        // === UNIFIED TACKLE-EVENT POSE OVERRIDE ===
-        // Single source of truth for "who falls on the tackle". Runs after
-        // all position logic. Skips INT (different play.kind) and the
-        // dropped-pick dropper (they have their own pose chain above and
-        // it would be wrong to override the dropper's frustrated-on-ground
-        // pose with a "hit" tackle pose).
-        const _isDroppedPickDropper = play.isDroppedPick && i === intDefIdx;
-        if (play.kind === "complete" && !_isDroppedPickDropper
-            && aT > tackleEvent.fallStartT) {
-          const _distToCar = Math.hypot(dd.x - ballX, dd.y - ballY);
-          const _isNamed = !!(d.name && tackleEvent.primaryTacklerName
-                              && d.name === tackleEvent.primaryTacklerName);
-          const _isGuaranteed = (i === tackleEvent.intDefIdx);
-          const _isClose = _distToCar < tackleEvent.contactDist;
-          if (_isNamed || _isGuaranteed || _isClose) {
-            dd.pose = "hit";
-            dd.t = Math.min(1, (aT - tackleEvent.fallStartT) / (1 - tackleEvent.fallStartT));
-            dd.facing = -dir;
-            if (_isNamed) {
-              const _tVx = d._sim ? d._sim.vx : 0;
-              const _comb = tackleEvent.carrierVx + _tVx;
-              dd.fallDir = -(_comb * dir < 0 ? -1 : 1);
-            } else {
-              dd.fallDir = -1;   // mirror carrier's default forward fall
-            }
           }
         }
         return dd;
