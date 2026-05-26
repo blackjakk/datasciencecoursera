@@ -916,6 +916,24 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
       bodyDY = -(Math.abs(ph) * 0.4 + 0.2) * rs.bob;
       break;
     }
+    case "handoff": {
+      // Receiving a HANDOFF — arms in front at belly level, forming a
+      // pocket for the ball. Distinct from "reach" (arms over head for
+      // a high catch). Legs keep run-cycle.
+      const ph = runPhase;
+      lLeg =  ph * legAmp;
+      rLeg = -ph * legAmp;
+      lLegLift = Math.max(0, -ph) * 7;
+      rLegLift = Math.max(0,  ph) * 7;
+      // Arms ~45° forward of straight-down (-π/4 ≈ -0.78) — pocket at
+      // belly level, palms-up implied.
+      lArm = -0.95;
+      rArm = -0.95;
+      armReachY = 0;
+      bodyTilt = facing * rs.lean * 0.4;
+      bodyDY = -(Math.abs(ph) * 0.3 + 0.1) * rs.bob;
+      break;
+    }
     case "celebrate": {
       // celebStyle dispatches the celebration variant. Default = both
       // arms raised high with a slight wave / bounce.

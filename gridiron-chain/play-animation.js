@@ -1913,10 +1913,10 @@ function buildAnimForPlay(play, prevPlay) {
         if (runT < 0.34)        rbPose = "throw";   // looking downfield, ball cocked
         else                     rbPose = "carry";
       } else if (isQBRun) {
-        if (runT < 0.16)        rbPose = "reach";
+        if (runT < 0.16)        rbPose = "handoff";  // arms at belly, not over head
         else                     rbPose = "carry";
       } else {
-        if (runT < 0.14)        rbPose = "reach";
+        if (runT < 0.14)        rbPose = "handoff";  // arms at belly, not over head
         else if (runT < 0.30)   rbPose = "run";
         else                     rbPose = "churn";   // high-knee carry through cruise
 
@@ -2499,8 +2499,19 @@ function buildAnimForPlay(play, prevPlay) {
           const targetY = clamp(rb.y + Math.sin(angle) * radius,
                                 FIELD.TOP + 20, FIELD.BOT - 20);
           if (p._followX == null) { p._followX = p.x; p._followY = p.y; }
-          p._followX += (targetX - p._followX) * 0.13;
-          p._followY += (targetY - p._followY) * 0.13;
+          // Speed-cap the converge motion at ~14 yps so celebrators
+          // don't sprint superhumanly (lerp 0.13/frame was ~60 yps).
+          const _fdx = targetX - p._followX;
+          const _fdy = targetY - p._followY;
+          const _fd  = Math.hypot(_fdx, _fdy);
+          const _maxPF = 14 * FIELD.PX_PER_YARD * 16 / 1000;   // ≈3.36 px/frame
+          if (_fd > _maxPF) {
+            p._followX += (_fdx / _fd) * _maxPF;
+            p._followY += (_fdy / _fd) * _maxPF;
+          } else {
+            p._followX = targetX;
+            p._followY = targetY;
+          }
           const _gap = Math.hypot(p._followX - targetX, p._followY - targetY);
           const celebPose = _gap < 18 ? "celebrate" : "run";
           return { ...p,
@@ -4130,7 +4141,7 @@ function buildAnimForPlay(play, prevPlay) {
         if (play.isFleaFlicker && p === formation.rb && aTRaw < FLICKER_END) {
           const fT = aTRaw / FLICKER_END;
           let rbPose = "carry";
-          if (fT < 0.30) rbPose = "reach";              // taking the handoff
+          if (fT < 0.30) rbPose = "handoff";            // arms at belly for the handoff
           else if (fT < 0.50) rbPose = "carry";          // sprinting forward
           else if (fT < 0.80) rbPose = "throw";          // pitching back (cradle/cock)
           else rbPose = "stance";                        // settled, decoy
@@ -4225,11 +4236,24 @@ function buildAnimForPlay(play, prevPlay) {
           }
           if (targetX != null) {
             if (p._followX == null) { p._followX = p.x; p._followY = p.y; }
-            // Faster lerp during TD celebration so distant players still
-            // reach the scorer before the play ends.
-            const lerpRate = isTDCeleb ? 0.12 : 0.05;
-            p._followX += (targetX - p._followX) * lerpRate;
-            p._followY += (targetY - p._followY) * lerpRate;
+            // Speed-capped converge motion. The old lerp rate (0.13 for
+            // celebration, 0.05 for downfield blocking) put players at
+            // 40-60 yps in early frames when the gap was large —
+            // superhuman. Cap at 14 yps (celebration sprint) or 12 yps
+            // (downfield jog) so the motion reads as running, not
+            // teleporting. The convergence point itself is still met.
+            const _maxYPSps = isTDCeleb ? 14 : 12;
+            const _maxPF = _maxYPSps * FIELD.PX_PER_YARD * 16 / 1000;
+            const _fdx = targetX - p._followX;
+            const _fdy = targetY - p._followY;
+            const _fd  = Math.hypot(_fdx, _fdy);
+            if (_fd > _maxPF) {
+              p._followX += (_fdx / _fd) * _maxPF;
+              p._followY += (_fdy / _fd) * _maxPF;
+            } else {
+              p._followX = targetX;
+              p._followY = targetY;
+            }
             return { ...p,
                      x: p._followX, y: p._followY,
                      pose: targetPose,
@@ -4264,6 +4288,23 @@ function buildAnimForPlay(play, prevPlay) {
                    pose: "kick_slide",
                    t: ((t * (dur / 1000)) * 2.2) % 1,
                    facing: dir, archetype: olArch };
+        }
+        // RB / FB pass-block. A non-target RB or FB stays in the
+        // backfield in pass-pro — slides slightly, scans for blitzers,
+        // engages the same kick-slide footwork the OL uses. Without
+        // this branch the RB falls through to the "idle" catch-all
+        // (line 4326) and stands motionless through the whole play.
+        if ((p.role === "RB" || p.role === "FB") && aT > 0 && !isScreen) {
+          const tt = Math.min(1, aT / 0.55);
+          // Slide back ~1.5 yd off the snap, hold position. Lateral
+          // drift toward the play side so the back faces the rusher.
+          const slideX = -dir * tt * 1.5;
+          const slideY = (cy - p.y) * Math.min(1, tt * 1.3) * 0.10;
+          return { ...p,
+                   x: p.x + slideX, y: p.y + slideY,
+                   pose: "kick_slide",
+                   t: ((t * (dur / 1000)) * 2.0) % 1,
+                   facing: dir };
         }
         // Non-targeted receivers run REAL routes (decoys clear coverage).
         // First ~20% = RELEASE pose (explosive first step), then transition
