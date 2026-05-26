@@ -3273,6 +3273,22 @@ function buildAnimForPlay(play, prevPlay) {
       const breakingRusher = play.kind === "complete" && (play.yards ?? 0) > 5 ? -1
                            : play.kind === "incomplete" ? -1
                            : 1;  // one rusher breaks through on tight throws/INTs
+      // TACKLE EVENT — single source of truth for "who falls on the tackle".
+      // Computed once per play. The defender map below consults this at the
+      // end of each iteration to override per-defender pose to "hit" when
+      // (a) named tackler, (b) the guaranteed cover defender, or (c) any
+      // pursuer in contact during the tackle window. This replaces the
+      // three scattered pose-decision branches that used to disagree about
+      // who got "hit" vs "engage" vs the broken "tackle" pose.
+      const TACKLE_START_AT = 0.78;
+      const _carrierVx = (endX - targetX) / Math.max(0.1, (1 - throwPhase) * dur / 1000);
+      const tackleEvent = {
+        fallStartT: TACKLE_START_AT,
+        primaryTacklerName: (play.motion && play.motion.tacklerName) || null,
+        intDefIdx,
+        carrierVx: _carrierVx,
+        contactDist: 16,   // a hair more lenient than the sim's CONTACT_DIST=10
+      };
       const def = formation.defense.map((d, i) => {
         const dd = { ...d };
         dd.t = (t < 0.95 ? ((performance.now() / 333) + i * 0.13) % 1 : 0);
@@ -3645,32 +3661,13 @@ function buildAnimForPlay(play, prevPlay) {
                 d._sim.x = dd.x; d._sim.y = dd.y;
                 d._sim.vx *= 0.65; d._sim.vy *= 0.65;
               }
-              // Any defender in contact during the tackle window falls
-              // to "hit" pose. Previously this was named-tackler-only
-              // and everyone else stayed in "engage" — so a cover CB
-              // standing on the WR at catch kept standing upright while
-              // the WR keeled over. fallDir uses combined momentum for
-              // the named tackler (we have his sim vx); incidental
-              // pile-on defenders default to forward fall.
-              if (aT > 0.78) {
-                dd.pose = "hit";
-                dd.t = Math.min(1, (aT - 0.78) / 0.22);
-                if (_isPassTacklerByName) {
-                  const _pcSec = Math.max(0.1, (1 - throwPhase) * dur / 1000);
-                  const _cVx = (endX - targetX) / _pcSec;
-                  const _tVx = d._sim ? d._sim.vx : 0;
-                  const _comb = _cVx + _tVx;
-                  const _cFall = (_comb * dir < 0) ? -1 : 1;
-                  dd.fallDir = -_cFall;
-                } else {
-                  dd.fallDir = -1;   // mirror carrier's forward fall
-                }
-              } else {
-                dd.pose = "engage";
-                dd.t = (t < 0.95 ? ((performance.now() / 333)) % 1 : 0);
-              }
+              // Pre-tackle contact = engage. The unified tackleEvent block
+              // at the end of this iteration handles the "hit" pose during
+              // the tackle window for ALL close defenders, named or not.
+              dd.pose = "engage";
+              dd.t = (t < 0.95 ? ((performance.now() / 333)) % 1 : 0);
             }
-            if (aT > 0.78 || _isPassTacklerByName) dd.facing = -dir;
+            if (_isPassTacklerByName) dd.facing = -dir;
           }
         }
         // GUARANTEED TACKLER — the assigned coverage defender arrives at the
@@ -3691,22 +3688,11 @@ function buildAnimForPlay(play, prevPlay) {
           const arrProgress = clamp((t - throwPhase) / Math.max(0.001, tackleStartT - throwPhase), 0, 1);
           dd.x = cbStartX + (tackleX - cbStartX) * easeOutCubic(arrProgress);
           dd.y = cbStartY + (tackleY - cbStartY) * easeOutCubic(arrProgress);
-          // Once we've arrived, drive the "hit" pose across the remaining
-          // window so the defender rotates to horizontal alongside the
-          // carrier's "tackled" pose. Was setting dd.pose = "tackle" — a
-          // typo (no such pose in the switch), so the defender stood
-          // upright through the entire tackle window. fallDir = -1 makes
-          // the defender's body rotate the SAME physical direction as a
-          // forward-falling carrier (carrier faces +dir, defender -dir).
-          if (arrProgress < 1) {
-            dd.pose = "run";
-            dd.t = (t < 0.95 ? ((performance.now() / 333) + i * 0.13) % 1 : 0);
-          } else {
-            const _fallT = clamp((t - tackleStartT) / Math.max(0.001, 1 - tackleStartT), 0, 1);
-            dd.pose = "hit";
-            dd.t = _fallT;
-            dd.fallDir = -1;
-          }
+          // Position only — the unified tackleEvent block at the end of
+          // this iteration sets the "hit" pose for this defender (he's
+          // the intDefIdx → automatically falls during the tackle window).
+          dd.pose = "run";
+          dd.t = (t < 0.95 ? ((performance.now() / 333) + i * 0.13) % 1 : 0);
           dd.facing = -dir;
         }
         // INT — the picking defender races to the catch spot, then carries the ball back
@@ -3745,6 +3731,33 @@ function buildAnimForPlay(play, prevPlay) {
             // After the drop — frustrated, on the ground
             dd.pose = "tackled";
             dd.t = Math.min(1, (t - throwPhase - 0.15) / 0.2);
+          }
+        }
+        // === UNIFIED TACKLE-EVENT POSE OVERRIDE ===
+        // Single source of truth for "who falls on the tackle". Runs after
+        // all position logic. Skips INT (different play.kind) and the
+        // dropped-pick dropper (they have their own pose chain above and
+        // it would be wrong to override the dropper's frustrated-on-ground
+        // pose with a "hit" tackle pose).
+        const _isDroppedPickDropper = play.isDroppedPick && i === intDefIdx;
+        if (play.kind === "complete" && !_isDroppedPickDropper
+            && aT > tackleEvent.fallStartT) {
+          const _distToCar = Math.hypot(dd.x - ballX, dd.y - ballY);
+          const _isNamed = !!(d.name && tackleEvent.primaryTacklerName
+                              && d.name === tackleEvent.primaryTacklerName);
+          const _isGuaranteed = (i === tackleEvent.intDefIdx) && !_passTacklerTrack;
+          const _isClose = _distToCar < tackleEvent.contactDist;
+          if (_isNamed || _isGuaranteed || _isClose) {
+            dd.pose = "hit";
+            dd.t = Math.min(1, (aT - tackleEvent.fallStartT) / (1 - tackleEvent.fallStartT));
+            dd.facing = -dir;
+            if (_isNamed) {
+              const _tVx = d._sim ? d._sim.vx : 0;
+              const _comb = tackleEvent.carrierVx + _tVx;
+              dd.fallDir = -(_comb * dir < 0 ? -1 : 1);
+            } else {
+              dd.fallDir = -1;   // mirror carrier's default forward fall
+            }
           }
         }
         return dd;
@@ -3845,7 +3858,6 @@ function buildAnimForPlay(play, prevPlay) {
       // Tackle window: after catch we let the carrier run YAC, then a few
       // tenths in the defenders close in. Start of tackle = TackleFrac of
       // action time; ragdoll plays out from there to the end.
-      const TACKLE_START_AT = 0.78;   // 22% of action time devoted to tackle+ragdoll
       const passIsTD = (play.endYard ?? 0) >= 100;
       // First 20% of the route window = RELEASE pose (explosive first
       // step off the LOS). After that, standard run until catch.
