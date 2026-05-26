@@ -1361,11 +1361,25 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
       bodyDY = Math.sin(t * Math.PI * 6 * dyMul) * 0.4;
       break;
     }
-    case "sack":
-      lArm = -0.6; rArm = -0.6;
-      lLeg = -0.5; rLeg = 0.5;
-      bodyTilt = facing * 0.25;
+    case "sack": {
+      // Sacker driving QB down. Like "hit", body rotates to horizontal
+      // during follow-through — defender ends up on the ground with the
+      // QB. Previously sack pose was a static "stand and wrap" stance,
+      // which the user called out: "never seen a defender fall on the
+      // ground ever".
+      const ph = Math.min(1, Math.max(0, t));
+      const fallEase = ph * ph * (3 - 2 * ph);
+      const fallDir = (style && style.fallDir) || 1;
+      lArm = -0.6;
+      rArm = -0.6;
+      lLeg = -0.5 - fallEase * 0.3;
+      rLeg = 0.5 + fallEase * 0.3;
+      // bodyTilt fades during follow as bodyRot takes over (horizontal).
+      bodyTilt = facing * 0.25 * (1 - fallEase);
+      bodyRot = (Math.PI / 2) * facing * fallDir * fallEase * 0.85;
+      bodyDY = fallEase * 4;
       break;
+    }
     case "kick":
       lArm = -0.4; rArm = -0.8;
       lLeg = -1.4;

@@ -718,12 +718,14 @@ function _simulateKickoffAgents(opts) {
           targetX = returner.x + recvDir * dxYd;
           targetY = returner.y + dyYd * PX_PER_YD;
         } else {
-          // Wall blocker — HOLD at the meet point through the return.
-          // Cov is engaged here; returner runs past them. No drift
-          // toward returner (was causing wall to chase the carrier away
-          // from his blocked assignment).
+          // Wall blocker — anchored ~24 yd in front of the returner,
+          // tracking cov's lane. Advances with the play (wall + cov
+          // get dragged downfield together by the blocker-lock).
+          // Holding still at the meet point made wall look "stuck at
+          // the 50". Now it advances forward with the returner so
+          // half the return team isn't a statue.
           const cov = cover[a.targetCov];
-          targetX = catchX + (kickerLineX - catchX) * 0.45;
+          targetX = returner.x + recvDir * 24;
           targetY = cov.y;
         }
       }
@@ -4315,8 +4317,17 @@ function buildAnimForPlay(play, prevPlay) {
           qb.x = qb.x + (endX - qb.x) * fallT;
           qb.y = qb.y + fallTilt * fallT * 4;
           qbPose = "tackled";
+        } else if (tt < 0.30) {
+          // Dropback — use drop_step pose, NOT "run". The run pose
+          // auto-faces by velocity, so dropping back (moving -dir)
+          // flipped the QB's facing to -dir = "facing his own
+          // endzone". drop_step keeps caller-set facing intact.
+          qbPose = "drop_step";
         } else {
-          qbPose = "run";
+          // Post-dropback, pre-contact — QB is scanning. Use "throw"
+          // pose (cradled ball at chest, scanning) which also keeps
+          // caller-set facing.
+          qbPose = "throw";
         }
       }
       const def = formation.defense.map((d, i) => {
@@ -4387,9 +4398,18 @@ function buildAnimForPlay(play, prevPlay) {
             const np = pursue(dd, qb.x + dir * 2 + angleOffset, qb.y + (isSecondary ? 6 : 0), _rushElapsed, isPrimary ? 1.0 : 0.85);
             dd.x = np.x; dd.y = np.y;
             if (!np.moved) dd.t = 0;
-            if (isPrimary && tt > contactT + 0.03) dd.pose = "sack";
-            else if (isSecondary && tt > contactT + 0.05) dd.pose = "sack";
-            else dd.pose = "run";
+            if (isPrimary && tt > contactT + 0.03) {
+              dd.pose = "sack";
+              // Pose progress drives the fall animation (drive → crumple
+              // → horizontal). Was using wall-clock stride; sack pose
+              // ended at "still standing wrapping the QB".
+              dd.t = Math.min(1, (tt - contactT) / Math.max(0.001, 1 - contactT));
+            } else if (isSecondary && tt > contactT + 0.05) {
+              dd.pose = "sack";
+              dd.t = Math.min(1, (tt - contactT - 0.05) / Math.max(0.001, 0.95 - contactT));
+            } else {
+              dd.pose = "run";
+            }
           }
         } else if (i >= 4 && i <= 6) {
           // LBs spy the QB but stay disciplined — drift toward him slowly
