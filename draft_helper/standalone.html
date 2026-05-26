@@ -7721,8 +7721,9 @@ let cursor = 0;               // index into DATA.schedule
 
 (async function init() {
   DATA = EMBEDDED_DATA;
-  applyKeepersAtStart();
   loadStateFromURL();
+  applyKeepersAtStart();
+  recomputeCursor();
   refresh();
   document.getElementById("search").addEventListener("input", e => { searchQ = e.target.value.toLowerCase().trim(); renderPlayerList(); });
   document.querySelectorAll(".pos-btn").forEach(b => b.addEventListener("click", e => {
@@ -7738,32 +7739,40 @@ let cursor = 0;               // index into DATA.schedule
 
 // ---------- KEEPERS ----------
 function applyKeepersAtStart() {
-  // Pre-place each manager's keepers at their effective_forfeit_round on the
-  // FIRST pick that manager owns in that round (with multi-pick support).
-  // Mark those slots in DATA.schedule with a `keeper_for` field.
+  // Pre-place each manager's keepers on their effective_forfeit_round slot.
+  // Sets player + is_keeper on the schedule entry AND adds to pickOrder so
+  // the roster panel shows keepers immediately.
   const keepersByTeam = {};
   for (const k of DATA.keepers) {
-    // team_idx in keepers_2026.json is roster_id-1, NOT slot-1. Translate
-    // via SLOT_TO_RID.
-    const slot = DATA.managers.find(m => m.roster_id === k.roster_id);
-    if (!slot) continue;
-    const tIdx = slot.team_idx;
-    (keepersByTeam[tIdx] = keepersByTeam[tIdx] || []).push(k);
+    const mgr = DATA.managers.find(m => m.roster_id === k.roster_id);
+    if (!mgr) continue;
+    (keepersByTeam[mgr.team_idx] = keepersByTeam[mgr.team_idx] || []).push(k);
   }
-  // For each team_idx, fill their picks in the effective_forfeit_round buckets.
   for (const [tIdx, ks] of Object.entries(keepersByTeam)) {
     const ti = +tIdx;
-    const consumed = new Set();
+    const consumed = new Set(
+      pickOrder.filter(p => p.team_idx === ti).map(p => p.overall)
+    );
     for (const k of ks) {
+      if (drafted.has(k.player_name)) continue;
       const forfeit = k.effective_forfeit_round || k.forfeit_round;
-      // Find earliest matching unconsumed pick for this team in that round
       const pick = DATA.schedule.find(p =>
-        p.round === forfeit && p.team_idx === ti && !consumed.has(p.overall)
+        p.round === forfeit && p.team_idx === ti && !consumed.has(p.overall) && !p.player
       );
       if (!pick) continue;
-      pick.keeper_for = k.player_name;
+      pick.player = k.player_name;
+      pick.is_keeper = true;
+      pickOrder.push(pick);
+      drafted.add(k.player_name);
       consumed.add(pick.overall);
     }
+  }
+}
+
+function recomputeCursor() {
+  cursor = 0;
+  while (cursor < DATA.schedule.length && DATA.schedule[cursor].player) {
+    cursor++;
   }
 }
 
@@ -7771,7 +7780,10 @@ function applyKeepersAtStart() {
 let suppressHashChange = false;
 function saveStateToURL() {
   suppressHashChange = true;
-  const compact = pickOrder.map(p => `${p.overall}:${encodeURIComponent(p.player)}`).join(",");
+  // Only save USER picks — keepers are deterministic and replaced on load
+  const compact = pickOrder
+    .filter(p => !p.is_keeper)
+    .map(p => `${p.overall}:${encodeURIComponent(p.player)}`).join(",");
   history.replaceState(null, "", "#" + compact);
   setTimeout(() => suppressHashChange = false, 50);
 }
@@ -7781,17 +7793,18 @@ function loadStateFromURL() {
   const items = h.split(",").filter(Boolean);
   pickOrder = [];
   drafted = new Set();
+  // Wipe any prior assignments on schedule
+  for (const p of DATA.schedule) { delete p.player; delete p.is_keeper; }
   for (const it of items) {
     const [overall, ...rest] = it.split(":");
     const pn = decodeURIComponent(rest.join(":"));
     const p = DATA.schedule.find(x => x.overall === +overall);
     if (!p) continue;
     p.player = pn;
+    p.is_keeper = false;
     pickOrder.push(p);
     drafted.add(pn);
   }
-  // Set cursor to next pick
-  cursor = pickOrder.length;
 }
 
 // ---------- DRAFT ACTIONS ----------
@@ -7800,54 +7813,32 @@ function draftPlayer(name) {
   if (cursor >= DATA.schedule.length) return;
   const slot = DATA.schedule[cursor];
   slot.player = name;
+  slot.is_keeper = false;
   pickOrder.push(slot);
   drafted.add(name);
-  cursor++;
-  // Auto-advance through keeper slots if next pick has a keeper
-  while (cursor < DATA.schedule.length && DATA.schedule[cursor].keeper_for) {
-    const ks = DATA.schedule[cursor];
-    ks.player = ks.keeper_for;
-    pickOrder.push(ks);
-    drafted.add(ks.keeper_for);
-    cursor++;
-  }
-  saveStateToURL();
-  refresh();
-}
-function undo() {
-  if (!pickOrder.length) return;
-  const last = pickOrder.pop();
-  drafted.delete(last.player);
-  delete last.player;
-  cursor--;
-  // Also rewind through any preceding keeper auto-placements
-  while (cursor > 0 && DATA.schedule[cursor - 1].keeper_for &&
-         DATA.schedule[cursor - 1].player === DATA.schedule[cursor - 1].keeper_for) {
-    const prev = pickOrder.pop();
-    drafted.delete(prev.player);
-    delete prev.player;
-    cursor--;
-  }
+  recomputeCursor();  // skips any subsequent keeper slots
   saveStateToURL();
   refresh();
 }
 
-// ---------- INITIAL KEEPER PLACEMENT ----------
-function autoAdvanceKeepers() {
-  // On first load, auto-place any keepers that occur before the first non-keeper pick
-  while (cursor < DATA.schedule.length && DATA.schedule[cursor].keeper_for &&
-         !DATA.schedule[cursor].player) {
-    const ks = DATA.schedule[cursor];
-    ks.player = ks.keeper_for;
-    pickOrder.push(ks);
-    drafted.add(ks.keeper_for);
-    cursor++;
+function undo() {
+  // Pop the most recent USER pick (skip keepers — they're not undoable)
+  for (let i = pickOrder.length - 1; i >= 0; i--) {
+    if (!pickOrder[i].is_keeper) {
+      const [p] = pickOrder.splice(i, 1);
+      drafted.delete(p.player);
+      delete p.player;
+      delete p.is_keeper;
+      recomputeCursor();
+      saveStateToURL();
+      refresh();
+      return;
+    }
   }
 }
 
 // ---------- RENDER ----------
 function refresh() {
-  autoAdvanceKeepers();
   renderClock();
   renderPlayerList();
   renderRoster();
@@ -7915,7 +7906,9 @@ function renderPlayerList() {
 function renderRoster() {
   const r = document.getElementById("roster");
   r.innerHTML = "";
-  const myPicks = pickOrder.filter(p => p.team_idx === DATA.my_team_idx);
+  // Pull straight from schedule so keepers + user picks both show
+  const myPicks = DATA.schedule
+    .filter(p => p.team_idx === DATA.my_team_idx && p.player);
   const totalProj = myPicks.reduce((s, p) => {
     const pp = DATA.players.find(x => x.name === p.player);
     return s + (pp ? pp.proj : 0);
@@ -7930,7 +7923,7 @@ function renderRoster() {
   }
   for (const pos of ['QB','RB','WR','TE','K','DEF']) {
     for (const player of byPos[pos]) {
-      const isKeeper = player.keeper_for;
+      const isKeeper = player.is_keeper;
       const row = document.createElement("div");
       row.className = "roster-row" + (isKeeper ? " keeper-row" : "");
       row.style.borderLeftColor = `var(--${pos.toLowerCase()})`;
@@ -8008,11 +8001,13 @@ function recReason(p, pick, counts, needPos) {
 function renderHistory() {
   const h = document.getElementById("history");
   h.innerHTML = "";
-  const last = pickOrder.slice(-15).reverse();
+  // Show picks in actual draft order (overall), up to cursor.
+  const happened = DATA.schedule.slice(0, cursor).filter(p => p.player);
+  const last = happened.slice(-15).reverse();
   for (const p of last) {
     const mgr = DATA.managers.find(m => m.team_idx === p.team_idx);
     const player = DATA.players.find(x => x.name === p.player) || {pos: '?'};
-    const isKeeper = p.keeper_for;
+    const isKeeper = p.is_keeper;
     const isMe = p.team_idx === DATA.my_team_idx;
     const row = document.createElement("div");
     row.className = "history-row" + (isMe ? " mine" : "");
