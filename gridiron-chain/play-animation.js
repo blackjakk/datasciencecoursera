@@ -1573,6 +1573,9 @@ function buildAnimForPlay(play, prevPlay) {
   if (play.kind === "run") {
     const yards = play.yards ?? 0;
     const isTD = (play.endYard ?? 0) >= 100;
+    // First-down runs get an extra beat for the carrier to get up and
+    // signal first down. Match definition used by the chyron card.
+    const isFirstDownRun = !isTD && (play.down ?? 0) > 0 && yards >= (play.ytg ?? 0);
     // TD runs: push the endX 5 yards INTO the endzone so the carrier
     // runs THROUGH the goal line and celebrates in the EZ instead of
     // stopping at the white stripe.
@@ -1580,7 +1583,10 @@ function buildAnimForPlay(play, prevPlay) {
     // Extra time at the end. Non-TDs get a tackle-ragdoll window; TDs
     // get a celebration window where the scorer raises arms + a banner
     // flashes. Big-play TDs get more celebration time — let it breathe.
-    const RUN_TACKLE_MS = isTD ? Math.round(1500 + Math.min(Math.abs(yards), 80) * 8) : 1000;
+    // First downs add ~700ms for the get-up + signal beat.
+    const RUN_TACKLE_MS = isTD ? Math.round(1500 + Math.min(Math.abs(yards), 80) * 8)
+                         : isFirstDownRun ? 1700
+                         : 1000;
     const actionDur = scaledDuration(yards) + RUN_TACKLE_MS;
     const dur = actionDur + PRE_MS;
     PRE = PRE_MS / dur;
@@ -1940,7 +1946,19 @@ function buildAnimForPlay(play, prevPlay) {
       // Tackle window — start at runT 0.72 (~28% of action devoted to tackle
       // + ragdoll roll-around) so the play doesn't end the instant the
       // carrier is touched.
-      if (runT > 0.72 && yards < 90 && !isTD) {
+      // First-down sequence: 0.72-0.85 ragdoll (handled by the next
+      // branch below, since !isTD covers FD too), 0.85-0.90 stand up,
+      // 0.90+ signal first down. TDs use 0.88+ for celebrate (handled
+      // further down). For first downs we INTERRUPT the ragdoll branch
+      // at 0.85 by branching here first.
+      if (isFirstDownRun && runT > 0.85 && runT < 0.90) {
+        rbPose = "stance";   // "back to feet" — abrupt transition for now
+        rbT = 0;
+      } else if (isFirstDownRun && runT >= 0.90) {
+        rbPose = "celebrate";
+        rbT = Math.min(1, (runT - 0.90) / 0.10);
+        rb.celebStyle = "first_down";
+      } else if (runT > 0.72 && yards < 90 && !isTD) {
         // Carrier ragdoll. The impact FEEL comes from the player's own
         // motion (launch + spin) plus brief time dilation, NOT dust/
         // shake noise. force scales the launch velocity and a slow-mo
@@ -2004,10 +2022,15 @@ function buildAnimForPlay(play, prevPlay) {
         }
         stepRagdoll(formation.rb, nowMs, 8);
         rbPose = "ragdoll";
-      } else if (runT > 0.72 && isTD) {
-        // TD CELEBRATION — arms up, bouncing in the end zone
+      } else if (runT > 0.88 && isTD) {
+        // TD CELEBRATION — only AFTER the carrier has visibly crossed
+        // the plane. Old threshold 0.72 had the RB switching to a
+        // stationary celebrate pose before he'd even crossed the goal
+        // line, which read as "play cuts off the instant he enters
+        // the endzone". endX is goalLine + 5yd, so by runT 0.88 the
+        // carrier is well past the goal line.
         rbPose = "celebrate";
-        rbT = Math.min(1, (runT - 0.72) / 0.28);
+        rbT = Math.min(1, (runT - 0.88) / 0.12);
       }
       // EARLY CRUISE: ELUSIVE → juke; POWER → truck stick at/just past the line.
       // Moves happen during cruise (0.22 - 0.72) since tackle now starts at 0.72.
@@ -2879,15 +2902,20 @@ function buildAnimForPlay(play, prevPlay) {
       : scaledDuration(Math.max(play.targetDepth ?? 0, play.yards ?? 0, 8));
     // Receiving TDs get extra post-catch time for the celebration banner.
     const isPassTD = play.kind === "complete" && (play.endYard ?? 0) >= 100;
+    // First-down catches get a "tackle + get up + signal first down" beat.
+    const isFirstDownPassPlay = play.kind === "complete" && !isPassTD
+                               && (play.down ?? 0) > 0 && (play.yards ?? 0) >= (play.ytg ?? 0);
     const screenYacMs = isScreen ? scaledDuration(Math.abs(play.yards || 0)) + 600 : 0;
     // POST_CATCH_MS sized to let everything SETTLE before the play ends.
     // Tackle pose engages at aT > 0.78 (or on contact) and needs ~22% of
     // action time to play out a complete fall. Plus secondary pursuers,
     // dive attempts, and blocks need time to land. With the old 1700 ms,
     // the action ended with people still mid-air. 2400 ms is the
-    // settle-friendly target for complete passes.
+    // settle-friendly target for complete passes. First downs add ~600 ms
+    // so the get-up + signal beat is visible.
     const POST_CATCH_MS = isPassTD                  ? Math.max(2400, screenYacMs + 600)
                         : isScreen && play.kind === "complete"  ? screenYacMs
+                        : isFirstDownPassPlay       ? 3000
                         : play.kind === "complete"  ? 2400
                         : play.kind === "int"       ? 1800
                         : play.kind === "incomplete" ? 250
@@ -3896,17 +3924,22 @@ function buildAnimForPlay(play, prevPlay) {
           }
         }
       }
+      // First-down catch: after the tackle pose has held, the WR pops
+      // back up and signals first down. Detection matches the chyron card.
+      const isFirstDownPass = !passIsTD && play.kind === "complete"
+                              && (play.down ?? 0) > 0 && (play.yards ?? 0) >= (play.ytg ?? 0);
       const wrPose = t < PRE
         ? "idle"
         : (wrIntPose
         || (inWRJukeWindow ? "juke"
         :  (inLeapWindow ? "leap"
         :  (isCatching ? "reach"
-        :  (isPostCatch && aT > TACKLE_START_AT && passIsTD ? "celebrate"
+        :  (isPostCatch && aT > 0.90 && passIsTD ? "celebrate"
+        :  (isPostCatch && aT > 0.92 && isFirstDownPass ? "celebrate"
         :  (_isTackleNow ? _wrFallPose
         :  (isPostCatch ? "carry"
         :  (inRelease ? "release"
-        :   "run"))))))));
+        :   "run")))))))));
       const wrIsTackled = wrPose === "tackled" || wrPose === "tumble" || wrPose === "spin_fall";
       // For the tackled fall, pass fall-progress (not stride cycle).
       // For run/carry, drive stride off wall time at ~2 strides/sec.
@@ -3923,6 +3956,9 @@ function buildAnimForPlay(play, prevPlay) {
         // (only used by spin_fall pose).
         fallDir: wrIsTackled ? _wrFallDir : undefined,
         sideDir: wrIsTackled ? _wrSideDir : undefined,
+        // First-down signal — drives the celebrate pose's first_down
+        // variant in play-render.js (chopping arm in play direction).
+        celebStyle: (isPostCatch && aT > 0.92 && isFirstDownPass) ? "first_down" : wr.celebStyle,
       };
       const off = formation.offense.map(p => {
         if (p.role === "QB") return qbWithPose;

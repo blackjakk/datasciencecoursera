@@ -917,13 +917,56 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
       break;
     }
     case "celebrate": {
-      // TD celebration — both arms raised high, slight wave, body
-      // bouncing in place. t goes 0→1 across the celebration window.
-      lArm = -2.4 + Math.sin(t * Math.PI * 5) * 0.35;
-      rArm = -2.4 + Math.sin(t * Math.PI * 5 + Math.PI * 0.5) * 0.35;
-      armReachY = -4 + Math.sin(t * Math.PI * 4) * 1.2;
-      bodyDY = -2 - Math.abs(Math.sin(t * Math.PI * 4)) * 2;
-      bodyTilt = Math.sin(t * Math.PI * 6) * 0.04;
+      // celebStyle dispatches the celebration variant. Default = both
+      // arms raised high with a slight wave / bounce.
+      const cs = celebStyle;
+      if (cs === "ref_signal") {
+        lArm = -Math.PI; rArm = -Math.PI;
+      } else if (cs === "spike") {
+        const phase = (t * 1.2) % 1;
+        const cock = phase < 0.4 ? phase / 0.4 : 1;
+        const swing = phase < 0.4 ? 0 : (phase - 0.4) / 0.6;
+        lArm = -Math.PI * (1 - swing * 0.7) + (1 - cock) * 0.6;
+        rArm = 0.3;
+        leftHandBall = phase < 0.55;
+      } else if (cs === "fist_pump") {
+        lArm = -Math.PI * 0.78 - Math.abs(Math.sin(t * Math.PI * 5)) * 0.25;
+        rArm = 0.4;
+      } else if (cs === "first_down") {
+        // First-down signal — chopping arm motion in the play direction.
+        // facing carries the offensive direction; the arm swings forward
+        // (toward the line to gain) with a clear chop.
+        const chop = Math.sin(t * Math.PI * 4);
+        lArm = -Math.PI * 0.45 + chop * 0.55;   // chops between mostly-down and mostly-up-forward
+        rArm = 0.3;
+        bodyTilt = facing * 0.10;
+        bodyDY = -1;
+      } else if (cs === "point_sky") {
+        lArm = -Math.PI; rArm = -Math.PI;
+      } else if (cs === "shimmy") {
+        bodyRot = Math.sin(t * Math.PI * 6) * 0.12;
+        lArm = -0.4 + Math.sin(t * Math.PI * 5) * 0.6;
+        rArm = 0.4 - Math.sin(t * Math.PI * 5) * 0.6;
+      } else if (cs === "bow") {
+        bodyTilt = facing * 0.6;
+        lArm = -0.3; rArm = 0.3;
+      } else if (cs === "leap_yell") {
+        bodyDY = -Math.abs(Math.sin(t * Math.PI * 2)) * 5;
+        lArm = -Math.PI * 0.8;
+        rArm = -Math.PI * 0.8;
+      } else if (cs === "kneel") {
+        bodyDY = 4;
+        lLeg = 0.9; rLeg = -0.3;
+        lArm = -0.6; rArm = 0.2;
+        bodyTilt = facing * 0.15;
+      } else {
+        // Default — both arms raised high, slight wave, body bouncing.
+        lArm = -2.4 + Math.sin(t * Math.PI * 5) * 0.35;
+        rArm = -2.4 + Math.sin(t * Math.PI * 5 + Math.PI * 0.5) * 0.35;
+        armReachY = -4 + Math.sin(t * Math.PI * 4) * 1.2;
+        bodyDY = -2 - Math.abs(Math.sin(t * Math.PI * 4)) * 2;
+        bodyTilt = Math.sin(t * Math.PI * 6) * 0.04;
+      }
       break;
     }
     case "leap": {
@@ -948,47 +991,7 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
       rLeg = -0.25;
       break;
     }
-    case "celebrate": {
-      const cs = celebStyle;
-      if (cs === "ref_signal") {
-        lArm = -Math.PI; rArm = -Math.PI;
-      } else if (cs === "spike") {
-        const phase = (t * 1.2) % 1;
-        const cock = phase < 0.4 ? phase / 0.4 : 1;
-        const swing = phase < 0.4 ? 0 : (phase - 0.4) / 0.6;
-        lArm = -Math.PI * (1 - swing * 0.7) + (1 - cock) * 0.6;
-        rArm = 0.3;
-        leftHandBall = phase < 0.55;
-      } else if (cs === "fist_pump") {
-        lArm = -Math.PI * 0.78 - Math.abs(Math.sin(t * Math.PI * 5)) * 0.25;
-        rArm = 0.4;
-      } else if (cs === "first_down") {
-        lArm = Math.PI * 0.5;
-        rArm = -0.4;
-        bodyTilt = facing * 0.1;
-      } else if (cs === "point_sky") {
-        lArm = -Math.PI; rArm = -Math.PI;
-      } else if (cs === "shimmy") {
-        bodyRot = Math.sin(t * Math.PI * 6) * 0.12;
-        lArm = -0.4 + Math.sin(t * Math.PI * 5) * 0.6;
-        rArm = 0.4 - Math.sin(t * Math.PI * 5) * 0.6;
-      } else if (cs === "bow") {
-        bodyTilt = facing * 0.6;
-        lArm = -0.3; rArm = 0.3;
-      } else if (cs === "leap_yell") {
-        bodyDY = -Math.abs(Math.sin(t * Math.PI * 2)) * 5;
-        lArm = -Math.PI * 0.8;
-        rArm = -Math.PI * 0.8;
-      } else if (cs === "kneel") {
-        bodyDY = 4;
-        lLeg = 0.9; rLeg = -0.3;
-        lArm = -0.6; rArm = 0.2;
-        bodyTilt = facing * 0.15;
-      } else {
-        lArm = -2.3; rArm = 2.3;
-      }
-      break;
-    }
+    // (second "celebrate" case merged into the first, above)
     case "juke":
       bodyRot = facing * 0.35;
       lArm = 0.4;  rArm = -0.4;
