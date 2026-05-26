@@ -3879,14 +3879,30 @@ function buildAnimForPlay(play, prevPlay) {
       // so the fall-variant logic below can pick the right pose. The
       // variant is computed AFTER `def` is built so it can read the
       // tackler's sim velocity for the momentum model.
+      //
+      // CONTACT-DRIVEN tackle: the receiver only goes to a fall pose
+      // when the named tackler is actually CLOSE (within ~1.2 yd) — or
+      // as a fallback at the very end of the play (aT > 0.92). Previous
+      // version triggered the fall purely on the aT > 0.78 timer, so
+      // any play where the tackler couldn't catch up (big YAC, hard
+      // auto-scale cap) had the receiver fall over with nobody near him.
+      const _outerTacklerName = play.motion && play.motion.tacklerName;
+      let _defenderNearby = false;
+      if (_outerTacklerName) {
+        const _tk = def.find(d => d && d.name === _outerTacklerName);
+        if (_tk) {
+          const _distToTackler = Math.hypot(_tk.x - wr.x, _tk.y - wr.y);
+          _defenderNearby = _distToTackler < 18;   // ~1.2 yd center-to-center
+        }
+      }
       const _isTackleNow = play.kind === "complete" && t > throwPhase + 0.10
-                         && aT > TACKLE_START_AT && (play.yards ?? 0) < 90;
+                         && aT > TACKLE_START_AT && (play.yards ?? 0) < 90
+                         && (_defenderNearby || aT > 0.92);
       // FALL VARIANT — picked from combined-momentum physics before the
       // wrPose chain runs. Three poses available:
       //   tackled   – default ragdoll (rotates 90° to horizontal)
       //   tumble    – big chase tackle, carrier rolls 270° head-over-heels
       //   spin_fall – side hit, carrier spins to one side
-      const _outerTacklerName = play.motion && play.motion.tacklerName;
       let _wrFallDir = 1;
       let _wrSideDir = 1;
       let _wrFallPose = "tackled";
