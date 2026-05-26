@@ -1292,9 +1292,14 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
       // Default +1 (head in facing direction); the pass-play tackler
       // code sets it to match the combined-momentum direction so both
       // tackler and carrier fall the same physical way.
+      // IMPACT is brief — first ~15% of the window. FOLLOW starts at
+      // ph=0.18 and reaches full horizontal by ph=1.0. Previously the
+      // fall didn't start until ph=0.5 and capped at 81% rotation, so
+      // a defender at play-end was still mostly upright — the user's
+      // "never seen a defender fall" was largely this.
       const ph = Math.min(1, Math.max(0, t));
-      const impact = Math.sin(Math.min(1, ph * 1.8) * Math.PI);
-      const followT = Math.max(0, ph - 0.5) / 0.5;       // 0→1 across follow
+      const impact = Math.sin(Math.min(1, ph * 3.3) * Math.PI);   // bell peaks ph≈0.15
+      const followT = Math.max(0, ph - 0.18) / 0.82;              // 0→1 across follow
       const followEase = followT * followT * (3 - 2 * followT);
       const fallDir = (style && style.fallDir) || 1;
       lArm = -1.6 + ph * 0.5;
@@ -1305,12 +1310,10 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
       // bodyTilt = impact lean. Fades out during follow as bodyRot takes
       // over and the body rotates to horizontal.
       bodyTilt = facing * (0.25 + impact * 0.20) * (1 - followEase);
-      // bodyRot rotates to ~horizontal during the follow phase. Same
-      // formula shape as the "tackled" pose so a tackler and his
-      // carrier end up oriented the same physical direction.
-      bodyRot = (Math.PI / 2) * facing * fallDir * followEase * 0.90;
-      // Pop up at impact peak, then drop ALL THE WAY DOWN onto the pile
-      bodyDY = -0.5 - impact * 1.4 + followEase * 4.5;
+      // bodyRot rotates to full horizontal during the follow phase.
+      bodyRot = (Math.PI / 2) * facing * fallDir * followEase;
+      // Pop up at impact peak, then drop ALL THE WAY DOWN onto the pile.
+      bodyDY = -0.5 - impact * 1.4 + followEase * 5.0;
       break;
     }
     case "dive": {

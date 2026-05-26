@@ -3693,7 +3693,22 @@ function buildAnimForPlay(play, prevPlay) {
           const arrProgress = clamp((t - throwPhase) / Math.max(0.001, tackleStartT - throwPhase), 0, 1);
           dd.x = cbStartX + (tackleX - cbStartX) * easeOutCubic(arrProgress);
           dd.y = cbStartY + (tackleY - cbStartY) * easeOutCubic(arrProgress);
-          dd.pose = arrProgress > 0.92 ? "tackle" : "run";
+          // Once we've arrived, drive the "hit" pose across the remaining
+          // window so the defender rotates to horizontal alongside the
+          // carrier's "tackled" pose. Was setting dd.pose = "tackle" — a
+          // typo (no such pose in the switch), so the defender stood
+          // upright through the entire tackle window. fallDir = -1 makes
+          // the defender's body rotate the SAME physical direction as a
+          // forward-falling carrier (carrier faces +dir, defender -dir).
+          if (arrProgress < 1) {
+            dd.pose = "run";
+            dd.t = (t < 0.95 ? ((performance.now() / 333) + i * 0.13) % 1 : 0);
+          } else {
+            const _fallT = clamp((t - tackleStartT) / Math.max(0.001, 1 - tackleStartT), 0, 1);
+            dd.pose = "hit";
+            dd.t = _fallT;
+            dd.fallDir = -1;
+          }
           dd.facing = -dir;
         }
         // INT — the picking defender races to the catch spot, then carries the ball back
