@@ -3967,8 +3967,18 @@ function buildAnimForPlay(play, prevPlay) {
         :   "run")))))))));
       const wrIsTackled = wrPose === "tackled" || wrPose === "tumble" || wrPose === "spin_fall";
       // For the tackled fall, pass fall-progress (not stride cycle).
-      // For run/carry, drive stride off wall time at ~2 strides/sec.
-      const strideHz = 2.0;
+      // For run/carry, scale stride frequency with the carrier's actual
+      // motion speed — fixed 2 Hz meant a long YAC TD covered 6+ yd
+      // per stride while the legs cycled at jogging pace ("stuttered
+      // to the endzone"). Natural stride is ~2 yd; strideHz = yps / 2,
+      // clamped to a believable 2.5–5.5 Hz range.
+      let strideHz = 3.0;   // baseline for pre-catch route running
+      if (isPostCatch) {
+        const _postCatchYds = Math.abs(_effEndX - targetX) / FIELD.PX_PER_YARD;
+        const _postCatchSec = Math.max(0.3, (1 - throwPhase) * dur / 1000);
+        const _carrierYPS = _postCatchYds / _postCatchSec;
+        strideHz = clamp(_carrierYPS / 2, 2.5, 5.5);
+      }
       const wrTackleT = wrIsTackled ? Math.min(1, (aT - TACKLE_START_AT) / (1 - TACKLE_START_AT))
                        : inLeapWindow ? leapInternalT
                        : ((t * (dur / 1000)) * strideHz) % 1;
