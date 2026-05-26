@@ -36,6 +36,10 @@ jobs:
           cp play-*.js play.css dist/
           cp -r vendor portraits career dist/
         working-directory: gridiron-chain
+      - name: Copy draft_helper into dist/draft_helper
+        run: |
+          mkdir -p gridiron-chain/dist/draft_helper
+          cp -r draft_helper/* gridiron-chain/dist/draft_helper/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
