@@ -2930,10 +2930,16 @@ function buildAnimForPlay(play, prevPlay) {
     // Receiving TDs get extra post-catch time for the celebration banner.
     const isPassTD = play.kind === "complete" && (play.endYard ?? 0) >= 100;
     const screenYacMs = isScreen ? scaledDuration(Math.abs(play.yards || 0)) + 600 : 0;
+    // POST_CATCH_MS sized to let everything SETTLE before the play ends.
+    // Tackle pose engages at aT > 0.78 (or on contact) and needs ~22% of
+    // action time to play out a complete fall. Plus secondary pursuers,
+    // dive attempts, and blocks need time to land. With the old 1700 ms,
+    // the action ended with people still mid-air. 2400 ms is the
+    // settle-friendly target for complete passes.
     const POST_CATCH_MS = isPassTD                  ? Math.max(2400, screenYacMs + 600)
                         : isScreen && play.kind === "complete"  ? screenYacMs
-                        : play.kind === "complete"  ? 1700
-                        : play.kind === "int"       ? 1500
+                        : play.kind === "complete"  ? 2400
+                        : play.kind === "int"       ? 1800
                         : play.kind === "incomplete" ? 250
                         : 1000;
     const actionDur = basePass + POST_CATCH_MS;
