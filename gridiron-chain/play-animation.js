@@ -614,12 +614,20 @@ function _simulateKickoffAgents(opts) {
   // no one runs free past the blockers (the prior split with 4 unblocked
   // interior cov was the "defenders walk into the returner" bug). Only
   // the primary tackler (exempted from engagement, below) breaks through.
+  //
+  // _engaged is a per-blocker STICKY flag. Initial contact requires
+  // distance + leverage, but once latched on the pair stays locked even
+  // as drift shuffles their relative positions — the old leverage check
+  // broke engagement after ~10 frames because |covToBlockerX| crossed
+  // 3 px once drift pushed the lead upfield of the cov, and the cov
+  // sprinted free.
   const blockers = [];
   for (let i = 0; i < NUM_BLOCKERS; i++) {
     blockers.push({
       x: blockerStartX, y: blockerLanes[i],
       role: "lead",
       targetCov: i,
+      _engaged: false,
     });
   }
   const returner = { x: catchX, y: cy };
@@ -691,7 +699,21 @@ function _simulateKickoffAgents(opts) {
       if (!a.fails && b.targetCov !== primaryTacklerIdx) {
         const dxc = b.x - cov.x;
         const dyc = b.y - cov.y;
-        if (dxc * dxc + dyc * dyc < 22 * 22) {
+        const distSq = dxc * dxc + dyc * dyc;
+        if (b._engaged) {
+          // STICKY: keep engaged until the pair is clearly separated.
+          // 36 px ≈ 2.4 yd — well past the initial 22 px contact radius
+          // so normal drift jitter doesn't release.
+          if (distSq < 36 * 36) {
+            isEngaged = true;
+            cov.engaged = true;
+            cov.engagedBy = i;
+          } else {
+            b._engaged = false;
+          }
+        } else if (distSq < 22 * 22) {
+          // First contact — leverage required so head-on convergences
+          // don't engage as "passing each other in open field".
           const covToReturnerX = returner.x - cov.x;
           const covToBlockerX  = b.x - cov.x;
           if (covToReturnerX * covToBlockerX > 0
@@ -700,6 +722,7 @@ function _simulateKickoffAgents(opts) {
             isEngaged = true;
             cov.engaged = true;
             cov.engagedBy = i;
+            b._engaged = true;
           }
         }
       }
