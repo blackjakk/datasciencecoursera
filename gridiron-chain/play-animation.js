@@ -4849,7 +4849,21 @@ function buildAnimForPlay(play, prevPlay) {
           ballX = holderX + (goalX - holderX) * kt * reach;
           ballY = holderY;
           arc = Math.sin(kt * Math.PI) * 50;
+        } else if (missType === "good") {
+          // Ball clears the crossbar and continues PAST the uprights.
+          // Without overshoot + lingering elevation, the ball lands at
+          // (goalX, cy, arc=0) — looks like it stopped at the posts =
+          // looks like a miss. Now it flies past the posts at altitude.
+          const endXForGood = goalX + dir * 30;   // 2 yds past the uprights
+          ballX = holderX + (endXForGood - holderX) * kt;
+          ballY = cy;
+          // Asymmetric arc: peak at kt=0.55, still 60px elevated at kt=1
+          // so the ball is well over the crossbar as it crosses.
+          arc = kt < 0.55
+              ? Math.sin(kt / 0.55 * Math.PI / 2) * 110
+              : 110 - (kt - 0.55) / 0.45 * (110 - 60);
         } else {
+          // wide_l / wide_r — lands on the ground beside the uprights.
           let goalY = cy;
           if (missType === "wide_l") goalY = cy - HASH_HALF - 8;
           else if (missType === "wide_r") goalY = cy + HASH_HALF + 8;
@@ -6720,8 +6734,19 @@ function buildCinemaAnim(play, prevPlay) {
         if (missType === "wide_l") ballLat = -3.5 * Math.min(1, tt * 1.2);
         else if (missType === "wide_r") ballLat = 3.5 * Math.min(1, tt * 1.2);
         else if (missType === "short") { reach = 0.72; }
-        ballWX = holderWX + (goalWX - holderWX) * tt * reach;
-        ballArc = Math.sin(tt * Math.PI) * 200 * (missType === "short" ? 0.6 : 1);
+        // Good kicks OVERSHOOT the goalposts and stay elevated as they
+        // cross, so the ball visibly clears the crossbar instead of
+        // landing exactly at the post (which reads as a miss).
+        if (missType === "good") {
+          const overshoot = 4 * CINEMA.pxPerYard;
+          ballWX = holderWX + (goalWX + overshoot - holderWX) * tt;
+          ballArc = tt < 0.55
+                  ? Math.sin(tt / 0.55 * Math.PI / 2) * 240
+                  : 240 - (tt - 0.55) / 0.45 * (240 - 130);
+        } else {
+          ballWX = holderWX + (goalWX - holderWX) * tt * reach;
+          ballArc = Math.sin(tt * Math.PI) * 200 * (missType === "short" ? 0.6 : 1);
+        }
       }
       setCamFromCarrier((holderWX + goalWX) / 2);
       drawCinemaField(ctx, homeTeam, awayTeam, { losYard: startYardAbs });
