@@ -561,17 +561,20 @@ function _stPlayDuration(opts) { return _stPlayTiming(opts).duration; }
 //     same place at the same time — that's how the visual matches
 //     the engine's emitted tackler without snapping anyone.
 // Agent-based KR sim. Two roles only:
-//   LEAD (6): assigned to one cov. Target = cov's CURRENT position
-//             (not a fixed field coord). Always closing on a moving
-//             threat, so never stuck. On contact, brief grapple, then
-//             release and convert to escort.
-//   ESCORT (4): no cov assignment. Target = a position relative to the
-//               RETURNER (varying depth/width slots). Always moves with
-//               the carrier — never anchored to midfield.
+//   LEAD (6): assigned to one cov, SAME Y lane. Target = cov's CURRENT
+//             position (not a fixed field coord). On contact, slows to
+//             30% and drifts upfield with the cov (engagement holds for
+//             the rest of the play — releasing it just creates free
+//             gunners). Failed leads (12.5%) still chase but at 40%
+//             speed and never engage — visible whiff.
+//   ESCORT (4): no cov assignment. Target = a slot relative to the
+//               RETURNER (wings 18 yd ahead, insides 7 yd ahead).
+//               Always moves with the carrier.
 //
 // First-principles rule: every blocker's target is another agent, never
 // a static coordinate. As long as some agent is moving, every blocker
-// has something to chase.
+// has something to chase. Coverage holes on cov 3..6 (interior, slowest)
+// are by design — same as the prior "wall" model.
 function _simulateKickoffAgents(opts) {
   const {
     duration_ms, flightT, returnT,
@@ -586,10 +589,8 @@ function _simulateKickoffAgents(opts) {
   const NUM_FRAMES = Math.ceil(duration_ms / DT_MS) + 1;
   const COVER_BASE_YPS   = 18;
   const BLOCKER_BASE_YPS = 15;
-  const ENGAGE_DIST      = 18;     // px — close enough to grapple
   const ENGAGED_MULT     = 0.30;   // both bodies slow during the wrestle
   const ENGAGE_DRIFT_YPS = 6;      // engaged pair drifts upfield together
-  const ENGAGE_TIMEOUT_MS = 350;   // lead releases after this and becomes escort
   // Per-play primary-cover speed: distance/time so primary arrives at finalX at returnT.
   const _primaryDistX = Math.abs(finalX - kickerLineX);
   const _primaryDistY = Math.abs(coverLanes[primaryTacklerIdx] - cy);
@@ -602,25 +603,23 @@ function _simulateKickoffAgents(opts) {
   const COVER_BASE_PX_F    = COVER_BASE_YPS    * PX_PER_YD * DT_MS / 1000;
   const BLOCKER_BASE_PX_F  = BLOCKER_BASE_YPS  * PX_PER_YD * DT_MS / 1000;
   const ENGAGE_DRIFT_PX_F  = ENGAGE_DRIFT_YPS  * PX_PER_YD * DT_MS / 1000;
-  const ENGAGE_TIMEOUT_FRAMES = Math.ceil(ENGAGE_TIMEOUT_MS / DT_MS);
   // Initial state
   const cover = [];
   for (let i = 0; i < NUM_COVER; i++) {
     cover.push({ x: kickerLineX, y: coverLanes[i], engaged: false, engagedBy: -1 });
   }
-  // Lead↔cov pairing: 6 leads at blocker indices 0,1,2,7,8,9 each get one cov.
-  // Escort slots: blocker indices 3..6 — 4 layered positions around returner.
-  const leadCovFor = (i) => (i < 3) ? i : (i - 4);   // 0,1,2 → 0,1,2 ; 7,8,9 → 3,4,5
+  // Lead↔cov pairing: 6 leads at blocker indices 0,1,2,7,8,9. Lead i
+  // pairs with cov i — same Y lane, no cross-field traversal before
+  // engagement. Cov indices 3,4,5,6 are uncovered by design (interior
+  // cov are slow and the escort layer handles them).
   const blockers = [];
   for (let i = 0; i < NUM_BLOCKERS; i++) {
     const isEscort = (i >= 3 && i <= 6);
     blockers.push({
       x: blockerStartX, y: blockerLanes[i],
       role: isEscort ? "escort" : "lead",
-      escortSlot: isEscort ? (i - 3) : -1,    // 0..3 for escorts; reassigned on release for leads
-      targetCov: isEscort ? -1 : leadCovFor(i),
-      engagedSince: -1,
-      released: false,
+      escortSlot: isEscort ? (i - 3) : -1,
+      targetCov: isEscort ? -1 : i,
     });
   }
   const returner = { x: catchX, y: cy };
@@ -641,7 +640,7 @@ function _simulateKickoffAgents(opts) {
       }
       returner.y += Math.sin(frame * 0.18) * 0.4;
     }
-    // === COVER === (unchanged — pursues returner, slows when engaged)
+    // === COVER === pursues returner, slows when engaged.
     for (let i = 0; i < NUM_COVER; i++) {
       const c = cover[i];
       const isPrimary   = i === primaryTacklerIdx;
@@ -667,54 +666,51 @@ function _simulateKickoffAgents(opts) {
         c.y += (dy / d) * speed;
       }
     }
-    // === BLOCKERS ===
+    // === BLOCKERS + ENGAGEMENT ===
+    // One unified pass: each lead's engagement check (distance + leverage,
+    // primary-exempt, fails-exempt) drives BOTH its own slowdown/drift AND
+    // the cov.engaged flag the drag loop reads below. Previously these
+    // were two separate checks that could disagree — blocker slowed while
+    // cov sprinted untouched.
+    for (let i = 0; i < NUM_COVER; i++) { cover[i].engaged = false; cover[i].engagedBy = -1; }
     for (let i = 0; i < NUM_BLOCKERS; i++) {
       const b = blockers[i];
       const a = blockerAssignments[i];
-      const failsRole = a.fails;
-      // Determine target.
       let targetX, targetY, speedCap;
-      const isLead = (b.role === "lead" && !b.released && !failsRole);
-      if (isLead) {
-        // LEAD: track cov's current position. No static field coord —
-        // cov is always moving, so we always have something to chase.
+      let isEngaged = false;
+      if (b.role === "lead") {
+        // LEAD: chase cov's current position. Failed leads still chase
+        // (visible whiff at 40% speed) but never engage.
         const cov = cover[b.targetCov];
         targetX = cov.x;
         targetY = cov.y;
-        speedCap = BLOCKER_BASE_PX_F;
-      } else if (b.role === "escort") {
-        // Native ESCORT: layered position in front of the returner.
-        // Wings (slots 0,3) lead at 18 yd; insides (1,2) escort at 7 yd.
+        speedCap = a.fails ? BLOCKER_BASE_PX_F * 0.4 : BLOCKER_BASE_PX_F;
+        // Single engagement check: distance + leverage + not the primary.
+        if (!a.fails && b.targetCov !== primaryTacklerIdx) {
+          const dxc = b.x - cov.x;
+          const dyc = b.y - cov.y;
+          if (dxc * dxc + dyc * dyc < 22 * 22) {
+            const covToReturnerX = returner.x - cov.x;
+            const covToBlockerX  = b.x - cov.x;
+            if (covToReturnerX * covToBlockerX > 0
+                || Math.abs(covToReturnerX) < 4
+                || Math.abs(covToBlockerX)  < 3) {
+              isEngaged = true;
+              cov.engaged = true;
+              cov.engagedBy = i;
+            }
+          }
+        }
+      } else {
+        // ESCORT: layered position in front of the returner.
         const slot = b.escortSlot;
         const dxYd = [18, 7, 7, 18][slot];
         const dyYd = [-10, -2, 2, 10][slot];
         targetX = returner.x + recvDir * dxYd;
         targetY = returner.y + dyYd * PX_PER_YD;
         speedCap = Math.max(BLOCKER_BASE_PX_F, RETURNER_PX_F);
-      } else {
-        // RELEASED lead — peeled off the gunner, now trailing the play.
-        // Falls in behind the returner, holding the original Y lane so
-        // released leads don't all pile on the wing escort slots.
-        targetX = returner.x - recvDir * (6 + (i % 3) * 4);
-        targetY = b.y * 0.85 + returner.y * 0.15;
-        speedCap = Math.max(BLOCKER_BASE_PX_F, RETURNER_PX_F);
       }
-      // Engagement check (lead within ENGAGE_DIST of his cov).
-      let isEngaged = false;
-      if (isLead) {
-        const cov = cover[b.targetCov];
-        const cd = Math.hypot(cov.x - b.x, cov.y - b.y);
-        if (cd < ENGAGE_DIST) {
-          isEngaged = true;
-          if (b.engagedSince < 0) b.engagedSince = frame;
-        } else {
-          b.engagedSince = -1;
-        }
-      }
-      // Apply speed.
-      let speed = speedCap;
-      if (failsRole) speed = BLOCKER_BASE_PX_F * 0.4;
-      else if (isEngaged) speed *= ENGAGED_MULT;
+      const speed = isEngaged ? speedCap * ENGAGED_MULT : speedCap;
       const dx = targetX - b.x;
       const dy = targetY - b.y;
       const d = Math.sqrt(dx * dx + dy * dy);
@@ -726,35 +722,8 @@ function _simulateKickoffAgents(opts) {
       if (isEngaged) {
         b.x += recvDir * ENGAGE_DRIFT_PX_F;
       }
-      // Release timer — leads peel off after a brief grapple and convert
-      // to escorts. Real blockers don't latch forever; they rejoin the play.
-      if (isLead && b.engagedSince >= 0 && (frame - b.engagedSince) > ENGAGE_TIMEOUT_FRAMES) {
-        b.released = true;
-        b.engagedSince = -1;
-      }
     }
-    // === ENGAGEMENT (cov slowed + dragged by lead blocker) ===
-    for (let i = 0; i < NUM_COVER; i++) { cover[i].engaged = false; cover[i].engagedBy = -1; }
-    for (let bi = 0; bi < NUM_BLOCKERS; bi++) {
-      const b = blockers[bi];
-      if (b.role !== "lead" || b.released) continue;
-      const a = blockerAssignments[bi];
-      if (a.fails) continue;
-      if (b.targetCov === primaryTacklerIdx) continue;   // primary breaks through
-      const c = cover[b.targetCov];
-      const dx = b.x - c.x;
-      const dy = b.y - c.y;
-      if (dx * dx + dy * dy >= 22 * 22) continue;
-      const covToReturnerX = returner.x - c.x;
-      const covToBlockerX  = b.x        - c.x;
-      const hasLeverage = covToReturnerX * covToBlockerX > 0
-                          || Math.abs(covToReturnerX) < 4
-                          || Math.abs(covToBlockerX)  < 3;
-      if (!hasLeverage) continue;
-      c.engaged = true;
-      c.engagedBy = bi;
-    }
-    // Cov gets DRAGGED toward its lead — wrestle physics.
+    // Cov drag — engaged cov gets pulled toward its lead each frame.
     for (let i = 0; i < NUM_COVER; i++) {
       const c = cover[i];
       if (!c.engaged) continue;
@@ -766,7 +735,7 @@ function _simulateKickoffAgents(opts) {
     frames.push({
       returner: { x: returner.x, y: returner.y },
       cover: cover.map(c => ({ x: c.x, y: c.y, engaged: c.engaged, engagedBy: c.engagedBy })),
-      blockers: blockers.map(b => ({ x: b.x, y: b.y, role: b.role, released: b.released })),
+      blockers: blockers.map(b => ({ x: b.x, y: b.y, role: b.role })),
     });
   }
   return { frames, NUM_FRAMES, DT_MS, duration_ms };
@@ -1048,19 +1017,20 @@ function buildAnimForPlay(play, prevPlay) {
                  { name: "ko-kicker" });
 
       // ── Draw blockers ──
-      // Pose by role + state. The sim now tags each blocker frame with
-      // its role ("lead" | "escort") and whether a lead has released.
+      // Pose by role + engagement (engagement = "is some cov tagged with
+      // engagedBy === me"). Engagement state in snap.cover is computed in
+      // the SAME frame as the blocker positions, so the pose matches the
+      // motion (no one-frame lag).
       //   LEAD pre-contact: "run" — sprinting upfield to meet cov.
       //   LEAD engaged:     "engage" — wrestling cov, drifting upfield.
-      //   LEAD released → behaves like escort.
       //   ESCORT pre-snap:  "backpedal" — settling into escort slot
       //                     without auto-facing the deeper returner.
       //   ESCORT in motion: "run" — leading the carrier upfield.
-      // All facing = recvDir (toward the play). "engage" / "backpedal"
-      // poses don't auto-face, so the explicit facing sticks.
+      // All facing = recvDir. "engage" / "backpedal" don't auto-face, so
+      // the explicit facing sticks.
       for (let i = 0; i < NUM_BLOCKERS; i++) {
         const bpos = snap.blockers[i];
-        const isLeadRole = (bpos.role === "lead" && !bpos.released);
+        const isLeadRole = (bpos.role === "lead");
         const isEngaged = !!snap.cover.find(c => c.engagedBy === i);
         let bPose;
         if (t < FLIGHT_END * 0.05) {
@@ -1070,7 +1040,6 @@ function buildAnimForPlay(play, prevPlay) {
         } else if (isLeadRole) {
           bPose = "run";
         } else {
-          // Escort native, or released lead now escorting.
           bPose = (t < FLIGHT_END) ? "backpedal" : "run";
         }
         const bT = (t < 0.95 ? ((performance.now() / 333) + i * 0.17) % 1 : 0);
