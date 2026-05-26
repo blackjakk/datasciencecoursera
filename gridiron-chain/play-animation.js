@@ -3904,9 +3904,12 @@ function buildAnimForPlay(play, prevPlay) {
           const absVx = Math.abs(combinedVx);
           const absVy = Math.abs(combinedVy);
           const yacYds = Math.abs(endX - targetX) / FIELD.PX_PER_YARD;
-          if (absVy > absVx * 0.7 && absVy > 80) {
+          // Thresholds tuned to trigger variants on most non-trivial
+          // tackles. Most pass tackles have some YAC and forward momentum;
+          // pure backward flops are now the exception, not the default.
+          if (absVy > absVx * 0.6 && absVy > 60) {
             _wrFallPose = "spin_fall";
-          } else if (yacYds > 8 && combinedVx * dir > 180) {
+          } else if (yacYds > 4 && combinedVx * dir > 100) {
             _wrFallPose = "tumble";
           }
         }
@@ -4083,9 +4086,21 @@ function buildAnimForPlay(play, prevPlay) {
         _ballDrawX = h.x; _ballDrawY = h.y;
       }
       // Post-catch carry: ball at receiver's tuck hand
-      else if (at > throwEndAT + 0.04 && _rcvrName && _carrierSink[_rcvrName]) {
+      else if (at > throwEndAT + 0.04 && _rcvrName) {
         const h = _carrierSink[_rcvrName];
-        _ballDrawX = h.x; _ballDrawY = h.y;
+        // Sink freshness check — if the sink is stale (older than 50ms,
+        // which happens during tackle poses where the carry-hand logic
+        // doesn't run because arms splay outward), fall back to a body-
+        // relative tuck offset so the ball stays visibly held instead
+        // of jumping to wherever the last carry-frame put it.
+        if (h && (performance.now() - h.frameMs) < 50) {
+          _ballDrawX = h.x; _ballDrawY = h.y;
+        } else {
+          // Tuck offset: slight forward + chest height. Reads as ball
+          // held against the body during the fall.
+          _ballDrawX = ballX + dir * 4;
+          _ballDrawY = ballY - 4;
+        }
       }
       if (showStandalone) drawBall(ctx, _ballDrawX, _ballDrawY, arc > 30 ? 1.3 : 1, { angle: _ballDrawAng });
       // Play-action / Flea-flicker / Throw-on-run banner at the top of the field

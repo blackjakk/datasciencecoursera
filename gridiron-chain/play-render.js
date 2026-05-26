@@ -1075,7 +1075,10 @@ function _drawPlayerImpl(ctx, x, y, color, secondary, label, pose, t, facing, st
       // are reserved for power-vs-power head-on collisions.
       const fallT = Math.min(1, Math.max(0, t));
       const fallEase = fallT * fallT * (3 - 2 * fallT);     // smoothstep
-      const fallDir = (style && style.fallDir) || -1;
+      // Default to FORWARD fall (+1). Most pass-catch tackles have
+      // forward momentum (carrier was running at speed); backward only
+      // when the combined-momentum model explicitly computes it.
+      const fallDir = (style && style.fallDir) || 1;
       bodyRot = (Math.PI / 2) * facing * fallDir * fallEase;
       bodyDY = fallEase * 5 + Math.sin(fallT * Math.PI) * -2;// downward + small upward bump at peak
       // Arms flail outward as the body falls
