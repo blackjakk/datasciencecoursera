@@ -3596,6 +3596,15 @@ function buildAnimForPlay(play, prevPlay) {
             }
             candidates.sort((a, b) => a.dist - b.dist);
             _postCatchPursuerSet = new Set(candidates.slice(0, POST_CATCH_PURSUERS).map(c => c.j));
+            // ALWAYS include the cover defender — they're already next to
+            // the WR at catch and need to physically drive into the
+            // tackle, not stay parked in their zone-drop position.
+            // Excluding them (the old behavior, justified by "they have
+            // path B for guaranteed positioning") meant they did nothing
+            // when the engine emitted a tackler track for someone else:
+            // the unified tackle-event block then couldn't see them as
+            // close to the carrier and they stayed upright.
+            _postCatchPursuerSet.add(intDefIdx);
           }
           const inPursuit = _postCatchPursuerSet.has(i) || _isPassTacklerByName;
           if (inPursuit) {
@@ -3745,7 +3754,7 @@ function buildAnimForPlay(play, prevPlay) {
           const _distToCar = Math.hypot(dd.x - ballX, dd.y - ballY);
           const _isNamed = !!(d.name && tackleEvent.primaryTacklerName
                               && d.name === tackleEvent.primaryTacklerName);
-          const _isGuaranteed = (i === tackleEvent.intDefIdx) && !_passTacklerTrack;
+          const _isGuaranteed = (i === tackleEvent.intDefIdx);
           const _isClose = _distToCar < tackleEvent.contactDist;
           if (_isNamed || _isGuaranteed || _isClose) {
             dd.pose = "hit";
