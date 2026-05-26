@@ -1,0 +1,8057 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Brian's 2026 Draft Helper</title>
+<style>
+  :root {
+    --bg: #0b0d10;
+    --panel: #14171c;
+    --panel-2: #1c2027;
+    --border: #262b33;
+    --text: #e8eaee;
+    --muted: #8a93a0;
+    --accent: #4ade80;
+    --warn: #f59e0b;
+    --danger: #ef4444;
+    --info: #60a5fa;
+    --qb: #dc2626;
+    --rb: #0891b2;
+    --wr: #16a34a;
+    --te: #f59e0b;
+    --k:  #9a3412;
+    --def:#525252;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  header { background: linear-gradient(135deg, #14b8a6 0%, #0891b2 100%); padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+  header .title { font-weight: 800; font-size: 16px; letter-spacing: 0.5px; }
+  header .clock { font-weight: 700; font-size: 13px; padding: 6px 10px; border-radius: 6px; background: rgba(0,0,0,0.35); }
+  header .clock.me { background: #16a34a; animation: pulse 1.4s infinite; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(74,222,128,.6);} 50% { box-shadow: 0 0 0 8px rgba(74,222,128,0);} }
+  main { display: grid; grid-template-columns: 1fr 380px; gap: 12px; padding: 12px; max-width: 1400px; margin: 0 auto; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
+  .panel h2 { margin: 0 0 8px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  .controls { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+  .controls input[type=search] { flex: 1; min-width: 140px; background: var(--panel-2); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 6px; font-size: 14px; }
+  .pos-filter { display: flex; gap: 4px; flex-wrap: wrap; }
+  .pos-btn { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); padding: 4px 9px; border-radius: 5px; cursor: pointer; font-size: 12px; font-weight: 700; transition: all 0.1s; }
+  .pos-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+  .pos-btn[data-pos=QB].active { background: var(--qb); border-color: var(--qb); color: #fff; }
+  .pos-btn[data-pos=RB].active { background: var(--rb); border-color: var(--rb); color: #fff; }
+  .pos-btn[data-pos=WR].active { background: var(--wr); border-color: var(--wr); color: #fff; }
+  .pos-btn[data-pos=TE].active { background: var(--te); border-color: var(--te); color: #fff; }
+  table.player-list { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.player-list th { text-align: left; padding: 4px 6px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--panel); z-index: 1; }
+  table.player-list td { padding: 6px; border-bottom: 1px solid #1a1d22; }
+  table.player-list tr { cursor: pointer; }
+  table.player-list tr:hover { background: var(--panel-2); }
+  table.player-list tr.drafted { opacity: 0.25; text-decoration: line-through; pointer-events: none; }
+  table.player-list tr.brian-target { background: rgba(74,222,128,0.07); border-left: 3px solid var(--accent); }
+  .pos-tag { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 10px; font-weight: 700; color: #fff; min-width: 24px; text-align: center; }
+  .pos-QB { background: var(--qb); }
+  .pos-RB { background: var(--rb); }
+  .pos-WR { background: var(--wr); }
+  .pos-TE { background: var(--te); }
+  .pos-K  { background: var(--k); }
+  .pos-DEF, .pos-DST { background: var(--def); }
+  .vbd { font-weight: 700; }
+  .vbd.pos { color: var(--accent); }
+  .vbd.neg { color: var(--muted); }
+  .meta { color: var(--muted); font-size: 11px; }
+  .roster { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; font-size: 12px; }
+  .roster-row { padding: 4px 6px; background: var(--panel-2); border-left: 3px solid; border-radius: 3px; display: flex; justify-content: space-between; align-items: center; }
+  .recs { display: flex; flex-direction: column; gap: 4px; }
+  .rec { padding: 6px 8px; background: var(--panel-2); border-radius: 5px; border-left: 3px solid var(--accent); }
+  .rec.warn { border-left-color: var(--warn); }
+  .rec .why { color: var(--muted); font-size: 11px; margin-top: 2px; }
+  .player-list-scroll { max-height: 70vh; overflow-y: auto; }
+  .history { max-height: 200px; overflow-y: auto; font-size: 12px; }
+  .history-row { padding: 3px 6px; border-bottom: 1px solid #1a1d22; display: flex; gap: 6px; align-items: center; }
+  .history-row .pn { color: var(--muted); min-width: 28px; }
+  .history-row .who { color: var(--muted); min-width: 60px; }
+  .history-row.mine { background: rgba(74,222,128,0.12); }
+  .keeper-badge { background: var(--info); color: #000; padding: 1px 4px; border-radius: 3px; font-size: 9px; font-weight: 700; margin-left: 4px; }
+  .age-young { color: var(--accent); }
+  .age-old { color: var(--muted); }
+  button.undo { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); padding: 4px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; }
+  button.undo:hover { background: #2a2f38; }
+  .stats { display: flex; gap: 8px; flex-wrap: wrap; font-size: 11px; color: var(--muted); }
+  .stat { background: var(--panel-2); padding: 3px 8px; border-radius: 4px; }
+  .stat strong { color: var(--text); }
+  .keeper-row { font-style: italic; opacity: 0.7; }
+  .next-pick-info { font-size: 11px; color: var(--muted); margin-top: 2px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="title">BRIAN'S 2026 DRAFT HELPER · slot 6</div>
+  <div id="clock" class="clock">loading…</div>
+</header>
+
+<main>
+  <!-- LEFT: player pool -->
+  <div class="panel">
+    <h2>Available Players</h2>
+    <div class="controls">
+      <input id="search" type="search" placeholder="Search by name…" autocomplete="off">
+      <div class="pos-filter">
+        <button class="pos-btn active" data-pos="ALL">All</button>
+        <button class="pos-btn" data-pos="QB">QB</button>
+        <button class="pos-btn" data-pos="RB">RB</button>
+        <button class="pos-btn" data-pos="WR">WR</button>
+        <button class="pos-btn" data-pos="TE">TE</button>
+        <button class="pos-btn" data-pos="K">K</button>
+        <button class="pos-btn" data-pos="DEF">DEF</button>
+      </div>
+    </div>
+    <div class="player-list-scroll">
+      <table class="player-list" id="ptable">
+        <thead>
+          <tr><th>Pos</th><th>Name</th><th>Team</th><th>Age</th><th>Proj</th><th>VBD</th><th>ADP</th></tr>
+        </thead>
+        <tbody id="ptable-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- RIGHT: roster + recs + history -->
+  <div style="display: flex; flex-direction: column; gap: 12px;">
+    <div class="panel">
+      <h2>You're on the Clock</h2>
+      <div id="next-pick" class="next-pick-info">—</div>
+      <h2 style="margin-top: 10px;">Top Recommendations</h2>
+      <div id="recs" class="recs"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Your Roster <span id="roster-total" class="meta"></span></h2>
+      <div id="roster" class="roster"></div>
+      <div id="roster-stats" class="stats" style="margin-top: 8px;"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Recent Picks <button class="undo" id="undo">undo last</button></h2>
+      <div class="history" id="history"></div>
+    </div>
+  </div>
+</main>
+
+<script>
+const EMBEDDED_DATA = {
+  "my_slot": 6,
+  "my_team_idx": 5,
+  "rounds": 17,
+  "players": [
+    {
+      "name": "Bijan Robinson",
+      "pos": "RB",
+      "team": "ATL",
+      "adp": 9.4,
+      "proj": 292.9,
+      "vbd": 145.7,
+      "fp_rank": 8,
+      "fp_pos_rank": "RB1",
+      "age": 24,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Jahmyr Gibbs",
+      "pos": "RB",
+      "team": "DET",
+      "adp": 10.0,
+      "proj": 277.9,
+      "vbd": 130.7,
+      "fp_rank": 9,
+      "fp_pos_rank": "RB2",
+      "age": 24,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Ja'Marr Chase",
+      "pos": "WR",
+      "team": "CIN",
+      "adp": 9.0,
+      "proj": 259.0,
+      "vbd": 119.4,
+      "fp_rank": 7,
+      "fp_pos_rank": "WR1",
+      "age": 26,
+      "years_exp": 5,
+      "injury": ""
+    },
+    {
+      "name": "Puka Nacua",
+      "pos": "WR",
+      "team": "LAR",
+      "adp": 11.9,
+      "proj": 259.0,
+      "vbd": 119.4,
+      "fp_rank": 11,
+      "fp_pos_rank": "WR2",
+      "age": 24,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Christian McCaffrey",
+      "pos": "RB",
+      "team": "SF",
+      "adp": 16.4,
+      "proj": 256.0,
+      "vbd": 108.8,
+      "fp_rank": 16,
+      "fp_pos_rank": "RB3",
+      "age": 29,
+      "years_exp": 9,
+      "injury": ""
+    },
+    {
+      "name": "Josh Allen",
+      "pos": "QB",
+      "team": "BUF",
+      "adp": 1.0,
+      "proj": 361.5,
+      "vbd": 108.7,
+      "fp_rank": 1,
+      "fp_pos_rank": "QB1",
+      "age": 30,
+      "years_exp": 8,
+      "injury": ""
+    },
+    {
+      "name": "Jonathan Taylor",
+      "pos": "RB",
+      "team": "IND",
+      "adp": 20.1,
+      "proj": 254.3,
+      "vbd": 107.1,
+      "fp_rank": 20,
+      "fp_pos_rank": "RB4",
+      "age": 27,
+      "years_exp": 6,
+      "injury": ""
+    },
+    {
+      "name": "James Cook",
+      "pos": "RB",
+      "team": "BUF",
+      "adp": 13.8,
+      "proj": 245.3,
+      "vbd": 98.1,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 26,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "Jaxon Smith-Njigba",
+      "pos": "WR",
+      "team": "SEA",
+      "adp": 13.1,
+      "proj": 235.1,
+      "vbd": 95.5,
+      "fp_rank": 13,
+      "fp_pos_rank": "WR3",
+      "age": 24,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "De'Von Achane",
+      "pos": "RB",
+      "team": "MIA",
+      "adp": 27.7,
+      "proj": 236.2,
+      "vbd": 89.0,
+      "fp_rank": 26,
+      "fp_pos_rank": "RB6",
+      "age": 24,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Saquon Barkley",
+      "pos": "RB",
+      "team": "PHI",
+      "adp": 35.1,
+      "proj": 236.2,
+      "vbd": 89.0,
+      "fp_rank": 33,
+      "fp_pos_rank": "RB9",
+      "age": 29,
+      "years_exp": 8,
+      "injury": ""
+    },
+    {
+      "name": "Chase Brown",
+      "pos": "RB",
+      "team": "CIN",
+      "adp": 35.0,
+      "proj": 236.2,
+      "vbd": 89.0,
+      "fp_rank": 32,
+      "fp_pos_rank": "RB8",
+      "age": 26,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Josh Jacobs",
+      "pos": "RB",
+      "team": "GB",
+      "adp": 47.2,
+      "proj": 236.2,
+      "vbd": 89.0,
+      "fp_rank": 46,
+      "fp_pos_rank": "RB13",
+      "age": 28,
+      "years_exp": 7,
+      "injury": ""
+    },
+    {
+      "name": "Amon-Ra St. Brown",
+      "pos": "WR",
+      "team": "DET",
+      "adp": 17.8,
+      "proj": 227.5,
+      "vbd": 87.9,
+      "fp_rank": 18,
+      "fp_pos_rank": "WR4",
+      "age": 26,
+      "years_exp": 5,
+      "injury": ""
+    },
+    {
+      "name": "Ashton Jeanty",
+      "pos": "RB",
+      "team": "LV",
+      "adp": 29.4,
+      "proj": 234.5,
+      "vbd": 87.3,
+      "fp_rank": 29,
+      "fp_pos_rank": "RB7",
+      "age": 22,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "CeeDee Lamb",
+      "pos": "WR",
+      "team": "DAL",
+      "adp": 18.6,
+      "proj": 222.5,
+      "vbd": 82.9,
+      "fp_rank": 19,
+      "fp_pos_rank": "WR5",
+      "age": 27,
+      "years_exp": 6,
+      "injury": ""
+    },
+    {
+      "name": "Omarion Hampton",
+      "pos": "RB",
+      "team": "LAC",
+      "adp": 36.8,
+      "proj": 217.9,
+      "vbd": 70.7,
+      "fp_rank": 36,
+      "fp_pos_rank": "RB10",
+      "age": 23,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Trey McBride",
+      "pos": "TE",
+      "team": "ARI",
+      "adp": 34.7,
+      "proj": 191.4,
+      "vbd": 69.3,
+      "fp_rank": 31,
+      "fp_pos_rank": "TE1",
+      "age": 26,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "Brock Bowers",
+      "pos": "TE",
+      "team": "LV",
+      "adp": 36.6,
+      "proj": 188.0,
+      "vbd": 65.9,
+      "fp_rank": 35,
+      "fp_pos_rank": "TE2",
+      "age": 23,
+      "years_exp": 2,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Lamar Jackson",
+      "pos": "QB",
+      "team": "BAL",
+      "adp": 2.4,
+      "proj": 317.3,
+      "vbd": 64.5,
+      "fp_rank": 2,
+      "fp_pos_rank": "QB2",
+      "age": 29,
+      "years_exp": 8,
+      "injury": ""
+    },
+    {
+      "name": "Justin Jefferson",
+      "pos": "WR",
+      "team": "MIN",
+      "adp": 22.7,
+      "proj": 202.4,
+      "vbd": 62.8,
+      "fp_rank": 22,
+      "fp_pos_rank": "WR6",
+      "age": 26,
+      "years_exp": 6,
+      "injury": ""
+    },
+    {
+      "name": "Drake London",
+      "pos": "WR",
+      "team": "ATL",
+      "adp": 27.2,
+      "proj": 202.4,
+      "vbd": 62.8,
+      "fp_rank": 25,
+      "fp_pos_rank": "WR7",
+      "age": 24,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "Kenneth Walker",
+      "pos": "RB",
+      "team": "KC",
+      "adp": 19.4,
+      "proj": 210.0,
+      "vbd": 62.8,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 25,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "Rashee Rice",
+      "pos": "WR",
+      "team": "KC",
+      "adp": 37.7,
+      "proj": 202.4,
+      "vbd": 62.8,
+      "fp_rank": 37,
+      "fp_pos_rank": "WR10",
+      "age": 26,
+      "years_exp": 3,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Derrick Henry",
+      "pos": "RB",
+      "team": "BAL",
+      "adp": 44.6,
+      "proj": 210.0,
+      "vbd": 62.8,
+      "fp_rank": 45,
+      "fp_pos_rank": "RB12",
+      "age": 32,
+      "years_exp": 10,
+      "injury": ""
+    },
+    {
+      "name": "Emeka Egbuka",
+      "pos": "WR",
+      "team": "TB",
+      "adp": 67.3,
+      "proj": 202.4,
+      "vbd": 62.8,
+      "fp_rank": 68,
+      "fp_pos_rank": "WR24",
+      "age": 23,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Terry McLaurin",
+      "pos": "WR",
+      "team": "WAS",
+      "adp": 65.9,
+      "proj": 202.4,
+      "vbd": 62.8,
+      "fp_rank": 67,
+      "fp_pos_rank": "WR23",
+      "age": 30,
+      "years_exp": 7,
+      "injury": ""
+    },
+    {
+      "name": "Drake Maye",
+      "pos": "QB",
+      "team": "NE",
+      "adp": 3.2,
+      "proj": 313.7,
+      "vbd": 60.9,
+      "fp_rank": 3,
+      "fp_pos_rank": "QB3",
+      "age": 23,
+      "years_exp": 2,
+      "injury": ""
+    },
+    {
+      "name": "Joe Burrow",
+      "pos": "QB",
+      "team": "CIN",
+      "adp": 4.7,
+      "proj": 313.7,
+      "vbd": 60.9,
+      "fp_rank": 4,
+      "fp_pos_rank": "QB4",
+      "age": 29,
+      "years_exp": 6,
+      "injury": ""
+    },
+    {
+      "name": "Jaxson Dart",
+      "pos": "QB",
+      "team": "NYG",
+      "adp": 11.6,
+      "proj": 313.7,
+      "vbd": 60.9,
+      "fp_rank": 10,
+      "fp_pos_rank": "QB7",
+      "age": 23,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Trevor Lawrence",
+      "pos": "QB",
+      "team": "JAX",
+      "adp": 15.2,
+      "proj": 313.7,
+      "vbd": 60.9,
+      "fp_rank": 15,
+      "fp_pos_rank": "QB10",
+      "age": 26,
+      "years_exp": 5,
+      "injury": ""
+    },
+    {
+      "name": "Nico Collins",
+      "pos": "WR",
+      "team": "HOU",
+      "adp": 32.8,
+      "proj": 198.0,
+      "vbd": 58.4,
+      "fp_rank": 30,
+      "fp_pos_rank": "WR8",
+      "age": 27,
+      "years_exp": 5,
+      "injury": ""
+    },
+    {
+      "name": "Malik Nabers",
+      "pos": "WR",
+      "team": "NYG",
+      "adp": 35.8,
+      "proj": 197.9,
+      "vbd": 58.3,
+      "fp_rank": 34,
+      "fp_pos_rank": "WR9",
+      "age": 22,
+      "years_exp": 2,
+      "injury": "IR"
+    },
+    {
+      "name": "Jayden Daniels",
+      "pos": "QB",
+      "team": "WAS",
+      "adp": 5.3,
+      "proj": 310.5,
+      "vbd": 57.8,
+      "fp_rank": 5,
+      "fp_pos_rank": "QB5",
+      "age": 25,
+      "years_exp": 2,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Jalen Hurts",
+      "pos": "QB",
+      "team": "PHI",
+      "adp": 6.4,
+      "proj": 309.9,
+      "vbd": 57.1,
+      "fp_rank": 6,
+      "fp_pos_rank": "QB6",
+      "age": 27,
+      "years_exp": 6,
+      "injury": ""
+    },
+    {
+      "name": "George Pickens",
+      "pos": "WR",
+      "team": "DAL",
+      "adp": 38.3,
+      "proj": 195.8,
+      "vbd": 56.2,
+      "fp_rank": 38,
+      "fp_pos_rank": "WR11",
+      "age": 25,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "Jeremiyah Love",
+      "pos": "RB",
+      "team": "ARI",
+      "adp": 47.6,
+      "proj": 199.3,
+      "vbd": 52.1,
+      "fp_rank": 47,
+      "fp_pos_rank": "RB14",
+      "age": 20,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Justin Herbert",
+      "pos": "QB",
+      "team": "LAC",
+      "adp": 12.5,
+      "proj": 303.4,
+      "vbd": 50.6,
+      "fp_rank": 12,
+      "fp_pos_rank": "QB8",
+      "age": 28,
+      "years_exp": 6,
+      "injury": ""
+    },
+    {
+      "name": "Caleb Williams",
+      "pos": "QB",
+      "team": "CHI",
+      "adp": 14.3,
+      "proj": 303.3,
+      "vbd": 50.5,
+      "fp_rank": 14,
+      "fp_pos_rank": "QB9",
+      "age": 24,
+      "years_exp": 2,
+      "injury": ""
+    },
+    {
+      "name": "Dak Prescott",
+      "pos": "QB",
+      "team": "DAL",
+      "adp": 16.6,
+      "proj": 303.3,
+      "vbd": 50.5,
+      "fp_rank": 17,
+      "fp_pos_rank": "QB11",
+      "age": 32,
+      "years_exp": 10,
+      "injury": ""
+    },
+    {
+      "name": "Chris Olave",
+      "pos": "WR",
+      "team": "NO",
+      "adp": 42.4,
+      "proj": 189.8,
+      "vbd": 50.2,
+      "fp_rank": 41,
+      "fp_pos_rank": "WR12",
+      "age": 25,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "Kyren Williams",
+      "pos": "RB",
+      "team": "LAR",
+      "adp": 56.9,
+      "proj": 195.9,
+      "vbd": 48.7,
+      "fp_rank": 56,
+      "fp_pos_rank": "RB15",
+      "age": 25,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "Travis Etienne",
+      "pos": "RB",
+      "team": "NO",
+      "adp": 54.0,
+      "proj": 195.9,
+      "vbd": 48.7,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 27,
+      "years_exp": 5,
+      "injury": ""
+    },
+    {
+      "name": "A.J. Brown",
+      "pos": "WR",
+      "team": "PHI",
+      "adp": 44.3,
+      "proj": 188.1,
+      "vbd": 48.5,
+      "fp_rank": 43,
+      "fp_pos_rank": "WR13",
+      "age": 28,
+      "years_exp": 7,
+      "injury": ""
+    },
+    {
+      "name": "Breece Hall",
+      "pos": "RB",
+      "team": "NYJ",
+      "adp": 58.7,
+      "proj": 195.6,
+      "vbd": 48.4,
+      "fp_rank": 57,
+      "fp_pos_rank": "RB16",
+      "age": 24,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "Tee Higgins",
+      "pos": "WR",
+      "team": "CIN",
+      "adp": 50.0,
+      "proj": 185.2,
+      "vbd": 45.6,
+      "fp_rank": 51,
+      "fp_pos_rank": "WR14",
+      "age": 27,
+      "years_exp": 6,
+      "injury": ""
+    },
+    {
+      "name": "Garrett Wilson",
+      "pos": "WR",
+      "team": "NYJ",
+      "adp": 56.3,
+      "proj": 185.2,
+      "vbd": 45.6,
+      "fp_rank": 55,
+      "fp_pos_rank": "WR17",
+      "age": 25,
+      "years_exp": 4,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Colston Loveland",
+      "pos": "TE",
+      "team": "CHI",
+      "adp": 54.4,
+      "proj": 161.9,
+      "vbd": 39.8,
+      "fp_rank": 54,
+      "fp_pos_rank": "TE3",
+      "age": 22,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Tetairoa McMillan",
+      "pos": "WR",
+      "team": "CAR",
+      "adp": 50.2,
+      "proj": 178.9,
+      "vbd": 39.3,
+      "fp_rank": 52,
+      "fp_pos_rank": "WR15",
+      "age": 23,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Javonte Williams",
+      "pos": "RB",
+      "team": "DAL",
+      "adp": 59.9,
+      "proj": 185.8,
+      "vbd": 38.6,
+      "fp_rank": 59,
+      "fp_pos_rank": "RB17",
+      "age": 26,
+      "years_exp": 5,
+      "injury": ""
+    },
+    {
+      "name": "Davante Adams",
+      "pos": "WR",
+      "team": "LAR",
+      "adp": 59.3,
+      "proj": 173.0,
+      "vbd": 33.4,
+      "fp_rank": 58,
+      "fp_pos_rank": "WR18",
+      "age": 33,
+      "years_exp": 12,
+      "injury": ""
+    },
+    {
+      "name": "Christian Watson",
+      "pos": "WR",
+      "team": "GB",
+      "adp": 79.0,
+      "proj": 173.0,
+      "vbd": 33.4,
+      "fp_rank": 78,
+      "fp_pos_rank": "WR27",
+      "age": 27,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "Bucky Irving",
+      "pos": "RB",
+      "team": "TB",
+      "adp": 70.3,
+      "proj": 180.4,
+      "vbd": 33.2,
+      "fp_rank": 70,
+      "fp_pos_rank": "RB19",
+      "age": 23,
+      "years_exp": 2,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Cam Skattebo",
+      "pos": "RB",
+      "team": "NYG",
+      "adp": 73.6,
+      "proj": 180.4,
+      "vbd": 33.2,
+      "fp_rank": 73,
+      "fp_pos_rank": "RB20",
+      "age": 24,
+      "years_exp": 1,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Quinshon Judkins",
+      "pos": "RB",
+      "team": "CLE",
+      "adp": 78.4,
+      "proj": 180.4,
+      "vbd": 33.2,
+      "fp_rank": 75,
+      "fp_pos_rank": "RB22",
+      "age": 22,
+      "years_exp": 1,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Bo Nix",
+      "pos": "QB",
+      "team": "DEN",
+      "adp": 28.9,
+      "proj": 282.5,
+      "vbd": 29.7,
+      "fp_rank": 28,
+      "fp_pos_rank": "QB15",
+      "age": 26,
+      "years_exp": 2,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Brock Purdy",
+      "pos": "QB",
+      "team": "SF",
+      "adp": 20.5,
+      "proj": 282.5,
+      "vbd": 29.7,
+      "fp_rank": 21,
+      "fp_pos_rank": "QB12",
+      "age": 26,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "Tyler Warren",
+      "pos": "TE",
+      "team": "IND",
+      "adp": 80.4,
+      "proj": 151.2,
+      "vbd": 29.1,
+      "fp_rank": 80,
+      "fp_pos_rank": "TE4",
+      "age": 23,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "TreVeyon Henderson",
+      "pos": "RB",
+      "team": "NE",
+      "adp": 77.9,
+      "proj": 175.4,
+      "vbd": 28.2,
+      "fp_rank": 74,
+      "fp_pos_rank": "RB21",
+      "age": 23,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "David Montgomery",
+      "pos": "RB",
+      "team": "HOU",
+      "adp": 81.2,
+      "proj": 175.4,
+      "vbd": 28.2,
+      "fp_rank": 81,
+      "fp_pos_rank": "RB24",
+      "age": 28,
+      "years_exp": 7,
+      "injury": ""
+    },
+    {
+      "name": "Jared Goff",
+      "pos": "QB",
+      "team": "DET",
+      "adp": 38.9,
+      "proj": 280.2,
+      "vbd": 27.4,
+      "fp_rank": 39,
+      "fp_pos_rank": "QB16",
+      "age": 31,
+      "years_exp": 10,
+      "injury": ""
+    },
+    {
+      "name": "Matthew Stafford",
+      "pos": "QB",
+      "team": "LAR",
+      "adp": 28.7,
+      "proj": 280.2,
+      "vbd": 27.4,
+      "fp_rank": 27,
+      "fp_pos_rank": "QB14",
+      "age": 38,
+      "years_exp": 17,
+      "injury": ""
+    },
+    {
+      "name": "Luther Burden",
+      "pos": "WR",
+      "team": "CHI",
+      "adp": 52.8,
+      "proj": 166.7,
+      "vbd": 27.1,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 22,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Ladd McConkey",
+      "pos": "WR",
+      "team": "LAC",
+      "adp": 61.0,
+      "proj": 166.7,
+      "vbd": 27.1,
+      "fp_rank": 60,
+      "fp_pos_rank": "WR19",
+      "age": 24,
+      "years_exp": 2,
+      "injury": ""
+    },
+    {
+      "name": "Zay Flowers",
+      "pos": "WR",
+      "team": "BAL",
+      "adp": 62.1,
+      "proj": 166.7,
+      "vbd": 27.1,
+      "fp_rank": 62,
+      "fp_pos_rank": "WR20",
+      "age": 25,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Jaylen Waddle",
+      "pos": "WR",
+      "team": "DEN",
+      "adp": 65.9,
+      "proj": 165.6,
+      "vbd": 26.0,
+      "fp_rank": 66,
+      "fp_pos_rank": "WR22",
+      "age": 27,
+      "years_exp": 5,
+      "injury": ""
+    },
+    {
+      "name": "Carnell Tate",
+      "pos": "WR",
+      "team": "TEN",
+      "adp": 90.1,
+      "proj": 165.6,
+      "vbd": 26.0,
+      "fp_rank": 86,
+      "fp_pos_rank": "WR30",
+      "age": 21,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Harold Fannin",
+      "pos": "TE",
+      "team": "CLE",
+      "adp": 79.7,
+      "proj": 148.1,
+      "vbd": 26.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 21,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Tucker Kraft",
+      "pos": "TE",
+      "team": "GB",
+      "adp": 83.6,
+      "proj": 148.1,
+      "vbd": 26.0,
+      "fp_rank": 83,
+      "fp_pos_rank": "TE5",
+      "age": 25,
+      "years_exp": 3,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Patrick Mahomes",
+      "pos": "QB",
+      "team": "KC",
+      "adp": 26.1,
+      "proj": 278.6,
+      "vbd": 25.8,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 30,
+      "years_exp": 9,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Kyler Murray",
+      "pos": "QB",
+      "team": "MIN",
+      "adp": 40.4,
+      "proj": 278.6,
+      "vbd": 25.8,
+      "fp_rank": 40,
+      "fp_pos_rank": "QB17",
+      "age": 28,
+      "years_exp": 7,
+      "injury": ""
+    },
+    {
+      "name": "Malik Willis",
+      "pos": "QB",
+      "team": "MIA",
+      "adp": 48.6,
+      "proj": 278.6,
+      "vbd": 25.8,
+      "fp_rank": 48,
+      "fp_pos_rank": "QB19",
+      "age": 26,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "Jordan Love",
+      "pos": "QB",
+      "team": "GB",
+      "adp": 44.5,
+      "proj": 274.9,
+      "vbd": 22.1,
+      "fp_rank": 44,
+      "fp_pos_rank": "QB18",
+      "age": 27,
+      "years_exp": 6,
+      "injury": ""
+    },
+    {
+      "name": "D'Andre Swift",
+      "pos": "RB",
+      "team": "CHI",
+      "adp": 78.8,
+      "proj": 167.8,
+      "vbd": 20.6,
+      "fp_rank": 76,
+      "fp_pos_rank": "RB23",
+      "age": 27,
+      "years_exp": 6,
+      "injury": ""
+    },
+    {
+      "name": "Mike Evans",
+      "pos": "WR",
+      "team": "SF",
+      "adp": 72.2,
+      "proj": 159.9,
+      "vbd": 20.3,
+      "fp_rank": 71,
+      "fp_pos_rank": "WR25",
+      "age": 32,
+      "years_exp": 12,
+      "injury": ""
+    },
+    {
+      "name": "Jameson Williams",
+      "pos": "WR",
+      "team": "DET",
+      "adp": 72.2,
+      "proj": 158.2,
+      "vbd": 18.6,
+      "fp_rank": 72,
+      "fp_pos_rank": "WR26",
+      "age": 25,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "DeVonta Smith",
+      "pos": "WR",
+      "team": "PHI",
+      "adp": 54.0,
+      "proj": 158.2,
+      "vbd": 18.6,
+      "fp_rank": 53,
+      "fp_pos_rank": "WR16",
+      "age": 27,
+      "years_exp": 5,
+      "injury": ""
+    },
+    {
+      "name": "Houston Texans",
+      "pos": "DEF",
+      "team": "HOU",
+      "adp": 999.0,
+      "proj": 104.0,
+      "vbd": 18.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": null,
+      "injury": ""
+    },
+    {
+      "name": "DJ Moore",
+      "pos": "WR",
+      "team": "BUF",
+      "adp": 79.3,
+      "proj": 157.0,
+      "vbd": 17.4,
+      "fp_rank": 79,
+      "fp_pos_rank": "WR28",
+      "age": 29,
+      "years_exp": 8,
+      "injury": ""
+    },
+    {
+      "name": "Jordyn Tyson",
+      "pos": "WR",
+      "team": "NO",
+      "adp": 97.1,
+      "proj": 157.0,
+      "vbd": 17.4,
+      "fp_rank": 94,
+      "fp_pos_rank": "WR34",
+      "age": 21,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Michael Wilson",
+      "pos": "WR",
+      "team": "ARI",
+      "adp": 101.3,
+      "proj": 157.0,
+      "vbd": 17.4,
+      "fp_rank": 100,
+      "fp_pos_rank": "WR36",
+      "age": 26,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Rome Odunze",
+      "pos": "WR",
+      "team": "CHI",
+      "adp": 82.1,
+      "proj": 156.7,
+      "vbd": 17.1,
+      "fp_rank": 82,
+      "fp_pos_rank": "WR29",
+      "age": 23,
+      "years_exp": 2,
+      "injury": ""
+    },
+    {
+      "name": "Seattle Seahawks",
+      "pos": "DEF",
+      "team": "SEA",
+      "adp": 999.0,
+      "proj": 103.0,
+      "vbd": 17.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": null,
+      "injury": ""
+    },
+    {
+      "name": "Kyle Pitts",
+      "pos": "TE",
+      "team": "ATL",
+      "adp": 91.1,
+      "proj": 138.6,
+      "vbd": 16.5,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 25,
+      "years_exp": 5,
+      "injury": ""
+    },
+    {
+      "name": "Sam LaPorta",
+      "pos": "TE",
+      "team": "DET",
+      "adp": 102.5,
+      "proj": 138.6,
+      "vbd": 16.5,
+      "fp_rank": 102,
+      "fp_pos_rank": "TE7",
+      "age": 25,
+      "years_exp": 3,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Denver Broncos",
+      "pos": "DEF",
+      "team": "DEN",
+      "adp": 999.0,
+      "proj": 102.0,
+      "vbd": 16.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": null,
+      "injury": ""
+    },
+    {
+      "name": "Kyle Juszczyk",
+      "pos": "FB",
+      "team": "SF",
+      "adp": 999.0,
+      "proj": 14.4,
+      "vbd": 14.4,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": null,
+      "injury": ""
+    },
+    {
+      "name": "Bhayshul Tuten",
+      "pos": "RB",
+      "team": "JAX",
+      "adp": 84.6,
+      "proj": 160.5,
+      "vbd": 13.3,
+      "fp_rank": 84,
+      "fp_pos_rank": "RB25",
+      "age": 23,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Brian Thomas",
+      "pos": "WR",
+      "team": "JAX",
+      "adp": 100.0,
+      "proj": 152.9,
+      "vbd": 13.3,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 23,
+      "years_exp": 2,
+      "injury": ""
+    },
+    {
+      "name": "Chuba Hubbard",
+      "pos": "RB",
+      "team": "CAR",
+      "adp": 95.1,
+      "proj": 160.5,
+      "vbd": 13.3,
+      "fp_rank": 89,
+      "fp_pos_rank": "RB28",
+      "age": 26,
+      "years_exp": 5,
+      "injury": ""
+    },
+    {
+      "name": "Alec Pierce",
+      "pos": "WR",
+      "team": "IND",
+      "adp": 95.5,
+      "proj": 152.9,
+      "vbd": 13.3,
+      "fp_rank": 91,
+      "fp_pos_rank": "WR32",
+      "age": 26,
+      "years_exp": 4,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Jadarian Price",
+      "pos": "RB",
+      "team": "SEA",
+      "adp": 87.1,
+      "proj": 160.5,
+      "vbd": 13.3,
+      "fp_rank": 85,
+      "fp_pos_rank": "RB26",
+      "age": 22,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "DK Metcalf",
+      "pos": "WR",
+      "team": "PIT",
+      "adp": 96.5,
+      "proj": 152.3,
+      "vbd": 12.7,
+      "fp_rank": 92,
+      "fp_pos_rank": "WR33",
+      "age": 28,
+      "years_exp": 7,
+      "injury": ""
+    },
+    {
+      "name": "Brandon Aubrey",
+      "pos": "K",
+      "team": "DAL",
+      "adp": 999.0,
+      "proj": 116.0,
+      "vbd": 12.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 31,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Philadelphia Eagles",
+      "pos": "DEF",
+      "team": "PHI",
+      "adp": 999.0,
+      "proj": 97.0,
+      "vbd": 11.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": null,
+      "injury": ""
+    },
+    {
+      "name": "Jaylen Warren",
+      "pos": "RB",
+      "team": "PIT",
+      "adp": 93.5,
+      "proj": 157.9,
+      "vbd": 10.7,
+      "fp_rank": 87,
+      "fp_pos_rank": "RB27",
+      "age": 27,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "Rico Dowdle",
+      "pos": "RB",
+      "team": "PIT",
+      "adp": 99.1,
+      "proj": 157.9,
+      "vbd": 10.7,
+      "fp_rank": 97,
+      "fp_pos_rank": "RB29",
+      "age": 27,
+      "years_exp": 6,
+      "injury": ""
+    },
+    {
+      "name": "J.K. Dobbins",
+      "pos": "RB",
+      "team": "DEN",
+      "adp": 115.2,
+      "proj": 157.9,
+      "vbd": 10.7,
+      "fp_rank": 112,
+      "fp_pos_rank": "RB35",
+      "age": 27,
+      "years_exp": 6,
+      "injury": ""
+    },
+    {
+      "name": "Tyler Shough",
+      "pos": "QB",
+      "team": "NO",
+      "adp": 48.6,
+      "proj": 262.7,
+      "vbd": 10.0,
+      "fp_rank": 49,
+      "fp_pos_rank": "QB20",
+      "age": 26,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Dalton Kincaid",
+      "pos": "TE",
+      "team": "BUF",
+      "adp": 121.1,
+      "proj": 131.5,
+      "vbd": 9.4,
+      "fp_rank": 116,
+      "fp_pos_rank": "TE9",
+      "age": 26,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Jake Ferguson",
+      "pos": "TE",
+      "team": "DAL",
+      "adp": 126.6,
+      "proj": 131.5,
+      "vbd": 9.4,
+      "fp_rank": 122,
+      "fp_pos_rank": "TE11",
+      "age": 27,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "George Kittle",
+      "pos": "TE",
+      "team": "SF",
+      "adp": 127.0,
+      "proj": 131.5,
+      "vbd": 9.4,
+      "fp_rank": 123,
+      "fp_pos_rank": "TE12",
+      "age": 32,
+      "years_exp": 9,
+      "injury": "IR"
+    },
+    {
+      "name": "Isaiah Likely",
+      "pos": "TE",
+      "team": "NYG",
+      "adp": 132.7,
+      "proj": 131.5,
+      "vbd": 9.4,
+      "fp_rank": 128,
+      "fp_pos_rank": "TE14",
+      "age": 26,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "Ka'imi Fairbairn",
+      "pos": "K",
+      "team": "HOU",
+      "adp": 999.0,
+      "proj": 113.0,
+      "vbd": 9.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 32,
+      "years_exp": 10,
+      "injury": ""
+    },
+    {
+      "name": "Baltimore Ravens",
+      "pos": "DEF",
+      "team": "BAL",
+      "adp": 999.0,
+      "proj": 95.0,
+      "vbd": 9.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": null,
+      "injury": ""
+    },
+    {
+      "name": "Jason Myers",
+      "pos": "K",
+      "team": "SEA",
+      "adp": 999.0,
+      "proj": 112.0,
+      "vbd": 8.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 35,
+      "years_exp": 11,
+      "injury": ""
+    },
+    {
+      "name": "Los Angeles Rams",
+      "pos": "DEF",
+      "team": "LAR",
+      "adp": 999.0,
+      "proj": 94.0,
+      "vbd": 8.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": null,
+      "injury": ""
+    },
+    {
+      "name": "Baker Mayfield",
+      "pos": "QB",
+      "team": "TB",
+      "adp": 49.4,
+      "proj": 260.0,
+      "vbd": 7.2,
+      "fp_rank": 50,
+      "fp_pos_rank": "QB21",
+      "age": 31,
+      "years_exp": 8,
+      "injury": ""
+    },
+    {
+      "name": "Cam Little",
+      "pos": "K",
+      "team": "JAX",
+      "adp": 999.0,
+      "proj": 111.0,
+      "vbd": 7.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 22,
+      "years_exp": 2,
+      "injury": ""
+    },
+    {
+      "name": "Hunter Luepke",
+      "pos": "FB",
+      "team": "DAL",
+      "adp": 999.0,
+      "proj": 6.5,
+      "vbd": 6.5,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": null,
+      "injury": ""
+    },
+    {
+      "name": "Courtland Sutton",
+      "pos": "WR",
+      "team": "DEN",
+      "adp": 97.1,
+      "proj": 145.7,
+      "vbd": 6.1,
+      "fp_rank": 95,
+      "fp_pos_rank": "WR35",
+      "age": 30,
+      "years_exp": 8,
+      "injury": ""
+    },
+    {
+      "name": "Jakobi Meyers",
+      "pos": "WR",
+      "team": "JAX",
+      "adp": 112.0,
+      "proj": 145.7,
+      "vbd": 6.1,
+      "fp_rank": 109,
+      "fp_pos_rank": "WR40",
+      "age": 29,
+      "years_exp": 7,
+      "injury": ""
+    },
+    {
+      "name": "Marvin Harrison",
+      "pos": "WR",
+      "team": "ARI",
+      "adp": 103.1,
+      "proj": 145.7,
+      "vbd": 6.1,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 23,
+      "years_exp": 2,
+      "injury": ""
+    },
+    {
+      "name": "New England Patriots",
+      "pos": "DEF",
+      "team": "NE",
+      "adp": 999.0,
+      "proj": 92.0,
+      "vbd": 6.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": null,
+      "injury": ""
+    },
+    {
+      "name": "Will Reichard",
+      "pos": "K",
+      "team": "MIN",
+      "adp": 999.0,
+      "proj": 108.0,
+      "vbd": 4.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 25,
+      "years_exp": 2,
+      "injury": ""
+    },
+    {
+      "name": "Minnesota Vikings",
+      "pos": "DEF",
+      "team": "MIN",
+      "adp": 999.0,
+      "proj": 90.0,
+      "vbd": 4.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": null,
+      "injury": ""
+    },
+    {
+      "name": "Chris Boswell",
+      "pos": "K",
+      "team": "PIT",
+      "adp": 999.0,
+      "proj": 107.0,
+      "vbd": 3.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 35,
+      "years_exp": 12,
+      "injury": ""
+    },
+    {
+      "name": "Cameron Dicker",
+      "pos": "K",
+      "team": "LAC",
+      "adp": 999.0,
+      "proj": 106.0,
+      "vbd": 2.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 26,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "Evan McPherson",
+      "pos": "K",
+      "team": "CIN",
+      "adp": 999.0,
+      "proj": 106.0,
+      "vbd": 2.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 26,
+      "years_exp": 5,
+      "injury": ""
+    },
+    {
+      "name": "Tyler Loop",
+      "pos": "K",
+      "team": "BAL",
+      "adp": 999.0,
+      "proj": 106.0,
+      "vbd": 2.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 24,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Chase McLaughlin",
+      "pos": "K",
+      "team": "TB",
+      "adp": 999.0,
+      "proj": 105.0,
+      "vbd": 1.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 30,
+      "years_exp": 7,
+      "injury": ""
+    },
+    {
+      "name": "Jake Bates",
+      "pos": "K",
+      "team": "DET",
+      "adp": 999.0,
+      "proj": 105.0,
+      "vbd": 1.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 27,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Kansas City Chiefs",
+      "pos": "DEF",
+      "team": "KC",
+      "adp": 999.0,
+      "proj": 87.0,
+      "vbd": 1.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": null,
+      "injury": ""
+    },
+    {
+      "name": "Jacksonville Jaguars",
+      "pos": "DEF",
+      "team": "JAX",
+      "adp": 999.0,
+      "proj": 87.0,
+      "vbd": 1.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": null,
+      "injury": ""
+    },
+    {
+      "name": "RJ Harvey",
+      "pos": "RB",
+      "team": "DEN",
+      "adp": 100.6,
+      "proj": 147.2,
+      "vbd": 0.0,
+      "fp_rank": 99,
+      "fp_pos_rank": "RB30",
+      "age": 25,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "C.J. Stroud",
+      "pos": "QB",
+      "team": "HOU",
+      "adp": 61.4,
+      "proj": 252.8,
+      "vbd": 0.0,
+      "fp_rank": 61,
+      "fp_pos_rank": "QB22",
+      "age": 24,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Sam Darnold",
+      "pos": "QB",
+      "team": "SEA",
+      "adp": 62.8,
+      "proj": 252.8,
+      "vbd": 0.0,
+      "fp_rank": 64,
+      "fp_pos_rank": "QB23",
+      "age": 28,
+      "years_exp": 8,
+      "injury": ""
+    },
+    {
+      "name": "Makai Lemon",
+      "pos": "WR",
+      "team": "PHI",
+      "adp": 105.2,
+      "proj": 139.6,
+      "vbd": 0.0,
+      "fp_rank": 108,
+      "fp_pos_rank": "WR39",
+      "age": 21,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Kyle Monangai",
+      "pos": "RB",
+      "team": "CHI",
+      "adp": 104.7,
+      "proj": 147.2,
+      "vbd": 0.0,
+      "fp_rank": 106,
+      "fp_pos_rank": "RB33",
+      "age": 23,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Tony Pollard",
+      "pos": "RB",
+      "team": "TEN",
+      "adp": 103.6,
+      "proj": 147.2,
+      "vbd": 0.0,
+      "fp_rank": 105,
+      "fp_pos_rank": "RB32",
+      "age": 29,
+      "years_exp": 7,
+      "injury": ""
+    },
+    {
+      "name": "Oronde Gadsden",
+      "pos": "TE",
+      "team": "LAC",
+      "adp": 106.3,
+      "proj": 122.1,
+      "vbd": 0.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 22,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Chris Godwin",
+      "pos": "WR",
+      "team": "TB",
+      "adp": 111.4,
+      "proj": 139.6,
+      "vbd": 0.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 30,
+      "years_exp": 9,
+      "injury": ""
+    },
+    {
+      "name": "Dallas Goedert",
+      "pos": "TE",
+      "team": "PHI",
+      "adp": 134.8,
+      "proj": 122.1,
+      "vbd": 0.0,
+      "fp_rank": 130,
+      "fp_pos_rank": "TE15",
+      "age": 31,
+      "years_exp": 8,
+      "injury": ""
+    },
+    {
+      "name": "Jordan Addison",
+      "pos": "WR",
+      "team": "MIN",
+      "adp": 116.6,
+      "proj": 139.6,
+      "vbd": 0.0,
+      "fp_rank": 113,
+      "fp_pos_rank": "WR42",
+      "age": 24,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Brenton Strange",
+      "pos": "TE",
+      "team": "JAX",
+      "adp": 154.1,
+      "proj": 122.1,
+      "vbd": 0.0,
+      "fp_rank": 150,
+      "fp_pos_rank": "TE18",
+      "age": 25,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Josh Downs",
+      "pos": "WR",
+      "team": "IND",
+      "adp": 129.6,
+      "proj": 139.6,
+      "vbd": 0.0,
+      "fp_rank": 126,
+      "fp_pos_rank": "WR48",
+      "age": 24,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Harrison Mevis",
+      "pos": "K",
+      "team": "LAR",
+      "adp": 999.0,
+      "proj": 104.0,
+      "vbd": 0.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 24,
+      "years_exp": 2,
+      "injury": ""
+    },
+    {
+      "name": "Green Bay Packers",
+      "pos": "DEF",
+      "team": "GB",
+      "adp": 999.0,
+      "proj": 86.0,
+      "vbd": 0.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": null,
+      "injury": ""
+    },
+    {
+      "name": "Chicago Bears",
+      "pos": "DEF",
+      "team": "CHI",
+      "adp": 999.0,
+      "proj": 86.0,
+      "vbd": 0.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": null,
+      "injury": ""
+    },
+    {
+      "name": "Mark Andrews",
+      "pos": "TE",
+      "team": "BAL",
+      "adp": 149.8,
+      "proj": 121.7,
+      "vbd": -0.4,
+      "fp_rank": 146,
+      "fp_pos_rank": "TE16",
+      "age": 30,
+      "years_exp": 8,
+      "injury": ""
+    },
+    {
+      "name": "Travis Kelce",
+      "pos": "TE",
+      "team": "KC",
+      "adp": 124.4,
+      "proj": 121.7,
+      "vbd": -0.4,
+      "fp_rank": 120,
+      "fp_pos_rank": "TE10",
+      "age": 36,
+      "years_exp": 13,
+      "injury": ""
+    },
+    {
+      "name": "Parker Washington",
+      "pos": "WR",
+      "team": "JAX",
+      "adp": 114.1,
+      "proj": 138.7,
+      "vbd": -0.9,
+      "fp_rank": 111,
+      "fp_pos_rank": "WR41",
+      "age": 24,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Tyler Bass",
+      "pos": "K",
+      "team": "BUF",
+      "adp": 999.0,
+      "proj": 103.0,
+      "vbd": -1.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 29,
+      "years_exp": 6,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Pittsburgh Steelers",
+      "pos": "DEF",
+      "team": "PIT",
+      "adp": 999.0,
+      "proj": 85.0,
+      "vbd": -1.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": null,
+      "injury": ""
+    },
+    {
+      "name": "Los Angeles Chargers",
+      "pos": "DEF",
+      "team": "LAC",
+      "adp": 999.0,
+      "proj": 85.0,
+      "vbd": -1.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": null,
+      "injury": ""
+    },
+    {
+      "name": "Cleveland Browns",
+      "pos": "DEF",
+      "team": "CLE",
+      "adp": 999.0,
+      "proj": 85.0,
+      "vbd": -1.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": null,
+      "injury": ""
+    },
+    {
+      "name": "Buffalo Bills",
+      "pos": "DEF",
+      "team": "BUF",
+      "adp": 999.0,
+      "proj": 85.0,
+      "vbd": -1.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": null,
+      "injury": ""
+    },
+    {
+      "name": "Rhamondre Stevenson",
+      "pos": "RB",
+      "team": "NE",
+      "adp": 101.5,
+      "proj": 146.1,
+      "vbd": -1.1,
+      "fp_rank": 101,
+      "fp_pos_rank": "RB31",
+      "age": 28,
+      "years_exp": 5,
+      "injury": ""
+    },
+    {
+      "name": "Indianapolis Colts",
+      "pos": "DEF",
+      "team": "IND",
+      "adp": 999.0,
+      "proj": 84.0,
+      "vbd": -2.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": null,
+      "injury": ""
+    },
+    {
+      "name": "Detroit Lions",
+      "pos": "DEF",
+      "team": "DET",
+      "adp": 999.0,
+      "proj": 84.0,
+      "vbd": -2.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": null,
+      "injury": ""
+    },
+    {
+      "name": "Ricky Pearsall",
+      "pos": "WR",
+      "team": "SF",
+      "adp": 118.8,
+      "proj": 136.8,
+      "vbd": -2.8,
+      "fp_rank": 115,
+      "fp_pos_rank": "WR44",
+      "age": 25,
+      "years_exp": 2,
+      "injury": ""
+    },
+    {
+      "name": "Eddy Pineiro",
+      "pos": "K",
+      "team": "SF",
+      "adp": 999.0,
+      "proj": 101.0,
+      "vbd": -3.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 30,
+      "years_exp": 8,
+      "injury": ""
+    },
+    {
+      "name": "Atlanta Falcons",
+      "pos": "DEF",
+      "team": "ATL",
+      "adp": 999.0,
+      "proj": 83.0,
+      "vbd": -3.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": null,
+      "injury": ""
+    },
+    {
+      "name": "Harrison Butker",
+      "pos": "K",
+      "team": "KC",
+      "adp": 999.0,
+      "proj": 100.0,
+      "vbd": -4.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 30,
+      "years_exp": 9,
+      "injury": ""
+    },
+    {
+      "name": "Wil Lutz",
+      "pos": "K",
+      "team": "DEN",
+      "adp": 999.0,
+      "proj": 100.0,
+      "vbd": -4.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 31,
+      "years_exp": 10,
+      "injury": ""
+    },
+    {
+      "name": "Cairo Santos",
+      "pos": "K",
+      "team": "CHI",
+      "adp": 999.0,
+      "proj": 100.0,
+      "vbd": -4.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 34,
+      "years_exp": 12,
+      "injury": ""
+    },
+    {
+      "name": "New York Giants",
+      "pos": "DEF",
+      "team": "NYG",
+      "adp": 999.0,
+      "proj": 82.0,
+      "vbd": -4.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": null,
+      "injury": ""
+    },
+    {
+      "name": "Wan'Dale Robinson",
+      "pos": "WR",
+      "team": "TEN",
+      "adp": 121.3,
+      "proj": 135.2,
+      "vbd": -4.4,
+      "fp_rank": 117,
+      "fp_pos_rank": "WR45",
+      "age": 25,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "Matthew Golden",
+      "pos": "WR",
+      "team": "GB",
+      "adp": 149.8,
+      "proj": 135.2,
+      "vbd": -4.4,
+      "fp_rank": 145,
+      "fp_pos_rank": "WR55",
+      "age": 22,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Quentin Johnston",
+      "pos": "WR",
+      "team": "LAC",
+      "adp": 129.3,
+      "proj": 134.6,
+      "vbd": -5.0,
+      "fp_rank": 125,
+      "fp_pos_rank": "WR47",
+      "age": 24,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Jayden Reed",
+      "pos": "WR",
+      "team": "GB",
+      "adp": 125.8,
+      "proj": 134.6,
+      "vbd": -5.0,
+      "fp_rank": 121,
+      "fp_pos_rank": "WR46",
+      "age": 26,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Blake Grupe",
+      "pos": "K",
+      "team": "IND",
+      "adp": 999.0,
+      "proj": 99.0,
+      "vbd": -5.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 27,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Tampa Bay Buccaneers",
+      "pos": "DEF",
+      "team": "TB",
+      "adp": 999.0,
+      "proj": 81.0,
+      "vbd": -5.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": null,
+      "injury": ""
+    },
+    {
+      "name": "Carolina Panthers",
+      "pos": "DEF",
+      "team": "CAR",
+      "adp": 999.0,
+      "proj": 81.0,
+      "vbd": -5.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": null,
+      "injury": ""
+    },
+    {
+      "name": "Khalil Shakir",
+      "pos": "WR",
+      "team": "BUF",
+      "adp": 137.8,
+      "proj": 133.9,
+      "vbd": -5.7,
+      "fp_rank": 133,
+      "fp_pos_rank": "WR50",
+      "age": 26,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "Jalen Coker",
+      "pos": "WR",
+      "team": "CAR",
+      "adp": 147.3,
+      "proj": 133.9,
+      "vbd": -5.7,
+      "fp_rank": 143,
+      "fp_pos_rank": "WR54",
+      "age": 24,
+      "years_exp": 2,
+      "injury": ""
+    },
+    {
+      "name": "Michael Pittman",
+      "pos": "WR",
+      "team": "PIT",
+      "adp": 127.0,
+      "proj": 133.5,
+      "vbd": -6.1,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 28,
+      "years_exp": 6,
+      "injury": ""
+    },
+    {
+      "name": "Xavier Worthy",
+      "pos": "WR",
+      "team": "KC",
+      "adp": 139.4,
+      "proj": 133.5,
+      "vbd": -6.1,
+      "fp_rank": 136,
+      "fp_pos_rank": "WR51",
+      "age": 23,
+      "years_exp": 2,
+      "injury": ""
+    },
+    {
+      "name": "Jayden Higgins",
+      "pos": "WR",
+      "team": "HOU",
+      "adp": 136.0,
+      "proj": 133.5,
+      "vbd": -6.1,
+      "fp_rank": 131,
+      "fp_pos_rank": "WR49",
+      "age": 23,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "San Francisco 49ers",
+      "pos": "DEF",
+      "team": "SF",
+      "adp": 999.0,
+      "proj": 79.0,
+      "vbd": -7.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": null,
+      "injury": ""
+    },
+    {
+      "name": "Dallas Cowboys",
+      "pos": "DEF",
+      "team": "DAL",
+      "adp": 999.0,
+      "proj": 79.0,
+      "vbd": -7.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": null,
+      "injury": ""
+    },
+    {
+      "name": "Cincinnati Bengals",
+      "pos": "DEF",
+      "team": "CIN",
+      "adp": 999.0,
+      "proj": 79.0,
+      "vbd": -7.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": null,
+      "injury": ""
+    },
+    {
+      "name": "Romeo Doubs",
+      "pos": "WR",
+      "team": "NE",
+      "adp": 140.1,
+      "proj": 132.3,
+      "vbd": -7.3,
+      "fp_rank": 139,
+      "fp_pos_rank": "WR52",
+      "age": 26,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "KC Concepcion",
+      "pos": "WR",
+      "team": "CLE",
+      "adp": 146.7,
+      "proj": 132.1,
+      "vbd": -7.5,
+      "fp_rank": 142,
+      "fp_pos_rank": "WR53",
+      "age": 21,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Denzel Boston",
+      "pos": "WR",
+      "team": "CLE",
+      "adp": 167.9,
+      "proj": 132.1,
+      "vbd": -7.5,
+      "fp_rank": 160,
+      "fp_pos_rank": "WR57",
+      "age": 22,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Andy Borregales",
+      "pos": "K",
+      "team": "NE",
+      "adp": 999.0,
+      "proj": 96.0,
+      "vbd": -8.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 23,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Hunter Henry",
+      "pos": "TE",
+      "team": "NE",
+      "adp": 158.8,
+      "proj": 113.4,
+      "vbd": -8.7,
+      "fp_rank": 154,
+      "fp_pos_rank": "TE19",
+      "age": 31,
+      "years_exp": 10,
+      "injury": ""
+    },
+    {
+      "name": "Juwan Johnson",
+      "pos": "TE",
+      "team": "NO",
+      "adp": 150.1,
+      "proj": 113.4,
+      "vbd": -8.7,
+      "fp_rank": 147,
+      "fp_pos_rank": "TE17",
+      "age": 29,
+      "years_exp": 6,
+      "injury": ""
+    },
+    {
+      "name": "Nick Folk",
+      "pos": "K",
+      "team": "ATL",
+      "adp": 999.0,
+      "proj": 95.0,
+      "vbd": -9.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 41,
+      "years_exp": 19,
+      "injury": ""
+    },
+    {
+      "name": "Daniel Carlson",
+      "pos": "K",
+      "team": "",
+      "adp": 999.0,
+      "proj": 95.0,
+      "vbd": -9.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 31,
+      "years_exp": 8,
+      "injury": ""
+    },
+    {
+      "name": "Blake Corum",
+      "pos": "RB",
+      "team": "LAR",
+      "adp": 112.0,
+      "proj": 136.8,
+      "vbd": -10.4,
+      "fp_rank": 110,
+      "fp_pos_rank": "RB34",
+      "age": 25,
+      "years_exp": 2,
+      "injury": ""
+    },
+    {
+      "name": "Aaron Jones",
+      "pos": "RB",
+      "team": "MIN",
+      "adp": 130.8,
+      "proj": 136.8,
+      "vbd": -10.4,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 31,
+      "years_exp": 9,
+      "injury": ""
+    },
+    {
+      "name": "Jacory Croskey-Merritt",
+      "pos": "RB",
+      "team": "WAS",
+      "adp": 122.2,
+      "proj": 136.8,
+      "vbd": -10.4,
+      "fp_rank": 118,
+      "fp_pos_rank": "RB36",
+      "age": 25,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Zane Gonzalez",
+      "pos": "K",
+      "team": "MIA",
+      "adp": 999.0,
+      "proj": 93.0,
+      "vbd": -11.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 31,
+      "years_exp": 9,
+      "injury": ""
+    },
+    {
+      "name": "Charlie Smyth",
+      "pos": "K",
+      "team": "NO",
+      "adp": 999.0,
+      "proj": 93.0,
+      "vbd": -11.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 24,
+      "years_exp": 2,
+      "injury": ""
+    },
+    {
+      "name": "Washington Commanders",
+      "pos": "DEF",
+      "team": "WAS",
+      "adp": 999.0,
+      "proj": 75.0,
+      "vbd": -11.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": null,
+      "injury": ""
+    },
+    {
+      "name": "Jason Sanders",
+      "pos": "K",
+      "team": "NYG",
+      "adp": 999.0,
+      "proj": 92.0,
+      "vbd": -12.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 30,
+      "years_exp": 8,
+      "injury": ""
+    },
+    {
+      "name": "Ryan Fitzgerald",
+      "pos": "K",
+      "team": "CAR",
+      "adp": 999.0,
+      "proj": 92.0,
+      "vbd": -12.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 25,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Dalton Schultz",
+      "pos": "TE",
+      "team": "HOU",
+      "adp": 177.4,
+      "proj": 109.6,
+      "vbd": -12.5,
+      "fp_rank": 172,
+      "fp_pos_rank": "TE20",
+      "age": 29,
+      "years_exp": 8,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Kenyon Sadiq",
+      "pos": "TE",
+      "team": "NYJ",
+      "adp": 179.9,
+      "proj": 109.6,
+      "vbd": -12.5,
+      "fp_rank": 180,
+      "fp_pos_rank": "TE22",
+      "age": 21,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Chig Okonkwo",
+      "pos": "TE",
+      "team": "WAS",
+      "adp": 179.8,
+      "proj": 109.6,
+      "vbd": -12.5,
+      "fp_rank": 178,
+      "fp_pos_rank": "TE21",
+      "age": 26,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "Gunnar Helm",
+      "pos": "TE",
+      "team": "TEN",
+      "adp": 211.0,
+      "proj": 109.6,
+      "vbd": -12.5,
+      "fp_rank": 204,
+      "fp_pos_rank": "TE26",
+      "age": 23,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Jake Moody",
+      "pos": "K",
+      "team": "WAS",
+      "adp": 999.0,
+      "proj": 91.0,
+      "vbd": -13.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 26,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Jake Elliott",
+      "pos": "K",
+      "team": "PHI",
+      "adp": 999.0,
+      "proj": 90.0,
+      "vbd": -14.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 31,
+      "years_exp": 9,
+      "injury": ""
+    },
+    {
+      "name": "New Orleans Saints",
+      "pos": "DEF",
+      "team": "NO",
+      "adp": 999.0,
+      "proj": 72.0,
+      "vbd": -14.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": null,
+      "injury": ""
+    },
+    {
+      "name": "Chad Ryland",
+      "pos": "K",
+      "team": "ARI",
+      "adp": 999.0,
+      "proj": 89.0,
+      "vbd": -15.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 26,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Omar Cooper",
+      "pos": "WR",
+      "team": "NYJ",
+      "adp": 174.5,
+      "proj": 123.8,
+      "vbd": -15.8,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 22,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Rashid Shaheed",
+      "pos": "WR",
+      "team": "SEA",
+      "adp": 161.7,
+      "proj": 123.8,
+      "vbd": -15.8,
+      "fp_rank": 156,
+      "fp_pos_rank": "WR56",
+      "age": 27,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "Tennessee Titans",
+      "pos": "DEF",
+      "team": "TEN",
+      "adp": 999.0,
+      "proj": 68.0,
+      "vbd": -18.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": null,
+      "injury": ""
+    },
+    {
+      "name": "Miami Dolphins",
+      "pos": "DEF",
+      "team": "MIA",
+      "adp": 999.0,
+      "proj": 67.0,
+      "vbd": -19.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": null,
+      "injury": ""
+    },
+    {
+      "name": "Arizona Cardinals",
+      "pos": "DEF",
+      "team": "ARI",
+      "adp": 999.0,
+      "proj": 67.0,
+      "vbd": -19.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": null,
+      "injury": ""
+    },
+    {
+      "name": "T.J. Hockenson",
+      "pos": "TE",
+      "team": "MIN",
+      "adp": 190.8,
+      "proj": 103.0,
+      "vbd": -19.1,
+      "fp_rank": 185,
+      "fp_pos_rank": "TE23",
+      "age": 28,
+      "years_exp": 7,
+      "injury": ""
+    },
+    {
+      "name": "AJ Barner",
+      "pos": "TE",
+      "team": "SEA",
+      "adp": 191.9,
+      "proj": 102.9,
+      "vbd": -19.2,
+      "fp_rank": 186,
+      "fp_pos_rank": "TE24",
+      "age": 24,
+      "years_exp": 2,
+      "injury": ""
+    },
+    {
+      "name": "Joey Slye",
+      "pos": "K",
+      "team": "TEN",
+      "adp": 999.0,
+      "proj": 84.0,
+      "vbd": -20.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 30,
+      "years_exp": 7,
+      "injury": ""
+    },
+    {
+      "name": "Andre Szmyt",
+      "pos": "K",
+      "team": "CLE",
+      "adp": 999.0,
+      "proj": 84.0,
+      "vbd": -20.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 27,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "Las Vegas Raiders",
+      "pos": "DEF",
+      "team": "LV",
+      "adp": 999.0,
+      "proj": 65.0,
+      "vbd": -21.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": null,
+      "injury": ""
+    },
+    {
+      "name": "Bryce Young",
+      "pos": "QB",
+      "team": "CAR",
+      "adp": 68.7,
+      "proj": 231.5,
+      "vbd": -21.3,
+      "fp_rank": 69,
+      "fp_pos_rank": "QB24",
+      "age": 24,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Daniel Jones",
+      "pos": "QB",
+      "team": "IND",
+      "adp": 78.8,
+      "proj": 231.5,
+      "vbd": -21.3,
+      "fp_rank": 88,
+      "fp_pos_rank": "QB26",
+      "age": 28,
+      "years_exp": 7,
+      "injury": "IR"
+    },
+    {
+      "name": "Terrance Ferguson",
+      "pos": "TE",
+      "team": "LAR",
+      "adp": 206.6,
+      "proj": 100.0,
+      "vbd": -22.1,
+      "fp_rank": 196,
+      "fp_pos_rank": "TE25",
+      "age": 23,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Theo Johnson",
+      "pos": "TE",
+      "team": "NYG",
+      "adp": 231.3,
+      "proj": 100.0,
+      "vbd": -22.1,
+      "fp_rank": 241,
+      "fp_pos_rank": "TE34",
+      "age": 25,
+      "years_exp": 2,
+      "injury": ""
+    },
+    {
+      "name": "Mike Gesicki",
+      "pos": "TE",
+      "team": "CIN",
+      "adp": 243.2,
+      "proj": 100.0,
+      "vbd": -22.1,
+      "fp_rank": 274,
+      "fp_pos_rank": "TE37",
+      "age": 30,
+      "years_exp": 8,
+      "injury": ""
+    },
+    {
+      "name": "Chris Rodriguez",
+      "pos": "RB",
+      "team": "JAX",
+      "adp": 193.8,
+      "proj": 125.0,
+      "vbd": -22.2,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 26,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Travis Hunter",
+      "pos": "WR",
+      "team": "JAX",
+      "adp": 169.6,
+      "proj": 116.1,
+      "vbd": -23.5,
+      "fp_rank": 163,
+      "fp_pos_rank": "WR59",
+      "age": 23,
+      "years_exp": 1,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Ryan Flournoy",
+      "pos": "WR",
+      "team": "DAL",
+      "adp": 200.7,
+      "proj": 116.1,
+      "vbd": -23.5,
+      "fp_rank": 206,
+      "fp_pos_rank": "WR80",
+      "age": 26,
+      "years_exp": 2,
+      "injury": ""
+    },
+    {
+      "name": "New York Jets",
+      "pos": "DEF",
+      "team": "NYJ",
+      "adp": 999.0,
+      "proj": 62.0,
+      "vbd": -24.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": null,
+      "injury": ""
+    },
+    {
+      "name": "Cam Ward",
+      "pos": "QB",
+      "team": "TEN",
+      "adp": 71.1,
+      "proj": 227.8,
+      "vbd": -24.9,
+      "fp_rank": 77,
+      "fp_pos_rank": "QB25",
+      "age": 23,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "David Njoku",
+      "pos": "TE",
+      "team": "LAC",
+      "adp": 214.2,
+      "proj": 94.3,
+      "vbd": -27.8,
+      "fp_rank": 207,
+      "fp_pos_rank": "TE27",
+      "age": 29,
+      "years_exp": 9,
+      "injury": ""
+    },
+    {
+      "name": "Jake Tonges",
+      "pos": "TE",
+      "team": "SF",
+      "adp": 237.8,
+      "proj": 94.3,
+      "vbd": -27.8,
+      "fp_rank": 249,
+      "fp_pos_rank": "TE35",
+      "age": 26,
+      "years_exp": 4,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Noah Gray",
+      "pos": "TE",
+      "team": "KC",
+      "adp": 288.4,
+      "proj": 94.3,
+      "vbd": -27.8,
+      "fp_rank": 304,
+      "fp_pos_rank": "TE41",
+      "age": 27,
+      "years_exp": 5,
+      "injury": ""
+    },
+    {
+      "name": "Jerry Jeudy",
+      "pos": "WR",
+      "team": "CLE",
+      "adp": 170.1,
+      "proj": 111.2,
+      "vbd": -28.4,
+      "fp_rank": 164,
+      "fp_pos_rank": "WR60",
+      "age": 27,
+      "years_exp": 6,
+      "injury": ""
+    },
+    {
+      "name": "Kenneth Gainwell",
+      "pos": "RB",
+      "team": "TB",
+      "adp": 129.3,
+      "proj": 118.4,
+      "vbd": -28.8,
+      "fp_rank": 124,
+      "fp_pos_rank": "RB38",
+      "age": 27,
+      "years_exp": 5,
+      "injury": ""
+    },
+    {
+      "name": "Jordan Mason",
+      "pos": "RB",
+      "team": "MIN",
+      "adp": 137.2,
+      "proj": 118.4,
+      "vbd": -28.8,
+      "fp_rank": 132,
+      "fp_pos_rank": "RB40",
+      "age": 26,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "Rachaad White",
+      "pos": "RB",
+      "team": "WAS",
+      "adp": 133.1,
+      "proj": 118.4,
+      "vbd": -28.8,
+      "fp_rank": 129,
+      "fp_pos_rank": "RB39",
+      "age": 27,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "Matt Gay",
+      "pos": "K",
+      "team": "LV",
+      "adp": 999.0,
+      "proj": 75.0,
+      "vbd": -29.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 32,
+      "years_exp": 7,
+      "injury": ""
+    },
+    {
+      "name": "Jacoby Brissett",
+      "pos": "QB",
+      "team": "ARI",
+      "adp": 83.8,
+      "proj": 222.5,
+      "vbd": -30.3,
+      "fp_rank": 96,
+      "fp_pos_rank": "QB27",
+      "age": 33,
+      "years_exp": 10,
+      "injury": ""
+    },
+    {
+      "name": "Jauan Jennings",
+      "pos": "WR",
+      "team": "MIN",
+      "adp": 158.2,
+      "proj": 108.1,
+      "vbd": -31.5,
+      "fp_rank": 168,
+      "fp_pos_rank": "WR61",
+      "age": 28,
+      "years_exp": 6,
+      "injury": ""
+    },
+    {
+      "name": "Brandon Aiyuk",
+      "pos": "WR",
+      "team": "SF",
+      "adp": 169.5,
+      "proj": 106.3,
+      "vbd": -33.3,
+      "fp_rank": 169,
+      "fp_pos_rank": "WR62",
+      "age": 28,
+      "years_exp": 6,
+      "injury": "DNR"
+    },
+    {
+      "name": "Trey Smack",
+      "pos": "K",
+      "team": "GB",
+      "adp": 999.0,
+      "proj": 70.0,
+      "vbd": -34.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 22,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Deebo Samuel",
+      "pos": "WR",
+      "team": "",
+      "adp": 173.4,
+      "proj": 102.9,
+      "vbd": -36.7,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 30,
+      "years_exp": 7,
+      "injury": ""
+    },
+    {
+      "name": "Adonai Mitchell",
+      "pos": "WR",
+      "team": "NYJ",
+      "adp": 177.8,
+      "proj": 102.9,
+      "vbd": -36.7,
+      "fp_rank": 173,
+      "fp_pos_rank": "WR63",
+      "age": 23,
+      "years_exp": 2,
+      "injury": ""
+    },
+    {
+      "name": "Konata Mumpfield",
+      "pos": "WR",
+      "team": "LAR",
+      "adp": 261.2,
+      "proj": 102.9,
+      "vbd": -36.7,
+      "fp_rank": 290,
+      "fp_pos_rank": "WR113",
+      "age": 23,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Eli Stowers",
+      "pos": "TE",
+      "team": "PHI",
+      "adp": 221.7,
+      "proj": 84.0,
+      "vbd": -38.1,
+      "fp_rank": 212,
+      "fp_pos_rank": "TE28",
+      "age": 23,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Cade Otton",
+      "pos": "TE",
+      "team": "TB",
+      "adp": 221.9,
+      "proj": 83.9,
+      "vbd": -38.2,
+      "fp_rank": 218,
+      "fp_pos_rank": "TE29",
+      "age": 27,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "Tyler Allgeier",
+      "pos": "RB",
+      "team": "ARI",
+      "adp": 138.3,
+      "proj": 106.7,
+      "vbd": -40.5,
+      "fp_rank": 134,
+      "fp_pos_rank": "RB41",
+      "age": 26,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "Dylan Sampson",
+      "pos": "RB",
+      "team": "CLE",
+      "adp": 155.2,
+      "proj": 106.7,
+      "vbd": -40.5,
+      "fp_rank": 151,
+      "fp_pos_rank": "RB48",
+      "age": 21,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Fernando Mendoza",
+      "pos": "QB",
+      "team": "LV",
+      "adp": 99.5,
+      "proj": 212.2,
+      "vbd": -40.6,
+      "fp_rank": 98,
+      "fp_pos_rank": "QB28",
+      "age": 22,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Stefon Diggs",
+      "pos": "WR",
+      "team": "",
+      "adp": 157.1,
+      "proj": 98.4,
+      "vbd": -41.2,
+      "fp_rank": 174,
+      "fp_pos_rank": "WR64",
+      "age": 32,
+      "years_exp": 11,
+      "injury": ""
+    },
+    {
+      "name": "Antonio Williams",
+      "pos": "WR",
+      "team": "WAS",
+      "adp": 179.3,
+      "proj": 98.1,
+      "vbd": -41.5,
+      "fp_rank": 175,
+      "fp_pos_rank": "WR65",
+      "age": 21,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Darnell Mooney",
+      "pos": "WR",
+      "team": "NYG",
+      "adp": 201.1,
+      "proj": 98.1,
+      "vbd": -41.5,
+      "fp_rank": 203,
+      "fp_pos_rank": "WR79",
+      "age": 28,
+      "years_exp": 6,
+      "injury": ""
+    },
+    {
+      "name": "Xavier Legette",
+      "pos": "WR",
+      "team": "CAR",
+      "adp": 244.0,
+      "proj": 98.1,
+      "vbd": -41.5,
+      "fp_rank": 257,
+      "fp_pos_rank": "WR105",
+      "age": 25,
+      "years_exp": 2,
+      "injury": ""
+    },
+    {
+      "name": "Cade York",
+      "pos": "K",
+      "team": "NYJ",
+      "adp": 999.0,
+      "proj": 60.0,
+      "vbd": -44.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 25,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "Kayshon Boutte",
+      "pos": "WR",
+      "team": "NE",
+      "adp": 180.1,
+      "proj": 94.0,
+      "vbd": -45.6,
+      "fp_rank": 181,
+      "fp_pos_rank": "WR68",
+      "age": 24,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Troy Franklin",
+      "pos": "WR",
+      "team": "DEN",
+      "adp": 188.7,
+      "proj": 93.4,
+      "vbd": -46.2,
+      "fp_rank": 187,
+      "fp_pos_rank": "WR69",
+      "age": 23,
+      "years_exp": 2,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Zach Charbonnet",
+      "pos": "RB",
+      "team": "SEA",
+      "adp": 139.0,
+      "proj": 100.8,
+      "vbd": -46.4,
+      "fp_rank": 135,
+      "fp_pos_rank": "RB42",
+      "age": 25,
+      "years_exp": 3,
+      "injury": "IR"
+    },
+    {
+      "name": "Tyrone Tracy",
+      "pos": "RB",
+      "team": "NYG",
+      "adp": 154.4,
+      "proj": 100.8,
+      "vbd": -46.4,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 26,
+      "years_exp": 2,
+      "injury": ""
+    },
+    {
+      "name": "Tyjae Spears",
+      "pos": "RB",
+      "team": "TEN",
+      "adp": 153.1,
+      "proj": 100.8,
+      "vbd": -46.4,
+      "fp_rank": 149,
+      "fp_pos_rank": "RB47",
+      "age": 24,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Tre' Harris",
+      "pos": "WR",
+      "team": "LAC",
+      "adp": 182.1,
+      "proj": 93.1,
+      "vbd": -46.5,
+      "fp_rank": 188,
+      "fp_pos_rank": "WR70",
+      "age": 24,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Tre Tucker",
+      "pos": "WR",
+      "team": "LV",
+      "adp": 189.8,
+      "proj": 91.8,
+      "vbd": -47.8,
+      "fp_rank": 190,
+      "fp_pos_rank": "WR71",
+      "age": 25,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Colby Parkinson",
+      "pos": "TE",
+      "team": "LAR",
+      "adp": 229.2,
+      "proj": 71.4,
+      "vbd": -50.7,
+      "fp_rank": 222,
+      "fp_pos_rank": "TE30",
+      "age": 27,
+      "years_exp": 6,
+      "injury": ""
+    },
+    {
+      "name": "Mason Taylor",
+      "pos": "TE",
+      "team": "NYJ",
+      "adp": 226.2,
+      "proj": 71.4,
+      "vbd": -50.7,
+      "fp_rank": 231,
+      "fp_pos_rank": "TE32",
+      "age": 22,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Greg Dulcich",
+      "pos": "TE",
+      "team": "MIA",
+      "adp": 221.8,
+      "proj": 71.4,
+      "vbd": -50.7,
+      "fp_rank": 277,
+      "fp_pos_rank": "TE38",
+      "age": 26,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "Justin Joly",
+      "pos": "TE",
+      "team": "DEN",
+      "adp": 293.1,
+      "proj": 71.4,
+      "vbd": -50.7,
+      "fp_rank": 317,
+      "fp_pos_rank": "TE44",
+      "age": 21,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "John Bates",
+      "pos": "TE",
+      "team": "WAS",
+      "adp": 275.0,
+      "proj": 71.4,
+      "vbd": -50.7,
+      "fp_rank": 325,
+      "fp_pos_rank": "TE48",
+      "age": 28,
+      "years_exp": 5,
+      "injury": ""
+    },
+    {
+      "name": "Marlin Klein",
+      "pos": "TE",
+      "team": "HOU",
+      "adp": 328.0,
+      "proj": 71.4,
+      "vbd": -50.7,
+      "fp_rank": 396,
+      "fp_pos_rank": "TE69",
+      "age": 23,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Isaac TeSlaa",
+      "pos": "WR",
+      "team": "DET",
+      "adp": 196.1,
+      "proj": 88.8,
+      "vbd": -50.8,
+      "fp_rank": 194,
+      "fp_pos_rank": "WR73",
+      "age": 24,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Jaylin Noel",
+      "pos": "WR",
+      "team": "HOU",
+      "adp": 193.5,
+      "proj": 88.8,
+      "vbd": -50.8,
+      "fp_rank": 192,
+      "fp_pos_rank": "WR72",
+      "age": 23,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Christian Kirk",
+      "pos": "WR",
+      "team": "SF",
+      "adp": 233.9,
+      "proj": 88.8,
+      "vbd": -50.8,
+      "fp_rank": 243,
+      "fp_pos_rank": "WR100",
+      "age": 29,
+      "years_exp": 8,
+      "injury": ""
+    },
+    {
+      "name": "Pat Freiermuth",
+      "pos": "TE",
+      "team": "PIT",
+      "adp": 226.8,
+      "proj": 69.6,
+      "vbd": -52.5,
+      "fp_rank": 225,
+      "fp_pos_rank": "TE31",
+      "age": 27,
+      "years_exp": 5,
+      "injury": ""
+    },
+    {
+      "name": "Tyreek Hill",
+      "pos": "WR",
+      "team": "",
+      "adp": 175.7,
+      "proj": 83.2,
+      "vbd": -56.4,
+      "fp_rank": 195,
+      "fp_pos_rank": "WR74",
+      "age": 31,
+      "years_exp": 10,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Jalen McMillan",
+      "pos": "WR",
+      "team": "TB",
+      "adp": 179.4,
+      "proj": 83.2,
+      "vbd": -56.4,
+      "fp_rank": 176,
+      "fp_pos_rank": "WR66",
+      "age": 24,
+      "years_exp": 2,
+      "injury": ""
+    },
+    {
+      "name": "Ted Hurst",
+      "pos": "WR",
+      "team": "TB",
+      "adp": 231.3,
+      "proj": 83.2,
+      "vbd": -56.4,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 21,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Pat Bryant",
+      "pos": "WR",
+      "team": "DEN",
+      "adp": 199.3,
+      "proj": 82.2,
+      "vbd": -57.4,
+      "fp_rank": 199,
+      "fp_pos_rank": "WR75",
+      "age": 23,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Germie Bernard",
+      "pos": "WR",
+      "team": "PIT",
+      "adp": 214.8,
+      "proj": 82.2,
+      "vbd": -57.4,
+      "fp_rank": 208,
+      "fp_pos_rank": "WR81",
+      "age": 22,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Brandon McManus",
+      "pos": "K",
+      "team": "",
+      "adp": 999.0,
+      "proj": 46.0,
+      "vbd": -58.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 34,
+      "years_exp": 13,
+      "injury": ""
+    },
+    {
+      "name": "Chimere Dike",
+      "pos": "WR",
+      "team": "TEN",
+      "adp": 200.1,
+      "proj": 80.9,
+      "vbd": -58.7,
+      "fp_rank": 201,
+      "fp_pos_rank": "WR77",
+      "age": 24,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Jack Bech",
+      "pos": "WR",
+      "team": "LV",
+      "adp": 237.7,
+      "proj": 80.9,
+      "vbd": -58.7,
+      "fp_rank": 236,
+      "fp_pos_rank": "WR97",
+      "age": 23,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Malachi Fields",
+      "pos": "WR",
+      "team": "NYG",
+      "adp": 237.3,
+      "proj": 80.9,
+      "vbd": -58.7,
+      "fp_rank": 228,
+      "fp_pos_rank": "WR92",
+      "age": 22,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Calvin Ridley",
+      "pos": "WR",
+      "team": "TEN",
+      "adp": 200.8,
+      "proj": 80.8,
+      "vbd": -58.8,
+      "fp_rank": 202,
+      "fp_pos_rank": "WR78",
+      "age": 31,
+      "years_exp": 8,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Keon Coleman",
+      "pos": "WR",
+      "team": "BUF",
+      "adp": 230.2,
+      "proj": 80.8,
+      "vbd": -58.8,
+      "fp_rank": 244,
+      "fp_pos_rank": "WR101",
+      "age": 23,
+      "years_exp": 2,
+      "injury": ""
+    },
+    {
+      "name": "Joshua Palmer",
+      "pos": "WR",
+      "team": "BUF",
+      "adp": 293.1,
+      "proj": 80.8,
+      "vbd": -58.8,
+      "fp_rank": 309,
+      "fp_pos_rank": "WR122",
+      "age": 26,
+      "years_exp": 5,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Woody Marks",
+      "pos": "RB",
+      "team": "HOU",
+      "adp": 140.3,
+      "proj": 87.9,
+      "vbd": -59.3,
+      "fp_rank": 140,
+      "fp_pos_rank": "RB44",
+      "age": 25,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Jonathon Brooks",
+      "pos": "RB",
+      "team": "CAR",
+      "adp": 151.3,
+      "proj": 87.9,
+      "vbd": -59.3,
+      "fp_rank": 148,
+      "fp_pos_rank": "RB46",
+      "age": 22,
+      "years_exp": 2,
+      "injury": ""
+    },
+    {
+      "name": "Trevor Etienne",
+      "pos": "RB",
+      "team": "CAR",
+      "adp": 270.5,
+      "proj": 87.9,
+      "vbd": -59.3,
+      "fp_rank": 281,
+      "fp_pos_rank": "RB95",
+      "age": 21,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Max Klare",
+      "pos": "TE",
+      "team": "LAR",
+      "adp": 271.3,
+      "proj": 62.4,
+      "vbd": -59.7,
+      "fp_rank": 259,
+      "fp_pos_rank": "TE36",
+      "age": 22,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Evan Engram",
+      "pos": "TE",
+      "team": "DEN",
+      "adp": 233.4,
+      "proj": 62.4,
+      "vbd": -59.7,
+      "fp_rank": 238,
+      "fp_pos_rank": "TE33",
+      "age": 31,
+      "years_exp": 9,
+      "injury": ""
+    },
+    {
+      "name": "Zachariah Branch",
+      "pos": "WR",
+      "team": "ATL",
+      "adp": 221.6,
+      "proj": 76.2,
+      "vbd": -63.4,
+      "fp_rank": 211,
+      "fp_pos_rank": "WR83",
+      "age": 22,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Chris Bell",
+      "pos": "WR",
+      "team": "MIA",
+      "adp": 208.5,
+      "proj": 76.2,
+      "vbd": -63.4,
+      "fp_rank": 200,
+      "fp_pos_rank": "WR76",
+      "age": 21,
+      "years_exp": 0,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Tank Dell",
+      "pos": "WR",
+      "team": "HOU",
+      "adp": 213.0,
+      "proj": 75.4,
+      "vbd": -64.2,
+      "fp_rank": 214,
+      "fp_pos_rank": "WR85",
+      "age": 26,
+      "years_exp": 3,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Ja'Kobi Lane",
+      "pos": "WR",
+      "team": "BAL",
+      "adp": 226.5,
+      "proj": 75.3,
+      "vbd": -64.3,
+      "fp_rank": 215,
+      "fp_pos_rank": "WR86",
+      "age": 22,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Malik Washington",
+      "pos": "WR",
+      "team": "MIA",
+      "adp": 225.9,
+      "proj": 75.3,
+      "vbd": -64.3,
+      "fp_rank": 223,
+      "fp_pos_rank": "WR89",
+      "age": 25,
+      "years_exp": 2,
+      "injury": ""
+    },
+    {
+      "name": "Elijah Sarratt",
+      "pos": "WR",
+      "team": "BAL",
+      "adp": 228.7,
+      "proj": 74.7,
+      "vbd": -64.9,
+      "fp_rank": 217,
+      "fp_pos_rank": "WR87",
+      "age": 22,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Elic Ayomanor",
+      "pos": "WR",
+      "team": "TEN",
+      "adp": 212.6,
+      "proj": 74.5,
+      "vbd": -65.1,
+      "fp_rank": 221,
+      "fp_pos_rank": "WR88",
+      "age": 22,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Jalen Royals",
+      "pos": "WR",
+      "team": "KC",
+      "adp": 274.0,
+      "proj": 74.5,
+      "vbd": -65.1,
+      "fp_rank": 296,
+      "fp_pos_rank": "WR117",
+      "age": 23,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Jalen Nailor",
+      "pos": "WR",
+      "team": "LV",
+      "adp": 210.7,
+      "proj": 73.0,
+      "vbd": -66.6,
+      "fp_rank": 227,
+      "fp_pos_rank": "WR91",
+      "age": 27,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "Darnell Washington",
+      "pos": "TE",
+      "team": "PIT",
+      "adp": 282.1,
+      "proj": 55.2,
+      "vbd": -66.9,
+      "fp_rank": 305,
+      "fp_pos_rank": "TE42",
+      "age": 24,
+      "years_exp": 3,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Skyler Bell",
+      "pos": "WR",
+      "team": "BUF",
+      "adp": 238.1,
+      "proj": 71.6,
+      "vbd": -68.0,
+      "fp_rank": 229,
+      "fp_pos_rank": "WR93",
+      "age": 23,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Michael Mayer",
+      "pos": "TE",
+      "team": "LV",
+      "adp": 284.0,
+      "proj": 54.1,
+      "vbd": -68.0,
+      "fp_rank": 313,
+      "fp_pos_rank": "TE43",
+      "age": 24,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Oscar Delp",
+      "pos": "TE",
+      "team": "NO",
+      "adp": 291.1,
+      "proj": 54.1,
+      "vbd": -68.0,
+      "fp_rank": 279,
+      "fp_pos_rank": "TE39",
+      "age": 22,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Noah Fant",
+      "pos": "TE",
+      "team": "NO",
+      "adp": 319.8,
+      "proj": 54.1,
+      "vbd": -68.0,
+      "fp_rank": 347,
+      "fp_pos_rank": "TE55",
+      "age": 28,
+      "years_exp": 7,
+      "injury": ""
+    },
+    {
+      "name": "Rashod Bateman",
+      "pos": "WR",
+      "team": "BAL",
+      "adp": 220.1,
+      "proj": 71.3,
+      "vbd": -68.3,
+      "fp_rank": 230,
+      "fp_pos_rank": "WR94",
+      "age": 26,
+      "years_exp": 5,
+      "injury": ""
+    },
+    {
+      "name": "Cooper Kupp",
+      "pos": "WR",
+      "team": "SEA",
+      "adp": 235.4,
+      "proj": 71.3,
+      "vbd": -68.3,
+      "fp_rank": 242,
+      "fp_pos_rank": "WR99",
+      "age": 32,
+      "years_exp": 9,
+      "injury": ""
+    },
+    {
+      "name": "Kyle Williams",
+      "pos": "WR",
+      "team": "NE",
+      "adp": 221.0,
+      "proj": 70.8,
+      "vbd": -68.8,
+      "fp_rank": 233,
+      "fp_pos_rank": "WR95",
+      "age": 23,
+      "years_exp": 2,
+      "injury": ""
+    },
+    {
+      "name": "Chris Brazzell",
+      "pos": "WR",
+      "team": "CAR",
+      "adp": 240.0,
+      "proj": 70.8,
+      "vbd": -68.8,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 22,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Luke McCaffrey",
+      "pos": "WR",
+      "team": "WAS",
+      "adp": 270.5,
+      "proj": 70.8,
+      "vbd": -68.8,
+      "fp_rank": 292,
+      "fp_pos_rank": "WR114",
+      "age": 25,
+      "years_exp": 2,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Tory Horton",
+      "pos": "WR",
+      "team": "SEA",
+      "adp": 233.4,
+      "proj": 70.4,
+      "vbd": -69.2,
+      "fp_rank": 239,
+      "fp_pos_rank": "WR98",
+      "age": 23,
+      "years_exp": 1,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Ben Sauls",
+      "pos": "K",
+      "team": "NYG",
+      "adp": 999.0,
+      "proj": 34.0,
+      "vbd": -70.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 24,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Elijah Arroyo",
+      "pos": "TE",
+      "team": "SEA",
+      "adp": 289.1,
+      "proj": 49.2,
+      "vbd": -72.9,
+      "fp_rank": 319,
+      "fp_pos_rank": "TE45",
+      "age": 23,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Tyler Higbee",
+      "pos": "TE",
+      "team": "LAR",
+      "adp": 272.3,
+      "proj": 49.2,
+      "vbd": -72.9,
+      "fp_rank": 301,
+      "fp_pos_rank": "TE40",
+      "age": 33,
+      "years_exp": 10,
+      "injury": ""
+    },
+    {
+      "name": "Luke Schoonmaker",
+      "pos": "TE",
+      "team": "DAL",
+      "adp": 333.0,
+      "proj": 49.2,
+      "vbd": -72.9,
+      "fp_rank": 391,
+      "fp_pos_rank": "TE65",
+      "age": 27,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Will Kacmarek",
+      "pos": "TE",
+      "team": "MIA",
+      "adp": 999.0,
+      "proj": 49.1,
+      "vbd": -73.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 23,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Ja'Tavion Sanders",
+      "pos": "TE",
+      "team": "CAR",
+      "adp": 294.9,
+      "proj": 49.1,
+      "vbd": -73.0,
+      "fp_rank": 322,
+      "fp_pos_rank": "TE46",
+      "age": 23,
+      "years_exp": 2,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Geno Smith",
+      "pos": "QB",
+      "team": "NYJ",
+      "adp": 120.3,
+      "proj": 177.0,
+      "vbd": -75.8,
+      "fp_rank": 137,
+      "fp_pos_rank": "QB29",
+      "age": 35,
+      "years_exp": 13,
+      "injury": ""
+    },
+    {
+      "name": "Cole Kmet",
+      "pos": "TE",
+      "team": "CHI",
+      "adp": 306.1,
+      "proj": 46.3,
+      "vbd": -75.8,
+      "fp_rank": 328,
+      "fp_pos_rank": "TE49",
+      "age": 27,
+      "years_exp": 6,
+      "injury": ""
+    },
+    {
+      "name": "Joe Royer",
+      "pos": "TE",
+      "team": "CLE",
+      "adp": 999.0,
+      "proj": 46.3,
+      "vbd": -75.8,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 24,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Mack Hollins",
+      "pos": "WR",
+      "team": "NE",
+      "adp": 241.6,
+      "proj": 60.8,
+      "vbd": -78.8,
+      "fp_rank": 251,
+      "fp_pos_rank": "WR103",
+      "age": 32,
+      "years_exp": 9,
+      "injury": ""
+    },
+    {
+      "name": "Devaughn Vele",
+      "pos": "WR",
+      "team": "NO",
+      "adp": 250.9,
+      "proj": 60.7,
+      "vbd": -78.9,
+      "fp_rank": 255,
+      "fp_pos_rank": "WR104",
+      "age": 28,
+      "years_exp": 2,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Darren Waller",
+      "pos": "TE",
+      "team": "",
+      "adp": 303.2,
+      "proj": 42.8,
+      "vbd": -79.3,
+      "fp_rank": 332,
+      "fp_pos_rank": "TE50",
+      "age": 33,
+      "years_exp": 11,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Jack Endries",
+      "pos": "TE",
+      "team": "CIN",
+      "adp": 999.0,
+      "proj": 42.8,
+      "vbd": -79.3,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 22,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Riley Patterson",
+      "pos": "K",
+      "team": "MIA",
+      "adp": 999.0,
+      "proj": 22.0,
+      "vbd": -82.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 26,
+      "years_exp": 5,
+      "injury": ""
+    },
+    {
+      "name": "Michael Badgley",
+      "pos": "K",
+      "team": "",
+      "adp": 999.0,
+      "proj": 22.0,
+      "vbd": -82.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 30,
+      "years_exp": 7,
+      "injury": ""
+    },
+    {
+      "name": "Graham Gano",
+      "pos": "K",
+      "team": "",
+      "adp": 999.0,
+      "proj": 22.0,
+      "vbd": -82.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 38,
+      "years_exp": 17,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Younghoe Koo",
+      "pos": "K",
+      "team": "",
+      "adp": 999.0,
+      "proj": 22.0,
+      "vbd": -82.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 31,
+      "years_exp": 8,
+      "injury": ""
+    },
+    {
+      "name": "Matt Prater",
+      "pos": "K",
+      "team": "",
+      "adp": 999.0,
+      "proj": 22.0,
+      "vbd": -82.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 41,
+      "years_exp": 20,
+      "injury": ""
+    },
+    {
+      "name": "Keenan Allen",
+      "pos": "WR",
+      "team": "",
+      "adp": 244.4,
+      "proj": 57.3,
+      "vbd": -82.3,
+      "fp_rank": 260,
+      "fp_pos_rank": "WR106",
+      "age": 33,
+      "years_exp": 13,
+      "injury": ""
+    },
+    {
+      "name": "De'Zhaun Stribling",
+      "pos": "WR",
+      "team": "SF",
+      "adp": 221.9,
+      "proj": 57.3,
+      "vbd": -82.3,
+      "fp_rank": 213,
+      "fp_pos_rank": "WR84",
+      "age": 23,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Marvin Mims",
+      "pos": "WR",
+      "team": "DEN",
+      "adp": 226.8,
+      "proj": 56.4,
+      "vbd": -83.2,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 24,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Darius Slayton",
+      "pos": "WR",
+      "team": "NYG",
+      "adp": 250.7,
+      "proj": 56.4,
+      "vbd": -83.2,
+      "fp_rank": 268,
+      "fp_pos_rank": "WR107",
+      "age": 29,
+      "years_exp": 7,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Dontayvion Wicks",
+      "pos": "WR",
+      "team": "PHI",
+      "adp": 208.2,
+      "proj": 56.4,
+      "vbd": -83.2,
+      "fp_rank": 209,
+      "fp_pos_rank": "WR82",
+      "age": 24,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Brian Robinson",
+      "pos": "RB",
+      "team": "ATL",
+      "adp": 122.2,
+      "proj": 63.4,
+      "vbd": -83.8,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 27,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "Isiah Pacheco",
+      "pos": "RB",
+      "team": "DET",
+      "adp": 155.4,
+      "proj": 63.4,
+      "vbd": -83.8,
+      "fp_rank": 152,
+      "fp_pos_rank": "RB49",
+      "age": 27,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "Nicholas Singleton",
+      "pos": "RB",
+      "team": "TEN",
+      "adp": 183.6,
+      "proj": 63.4,
+      "vbd": -83.8,
+      "fp_rank": 182,
+      "fp_pos_rank": "RB60",
+      "age": 22,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Theo Wease",
+      "pos": "WR",
+      "team": "MIA",
+      "adp": 999.0,
+      "proj": 55.1,
+      "vbd": -84.5,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 24,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Tyquan Thornton",
+      "pos": "WR",
+      "team": "KC",
+      "adp": 256.7,
+      "proj": 55.1,
+      "vbd": -84.5,
+      "fp_rank": 273,
+      "fp_pos_rank": "WR108",
+      "age": 25,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "Marquise Brown",
+      "pos": "WR",
+      "team": "PHI",
+      "adp": 999.0,
+      "proj": 55.0,
+      "vbd": -84.6,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 28,
+      "years_exp": 7,
+      "injury": ""
+    },
+    {
+      "name": "Andrei Iosivas",
+      "pos": "WR",
+      "team": "CIN",
+      "adp": 258.7,
+      "proj": 52.6,
+      "vbd": -87.0,
+      "fp_rank": 285,
+      "fp_pos_rank": "WR111",
+      "age": 26,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "John Michael Gyllenborg",
+      "pos": "TE",
+      "team": "KC",
+      "adp": 999.0,
+      "proj": 34.9,
+      "vbd": -87.2,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 23,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Ben Sinnott",
+      "pos": "TE",
+      "team": "WAS",
+      "adp": 308.2,
+      "proj": 34.9,
+      "vbd": -87.2,
+      "fp_rank": 340,
+      "fp_pos_rank": "TE51",
+      "age": 23,
+      "years_exp": 2,
+      "injury": ""
+    },
+    {
+      "name": "Keaton Mitchell",
+      "pos": "RB",
+      "team": "LAC",
+      "adp": 162.4,
+      "proj": 57.7,
+      "vbd": -89.5,
+      "fp_rank": 157,
+      "fp_pos_rank": "RB52",
+      "age": 24,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "James Conner",
+      "pos": "RB",
+      "team": "ARI",
+      "adp": 160.5,
+      "proj": 57.5,
+      "vbd": -89.7,
+      "fp_rank": 158,
+      "fp_pos_rank": "RB53",
+      "age": 31,
+      "years_exp": 9,
+      "injury": ""
+    },
+    {
+      "name": "Braelon Allen",
+      "pos": "RB",
+      "team": "NYJ",
+      "adp": 164.0,
+      "proj": 57.5,
+      "vbd": -89.7,
+      "fp_rank": 162,
+      "fp_pos_rank": "RB55",
+      "age": 22,
+      "years_exp": 2,
+      "injury": ""
+    },
+    {
+      "name": "Mike Washington",
+      "pos": "RB",
+      "team": "LV",
+      "adp": 190.6,
+      "proj": 57.5,
+      "vbd": -89.7,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 22,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Dominic Zvada",
+      "pos": "K",
+      "team": "NYG",
+      "adp": 999.0,
+      "proj": 14.0,
+      "vbd": -90.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 22,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Dawson Knox",
+      "pos": "TE",
+      "team": "BUF",
+      "adp": 319.2,
+      "proj": 31.6,
+      "vbd": -90.5,
+      "fp_rank": 346,
+      "fp_pos_rank": "TE54",
+      "age": 29,
+      "years_exp": 7,
+      "injury": ""
+    },
+    {
+      "name": "Josh Cameron",
+      "pos": "WR",
+      "team": "JAX",
+      "adp": 999.0,
+      "proj": 49.1,
+      "vbd": -90.5,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 23,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Tez Johnson",
+      "pos": "WR",
+      "team": "TB",
+      "adp": 269.4,
+      "proj": 49.1,
+      "vbd": -90.5,
+      "fp_rank": 293,
+      "fp_pos_rank": "WR115",
+      "age": 24,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Jalen Tolbert",
+      "pos": "WR",
+      "team": "MIA",
+      "adp": 287.2,
+      "proj": 49.1,
+      "vbd": -90.5,
+      "fp_rank": 314,
+      "fp_pos_rank": "WR126",
+      "age": 27,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "Jonnu Smith",
+      "pos": "TE",
+      "team": "",
+      "adp": 313.8,
+      "proj": 30.7,
+      "vbd": -91.4,
+      "fp_rank": 349,
+      "fp_pos_rank": "TE56",
+      "age": 30,
+      "years_exp": 9,
+      "injury": ""
+    },
+    {
+      "name": "Daniel Bellinger",
+      "pos": "TE",
+      "team": "TEN",
+      "adp": 316.2,
+      "proj": 29.3,
+      "vbd": -92.8,
+      "fp_rank": 352,
+      "fp_pos_rank": "TE58",
+      "age": 25,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "Eli Raridon",
+      "pos": "TE",
+      "team": "NE",
+      "adp": 323.5,
+      "proj": 29.1,
+      "vbd": -93.0,
+      "fp_rank": 355,
+      "fp_pos_rank": "TE59",
+      "age": 22,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Elijah Higgins",
+      "pos": "TE",
+      "team": "ARI",
+      "adp": 326.3,
+      "proj": 28.7,
+      "vbd": -93.4,
+      "fp_rank": 369,
+      "fp_pos_rank": "TE60",
+      "age": 25,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Luke Musgrave",
+      "pos": "TE",
+      "team": "GB",
+      "adp": 318.8,
+      "proj": 28.7,
+      "vbd": -93.4,
+      "fp_rank": 343,
+      "fp_pos_rank": "TE52",
+      "age": 25,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Mitchell Evans",
+      "pos": "TE",
+      "team": "CAR",
+      "adp": 296.0,
+      "proj": 28.7,
+      "vbd": -93.4,
+      "fp_rank": 345,
+      "fp_pos_rank": "TE53",
+      "age": 23,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Tank Bigsby",
+      "pos": "RB",
+      "team": "PHI",
+      "adp": 170.2,
+      "proj": 53.5,
+      "vbd": -93.7,
+      "fp_rank": 165,
+      "fp_pos_rank": "RB56",
+      "age": 23,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Emanuel Wilson",
+      "pos": "RB",
+      "team": "SEA",
+      "adp": 170.9,
+      "proj": 53.5,
+      "vbd": -93.7,
+      "fp_rank": 166,
+      "fp_pos_rank": "RB57",
+      "age": 27,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Cade Stover",
+      "pos": "TE",
+      "team": "HOU",
+      "adp": 999.0,
+      "proj": 26.2,
+      "vbd": -95.9,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 25,
+      "years_exp": 2,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Will Dissly",
+      "pos": "TE",
+      "team": "",
+      "adp": 314.0,
+      "proj": 26.2,
+      "vbd": -95.9,
+      "fp_rank": 390,
+      "fp_pos_rank": "TE64",
+      "age": 29,
+      "years_exp": 8,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Emmett Johnson",
+      "pos": "RB",
+      "team": "KC",
+      "adp": 173.8,
+      "proj": 51.0,
+      "vbd": -96.2,
+      "fp_rank": 167,
+      "fp_pos_rank": "RB58",
+      "age": 22,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Jonah Coleman",
+      "pos": "RB",
+      "team": "DEN",
+      "adp": 159.1,
+      "proj": 51.0,
+      "vbd": -96.2,
+      "fp_rank": 155,
+      "fp_pos_rank": "RB51",
+      "age": 22,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Alvin Kamara",
+      "pos": "RB",
+      "team": "NO",
+      "adp": 158.4,
+      "proj": 51.0,
+      "vbd": -96.2,
+      "fp_rank": 153,
+      "fp_pos_rank": "RB50",
+      "age": 30,
+      "years_exp": 9,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Devin Neal",
+      "pos": "RB",
+      "team": "NO",
+      "adp": 215.0,
+      "proj": 51.0,
+      "vbd": -96.2,
+      "fp_rank": 219,
+      "fp_pos_rank": "RB69",
+      "age": 22,
+      "years_exp": 1,
+      "injury": "Questionable"
+    },
+    {
+      "name": "DJ Giddens",
+      "pos": "RB",
+      "team": "IND",
+      "adp": 245.3,
+      "proj": 51.0,
+      "vbd": -96.2,
+      "fp_rank": 261,
+      "fp_pos_rank": "RB83",
+      "age": 22,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Tanner Koziol",
+      "pos": "TE",
+      "team": "JAX",
+      "adp": 999.0,
+      "proj": 25.8,
+      "vbd": -96.3,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 22,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Jackson Hawes",
+      "pos": "TE",
+      "team": "BUF",
+      "adp": 341.0,
+      "proj": 25.8,
+      "vbd": -96.3,
+      "fp_rank": 392,
+      "fp_pos_rank": "TE66",
+      "age": 25,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Tyler Conklin",
+      "pos": "TE",
+      "team": "DET",
+      "adp": 320.0,
+      "proj": 25.8,
+      "vbd": -96.3,
+      "fp_rank": 394,
+      "fp_pos_rank": "TE67",
+      "age": 30,
+      "years_exp": 8,
+      "injury": ""
+    },
+    {
+      "name": "Michael Trigg",
+      "pos": "TE",
+      "team": "DAL",
+      "adp": 352.0,
+      "proj": 25.3,
+      "vbd": -96.8,
+      "fp_rank": 399,
+      "fp_pos_rank": "TE71",
+      "age": 23,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Sam Roush",
+      "pos": "TE",
+      "team": "CHI",
+      "adp": 346.0,
+      "proj": 25.3,
+      "vbd": -96.8,
+      "fp_rank": 398,
+      "fp_pos_rank": "TE70",
+      "age": 22,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Austin Hooper",
+      "pos": "TE",
+      "team": "ATL",
+      "adp": 309.0,
+      "proj": 25.3,
+      "vbd": -96.8,
+      "fp_rank": 386,
+      "fp_pos_rank": "TE61",
+      "age": 31,
+      "years_exp": 10,
+      "injury": ""
+    },
+    {
+      "name": "Tommy Tremble",
+      "pos": "TE",
+      "team": "CAR",
+      "adp": 335.5,
+      "proj": 25.3,
+      "vbd": -96.8,
+      "fp_rank": 388,
+      "fp_pos_rank": "TE62",
+      "age": 25,
+      "years_exp": 5,
+      "injury": ""
+    },
+    {
+      "name": "Matt Hibner",
+      "pos": "TE",
+      "team": "BAL",
+      "adp": 999.0,
+      "proj": 25.3,
+      "vbd": -96.8,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 24,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Durham Smythe",
+      "pos": "TE",
+      "team": "BAL",
+      "adp": 313.0,
+      "proj": 25.3,
+      "vbd": -96.8,
+      "fp_rank": 389,
+      "fp_pos_rank": "TE63",
+      "age": 30,
+      "years_exp": 8,
+      "injury": ""
+    },
+    {
+      "name": "Charlie Kolar",
+      "pos": "TE",
+      "team": "LAC",
+      "adp": 361.0,
+      "proj": 25.1,
+      "vbd": -97.0,
+      "fp_rank": 402,
+      "fp_pos_rank": "TE72",
+      "age": 27,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "Zach Ertz",
+      "pos": "TE",
+      "team": "",
+      "adp": 322.4,
+      "proj": 25.1,
+      "vbd": -97.0,
+      "fp_rank": 350,
+      "fp_pos_rank": "TE57",
+      "age": 35,
+      "years_exp": 13,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Drew Sample",
+      "pos": "TE",
+      "team": "CIN",
+      "adp": 999.0,
+      "proj": 25.1,
+      "vbd": -97.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 30,
+      "years_exp": 7,
+      "injury": ""
+    },
+    {
+      "name": "Miles Kitselman",
+      "pos": "TE",
+      "team": "DET",
+      "adp": 999.0,
+      "proj": 25.1,
+      "vbd": -97.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 23,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Jaren Kanak",
+      "pos": "TE",
+      "team": "TEN",
+      "adp": 999.0,
+      "proj": 25.1,
+      "vbd": -97.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 22,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Lance Mason",
+      "pos": "TE",
+      "team": "SEA",
+      "adp": 999.0,
+      "proj": 25.1,
+      "vbd": -97.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Josh Oliver",
+      "pos": "TE",
+      "team": "MIN",
+      "adp": 999.0,
+      "proj": 24.9,
+      "vbd": -97.2,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 29,
+      "years_exp": 7,
+      "injury": "Questionable"
+    },
+    {
+      "name": "Will Ferrin",
+      "pos": "K",
+      "team": "",
+      "adp": 999.0,
+      "proj": 6.0,
+      "vbd": -98.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": null,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Lenny Krieg",
+      "pos": "K",
+      "team": "NYJ",
+      "adp": 999.0,
+      "proj": 6.0,
+      "vbd": -98.0,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 23,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "Grant Calcaterra",
+      "pos": "TE",
+      "team": "PHI",
+      "adp": 999.0,
+      "proj": 24.0,
+      "vbd": -98.1,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 27,
+      "years_exp": 4,
+      "injury": ""
+    },
+    {
+      "name": "Brevyn Spann-Ford",
+      "pos": "TE",
+      "team": "DAL",
+      "adp": 999.0,
+      "proj": 23.4,
+      "vbd": -98.7,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 26,
+      "years_exp": 2,
+      "injury": ""
+    },
+    {
+      "name": "Kimani Vidal",
+      "pos": "RB",
+      "team": "LAC",
+      "adp": 185.2,
+      "proj": 47.5,
+      "vbd": -99.7,
+      "fp_rank": 184,
+      "fp_pos_rank": "RB62",
+      "age": 24,
+      "years_exp": 2,
+      "injury": ""
+    },
+    {
+      "name": "Brashard Smith",
+      "pos": "RB",
+      "team": "KC",
+      "adp": 235.1,
+      "proj": 47.5,
+      "vbd": -99.7,
+      "fp_rank": 245,
+      "fp_pos_rank": "RB75",
+      "age": 23,
+      "years_exp": 1,
+      "injury": ""
+    },
+    {
+      "name": "Eli Heidenreich",
+      "pos": "RB",
+      "team": "PIT",
+      "adp": 288.6,
+      "proj": 47.5,
+      "vbd": -99.7,
+      "fp_rank": 318,
+      "fp_pos_rank": "RB106",
+      "age": 22,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Adam Trautman",
+      "pos": "TE",
+      "team": "DEN",
+      "adp": 999.0,
+      "proj": 22.3,
+      "vbd": -99.8,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 29,
+      "years_exp": 6,
+      "injury": ""
+    },
+    {
+      "name": "Josh Cuevas",
+      "pos": "TE",
+      "team": "BAL",
+      "adp": 999.0,
+      "proj": 22.3,
+      "vbd": -99.8,
+      "fp_rank": null,
+      "fp_pos_rank": null,
+      "age": 22,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Sean Tucker",
+      "pos": "RB",
+      "team": "TB",
+      "adp": 194.1,
+      "proj": 47.3,
+      "vbd": -99.9,
+      "fp_rank": 189,
+      "fp_pos_rank": "RB63",
+      "age": 24,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Kaytron Allen",
+      "pos": "RB",
+      "team": "WAS",
+      "adp": 183.8,
+      "proj": 47.3,
+      "vbd": -99.9,
+      "fp_rank": 183,
+      "fp_pos_rank": "RB61",
+      "age": 23,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Demond Claiborne",
+      "pos": "RB",
+      "team": "MIN",
+      "adp": 206.9,
+      "proj": 47.3,
+      "vbd": -99.9,
+      "fp_rank": 198,
+      "fp_pos_rank": "RB66",
+      "age": 22,
+      "years_exp": 0,
+      "injury": ""
+    },
+    {
+      "name": "Emari Demercado",
+      "pos": "RB",
+      "team": "KC",
+      "adp": 259.8,
+      "proj": 47.3,
+      "vbd": -99.9,
+      "fp_rank": 267,
+      "fp_pos_rank": "RB89",
+      "age": 27,
+      "years_exp": 3,
+      "injury": ""
+    },
+    {
+      "name": "Isaac Guerendo",
+      "pos": "RB",
+      "team": "SF",
+      "adp": 247.9,
+      "proj": 47.3,
+      "vbd": -99.9,
+      "fp_rank": 258,
+      "fp_pos_rank": "RB82",
+      "age": 25,
+      "years_exp": 2,
+      "injury": ""
+    }
+  ],
+  "keepers": [
+    {
+      "team_idx": 0,
+      "roster_id": 1,
+      "player_name": "Drake Maye",
+      "position": "QB",
+      "prior_round": 9,
+      "forfeit_round": 7,
+      "effective_forfeit_round": 7,
+      "years_kept": 1,
+      "status": "carryover",
+      "net_vbd": 51.6,
+      "raw_vbd": 58.8,
+      "pick_value_baseline": 7.2,
+      "adp": 3.5,
+      "is_waiver": false
+    },
+    {
+      "team_idx": 0,
+      "roster_id": 1,
+      "player_name": "AJ Barner",
+      "position": "TE",
+      "prior_round": 17,
+      "forfeit_round": 15,
+      "effective_forfeit_round": 15,
+      "years_kept": 0,
+      "status": "carryover",
+      "net_vbd": 56.0,
+      "raw_vbd": -14.4,
+      "pick_value_baseline": -70.4,
+      "adp": 143.0,
+      "is_waiver": true
+    },
+    {
+      "team_idx": 0,
+      "roster_id": 1,
+      "player_name": "Ricky Pearsall",
+      "position": "WR",
+      "prior_round": 13,
+      "forfeit_round": 11,
+      "effective_forfeit_round": 11,
+      "years_kept": 1,
+      "status": "carryover",
+      "net_vbd": 1.9,
+      "raw_vbd": -5.9,
+      "pick_value_baseline": -7.8,
+      "adp": 109.5,
+      "is_waiver": false
+    },
+    {
+      "team_idx": 0,
+      "roster_id": 1,
+      "player_name": "Javonte Williams",
+      "position": "RB",
+      "prior_round": 11,
+      "forfeit_round": 9,
+      "effective_forfeit_round": 9,
+      "years_kept": 0,
+      "status": "carryover",
+      "net_vbd": 73.9,
+      "raw_vbd": 27.9,
+      "pick_value_baseline": -46.0,
+      "adp": 54.8,
+      "is_waiver": false
+    },
+    {
+      "team_idx": 2,
+      "roster_id": 3,
+      "player_name": "Bo Nix",
+      "position": "QB",
+      "prior_round": 7,
+      "forfeit_round": 5,
+      "effective_forfeit_round": 5,
+      "years_kept": 1,
+      "status": "carryover",
+      "net_vbd": 16.9,
+      "raw_vbd": 42.9,
+      "pick_value_baseline": 26.0,
+      "adp": 33.4,
+      "is_waiver": false
+    },
+    {
+      "team_idx": 2,
+      "roster_id": 3,
+      "player_name": "Jalen Coker",
+      "position": "WR",
+      "prior_round": 17,
+      "forfeit_round": 15,
+      "effective_forfeit_round": 15,
+      "years_kept": 0,
+      "status": "carryover",
+      "net_vbd": 42.3,
+      "raw_vbd": -11.7,
+      "pick_value_baseline": -54.0,
+      "adp": 153.2,
+      "is_waiver": true
+    },
+    {
+      "team_idx": 2,
+      "roster_id": 3,
+      "player_name": "Jauan Jennings",
+      "position": "WR",
+      "prior_round": 15,
+      "forfeit_round": 13,
+      "effective_forfeit_round": 13,
+      "years_kept": 1,
+      "status": "carryover",
+      "net_vbd": 3.4,
+      "raw_vbd": -37.5,
+      "pick_value_baseline": -40.9,
+      "adp": 141.0,
+      "is_waiver": false
+    },
+    {
+      "team_idx": 3,
+      "roster_id": 4,
+      "player_name": "Rico Dowdle",
+      "position": "RB",
+      "prior_round": 17,
+      "forfeit_round": 15,
+      "effective_forfeit_round": 15,
+      "years_kept": 0,
+      "status": "carryover",
+      "net_vbd": 68.8,
+      "raw_vbd": -21.3,
+      "pick_value_baseline": -90.1,
+      "adp": 105.9,
+      "is_waiver": true
+    },
+    {
+      "team_idx": 3,
+      "roster_id": 4,
+      "player_name": "Jake Ferguson",
+      "position": "TE",
+      "prior_round": 12,
+      "forfeit_round": 10,
+      "effective_forfeit_round": 10,
+      "years_kept": 2,
+      "status": "carryover",
+      "net_vbd": 2.4,
+      "raw_vbd": -3.0,
+      "pick_value_baseline": -5.4,
+      "adp": 117.1,
+      "is_waiver": false
+    },
+    {
+      "team_idx": 4,
+      "roster_id": 5,
+      "player_name": "Hunter Henry",
+      "position": "TE",
+      "prior_round": 15,
+      "forfeit_round": 13,
+      "effective_forfeit_round": 12,
+      "years_kept": 1,
+      "status": "carryover",
+      "net_vbd": 33.3,
+      "raw_vbd": -7.9,
+      "pick_value_baseline": -41.2,
+      "adp": 113.6,
+      "is_waiver": false
+    },
+    {
+      "team_idx": 4,
+      "roster_id": 5,
+      "player_name": "Wan'Dale Robinson",
+      "position": "WR",
+      "prior_round": 17,
+      "forfeit_round": 15,
+      "effective_forfeit_round": 15,
+      "years_kept": 0,
+      "status": "carryover",
+      "net_vbd": 35.4,
+      "raw_vbd": -18.6,
+      "pick_value_baseline": -54.0,
+      "adp": 125.0,
+      "is_waiver": true
+    },
+    {
+      "team_idx": 4,
+      "roster_id": 5,
+      "player_name": "Tucker Kraft",
+      "position": "TE",
+      "prior_round": 12,
+      "forfeit_round": 10,
+      "effective_forfeit_round": 10,
+      "years_kept": 1,
+      "status": "carryover",
+      "net_vbd": 12.4,
+      "raw_vbd": 7.0,
+      "pick_value_baseline": -5.4,
+      "adp": 89.5,
+      "is_waiver": false
+    },
+    {
+      "team_idx": 5,
+      "roster_id": 6,
+      "player_name": "Michael Wilson",
+      "position": "WR",
+      "prior_round": 17,
+      "forfeit_round": 15,
+      "effective_forfeit_round": 13,
+      "years_kept": 0,
+      "status": "carryover",
+      "net_vbd": 35.2,
+      "raw_vbd": -5.7,
+      "pick_value_baseline": -40.9,
+      "adp": 96.5,
+      "is_waiver": true
+    },
+    {
+      "team_idx": 5,
+      "roster_id": 6,
+      "player_name": "Juwan Johnson",
+      "position": "TE",
+      "prior_round": 17,
+      "forfeit_round": 15,
+      "effective_forfeit_round": 12,
+      "years_kept": 0,
+      "status": "carryover",
+      "net_vbd": 23.0,
+      "raw_vbd": -18.2,
+      "pick_value_baseline": -41.2,
+      "adp": 123.6,
+      "is_waiver": true
+    },
+    {
+      "team_idx": 5,
+      "roster_id": 6,
+      "player_name": "Chris Olave",
+      "position": "WR",
+      "prior_round": 7,
+      "forfeit_round": 5,
+      "effective_forfeit_round": 5,
+      "years_kept": 0,
+      "status": "carryover",
+      "net_vbd": 15.3,
+      "raw_vbd": 44.2,
+      "pick_value_baseline": 28.9,
+      "adp": 39.0,
+      "is_waiver": false
+    },
+    {
+      "team_idx": 5,
+      "roster_id": 6,
+      "player_name": "Chase Brown",
+      "position": "RB",
+      "prior_round": 13,
+      "forfeit_round": 11,
+      "effective_forfeit_round": 11,
+      "years_kept": 2,
+      "status": "carryover",
+      "net_vbd": 92.9,
+      "raw_vbd": 47.9,
+      "pick_value_baseline": -45.0,
+      "adp": 34.5,
+      "is_waiver": false
+    },
+    {
+      "team_idx": 6,
+      "roster_id": 7,
+      "player_name": "Bucky Irving",
+      "position": "RB",
+      "prior_round": 12,
+      "forfeit_round": 10,
+      "effective_forfeit_round": 10,
+      "years_kept": 1,
+      "status": "carryover",
+      "net_vbd": 78.5,
+      "raw_vbd": 21.4,
+      "pick_value_baseline": -57.0,
+      "adp": 42.1,
+      "is_waiver": false
+    },
+    {
+      "team_idx": 6,
+      "roster_id": 7,
+      "player_name": "Blake Corum",
+      "position": "RB",
+      "prior_round": 15,
+      "forfeit_round": 13,
+      "effective_forfeit_round": 13,
+      "years_kept": 0,
+      "status": "carryover",
+      "net_vbd": 22.3,
+      "raw_vbd": -30.1,
+      "pick_value_baseline": -52.4,
+      "adp": 108.0,
+      "is_waiver": false
+    },
+    {
+      "team_idx": 6,
+      "roster_id": 7,
+      "player_name": "Cam Skattebo",
+      "position": "RB",
+      "prior_round": 9,
+      "forfeit_round": 7,
+      "effective_forfeit_round": 7,
+      "years_kept": 0,
+      "status": "carryover",
+      "net_vbd": 11.0,
+      "raw_vbd": 10.8,
+      "pick_value_baseline": -0.2,
+      "adp": 70.8,
+      "is_waiver": false
+    },
+    {
+      "team_idx": 6,
+      "roster_id": 7,
+      "player_name": "Bhayshul Tuten",
+      "position": "RB",
+      "prior_round": 13,
+      "forfeit_round": 11,
+      "effective_forfeit_round": 11,
+      "years_kept": 0,
+      "status": "carryover",
+      "net_vbd": 40.0,
+      "raw_vbd": -5.0,
+      "pick_value_baseline": -45.0,
+      "adp": 71.2,
+      "is_waiver": false
+    },
+    {
+      "team_idx": 7,
+      "roster_id": 8,
+      "player_name": "Oronde Gadsden",
+      "position": "TE",
+      "prior_round": 17,
+      "forfeit_round": 15,
+      "effective_forfeit_round": 14,
+      "years_kept": 0,
+      "status": "carryover",
+      "net_vbd": 21.9,
+      "raw_vbd": -5.7,
+      "pick_value_baseline": -27.6,
+      "adp": 106.3,
+      "is_waiver": true
+    },
+    {
+      "team_idx": 7,
+      "roster_id": 8,
+      "player_name": "Harold Fannin",
+      "position": "TE",
+      "prior_round": 17,
+      "forfeit_round": 15,
+      "effective_forfeit_round": 15,
+      "years_kept": 0,
+      "status": "carryover",
+      "net_vbd": 90.7,
+      "raw_vbd": 20.3,
+      "pick_value_baseline": -70.4,
+      "adp": 79.7,
+      "is_waiver": true
+    },
+    {
+      "team_idx": 7,
+      "roster_id": 8,
+      "player_name": "Kyren Williams",
+      "position": "RB",
+      "prior_round": 13,
+      "forfeit_round": 11,
+      "effective_forfeit_round": 11,
+      "years_kept": 2,
+      "status": "carryover",
+      "net_vbd": 72.4,
+      "raw_vbd": 27.4,
+      "pick_value_baseline": -45.0,
+      "adp": 50.6,
+      "is_waiver": false
+    },
+    {
+      "team_idx": 7,
+      "roster_id": 8,
+      "player_name": "Jaxon Smith-Njigba",
+      "position": "WR",
+      "prior_round": 7,
+      "forfeit_round": 5,
+      "effective_forfeit_round": 5,
+      "years_kept": 1,
+      "status": "carryover",
+      "net_vbd": 60.6,
+      "raw_vbd": 89.5,
+      "pick_value_baseline": 28.9,
+      "adp": 7.2,
+      "is_waiver": false
+    },
+    {
+      "team_idx": 8,
+      "roster_id": 9,
+      "player_name": "Colston Loveland",
+      "position": "TE",
+      "prior_round": 10,
+      "forfeit_round": 8,
+      "effective_forfeit_round": 8,
+      "years_kept": 0,
+      "status": "carryover",
+      "net_vbd": 28.3,
+      "raw_vbd": 34.1,
+      "pick_value_baseline": 5.8,
+      "adp": 58.4,
+      "is_waiver": false
+    },
+    {
+      "team_idx": 8,
+      "roster_id": 9,
+      "player_name": "Luther Burden",
+      "position": "WR",
+      "prior_round": 11,
+      "forfeit_round": 9,
+      "effective_forfeit_round": 9,
+      "years_kept": 0,
+      "status": "carryover",
+      "net_vbd": 15.6,
+      "raw_vbd": 21.1,
+      "pick_value_baseline": 5.5,
+      "adp": 52.8,
+      "is_waiver": false
+    },
+    {
+      "team_idx": 8,
+      "roster_id": 9,
+      "player_name": "Alec Pierce",
+      "position": "WR",
+      "prior_round": 17,
+      "forfeit_round": 15,
+      "effective_forfeit_round": 14,
+      "years_kept": 0,
+      "status": "carryover",
+      "net_vbd": 44.9,
+      "raw_vbd": 11.4,
+      "pick_value_baseline": -33.5,
+      "adp": 110.9,
+      "is_waiver": true
+    },
+    {
+      "team_idx": 8,
+      "roster_id": 9,
+      "player_name": "Christian Watson",
+      "position": "WR",
+      "prior_round": 17,
+      "forfeit_round": 15,
+      "effective_forfeit_round": 15,
+      "years_kept": 0,
+      "status": "carryover",
+      "net_vbd": 68.3,
+      "raw_vbd": 14.3,
+      "pick_value_baseline": -54.0,
+      "adp": 81.2,
+      "is_waiver": true
+    },
+    {
+      "team_idx": 9,
+      "roster_id": 10,
+      "player_name": "Sam LaPorta",
+      "position": "TE",
+      "prior_round": 11,
+      "forfeit_round": 9,
+      "effective_forfeit_round": 9,
+      "years_kept": 2,
+      "status": "carryover",
+      "net_vbd": 21.5,
+      "raw_vbd": 16.3,
+      "pick_value_baseline": -5.2,
+      "adp": 101.0,
+      "is_waiver": false
+    },
+    {
+      "team_idx": 9,
+      "roster_id": 10,
+      "player_name": "Dallas Goedert",
+      "position": "TE",
+      "prior_round": 17,
+      "forfeit_round": 15,
+      "effective_forfeit_round": 15,
+      "years_kept": 0,
+      "status": "carryover",
+      "net_vbd": 58.1,
+      "raw_vbd": -12.3,
+      "pick_value_baseline": -70.4,
+      "adp": 114.3,
+      "is_waiver": true
+    },
+    {
+      "team_idx": 9,
+      "roster_id": 10,
+      "player_name": "Travis Etienne",
+      "position": "RB",
+      "prior_round": 8,
+      "forfeit_round": 6,
+      "effective_forfeit_round": 6,
+      "years_kept": 0,
+      "status": "carryover",
+      "net_vbd": 17.6,
+      "raw_vbd": 38.0,
+      "pick_value_baseline": 20.4,
+      "adp": 54.0,
+      "is_waiver": false
+    },
+    {
+      "team_idx": 10,
+      "roster_id": 11,
+      "player_name": "Nico Collins",
+      "position": "WR",
+      "prior_round": 6,
+      "forfeit_round": 4,
+      "effective_forfeit_round": 4,
+      "years_kept": 2,
+      "status": "carryover",
+      "net_vbd": 22.1,
+      "raw_vbd": 52.4,
+      "pick_value_baseline": 30.3,
+      "adp": 32.7,
+      "is_waiver": false
+    },
+    {
+      "team_idx": 10,
+      "roster_id": 11,
+      "player_name": "Chuba Hubbard",
+      "position": "RB",
+      "prior_round": 14,
+      "forfeit_round": 12,
+      "effective_forfeit_round": 12,
+      "years_kept": 1,
+      "status": "carryover",
+      "net_vbd": 86.7,
+      "raw_vbd": 1.2,
+      "pick_value_baseline": -85.5,
+      "adp": 107.9,
+      "is_waiver": false
+    },
+    {
+      "team_idx": 10,
+      "roster_id": 11,
+      "player_name": "De'Von Achane",
+      "position": "RB",
+      "prior_round": 8,
+      "forfeit_round": 6,
+      "effective_forfeit_round": 6,
+      "years_kept": 2,
+      "status": "carryover",
+      "net_vbd": 43.7,
+      "raw_vbd": 64.1,
+      "pick_value_baseline": 20.4,
+      "adp": 21.2,
+      "is_waiver": false
+    },
+    {
+      "team_idx": 10,
+      "roster_id": 11,
+      "player_name": "Puka Nacua",
+      "position": "WR",
+      "prior_round": 13,
+      "forfeit_round": 11,
+      "effective_forfeit_round": 11,
+      "years_kept": 2,
+      "status": "carryover",
+      "net_vbd": 121.2,
+      "raw_vbd": 113.4,
+      "pick_value_baseline": -7.8,
+      "adp": 6.4,
+      "is_waiver": false
+    },
+    {
+      "team_idx": 11,
+      "roster_id": 12,
+      "player_name": "Sam Darnold",
+      "position": "QB",
+      "prior_round": 9,
+      "forfeit_round": 7,
+      "effective_forfeit_round": 7,
+      "years_kept": 0,
+      "status": "carryover",
+      "net_vbd": 2.8,
+      "raw_vbd": 10.0,
+      "pick_value_baseline": 7.2,
+      "adp": 80.8,
+      "is_waiver": false
+    },
+    {
+      "team_idx": 11,
+      "roster_id": 12,
+      "player_name": "Trey McBride",
+      "position": "TE",
+      "prior_round": 13,
+      "forfeit_round": 11,
+      "effective_forfeit_round": 11,
+      "years_kept": 2,
+      "status": "carryover",
+      "net_vbd": 77.3,
+      "raw_vbd": 63.6,
+      "pick_value_baseline": -13.7,
+      "adp": 22.3,
+      "is_waiver": false
+    },
+    {
+      "team_idx": 11,
+      "roster_id": 12,
+      "player_name": "Jameson Williams",
+      "position": "WR",
+      "prior_round": 8,
+      "forfeit_round": 6,
+      "effective_forfeit_round": 6,
+      "years_kept": 2,
+      "status": "carryover",
+      "net_vbd": 8.0,
+      "raw_vbd": 30.6,
+      "pick_value_baseline": 22.6,
+      "adp": 60.9,
+      "is_waiver": false
+    },
+    {
+      "team_idx": 11,
+      "roster_id": 12,
+      "player_name": "Parker Washington",
+      "position": "WR",
+      "prior_round": 17,
+      "forfeit_round": 15,
+      "effective_forfeit_round": 15,
+      "years_kept": 0,
+      "status": "carryover",
+      "net_vbd": 66.6,
+      "raw_vbd": 12.6,
+      "pick_value_baseline": -54.0,
+      "adp": 112.0,
+      "is_waiver": true
+    }
+  ],
+  "managers": [
+    {
+      "slot": 1,
+      "team_idx": 0,
+      "roster_id": 6,
+      "id": "lem",
+      "name": null
+    },
+    {
+      "slot": 2,
+      "team_idx": 1,
+      "roster_id": 12,
+      "id": "coop",
+      "name": null
+    },
+    {
+      "slot": 3,
+      "team_idx": 2,
+      "roster_id": 5,
+      "id": "kyle_figgy",
+      "name": null
+    },
+    {
+      "slot": 4,
+      "team_idx": 3,
+      "roster_id": 4,
+      "id": "troy_mullings",
+      "name": null
+    },
+    {
+      "slot": 5,
+      "team_idx": 4,
+      "roster_id": 2,
+      "id": "donnie",
+      "name": null
+    },
+    {
+      "slot": 6,
+      "team_idx": 5,
+      "roster_id": 9,
+      "id": "brian_bigguap",
+      "name": null
+    },
+    {
+      "slot": 7,
+      "team_idx": 6,
+      "roster_id": 7,
+      "id": "eric_m",
+      "name": null
+    },
+    {
+      "slot": 8,
+      "team_idx": 7,
+      "roster_id": 1,
+      "id": "tim_breswick",
+      "name": null
+    },
+    {
+      "slot": 9,
+      "team_idx": 8,
+      "roster_id": 8,
+      "id": "brower_barry",
+      "name": null
+    },
+    {
+      "slot": 10,
+      "team_idx": 9,
+      "roster_id": 3,
+      "id": "ankur_patel",
+      "name": null
+    },
+    {
+      "slot": 11,
+      "team_idx": 10,
+      "roster_id": 10,
+      "id": "josh_wildboy",
+      "name": null
+    },
+    {
+      "slot": 12,
+      "team_idx": 11,
+      "roster_id": 11,
+      "id": "trevor_bergerboy",
+      "name": null
+    }
+  ],
+  "schedule": [
+    {
+      "round": 1,
+      "pick_in_round": 1,
+      "overall": 1,
+      "slot": 1,
+      "team_idx": 0
+    },
+    {
+      "round": 1,
+      "pick_in_round": 2,
+      "overall": 2,
+      "slot": 2,
+      "team_idx": 1
+    },
+    {
+      "round": 1,
+      "pick_in_round": 3,
+      "overall": 3,
+      "slot": 3,
+      "team_idx": 2
+    },
+    {
+      "round": 1,
+      "pick_in_round": 4,
+      "overall": 4,
+      "slot": 4,
+      "team_idx": 3
+    },
+    {
+      "round": 1,
+      "pick_in_round": 5,
+      "overall": 5,
+      "slot": 5,
+      "team_idx": 4
+    },
+    {
+      "round": 1,
+      "pick_in_round": 6,
+      "overall": 6,
+      "slot": 6,
+      "team_idx": 5
+    },
+    {
+      "round": 1,
+      "pick_in_round": 7,
+      "overall": 7,
+      "slot": 7,
+      "team_idx": 6
+    },
+    {
+      "round": 1,
+      "pick_in_round": 8,
+      "overall": 8,
+      "slot": 5,
+      "team_idx": 4
+    },
+    {
+      "round": 1,
+      "pick_in_round": 9,
+      "overall": 9,
+      "slot": 9,
+      "team_idx": 8
+    },
+    {
+      "round": 1,
+      "pick_in_round": 10,
+      "overall": 10,
+      "slot": 3,
+      "team_idx": 2
+    },
+    {
+      "round": 1,
+      "pick_in_round": 11,
+      "overall": 11,
+      "slot": 11,
+      "team_idx": 10
+    },
+    {
+      "round": 1,
+      "pick_in_round": 12,
+      "overall": 12,
+      "slot": 3,
+      "team_idx": 2
+    },
+    {
+      "round": 2,
+      "pick_in_round": 1,
+      "overall": 13,
+      "slot": 3,
+      "team_idx": 2
+    },
+    {
+      "round": 2,
+      "pick_in_round": 2,
+      "overall": 14,
+      "slot": 2,
+      "team_idx": 1
+    },
+    {
+      "round": 2,
+      "pick_in_round": 3,
+      "overall": 15,
+      "slot": 1,
+      "team_idx": 0
+    },
+    {
+      "round": 2,
+      "pick_in_round": 4,
+      "overall": 16,
+      "slot": 9,
+      "team_idx": 8
+    },
+    {
+      "round": 2,
+      "pick_in_round": 5,
+      "overall": 17,
+      "slot": 8,
+      "team_idx": 7
+    },
+    {
+      "round": 2,
+      "pick_in_round": 6,
+      "overall": 18,
+      "slot": 7,
+      "team_idx": 6
+    },
+    {
+      "round": 2,
+      "pick_in_round": 7,
+      "overall": 19,
+      "slot": 6,
+      "team_idx": 5
+    },
+    {
+      "round": 2,
+      "pick_in_round": 8,
+      "overall": 20,
+      "slot": 5,
+      "team_idx": 4
+    },
+    {
+      "round": 2,
+      "pick_in_round": 9,
+      "overall": 21,
+      "slot": 4,
+      "team_idx": 3
+    },
+    {
+      "round": 2,
+      "pick_in_round": 10,
+      "overall": 22,
+      "slot": 3,
+      "team_idx": 2
+    },
+    {
+      "round": 2,
+      "pick_in_round": 11,
+      "overall": 23,
+      "slot": 2,
+      "team_idx": 1
+    },
+    {
+      "round": 2,
+      "pick_in_round": 12,
+      "overall": 24,
+      "slot": 1,
+      "team_idx": 0
+    },
+    {
+      "round": 3,
+      "pick_in_round": 1,
+      "overall": 25,
+      "slot": 1,
+      "team_idx": 0
+    },
+    {
+      "round": 3,
+      "pick_in_round": 2,
+      "overall": 26,
+      "slot": 2,
+      "team_idx": 1
+    },
+    {
+      "round": 3,
+      "pick_in_round": 3,
+      "overall": 27,
+      "slot": 3,
+      "team_idx": 2
+    },
+    {
+      "round": 3,
+      "pick_in_round": 4,
+      "overall": 28,
+      "slot": 4,
+      "team_idx": 3
+    },
+    {
+      "round": 3,
+      "pick_in_round": 5,
+      "overall": 29,
+      "slot": 5,
+      "team_idx": 4
+    },
+    {
+      "round": 3,
+      "pick_in_round": 6,
+      "overall": 30,
+      "slot": 6,
+      "team_idx": 5
+    },
+    {
+      "round": 3,
+      "pick_in_round": 7,
+      "overall": 31,
+      "slot": 7,
+      "team_idx": 6
+    },
+    {
+      "round": 3,
+      "pick_in_round": 8,
+      "overall": 32,
+      "slot": 5,
+      "team_idx": 4
+    },
+    {
+      "round": 3,
+      "pick_in_round": 9,
+      "overall": 33,
+      "slot": 9,
+      "team_idx": 8
+    },
+    {
+      "round": 3,
+      "pick_in_round": 10,
+      "overall": 34,
+      "slot": 10,
+      "team_idx": 9
+    },
+    {
+      "round": 3,
+      "pick_in_round": 11,
+      "overall": 35,
+      "slot": 11,
+      "team_idx": 10
+    },
+    {
+      "round": 3,
+      "pick_in_round": 12,
+      "overall": 36,
+      "slot": 12,
+      "team_idx": 11
+    },
+    {
+      "round": 4,
+      "pick_in_round": 1,
+      "overall": 37,
+      "slot": 3,
+      "team_idx": 2
+    },
+    {
+      "round": 4,
+      "pick_in_round": 2,
+      "overall": 38,
+      "slot": 11,
+      "team_idx": 10
+    },
+    {
+      "round": 4,
+      "pick_in_round": 3,
+      "overall": 39,
+      "slot": 1,
+      "team_idx": 0
+    },
+    {
+      "round": 4,
+      "pick_in_round": 4,
+      "overall": 40,
+      "slot": 9,
+      "team_idx": 8
+    },
+    {
+      "round": 4,
+      "pick_in_round": 5,
+      "overall": 41,
+      "slot": 8,
+      "team_idx": 7
+    },
+    {
+      "round": 4,
+      "pick_in_round": 6,
+      "overall": 42,
+      "slot": 7,
+      "team_idx": 6
+    },
+    {
+      "round": 4,
+      "pick_in_round": 7,
+      "overall": 43,
+      "slot": 6,
+      "team_idx": 5
+    },
+    {
+      "round": 4,
+      "pick_in_round": 8,
+      "overall": 44,
+      "slot": 5,
+      "team_idx": 4
+    },
+    {
+      "round": 4,
+      "pick_in_round": 9,
+      "overall": 45,
+      "slot": 4,
+      "team_idx": 3
+    },
+    {
+      "round": 4,
+      "pick_in_round": 10,
+      "overall": 46,
+      "slot": 12,
+      "team_idx": 11
+    },
+    {
+      "round": 4,
+      "pick_in_round": 11,
+      "overall": 47,
+      "slot": 2,
+      "team_idx": 1
+    },
+    {
+      "round": 4,
+      "pick_in_round": 12,
+      "overall": 48,
+      "slot": 1,
+      "team_idx": 0
+    },
+    {
+      "round": 5,
+      "pick_in_round": 1,
+      "overall": 49,
+      "slot": 1,
+      "team_idx": 0
+    },
+    {
+      "round": 5,
+      "pick_in_round": 2,
+      "overall": 50,
+      "slot": 2,
+      "team_idx": 1
+    },
+    {
+      "round": 5,
+      "pick_in_round": 3,
+      "overall": 51,
+      "slot": 3,
+      "team_idx": 2
+    },
+    {
+      "round": 5,
+      "pick_in_round": 4,
+      "overall": 52,
+      "slot": 4,
+      "team_idx": 3
+    },
+    {
+      "round": 5,
+      "pick_in_round": 5,
+      "overall": 53,
+      "slot": 5,
+      "team_idx": 4
+    },
+    {
+      "round": 5,
+      "pick_in_round": 6,
+      "overall": 54,
+      "slot": 6,
+      "team_idx": 5
+    },
+    {
+      "round": 5,
+      "pick_in_round": 7,
+      "overall": 55,
+      "slot": 7,
+      "team_idx": 6
+    },
+    {
+      "round": 5,
+      "pick_in_round": 8,
+      "overall": 56,
+      "slot": 8,
+      "team_idx": 7
+    },
+    {
+      "round": 5,
+      "pick_in_round": 9,
+      "overall": 57,
+      "slot": 9,
+      "team_idx": 8
+    },
+    {
+      "round": 5,
+      "pick_in_round": 10,
+      "overall": 58,
+      "slot": 10,
+      "team_idx": 9
+    },
+    {
+      "round": 5,
+      "pick_in_round": 11,
+      "overall": 59,
+      "slot": 11,
+      "team_idx": 10
+    },
+    {
+      "round": 5,
+      "pick_in_round": 12,
+      "overall": 60,
+      "slot": 12,
+      "team_idx": 11
+    },
+    {
+      "round": 6,
+      "pick_in_round": 1,
+      "overall": 61,
+      "slot": 12,
+      "team_idx": 11
+    },
+    {
+      "round": 6,
+      "pick_in_round": 2,
+      "overall": 62,
+      "slot": 11,
+      "team_idx": 10
+    },
+    {
+      "round": 6,
+      "pick_in_round": 3,
+      "overall": 63,
+      "slot": 10,
+      "team_idx": 9
+    },
+    {
+      "round": 6,
+      "pick_in_round": 4,
+      "overall": 64,
+      "slot": 9,
+      "team_idx": 8
+    },
+    {
+      "round": 6,
+      "pick_in_round": 5,
+      "overall": 65,
+      "slot": 8,
+      "team_idx": 7
+    },
+    {
+      "round": 6,
+      "pick_in_round": 6,
+      "overall": 66,
+      "slot": 7,
+      "team_idx": 6
+    },
+    {
+      "round": 6,
+      "pick_in_round": 7,
+      "overall": 67,
+      "slot": 6,
+      "team_idx": 5
+    },
+    {
+      "round": 6,
+      "pick_in_round": 8,
+      "overall": 68,
+      "slot": 5,
+      "team_idx": 4
+    },
+    {
+      "round": 6,
+      "pick_in_round": 9,
+      "overall": 69,
+      "slot": 4,
+      "team_idx": 3
+    },
+    {
+      "round": 6,
+      "pick_in_round": 10,
+      "overall": 70,
+      "slot": 3,
+      "team_idx": 2
+    },
+    {
+      "round": 6,
+      "pick_in_round": 11,
+      "overall": 71,
+      "slot": 2,
+      "team_idx": 1
+    },
+    {
+      "round": 6,
+      "pick_in_round": 12,
+      "overall": 72,
+      "slot": 1,
+      "team_idx": 0
+    },
+    {
+      "round": 7,
+      "pick_in_round": 1,
+      "overall": 73,
+      "slot": 1,
+      "team_idx": 0
+    },
+    {
+      "round": 7,
+      "pick_in_round": 2,
+      "overall": 74,
+      "slot": 2,
+      "team_idx": 1
+    },
+    {
+      "round": 7,
+      "pick_in_round": 3,
+      "overall": 75,
+      "slot": 3,
+      "team_idx": 2
+    },
+    {
+      "round": 7,
+      "pick_in_round": 4,
+      "overall": 76,
+      "slot": 4,
+      "team_idx": 3
+    },
+    {
+      "round": 7,
+      "pick_in_round": 5,
+      "overall": 77,
+      "slot": 5,
+      "team_idx": 4
+    },
+    {
+      "round": 7,
+      "pick_in_round": 6,
+      "overall": 78,
+      "slot": 6,
+      "team_idx": 5
+    },
+    {
+      "round": 7,
+      "pick_in_round": 7,
+      "overall": 79,
+      "slot": 7,
+      "team_idx": 6
+    },
+    {
+      "round": 7,
+      "pick_in_round": 8,
+      "overall": 80,
+      "slot": 8,
+      "team_idx": 7
+    },
+    {
+      "round": 7,
+      "pick_in_round": 9,
+      "overall": 81,
+      "slot": 9,
+      "team_idx": 8
+    },
+    {
+      "round": 7,
+      "pick_in_round": 10,
+      "overall": 82,
+      "slot": 10,
+      "team_idx": 9
+    },
+    {
+      "round": 7,
+      "pick_in_round": 11,
+      "overall": 83,
+      "slot": 11,
+      "team_idx": 10
+    },
+    {
+      "round": 7,
+      "pick_in_round": 12,
+      "overall": 84,
+      "slot": 12,
+      "team_idx": 11
+    },
+    {
+      "round": 8,
+      "pick_in_round": 1,
+      "overall": 85,
+      "slot": 12,
+      "team_idx": 11
+    },
+    {
+      "round": 8,
+      "pick_in_round": 2,
+      "overall": 86,
+      "slot": 11,
+      "team_idx": 10
+    },
+    {
+      "round": 8,
+      "pick_in_round": 3,
+      "overall": 87,
+      "slot": 10,
+      "team_idx": 9
+    },
+    {
+      "round": 8,
+      "pick_in_round": 4,
+      "overall": 88,
+      "slot": 9,
+      "team_idx": 8
+    },
+    {
+      "round": 8,
+      "pick_in_round": 5,
+      "overall": 89,
+      "slot": 8,
+      "team_idx": 7
+    },
+    {
+      "round": 8,
+      "pick_in_round": 6,
+      "overall": 90,
+      "slot": 7,
+      "team_idx": 6
+    },
+    {
+      "round": 8,
+      "pick_in_round": 7,
+      "overall": 91,
+      "slot": 6,
+      "team_idx": 5
+    },
+    {
+      "round": 8,
+      "pick_in_round": 8,
+      "overall": 92,
+      "slot": 5,
+      "team_idx": 4
+    },
+    {
+      "round": 8,
+      "pick_in_round": 9,
+      "overall": 93,
+      "slot": 4,
+      "team_idx": 3
+    },
+    {
+      "round": 8,
+      "pick_in_round": 10,
+      "overall": 94,
+      "slot": 12,
+      "team_idx": 11
+    },
+    {
+      "round": 8,
+      "pick_in_round": 11,
+      "overall": 95,
+      "slot": 2,
+      "team_idx": 1
+    },
+    {
+      "round": 8,
+      "pick_in_round": 12,
+      "overall": 96,
+      "slot": 1,
+      "team_idx": 0
+    },
+    {
+      "round": 9,
+      "pick_in_round": 1,
+      "overall": 97,
+      "slot": 1,
+      "team_idx": 0
+    },
+    {
+      "round": 9,
+      "pick_in_round": 2,
+      "overall": 98,
+      "slot": 2,
+      "team_idx": 1
+    },
+    {
+      "round": 9,
+      "pick_in_round": 3,
+      "overall": 99,
+      "slot": 3,
+      "team_idx": 2
+    },
+    {
+      "round": 9,
+      "pick_in_round": 4,
+      "overall": 100,
+      "slot": 4,
+      "team_idx": 3
+    },
+    {
+      "round": 9,
+      "pick_in_round": 5,
+      "overall": 101,
+      "slot": 5,
+      "team_idx": 4
+    },
+    {
+      "round": 9,
+      "pick_in_round": 6,
+      "overall": 102,
+      "slot": 6,
+      "team_idx": 5
+    },
+    {
+      "round": 9,
+      "pick_in_round": 7,
+      "overall": 103,
+      "slot": 7,
+      "team_idx": 6
+    },
+    {
+      "round": 9,
+      "pick_in_round": 8,
+      "overall": 104,
+      "slot": 8,
+      "team_idx": 7
+    },
+    {
+      "round": 9,
+      "pick_in_round": 9,
+      "overall": 105,
+      "slot": 9,
+      "team_idx": 8
+    },
+    {
+      "round": 9,
+      "pick_in_round": 10,
+      "overall": 106,
+      "slot": 10,
+      "team_idx": 9
+    },
+    {
+      "round": 9,
+      "pick_in_round": 11,
+      "overall": 107,
+      "slot": 11,
+      "team_idx": 10
+    },
+    {
+      "round": 9,
+      "pick_in_round": 12,
+      "overall": 108,
+      "slot": 12,
+      "team_idx": 11
+    },
+    {
+      "round": 10,
+      "pick_in_round": 1,
+      "overall": 109,
+      "slot": 12,
+      "team_idx": 11
+    },
+    {
+      "round": 10,
+      "pick_in_round": 2,
+      "overall": 110,
+      "slot": 11,
+      "team_idx": 10
+    },
+    {
+      "round": 10,
+      "pick_in_round": 3,
+      "overall": 111,
+      "slot": 10,
+      "team_idx": 9
+    },
+    {
+      "round": 10,
+      "pick_in_round": 4,
+      "overall": 112,
+      "slot": 9,
+      "team_idx": 8
+    },
+    {
+      "round": 10,
+      "pick_in_round": 5,
+      "overall": 113,
+      "slot": 8,
+      "team_idx": 7
+    },
+    {
+      "round": 10,
+      "pick_in_round": 6,
+      "overall": 114,
+      "slot": 7,
+      "team_idx": 6
+    },
+    {
+      "round": 10,
+      "pick_in_round": 7,
+      "overall": 115,
+      "slot": 6,
+      "team_idx": 5
+    },
+    {
+      "round": 10,
+      "pick_in_round": 8,
+      "overall": 116,
+      "slot": 5,
+      "team_idx": 4
+    },
+    {
+      "round": 10,
+      "pick_in_round": 9,
+      "overall": 117,
+      "slot": 4,
+      "team_idx": 3
+    },
+    {
+      "round": 10,
+      "pick_in_round": 10,
+      "overall": 118,
+      "slot": 3,
+      "team_idx": 2
+    },
+    {
+      "round": 10,
+      "pick_in_round": 11,
+      "overall": 119,
+      "slot": 2,
+      "team_idx": 1
+    },
+    {
+      "round": 10,
+      "pick_in_round": 12,
+      "overall": 120,
+      "slot": 1,
+      "team_idx": 0
+    },
+    {
+      "round": 11,
+      "pick_in_round": 1,
+      "overall": 121,
+      "slot": 1,
+      "team_idx": 0
+    },
+    {
+      "round": 11,
+      "pick_in_round": 2,
+      "overall": 122,
+      "slot": 2,
+      "team_idx": 1
+    },
+    {
+      "round": 11,
+      "pick_in_round": 3,
+      "overall": 123,
+      "slot": 3,
+      "team_idx": 2
+    },
+    {
+      "round": 11,
+      "pick_in_round": 4,
+      "overall": 124,
+      "slot": 4,
+      "team_idx": 3
+    },
+    {
+      "round": 11,
+      "pick_in_round": 5,
+      "overall": 125,
+      "slot": 5,
+      "team_idx": 4
+    },
+    {
+      "round": 11,
+      "pick_in_round": 6,
+      "overall": 126,
+      "slot": 6,
+      "team_idx": 5
+    },
+    {
+      "round": 11,
+      "pick_in_round": 7,
+      "overall": 127,
+      "slot": 7,
+      "team_idx": 6
+    },
+    {
+      "round": 11,
+      "pick_in_round": 8,
+      "overall": 128,
+      "slot": 8,
+      "team_idx": 7
+    },
+    {
+      "round": 11,
+      "pick_in_round": 9,
+      "overall": 129,
+      "slot": 9,
+      "team_idx": 8
+    },
+    {
+      "round": 11,
+      "pick_in_round": 10,
+      "overall": 130,
+      "slot": 10,
+      "team_idx": 9
+    },
+    {
+      "round": 11,
+      "pick_in_round": 11,
+      "overall": 131,
+      "slot": 11,
+      "team_idx": 10
+    },
+    {
+      "round": 11,
+      "pick_in_round": 12,
+      "overall": 132,
+      "slot": 12,
+      "team_idx": 11
+    },
+    {
+      "round": 12,
+      "pick_in_round": 1,
+      "overall": 133,
+      "slot": 12,
+      "team_idx": 11
+    },
+    {
+      "round": 12,
+      "pick_in_round": 2,
+      "overall": 134,
+      "slot": 11,
+      "team_idx": 10
+    },
+    {
+      "round": 12,
+      "pick_in_round": 3,
+      "overall": 135,
+      "slot": 10,
+      "team_idx": 9
+    },
+    {
+      "round": 12,
+      "pick_in_round": 4,
+      "overall": 136,
+      "slot": 9,
+      "team_idx": 8
+    },
+    {
+      "round": 12,
+      "pick_in_round": 5,
+      "overall": 137,
+      "slot": 8,
+      "team_idx": 7
+    },
+    {
+      "round": 12,
+      "pick_in_round": 6,
+      "overall": 138,
+      "slot": 7,
+      "team_idx": 6
+    },
+    {
+      "round": 12,
+      "pick_in_round": 7,
+      "overall": 139,
+      "slot": 6,
+      "team_idx": 5
+    },
+    {
+      "round": 12,
+      "pick_in_round": 8,
+      "overall": 140,
+      "slot": 5,
+      "team_idx": 4
+    },
+    {
+      "round": 12,
+      "pick_in_round": 9,
+      "overall": 141,
+      "slot": 4,
+      "team_idx": 3
+    },
+    {
+      "round": 12,
+      "pick_in_round": 10,
+      "overall": 142,
+      "slot": 3,
+      "team_idx": 2
+    },
+    {
+      "round": 12,
+      "pick_in_round": 11,
+      "overall": 143,
+      "slot": 2,
+      "team_idx": 1
+    },
+    {
+      "round": 12,
+      "pick_in_round": 12,
+      "overall": 144,
+      "slot": 1,
+      "team_idx": 0
+    },
+    {
+      "round": 13,
+      "pick_in_round": 1,
+      "overall": 145,
+      "slot": 1,
+      "team_idx": 0
+    },
+    {
+      "round": 13,
+      "pick_in_round": 2,
+      "overall": 146,
+      "slot": 2,
+      "team_idx": 1
+    },
+    {
+      "round": 13,
+      "pick_in_round": 3,
+      "overall": 147,
+      "slot": 12,
+      "team_idx": 11
+    },
+    {
+      "round": 13,
+      "pick_in_round": 4,
+      "overall": 148,
+      "slot": 4,
+      "team_idx": 3
+    },
+    {
+      "round": 13,
+      "pick_in_round": 5,
+      "overall": 149,
+      "slot": 8,
+      "team_idx": 7
+    },
+    {
+      "round": 13,
+      "pick_in_round": 6,
+      "overall": 150,
+      "slot": 6,
+      "team_idx": 5
+    },
+    {
+      "round": 13,
+      "pick_in_round": 7,
+      "overall": 151,
+      "slot": 7,
+      "team_idx": 6
+    },
+    {
+      "round": 13,
+      "pick_in_round": 8,
+      "overall": 152,
+      "slot": 8,
+      "team_idx": 7
+    },
+    {
+      "round": 13,
+      "pick_in_round": 9,
+      "overall": 153,
+      "slot": 9,
+      "team_idx": 8
+    },
+    {
+      "round": 13,
+      "pick_in_round": 10,
+      "overall": 154,
+      "slot": 10,
+      "team_idx": 9
+    },
+    {
+      "round": 13,
+      "pick_in_round": 11,
+      "overall": 155,
+      "slot": 11,
+      "team_idx": 10
+    },
+    {
+      "round": 13,
+      "pick_in_round": 12,
+      "overall": 156,
+      "slot": 12,
+      "team_idx": 11
+    },
+    {
+      "round": 14,
+      "pick_in_round": 1,
+      "overall": 157,
+      "slot": 12,
+      "team_idx": 11
+    },
+    {
+      "round": 14,
+      "pick_in_round": 2,
+      "overall": 158,
+      "slot": 11,
+      "team_idx": 10
+    },
+    {
+      "round": 14,
+      "pick_in_round": 3,
+      "overall": 159,
+      "slot": 10,
+      "team_idx": 9
+    },
+    {
+      "round": 14,
+      "pick_in_round": 4,
+      "overall": 160,
+      "slot": 9,
+      "team_idx": 8
+    },
+    {
+      "round": 14,
+      "pick_in_round": 5,
+      "overall": 161,
+      "slot": 8,
+      "team_idx": 7
+    },
+    {
+      "round": 14,
+      "pick_in_round": 6,
+      "overall": 162,
+      "slot": 7,
+      "team_idx": 6
+    },
+    {
+      "round": 14,
+      "pick_in_round": 7,
+      "overall": 163,
+      "slot": 6,
+      "team_idx": 5
+    },
+    {
+      "round": 14,
+      "pick_in_round": 8,
+      "overall": 164,
+      "slot": 8,
+      "team_idx": 7
+    },
+    {
+      "round": 14,
+      "pick_in_round": 9,
+      "overall": 165,
+      "slot": 4,
+      "team_idx": 3
+    },
+    {
+      "round": 14,
+      "pick_in_round": 10,
+      "overall": 166,
+      "slot": 10,
+      "team_idx": 9
+    },
+    {
+      "round": 14,
+      "pick_in_round": 11,
+      "overall": 167,
+      "slot": 2,
+      "team_idx": 1
+    },
+    {
+      "round": 14,
+      "pick_in_round": 12,
+      "overall": 168,
+      "slot": 10,
+      "team_idx": 9
+    },
+    {
+      "round": 15,
+      "pick_in_round": 1,
+      "overall": 169,
+      "slot": 10,
+      "team_idx": 9
+    },
+    {
+      "round": 15,
+      "pick_in_round": 2,
+      "overall": 170,
+      "slot": 2,
+      "team_idx": 1
+    },
+    {
+      "round": 15,
+      "pick_in_round": 3,
+      "overall": 171,
+      "slot": 3,
+      "team_idx": 2
+    },
+    {
+      "round": 15,
+      "pick_in_round": 4,
+      "overall": 172,
+      "slot": 4,
+      "team_idx": 3
+    },
+    {
+      "round": 15,
+      "pick_in_round": 5,
+      "overall": 173,
+      "slot": 5,
+      "team_idx": 4
+    },
+    {
+      "round": 15,
+      "pick_in_round": 6,
+      "overall": 174,
+      "slot": 6,
+      "team_idx": 5
+    },
+    {
+      "round": 15,
+      "pick_in_round": 7,
+      "overall": 175,
+      "slot": 7,
+      "team_idx": 6
+    },
+    {
+      "round": 15,
+      "pick_in_round": 8,
+      "overall": 176,
+      "slot": 8,
+      "team_idx": 7
+    },
+    {
+      "round": 15,
+      "pick_in_round": 9,
+      "overall": 177,
+      "slot": 9,
+      "team_idx": 8
+    },
+    {
+      "round": 15,
+      "pick_in_round": 10,
+      "overall": 178,
+      "slot": 10,
+      "team_idx": 9
+    },
+    {
+      "round": 15,
+      "pick_in_round": 11,
+      "overall": 179,
+      "slot": 11,
+      "team_idx": 10
+    },
+    {
+      "round": 15,
+      "pick_in_round": 12,
+      "overall": 180,
+      "slot": 12,
+      "team_idx": 11
+    },
+    {
+      "round": 16,
+      "pick_in_round": 1,
+      "overall": 181,
+      "slot": 12,
+      "team_idx": 11
+    },
+    {
+      "round": 16,
+      "pick_in_round": 2,
+      "overall": 182,
+      "slot": 11,
+      "team_idx": 10
+    },
+    {
+      "round": 16,
+      "pick_in_round": 3,
+      "overall": 183,
+      "slot": 10,
+      "team_idx": 9
+    },
+    {
+      "round": 16,
+      "pick_in_round": 4,
+      "overall": 184,
+      "slot": 9,
+      "team_idx": 8
+    },
+    {
+      "round": 16,
+      "pick_in_round": 5,
+      "overall": 185,
+      "slot": 8,
+      "team_idx": 7
+    },
+    {
+      "round": 16,
+      "pick_in_round": 6,
+      "overall": 186,
+      "slot": 7,
+      "team_idx": 6
+    },
+    {
+      "round": 16,
+      "pick_in_round": 7,
+      "overall": 187,
+      "slot": 6,
+      "team_idx": 5
+    },
+    {
+      "round": 16,
+      "pick_in_round": 8,
+      "overall": 188,
+      "slot": 5,
+      "team_idx": 4
+    },
+    {
+      "round": 16,
+      "pick_in_round": 9,
+      "overall": 189,
+      "slot": 4,
+      "team_idx": 3
+    },
+    {
+      "round": 16,
+      "pick_in_round": 10,
+      "overall": 190,
+      "slot": 3,
+      "team_idx": 2
+    },
+    {
+      "round": 16,
+      "pick_in_round": 11,
+      "overall": 191,
+      "slot": 2,
+      "team_idx": 1
+    },
+    {
+      "round": 16,
+      "pick_in_round": 12,
+      "overall": 192,
+      "slot": 1,
+      "team_idx": 0
+    },
+    {
+      "round": 17,
+      "pick_in_round": 1,
+      "overall": 193,
+      "slot": 1,
+      "team_idx": 0
+    },
+    {
+      "round": 17,
+      "pick_in_round": 2,
+      "overall": 194,
+      "slot": 11,
+      "team_idx": 10
+    },
+    {
+      "round": 17,
+      "pick_in_round": 3,
+      "overall": 195,
+      "slot": 3,
+      "team_idx": 2
+    },
+    {
+      "round": 17,
+      "pick_in_round": 4,
+      "overall": 196,
+      "slot": 4,
+      "team_idx": 3
+    },
+    {
+      "round": 17,
+      "pick_in_round": 5,
+      "overall": 197,
+      "slot": 5,
+      "team_idx": 4
+    },
+    {
+      "round": 17,
+      "pick_in_round": 6,
+      "overall": 198,
+      "slot": 6,
+      "team_idx": 5
+    },
+    {
+      "round": 17,
+      "pick_in_round": 7,
+      "overall": 199,
+      "slot": 7,
+      "team_idx": 6
+    },
+    {
+      "round": 17,
+      "pick_in_round": 8,
+      "overall": 200,
+      "slot": 8,
+      "team_idx": 7
+    },
+    {
+      "round": 17,
+      "pick_in_round": 9,
+      "overall": 201,
+      "slot": 9,
+      "team_idx": 8
+    },
+    {
+      "round": 17,
+      "pick_in_round": 10,
+      "overall": 202,
+      "slot": 10,
+      "team_idx": 9
+    },
+    {
+      "round": 17,
+      "pick_in_round": 11,
+      "overall": 203,
+      "slot": 11,
+      "team_idx": 10
+    },
+    {
+      "round": 17,
+      "pick_in_round": 12,
+      "overall": 204,
+      "slot": 12,
+      "team_idx": 11
+    }
+  ],
+  "tendencies": {
+    "_note": "delta_rounds < 0 means this manager drafts this position EARLIER than the league average; > 0 means they wait.",
+    "league_first_avg": {
+      "RB": 2.86,
+      "WR": 2.67,
+      "QB": 3.72,
+      "TE": 7.12,
+      "DEF": 14.71,
+      "K": 15.41
+    },
+    "tendencies": {
+      "tim_breswick": {
+        "QB": {
+          "delta_rounds": -0.72,
+          "manager_first_avg": 3.0,
+          "league_first_avg": 3.72,
+          "n_samples": 3
+        },
+        "RB": {
+          "delta_rounds": -1.19,
+          "manager_first_avg": 1.67,
+          "league_first_avg": 2.86,
+          "n_samples": 3
+        },
+        "WR": {
+          "delta_rounds": 0.33,
+          "manager_first_avg": 3.0,
+          "league_first_avg": 2.67,
+          "n_samples": 3
+        },
+        "TE": {
+          "delta_rounds": -2.45,
+          "manager_first_avg": 4.67,
+          "league_first_avg": 7.12,
+          "n_samples": 3
+        },
+        "K": {
+          "delta_rounds": 0.59,
+          "manager_first_avg": 16.0,
+          "league_first_avg": 15.41,
+          "n_samples": 2
+        },
+        "DEF": {
+          "delta_rounds": 0.62,
+          "manager_first_avg": 15.33,
+          "league_first_avg": 14.71,
+          "n_samples": 3
+        }
+      },
+      "kyle_figgy": {
+        "QB": {
+          "delta_rounds": 3.94,
+          "manager_first_avg": 7.67,
+          "league_first_avg": 3.72,
+          "n_samples": 3
+        },
+        "RB": {
+          "delta_rounds": 0.14,
+          "manager_first_avg": 3.0,
+          "league_first_avg": 2.86,
+          "n_samples": 3
+        },
+        "WR": {
+          "delta_rounds": 0.0,
+          "manager_first_avg": 2.67,
+          "league_first_avg": 2.67,
+          "n_samples": 3
+        },
+        "TE": {
+          "delta_rounds": 1.55,
+          "manager_first_avg": 8.67,
+          "league_first_avg": 7.12,
+          "n_samples": 3
+        },
+        "K": {
+          "delta_rounds": -0.08,
+          "manager_first_avg": 15.33,
+          "league_first_avg": 15.41,
+          "n_samples": 3
+        },
+        "DEF": {
+          "delta_rounds": 2.29,
+          "manager_first_avg": 17.0,
+          "league_first_avg": 14.71,
+          "n_samples": 1
+        }
+      },
+      "donnie": {
+        "QB": {
+          "delta_rounds": -0.39,
+          "manager_first_avg": 3.33,
+          "league_first_avg": 3.72,
+          "n_samples": 3
+        },
+        "RB": {
+          "delta_rounds": 1.14,
+          "manager_first_avg": 4.0,
+          "league_first_avg": 2.86,
+          "n_samples": 3
+        },
+        "WR": {
+          "delta_rounds": -1.0,
+          "manager_first_avg": 1.67,
+          "league_first_avg": 2.67,
+          "n_samples": 3
+        },
+        "TE": {
+          "delta_rounds": -1.78,
+          "manager_first_avg": 5.33,
+          "league_first_avg": 7.12,
+          "n_samples": 3
+        },
+        "K": {
+          "delta_rounds": 0.59,
+          "manager_first_avg": 16.0,
+          "league_first_avg": 15.41,
+          "n_samples": 2
+        },
+        "DEF": {
+          "delta_rounds": 1.96,
+          "manager_first_avg": 16.67,
+          "league_first_avg": 14.71,
+          "n_samples": 3
+        }
+      },
+      "ankur_patel": {
+        "QB": {
+          "delta_rounds": -2.39,
+          "manager_first_avg": 1.33,
+          "league_first_avg": 3.72,
+          "n_samples": 3
+        },
+        "RB": {
+          "delta_rounds": 1.14,
+          "manager_first_avg": 4.0,
+          "league_first_avg": 2.86,
+          "n_samples": 3
+        },
+        "WR": {
+          "delta_rounds": -1.0,
+          "manager_first_avg": 1.67,
+          "league_first_avg": 2.67,
+          "n_samples": 3
+        },
+        "TE": {
+          "delta_rounds": 1.22,
+          "manager_first_avg": 8.33,
+          "league_first_avg": 7.12,
+          "n_samples": 3
+        },
+        "K": {
+          "delta_rounds": -0.91,
+          "manager_first_avg": 14.5,
+          "league_first_avg": 15.41,
+          "n_samples": 2
+        },
+        "DEF": {
+          "delta_rounds": -1.38,
+          "manager_first_avg": 13.33,
+          "league_first_avg": 14.71,
+          "n_samples": 3
+        }
+      },
+      "troy_mullings": {
+        "QB": {
+          "delta_rounds": 4.28,
+          "manager_first_avg": 8.0,
+          "league_first_avg": 3.72,
+          "n_samples": 3
+        },
+        "RB": {
+          "delta_rounds": -0.86,
+          "manager_first_avg": 2.0,
+          "league_first_avg": 2.86,
+          "n_samples": 3
+        },
+        "WR": {
+          "delta_rounds": 1.67,
+          "manager_first_avg": 4.33,
+          "league_first_avg": 2.67,
+          "n_samples": 3
+        },
+        "TE": {
+          "delta_rounds": -0.45,
+          "manager_first_avg": 6.67,
+          "league_first_avg": 7.12,
+          "n_samples": 3
+        },
+        "K": {
+          "delta_rounds": 0.09,
+          "manager_first_avg": 15.5,
+          "league_first_avg": 15.41,
+          "n_samples": 2
+        },
+        "DEF": {
+          "delta_rounds": 1.29,
+          "manager_first_avg": 16.0,
+          "league_first_avg": 14.71,
+          "n_samples": 2
+        }
+      },
+      "lem": {
+        "QB": {
+          "delta_rounds": -0.06,
+          "manager_first_avg": 3.67,
+          "league_first_avg": 3.72,
+          "n_samples": 3
+        },
+        "RB": {
+          "delta_rounds": -0.86,
+          "manager_first_avg": 2.0,
+          "league_first_avg": 2.86,
+          "n_samples": 3
+        },
+        "WR": {
+          "delta_rounds": -0.33,
+          "manager_first_avg": 2.33,
+          "league_first_avg": 2.67,
+          "n_samples": 3
+        },
+        "TE": {
+          "delta_rounds": 4.22,
+          "manager_first_avg": 11.33,
+          "league_first_avg": 7.12,
+          "n_samples": 3
+        },
+        "K": {
+          "delta_rounds": -0.41,
+          "manager_first_avg": 15.0,
+          "league_first_avg": 15.41,
+          "n_samples": 3
+        },
+        "DEF": {
+          "delta_rounds": -3.71,
+          "manager_first_avg": 11.0,
+          "league_first_avg": 14.71,
+          "n_samples": 2
+        }
+      },
+      "eric_m": {
+        "QB": {
+          "delta_rounds": 0.28,
+          "manager_first_avg": 4.0,
+          "league_first_avg": 3.72,
+          "n_samples": 3
+        },
+        "RB": {
+          "delta_rounds": -0.86,
+          "manager_first_avg": 2.0,
+          "league_first_avg": 2.86,
+          "n_samples": 3
+        },
+        "WR": {
+          "delta_rounds": 0.33,
+          "manager_first_avg": 3.0,
+          "league_first_avg": 2.67,
+          "n_samples": 3
+        },
+        "TE": {
+          "delta_rounds": -3.12,
+          "manager_first_avg": 4.0,
+          "league_first_avg": 7.12,
+          "n_samples": 3
+        },
+        "K": {
+          "delta_rounds": 0.59,
+          "manager_first_avg": 16.0,
+          "league_first_avg": 15.41,
+          "n_samples": 2
+        },
+        "DEF": {
+          "delta_rounds": -1.71,
+          "manager_first_avg": 13.0,
+          "league_first_avg": 14.71,
+          "n_samples": 1
+        }
+      },
+      "trevor_bergerboy": {
+        "QB": {
+          "delta_rounds": -1.06,
+          "manager_first_avg": 2.67,
+          "league_first_avg": 3.72,
+          "n_samples": 3
+        },
+        "RB": {
+          "delta_rounds": 0.81,
+          "manager_first_avg": 3.67,
+          "league_first_avg": 2.86,
+          "n_samples": 3
+        },
+        "WR": {
+          "delta_rounds": 0.33,
+          "manager_first_avg": 3.0,
+          "league_first_avg": 2.67,
+          "n_samples": 3
+        },
+        "TE": {
+          "delta_rounds": 2.88,
+          "manager_first_avg": 10.0,
+          "league_first_avg": 7.12,
+          "n_samples": 3
+        },
+        "K": {
+          "delta_rounds": -0.41,
+          "manager_first_avg": 15.0,
+          "league_first_avg": 15.41,
+          "n_samples": 1
+        },
+        "DEF": {
+          "delta_rounds": 2.29,
+          "manager_first_avg": 17.0,
+          "league_first_avg": 14.71,
+          "n_samples": 1
+        }
+      },
+      "brower_barry": {
+        "QB": {
+          "delta_rounds": -1.39,
+          "manager_first_avg": 2.33,
+          "league_first_avg": 3.72,
+          "n_samples": 3
+        },
+        "RB": {
+          "delta_rounds": 3.14,
+          "manager_first_avg": 6.0,
+          "league_first_avg": 2.86,
+          "n_samples": 3
+        },
+        "WR": {
+          "delta_rounds": 2.0,
+          "manager_first_avg": 4.67,
+          "league_first_avg": 2.67,
+          "n_samples": 3
+        },
+        "TE": {
+          "delta_rounds": -0.62,
+          "manager_first_avg": 6.5,
+          "league_first_avg": 7.12,
+          "n_samples": 2
+        },
+        "K": {
+          "delta_rounds": -3.41,
+          "manager_first_avg": 12.0,
+          "league_first_avg": 15.41,
+          "n_samples": 1
+        }
+      },
+      "brian_bigguap": {
+        "QB": {
+          "delta_rounds": -0.06,
+          "manager_first_avg": 3.67,
+          "league_first_avg": 3.72,
+          "n_samples": 3
+        },
+        "RB": {
+          "delta_rounds": -0.53,
+          "manager_first_avg": 2.33,
+          "league_first_avg": 2.86,
+          "n_samples": 3
+        },
+        "WR": {
+          "delta_rounds": 0.0,
+          "manager_first_avg": 2.67,
+          "league_first_avg": 2.67,
+          "n_samples": 3
+        },
+        "TE": {
+          "delta_rounds": -1.12,
+          "manager_first_avg": 6.0,
+          "league_first_avg": 7.12,
+          "n_samples": 2
+        },
+        "K": {
+          "delta_rounds": 1.09,
+          "manager_first_avg": 16.5,
+          "league_first_avg": 15.41,
+          "n_samples": 2
+        },
+        "DEF": {
+          "delta_rounds": 1.29,
+          "manager_first_avg": 16.0,
+          "league_first_avg": 14.71,
+          "n_samples": 3
+        }
+      },
+      "josh_wildboy": {
+        "QB": {
+          "delta_rounds": -0.72,
+          "manager_first_avg": 3.0,
+          "league_first_avg": 3.72,
+          "n_samples": 3
+        },
+        "RB": {
+          "delta_rounds": -1.19,
+          "manager_first_avg": 1.67,
+          "league_first_avg": 2.86,
+          "n_samples": 3
+        },
+        "WR": {
+          "delta_rounds": -1.33,
+          "manager_first_avg": 1.33,
+          "league_first_avg": 2.67,
+          "n_samples": 3
+        },
+        "TE": {
+          "delta_rounds": 1.22,
+          "manager_first_avg": 8.33,
+          "league_first_avg": 7.12,
+          "n_samples": 3
+        },
+        "K": {
+          "delta_rounds": 1.59,
+          "manager_first_avg": 17.0,
+          "league_first_avg": 15.41,
+          "n_samples": 1
+        },
+        "DEF": {
+          "delta_rounds": -1.71,
+          "manager_first_avg": 13.0,
+          "league_first_avg": 14.71,
+          "n_samples": 2
+        }
+      },
+      "coop": {
+        "QB": {
+          "delta_rounds": -1.72,
+          "manager_first_avg": 2.0,
+          "league_first_avg": 3.72,
+          "n_samples": 3
+        },
+        "RB": {
+          "delta_rounds": -0.86,
+          "manager_first_avg": 2.0,
+          "league_first_avg": 2.86,
+          "n_samples": 3
+        },
+        "WR": {
+          "delta_rounds": -1.0,
+          "manager_first_avg": 1.67,
+          "league_first_avg": 2.67,
+          "n_samples": 3
+        },
+        "TE": {
+          "delta_rounds": -2.12,
+          "manager_first_avg": 5.0,
+          "league_first_avg": 7.12,
+          "n_samples": 3
+        },
+        "K": {
+          "delta_rounds": -0.41,
+          "manager_first_avg": 15.0,
+          "league_first_avg": 15.41,
+          "n_samples": 1
+        },
+        "DEF": {
+          "delta_rounds": -0.71,
+          "manager_first_avg": 14.0,
+          "league_first_avg": 14.71,
+          "n_samples": 3
+        }
+      }
+    }
+  },
+  "league_rules": {
+    "round_penalty": 2,
+    "max_keepers": 4,
+    "max_years_consecutive": 3,
+    "waiver_keeper_round": 17
+  }
+};
+const DATA_URL = null;
+let DATA = null;
+let drafted = new Set();      // player names that have been drafted
+let pickOrder = [];           // array of {round, overall, slot, team_idx, player}
+let posFilter = "ALL";
+let searchQ = "";
+let cursor = 0;               // index into DATA.schedule
+
+(async function init() {
+  DATA = EMBEDDED_DATA;
+  applyKeepersAtStart();
+  loadStateFromURL();
+  refresh();
+  document.getElementById("search").addEventListener("input", e => { searchQ = e.target.value.toLowerCase().trim(); renderPlayerList(); });
+  document.querySelectorAll(".pos-btn").forEach(b => b.addEventListener("click", e => {
+    posFilter = e.target.dataset.pos;
+    document.querySelectorAll(".pos-btn").forEach(x => x.classList.remove("active"));
+    e.target.classList.add("active");
+    renderPlayerList();
+  }));
+  document.getElementById("undo").addEventListener("click", undo);
+  // Persist state via URL hash so refresh doesn't lose picks
+  window.addEventListener("hashchange", () => { if (!suppressHashChange) loadStateFromURL(); });
+})();
+
+// ---------- KEEPERS ----------
+function applyKeepersAtStart() {
+  // Pre-place each manager's keepers at their effective_forfeit_round on the
+  // FIRST pick that manager owns in that round (with multi-pick support).
+  // Mark those slots in DATA.schedule with a `keeper_for` field.
+  const keepersByTeam = {};
+  for (const k of DATA.keepers) {
+    // team_idx in keepers_2026.json is roster_id-1, NOT slot-1. Translate
+    // via SLOT_TO_RID.
+    const slot = DATA.managers.find(m => m.roster_id === k.roster_id);
+    if (!slot) continue;
+    const tIdx = slot.team_idx;
+    (keepersByTeam[tIdx] = keepersByTeam[tIdx] || []).push(k);
+  }
+  // For each team_idx, fill their picks in the effective_forfeit_round buckets.
+  for (const [tIdx, ks] of Object.entries(keepersByTeam)) {
+    const ti = +tIdx;
+    const consumed = new Set();
+    for (const k of ks) {
+      const forfeit = k.effective_forfeit_round || k.forfeit_round;
+      // Find earliest matching unconsumed pick for this team in that round
+      const pick = DATA.schedule.find(p =>
+        p.round === forfeit && p.team_idx === ti && !consumed.has(p.overall)
+      );
+      if (!pick) continue;
+      pick.keeper_for = k.player_name;
+      consumed.add(pick.overall);
+    }
+  }
+}
+
+// ---------- STATE PERSISTENCE (URL hash) ----------
+let suppressHashChange = false;
+function saveStateToURL() {
+  suppressHashChange = true;
+  const compact = pickOrder.map(p => `${p.overall}:${encodeURIComponent(p.player)}`).join(",");
+  history.replaceState(null, "", "#" + compact);
+  setTimeout(() => suppressHashChange = false, 50);
+}
+function loadStateFromURL() {
+  const h = location.hash.slice(1);
+  if (!h) return;
+  const items = h.split(",").filter(Boolean);
+  pickOrder = [];
+  drafted = new Set();
+  for (const it of items) {
+    const [overall, ...rest] = it.split(":");
+    const pn = decodeURIComponent(rest.join(":"));
+    const p = DATA.schedule.find(x => x.overall === +overall);
+    if (!p) continue;
+    p.player = pn;
+    pickOrder.push(p);
+    drafted.add(pn);
+  }
+  // Set cursor to next pick
+  cursor = pickOrder.length;
+}
+
+// ---------- DRAFT ACTIONS ----------
+function draftPlayer(name) {
+  if (drafted.has(name)) return;
+  if (cursor >= DATA.schedule.length) return;
+  const slot = DATA.schedule[cursor];
+  slot.player = name;
+  pickOrder.push(slot);
+  drafted.add(name);
+  cursor++;
+  // Auto-advance through keeper slots if next pick has a keeper
+  while (cursor < DATA.schedule.length && DATA.schedule[cursor].keeper_for) {
+    const ks = DATA.schedule[cursor];
+    ks.player = ks.keeper_for;
+    pickOrder.push(ks);
+    drafted.add(ks.keeper_for);
+    cursor++;
+  }
+  saveStateToURL();
+  refresh();
+}
+function undo() {
+  if (!pickOrder.length) return;
+  const last = pickOrder.pop();
+  drafted.delete(last.player);
+  delete last.player;
+  cursor--;
+  // Also rewind through any preceding keeper auto-placements
+  while (cursor > 0 && DATA.schedule[cursor - 1].keeper_for &&
+         DATA.schedule[cursor - 1].player === DATA.schedule[cursor - 1].keeper_for) {
+    const prev = pickOrder.pop();
+    drafted.delete(prev.player);
+    delete prev.player;
+    cursor--;
+  }
+  saveStateToURL();
+  refresh();
+}
+
+// ---------- INITIAL KEEPER PLACEMENT ----------
+function autoAdvanceKeepers() {
+  // On first load, auto-place any keepers that occur before the first non-keeper pick
+  while (cursor < DATA.schedule.length && DATA.schedule[cursor].keeper_for &&
+         !DATA.schedule[cursor].player) {
+    const ks = DATA.schedule[cursor];
+    ks.player = ks.keeper_for;
+    pickOrder.push(ks);
+    drafted.add(ks.keeper_for);
+    cursor++;
+  }
+}
+
+// ---------- RENDER ----------
+function refresh() {
+  autoAdvanceKeepers();
+  renderClock();
+  renderPlayerList();
+  renderRoster();
+  renderRecs();
+  renderHistory();
+}
+
+function renderClock() {
+  const el = document.getElementById("clock");
+  if (cursor >= DATA.schedule.length) {
+    el.textContent = "Draft complete";
+    el.classList.remove("me");
+    return;
+  }
+  const next = DATA.schedule[cursor];
+  const mgr = DATA.managers.find(m => m.team_idx === next.team_idx);
+  const isMe = next.team_idx === DATA.my_team_idx;
+  el.textContent = `R${next.round}.${next.pick_in_round} · #${next.overall} · ${mgr ? mgr.id.toUpperCase() : "?"}`;
+  el.classList.toggle("me", isMe);
+
+  // Find Brian's next pick
+  const myNext = DATA.schedule.slice(cursor).find(p => p.team_idx === DATA.my_team_idx && !p.keeper_for);
+  document.getElementById("next-pick").textContent = myNext
+    ? `Your next pick: R${myNext.round}.${myNext.pick_in_round} (#${myNext.overall}) · ${myNext.overall - next.overall} picks until you're up`
+    : "No remaining picks (all keepers).";
+}
+
+function renderPlayerList() {
+  const body = document.getElementById("ptable-body");
+  body.innerHTML = "";
+  // Get Brian's "ideal" position list from the recommendations panel logic
+  const myNext = DATA.schedule.slice(cursor).find(p => p.team_idx === DATA.my_team_idx && !p.keeper_for);
+  const myRoster = pickOrder.filter(p => p.team_idx === DATA.my_team_idx).map(p => p.player);
+  const myCounts = countRoster(myRoster);
+  const needPos = computeNeedPositions(myCounts, myNext);
+
+  const filtered = DATA.players.filter(p => {
+    if (drafted.has(p.name)) return false;
+    if (posFilter !== "ALL" && p.pos !== posFilter && !(posFilter === "DEF" && p.pos === "DST")) return false;
+    if (searchQ && !p.name.toLowerCase().includes(searchQ)) return false;
+    return true;
+  }).slice(0, 200);
+
+  for (const p of filtered) {
+    const tr = document.createElement("tr");
+    if (needPos.has(p.pos)) tr.classList.add("brian-target");
+    const ageCell = p.age ? `<span class="${p.age <= 25 ? 'age-young' : (p.age >= 29 ? 'age-old' : '')}">${p.age}</span>` : '<span class="meta">-</span>';
+    const rookieTag = p.years_exp === 0 ? ' <span class="keeper-badge" style="background:var(--warn);color:#000">R</span>' : '';
+    const injTag = p.injury ? ` <span class="keeper-badge" style="background:var(--danger);color:#fff">${p.injury[0]}</span>` : '';
+    const vbdClass = p.vbd > 0 ? "pos" : "neg";
+    tr.innerHTML = `
+      <td><span class="pos-tag pos-${p.pos}">${p.pos}</span></td>
+      <td>${p.name}${rookieTag}${injTag}</td>
+      <td class="meta">${p.team}</td>
+      <td>${ageCell}</td>
+      <td>${p.proj.toFixed(0)}</td>
+      <td class="vbd ${vbdClass}">${p.vbd > 0 ? '+' : ''}${p.vbd.toFixed(0)}</td>
+      <td class="meta">${p.adp.toFixed(0)}</td>
+    `;
+    tr.addEventListener("click", () => draftPlayer(p.name));
+    body.appendChild(tr);
+  }
+}
+
+function renderRoster() {
+  const r = document.getElementById("roster");
+  r.innerHTML = "";
+  const myPicks = pickOrder.filter(p => p.team_idx === DATA.my_team_idx);
+  const totalProj = myPicks.reduce((s, p) => {
+    const pp = DATA.players.find(x => x.name === p.player);
+    return s + (pp ? pp.proj : 0);
+  }, 0);
+  document.getElementById("roster-total").textContent = `· ${myPicks.length}/17 · ${totalProj.toFixed(0)} proj`;
+  // Group by position
+  const byPos = {QB: [], RB: [], WR: [], TE: [], K: [], DEF: []};
+  for (const pk of myPicks) {
+    const pp = DATA.players.find(x => x.name === pk.player) || {pos: 'X', proj: 0};
+    const pos = pp.pos in byPos ? pp.pos : (pp.pos === 'DST' ? 'DEF' : 'X');
+    if (byPos[pos]) byPos[pos].push({...pk, ...pp});
+  }
+  for (const pos of ['QB','RB','WR','TE','K','DEF']) {
+    for (const player of byPos[pos]) {
+      const isKeeper = player.keeper_for;
+      const row = document.createElement("div");
+      row.className = "roster-row" + (isKeeper ? " keeper-row" : "");
+      row.style.borderLeftColor = `var(--${pos.toLowerCase()})`;
+      row.innerHTML = `<span><span class="pos-tag pos-${pos}">${pos}</span> ${player.player}${isKeeper ? ' <span class="keeper-badge">K</span>' : ''}</span><span class="meta">R${player.round}</span>`;
+      r.appendChild(row);
+    }
+  }
+  // Stats
+  const stats = document.getElementById("roster-stats");
+  stats.innerHTML = '';
+  const counts = countRoster(myPicks.map(p => p.player));
+  for (const pos of ['QB','RB','WR','TE','K','DEF']) {
+    const target = { QB:3, RB:5, WR:6, TE:2, K:1, DEF:1 }[pos];
+    const cur = counts[pos] || 0;
+    const ok = cur >= target ? '✓' : `${target - cur} short`;
+    stats.innerHTML += `<span class="stat"><strong>${pos}</strong> ${cur}/${target} <span class="meta">${ok}</span></span>`;
+  }
+}
+
+function renderRecs() {
+  const recs = document.getElementById("recs");
+  recs.innerHTML = "";
+  if (cursor >= DATA.schedule.length) {
+    recs.innerHTML = '<div class="meta">Draft complete</div>';
+    return;
+  }
+  const next = DATA.schedule[cursor];
+  // Only show recs when Brian's on the clock
+  if (next.team_idx !== DATA.my_team_idx) {
+    const myNext = DATA.schedule.slice(cursor).find(p => p.team_idx === DATA.my_team_idx && !p.keeper_for);
+    if (!myNext) { recs.innerHTML = '<div class="meta">All keepers — no decisions to make.</div>'; return; }
+    recs.innerHTML = `<div class="meta">Wait for your pick at R${myNext.round}.${myNext.pick_in_round} (#${myNext.overall})</div>`;
+    return;
+  }
+  // We're on the clock — pick top 3 by VBD that match a need position
+  const myPicks = pickOrder.filter(p => p.team_idx === DATA.my_team_idx);
+  const myCounts = countRoster(myPicks.map(p => p.player));
+  const needPos = computeNeedPositions(myCounts, next);
+  const available = DATA.players.filter(p => !drafted.has(p.name));
+
+  // Score: VBD * positional fit + bonus for being a Brian "target"
+  function score(p) {
+    let s = p.vbd;
+    if (needPos.has(p.pos)) s += 25;
+    if (next.round >= 14 && p.years_exp === 0) s += 15; // late-round rookie keeper-future bonus
+    if (next.round >= 14 && p.age && p.age <= 24) s += 8;
+    return s;
+  }
+  const scored = available.map(p => ({...p, s: score(p)})).sort((a,b) => b.s - a.s);
+  const top3 = scored.slice(0, 3);
+
+  for (const p of top3) {
+    const reason = recReason(p, next, myCounts, needPos);
+    const div = document.createElement("div");
+    div.className = "rec";
+    div.innerHTML = `<div><span class="pos-tag pos-${p.pos}">${p.pos}</span> <strong>${p.name}</strong> <span class="meta">VBD ${p.vbd > 0 ? '+' : ''}${p.vbd.toFixed(0)} · ADP ${p.adp.toFixed(0)}${p.age ? ' · age ' + p.age : ''}</span></div><div class="why">${reason}</div>`;
+    div.addEventListener("click", () => draftPlayer(p.name));
+    div.style.cursor = "pointer";
+    recs.appendChild(div);
+  }
+}
+
+function recReason(p, pick, counts, needPos) {
+  const parts = [];
+  if (needPos.has(p.pos)) parts.push(`fills ${p.pos} need`);
+  if (p.adp < pick.overall - 10) parts.push("falling past ADP (great value)");
+  if (p.adp > pick.overall + 10) parts.push("ADP reach");
+  if (pick.round >= 14 && p.years_exp === 0) parts.push("rookie stash for 2027 keeper");
+  if (p.vbd > 50) parts.push("elite tier");
+  if (pick.round >= 16 && (p.pos === 'K' || p.pos === 'DEF')) parts.push("safe late-round filler");
+  if (!parts.length) parts.push("best-VBD on board");
+  return parts.join(" · ");
+}
+
+function renderHistory() {
+  const h = document.getElementById("history");
+  h.innerHTML = "";
+  const last = pickOrder.slice(-15).reverse();
+  for (const p of last) {
+    const mgr = DATA.managers.find(m => m.team_idx === p.team_idx);
+    const player = DATA.players.find(x => x.name === p.player) || {pos: '?'};
+    const isKeeper = p.keeper_for;
+    const isMe = p.team_idx === DATA.my_team_idx;
+    const row = document.createElement("div");
+    row.className = "history-row" + (isMe ? " mine" : "");
+    row.innerHTML = `
+      <span class="pn">#${p.overall}</span>
+      <span class="who">${(mgr && mgr.id) ? mgr.id.toUpperCase() : '?'}</span>
+      <span class="pos-tag pos-${player.pos}">${player.pos || '?'}</span>
+      <span>${p.player}</span>
+      ${isKeeper ? '<span class="keeper-badge">K</span>' : ''}
+    `;
+    h.appendChild(row);
+  }
+}
+
+// ---------- HELPERS ----------
+function countRoster(names) {
+  const c = {};
+  for (const n of names) {
+    const p = DATA.players.find(x => x.name === n);
+    const pos = p ? (p.pos === 'DST' ? 'DEF' : p.pos) : 'X';
+    c[pos] = (c[pos] || 0) + 1;
+  }
+  return c;
+}
+
+function computeNeedPositions(counts, nextPick) {
+  // Brian's roster targets: 3 QB, 5 RB, 6 WR, 2 TE, 1 K, 1 DEF (17)
+  const targets = { QB: 3, RB: 5, WR: 6, TE: 2, K: 1, DEF: 1 };
+  const need = new Set();
+  if (!nextPick) return need;
+  for (const pos of Object.keys(targets)) {
+    if ((counts[pos] || 0) < targets[pos]) {
+      // K/DEF only count as "need" in last 2 rounds
+      if ((pos === 'K' || pos === 'DEF') && nextPick.round < 16) continue;
+      need.add(pos);
+    }
+  }
+  return need;
+}
+</script>
+</body>
+</html>
