@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Brian's 2026 Draft Helper</title>
+<style>
+  :root {
+    --bg: #0b0d10;
+    --panel: #14171c;
+    --panel-2: #1c2027;
+    --border: #262b33;
+    --text: #e8eaee;
+    --muted: #8a93a0;
+    --accent: #4ade80;
+    --warn: #f59e0b;
+    --danger: #ef4444;
+    --info: #60a5fa;
+    --qb: #dc2626;
+    --rb: #0891b2;
+    --wr: #16a34a;
+    --te: #f59e0b;
+    --k:  #9a3412;
+    --def:#525252;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  header { background: linear-gradient(135deg, #14b8a6 0%, #0891b2 100%); padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+  header .title { font-weight: 800; font-size: 16px; letter-spacing: 0.5px; }
+  header .clock { font-weight: 700; font-size: 13px; padding: 6px 10px; border-radius: 6px; background: rgba(0,0,0,0.35); }
+  header .clock.me { background: #16a34a; animation: pulse 1.4s infinite; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(74,222,128,.6);} 50% { box-shadow: 0 0 0 8px rgba(74,222,128,0);} }
+  main { display: grid; grid-template-columns: 1fr 380px; gap: 12px; padding: 12px; max-width: 1400px; margin: 0 auto; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
+  .panel h2 { margin: 0 0 8px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  .controls { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+  .controls input[type=search] { flex: 1; min-width: 140px; background: var(--panel-2); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 6px; font-size: 14px; }
+  .pos-filter { display: flex; gap: 4px; flex-wrap: wrap; }
+  .pos-btn { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); padding: 4px 9px; border-radius: 5px; cursor: pointer; font-size: 12px; font-weight: 700; transition: all 0.1s; }
+  .pos-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+  .pos-btn[data-pos=QB].active { background: var(--qb); border-color: var(--qb); color: #fff; }
+  .pos-btn[data-pos=RB].active { background: var(--rb); border-color: var(--rb); color: #fff; }
+  .pos-btn[data-pos=WR].active { background: var(--wr); border-color: var(--wr); color: #fff; }
+  .pos-btn[data-pos=TE].active { background: var(--te); border-color: var(--te); color: #fff; }
+  table.player-list { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.player-list th { text-align: left; padding: 4px 6px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--panel); z-index: 1; }
+  table.player-list td { padding: 6px; border-bottom: 1px solid #1a1d22; }
+  table.player-list tr { cursor: pointer; }
+  table.player-list tr:hover { background: var(--panel-2); }
+  table.player-list tr.drafted { opacity: 0.25; text-decoration: line-through; pointer-events: none; }
+  table.player-list tr.brian-target { background: rgba(74,222,128,0.07); border-left: 3px solid var(--accent); }
+  .pos-tag { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 10px; font-weight: 700; color: #fff; min-width: 24px; text-align: center; }
+  .pos-QB { background: var(--qb); }
+  .pos-RB { background: var(--rb); }
+  .pos-WR { background: var(--wr); }
+  .pos-TE { background: var(--te); }
+  .pos-K  { background: var(--k); }
+  .pos-DEF, .pos-DST { background: var(--def); }
+  .vbd { font-weight: 700; }
+  .vbd.pos { color: var(--accent); }
+  .vbd.neg { color: var(--muted); }
+  .meta { color: var(--muted); font-size: 11px; }
+  .roster { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; font-size: 12px; }
+  .roster-row { padding: 4px 6px; background: var(--panel-2); border-left: 3px solid; border-radius: 3px; display: flex; justify-content: space-between; align-items: center; }
+  .recs { display: flex; flex-direction: column; gap: 4px; }
+  .rec { padding: 6px 8px; background: var(--panel-2); border-radius: 5px; border-left: 3px solid var(--accent); }
+  .rec.warn { border-left-color: var(--warn); }
+  .rec .why { color: var(--muted); font-size: 11px; margin-top: 2px; }
+  .player-list-scroll { max-height: 70vh; overflow-y: auto; }
+  .history { max-height: 200px; overflow-y: auto; font-size: 12px; }
+  .history-row { padding: 3px 6px; border-bottom: 1px solid #1a1d22; display: flex; gap: 6px; align-items: center; }
+  .history-row .pn { color: var(--muted); min-width: 28px; }
+  .history-row .who { color: var(--muted); min-width: 60px; }
+  .history-row.mine { background: rgba(74,222,128,0.12); }
+  .keeper-badge { background: var(--info); color: #000; padding: 1px 4px; border-radius: 3px; font-size: 9px; font-weight: 700; margin-left: 4px; }
+  .age-young { color: var(--accent); }
+  .age-old { color: var(--muted); }
+  button.undo { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); padding: 4px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; }
+  button.undo:hover { background: #2a2f38; }
+  .stats { display: flex; gap: 8px; flex-wrap: wrap; font-size: 11px; color: var(--muted); }
+  .stat { background: var(--panel-2); padding: 3px 8px; border-radius: 4px; }
+  .stat strong { color: var(--text); }
+  .keeper-row { font-style: italic; opacity: 0.7; }
+  .next-pick-info { font-size: 11px; color: var(--muted); margin-top: 2px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="title">BRIAN'S 2026 DRAFT HELPER · slot 6</div>
+  <div id="clock" class="clock">loading…</div>
+</header>
+
+<main>
+  <!-- LEFT: player pool -->
+  <div class="panel">
+    <h2>Available Players</h2>
+    <div class="controls">
+      <input id="search" type="search" placeholder="Search by name…" autocomplete="off">
+      <div class="pos-filter">
+        <button class="pos-btn active" data-pos="ALL">All</button>
+        <button class="pos-btn" data-pos="QB">QB</button>
+        <button class="pos-btn" data-pos="RB">RB</button>
+        <button class="pos-btn" data-pos="WR">WR</button>
+        <button class="pos-btn" data-pos="TE">TE</button>
+        <button class="pos-btn" data-pos="K">K</button>
+        <button class="pos-btn" data-pos="DEF">DEF</button>
+      </div>
+    </div>
+    <div class="player-list-scroll">
+      <table class="player-list" id="ptable">
+        <thead>
+          <tr><th>Pos</th><th>Name</th><th>Team</th><th>Age</th><th>Proj</th><th>VBD</th><th>ADP</th></tr>
+        </thead>
+        <tbody id="ptable-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- RIGHT: roster + recs + history -->
+  <div style="display: flex; flex-direction: column; gap: 12px;">
+    <div class="panel">
+      <h2>You're on the Clock</h2>
+      <div id="next-pick" class="next-pick-info">—</div>
+      <h2 style="margin-top: 10px;">Top Recommendations</h2>
+      <div id="recs" class="recs"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Your Roster <span id="roster-total" class="meta"></span></h2>
+      <div id="roster" class="roster"></div>
+      <div id="roster-stats" class="stats" style="margin-top: 8px;"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Recent Picks <button class="undo" id="undo">undo last</button></h2>
+      <div class="history" id="history"></div>
+    </div>
+  </div>
+</main>
+
+<script>
+const DATA_URL = "data.json";
+let DATA = null;
+let drafted = new Set();      // player names that have been drafted
+let pickOrder = [];           // array of {round, overall, slot, team_idx, player}
+let posFilter = "ALL";
+let searchQ = "";
+let cursor = 0;               // index into DATA.schedule
+
+(async function init() {
+  const resp = await fetch(DATA_URL);
+  DATA = await resp.json();
+  applyKeepersAtStart();
+  loadStateFromURL();
+  refresh();
+  document.getElementById("search").addEventListener("input", e => { searchQ = e.target.value.toLowerCase().trim(); renderPlayerList(); });
+  document.querySelectorAll(".pos-btn").forEach(b => b.addEventListener("click", e => {
+    posFilter = e.target.dataset.pos;
+    document.querySelectorAll(".pos-btn").forEach(x => x.classList.remove("active"));
+    e.target.classList.add("active");
+    renderPlayerList();
+  }));
+  document.getElementById("undo").addEventListener("click", undo);
+  // Persist state via URL hash so refresh doesn't lose picks
+  window.addEventListener("hashchange", () => { if (!suppressHashChange) loadStateFromURL(); });
+})();
+
+// ---------- KEEPERS ----------
+function applyKeepersAtStart() {
+  // Pre-place each manager's keepers at their effective_forfeit_round on the
+  // FIRST pick that manager owns in that round (with multi-pick support).
+  // Mark those slots in DATA.schedule with a `keeper_for` field.
+  const keepersByTeam = {};
+  for (const k of DATA.keepers) {
+    // team_idx in keepers_2026.json is roster_id-1, NOT slot-1. Translate
+    // via SLOT_TO_RID.
+    const slot = DATA.managers.find(m => m.roster_id === k.roster_id);
+    if (!slot) continue;
+    const tIdx = slot.team_idx;
+    (keepersByTeam[tIdx] = keepersByTeam[tIdx] || []).push(k);
+  }
+  // For each team_idx, fill their picks in the effective_forfeit_round buckets.
+  for (const [tIdx, ks] of Object.entries(keepersByTeam)) {
+    const ti = +tIdx;
+    const consumed = new Set();
+    for (const k of ks) {
+      const forfeit = k.effective_forfeit_round || k.forfeit_round;
+      // Find earliest matching unconsumed pick for this team in that round
+      const pick = DATA.schedule.find(p =>
+        p.round === forfeit && p.team_idx === ti && !consumed.has(p.overall)
+      );
+      if (!pick) continue;
+      pick.keeper_for = k.player_name;
+      consumed.add(pick.overall);
+    }
+  }
+}
+
+// ---------- STATE PERSISTENCE (URL hash) ----------
+let suppressHashChange = false;
+function saveStateToURL() {
+  suppressHashChange = true;
+  const compact = pickOrder.map(p => `${p.overall}:${encodeURIComponent(p.player)}`).join(",");
+  history.replaceState(null, "", "#" + compact);
+  setTimeout(() => suppressHashChange = false, 50);
+}
+function loadStateFromURL() {
+  const h = location.hash.slice(1);
+  if (!h) return;
+  const items = h.split(",").filter(Boolean);
+  pickOrder = [];
+  drafted = new Set();
+  for (const it of items) {
+    const [overall, ...rest] = it.split(":");
+    const pn = decodeURIComponent(rest.join(":"));
+    const p = DATA.schedule.find(x => x.overall === +overall);
+    if (!p) continue;
+    p.player = pn;
+    pickOrder.push(p);
+    drafted.add(pn);
+  }
+  // Set cursor to next pick
+  cursor = pickOrder.length;
+}
+
+// ---------- DRAFT ACTIONS ----------
+function draftPlayer(name) {
+  if (drafted.has(name)) return;
+  if (cursor >= DATA.schedule.length) return;
+  const slot = DATA.schedule[cursor];
+  slot.player = name;
+  pickOrder.push(slot);
+  drafted.add(name);
+  cursor++;
+  // Auto-advance through keeper slots if next pick has a keeper
+  while (cursor < DATA.schedule.length && DATA.schedule[cursor].keeper_for) {
+    const ks = DATA.schedule[cursor];
+    ks.player = ks.keeper_for;
+    pickOrder.push(ks);
+    drafted.add(ks.keeper_for);
+    cursor++;
+  }
+  saveStateToURL();
+  refresh();
+}
+function undo() {
+  if (!pickOrder.length) return;
+  const last = pickOrder.pop();
+  drafted.delete(last.player);
+  delete last.player;
+  cursor--;
+  // Also rewind through any preceding keeper auto-placements
+  while (cursor > 0 && DATA.schedule[cursor - 1].keeper_for &&
+         DATA.schedule[cursor - 1].player === DATA.schedule[cursor - 1].keeper_for) {
+    const prev = pickOrder.pop();
+    drafted.delete(prev.player);
+    delete prev.player;
+    cursor--;
+  }
+  saveStateToURL();
+  refresh();
+}
+
+// ---------- INITIAL KEEPER PLACEMENT ----------
+function autoAdvanceKeepers() {
+  // On first load, auto-place any keepers that occur before the first non-keeper pick
+  while (cursor < DATA.schedule.length && DATA.schedule[cursor].keeper_for &&
+         !DATA.schedule[cursor].player) {
+    const ks = DATA.schedule[cursor];
+    ks.player = ks.keeper_for;
+    pickOrder.push(ks);
+    drafted.add(ks.keeper_for);
+    cursor++;
+  }
+}
+
+// ---------- RENDER ----------
+function refresh() {
+  autoAdvanceKeepers();
+  renderClock();
+  renderPlayerList();
+  renderRoster();
+  renderRecs();
+  renderHistory();
+}
+
+function renderClock() {
+  const el = document.getElementById("clock");
+  if (cursor >= DATA.schedule.length) {
+    el.textContent = "Draft complete";
+    el.classList.remove("me");
+    return;
+  }
+  const next = DATA.schedule[cursor];
+  const mgr = DATA.managers.find(m => m.team_idx === next.team_idx);
+  const isMe = next.team_idx === DATA.my_team_idx;
+  el.textContent = `R${next.round}.${next.pick_in_round} · #${next.overall} · ${mgr ? mgr.id.toUpperCase() : "?"}`;
+  el.classList.toggle("me", isMe);
+
+  // Find Brian's next pick
+  const myNext = DATA.schedule.slice(cursor).find(p => p.team_idx === DATA.my_team_idx && !p.keeper_for);
+  document.getElementById("next-pick").textContent = myNext
+    ? `Your next pick: R${myNext.round}.${myNext.pick_in_round} (#${myNext.overall}) · ${myNext.overall - next.overall} picks until you're up`
+    : "No remaining picks (all keepers).";
+}
+
+function renderPlayerList() {
+  const body = document.getElementById("ptable-body");
+  body.innerHTML = "";
+  // Get Brian's "ideal" position list from the recommendations panel logic
+  const myNext = DATA.schedule.slice(cursor).find(p => p.team_idx === DATA.my_team_idx && !p.keeper_for);
+  const myRoster = pickOrder.filter(p => p.team_idx === DATA.my_team_idx).map(p => p.player);
+  const myCounts = countRoster(myRoster);
+  const needPos = computeNeedPositions(myCounts, myNext);
+
+  const filtered = DATA.players.filter(p => {
+    if (drafted.has(p.name)) return false;
+    if (posFilter !== "ALL" && p.pos !== posFilter && !(posFilter === "DEF" && p.pos === "DST")) return false;
+    if (searchQ && !p.name.toLowerCase().includes(searchQ)) return false;
+    return true;
+  }).slice(0, 200);
+
+  for (const p of filtered) {
+    const tr = document.createElement("tr");
+    if (needPos.has(p.pos)) tr.classList.add("brian-target");
+    const ageCell = p.age ? `<span class="${p.age <= 25 ? 'age-young' : (p.age >= 29 ? 'age-old' : '')}">${p.age}</span>` : '<span class="meta">-</span>';
+    const rookieTag = p.years_exp === 0 ? ' <span class="keeper-badge" style="background:var(--warn);color:#000">R</span>' : '';
+    const injTag = p.injury ? ` <span class="keeper-badge" style="background:var(--danger);color:#fff">${p.injury[0]}</span>` : '';
+    const vbdClass = p.vbd > 0 ? "pos" : "neg";
+    tr.innerHTML = `
+      <td><span class="pos-tag pos-${p.pos}">${p.pos}</span></td>
+      <td>${p.name}${rookieTag}${injTag}</td>
+      <td class="meta">${p.team}</td>
+      <td>${ageCell}</td>
+      <td>${p.proj.toFixed(0)}</td>
+      <td class="vbd ${vbdClass}">${p.vbd > 0 ? '+' : ''}${p.vbd.toFixed(0)}</td>
+      <td class="meta">${p.adp.toFixed(0)}</td>
+    `;
+    tr.addEventListener("click", () => draftPlayer(p.name));
+    body.appendChild(tr);
+  }
+}
+
+function renderRoster() {
+  const r = document.getElementById("roster");
+  r.innerHTML = "";
+  const myPicks = pickOrder.filter(p => p.team_idx === DATA.my_team_idx);
+  const totalProj = myPicks.reduce((s, p) => {
+    const pp = DATA.players.find(x => x.name === p.player);
+    return s + (pp ? pp.proj : 0);
+  }, 0);
+  document.getElementById("roster-total").textContent = `· ${myPicks.length}/17 · ${totalProj.toFixed(0)} proj`;
+  // Group by position
+  const byPos = {QB: [], RB: [], WR: [], TE: [], K: [], DEF: []};
+  for (const pk of myPicks) {
+    const pp = DATA.players.find(x => x.name === pk.player) || {pos: 'X', proj: 0};
+    const pos = pp.pos in byPos ? pp.pos : (pp.pos === 'DST' ? 'DEF' : 'X');
+    if (byPos[pos]) byPos[pos].push({...pk, ...pp});
+  }
+  for (const pos of ['QB','RB','WR','TE','K','DEF']) {
+    for (const player of byPos[pos]) {
+      const isKeeper = player.keeper_for;
+      const row = document.createElement("div");
+      row.className = "roster-row" + (isKeeper ? " keeper-row" : "");
+      row.style.borderLeftColor = `var(--${pos.toLowerCase()})`;
+      row.innerHTML = `<span><span class="pos-tag pos-${pos}">${pos}</span> ${player.player}${isKeeper ? ' <span class="keeper-badge">K</span>' : ''}</span><span class="meta">R${player.round}</span>`;
+      r.appendChild(row);
+    }
+  }
+  // Stats
+  const stats = document.getElementById("roster-stats");
+  stats.innerHTML = '';
+  const counts = countRoster(myPicks.map(p => p.player));
+  for (const pos of ['QB','RB','WR','TE','K','DEF']) {
+    const target = { QB:3, RB:5, WR:6, TE:2, K:1, DEF:1 }[pos];
+    const cur = counts[pos] || 0;
+    const ok = cur >= target ? '✓' : `${target - cur} short`;
+    stats.innerHTML += `<span class="stat"><strong>${pos}</strong> ${cur}/${target} <span class="meta">${ok}</span></span>`;
+  }
+}
+
+function renderRecs() {
+  const recs = document.getElementById("recs");
+  recs.innerHTML = "";
+  if (cursor >= DATA.schedule.length) {
+    recs.innerHTML = '<div class="meta">Draft complete</div>';
+    return;
+  }
+  const next = DATA.schedule[cursor];
+  // Only show recs when Brian's on the clock
+  if (next.team_idx !== DATA.my_team_idx) {
+    const myNext = DATA.schedule.slice(cursor).find(p => p.team_idx === DATA.my_team_idx && !p.keeper_for);
+    if (!myNext) { recs.innerHTML = '<div class="meta">All keepers — no decisions to make.</div>'; return; }
+    recs.innerHTML = `<div class="meta">Wait for your pick at R${myNext.round}.${myNext.pick_in_round} (#${myNext.overall})</div>`;
+    return;
+  }
+  // We're on the clock — pick top 3 by VBD that match a need position
+  const myPicks = pickOrder.filter(p => p.team_idx === DATA.my_team_idx);
+  const myCounts = countRoster(myPicks.map(p => p.player));
+  const needPos = computeNeedPositions(myCounts, next);
+  const available = DATA.players.filter(p => !drafted.has(p.name));
+
+  // Score: VBD * positional fit + bonus for being a Brian "target"
+  function score(p) {
+    let s = p.vbd;
+    if (needPos.has(p.pos)) s += 25;
+    if (next.round >= 14 && p.years_exp === 0) s += 15; // late-round rookie keeper-future bonus
+    if (next.round >= 14 && p.age && p.age <= 24) s += 8;
+    return s;
+  }
+  const scored = available.map(p => ({...p, s: score(p)})).sort((a,b) => b.s - a.s);
+  const top3 = scored.slice(0, 3);
+
+  for (const p of top3) {
+    const reason = recReason(p, next, myCounts, needPos);
+    const div = document.createElement("div");
+    div.className = "rec";
+    div.innerHTML = `<div><span class="pos-tag pos-${p.pos}">${p.pos}</span> <strong>${p.name}</strong> <span class="meta">VBD ${p.vbd > 0 ? '+' : ''}${p.vbd.toFixed(0)} · ADP ${p.adp.toFixed(0)}${p.age ? ' · age ' + p.age : ''}</span></div><div class="why">${reason}</div>`;
+    div.addEventListener("click", () => draftPlayer(p.name));
+    div.style.cursor = "pointer";
+    recs.appendChild(div);
+  }
+}
+
+function recReason(p, pick, counts, needPos) {
+  const parts = [];
+  if (needPos.has(p.pos)) parts.push(`fills ${p.pos} need`);
+  if (p.adp < pick.overall - 10) parts.push("falling past ADP (great value)");
+  if (p.adp > pick.overall + 10) parts.push("ADP reach");
+  if (pick.round >= 14 && p.years_exp === 0) parts.push("rookie stash for 2027 keeper");
+  if (p.vbd > 50) parts.push("elite tier");
+  if (pick.round >= 16 && (p.pos === 'K' || p.pos === 'DEF')) parts.push("safe late-round filler");
+  if (!parts.length) parts.push("best-VBD on board");
+  return parts.join(" · ");
+}
+
+function renderHistory() {
+  const h = document.getElementById("history");
+  h.innerHTML = "";
+  const last = pickOrder.slice(-15).reverse();
+  for (const p of last) {
+    const mgr = DATA.managers.find(m => m.team_idx === p.team_idx);
+    const player = DATA.players.find(x => x.name === p.player) || {pos: '?'};
+    const isKeeper = p.keeper_for;
+    const isMe = p.team_idx === DATA.my_team_idx;
+    const row = document.createElement("div");
+    row.className = "history-row" + (isMe ? " mine" : "");
+    row.innerHTML = `
+      <span class="pn">#${p.overall}</span>
+      <span class="who">${(mgr && mgr.id) ? mgr.id.toUpperCase() : '?'}</span>
+      <span class="pos-tag pos-${player.pos}">${player.pos || '?'}</span>
+      <span>${p.player}</span>
+      ${isKeeper ? '<span class="keeper-badge">K</span>' : ''}
+    `;
+    h.appendChild(row);
+  }
+}
+
+// ---------- HELPERS ----------
+function countRoster(names) {
+  const c = {};
+  for (const n of names) {
+    const p = DATA.players.find(x => x.name === n);
+    const pos = p ? (p.pos === 'DST' ? 'DEF' : p.pos) : 'X';
+    c[pos] = (c[pos] || 0) + 1;
+  }
+  return c;
+}
+
+function computeNeedPositions(counts, nextPick) {
+  // Brian's roster targets: 3 QB, 5 RB, 6 WR, 2 TE, 1 K, 1 DEF (17)
+  const targets = { QB: 3, RB: 5, WR: 6, TE: 2, K: 1, DEF: 1 };
+  const need = new Set();
+  if (!nextPick) return need;
+  for (const pos of Object.keys(targets)) {
+    if ((counts[pos] || 0) < targets[pos]) {
+      // K/DEF only count as "need" in last 2 rounds
+      if ((pos === 'K' || pos === 'DEF') && nextPick.round < 16) continue;
+      need.add(pos);
+    }
+  }
+  return need;
+}
+</script>
+</body>
+</html>
