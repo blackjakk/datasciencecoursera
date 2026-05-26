@@ -4239,10 +4239,11 @@ function buildAnimForPlay(play, prevPlay) {
             // Speed-capped converge motion. The old lerp rate (0.13 for
             // celebration, 0.05 for downfield blocking) put players at
             // 40-60 yps in early frames when the gap was large —
-            // superhuman. Cap at 14 yps (celebration sprint) or 12 yps
-            // (downfield jog) so the motion reads as running, not
-            // teleporting. The convergence point itself is still met.
-            const _maxYPSps = isTDCeleb ? 14 : 12;
+            // superhuman. Cap at 15 yps (celebration sprint) or 14 yps
+            // (downfield blocker — must equal or exceed WR_TOP_YPS_VISUAL
+            // = 13 so they can hold the slot ahead of the carrier
+            // instead of getting caught and "freezing" beside him).
+            const _maxYPSps = isTDCeleb ? 15 : 14;
             const _maxPF = _maxYPSps * FIELD.PX_PER_YARD * 16 / 1000;
             const _fdx = targetX - p._followX;
             const _fdy = targetY - p._followY;
@@ -4300,8 +4301,12 @@ function buildAnimForPlay(play, prevPlay) {
           // drift toward the play side so the back faces the rusher.
           const slideX = -dir * tt * 1.5;
           const slideY = (cy - p.y) * Math.min(1, tt * 1.3) * 0.10;
-          return { ...p,
-                   x: p.x + slideX, y: p.y + slideY,
+          const _x = p.x + slideX, _y = p.y + slideY;
+          // Persist rendered position so the post-catch downfield-blocker
+          // / TD-celebration branch can pick up FROM HERE on the catch
+          // frame instead of teleporting back to p.x (formation home).
+          p._followX = _x; p._followY = _y;
+          return { ...p, x: _x, y: _y,
                    pose: "kick_slide",
                    t: ((t * (dur / 1000)) * 2.0) % 1,
                    facing: dir };
@@ -4327,12 +4332,12 @@ function buildAnimForPlay(play, prevPlay) {
             const sample = MotionPlayback.sampleTrack(trk, aT);
             if (sample) {
               const toMidSign = Math.sign(cy - p.y) || 1;
-              // Freeze legs when the route has settled (waypoints in
-              // hold segment). Otherwise feet cycle off wall-clock.
               const moving = MotionPlayback.isMoving(trk, aT);
-              return { ...p,
-                       x: p.x + dir * sample.dxYd * FIELD.PX_PER_YARD,
-                       y: p.y + toMidSign * sample.dyYd * FIELD.PX_PER_YARD,
+              const _x = p.x + dir * sample.dxYd * FIELD.PX_PER_YARD;
+              const _y = p.y + toMidSign * sample.dyYd * FIELD.PX_PER_YARD;
+              // Persist for the post-catch handoff (see RB pass-block).
+              p._followX = _x; p._followY = _y;
+              return { ...p, x: _x, y: _y,
                        pose: inRelease ? "release" : "run",
                        t: moving ? ((t * (dur / 1000)) * strideHz) % 1 : 0,
                        facing: dir };
@@ -4343,8 +4348,10 @@ function buildAnimForPlay(play, prevPlay) {
           const idHash = ((p.y * 7 + (p.x * 3)) >>> 0) % 100 / 100;
           const decoyDepth = catchDepth * (0.6 + idHash * 0.6);
           const lateralOff = (idHash - 0.5) * 36;
-          return { ...p, x: p.x + dir * tt * decoyDepth * FIELD.PX_PER_YARD,
-                   y: p.y + Math.sin(tt * Math.PI * 0.6) * lateralOff,
+          const _x = p.x + dir * tt * decoyDepth * FIELD.PX_PER_YARD;
+          const _y = p.y + Math.sin(tt * Math.PI * 0.6) * lateralOff;
+          p._followX = _x; p._followY = _y;
+          return { ...p, x: _x, y: _y,
                    pose: inRelease ? "release" : "run",
                    t: ((t * (dur / 1000)) * strideHz) % 1,
                    facing: dir };
