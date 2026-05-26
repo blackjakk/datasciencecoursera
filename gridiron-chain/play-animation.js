@@ -1605,6 +1605,10 @@ function buildAnimForPlay(play, prevPlay) {
     const _counterSide = ((play.startYard * 11) % 2) === 0 ? 1 : -1;
     const _stretchSide = ((play.startYard * 17) % 2) === 0 ? 1 : -1;
     const _pitchSide   = ((play.startYard * 13) % 2) === 0 ? 1 : -1;
+    // TD-celebration "_followX/_followY" state for run-play teammates
+    // lives on the formation.offense player objects themselves (per-play
+    // state, reset each play via the formation rebuild). No closure
+    // map needed — every non-RB player is a potential celebrator.
     return { duration: dur, kind: "run", render: (t, c) => {
       ctx = c;
       drawField(ctx, homeTeam, awayTeam, fieldState);
@@ -2462,6 +2466,37 @@ function buildAnimForPlay(play, prevPlay) {
         }
         if (t < PRE) return { ...p, pose: "stance" };
         const tt = runT;
+        // === RUN TD GROUP CELEBRATION ===
+        // On a TD run past runT > 0.85, every non-RB offensive player
+        // converges on the scorer and celebrates. Includes OL/FB/TE/WR/QB
+        // — the whole offense reaches the carrier in the end zone.
+        // Overrides their role-specific logic during the celebration
+        // window only; pre-celebration they keep blocking/route-running.
+        if (isTD && runT > 0.85) {
+          const hash = ((p.y * 17 + p.x * 13) >>> 0) % 1000;
+          const angle = (hash / 1000) * Math.PI * 2;
+          const radius = (4 + (hash % 4)) * FIELD.PX_PER_YARD;
+          // rb is the local clone whose position tracks the carrier
+          // each frame via the run pacing; formation.rb stays at the
+          // formation default, which would cluster the celebrators at
+          // the LOS instead of the actual end-zone scoring spot.
+          const targetX = rb.x + Math.cos(angle) * radius;
+          const targetY = rb.y + Math.sin(angle) * radius;
+          if (p._followX == null) { p._followX = p.x; p._followY = p.y; }
+          // Fast lerp — even OL coming from the LOS reach the cluster
+          // by play end on most TD lengths.
+          p._followX += (targetX - p._followX) * 0.13;
+          p._followY += (targetY - p._followY) * 0.13;
+          const _gap = Math.hypot(p._followX - targetX, p._followY - targetY);
+          const celebPose = _gap < 18 ? "celebrate" : "run";
+          return { ...p,
+                   x: p._followX, y: p._followY,
+                   pose: celebPose,
+                   t: celebPose === "celebrate"
+                        ? Math.min(1, (runT - 0.85) / 0.15)
+                        : (t < 0.95 ? ((performance.now() / 333)) % 1 : 0),
+                   facing: dir };
+        }
         if (p.role === "OL") {
           // PATH B Phase 9 — engine-emitted OL track wins when present.
           // Each OL has a slot index 0-4 based on y position; engine
