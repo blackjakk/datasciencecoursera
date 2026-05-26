@@ -560,21 +560,22 @@ function _stPlayDuration(opts) { return _stPlayTiming(opts).duration; }
 //   - Primary cover's speed is ALSO auto-tuned so he arrives at the
 //     same place at the same time — that's how the visual matches
 //     the engine's emitted tackler without snapping anyone.
-// Agent-based KR sim. Two roles only:
-//   LEAD (6): assigned to one cov, SAME Y lane. Target = cov's CURRENT
-//             position (not a fixed field coord). On contact, slows to
-//             30% and drifts upfield with the cov (engagement holds for
-//             the rest of the play — releasing it just creates free
-//             gunners). Failed leads (12.5%) still chase but at 40%
-//             speed and never engage — visible whiff.
-//   ESCORT (4): no cov assignment. Target = a slot relative to the
-//               RETURNER (wings 18 yd ahead, insides 7 yd ahead).
-//               Always moves with the carrier.
+// Agent-based KR sim. One role: every blocker is a LEAD paired 1-to-1
+// with a cov by index — same Y lane, no cross-field traversal. After
+// engagement, the pair pins at midfield-ish (drifts slowly upfield with
+// the play). Only the primary tackler (exempted from engagement) breaks
+// through to the returner — exactly one defender by design.
+//
+// Speeds tuned so the ball clearly arrives BEFORE the cov:
+//   COVER_BASE_YPS  = 12  (non-primary cov)
+//   BLOCKER_BASE_YPS = 15 (leads close on cov at midfield)
+// In a ~2.7s flight, cov covers ~32 yd from the kicker line — landing
+// at the recv 33 area, well short of the catch at recv 15. The primary
+// tackler is auto-scaled to arrive at the tackle spot at returnT.
 //
 // First-principles rule: every blocker's target is another agent, never
 // a static coordinate. As long as some agent is moving, every blocker
-// has something to chase. Coverage holes on cov 3..6 (interior, slowest)
-// are by design — same as the prior "wall" model.
+// has something to chase.
 function _simulateKickoffAgents(opts) {
   const {
     duration_ms, flightT, returnT,
@@ -587,10 +588,11 @@ function _simulateKickoffAgents(opts) {
   } = opts;
   const DT_MS = 16;
   const NUM_FRAMES = Math.ceil(duration_ms / DT_MS) + 1;
-  const COVER_BASE_YPS   = 18;
+  const COVER_BASE_YPS   = 12;     // realistic kickoff cov (was 18 — too fast, beat the ball)
   const BLOCKER_BASE_YPS = 15;
-  const ENGAGED_MULT     = 0.30;   // both bodies slow during the wrestle
+  const ENGAGED_MULT     = 0.30;   // lead's own speed while engaged
   const ENGAGE_DRIFT_YPS = 6;      // engaged pair drifts upfield together
+  const COV_PINNED_MULT  = 0.05;   // engaged cov is nearly stopped (was 0.15 — bled through)
   // Per-play primary-cover speed: distance/time so primary arrives at finalX at returnT.
   const _primaryDistX = Math.abs(finalX - kickerLineX);
   const _primaryDistY = Math.abs(coverLanes[primaryTacklerIdx] - cy);
@@ -608,18 +610,16 @@ function _simulateKickoffAgents(opts) {
   for (let i = 0; i < NUM_COVER; i++) {
     cover.push({ x: kickerLineX, y: coverLanes[i], engaged: false, engagedBy: -1 });
   }
-  // Lead↔cov pairing: 6 leads at blocker indices 0,1,2,7,8,9. Lead i
-  // pairs with cov i — same Y lane, no cross-field traversal before
-  // engagement. Cov indices 3,4,5,6 are uncovered by design (interior
-  // cov are slow and the escort layer handles them).
+  // 1-to-1 lead↔cov pairing for ALL 10 blockers. Every cov gets a lead;
+  // no one runs free past the blockers (the prior split with 4 unblocked
+  // interior cov was the "defenders walk into the returner" bug). Only
+  // the primary tackler (exempted from engagement, below) breaks through.
   const blockers = [];
   for (let i = 0; i < NUM_BLOCKERS; i++) {
-    const isEscort = (i >= 3 && i <= 6);
     blockers.push({
       x: blockerStartX, y: blockerLanes[i],
-      role: isEscort ? "escort" : "lead",
-      escortSlot: isEscort ? (i - 3) : -1,
-      targetCov: isEscort ? -1 : i,
+      role: "lead",
+      targetCov: i,
     });
   }
   const returner = { x: catchX, y: cy };
@@ -661,7 +661,11 @@ function _simulateKickoffAgents(opts) {
       const d = Math.sqrt(dx * dx + dy * dy);
       if (d > 1) {
         const baseSpeed = isPrimary ? PRIMARY_PX_F : COVER_BASE_PX_F;
-        const speed = c.engaged ? baseSpeed * 0.15 : baseSpeed;
+        // Engaged cov is essentially pinned by their blocker — drag-toward-
+        // blocker (12% per frame in the drag loop) supplies any residual
+        // motion. Old multiplier 0.15 = 1.8 yps allowed cov to bleed
+        // through and reach the returner over a 3s return.
+        const speed = c.engaged ? baseSpeed * COV_PINNED_MULT : baseSpeed;
         c.x += (dx / d) * speed;
         c.y += (dy / d) * speed;
       }
@@ -676,39 +680,28 @@ function _simulateKickoffAgents(opts) {
     for (let i = 0; i < NUM_BLOCKERS; i++) {
       const b = blockers[i];
       const a = blockerAssignments[i];
-      let targetX, targetY, speedCap;
+      const cov = cover[b.targetCov];
       let isEngaged = false;
-      if (b.role === "lead") {
-        // LEAD: chase cov's current position. Failed leads still chase
-        // (visible whiff at 40% speed) but never engage.
-        const cov = cover[b.targetCov];
-        targetX = cov.x;
-        targetY = cov.y;
-        speedCap = a.fails ? BLOCKER_BASE_PX_F * 0.4 : BLOCKER_BASE_PX_F;
-        // Single engagement check: distance + leverage + not the primary.
-        if (!a.fails && b.targetCov !== primaryTacklerIdx) {
-          const dxc = b.x - cov.x;
-          const dyc = b.y - cov.y;
-          if (dxc * dxc + dyc * dyc < 22 * 22) {
-            const covToReturnerX = returner.x - cov.x;
-            const covToBlockerX  = b.x - cov.x;
-            if (covToReturnerX * covToBlockerX > 0
-                || Math.abs(covToReturnerX) < 4
-                || Math.abs(covToBlockerX)  < 3) {
-              isEngaged = true;
-              cov.engaged = true;
-              cov.engagedBy = i;
-            }
+      // LEAD: chase cov's current position. Failed leads still chase
+      // (visible whiff at 40% speed) but never engage. Primary tackler's
+      // lead also doesn't engage — primary breaks through by design.
+      const targetX = cov.x;
+      const targetY = cov.y;
+      const speedCap = a.fails ? BLOCKER_BASE_PX_F * 0.4 : BLOCKER_BASE_PX_F;
+      if (!a.fails && b.targetCov !== primaryTacklerIdx) {
+        const dxc = b.x - cov.x;
+        const dyc = b.y - cov.y;
+        if (dxc * dxc + dyc * dyc < 22 * 22) {
+          const covToReturnerX = returner.x - cov.x;
+          const covToBlockerX  = b.x - cov.x;
+          if (covToReturnerX * covToBlockerX > 0
+              || Math.abs(covToReturnerX) < 4
+              || Math.abs(covToBlockerX)  < 3) {
+            isEngaged = true;
+            cov.engaged = true;
+            cov.engagedBy = i;
           }
         }
-      } else {
-        // ESCORT: layered position in front of the returner.
-        const slot = b.escortSlot;
-        const dxYd = [18, 7, 7, 18][slot];
-        const dyYd = [-10, -2, 2, 10][slot];
-        targetX = returner.x + recvDir * dxYd;
-        targetY = returner.y + dyYd * PX_PER_YD;
-        speedCap = Math.max(BLOCKER_BASE_PX_F, RETURNER_PX_F);
       }
       const speed = isEngaged ? speedCap * ENGAGED_MULT : speedCap;
       const dx = targetX - b.x;
@@ -1030,18 +1023,10 @@ function buildAnimForPlay(play, prevPlay) {
       // the explicit facing sticks.
       for (let i = 0; i < NUM_BLOCKERS; i++) {
         const bpos = snap.blockers[i];
-        const isLeadRole = (bpos.role === "lead");
         const isEngaged = !!snap.cover.find(c => c.engagedBy === i);
-        let bPose;
-        if (t < FLIGHT_END * 0.05) {
-          bPose = "stance";
-        } else if (isEngaged) {
-          bPose = "engage";
-        } else if (isLeadRole) {
-          bPose = "run";
-        } else {
-          bPose = (t < FLIGHT_END) ? "backpedal" : "run";
-        }
+        const bPose = (t < FLIGHT_END * 0.05) ? "stance"
+                    : isEngaged                 ? "engage"
+                    :                             "run";
         const bT = (t < 0.95 ? ((performance.now() / 333) + i * 0.17) % 1 : 0);
         const bFacing = recvDir;
         drawPlayer(ctx, bpos.x, bpos.y, recvTeam.primary, recvTeam.secondary, "",
