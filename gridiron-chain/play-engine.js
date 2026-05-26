@@ -4734,7 +4734,21 @@ class GameSimulator {
       const qbDrive = qbPlayer?._drive ?? 60;
       const driveCompMod = isQBClutch ? (qbDrive - 60) / 600 : 0; // ±~6pp at drive 99 vs 20
       const boxStackCompMod = this._boxStackCompMod || 0;
-      const compPct = clamp((0.65 + adv * 0.13 + qbCompFromOvr - pressure * 0.10 - shutdownPenalty + possessionBonus + qbCompMod + paCompMod + catCompMod + awrCompMod + cbCoverMod + mismatchBonus + coverLbMod + signalLbMod + physicalJamMod + wxCompMod + archCompMod + rzCompBonus + fatigueCompMod + momCompMod + driveCompMod + boxStackCompMod) * compPbMul * defPbCurrent.passMul * dcCoverSchemeMul, 0.15, 0.88);
+      // CONCEPT × COVERAGE matchup — hoisted before compPct so the
+      // expected openness can modulate completion rate. Previously this
+      // was picked inside the completion branch, so compPct didn't know
+      // whether the route was beating the coverage. Result: wide-open
+      // routes had the same comp% as covered ones, and the engine called
+      // "incomplete" on plays where the visual showed the ball arriving
+      // at a wide-open receiver.
+      const _hoistedConcept = this._pickPassConcept(pb);
+      const _hoistedCoverage = this._pickPassCoverage(defPbCurrent);
+      const _hoistedReadP = PASS_CONCEPTS[_hoistedConcept]?.readSuccessVs?.[_hoistedCoverage] ?? 0.50;
+      // Openness-driven comp% modifier. A 0.80-read matchup adds +9pp,
+      // a 0.40-read matchup subtracts ~5pp. Open routes complete; covered
+      // routes don't.
+      const opennessCompMod = (_hoistedReadP - 0.55) * 0.35;
+      const compPct = clamp((0.65 + adv * 0.13 + qbCompFromOvr - pressure * 0.10 - shutdownPenalty + possessionBonus + qbCompMod + paCompMod + catCompMod + awrCompMod + cbCoverMod + mismatchBonus + coverLbMod + signalLbMod + physicalJamMod + wxCompMod + archCompMod + rzCompBonus + fatigueCompMod + momCompMod + driveCompMod + boxStackCompMod + opennessCompMod) * compPbMul * defPbCurrent.passMul * dcCoverSchemeMul, 0.15, 0.95);
       if (Math.random() < compPct) {
         // Air yards drop when pressure shortens the QB's reads (check-downs / dump-offs)
         // Weaker QBs also throw shorter — they can't push the ball downfield reliably.
@@ -4808,11 +4822,10 @@ class GameSimulator {
         // QB calls a concept, defense calls a coverage, lookup the matchup
         // table for read success rate. Read success → throw to concept's
         // primary depth. Read failure → throw to fallback (checkdown).
-        // This replaces the air-yards class mixture with the actual NFL
-        // passing model. Existing comp%/YAC/sack logic proceeds on the
-        // resulting airYds.
-        const _concept = this._pickPassConcept(pb);
-        const _coverage = this._pickPassCoverage(defPbCurrent);
+        // Concept × coverage are now HOISTED before compPct so the openness
+        // expectation can modulate completion rate; reuse those values here.
+        const _concept = _hoistedConcept;
+        const _coverage = _hoistedCoverage;
         const _conceptDef = PASS_CONCEPTS[_concept];
         // Read success rates calibrated slightly upward from matchup
         // baseline. +0.08 was too generous (scoring 26.0 vs NFL 22);
