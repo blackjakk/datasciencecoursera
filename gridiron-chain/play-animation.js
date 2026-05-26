@@ -2890,7 +2890,15 @@ function buildAnimForPlay(play, prevPlay) {
     // first frame after the catch, kept stable for the rest of the play
     // so the same defenders continue chasing instead of swapping.
     let _postCatchPursuerSet = null;
+    // Sim-driven WR motion post-catch (replaces the time-based linear
+    // tween that compressed long YAC into 2.4s of impossible 17-yps
+    // sliding). Initialised lazily on the first post-throw render frame.
+    let _wrSim = null;
     const yac = isComplete ? (play.yac ?? Math.max(0, (play.yards ?? 0) - catchDepth)) : 0;
+    // Visual top speed for a WR sprint. ~13 yps is slightly compressed
+    // from real NFL top speed (~12) so plays don't feel slow.
+    const WR_TOP_YPS_VISUAL = 13;
+    const _yacScaleMs = (Math.max(yac, 0) / WR_TOP_YPS_VISUAL) * 1000;
     // Final Y where YAC ends — receiver may drift back toward middle if running upfield
     const finalY = targetY + (cy - targetY) * Math.min(0.5, yac / 40);
     // Pass plays — base duration covers drop + ball flight. Tack on
@@ -2921,10 +2929,15 @@ function buildAnimForPlay(play, prevPlay) {
     // the action ended with people still mid-air. 2400 ms is the
     // settle-friendly target for complete passes. First downs add ~600 ms
     // so the get-up + signal beat is visible.
-    const POST_CATCH_MS = isPassTD                  ? Math.max(2400, screenYacMs + 600)
+    // POST_CATCH scales with YAC distance so the sim-driven WR has
+    // room to traverse the gap at a realistic top speed. The tackle
+    // window starts at aT > 0.78, so action_dur * 0.78 must be enough
+    // for the WR to cover the YAC distance — adding _yacScaleMs + 1500
+    // (1000 ms accel ramp + 500 ms settle) hits that for all yardages.
+    const POST_CATCH_MS = isPassTD                  ? Math.max(2400, _yacScaleMs + 1800)
                         : isScreen && play.kind === "complete"  ? screenYacMs
-                        : isFirstDownPassPlay       ? 3000
-                        : play.kind === "complete"  ? 2400
+                        : isFirstDownPassPlay       ? Math.max(3000, _yacScaleMs + 1800)
+                        : play.kind === "complete"  ? Math.max(2400, _yacScaleMs + 1500)
                         : play.kind === "int"       ? 1800
                         : play.kind === "incomplete" ? 250
                         : 1000;
@@ -3261,13 +3274,33 @@ function buildAnimForPlay(play, prevPlay) {
           const _effEndX = Math.abs(_raw) >= _minCarryPx
                          ? endX
                          : targetX + dir * _minCarryPx;
-          // LINEAR motion — constant velocity from catch to tackle. The
-          // old eased motion (easeOutCubic) was 87% done by tt=0.5,
-          // leaving the receiver stationary for the back half of the
-          // YAC window. Linear keeps him moving at speed all the way
-          // through to contact, where the tackle pose takes over.
-          ballX = targetX + (_effEndX - targetX) * tt;
-          ballY = targetY + (finalY - targetY) * tt;
+          // SIM-DRIVEN WR motion. Accelerates from rest at the catch
+          // position, caps at WR_TOP_YPS_VISUAL, runs toward _effEndX.
+          // Replaces the time-based linear tween that forced impossible
+          // 15+ yps motion on long YAC and made the legs slide rather
+          // than match foot strikes. The tween fallback runs only if
+          // SimPlayer is unavailable.
+          if (!_wrSim && typeof SimPlayer !== "undefined") {
+            _wrSim = new SimPlayer(targetX, targetY, {
+              maxSpeed: WR_TOP_YPS_VISUAL * FIELD.PX_PER_YARD,
+              accel:    10 * FIELD.PX_PER_YARD,   // ~1s to top speed
+            });
+          }
+          if (_wrSim) {
+            _wrSim.stepTowardAt(_effEndX, finalY, performance.now());
+            // Clamp to not overshoot the engine's yardage. Without this
+            // the sim cruises past _effEndX (no deceleration logic) and
+            // the visible tackle spot disagrees with play.endYard.
+            if ((_wrSim.x - _effEndX) * dir > 0) {
+              _wrSim.x = _effEndX;
+              _wrSim.vx = 0;
+            }
+            ballX = _wrSim.x;
+            ballY = _wrSim.y;
+          } else {
+            ballX = targetX + (_effEndX - targetX) * tt;
+            ballY = targetY + (finalY - targetY) * tt;
+          }
           // Receiver carries the ball — keep them locked together
           wr.x = ballX;
           wr.y = ballY;
@@ -3974,10 +4007,18 @@ function buildAnimForPlay(play, prevPlay) {
       // clamped to a believable 2.5–5.5 Hz range.
       let strideHz = 3.0;   // baseline for pre-catch route running
       if (isPostCatch) {
-        const _postCatchYds = Math.abs(_effEndX - targetX) / FIELD.PX_PER_YARD;
-        const _postCatchSec = Math.max(0.3, (1 - throwPhase) * dur / 1000);
-        const _carrierYPS = _postCatchYds / _postCatchSec;
-        strideHz = clamp(_carrierYPS / 2, 2.5, 5.5);
+        if (_wrSim) {
+          // Sim-driven: use instantaneous velocity so the stride ramps
+          // up during accel, sits high at top speed, and slows on the
+          // tackle clamp — natural foot-strike timing throughout.
+          const _carrierYPS = Math.hypot(_wrSim.vx, _wrSim.vy) / FIELD.PX_PER_YARD;
+          strideHz = clamp(_carrierYPS / 2, 2.5, 5.5);
+        } else {
+          const _postCatchYds = Math.abs(_effEndX - targetX) / FIELD.PX_PER_YARD;
+          const _postCatchSec = Math.max(0.3, (1 - throwPhase) * dur / 1000);
+          const _carrierYPS = _postCatchYds / _postCatchSec;
+          strideHz = clamp(_carrierYPS / 2, 2.5, 5.5);
+        }
       }
       const wrTackleT = wrIsTackled ? Math.min(1, (aT - TACKLE_START_AT) / (1 - TACKLE_START_AT))
                        : inLeapWindow ? leapInternalT
