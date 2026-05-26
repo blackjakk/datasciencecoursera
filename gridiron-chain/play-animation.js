@@ -3645,17 +3645,17 @@ function buildAnimForPlay(play, prevPlay) {
                 d._sim.x = dd.x; d._sim.y = dd.y;
                 d._sim.vx *= 0.65; d._sim.vy *= 0.65;
               }
-              // Named tackler wraps + DRIVES the carrier down. Use the
-              // dedicated "hit" pose — it's designed for a tackler
-              // driving into a carrier and now (with the play-render
-              // update) rotates to horizontal during follow-through so
-              // the defender actually FALLS at the end of the tackle.
-              // fallDir matches the carrier's combined-momentum fall
-              // (negated because defender faces opposite of carrier).
-              if (_isPassTacklerByName) {
-                if (aT > 0.78) {
-                  dd.pose = "hit";
-                  dd.t = Math.min(1, (aT - 0.78) / 0.22);
+              // Any defender in contact during the tackle window falls
+              // to "hit" pose. Previously this was named-tackler-only
+              // and everyone else stayed in "engage" — so a cover CB
+              // standing on the WR at catch kept standing upright while
+              // the WR keeled over. fallDir uses combined momentum for
+              // the named tackler (we have his sim vx); incidental
+              // pile-on defenders default to forward fall.
+              if (aT > 0.78) {
+                dd.pose = "hit";
+                dd.t = Math.min(1, (aT - 0.78) / 0.22);
+                if (_isPassTacklerByName) {
                   const _pcSec = Math.max(0.1, (1 - throwPhase) * dur / 1000);
                   const _cVx = (endX - targetX) / _pcSec;
                   const _tVx = d._sim ? d._sim.vx : 0;
@@ -3663,16 +3663,14 @@ function buildAnimForPlay(play, prevPlay) {
                   const _cFall = (_comb * dir < 0) ? -1 : 1;
                   dd.fallDir = -_cFall;
                 } else {
-                  dd.pose = "engage";
-                  dd.t = (t < 0.95 ? ((performance.now() / 333)) % 1 : 0);
+                  dd.fallDir = -1;   // mirror carrier's forward fall
                 }
               } else {
-                // Other pursuers: engage pose during contact, no fall.
                 dd.pose = "engage";
                 dd.t = (t < 0.95 ? ((performance.now() / 333)) % 1 : 0);
               }
             }
-            if (_isPassTacklerByName) dd.facing = -dir;
+            if (aT > 0.78 || _isPassTacklerByName) dd.facing = -dir;
           }
         }
         // GUARANTEED TACKLER — the assigned coverage defender arrives at the
