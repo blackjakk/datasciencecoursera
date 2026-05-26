@@ -701,10 +701,16 @@ function _simulateKickoffAgents(opts) {
         const dyc = b.y - cov.y;
         const distSq = dxc * dxc + dyc * dyc;
         if (b._engaged) {
-          // STICKY: keep engaged until the pair is clearly separated.
-          // 36 px ≈ 2.4 yd — well past the initial 22 px contact radius
-          // so normal drift jitter doesn't release.
-          if (distSq < 36 * 36) {
+          // STICKY: stay engaged through normal drift jitter (36 px ≈
+          // 2.4 yd, well past the 22 px contact radius). BUT also
+          // release when the returner has clearly moved past the
+          // engaged pair — without this, a reverse-field return leaves
+          // 9 wrestling pairs stranded at midfield while the returner
+          // sprints the other way alone. Drag-toward-blocker keeps
+          // distSq small forever, so distance alone never releases.
+          const distToReturner = Math.hypot(b.x - returner.x, b.y - returner.y);
+          const RELEASE_DIST = 35 * PX_PER_YD;
+          if (distSq < 36 * 36 && distToReturner < RELEASE_DIST) {
             isEngaged = true;
             cov.engaged = true;
             cov.engagedBy = i;
