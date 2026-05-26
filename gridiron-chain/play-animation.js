@@ -2467,24 +2467,32 @@ function buildAnimForPlay(play, prevPlay) {
         if (t < PRE) return { ...p, pose: "stance" };
         const tt = runT;
         // === RUN TD GROUP CELEBRATION ===
-        // On a TD run past runT > 0.85, every non-RB offensive player
-        // converges on the scorer and celebrates. Includes OL/FB/TE/WR/QB
-        // — the whole offense reaches the carrier in the end zone.
-        // Overrides their role-specific logic during the celebration
-        // window only; pre-celebration they keep blocking/route-running.
+        // On a TD run past runT > 0.85, WR/TE/FB converge on the
+        // scorer in the end zone. QB and OL celebrate IN PLACE — QB
+        // can't realistically sprint 30+ yd in the celebration window
+        // (lerp stalls him near the LOS in arms-up pose) and OL would
+        // teleport through the defensive line on the way. Pre-snap
+        // hash uses the formation home (p.y, p.x) which is constant
+        // per personnel; that determinism is fine — gives stable per-
+        // slot angles around the scorer.
         if (isTD && runT > 0.85) {
+          if (p.role === "QB" || p.role === "OL") {
+            // Celebrate in place. Pose-only override; no position lerp.
+            return { ...p,
+                     pose: "celebrate",
+                     t: Math.min(1, (runT - 0.85) / 0.15),
+                     facing: dir };
+          }
           const hash = ((p.y * 17 + p.x * 13) >>> 0) % 1000;
           const angle = (hash / 1000) * Math.PI * 2;
           const radius = (4 + (hash % 4)) * FIELD.PX_PER_YARD;
-          // rb is the local clone whose position tracks the carrier
-          // each frame via the run pacing; formation.rb stays at the
-          // formation default, which would cluster the celebrators at
-          // the LOS instead of the actual end-zone scoring spot.
-          const targetX = rb.x + Math.cos(angle) * radius;
-          const targetY = rb.y + Math.sin(angle) * radius;
+          // Clamp the cluster to the field — sideline + goal-line TDs
+          // were pushing celebrators off-canvas.
+          const targetX = clamp(rb.x + Math.cos(angle) * radius,
+                                FIELD.EZ_PX + 20, FIELD.W - FIELD.EZ_PX - 20);
+          const targetY = clamp(rb.y + Math.sin(angle) * radius,
+                                FIELD.TOP + 20, FIELD.BOT - 20);
           if (p._followX == null) { p._followX = p.x; p._followY = p.y; }
-          // Fast lerp — even OL coming from the LOS reach the cluster
-          // by play end on most TD lengths.
           p._followX += (targetX - p._followX) * 0.13;
           p._followY += (targetY - p._followY) * 0.13;
           const _gap = Math.hypot(p._followX - targetX, p._followY - targetY);
@@ -3330,9 +3338,20 @@ function buildAnimForPlay(play, prevPlay) {
             // Clamp to not overshoot the engine's yardage. Without this
             // the sim cruises past _effEndX (no deceleration logic) and
             // the visible tackle spot disagrees with play.endYard.
-            if ((_wrSim.x - _effEndX) * dir > 0) {
+            // dir-aware comparison handles both +X and -X offenses; the
+            // Math.sign(_effEndX - targetX) form also handles backward-
+            // YAC completes (engine-emitted loss past the catch).
+            const _carrySign = Math.sign(_effEndX - targetX) || dir;
+            if ((_wrSim.x - _effEndX) * _carrySign > 0) {
               _wrSim.x = _effEndX;
               _wrSim.vx = 0;
+            }
+            // Also clamp Y so the stride frequency (hypot(vx,vy)) drops
+            // to zero at the tackle point — otherwise lateral drift
+            // keeps the legs cycling after the body has stopped.
+            if (Math.abs(_wrSim.y - finalY) < 4) {
+              _wrSim.y = finalY;
+              _wrSim.vy = 0;
             }
             ballX = _wrSim.x;
             ballY = _wrSim.y;
@@ -3758,7 +3777,13 @@ function buildAnimForPlay(play, prevPlay) {
             const isSaf = i === idxS1  || i === idxS2;
             let factor = _isPassTacklerByName ? 1.25
                        : isCB ? 1.05 : isSaf ? 1.0 : 0.95;
-            const _needArrival = _isPassTacklerByName || i === intDefIdx;
+            // ALL pursuers auto-scale — not just named tackler + cover.
+            // WR sim caps at 13 yps; DB base factor caps at ~1.05x×9.5 =
+            // 10 yps. Without auto-scale, convergers fall ~3 yps behind
+            // the WR every second of YAC and arrive after the tackle.
+            const _needArrival = _isPassTacklerByName
+                              || i === intDefIdx
+                              || _postCatchPursuerSet.has(i);
             if (_needArrival) {
               const distRemaining = Math.hypot(ballX - dd.x, ballY - dd.y);
               const timeRemaining = (tackleEvent.fallStartT - aT) * dur;
@@ -3805,7 +3830,12 @@ function buildAnimForPlay(play, prevPlay) {
             // State → pose. Single decision point.
             dd.facing = -dir;
             const _atTackleWindow = aT > tackleEvent.fallStartT;
-            const _isLockedTackler = _isPassTacklerByName || i === intDefIdx;
+            // Cover defender only auto-locks into the tackle pose when
+            // the engine isn't emitting a tracked tackler — otherwise
+            // BOTH the named tackler and the cover would fall on the WR
+            // even if the cover is 10+ yd away.
+            const _isLockedTackler = _isPassTacklerByName
+                                  || (i === intDefIdx && !_passTacklerTrack);
             if (_atTackleWindow && (inContact || _isLockedTackler)) {
               // DOWN
               dd.pose = "hit";
@@ -3823,8 +3853,23 @@ function buildAnimForPlay(play, prevPlay) {
               dd.t = (t < 0.95 ? ((performance.now() / 333)) % 1 : 0);
             }
             // else PURSUE — pose stays "run" from upstream sim/track.
+          } else {
+            // PILE-ON for non-pursuers: a zone-drop LB or man-coverage
+            // CB who isn't in the pursuit set but happens to be near the
+            // carrier at the tackle moment should still fall into the
+            // pile. Old unified-tackle block did this via a generic
+            // _isClose check; the state-machine refactor dropped it.
+            const _atTackleWindowNP = aT > tackleEvent.fallStartT;
+            if (_atTackleWindowNP) {
+              const _distNP = Math.hypot(dd.x - ballX, dd.y - ballY);
+              if (_distNP < tackleEvent.contactDist) {
+                dd.pose = "hit";
+                dd.t = Math.min(1, (aT - tackleEvent.fallStartT) / (1 - tackleEvent.fallStartT));
+                dd.facing = -dir;
+                dd.fallDir = -1;
+              }
+            }
           }
-          // Non-pursuers: HOLD_ZONE — upstream zone-drop track set pose+pos.
         }
         // INT — the picking defender races to the catch spot, then carries the ball back
         if (play.kind === "int" && i === intDefIdx) {
@@ -4045,19 +4090,17 @@ function buildAnimForPlay(play, prevPlay) {
       // to the endzone"). Natural stride is ~2 yd; strideHz = yps / 2,
       // clamped to a believable 2.5–5.5 Hz range.
       let strideHz = 3.0;   // baseline for pre-catch route running
-      if (isPostCatch) {
-        if (_wrSim) {
-          // Sim-driven: use instantaneous velocity so the stride ramps
-          // up during accel, sits high at top speed, and slows on the
-          // tackle clamp — natural foot-strike timing throughout.
-          const _carrierYPS = Math.hypot(_wrSim.vx, _wrSim.vy) / FIELD.PX_PER_YARD;
-          strideHz = clamp(_carrierYPS / 2, 2.5, 5.5);
-        } else {
-          const _postCatchYds = Math.abs(_effEndX - targetX) / FIELD.PX_PER_YARD;
-          const _postCatchSec = Math.max(0.3, (1 - throwPhase) * dur / 1000);
-          const _carrierYPS = _postCatchYds / _postCatchSec;
-          strideHz = clamp(_carrierYPS / 2, 2.5, 5.5);
-        }
+      if (isPostCatch && _wrSim) {
+        // Sim-driven: use instantaneous velocity so the stride ramps
+        // up during accel, sits high at top speed, and slows on the
+        // tackle clamp — natural foot-strike timing throughout.
+        // (Pre-existing "fallback" branch was dead-on-arrival —
+        // referenced _effEndX from a const-block scope that ended ~700
+        // lines earlier, so it would have thrown ReferenceError. With
+        // SimPlayer always loaded the branch never fired, but the safe
+        // default is just to keep the 3.0 baseline.)
+        const _carrierYPS = Math.hypot(_wrSim.vx, _wrSim.vy) / FIELD.PX_PER_YARD;
+        strideHz = clamp(_carrierYPS / 2, 2.5, 5.5);
       }
       const wrTackleT = wrIsTackled ? Math.min(1, (aT - TACKLE_START_AT) / (1 - TACKLE_START_AT))
                        : inLeapWindow ? leapInternalT
@@ -4122,12 +4165,13 @@ function buildAnimForPlay(play, prevPlay) {
         //     scorer for a group celebration.
         // OL stay at the LOS regardless — they're not downfield blockers
         // on a pass play (they were pass-blocking the rush).
+        // Inverted check: anyone NOT QB / OL is a potential downfield
+        // blocker / TD-celebrator. Old enumeration whitelisted only
+        // WR1-5 / TE / RB which silently dropped the FB on I-Form and
+        // PRO personnel — he froze at the snap position through the
+        // whole post-catch sequence.
         if (play.kind === "complete" && t > throwPhase
-            && p.role !== "QB" && p.role !== "OL"
-            && (p.role === "WR1" || p.role === "WR2" || p.role === "WR3"
-                || p.role === "WR4" || p.role === "WR5"
-                || p.role === "TE1" || p.role === "TE" || p.role === "TE2"
-                || p.role === "RB")) {
+            && p.role !== "QB" && p.role !== "OL") {
           // Lazy-init blocker picks on first post-catch frame.
           if (!_downfieldBlockerMap) {
             const _isTarget = (cand) =>
@@ -4154,8 +4198,12 @@ function buildAnimForPlay(play, prevPlay) {
             const hash = ((p.y * 17 + p.x * 13) >>> 0) % 1000;
             const angle = (hash / 1000) * Math.PI * 2;
             const radius = (4 + (hash % 4)) * FIELD.PX_PER_YARD;
-            targetX = wr.x + Math.cos(angle) * radius;
-            targetY = wr.y + Math.sin(angle) * radius;
+            // Clamp inside the field of play — sideline + goal-line
+            // TDs were pushing celebrators off-canvas.
+            targetX = clamp(wr.x + Math.cos(angle) * radius,
+                            FIELD.EZ_PX + 20, FIELD.W - FIELD.EZ_PX - 20);
+            targetY = clamp(wr.y + Math.sin(angle) * radius,
+                            FIELD.TOP + 20, FIELD.BOT - 20);
             // Once we're close to the target spot, switch to celebrate
             // pose. Hash gives some celebration variety.
             const _curX = p._followX != null ? p._followX : p.x;
