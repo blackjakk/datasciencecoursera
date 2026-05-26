@@ -4335,19 +4335,46 @@ function buildAnimForPlay(play, prevPlay) {
         if (i < 4) {
           const isPrimary = i === primaryIdx;
           const isSecondary = secondChaser && i === secondIdx;
-          // Primary closes fast; secondary trails slightly; others get held up.
-          let speedFactor;
-          if (isPrimary) speedFactor = 1.05;
-          else if (isSecondary) speedFactor = 0.88;
-          else speedFactor = 0.70;
-          const elapsedMs = Math.max(0, tt) * dur * speedFactor;
-          // Approach angle varies — some come from outside, some from inside.
-          const angleOffset = isPrimary ? 0 : (i - primaryIdx) * 4;
-          const np = pursue(d, qb.x + dir * 2 + angleOffset, qb.y + (isSecondary ? 6 : 0), elapsedMs, isPrimary ? 1.0 : 0.85);
-          dd.x = np.x; dd.y = np.y;
-          if (!np.moved) dd.t = 0;   // freeze legs when not moving
-          if (isPrimary && tt > contactT + 0.03) dd.pose = "sack";
-          if (isSecondary && tt > contactT + 0.05) dd.pose = "sack";
+          // ENGAGEMENT PHASE — for the first ~half of the play the DL
+          // are engaged with the OL at the LOS, like a normal pass play.
+          // The primary breaks free at rushReleaseT. Previously every
+          // DL rushed the QB from frame 0; sack plays looked like 4
+          // pass rushers running through unblocked OL from the snap.
+          // Now sacks start like normal pass plays and TURN INTO sacks
+          // when the primary wins his block.
+          const rushReleaseT = Math.max(0.25, contactT - 0.35);
+          if (tt < rushReleaseT) {
+            // Hold at LOS with a tiny back-and-forth (engagement
+            // struggle). Primary makes slight forward progress (winning
+            // the block); others held flat.
+            const wig = Math.sin(tt * Math.PI * 6 + i) * 1.5;
+            const fwdProgress = isPrimary ? Math.min(3, tt * 4) : 0;
+            dd.x = d.x + dir * fwdProgress;
+            dd.y = d.y + wig;
+            dd.pose = "engage";
+            dd.t = (t < 0.95 ? ((performance.now() / 333) + i * 0.13) % 1 : 0);
+          } else {
+            // RUSH PHASE — primary closes on QB at top speed; others
+            // continue engaged or release late.
+            let speedFactor;
+            if (isPrimary) speedFactor = 1.05;
+            else if (isSecondary) speedFactor = 0.88;
+            else speedFactor = 0.70;
+            const _rushElapsed = Math.max(0, tt - rushReleaseT) * dur * speedFactor;
+            const angleOffset = isPrimary ? 0 : (i - primaryIdx) * 4;
+            // Sync pursue start position to the engagement-end spot so
+            // there's no teleport from LOS to formation defaults.
+            if (!d._sackRushSynced) {
+              if (d._sim) { d._sim.x = dd.x; d._sim.y = dd.y; d._sim._lastMs = null; }
+              d._sackRushSynced = true;
+            }
+            const np = pursue(dd, qb.x + dir * 2 + angleOffset, qb.y + (isSecondary ? 6 : 0), _rushElapsed, isPrimary ? 1.0 : 0.85);
+            dd.x = np.x; dd.y = np.y;
+            if (!np.moved) dd.t = 0;
+            if (isPrimary && tt > contactT + 0.03) dd.pose = "sack";
+            else if (isSecondary && tt > contactT + 0.05) dd.pose = "sack";
+            else dd.pose = "run";
+          }
         } else if (i >= 4 && i <= 6) {
           // LBs spy the QB but stay disciplined — drift toward him slowly
           const elapsedMs = Math.max(0, tt) * dur * 0.55;
@@ -7681,7 +7708,16 @@ function startNextPlay() {
   // Ambient crowd hum runs continuously while plays are advancing; SFX
   // layer on top for individual events.
   const _kind = play.kind;
-  const _isTD   = _kind === "score" || _kind === "td" || _kind === "rush_td" ||
+  // For "score" events the engine emits both TDs and FGs (and XPs / 2P)
+  // with the same kind. Distinguish by description so FG doesn't trigger
+  // TD-level celebration (was firing cheer + confetti + bigText
+  // "TOUCHDOWN!" on every made field goal).
+  const _scoreDesc = (_kind === "score" && play.desc) ? play.desc.toLowerCase() : "";
+  const _isScoreTD = _scoreDesc.includes("touchdown");
+  const _isScoreFG = _scoreDesc.includes("fg") || _scoreDesc.includes("field goal");
+  const _isScoreXP = _scoreDesc.includes("extra point");
+  const _isScore2P = _scoreDesc.includes("2-point");
+  const _isTD   = _isScoreTD || _kind === "td" || _kind === "rush_td" ||
                   _kind === "pass_td" || _kind === "kr_td" || _kind === "pr_td" ||
                   _kind === "fum_td" || _kind === "int_td" || _kind === "two_pt_good" ||
                   _kind === "fg_good" || _kind === "xp_good";
@@ -7777,9 +7813,12 @@ function startNextPlay() {
       // the cinema overlay's chyron and reads as the marquee moment.
       // FG / XP / 2P scoring chrome is already conveyed by the result
       // card; an extra middle-of-field banner just stacks text.
-      const isFG = _kind === "fg_good";
-      const isXP = _kind === "xp_good";
-      const is2P = _kind === "two_pt_good";
+      // Detect FG/XP/2P from either the play kind OR the score-desc
+      // string. Without the score-desc check, FG → kind:"score" events
+      // fell through to the TD bigText.
+      const isFG = _kind === "fg_good" || _isScoreFG;
+      const isXP = _kind === "xp_good" || _isScoreXP;
+      const is2P = _kind === "two_pt_good" || _isScore2P;
       if (!isFG && !isXP && !is2P) {
         GCFx.bigText("TOUCHDOWN!", teamColor, 1700);
       }
