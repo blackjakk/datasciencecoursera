@@ -1466,9 +1466,15 @@ class GameSimulator {
       switch (conc) {
         case "QUICK_GAME":   return { breakF: 0.30, depthFAtBreak: 0.40, depth: 6,  latAtBreak: 0.5, latAtCatch: slot === "te" ? -1.5 : 2.5 };
         case "DRAG_MESH":
-          if (slot === "wr1") return { breakF: 0.30, depthFAtBreak: 0.20, depth: 6,  latAtBreak: 3.0, latAtCatch: 8.0 };
-          if (slot === "wr2") return { breakF: 0.30, depthFAtBreak: 0.20, depth: 8,  latAtBreak: -2.5, latAtCatch: -6.0 };
-          if (slot === "te")  return { breakF: 0.55, depthFAtBreak: 0.70, depth: 12, latAtBreak: 1.0, latAtCatch: 3.0 };
+          // DRAG_MESH = crossing routes. Both WRs run TOWARD MIDDLE.
+          // dyYd convention: positive = toward midfield. Both wr1 and
+          // wr2 should have POSITIVE latAtCatch. wr2 was -6.0 (toward
+          // sideline) which sent the receiver ~1.5 yd past the sideline
+          // at the catch — caused "QB completed pass to WR who was out
+          // of bounds" complaints.
+          if (slot === "wr1") return { breakF: 0.30, depthFAtBreak: 0.20, depth: 6,  latAtBreak: 3.0,  latAtCatch: 8.0 };
+          if (slot === "wr2") return { breakF: 0.30, depthFAtBreak: 0.20, depth: 8,  latAtBreak: 2.5,  latAtCatch: 6.0 };
+          if (slot === "te")  return { breakF: 0.55, depthFAtBreak: 0.70, depth: 12, latAtBreak: 1.0,  latAtCatch: 3.0 };
           return { breakF: 0.30, depthFAtBreak: 0.20, depth: 5, latAtBreak: 0, latAtCatch: 4 };
         case "INTERMEDIATE":
           if (slot === "wr1") return { breakF: 0.72, depthFAtBreak: 1.00, depth: 14, latAtBreak: 0.0, latAtCatch: -3.0 };

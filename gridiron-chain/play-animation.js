@@ -3109,6 +3109,12 @@ function buildAnimForPlay(play, prevPlay) {
         wr.x = wrPathX0 + (targetX - wrPathX0) * routeT;
         wr.y = wrPathY0 + (targetY - wrPathY0) * routeT;
       }
+      // SIDELINE SAFETY CLAMP — keep the receiver inside the field
+      // bounds. Catches any route-track lateral value that would put
+      // the WR past the sideline (e.g., the old DRAG_MESH wr2 bug, or
+      // any future shape that overshoots).
+      const _sideMargin = 8;
+      wr.y = Math.max(FIELD.TOP + _sideMargin, Math.min(FIELD.BOT - _sideMargin, wr.y));
 
       // Throw style — TOUCH lobs high+slow, ZIP fires low+fast, DEEP arcs even higher
       const throwType = play.throwType || (isScreen ? "CHECKDOWN" : "TOUCH");
