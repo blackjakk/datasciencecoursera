@@ -294,6 +294,36 @@ function _tintedSprite(srcImg, key, hexColor) {
   return off;
 }
 
+// Settled poses: instead of cycling through all animation frames on the
+// engine's free-running clock (which makes every player visibly "get into
+// stance" over and over), freeze on frame 0 with a small, deterministic
+// twitch on ~20% of players. Driven by a per-player hash of the jersey
+// label so the same player twitches at the same time across redraws.
+const _SETTLED_POSES = new Set(["stance", "idle", "point"]);
+
+function _stableHash(s) {
+  let h = 2166136261;
+  if (!s) return 0;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0);
+}
+
+function _settledFrame(pose, label, frames) {
+  if (!frames || frames <= 1) return 0;
+  const h = _stableHash((label || "") + "|" + pose);
+  // ~18% of players twitch. Everyone else holds frame 0.
+  if ((h % 100) >= 18) return 0;
+  // Twitch every 2.0–5.5s, lingering on the alt frame for ~250ms.
+  const periodMs = 2000 + (h % 3500);
+  const offsetMs = h % periodMs;
+  const phase = ((performance.now() + offsetMs) % periodMs) / periodMs;
+  if (phase < 0.08) return 1 + ((h >>> 8) % (frames - 1));
+  return 0;
+}
+
 // Map (vx, vy, facing) → 8-direction string. Velocity wins if moving;
 // otherwise fall back to facing (±1 = east/west — matches the L/R axis
 // the engine uses for facing).
@@ -322,7 +352,9 @@ function drawPlayerSprite(ctx, pose, t, vx, vy, teamPrimary, facing, label, seco
   const dir = _velocityToDirection(vx || 0, vy || 0, facing);
   if (!def.dirs.includes(dir)) { _lastMiss.pose=pose; _lastMiss.dir=dir; _lastMiss.reason="dir-not-in-pose"; _lastMiss.count++; _bumpMiss(pose,"dir-not-in-pose"); return false; }
   const frameIdx = def.frames > 1
-    ? Math.floor(Math.max(0, Math.min(0.999, t)) * def.frames)
+    ? (_SETTLED_POSES.has(pose)
+        ? _settledFrame(pose, label, def.frames)
+        : Math.floor(Math.max(0, Math.min(0.999, t)) * def.frames))
     : null;
   const key = `${pose}|${dir}|${frameIdx == null ? "" : frameIdx}`;
   const src = _spriteCache[key];
