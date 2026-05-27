@@ -494,12 +494,15 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
   // can be positioned at the carrier's tuck hand instead of body center
   // when the sprite path skips _drawPlayerImpl. The procedural renderer
   // overwrites this with a more precise per-joint value if it runs
-  // (line ~2290); only the actual carrier's entry is read by drawBall.
-  // World coords: ~6 px to the carrying side, ~35 px above foot.
+  // (line ~2290); drawBall reads from this either way.
+  // World coords: foot at (x, y); hand ~6 px to the carrying side and
+  // ~35 px above the foot.
   drawPlayer._carryHandSink = drawPlayer._carryHandSink || {};
   drawPlayer._carryHandSink[style.name || ("p_" + label)] = {
     x: x + (facing >= 0 ? 6 : -6),
     y: y - 35,
+    footX: x,
+    footY: y,
     frameMs: performance.now(),
     pose,
   };
@@ -2439,6 +2442,24 @@ function drawGoalposts(ctx, cx, cy) {
 }
 
 function drawBall(ctx, x, y, scale = 1, opts = {}) {
+  // CARRIER FOOT → HAND auto-shift. If (x, y) closely matches an active
+  // carrier's foot position (within 5 px, set within the last 50 ms),
+  // assume the ball is being carried and shift to that carrier's hand
+  // position. Lets ball-render call sites that pass the engine's
+  // (ballX, ballY = carrier foot) get the right visual without each
+  // site needing to do the sink lookup itself.
+  if (!opts.skipCarryShift && drawPlayer._carryHandSink) {
+    const now = performance.now();
+    for (const k in drawPlayer._carryHandSink) {
+      const e = drawPlayer._carryHandSink[k];
+      if (!e || e.footX == null || (now - e.frameMs) > 50) continue;
+      if (Math.abs(x - e.footX) < 5 && Math.abs(y - e.footY) < 5) {
+        x = e.x;
+        y = e.y;
+        break;
+      }
+    }
+  }
   // Broadcast camera: queue the ball draw to the upright overlay with
   // depth scaling. Sorted alongside player sprites in _frameEndBroadcast.
   if (typeof cameraMode !== "undefined" && cameraMode === "broadcast"
