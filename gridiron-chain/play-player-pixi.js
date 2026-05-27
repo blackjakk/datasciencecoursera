@@ -102,7 +102,7 @@ const GCPlayer = (() => {
   // 18% margin at the bottom gives room for the shadow + foot dust.
   const TEX_FOOT_FX = 0.5;
   const TEX_FOOT_FY = 0.82;
-  function _renderPoseToTexture(color, secondary, label, pose, t, facing, style) {
+  function _renderPoseToTexture(color, secondary, label, pose, t, facing, style, vx, vy) {
     const canvas = document.createElement("canvas");
     canvas.width = TEX_W;
     canvas.height = TEX_H;
@@ -112,13 +112,27 @@ const GCPlayer = (() => {
     // texture).
     const prev = window._useFieldPixi;
     window._useFieldPixi = false;
+    const fx = TEX_W * TEX_FOOT_FX;
+    const fy = TEX_H * TEX_FOOT_FY;
     try {
-      _drawPlayerImpl(
-        offCtx,
-        TEX_W * TEX_FOOT_FX,
-        TEX_H * TEX_FOOT_FY,
-        color, secondary, label, pose, t, facing, style || {}
-      );
+      // Try PixelLab sprite first — same hook used in topdown. If the
+      // pose/dir combo has a loaded sprite, draw it into this offscreen
+      // canvas (which becomes the PIXI texture). Otherwise fall back to
+      // the canvas2D procedural pose math.
+      let drewSprite = false;
+      if (typeof drawPlayerSprite === "function") {
+        offCtx.save();
+        offCtx.translate(fx, fy);
+        drewSprite = drawPlayerSprite(offCtx, pose, t, vx || 0, vy || 0, color, facing);
+        offCtx.restore();
+      }
+      if (!drewSprite) {
+        _drawPlayerImpl(
+          offCtx,
+          fx, fy,
+          color, secondary, label, pose, t, facing, style || {}
+        );
+      }
     } catch (e) {
       console.warn("offscreen player render failed:", e);
     } finally {
@@ -134,7 +148,19 @@ const GCPlayer = (() => {
   // (each texture is ~72KB; 12 buckets × ~50 active pose-color combos =
   // ~40MB worst case).
   const T_BUCKETS = 12;
-  function _texKey(color, secondary, label, pose, t, facing, style) {
+  // Coarse velocity → 8-direction bucket so PixelLab sprite direction
+  // becomes part of the texture cache key. Without this, the cached
+  // texture for "run pose, t=0.3" would always show whichever direction
+  // happened to be first-rendered, ignoring the player's actual heading.
+  function _dirBucket(vx, vy, facing) {
+    if (Math.abs(vx || 0) < 0.05 && Math.abs(vy || 0) < 0.05) {
+      return (facing == null || facing >= 0) ? "E" : "W";
+    }
+    const ang = Math.atan2(-vy, vx);
+    const idx = ((Math.round((ang / (Math.PI / 4)) + 8)) % 8);
+    return ["E","NE","N","NW","W","SW","S","SE"][idx];
+  }
+  function _texKey(color, secondary, label, pose, t, facing, style, vx, vy) {
     const tBucket = Math.max(0, Math.min(T_BUCKETS - 1, Math.floor(t * T_BUCKETS)));
     // style flags that affect rendering go into the key; ignore style
     // params that are equivalent for the same player.
@@ -148,15 +174,16 @@ const GCPlayer = (() => {
     // different skin tones share a cached texture and the rendered skin
     // FLICKERS between them as the cache resolves first-write-wins.
     const nm = style && style.name ? style.name : "";
-    return `${color}|${secondary}|${label}|${pose}|${facing}|${tBucket}|${sk}|${ak}|${nm}`;
+    const dir = _dirBucket(vx, vy, facing);
+    return `${color}|${secondary}|${label}|${pose}|${facing}|${dir}|${tBucket}|${sk}|${ak}|${nm}`;
   }
-  function _getTexture(color, secondary, label, pose, t, facing, style) {
-    const key = _texKey(color, secondary, label, pose, t, facing, style);
+  function _getTexture(color, secondary, label, pose, t, facing, style, vx, vy) {
+    const key = _texKey(color, secondary, label, pose, t, facing, style, vx, vy);
     let tex = _texCache.get(key);
     if (!tex) {
       const tBucket = Math.max(0, Math.min(T_BUCKETS - 1, Math.floor(t * T_BUCKETS)));
       const tRender = (tBucket + 0.5) / T_BUCKETS;
-      tex = _renderPoseToTexture(color, secondary, label, pose, tRender, facing, style);
+      tex = _renderPoseToTexture(color, secondary, label, pose, tRender, facing, style, vx, vy);
       _texCache.set(key, tex);
     }
     return tex;
@@ -177,7 +204,7 @@ const GCPlayer = (() => {
   // are pooled across frames so the PIXI render state stays warm.
   // playerKey arg kept in signature for callers but no longer used for
   // sprite identity (logged for future use).
-  function render(playerKey, screenX, screenY, scale, color, secondary, label, pose, t, facing, style) {
+  function render(playerKey, screenX, screenY, scale, color, secondary, label, pose, t, facing, style, vx, vy) {
     if (!ensure()) return;
     const slot = _frameIdx++;
     let sprite = _spriteCache.get(slot);
@@ -187,7 +214,7 @@ const GCPlayer = (() => {
       _stage.addChild(sprite);
       _spriteCache.set(slot, sprite);
     }
-    const tex = _getTexture(color, secondary, label, pose, t || 0, facing, style);
+    const tex = _getTexture(color, secondary, label, pose, t || 0, facing, style, vx, vy);
     sprite.texture = tex;
     sprite.position.set(screenX, screenY);
     sprite.scale.set(scale, scale);

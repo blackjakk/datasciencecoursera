@@ -531,8 +531,10 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
       // depth). Pass it as the per-sprite scale; the texture was rendered
       // at canvas2D world scale 1.0, so this scales the sprite to match
       // what the canvas2D path would have drawn at the same depth.
+      const _gpVx = loco && loco.state ? loco.state.vxEMA : 0;
+      const _gpVy = loco && loco.state ? loco.state.vyEMA : 0;
       GCPlayer.render(playerKey, proj.x, proj.y, proj.scale,
-        color, secondary, label, pose, t, facing, style);
+        color, secondary, label, pose, t, facing, style, _gpVx, _gpVy);
       return;
     }
     const qCtx = _uprightCtx;
