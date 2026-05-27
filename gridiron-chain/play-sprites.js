@@ -296,10 +296,21 @@ function _tintedSprite(srcImg, key, hexColor) {
 
 // Settled poses: instead of cycling through all animation frames on the
 // engine's free-running clock (which makes every player visibly "get into
-// stance" over and over), freeze on frame 0 with a small, deterministic
-// twitch on ~20% of players. Driven by a per-player hash of the jersey
-// label so the same player twitches at the same time across redraws.
+// stance" over and over), pick a role-appropriate hold frame and keep it.
+// PixelLab stance frame layout (verified per south_*.png):
+//   0: upright (WR/QB/RB/DB resting)
+//   1: slight crouch (almost identical to 0)
+//   2: 3-point stance — hand down, lineman set
+//   3: 2-point stance — medium crouch, LB-style set
 const _SETTLED_POSES = new Set(["stance", "idle", "point"]);
+
+// Role → stance frame. Anything not listed defaults to frame 0 (upright).
+const _ROLE_STANCE_FRAME = {
+  OL: 2, C: 2, G: 2, T: 2, LG: 2, RG: 2, LT: 2, RT: 2,
+  DL: 2, DE: 2, DT: 2, NT: 2,
+  TE: 2, TE1: 2, TE2: 2,
+  LB: 3, MLB: 3, OLB: 3, ILB: 3, ROLB: 3, LOLB: 3, WLB: 3, SLB: 3,
+};
 
 function _stableHash(s) {
   let h = 2166136261;
@@ -311,12 +322,18 @@ function _stableHash(s) {
   return (h >>> 0);
 }
 
-function _settledFrame(pose, label, frames) {
+function _settledFrame(pose, label, frames, role) {
   if (!frames || frames <= 1) return 0;
+  // Linemen and LB-class hold their position-specific stance with no twitch.
+  if (pose === "stance" && role && _ROLE_STANCE_FRAME[role] != null) {
+    return _ROLE_STANCE_FRAME[role];
+  }
+  // Skill players + idle/point: hold frame 0, with a sparse twitch so the
+  // pre-snap shot isn't perfectly still. ~18% of players twitch briefly
+  // (8% of a 2.0–5.5s period) to a random non-zero frame; per-player
+  // hash of the jersey label keeps the choice deterministic.
   const h = _stableHash((label || "") + "|" + pose);
-  // ~18% of players twitch. Everyone else holds frame 0.
   if ((h % 100) >= 18) return 0;
-  // Twitch every 2.0–5.5s, lingering on the alt frame for ~250ms.
   const periodMs = 2000 + (h % 3500);
   const offsetMs = h % periodMs;
   const phase = ((performance.now() + offsetMs) % periodMs) / periodMs;
@@ -353,7 +370,7 @@ function drawPlayerSprite(ctx, pose, t, vx, vy, teamPrimary, facing, label, seco
   if (!def.dirs.includes(dir)) { _lastMiss.pose=pose; _lastMiss.dir=dir; _lastMiss.reason="dir-not-in-pose"; _lastMiss.count++; _bumpMiss(pose,"dir-not-in-pose"); return false; }
   const frameIdx = def.frames > 1
     ? (_SETTLED_POSES.has(pose)
-        ? _settledFrame(pose, label, def.frames)
+        ? _settledFrame(pose, label, def.frames, style && style.role)
         : Math.floor(Math.max(0, Math.min(0.999, t)) * def.frames))
     : null;
   const key = `${pose}|${dir}|${frameIdx == null ? "" : frameIdx}`;
