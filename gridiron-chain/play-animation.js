@@ -5390,7 +5390,10 @@ function buildAnimForPlay(play, prevPlay) {
     // TB/FC plays skip the return phase (runYds = 0) but still need
     // the ball-flight + post-catch hold.
     const _puntBallYds = play.puntYards || 45;
-    const _puntRunYds  = (isTouchback || isFairCatch) ? 0 : Math.min(returnYards, 70);
+    // No Math.min cap here — long returns (80-95 yds) need proportional
+    // time, otherwise the visual carrier covers 95 yds in only 70 yds
+    // worth of time and visibly "teleports" toward the goal.
+    const _puntRunYds  = (isTouchback || isFairCatch) ? 0 : returnYards;
     const _puntTiming = _stPlayTiming({
       ballYds:   _puntBallYds,
       runYds:    _puntRunYds,
@@ -7257,9 +7260,12 @@ function buildCinemaAnim(play, prevPlay) {
     // Direction returner is running, normalized (-1 or +1 in world coords)
     const runSign = Math.sign(finalWX - landWX) || -1;
     // Scale duration with return yards so big returns have time to develop
+    // Duration scales with actual return yards (no Math.min cap, was 70).
+    // Multiplier 60 ms/yard tuned so a 100-yd return runs ~24 yps in
+    // the return phase — NFL realistic, no teleport.
     const dur = isTouchback ? 2400
               : isFairCatch ? 2400
-              : Math.round(3000 + Math.min(returnYards, 70) * 40);
+              : Math.round(3000 + returnYards * 60);
     return { duration: dur, kind: "punt", render: (t, ctx) => {
       const punterWX = losWX - 12 * CINEMA.pxPerYard;
       // Phases — return now gets ~46% of the animation (no more 28% teleport)
