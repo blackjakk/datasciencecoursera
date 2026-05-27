@@ -2183,7 +2183,8 @@ function buildAnimForPlay(play, prevPlay) {
           // varies by run type + interior position. Non-tackler DL.
           const _dlTrack = play.motion?.tracks?.[`dl${i}`];
           const wobble = Math.sin(tt * Math.PI * 4 + d.y * 0.09) * 1.3;
-          if (i === dlBreaksFree && tt > 0.3) {
+          const _isPursuingDl = (i === dlBreaksFree && tt > 0.3);
+          if (_isPursuingDl) {
             // This DL penetrates and chases the carrier (speed-capped)
             const elapsedMs = Math.max(0, (t - (PRE + (1 - PRE) * 0.3)) * dur);
             const np = pursue(d, rb.x + dir * 2, rb.y, elapsedMs, 0.85);
@@ -2206,6 +2207,33 @@ function buildAnimForPlay(play, prevPlay) {
             dd.pose = "engage";
             dd.archetype = _archForLineman(d, "DL");
             dd.t = tt;
+          }
+          // ── WIN-THE-MATCHUP HOLE OPENING (visual heuristic) ──────────
+          // Real run blocking opens a HOLE — winning OL drives his DL
+          // off-axis from the carrier's lane. The engine doesn't emit
+          // per-block winners yet, so we fake it: any blocked DL within
+          // ~30 lateral pixels of the carrier's current Y gets shoved
+          // AWAY from the carrier and slightly backward, eased over the
+          // first 40% of the run. Off-lane DL stay put. Skips the
+          // pursuing DL (he beat his block; he's not blocked). Live
+          // tuning via window.GC_RUN_HOLE_RANGE / _LATERAL / _BACK.
+          if (!_isPursuingDl) {
+            const _laneRange = (typeof window !== "undefined" && window.GC_RUN_HOLE_RANGE) || 30;
+            const _laneDist = dd.y - rb.y;
+            const _absDist = Math.abs(_laneDist);
+            if (_absDist < _laneRange) {
+              const _proximity = 1 - _absDist / _laneRange;
+              const _ramp = Math.min(1, tt / 0.4);
+              const _eased = _ramp * _ramp * (3 - 2 * _ramp);
+              // Per-DL win-magnitude variation so each play doesn't look identical
+              const _winSeed = (((i + 1) * 7 + ((play.startYard || 0) * 13)) >>> 0) % 100 / 100;
+              const _winMul = 0.65 + _winSeed * 0.45;     // 0.65-1.10 multiplier
+              const _push = _proximity * _eased * _winMul;
+              const _maxLat = (typeof window !== "undefined" && window.GC_RUN_HOLE_LATERAL) || 14;
+              const _maxBack = (typeof window !== "undefined" && window.GC_RUN_HOLE_BACK) || 5;
+              dd.y += _maxLat * Math.sign(_laneDist || 1) * _push;
+              dd.x += dir * _maxBack * _push;
+            }
           }
           dd.facing = -dir;
           return dd;
@@ -8196,9 +8224,17 @@ function startNextPlay() {
   const _isGroan = _kind === "incomplete" || _kind === "fg_miss" ||
                    _kind === "xp_miss"   || _kind === "to_downs" ||
                    _kind === "interception";
+  // Big-play yardage classifier. Engine never actually emits "long_pass"
+  // or "long_run" — those buckets stayed empty. Detect big gains by
+  // yardage instead so the crowd reacts to the explosive plays it
+  // already knows about: completions of 20+ yd and runs of 15+ yd.
+  const _bigYards = play.yards ?? 0;
+  const _isBigCatch = _kind === "complete" && _bigYards >= 20;
+  const _isBigRun   = _kind === "run"      && _bigYards >= 15;
   const _isBigPlay = _kind === "int_no_td" || _kind === "interception" ||
                      _kind === "fumble"    || _kind === "long_run" ||
-                     _kind === "long_pass" || _kind === "sack";
+                     _kind === "long_pass" || _kind === "sack" ||
+                     _isBigCatch || _isBigRun;
   // Plays that begin with a QB snap — fire the synthetic "HIKE!" vocal
   // in addition to the snap click so the cadence is audible.
   const _isSnapPlay = _kind === "run" || _kind === "complete" ||
