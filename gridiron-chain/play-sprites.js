@@ -94,6 +94,7 @@ const _SPRITE_POSES = {
   scrape:    { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // LB scrape pursuit
   drop_step: { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // QB dropback
   backpedal: { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // DB cover (faces wrong way; iterate)
+  stiff:     { folder: "run",       frames: 4, dirs: _DIRECTIONS },  // RB stiff-arm — still running, arm out (good enough)
 
   // Newer folders for poses the engine doesn't emit yet (ready when it does)
   pass:      { folder: "pass",      frames: 4, dirs: _DIRECTIONS },
@@ -114,7 +115,11 @@ function _loadSprite(pose, dir, frame) {
   const def = _SPRITE_POSES[pose];
   if (!def) return;
   const folder = def.folder || pose;
-  const key = `${pose}|${dir}|${frame}`;
+  // Match the lookup key format in drawPlayerSprite: empty string for
+  // single-frame (frame=null), numeric for multi-frame. Previously stored
+  // as the literal "null" via template-literal stringification — that
+  // mismatch caused all 1-frame poses (idle) to 404 at draw time.
+  const key = `${pose}|${dir}|${frame == null ? "" : frame}`;
   if (_spriteCache[key] !== undefined) return;
   const fname = frame == null
     ? `${dir}.png`
