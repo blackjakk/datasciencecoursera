@@ -129,26 +129,21 @@ let _spritesEnabled = false;
 // usually lands between the shoulder blades on an upright player, and
 // rotates correctly to the upper-torso area when the body is tilted,
 // horizontal, or extended (tackled, dive, hurdle).
-// Pose-aware Y ratio for the jersey number anchor. A single bbox %
-// can't work across all poses because the body extent varies wildly:
-//   Run (extended, tall bbox): 0.50 lands on the WAIST, not the back.
-//   Stance (crouched, short bbox): 0.40 lands on the SHOULDERS.
-//   Tackled (horizontal): mid-bbox is mid-body — about right.
-// Pose-aware ratios put the number on the upper back regardless.
-// Live-tunable via window.GC_NUM_BACK_Y_UPRIGHT / _PRONE.
-const _PRONE_BACK_POSES = new Set([
-  "fall", "tackled", "ragdoll", "tumble", "spin_fall",
-  "sack", "dive", "hit", "hurdle",
-]);
-function _backYRatio(pose) {
-  if (_PRONE_BACK_POSES.has(pose)) {
-    return (typeof window !== "undefined" && window.GC_NUM_BACK_Y_PRONE != null)
-      ? window.GC_NUM_BACK_Y_PRONE : 0.50;
-  }
-  return (typeof window !== "undefined" && window.GC_NUM_BACK_Y_UPRIGHT != null)
-    ? window.GC_NUM_BACK_Y_UPRIGHT : 0.35;
-}
-
+// Anatomy-based jersey number anchor. Bbox-percentage was a hack —
+// the actual jersey number sits between the shoulder blades, just
+// below the shoulders. Anatomy is consistent across poses: shoulders
+// are always wider than the neck/helmet above them. Scan the sprite
+// to find the SHOULDER LINE (first row from top whose width is ≥75%
+// of the max row width), then anchor the number a few pixels below.
+//
+// Properties:
+//   - Pose-independent (run/stance/carry/tackled all detect correctly)
+//   - Robust to arm swings (a single arm doesn't make a row 75% wide)
+//   - Robust to bbox stretch (uses absolute pixel offset from
+//     shoulders, not a ratio of bbox height)
+//
+// Live-tunable: window.GC_NUM_BACK_OFFSET_PX (default 6) — pixels
+// below shoulder line in IMAGE coords.
 function _computeBodyCenter(img) {
   const cached = _bodyCenterCache.get(img);
   if (cached) return cached;
@@ -159,23 +154,51 @@ function _computeBodyCenter(img) {
   c.drawImage(img, 0, 0);
   let data;
   try { data = c.getImageData(0, 0, w, h).data; }
-  catch (_) { return { centerX: w / 2, bboxTop: 0, bboxBottom: h }; }
-  // Use alpha > 64 (not just > 0) to ignore semi-transparent AA edges
-  // that would otherwise inflate the bbox above the visible body.
+  catch (_) { return { centerX: w / 2, shoulderY: Math.round(h * 0.28), bboxTop: 0, bboxBottom: h }; }
+  // Single pass: bbox + per-row widths. Use alpha > 64 to ignore
+  // semi-transparent AA edges that would otherwise inflate widths.
+  const rowWidths = new Int16Array(h);
   let minX = w, maxX = 0, minY = h, maxY = 0, count = 0;
+  let maxRowWidth = 0;
   for (let y = 0; y < h; y++) {
+    let rMinX = w, rMaxX = -1;
     for (let x = 0; x < w; x++) {
       if (data[(y * w + x) * 4 + 3] > 64) {
-        if (x < minX) minX = x; if (x > maxX) maxX = x;
-        if (y < minY) minY = y; if (y > maxY) maxY = y;
-        count++;
+        if (x < rMinX) rMinX = x;
+        if (x > rMaxX) rMaxX = x;
       }
     }
+    if (rMaxX >= 0) {
+      const rw = rMaxX - rMinX;
+      rowWidths[y] = rw;
+      if (rMinX < minX) minX = rMinX;
+      if (rMaxX > maxX) maxX = rMaxX;
+      if (y < minY) minY = y;
+      maxY = y;
+      if (rw > maxRowWidth) maxRowWidth = rw;
+      count++;
+    }
   }
-  if (count === 0) return { centerX: w / 2, bboxTop: 0, bboxBottom: h };
+  if (count === 0) return { centerX: w / 2, shoulderY: Math.round(h * 0.28), bboxTop: 0, bboxBottom: h };
+  // SHOULDER LINE detection: scan from bbox top, find the first row
+  // whose width hits the threshold. Anatomy guarantees the transition
+  // (narrow helmet/head → wide shoulders) occurs here. The 0.75
+  // threshold is forgiving enough that PixelLab's pixel-quantized
+  // shoulder edge counts as "wide enough" but excludes raised arms
+  // (single-arm width is well below 75% of full shoulders).
+  const widthThreshold = maxRowWidth * 0.75;
+  let shoulderY = minY;
+  for (let y = minY; y <= maxY; y++) {
+    if (rowWidths[y] >= widthThreshold) {
+      shoulderY = y;
+      break;
+    }
+  }
   const result = {
     centerX: (minX + maxX) / 2,
-    bboxTop: minY, bboxBottom: maxY,
+    shoulderY,
+    bboxTop: minY,
+    bboxBottom: maxY,
   };
   _bodyCenterCache.set(img, result);
   return result;
@@ -450,9 +473,12 @@ function drawPlayerSprite(ctx, pose, t, vx, vy, teamPrimary, facing, label, seco
   const _profileOnly = (dir === "east" || dir === "west");
   if (!_profileOnly && label != null && label !== "") {
     const bc = _computeBodyCenter(src);
-    // Pose-aware upper-back anchor — see _backYRatio comments above.
-    const yRatio = _backYRatio(pose);
-    const upperBackY_img = bc.bboxTop + (bc.bboxBottom - bc.bboxTop) * yRatio;
+    // Anchor a few image-pixels below the detected shoulder line —
+    // that's the upper back (between the shoulder blades). Live-
+    // tunable via window.GC_NUM_BACK_OFFSET_PX (default 6).
+    const _backOffset = (typeof window !== "undefined" && window.GC_NUM_BACK_OFFSET_PX != null)
+      ? window.GC_NUM_BACK_OFFSET_PX : 6;
+    const upperBackY_img = bc.shoulderY + _backOffset;
     // Image → ctx coords. img(x,y) → ctx(x - imgW/2, top + (y/imgH)*fh)
     const cx = (bc.centerX - src.width / 2) * scale;
     const cy = top + (upperBackY_img / src.height) * fh;
