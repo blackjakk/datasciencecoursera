@@ -480,15 +480,29 @@ function drawPlayerSprite(ctx, pose, t, vx, vy, teamPrimary, facing, label, seco
   // we keep the number there.
   const _profileOnly = (dir === "east" || dir === "west");
   if (!_profileOnly && label != null && label !== "") {
-    const bc = _computeBodyCenter(src);
-    // Anchor a few image-pixels below the detected shoulder line —
-    // that's the upper back (between the shoulder blades). Live-
-    // tunable via window.GC_NUM_BACK_OFFSET_PX (default 6).
+    // Use a CANONICAL pose sprite (south, frame 0) to determine the
+    // shoulder Y once per pose. PixelLab keeps body proportions
+    // consistent across directions, but per-pixel detection drifts
+    // a few rows per direction sprite — cluster of similar players
+    // running in slightly different directions then shows numbers at
+    // visibly different heights. Standardizing on south frame 0
+    // forces every direction + frame of a pose to render the number
+    // at the same screen-relative position.
+    const _refKey = `${pose}|south|${def.frames > 1 ? "0" : ""}`;
+    const _refImg = _spriteCache[_refKey];
+    const _refSrc = (_refImg && _refImg !== "loading") ? _refImg : src;
+    const bc = _computeBodyCenter(_refSrc);
+    // Center X still comes from the CURRENT sprite — body lateral
+    // center varies per direction (NE shifts back-center left, NW
+    // right, etc.), so per-sprite X is correct.
+    const bcCurrent = (_refSrc === src) ? bc : _computeBodyCenter(src);
+    // Anchor a few image-pixels below the shoulder line — that's the
+    // upper back. Live-tunable via window.GC_NUM_BACK_OFFSET_PX.
     const _backOffset = (typeof window !== "undefined" && window.GC_NUM_BACK_OFFSET_PX != null)
       ? window.GC_NUM_BACK_OFFSET_PX : 6;
     const upperBackY_img = bc.shoulderY + _backOffset;
     // Image → ctx coords. img(x,y) → ctx(x - imgW/2, top + (y/imgH)*fh)
-    const cx = (bc.centerX - src.width / 2) * scale;
+    const cx = (bcCurrent.centerX - src.width / 2) * scale;
     const cy = top + (upperBackY_img / src.height) * fh;
     _drawJerseyNumber(ctx, String(label), secondary, cx, cy, scale, dir);
   }
