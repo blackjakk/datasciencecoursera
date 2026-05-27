@@ -129,6 +129,26 @@ let _spritesEnabled = false;
 // usually lands between the shoulder blades on an upright player, and
 // rotates correctly to the upper-torso area when the body is tilted,
 // horizontal, or extended (tackled, dive, hurdle).
+// Pose-aware Y ratio for the jersey number anchor. A single bbox %
+// can't work across all poses because the body extent varies wildly:
+//   Run (extended, tall bbox): 0.50 lands on the WAIST, not the back.
+//   Stance (crouched, short bbox): 0.40 lands on the SHOULDERS.
+//   Tackled (horizontal): mid-bbox is mid-body — about right.
+// Pose-aware ratios put the number on the upper back regardless.
+// Live-tunable via window.GC_NUM_BACK_Y_UPRIGHT / _PRONE.
+const _PRONE_BACK_POSES = new Set([
+  "fall", "tackled", "ragdoll", "tumble", "spin_fall",
+  "sack", "dive", "hit", "hurdle",
+]);
+function _backYRatio(pose) {
+  if (_PRONE_BACK_POSES.has(pose)) {
+    return (typeof window !== "undefined" && window.GC_NUM_BACK_Y_PRONE != null)
+      ? window.GC_NUM_BACK_Y_PRONE : 0.50;
+  }
+  return (typeof window !== "undefined" && window.GC_NUM_BACK_Y_UPRIGHT != null)
+    ? window.GC_NUM_BACK_Y_UPRIGHT : 0.35;
+}
+
 function _computeBodyCenter(img) {
   const cached = _bodyCenterCache.get(img);
   if (cached) return cached;
@@ -139,7 +159,7 @@ function _computeBodyCenter(img) {
   c.drawImage(img, 0, 0);
   let data;
   try { data = c.getImageData(0, 0, w, h).data; }
-  catch (_) { return { upperBackX: w / 2, upperBackY: h * 0.50 }; }
+  catch (_) { return { centerX: w / 2, bboxTop: 0, bboxBottom: h }; }
   // Use alpha > 64 (not just > 0) to ignore semi-transparent AA edges
   // that would otherwise inflate the bbox above the visible body.
   let minX = w, maxX = 0, minY = h, maxY = 0, count = 0;
@@ -152,13 +172,9 @@ function _computeBodyCenter(img) {
       }
     }
   }
-  if (count === 0) return { upperBackX: w / 2, upperBackY: h * 0.50 };
+  if (count === 0) return { centerX: w / 2, bboxTop: 0, bboxBottom: h };
   const result = {
-    upperBackX: (minX + maxX) / 2,
-    // 50% from top: between the shoulder blades on standing poses,
-    // properly inside the jersey region (helmet 0-25%, jersey 25-55%,
-    // pants 55-100% roughly). Was 40% — too high, hitting shoulders.
-    upperBackY: minY + (maxY - minY) * 0.50,
+    centerX: (minX + maxX) / 2,
     bboxTop: minY, bboxBottom: maxY,
   };
   _bodyCenterCache.set(img, result);
@@ -434,9 +450,12 @@ function drawPlayerSprite(ctx, pose, t, vx, vy, teamPrimary, facing, label, seco
   const _profileOnly = (dir === "east" || dir === "west");
   if (!_profileOnly && label != null && label !== "") {
     const bc = _computeBodyCenter(src);
+    // Pose-aware upper-back anchor — see _backYRatio comments above.
+    const yRatio = _backYRatio(pose);
+    const upperBackY_img = bc.bboxTop + (bc.bboxBottom - bc.bboxTop) * yRatio;
     // Image → ctx coords. img(x,y) → ctx(x - imgW/2, top + (y/imgH)*fh)
-    const cx = (bc.upperBackX - src.width / 2) * scale;
-    const cy = top + (bc.upperBackY / src.height) * fh;
+    const cx = (bc.centerX - src.width / 2) * scale;
+    const cy = top + (upperBackY_img / src.height) * fh;
     _drawJerseyNumber(ctx, String(label), secondary, cx, cy, scale, dir);
   }
   return true;
