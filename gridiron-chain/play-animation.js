@@ -3564,12 +3564,21 @@ function buildAnimForPlay(play, prevPlay) {
             dd.archetype = (play.dlType && _DL_ARCH.indexOf(play.dlType) >= 0)
               ? play.dlType : _archForLineman(d, "DL");
           } else if (aT < throwFrac + 0.05) {
-            // DL stuck at LOS engaged with OL — hold position with jitter.
-            // Old code moved them -dir*4*tt (toward the offense) which
-            // crossed straight through the retreating OL. Now both hold
-            // the line and look like a real LOS engagement.
+            // DL engaged with the kick-sliding OL. Was held at d.x with
+            // ~1px wobble — but DL starts 2.5yd ahead of LOS while OL
+            // starts ~0.2yd behind LOS, so they were ~32px apart and
+            // never visually clashed ("dancing without touching" report).
+            // Drive the DL backward toward the OL ~22px (~1.8yd) over
+            // the rush window so the two sprites overlap at the LOS.
+            // Per-DL hash modulates magnitude so each rusher engages
+            // a little differently. -dir = toward defense's own endzone
+            // = toward the LOS from a DL on offense's side of the ball.
+            const _engageRamp = Math.min(1, tt / 0.30);
+            const _engageEased = _engageRamp * _engageRamp * (3 - 2 * _engageRamp);
+            const _engageHash = ((i * 19 + (play.startYard || 0) * 11) >>> 0) % 100 / 100;
+            const _engagePush = (18 + _engageHash * 8) * _engageEased;   // 18-26px
             const wobble = Math.sin(tt * Math.PI * 6 + d.y * 0.08) * 1.2;
-            dd.x = d.x + wobble * 0.6;
+            dd.x = d.x - dir * _engagePush + wobble * 0.6;
             dd.y = d.y + wobble;
             dd.pose = "engage";
             dd.t = tt;
@@ -4303,7 +4312,12 @@ function buildAnimForPlay(play, prevPlay) {
             return { ...p, x: p.x + downfield, y: cy + driftY, pose: "run", t: (t < 0.95 ? ((performance.now() / 333)) % 1 : 0), facing: dir };
           }
           const tt = Math.min(1, aT / 0.55);
-          const dropBack = 3 * tt;
+          // OL kick-slides BACKWARDS to anchor the pocket. Was capped at
+          // 3px (~0.25 yd) — pre-snap and post-snap looked identical and
+          // the OL never visually retreated to meet the rushing DL. Bumped
+          // to ~12px (~1 yd) so the pocket actually compresses and the OL
+          // sprite is close enough to the LOS to collide with the rusher.
+          const dropBack = 12 * tt;
           const wobble = Math.sin(tt * Math.PI * 6 + p.y * 0.05) * 1.3;
           // OL pass-pro archetype: prefer play.olType (specific OL beat
           // on the sack play) when present, else hash by slot.
