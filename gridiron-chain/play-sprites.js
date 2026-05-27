@@ -594,16 +594,13 @@ function _drawJerseyNumber(ctx, label, secondary, cx, cy, scale, dir) {
   //   - Canvas positive rotation = CW visually → text top edge gets
   //     positive slope (goes down as we go right).
   //
-  //   NW: user wants tilted LEFT (left side high) → POSITIVE rotation
-  //   NE: user wants tilted RIGHT (right side high) → NEGATIVE rotation
-  //   SE / SW: chest hidden by current visibility rule, so unused.
-  //
-  // (The geometric "shoulder line slope" derivation gave the opposite
-  // signs but didn't match how PixelLab actually renders the back
-  // surface visually — trusting the eyeball over the geometry.)
+  // Signs from the shoulder-line geometric derivation. The opposite
+  // signs (NE=-1, NW=+1) made the numbers visually "peel off the
+  // bottom of the jersey" — the tilt angled them off the back surface
+  // instead of along it.
   const _DIAG_ROT_SIGN = {
-    "north-east": -1, "north-west": +1,
-    "south-east": +1, "south-west": -1,
+    "north-east": +1, "north-west": -1,
+    "south-east": -1, "south-west": +1,
   };
   let tx = _NUM_TX_BY_DIR[dir];
   if (tx === null) {
