@@ -39,9 +39,9 @@
 const _SPRITE_BASE_URL = "sprites/";
 const _SPRITE_FRAME_SIZE = 92;   // PixelLab default; tracks generator output
 // Multiplier applied to native sprite pixel size when drawing on field.
-// 104px PixelLab sprite × 0.6 = ~62px on-field; matches procedural player
-// height. Tune live via window.GC_SPRITE_SCALE.
-const _SPRITE_SCALE = 0.6;
+// 104px PixelLab sprite at 1.0 = native size. Tune live via
+// window.GC_SPRITE_SCALE.
+const _SPRITE_SCALE = 1.0;
 // Procedural _drawPlayerImpl renders with FEET at the (x, y) point and
 // the body extending up. Our sprite has its visual center near the chest,
 // so we offset the draw downward by half a sprite height to align feet.
@@ -193,20 +193,50 @@ const SpriteAtlas = {
   },
 };
 
-// Multiply-blend tint to recolor white pixels to team color. Cached.
+// Pixel-precise tint: replace WHITE pixels only with team color, preserve
+// dark detail (visor, gloves, outline) so the sprite doesn't go uniformly
+// blue/dark under multiply blend. Cached per (sprite, color).
 function _tintedSprite(srcImg, key, hexColor) {
   let cached = _tintCache.get(key);
   if (cached) return cached;
+  // Parse hex color
+  const c = hexColor.replace("#", "");
+  const cr = parseInt(c.slice(0, 2), 16);
+  const cg = parseInt(c.slice(2, 4), 16);
+  const cb = parseInt(c.slice(4, 6), 16);
   const off = document.createElement("canvas");
   off.width = srcImg.width;
   off.height = srcImg.height;
   const octx = off.getContext("2d");
   octx.drawImage(srcImg, 0, 0);
-  octx.globalCompositeOperation = "multiply";
-  octx.fillStyle = hexColor;
-  octx.fillRect(0, 0, srcImg.width, srcImg.height);
-  octx.globalCompositeOperation = "destination-in";
-  octx.drawImage(srcImg, 0, 0);
+  // Read pixels and selectively tint white-ish ones
+  try {
+    const img = octx.getImageData(0, 0, srcImg.width, srcImg.height);
+    const d = img.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const r = d[i], g = d[i+1], b = d[i+2], a = d[i+3];
+      if (a === 0) continue;
+      // Treat near-white (R,G,B all > 180 AND all within 30 of each other) as jersey/pad surface.
+      // Replace with tint color but preserve relative brightness.
+      if (r > 180 && g > 180 && b > 180 &&
+          Math.abs(r - g) < 30 && Math.abs(g - b) < 30 && Math.abs(r - b) < 30) {
+        // Brightness factor: 1.0 for pure white, ~0.72 for the darkest "white" (180/255).
+        const brightness = (r + g + b) / (3 * 255);
+        d[i]   = Math.round(cr * brightness);
+        d[i+1] = Math.round(cg * brightness);
+        d[i+2] = Math.round(cb * brightness);
+      }
+      // else: preserve original pixel (visor, gloves, outline, etc.)
+    }
+    octx.putImageData(img, 0, 0);
+  } catch (e) {
+    // CORS or other error → fall back to multiply tint
+    octx.globalCompositeOperation = "multiply";
+    octx.fillStyle = hexColor;
+    octx.fillRect(0, 0, srcImg.width, srcImg.height);
+    octx.globalCompositeOperation = "destination-in";
+    octx.drawImage(srcImg, 0, 0);
+  }
   _tintCache.set(key, off);
   return off;
 }
