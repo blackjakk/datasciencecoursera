@@ -138,6 +138,14 @@ function _preloadAllSprites() {
 
 // Last-call diagnostic — populated by drawPlayerSprite for debug.
 const _lastMiss = { pose: null, dir: null, reason: null, count: 0 };
+// Per-pose hit/miss histogram. Cleared via SpriteAtlas.resetCounters().
+const _hits = Object.create(null);
+const _misses = Object.create(null);
+function _bumpHit(pose)   { _hits[pose] = (_hits[pose] || 0) + 1; }
+function _bumpMiss(pose, reason) {
+  const key = `${pose}::${reason}`;
+  _misses[key] = (_misses[key] || 0) + 1;
+}
 
 // Public API
 const SpriteAtlas = {
@@ -165,6 +173,12 @@ const SpriteAtlas = {
   peek: (pose, dir, frame) => {
     const key = `${pose}|${dir}|${frame == null ? "" : frame}`;
     return { key, value: _spriteCache[key] };
+  },
+  // Per-pose hit/miss histogram. Counts since page load (or since reset).
+  counters: () => ({ hits: { ..._hits }, misses: { ..._misses } }),
+  resetCounters: () => {
+    for (const k in _hits) delete _hits[k];
+    for (const k in _misses) delete _misses[k];
   },
 };
 
@@ -208,17 +222,18 @@ function _velocityToDirection(vx, vy, facing) {
 // `facing` is the L/R heading sign (used when stationary).
 // `t` is the pose-internal time (0..1 for animation cycles).
 function drawPlayerSprite(ctx, pose, t, vx, vy, teamPrimary, facing) {
-  if (!_spritesEnabled) { _lastMiss.pose=pose; _lastMiss.reason="atlas-disabled"; _lastMiss.count++; return false; }
+  if (!_spritesEnabled) { _lastMiss.pose=pose; _lastMiss.reason="atlas-disabled"; _lastMiss.count++; _bumpMiss(pose,"atlas-disabled"); return false; }
   const def = _SPRITE_POSES[pose];
-  if (!def) { _lastMiss.pose=pose; _lastMiss.reason="unknown-pose"; _lastMiss.count++; return false; }
+  if (!def) { _lastMiss.pose=pose; _lastMiss.reason="unknown-pose"; _lastMiss.count++; _bumpMiss(pose,"unknown-pose"); return false; }
   const dir = _velocityToDirection(vx || 0, vy || 0, facing);
-  if (!def.dirs.includes(dir)) { _lastMiss.pose=pose; _lastMiss.dir=dir; _lastMiss.reason="dir-not-in-pose"; _lastMiss.count++; return false; }
+  if (!def.dirs.includes(dir)) { _lastMiss.pose=pose; _lastMiss.dir=dir; _lastMiss.reason="dir-not-in-pose"; _lastMiss.count++; _bumpMiss(pose,"dir-not-in-pose"); return false; }
   const frameIdx = def.frames > 1
     ? Math.floor(Math.max(0, Math.min(0.999, t)) * def.frames)
     : null;
   const key = `${pose}|${dir}|${frameIdx == null ? "" : frameIdx}`;
   const src = _spriteCache[key];
-  if (!src || src === "loading") { _lastMiss.pose=pose; _lastMiss.dir=dir; _lastMiss.reason=src==="loading"?"still-loading":"404-or-missing"; _lastMiss.count++; return false; }
+  if (!src || src === "loading") { _lastMiss.pose=pose; _lastMiss.dir=dir; _lastMiss.reason=src==="loading"?"still-loading":"404-or-missing"; _lastMiss.count++; _bumpMiss(pose,src==="loading"?"still-loading":"404-or-missing"); return false; }
+  _bumpHit(pose);
   const tinted = teamPrimary
     ? _tintedSprite(src, `${key}|${teamPrimary}`, teamPrimary)
     : src;
