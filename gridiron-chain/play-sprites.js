@@ -531,8 +531,8 @@ function drawPlayerSprite(ctx, pose, t, vx, vy, teamPrimary, facing, label, seco
     // pulled the number ONTO a shoulder pad. Use bboxCenterX as the
     // base + explicit per-direction shift toward the actual back.
     // Live-tunable via window.GC_NUM_DIAG_BACK_DX / _DY.
-    const _diagDx = (typeof window !== "undefined" && window.GC_NUM_DIAG_BACK_DX != null) ? window.GC_NUM_DIAG_BACK_DX : 7;
-    const _diagDy = (typeof window !== "undefined" && window.GC_NUM_DIAG_BACK_DY != null) ? window.GC_NUM_DIAG_BACK_DY : 5;
+    const _diagDx = (typeof window !== "undefined" && window.GC_NUM_DIAG_BACK_DX != null) ? window.GC_NUM_DIAG_BACK_DX : 5;
+    const _diagDy = (typeof window !== "undefined" && window.GC_NUM_DIAG_BACK_DY != null) ? window.GC_NUM_DIAG_BACK_DY : 0;
     let dxOff = 0, dyOff = 0;
     if (dir === "north-east")      { dxOff = -_diagDx; dyOff = _diagDy; }
     else if (dir === "north-west") { dxOff =  _diagDx; dyOff = _diagDy; }
@@ -562,8 +562,12 @@ function drawPlayerSprite(ctx, pose, t, vx, vy, teamPrimary, facing, label, seco
 // rotation as ~26° of visible shoulder tilt (more aggressive than the
 // previous 18° — user reported the diagonals "look too flat").
 function _diagTx() {
-  const rot = (typeof window !== "undefined" && window.GC_NUM_DIAG_ROT != null) ? window.GC_NUM_DIAG_ROT : 0.45;
-  const sx  = (typeof window !== "undefined" && window.GC_NUM_DIAG_SX  != null) ? window.GC_NUM_DIAG_SX  : 0.70;
+  // Subtle perspective. Aggressive values (rot 0.45, sx 0.70) made
+  // numbers look like they were "peeling off the bottom of the
+  // jersey" — too much tilt + too much horizontal squish reads as
+  // deformed cloth, not as a stitched number on an angled surface.
+  const rot = (typeof window !== "undefined" && window.GC_NUM_DIAG_ROT != null) ? window.GC_NUM_DIAG_ROT : 0.22;
+  const sx  = (typeof window !== "undefined" && window.GC_NUM_DIAG_SX  != null) ? window.GC_NUM_DIAG_SX  : 0.88;
   return { rot, sx };
 }
 const _NUM_TX_BY_DIR = {
