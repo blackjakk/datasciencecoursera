@@ -1420,8 +1420,14 @@ function buildAnimForPlay(play, prevPlay) {
   //   20yd → 2667ms,  40yd → 4333ms,  60yd → 6000ms,  80yd → 7667ms,
   //   100yd → 9333ms (under the cap)
   function scaledDuration(yds) {
+    // ~83ms per yard at 12 yps (visual top speed, slightly compressed
+    // from the real-NFL 10-12 yps so plays don't drag).
+    // Floor was 2200ms — that made a 5-yard run play out at 1.5 yps
+    // (true: ~8 yps) = obvious slow-motion. Drop to 1200ms; +700ms
+    // baseline covers snap acceleration + a brief reaction window.
+    // Cap stays at 11500ms (capped at full-field plays).
     const distTimeMs = Math.abs(yds || 0) / 12 * 1000;
-    return clamp(distTimeMs + 1000, 2200, 11500);
+    return clamp(distTimeMs + 700, 1200, 11500);
   }
   // _stPlayTiming / _stPlayDuration live at module scope — see top of file.
   // Pre-snap timing — ~3 seconds of huddle break, line set, audible, "HUT HUT"

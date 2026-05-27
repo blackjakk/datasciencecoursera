@@ -346,6 +346,14 @@ function _settledFrame(pose, label, frames, role) {
   return 0;
 }
 
+// Poses where the sprite direction should come from FACING, not
+// velocity. Used for "moving backward but facing forward" actions:
+// QB dropping back from the snap, DB backpedaling into coverage. Real
+// motion is opposite the facing — using velocity here would render
+// the player turned around ("looking away from the play"), and small
+// EMA fluctuations would flip the sprite each frame = visible spasms.
+const _FACING_ONLY_POSES = new Set(["drop_step", "backpedal"]);
+
 // Map (vx, vy, facing) → 8-direction string. Velocity wins if moving;
 // otherwise fall back to facing (±1 = east/west — matches the L/R axis
 // the engine uses for facing).
@@ -380,7 +388,9 @@ function drawPlayerSprite(ctx, pose, t, vx, vy, teamPrimary, facing, label, seco
   }
   const def = _SPRITE_POSES[pose];
   if (!def) { _lastMiss.pose=pose; _lastMiss.reason="unknown-pose"; _lastMiss.count++; _bumpMiss(pose,"unknown-pose"); return false; }
-  const dir = _velocityToDirection(vx || 0, vy || 0, facing);
+  const dir = _FACING_ONLY_POSES.has(pose)
+    ? (facing == null || facing >= 0 ? "east" : "west")
+    : _velocityToDirection(vx || 0, vy || 0, facing);
   if (!def.dirs.includes(dir)) { _lastMiss.pose=pose; _lastMiss.dir=dir; _lastMiss.reason="dir-not-in-pose"; _lastMiss.count++; _bumpMiss(pose,"dir-not-in-pose"); return false; }
   const frameIdx = def.frames > 1
     ? (_SETTLED_POSES.has(pose)
