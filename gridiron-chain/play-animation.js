@@ -2550,18 +2550,19 @@ function buildAnimForPlay(play, prevPlay) {
           const targetY = clamp(rb.y + Math.sin(angle) * radius,
                                 FIELD.TOP + 20, FIELD.BOT - 20);
           if (p._followX == null) { p._followX = p.x; p._followY = p.y; }
-          // Speed-cap the converge motion at ~14 yps so celebrators
-          // don't sprint superhumanly (lerp 0.13/frame was ~60 yps).
+          // Distance-proportional speed with a max-yps cap. Was a hard
+          // "if far → max speed; else snap to target" lerp — produced
+          // abrupt stops when the celebration target stopped moving.
+          // Speed scales with remaining distance so the converge eases
+          // in naturally.
           const _fdx = targetX - p._followX;
           const _fdy = targetY - p._followY;
           const _fd  = Math.hypot(_fdx, _fdy);
           const _maxPF = 14 * FIELD.PX_PER_YARD * 16 / 1000;   // ≈3.36 px/frame
-          if (_fd > _maxPF) {
-            p._followX += (_fdx / _fd) * _maxPF;
-            p._followY += (_fdy / _fd) * _maxPF;
-          } else {
-            p._followX = targetX;
-            p._followY = targetY;
+          if (_fd > 0.001) {
+            const _speed = Math.min(_maxPF, _fd * 0.16);
+            p._followX += (_fdx / _fd) * _speed;
+            p._followY += (_fdy / _fd) * _speed;
           }
           const _gap = Math.hypot(p._followX - targetX, p._followY - targetY);
           const celebPose = _gap < 18 ? "celebrate" : "run";
@@ -4302,24 +4303,27 @@ function buildAnimForPlay(play, prevPlay) {
           }
           if (targetX != null) {
             if (p._followX == null) { p._followX = p.x; p._followY = p.y; }
-            // Speed-capped converge motion. The old lerp rate (0.13 for
-            // celebration, 0.05 for downfield blocking) put players at
-            // 40-60 yps in early frames when the gap was large —
-            // superhuman. Cap at 15 yps (celebration sprint) or 14 yps
-            // (downfield blocker — must equal or exceed WR_TOP_YPS_VISUAL
-            // = 13 so they can hold the slot ahead of the carrier
-            // instead of getting caught and "freezing" beside him).
+            // Speed-capped converge motion. Cap at 15 yps (celebration
+            // sprint) or 14 yps (downfield blocker — must equal or
+            // exceed WR_TOP_YPS_VISUAL = 13 so they can hold the slot
+            // ahead of the carrier instead of getting caught and
+            // "freezing" beside him).
             const _maxYPSps = isTDCeleb ? 15 : 14;
             const _maxPF = _maxYPSps * FIELD.PX_PER_YARD * 16 / 1000;
             const _fdx = targetX - p._followX;
             const _fdy = targetY - p._followY;
             const _fd  = Math.hypot(_fdx, _fdy);
-            if (_fd > _maxPF) {
-              p._followX += (_fdx / _fd) * _maxPF;
-              p._followY += (_fdy / _fd) * _maxPF;
-            } else {
-              p._followX = targetX;
-              p._followY = targetY;
+            // Distance-proportional speed → natural deceleration. Old
+            // code was "full speed until close, then snap to target":
+            // when the carrier got tackled, target stopped moving and
+            // the blocker's velocity dropped 14yps → 0 in one frame,
+            // producing the "fast then abrupt stop" user report. Now
+            // speed scales with remaining distance (capped at _maxPF),
+            // so the blocker decelerates smoothly as the gap closes.
+            if (_fd > 0.001) {
+              const _speed = Math.min(_maxPF, _fd * 0.16);
+              p._followX += (_fdx / _fd) * _speed;
+              p._followY += (_fdy / _fd) * _speed;
             }
             return { ...p,
                      x: p._followX, y: p._followY,
