@@ -454,13 +454,23 @@ function drawPlayerSprite(ctx, pose, t, vx, vy, teamPrimary, facing, label, seco
 //   NW:  mirror of NE — leans left
 //   SE:  body tilts so chest-right is closest — number leans right too
 //   SW:  mirror of SE — leans left
+// Live-tunable via window.GC_NUM_DIAG_ROT / window.GC_NUM_DIAG_SX so
+// the diagonal perspective can be iterated without a redeploy. Defaults
+// reflect PixelLab's "low top-down" camera, which projects a 45° body
+// rotation as ~26° of visible shoulder tilt (more aggressive than the
+// previous 18° — user reported the diagonals "look too flat").
+function _diagTx() {
+  const rot = (typeof window !== "undefined" && window.GC_NUM_DIAG_ROT != null) ? window.GC_NUM_DIAG_ROT : 0.45;
+  const sx  = (typeof window !== "undefined" && window.GC_NUM_DIAG_SX  != null) ? window.GC_NUM_DIAG_SX  : 0.70;
+  return { rot, sx };
+}
 const _NUM_TX_BY_DIR = {
   "north":      { sx: 1.00, rot:  0.00 },
   "south":      { sx: 1.00, rot:  0.00 },
-  "north-east": { sx: 0.75, rot: -0.32 },   // back tilted away from camera
-  "north-west": { sx: 0.75, rot:  0.32 },
-  "south-east": { sx: 0.75, rot:  0.32 },   // chest tilted toward camera
-  "south-west": { sx: 0.75, rot: -0.32 },
+  "north-east": null,   // back tilted away from camera — leans right
+  "north-west": null,   // mirror of NE — leans left
+  "south-east": null,   // chest tilted toward camera — leans right
+  "south-west": null,   // mirror of SE — leans left
 };
 
 // Render a chunky pixel-art-style jersey number at (cx, cy) in ctx
@@ -472,7 +482,26 @@ function _drawJerseyNumber(ctx, label, secondary, cx, cy, scale, dir) {
     ? window.GC_SPRITE_TEXT_SIZE : Math.round(13 * scale);
   const x = Math.round(cx);
   const y = Math.round(cy);
-  const tx = _NUM_TX_BY_DIR[dir] || { sx: 1.00, rot: 0.00 };
+  // Diagonal directions read the live-tunable transform; cardinals use
+  // their constant entries (no tilt for N/S, no number for E/W).
+  // Rotation sign matches the body's shoulder line in the sprite:
+  //   NE: body's right shoulder forward-right (back visible, shoulders
+  //       go from lower-left to upper-right) → number leans right →
+  //       negative rotation (canvas CW = positive, so leans-right = -)
+  //   NW: mirror (leans left → positive)
+  //   SE: chest visible, body's right shoulder forward-right (shoulders
+  //       go from upper-left to lower-right) → number leans left → +
+  //   SW: mirror (leans right → negative)
+  const _DIAG_ROT_SIGN = {
+    "north-east": -1, "north-west": +1,
+    "south-east": +1, "south-west": -1,
+  };
+  let tx = _NUM_TX_BY_DIR[dir];
+  if (tx === null) {
+    const d = _diagTx();
+    tx = { sx: d.sx, rot: d.rot * (_DIAG_ROT_SIGN[dir] || 0) };
+  }
+  if (!tx) tx = { sx: 1.00, rot: 0.00 };
   ctx.save();
   // Per-direction transform: translate to the text anchor, rotate to
   // match the body's tilt, scale-X to foreshorten on diagonals.
