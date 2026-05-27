@@ -155,9 +155,13 @@ function _computeBodyCenter(img) {
   let data;
   try { data = c.getImageData(0, 0, w, h).data; }
   catch (_) { return { centerX: w / 2, shoulderY: Math.round(h * 0.28), bboxTop: 0, bboxBottom: h }; }
-  // Single pass: bbox + per-row widths. Use alpha > 64 to ignore
-  // semi-transparent AA edges that would otherwise inflate widths.
+  // Single pass: bbox + per-row widths + per-row min/max X. Use
+  // alpha > 64 to ignore semi-transparent AA edges that would
+  // otherwise inflate widths.
   const rowWidths = new Int16Array(h);
+  const rowMinXs = new Int16Array(h);
+  const rowMaxXs = new Int16Array(h);
+  for (let i = 0; i < h; i++) { rowMinXs[i] = -1; rowMaxXs[i] = -1; }
   let minX = w, maxX = 0, minY = h, maxY = 0, count = 0;
   let maxRowWidth = 0;
   for (let y = 0; y < h; y++) {
@@ -171,6 +175,8 @@ function _computeBodyCenter(img) {
     if (rMaxX >= 0) {
       const rw = rMaxX - rMinX;
       rowWidths[y] = rw;
+      rowMinXs[y] = rMinX;
+      rowMaxXs[y] = rMaxX;
       if (rMinX < minX) minX = rMinX;
       if (rMaxX > maxX) maxX = rMaxX;
       if (y < minY) minY = y;
@@ -202,8 +208,25 @@ function _computeBodyCenter(img) {
       break;
     }
   }
+  // TORSO CENTER X at shoulder level. Bbox center X is pulled by
+  // swung arms / diagonal body extent — for a body even slightly
+  // angled, bbox-center sits off the actual back surface. Average
+  // the row-centers across a few rows just below the shoulder line
+  // for the true torso/back center at the right Y.
+  let torsoCenterX = (minX + maxX) / 2;
+  let cxSum = 0, cxCount = 0;
+  const sampleEnd = Math.min(maxY, shoulderY + 10);
+  for (let y = shoulderY; y <= sampleEnd; y++) {
+    if (rowMaxXs[y] >= 0) {
+      cxSum += (rowMinXs[y] + rowMaxXs[y]) / 2;
+      cxCount++;
+    }
+  }
+  if (cxCount > 0) torsoCenterX = cxSum / cxCount;
+
   const result = {
-    centerX: (minX + maxX) / 2,
+    centerX: torsoCenterX,
+    bboxCenterX: (minX + maxX) / 2,
     shoulderY,
     bboxTop: minY,
     bboxBottom: maxY,
