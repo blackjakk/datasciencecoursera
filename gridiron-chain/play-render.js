@@ -501,7 +501,7 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     ctx.translate(x, y);
     const vx = loco && loco.state ? loco.state.vxEMA : 0;
     const vy = loco && loco.state ? loco.state.vyEMA : 0;
-    if (drawPlayerSprite(ctx, pose, t, vx, vy, color)) {
+    if (drawPlayerSprite(ctx, pose, t, vx, vy, color, facing)) {
       ctx.restore();
       return;
     }
