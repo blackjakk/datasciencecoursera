@@ -2738,28 +2738,12 @@ function buildAnimForPlay(play, prevPlay) {
         })();
         drawRunTrail(ctx, centerX, cy, ballX, ballY, runT, rgba);
       }
-      // HANDS-TRACK-BALL: pull the standalone ball to the carrier's
-      // tuck-hand world position WHEN the engine's ball position is
-      // already near the carrier's foot. Pre-snap the engine places
-      // the ball at the center (LOS) while the carrier is in the
-      // backfield — overriding to carrier-hand would put the ball in
-      // the RB's hands before the snap (user-reported "float in front
-      // of RB pre-snap"). Proximity gate (< 30px) means the override
-      // only fires when the engine itself has handed the ball off.
-      const _carrierName = play.rusher || play.receiver;
-      const _carrierEntry = _carrierName && drawPlayer._carryHandSink
-        ? drawPlayer._carryHandSink[_carrierName]
-        : null;
-      let _ballDrawX = ballX, _ballDrawY = ballY;
-      if (_carrierEntry) {
-        const dx = ballX - _carrierEntry.footX;
-        const dy = ballY - _carrierEntry.footY;
-        if (Math.hypot(dx, dy) < 30) {
-          _ballDrawX = _carrierEntry.x;
-          _ballDrawY = _carrierEntry.y;
-        }
-      }
-      drawBall(ctx, _ballDrawX, _ballDrawY);
+      // Ball drawn at the engine-computed (ballX, ballY). drawBall()
+      // itself runs a proximity-gated foot-to-hand auto-shift (24px
+      // window) for any nearby carrier — so a separate call-site
+      // override was redundant and the source of the pre-snap "ball
+      // in RB's hands" bug. Single canonical mechanism now.
+      drawBall(ctx, ballX, ballY);
       // SPEED OPTION banner — shows the play call. Once the read fires
       // (after PITCH_T), a secondary line shows whether the QB made the
       // RIGHT or WRONG read of the edge defender's commit.
