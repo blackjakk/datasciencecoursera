@@ -522,6 +522,11 @@ function drawPlayer(ctx, x, y, color, secondary, label, pose, t, facing, style =
     const vx = loco && loco.state ? loco.state.vxEMA : 0;
     const vy = loco && loco.state ? loco.state.vyEMA : 0;
     if (drawPlayerSprite(ctx, pose, t, vx, vy, color, facing)) {
+      // ── Jersey number + last name overlay ────────────────────────────
+      // The sprite hook bypasses _drawPlayerImpl which used to draw the
+      // jersey number + name. Restore them on top so players are still
+      // identifiable on the field.
+      _drawSpriteTextOverlay(ctx, label, secondary, style);
       ctx.restore();
       return;
     }

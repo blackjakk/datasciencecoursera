@@ -300,9 +300,49 @@ function drawPlayerSprite(ctx, pose, t, vx, vy, teamPrimary, facing) {
   return true;
 }
 
+// ── Jersey text overlay (number + last name) ────────────────────────────
+// Drawn on top of a sprite. ctx must already be translated to the player's
+// local origin (foot at 0,0; body extending up to -fh). Positions tuned for
+// 104px sprites at scale 1.0 — number on upper back, name lower-middle.
+// Live-tunable via window.GC_SPRITE_TEXT_Y_NUM and window.GC_SPRITE_TEXT_Y_NAME.
+function _drawSpriteTextOverlay(ctx, label, secondary, style) {
+  const labelStr = (label != null && label !== "") ? String(label) : "";
+  if (!labelStr && !(style && (style.lastName || style.name))) return;
+  const numY = (typeof window !== "undefined" && window.GC_SPRITE_TEXT_Y_NUM != null)
+    ? window.GC_SPRITE_TEXT_Y_NUM : -55;
+  const nameY = (typeof window !== "undefined" && window.GC_SPRITE_TEXT_Y_NAME != null)
+    ? window.GC_SPRITE_TEXT_Y_NAME : -40;
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  // Jersey number — bold, secondary team color with black drop shadow
+  if (labelStr) {
+    ctx.font = "bold 13px Impact, Arial Black, sans-serif";
+    ctx.fillStyle = "rgba(0,0,0,0.65)";
+    ctx.fillText(labelStr, 1, numY + 1);
+    ctx.fillStyle = secondary || "#fff";
+    ctx.fillText(labelStr, 0, numY);
+    ctx.strokeStyle = "rgba(0,0,0,0.45)";
+    ctx.lineWidth = 0.6;
+    ctx.strokeText(labelStr, 0, numY);
+  }
+  // Last name above the number (lower back nameplate)
+  const lastName = style && (style.lastName ||
+    (style.name ? String(style.name).split(/\s+/).pop() : null));
+  if (lastName) {
+    ctx.font = "bold 7px sans-serif";
+    ctx.fillStyle = "rgba(0,0,0,0.65)";
+    ctx.fillText(lastName, 0.5, nameY + 0.5);
+    ctx.fillStyle = secondary || "#fff";
+    ctx.fillText(lastName, 0, nameY);
+  }
+  ctx.restore();
+}
+
 // Auto-preload at module load.
 if (typeof window !== "undefined") {
   setTimeout(_preloadAllSprites, 0);
   window.SpriteAtlas = SpriteAtlas;
   window.drawPlayerSprite = drawPlayerSprite;
+  window._drawSpriteTextOverlay = _drawSpriteTextOverlay;
 }
