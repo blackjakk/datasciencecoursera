@@ -180,15 +180,23 @@ function _computeBodyCenter(img) {
     }
   }
   if (count === 0) return { centerX: w / 2, shoulderY: Math.round(h * 0.28), bboxTop: 0, bboxBottom: h };
-  // SHOULDER LINE detection: scan from bbox top, find the first row
-  // whose width hits the threshold. Anatomy guarantees the transition
-  // (narrow helmet/head → wide shoulders) occurs here. The 0.75
-  // threshold is forgiving enough that PixelLab's pixel-quantized
-  // shoulder edge counts as "wide enough" but excludes raised arms
-  // (single-arm width is well below 75% of full shoulders).
-  const widthThreshold = maxRowWidth * 0.75;
+  // SHOULDER LINE detection — RESTRICTED TO UPPER HALF of bbox.
+  // Anatomy guarantees shoulders sit in the upper portion of any pose
+  // (run, stance, tackled-prone — head end is always near the bbox
+  // top). Restricting the search avoids being misled by:
+  //   - Legs spreading wide in mid-stride (would otherwise inflate
+  //     maxRowWidth → threshold never met at actual shoulders)
+  //   - Hips wider than shoulders (uncommon but possible)
+  //   - Arms extending sideways in catch/dive (low arm-spread)
+  // Compute max within the upper half, then scan only the upper half.
+  const upperEnd = minY + Math.round((maxY - minY) * 0.55);
+  let upperMaxWidth = 0;
+  for (let y = minY; y <= upperEnd; y++) {
+    if (rowWidths[y] > upperMaxWidth) upperMaxWidth = rowWidths[y];
+  }
+  const widthThreshold = upperMaxWidth * 0.75;
   let shoulderY = minY;
-  for (let y = minY; y <= maxY; y++) {
+  for (let y = minY; y <= upperEnd; y++) {
     if (rowWidths[y] >= widthThreshold) {
       shoulderY = y;
       break;
